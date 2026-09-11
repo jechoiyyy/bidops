@@ -1,0 +1,15 @@
+{
+  "schema": "bidops.prespec-v4-activation.v2",
+  "version": 2,
+  "samples": [],
+  "automatic_requirements": {},
+  "execution": {
+    "policy_schema": "bidops.prespec-overview-policy.v5",
+    "policy_digest": null,
+    "stages": ["prespec_overview_claims", "prespec_overview_semantic"],
+    "max_model_calls": 3,
+    "max_semantic_calls": 1,
+    "call_timeout_seconds": 300,
+    "lease_seconds": 1200
+  }
+}

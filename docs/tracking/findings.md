@@ -1259,30 +1259,71 @@ runner 소비자가 없어 보류했다. 운영 DB/MinIO 쓰기·migration 적�
 - 상황: 35/59/142 모두 heading 선택기가 `ready`라 `needs_human_review` target이 만들어지지 않는다. R7의 확정 REST·화면·CLI 보조는 API 종단 테스트(`test_page_overview`·`test_prespec_v4_ops`)와 Playwright 목 검사로만 확인했다.
 - 후속: 다음 수집 회차에서 heading 선택기가 미결정인 사전규격이 나오면 `docs/validation-runs/2026-09-10-rhwp-r7-range-review.md`의 절차로 운영 확인하고 결과를 이 항목에 덧붙인다.
 
-## 개요 숫자 검증이 기간을 사업예산 근거로 허용한다 (2026-09-10)
+## 개요 숫자 검증이 기간을 사업예산 근거로 허용한다 (2026-09-10, 새 v5 실행 해결)
 
 - 재현: `page_overview_validation.validate_page_overview_detailed`에 유효한 page-review v3 payload를 넣는다. 근거 페이지는 `사업을 진행한다. 시스템을 구축한다. 계약기간은 6개월이다. 예산은 미정이다.`, `budget_and_period`의 사실은 `사업예산은 6억원이다.`와 `evidence_pages=[1]`이다. 격리 합성 입력에서 결과는 `errors=[]`, `warnings=[]`였다.
 - 원인·영향: 숫자를 정수 문자열 집합으로 비교하므로 `6개월`과 `6억원`을 구분하지 않는다. 사업예산·기간·단위·수치의 관계가 틀려도 v4 runner가 완료 결과로 저장하고 화면이 근거 검사 통과로 표시할 수 있다. 실제 Qwen 응답에서 이 오류가 발생했다는 관측은 아니다.
-- 현재 범위에서 해결하지 않은 이유: 이번 작업은 실사용 전 최종 리뷰이며 검증 계약·코드 수정은 수행하지 않았다. 운영 모델 호출과 결과 게시 없이 합성 입력으로만 재현했다.
-- 후속: 숫자·단위·금액/기간 종류와 해당 원문 구절을 함께 대조하고, 대응을 확정할 수 없는 사실은 사람 확인으로 보낸다. 기간→예산, 단위 변경, 서로 다른 항목 사이 수치 교환을 회귀 검사한다.
+- 해결: 새 v5 실행은 주장별 정확 인용과 Decimal 수치·단위·주체·역할·VAT·기산점을 검사하고 별도 Qwen 의미 검토를 요구한다. 하나라도 미검증이면 전체 `needs_human_review`, 결과 없음이다. 검증된 문장만 결정적으로 구성한다. 과거 v3 parser·원응답·결과를 보존하며 새 검증 통과로 승격하지 않는다.
+- 검증: 새 순수 검증기의 고유 95개 사례와 runner 사실 실패·의미 불확실·최종 구성/소비자 재검사에서 기간→예산, 단위/주체/VAT 교환과 근거 위조를 차단했다([Plan](../0910_prespec-workflow-hardening/Plan.md)). 의미 응답은 fake이며 실제 Qwen 품질 검증·운영 배포는 아직 아니다.
 
-## 사전규격 수집기를 같은 회차에 재실행하면 원문을 덮어쓴다 (2026-09-10)
+## 사전규격 수집기를 같은 회차에 재실행하면 원문을 덮어쓴다 (2026-09-10, 해결)
 
 - 재현: 임시 `raw/prespec-page-001.json`에 기존 내용을 만든 뒤 `collect_notices.collect_source`를 같은 경로로 호출한다. HTTP 함수는 빈 정상 응답을 반환하는 fake로 교체한다. 외부 호출 없이 기존 파일이 새 응답으로 교체됨을 확인했다.
 - 원인·영향: `collect_notices.py`는 raw 페이지와 `collected-notices.json`을 모두 `write_text`로 쓰며 기존 회차를 거부하지 않는다. 운영 문서의 날짜 기반 회차 ID를 같은 날 재사용하면 과거 원문·정규화 산출물의 불변성이 깨진다. 발주계획 전용 수집기의 배타적 파일 생성과 다르다.
-- 현재 범위에서 해결하지 않은 이유: 리뷰 범위에서 기존 수집·재분류 CLI 계약을 바꾸지 않았다. 실제 회차 파일은 수정하지 않았다.
-- 후속: 네트워크 호출 전에 기존 산출물 경로를 거부하고 파일을 배타적으로 생성한다. 재수집·재분류는 고유한 새 회차로만 수행하며 기존 raw의 재사용은 읽기 경계로 둔다.
+- 해결: collector의 회차/파일 배타 생성과 `--from-raw SOURCE_RAW`→별도 새 출력 계약, lifecycle·예약 호출부를 함께 수정했다. 기존 빈 폴더·symlink·경로 이탈은 키 확인 전에 거부한다.
+- 검증: collector 최초 35건, 발주계획 정규화 회귀 8건, 교차 pipeline 2건, 직접 backend 호출부 22건 통과. 실제 두 프로세스 경쟁의 패자 키·HTTP 호출은 0회였고 기존 raw hash·부분 실패 보존을 확인했다. 이후 최종 JSON 저장 실패가 완료 provenance를 남기는 경계도 수정해 신규 사례 포함 관련 3건 통과(collector 고유 36건). 실행 명령은 [작업 Plan](../0910_prespec-workflow-hardening/Plan.md)에 기록한다. 운영 수집·기존 회차 변경은 하지 않았다.
 
-## 최초 모델 확인 실패가 개요 worker 수명 동안 캐시된다 (2026-09-10)
+## 최초 모델 확인 실패가 개요 worker 수명 동안 캐시된다 (2026-09-10, 해결)
 
 - 재현: `PrespecV4OverviewRunner`에 첫 `verify_identity`만 실패하고 이후 정상인 fake client를 주고 `_resolve()`를 두 번 호출한다. 두 결과 모두 `(None, None)`이고 실제 identity 호출은 1회다. fake client를 직접 다시 확인하면 정상 identity를 반환한다.
 - 원인·영향: 실패도 `_resolved=(None, None)`으로 저장하고 이후 즉시 반환한다. 합성 worker가 runner를 loop 밖에서 한 번 만들기 때문에 사설 vLLM이 복구되어도 큐가 `awaiting_model`에 머문다. 기존 `PreSpecOverviewRunner`도 같은 실패 캐시 패턴이다.
-- 현재 범위에서 해결하지 않은 이유: 리뷰 범위에서 worker의 재확인·연결 수명 정책을 바꾸지 않았다.
-- 후속: 성공 binding과 일시 실패를 구분하고 입력을 전송하지 않는 identity 확인에 제한된 재확인 간격을 둔다. 수정 전에는 endpoint 정상 확인 후 합성 worker를 재기동해야 한다.
+- 해결: 두 runner의 성공 binding cache와 일시 실패를 분리했다. purpose/endpoint 설정/model/revision/policy 결속과 10→30→60→120→300초 backoff, 고정 오류 차단, 내부 client 정리, 실행 중 identity 오류 무효화를 적용했다.
+- 검증: 두 runner와 core의 fake clock 사례에서 최초 실패 후 복구, 대기 중 문서 호출 0, 고정 불일치 유지와 설정 변경을 확인했다. [Plan](../0910_prespec-workflow-hardening/Plan.md)의 관련 core 57건/기존 개요·Luna·analysis 69건/v4 27건 범위에 포함되며 운영 장애를 유발하지 않았다.
 
-## 비활성 v4 대기 작업이 다른 문서의 기존 개요 처리도 막는다 (2026-09-10)
+## 비활성 v4 대기 작업이 다른 문서의 기존 개요 처리도 막는다 (2026-09-10, 해결)
 
 - 재현: 격리 SQLite·filesystem fixture에서 v4 target을 활성화·enqueue한 뒤 비활성화한다. 처리 가능한 legacy runner를 주입하고 합성 개요 `run_once`를 부르면 `status=disabled`, `claimed=false`, legacy 호출 0회다.
 - 원인·영향: `prespec_v4_runner.py`는 queued/running v4 attempt가 하나라도 있고 activation이 OFF이면 legacy 분기와 lease 만료 처리 전에 반환한다. 해당 v4 문서를 제외한 기존 개요까지 진행되지 않으며 만료된 v4 running 상태도 이 경로에서는 닫히지 않는다.
-- 현재 범위에서 해결하지 않은 이유: 리뷰 범위에서 dispatch·중단 상태 전이를 바꾸지 않았다. 운영 큐를 생성하거나 비활성화하지 않았다.
-- 후속: v4 호출 금지는 유지하면서 lease 정리와 무관한 legacy 문서 처리를 분리한다. OFF 상태에서 queued/running v4와 별도 legacy 작업이 함께 있는 경우를 회귀 검사한다.
+- 해결: OFF와 무관하게 lease를 정리하고, 처리 가능한 v4가 없으면 예약 문서를 제외한 legacy를 배정한다. OFF는 대기·실행 attempt와 연결 job을 같은 gate에서 취소하며 이전 activation의 늦은 응답은 call 이력만 남긴다.
+- 검증: fake worker/clock의 OFF·배정·만료·다른 소유자 사례와 임시 PostgreSQL 17의 두 세션 gate 경쟁 4건에서 중지 이후 claim/게시 차단, 초안·의미 응답 뒤 OFF→ON fence, 게시가 먼저인 완료 보존을 확인했다([Plan](../0910_prespec-workflow-hardening/Plan.md)). 운영 큐는 변경하지 않았다.
+
+## ro_backup의 sequence SELECT 누락으로 운영 DB 백업이 실패한다 (2026-09-10, 해결)
+
+- 재현: 현재 0024 운영 DB에 기존 `scripts/backup-postgres.sh`를 ro_backup 계정으로 실행하면 `permission denied for sequence agency_portal_id_seq`로 exit 1이다. 새 백업 `backups/prespec-precall-20260910-HGYzGB/postgres/full/bidops-20260910T103149Z.dump`는 0 B로 남아 복구에 사용할 수 없다. 읽기 전용 catalog 조회에서 bidops sequence 22개 모두 해당 역할의 SELECT가 없음을 확인했다.
+- 원인·영향: `scripts/runtime-privileges.sql`은 ro_backup의 모든 sequence 권한을 회수하지만 마지막에는 현재/미래 table SELECT만 복구한다. pg_dump가 sequence의 last_value/is_called를 읽지 못해 검증 가능한 DB 백업과 새 0025 운영 적용을 막는다. 이번 claim ledger 변경 전부터의 정책이며 객체 백업 966 version은 별도로 정상 완료했다.
+- 해결: 사용자 운영 승인 뒤 runtime 정책에 현재/미래 sequence SELECT만 추가했다. 임시 PostgreSQL에서 현재/새 sequence 읽기·nextval/setval 거부와 app/worker 미래 권한 미상속, 정적 정책 검사 2건이 통과했다. 운영에서는 소유자 migrate로 22개 SELECT만 복구하고 ro_backup 계정으로 새 dump를 생성했다(22,530,409 B, SHA `f04fb97c528312bfe32df64b9273b17901d3793d4af597f9088e5596ff0a67d1`, pg_dump·pg_restore 목록 읽기 exit 0).
+- 보존: 이전 0 B 실패 파일과 객체 백업은 남겼다. 새 백업 manifest는 `backups/prespec-deploy-20260910-cqJZ3W/manifest.json`이며 기존 객체 백업이 현재 DB의 active 참조 596개를 모두 포함한다. 실제 restore·외부 보존 복사·WAL 검증은 미실행이다.
+
+## 0910 신규 RFP 절 후보 검사 실패 (2026-09-11 운영 core 재준비6건 해결)
+
+- 재현: 승인된 신규 notice743·745·746·747·754·755의 안전한 RFP를 기존 `bidops-rdp-r7:20260910` worker, prepare_pdf=true/300초/64MiB 조건으로 각1회 준비하면 `pdf_preparation_failed:section_candidates_invalid`로 terminal 실패한다. 같은 실행의 다른9건은 snapshot을 만들었다.
+- 영향: 위6건은 개요 입력을 동결하지 못해 Qwen 호출 대상에서 제외된다. 원본15개 전체의 version/hash/size 재조회는 일치했으며 이 실패를 원문 변조나 악성코드 검출로 단정하지 않는다.
+- 원인: 사이드 리뷰의 pinned rhwp digest 재현은 6건 모두 exit0였다. 743·745·754·755는 정상 outline(전체/반환 5/5·5/5·28/28·1/1), 746·747은 67/50·111/50 부분 반환인데 BidOps가 mode와 전체=반환을 잘못 강제했다. 이는 전체 PDF 재변환 성공 근거는 아니다.
+- 수정/검증: outline·총/반환 수를 구분한 후보 v2, digest의 advisory 실패와 검증된 core 분리, 부분 후보의 수동 쪽 선택을 구현했다. native parser/processor·sidecar 소비·범위 연결 격리 검사가 통과했다([Plan](../0910_prespec-workflow-hardening/Plan.md)).
+- 운영 확인: 후속 승인으로 수정 web/document-worker2를 반영하고 위6건만 각1회 준비해 모두 core PDF/page-text를 얻었다. 원본·기존 실패·결과·리뷰는 동일하고 새 snapshot/target각6을 추가했다. 743·745는 범위 시작 미확정,746·747은 부분 후보라 수동 확인이다. 754·755는 제안 작성 양식 오선택을 발견해 아래 후속으로 분리했다. Qwen은0, source-only 준비 뒤 OFF다. [새 실행 증거](../../.dryforge/prespec-mvp-deploy-20260911-OIBy24/README.md), [이전 실패 보존](../../.dryforge/prespec-0910-preparation-3vfrYK/pdf-execution.json).
+
+## 준비된 선택 manifest의 공백 페이지 거부 (2026-09-11 코드·고정 입력 검증·배포 완료)
+
+- 재현: 신규744 target `4445f2a6-bb87-4807-9245-4fbb87c327dc`와759 target `86441326-d178-4055-aee4-503a76168528`은 range ready이지만 `_load_manifest`에서 `manifest_invalid`다. 선택 범위 마지막744/9쪽은8자,759/8쪽은9자의 공백뿐이며 해당 검사 `not text_value.strip()`를 위반한다. manifest SHA/byte count와 각 page text SHA는 모두 일치한다.
+- 영향: 입력 용량이나 사실 검증과 무관한 준비 계약 불일치다. 모델HTTP0에서 발견했으며 기존 준비 실패 함수로 `failed/manifest_invalid`를 기록해 빈 성공 상태로 보이지 않게 했다. 원문·PDF·target·manifest는 그대로 보존했다.
+- 수정/검증: 일부 공백은 번호/text/hash 그대로 허용하고 전체 공백은 거부한다. 공백 인용을 근거로 통과시키지 않는 직접 검사4건과 운영 고정 입력의 읽기 전용 hash/PDF 재확인, 두 단계 offline preview가 통과했다. 744(3,549자)·759(2,171자)는 입력 준비 가능이며 실제 Qwen/내용 검증 성공은0이다. 수정본 배포는 완료했고 이전 failed 행과 고정 원문은 보존했다. 모델 전송은 하지 않았다. [MVP 준비 기록](../../.dryforge/prespec-0910-preparation-3vfrYK/README.md).
+
+## 0910의 수동 범위·대체 문서·안전 오류 후속 (2026-09-11, 미완료)
+
+- 실패6건의 core 재준비 뒤754·755의 자동 ready가 각각49쪽124자/30쪽145자의 `제안개요` 작성 양식을 선택한 것을 확인했다. 해당 명시 장 제목만 `ambiguous_scope_boundary`로 보내는 최소 가드와 기존 ready의 읽기 전용 경고를 검증·배포했다. 기술적 용량이 작아도 범위가 부적격이므로 입력 준비 완료에 넣지 않는다. 기존 target은 보존하며743·745·746·747·751·753·754·755·756·758·760 총11건의 정당한 범위를 담당자가 확인해야 한다. [운영 확인](../../.dryforge/prespec-mvp-deploy-20260911-OIBy24/scope-api-verification.json).
+- 753의 기존 2–18쪽/65,141자 범위는 같은 줄 복수 장 경계로 모호하다. 새 선택기는 전체 page-text/PDF hash를 읽기 전용 대조한 뒤 `ambiguous_scope_boundary`를 반환했고 기존 target은 보존했다. 751·756·758·760과 함께 담당자가 PDF에서 정당한 범위를 확인해야 한다. 용량 한도 확대·요약·자동 분할은 하지 않는다.
+- 752에는 안전한 과업지시서/용역설명서가 있으나 v4는 파일명 기반 RFP 선택만 한다. 기존 document role 수정 API와 bundle 선택은 이 실행 선택에 연결되지 않는다. 권장 최소안은 explicit_sample 준비의 정확한 document_version_id 선택과 notice/current/safe/hash/source 승인·actor 감사 결속이다. 자동 선택 확대나 role 변경으로 우회하지 않고 계약/담당자 결정 대기로 남긴다.
+- 750·757의 저장 오류 `unsafe_document`만으로 악성 여부를 판정할 수 없다. attachment 경계는 allowlist 밖 세부 processor 코드를 unsafe_document로, API는 일부 안전 오류를 포괄 코드로 낮춘다. 기존 안전한 저장 정보에서는 더 좁은 원인을 확인하지 못했다. 승인된 격리 재진단/안전한 코드 확장 없이는 추정하지 않으며 차단과 원본을 보존한다.
+
+## 승인된 Qwen 참조 worker의 목적지 제한 미확인 (2026-09-11, 추가 조회 생략 후 참조 실행)
+
+- 재현: 현재 image의 non-root/read-only 임시 컨테이너를 `bidops_model-egress`의 실제 예정 source172.30.0.2에 연결해 TCP만 검사했다. 승인 Qwen192.168.0.139:58765와 불허 외부1.1.1.1:443 모두 연결됐다. host172.30.0.1:22의 connection refused는 방화벽 차단 증거가 아니다. 임시 컨테이너는 제거했다.
+- 영향: endpoint allowlist는 있어도 host egress 경계를 충족하지 못한다. 744·749·759·761의 입력·전송 승인은 확인했지만 모델 HTTP·activation·enqueue 전에 중단했으므로 이번 점검의 문서/자격증명 전송·DB 쓰기는0이다. 기존 OFF를 유지했다.
+- 원인/후속: 앞선 관리자 스크립트는 첨부 source172.19.0.2만 제한한다. 모델 source의 전용 규칙이 필요하나 `sudo -n`은 password required여서 권한을 우회하지 않았다. 기존 규칙을 보존하는 정확한 source/목적지 전용 적용 스크립트의 구문·비관리자 거부를 확인했다. 관리자 적용 결과와 같은 source의 실제 허용/차단을 확인한 뒤에만 승인4건을 실행한다. [점검·적용 대상](../../.dryforge/prespec-qwen-0911-mHF0bO/README.md).
+- 후속: 관리자 실행은 dedicated_chain_exists로 중단됐고 같은 source의 새 TCP 검사에서 Qwen 허용·외부 연결 거부를 관측했다. 사용자는 추가 체인/연결 규칙 조회를 생략하고 기능을 실행하도록 명시했다. 이번4건만 그 예외로 실행하고 OFF로 종료했다. 기존 방화벽은 변경하지 않았으며 체인 내용까지 검증 완료한 것으로 기록하지 않는다. 상시/다음 운영 배포의 방화벽 검증을 면제하는 일반 정책 변경이 아니다.
+
+## Qwen v5 실표본4건이 모두 결정적 검사에서 종료된다 (2026-09-11, 미완료)
+
+- 재현/범위: 승인된744·749·759·761의 고정 전체 선택 원문과 v5 binding으로 실제 Qwen 초안을 각1회 받았다. 네 응답 모두 파싱되며 형식 재생성·timeout·용량 초과는 없었다. 결정적 검사에서 모두 needs_human_review, semantic0·최종 개요0이다. [실행 증거](../../.dryforge/prespec-qwen-0911-mHF0bO/README.md).
+- 관측: 744·749·761의8개 주장 모두 business_overview로 분류되어 필수 main_tasks가 없다. 759는 두 필수 섹션이 있지만 수치 metadata/단위, 분석 전제 및 unknown 사유 검사가 실패했다. 전체32주장 중 결정적15 통과/17 실패이며 의미 검토 전이므로 통과15도 최종 검증 문장이 아니다. 수치·단위·관계·날짜 대조 오류 코드는 실제 사실 오류와 검증기 과탐을 구별한 사람 판정이 아니다.
+- 영향/다음 판단: 입력 준비·전송·암호화 저장·검증 실패/근거 PDF 조회는 작동하나 검증된 개요를 얻는 실제 성공 경로는 미확인이다. 다음 개선은 초안 section/quantity/unknown 계약과 결정적 규칙의 실원문 적합성을 이 고정 응답/인용으로 좁혀 확인하는 것이 우선이다. 이번 실행 요청에서 새 정책/검증 방식 변경·사실 자동 수정·재호출을 임의로 진행하지 않는다. 원문·기존 결과/사람 리뷰/참조 표식과 실패 응답을 보존했다.

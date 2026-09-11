@@ -1,10 +1,108 @@
 # 구현·검증 현황
 
-기준일: 2026-09-09 (v4 explicit reference 운영 상태와 실제 UI 인수 대기)
+기준일: 2026-09-11 (Qwen 초안4건 실행·모두 사람 검토 필요·최종 개요0건·OFF)
 
 사전규격 v4 페이지 개요·PDF 선행·회사 핏 연속 처리의 진행 계획과 단계별 인수/중단 경계는 [prespec-v4-implementation-plan.md](prespec-v4-implementation-plan.md)에 보존한다. 이 계획은 현재 회사 핏 구현·검증과 v4/PDF 후속 구현을 구분하며, 완료·운영 적용 근거를 대신하지 않는다.
 
 `구현됨`은 코드와 계약이 존재한다는 뜻이고, `검증됨`은 기록된 명령이 해당 범위에서 통과했다는 뜻이다. Mock 결과, 과거 브랜치 결과, 현재 worktree 결과, 외부 운영 승인을 서로 대신하지 않는다.
+
+## 사전규격 수집·주장 검증 안정화 (2026-09-10, 0025·웹 배포 / 0910 수집 완료)
+
+최신 실제 결과: 사용자가 추가 방화벽 체인 조회를 이번 기능 실행에서 생략하도록 지시한 뒤,
+744·749·759·761의 고정 v5 입력으로09:08–09:13 KST에 Qwen을 실행했다. 실제 모델/revision/
+context262,144 일치, **입력 준비4·모델 실행4·내용 검증 통과0**이다. 초안4회 모두 응답했으나
+필수 main_tasks 누락(744·749·761), 수치/단위 metadata, 분석 전제·미확인 사유의 결정적
+검사에서 모두 needs_human_review로 종료했다. semantic0·형식 재생성0·최종 결과0이다.
+기존10개 테이블 기존 행 지문은 같고 새 attempt/job/verification/암호화 응답각4·call 이벤트8만
+추가했다. 네 v2 API와 실패 attempt PDF는200·승인 SHA 일치다. OFF
+`a6e96d1b-9c8a-40b6-87f7-d1e177c21222`, active0이며 unmeasured_reference를 유지했다.
+추가 migration/build/재수집/재변환·C-1/C-2·회사 핏/심층 실행은 없다. 원문·정책·검증·호출
+상한은 바꾸지 않았고 host 방화벽 규칙 전체의 확인은 생략한 예외로 기록했다.
+검증된 최종 개요까지의 실사용 완주·사람 대조·실제 브라우저 두 폭 확인은 아직 아니다.
+[실행과 확인 결과](../../.dryforge/prespec-qwen-0911-mHF0bO/README.md). 아래는 모델 실행 전 기록이다.
+
+2026-09-11 MVP 보완: native의 정상 outline·후보 전체/반환 개수를 수용하고 보조 digest
+실패를 검증된 core와 분리했다. 공백 쪽의 원문·번호·hash 보존, 후보 유무와 무관한 수동
+쪽 선택, attempt 없는 target PDF 열람, 새 범위 뒤 옛 실행/현재 결과·후속 입력 차단을
+구현·격리 검증 후 운영 web·document-worker2에 반영했다. 최종 image는
+`bidops-prespec-mvp:20260911-advisory-final`(digest `223019128c101ea131d855256c950d06f0edda393281556656c1cea1e4c72d9f`),
+head0025·기존 환경/네트워크/권한/볼륨 그대로다. 이전 실패6건만 각1회 core 준비에 성공했다.
+754·755의 제안 작성 양식 오선택도 최소 가드/기존 모호성 경고로 연결하고 기존 target을
+보존했다. 교차검토에서 후보 없는 core의 scratch 전달 누락도 경고/명시적 null·기존
+snapshot/cache로 연결했고, JSON null 후보와 핵심 hash 훼손은 거부한다(고유 경계8건 통과).
+0910 입력 준비 가능은744·749·759·761 **4건**, 실제 Qwen 실행 **0건**,
+내용 검증 통과 **0건**이다. 안전한 PDF는15건(기존9 재사용+이번6)이며 수동 범위11건,
+문서 선택/안전4건은 남았다. 원본·기존 결과/사람 리뷰/실패/객체 행 지문은 동일하고
+snapshot6·target6·객체/location각34만 추가했다. source-only ON/OFF1쌍 뒤 최종 OFF는
+`fe91c298-aceb-47b2-95e9-7560edc04be1`이며 모델 activation/enqueue는0이다.
+실제 v2 경고·직접 쪽 선택 가능 상태·PDF200/hash/안전 헤더를 확인했다. C-1/C-2·이전4건
+payload·정상9건 변환·통과한 기존 검사는 재사용했다. 상세 검증과 승인 경계는
+[MVP 체크와 결과](../0910_prespec-workflow-hardening/Plan.md)를 따른다. 아래는 이전 시점 기록이다.
+
+현재 작업 정본은 [0910 안정화 Plan](../0910_prespec-workflow-hardening/Plan.md)이다. 회차/파일
+배타 생성과 raw 재분류 새 경로, policy v5의 결정적 검사+별도 Qwen 의미 검토 계약,
+검증 ledger/migration `0025_overview_claim_ledger`, 조회 v2·실패 근거 PDF·웹 상태·회사 핏
+reader와 worker 복구·중지 fence를 구현했다. 임시 PostgreSQL의 중지/게시 경쟁 4건도 통과했다.
+추가 요청인 5,000자 일괄 차단 제거·실제 두 단계 요청/context 예산과 미실행 표시도 구현했다.
+두 stage의 정확한 경계값, 원문 무절단, 해당 단계 호출 전 실패, API·화면 두 폭과 실제 DB의
+failed 원자 종료를 선택 검사했다. 최종 diff 리뷰의 context metadata·화면 문구·범위 조회
+구조 읽기 namespace 보완도 해당 검사만 통과 확인했다. 전체 스위트는 재실행하지 않았다.
+
+collector/호출부, 순수 검증기, 폐기용 PostgreSQL 17.11의 migration·권한·불변성, API/회사 핏,
+frontend build와 개요 화면 두 지원 폭을 확인했다. 수치·명령·실패 수정 기록은 Plan에 모은다.
+기존 사용자 회차 6개·백업·사람 리뷰·이전 v3/Luna 결과는 보존한다. 변경 collector로 별도 새
+회차에 기존 raw 673건만 오프라인 재분류했고 원본/복사본 hash가 일치했다. 35(5,962자)·
+142(6,849자)는 전체 원문을 포함한 초안 및 예시 의미 요청 모두 예산 안이다. 의미 예시는
+모델 응답이 아니며 실제 초안 이후 다시 검사해야 한다. 59를 포함한 세 표본의 정확한
+target/input/model/policy와 최대 9회 승인 준비물은 Plan에 연결했다.
+
+현재 운영 DB는 사용자 승인으로 0025까지 적용했고 web은
+`bidops-overview-claims:20260910-runtime-head`(digest `7d2ff95f04152520d81bba6c229251e2898ee8b05d7937da30b8d00da33723ca`)다.
+백업 역할의 현재/미래 sequence SELECT만 복구해 새 DB dump(22,530,409 B)를 확보했다.
+기존 객체 백업은 active 참조596개를 모두 포함하며, 기존82개 table의 값·사람 리뷰·개요·품질
+표식은 새 nullable 열/명시 migration 감사1건을 제외하고 동일하다. 웹 기대 revision 누락은
+수정 후 해당 PostgreSQL 기동 경계2건 통과, healthy·health/SPA/세 개요 API200을 확인했다.
+문서 worker2개는 기존 R7 이미지·컨테이너·설정 그대로다. activation은 OFF이며 운영
+analysis-worker와 v4 active attempt는 없다. 기존 web의 회사 핏 true 설정도 변경하지 않았다.
+
+추가 요청의 `prespecs-20260910-claims-reference-sbh1rl` 회차를 21:40:13 KST에 실제
+수집했다: 225건(후보32/감사193), HTTP1회·경고0, SW=Y20건 중 첨부 있음19건이다.
+당일 종료 전 snapshot이며 [배포·수집 증거와 개요 대상 제안](../../.dryforge/prespec-deploy-20260910-SBh1rl/README.md)에
+정확한 목록을 남겼다. 후속 승인으로 첨부 있는19건(analysis10/audit9)을 새 validation-set에
+고정하고 DB notice743–761로 적재했다. 적재 직후 첨부27개 대기, C-1 결과 없음 경고1건이며 등급·
+리뷰·모델 결과는 만들지 않았다. API19건 대조와 원문/표본 사본 hash 일치 확인 완료.
+첨부/target 준비는 당시 host firewall 조회의 관리자 인증 부재로 보류했다. 당시 G2B 목적지
+`211.42.74.250:443`에 대한 정확한 worker source의 규칙 확인이 필요하며 권한 우회나
+방화벽/egress 변경은 하지 않았다. [신규 준비 증거](../../.dryforge/prespec-0910-preparation-3vfrYK/README.md)에
+목록과 재개 조건을 남겼다. 그 시점에는 신규 원문/PDF·payload/용량 검사·전송 승인·Qwen이 미완료였다.
+후속 관리자 조회에서 DOCKER-USER가 비어 있고 기존 전용 체인이 없음을 확인했으며,
+사용자는 전용 worker의 최소 방화벽 추가를 승인했다. 고정 source/bridge/DNS 검사와
+기존 규칙 보존을 포함한 적용 스크립트의 구문·비관리자 거부를 확인했다. 에이전트 세션의
+sudo 인증이 없어 당시에는 관리자 직접 적용과 실제 통신 검증을 대기했다.
+후속 사용자의 스크립트 적용 보고 뒤 동일 source172.19.0.2에서 G2B443 TLS 허용과
+외부1.1.1.1:443·G2B80·host18887 차단을 확인했다. 첨부27개를 한 번씩 처리해 완료23/차단4,
+안전한 RFP15개를 기존 R7에서 준비해 PDF snapshot9/범위 ready5/사람 확인4/변환 실패6을
+얻었다. source-only activation 후 OFF `e898cbe3-a50c-4a1a-a9e3-477ef277b758`로 종료했다.
+원본15개의 version/hash/size와 PDF 준비 직전 개요8·attempt7·개요 검토 행140개 지문은 동일하다.
+호출 전 검사에서744·759는 공백 선택 페이지로 manifest_invalid, 753은 전체65,141자로
+input_capacity_exceeded가 되어 기존 준비 실패 상태로 DB/API에 반영했다. 원문 절단·요약·
+변환 변경·모델 전송은 없다. 749(6,592자)·761(798자)만 전체 원문의 초안/형식/의미 예시
+요청 용량 준비가 끝났고 정상4회/최대6회 전송 승인 대기다. context262,144는 과거 확인값,
+의미 예시는 모델 응답이 아니며 실제 초안 이후 재검사가 필요하다. 신규 준비 차단은
+[findings](findings.md)에 남겼고 전체 검사는 반복하지 않았다. 상세한 건별 결과·준비물은
+[이번 준비서](../../.dryforge/prespec-0910-preparation-3vfrYK/README.md)가 현재 기록이다.
+이번 Qwen HTTP는0회이며 아래 과거 결과나 `unmeasured_reference`를 새 v5 품질/실행 승인으로
+재사용하지 않는다. 세부 검증·운영 시각과 남은 체크는 Plan에 기록한다.
+
+후속 “Qwen 호출 전까지만” 준비에서는 새 고정 이미지(head 0025)와 모델 연결 없는 읽기 전용
+one-shot/배포 overlay를 만들고 실제 worker 계정의 세 표본 입력 읽기를 확인했다. 객체 966
+version 백업은 hash 대조까지 완료했다. DB dump는 ro_backup의 sequence SELECT 누락으로
+실패(0 B)해 당시 운영 권한 복구·새 DB 백업·migration/웹 교체를 보류했다. 당시 운영은 0024/OFF,
+active v4 attempt 0이며 모델 HTTP·활성화·예약·모델 worker 실행은 없었다. 상세 준비물과
+실패 증거는 Plan에 연결했다. 이 후속 점검에서도 앱 테스트 전체를 재실행하지 않았다.
+독립 점검에서 준비 binding의 provider 표기 불일치를 찾아 이전 준비본은 보존하고 표준 runner와
+일치하는 `.runtime.json` 준비본을 새로 만들었다. 실제 모델·revision·정책·요청 bytes는 같으며
+모델 호출 없이 binding 일치를 확인했다. 새 승인에는 준비서가 가리키는 runtime 파일을 쓴다.
 
 ## 사전규격 v4 최신 운영 상태 (2026-09-09)
 
@@ -85,7 +183,7 @@ T-23 `0014` 검증 경계의 PostgreSQL application schema는 legacy 13개, 심�
 overview 5개로 총 63개 table이다. `0015`가 더한 입찰 delta 5개는 이 수치와 T-23 검증
 증거에 포함하지 않는다. 그 5개를 합친 `0015_bid_delta_final_decision`의 application
 schema는 68개이며, 별도로 빈 PostgreSQL 17 `upgrade head`와 `0014↔0015` 왕복을 검증했다.
-현재 코드의 head는 `0020_prespec_company_fit`이고 문서 업무 사전 기준 table은
+회사 핏 구현 당시 head는 `0020_prespec_company_fit`이고 문서 업무 사전 기준 table은
 **73개**, ORM `Base.metadata` 기준은 **79개**다(모듈 소유 core 2 · lifecycle 10 ·
 screening 28 · deep_review 39). 운영 DB에 이 head를 적용했다는 뜻은 아니다. 두 수는 세는 대상이 다르며 어느 쪽도 다른 쪽을 대신하지
 않는다.

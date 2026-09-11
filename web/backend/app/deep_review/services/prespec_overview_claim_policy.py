@@ -1,0 +1,142 @@
+"""Read-only v5 policy and bounded stage payloads; never calls a model."""
+from dataclasses import dataclass
+from copy import deepcopy
+import hashlib
+import json
+from pathlib import Path
+from typing import Any
+
+from ...core.model_client import APPROVED_GENERATION, StructuredOutputContract, build_prompt
+from ..schemas.prespec_overview_claims import (
+    OverviewClaimChecks, OverviewClaimsDraft, OverviewSemanticResponse, VALIDATOR_VERSION,
+)
+
+CLAIMS_STAGE = "prespec_overview_claims"
+SEMANTIC_STAGE = "prespec_overview_semantic"
+POLICY_PATH = Path(__file__).resolve().parents[1] / "policies" / "prespec-overview-policy-v5.json"
+LIMITS = {
+    "max_calls": 3, "max_draft_calls": 2, "max_semantic_calls": 1,
+    "timeout_seconds": 300, "lease_seconds": 1200, "dispatch_reserve_seconds": 360,
+    "max_prompt_chars": 24000, "max_page_text_chars": 24000, "max_pages": 24,
+    "max_model_context_tokens": 262144,
+    "chat_template_reserve_tokens": 1024,
+    "max_draft_chars": 10000, "max_response_chars": 16000,
+    "max_claims": 8, "max_analysis": 4, "max_unknowns": 6,
+    "max_text_chars": 300, "max_evidence_per_claim": 2, "max_quote_chars": 300,
+    "max_quantities_per_claim": 4,
+}
+FORMAT_RETRY_CODES = frozenset({
+    "json_invalid", "top_level_invalid", "field_type_invalid", "required_field_missing", "extra_field_forbidden",
+})
+
+
+def canonical_json(value: Any) -> str:
+    if hasattr(value, "model_dump"):
+        value = value.model_dump(mode="json")
+    return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False)
+
+
+def canonical_sha256(value: Any) -> str:
+    return hashlib.sha256(canonical_json(value).encode("utf-8")).hexdigest()
+
+
+@dataclass(frozen=True)
+class ClaimsOverviewPolicy:
+    document: dict[str, Any]
+    digest: str
+
+    def structured_output_contract(self, stage: str) -> StructuredOutputContract:
+        policy = self.stage_policy(stage)
+        return StructuredOutputContract(name=stage, schema=policy["output_schema"], system_prompt=policy["system_prompt"])
+
+    def stage_policy(self, stage: str) -> dict[str, Any]:
+        if canonical_sha256(self.document) != self.digest:
+            raise ValueError("overview_policy_invalid")
+        row = next((r for r in self.document["stages"] if r["stage"] == stage), None)
+        if row is None:
+            raise ValueError("overview_stage_invalid")
+        return deepcopy({
+            "schema": self.document["schema"], "model_name": self.document["model_name"],
+            "model_endpoint_ref": self.document["model_endpoint_ref"],
+            "prompt_version": self.document["prompt_version"],
+            **{k: row[k] for k in ("generation", "chunking", "system_prompt", "output_schema", "prompt_output_contract")},
+            "stages": [{"stage": stage, "instruction": row["instruction"]}],
+        })
+
+
+def load_claims_policy(path: Path | None = None) -> ClaimsOverviewPolicy:
+    try:
+        value = json.loads((path or POLICY_PATH).read_text(encoding="utf-8"))
+        if set(value) != {"schema", "model_name", "model_endpoint_ref", "prompt_version", "limits", "verification", "stages"}:
+            raise ValueError
+        if (value["schema"], value["model_name"], value["model_endpoint_ref"], value["prompt_version"]) != (
+            "bidops.prespec-overview-policy.v5", "qwen3.8-27B", "vllm-openai-compatible", "prespec-overview-v5",
+        ) or value["limits"] != LIMITS:
+            raise ValueError
+        # The set order is immaterial to validation but the original file order
+        # still participates in the immutable policy digest.
+        check = dict(value["verification"])
+        check["format_retry_codes"] = sorted(check["format_retry_codes"])
+        if check != {
+            "validator_version": VALIDATOR_VERSION, "format_retry_codes": sorted(FORMAT_RETRY_CODES),
+            "factual_failure_action": "needs_human_review", "semantic_response_failure": "semantic_response_invalid",
+            "transport_retries": 0,
+        }:
+            raise ValueError
+        stages = value["stages"]
+        if [r["stage"] for r in stages] != [CLAIMS_STAGE, SEMANTIC_STAGE]:
+            raise ValueError
+        for row, model in zip(stages, (OverviewClaimsDraft, OverviewSemanticResponse), strict=True):
+            if set(row) != {"stage", "generation", "chunking", "system_prompt", "instruction", "prompt_output_contract", "output_schema"}:
+                raise ValueError
+            if row["generation"] != APPROVED_GENERATION or row["chunking"] != {"retries": 0, "timeout_seconds": 300}:
+                raise ValueError
+            if row["output_schema"] != model.model_json_schema():
+                raise ValueError
+            if not row["system_prompt"].strip() or not row["instruction"].strip() or not isinstance(row["prompt_output_contract"], dict):
+                raise ValueError
+    except (OSError, UnicodeError, ValueError, TypeError, KeyError, AttributeError):
+        raise ValueError("overview_policy_invalid") from None
+    return ClaimsOverviewPolicy(value, canonical_sha256(value))
+
+
+def build_claims_stage_input(
+    pages: dict[int, str], *, draft: OverviewClaimsDraft | None = None,
+    checks: OverviewClaimChecks | None = None, company_comparison_performed: bool = False,
+) -> dict[str, Any]:
+    if (not pages or len(pages) > LIMITS["max_pages"] or
+        any(type(n) is not int or n < 1 or not isinstance(t, str) for n, t in pages.items()) or
+        sum(len(t) for t in pages.values()) > LIMITS["max_page_text_chars"]):
+        raise ValueError("input_limit_exceeded")
+    result: dict[str, Any] = {
+        "schema_version": "bidops.prespec-overview-claims-input.v1",
+        "blocks": [{"pdf_page": n, "text": pages[n]} for n in sorted(pages)],
+        "company_comparison_performed": company_comparison_performed,
+    }
+    if draft is not None:
+        if len(canonical_json(draft)) > LIMITS["max_draft_chars"]:
+            raise ValueError("input_limit_exceeded")
+        if checks is None or checks.draft_sha256 != canonical_sha256(draft) or checks.reason_codes or any(
+            row.deterministic.status != "passed" for row in checks.checks
+        ):
+            raise ValueError("deterministic_checks_required")
+        if sorted(row.claim_id for row in checks.checks) != sorted(row.id for row in draft.claims) or not checks.checks:
+            raise ValueError("deterministic_checks_required")
+        for row in checks.checks:
+            for evidence in row.deterministic.verified_evidence:
+                page = pages.get(evidence.page)
+                if page is None or hashlib.sha256(page.encode("utf-8")).hexdigest() != evidence.page_text_sha256 or page[evidence.start_char:evidence.end_char] != evidence.quote:
+                    raise ValueError("verified_input_mismatch")
+        result["draft"] = draft.model_dump(mode="json")
+        result["verified_evidence"] = [
+            {"claim_id": row.claim_id, "evidence": [e.model_dump(mode="json") for e in row.deterministic.verified_evidence]}
+            for row in checks.checks
+        ]
+    elif checks is not None:
+        raise ValueError("draft_required")
+    return result
+
+
+def build_claims_prompt(policy: ClaimsOverviewPolicy, stage: str, input_slice: dict[str, Any]) -> str:
+    """Same core builder used by ModelClient.run_stage, including its 24k cap."""
+    return build_prompt(stage, input_slice, policy.stage_policy(stage))

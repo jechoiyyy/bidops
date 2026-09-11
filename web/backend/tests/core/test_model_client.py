@@ -10,6 +10,7 @@ fixture는 전부 합성 텍스트다. 실제 endpoint·프롬프트·응답 원
 from __future__ import annotations
 
 from collections.abc import Mapping
+from datetime import UTC, datetime, timedelta
 import hashlib
 import json
 from typing import Any
@@ -26,12 +27,16 @@ from app.core.model_client import (
     ModelEndpoint,
     ModelEndpointError,
     ModelIdentity,
+    ModelIdentityCheckState,
     ModelIdentityError,
     ModelInvocationError,
     PromptTooLargeError,
     StructuredOutputContract,
     build_prompt,
+    model_endpoint_configuration_fingerprint,
+    model_identity_cache_key,
     resolve_model_endpoint,
+    structured_request_capacity,
 )
 
 
@@ -369,6 +374,23 @@ def test_reported_revision_match_passes() -> None:
     assert client.invoke("s1", {"item": "합성"}, POLICY).structured_output == {"verdict": "ok"}
 
 
+def test_wrong_response_model_is_a_fixed_identity_failure_without_retry() -> None:
+    calls: list[str] = []
+
+    def completion_create(**_kwargs: Any) -> Mapping[str, Any]:
+        calls.append("call")
+        return _completion("합성-모델-z", {"verdict": "ok"})
+
+    client = ModelClient(
+        model="합성-모델-a", output_contract=CONTRACT,
+        model_revision=REVISION, completion_create=completion_create,
+    )
+    with pytest.raises(ModelInvocationError) as error:
+        client.invoke("s1", {"item": "합성"}, POLICY)
+    assert error.value.code == "model_not_served"
+    assert len(calls) == 1
+
+
 # --- identity --------------------------------------------------------------
 
 
@@ -400,6 +422,116 @@ def test_identity_passes_when_the_server_reports_no_revision() -> None:
     assert client.verify_identity() == ModelIdentity(model="합성-모델-a", revision=REVISION)
 
 
+def test_identity_preserves_reported_context_capacity() -> None:
+    client = ModelClient(
+        model="합성-모델-a",
+        output_contract=CONTRACT,
+        model_revision=REVISION,
+        completion_create=lambda **_kwargs: _completion("합성-모델-a", {"verdict": "ok"}),
+        models_list=lambda: {
+            "data": [{"id": "합성-모델-a", "max_model_len": 262_144}]
+        },
+    )
+
+    assert client.verify_identity() == ModelIdentity(
+        model="합성-모델-a", revision=REVISION, max_model_len=262_144
+    )
+    assert client.model_context_tokens == 262_144
+
+
+@pytest.mark.parametrize("reported_contexts", [[0], [True], ["262144"], [262144, None], [262144, 131072]])
+def test_unconfirmed_context_keeps_legacy_identity_but_blocks_capacity(reported_contexts) -> None:
+    client = ModelClient(
+        model="합성-모델-a", output_contract=CONTRACT, model_revision=REVISION,
+        completion_create=lambda **_kwargs: pytest.fail("capacity check must not invoke the model"),
+        models_list=lambda: {"data": [
+            {"id": "합성-모델-a", "max_model_len": value} for value in reported_contexts
+        ]},
+    )
+    assert client.verify_identity() == ModelIdentity(model="합성-모델-a", revision=REVISION)
+    assert client.model_context_tokens is None
+    with pytest.raises(ModelInvocationError, match="input_capacity_exceeded"):
+        structured_request_capacity(
+            model="합성-모델-a", prompt="합성 입력", contract=CONTRACT,
+            api_dialect="vllm", max_model_len=client.model_context_tokens,
+            policy_context_ceiling=262144, chat_template_reserve_tokens=1024,
+        )
+
+
+def test_structured_capacity_counts_full_request_and_output_reserve() -> None:
+    base = structured_request_capacity(
+        model="합성-모델-a",
+        prompt="사용자",
+        contract=CONTRACT,
+        api_dialect="vllm",
+        max_model_len=262_144,
+        policy_context_ceiling=262_144,
+        chat_template_reserve_tokens=1024,
+        correction=None,
+    )
+    expanded = structured_request_capacity(
+        model="합성-모델-a",
+        prompt="한국어 사용자",
+        contract=StructuredOutputContract(
+            name="expanded_contract",
+            schema={**CONTRACT.schema, "description": "출력 schema 설명"},
+            system_prompt="한국어 system 지시",
+        ),
+        api_dialect="vllm",
+        max_model_len=262_144,
+        policy_context_ceiling=262_144,
+        chat_template_reserve_tokens=1024,
+        correction="보정 지시",
+    )
+    assert base.reserved_output_tokens == 16_384
+    assert base.chat_template_reserve_tokens == 1024
+    assert expanded.input_token_upper_bound > base.input_token_upper_bound
+    assert expanded.effective_context_tokens == 262_144
+    ascii_capacity = structured_request_capacity(
+        model="synthetic-model", prompt="abc", contract=CONTRACT,
+        api_dialect="vllm", max_model_len=262_144,
+        policy_context_ceiling=262_144,
+    )
+    unicode_capacity = structured_request_capacity(
+        model="synthetic-model", prompt="가나다", contract=CONTRACT,
+        api_dialect="vllm", max_model_len=262_144,
+        policy_context_ceiling=262_144,
+    )
+    assert unicode_capacity.input_token_upper_bound == (
+        ascii_capacity.input_token_upper_bound + 6
+    )
+    assert structured_request_capacity(
+        model="합성-모델-a",
+        prompt="한국어 사용자",
+        contract=StructuredOutputContract(
+            name="expanded_contract",
+            schema={**CONTRACT.schema, "description": "출력 schema 설명"},
+            system_prompt="한국어 system 지시",
+        ),
+        api_dialect="vllm",
+        max_model_len=expanded.total_token_upper_bound,
+        policy_context_ceiling=262_144,
+        chat_template_reserve_tokens=1024,
+        correction="보정 지시",
+    ).total_token_upper_bound == expanded.total_token_upper_bound
+    with pytest.raises(ModelInvocationError) as error:
+        structured_request_capacity(
+            model="합성-모델-a",
+            prompt="한국어 사용자",
+            contract=StructuredOutputContract(
+                name="expanded_contract",
+                schema={**CONTRACT.schema, "description": "출력 schema 설명"},
+                system_prompt="한국어 system 지시",
+            ),
+            api_dialect="vllm",
+            max_model_len=expanded.total_token_upper_bound - 1,
+            policy_context_ceiling=262_144,
+            chat_template_reserve_tokens=1024,
+            correction="보정 지시",
+        )
+    assert error.value.code == "input_capacity_exceeded"
+
+
 def test_identity_compares_a_reported_revision() -> None:
     """served row가 revision을 내면 선언 revision과 대조한다."""
 
@@ -413,6 +545,73 @@ def test_identity_compares_a_reported_revision() -> None:
     with pytest.raises(ModelIdentityError) as error:
         client.verify_identity()
     assert error.value.code == "model_revision_invalid"
+
+
+@pytest.mark.parametrize(
+    "status_code,retryable",
+    [(401, False), (403, False), (500, True), (503, True)],
+)
+def test_identity_http_status_classifies_fixed_and_transient_failures(
+    status_code: int, retryable: bool
+) -> None:
+    """인증·요청 실패는 고정이고 provider 5xx만 clock 재시도 대상이다."""
+
+    class _HTTPClient:
+        def get(self, url: str, **_kwargs: Any) -> httpx.Response:
+            return httpx.Response(status_code, request=httpx.Request("GET", url))
+
+    client = ModelClient(
+        model="합성-모델-a",
+        output_contract=CONTRACT,
+        model_revision=REVISION,
+        allowed_hosts="127.0.0.1",
+        completion_create=lambda **_kwargs: _completion(
+            "합성-모델-a", {"verdict": "ok"}
+        ),
+    )
+    client._http_client = _HTTPClient()  # type: ignore[assignment]
+
+    with pytest.raises(ModelIdentityError) as error:
+        client.verify_identity()
+    assert error.value.code == "identity_unavailable"
+    assert error.value.retryable is retryable
+
+
+def test_identity_cache_key_tracks_safe_endpoint_configuration() -> None:
+    """성공 cache key는 endpoint 자격증명을 포함하되 값을 노출하지 않는다."""
+
+    first = _settings(vllm_api_key="first-synthetic-key")
+    second = _settings(vllm_api_key="second-synthetic-key")
+    first_fingerprint = model_endpoint_configuration_fingerprint(
+        "overview", settings=first
+    )
+    second_fingerprint = model_endpoint_configuration_fingerprint(
+        "overview", settings=second
+    )
+    assert len(first_fingerprint) == 64
+    assert first_fingerprint != second_fingerprint
+    assert "first-synthetic-key" not in first_fingerprint
+    assert model_identity_cache_key(
+        "overview", settings=first, model="합성-모델-a",
+        revision=REVISION, policy_digest="c" * 64,
+    ) == (
+        "overview", first_fingerprint, "합성-모델-a", REVISION, "c" * 64
+    )
+
+
+def test_identity_retry_state_uses_capped_clock_backoff() -> None:
+    """일시 장애 재확인은 sleep 없이 10/30/60/120/300초로 제한된다."""
+
+    state = ModelIdentityCheckState()
+    now = datetime(2026, 9, 10, tzinfo=UTC)
+    for seconds in (10, 30, 60, 120, 300, 300):
+        assert state.should_check(now)
+        state.record_failure(
+            ModelIdentityError("identity_unavailable", retryable=True), now
+        )
+        assert state.next_check_at == now + timedelta(seconds=seconds)
+        assert not state.should_check(now + timedelta(seconds=seconds - 1))
+        now += timedelta(seconds=seconds)
 
 
 def test_for_purpose_verifies_identity_before_the_first_call() -> None:

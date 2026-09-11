@@ -91,7 +91,7 @@ cd web/backend
 
 | 단계 | 하는 일 | 준비물 |
 |---|---|---|
-| `collect` | 공고를 수집하고 정규화합니다 | 실전 수집에는 API 키가 필요합니다. `--from-raw` 재분류는 보존된 원문만으로 동작합니다 |
+| `collect` | 공고를 수집하고 정규화합니다 | 실전 수집에는 API 키가 필요합니다. 웹 `from_raw=true`는 기존 raw 경로를 collector에 전달해 별도 새 회차로 검증 복사·재분류합니다 |
 | `sample` | 검증 표본을 선정합니다 | 같은 회차의 `collected-notices.json` |
 | `report` | HTML 보고서를 생성합니다 | 같은 회차의 `screening-results.json` |
 

@@ -350,7 +350,7 @@ def _locator(line: _Line, ordinal: int) -> dict[str, Any]:
     }
 
 
-def select_v4_input_range(payload: Mapping[str, Any]) -> V4RangeSelection:
+def select_v4_input_range(payload: Mapping[str, Any], *, candidates_complete: bool = True) -> V4RangeSelection:
     """Select a contiguous, source-bound overview/purpose/scope range.
 
     The selector recognizes only explicit chapter/numbered heading forms.  It
@@ -371,6 +371,13 @@ def select_v4_input_range(payload: Mapping[str, Any]) -> V4RangeSelection:
     }
     body = [line for line in lines if line.page not in toc_pages]
     chapters = [line for line in body if line.chapter]
+    # Multiple explicit chapter markers on one extracted line have no proven
+    # reading order (for example a two-column overview followed by chapter II).
+    # Do not infer a column layout or silently keep the rest of the document.
+    ambiguous_chapter_line = any(
+        len(re.findall(r"(?:^|\s)[ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ]+\s*[.)、:：\-–—]?\s*[^\sⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ]", line.text)) > 1
+        for line in chapters
+    )
 
     reason: str | None = None
     start: _Line | None = None
@@ -442,6 +449,15 @@ def select_v4_input_range(payload: Mapping[str, Any]) -> V4RangeSelection:
         elif end.page < last.page or (end.page == last.page and end.line_index <= last.line_index):
             reason = "ambiguous_scope_boundary"
 
+    # The proposal-writing template can contain 목적/범위 headings too.  Its
+    # explicit 제안개요 label does not establish the procurer's business scope
+    # (0910 notices 754/755). Do not accept that template as an overview.
+    if selected_chapter is not None and _normalise_heading(selected_chapter.heading_title or "") == "제안개요":
+        reason = "ambiguous_scope_boundary"
+    if ambiguous_chapter_line:
+        reason = "ambiguous_scope_boundary"
+    if not candidates_complete:
+        reason = "section_candidates_incomplete"
     if reason is not None or start is None or last is None or end is None:
         manifest = {
             "schema_version": V4_MANIFEST_SCHEMA,
@@ -956,9 +972,8 @@ def _validate_native_references(session, store, refs, document, source_bytes, pa
     map_bytes, map_binding = _native_object(session, store, refs["para_page_map_content_object_id"], refs["para_page_map_location_id"], max_bytes=options.max_output_bytes, mime="application/json")
     if map_binding["sha256"] != refs["para_page_map_sha256"]:
         raise V4PreparationError("snapshot_artifact_hash_mismatch")
-    # Snapshots frozen before 0024 carry no candidates.  All three references
-    # are null together and the snapshot stays reusable; a mixed set is a
-    # broken reference, not a legacy row.
+    # Legacy snapshots and explicitly warned advisory failures carry no
+    # candidates. All three references are null together; a mixed set is broken.
     present = [refs[field] is not None for field in _SECTION_CANDIDATE_FIELDS]
     if any(present) and not all(present):
         raise V4PreparationError("native_artifact_reference_invalid")
@@ -1096,9 +1111,8 @@ def _persist_native_artifacts(session, store, document, processed, source_bytes,
     raw = processed.para_page_map_bytes
     content, location = _persist_artifact(session, store, namespace="structure", object_key=f"structure/prespec-v4/{document.id}/para-page-map-{_sha256_bytes(raw)}.json", data=raw, detected_mime="application/json", retention_class="document-structure")
     refs.update(para_page_map_content_object_id=content.id, para_page_map_location_id=location.id, para_page_map_sha256=content.sha256)
-    # A bundle without candidates leaves the three references null together:
-    # the scratch protocol already fails closed when a native build omits the
-    # sidecar, so this only covers artifacts frozen before 0024.
+    # Preserve legacy absence or a core-verified advisory failure with all three
+    # candidate references null. The scratch boundary requires an explicit warning.
     if processed.section_candidates:
         raw = processed.section_candidates_bytes
         content, location = _persist_artifact(session, store, namespace="structure", object_key=f"structure/prespec-v4/{document.id}/section-candidates-{_sha256_bytes(raw)}.json", data=raw, detected_mime="application/json", retention_class="document-structure")

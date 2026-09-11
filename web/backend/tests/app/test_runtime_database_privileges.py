@@ -61,7 +61,8 @@ def test_migrate_uses_a_separate_fail_closed_privilege_policy() -> None:
         if line.startswith("ALTER DEFAULT PRIVILEGES") and " GRANT " in line
     ]
     assert default_grants == [
-        "ALTER DEFAULT PRIVILEGES IN SCHEMA bidops GRANT SELECT ON TABLES TO ro_backup;"
+        "ALTER DEFAULT PRIVILEGES IN SCHEMA bidops GRANT SELECT ON TABLES TO ro_backup;",
+        "ALTER DEFAULT PRIVILEGES IN SCHEMA bidops GRANT SELECT ON SEQUENCES TO ro_backup;",
     ]
 
 
@@ -363,6 +364,120 @@ def _column_privilege(
             },
         )
     )
+
+
+def test_claim_ledger_grants_and_app_cancellation_columns() -> None:
+    tables = {"prespec_overview_call_event", "prespec_overview_verification"}
+    for role in ("app", "worker"):
+        assert tables <= _table_grants(role, "SELECT")
+        assert not tables & _table_grants(role, "UPDATE")
+        assert not tables & _table_grants(role, "DELETE")
+    assert tables <= _table_grants("worker", "INSERT")
+    assert not tables & _table_grants("app", "INSERT")
+    assert _column_update_grant("app", "prespec_v4_attempt") == {
+        "status", "completed_at", "error_code", "lease_owner", "lease_expires_at",
+    }
+    assert "activation_id" not in _column_update_grant("worker", "prespec_v4_attempt")
+
+
+@requires_postgres
+def test_backup_reads_existing_and_future_sequences_without_mutation() -> None:
+    from sqlalchemy.exc import DBAPIError
+
+    _ensure_roles()
+    with temporary_database() as database_url:
+        engine = _apply_policy(database_url)
+        try:
+            with engine.begin() as conn:
+                conn.exec_driver_sql("CREATE SEQUENCE bidops.future_backup_probe START 41")
+                sequences = conn.execute(text(
+                    "SELECT c.relname FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace "
+                    "WHERE n.nspname='bidops' AND c.relkind='S' ORDER BY c.relname"
+                )).scalars().all()
+                assert "notice_id_seq" in sequences
+                assert "future_backup_probe" in sequences
+                for name in sequences:
+                    privileges = conn.execute(text(
+                        "SELECT has_sequence_privilege('ro_backup', :sequence, 'SELECT'), "
+                        "has_sequence_privilege('ro_backup', :sequence, 'USAGE'), "
+                        "has_sequence_privilege('ro_backup', :sequence, 'UPDATE')"
+                    ), {"sequence": f"bidops.{name}"}).one()
+                    assert privileges == (True, False, False)
+                conn.exec_driver_sql("SET LOCAL ROLE ro_backup")
+                for name in sequences:
+                    assert conn.exec_driver_sql(
+                        f'SELECT last_value, is_called FROM bidops."{name}"'
+                    ).one() is not None
+            for name in ("notice_id_seq", "future_backup_probe"):
+                for operation in ("nextval(:sequence)", "setval(:sequence, 99)"):
+                    with pytest.raises(DBAPIError) as error, engine.begin() as conn:
+                        conn.exec_driver_sql("SET LOCAL ROLE ro_backup")
+                        conn.execute(text(f"SELECT {operation}"), {"sequence": f"bidops.{name}"})
+                    assert error.value.orig.sqlstate == "42501"
+            with engine.begin() as conn:
+                assert conn.exec_driver_sql(
+                    "SELECT last_value, is_called FROM bidops.future_backup_probe"
+                ).one() == (41, False)
+                for role in ("app", "worker"):
+                    assert conn.scalar(text(
+                        "SELECT has_sequence_privilege(:role, 'bidops.future_backup_probe', 'USAGE,SELECT,UPDATE')"
+                    ), {"role": role}) is False
+        finally:
+            engine.dispose()
+
+
+@requires_postgres
+def test_claim_ledger_effective_roles_and_app_stop() -> None:
+    from sqlalchemy.exc import DBAPIError
+    from tests.deep_review.test_overview_claim_ledger_postgres import (
+        _dispatch, _finish, _response, _seed_attempt, _start, _verification,
+    )
+
+    _ensure_roles()
+    with temporary_database() as database_url:
+        engine = schema_bound(_apply_policy(database_url))
+        try:
+            attempt = _seed_attempt(engine)
+            # App may pin/enqueue but cannot claim, rewrite an activation, or
+            # gain machine-record INSERT through a table-wide grant.
+            for statement in (
+                "UPDATE bidops.prespec_v4_attempt SET status='failed',completed_at=now() WHERE id=:id",
+                "UPDATE bidops.prespec_v4_attempt SET activation_id=NULL WHERE id=:id",
+                "INSERT INTO bidops.prespec_overview_call_event DEFAULT VALUES",
+                "INSERT INTO bidops.prespec_overview_verification DEFAULT VALUES",
+            ):
+                with pytest.raises(DBAPIError), engine.begin() as conn:
+                    conn.execute(text("SET LOCAL ROLE app"))
+                    conn.execute(text(statement), {"id": attempt})
+            _start(engine, attempt)
+            with Session(engine) as session, session.begin():
+                session.execute(text("SET LOCAL ROLE worker"))
+                call = _dispatch(session, attempt)
+            with engine.begin() as conn:
+                conn.execute(text("SET LOCAL ROLE app"))
+                conn.execute(text("UPDATE bidops.prespec_v4_attempt SET status='cancelled',completed_at=now(),error_code='v4_disabled',lease_owner=NULL,lease_expires_at=NULL WHERE id=:id"), {"id": attempt})
+                conn.execute(text("UPDATE bidops.work_job SET status='cancelled',completed_at=now(),last_error_code='v4_disabled',lease_owner=NULL,lease_expires_at=NULL WHERE id=(SELECT work_job_id FROM bidops.prespec_v4_attempt WHERE id=:id)"), {"id": attempt})
+            with Session(engine) as session, session.begin():
+                session.execute(text("SET LOCAL ROLE worker"))
+                _response(session, attempt, call)
+            for role in ("app", "worker", "ro_backup"):
+                with engine.begin() as conn:
+                    conn.execute(text(f"SET LOCAL ROLE {role}"))
+                    assert conn.scalar(text("SELECT count(*) FROM bidops.prespec_overview_call_event")) == 2
+                    assert conn.scalar(text("SELECT count(*) FROM bidops.prespec_overview_verification")) == 0
+                for table in ("prespec_overview_call_event", "prespec_overview_verification"):
+                    for operation in (f"DELETE FROM bidops.{table}", f"UPDATE bidops.{table} SET created_at=created_at"):
+                        with pytest.raises(DBAPIError), engine.begin() as conn:
+                            conn.execute(text(f"SET LOCAL ROLE {role}"))
+                            conn.execute(text(operation))
+            human_review = _seed_attempt(engine)
+            _start(engine, human_review)
+            with Session(engine) as session, session.begin():
+                session.execute(text("SET LOCAL ROLE worker"))
+                _verification(session, human_review, passed=False)
+                _finish(session, human_review, "needs_human_review")
+        finally:
+            engine.dispose()
 
 
 @requires_postgres

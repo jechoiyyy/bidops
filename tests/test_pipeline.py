@@ -119,7 +119,8 @@ class PipelineTests(unittest.TestCase):
     def setUp(self) -> None:
         self.directory = tempfile.TemporaryDirectory()
         self.run_dir = Path(self.directory.name) / "run"
-        raw_dir = self.run_dir / "raw"
+        raw_dir = Path(self.directory.name) / "original" / "raw"
+        self.raw_dir = raw_dir
         raw_dir.mkdir(parents=True)
         (raw_dir / "bid-page-001.json").write_text(
             json.dumps(RAW_PAGE, ensure_ascii=False), encoding="utf-8"
@@ -129,7 +130,8 @@ class PipelineTests(unittest.TestCase):
     def collect_and_sample(self) -> dict:
         collected = run(
             str(COLLECT), "--from-date", "2026-08-17", "--to-date", "2026-08-23",
-            "--output-dir", str(self.run_dir), "--from-raw", "--skip-prespecs",
+            "--output-dir", str(self.run_dir), "--from-raw", str(self.raw_dir),
+            "--allowed-root", self.directory.name, "--skip-prespecs",
         )
         self.assertEqual(0, collected.returncode, collected.stderr)
         sampled = run(

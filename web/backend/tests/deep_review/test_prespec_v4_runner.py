@@ -4,26 +4,40 @@ from __future__ import annotations
 
 import hashlib
 import json
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
+from uuid import uuid4
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import select, update
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.core.object_store import FilesystemObjectStore
+from app.core.model_client import (
+    ModelClient, ModelIdentity, ModelIdentityError, ModelInvocationError,
+    PromptTooLargeError,
+)
 from app.deep_review.document_mcp.processor import ProcessedDocument
-from app.deep_review.models import ContentObject, DocumentVersion, PreSpecPageOverview, PrespecV4Attempt
+from app.deep_review.models import (
+    ContentObject, DocumentVersion, PreSpecPageOverview, PrespecOverviewCallEvent,
+    PrespecOverviewVerification, PrespecV4Attempt,
+)
 from app.deep_review.services.page_overview import list_page_overviews
 from app.deep_review.services.prespec_v4 import freeze_v4_target, prepare_v4_pdf_snapshot, select_v4_input_range
 from app.deep_review.services.prespec_v4_runner import (
+    V4_LEGACY_POLICY_PATH,
     V4ModelBinding,
+    current_v4_projections,
     enqueue_v4_attempt,
     load_v4_policy,
     PrespecV4OverviewRunner,
     record_v4_preparation_failure,
 )
-from app.deep_review.services.prespec_v4_ops import activate_v4
+from app.deep_review.services.prespec_v4_ops import (
+    ACTIVATION_SCHEMA, _execution_approval, activate_v4, deactivate_v4,
+)
 import app.deep_review.services.prespec_v4_runner as runner_module
 
 from .test_prespec_v4_preparation import (
@@ -65,8 +79,9 @@ class _Client:
         self.outputs = list(outputs)
         self.inputs = []
         self.calls = []
+        self.model_context_tokens = 262_144
 
-    def invoke(self, stage, input_slice, policy, *, seed=None, correction=None):
+    def invoke(self, stage, input_slice, policy, *, seed=None, correction=None, **_kwargs):
         self.inputs.append((stage, input_slice, policy))
         self.calls.append({"seed": seed, "correction": correction})
         output = self.outputs[min(len(self.calls) - 1, len(self.outputs) - 1)]
@@ -207,6 +222,69 @@ def _ready_target(tmp_path, *, spread=False):
     return engine, session, store, target
 
 
+def _manifest_fixture(page_texts):
+    document_version_id = uuid4()
+    pages = [
+        {"number": number, "text": value, "text_sha256": _sha(value.encode())}
+        for number, value in enumerate(page_texts, 1)
+    ]
+    input_payload = {
+        "schema_version": runner_module.V4_MANIFEST_SCHEMA,
+        "document_version_id": str(document_version_id),
+        "source_sha256": "a" * 64,
+        "pages": pages,
+        "block_keys": [],
+        "start_locator": {"block_key": "start", "page": 1, "ordinal": 0},
+        "end_locator": {"block_key": "end", "page": len(pages), "ordinal": 1},
+        "input_limitations": ["page_text_only"],
+    }
+    manifest = {
+        **input_payload,
+        "selection_status": "ready",
+        "strategy": "fixture",
+    }
+    raw = json.dumps(
+        manifest, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    ).encode()
+    content = SimpleNamespace(
+        id=uuid4(), detected_mime="application/json", size_bytes=len(raw)
+    )
+    target = SimpleNamespace(
+        manifest_content_object_id=content.id,
+        manifest_location_id=uuid4(),
+        selection_manifest_sha256=_sha(raw),
+        input_byte_count=len(raw),
+        input_sha256=runner_module._sha256_json(input_payload),
+        document_version_id=document_version_id,
+    )
+    session = SimpleNamespace(get=lambda _model, _id: content)
+    return session, target, raw
+
+
+@pytest.mark.parametrize("blank_page", [" \n\t     ", "\n        "], ids=["8-chars", "9-chars"])
+def test_manifest_preserves_one_whitespace_only_page_when_other_page_has_body(
+    monkeypatch, blank_page
+):
+    session, target, raw = _manifest_fixture((blank_page, "본문은 그대로 유지한다."))
+    monkeypatch.setattr(runner_module, "_verified_location", lambda *_args: object())
+    monkeypatch.setattr(runner_module, "_read_verified_artifact", lambda *_args, **_kwargs: raw)
+
+    manifest, pages = runner_module._load_manifest(session, object(), target)
+
+    assert pages == {1: blank_page, 2: "본문은 그대로 유지한다."}
+    assert manifest["pages"][0]["text"] == blank_page
+    assert manifest["pages"][0]["text_sha256"] == _sha(blank_page.encode())
+
+
+def test_manifest_rejects_when_every_selected_page_is_whitespace_only(monkeypatch):
+    session, target, raw = _manifest_fixture((" \n\t     ", "\u3000\n"))
+    monkeypatch.setattr(runner_module, "_verified_location", lambda *_args: object())
+    monkeypatch.setattr(runner_module, "_read_verified_artifact", lambda *_args, **_kwargs: raw)
+
+    with pytest.raises(runner_module.V4AttemptError, match="manifest_invalid"):
+        runner_module._load_manifest(session, object(), target)
+
+
 def _activate_for_target(session, target, binding):
     snapshot = session.get(runner_module.PrespecV4PdfSnapshot, target.snapshot_id)
     assert snapshot is not None
@@ -228,8 +306,74 @@ def _activate_for_target(session, target, binding):
             "automatic_requirements": {},
         },
         binding=binding,
-        settings=SimpleNamespace(reference_workflow_mode=True, analysis_provider="vllm", prespec_overview_policy_path=None),
+        settings=SimpleNamespace(reference_workflow_mode=True, analysis_provider="vllm", prespec_overview_policy_path=V4_LEGACY_POLICY_PATH),
     )
+
+
+def _activate_v5_for_target(session, target, binding, policy):
+    snapshot = session.get(runner_module.PrespecV4PdfSnapshot, target.snapshot_id)
+    assert snapshot is not None
+    activate_v4(
+        session, actor="v5-test", mode="explicit_sample",
+        artifact={
+            "schema": ACTIVATION_SCHEMA, "version": 2,
+            "samples": [{
+                "notice_id": target.notice_id, "notice_key": "pre:test",
+                "document_version_id": str(target.document_version_id),
+                "source_sha256": snapshot.source_sha256,
+                "source_size_bytes": snapshot.source_size_bytes,
+                "target_id": str(target.id), "input_sha256": target.input_sha256,
+                "selection_manifest_sha256": target.selection_manifest_sha256,
+                "pdf_sha256": snapshot.pdf_sha256,
+            }],
+            "automatic_requirements": {},
+            "execution": _execution_approval(policy),
+        },
+        binding=binding,
+        settings=SimpleNamespace(
+            reference_workflow_mode=True, analysis_provider="vllm",
+            prespec_overview_policy_path=None,
+        ),
+    )
+
+
+def _claims_draft():
+    return {
+        "schema_version": "bidops.prespec-overview-claims.v1",
+        "claims": [
+            {"id": "business", "section": "business_overview", "text": "감리 개요",
+             "evidence": [{"page": 2, "quote": "감리 개요"}], "quantities": []},
+            {"id": "task", "section": "main_tasks", "text": "감리 범위",
+             "evidence": [{"page": 2, "quote": "감리 범위"}], "quantities": []},
+        ],
+        "analysis": [], "unknowns": [],
+    }
+
+
+def _semantic(*, second_status="supported"):
+    return {
+        "schema_version": "bidops.prespec-overview-semantic.v1",
+        "checks": [
+            {"claim_id": "business", "status": "supported", "reason_codes": []},
+            {"claim_id": "task", "status": second_status,
+             "reason_codes": [] if second_status == "supported" else ["insufficient_evidence"]},
+        ],
+        "analysis_checks": [], "unknown_checks": [],
+    }
+
+
+def _queued_v5(tmp_path):
+    engine, session, store, target = _ready_target(tmp_path)
+    policy = load_v4_policy()
+    binding = V4ModelBinding(
+        provider="test", model_name=policy.model_name, model_digest="a" * 64,
+        prompt_version=policy.prompt_version, policy_digest=policy.digest,
+        reference_only=True,
+    )
+    _activate_v5_for_target(session, target, binding, policy)
+    attempt = enqueue_v4_attempt(session, target_id=target.id, binding=binding)
+    session.commit()
+    return engine, session, store, target, policy, binding, attempt
 
 
 def test_v4_policy_keeps_reference_instructions_and_examples() -> None:
@@ -239,7 +383,7 @@ def test_v4_policy_keeps_reference_instructions_and_examples() -> None:
             encoding="utf-8"
         )
     )
-    policy = load_v4_policy()
+    policy = load_v4_policy(V4_LEGACY_POLICY_PATH)
     for key in (
         "chunking",
         "generation",
@@ -263,7 +407,7 @@ def test_v4_policy_keeps_reference_instructions_and_examples() -> None:
 
 def test_v4_runner_stores_page_result_and_current_pointer(tmp_path, monkeypatch):
     engine, session, store, target = _ready_target(tmp_path)
-    policy = load_v4_policy()
+    policy = load_v4_policy(V4_LEGACY_POLICY_PATH)
     binding = V4ModelBinding(provider="test", model_name=policy.model_name, model_digest="a" * 64, prompt_version=policy.prompt_version, policy_digest=policy.digest, reference_only=True)
     client = _Client(_payload())
     _activate_for_target(session, target, binding)
@@ -308,6 +452,12 @@ def test_v4_runner_stores_page_result_and_current_pointer(tmp_path, monkeypatch)
 
 def test_v4_dispatch_scopes_legacy_exclusion_to_v4_documents(tmp_path):
     engine, session, store, target = _ready_target(tmp_path)
+    session.execute(
+        update(runner_module.PrespecV4Target)
+        .where(runner_module.PrespecV4Target.id == target.id)
+        .values(selection_status="excluded", reason_code="synthetic_exclusion")
+    )
+    session.commit()
 
     class _Legacy:
         def __init__(self):
@@ -329,6 +479,63 @@ def test_v4_dispatch_scopes_legacy_exclusion_to_v4_documents(tmp_path):
     assert session.scalar(select(PrespecV4Attempt).where(PrespecV4Attempt.target_id == target.id)) is None
     session.close()
     engine.dispose()
+
+
+def test_current_v4_projection_does_not_hide_database_failure() -> None:
+    """projection DB 오류를 빈 과거 상태로 낮추지 않고 호출자에게 전파한다."""
+
+    class _BrokenSession:
+        def scalars(self, _statement):
+            raise SQLAlchemyError("synthetic database failure")
+
+    with pytest.raises(SQLAlchemyError, match="synthetic database failure"):
+        current_v4_projections(_BrokenSession(), [101])  # type: ignore[arg-type]
+
+
+def test_v4_identity_success_cache_is_rebuilt_after_endpoint_change(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """v4 성공 binding도 endpoint fingerprint가 바뀌면 새로 확인한다."""
+
+    policy = load_v4_policy()
+    settings = SimpleNamespace(
+        vllm_base_url="http://127.0.0.1:8000/v1",
+        vllm_allowed_hosts="127.0.0.1",
+        vllm_api_key="first-synthetic-key",
+        vllm_model_revision="a" * 64,
+        vllm_overview_api_dialect="vllm",
+    )
+    built: list[object] = []
+    closed: list[object] = []
+
+    class _IdentityClient:
+        def verify_identity(self):
+            return ModelIdentity(
+                model=policy.model_name,
+                revision="a" * 64,
+                max_model_len=262_144,
+            )
+
+        def close(self):
+            closed.append(self)
+
+    def _for_purpose(*_args, **_kwargs):
+        client = _IdentityClient()
+        built.append(client)
+        return client
+
+    monkeypatch.setattr(runner_module.ModelClient, "for_purpose", _for_purpose)
+    runner = PrespecV4OverviewRunner(policy=policy, settings=settings)
+    first = runner._resolve()
+    assert first[0] is not None and first[1] is built[0]
+    assert runner._resolve() == first
+    assert len(built) == 1
+
+    settings.vllm_api_key = "second-synthetic-key"
+    second = runner._resolve()
+    assert second[0] is not None and second[1] is built[1]
+    assert len(built) == 2
+    assert closed == [built[0]]
 
 
 def test_v4_dispatch_keeps_legacy_default_when_no_v4_boundary(tmp_path):
@@ -355,7 +562,7 @@ def test_v4_dispatch_keeps_legacy_default_when_no_v4_boundary(tmp_path):
 
 def test_v4_validation_failure_keeps_encrypted_raw_and_no_result(tmp_path):
     engine, session, store, target = _ready_target(tmp_path)
-    policy = load_v4_policy()
+    policy = load_v4_policy(V4_LEGACY_POLICY_PATH)
     binding = V4ModelBinding(provider="test", model_name=policy.model_name, model_digest="a" * 64, prompt_version=policy.prompt_version, policy_digest=policy.digest, reference_only=True)
     _activate_for_target(session, target, binding)
     attempt = enqueue_v4_attempt(session, target_id=target.id, binding=binding)
@@ -372,7 +579,7 @@ def test_v4_validation_failure_keeps_encrypted_raw_and_no_result(tmp_path):
 
 def _queued(tmp_path, *, spread=False):
     engine, session, store, target = _ready_target(tmp_path, spread=spread)
-    policy = load_v4_policy()
+    policy = load_v4_policy(V4_LEGACY_POLICY_PATH)
     binding = V4ModelBinding(provider="test", model_name=policy.model_name, model_digest="a" * 64,
                              prompt_version=policy.prompt_version, policy_digest=policy.digest, reference_only=True)
     _activate_for_target(session, target, binding)
@@ -503,5 +710,501 @@ def test_v4_completed_attempt_records_empty_warning_list(tmp_path):
     assert row is not None and row.status == "completed"
     assert row.validation_warnings == []
     assert _audit_metadata(session, attempt.id)["validation_warnings"] == []
+    session.close()
+    engine.dispose()
+
+
+def test_v5_claims_semantic_and_compose_are_ledgered_atomically(tmp_path):
+    engine, session, store, target, policy, binding, attempt = _queued_v5(tmp_path)
+    client = _Client(_claims_draft(), _semantic())
+
+    result = PrespecV4OverviewRunner(
+        client=client, binding=binding, policy=policy,
+        raw_response_store=_RawStore(), object_store=store,
+    ).run_once(session, "v5-worker")
+
+    assert result.status == "completed"
+    row = session.get(PrespecV4Attempt, attempt.id)
+    verification = session.scalar(select(PrespecOverviewVerification).where(
+        PrespecOverviewVerification.attempt_id == attempt.id
+    ))
+    overview = session.get(PreSpecPageOverview, row.result_id)
+    events = session.scalars(select(PrespecOverviewCallEvent).where(
+        PrespecOverviewCallEvent.attempt_id == attempt.id
+    ).order_by(PrespecOverviewCallEvent.ordinal, PrespecOverviewCallEvent.event_kind)).all()
+    assert row.status == "completed" and row.activation_id is not None
+    assert verification is not None and verification.overall == "passed"
+    assert overview is not None and overview.schema_version == "bidops.prespec-overview-page-review.v4"
+    assert overview.input_sha256 == attempt.input_sha256
+    assert [(event.ordinal, event.stage, event.event_kind) for event in events] == [
+        (1, "draft", "dispatch"), (1, "draft", "response"),
+        (2, "semantic", "dispatch"), (2, "semantic", "response"),
+    ]
+    assert all(event.input_sha256 == attempt.input_sha256 for event in events)
+    assert len({event.prompt_sha256 for event in events if event.event_kind == "dispatch"}) == 2
+    current = runner_module.current_v4_projection(session, target.notice_id)
+    assert current is not None
+    assert current["status"] == "completed" and current["result_id"] == overview.id
+    session.close()
+    engine.dispose()
+
+
+def test_v5_factual_failure_stops_before_semantic_and_needs_human(tmp_path):
+    engine, session, store, _target, policy, binding, attempt = _queued_v5(tmp_path)
+    draft = _claims_draft()
+    draft["claims"][0]["evidence"][0]["quote"] = "없는 문장"
+    client = _Client(draft)
+
+    result = PrespecV4OverviewRunner(
+        client=client, binding=binding, policy=policy,
+        raw_response_store=_RawStore(), object_store=store,
+    ).run_once(session, "v5-worker")
+
+    row = session.get(PrespecV4Attempt, attempt.id)
+    verification = session.scalar(select(PrespecOverviewVerification).where(
+        PrespecOverviewVerification.attempt_id == attempt.id
+    ))
+    assert result.status == "needs_human_review"
+    assert row.status == "needs_human_review" and row.result_id is None
+    assert verification is not None and verification.overall == "needs_human_review"
+    assert len(client.calls) == 1
+    session.close()
+    engine.dispose()
+
+
+def test_v5_format_only_retry_is_bounded_to_three_total_calls(tmp_path):
+    engine, session, store, _target, policy, binding, attempt = _queued_v5(tmp_path)
+    malformed = {**_claims_draft(), "unexpected": True}
+    client = _Client(malformed, _claims_draft(), _semantic())
+
+    result = PrespecV4OverviewRunner(
+        client=client, binding=binding, policy=policy,
+        raw_response_store=_RawStore(), object_store=store,
+    ).run_once(session, "v5-worker")
+
+    assert result.status == "completed" and len(client.calls) == 3
+    dispatches = session.scalars(select(PrespecOverviewCallEvent).where(
+        PrespecOverviewCallEvent.attempt_id == attempt.id,
+        PrespecOverviewCallEvent.event_kind == "dispatch",
+    ).order_by(PrespecOverviewCallEvent.ordinal)).all()
+    assert [(event.ordinal, event.stage) for event in dispatches] == [
+        (1, "draft"), (2, "draft"), (3, "semantic")
+    ]
+    session.close()
+    engine.dispose()
+
+
+def test_v5_second_draft_factual_failure_becomes_human_review(tmp_path):
+    engine, session, store, _target, policy, binding, attempt = _queued_v5(tmp_path)
+    malformed = {**_claims_draft(), "unexpected": True}
+    factual_failure = {
+        "schema_version": "bidops.prespec-overview-claims.v1",
+        "claims": [], "analysis": [], "unknowns": [],
+    }
+    client = _Client(malformed, factual_failure)
+
+    result = PrespecV4OverviewRunner(
+        client=client, binding=binding, policy=policy,
+        raw_response_store=_RawStore(), object_store=store,
+    ).run_once(session, "v5-worker")
+
+    row = session.get(PrespecV4Attempt, attempt.id)
+    assert result.status == "needs_human_review"
+    assert row.status == "needs_human_review" and row.result_id is None
+    assert len(client.calls) == 2
+    session.close()
+    engine.dispose()
+
+
+def test_v5_real_model_client_retries_malformed_draft_once(tmp_path):
+    engine, session, store, _target, policy, binding, attempt = _queued_v5(tmp_path)
+    contents = ["not-json", _raw(_claims_draft()).decode(), _raw(_semantic()).decode()]
+    schemas = []
+
+    def _completion_create(**kwargs):
+        schemas.append(kwargs["response_format"]["json_schema"]["name"])
+        return {
+            "model": policy.model_name,
+            "choices": [{
+                "index": 0, "finish_reason": "stop",
+                "message": {"role": "assistant", "content": contents.pop(0)},
+            }],
+            "usage": {"prompt_tokens": 2, "completion_tokens": 3},
+        }
+
+    client = ModelClient(
+        model=policy.model_name, model_revision="a" * 64,
+        output_contract=policy.output_contract,
+        allowed_hosts="127.0.0.1", completion_create=_completion_create,
+    )
+    # The injected binding stands in for identity verification in this transport
+    # fixture; provide its confirmed context too, without a live /models call.
+    client.model_context_tokens = 262_144
+    result = PrespecV4OverviewRunner(
+        client=client, binding=binding, policy=policy,
+        raw_response_store=_RawStore(), object_store=store,
+    ).run_once(session, "v5-worker")
+
+    assert result.status == "completed"
+    assert len(schemas) == 3
+    assert schemas[0] == schemas[1] and schemas[2] != schemas[0]
+    session.close()
+    engine.dispose()
+
+
+@pytest.mark.parametrize(
+    "semantic,status,reason",
+    [
+        ({"schema_version": "wrong", "checks": []}, "failed", "semantic_response_invalid"),
+        (_semantic(second_status="insufficient"), "needs_human_review", "claim_verification_required"),
+    ],
+)
+def test_v5_semantic_failure_classification(tmp_path, semantic, status, reason):
+    engine, session, store, _target, policy, binding, attempt = _queued_v5(tmp_path)
+    result = PrespecV4OverviewRunner(
+        client=_Client(_claims_draft(), semantic), binding=binding, policy=policy,
+        raw_response_store=_RawStore(), object_store=store,
+    ).run_once(session, "v5-worker")
+
+    row = session.get(PrespecV4Attempt, attempt.id)
+    assert result.status == status and result.reason_code == reason
+    assert row.status == status and row.result_id is None
+    session.close()
+    engine.dispose()
+
+
+@pytest.mark.parametrize(
+    "client,raw_store,reason",
+    [
+        (_Client(ModelInvocationError("timeout", ())), _RawStore(), "timeout"),
+        (_Client(_claims_draft()), SimpleNamespace(put_encrypted=lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("synthetic"))), "response_store_unavailable"),
+    ],
+)
+def test_v5_transport_and_raw_store_fail_without_retry(tmp_path, client, raw_store, reason):
+    engine, session, store, _target, policy, binding, attempt = _queued_v5(tmp_path)
+    result = PrespecV4OverviewRunner(
+        client=client, binding=binding, policy=policy,
+        raw_response_store=raw_store, object_store=store,
+    ).run_once(session, "v5-worker")
+
+    row = session.get(PrespecV4Attempt, attempt.id)
+    assert result.status == "failed" and result.reason_code == reason
+    assert row.status == "failed" and row.result_id is None
+    assert len(client.calls) == 1
+    session.close()
+    engine.dispose()
+
+
+@pytest.mark.parametrize("store_failure", [False, True])
+def test_v5_format_error_without_preserved_raw_never_retries(tmp_path, store_failure):
+    engine, session, store, _target, policy, binding, attempt = _queued_v5(tmp_path)
+
+    class FirstStoreFails(_RawStore):
+        def __init__(self):
+            super().__init__()
+            self.writes = 0
+
+        def put_encrypted(self, *args, **kwargs):
+            self.writes += 1
+            if self.writes == 1:
+                raise OSError("private storage path must not escape")
+            return super().put_encrypted(*args, **kwargs)
+
+    client = _Client(ModelInvocationError("malformed_json", (),
+        raw_response=b'{"claims":' if store_failure else None), _claims_draft(), _semantic())
+    result = PrespecV4OverviewRunner(client=client, binding=binding, policy=policy,
+        raw_response_store=FirstStoreFails() if store_failure else _RawStore(), object_store=store).run_once(session, "v5-worker")
+    expected = "response_store_unavailable" if store_failure else "malformed_json"
+    assert result.status == "failed" and result.reason_code == expected
+    assert len(client.calls) == 1 and session.get(PrespecV4Attempt, attempt.id).result_id is None
+    errors = session.scalars(select(PrespecOverviewCallEvent).where(PrespecOverviewCallEvent.event_kind == "error")).all()
+    assert len(errors) == 1 and errors[0].error_code == expected and errors[0].raw_response_sha256 is None
+    session.close()
+    engine.dispose()
+
+
+def test_v5_unexpected_validation_text_never_becomes_a_public_reason(tmp_path, monkeypatch):
+    engine, session, store, _target, policy, binding, attempt = _queued_v5(tmp_path)
+    runner = PrespecV4OverviewRunner(client=_Client(_claims_draft()), binding=binding, policy=policy,
+        raw_response_store=_RawStore(), object_store=store)
+
+    def bad_input(*args, **kwargs):
+        raise ValueError("private /storage/path with confidential source text")
+
+    monkeypatch.setattr(runner, "_load_input", bad_input)
+    result = runner.run_once(session, "v5-worker")
+    assert result.reason_code == "runner_failed"
+    assert session.get(PrespecV4Attempt, attempt.id).error_code == "runner_failed"
+    assert "private" not in str(_audit_metadata(session, attempt.id))
+    session.close()
+    engine.dispose()
+
+
+def test_v5_stop_during_http_preserves_late_response_only(tmp_path):
+    engine, session, store, _target, policy, binding, attempt = _queued_v5(tmp_path)
+
+    class _Legacy:
+        def __init__(self):
+            self.calls = 0
+
+        def run_once(self, *_args, **_kwargs):
+            self.calls += 1
+            return SimpleNamespace(status="legacy", claimed=True)
+
+    legacy = _Legacy()
+
+    class _StoppingClient(_Client):
+        def invoke(self, stage, input_slice, stage_policy, **kwargs):
+            response = super().invoke(stage, input_slice, stage_policy, **kwargs)
+            deactivate_v4(session, actor="operator", reason="operator_requested")
+            session.commit()
+            return response
+
+    runner = PrespecV4OverviewRunner(
+        client=_StoppingClient(_claims_draft()), binding=binding, policy=policy,
+        raw_response_store=_RawStore(), object_store=store, legacy_runner=legacy,
+    )
+    result = runner.run_once(session, "v5-worker")
+
+    row = session.get(PrespecV4Attempt, attempt.id)
+    assert result.status == "stale"
+    assert row.status == "cancelled" and row.result_id is None
+    assert session.scalar(select(PrespecOverviewVerification).where(
+        PrespecOverviewVerification.attempt_id == attempt.id
+    )) is None
+    events = session.scalars(select(PrespecOverviewCallEvent).where(
+        PrespecOverviewCallEvent.attempt_id == attempt.id
+    )).all()
+    assert {event.event_kind for event in events} == {"dispatch", "response"}
+    assert legacy.calls == 0
+    assert runner.run_once(session, "v5-worker").status == "legacy"
+    assert legacy.calls == 1
+    session.close()
+    engine.dispose()
+
+
+def test_v5_late_response_cannot_publish_for_a_different_lease_owner(tmp_path):
+    engine, session, store, _target, policy, binding, attempt = _queued_v5(tmp_path)
+
+    class _ReassignedClient(_Client):
+        def invoke(self, stage, input_slice, stage_policy, **kwargs):
+            response = super().invoke(stage, input_slice, stage_policy, **kwargs)
+            session.execute(
+                update(PrespecV4Attempt)
+                .where(PrespecV4Attempt.id == attempt.id)
+                .values(lease_owner="replacement-worker")
+            )
+            session.commit()
+            return response
+
+    result = PrespecV4OverviewRunner(
+        client=_ReassignedClient(_claims_draft()), binding=binding, policy=policy,
+        raw_response_store=_RawStore(), object_store=store,
+    ).run_once(session, "v5-worker")
+
+    row = session.get(PrespecV4Attempt, attempt.id)
+    assert result.status == "stale"
+    assert row.status == "running" and row.lease_owner == "replacement-worker"
+    assert row.result_id is None
+    assert session.scalar(select(PrespecOverviewVerification).where(
+        PrespecOverviewVerification.attempt_id == attempt.id
+    )) is None
+    session.close()
+    engine.dispose()
+
+
+def test_v5_identity_recovers_before_claim_without_sending_payload(
+    tmp_path, monkeypatch
+):
+    engine, session, store, target = _ready_target(tmp_path)
+    policy = load_v4_policy()
+    binding = V4ModelBinding(
+        provider="openai-compatible", model_name=policy.model_name,
+        model_digest="a" * 64, prompt_version=policy.prompt_version,
+        policy_digest=policy.digest, reference_only=True,
+    )
+    _activate_v5_for_target(session, target, binding, policy)
+    attempt = enqueue_v4_attempt(session, target_id=target.id, binding=binding)
+    session.commit()
+    now = [datetime.now(UTC)]
+    built = []
+
+    class _IdentityClient(_Client):
+        def __init__(self, succeeds):
+            super().__init__(_claims_draft(), _semantic())
+            self.succeeds = succeeds
+
+        def verify_identity(self):
+            if not self.succeeds:
+                raise ModelIdentityError("identity_unavailable", retryable=True)
+            return ModelIdentity(
+                model=policy.model_name,
+                revision="a" * 64,
+                max_model_len=262_144,
+            )
+
+        def close(self):
+            return None
+
+    def _for_purpose(*_args, **_kwargs):
+        client = _IdentityClient(succeeds=bool(built))
+        built.append(client)
+        return client
+
+    monkeypatch.setattr(runner_module.ModelClient, "for_purpose", _for_purpose)
+    runner = PrespecV4OverviewRunner(
+        policy=policy, raw_response_store=_RawStore(), object_store=store,
+        clock=lambda: now[0],
+    )
+
+    first = runner.run_once(session, "v5-worker")
+    assert first.status == "awaiting_model"
+    assert built[0].calls == []
+    assert session.get(PrespecV4Attempt, attempt.id).status == "queued"
+    now[0] += timedelta(seconds=10)
+    second = runner.run_once(session, "v5-worker")
+    assert second.status == "completed"
+    assert len(built) == 2 and len(built[1].calls) == 2
+    session.close()
+    engine.dispose()
+
+
+@pytest.mark.parametrize(
+    "elapsed_seconds,expected_code",
+    [(900, "lease_budget_exhausted"), (1201, "lease_expired")],
+)
+def test_v5_does_not_dispatch_semantic_without_remaining_lease(
+    tmp_path, elapsed_seconds, expected_code
+):
+    engine, session, store, _target, policy, binding, attempt = _queued_v5(tmp_path)
+    now = [datetime.now(UTC)]
+
+    class _AdvancingClient(_Client):
+        def invoke(self, stage, input_slice, stage_policy, **kwargs):
+            response = super().invoke(stage, input_slice, stage_policy, **kwargs)
+            now[0] += timedelta(seconds=elapsed_seconds)
+            return response
+
+    client = _AdvancingClient(_claims_draft())
+    result = PrespecV4OverviewRunner(
+        client=client, binding=binding, policy=policy,
+        raw_response_store=_RawStore(), object_store=store,
+        clock=lambda: now[0],
+    ).run_once(session, "v5-worker")
+
+    row = session.get(PrespecV4Attempt, attempt.id)
+    dispatches = session.scalars(select(PrespecOverviewCallEvent).where(
+        PrespecOverviewCallEvent.attempt_id == attempt.id,
+        PrespecOverviewCallEvent.event_kind == "dispatch",
+    )).all()
+    assert result.status == "failed" and result.reason_code == expected_code
+    assert row.status == "failed" and row.error_code == expected_code
+    assert len(client.calls) == 1
+    assert [(event.ordinal, event.stage) for event in dispatches] == [(1, "draft")]
+    session.close()
+    engine.dispose()
+
+
+@pytest.mark.parametrize("reported_context", [None, 1])
+def test_v5_capacity_failure_stops_before_dispatch_and_http(
+    tmp_path, reported_context
+):
+    engine, session, store, _target, policy, binding, attempt = _queued_v5(tmp_path)
+    client = _Client(_claims_draft(), _semantic())
+    client.model_context_tokens = reported_context
+
+    result = PrespecV4OverviewRunner(
+        client=client, binding=binding, policy=policy,
+        raw_response_store=_RawStore(), object_store=store,
+    ).run_once(session, "v5-worker")
+
+    row = session.get(PrespecV4Attempt, attempt.id)
+    events = list(session.scalars(select(PrespecOverviewCallEvent).where(
+        PrespecOverviewCallEvent.attempt_id == attempt.id
+    )))
+    assert result.status == "failed"
+    assert result.reason_code == "input_capacity_exceeded"
+    assert row.status == "failed" and row.error_code == "input_capacity_exceeded"
+    assert client.calls == []
+    assert events == []
+    session.close()
+    engine.dispose()
+
+
+@pytest.mark.parametrize("failure_kind", ["page_limit", "prompt_limit", "raw_limit"])
+def test_v5_legacy_input_limits_use_capacity_failure_code(
+    tmp_path, monkeypatch, failure_kind
+):
+    engine, session, store, _target, policy, binding, attempt = _queued_v5(tmp_path)
+    client = _Client(_claims_draft(), _semantic())
+    runner = PrespecV4OverviewRunner(
+        client=client, binding=binding, policy=policy,
+        raw_response_store=_RawStore(), object_store=store,
+    )
+    if failure_kind == "page_limit":
+        monkeypatch.setattr(
+            runner_module, "build_claims_stage_input",
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(
+                ValueError("input_limit_exceeded")
+            ),
+        )
+    elif failure_kind == "prompt_limit":
+        monkeypatch.setattr(
+            runner_module, "build_claims_prompt",
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(
+                PromptTooLargeError("bounded prompt exceeds the local analysis limit")
+            ),
+        )
+    else:
+        monkeypatch.setattr(
+            runner, "_load_input",
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(
+                runner_module.V4AttemptError("input_too_large")
+            ),
+        )
+
+    result = runner.run_once(session, "v5-worker")
+
+    row = session.get(PrespecV4Attempt, attempt.id)
+    events = list(session.scalars(select(PrespecOverviewCallEvent).where(
+        PrespecOverviewCallEvent.attempt_id == attempt.id
+    )))
+    assert result.status == "failed"
+    assert result.reason_code == "input_capacity_exceeded"
+    assert row.status == "failed" and row.error_code == "input_capacity_exceeded"
+    assert client.calls == [] and events == []
+    session.close()
+    engine.dispose()
+
+
+def test_v5_semantic_capacity_is_rechecked_before_dispatch_and_http(
+    tmp_path, monkeypatch
+):
+    engine, session, store, _target, policy, binding, attempt = _queued_v5(tmp_path)
+    client = _Client(_claims_draft(), _semantic())
+    checked_stages = []
+
+    def _capacity(**kwargs):
+        checked_stages.append(json.loads(kwargs["prompt"])["stage"])
+        if len(checked_stages) == 2:
+            raise ModelInvocationError("input_capacity_exceeded", ())
+        return SimpleNamespace(total_token_upper_bound=1)
+
+    monkeypatch.setattr(runner_module, "structured_request_capacity", _capacity)
+    result = PrespecV4OverviewRunner(
+        client=client, binding=binding, policy=policy,
+        raw_response_store=_RawStore(), object_store=store,
+    ).run_once(session, "v5-worker")
+
+    row = session.get(PrespecV4Attempt, attempt.id)
+    dispatches = list(session.scalars(select(PrespecOverviewCallEvent).where(
+        PrespecOverviewCallEvent.attempt_id == attempt.id,
+        PrespecOverviewCallEvent.event_kind == "dispatch",
+    )))
+    assert checked_stages == ["prespec_overview_claims", "prespec_overview_semantic"]
+    assert result.status == "failed" and result.reason_code == "input_capacity_exceeded"
+    assert row.status == "failed" and row.error_code == "input_capacity_exceeded"
+    assert len(client.calls) == 1
+    assert [(event.ordinal, event.stage) for event in dispatches] == [(1, "draft")]
     session.close()
     engine.dispose()

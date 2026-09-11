@@ -60,7 +60,14 @@ N은 사용자가 공고를 지정한 단건 요청으로 실행할 수 있다.
 
 개요 검토의 앞부분은 [ADR-0032](tracking/decisions/0032-prespec-overview-cutting-rule.md)에 따라 정한다. 목차 항목이 본문 소제목과 대응하면 목차를 사용하고, 그렇지 않으면 의미 있는 주제 소제목을 사용한다. 번호 형식만으로 절단하지 않는다. 시작 또는 종료 위치가 모호하면 추측해 자르지 않고 `unknown`으로 남겨 사람 검토로 보낸다. 자동 추출 입력에는 사용 전략(`strategy`), `start_locator`, `end_locator`, `source_sha256`를 보존하며, 고정 block 수나 전체 문서를 개요 검토에 자동 투입하지 않는다.
 
-범위를 정하지 못한 개요 입력은 **사람이 확정한다**(2026-09-10, [ADR-RDP-004](rhwp-document-pipeline/ADR.md)). 결정적 선택기가 경계를 못 정하면 준비는 실패 attempt를 만들지 않고 절 후보 목록을 가리키는 `needs_human_review` target을 남긴다. 담당자가 절 후보의 시작·끝이나 쪽 범위를 고르면 같은 snapshot·관측에 `human_confirmed` `ready` target이 새로 생기고 이전 target은 그대로 보존된다. 확정은 **개요 검토 입력을 준비하는 것일 뿐 실행이 아니다** — attempt는 만들어지지 않고 응답의 `attempt_enqueued`는 언제나 `false`이며, 실행·추적 승인·최종 Go/No-Go는 기존 경로의 사람 결정이다. 모델 보조 선택은 명시 CLI 액션에서만 돌고 결과는 제안(감사 행)일 뿐이어서 target·등급·참여 준비 상태를 바꾸지 않는다. 담당자 이름은 감사 표식이다.
+범위를 정하지 못한 개요 입력은 **사람이 확정한다**(2026-09-10, [ADR-RDP-004](0910_rhwp-document-pipeline/ADR.md)). 결정적 선택기가 경계를 못 정하면 준비는 실패 attempt를 만들지 않고 절 후보 목록을 가리키는 `needs_human_review` target을 남긴다. 담당자가 절 후보의 시작·끝이나 쪽 범위를 고르면 같은 snapshot·관측에 `human_confirmed` `ready` target이 새로 생기고 이전 target은 그대로 보존된다. 확정은 **개요 검토 입력을 준비하는 것일 뿐 실행이 아니다** — attempt는 만들어지지 않고 응답의 `attempt_enqueued`는 언제나 `false`이며, 실행·추적 승인·최종 Go/No-Go는 기존 경로의 사람 결정이다. 모델 보조 선택은 명시 CLI 액션에서만 돌고 결과는 제안(감사 행)일 뿐이어서 target·등급·참여 준비 상태를 바꾸지 않는다. 담당자 이름은 감사 표식이다.
+
+2026-09-11 MVP에서는 rhwp의 안전한 PDF·페이지 텍스트가 핵심 산출물이며 절 후보는 참고다.
+후보가 있어도 쪽 범위를 직접 지정할 수 있고, 일부만 반환된 후보는 전체 목록처럼 사용하지
+않는다. 자동 ready도 실행 대기가 없으면 PDF 확인 후 새 범위로 확정할 수 있다. 대기/실행
+중 확정과 새 범위 뒤 옛 target의 재실행은 차단한다. 같은 줄 복수 장 제목과 `제안개요`
+작성 양식의 오선택은 자동 범위로 확정하지 않고 경고한다. 유효 본문과 함께 있는 공백 쪽은 보존하되 근거로 인정하지 않는다. 변환 완료·
+범위 확정·내용 검증 통과를 서로 대신하지 않으며 모델 미실행/실패여도 안전한 PDF는 열람한다.
 
 개요 검토의 결정적 절단 snapshot과 모델 attempt는 분리한다([ADR-0033](tracking/decisions/0033-prespec-overview-review-runtime-contract.md)). 승인된 사설 vLLM binding이 없으면 절단까지만 만들고 `awaiting_model`로 두며 결과와 완료 시각은 `null`로 보존한다. 경계가 모호한 절단은 `needs_human_review`로 보내고 모델을 호출하지 않는다. 결정적 mock은 `reference_only`, `deployable=false`이며 운영 완료로 집계하지 않는다. `completed`는 승인된 binding의 응답이 strict schema, evidence locator, source hash 검증을 모두 통과한 경우에만 허용하고 hosted OpenAI·Codex로 자동 fallback하지 않는다.
 
@@ -278,10 +285,31 @@ manifest는 `partially_human_adjudicated`이며 사람 22건, draft 603건, 잔�
 심층 검토 자동 시작, 사람의 추적 결정과 최종 Go/No-Go를 변경하지 않는다.
 기존 권고 결과가 있으면 화면은 설명형 요약 아래에서 기존 기록임을 구분해 표시한다.
 
-- 스키마·페이지 근거 검증이 실패하면 같은 입력으로 seed를 바꾼 1회 재시도를 보내고,
+- 과거 policy v4의 스키마·페이지 근거 검증이 실패하면 같은 입력으로 seed를 바꾼 1회 재시도를 보내고,
   보정 지시에는 실패한 검사 코드만 담는다. 두 응답을 모두 암호화 보존하고 감사에
   `validation_retry`로 남긴다. 재시도도 실패하면 실패로 남기고 자동 보정하지 않는다.
 - 검증기 v3의 경고(`pdf_inline_locator_normalized`)는 실패가 아니며 재시도 사유도 아니다.
   완료된 attempt의 `validation_warnings`에 목록으로 남고 감사에도 같은 목록을 적는다.
   경고가 없으면 빈 목록이며, `0023` migration 이전 행은 `null`(미기록)이고 이를 경고 없음으로
   승격시키지 않는다.
+
+2026-09-10 신규 policy v5·page-review v4는 주장별 결정적 검사와 별도 Qwen 의미 검토를
+함께 적용한다. 기간과 금액·사업 주체·역할·VAT·조건/부정이 다른 주장을 자동 수정하거나
+재호출해 통과시키지 않는다. 하나라도 미검증이면 전체 `needs_human_review`(화면 “근거 확인
+필요”)이며 최종 개요는 없다. 초안의 기술적 형식 오류만 1회 재생성 가능하고, 정상은 초안+
+의미 2회, 최대 3회다. 의미 응답 형식 실패는 `failed`이며 의미 재호출은 없다.
+최종 사실·분석은 검증된 text를 그대로 구성하고 unknown·입력 한계는 서버가 실제 검토 범위로
+표시한다. 모호한 수치 관계는 추정하지 않고 사람 확인으로 보낸다.
+
+선택 원문이 5,000자를 넘었다는 이유만으로 개요를 거절하지 않는다. 두 단계의 실제 요청·
+모델 context·출력 예약·payload 예산 안에서는 전체를 검토하고 자동 절단·사전 요약은 하지
+않는다. 용량 초과 또는 안전 예산 확인 불가의 `failed/input_capacity_exceeded`는 “입력
+용량 초과로 미실행”으로 표시하며 내용 검증 실패나 품질 판정이 아니다. 해당 단계는 미전송이고
+이미 받은 초안은 호출 이력으로만 보존한다. 범위 변경/추가 호출이 필요하면 새 승인을 받는다.
+
+입력 범위 미확정 target과 주장 검증 대기 attempt는 별개다. 중지하면 queued/running은
+`cancelled`가 되고, OFF→ON 뒤에도 이전 activation 응답은 게시하지 않는다. 만료 정리와
+v4에 예약되지 않은 다른 문서의 기존 개요는 계속 진행한다. 과거 성공·사람 리뷰·참조 표식은
+보존하되 현재 실패/검증 대기/취소/stale을 대체하지 않는다. v3는 이전 검증 기준으로 읽고
+v4 완료도 `unmeasured_reference`를 운영 품질 승인으로 승격하지 않는다. 추적·Go/No-Go와
+회사 핏·심층 자동 실행의 기존 승인 조건은 바꾸지 않는다.

@@ -21,13 +21,25 @@ from ..models import (
     DocumentStructure,
     DocumentVersion,
     PreSpecPageOverview,
+    PrespecOverviewVerification,
+    PrespecV4Attempt,
+    PrespecV4PdfSnapshot,
+    PrespecV4Target,
 )
 from ..schemas.page_overview import (
     PageOverviewCurrent,
     PageOverviewPayload,
     PageOverviewResponse,
     PageOverviewView,
+    PageOverviewCurrentV2,
+    PageOverviewPayloadV4,
+    PageOverviewResponseV2,
+    PageOverviewVerification,
+    PageOverviewVerificationClaim,
+    PageOverviewViewV2,
+    parse_page_overview_payload,
 )
+from ..schemas.prespec_overview_claims import OverviewClaimChecks
 from .page_overview_validation import VALIDATOR_VERSION, fold_space, validate_page_overview
 
 
@@ -160,10 +172,16 @@ def import_page_overview(
 
 def list_page_overviews(session: Session, notice_id: int) -> PageOverviewResponse:
     require_notice(session, notice_id)
+    upgraded = session.scalar(select(PrespecV4Attempt.id).where(
+        PrespecV4Attempt.notice_id == notice_id,
+        PrespecV4Attempt.prompt_version == "prespec-overview-v5",
+    ).limit(1))
+    require(upgraded is None, "overview_contract_upgrade_required")
     rows = session.scalars(select(PreSpecPageOverview).where(PreSpecPageOverview.notice_id == notice_id)
                            .order_by(PreSpecPageOverview.created_at.desc(), PreSpecPageOverview.id.desc()).limit(20)).all()
     views = []
     for row in rows:
+        require(row.schema_version == "bidops.prespec-overview-page-review.v3", "overview_contract_upgrade_required")
         require(digest(canonical(row.payload_jsonb)) == row.payload_sha256, "result_integrity_failed")
         fields = {name: getattr(row, name) for name in PageOverviewView.model_fields if name != "payload"}
         views.append(PageOverviewView(**fields, payload=PageOverviewPayload.model_validate(row.payload_jsonb)))
@@ -175,6 +193,79 @@ def list_page_overviews(session: Session, notice_id: int) -> PageOverviewRespons
     projected = current_v4_projection(session, notice_id)
     current = PageOverviewCurrent(**projected) if projected is not None else None
     return PageOverviewResponse(notice_id=notice_id, reviews=views, current=current)
+
+
+def verified_result_payload(row: PreSpecPageOverview, verification: PrespecOverviewVerification | None):
+    """Shared safe reader for a stored result; legacy validation stays legacy."""
+    require(digest(canonical(row.payload_jsonb)) == row.payload_sha256, "result_integrity_failed")
+    payload = parse_page_overview_payload(row.payload_jsonb)
+    require(payload.schema_version == row.schema_version, "result_integrity_failed")
+    if isinstance(payload, PageOverviewPayloadV4):
+        require(verification is not None, "result_integrity_failed")
+        require(
+            row.verification_id == verification.id == payload.verification_id
+            and row.verification_sha256 == verification.payload_sha256 == payload.verification_sha256
+            and digest(canonical(verification.payload_jsonb)) == verification.payload_sha256
+            and verification.overall == "passed"
+            and row.validation_status == row.evidence_check_status == "passed"
+            and row.run_id == verification.attempt_id
+            and row.input_sha256 == verification.input_sha256
+            and row.policy_digest == verification.policy_digest
+            and row.model_digest == verification.model_digest,
+            "result_integrity_failed",
+        )
+        from .prespec_overview_claim_validation import validate_composed_page_overview
+
+        checks = _verified_checks(verification)
+        require(not validate_composed_page_overview(payload, checks), "result_integrity_failed")
+    return payload
+
+
+def _verified_checks(record: PrespecOverviewVerification) -> OverviewClaimChecks:
+    require(digest(canonical(record.payload_jsonb)) == record.payload_sha256, "result_integrity_failed")
+    checks = OverviewClaimChecks.model_validate_json(canonical(record.payload_jsonb))
+    require(all(getattr(checks, field) == getattr(record, field) for field in (
+        "attempt_id", "schema_version", "draft_sha256", "input_sha256", "policy_digest",
+        "binding_digest", "validator_version", "overall",
+    )), "result_integrity_failed")
+    return checks
+
+
+def list_page_overviews_v2(session: Session, notice_id: int) -> PageOverviewResponseV2:
+    require_notice(session, notice_id)
+    rows = session.scalars(select(PreSpecPageOverview).where(PreSpecPageOverview.notice_id == notice_id)
+                           .order_by(PreSpecPageOverview.created_at.desc(), PreSpecPageOverview.id.desc()).limit(20)).all()
+    records = session.scalars(select(PrespecOverviewVerification)
+        .join(PrespecV4Attempt, PrespecV4Attempt.id == PrespecOverviewVerification.attempt_id)
+        .where(PrespecV4Attempt.notice_id == notice_id)).all()
+    by_id = {record.id: record for record in records}
+    by_attempt = {record.attempt_id: record for record in records}
+    views = []
+    for row in rows:
+        payload = verified_result_payload(row, by_id.get(row.verification_id))
+        fields = {name: getattr(row, name) for name in PageOverviewView.model_fields if name != "payload"}
+        views.append(PageOverviewViewV2(**fields, payload=payload))
+    from .prespec_v4_runner import current_v4_projection
+
+    projected = current_v4_projection(session, notice_id)
+    current = PageOverviewCurrentV2(**projected) if projected is not None else None
+    diagnostic = None
+    record = by_attempt.get(current.attempt_id) if current is not None else None
+    if record is not None and current.reason_code != "target_superseded":
+        checks = _verified_checks(record)
+        current = current.model_copy(update={"verification_status": record.overall})
+        diagnostic = PageOverviewVerification(
+            verification_id=record.id, status=record.overall,
+            reason_codes=sorted(set(checks.reason_codes + [code for row in checks.analysis_checks + checks.unknown_checks for code in row.reason_codes])),
+            claims=[PageOverviewVerificationClaim(
+                claim_id=row.claim_id, text=row.text,
+                deterministic_status=row.deterministic.status, semantic_status=row.semantic.status,
+                reason_codes=sorted(set(row.deterministic.reason_codes + row.semantic.reason_codes)),
+                verified_evidence=row.deterministic.verified_evidence,
+            ) for row in checks.checks],
+        )
+    return PageOverviewResponseV2(notice_id=notice_id, reviews=views, current=current,
+                                  range_review=None, verification=diagnostic)
 
 
 def verified_pdf_bytes(session: Session, location_id: UUID | None, pdf_sha256: str | None, store: ObjectStore) -> bytes:
@@ -202,6 +293,40 @@ def get_page_pdf(session: Session, notice_id: int, review_id: UUID, store: Objec
     row = session.get(PreSpecPageOverview, review_id)
     require(row is not None and row.notice_id == notice_id, "not_found")
     return verified_pdf_bytes(session, row.pdf_location_id, row.pdf_sha256, store)
+
+
+def get_attempt_pdf(session: Session, notice_id: int, attempt_id: UUID, store: ObjectStore) -> bytes:
+    require_notice(session, notice_id)
+    attempt = session.get(PrespecV4Attempt, attempt_id)
+    require(attempt is not None and attempt.notice_id == notice_id, "not_found")
+    target = session.get(PrespecV4Target, attempt.target_id) if attempt.target_id is not None else None
+    require(target is not None and target.notice_id == notice_id and target.document_version_id == attempt.document_version_id, "not_found")
+    snapshot = session.get(PrespecV4PdfSnapshot, target.snapshot_id)
+    document = session.get(DocumentVersion, attempt.document_version_id)
+    require(snapshot is not None and snapshot.notice_id == notice_id and snapshot.document_version_id == attempt.document_version_id, "not_found")
+    require(document is not None and document.notice_id == notice_id and document.safety_status == "safe", "pdf_unavailable")
+    require(snapshot.source_sha256 == attempt.source_sha256 and snapshot.pdf_sha256 == attempt.pdf_sha256, "pdf_integrity_failed")
+    return verified_pdf_bytes(session, snapshot.pdf_location_id, snapshot.pdf_sha256, store)
+
+
+def get_target_pdf(session: Session, notice_id: int, target_id: UUID, store: ObjectStore) -> bytes:
+    """A prepared PDF is readable independently of model execution or outcome."""
+    require_notice(session, notice_id)
+    target = session.get(PrespecV4Target, target_id)
+    require(target is not None and target.notice_id == notice_id, "not_found")
+    snapshot = session.get(PrespecV4PdfSnapshot, target.snapshot_id)
+    require(snapshot is not None and snapshot.notice_id == notice_id
+            and snapshot.document_version_id == target.document_version_id, "not_found")
+    document = session.get(DocumentVersion, target.document_version_id)
+    require(document is not None and document.notice_id == notice_id
+            and document.safety_status == "safe", "pdf_unavailable")
+    source = session.get(ContentObject, document.content_object_id)
+    require(source is not None and source.sha256 == snapshot.source_sha256
+            and source.size_bytes == snapshot.source_size_bytes, "pdf_integrity_failed")
+    scan = session.scalar(select(ContentScan).where(ContentScan.content_object_id == source.id)
+                          .order_by(ContentScan.scanned_at.desc(), ContentScan.id.desc()).limit(1))
+    require(scan is not None and scan.status == "clean", "pdf_unavailable")
+    return verified_pdf_bytes(session, snapshot.pdf_location_id, snapshot.pdf_sha256, store)
 
 
 def get_structure_pdf(session: Session, structure_id: UUID, store: ObjectStore) -> bytes:

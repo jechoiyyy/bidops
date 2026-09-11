@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import io
+import json
+import subprocess
 import threading
 from datetime import date, datetime, timezone
 from pathlib import Path
@@ -9,7 +11,7 @@ import pytest
 
 from app.core.config import Settings
 from app.lifecycle.models import Run
-from app.lifecycle.services.pipeline import PipelineBusyError, PipelineService
+from app.lifecycle.services.pipeline import PipelineBusyError, PipelineInputError, PipelineService
 
 
 class FakeProcess:
@@ -50,6 +52,8 @@ def test_stage_commands_are_argument_arrays_and_from_raw_uses_new_snapshot(tmp_p
     calls = []
 
     def popen(command, **kwargs):
+        if "collect_notices.py" in command[1]:
+            assert not Path(command[command.index("--output-dir") + 1]).exists()
         calls.append((command, kwargs))
         return FakeProcess()
 
@@ -59,10 +63,12 @@ def test_stage_commands_are_argument_arrays_and_from_raw_uses_new_snapshot(tmp_p
     service.wait(execution.execution_id, timeout=2)
 
     assert calls[0][0][:2] == ["python3", "skills/bidops-collect/scripts/collect_notices.py"]
-    assert "--from-raw" in calls[0][0]
+    command = calls[0][0]
+    assert command[command.index("--from-raw") + 1] == str(directory / "raw")
+    assert command[command.index("--allowed-root") + 1] == str(directory.parent)
     assert calls[0][1]["shell"] is False
     assert execution.target_directory != directory
-    assert (execution.target_directory / "raw").is_symlink()
+    assert not execution.target_directory.exists()
 
     (directory / "collected-notices.json").write_text("{}", encoding="utf-8")
     sample = service.start(run, "sample")
@@ -109,3 +115,53 @@ def test_log_lines_mask_secret_values(tmp_path):
     assert messages
     assert all("super-secret-key" not in message for message in messages)
     assert any(line.level == "warning" for line in execution.lines)
+
+
+def test_preserved_raw_symlink_is_rejected_before_dispatch(tmp_path):
+    settings, run, directory = source_run(tmp_path)
+    (directory / "raw").rmdir()
+    (directory / "raw").symlink_to(tmp_path, target_is_directory=True)
+    service = PipelineService(settings, popen=lambda *args, **kwargs: pytest.fail("subprocess started"))
+    with pytest.raises(PipelineInputError, match="symlink"):
+        service.start(run, "collect", from_raw=True)
+    assert list(directory.parent.iterdir()) == [directory]
+
+
+def test_failed_collection_never_ingests_partial_output(tmp_path):
+    settings, run, _ = source_run(tmp_path)
+    service = PipelineService(settings, popen=lambda *args, **kwargs: FakeProcess(exit_code=1))
+    service._reload = lambda execution: pytest.fail("partial run ingested")
+    execution = service.start(run, "collect")
+    service.wait(execution.execution_id, timeout=2)
+    assert execution.status == "failed"
+    assert execution.result_run_id is None
+    service.shutdown()
+
+
+def test_from_raw_dispatch_runs_real_collector_and_copies_both_sources(tmp_path):
+    settings, run, directory = source_run(tmp_path)
+    data = json.dumps({"response": {"header": {"resultCode": "00"},
+                                    "body": {"totalCount": 0, "items": []}}}).encode()
+    for source in ("bid", "prespec"):
+        (directory / "raw" / f"{source}-page-001.json").write_bytes(data)
+    script = Path(__file__).resolve().parents[4] / "skills/bidops-collect/scripts/collect_notices.py"
+
+    def popen(command, **kwargs):
+        assert not Path(command[command.index("--output-dir") + 1]).exists()
+        return subprocess.Popen([command[0], str(script), *command[2:]], **kwargs)
+
+    service = PipelineService(settings, popen=popen)
+    service._reload = lambda execution: None
+    try:
+        execution = service.start(run, "collect", from_raw=True)
+        service.wait(execution.execution_id, timeout=10)
+        assert execution.status == "success", execution.error
+        for source in ("bid", "prespec"):
+            name = f"{source}-page-001.json"
+            assert (directory / "raw" / name).read_bytes() == data
+            assert (execution.target_directory / "raw" / name).read_bytes() == data
+        provenance = json.loads((execution.target_directory / "collection-provenance.json").read_text())
+        assert provenance["source_raw"] == f"{directory.name}/raw"
+        assert provenance["complete"] is True
+    finally:
+        service.shutdown()

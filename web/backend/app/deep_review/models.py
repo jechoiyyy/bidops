@@ -12,6 +12,8 @@ mapper 구성이 성공한다 (명세 §4).
 from __future__ import annotations
 
 import uuid as uuid_module
+import hashlib
+import json
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
@@ -1336,7 +1338,9 @@ class FinalOpinion(Base):
 class WorkJob(Base):
     __tablename__ = "work_job"
     __table_args__ = (
-        Index("uq_work_job_active", "job_type", "aggregate_type", "aggregate_id", unique=True, postgresql_where=column("status").in_(["queued", "running"])),
+        Index("uq_work_job_active", "job_type", "aggregate_type", "aggregate_id", unique=True,
+              postgresql_where=column("status").in_(["queued", "running"]),
+              sqlite_where=column("status").in_(["queued", "running"])),
         CheckConstraint("status IN ('queued','running','completed','failed','cancelled')", name="ck_work_job_status"),
     )
 
@@ -1965,7 +1969,13 @@ class PreSpecPageOverview(Base):
         ForeignKeyConstraint(["notice_id", "document_version_id"],
                              [_table("document_version.notice_id"), _table("document_version.id")],
                              ondelete="RESTRICT", name="fk_prespec_page_overview_document_scope"),
-        CheckConstraint("schema_version = 'bidops.prespec-overview-page-review.v3'", name="ck_prespec_page_overview_schema"),
+        CheckConstraint("schema_version IN ('bidops.prespec-overview-page-review.v3','bidops.prespec-overview-page-review.v4')", name="ck_prespec_page_overview_schema"),
+        CheckConstraint(
+            "(schema_version = 'bidops.prespec-overview-page-review.v3' AND verification_id IS NULL AND verification_sha256 IS NULL) OR "
+            "(schema_version = 'bidops.prespec-overview-page-review.v4' AND verification_id IS NOT NULL AND verification_sha256 IS NOT NULL "
+            "AND validation_status = 'passed' AND evidence_check_status = 'passed')",
+            name="ck_prespec_page_overview_verification",
+        ),
         CheckConstraint("quality_status IN ('unmeasured_reference','mock_reference')", name="ck_prespec_page_overview_quality"),
         CheckConstraint("validation_status IN ('passed','failed') AND evidence_check_status IN ('passed','failed')", name="ck_prespec_page_overview_validation"),
         CheckConstraint("validation_status <> 'passed' OR evidence_check_status = 'passed'", name="ck_prespec_page_overview_passed"),
@@ -1980,6 +1990,10 @@ class PreSpecPageOverview(Base):
     input_location_id: Mapped[uuid_module.UUID] = mapped_column(_fk("content_object_location.id", ondelete="RESTRICT"), nullable=False)
     pdf_location_id: Mapped[uuid_module.UUID] = mapped_column(_fk("content_object_location.id", ondelete="RESTRICT"), nullable=False)
     schema_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    verification_id: Mapped[uuid_module.UUID | None] = mapped_column(
+        _fk("prespec_overview_verification.id", ondelete="RESTRICT"), nullable=True
+    )
+    verification_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
     source_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
     pdf_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
     payload_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
@@ -2258,6 +2272,7 @@ class PrespecV4Attempt(Base):
     __tablename__ = "prespec_v4_attempt"
     __table_args__ = (
         Index("ix_prespec_v4_attempt_notice_created", "notice_id", "created_at"),
+        Index("ix_prespec_v4_attempt_job", "work_job_id"),
         Index(
             "uq_prespec_v4_attempt_active_target",
             "target_id",
@@ -2273,7 +2288,7 @@ class PrespecV4Attempt(Base):
             name="fk_prespec_v4_attempt_document_scope",
         ),
         CheckConstraint(
-            "status IN ('queued','running','completed','failed','cancelled')",
+            "status IN ('queued','running','completed','failed','cancelled','needs_human_review')",
             name="ck_prespec_v4_attempt_status",
         ),
         CheckConstraint(
@@ -2281,14 +2296,14 @@ class PrespecV4Attempt(Base):
             name="ck_prespec_v4_attempt_quality",
         ),
         CheckConstraint(
-            "(status IN ('queued','running','completed') AND target_id IS NOT NULL) OR "
+            "(status IN ('queued','running','completed','needs_human_review') AND target_id IS NOT NULL) OR "
             "(status IN ('failed','cancelled'))",
             name="ck_prespec_v4_attempt_target_scope",
         ),
         CheckConstraint(
             "((status = 'queued' AND started_at IS NULL AND completed_at IS NULL AND result_id IS NULL) "
             "OR (status = 'running' AND started_at IS NOT NULL AND completed_at IS NULL AND result_id IS NULL) "
-            "OR (status IN ('failed','cancelled') AND completed_at IS NOT NULL AND result_id IS NULL) "
+            "OR (status IN ('failed','cancelled','needs_human_review') AND completed_at IS NOT NULL AND result_id IS NULL) "
             "OR (status = 'completed' AND started_at IS NOT NULL AND completed_at IS NOT NULL AND result_id IS NOT NULL))",
             name="ck_prespec_v4_attempt_completion",
         ),
@@ -2332,6 +2347,9 @@ class PrespecV4Attempt(Base):
     work_job_id: Mapped[uuid_module.UUID | None] = mapped_column(
         _fk("work_job.id", ondelete="RESTRICT"), nullable=True
     )
+    activation_id: Mapped[uuid_module.UUID | None] = mapped_column(
+        _fk("audit_event.id", ondelete="RESTRICT"), nullable=True
+    )
     sequence: Mapped[int] = mapped_column(Integer, nullable=False)
     source_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
     pdf_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
@@ -2347,7 +2365,7 @@ class PrespecV4Attempt(Base):
     quality_status: Mapped[str] = mapped_column(String(32), nullable=False, default="unmeasured_reference")
     reference_only: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default=text("false"))
     deployable: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default=text("false"))
-    status: Mapped[str] = mapped_column(String(16), nullable=False, default="queued", server_default=text("'queued'"))
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="queued", server_default=text("'queued'"))
     result_id: Mapped[uuid_module.UUID | None] = mapped_column(
         _fk("prespec_page_overview.id", ondelete="RESTRICT"), nullable=True
     )
@@ -2365,10 +2383,108 @@ class PrespecV4Attempt(Base):
     created_at: Mapped[datetime] = mapped_column(AwareDateTime(), default=utc_now, nullable=False)
 
 
+class PrespecOverviewCallEvent(Base):
+    """Append-only dispatch authorization and its single eventual outcome."""
+
+    __tablename__ = "prespec_overview_call_event"
+    __table_args__ = (
+        UniqueConstraint("call_id", "event_kind", name="uq_overview_call_event_kind"),
+        Index("uq_overview_call_terminal", "call_id", unique=True,
+              postgresql_where=column("event_kind").in_(["response", "error"]),
+              sqlite_where=column("event_kind").in_(["response", "error"])),
+        Index("uq_overview_call_ordinal", "attempt_id", "ordinal", unique=True,
+              postgresql_where=column("event_kind") == "dispatch",
+              sqlite_where=column("event_kind") == "dispatch"),
+        Index("uq_overview_call_semantic", "attempt_id", unique=True,
+              postgresql_where=(column("event_kind") == "dispatch") & (column("stage") == "semantic"),
+              sqlite_where=(column("event_kind") == "dispatch") & (column("stage") == "semantic")),
+        CheckConstraint("ordinal BETWEEN 1 AND 3", name="ck_overview_call_ordinal"),
+        CheckConstraint("stage IN ('draft','semantic')", name="ck_overview_call_stage"),
+        CheckConstraint("event_kind IN ('dispatch','response','error')", name="ck_overview_call_kind"),
+        CheckConstraint(
+            "(event_kind = 'dispatch' AND raw_response_sha256 IS NULL AND error_code IS NULL "
+            "AND prompt_tokens IS NULL AND output_tokens IS NULL AND latency_ms IS NULL) OR "
+            "(event_kind = 'response' AND raw_response_sha256 IS NOT NULL "
+            "AND raw_response_content_object_id IS NOT NULL AND error_code IS NULL) OR "
+            "(event_kind = 'error' AND error_code IS NOT NULL)", name="ck_overview_call_outcome"),
+        CheckConstraint(
+            "(raw_response_content_object_id IS NULL AND raw_response_location_id IS NULL) OR "
+            "(raw_response_content_object_id IS NOT NULL AND raw_response_location_id IS NOT NULL "
+            "AND raw_response_sha256 IS NOT NULL)", name="ck_overview_call_storage"),
+        CheckConstraint(dual(" AND ".join(
+            f"({field} IS NULL OR (length({field}) = 64 AND {field} NOT GLOB '*[^0-9a-f]*'))"
+            for field in ("input_sha256", "prompt_sha256", "binding_digest", "raw_response_sha256")
+        )), name="ck_overview_call_hashes"),
+        CheckConstraint("prompt_tokens >= 0 AND output_tokens >= 0 AND latency_ms >= 0", name="ck_overview_call_metrics"),
+        CheckConstraint(DualSQL(
+            "error_code IS NULL OR (length(error_code) BETWEEN 1 AND 64 AND error_code NOT GLOB '*[^a-z0-9_]*')",
+            "error_code IS NULL OR error_code ~ '^[a-z0-9_]{1,64}$'",
+        ), name="ck_overview_call_error"),
+    )
+
+    id: Mapped[uuid_module.UUID] = _uuid_column(primary_key=True)
+    call_id: Mapped[uuid_module.UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
+    attempt_id: Mapped[uuid_module.UUID] = mapped_column(_fk("prespec_v4_attempt.id", ondelete="RESTRICT"), nullable=False)
+    ordinal: Mapped[int] = mapped_column(Integer, nullable=False)
+    stage: Mapped[str] = mapped_column(String(16), nullable=False)
+    event_kind: Mapped[str] = mapped_column(String(16), nullable=False)
+    input_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    prompt_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    binding_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    raw_response_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    raw_response_content_object_id: Mapped[uuid_module.UUID | None] = mapped_column(_fk("content_object.id", ondelete="RESTRICT"), nullable=True)
+    raw_response_location_id: Mapped[uuid_module.UUID | None] = mapped_column(_fk("content_object_location.id", ondelete="RESTRICT"), nullable=True)
+    error_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    prompt_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    output_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    latency_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(AwareDateTime(), default=utc_now, nullable=False)
+
+
+class PrespecOverviewVerification(Base):
+    """One immutable claim-check record, committed with the attempt outcome."""
+
+    __tablename__ = "prespec_overview_verification"
+    __table_args__ = (
+        UniqueConstraint("attempt_id", name="uq_overview_verification_attempt"),
+        CheckConstraint("schema_version = 'bidops.prespec-overview-claim-checks.v1'", name="ck_overview_verification_schema"),
+        CheckConstraint("overall IN ('passed','needs_human_review')", name="ck_overview_verification_overall"),
+        CheckConstraint(dual("json_valid(payload_jsonb) AND json_type(payload_jsonb) = 'object'"), name="ck_overview_verification_payload"),
+        CheckConstraint(dual(" AND ".join(
+            f"length({field}) = 64 AND {field} NOT GLOB '*[^0-9a-f]*'"
+            for field in ("draft_sha256", "input_sha256", "policy_digest", "binding_digest", "model_digest", "payload_sha256")
+        )), name="ck_overview_verification_hashes"),
+    )
+
+    id: Mapped[uuid_module.UUID] = _uuid_column(primary_key=True)
+    attempt_id: Mapped[uuid_module.UUID] = mapped_column(_fk("prespec_v4_attempt.id", ondelete="RESTRICT"), nullable=False)
+    schema_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    draft_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    input_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    policy_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    binding_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    model_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    validator_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    payload_jsonb: Mapped[Any] = mapped_column(JSONB_COMPAT, nullable=False)
+    payload_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    overall: Mapped[str] = mapped_column(String(32), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(AwareDateTime(), default=utc_now, nullable=False)
+
+
+@event.listens_for(PrespecOverviewCallEvent, "before_update")
+@event.listens_for(PrespecOverviewCallEvent, "before_delete")
+@event.listens_for(PrespecOverviewVerification, "before_update")
+@event.listens_for(PrespecOverviewVerification, "before_delete")
+def _reject_prespec_overview_record_mutation(*_args: Any) -> None:
+    raise ValueError("overview call and verification records are append-only")
+
+
 PRESPEC_V4_TABLES = (
     "prespec_v4_pdf_snapshot",
     "prespec_v4_target",
     "prespec_v4_attempt",
+    "prespec_overview_call_event",
+    "prespec_overview_verification",
 )
 
 
@@ -2387,6 +2503,11 @@ def _reject_prespec_v4_attempt_delete(*_args: Any) -> None:
 
 @event.listens_for(PrespecV4Attempt, "before_insert")
 def _check_prespec_v4_attempt_scope(_mapper: Any, connection: Any, target: PrespecV4Attempt) -> None:
+    if target.status == "needs_human_review":
+        raise ValueError("human review requires a running attempt")
+    if target.prompt_version == "prespec-overview-v5" and target.status in {None, "queued", "running"}:
+        if target.activation_id is None or target.work_job_id is None:
+            raise ValueError("new overview attempt requires activation and job")
     if target.target_id is not None:
         row = connection.execute(
             select(PrespecV4Target.notice_id, PrespecV4Target.document_version_id).where(
@@ -2405,6 +2526,63 @@ def _check_prespec_v4_attempt_scope(_mapper: Any, connection: Any, target: Presp
             raise ValueError("v4 attempt result scope mismatch")
 
 
+def _overview_record_hash(value: Any) -> str:
+    return hashlib.sha256(json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+
+
+@event.listens_for(PrespecOverviewVerification, "before_insert")
+def _check_overview_verification(_mapper: Any, connection: Any, target: PrespecOverviewVerification) -> None:
+    from .schemas.prespec_overview_claims import OverviewClaimChecks
+
+    payload = target.payload_jsonb
+    if isinstance(payload, str):
+        payload = json.loads(payload)
+    checks = OverviewClaimChecks.model_validate_json(json.dumps(payload, ensure_ascii=False))
+    for name in ("attempt_id", "schema_version", "draft_sha256", "input_sha256", "policy_digest", "binding_digest", "validator_version", "overall"):
+        if getattr(checks, name) != getattr(target, name):
+            raise ValueError("overview verification payload binding rejected")
+    if _overview_record_hash(payload) != target.payload_sha256:
+        raise ValueError("overview verification hash mismatch")
+    attempt = connection.execute(select(PrespecV4Attempt.__table__).where(PrespecV4Attempt.id == target.attempt_id)).mappings().first()
+    if attempt is None or attempt["status"] != "running" or attempt["activation_id"] is None:
+        raise ValueError("overview verification requires running attempt")
+    if any(attempt[name] != getattr(target, name) for name in ("input_sha256", "policy_digest", "binding_digest", "model_digest")):
+        raise ValueError("overview verification input binding rejected")
+
+
+@event.listens_for(PreSpecPageOverview, "before_insert")
+def _check_page_overview_schema(_mapper: Any, connection: Any, target: PreSpecPageOverview) -> None:
+    from .schemas.page_overview import parse_page_overview_payload
+
+    payload = target.payload_jsonb
+    if isinstance(payload, str):
+        payload = json.loads(payload)
+    parsed = parse_page_overview_payload(payload)
+    if parsed.schema_version != target.schema_version:
+        raise ValueError("overview result schema mismatch")
+    if target.schema_version.endswith(".v3"):
+        return
+    if _overview_record_hash(payload) != target.payload_sha256:
+        raise ValueError("overview result hash mismatch")
+    verification = connection.execute(select(PrespecOverviewVerification.__table__).where(PrespecOverviewVerification.id == target.verification_id)).mappings().first()
+    if (verification is None or verification["overall"] != "passed"
+        or verification["attempt_id"] != target.run_id
+        or verification["payload_sha256"] != target.verification_sha256
+        or parsed.verification_id != target.verification_id
+        or parsed.verification_sha256 != target.verification_sha256):
+        raise ValueError("overview result verification binding rejected")
+    checked = verification["payload_jsonb"]
+    if isinstance(checked, str):
+        checked = json.loads(checked)
+    for section in ("business_overview", "main_tasks", "budget_and_period", "important_conditions"):
+        expected = [{"claim_id": c["claim_id"], "text": c["text"], "evidence": c["deterministic"]["verified_evidence"]}
+                    for c in checked["checks"] if c["section"] == section]
+        if payload[section] != expected:
+            raise ValueError("overview result facts differ from verified claims")
+    if payload["reviewer_analysis"] != checked["analysis"]:
+        raise ValueError("overview result analysis differs from verified analysis")
+
+
 @event.listens_for(PrespecV4Attempt, "before_update")
 def _guard_prespec_v4_attempt_update(_mapper: Any, connection: Any, target: PrespecV4Attempt) -> None:
     state = sa_inspect(target)
@@ -2417,8 +2595,14 @@ def _guard_prespec_v4_attempt_update(_mapper: Any, connection: Any, target: Pres
         raise ValueError("v4 attempt inputs are immutable")
     previous = state.attrs.status.history.deleted
     old_status = previous[0] if previous else target.status
-    if old_status in {"completed", "failed", "cancelled"}:
+    if old_status in {"completed", "failed", "cancelled", "needs_human_review"}:
         raise ValueError("terminal v4 attempts are immutable")
+    allowed = {
+        "queued": {"running", "failed", "cancelled"},
+        "running": {"completed", "failed", "cancelled", "needs_human_review"},
+    }
+    if target.status not in allowed.get(old_status, set()):
+        raise ValueError("v4 attempt transition rejected")
     if target.target_id is not None:
         row = connection.execute(
             select(PrespecV4Target.notice_id, PrespecV4Target.document_version_id).where(

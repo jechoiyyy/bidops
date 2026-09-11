@@ -492,6 +492,106 @@ def test_native_page_text_budget_is_checked_after_display_metadata_enrichment(mo
 
 
 @pytest.mark.parametrize(
+    ("digest_stdout", "expected_warning", "expected_candidates"),
+    [
+        (b"not-json", "section_candidates_unavailable", False),
+        (
+            native_digest_manifest([digest_section(0)], sectionCount=2, truncated=True),
+            "section_candidates_incomplete",
+            True,
+        ),
+    ],
+)
+def test_optional_section_candidate_failure_or_partial_result_keeps_verified_core_artifacts(
+    monkeypatch: pytest.MonkeyPatch,
+    digest_stdout: bytes,
+    expected_warning: str,
+    expected_candidates: bool,
+) -> None:
+    text = {
+        "schema": "bidops.rhwp-page-text.v1",
+        "page_count": 1,
+        "pages": [{"number": 1, "text": "verified", "text_sha256": hashlib.sha256(b"verified").hexdigest()}],
+    }
+    dump = {
+        "schemaVersion": RHWP_SCHEMA_VERSION,
+        "pageCount": 1,
+        "pages": [{"pageIndex": 0, "displayPage": 1, "section": 0, "columns": [], "extras": []}],
+    }
+    monkeypatch.setattr(native_module, "extract_hwpx", lambda *_args, **_kwargs: ([], [], []))
+    monkeypatch.setattr(native_module, "extract_pdf", lambda *_args: ([], [], [], []))
+    monkeypatch.setattr(native_module, "parse_pdf_manifest", lambda *_args: 1)
+    monkeypatch.setattr(native_module, "parse_page_text_manifest", lambda *_args: text)
+    monkeypatch.setattr(native_module, "parse_page_dump_manifest", lambda *_args: dump)
+    adapter = NativeRhwpProcessor(
+        "/bin/true",
+        run=lambda *_args, **_kwargs: (0, b"", b""),
+        limiter=lambda _size: None,
+        child_environment=lambda _path: {},
+        timeout_error=processor_module._ChildTimeout,
+        output_error=processor_module._ChildOutputLimit,
+        font_manifest=lambda _options, _deadline: "0" * 64,
+    )
+    monkeypatch.setattr(adapter, "_fingerprint_binary", lambda: "0" * 64)
+    monkeypatch.setattr(
+        adapter,
+        "_call",
+        lambda arguments, *_args, **_kwargs: digest_stdout if arguments[0] == "digest" else b"",
+    )
+    monkeypatch.setattr(adapter, "_read_artifact", lambda *_args, **_kwargs: b"%PDF-safe")
+    monkeypatch.setattr(adapter, "_pdfinfo_pages", lambda *_args, **_kwargs: 1)
+    monkeypatch.setattr(adapter, "_version", lambda *_args, **_kwargs: "0.8.6")
+
+    result = adapter.process(
+        hwpx_bytes(),
+        "application/hwp+zip",
+        ProcessorOptions(prepare_pdf=True),
+        time.monotonic() + 10,
+    )
+
+    assert result["pdf"] == b"%PDF-safe"
+    assert result["page_text"]["pages"][0]["text"] == "verified"
+    assert expected_warning in result["warnings"]
+    assert bool(result["section_candidates"]) is expected_candidates
+    assert bool(result["section_candidates_bytes"]) is expected_candidates
+
+
+def test_core_page_text_failure_is_not_downgraded_to_an_optional_candidate_warning(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(native_module, "extract_hwpx", lambda *_args, **_kwargs: ([], [], []))
+    monkeypatch.setattr(native_module, "extract_pdf", lambda *_args: ([], [], [], []))
+    monkeypatch.setattr(native_module, "parse_pdf_manifest", lambda *_args: 1)
+
+    def fail_page_text(*_args: object) -> dict[str, object]:
+        raise DocumentProcessingError("pdf_page_mismatch", "safe", source_preserved=True)
+
+    monkeypatch.setattr(native_module, "parse_page_text_manifest", fail_page_text)
+    adapter = NativeRhwpProcessor(
+        "/bin/true",
+        run=lambda *_args, **_kwargs: (0, b"", b""),
+        limiter=lambda _size: None,
+        child_environment=lambda _path: {},
+        timeout_error=processor_module._ChildTimeout,
+        output_error=processor_module._ChildOutputLimit,
+        font_manifest=lambda _options, _deadline: "0" * 64,
+    )
+    monkeypatch.setattr(adapter, "_fingerprint_binary", lambda: "0" * 64)
+    monkeypatch.setattr(adapter, "_call", lambda *_args, **_kwargs: b"")
+    monkeypatch.setattr(adapter, "_read_artifact", lambda *_args, **_kwargs: b"%PDF-safe")
+    monkeypatch.setattr(adapter, "_pdfinfo_pages", lambda *_args, **_kwargs: 1)
+
+    with pytest.raises(DocumentProcessingError) as caught:
+        adapter.process(
+            hwpx_bytes(),
+            "application/hwp+zip",
+            ProcessorOptions(prepare_pdf=True),
+            time.monotonic() + 10,
+        )
+    assert caught.value.code == "pdf_page_mismatch"
+
+
+@pytest.mark.parametrize(
     ("error_type", "expected_code"),
     [(processor_module._ChildTimeout, "timeout"), (processor_module._ChildOutputLimit, "output_size_limit")],
 )
@@ -1023,19 +1123,22 @@ def test_vendored_sha256_manifest_is_deterministic_and_complete() -> None:
         assert hashlib.sha256(path.read_bytes()).hexdigest() == digest
 
 
-def test_native_section_candidates_rebase_pages_cap_titles_and_drop_untrusted_text() -> None:
+def test_native_section_candidates_accept_outline_rebase_pages_cap_titles_and_drop_untrusted_text() -> None:
     long_title = "가" * 350
     candidates = parse_section_candidates_manifest(
         native_digest_manifest(
             [digest_section(0), digest_section(24, long_title, 0), digest_section(78, "  제\t3장   범위\n", 7)],
             page_count=79,
+            sectionsMode="outline",
         ),
         79,
     )
 
-    assert candidates["schema"] == "bidops.section-candidates.v1"
-    assert candidates["mode"] == "clause"
+    assert candidates["schema"] == "bidops.section-candidates.v2"
+    assert candidates["mode"] == "outline"
     assert candidates["page_count"] == 79 and candidates["section_count"] == 3
+    assert candidates["returned_count"] == 3 and candidates["truncated"] is True
+    assert candidates["candidates_truncated"] is False
     assert [(item["index"], item["page"]) for item in candidates["sections"]] == [(0, 1), (1, 25), (2, 79)]
     assert candidates["sections"][1]["title"] == "가" * 300 and candidates["sections"][1]["truncated"] is True
     # Whitespace is normalised before the 300-character cap is applied.
@@ -1051,15 +1154,34 @@ def test_native_section_candidates_accept_an_empty_page_mode_result() -> None:
         native_digest_manifest([], sectionsMode="page"), 1,
     )
     assert candidates == {
-        "schema": "bidops.section-candidates.v1", "page_count": 1, "mode": "page",
-        "section_count": 0, "sections": [],
+        "schema": "bidops.section-candidates.v2", "page_count": 1, "mode": "page",
+        "section_count": 0, "returned_count": 0, "truncated": True,
+        "candidates_truncated": False, "sections": [],
     }
+
+
+def test_native_section_candidates_preserve_total_when_rhwp_returns_a_truncated_prefix() -> None:
+    candidates = parse_section_candidates_manifest(
+        native_digest_manifest(
+            [digest_section(index % 10, title=f"절 {index}") for index in range(50)],
+            page_count=10,
+            sectionCount=67,
+            truncated=True,
+        ),
+        10,
+    )
+
+    assert candidates["schema"] == "bidops.section-candidates.v2"
+    assert candidates["section_count"] == 67
+    assert candidates["returned_count"] == 50
+    assert candidates["truncated"] is True
+    assert candidates["candidates_truncated"] is True
+    assert len(candidates["sections"]) == 50
 
 
 @pytest.mark.parametrize(
     ("manifest", "expected_pages", "expected_code"),
     [
-        (native_digest_manifest([digest_section(0)], sectionsMode="outline"), 1, "section_candidates_invalid"),
         (native_digest_manifest([digest_section(0)], sectionsMode=None), 1, "section_candidates_invalid"),
         (native_digest_manifest([digest_section(i % 79) for i in range(2001)], page_count=79), 79, "section_candidates_invalid"),
         (native_digest_manifest([digest_section(1)], page_count=1), 1, "section_candidates_invalid"),
@@ -1068,7 +1190,8 @@ def test_native_section_candidates_accept_an_empty_page_mode_result() -> None:
         (native_digest_manifest([digest_section(0, chars=-1)]), 1, "section_candidates_invalid"),
         (native_digest_manifest([digest_section(True)]), 1, "section_candidates_invalid"),
         (native_digest_manifest([digest_section(0, title=7)]), 1, "section_candidates_invalid"),
-        (native_digest_manifest([digest_section(0)], sectionCount=2), 1, "section_candidates_invalid"),
+        (native_digest_manifest([digest_section(0)], sectionCount=0), 1, "section_candidates_invalid"),
+        (native_digest_manifest([digest_section(0)], sectionCount=2, truncated=False), 1, "section_candidates_invalid"),
         (native_digest_manifest([digest_section(0)], untrustedFields=[]), 1, "section_candidates_invalid"),
         (native_digest_manifest([digest_section(0)], untrustedContent=False), 1, "section_candidates_invalid"),
         (rhwp_envelope(untrustedContent=True, untrustedFields=["sections[].excerpt"], pageCount=1, sectionsMode="clause", sectionCount=0, sections={}), 1, "section_candidates_invalid"),
@@ -1107,6 +1230,25 @@ def test_section_candidates_validation_accepts_two_thousand_and_rejects_more() -
     ):
         with pytest.raises(DocumentProcessingError) as caught:
             validate_section_candidates(broken, page_count=page_count)
+        assert caught.value.code == "section_candidates_invalid"
+
+    partial = {
+        "schema": "bidops.section-candidates.v2", "page_count": 2, "mode": "outline",
+        "section_count": 67, "returned_count": 1, "truncated": True, "candidates_truncated": True,
+        "sections": [
+            {"index": 0, "title": "t", "page": 1, "char_count": 0, "truncated": False},
+        ],
+    }
+    assert validate_section_candidates(partial, page_count=2)["section_count"] == 67
+    for broken in (
+        {**partial, "returned_count": 2},
+        {**partial, "section_count": 0},
+        {**partial, "truncated": False},
+        {**partial, "candidates_truncated": False},
+        {**partial, "mode": "auto"},
+    ):
+        with pytest.raises(DocumentProcessingError) as caught:
+            validate_section_candidates(broken, page_count=2)
         assert caught.value.code == "section_candidates_invalid"
 
 
@@ -1154,6 +1296,17 @@ def test_native_bundle_accepts_a_legacy_null_candidate_set_and_checks_a_present_
         "sections": [{"index": 0, "title": "Ⅰ. 사업 개요", "page": 1, "char_count": 12, "truncated": False}],
     }
     assert validate_native_bundle(section_candidates=good, **arguments) is None
+    partial = {
+        "schema": "bidops.section-candidates.v2",
+        "page_count": 1,
+        "mode": "outline",
+        "section_count": 2,
+        "returned_count": 1,
+        "truncated": True,
+        "candidates_truncated": True,
+        "sections": [{"index": 0, "title": "Ⅰ. 사업 개요", "page": 1, "char_count": 12, "truncated": False}],
+    }
+    assert validate_native_bundle(section_candidates=partial, **arguments) is None
     with pytest.raises(DocumentProcessingError) as caught:
         validate_native_bundle(section_candidates={**good, "page_count": 2}, **arguments)
     assert caught.value.code == "section_candidates_invalid"

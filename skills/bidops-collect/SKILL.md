@@ -14,7 +14,7 @@ description: 나라장터 용역 공고와 사전규격을 수집·정규화하�
 ## 작업 순서
 
 1. 정확한 수집 기간과 출력 디렉터리를 확정한다. 초기 검증에는 `Asia/Seoul` 기준 `2026-08-17`부터 `2026-08-23`까지(양 끝 포함)를 사용한다.
-2. `bidops-agent` 디렉터리에서 `scripts/collect_notices.py`를 실행한다. 이 스크립트는 환경 변수 또는 git-ignore된 `.env` 파일에서 `BIDOPS_G2B_API_KEY`를 읽는다. 이 키를 출력하거나 저장하지 않는다.
+2. 저장소 루트에서 `skills/bidops-collect/scripts/collect_notices.py`를 실행한다. 출력 회차는 새 고유 경로이며 폴더를 미리 만들지 않는다. 이 스크립트는 환경 변수 또는 git-ignore된 `.env` 파일에서 `BIDOPS_G2B_API_KEY`를 읽는다. 이 키를 출력하거나 저장하지 않는다.
 3. 수집 건수와 경고를 확인한다. API 원문 페이지는 실행 디렉터리 아래에 보존한다.
 4. `scripts/select_validation_sample.py`를 실행해 분석 표본 최대 30건과 감사 표본 10건을 선정한다.
 5. 층이 채워지지 않았거나 필드가 누락된 경우 그대로 보고한다. 데이터를 임의로 만들어내거나 채워 넣지 않는다.
@@ -29,12 +29,13 @@ python3 skills/bidops-collect/scripts/select_validation_sample.py \
   --output data/runs/20260817-20260823/validation-set.json
 ```
 
-탐색 규칙을 바꾸는 데는 API를 새로 호출할 필요가 없다. `--from-raw`는 실행 디렉터리에 보존된 원문 페이지를 다시 정규화하므로, 규칙 변경 효과를 동일한 레코드 집합에 대해 측정할 수 있다:
+탐색 규칙을 바꾸는 데는 API를 새로 호출할 필요가 없다. `--from-raw SOURCE_RAW`는 원본을 읽기만 하고 별도의 새 회차에 검증 복사·정규화한다. 기존 출력 폴더(빈 폴더 포함)·symlink·허용 루트(`data/runs` 기본값) 이탈은 키 확인 전에 거부한다. 부분 수집의 경고/exit 1은 완전한 회차로 적재하지 않는다:
 
 ```bash
 python3 skills/bidops-collect/scripts/collect_notices.py \
   --from-date 2026-08-17 --to-date 2026-08-23 \
-  --output-dir data/runs/20260817-20260823 --from-raw
+  --from-raw data/runs/20260817-20260823/raw \
+  --output-dir data/runs/20260817-20260823-reclassified-001
 ```
 
 ## 필터링 경계

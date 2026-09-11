@@ -12,7 +12,45 @@ from app.screening.models import ScheduleExecution, ScheduleReservation, Screeni
 from app.screening.services.scheduler import SchedulerService
 from app.screening.services.scheduled_pipeline import ScheduledPipeline
 from app.screening.orchestrator import ScreeningCreationError
+from app.screening.runtime import RuntimePipelineBridge
 from tests.fakes import APPROVED_MODEL
+
+
+def test_runtime_collect_uses_fresh_uncreated_paths_for_each_reservation_attempt(tmp_path, monkeypatch):
+    bridge = RuntimePipelineBridge(Settings(bidops_root=tmp_path), session_factory=None)
+    commands = []
+
+    def collect(command):
+        directory = Path(command[command.index("--output-dir") + 1])
+        assert not directory.exists()
+        assert command[command.index("--allowed-root") + 1] == str(tmp_path / "data/runs")
+        assert command[command.index("--from-date") + 1] == "2026-09-01"
+        assert command[command.index("--to-date") + 1] == "2026-09-02"
+        directory.mkdir(parents=True, exist_ok=False)
+        commands.append(command)
+        return True
+
+    monkeypatch.setattr(bridge, "_run", collect)
+    monkeypatch.setattr(bridge, "_ingest", lambda directory: {"status": "success", "run_id": directory.name})
+    options = {"run_key": "20260901-20260902", "window_from": date(2026, 9, 1), "window_to": date(2026, 9, 2)}
+    first = bridge.run_stage("collect", **options)
+    second = bridge.run_stage("collect", **options)
+    assert first["status"] == second["status"] == "success"
+    assert first["run_id"] != second["run_id"]
+    assert len(commands) == 2
+    assert first["run_id"].startswith("20260901-20260902-collect-")
+
+
+def test_runtime_collect_failure_never_ingests_partial_files(tmp_path, monkeypatch):
+    bridge = RuntimePipelineBridge(Settings(bidops_root=tmp_path), session_factory=None)
+    ingested = []
+    monkeypatch.setattr(bridge, "_run", lambda command: False)
+    monkeypatch.setattr(bridge, "_ingest", lambda directory: ingested.append(directory))
+    result = bridge.run_stage("collect", run_key="20260901-20260902",
+                              window_from=date(2026, 9, 1), window_to=date(2026, 9, 2))
+    assert result == {"status": "failed", "failure_reason": "collect_failed"}
+    assert ingested == []
+    assert not (tmp_path / "data/runs").exists()
 
 
 class FakeOllama:

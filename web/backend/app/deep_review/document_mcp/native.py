@@ -220,14 +220,15 @@ def _section_candidates_error() -> DocumentProcessingError:
 
 
 def parse_section_candidates_manifest(stdout: bytes, expected_pages: int) -> dict[str, Any]:
-    """Parse ``digest --sections --json`` into ``bidops.section-candidates.v1``.
+    """Parse ``digest --sections --json`` into ``bidops.section-candidates.v2``.
 
     Only the whitespace-normalised title, the 1-based page, and the character
     count survive.  rhwp marks ``sections[].excerpt`` untrusted, so it is
-    dropped here together with ``nextStep``/``source``/``truncated`` and the
-    untrusted markers: none of that document-derived prose may reach storage,
-    a log, an audit row, or a prompt.  The envelope's own ``truncated`` flag
-    describes those dropped excerpts and is therefore not a failure.
+    dropped here together with ``nextStep``/``source`` and the untrusted
+    markers: none of that document-derived prose may reach storage, a log, an
+    audit row, or a prompt.  The envelope's ``truncated`` flag is retained in
+    v2 because it covers truncated excerpts and a section list capped at 50;
+    ``section_count`` and ``returned_count`` distinguish those cases.
     """
 
     value = _base_manifest(stdout)
@@ -241,7 +242,14 @@ def parse_section_candidates_manifest(stdout: bytes, expected_pages: int) -> dic
     if page_count != expected_pages:
         raise DocumentProcessingError("pdf_page_mismatch", "절 후보 page 대응을 확인할 수 없습니다", source_preserved=True)
     declared = value.get("sectionCount")
-    if len(sections) > MAX_SECTION_CANDIDATES or type(declared) is not int or declared != len(sections):
+    truncated = value.get("truncated")
+    if (
+        len(sections) > MAX_SECTION_CANDIDATES
+        or type(declared) is not int
+        or not len(sections) <= declared <= MAX_SECTION_CANDIDATES
+        or type(truncated) is not bool
+        or (len(sections) < declared and not truncated)
+    ):
         raise _section_candidates_error()
     candidates: list[dict[str, Any]] = []
     for index, section in enumerate(sections):
@@ -266,7 +274,10 @@ def parse_section_candidates_manifest(stdout: bytes, expected_pages: int) -> dic
         "schema": SECTION_CANDIDATES_SCHEMA,
         "page_count": page_count,
         "mode": mode,
-        "section_count": len(candidates),
+        "section_count": declared,
+        "returned_count": len(candidates),
+        "truncated": truncated,
+        "candidates_truncated": len(candidates) < declared,
         "sections": candidates,
     }
 
@@ -360,14 +371,6 @@ class NativeRhwpProcessor:
                 page["display_page"] = dump_page["displayPage"]
                 page["section"] = dump_page["section"]
             self._check_json_artifact(text, options)
-            # Fifth native call on the same input file as export-text/dump-pages;
-            # it shares the document deadline, the 1 MiB stdout cap, and the rlimits.
-            candidates = parse_section_candidates_manifest(
-                self._call(["digest", source.name, "--sections", "--json"], root, options, deadline), page_count,
-            )
-            candidates_bytes = section_candidates_bytes(
-                candidates, max_output_bytes=options.max_output_bytes, page_count=page_count,
-            )
             para_map = build_para_page_map(
                 blocks, dump, text, original_hwpx=media_type == "application/hwp+zip",
                 paragraph_identities=paragraph_identities, deadline=deadline,
@@ -382,6 +385,26 @@ class NativeRhwpProcessor:
             font_digest = self._font_manifest(options, deadline)
             renderer_provenance = {"renderer": RHWP_RENDERER, "rhwp_version": version, "rhwp_binary_sha256": binary_sha, "backend": "svg", "compat": "2022", "fallback_fonts": {"serif": "NanumMyeongjo", "sans": "NanumGothic", "mono": "NanumGothicCoding"}, "worker_image_digest": self._image_digest()}
             pdf_metadata = {"schema": "bidops.rhwp-pdf-snapshot.v1", "renderer": RHWP_RENDERER, "renderer_version": "1", "page_count": page_count, "renderer_provenance": renderer_provenance, "font_provenance": {"font_manifest_sha256": font_digest}, "pages": [{"number": item["number"], "display_page": item["display_page"], "section": item["section"], "text_sha256": item["text_sha256"]} for item in text["pages"]]}
+            # Section candidates are an optional navigation aid.  Finish the
+            # PDF, page-text, mapping, and renderer binding first; a failed or
+            # partial digest must not invalidate those independently verified
+            # core artifacts.
+            candidates: dict[str, Any] = {}
+            candidates_bytes: bytes | None = None
+            try:
+                candidates = parse_section_candidates_manifest(
+                    self._call(["digest", source.name, "--sections", "--json"], root, options, deadline),
+                    page_count,
+                )
+                candidates_bytes = section_candidates_bytes(
+                    candidates, max_output_bytes=options.max_output_bytes, page_count=page_count,
+                )
+                if candidates["candidates_truncated"]:
+                    warnings.append("section_candidates_incomplete")
+            except DocumentProcessingError:
+                candidates = {}
+                candidates_bytes = None
+                warnings.append("section_candidates_unavailable")
             return {"pages": pages, "blocks": blocks, "warnings": warnings, "converted": converted, "verify": verify, "pdf": pdf, "pdf_metadata": pdf_metadata, "page_text": text, "page_dump": dump, "para_page_map": para_map, "para_page_map_bytes": para_map_bytes, "section_candidates": candidates, "section_candidates_bytes": candidates_bytes}
 
     def _call(self, arguments: list[str], root: Path, options: ProcessorOptions, deadline: float, *, verify_exit: bool = False) -> bytes:

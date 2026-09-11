@@ -24,6 +24,7 @@ import logging
 from pathlib import Path
 import subprocess
 import threading
+import uuid
 from typing import Any, Final
 
 from ..core import SessionLocal, Settings, get_settings, parse_run_id
@@ -91,14 +92,16 @@ class RuntimePipelineBridge:
         run_key = kwargs.get("run_key")
         try:
             if stage == "collect":
-                run_id = str(run_key)
+                # The reservation key is stable; each collection attempt owns
+                # a fresh artifact directory, including scheduled recovery.
+                run_id = f"{run_key}-collect-{uuid.uuid4().hex}"
                 directory = self._run_directory(run_id)
-                directory.mkdir(parents=True, exist_ok=True)
                 ok = self._run([
                     "python3", "skills/bidops-collect/scripts/collect_notices.py",
                     "--from-date", kwargs["window_from"].isoformat(),
                     "--to-date", kwargs["window_to"].isoformat(),
                     "--output-dir", str(directory),
+                    "--allowed-root", str(self.settings.bidops_root / "data" / "runs"),
                 ])
                 return self._ingest(directory) if ok else {"status": "failed", "failure_reason": "collect_failed"}
             if not isinstance(run_id, str):

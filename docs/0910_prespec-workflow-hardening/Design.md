@@ -1,12 +1,19 @@
 # 사전규격 수집·개요 검토 안정화 설계
 
-작성일: 2026-09-10 · 상태: 구현 전 · 계약: [Spec](Spec.md)
+작성일: 2026-09-10 · 상태: 구현·격리 검증 반영, 실사용 초안4건 모두 사람 검토 필요([Plan](Plan.md)) · 계약: [Spec](Spec.md)
 
 ## 현재 흐름과 변경 경계
 
 발주계획과 사전규격은 독립 수집한다. 공식 식별자 또는 사람의 관계 확인으로 연결하며, 선택한 발주계획이 있어야만 사전규격을 가져오는 구조로 바꾸지 않는다. 발주계획 C-2와 사전규격 C-1의 정책·품질 승인 조건도 유지한다.
 
 사전규격의 `우선 검토`는 자동 문서 준비를 여는 조건이다. SW 여부·추적 발주계획 연결·등급에 따른 첨부 자격은 기존 규칙을 사용한다. 문서 준비 완료와 개요 범위 확정은 v4 개요 실행 승인을 대신하지 않는다. 새 개요를 만들려면 해당 target을 명시적으로 enqueue해야 한다.
+
+2026-09-11 MVP는 rhwp의 PDF·페이지 텍스트를 core로 수용하고 digest 절 후보를 보조로 분리한다. core 검증 후 후보를 만들며 outline·부분 반환을 v2 sidecar에 정확히 보존한다. 후보를 사용할 수 없으면 경고, 부분 목록이면 수동 쪽 선택으로 연결한다. 실패한 core를 건져 쓰거나 필수 무결성을 완화하지 않는다. 공백 쪽은 본문과 함께 원문 그대로 유지하되 근거가 될 수 없다.
+
+자동 선택 장이 `제안개요` 작성 양식이거나 같은 줄에 여러 장 경계가 있으면 기존 모호성
+경고로 담당자 확인에 넘긴다. 기존 ready target은 읽기 전용 재평가 경고만 추가하고
+변경하지 않는다. 제안 작성 지침의 짧은 입력이 용량 예산에 든다는 이유로 검토 준비나
+내용 검증 성공으로 세지 않는다. 범용 목차 해석이나 임의의 짧은 범위 재선택은 없다.
 
 합성 analysis-worker는 이미 존재하는 작업을 C-2 → 심층 검토 → 회사 핏 → 개요 순으로 처리한다. `--once`는 최대 한 업무를 처리하며 이 업무 안에서 모델을 여러 번 부를 수 있다. 수집 예약 scheduler와 C-1 worker는 별개다. 이 작업은 개요 slot의 복구·배정·중지를 바꾼다.
 
@@ -41,15 +48,17 @@ flowchart TD
 | `skills/bidops-collect/scripts/collect_order_plans.py` | 배타적 생성의 비교 기준; 공통 helper 추출 시 회귀 대상 |
 | `web/backend/app/lifecycle/services/pipeline.py` | 새 경로 이름만 생성, 폴더 선생성·raw symlink 제거, 원본과 출력 인자 분리 |
 | `web/backend/app/screening/runtime.py` | collect 호출에서 출력 폴더를 선점하지 않도록 변경; 예약 실행 호출부와 함께 확인 |
-| `web/backend/app/deep_review/schemas/page_overview.py` | 초안·검증·v4 결과·v2 조회의 엄격한 계약과 과거 parser |
-| `web/backend/app/deep_review/services/page_overview_validation.py` 및 새 검증 모듈 | 원문 locator·typed quantity 검증, 주장 전체성, 최종 구성과 검증 hash |
+| `web/backend/app/deep_review/schemas/prespec_overview_claims.py`·`schemas/page_overview.py` | 초안·검증·v4 결과·v2 조회의 엄격한 계약과 과거 parser |
+| `web/backend/app/deep_review/services/prespec_overview_claim_validation.py`·`prespec_overview_claim_policy.py` | 원문 locator·typed quantity 검증, 주장 전체성, 최종 구성과 검증 hash; 기존 `page_overview_validation.py`는 v3 이력 계약으로 보존 |
 | `web/backend/app/deep_review/policies/` | 두 stage를 가진 새 정책·prompt·출력 schema·호출 예산 |
 | `web/backend/app/deep_review/services/prespec_v4_runner.py` | 다단계 실행, call 기록, 종료 분류, 게시 검사, lease 정리와 배정 |
 | `web/backend/app/deep_review/services/prespec_overview_runner.py` | 기존 권고형 개요의 identity 복구, v4 예약 문서 제외 유지 |
 | `web/backend/app/deep_review/services/prespec_v4_ops.py`·`cli/prespec_v4.py` | activation 버전, gate 잠금, enqueue·중지·새 attempt, 안전한 취소 집계 |
-| `web/backend/app/core/model_client.py` | 단일 목적별 transport 유지; identity 오류 분류 보완이 필요한 경우에만 최소 변경 |
+| `web/backend/app/core/model_client.py` | 단일 목적별 transport, stage별 출력 계약, 작은 identity backoff helper와 확인된 모델 context 전달 |
 | `web/backend/app/deep_review/models.py`·`alembic/versions/`·`scripts/runtime-privileges.sql` | 상태·참조·불변 제약, 새 call/검증 기록, 최소 권한 |
 | `web/backend/app/deep_review/services/page_overview.py`·`routers/deep_reviews.py` | v2 현재성·이력·실패 진단, 고정 PDF 조회 |
+| `web/backend/app/deep_review/document_mcp/native.py`·`native_artifacts.py` | native core와 보조 digest 처리 분리, outline·전체/반환 후보 수 v2 계약, 기존 v1 읽기 |
+| `web/backend/app/deep_review/services/prespec_v4_range.py` | 후보 유무와 무관한 직접 쪽 선택, 최신 안전 target의 append-only 확정과 기존 notice 잠금 |
 | `web/backend/app/deep_review/services/company_fit.py` | 새 결과의 버전·검증 상태를 읽고 실패/중지/과거 대체 차단 |
 | `web/frontend/src/lib/api.ts`·`lib/types.ts`·`components/pre-specs/PageOverviewSection.tsx`·`pages/PreSpecDetailPage.tsx` | 새 API와 결과 타입, 실패 근거 표시, 과거 결과 구분 |
 
@@ -123,6 +132,7 @@ overview_slot_tick(now):
 execute_overview(attempt):
     frozen = load_and_verify_pinned_input(attempt)
     try:
+        check_draft_request_capacity_without_truncation(frozen, confirmed_context, output_reserve)
         draft = dispatch_with_gate_and_call_ledger("draft", frozen)
         if draft.has_only_technical_format_error:
             draft = dispatch_with_gate_and_call_ledger("draft_format_retry", frozen, safe_error_codes)
@@ -132,6 +142,7 @@ execute_overview(attempt):
         if checks.have_failure:
             return close_human_review_under_gate(attempt, draft, checks)
 
+        check_actual_semantic_request_capacity(frozen, draft, checks, confirmed_context, output_reserve)
         semantic = dispatch_with_gate_and_call_ledger("semantic_review", frozen, draft, checks)
         validate_exact_claim_analysis_and_unknown_id_coverage_or_fail(semantic)
         checks = combine_without_overriding_deterministic_failures(checks, semantic)
@@ -181,6 +192,12 @@ resolve_identity(now):
 
 담당자는 사전규격 상세의 개요 영역에서 현재 실행 상태를 먼저 본다. 전체 통과하면 개요 문장과 PDF 근거 링크를 읽는다. 검증이 실패하면 최종 요약 대신 “근거 확인 필요”와 실패 주장·사유·검증된 원문 인용을 본다. 근거 링크는 해당 attempt가 고정한 PDF를 연다.
 
+모델 미실행/실패여도 최신 준비 target의 안전한 PDF를 별도 링크로 열 수 있다. 자동 ready도 선택 범위·후보 경고를 보여 주고, pending에서는 후보 선택과 직접 시작/끝 쪽 입력을 전환한다. 부분 후보는 참고 표로만 보여 주며 쪽 입력을 사용한다. 기존 자동 ready의 잘못된 범위는 별도 pending 행을 끼워 넣지 않고 기존 확인 API로 새 human_confirmed target을 추가한다. 대기/실행 중이면 확정을 막고 새 범위 뒤 옛 target enqueue도 막는다. 문서/원본/PDF의 현재 안전성은 확인 API에서 다시 검사한다.
+
 입력 범위의 사람 확인 대기와 주장 검증의 사람 확인 대기는 서로 다른 이유로 표시한다. 과거 완료는 이력에서 열 수 있고 이전 검증 기준·모델·미측정 표식을 유지한다. 최신 취소·실패·stale 상태에서 과거 요약을 현재 결과처럼 보이지 않게 한다.
+새 범위 확인 뒤 이전 target의 완료 개요는 current에서 제외(`stale/target_superseded`)하고
+이력에 보존한다. 회사 핏은 이 공유 projection을 읽으므로 별도 현재성 규칙을 만들지 않는다.
+
+입력 용량 초과는 기존 failed 상태에 `input_capacity_exceeded`를 붙여 “입력 용량 초과로 미실행”과 후속 조치를 표시한다. 내용의 참·거짓을 판단한 상태가 아니다. 의미 단계가 미실행이어도 앞선 초안 호출이 있을 수 있으므로 모델 호출이 전혀 없었다고 단정하지 않는다. 길이를 줄이는 자동 절단·요약·분할은 하지 않는다.
 
 새 사람 승인·추적·최종 입찰 결정 UI는 추가하지 않는다. 원문 확인 뒤 재실행은 현재 CLI의 명시적 새 attempt 경로를 확장해 처리하고, 기존 terminal attempt와 검증 이력은 보존한다.
