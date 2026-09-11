@@ -209,7 +209,8 @@ class OverviewClaimChecks(StrictClaimModel):
             sorted(c.analysis_id for c in self.analysis_checks) != sorted(analysis_ids) or
             sorted(c.unknown_id for c in self.unknown_checks) != sorted(unknown_ids) or
             any(not a.supporting_claim_ids or set(a.supporting_claim_ids) - set(ids) for a in self.analysis) or
-            not all(any(c.section == section for c in self.checks) for section in FACT_SECTIONS[:2]) or
+            # 섹션 배정 쏠림은 2026-09-11부터 경고다. 주장이 한 개도 없는
+            # 것만 통과를 막는다(`passed`는 이미 `bool(self.checks)`를 본다).
             any(not c.deterministic.verified_evidence for c in self.checks)
         ):
             raise ValueError("verification_coverage_invalid")
@@ -235,8 +236,10 @@ class VerifiedPageFact(StrictClaimModel):
 
 class PageOverviewPayloadV4(StrictClaimModel):
     schema_version: Literal["bidops.prespec-overview-page-review.v4"]
-    business_overview: Annotated[list[VerifiedPageFact], Field(min_length=1)]
-    main_tasks: Annotated[list[VerifiedPageFact], Field(min_length=1)]
+    # 섹션별 최소 1개는 요구하지 않는다. 모델이 한 섹션에 몰아 넣은 것은
+    # 경고(`required_fact_missing`)로 남고 개요는 그대로 만든다.
+    business_overview: list[VerifiedPageFact]
+    main_tasks: list[VerifiedPageFact]
     budget_and_period: list[VerifiedPageFact]
     important_conditions: list[VerifiedPageFact]
     reviewer_analysis: list[OverviewAnalysis]

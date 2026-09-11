@@ -26,8 +26,14 @@ from .prespec_overview_claim_policy import FORMAT_RETRY_CODES, LIMITS, canonical
 
 #: 인용 자체는 성립하지만 대조가 어긋난 관찰. 사람이 원문과 함께 확인할
 #: 값이며 결정적 검사를 실패로 만들지 않는다 (MVP 계약, 2026-09-11). 인용
-#: 대응·페이지 범위·필수 섹션·중복 id·analysis 참조만 실패로 남는다.
+#: 대응·페이지 범위·중복 id·analysis 참조만 실패로 남는다.
+#:
+#: `required_fact_missing`(섹션 배정 쏠림)과 `evidence_fragment_match`(2단
+#: 편집 쪽의 조각 대조)는 2026-09-11 운영 첫 실행 결과로 경고가 됐다. 주장이
+#: 0개인 것은 여전히 사람 검토이며 run이 `claims_empty`로 닫는다.
 WARNING_REASON_CODES = frozenset({
+    "required_fact_missing",
+    "evidence_fragment_match",
     "quantity_mismatch",
     "quantity_metadata_mismatch",
     "quantity_relation_ambiguous",
@@ -145,7 +151,72 @@ def _space_map(text: str) -> tuple[str, list[int]]:
     return "".join(text[i] for i in offsets), offsets
 
 
+#: 인용을 자르는 경계: 줄바꿈과 리스트 표식 바로 앞. 2단(두 열) 편집 쪽의
+#: 텍스트는 좌·우 열을 **줄 단위로 번갈아** 내보내므로 한 열에서 뽑은 인용은
+#: 원문에서 연속하지 않는다. 표식 자체는 뒤 조각에 남겨 대조에 쓴다.
+_FRAGMENT_BOUNDARY = re.compile(
+    r"\n|(?:^|(?<=\s))(?=(?:[가나다라마바사아자차카타파하]|\d{1,2})\s*[.)]\s|[○●□■◇◆▶▷•·]|-\s)"
+)
+#: 이보다 짧은 조각(공백 제거 기준)은 혼자서는 한 곳을 가리키지 못한다.
+_MIN_FRAGMENT_CHARS = 6
+
+
+def _matches(normalized: str, needle: str) -> list[int]:
+    # Count overlaps too: ambiguity must not depend on Python's str.count.
+    return [m.start() for m in re.finditer(f"(?={re.escape(needle)})", normalized)]
+
+
+def _fragments(quote: str) -> list[str]:
+    """인용을 줄·리스트 표식 경계로 자른다. 짧은 조각은 앞 조각에 붙인다."""
+
+    cuts = [0, *(match.start() for match in _FRAGMENT_BOUNDARY.finditer(quote)), len(quote)]
+    fragments: list[str] = []
+    for start, end in zip(cuts, cuts[1:]):
+        piece = quote[start:end]
+        compact, _ = _space_map(piece)
+        if not compact:
+            continue
+        if fragments and len(compact) < _MIN_FRAGMENT_CHARS:
+            fragments[-1] += piece
+        else:
+            fragments.append(piece)
+    return fragments
+
+
+def _fragment_span(normalized: str, quote: str) -> tuple[int, int]:
+    """조각 대조. 조각마다 정확히 1곳이고 시작이 커지는 순서일 때만 통과한다.
+
+    조각이 하나뿐이면 연속 대조와 같은 질문이므로 다시 묻지 않는다. 순서가
+    어긋나면 같은 낱말이 다른 문맥에서 우연히 맞은 것으로 보고 닫는다.
+    """
+
+    fragments = _fragments(quote)
+    if len(fragments) < 2:
+        raise ValueError("quote_not_found")
+    spans: list[tuple[int, int]] = []
+    for fragment in fragments:
+        compact, _ = _space_map(fragment)
+        found = _matches(normalized, compact)
+        if not found:
+            raise ValueError("quote_not_found")
+        if len(found) != 1:
+            raise ValueError("quote_ambiguous")
+        spans.append((found[0], found[0] + len(compact)))
+    if any(later[0] <= earlier[0] for earlier, later in zip(spans, spans[1:])):
+        raise ValueError("quote_not_found")
+    return spans[0][0], spans[-1][1]
+
+
 def verify_evidence(evidence: ClaimEvidence, pages: dict[int, str]) -> VerifiedEvidence:
+    return verify_evidence_span(evidence, pages)[0]
+
+
+def verify_evidence_span(evidence: ClaimEvidence, pages: dict[int, str]) -> tuple[VerifiedEvidence, bool]:
+    """검증된 근거와 "조각 대조로 통과했는가"를 함께 돌려준다.
+
+    NFKC 정규화는 하지 않는다. 원문 offset을 그대로 보존하는 쪽이 먼저다.
+    """
+
     if evidence.page not in pages:
         raise ValueError("page_out_of_range")
     page = pages[evidence.page]
@@ -153,18 +224,23 @@ def verify_evidence(evidence: ClaimEvidence, pages: dict[int, str]) -> VerifiedE
     quote, _ = _space_map(evidence.quote)
     if not quote:
         raise ValueError("quote_empty")
-    # Count overlaps too: ambiguity must not depend on Python's str.count.
-    matches = [m.start() for m in re.finditer(f"(?={re.escape(quote)})", normalized)]
-    if not matches:
-        raise ValueError("quote_not_found")
-    if len(matches) != 1:
+    matches = _matches(normalized, quote)
+    fragment_match = False
+    if len(matches) == 1:
+        first, last = matches[0], matches[0] + len(quote)
+    elif matches:
         raise ValueError("quote_ambiguous")
-    start = offsets[matches[0]]
-    end = offsets[matches[0] + len(quote) - 1] + 1
+    else:
+        first, last = _fragment_span(normalized, evidence.quote)
+        fragment_match = True
+    start = offsets[first]
+    end = offsets[last - 1] + 1
     if end - start > 2000:
         raise ValueError("input_limit_exceeded")
-    return VerifiedEvidence(page=evidence.page, quote=page[start:end], start_char=start,
-                            end_char=end, page_text_sha256=hashlib.sha256(page.encode("utf-8")).hexdigest())
+    return VerifiedEvidence(
+        page=evidence.page, quote=page[start:end], start_char=start, end_char=end,
+        page_text_sha256=hashlib.sha256(page.encode("utf-8")).hexdigest(),
+    ), fragment_match
 
 
 _NUMBER = r"[-−]?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?"
@@ -336,9 +412,11 @@ def validate_claims_deterministically(
             errors.add("evidence_missing")
         for i, evidence in enumerate(claim.evidence):
             try:
-                item = verify_evidence(evidence, pages)
+                item, fragment_match = verify_evidence_span(evidence, pages)
                 indexed[i] = item
                 verified.append(item)
+                if fragment_match:
+                    errors.add("evidence_fragment_match")
             except ValueError as error:
                 errors.add(str(error))
         source = "\n".join(e.quote for e in verified)
