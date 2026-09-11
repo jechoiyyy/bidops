@@ -447,12 +447,7 @@ def test_claim_orders_due_rows_and_increments_fence(db_session: Session):
 def test_fetch_fixture_completes_with_provider_filename(
     db_session: Session, tmp_path: Path, filename: str, fixture: Path
 ):
-    # acquire_provider_attachment는 filename 인자로 snapshot.name(DB에 적재된
-    # Attachment.name)을 받아 그것을 최우선으로 쓴다. 이 테스트는 "provider
-    # filename"이 실제로 쓰이는 경로를 보려는 것이므로, DB에 이름이 없을 때
-    # (name=None)로 큐잉해 다음 우선순위인 response.suggested_filename이
-    # 선택되게 한다.
-    _, _, _ = queue_one(db_session, sw_status="Y", name=None)
+    _, _, _ = queue_one(db_session, sw_status="Y")
     claim = claim_next(db_session, worker_id="worker-a", lease_seconds=120)
     assert claim is not None
     result = fetch_claimed(
@@ -705,9 +700,7 @@ def test_safe_fetch_revalidates_locked_attachment_provenance_after_io(
 
 
 def test_unsupported_docx_is_blocked_without_consuming_attempt(db_session: Session, tmp_path: Path):
-    # DB 이름이 없어야(name=None) provider가 알려주는 .docx 파일명으로 확장자
-    # 판정이 이뤄진다(snapshot.name이 있으면 그쪽이 우선한다).
-    _, _, _ = queue_one(db_session, sw_status="Y", name=None)
+    _, _, _ = queue_one(db_session, sw_status="Y")
     claim = claim_next(db_session, worker_id="worker-a", lease_seconds=120)
     assert claim is not None
     result = fetch_claimed(
@@ -975,9 +968,7 @@ def test_unsupported_extension_marks_the_attachment_as_excluded_not_failed(
 ):
     """형식 밖 첨부는 `차단`이지만 묶음 확정을 막지 않는 `extract_status`를 남긴다 (§6.2)."""
 
-    # DB 이름이 없어야(name=None) provider가 알려주는 .zip 파일명으로 확장자
-    # 판정이 이뤄진다(snapshot.name이 있으면 그쪽이 우선한다).
-    _, attachment, _ = queue_one(db_session, sw_status="Y", name=None)
+    _, attachment, _ = queue_one(db_session, sw_status="Y")
     claim = claim_next(db_session, worker_id="worker-a", lease_seconds=120)
     assert claim is not None
 

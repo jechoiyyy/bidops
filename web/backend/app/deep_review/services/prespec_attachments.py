@@ -832,7 +832,8 @@ def _fetch_claimed(
             source_system=SOURCE_SYSTEM,
             source_url=snapshot.source_url,
             source_attachment_key=snapshot.source_attachment_key,
-            filename=snapshot.name,
+            filename=None,
+            fallback_filename=snapshot.name,
             connectors=connectors,
             root=root,
         )

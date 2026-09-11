@@ -1022,13 +1022,14 @@ def _collect_chunks(chunks: Iterable[bytes] | AsyncIterable[bytes], *, deadline:
 
 
 def _filename_from_response_url(url: str | None) -> str | None:
-    """Fall back to the final response URL's path when no filename is given.
+    """Fall back to the final response URL's path when no other filename is given.
 
-    Attachment.name도 Content-Disposition도 없는 provider 응답이 있다 — G2B
-    링크 중 일부는 파일명을 URL path에만 싣는다. 마지막 path 성분을
-    percent-decode한 뒤 `_safe_filename`으로 정규화하고, 빈 문자열이거나
-    안전한 문서 파일명이 아니면 후보 없음(None)으로 취급해 다음 단계(기존
-    `unsupported_extension`)로 넘어가게 한다.
+    호출자 `filename`도, provider의 Content-Disposition도, 참고용
+    `fallback_filename`도 없는 응답이 있다 — G2B 링크 중 일부는 파일명을 URL
+    path에만 싣는다. 마지막 path 성분을 percent-decode한 뒤 `_safe_filename`
+    으로 정규화하고, 빈 문자열이거나 안전한 문서 파일명이 아니면 후보
+    없음(None)으로 취급해 다음 단계(기존 `unsupported_extension`)로 넘어가게
+    한다.
     """
 
     if not url:
@@ -1053,11 +1054,19 @@ def acquire_provider_attachment(
     source_system: str,
     source_url: str,
     filename: str | None = None,
+    fallback_filename: str | None = None,
     source_attachment_key: str | None = None,
     connectors: Mapping[str, ProviderConnector],
     root: Path | None = None,
 ) -> QuarantinedAsset:
-    """Acquire only through the named allowlisted connector."""
+    """Acquire only through the named allowlisted connector.
+
+    파일명 결정 순서는 ① 호출자가 명시한 `filename`(사람이 지정한 이름 —
+    예: document_bundles 재취득 경로) ② provider가 이번 응답에서 실제로 밝힌
+    `Content-Disposition` 파일명 ③ 호출자가 참고로 건넨 `fallback_filename`
+    (예: DB에 이미 적재된 `Attachment.name`) ④ 최종 응답 URL의 path다.
+    서버가 이번에 실제로 알려준 이름이 오래된 DB 기록보다 우선한다.
+    """
 
     connector = connectors.get(source_system)
     if connector is None or connector.source_system != source_system:
@@ -1067,6 +1076,8 @@ def acquire_provider_attachment(
         selected_filename = filename
     elif response.suggested_filename is not None:
         selected_filename = response.suggested_filename
+    elif fallback_filename is not None:
+        selected_filename = fallback_filename
     else:
         selected_filename = _filename_from_response_url(response.final_url)
     if selected_filename is None:
