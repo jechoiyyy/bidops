@@ -3,15 +3,15 @@ import { InternationalizationProvider } from "@astryxdesign/core/i18n";
 import koKR from "@astryxdesign/core/locales/ko-KR.json";
 import { Collapsible } from "@astryxdesign/core/Collapsible";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Badge, type BadgeVariant } from "../components/common/Badge";
 import { BUNDLE_STATUS_LABELS, DocumentPreparationPanel } from "../components/deep-review/DocumentPreparationPanel";
-import { getDocumentBundles, getDocumentStructurePage } from "../components/deep-review/api";
+import { getDocumentBundles } from "../components/deep-review/api";
 import { EmptyState } from "../components/common/EmptyState";
 import { Panel } from "../components/common/Panel";
 import { ReviewHistoryLinkRail } from "../components/common/ReviewPrimitives";
-import { SkeletonBlock, SkeletonPanel } from "../components/common/Skeleton";
+import { SkeletonPanel } from "../components/common/Skeleton";
 import { PreSpecDocumentSummary, TrackingDecisionControl, updateTrackingProjection } from "../components/pre-specs/TrackingDecisionControl";
 import { api } from "../lib/api";
 import { PreSpecRecordIdentity } from "../components/pre-specs/PreSpecRecordIdentity";
@@ -23,19 +23,9 @@ import {
   NO_CURRENT_ATTEMPT_NOTICE,
   useCompanyFit,
 } from "../components/pre-specs/CompanyFitSection";
-import {
-  PageOverviewCurrent,
-  PageOverviewExecutionInfo,
-  PageOverviewFactLine,
-  PageOverviewHistory,
-  PageOverviewRangeReview,
-  PageOverviewVerificationDetails,
-  pageOverviewPdfUrl,
-  useCurrentPageOverview,
-} from "../components/pre-specs/PageOverviewSection";
 import { apiErrorRecoveryAction, describeApiError } from "../lib/apiErrors";
 import { describeDeadline } from "../lib/deadline";
-import { formatDateTime, formatNumber, present } from "../lib/format";
+import { formatNumber, present } from "../lib/format";
 import { gradeLabel, gradeSourceLabel, gradeVariant } from "../lib/grade";
 import {
   PRE_SPEC_AUTO_PREPARATION_STATUS_LABEL,
@@ -43,33 +33,14 @@ import {
   preSpecAutoPreparationVariant,
 } from "../lib/preSpecAutoPreparation";
 import {
-  hasCanonicalOverviewNoticeId,
-  PRE_SPEC_OVERVIEW_ATTEMPT_STATUS_LABEL,
   PRE_SPEC_OVERVIEW_NOT_STARTED_LABEL,
   PRE_SPEC_OVERVIEW_STATUS_LABEL,
-  PRE_SPEC_OVERVIEW_VALIDATION,
-  PRE_SPEC_OVERVIEW_WAITING_DESCRIPTION,
   preSpecOverviewStatusVariant,
 } from "../lib/preSpecOverviewStatus";
-import { qualityStatusLabel, qualityStatusNote, qualityStatusVariant } from "../lib/qualityStatus";
-import type {
-  PageOverviewFact,
-  PreSpecListResponse,
-  PreSpecOverviewCutStatus,
-  PreSpecOverviewEvidence,
-  PageOverviewView,
-} from "../lib/types";
+import type { PreSpecListResponse } from "../lib/types";
 import "../styles/pre-specs-relaxed.css";
 import "../styles/detail-skeleton.css";
 import "../styles/pre-spec-detail-erp.css";
-
-/** The reading column scrolls normally; only the adjacent decision form stays in view. */
-function focusSection(id: string) {
-  const target = document.getElementById(id);
-  if (target) { target.scrollIntoView({ block: "start" }); target.focus({ preventScroll: true }); }
-}
-
-const REVIEW_STATUS = PRE_SPEC_OVERVIEW_STATUS_LABEL;
 
 const TRACKING_REASON_PRESETS = ["후속 입찰공고 확인", "세부 과업·연계 범위 확인", "참여 자격·실적 확인 필요"] as const;
 
@@ -80,25 +51,9 @@ function recordDateTime(value: string | null): string {
   return `${part("year")}.${part("month")}.${part("day")} ${part("hour")}:${part("minute")} KST`;
 }
 
-const ATTEMPT_STATUS = PRE_SPEC_OVERVIEW_ATTEMPT_STATUS_LABEL;
-
-// 검증 상태 문구와 대기 사유 문장은 `lib/preSpecOverviewStatus`가 소유한다.
-// 사전규격 목록 화면의 개요 탭이 같은 문장을 쓰므로 두 벌로 두지 않는다.
-const VALIDATION_STATUS = PRE_SPEC_OVERVIEW_VALIDATION;
-const REVIEW_WAITING_DESCRIPTION = PRE_SPEC_OVERVIEW_WAITING_DESCRIPTION;
-
-const statusVariant = preSpecOverviewStatusVariant;
-
 function deadlineChipVariant(urgency: ReturnType<typeof describeDeadline>["urgency"]): "neutral" | "warn" | "err" {
   if (urgency === "passed") return "err";
   if (urgency === "critical" || urgency === "soon") return "warn";
-  return "neutral";
-}
-
-function recommendationDotVariant(recommendation: string | null): "neutral" | "ok" | "warn" | "err" {
-  if (recommendation === "추진 검토") return "ok";
-  if (recommendation === "보류" || recommendation === "조건부 추진 검토") return "warn";
-  if (recommendation === "검토 종료") return "err";
   return "neutral";
 }
 
@@ -125,23 +80,6 @@ function RecordSection({
       {children}
     </section>
   );
-}
-
-function OverviewPdfReference({ review }: { review: PageOverviewView }) {
-  return <a className="ps-ref" href={pageOverviewPdfUrl(review)} target="_blank" rel="noreferrer">전체 근거 PDF 열기 ↗</a>;
-}
-
-function cutStatus(status: PreSpecOverviewCutStatus): { label: string; variant: BadgeVariant; description: string } {
-  if (status === "ready") {
-    return { label: "입력 범위 준비됨", variant: "evidence-confirmed", description: "서버가 구조화 문서에서 개요 입력 범위를 확정했습니다." };
-  }
-  if (status === "unknown") {
-    return { label: "unknown · 사람 확인 필요", variant: "evidence-unknown", description: "구조 절단 범위를 확정하지 못했습니다. 전체 문서 성공으로 자동 보정하지 않습니다." };
-  }
-  if (status === "failed") {
-    return { label: "입력 준비 실패", variant: "danger", description: "개요 입력 준비가 실패했습니다. 사람 확인과 안전한 재처리가 필요합니다." };
-  }
-  return { label: "입력 준비 대기", variant: "neutral", description: "개요 입력 범위가 아직 확정되지 않았습니다." };
 }
 
 /**
@@ -218,68 +156,6 @@ function AutoPreparationStep({ label, value, variant, detail }: AutoPreparationS
   );
 }
 
-function evidenceKey(evidence: PreSpecOverviewEvidence): string {
-  return `${evidence.claim}-${evidence.locator.block_key}-${evidence.locator.page}-${evidence.locator.ordinal}`;
-}
-
-/** 시안의 점 목록 한 줄. 문장과 PDF 근거 링크는 `PageOverviewFactLine`이 그린다. */
-function FactBullets({ items, review }: { items: PageOverviewFact[]; review: PageOverviewView }) {
-  if (items.length === 0) return <p className="ps-cap ps-muted">이번 입력에서는 확인되지 않았습니다.</p>;
-  return (
-    <ul className="ps-bul">
-      {items.map((fact, index) => (
-        <li key={index}>
-          <span className="ps-dot ps-dot-neutral" aria-hidden="true" />
-          <span className="ps-t"><PageOverviewFactLine fact={fact} review={review} /></span>
-        </li>
-      ))}
-    </ul>
-  );
-}
-
-function PageOverviewBriefing({ review }: { review: PageOverviewView }) {
-  const { payload } = review;
-  const isVerifiedV4 = payload.schema_version === "bidops.prespec-overview-page-review.v4";
-  const remainingOverview = payload.business_overview.slice(1);
-  return <div className="page-overview">
-    {/* 헤더 띠가 첫 문장을 이미 보여 준다. 개요 본문 영역이 같은 문장을 계약대로
-        담고 있어야 하므로 자리만 유지하고 화면에서는 감춘다. */}
-    {payload.business_overview[0] ? (
-      <p className="visually-hidden" aria-hidden="true"><PageOverviewFactLine fact={payload.business_overview[0]} review={review} /></p>
-    ) : null}
-    <div className="page-overview-validation" role="status">
-      <strong>{review.validation_status === "failed" ? "검증 실패 · 사람 확인 필요" : isVerifiedV4 ? "주장 검증 완료 · 운영 승인 아님" : "근거 검사 통과 · 이전 검증 기준"}</strong>
-      <p>사업 설명을 위한 요약입니다. 추적 승인과 최종 입찰 결정은 사람이 진행하며, 현재 회사 핏과 조건을 충족한 경우에만 심층 검토가 자동 시작됩니다.</p>
-      {review.validation_status === "failed" && review.evidence_check_status === "passed" ? (
-        <p>새 페이지 근거 검사는 통과했으나, 원실행의 검증 실패 기록은 유지합니다.</p>
-      ) : null}
-    </div>
-    {remainingOverview.length > 0 ? <>
-      <h4 className="ps-sub">사업 개요</h4>
-      <FactBullets items={remainingOverview} review={review} />
-    </> : null}
-    <h4 className="ps-sub">주요 과업</h4>
-    {payload.main_tasks.length === 0 ? <p className="ps-cap ps-muted">이번 입력에서는 확인되지 않았습니다.</p> : (
-      <ol className="ps-bul">
-        {payload.main_tasks.map((fact, index) => (
-          <li key={index}>
-            <span className="ps-n" aria-hidden="true">{index + 1}</span>
-            <span className="ps-t"><PageOverviewFactLine fact={fact} review={review} /></span>
-          </li>
-        ))}
-      </ol>
-    )}
-    <h4 className="ps-sub">사업 규모와 일정</h4>
-    <FactBullets items={payload.budget_and_period} review={review} />
-    <h4 className="ps-sub">핵심 조건</h4>
-    <FactBullets items={payload.important_conditions} review={review} />
-    <h4 className="ps-sub">검토 포인트 <span className="ps-cnt">모델 의견</span></h4>
-    {isVerifiedV4
-      ? payload.reviewer_analysis.map((item) => <p key={item.id}>{item.text} <span className="ps-cap ps-muted">근거 주장 · {item.supporting_claim_ids.join(", ")}</span></p>)
-      : payload.reviewer_analysis.map((text, index) => <p key={index}>{text}</p>)}
-  </div>;
-}
-
 export function PreSpecDetailPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -310,31 +186,6 @@ export function PreSpecDetailPage() {
     enabled: noticeId !== null,
     staleTime: 30_000,
   });
-  const overviewQuery = useQuery({
-    queryKey: ["pre-spec-overview-reviews-v2", noticeId],
-    queryFn: ({ signal }) => api.getPreSpecOverviewReviewsV2(noticeId as number, { signal }),
-    enabled: noticeId !== null,
-    staleTime: 30_000,
-  });
-  const overviewResponseInvalid = overviewQuery.isSuccess
-    && !hasCanonicalOverviewNoticeId(overviewQuery.data, noticeId ?? 0);
-  const overview = overviewResponseInvalid ? undefined : overviewQuery.data?.reviews[0];
-  const snapshot = overview?.current_snapshot;
-  const [selectedEvidence, setSelectedEvidence] = useState<PreSpecOverviewEvidence | null>(null);
-  const sourceStructureId = snapshot?.structure_id;
-  const sourcePageNumber = selectedEvidence?.locator.page;
-  const sourcePageQuery = useQuery({
-    queryKey: ["pre-spec-document-structure-page", sourceStructureId, sourcePageNumber],
-    queryFn: () => getDocumentStructurePage(sourceStructureId as string, sourcePageNumber as number),
-    enabled: Boolean(sourceStructureId && sourcePageNumber),
-    staleTime: 30_000,
-  });
-
-  useEffect(() => {
-    setSelectedEvidence(null);
-  }, [noticeId]);
-
-  const pageOverviewState = useCurrentPageOverview(noticeId);
   const companyFitState = useCompanyFit(noticeId);
   if (noticeId === null) {
     return (
@@ -377,14 +228,6 @@ export function PreSpecDetailPage() {
   }
 
   const deadline = describeDeadline(notice.deadline_at);
-  const cut = snapshot ? cutStatus(snapshot.cut_status) : null;
-  const sourceBlocks = sourcePageQuery.data?.blocks ?? [];
-  const selectedBlockIndex = selectedEvidence
-    ? sourceBlocks.findIndex((block) => block.block_key === selectedEvidence.locator.block_key)
-    : -1;
-  const displayedSourceBlocks = selectedBlockIndex === -1
-    ? sourceBlocks
-    : sourceBlocks.slice(Math.max(0, selectedBlockIndex - 1), Math.min(sourceBlocks.length, selectedBlockIndex + 2));
   const preSpecItem = preSpecProjectionQuery.data?.items.find((item) => item.notice_pk === noticeId);
   const lifecycle = notice.lifecycle;
   const lifecycleNumber = lifecycle && typeof lifecycle === "object" && !Array.isArray(lifecycle) && "pre_spec_no" in lifecycle && typeof lifecycle.pre_spec_no === "string" ? lifecycle.pre_spec_no : null;
@@ -402,35 +245,13 @@ export function PreSpecDetailPage() {
       ? PRE_SPEC_OVERVIEW_NOT_STARTED_LABEL
       : PRE_SPEC_OVERVIEW_STATUS_LABEL[preSpecItem.overview_review_status])
     : null;
-  const {
-    query: pageOverviewQuery,
-    isValid: pageOverviewValid,
-    current: currentPageOverview,
-    currentResult,
-    legacyReview,
-    history: pageOverviewHistory,
-    rangeReview,
-    verification: pageOverviewVerification,
-  } = pageOverviewState;
-  const shown = pageOverviewValid ? currentResult ?? legacyReview : null;
-  const currentPageOverviewForView = pageOverviewValid ? currentPageOverview : null;
-  // 범위 확인은 실행이 아직 없을 때도(attempt를 만들지 않으므로) 나타난다.
-  const rangeReviewForView = pageOverviewValid ? rangeReview : null;
   const { query: companyFitQuery } = companyFitState;
   const companyFitData = companyFitState.isValid ? companyFitState.data : null;
   const currentCompanyFitAttempt = companyFitState.isValid ? companyFitState.currentAttempt : null;
   const previousCompanyFitAttempts = companyFitState.isValid ? companyFitState.previousAttempts : [];
-  const overviewUnknowns = overview?.result?.unknowns ?? [];
-  const pageOverviewUnknowns = shown?.payload.unknowns ?? [];
   const companyFitVerificationItems = currentCompanyFitAttempt?.result?.verification_items ?? [];
-  const checkCount = overviewUnknowns.length + pageOverviewUnknowns.length + companyFitVerificationItems.length;
-  const historyIsOpen = overview?.status === "failed"
-    || overview?.status === "needs_human_review"
-    || currentPageOverview?.status === "failed"
-    || currentPageOverview?.status === "needs_human_review"
-    || currentPageOverview?.status === "stale"
-    || currentPageOverview?.status === "cancelled"
-    || currentCompanyFitAttempt?.status === "failed"
+  const checkCount = companyFitVerificationItems.length;
+  const historyIsOpen = currentCompanyFitAttempt?.status === "failed"
     || currentCompanyFitAttempt?.status === "needs_human_review"
     || latestBundle?.status === "failed"
     || latestBundle?.status === "quarantined"
@@ -473,13 +294,6 @@ export function PreSpecDetailPage() {
             <Link className="ps-ref ps-ref-plain ps-record-list-link" to={listUrl}>목록으로 돌아가기</Link>
           </div>
         </div>
-        {shown?.payload.business_overview[0] ? <>
-          <div className="ps-divider" aria-hidden="true" />
-          <div className="ps-record-summary">
-            <span className="ps-chip ps-chip-dark">사업 개요</span>
-            <p><PageOverviewFactLine fact={shown.payload.business_overview[0]} review={shown} /></p>
-          </div>
-        </> : null}
       </header>
 
       <aside className="ps-card ps-record-tracking-card" aria-label="추적 결정">
@@ -507,7 +321,6 @@ export function PreSpecDetailPage() {
                 { queryKey: ["pre-specs"] },
                 (current) => updateTrackingProjection(current, noticeId, saved),
               );
-              void queryClient.invalidateQueries({ queryKey: ["pre-spec-overview-reviews-v2", noticeId] });
               void queryClient.invalidateQueries({ queryKey: ["pre-spec-detail", noticeId] });
               void queryClient.invalidateQueries({ queryKey: ["pre-specs"] });
               void queryClient.invalidateQueries({ queryKey: ["opportunity", saved.id] });
@@ -549,194 +362,6 @@ export function PreSpecDetailPage() {
 
       <div className="ps-grid detail-skeleton-grid">
         <div className="ps-col detail-skeleton-main">
-          <RecordSection title="검토 요약" className="pre-spec-overview-panel">
-            {overviewQuery.isPending ? (
-              <SkeletonBlock label="개요 검토 요약 정보를 불러오는 중" lines={4} />
-            ) : null}
-            {overviewQuery.isError ? (
-              <PreSpecQueryError
-                onRetry={() => { void overviewQuery.refetch(); }}
-                error={overviewQuery.error}
-                fallback="개요 검토 API 응답을 확인할 수 없습니다."
-                title="개요 검토 상태를 불러오지 못했습니다."
-              />
-            ) : null}
-            {overviewResponseInvalid ? (
-              <EmptyState
-                compact
-                tone="error"
-                title="개요 검토 정본을 확인할 수 없습니다."
-                description="응답의 notice ID가 요청과 일치하지 않아 개요 검토를 표시하지 않습니다."
-              />
-            ) : null}
-            {overviewQuery.isSuccess && !overview && !overviewResponseInvalid ? (
-              <EmptyState compact title="개요 검토 기록이 없습니다." description="서버가 제공한 개요 검토 기록이 없습니다." />
-            ) : null}
-            {overview?.result ? (
-              <div className="pre-spec-overview-content">
-                {VALIDATION_STATUS[overview.validation_status].warning ? (
-                  <div className="pre-spec-overview-validation-warning" role="alert"><Badge label={VALIDATION_STATUS[overview.validation_status].label} variant={VALIDATION_STATUS[overview.validation_status].variant} /><p>{VALIDATION_STATUS[overview.validation_status].warning}</p></div>
-                ) : null}
-                <section className="pre-spec-overview-section" aria-labelledby="pre-spec-overview-summary-title">
-                  <h4 className="ps-sub" id="pre-spec-overview-summary-title">사업 핵심</h4>
-                  <p className="pre-spec-overview-summary">{overview.result.summary} {overview.result.evidence.length > 0 ? <button className="ps-ref" type="button" onClick={() => focusSection("ps-record-evidence")}>근거 보기 ›</button> : null}</p>
-                </section>
-              </div>
-            ) : null}
-            {overview && !overview.result ? (
-              <div className="pre-spec-overview-waiting">
-                <strong>{REVIEW_STATUS[overview.status]} · 검증된 결과를 기다리는 중</strong>
-                <p>{REVIEW_WAITING_DESCRIPTION[overview.status]}</p>
-              </div>
-            ) : null}
-          </RecordSection>
-
-          <RecordSection
-            title="무엇을 만들어야 하나"
-            count={shown ? `주요 과업 ${shown.payload.main_tasks.length}` : undefined}
-            action={shown ? <OverviewPdfReference review={shown} /> : undefined}
-          >
-            {pageOverviewQuery.isPending ? (
-              <p role="status">PDF 기반 개요를 불러오는 중입니다.</p>
-            ) : pageOverviewQuery.isError ? (
-              <div role="alert" className="page-overview-validation">
-                <p>PDF 기반 개요를 불러오지 못했습니다. 아래 기존 개요 기록과는 별도 조회입니다.</p>
-                <Button label="개요 다시 불러오기" size="sm" onClick={() => { void pageOverviewQuery.refetch(); }} />
-              </div>
-            ) : !pageOverviewValid ? (
-              <p role="alert">개요 응답의 공고 또는 구조가 일치하지 않아 표시하지 않습니다.</p>
-            ) : shown ? (
-              <section className="page-overview" aria-label="PDF 기반 개요 검토">
-                <PageOverviewBriefing review={shown} />
-              </section>
-            ) : null}
-          </RecordSection>
-
-          {overview?.result && overview.result.conditions.length > 0 ? (
-            <RecordSection title="지켜야 할 조건">
-              <ul className="ps-record-conditions">
-                {overview.result.conditions.map((condition, index) => <li key={`condition-${index}`}><span className="ps-dot ps-dot-neutral" aria-hidden="true" /><span className="ps-t">{condition}</span></li>)}
-              </ul>
-            </RecordSection>
-          ) : null}
-
-          {overview?.result ? <RecordSection
-            title="첨부 문서·근거"
-            count={`근거 ${overview.result.evidence.length}`}
-            className="ps-record-evidence-panel"
-          >
-            <section className="pre-spec-overview-section" id="ps-record-evidence" tabIndex={-1} aria-labelledby="pre-spec-overview-evidence-title">
-              <h4 className="visually-hidden" id="pre-spec-overview-evidence-title">근거</h4>
-              <ul className="ps-ev pre-spec-overview-evidence">
-                {overview.result.evidence.length === 0 ? <li><span className="ps-dot ps-dot-neutral" aria-hidden="true" /><span className="ps-t">제공된 근거 없음</span></li> : null}
-                {overview.result.evidence.map((evidence) => {
-                  const itemKey = evidenceKey(evidence);
-                  return (
-                    <li key={itemKey}>
-                      <span className="ps-dot ps-dot-neutral" aria-hidden="true" />
-                      <span className="ps-t pre-spec-overview-evidence-content">
-                        <p>{evidence.claim}</p>
-                        <span className="ps-loc" aria-label="근거 위치">
-                          <span>{evidence.locator.page}쪽</span>
-                          <span aria-hidden="true"> · </span>
-                          <code>{evidence.locator.block_key}</code>
-                          <span aria-hidden="true"> · </span>
-                          <code>ordinal {evidence.locator.ordinal}</code>
-                        </span>
-                      </span>
-                      <button
-                        type="button"
-                        className="ps-btn ps-btn-sm pre-spec-overview-evidence-open"
-                        aria-controls="pre-spec-overview-source"
-                        aria-expanded={selectedEvidence !== null && evidenceKey(selectedEvidence) === itemKey}
-                        onClick={() => setSelectedEvidence(evidence)}
-                      >
-                        원문 열기
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-              {selectedEvidence ? (
-                <section
-                  id="pre-spec-overview-source"
-                  className="pre-spec-overview-source"
-                  aria-labelledby="pre-spec-overview-source-title"
-                >
-                  <header className="pre-spec-overview-source-header">
-                    <div>
-                      <span className="pre-spec-overview-source-eyebrow">근거 원문</span>
-                      <h5 id="pre-spec-overview-source-title">페이지 {selectedEvidence.locator.page} · 원문 블록 확인</h5>
-                    </div>
-                    <button
-                      type="button"
-                      className="pre-spec-overview-source-close"
-                      aria-label="원문 닫기"
-                      onClick={() => setSelectedEvidence(null)}
-                    >
-                      닫기
-                    </button>
-                  </header>
-
-                  {!sourceStructureId || !sourcePageNumber ? (
-                    <EmptyState
-                      compact
-                      tone="warning"
-                      title="원문 위치를 확인할 수 없습니다."
-                      description="현재 고정 입력의 구조 ID 또는 페이지가 없어 원문을 열지 않았습니다."
-                    />
-                  ) : null}
-                  {sourceStructureId && sourcePageNumber && sourcePageQuery.isPending ? (
-                    <SkeletonBlock
-                      className="pre-spec-overview-source-loading"
-                      label={`페이지 ${sourcePageNumber}의 원문을 불러오는 중`}
-                      lines={3}
-                    />
-                  ) : null}
-                  {sourceStructureId && sourcePageNumber && sourcePageQuery.isError ? (
-                    <PreSpecQueryError
-                      onRetry={() => { void sourcePageQuery.refetch(); }}
-                      error={sourcePageQuery.error}
-                      fallback="선택한 문서 페이지를 확인할 수 없습니다."
-                      title="원문을 불러오지 못했습니다."
-                    />
-                  ) : null}
-                  {sourcePageQuery.isSuccess ? (
-                    <>
-                      {selectedBlockIndex === -1 ? (
-                        <div className="pre-spec-overview-source-mismatch" role="alert">
-                          <strong>근거 위치와 원문이 어긋났습니다.</strong>
-                          <p>
-                            원문 위치가 가리키는 블록을 이 페이지에서 찾지 못해 어떤 블록도 강조하지 않았습니다. 근거를 사람이 확인해야 합니다.
-                          </p>
-                        </div>
-                      ) : null}
-                      <div className="pre-spec-overview-source-page">페이지 {sourcePageQuery.data.page}</div>
-                      <ol className="pre-spec-overview-source-blocks">
-                        {displayedSourceBlocks.map((block) => (
-                          <li
-                            key={`${block.page}-${block.block_key}`}
-                            className={`pre-spec-overview-source-block ${block.block_key === selectedEvidence.locator.block_key ? "is-target" : ""}`.trim()}
-                            data-block-key={block.block_key}
-                          >
-                            <div className="pre-spec-overview-source-block-header">
-                              <span>페이지 {block.page}</span>
-                              <code className="mono">{block.block_key}</code>
-                              {block.block_key === selectedEvidence.locator.block_key ? (
-                                <span className="pre-spec-overview-source-highlight-label">강조된 근거 위치</span>
-                              ) : null}
-                            </div>
-                            <p>{block.text}</p>
-                          </li>
-                        ))}
-                      </ol>
-                    </>
-                  ) : null}
-                </section>
-                ) : null}
-            </section>
-          </RecordSection> : null}
-
           <div id="ps-record-documents" className="ps-record-section ps-record-documents" tabIndex={-1}>
             <Panel title="문서 준비와 심층 검토 실행">
               <div className="pre-spec-auto-preparation" aria-label="자동 준비 진행">
@@ -830,44 +455,7 @@ export function PreSpecDetailPage() {
                 className="detail-skeleton-rail"
                 historySections={[{
                   className: "detail-skeleton-rail-panel",
-                  content: overview ? (
-                    <>
-                      <Collapsible trigger="고정 입력과 식별 정보" defaultIsOpen={false}>
-                        {snapshot ? (
-                          <dl className="pre-spec-overview-lineage">
-                            <div><dt>절단 전략</dt><dd>{snapshot.strategy ?? "전략 미확정"}</dd></div>
-                            <div><dt>문서 버전</dt><dd className="mono">{snapshot.document_version_id}</dd></div>
-                            <div><dt>구조 버전</dt><dd className="mono">{snapshot.structure_id}</dd></div>
-                            <div><dt>입력 생성</dt><dd>{formatDateTime(snapshot.created_at)}</dd></div>
-                          </dl>
-                        ) : null}
-                        <dl className="pre-spec-overview-digests">
-                          <div><dt>결과 식별 해시</dt><dd className="mono">{overview.result_digest ?? "없음"}</dd></div>
-                          <div><dt>모델 연결 식별 해시</dt><dd className="mono">{overview.binding_digest ?? "없음"}</dd></div>
-                        </dl>
-                      </Collapsible>
-                      <div className="pre-spec-overview-attempts">
-                        <strong>실행 이력</strong>
-                        {overview.attempts.length === 0 ? <span>모델 실행 이력 없음</span> : (
-                          <ul>
-                            {overview.attempts.map((attempt) => (
-                              <li key={attempt.id}>
-                                <span className="mono tabular-nums">#{attempt.sequence}</span>
-                                <Badge
-                                  label={ATTEMPT_STATUS[attempt.status]}
-                                  variant={attempt.status === "completed" ? "evidence-confirmed" : attempt.status === "failed" ? "alert" : "neutral"}
-                                />
-                                <span>{attempt.reference_only ? "참고 전용" : attempt.deployable ? "배포 가능" : "배포 불가"}</span>
-                                <span>검증 {attempt.validation_status}</span>
-                                <span className="pre-spec-overview-digest mono">결과 해시 {attempt.result_digest ?? "없음"}</span>
-                                <span className="pre-spec-overview-digest mono">모델 연결 해시 {attempt.binding_digest ?? "없음"}</span>
-                              </li>
-                            ))}
-                          </ul>
-                        )}
-                      </div>
-                    </>
-                  ) : <p className="detail-skeleton-rail-note">{overviewQuery.isPending ? "처리 이력을 불러오는 중입니다." : overviewQuery.isError || overviewResponseInvalid ? "처리 이력을 확인할 수 없습니다." : "아직 개요 검토 이력이 없습니다."}</p>,
+                  content: <p className="detail-skeleton-rail-note">개요 검토 화면은 아직 재구현 전이라(P2) 처리 이력을 표시하지 않습니다.</p>,
                   entries: [],
                   label: "입력 범위와 실행",
                   showHeading: false,
@@ -879,8 +467,6 @@ export function PreSpecDetailPage() {
                 linksClassName="detail-skeleton-rail-links"
                 title="처리 이력과 연결"
               />
-              <PageOverviewHistory reviews={pageOverviewValid ? pageOverviewHistory : []} />
-              {shown ? <PageOverviewExecutionInfo review={shown} /> : null}
             </Collapsible>
           </div>
         </div>
@@ -888,20 +474,6 @@ export function PreSpecDetailPage() {
         <div className="ps-col ps-record-aside ps-record-side">
           <RecordSection title="현재 판단" action={<span className="ps-cap ps-dim">모델 참조 결과 · 사람이 확정</span>}>
             <div className="ps-verdict">
-              {overview ? (
-                <div className="ps-vbox">
-                  <span className="ps-k">개요 권고</span>
-                  <span className="ps-v">
-                    <span className={`ps-dot ps-dot-${overview.result ? recommendationDotVariant(overview.result.recommendation) : "neutral"}`} aria-hidden="true" />
-                    {overview.result?.recommendation ?? "검토 결과 미확정"}
-                  </span>
-                  <div className="pre-spec-overview-quality" aria-label="실행 품질"><Badge label={qualityStatusLabel(overview.quality_status)} variant={qualityStatusVariant(overview.quality_status)} /></div>
-                  {!overview.result ? <div className="pre-spec-overview-validation-state">
-                    <span>신뢰도 · 검증 상태</span>
-                    <Badge label={VALIDATION_STATUS[overview.validation_status].label} variant={VALIDATION_STATUS[overview.validation_status].variant} />
-                  </div> : null}
-                </div>
-              ) : null}
               {companyFitState.isValid && companyFitData !== null && currentCompanyFitAttempt ? (
                 <div className={`ps-vbox is-${companyFitDecision}`}>
                   <span className="ps-k">회사 핏</span>
@@ -914,89 +486,11 @@ export function PreSpecDetailPage() {
               <div><dt className="ps-k">추적 상태</dt><dd>{preSpecItem?.tracking_status ?? "미확인"}</dd></div>
               <div><dt className="ps-k">자동 준비</dt><dd>{autoStatus ? `${PRE_SPEC_AUTO_PREPARATION_STATUS_LABEL[autoStatus]}${autoReasonLabel ? ` · ${autoReasonLabel}` : ""}` : "미확인"}</dd></div>
             </dl>
-
-            {rangeReviewForView || currentPageOverviewForView || overview ? (
-              <div className="ps-note ps-judgment-note">
-                {rangeReviewForView ? (
-                  <PageOverviewRangeReview
-                    noticeId={noticeId}
-                    review={rangeReviewForView}
-                    onConfirmed={() => { void pageOverviewQuery.refetch(); }}
-                  />
-                ) : null}
-                {currentPageOverviewForView ? <PageOverviewCurrent current={currentPageOverviewForView} currentResult={currentResult} /> : null}
-                {currentPageOverviewForView?.attempt_id && pageOverviewVerification ? (
-                  <PageOverviewVerificationDetails
-                    noticeId={noticeId}
-                    attemptId={currentPageOverviewForView.attempt_id}
-                    verification={pageOverviewVerification}
-                  />
-                ) : null}
-                {overview ? (
-                  cut ? (
-                    <div className={`pre-spec-cut-state is-${snapshot?.cut_status}`}>
-                      <Badge label={cut.label} variant={cut.variant} />
-                      <p>{cut.description}</p>
-                    </div>
-                  ) : (
-                    <div className="pre-spec-cut-state is-pending">
-                      <Badge label="고정 입력 없음" variant="neutral" />
-                      <p>서버 요약 정보에 현재 고정 입력이 없습니다.</p>
-                    </div>
-                  )
-                ) : null}
-                {overview ? <details className="ps-record-quality-details"><summary>품질·검증 정보</summary>
-                  <p>{qualityStatusNote(overview.quality_status)}</p>
-                  <dl>
-                    <div><dt>처리 상태</dt><dd><Badge label={REVIEW_STATUS[overview.status]} variant={statusVariant(overview.status)} /></dd></div>
-                    {overview.result && overview.validation_status === "passed" ? <div><dt>신뢰도 · 검증 상태</dt><dd><Badge label={VALIDATION_STATUS[overview.validation_status].label} variant={VALIDATION_STATUS[overview.validation_status].variant} /></dd></div> : null}
-                  </dl>
-                  {overview.result ? (
-                    <section className="pre-spec-overview-section pre-spec-overview-limitations" aria-labelledby="pre-spec-overview-limitations-title">
-                      <h4 id="pre-spec-overview-limitations-title">이 판단의 한계</h4>
-                      <ul className="pre-spec-overview-list">
-                        {overview.result.input_limitations.map((limitation) => <li key={limitation}>{limitation}</li>)}
-                      </ul>
-                    </section>
-                  ) : null}
-                  <p className="pre-spec-overview-limit">이 개요 검토는 서버가 고정한 구조 절단 입력만 다룹니다. 개요 결과는 추적 상태·참여 준비·최종 Go/No-Go를 대신하지 않습니다.</p>
-                </details> : null}
-              </div>
-            ) : null}
           </RecordSection>
 
           <RecordSection title="확인이 필요한 것" count={String(checkCount)}>
             {checkCount === 0 ? <p className="pre-spec-overview-empty">추가 조건·미확인 항목 없음</p> : (
               <div className="ps-check-groups">
-                {overviewUnknowns.length > 0 ? (
-                  <section className="ps-check-group">
-                    <h4 className="ps-sub ps-check-heading">
-                      <span>개요 검토</span>
-                      <span className="ps-cnt pre-spec-overview-due">확인 기한 · {overview?.result?.verification_due_at ? recordDateTime(overview.result.verification_due_at) : "미지정"}</span>
-                    </h4>
-                    <ol className="ps-check ps-record-check-list">
-                      {overviewUnknowns.map((unknown, index) => <li key={`${unknown.topic}-${index}`}>
-                        <span className="ps-box" aria-hidden="true" />
-                        <span className="ps-t ps-record-check-detail">
-                          {unknown.topic}
-                          <span className="ps-how"><strong>이유</strong>{unknown.reason}</span>
-                          <span className={`ps-how ${unknown.verification_action === null ? "pre-spec-overview-unverifiable" : ""}`.trim()}><strong>확인 방법</strong>{unknown.verification_action ?? "확인 방법 미지정"}</span>
-                        </span>
-                      </li>)}
-                    </ol>
-                  </section>
-                ) : null}
-                {shown && pageOverviewUnknowns.length > 0 ? (
-                  <section className="ps-check-group">
-                    <h4 className="ps-sub">PDF 개요</h4>
-                    <ul className="ps-check ps-record-check-list">
-                      {pageOverviewUnknowns.map((item, index) => <li key={`${item}-${index}`}>
-                        <span className="ps-box" aria-hidden="true" />
-                        <span className="ps-t ps-record-check-detail">{item}</span>
-                      </li>)}
-                    </ul>
-                  </section>
-                ) : null}
                 {currentCompanyFitAttempt && companyFitVerificationItems.length > 0 ? (
                   <section className="ps-check-group">
                     <h4 className="ps-sub">회사 핏</h4>

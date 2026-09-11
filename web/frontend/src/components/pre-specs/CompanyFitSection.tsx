@@ -45,9 +45,9 @@ export function CompanyFitReasons({ attempt }: { attempt: CompanyFitAttempt }) {
               const fact = attempt.notice_facts.find(item => item.ref === ref);
               if (!fact) return <p key={ref}>근거를 확인할 수 없습니다.</p>;
               return <div key={ref}><p>{fact.text}</p>
-                {attempt.overview_kind === "page" ? <div className="company-fit-links">{fact.pages.map(page => <a key={page}
-                  href={`/api/pre-specs/${attempt.notice_id}/overview-pages/${attempt.overview_id}/pdf#page=${page}`}
-                  target="_blank" rel="noreferrer">PDF {page}페이지 ↗</a>)}</div> : <p>개요 원문 블록 · {fact.block_key ?? "위치 미확인"} (문서 구조 기준)</p>}
+                {/* 페이지 기반 개요 PDF 열람 화면은 철거됐다. 살아있는 열람 경로가
+                    없으므로 깨진 링크 대신 페이지 번호만 문장으로 남긴다. */}
+                {attempt.overview_kind === "page" ? <p>PDF {fact.pages.join(", ")}페이지 (개요 원문 열람 화면은 아직 없습니다)</p> : <p>개요 원문 블록 · {fact.block_key ?? "위치 미확인"} (문서 구조 기준)</p>}
               </div>;
             })}</dd>
             <dt>회사 정보 근거</dt><dd>{reason.company_refs.length ? reason.company_refs.map(ref => {

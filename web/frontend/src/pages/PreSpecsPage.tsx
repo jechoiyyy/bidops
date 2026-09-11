@@ -35,7 +35,6 @@ import {
 } from "../components/pre-specs/TrackingDecisionControl";
 import { api } from "../lib/api";
 import { CompanyFitSection } from "../components/pre-specs/CompanyFitSection";
-import { PageOverviewSection } from "../components/pre-specs/PageOverviewSection";
 import { describeApiError } from "../lib/apiErrors";
 import { describeDeadline, formatCompactPrice, shortDateLabel } from "../lib/deadline";
 import { formatDateTime, formatNumber } from "../lib/format";
@@ -47,20 +46,14 @@ import {
   preSpecAutoPreparationVariant,
 } from "../lib/preSpecAutoPreparation";
 import {
-  hasCanonicalOverviewNoticeId,
-  PRE_SPEC_OVERVIEW_ATTEMPT_STATUS_LABEL,
   PRE_SPEC_OVERVIEW_NOT_STARTED_LABEL,
   PRE_SPEC_OVERVIEW_STATUS_LABEL,
-  PRE_SPEC_OVERVIEW_VALIDATION,
-  PRE_SPEC_OVERVIEW_WAITING_DESCRIPTION,
 } from "../lib/preSpecOverviewStatus";
-import { qualityStatusLabel, qualityStatusNote, qualityStatusVariant } from "../lib/qualityStatus";
 import type {
   PreSpecListItem,
   PreSpecListResponse,
   PreSpecOrigin,
   PreSpecOverviewReviewStatus,
-  PreSpecOverviewReviewV2View,
   PreSpecSort,
 } from "../lib/types";
 import "../styles/pre-specs-relaxed.css";
@@ -386,131 +379,12 @@ function DetailQueryError({
   );
 }
 
-/** 개요 결과 본문 — 시안의 세 구역(결과 · 확인 조건 · 문서 근거)이다.
- *
- * **모든 값은 서버의 개요 v2 응답 그대로다.** 결과가 없으면 없다고 말하고
- * metadata에서 결론을 지어내지 않는다. 품질 표식과 검증 상태는 결과 머리줄에
- * 붙어 있어 결과를 읽는 자리에서 함께 보인다 — 참조 실행이나 검증 실패를 운영
- * 완료처럼 보이게 하지 않는다. */
-function OverviewResult({ overview, detailUrl }: { overview: PreSpecOverviewReviewV2View; detailUrl: string }) {
-  const validation = PRE_SPEC_OVERVIEW_VALIDATION[overview.validation_status];
-  const result = overview.result;
-  return (
-    <div className="pre-specs-overview">
-      <section className="pre-specs-overview-section is-result" aria-labelledby="pre-specs-overview-result">
-        <div className="pre-specs-overview-section-head">
-          <h4 id="pre-specs-overview-result">개요 검토 결과</h4>
-          {/* 품질 표식은 결과를 읽는 자리에 붙는다. 뜻을 적은 문장은 tooltip과
-              `표시 범위` 대화상자가 갖고, 기본 화면에는 표식만 둔다. */}
-          <span className="pre-specs-overview-quality" title={qualityStatusNote(overview.quality_status)}>
-            <Token size="sm" label={qualityStatusLabel(overview.quality_status)} color="default" />
-          </span>
-        </div>
-        {result ? (
-          <>
-            <p className={`pre-specs-overview-recommendation${overview.validation_status === "passed" ? "" : " is-unverified"}`}>
-              {result.recommendation}
-              <span className="pre-specs-overview-validation">{validation.label}</span>
-            </p>
-            <p className="pre-specs-overview-summary">{result.summary}</p>
-          </>
-        ) : (
-          <>
-            <p className="pre-specs-overview-recommendation is-unverified">
-              검토 결과 미확정
-              <span className="pre-specs-overview-validation">{validation.label}</span>
-            </p>
-            <p className="pre-specs-overview-summary">{PRE_SPEC_OVERVIEW_WAITING_DESCRIPTION[overview.status]}</p>
-          </>
-        )}
-        {validation.warning ? <p className="pre-specs-overview-warning" role="status">{validation.warning}</p> : null}
-      </section>
-
-      {result ? (
-        <>
-          {result.conditions.length > 0 ? (
-            <section className="pre-specs-overview-section" aria-labelledby="pre-specs-overview-conditions">
-              <div className="pre-specs-overview-section-head">
-                <h4 id="pre-specs-overview-conditions">확인 조건</h4>
-                <span>
-                  {result.verification_due_at
-                    ? `확인 기한 ${formatDateTime(result.verification_due_at)}`
-                    : "확인 기한 미지정"}
-                </span>
-              </div>
-              <ul className="pre-specs-overview-list">
-                {result.conditions.map((condition) => <li key={condition}>{condition}</li>)}
-              </ul>
-            </section>
-          ) : null}
-
-          <section className="pre-specs-overview-section" aria-labelledby="pre-specs-overview-evidence">
-            <div className="pre-specs-overview-section-head">
-              <h4 id="pre-specs-overview-evidence">문서 근거</h4>
-              <span>{result.evidence.length}건</span>
-            </div>
-            {result.evidence.length > 0 ? (
-              <ul className="pre-specs-overview-evidence">
-                {result.evidence.map((evidence) => (
-                  <li key={`${evidence.claim}-${evidence.locator.block_key}-${evidence.locator.ordinal}`}>
-                    <p>{evidence.claim}</p>
-                    <span className="pre-specs-overview-locator" aria-label="근거 위치">
-                      <span>{evidence.locator.page}쪽</span>
-                      <code className="mono">{evidence.locator.block_key}</code>
-                      <code className="mono">ordinal {evidence.locator.ordinal}</code>
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            ) : <p className="pre-specs-overview-empty">근거 항목 없음</p>}
-            {/* 원문 블록 조회는 상세 화면이 소유한다. 이 자리에서 원문을 여는 흉내를
-                내지 않고 실제로 여는 화면으로 보낸다. */}
-            <Link className="pre-specs-overview-source-link" to={detailUrl}>상세에서 근거 원문 열기 →</Link>
-          </section>
-
-          {result.unknowns.length > 0 ? (
-            <section className="pre-specs-overview-section" aria-labelledby="pre-specs-overview-unknowns">
-              <div className="pre-specs-overview-section-head">
-                <h4 id="pre-specs-overview-unknowns">미확인</h4>
-                <span>{result.unknowns.length}건</span>
-              </div>
-              <ul className="pre-specs-overview-unknowns">
-                {result.unknowns.map((unknown) => (
-                  <li key={`${unknown.topic}-${unknown.reason}`}>
-                    <span className="pre-specs-overview-unknown-topic">{unknown.topic}</span>
-                    <span>{unknown.reason}</span>
-                    {/* 확인 방법이 없는 항목은 아무도 착수할 수 없다. 문구만으로는
-                        다른 값과 섞여 읽히므로 표식을 붙인다. */}
-                    <span className={unknown.verification_action === null ? "is-unverifiable" : undefined}>
-                      확인 방법 · {unknown.verification_action ?? "미지정"}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          ) : null}
-
-          {result.input_limitations.length > 0 ? (
-            <p className="pre-specs-overview-note">
-              이 판단의 한계 · {result.input_limitations.join(" ")}
-            </p>
-          ) : null}
-        </>
-      ) : null}
-
-      <p className="pre-specs-overview-note">
-        개요 결과는 추적 상태·참여 준비·최종 Go/No-Go를 대신하지 않습니다.
-      </p>
-    </div>
-  );
-}
-
 /**
  * 선택한 사전규격 하나.
  *
- * 목록 응답에 있는 사실(기관·예산·마감·등급·자동 준비·첨부 집계·추적 상태)과
- * 별도 endpoint인 개요 v2 응답을 각자 자리에서 보여 준다. 목록 응답만으로 개요
- * 본문을 만들지 않는다.
+ * 목록 응답에 있는 사실(기관·예산·마감·등급·자동 준비·첨부 집계·추적 상태)만
+ * 보여 준다. 개요 검토 화면은 아직 재구현 전이라(P2) 이 화면은 그 결과를
+ * 그리지 않는다.
  */
 function PreSpecDetail({
   item,
@@ -538,13 +412,6 @@ function PreSpecDetail({
   const noticePk = item.notice_pk;
   const detailUrl = `/pre-specs/${noticePk}${listSearch ? `?${listSearch}` : ""}`;
 
-  // 개요 본문은 목록 응답이 아니라 개요 v2 endpoint에서 온다. 상세 화면과 같은
-  // query key를 써서 두 화면이 같은 응답을 읽는다.
-  const overviewQuery = useQuery({
-    queryKey: ["pre-spec-overview-reviews-v2", noticePk],
-    queryFn: ({ signal }) => api.getPreSpecOverviewReviewsV2(noticePk, { signal }),
-    staleTime: 30_000,
-  });
   // 첨부 문서는 사람이 그 탭을 열 때만 조회한다. 목록을 훑는 동안 문서 API를
   // 부르지 않는다.
   const bundleQuery = useQuery({
@@ -554,8 +421,6 @@ function PreSpecDetail({
     staleTime: 30_000,
   });
 
-  const overviewInvalid = overviewQuery.isSuccess && !hasCanonicalOverviewNoticeId(overviewQuery.data, noticePk);
-  const overview = overviewInvalid ? undefined : overviewQuery.data?.reviews[0];
   const latestBundle = [...(bundleQuery.data?.items ?? [])].sort((left, right) => right.revision - left.revision)[0] ?? null;
   const autoReason = preSpecAutoPreparationReasonLabel(item.auto_preparation_reason);
   const inherited = isInheritedTracking(item);
@@ -663,32 +528,7 @@ function PreSpecDetail({
               </li>
             </ol>
 
-            <PageOverviewSection key={noticePk} noticeId={noticePk} />
             <CompanyFitSection key={`fit-${noticePk}`} noticeId={noticePk} />
-            {overviewQuery.isPending ? (
-              <p className="pre-specs-detail-loading" role="status">개요 검토 결과를 불러오는 중입니다.</p>
-            ) : null}
-            {overviewQuery.isError ? (
-              <DetailQueryError
-                error={overviewQuery.error}
-                fallback="개요 검토 API 응답을 확인할 수 없습니다."
-                onRetry={() => { void overviewQuery.refetch(); }}
-                title="개요 검토 결과를 불러오지 못했습니다."
-              />
-            ) : null}
-            {overviewInvalid ? (
-              <div className="pre-specs-detail-error" role="status">
-                <strong>개요 검토 정본을 확인할 수 없습니다.</strong>
-                <p>응답의 notice ID가 요청과 일치하지 않아 개요 검토를 표시하지 않습니다.</p>
-              </div>
-            ) : null}
-            {overviewQuery.isSuccess && !overviewInvalid && !overview ? (
-              <div className="pre-specs-detail-empty-block">
-                <strong>개요 검토 기록이 없습니다.</strong>
-                <p>서버가 제공한 개요 검토 기록이 없습니다. 목록의 상태와 다른 결과를 만들어 내지 않습니다.</p>
-              </div>
-            ) : null}
-            {overview ? <OverviewResult overview={overview} detailUrl={detailUrl} /> : null}
           </>
         ) : null}
 
@@ -770,51 +610,6 @@ function PreSpecDetail({
 
         {tab === "history" ? (
           <div className="pre-specs-history">
-            <section className="pre-specs-overview-section" aria-labelledby="pre-specs-history-attempts">
-              <div className="pre-specs-overview-section-head">
-                <h4 id="pre-specs-history-attempts">개요 실행 이력</h4>
-                <span>{overview ? `${overview.attempts.length}건` : "확인 중"}</span>
-              </div>
-              {overviewQuery.isError ? (
-                <DetailQueryError
-                  error={overviewQuery.error}
-                  fallback="개요 검토 API 응답을 확인할 수 없습니다."
-                  onRetry={() => { void overviewQuery.refetch(); }}
-                  title="개요 실행 이력을 불러오지 못했습니다."
-                />
-              ) : null}
-              {overview && overview.attempts.length === 0 ? (
-                <p className="pre-specs-overview-empty">모델 실행 이력이 없습니다.</p>
-              ) : null}
-              {overview && overview.attempts.length > 0 ? (
-                <ul className="pre-specs-history-list">
-                  {overview.attempts.map((attempt) => (
-                    <li key={attempt.id}>
-                      <span className="mono tabular-nums">#{attempt.sequence}</span>
-                      <span>{PRE_SPEC_OVERVIEW_ATTEMPT_STATUS_LABEL[attempt.status]}</span>
-                      <Badge label={qualityStatusLabel(attempt.quality_status)} variant={qualityStatusVariant(attempt.quality_status)} />
-                      <span>{PRE_SPEC_OVERVIEW_VALIDATION[attempt.validation_status].label}</span>
-                      <span>{attempt.reference_only ? "참고 전용" : attempt.deployable ? "배포 가능" : "배포 불가"}</span>
-                      <span>{formatDateTime(attempt.completed_at ?? attempt.started_at ?? attempt.created_at)}</span>
-                    </li>
-                  ))}
-                </ul>
-              ) : null}
-            </section>
-
-            <section className="pre-specs-overview-section" aria-labelledby="pre-specs-history-inputs">
-              <h4 id="pre-specs-history-inputs">고정 입력과 식별 해시</h4>
-              {overview?.current_snapshot ? (
-                <dl className="pre-specs-history-facts">
-                  <div><dt>절단 상태</dt><dd>{overview.current_snapshot.cut_status}</dd></div>
-                  <div><dt>절단 전략</dt><dd>{overview.current_snapshot.strategy ?? "전략 미확정"}</dd></div>
-                  <div><dt>구조 버전</dt><dd className="mono">{overview.current_snapshot.structure_id}</dd></div>
-                  <div><dt>결과 해시</dt><dd className="mono">{overview?.result_digest ?? "없음"}</dd></div>
-                  <div><dt>모델 연결 해시</dt><dd className="mono">{overview?.binding_digest ?? "없음"}</dd></div>
-                </dl>
-              ) : <p className="pre-specs-overview-empty">현재 고정 입력이 없습니다.</p>}
-            </section>
-
             <section className="pre-specs-overview-section" aria-labelledby="pre-specs-history-tracking">
               <h4 id="pre-specs-history-tracking">사람의 선택과 자동 준비</h4>
               <dl className="pre-specs-history-facts">
@@ -899,7 +694,7 @@ function PreSpecDetail({
             item={item}
             isPending={false}
             isError={false}
-            onRetry={() => { void overviewQuery.refetch(); }}
+            onRetry={() => {}}
             headingLevel="h4"
             compact
             reasonPresets={TRACKING_REASON_PRESETS}
@@ -1304,7 +1099,6 @@ export function PreSpecsPage() {
                       { queryKey: ["pre-specs"] },
                       (current) => updateTrackingProjection(current, noticePk, saved),
                     );
-                    void queryClient.invalidateQueries({ queryKey: ["pre-spec-overview-reviews-v2", noticePk] });
                     void queryClient.invalidateQueries({ queryKey: ["pre-spec-detail", noticePk] });
                     void queryClient.invalidateQueries({ queryKey: ["pre-specs"] });
                     void queryClient.invalidateQueries({ queryKey: ["opportunity", saved.id] });
@@ -1368,7 +1162,6 @@ export function PreSpecsPage() {
             <li>보기는 상태를 묶어 찾기 위한 탐색 도구입니다. 각 행의 개요 상태·등급·자동 준비·추적 상태는 서버 값 그대로입니다.</li>
             <li>SW 중심 기본 보기는 SW사업대상=Y와 추적 중인 발주계획에 연결된 예외를 함께 남깁니다. 목록의 <strong>추적 예외</strong>는 SW사업대상이 Y가 아니지만 추적 중인 발주계획에 연결된 건이고, 값이 없는 SW사업대상은 <strong>SW 미확인</strong>으로 적습니다.</li>
             <li>추적 상태는 사업기회 연결이 없으면 <strong>사업기회 미연결</strong>, 연결은 있는데 서버 값이 없으면 <strong>미확인</strong>입니다. 사람이 고른 <strong>미선택</strong>과 다릅니다.</li>
-            <li>품질 표식 · 참조 실행과 mock 참조는 운영 완료가 아니고, 표식 없음을 미측정으로 바꾸지 않습니다. 선택한 건의 현재 표식은 개요 검토 결과 머리줄에 있습니다.</li>
           </ul>
         </div>
       </Dialog>

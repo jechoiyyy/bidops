@@ -1019,97 +1019,6 @@ function overviewStatusCounts(items: readonly { overview_review_status: string |
   }));
 }
 
-const visualUnknownOverview = {
-  schema_version: "bidops.prespec-overview-reviews.v2",
-  notice_id: 991,
-  reviews: [{
-    id: "00000000-0000-0000-0000-000000000991",
-    notice_id: 991,
-    status: "needs_human_review",
-    result: null,
-    result_digest: null,
-    binding_digest: null,
-    quality_status: null,
-    validation_status: "pending",
-    completed_at: null,
-    current_snapshot: {
-      id: "10000000-0000-0000-0000-000000000991",
-      document_version_id: "20000000-0000-0000-0000-000000000991",
-      structure_id: "30000000-0000-0000-0000-000000000991",
-      source_sha256: "a".repeat(64),
-      payload_sha256: "b".repeat(64),
-      cut_status: "unknown",
-      strategy: null,
-      start_locator: null,
-      end_locator: null,
-      created_at: "2026-08-31T01:00:00Z",
-    },
-    attempts: [],
-  }],
-};
-
-function visualCompletedOverview() {
-  const review = visualUnknownOverview.reviews[0];
-  return {
-    ...visualUnknownOverview,
-    reviews: [{
-      ...review,
-      status: "completed",
-      result: {
-        schema_version: "bidops.prespec-overview-result.v1",
-        recommendation: "조건부 추진 검토",
-        summary: "공공기관의 민원·행정 데이터를 통합해 현황을 분석하고, 담당자가 업무 현황을 조회하는 행정 지원 플랫폼 구축 사업입니다.",
-        conditions: [
-          "기존 시스템 연계 범위와 기관별 데이터 제공 책임을 착수 전에 확인해야 합니다.",
-          "운영 전환과 개인정보 처리 범위에 대한 발주기관의 확정 답변이 필요합니다.",
-        ],
-        verification_due_at: "2026-09-01T00:00:00Z",
-        unknowns: [
-          {
-            topic: "기존 시스템 연계 범위",
-            reason: "개요 입력에는 연계 대상과 제공 API의 목록이 없습니다.",
-            verification_action: "심층 검토에서 연계 대상별 인터페이스 명세를 확인합니다.",
-          },
-          {
-            topic: "개인정보 처리 책임",
-            reason: "운영 주체와 개인정보 처리 역할이 개요에서 확정되지 않았습니다.",
-            verification_action: null,
-          },
-        ],
-        evidence: [{
-          claim: "사업은 행정 지원 플랫폼 구축과 기존 업무 데이터 연계를 포함합니다.",
-          locator: { block_key: "overview-intro", page: 2, ordinal: 7 },
-        }],
-        input_limitations: [
-          "제안요청서 앞부분의 개요 입력만 검토했으며 상세 요구사항은 확인하지 않았습니다.",
-          "참가자격, 실적요건, 평가 배점과 제출물은 이 결과에 포함하지 않습니다.",
-        ],
-      },
-      result_digest: "c".repeat(64),
-      binding_digest: "d".repeat(64),
-      quality_status: "unmeasured_reference",
-      validation_status: "passed",
-      completed_at: "2026-08-31T02:00:00Z",
-      current_snapshot: { ...review.current_snapshot, cut_status: "ready", strategy: "topic_heading" },
-      attempts: [{
-        id: "00000000-0000-0000-0000-000000000992",
-        snapshot_id: "10000000-0000-0000-0000-000000000991",
-        sequence: 1,
-        status: "completed",
-        reference_only: false,
-        deployable: true,
-        quality_status: "unmeasured_reference",
-        validation_status: "passed",
-        result_digest: "c".repeat(64),
-        binding_digest: "d".repeat(64),
-        created_at: "2026-08-31T01:30:00Z",
-        started_at: "2026-08-31T01:35:00Z",
-        completed_at: "2026-08-31T02:00:00Z",
-      }],
-    }],
-  };
-}
-
 export interface DocumentStructurePageMockTrace {
   pageGets: Array<{ structureId: string; page: number }>;
 }
@@ -1185,8 +1094,8 @@ export async function mockDocumentStructurePage(page: Page): Promise<DocumentStr
   return trace;
 }
 
-/** Deterministic pre-spec list/detail fixture, including the unknown overview. */
-export async function mockPreSpecs(page: Page, overviewState: "completed" | "unknown" = "completed"): Promise<void> {
+/** Deterministic pre-spec list/detail fixture. */
+export async function mockPreSpecs(page: Page): Promise<void> {
   let currentTrackingStatus = visualPreSpecItems[0].tracking_status;
   workloadProvider(page, "pre_spec_deep_review_ready", () => ({ count: visualPreSpecItems.filter((item) => item.auto_preparation_status === "deep_review_ready_for_click").length, unavailable_reason: null }));
   await page.route("**/api/pre-specs**", async (route) => {
@@ -1208,11 +1117,6 @@ export async function mockPreSpecs(page: Page, overviewState: "completed" | "unk
         contentType: "application/json",
         body: JSON.stringify({ items: items.slice(offset, offset + limit), total: items.length, limit, offset, overview_status_counts: overviewStatusCounts(items) }),
       });
-      return;
-    }
-    if (url.pathname === "/api/pre-specs/991/overview-reviews/v2" && request.method() === "GET") {
-      const overview = overviewState === "unknown" ? visualUnknownOverview : visualCompletedOverview();
-      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(overview) });
       return;
     }
     await route.fallback();
@@ -1356,10 +1260,6 @@ export async function mockPreSpecAutoDetail(page: Page, state: PreSpecAutoDetail
       });
       return;
     }
-    if (url.pathname === "/api/pre-specs/991/overview-reviews/v2" && request.method() === "GET") {
-      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(visualCompletedOverview()) });
-      return;
-    }
     await route.fallback();
   });
   await page.route("**/api/notices/991", async (route) => {
@@ -1468,10 +1368,6 @@ export async function mockDocumentPreparationVisual(page: Page, state: DocumentP
       });
       return;
     }
-    if (pathname === "/api/pre-specs/991/overview-reviews/v2" && request.method() === "GET") {
-      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(visualUnknownOverview) });
-      return;
-    }
     if (pathname === "/api/notices/991/document-bundles" && request.method() === "GET") {
       await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ items: [bundle] }) });
       return;
@@ -1488,8 +1384,6 @@ export async function mockApi(page: Page): Promise<void> {
     const pathname = new URL(route.request().url()).pathname;
     const fitMatch = pathname.match(/^\/api\/pre-specs\/(\d+)\/company-fit$/);
     if (fitMatch) { await fulfillJson(route, { schema_version: "bidops.prespec-company-fit.v1", notice_id: Number(fitMatch[1]), attempts: [], automation_enabled: false, auto_deep_review_reason: "company_fit_disabled", deep_review_id: null }); return; }
-    const match = pathname.match(/^\/api\/pre-specs\/(\d+)\/overview-pages\/v2$/);
-    if (match) { await fulfillJson(route, { schema_version: "bidops.prespec-overview-pages.v2", notice_id: Number(match[1]), current: null, reviews: [], range_review: null, verification: null }); return; }
 
     if (pathname === "/api/workload") { await fulfillJson(route, workloadResponse(page)); return; }
     // deep-review 합성 응답이 먼저, 그다음 갈무리 fixture, 마지막으로 T15 시각
