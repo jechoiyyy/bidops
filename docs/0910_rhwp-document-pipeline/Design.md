@@ -3,6 +3,15 @@
 작업명: rhwp-document-pipeline · 기준일: 2026-09-11 · 상태: native 변환·MVP 보완 구현과 승인된 운영 배포·6건 core 재준비·Qwen 참조 실행 4건 사람 검토 대기
 요구는 [Requirements.md](Requirements.md), 결정은 [ADR.md](ADR.md), 세부 계약과 단계는 [Spec.md](Spec.md)에 있다.
 
+> **2026-09-11 개요 스택 재작성 안내**: 이 문서의 `prespec_v4_target`·`prespec_v4_attempt`,
+> R7 범위 선택 REST(`overview-pages/v2`·`overview-pages/targets/{target_id}/pdf`)에 대한
+> 설명은 같은 날 뒤이은 개요 스택 재작성으로 대체된 **역사 기록**이다. target 테이블은
+> migration 0026에서 삭제됐고, 범위 확인은
+> `POST /api/pre-specs/{notice_id}/overview/range-confirmations`(body `{page_start, page_end,
+> note?}`)로 단순화됐다. 현재 계약은
+> [contracts.md](../contracts.md#사전규격-개요-검토-mvp-2026-09-11)를 정본으로 한다. rhwp
+> 변환·snapshot·절 후보(`bidops.section-candidates.v1/v2`) 설계는 그대로 유효하다.
+
 ## 1. 현재 구조와 바뀌는 지점
 
 ```text

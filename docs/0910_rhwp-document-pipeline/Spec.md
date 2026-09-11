@@ -190,7 +190,7 @@ items+extras가 `(section, paraIndex)` 669개(최대 668)인데 변환 HWPX의 �
 
 core 실패의 attempt `error_code`는 `pdf_preparation_failed:<위 코드 또는 기존 processor 코드>`로 기록한다(N6). 감사 `safe_metadata.converter_code`에 같은 값을 둔다.
 
-2026-09-11 MVP 보완([안정화 Spec](../0910_prespec-workflow-hardening/Spec.md)): native core
+2026-09-10 보완(당시 안정화 Spec, 2026-09-11 개요 스택 재작성으로 폐기·git 이력 `71b9954`): native core
 검증 뒤 보조 digest를 처리한다. `sectionsMode=outline|clause|page`, `sectionCount`는 전체,
 `sections`는 최대 50개의 반환 후보이며 둘의 동등성을 요구하지 않는다. 새
 `bidops.section-candidates.v2`는 `returned_count,truncated,candidates_truncated`를 추가해
@@ -211,54 +211,23 @@ runner가 `manifest_invalid`로 닫아 모델을 호출하지 않는다. 초안 
 
 ## 6. REST·화면 변경
 
-아래는 원래 rhwp 교체 범위다. 이후 MVP의 target-only PDF 조회·범위 조회 v2·수동 쪽 선택은
-[현재 계약](../contracts.md)의 "v4 개요 입력 범위의 사람 확인"과 안정화 Spec을 따른다.
+아래는 원래 rhwp 교체 범위였다. 2026-09-11 개요 스택 재작성으로 target-only PDF 조회·
+범위 조회 v2·후보 index 기반 확정을 포함한 이 절의 REST 계약은 대체됐다. 범위 확인은
+`POST /api/pre-specs/{notice_id}/overview/range-confirmations`(body `{page_start, page_end,
+note?}`)로 단순화됐고, `prespec_v4_target`·`prespec_v4_attempt` 테이블은 migration 0026에서
+삭제됐다. 현재 계약은 [contracts.md](../contracts.md#사전규격-개요-검토-mvp-2026-09-11)를
+정본으로 한다. snapshot(`prespec_v4_pdf_snapshot`)과 절 후보
+(`bidops.section-candidates.v1/v2`, §5의 `digest --sections`) 계약은 그대로 유지된다.
 
-- `GET /api/pre-specs/{id}/overview-pages`: 필드 불변. `renderer` 문자열만 `rhwp-svg-pdf`로 바뀐다.
-- `GET /api/pre-specs/{id}/overview-pages/v2`: `range_review`는
-  `schema_version=bidops.prespec-overview-range-view.v2`, `candidate_status=complete|partial|unavailable`,
-  nullable `candidate_count_total`, `candidate_count_returned`, `warning_codes`, `selected_pages`,
-  `can_confirm`을 반환한다. 자동 ready와 사람 확인 target을 모두 표시한다. v1에서 `outline`
-  또는 부분 후보를 정직하게 표현할 수 없으면 409 `overview_contract_upgrade_required`다.
-- 근거 PDF endpoint: 불변(snapshot의 PDF object 서빙).
-- `GET /api/pre-specs/{id}/overview-pages/targets/{target_id}/pdf`: attempt/result 없이도 exact
-  target PDF를 반환한다. 안전한 과거 document의 target도 열람할 수 있고 current document
-  조건은 범위 확정에만 적용한다. 공고/target/document/snapshot 계보, 원본·PDF 최신 clean
-  scan, 고정 object version·etag·size·hash 중 하나라도 어긋나면 안전하게 실패한다.
-- `POST /api/pre-specs/{id}/overview-pages/range-confirmations`: 후보 index 쌍 또는 직접 page 쌍
-  중 정확히 하나를 받는다. 부분 후보 index는 422 `candidate_range_incomplete`, 후보 읽기 실패
-  index는 422 `candidate_range_unavailable`이고 직접 page 쌍은 후보와 무관하다. queued/running은
-  409 `target_execution_active`; 성공은 새 `human_confirmed` ready target과 감사만 만들며
-  `attempt_enqueued=false`다.
 - `GET /api/document-structures/{id}/segments` (`bidops.document-segments.v1`): `segments[].page_range: {"first":n,"last":m} | null`, `mapping_status: "mapped"|"partial"|"unavailable"`를 추가한다. 응답에 원문 텍스트는 여전히 없다.
 - 심층 검토 보고서·segment 화면: `page_range`가 있으면 PDF 페이지 링크, 없으면 "페이지 미확인" 문구.
-- 페이지 개요 화면 문구 "표지를 포함한 변환 PDF 순번 기준"은 유지한다.
 
-새 target 뒤 이전 target의 attempt는 저장 행과 결과를 바꾸지 않는다. current projection은 이전
-queued/running/completed를 `stale`, `reason_code=target_superseded`, `result_id=null`로 표시하고
-이전 verification을 현재 diagnostic에 붙이지 않는다. 이전 target enqueue도
-`target_superseded`로 거부하며 회사 핏은 이전 완료 결과를 새 범위 입력으로 사용하지 않는다.
+### 6.1 (2026-09-11 재작성으로 대체) 개요 호출 경계
 
-### 6.1 policy v5 두 단계 호출 경계
-
-- 정상은 claims 초안 1회 + semantic 검토 1회다. 초안의 허용된 형식 오류에만 seed를 바꾼
-  재생성 1회를 허용해 attempt당 최대 3회, semantic은 최대 1회다. 결정적 내용 검증 실패에는
-  semantic 호출이나 자동 보정을 하지 않는다.
-- 각 stage는 authorization/dispatch 전에 실제 structured request 전체를 canonical UTF-8 JSON으로
-  직렬화한다. byte 수를 보수적 입력 token 상계로 쓰고 chat template 1,024와 출력 16,384를
-  더해 `min(served max_model_len, policy 262,144)` 이하인지 확인한다. 확인된 context가 없거나
-  양수가 아니거나 stage별 prompt/page text 24,000자 등 기존 payload 상한을 넘으면 전송하지 않는다.
-- 이 기술적 미실행은 `failed/input_capacity_exceeded`다. `needs_human_review` 내용 검증 실패,
-  `completed`, 품질 승인과 다르다. semantic 단계에서 막히면 앞선 초안 call event와 암호화
-  원응답은 이력으로 남지만 semantic dispatch/HTTP는 0이다. 자동 절단·요약·분할·hosted fallback은 없다.
-
-2026-09-11 실제 참조 실행에서는 744·749·759·761의 draft dispatch/response event가
-각 1쌍씩, 총 8건이고 model response object 4건, attempt 4건, verification 4건을
-append했으며 result row는 0건이다. 기존 10개 테이블의 기존 행 MD5는 전후 같고,
-재수집·재변환은 0건으로 C-1/C-2 입력을 그대로 재사용했다. 기록상 744·749·761은
-`main_tasks` 섹션 누락, 네 건 공통으로 수치·단위 metadata 확인 실패가 있고,
-759에는 `analysis_premise_unverified`·미확인 사유 검증 문제도 있다. 이는 코드의
-실제 오류 원인을 단정하는 규격이 아니라 저장된 검증 실패 관측이다.
+옛 policy v5 두 단계 호출 경계(초안 2회·semantic 1회, `failed/input_capacity_exceeded`
+기술적 미실행 구분)는 새 정책 v6에서도 같은 모양(attempt당 draft 2회·semantic 1회)으로
+유지된다. 상세 상한·오류 코드는 [contracts.md](../contracts.md#실행-흐름)를 정본으로 한다.
+2026-09-11 실제 참조 실행(744·749·759·761)의 실측 결과는 §8의 역사 기록에 있다.
 
 ## 7. 역사적 구현 단계와 당시 게이트
 
@@ -305,6 +274,15 @@ exact FULL text가 정확히 한 export-text 페이지에 한 번 나타나는 �
 연결한다. 매핑률은 F5에 따라 정보성으로만 남긴다. PDF 바이트 결정성은 같은 검증 이미지에서
 실행한 세 표본의 동일 hash라는 증거에 한정하며 보편적 보증이 아니다. 전체 안전 지표는
 [R0 metrics](../validation-runs/2026-09-10-rhwp-r0-baseline.metrics.json)에 있다.
+
+2026-09-11 실제 참조 실행에서는 744·749·759·761의 draft dispatch/response event가
+각 1쌍씩, 총 8건이고 model response object 4건, attempt 4건, verification 4건을
+append했으며 result row는 0건이다(당시 v5 스택 기준 관측, 현재 `prespec_overview_run`
+스키마와는 테이블 모양이 다르다). 기존 10개 테이블의 기존 행 MD5는 전후 같고,
+재수집·재변환은 0건으로 C-1/C-2 입력을 그대로 재사용했다. 기록상 744·749·761은
+`main_tasks` 섹션 누락, 네 건 공통으로 수치·단위 metadata 확인 실패가 있고,
+759에는 `analysis_premise_unverified`·미확인 사유 검증 문제도 있다. 이는 코드의
+실제 오류 원인을 단정하는 규격이 아니라 저장된 검증 실패 관측이다.
 
 ## 9. 변경 이력
 

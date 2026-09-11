@@ -5,7 +5,7 @@
 | 문서 상태 | 현재 결정 기준선·통합 색인 |
 | 기준일 | 2026-09-09 |
 | 범위 | 수집, 선별, 사전규격 검토, 심층 검토, 입찰공고 추적, 운영·보안 |
-| 상세 결정 정본 | [`docs/tracking/decisions/`](tracking/decisions/)의 ADR-0001~0038·0042~0045·0049~0051·0053, [`docs/design/ADR.md`](design/ADR.md)의 ADR-0039~0041·0046~0048 |
+| 상세 결정 정본 | [`docs/tracking/decisions/`](tracking/decisions/)의 ADR-0001~0038·0042~0045·0049~0051·0053~0054, [`docs/design/ADR.md`](design/ADR.md)의 ADR-0039~0041·0046~0048 |
 | 함께 읽을 문서 | [`PRD.md`](PRD.md), [`ARCHITECTURE.md`](ARCHITECTURE.md), [`contracts.md`](contracts.md) |
 
 이 문서는 여러 시점에 작성된 결정 기록을 현재 관점에서 읽기 위한 통합 ADR이다. 각 결정의
@@ -17,9 +17,9 @@
 결정·요구사항·구현 사실을 다음 순서로 해석한다.
 
 1. 루트 [`AGENTS.md`](../AGENTS.md)와 `CLAUDE.md`의 강제 게이트와 현재 런타임 사실
-2. 현재 업무·보안·계약·운영·표준 문서: [`business-rules.md`](business-rules.md),
-   [`security.md`](security.md), [`contracts.md`](contracts.md), [`operations.md`](operations.md),
-   [`standards.md`](standards.md)
+2. 현재 업무·계약·운영·표준 문서: [`business-rules.md`](business-rules.md),
+   [`contracts.md`](contracts.md), [`operations.md`](operations.md),
+   [`standards.md`](standards.md) — 모델 전송 정책은 ADR-0050 완화 항목 참조
 3. 이 문서가 색인하는 채택 ADR의 상세 내용
 4. [`tracking/status.md`](tracking/status.md), [`lifecycle-workstream.md`](tracking/lifecycle-workstream.md)의
    현재 구현·진행 요약
@@ -114,7 +114,7 @@ R-xx/A-xx 작업 지시, 과거 API 경로는 현재 실행 진입점이 아니�
 | [0030](tracking/decisions/0030-opportunity-tracking-state.md) | 추적 상태는 모든 사업기회가 갖고 사람 선택과 시스템 신호를 분리 | 채택 | `미선택·계속 추적·보류·종료` |
 | [0031](tracking/decisions/0031-prespec-overview-review-stage.md) | 사전규격 개요 검토를 1차 분류와 심층 검토 사이 독립 단계로 둠 | 채택 | RFP 앞부분의 저비용 판단; 심층 진입의 "사람 승인" 문장은 [0049](tracking/decisions/0049-prespec-auto-preparation-and-auto-deep-review.md)가 좁힘 |
 | [0032](tracking/decisions/0032-prespec-overview-cutting-rule.md) | 사전규격 개요 검토 앞부분은 문서 구조에 따라 자르고 모호하면 사람 검토로 보냄 | 채택 | 고정 block 수 fallback 금지 |
-| [0033](tracking/decisions/0033-prespec-overview-review-runtime-contract.md) | 개요 검토 절단 snapshot과 모델 attempt를 분리하고 사설 binding 없이는 완료하지 않음 | 채택 | `awaiting_model`·mock 비배포; 진입의 "사람 승인"은 [0049](tracking/decisions/0049-prespec-auto-preparation-and-auto-deep-review.md), 참조 실행 표식은 [0050](tracking/decisions/0050-unified-openai-compatible-model-client.md) |
+| [0033](tracking/decisions/0033-prespec-overview-review-runtime-contract.md) | 개요 검토 절단 snapshot과 모델 attempt를 분리하고 사설 binding 없이는 완료하지 않음 | 채택 | `awaiting_model`·mock 비배포; 진입의 "사람 승인"은 [0049](tracking/decisions/0049-prespec-auto-preparation-and-auto-deep-review.md), 참조 실행 표식은 [0050](tracking/decisions/0050-unified-openai-compatible-model-client.md); attempt/target 런타임은 2026-09-11 폐기 — MVP 개요 재작성으로 대체, 상세는 git 이력 71b9954 |
 | [0034](tracking/decisions/0034-bid-delta-final-decision.md) | 입찰 delta와 최종 사람 결정을 불변 비교와 append-only 기록으로 분리 | 채택 — 계약/구현 경계 | worker·운영 활성화는 별도 |
 | [0035](tracking/decisions/0035-prespec-overview-attempt-result-lifecycle.md) | 개요 모델 attempt의 상태 전이와 검증 결과를 분리 | 채택 | result/event와 안전한 v2 projection |
 | [0036](tracking/decisions/0036-judgment-model-lineage-source.md) | 판정의 모델 계보는 revision→execution 경로를 정본으로 함 | 채택 | legacy 계보는 `unknown` |
@@ -134,6 +134,7 @@ R-xx/A-xx 작업 지시, 과거 API 경로는 현재 실행 진입점이 아니�
 | [0050](tracking/decisions/0050-unified-openai-compatible-model-client.md) | 모델 호출을 하나의 OpenAI 호환 client와 용도별 설정으로 통일 | 채택 | C-1·개요·심층이 `core/model_client`를 씀; 용도별 endpoint·선언 revision·참조 실행 표식; 이전 로컬 provider 경로 제거; MVP 기간에는 §5 "ADR-0050 모델 호출 게이트의 MVP 기간 완화"로 일부 완화됨 |
 | [0051](tracking/decisions/0051-deep-review-v2-deterministic-subset.md) | deep-review-v2의 결정적 부분만 채택 | 채택 — 부분 채택 | segment manifest·요구사항 inventory·검증 연결만 구현. 역할별 모델 분석과 Luna 평가는 보류 |
 | [0053](tracking/decisions/0053-decision-workload-read-contracts.md) | 결정 대기 조회와 모듈 소유 집계 계약 | 채택 | 신규 GET 세 개(`/api/workload`·기회별 심층 검토 목록·입찰 결정 큐), 업무 집계는 모듈 제공자 소유, DB migration 없음 |
+| [0054](tracking/decisions/0054-prespec-overview-mvp-rewrite.md) | 사전규격 개요 실행 스택 철거·MVP 재작성 | 채택 | v3·legacy v4·v5(activation·call ledger·verification) 폐기, `prespec_overview_run`(0026) 단일 테이블과 `bidops.prespec-overview.v1`로 재작성; 첨부·준비·변환·snapshot·결정적 검증 함수는 유지 |
 
 ## 4. 주제별 결정 요약
 
@@ -267,7 +268,7 @@ ADR-0021은 “운영 제품 전에 동일 모집단과 사람 정답으로 비�
 | C-2 Phase 0 | 계약 고정, `valid_but_blocked` | 제품 adapter·DB·API·worker 구현 후 별도 승인 |
 | C-2 품질 gold | 실험별 corpus가 다름 | C-2 625건 manifest의 사람 adjudication·감사 표본·threshold 확정 |
 | C-2 외부 transport | `execution_allowed=false` | 실행별 private vLLM 전송 승인, allowlist·payload preview·binding 일치 |
-| 개요 검토 model worker | 기반 API·화면·attempt 저장에 더해 모델 실행 worker와 통일 client 연결까지 구현. 실행 결과는 `quality_status=unmeasured_reference\|mock_reference` | 승인된 사설 vLLM artifact와 사람 gold로 측정한 품질. 참조 실행 결과는 활성화 근거가 아니다 |
+| 개요 검토 model worker | 2026-09-11 MVP 재작성([0054](tracking/decisions/0054-prespec-overview-mvp-rewrite.md)) 진행 중. `prespec_overview_run`·REST·화면·실행기는 P1~P3에서 순차 구현 | 승인된 사설 vLLM artifact와 사람 gold로 측정한 품질. 참조 실행 결과는 활성화 근거가 아니다 |
 | 입찰 delta | schema·REST·화면 계약과 migration 존재, 계산 worker 미완료 | exact pair 기반 계산·근거 검증·Go/No-Go 연속 E2E |
 | 심층 품질 | Mock E2E, 단일 live 기록, 참조 실행 모드 결과는 모두 품질 승인이 아님 | immutable model artifact, 대표 HWP/PDF, 사람 gold로 gate 측정 |
 | deep-review-v2 역할별 분석 | 결정적 segment·요구사항 inventory만 구현([ADR-0051](tracking/decisions/0051-deep-review-v2-deterministic-subset.md)) | 외부 전송 1회성 예외 승인과 역할별 출력 계약 확정 |
@@ -293,5 +294,5 @@ ADR-0021은 “운영 제품 전에 동일 모집단과 사람 정답으로 비�
 6. 실제 운영 승인 전에는 `draft`, `candidate`, `blocked` 또는 `not enabled`를 명확히 유지한다.
 
 상세 결정은 이 문서에 장문으로 복제하지 말고 `docs/tracking/decisions/NNNN-*.md`에 추가한
-뒤 이 색인과 관련 정본(`business-rules.md`, `contracts.md`, `security.md`, `operations.md`)의
+뒤 이 색인과 관련 정본(`business-rules.md`, `contracts.md`, `operations.md`)의
 링크를 갱신한다.

@@ -408,7 +408,7 @@
 - 재발 방지: 전체/반환/부분 표식을 별도로 읽고 부분 후보는 수동 쪽 선택의 참고로만 쓴다.
   core PDF·페이지 텍스트를 독립 검증한 뒤 보조 실패만 경고로 낮춘다. 안전·hash·version
   실패를 같은 방식으로 낮추지 않는다. 새 범위는 새 target이며 옛 실행/결과의 현재성과
-  회사 핏 소비도 함께 검사한다. 검증 범위는 [MVP Plan](0910_prespec-workflow-hardening/Plan.md)에 있다.
+  회사 핏 소비도 함께 검사한다. 검증 범위는 당시 MVP Plan(0910 안정화, 폐기됨 — git 이력 `71b9954`)에 있다.
 - 전달 경계: 내부 변환기만 후보 부재를 허용해도 scratch 생산자·소비자가 필수로 요구하면
   정상 core가 계속 차단된다. 명시된 unavailable 경고와 null descriptor를 함께 연결하고
   저장·cache 재사용까지 검사한다. 실제 후보 파일의 JSON `null`은 descriptor null과
