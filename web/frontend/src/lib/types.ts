@@ -302,6 +302,104 @@ export type PreSpecOverviewReviewStatus =
   | "failed"
   | "cancelled";
 
+/** 개요 run 하나의 실행 상태. 목록 projection의 `overview_review_status`는 가장
+ * 최근 run의 status를 그대로 쓰므로 이 여섯 값은 위 10값의 부분집합이다
+ * (docs/contracts.md "사전규격 개요 검토 (MVP, 2026-09-11)"). */
+export type OverviewRunStatus = Extract<
+  PreSpecOverviewReviewStatus,
+  "queued" | "running" | "completed" | "needs_human_review" | "failed" | "cancelled"
+>;
+
+/** 읽은 쪽 범위를 누가 정했는가. `auto`는 문서 제목 구조에서 고른 것,
+ * `fallback`은 자동 선택이 실패해 앞부분을 읽은 것, `human`은 담당자가 지정한
+ * 것이다. 셋을 서로 대신하지 않는다. */
+export type OverviewRangeSource = "auto" | "fallback" | "human";
+
+/** 주장 하나가 가리키는 원문 위치. `page`는 표지를 포함해 세는 물리 PDF 쪽이다. */
+export interface OverviewEvidence {
+  page: number;
+  quote: string;
+}
+
+export interface OverviewClaim {
+  claim_id: string;
+  text: string;
+  evidence: OverviewEvidence[];
+}
+
+/** 검토자 분석은 **의견**이며 사실 주장이 아니다. `supporting_claim_ids`는 그
+ * 의견이 딛고 선 주장 id다. */
+export interface OverviewReviewerAnalysis {
+  id: string;
+  text: string;
+  supporting_claim_ids: string[];
+}
+
+export interface OverviewRunResult {
+  business_overview: OverviewClaim[];
+  main_tasks: OverviewClaim[];
+  budget_and_period: OverviewClaim[];
+  important_conditions: OverviewClaim[];
+  reviewer_analysis: OverviewReviewerAnalysis[];
+  unknowns: string[];
+  input_limitations: string[];
+}
+
+/** `needs_human_review`에서 사람이 확인해야 하는 주장 하나. `evidence`는 검증을
+ * 통과한 인용만 담고, 통과하지 못한 인용은 여기 오지 않는다. */
+export interface OverviewFailedClaim {
+  claim_id: string;
+  section: string;
+  text: string;
+  reason_codes: string[];
+  evidence: OverviewEvidence[];
+}
+
+/** `bidops.prespec-overview.v1`의 run 하나. 모델 원문·raw_response_refs·내부
+ * 경로는 응답에 없다. */
+export interface OverviewRun {
+  id: string;
+  status: OverviewRunStatus;
+  range_source: OverviewRangeSource;
+  /** 준비 전이면 `null`이다. 1쪽으로 접지 않는다. */
+  page_start: number | null;
+  page_end: number | null;
+  range_reason_codes: string[];
+  reason_codes: string[];
+  /** 비차단 경고(수치·역할·날짜 대조 등)의 안전한 코드다. */
+  warnings: string[];
+  /** `completed`가 아니면 `null`이다. */
+  result: OverviewRunResult | null;
+  failed_claims: OverviewFailedClaim[];
+  model_name: string;
+  model_revision: string | null;
+  call_count: number;
+  actor_name: string | null;
+  created_at: string;
+  started_at: string | null;
+  completed_at: string | null;
+}
+
+/** 공고 하나의 개요 검토 전체. `current`는 `created_at` 최신 run이고 run이 없으면
+ * `null`이다. `history`는 그 공고의 모든 run이다. */
+export interface OverviewEnvelope {
+  schema: string;
+  notice_id: number;
+  current: OverviewRun | null;
+  history: OverviewRun[];
+}
+
+export interface OverviewRangeConfirmationRequest {
+  page_start: number;
+  page_end: number;
+  note?: string;
+}
+
+export interface OverviewRangeConfirmationResponse {
+  run_id: string;
+  attempt_enqueued: boolean;
+}
+
 export interface HistoryItemResponse {
   notice_pk: number;
   run_id: string;
@@ -1563,7 +1661,10 @@ export interface CompanyFitAttempt {
   result: CompanyFitResult | null;
   error_code: string | null;
   is_current: boolean;
-  overview_kind: "page" | "extractive";
+  /** `overview_run`은 새 개요 계약(`prespec_overview_run`)의 run이며 그때
+   * `overview_id`는 run id다. 남은 두 값은 이전 세대의 개요 입력이라 열람 경로가
+   * 없다 — 링크 대신 위치만 문장으로 남긴다. */
+  overview_kind: "overview_run" | "page" | "extractive";
   overview_id: string;
   document_version_id: string;
   overview_sha256: string;

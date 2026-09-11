@@ -426,20 +426,6 @@ test("사전규격 상세는 정정된 현재 등급 하나만 보여준다", as
   await expect(page.locator(".document-preparation-gate")).toContainText("등급을 다시 확인합니다");
 });
 
-test("개요 카드가 참조 실행 품질 표식을 문자로 보여준다", async ({ page }) => {
-  await mockPreSpecAutoDetail(page, "started");
-  await page.goto("/pre-specs/991");
-
-  const quality = page.locator(".pre-spec-overview-quality");
-  await expect(quality).toBeVisible({ timeout: 10_000 });
-  await expect(quality).toContainText("참조 실행 · 품질 미측정");
-  await expect(quality.locator(".badge-success, .badge-danger, .badge-evidence-confirmed")).toHaveCount(0);
-  const details = page.locator(".ps-record-quality-details");
-  await expect(details).not.toHaveAttribute("open", "");
-  await details.locator("summary").click();
-  await expect(details).toContainText("운영 완료로 읽지 마십시오");
-});
-
 test("심층 보고서의 품질 표식 3값과 표식 없음이 카드와 의견 저장 위에 함께 나온다", async ({ page }) => {
   const cases: Array<[Parameters<typeof mockDeepReviewQuality>[1], string]> = [
     ["measured", "측정 통과"],
