@@ -233,7 +233,7 @@ def test_0014_to_0015_and_back_to_0014():
             "bid_delta_evidence",
             "bid_final_decision",
         } & _tables(engine)
-        upgraded = run_alembic(database_url, "upgrade", "head")
+        upgraded = run_alembic(database_url, "upgrade", "0015_bid_delta_final_decision")
         assert upgraded.returncode == 0, upgraded.stderr
         assert "bid_delta_comparison" in _tables(engine)
         downgraded = run_alembic(database_url, "downgrade", "0014_prespec_overview_attempt_result")

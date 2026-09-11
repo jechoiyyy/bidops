@@ -14,7 +14,7 @@ from app.core.db import get_db, init_db
 from app.lifecycle import ExtensionRegistry, WorkloadCount
 from app.lifecycle.models import Notice, OpportunityLink
 from app.deep_review import register_lifecycle_extensions
-from app.deep_review.models import DocumentBundle, DocumentBundleItem, PreSpecOverviewReview
+from app.deep_review.models import DocumentBundle, DocumentBundleItem
 from app.deep_review.services.bid_delta import BidDeltaService
 from app.deep_review.services.prespec_projection import PreSpecOverviewDocumentProjection
 from tests.postgres import migrated_engine, requires_postgres
@@ -148,8 +148,7 @@ def test_workload_registration_counts_unlinked_non_sw_prespecs(queue_session, mo
         qualification_flags_json={"sw_business_status": "N"})
     session.add(ready)
     session.flush()
-    session.add_all([DocumentBundle(notice_id=ready.id, revision=1, version=1, status="ready", issues_snapshot=[]),
-        PreSpecOverviewReview(notice_id=ready.id, status="failed")])
+    session.add(DocumentBundle(notice_id=ready.id, revision=1, version=1, status="ready", issues_snapshot=[]))
     owner = opportunity(session)
     add_bid(session, owner)
     session.commit()

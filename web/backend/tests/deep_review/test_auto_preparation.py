@@ -24,8 +24,8 @@ from app.deep_review.models import (
     DocumentBundleItem,
     DocumentStructure,
     DocumentVersion,
-    PreSpecOverviewReview,
-    PreSpecOverviewSnapshot,
+    PrespecOverviewRun,
+    WorkJob,
 )
 from app.deep_review.services.auto_preparation import (
     AUTO_ACTOR_KIND,
@@ -39,8 +39,6 @@ from app.deep_review.services.auto_preparation import (
     REASON_DEEP_REVIEW_EXISTS,
     REASON_GRADE_NOT_PRIORITY,
     REASON_NOT_SW_BUSINESS,
-    REASON_OVERVIEW_BUNDLE_MISMATCH,
-    REASON_OVERVIEW_CLOSED,
     REASON_OVERVIEW_NOT_COMPLETED,
     _status_for,
     document_fingerprint,
@@ -151,7 +149,8 @@ _BLOCKING = [{"code": "attachment_bytes_missing", "blocking": True}]
         ({"grade": _PRIORITY}, "waiting_attachments"),
         ({"bundles": [(1, "draft", [], AUTO_ACTOR_NAME)]}, "bundle_draft"),
         ({"bundles": [(1, "draft", _BLOCKING, AUTO_ACTOR_NAME)]}, "blocked"),
-        ({"bundles": [(1, "ready", [], AUTO_ACTOR_NAME)]}, "bundle_ready"),
+        # 개요 run이 없으면(개요 기본 비활성) 사람 클릭 자리다.
+        ({"bundles": [(1, "ready", [], AUTO_ACTOR_NAME)]}, "deep_review_ready_for_click"),
         (
             {"bundles": [(1, "ready", [], AUTO_ACTOR_NAME)], "overview_status": "running"},
             "overview_running",
@@ -364,9 +363,7 @@ def _auto_start_context(
     sw_business_status: str = "Y",
     bundle_status: str = "ready",
     confirmed_by: str | None = AUTO_ACTOR_NAME,
-    overview_status: str = "completed",
-    overview_result: str | None = "추진 검토",
-    snapshot_in_bundle: bool = True,
+    overview_status: str | None = "completed",
 ):
     """§6.4의 자동 시작 조건이 모두 성립한 사전규격 하나를 세운다."""
 
@@ -407,38 +404,22 @@ def _auto_start_context(
         )
     )
 
-    # 개요 snapshot이 묶음 밖을 가리키는 경우를 만들려면 묶음에 넣지 않은
-    # 두 번째 문서가 필요하다. 같은 공고의 다른 첨부에서 온 문서다.
-    snapshot_document = document
-    if not snapshot_in_bundle:
-        other = Attachment(notice_id=notice.id, name="다른문서.pdf", origin="manual")
-        session.add(other)
+    # `overview_status=None`이면 run 자체를 만들지 않는다 — 개요가 아직
+    # 없다는 뜻이고, 그것을 완료로 승격시키지 않는지 보는 자리다.
+    if overview_status is not None:
+        job = WorkJob(job_type="prespec_overview", aggregate_type="prespec_overview_run",
+                      aggregate_id=uuid4(), status="completed")
+        session.add(job)
         session.flush()
-        snapshot_document = _document(session, notice, other, b"other prespec bytes")
-        structure = _structure(session, snapshot_document)
-
-    review = PreSpecOverviewReview(notice_id=notice.id, status="awaiting_model")
-    session.add(review)
-    session.flush()
-    snapshot = PreSpecOverviewSnapshot(
-        review_id=review.id,
-        notice_id=notice.id,
-        document_version_id=snapshot_document.id,
-        structure_id=structure.id,
-        source_sha256="a" * 64,
-        payload_sha256="b" * 64,
-        cut_status="ready",
-        strategy="topic_heading",
-        start_locator={"block_key": "start", "page": 1, "ordinal": 0},
-        end_locator={"block_key": "end", "page": 1, "ordinal": 2},
-        input_block_keys=["start"],
-    )
-    session.add(snapshot)
-    session.flush()
-    review.current_snapshot_id = snapshot.id
-    review.status = overview_status
-    review.result = overview_result if overview_status == "completed" else None
-    review.completed_at = WHEN if overview_status == "completed" else None
+        session.add(PrespecOverviewRun(
+            notice_id=notice.id, document_version_id=document.id, work_job_id=job.id,
+            status=overview_status, range_source="auto", range_reason_codes=[],
+            policy_digest="0" * 64, model_name="test-model", warnings_json=[],
+            reason_codes=[], call_count=0, raw_response_refs=[],
+            result_json={"schema_version": "test"} if overview_status == "completed" else None,
+            created_at=WHEN,
+            completed_at=WHEN if overview_status == "completed" else None,
+        ))
     session.commit()
     return notice, bundle
 
@@ -451,7 +432,7 @@ def matched_company_fit_gate(monkeypatch):
     monkeypatch.setattr(
         company_fit,
         "gate_reasons",
-        lambda session, ids, *, current_v4=None: {i: None for i in ids},
+        lambda session, ids, *, runs=None: {i: None for i in ids},
     )
 
 
@@ -491,19 +472,7 @@ def test_sw_n_is_always_left_to_a_human_click(db_session: Session, active_versio
     assert service.calls == []
 
 
-def test_a_closed_overview_recommendation_is_left_to_a_human_click(
-    db_session: Session, active_versions
-):
-    notice, _bundle = _auto_start_context(db_session, overview_result="검토 종료")
-    service = _RecordingDeepReviewService()
-
-    outcome = maybe_auto_start_deep_review(db_session, notice.id, service=service)
-
-    assert (outcome.created, outcome.reason) == (False, REASON_OVERVIEW_CLOSED)
-    assert service.calls == []
-
-
-@pytest.mark.parametrize("status", ["needs_human_review", "failed", "awaiting_model"])
+@pytest.mark.parametrize("status", ["needs_human_review", "failed", "cancelled", "queued", None])
 def test_an_unsettled_or_failed_overview_is_left_to_a_human_click(
     db_session: Session, active_versions, status: str
 ):
@@ -513,20 +482,6 @@ def test_an_unsettled_or_failed_overview_is_left_to_a_human_click(
     outcome = maybe_auto_start_deep_review(db_session, notice.id, service=service)
 
     assert (outcome.created, outcome.reason) == (False, REASON_OVERVIEW_NOT_COMPLETED)
-    assert service.calls == []
-
-
-def test_an_overview_snapshot_outside_the_bundle_is_not_the_same_bundle(
-    db_session: Session, active_versions
-):
-    """개요 snapshot은 문서 하나에 묶인다 — 그 문서가 묶음에 없으면 다른 묶음이다."""
-
-    notice, _bundle = _auto_start_context(db_session, snapshot_in_bundle=False)
-    service = _RecordingDeepReviewService()
-
-    outcome = maybe_auto_start_deep_review(db_session, notice.id, service=service)
-
-    assert (outcome.created, outcome.reason) == (False, REASON_OVERVIEW_BUNDLE_MISMATCH)
     assert service.calls == []
 
 

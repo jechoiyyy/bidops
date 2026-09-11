@@ -15,15 +15,13 @@ from __future__ import annotations
 from datetime import UTC, datetime
 import hashlib
 import json
+from uuid import uuid4
 from pathlib import Path
 
 import pytest
 from sqlalchemy import event
 
 from app.main import app  # noqa: F401 — 조립 계층이 lifecycle 확장점을 등록한다
-from app.deep_review import PreSpecOverviewReview
-from app.deep_review.services import company_fit
-from app.deep_review.services import prespec_projection
 from app.deep_review.models import (
     AttachmentFetch,
     ContentObject,
@@ -31,7 +29,8 @@ from app.deep_review.models import (
     DocumentBundleItem,
     DocumentStructure,
     DocumentVersion,
-    PreSpecOverviewSnapshot,
+    PrespecOverviewRun,
+    WorkJob,
 )
 from app.lifecycle.models import Attachment, Notice
 from app.screening.models import Judgment, Review
@@ -53,18 +52,43 @@ _ALL_OVERVIEW_STATUSES = (
 )
 
 
-def _add_overview_rows(session, refs) -> None:
-    session.add(
-        PreSpecOverviewReview(notice_id=refs["sw_yes"].id, status="needs_human_review")
-    )
-    session.add(
-        PreSpecOverviewReview(
-            notice_id=refs["sw_no"].id,
-            status="completed",
-            result="추진 검토",
-            completed_at=datetime(2026, 8, 25, tzinfo=UTC),
+def _overview_run(session, notice, status: str, *, document=None) -> PrespecOverviewRun:
+    """개요 run 한 건과 그 실행 job·문서를 최소한으로 세운다."""
+
+    if document is None:
+        payload = f"overview-{notice.id}-{status}".encode()
+        content = ContentObject(
+            sha256=hashlib.sha256(payload).hexdigest(), size_bytes=len(payload),
+            detected_mime="application/pdf", retention_class="document-source",
         )
+        session.add(content)
+        session.flush()
+        document = DocumentVersion(
+            notice_id=notice.id, content_object_id=content.id, version=1, source_kind="manual",
+            original_filename="제안요청서.pdf", role="제안요청서", is_current=True, safety_status="safe",
+        )
+        session.add(document)
+        session.flush()
+    job = WorkJob(job_type="prespec_overview", aggregate_type="prespec_overview_run",
+                  aggregate_id=uuid4(), status="completed")
+    session.add(job)
+    session.flush()
+    run = PrespecOverviewRun(
+        notice_id=notice.id, document_version_id=document.id, work_job_id=job.id,
+        status=status, range_source="auto", range_reason_codes=[], policy_digest="0" * 64,
+        model_name="test-model", warnings_json=[], reason_codes=[], call_count=0,
+        raw_response_refs=[],
+        result_json={"schema_version": "test"} if status == "completed" else None,
+        created_at=datetime(2026, 8, 25, tzinfo=UTC),
     )
+    session.add(run)
+    session.flush()
+    return run
+
+
+def _add_overview_rows(session, refs) -> None:
+    _overview_run(session, refs["sw_yes"], "needs_human_review")
+    _overview_run(session, refs["sw_no"], "completed")
     session.commit()
 
 
@@ -122,9 +146,7 @@ def test_pre_specs_document_counts_fetch_statuses_and_unqueued_attachments(pre_s
 
 def test_pre_specs_overview_review_status_projects_from_review_row(pre_specs_api):
     session, _engine, refs = pre_specs_api
-    session.add(
-        PreSpecOverviewReview(notice_id=refs["sw_yes"].id, status="needs_human_review")
-    )
+    _overview_run(session, refs["sw_yes"], "needs_human_review")
     session.commit()
 
     items = _items_by_id(_payload(session, sw_only=False))
@@ -135,29 +157,17 @@ def test_pre_specs_overview_review_status_projects_from_review_row(pre_specs_api
 
 
 @pytest.mark.parametrize("status", ["failed", "cancelled", "needs_human_review"])
-def test_pre_specs_list_uses_v4_current_status_for_item_and_counts(
-    pre_specs_api, monkeypatch, status
+def test_pre_specs_list_uses_the_latest_run_status_for_item_and_counts(
+    pre_specs_api, status
 ):
+    """공고의 "현재 개요"는 `created_at` 최신 run 하나다. 옛 run은 이력이다."""
+
     session, _engine, refs = pre_specs_api
-    session.add(
-        PreSpecOverviewReview(
-            notice_id=refs["sw_yes"].id,
-            status="completed",
-            result="추진 검토",
-            completed_at=datetime(2026, 8, 25, tzinfo=UTC),
-        )
-    )
+    completed = _overview_run(session, refs["sw_yes"], "completed")
+    later = _overview_run(session, refs["sw_yes"], status, document=None)
+    later.created_at = datetime(2026, 8, 27, tzinfo=UTC)
+    assert completed.created_at < later.created_at
     session.commit()
-    current = {
-        refs["sw_yes"].id: {"status": status, "result_id": None},
-        refs["sw_no"].id: None,
-    }
-
-    def controlled_current(_session, notice_ids):
-        return {notice_id: current.get(notice_id) for notice_id in notice_ids}
-
-    monkeypatch.setattr(prespec_projection, "current_v4_projections", controlled_current)
-    monkeypatch.setattr(company_fit, "current_v4_projections", controlled_current)
 
     payload = _payload(session, sw_only=False)
     items = _items_by_id(payload)
@@ -190,9 +200,7 @@ def test_pre_specs_overview_status_counts_reflect_full_filtered_set_not_just_the
     pre_specs_api,
 ):
     session, _engine, refs = pre_specs_api
-    session.add(
-        PreSpecOverviewReview(notice_id=refs["sw_yes"].id, status="needs_human_review")
-    )
+    _overview_run(session, refs["sw_yes"], "needs_human_review")
     session.commit()
 
     payload = _payload(session, sw_only=False, limit=1)
@@ -337,8 +345,8 @@ def test_pre_specs_report_blocked_when_every_fetch_ended_in_failure(pre_specs_ap
 # --- 자동 심층 시작을 막은 사유가 화면까지 온다 (명세 §6.4·§8) ----------------
 
 
-def _auto_start_rows(session, notice, *, overview_result: str, in_bundle: bool = True):
-    """자동 확정된 `ready` 묶음과 완료된 개요 검토 한 벌.
+def _auto_start_rows(session, notice, *, overview_status: str = "completed", in_bundle: bool = True):
+    """자동 확정된 `ready` 묶음과 개요 run 한 벌.
 
     §6.4의 앞 조건을 모두 세워 두고, 검사마다 한 조건씩만 어긋나게 한다.
     """
@@ -410,28 +418,7 @@ def _auto_start_rows(session, notice, *, overview_result: str, in_bundle: bool =
                 structure_payload_sha256=structure.payload_sha256,
             )
         )
-    review = PreSpecOverviewReview(notice_id=notice.id, status="awaiting_model")
-    session.add(review)
-    session.flush()
-    snapshot = PreSpecOverviewSnapshot(
-        review_id=review.id,
-        notice_id=notice.id,
-        document_version_id=document.id,
-        structure_id=structure.id,
-        source_sha256=content.sha256,
-        payload_sha256=structure.payload_sha256,
-        cut_status="ready",
-        strategy="topic_heading",
-        start_locator={"block_key": "start", "page": 1, "ordinal": 0},
-        end_locator={"block_key": "end", "page": 1, "ordinal": 2},
-        input_block_keys=["start"],
-    )
-    session.add(snapshot)
-    session.flush()
-    review.current_snapshot_id = snapshot.id
-    review.status = "completed"
-    review.result = overview_result
-    review.completed_at = datetime(2026, 8, 26, tzinfo=UTC)
+    _overview_run(session, notice, overview_status, document=document)
     session.commit()
 
 
@@ -444,18 +431,16 @@ def test_pre_specs_show_why_the_deep_review_was_not_started_automatically(
     monkeypatch.delenv("BIDOPS_ACTIVE_PROFILE_VERSION_ID", raising=False)
     monkeypatch.delenv("BIDOPS_ACTIVE_ANALYSIS_POLICY_VERSION_ID", raising=False)
     # SW=N 사전규격. 앞 조건이 모두 성립해도 사람 클릭이다.
-    _auto_start_rows(session, refs["sw_no"], overview_result="추진 검토")
-    # SW=Y이지만 개요 권고가 `검토 종료`다.
-    _auto_start_rows(session, refs["sw_yes"], overview_result="검토 종료")
+    _auto_start_rows(session, refs["sw_no"])
+    # SW=Y이지만 개요가 사람 검토로 끝났다.
+    _auto_start_rows(session, refs["sw_yes"], overview_status="needs_human_review")
 
     items = _items_by_id(_payload(session, sw_only=False))
 
     assert items[refs["sw_no"].id]["auto_preparation_status"] == "deep_review_ready_for_click"
     assert items[refs["sw_no"].id]["auto_preparation_reason"] == "not_sw_business"
     assert items[refs["sw_yes"].id]["auto_preparation_status"] == "deep_review_ready_for_click"
-    assert (
-        items[refs["sw_yes"].id]["auto_preparation_reason"] == "overview_recommendation_closed"
-    )
+    assert items[refs["sw_yes"].id]["auto_preparation_reason"] == "overview_not_completed"
 
 
 def test_pre_specs_show_the_fail_closed_reason_when_active_versions_are_missing(
@@ -466,7 +451,7 @@ def test_pre_specs_show_the_fail_closed_reason_when_active_versions_are_missing(
     session, _engine, refs = pre_specs_api
     monkeypatch.delenv("BIDOPS_ACTIVE_PROFILE_VERSION_ID", raising=False)
     monkeypatch.delenv("BIDOPS_ACTIVE_ANALYSIS_POLICY_VERSION_ID", raising=False)
-    _auto_start_rows(session, refs["sw_yes"], overview_result="추진 검토")
+    _auto_start_rows(session, refs["sw_yes"])
 
     item = _items_by_id(_payload(session, sw_only=False))[refs["sw_yes"].id]
 

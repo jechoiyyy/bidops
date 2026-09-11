@@ -33,9 +33,9 @@ from app.deep_review.models import (
     DocumentBundleItem,
     DocumentStructure,
     DocumentVersion,
-    PreSpecOverviewReview,
-    PreSpecOverviewSnapshot,
+    PrespecOverviewRun,
     ProfileVersion,
+    WorkJob,
 )
 from app.deep_review.services.auto_preparation import (
     AUTO_ACTOR_KIND,
@@ -64,7 +64,7 @@ def company_fit_creation_prerequisite(monkeypatch):
     monkeypatch.setattr(
         company_fit,
         "gate_reasons",
-        lambda session, ids, *, current_v4=None: {i: None for i in ids},
+        lambda session, ids, *, runs=None: {i: None for i in ids},
     )
 
 
@@ -119,7 +119,7 @@ def _seed(
     *,
     sw_business_status: str = "Y",
     grade: str = "우선 검토",
-    overview_result: str = "추진 검토",
+    overview_status: str = "completed",
     with_bundle: bool = True,
 ) -> SimpleNamespace:
     """§6.4가 성립하는 사전규격 하나를 세우고 active 설정을 가리킨다."""
@@ -192,28 +192,19 @@ def _seed(
     if with_bundle:
         bundle = _confirmed_bundle(session, document, structure, revision=1)
 
-    review = PreSpecOverviewReview(notice_id=notice.id, status="awaiting_model")
-    session.add(review)
+    job = WorkJob(job_type="prespec_overview", aggregate_type="prespec_overview_run",
+                  aggregate_id=uuid4(), status="completed")
+    session.add(job)
     session.flush()
-    snapshot = PreSpecOverviewSnapshot(
-        review_id=review.id,
-        notice_id=notice.id,
-        document_version_id=document.id,
-        structure_id=structure.id,
-        source_sha256=content_hash,
-        payload_sha256=structure_hash,
-        cut_status="ready",
-        strategy="topic_heading",
-        start_locator={"block_key": "start", "page": 1, "ordinal": 0},
-        end_locator={"block_key": "end", "page": 1, "ordinal": 2},
-        input_block_keys=["start"],
-    )
-    session.add(snapshot)
+    session.add(PrespecOverviewRun(
+        notice_id=notice.id, document_version_id=document.id, work_job_id=job.id,
+        status=overview_status, range_source="auto", range_reason_codes=[],
+        policy_digest="0" * 64, model_name="test-model", warnings_json=[], reason_codes=[],
+        call_count=0, raw_response_refs=[],
+        result_json={"schema_version": "test"} if overview_status == "completed" else None,
+        created_at=WHEN, completed_at=WHEN,
+    ))
     session.flush()
-    review.current_snapshot_id = snapshot.id
-    review.status = "completed"
-    review.result = overview_result
-    review.completed_at = WHEN
 
     profile_hash = hashlib.sha256(f"profile-{uuid4()}".encode()).hexdigest()
     profile = ProfileVersion(
@@ -489,30 +480,19 @@ def _human_confirmed(session: Session, seeded: SimpleNamespace) -> None:
 
 
 def _overview_needs_human(session: Session, seeded: SimpleNamespace) -> None:
-    review = session.scalar(
-        select(PreSpecOverviewReview).where(
-            PreSpecOverviewReview.notice_id == seeded.notice_id
-        )
+    run = session.scalar(
+        select(PrespecOverviewRun).where(PrespecOverviewRun.notice_id == seeded.notice_id)
     )
-    review.status = "needs_human_review"
-    review.result = None
-    review.completed_at = None
+    run.status = "needs_human_review"
+    run.result_json = None
 
 
-def _overview_closed(session: Session, seeded: SimpleNamespace) -> None:
-    session.scalar(
-        select(PreSpecOverviewReview).where(
-            PreSpecOverviewReview.notice_id == seeded.notice_id
-        )
-    ).result = "검토 종료"
+def _overview_missing(session: Session, seeded: SimpleNamespace) -> None:
+    """개요 run이 아예 없는 상태. 없는 것을 완료로 승격시키지 않는다."""
 
-
-def _snapshot_outside_bundle(session: Session, seeded: SimpleNamespace) -> None:
     session.delete(
         session.scalar(
-            select(DocumentBundleItem).where(
-                DocumentBundleItem.bundle_id == seeded.bundle.id
-            )
+            select(PrespecOverviewRun).where(PrespecOverviewRun.notice_id == seeded.notice_id)
         )
     )
 
@@ -523,8 +503,7 @@ def _snapshot_outside_bundle(session: Session, seeded: SimpleNamespace) -> None:
         (_sw_n, "not_sw_business"),
         (_human_confirmed, "bundle_not_auto_ready"),
         (_overview_needs_human, "overview_not_completed"),
-        (_overview_closed, "overview_recommendation_closed"),
-        (_snapshot_outside_bundle, "overview_bundle_mismatch"),
+        (_overview_missing, "overview_not_completed"),
     ],
 )
 def test_the_projection_reports_the_same_reason_the_write_path_used(

@@ -23,20 +23,81 @@ from app.deep_review.models import (
     DocumentStructure,
     DocumentVersion,
     PreSpecCompanyFitAttempt,
-    PreSpecOverviewReview,
-    PreSpecPageOverview,
+    PrespecOverviewRun,
     ProfileEvidence,
     ProfileVersion,
+    WorkJob,
 )
 from app.lifecycle.models import Notice
 from app.deep_review.services import company_fit as fit, company_fit_runner as worker, effective_grade
 from app.deep_review.services.auto_preparation import auto_preparation_fields
 from app.deep_review.services.input_versions import import_policy_version, PROFILE_SOURCE_FILE
-from app.deep_review.services.page_overview import import_page_overview
 from app.deep_review.routers.deep_reviews import pre_spec_overview_router
-from tests.deep_review.test_page_overview import seed, Scanner
-from tests.deep_review.test_prespec_overview_runner import _FakeStore
-from app.core.object_store import FilesystemObjectStore
+
+
+class _FakeStore:
+    """암호화 model-response 저장소의 계약만 흉내 내는 fake."""
+
+    def __init__(self) -> None:
+        self.calls: list[bytes] = []
+
+    def put_encrypted(self, data: bytes, *, retention_days: int, content_type: str):
+        import hashlib
+
+        self.calls.append(data)
+        return {
+            "encrypted": True,
+            "object_key": f"model-response/{uuid4().hex}.bin",
+            "object_version_id": "v1",
+            "etag": "etag-1",
+            "encryption_key_ref": "test-key-ref",
+            "plaintext_sha256": hashlib.sha256(data).hexdigest(),
+            "plaintext_size_bytes": len(data),
+        }
+
+
+#: 완료된 개요 run의 결과. 회사 핏 입력이 읽는 절·인용 좌표만 담는다.
+OVERVIEW_RESULT = {
+    "schema_version": "bidops.prespec-overview-page-review.v4",
+    "business_overview": [{"claim_id": "c1", "text": "업무 시스템을 구축한다.",
+                           "evidence": [{"page": 3, "quote": "업무 시스템을 구축한다."}]}],
+    "main_tasks": [{"claim_id": "c2", "text": "업무 시스템 구축 과업을 수행한다.",
+                    "evidence": [{"page": 3, "quote": "업무 시스템 구축 과업"}]}],
+    "budget_and_period": [],
+    "important_conditions": [],
+    "reviewer_analysis": [],
+    "unknowns": [],
+    "input_limitations": ["page_text_only"],
+}
+
+
+def seed_overview_run(session):
+    """완료된 개요 run 한 건과 그 공고·문서를 세운다."""
+
+    notice = Notice(notice_key=f"fit:{uuid4()}", source_type="pre_spec", title="합성 사전규격")
+    session.add(notice)
+    session.flush()
+    content = ContentObject(id=uuid4(), sha256="a" * 64, size_bytes=10,
+                            detected_mime="application/pdf", retention_class="document-source")
+    session.add(content)
+    session.flush()
+    document = DocumentVersion(id=uuid4(), notice_id=notice.id, content_object_id=content.id, version=1,
+                               source_kind="manual", original_filename="제안요청서.pdf", role="제안요청서",
+                               is_current=True, safety_status="safe")
+    job = WorkJob(job_type="prespec_overview", aggregate_type="prespec_overview_run",
+                  aggregate_id=uuid4(), status="completed")
+    session.add_all([document, job])
+    session.flush()
+    run = PrespecOverviewRun(
+        id=uuid4(), notice_id=notice.id, document_version_id=document.id, work_job_id=job.id,
+        status="completed", range_source="auto", range_reason_codes=[], policy_digest="0" * 64,
+        model_name="test-overview", warnings_json=[], reason_codes=[], call_count=1,
+        raw_response_refs=[], result_json=deepcopy(OVERVIEW_RESULT),
+        completed_at=datetime.now(UTC),
+    )
+    session.add(run)
+    session.flush()
+    return run
 
 
 def output(decision="matched"):
@@ -56,9 +117,7 @@ def setup_inputs(session, tmp_path, monkeypatch, *, unknown=False):
     monkeypatch.setenv("BIDOPS_VLLM_OVERVIEW_ALLOWED_HOSTS", "127.0.0.1")
     monkeypatch.setenv("BIDOPS_VLLM_OVERVIEW_MODEL_REVISION", "b" * 64)
     get_settings.cache_clear()
-    data = seed(session)
-    data["outcome"].update(status="evidence_checks_passed", validation_errors=[])
-    source, _ = import_page_overview(session, **data, store=FilesystemObjectStore(tmp_path), scanner=Scanner(), actor="tester")
+    source = seed_overview_run(session)
     fact = {"fact_key": "scope", "status": "unknown" if unknown else "confirmed", "value": None if unknown else "업무 시스템 구축",
             "quote": "합성 회사 근거", "locator": {"fact_key": "scope"}}
     profile = ProfileVersion(id=uuid4(), version=1, label="synthetic", profile_sha256="f" * 64,
@@ -81,7 +140,7 @@ def setup_inputs(session, tmp_path, monkeypatch, *, unknown=False):
 
 def enqueue(session, inputs):
     row = PreSpecCompanyFitAttempt(id=uuid4(), notice_id=inputs["notice_id"], document_version_id=UUID(inputs["document_version_id"]),
-        page_overview_id=UUID(inputs["overview_id"]), profile_version_id=UUID(inputs["profile_version_id"]),
+        overview_run_id=UUID(inputs["overview_id"]), profile_version_id=UUID(inputs["profile_version_id"]),
         deep_policy_version_id=UUID(inputs["deep_policy_version_id"]), input_jsonb=inputs, input_sha256=fit.digest(inputs),
         policy_digest=inputs["policy_digest"], model_name=inputs["model_name"], model_revision=inputs["model_revision"],
         quality_status=inputs["quality_status"], status="queued")
@@ -279,117 +338,60 @@ def test_source_replacement_invalidates_previous_assessment(context):
     assert not fit.current_flags(session, [row])[row.id]
 
 
-@pytest.mark.parametrize("status", ["running", "failed", "stale", "cancelled", "needs_human_review"])
-def test_noncompleted_v4_current_blocks_legacy_and_page_fit_input(
-    context, monkeypatch, status
-):
+@pytest.mark.parametrize("status", ["queued", "running", "failed", "cancelled", "needs_human_review"])
+def test_a_noncompleted_current_run_blocks_the_fit_input(context, status):
+    """현재 run이 완료가 아니면 옛 결과로 내려가지 않는다."""
+
     session, inputs = context
     row = enqueue(session, inputs)
-    monkeypatch.setattr(
-        fit,
-        "current_v4_projections",
-        lambda _session, ids: {
-            notice_id: {"status": status, "result_id": None}
-            for notice_id in ids
-        },
-    )
+    run = session.get(PrespecOverviewRun, UUID(inputs["overview_id"]))
+    run.status = status
+    run.result_json = None
+    session.commit()
 
     assert fit.overview_inputs(session, [inputs["notice_id"]]) == {}
     assert fit.current_flags(session, [row])[row.id] is False
     assert fit.gate_reasons(session, [inputs["notice_id"]]) == {
-        inputs["notice_id"]: "company_fit_v4_disabled"
+        inputs["notice_id"]: "company_fit_stale"
     }
 
 
-def test_v4_current_result_id_selects_its_page_overview_over_newer_history(
-    context, monkeypatch
-):
+def test_the_latest_run_is_the_current_overview_even_with_older_history(context):
+    """현재 개요는 `created_at` 최신 run 하나다. 옛 완료 run은 이력이다."""
+
     session, inputs = context
-    current = session.get(PreSpecPageOverview, UUID(inputs["overview_id"]))
-    assert current is not None
-    newer_values = {
-        column.key: getattr(current, column.key)
-        for column in PreSpecPageOverview.__table__.columns
-    }
-    newer_values.update(
-        id=uuid4(),
-        run_id=uuid4(),
+    current = session.get(PrespecOverviewRun, UUID(inputs["overview_id"]))
+    job = WorkJob(job_type="prespec_overview", aggregate_type="prespec_overview_run",
+                  aggregate_id=uuid4(), status="completed")
+    session.add(job)
+    session.flush()
+    newer = PrespecOverviewRun(
+        id=uuid4(), notice_id=current.notice_id, document_version_id=current.document_version_id,
+        work_job_id=job.id, status="needs_human_review", range_source="auto", range_reason_codes=[],
+        policy_digest="0" * 64, model_name="test-overview", warnings_json=[], reason_codes=[],
+        call_count=1, raw_response_refs=[], result_json=None,
         created_at=current.created_at + timedelta(seconds=1),
     )
-    session.add(PreSpecPageOverview(**newer_values))
+    session.add(newer)
     session.commit()
-    monkeypatch.setattr(
-        fit,
-        "current_v4_projections",
-        lambda _session, ids: {
-            notice_id: {
-                "status": "completed",
-                "result_id": str(current.id),
-            }
-            for notice_id in ids
-        },
-    )
 
-    source = fit.overview_inputs(session, [inputs["notice_id"]])[inputs["notice_id"]]
-
-    assert source.id == current.id
+    assert fit.overview_inputs(session, [inputs["notice_id"]]) == {}
+    newer.status, newer.result_json = "completed", deepcopy(OVERVIEW_RESULT)
+    session.commit()
+    assert fit.overview_inputs(session, [inputs["notice_id"]])[inputs["notice_id"]].id == newer.id
 
 
-@pytest.mark.parametrize("status", ["failed", "cancelled", "needs_human_review"])
-def test_grade_less_v4_current_state_is_not_reported_as_legacy_completion(
-    context, monkeypatch, status
-):
+def test_a_missing_run_is_not_reported_as_a_completed_overview(context):
     session, inputs = context
     ready_bundle(session, inputs)
-    session.add(
-        PreSpecOverviewReview(
-            notice_id=inputs["notice_id"],
-            status="completed",
-            result="추진 검토",
-            completed_at=datetime.now(UTC),
-        )
-    )
+    session.delete(session.get(PrespecOverviewRun, UUID(inputs["overview_id"])))
     session.commit()
-    monkeypatch.setattr(
-        fit,
-        "current_v4_projections",
-        lambda _session, ids: {
-            notice_id: {
-                "status": status,
-                "result_id": None,
-            }
-            for notice_id in ids
-        },
-    )
 
     fields = auto_preparation_fields(session, [inputs["notice_id"]])[inputs["notice_id"]]
 
     assert fields["grade"] is None
     assert fields["auto_preparation_status"] == "deep_review_ready_for_click"
     assert fields["auto_preparation_reason"] == "overview_not_completed"
-
-
-def test_v4_activation_off_prevents_company_fit_enqueue(context, monkeypatch):
-    session, inputs = context
-    ready_bundle(session, inputs)
-    projection = {
-        inputs["notice_id"]: {
-            "status": "completed",
-            "result_id": inputs["overview_id"],
-        }
-    }
-    monkeypatch.setattr(fit, "current_v4_projections", lambda _session, ids: {
-        notice_id: projection.get(notice_id)
-        for notice_id in ids
-    })
-    monkeypatch.setattr(worker, "current_v4_projections", lambda _session, ids: {
-        notice_id: projection.get(notice_id)
-        for notice_id in ids
-    })
-
-    worker.PreSpecCompanyFitRunner()._enqueue_one(session)
-
-    assert session.scalar(select(PreSpecCompanyFitAttempt)) is None
 
 
 def test_disabled_worker_performs_no_model_or_database_work(monkeypatch):

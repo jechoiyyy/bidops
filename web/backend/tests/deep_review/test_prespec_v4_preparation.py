@@ -28,19 +28,19 @@ from app.deep_review.models import (
     ContentScan,
     DocumentVersion,
     PrespecV4PdfSnapshot,
-    PrespecV4Target,
 )
-from app.deep_review.services.prespec_v4 import (
+from app.deep_review.services.overview_range import (
     V4_MANIFEST_SCHEMA,
     V4PreparationError,
-    _NATIVE_REFERENCE_FIELDS,
-    _validate_native_references,
     build_v4_range_review_manifest,
-    freeze_v4_target,
-    prepare_v4_pdf_snapshot,
-    read_snapshot_section_candidates,
     select_v4_input_range,
     select_v4_page_span,
+)
+from app.deep_review.services.pdf_snapshot import (
+    _NATIVE_REFERENCE_FIELDS,
+    _validate_native_references,
+    prepare_v4_pdf_snapshot,
+    read_snapshot_section_candidates,
 )
 from app.lifecycle.models import Notice
 from tests.deep_review.test_document_mcp import hwpx_bytes
@@ -245,56 +245,7 @@ def test_snapshot_roundtrip_stores_full_page_text_and_reuses_exact_binding(tmp_p
         assert "Ⅰ. 감리 개요" in json.loads(page_text)["pages"][0]["text"]
         assert scanner_calls.count(source) >= 2
 
-        selection = _selection(document, source)
-        assert selection.status == "ready"
-        manifest_meta = store.put("structure", "structure/v4/manifest.json", selection.manifest_bytes, content_type="application/json")
-        manifest_content = ContentObject(
-            sha256=_sha(selection.manifest_bytes), size_bytes=len(selection.manifest_bytes), detected_mime="application/json", retention_class="prespec-v4-input"
-        )
-        session.add(manifest_content)
-        session.flush()
-        manifest_location = ContentObjectLocation(
-            content_object_id=manifest_content.id, namespace_key="structure", object_key=manifest_meta.object_key,
-            object_version_id=manifest_meta.object_version_id, etag=manifest_meta.etag, status="verified",
-        )
-        session.add(manifest_location)
-        session.flush()
-        target = freeze_v4_target(
-            session,
-            snapshot_id=snapshot.id,
-            observation_kind="explicit_sample",
-            observation_id=None,
-            observation_reference={"sample": "notice-142"},
-            selection=selection,
-            manifest_content_object_id=manifest_content.id,
-            manifest_location_id=manifest_location.id,
-            manifest_bytes=selection.manifest_bytes,
-        )
-        session.commit()
-        assert target.selection_status == "ready"
-        assert target.identity_sha256 == _sha(json.dumps({
-            "snapshot_id": str(snapshot.id),
-            "observation_kind": "explicit_sample",
-            "observation_id": None,
-            "selection_manifest_sha256": target.selection_manifest_sha256,
-            "selection_status": "ready",
-            "reason_code": None,
-        }, sort_keys=True, separators=(",", ":")).encode())
-
-        # The canonical identity digest makes explicit samples idempotent even
-        # though SQL NULL unique columns would otherwise permit duplicates.
-        reused_target = freeze_v4_target(
-            session,
-            snapshot_id=snapshot.id,
-            observation_kind="explicit_sample",
-            observation_id=None,
-            observation_reference={"sample": "notice-142"},
-            selection=selection,
-            manifest_content_object_id=manifest_content.id,
-            manifest_location_id=manifest_location.id,
-            manifest_bytes=selection.manifest_bytes,
-        )
-        assert reused_target.id == target.id
+        assert _selection(document, source).status == "ready"
 
         reused_snapshot = prepare_v4_pdf_snapshot(
             session,

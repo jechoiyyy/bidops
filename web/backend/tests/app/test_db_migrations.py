@@ -62,6 +62,8 @@ LEGACY_TABLES = LIFECYCLE_LEGACY_TABLES + SCREENING_LEGACY_TABLES
 NEW_TABLES = DEEP_REVIEW_LEAN_V1_TABLES + CORE_LEAN_V1_TABLES
 
 LEAN_V1_HEAD = "0002_screening_basis_text"
+#: 0026 철거 직전 판. downgrade 왕복 검사는 여기까지만 올라간다.
+PRE_TEARDOWN_HEAD = "0025_overview_claim_ledger"
 OBSERVATION_SNAPSHOT_BASE = "0008_prespec_attachment_fetch"
 OPPORTUNITY_INTEGRITY_BASE = "0009_observation_snapshot_retention"
 ALL_TABLES = frozenset(
@@ -454,7 +456,8 @@ def test_database_rejects_non_canonical_generation_config(value: str) -> None:
 
 
 def test_downgrade_removes_only_the_screening_runtime() -> None:
-    with temporary_database() as database_url:
+    # 0026이 그 아래 downgrade를 닫았으므로 철거 직전 판에서 내려간다.
+    with temporary_database(upgrade_to=PRE_TEARDOWN_HEAD) as database_url:
         from sqlalchemy import create_engine
 
         engine = create_engine(database_url, future=True)
@@ -590,6 +593,9 @@ def test_c2_artifact_rows_are_append_only_in_postgresql() -> None:
 # ---------------------------------------------------------------------------
 
 SEGMENT_SCHEMA_BASE = "0017_order_plan_screening_heartbeat"
+#: 0018 왕복 검사는 이 판에 고정한다. 0026이 그 아래 downgrade를 닫았으므로
+#: head에서 내려가는 왕복은 더 이상 성립하지 않는다.
+SEGMENT_SCHEMA_HEAD = "0018_prespec_auto_preparation_segments"
 SEED_AT = datetime(2026, 9, 1, tzinfo=timezone.utc)
 
 
@@ -787,9 +793,9 @@ def _complete_overview_attempt(
 
 
 def test_0018_round_trips_between_the_segment_schema_and_0017() -> None:
-    """빈 DB에서 head까지 올라가고 0017로 내려갔다가 다시 올라온다."""
+    """빈 DB에서 0018까지 올라가고 0017로 내려갔다가 다시 올라온다."""
 
-    with temporary_database() as database_url:
+    with temporary_database(upgrade_to=SEGMENT_SCHEMA_HEAD) as database_url:
         from sqlalchemy import create_engine
 
         engine = create_engine(database_url, future=True)
@@ -822,12 +828,12 @@ def test_0018_round_trips_between_the_segment_schema_and_0017() -> None:
                 == SEGMENT_SCHEMA_BASE
             )
 
-            result = run_alembic(database_url, "upgrade", "head")
+            result = run_alembic(database_url, "upgrade", SEGMENT_SCHEMA_HEAD)
             assert result.returncode == 0, result.stderr
             assert set(DOCUMENT_SEGMENT_TABLES) <= _tables(engine)
             assert (
                 _scalar(engine, "SELECT version_num FROM bidops.alembic_version")
-                == ALEMBIC_HEAD
+                == SEGMENT_SCHEMA_HEAD
             )
         finally:
             engine.dispose()
@@ -857,9 +863,12 @@ def test_attachment_fetch_accepts_priority_grade_and_rejects_an_unknown_reason()
 
 
 def test_unmeasured_overview_attempt_completes_but_a_mock_one_cannot() -> None:
-    """실제 모델의 품질 미측정 실행은 완료되고 mock 참조 실행은 막힌다 (명세 §6.3)."""
+    """실제 모델의 품질 미측정 실행은 완료되고 mock 참조 실행은 막힌다 (명세 §6.3).
 
-    with migrated_engine() as engine, Session(engine) as session:
+    개요 attempt 테이블은 0026이 지웠으므로 0018 판에 고정해서 본다.
+    """
+
+    with migrated_engine(upgrade_to=SEGMENT_SCHEMA_HEAD) as engine, Session(engine) as session:
         attempt_id, review_id, snapshot_id = _seed_overview_attempt(
             session, reference_only=False
         )
@@ -886,7 +895,7 @@ def test_unmeasured_overview_attempt_completes_but_a_mock_one_cannot() -> None:
 
 
 def test_overview_attempt_lease_columns_start_unknown_and_accept_a_worker_lease() -> None:
-    with migrated_engine() as engine, Session(engine) as session:
+    with migrated_engine(upgrade_to=SEGMENT_SCHEMA_HEAD) as engine, Session(engine) as session:
         attempt_id, _review_id, _snapshot_id = _seed_overview_attempt(
             session, reference_only=False
         )
@@ -1077,7 +1086,7 @@ def test_document_segment_keeps_an_unresolved_label_without_a_confidence() -> No
 
 
 def test_0018_downgrade_refuses_to_discard_priority_grade_or_segment_rows() -> None:
-    with temporary_database() as database_url:
+    with temporary_database(upgrade_to=SEGMENT_SCHEMA_HEAD) as database_url:
         from sqlalchemy import create_engine
 
         from app.core.db import schema_bound
@@ -1093,14 +1102,14 @@ def test_0018_downgrade_refuses_to_discard_priority_grade_or_segment_rows() -> N
             assert set(DOCUMENT_SEGMENT_TABLES) <= _tables(engine)
             assert (
                 _scalar(engine, "SELECT version_num FROM bidops.alembic_version")
-                == ALEMBIC_HEAD
+                == SEGMENT_SCHEMA_HEAD
             )
         finally:
             engine.dispose()
 
 
 def test_0018_downgrade_refuses_to_discard_an_unmeasured_completed_attempt() -> None:
-    with temporary_database() as database_url:
+    with temporary_database(upgrade_to=SEGMENT_SCHEMA_HEAD) as database_url:
         from sqlalchemy import create_engine
 
         from app.core.db import schema_bound

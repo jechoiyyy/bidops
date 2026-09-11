@@ -1,8 +1,10 @@
 """사전규격 mock 종단 실행 (명세 §2 완료 기준 1·§12).
 
 저장소만으로 도는 검사다. vLLM·Ollama·나라장터 주소를 부르지 않고, 첨부는
-fixture bytes, 판정·개요·심층은 mock transport이며 회사 원문·실제 공고는
-들어 있지 않다.
+fixture bytes이며 회사 원문·실제 공고는 들어 있지 않다.
+
+**P2에서 개요 run 단계 복원.** 개요 실행 스택이 철거된 동안 이 흐름은 묶음
+`ready`까지만 가고, 개요·심층 검토 증거 자리는 `null`이다.
 
 **선별 모듈을 import하지 않는다.** 판정 적재는 lifecycle 확장점의 몫이므로
 이 검사는 CLI에 확장점 제공자 이름을 문자열로 넘기고, deep_review 폴더의
@@ -155,68 +157,30 @@ def test_every_notice_reaches_a_confirmed_bundle_that_excludes_the_zip(evidence:
         assert bundle["issue_codes"] == ["unsupported_attachment_excluded"]
 
 
-def test_the_overview_completes_on_the_mock_transport(evidence: dict) -> None:
+def test_no_overview_or_deep_review_runs_while_the_stack_is_torn_down(evidence: dict) -> None:
+    """개요 run 단계가 없으므로 증거의 그 자리는 `null`이다 (P2에서 복원).
+
+    실행하지 않은 것을 완료·0건 통과로 적지 않는다.
+    """
+
     for notice in evidence["notices"]:
-        overview = notice["overview"]
-        assert overview["status"] == "completed"
-        assert overview["result"] == "추진 검토"
-        assert overview["transport"] == "mock"
-        # 결정적 mock attempt는 완료할 수 없다(ADR·DB CHECK). 그래서 이 실행의
-        # 개요 표식은 `unmeasured_reference`이며 운영 완료 근거가 아니다.
-        assert overview["quality_status"] == "unmeasured_reference"
+        assert notice["overview"] is None
+        assert notice["deep_review"] is None
+    assert evidence["auto_started_notice_keys"] == []
 
 
-def test_reference_flow_uses_human_creation_without_a_company_fit(evidence: dict) -> None:
-    notice = _notice(evidence, "pre-1")
+def test_every_ready_bundle_waits_for_a_human_click(evidence: dict) -> None:
+    """개요가 완료되지 않았으므로 두 공고 모두 사람 클릭 자리에 남는다."""
 
-    assert notice["sw_business_status"] == "Y"
-    assert notice["effective_grade"] == "우선 검토"
-    assert notice["auto_preparation_status"] == "deep_review_started"
-    assert notice["auto_preparation_reason"] is None
-    review = notice["deep_review"]
-    assert review is not None
-    assert review["status"] == "completed"
-    assert review["created_by_actor_kind"] == "human"
-    assert review["analysis_transport"] == "mock"
-    assert review["quality_status"] == "mock_reference"
-    assert [stage["stage"] for stage in review["stages"]] == [
-        "requirements_and_evaluation",
-        "delivery_risk_economics",
-        "synthesis_and_validation",
-    ]
-
-
-def test_a_non_sw_notice_waits_for_a_human_click(evidence: dict) -> None:
-    notice = _notice(evidence, "pre-5")
-
-    assert notice["sw_business_status"] == "N"
-    assert notice["effective_grade"] == "우선 검토"
-    assert notice["auto_preparation_status"] == "deep_review_ready_for_click"
-    assert notice["auto_preparation_reason"] == "not_sw_business"
-    assert notice["deep_review"] is None
-
-
-def test_the_report_carries_the_deterministic_checks_and_the_bundle_limitation(
-    evidence: dict,
-) -> None:
-    review = _notice(evidence, "pre-1")["deep_review"]
-
-    assert review["validation_status"] == "passed"
-    assert {check["check_type"] for check in review["validation_checks"]} >= {
-        "report_contract",
-        "requirement_inventory",
-        "segment_coverage",
+    assert sorted(evidence["awaiting_click_notice_keys"]) == ["pre-1", "pre-5"]
+    reasons = {
+        notice["notice_key"]: notice["auto_preparation_reason"]
+        for notice in evidence["notices"]
     }
-    assert "document_bundle_limitations" in review["report_sections"]
-    assert review["document_bundle_limitation_codes"] == ["unsupported_attachment_excluded"]
-
-
-def test_the_final_opinion_closes_the_flow(evidence: dict) -> None:
-    opinion = _notice(evidence, "pre-1")["deep_review"]["final_opinion"]
-
-    assert opinion["sequence"] == 1
-    assert opinion["validation_status_at_opinion"] == "passed"
-    assert opinion["acknowledged_validation_failure"] is False
+    assert reasons == {"pre-1": "overview_not_completed", "pre-5": "not_sw_business"}
+    for notice in evidence["notices"]:
+        assert notice["effective_grade"] == "우선 검토"
+        assert notice["auto_preparation_status"] == "deep_review_ready_for_click"
 
 
 def test_the_evidence_carries_no_source_text_prompt_or_storage_location(

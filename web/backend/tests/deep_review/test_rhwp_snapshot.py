@@ -9,7 +9,6 @@ import pytest
 from sqlalchemy import select, func
 from sqlalchemy.orm import Session
 
-from app.core.models import AuditEvent
 from app.core.object_store import FilesystemObjectStore
 from app.deep_review import document_protocol
 from app.deep_review.document_mcp import process_document
@@ -22,8 +21,7 @@ from app.deep_review.document_mcp.safety import ProcessorOptions
 from app.deep_review.models import ContentObject, ContentObjectLocation, ContentScan, DocumentStructure, PrespecV4PdfSnapshot
 from app.deep_review.services import document_converter
 from app.deep_review.services.document_converter import ScratchDocumentProcessor
-from app.deep_review.services.prespec_v4 import V4PreparationError, prepare_v4_pdf_snapshot
-from app.deep_review.services.prespec_v4_runner import record_v4_preparation_failure
+from app.deep_review.services.pdf_snapshot import V4PreparationError, prepare_v4_pdf_snapshot
 from tests.deep_review.test_document_mcp import hwpx_bytes, text_pdf
 from tests.deep_review.test_prespec_v4_preparation import _engine, _source
 
@@ -316,7 +314,9 @@ def test_native_structure_conflict_preserves_existing_rows(tmp_path):
 
 
 @pytest.mark.parametrize("code", ["hwpx_verify_failed", "timeout", "rhwp_manifest_invalid", "para_page_map_invalid", "secret-bearing arbitrary error"])
-def test_converter_failure_keeps_safe_code_in_attempt_and_audit(tmp_path, code):
+def test_converter_failure_keeps_only_a_safe_code(tmp_path, code):
+    """변환 실패는 안전 코드만 밖으로 낸다. 원 stderr는 어디에도 남지 않는다."""
+
     store = FilesystemObjectStore(tmp_path)
     with Session(_engine()) as session:
         processed = native_processed()
@@ -332,12 +332,7 @@ def test_converter_failure_keeps_safe_code_in_attempt_and_audit(tmp_path, code):
         safe = code in document_converter.SAFE_CONVERTER_CODES
         expected = "pdf_preparation_failed" + (f":{code}" if safe else "")
         assert error.value.code == expected
-        attempt = record_v4_preparation_failure(session, notice_id=document.notice_id, error_code=error.value.code)
-        session.flush()
-        audit = session.scalar(select(AuditEvent).where(AuditEvent.aggregate_id == str(attempt.id)))
-        assert attempt.error_code == expected
-        assert audit.safe_metadata.get("converter_code") == (code if safe else None)
-        assert "secret-bearing" not in json.dumps(audit.safe_metadata)
+        assert "secret-bearing" not in json.dumps(str(error.value))
 
 
 @pytest.mark.parametrize("field", ["renderer", "font", "text", "metadata", "map"])

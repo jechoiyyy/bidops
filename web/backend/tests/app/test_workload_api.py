@@ -15,7 +15,7 @@ from app.main import create_app
 from app.screening import ScreeningWorkloadProjection
 from app.deep_review.services.prespec_projection import DeepReviewWorkloadProjection
 from app.screening.models import Judgment, OrderPlanScreeningExecution, OrderPlanScreeningPolicy, VerificationItem
-from app.deep_review.models import DocumentBundle, PreSpecOverviewReview
+from app.deep_review.models import DocumentBundle
 from tests.postgres import migrated_engine, requires_postgres
 from tests.screening.test_order_plan_list_v2 import owner, result
 from tests.deep_review.decision_queue_fixtures import comparison, decide, opportunity
@@ -119,8 +119,7 @@ def link_notice(session, owned, notice, *, status="확정", kind="official"):
 
 def add_prespec(session, sw, *, tracking=None):
     row = add_notice(session, "pre_spec", sw=sw)
-    session.add_all([DocumentBundle(notice_id=row.id, revision=1, version=1, status="ready", issues_snapshot=[]),
-        PreSpecOverviewReview(notice_id=row.id, status="failed")])
+    session.add(DocumentBundle(notice_id=row.id, revision=1, version=1, status="ready", issues_snapshot=[]))
     if tracking:
         link_notice(session, opportunity(session, tracking=tracking), row)
     session.flush()
