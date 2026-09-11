@@ -52,7 +52,8 @@ def api(monkeypatch):
     engine = create_engine("sqlite://", poolclass=StaticPool, connect_args={"check_same_thread": False})
     Base.metadata.create_all(engine)
     store = _FakeStore()
-    monkeypatch.setattr(overviews, "object_store", lambda **_kwargs: store)
+    # PDF 읽기는 서비스가 한다. 라우터는 ORM도 저장소도 직접 만지지 않는다.
+    monkeypatch.setattr(overview_runs, "object_store", lambda **_kwargs: store)
     session = Session(engine)
     notice, document, snapshot = seed(session, store)
     _clean_scan(session, snapshot.source_content_object_id)
