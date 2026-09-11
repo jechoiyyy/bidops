@@ -50,7 +50,7 @@ from ..models import (
     PrespecV4PdfSnapshot,
     WorkJob,
 )
-from .effective_grade import PRIORITY_GRADE, effective_grades
+from .effective_grade import effective_grades, overview_eligible
 from .model_retry import VALIDATION_RETRY_SEED, build_correction
 from .model_response_storage import store_raw_model_response
 from .overview_range import (
@@ -380,8 +380,10 @@ def enqueue_overview_run(
     """개요 run 하나를 대기열에 넣는다. 조건 미충족은 예외가 아니라 ``None``이다.
 
     조건은 네 가지다 — 플래그 on(사람이 범위를 확정한 경우는 플래그와 무관),
-    활성 run 없음, effective grade `우선 검토`, `ready` 묶음에 제안요청서 문서.
-    부분 유니크 인덱스가 최종 방어이고 여기서는 사전 조회로 조용히 물러난다.
+    활성 run 없음, `overview_eligible`이 연 자격, `ready` 묶음에 제안요청서 문서.
+    자격은 effective grade `우선 검토`이고, 플래그가 켜져 있으면 `SW사업대상=Y`
+    사전규격도 포함한다(MVP 완화). 부분 유니크 인덱스가 최종 방어이고 여기서는
+    사전 조회로 조용히 물러난다.
     """
 
     settings = settings or get_settings()
@@ -400,8 +402,10 @@ def enqueue_overview_run(
         return None
     if active_run(session, notice_id) is not None:
         return None
-    grade = effective_grades(session, [int(notice_id)]).get(int(notice_id))
-    if grade is None or grade.grade != PRIORITY_GRADE:
+    grades = effective_grades(session, [int(notice_id)])
+    if int(notice_id) not in overview_eligible(
+        session, [int(notice_id)], settings=settings, grades=grades
+    ):
         return None
     document = ready_bundle_document(session, notice_id)
     if document is None:

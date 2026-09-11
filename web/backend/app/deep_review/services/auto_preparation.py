@@ -48,7 +48,12 @@ from ..models import (
     DocumentVersion,
 )
 from ..schemas.document_bundles import ConfirmRequest
-from .effective_grade import EffectiveGrade, effective_grades
+from .effective_grade import (
+    EffectiveGrade,
+    effective_grades,
+    overview_eligible,
+    sw_business_object as _sw_business_object,
+)
 from .input_versions import InputVersionError, active_version_ids, resolve_active_versions
 from ...core.config import get_settings
 
@@ -254,17 +259,21 @@ def _trigger_metadata(run_id: str | None, review_id: int | None) -> dict[str, An
 def _prepare_one(
     session: Session,
     notice_id: int,
-    grade: EffectiveGrade,
+    grade: EffectiveGrade | None,
     *,
     service: Any,
     run_id: str | None,
     review_id: int | None,
     deep_review_service: Any = None,
 ) -> AutoPreparationOutcome:
-    """이미 `우선 검토`로 확인된 공고 하나를 실제로 준비한다.
+    """이미 자격이 확인된 공고 하나를 실제로 준비한다.
 
-    사전규격 여부와 등급은 호출부가 **batch로 한 번에** 걸러 두었다. 회차 하나가
+    사전규격 여부와 자격은 호출부가 **batch로 한 번에** 걸러 두었다. 회차 하나가
     사전규격 약 2,000건이므로 여기서 공고당 다시 묻지 않는다.
+
+    `grade`는 ``None``일 수 있다. MVP 완화(`overview_eligible`)로 판정도 정정도
+    없는 `SW사업대상=Y` 사전규격이 자격을 얻기 때문이며, 그때 촉발 식별자는
+    등급에서 오지 않고 호출부가 준 값만 남는다 — 없는 것을 채우지 않는다.
     """
 
     # 촉발 식별자 (명세 §6.2). 호출부가 알려 준 회차·리뷰가 있으면 그것이고,
@@ -272,8 +281,8 @@ def _prepare_one(
     # 식별자를 받지 않으므로 그 경우 리뷰의 회차·리뷰 id가 남는다. 둘 다 없으면
     # `None`으로 남기고 다른 값으로 채우지 않는다.
     trigger = _trigger_metadata(
-        run_id if run_id is not None else grade.run_id,
-        review_id if review_id is not None else grade.review_id,
+        run_id if run_id is not None else (grade.run_id if grade is not None else None),
+        review_id if review_id is not None else (grade.review_id if grade is not None else None),
     )
 
     attachment_ids = _active_attachment_ids(session, notice_id)
@@ -414,12 +423,6 @@ def _enqueue_overview(session: Session, notice_id: int) -> tuple[str, ...]:
         session.rollback()
         return (WARNING_OVERVIEW_ENQUEUE_FAILED,)
     return ()
-
-
-def _sw_business_object(flags: Any) -> bool:
-    """발주기관이 매긴 `SW사업대상` 값. `unknown`·값 없음을 `Y`로 접지 않는다."""
-
-    return isinstance(flags, Mapping) and flags.get("sw_business_status") == "Y"
 
 
 def auto_start_reason(
@@ -659,7 +662,7 @@ def maybe_auto_prepare(
     등급을 묻거나 공고당 savepoint를 열면 회차 적재 transaction 하나에 수천 번의
     왕복과 수천 개의 하위 transaction이 쌓인다 — PostgreSQL은 한 transaction의
     subtransaction이 대략 64개를 넘어서면 눈에 띄게 나빠진다. 그래서 실제로 할 일이
-    있는 공고(사전규격이고 effective grade가 `우선 검토`)가 하나도 없으면 작업
+    있는 공고(사전규격이고 `overview_eligible`이 연 자격)가 하나도 없으면 작업
     session 자체를 열지 않는다. 그 경우 비용은 상수 회 조회뿐이다.
 
     한 공고의 실패가 다른 공고를 막지 않는다. 어떤 실패도 호출자에게 예외로
@@ -680,6 +683,14 @@ def maybe_auto_prepare(
             ).all()
         ]
         grades = effective_grades(session, pre_spec_ids) if pre_spec_ids else {}
+        # 자격은 등급 하나가 아니다. 개요 플래그가 켜져 있으면 `SW사업대상=Y`
+        # 사전규격도 자격을 얻는다 (MVP 완화). 둘 다 아니면 사유는 그대로
+        # `grade_not_priority`다.
+        eligible = (
+            overview_eligible(session, pre_spec_ids, grades=grades)
+            if pre_spec_ids
+            else frozenset()
+        )
     except Exception:
         # 등급을 아예 풀지 못하면(선별 모듈 부재 등) 자동 준비는 이번에 아무것도
         # 하지 않는다. 예외는 호출자에게 오르지 않는다.
@@ -689,18 +700,17 @@ def maybe_auto_prepare(
         ]
 
     pre_spec = set(pre_spec_ids)
-    candidates: list[tuple[int, EffectiveGrade]] = []
+    candidates: list[tuple[int, EffectiveGrade | None]] = []
     for notice_id in ids:
         if notice_id not in pre_spec:
             outcomes[notice_id] = AutoPreparationOutcome(notice_id=notice_id)
             continue
-        grade = grades.get(notice_id)
-        if grade is None or not grade.is_priority:
+        if notice_id not in eligible:
             outcomes[notice_id] = AutoPreparationOutcome(
                 notice_id=notice_id, reason=REASON_GRADE_NOT_PRIORITY
             )
             continue
-        candidates.append((notice_id, grade))
+        candidates.append((notice_id, grades.get(notice_id)))
 
     if candidates:
         if service is None:
@@ -758,6 +768,7 @@ def _status_for(
     attachments_failed: bool = False,
     has_ready_document: bool = False,
     auto_start_reason_code: str | None = None,
+    is_eligible: bool | None = None,
 ) -> tuple[str, str | None]:
     """(`auto_preparation_status`, `auto_preparation_reason`)를 정한다.
 
@@ -769,6 +780,10 @@ def _status_for(
     `deep_review_ready_for_click`에서만 나온다 — 사람이 눌러야 하는 이유가
     바로 그 값이기 때문이다. 막은 것이 없으면 ``None``이고, 그 ``None``을
     자리표시자로 채우지 않는다.
+
+    `is_eligible`은 `overview_eligible`이 연 자격이다. 투영과 실제 준비가 같은
+    판정을 쓰도록 호출부가 그 helper의 결과를 그대로 넘긴다. ``None``이면 등급만
+    보는 기본 규칙(개요 플래그 off와 같은 판정)으로 되돌아간다.
 
     `attachments_failed`는 "취득 행이 하나 이상 있고 모두 종결됐으며 그중
     `차단`·`실패`가 있다"이고, `has_ready_document`는 safe·구조 준비 문서가
@@ -800,7 +815,12 @@ def _status_for(
         if overview_status in _OVERVIEW_SETTLED_STATUSES:
             return "deep_review_ready_for_click", auto_start_reason_code
         return "bundle_ready", None
-    if grade is None or not grade.is_priority:
+    eligible = (
+        is_eligible
+        if is_eligible is not None
+        else (grade is not None and grade.is_priority)
+    )
+    if not eligible:
         return "not_applicable", REASON_GRADE_NOT_PRIORITY
     if has_pending_fetch:
         return "waiting_attachments", REASON_AWAITING_FETCH
@@ -851,6 +871,9 @@ def auto_preparation_fields(
         kinds[int(notice_id)] = source_type
         sw_business[int(notice_id)] = _sw_business_object(flags)
     grades = effective_grades(session, ids)
+    # 목록이 말하는 상태와 실제 준비 결과가 갈리지 않도록 자격은 쓰기 경로와
+    # **같은 helper**가 판정한다 (MVP 완화 포함).
+    eligible_ids = overview_eligible(session, ids, grades=grades)
 
     # 같은 한 번의 순회로 두 가지를 센다: 아직 끝나지 않은 취득 행이 있는가와,
     # 취득 행이 전부 종결됐는데 그중 `차단`·`실패`가 있는가. 두 번째가 있으면
@@ -969,6 +992,7 @@ def auto_preparation_fields(
             attachments_failed=notice_id in failed_only_by_notice,
             has_ready_document=notice_id in ready_document_notices,
             auto_start_reason_code=auto_start_reason_code,
+            is_eligible=notice_id in eligible_ids,
         )
         fields[notice_id] = {
             # 판정도 정정도 없으면 `None`이다. 0이나 특정 등급으로 접지 않는다.

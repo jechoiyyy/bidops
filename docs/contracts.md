@@ -309,7 +309,10 @@ migration 0021/0023/0024)과 주장 결정적 검증 함수는 그대로 유지�
 
 - `BIDOPS_PRESPEC_OVERVIEW_ENABLED`(bool, 기본 `false`). `true`면 묶음이 ready가 될 때 개요
   run을 자동 enqueue한다. `false`면 enqueue하지 않고 queued run은 `cancelled`로 닫는다.
-  이미 `running`인 run은 끝까지 진행한다.
+  이미 `running`인 run은 끝까지 진행한다. `true`인 동안에는 자동 준비와 개요 enqueue의 등급
+  조건이 "effective grade `우선 검토` **또는** `SW사업대상=Y`"로 완화된다(2026-09-11 MVP 결정).
+  운영 DB에 C-1 판정이 0건이라 `우선 검토`가 없으면 개요를 한 번도 실행할 수 없기 때문이며,
+  플래그가 `false`면 완화 없이 기존 등급 규칙만 적용한다.
 - `BIDOPS_PRESPEC_OVERVIEW_POLICY_PATH`(기본 `app/deep_review/policies/prespec-overview-policy-v6.json`).
 
 ### 상태 의미
