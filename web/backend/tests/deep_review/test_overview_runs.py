@@ -33,7 +33,7 @@ from app.deep_review.models import (
 from app.deep_review.services import overview_runs
 from app.deep_review.services.effective_grade import EffectiveGrade
 from app.deep_review.services.mock_analysis_client import MockOverviewTransport
-from app.deep_review.services.prespec_overview_claim_policy import CLAIMS_STAGE, load_claims_policy
+from app.deep_review.services.prespec_overview_claim_policy import CLAIMS_STAGE, LIMITS, load_claims_policy
 from app.lifecycle.models import Notice
 
 
@@ -100,7 +100,8 @@ def _object(session, store, *, namespace: str, key: str, data: bytes, mime: str)
     return content, location
 
 
-def seed(session, store, *, bundle_ready: bool = True, filename: str = "합성-제안요청서.pdf"):
+def seed(session, store, *, bundle_ready: bool = True, filename: str = "합성-제안요청서.pdf",
+         pages: list[str] | None = None):
     """`우선 검토` 사전규격 한 건과 동결 스냅샷 하나를 세운다."""
 
     notice = Notice(notice_key=f"ov:{uuid4()}", source_type="pre_spec", title="합성 사전규격")
@@ -144,11 +145,15 @@ def seed(session, store, *, bundle_ready: bool = True, filename: str = "합성-�
         session.flush()
     # 공고마다 한 줄을 다르게 둔다. `content_object.sha256`이 유니크하므로 두
     # 공고가 글자까지 같은 쪽 텍스트를 가질 수는 없다.
-    text = f"{PAGE_TEXT}\n합성 공고 식별 문장 {notice.notice_key}."
+    texts = [PAGE_TEXT] if pages is None else list(pages)
+    texts[-1] = f"{texts[-1]}\n합성 공고 식별 문장 {notice.notice_key}."
     page_text = json.dumps(
         {
             "schema": "bidops.prespec-v4-page-text.v1",
-            "pages": [{"number": 1, "text": text, "text_sha256": _digest(text)}],
+            "pages": [
+                {"number": number, "text": text, "text_sha256": _digest(text)}
+                for number, text in enumerate(texts, 1)
+            ],
         },
         ensure_ascii=False, sort_keys=True, separators=(",", ":"),
     ).encode("utf-8")
@@ -162,7 +167,7 @@ def seed(session, store, *, bundle_ready: bool = True, filename: str = "합성-�
         pdf_content_object_id=source.id, pdf_location_id=source_location.id,
         page_text_content_object_id=text_content.id, page_text_location_id=text_location.id,
         source_kind="original", source_sha256=source.sha256, source_size_bytes=source.size_bytes,
-        pdf_sha256=source.sha256, pdf_size_bytes=source.size_bytes, pdf_page_count=1,
+        pdf_sha256=source.sha256, pdf_size_bytes=source.size_bytes, pdf_page_count=len(texts),
         page_text_sha256=text_content.sha256, page_text_size_bytes=text_content.size_bytes,
         pdf_metadata_jsonb={"schema": "bidops.pdf-snapshot.v1"}, renderer_jsonb={"source_pdf": True},
         renderer_digest="a" * 64, font_jsonb={"source_pdf": True}, font_digest="b" * 64,
@@ -317,6 +322,43 @@ def test_run_once_completes_with_warnings_only_checks(context):
     assert view["warnings"] == ["context_unverified", "quantity_unit_missing"]
     assert row.checks_json["checks"][2]["deterministic"]["status"] == "passed"
     assert session.get(WorkJob, row.work_job_id).status == "completed"
+
+
+def _range_of(session, store, pages: list[str]):
+    """자동 선택 한 번의 (선택, 사유 코드)만 본다. 모델은 부르지 않는다."""
+
+    notice, document, snapshot = seed(session, store, pages=pages)
+    run = overview_runs.enqueue_overview_run(session, notice.id, settings=get_settings())
+    run.snapshot_id = snapshot.id
+    session.commit()
+    return overview_runs._select_range(session, run, snapshot, document, store=store)
+
+
+def test_a_too_small_auto_range_is_not_frozen_and_falls_back_to_the_head(context):
+    """목차·표제 한 쪽만 고른 자동 선택은 쓰지 않는다 (0911 공고 805)."""
+
+    session, store = context
+
+    selection, codes = _range_of(session, store, [
+        "Ⅰ. 사업 개요\n1. 사업 목적\n본문 한 줄이다.\nⅡ. 제안요청 사항\n다음 장",
+        "Ⅲ. 그 밖의 사항\n본문",
+    ])
+
+    assert codes == ["range_too_small", "range_fallback_head"]
+    assert selection.page_numbers == (1, 2)
+
+
+def test_an_over_limit_auto_range_is_clipped_and_stays_auto(context):
+    """상한을 넘은 자동 선택은 버리지 않고 상한까지만 잘라 쓴다 (0911 공고 796)."""
+
+    session, store = context
+    body = ["Ⅰ. 사업 개요\n1. 사업 목적\n본문", *(["본문 계속"] * LIMITS["max_pages"]), "Ⅱ. 제안요청 사항\n다음 장"]
+
+    selection, codes = _range_of(session, store, body)
+
+    assert codes == ["range_clipped_to_limit"]
+    assert "range_fallback_head" not in codes
+    assert selection.page_numbers == tuple(range(1, LIMITS["max_pages"] + 1))
 
 
 def test_quote_not_found_sends_the_run_to_human_review(context):

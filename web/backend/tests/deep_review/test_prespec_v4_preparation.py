@@ -350,6 +350,36 @@ def test_proposal_writing_overview_requires_manual_range(purpose):
     assert payload["pages"][0]["text"] == text_value
 
 
+#: 실제 목차 쪽 (0911 공고 805, 2쪽). 표제는 장식 기호에 싸여 있고 항목은
+#: 탭 뒤 쪽 번호로 끝난다.
+TOC_PAGE = (
+    "- 목  차 -\n"
+    "\n"
+    "Ⅰ. 사업 개요\n"
+    "   1. 추진배경 및 목적\t4\n"
+    "   2. 사업 개요\t4\n"
+    "Ⅱ. 유지관리 대상\n"
+    "   1. 정보자원 현황 \t7\n"
+    "Ⅲ. 제안요청 내용\n"
+    "   1. 요구사항 총괄표 \t11\n"
+)
+
+
+def test_table_of_contents_page_never_establishes_the_range():
+    """목차 쪽의 장 제목은 본문 범위가 아니다 (0911 공고 805)."""
+
+    payload = {"pages": [
+        {"number": 1, "text": TOC_PAGE},
+        {"number": 2, "text": "Ⅰ. 사업 개요\n1. 추진배경 및 목적\n본문\nⅡ. 유지관리 대상\n다음"},
+    ], "blocks": []}
+
+    assert select_v4_input_range(payload).page_numbers == (2,)
+
+    # 표제 없이 쪽 번호 항목만 늘어선 쪽도 목차로 보고 제외한다.
+    payload["pages"][0]["text"] = TOC_PAGE.replace("- 목  차 -\n\n", "") + "   2. 요구사항 상세\t12\n"
+    assert select_v4_input_range(payload).page_numbers == (2,)
+
+
 def test_partial_section_list_requires_manual_range_even_with_clear_headings():
     payload = {"pages": [{"number": 1, "text": "Ⅰ 사업 개요\n1. 사업 목적\n전체 본문\nⅡ 추진 방안"}], "blocks": []}
     selected = select_v4_input_range(payload, candidates_complete=False)
