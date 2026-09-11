@@ -268,6 +268,7 @@ function pageOverviewView(noticeId: number, run: OverviewRun): PageOverviewView 
     evidence_check_errors: run.evidence_check_errors,
     quality_status: run.quality_status,
     model_name: run.model_name,
+    model_revision: run.model_revision,
     prompt_version: run.prompt_version,
     created_at: run.created_at,
   };
