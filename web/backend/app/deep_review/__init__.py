@@ -37,6 +37,7 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "deep_reviews_router": (".routers.deep_reviews", "router"),
     "document_bundles_router": (".routers.document_bundles", "router"),
     "pre_spec_overview_router": (".routers.deep_reviews", "pre_spec_overview_router"),
+    "prespec_overviews_router": (".routers.overviews", "router"),
     "reports_router": (".routers.reports", "router"),
     # === 확장점 구현 (§6.1·§6.2) ===========================================
     # `register_lifecycle_extensions`가 만드는 객체다. 조립 계층의 등록 검사
