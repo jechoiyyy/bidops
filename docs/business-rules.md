@@ -302,8 +302,25 @@ run이 이전 run의 결과를 덮어쓰지 않는다.
 `evidence_fragment_match`를 남긴다. 섹션 배정(business_overview·main_tasks·
 budget_and_period·important_conditions)의 쏠림은 2026-09-11부터 경고 `required_fact_missing`이며
 차단하지 않는다. 수치·단위·역할·VAT·기산점·날짜·라틴 표기·requirement_id 대조의 불일치도
-**경고**(`warnings`)로만 남긴다. 하나라도 미검증 인용이 있거나 주장이 한 개도 없으면
-(`claims_empty`) attempt 전체가 `needs_human_review`로 끝나며 결과는 없다. 검증 실패를 자동 보정하거나 통과한 문장만 골라 부분 완료로 게시하지 않는다.
+**경고**(`warnings`)로만 남긴다. 주장이 한 개도 없으면(`claims_empty`) attempt 전체가
+`needs_human_review`로 끝나며 결과는 없다. 검증 실패를 자동 보정하지 않는다.
+
+### 부분 완료 규칙 (2026-09-11)
+
+결정적 검사에 **실패한 주장은 결과에서 빼고 나머지로 계속 간다.** 통과한 주장이 1개 이상이고
+전체 주장의 절반(`ceil(n/2)`) 이상이면 의미 검토·구성을 거쳐 `completed`가 되고, 그 미만이면
+예전처럼 `needs_human_review`(`deterministic_check_failed`)로 끝난다. 12개 중 1~2개만 인용이
+어긋난 run을 통째로 사람 검토로 보내지 않기 위한 규칙이다. 빠진 주장은 `failed_claims`로 계속
+노출하고 run의 `warnings`에 `claims_dropped`가 남는다. 빠진 주장을 `supporting_claim_ids`로
+삼은 분석도 함께 빠지며 `analysis_dropped`가 남는다.
+
+의미 검토에서 **미확인 항목(unknown)이 `contradicted`·`insufficient`이면 그 unknown만** 결과에서
+빠지고 run의 `warnings`에 `unknown_contradicted`·`unknown_insufficient`가 남는다. 주장·분석의
+`contradicted`·`insufficient`는 그대로 attempt 전체를 `needs_human_review`
+(`semantic_review_failed`)로 보낸다.
+
+미검증 문장은 여전히 게시되지 않는다. 빠진 주장·분석·unknown은 `result_json`에 들어가지 않으며,
+결과에 남는 문장은 모두 인용 대조와 의미 검토를 통과한 것이다.
 
 ### fallback 범위 규칙
 

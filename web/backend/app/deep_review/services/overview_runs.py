@@ -85,6 +85,8 @@ from .prespec_overview_claim_validation import (
     build_input_limitations,
     compose_page_overview,
     draft_failure_checks,
+    drop_failed_claims,
+    merge_semantic_checks,
     parse_claims_draft,
     validate_claims_deterministically,
     verify_composed_page_overview,
@@ -341,7 +343,8 @@ def run_view(run: PrespecOverviewRun) -> dict[str, Any]:
         "reason_codes": _string_list(run.reason_codes),
         "warnings": _string_list(run.warnings_json),
         "result": _result_view(run.result_json) if run.status == "completed" else None,
-        "failed_claims": _failed_claims(run.checks_json) if run.status == "needs_human_review" else [],
+        # 완료한 run도 결정적 검사에서 빠진 주장을 계속 보여준다.
+        "failed_claims": _failed_claims(run.checks_json) if run.status in {"completed", "needs_human_review"} else [],
         "model_name": run.model_name,
         "model_revision": run.model_revision,
         "call_count": int(run.call_count),
@@ -1049,8 +1052,20 @@ def _execute(
     # 섹션 배정 쏠림은 경고다. 주장이 한 개도 없을 때만 별도 사유로 닫는다.
     if not checks.checks:
         raise _RunFailure("needs_human_review", "claims_empty")
-    if checks.reason_codes or any(row.deterministic.status != "passed" for row in checks.checks):
+    if checks.reason_codes:
         raise _RunFailure("needs_human_review", "deterministic_check_failed")
+    # 실패한 주장은 결과에서 빼고 나머지로 계속 간다. 통과가 절반 미만이면 그
+    # 초안을 개요로 볼 수 없으므로 예전처럼 사람 검토로 보낸다 (2026-09-11).
+    full_checks = checks
+    subset = drop_failed_claims(draft, checks)
+    if not subset.checks.checks or len(subset.checks.checks) * 2 < len(full_checks.checks):
+        raise _RunFailure("needs_human_review", "deterministic_check_failed")
+    draft, checks = subset.draft, subset.checks
+    run.warnings_json = sorted({
+        *_string_list(run.warnings_json),
+        *(["claims_dropped"] if subset.dropped_claim_ids else []),
+        *(["analysis_dropped"] if subset.dropped_analysis_ids else []),
+    })
 
     # --- semantic -------------------------------------------------------------
     try:
@@ -1067,8 +1082,14 @@ def _execute(
         raise _RunFailure("failed", "semantic_response_invalid") from error
     except (UnicodeError, ValueError) as error:
         raise _RunFailure("failed", "semantic_response_invalid") from error
-    run.checks_json = checks.model_dump(mode="json")
-    run.warnings_json = sorted({*_string_list(run.warnings_json), *checks.warnings})
+    stored = merge_semantic_checks(full_checks, checks) if subset.dropped_claim_ids else checks
+    run.checks_json = stored.model_dump(mode="json")
+    # 반박·근거부족으로 본 unknown은 그 항목만 빠지고 run은 계속 간다.
+    run.warnings_json = sorted({
+        *_string_list(run.warnings_json), *stored.warnings,
+        *(f"unknown_{row.status}" for row in checks.unknown_checks
+          if row.status in {"contradicted", "insufficient"}),
+    })
     if checks.overall != "passed":
         raise _RunFailure("needs_human_review", "semantic_review_failed")
 
