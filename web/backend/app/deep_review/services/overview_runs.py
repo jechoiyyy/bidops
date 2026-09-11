@@ -18,6 +18,8 @@ enqueue를 부르고, 합성 analysis worker의 개요 슬롯이 `run_once`를 �
 
 from __future__ import annotations
 
+import logging
+import re
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -138,6 +140,50 @@ class OverviewRunResult:
     status: str = "idle"
     reason_code: str | None = None
     expired_leases: int = 0
+
+
+logger = logging.getLogger(__name__)
+
+#: 로그로 나가도 되는 안정 코드 모양. 이 밖의 값(경로·DSN·본문이 섞인 문자열)은
+#: 코드가 아니라고 보고 버린다.
+_SAFE_CODE = re.compile(r"^[A-Za-z0-9_.:-]{1,64}$")
+
+
+def _safe_code(value: Any) -> str | None:
+    return value if isinstance(value, str) and _SAFE_CODE.match(value) else None
+
+
+def _failure_chain(error: BaseException, depth: int = 4) -> list[str]:
+    """예외 클래스명과 안정 코드만 최대 `depth`단까지. 본문은 담지 않는다."""
+
+    chain: list[str] = []
+    cause: BaseException | None = error
+    seen: set[int] = set()
+    while cause is not None and len(chain) < depth and id(cause) not in seen:
+        seen.add(id(cause))
+        code = _safe_code(getattr(cause, "code", None))
+        chain.append(f"{type(cause).__name__}:{code}" if code else type(cause).__name__)
+        cause = cause.__cause__ or cause.__context__
+    return chain
+
+
+def _log_run_failure(run_id: UUID, notice_id: int | None, error: BaseException, code: str) -> None:
+    """실패한 run 하나의 진단 표식. 본문·SQL·경로·원문은 남기지 않는다.
+
+    운영에서 MinIO 자격 누락·ClamAV 연결·scratch 볼륨 누락이 모두 한 단어로만
+    보였다. 예외 클래스와 `__cause__` 체인이 있어야 컨테이너 재현 없이 갈린다.
+    """
+
+    logger.warning(
+        "prespec overview run failed",
+        extra={"bidops": {
+            "event": "prespec_overview.run_failed",
+            "run_id": str(run_id),
+            "notice_id": int(notice_id) if notice_id is not None else None,
+            "reason_code": code,
+            "error_chain": _failure_chain(error),
+        }},
+    )
 
 
 def _now() -> datetime:
@@ -683,13 +729,22 @@ def prepare_run_snapshot(
     )
 
 
-def _fallback_pages(pages: Sequence[Mapping[str, Any]]) -> int:
-    """1쪽부터 상한을 넘지 않는 마지막 쪽. 상한 안에 한 쪽도 없으면 0이다."""
+#: 자동 선택이 이 아래면 개요를 만들 만한 입력이 아니다. 목차 한 쪽이나
+#: 표제만 남은 한 쪽을 그대로 동결해 주장 0개로 끝나는 실행을 막는다
+#: (2026-09-11 운영 첫 실행: 공고 805가 목차 쪽 한 장으로 선택됐다).
+MIN_AUTO_RANGE_PAGES = 2
+MIN_AUTO_RANGE_CHARS = 1500
+
+
+def _fallback_pages(pages: Sequence[Mapping[str, Any]], first: int = 1) -> int:
+    """`first` 쪽부터 상한을 넘지 않는 마지막 쪽. 한 쪽도 못 담으면 0이다."""
 
     total = 0
     last = 0
     for index, page in enumerate(pages, 1):
-        if index > LIMITS["max_pages"]:
+        if index < first:
+            continue
+        if index - first + 1 > LIMITS["max_pages"]:
             break
         text = str(page.get("text") or "")
         if total + len(text) > LIMITS["max_page_text_chars"]:
@@ -737,8 +792,24 @@ def _select_range(
         payload,
         candidates_complete=not bool(candidates and candidates.get("candidates_truncated")),
     )
+    reasons = [code for code in (selection.reason_code,) if code]
     if selection.status == "ready":
-        return selection, []
+        numbers = selection.page_numbers
+        chars = sum(len(str(item.get("text") or "")) for item in selection.manifest.get("pages", []))
+        if len(numbers) > LIMITS["max_pages"] or chars > LIMITS["max_page_text_chars"]:
+            # 상한을 넘은 자동 선택은 통째로 버리지 않는다. 시작 쪽은 맞았으니
+            # 상한 안에 드는 마지막 쪽까지만 잘라 쓰고 잘렸다고 남긴다.
+            clipped_last = _fallback_pages(pages, numbers[0])
+            if clipped_last >= numbers[0]:
+                return select_v4_page_span(
+                    payload, numbers[0], clipped_last,
+                    start_locator=_locator(numbers[0], "page"),
+                    end_locator=_locator(clipped_last, "page"),
+                ), ["range_clipped_to_limit"]
+        elif len(numbers) >= MIN_AUTO_RANGE_PAGES and chars >= MIN_AUTO_RANGE_CHARS:
+            return selection, []
+        else:
+            reasons = ["range_too_small"]
     last = _fallback_pages(pages)
     if last < 1:
         raise _RunFailure("failed", "manifest_invalid")
@@ -747,7 +818,6 @@ def _select_range(
         start_locator=_locator(1, "page"),
         end_locator=_locator(last, "page"),
     )
-    reasons = [code for code in (selection.reason_code,) if code]
     return fallback, [*reasons, "range_fallback_head"]
 
 
@@ -930,7 +1000,8 @@ def _execute(
     run.page_end = max(pages)
     run.input_sha256 = selection.input_sha256
     run.range_reason_codes = range_codes
-    if range_codes:
+    # 상한 clip은 자동 선택의 결과를 그대로 줄인 것이므로 `auto`로 남는다.
+    if "range_fallback_head" in range_codes:
         run.range_source = "fallback"
 
     # --- model client ---------------------------------------------------------
@@ -975,7 +1046,10 @@ def _execute(
         raise _RunFailure("failed", "runner_failed") from error
     run.checks_json = checks.model_dump(mode="json")
     run.warnings_json = sorted({*_string_list(run.warnings_json), *checks.warnings})
-    if checks.reason_codes or any(row.deterministic.status != "passed" for row in checks.checks) or not checks.checks:
+    # 섹션 배정 쏠림은 경고다. 주장이 한 개도 없을 때만 별도 사유로 닫는다.
+    if not checks.checks:
+        raise _RunFailure("needs_human_review", "claims_empty")
+    if checks.reason_codes or any(row.deterministic.status != "passed" for row in checks.checks):
         raise _RunFailure("needs_human_review", "deterministic_check_failed")
 
     # --- semantic -------------------------------------------------------------
@@ -1070,6 +1144,8 @@ def run_once(
         session.commit()
         return OverviewRunResult(False, attempt_id=run_id, status="idle", reason_code=error.code, expired_leases=expired)
     except _RunFailure as failure:
+        if failure.status == "failed":
+            _log_run_failure(run_id, run.notice_id, failure, failure.code)
         _finish(session, run, failure.status, [failure.code], clock)
         session.commit()
         return OverviewRunResult(True, attempt_id=run_id, status=failure.status, reason_code=failure.code, expired_leases=expired)
@@ -1077,8 +1153,10 @@ def run_once(
         session.rollback()
         run = session.get(PrespecOverviewRun, run_id)
         code = str(getattr(error, "code", "") or "runner_failed")
+        code = code if code.replace("_", "").isalnum() else "runner_failed"
+        _log_run_failure(run_id, run.notice_id if run is not None else None, error, code)
         if run is not None:
-            _finish(session, run, "failed", [code if code.replace("_", "").isalnum() else "runner_failed"], clock)
+            _finish(session, run, "failed", [code], clock)
             session.commit()
         return OverviewRunResult(True, attempt_id=run_id, status="failed", reason_code="runner_failed", expired_leases=expired)
     _finish(session, run, "completed", [], clock)
