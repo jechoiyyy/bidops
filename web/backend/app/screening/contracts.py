@@ -119,7 +119,8 @@ class ModelIdentity:
     `model_name`은 `BIDOPS_VLLM_SCREENING_MODEL`이 정하고 server의 served id에
     있어야 한다. `digest`는 Ollama blob digest가 아니라 **배포가 선언한 64자
     revision**이다(ADR-0042). 응답이 revision을 실어 보내면 대조하고 없으면
-    통과하며, 선언이 비면 그 용도는 fail closed한다.
+    통과한다. MVP 기간에는 선언이 비어 있어도 통과시킨다 — 대조할 값이 없다는
+    뜻일 뿐이다(ADR-0050 완화, 2026-09-11).
     """
 
     model_name: str

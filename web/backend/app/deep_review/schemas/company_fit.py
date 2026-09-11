@@ -60,7 +60,7 @@ class CompanyFitView(RuntimeContractModel):
     result: CompanyFitPayload | None
     error_code: str | None
     is_current: bool
-    overview_kind: Literal["page", "extractive"]
+    overview_kind: Literal["overview_run"]
     overview_id: UUID
     document_version_id: UUID
     overview_sha256: str

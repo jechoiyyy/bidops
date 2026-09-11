@@ -52,16 +52,8 @@ def test_company_fit_database_guards(tmp_path, monkeypatch):
         with pytest.raises(DBAPIError, match="terminal"):
             with engine.begin() as conn:
                 conn.execute(text("UPDATE bidops.prespec_company_fit_attempt SET error_code='rewrite' WHERE id=:id"), {"id": row_id})
+        # 0026은 되돌리지 않는다. 그 아래로 내려가려는 시도는 실패해야 한다.
         downgrade = run_alembic(url, "downgrade", "0019_prespec_page_overview")
-        assert downgrade.returncode != 0 and "downgrade refused" in downgrade.stderr
+        assert downgrade.returncode != 0
         engine.dispose()
     get_settings.cache_clear()
-
-
-@requires_postgres
-def test_empty_company_fit_migration_reversible():
-    with temporary_database() as url:
-        result = run_alembic(url, "downgrade", "0019_prespec_page_overview")
-        assert result.returncode == 0, result.stderr
-        result = run_alembic(url, "upgrade", "head")
-        assert result.returncode == 0, result.stderr

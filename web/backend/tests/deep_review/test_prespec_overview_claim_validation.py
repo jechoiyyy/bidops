@@ -8,7 +8,7 @@ import pytest
 from pydantic import ValidationError
 
 from app.core.model_client import ModelInvocationError, PromptTooLargeError, structured_request_capacity
-from app.deep_review.schemas.page_overview import PageOverviewPayloadV4, parse_page_overview_payload
+from app.deep_review.schemas.prespec_overview_claims import PageOverviewPayloadV4, parse_page_overview_payload
 from app.deep_review.schemas.prespec_overview_claims import ClaimEvidence, OverviewClaimChecks, OverviewClaimsDraft
 from app.deep_review.services.prespec_overview_claim_policy import (
     CLAIMS_STAGE, SEMANTIC_STAGE, LIMITS, build_claims_prompt, build_claims_stage_input,
@@ -487,12 +487,12 @@ def test_semantic_preflight_rejects_another_frozen_document_or_missing_checks():
         build_claims_stage_input({3: BASE_PAGE}, draft=draft, checks=checks.model_copy(update={"checks": []}))
 
 
-def test_read_parser_keeps_v3_contract_separate():
+def test_read_parser_rejects_every_retired_or_unknown_schema():
+    """폐기된 v3와 알 수 없는 판은 읽지 않는다. 검증된 v4 하나만 남는다."""
+
     v3 = {"schema_version": "bidops.prespec-overview-page-review.v3", "business_overview": [{"text": "기존 개요", "evidence_pages": [1]}],
           "main_tasks": [{"text": "기존 과업", "evidence_pages": [1]}], "budget_and_period": [], "important_conditions": [],
           "reviewer_analysis": ["기존 의견"], "unknowns": [], "input_limitations": ["기존 범위"]}
-    result = parse_page_overview_payload(v3)
-    assert not isinstance(result, PageOverviewPayloadV4)
-    assert result.model_dump() == v3
-    with pytest.raises(ValueError, match="overview_schema_unsupported"):
-        parse_page_overview_payload({**v3, "schema_version": "bidops.prespec-overview-page-review.v5"})
+    for payload in (v3, {**v3, "schema_version": "bidops.prespec-overview-page-review.v5"}):
+        with pytest.raises(ValueError, match="overview_schema_unsupported"):
+            parse_page_overview_payload(payload)

@@ -207,3 +207,54 @@ class OverviewClaimChecks(StrictClaimModel):
         if (self.overall == "passed") != passed:
             raise ValueError("verification_overall_invalid")
         return self
+
+
+#: 검증을 통과한 개요 결과 payload. 결정적 검증기가 만들고 읽는 유일한 결과
+#: 계약이며, REST 응답 모양은 P2가 따로 정한다.
+Text = Annotated[str, Field(min_length=1)]
+
+
+class VerifiedPageFact(StrictClaimModel):
+    claim_id: Identifier
+    text: BoundedText
+    evidence: Annotated[list[VerifiedEvidence], Field(min_length=1)]
+
+
+class PageOverviewPayloadV4(StrictClaimModel):
+    schema_version: Literal["bidops.prespec-overview-page-review.v4"]
+    business_overview: Annotated[list[VerifiedPageFact], Field(min_length=1)]
+    main_tasks: Annotated[list[VerifiedPageFact], Field(min_length=1)]
+    budget_and_period: list[VerifiedPageFact]
+    important_conditions: list[VerifiedPageFact]
+    reviewer_analysis: list[OverviewAnalysis]
+    unknowns: list[Text]
+    input_limitations: Annotated[list[Text], Field(min_length=1)]
+    verification_id: UUID
+    verification_sha256: Digest
+
+    @model_validator(mode="after")
+    def require_unique_claims(self):
+        facts = self.business_overview + self.main_tasks + self.budget_and_period + self.important_conditions
+        ids = [fact.claim_id for fact in facts]
+        analysis_ids = [row.id for row in self.reviewer_analysis]
+        if len(set(ids + analysis_ids)) != len(ids + analysis_ids):
+            raise ValueError("duplicate_id")
+        if any(not a.supporting_claim_ids or set(a.supporting_claim_ids) - set(ids) for a in self.reviewer_analysis):
+            raise ValueError("analysis_reference_missing")
+        return self
+
+
+def parse_page_overview_payload(value: object) -> PageOverviewPayloadV4:
+    """검증된 v4 결과 하나만 읽는다. 폐기된 v3는 더 이상 받지 않는다."""
+
+    import json
+
+    if isinstance(value, PageOverviewPayloadV4):
+        value = value.model_dump(mode="json")
+    if not isinstance(value, dict):
+        raise ValueError("overview_schema_invalid")
+    if value.get("schema_version") != "bidops.prespec-overview-page-review.v4":
+        raise ValueError("overview_schema_unsupported")
+    # JSON validation permits the UUID wire encoding while retaining strict
+    # integers, strings and unknown-field rejection in nested evidence.
+    return PageOverviewPayloadV4.model_validate_json(json.dumps(value, ensure_ascii=False))

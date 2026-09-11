@@ -36,7 +36,6 @@ from .document_structures import materialize_structure
 from ...lifecycle import lock_attachment, tracked_order_plan_connections
 from .auto_preparation import TERMINAL_FETCH_STATUSES, maybe_auto_prepare
 from .effective_grade import priority_notice_ids
-from .prespec_overview import prepare_overview_review
 
 
 SOURCE_SYSTEM = "g2b"
@@ -754,13 +753,6 @@ def _complete_safe(
             root=root,
         ),
     )
-    # The T-23 review snapshot is part of the same fenced transaction as the
-    # clean T-20 promotion.  A preparation error therefore rolls back the
-    # source/structure rows and lets the caller transition only the fetch
-    # claim to its safe failure state.  If conversion produced no structure,
-    # this still records ``awaiting_structure`` for a clean document.
-    if inspected.safety_status == "safe":
-        prepare_overview_review(session, snapshot.notice_id, root=root)
     row.status = "완료"
     row.last_error_code = None
     row.document_version_id = document.id

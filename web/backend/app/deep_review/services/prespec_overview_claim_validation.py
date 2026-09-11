@@ -15,11 +15,11 @@ from uuid import UUID
 
 from pydantic import ValidationError
 
-from ..schemas.page_overview import PageOverviewPayloadV4
 from ..schemas.prespec_overview_claims import (
     CHECKS_SCHEMA, FACT_SECTIONS, VALIDATOR_VERSION, AnalysisCheck, ClaimCheck,
     ClaimEvidence, DeterministicCheck, OverviewClaimChecks, OverviewClaimsDraft,
-    OverviewSemanticResponse, Quantity, SemanticCheck, UnknownCheck, VerifiedEvidence,
+    OverviewSemanticResponse, PageOverviewPayloadV4, Quantity, SemanticCheck,
+    UnknownCheck, VerifiedEvidence,
 )
 from .prespec_overview_claim_policy import FORMAT_RETRY_CODES, LIMITS, canonical_json, canonical_sha256
 

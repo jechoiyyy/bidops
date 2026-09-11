@@ -36,7 +36,6 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ...core.api_errors import BundleServiceError
-from ...core.constants import prespec_overview_status_from_v4
 from ...core.models import AuditEvent
 from ...lifecycle.models import Attachment, Notice
 from ..models import (
@@ -47,8 +46,6 @@ from ..models import (
     DocumentBundleItem,
     DocumentStructure,
     DocumentVersion,
-    PreSpecOverviewReview,
-    PreSpecOverviewSnapshot,
 )
 from ..schemas.document_bundles import ConfirmRequest
 from .effective_grade import EffectiveGrade, effective_grades
@@ -71,11 +68,9 @@ TERMINAL_FETCH_STATUSES = frozenset({"완료", "차단", "실패"})
 #: 종결됐지만 문서를 남기지 못한 취득 상태. 재시도가 남아 있지 않다.
 _FAILED_FETCH_STATUSES = frozenset({"차단", "실패"})
 
-#: 개요 검토가 아직 돌고 있다고 보는 상태.
-_OVERVIEW_RUNNING_STATUSES = frozenset(
-    {"awaiting_structure", "preparing", "awaiting_model", "queued", "running"}
-)
-#: 개요 검토가 끝났다고 보는 상태. 자동 시작 여부와 무관하게 사람이 누를 수 있다.
+#: 개요 run이 아직 돌고 있다고 보는 상태.
+_OVERVIEW_RUNNING_STATUSES = frozenset({"queued", "running"})
+#: 개요 run이 끝났다고 보는 상태. 자동 시작 여부와 무관하게 사람이 누를 수 있다.
 _OVERVIEW_SETTLED_STATUSES = frozenset(
     {"completed", "needs_human_review", "failed", "cancelled"}
 )
@@ -98,15 +93,10 @@ REASON_HUMAN_DRAFT = "human_bundle_draft"
 #: `quality_status`가 이 action에서도 계산돼야 하기 때문이다.
 AUTO_DEEP_REVIEW_ACTION = "deep_review.auto_create"
 
-#: 개요 권고가 이 값이면 자동 시작하지 않고 사람 클릭으로 남긴다 (명세 §6.4).
-OVERVIEW_CLOSED_RECOMMENDATION = "검토 종료"
-
 #: 자동 시작 사유 코드. 안전한 코드만 남기고 예외 본문·경로·비밀값은 넣지 않는다.
 REASON_NOT_SW_BUSINESS = "not_sw_business"
 REASON_BUNDLE_NOT_AUTO_READY = "bundle_not_auto_ready"
 REASON_OVERVIEW_NOT_COMPLETED = "overview_not_completed"
-REASON_OVERVIEW_CLOSED = "overview_recommendation_closed"
-REASON_OVERVIEW_BUNDLE_MISMATCH = "overview_bundle_mismatch"
 REASON_DEEP_REVIEW_EXISTS = "deep_review_exists"
 #: active profile/policy 설정이 없거나 §6.5 조건이 맞지 않는다. 생성 경로가
 #: 내는 code와 같은 값이라 화면이 두 경로를 같은 이름으로 설명한다.
@@ -408,8 +398,6 @@ def auto_start_reason(
     is_sw_business: bool,
     ready_bundle_auto_confirmed: bool,
     overview_status: str | None,
-    overview_result: str | None,
-    overview_document_in_bundle: bool,
     active_versions_available: bool,
     company_fit_reason: str | None = None,
 ) -> str | None:
@@ -428,14 +416,9 @@ def auto_start_reason(
         # 심층 검토도 누른다.
         return REASON_BUNDLE_NOT_AUTO_READY
     if overview_status != "completed":
-        # `needs_human_review`·`failed`·`awaiting_model`은 자동 시작하지 않는다.
+        # 대기·실행·사람 검토·실패·취소, 그리고 run이 아예 없는 경우까지
+        # 모두 자동 시작하지 않는다.
         return REASON_OVERVIEW_NOT_COMPLETED
-    if overview_result == OVERVIEW_CLOSED_RECOMMENDATION:
-        return REASON_OVERVIEW_CLOSED
-    if not overview_document_in_bundle:
-        # 개요 snapshot은 문서 하나에 묶이므로, 그 문서가 묶음에 들어 있는지가
-        # "같은 묶음" 판정이다.
-        return REASON_OVERVIEW_BUNDLE_MISMATCH
     if not active_versions_available:
         # active profile/policy 설정이 없거나 §6.5 조건이 맞지 않는다.
         return REASON_SERVICE_UNAVAILABLE
@@ -444,20 +427,12 @@ def auto_start_reason(
     return None
 
 
-def _overview_status_from_v4(projection: Mapping[str, Any] | None) -> str | None:
-    """Map the v4 current state onto the shared overview status contract."""
-
-    if projection is None:
-        return None
-    return prespec_overview_status_from_v4(projection.get("status"))
-
-
 def _auto_start_scope(
     session: Session,
     notice_id: int,
     *,
     require_company_fit: bool = True,
-    current_v4: Mapping[int, Mapping[str, Any] | None] | None = None,
+    runs: Mapping[int, Any] | None = None,
 ) -> tuple[UUID | None, str | None]:
     """§6.4의 조건을 검사해 (묶음 id, 사유 코드)를 돌려준다.
 
@@ -489,98 +464,17 @@ def _auto_start_scope(
     ready_bundle_auto_confirmed = (
         bundle is not None and bundle.confirmed_by_name == AUTO_ACTOR_NAME
     )
-    from .company_fit import (
-        current_v4_projections,
-        gate_reasons,
-        overview_inputs,
-        v4_followup_reason,
-    )
+    from .company_fit import gate_reasons
+    from .overview_runs import current_runs, overview_status_for
 
-    # A non-null v4 projection is authoritative, including failed/stale states.
-    # Only a null projection permits the pre-v4 page/legacy compatibility path.
-    v4_projection = (
-        current_v4.get(notice_id)
-        if current_v4 is not None
-        else (
-            current_v4_projections(session, [notice_id]).get(notice_id)
-            if ready_bundle_auto_confirmed
-            else None
-        )
+    run_map = (
+        dict(runs)
+        if runs is not None
+        else (current_runs(session, [notice_id]) if ready_bundle_auto_confirmed else {notice_id: None})
     )
-    projection_map = {notice_id: v4_projection}
-    v4_reason = v4_followup_reason(session, v4_projection)
-    if v4_reason is not None:
-        return (bundle.id if bundle is not None else None), v4_reason
-    if v4_projection is not None:
-        review = None
-        overview_status = _overview_status_from_v4(v4_projection)
-        overview_result = None
-        document_in_bundle = False
-        source = (
-            overview_inputs(
-                session, [notice_id], current_v4=projection_map
-            ).get(notice_id)
-            if overview_status == "completed"
-            else None
-        )
-        if source is not None:
-            document_in_bundle = session.scalar(select(DocumentBundleItem.document_version_id).where(
-                DocumentBundleItem.bundle_id == bundle.id,
-                DocumentBundleItem.document_version_id == source.document_id,
-            ).limit(1)) is not None
-    else:
-        review = (
-            session.scalar(
-                select(PreSpecOverviewReview).where(
-                    PreSpecOverviewReview.notice_id == notice_id
-                )
-            )
-            if ready_bundle_auto_confirmed
-            else None
-        )
-        overview_status = review.status if review is not None else None
-        overview_result = review.result if review is not None else None
-        document_in_bundle = False
-        if bundle is not None and overview_status == "completed" and review is not None:
-            document_version_id = (
-                session.scalar(
-                    select(PreSpecOverviewSnapshot.document_version_id).where(
-                        PreSpecOverviewSnapshot.id == review.current_snapshot_id
-                    )
-                )
-                if review.current_snapshot_id is not None
-                else None
-            )
-            document_in_bundle = document_version_id is not None and (
-                session.scalar(
-                    select(DocumentBundleItem.document_version_id)
-                    .where(
-                        DocumentBundleItem.bundle_id == bundle.id,
-                        DocumentBundleItem.document_version_id == document_version_id,
-                    )
-                    .limit(1)
-                )
-                is not None
-            )
-        source = (
-            overview_inputs(
-                session, [notice_id], current_v4=projection_map
-            ).get(notice_id)
-            if ready_bundle_auto_confirmed
-            else None
-        )
-        if source is not None:
-            overview_status, overview_result = "completed", None
-            document_in_bundle = session.scalar(select(DocumentBundleItem.document_version_id).where(
-                DocumentBundleItem.bundle_id == bundle.id,
-                DocumentBundleItem.document_version_id == source.document_id,
-            ).limit(1)) is not None
+    overview_status = overview_status_for(run_map.get(notice_id))
     fit_reason = (
-        gate_reasons(
-            session,
-            [notice_id],
-            current_v4=projection_map,
-        )[notice_id]
+        gate_reasons(session, [notice_id], runs=run_map)[notice_id]
         if require_company_fit
         else None
     )
@@ -588,8 +482,6 @@ def _auto_start_scope(
         is_sw_business=is_sw_business,
         ready_bundle_auto_confirmed=ready_bundle_auto_confirmed,
         overview_status=overview_status,
-        overview_result=overview_result,
-        overview_document_in_bundle=document_in_bundle,
         # active 설정은 이 함수의 판단 대상이 아니다.
         active_versions_available=True,
         company_fit_reason=fit_reason,
@@ -874,6 +766,8 @@ def _status_for(
     if ready is not None:
         if overview_status in _OVERVIEW_RUNNING_STATUSES:
             return "overview_running", None
+        # 개요 run이 아예 없으면(`None`) `bundle_ready`다. 없는 것을 종결로
+        # 승격시키면 개요를 한 번도 돌리지 않은 묶음까지 결정 대기로 세게 된다.
         if overview_status in _OVERVIEW_SETTLED_STATUSES:
             return "deep_review_ready_for_click", auto_start_reason_code
         return "bundle_ready", None
@@ -989,18 +883,6 @@ def auto_preparation_fields(
             (int(revision), str(status), issues, created_by, confirmed_by, bundle_id)
         )
 
-    overview_by_notice: dict[int, tuple[str, str | None, UUID | None]] = {
-        int(notice_id): (status, result, snapshot_id)
-        for notice_id, status, result, snapshot_id in session.execute(
-            select(
-                PreSpecOverviewReview.notice_id,
-                PreSpecOverviewReview.status,
-                PreSpecOverviewReview.result,
-                PreSpecOverviewReview.current_snapshot_id,
-            ).where(PreSpecOverviewReview.notice_id.in_(ids))
-        ).all()
-    }
-
     deep_review_by_notice: dict[int, UUID] = {}
     for notice_id, deep_review_id in session.execute(
         select(DeepReview.notice_id, DeepReview.id)
@@ -1011,38 +893,10 @@ def auto_preparation_fields(
 
     # §6.4의 자동 시작을 막은 사유를 **읽는 시점에 다시 계산한다**. 새 열을
     # 만들지 않고, 규칙은 쓰기 경로와 같은 `auto_start_reason`이 판단한다.
-    # 아래 두 조회는 공고 수와 무관하게 각각 한 번이다 (명세 §8의 N+1 금지).
     ready_bundle_by_notice = {
         notice_id: next((row for row in rows if row[1] == "ready"), None)
         for notice_id, rows in bundles_by_notice.items()
     }
-    ready_bundle_ids = [row[5] for row in ready_bundle_by_notice.values() if row is not None]
-    bundle_documents: dict[UUID, set[UUID]] = {}
-    if ready_bundle_ids:
-        for bundle_id, document_version_id in session.execute(
-            select(DocumentBundleItem.bundle_id, DocumentBundleItem.document_version_id).where(
-                DocumentBundleItem.bundle_id.in_(ready_bundle_ids)
-            )
-        ).all():
-            bundle_documents.setdefault(bundle_id, set()).add(document_version_id)
-
-    # 자동 확정 묶음이 하나도 없으면 사유를 물을 일이 없다 — 그때는 두 조회를
-    # 모두 건너뛴다.
-    snapshot_ids = (
-        [row[2] for row in overview_by_notice.values() if row[2] is not None]
-        if ready_bundle_ids
-        else []
-    )
-    snapshot_documents: dict[UUID, UUID] = {}
-    if snapshot_ids:
-        snapshot_documents = {
-            snapshot_id: document_version_id
-            for snapshot_id, document_version_id in session.execute(
-                select(
-                    PreSpecOverviewSnapshot.id, PreSpecOverviewSnapshot.document_version_id
-                ).where(PreSpecOverviewSnapshot.id.in_(snapshot_ids))
-            ).all()
-        }
 
     # active profile/policy는 배포 단위 설정이므로 공고 수와 무관하게 최대 한
     # 번만 본다. 볼 일이 없으면 아예 보지 않는다.
@@ -1055,64 +909,24 @@ def auto_preparation_fields(
         return active_versions
 
     fields: dict[int, Mapping[str, Any]] = {}
-    from .company_fit import current_v4_projections, gate_reasons, overview_inputs
-    # Current-state projection covers the complete page, including notices that
-    # have no grade yet. Only company-fit input/gate work is restricted to the
-    # priority subset; this keeps failed/running v4 rows from being hidden by a
-    # legacy completed row in list state.
-    v4_current = current_v4_projections(session, ids)
-    fit_ids = tuple(
-        notice_id
-        for notice_id in ids
-        if (grade := grades.get(notice_id)) is not None and grade.is_priority
-    )
-    if fit_ids:
-        fit_sources = overview_inputs(
-            session,
-            fit_ids,
-            current_v4={notice_id: v4_current.get(notice_id) for notice_id in fit_ids},
-        )
-    else:
-        fit_sources = {}
-    # Keep reasons such as `grade_not_priority` visible for ready bundles while
-    # reusing the same batch current projection in the built-in gate.
-    fit_reasons = gate_reasons(
-        session,
-        ids,
-        current_v4={notice_id: v4_current.get(notice_id) for notice_id in ids},
-    )
+    from .company_fit import gate_reasons
+    from .overview_runs import current_runs, overview_status_for
+
+    # 공고 수와 무관하게 한 번 읽는 현재 개요 run batch. 목록 전체가 같은
+    # 투영을 쓰므로 gate가 다시 읽지 않게 그대로 넘긴다 (명세 §8의 N+1 금지).
+    runs = current_runs(session, ids)
+    fit_reasons = gate_reasons(session, ids, runs=runs)
     for notice_id in ids:
         grade = grades.get(notice_id)
         deep_review_id = deep_review_by_notice.get(notice_id)
-        overview = overview_by_notice.get(notice_id)
-        v4_projection = v4_current.get(notice_id)
         ready_bundle = ready_bundle_by_notice.get(notice_id)
-        snapshot_document = None
-        if v4_projection is None:
-            snapshot_document = (
-                snapshot_documents.get(overview[2])
-                if overview is not None and overview[2] is not None
-                else None
-            )
         auto_start_reason_code = None
-        fit_source = fit_sources.get(notice_id)
-        if fit_source is not None:
-            snapshot_document = fit_source.document_id
-        overview_status = (
-            _overview_status_from_v4(v4_projection)
-            if v4_projection is not None
-            else (overview[0] if overview is not None else None)
-        )
+        overview_status = overview_status_for(runs.get(notice_id))
         if kinds.get(notice_id) == "pre_spec" and deep_review_id is None and ready_bundle is not None:
             auto_start_reason_code = auto_start_reason(
                 is_sw_business=sw_business.get(notice_id, False),
                 ready_bundle_auto_confirmed=ready_bundle[4] == AUTO_ACTOR_NAME,
-                overview_status="completed" if fit_source is not None else overview_status,
-                overview_result=None if fit_source is not None or v4_projection is not None else (overview[1] if overview is not None else None),
-                overview_document_in_bundle=(
-                    snapshot_document is not None
-                    and snapshot_document in bundle_documents.get(ready_bundle[5], ())
-                ),
+                overview_status=overview_status,
                 active_versions_available=_active_versions_available(),
                 company_fit_reason=fit_reasons.get(notice_id),
             )
@@ -1141,14 +955,11 @@ def auto_preparation_fields(
 __all__ = [
     "AUTO_ACTOR_KIND",
     "AUTO_DEEP_REVIEW_ACTION",
-    "OVERVIEW_CLOSED_RECOMMENDATION",
     "REASON_AWAITING_FETCH",
     "REASON_BUNDLE_NOT_AUTO_READY",
     "REASON_DEEP_REVIEW_EXISTS",
     "REASON_SERVICE_UNAVAILABLE",
     "REASON_NOT_SW_BUSINESS",
-    "REASON_OVERVIEW_BUNDLE_MISMATCH",
-    "REASON_OVERVIEW_CLOSED",
     "REASON_OVERVIEW_NOT_COMPLETED",
     "REASON_PROCESSING_FAILED",
     "REASON_ATTACHMENTS_FAILED",

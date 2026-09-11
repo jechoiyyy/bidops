@@ -49,10 +49,6 @@ _EXPORTS: dict[str, tuple[str, str]] = {
         ".services.prespec_projection",
         "PreSpecOverviewDocumentProjection",
     ),
-    # === 밖에서 상태를 만든다 — 개요 검토 결과 (models.py) =================
-    # 개요 검토 행은 사전규격 화면의 계약이며 두 모듈 조합 테스트가 이 이름으로
-    # 상태를 만든다. 그 밖의 deep_review ORM은 모듈 밖으로 나가지 않는다.
-    "PreSpecOverviewReview": (".models", "PreSpecOverviewReview"),
     # === 조립이 쓴다 — in-process runtime (runtime.py) =====================
     # `app/runtime.py`가 `package.build_runtime(...)`로 가져간다. runtime 객체의
     # **형**은 조립이 쓰지 않으므로 공개하지 않는다.
@@ -64,17 +60,6 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     # 진입점은 만들지 않는다 — 그러면 모델 슬롯 1개 보장이 깨진다 (§6.3).
     "run_prespec_overview_once": (".workers.prespec_overview", "run_once"),
     "PreSpecCompanyFitRunner": (".services.company_fit_runner", "PreSpecCompanyFitRunner"),
-    # 조립 계층이 poll loop **밖에서** 한 번 만들어 들고 있는다. 매 poll 새로
-    # 만들면 binding 해석 캐시가 살아남지 못해 idle worker가 poll마다 policy를
-    # 다시 읽고 `/models`를 부른다 (§6.3).
-    "PreSpecOverviewRunner": (
-        ".services.prespec_overview_runner",
-        "PreSpecOverviewRunner",
-    ),
-    "PrespecV4OverviewRunner": (
-        ".services.prespec_v4_runner",
-        "PrespecV4OverviewRunner",
-    ),
 }
 
 
@@ -133,11 +118,9 @@ __all__ = sorted(set(_EXPORTS) | {"register_lifecycle_extensions"})
 
 
 if TYPE_CHECKING:  # pragma: no cover - 정적 분석용 이름 노출
-    from .models import PreSpecOverviewReview
     from .runtime import build_runtime
     from .workers.deep_review import run_once as run_deep_review_once
     from .workers.prespec_overview import run_once as run_prespec_overview_once
-    from .services.prespec_overview_runner import PreSpecOverviewRunner
-    from .services.prespec_v4_runner import PrespecV4OverviewRunner
+    from .services.company_fit_runner import PreSpecCompanyFitRunner
     from .services.deep_review_hooks import PreSpecAttachmentEligibilityHook
     from .services.prespec_projection import DeepReviewWorkloadProjection, PreSpecOverviewDocumentProjection
