@@ -8,7 +8,9 @@
 
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime
+from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
@@ -16,8 +18,11 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
+from app.core.config import get_settings
 from app.core.db import init_db
+from app.deep_review.cli import main as deep_review_cli_main
 from app.deep_review.models import (
+    AttachmentFetch,
     ContentObject,
     DeepReview,
     DocumentBundle,
@@ -584,3 +589,119 @@ def test_the_auto_create_audit_action_is_the_contract_value():
     """§8이 새로 더한 감사 action. 이름이 바뀌면 소비자 계약이 깨진다."""
 
     assert AUTO_DEEP_REVIEW_ACTION == "deep_review.auto_create"
+
+
+# --- MVP 완화: 플래그가 켜져 있으면 SW사업대상=Y도 자격이다 (2026-09-11) -------
+#
+# 운영 DB에 C-1 판정이 0건이라 effective grade `우선 검토`가 한 건도 없다. 그
+# 상태로는 자동 준비도 개요도 한 번을 돌 수 없으므로,
+# `BIDOPS_PRESPEC_OVERVIEW_ENABLED`가 켜져 있을 때만 자격을 `SW사업대상=Y`까지
+# 넓힌다. 플래그가 꺼져 있으면 완화는 없고 사유는 그대로 `grade_not_priority`다.
+
+
+@pytest.fixture()
+def overview_flag(monkeypatch: pytest.MonkeyPatch):
+    """개요 플래그를 이 검사 동안만 바꾸고 설정 cache를 반드시 되돌린다."""
+
+    def _set(enabled: bool) -> None:
+        monkeypatch.setenv("BIDOPS_PRESPEC_OVERVIEW_ENABLED", "true" if enabled else "false")
+        get_settings.cache_clear()
+
+    yield _set
+    get_settings.cache_clear()
+
+
+class _RecordingBundleService:
+    """`DocumentBundleService`의 계약만 흉내 내는 fake.
+
+    자동 준비가 **무엇을 만들려 했는지**만 기록한다. 확정 fence 자체는 사람
+    경로와 같은 함수가 지므로 여기서 다시 확인하지 않는다.
+    """
+
+    def __init__(self) -> None:
+        self.created: list[int] = []
+        self.confirmed: list = []
+
+    def create_bundle(self, session, notice_id, actor, *, actor_kind="human", trigger_metadata=None):
+        self.created.append(notice_id)
+        return SimpleNamespace(id=uuid4(), version=1, revision=1, documents=[])
+
+    def confirm(self, session, bundle_id, request, actor, *, actor_kind="human", trigger_metadata=None):
+        self.confirmed.append(bundle_id)
+        return SimpleNamespace(id=bundle_id, version=1, revision=1, documents=[])
+
+
+def _sw_business_prespec(session: Session):
+    """판정도 정정도 없는 `SW사업대상=Y` 사전규격 하나. 취득은 이미 끝났다."""
+
+    notice, attachment = _notice(session)
+    notice.qualification_flags_json = {"sw_business_status": "Y"}
+    document = _document(session, notice, attachment, b"sw business bytes")
+    _structure(session, document)
+    session.add(
+        AttachmentFetch(
+            attachment_id=attachment.id,
+            status="완료",
+            eligibility_reason="sw_business_object",
+            next_attempt_at=WHEN,
+            document_version_id=document.id,
+        )
+    )
+    session.commit()
+    return notice, document
+
+
+def test_the_flag_opens_preparation_for_sw_business_without_a_grade(
+    db_session: Session, overview_flag
+):
+    overview_flag(True)
+    notice, _document = _sw_business_prespec(db_session)
+    service = _RecordingBundleService()
+
+    outcome = maybe_auto_prepare(db_session, [notice.id], service=service)[0]
+
+    assert service.created == [notice.id]
+    assert (outcome.reason, outcome.confirmed) == (None, True)
+
+
+def test_without_the_flag_sw_business_alone_is_not_eligible(
+    db_session: Session, overview_flag
+):
+    overview_flag(False)
+    notice, _document = _sw_business_prespec(db_session)
+    service = _RecordingBundleService()
+
+    outcome = maybe_auto_prepare(db_session, [notice.id], service=service)[0]
+
+    assert service.created == []
+    assert outcome.reason == REASON_GRADE_NOT_PRIORITY
+
+
+def test_the_backfill_cli_dry_run_lists_targets_without_preparing(
+    db_session: Session,
+    overview_flag,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+):
+    """`prepare-overviews --dry-run`은 대상만 세고 아무것도 만들지 않는다."""
+
+    from app.core import db as core_db
+
+    overview_flag(True)
+    notice, _document = _sw_business_prespec(db_session)
+    engine = db_session.get_bind()
+    monkeypatch.setattr(core_db, "init_db", lambda *args, **kwargs: None)
+    monkeypatch.setattr(core_db, "SessionLocal", lambda: Session(engine))
+
+    assert deep_review_cli_main(["prepare-overviews", "--all-eligible", "--dry-run"]) == 0
+
+    summary = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
+    assert summary == {
+        "dry_run": True,
+        "eligible": 1,
+        "enqueued": 0,
+        "prepared": 0,
+        "skipped_by_reason": {},
+        "targets": [notice.id],
+    }
+    assert db_session.scalar(select(DocumentBundle)) is None
