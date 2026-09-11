@@ -52,6 +52,7 @@ from ..schemas.document_bundles import (
 from ...lifecycle import lock_active_attachments, lock_attachment, lock_notice, register_attachment
 from . import assets
 from .document_converter import ScratchDocumentProcessor
+from .effective_grade import eligible_with_grade
 from .document_structures import materialize_structure
 from ...core.api_errors import (
     API_ERROR_CODES,
@@ -591,6 +592,20 @@ class DocumentBundleService:
             raise BundleServiceError("not_found", "공고를 찾을 수 없습니다", status_code=404)
         return notice
 
+    def eligible(self, session: Session, notice_id: int, grade: str | None) -> bool:
+        """문서 bundle을 만들 수 있는 공고인가 (§6.3 + 2026-09-11 MVP 완화).
+
+        등급을 읽는 것은 아래 `effective_grade` seam이 그대로 소유하고, 이
+        메서드는 그 값으로 **자격만** 판정한다. 자격 규칙 한 벌은
+        `overview_eligible`이 갖는다 — `BIDOPS_PRESPEC_OVERVIEW_ENABLED`가
+        켜져 있으면 `우선 검토` 외에 `SW사업대상=Y` 사전규격도 자격을 얻고,
+        꺼져 있으면 기존 등급 규칙 그대로다. 자동 준비·개요 enqueue·목록
+        투영이 쓰는 판정과 같은 함수라 "자동 준비는 열렸는데 묶음 생성이
+        막힌다"가 생기지 않는다.
+        """
+
+        return eligible_with_grade(session, notice_id, grade)
+
     def effective_grade(self, session: Session, notice_id: int) -> str | None:
         """사람이 정정한 등급이 있으면 그것, 없으면 판정 등급 (명세 §6.3).
 
@@ -693,9 +708,12 @@ class DocumentBundleService:
             notice = lock_notice(session, notice_id)
             if notice is None:
                 raise BundleServiceError("not_found", "공고를 찾을 수 없습니다", status_code=404)
+            # 등급 값은 그대로 감사에 기록하고(없으면 `None`), 자격 판정만
+            # 공통 helper가 한다. 완화로 자격을 얻은 공고의 등급을 `우선 검토`로
+            # 접어 기록하지 않는다.
             effective_grade_at_start = self.effective_grade(session, notice.id)
-            if effective_grade_at_start != "우선 검토":
-                raise BundleServiceError("effective_grade_ineligible", "우선 검토 공고만 문서 bundle을 만들 수 있습니다", status_code=403)
+            if not self.eligible(session, notice.id, effective_grade_at_start):
+                raise BundleServiceError("effective_grade_ineligible", "우선 검토 또는 SW사업대상=Y 공고만 문서 bundle을 만들 수 있습니다", status_code=403)
             previous = session.scalar(select(DocumentBundle).where(DocumentBundle.notice_id == notice.id).order_by(DocumentBundle.revision.desc()).limit(1))
             revision = (previous.revision + 1) if previous else 1
             bundle = DocumentBundle(
