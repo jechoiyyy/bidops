@@ -60,30 +60,14 @@ N은 사용자가 공고를 지정한 단건 요청으로 실행할 수 있다.
 
 개요 검토의 앞부분은 [ADR-0032](tracking/decisions/0032-prespec-overview-cutting-rule.md)에 따라 정한다. 목차 항목이 본문 소제목과 대응하면 목차를 사용하고, 그렇지 않으면 의미 있는 주제 소제목을 사용한다. 번호 형식만으로 절단하지 않는다. 시작 또는 종료 위치가 모호하면 추측해 자르지 않고 `unknown`으로 남겨 사람 검토로 보낸다. 자동 추출 입력에는 사용 전략(`strategy`), `start_locator`, `end_locator`, `source_sha256`를 보존하며, 고정 block 수나 전체 문서를 개요 검토에 자동 투입하지 않는다.
 
-범위를 정하지 못한 개요 입력은 **사람이 확정한다**(2026-09-10, [ADR-RDP-004](0910_rhwp-document-pipeline/ADR.md)). 결정적 선택기가 경계를 못 정하면 준비는 실패 attempt를 만들지 않고 절 후보 목록을 가리키는 `needs_human_review` target을 남긴다. 담당자가 절 후보의 시작·끝이나 쪽 범위를 고르면 같은 snapshot·관측에 `human_confirmed` `ready` target이 새로 생기고 이전 target은 그대로 보존된다. 확정은 **개요 검토 입력을 준비하는 것일 뿐 실행이 아니다** — attempt는 만들어지지 않고 응답의 `attempt_enqueued`는 언제나 `false`이며, 실행·추적 승인·최종 Go/No-Go는 기존 경로의 사람 결정이다. 모델 보조 선택은 명시 CLI 액션에서만 돌고 결과는 제안(감사 행)일 뿐이어서 target·등급·참여 준비 상태를 바꾸지 않는다. 담당자 이름은 감사 표식이다.
+범위를 정하지 못한 개요 입력은 **사람이 확정한다**([ADR-RDP-004](0910_rhwp-document-pipeline/ADR.md)). rhwp의 안전한 PDF·페이지 텍스트가 핵심 산출물이며 절 후보(`bidops.section-candidates.v1/v2`)는 참고다. 후보가 있어도 담당자는 쪽 범위를 직접 지정할 수 있고, 일부만 반환된 후보는 전체 목록처럼 사용하지 않는다. 확정은 `POST /api/pre-specs/{notice_id}/overview/range-confirmations`로 **개요 run의 범위를 정하는 것일 뿐 실행 승인이 아니다** — 담당자 이름은 감사 표식이다. 유효 본문과 함께 있는 공백 쪽은 보존하되 근거로 인정하지 않으며, 선택 범위 전체가 공백이면 `manifest_invalid`로 닫고 모델을 호출하지 않는다.
 
-2026-09-11 MVP에서는 rhwp의 안전한 PDF·페이지 텍스트가 핵심 산출물이며 절 후보는 참고다.
-후보가 있어도 쪽 범위를 직접 지정할 수 있고, 일부만 반환된 후보는 전체 목록처럼 사용하지
-않는다. 자동 ready도 실행 대기가 없으면 PDF 확인 후 새 범위로 확정할 수 있다. 대기/실행
-중 확정과 새 범위 뒤 옛 target의 재실행은 차단한다. 같은 줄 복수 장 제목과 `제안개요`
-작성 양식의 오선택은 자동 범위로 확정하지 않고 경고한다. 유효 본문과 함께 있는 공백 쪽은 보존하되 근거로 인정하지 않는다. 변환 완료·
-범위 확정·내용 검증 통과를 서로 대신하지 않으며 모델 미실행/실패여도 안전한 PDF는 열람한다.
-
-개요 검토의 결정적 절단 snapshot과 모델 attempt는 분리한다([ADR-0033](tracking/decisions/0033-prespec-overview-review-runtime-contract.md)). 승인된 사설 vLLM binding이 없으면 절단까지만 만들고 `awaiting_model`로 두며 결과와 완료 시각은 `null`로 보존한다. 경계가 모호한 절단은 `needs_human_review`로 보내고 모델을 호출하지 않는다. 결정적 mock은 `reference_only`, `deployable=false`이며 운영 완료로 집계하지 않는다. `completed`는 승인된 binding의 응답이 strict schema, evidence locator, source hash 검증을 모두 통과한 경우에만 허용하고 hosted OpenAI·Codex로 자동 fallback하지 않는다.
-
-모든 개요 attempt는 품질 표식 `quality_status`를 갖는다. `reference_only`인 attempt는 `mock_reference`, 그 밖은 `unmeasured_reference`다. **완료한 개요 attempt는 언제나 `unmeasured_reference`다** — `reference_only`인 attempt는 완료할 수 없으므로(위 문단) `mock_reference`는 완료하지 못한 attempt에만 붙는다. 저장소만으로 개요를 완주시키려면 mock을 provider가 아니라 transport 층에 두어야 하고, 그때 표식은 `unmeasured_reference`다. 심층 검토의 `mock_reference`는 provider에서 나오므로 이 제약과 무관하다([ADR-0050](tracking/decisions/0050-unified-openai-compatible-model-client.md)). `deployable=false`인 `completed`의 뜻은 "완료 불가"가 아니라 **"운영 완료로 집계하지 않음"**이다. 참조 실행 결과를 사업 판단, 품질 근거, 정책 활성화 근거로 쓰지 않는다.
-
-검증에 실패한 응답(schema 위반, snapshot 밖 evidence)은 재호출하지 않고 바로 `failed`다. 같은 seed와 같은 고정 프롬프트가 같은 결과를 내므로 재호출이 결과를 바꾸지 않기 때문이다. 재시도는 transport 계열 실패(timeout·잘림 등)에만 1+2회 적용한다.
-
-실제 모델 attempt의 입력 snapshot·sequence·입력 hash·binding은 생성 뒤 바꾸지 않는다
-([ADR-0035](tracking/decisions/0035-prespec-overview-attempt-result-lifecycle.md)). 상태·허용 시각·
-검증 결과 참조만 열 단위로 전이하고 모든 전이를 별도 append-only event로 남긴다. 검증된
-결과는 attempt와 분리한 immutable row에 한 번만 기록한다. 재실행은 기존 attempt나 결과를
-초기화하지 않고 새 sequence를 만든다. `조건부 추진 검토`는 조건과 확인 기한이 모두 있어야
-하고, 현재 snapshot 밖의 evidence locator나 검증되지 않은 source hash는 완료 결과로
-승격하지 않는다.
-
-개요 결과는 `추진 검토`, `조건부 추진 검토`, `보류`, `검토 종료` 중 하나다. `조건부 추진 검토`에는 조건과 확인 기한이 필요하다. 이 결과는 적합성 등급, 참여 준비 상태, 심층 검토 추적 선택, 최종 입찰 Go/No-Go를 채우거나 대신하지 않는다.
+개요 검토의 상태 의미, 자동 심층 검토 진입 조건, 실행 흐름은 아래
+"사전규격 개요 검토 상태 (MVP)" 절이 정본이다. v3 권고형 개요, legacy v4 단일 호출, v5
+주장 검증 스택(activation v2·call ledger·verification, [ADR-0033](tracking/decisions/0033-prespec-overview-review-runtime-contract.md)·[ADR-0035](tracking/decisions/0035-prespec-overview-attempt-result-lifecycle.md)가 설계했던 attempt/snapshot 분리와 attempt별 `quality_status`)는
+2026-09-11 [ADR-0054](tracking/decisions/0054-prespec-overview-mvp-rewrite.md)로 폐기했다.
+새 `prespec_overview_run`에는 권고(`추진 검토|조건부 추진 검토|보류|검토 종료`)와
+`quality_status` 필드가 없다.
 
 사전규격 메타데이터는 전량 보존하지만 첨부 바이트는 조건을 만족할 때만 취득한다. 다음 중 하나이면 대상이다.
 
@@ -108,9 +92,9 @@ effective grade(사람 정정 등급이 있으면 그것, 없으면 판정 등�
 
 촉발 지점은 셋이다. 회차 적재, 사람 정정으로 effective grade가 바뀐 시점, 첨부 취득이 한 공고에서 종결된 시점이다. **수동 업로드로 구조가 저장된 시점은 촉발하지 않는다.** 그 경우는 사람이 확정한다.
 
-자동 준비 상태는 여덟이다. `not_applicable`(자동 준비 대상 아님), `waiting_attachments`(첨부 취득 대기), `bundle_draft`(묶음 초안), `bundle_ready`(묶음 확정), `overview_running`(개요 검토 실행 중), `deep_review_started`(심층 검토 자동 시작됨), `deep_review_ready_for_click`(심층 검토 클릭 대기), `blocked`(자동 준비 중단). `not_applicable`은 "대상이 아님"이며 "알 수 없음"이 아니다.
+자동 준비 상태는 여덟이다. `not_applicable`(자동 준비 대상 아님), `waiting_attachments`(첨부 취득 대기), `bundle_draft`(묶음 초안), `bundle_ready`(묶음 확정), `overview_running`(개요 검토 실행 중), `deep_review_started`(심층 검토 자동 시작됨), `deep_review_ready_for_click`(심층 검토 클릭 대기), `blocked`(자동 준비 중단, 사유 `attachments_failed` — 취득 행이 모두 `차단`·`실패`로 끝나 준비된 문서가 없는 경우). `not_applicable`은 "대상이 아님"이며 "알 수 없음"이 아니다.
 
-다음이 모두 성립하면 심층 검토를 시스템이 자동으로 만든다. 사전규격이고 `SW사업대상=Y`, 자동 준비가 확정한 `ready` 묶음이 있고, 그 묶음의 개요 검토가 `completed`이며, 권고가 `검토 종료`가 아니고, 개요가 본 묶음과 지금 묶음이 같으며, 같은 불변 입력의 심층 검토가 아직 없고, 현재 등급이 우선 검토이며 검증을 통과한 현재 회사 핏이 `matched`여야 한다. 회사 핏은 활성 설정과 참조 실행 경계도 충족해야 한다. 검증 통과한 페이지 기반 개요가 있으면 이를 우선 사용하고, 없으면 기존 검증된 추출형 개요를 사용한다. 최신 페이지 개요 검증 실패 뒤 기존 결과로 자동 우회하지 않는다. 하나라도 어긋나면 각각의 사유 코드(`not_sw_business`, `bundle_not_auto_ready`, `overview_not_completed`, `overview_recommendation_closed`, `overview_bundle_mismatch`, `service_unavailable`, `deep_review_exists`, `processing_failed`, `company_fit_*`)로 남기고 사람 클릭으로 넘긴다. 평가 순서는 이 목록 순서이며 첫 일치가 이긴다 — 앞의 여섯은 쓰기·읽기가 같은 함수로 판정하고, `deep_review_exists`와 `processing_failed`는 실제로 만들어 보는 쓰기 경로에서만 나온다. **읽기 경로는 `deep_review_exists`를 내지 않는다.** 이미 심층 검토가 있으면 사유가 아니라 상태 `deep_review_started`로 답한다.
+다음이 모두 성립하면 심층 검토를 시스템이 자동으로 만든다. 사전규격이고 `SW사업대상=Y`, 자동 준비가 확정한 `ready` 묶음이 있고, 그 묶음의 최신 개요 run이 `completed`이며, 같은 불변 입력의 심층 검토가 아직 없고, 현재 등급이 우선 검토이며 검증을 통과한 현재 회사 핏이 `matched`여야 한다. 회사 핏은 활성 설정과 참조 실행 경계도 충족해야 한다. 하나라도 어긋나면 각각의 사유 코드(`not_sw_business`, `bundle_not_auto_ready`, `overview_not_completed`, `service_unavailable`, `deep_review_exists`, `processing_failed`, `company_fit_*`)로 남기고 사람 클릭으로 넘긴다. 평가 순서는 이 목록 순서이며 첫 일치가 이긴다 — 앞의 넷은 쓰기·읽기가 같은 함수로 판정하고, `deep_review_exists`와 `processing_failed`는 실제로 만들어 보는 쓰기 경로에서만 나온다. **읽기 경로는 `deep_review_exists`를 내지 않는다.** 이미 심층 검토가 있으면 사유가 아니라 상태 `deep_review_started`로 답한다.
 
 자동 시작은 추적 상태를 바꾸지 않는다. 사업기회는 `미선택` 그대로이고, 자동 시작이 적합성 등급·참여 준비 상태·추적 선택·최종 입찰 Go/No-Go를 대신하지 않는다. **자동으로 여는 것은 분석의 시작뿐이다.**
 
@@ -214,7 +198,7 @@ HWP 원본은 그대로 보존하고 HWP 분석에는 검증된 HWPX 변환 결�
 
 요구사항 대응 상태는 `대응 가능`, `추가 확인`, `갭`, `해당 없음` 중 하나다. 위험은 `차단`, `중대`, `보통`, `낮음`으로 표시하고 근거, 영향, 확인·완화 행동, 담당 역할, 기한, 잔여 위험을 가진다. 정보가 없으면 항목을 삭제하지 않고 `산정 불가`와 필요한 자료를 남긴다.
 
-사전규격 초기 권고는 `추진 검토`, `조건부 추진 검토`, `보류`, `검토 종료` 중 하나다. `조건부 추진 검토`에는 해소 조건과 결정 기한이 필요하다. 이 권고와 사람이 고른 `계속 추적`은 최종 입찰 참여 승인이 아니다.
+사전규격 개요 검토는 권고를 만들지 않는다(2026-09-11 MVP 재작성, 위 "사전규격 개요 검토 상태 (MVP)" 절 참조). `completed` 개요 run의 구조화 결과(business_overview·main_tasks·budget_and_period·important_conditions)가 심층 검토 입력의 참고 자료이며, 이 결과와 사람이 고른 `계속 추적`은 최종 입찰 참여 승인이 아니다.
 
 ## 근거와 검증
 
@@ -277,39 +261,46 @@ manifest는 `partially_human_adjudicated`이며 사람 22건, draft 603건, 잔�
 전에는 policy를 active로 바꾸지 않는다. `계속 추적|보류|종료`와 사람 최종 Go/No-Go는
 여전히 별도 생애주기·입찰 결정 이벤트다.
 
-## 설명형 PDF 개요와 기존 권고의 구분
+## 사전규격 개요 검토 상태 (MVP)
 
-`prespec_page_overview`의 새 설명형 결과는 사업 이해를 위한 참조 요약이다. 근거 검사
-통과와 원실행 검증 상태를 별도로 보존하며, 원실행 실패는 재적재로 통과시키지 않는다.
-이 결과에는 권고가 없으므로 `prespec_overview_review.status/result`, 자동 준비 집계,
-심층 검토 자동 시작, 사람의 추적 결정과 최종 Go/No-Go를 변경하지 않는다.
-기존 권고 결과가 있으면 화면은 설명형 요약 아래에서 기존 기록임을 구분해 표시한다.
+2026-09-11 [ADR-0054](tracking/decisions/0054-prespec-overview-mvp-rewrite.md)로 v3
+권고형 개요, legacy v4 단일 호출, v5 주장 검증 스택(activation v2·call ledger·
+verification)을 폐기하고 `prespec_overview_run` 단일 테이블로 다시 썼다. 첨부 취득·묶음·
+자동 준비·문서 변환·PDF/쪽 텍스트 스냅숏과 주장 결정적 검증 함수는 그대로 유지한다. 상세
+wire·DB 계약은 [contracts.md](contracts.md#사전규격-개요-검토-mvp-2026-09-11)가 정본이다.
 
-- 과거 policy v4의 스키마·페이지 근거 검증이 실패하면 같은 입력으로 seed를 바꾼 1회 재시도를 보내고,
-  보정 지시에는 실패한 검사 코드만 담는다. 두 응답을 모두 암호화 보존하고 감사에
-  `validation_retry`로 남긴다. 재시도도 실패하면 실패로 남기고 자동 보정하지 않는다.
-- 검증기 v3의 경고(`pdf_inline_locator_normalized`)는 실패가 아니며 재시도 사유도 아니다.
-  완료된 attempt의 `validation_warnings`에 목록으로 남고 감사에도 같은 목록을 적는다.
-  경고가 없으면 빈 목록이며, `0023` migration 이전 행은 `null`(미기록)이고 이를 경고 없음으로
-  승격시키지 않는다.
+### 상태 의미
 
-2026-09-10 신규 policy v5·page-review v4는 주장별 결정적 검사와 별도 Qwen 의미 검토를
-함께 적용한다. 기간과 금액·사업 주체·역할·VAT·조건/부정이 다른 주장을 자동 수정하거나
-재호출해 통과시키지 않는다. 하나라도 미검증이면 전체 `needs_human_review`(화면 “근거 확인
-필요”)이며 최종 개요는 없다. 초안의 기술적 형식 오류만 1회 재생성 가능하고, 정상은 초안+
-의미 2회, 최대 3회다. 의미 응답 형식 실패는 `failed`이며 의미 재호출은 없다.
-최종 사실·분석은 검증된 text를 그대로 구성하고 unknown·입력 한계는 서버가 실제 검토 범위로
-표시한다. 모호한 수치 관계는 추정하지 않고 사람 확인으로 보낸다.
+| status | 뜻 | 자동 심층 검토 |
+|---|---|---|
+| `queued` / `running` | 대기·실행 중 | 대기 |
+| `completed` | 모든 결정적 검사·의미 검토 통과, 결과 있음 | 진행 가능 |
+| `needs_human_review` | 인용 불일치·필수 섹션 누락·의미 검토 미확정 | `overview_not_completed` |
+| `failed` | 기술 실패(변환·형식·용량·timeout 등) | `overview_not_completed` |
+| `cancelled` | `BIDOPS_PRESPEC_OVERVIEW_ENABLED`가 꺼져 닫힘 | `overview_not_completed` |
 
-선택 원문이 5,000자를 넘었다는 이유만으로 개요를 거절하지 않는다. 두 단계의 실제 요청·
-모델 context·출력 예약·payload 예산 안에서는 전체를 검토하고 자동 절단·사전 요약은 하지
-않는다. 용량 초과 또는 안전 예산 확인 불가의 `failed/input_capacity_exceeded`는 “입력
-용량 초과로 미실행”으로 표시하며 내용 검증 실패나 품질 판정이 아니다. 해당 단계는 미전송이고
-이미 받은 초안은 호출 이력으로만 보존한다. 범위 변경/추가 호출이 필요하면 새 승인을 받는다.
+공고의 "현재 개요"는 생성 시각이 가장 최신인 run이다. 이력은 그 공고의 모든 run이며 새
+run이 이전 run의 결과를 덮어쓰지 않는다.
 
-입력 범위 미확정 target과 주장 검증 대기 attempt는 별개다. 중지하면 queued/running은
-`cancelled`가 되고, OFF→ON 뒤에도 이전 activation 응답은 게시하지 않는다. 만료 정리와
-v4에 예약되지 않은 다른 문서의 기존 개요는 계속 진행한다. 과거 성공·사람 리뷰·참조 표식은
-보존하되 현재 실패/검증 대기/취소/stale을 대체하지 않는다. v3는 이전 검증 기준으로 읽고
-v4 완료도 `unmeasured_reference`를 운영 품질 승인으로 승격하지 않는다. 추적·Go/No-Go와
-회사 핏·심층 자동 실행의 기존 승인 조건은 바꾸지 않는다.
+### 자동 심층 검토 사유 판정 순서
+
+`not_sw_business → bundle_not_auto_ready → overview_not_completed → service_unavailable →
+회사 핏 사유` 순으로 평가하며 첫 일치가 이긴다. `overview_recommendation_closed`·
+`overview_bundle_mismatch`는 새 개요 run에 권고 필드 자체가 없으므로 삭제했다.
+
+### 검증 규칙: 경고와 사람 검토를 구분한다
+
+주장별 정확한 인용 대조(원문 한 곳에 유일하게 대응하는지)와 필수 섹션(business_overview·
+main_tasks·budget_and_period·important_conditions) 존재 여부는 실패하면 **사람 검토로
+보낸다**(`needs_human_review`). 반면 수치·단위·역할·VAT·기산점·날짜·라틴 표기·
+requirement_id 대조의 불일치는 **경고**(`warnings`)로만 남기고 결과를 차단하지 않는다.
+하나라도 미검증 인용/누락 섹션이 있으면 attempt 전체가 `needs_human_review`로 끝나며 결과는
+없다. 검증 실패를 자동 보정하거나 통과한 문장만 골라 부분 완료로 게시하지 않는다.
+
+### fallback 범위 규칙
+
+결정적 heading 선택기가 범위를 정하지 못하면 실패가 아니라 1쪽부터
+`min(60쪽, 100,000자)`까지를 `range_fallback_head` 사유로 자동 선택한다(`range_source=fallback`).
+선택 범위 전체가 공백이면 모델을 호출하지 않고 `failed/manifest_invalid`로 닫는다. 사람이
+`POST /api/pre-specs/{notice_id}/overview/range-confirmations`로 직접 쪽 범위를 확정하면
+`range_source=human`이 되고, 확정은 개요 run의 범위를 정하는 것일 뿐 실행 승인이 아니다.

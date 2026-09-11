@@ -23,7 +23,7 @@
 overlay와 짝을 맞추기 위해 `-f docker-compose.yml`을 그대로 적는다.
 
 overlay 네 개는 각각 다른 egress network 하나만 열고 endpoint가 비면 기동 전에 fail closed한다.
-하나의 파일로 합치면 `docs/security.md`의 목적별 외부 전송 경계가 흐려지므로 합치지 않았다.
+하나의 파일로 합치면 목적별 외부 전송 경계(ADR-0050 완화 항목 참조)가 흐려지므로 합치지 않았다.
 
 코드 쪽은 심층 검토 인수 흐름의 식별자를 함께 바꿨다. `run_t7_e2e`→`run_agent_e2e`,
 `T7ProjectionReader`→`AgentProjectionReader`, CLI 플래그 `--t7`→`--agent`, 산출 schema

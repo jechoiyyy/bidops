@@ -70,8 +70,9 @@ OFF 감사 `a6e96d1b-9c8a-40b6-87f7-d1e177c21222`로 종료해 active attempt 0�
 문서 동기화는 Sol medium이 이 폴더의 ADR·Requirements·Design·Spec·Plan을 맡아 완료했고,
 관리자가 최종 diff와 실행 증거를 대조했다. 남은 용량 계산식·검증 시점·과거/현재 표기만
 문서에서 보정했다. 앱 검사나 운영 실행을 추가하지 않았으며 상세 실행·검증·미완료 항목은
-[안정화 Plan](../0910_prespec-workflow-hardening/Plan.md)과
 [이번 실행 기록](../../.dryforge/prespec-mvp-deploy-20260911-OIBy24/README.md)을 따른다.
+2026-09-10 안정화 계획 문서 자체는 2026-09-11 개요 스택 재작성으로 폐기했다
+([ADR-0054](../tracking/decisions/0054-prespec-overview-mvp-rewrite.md), git 이력 `71b9954`).
 
 ## 0. 새 세션 시작 절차
 

@@ -536,7 +536,7 @@ v4 개요 이후 회사 핏 판정을 두는 전환 설계에 아래 표시를 �
 
 **오류 문구.** 화면이 서버 message를 그대로 싣지 않는다. `web/frontend/src/lib/apiErrors.ts`의
 `describeApiError`가 status와 안전한 오류 코드를 제목·설명·다음 행동으로 옮기고, 화면은 그
-결과만 표시한다(`docs/security.md`).
+결과만 표시한다.
 
 ## 5. 비기능 요구사항
 

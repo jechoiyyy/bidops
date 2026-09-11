@@ -262,7 +262,7 @@ CLI 진입점은 모듈별로 하나씩이며 웹 없이 실행한다. migration
 
 ```bash
 python -m app.screening.cli --help          # run-one, score-candidate-quality
-python -m app.deep_review.cli --help        # run-bc-e2e, run-prespec-e2e, import-profile-policy, prespec-v4
+python -m app.deep_review.cli --help        # run-bc-e2e, run-prespec-e2e, import-profile-policy
 python -m app.lifecycle.ingest.cli --help   # --run <회차> | --all
 ```
 
@@ -638,13 +638,16 @@ worker 설정은 concurrency 1, poll 5초, lease 120초다.
 cp env/vllm.env.example env/vllm.env
 ```
 
-`env/vllm.env`를 채운다. 여기 값은 `overview`와 `deep_review` 용도의 공유값이 된다.
+`env/vllm.env`를 채운다. 여기 값은 `overview`와 `deep_review` 용도의 공유값이 된다. MVP
+기간에는 `BIDOPS_VLLM_ALLOWED_HOSTS`·`BIDOPS_VLLM_MODEL_REVISION`이 비어 있어도 그 용도는
+fail closed하지 않는다(ADR-0050 §5 완화 항목) — 값을 채우면 기존 검사를 그대로 강제한다.
 
 ```text
 BIDOPS_VLLM_BASE_URL=http://<approved-ip>:<approved-port>/v1
 BIDOPS_VLLM_ALLOWED_HOSTS=<approved-ip>
 BIDOPS_VLLM_API_KEY=EMPTY
 BIDOPS_VLLM_MODEL_REVISION=<64-hex-revision>
+BIDOPS_PRESPEC_OVERVIEW_ENABLED=true
 BIDOPS_C2_EXECUTION_ALLOWED=false
 BIDOPS_C2_CAPABILITIES_HOST_PATH=<승인된 파일 경로>
 BIDOPS_C2_PROMPT_HOST_PATH=<승인된 파일 경로>
@@ -652,7 +655,8 @@ BIDOPS_C2_PROMPT_HOST_PATH=<승인된 파일 경로>
 
 `remote-vllm` overlay는 `web`에도 C-2용 read-only bind mount를 요구하므로 두 host 경로를
 비워 두면 기동이 거부된다. 이 참조 실행에서 C-2를 돌리지 않으므로
-`BIDOPS_C2_EXECUTION_ALLOWED`는 `false`로 둔다.
+`BIDOPS_C2_EXECUTION_ALLOWED`는 `false`로 둔다. `BIDOPS_PRESPEC_OVERVIEW_ENABLED`가
+`false`(기본값)면 개요 run이 자동으로 만들어지지 않는다.
 
 ```bash
 docker compose --env-file .env --env-file env/vllm.env \
@@ -664,8 +668,9 @@ docker compose --env-file .env --env-file env/vllm.env \
 
 1. 등급이 `우선 검토`가 되고 첨부 취득이 끝나면 자동 준비가 묶음 초안을 만들고 확정한다
    (`confirmed_by_name = auto-preparation`).
-2. 확정된 묶음으로 개요 검토가 실행된다.
-3. `SW사업대상=Y`이고 개요가 `completed`이며 권고가 `검토 종료`가 아니면 심층 검토가
+2. `BIDOPS_PRESPEC_OVERVIEW_ENABLED=true`이면 확정된 ready 묶음에서 analysis worker의 개요
+   slot이 `prespec_overview_run`을 자동 enqueue하고 실행한다.
+3. `SW사업대상=Y`이고 개요 run이 `completed`이면 현재 회사 핏이 `matched`일 때 심층 검토가
    자동으로 생성된다.
 
 진행은 사전규격 목록의 파생 필드로 읽는다.
@@ -677,23 +682,24 @@ curl --fail "http://127.0.0.1:${BIDOPS_WEB_PORT:-18787}/api/pre-specs?limit=50"
 `auto_preparation_status`가 `not_applicable → waiting_attachments → bundle_draft →
 bundle_ready → overview_running → deep_review_started`로 간다.
 `deep_review_ready_for_click`에서 멈추면 `auto_preparation_reason`이 **왜 자동으로 열리지
-않았는지**를 말한다(`not_sw_business`, `overview_recommendation_closed` 등). 그 값이 정상적인
+않았는지**를 말한다(`not_sw_business`, `overview_not_completed` 등). 그 값이 정상적인
 설명이면 화면에서 사람이 심층 검토를 실행한다.
 
 개요와 심층 결과를 본다.
 
 ```bash
-curl --fail "http://127.0.0.1:${BIDOPS_WEB_PORT:-18787}/api/pre-specs/<notice_id>/overview-reviews/v2"
+curl --fail "http://127.0.0.1:${BIDOPS_WEB_PORT:-18787}/api/pre-specs/<notice_id>/overview"
 curl --fail "http://127.0.0.1:${BIDOPS_WEB_PORT:-18787}/api/deep-reviews/<deep_review_id>"
 curl --fail "http://127.0.0.1:${BIDOPS_WEB_PORT:-18787}/api/deep-reviews/<deep_review_id>/report"
 ```
 
 - **확인**:
-  - 개요 attempt의 `quality_status`가 `unmeasured_reference`(실제 모델) 또는
-    `mock_reference`(mock)다. **둘 다 참조 실행이며 운영 완료가 아니다.**
+  - `current.status`가 `completed`이면 `result`가 채워진다. `needs_human_review`·`failed`도
+    정상적인 결과다 — `reason_codes`로 사유를 확인하고 실패를 통과로 바꾸지 않는다.
   - 심층 검토의 `status`가 `completed`이고 report의 `validation.status`를 읽는다.
     `failed`도 정상적인 결과다 — 실패를 통과로 바꾸지 않는다.
-  - report의 `quality_status`가 위와 같은 표식이거나 `null`이다.
+  - report의 `quality_status`가 `unmeasured_reference`·`mock_reference`이거나 `null`이다.
+    **둘 다 참조 실행이며 운영 완료가 아니다.**
   - `GET /api/document-structures/<structure_id>/segments`가 200이고 `segments[].confidence`가
     전부 `null`이다.
 - **중단 기준**:
@@ -937,186 +943,42 @@ PostgreSQL 행 잠금에 필요한 권한이며 코드에서 ID를 바꾸지 않
 
 ## PDF 개요 출력 연결
 
-Alembic `0019_prespec_page_overview`는 설명형 참조 요약을 별도 테이블에 추가한다.
-앱 startup은 여전히 migration을 실행하지 않는다. 배포 전 기존 백업 manifest·서비스
-중지·명시적 확인 절차를 따른 뒤 migration과 `scripts/runtime-privileges.sql`을 적용한다.
-새 테이블은 app 읽기, worker 읽기/추가만 허용하고 UPDATE/DELETE trigger로 불변성을
-강제한다. 적재 행이 있으면 downgrade는 거부한다.
+2026-09-11 MVP 재작성으로 v3(`0012`·`0014`·`0019`)·v4(`0021`·`0022`)·v5(`0025`) 개요
+스택을 `prespec_overview_run`(migration `0026`) 단일 테이블로 대체했다
+([ADR-0054](tracking/decisions/0054-prespec-overview-mvp-rewrite.md)). `import-page-overview`,
+`prespec-v4` cohort ops CLI, Luna 명시 참조 실행 절차는 모두 삭제했다 — 과거 실행 기록이
+필요하면 git 이력(commit `71b9954`)에서 찾는다.
 
-서버측 명령(설정된 ops 환경, worker DB 역할, source/structure 객체 쓰기와 ClamAV 필요):
+새 흐름은 사람이 누르는 별도 ops 명령이 없다. `BIDOPS_PRESPEC_OVERVIEW_ENABLED=true`이면
+ready 묶음에서 analysis worker의 개요 slot이 `prespec_overview_run`을 자동 enqueue하고,
+prepare(`prespec_v4_pdf_snapshot` 재사용 또는 신규 변환) → range(자동 선택 또는 fallback,
+사람 확정은 `POST /api/pre-specs/{notice_id}/overview/range-confirmations`) → draft →
+deterministic → semantic → save 순서로 실행한다. 상세 계약은
+[contracts.md](contracts.md#사전규격-개요-검토-mvp-2026-09-11)를 정본으로 한다. 진행·결과
+확인은 `GET /api/pre-specs/{notice_id}/overview`다(위 6단계 참조).
 
-```bash
-python -m app.deep_review.cli import-page-overview \
-  --run-dir /absolute/frozen-run-directory --notice-id 614 --actor jechoi --check-only
-python -m app.deep_review.cli import-page-overview \
-  --run-dir /absolute/frozen-run-directory --notice-id 614 --actor jechoi
-```
+`prespec_v4_pdf_snapshot`(`0021`)·native rhwp 참조(`0023`)·절 후보(`0024`,
+`bidops.section-candidates.v1/v2`)는 그대로 유지한다. renderer는 native `rhwp-svg-pdf`
+하나이며 `fontconfig`(`fc-list`)가 이미지에 없으면 모든 HWP·HWPX 준비가
+`converter_unavailable`이다.
 
-입력은 해당 디렉터리의 `<id>-input.json`, `<id>-output.json`, `<id>-outcome.json`,
-`run-manifest.json`, `<id>.hwp`, `<id>.pdf`, `code/policy.json`이다. 원문 확장자는 참조 실행의
-고정 파일명이며 내용은 HWP/HWPX일 수 있다. `pdftotext`로 물리 페이지를 검증한다.
-`--check-only`는 frozen binding·PDF 추출·근거 검사를 확인하되 DB 문서 소속 및 ClamAV
-검사는 적재 시 수행한다. 출력에 원문·프롬프트·경로를 기록하지 않는다.
-추가 Qwen 호출, 기존 리뷰 변경, 정책 활성화는 없다. 후속 모델 실행 결과도 같은 frozen
-파일 계약으로 명시적으로 적재한다. 기존 권고 worker를 새 요약 worker로 교체하지 않는다.
+### 0026 적용 전 개요 테이블 백업
 
-### v4 cohort 준비·enqueue ops
-
-v4는 기본 비활성이다. 새 코드 head는 `0025_overview_claim_ledger`이며 운영 적용 여부와
-분리해 확인한다. 운영자는 기존 activation을 OFF로 만들고 미종료 attempt/job 취소 수를
-확인한 뒤 DB·versioned 객체 백업 manifest, 명시적 migration, runtime privilege policy,
-worker·API·웹의 동시 전환을 준비한다. startup은 migration이나 활성화를 하지 않는다.
-승인된 사설 overview endpoint와 64자 model revision을
-`BIDOPS_REFERENCE_WORKFLOW_MODE=true`, `BIDOPS_ANALYSIS_PROVIDER=vllm`로 명시한다.
-활성화는 scheduler/startup에서 일어나지 않으며 아래 명령이 append-only audit 행을
-만든다. 활성화 전에는 새 source/PDF를 준비하지 않는다. 기존 동결 target 재사용은 변환을
-다시 실행하지 않고 `--enqueue --target-id`로 지정한다.
-
-선택 원문 5,000자 초과만으로 표본을 제외하지 않는다. v5는 각 단계의 실제 요청 크기와
-overview endpoint가 확인한 context, 출력 예약 및 기존 payload 상한을 대조한다.
-`failed/input_capacity_exceeded`는 내용 검증 실패가 아니라 해당 단계 미실행이다. 모델
-context 제공 여부·출력 예약·선택 범위를 확인하고 새 범위가 필요하면 별도 승인 target을
-만든다. 원문 절단·사전 요약·자동 분할 또는 호출 상한 증가로 재시도하지 않는다. 의미 단계에서
-막혔으면 앞선 초안 호출/원응답이 있을 수 있으며 최종 개요는 게시하지 않는다.
-
-새 쓰기는 policy v5와 activation v2의 정확한 policy digest, 두 stage, 호출 예산 및
-notice/document/source/target/input/manifest/PDF 결속을 요구한다. 기본 artifact는 미승인
-템플릿이며 그대로 활성화할 수 없다. `--preview-activation`은 DB 연결·migration·모델 호출
-없이 실행 승인 내용을 확인한다. `stage_policy_sha256`은 stage 전체의 hash이고 실제
-입력별 prompt hash는 호출 ledger에 별도로 기록된다. source만 지정한 승인은 준비까지만
-허용하며 실제 동결 target과 두 단계 payload를 확인한 새 승인 없이 enqueue하지 않는다.
+삭제 대상 개요 테이블은 서비스 중지 후 `pg_dump`로 먼저 백업하고 downgrade 경로는 두지
+않는다.
 
 ```bash
-python -m app.deep_review.cli prespec-v4 --preview-activation \
-  --artifact /secure/v4/prespec-v4-activation-v2.json
-python -m app.deep_review.cli prespec-v4 --dry-run \
-  --notice-id 142 --mode explicit_sample
-# 아래 변경 명령은 백업·migration·건별 payload/정책 승인 이후에만 실행한다.
-./.venv/bin/python -m app.deep_review.cli prespec-v4 --activate \
-  --actor '<감사표식>' --mode explicit_sample \
-  --artifact /secure/v4/prespec-v4-activation-v2.json
-# 변경하지 않은 변환 입력을 재사용하는 이번 참조 실행의 enqueue 경로
-python -m app.deep_review.cli prespec-v4 --enqueue \
-  --actor '<감사표식>' --target-id '<승인된 동결 TARGET_UUID>'
-# 새 문서 준비가 별도로 승인된 경우에만 사용한다.
-python -m app.deep_review.cli prespec-v4 --prepare \
-  --actor '<감사표식>' --notice-id 142 --mode explicit_sample \
-  --renderer /secure/v4/worker-renderer.json \
-  --font /secure/v4/worker-font.json --config /secure/v4/worker-config.json \
-  --options /secure/v4/processor-options.json
-python -m app.deep_review.cli prespec-v4 --enqueue \
-  --actor '<감사표식>' --notice-id 142 --mode explicit_sample \
-  --renderer /secure/v4/worker-renderer.json \
-  --font /secure/v4/worker-font.json --config /secure/v4/worker-config.json \
-  --options /secure/v4/processor-options.json
-python -m app.deep_review.cli prespec-v4 --deactivate \
-  --actor '<감사표식>' --reason operator_requested
+pg_dump -Fc -f overview-tables-pre-0026.dump \
+  -t 'bidops.prespec_overview_*' \
+  -t bidops.prespec_v4_target \
+  -t bidops.prespec_v4_attempt \
+  -t bidops.prespec_page_overview \
+  "$BIDOPS_DATABASE_URL"
+alembic upgrade head
 ```
 
-준비 options는 표본별로 고정하고 기록한다. mandatory RFP의 검증 binding 예시는
-`prepare_pdf=true`, `ocr=false`, `timeout_seconds=300`,
-`max_output_bytes=20971520`, `max_pdf_objects=10000`이다. 전역 ProcessorOptions
-기본값을 올리지 않는다. worker가 반환한 실제 rhwp renderer(`rhwp_version`·
-`rhwp_binary_sha256`)/font manifest fingerprint와 deployment preflight binding이
-일치해야 하며, asset hash를 image digest로 가장하지 않는다. 원본 PDF는 재렌더하지 않고 Poppler provenance와
-`font_provenance=null`을 기록한다.
-
-2026-09-10 기준 mandatory RFP 예시의 `max_output_bytes`는 `67108864`이며 `212e5ed` 이후 v4 CLI
-기본값이다. 모델 endpoint가 닿지 않으면 `--activate`에 직전 활성화 감사의 reference-only binding
-JSON을 `--binding`으로 함께 준다. deployable binding을 그 자리에 쓰지 않는다.
-
-2026-09-10 R6 이후 renderer는 native `rhwp-svg-pdf` 하나다. `--renderer`는 `validate_native_renderer`의 7개 키
-(`renderer`·`rhwp_version`·`rhwp_binary_sha256`·`backend=svg`·`compat=2022`·`fallback_fonts`·`worker_image_digest`)만 가지며,
-`--font`는 `{"font_manifest_sha256", "worker_image_digest"}`다. 두 값은 배포 이미지에서 표본 1건을 격리 실행해 얻은
-`pdf_metadata`의 provenance에서 그대로 가져오고 손으로 짓지 않는다. 원본 PDF 표본은 `{"source_pdf": true, "processor_provenance": …}`와
-`{"source_pdf": true, "font_provenance": null}`을 쓴다. `--config`는 `renderer` 필드를 포함한 `ProcessorOptions` 전체다.
-이미지에는 `fontconfig`(`fc-list`)가 있어야 하며 없으면 모든 HWP·HWPX 준비가 `converter_unavailable`이다.
-`docker compose run`에는 `--no-build`가 없으므로 migration은 이미지 고정 overlay와 `--pull never`로 실행한다
-(`run --rm --no-deps --pull never migrate`). 절차와 값은 [R6 기록](validation-runs/2026-09-10-rhwp-pipeline.md)에 있다.
-
-2026-09-10 R7 운영 반영 당시 head는 `0024_section_candidates`, 이미지는 `bidops-rdp-r7:20260910`이었다(새 0025 코드의 배포 증거가 아니다). worker는 다섯 번째 rhwp 호출 `digest --sections --json`로 절 후보(`bidops.section-candidates.v1`)를 만들어 snapshot에 결속한다. heading 선택기가 범위를 못 정한 `--prepare`는 `status: needs_human_review`(target 동결, attempt 없음)로 끝나며, 사람이 `POST /api/pre-specs/{id}/overview-pages/range-confirmations`(actor 헤더)로 확정하거나 운영자가 `prespec-v4 --assist-range --target-id <uuid> --actor <표식>`로 모델 제안(감사 행)만 받을 수 있다. 어느 쪽도 attempt·정책 활성화를 열지 않는다. 계약은 [contracts.md](contracts.md)의 "v4 개요 입력 범위의 사람 확인", 절차는 [R7 기록](validation-runs/2026-09-10-rhwp-r7-range-review.md)에 있다.
-
-2026-09-11 MVP는 정상 outline·부분 후보를 v2 sidecar로 수용하고 보조 digest 실패를
-core와 분리한다. API/화면은 후보가 있어도 직접 쪽 선택과 target PDF 열람을 제공한다.
-운영 web·document-worker2는 `bidops-prespec-mvp:20260911-advisory-final`로 반영했다(head0025 유지,
-추가 migration 없음). 기존 실패6건만 각1회 재준비해 안전한 core6개를 얻었고 정상9건은
-재변환하지 않았다. 754·755는 제안개요 작성 양식 오선택을 모호성 경고로 보내 기존 target을
-보존한다. 후보 없는 core의 scratch 전달은 unavailable 경고+명시적 null descriptor에
-한해서 허용하고 기존 snapshot/cache를 쓴다. 경고 없는 누락·실제 후보 파일 JSON null·
-핵심 무결성 실패는 계속 차단한다. 입력 준비 가능은 744·749·759·761의4건,
-수동 범위11건, 문서/안전4건이다.
-이 준비 종료 당시 Qwen 생성/내용 검증 통과는0건이며 source-only 실행 종료 뒤 OFF로 복귀했다. semantic preview는
-예시이며 실제 초안 이후 다시 예산을 검사한다. 기존 24,000자 정책 상한·출력 예약·호출
-상한을 바꾸지 않았다. 사람 범위 확정, 정확한
-target에 대한 두 stage 전송·실행 activation은 승인 범위를 따로 확인해야 한다. 이전 실패·준비물은
-보존하고 이 문구를 실행 승인으로 쓰지 않는다. 대상별 최신 준비·검증은
-[안정화 Plan](0910_prespec-workflow-hardening/Plan.md)에 있다.
-
-후속 승인으로2026-09-11 준비4건을 실제 Qwen에 각1회 전송했다. 초안4회 모두 응답했으나
-결정적 검사에서 전부 needs_human_review로 종료해 semantic0·최종 개요/내용 통과0이다.
-추가 host 체인 조회는 이번 실행에서 사용자가 명시적으로 생략했고 일반 방화벽 정책을
-변경하지 않았다. 종료 OFF·active0, 원문/기존 결과·리뷰 불변과 API/실패 PDF를 확인했다.
-최신 범위·예외·실행 증거는 위 안정화 Plan을 따른다. 같은 스크립트의 무승인 재실행은 하지 않는다.
-
-`--prepare`/`--enqueue`는 120초 attachment fetch worker와 분리된 준비 role에서
-실행한다. app role은 검증된 source를 읽고 versioned source/structure object와
-snapshot/target/WorkJob/attempt를 append하며, analysis worker는 source/MinIO 원문
-권한 없이 frozen manifest만 읽는다. timeout·모호한 대표문서·PDF/관측 실패는 안전한
-failed/current 또는 사람확인 상태로 남기고 기존 성공/legacy row를 지우지 않는다.
-`--retry --target-id`는 기존 최신 attempt가 failed/cancelled/needs_human_review일 때 새
-attempt와 새 WorkJob을 추가한다. attempt가 아직 없으면 `--enqueue --target-id`를 쓰며,
-off 상태·active attempt·완료 성공에는 retry가 동작하지 않는다. `--deactivate`는 OFF 감사와
-queued/running attempt/job 취소를 한 transaction에 확정하고 취소 수를 반환한다. 늦은
-응답은 호출 이력만 보존하고, 재활성화돼도 이전 실행 결과를 게시하지 않는다. 안전한
-사유 코드가 아닌 자유 문구는 `operator_requested`로 기록한다. 중단 복구는 OFF 유지와
-명시적 새 승인/attempt이며
-snapshot/attempt object/row를 삭제하거나 legacy를 자동 재실행하지 않는다.
-
-새 실행은 draft 1회와 별도 Qwen semantic 1회가 정상 경로다. 기술적 형식 오류만 draft를
-한 번 재생성하므로 총 3회/semantic 1회가 상한이며 transport 재시도는 없다. 호출당 300초,
-lease 1,200초다. 해석 가능한 사실 불일치는 needs_human_review, 최종 result 없음으로
-종료한다. 화면은 `overview-pages/v2`의 현재 상태·검증 진단·이력을 구분하고 실패 근거는
-attempt PDF 링크로 확인한다. 참조 품질 표식을 운영 승인으로 승격하지 않는다.
-
-### 이전 Luna 명시 참조 실행 기록
-
-아래는 policy v4/activation v1 당시의 실행 기록 해설이며 현재 v5의 실행 명령이 아니다.
-기존 파일·결과·parser는 보존하지만 v1 승인과 Luna 응답을 새 Qwen 다단계 실행에
-재사용하지 않는다. Luna 참조는 Qwen 운영 endpoint의 대체 경로가 아니다. `/tmp` generation record와
-sample 파일은 root가 만든 immutable evidence로 유지하고, `--sample-key`를 포함해
-정확한 sample을 선택한다. 먼저 app role에서 활성 binding을 만들고 target을 예약한
-뒤, worker role에서 별도 명령으로 실행한다.
-
-```bash
-cd /home/jechoi/projects/bidops/web/backend
-LUNA_RECORD=/tmp/bidops-v4-luna-reference-43qu7brn/generation-record.json
-
-# response record의 policy/input/output/provenance를 검증해 reference-only activation
-python -m app.deep_review.cli prespec-v4 --activate \
-  --actor '<감사표식>' --mode explicit_sample \
-  --artifact /secure/v4/prespec-v4-activation-v1.json \
-  --luna-response "$LUNA_RECORD" --sample-key 142
-
-# app role: 기존에 동결된 142 target UUID를 넣고 WorkJob/attempt와 provenance audit만 생성
-./.venv/bin/python -m app.deep_review.cli prespec-v4 --enqueue-reference \
-  --actor '<app 감사표식>' --target-id '<TARGET_142_UUID>' \
-  --luna-response "$LUNA_RECORD" --sample-key 142
-
-# worker role: 위 queued attempt만 기존 v4 runner로 처리
-./.venv/bin/python -m app.deep_review.cli prespec-v4 --run-reference \
-  --actor '<worker 감사표식>' --target-id '<TARGET_142_UUID>' \
-  --luna-response "$LUNA_RECORD" --sample-key 142
-```
-
-활성화는 record 전체의 공통 digest를 결속하므로 세 sample에 대해 한 번만 수행한다.
-35/59는 이후 enqueue/run 두 명령에서 `--sample-key 35|59`와 각 frozen target UUID를
-사용한다.
-generation record 전체의 SHA가 세 sample의 공통 `model_digest`로 저장되고, sample별
-manifest SHA는 audit metadata로 보존되며 실제 weight revision은 `null`이다.
-결과는 `unmeasured_reference`로 남으며 이 명령은 automatic/new-reference 대상,
-회사 핏 자동화, 심층 검토를 시작하지 않는다. `--run-reference`는 app role의
-enqueue/audit 행과 manifest가 일치하지 않으면 실행하지 않는다.
-
+`alembic downgrade`는 이 migration에 제공하지 않는다. 복구가 필요하면 위 dump를 별도
+스키마에 복원해 대조한다.
 
 ### 회사 핏 단계의 배포와 참조 검증
 
@@ -1124,7 +986,7 @@ enqueue/audit 행과 manifest가 일치하지 않으면 실행하지 않는다.
 
 참조 검증에는 web/analysis-worker 양쪽에 동일한 `BIDOPS_PRESPEC_COMPANY_FIT_ENABLED=true`, `BIDOPS_REFERENCE_WORKFLOW_MODE=true`, `BIDOPS_PRESPEC_COMPANY_FIT_MODEL=<승인 모델명>`과 활성 profile/policy ID가 필요하다. 이 문서의 설정 예시는 실행 승인 자체가 아니다. 모델 연결은 기존 overview 용도의 승인 사설 endpoint/허용 host/64자 revision을 사용하며 별도 외부 fallback은 없다. model-response 암호화 저장소도 필요하다. 모델 호출과 활성화는 명시적 실행 승인 후 진행한다.
 
-합성 worker 순서는 C-2 → 심층 → 회사 핏 → 개요이며 한 poll에서 하나만 실행한다. 우선 검토·SW=Y·자동 확정 ready 묶음·동일 문서의 검증된 개요·활성 입력 설정과 중복 여부를 유료 호출 전에 검사한다. 최신 v4 페이지 개요가 있으면 이를 사용하고 검증 실패 때는 과거 개요로 우회하지 않는다. 없을 때는 기존 추출형 개요를 사용하므로 이 회사 핏 단계 자체에 새 PDF 변환은 필요하지 않다. 기존 개요 프롬프트를 v4로 바꾸거나 첨부 변환기를 교체하는 변경은 이 단계에 포함하지 않는다.
+합성 worker 순서는 C-2 → 심층 → 회사 핏 → 개요이며 한 poll에서 하나만 실행한다. 우선 검토·SW=Y·자동 확정 ready 묶음·동일 문서의 완료된 개요 run·활성 입력 설정과 중복 여부를 유료 호출 전에 검사한다. 최신 `prespec_overview_run.status=completed`가 있으면 이를 사용하고 `needs_human_review`/`failed`일 때는 과거 완료 run으로 우회하지 않는다. 개요 완료 run이 없으면 이 회사 핏 단계는 대기한다.
 
 회사 핏의 호출은 재시도 0, timeout 300초, lease 600초다. lease 만료는 실패로 종결하고 자동 재시작하지 않는다. 새 개요·프로필·정책/모델 입력이면 새 실행이 가능하다. `GET /api/pre-specs/{notice_id}/company-fit`에서 사유·현재성·토큰·시간·품질과 실제 심층 검토 생성을 확인한다. 현재는 참조 실행만 지원하며 품질 측정/사람 정답 없이 운영 자동화를 활성화할 수 없다.
 
