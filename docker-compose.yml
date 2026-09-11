@@ -132,6 +132,7 @@ services:
       BIDOPS_PRESPEC_COMPANY_FIT_MODEL: "${BIDOPS_PRESPEC_COMPANY_FIT_MODEL:-}"
       BIDOPS_REFERENCE_WORKFLOW_MODE: "${BIDOPS_REFERENCE_WORKFLOW_MODE:-false}"
       BIDOPS_ACTIVE_ANALYSIS_POLICY_VERSION_ID: "${BIDOPS_ACTIVE_ANALYSIS_POLICY_VERSION_ID:-}"
+      BIDOPS_PRESPEC_OVERVIEW_ENABLED: "${BIDOPS_PRESPEC_OVERVIEW_ENABLED:-false}"
     ports:
       - "${BIDOPS_WEB_BIND_HOST:-127.0.0.1}:${BIDOPS_WEB_PORT:-18787}:8787"
     networks: [database, storage, scanning]
@@ -206,22 +207,33 @@ services:
       BIDOPS_OBJECT_STORE_BACKEND: minio
       BIDOPS_OBJECT_STORE_ENDPOINT: minio:9000
       BIDOPS_OBJECT_STORE_SECURE: "false"
+      BIDOPS_SOURCE_ACCESS_KEY: "${BIDOPS_SOURCE_ACCESS_KEY:?set an external source access key}"
+      BIDOPS_SOURCE_SECRET_KEY: "${BIDOPS_SOURCE_SECRET_KEY:?set an external source secret key}"
+      BIDOPS_STRUCTURE_ACCESS_KEY: "${BIDOPS_STRUCTURE_ACCESS_KEY:?set an external structure access key}"
+      BIDOPS_STRUCTURE_SECRET_KEY: "${BIDOPS_STRUCTURE_SECRET_KEY:?set an external structure secret key}"
       BIDOPS_MODEL_RESPONSE_ACCESS_KEY: "${BIDOPS_MODEL_RESPONSE_ACCESS_KEY:?set an external model-response access key}"
       BIDOPS_MODEL_RESPONSE_SECRET_KEY: "${BIDOPS_MODEL_RESPONSE_SECRET_KEY:?set an external model-response secret key}"
       BIDOPS_STRUCTURE_READ_ACCESS_KEY: "${BIDOPS_STRUCTURE_READ_ACCESS_KEY:?set an external structure read access key}"
       BIDOPS_STRUCTURE_READ_SECRET_KEY: "${BIDOPS_STRUCTURE_READ_SECRET_KEY:?set an external structure read secret key}"
       BIDOPS_MODEL_RESPONSE_ENCRYPTION_KEY: "${BIDOPS_MODEL_RESPONSE_ENCRYPTION_KEY:?set an external model-response encryption key}"
       BIDOPS_MODEL_RESPONSE_ENCRYPTION_KEY_REF: "${BIDOPS_MODEL_RESPONSE_ENCRYPTION_KEY_REF:?set an external model-response encryption key reference}"
+      BIDOPS_CLAMAV_HOST: clamav
+      BIDOPS_CLAMAV_PORT: "3310"
+      BIDOPS_CLAMAV_TIMEOUT_SECONDS: "15"
+      BIDOPS_PRESPEC_OVERVIEW_ENABLED: "${BIDOPS_PRESPEC_OVERVIEW_ENABLED:-false}"
     command: ["python", "-m", "app.workers.analysis"]
     # Worker liveness is observed through its process/job lease; it does not
     # expose the web image's 8787 health endpoint.
     healthcheck: { disable: true }
     volumes:
+      # 개요 runner의 PDF 준비가 document-worker와 scratch handoff로 변환한다.
+      - document-scratch:/scratch
       - pipeline-data:/app/data
       - ./experiments/order-plan-screening/config/order-plan-screening-policy.v2.json:/app/experiments/order-plan-screening/config/order-plan-screening-policy.v2.json:ro
       - ./experiments/order-plan-screening/config/order-plan-screening-phase0-binding.v2.json:/app/experiments/order-plan-screening/config/order-plan-screening-phase0-binding.v2.json:ro
       - ./experiments/order-plan-screening/config/order-plan-screening-generation-config.v4.json:/app/experiments/order-plan-screening/config/order-plan-screening-generation-config.v4.json:ro
-    networks: [database, analysis]
+    # scanning: ClamAV 검사.
+    networks: [database, analysis, scanning]
 
   ro-backup:
     build: { context: ., dockerfile: web/Dockerfile }
