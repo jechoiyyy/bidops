@@ -38,6 +38,7 @@ from ...core.model_client import (
     strip_leading_thinking,
     structured_request_capacity,
 )
+from ...core.models import AuditEvent
 from ...core.object_store import EncryptedModelResponseStore, ObjectStoreError, object_store
 from ..models import (
     ContentObject,
@@ -87,6 +88,8 @@ from .prespec_overview_claim_validation import (
     verify_composed_page_overview,
 )
 
+#: 사람이 쪽 범위를 확정했을 때 남기는 감사 action.
+RANGE_CONFIRMATION_ACTION = "prespec_overview.range_confirmation"
 #: WorkJob 계약 (contracts.md "사전규격 개요 검토 (MVP)").
 OVERVIEW_JOB_TYPE = "prespec_overview"
 OVERVIEW_AGGREGATE_TYPE = "prespec_overview_run"
@@ -112,6 +115,14 @@ _FACTUAL_DRAFT_CODES = frozenset({
 
 class OverviewEnqueueError(ValueError):
     """enqueue 인자 자체가 틀렸다. 자격 미충족은 예외가 아니라 ``None``이다."""
+
+    def __init__(self, code: str) -> None:
+        self.code = code
+        super().__init__(code)
+
+
+class OverviewRequestError(ValueError):
+    """사람 요청 경계의 안정 실패 코드. 라우터는 이 코드만 상태로 옮긴다."""
 
     def __init__(self, code: str) -> None:
         self.code = code
@@ -1074,23 +1085,141 @@ def run_once(
     return OverviewRunResult(True, attempt_id=run_id, status="completed", expired_leases=expired)
 
 
+# --- 사람 요청 경계 (REST가 부르는 것) ---------------------------------------
+
+
+def latest_snapshot(session: Session, document_version_id: UUID) -> PrespecV4PdfSnapshot | None:
+    """문서의 가장 최근 동결 스냅샷. 없으면 ``None``이다."""
+
+    return session.scalars(
+        select(PrespecV4PdfSnapshot)
+        .where(PrespecV4PdfSnapshot.document_version_id == document_version_id)
+        .order_by(PrespecV4PdfSnapshot.created_at.desc(), PrespecV4PdfSnapshot.id.desc())
+        .limit(1)
+    ).first()
+
+
+def confirm_range(
+    session: Session,
+    notice_id: int,
+    *,
+    page_start: int,
+    page_end: int,
+    actor_name: str,
+    note: str | None = None,
+    settings: Any | None = None,
+) -> PrespecOverviewRun:
+    """사람이 확정한 쪽 범위로 개요 run 하나를 넣고 감사 이벤트를 남긴다.
+
+    **자동 enqueue 플래그와 무관하다.** 사람이 명시적으로 고른 범위는 언제나 한
+    건을 실행할 수 있어야 한다. 범위 확정은 실행 승인이 아니라 개요 run의 입력
+    범위를 정하는 것이며 담당자 이름은 감사 표식이다.
+    """
+
+    if page_end < page_start:
+        raise OverviewRequestError("range_invalid")
+    if active_run(session, notice_id) is not None:
+        raise OverviewRequestError("run_active")
+    document = ready_bundle_document(session, notice_id)
+    if document is None:
+        raise OverviewRequestError("not_found")
+    # 준비된 스냅샷이 있으면 그 현재성을 본다. 아직 없어도 문서 자체가
+    # current·safe면 허용한다 — 준비는 run이 한다.
+    snapshot = latest_snapshot(session, document.id)
+    if snapshot is not None:
+        try:
+            safe_snapshot(session, snapshot)
+        except V4OpsError as error:
+            raise OverviewRequestError(str(getattr(error, "code", "") or "document_not_current_safe")) from error
+    elif not document.is_current or document.safety_status != "safe" or document.needs_human_review:
+        raise OverviewRequestError("document_not_current_safe")
+    try:
+        run = enqueue_overview_run(
+            session, notice_id, range_source="human",
+            page_start=page_start, page_end=page_end,
+            actor_name=actor_name, settings=settings,
+        )
+    except OverviewEnqueueError as error:
+        raise OverviewRequestError(error.code) from error
+    if run is None:
+        raise OverviewRequestError("not_found")
+    session.add(
+        AuditEvent(
+            actor_kind="human",
+            claimed_name=actor_name,
+            action=RANGE_CONFIRMATION_ACTION,
+            aggregate_type=OVERVIEW_AGGREGATE_TYPE,
+            aggregate_id=str(run.id),
+            safe_metadata={
+                "notice_id": int(notice_id),
+                "page_start": int(page_start),
+                "page_end": int(page_end),
+                "has_note": note is not None,
+            },
+        )
+    )
+    return run
+
+
+def run_snapshot_pdf(
+    session: Session, notice_id: int, run_id: UUID, *, store: Any | None = None
+) -> bytes:
+    """이 run이 실제로 읽은 고정 스냅샷 PDF bytes.
+
+    다른 공고의 run이나 준비 전 run은 `not_found`이고, 문서·원본이 지금 current·
+    safe가 아니면 `document_not_current_safe`다. 읽기는 저장된 version·hash를
+    다시 확인하는 경계를 그대로 지난다.
+    """
+
+    run = session.get(PrespecOverviewRun, run_id)
+    if run is None or int(run.notice_id) != int(notice_id) or run.snapshot_id is None:
+        raise OverviewRequestError("not_found")
+    snapshot = session.get(PrespecV4PdfSnapshot, run.snapshot_id)
+    if snapshot is None:
+        raise OverviewRequestError("not_found")
+    try:
+        safe_snapshot(session, snapshot)
+    except V4OpsError as error:
+        raise OverviewRequestError("document_not_current_safe") from error
+    content = session.get(ContentObject, snapshot.pdf_content_object_id)
+    location = session.get(ContentObjectLocation, snapshot.pdf_location_id)
+    if content is None or location is None:
+        raise OverviewRequestError("pdf_unavailable")
+    from .pdf_snapshot import _read_verified_artifact
+
+    try:
+        if store is None:
+            store = object_store(namespaces=("source",), read_namespaces=("source",))
+        return _read_verified_artifact(
+            store, location, content,
+            max_bytes=content.size_bytes, expected_mime="application/pdf",
+        )
+    except (V4PreparationError, ObjectStoreError, OSError, ValueError) as error:
+        raise OverviewRequestError("pdf_unavailable") from error
+
+
 __all__ = [
     "ACTIVE_STATUSES",
     "OVERVIEW_AGGREGATE_TYPE",
     "OVERVIEW_ENVELOPE_SCHEMA",
     "OVERVIEW_JOB_TYPE",
+    "RANGE_CONFIRMATION_ACTION",
     "SETTLED_STATUSES",
     "OverviewEnqueueError",
+    "OverviewRequestError",
     "OverviewRunResult",
     "active_run",
     "cancel_queued_runs",
     "completed_result",
+    "confirm_range",
     "current_runs",
     "enqueue_overview_run",
     "overview_envelope",
     "overview_status_for",
+    "latest_snapshot",
     "prepare_run_snapshot",
     "ready_bundle_document",
     "run_once",
+    "run_snapshot_pdf",
     "run_view",
 ]
