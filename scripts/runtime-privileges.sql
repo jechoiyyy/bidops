@@ -77,17 +77,9 @@ GRANT SELECT ON TABLE
     bidops.schedule_execution,
     bidops.always_on_state,
     bidops.screening_audit_event,
-    bidops.prespec_overview_review,
-    bidops.prespec_overview_snapshot,
-    bidops.prespec_overview_attempt,
-    bidops.prespec_overview_result,
-    bidops.prespec_page_overview,
+    bidops.prespec_overview_run,
     bidops.prespec_company_fit_attempt,
     bidops.prespec_v4_pdf_snapshot,
-    bidops.prespec_v4_target,
-    bidops.prespec_v4_attempt,
-    bidops.prespec_overview_call_event,
-    bidops.prespec_overview_verification,
     bidops.document_segment_manifest,
     bidops.document_segment,
     bidops.requirement_inventory_item,
@@ -135,9 +127,8 @@ GRANT INSERT ON TABLE
     bidops.document_block,
     bidops.document_bundle,
     bidops.document_bundle_item,
+    bidops.prespec_overview_run,
     bidops.prespec_v4_pdf_snapshot,
-    bidops.prespec_v4_target,
-    bidops.prespec_v4_attempt,
     bidops.profile_version,
     bidops.profile_evidence,
     bidops.analysis_policy_version,
@@ -167,8 +158,6 @@ GRANT INSERT ON TABLE
     bidops.schedule_execution,
     bidops.always_on_state,
     bidops.screening_audit_event,
-    bidops.prespec_overview_review,
-    bidops.prespec_overview_snapshot,
     bidops.document_segment_manifest,
     bidops.document_segment,
     bidops.requirement_inventory_item,
@@ -220,14 +209,6 @@ GRANT UPDATE (
     corrected_readiness, weakest_perspective, reason, reviewer_snapshot,
     updated_at
 ) ON bidops.review TO app;
--- Overview review transitions are column-scoped; immutable snapshot rows have
--- no UPDATE grant for either runtime role.
-GRANT UPDATE (
-    current_snapshot_id, status, result, completed_at, updated_at
-) ON bidops.prespec_overview_review TO app;
-GRANT UPDATE (
-    status, completed_at, error_code, lease_owner, lease_expires_at
-) ON bidops.prespec_v4_attempt TO app;
 GRANT UPDATE (
     execution_id, decision_digest, evidence_judgment, note, updated_at
 ) ON bidops.quality_gate_review TO app;
@@ -250,6 +231,7 @@ GRANT UPDATE (
 -- The worker may advance fetch/deep-review queues only.  Overview review
 -- transitions below remain column-scoped and snapshots remain immutable.
 GRANT UPDATE ON TABLE
+    bidops.prespec_overview_run,
     bidops.opportunity,
     bidops.opportunity_link,
     bidops.judgment,
@@ -329,18 +311,9 @@ GRANT SELECT ON TABLE
     bidops.work_job,
     bidops.idempotency_record,
     bidops.audit_event,
-    bidops.prespec_overview_review,
-    bidops.prespec_overview_snapshot,
-    bidops.prespec_overview_attempt,
-    bidops.prespec_overview_result,
-    bidops.prespec_page_overview,
+    bidops.prespec_overview_run,
     bidops.prespec_company_fit_attempt,
-    bidops.prespec_v4_attempt,
-    bidops.prespec_overview_attempt_event,
-    bidops.prespec_overview_call_event,
-    bidops.prespec_overview_verification,
     bidops.prespec_v4_pdf_snapshot,
-    bidops.prespec_v4_target,
     bidops.document_segment_manifest,
     bidops.document_segment,
     bidops.requirement_inventory_item,
@@ -367,16 +340,9 @@ GRANT INSERT ON TABLE
     bidops.validation_run,
     bidops.validation_check,
     bidops.audit_event,
-    bidops.prespec_overview_review,
-    bidops.prespec_overview_snapshot,
-    bidops.prespec_overview_attempt,
-    bidops.prespec_overview_result,
-    bidops.prespec_page_overview,
+    bidops.prespec_overview_run,
     bidops.prespec_v4_pdf_snapshot,
     bidops.prespec_company_fit_attempt,
-    bidops.prespec_overview_attempt_event,
-    bidops.prespec_overview_call_event,
-    bidops.prespec_overview_verification,
     bidops.document_segment_manifest,
     bidops.document_segment,
     bidops.requirement_inventory_item,
@@ -386,15 +352,13 @@ GRANT INSERT ON TABLE
 TO worker;
 
 GRANT UPDATE ON TABLE
+    bidops.prespec_overview_run,
     bidops.attachment_fetch,
     bidops.deep_review,
     bidops.deep_review_attempt,
     bidops.deep_review_stage,
     bidops.work_job
 TO worker;
-GRANT UPDATE (
-    current_snapshot_id, status, result, completed_at, updated_at
-) ON bidops.prespec_overview_review TO worker;
 -- PostgreSQL row locks require UPDATE on at least one column. Notice identity
 -- is only used as the lock target; the worker never rewrites notice metadata.
 GRANT UPDATE (id) ON bidops.notice TO worker;
@@ -412,14 +376,6 @@ GRANT UPDATE (
     stage2_uncertain_count, stage2_failed_count, stage2_rejected_count,
     human_review_count, error_code, started_at, finished_at, heartbeat_at
 ) ON bidops.order_plan_screening_execution TO worker;
-GRANT UPDATE (
-    status, started_at, completed_at, result_id, lease_owner, lease_expires_at
-) ON bidops.prespec_overview_attempt TO worker;
-GRANT UPDATE (
-    status, result_id, result_sha256, raw_response_sha256, error_code,
-    lease_owner, lease_expires_at, started_at, completed_at,
-    prompt_tokens, output_tokens, latency_ms, validation_warnings
-) ON bidops.prespec_v4_attempt TO worker;
 GRANT UPDATE (is_current) ON bidops.document_version TO worker;
 
 GRANT UPDATE (

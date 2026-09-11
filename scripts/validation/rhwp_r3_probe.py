@@ -39,7 +39,7 @@ def main():
         from app.deep_review.document_mcp.safety import ProcessorOptions
         from app.deep_review.models import ContentObject, ContentObjectLocation, ContentScan, DocumentVersion
         from app.deep_review.services.document_converter import ScratchDocumentProcessor
-        from app.deep_review.services.prespec_v4 import prepare_v4_pdf_snapshot
+        from app.deep_review.services.pdf_snapshot import prepare_v4_pdf_snapshot
 
         options = ProcessorOptions(renderer="rhwp-svg-pdf", prepare_pdf=True, ocr=False, timeout_seconds=300, max_output_bytes=64 * 1024 * 1024, max_pdf_objects=100_000)
         renderer = {"renderer": "rhwp-svg-pdf", "rhwp_version": "0.8.6", "rhwp_binary_sha256": hashlib.sha256((ROOT / "web/backend/app/deep_review/document_mcp/vendor/rhwp/bin/rhwp").read_bytes()).hexdigest(), "backend": "svg", "compat": "2022", "fallback_fonts": {"serif": "NanumMyeongjo", "sans": "NanumGothic", "mono": "NanumGothicCoding"}, "worker_image_digest": None}

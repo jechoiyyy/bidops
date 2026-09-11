@@ -18,17 +18,17 @@ from ...lifecycle.models import Notice
 from ..models import DeepReview, DocumentBundle, PreSpecCompanyFitAttempt
 from .auto_preparation import _auto_start_scope, maybe_auto_start_deep_review
 from .company_fit import (CONTRACT, configured_binding, current_flags, digest, fit_policy,
-                          current_v4_projections, frozen_input, overview_inputs,
-                          validate_result)
+                          frozen_input, overview_inputs, validate_result)
 from .effective_grade import priority_notice_ids
 from .input_versions import resolve_active_versions
 from .model_response_storage import store_raw_model_response
-from .prespec_v4_runner import (
+from .model_retry import (
     VALIDATION_RETRY_INVOCATION_CODES,
     VALIDATION_RETRY_SEED,
     build_correction,
     validation_retry_metadata,
 )
+from .overview_runs import current_runs
 
 
 def _now():
@@ -76,8 +76,8 @@ class PreSpecCompanyFitRunner:
             .distinct().order_by(Notice.id)))
         priority = priority_notice_ids(session, ids)
         candidate_ids = [i for i in ids if i in priority]
-        current_v4 = current_v4_projections(session, candidate_ids)
-        sources = overview_inputs(session, candidate_ids, current_v4=current_v4)
+        runs = current_runs(session, candidate_ids)
+        sources = overview_inputs(session, candidate_ids, runs=runs)
         existing_inputs = set(session.scalars(select(PreSpecCompanyFitAttempt.input_sha256)))
         existing_deep = set(session.scalars(select(DeepReview.bundle_id).where(
             DeepReview.profile_version_id == profile.id, DeepReview.policy_version_id == policy.id)))
@@ -86,10 +86,7 @@ class PreSpecCompanyFitRunner:
             if source is None:
                 continue
             bundle_id, reason = _auto_start_scope(
-                session,
-                notice_id,
-                require_company_fit=False,
-                current_v4=current_v4,
+                session, notice_id, require_company_fit=False, runs=runs
             )
             if reason is not None or bundle_id in existing_deep:
                 continue
@@ -105,8 +102,7 @@ class PreSpecCompanyFitRunner:
             if session.scalar(select(PreSpecCompanyFitAttempt.id).where(PreSpecCompanyFitAttempt.input_sha256 == input_hash)):
                 continue
             row = PreSpecCompanyFitAttempt(id=uuid4(), notice_id=notice_id, document_version_id=source.document_id,
-                page_overview_id=source.id if source.kind == "page" else None,
-                overview_result_id=source.id if source.kind == "extractive" else None,
+                overview_run_id=source.id,
                 profile_version_id=profile.id, deep_policy_version_id=policy.id,
                 input_jsonb=inputs, input_sha256=input_hash, policy_digest=inputs["policy_digest"],
                 model_name=inputs["model_name"], model_revision=inputs["model_revision"],

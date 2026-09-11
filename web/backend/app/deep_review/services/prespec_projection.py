@@ -2,9 +2,8 @@
 
 lifecycle의 `GET /api/pre-specs`는 누적 목록이라 회차 상한이 없다. 그래서 세
 메서드 모두 호출부가 넘긴 `notice_ids`를 batch projection으로 처리하고,
-공고 수에 따라 조회를 늘리지 않는다. 개요 상태는 v4 current batch를 먼저 읽고
-current가 없는 공고에만 legacy 상태를 적용한다. 없는 공고는 빠뜨린다 —
-`None`/0으로 채우는 것은 lifecycle의 몫이다.
+공고 수에 따라 조회를 늘리지 않는다. 개요 상태는 공고별 최신 run 하나이며,
+run이 없는 공고는 빠뜨린다 — `None`/0으로 채우는 것은 lifecycle의 몫이다.
 """
 
 from __future__ import annotations
@@ -15,12 +14,11 @@ from typing import Any
 
 from sqlalchemy import func, select
 
-from ...core.constants import prespec_overview_status_from_v4
 from ...lifecycle import PreSpecDocumentCounts, WorkloadCount
-from ..models import AttachmentFetch, PreSpecOverviewReview
+from ..models import AttachmentFetch
 from ...lifecycle.models import Attachment, Notice
 from .auto_preparation import auto_preparation_fields
-from .company_fit import current_v4_projections
+from .overview_runs import current_runs, overview_status_for
 
 # attachment_fetch.status 값 → PreSpecDocumentCounts 필드. 응답 별칭(완료·대기·
 # 진행·차단·실패)은 lifecycle의 응답 모델이 붙인다.
@@ -43,28 +41,13 @@ class PreSpecOverviewDocumentProjection:
     def _overview_statuses(
         self, session: Any, notice_ids: Sequence[int]
     ) -> dict[int, str]:
-        """Return one current status per notice using one batch v4 projection."""
+        """공고별 최신 개요 run의 상태 하나. batch 조회 한 번이다."""
 
         ids = _distinct_ids(notice_ids)
         if not ids:
             return {}
-        current = current_v4_projections(session, ids)
-        legacy = {
-            int(notice_id): status
-            for notice_id, status in session.execute(
-                select(PreSpecOverviewReview.notice_id, PreSpecOverviewReview.status).where(
-                    PreSpecOverviewReview.notice_id.in_(ids)
-                )
-            ).all()
-        }
-        statuses: dict[int, str] = {}
-        for notice_id in ids:
-            projection = current.get(notice_id)
-            statuses[notice_id] = (
-                prespec_overview_status_from_v4(projection.get("status"))
-                if projection is not None
-                else legacy.get(notice_id)
-            )
+        runs = current_runs(session, ids)
+        statuses = {notice_id: overview_status_for(runs.get(notice_id)) for notice_id in ids}
         return {notice_id: status for notice_id, status in statuses.items() if status is not None}
 
     def overview_status(self, session: Any, notice_ids: Sequence[int]) -> Mapping[int, str]:
