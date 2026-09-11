@@ -335,9 +335,15 @@ overview_not_completed → service_unavailable → 회사 핏 사유`다. `overv
 
 | 경로 | 응답 |
 |---|---|
-| `GET /api/pre-specs/{notice_id}/overview` | `{schema, notice_id, current: Run\|null, history: Run[]}` |
-| `POST /api/pre-specs/{notice_id}/overview/range-confirmations` | body `{page_start, page_end, note?}`, `X-BidOps-Actor-Name` 헤더(비ASCII 이름은 `X-BidOps-Actor-Name-Format: utf-8-percent`). 409 `run_active`(queued/running 있음), 409 `document_not_current_safe`, 422 `range_invalid`. 201 `{run_id, attempt_enqueued: true}` |
-| `GET /api/pre-specs/{notice_id}/overview/runs/{run_id}/pdf` | 고정 스냅샷 PDF. 404/409 safe 오류 |
+| `GET /api/pre-specs/{notice_id}/overview` | `{schema, notice_id, current: Run\|null, history: Run[], range_review: RangeReview\|null, verification: Verification\|null}` |
+| `POST /api/pre-specs/{notice_id}/overview/range-confirmations` | body `{page_start, page_end, note?}` **또는** `{candidate_indices: [시작 index, 끝 index], note?}`(둘을 함께 보내면 `range_invalid`), `X-BidOps-Actor-Name` 헤더(비ASCII 이름은 `X-BidOps-Actor-Name-Format: utf-8-percent`). 409 `run_active`(queued/running 있음), 409 `document_not_current_safe`, 422 `range_invalid\|candidate_range_incomplete\|candidate_range_unavailable`. 201 `{run_id, attempt_enqueued: true, page_start, page_end}` |
+| `GET /api/pre-specs/{notice_id}/overview/runs/{run_id}/pdf` | 그 run이 읽은 고정 스냅샷 PDF. 404/409 safe 오류 |
+| `GET /api/pre-specs/{notice_id}/overview/snapshot/pdf` | run이 없어도 여는 최신 고정 스냅샷 PDF(범위 확정용). run PDF와 같은 경계. 404 `not_found`, 409 `document_not_current_safe`, 503 `pdf_unavailable` |
+
+절 후보 index로 확정하면 서버가 쪽으로 바꾼다: 시작은 고른 절의 쪽, 끝은 **다음 절의 쪽**(마지막
+절이면 문서 끝 쪽)이다. 화면은 이 계산을 하지 않는다. 후보가 일부만 있으면
+`candidate_range_incomplete`, 후보를 읽을 수 없으면 `candidate_range_unavailable`이며 둘 다
+사람이 쪽 범위를 직접 넣어야 한다.
 
 Run 응답 필드: `id, status, range_source(auto|fallback|human), page_start, page_end,
 range_reason_codes, reason_codes, warnings, result(완료 시:
@@ -347,6 +353,45 @@ input_limitations[]), failed_claims(`completed`·`needs_human_review` 모두:
 [{claim_id,section,text,reason_codes,evidence}]), model_name, model_revision,
 call_count, actor_name, created_at, started_at, completed_at`. 모델 원문·`raw_response_refs`·
 내부 경로는 반환하지 않는다.
+
+Run의 파생 필드(저장 값을 옮긴 것이며 새 판정이 아니다):
+
+| 필드 | 값 |
+|---|---|
+| `result_id` | `completed`면 run id, 그 밖에는 `null` |
+| `prompt_version` | 정책 문서의 `prompt_version`. 정책을 읽을 수 없으면 `null` |
+| `verification_status` | `checks_json`이 있으면 `passed\|needs_human_review`, 없으면 `null` |
+| `document_version_id` | run이 읽은 문서 |
+| `source_sha256`·`pdf_sha256`·`pdf_page_count` | run의 동결 스냅샷 값. 준비 전이면 `null` |
+| `reviewed_pages` | `[page_start..page_end]` 정수 배열. 범위가 없으면 `[]` |
+| `payload_sha256` | `result_json`의 canonical JSON sha256. 없으면 `null` |
+| `quality_status` | `model_name`이 `mock`으로 시작하면 `mock_reference`, 아니면 `unmeasured_reference`. **측정된 품질이 아니다** |
+| `validation_status`·`evidence_check_status` | `completed`면 `passed`, 그 밖에는 `failed` |
+| `validation_errors`·`evidence_check_errors` | run의 `reason_codes` 배열 |
+
+`range_review`(ready 묶음 RFP 문서의 최신 스냅샷이 없으면 `null`):
+
+| 필드 | 값 |
+|---|---|
+| `target_id` | 최신 run id. run이 없으면 `null` |
+| `status` | 최신 run이 `human`이면 `human_confirmed`; `fallback`이거나 `needs_human_review\|failed\|cancelled`이거나 run이 없으면 `pending`; 그 밖에는 `ready` |
+| `document_version_id`·`pdf_page_count` | 스냅샷 값 |
+| `mode` | 후보 산출물의 `outline\|clause\|page`. 후보가 없으면 `null` |
+| `candidate_status` | `complete\|partial\|unavailable` |
+| `candidate_count_total`·`candidate_count_returned` | 후보 산출물의 `section_count`와 반환 수 |
+| `candidates` | `[{index(0부터), title, page(1부터), char_count}]` |
+| `selected_pages` | 최신 run의 `[page_start, page_end]`. 없으면 `null` |
+| `warning_codes` | 후보가 부분이면 `section_candidates_incomplete`, 읽을 수 없으면 `section_candidates_unavailable` |
+| `reason_code` | 최신 run의 `range_reason_codes[0]`, 없으면 후보 경고 코드, 그것도 없으면 `null` |
+| `can_confirm` | 활성 run이 없고 문서·원본이 지금 current·safe일 때만 `true` |
+| `assisted` | 항상 `null`(범위 보조 실행은 MVP에 없다) |
+| `confirmation` | 가장 최근 사람 확정 `{page_start, page_end, actor_name, note, created_at}`. `note` 본문은 저장하지 않으므로 항상 `null`이고 없으면 전체가 `null` |
+
+`verification`(현재 run에 `checks_json`이 없으면 `null`): `{verification_id: run id, status:
+passed\|needs_human_review, reason_codes: [], claims: [{claim_id, section, text,
+deterministic: {status: passed\|failed, reason_codes: []}, semantic: {status:
+supported\|contradicted\|insufficient\|not_run, reason_codes: []}, verified_evidence: [{page,
+quote, start_char, end_char}]}]}`. `page_text_sha256`은 내부 결속 값이라 나가지 않는다.
 
 ### 실행 흐름
 

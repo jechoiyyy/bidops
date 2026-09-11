@@ -527,6 +527,18 @@ def _validate_native_references(session, store, refs, document, source_bytes, pa
     return binding
 
 
+def snapshot_has_section_candidates(snapshot: PrespecV4PdfSnapshot | None) -> bool:
+    """Does this snapshot carry section-candidate references at all?
+
+    A read-only guard so callers can skip opening an object store for a
+    snapshot frozen before 0024; it makes no claim that the artifact is valid.
+    """
+
+    if snapshot is None:
+        return False
+    return all(getattr(snapshot, field) is not None for field in _SECTION_CANDIDATE_FIELDS)
+
+
 def read_snapshot_section_candidates(
     session: Session,
     store: ObjectStore,
@@ -1006,4 +1018,5 @@ __all__ = [
     "read_snapshot_page_text",
     "read_snapshot_section_candidates",
     "safe_snapshot",
+    "snapshot_has_section_candidates",
 ]
