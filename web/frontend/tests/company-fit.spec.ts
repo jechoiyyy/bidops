@@ -8,7 +8,7 @@ function response(): CompanyFitResponse {
   return { schema_version: "bidops.prespec-company-fit.v1", notice_id: 991, automation_enabled: true,
     auto_deep_review_reason: "company_fit_mismatch", deep_review_id: null,
     attempts: [{ id: "fit-1", notice_id: 991, status: "completed", error_code: null, is_current: true,
-      overview_kind: "page", overview_id: "overview-1", document_version_id: "document-1", overview_sha256: "a".repeat(64),
+      overview_kind: "overview_run", overview_id: "overview-1", document_version_id: "document-1", overview_sha256: "a".repeat(64),
       profile_version_id: "profile-1", profile_sha256: "b".repeat(64), policy_digest: "c".repeat(64),
       model_name: "test-fit", model_revision: "d".repeat(64), prompt_version: "prespec-company-fit-v1", quality_status: "unmeasured_reference",
       created_at: "2026-09-08T00:00:00Z", completed_at: "2026-09-08T00:00:10Z", prompt_tokens: null, output_tokens: 0, latency_ms: 10000,
@@ -36,7 +36,7 @@ for (const width of [1280, 1440]) {
       if (isRecord) await section.getByText("판단 사유 1개와 근거 보기", { exact: true }).click();
       await expect(section.getByText(explanation)).toBeVisible();
       await expect(section.getByText("본 계약의 과업은 정보시스템 감리입니다.")).toBeVisible();
-      await expect(section.getByRole("link", { name: "PDF 3페이지 ↗" })).toHaveAttribute("href", /overview-1\/pdf#page=3$/);
+      await expect(section.getByRole("link", { name: "PDF 3페이지 ↗" })).toHaveAttribute("href", /\/overview\/runs\/overview-1\/pdf#page=3$/);
       const executionInfo = section.getByText("판정 기준과 실행 정보", { exact: true });
       await executionInfo.focus();
       await expect(executionInfo).toBeFocused();

@@ -1661,7 +1661,10 @@ export interface CompanyFitAttempt {
   result: CompanyFitResult | null;
   error_code: string | null;
   is_current: boolean;
-  overview_kind: "page" | "extractive";
+  /** `overview_run`은 새 개요 계약(`prespec_overview_run`)의 run이며 그때
+   * `overview_id`는 run id다. 남은 두 값은 이전 세대의 개요 입력이라 열람 경로가
+   * 없다 — 링크 대신 위치만 문장으로 남긴다. */
+  overview_kind: "overview_run" | "page" | "extractive";
   overview_id: string;
   document_version_id: string;
   overview_sha256: string;
