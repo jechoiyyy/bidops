@@ -361,7 +361,7 @@ def test_an_over_limit_auto_range_is_clipped_and_stays_auto(context):
     assert selection.page_numbers == tuple(range(1, LIMITS["max_pages"] + 1))
 
 
-def test_quote_not_found_sends_the_run_to_human_review(context):
+def test_quote_not_found_drops_one_claim_and_keeps_the_rest(context):
     session, store = context
     notice, _document, snapshot = seed(session, store)
     run = overview_runs.enqueue_overview_run(session, notice.id, settings=get_settings())
@@ -376,12 +376,15 @@ def test_quote_not_found_sends_the_run_to_human_review(context):
 
     result = _run(session, store, _WrongQuote(load_claims_policy().document["model_name"]))
 
-    assert result.status == "needs_human_review"
+    # 네 주장 중 하나만 어긋났으므로 그 주장만 빼고 개요를 만든다 (2026-09-11).
+    assert result.status == "completed"
     row = session.get(PrespecOverviewRun, run.id)
-    assert row.status == "needs_human_review" and row.result_json is None
-    failed = overview_runs.run_view(row)["failed_claims"]
+    view = overview_runs.run_view(row)
+    failed = view["failed_claims"]
     assert [item["claim_id"] for item in failed] == ["c1"]
     assert "quote_not_found" in failed[0]["reason_codes"]
+    assert view["result"]["business_overview"] == []
+    assert "claims_dropped" in view["warnings"]
 
 
 def test_two_malformed_drafts_exhaust_the_format_retry(context):
@@ -470,3 +473,129 @@ def test_expired_lease_closes_the_running_run(context):
     assert not session.scalars(
         select(PrespecOverviewRun).where(PrespecOverviewRun.status.in_(overview_runs.ACTIVE_STATUSES))
     ).all()
+
+
+# --- 부분 완료 ---------------------------------------------------------------
+
+#: 쪽 안에서 유일하고 서로 부분 문자열이 아닌 주장 후보 12줄.
+CLAIM_LINES = [f"합성 개요 문장 {label}이다." for label in "가나다라마바사아자차카타"]
+
+
+class _TwelveClaims(MockOverviewTransport):
+    """12개 주장을 만들고 `broken` 자리만 원문에 없는 인용으로 바꾼다."""
+
+    broken: tuple[int, ...] = ()
+
+    def _draft(self, input_slice):
+        sections = ("business_overview", "main_tasks", "budget_and_period", "important_conditions")
+        page = input_slice["blocks"][0]["pdf_page"]
+        claims = [
+            {
+                "id": f"c{index + 1}", "section": sections[index % len(sections)], "text": line,
+                "evidence": [{
+                    "page": page,
+                    "quote": "원문에 없는 인용 문장이다." if index in self.broken else line,
+                }],
+                "quantities": [],
+            }
+            for index, line in enumerate(CLAIM_LINES)
+        ]
+        return {
+            "schema_version": "bidops.prespec-overview-claims.v1",
+            "claims": claims,
+            "analysis": [
+                {"id": "a1", "text": "통과한 주장만 근거로 삼은 모의 분석이다.", "supporting_claim_ids": ["c1"]},
+                {"id": "a2", "text": "빠진 주장을 근거로 삼은 모의 분석이다.",
+                 "supporting_claim_ids": [f"c{(min(self.broken) if self.broken else 0) + 1}"]},
+            ],
+            "unknowns": [{"id": "u1", "topic": "company_comparison",
+                          "reason_code": "company_comparison_not_performed"}],
+        }
+
+
+def _run_twelve(session, store, broken: tuple[int, ...]):
+    notice, _document, snapshot = seed(session, store, pages=["\n".join(CLAIM_LINES)])
+    run = overview_runs.enqueue_overview_run(session, notice.id, settings=get_settings())
+    run.snapshot_id = snapshot.id
+    session.commit()
+    transport = _TwelveClaims(load_claims_policy().document["model_name"])
+    transport.broken = broken
+    result = _run(session, store, transport)
+    return result, session.get(PrespecOverviewRun, run.id)
+
+
+def test_two_failed_claims_are_dropped_and_the_rest_completes(context):
+    """12개 중 2개만 인용이 어긋나면 그 둘만 빼고 개요를 만든다 (2026-09-11)."""
+
+    session, store = context
+
+    result, row = _run_twelve(session, store, (1, 2))
+
+    assert result.status == "completed"
+    view = overview_runs.run_view(row)
+    assert [item["claim_id"] for item in view["failed_claims"]] == ["c2", "c3"]
+    assert all("quote_not_found" in item["reason_codes"] for item in view["failed_claims"])
+    assert {"claims_dropped", "analysis_dropped"} <= set(view["warnings"])
+    published = [
+        item["claim_id"] for section in ("business_overview", "main_tasks",
+                                         "budget_and_period", "important_conditions")
+        for item in view["result"][section]
+    ]
+    assert sorted(published) == sorted(f"c{n}" for n in range(1, 13) if n not in {2, 3})
+    # 빠진 주장을 근거로 삼은 분석은 함께 빠진다.
+    assert [item["id"] for item in view["result"]["reviewer_analysis"]] == ["a1"]
+
+
+def test_fewer_than_half_passing_claims_still_go_to_human_review(context):
+    session, store = context
+
+    result, row = _run_twelve(session, store, (0, 1, 2, 3, 4, 5, 6))
+
+    assert result.status == "needs_human_review"
+    assert row.reason_codes == ["deterministic_check_failed"] and row.result_json is None
+    assert "claims_dropped" not in (row.warnings_json or [])
+
+
+class _WrongUnknown(MockOverviewTransport):
+    def _semantic(self, input_slice):
+        output = MockOverviewTransport._semantic(input_slice)
+        output["unknown_checks"][0].update(status="contradicted", reason_codes=["unknown_contradicted"])
+        return output
+
+
+class _ContradictedClaim(MockOverviewTransport):
+    def _semantic(self, input_slice):
+        output = MockOverviewTransport._semantic(input_slice)
+        output["checks"][0].update(status="contradicted", reason_codes=["unsupported_fact"])
+        return output
+
+
+def _run_with(session, store, transport_class):
+    notice, _document, snapshot = seed(session, store)
+    run = overview_runs.enqueue_overview_run(session, notice.id, settings=get_settings())
+    run.snapshot_id = snapshot.id
+    session.commit()
+    result = _run(session, store, transport_class(load_claims_policy().document["model_name"]))
+    return result, session.get(PrespecOverviewRun, run.id)
+
+
+def test_a_contradicted_unknown_is_dropped_and_the_run_completes(context):
+    session, store = context
+
+    result, row = _run_with(session, store, _WrongUnknown)
+
+    assert result.status == "completed"
+    view = overview_runs.run_view(row)
+    assert "unknown_contradicted" in view["warnings"]
+    assert view["result"]["unknowns"] == []
+    assert view["failed_claims"] == []
+
+
+def test_a_contradicted_claim_still_sends_the_run_to_human_review(context):
+    session, store = context
+
+    result, row = _run_with(session, store, _ContradictedClaim)
+
+    assert result.status == "needs_human_review"
+    assert row.reason_codes == ["semantic_review_failed"] and row.result_json is None
+    assert [item["claim_id"] for item in overview_runs.run_view(row)["failed_claims"]] == ["c1"]

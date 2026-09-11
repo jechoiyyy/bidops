@@ -16,7 +16,8 @@ from app.deep_review.services.prespec_overview_claim_policy import (
 )
 from app.deep_review.services.prespec_overview_claim_validation import (
     ClaimDraftError, SemanticResponseError, apply_semantic_review, build_input_limitations,
-    compose_page_overview, draft_failure_checks, parse_claims_draft, validate_claims_deterministically,
+    compose_page_overview, draft_failure_checks, drop_failed_claims, merge_semantic_checks,
+    parse_claims_draft, validate_claims_deterministically,
     validate_composed_page_overview, verify_evidence,
 )
 
@@ -402,12 +403,52 @@ def test_separate_fake_semantic_counterexamples_receive_full_frozen_context(sour
         compose_page_overview(draft, final_checks, verification_id=uuid4(), input_limitations=["서버 범위"])
 
 
-@pytest.mark.parametrize("group,reason", [("checks", "insufficient_evidence"), ("analysis_checks", "company_capability_unverified"), ("unknown_checks", "unknown_contradicted")])
-def test_uncertain_analysis_and_wrong_unknown_block_whole_result(group, reason):
+@pytest.mark.parametrize("group,reason", [("checks", "insufficient_evidence"), ("analysis_checks", "company_capability_unverified")])
+def test_uncertain_claims_and_analysis_block_whole_result(group, reason):
     draft, checks = check()
     response = supported(draft)
     response[group][0].update(status="insufficient", reason_codes=[reason])
     assert apply_semantic_review(draft, checks, response).overall == "needs_human_review"
+
+
+@pytest.mark.parametrize("status,reason", [("contradicted", "unknown_contradicted"), ("insufficient", "insufficient_evidence")])
+def test_a_wrong_unknown_is_dropped_instead_of_blocking_the_result(status, reason):
+    """unknown의 반박·근거부족은 그 항목만 빼고 나머지는 그대로 게시한다 (2026-09-11)."""
+
+    draft, checks = check()
+    response = supported(draft)
+    response["unknown_checks"][0].update(status=status, reason_codes=[reason])
+
+    reviewed = apply_semantic_review(draft, checks, response)
+
+    assert reviewed.overall == "passed"
+    payload = compose_page_overview(draft, reviewed, verification_id=uuid4(), input_limitations=["서버 범위"])
+    assert payload.unknowns == []
+    assert validate_composed_page_overview(payload.model_dump(mode="json"), reviewed.model_dump(mode="json")) == []
+
+
+def test_a_failed_claim_and_the_analysis_that_leans_on_it_leave_the_subset():
+    """결정적 검사에 실패한 주장·그 주장을 근거로 삼은 분석만 빠진다."""
+
+    value = draft_value()
+    value["claims"][1]["evidence"][0]["quote"] = "원문에 없는 인용 문장이다."
+    value["analysis"].append({"id": "a2", "text": "사업 성격을 먼저 확인한다.", "supporting_claim_ids": ["c1"]})
+    draft, checks = check(value)
+    assert "quote_not_found" in codes(checks)
+
+    subset = drop_failed_claims(draft, checks)
+
+    assert subset.dropped_claim_ids == ("c2",) and subset.dropped_analysis_ids == ("a1",)
+    assert [c.id for c in subset.draft.claims] == ["c1"]
+    assert [a.id for a in subset.draft.analysis] == ["a2"]
+    # 부분집합은 의미 검토 입력이 요구하는 "모든 check가 passed"를 만족한다.
+    build_claims_stage_input({3: BASE_PAGE}, draft=subset.draft, checks=subset.checks)
+    reviewed = apply_semantic_review(subset.draft, subset.checks, supported(subset.draft))
+    assert reviewed.overall == "passed"
+    # 저장되는 전체 검사 결과에는 빠진 주장이 그대로 남는다.
+    merged = merge_semantic_checks(checks, reviewed)
+    assert [row.claim_id for row in merged.checks] == ["c1", "c2"]
+    assert merged.overall == "needs_human_review"
 
 
 def test_compose_and_persisted_recheck_preserve_every_verified_sentence_and_hash():
