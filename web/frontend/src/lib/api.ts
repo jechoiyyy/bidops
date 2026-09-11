@@ -31,8 +31,15 @@ import type {
   OrderPlanScreeningFeedbackListResponse,
   OrderPlanScreeningHistoryResponse,
   OverviewEnvelope,
-  OverviewRangeConfirmationRequest,
   OverviewRangeConfirmationResponse,
+  OverviewRun,
+  PageOverviewCurrent,
+  PageOverviewRangeConfirmationRequest,
+  PageOverviewRangeConfirmationResponse,
+  PageOverviewRangeReview,
+  PageOverviewResponse,
+  PageOverviewVerification,
+  PageOverviewView,
   PreSpecListQuery,
   PreSpecListResponse,
   CompanyFitResponse,
@@ -213,6 +220,151 @@ function query(params: Record<string, string | number | boolean | readonly strin
   });
   const serialized = search.toString();
   return serialized ? `?${serialized}` : "";
+}
+
+/* ── 개요 검토 envelope → 화면 view 어댑터 ────────────────────────────────
+ *
+ * 서버 계약은 `bidops.prespec-overview.v1` 하나다(docs/contracts.md). 개요 화면은
+ * run 하나를 "현재 실행 · 결과 본문 · 범위 확인 · 주장 검증" 네 자리로 나눠 읽으므로
+ * 그 모양으로 옮긴다. **여기서 하는 일은 자리 옮김뿐이다** — 없는 값을 채우거나
+ * 상태를 다시 판정하지 않는다. */
+
+/** 계약과 구조가 다른 응답을 만나면 이 표식을 돌려주고 화면은 아무것도 그리지 않는다. */
+const INVALID_PAGE_OVERVIEW: PageOverviewResponse = {
+  // 화면의 정본 검사(`schema_version`)가 반드시 실패하도록 계약에 없는 값을 넣는다.
+  schema_version: "bidops.prespec-overview-pages.invalid" as PageOverviewResponse["schema_version"],
+  notice_id: -1,
+  reviews: [],
+  current: null,
+  range_review: null,
+  verification: null,
+};
+
+function isOverviewEnvelope(envelope: OverviewEnvelope | null | undefined): envelope is OverviewEnvelope {
+  return Boolean(envelope)
+    && typeof envelope?.notice_id === "number"
+    && envelope.schema === "bidops.prespec-overview.v1"
+    && envelope.current !== undefined
+    && Array.isArray(envelope.history)
+    && envelope.range_review !== undefined
+    && envelope.verification !== undefined;
+}
+
+function pageOverviewView(noticeId: number, run: OverviewRun): PageOverviewView | null {
+  if (run.result === null) return null;
+  return {
+    id: run.id,
+    notice_id: noticeId,
+    document_version_id: run.document_version_id ?? "",
+    source_sha256: run.source_sha256 ?? "",
+    pdf_sha256: run.pdf_sha256 ?? "",
+    pdf_page_count: run.pdf_page_count ?? 0,
+    reviewed_pages: run.reviewed_pages,
+    payload: { schema_version: "bidops.prespec-overview-page-review.v4", ...run.result },
+    payload_sha256: run.payload_sha256 ?? "",
+    validation_status: run.validation_status,
+    validation_errors: run.validation_errors,
+    evidence_check_status: run.evidence_check_status,
+    evidence_check_errors: run.evidence_check_errors,
+    quality_status: run.quality_status,
+    model_name: run.model_name,
+    prompt_version: run.prompt_version,
+    created_at: run.created_at,
+  };
+}
+
+function pageOverviewCurrent(run: OverviewRun): PageOverviewCurrent {
+  return {
+    attempt_id: run.id,
+    status: run.status,
+    result_id: run.result_id,
+    // 화면은 첫 사유만 표시한다. 나머지 사유는 실행 기록에 남아 있다.
+    reason_code: run.reason_codes[0] ?? null,
+    prompt_version: run.prompt_version,
+    created_at: run.created_at,
+    verification_status: run.verification_status,
+  };
+}
+
+function pageOverviewRangeReview(envelope: OverviewEnvelope): PageOverviewRangeReview | null {
+  const review = envelope.range_review;
+  if (!review) return null;
+  const targetId = review.target_id ?? "";
+  const selectedPages = review.selected_pages ?? [];
+  const confirmation = review.confirmation;
+  return {
+    schema_version: "bidops.prespec-overview-range-view.v2",
+    target_id: targetId,
+    snapshot_id: review.document_version_id,
+    // `pending`만 사람 확정 대기다. `ready`·`human_confirmed`는 확정된 자리를 읽는다.
+    selection_status: review.status === "pending" ? "needs_human_review" : "ready",
+    reason_code: review.reason_code,
+    pdf_page_count: review.pdf_page_count,
+    created_at: confirmation?.created_at ?? "",
+    candidates_mode: review.mode,
+    candidate_status: review.candidate_status,
+    candidate_count_total: review.candidate_count_total,
+    candidate_count_returned: review.candidate_count_returned,
+    warning_codes: review.warning_codes,
+    selected_pages: [...selectedPages],
+    can_confirm: review.can_confirm,
+    candidates: review.candidates,
+    assisted: null,
+    confirmation: confirmation
+      ? {
+        target_id: targetId,
+        confirmed_from_target_id: targetId,
+        // 확정 기록은 쪽만 남는다. 절 번호는 계약에 없으므로 지어내지 않는다.
+        start_index: null,
+        end_index: null,
+        first_page: confirmation.page_start,
+        last_page: confirmation.page_end,
+        page_numbers: Array.from(
+          { length: Math.max(0, confirmation.page_end - confirmation.page_start + 1) },
+          (_unused, index) => confirmation.page_start + index,
+        ),
+        actor: confirmation.actor_name,
+        note: confirmation.note,
+        created_at: confirmation.created_at,
+      }
+      : null,
+  };
+}
+
+function pageOverviewVerification(envelope: OverviewEnvelope): PageOverviewVerification | null {
+  const verification = envelope.verification;
+  if (!verification) return null;
+  return {
+    verification_id: verification.verification_id,
+    status: verification.status,
+    reason_codes: verification.reason_codes,
+    claims: verification.claims.map((claim) => ({
+      claim_id: claim.claim_id,
+      text: claim.text,
+      deterministic_status: claim.deterministic.status,
+      semantic_status: claim.semantic.status,
+      reason_codes: [...new Set([...claim.deterministic.reason_codes, ...claim.semantic.reason_codes])],
+      verified_evidence: claim.verified_evidence,
+    })),
+  };
+}
+
+/** 개요 envelope 하나를 화면이 읽는 view 모양으로 옮긴다. */
+export function toPageOverviewResponse(envelope: OverviewEnvelope): PageOverviewResponse {
+  if (!isOverviewEnvelope(envelope)) return INVALID_PAGE_OVERVIEW;
+  const noticeId = envelope.notice_id;
+  const runs = envelope.current && !envelope.history.some((run) => run.id === envelope.current?.id)
+    ? [envelope.current, ...envelope.history]
+    : envelope.history;
+  return {
+    schema_version: "bidops.prespec-overview-pages.v2",
+    notice_id: noticeId,
+    // 결과 본문이 있는 run만 본문 자리에 온다. 실패·취소는 현재 실행 자리가 말한다.
+    reviews: runs.map((run) => pageOverviewView(noticeId, run)).filter((view): view is PageOverviewView => view !== null),
+    current: envelope.current ? pageOverviewCurrent(envelope.current) : null,
+    range_review: pageOverviewRangeReview(envelope),
+    verification: pageOverviewVerification(envelope),
+  };
 }
 
 export const api = {
@@ -602,31 +754,59 @@ export const api = {
   getCompanyFit: (noticeId: number, options?: ReadRequestOptions) =>
     request<CompanyFitResponse>(`/pre-specs/${noticeId}/company-fit`, options),
 
-  /** 사전규격 개요 검토 전체(`bidops.prespec-overview.v1`). run이 없으면
-   * `current`가 `null`이며 화면은 그것을 미시작으로 읽는다. */
-  getPreSpecOverview: (noticeId: number, options?: ReadRequestOptions) =>
-    request<OverviewEnvelope>(`/pre-specs/${noticeId}/overview`, options),
+  /** 사전규격 개요 검토 전체(`bidops.prespec-overview.v1`)를 화면 view 모양으로
+   * 읽는다(`toPageOverviewResponse`). run이 없으면 `current`가 `null`이며 화면은
+   * 그것을 미시작으로 읽는다. */
+  getPageOverviews: async (noticeId: number, options?: ReadRequestOptions) =>
+    toPageOverviewResponse(await request<OverviewEnvelope>(`/pre-specs/${noticeId}/overview`, options)),
 
-  /** 담당자가 읽을 쪽 범위를 확정하고 새 개요 run을 예약한다. 409 `run_active`·
-   * `document_not_current_safe`, 422 `range_invalid`는 서버가 정한 안전 코드로
-   * 돌아오며 화면이 다시 판정하지 않는다. */
-  confirmPreSpecOverviewRange: (
+  /**
+   * 개요 입력 범위를 사람이 확정한다. 담당자 이름은 감사 표식이며 인증이 아니다.
+   *
+   * 확정은 그 범위로 개요 검토 run 하나를 예약한다(`attempt_enqueued`는 true).
+   * 절 후보로 고른 범위는 `candidate_indices`로, 쪽으로 고른 범위는 `page_start`·
+   * `page_end`로 나간다. 오류는 `ApiError.code`의 안전 코드(`run_active`·
+   * `document_not_current_safe`·`range_invalid`·`candidate_range_incomplete`·
+   * `candidate_range_unavailable`)로만 구분하고 서버 message를 분기 조건으로
+   * 쓰지 않는다.
+   */
+  confirmPageOverviewRange: async (
     noticeId: number,
-    payload: OverviewRangeConfirmationRequest,
+    payload: PageOverviewRangeConfirmationRequest,
     actorName: string,
-  ) =>
-    request<OverviewRangeConfirmationResponse>(
+  ): Promise<PageOverviewRangeConfirmationResponse> => {
+    const note = payload.note === null ? {} : { note: payload.note };
+    const body = payload.start_index !== null && payload.end_index !== null
+      ? { candidate_indices: [payload.start_index, payload.end_index], ...note }
+      : { page_start: payload.first_page, page_end: payload.last_page, ...note };
+    const saved = await request<OverviewRangeConfirmationResponse>(
       `/pre-specs/${noticeId}/overview/range-confirmations`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json", ...actorHeaders(actorName) },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(body),
       },
-    ),
+    );
+    return {
+      target_id: saved.run_id,
+      selection_status: "ready",
+      first_page: saved.page_start,
+      last_page: saved.page_end,
+      page_numbers: Array.from(
+        { length: Math.max(0, saved.page_end - saved.page_start + 1) },
+        (_unused, index) => saved.page_start + index,
+      ),
+      attempt_enqueued: saved.attempt_enqueued,
+    };
+  },
 
   /** run이 고정한 스냅샷 PDF의 안전한 상대 경로. 화면은 이 경로로만 원문을 연다. */
   preSpecOverviewRunPdfUrl: (noticeId: number, runId: string) =>
     `${API_PREFIX}/pre-specs/${noticeId}/overview/runs/${encodeURIComponent(runId)}/pdf`,
+
+  /** run이 아직 없을 때도 여는 최신 안전 snapshot PDF. */
+  preSpecOverviewSnapshotPdfUrl: (noticeId: number) =>
+    `${API_PREFIX}/pre-specs/${noticeId}/overview/snapshot/pdf`,
 
   getNotice: (noticePk: number) => request<NoticeDetailResponse>(`/notices/${noticePk}`),
 
