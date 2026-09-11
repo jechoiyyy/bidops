@@ -275,7 +275,7 @@ wire·DB 계약은 [contracts.md](contracts.md#사전규격-개요-검토-mvp-20
 |---|---|---|
 | `queued` / `running` | 대기·실행 중 | 대기 |
 | `completed` | 모든 결정적 검사·의미 검토 통과, 결과 있음 | 진행 가능 |
-| `needs_human_review` | 인용 불일치·필수 섹션 누락·의미 검토 미확정 | `overview_not_completed` |
+| `needs_human_review` | 인용 불일치·주장 0개(`claims_empty`)·의미 검토 미확정 | `overview_not_completed` |
 | `failed` | 기술 실패(변환·형식·용량·timeout 등) | `overview_not_completed` |
 | `cancelled` | `BIDOPS_PRESPEC_OVERVIEW_ENABLED`가 꺼져 닫힘 | `overview_not_completed` |
 
@@ -296,17 +296,22 @@ run이 이전 run의 결과를 덮어쓰지 않는다.
 
 ### 검증 규칙: 경고와 사람 검토를 구분한다
 
-주장별 정확한 인용 대조(원문 한 곳에 유일하게 대응하는지)와 필수 섹션(business_overview·
-main_tasks·budget_and_period·important_conditions) 존재 여부는 실패하면 **사람 검토로
-보낸다**(`needs_human_review`). 반면 수치·단위·역할·VAT·기산점·날짜·라틴 표기·
-requirement_id 대조의 불일치는 **경고**(`warnings`)로만 남기고 결과를 차단하지 않는다.
-하나라도 미검증 인용/누락 섹션이 있으면 attempt 전체가 `needs_human_review`로 끝나며 결과는
-없다. 검증 실패를 자동 보정하거나 통과한 문장만 골라 부분 완료로 게시하지 않는다.
+주장별 정확한 인용 대조(원문 한 곳에 유일하게 대응하는지)는 실패하면 **사람 검토로
+보낸다**(`needs_human_review`). 2단(두 열) 편집 쪽처럼 원문에서 인용이 연속하지 않으면 줄·
+리스트 표식 조각으로 나눠 각 조각이 한 곳에 순서대로 대응할 때만 통과시키고 경고
+`evidence_fragment_match`를 남긴다. 섹션 배정(business_overview·main_tasks·
+budget_and_period·important_conditions)의 쏠림은 2026-09-11부터 경고 `required_fact_missing`이며
+차단하지 않는다. 수치·단위·역할·VAT·기산점·날짜·라틴 표기·requirement_id 대조의 불일치도
+**경고**(`warnings`)로만 남긴다. 하나라도 미검증 인용이 있거나 주장이 한 개도 없으면
+(`claims_empty`) attempt 전체가 `needs_human_review`로 끝나며 결과는 없다. 검증 실패를 자동 보정하거나 통과한 문장만 골라 부분 완료로 게시하지 않는다.
 
 ### fallback 범위 규칙
 
 결정적 heading 선택기가 범위를 정하지 못하면 실패가 아니라 1쪽부터
 `min(60쪽, 100,000자)`까지를 `range_fallback_head` 사유로 자동 선택한다(`range_source=fallback`).
+자동 선택이 2쪽 미만이거나 1,500자 미만이면 목차·표제만 고른 것으로 보고 `range_too_small`을
+남기고 같은 fallback을 탄다. 반대로 자동 선택이 60쪽·100,000자를 넘으면 버리지 않고 시작
+쪽부터 상한까지 잘라 쓰며 `range_clipped_to_limit`를 남긴다(`range_source=auto` 유지).
 선택 범위 전체가 공백이면 모델을 호출하지 않고 `failed/manifest_invalid`로 닫는다. 사람이
 `POST /api/pre-specs/{notice_id}/overview/range-confirmations`로 직접 쪽 범위를 확정하면
 `range_source=human`이 되고, 확정은 개요 run의 범위를 정하는 것일 뿐 실행 승인이 아니다.
