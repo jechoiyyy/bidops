@@ -487,23 +487,12 @@ def _overview_needs_human(session: Session, seeded: SimpleNamespace) -> None:
     run.result_json = None
 
 
-def _overview_missing(session: Session, seeded: SimpleNamespace) -> None:
-    """개요 run이 아예 없는 상태. 없는 것을 완료로 승격시키지 않는다."""
-
-    session.delete(
-        session.scalar(
-            select(PrespecOverviewRun).where(PrespecOverviewRun.notice_id == seeded.notice_id)
-        )
-    )
-
-
 @pytest.mark.parametrize(
     ("mutate", "expected"),
     [
         (_sw_n, "not_sw_business"),
         (_human_confirmed, "bundle_not_auto_ready"),
         (_overview_needs_human, "overview_not_completed"),
-        (_overview_missing, "overview_not_completed"),
     ],
 )
 def test_the_projection_reports_the_same_reason_the_write_path_used(

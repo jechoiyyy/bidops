@@ -15,7 +15,13 @@ from app.main import create_app
 from app.screening import ScreeningWorkloadProjection
 from app.deep_review.services.prespec_projection import DeepReviewWorkloadProjection
 from app.screening.models import Judgment, OrderPlanScreeningExecution, OrderPlanScreeningPolicy, VerificationItem
-from app.deep_review.models import DocumentBundle
+from app.deep_review.models import (
+    ContentObject,
+    DocumentBundle,
+    DocumentVersion,
+    PrespecOverviewRun,
+    WorkJob,
+)
 from tests.postgres import migrated_engine, requires_postgres
 from tests.screening.test_order_plan_list_v2 import owner, result
 from tests.deep_review.decision_queue_fixtures import comparison, decide, opportunity
@@ -117,9 +123,33 @@ def link_notice(session, owned, notice, *, status="확정", kind="official"):
     return row
 
 
+def add_overview_run(session, notice, status):
+    """종결된 개요 run 한 건과 그 실행 job·문서를 최소한으로 세운다."""
+
+    content = ContentObject(sha256=f"{notice.id:064d}", size_bytes=1,
+                            detected_mime="application/pdf", retention_class="document-source")
+    session.add(content)
+    session.flush()
+    document = DocumentVersion(notice_id=notice.id, content_object_id=content.id, version=1,
+                               source_kind="manual", original_filename="제안요청서.pdf", role="제안요청서",
+                               is_current=True, safety_status="safe")
+    job = WorkJob(job_type="prespec_overview", aggregate_type="prespec_overview_run",
+                  aggregate_id=uuid4(), status="completed")
+    session.add_all([document, job])
+    session.flush()
+    session.add(PrespecOverviewRun(
+        notice_id=notice.id, document_version_id=document.id, work_job_id=job.id, status=status,
+        range_source="auto", range_reason_codes=[], policy_digest="0" * 64, model_name="test-model",
+        warnings_json=[], reason_codes=[], call_count=0, raw_response_refs=[],
+    ))
+    session.flush()
+
+
 def add_prespec(session, sw, *, tracking=None):
     row = add_notice(session, "pre_spec", sw=sw)
     session.add(DocumentBundle(notice_id=row.id, revision=1, version=1, status="ready", issues_snapshot=[]))
+    session.flush()
+    add_overview_run(session, row, "failed")
     if tracking:
         link_notice(session, opportunity(session, tracking=tracking), row)
     session.flush()

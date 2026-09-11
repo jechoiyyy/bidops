@@ -766,9 +766,9 @@ def _status_for(
     if ready is not None:
         if overview_status in _OVERVIEW_RUNNING_STATUSES:
             return "overview_running", None
-        # 개요 run이 없는 것(`None`)도 사람 클릭이다. 개요는 기본 비활성이므로
-        # "아직 넣지 않았다"를 무한 대기로 표시하면 화면이 멈춘 것처럼 보인다.
-        if overview_status is None or overview_status in _OVERVIEW_SETTLED_STATUSES:
+        # 개요 run이 아예 없으면(`None`) `bundle_ready`다. 없는 것을 종결로
+        # 승격시키면 개요를 한 번도 돌리지 않은 묶음까지 결정 대기로 세게 된다.
+        if overview_status in _OVERVIEW_SETTLED_STATUSES:
             return "deep_review_ready_for_click", auto_start_reason_code
         return "bundle_ready", None
     if grade is None or not grade.is_priority:

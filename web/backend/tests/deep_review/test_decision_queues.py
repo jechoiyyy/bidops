@@ -14,7 +14,14 @@ from app.core.db import get_db, init_db
 from app.lifecycle import ExtensionRegistry, WorkloadCount
 from app.lifecycle.models import Notice, OpportunityLink
 from app.deep_review import register_lifecycle_extensions
-from app.deep_review.models import DocumentBundle, DocumentBundleItem
+from app.deep_review.models import (
+    ContentObject,
+    DocumentBundle,
+    DocumentBundleItem,
+    DocumentVersion,
+    PrespecOverviewRun,
+    WorkJob,
+)
 from app.deep_review.services.bid_delta import BidDeltaService
 from app.deep_review.services.prespec_projection import PreSpecOverviewDocumentProjection
 from tests.postgres import migrated_engine, requires_postgres
@@ -149,6 +156,24 @@ def test_workload_registration_counts_unlinked_non_sw_prespecs(queue_session, mo
     session.add(ready)
     session.flush()
     session.add(DocumentBundle(notice_id=ready.id, revision=1, version=1, status="ready", issues_snapshot=[]))
+    session.flush()
+    # 종결된 개요 run이 있어야 그 묶음이 결정 대기(사람 클릭)로 센다.
+    content = ContentObject(sha256=f"{ready.id:064d}", size_bytes=1,
+                            detected_mime="application/pdf", retention_class="document-source")
+    session.add(content)
+    session.flush()
+    document = DocumentVersion(notice_id=ready.id, content_object_id=content.id, version=1,
+                               source_kind="manual", original_filename="제안요청서.pdf", role="제안요청서",
+                               is_current=True, safety_status="safe")
+    job = WorkJob(job_type="prespec_overview", aggregate_type="prespec_overview_run",
+                  aggregate_id=uuid4(), status="completed")
+    session.add_all([document, job])
+    session.flush()
+    session.add(PrespecOverviewRun(
+        notice_id=ready.id, document_version_id=document.id, work_job_id=job.id, status="failed",
+        range_source="auto", range_reason_codes=[], policy_digest="0" * 64, model_name="test-model",
+        warnings_json=[], reason_codes=[], call_count=0, raw_response_refs=[],
+    ))
     owner = opportunity(session)
     add_bid(session, owner)
     session.commit()

@@ -626,10 +626,15 @@ def run_prespec_e2e(
             "auto_started_notice_keys": [
                 row["notice_key"] for row in rows if row["deep_review"] is not None
             ],
+            # 개요 run이 없으므로 묶음은 `bundle_ready`에 머문다. 사람 클릭 자리
+            # (`deep_review_ready_for_click`)는 개요가 종결돼야 열리며 P2의 몫이다.
+            "bundle_ready_notice_keys": [
+                row["notice_key"] for row in rows if row["auto_preparation_status"] == "bundle_ready"
+            ],
             "awaiting_click_notice_keys": [
                 row["notice_key"]
                 for row in rows
-                if row["auto_preparation_status"] in {"bundle_ready", "deep_review_ready_for_click"}
+                if row["auto_preparation_status"] == "deep_review_ready_for_click"
             ],
             # 이 흐름의 종료 기준은 사전규격마다 자동 확정된 `ready` 묶음이다.
             "passed": bool(rows) and all(
