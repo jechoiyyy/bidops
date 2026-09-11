@@ -302,6 +302,10 @@ export type PreSpecOverviewReviewStatus =
   | "failed"
   | "cancelled";
 
+/** 결정적 검증 상태 셋. `pending`은 검증된 결과가 아직 없다는 뜻이며 실패가
+ * 아니다. */
+export type PreSpecOverviewValidationStatus = "passed" | "failed" | "pending";
+
 /** 개요 run 하나의 실행 상태. 목록 projection의 `overview_review_status`는 가장
  * 최근 run의 status를 그대로 쓰므로 이 여섯 값은 위 10값의 부분집합이다
  * (docs/contracts.md "사전규격 개요 검토 (MVP, 2026-09-11)"). */
@@ -553,6 +557,7 @@ export interface PageOverviewView {
   evidence_check_errors: string[];
   quality_status: "unmeasured_reference" | "mock_reference";
   model_name: string;
+  model_revision: string | null;
   prompt_version: string;
   created_at: string;
 }

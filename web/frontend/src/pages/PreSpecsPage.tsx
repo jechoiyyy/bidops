@@ -47,11 +47,20 @@ import {
   preSpecAutoPreparationVariant,
 } from "../lib/preSpecAutoPreparation";
 import {
+  hasCanonicalOverviewNoticeId,
+  PRE_SPEC_OVERVIEW_ATTEMPT_STATUS_LABEL,
   PRE_SPEC_OVERVIEW_NOT_STARTED_LABEL,
   PRE_SPEC_OVERVIEW_STATUS_LABEL,
+  PRE_SPEC_OVERVIEW_VALIDATION,
+  PRE_SPEC_OVERVIEW_WAITING_DESCRIPTION,
 } from "../lib/preSpecOverviewStatus";
-import { qualityStatusLabel, qualityStatusVariant } from "../lib/qualityStatus";
+import { qualityStatusLabel, qualityStatusNote, qualityStatusVariant } from "../lib/qualityStatus";
 import type {
+  PageOverviewCurrent,
+  PageOverviewCurrentStatus,
+  PageOverviewFactV4,
+  PageOverviewPayloadV4,
+  PageOverviewView,
   PreSpecListItem,
   PreSpecListResponse,
   PreSpecOrigin,
@@ -381,6 +390,152 @@ function DetailQueryError({
   );
 }
 
+/** 새 계약에는 `stale`이 없다. 남은 자리를 위한 문장만 두고 상태를 지어내지 않는다. */
+function overviewWaitingDescription(status: PageOverviewCurrentStatus): string {
+  return status === "stale"
+    ? "이전 입력 기준의 결과는 현재 결과로 쓸 수 없습니다. 사람 확인이 필요합니다."
+    : PRE_SPEC_OVERVIEW_WAITING_DESCRIPTION[status];
+}
+
+/** 결과 본문의 주장 전부. 섹션 순서를 유지한 채 근거 목록 하나로 모은다. */
+function overviewClaims(payload: PageOverviewPayloadV4): PageOverviewFactV4[] {
+  return [
+    ...payload.business_overview,
+    ...payload.main_tasks,
+    ...payload.budget_and_period,
+    ...payload.important_conditions,
+  ];
+}
+
+/** 개요 결과 본문 — 시안의 세 구역(결과 · 확인 조건 · 문서 근거)이다.
+ *
+ * **모든 값은 서버의 개요 응답 그대로다.** 결과가 없으면 없다고 말하고
+ * metadata에서 결론을 지어내지 않는다. 품질 표식과 검증 상태는 결과 머리줄에
+ * 붙어 있어 결과를 읽는 자리에서 함께 보인다 — 참조 실행이나 검증 실패를 운영
+ * 완료처럼 보이게 하지 않는다. 권고 문장은 새 계약에 없으므로 그 자리에는
+ * 검증된 첫 주장을 둔다(모델의 권고로 읽히지 않게 요약과 같은 사실이다). */
+function OverviewResult({
+  review,
+  current,
+  detailUrl,
+}: {
+  review: PageOverviewView | null;
+  current: PageOverviewCurrent | null;
+  detailUrl: string;
+}) {
+  const payload = review && review.payload.schema_version === "bidops.prespec-overview-page-review.v4"
+    ? review.payload
+    : null;
+  const validation = PRE_SPEC_OVERVIEW_VALIDATION[review ? review.validation_status : "pending"];
+  const claims = payload ? overviewClaims(payload) : [];
+  const evidenceCount = claims.reduce((total, claim) => total + claim.evidence.length, 0);
+  const summary = payload ? payload.business_overview.slice(1).map((fact) => fact.text).join(" ") : "";
+  const pdfUrl = review ? api.preSpecOverviewRunPdfUrl(review.notice_id, review.id) : null;
+  return (
+    <div className="pre-specs-overview">
+      <section className="pre-specs-overview-section is-result" aria-labelledby="pre-specs-overview-result">
+        <div className="pre-specs-overview-section-head">
+          <h4 id="pre-specs-overview-result">개요 검토 결과</h4>
+          {/* 품질 표식은 결과를 읽는 자리에 붙는다. 뜻을 적은 문장은 tooltip과
+              `표시 범위` 대화상자가 갖고, 기본 화면에는 표식만 둔다. */}
+          <span className="pre-specs-overview-quality" title={qualityStatusNote(review?.quality_status ?? null)}>
+            <Token size="sm" label={qualityStatusLabel(review?.quality_status ?? null)} color="default" />
+          </span>
+        </div>
+        {payload ? (
+          <>
+            <p className={`pre-specs-overview-recommendation${review?.validation_status === "passed" ? "" : " is-unverified"}`}>
+              {payload.business_overview[0]?.text ?? "검토 결과 미확정"}
+              <span className="pre-specs-overview-validation">{validation.label}</span>
+            </p>
+            {summary ? <p className="pre-specs-overview-summary">{summary}</p> : null}
+          </>
+        ) : (
+          <>
+            <p className="pre-specs-overview-recommendation is-unverified">
+              검토 결과 미확정
+              <span className="pre-specs-overview-validation">{validation.label}</span>
+            </p>
+            <p className="pre-specs-overview-summary">
+              {current ? overviewWaitingDescription(current.status) : "개요 검토 실행이 아직 없습니다."}
+            </p>
+          </>
+        )}
+        {validation.warning ? <p className="pre-specs-overview-warning" role="status">{validation.warning}</p> : null}
+      </section>
+
+      {payload ? (
+        <>
+          {payload.important_conditions.length > 0 ? (
+            <section className="pre-specs-overview-section" aria-labelledby="pre-specs-overview-conditions">
+              <div className="pre-specs-overview-section-head">
+                <h4 id="pre-specs-overview-conditions">확인 조건</h4>
+                {/* 확인 기한은 새 계약에 없다. 미지정 문구를 지어내지 않고 자리를 비운다. */}
+              </div>
+              <ul className="pre-specs-overview-list">
+                {payload.important_conditions.map((condition) => <li key={condition.claim_id}>{condition.text}</li>)}
+              </ul>
+            </section>
+          ) : null}
+
+          <section className="pre-specs-overview-section" aria-labelledby="pre-specs-overview-evidence">
+            <div className="pre-specs-overview-section-head">
+              <h4 id="pre-specs-overview-evidence">문서 근거</h4>
+              <span>{evidenceCount}건</span>
+            </div>
+            {claims.length > 0 ? (
+              <ul className="pre-specs-overview-evidence">
+                {claims.map((claim) => (
+                  <li key={claim.claim_id}>
+                    <p>{claim.text}</p>
+                    <span className="pre-specs-overview-locator" aria-label="근거 위치">
+                      {claim.evidence.map((evidence) => (
+                        <a
+                          key={`${claim.claim_id}-${evidence.page}`}
+                          href={`${pdfUrl}#page=${evidence.page}`}
+                          rel="noreferrer"
+                          target="_blank"
+                        >
+                          {evidence.page}쪽
+                        </a>
+                      ))}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : <p className="pre-specs-overview-empty">근거 항목 없음</p>}
+            {/* 원문 열람은 상세 화면이 소유한다. 이 자리에서 원문을 여는 흉내를
+                내지 않고 실제로 여는 화면으로 보낸다. */}
+            <Link className="pre-specs-overview-source-link" to={detailUrl}>상세에서 근거 원문 열기 →</Link>
+          </section>
+
+          {payload.unknowns.length > 0 ? (
+            <section className="pre-specs-overview-section" aria-labelledby="pre-specs-overview-unknowns">
+              <div className="pre-specs-overview-section-head">
+                <h4 id="pre-specs-overview-unknowns">미확인</h4>
+                <span>{payload.unknowns.length}건</span>
+              </div>
+              <ul className="pre-specs-overview-unknowns">
+                {payload.unknowns.map((unknown) => <li key={unknown}><span>{unknown}</span></li>)}
+              </ul>
+            </section>
+          ) : null}
+
+          {payload.input_limitations.length > 0 ? (
+            <p className="pre-specs-overview-note">
+              이 판단의 한계 · {payload.input_limitations.join(" ")}
+            </p>
+          ) : null}
+        </>
+      ) : null}
+
+      <p className="pre-specs-overview-note">
+        개요 결과는 추적 상태·참여 준비·최종 Go/No-Go를 대신하지 않습니다.
+      </p>
+    </div>
+  );
+}
+
 /**
  * 선택한 사전규격 하나.
  *
@@ -417,9 +572,17 @@ function PreSpecDetail({
   // 개요 본문과 같은 query를 읽는다(같은 key라 요청이 늘지 않는다). 이력 탭은
   // 결과가 남은 실행만 나열하고 상태를 다시 판정하지 않는다.
   const pageOverview = useCurrentPageOverview(noticePk);
-  const overviewRuns = pageOverview.isValid
+  const overviewQuery = pageOverview.query;
+  // 응답이 이 공고의 정본인지만 본다. 어긋나면 다른 공고의 결과를 그리지 않는다.
+  const overviewInvalid = overviewQuery.isSuccess
+    && !hasCanonicalOverviewNoticeId(overviewQuery.data, noticePk);
+  const overviewValid = pageOverview.isValid && !overviewInvalid;
+  const overviewRuns = overviewValid
     ? [...(pageOverview.currentResult ? [pageOverview.currentResult] : []), ...pageOverview.history]
     : [];
+  const overviewCurrent = overviewValid ? pageOverview.current : null;
+  const overviewReview = overviewValid ? pageOverview.currentResult ?? pageOverview.legacyReview : null;
+  const overviewMissing = overviewValid && overviewCurrent === null && overviewReview === null;
 
   // 첨부 문서는 사람이 그 탭을 열 때만 조회한다. 목록을 훑는 동안 문서 API를
   // 부르지 않는다.
@@ -539,6 +702,32 @@ function PreSpecDetail({
 
             <PageOverviewSection key={noticePk} noticeId={noticePk} />
             <CompanyFitSection key={`fit-${noticePk}`} noticeId={noticePk} />
+            {overviewQuery.isPending ? (
+              <p className="pre-specs-detail-loading" role="status">개요 검토 결과를 불러오는 중입니다.</p>
+            ) : null}
+            {overviewQuery.isError ? (
+              <DetailQueryError
+                error={overviewQuery.error}
+                fallback="개요 검토 API 응답을 확인할 수 없습니다."
+                onRetry={() => { void overviewQuery.refetch(); }}
+                title="개요 검토 결과를 불러오지 못했습니다."
+              />
+            ) : null}
+            {overviewQuery.isSuccess && !overviewValid ? (
+              <div className="pre-specs-detail-error" role="status">
+                <strong>개요 검토 정본을 확인할 수 없습니다.</strong>
+                <p>응답의 notice ID가 요청과 일치하지 않아 개요 검토를 표시하지 않습니다.</p>
+              </div>
+            ) : null}
+            {overviewMissing ? (
+              <div className="pre-specs-detail-empty-block">
+                <strong>개요 검토 기록이 없습니다.</strong>
+                <p>서버가 제공한 개요 검토 기록이 없습니다. 목록의 상태와 다른 결과를 만들어 내지 않습니다.</p>
+              </div>
+            ) : null}
+            {overviewValid && !overviewMissing ? (
+              <OverviewResult review={overviewReview} current={overviewCurrent} detailUrl={detailUrl} />
+            ) : null}
           </>
         ) : null}
 
@@ -623,33 +812,62 @@ function PreSpecDetail({
             <section className="pre-specs-overview-section" aria-labelledby="pre-specs-history-runs">
               <div className="pre-specs-overview-section-head">
                 <h4 id="pre-specs-history-runs">개요 실행 이력</h4>
-                <span>{pageOverview.isValid ? `${overviewRuns.length}건` : "확인 중"}</span>
+                <span>{overviewValid ? `${overviewRuns.length}건` : "확인 중"}</span>
               </div>
+              {overviewQuery.isError ? (
+                <DetailQueryError
+                  error={overviewQuery.error}
+                  fallback="개요 검토 API 응답을 확인할 수 없습니다."
+                  onRetry={() => { void overviewQuery.refetch(); }}
+                  title="개요 실행 이력을 불러오지 못했습니다."
+                />
+              ) : null}
               <p className="pre-specs-overview-note">
-                현재 상태 · {item.overview_review_status === null
-                  ? PRE_SPEC_OVERVIEW_NOT_STARTED_LABEL
-                  : PRE_SPEC_OVERVIEW_STATUS_LABEL[item.overview_review_status]}
+                현재 실행 · {overviewCurrent === null
+                  ? (item.overview_review_status === null
+                    ? PRE_SPEC_OVERVIEW_NOT_STARTED_LABEL
+                    : PRE_SPEC_OVERVIEW_STATUS_LABEL[item.overview_review_status])
+                  : overviewCurrent.status === "stale"
+                    ? "현재성 확인 필요"
+                    : PRE_SPEC_OVERVIEW_ATTEMPT_STATUS_LABEL[overviewCurrent.status]}
               </p>
               {/* 결과 본문이 남은 실행만 여기 온다. 실패·취소한 실행의 사유는 위
                   개요 자리의 현재 실행 카드가 말한다. */}
-              {pageOverview.isValid && overviewRuns.length === 0 ? (
+              {overviewValid && overviewRuns.length === 0 ? (
                 <p className="pre-specs-overview-empty">결과가 남은 개요 실행이 없습니다.</p>
               ) : null}
-              {pageOverview.isValid && overviewRuns.length > 0 ? (
+              {overviewValid && overviewRuns.length > 0 ? (
                 <ul className="pre-specs-history-list">
                   {overviewRuns.map((review) => (
                     <li key={review.id}>
                       <span>{formatDateTime(review.created_at)}</span>
                       <Badge label={qualityStatusLabel(review.quality_status)} variant={qualityStatusVariant(review.quality_status)} />
+                      <span>{PRE_SPEC_OVERVIEW_VALIDATION[review.validation_status].label}</span>
                       <span>{review.model_name}</span>
                       <span className="mono">결과 ID {review.id}</span>
                     </li>
                   ))}
                 </ul>
               ) : null}
-              {pageOverview.query.isError || (!pageOverview.isValid && !pageOverview.query.isPending) ? (
+              {!overviewValid && !overviewQuery.isPending && !overviewQuery.isError ? (
                 <p className="pre-specs-overview-empty">개요 실행 이력을 확인할 수 없습니다.</p>
               ) : null}
+            </section>
+
+            <section className="pre-specs-overview-section" aria-labelledby="pre-specs-history-inputs">
+              <h4 id="pre-specs-history-inputs">고정 입력과 식별 해시</h4>
+              {/* 절단 전략·구조 버전은 새 계약에 없다. 남은 것은 스냅샷과 결과의
+                  해시, 그리고 그 결과를 만든 모델·프롬프트다. */}
+              {overviewRuns[0] ? (
+                <dl className="pre-specs-history-facts">
+                  <div><dt>원본 해시</dt><dd className="mono">{overviewRuns[0].source_sha256 || "없음"}</dd></div>
+                  <div><dt>PDF 해시</dt><dd className="mono">{overviewRuns[0].pdf_sha256 || "없음"}</dd></div>
+                  <div><dt>결과 해시</dt><dd className="mono">{overviewRuns[0].payload_sha256 || "없음"}</dd></div>
+                  <div><dt>프롬프트</dt><dd>{overviewRuns[0].prompt_version || "없음"}</dd></div>
+                  <div><dt>모델</dt><dd>{overviewRuns[0].model_name || "없음"}</dd></div>
+                  <div><dt>모델 revision</dt><dd className="mono">{overviewRuns[0].model_revision ?? "없음"}</dd></div>
+                </dl>
+              ) : <p className="pre-specs-overview-empty">현재 고정 입력이 없습니다.</p>}
             </section>
 
             <section className="pre-specs-overview-section" aria-labelledby="pre-specs-history-tracking">
@@ -736,7 +954,7 @@ function PreSpecDetail({
             item={item}
             isPending={false}
             isError={false}
-            onRetry={() => {}}
+            onRetry={() => { void overviewQuery.refetch(); }}
             headingLevel="h4"
             compact
             reasonPresets={TRACKING_REASON_PRESETS}
@@ -1141,6 +1359,7 @@ export function PreSpecsPage() {
                       { queryKey: ["pre-specs"] },
                       (current) => updateTrackingProjection(current, noticePk, saved),
                     );
+                    void queryClient.invalidateQueries({ queryKey: ["pre-spec-overview-pages", noticePk] });
                     void queryClient.invalidateQueries({ queryKey: ["pre-spec-detail", noticePk] });
                     void queryClient.invalidateQueries({ queryKey: ["pre-specs"] });
                     void queryClient.invalidateQueries({ queryKey: ["opportunity", saved.id] });
