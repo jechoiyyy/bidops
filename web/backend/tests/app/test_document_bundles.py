@@ -26,6 +26,7 @@ from app.core.constants import (
     UNSUPPORTED_ATTACHMENT_EXTRACT_STATUS,
     UNSUPPORTED_ATTACHMENT_ISSUE_CODE,
 )
+from app.core.config import get_settings
 from app.core.db import init_db
 from app.core.object_store import FilesystemObjectStore
 from app.deep_review.document_mcp.processor import DocumentProcessor
@@ -2201,3 +2202,53 @@ def test_structure_pdf_is_forbidden_for_an_unsafe_document(context: Context, mon
     response = _structure_pdf_response(context, monkeypatch, store, structure_id)
     assert response.status_code == 403
     assert json.loads(response.body)["error"]["code"] == "unsafe_document"
+
+
+def test_the_overview_flag_lets_sw_business_without_a_grade_create_a_draft(
+    context: Context, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """MVP 완화(2026-09-11): 플래그가 켜져 있으면 `SW사업대상=Y`도 묶음 자격이다.
+
+    운영 DB에 C-1 판정이 0건이라 `우선 검토`가 한 건도 없다. 자동 준비가 자격을
+    열어도 여기서 막히면 MVP 종단이 성립하지 않는다. 플래그가 꺼지면 완화는
+    없고 같은 공고가 다시 403이다.
+    """
+
+    monkeypatch.setenv("BIDOPS_PRESPEC_OVERVIEW_ENABLED", "true")
+    get_settings.cache_clear()
+    try:
+        with Session(context.engine) as session:  # type: ignore[arg-type]
+            # 판정도 정정도 없는 `SW사업대상=Y` 사전규격.
+            notice = Notice(
+                notice_key=f"t3-sw-{uuid4()}",
+                title="SW사업대상 사전규격",
+                source_type="pre_spec",
+                qualification_flags_json={"sw_business_status": "Y"},
+            )
+            session.add(notice)
+            session.commit()
+            notice_id = notice.id
+
+        with Session(context.engine) as session:  # type: ignore[arg-type]
+            bundle = context.service.create_bundle(session, notice_id, "담당자")
+        assert (bundle.status, bundle.revision) == ("draft", 1)
+
+        # 등급은 접지 않는다 — 감사에는 값 없음 그대로 남는다.
+        with Session(context.engine) as session:  # type: ignore[arg-type]
+            creation = session.scalar(
+                select(AuditEvent).where(
+                    AuditEvent.aggregate_id == str(bundle.id),
+                    AuditEvent.action == "document_bundle.create",
+                )
+            )
+        assert creation is not None
+        assert creation.safe_metadata["effective_grade_at_start"] is None
+
+        monkeypatch.setenv("BIDOPS_PRESPEC_OVERVIEW_ENABLED", "false")
+        get_settings.cache_clear()
+        with Session(context.engine) as session:  # type: ignore[arg-type]
+            with pytest.raises(BundleServiceError) as error:
+                context.service.create_bundle(session, notice_id, "담당자")
+        assert error.value.code == "effective_grade_ineligible"
+    finally:
+        get_settings.cache_clear()

@@ -1535,3 +1535,37 @@ def test_an_injected_client_is_never_rebound_by_the_model_name(monkeypatch, clea
     )
     assert service._bind_client("합성-모델-a") is injected
     assert service._bind_client("합성-모델-b") is injected
+
+
+def test_the_overview_flag_makes_sw_business_eligible_without_a_grade(
+    engine, monkeypatch, clear_settings_cache
+):
+    """MVP 완화(2026-09-11): 플래그가 켜져 있으면 `SW사업대상=Y`도 심층 자격이다.
+
+    자격만 넓히고 등급은 접지 않는다 — `effective_grade_at_start`는 등급 없음
+    표식 그대로 남는다. 플래그가 꺼지면 같은 공고가 다시 403이다.
+    """
+
+    notice_id, bundle_id, _profile_id, _policy_id = _seed_review_context(engine, monkeypatch)
+    monkeypatch.setenv("BIDOPS_PRESPEC_OVERVIEW_ENABLED", "true")
+    get_settings.cache_clear()
+    with Session(engine) as session:
+        judgment = session.scalar(select(Judgment).where(Judgment.notice_id == notice_id))
+        session.delete(judgment)
+        notice = session.get(Notice, notice_id)
+        notice.source_type = "pre_spec"
+        notice.qualification_flags_json = {"sw_business_status": "Y"}
+        session.commit()
+
+    service = DeepReviewService(structure_loader=_fixture_structure)
+    with Session(engine) as session:
+        created = service.create_review(session, notice_id, bundle_id, "담당자", uuid4())
+        row = session.get(DeepReview, UUID(created["id"]))
+        assert row is not None and row.effective_grade_at_start == "unknown"
+
+    monkeypatch.setenv("BIDOPS_PRESPEC_OVERVIEW_ENABLED", "false")
+    get_settings.cache_clear()
+    with Session(engine) as session:
+        with pytest.raises(DeepReviewServiceError) as error:
+            service.create_review(session, notice_id, bundle_id, "담당자", uuid4())
+    assert error.value.code == "effective_grade_ineligible"
