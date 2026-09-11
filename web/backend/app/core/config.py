@@ -17,6 +17,11 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 DEFAULT_BIDOPS_ROOT = Path(__file__).resolve().parents[4]
 
+#: 사전규격 개요 정책 파일의 기본 위치. core는 계약 내용을 모르고 경로만 갖는다.
+DEFAULT_PRESPEC_OVERVIEW_POLICY_PATH = (
+    Path(__file__).resolve().parents[1] / "deep_review" / "policies" / "prespec-overview-policy-v6.json"
+)
+
 #: 조립 계층이 고를 수 있는 도메인 모듈 (명세 §7). core는 선택 대상이 아니라
 #: 항상 포함된다. 여기 있는 것은 이름뿐이며 core는 이 모듈들을 import하지 않는다.
 MODULE_NAMES: tuple[str, ...] = ("lifecycle", "screening", "deep_review")
@@ -185,7 +190,10 @@ class Settings(BaseSettings):
     vllm_overview_api_key: SecretStr = Field(default_factory=lambda: SecretStr(""), validation_alias="BIDOPS_VLLM_OVERVIEW_API_KEY")
     vllm_overview_model_revision: str = Field(default="", validation_alias="BIDOPS_VLLM_OVERVIEW_MODEL_REVISION")
     vllm_overview_api_dialect: Literal["vllm", "ollama"] = Field(default="vllm", validation_alias="BIDOPS_VLLM_OVERVIEW_API_DIALECT")
-    prespec_overview_policy_path: Path | None = Field(default=None, validation_alias="BIDOPS_PRESPEC_OVERVIEW_POLICY_PATH")
+    prespec_overview_policy_path: Path = Field(default=DEFAULT_PRESPEC_OVERVIEW_POLICY_PATH, validation_alias="BIDOPS_PRESPEC_OVERVIEW_POLICY_PATH")
+    #: 켜면 묶음이 ready가 될 때 개요 run을 자동 enqueue한다. 끄면 새 run을 넣지
+    #: 않고 queued run은 닫는다. 기본은 꺼 둔다 — startup은 아무것도 활성화하지 않는다.
+    prespec_overview_enabled: bool = Field(default=False, validation_alias="BIDOPS_PRESPEC_OVERVIEW_ENABLED")
     prespec_company_fit_enabled: bool = Field(default=False, validation_alias="BIDOPS_PRESPEC_COMPANY_FIT_ENABLED")
     prespec_company_fit_model: str | None = Field(default=None, validation_alias="BIDOPS_PRESPEC_COMPANY_FIT_MODEL")
     vllm_deep_review_base_url: str = Field(default="", validation_alias="BIDOPS_VLLM_DEEP_REVIEW_BASE_URL")
