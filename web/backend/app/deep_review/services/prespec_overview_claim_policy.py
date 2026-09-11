@@ -1,4 +1,4 @@
-"""Read-only v5 policy and bounded stage payloads; never calls a model."""
+"""Read-only v6 policy and bounded stage payloads; never calls a model."""
 from dataclasses import dataclass
 from copy import deepcopy
 import hashlib
@@ -13,15 +13,18 @@ from ..schemas.prespec_overview_claims import (
 
 CLAIMS_STAGE = "prespec_overview_claims"
 SEMANTIC_STAGE = "prespec_overview_semantic"
-POLICY_PATH = Path(__file__).resolve().parents[1] / "policies" / "prespec-overview-policy-v5.json"
+POLICY_PATH = Path(__file__).resolve().parents[1] / "policies" / "prespec-overview-policy-v6.json"
 LIMITS = {
     "max_calls": 3, "max_draft_calls": 2, "max_semantic_calls": 1,
     "timeout_seconds": 300, "lease_seconds": 1200, "dispatch_reserve_seconds": 360,
-    "max_prompt_chars": 24000, "max_page_text_chars": 24000, "max_pages": 24,
-    "max_model_context_tokens": 262144,
+    "max_prompt_chars": 120000, "max_page_text_chars": 100000, "max_pages": 60,
+    # 상한 판정은 요청 JSON의 **byte 수**를 token 상계로 쓴다. 한국어는
+    # 글자당 3 byte이므로 v6의 100,000자 쪽 텍스트를 담으려면 이 천장도
+    # 함께 올라가야 한다 — 그러지 않으면 허용 입력이 호출 전에 막힌다.
+    "max_model_context_tokens": 393216,
     "chat_template_reserve_tokens": 1024,
     "max_draft_chars": 10000, "max_response_chars": 16000,
-    "max_claims": 8, "max_analysis": 4, "max_unknowns": 6,
+    "max_claims": 12, "max_analysis": 4, "max_unknowns": 6,
     "max_text_chars": 300, "max_evidence_per_claim": 2, "max_quote_chars": 300,
     "max_quantities_per_claim": 4,
 }
@@ -70,7 +73,7 @@ def load_claims_policy(path: Path | None = None) -> ClaimsOverviewPolicy:
         if set(value) != {"schema", "model_name", "model_endpoint_ref", "prompt_version", "limits", "verification", "stages"}:
             raise ValueError
         if (value["schema"], value["model_name"], value["model_endpoint_ref"], value["prompt_version"]) != (
-            "bidops.prespec-overview-policy.v5", "qwen3.8-27B", "vllm-openai-compatible", "prespec-overview-v5",
+            "bidops.prespec-overview-policy.v6", "qwen3.8-27B", "vllm-openai-compatible", "prespec-overview-v6",
         ) or value["limits"] != LIMITS:
             raise ValueError
         # The set order is immaterial to validation but the original file order
@@ -138,5 +141,5 @@ def build_claims_stage_input(
 
 
 def build_claims_prompt(policy: ClaimsOverviewPolicy, stage: str, input_slice: dict[str, Any]) -> str:
-    """Same core builder used by ModelClient.run_stage, including its 24k cap."""
-    return build_prompt(stage, input_slice, policy.stage_policy(stage))
+    """Same core builder the client uses, bounded by the policy prompt cap."""
+    return build_prompt(stage, input_slice, policy.stage_policy(stage), max_chars=LIMITS["max_prompt_chars"])

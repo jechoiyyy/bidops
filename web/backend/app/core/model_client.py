@@ -1019,6 +1019,7 @@ class ModelClient:
         seed: int | None = None,
         correction: str | None = None,
         output_contract: StructuredOutputContract | None = None,
+        prompt_max_chars: int | None = None,
     ) -> InvocationResult:
         """한 stage를 정책 재시도 한도 안에서 부른다.
 
@@ -1032,6 +1033,9 @@ class ModelClient:
 
         seed override는 호출 인자이지 정책 변경이 아니다. policy의 `generation`
         은 여전히 `APPROVED_GENERATION`과 같아야 한다.
+
+        `prompt_max_chars`는 프롬프트 상한을 policy 값으로 올린다. 생략하면
+        `build_prompt`의 기존 기본값(24,000자)이다.
         """
 
         # policy가 모델을 지정했으면 이 client가 묶인 모델과 같아야 한다.
@@ -1055,7 +1059,12 @@ class ModelClient:
             hashlib.sha256(correction.encode("utf-8")).hexdigest() if correction is not None else None
         )
         base_seed = int(APPROVED_GENERATION["seed"] if seed is None else seed)
-        prompt = build_prompt(stage, input_slice, policy, profile=profile, prior_stages=prior_stages)
+        # 프롬프트 상한은 호출부의 policy가 정한다. 생략하면 기존 24,000자
+        # 기본값 그대로이므로 이 값을 주지 않는 호출부의 프롬프트는 바뀌지 않는다.
+        prompt = build_prompt(
+            stage, input_slice, policy, profile=profile, prior_stages=prior_stages,
+            **({} if prompt_max_chars is None else {"max_chars": int(prompt_max_chars)}),
+        )
         input_hash = hashlib.sha256(prompt.encode("utf-8")).hexdigest()
         observations: list[dict[str, Any]] = []
         last_raw_response: bytes | None = None
