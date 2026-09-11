@@ -19,7 +19,8 @@ from tests.app.test_runtime_database_privileges import _ensure_roles, _apply_pol
 
 pytestmark = requires_postgres
 CANDIDATE_COLUMNS = ("section_candidates_content_object_id", "section_candidates_location_id", "section_candidates_sha256")
-NEW_COLUMNS = ("hwpx_content_object_id", "hwpx_location_id", "hwpx_verify_jsonb", "structure_id", "structure_location_id", "para_page_map_content_object_id", "para_page_map_location_id", "para_page_map_sha256", "rhwp_binary_sha256", "rhwp_version", *CANDIDATE_COLUMNS)
+RHWP_COLUMNS = ("hwpx_content_object_id", "hwpx_location_id", "hwpx_verify_jsonb", "structure_id", "structure_location_id", "para_page_map_content_object_id", "para_page_map_location_id", "para_page_map_sha256", "rhwp_binary_sha256", "rhwp_version")
+NEW_COLUMNS = (*RHWP_COLUMNS, *CANDIDATE_COLUMNS)
 CANDIDATE_FOREIGN_KEYS = """
 SELECT c.conname, a.attname, c.confdeltype, t.relname
 FROM pg_constraint c
@@ -139,8 +140,8 @@ def test_0023_preserves_old_rows_and_reversible_when_unpopulated():
         assert result.returncode == 0, result.stderr
         with engine.connect() as connection:
             after = connection.scalar(text("SELECT to_jsonb(s) FROM bidops.prespec_v4_pdf_snapshot s WHERE id=:id"), {"id": snapshot_id})
-        assert {key: value for key, value in after.items() if key not in NEW_COLUMNS} == before
-        assert all(after[key] is None for key in NEW_COLUMNS)
+        assert {key: value for key, value in after.items() if key not in RHWP_COLUMNS} == before
+        assert all(after[key] is None for key in RHWP_COLUMNS)
         for statement in ("UPDATE bidops.prespec_v4_pdf_snapshot SET rhwp_version='0.8.6' WHERE id=:id", "DELETE FROM bidops.prespec_v4_pdf_snapshot WHERE id=:id"):
             with pytest.raises(DBAPIError), engine.begin() as connection:
                 connection.execute(text(statement), {"id": snapshot_id})
