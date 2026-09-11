@@ -97,7 +97,7 @@ def test_worker_network_and_command_boundaries_are_explicit():
     assert "SessionLocal" not in document_worker and "convert_one" in document_worker
 
     analysis = services["analysis-worker"]
-    assert set(analysis["networks"]) == {"database", "analysis"}
+    assert set(analysis["networks"]) == {"database", "analysis", "scanning"}
     assert analysis["environment"]["BIDOPS_ANALYSIS_WORKER_CONCURRENCY"] == "1"
     assert analysis["environment"]["BIDOPS_VLLM_BASE_URL"] == "${BIDOPS_VLLM_BASE_URL:-http://127.0.0.1:8000/v1}"
     assert analysis["environment"]["BIDOPS_VLLM_ALLOWED_HOSTS"] == "${BIDOPS_VLLM_ALLOWED_HOSTS:-}"
@@ -105,20 +105,26 @@ def test_worker_network_and_command_boundaries_are_explicit():
     assert analysis["environment"]["BIDOPS_OBJECT_STORE_BACKEND"] == "minio"
     assert analysis["environment"]["BIDOPS_STRUCTURE_READ_ACCESS_KEY"].startswith("${BIDOPS_STRUCTURE_READ_ACCESS_KEY")
     assert analysis["environment"]["BIDOPS_MODEL_RESPONSE_ACCESS_KEY"].startswith("${BIDOPS_MODEL_RESPONSE_ACCESS_KEY")
-    assert "BIDOPS_SOURCE_ACCESS_KEY" not in analysis["environment"]
+    # The overview runner writes source snapshots and reads/writes structure
+    # artifacts from inside this worker, so it needs both credential pairs.
+    assert analysis["environment"]["BIDOPS_SOURCE_ACCESS_KEY"].startswith("${BIDOPS_SOURCE_ACCESS_KEY")
+    assert analysis["environment"]["BIDOPS_SOURCE_SECRET_KEY"].startswith("${BIDOPS_SOURCE_SECRET_KEY")
+    assert analysis["environment"]["BIDOPS_STRUCTURE_ACCESS_KEY"].startswith("${BIDOPS_STRUCTURE_ACCESS_KEY")
+    assert analysis["environment"]["BIDOPS_STRUCTURE_SECRET_KEY"].startswith("${BIDOPS_STRUCTURE_SECRET_KEY")
     assert "BIDOPS_QUARANTINE_ACCESS_KEY" not in analysis["environment"]
+    assert analysis["environment"]["BIDOPS_CLAMAV_HOST"] == "clamav"
+    assert analysis["environment"]["BIDOPS_CLAMAV_PORT"] == "3310"
+    assert analysis["environment"]["BIDOPS_CLAMAV_TIMEOUT_SECONDS"] == "15"
     # Company-fit queue construction freezes the active inputs before any call.
-    # Credentials for raw company/source objects remain absent from the worker.
     assert analysis["environment"]["BIDOPS_ACTIVE_PROFILE_VERSION_ID"] == "${BIDOPS_ACTIVE_PROFILE_VERSION_ID:-}"
     assert analysis["environment"]["BIDOPS_ACTIVE_ANALYSIS_POLICY_VERSION_ID"] == "${BIDOPS_ACTIVE_ANALYSIS_POLICY_VERSION_ID:-}"
     for service in (web, analysis):
         assert service["environment"]["BIDOPS_PRESPEC_COMPANY_FIT_ENABLED"] == "${BIDOPS_PRESPEC_COMPANY_FIT_ENABLED:-false}"
         assert service["environment"]["BIDOPS_PRESPEC_COMPANY_FIT_MODEL"] == "${BIDOPS_PRESPEC_COMPANY_FIT_MODEL:-}"
-    assert set(analysis["networks"]) == {"database", "analysis"}
-    assert "storage" not in analysis["networks"]
-    assert "scanning" not in analysis["networks"]
+        assert service["environment"]["BIDOPS_PRESPEC_OVERVIEW_ENABLED"] == "${BIDOPS_PRESPEC_OVERVIEW_ENABLED:-false}"
     assert "vllm" not in analysis["depends_on"]
     assert "pipeline-data:/app/data" in analysis["volumes"]
+    assert "document-scratch:/scratch" in analysis["volumes"]
     assert all("./experiments/order-plan-screening:" not in volume for volume in web["volumes"] + analysis["volumes"])
     # Only the three approved C-2 artifacts are mounted, never the experiment
     # tree.  The generation config joined them so the runtime reads the values

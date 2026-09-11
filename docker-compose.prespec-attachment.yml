@@ -36,6 +36,8 @@ services:
       BIDOPS_PRESPEC_ATTACHMENT_WORKER_CONCURRENCY: "1"
       BIDOPS_PRESPEC_ATTACHMENT_WORKER_POLL_SECONDS: "5"
       BIDOPS_PRESPEC_ATTACHMENT_LEASE_SECONDS: "120"
+      # 취득 종결 뒤 자동 준비(문서 준비)가 이 프로세스에서 돈다.
+      BIDOPS_PRESPEC_OVERVIEW_ENABLED: "${BIDOPS_PRESPEC_OVERVIEW_ENABLED:-false}"
     command: ["python", "-m", "app.deep_review.workers.prespec_attachment"]
     healthcheck: { disable: true }
     restart: unless-stopped
