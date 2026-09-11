@@ -133,6 +133,66 @@ def test_acquire_rejects_unsupported_or_missing_filename_as_terminal_error(tmp_p
     assert error.value.code == "unsupported_extension"
 
 
+def test_acquire_uses_explicit_filename_when_header_and_suggestion_are_absent(tmp_path: Path) -> None:
+    connector = StubConnector(assets.ProviderResponse(b"provider bytes", "https://files.example.test/actual", None))
+
+    asset = assets.acquire_provider_attachment(
+        source_system="g2b",
+        source_url="https://files.example.test/download",
+        filename="explicit.pdf",
+        connectors={"g2b": connector},  # type: ignore[dict-item]
+        root=tmp_path,
+    )
+
+    assert asset.filename == "explicit.pdf"
+
+
+def test_acquire_uses_fallback_filename_when_header_is_absent(tmp_path: Path) -> None:
+    # fallback_filename은 DB에 이미 적재된 Attachment.name 같은 참고 정보다.
+    # provider가 이번에 실제로 밝힌 Content-Disposition 파일명이 없을 때만
+    # 쓰이며, ①filename 인자와 ②헤더보다는 뒤, ④URL보다는 앞이다.
+    connector = StubConnector(assets.ProviderResponse(b"provider bytes", "https://files.example.test/actual", None))
+
+    asset = assets.acquire_provider_attachment(
+        source_system="g2b",
+        source_url="https://files.example.test/download",
+        fallback_filename="known.pdf",
+        connectors={"g2b": connector},  # type: ignore[dict-item]
+        root=tmp_path,
+    )
+
+    assert asset.filename == "known.pdf"
+
+
+def test_acquire_falls_back_to_final_url_filename_when_header_and_argument_are_absent(tmp_path: Path) -> None:
+    connector = StubConnector(
+        assets.ProviderResponse(b"provider bytes", "https://files.example.test/download/notice_123.pdf", None)
+    )
+
+    asset = assets.acquire_provider_attachment(
+        source_system="g2b",
+        source_url="https://files.example.test/download",
+        connectors={"g2b": connector},  # type: ignore[dict-item]
+        root=tmp_path,
+    )
+
+    assert asset.filename == "notice_123.pdf"
+
+
+def test_acquire_rejects_when_filename_argument_header_and_url_path_are_all_absent(tmp_path: Path) -> None:
+    connector = StubConnector(assets.ProviderResponse(b"provider bytes", "https://files.example.test/", None))
+
+    with pytest.raises(assets.AssetError) as error:
+        assets.acquire_provider_attachment(
+            source_system="g2b",
+            source_url="https://files.example.test/download",
+            connectors={"g2b": connector},  # type: ignore[dict-item]
+            root=tmp_path,
+        )
+
+    assert error.value.code == "unsupported_extension"
+
+
 def test_unsupported_extension_is_internal_and_maps_to_existing_api_error() -> None:
     assert "unsupported_extension" not in API_ERROR_CODES
     code, message = stable_api_error("unsupported_extension")

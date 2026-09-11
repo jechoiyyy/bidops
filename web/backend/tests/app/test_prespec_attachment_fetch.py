@@ -767,6 +767,43 @@ def test_max_attempts_exhaustion_is_failed(db_session: Session, tmp_path: Path):
     assert result.attempt_count == 1
 
 
+def test_backoff_seconds_schedule():
+    assert prespec_attachments._backoff_seconds(1) == 60
+    assert prespec_attachments._backoff_seconds(2) == 300
+    assert prespec_attachments._backoff_seconds(3) == 900
+    assert prespec_attachments._backoff_seconds(4) == 900
+
+
+def test_converter_unavailable_is_retried_with_backoff(
+    db_session: Session, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    _, _, _ = queue_one(db_session, sw_status="Y")
+    claim = claim_next(db_session, worker_id="worker-a", lease_seconds=120)
+    assert claim is not None
+
+    def fail_materialize(*_args, **_kwargs):  # type: ignore[no-untyped-def]
+        raise DocumentProcessingError("converter_unavailable", "변환기를 사용할 수 없습니다")
+
+    monkeypatch.setattr(prespec_attachments, "materialize_structure", fail_materialize)
+    before = datetime.now(UTC)
+    result = fetch_claimed(
+        db_session,
+        claim,
+        connectors={
+            "g2b": StubConnector(
+                assets.ProviderResponse(SAFE_PDF.read_bytes(), G2B_URL, "converter.pdf")
+            )
+        },
+        processor=DocumentProcessor(clamav_checker=lambda _content: True),
+        root=tmp_path,
+    )
+
+    assert result is not None and result.status == "대기"
+    assert result.last_error_code == "converter_unavailable"
+    assert result.attempt_count == 1
+    assert result.next_attempt_at is not None and result.next_attempt_at > before
+
+
 def test_disabled_worker_is_quiet_and_does_not_claim(db_session: Session):
     _, _, fetch = queue_one(db_session, sw_status="Y")
     assert run_once(db_session, "worker-a", connectors={}) is False

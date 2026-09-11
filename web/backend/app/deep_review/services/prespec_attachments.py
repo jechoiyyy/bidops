@@ -52,6 +52,10 @@ _RETRYABLE_CODES = frozenset(
         "provider_connector_blocked",
         "clamav_unavailable",
         "service_unavailable",
+        "ocr_unavailable",
+        "renderer_unavailable",
+        "converter_unavailable",
+        "timeout",
     }
 )
 _TERMINAL_CODES = frozenset(
@@ -78,6 +82,10 @@ _TERMINAL_CODES = frozenset(
         "output_size_limit",
         "page_limit",
         "archive_size_limit",
+        "archive_file_limit",
+        "archive_member_limit",
+        "archive_ratio_limit",
+        "archive_depth_limit",
         "block_limit",
         "invalid_attribute",
         "invalid_input",
@@ -93,11 +101,7 @@ _TERMINAL_CODES = frozenset(
         "pdf_empty_text",
         "malformed_image",
         "ocr_failed",
-        "ocr_unavailable",
-        "renderer_unavailable",
         "render_failed",
-        "converter_unavailable",
-        "timeout",
         "unsupported_media",
         "encrypted_archive",
         "archive_duplicate",
@@ -140,6 +144,8 @@ class _AttachmentSnapshot:
     notice_id: int
     source_url: str | None
     source_attachment_key: str | None
+    name: str | None
+    file_ext: str | None
 
 
 def _sw_business_object(notice: Notice) -> bool:
@@ -349,6 +355,8 @@ def _snapshot(session: Session, claim: AttachmentFetchClaim) -> _AttachmentSnaps
             Attachment.notice_id,
             Attachment.source_url,
             Attachment.source_attachment_key,
+            Attachment.name,
+            Attachment.file_ext,
         )
         .join(Attachment, Attachment.id == AttachmentFetch.attachment_id)
         .where(
@@ -368,6 +376,8 @@ def _snapshot(session: Session, claim: AttachmentFetchClaim) -> _AttachmentSnaps
         notice_id=int(row[2]),
         source_url=row[3],
         source_attachment_key=row[4],
+        name=row[5],
+        file_ext=row[6],
     )
 
 
@@ -400,8 +410,13 @@ def _safe_warnings(values: Sequence[object]) -> list[str]:
     return [value for value in (str(item) for item in values) if _SAFE_WARNING_RE.fullmatch(value)]
 
 
+_BACKOFF_SCHEDULE = (60, 300, 900)
+
+
 def _backoff_seconds(attempt_count: int) -> int:
-    return min(3600, 2 ** max(0, attempt_count - 1))
+    if attempt_count <= 0:
+        return _BACKOFF_SCHEDULE[0]
+    return _BACKOFF_SCHEDULE[min(attempt_count, 3) - 1]
 
 
 def _audit(
@@ -431,6 +446,30 @@ def _audit(
     )
 
 
+def _apply_failure_outcome(row: AttachmentFetch, code: str, now: datetime) -> str:
+    """Apply the retry/terminal judgment shared by the two failure paths.
+
+    재시도 코드면 attempt_count를 늘려 max 도달 시 `실패`, 아니면 `대기`로
+    돌려 backoff를 다시 잡는다. 재시도 코드가 아니면 `차단`으로 끝낸다.
+    `_transition_failure`(제공자·처리 오류)와 `_persist_inspected`(격리 검사
+    이후 오류)가 이 판정을 그대로 공유한다.
+    """
+
+    if code in _RETRYABLE_CODES:
+        row.attempt_count = int(row.attempt_count) + 1
+        if row.attempt_count >= int(row.max_attempts):
+            row.status = "실패"
+            row.completed_at = now
+            return "실패"
+        row.status = "대기"
+        row.next_attempt_at = now + timedelta(seconds=_backoff_seconds(row.attempt_count))
+        row.completed_at = None
+        return "대기"
+    row.status = "차단"
+    row.completed_at = now
+    return "차단"
+
+
 def _transition_failure(
     session: Session,
     claim: AttachmentFetchClaim,
@@ -440,22 +479,7 @@ def _transition_failure(
     if row is None:
         return None
     now = datetime.now(UTC)
-    retryable = code in _RETRYABLE_CODES
-    if retryable:
-        row.attempt_count = int(row.attempt_count) + 1
-        if row.attempt_count >= int(row.max_attempts):
-            row.status = "실패"
-            row.completed_at = now
-            final_status = "실패"
-        else:
-            row.status = "대기"
-            row.next_attempt_at = now + timedelta(seconds=_backoff_seconds(row.attempt_count))
-            row.completed_at = None
-            final_status = "대기"
-    else:
-        row.status = "차단"
-        row.completed_at = now
-        final_status = "차단"
+    final_status = _apply_failure_outcome(row, code, now)
     row.last_error_code = code
     row.lease_owner = None
     row.lease_expires_at = None
@@ -590,21 +614,7 @@ def _persist_inspected(
     row.last_error_code = code
     row.lease_owner = None
     row.lease_expires_at = None
-    if code in _RETRYABLE_CODES:
-        row.attempt_count = int(row.attempt_count) + 1
-        if row.attempt_count >= int(row.max_attempts):
-            row.status = "실패"
-            row.completed_at = datetime.now(UTC)
-            final_status = "실패"
-        else:
-            row.status = "대기"
-            row.next_attempt_at = datetime.now(UTC) + timedelta(seconds=_backoff_seconds(row.attempt_count))
-            row.completed_at = None
-            final_status = "대기"
-    else:
-        row.status = "차단"
-        row.completed_at = datetime.now(UTC)
-        final_status = "차단"
+    final_status = _apply_failure_outcome(row, code, datetime.now(UTC))
     _audit(session, row, status=final_status, error_code=code)
     session.commit()
     return row
@@ -823,6 +833,7 @@ def _fetch_claimed(
             source_url=snapshot.source_url,
             source_attachment_key=snapshot.source_attachment_key,
             filename=None,
+            fallback_filename=snapshot.name,
             connectors=connectors,
             root=root,
         )

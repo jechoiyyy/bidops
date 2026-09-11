@@ -40,6 +40,8 @@ SAFE_CONVERTER_CODES = frozenset({
     "renderer_binding_invalid", "font_binding_invalid", "converter_unavailable", "malformed_hwpx",
     "unsafe_xml", "xml_depth_limit", "archive_traversal", "archive_size_limit", "block_limit",
     "invalid_structure", "page_limit", "malware_detected", "clamav_unavailable", "missing_file",
+    "encrypted_pdf", "archive_file_limit", "archive_duplicate", "archive_link", "encrypted_archive",
+    "archive_member_limit", "archive_ratio_limit", "archive_depth_limit", "invalid_input", "render_failed",
 })
 
 
