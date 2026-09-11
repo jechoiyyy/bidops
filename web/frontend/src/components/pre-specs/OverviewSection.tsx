@@ -143,12 +143,19 @@ function TextSection({ items, note, title }: { items: string[]; note?: string; t
 }
 
 /** 완료된 개요 본문. `result`가 없으면 본문을 만들어 내지 않는다. */
-function CompletedResult({ pdfUrl, result }: { pdfUrl: string; result: OverviewRunResult }) {
+function CompletedResult(
+  { failedClaims, pdfUrl, result }: { failedClaims: OverviewFailedClaim[]; pdfUrl: string; result: OverviewRunResult },
+) {
   return (
     <div className="pre-spec-overview-content">
       {RESULT_SECTIONS.map((section) => (
         <ClaimSection claims={result[section.key]} key={section.key} pdfUrl={pdfUrl} title={section.title} />
       ))}
+      {failedClaims.length > 0 ? (
+        <Collapsible trigger={`제외된 주장 ${failedClaims.length}건 (원문 대조 실패)`}>
+          <FailedClaims claims={failedClaims} pdfUrl={pdfUrl} />
+        </Collapsible>
+      ) : null}
       <TextSection
         items={result.reviewer_analysis.map((analysis) => (
           analysis.supporting_claim_ids.length > 0
@@ -291,7 +298,7 @@ function RunBody({ noticeId, run }: { noticeId: number; run: OverviewRun }) {
   const pdfUrl = api.preSpecOverviewRunPdfUrl(noticeId, run.id);
   if (run.status === "completed") {
     return run.result
-      ? <CompletedResult pdfUrl={pdfUrl} result={run.result} />
+      ? <CompletedResult failedClaims={run.failed_claims} pdfUrl={pdfUrl} result={run.result} />
       : <p className="pre-spec-overview-empty">완료로 기록됐지만 응답에 개요 본문이 없습니다. 화면이 본문을 만들지 않습니다.</p>;
   }
   if (run.status === "needs_human_review") {
