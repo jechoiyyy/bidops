@@ -58,6 +58,7 @@ from .model_response_storage import store_raw_model_response
 from .overview_range import (
     V4OpsError,
     V4PreparationError,
+    _pages_from_indices,
     select_v4_input_range,
     select_v4_page_span,
 )
@@ -67,6 +68,7 @@ from .pdf_snapshot import (
     read_snapshot_page_text,
     read_snapshot_section_candidates,
     safe_snapshot,
+    snapshot_has_section_candidates,
 )
 from .prespec_overview_claim_policy import (
     CLAIMS_STAGE,
@@ -295,6 +297,29 @@ def _result_view(result: Any) -> dict[str, Any] | None:
     return view
 
 
+def _verified_evidence_view(rows: Any) -> list[dict[str, Any]]:
+    """검증된 근거를 `{page, quote, start_char, end_char}`로 줄인다.
+
+    `page_text_sha256`은 내부 결속 값이라 응답에 담지 않는다.
+    """
+
+    result: list[dict[str, Any]] = []
+    if not isinstance(rows, list):
+        return result
+    for row in rows:
+        if not isinstance(row, Mapping) or not isinstance(row.get("page"), int):
+            continue
+        if not isinstance(row.get("quote"), str):
+            continue
+        result.append({
+            "page": int(row["page"]),
+            "quote": str(row["quote"]),
+            "start_char": int(row["start_char"]) if isinstance(row.get("start_char"), int) else 0,
+            "end_char": int(row["end_char"]) if isinstance(row.get("end_char"), int) else 0,
+        })
+    return result
+
+
 def _failed_claims(checks: Any) -> list[dict[str, Any]]:
     """사람이 봐야 할 주장만 검사 결과에서 계산한다.
 
@@ -330,9 +355,92 @@ def _failed_claims(checks: Any) -> list[dict[str, Any]]:
     return result
 
 
-def run_view(run: PrespecOverviewRun) -> dict[str, Any]:
-    """한 run의 REST 응답. 모델 원문·원응답 참조·내부 경로는 담지 않는다."""
+def _verification_status(checks: Any) -> str | None:
+    """검사 결과 한 벌의 공개 상태. 검사가 없으면 ``None``이다.
 
+    판정은 `_failed_claims`와 같은 한 벌을 쓴다 — 사람이 볼 주장이 남아 있거나
+    draft 전체 사유 코드가 있으면 `needs_human_review`다.
+    """
+
+    if not isinstance(checks, Mapping) or not isinstance(checks.get("checks"), list):
+        return None
+    if _failed_claims(checks) or _string_list(checks.get("reason_codes")):
+        return "needs_human_review"
+    return "passed"
+
+
+def _draft_claim_texts(draft: Any) -> dict[str, tuple[str, str]]:
+    """초안 주장의 `(section, text)`. 검사 행에 없는 값을 채울 때만 쓴다."""
+
+    rows = draft.get("claims") if isinstance(draft, Mapping) else None
+    result: dict[str, tuple[str, str]] = {}
+    for row in rows if isinstance(rows, list) else []:
+        if isinstance(row, Mapping) and isinstance(row.get("id"), str):
+            result[str(row["id"])] = (str(row.get("section") or ""), str(row.get("text") or ""))
+    return result
+
+
+def verification_view(run: PrespecOverviewRun | None) -> dict[str, Any] | None:
+    """현재 run의 주장별 검증 기록. 검사 결과가 없으면 ``None``이다."""
+
+    if run is None:
+        return None
+    checks = run.checks_json
+    status = _verification_status(checks)
+    if status is None:
+        return None
+    drafted = _draft_claim_texts(run.draft_json)
+    claims: list[dict[str, Any]] = []
+    for row in checks.get("checks") or []:
+        if not isinstance(row, Mapping):
+            continue
+        claim_id = str(row.get("claim_id"))
+        section, text = drafted.get(claim_id, ("", ""))
+        deterministic = row.get("deterministic") if isinstance(row.get("deterministic"), Mapping) else {}
+        semantic = row.get("semantic") if isinstance(row.get("semantic"), Mapping) else {}
+        claims.append({
+            "claim_id": claim_id,
+            "section": str(row.get("section") or section),
+            "text": str(row.get("text") or text),
+            "deterministic": {
+                "status": str(deterministic.get("status") or "failed"),
+                "reason_codes": _string_list(deterministic.get("reason_codes")),
+            },
+            "semantic": {
+                "status": str(semantic.get("status") or "not_run"),
+                "reason_codes": _string_list(semantic.get("reason_codes")),
+            },
+            "verified_evidence": _verified_evidence_view(deterministic.get("verified_evidence")),
+        })
+    return {
+        "verification_id": str(run.id),
+        "status": status,
+        "reason_codes": _string_list(checks.get("reason_codes")),
+        "claims": claims,
+    }
+
+
+def _reviewed_pages(run: PrespecOverviewRun) -> list[int]:
+    if run.page_start is None or run.page_end is None or int(run.page_end) < int(run.page_start):
+        return []
+    return list(range(int(run.page_start), int(run.page_end) + 1))
+
+
+def run_view(
+    run: PrespecOverviewRun,
+    *,
+    snapshot: PrespecV4PdfSnapshot | None = None,
+    prompt_version: str | None = None,
+) -> dict[str, Any]:
+    """한 run의 REST 응답. 모델 원문·원응답 참조·내부 경로는 담지 않는다.
+
+    `snapshot`·`prompt_version`은 호출자가 한 번에 모아 온 파생 값이다. 주지
+    않으면 그 필드는 ``None``으로 남는다 — 여기서 다시 조회하지 않는다
+    (공고당 run 수만큼 질의가 늘어나는 것을 막는다).
+    """
+
+    completed = run.status == "completed"
+    reason_codes = _string_list(run.reason_codes)
     return {
         "id": str(run.id),
         "status": str(run.status),
@@ -352,13 +460,173 @@ def run_view(run: PrespecOverviewRun) -> dict[str, Any]:
         "created_at": _iso(run.created_at),
         "started_at": _iso(run.started_at),
         "completed_at": _iso(run.completed_at),
+        # --- 화면이 쓰는 파생 값. 저장 값을 옮긴 것이며 새 판정이 아니다. ---
+        "result_id": str(run.id) if completed else None,
+        "prompt_version": prompt_version,
+        "verification_status": _verification_status(run.checks_json),
+        "document_version_id": str(run.document_version_id) if run.document_version_id else None,
+        "source_sha256": snapshot.source_sha256 if snapshot is not None else None,
+        "pdf_sha256": snapshot.pdf_sha256 if snapshot is not None else None,
+        "pdf_page_count": int(snapshot.pdf_page_count) if snapshot is not None else None,
+        "reviewed_pages": _reviewed_pages(run),
+        "payload_sha256": canonical_sha256(run.result_json) if isinstance(run.result_json, Mapping) else None,
+        # 참조 실행 표식이다. 측정된 품질이 아니며 승격시키지 않는다.
+        "quality_status": (
+            "mock_reference" if str(run.model_name or "").startswith("mock") else "unmeasured_reference"
+        ),
+        "validation_status": "passed" if completed else "failed",
+        "validation_errors": reason_codes,
+        "evidence_check_status": "passed" if completed else "failed",
+        "evidence_check_errors": reason_codes,
     }
 
 
 OVERVIEW_ENVELOPE_SCHEMA = "bidops.prespec-overview.v1"
 
 
-def overview_envelope(session: Session, notice_id: int) -> dict[str, Any]:
+#: 후보를 읽지 못했을 때 남기는 안전 코드 (화면이 쪽 입력으로 넘어간다).
+CANDIDATES_UNAVAILABLE = "section_candidates_unavailable"
+#: 후보가 일부만 있을 때의 안전 코드. 절 선택 대신 쪽 입력만 허용한다.
+CANDIDATES_INCOMPLETE = "section_candidates_incomplete"
+
+_CANDIDATE_READ_ERRORS = (V4OpsError, V4PreparationError, ObjectStoreError, OSError, ValueError, KeyError)
+
+
+def _structure_store(store: Any | None) -> Any:
+    if store is not None:
+        return store
+    return object_store(namespaces=("structure",), read_namespaces=("structure",))
+
+
+def read_range_candidates(
+    session: Session, snapshot: PrespecV4PdfSnapshot | None, *, store: Any | None = None
+) -> Mapping[str, Any] | None:
+    """스냅샷의 절 후보. 없거나 읽을 수 없으면 ``None``이다.
+
+    후보는 읽기 보조일 뿐이라 읽기 실패가 개요 조회를 막지 않는다. 실패는
+    `candidate_status=unavailable`로 나가고 사람은 쪽 범위를 직접 넣는다.
+    """
+
+    if not snapshot_has_section_candidates(snapshot):
+        return None
+    try:
+        candidates = read_snapshot_section_candidates(session, _structure_store(store), snapshot)
+    except _CANDIDATE_READ_ERRORS:
+        return None
+    return candidates if isinstance(candidates, Mapping) else None
+
+
+def _candidate_rows(candidates: Mapping[str, Any] | None) -> list[dict[str, Any]]:
+    rows = list(candidates.get("sections") or []) if candidates else []
+    return [
+        {
+            "index": int(row["index"]),
+            "title": str(row.get("title") or ""),
+            "page": int(row["page"]),
+            "char_count": int(row.get("char_count") or 0),
+        }
+        for row in rows
+        if isinstance(row, Mapping) and isinstance(row.get("index"), int) and isinstance(row.get("page"), int)
+    ]
+
+
+def _range_status(latest: PrespecOverviewRun | None) -> str:
+    """범위 확인 칸의 상태. 사람 확정이 있으면 그것이 이긴다."""
+
+    if latest is None:
+        return "pending"
+    if str(latest.range_source) == "human":
+        return "human_confirmed"
+    if str(latest.range_source) == "fallback" or str(latest.status) in {
+        "needs_human_review", "failed", "cancelled",
+    }:
+        return "pending"
+    return "ready"
+
+
+def _confirmation_view(runs: Sequence[PrespecOverviewRun]) -> dict[str, Any] | None:
+    """가장 최근 사람 확정 기록. `note` 본문은 저장하지 않으므로 항상 ``None``이다."""
+
+    for run in runs:
+        if str(run.range_source) == "human" and run.page_start is not None and run.page_end is not None:
+            return {
+                "page_start": int(run.page_start),
+                "page_end": int(run.page_end),
+                "actor_name": run.actor_name,
+                "note": None,
+                "created_at": _iso(run.created_at),
+            }
+    return None
+
+
+def range_review_view(
+    session: Session,
+    notice_id: int,
+    runs: Sequence[PrespecOverviewRun],
+    *,
+    store: Any | None = None,
+) -> dict[str, Any] | None:
+    """개요 입력 범위 확인 칸. ready 묶음의 동결 스냅샷이 없으면 ``None``이다."""
+
+    document = ready_bundle_document(session, notice_id)
+    if document is None:
+        return None
+    snapshot = latest_snapshot(session, document.id)
+    if snapshot is None:
+        return None
+    candidates = read_range_candidates(session, snapshot, store=store)
+    rows = _candidate_rows(candidates)
+    if candidates is None:
+        candidate_status, warning = "unavailable", CANDIDATES_UNAVAILABLE
+    elif bool(candidates.get("candidates_truncated")):
+        candidate_status, warning = "partial", CANDIDATES_INCOMPLETE
+    else:
+        candidate_status, warning = "complete", None
+    latest = runs[0] if runs else None
+    selected = (
+        [int(latest.page_start), int(latest.page_end)]
+        if latest is not None and latest.page_start is not None and latest.page_end is not None
+        else None
+    )
+    can_confirm = active_run(session, notice_id) is None
+    if can_confirm:
+        try:
+            safe_snapshot(session, snapshot)
+        except V4OpsError:
+            can_confirm = False
+    run_reasons = _string_list(latest.range_reason_codes) if latest is not None else []
+    total = candidates.get("section_count") if candidates else None
+    return {
+        "target_id": str(latest.id) if latest is not None else None,
+        "status": _range_status(latest),
+        "document_version_id": str(snapshot.document_version_id),
+        "pdf_page_count": int(snapshot.pdf_page_count),
+        "mode": str(candidates.get("mode")) if candidates and candidates.get("mode") else None,
+        "candidate_status": candidate_status,
+        "candidate_count_total": int(total) if isinstance(total, int) else None,
+        "candidate_count_returned": len(rows),
+        "candidates": rows,
+        "selected_pages": selected,
+        "warning_codes": [warning] if warning else [],
+        "reason_code": run_reasons[0] if run_reasons else warning,
+        "can_confirm": can_confirm,
+        # 범위 보조 실행은 MVP에 없다. 없는 것을 있는 것처럼 만들지 않는다.
+        "assisted": None,
+        "confirmation": _confirmation_view(runs),
+    }
+
+
+def _prompt_version(settings: Any | None = None) -> str | None:
+    """정책 문서의 `prompt_version`. 정책을 읽을 수 없으면 ``None``이다."""
+
+    try:
+        resolved = settings or get_settings()
+        return str(load_claims_policy(resolved.prespec_overview_policy_path).document["prompt_version"])
+    except (OSError, UnicodeError, ValueError, TypeError, KeyError, AttributeError):
+        return None
+
+
+def overview_envelope(session: Session, notice_id: int, *, store: Any | None = None) -> dict[str, Any]:
     """공고 한 건의 현재 개요와 이력 (`bidops.prespec-overview.v1`)."""
 
     history = session.scalars(
@@ -366,12 +634,29 @@ def overview_envelope(session: Session, notice_id: int) -> dict[str, Any]:
         .where(PrespecOverviewRun.notice_id == int(notice_id))
         .order_by(PrespecOverviewRun.created_at.desc(), PrespecOverviewRun.id.desc())
     ).all()
-    rows = [run_view(run) for run in history]
+    snapshot_ids = {run.snapshot_id for run in history if run.snapshot_id is not None}
+    snapshots = {
+        row.id: row
+        for row in (
+            session.scalars(
+                select(PrespecV4PdfSnapshot).where(PrespecV4PdfSnapshot.id.in_(snapshot_ids))
+            ).all()
+            if snapshot_ids
+            else []
+        )
+    }
+    prompt_version = _prompt_version()
+    rows = [
+        run_view(run, snapshot=snapshots.get(run.snapshot_id), prompt_version=prompt_version)
+        for run in history
+    ]
     return {
         "schema": OVERVIEW_ENVELOPE_SCHEMA,
         "notice_id": int(notice_id),
         "current": rows[0] if rows else None,
         "history": rows,
+        "range_review": range_review_view(session, notice_id, history, store=store),
+        "verification": verification_view(history[0] if history else None),
     }
 
 
@@ -1206,11 +1491,13 @@ def confirm_range(
     session: Session,
     notice_id: int,
     *,
-    page_start: int,
-    page_end: int,
+    page_start: int | None = None,
+    page_end: int | None = None,
+    candidate_indices: Sequence[int] | None = None,
     actor_name: str,
     note: str | None = None,
     settings: Any | None = None,
+    store: Any | None = None,
 ) -> PrespecOverviewRun:
     """사람이 확정한 쪽 범위로 개요 run 하나를 넣고 감사 이벤트를 남긴다.
 
@@ -1219,7 +1506,13 @@ def confirm_range(
     범위를 정하는 것이며 담당자 이름은 감사 표식이다.
     """
 
-    if page_end < page_start:
+    indices: tuple[int, int] | None = None
+    if candidate_indices is not None:
+        values = [int(value) for value in candidate_indices]
+        if len(values) != 2 or values[0] < 0 or values[1] < values[0]:
+            raise OverviewRequestError("range_invalid")
+        indices = (values[0], values[1])
+    elif page_start is None or page_end is None or page_end < page_start:
         raise OverviewRequestError("range_invalid")
     if active_run(session, notice_id) is not None:
         raise OverviewRequestError("run_active")
@@ -1236,6 +1529,21 @@ def confirm_range(
             raise OverviewRequestError(str(getattr(error, "code", "") or "document_not_current_safe")) from error
     elif not document.is_current or document.safety_status != "safe" or document.needs_human_review:
         raise OverviewRequestError("document_not_current_safe")
+    if indices is not None:
+        # 절 후보로 고른 범위는 여기서 쪽으로 바꾼다. 화면이 쪽을 계산하지
+        # 않는다 — 끝 쪽 규칙(다음 절 시작 쪽)은 서버 한 곳에만 둔다.
+        candidates = read_range_candidates(session, snapshot, store=store)
+        if candidates is None or not (candidates.get("sections") or []):
+            raise OverviewRequestError("candidate_range_unavailable")
+        try:
+            page_start, page_end = _pages_from_indices(
+                candidates, indices[0], indices[1], int(snapshot.pdf_page_count)
+            )
+        except V4OpsError as error:
+            code = str(getattr(error, "code", "") or "range_invalid")
+            raise OverviewRequestError(
+                code if code == "candidate_range_incomplete" else "range_invalid"
+            ) from error
     try:
         run = enqueue_overview_run(
             session, notice_id, range_source="human",
@@ -1257,11 +1565,54 @@ def confirm_range(
                 "notice_id": int(notice_id),
                 "page_start": int(page_start),
                 "page_end": int(page_end),
+                "candidate_indices": list(indices) if indices is not None else None,
                 "has_note": note is not None,
             },
         )
     )
     return run
+
+
+def _snapshot_pdf_bytes(
+    session: Session, snapshot: PrespecV4PdfSnapshot, store: Any | None = None
+) -> bytes:
+    """동결 스냅샷의 PDF bytes. 저장된 version·hash를 다시 확인하고 읽는다."""
+
+    content = session.get(ContentObject, snapshot.pdf_content_object_id)
+    location = session.get(ContentObjectLocation, snapshot.pdf_location_id)
+    if content is None or location is None:
+        raise OverviewRequestError("pdf_unavailable")
+    from .pdf_snapshot import _read_verified_artifact
+
+    try:
+        if store is None:
+            store = object_store(namespaces=("source",), read_namespaces=("source",))
+        return _read_verified_artifact(
+            store, location, content,
+            max_bytes=content.size_bytes, expected_mime="application/pdf",
+        )
+    except (V4PreparationError, ObjectStoreError, OSError, ValueError) as error:
+        raise OverviewRequestError("pdf_unavailable") from error
+
+
+def snapshot_pdf(session: Session, notice_id: int, *, store: Any | None = None) -> bytes:
+    """공고의 현재 RFP 문서에서 가장 최근 동결 스냅샷 PDF bytes.
+
+    run이 아직 없어도 사람이 쪽 범위를 고르려면 같은 PDF를 봐야 한다. 경계는
+    run PDF와 같다 — 문서·원본이 지금 current·safe가 아니면 열지 않는다.
+    """
+
+    document = ready_bundle_document(session, notice_id)
+    if document is None:
+        raise OverviewRequestError("not_found")
+    snapshot = latest_snapshot(session, document.id)
+    if snapshot is None:
+        raise OverviewRequestError("not_found")
+    try:
+        safe_snapshot(session, snapshot)
+    except V4OpsError as error:
+        raise OverviewRequestError("document_not_current_safe") from error
+    return _snapshot_pdf_bytes(session, snapshot, store)
 
 
 def run_snapshot_pdf(
@@ -1284,25 +1635,13 @@ def run_snapshot_pdf(
         safe_snapshot(session, snapshot)
     except V4OpsError as error:
         raise OverviewRequestError("document_not_current_safe") from error
-    content = session.get(ContentObject, snapshot.pdf_content_object_id)
-    location = session.get(ContentObjectLocation, snapshot.pdf_location_id)
-    if content is None or location is None:
-        raise OverviewRequestError("pdf_unavailable")
-    from .pdf_snapshot import _read_verified_artifact
-
-    try:
-        if store is None:
-            store = object_store(namespaces=("source",), read_namespaces=("source",))
-        return _read_verified_artifact(
-            store, location, content,
-            max_bytes=content.size_bytes, expected_mime="application/pdf",
-        )
-    except (V4PreparationError, ObjectStoreError, OSError, ValueError) as error:
-        raise OverviewRequestError("pdf_unavailable") from error
+    return _snapshot_pdf_bytes(session, snapshot, store)
 
 
 __all__ = [
     "ACTIVE_STATUSES",
+    "CANDIDATES_INCOMPLETE",
+    "CANDIDATES_UNAVAILABLE",
     "OVERVIEW_AGGREGATE_TYPE",
     "OVERVIEW_ENVELOPE_SCHEMA",
     "OVERVIEW_JOB_TYPE",
@@ -1321,8 +1660,12 @@ __all__ = [
     "overview_status_for",
     "latest_snapshot",
     "prepare_run_snapshot",
+    "range_review_view",
+    "read_range_candidates",
     "ready_bundle_document",
     "run_once",
     "run_snapshot_pdf",
     "run_view",
+    "snapshot_pdf",
+    "verification_view",
 ]
