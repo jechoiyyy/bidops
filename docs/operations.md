@@ -531,6 +531,17 @@ docker compose -f docker-compose.yml exec web \
 - **중단 기준**: 적재 경고에 차단 등급이 있으면 원인을 `docs/tracking/findings.md`에 적고
   멈춘다. 수집 결과가 0건이면 날짜 구간을 바꿔 다시 수집한다 — 빈 회차를 적재하고 진행하면
   뒤 단계의 실패 원인이 모호해진다.
+- **함정 1**: `ingest.cli --run`은 `validation-set.json`의 표본만 적재한다. 회차 전체를
+  넣으려면 `collected-notices.json`의 `counts.candidate_pool`·`counts.audit_pool` 값을
+  `select_validation_sample.py … --analysis-count <candidate_pool 값> --audit-count
+  <audit_pool 값>`에 넘겨 전 건이 담긴 선택 파일을 만든다.
+- **함정 2**: ingest CLI 경로에서는 첨부 자격 갱신 hook이 돌지 않는다(웹 API 경로에만
+  연결돼 있다). 적재 뒤 web 컨테이너에서 한 번 수동으로 갱신한다(후속 수정 전 임시 절차).
+
+  ```bash
+  docker compose -f docker-compose.yml exec web python -c \
+    "from app.core.db import SessionLocal; from app.deep_review.services.prespec_attachments import refresh_fetch_eligibility; s=SessionLocal(); print(refresh_fetch_eligibility(s)); s.commit()"
+  ```
 
 ### 4단계. C-1 판정 실행
 
@@ -634,6 +645,9 @@ worker 설정은 concurrency 1, poll 5초, lease 120초다.
 모델을 쓰는 worker는 `analysis-worker` 하나다. 개요와 심층은 이 프로세스가 합성하고 한
 바퀴에 하나만 claim한다. 개요 전용 진입점은 없다.
 
+analysis-worker는 source·structure 쓰기 자격, scanning 네트워크, `document-scratch` 볼륨이
+필요하다(2026-09-11 반영).
+
 ```bash
 cp env/vllm.env.example env/vllm.env
 ```
@@ -676,7 +690,10 @@ docker compose --env-file .env --env-file env/vllm.env \
 플래그가 켜져 있는 동안 1의 자격은 "`우선 검토` 또는 `SW사업대상=Y`"다(2026-09-11 MVP 완화).
 이미 적재가 끝나 촉발 지점이 지나간 공고는 `docker compose exec web python -m
 app.deep_review.cli prepare-overviews --all-eligible [--limit N] [--dry-run]`으로 한 번에
-태운다 — 이 명령은 묶음 준비와 개요 enqueue까지만 하고 모델을 부르지 않는다.
+태운다 — 이 명령은 묶음 준비와 개요 enqueue까지만 하고 모델을 부르지 않는다. 대상에서
+`queued`·`running`·`completed` run이 있는 공고는 빠진다. 0026 적용 뒤에는(과거 run 행이
+지워졌으므로) 사실상 run이 없거나 `failed`·`needs_human_review`·`cancelled`로 끝난 공고,
+즉 실패한 run만 다시 넣는다.
 
 진행은 사전규격 목록의 파생 필드로 읽는다.
 
