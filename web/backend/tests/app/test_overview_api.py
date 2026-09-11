@@ -28,6 +28,31 @@ from tests.deep_review.test_overview_runs import _FakeStore, seed
 ACTOR = {"X-BidOps-Actor-Name": "checker"}
 
 
+#: 절 후보 산출물 하나 (`bidops.section-candidates.v2`, 1쪽 문서).
+CANDIDATES = {
+    "schema": "bidops.section-candidates.v2",
+    "page_count": 1,
+    "mode": "clause",
+    "section_count": 2,
+    "returned_count": 2,
+    "truncated": False,
+    "candidates_truncated": False,
+    "sections": [
+        {"index": 0, "title": "1. 사업개요", "page": 1, "char_count": 120, "truncated": False},
+        {"index": 1, "title": "2. 과업내용", "page": 1, "char_count": 340, "truncated": False},
+    ],
+}
+
+
+def _seed_with_candidates(session, store):
+    """절 후보까지 동결한 공고 한 건. 스냅샷은 append-only라 뒤에 매달지 않는다."""
+
+    notice, _document, snapshot = seed(session, store, section_candidates=CANDIDATES)
+    _clean_scan(session, snapshot.source_content_object_id)
+    session.commit()
+    return notice, snapshot
+
+
 def _clean_scan(session, content_object_id) -> None:
     session.add(
         ContentScan(
@@ -62,7 +87,7 @@ def api(monkeypatch):
     app.include_router(overviews.router)
     app.dependency_overrides[get_db] = lambda: session
     with TestClient(app) as client:
-        yield client, session, notice, snapshot
+        yield client, session, notice, snapshot, store
     session.close()
     get_settings.cache_clear()
     engine.dispose()
@@ -92,6 +117,27 @@ def _completed_run(session, notice, snapshot) -> PrespecOverviewRun:
             "unknowns": ["회사 역량 대조는 수행하지 않았습니다."],
             "input_limitations": ["PDF 총 1페이지 중 선택된 1페이지만 검토했습니다."],
         },
+        draft_json={
+            "schema_version": "bidops.prespec-overview-claims.v1",
+            "claims": [{"id": "c1", "section": "business_overview", "text": "합성 사업개요 문장이다.",
+                        "evidence": [], "quantities": []}],
+            "analysis": [], "unknowns": [],
+        },
+        checks_json={
+            "schema_version": "bidops.prespec-overview-claim-checks.v1",
+            "checks": [{
+                "claim_id": "c1", "section": "business_overview", "text": "합성 사업개요 문장이다.",
+                "deterministic": {
+                    "status": "passed", "reason_codes": [],
+                    "verified_evidence": [{"page": 1, "quote": "합성 사업개요 문장이다.",
+                                           "start_char": 0, "end_char": 12,
+                                           "page_text_sha256": "f" * 64}],
+                },
+                "semantic": {"status": "supported", "reason_codes": []},
+                "warnings": [],
+            }],
+            "analysis_checks": [], "unknown_checks": [], "reason_codes": [],
+        },
         completed_at=datetime.now(UTC),
     )
     session.add(run)
@@ -100,7 +146,7 @@ def _completed_run(session, notice, snapshot) -> PrespecOverviewRun:
 
 
 def test_overview_envelope_hides_raw_response_references(api):
-    client, session, notice, snapshot = api
+    client, session, notice, snapshot, _store = api
     run = _completed_run(session, notice, snapshot)
 
     response = client.get(f"/api/pre-specs/{notice.id}/overview")
@@ -121,7 +167,7 @@ def test_overview_envelope_hides_raw_response_references(api):
 
 
 def test_range_confirmation_enqueues_one_run_even_with_the_flag_off(api):
-    client, session, notice, _snapshot = api
+    client, session, notice, _snapshot, _store = api
 
     response = client.post(
         f"/api/pre-specs/{notice.id}/overview/range-confirmations",
@@ -137,7 +183,7 @@ def test_range_confirmation_enqueues_one_run_even_with_the_flag_off(api):
 
 
 def test_range_confirmation_conflicts_with_an_active_run(api):
-    client, session, notice, _snapshot = api
+    client, session, notice, _snapshot, _store = api
     first = client.post(
         f"/api/pre-specs/{notice.id}/overview/range-confirmations",
         json={"page_start": 1, "page_end": 1}, headers=ACTOR,
@@ -154,7 +200,7 @@ def test_range_confirmation_conflicts_with_an_active_run(api):
 
 
 def test_range_confirmation_rejects_a_reversed_span(api):
-    client, _session, notice, _snapshot = api
+    client, _session, notice, _snapshot, _store = api
 
     response = client.post(
         f"/api/pre-specs/{notice.id}/overview/range-confirmations",
@@ -166,7 +212,7 @@ def test_range_confirmation_rejects_a_reversed_span(api):
 
 
 def test_run_pdf_streams_the_frozen_snapshot(api):
-    client, session, notice, snapshot = api
+    client, session, notice, snapshot, _store = api
     run = _completed_run(session, notice, snapshot)
 
     response = client.get(f"/api/pre-specs/{notice.id}/overview/runs/{run.id}/pdf")
@@ -176,3 +222,69 @@ def test_run_pdf_streams_the_frozen_snapshot(api):
     assert response.content.startswith(b"%PDF-")
     missing = client.get(f"/api/pre-specs/{notice.id}/overview/runs/{uuid4()}/pdf")
     assert missing.status_code == 404 and missing.json()["error"]["code"] == "not_found"
+
+
+def test_envelope_carries_range_review_verification_and_run_facts(api):
+    client, session, _seeded, _snapshot, store = api
+    notice, snapshot = _seed_with_candidates(session, store)
+    run = _completed_run(session, notice, snapshot)
+
+    body = client.get(f"/api/pre-specs/{notice.id}/overview").json()
+
+    current = body["current"]
+    assert current["result_id"] == str(run.id) and current["prompt_version"] == "prespec-overview-v6"
+    assert current["verification_status"] == "passed"
+    assert current["document_version_id"] == str(snapshot.document_version_id)
+    assert (current["source_sha256"], current["pdf_sha256"]) == (snapshot.source_sha256, snapshot.pdf_sha256)
+    assert current["pdf_page_count"] == 1 and current["reviewed_pages"] == [1]
+    assert len(current["payload_sha256"]) == 64
+    # 측정하지 않은 참조 실행 표식이다. 운영 품질 근거가 아니다.
+    assert current["quality_status"] == "unmeasured_reference"
+    assert (current["validation_status"], current["evidence_check_status"]) == ("passed", "passed")
+    assert current["validation_errors"] == [] and current["evidence_check_errors"] == []
+
+    review = body["range_review"]
+    assert review["candidate_status"] == "complete" and review["candidate_count_total"] == 2
+    assert review["candidates"] == [
+        {"index": 0, "title": "1. 사업개요", "page": 1, "char_count": 120},
+        {"index": 1, "title": "2. 과업내용", "page": 1, "char_count": 340},
+    ]
+    assert review["status"] == "ready" and review["mode"] == "clause"
+    assert review["can_confirm"] is True and review["assisted"] is None
+    assert review["selected_pages"] == [1, 1] and review["warning_codes"] == []
+
+    verification = body["verification"]
+    assert verification["verification_id"] == str(run.id) and verification["status"] == "passed"
+    assert verification["claims"][0]["deterministic"] == {"status": "passed", "reason_codes": []}
+    assert verification["claims"][0]["semantic"]["status"] == "supported"
+    assert verification["claims"][0]["verified_evidence"] == [
+        {"page": 1, "quote": "합성 사업개요 문장이다.", "start_char": 0, "end_char": 12}
+    ]
+    assert verification["claims"][0]["section"] == "business_overview"
+
+
+def test_range_confirmation_accepts_candidate_indices(api):
+    client, session, _seeded, _snapshot, store = api
+    notice, _snapshot_with_candidates = _seed_with_candidates(session, store)
+
+    response = client.post(
+        f"/api/pre-specs/{notice.id}/overview/range-confirmations",
+        json={"candidate_indices": [0, 1]}, headers=ACTOR,
+    )
+
+    assert response.status_code == 201
+    body = response.json()
+    # 끝 절이 마지막이므로 끝 쪽은 문서 끝 쪽이다.
+    assert (body["page_start"], body["page_end"]) == (1, 1)
+    run = session.get(PrespecOverviewRun, UUID(body["run_id"]))
+    assert run.range_source == "human" and (run.page_start, run.page_end) == (1, 1)
+
+
+def test_snapshot_pdf_opens_without_any_run(api):
+    client, _session, notice, _snapshot, _store = api
+
+    response = client.get(f"/api/pre-specs/{notice.id}/overview/snapshot/pdf")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/pdf"
+    assert response.content.startswith(b"%PDF-")

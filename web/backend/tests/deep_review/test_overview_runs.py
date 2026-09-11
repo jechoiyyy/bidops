@@ -101,8 +101,12 @@ def _object(session, store, *, namespace: str, key: str, data: bytes, mime: str)
 
 
 def seed(session, store, *, bundle_ready: bool = True, filename: str = "합성-제안요청서.pdf",
-         pages: list[str] | None = None):
-    """`우선 검토` 사전규격 한 건과 동결 스냅샷 하나를 세운다."""
+         pages: list[str] | None = None, section_candidates: dict | None = None):
+    """`우선 검토` 사전규격 한 건과 동결 스냅샷 하나를 세운다.
+
+    `section_candidates`를 주면 그 산출물까지 함께 동결한다. 스냅샷은
+    append-only라 나중에 매달 수 없다.
+    """
 
     notice = Notice(notice_key=f"ov:{uuid4()}", source_type="pre_spec", title="합성 사전규격")
     session.add(notice)
@@ -161,6 +165,22 @@ def seed(session, store, *, bundle_ready: bool = True, filename: str = "합성-�
         session, store, namespace="structure", key=f"structure/{uuid4().hex}.json",
         data=page_text, mime="application/json",
     )
+    candidate_refs: dict = dict.fromkeys(
+        ("section_candidates_content_object_id", "section_candidates_location_id", "section_candidates_sha256")
+    )
+    if section_candidates is not None:
+        candidate_bytes = json.dumps(
+            section_candidates, ensure_ascii=False, sort_keys=True, separators=(",", ":"),
+        ).encode("utf-8")
+        candidate_content, candidate_location = _object(
+            session, store, namespace="structure", key=f"structure/{uuid4().hex}.json",
+            data=candidate_bytes, mime="application/json",
+        )
+        candidate_refs = {
+            "section_candidates_content_object_id": candidate_content.id,
+            "section_candidates_location_id": candidate_location.id,
+            "section_candidates_sha256": candidate_content.sha256,
+        }
     snapshot = PrespecV4PdfSnapshot(
         id=uuid4(), notice_id=notice.id, document_version_id=document.id,
         source_content_object_id=source.id, source_location_id=source_location.id,
@@ -172,7 +192,7 @@ def seed(session, store, *, bundle_ready: bool = True, filename: str = "합성-�
         pdf_metadata_jsonb={"schema": "bidops.pdf-snapshot.v1"}, renderer_jsonb={"source_pdf": True},
         renderer_digest="a" * 64, font_jsonb={"source_pdf": True}, font_digest="b" * 64,
         config_jsonb={"options": {}}, config_sha256="c" * 64, scan_jsonb={"verdict": "clean"},
-        binding_sha256="d" * 64,
+        binding_sha256="d" * 64, **candidate_refs,
     )
     session.add(snapshot)
     session.commit()
@@ -599,3 +619,20 @@ def test_a_contradicted_claim_still_sends_the_run_to_human_review(context):
     assert result.status == "needs_human_review"
     assert row.reason_codes == ["semantic_review_failed"] and row.result_json is None
     assert [item["claim_id"] for item in overview_runs.run_view(row)["failed_claims"]] == ["c1"]
+
+
+def test_range_review_reports_unavailable_candidates(context):
+    """0024 이전 스냅샷에는 절 후보가 없다. 없는 것을 부분 후보로 만들지 않는다."""
+
+    session, store = context
+    notice, _document, _snapshot = seed(session, store)
+
+    review = overview_runs.overview_envelope(session, notice.id)["range_review"]
+
+    assert review["candidate_status"] == "unavailable" and review["candidates"] == []
+    assert review["candidate_count_total"] is None and review["candidate_count_returned"] == 0
+    assert review["warning_codes"] == ["section_candidates_unavailable"]
+    assert review["reason_code"] == "section_candidates_unavailable"
+    # run이 아직 없으므로 확정 대기다.
+    assert review["status"] == "pending" and review["target_id"] is None
+    assert review["confirmation"] is None
