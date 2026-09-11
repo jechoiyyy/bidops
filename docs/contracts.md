@@ -320,8 +320,8 @@ migration 0021/0023/0024)과 주장 결정적 검증 함수는 그대로 유지�
 | status | 뜻 | 자동 심층 검토 |
 |---|---|---|
 | `queued` / `running` | 대기·실행 중 | 대기 |
-| `completed` | 모든 결정적 검사·의미 검토 통과, `result_json` 있음 | 진행 가능 |
-| `needs_human_review` | 인용 불일치·주장 0개(`claims_empty`)·의미 검토 contradicted/insufficient | `overview_not_completed` |
+| `completed` | 남은 주장이 결정적 검사·의미 검토를 통과, `result_json` 있음 | 진행 가능 |
+| `needs_human_review` | 통과 주장이 절반 미만·주장 0개(`claims_empty`)·주장/분석의 의미 검토 contradicted/insufficient | `overview_not_completed` |
 | `failed` | 기술 실패(`reason_codes`: `pdf_preparation_failed:<code>`, `manifest_invalid`, `draft_format_retry_exhausted`, `semantic_response_invalid`, `timeout`, `input_capacity_exceeded`, `call_budget_exhausted`, `response_store_unavailable`, `lease_expired`, `runner_failed`) | `overview_not_completed` |
 | `cancelled` | 플래그 off로 닫힘 | `overview_not_completed` |
 
@@ -343,7 +343,7 @@ Run 응답 필드: `id, status, range_source(auto|fallback|human), page_start, p
 range_reason_codes, reason_codes, warnings, result(완료 시:
 business_overview/main_tasks/budget_and_period/important_conditions 각
 [{claim_id,text,evidence:[{page,quote}]}], reviewer_analysis[], unknowns[],
-input_limitations[]), failed_claims(needs_human_review 시:
+input_limitations[]), failed_claims(`completed`·`needs_human_review` 모두:
 [{claim_id,section,text,reason_codes,evidence}]), model_name, model_revision,
 call_count, actor_name, created_at, started_at, completed_at`. 모델 원문·`raw_response_refs`·
 내부 경로는 반환하지 않는다.
@@ -358,7 +358,7 @@ prepare(snapshot 없으면 `prepare_v4_pdf_snapshot`, 변환 300초) → range(h
 deterministic(인용 1곳 대응·페이지 범위·duplicate_id·analysis 참조 실패와 주장 0개
 (`claims_empty`)는 `needs_human_review`; 섹션 배정·수치·역할·VAT·기산점·date·latin·
 requirement_id는 warnings) →
-semantic(1회; 모두 supported면 `completed`) → save 순서로 진행한다. 호출 상한은 attempt당
+semantic(1회; 남은 주장·분석이 모두 supported면 `completed`) → save 순서로 진행한다. 호출 상한은 attempt당
 3회(초안 2, 의미 1)이며 상한을 넘기면 `call_budget_exhausted`로 닫는다. 정책은
 `prespec-overview-policy-v6.json`(v5 상한 복제, max_pages 60, max_page_text_chars 100000,
 max_prompt_chars 120000, max_claims 12, max_analysis 4, max_unknowns 6,
@@ -374,6 +374,22 @@ max_model_context_tokens 393216). 문맥 상한 판정은 요청 JSON의 byte �
 `quote_ambiguous`·`quote_empty`·`page_out_of_range`·`evidence_missing`·`fact_empty`·
 `duplicate_id`·`analysis_reference_missing`·`company_comparison_scope_mismatch`뿐이며, 주장이
 한 개도 없으면 run은 `needs_human_review/claims_empty`로 닫는다.
+
+#### 부분 완료 (2026-09-11)
+
+주장별 차단 코드는 **그 주장만** 결과에서 뺀다. 통과 주장이 1개 이상이고 전체 주장의
+`ceil(n/2)` 이상이면 남은 주장으로 의미 검토·구성을 계속해 `completed`가 되고, 미만이면
+`needs_human_review/deterministic_check_failed`로 닫는다. `duplicate_id`·
+`analysis_reference_missing`·`company_comparison_scope_mismatch`처럼 초안 전체에 붙는 코드는
+그대로 전체를 닫는다. 빠진 주장을 `supporting_claim_ids`로 삼은 분석도 함께 빠진다.
+의미 검토에서 unknown이 `contradicted`·`insufficient`면 그 unknown만 결과에서 빠지고, 주장·
+분석의 같은 판정은 `needs_human_review/semantic_review_failed`로 닫는다.
+
+이때 run의 `warnings`에 남는 코드는 `claims_dropped`(주장이 하나 이상 빠짐)·
+`analysis_dropped`(분석이 하나 이상 빠짐)·`unknown_contradicted`·`unknown_insufficient`다.
+`draft_json`·`checks_json`은 빠진 주장까지 담은 **전체**를 그대로 저장하며(`failed_claims`
+투영이 `checks_json`에서 계산된다), 의미 검토·구성에 쓰는 부분집합은 저장하지 않는다.
+`result_json`에는 빠진 주장·분석·unknown이 들어가지 않는다.
 
 개요 입력 PDF의 원본 위치가 여러 공고에 공유되면(같은 첨부 bytes) `source` 위치가 둘 이상이다.
 원본의 정체는 hash이므로 가장 오래된 검증 위치 하나를 고정해 고른다.

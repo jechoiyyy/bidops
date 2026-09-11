@@ -214,10 +214,13 @@ class OverviewClaimChecks(StrictClaimModel):
             any(not c.deterministic.verified_evidence for c in self.checks)
         ):
             raise ValueError("verification_coverage_invalid")
+        # 미확인 항목(unknown)의 contradicted/insufficient는 2026-09-11부터
+        # 통과를 막지 않는다. 그 unknown만 결과에서 빠지고 run은 경고
+        # `unknown_contradicted`/`unknown_insufficient`를 남긴다.
         passed = bool(self.checks) and not self.reason_codes and all(
             c.deterministic.status == "passed" and c.semantic.status == "supported"
             for c in self.checks
-        ) and all(c.status == "supported" for c in [*self.analysis_checks, *self.unknown_checks])
+        ) and all(c.status == "supported" for c in self.analysis_checks)
         if (self.overall == "passed") != passed:
             raise ValueError("verification_overall_invalid")
         return self
