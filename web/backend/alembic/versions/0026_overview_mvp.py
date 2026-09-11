@@ -125,6 +125,10 @@ def upgrade() -> None:
         sa.Column("started_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("completed_at", sa.DateTime(timezone=True), nullable=True),
         sa.ForeignKeyConstraint(
+            ["document_version_id"], ["bidops.document_version.id"], ondelete="RESTRICT",
+            name="fk_prespec_overview_run_document_version",
+        ),
+        sa.ForeignKeyConstraint(
             ["notice_id", "document_version_id"],
             ["bidops.document_version.notice_id", "bidops.document_version.id"],
             ondelete="RESTRICT",
@@ -163,6 +167,20 @@ def upgrade() -> None:
         unique=True,
         postgresql_where=sa.text("status IN ('queued','running')"),
         schema=SCHEMA,
+    )
+    # 0021~0024가 만들지 못한 스냅샷 제약을 여기서 모델과 맞춘다. `alembic
+    # check`가 세 건을 계속 drift로 보고하던 자리다.
+    op.create_foreign_key(
+        "fk_prespec_v4_pdf_snapshot_notice", "prespec_v4_pdf_snapshot", "notice",
+        ["notice_id"], ["id"], source_schema=SCHEMA, referent_schema=SCHEMA, ondelete="RESTRICT",
+    )
+    op.create_foreign_key(
+        "fk_prespec_v4_pdf_snapshot_document_version", "prespec_v4_pdf_snapshot", "document_version",
+        ["document_version_id"], ["id"], source_schema=SCHEMA, referent_schema=SCHEMA, ondelete="RESTRICT",
+    )
+    op.create_check_constraint(
+        "ck_prespec_v4_pdf_snapshot_page_text_hash", "prespec_v4_pdf_snapshot",
+        "length(page_text_sha256) = 64 AND page_text_sha256 ~ '^[0-9a-f]*$'", schema=SCHEMA,
     )
     op.drop_constraint("ck_prespec_company_fit_source", "prespec_company_fit_attempt", schema=SCHEMA)
     op.drop_column("prespec_company_fit_attempt", "page_overview_id", schema=SCHEMA)
