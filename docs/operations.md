@@ -262,7 +262,7 @@ CLI 진입점은 모듈별로 하나씩이며 웹 없이 실행한다. migration
 
 ```bash
 python -m app.screening.cli --help          # run-one, score-candidate-quality
-python -m app.deep_review.cli --help        # run-bc-e2e, run-prespec-e2e, import-profile-policy, enqueue-overview
+python -m app.deep_review.cli --help        # run-bc-e2e, run-prespec-e2e, import-profile-policy, enqueue-overview, prepare-overviews
 python -m app.lifecycle.ingest.cli --help   # --run <회차> | --all
 ```
 
@@ -672,6 +672,11 @@ docker compose --env-file .env --env-file env/vllm.env \
    slot이 `prespec_overview_run`을 자동 enqueue하고 실행한다.
 3. `SW사업대상=Y`이고 개요 run이 `completed`이면 현재 회사 핏이 `matched`일 때 심층 검토가
    자동으로 생성된다.
+
+플래그가 켜져 있는 동안 1의 자격은 "`우선 검토` 또는 `SW사업대상=Y`"다(2026-09-11 MVP 완화).
+이미 적재가 끝나 촉발 지점이 지나간 공고는 `docker compose exec web python -m
+app.deep_review.cli prepare-overviews --all-eligible [--limit N] [--dry-run]`으로 한 번에
+태운다 — 이 명령은 묶음 준비와 개요 enqueue까지만 하고 모델을 부르지 않는다.
 
 진행은 사전규격 목록의 파생 필드로 읽는다.
 

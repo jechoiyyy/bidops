@@ -263,6 +263,33 @@ def test_enqueue_requires_flag_grade_bundle_and_no_active_run(context, monkeypat
     assert overview_runs.enqueue_overview_run(session, notice.id, settings=get_settings()) is None
 
 
+def test_the_flag_makes_sw_business_eligible_without_a_grade(context, monkeypatch):
+    """MVP 완화: 플래그가 켜져 있으면 `SW사업대상=Y`도 자격이다 (2026-09-11).
+
+    운영 DB에 C-1 판정이 0건이라 `우선 검토`가 한 건도 없다. 플래그가 꺼져 있으면
+    완화는 없다.
+    """
+
+    session, store = context
+    notice, _document, _snapshot = seed(session, store)
+    notice.qualification_flags_json = {"sw_business_status": "Y"}
+    session.commit()
+    # 판정도 정정도 없는 상태를 만든다.
+    monkeypatch.setattr(overview_runs, "effective_grades", lambda session, ids: {})
+
+    run = overview_runs.enqueue_overview_run(session, notice.id, settings=get_settings())
+    session.commit()
+
+    assert run is not None and run.status == "queued"
+
+    # 플래그가 꺼지면 같은 공고가 다시는 자격을 얻지 못한다.
+    session.delete(run)
+    session.commit()
+    monkeypatch.setenv("BIDOPS_PRESPEC_OVERVIEW_ENABLED", "false")
+    get_settings.cache_clear()
+    assert overview_runs.enqueue_overview_run(session, notice.id, settings=get_settings()) is None
+
+
 # --- 실행 --------------------------------------------------------------------
 
 

@@ -18,6 +18,11 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
+from sqlalchemy import select
+
+from ...core.config import get_settings
+from ...lifecycle.models import Notice
+
 #: 자동 문서 준비 자격을 여는 유일한 등급 (명세 §6.2).
 PRIORITY_GRADE = "우선 검토"
 
@@ -104,11 +109,74 @@ def priority_notice_ids(session: Any, notice_ids: Sequence[int]) -> frozenset[in
     )
 
 
+def sw_business_object(flags: Any) -> bool:
+    """발주기관이 매긴 `SW사업대상` 값. `unknown`·값 없음을 `Y`로 접지 않는다."""
+
+    return isinstance(flags, Mapping) and flags.get("sw_business_status") == "Y"
+
+
+def sw_business_notice_ids(session: Any, notice_ids: Sequence[int]) -> frozenset[int]:
+    """`SW사업대상=Y`인 **사전규격** 공고 id. 조회는 한 번이다."""
+
+    ids = tuple(dict.fromkeys(int(value) for value in notice_ids))
+    if not ids:
+        return frozenset()
+    return frozenset(
+        int(notice_id)
+        for notice_id, flags in session.execute(
+            select(Notice.id, Notice.qualification_flags_json).where(
+                Notice.id.in_(ids), Notice.source_type == "pre_spec"
+            )
+        ).all()
+        if sw_business_object(flags)
+    )
+
+
+def overview_eligible(
+    session: Any,
+    notice_ids: Sequence[int],
+    *,
+    settings: Any | None = None,
+    grades: Mapping[int, EffectiveGrade] | None = None,
+) -> frozenset[int]:
+    """자동 준비·개요 enqueue의 자격을 여는 공고 id (MVP 완화, 2026-09-11).
+
+    자격은 "effective grade `우선 검토`"이고, `BIDOPS_PRESPEC_OVERVIEW_ENABLED`
+    가 켜져 있으면 여기에 "`SW사업대상=Y` 사전규격"이 더해진다. 운영 DB에 C-1
+    판정이 아직 한 건도 없어 `우선 검토`가 0건이면 개요를 한 번도 돌릴 수 없기
+    때문이다. 플래그가 꺼져 있으면 완화는 **없고** 기존 등급 규칙 그대로다.
+
+    자격을 여는 곳이 셋(자동 준비, 목록 투영, 개요 enqueue)이므로 규칙은 여기
+    한 벌만 둔다 — 목록이 말하는 상태와 실제 준비 결과가 갈리지 않게 하는 것이
+    이 함수의 존재 이유다.
+
+    `grades`를 주면 그 batch 결과를 그대로 쓴다. 호출부가 이미 등급을 한 번에
+    풀었으면 다시 묻지 않는다(명세 §8의 N+1 금지).
+    """
+
+    ids = tuple(dict.fromkeys(int(value) for value in notice_ids))
+    if not ids:
+        return frozenset()
+    resolved = grades if grades is not None else effective_grades(session, ids)
+    eligible = {
+        notice_id
+        for notice_id in ids
+        if (value := resolved.get(notice_id)) is not None and value.is_priority
+    }
+    settings = settings if settings is not None else get_settings()
+    if getattr(settings, "prespec_overview_enabled", False):
+        eligible |= sw_business_notice_ids(session, ids)
+    return frozenset(eligible)
+
+
 __all__ = [
     "EffectiveGrade",
     "PRIORITY_GRADE",
     "SOURCE_HUMAN_REVIEW",
     "SOURCE_SCREENING_JUDGMENT",
     "effective_grades",
+    "overview_eligible",
     "priority_notice_ids",
+    "sw_business_notice_ids",
+    "sw_business_object",
 ]
