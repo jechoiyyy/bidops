@@ -143,12 +143,23 @@ function TextSection({ items, note, title }: { items: string[]; note?: string; t
 }
 
 /** 완료된 개요 본문. `result`가 없으면 본문을 만들어 내지 않는다. */
-function CompletedResult({ pdfUrl, result }: { pdfUrl: string; result: OverviewRunResult }) {
+function CompletedResult(
+  { failedClaims, pdfUrl, result }: { failedClaims: OverviewFailedClaim[]; pdfUrl: string; result: OverviewRunResult },
+) {
   return (
     <div className="pre-spec-overview-content">
       {RESULT_SECTIONS.map((section) => (
         <ClaimSection claims={result[section.key]} key={section.key} pdfUrl={pdfUrl} title={section.title} />
       ))}
+      {failedClaims.length > 0 ? (
+        <Collapsible trigger={`제외된 주장 ${failedClaims.length}건 (원문 대조 실패)`}>
+          <FailedClaims
+            claims={failedClaims}
+            intro="원문 대조에 실패해 결과에서 제외한 주장입니다. 개요 본문에는 포함되지 않았습니다."
+            pdfUrl={pdfUrl}
+          />
+        </Collapsible>
+      ) : null}
       <TextSection
         items={result.reviewer_analysis.map((analysis) => (
           analysis.supporting_claim_ids.length > 0
@@ -168,16 +179,19 @@ function CompletedResult({ pdfUrl, result }: { pdfUrl: string; result: OverviewR
   );
 }
 
-/** 사람이 확인해야 하는 주장. 완료 본문 대신 이것만 보여 준다. */
-function FailedClaims({ claims, pdfUrl }: { claims: OverviewFailedClaim[]; pdfUrl: string }) {
+/** 사람이 확인해야 하는 주장. `needs_human_review`에서는 완료 본문 대신 이것만
+ * 보여 주고, completed에서는 결과 4섹션 아래 접이식으로 함께 보여 준다. 두
+ * 맥락의 안내 문구가 달라 `intro`로 넘긴다(기본값은 needs_human_review 문구). */
+function FailedClaims({
+  claims,
+  intro = "검증을 통과하지 못한 주장이 있어 개요를 완료로 두지 않았습니다. 아래 주장을 원문과 대조하고, 필요하면 읽을 범위를 다시 지정하십시오. 화면이 자동으로 고치지 않습니다.",
+  pdfUrl,
+}: { claims: OverviewFailedClaim[]; intro?: string; pdfUrl: string }) {
   return (
     <section aria-label="근거 확인이 필요한 주장" className="pre-spec-overview-section">
       <p className="pre-spec-overview-waiting">
         <strong>근거 확인 필요</strong>
-        <span>
-          검증을 통과하지 못한 주장이 있어 개요를 완료로 두지 않았습니다. 아래 주장을 원문과 대조하고,
-          필요하면 읽을 범위를 다시 지정하십시오. 화면이 자동으로 고치지 않습니다.
-        </span>
+        <span>{intro}</span>
       </p>
       {claims.length === 0 ? (
         <p className="pre-spec-overview-empty">서버가 실패한 주장 목록을 남기지 않았습니다.</p>
@@ -291,7 +305,7 @@ function RunBody({ noticeId, run }: { noticeId: number; run: OverviewRun }) {
   const pdfUrl = api.preSpecOverviewRunPdfUrl(noticeId, run.id);
   if (run.status === "completed") {
     return run.result
-      ? <CompletedResult pdfUrl={pdfUrl} result={run.result} />
+      ? <CompletedResult failedClaims={run.failed_claims} pdfUrl={pdfUrl} result={run.result} />
       : <p className="pre-spec-overview-empty">완료로 기록됐지만 응답에 개요 본문이 없습니다. 화면이 본문을 만들지 않습니다.</p>;
   }
   if (run.status === "needs_human_review") {
