@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient, type UseQueryResult } from "@tan
 import { Token } from "@astryxdesign/core/Token";
 import { Button } from "@astryxdesign/core/Button";
 import { NumberInput } from "@astryxdesign/core/NumberInput";
+import { ToggleButton, ToggleButtonGroup } from "@astryxdesign/core/ToggleButton";
 import { Table, pixel, proportional, type TableColumn } from "@astryxdesign/core/Table";
 import { useEffect, useRef, useState } from "react";
 import { ApiError, api } from "../../lib/api";
@@ -17,6 +18,8 @@ import type {
   PageOverviewRangeConfirmation,
   PageOverviewRangeReview as PageOverviewRangeReviewData,
   PageOverviewResponse,
+  PageOverviewVerification,
+  PageOverviewVerifiedEvidence,
   PageOverviewView,
 } from "../../lib/types";
 import "../../styles/page-overview.css";
@@ -36,7 +39,7 @@ const CURRENT_STATUS_DESCRIPTION: Record<PageOverviewCurrentStatus, string> = {
   running: "개요 검토 중입니다. 선택한 PDF 입력의 근거를 검증하고 있습니다.",
   completed: "개요 검토가 완료되었습니다.",
   failed: "개요 검토에 실패했습니다. 사람 확인이 필요합니다.",
-  needs_human_review: "개요 입력과 근거를 사람이 확인해야 합니다.",
+  needs_human_review: "주장과 검증된 근거를 사람이 확인해야 합니다. 입력 범위 확인 대기와는 별도 상태입니다.",
   stale: "이전 입력 기준의 결과는 현재 결과로 사용할 수 없습니다. 사람 확인이 필요합니다.",
   cancelled: "개요 검토가 취소되었습니다. 사람 확인이 필요합니다.",
 };
@@ -73,7 +76,12 @@ function currentResultFor(
 }
 
 // Presentation only: preserve raw output, hide only a suffix matching the separate page links.
+function isV4Fact(fact: PageOverviewFact): fact is Extract<PageOverviewFact, { claim_id: string }> {
+  return "claim_id" in fact;
+}
+
 function displayFact(fact: PageOverviewFact): string {
+  if (isV4Fact(fact)) return fact.text;
   const match = fact.text.match(/\s*\((PDF\s*\d+\s*페이지(?:\s*[·,]\s*PDF\s*\d+\s*페이지)*|PDF\s*\d+(?:\s*[,·]\s*\d+)*\s*페이지)\)\s*$/);
   const pages = new Set(match?.[1].match(/\d+/g)?.map(Number) ?? []);
   return match && pages.size === new Set(fact.evidence_pages).size && fact.evidence_pages.every(n => pages.has(n))
@@ -86,10 +94,11 @@ export function pageOverviewPdfUrl(review: PageOverviewView): string {
 
 export function PageOverviewFactLine({ fact, review }: { fact: PageOverviewFact; review: PageOverviewView }) {
   const pdfUrl = pageOverviewPdfUrl(review);
+  const pages = isV4Fact(fact) ? fact.evidence.map((item) => item.page) : fact.evidence_pages;
   return <>
     <span className="page-overview-fact-line">{displayFact(fact)}</span>
     <span className="page-overview-links" aria-label="PDF 페이지 근거">
-      {[...new Set(fact.evidence_pages)].sort((a, b) => a - b).map(page => (
+      {[...new Set(pages)].sort((a, b) => a - b).map(page => (
         review.reviewed_pages.includes(page) && page <= review.pdf_page_count
           ? <a key={page} href={`${pdfUrl}#page=${page}`} target="_blank" rel="noreferrer">PDF {page}페이지 ↗</a>
           : <span key={page}>PDF {page}페이지 · 근거 위치 확인 필요</span>
@@ -130,6 +139,17 @@ export function PageOverviewAnalysis({ items }: { items: string[] }) {
   </section>;
 }
 
+function PageOverviewVerifiedAnalysis({ items }: { items: Array<{ id: string; text: string; supporting_claim_ids: string[] }> }) {
+  return <section className="page-overview-section"><h4>검토 포인트 <span className="page-overview-note">검증된 모델 의견</span></h4>
+    {items.length ? <ul className="page-overview-analysis-list">{items.map((item) => (
+      <li key={item.id}>
+        <p>{item.text}</p>
+        <span className="page-overview-note">근거 주장 · {item.supporting_claim_ids.join(", ")}</span>
+      </li>
+    ))}</ul> : <p className="page-overview-note">검토 포인트가 제시되지 않았습니다.</p>}
+  </section>;
+}
+
 export function PageOverviewUnknowns({ items }: { items: string[] }) {
   return <section className="page-overview-section"><h4>추가 확인 사항</h4>
     {items.length ? <ul>{items.map((text, i) => <li key={i}>{text}</li>)}</ul> : <p className="page-overview-note">추가 확인 사항이 제시되지 않았습니다.</p>}
@@ -150,13 +170,14 @@ export function PageOverviewExecutionInfo({ review }: { review: PageOverviewView
 
 export function PageOverviewResult({ review }: { review: PageOverviewView }) {
   const payload = review.payload;
+  const isVerifiedV4 = payload.schema_version === "bidops.prespec-overview-page-review.v4";
   return <section className="page-overview" aria-label="PDF 기반 개요 검토">
     <header className="page-overview-heading">
       <h3>개요 검토 결과</h3>
       <Badge label={qualityStatusLabel(review.quality_status)} variant={qualityStatusVariant(review.quality_status)} />
     </header>
     <div className="page-overview-validation" role="status">
-      <strong>{review.validation_status === "failed" ? "검증 실패 · 사람 확인 필요" : "근거 검사 통과 · 참조 결과"}</strong>
+      <strong>{review.validation_status === "failed" ? "검증 실패 · 사람 확인 필요" : isVerifiedV4 ? "주장 검증 완료 · 운영 승인 아님" : "근거 검사 통과 · 이전 검증 기준"}</strong>
       <p>사업 설명을 위한 요약입니다. 추적 승인과 최종 입찰 결정은 사람이 진행하며, 현재 회사 핏과 조건을 충족한 경우에만 심층 검토가 자동 시작됩니다.</p>
       {review.validation_status === "failed" && review.evidence_check_status === "passed" ? (
         <p>새 페이지 근거 검사는 통과했으나, 원실행의 검증 실패 기록은 유지합니다.</p>
@@ -166,9 +187,75 @@ export function PageOverviewResult({ review }: { review: PageOverviewView }) {
     <PageOverviewFacts title="주요 과업" items={payload.main_tasks} review={review} ordered />
     <PageOverviewFacts title="사업 규모와 일정" items={payload.budget_and_period} review={review} />
     <PageOverviewFacts title="핵심 조건" items={payload.important_conditions} review={review} />
-    <PageOverviewAnalysis items={payload.reviewer_analysis} />
+    {isVerifiedV4
+      ? <PageOverviewVerifiedAnalysis items={payload.reviewer_analysis} />
+      : <PageOverviewAnalysis items={payload.reviewer_analysis} />}
     <PageOverviewUnknowns items={payload.unknowns} />
     <PageOverviewExecutionInfo review={review} />
+  </section>;
+}
+
+const VERIFICATION_STATUS_LABEL = {
+  passed: "전체 주장 검증 통과",
+  needs_human_review: "근거 확인 필요",
+} as const;
+
+const DETERMINISTIC_STATUS_LABEL = { passed: "결정적 검사 통과", failed: "결정적 검사 실패" } as const;
+const SEMANTIC_STATUS_LABEL = {
+  supported: "의미 검사 지지",
+  contradicted: "의미 검사 모순",
+  insufficient: "의미 검사 근거 부족",
+  not_run: "의미 검사 미실행",
+} as const;
+
+function attemptPdfUrl(noticeId: number, attemptId: string): string {
+  return `/api/pre-specs/${noticeId}/overview-pages/attempts/${attemptId}/pdf`;
+}
+
+function targetPdfUrl(noticeId: number, targetId: string): string {
+  return `/api/pre-specs/${noticeId}/overview-pages/targets/${targetId}/pdf`;
+}
+
+function VerificationEvidence({ noticeId, attemptId, evidence }: {
+  noticeId: number;
+  attemptId: string;
+  evidence: PageOverviewVerifiedEvidence[];
+}) {
+  if (evidence.length === 0) return <p className="page-overview-note">검증된 인용 없음</p>;
+  return <ul className="page-overview-evidence-list">
+    {evidence.map((item) => <li key={`${item.page}:${item.start_char}:${item.end_char}`}>
+      <blockquote>{item.quote}</blockquote>
+      <a href={`${attemptPdfUrl(noticeId, attemptId)}#page=${item.page}`} target="_blank" rel="noreferrer">
+        검증 근거 PDF {item.page}페이지 ↗
+      </a>
+      <span className="page-overview-note">문자 범위 {item.start_char}–{item.end_char} · 페이지 해시 {item.page_text_sha256}</span>
+    </li>)}
+  </ul>;
+}
+
+export function PageOverviewVerificationDetails({
+  noticeId,
+  attemptId,
+  verification,
+}: {
+  noticeId: number;
+  attemptId: string;
+  verification: PageOverviewVerification;
+}) {
+  return <section className="page-overview-section page-overview-verification" aria-label="현재 주장 검증 진단">
+    <header className="page-overview-heading">
+      <h3>현재 주장 검증 진단</h3>
+      <Token label={VERIFICATION_STATUS_LABEL[verification.status]} size="sm" />
+    </header>
+    {verification.reason_codes.length ? <p>전체 사유 코드 · {verification.reason_codes.join(", ")}</p> : <p>전체 사유 코드 · 없음</p>}
+    {verification.claims.length ? <ol className="page-overview-verification-claims">
+      {verification.claims.map((claim) => <li key={claim.claim_id}>
+        <strong>{claim.text}</strong>
+        <p>{DETERMINISTIC_STATUS_LABEL[claim.deterministic_status]} · {SEMANTIC_STATUS_LABEL[claim.semantic_status]}</p>
+        <p>주장 사유 코드 · {claim.reason_codes.length ? claim.reason_codes.join(", ") : "없음"}</p>
+        <VerificationEvidence noticeId={noticeId} attemptId={attemptId} evidence={claim.verified_evidence} />
+      </li>)}
+    </ol> : <p className="page-overview-note">표시할 주장 진단이 없습니다.</p>}
   </section>;
 }
 
@@ -180,14 +267,22 @@ export function PageOverviewCurrent({
   currentResult: PageOverviewView | null;
 }) {
   const hasUnusableCompletedResult = current.status === "completed" && currentResult === null;
+  const isRangePending = current.status === "needs_human_review" && current.attempt_id === null;
+  const isInputCapacityExceeded = current.status === "failed" && current.reason_code === "input_capacity_exceeded";
   return (
     <section className="page-overview-section page-overview-current" aria-label="현재 v4 개요 실행">
       <header className="page-overview-heading">
         <h3>현재 v4 개요 실행</h3>
-        <Token label={CURRENT_STATUS_LABEL[current.status]} size="sm" />
+        <Token label={isRangePending ? "입력 범위 확인 필요" : isInputCapacityExceeded ? "입력 용량 초과로 미실행" : CURRENT_STATUS_LABEL[current.status]} size="sm" />
       </header>
       <div className="page-overview-validation" role={current.status === "failed" ? "alert" : "status"}>
-        <strong>{CURRENT_STATUS_DESCRIPTION[current.status]}</strong>
+        <strong>{isRangePending ? "입력 범위를 사람이 확정해야 합니다. 주장 검증은 아직 시작하지 않았습니다." : isInputCapacityExceeded ? "입력 용량을 초과했거나 안전 한도를 확인할 수 없어 이 요청을 실행하지 않았습니다." : CURRENT_STATUS_DESCRIPTION[current.status]}</strong>
+        {isInputCapacityExceeded ? (
+          <>
+            <p>선택 범위와 요청 예산을 확인해 주세요. 24,000자는 단계별 payload 정책 상한이며, 모델 컨텍스트 한도는 실제 요청 전체와 출력·chat template 예약을 함께 계산하는 별도 안전 기준입니다. 이 표시는 같은 시도의 앞선 초안 호출 여부를 뜻하지 않습니다.</p>
+            <p>원문을 몰래 자르거나 사전 요약·자동 분할하지 않습니다. 범위를 바꾸려면 명시적 승인으로 새 target을 만들고, 모델 호출 증가가 필요하면 별도 승인을 받아야 합니다.</p>
+          </>
+        ) : null}
         {hasUnusableCompletedResult ? (
           <p>검증 통과한 현재 결과를 확인할 수 없어 본문을 표시하지 않습니다.</p>
         ) : null}
@@ -198,6 +293,7 @@ export function PageOverviewCurrent({
             <div><dt>프롬프트</dt><dd>{current.prompt_version ?? "프롬프트 미확인"}</dd></div>
             <div><dt>실행 시각</dt><dd>{formatDateTime(current.created_at)}</dd></div>
             <div><dt>결과 ID</dt><dd>{current.result_id ?? "결과 없음"}</dd></div>
+            <div><dt>주장 검증</dt><dd>{current.verification_status === null ? "검증 기록 없음" : VERIFICATION_STATUS_LABEL[current.verification_status]}</dd></div>
             {current.reason_code ? <div><dt>처리 사유 코드</dt><dd>{current.reason_code}</dd></div> : null}
           </dl>
         </details>
@@ -217,7 +313,9 @@ export function PageOverviewHistory({ reviews }: { reviews: PageOverviewView[] }
           return (
             <li key={review.id} className="page-overview-history-item">
               <details>
-                <summary>실행 시각 · {formatDateTime(review.created_at)} · {qualityStatusLabel(review.quality_status)} · 결과 ID · {review.id}</summary>
+                <summary>
+                  실행 시각 · {formatDateTime(review.created_at)} · {review.payload.schema_version === "bidops.prespec-overview-page-review.v3" ? "이전 검증 기준" : "주장 검증 v4"} · {qualityStatusLabel(review.quality_status)} · 결과 ID · {review.id}
+                </summary>
                 <PageOverviewResult review={review} />
                 <div className="page-overview-history-links">
                   {review.validation_errors.length ? <p>검증 사유 · {review.validation_errors.join(", ")}</p> : null}
@@ -254,6 +352,16 @@ const RANGE_ERROR_LABEL: Record<string, string> = {
   range_invalid: "선택한 범위가 유효하지 않습니다",
   input_size_limit: "선택 범위가 입력 한도를 넘습니다",
   target_not_found: "확정 대상을 찾을 수 없습니다",
+  target_execution_active: "실행 중인 개요가 있어 범위를 저장할 수 없습니다",
+  document_not_current_safe: "현재 안전한 문서가 아니어서 범위를 저장할 수 없습니다",
+};
+
+const RANGE_WARNING_LABEL: Record<string, string> = {
+  section_candidates_incomplete: "절 후보가 일부만 제공되었습니다. 후보 표는 참고하고 쪽 범위를 직접 입력하십시오",
+  section_candidates_unavailable: "절 후보를 확인할 수 없습니다. 변환 PDF를 보고 쪽 범위를 직접 입력하십시오",
+  ambiguous_scope_boundary: "자동 선택 범위의 경계가 모호합니다. 변환 PDF에서 쪽 범위를 확인하십시오",
+  document_not_current_safe: "현재 안전한 문서가 아니어서 새 범위를 저장할 수 없습니다",
+  target_execution_active: "실행 중인 개요가 있어 새 범위를 저장할 수 없습니다",
 };
 
 const RANGE_ORDER_ERROR = "끝 절은 시작 절과 같거나 뒤여야 합니다";
@@ -287,8 +395,13 @@ function RangeReviewPending({
   review: PageOverviewRangeReviewData;
   onConfirmed: () => void;
 }) {
-  // 후보가 없으면 쪽 범위로 확정한다. 두 방식은 body에서 정확히 하나의 쌍만 채운다.
-  const pagesMode = review.candidates.length === 0;
+  const candidatesComplete = review.candidate_status === "complete" && review.candidates.length > 0;
+  // 완전한 후보가 있으면 기존 절 선택을 기본값으로 유지한다. 부분/미제공 후보는
+  // 참고만 가능하고 쪽 범위만 저장한다.
+  const [rangeMode, setRangeMode] = useState<"candidates" | "pages">(
+    candidatesComplete ? "candidates" : "pages",
+  );
+  const pagesMode = rangeMode === "pages";
   const [startIndex, setStartIndex] = useState<number | null>(null);
   const [endIndex, setEndIndex] = useState<number | null>(null);
   const [firstPage, setFirstPage] = useState<number | null>(null);
@@ -326,7 +439,7 @@ function RangeReviewPending({
     },
   });
 
-  const locked = confirmed || mutation.isPending;
+  const locked = confirmed || mutation.isPending || !review.can_confirm;
   const ready = valid && actorName.trim().length > 0 && !locked;
   const missing = !selected
     ? (pagesMode ? "시작 쪽과 끝 쪽을 입력하십시오." : "시작 절과 끝 절을 고르십시오.")
@@ -355,8 +468,10 @@ function RangeReviewPending({
   );
 
   const columns: TableColumn<RangeCandidateRow>[] = [
-    { key: "start", header: "시작", width: pixel(56), renderCell: (row) => radioCell(row, "range-start", "시작", startIndex, setStartIndex) },
-    { key: "end", header: "끝", width: pixel(56), renderCell: (row) => radioCell(row, "range-end", "끝", endIndex, setEndIndex) },
+    ...(candidatesComplete && !pagesMode ? [
+      { key: "start", header: "시작", width: pixel(56), renderCell: (row: RangeCandidateRow) => radioCell(row, "range-start", "시작", startIndex, setStartIndex) },
+      { key: "end", header: "끝", width: pixel(56), renderCell: (row: RangeCandidateRow) => radioCell(row, "range-end", "끝", endIndex, setEndIndex) },
+    ] : []),
     { key: "index", header: "#", width: pixel(56), renderCell: (row) => row.candidate.index },
     { key: "title", header: "절 제목", width: proportional(1), renderCell: (row) => row.candidate.title },
     { key: "page", header: "쪽", width: pixel(72), renderCell: (row) => `${row.candidate.page}쪽` },
@@ -364,11 +479,40 @@ function RangeReviewPending({
 
   return (
     <section className="page-overview-section page-overview-range" aria-label="개요 범위 확인">
-      <RangeReviewHeading token="범위 확인 필요" />
+      <RangeReviewHeading token={review.selection_status === "ready" ? "자동 선택됨 · 조정 가능" : "범위 확인 필요"} />
+      <p className="page-overview-range-state">
+        변환 완료 · {review.selection_status === "ready" ? "자동 선택" : "범위 미확정"} · 내용 검증 상태는 개요 상태에서 확인
+      </p>
+      <a href={targetPdfUrl(noticeId, review.target_id)} target="_blank" rel="noreferrer">변환 PDF 열기 ↗</a>
       <p className="page-overview-range-reason">
         <strong>확인 사유 · {rangeReasonLabel(review.reason_code)}</strong>{" "}
-        결정적 선택기가 범위를 정하지 못했습니다. 사람이 시작·끝을 확정해야 개요 검토 입력이 준비됩니다. 확정해도 개요 검토는 자동 실행되지 않습니다.
+        {review.selection_status === "ready"
+          ? `자동 선택 범위 ${review.selected_pages.length ? `${review.selected_pages[0]}~${review.selected_pages.at(-1)}쪽` : "확인 불가"}입니다. 필요하면 사람이 새 범위를 확정할 수 있습니다.`
+          : "결정적 선택기가 범위를 정하지 못했습니다. 사람이 시작·끝을 확정해야 개요 검토 입력이 준비됩니다."}{" "}
+        확정해도 개요 검토는 자동 실행되지 않습니다.
       </p>
+
+      {review.warning_codes.length ? (
+        <ul className="page-overview-range-warnings" aria-label="범위 준비 경고">
+          {review.warning_codes.map((code) => <li key={code}>{RANGE_WARNING_LABEL[code] ?? code}</li>)}
+        </ul>
+      ) : null}
+
+      {review.candidates.length > 0 ? (
+        <ToggleButtonGroup
+          label="범위 선택 방식"
+          type="single"
+          value={rangeMode}
+          onChange={(value) => {
+            if (value === "candidates" && candidatesComplete) setRangeMode("candidates");
+            if (value === "pages") setRangeMode("pages");
+          }}
+          size="sm"
+        >
+          {candidatesComplete ? <ToggleButton value="candidates" label="절 후보 선택" /> : null}
+          <ToggleButton value="pages" label="쪽 직접 선택" />
+        </ToggleButtonGroup>
+      ) : null}
 
       {review.assisted ? (
         <div className="page-overview-range-assist">
@@ -417,9 +561,11 @@ function RangeReviewPending({
               onChange={setLastPage}
             />
           </div>
-          <p className="page-overview-note">절 후보가 없어 쪽 범위로 확정합니다. 전체 {review.pdf_page_count}쪽</p>
+          <p className="page-overview-note">쪽 범위로 직접 확정합니다. 전체 {review.pdf_page_count}쪽</p>
         </>
-      ) : (
+      ) : null}
+
+      {review.candidates.length ? (
         <div className="page-overview-range-table">
           <Table
             aria-label="개요 범위 절 후보"
@@ -430,10 +576,18 @@ function RangeReviewPending({
             idKey={(row) => row.candidate.index}
             verticalAlign="top"
           />
+          <p className="page-overview-note">
+            절 후보 {review.candidate_count_returned}건 표시 · 전체 {review.candidate_count_total ?? "확인 불가"}건
+            {review.candidate_status === "partial" ? " · 일부 후보이므로 표는 참고용입니다" : null}
+          </p>
         </div>
-      )}
+      ) : null}
 
-      {orderInvalid ? <p role="alert" className="page-overview-range-invalid">{RANGE_ORDER_ERROR}</p> : null}
+      {orderInvalid ? (
+        <p role="alert" className="page-overview-range-invalid">
+          {pagesMode ? "끝 쪽은 시작 쪽과 같거나 뒤여야 합니다" : RANGE_ORDER_ERROR}
+        </p>
+      ) : null}
 
       <div className="page-overview-range-form">
         <ActorField
@@ -452,6 +606,7 @@ function RangeReviewPending({
           onClick={() => { if (ready) mutation.mutate(); }}
         />
         {missing && !confirmed ? <p className="page-overview-note">{missing}</p> : null}
+        {!review.can_confirm ? <p className="page-overview-note">안전 또는 실행 상태를 확인할 때까지 저장할 수 없습니다.</p> : null}
       </div>
 
       {confirmed ? <p role="status">{RANGE_CONFIRMED_NOTE}</p> : null}
@@ -466,9 +621,11 @@ function RangeReviewPending({
 
 /** 확정 완료: 무엇이 확정됐는지만 읽기 전용으로 남긴다. */
 function RangeReviewConfirmed({
+  noticeId,
   review,
   confirmation,
 }: {
+  noticeId: number;
   review: PageOverviewRangeReviewData;
   confirmation: PageOverviewRangeConfirmation;
 }) {
@@ -479,6 +636,8 @@ function RangeReviewConfirmed({
   return (
     <section className="page-overview-section page-overview-range" aria-label="개요 범위 확인">
       <RangeReviewHeading token="범위 확정됨" />
+      <p className="page-overview-range-state">변환 완료 · 범위 확정 · 내용 검증 상태는 개요 상태에서 확인</p>
+      <a href={targetPdfUrl(noticeId, review.target_id)} target="_blank" rel="noreferrer">변환 PDF 열기 ↗</a>
       <dl className="page-overview-execution-meta">
         <div><dt>확정 쪽 범위</dt><dd>{confirmation.first_page}~{confirmation.last_page}쪽</dd></div>
         <div><dt>시작 절</dt><dd>{clauseTitle(confirmation.start_index)}</dd></div>
@@ -501,7 +660,9 @@ export function PageOverviewRangeReview({
   onConfirmed: () => void;
 }) {
   if (review.selection_status === "ready") {
-    return review.confirmation ? <RangeReviewConfirmed review={review} confirmation={review.confirmation} /> : null;
+    return review.confirmation
+      ? <RangeReviewConfirmed noticeId={noticeId} review={review} confirmation={review.confirmation} />
+      : <RangeReviewPending noticeId={noticeId} review={review} onConfirmed={onConfirmed} />;
   }
   return <RangeReviewPending noticeId={noticeId} review={review} onConfirmed={onConfirmed} />;
 }
@@ -516,6 +677,7 @@ type CurrentPageOverviewState = {
   history: PageOverviewView[];
   /** 범위 사람 확인 대상이 없으면 `null`이며 그 자리를 그리지 않는다. */
   rangeReview: PageOverviewRangeReviewData | null;
+  verification: PageOverviewVerification | null;
 };
 
 export function useCurrentPageOverview(noticeId: number | null): CurrentPageOverviewState {
@@ -558,6 +720,7 @@ export function useCurrentPageOverview(noticeId: number | null): CurrentPageOver
   const data = query.data;
   const reviews = data?.reviews ?? [];
   const rangeReview = data?.range_review ?? null;
+  const verification = data?.verification ?? null;
   const hasCurrentProjection = data?.current !== null && data?.current !== undefined;
   const currentResult = currentResultFor(current, reviews);
   const legacyReview = !hasCurrentProjection ? reviews[0] ?? null : null;
@@ -566,17 +729,21 @@ export function useCurrentPageOverview(noticeId: number | null): CurrentPageOver
     : reviews.slice(1);
   const isValid = data !== undefined
     && noticeId !== null
-    && data.schema_version === "bidops.prespec-overview-pages.v1"
+    && data.schema_version === "bidops.prespec-overview-pages.v2"
     && data.notice_id === noticeId
-    && !data.reviews.some((review) => review.notice_id !== noticeId || review.payload.schema_version !== "bidops.prespec-overview-page-review.v3")
-    && (data.current === null || data.current === undefined || isValidCurrentStatus(data.current.status))
-    && (rangeReview === null || rangeReview.selection_status === "needs_human_review" || rangeReview.selection_status === "ready");
+    && data.current !== undefined && data.range_review !== undefined && data.verification !== undefined
+    && !data.reviews.some((review) => review.notice_id !== noticeId || !["bidops.prespec-overview-page-review.v3", "bidops.prespec-overview-page-review.v4"].includes(review.payload.schema_version))
+    && (data.current === null ? data.reviews.every((review) => review.payload.schema_version === "bidops.prespec-overview-page-review.v3") : isValidCurrentStatus(data.current.status))
+    && (rangeReview === null || (
+      rangeReview.schema_version === "bidops.prespec-overview-range-view.v2"
+      && (rangeReview.selection_status === "needs_human_review" || rangeReview.selection_status === "ready")
+    ));
 
-  return { query, isValid, current, hasCurrentProjection, currentResult, legacyReview, history, rangeReview };
+  return { query, isValid, current, hasCurrentProjection, currentResult, legacyReview, history, rangeReview, verification };
 }
 
 export function PageOverviewSection({ noticeId }: { noticeId: number }) {
-  const { query, isValid, current, hasCurrentProjection, currentResult, legacyReview, history, rangeReview } = useCurrentPageOverview(noticeId);
+  const { query, isValid, current, hasCurrentProjection, currentResult, legacyReview, history, rangeReview, verification } = useCurrentPageOverview(noticeId);
 
   if (query.isPending) return <p role="status">PDF 기반 개요를 불러오는 중입니다.</p>;
   if (query.isError) return <div role="alert" className="page-overview-validation">
@@ -605,6 +772,7 @@ export function PageOverviewSection({ noticeId }: { noticeId: number }) {
   return <>
     {rangeReviewNode}
     {current ? <PageOverviewCurrent current={current} currentResult={currentResult} /> : null}
+    {current?.attempt_id && verification ? <PageOverviewVerificationDetails noticeId={noticeId} attemptId={current.attempt_id} verification={verification} /> : null}
     {currentResult ? <PageOverviewResult review={currentResult} /> : null}
     <PageOverviewHistory reviews={history} />
   </>;

@@ -279,7 +279,7 @@ def test_source_replacement_invalidates_previous_assessment(context):
     assert not fit.current_flags(session, [row])[row.id]
 
 
-@pytest.mark.parametrize("status", ["running", "failed", "stale"])
+@pytest.mark.parametrize("status", ["running", "failed", "stale", "cancelled", "needs_human_review"])
 def test_noncompleted_v4_current_blocks_legacy_and_page_fit_input(
     context, monkeypatch, status
 ):
@@ -335,8 +335,9 @@ def test_v4_current_result_id_selects_its_page_overview_over_newer_history(
     assert source.id == current.id
 
 
+@pytest.mark.parametrize("status", ["failed", "cancelled", "needs_human_review"])
 def test_grade_less_v4_current_state_is_not_reported_as_legacy_completion(
-    context, monkeypatch
+    context, monkeypatch, status
 ):
     session, inputs = context
     ready_bundle(session, inputs)
@@ -354,7 +355,7 @@ def test_grade_less_v4_current_state_is_not_reported_as_legacy_completion(
         "current_v4_projections",
         lambda _session, ids: {
             notice_id: {
-                "status": "failed",
+                "status": status,
                 "result_id": None,
             }
             for notice_id in ids

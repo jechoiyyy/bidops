@@ -40,10 +40,13 @@ from ..schemas.page_overview import (
     PageOverviewRangeConfirmationRequest,
     PageOverviewRangeConfirmationResponse,
     PageOverviewResponse,
+    PageOverviewResponseV2,
 )
 from ..schemas.company_fit import CompanyFitResponse
 from ..services.company_fit import company_fit_view
-from ..services.page_overview import PageOverviewError, list_page_overviews, get_page_pdf
+from ..services.page_overview import (
+    PageOverviewError, list_page_overviews, list_page_overviews_v2, get_page_pdf, get_attempt_pdf, get_target_pdf,
+)
 from ..services.prespec_v4_ops import V4OpsError
 from ..services.prespec_v4_range import confirm_v4_range, range_review_projection
 from ..schemas.deep_reviews import AttemptView, DeepReviewView, OpportunityDeepReviewsResponse
@@ -357,7 +360,26 @@ def get_overview_pages(notice_id: int = ApiPath(..., ge=1), session: Session = D
         # 읽기 실패는 빈 값으로 낮추지 않고 오류로 올린다(fail closed).
         review = range_review_projection(
             session, notice_id,
-            store_factory=lambda: object_store(namespaces=(), read_namespaces=("structure",)),
+            store_factory=lambda: object_store(namespaces=("structure",), read_namespaces=("structure",)),
+        )
+        return response if review is None else response.model_copy(update={"range_review": review})
+    except PageOverviewError as error:
+        return _page_error(error)
+    except V4OpsError as error:
+        code = "overview_contract_upgrade_required" if error.code == "overview_contract_upgrade_required" else "processing_failed"
+        return _page_error(PageOverviewError(code))
+    except Exception:
+        return _page_error(PageOverviewError("processing_failed"))
+
+
+@pre_spec_overview_router.get("/{notice_id}/overview-pages/v2", response_model=PageOverviewResponseV2)
+def get_overview_pages_v2(notice_id: int = ApiPath(..., ge=1), session: Session = Depends(get_db)):
+    try:
+        response = list_page_overviews_v2(session, notice_id)
+        review = range_review_projection(
+            session, notice_id,
+            store_factory=lambda: object_store(namespaces=("structure",), read_namespaces=("structure",)),
+            expanded=True,
         )
         return response if review is None else response.model_copy(update={"range_review": review})
     except PageOverviewError as error:
@@ -372,6 +394,10 @@ _RANGE_ERRORS: dict[str, tuple[int, str]] = {
     "actor_name_invalid": (400, "담당자 이름이 올바르지 않습니다"),
     "target_not_found": (404, "범위 확정 대상을 찾을 수 없습니다"),
     "target_not_pending": (409, "이 대상은 범위 확정 대기 상태가 아닙니다"),
+    "target_execution_active": (409, "실행 중인 개요를 중지한 뒤 범위를 다시 확인하십시오"),
+    "document_not_current_safe": (409, "현재 문서와 안전 상태를 확인하십시오"),
+    "candidate_range_incomplete": (422, "절 후보가 일부만 제공되었습니다. PDF를 확인하여 쪽 범위를 직접 지정하십시오"),
+    "candidate_range_unavailable": (422, "절 후보를 사용할 수 없습니다. PDF를 확인하여 쪽 범위를 직접 지정하십시오"),
     "range_invalid": (422, "선택한 범위가 올바르지 않습니다"),
     "input_size_limit": (413, "선택한 범위가 입력 크기 한도를 넘습니다"),
 }
@@ -470,7 +496,47 @@ def download_overview_pdf(notice_id: int, review_id: UUID, session: Session = De
         return _page_error(PageOverviewError("pdf_unavailable"))
 
 
+@pre_spec_overview_router.get(
+    "/{notice_id}/overview-pages/attempts/{attempt_id}/pdf", response_class=Response,
+    responses={200: {"content": {"application/pdf": {}}}},
+)
+def download_overview_attempt_pdf(notice_id: int, attempt_id: UUID, session: Session = Depends(get_db)):
+    try:
+        data = get_attempt_pdf(session, notice_id, attempt_id, object_store(namespaces=("source",), read_namespaces=("source",)))
+        return Response(data, media_type="application/pdf", headers={
+            "Content-Disposition": 'inline; filename="overview-reference.pdf"',
+            "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff",
+            "Content-Security-Policy": "default-src 'none'; sandbox",
+        })
+    except PageOverviewError as error:
+        return _page_error(error)
+    except Exception:
+        return _page_error(PageOverviewError("pdf_unavailable"))
+
+
+@pre_spec_overview_router.get(
+    "/{notice_id}/overview-pages/targets/{target_id}/pdf", response_class=Response,
+    responses={200: {"content": {"application/pdf": {}}}},
+)
+def download_overview_target_pdf(notice_id: int, target_id: UUID, session: Session = Depends(get_db)):
+    try:
+        data = get_target_pdf(session, notice_id, target_id, object_store(namespaces=("source",), read_namespaces=("source",)))
+        return Response(data, media_type="application/pdf", headers={
+            "Content-Disposition": 'inline; filename="overview-reference.pdf"',
+            "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff",
+            "Content-Security-Policy": "default-src 'none'; sandbox",
+        })
+    except PageOverviewError as error:
+        return _page_error(error)
+    except Exception:
+        return _page_error(PageOverviewError("pdf_unavailable"))
+
+
 def _page_error(error: PageOverviewError) -> JSONResponse:
     code = str(error)
-    return JSONResponse(status_code=404 if code == "not_found" else 409 if code.endswith("failed") else 503,
+    statuses = {"not_found": 404, "result_integrity_failed": 409, "pdf_integrity_failed": 409,
+                "overview_contract_upgrade_required": 409, "pdf_unavailable": 503, "processing_failed": 503}
+    if code not in statuses:
+        code = "processing_failed"
+    return JSONResponse(status_code=statuses[code],
                         content={"error": {"code": code, "message": "개요 또는 PDF 근거를 확인할 수 없습니다", "details": None}, "request_id": None})

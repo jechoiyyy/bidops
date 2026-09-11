@@ -2,8 +2,11 @@
 from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 from ...core.schema_base import AwareDateTime, Digest, RuntimeContractModel
+from .prespec_overview_claims import (
+    BoundedText, Identifier, OverviewAnalysis, StrictClaimModel, VerifiedEvidence,
+)
 
 Text = Annotated[str, Field(min_length=1)]
 PageNumber = Annotated[int, Field(strict=True, ge=1)]
@@ -128,6 +131,19 @@ class PageOverviewRangeConfirmationRequest(RuntimeContractModel):
     note: Annotated[str, Field(max_length=500)] | None = None
 
 
+class PageOverviewRangeReviewV2(PageOverviewRangeReview):
+    """Prepared input and advisory candidates, independent of model results."""
+
+    schema_version: Literal["bidops.prespec-overview-range-view.v2"] = "bidops.prespec-overview-range-view.v2"
+    candidates_mode: Literal["clause", "page", "outline"] | None
+    candidate_status: Literal["complete", "partial", "unavailable"]
+    candidate_count_total: Annotated[int, Field(ge=0)] | None
+    candidate_count_returned: Annotated[int, Field(ge=0)]
+    warning_codes: list[str]
+    selected_pages: list[PageNumber]
+    can_confirm: bool
+
+
 class PageOverviewRangeConfirmationResponse(RuntimeContractModel):
     target_id: UUID
     selection_status: Literal["ready"]
@@ -145,3 +161,86 @@ class PageOverviewResponse(RuntimeContractModel):
     current: PageOverviewCurrent | None = None
     #: 범위 사람 확인 대상이 없으면 `null`이다(기존 소비자에는 추가 필드).
     range_review: PageOverviewRangeReview | None = None
+
+
+class VerifiedPageFact(StrictClaimModel):
+    claim_id: Identifier
+    text: BoundedText
+    evidence: Annotated[list[VerifiedEvidence], Field(min_length=1)]
+
+
+class PageOverviewPayloadV4(StrictClaimModel):
+    schema_version: Literal["bidops.prespec-overview-page-review.v4"]
+    business_overview: Annotated[list[VerifiedPageFact], Field(min_length=1)]
+    main_tasks: Annotated[list[VerifiedPageFact], Field(min_length=1)]
+    budget_and_period: list[VerifiedPageFact]
+    important_conditions: list[VerifiedPageFact]
+    reviewer_analysis: list[OverviewAnalysis]
+    unknowns: list[Text]
+    input_limitations: Annotated[list[Text], Field(min_length=1)]
+    verification_id: UUID
+    verification_sha256: Digest
+
+    @model_validator(mode="after")
+    def require_unique_claims(self):
+        facts = self.business_overview + self.main_tasks + self.budget_and_period + self.important_conditions
+        ids = [fact.claim_id for fact in facts]
+        analysis_ids = [row.id for row in self.reviewer_analysis]
+        if len(set(ids + analysis_ids)) != len(ids + analysis_ids):
+            raise ValueError("duplicate_id")
+        if any(not a.supporting_claim_ids or set(a.supporting_claim_ids) - set(ids) for a in self.reviewer_analysis):
+            raise ValueError("analysis_reference_missing")
+        return self
+
+
+PageOverviewResultPayload = Annotated[PageOverviewPayload | PageOverviewPayloadV4, Field(discriminator="schema_version")]
+
+
+def parse_page_overview_payload(value: object) -> PageOverviewPayload | PageOverviewPayloadV4:
+    """Read a historical v3 or a verified v4 without promoting either version."""
+    if isinstance(value, (PageOverviewPayload, PageOverviewPayloadV4)):
+        value = value.model_dump(mode="json")
+    if not isinstance(value, dict):
+        raise ValueError("overview_schema_invalid")
+    version = value.get("schema_version")
+    if version == "bidops.prespec-overview-page-review.v3":
+        return PageOverviewPayload.model_validate(value)
+    if version == "bidops.prespec-overview-page-review.v4":
+        # JSON validation permits the UUID wire encoding while retaining strict
+        # integers, strings and unknown-field rejection in nested evidence.
+        import json
+        return PageOverviewPayloadV4.model_validate_json(json.dumps(value, ensure_ascii=False))
+    raise ValueError("overview_schema_unsupported")
+
+
+class PageOverviewViewV2(PageOverviewView):
+    payload: PageOverviewResultPayload
+
+
+class PageOverviewVerificationClaim(RuntimeContractModel):
+    claim_id: Identifier
+    text: BoundedText
+    deterministic_status: Literal["passed", "failed"]
+    semantic_status: Literal["supported", "contradicted", "insufficient", "not_run"]
+    reason_codes: list[str]
+    verified_evidence: list[VerifiedEvidence]
+
+
+class PageOverviewVerification(RuntimeContractModel):
+    verification_id: UUID
+    status: Literal["passed", "needs_human_review"]
+    reason_codes: list[str]
+    claims: list[PageOverviewVerificationClaim]
+
+
+class PageOverviewCurrentV2(PageOverviewCurrent):
+    verification_status: Literal["passed", "needs_human_review"] | None = None
+
+
+class PageOverviewResponseV2(RuntimeContractModel):
+    schema_version: Literal["bidops.prespec-overview-pages.v2"] = "bidops.prespec-overview-pages.v2"
+    notice_id: int
+    current: PageOverviewCurrentV2 | None
+    reviews: list[PageOverviewViewV2]
+    range_review: PageOverviewRangeReviewV2 | None
+    verification: PageOverviewVerification | None

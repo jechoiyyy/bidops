@@ -29,6 +29,7 @@ import {
   PageOverviewFactLine,
   PageOverviewHistory,
   PageOverviewRangeReview,
+  PageOverviewVerificationDetails,
   pageOverviewPdfUrl,
   useCurrentPageOverview,
 } from "../components/pre-specs/PageOverviewSection";
@@ -238,6 +239,7 @@ function FactBullets({ items, review }: { items: PageOverviewFact[]; review: Pag
 
 function PageOverviewBriefing({ review }: { review: PageOverviewView }) {
   const { payload } = review;
+  const isVerifiedV4 = payload.schema_version === "bidops.prespec-overview-page-review.v4";
   const remainingOverview = payload.business_overview.slice(1);
   return <div className="page-overview">
     {/* 헤더 띠가 첫 문장을 이미 보여 준다. 개요 본문 영역이 같은 문장을 계약대로
@@ -246,7 +248,7 @@ function PageOverviewBriefing({ review }: { review: PageOverviewView }) {
       <p className="visually-hidden" aria-hidden="true"><PageOverviewFactLine fact={payload.business_overview[0]} review={review} /></p>
     ) : null}
     <div className="page-overview-validation" role="status">
-      <strong>{review.validation_status === "failed" ? "검증 실패 · 사람 확인 필요" : "근거 검사 통과 · 참조 결과"}</strong>
+      <strong>{review.validation_status === "failed" ? "검증 실패 · 사람 확인 필요" : isVerifiedV4 ? "주장 검증 완료 · 운영 승인 아님" : "근거 검사 통과 · 이전 검증 기준"}</strong>
       <p>사업 설명을 위한 요약입니다. 추적 승인과 최종 입찰 결정은 사람이 진행하며, 현재 회사 핏과 조건을 충족한 경우에만 심층 검토가 자동 시작됩니다.</p>
       {review.validation_status === "failed" && review.evidence_check_status === "passed" ? (
         <p>새 페이지 근거 검사는 통과했으나, 원실행의 검증 실패 기록은 유지합니다.</p>
@@ -272,7 +274,9 @@ function PageOverviewBriefing({ review }: { review: PageOverviewView }) {
     <h4 className="ps-sub">핵심 조건</h4>
     <FactBullets items={payload.important_conditions} review={review} />
     <h4 className="ps-sub">검토 포인트 <span className="ps-cnt">모델 의견</span></h4>
-    {payload.reviewer_analysis.map((text, index) => <p key={index}>{text}</p>)}
+    {isVerifiedV4
+      ? payload.reviewer_analysis.map((item) => <p key={item.id}>{item.text} <span className="ps-cap ps-muted">근거 주장 · {item.supporting_claim_ids.join(", ")}</span></p>)
+      : payload.reviewer_analysis.map((text, index) => <p key={index}>{text}</p>)}
   </div>;
 }
 
@@ -406,6 +410,7 @@ export function PreSpecDetailPage() {
     legacyReview,
     history: pageOverviewHistory,
     rangeReview,
+    verification: pageOverviewVerification,
   } = pageOverviewState;
   const shown = pageOverviewValid ? currentResult ?? legacyReview : null;
   const currentPageOverviewForView = pageOverviewValid ? currentPageOverview : null;
@@ -920,6 +925,13 @@ export function PreSpecDetailPage() {
                   />
                 ) : null}
                 {currentPageOverviewForView ? <PageOverviewCurrent current={currentPageOverviewForView} currentResult={currentResult} /> : null}
+                {currentPageOverviewForView?.attempt_id && pageOverviewVerification ? (
+                  <PageOverviewVerificationDetails
+                    noticeId={noticeId}
+                    attemptId={currentPageOverviewForView.attempt_id}
+                    verification={pageOverviewVerification}
+                  />
+                ) : null}
                 {overview ? (
                   cut ? (
                     <div className={`pre-spec-cut-state is-${snapshot?.cut_status}`}>

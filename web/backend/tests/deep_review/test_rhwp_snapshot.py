@@ -120,6 +120,68 @@ def test_native_scratch_roundtrip_preserves_sidecars_and_cleans_files(monkeypatc
     assert not [p for p in tmp_path.rglob("*") if p.is_file()]
 
 
+@pytest.mark.parametrize("hwp", [False, True])
+def test_warned_missing_candidates_cross_scratch_and_preserve_snapshot_cache(monkeypatch, tmp_path, hwp):
+    processed = native_processed(hwp=hwp, candidates=False)
+    processed["warnings"].append("section_candidates_unavailable")
+    scratch = tmp_path / "scratch"
+    wire_worker(monkeypatch, scratch, processed)
+    result = ScratchDocumentProcessor(scratch, wait_seconds=1, clamav_checker=lambda _: True).process(
+        processed.original_bytes, processed["media_type"], OPTIONS)
+    assert result.page_text == processed.page_text and result.converted_pdf_bytes == processed.converted_pdf_bytes
+    assert not result.section_candidates and result.section_candidates_bytes is None
+    assert "section_candidates_unavailable" in result["warnings"]
+    assert not [p for p in scratch.rglob("*") if p.is_file()]
+    store = FilesystemObjectStore(tmp_path / "objects")
+    with Session(_engine()) as session:
+        document, location = seed_native(session, store, result)
+        converter = NativeConverter(result)
+        snapshot = prepare(session, store, document, location, converter)
+        session.commit()
+        assert snapshot.section_candidates_content_object_id is None
+        assert snapshot.section_candidates_location_id is None and snapshot.section_candidates_sha256 is None
+        structure = session.get(DocumentStructure, snapshot.structure_id)
+        raw = store.get("structure", session.get(ContentObjectLocation, snapshot.structure_location_id).object_key)[0]
+        assert "section_candidates_unavailable" in json.loads(raw)["warnings"]
+        assert structure.validation_status == "ready"
+        assert prepare(session, store, document, location, converter).id == snapshot.id
+        assert converter.calls == 1
+
+
+@pytest.mark.parametrize("failure", ["producer_without_warning", "reader_without_warning", "core_hash", "candidate_null_json"])
+def test_missing_candidate_support_does_not_hide_protocol_or_core_failures(monkeypatch, tmp_path, failure):
+    processed = native_processed(hwp=True, candidates=False)
+    if failure != "producer_without_warning":
+        processed["warnings"].append("section_candidates_unavailable")
+
+    def alter(request):
+        if failure == "producer_without_warning":
+            return
+        result_path = tmp_path / "results" / request.name
+        result = json.loads(result_path.read_bytes())
+        if failure == "reader_without_warning":
+            result["structure"]["warnings"].remove("section_candidates_unavailable")
+            result_path.write_text(json.dumps(result))
+        elif failure == "candidate_null_json":
+            # Explicit descriptor null is the only supported absent artifact;
+            # a present sidecar must still contain a valid candidate object.
+            path = document_protocol.native_sidecar_paths(tmp_path, request.stem)["section_candidates"]
+            data = b"null"
+            path.write_bytes(data)
+            result["native_sidecars"]["section_candidates"] = {
+                "file": f"native/{path.name}", "byte_count": len(data), "sha256": hashlib.sha256(data).hexdigest(),
+            }
+            result_path.write_text(json.dumps(result))
+        else:
+            document_protocol.native_sidecar_paths(tmp_path, request.stem)["para_page_map"].write_bytes(b"{}")
+
+    wire_worker(monkeypatch, tmp_path, processed, alter)
+    with pytest.raises(DocumentProcessingError):
+        ScratchDocumentProcessor(tmp_path, wait_seconds=1, clamav_checker=lambda _: True).process(
+            processed.original_bytes, processed["media_type"], OPTIONS)
+    assert not [p for p in tmp_path.rglob("*") if p.is_file()]
+
+
 @pytest.mark.parametrize("tamper", ["hash", "missing", "path", "symlink", "verify", "page_text"])
 def test_native_scratch_rejects_tamper(monkeypatch, tmp_path, tamper):
     processed = native_processed(hwp=True)

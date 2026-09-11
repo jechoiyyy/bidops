@@ -7,9 +7,33 @@
 이 문서는 그 절을 대신하지 않는다. 여기서는 순서와 판단 기준을 잡고, 실제 명령은 그 절을
 연다.
 
-> **아직 아무도 이 절차를 실제로 돌리지 않았다.** vLLM 호출, 나라장터 다운로드, Compose
-> 스택 기동은 한 번도 수행된 적이 없다. 아래 내용은 코드·Compose·mock 종단 실행에서
-> 확인한 것이며, 실제 모델과 실제 첨부가 걸린 구간은 처음 돌리는 것이다.
+> 이전 수집·Qwen/Luna·PDF 참조 실행 기록은 [현황](tracking/status.md)에 구간별로 남아 있다.
+> 그 기록은 새 policy v5의 두 단계 Qwen 주장 검증을 실행하거나 승인했다는 뜻이 아니다.
+> 현재 안정화 작업의 실행 범위와 승인 대기는 [작업 Plan](0910_prespec-workflow-hardening/Plan.md)을 따른다.
+
+## 2026-09-10 안정화 변경의 참조 확인
+
+이번에는 아래 전체 종단 절차를 다시 실행하지 않는다. 변경한 수집기·개요 runner·DB·조회와
+화면의 격리 검증을 마친 뒤, 변경하지 않은 C-2·C-1·변환 결과는 동결 입력으로 재사용한다.
+새 수집 회차는 기존 폴더를 덮거나 선생성하지 않고 raw 재분류 입력과 출력 경로를 분리한다.
+
+실제 전송 전에 notice/document/target과 source/PDF/input/manifest hash, 정책 v5 digest,
+사설 Qwen 목적별 allowlist·선언 revision, draft 및 semantic payload 범위, 정상 2회/최대
+3회(semantic 최대 1회)를 고정한다. semantic payload는 검증 통과한 실제 draft와 인용으로
+구성되므로 예시 preview를 실제 모델 출력으로 표시하지 않는다. 기존 activation v1은
+이 승인을 대신하지 않으며 `--preview-activation`으로 새 v2 실행 계약을 확인한다.
+
+운영 migration·정책 활성화·건별 모델 전송 승인이 빠졌으면 준비 결과와 필요한 대상만
+제시하고 멈춘다. 회사 핏·심층 자동 시작·scheduler는 열지 않는다. analysis-worker의 실제
+설정/기동을 별도 확인하되 재사용하는 판정·변환 worker를 새로 돌릴 필요는 없다.
+결과는 `unmeasured_reference`이며 사람의 모든 주장/PDF 대조와 품질 승인은 별도다.
+
+선택 원문 합계 5,000자만으로 표본을 제외하지 않는다. 초안·의미 각각의 실제 요청과 확인된
+overview 모델 context·출력 예약·기존 payload 상한으로 허용량을 판단한다. 35·142번도
+기존 동결 원문 전체로 재평가하며, 예산 초과/확인 불가는 해당 단계 미실행이지 내용 검증 실패가
+아니다. 초안 전 사전 계산과 생성된 초안으로 만든 실제 의미 요청 계산을 구분해 기록한다.
+절단·사전 요약·자동 분할·추가 호출로 우회하지 않는다.
+명령과 중지·복구 절차는 [operations의 v4 ops](operations.md#v4-cohort-준비enqueue-ops)를 따른다.
 
 ## 두 갈래로 나눠서 간다
 

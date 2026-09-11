@@ -1,5 +1,11 @@
 # 엔지니어링 노트
 
+## migration head와 런타임 기대 revision이 어긋나면 배포 뒤 웹이 기동을 거부한다
+
+- 증상: 0025 migration은 성공했지만 웹이 `expected 0024_section_candidates`로 종료했다.
+- 원인: `app/core/db.py`의 `ALEMBIC_HEAD` 동기화가 빠졌고, 선택한 ledger 검사는 runtime 기동 게이트를 거치지 않았다.
+- 대응: 새 migration과 기대 revision을 함께 맞춘다. 기존 `test_alembic_reports_exactly_one_head`와 `test_migrated_database_is_at_head_before_lifespan`을 임시 PostgreSQL로 선택 실행하고 배포 이미지의 실제 health를 확인한다. DB downgrade나 startup 게이트 완화로 우회하지 않는다.
+
 ## C-2 순위와 수집 순서를 같은 것으로 비교하면 실제 모집단 적재가 실패한다
 
 - ranking은 BM25 순위, input/result는 수집 원본 순서다. 전체 ID 집합을 비교하고
@@ -393,3 +399,17 @@
 - 대응: 셸이 `shell-relaxed.css`의 `.topbar-page-actions` 규칙에서 4단(버튼·배지·라벨은
   caption, 입력·선택값은 body)을 한 번 준다. 화면은 슬롯 안 글자 크기를 다시 정의하지
   않고, 필요한 것은 wrapper(`.<접두>-header-actions`)의 배치뿐이다.
+
+## 변환기의 보조 후보 개수는 전체 문서 개수가 아닐 수 있다
+
+- 증상: pinned rhwp가 exit0이어도 정상 outline이나 sectionCount 67/111·반환50 때문에
+  BidOps 준비가 `section_candidates_invalid`로 실패했다.
+- 원인: mode enum과 전체=반환 가정이 upstream 계약과 달랐고 보조 digest를 core와 묶었다.
+- 재발 방지: 전체/반환/부분 표식을 별도로 읽고 부분 후보는 수동 쪽 선택의 참고로만 쓴다.
+  core PDF·페이지 텍스트를 독립 검증한 뒤 보조 실패만 경고로 낮춘다. 안전·hash·version
+  실패를 같은 방식으로 낮추지 않는다. 새 범위는 새 target이며 옛 실행/결과의 현재성과
+  회사 핏 소비도 함께 검사한다. 검증 범위는 [MVP Plan](0910_prespec-workflow-hardening/Plan.md)에 있다.
+- 전달 경계: 내부 변환기만 후보 부재를 허용해도 scratch 생산자·소비자가 필수로 요구하면
+  정상 core가 계속 차단된다. 명시된 unavailable 경고와 null descriptor를 함께 연결하고
+  저장·cache 재사용까지 검사한다. 실제 후보 파일의 JSON `null`은 descriptor null과
+  다르므로 기존 후보 schema/canonical 검사를 생략하면 안 된다.

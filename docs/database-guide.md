@@ -184,7 +184,7 @@ v4 PDF 준비는 별도 `prespec_v4_pdf_snapshot` → `prespec_v4_target` →
 `prespec_v4_attempt` 계보다. `0023_rhwp_snapshot`은 native rhwp 준비에 필요한
 변환 HWPX(HWP만)·구조·문단/페이지 대응표의 참조를 nullable 열로 추가한다.
 원문·PDF·변환 HWPX는 `source`, 구조·native page-text·대응표는 `structure` 객체이며,
-`0024_section_candidates`는 같은 `structure` namespace의 절 후보(`bidops.section-candidates.v1`) 참조 세 열을 nullable로 더한다(셋이 함께 null이거나 함께 채워지고, 0024 이전 snapshot은 null로 남아 계속 재사용된다).
+`0024_section_candidates`는 같은 `structure` namespace의 절 후보(신규 `bidops.section-candidates.v2`, 기존 v1 읽기 유지) 참조 세 열을 nullable로 더한다. 셋이 함께 null이거나 함께 채워진다. 0024 이전 snapshot과 핵심 산출물이 유효하되 `section_candidates_unavailable` 경고가 있는 신규 snapshot은 null로 보존·재사용한다. 이 보완은 기존 nullable 제약을 활용하며 새 migration은 없다.
 각 location ID가 정확한 MinIO version을 고정한다. 저장과 재사용 모두 객체 해시와
 버전을 확인한다. renderer 전체 JSON의 해시와 font/config 해시가 캐시를 구분한다.
 기존 문서 구조와 pages·blocks가 다르면 덮어쓰지 않고 준비를 실패시킨다.
@@ -193,6 +193,14 @@ v4 PDF 준비는 별도 `prespec_v4_pdf_snapshot` → `prespec_v4_target` →
 JSONB다. 허용 상태 전이에서만 변경하며 종료된 attempt와 모든 snapshot은 불변이다.
 변환 실패는 안전 코드만 attempt와 감사 로그에 남긴다. 이 migration은 기존 행을
 보정하지 않으며 native 참조나 경고가 남아 있으면 downgrade를 거부한다.
+
+`0025_overview_claim_ledger`는 같은 target 위의 새 주장 검증 실행을 기록한다. attempt에
+활성화 감사 FK와 needs_human_review 상태를 더하고, `prespec_overview_call_event`에 호출별
+불변 이력, `prespec_overview_verification`에 결정적/의미 검사를 분리 보존한다. 최종
+`prespec_page_overview` v4는 검증 FK/hash를 요구하며 전체 통과한 문장만 담는다. 미검증
+주장이 남으면 결과 없이 attempt를 사람 검토로 닫고 job은 failed로 종료한다. 중지 뒤
+늦은 원응답은 call 이력에만 추가되며 재실행은 새 attempt/job이다. 기존 v3 결과와 단일
+응답 hash는 보존한다. 제약·역할별 권한은 [ERD 8.5](deep-review-erd.md#85-주장-검증다단계-호출-기록-0025-2026-09-10-추가)에 있다. 코드 head 추가는 운영 migration 수행을 뜻하지 않는다.
 
 ### 7단계. 승인된 문서 묶음으로 심층 검토한다
 

@@ -21,10 +21,12 @@ from app.deep_review.models import (
     PrespecV4Attempt,
     PrespecV4PdfSnapshot,
     PrespecV4Target,
+    WorkJob,
 )
 from app.deep_review.services.prespec_v4 import freeze_v4_target, select_v4_input_range
 from app.deep_review.services.prespec_v4_ops import (
     ACTIVATION_SCHEMA,
+    LEGACY_ACTIVATION_SCHEMA,
     V4OpsError,
     _observation_candidate,
     activate_v4,
@@ -33,6 +35,9 @@ from app.deep_review.services.prespec_v4_ops import (
     require_v4_enqueue_enabled,
     prepare_v4_notice,
     prepare_v4_notice_once,
+    preview_v4_activation,
+    retry_v4_attempt,
+    _execution_approval,
 )
 from app.deep_review.services.prespec_v4_range import (
     RANGE_ASSIST_ACTION,
@@ -69,19 +74,32 @@ def _binding():
     )
 
 
+def _artifact_envelope(samples):
+    policy = load_v4_policy()
+    claims = policy.document["schema"] == "bidops.prespec-overview-policy.v5"
+    value = {
+        "schema": ACTIVATION_SCHEMA if claims else LEGACY_ACTIVATION_SCHEMA,
+        "version": 2 if claims else 1,
+        "samples": samples,
+        "automatic_requirements": {},
+    }
+    if claims:
+        value["execution"] = _execution_approval(policy)
+    return value
+
+
 def _artifact(target, snapshot):
-    return {
-        "schema": ACTIVATION_SCHEMA,
-        "version": 1,
-        "samples": [{
+    return _artifact_envelope([{
             "notice_id": target.notice_id,
             "notice_key": "pre:test",
             "document_version_id": str(target.document_version_id),
             "source_sha256": snapshot.source_sha256,
             "source_size_bytes": snapshot.source_size_bytes,
-        }],
-        "automatic_requirements": {},
-    }
+            "target_id": str(target.id),
+            "input_sha256": target.input_sha256,
+            "selection_manifest_sha256": target.selection_manifest_sha256,
+            "pdf_sha256": snapshot.pdf_sha256,
+        }])
 
 
 def test_v4_defaults_off_before_enqueue_and_deactivate_blocks_new_attempt(tmp_path):
@@ -130,6 +148,151 @@ def test_activation_duplicate_and_retry_append_new_attempt(tmp_path):
     engine.dispose()
 
 
+def test_frozen_target_cli_enqueue_and_explicit_retry_skip_preparation(tmp_path, monkeypatch, capsys):
+    from app.core import config, db
+    from app.deep_review.cli.prespec_v4 import main
+    from app.deep_review.services import prespec_v4_ops
+
+    engine, session, _store, target = _ready_target(tmp_path)
+    target_id = target.id
+    binding, settings = _binding(), _settings()
+    snapshot = session.get(PrespecV4PdfSnapshot, target.snapshot_id)
+    artifact = _artifact(target, snapshot)
+    activate_v4(session, actor="tester", artifact=artifact, binding=binding, settings=settings)
+    session.commit()
+    with pytest.raises(V4OpsError, match="retry_requires_terminal_failure"):
+        retry_v4_attempt(session, target_id=target_id, binding=binding, settings=settings)
+    session.rollback()
+    monkeypatch.setattr(db, "init_db", lambda: None)
+    monkeypatch.setattr(db, "SessionLocal", lambda: Session(engine))
+    monkeypatch.setattr(config, "get_settings", lambda: settings)
+    monkeypatch.setattr(prespec_v4_ops, "resolve_v4_reference_binding", lambda **kwargs: binding)
+    monkeypatch.setattr(prespec_v4_ops, "prepare_v4_notice_once", lambda **kwargs: pytest.fail("frozen target must not re-run conversion"))
+    assert main(["--enqueue", "--target-id", str(target_id), "--actor", "tester"]) == 0
+    first_response = json.loads(capsys.readouterr().out)
+    assert first_response["status"] == "queued"
+    first = session.scalar(select(PrespecV4Attempt).where(PrespecV4Attempt.target_id == target_id))
+    first_id, first_job = first.id, first.work_job_id
+    deactivate_v4(session, actor="tester", reason="operator_requested")
+    session.commit()
+    activate_v4(session, actor="tester", artifact=artifact, binding=binding, settings=settings)
+    session.commit()
+    second = retry_v4_attempt(session, target_id=target_id, binding=binding, settings=settings)
+    session.commit()
+    assert second.id != first_id and second.work_job_id != first_job
+    assert second.status == "queued" and second.sequence == 2
+    assert session.get(PrespecV4Attempt, first_id).status == "cancelled"
+    assert session.get(WorkJob, first_job).status == "cancelled"
+    session.close()
+    engine.dispose()
+
+
+def test_stop_and_reactivation_order_is_stable_with_tied_or_backward_clock(tmp_path):
+    engine, session, _store, target = _ready_target(tmp_path)
+    snapshot = session.get(PrespecV4PdfSnapshot, target.snapshot_id)
+    args = dict(actor="tester", artifact=_artifact(target, snapshot), binding=_binding(), settings=_settings())
+    fixed = datetime(2026, 9, 10, tzinfo=UTC)
+    first = activate_v4(session, **args, now=fixed)
+    session.commit()
+    stop = deactivate_v4(session, actor="tester", reason="operator_requested", now=fixed)
+    session.commit()
+    assert active_v4_activation(session) is None
+    assert session.get(AuditEvent, stop.activation_id).created_at > first.activated_at
+    second = activate_v4(session, **args, now=fixed - timedelta(seconds=1))
+    session.commit()
+    assert active_v4_activation(session).activation_id == second.activation_id
+    assert second.activated_at > session.get(AuditEvent, stop.activation_id).created_at
+    session.close(); engine.dispose()
+
+
+def test_v5_execution_requires_new_approval_and_exact_target(tmp_path, monkeypatch, capsys):
+    from app.deep_review.services import prespec_v4_ops as ops
+    from app.deep_review.services.prespec_overview_claim_policy import load_claims_policy
+
+    engine, session, _store, target = _ready_target(tmp_path)
+    snapshot = session.get(PrespecV4PdfSnapshot, target.snapshot_id)
+    claims = load_claims_policy()
+    policy = SimpleNamespace(document=claims.document, digest=claims.digest,
+        model_name=claims.document["model_name"], prompt_version=claims.document["prompt_version"])
+    monkeypatch.setattr(ops, "_policy_for", lambda _: policy)
+    binding = V4ModelBinding(provider="test", model_name=policy.model_name, model_digest="a" * 64,
+        prompt_version=policy.prompt_version, policy_digest=policy.digest, reference_only=True)
+    artifact = _artifact(target, snapshot)
+    artifact.update(schema=LEGACY_ACTIVATION_SCHEMA, version=1)
+    args = dict(actor="tester", binding=binding, settings=_settings())
+    with pytest.raises(V4OpsError, match="activation_execution_approval_required"):
+        activate_v4(session, artifact=artifact, **args)
+    artifact.update(schema=ACTIVATION_SCHEMA, version=2, execution=_execution_approval(policy))
+    artifact["execution"]["max_model_calls"] = 4
+    with pytest.raises(V4OpsError, match="activation_execution_approval_required"):
+        activate_v4(session, artifact=artifact, **args)
+    artifact["execution"] = _execution_approval(policy)
+    ready_sample = dict(artifact["samples"][0])
+    for field in ("target_id", "input_sha256", "selection_manifest_sha256", "pdf_sha256"):
+        artifact["samples"][0].pop(field)
+    activate_v4(session, artifact=artifact, **args)
+    session.commit()
+    with pytest.raises(V4AttemptError, match="cohort_target_mismatch"):
+        require_v4_enqueue_enabled(session, target=target, binding=binding, settings=_settings())
+    artifact["samples"] = [ready_sample]
+    from app.deep_review.services.prespec_v4_luna_reference import V4_LUNA_REFERENCE_MODEL, V4_LUNA_REFERENCE_PROVIDER
+    luna = V4ModelBinding(provider=V4_LUNA_REFERENCE_PROVIDER, model_name=V4_LUNA_REFERENCE_MODEL,
+        model_digest="b" * 64, prompt_version=policy.prompt_version, policy_digest=policy.digest, reference_only=True)
+    with pytest.raises(V4OpsError, match="activation_binding_mismatch"):
+        activate_v4(session, artifact=artifact, actor="tester", binding=luna, settings=_settings())
+    activation = activate_v4(session, artifact=artifact, **args)
+    session.commit()
+    assert require_v4_enqueue_enabled(session, target=target, binding=binding, settings=_settings()).activation_id == activation.activation_id
+    artifact_path = tmp_path / "activation.json"
+    artifact_path.write_text(json.dumps(artifact), encoding="utf-8")
+    preview = preview_v4_activation(artifact_path=artifact_path, settings=_settings())
+    assert preview["activation_performed"] is False and preview["execution_approval_matches"] is True
+    assert preview["execution"]["max_model_calls"] == 3 and preview["execution"]["max_semantic_calls"] == 1
+    assert [item["stage"] for item in preview["stage_policy_sha256"]] == ["prespec_overview_claims", "prespec_overview_semantic"]
+    assert active_v4_activation(session, settings=_settings()).activation_id == activation.activation_id
+    from app.core import db
+    from app.deep_review.cli.prespec_v4 import main
+    monkeypatch.setattr(db, "init_db", lambda: pytest.fail("preview must not connect or require migrations"))
+    assert main(["--preview-activation", "--artifact", str(artifact_path)]) == 0
+    assert json.loads(capsys.readouterr().out)["activation_performed"] is False
+    session.close(); engine.dispose()
+
+
+@pytest.mark.parametrize("status", ["queued", "running"])
+def test_deactivation_cancels_attempt_and_job_atomically_and_repeated_stop_is_safe(tmp_path, status):
+    engine, session, _store, target = _ready_target(tmp_path)
+    binding = _binding()
+    snapshot = session.get(PrespecV4PdfSnapshot, target.snapshot_id)
+    activate_v4(session, actor="tester", artifact=_artifact(target, snapshot), binding=binding, settings=_settings())
+    attempt = enqueue_v4_attempt(session, target_id=target.id, binding=binding)
+    session.commit()
+    job = session.get(WorkJob, attempt.work_job_id)
+    if status == "running":
+        attempt.status = job.status = "running"
+        attempt.started_at = datetime.now(UTC)
+        attempt.lease_owner = job.lease_owner = "stop-test-worker"
+        attempt.lease_expires_at = job.lease_expires_at = datetime.now(UTC) + timedelta(minutes=20)
+        session.commit()
+    stopped = deactivate_v4(session, actor="tester", reason="https://private.invalid/?token=do-not-log")
+    assert (stopped.cancelled_attempts, stopped.cancelled_jobs) == (1, 1)
+    session.commit()
+    session.expire_all()
+    assert attempt.status == job.status == "cancelled"
+    assert attempt.completed_at == job.completed_at
+    assert attempt.result_id is None
+    assert attempt.lease_owner is None and attempt.lease_expires_at is None
+    assert job.lease_owner is None and job.lease_expires_at is None
+    audit = session.get(AuditEvent, stopped.activation_id)
+    assert audit.safe_metadata["reason_code"] == "operator_requested"
+    assert "do-not-log" not in json.dumps(audit.safe_metadata)
+    repeated = deactivate_v4(session, actor="tester", reason="operator_requested")
+    session.commit()
+    assert (repeated.cancelled_attempts, repeated.cancelled_jobs) == (0, 0)
+    assert attempt.status == "cancelled"
+    session.close()
+    engine.dispose()
+
+
 def test_observation_requires_after_activation_and_detects_metadata_change(tmp_path):
     del tmp_path
     engine = _engine()
@@ -167,9 +330,8 @@ def test_observation_requires_after_activation_and_detects_metadata_change(tmp_p
     session.flush()
     binding = _binding()
     activation = activate_v4(
-        session, actor="tester", mode="new_reference", artifact={
-            "schema": ACTIVATION_SCHEMA, "version": 1, "samples": [], "automatic_requirements": {},
-        }, binding=binding, settings=_settings(), now=now - timedelta(minutes=1),
+        session, actor="tester", mode="new_reference", artifact=_artifact_envelope([]),
+        binding=binding, settings=_settings(), now=now - timedelta(minutes=1),
     )
     with pytest.raises(V4OpsError, match="observation_before_activation"):
         _observation_candidate(session, notice=notice, document=document, activation=activation)
@@ -252,14 +414,11 @@ def _unresolved_notice(tmp_path):
     session.commit()
     content = session.get(ContentObject, document.content_object_id)
     binding = _binding()
-    activate_v4(session, actor="tester", artifact={
-        "schema": ACTIVATION_SCHEMA, "version": 1, "automatic_requirements": {},
-        "samples": [{
+    activate_v4(session, actor="tester", artifact=_artifact_envelope([{
             "notice_id": document.notice_id, "notice_key": "pre:R26BD00271191",
             "document_version_id": str(document.id), "source_sha256": content.sha256,
             "source_size_bytes": content.size_bytes,
-        }],
-    }, binding=binding, settings=_settings())
+        }]), binding=binding, settings=_settings())
     session.commit()
     kwargs = dict(
         notice_id=document.notice_id, mode="explicit_sample", store=store,
@@ -308,7 +467,7 @@ def test_undecidable_range_freezes_a_human_review_target_and_never_an_attempt(tm
     engine.dispose()
 
 
-def _native_pending(tmp_path, *, candidate_count=2):
+def _native_pending(tmp_path, *, candidate_count=2, partial=False, outline=False):
     """절 후보를 가진 native snapshot과 확정 대기 target 하나를 만든다."""
 
     from app.core.object_store import FilesystemObjectStore
@@ -329,6 +488,12 @@ def _native_pending(tmp_path, *, candidate_count=2):
             "schema": "bidops.section-candidates.v1", "page_count": 1, "mode": "clause",
             "section_count": candidate_count, "sections": sections,
         }
+        if partial or outline:
+            processed.section_candidates.update(
+                schema="bidops.section-candidates.v2", mode="outline" if outline else "clause",
+                returned_count=candidate_count, section_count=candidate_count + 17 if partial else candidate_count,
+                candidates_truncated=partial, truncated=partial,
+            )
         processed.section_candidates_bytes = section_candidates_bytes(
             processed.section_candidates, max_output_bytes=OPTIONS.max_output_bytes, page_count=1
         )
@@ -352,6 +517,132 @@ def _native_pending(tmp_path, *, candidate_count=2):
 
 def _projection(session, store, notice_id):
     return range_review_projection(session, notice_id, store_factory=lambda: store)
+
+
+def test_partial_outline_candidates_are_reference_only_and_manual_pages_still_work(tmp_path):
+    engine, session, store, snapshot, target = _native_pending(tmp_path, partial=True, outline=True)
+    view = range_review_projection(session, snapshot.notice_id, store_factory=lambda: store, expanded=True)
+    assert view.schema_version == "bidops.prespec-overview-range-view.v2"
+    assert view.candidates_mode == "outline" and view.candidate_status == "partial"
+    assert (view.candidate_count_total, view.candidate_count_returned) == (19, 2)
+    assert view.can_confirm and "section_candidates_incomplete" in view.warning_codes
+    with pytest.raises(V4OpsError, match="candidate_range_incomplete"):
+        confirm_v4_range(session, store, notice_id=snapshot.notice_id, target_id=target.id,
+                         actor="tester", start_index=0, end_index=1)
+    client = _AssistClient("must not send")
+    with pytest.raises(V4OpsError, match="candidate_range_incomplete"):
+        assist_v4_range(session, store, target_id=target.id, actor="tester", settings=_assist_settings(), client=client)
+    assert client.prompts == []
+    result = confirm_v4_range(session, store, notice_id=snapshot.notice_id, target_id=target.id,
+                              actor="tester", first_page=1, last_page=1)
+    session.commit()
+    assert result.target_id != target.id and result.page_numbers == (1,)
+    assert session.scalar(select(func.count()).select_from(PrespecV4Attempt)) == 0
+    session.close(); engine.dispose()
+
+
+def test_preparation_preserves_partial_candidate_counts_on_cached_core(tmp_path):
+    from .test_rhwp_snapshot import OPTIONS, NativeConverter, native_processed
+    engine, session, store, snapshot, target = _native_pending(tmp_path, partial=True, outline=True)
+    binding = _binding()
+    activate_v4(session, actor="tester", artifact=_artifact_envelope([{
+        "notice_id": target.notice_id, "notice_key": "pre:test",
+        "document_version_id": str(target.document_version_id),
+        "source_sha256": snapshot.source_sha256, "source_size_bytes": snapshot.source_size_bytes,
+    }]), binding=binding, settings=_settings())
+    converter = NativeConverter(native_processed())
+    outcome = prepare_v4_notice(session, notice_id=target.notice_id, mode="explicit_sample",
+        store=store, converter=converter, options=OPTIONS, renderer=snapshot.renderer_jsonb,
+        font=snapshot.font_jsonb, config=snapshot.config_jsonb, binding=binding,
+        settings=_settings(), enqueue=True)
+    session.commit()
+    assert outcome.status == "needs_human_review" and outcome.reason_code == "section_candidates_incomplete"
+    assert outcome.snapshot_id == snapshot.id and outcome.attempt_id is None and converter.calls == 0
+    manifests = [json.loads(store.get("structure", location.object_key)[0])
+        for location in session.scalars(select(ContentObjectLocation).where(ContentObjectLocation.namespace_key == "structure"))
+        if location.object_key.startswith(f"structure/prespec-v4/{target.document_version_id}/manifest-")]
+    assert any(m.get("candidate_count") == 2 and m.get("candidates_sha256") == snapshot.section_candidates_sha256
+               and m.get("reason_code") == "section_candidates_incomplete" for m in manifests)
+    session.close(); engine.dispose()
+
+
+def test_unreadable_advisory_candidates_do_not_block_page_confirmation(tmp_path, monkeypatch):
+    from app.deep_review.services import prespec_v4_range
+    from app.deep_review.services.prespec_v4 import V4PreparationError
+    engine, session, store, snapshot, target = _native_pending(tmp_path)
+    def unreadable(*args):
+        raise V4PreparationError("section_candidates_invalid")
+    monkeypatch.setattr(prespec_v4_range, "read_snapshot_section_candidates", unreadable)
+    view = range_review_projection(session, snapshot.notice_id, store_factory=lambda: store, expanded=True)
+    assert view.candidates == [] and view.candidate_status == "unavailable"
+    assert view.warning_codes == ["section_candidates_unavailable"] and view.can_confirm
+    with pytest.raises(V4OpsError, match="candidate_range_unavailable"):
+        confirm_v4_range(session, store, notice_id=snapshot.notice_id, target_id=target.id,
+                         actor="tester", start_index=0, end_index=1)
+    result = confirm_v4_range(session, store, notice_id=snapshot.notice_id, target_id=target.id,
+                              actor="tester", first_page=1, last_page=1)
+    session.commit()
+    assert result.target_id != target.id
+    assert session.scalar(select(func.count()).select_from(PrespecV4Attempt)) == 0
+    session.close(); engine.dispose()
+
+
+def test_automatic_ready_target_can_be_manually_confirmed_without_an_attempt(tmp_path):
+    engine, session, store, target = _ready_target(tmp_path)
+    snapshot = session.get(PrespecV4PdfSnapshot, target.snapshot_id)
+    before = (target.input_sha256, target.selection_manifest_sha256, target.selection_status)
+    view = range_review_projection(session, target.notice_id, store_factory=lambda: store, expanded=True)
+    assert view.selection_status == "ready" and view.confirmation is None and view.can_confirm
+    assert view.selected_pages == list(target.page_numbers_jsonb)
+    result = confirm_v4_range(session, store, notice_id=target.notice_id, target_id=target.id,
+                              actor="tester", first_page=2, last_page=2)
+    session.commit()
+    assert result.target_id != target.id
+    assert before == (target.input_sha256, target.selection_manifest_sha256, target.selection_status)
+    assert session.scalar(select(func.count()).select_from(PrespecV4Attempt)) == 0
+    assert snapshot.id == session.get(PrespecV4Target, result.target_id).snapshot_id
+    session.close(); engine.dispose()
+
+
+def test_existing_automatic_proposal_template_target_warns_without_rewriting(tmp_path, monkeypatch):
+    from app.deep_review.services import prespec_v4_range
+
+    engine, session, store, target = _ready_target(tmp_path)
+    before = (target.input_sha256, target.selection_manifest_sha256, target.selection_status)
+    monkeypatch.setattr(prespec_v4_range, "_page_text_payload", lambda *args: {
+        "pages": [{"number": 1, "text": "Ⅰ. 제안개요\n1. 제안 목적\n제안사가 작성\nⅡ. 제안업체 일반"}],
+        "blocks": [],
+    })
+    view = range_review_projection(session, target.notice_id, store_factory=lambda: store, expanded=True)
+    assert view.selection_status == "ready" and view.can_confirm
+    assert "ambiguous_scope_boundary" in view.warning_codes
+    assert before == (target.input_sha256, target.selection_manifest_sha256, target.selection_status)
+    assert session.scalar(select(func.count()).select_from(PrespecV4Attempt)) == 0
+    session.close(); engine.dispose()
+
+
+@pytest.mark.parametrize("blocked", ["source_scan", "pdf_scan", "stale_document"])
+def test_manual_range_confirmation_keeps_current_source_and_pdf_safety_gate(tmp_path, blocked):
+    from app.deep_review.models import ContentScan
+    engine, session, store, target = _ready_target(tmp_path)
+    snapshot = session.get(PrespecV4PdfSnapshot, target.snapshot_id)
+    document = session.get(DocumentVersion, target.document_version_id)
+    if blocked == "stale_document":
+        document.is_current = False
+    else:
+        content_id = document.content_object_id if blocked == "source_scan" else snapshot.pdf_content_object_id
+        session.add(ContentScan(content_object_id=content_id, status="infected", scanner="fixture", scanner_version="1", safe_result={"status": "infected"},
+                                scanned_at=datetime.now(UTC) + timedelta(seconds=1)))
+    session.commit()
+    view = range_review_projection(session, target.notice_id, store_factory=lambda: store, expanded=True)
+    assert not view.can_confirm and "document_not_current_safe" in view.warning_codes
+    before = session.scalar(select(func.count()).select_from(PrespecV4Target))
+    with pytest.raises(V4OpsError, match="document_not_current_safe"):
+        confirm_v4_range(session, store, notice_id=target.notice_id, target_id=target.id,
+                         actor="tester", first_page=2, last_page=2)
+    assert session.scalar(select(func.count()).select_from(PrespecV4Target)) == before
+    assert session.scalar(select(func.count()).select_from(AuditEvent).where(AuditEvent.action == RANGE_CONFIRMED_ACTION)) == 0
+    session.close(); engine.dispose()
 
 
 def test_clause_confirmation_freezes_a_ready_target_and_shows_up_in_the_projection(tmp_path):

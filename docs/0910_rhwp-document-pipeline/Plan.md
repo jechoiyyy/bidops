@@ -1,29 +1,102 @@
 # rhwp 문서 변환 파이프라인 진행 계획
 
-작업명: rhwp-document-pipeline · 기준일: 2026-09-10 · 상태: R7 완료·운영 반영(2026-09-10, 0024·`bidops-rdp-r7`). 남은 것은 35 구조 revision, attempt(endpoint), ready target projection, 기존 실패 4건
+작업명: rhwp-document-pipeline · 기준일: 2026-09-11 · 상태: 승인된 운영 배포·6건 source-only 재준비·Qwen 참조 실행 4건 사람 검토 대기
 
 이 문서는 새 세션이 다른 맥락 없이 이 작업을 이어갈 수 있도록 순서·담당·게이트·현재 상태·재현 명령을 모아 둔다. 내용이 이미 다른 문서에 있으면 여기 다시 적지 않고 링크한다. 단계가 끝나거나 결정이 바뀌면 §7 진행 기록에 덧붙이고, 결정 자체는 [ADR.md](ADR.md)에 적는다.
+
+## 현재 MVP 상태 (2026-09-11)
+
+- 현재 DB/runtime head는 `0025_overview_claim_ledger`다. 이번 MVP 보완은 기존 nullable
+  snapshot/target/sidecar 구조 안에서 구현했으며 새 migration은 없다.
+- native core(PDF·전체 페이지 텍스트·대응표·renderer/source 결속)를 먼저 검증하고 보조
+  digest를 나중에 처리한다. 현재 producer는 `bidops.section-candidates.v2`이고
+  `outline|clause|page`, 전체/반환 개수와 부분 목록 경고를 구분한다. unavailable 경고와
+  함께인 null 후보 sidecar/참조만 허용하고 경고 없는 누락·존재 후보 무결성 실패는
+  차단한다. v1은 과거 read 호환이다.
+- 일부 공백 쪽은 text와 source/selected hash를 그대로 보존하되 전체 공백 입력은 호출
+  전, 공백 quote 근거는 초안 후 결정적 검증에서 거부한다. 같은 줄 복수 장 제목은
+  `ambiguous_scope_boundary`로 사람에게 보낸다.
+- 범위 조회 v2와 안전한 target PDF로 후보 유무와 관계없이 직접 쪽을 고를 수 있다. 부분 후보의
+  index/assist는 차단하며 확정은 새 target만 추가한다. 옛 결과는 이력으로 보존하고 current와
+  회사 핏에서는 `stale/target_superseded`로 제외한다.
+- policy v5는 실제 두 단계 structured request 전체, 확인된 context, 출력·chat 예약을 매 호출
+  전에 검사한다. 용량 실패는 `failed/input_capacity_exceeded` 기술적 미실행이며 내용 검증 실패와
+  다르다. 09:08~09:13 KST 승인된 Qwen 참조 실행은 초안 4회에 응답했지만 결정적
+  검증 후 4건 모두 `needs_human_review`로 종결했고 의미 호출·형식 재생성·최종 개요·내용 통과는 0건이다.
+
+| 0910 고정 대상 | 건수 | 현재 상태 |
+|---|---:|---|
+| 744·749·759·761 | 4 | 입력 준비 후 Qwen 초안 각 1회 응답. 모두 `needs_human_review`, 최종 개요·내용 통과 0 |
+| 743·745·746·747·754·755 | 6 | source-only 재준비 완료. 743·745 outline 5/5, 746 page 67/50 partial, 747 page 111/50 partial, 754 outline 28/28, 755 outline 1/1. 모두 수동 범위로 분류 |
+| 751·753·756·758·760 | 5 | 기존 사람 직접 쪽 범위 확인 필요 |
+| 748·750·752·757 | 4 | 문서 선택/안전 차단 유지 |
+
+위 표의 준비 분류는 입력 준비 4건, 수동 범위 11건, 문서·안전
+4건이다. 754·755는 처음 자동 ready였지만 선택 제목이 `제안개요` 작성 양식이라 입력 준비에서
+제외했다. 안전 PDF는 15건을 유지한다. source-only activation ON/OFF와 모델 실행 0건은
+09:08 전 이력이다. 이번 실행은 재수집·재변환 0건으로 C-1/C-2 입력을 재사용했고,
+`qwen3.8-27B` revision `5fa804ff0ecc0de9167f8b63127c42e1d421a9451662922ace8622d0b01b824e`와
+context 262,144를 확인했다. 정책·payload·호출 상한은 바꾸지 않았다.
+
+운영 재준비 사실: 최초 이미지 `bidops-prespec-mvp:20260911`
+(`90c9794f7e6314394dfd35d892840bf854628d2dc86b14ab50b8d28d9de19f1e`)로 08:02~08:03 KST
+web·document-worker 두 개를 교체했고 env/network/mount/UID/resource와 head 0025를 유지했다.
+08:04:11~08:06:29 KST에 위 6건을 기존 source로 각 1회 준비했다. 모든 건의 exact
+source/PDF/page-text version·hash와 최신 clean을 확인했고 신규 snapshot 6, target 6,
+object/location 각 34개만 append했다. 기존 snapshot/target/attempt/개요/리뷰/document/object/
+location 행의 전후 MD5는 동일했다. 이어 `제안개요` 오선택을
+`ambiguous_scope_boundary`로 보내는 최소 selector 가드를 추가한
+중간 이미지 `bidops-prespec-mvp:20260911-scope`를 거쳐 optional 후보 scratch/cache
+경계까지 반영한 최종 이미지 `bidops-prespec-mvp:20260911-advisory-final`
+(`sha256:223019128c101ea131d855256c950d06f0edda393281556656c1cea1e4c72d9f`)를 08:28:50~08:28:52 KST
+document-worker 두 개와 web에 반영했다. image 외 env/network/mount/user/resource·pids·memory는
+같고 web은 healthy, DB/runtime head는 0025다. 배포된 document protocol·native artifacts·v4 코드
+SHA는 로컬과 일치했다. 앞서 scope 이미지에서 확인한 754·755의 실제 v2 API는 200이며 저장 ready target과 선택
+쪽을 바꾸지 않은 채 `ambiguous_scope_boundary`, `can_confirm=true`를 반환한다. 두 target PDF도
+200, exact SHA, private no-store·nosniff·CSP sandbox를 확인했고 마지막 scratch 보완 뒤에는 반복하지 않았다. optional/거부/roundtrip
+고유 scratch 사례 8건과 기존 selector·조회 4건이 통과했다. 이 보정 배포에서
+추가 변환·target 생성·모델 실행은 0이고 OFF 감사 `fe91c298-aceb-47b2-95e9-7560edc04be1`을 유지했다.
+
+이후 사용자가 추가 sudo chain 조회를 생략하고 현재 기능 실행을 승인해 model activation
+`11ada018-0546-4ab1-aece-15678343f6d0`으로 744·749·759·761을 실행했다. attempt 4,
+verification 4, draft dispatch/response event 8, model response object 4건만 추가됐고 result는 0건이며,
+기존 10개 테이블의 기존 행 MD5는 전후 같다. 4개 v2 API와 `needs_human_review` attempt PDF는
+모두 200이고 exact hash를 확인했으며 이번에 브라우저 실화면은 다시 실행하지 않았다.
+OFF 감사 `a6e96d1b-9c8a-40b6-87f7-d1e177c21222`로 종료해 active attempt 0건이다. 기존 방화벽은
+변경하지 않았고 원문·검증·정책·호출 상한을 풀지 않았다. 결과는
+`unmeasured_reference`로서 운영 품질·정책 활성화 승인이 아니며, 근거는
+[실행 요약](../../.dryforge/prespec-qwen-0911-mHF0bO/README.md)과 그 폴더의 안전 metadata JSON이다.
+
+문서 동기화는 Sol medium이 이 폴더의 ADR·Requirements·Design·Spec·Plan을 맡아 완료했고,
+관리자가 최종 diff와 실행 증거를 대조했다. 남은 용량 계산식·검증 시점·과거/현재 표기만
+문서에서 보정했다. 앱 검사나 운영 실행을 추가하지 않았으며 상세 실행·검증·미완료 항목은
+[안정화 Plan](../0910_prespec-workflow-hardening/Plan.md)과
+[이번 실행 기록](../../.dryforge/prespec-mvp-deploy-20260911-OIBy24/README.md)을 따른다.
 
 ## 0. 새 세션 시작 절차
 
 1. 저장소 지침 [CLAUDE.md](../../CLAUDE.md)와 [docs/standards.md](../standards.md), [docs/engineering-notes.md](../engineering-notes.md), [web/backend/AGENTS.md](../../web/backend/AGENTS.md)를 읽는다.
-2. 이 작업의 정본 네 문서를 순서대로 읽는다. [ADR.md](ADR.md)(결정 7개와 트레이드오프) → [Requirements.md](Requirements.md)(F1~F11, N1~N8, 표본·인수 기준) → [Design.md](Design.md)(목표 구조, 데이터 모델, 실패 처리) → [Spec.md](Spec.md)(rhwp 호출 계약, 산출물 schema, 정렬 규칙, 오류 코드, 단계 정의, 실측표).
-3. §7 진행 기록에서 마지막 줄을 보고 어느 단계가 열려 있는지 확인한다. 열린 단계의 브랜치가 있으면 `git worktree list`로 위치를 찾는다.
+2. 이 작업의 정본 다섯 문서를 순서대로 읽는다. [ADR.md](ADR.md) → [Requirements.md](Requirements.md) → [Design.md](Design.md) → [Spec.md](Spec.md) → 이 Plan이다.
+3. 먼저 위 "현재 MVP 상태"와 이 문서 끝의 최신 진행 기록을 확인한다. R0~R7은 종료된 역사적 구현 단계이며 새 작업 체계로 재사용하지 않는다.
 4. 현재 운영 상태는 [docs/tracking/status.md](../tracking/status.md) "사전규격 v4 최신 운영 상태"와 [docs/tracking/findings.md](../tracking/findings.md)의 notice 142 항목, [prespec-v4-implementation-plan.md](../tracking/prespec-v4-implementation-plan.md) "최신 운영 상태"에 있다.
 5. 운영 명령(compose, 배포, v4 CLI, 참조 실행)은 [docs/operations.md](../operations.md)를 따른다. 특히 "사전규격 v4 준비" 절과 2026-09-10에 추가된 `--binding` 주석.
 
 ## 1. 진행 원칙
 
-- 단계(R0~R7)는 [Spec.md §7](Spec.md#7-단계와-게이트)의 정의를 따르고 한 번에 하나만 연다. 게이트를 못 넘으면 다음 단계를 열지 않고 같은 단계를 보정해 다시 위임한다.
-- 판단은 단계 사이에 사람이 내리고 이 문서와 ADR에 적는다. 위임 프롬프트에는 선택지를 남기지 않는다.
-- 구현은 단계마다 별도 브랜치·워크트리(`feat/rdp-r<n>-<이름>`, `.worktrees/` 아래)에 위임하고, 관리자가 diff와 테스트를 직접 확인한 뒤에만 main에 병합한다. 위임 보고를 근거로 쓰지 않는다. 파일 소유가 겹치는 작업은 같은 단계 안에서 순차로 한다.
-- 검증은 변경 파일이 닿는 테스트만 돌린다([CLAUDE.md "검증 범위와 종료 기준"](../../CLAUDE.md)). 전체 backend 스위트와 화면 스위트는 R5 뒤 최종 트리에서 각 1회다. 통과를 얻기 위한 반복 실행·검사 완화·재시도 루프를 넣지 않는다.
-- 운영 상태 변경(migration, worker 재생성, 활성화, 실제 모델 호출)은 R6에서만, 백업 뒤에, 승인 범위 안에서 한다.
+- 아래 R0~R7과 당시 브랜치·게이트는 역사 기록이다. 현재 계약은 ADR-RDP-009~011과
+  [Spec §5~6](Spec.md#5-오류-코드)를 따르며 과거 단계명을 새 작업에 재사용하지 않는다.
+- 구현·운영 완료 여부는 실제 diff, 제한된 검증, 운영 증거로 판단한다. 위임 보고만으로 완료를 추정하지 않는다.
+- 검증은 변경 파일이 닿는 테스트만 돌린다([CLAUDE.md "검증 범위와 종료 기준"](../../CLAUDE.md)). 전체 backend·화면 스위트 각 1회는 2026-09-10 R5 최종 트리의 역사 기록이며 현재 재실행 지시가 아니다. 통과를 얻기 위한 반복 실행·검사 완화·재시도 루프를 넣지 않는다.
+- 운영 상태 변경은 백업과 명시된 승인 범위 안에서만 한다. 이 후속은 web/document-worker
+  배포와 실패 6건의 기존 source-only 재준비뿐이었다. 새 migration·모델 실행
+  activation·모델 호출은 없었고 source-only activation ON/OFF 한 쌍은 실행했다.
 - 기존 강제 게이트(원본 불변, unknown 보존, 자동 보정 금지, 외부 전송 금지, 참조 실행 표식 `unmeasured_reference`)를 그대로 지킨다([CLAUDE.md "강제 게이트"](../../CLAUDE.md)).
 - 기능 구현을 최우선 목적으로 두고, 오버엔지니어링을 하지 않도록 유의한다.
 - R2·R3는 사용자의 직접 작업 요청에 따라 위임 없이 진행한다. 격리 worktree는 Orca workspace 경로를 사용하고 실제 경로는 §7에 남긴다.
 
-## 2. 현재 상태 (2026-09-10 기준, 새 세션이 먼저 확인할 것)
+## 2. 역사적 상태 (2026-09-10 당시)
+
+아래 표와 R0~R7 체크리스트는 당시 진행 사실이다. 위 "현재 MVP 상태" 및 현재 계약을 대체하지 않는다.
 
 
 | 항목            | 상태                                                                                                                                                                                               | 확인 방법                                                                                                                |
@@ -189,7 +262,7 @@ git diff --check
 
 게이트: 자동 실행을 열지 않음(테스트·운영 409/404로 확인). **표본에서의 사람 확정 흐름은 운영에서 재현하지 못했다** — 세 표본 모두 heading 선택기가 `ready`라 확정 대기 target이 없고, 흐름은 API 종단 테스트와 Playwright 목 검사로 확인했다. 실제 확정 대기 문서가 들어오면 운영에서 확인한다.
 
-## 5. 곁줄기 (Qwen 전환 준비)
+## 5. 역사적 곁줄기 (2026-09-10 당시 Qwen 전환 준비)
 
 
 | 항목                                 | 선행 조건                                                            | 시점             | 참조                                                                                           |
@@ -199,7 +272,7 @@ git diff --check
 | P3 정책 v5                           | R4 뒤                                                             | R6 뒤           | 정책 파일 `policies/prespec-overview-policy-v4.json`·`prompt-v4.md`를 v5로 복제                      |
 
 
-## 6. 작은 정리
+## 6. 역사적 작은 정리 (2026-09-10 당시)
 
 - `docs/design/*.hwp` 실표본 2건과 `Zone.Identifier`: 저장소 보관 여부 결정. 보관하지 않으면 [Requirements §6](Requirements.md#6-표본과-측정-기준선)의 표본 경로를 MinIO 원본으로 바꾼다.
 - 세션 scratchpad에만 있던 실측 스크립트(`probe142*.py`, rhwp 실측 명령)는 R0에서 `docs/validation-runs/`에 재현 명령으로 남긴다.
@@ -227,3 +300,4 @@ git diff --check
 | 2026-09-10 | R5 수락·병합 | 위임 `e4e1b9f`(제거)와 보정 `2c0e19f`(PDF v2 protocol 테스트 fake를 native 형태로)를 diff로 검토하고 main에 병합했다(`753d639`). 게이트: 이미지 빌드 후 chromium·node 없음. 최종 트리 전체 backend 스위트 1회 = 1794 passed·5 skipped·33 failed·21 errors, 이 중 47건은 worktree에 없는 gitignore 파일(`experiments/.../company-capabilities-v1-approved.json`) 때문이며 병합된 main에서 같은 파일들 419 passed·14 skipped로 해소; 4건(`test_document_worker_protocol`)은 R5 회귀로 보정 후 14 passed; 남은 3건(`test_alembic_autogenerate` drift, `test_model_has_exact_closed_table_set` 82≠81, `test_mapper_isolation`)은 `a9ddb99`(R3 직후)에서도 실패하는 기존 결함. 화면 `test:screens` 1회 = 499 passed·5 skipped·3 failed, 이 중 2건은 단독 재실행 통과(부하 flake), `common-interactions.spec.ts:211`은 main과 `bbbbaae`에서도 실패하는 기존 결함. 다음 단계 R6(운영 인수)은 열지 않았고 운영 migration·배포·활성화·모델 호출은 수행하지 않았다. |
 | 2026-09-10 | R6 운영 인수 | 사용자 요청으로 관리자가 직접 실행했다. 백업(DB dump `481c9974…`, 객체 960 version) 뒤 R5 이미지 격리 실측에서 `fc-list` 부재로 native 변환이 `converter_unavailable`인 R5 회귀를 발견해 `web/Dockerfile`에 `fontconfig`를 추가하고 `bidops-rdp-r6:20260910`을 빌드했다. 0023 migration·권한 적용, web(배포 dir `rdp-r6-20260910-4c9f33ec`)·document-worker(pids 128) 재생성, explicit_sample 활성화 `d73daa62…` → 142 native snapshot `f8a42b74…`(79쪽, 기존 구조 결속, 대응표)·target `f7c73503…`, 59 snapshot `3aa6c47f…`·target `ec040093…` → off `5016643f…`. 35는 새 구조 blocks 1,454 ≠ 기존 1,349로 `structure_binding_mismatch`가 예상돼 준비하지 않았다(실행 시 실패 attempt가 `current`를 덮음). API·두 폭 UI 확인 통과, 기존 결과 불변. 근거: [R6 기록](../validation-runs/2026-09-10-rhwp-pipeline.md). 남은 것: 35 구조 revision, attempt(endpoint), ready target projection, 기존 실패 4건. R7은 열지 않았다. |
 | 2026-09-10 | R7 | 사용자 승인 뒤 Opus 서브에이전트 3개에 위임(WP-A 산출물 ⑦·0024, WP-B 선택기 연결·확정 REST·`--assist-range`, WP-C 화면), 관리자가 diff·게이트 검수 후 main 병합(`a0a2039`·`1f66044`). 통합 트리 백엔드 319 passed·프론트 page-overview 9 passed, PostgreSQL 0024 5 passed(WP-A 브랜치). 이미지 `bidops-rdp-r7:20260910` 격리 실측 142 후보 43절. 운영: 백업(`bc699ea6…`) → 0024 → web(`rdp-r7-20260910-cf89169f`)·worker 재생성, API·UI 회귀 없음. 하지 못한 것: 실표본 사람 확정 재현(확정 대기 target 없음), 실제 모델 보조 호출, temperature 0(per-call 인자 없음), non-ready target의 manifest 참조 결속. 근거: [R7 기록](../validation-runs/2026-09-10-rhwp-r7-range-review.md). R0~R7 전 단계 종료. |
+| 2026-09-11 | MVP 보완·운영 반영 | section-candidates v2, core/보조 분리, 공백 쪽 보존·근거 거부, 범위 조회 v2·직접 쪽 선택·target PDF, 새 target 현재성, 같은 줄 복수 장 및 `제안개요` 오선택 가드를 구현했다. head 0025를 유지하고 새 migration 없이 최종 image `bidops-prespec-mvp:20260911-advisory-final`로 web·document-worker를 교체했다. 6건 source-only 재준비로 snapshot·target 각 6건을 append했고 최종 집계는 입력 준비 4·수동 범위 11·문서/안전 4, 모델·내용 검증 0이다. 754·755 v2 경고와 exact target PDF를 live 확인했으며 stored target·선택 쪽은 불변이다. optional/거부/roundtrip 고유 scratch 8건과 기존 selector·조회 4건이 통과했고 추가 변환·target·모델 실행은 0이다. |

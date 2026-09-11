@@ -19,6 +19,7 @@ analysis worker의 한 poll 안에서만 돌고, 그 poll은 C-2·심층 검토�
 from __future__ import annotations
 
 import hashlib
+import logging
 import os
 import re
 from collections.abc import Callable, Collection, Mapping
@@ -35,8 +36,12 @@ from ...core.config import get_settings
 from ...core.model_client import (
     ModelClient,
     ModelEndpointError,
+    ModelIdentityCheckState,
     ModelIdentityError,
     ModelInvocationError,
+    RUNTIME_IDENTITY_ERROR_CODES,
+    model_endpoint_configuration_fingerprint,
+    model_identity_cache_key,
 )
 from ...core.models import AuditEvent
 from ...core.object_store import EncryptedModelResponseStore, ObjectStoreError
@@ -78,6 +83,7 @@ OVERVIEW_STAGE = "prespec_overview"
 OVERVIEW_AUDIT_ACTION = "prespec_overview.attempt_run"
 _SHA256 = re.compile(r"[0-9a-f]{64}")
 _UNSET = object()
+logger = logging.getLogger(__name__)
 
 
 def _now() -> datetime:
@@ -129,6 +135,9 @@ class PreSpecOverviewRunner:
         self.settings = settings
         self.clock = clock
         self._resolved: tuple[OverviewModelBinding | None, Any] | None = None
+        self._resolved_key: tuple[str, str, str, str, str] | None = None
+        self._identity_config_key: tuple[str, str, str, str] | None = None
+        self._identity_state = ModelIdentityCheckState()
 
     # -- binding 해석 --------------------------------------------------
     def policy(self) -> OverviewPolicy | None:
@@ -142,16 +151,45 @@ class PreSpecOverviewRunner:
         return self._policy
 
     def _resolve(self) -> tuple[OverviewModelBinding | None, Any]:
-        """(binding, client)를 한 번만 해석하고 둘 다 있을 때만 돌려준다."""
+        """Cache only a successful identity; transient failures use clock backoff."""
 
-        if self._resolved is not None:
-            return self._resolved
         client = self._client
         binding = None if self._binding is _UNSET else self._binding
         policy = self.policy()
         if policy is None:
-            self._resolved = (None, None)
-            return self._resolved
+            return (None, None)
+        endpoint_fingerprint = model_endpoint_configuration_fingerprint(
+            "overview", settings=self.settings
+        )
+        config_key = (
+            "overview", endpoint_fingerprint, policy.model_name, policy.digest
+        )
+        if self._identity_config_key != config_key:
+            self._invalidate_identity_cache()
+            self._identity_config_key = config_key
+        if self._resolved is not None:
+            cached_binding = self._resolved[0]
+            expected_key = model_identity_cache_key(
+                "overview", settings=self.settings, model=policy.model_name,
+                revision=cached_binding.model_digest,
+                policy_digest=policy.digest,
+            )
+            if self._resolved_key == expected_key:
+                return self._resolved
+            self._invalidate_identity_cache()
+        if self._binding is not _UNSET:
+            if binding is not None and client is not None:
+                self._resolved = (binding, client)
+                self._resolved_key = model_identity_cache_key(
+                    "overview", settings=self.settings, model=policy.model_name,
+                    revision=binding.model_digest, policy_digest=policy.digest,
+                )
+                return self._resolved
+            return (None, None)
+        now = self.clock()
+        if not self._identity_state.should_check(now):
+            return (None, None)
+        owns_client = client is None
         try:
             if client is None:
                 client = ModelClient.for_purpose(
@@ -161,26 +199,53 @@ class PreSpecOverviewRunner:
                     settings=self.settings,
                     verify_identity=False,
                 )
-            if self._binding is _UNSET:
-                binding = approved_overview_binding(
-                    policy=policy,
-                    identity=getattr(client, "verify_identity", None),
-                    settings=self.settings,
-                )
-        except (ModelEndpointError, ModelIdentityError, ValueError, OSError):
-            binding, client = None, None
+            # Do not pass the callable to the compatibility helper: it
+            # intentionally swallows identity exceptions and would erase the
+            # transient/fixed classification required by the worker.
+            identity = client.verify_identity()
+            binding = approved_overview_binding(
+                policy=policy, identity=lambda: identity, settings=self.settings
+            )
+            if binding is None:
+                raise ModelIdentityError("model_not_served", retryable=False)
+        except (ModelEndpointError, ModelIdentityError, ValueError, OSError) as error:
+            reason = self._identity_state.record_failure(error, now)
+            next_check = self._identity_state.next_check_at
+            logger.warning(
+                "overview identity blocked reason=%s next_check_at=%s",
+                reason,
+                next_check.isoformat() if next_check is not None else None,
+            )
+            binding = None
         if binding is None or client is None:
             # binding이 없으면 client도 들고 있지 않는다. 승인 없이 열려 있는
             # 주소를 남겨 두지 않는다는 뜻이다. 이 poll이 만든 transport는
             # 버리기 전에 닫는다 — 안 닫으면 실패 poll마다 연결이 샌다.
-            if client is not None and client is not self._client:
+            if client is not None and owns_client:
                 closer = getattr(client, "close", None)
                 if callable(closer):
                     closer()
-            self._resolved = (None, None)
-        else:
-            self._resolved = (binding, client)
+            return (None, None)
+        self._identity_state.record_success()
+        self._resolved = (binding, client)
+        self._resolved_key = model_identity_cache_key(
+            "overview", settings=self.settings, model=policy.model_name,
+            revision=binding.model_digest, policy_digest=policy.digest,
+        )
+        logger.info(
+            "overview identity verified endpoint_fingerprint=%s",
+            endpoint_fingerprint,
+        )
         return self._resolved
+
+    def _invalidate_identity_cache(self) -> None:
+        resolved, self._resolved = self._resolved, None
+        self._resolved_key = None
+        self._identity_state.invalidate_success()
+        if resolved is not None and resolved[1] is not self._client:
+            closer = getattr(resolved[1], "close", None)
+            if callable(closer):
+                closer()
 
     # -- 한 poll -------------------------------------------------------
     def run_once(
@@ -275,6 +340,8 @@ class PreSpecOverviewRunner:
         try:
             output, raw = self._invoke(client, blocks)
         except ModelInvocationError as error:
+            if error.code in RUNTIME_IDENTITY_ERROR_CODES:
+                self._invalidate_identity_cache()
             return self._fail(
                 session,
                 attempt_id,
@@ -286,6 +353,8 @@ class PreSpecOverviewRunner:
                 quality_status=quality_status,
             )
         except (ModelIdentityError, OverviewAttemptError) as error:
+            if isinstance(error, ModelIdentityError):
+                self._invalidate_identity_cache()
             return self._fail(
                 session,
                 attempt_id,

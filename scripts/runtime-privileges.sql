@@ -86,6 +86,8 @@ GRANT SELECT ON TABLE
     bidops.prespec_v4_pdf_snapshot,
     bidops.prespec_v4_target,
     bidops.prespec_v4_attempt,
+    bidops.prespec_overview_call_event,
+    bidops.prespec_overview_verification,
     bidops.document_segment_manifest,
     bidops.document_segment,
     bidops.requirement_inventory_item,
@@ -100,7 +102,8 @@ TO app;
 -- App-owned create paths include ingestion, UI mutations, orchestration, and
 -- append-only audit/result/history rows. v4 preparation/enqueue is an app
 -- transaction: the app creates the WorkJob and attempt, while only the worker
--- receives the later mutable attempt-state UPDATE grant below.
+-- receives the later execution-state UPDATE grant below. App may only cancel
+-- an unfinished v4 attempt; the database trigger enforces that transition.
 -- UPDATE and DELETE are narrower lists below.
 GRANT INSERT ON TABLE
     bidops.run,
@@ -223,6 +226,9 @@ GRANT UPDATE (
     current_snapshot_id, status, result, completed_at, updated_at
 ) ON bidops.prespec_overview_review TO app;
 GRANT UPDATE (
+    status, completed_at, error_code, lease_owner, lease_expires_at
+) ON bidops.prespec_v4_attempt TO app;
+GRANT UPDATE (
     execution_id, decision_digest, evidence_judgment, note, updated_at
 ) ON bidops.quality_gate_review TO app;
 GRANT UPDATE (
@@ -281,8 +287,8 @@ GRANT DELETE ON TABLE
 TO app;
 
 -- Current integer identity columns are consumed only by app-owned INSERTs.
--- No default sequence privilege is installed, so a future sequence remains
--- unavailable until this policy is reviewed after its migration.
+-- App/worker inherit no sequence privileges; future runtime use needs review.
+-- The backup role separately receives SELECT only, never sequence mutation.
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA bidops TO app;
 
 -- The shared worker credential covers the analysis worker and the optional
@@ -331,6 +337,8 @@ GRANT SELECT ON TABLE
     bidops.prespec_company_fit_attempt,
     bidops.prespec_v4_attempt,
     bidops.prespec_overview_attempt_event,
+    bidops.prespec_overview_call_event,
+    bidops.prespec_overview_verification,
     bidops.prespec_v4_pdf_snapshot,
     bidops.prespec_v4_target,
     bidops.document_segment_manifest,
@@ -367,6 +375,8 @@ GRANT INSERT ON TABLE
     bidops.prespec_v4_pdf_snapshot,
     bidops.prespec_company_fit_attempt,
     bidops.prespec_overview_attempt_event,
+    bidops.prespec_overview_call_event,
+    bidops.prespec_overview_verification,
     bidops.document_segment_manifest,
     bidops.document_segment,
     bidops.requirement_inventory_item,
@@ -417,8 +427,10 @@ GRANT UPDATE (
     lease_owner, lease_expires_at, completed_at, prompt_tokens, output_tokens, latency_ms
 ) ON bidops.prespec_company_fit_attempt TO worker;
 
--- Backup remains read-only for every current and future migrated table.
+-- Backup reads current/future tables and sequence state without advancing it.
 GRANT SELECT ON ALL TABLES IN SCHEMA bidops TO ro_backup;
 ALTER DEFAULT PRIVILEGES IN SCHEMA bidops GRANT SELECT ON TABLES TO ro_backup;
+GRANT SELECT ON ALL SEQUENCES IN SCHEMA bidops TO ro_backup;
+ALTER DEFAULT PRIVILEGES IN SCHEMA bidops GRANT SELECT ON SEQUENCES TO ro_backup;
 
 COMMIT;

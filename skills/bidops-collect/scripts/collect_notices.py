@@ -5,15 +5,18 @@ from __future__ import annotations
 
 import argparse
 import functools
+import hashlib
 import json
 import os
 import re
+import stat
 import sys
 import unicodedata
 import urllib.error
 import urllib.parse
 import urllib.request
 from datetime import date, datetime, timezone
+from contextlib import contextmanager
 from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Any, Iterable, Sequence
@@ -201,14 +204,18 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--from-date", required=True, type=date.fromisoformat)
     parser.add_argument("--to-date", required=True, type=date.fromisoformat)
     parser.add_argument("--output-dir", required=True, type=Path)
+    parser.add_argument(
+        "--allowed-root", type=Path, default=PROJECT_ROOT / "data" / "runs",
+        help="입력·출력 허용 루트 (기본 data/runs, 격리 실행에서만 명시적으로 변경).",
+    )
     parser.add_argument("--rows", type=int, default=500)
     parser.add_argument("--timeout", type=int, default=30)
     parser.add_argument("--skip-bids", action="store_true")
     parser.add_argument("--skip-prespecs", action="store_true")
     parser.add_argument(
         "--from-raw",
-        action="store_true",
-        help="API를 호출하지 않고 보존된 원문 페이지를 다시 분류한다.",
+        type=Path, metavar="SOURCE_RAW",
+        help="기존 raw 경로를 읽어 새 --output-dir에 복사·재분류한다. 이전 bare flag는 지원하지 않는다.",
     )
     return parser.parse_args()
 
@@ -752,6 +759,123 @@ def relative_raw_path(raw_path: Path) -> str:
         return str(raw_path)
 
 
+def checked_path(path: Path, allowed_root: Path) -> Path:
+    """Check the lexical boundary before resolving or following any component."""
+    if ".." in path.parts or ".." in allowed_root.parts or "\\" in str(path) or "\\" in str(allowed_root):
+        raise RuntimeError("collection_path_invalid")
+    path, allowed_root = path.absolute(), allowed_root.absolute()
+    if not path.is_relative_to(allowed_root) or path == allowed_root:
+        raise RuntimeError("collection_path_outside_root")
+    for part in (path, *path.parents):
+        if part.is_symlink():
+            raise RuntimeError("collection_symlink_forbidden")
+    return path
+
+
+@contextmanager
+def directory_fd(path: Path, *, create: bool = False):
+    """Anchor each filesystem operation without following parent symlinks."""
+    path = path.absolute()
+    if ".." in path.parts or "\\" in str(path):
+        raise RuntimeError("collection_path_invalid")
+    descriptor = os.open(path.anchor, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        for part in path.parts[1:]:
+            if create:
+                try:
+                    os.mkdir(part, dir_fd=descriptor)
+                except FileExistsError:
+                    pass
+            child = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=descriptor)
+            os.close(descriptor)
+            descriptor = child
+        yield descriptor
+    except OSError as exc:
+        raise RuntimeError("collection_directory_invalid") from exc
+    finally:
+        os.close(descriptor)
+
+
+def claim_directory(path: Path) -> None:
+    with directory_fd(path.parent, create=True) as parent:
+        try:
+            os.mkdir(path.name, dir_fd=parent)
+        except FileExistsError as exc:
+            raise RuntimeError("기존 회차 디렉터리를 덮어쓸 수 없습니다: collection_exists") from exc
+
+
+def write_bytes_new(path: Path, data: bytes) -> None:
+    with directory_fd(path.parent) as parent:
+        def opener(name, flags):
+            return os.open(name, flags | os.O_NOFOLLOW, dir_fd=parent)
+        try:
+            with open(path.name, "xb", opener=opener) as stream:
+                stream.write(data)
+        except FileExistsError as exc:
+            raise RuntimeError("collection_file_exists") from exc
+
+
+def write_json_new(path: Path, payload: dict[str, Any]) -> None:
+    # Serialization must succeed before opening an immutable artifact.
+    data = json.dumps(payload, ensure_ascii=False, indent=2, allow_nan=False).encode("utf-8")
+    write_bytes_new(path, data)
+
+
+def read_regular_bytes(path: Path) -> bytes:
+    with directory_fd(path.parent) as parent:
+        descriptor = os.open(path.name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=parent)
+        with os.fdopen(descriptor, "rb") as stream:
+            if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode):
+                raise RuntimeError("collection_raw_not_regular")
+            return stream.read()
+
+
+def raw_pages(raw_dir: Path) -> list[Path]:
+    with directory_fd(raw_dir) as directory:
+        pages = [raw_dir / name for name in sorted(os.listdir(directory))]
+        for page in pages:
+            if not re.fullmatch(r"(?:bid|prespec)-page-[0-9]{3}\.json", page.name):
+                raise RuntimeError("collection_raw_name_invalid")
+            if not stat.S_ISREG(os.stat(page.name, dir_fd=directory, follow_symlinks=False).st_mode):
+                raise RuntimeError("collection_raw_not_regular")
+    return pages
+
+
+def raw_payload(data: bytes) -> dict[str, Any]:
+    try:
+        payload = json.loads(data)
+        response = payload.get("response", payload)
+        body = response.get("body")
+        if not isinstance(body, dict):
+            raise ValueError
+        total = body.get("totalCount")
+        if isinstance(total, bool) or int(total) < 0 or str(int(total)) != str(total):
+            raise ValueError
+        items = body.get("items", [])
+        if items in (None, ""):
+            items = []
+        if isinstance(items, dict):
+            items = items.get("item", [])
+        if isinstance(items, dict):
+            items = [items]
+        if not isinstance(items, list) or any(not isinstance(item, dict) for item in items):
+            raise ValueError
+        get_body(payload)
+        return payload
+    except (AttributeError, TypeError, ValueError, RuntimeError) as exc:
+        raise RuntimeError("collection_raw_invalid") from exc
+
+
+def copy_raw_pages(source: Path, target: Path) -> None:
+    for page in raw_pages(source):
+        data = read_regular_bytes(page)
+        raw_payload(data)
+        destination = target / page.name
+        write_bytes_new(destination, data)
+        if hashlib.sha256(read_regular_bytes(destination)).digest() != hashlib.sha256(data).digest():
+            raise RuntimeError("collection_raw_hash_mismatch")
+
+
 def collect_source(
     *, source: str, endpoint: str, service_key: str, from_date: date,
     to_date: date, rows: int, timeout: int, raw_dir: Path
@@ -761,6 +885,9 @@ def collect_source(
     page = 1
     normalizer = normalizer_for(source)
     while True:
+        raw_path = raw_dir / f"{source}-page-{page:03d}.json"
+        if os.path.lexists(raw_path):
+            raise RuntimeError("collection_file_exists")
         params = {
             "serviceKey": service_key,
             "pageNo": page,
@@ -771,8 +898,7 @@ def collect_source(
             "inqryEndDt": to_date.strftime("%Y%m%d") + "2359",
         }
         payload = request_json(endpoint, params, timeout)
-        raw_path = raw_dir / f"{source}-page-{page:03d}.json"
-        raw_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+        write_json_new(raw_path, payload)
         body = get_body(payload)
         items = get_items(body)
         raw_source = relative_raw_path(raw_path)
@@ -780,6 +906,8 @@ def collect_source(
 
         total = int(body.get("totalCount", len(records)) or 0)
         if not items or len(records) >= total:
+            if len(records) < total:
+                warnings.append(f"{source}: 원문 페이지가 전체 건수보다 적어 부분 수집입니다.")
             break
         page += 1
         if page > 100:
@@ -792,16 +920,23 @@ def reclassify_source(*, source: str, raw_dir: Path) -> tuple[list[dict[str, Any
     """Re-normalize preserved API pages without calling the API again."""
     records: list[dict[str, Any]] = []
     warnings: list[str] = []
-    pages = sorted(raw_dir.glob(f"{source}-page-*.json"))
+    pages = [page for page in raw_pages(raw_dir) if page.name.startswith(f"{source}-")]
     if not pages:
-        warnings.append(f"{source}: 재분류할 원문 페이지가 {raw_dir}에 없습니다.")
+        warnings.append(f"{source}: 재분류할 원문 페이지가 없습니다.")
         return records, warnings
     normalizer = normalizer_for(source)
-    for raw_path in pages:
-        payload = json.loads(raw_path.read_text(encoding="utf-8"))
-        items = get_items(get_body(payload))
+    totals: set[int] = set()
+    for page_no, raw_path in enumerate(pages, 1):
+        if raw_path.name != f"{source}-page-{page_no:03d}.json":
+            warnings.append(f"{source}: 원문 페이지 번호가 연속되지 않아 부분 수집입니다.")
+        payload = raw_payload(read_regular_bytes(raw_path))
+        body = get_body(payload)
+        totals.add(int(body["totalCount"]))
+        items = get_items(body)
         raw_source = relative_raw_path(raw_path)
         records.extend(normalizer(item, raw_source) for item in items)
+    if totals != {len(records)}:
+        warnings.append(f"{source}: 원문 전체 건수와 재분류 건수가 달라 부분 수집입니다.")
     return records, warnings
 
 
@@ -812,10 +947,20 @@ def main() -> int:
     if args.skip_bids and args.skip_prespecs:
         raise SystemExit("본공고와 사전규격을 동시에 건너뛸 수 없습니다.")
 
-    output_dir = args.output_dir.resolve()
+    if args.rows < 1 or args.timeout < 1:
+        raise SystemExit("--rows와 --timeout은 양수여야 합니다.")
+    output_dir = checked_path(args.output_dir, args.allowed_root)
+    if os.path.lexists(output_dir):
+        raise RuntimeError("기존 회차 디렉터리를 덮어쓸 수 없습니다: collection_exists")
+    source_raw = None
+    if args.from_raw is not None:
+        source_raw = checked_path(args.from_raw, args.allowed_root)
+        if not source_raw.is_dir() or output_dir.is_relative_to(source_raw):
+            raise RuntimeError("collection_raw_directory_invalid")
+        raw_pages(source_raw)
+    claim_directory(output_dir)
     raw_dir = output_dir / "raw"
-    raw_dir.mkdir(parents=True, exist_ok=True)
-    service_key = "" if args.from_raw else get_service_key()
+    claim_directory(raw_dir)
 
     notices: list[dict[str, Any]] = []
     warnings: list[str] = []
@@ -823,19 +968,49 @@ def main() -> int:
         ("bid", BID_ENDPOINT, args.skip_bids),
         ("prespec", PRESPEC_ENDPOINT, args.skip_prespecs),
     )
-    for source, endpoint, skip in plan:
-        if skip:
-            continue
-        if args.from_raw:
-            batch, batch_warnings = reclassify_source(source=source, raw_dir=raw_dir)
-        else:
-            batch, batch_warnings = collect_source(
-                source=source, endpoint=endpoint, service_key=service_key,
-                from_date=args.from_date, to_date=args.to_date, rows=args.rows,
-                timeout=args.timeout, raw_dir=raw_dir,
-            )
-        notices.extend(batch)
-        warnings.extend(batch_warnings)
+    source_window = {
+        "from": args.from_date.isoformat(), "to": args.to_date.isoformat(),
+        "timezone": "Asia/Seoul",
+    }
+
+    def record_provenance(*, complete: bool) -> None:
+        write_json_new(output_dir / "collection-provenance.json", {
+            "schema_version": "bidops.collection-provenance.v1",
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "source_raw": str(source_raw.relative_to(args.allowed_root.absolute())) if source_raw else None,
+            "source_window": source_window,
+            "options": {"rows": args.rows, "timeout": args.timeout,
+                        "skip_bids": args.skip_bids, "skip_prespecs": args.skip_prespecs},
+            "sources": [{"source": source, "endpoint": endpoint}
+                        for source, endpoint, skip in plan if not skip],
+            "complete": complete,
+            "warnings": warnings,
+            "raw_pages": [{"path": f"raw/{page.name}",
+                           "source_path": f"{source_raw.relative_to(args.allowed_root.absolute())}/{page.name}" if source_raw else None,
+                           "sha256": hashlib.sha256(read_regular_bytes(page)).hexdigest()}
+                          for page in raw_pages(raw_dir)],
+        })
+
+    try:
+        if source_raw is not None:
+            copy_raw_pages(source_raw, raw_dir)
+        service_key = "" if source_raw is not None else get_service_key()
+        for source, endpoint, skip in plan:
+            if skip:
+                continue
+            if source_raw is not None:
+                batch, batch_warnings = reclassify_source(source=source, raw_dir=raw_dir)
+            else:
+                batch, batch_warnings = collect_source(
+                    source=source, endpoint=endpoint, service_key=service_key,
+                    from_date=args.from_date, to_date=args.to_date, rows=args.rows,
+                    timeout=args.timeout, raw_dir=raw_dir,
+                )
+            notices.extend(batch)
+            warnings.extend(batch_warnings)
+    except (RuntimeError, OSError, ValueError):
+        record_provenance(complete=False)
+        raise
 
     deduplicated = {notice["notice_id"]: notice for notice in notices}
     ordered = sorted(
@@ -846,11 +1021,7 @@ def main() -> int:
     result = {
         "schema_version": "bidops.collected.v2",
         "generated_at": datetime.now(timezone.utc).isoformat(),
-        "source_window": {
-            "from": args.from_date.isoformat(),
-            "to": args.to_date.isoformat(),
-            "timezone": "Asia/Seoul",
-        },
+        "source_window": source_window,
         "counts": {
             "total": len(ordered),
             "candidate_pool": candidate_count,
@@ -860,14 +1031,20 @@ def main() -> int:
         "notices": ordered,
     }
     output_path = output_dir / "collected-notices.json"
-    output_path.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(json.dumps({"output": str(output_path), **result["counts"]}, ensure_ascii=False))
-    return 0
+    try:
+        write_json_new(output_path, result)
+    except (RuntimeError, OSError, ValueError):
+        record_provenance(complete=False)
+        raise
+    record_provenance(complete=not warnings)
+    print(json.dumps({"output": output_path.name, **result["counts"], "complete": not warnings}, ensure_ascii=False))
+    return 1 if warnings else 0
 
 
 if __name__ == "__main__":
     try:
         raise SystemExit(main())
-    except RuntimeError as error:
-        print(str(error), file=sys.stderr)
+    except (RuntimeError, OSError, ValueError):
+        # HTTP errors and OS exceptions can include credentials or internal paths.
+        print("collection_failed: 새 회차 경로·원문·부분 수집 상태를 확인하세요.", file=sys.stderr)
         raise SystemExit(1)

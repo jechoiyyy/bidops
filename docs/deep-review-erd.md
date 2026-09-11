@@ -670,7 +670,7 @@ lease 길이는 환경변수가 아니라 모듈 상수 1,200초다.
 | `hwpx_verify_jsonb` | HWP 변환 검증의 안전한 IR 동일성·차이 개수·전후 페이지 수 |
 | `structure_id`, `structure_location_id` | 같은 문서의 `document_structure` FK와 payload의 정확한 location FK |
 | `para_page_map_content_object_id`, `para_page_map_location_id`, `para_page_map_sha256` | 대응표 객체·location FK와 SHA-256 |
-| `section_candidates_content_object_id`, `section_candidates_location_id`, `section_candidates_sha256` | 절 후보(`bidops.section-candidates.v1`) 객체·location FK와 SHA-256 (`0024`, 모두 nullable이며 셋이 함께 null이거나 함께 채워진다. 0024 이전 snapshot은 null로 남고 그대로 재사용된다) |
+| `section_candidates_content_object_id`, `section_candidates_location_id`, `section_candidates_sha256` | 절 후보(신규 `bidops.section-candidates.v2`, 기존 v1 읽기 유지) 객체·location FK와 SHA-256 (`0024`, 모두 nullable이며 셋이 함께 null이거나 함께 채워진다. 0024 이전 snapshot 또는 핵심 산출물은 유효하나 `section_candidates_unavailable` 경고가 있는 신규 snapshot은 함께 null로 보존·재사용한다) |
 | `rhwp_binary_sha256`, `rhwp_version` | native renderer provenance |
 
 모든 신규 FK는 `ON DELETE RESTRICT`다. renderer는 기존 JSON 안의 값으로서
@@ -689,6 +689,33 @@ UNIQUE는 유지한다. 서비스가 원본·객체 버전·해시·HWPX 검증�
 검증은 유지한다. worker의 snapshot INSERT와 이 열의 column UPDATE를 허용하고,
 snapshot UPDATE/DELETE는 허용하지 않는다. 신규 참조·provenance나 경고가 있으면
 `0022`로의 downgrade를 거부한다.
+
+## 8.5 주장 검증·다단계 호출 기록 (`0025`, 2026-09-10 추가)
+
+새 policy v5 실행은 기존 PDF snapshot/target을 재사용하고 다음 기록을 추가한다. 이전
+결과·단일 응답 hash·사람 리뷰는 backfill하거나 재검증 통과로 변경하지 않는다.
+
+| 테이블·열 | 계약 |
+|---|---|
+| `prespec_v4_attempt.activation_id` | `audit_event.id` FK, 생성 뒤 불변. 과거 null 유지, 새 v5 queued/running에는 activation과 WorkJob 필수 |
+| `prespec_v4_attempt.status` | 32자, `needs_human_review` 추가. 완료 시각 필수·lease 해제·result 없음, 기존 terminal 변경/삭제 금지 |
+| `prespec_overview_call_event` | append-only dispatch/response/error. call UUID·attempt FK·ordinal 1~3·draft/semantic·동결 input/prompt/binding hash·암호화 원응답 hash/객체·location FK·안전 코드/계측 |
+| `prespec_overview_verification` | attempt UNIQUE FK, 초안/동결 input/policy/model/binding hash, validator version, checks JSONB와 hash, passed/needs_human_review. UPDATE/DELETE 금지 |
+| `prespec_page_overview.verification_id`, `verification_sha256` | 검증 FK/hash. v3은 null, 새 v4는 passed 검증과 정확한 주장/분석 대응 필수 |
+
+호출 원장의 `input_sha256`은 attempt/target의 동결 입력 hash다. stage별 실제 prompt는
+`prompt_sha256`으로 구분한다. 한 call에는 terminal response/error 중 하나만 존재하며
+draft 최대 2회·semantic 최대 1회다. 취소 후 늦은 응답 이력은 허용하지만 검증/result를
+만들거나 종료한 attempt를 수정하지 못한다. 검증·결과·attempt·WorkJob 종료는 deferred
+constraint trigger로 같은 commit에 결속한다. needs_human_review의 job은 failed와
+`last_error_code=claim_verification_required`이며 새 job 상태를 추가하지 않는다.
+
+app은 두 새 표 SELECT만, worker는 SELECT/INSERT만, backup은 SELECT만 갖는다. app의
+attempt UPDATE는 취소에 필요한 열과 cancelled 전이로 제한한다. gate advisory lock은
+activation/enqueue/claim/dispatch/종료에서 공유하고 HTTP 중에는 해제한다. 기존 활성
+작업을 새 policy에 자동 전환하지 않으며 새 기록이 있으면 downgrade를 거부한다.
+상세 상태·조회 계약과 실제 검증 여부는 [Spec](0910_prespec-workflow-hardening/Spec.md)과
+[Plan](0910_prespec-workflow-hardening/Plan.md)을 따른다.
 
 ## 9. FK 삭제와 불변 정책
 

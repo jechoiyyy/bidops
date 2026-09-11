@@ -156,8 +156,6 @@ class PipelineService:
             target_directory = source_directory
             if stage == "collect":
                 target_directory = self._new_snapshot_directory(source_directory)
-                if from_raw:
-                    self._link_preserved_raw(source_directory, target_directory)
 
             command = self._command(
                 run,
@@ -232,7 +230,14 @@ class PipelineService:
         directory_name = parsed[0] if parsed else run.id.split("--", 1)[0]
         if Path(directory_name).name != directory_name or directory_name in {"", ".", ".."}:
             raise PipelineInputError("회차 디렉토리 식별자가 올바르지 않습니다.")
-        return self.settings.bidops_root / "data" / "runs" / directory_name
+        directory = self.settings.bidops_root / "data" / "runs" / directory_name
+        self._reject_symlinks(directory)
+        return directory
+
+    @staticmethod
+    def _reject_symlinks(directory: Path) -> None:
+        if any(path.is_symlink() for path in (directory, *directory.parents)):
+            raise PipelineInputError("회차 경로에 symlink를 사용할 수 없습니다.")
 
     def _new_snapshot_directory(self, source_directory: Path) -> Path:
         runs_root = source_directory.parent
@@ -240,21 +245,16 @@ class PipelineService:
         for _ in range(10):
             name = f"{source_directory.name}-rerun-{stamp}-{uuid.uuid4().hex[:8]}"
             target = runs_root / name
-            try:
-                target.mkdir(parents=False, exist_ok=False)
+            if not os.path.lexists(target):
                 return target
-            except FileExistsError:
-                continue
         raise PipelineInputError("새 회차 디렉토리를 만들지 못했습니다.")
 
-    @staticmethod
-    def _link_preserved_raw(source_directory: Path, target_directory: Path) -> None:
+    def _preserved_raw(self, source_directory: Path) -> Path:
         raw_directory = source_directory / "raw"
+        self._reject_symlinks(raw_directory)
         if not raw_directory.is_dir():
             raise PipelineInputError("재분류할 보존 원문 페이지가 없습니다.")
-        # The script reads this directory and writes all new JSON next to it.  A
-        # directory symlink avoids copying or modifying the preserved raw pages.
-        (target_directory / "raw").symlink_to(raw_directory, target_is_directory=True)
+        return raw_directory
 
     def _window(self, run: Run, source_directory: Path) -> tuple[date, date]:
         if run.window_from and run.window_to:
@@ -281,9 +281,11 @@ class PipelineService:
                 window_to.isoformat(),
                 "--output-dir",
                 str(target_directory),
+                "--allowed-root",
+                str(self.settings.bidops_root / "data" / "runs"),
             ]
             if from_raw:
-                command.append("--from-raw")
+                command.extend(["--from-raw", str(self._preserved_raw(source_directory))])
             return command
         if stage == "sample":
             input_path = target_directory / "collected-notices.json"

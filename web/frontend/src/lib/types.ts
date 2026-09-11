@@ -1653,17 +1653,48 @@ export interface OrderPlanScreeningError {
 }
 
 /** Descriptive page summaries do not carry or imply a recommendation. */
-export interface PageOverviewFact { text: string; evidence_pages: number[] }
-export interface PageOverviewPayload {
+export interface PageOverviewFactV3 { text: string; evidence_pages: number[] }
+export interface PageOverviewVerifiedEvidence {
+  page: number;
+  quote: string;
+  start_char: number;
+  end_char: number;
+  page_text_sha256: string;
+}
+export interface PageOverviewFactV4 {
+  claim_id: string;
+  text: string;
+  evidence: PageOverviewVerifiedEvidence[];
+}
+export type PageOverviewFact = PageOverviewFactV3 | PageOverviewFactV4;
+export interface PageOverviewPayloadV3 {
   schema_version: "bidops.prespec-overview-page-review.v3";
-  business_overview: PageOverviewFact[];
-  main_tasks: PageOverviewFact[];
-  budget_and_period: PageOverviewFact[];
-  important_conditions: PageOverviewFact[];
+  business_overview: PageOverviewFactV3[];
+  main_tasks: PageOverviewFactV3[];
+  budget_and_period: PageOverviewFactV3[];
+  important_conditions: PageOverviewFactV3[];
   reviewer_analysis: string[];
   unknowns: string[];
   input_limitations: string[];
 }
+export interface PageOverviewAnalysisV4 {
+  id: string;
+  text: string;
+  supporting_claim_ids: string[];
+}
+export interface PageOverviewPayloadV4 {
+  schema_version: "bidops.prespec-overview-page-review.v4";
+  business_overview: PageOverviewFactV4[];
+  main_tasks: PageOverviewFactV4[];
+  budget_and_period: PageOverviewFactV4[];
+  important_conditions: PageOverviewFactV4[];
+  reviewer_analysis: PageOverviewAnalysisV4[];
+  unknowns: string[];
+  input_limitations: string[];
+  verification_id: string;
+  verification_sha256: string;
+}
+export type PageOverviewPayload = PageOverviewPayloadV3 | PageOverviewPayloadV4;
 export interface PageOverviewView {
   id: string;
   notice_id: number;
@@ -1705,6 +1736,7 @@ export interface PageOverviewCurrent {
   reason_code: string | null;
   prompt_version: string | null;
   created_at: string;
+  verification_status: "passed" | "needs_human_review" | null;
 }
 
 /**
@@ -1754,13 +1786,20 @@ export interface PageOverviewRangeConfirmation {
  * `null`이며 화면은 이 자리를 그리지 않는다.
  */
 export interface PageOverviewRangeReview {
+  schema_version: "bidops.prespec-overview-range-view.v2";
   target_id: string;
   snapshot_id: string;
   selection_status: "needs_human_review" | "ready";
   reason_code: string | null;
   pdf_page_count: number;
   created_at: string;
-  candidates_mode: "clause" | "page" | null;
+  candidates_mode: "outline" | "clause" | "page" | null;
+  candidate_status: "complete" | "partial" | "unavailable";
+  candidate_count_total: number | null;
+  candidate_count_returned: number;
+  warning_codes: string[];
+  selected_pages: number[];
+  can_confirm: boolean;
   candidates: PageOverviewRangeCandidate[];
   assisted: PageOverviewRangeAssist | null;
   confirmation: PageOverviewRangeConfirmation | null;
@@ -1786,14 +1825,32 @@ export interface PageOverviewRangeConfirmationResponse {
   attempt_enqueued: boolean;
 }
 
+export interface PageOverviewVerificationClaim {
+  claim_id: string;
+  text: string;
+  deterministic_status: "passed" | "failed";
+  semantic_status: "supported" | "contradicted" | "insufficient" | "not_run";
+  reason_codes: string[];
+  verified_evidence: PageOverviewVerifiedEvidence[];
+}
+
+export interface PageOverviewVerification {
+  verification_id: string;
+  status: "passed" | "needs_human_review";
+  reason_codes: string[];
+  claims: PageOverviewVerificationClaim[];
+}
+
 export interface PageOverviewResponse {
-  schema_version: "bidops.prespec-overview-pages.v1";
+  schema_version: "bidops.prespec-overview-pages.v2";
   notice_id: number;
   reviews: PageOverviewView[];
-  /** v4 적용 기록이 없으면 생략되거나 null이며 legacy reviews를 호환한다. */
-  current?: PageOverviewCurrent | null;
-  /** 범위 사람 확인 대상이 없으면 생략되거나 null이다. */
-  range_review?: PageOverviewRangeReview | null;
+  /** 적용 기록 없음은 null이다. 실패/중단일 때 과거 성공을 현재로 대체하지 않는다. */
+  current: PageOverviewCurrent | null;
+  /** 범위 사람 확인 대상이 없으면 null이다. */
+  range_review: PageOverviewRangeReview | null;
+  /** 현재 attempt에 공개 가능한 검증 기록이 없으면 null이다. */
+  verification: PageOverviewVerification | null;
 }
 
 export interface CompanyFitResult {

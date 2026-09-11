@@ -170,7 +170,8 @@ def test_cli_rejects_symlinks_and_limits_read_size(tmp_path):
         read_file(tmp_path, '../file')
 
 
-def test_range_review_projection_and_human_confirmation_endpoint(tmp_path, monkeypatch):
+@pytest.mark.parametrize('api_version', ['v1', 'v2'])
+def test_range_review_projection_and_human_confirmation_endpoint(tmp_path, monkeypatch, api_version):
     """R7: 확정 대기 상태 조회 → 사람 확정 → 확정 상태 조회. attempt는 생기지 않는다."""
 
     from .test_prespec_v4_ops import _native_pending
@@ -179,14 +180,20 @@ def test_range_review_projection_and_human_confirmation_endpoint(tmp_path, monke
     app = FastAPI()
     app.include_router(deep_reviews.pre_spec_overview_router)
     app.dependency_overrides[get_db] = lambda: session
-    monkeypatch.setattr(deep_reviews, 'object_store', lambda **_: store)
+    def scoped_store(*, namespaces, read_namespaces):
+        assert namespaces == ('structure',)
+        assert read_namespaces == ('structure',)
+        return store
+
+    monkeypatch.setattr(deep_reviews, 'object_store', scoped_store)
     client = TestClient(app)
     url = f'/api/pre-specs/{snapshot.notice_id}/overview-pages'
+    read_url = url if api_version == 'v1' else f'{url}/v2'
     actor = {'X-BidOps-Actor-Name': "UTF-8''%EC%B5%9C%EC%A0%95%EC%9D%B8", 'X-BidOps-Actor-Name-Format': 'utf-8-percent-v1'}
 
-    body = client.get(url).json()
+    body = client.get(read_url).json()
     review = body['range_review']
-    assert body['schema_version'] == 'bidops.prespec-overview-pages.v1' and review['confirmation'] is None
+    assert body['schema_version'] == f'bidops.prespec-overview-pages.{api_version}' and review['confirmation'] is None
     assert review['selection_status'] == 'needs_human_review' and review['reason_code'] == 'scope_heading_missing'
     assert review['candidates_mode'] == 'clause' and [c['index'] for c in review['candidates']] == [0, 1]
     assert review['assisted'] is None and review['pdf_page_count'] == snapshot.pdf_page_count
@@ -208,7 +215,7 @@ def test_range_review_projection_and_human_confirmation_endpoint(tmp_path, monke
     again = client.post(f'{url}/range-confirmations', json=confirmation, headers=actor)
     assert again.status_code == 409 and again.json()['error']['code'] == 'target_not_pending'
 
-    confirmed = client.get(url).json()['range_review']
+    confirmed = client.get(read_url).json()['range_review']
     assert confirmed['selection_status'] == 'ready' and confirmed['reason_code'] is None
     assert confirmed['target_id'] == payload['target_id']
     assert confirmed['confirmation']['confirmed_from_target_id'] == review['target_id']
@@ -217,3 +224,23 @@ def test_range_review_projection_and_human_confirmation_endpoint(tmp_path, monke
     assert 'object_key' not in str(confirmed) and 'structure/' not in str(confirmed)
     session.close()
     engine.dispose()
+
+
+def test_outline_partial_range_requires_v2_without_hiding_core_target(tmp_path, monkeypatch):
+    from .test_prespec_v4_ops import _native_pending
+    engine, session, store, snapshot, target = _native_pending(tmp_path, partial=True, outline=True)
+    app = FastAPI()
+    app.include_router(deep_reviews.pre_spec_overview_router)
+    app.dependency_overrides[get_db] = lambda: session
+    monkeypatch.setattr(deep_reviews, "object_store", lambda **kwargs: store)
+    client = TestClient(app)
+    url = f"/api/pre-specs/{snapshot.notice_id}/overview-pages"
+    legacy = client.get(url)
+    assert legacy.status_code == 409
+    assert legacy.json()["error"]["code"] == "overview_contract_upgrade_required"
+    current = client.get(f"{url}/v2")
+    assert current.status_code == 200
+    review = current.json()["range_review"]
+    assert review["target_id"] == str(target.id) and review["can_confirm"]
+    assert review["candidate_status"] == "partial" and review["candidates_mode"] == "outline"
+    session.close(); engine.dispose()

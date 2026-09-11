@@ -12,6 +12,7 @@ from app.deep_review.models import PrespecV4Attempt
 from app.deep_review.services.prespec_v4_ops import activate_v4
 from app.deep_review.services.prespec_v4_runner import (
     PrespecV4OverviewRunner,
+    V4_POLICY_PATH,
     V4_LUNA_REFERENCE_MODEL,
     V4_LUNA_REFERENCE_PROVIDER,
     _model_input,
@@ -33,7 +34,7 @@ from .test_prespec_v4_runner import _RawStore, _activate_for_target, _payload, _
 
 def test_luna_reference_uses_exact_prompt_and_current_projection(tmp_path, monkeypatch):
     engine, session, store, target = _ready_target(tmp_path)
-    policy = load_v4_policy()
+    policy = load_v4_policy(V4_POLICY_PATH)
     manifest, pages = _load_manifest(session, store, target)
     input_slice = _model_input(manifest, pages)
     from app.core.model_client import build_prompt

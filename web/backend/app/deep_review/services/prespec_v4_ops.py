@@ -11,8 +11,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 from uuid import UUID, uuid4
@@ -41,8 +42,10 @@ from ..models import (
     PrespecV4Attempt,
     PrespecV4PdfSnapshot,
     PrespecV4Target,
+    WorkJob,
 )
 from .effective_grade import effective_grades
+from .prespec_v4_gate import lock_v4_gate
 from .prespec_v4 import (
     V4PreparationError,
     _canonical,
@@ -67,10 +70,11 @@ from .prespec_v4_runner import (
 )
 
 
-ACTIVATION_SCHEMA = "bidops.prespec-v4-activation.v1"
+LEGACY_ACTIVATION_SCHEMA = "bidops.prespec-v4-activation.v1"
+ACTIVATION_SCHEMA = "bidops.prespec-v4-activation.v2"
 ACTIVATION_ACTION = "prespec_v4.activation"
 ACTIVATION_AGGREGATE = "prespec_v4_activation"
-ACTIVATION_PATH = Path(__file__).resolve().parent.parent / "policies" / "prespec-v4-activation-v1.json"
+ACTIVATION_PATH = Path(__file__).resolve().parent.parent / "policies" / "prespec-v4-activation-v2.json"
 V4_MAX_ACTIVATION_BYTES = 256 * 1024
 _HEX64 = set("0123456789abcdef")
 
@@ -117,6 +121,7 @@ class V4Activation:
     activated_at: datetime
     samples: tuple[dict[str, Any], ...]
     automatic_requirements: Mapping[str, Any]
+    schema: str = LEGACY_ACTIVATION_SCHEMA
 
 
 @dataclass(frozen=True)
@@ -128,6 +133,13 @@ class V4PreparationOutcome:
     snapshot_id: UUID | None = None
     target_id: UUID | None = None
     attempt_id: UUID | None = None
+
+
+@dataclass(frozen=True)
+class V4Deactivation:
+    activation_id: UUID
+    cancelled_attempts: int
+    cancelled_jobs: int
 
 
 def _artifact_bytes(value: Mapping[str, Any]) -> bytes:
@@ -146,7 +158,8 @@ def load_v4_activation_artifact(path: Path | None = None) -> tuple[dict[str, Any
     except (OSError, UnicodeError, ValueError) as error:
         raise V4OpsError("activation_unreadable") from error
     value = _mapping(value)
-    if value.get("schema") != ACTIVATION_SCHEMA or value.get("version") != 1:
+    versions = {LEGACY_ACTIVATION_SCHEMA: 1, ACTIVATION_SCHEMA: 2}
+    if value.get("schema") not in versions or value.get("version") != versions[value["schema"]]:
         raise V4OpsError("activation_invalid")
     samples = value.get("samples")
     if not isinstance(samples, list) or any(not isinstance(item, Mapping) for item in samples):
@@ -183,7 +196,7 @@ def _binding_from(value: V4ModelBinding | Mapping[str, Any]) -> V4ModelBinding:
         raise V4OpsError("binding_invalid") from error
 
 
-def _safe_sample(value: Mapping[str, Any]) -> dict[str, Any]:
+def _safe_sample(value: Mapping[str, Any], *, pin_target: bool = False) -> dict[str, Any]:
     sample = _mapping(value, "activation_invalid")
     required = ("notice_id", "notice_key", "document_version_id", "source_sha256", "source_size_bytes")
     if any(key not in sample for key in required):
@@ -199,7 +212,7 @@ def _safe_sample(value: Mapping[str, Any]) -> dict[str, Any]:
         raise V4OpsError("activation_invalid")
     if notice_id < 1 or size < 1 or not str(sample["notice_key"]).strip():
         raise V4OpsError("activation_invalid")
-    return {
+    result = {
         "notice_id": notice_id,
         "notice_key": str(sample["notice_key"]),
         "document_version_id": str(document_id),
@@ -208,10 +221,25 @@ def _safe_sample(value: Mapping[str, Any]) -> dict[str, Any]:
         "original_filename": str(sample.get("original_filename", "")),
         "observation_kind": str(sample.get("observation_kind", "explicit_sample")),
     }
+    # A source-only sample can authorize document preparation. It cannot
+    # enqueue or dispatch until a later approval pins the resulting target.
+    target_fields = ("target_id", "input_sha256", "selection_manifest_sha256", "pdf_sha256")
+    if pin_target and any(key in sample for key in target_fields):
+        try:
+            result["target_id"] = str(UUID(str(sample["target_id"])))
+            for key in ("input_sha256", "selection_manifest_sha256", "pdf_sha256"):
+                digest = sample[key]
+                if not isinstance(digest, str) or not re.fullmatch(r"[0-9a-f]{64}", digest):
+                    raise ValueError("invalid_digest")
+                result[key] = digest
+        except (KeyError, TypeError, ValueError) as error:
+            raise V4OpsError("activation_target_binding_required") from error
+    return result
 
 
 def _sample_entries(artifact: Mapping[str, Any]) -> tuple[dict[str, Any], ...]:
-    entries = tuple(_safe_sample(item) for item in artifact.get("samples", []))
+    entries = tuple(_safe_sample(item, pin_target=artifact.get("schema") == ACTIVATION_SCHEMA)
+                    for item in artifact.get("samples", []))
     seen: set[tuple[int, str]] = set()
     for item in entries:
         key = (item["notice_id"], item["document_version_id"])
@@ -219,6 +247,36 @@ def _sample_entries(artifact: Mapping[str, Any]) -> tuple[dict[str, Any], ...]:
             raise V4OpsError("activation_invalid")
         seen.add(key)
     return entries
+
+
+def _execution_approval(policy: Any) -> dict[str, Any]:
+    """Exact two-stage scope required in a v2 approval artifact."""
+    return {
+        "policy_schema": "bidops.prespec-overview-policy.v5",
+        "policy_digest": policy.digest,
+        "stages": ["prespec_overview_claims", "prespec_overview_semantic"],
+        "max_model_calls": 3,
+        "max_semantic_calls": 1,
+        "call_timeout_seconds": 300,
+        "lease_seconds": 1200,
+    }
+
+
+def preview_v4_activation(*, artifact_path: Path | None = None, settings: Any | None = None) -> dict[str, Any]:
+    artifact, digest = load_v4_activation_artifact(artifact_path)
+    policy = _policy_for(settings)
+    return {
+        "schema": artifact["schema"], "artifact_sha256": digest,
+        "execution": _execution_approval(policy),
+        "samples": list(_sample_entries(artifact)),
+        "stage_policy_sha256": [
+            {"stage": item["stage"], "sha256": _sha256_json(item)}
+            for item in policy.document["stages"]
+        ],
+        "execution_approval_matches": artifact.get("schema") == ACTIVATION_SCHEMA
+            and artifact.get("execution") == _execution_approval(policy),
+        "activation_performed": False,
+    }
 
 
 def _binding_metadata(binding: V4ModelBinding) -> dict[str, Any]:
@@ -235,14 +293,15 @@ def _binding_metadata(binding: V4ModelBinding) -> dict[str, Any]:
 
 
 def _binding_matches_policy(binding: V4ModelBinding, policy: Any) -> bool:
-    """Allow only the normal policy model or the explicit Luna reference seam."""
+    """New claims use Qwen; the Luna exception belongs only to old v4 records."""
 
     if binding.policy_digest != policy.digest or binding.prompt_version != policy.prompt_version:
         return False
     if binding.model_name == policy.model_name:
         return True
     return (
-        binding.provider == V4_LUNA_REFERENCE_PROVIDER
+        policy.document.get("schema") == "bidops.prespec-overview-policy.v4"
+        and binding.provider == V4_LUNA_REFERENCE_PROVIDER
         and binding.model_name == V4_LUNA_REFERENCE_MODEL
         and binding.reference_only
         and not binding.deployable
@@ -278,6 +337,17 @@ def resolve_v4_reference_binding(*, policy: Any | None = None, settings: Any | N
     )
 
 
+def _activation_timestamp(session: Session, requested: datetime | None) -> datetime:
+    """Called under the gate: audit ordering must survive a tied/backward clock."""
+    latest = session.scalar(select(AuditEvent.created_at).where(
+        AuditEvent.action == ACTIVATION_ACTION, AuditEvent.aggregate_type == ACTIVATION_AGGREGATE,
+    ).order_by(AuditEvent.created_at.desc()).limit(1))
+    timestamp = requested or _now()
+    if timestamp.tzinfo is None:
+        raise V4OpsError("activation_time_invalid")
+    return max(timestamp, latest + timedelta(microseconds=1)) if latest is not None else timestamp
+
+
 def activate_v4(
     session: Session,
     *,
@@ -302,7 +372,8 @@ def activate_v4(
         artifact, artifact_sha = load_v4_activation_artifact(artifact_path)
     else:
         artifact = _mapping(artifact)
-        if artifact.get("schema") != ACTIVATION_SCHEMA or artifact.get("version") != 1:
+        versions = {LEGACY_ACTIVATION_SCHEMA: 1, ACTIVATION_SCHEMA: 2}
+        if artifact.get("schema") not in versions or artifact.get("version") != versions[artifact["schema"]]:
             raise V4OpsError("activation_invalid")
         artifact_sha = _sha256_json(artifact)
     samples = _sample_entries(artifact)
@@ -311,6 +382,11 @@ def activate_v4(
     if mode == "new_reference" and samples:
         raise V4OpsError("activation_mode_sample_mismatch")
     policy = _policy_for(settings)
+    is_v5 = policy.document.get("schema") == "bidops.prespec-overview-policy.v5"
+    if is_v5 and (artifact.get("schema") != ACTIVATION_SCHEMA or artifact.get("execution") != _execution_approval(policy)):
+        raise V4OpsError("activation_execution_approval_required")
+    if not is_v5 and artifact.get("schema") != LEGACY_ACTIVATION_SCHEMA:
+        raise V4OpsError("activation_policy_version_mismatch")
     selected_binding = _binding_from(binding) if binding is not None else resolve_v4_reference_binding(policy=policy, settings=settings)
     if not _binding_matches_policy(selected_binding, policy):
         raise V4OpsError("activation_binding_mismatch")
@@ -318,11 +394,12 @@ def activate_v4(
         raise V4OpsError("luna_reference_requires_explicit_sample")
     if selected_binding.deployable or not selected_binding.reference_only:
         raise V4OpsError("reference_binding_required")
+    lock_v4_gate(session)
     activation_id = uuid4()
-    activated_at = now or _now()
+    activated_at = _activation_timestamp(session, now)
     requirements = _mapping(artifact.get("automatic_requirements", {}), "activation_invalid")
     metadata = {
-        "schema": ACTIVATION_SCHEMA,
+        "schema": artifact["schema"],
         "status": "active",
         "mode": mode,
         "artifact_sha256": artifact_sha,
@@ -333,6 +410,8 @@ def activate_v4(
         "automatic_requirements": requirements,
         "quality_status": "unmeasured_reference",
     }
+    if is_v5:
+        metadata["execution"] = _execution_approval(policy)
     session.add(AuditEvent(
         id=activation_id,
         actor_kind="human",
@@ -344,15 +423,42 @@ def activate_v4(
         created_at=activated_at,
     ))
     session.flush()
-    return V4Activation(activation_id, mode, artifact_sha, policy.digest, selected_binding, activated_at, samples, requirements)
+    return V4Activation(activation_id, mode, artifact_sha, policy.digest, selected_binding, activated_at, samples, requirements, artifact["schema"])
 
 
-def deactivate_v4(session: Session, *, actor: str, reason: str, now: datetime | None = None) -> UUID:
-    if not isinstance(actor, str) or not actor.strip() or not isinstance(reason, str) or not reason.strip():
+def deactivate_v4(session: Session, *, actor: str, reason: str, now: datetime | None = None) -> V4Deactivation:
+    if not isinstance(actor, str) or not actor.strip() or len(actor) > 128 or not isinstance(reason, str) or not reason.strip():
         raise V4OpsError("actor_reason_required")
-    previous = active_v4_activation(session)
+    lock_v4_gate(session)
+    # Stop must work even if the prior policy is unavailable or an old artifact
+    # can no longer authorize dispatch. The audit identity is sufficient here.
+    previous = session.scalar(select(AuditEvent).where(
+        AuditEvent.action == ACTIVATION_ACTION,
+        AuditEvent.aggregate_type == ACTIVATION_AGGREGATE,
+    ).order_by(AuditEvent.created_at.desc(), AuditEvent.id.desc()))
     activation_id = uuid4()
-    timestamp = now or _now()
+    timestamp = _activation_timestamp(session, now)
+    attempts = session.scalars(select(PrespecV4Attempt).where(
+        PrespecV4Attempt.status.in_(("queued", "running")),
+    ).order_by(PrespecV4Attempt.id).with_for_update()).all()
+    job_ids = {attempt.work_job_id for attempt in attempts if attempt.work_job_id is not None}
+    jobs = session.scalars(select(WorkJob).where(
+        WorkJob.id.in_(job_ids), WorkJob.status.in_(("queued", "running")),
+    ).order_by(WorkJob.id).with_for_update()).all() if job_ids else []
+    for attempt in attempts:
+        attempt.status = "cancelled"
+        attempt.completed_at = timestamp
+        attempt.error_code = "v4_deactivated"
+        attempt.lease_owner = None
+        attempt.lease_expires_at = None
+    for job in jobs:
+        job.status = "cancelled"
+        job.completed_at = timestamp
+        job.last_error_code = "v4_deactivated"
+        job.lease_owner = None
+        job.lease_expires_at = None
+    # Free-form operator text must not become a path, URL or secret in audit.
+    reason_code = reason if re.fullmatch(r"[a-z][a-z0-9_]{0,63}", reason) else "operator_requested"
     session.add(AuditEvent(
         id=activation_id,
         actor_kind="human",
@@ -363,23 +469,29 @@ def deactivate_v4(session: Session, *, actor: str, reason: str, now: datetime | 
         safe_metadata={
             "schema": ACTIVATION_SCHEMA,
             "status": "off",
-            "reason_code": reason.strip()[:128],
-            "previous_activation_id": str(previous.activation_id) if previous else None,
+            "reason_code": reason_code,
+            "previous_activation_id": str(previous.id) if previous else None,
             "deactivated_at": timestamp.isoformat(),
+            "cancelled_attempts": len(attempts),
+            "cancelled_jobs": len(jobs),
         },
         created_at=timestamp,
     ))
     session.flush()
-    return activation_id
+    return V4Deactivation(activation_id, len(attempts), len(jobs))
 
 
 def _activation_from_event(event: AuditEvent, *, settings: Any | None = None) -> V4Activation | None:
     metadata = event.safe_metadata
-    if not isinstance(metadata, Mapping) or metadata.get("status") != "active" or metadata.get("schema") != ACTIVATION_SCHEMA:
+    if not isinstance(metadata, Mapping) or metadata.get("status") != "active" or metadata.get("schema") not in {ACTIVATION_SCHEMA, LEGACY_ACTIVATION_SCHEMA}:
         return None
     try:
         policy = _policy_for(settings)
         if metadata.get("policy_digest") != policy.digest:
+            return None
+        if policy.document.get("schema") == "bidops.prespec-overview-policy.v5" and (
+            metadata.get("schema") != ACTIVATION_SCHEMA or metadata.get("execution") != _execution_approval(policy)
+        ):
             return None
         binding = _binding_from(metadata["binding"])
         if not _binding_matches_policy(binding, policy) or binding.deployable or not binding.reference_only:
@@ -387,7 +499,7 @@ def _activation_from_event(event: AuditEvent, *, settings: Any | None = None) ->
         activated_at = datetime.fromisoformat(str(metadata["activated_at"]))
         if activated_at.tzinfo is None:
             return None
-        samples = _sample_entries({"samples": metadata.get("samples", [])})
+        samples = _sample_entries({"schema": metadata["schema"], "samples": metadata.get("samples", [])})
         requirements = _mapping(metadata.get("automatic_requirements", {}), "activation_invalid")
         artifact_sha = metadata.get("artifact_sha256")
         if not isinstance(artifact_sha, str) or len(artifact_sha) != 64 or any(c not in _HEX64 for c in artifact_sha):
@@ -397,7 +509,7 @@ def _activation_from_event(event: AuditEvent, *, settings: Any | None = None) ->
             return None
         if binding.provider == V4_LUNA_REFERENCE_PROVIDER and mode != "explicit_sample":
             return None
-        return V4Activation(event.id, mode, artifact_sha, policy.digest, binding, activated_at, samples, requirements)
+        return V4Activation(event.id, mode, artifact_sha, policy.digest, binding, activated_at, samples, requirements, metadata["schema"])
     except (KeyError, TypeError, ValueError, V4OpsError):
         return None
 
@@ -435,6 +547,7 @@ def require_v4_enqueue_enabled(
     binding: V4ModelBinding,
     settings: Any | None = None,
 ) -> V4Activation:
+    lock_v4_gate(session)
     activation = active_v4_activation(session, settings=settings)
     if activation is None:
         raise V4AttemptError("v4_disabled")
@@ -447,6 +560,13 @@ def require_v4_enqueue_enabled(
         snapshot = session.get(PrespecV4PdfSnapshot, target.snapshot_id)
         if snapshot is None or snapshot.source_sha256 != sample["source_sha256"] or snapshot.source_size_bytes != sample["source_size_bytes"]:
             raise V4AttemptError("cohort_source_mismatch")
+        if activation.schema == ACTIVATION_SCHEMA and (
+            str(target.id) != sample.get("target_id")
+            or target.input_sha256 != sample.get("input_sha256")
+            or target.selection_manifest_sha256 != sample.get("selection_manifest_sha256")
+            or snapshot.pdf_sha256 != sample.get("pdf_sha256")
+        ):
+            raise V4AttemptError("cohort_target_mismatch")
     elif target.observation_kind == "explicit_sample":
         raise V4AttemptError("target_outside_cohort")
     return activation
@@ -670,21 +790,21 @@ def prepare_v4_notice(
         page_payload = json.loads(page_text_bytes)
         if not isinstance(page_payload, Mapping):
             raise V4OpsError("page_text_invalid")
+        candidates = read_snapshot_section_candidates(session, store, snapshot)
         range_selection = select_v4_input_range({
             "document_version_id": str(document.id),
             "source_sha256": source.sha256,
             "pages": page_payload.get("pages"),
             "blocks": page_payload.get("blocks", []),
-        })
+        }, candidates_complete=not bool(candidates and candidates.get("candidates_truncated")))
         if range_selection.status != "ready":
             # 결정적 선택기가 경계를 못 정한 것은 준비 실패가 아니다. 후보 목록을
             # 가리키는 검토 manifest를 남기고 사람 확정 대기 target을 동결한다.
             # attempt는 `--enqueue`에서도 만들지 않는다(자동 실행을 열지 않는다).
-            candidates = read_snapshot_section_candidates(session, store, snapshot)
             _review_manifest, review_bytes = build_v4_range_review_manifest(
                 range_selection,
                 candidates_sha256=snapshot.section_candidates_sha256,
-                candidate_count=int(candidates["section_count"]) if candidates else 0,
+                candidate_count=len(candidates["sections"]) if candidates else 0,
             )
             _persist_artifact(
                 session,
@@ -732,7 +852,7 @@ def prepare_v4_notice(
         attempt = None
         if enqueue:
             enqueue_binding = binding or resolve_v4_reference_binding(policy=_policy_for(settings), settings=settings)
-            attempt = enqueue_v4_attempt(session, target_id=target.id, binding=enqueue_binding, quality_status="unmeasured_reference")
+            attempt = enqueue_v4_attempt(session, target_id=target.id, binding=enqueue_binding, quality_status="unmeasured_reference", settings=settings)
         return V4PreparationOutcome(
             notice_id=notice_id, status="queued" if attempt is not None else "ready",
             document_version_id=document.id, snapshot_id=snapshot.id, target_id=target.id,
@@ -777,6 +897,7 @@ def prepare_v4_notice_once(session: Session, **kwargs: Any) -> V4PreparationOutc
 
 
 def retry_v4_attempt(session: Session, *, target_id: UUID, binding: V4ModelBinding, settings: Any | None = None) -> PrespecV4Attempt:
+    lock_v4_gate(session)
     target = session.get(PrespecV4Target, target_id)
     if target is None or target.selection_status != "ready":
         raise V4OpsError("target_not_ready")
@@ -787,10 +908,10 @@ def retry_v4_attempt(session: Session, *, target_id: UUID, binding: V4ModelBindi
     )
     if latest is not None and latest.status in {"queued", "running"}:
         raise V4OpsError("attempt_active")
-    if latest is not None and latest.status not in {"failed", "cancelled"}:
+    if latest is None or latest.status not in {"failed", "cancelled", "needs_human_review"}:
         raise V4OpsError("retry_requires_terminal_failure")
     try:
-        return enqueue_v4_attempt(session, target_id=target.id, binding=binding, quality_status="unmeasured_reference")
+        return enqueue_v4_attempt(session, target_id=target.id, binding=binding, quality_status="unmeasured_reference", settings=settings)
     except V4AttemptError as error:
         raise V4OpsError(error.code) from error
 

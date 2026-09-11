@@ -93,13 +93,15 @@ docker compose -p bidops -f docker-compose.yml \
 ```bash
 python3 skills/bidops-collect/scripts/collect_notices.py \
   --from-date <YYYY-MM-DD> --to-date <YYYY-MM-DD> \
-  --output-dir data/runs/<회차> --timeout 300
+  --output-dir data/runs/<날짜와-고유-suffix를-포함한-새-회차> --timeout 300
 ```
 
 - 기본 timeout 30초는 발주계획 수집 때처럼 부족할 가능성이 크다. 300초로 시작한다.
 - 결과는 `collected-notices.json` 하나에 입찰공고와 사전규격이 함께 들어간다.
   사전규격만 필요하면 `--skip-bids`를 준다.
-- 원문 페이지는 `<회차>/raw/`에 보존되므로 재분류는 `--from-raw`로 API 호출 없이 반복한다.
+- 출력 폴더는 선생성하지 않는다. 기존 빈 폴더도 거부하며 collector가 회차를 배타 생성한다.
+- 재분류는 `--from-raw data/runs/<원본 회차>/raw --output-dir data/runs/<새 회차>`로 API
+  호출 없이 수행한다. 원본 raw는 읽기만 하고 검증 복사한다. 경고/exit 1이면 적재하지 않는다.
 
 ### 5. 새 회차 적재와 화면 확인 2차
 

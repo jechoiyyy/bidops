@@ -16,7 +16,7 @@ import pytest
 from sqlalchemy import event, select
 from sqlalchemy.orm import Session
 
-from app.core.model_client import ModelClient, ModelIdentity
+from app.core.model_client import ModelClient, ModelIdentity, ModelIdentityError
 from app.core.models import AuditEvent
 from app.deep_review.models import (
     ContentObject,
@@ -901,6 +901,103 @@ def test_a_resolved_runner_does_not_rebuild_its_client_on_later_polls(
     finally:
         session.close()
         engine.dispose()
+
+
+def test_transient_identity_failure_retries_only_after_clock_backoff(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """일시적 identity 장애는 10초 전에는 재호출하지 않고 이후 복구한다."""
+
+    from app.deep_review.services import prespec_overview_runner as runner_module
+
+    policy = load_overview_policy()
+    assert policy is not None
+    now = [datetime(2026, 9, 10, tzinfo=UTC)]
+    built: list[str] = []
+
+    class _IdentityClient(_FakeClient):
+        def __init__(self, *, succeeds: bool) -> None:
+            super().__init__([], model=policy.model_name)
+            self.succeeds = succeeds
+
+        def verify_identity(self) -> ModelIdentity:
+            if not self.succeeds:
+                raise ModelIdentityError("identity_unavailable", retryable=True)
+            return ModelIdentity(model=policy.model_name, revision="d" * 64)
+
+        def close(self) -> None:
+            return None
+
+    def _for_purpose(*_args: Any, **_kwargs: Any) -> _IdentityClient:
+        built.append("client")
+        return _IdentityClient(succeeds=len(built) > 1)
+
+    monkeypatch.setattr(runner_module.ModelClient, "for_purpose", _for_purpose)
+    runner = PreSpecOverviewRunner(
+        raw_response_store=_FakeStore(), root=tmp_path, clock=lambda: now[0]
+    )
+
+    assert runner._resolve() == (None, None)
+    assert built == ["client"]
+    now[0] += timedelta(seconds=9)
+    assert runner._resolve() == (None, None)
+    assert built == ["client"]
+    now[0] += timedelta(seconds=1)
+    binding, client = runner._resolve()
+    assert binding is not None
+    assert client is not None
+    assert built == ["client", "client"]
+
+
+def test_fixed_identity_failure_is_not_polled_again(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """인증·구성·revision 계열 고정 실패는 runner 수명 동안 재시도하지 않는다."""
+
+    from app.deep_review.services import prespec_overview_runner as runner_module
+
+    policy = load_overview_policy()
+    assert policy is not None
+    now = [datetime(2026, 9, 10, tzinfo=UTC)]
+    built: list[str] = []
+    settings = SimpleNamespace(
+        vllm_base_url="http://127.0.0.1:8000/v1",
+        vllm_allowed_hosts="127.0.0.1",
+        vllm_api_key="first-synthetic-key",
+        vllm_model_revision="d" * 64,
+        vllm_overview_api_dialect="vllm",
+    )
+
+    class _IdentityClient(_FakeClient):
+        def __init__(self) -> None:
+            super().__init__([], model=policy.model_name)
+
+        def verify_identity(self) -> ModelIdentity:
+            if len(built) == 1:
+                raise ModelIdentityError("model_revision_invalid", retryable=False)
+            return ModelIdentity(model=policy.model_name, revision="d" * 64)
+
+        def close(self) -> None:
+            return None
+
+    def _for_purpose(*_args: Any, **_kwargs: Any) -> _IdentityClient:
+        built.append("client")
+        return _IdentityClient()
+
+    monkeypatch.setattr(runner_module.ModelClient, "for_purpose", _for_purpose)
+    runner = PreSpecOverviewRunner(
+        raw_response_store=_FakeStore(), root=tmp_path, clock=lambda: now[0],
+        policy=policy, settings=settings,
+    )
+
+    assert runner._resolve() == (None, None)
+    now[0] += timedelta(days=1)
+    assert runner._resolve() == (None, None)
+    assert built == ["client"]
+    settings.vllm_api_key = "second-synthetic-key"
+    binding, client = runner._resolve()
+    assert binding is not None and client is not None
+    assert built == ["client", "client"]
 
 
 def test_a_review_that_cannot_produce_an_attempt_is_closed_and_the_slot_moves_on(

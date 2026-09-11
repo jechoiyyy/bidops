@@ -17,6 +17,7 @@ import hashlib
 import json
 from pathlib import Path
 
+import pytest
 from sqlalchemy import event
 
 from app.main import app  # noqa: F401 — 조립 계층이 lifecycle 확장점을 등록한다
@@ -132,8 +133,9 @@ def test_pre_specs_overview_review_status_projects_from_review_row(pre_specs_api
     assert items[refs["sw_no"].id]["overview_review_status"] is None
 
 
+@pytest.mark.parametrize("status", ["failed", "cancelled", "needs_human_review"])
 def test_pre_specs_list_uses_v4_current_status_for_item_and_counts(
-    pre_specs_api, monkeypatch
+    pre_specs_api, monkeypatch, status
 ):
     session, _engine, refs = pre_specs_api
     session.add(
@@ -146,7 +148,7 @@ def test_pre_specs_list_uses_v4_current_status_for_item_and_counts(
     )
     session.commit()
     current = {
-        refs["sw_yes"].id: {"status": "failed", "result_id": None},
+        refs["sw_yes"].id: {"status": status, "result_id": None},
         refs["sw_no"].id: None,
     }
 
@@ -160,8 +162,8 @@ def test_pre_specs_list_uses_v4_current_status_for_item_and_counts(
     items = _items_by_id(payload)
     counts = {row["status"]: row["count"] for row in payload["overview_status_counts"]}
 
-    assert items[refs["sw_yes"].id]["overview_review_status"] == "failed"
-    assert counts["failed"] == 1
+    assert items[refs["sw_yes"].id]["overview_review_status"] == status
+    assert counts[status] == 1
     assert counts["completed"] == 0
 
 

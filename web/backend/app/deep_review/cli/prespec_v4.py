@@ -15,12 +15,13 @@ def build_parser() -> argparse.ArgumentParser:
     )
     actions = parser.add_mutually_exclusive_group(required=True)
     actions.add_argument("--dry-run", action="store_true", help="read-only eligibility plan")
+    actions.add_argument("--preview-activation", action="store_true", help="read-only stage, binding and call-budget preview")
     actions.add_argument("--activate", action="store_true", help="append an active cohort audit event")
-    actions.add_argument("--deactivate", action="store_true", help="append an off audit event")
+    actions.add_argument("--deactivate", action="store_true", help="stop v4 and cancel queued/running attempts")
     actions.add_argument("--prepare", action="store_true", help="prepare and freeze one or more PDF inputs")
-    actions.add_argument("--enqueue", action="store_true", help="prepare and enqueue one or more v4 attempts")
+    actions.add_argument("--enqueue", action="store_true", help="enqueue a frozen target, or prepare and enqueue notices")
     actions.add_argument("--enqueue-reference", action="store_true", help="enqueue one Luna reference attempt (app role)")
-    actions.add_argument("--retry", action="store_true", help="append a new attempt for a failed target")
+    actions.add_argument("--retry", action="store_true", help="append a new attempt after failure, cancellation or claim review")
     actions.add_argument("--run-reference", action="store_true", help="run an already queued Luna reference attempt (worker role)")
     actions.add_argument("--assist-range", action="store_true", help="record one model range suggestion for a needs_human_review target")
     parser.add_argument("--notice-id", action="append", type=int, default=[])
@@ -78,14 +79,19 @@ def main(argv: Sequence[str] | None = None) -> int:
             dry_run_v4,
             load_v4_activation_artifact,
             prepare_v4_notice_once,
+            preview_v4_activation,
             resolve_v4_reference_binding,
             retry_v4_attempt,
         )
-        from ..services.prespec_v4_runner import V4ModelBinding, load_v4_policy
+        from ..services.prespec_v4_runner import V4AttemptError, V4ModelBinding, load_v4_policy
 
         settings = get_settings()
+        if args.preview_activation:
+            result = preview_v4_activation(artifact_path=args.artifact, settings=settings)
+            print(json.dumps(result, ensure_ascii=False, sort_keys=True, default=str))
+            return 0
         init_db()
-        if not args.actor and not args.dry_run:
+        if not args.actor and not (args.dry_run or args.preview_activation):
             raise V4OpsError("actor_required")
         with SessionLocal() as session:
             if args.dry_run:
@@ -108,9 +114,10 @@ def main(argv: Sequence[str] | None = None) -> int:
                 session.commit()
                 result = {"status": "active", "activation_id": str(result.activation_id), "mode": result.mode, "artifact_sha256": result.artifact_sha256, "binding_digest": result.binding.binding_digest}
             elif args.deactivate:
-                activation_id = deactivate_v4(session, actor=args.actor, reason=args.reason)
+                stopped = deactivate_v4(session, actor=args.actor, reason=args.reason)
                 session.commit()
-                result = {"status": "off", "activation_id": str(activation_id)}
+                result = {"status": "off", "activation_id": str(stopped.activation_id),
+                          "cancelled_attempts": stopped.cancelled_attempts, "cancelled_jobs": stopped.cancelled_jobs}
             elif args.enqueue_reference:
                 if not args.target_id or args.luna_response is None:
                     raise V4OpsError("reference_target_and_response_required")
@@ -222,7 +229,20 @@ def main(argv: Sequence[str] | None = None) -> int:
                     "attempt_id": None,
                 }
             else:
-                if args.prepare or args.enqueue:
+                if args.enqueue and args.target_id:
+                    if args.notice_id or args.luna_response:
+                        raise V4OpsError("action_arguments_conflict")
+                    from ..services.prespec_v4_runner import enqueue_v4_attempt
+
+                    binding_value = _read_json(args.binding)
+                    binding = resolve_v4_reference_binding(settings=settings) if binding_value is None else V4ModelBinding(**binding_value)
+                    attempt = enqueue_v4_attempt(session, target_id=__import__("uuid").UUID(args.target_id),
+                        binding=binding, quality_status="unmeasured_reference", settings=settings)
+                    if attempt is None:
+                        raise V4OpsError("attempt_unavailable")
+                    session.commit()
+                    result = {"status": attempt.status, "attempt_id": str(attempt.id), "target_id": str(attempt.target_id)}
+                elif args.prepare or args.enqueue:
                     if not args.notice_id:
                         raise V4OpsError("notice_id_required")
                     if args.renderer is None or args.font is None or args.config is None:
@@ -262,7 +282,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     raise V4OpsError("action_required")
         print(json.dumps(result, ensure_ascii=False, sort_keys=True, default=str))
         return 0
-    except V4OpsError as error:
+    except (V4OpsError, V4AttemptError) as error:
         print(json.dumps({"error": error.code}, ensure_ascii=False, sort_keys=True))
         return 2
     except (OSError, ValueError, TypeError, json.JSONDecodeError):

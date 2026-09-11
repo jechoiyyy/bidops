@@ -395,6 +395,7 @@ Lean 안정 오류 code의 전체 vocabulary는 `invalid_request`, `actor_name_r
 | `review-inputs/manifest.json` / `bidops.order-plan-review-inputs-manifest.v1` | 발주계획 실험 담당자 | 입력 검증기, 실행 담당자 | Git에서 제외된 회사 역량·prompt 본문의 상대 경로, 승인·초안 상태, 실행 허용 여부, SHA-256과 active 선택 |
 | `selection-decision.json` / `bidops.order-plan-screening-selection-decision.v1` | C-2 사람 결정권자 | 선별 제품 정책·구현 담당자 | 선택한 stage1·stage2 binding, 측정 지표, 수용한 누락 artifact, 운영 활성화와 분리된 선택 상태 |
 | `collected-notices.json` / `bidops.collected.v2` | collect | 표본 선정, 웹 적재 | 원본 회차, 정규화 notices, source window |
+| `collection-provenance.json` / `bidops.collection-provenance.v1` | 사전규격·입찰 공통 collector | 재분류·운영 확인 | 원본 raw 상대 경로, 실행 옵션, 보존 페이지 SHA-256, 완전성·경고 |
 | `collected-order-plans.json` / `bidops.collected-order-plans.v1` | `collect_order_plans.py` | 웹 적재 | 전체 발주계획 projection, 공식 계획번호·연관 공고번호·관측 범위·원문 hash |
 | `validation-set.json` / `bidops.validation-set.v2` | collect sample | screen v2, 품질 기준선 | 고정 표본과 source identity |
 | `screening-input.json` / `bidops.screening-input.v1` | runtime orchestrator | screen v3 worker | execution/run, 후보, 불변 binding |
@@ -410,6 +411,18 @@ Lean 안정 오류 code의 전체 vocabulary는 `invalid_request`, `actor_name_r
 허용 merge는 `validation-set.v2 + decisions.v2 → screening.v2`와 `screening-input.v1 + decisions.v3 → screening.v3`다. 세대를 섞으면 중단한다. v3 성공 결과는 execution, run, policy, prompt, model digest, profile digest, input digest를 역추적할 수 있어야 한다. 일부 notice 실패 시 성공 subset과 failure artifact를 함께 보존하고 `partial_artifact=true`로 표시한다.
 
 현재 `render_report.py`는 `bidops.screening.v2`만 허용한다. v3를 report stage에 전달하면 계약 오류로 종료하며, v3 HTML·feedback 연결은 구현되지 않았다. 소비자는 v3가 자동으로 보고서까지 이어진다고 가정하지 않는다.
+
+사전규격·입찰 공통 collector는 `--output-dir`을 배타 생성한다. 기존 빈 폴더·파일·symlink와
+허용 루트 이탈은 키 확인·HTTP 전에 거부하며 raw와 최종 JSON도 배타 쓰기한다. 웹·예약 호출은
+출력 폴더를 선생성하지 않는다. `--from-raw SOURCE_RAW`는 원본을 읽기만 하고 별도의 새 회차에
+바이트·hash를 검증 복사한다. 기본 `--allowed-root`는 저장소의 `data/runs`, 웹·예약은
+`settings.bidops_root/data/runs`다. 테스트만 별도 허용 루트를 명시 주입한다.
+provenance v1 필드는 `schema_version`, `generated_at`, nullable `source_raw`, `source_window`,
+`options(rows,timeout,skip_bids,skip_prespecs)`, `sources`, `complete`, `warnings`,
+`raw_pages[{path,source_path,sha256}]`다. 원본 경로는 허용 루트 상대 경로이고 자격증명은 없다.
+페이지 누락·건수 불일치·안전 상한 등 부분 수집은 경고와 `complete=false`, exit 1로 남기며
+웹·예약은 자동 적재하지 않는다. 중간 실패의 raw를 보존하고 재시도는 새 회차에서 수행한다.
+정규화 v2와 사전규격·입찰의 종료일 포함(0000~2359), 발주계획의 종료일 제외는 유지한다.
 
 `collected-notices.json`의 `bidops.collected.v2`는 T-11에서 유지한다. 입찰공고 원문에 이미 있는
 `orderPlanUntyNo`를 기존 `lifecycle` 안의 선택적 `order_plan_no`로 투영할 뿐이며, 기존 필드의
@@ -515,7 +528,7 @@ input과 다른 request 파일은 삭제하지 않는다. scratch는 임시 hand
 정본이나 영속 snapshot이 아니다.
 
 native `renderer=rhwp-svg-pdf` 성공 결과는 `native_sidecars`에 `hwpx`, `page_text`,
-`para_page_map`, `hwpx_verify`를 추가한다. 파일 descriptor는 `{file,byte_count,sha256}`이고
+`para_page_map`, `section_candidates`, `hwpx_verify`를 추가한다. 파일 descriptor는 `{file,byte_count,sha256}`이고
 `native/<request_uuid>.hwpx`, `.page-text.json`, `.para-page-map.json`으로만 해소한다.
 원본 HWPX는 `hwpx`·`hwpx_verify`가 `null`이고 원문을 재사용한다. HWP 변환본은
 `hwpx_verify={identical:true,diff_count:0,pages:{before:N,after:N,identical:true}}`를
@@ -525,9 +538,18 @@ page-text는 `bidops.rhwp-page-text.v1`의 `page_count`, 물리 페이지의
 성공 JSON을 publish하며 소비자는 고정 경로·regular file·상한·hash·페이지 수와
 schema를 검사한다. 구조 블록을 합쳐 PDF page text를 대신하지 않는다.
 
+후보는 현재 `bidops.section-candidates.v2`로 생성하고 기존 v1도 읽는다.
+후보 산출 실패가 구조의 `section_candidates_unavailable` 경고에 명시되어 있고 핵심
+산출물의 독립 검증이 통과한 경우에만 `native_sidecars.section_candidates=null`을
+허용한다. descriptor 키 자체의 누락이나 경고 없는 null은 거부한다. 실제 후보 파일의
+JSON `null`도 유효 후보가 아니며 거부한다. 후보가 있으면
+고정 경로·byte 수·hash·canonical JSON·후보 결속 검사를 그대로 적용한다. 저장된
+snapshot의 후보 참조 세 열은 이 경우 함께 null이며 원본·PDF·페이지 텍스트·대응표의
+필수 참조와 검사는 생략하지 않는다. 후보 미제공은 변환 또는 내용 검토 성공을 뜻하지 않는다.
+
 ## DB와 migration 계약
 
-- 코드의 Alembic head는 `0023_rhwp_snapshot`이다. 운영 적용은 별도 승인 단계다. 그 이전 T-23 phase 2
+- 코드와 승인 적용된 운영 DB의 Alembic head는 `0025_overview_claim_ledger`이다. 이번 MVP 보완에서는 migration을 실행하지 않았다. 그 이전 T-23 phase 2
   migration은 `0014_prespec_overview_attempt_result`이며, 아래 T-23 검증 증거는 `0014`
   경계에 해당한다.
 - `0001_lean_v1_postgresql`은 기존 수집·리뷰와 심층 검토 table, `0002_screening_basis_text`는 긴 판정 설명 보존, `0003_screening_runtime_pg`는 판정 실행·품질·정책·일정·감사와 불변 trigger를 추가한다.
@@ -905,7 +927,52 @@ fenced attempt를 추가한다. target은 검증된 PDF에 대해 준비가 끝�
 upgrade/constraint 검사는 기존 object-store/scratch contract와 함께 구현 검증에만
 사용한다.
 
-### v4 개요 입력 범위의 사람 확인 (2026-09-10, R7)
+### 주장 검증 기반 개요 계약 (2026-09-10)
+
+신규 Qwen 쓰기는 `prespec-overview-policy.v5`와 activation v2를 사용한다. 앞 절의 policy v4·
+page-review v3 설명은 과거 결과/명시 참조의 계약이며 새 검증 통과로 재해석하지 않는다.
+상세 필드·상한·상태 전이의 정본은 [안정화 Spec](0910_prespec-workflow-hardening/Spec.md)이다.
+
+- 초안 `bidops.prespec-overview-claims.v1`은 claim별 id/section/text/page·quote/typed quantity,
+  분석과 supporting claim ID, enum unknown을 가진다. 서버는 원문 유일 인용을 Unicode
+  offset·page hash에 결속하고 수치·단위·주체/역할·VAT·기산점·날짜·요구사항 ID를 독립 대조한다.
+- 별도 `prespec_overview_semantic` stage는 같은 승인 페이지 문맥과 초안·검증 인용을 받고
+  claim/analysis/unknown 전체 ID의 제한된 판정만 반환한다. 결정적 실패를 의미 판정으로
+  뒤집지 않는다. 하나라도 미검증이면 전체 `needs_human_review`, result는 null이다.
+- 선택 원문 합계 5,000자는 일률 차단 기준이 아니다. 두 stage 각각의 실제 요청, 확인된
+  모델 context와 출력 예약, 기존 payload 상한을 검사하며 원문을 절단·사전 요약하지 않는다.
+  용량 초과/확인 불가 단계는 전송 전 `failed/input_capacity_exceeded`로 막는다. 내용 검증
+  대기와 구분하고 앞선 호출 이력은 보존한다. 호출 증가·자동 분할은 하지 않는다.
+- 최종 `bidops.prespec-overview-page-review.v4`의 네 사실 섹션은
+  `{claim_id,text,evidence:[{page,quote,start_char,end_char,page_text_sha256}]}`다.
+  검증한 분석도 `{id,text,supporting_claim_ids}`로 그대로 배치한다. unknowns/input_limitations는
+  서버 문구이고 `verification_id`·`verification_sha256`으로 전체 검증 기록과 연결한다.
+- `0025_overview_claim_ledger`는 attempt의 `activation_id`·새 terminal 상태,
+  result의 verification FK/hash와 append-only call/verification 두 테이블을 더한다.
+  call stage는 `draft|semantic`, ordinal은 1~3이며 dispatch와 하나의 response/error를 기록한다.
+  늦은 응답은 terminal attempt를 수정하지 않고 call 이력에만 추가한다. 완료는 draft·semantic
+  원응답 보존과 검증/result/attempt/WorkJob의 동일 commit이 필요하다. 검증 대기는 결과 없이
+  verification/attempt/WorkJob(`failed/claim_verification_required`)을 동일 commit으로 닫는다.
+- 새 result의 `input_sha256`은 target·attempt·verification의 동결 입력 hash이고 prompt hash는
+  호출별 ledger에 남는다. 과거 단일 raw 응답 hash와 v3 payload·사람 리뷰·품질 표식은 수정하지 않는다.
+
+| 조회 | 응답·경계 |
+|---|---|
+| `GET /api/pre-specs/{notice_id}/overview-pages/v2` | `bidops.prespec-overview-pages.v2`, notice_id/current/reviews/range_review/verification. history는 v3/v4 parser로 구분하며 current가 비완료면 result_id=null |
+| 기존 `GET …/overview-pages` | v1/v3 호환 조회. 새 계약 attempt/result가 있으면 409 `overview_contract_upgrade_required`, 과거 결과 대체 없음 |
+| `GET …/overview-pages/attempts/{attempt_id}/pdf` | 실패·검증 대기도 고정 PDF를 조회. notice/attempt/document/snapshot 범위, safe document, 최신 clean scan·고정 version/etag/size/SHA를 재검사; 404/409/503 안전 코드 |
+| `GET …/overview-pages/targets/{target_id}/pdf` | 실행/결과 없이 준비 PDF 조회. notice/target/document/snapshot 연결·원본 hash/size와 최신 clean scan·PDF clean/version/etag/size/SHA 재검사. 과거 안전 문서도 열람 가능하며 내용 검증/승인 아님 |
+
+v2 verification은 현재 검증 ID/status/reason_codes와 claim별 text·deterministic_status·
+semantic_status·reason_codes·verified_evidence만 반환한다. 원응답/내부 저장 위치/prompt는
+노출하지 않는다. 범위 사람 확인의 `range_review`는 별도이며 확정은 여전히 실행을 만들지 않는다.
+기존 result PDF 경로와 private/no-store·nosniff·sandbox 헤더를 유지한다. 회사 핏은 v4
+검증 hash와 문장/인용 대응을 다시 검사하고 취소·검증 대기·실패·stale에서 과거 성공을 쓰지 않는다.
+새 수동 범위가 이전 target을 대체하면 이전 queued/running/completed current는
+`stale/target_superseded`, result_id=null이다. 이전 완료 본문·참조 품질 표식은 이력에 남으며
+회사 핏은 동일 projection을 읽어 새 범위의 입력으로 재사용하지 않는다.
+
+### v4 개요 입력 범위의 사람 확인 (2026-09-11 MVP 보완)
 
 결정적 heading 선택기가 범위를 정하지 못하면 준비는 **실패가 아니다.** 검토 manifest
 `bidops.prespec-v4-range-review.v1`(`{schema_version, document_version_id, source_sha256,
@@ -914,9 +981,17 @@ input_limitations}`)을 기존 manifest object 경로(`structure/prespec-v4/{doc
 retention `prespec-v4-input`)에 저장하고 `selection_status=needs_human_review`,
 `selection_strategy=heading_scope` target을 동결한다. `prepare` 출력 status는
 `needs_human_review`이며 `--enqueue`에서도 attempt를 만들지 않는다. 절 후보 제목은 산출물
-⑦(`bidops.section-candidates.v1`)에만 있고 이 manifest에는 digest·개수만 남는다.
+⑦(`bidops.section-candidates.v1|v2`)에만 있고 이 manifest에는 digest·**반환** 개수만 남는다.
 
-- `GET /api/pre-specs/{notice_id}/overview-pages`에 nullable 필드 `range_review`가 추가된다
+새 후보 v2는 `outline|clause|page`를 허용하며 `section_count`는 전체 수,
+`returned_count`는 sections 길이, `candidates_truncated`는 반환<전체를 뜻한다.
+upstream `truncated`도 보존하되 발췌 절단과 후보 부분 반환을 혼동하지 않는다.
+부분 반환에는 truncated=true가 필요하다. v1의 전체=반환 계약은 소급 변경하지 않는다.
+native는 독립적으로 확인한 core PDF/페이지 텍스트를 보존하고 digest 실패는
+`section_candidates_unavailable`, 부분 목록은 `section_candidates_incomplete` 경고로 연결한다.
+부분 목록은 자동 범위·index 기반 확정/모델 보조에 쓰지 않는다. 직접 쪽 지정은 가능하다.
+
+- 기존 `GET /api/pre-specs/{notice_id}/overview-pages`의 nullable `range_review`는 v1 계약이다
   (`schema_version`은 그대로 `bidops.prespec-overview-pages.v1`). 규칙은 공고의 **최신 target**
   하나다. 최신이 `needs_human_review`면 확정 대기(`confirmation: null`), 최신이 `ready`이며
   `selection_strategy=human_confirmed`면 확정 상태(`reason_code: null`), 그 밖
@@ -928,20 +1003,33 @@ retention `prespec-v4-input`)에 저장하고 `selection_status=needs_human_revi
   `{start_index,end_index,model_name,quality_status,created_at}`로만 투영한다 — 모델이 적은 사유
   문장은 계약에 없다. `confirmation`은 확정 target의 불변 manifest와 확정 감사에서
   `{target_id,confirmed_from_target_id,start_index,end_index,first_page,last_page,page_numbers,
-  actor,note,created_at}`를 만든다. 후보·manifest 읽기 실패는 빈 값으로 낮추지 않고 오류다.
+  actor,note,created_at}`를 만든다. v1의 후보·manifest 읽기 실패는 오류이며 outline/부분 반환은
+  409 `overview_contract_upgrade_required`다.
+- `GET …/overview-pages/v2`의 nested range_review는 `bidops.prespec-overview-range-view.v2`다.
+  기존 필드에 `candidate_status=complete|partial|unavailable`, `candidate_count_total`(불명확하면 null),
+  `candidate_count_returned`, `warning_codes`, `selected_pages`, `can_confirm`을 추가한다.
+  `candidates_mode=outline|clause|page|null`. 최신 자동 ready도 반환해 사람이 PDF를 확인하고
+  다시 범위를 고를 수 있다. 후보 읽기 실패는 unavailable 경고/쪽 선택으로 연결하지만
+  필수 manifest/page-text 무결성 오류는 닫는다. 기존 자동 target의 같은 줄 복수 장 경계나 `제안개요` 작성 양식 오선택은
+  `ambiguous_scope_boundary` warning으로만 표시하며 기존 target·실패 상태를 덮지 않는다.
 - `POST /api/pre-specs/{notice_id}/overview-pages/range-confirmations`는 기존 actor 헤더 규약
   (`X-BidOps-Actor-Name`[`-Format`])을 요구한다. Body는 `{target_id, start_index, end_index,
   first_page, last_page, note}`이고 (start_index,end_index) 쌍과 (first_page,last_page) 쌍 중
   **정확히 하나**를 채운다(`note` ≤ 500자). 201 응답은 `{target_id(새 id), selection_status:"ready",
   first_page, last_page, page_numbers, attempt_enqueued: false}`이며 `attempt_enqueued`는 항상
   `false`다 — 확정은 입력을 준비할 뿐이고 실행은 별도 승인이다.
+  최신 ready/needs_human_review, 현재 safe 문서와 source/PDF 최신 clean 상태만 허용한다.
+  후보가 있어도 직접 쪽을 지정할 수 있다. enqueue와 공유하는 notice 행 잠금으로 직렬화하며
+  active attempt가 있으면 409 `target_execution_active`, 안전 현재성 실패는
+  409 `document_not_current_safe`다. 범위 변경 뒤 옛 target enqueue는 `target_superseded`로 거부한다.
 - 후보 index → 쪽: `first_page = candidates[start].page`, `last_page = candidates[end+1].page`
   (다음 후보가 없으면 `pdf_page_count`), 역순이면 `last_page = first_page`. 확정된 범위는 연속
   **전체 쪽**이므로 manifest의 `pages[].text_sha256`은 `source_page_text_sha256`과 같다. 새 target은
   같은 snapshot·observation을 쓰고 `selection_strategy=human_confirmed`, `selection_status=ready`이며
   manifest에 `confirmed_from_target_id`·`confirmed_by`·`note`·`candidate_indices`가 더해진다.
 - 오류는 기존 envelope이다. 404 `target_not_found`(공고 불일치 포함), 409 `target_not_pending`
-  (최신 target이 아니거나 확정 대기가 아님), 422 `range_invalid`(쌍 규칙·index·쪽 범위 위반),
+  (최신 target이 아니거나 ready/확정 대기가 아님), 422 `range_invalid`(쌍 규칙·index·쪽 범위 위반),
+  422 `candidate_range_incomplete|candidate_range_unavailable`(쪽 범위로 확인 필요),
   413 `input_size_limit`, 400 `actor_name_required|actor_name_invalid`. 그 밖의 내부 안전 코드는
   500 `processing_failed`로 닫고 응답에 싣지 않는다.
 - 감사는 두 행뿐이다. 확정은 `prespec_v4.range_confirmed`(aggregate `prespec_v4_target`=새 id,
@@ -971,7 +1059,7 @@ digest, reference-only model binding이 검증되지 않으면 dispatch와 enque
 object를 확인한 별도 준비 경계에서 scratch v2 PDF를 호출하고 snapshot/page-text/
 substring manifest를 동결한다. attachment download의 120초 lease를 재사용하지
 않는다. `--enqueue`는 같은 트랜잭션에서 기존 `WorkJob` aggregate slot과 새 v4
-attempt를 만들고, `--retry`는 terminal failed/cancelled target에 새 sequence
+attempt를 만들고, `--retry`는 terminal failed/cancelled/needs_human_review target에 새 sequence
 attempt를 append한다. 기존 attempt/target/result를 수정하거나 legacy overview로
 우회하지 않는다. PDF·관측 실패는 target 없는 `failed` current로 남기며 model call을
 만들지 않는다. **범위를 정하지 못한 것은 실패가 아니다** — 2026-09-10부터 사람 확인
@@ -988,8 +1076,12 @@ hash/size가 함께 결속되어야 한다. 이전 관측이 없으면 최초 �
 
 준비/예약은 app role이 source/structure object와 snapshot/target/WorkJob/attempt를
 append하고, analysis worker는 source를 읽지 않고 frozen manifest만 소비하며 attempt
-lifecycle 열만 갱신한다. worker의 model read는 v4 current binding과 기존 page-v3
-validator를 다시 확인한다. 운영 DB/MinIO 쓰기·scheduler·실제 모델 호출은 명시적인
+lifecycle 열만 갱신한다. 새 다단계 실행은 activation v2의 정확한 target/input/PDF 결속과
+두 stage·호출 3회(의미 1회)·300초/lease 1,200초 승인이 필요하다. v1은 새 실행 승인이 아니다.
+app은 call/verification SELECT만, worker는 SELECT/INSERT만 가능하며 app의 attempt 변경은 취소만
+허용한다. 중지는 gate 잠금 하에서 OFF와 queued/running attempt/job 취소를 원자 확정하고
+취소 집계를 반환한다. 재실행은 기존 terminal job도 재개하지 않고 새 job/attempt로 만든다.
+운영 DB/MinIO 쓰기·scheduler·실제 모델 호출은 명시적인
 활성·배포 절차가 끝나기 전 수행하지 않는다.
 
 ### Luna 명시 참조 개요 실행 (2026-09-09)

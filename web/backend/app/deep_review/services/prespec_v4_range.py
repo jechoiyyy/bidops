@@ -4,7 +4,7 @@
 `needs_human_review` target을 동결한다(ADR-RDP-004, Requirements F9). 이 모듈은
 그 다음 두 가지만 한다.
 
-1. **사람 확정**: 최신 `needs_human_review` target에 대해 사람이 고른 절 index
+1. **사람 확정**: 실행 대기가 없는 최신 `needs_human_review` 또는 `ready` target에 대해 사람이 고른 절 index
    쌍 또는 쪽 쌍을 받아 전체 쪽 텍스트로 새 `ready`·`human_confirmed` target을
    동결한다. attempt·정책 활성화·모델 호출은 하지 않는다 — 자동 실행을 열지
    않는다는 것이 이 단계의 요점이다.
@@ -49,6 +49,9 @@ from ...lifecycle import lock_notice
 from ..models import (
     ContentObject,
     ContentObjectLocation,
+    ContentScan,
+    DocumentVersion,
+    PrespecV4Attempt,
     PrespecV4PdfSnapshot,
     PrespecV4Target,
 )
@@ -57,6 +60,7 @@ from ..schemas.page_overview import (
     PageOverviewRangeCandidate,
     PageOverviewRangeConfirmation,
     PageOverviewRangeReview,
+    PageOverviewRangeReviewV2,
 )
 from .prespec_v4 import (
     MAX_V4_MANIFEST_BYTES,
@@ -66,6 +70,7 @@ from .prespec_v4 import (
     freeze_v4_target,
     read_snapshot_section_candidates,
     select_v4_page_span,
+    select_v4_input_range,
 )
 from .prespec_v4_ops import V4OpsError, _policy_for
 
@@ -161,6 +166,41 @@ def _pending_target(session: Session, target: PrespecV4Target) -> None:
         raise V4OpsError("target_not_pending")
 
 
+def _confirmable_target(session: Session, target: PrespecV4Target) -> None:
+    latest = _latest_target(session, target.notice_id)
+    if latest is None or latest.id != target.id or target.selection_status not in {"needs_human_review", "ready"}:
+        raise V4OpsError("target_not_pending")
+    if session.scalar(select(PrespecV4Attempt.id).where(
+        PrespecV4Attempt.notice_id == target.notice_id,
+        PrespecV4Attempt.status.in_(("queued", "running")),
+    ).limit(1)) is not None:
+        raise V4OpsError("target_execution_active")
+
+
+def _safe_snapshot(session: Session, target: PrespecV4Target) -> PrespecV4PdfSnapshot:
+    snapshot = session.get(PrespecV4PdfSnapshot, target.snapshot_id)
+    document = session.get(DocumentVersion, target.document_version_id)
+    if (snapshot is None or snapshot.notice_id != target.notice_id
+            or snapshot.document_version_id != target.document_version_id):
+        raise V4OpsError("snapshot_not_found")
+    if (document is None or document.notice_id != target.notice_id or not document.is_current
+            or document.safety_status != "safe" or document.needs_human_review):
+        raise V4OpsError("document_not_current_safe")
+    source = session.get(ContentObject, document.content_object_id)
+    scan = session.scalar(select(ContentScan).where(ContentScan.content_object_id == document.content_object_id)
+                          .order_by(ContentScan.scanned_at.desc(), ContentScan.id.desc()).limit(1))
+    if (source is None or source.sha256 != snapshot.source_sha256
+            or source.size_bytes != snapshot.source_size_bytes or scan is None or scan.status != "clean"):
+        raise V4OpsError("document_not_current_safe")
+    pdf = session.get(ContentObject, snapshot.pdf_content_object_id)
+    pdf_scan = session.scalar(select(ContentScan).where(ContentScan.content_object_id == snapshot.pdf_content_object_id)
+                              .order_by(ContentScan.scanned_at.desc(), ContentScan.id.desc()).limit(1))
+    if (pdf is None or pdf.sha256 != snapshot.pdf_sha256 or pdf.detected_mime != "application/pdf"
+            or pdf_scan is None or pdf_scan.status != "clean"):
+        raise V4OpsError("document_not_current_safe")
+    return snapshot
+
+
 def _int_or_none(value: Any) -> int | None:
     if value is None:
         return None
@@ -214,6 +254,8 @@ def _pages_from_indices(
     """
 
     sections = list(candidates.get("sections") or []) if candidates else []
+    if candidates and candidates.get("candidates_truncated") is True:
+        raise V4OpsError("candidate_range_incomplete")
     if not sections:
         raise V4OpsError("range_invalid")
     if start_index < 0 or end_index < start_index or end_index >= len(sections):
@@ -264,18 +306,24 @@ def confirm_v4_range(
 
     # 공고 잠금이 "최신 target" 판정의 fence다. 없으면 동시 요청 둘이 같은 확정
     # 대기 target에서 각자 ready target을 동결할 수 있다.
+    # Enqueue takes this same notice lock before checking latest target/creating
+    # an attempt. No global execution gate is needed for an input-only decision.
     if lock_notice(session, notice_id) is None:
         raise V4OpsError("target_not_found")
     target = session.get(PrespecV4Target, target_id)
     if target is None or target.notice_id != notice_id:
         raise V4OpsError("target_not_found")
-    _pending_target(session, target)
-    snapshot = session.get(PrespecV4PdfSnapshot, target.snapshot_id)
-    if snapshot is None:
-        raise V4OpsError("snapshot_not_found")
+    _confirmable_target(session, target)
+    snapshot = _safe_snapshot(session, target)
 
-    candidates = _candidates(session, store, snapshot)
-    candidate_count = int(candidates["section_count"]) if candidates else 0
+    # Direct page selection does not depend on an advisory sidecar being usable.
+    try:
+        candidates = _candidates(session, store, snapshot)
+    except (V4OpsError, ObjectStoreError):
+        if by_index:
+            raise V4OpsError("candidate_range_unavailable") from None
+        candidates = None
+    candidate_count = len(candidates["sections"]) if candidates else 0
     if by_index:
         first_page, last_page = _pages_from_indices(candidates, start_index, end_index, snapshot.pdf_page_count)
     if first_page < 1 or last_page < first_page or last_page > snapshot.pdf_page_count:
@@ -462,31 +510,38 @@ def range_review_projection(
     notice_id: int,
     *,
     store_factory: Callable[[], ObjectStore],
-) -> PageOverviewRangeReview | None:
+    expanded: bool = False,
+) -> PageOverviewRangeReview | PageOverviewRangeReviewV2 | None:
     """`GET /api/pre-specs/{id}/overview-pages`의 `range_review`를 만든다.
 
-    규칙은 **최신 target 하나**다. 최신이 `needs_human_review`면 확정 대기,
-    사람이 확정한 `ready`면 확정 상태, 그 밖(heading_scope ready 등)에는 이 자리
-    자체가 없다(`None`). 저장·모델 호출은 없다. 후보·manifest 읽기가 실패하면
-    조용히 빈 값으로 낮추지 않고 올린다(fail closed).
+    규칙은 **최신 target 하나**다. v2는 자동 선택 ready도 PDF 확인·수동 재선택에
+    노출한다. 보조 후보 읽기 실패는 경고와 직접 쪽 선택으로 연결하지만 필수
+    manifest·페이지 텍스트 무결성 실패는 닫는다. 저장·모델 호출은 없다.
     """
 
     target = _latest_target(session, notice_id)
     if target is None:
         return None
     confirmed = target.selection_status == "ready" and target.selection_strategy == "human_confirmed"
-    if target.selection_status != "needs_human_review" and not confirmed:
+    if target.selection_status != "needs_human_review" and not confirmed and not (expanded and target.selection_status == "ready"):
         return None
     snapshot = session.get(PrespecV4PdfSnapshot, target.snapshot_id)
     if snapshot is None:
         raise V4OpsError("snapshot_not_found")
     store = store_factory()
-    candidates = _candidates(session, store, snapshot)
+    warning_codes = []
+    try:
+        candidates = _candidates(session, store, snapshot)
+    except (V4OpsError, ObjectStoreError):
+        if not expanded:
+            raise
+        candidates = None
+        warning_codes.append("section_candidates_unavailable")
     sections = list(candidates.get("sections") or []) if candidates else []
     confirmation = _confirmation_projection(session, store, target) if confirmed else None
     # 제안은 선택기가 동결한 target에 달린다. 확정 뒤에도 그 target의 기록을 읽는다.
     assist_target = confirmation.confirmed_from_target_id if confirmation is not None else target.id
-    return PageOverviewRangeReview(
+    fields = dict(
         target_id=target.id,
         snapshot_id=snapshot.id,
         selection_status=target.selection_status,
@@ -503,6 +558,35 @@ def range_review_projection(
         ],
         assisted=_assist_projection(session, assist_target),
         confirmation=confirmation,
+    )
+    if not expanded:
+        if candidates and (candidates.get("mode") == "outline" or candidates.get("candidates_truncated")):
+            raise V4OpsError("overview_contract_upgrade_required")
+        return PageOverviewRangeReview(**fields)
+    partial = bool(candidates and candidates.get("candidates_truncated"))
+    if partial:
+        warning_codes.append("section_candidates_incomplete")
+    elif not sections:
+        warning_codes.append("section_candidates_unavailable")
+    can_confirm = True
+    try:
+        _confirmable_target(session, target)
+        _safe_snapshot(session, target)
+    except V4OpsError as error:
+        can_confirm = False
+        warning_codes.append(error.code)
+    # A legacy automatic target stays immutable. Surface newly detected
+    # ambiguity without relabelling its stored status or old failed attempt.
+    if target.selection_status == "ready" and target.selection_strategy == "heading_scope":
+        payload = _page_text_payload(session, store, snapshot)
+        selection = select_v4_input_range({"pages": payload.get("pages"), "blocks": payload.get("blocks", [])})
+        if selection.reason_code == "ambiguous_scope_boundary":
+            warning_codes.append(selection.reason_code)
+    return PageOverviewRangeReviewV2(
+        **fields, selected_pages=list(target.page_numbers_jsonb or []), can_confirm=can_confirm,
+        candidate_status="partial" if partial else "complete" if sections else "unavailable",
+        candidate_count_total=int(candidates["section_count"]) if candidates else None,
+        candidate_count_returned=len(sections), warning_codes=sorted(set(warning_codes)),
     )
 
 
@@ -588,6 +672,8 @@ def assist_v4_range(
         raise V4OpsError("snapshot_not_found")
     candidates = _candidates(session, store, snapshot)
     sections = list(candidates.get("sections") or []) if candidates else []
+    if candidates and candidates.get("candidates_truncated"):
+        raise V4OpsError("candidate_range_incomplete")
     if len(sections) < 2:
         raise V4OpsError("assist_not_applicable")
     previous = _latest_assist(session, target.id)

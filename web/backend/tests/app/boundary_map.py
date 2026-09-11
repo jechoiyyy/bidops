@@ -320,6 +320,8 @@ TABLE_OWNER: dict[str, str] = {
     "prespec_v4_pdf_snapshot": DEEP_REVIEW,
     "prespec_v4_target": DEEP_REVIEW,
     "prespec_v4_attempt": DEEP_REVIEW,
+    "prespec_overview_call_event": DEEP_REVIEW,
+    "prespec_overview_verification": DEEP_REVIEW,
     "prespec_overview_attempt_event": DEEP_REVIEW,
     "bid_delta_comparison": DEEP_REVIEW,
     "bid_delta_attempt": DEEP_REVIEW,

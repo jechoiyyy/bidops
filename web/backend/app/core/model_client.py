@@ -15,6 +15,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta
 import hashlib
 import ipaddress
 import json
@@ -123,11 +124,63 @@ class ModelEndpointError(ValueError):
 
 
 class ModelIdentityError(RuntimeError):
-    """서버가 내는 identity가 설정·policy와 다르다."""
+    """Safe identity failure with an explicit worker retry classification."""
 
-    def __init__(self, code: str) -> None:
+    def __init__(self, code: str, *, retryable: bool | None = None) -> None:
         self.code = code
+        self.retryable = (
+            code == "identity_unavailable" if retryable is None else bool(retryable)
+        )
         super().__init__(code)
+
+
+IDENTITY_BACKOFF_SECONDS: Final[tuple[int, ...]] = (10, 30, 60, 120, 300)
+RUNTIME_IDENTITY_ERROR_CODES: Final[frozenset[str]] = frozenset(
+    {"identity_unavailable", "model_not_served", "model_revision_invalid", "generation_config_mismatch"}
+)
+
+
+@dataclass
+class ModelIdentityCheckState:
+    """Clock-driven identity retry state shared by long-lived workers.
+
+    Only transient identity failures receive another check.  Configuration,
+    authentication, served-model and revision failures remain fixed for this
+    runner lifetime; changing deployment configuration requires a new runner.
+    """
+
+    failure_count: int = 0
+    next_check_at: datetime | None = None
+    fixed_error_code: str | None = None
+
+    def should_check(self, now: datetime) -> bool:
+        return self.fixed_error_code is None and (
+            self.next_check_at is None or now >= self.next_check_at
+        )
+
+    def record_success(self) -> None:
+        self.failure_count = 0
+        self.next_check_at = None
+        self.fixed_error_code = None
+
+    def record_failure(self, error: BaseException, now: datetime) -> str:
+        code = getattr(error, "code", "identity_unavailable")
+        retryable = isinstance(error, ModelIdentityError) and error.retryable
+        if not retryable:
+            self.fixed_error_code = str(code)
+            self.next_check_at = None
+            return str(code)
+        index = min(self.failure_count, len(IDENTITY_BACKOFF_SECONDS) - 1)
+        self.failure_count += 1
+        self.next_check_at = now + timedelta(seconds=IDENTITY_BACKOFF_SECONDS[index])
+        return str(code)
+
+    def invalidate_success(self) -> None:
+        """Permit an immediate identity recheck after an in-flight mismatch."""
+
+        self.failure_count = 0
+        self.next_check_at = None
+        self.fixed_error_code = None
 
 
 @dataclass(frozen=True)
@@ -136,6 +189,34 @@ class ModelIdentity:
 
     model: str
     revision: str
+    # `/models` metadata when the approved server exposes it.  Legacy
+    # deployments may omit this; callers that require a capacity proof must
+    # fail closed before dispatch rather than borrowing an unrelated setting.
+    max_model_len: int | None = None
+
+
+@dataclass(frozen=True)
+class StructuredRequestCapacity:
+    """Conservative local bound for one structured chat request.
+
+    ``input_token_upper_bound`` is deliberately not reported as measured
+    tokens.  Every byte in the canonical UTF-8 request can contribute at most
+    one tokenizer token, while the serialization also counts schema and
+    generation fields that a provider may process outside the chat template.
+    """
+
+    input_token_upper_bound: int
+    chat_template_reserve_tokens: int
+    reserved_output_tokens: int
+    effective_context_tokens: int
+
+    @property
+    def total_token_upper_bound(self) -> int:
+        return (
+            self.input_token_upper_bound
+            + self.chat_template_reserve_tokens
+            + self.reserved_output_tokens
+        )
 
 
 @dataclass(frozen=True)
@@ -151,6 +232,60 @@ class ModelEndpoint:
     api_key: SecretStr = field(repr=False)
     model_revision: str
     api_dialect: str = "vllm"
+
+
+def model_endpoint_configuration_fingerprint(
+    purpose: str, *, settings: Any | None = None
+) -> str:
+    """Hash endpoint configuration without exposing credentials or URLs.
+
+    The API-key digest is part of the fingerprint so a corrected credential
+    releases a fixed authentication failure, while neither the credential nor
+    any endpoint text is suitable for a worker diagnostic.
+    """
+
+    if purpose not in MODEL_PURPOSES:
+        raise ModelEndpointError("unknown model purpose")
+    if settings is None:  # pragma: no cover - runtime configuration path
+        from .config import get_settings
+
+        settings = get_settings()
+    base_url = str(_endpoint_value(settings, purpose, "base_url") or "")
+    allowed_raw = _endpoint_value(settings, purpose, "allowed_hosts")
+    entries = allowed_raw.split(",") if isinstance(allowed_raw, str) else list(allowed_raw or ())
+    api_key = _endpoint_value(settings, purpose, "api_key")
+    if isinstance(api_key, SecretStr):
+        api_key = api_key.get_secret_value()
+    document = {
+        "purpose": purpose,
+        "base_url": base_url,
+        "allowed_hosts": sorted(str(value).strip() for value in entries if str(value).strip()),
+        "api_key_sha256": hashlib.sha256(str(api_key or "EMPTY").encode("utf-8")).hexdigest(),
+        "model_revision": str(_endpoint_value(settings, purpose, "model_revision") or ""),
+        "api_dialect": str(getattr(settings, f"vllm_{purpose}_api_dialect", "vllm")),
+    }
+    return hashlib.sha256(
+        json.dumps(document, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+
+
+def model_identity_cache_key(
+    purpose: str,
+    *,
+    settings: Any | None,
+    model: str,
+    revision: str,
+    policy_digest: str,
+) -> tuple[str, str, str, str, str]:
+    """Return the complete successful-binding cache identity from Spec §6."""
+
+    return (
+        purpose,
+        model_endpoint_configuration_fingerprint(purpose, settings=settings),
+        model,
+        revision,
+        policy_digest,
+    )
 
 
 def _endpoint_value(settings: Any, purpose: str, suffix: str) -> Any:
@@ -426,6 +561,108 @@ def _attempt_observation(
 MAX_CORRECTION_CHARS: Final[int] = 2000
 
 
+def _structured_request_kwargs(
+    *,
+    model: str,
+    prompt: str,
+    contract: StructuredOutputContract,
+    api_dialect: str,
+    max_tokens: int,
+    timeout_seconds: int,
+    seed: int,
+    correction: str | None,
+) -> dict[str, Any]:
+    messages: list[dict[str, str]] = [
+        {"role": "system", "content": contract.system_prompt},
+        {"role": "user", "content": prompt},
+    ]
+    if correction is not None:
+        messages.append({"role": "user", "content": correction})
+    extra_body = (
+        {"reasoning_effort": "none"}
+        if api_dialect == "ollama"
+        else {
+            "top_k": APPROVED_GENERATION["top_k"],
+            "chat_template_kwargs": {
+                "enable_thinking": APPROVED_GENERATION["enable_thinking"]
+            },
+        }
+    )
+    return {
+        "model": model,
+        "messages": messages,
+        "temperature": APPROVED_GENERATION["temperature"],
+        "top_p": APPROVED_GENERATION["top_p"],
+        "seed": seed,
+        "max_tokens": max_tokens,
+        "response_format": {
+            "type": "json_schema",
+            "json_schema": {
+                "name": contract.name,
+                "strict": True,
+                "schema": contract.schema,
+            },
+        },
+        "extra_body": extra_body,
+        "timeout": float(timeout_seconds),
+    }
+
+
+def structured_request_capacity(
+    *,
+    model: str,
+    prompt: str,
+    contract: StructuredOutputContract,
+    api_dialect: str,
+    max_model_len: int | None,
+    policy_context_ceiling: int,
+    max_tokens: int = MAX_COMPLETION_TOKENS,
+    chat_template_reserve_tokens: int = 0,
+    timeout_seconds: int = APPROVED_TIMEOUT_SECONDS,
+    seed: int = 0,
+    correction: str | None = None,
+) -> StructuredRequestCapacity:
+    """Preflight the exact structured request without tokenizer/network I/O."""
+
+    if (
+        type(max_model_len) is not int
+        or max_model_len <= 0
+        or type(policy_context_ceiling) is not int
+        or policy_context_ceiling <= 0
+        or type(max_tokens) is not int
+        or max_tokens <= 0
+        or type(chat_template_reserve_tokens) is not int
+        or chat_template_reserve_tokens < 0
+    ):
+        raise ModelInvocationError("input_capacity_exceeded", ())
+    request = _structured_request_kwargs(
+        model=model,
+        prompt=prompt,
+        contract=contract,
+        api_dialect=api_dialect,
+        max_tokens=max_tokens,
+        timeout_seconds=timeout_seconds,
+        seed=seed,
+        correction=correction,
+    )
+    try:
+        encoded = json.dumps(
+            request, ensure_ascii=False, sort_keys=True,
+            separators=(",", ":"), allow_nan=False,
+        ).encode("utf-8")
+    except (TypeError, ValueError, UnicodeError):
+        raise ModelInvocationError("input_capacity_exceeded", ()) from None
+    result = StructuredRequestCapacity(
+        input_token_upper_bound=len(encoded),
+        chat_template_reserve_tokens=chat_template_reserve_tokens,
+        reserved_output_tokens=max_tokens,
+        effective_context_tokens=min(max_model_len, policy_context_ceiling),
+    )
+    if result.total_token_upper_bound > result.effective_context_tokens:
+        raise ModelInvocationError("input_capacity_exceeded", ())
+    return result
+
+
 class ModelClient:
     """승인된 base URL 하나로만 나가는 OpenAI SDK client.
 
@@ -479,6 +716,7 @@ class ModelClient:
         self.base_url = _validated_base_url(base_url, allowed_hosts)
         self.model = model
         self.model_revision = model_revision
+        self.model_context_tokens: int | None = None
         self.purpose = purpose
         self.provider_name = "ollama-openai-compatible" if api_dialect == "ollama" else "vllm-openai-compatible"
         self._http_client: httpx.Client | None = None
@@ -582,8 +820,15 @@ class ModelClient:
                 headers=headers,
                 timeout=float(APPROVED_TIMEOUT_SECONDS),
             )
-            if response.is_redirect or response.status_code >= 400:
-                raise ModelIdentityError("identity_unavailable")
+            if response.is_redirect:
+                raise ModelIdentityError("identity_unavailable", retryable=False)
+            if response.status_code >= 500:
+                raise ModelIdentityError("identity_unavailable", retryable=True)
+            if response.status_code >= 400:
+                # Authentication and other request/configuration failures do
+                # not heal through polling.  Keep the public code bounded and
+                # carry retryability out-of-band so no response body leaks.
+                raise ModelIdentityError("identity_unavailable", retryable=False)
             if len(response.content) > MAX_RESPONSE_BYTES:
                 raise ModelIdentityError("identity_unavailable")
             document = response.json()
@@ -610,13 +855,33 @@ class ModelClient:
         served = [row for row in rows if isinstance(row, Mapping) and row.get("id") == self.model]
         if not served:
             raise ModelIdentityError("model_not_served")
+        max_model_lengths: set[int] = set()
+        context_confirmed = True
         for row in served:
             reported = row.get("model_revision", row.get("revision"))
             if reported is not None and reported != self.model_revision:
                 raise ModelIdentityError("model_revision_invalid")
+            reported_context = row.get("max_model_len")
+            if type(reported_context) is int and reported_context > 0:
+                max_model_lengths.add(reported_context)
+            else:
+                context_confirmed = False
         if self.api_dialect == "ollama":
             self._verify_ollama_parameters()
-        return ModelIdentity(model=self.model, revision=self.model_revision)
+        # Context metadata is not part of the existing identity contract for
+        # screening/legacy callers. Preserve their model/revision verification;
+        # capacity-gated overview calls treat missing/ambiguous context as an
+        # unconfirmed budget and fail before dispatch.
+        max_model_len = (
+            next(iter(max_model_lengths))
+            if context_confirmed and len(max_model_lengths) == 1 else None
+        )
+        self.model_context_tokens = max_model_len
+        return ModelIdentity(
+            model=self.model,
+            revision=self.model_revision,
+            max_model_len=max_model_len,
+        )
 
     def _verify_ollama_parameters(self) -> None:
         # OpenAI compatibility cannot override top_k. Require the immutable
@@ -651,9 +916,11 @@ class ModelClient:
         timeout_seconds: int,
         seed: int | None = None,
         correction: str | None = None,
+        contract: StructuredOutputContract | None = None,
     ) -> Mapping[str, Any]:
         return self.complete_structured(
-            prompt, timeout_seconds=timeout_seconds, seed=seed, correction=correction
+            prompt, timeout_seconds=timeout_seconds, seed=seed,
+            correction=correction, contract=contract,
         )
 
     def complete_structured(
@@ -685,41 +952,20 @@ class ModelClient:
         selected = contract or self.output_contract
         if self.api_dialect == "ollama":
             self.verify_identity()
-        extra_body = (
-            {"reasoning_effort": "none"}
-            if self.api_dialect == "ollama"
-            else {
-                "top_k": APPROVED_GENERATION["top_k"],
-                "chat_template_kwargs": {"enable_thinking": APPROVED_GENERATION["enable_thinking"]},
-            }
-        )
-        messages: list[dict[str, str]] = [
-            {
-                "role": "system",
-                "content": selected.system_prompt,
-            },
-            {"role": "user", "content": prompt},
-        ]
-        if correction is not None:
-            messages.append({"role": "user", "content": correction})
-        response = self._completion_create(
+        request = _structured_request_kwargs(
             model=self.model,
-            messages=messages,
-            temperature=APPROVED_GENERATION["temperature"],
-            top_p=APPROVED_GENERATION["top_p"],
+            prompt=prompt,
+            contract=selected,
+            api_dialect=self.api_dialect,
+            max_tokens=int(
+                APPROVED_GENERATION["max_completion_tokens"]
+                if max_tokens is None else max_tokens
+            ),
+            timeout_seconds=timeout_seconds,
             seed=int(APPROVED_GENERATION["seed"] if seed is None else seed),
-            max_tokens=int(APPROVED_GENERATION["max_completion_tokens"] if max_tokens is None else max_tokens),
-            response_format={
-                "type": "json_schema",
-                "json_schema": {
-                    "name": selected.name,
-                    "strict": True,
-                    "schema": selected.schema,
-                },
-            },
-            extra_body=extra_body,
-            timeout=float(timeout_seconds),
+            correction=correction,
         )
+        response = self._completion_create(**request)
         if isinstance(response, Mapping):
             payload = response
         elif hasattr(response, "model_dump"):
@@ -743,6 +989,7 @@ class ModelClient:
         prior_stages: Sequence[Mapping[str, Any]] = (),
         seed: int | None = None,
         correction: str | None = None,
+        output_contract: StructuredOutputContract | None = None,
     ) -> InvocationResult:
         """한 stage를 정책 재시도 한도 안에서 부른다.
 
@@ -789,10 +1036,11 @@ class ModelClient:
             thinking_chars: int | None = None
             try:
                 response = self._request(
-                    prompt, timeout_seconds=timeout_seconds, seed=sent_seed, correction=correction
+                    prompt, timeout_seconds=timeout_seconds, seed=sent_seed,
+                    correction=correction, contract=output_contract,
                 )
                 if response.get("model") != self.model:
-                    raise ValueError("model_mismatch")
+                    raise ModelIdentityError("model_not_served", retryable=False)
                 # 응답이 revision을 실어 보내면 배포 선언과 대조한다. stock
                 # vLLM은 내지 않으므로 부재는 통과다(ADR-0042). 판단 기준은
                 # **응답이 값을 냈는가**이지 배포가 선언했는가가 아니다 —
@@ -853,7 +1101,23 @@ class ModelClient:
                     model=self.model,
                 )
             except ModelIdentityError as identity_error:
-                code = identity_error.code
+                elapsed = int((time.monotonic() - started) * 1000)
+                observations.append(
+                    _attempt_observation(
+                        retry_index=index,
+                        status="failed",
+                        error_code=identity_error.code,
+                        latency_ms=elapsed,
+                        seed=sent_seed,
+                        correction_sha256=correction_sha256,
+                        thinking_chars=thinking_chars,
+                    )
+                )
+                raise ModelInvocationError(
+                    identity_error.code,
+                    observations,
+                    raw_response=last_raw_response,
+                ) from None
             except (TimeoutError, APITimeoutError):
                 code = "timeout"
             except ResponseTooLargeError:
@@ -894,19 +1158,26 @@ __all__ = [
     "MAX_CORRECTION_CHARS",
     "MAX_RESPONSE_BYTES",
     "MODEL_PURPOSES",
+    "IDENTITY_BACKOFF_SECONDS",
+    "RUNTIME_IDENTITY_ERROR_CODES",
     "EncryptedObjectStore",
     "InvocationResult",
     "ModelClient",
     "ModelEndpoint",
     "ModelEndpointError",
     "ModelIdentity",
+    "ModelIdentityCheckState",
     "ModelIdentityError",
     "ModelInvocationError",
     "PromptTooLargeError",
     "ResponseTooLargeError",
     "StructuredOutputContract",
+    "StructuredRequestCapacity",
     "build_prompt",
+    "model_endpoint_configuration_fingerprint",
+    "model_identity_cache_key",
     "resolve_model_endpoint",
     "sanitize_for_prompt",
+    "structured_request_capacity",
     "strip_leading_thinking",
 ]

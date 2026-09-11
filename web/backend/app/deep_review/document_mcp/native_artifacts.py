@@ -14,8 +14,10 @@ from .safety import ProcessorOptions, validate_zip
 NATIVE_RENDERER = "rhwp-svg-pdf"
 NATIVE_SNAPSHOT_SCHEMA = "bidops.rhwp-pdf-snapshot.v1"
 NATIVE_TEXT_SCHEMA = "bidops.rhwp-page-text.v1"
-SECTION_CANDIDATES_SCHEMA = "bidops.section-candidates.v1"
-SECTION_CANDIDATES_MODES = frozenset({"clause", "page"})
+SECTION_CANDIDATES_SCHEMA_V1 = "bidops.section-candidates.v1"
+SECTION_CANDIDATES_SCHEMA = "bidops.section-candidates.v2"
+SECTION_CANDIDATES_MODES_V1 = frozenset({"clause", "page"})
+SECTION_CANDIDATES_MODES = frozenset({"outline", "clause", "page"})
 MAX_SECTION_CANDIDATES = 2000
 MAX_SECTION_TITLE_CHARS = 300
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
@@ -86,17 +88,47 @@ def validate_section_candidates(value: Any, *, page_count: int) -> dict[str, Any
     yields no candidate and must not be turned into a conversion failure.
     """
 
-    if not isinstance(value, Mapping) or set(value) != {"schema", "page_count", "mode", "section_count", "sections"}:
+    if not isinstance(value, Mapping):
         _fail("section_candidates_invalid")
-    if value["schema"] != SECTION_CANDIDATES_SCHEMA or value["mode"] not in SECTION_CANDIDATES_MODES:
+    schema = value.get("schema")
+    if schema == SECTION_CANDIDATES_SCHEMA_V1:
+        expected_fields = {"schema", "page_count", "mode", "section_count", "sections"}
+        modes = SECTION_CANDIDATES_MODES_V1
+    elif schema == SECTION_CANDIDATES_SCHEMA:
+        expected_fields = {
+            "schema", "page_count", "mode", "section_count", "returned_count", "truncated",
+            "candidates_truncated", "sections",
+        }
+        modes = SECTION_CANDIDATES_MODES
+    else:
+        _fail("section_candidates_invalid")
+    if set(value) != expected_fields or value["mode"] not in modes:
         _fail("section_candidates_invalid")
     if type(page_count) is not int or page_count < 1 or type(value["page_count"]) is not int or value["page_count"] != page_count:
         _fail("section_candidates_invalid")
     sections = value["sections"]
     if not isinstance(sections, list) or len(sections) > MAX_SECTION_CANDIDATES:
         _fail("section_candidates_invalid")
-    if type(value["section_count"]) is not int or value["section_count"] != len(sections):
+    section_count = value["section_count"]
+    if type(section_count) is not int or not 0 <= section_count <= MAX_SECTION_CANDIDATES:
         _fail("section_candidates_invalid")
+    if schema == SECTION_CANDIDATES_SCHEMA_V1:
+        if section_count != len(sections):
+            _fail("section_candidates_invalid")
+    else:
+        returned_count = value["returned_count"]
+        truncated = value["truncated"]
+        candidates_truncated = value["candidates_truncated"]
+        if (
+            type(returned_count) is not int
+            or returned_count != len(sections)
+            or returned_count > section_count
+            or type(truncated) is not bool
+            or type(candidates_truncated) is not bool
+            or candidates_truncated != (returned_count < section_count)
+            or (returned_count < section_count and not truncated)
+        ):
+            _fail("section_candidates_invalid")
     for index, section in enumerate(sections):
         if not isinstance(section, Mapping) or set(section) != {"index", "title", "page", "char_count", "truncated"}:
             _fail("section_candidates_invalid")
@@ -157,7 +189,7 @@ def validate_native_bundle(
     validate_para_page_map(para_page_map, block_keys={block["block_key"] for block in structure["blocks"]}, max_pages=options.max_pages, max_blocks=options.max_blocks)
     if para_page_map["page_count"] != page_text["page_count"]:
         _fail("pdf_page_mismatch")
-    # ``None`` is the legacy bundle: snapshots frozen before 0024 carry no
-    # candidates and must stay reusable without being re-prepared.
+    # Candidate-less legacy snapshots remain reusable. New scratch handoffs
+    # permit None only with an explicit advisory-failure warning.
     if section_candidates is not None:
         validate_section_candidates(section_candidates, page_count=page_text["page_count"])

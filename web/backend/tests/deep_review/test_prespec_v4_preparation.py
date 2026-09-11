@@ -369,6 +369,43 @@ def test_range_keeps_exact_substrings_and_marks_missing_boundary_for_human_revie
     assert ambiguous.reason_code == "scope_end_missing"
 
 
+def test_same_line_chapter_boundaries_require_manual_pages_without_truncating_source():
+    import copy
+
+    payload = {"pages": [
+        {"number": 1, "text": "목차\nⅠ 사업 개요    Ⅱ 사업추진 방안"},
+        {"number": 2, "text": "Ⅰ 사업 개요    Ⅱ 사업추진 방안\n1. 사업 목적\n개요와 주요 과업\n2. 사업 범위\n세부 요구사항"},
+        {"number": 3, "text": "Ⅲ 제안 안내\n다음 장"},
+    ], "blocks": []}
+    before = copy.deepcopy(payload)
+    selected = select_v4_input_range(payload)
+    assert selected.status == "needs_human_review"
+    assert selected.reason_code == "ambiguous_scope_boundary"
+    assert selected.page_numbers == () and "pages" not in selected.manifest
+    assert payload == before
+    # A multi-column table of contents alone does not invalidate clear body headings.
+    payload["pages"][1]["text"] = "Ⅰ 사업 개요\n1. 사업 목적\n개요와 주요 과업\nⅡ 사업추진 방안"
+    assert select_v4_input_range(payload).status == "ready"
+
+
+@pytest.mark.parametrize("purpose", ["제안목적 및 배경", "제안 목적"])
+def test_proposal_writing_overview_requires_manual_range(purpose):
+    text_value = f"Ⅰ. 제안개요\n1. {purpose}\n제안사가 작성하는 내용\n2. 제안의 범위\nⅡ. 제안업체 일반"
+    payload = {"pages": [{"number": 1, "text": text_value}], "blocks": []}
+    selection = select_v4_input_range(payload)
+    assert selection.status == "needs_human_review"
+    assert selection.reason_code == "ambiguous_scope_boundary"
+    assert selection.page_numbers == () and "pages" not in selection.manifest
+    assert payload["pages"][0]["text"] == text_value
+
+
+def test_partial_section_list_requires_manual_range_even_with_clear_headings():
+    payload = {"pages": [{"number": 1, "text": "Ⅰ 사업 개요\n1. 사업 목적\n전체 본문\nⅡ 추진 방안"}], "blocks": []}
+    selected = select_v4_input_range(payload, candidates_complete=False)
+    assert selected.status == "needs_human_review"
+    assert selected.reason_code == "section_candidates_incomplete" and selected.page_numbers == ()
+
+
 def test_snapshot_rejects_page_text_or_scanner_failure(tmp_path: Path):
     source = b"%PDF-1.7\nfixture"
     engine = _engine()

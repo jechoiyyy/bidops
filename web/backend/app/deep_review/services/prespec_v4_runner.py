@@ -11,11 +11,13 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import re
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -29,9 +31,14 @@ from ...core.model_client import (
     APPROVED_GENERATION,
     ModelClient,
     ModelEndpointError,
+    ModelIdentityCheckState,
     ModelIdentityError,
     ModelInvocationError,
+    RUNTIME_IDENTITY_ERROR_CODES,
+    model_endpoint_configuration_fingerprint,
+    model_identity_cache_key,
     resolve_model_endpoint,
+    structured_request_capacity,
     StructuredOutputContract,
 )
 from ...core.models import AuditEvent
@@ -45,13 +52,37 @@ from ..models import (
     PrespecV4Attempt,
     PrespecV4PdfSnapshot,
     PrespecV4Target,
+    PrespecOverviewCallEvent,
+    PrespecOverviewVerification,
     PreSpecOverviewAttempt,
     PreSpecOverviewSnapshot,
     WorkJob,
 )
-from ..schemas.page_overview import PageOverviewPayload
+from ..schemas.page_overview import PageOverviewPayload, PageOverviewPayloadV4
 from .model_response_storage import store_raw_model_response
 from .page_overview_validation import VALIDATOR_VERSION, validate_page_overview, validate_page_overview_detailed
+from .prespec_overview_claim_policy import (
+    CLAIMS_STAGE,
+    ClaimsOverviewPolicy,
+    LIMITS,
+    SEMANTIC_STAGE,
+    build_claims_prompt,
+    build_claims_stage_input,
+    canonical_sha256,
+    load_claims_policy,
+)
+from .prespec_overview_claim_validation import (
+    ClaimDraftError,
+    SemanticResponseError,
+    apply_semantic_review,
+    build_input_limitations,
+    compose_page_overview,
+    draft_failure_checks,
+    parse_claims_draft,
+    validate_claims_deterministically,
+    validate_composed_page_overview,
+)
+from .prespec_v4_gate import lock_v4_gate
 from .prespec_v4 import (
     MAX_V4_MANIFEST_BYTES,
     V4_MANIFEST_SCHEMA,
@@ -66,13 +97,20 @@ from .prespec_v4 import (
 V4_STAGE = "prespec_overview"
 V4_PROMPT_VERSION = "prespec-overview-v4"
 V4_POLICY_SCHEMA = "bidops.prespec-overview-policy.v4"
-V4_LEASE_SECONDS = 600
+V4_LEASE_SECONDS = 1_200
+V4_DISPATCH_RESERVE_SECONDS = 360
+# Historical Luna/reference readers import V4_POLICY_PATH directly and bind
+# its bytes into their provenance.  Keep that public constant immutable while
+# the operational runner defaults to the new claims policy.
 V4_POLICY_PATH = Path(__file__).resolve().parent.parent / "policies" / "prespec-overview-policy-v4.json"
+V4_LEGACY_POLICY_PATH = V4_POLICY_PATH
+V4_CLAIMS_POLICY_PATH = Path(__file__).resolve().parent.parent / "policies" / "prespec-overview-policy-v5.json"
 V4_MAX_INPUT_BYTES = 8 * 1024 * 1024
 V4_LUNA_REFERENCE_PROVIDER = "luna-reference"
 V4_LUNA_REFERENCE_MODEL = "gpt-5.6-luna"
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _UNSET = object()
+logger = logging.getLogger(__name__)
 
 #: 결정적 검증이 실패했을 때 같은 입력으로 더 부르는 횟수. 정책의
 #: `chunking.retries`(transport 재시도)와는 다른 축이고 정책 digest를 바꾸지
@@ -84,6 +122,10 @@ VALIDATION_RETRY_SEED = 1
 #: 같은 입력을 다시 보낼 가치가 있는 모델 실패 코드. timeout·provider·신원·
 #: 프롬프트 상한 실패는 응답 내용의 문제가 아니므로 포함하지 않는다.
 VALIDATION_RETRY_INVOCATION_CODES = frozenset({"malformed_json", "truncated_json"})
+CLAIMS_TRANSPORT_FORMAT_RETRY_CODES = frozenset({"malformed_json", "truncated_json"})
+CLAIMS_INPUT_CAPACITY_CODES = frozenset({
+    "input_limit_exceeded", "input_too_large", "prompt_rejected",
+})
 #: 실패한 검사 코드만 채워 넣는 고정 문장. 원문·응답 본문을 담지 않으므로
 #: digest만 감사에 남긴다.
 CORRECTION_TEMPLATE = (
@@ -118,6 +160,10 @@ class V4AttemptError(RuntimeError):
         super().__init__(self.code)
 
 
+def _safe_error_code(value: Any, default: str) -> str:
+    return value if isinstance(value, str) and re.fullmatch(r"[a-z][a-z0-9_]{0,63}", value) else default
+
+
 @dataclass(frozen=True)
 class V4OverviewPolicy:
     document: Mapping[str, Any]
@@ -137,11 +183,31 @@ class V4OverviewPolicy:
 
     @property
     def output_contract(self) -> StructuredOutputContract:
+        if self.document.get("schema") == "bidops.prespec-overview-policy.v5":
+            return self.structured_output_contract(CLAIMS_STAGE)
         return StructuredOutputContract(
             name="bidops_prespec_overview_page_v3",
             schema=self.document["output_schema"],
             system_prompt=str(self.document["system_prompt"]),
         )
+
+    def stage_policy(self, stage: str) -> dict[str, Any]:
+        if self.document.get("schema") != "bidops.prespec-overview-policy.v5":
+            if stage != self.stage:
+                raise V4AttemptError("overview_stage_invalid")
+            return dict(self.document)
+        policy = ClaimsOverviewPolicy(dict(self.document), self.digest)
+        if policy.digest != self.digest:
+            raise V4AttemptError("policy_invalid")
+        return policy.stage_policy(stage)
+
+    def structured_output_contract(self, stage: str) -> StructuredOutputContract:
+        if self.document.get("schema") != "bidops.prespec-overview-policy.v5":
+            return self.output_contract
+        policy = ClaimsOverviewPolicy(dict(self.document), self.digest)
+        if policy.digest != self.digest:
+            raise V4AttemptError("policy_invalid")
+        return policy.structured_output_contract(stage)
 
 
 @dataclass(frozen=True)
@@ -205,13 +271,19 @@ def _sha256_json(value: Any) -> str:
 
 
 def load_v4_policy(path: Path | None = None) -> V4OverviewPolicy:
-    source = path or V4_POLICY_PATH
+    source = path or V4_CLAIMS_POLICY_PATH
     try:
         document = json.loads(source.read_text(encoding="utf-8"))
     except (OSError, UnicodeError, ValueError) as error:
         raise V4AttemptError("policy_unreadable") from error
     if not isinstance(document, Mapping):
         raise V4AttemptError("policy_invalid")
+    if document.get("schema") == "bidops.prespec-overview-policy.v5":
+        try:
+            policy = load_claims_policy(source)
+        except ValueError as error:
+            raise V4AttemptError("policy_invalid") from error
+        return V4OverviewPolicy(document=policy.document, digest=policy.digest)
     required = {
         "chunking", "generation", "model_endpoint_ref", "model_name", "output_schema",
         "prompt_version", "schema", "stages", "system_prompt",
@@ -280,25 +352,35 @@ def _binding_fields(binding: V4ModelBinding) -> dict[str, Any]:
     }
 
 
+def _policy_settings_for_binding(binding: V4ModelBinding, settings: Any | None = None) -> Any | None:
+    """Keep explicitly pinned legacy v4 executions readable/runnable."""
+
+    if settings is not None:
+        return settings
+    try:
+        legacy = load_v4_policy(V4_LEGACY_POLICY_PATH)
+    except V4AttemptError:
+        return None
+    if binding.policy_digest == legacy.digest:
+        return SimpleNamespace(prespec_overview_policy_path=V4_LEGACY_POLICY_PATH)
+    return None
+
+
 def _legacy_excluded_documents(session: Session) -> set[UUID]:
-    """Return only documents claimed by the v4 preparation/attempt boundary."""
+    """Exclude every document ever admitted to the v4 target/attempt boundary."""
 
     try:
         target_ids = session.scalars(
-            select(PrespecV4Target.document_version_id).where(
-                PrespecV4Target.selection_status != "excluded",
-            )
+            select(PrespecV4Target.document_version_id)
         ).all()
         attempt_ids = session.scalars(
             select(PrespecV4Attempt.document_version_id).where(
                 PrespecV4Attempt.document_version_id.is_not(None),
             )
         ).all()
-    except SQLAlchemyError:
-        # The legacy queue remains usable while an older database is being
-        # upgraded; no v4 boundary can exist in that schema.
+    except SQLAlchemyError as error:
         session.rollback()
-        return set()
+        raise V4AttemptError("database_unavailable") from error
     return {value for value in (*target_ids, *attempt_ids) if value is not None}
 
 
@@ -309,9 +391,11 @@ def enqueue_v4_attempt(
     binding: V4ModelBinding,
     work_job_id: UUID | None = None,
     quality_status: str = "unmeasured_reference",
+    settings: Any | None = None,
 ) -> PrespecV4Attempt | None:
     """Append one queued attempt for a ready target, without auto-retry."""
 
+    lock_v4_gate(session)
     target = session.get(PrespecV4Target, target_id)
     if target is None or target.selection_status != "ready":
         raise V4AttemptError("target_not_ready")
@@ -323,12 +407,20 @@ def enqueue_v4_attempt(
     # off/malformed cohort cannot leave an executable orphan behind.
     from .prespec_v4_ops import require_v4_enqueue_enabled
 
-    require_v4_enqueue_enabled(session, target=target, binding=binding)
+    activation = require_v4_enqueue_enabled(
+        session, target=target, binding=binding,
+        settings=_policy_settings_for_binding(binding, settings),
+    )
     from ...lifecycle import lock_notice
 
     notice = lock_notice(session, target.notice_id)
     if notice is None or notice.source_type != "pre_spec":
         raise V4AttemptError("notice_not_found")
+    latest_target_id = session.scalar(select(PrespecV4Target.id).where(
+        PrespecV4Target.notice_id == target.notice_id,
+    ).order_by(PrespecV4Target.created_at.desc(), PrespecV4Target.id.desc()).limit(1))
+    if latest_target_id != target.id:
+        raise V4AttemptError("target_superseded")
     # The v4 slot is the sole overview consumer for a frozen target.  A
     # legacy queued/running attempt for the same document is a conflict, not a
     # reason to run both result contracts in parallel.
@@ -358,47 +450,38 @@ def enqueue_v4_attempt(
     ).order_by(PrespecV4Attempt.sequence.desc()))
     if latest is not None:
         return latest
-    policy = load_v4_policy()
+    binding_settings = _policy_settings_for_binding(binding, settings)
+    policy = load_v4_policy(
+        getattr(binding_settings, "prespec_overview_policy_path", None)
+        if binding_settings is not None else None
+    )
     if policy.digest != binding.policy_digest:
         raise V4AttemptError("policy_binding_mismatch")
     if work_job_id is None:
-        # WorkJob has one active aggregate slot.  A retry gets a new immutable
-        # PrespecV4Attempt, while a terminal job row is safely reopened for
-        # that slot; creating a second historical WorkJob would violate the
-        # existing unique aggregate contract on SQLite and PostgreSQL alike.
-        job = session.scalar(
-            select(WorkJob).where(
-                WorkJob.job_type == "prespec_v4_overview",
-                WorkJob.aggregate_type == "prespec_v4_target",
-                WorkJob.aggregate_id == target.id,
-            )
+        # A retry is new immutable execution history.  The partial unique
+        # index permits a new active job after the previous job is terminal;
+        # reopening the terminal row would erase its lifecycle provenance.
+        job = WorkJob(
+            id=uuid4(), job_type="prespec_v4_overview", aggregate_type="prespec_v4_target",
+            aggregate_id=target.id, status="queued", priority=0, attempt_count=0,
+            max_attempts=1, scheduled_at=_now(),
         )
-        if job is None:
-            job = WorkJob(
-                id=uuid4(), job_type="prespec_v4_overview", aggregate_type="prespec_v4_target",
-                aggregate_id=target.id, status="queued", priority=0, attempt_count=0,
-                max_attempts=1, scheduled_at=_now(),
-            )
-            session.add(job)
-            session.flush()
-        elif job.status not in {"completed", "failed", "cancelled"}:
-            raise V4AttemptError("work_job_active")
-        else:
-            job.status = "queued"
-            job.last_error_code = None
-            job.completed_at = None
-            job.lease_owner = None
-            job.lease_expires_at = None
-            job.scheduled_at = _now()
-            session.flush()
+        session.add(job)
+        session.flush()
         work_job_id = job.id
     fields = _binding_fields(binding)
+    generation = (
+        {row["stage"]: dict(row["generation"]) for row in policy.document["stages"]}
+        if policy.document.get("schema") == "bidops.prespec-overview-policy.v5"
+        else dict(policy.document["generation"])
+    )
     attempt = PrespecV4Attempt(
         id=uuid4(), notice_id=target.notice_id, document_version_id=target.document_version_id,
         target_id=target.id, work_job_id=work_job_id, sequence=_next_sequence(session, target.notice_id),
+        activation_id=activation.activation_id,
         source_sha256=snapshot.source_sha256, pdf_sha256=snapshot.pdf_sha256,
         input_sha256=target.input_sha256, selection_manifest_sha256=target.selection_manifest_sha256,
-        generation_jsonb=dict(policy.document["generation"]),
+        generation_jsonb=generation,
         quality_status=quality_status, reference_only=binding.reference_only, deployable=binding.deployable,
         **fields,
     )
@@ -433,9 +516,22 @@ def record_v4_preparation_failure(
     return attempt
 
 
-def _claim_v4_attempt(session: Session, worker_id: str, *, now: datetime, lease_seconds: int) -> PrespecV4Attempt | None:
+def _claim_v4_attempt(
+    session: Session,
+    worker_id: str,
+    *,
+    now: datetime,
+    lease_seconds: int,
+    activation_id: UUID,
+    binding: V4ModelBinding,
+) -> PrespecV4Attempt | None:
+    lock_v4_gate(session)
     attempt = session.scalars(select(PrespecV4Attempt).where(
-        PrespecV4Attempt.status == "queued", PrespecV4Attempt.target_id.is_not(None),
+        PrespecV4Attempt.status == "queued",
+        PrespecV4Attempt.target_id.is_not(None),
+        PrespecV4Attempt.activation_id == activation_id,
+        PrespecV4Attempt.binding_digest == binding.binding_digest,
+        PrespecV4Attempt.policy_digest == binding.policy_digest,
     ).order_by(PrespecV4Attempt.created_at.asc(), PrespecV4Attempt.sequence.asc()).limit(1).with_for_update(skip_locked=True)).first()
     if attempt is None:
         return None
@@ -456,6 +552,7 @@ def _claim_v4_attempt(session: Session, worker_id: str, *, now: datetime, lease_
 
 
 def _expire_v4_attempts(session: Session, *, now: datetime) -> int:
+    lock_v4_gate(session)
     rows = session.scalars(select(PrespecV4Attempt).where(
         PrespecV4Attempt.status == "running", PrespecV4Attempt.lease_expires_at <= now,
     ).with_for_update()).all()
@@ -503,9 +600,11 @@ def _load_manifest(session: Session, store: ObjectStore, target: PrespecV4Target
         if not isinstance(item, Mapping) or isinstance(item.get("number"), bool) or not isinstance(item.get("number"), int) or not isinstance(item.get("text"), str):
             raise V4AttemptError("manifest_invalid")
         number, text_value = int(item["number"]), item["text"]
-        if number in page_text or not text_value.strip() or item.get("text_sha256") != _sha256_bytes(text_value.encode()):
+        if number in page_text or item.get("text_sha256") != _sha256_bytes(text_value.encode()):
             raise V4AttemptError("manifest_invalid")
         page_text[number] = text_value
+    if not any(text.strip() for text in page_text.values()):
+        raise V4AttemptError("manifest_invalid")
     input_payload = {key: manifest.get(key) for key in ("schema_version", "document_version_id", "source_sha256", "pages", "block_keys", "start_locator", "end_locator", "input_limitations")}
     if _sha256_json(input_payload) != target.input_sha256:
         raise V4AttemptError("input_hash_mismatch")
@@ -562,6 +661,10 @@ class PrespecV4OverviewRunner:
         self.lease_seconds = int(lease_seconds)
         self.clock = clock
         self._resolved: tuple[V4ModelBinding | None, Any | None] | None = None
+        self._resolved_key: tuple[str, str, str, str, str] | None = None
+        self._identity_config_key: tuple[str, str, str, str] | None = None
+        self._identity_state = ModelIdentityCheckState()
+        self._model_context_tokens: int | None = None
 
     def policy(self) -> V4OverviewPolicy:
         if not self._policy_loaded:
@@ -572,76 +675,182 @@ class PrespecV4OverviewRunner:
         return self._policy
 
     def _resolve(self) -> tuple[V4ModelBinding | None, Any | None]:
-        if self._resolved is not None:
-            return self._resolved
         policy = self.policy()
         client = self.client
         binding = None if self.binding is _UNSET else self.binding
+        endpoint_fingerprint = model_endpoint_configuration_fingerprint(
+            "overview", settings=self.settings
+        )
+        config_key = (
+            "overview", endpoint_fingerprint, policy.model_name, policy.digest
+        )
+        if self._identity_config_key != config_key:
+            self._invalidate_identity_cache()
+            self._identity_config_key = config_key
+        if self._resolved is not None:
+            cached_binding = self._resolved[0]
+            expected_key = model_identity_cache_key(
+                "overview", settings=self.settings, model=policy.model_name,
+                revision=cached_binding.model_digest,
+                policy_digest=policy.digest,
+            )
+            if self._resolved_key == expected_key:
+                return self._resolved
+            self._invalidate_identity_cache()
+        if self.binding is not _UNSET:
+            if binding is not None and client is not None and binding.policy_digest == policy.digest:
+                self._model_context_tokens = getattr(client, "model_context_tokens", None)
+                self._resolved = (binding, client)
+                self._resolved_key = model_identity_cache_key(
+                    "overview", settings=self.settings, model=policy.model_name,
+                    revision=binding.model_digest, policy_digest=policy.digest,
+                )
+                return self._resolved
+            return (None, None)
+        now = self.clock()
+        if not self._identity_state.should_check(now):
+            return (None, None)
+        owns_client = client is None
         try:
             if client is None:
                 client = ModelClient.for_purpose(
                     "overview", model=policy.model_name, output_contract=policy.output_contract,
                     settings=self.settings, verify_identity=False,
                 )
-            if self.binding is _UNSET:
-                binding = approved_v4_binding(policy=policy, identity=client.verify_identity)
+            identity = client.verify_identity()
+            self._model_context_tokens = getattr(identity, "max_model_len", None)
+            binding = approved_v4_binding(policy=policy, identity=identity)
+            if binding is None:
+                raise ModelIdentityError("model_not_served", retryable=False)
             if binding is not None and binding.policy_digest != policy.digest:
                 binding = None
-        except (ModelEndpointError, ModelIdentityError, V4AttemptError, ValueError, OSError):
-            binding, client = None, None
-        self._resolved = (binding, client) if binding is not None and client is not None else (None, None)
+        except (ModelEndpointError, ModelIdentityError, V4AttemptError, ValueError, OSError) as error:
+            reason = self._identity_state.record_failure(error, now)
+            next_check = self._identity_state.next_check_at
+            logger.warning(
+                "prespec v4 identity blocked reason=%s next_check_at=%s",
+                reason,
+                next_check.isoformat() if next_check is not None else None,
+            )
+            if client is not None and owns_client:
+                closer = getattr(client, "close", None)
+                if callable(closer):
+                    closer()
+            return (None, None)
+        self._identity_state.record_success()
+        self._resolved = (binding, client)
+        self._resolved_key = model_identity_cache_key(
+            "overview", settings=self.settings, model=policy.model_name,
+            revision=binding.model_digest, policy_digest=policy.digest,
+        )
+        logger.info(
+            "prespec v4 identity verified endpoint_fingerprint=%s",
+            endpoint_fingerprint,
+        )
         return self._resolved
 
-    def run_once(self, session: Session, worker_id: str) -> V4RunResult:
-        try:
-            has_v4_work = session.scalar(
-                select(PrespecV4Attempt.id)
-                .where(PrespecV4Attempt.status.in_(("queued", "running")))
-                .limit(1)
-            ) is not None
-        except SQLAlchemyError:
-            session.rollback()
-            has_v4_work = False
-        if has_v4_work:
-            # A queued v4 attempt must never fall through to the legacy
-            # overview slot while its activation is off or no longer matches
-            # the deployed policy binding.  Unrelated legacy work remains
-            # available when no v4 work is claimed.
-            try:
-                from .prespec_v4_ops import v4_dispatch_enabled
+    def _invalidate_identity_cache(self) -> None:
+        resolved, self._resolved = self._resolved, None
+        self._resolved_key = None
+        self._model_context_tokens = None
+        self._identity_state.invalidate_success()
+        if resolved is not None and resolved[1] is not self.client:
+            closer = getattr(resolved[1], "close", None)
+            if callable(closer):
+                closer()
 
-                if v4_dispatch_enabled(session) is None:
-                    return V4RunResult(False, status="disabled", reason_code="v4_disabled")
-            except (V4AttemptError, ValueError, OSError, SQLAlchemyError):
-                session.rollback()
-                return V4RunResult(False, status="disabled", reason_code="v4_disabled")
-        # Existing v1 queues remain operational while no v4 document boundary
-        # claims their input. A v4 target/attempt reserves only that document,
-        # so unrelated legacy work keeps its existing behavior.
-        if not has_v4_work and self.legacy_runner is not None:
-            excluded = _legacy_excluded_documents(session)
-            if excluded:
-                return self.legacy_runner.run_once(
-                    session,
-                    worker_id,
-                    excluded_document_version_ids=excluded,
-                )
-            return self.legacy_runner.run_once(session, worker_id)
-        now = self.clock()
-        expired = _expire_v4_attempts(session, now=now)
-        if expired:
-            session.commit()
-        queued = session.scalar(select(PrespecV4Attempt.id).where(PrespecV4Attempt.status == "queued").limit(1))
-        if queued is None:
+    def _activation_settings(self) -> Any | None:
+        policy = self.policy()
+        try:
+            legacy = load_v4_policy(V4_LEGACY_POLICY_PATH)
+        except V4AttemptError:
+            legacy = None
+        if self.settings is None and legacy is not None and policy.digest == legacy.digest:
+            return SimpleNamespace(prespec_overview_policy_path=V4_LEGACY_POLICY_PATH)
+        return self.settings
+
+    def _run_legacy(self, session: Session, worker_id: str) -> Any:
+        if self.legacy_runner is None:
             return V4RunResult(False)
+        try:
+            excluded = _legacy_excluded_documents(session)
+        except V4AttemptError as error:
+            return V4RunResult(False, status="failed", reason_code=error.code)
+        return self.legacy_runner.run_once(
+            session, worker_id, excluded_document_version_ids=excluded
+        )
+
+    def run_once(self, session: Session, worker_id: str) -> V4RunResult:
+        now = self.clock()
+        try:
+            lock_v4_gate(session)
+            expired = _expire_v4_attempts(session, now=now)
+            from .prespec_v4_ops import v4_dispatch_enabled
+            activation = v4_dispatch_enabled(session, settings=self._activation_settings())
+            queued = None if activation is None else session.scalar(
+                select(PrespecV4Attempt.id)
+                .where(
+                    PrespecV4Attempt.status == "queued",
+                    PrespecV4Attempt.activation_id == activation.activation_id,
+                    PrespecV4Attempt.policy_digest == activation.policy_digest,
+                    PrespecV4Attempt.binding_digest == activation.binding.binding_digest,
+                )
+                .limit(1)
+            )
+            session.commit()
+        except (SQLAlchemyError, V4AttemptError, ValueError, OSError):
+            session.rollback()
+            return V4RunResult(False, status="failed", reason_code="database_unavailable")
+        if queued is None:
+            return self._run_legacy(session, worker_id)
         binding, client = self._resolve()
         if binding is None or client is None:
+            legacy = self._run_legacy(session, worker_id)
+            if getattr(legacy, "claimed", False):
+                return legacy
             return V4RunResult(False, status="awaiting_model", reason_code="model_unavailable")
-        attempt = _claim_v4_attempt(session, worker_id, now=self.clock(), lease_seconds=self.lease_seconds)
+        if (
+            binding.binding_digest != activation.binding.binding_digest
+            or binding.policy_digest != activation.policy_digest
+        ):
+            legacy = self._run_legacy(session, worker_id)
+            if getattr(legacy, "claimed", False):
+                return legacy
+            return V4RunResult(False, status="awaiting_model", reason_code="activation_binding_mismatch")
+        try:
+            # Activation may have changed while identity was checked.
+            lock_v4_gate(session)
+            live_activation = v4_dispatch_enabled(session, settings=self._activation_settings())
+            if live_activation is None or live_activation.activation_id != activation.activation_id:
+                session.rollback()
+                return self._run_legacy(session, worker_id)
+            attempt = _claim_v4_attempt(
+                session,
+                worker_id,
+                now=self.clock(),
+                lease_seconds=self.lease_seconds,
+                activation_id=activation.activation_id,
+                binding=binding,
+            )
+            if attempt is None:
+                session.rollback()
+                return self._run_legacy(session, worker_id)
+            attempt_id = attempt.id
+            session.commit()
+        except (SQLAlchemyError, V4AttemptError, ValueError, OSError):
+            session.rollback()
+            return V4RunResult(False, status="failed", reason_code="database_unavailable")
+        if self.policy().document.get("schema") == "bidops.prespec-overview-policy.v5":
+            return self._run_claims_attempt(session, attempt_id, worker_id, binding, client)
+        return self._run_legacy_v4_attempt(session, attempt_id, worker_id, binding, client)
+
+    def _run_legacy_v4_attempt(
+        self, session: Session, attempt_id: UUID, worker_id: str,
+        binding: V4ModelBinding, client: Any,
+    ) -> V4RunResult:
+        attempt = session.get(PrespecV4Attempt, attempt_id)
         if attempt is None:
-            return V4RunResult(False)
-        attempt_id = attempt.id
-        session.commit()
+            return V4RunResult(True, attempt_id, "stale", "stale_attempt")
         raw_sha: str | None = None
         retry: dict[str, Any] | None = None
         try:
@@ -675,6 +884,8 @@ class PrespecV4OverviewRunner:
             self._complete(session, attempt, target, snapshot, output, raw_sha, response, worker_id, page_text, binding, retry)
             return V4RunResult(True, attempt_id, "completed")
         except ModelInvocationError as error:
+            if error.code in RUNTIME_IDENTITY_ERROR_CODES:
+                self._invalidate_identity_cache()
             raw = getattr(error, "raw_response", None)
             if isinstance(raw, (bytes, bytearray)):
                 stored = self._store_error_raw(session, error)
@@ -684,6 +895,484 @@ class PrespecV4OverviewRunner:
             return self._fail(session, attempt_id, worker_id, getattr(error, "code", "validation_failed"), raw_sha, retry)
         except Exception:
             return self._fail(session, attempt_id, worker_id, "runner_failed", raw_sha, retry)
+
+    def _live_attempt(
+        self,
+        session: Session,
+        attempt_id: UUID,
+        worker_id: str,
+        binding: V4ModelBinding,
+        *,
+        reserve_seconds: int = 0,
+    ) -> tuple[PrespecV4Attempt, PrespecV4Target, PrespecV4PdfSnapshot]:
+        """Lock and revalidate the complete dispatch/publication fence."""
+
+        lock_v4_gate(session)
+        live = session.scalar(
+            select(PrespecV4Attempt)
+            .where(PrespecV4Attempt.id == attempt_id)
+            .with_for_update()
+        )
+        now = self.clock()
+        if live is None or live.status != "running" or live.lease_owner != worker_id:
+            raise V4AttemptError("stale_attempt")
+        if live.lease_expires_at is None:
+            raise V4AttemptError("stale_attempt")
+        if live.lease_expires_at <= now:
+            raise V4AttemptError("lease_expired")
+        if live.lease_expires_at <= now + timedelta(seconds=reserve_seconds):
+            raise V4AttemptError("lease_budget_exhausted")
+        if live.activation_id is None:
+            raise V4AttemptError("activation_mismatch")
+        if (
+            live.binding_digest != binding.binding_digest
+            or live.policy_digest != binding.policy_digest
+        ):
+            raise V4AttemptError("binding_mismatch")
+        target = session.get(PrespecV4Target, live.target_id)
+        snapshot = session.get(PrespecV4PdfSnapshot, target.snapshot_id) if target is not None else None
+        if target is None or snapshot is None:
+            raise V4AttemptError("input_scope_mismatch")
+        from .prespec_v4_ops import require_v4_enqueue_enabled
+
+        activation = require_v4_enqueue_enabled(
+            session, target=target, binding=binding,
+            settings=_policy_settings_for_binding(binding, self.settings),
+        )
+        if activation.activation_id != live.activation_id:
+            raise V4AttemptError("activation_mismatch")
+        document = session.get(DocumentVersion, target.document_version_id)
+        source = session.get(ContentObject, document.content_object_id) if document is not None else None
+        if (
+            target.selection_status != "ready"
+            or document is None
+            or not document.is_current
+            or document.safety_status != "safe"
+            or document.needs_human_review
+            or source is None
+            or snapshot.source_sha256 != source.sha256
+            or live.input_sha256 != target.input_sha256
+            or live.selection_manifest_sha256 != target.selection_manifest_sha256
+        ):
+            raise V4AttemptError("input_integrity_failed")
+        return live, target, snapshot
+
+    def _authorize_call(
+        self,
+        session: Session,
+        attempt_id: UUID,
+        worker_id: str,
+        binding: V4ModelBinding,
+        *,
+        stage: str,
+        prompt_sha256: str,
+    ) -> tuple[UUID, int]:
+        live, _target, _snapshot = self._live_attempt(
+            session,
+            attempt_id,
+            worker_id,
+            binding,
+            reserve_seconds=V4_DISPATCH_RESERVE_SECONDS,
+        )
+        dispatched = session.scalars(
+            select(PrespecOverviewCallEvent).where(
+                PrespecOverviewCallEvent.attempt_id == attempt_id,
+                PrespecOverviewCallEvent.event_kind == "dispatch",
+            )
+        ).all()
+        ordinal = len(dispatched) + 1
+        if ordinal > LIMITS["max_calls"]:
+            raise V4AttemptError("call_budget_exhausted")
+        if stage == CLAIMS_STAGE and sum(row.stage == "draft" for row in dispatched) >= LIMITS["max_draft_calls"]:
+            raise V4AttemptError("call_budget_exhausted")
+        if stage == SEMANTIC_STAGE and any(row.stage == "semantic" for row in dispatched):
+            raise V4AttemptError("call_budget_exhausted")
+        ledger_stage = "draft" if stage == CLAIMS_STAGE else "semantic"
+        call_id = uuid4()
+        session.add(
+            PrespecOverviewCallEvent(
+                id=uuid4(),
+                call_id=call_id,
+                attempt_id=live.id,
+                ordinal=ordinal,
+                stage=ledger_stage,
+                event_kind="dispatch",
+                input_sha256=live.input_sha256,
+                prompt_sha256=prompt_sha256,
+                binding_digest=binding.binding_digest,
+                created_at=self.clock(),
+            )
+        )
+        session.commit()
+        return call_id, ordinal
+
+    def _raw_reference(self, session: Session, raw: bytes) -> tuple[str, UUID, UUID]:
+        digest = self._store_raw(session, raw)
+        content = session.scalar(select(ContentObject).where(ContentObject.sha256 == digest))
+        location = session.scalar(
+            select(ContentObjectLocation)
+            .where(
+                ContentObjectLocation.content_object_id == content.id,
+                ContentObjectLocation.namespace_key == "model-response",
+            )
+            .order_by(ContentObjectLocation.created_at.desc(), ContentObjectLocation.id.desc())
+        ) if content is not None else None
+        if content is None or location is None:
+            raise V4AttemptError("response_store_unavailable")
+        return digest, content.id, location.id
+
+    def _record_call_response(
+        self, session: Session, *, call_id: UUID, attempt_id: UUID,
+        ordinal: int, stage: str, binding: V4ModelBinding, response: Any, raw: bytes,
+    ) -> str:
+        try:
+            dispatch = session.scalar(select(PrespecOverviewCallEvent).where(
+                PrespecOverviewCallEvent.call_id == call_id,
+                PrespecOverviewCallEvent.event_kind == "dispatch",
+            ))
+            if dispatch is None:
+                raise V4AttemptError("call_dispatch_missing")
+            digest, content_id, location_id = self._raw_reference(session, raw)
+            session.add(PrespecOverviewCallEvent(
+                id=uuid4(), call_id=call_id, attempt_id=attempt_id, ordinal=ordinal,
+                stage=stage, event_kind="response",
+                input_sha256=dispatch.input_sha256,
+                prompt_sha256=dispatch.prompt_sha256, binding_digest=binding.binding_digest,
+                raw_response_sha256=digest, raw_response_content_object_id=content_id,
+                raw_response_location_id=location_id,
+                prompt_tokens=getattr(response, "prompt_tokens", None),
+                output_tokens=getattr(response, "output_tokens", None),
+                latency_ms=getattr(response, "latency_ms", None), created_at=self.clock(),
+            ))
+            session.commit()
+            return digest
+        except Exception:
+            session.rollback()
+            raise V4AttemptError("response_store_unavailable") from None
+
+    def _record_call_error(
+        self, session: Session, *, call_id: UUID, attempt_id: UUID,
+        ordinal: int, stage: str, binding: V4ModelBinding, error: BaseException,
+    ) -> None:
+        session.rollback()
+        raw = getattr(error, "raw_response", None)
+        digest = None
+        content_id = None
+        location_id = None
+        storage_failed = False
+        if isinstance(raw, (bytes, bytearray)):
+            try:
+                digest, content_id, location_id = self._raw_reference(session, bytes(raw))
+            except Exception:
+                session.rollback()
+                storage_failed = True
+        code = "response_store_unavailable" if storage_failed else _safe_error_code(getattr(error, "code", None), "model_failed")
+        dispatch = session.scalar(select(PrespecOverviewCallEvent).where(
+            PrespecOverviewCallEvent.call_id == call_id,
+            PrespecOverviewCallEvent.event_kind == "dispatch",
+        ))
+        if dispatch is None:
+            raise V4AttemptError("call_dispatch_missing")
+        session.add(PrespecOverviewCallEvent(
+            id=uuid4(), call_id=call_id, attempt_id=attempt_id, ordinal=ordinal,
+            stage=stage, event_kind="error",
+            input_sha256=dispatch.input_sha256,
+            prompt_sha256=dispatch.prompt_sha256, binding_digest=binding.binding_digest,
+            raw_response_sha256=digest, raw_response_content_object_id=content_id,
+            raw_response_location_id=location_id, error_code=code,
+            created_at=self.clock(),
+        ))
+        session.commit()
+        if storage_failed:
+            raise V4AttemptError("response_store_unavailable")
+
+    def _invoke_claim_stage(
+        self,
+        session: Session,
+        *,
+        attempt_id: UUID,
+        worker_id: str,
+        binding: V4ModelBinding,
+        client: Any,
+        stage: str,
+        input_slice: Mapping[str, Any],
+        correction: str | None = None,
+        seed: int | None = None,
+    ) -> tuple[Any, bytes, str]:
+        policy = self.policy()
+        claims_policy = ClaimsOverviewPolicy(dict(policy.document), policy.digest)
+        prompt = build_claims_prompt(claims_policy, stage, dict(input_slice))
+        output_contract = claims_policy.structured_output_contract(stage)
+        effective_seed = int(APPROVED_GENERATION["seed"] if seed is None else seed)
+        structured_request_capacity(
+            model=binding.model_name,
+            prompt=prompt,
+            contract=output_contract,
+            api_dialect=str(getattr(client, "api_dialect", "vllm")),
+            max_model_len=self._model_context_tokens,
+            policy_context_ceiling=LIMITS["max_model_context_tokens"],
+            max_tokens=APPROVED_GENERATION["max_completion_tokens"],
+            chat_template_reserve_tokens=LIMITS["chat_template_reserve_tokens"],
+            timeout_seconds=LIMITS["timeout_seconds"],
+            seed=effective_seed,
+            correction=correction,
+        )
+        prompt_sha256 = canonical_sha256({
+            "system_prompt": output_contract.system_prompt,
+            "user_prompt": prompt,
+            "correction": correction,
+            "seed": effective_seed,
+        })
+        call_id, ordinal = self._authorize_call(
+            session, attempt_id, worker_id, binding,
+            stage=stage, prompt_sha256=prompt_sha256,
+        )
+        ledger_stage = "draft" if stage == CLAIMS_STAGE else "semantic"
+        try:
+            response = client.invoke(
+                stage,
+                input_slice,
+                claims_policy.stage_policy(stage),
+                seed=seed,
+                correction=correction,
+                output_contract=output_contract,
+            )
+            output, raw = _response_parts(response)
+            digest = self._record_call_response(
+                session, call_id=call_id, attempt_id=attempt_id, ordinal=ordinal,
+                stage=ledger_stage, binding=binding, response=response, raw=raw,
+            )
+            return response, raw, digest
+        except (ModelInvocationError, ModelIdentityError) as error:
+            self._record_call_error(
+                session, call_id=call_id, attempt_id=attempt_id, ordinal=ordinal,
+                stage=ledger_stage, binding=binding, error=error,
+            )
+            if getattr(error, "code", None) in RUNTIME_IDENTITY_ERROR_CODES:
+                self._invalidate_identity_cache()
+            raise
+        except V4AttemptError as error:
+            self._record_call_error(
+                session, call_id=call_id, attempt_id=attempt_id, ordinal=ordinal,
+                stage=ledger_stage, binding=binding, error=error,
+            )
+            raise
+
+    def _run_claims_attempt(
+        self, session: Session, attempt_id: UUID, worker_id: str,
+        binding: V4ModelBinding, client: Any,
+    ) -> V4RunResult:
+        raw_sha: str | None = None
+        try:
+            attempt = session.get(PrespecV4Attempt, attempt_id)
+            if attempt is None:
+                raise V4AttemptError("stale_attempt")
+            target, snapshot, _legacy_input, pages = self._load_input(session, attempt, binding)
+            session.commit()
+            draft_input = build_claims_stage_input(pages)
+
+            def _publish_failed_draft(raw_value: bytes, error: ClaimDraftError) -> V4RunResult:
+                checks = draft_failure_checks(
+                    raw_value, error, attempt_id=attempt_id,
+                    input_sha256=attempt.input_sha256,
+                    policy_digest=binding.policy_digest,
+                    binding_digest=binding.binding_digest,
+                )
+                return self._publish_verification(
+                    session, attempt_id, worker_id, binding, checks,
+                    target=target, snapshot=snapshot, draft=None,
+                    raw_sha=raw_sha,
+                )
+
+            retry_code: str | None = None
+            try:
+                _response, raw, raw_sha = self._invoke_claim_stage(
+                    session, attempt_id=attempt_id, worker_id=worker_id,
+                    binding=binding, client=client, stage=CLAIMS_STAGE,
+                    input_slice=draft_input,
+                )
+                draft = parse_claims_draft(raw)
+            except ClaimDraftError as first_error:
+                if not first_error.retryable:
+                    return _publish_failed_draft(raw, first_error)
+                retry_code = first_error.code
+            except ModelInvocationError as first_error:
+                if (first_error.code not in CLAIMS_TRANSPORT_FORMAT_RETRY_CODES
+                    or not isinstance(first_error.raw_response, (bytes, bytearray))
+                    or not first_error.raw_response):
+                    raise
+                retry_code = first_error.code
+            if retry_code is not None:
+                correction = build_correction([retry_code])
+                try:
+                    _response, raw, raw_sha = self._invoke_claim_stage(
+                        session, attempt_id=attempt_id, worker_id=worker_id,
+                        binding=binding, client=client, stage=CLAIMS_STAGE,
+                        input_slice=draft_input, correction=correction,
+                        seed=VALIDATION_RETRY_SEED,
+                    )
+                except ModelInvocationError as second_error:
+                    if second_error.code in CLAIMS_TRANSPORT_FORMAT_RETRY_CODES:
+                        raise V4AttemptError("draft_format_retry_exhausted") from None
+                    raise
+                try:
+                    draft = parse_claims_draft(raw)
+                except ClaimDraftError as second_error:
+                    if not second_error.retryable:
+                        return _publish_failed_draft(raw, second_error)
+                    raise V4AttemptError("draft_format_retry_exhausted") from None
+            checks = validate_claims_deterministically(
+                draft, pages, attempt_id=attempt_id,
+                input_sha256=attempt.input_sha256,
+                policy_digest=binding.policy_digest,
+                binding_digest=binding.binding_digest,
+                company_comparison_performed=False,
+            )
+            if checks.reason_codes or any(
+                row.deterministic.status != "passed" for row in checks.checks
+            ):
+                return self._publish_verification(
+                    session, attempt_id, worker_id, binding, checks,
+                    target=target, snapshot=snapshot, draft=draft, raw_sha=raw_sha,
+                )
+            semantic_input = build_claims_stage_input(
+                pages, draft=draft, checks=checks,
+                company_comparison_performed=False,
+            )
+            _response, semantic_raw, raw_sha = self._invoke_claim_stage(
+                session, attempt_id=attempt_id, worker_id=worker_id,
+                binding=binding, client=client, stage=SEMANTIC_STAGE,
+                input_slice=semantic_input,
+            )
+            checks = apply_semantic_review(draft, checks, semantic_raw)
+            return self._publish_verification(
+                session, attempt_id, worker_id, binding, checks,
+                target=target, snapshot=snapshot, draft=draft, raw_sha=raw_sha,
+            )
+        except SemanticResponseError as error:
+            return self._fail(session, attempt_id, worker_id, error.code, raw_sha)
+        except (ModelInvocationError, ModelIdentityError) as error:
+            return self._fail(session, attempt_id, worker_id, getattr(error, "code", "model_failed"), raw_sha)
+        except (V4AttemptError, ClaimDraftError, ObjectStoreError, OSError, ValueError) as error:
+            code = getattr(error, "code", str(error) or "validation_failed")
+            if code in CLAIMS_INPUT_CAPACITY_CODES:
+                code = "input_capacity_exceeded"
+            return self._fail(session, attempt_id, worker_id, code, raw_sha)
+        except Exception:
+            return self._fail(session, attempt_id, worker_id, "runner_failed", raw_sha)
+
+    def _publish_verification(
+        self, session: Session, attempt_id: UUID, worker_id: str,
+        binding: V4ModelBinding, checks: Any, *, target: PrespecV4Target,
+        snapshot: PrespecV4PdfSnapshot, draft: Any | None, raw_sha: str | None,
+    ) -> V4RunResult:
+        session.rollback()
+        live, locked_target, locked_snapshot = self._live_attempt(
+            session, attempt_id, worker_id, binding
+        )
+        if locked_target.id != target.id or locked_snapshot.id != snapshot.id:
+            raise V4AttemptError("input_scope_mismatch")
+        verification_id = uuid4()
+        checks_json = checks.model_dump(mode="json")
+        verification_sha = canonical_sha256(checks_json)
+        verification = PrespecOverviewVerification(
+            id=verification_id, attempt_id=attempt_id,
+            schema_version=checks.schema_version,
+            draft_sha256=checks.draft_sha256,
+            input_sha256=live.input_sha256,
+            policy_digest=live.policy_digest,
+            binding_digest=live.binding_digest,
+            model_digest=live.model_digest,
+            validator_version=checks.validator_version,
+            payload_jsonb=checks_json, payload_sha256=verification_sha,
+            overall=checks.overall, created_at=self.clock(),
+        )
+        session.add(verification)
+        # The result's insert guard queries this immutable row through the
+        # connection; make it visible inside the same transaction first.
+        session.flush()
+        completed_at = self.clock()
+        result_id = None
+        if checks.overall == "passed":
+            if draft is None:
+                raise V4AttemptError("verification_binding_mismatch")
+            limitations = build_input_limitations(
+                list(locked_target.page_numbers_jsonb or []),
+                pdf_page_count=locked_snapshot.pdf_page_count,
+            )
+            payload = compose_page_overview(
+                draft, checks, verification_id=verification_id,
+                input_limitations=limitations,
+            )
+            if validate_composed_page_overview(payload, checks):
+                raise V4AttemptError("verification_content_mismatch")
+            payload_json = payload.model_dump(mode="json")
+            payload_sha = canonical_sha256(payload_json)
+            result = PreSpecPageOverview(
+                id=uuid4(), run_id=live.id, notice_id=live.notice_id,
+                document_version_id=locked_target.document_version_id,
+                input_location_id=locked_target.manifest_location_id,
+                pdf_location_id=locked_snapshot.pdf_location_id,
+                schema_version=payload.schema_version,
+                verification_id=verification_id,
+                verification_sha256=verification_sha,
+                source_sha256=locked_snapshot.source_sha256,
+                pdf_sha256=locked_snapshot.pdf_sha256,
+                payload_sha256=payload_sha,
+                import_sha256=canonical_sha256({
+                    "attempt_id": str(live.id), "target_id": str(locked_target.id),
+                    "verification_id": str(verification_id), "payload_sha256": payload_sha,
+                    "binding_digest": live.binding_digest,
+                }),
+                input_sha256=live.input_sha256,
+                model_digest=live.model_digest, policy_digest=live.policy_digest,
+                model_name=live.model_name, prompt_version=live.prompt_version,
+                pdf_page_count=locked_snapshot.pdf_page_count,
+                reviewed_pages=list(locked_target.page_numbers_jsonb or []),
+                payload_jsonb=payload_json, validation_status="passed",
+                validation_errors=[], evidence_check_status="passed",
+                evidence_check_errors=[], validator_version=checks.validator_version,
+                quality_status=live.quality_status,
+            )
+            session.add(result)
+            session.flush()
+            result_id = result.id
+            live.result_id = result.id
+            live.result_sha256 = payload_sha
+            live.status = "completed"
+            job_status = "completed"
+            error_code = None
+        else:
+            live.status = "needs_human_review"
+            job_status = "failed"
+            error_code = "claim_verification_required"
+            live.error_code = error_code
+        live.raw_response_sha256 = raw_sha
+        live.completed_at = completed_at
+        live.lease_owner = None
+        live.lease_expires_at = None
+        if live.work_job_id is not None:
+            job = session.scalar(
+                select(WorkJob).where(WorkJob.id == live.work_job_id).with_for_update()
+            )
+            if job is not None:
+                job.status = job_status
+                job.last_error_code = error_code
+                job.completed_at = completed_at
+                job.lease_owner = None
+                job.lease_expires_at = None
+        session.add(AuditEvent(
+            actor_kind="system", claimed_name=None,
+            action="prespec_v4.attempt_run", aggregate_type="prespec_v4_attempt",
+            aggregate_id=str(live.id), safe_metadata={
+                "notice_id": live.notice_id, "status": live.status,
+                "result_id": str(result_id) if result_id else None,
+                "verification_id": str(verification_id),
+                "reason_code": error_code,
+            },
+        ))
+        session.commit()
+        return V4RunResult(True, attempt_id, live.status, error_code)
 
     def _load_input(self, session: Session, attempt: PrespecV4Attempt, binding: V4ModelBinding) -> tuple[PrespecV4Target, PrespecV4PdfSnapshot, dict[str, Any], dict[int, str]]:
         target = session.get(PrespecV4Target, attempt.target_id)
@@ -731,9 +1420,11 @@ class PrespecV4OverviewRunner:
             return None
 
     def _complete(self, session: Session, attempt: PrespecV4Attempt, target: PrespecV4Target, snapshot: PrespecV4PdfSnapshot, output: Mapping[str, Any], raw_sha: str, response: Any, worker_id: str, pages: Mapping[int, str], binding: V4ModelBinding, retry: Mapping[str, Any] | None = None) -> None:
-        live = session.scalar(select(PrespecV4Attempt).where(PrespecV4Attempt.id == attempt.id).with_for_update())
-        if live is None or live.status != "running" or live.lease_owner != worker_id or (live.lease_expires_at and live.lease_expires_at <= self.clock()):
-            raise V4AttemptError("stale_attempt")
+        live, locked_target, locked_snapshot = self._live_attempt(
+            session, attempt.id, worker_id, binding
+        )
+        if locked_target.id != target.id or locked_snapshot.id != snapshot.id:
+            raise V4AttemptError("input_scope_mismatch")
         document = session.get(DocumentVersion, target.document_version_id)
         if document is None or not document.is_current or document.safety_status != "safe" or document.notice_id != live.notice_id:
             raise V4AttemptError("document_not_current_or_safe")
@@ -773,7 +1464,9 @@ class PrespecV4OverviewRunner:
         live.output_tokens = getattr(response, "output_tokens", None)
         live.latency_ms = getattr(response, "latency_ms", None)
         if live.work_job_id is not None:
-            job = session.get(WorkJob, live.work_job_id)
+            job = session.scalar(
+                select(WorkJob).where(WorkJob.id == live.work_job_id).with_for_update()
+            )
             if job is not None:
                 job.status = "completed"
                 job.completed_at = live.completed_at
@@ -784,9 +1477,28 @@ class PrespecV4OverviewRunner:
 
     def _fail(self, session: Session, attempt_id: UUID, worker_id: str, reason_code: str, raw_sha: str | None, retry: Mapping[str, Any] | None = None) -> V4RunResult:
         session.rollback()
+        lock_v4_gate(session)
+        _expire_v4_attempts(session, now=self.clock())
         attempt = session.scalar(select(PrespecV4Attempt).where(PrespecV4Attempt.id == attempt_id).with_for_update())
-        code = str(reason_code or "failed")[:64]
-        if attempt is None or attempt.status != "running" or attempt.lease_owner != worker_id:
+        code = _safe_error_code(reason_code, "runner_failed")
+        if (
+            attempt is not None
+            and attempt.status == "failed"
+            and attempt.error_code == "lease_expired"
+        ):
+            session.commit()
+            return V4RunResult(True, attempt_id, "failed", "lease_expired")
+        from .prespec_v4_ops import v4_dispatch_enabled
+        activation = v4_dispatch_enabled(session, settings=self._activation_settings())
+        if (
+            attempt is None
+            or attempt.status != "running"
+            or attempt.lease_owner != worker_id
+            or attempt.lease_expires_at is None
+            or attempt.lease_expires_at <= self.clock()
+            or activation is None
+            or attempt.activation_id != activation.activation_id
+        ):
             session.rollback()
             return V4RunResult(True, attempt_id, "stale", "stale_attempt")
         attempt.status = "failed"
@@ -796,7 +1508,9 @@ class PrespecV4OverviewRunner:
         attempt.lease_owner = None
         attempt.lease_expires_at = None
         if attempt.work_job_id is not None:
-            job = session.get(WorkJob, attempt.work_job_id)
+            job = session.scalar(
+                select(WorkJob).where(WorkJob.id == attempt.work_job_id).with_for_update()
+            )
             if job is not None:
                 job.status = "failed"
                 job.last_error_code = code
@@ -829,6 +1543,7 @@ def _project_v4_current(
     pdf: ContentObject | None,
     latest_scan: ContentScan | None,
     result: PreSpecPageOverview | None,
+    verification: PrespecOverviewVerification | None,
     policy: V4OverviewPolicy | None,
     model_revision: str | None,
 ) -> dict[str, Any] | None:
@@ -847,6 +1562,11 @@ def _project_v4_current(
     status = attempt.status
     result_id = attempt.result_id
     reason = attempt.error_code
+    if (latest_target is not None and latest_target.id != attempt.target_id
+            and status in {"queued", "running", "completed"}):
+        # A human may replace an already reviewed range. Keep its immutable
+        # result in history, but never offer it as the new range's current input.
+        status, result_id, reason = "stale", None, "target_superseded"
     input_current = (
         target is not None
         and target.selection_status == "ready"
@@ -899,6 +1619,30 @@ def _project_v4_current(
     if status in {"queued", "running"} and not input_current:
         status, result_id, reason = "stale", None, "input_integrity_failed"
     if status == "completed":
+        is_claims_result = result is not None and result.schema_version == "bidops.prespec-overview-page-review.v4"
+        verification_current = True
+        if is_claims_result:
+            try:
+                parsed_payload = PageOverviewPayloadV4.model_validate_json(
+                    json.dumps(result.payload_jsonb, ensure_ascii=False)
+                )
+                verification_current = (
+                    verification is not None
+                    and verification.attempt_id == attempt.id
+                    and verification.overall == "passed"
+                    and verification.input_sha256 == attempt.input_sha256
+                    and verification.policy_digest == attempt.policy_digest
+                    and verification.binding_digest == attempt.binding_digest
+                    and verification.model_digest == attempt.model_digest
+                    and canonical_sha256(verification.payload_jsonb) == verification.payload_sha256
+                    and parsed_payload.verification_id == verification.id
+                    and parsed_payload.verification_sha256 == verification.payload_sha256
+                    and not validate_composed_page_overview(
+                        parsed_payload, verification.payload_jsonb
+                    )
+                )
+            except (TypeError, ValueError):
+                verification_current = False
         result_current = (
             input_current
             and result is not None
@@ -914,6 +1658,7 @@ def _project_v4_current(
             and result.validation_status == "passed"
             and result.evidence_check_status == "passed"
             and _payload_hash_matches(result)
+            and verification_current
         )
         if not result_current:
             status, result_id, reason = "stale", None, "result_integrity_failed"
@@ -935,15 +1680,11 @@ def current_v4_projections(
     ids = tuple(dict.fromkeys(int(value) for value in notice_ids))
     if not ids:
         return {}
-    try:
-        attempts = session.scalars(
-            select(PrespecV4Attempt)
-            .where(PrespecV4Attempt.notice_id.in_(ids))
-            .order_by(PrespecV4Attempt.created_at.desc(), PrespecV4Attempt.sequence.desc())
-        ).all()
-    except SQLAlchemyError:
-        session.rollback()
-        return {notice_id: None for notice_id in ids}
+    attempts = session.scalars(
+        select(PrespecV4Attempt)
+        .where(PrespecV4Attempt.notice_id.in_(ids))
+        .order_by(PrespecV4Attempt.created_at.desc(), PrespecV4Attempt.sequence.desc())
+    ).all()
     attempt_by_notice: dict[int, PrespecV4Attempt] = {}
     for row in attempts:
         attempt_by_notice.setdefault(int(row.notice_id), row)
@@ -996,10 +1737,22 @@ def current_v4_projections(
     ).all() if result_ids else []
     result_by_id = {row.id: row for row in results}
 
+    attempt_ids = {row.id for row in attempts}
+    verifications = session.scalars(
+        select(PrespecOverviewVerification).where(
+            PrespecOverviewVerification.attempt_id.in_(attempt_ids)
+        )
+    ).all() if attempt_ids else []
+    verification_by_attempt = {row.attempt_id: row for row in verifications}
+
     try:
         policy = load_v4_policy()
     except V4AttemptError:
         policy = None
+    try:
+        legacy_policy = load_v4_policy(V4_LEGACY_POLICY_PATH)
+    except V4AttemptError:
+        legacy_policy = None
     try:
         model_revision = resolve_model_endpoint("overview").model_revision
     except (ModelEndpointError, ModelIdentityError, ValueError, OSError):
@@ -1019,6 +1772,13 @@ def current_v4_projections(
             if attempt is not None and attempt.provider == V4_LUNA_REFERENCE_PROVIDER
             else model_revision
         )
+        projection_policy = policy
+        if (
+            attempt is not None
+            and legacy_policy is not None
+            and attempt.policy_digest == legacy_policy.digest
+        ):
+            projection_policy = legacy_policy
         output[notice_id] = _project_v4_current(
             notice_id=notice_id,
             attempt=attempt,
@@ -1030,7 +1790,8 @@ def current_v4_projections(
             pdf=pdf,
             latest_scan=latest_scan_by_content.get(pdf.id) if pdf is not None else None,
             result=result,
-            policy=policy,
+            verification=verification_by_attempt.get(attempt.id) if attempt is not None else None,
+            policy=projection_policy,
             model_revision=projection_model_revision,
         )
     return output

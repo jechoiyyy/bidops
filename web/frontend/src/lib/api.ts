@@ -605,7 +605,7 @@ export const api = {
     request<PreSpecOverviewReviewsResponse>(`/pre-specs/${noticeId}/overview-reviews`, options),
 
   getPageOverviews: (noticeId: number, options?: ReadRequestOptions) =>
-    request<PageOverviewResponse>(`/pre-specs/${noticeId}/overview-pages`, options),
+    request<PageOverviewResponse>(`/pre-specs/${noticeId}/overview-pages/v2`, options),
   getCompanyFit: (noticeId: number, options?: ReadRequestOptions) =>
     request<CompanyFitResponse>(`/pre-specs/${noticeId}/company-fit`, options),
 

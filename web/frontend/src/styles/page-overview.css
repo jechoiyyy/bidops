@@ -16,6 +16,14 @@
 .page-overview-history-item + .page-overview-history-item{padding-top:var(--spacing-3);border-top:var(--border-width) solid var(--color-border)}
 .page-overview-history-links{display:grid;gap:var(--spacing-1)}
 .page-overview-history-links a{color:var(--color-text-accent);font-size:var(--bo-type-caption);text-decoration:underline;text-underline-offset:var(--spacing-0-5)}
+.page-overview-analysis-list,.page-overview-verification-claims,.page-overview-evidence-list{display:grid;gap:var(--spacing-2);margin:0;padding-left:var(--spacing-5)}
+.page-overview-verification{overflow-wrap:anywhere}
+.page-overview-verification p{margin:0;line-height:var(--bo-type-body-leading)}
+.page-overview-verification-claims>li{display:grid;gap:var(--spacing-1);padding-block:var(--spacing-2)}
+.page-overview-evidence-list{list-style:none;padding-left:0}
+.page-overview-evidence-list li{display:grid;gap:var(--spacing-1);padding:var(--spacing-2);background:var(--color-background-body);border-radius:var(--radius-inner)}
+.page-overview-evidence-list blockquote{margin:0;white-space:pre-wrap}
+.page-overview-evidence-list a{color:var(--color-text-accent);font-size:var(--bo-type-caption);text-decoration:underline;text-underline-offset:var(--spacing-0-5)}
 .page-overview-current summary,.page-overview-history summary{cursor:pointer;font-weight:600}
 .page-overview-note{color:var(--color-text-secondary);font-size:var(--bo-type-caption);font-weight:400}
 .page-overview summary{cursor:pointer;font-weight:600}.page-overview-legacy{margin-top:var(--spacing-6);font-size:var(--bo-type-section-title)}
@@ -87,6 +95,9 @@
 .page-overview-range h3{margin:0;font-size:var(--bo-type-section-title);font-weight:600}
 .page-overview-range p{margin:0;line-height:var(--bo-type-caption-leading)}
 .page-overview-range-assist{display:flex;align-items:center;gap:var(--spacing-2);flex-wrap:wrap;font-size:var(--bo-type-caption)}
+.page-overview-range-state{font-size:var(--bo-type-caption);font-weight:600}
+.page-overview-range>a{color:var(--color-text-accent);font-size:var(--bo-type-caption);text-decoration:underline;text-underline-offset:var(--spacing-0-5)}
+.page-overview-range-warnings{display:grid;gap:var(--spacing-1);margin:0;padding-left:var(--spacing-5);font-size:var(--bo-type-caption)}
 .page-overview-range-pages{display:flex;gap:var(--spacing-3);flex-wrap:wrap}
 /* 지원 폭(1280~1920px) 안에서 표가 좁아질 때만 이 안에서 가로로 스크롤한다. */
 .page-overview-range-table{min-width:0;overflow-x:auto}

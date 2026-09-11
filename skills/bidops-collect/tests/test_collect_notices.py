@@ -4,10 +4,19 @@
 from __future__ import annotations
 
 import importlib.util
+import argparse
+import hashlib
+import io
 import json
+import multiprocessing
+import os
+import subprocess
+import sys
 import tempfile
 import unittest
+from datetime import date
 from pathlib import Path
+from unittest.mock import patch
 
 
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts/collect_notices.py"
@@ -366,6 +375,244 @@ class ReclassifyTests(unittest.TestCase):
             )
         self.assertEqual([], records)
         self.assertEqual(1, len(warnings))
+
+
+class ImmutableCollectionTests(unittest.TestCase):
+    def args(self, root: Path, *, output: Path | None = None, source: Path | None = None):
+        return argparse.Namespace(
+            from_date=date(2026, 9, 1), to_date=date(2026, 9, 2),
+            output_dir=output or root / "new-run", allowed_root=root, from_raw=source,
+            skip_bids=False, skip_prespecs=True, rows=500, timeout=1,
+        )
+
+    def payload(self, *, total=1):
+        return {"response": {"header": {"resultCode": "00"}, "body": {
+            "totalCount": total, "items": [{"bidNtceNo": "RAW-1", "bidNtceOrd": "00",
+                                            "bidNtceNm": "통합 플랫폼 구축"}],
+        }}}
+
+    def invoke(self, args):
+        with patch.object(COLLECT, "parse_args", return_value=args), patch("sys.stdout", new=io.StringIO()):
+            return COLLECT.main()
+
+    def test_existing_raw_page_is_rejected_before_http(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            raw_dir = Path(directory)
+            page = raw_dir / "prespec-page-001.json"
+            original = b'{"original": true}'
+            page.write_bytes(original)
+            with patch.object(COLLECT, "request_json", return_value={}) as request:
+                with self.assertRaises(RuntimeError):
+                    COLLECT.collect_source(
+                        source="prespec", endpoint="https://example.invalid", service_key="",
+                        from_date=date(2026, 9, 1), to_date=date(2026, 9, 1),
+                        rows=500, timeout=1, raw_dir=raw_dir,
+                    )
+            request.assert_not_called()
+            self.assertEqual(original, page.read_bytes())
+
+    def test_existing_empty_output_is_rejected_before_key_loading(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "existing"
+            output.mkdir()
+            args = argparse.Namespace(
+                from_date=date(2026, 9, 1), to_date=date(2026, 9, 1), output_dir=output,
+                allowed_root=Path(directory), from_raw=None, skip_bids=False,
+                skip_prespecs=True, rows=500, timeout=1,
+            )
+            with patch.object(COLLECT, "parse_args", return_value=args), patch.object(
+                COLLECT, "get_service_key", side_effect=AssertionError("key loaded")
+            ) as key:
+                with self.assertRaises(RuntimeError):
+                    COLLECT.main()
+            key.assert_not_called()
+            self.assertEqual([], list(output.iterdir()))
+
+    def test_unsafe_output_paths_are_rejected_without_key_or_http(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "existing-file").write_bytes(b"preserved")
+            (root / "alias").symlink_to(root, target_is_directory=True)
+            (root / "broken").symlink_to(root / "absent")
+            paths = [root / "existing-file", root / "alias" / "new", root / "broken",
+                     root / ".." / "escape", root.parent / "outside-run"]
+            for output in paths:
+                with self.subTest(output=output.name), patch.object(COLLECT, "get_service_key") as key, patch.object(
+                    COLLECT, "request_json"
+                ) as request:
+                    with self.assertRaises(RuntimeError):
+                        self.invoke(self.args(root, output=output))
+                    key.assert_not_called()
+                    request.assert_not_called()
+            self.assertEqual(b"preserved", (root / "existing-file").read_bytes())
+
+    def test_reclassification_copies_bytes_and_records_origin_hash_without_network(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "original" / "raw"
+            source.mkdir(parents=True)
+            data = json.dumps(self.payload(), ensure_ascii=False).encode("utf-8")
+            (source / "bid-page-001.json").write_bytes(data)
+            args = self.args(root, source=source)
+            with patch.object(COLLECT, "get_service_key") as key, patch.object(COLLECT, "request_json") as request:
+                self.assertEqual(0, self.invoke(args))
+            key.assert_not_called()
+            request.assert_not_called()
+            copied = args.output_dir / "raw" / "bid-page-001.json"
+            self.assertFalse(copied.is_symlink())
+            self.assertNotEqual(copied.stat().st_ino, (source / copied.name).stat().st_ino)
+            self.assertEqual(data, copied.read_bytes())
+            self.assertEqual(data, (source / copied.name).read_bytes())
+            provenance = json.loads((args.output_dir / "collection-provenance.json").read_text())
+            self.assertEqual("bidops.collection-provenance.v1", provenance["schema_version"])
+            self.assertEqual("original/raw", provenance["source_raw"])
+            self.assertTrue(provenance["complete"])
+            self.assertEqual([{"path": "raw/bid-page-001.json", "source_path": "original/raw/bid-page-001.json",
+                               "sha256": hashlib.sha256(data).hexdigest()}], provenance["raw_pages"])
+            result = json.loads((args.output_dir / "collected-notices.json").read_text())
+            self.assertEqual("bidops.collected.v2", result["schema_version"])
+            self.assertEqual({"from": "2026-09-01", "to": "2026-09-02", "timezone": "Asia/Seoul"}, result["source_window"])
+            self.assertEqual(str(copied), result["notices"][0]["raw_source"])
+
+    def test_unsafe_raw_sources_are_rejected_without_creating_output(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "raw"
+            source.mkdir()
+            page = source / "bid-page-001.json"
+            for kind in ("symlink", "fifo", "directory"):
+                with self.subTest(kind=kind):
+                    if kind == "symlink":
+                        page.symlink_to(root / "absent")
+                    elif kind == "fifo":
+                        os.mkfifo(page)
+                    else:
+                        page.mkdir()
+                    args = self.args(root, source=source)
+                    with self.assertRaises(RuntimeError):
+                        self.invoke(args)
+                    self.assertFalse(args.output_dir.exists())
+                    page.rmdir() if kind == "directory" else page.unlink()
+            alias = root / "raw-alias"
+            alias.symlink_to(source, target_is_directory=True)
+            with self.assertRaises(RuntimeError):
+                self.invoke(self.args(root, source=alias))
+
+    def test_invalid_raw_json_is_not_published(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "raw"
+            source.mkdir()
+            page = source / "bid-page-001.json"
+            page.write_bytes(b'{"response": {"body": {}}}')
+            args = self.args(root, source=source)
+            with self.assertRaisesRegex(RuntimeError, "collection_raw_invalid"):
+                self.invoke(args)
+            self.assertFalse((args.output_dir / "collected-notices.json").exists())
+            self.assertEqual(b'{"response": {"body": {}}}', page.read_bytes())
+            self.assertFalse(json.loads((args.output_dir / "collection-provenance.json").read_text())["complete"])
+
+    def test_partial_http_failure_keeps_raw_and_inclusive_dates(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            args = self.args(root)
+            with patch.object(COLLECT, "get_service_key", return_value="fake"), patch.object(
+                COLLECT, "request_json", side_effect=[self.payload(total=2), RuntimeError("offline")]
+            ) as request:
+                with self.assertRaisesRegex(RuntimeError, "offline"):
+                    self.invoke(args)
+            self.assertEqual("202609010000", request.call_args_list[0].args[1]["inqryBgnDt"])
+            self.assertEqual("202609022359", request.call_args_list[0].args[1]["inqryEndDt"])
+            self.assertTrue((args.output_dir / "raw/bid-page-001.json").is_file())
+            self.assertFalse((args.output_dir / "collected-notices.json").exists())
+            self.assertFalse(json.loads((args.output_dir / "collection-provenance.json").read_text())["complete"])
+            replay = self.args(root, output=root / "replay", source=args.output_dir / "raw")
+            self.assertEqual(1, self.invoke(replay))
+            result = json.loads((replay.output_dir / "collected-notices.json").read_text())
+            self.assertTrue(result["warnings"])
+            self.assertFalse(json.loads((replay.output_dir / "collection-provenance.json").read_text())["complete"])
+
+    def test_final_write_failure_never_marks_provenance_complete(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            args = self.args(root)
+            original_write = COLLECT.write_json_new
+            def fail_final(path, payload):
+                if path.name == "collected-notices.json":
+                    raise OSError("disk_write_failed")
+                return original_write(path, payload)
+            with patch.object(COLLECT, "get_service_key", return_value="fake"), patch.object(
+                COLLECT, "request_json", return_value=self.payload()
+            ), patch.object(COLLECT, "write_json_new", side_effect=fail_final):
+                with self.assertRaisesRegex(OSError, "disk_write_failed"):
+                    self.invoke(args)
+            provenance = json.loads((args.output_dir / "collection-provenance.json").read_text())
+            self.assertFalse(provenance["complete"])
+            self.assertTrue((args.output_dir / "raw" / "bid-page-001.json").exists())
+            self.assertFalse((args.output_dir / "collected-notices.json").exists())
+
+    def test_exclusive_file_creation_preserves_files_and_serializes_first(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "collected-notices.json"
+            with self.assertRaises(TypeError):
+                COLLECT.write_json_new(path, {"invalid": object()})
+            self.assertFalse(path.exists())
+            path.write_bytes(b"original")
+            with self.assertRaisesRegex(RuntimeError, "collection_file_exists"):
+                COLLECT.write_json_new(path, {})
+            self.assertEqual(b"original", path.read_bytes())
+
+    def test_page_limit_retains_warning_and_nonzero_exit(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            args = self.args(Path(directory))
+            with patch.object(COLLECT, "get_service_key", return_value="fake"), patch.object(
+                COLLECT, "request_json", return_value=self.payload(total=101)
+            ) as request:
+                self.assertEqual(1, self.invoke(args))
+            self.assertEqual(100, request.call_count)
+            result = json.loads((args.output_dir / "collected-notices.json").read_text())
+            self.assertIn("100페이지", result["warnings"][0])
+            self.assertFalse(json.loads((args.output_dir / "collection-provenance.json").read_text())["complete"])
+
+    def test_two_processes_compete_for_one_directory_and_loser_never_calls_http(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            args = self.args(Path(directory))
+            context = multiprocessing.get_context("fork")
+            barrier, results = context.Barrier(2), context.Queue()
+
+            def run():
+                with patch.object(COLLECT, "get_service_key", return_value="fake") as key, patch.object(
+                    COLLECT, "request_json", return_value=self.payload()
+                ) as request:
+                    barrier.wait(timeout=5)
+                    try:
+                        status = self.invoke(args)
+                    except RuntimeError:
+                        status = 1
+                    results.put((status, key.call_count, request.call_count))
+
+            processes = [context.Process(target=run) for _ in range(2)]
+            for process in processes:
+                process.start()
+            try:
+                outcomes = [results.get(timeout=10) for _ in processes]
+                self.assertEqual([(0, 1, 1), (1, 0, 0)], sorted(outcomes))
+            finally:
+                for process in processes:
+                    process.join(timeout=5)
+                    if process.is_alive():
+                        process.terminate()
+                        process.join()
+                results.close()
+
+    def test_bare_from_raw_explains_required_source_argument(self) -> None:
+        completed = subprocess.run(
+            [sys.executable, str(SCRIPT), "--from-date", "2026-09-01", "--to-date", "2026-09-01",
+             "--output-dir", "unused", "--from-raw"], capture_output=True, text=True,
+        )
+        self.assertEqual(2, completed.returncode)
+        self.assertIn("--from-raw SOURCE_RAW", completed.stderr)
+        self.assertIn("--output-dir", completed.stderr)
 
 
 if __name__ == "__main__":

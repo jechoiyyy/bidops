@@ -489,7 +489,7 @@ docker compose -f docker-compose.yml up -d --force-recreate web
 수집은 **host에서** 한다. web 컨테이너에는 API key가 없다.
 
 ```bash
-RUN_ID=$(date +%Y%m%d)-prespec-ref
+RUN_ID="$(date +%Y%m%d)-prespec-ref-$(uuidgen)"
 python3 skills/bidops-collect/scripts/collect_notices.py \
   --from-date <YYYY-MM-DD> --to-date <YYYY-MM-DD> \
   --output-dir "data/runs/${RUN_ID}" \
@@ -500,8 +500,14 @@ python3 skills/bidops-collect/scripts/collect_notices.py \
 - `--skip-bids`는 입찰공고를 빼고 사전규격만 담는다. 둘은 같은
   `collected-notices.json` 하나에 들어가므로 이 플래그가 없으면 입찰공고까지 적재된다.
 - `--timeout 300`이 핵심이다. 기본 30초로는 구간 수집이 거의 항상 끊긴다.
-- 원문 페이지는 `data/runs/${RUN_ID}/raw/`에 남는다. 재분류는 `--from-raw`로 API 호출 없이
-  반복할 수 있다.
+- 원문 페이지는 `data/runs/${RUN_ID}/raw/`에 남는다. 기존 회차(빈 폴더 포함)는 재사용하지
+  않는다. collector가 회차와 파일을 배타 생성하므로 출력 폴더를 미리 만들지 않는다.
+- 재분류는 `--from-raw data/runs/<원본 회차>/raw --output-dir data/runs/<새 회차>`로
+  API 호출 없이 수행한다. 같은 날짜·source 선택을 전달하고, 원본 바이트는 검증 후 새 raw에
+  복사한다. symlink와 허용 루트 이탈은 거부한다.
+- `collection-provenance.json`에 원본 상대 경로·페이지 hash·옵션·완전성·경고가 남는다.
+  일부 수집이면 exit 1이며 웹·예약 호출은 자동 적재하지 않는다. 남은 raw를 삭제하거나
+  기존 회차에서 재시도하지 말고 별도 새 회차를 사용한다.
 
 표본을 고른다. 판정은 `validation-set.json`을 입력으로 쓴다.
 
@@ -817,6 +823,12 @@ COMPOSE_PROJECT_NAME=bidops docker compose \
 
 `scripts/backup-postgres.sh`는 timestamp가 붙은 custom-format dump를 만들고 기존 백업을 삭제하지 않는다. 4시간 RPO가 필요하면 이 스크립트와 별도로 WAL 보관을 구성하고 복구 시험으로 확인한다.
 
+`ro_backup`은 table뿐 아니라 현재/향후 `migrate` 소유 sequence의 SELECT도 필요하다.
+runtime 권한 정책은 이를 읽기 전용으로 부여하며 USAGE/UPDATE는 부여하지 않는다.
+sequence 접근 거부로 종료한 dump는 0 B일 수 있으므로 성공 백업으로 사용하지 않는다.
+승인된 최소 권한 복구 뒤 새 경로에 백업하고 exit·크기·SHA-256·`pg_restore --list`를
+확인한다. 목록 읽기 성공은 실제 restore 시험이나 WAL/RPO 충족의 증거는 아니다.
+
 객체 백업은 네 개의 MinIO 버킷에서 모든 version을 버전별 파일로 복사하고
 `OBJECT_BACKUP_DIR/object-versions.tsv`를 만든다. manifest의 각 행은 헤더 없이
 `namespace/object_name<TAB>source_version_id<TAB>sha256` 형식이다. `sha256`은 source와
@@ -950,17 +962,43 @@ python -m app.deep_review.cli import-page-overview \
 
 ### v4 cohort 준비·enqueue ops
 
-v4는 기본 비활성이다. 운영자는 먼저 migration head와 runtime privilege policy를
-백업·검토하고, 승인된 사설 overview endpoint와 64자 model revision을
+v4는 기본 비활성이다. 새 코드 head는 `0025_overview_claim_ledger`이며 운영 적용 여부와
+분리해 확인한다. 운영자는 기존 activation을 OFF로 만들고 미종료 attempt/job 취소 수를
+확인한 뒤 DB·versioned 객체 백업 manifest, 명시적 migration, runtime privilege policy,
+worker·API·웹의 동시 전환을 준비한다. startup은 migration이나 활성화를 하지 않는다.
+승인된 사설 overview endpoint와 64자 model revision을
 `BIDOPS_REFERENCE_WORKFLOW_MODE=true`, `BIDOPS_ANALYSIS_PROVIDER=vllm`로 명시한다.
 활성화는 scheduler/startup에서 일어나지 않으며 아래 명령이 append-only audit 행을
-만든다. 활성화 전에는 어떤 source/PDF도 준비하지 않는다.
+만든다. 활성화 전에는 새 source/PDF를 준비하지 않는다. 기존 동결 target 재사용은 변환을
+다시 실행하지 않고 `--enqueue --target-id`로 지정한다.
+
+선택 원문 5,000자 초과만으로 표본을 제외하지 않는다. v5는 각 단계의 실제 요청 크기와
+overview endpoint가 확인한 context, 출력 예약 및 기존 payload 상한을 대조한다.
+`failed/input_capacity_exceeded`는 내용 검증 실패가 아니라 해당 단계 미실행이다. 모델
+context 제공 여부·출력 예약·선택 범위를 확인하고 새 범위가 필요하면 별도 승인 target을
+만든다. 원문 절단·사전 요약·자동 분할 또는 호출 상한 증가로 재시도하지 않는다. 의미 단계에서
+막혔으면 앞선 초안 호출/원응답이 있을 수 있으며 최종 개요는 게시하지 않는다.
+
+새 쓰기는 policy v5와 activation v2의 정확한 policy digest, 두 stage, 호출 예산 및
+notice/document/source/target/input/manifest/PDF 결속을 요구한다. 기본 artifact는 미승인
+템플릿이며 그대로 활성화할 수 없다. `--preview-activation`은 DB 연결·migration·모델 호출
+없이 실행 승인 내용을 확인한다. `stage_policy_sha256`은 stage 전체의 hash이고 실제
+입력별 prompt hash는 호출 ledger에 별도로 기록된다. source만 지정한 승인은 준비까지만
+허용하며 실제 동결 target과 두 단계 payload를 확인한 새 승인 없이 enqueue하지 않는다.
 
 ```bash
+python -m app.deep_review.cli prespec-v4 --preview-activation \
+  --artifact /secure/v4/prespec-v4-activation-v2.json
 python -m app.deep_review.cli prespec-v4 --dry-run \
   --notice-id 142 --mode explicit_sample
+# 아래 변경 명령은 백업·migration·건별 payload/정책 승인 이후에만 실행한다.
 ./.venv/bin/python -m app.deep_review.cli prespec-v4 --activate \
-  --actor '<감사표식>' --mode explicit_sample
+  --actor '<감사표식>' --mode explicit_sample \
+  --artifact /secure/v4/prespec-v4-activation-v2.json
+# 변경하지 않은 변환 입력을 재사용하는 이번 참조 실행의 enqueue 경로
+python -m app.deep_review.cli prespec-v4 --enqueue \
+  --actor '<감사표식>' --target-id '<승인된 동결 TARGET_UUID>'
+# 새 문서 준비가 별도로 승인된 경우에만 사용한다.
 python -m app.deep_review.cli prespec-v4 --prepare \
   --actor '<감사표식>' --notice-id 142 --mode explicit_sample \
   --renderer /secure/v4/worker-renderer.json \
@@ -972,7 +1010,7 @@ python -m app.deep_review.cli prespec-v4 --enqueue \
   --font /secure/v4/worker-font.json --config /secure/v4/worker-config.json \
   --options /secure/v4/processor-options.json
 python -m app.deep_review.cli prespec-v4 --deactivate \
-  --actor '<감사표식>' --reason '<중단 사유>'
+  --actor '<감사표식>' --reason operator_requested
 ```
 
 준비 options는 표본별로 고정하고 기록한다. mandatory RFP의 검증 binding 예시는
@@ -996,20 +1034,55 @@ JSON을 `--binding`으로 함께 준다. deployable binding을 그 자리에 쓰
 `docker compose run`에는 `--no-build`가 없으므로 migration은 이미지 고정 overlay와 `--pull never`로 실행한다
 (`run --rm --no-deps --pull never migrate`). 절차와 값은 [R6 기록](validation-runs/2026-09-10-rhwp-pipeline.md)에 있다.
 
-2026-09-10 R7 이후 DB head는 `0024_section_candidates`이고 이미지는 `bidops-rdp-r7:20260910`이다. worker는 다섯 번째 rhwp 호출 `digest --sections --json`로 절 후보(`bidops.section-candidates.v1`)를 만들어 snapshot에 결속한다. heading 선택기가 범위를 못 정한 `--prepare`는 `status: needs_human_review`(target 동결, attempt 없음)로 끝나며, 사람이 `POST /api/pre-specs/{id}/overview-pages/range-confirmations`(actor 헤더)로 확정하거나 운영자가 `prespec-v4 --assist-range --target-id <uuid> --actor <표식>`로 모델 제안(감사 행)만 받을 수 있다. 어느 쪽도 attempt·정책 활성화를 열지 않는다. 계약은 [contracts.md](contracts.md)의 "v4 개요 입력 범위의 사람 확인", 절차는 [R7 기록](validation-runs/2026-09-10-rhwp-r7-range-review.md)에 있다.
+2026-09-10 R7 운영 반영 당시 head는 `0024_section_candidates`, 이미지는 `bidops-rdp-r7:20260910`이었다(새 0025 코드의 배포 증거가 아니다). worker는 다섯 번째 rhwp 호출 `digest --sections --json`로 절 후보(`bidops.section-candidates.v1`)를 만들어 snapshot에 결속한다. heading 선택기가 범위를 못 정한 `--prepare`는 `status: needs_human_review`(target 동결, attempt 없음)로 끝나며, 사람이 `POST /api/pre-specs/{id}/overview-pages/range-confirmations`(actor 헤더)로 확정하거나 운영자가 `prespec-v4 --assist-range --target-id <uuid> --actor <표식>`로 모델 제안(감사 행)만 받을 수 있다. 어느 쪽도 attempt·정책 활성화를 열지 않는다. 계약은 [contracts.md](contracts.md)의 "v4 개요 입력 범위의 사람 확인", 절차는 [R7 기록](validation-runs/2026-09-10-rhwp-r7-range-review.md)에 있다.
+
+2026-09-11 MVP는 정상 outline·부분 후보를 v2 sidecar로 수용하고 보조 digest 실패를
+core와 분리한다. API/화면은 후보가 있어도 직접 쪽 선택과 target PDF 열람을 제공한다.
+운영 web·document-worker2는 `bidops-prespec-mvp:20260911-advisory-final`로 반영했다(head0025 유지,
+추가 migration 없음). 기존 실패6건만 각1회 재준비해 안전한 core6개를 얻었고 정상9건은
+재변환하지 않았다. 754·755는 제안개요 작성 양식 오선택을 모호성 경고로 보내 기존 target을
+보존한다. 후보 없는 core의 scratch 전달은 unavailable 경고+명시적 null descriptor에
+한해서 허용하고 기존 snapshot/cache를 쓴다. 경고 없는 누락·실제 후보 파일 JSON null·
+핵심 무결성 실패는 계속 차단한다. 입력 준비 가능은 744·749·759·761의4건,
+수동 범위11건, 문서/안전4건이다.
+이 준비 종료 당시 Qwen 생성/내용 검증 통과는0건이며 source-only 실행 종료 뒤 OFF로 복귀했다. semantic preview는
+예시이며 실제 초안 이후 다시 예산을 검사한다. 기존 24,000자 정책 상한·출력 예약·호출
+상한을 바꾸지 않았다. 사람 범위 확정, 정확한
+target에 대한 두 stage 전송·실행 activation은 승인 범위를 따로 확인해야 한다. 이전 실패·준비물은
+보존하고 이 문구를 실행 승인으로 쓰지 않는다. 대상별 최신 준비·검증은
+[안정화 Plan](0910_prespec-workflow-hardening/Plan.md)에 있다.
+
+후속 승인으로2026-09-11 준비4건을 실제 Qwen에 각1회 전송했다. 초안4회 모두 응답했으나
+결정적 검사에서 전부 needs_human_review로 종료해 semantic0·최종 개요/내용 통과0이다.
+추가 host 체인 조회는 이번 실행에서 사용자가 명시적으로 생략했고 일반 방화벽 정책을
+변경하지 않았다. 종료 OFF·active0, 원문/기존 결과·리뷰 불변과 API/실패 PDF를 확인했다.
+최신 범위·예외·실행 증거는 위 안정화 Plan을 따른다. 같은 스크립트의 무승인 재실행은 하지 않는다.
 
 `--prepare`/`--enqueue`는 120초 attachment fetch worker와 분리된 준비 role에서
 실행한다. app role은 검증된 source를 읽고 versioned source/structure object와
 snapshot/target/WorkJob/attempt를 append하며, analysis worker는 source/MinIO 원문
 권한 없이 frozen manifest만 읽는다. timeout·모호한 대표문서·PDF/관측 실패는 안전한
 failed/current 또는 사람확인 상태로 남기고 기존 성공/legacy row를 지우지 않는다.
-`--retry`는 failed/cancelled target에 새 attempt만 추가하며, off 상태·active attempt·
-완료 성공에는 동작하지 않는다. 중단 rollback은 `--deactivate`와 worker 중지이며
+`--retry --target-id`는 기존 최신 attempt가 failed/cancelled/needs_human_review일 때 새
+attempt와 새 WorkJob을 추가한다. attempt가 아직 없으면 `--enqueue --target-id`를 쓰며,
+off 상태·active attempt·완료 성공에는 retry가 동작하지 않는다. `--deactivate`는 OFF 감사와
+queued/running attempt/job 취소를 한 transaction에 확정하고 취소 수를 반환한다. 늦은
+응답은 호출 이력만 보존하고, 재활성화돼도 이전 실행 결과를 게시하지 않는다. 안전한
+사유 코드가 아닌 자유 문구는 `operator_requested`로 기록한다. 중단 복구는 OFF 유지와
+명시적 새 승인/attempt이며
 snapshot/attempt object/row를 삭제하거나 legacy를 자동 재실행하지 않는다.
 
-### Luna 명시 참조 실행
+새 실행은 draft 1회와 별도 Qwen semantic 1회가 정상 경로다. 기술적 형식 오류만 draft를
+한 번 재생성하므로 총 3회/semantic 1회가 상한이며 transport 재시도는 없다. 호출당 300초,
+lease 1,200초다. 해석 가능한 사실 불일치는 needs_human_review, 최종 result 없음으로
+종료한다. 화면은 `overview-pages/v2`의 현재 상태·검증 진단·이력을 구분하고 실패 근거는
+attempt PDF 링크로 확인한다. 참조 품질 표식을 운영 승인으로 승격하지 않는다.
 
-Luna 참조는 Qwen 운영 endpoint의 대체 경로가 아니다. `/tmp` generation record와
+### 이전 Luna 명시 참조 실행 기록
+
+아래는 policy v4/activation v1 당시의 실행 기록 해설이며 현재 v5의 실행 명령이 아니다.
+기존 파일·결과·parser는 보존하지만 v1 승인과 Luna 응답을 새 Qwen 다단계 실행에
+재사용하지 않는다. Luna 참조는 Qwen 운영 endpoint의 대체 경로가 아니다. `/tmp` generation record와
 sample 파일은 root가 만든 immutable evidence로 유지하고, `--sample-key`를 포함해
 정확한 sample을 선택한다. 먼저 app role에서 활성 binding을 만들고 target을 예약한
 뒤, worker role에서 별도 명령으로 실행한다.
