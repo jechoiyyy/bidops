@@ -8,32 +8,11 @@
 연다.
 
 > 이전 수집·Qwen/Luna·PDF 참조 실행 기록은 [현황](tracking/status.md)에 구간별로 남아 있다.
-> 그 기록은 새 policy v5의 두 단계 Qwen 주장 검증을 실행하거나 승인했다는 뜻이 아니다.
-> 현재 안정화 작업의 실행 범위와 승인 대기는 [작업 Plan](0910_prespec-workflow-hardening/Plan.md)을 따른다.
-
-## 2026-09-10 안정화 변경의 참조 확인
-
-이번에는 아래 전체 종단 절차를 다시 실행하지 않는다. 변경한 수집기·개요 runner·DB·조회와
-화면의 격리 검증을 마친 뒤, 변경하지 않은 C-2·C-1·변환 결과는 동결 입력으로 재사용한다.
-새 수집 회차는 기존 폴더를 덮거나 선생성하지 않고 raw 재분류 입력과 출력 경로를 분리한다.
-
-실제 전송 전에 notice/document/target과 source/PDF/input/manifest hash, 정책 v5 digest,
-사설 Qwen 목적별 allowlist·선언 revision, draft 및 semantic payload 범위, 정상 2회/최대
-3회(semantic 최대 1회)를 고정한다. semantic payload는 검증 통과한 실제 draft와 인용으로
-구성되므로 예시 preview를 실제 모델 출력으로 표시하지 않는다. 기존 activation v1은
-이 승인을 대신하지 않으며 `--preview-activation`으로 새 v2 실행 계약을 확인한다.
-
-운영 migration·정책 활성화·건별 모델 전송 승인이 빠졌으면 준비 결과와 필요한 대상만
-제시하고 멈춘다. 회사 핏·심층 자동 시작·scheduler는 열지 않는다. analysis-worker의 실제
-설정/기동을 별도 확인하되 재사용하는 판정·변환 worker를 새로 돌릴 필요는 없다.
-결과는 `unmeasured_reference`이며 사람의 모든 주장/PDF 대조와 품질 승인은 별도다.
-
-선택 원문 합계 5,000자만으로 표본을 제외하지 않는다. 초안·의미 각각의 실제 요청과 확인된
-overview 모델 context·출력 예약·기존 payload 상한으로 허용량을 판단한다. 35·142번도
-기존 동결 원문 전체로 재평가하며, 예산 초과/확인 불가는 해당 단계 미실행이지 내용 검증 실패가
-아니다. 초안 전 사전 계산과 생성된 초안으로 만든 실제 의미 요청 계산을 구분해 기록한다.
-절단·사전 요약·자동 분할·추가 호출로 우회하지 않는다.
-명령과 중지·복구 절차는 [operations의 v4 ops](operations.md#v4-cohort-준비enqueue-ops)를 따른다.
+> 2026-09-10 policy v5 두 단계 Qwen 주장 검증 스택(activation v2·call ledger·verification)은
+> 2026-09-11 [ADR-0054](tracking/decisions/0054-prespec-overview-mvp-rewrite.md)로 폐기하고
+> `prespec_overview_run`(migration 0026) 단일 테이블로 재작성했다. `docs/0910_prespec-workflow-hardening/`
+> 폴더는 삭제했으며 상세는 git 이력(`71b9954`)에서 찾는다. 현재 계약은
+> [contracts.md](contracts.md#사전규격-개요-검토-mvp-2026-09-11)를 정본으로 한다.
 
 ## 두 갈래로 나눠서 간다
 
@@ -88,11 +67,16 @@ BIDOPS_TEST_MODE=1 .venv/bin/python -m app.deep_review.cli run-prespec-e2e \
 
 **`$WS/evidence.json`을 열어 두 건이 갈렸는지 본다.** 이것이 이 단계의 핵심이다.
 
+> **P1 임시 표기**: 개요 실행기(analysis worker 개요 slot)는 2026-09-11 개요 스택
+> 재작성 뒤 P2에서 복원 중이다. P2 복원 전까지는 개요 run이 자동으로 만들어지지 않으므로
+> `pre-1`·`pre-5` **두 건 모두** `bundle_ready`에 머문다(개요 run이 없으면 `bundle_ready`이며 결정 대기로
+> 세지 않는다). 아래 표는 개요 실행기 복원 뒤의 목표 동작이다.
+
 | | `pre-1` (SW=Y) | `pre-5` (SW=N) |
 |---|---|---|
 | 자동 준비 상태 | `deep_review_started` | `deep_review_ready_for_click` |
 | 사유 코드 | 없음 | `not_sw_business` |
-| 개요 검토 | `completed` · 추진 검토 | `completed` · 추진 검토 |
+| 개요 검토 | `completed` | `completed` |
 | 심층 검토 | `completed`, 시스템이 시작 | **없음** — 사람이 눌러야 한다 |
 
 `pre-5`에 심층 검토가 없는 것이 **정상**이다. SW사업대상이 아닌 건은 개요까지만 자동으로
@@ -149,7 +133,7 @@ model revision이 없으면 모델을 쓰는 모든 용도가 호출 전에 막�
 | `overview_running` | 개요 검토 실행 중 | 기다린다 |
 | `deep_review_started` | 심층 검토가 자동으로 시작됐다 | 보고서를 본다 |
 | `deep_review_ready_for_click` | 자동 시작 조건이 아니다 | 사유 코드를 본다 |
-| `blocked` | 검사·변환 실패 첨부가 있다 | 첨부를 제외하거나 수동 업로드한다 |
+| `blocked` | 검사·변환 실패 첨부가 있다. 사유 `attachments_failed`는 취득 행이 모두 `차단`·`실패`로 끝나 준비된 문서가 없는 경우다 | 첨부를 제외하거나 수동 업로드한다 |
 
 `deep_review_ready_for_click`의 사유 코드는 이렇게 읽는다.
 
@@ -157,18 +141,18 @@ model revision이 없으면 모델을 쓰는 모든 용도가 호출 전에 막�
 |---|---|
 | `not_sw_business` | SW사업대상이 아니다. **정상이며, 사람이 누르면 된다** |
 | `bundle_not_auto_ready` | 사람이 확정한 묶음이다. 사람이 이어서 판단한다 |
-| `overview_not_completed` | 개요가 사람 검토 필요·실패로 끝났다 |
-| `overview_recommendation_closed` | 개요 권고가 `검토 종료`다. 비용을 더 쓰지 않는다 |
-| `overview_bundle_mismatch` | 개요가 본 문서가 지금 묶음에 없다 |
+| `overview_not_completed` | 개요 run이 `completed`가 아니다(`needs_human_review`·`failed`·`cancelled`로 끝났거나 아직 없다) |
 | `service_unavailable` | active profile/policy 설정이 없거나 §6.5 조건이 안 맞는다 |
 
 `service_unavailable`이 보이면 위 함정 4번(UUID 넣고 재기동)을 먼저 확인한다.
 
 ## 결과를 어떻게 볼 것인가
 
-### 모든 결과에 품질 표식이 붙는다
+### 심층 검토·회사 핏 결과에는 품질 표식이 붙는다
 
-개요 카드와 보고서 상단에 배지가 있다.
+2026-09-11 개요 스택 재작성으로 `prespec_overview_run`은 `quality_status` 필드를 더 이상
+갖지 않는다(계약은 [contracts.md](contracts.md#사전규격-개요-검토-mvp-2026-09-11)). 아래
+배지는 심층 검토 보고서와 회사 핏 결과에 그대로 적용된다.
 
 - **참조 실행 · 품질 미측정** (`unmeasured_reference`) — 실제 모델이 돌았지만 품질을 재지
   않았다.
@@ -188,11 +172,10 @@ model revision이 없으면 모델을 쓰는 모든 용도가 호출 전에 막�
 `failed`로 만든다. **이것은 문서를 잘못 읽었다는 뜻이 아니라 검사 기대치와 모델 출력 예산이
 맞지 않는다는 뜻이다.** 명세대로 둔 상태이며 다음 차수에 범위를 정한다.
 
-**개요 검토는 mock으로 돌려도 "실제 모델 · 품질 미측정"으로 보인다.** mock 표식이 붙은 시도는
-완료될 수 없게 되어 있어서, 저장소 안에서 개요를 완주시키려면 mock을 전송 계층에 두어야 하고
-그러면 표식이 실제 참조 실행과 같아진다. 지금은 mock 종단이 검증 경로에서만 돌고 운영 화면에
-그 데이터가 생기지 않아 실제 혼동은 일어나지 않는다. 심층 검토의 mock 표식은 이 제약과
-무관하게 정상 동작한다.
+**(2026-09-11 종결)** 이전에는 개요 검토를 mock으로 돌려도 실제 참조 실행과 품질 표식을
+구분할 수 없었다. `prespec_overview_run`에 `quality_status` 필드 자체가 없어졌으므로 이
+문제는 해당 스택 폐기로 종결됐다([findings](tracking/findings.md#mock-종단의-개요-검토가-실제-참조-실행과-응답에서-구분되지-않는다)).
+심층 검토의 mock 표식(`mock_reference`)은 이와 무관하게 정상 동작한다.
 
 ## 증거를 남긴다
 

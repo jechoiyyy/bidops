@@ -6,7 +6,7 @@
 | 기준일 | 2026-09-05 (KST) |
 | 정본 | docs/ARCHITECTURE.md |
 | 제품 | BidOps |
-| 관련 문서 | ADR.md, PRD.md, business-rules.md, contracts.md, security.md, operations.md |
+| 관련 문서 | ADR.md, PRD.md, business-rules.md, contracts.md, operations.md (모델 전송 정책은 ADR-0050 완화 항목 참조) |
 
 ## 1. 문서의 범위와 읽는 법
 
@@ -595,7 +595,7 @@ validator 실패는 결과를 자동 보정하지 않는다. report renderer는 
 1. 업무 용어와 상태 축을 docs/business-rules.md에서 확인한다.
 2. REST·파일·DB 소비자 계약을 docs/contracts.md에 먼저 고정한다.
 3. 불변성·lineage·migration·object namespace를 설계한다.
-4. 외부 전송이면 docs/security.md의 payload·egress·감사 검토를 통과한다.
+4. 외부 전송이면 ADR-0050 완화 항목과 payload·egress·감사 검토를 통과한다.
 5. 결정이 바뀌면 상세 ADR을 docs/tracking/decisions/에 추가하고 docs/ADR.md index를 갱신한다.
 6. 코드·worker·UI를 기존 subprocess/API 경계에 연결한다.
 7. 결정적 validator, 실패 경로, partial artifact, 재시작 경로를 검증한다.
@@ -612,7 +612,6 @@ validator 실패는 결과를 자동 보정하지 않는다. report renderer는 
 - 데이터베이스 해설: docs/database-guide.md
 - 심층 검토 ERD: docs/deep-review-erd.md
 - 입찰 delta·최종 결정 계약: docs/bid-delta-contract-spec.md
-- 보안: docs/security.md
 - 운영: docs/operations.md
 - 표준: docs/standards.md
 - 재발 방지 지식: docs/engineering-notes.md

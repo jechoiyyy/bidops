@@ -105,7 +105,11 @@
 
 ## ADR-RDP-010 범위 확인은 후보와 독립된 새 target이며 과거 실행을 덮지 않는다
 
-- 상태: 채택 (2026-09-11)
+- 상태: 채택 (2026-09-11) → 같은 날 뒤이은 개요 스택 재작성으로 대체됨. `prespec_v4_target`
+  테이블과 `overview-pages/targets/{target_id}/pdf`·index 기반 range-confirmations는
+  migration 0026에서 삭제됐고, 범위 확인은 `POST .../overview/range-confirmations`(body
+  `{page_start, page_end, note?}`)로 단순화됐다([ADR-0054](../tracking/decisions/0054-prespec-overview-mvp-rewrite.md)).
+  아래는 그 이전의 결정 기록이다.
 - 결정: 담당자는 후보 유무와 관계없이 고정 PDF에서 `first_page`~`last_page`를 직접 선택할 수 있다. 확정은 `human_confirmed` `ready` target과 감사만 추가하며 attempt, activation, 모델 전송, 내용 검증 결과를 만들지 않는다. `attempt_enqueued=false`는 항상 유지한다.
 - 결정: queued/running attempt가 있으면 범위 변경을 거부한다. 새 target이 생기면 이전 target의 queued/running/completed 실행은 현재 projection에서 `stale/target_superseded`, `result_id=null`이고 이전 결과·검증·사람 리뷰는 이력으로 보존한다. 이전 target을 다시 enqueue할 수도 없다. 회사 핏 등 후속 소비자는 새 target에 결속되지 않은 과거 완료 결과를 현재 결과로 사용하지 않는다.
 - 결정: attempt가 없거나 실패·검토 대기여도 `GET /api/pre-specs/{notice_id}/overview-pages/targets/{target_id}/pdf`로 target PDF를 열 수 있다. 안전한 과거 document에 결속된 target도 열람할 수 있고 current document 조건은 범위 확정에만 적용한다. 조회는 공고/target/document/snapshot 계보, 원본과 PDF의 최신 clean scan, 고정 object version·etag·size·SHA-256을 모두 다시 검사한다. PDF 열람은 전송 승인이나 품질 통과가 아니다.
@@ -131,7 +135,7 @@
 
 - 2026-09-09 Qwen 전환 준비: 검증 실패 1회 재시도(seed 변경, 고정 보정 지시), 선행 `<think>` 제거, `prompt_rejected` 코드 분리, 검증기 v3 인용 정규화. 브랜치 `feat/p1-wp1-model-client`·`-wp2-validation-retry`·`-wp3-citation-normalize`(미병합). 숫자·영문 대조와 hash 결속은 풀지 않는다.
 - Qwen용 프롬프트 변경은 정책 v5로 분리하고 v4 결과·Luna 참조는 이력으로 보존한다.
-- 추후 OpenAI API 전환은 코드보다 정책 문제다(literal IP allowlist, 64자 revision, `docs/security.md`의 제안요청서 외부 전송 금지). 별도 ADR이 필요하다.
+- 추후 OpenAI API 전환은 코드보다 정책 문제다(literal IP allowlist, 64자 revision, 제안요청서 외부 전송 금지 — ADR-0050 완화 항목 참조). 별도 ADR이 필요하다.
 
 ## 미결·추적
 

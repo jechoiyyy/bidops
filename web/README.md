@@ -8,7 +8,7 @@
 - 프론트엔드: Vite 6 · React 19 · TypeScript · Tailwind v4 · TanStack Query v5 · React Router v7
 - live 정본: PostgreSQL 17의 `bidops` schema
 - SQLite: 격리 테스트와 일회성 migration input에만 사용
-- 현재 운영 기준: `docs/ARCHITECTURE.md`, `docs/business-rules.md`, `docs/security.md`, `docs/contracts.md`, `docs/operations.md`, `docs/standards.md`
+- 현재 운영 기준: `docs/ARCHITECTURE.md`, `docs/business-rules.md`, `docs/contracts.md`, `docs/operations.md`, `docs/standards.md` (모델 전송 정책은 ADR-0050 완화 항목 참조)
 
 ## 현재 Compose runtime 실행
 

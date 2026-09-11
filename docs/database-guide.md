@@ -54,7 +54,7 @@ BidOps DB는 공고의 최신값만 모아 둔 목록이 아니라, **어떤 회
 
 - 현재 판정: `judgment`; 불변 이력: `judgment_revision`
 - 현재 사람 리뷰: `review`; 불변 이력: `review_revision`
-- 현재 개요 상태: `prespec_overview_review`; 불변 절단본: `prespec_overview_snapshot`
+- 현재 개요 상태: `prespec_overview_run`(최신 `created_at`); 불변 입력: `prespec_v4_pdf_snapshot`
 - 심층 리포트 이력: `report_revision`
 - 사람의 심층 의견 이력: `final_opinion`
 
@@ -168,39 +168,33 @@ attachment
 
 실제 파일 바이트는 MinIO에 있고 PostgreSQL은 object key, version, hash와 상태를 보존한다. 검사 전 파일이나 차단된 파일을 정상 문서처럼 사용하지 않는다.
 
-사전규격의 저비용 개요 검토는 다음 다섯 테이블을 사용한다.
+사전규격의 개요 검토는 `prespec_overview_run` 단일 테이블(migration `0026`)을 사용한다
+([ADR-0054](tracking/decisions/0054-prespec-overview-mvp-rewrite.md)). v3
+review/snapshot/attempt/result·event(`0012`·`0014`), v4 target/attempt(`0022`), v5 주장
+검증·call ledger(`0025`)는 모두 삭제했다. run 하나가 notice·문서·snapshot·범위·상태·결과·경고를
+전부 담고, 공고의 "현재 개요"는 `created_at` 최신 run이다. 상세 열 계약은
+[ERD 8.5](deep-review-erd.md#85-사전규격-개요-run-0026)와
+[contracts.md](contracts.md#사전규격-개요-검토-mvp-2026-09-11)를 정본으로 한다. `0026` 적용
+전 삭제 대상 개요 테이블의 pg_dump 백업 절차는
+[operations.md](operations.md#0026-적용-전-개요-테이블-백업)를 따른다.
 
-- `prespec_overview_review`: 공고별 현재 준비·실행 상태와 현재 snapshot 포인터
-- `prespec_overview_snapshot`: 어떤 문서·구조·원문 해시의 어느 구간을 잘랐는지 기록한 불변 입력
-- `prespec_overview_attempt`: 모델 실행의 순서와 불변 입력·binding, 제한된 현재 상태
-- `prespec_overview_result`: 검증을 통과한 구조화 결과를 attempt당 최대 하나로 보존
-- `prespec_overview_attempt_event`: `queued/running/completed/failed/cancelled` 상태 전이의 append-only 기록
+`prespec_overview_run.status`는 `queued|running|completed|needs_human_review|failed|cancelled`다.
+binding이 없거나 허용 host·revision이 비어도 MVP 기간에는 fail closed하지 않는다(ADR-0050
+§5 완화 항목). 절단 경계가 불명확하면 fallback 범위로 진행하거나 `needs_human_review`에
+남는다. 참고용 mock은 `mock_reference`, 그 밖 실행은 `unmeasured_reference`이며 둘 다 운영
+완료로 세지 않는다.
 
-`0014`는 phase 2의 DB 계보와 무결성 제약을 추가했다. attempt 입력과 binding은 생성 뒤 바꿀 수 없고, 상태 전이는 먼저 event를 남긴 뒤 허용된 방향으로만 진행되며, 검증 결과는 별도 불변 행에 한 번만 저장한다. 다만 승인된 사설 모델 binding, 실제 모델 호출·결과 검증 서비스, 새 결과 API 계약은 아직 운영 완료로 볼 수 없다. binding이 없으면 `awaiting_model`, 절단 경계가 불명확하면 `needs_human_review`에 머물러야 한다. 참고용 mock은 `reference_only`, `deployable=false`이고 운영 완료로 세지 않는다.
+`GET /api/pre-specs/{notice_id}/overview`는 단순 조회이며 run을 생성하거나 모델을 호출하지
+않는다. run 생성은 analysis worker의 자동 enqueue(`BIDOPS_PRESPEC_OVERVIEW_ENABLED`)나
+`POST .../overview/range-confirmations`에서만 일어난다.
 
-주의할 점은 현재 `GET /api/pre-specs/{notice_id}/overview-reviews`가 단순 조회만 하지 않는다는 것이다. 준비 가능한 clean 문서와 구조가 있으면 review와 snapshot을 생성하거나 상태를 전진시킬 수 있다.
-
-v4 PDF 준비는 별도 `prespec_v4_pdf_snapshot` → `prespec_v4_target` →
-`prespec_v4_attempt` 계보다. `0023_rhwp_snapshot`은 native rhwp 준비에 필요한
-변환 HWPX(HWP만)·구조·문단/페이지 대응표의 참조를 nullable 열로 추가한다.
-원문·PDF·변환 HWPX는 `source`, 구조·native page-text·대응표는 `structure` 객체이며,
-`0024_section_candidates`는 같은 `structure` namespace의 절 후보(신규 `bidops.section-candidates.v2`, 기존 v1 읽기 유지) 참조 세 열을 nullable로 더한다. 셋이 함께 null이거나 함께 채워진다. 0024 이전 snapshot과 핵심 산출물이 유효하되 `section_candidates_unavailable` 경고가 있는 신규 snapshot은 null로 보존·재사용한다. 이 보완은 기존 nullable 제약을 활용하며 새 migration은 없다.
-각 location ID가 정확한 MinIO version을 고정한다. 저장과 재사용 모두 객체 해시와
-버전을 확인한다. renderer 전체 JSON의 해시와 font/config 해시가 캐시를 구분한다.
-기존 문서 구조와 pages·blocks가 다르면 덮어쓰지 않고 준비를 실패시킨다.
-
-`prespec_v4_attempt.validation_warnings`는 이후 WP-3의 경고 저장을 위한 nullable
-JSONB다. 허용 상태 전이에서만 변경하며 종료된 attempt와 모든 snapshot은 불변이다.
-변환 실패는 안전 코드만 attempt와 감사 로그에 남긴다. 이 migration은 기존 행을
-보정하지 않으며 native 참조나 경고가 남아 있으면 downgrade를 거부한다.
-
-`0025_overview_claim_ledger`는 같은 target 위의 새 주장 검증 실행을 기록한다. attempt에
-활성화 감사 FK와 needs_human_review 상태를 더하고, `prespec_overview_call_event`에 호출별
-불변 이력, `prespec_overview_verification`에 결정적/의미 검사를 분리 보존한다. 최종
-`prespec_page_overview` v4는 검증 FK/hash를 요구하며 전체 통과한 문장만 담는다. 미검증
-주장이 남으면 결과 없이 attempt를 사람 검토로 닫고 job은 failed로 종료한다. 중지 뒤
-늦은 원응답은 call 이력에만 추가되며 재실행은 새 attempt/job이다. 기존 v3 결과와 단일
-응답 hash는 보존한다. 제약·역할별 권한은 [ERD 8.5](deep-review-erd.md#85-주장-검증다단계-호출-기록-0025-2026-09-10-추가)에 있다. 코드 head 추가는 운영 migration 수행을 뜻하지 않는다.
+`prespec_v4_pdf_snapshot`(`0021`)은 유지하는 입력 스냅숏이다. `0023_rhwp_snapshot`은 native
+rhwp 준비에 필요한 변환 HWPX(HWP만)·구조·문단/페이지 대응표의 참조를 nullable 열로
+추가했고, `0024_section_candidates`는 같은 `structure` namespace의 절 후보(신규
+`bidops.section-candidates.v2`, 기존 v1 읽기 유지) 참조 세 열을 nullable로 더했다. 셋이
+함께 null이거나 함께 채워진다. 개요 run은 이 snapshot을 가리키기만 하고 자기 범위 선택은
+`range_source`·`page_start`·`page_end`에 따로 갖는다. 각 location ID가 정확한 MinIO
+version을 고정하며, 저장과 재사용 모두 객체 해시와 버전을 확인한다.
 
 ### 7단계. 승인된 문서 묶음으로 심층 검토한다
 
@@ -356,11 +350,13 @@ DB trigger가 다음 이력의 `UPDATE`와 `DELETE`를 거부한다.
 
 - `judgment_revision`
 - `review_revision`
-- `prespec_overview_snapshot`
-- `prespec_overview_result`
-- `prespec_overview_attempt_event`
+- `prespec_v4_pdf_snapshot`
 
-`prespec_overview_attempt`는 phase 2에서 전체 행 불변 대신 **입력 계보 불변 + 제한된 lifecycle 전이** 방식으로 바뀌었다. 입력 snapshot·sequence·hash·모델 binding은 수정할 수 없고, 상태는 대응하는 event가 있을 때만 `queued → running/failed/cancelled`, `running → completed/failed/cancelled`로 전이할 수 있다.
+`prespec_overview_run`은 **입력 계보 불변 + 제한된 lifecycle 전이** 방식이다. `notice_id`·
+`document_version_id`·`snapshot_id`·`input_sha256`·`policy_digest`·모델 binding은 생성 뒤
+수정할 수 없고, 상태는 `queued → running → completed/needs_human_review/failed/cancelled`
+방향으로만 전이한다. 같은 notice에 `queued`·`running` run은 부분 유니크 제약으로 동시에
+하나만 허용한다.
 
 다만 `notice_observation`, `order_plan_observation`에는 동일한 append-only trigger가 없다. 특히 `run` 삭제가 외래키 cascade를 통해 관측을 간접 삭제할 수 있으므로, 불변 회차를 지키는 서비스와 운영 절차가 함께 필요하다.
 
@@ -496,17 +492,13 @@ version**으로 다시 등록한다.
 바뀌면 기존 행을 고치지 않고 새 행이 생긴다. 자세한 계약은
 [심층 검토 ERD](deep-review-erd.md)의 8.1절이다.
 
-### E. 사전규격 개요 검토·회사 핏 7개
+### E. 사전규격 개요 검토·회사 핏 3개
 
 | 테이블 | 쉬운 설명 |
 |---|---|
-| `prespec_overview_review` | 사전규격별 개요 검토의 현재 상태 |
-| `prespec_overview_snapshot` | 앞부분 절단 범위와 원문·구조 hash를 고정한 입력 |
-| `prespec_overview_attempt` | 개요 모델 실행의 불변 입력·binding과 제한된 lifecycle 상태. worker lease는 `lease_owner`·`lease_expires_at`에 남는다 |
-| `prespec_overview_result` | 검증된 구조화 결과의 immutable payload와 digest |
-| `prespec_overview_attempt_event` | attempt 상태 전이의 append-only event |
-| `prespec_page_overview` | PDF 페이지 근거를 가진 설명형 개요의 불변 출력·검증 기록 |
-| `prespec_company_fit_attempt` | 개요·승인 프로필·정책을 고정한 회사 핏 판정·사유·사용량 이력 |
+| `prespec_v4_pdf_snapshot` | 개요·범위 확인이 공유하는 불변 PDF/쪽 텍스트 입력 스냅숏 |
+| `prespec_overview_run` | 개요 검토 하나의 범위·상태·결과·경고를 담는 단일 테이블(migration `0026`) |
+| `prespec_company_fit_attempt` | 개요 run·승인 프로필·정책을 고정한 회사 핏 판정·사유·사용량 이력 |
 
 ### F. 심층 검토 17개
 
@@ -576,23 +568,21 @@ version**으로 다시 등록한다.
 - [업무 상태와 의사결정 규칙](business-rules.md)
 - [REST·파일·DB 소비자 계약](contracts.md)
 - [현재 구조와 목표 데이터 흐름](ARCHITECTURE.md)
-- [보안과 PostgreSQL·MinIO 경계](security.md)
-- [운영·백업·복구 절차](operations.md)
+- [운영·백업·복구 절차](operations.md) — 모델 전송 정책은 ADR-0050 완화 항목 참조
 - [현재 구현 상태](tracking/status.md)
 - SQLAlchemy 모델: [core](../web/backend/app/core/models.py) · [lifecycle](../web/backend/app/lifecycle/models.py) · [screening](../web/backend/app/screening/models.py) · [deep_review](../web/backend/app/deep_review/models.py)
 - [Alembic migration](../web/backend/alembic/versions/)
 - [런타임 DB 권한 allowlist](../scripts/runtime-privileges.sql)
 - [심층 검토 ERD 계약](deep-review-erd.md)
 
-### 설명형 PDF 개요 기록 (0019)
+### 개요 run 기록 (0026)
 
-`prespec_page_overview`는 권고 없는 새 출력의 불변 저장소다. 기존 `prespec_overview_result`의
-검증 통과·권고 lifecycle 계약을 바꾸지 않는다. `document_version_id`는 공고와 복합 FK로
-묶이며 `pdf_location_id`·`input_location_id`는 버전이 고정된 객체 위치를 가리킨다.
-원출력 JSONB, 근거 검사와 원실행 실패 이력, 모델·정책·프롬프트·원문·PDF digest를
-보존한다. 변경·삭제는 trigger로 거부하고 같은 실행·공고의 내용 변경도 적재기가 거부한다.
-
+`prespec_overview_run`은 2026-09-11 MVP 재작성 이전의 `prespec_page_overview`(0019)·
+`prespec_overview_result`(0014) 등을 대체하는 단일 불변-계보 테이블이다. `document_version_id`는
+공고와 복합 FK로 묶이고, snapshot 참조·범위·초안/검사/결과 JSONB·경고·사유 코드·모델
+binding·`raw_response_refs`(암호화 원응답 참조 목록)를 한 행에 보존한다. 입력 계보 열은
+생성 뒤 불변이며 상태·결과·경고 열만 lifecycle 규칙에 따라 전이한다.
 
 ### 회사 핏 이력: `prespec_company_fit_attempt`
 
-개요 뒤 회사 업무 부합 여부를 판단한 별도 실행 이력이다. migration `0020_prespec_company_fit`에서 추가한다. 페이지 개요 또는 추출형 개요 결과 하나, 그 문서, 승인 프로필, 활성 심층 정책을 FK로 묶고 핏 정책 전문/모델 바인딩/구조화 입력을 불변 JSON과 digest로 저장한다. 같은 입력은 한 번만 실행한다. queued → running → completed/failed/needs_human_review로 전이하고, queued의 오래된 입력은 failed로 닫을 수 있다. lease 만료 후 자동 재개하지 않는다. 종결 행과 입력은 DB trigger/ORM으로 보호한다. 결과·사유·사용량은 이 테이블이 정본이며 자동 준비 표시 상태는 여전히 조회 시 계산한다.
+개요 뒤 회사 업무 부합 여부를 판단한 별도 실행 이력이다. migration `0020_prespec_company_fit`에서 추가한다. 개요 run 하나, 그 문서, 승인 프로필, 활성 심층 정책을 FK로 묶고 핏 정책 전문/모델 바인딩/구조화 입력을 불변 JSON과 digest로 저장한다. 같은 입력은 한 번만 실행한다. queued → running → completed/failed/needs_human_review로 전이하고, queued의 오래된 입력은 failed로 닫을 수 있다. lease 만료 후 자동 재개하지 않는다. 종결 행과 입력은 DB trigger/ORM으로 보호한다. 결과·사유·사용량은 이 테이블이 정본이며 자동 준비 표시 상태는 여전히 조회 시 계산한다.

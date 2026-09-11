@@ -3,6 +3,13 @@
 작업명: rhwp-document-pipeline · 기준일: 2026-09-11 · 상태: native 변환·MVP 보완 구현과 승인된 운영 배포·6건 core 재준비·Qwen 참조 실행 4건 사람 검토 대기
 결정의 근거는 [ADR.md](ADR.md), 구조는 [Design.md](Design.md), 계약·단계는 [Spec.md](Spec.md)에 있다.
 
+> **2026-09-11 개요 스택 재작성 안내**: F15·F16 등 아래 `target`/`attempt` 기반 요구사항과
+> R7 범위 선택 REST 설명은 같은 날 뒤이은 개요 스택 재작성으로 대체된 **역사 기록**이다.
+> `prespec_v4_target`·`prespec_v4_attempt` 테이블은 migration 0026에서 삭제됐고, 범위 확인은
+> `POST /api/pre-specs/{notice_id}/overview/range-confirmations`로 단순화됐다. 현재 계약은
+> [contracts.md](../contracts.md#사전규격-개요-검토-mvp-2026-09-11)를 정본으로 한다. rhwp
+> 변환·snapshot·절 후보 요구사항은 그대로 유효하다.
+
 ## 1. 목표
 
 사전규격 첨부(HWP·HWPX·PDF)를 운영 서버의 프로그램(rhwp)만으로 변환하고, 한 문서 버전에 대해 HWPX·구조·PDF·페이지 텍스트·문단↔페이지 대응표를 불변 저장한다. PDF·페이지 텍스트 등 core를 보조 절 후보와 독립 검증해 안전한 문서 열람과 사람의 직접 쪽 선택을 보장한다. LLM은 변환에 관여하지 않고 개요 해석, 완전한 후보가 있을 때의 명시적 범위 선택 보조, 심층 검토 역할별 분석만 맡는다.

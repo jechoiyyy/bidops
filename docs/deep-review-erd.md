@@ -647,7 +647,7 @@ lease 길이는 환경변수가 아니라 모듈 상수 1,200초다.
 세부 JSON/조회 계약은 [회사 핏 계약](contracts.md#사전규격-회사-핏-계약-bidopsprespec-company-fitv1)을 따른다.
 
 - `notice_id`·`document_version_id`를 같은 공고의 문서에 고정한다.
-  `page_overview_id`와 `overview_result_id`는 정확히 하나만 존재하고, 원본 개요가 같은
+  `overview_run_id`(`prespec_overview_run(id)` FK, nullable)는 원본 개요가 같은
   공고·문서를 가리키는지 INSERT trigger에서 확인한다.
 - 승인 프로필·심층 정책 FK, 원본 개요·프로필 hash, 회사 핏 정책 전문·모델 binding과
   구조화 입력은 실행 전에 고정한다. `input_sha256`은 UNIQUE이며 입력 열은 갱신할 수 없다.
@@ -684,38 +684,49 @@ UNIQUE는 유지한다. 서비스가 원본·객체 버전·해시·HWPX 검증�
 해시·MIME·pages·blocks가 native 결과와 같아야 재사용하고, 차이는
 `structure_binding_mismatch`로 닫는다. 다른 구조를 기존 리뷰 위에 덮지 않는다.
 
-`0022`의 `prespec_v4_attempt`에는 nullable `validation_warnings` JSONB를 추가한다.
-기존 trigger의 허용 결과 열 목록에만 추가하며 입력·범위·상태 전이·terminal 불변
-검증은 유지한다. worker의 snapshot INSERT와 이 열의 column UPDATE를 허용하고,
-snapshot UPDATE/DELETE는 허용하지 않는다. 신규 참조·provenance나 경고가 있으면
-`0022`로의 downgrade를 거부한다.
+`0022`가 추가했던 `prespec_v4_target`·`prespec_v4_attempt`(그 위에 얹힌
+`validation_warnings` 등 모든 후속 열 포함)는 **0026에서 삭제**한다. `prespec_v4_pdf_snapshot`
+(`0021`)은 이 절의 열과 함께 유지한다.
 
-## 8.5 주장 검증·다단계 호출 기록 (`0025`, 2026-09-10 추가)
+## 8.5 사전규격 개요 run (`0026`)
 
-새 policy v5 실행은 기존 PDF snapshot/target을 재사용하고 다음 기록을 추가한다. 이전
-결과·단일 응답 hash·사람 리뷰는 backfill하거나 재검증 통과로 변경하지 않는다.
+v3 개요 review/snapshot/attempt/result(`0012`·`0014`), v4 target/attempt(`0022`), v5 주장
+검증·call ledger(`0025`)를 모두 폐기하고 `prespec_overview_run` 단일 테이블로 재작성한다
+([ADR-0054](tracking/decisions/0054-prespec-overview-mvp-rewrite.md)). 상세 계약 정본은
+[contracts.md](contracts.md#사전규격-개요-검토-mvp-2026-09-11)다.
 
-| 테이블·열 | 계약 |
-|---|---|
-| `prespec_v4_attempt.activation_id` | `audit_event.id` FK, 생성 뒤 불변. 과거 null 유지, 새 v5 queued/running에는 activation과 WorkJob 필수 |
-| `prespec_v4_attempt.status` | 32자, `needs_human_review` 추가. 완료 시각 필수·lease 해제·result 없음, 기존 terminal 변경/삭제 금지 |
-| `prespec_overview_call_event` | append-only dispatch/response/error. call UUID·attempt FK·ordinal 1~3·draft/semantic·동결 input/prompt/binding hash·암호화 원응답 hash/객체·location FK·안전 코드/계측 |
-| `prespec_overview_verification` | attempt UNIQUE FK, 초안/동결 input/policy/model/binding hash, validator version, checks JSONB와 hash, passed/needs_human_review. UPDATE/DELETE 금지 |
-| `prespec_page_overview.verification_id`, `verification_sha256` | 검증 FK/hash. v3은 null, 새 v4는 passed 검증과 정확한 주장/분석 대응 필수 |
+| 열 | 타입 | 뜻 |
+|---|---|---|
+| `id` | uuid PK | |
+| `notice_id` | bigint FK `notice` | |
+| `document_version_id` | uuid FK `document_version` | 묶음의 RFP 문서 |
+| `snapshot_id` | uuid FK `prespec_v4_pdf_snapshot`, null | 준비 전이면 null |
+| `work_job_id` | uuid FK `work_job` | `job_type=prespec_overview`, `aggregate_type=prespec_overview_run` |
+| `status` | varchar(32) CHECK | `queued\|running\|completed\|needs_human_review\|failed\|cancelled` |
+| `range_source` | varchar(16) CHECK | `auto\|fallback\|human` |
+| `page_start`, `page_end` | int, null | 1부터 시작하는 물리 PDF 쪽. 준비 전 null |
+| `range_reason_codes` | jsonb | 자동 선택·fallback 사유 코드 목록 |
+| `input_sha256` | char(64), null | 동결 입력 hash |
+| `policy_digest` | char(64) | 정책 v6 digest |
+| `model_name` | text | |
+| `model_revision` | text, null | |
+| `draft_json`, `checks_json`, `result_json` | jsonb, null | 초안·검사 결과·최종 개요 |
+| `warnings_json` | jsonb | 수치·역할·날짜 대조 경고 등 비차단 경고 |
+| `reason_codes` | jsonb | 실패·사람 검토 사유 코드 |
+| `call_count` | int | 모델 호출 수 |
+| `raw_response_refs` | jsonb | 암호화 원응답 참조 목록(`{sha256, object_key}[]`); API에 노출 금지 |
+| `actor_name` | text, null | 사람 범위 확정 시 담당자 |
+| `created_at`, `started_at`, `completed_at` | timestamptz | |
 
-호출 원장의 `input_sha256`은 attempt/target의 동결 입력 hash다. stage별 실제 prompt는
-`prompt_sha256`으로 구분한다. 한 call에는 terminal response/error 중 하나만 존재하며
-draft 최대 2회·semantic 최대 1회다. 취소 후 늦은 응답 이력은 허용하지만 검증/result를
-만들거나 종료한 attempt를 수정하지 못한다. 검증·결과·attempt·WorkJob 종료는 deferred
-constraint trigger로 같은 commit에 결속한다. needs_human_review의 job은 failed와
-`last_error_code=claim_verification_required`이며 새 job 상태를 추가하지 않는다.
-
-app은 두 새 표 SELECT만, worker는 SELECT/INSERT만, backup은 SELECT만 갖는다. app의
-attempt UPDATE는 취소에 필요한 열과 cancelled 전이로 제한한다. gate advisory lock은
-activation/enqueue/claim/dispatch/종료에서 공유하고 HTTP 중에는 해제한다. 기존 활성
-작업을 새 policy에 자동 전환하지 않으며 새 기록이 있으면 downgrade를 거부한다.
-상세 상태·조회 계약과 실제 검증 여부는 [Spec](0910_prespec-workflow-hardening/Spec.md)과
-[Plan](0910_prespec-workflow-hardening/Plan.md)을 따른다.
+인덱스 `ix_prespec_overview_run_notice_created(notice_id, created_at desc)`, 부분 유니크
+`uq_prespec_overview_run_active(notice_id) where status in ('queued','running')`. app role은
+SELECT/INSERT/UPDATE, worker role은 SELECT/INSERT/UPDATE만 갖는다. 함께 drop하는 테이블은
+`prespec_overview_verification`, `prespec_overview_call_event`, `prespec_v4_attempt`,
+`prespec_v4_target`, `prespec_page_overview`, `prespec_overview_attempt_event`,
+`prespec_overview_result`, `prespec_overview_attempt`, `prespec_overview_snapshot`,
+`prespec_overview_review`이고 함수 `tf_prespec_v4_attempt_guard()`도 drop한다.
+`prespec_v4_pdf_snapshot`(`0021`)과 `bidops.section-candidates.v1/v2`는 유지한다. 적용 전
+pg_dump 백업 절차는 [operations.md](operations.md#0026-적용-전-개요-테이블-백업)를 따른다.
 
 ## 9. FK 삭제와 불변 정책
 

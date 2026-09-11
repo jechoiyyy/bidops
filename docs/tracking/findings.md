@@ -489,7 +489,7 @@ snapshot을 만들지 않는 fail-closed 계약을 검증하도록 분리했으�
   식)가 C-2 관련 경로에 닿으면 사본이 자족적이지 않다는 것을 검증자가 미리 알아야 한다.
   모르면 "복사본에서만 실패한다"를 코드 결함으로 오해한다.
 - 지금 해결할 수 없는 이유: 회사자료를 저장소나 image에 넣지 않는 것이 확정 경계다
-  ([security.md](../security.md), 런타임 이미지 항목). gitignore를 푸는 것은 답이 아니다.
+  (런타임 이미지 항목). gitignore를 푸는 것은 답이 아니다.
 - 접근 방법: 트리 사본을 만드는 검증 절차는 `git archive` 뒤에 그 두 디렉터리를 작업 트리에서
   따로 복사하는 단계를 포함한다. 사본 기반 검증을 문서로 고정할 때 이 단계를 함께 적는다.
 
@@ -901,6 +901,11 @@ snapshot을 만들지 않는 fail-closed 계약을 검증하도록 분리했으�
   기록만 남기기로 결정했다.
 - 접근 방법: 다음 차수에 attempt에 transport 표식을 더하고 `quality_status` 계산을
   `reference_only`와 transport 두 축으로 가른다.
+- 종결(2026-09-11): `prespec_overview_attempt`·`reference_only`·`ck_prespec_overview_attempt_completed_binding`이
+  참조하던 v4/v5 개요 attempt 테이블을 [ADR-0054](decisions/0054-prespec-overview-mvp-rewrite.md)로
+  삭제했다. 새 `prespec_overview_run`은 `quality_status` 필드 자체를 두지 않으므로(계약은
+  [contracts.md](../contracts.md#사전규격-개요-검토-mvp-2026-09-11)) 이 판별 문제가 해당 스택
+  폐기로 종결됐다.
 
 ## 회사 프로필 원문 일부가 심층 모델 fact 입력에서 빠진다
 
@@ -948,6 +953,11 @@ snapshot을 만들지 않는 fail-closed 계약을 검증하도록 분리했으�
 - 현재 해결하지 않은 이유: 요청 범위는 10건 실제 테스트다. 확인 기한의 소유권과 조건부 권고 계약, 다중 문단 근거 및 의미 검증을 함께 정해야 하므로 기한을 임의 보정하거나 출력 계약을 조용히 변경하지 않았다.
 - 후속: 승인된 확인 기한이 없는 경우의 권고 규칙을 명시하고, claim별 다중 근거·숫자·날짜·완료 상태의 검증과 사람 확인 경계를 보완한다.
 - 증거: [Qwen 10건 개요 검토 실험](../validation-runs/20260907-prespec-overview-qwen-10.md).
+- 종결(2026-09-11): `추진 검토|조건부 추진 검토|보류|검토 종료` 권고와 `verification_due_at`
+  필드 자체가 [ADR-0054](decisions/0054-prespec-overview-mvp-rewrite.md)로 삭제됐다. 새
+  `prespec_overview_run`의 result에는 권고·확인 기한이 없고 claim별 인용 대조·필수 섹션만
+  결정적으로 검사하므로(계약은 [contracts.md](../contracts.md#사전규격-개요-검토-mvp-2026-09-11))
+  이 문제는 해당 스택 폐기로 종결됐다.
 
 ## 2026-09-03~09-07 실제 참조 실행의 개요 검증 실패
 
@@ -1173,6 +1183,12 @@ runner 소비자가 없어 보류했다. 운영 DB/MinIO 쓰기·migration 적�
   Canvas snapshot `e68670e0…`·target `200e9557…`은 보존됐고 attempt는 없다. `GET /api/document-structures/22541eb7…/pdf`가
   이 PDF를 돌려주고 segments 77건이 `mapped` 35·`partial` 42다. `current`는 여전히 `dbbc7b5f…`이며 아래 projection 항목은 열려 있다
   ([R6 기록](../validation-runs/2026-09-10-rhwp-pipeline.md)).
+- 사실 정정(2026-09-11): 위 "조치(2026-09-09)"가 기록한 `pids_limit: 512`는 R6 이후 이미지
+  재생성(`bidops-rdp-r6:20260910` 이후)에서 `fc-list` 추가와 함께 **128로 되돌아갔다** — R6·R7·
+  현재 운영 document-worker는 모두 `PidsLimit=128`이다(R6/R7 기록, 2026-09-10). 512로 올린
+  기록은 2026-09-09~10 사이의 중간 상태일 뿐 현재 사실이 아니므로, 운영 pids 값을 확인할
+  때는 이 항목이 아니라 `docker inspect <container> --format '{{.HostConfig.PidsLimit}}'`
+  실측을 정본으로 한다.
 
 ## pdf_preparation_failed가 변환기의 실제 오류 코드를 감춘다 (2026-09-10)
 
@@ -1247,45 +1263,58 @@ runner 소비자가 없어 보류했다. 운영 DB/MinIO 쓰기·migration 적�
 - 영향: 같은 후보 목록에 대한 모델 제안이 호출마다 달라질 수 있다. 제안은 사람이 확인하는 참조일 뿐 target을 바꾸지 않으므로 업무 영향은 없다.
 - 현재 범위에서 해결할 수 없는 이유: 승인 generation 값은 용도별 품질 게이트와 묶여 있어 R7 범위에서 core 계약을 바꾸지 않았다.
 - 후속: `complete_structured`에 용도별 per-call generation override(허용 목록 안에서만)를 두거나 range-assist 용도의 승인 generation을 별도로 선언한다.
+- 종결(2026-09-11): `--assist-range` CLI와 그 대상인 `prespec_v4_target`은
+  [ADR-0054](decisions/0054-prespec-overview-mvp-rewrite.md)로 삭제됐다. 새 계약에는 모델
+  보조 range 제안 CLI가 없으므로 이 문제는 해당 스택 폐기로 종결됐다.
 
 ## 확정 대기 target에 검토 manifest 참조가 결속되지 않는다 (2026-09-10)
 
 - 재현: R7의 `prepare_v4_notice`가 선택기 미결정 시 `bidops.prespec-v4-range-review.v1` manifest를 객체·content row로 저장하지만, `freeze_v4_target`이 ready가 아닌 selection에 manifest 참조를 주면 `manifest_reference_invalid`로 막아 `needs_human_review` target의 `manifest_content_object_id`는 `null`이다.
 - 영향: 검토 manifest는 존재하고 후보 개수·digest를 담지만 target 행에서 FK로 따라갈 수 없다. `range_review` 투영은 후보를 snapshot의 산출물 ⑦에서 읽으므로 화면 기능에는 영향이 없다.
 - 후속: `freeze_v4_target`에 non-ready selection의 review manifest 참조를 허용하는 분기와 그 검증을 추가한다.
+- 종결(2026-09-11): `prespec_v4_target`과 `freeze_v4_target`은
+  [ADR-0054](decisions/0054-prespec-overview-mvp-rewrite.md)로 삭제됐다. 새
+  `prespec_overview_run`은 target 테이블을 거치지 않고 자기 행에 직접
+  `range_source`·`page_start`·`page_end`·`range_reason_codes`를 두므로 이 문제는 해당 스택
+  폐기로 종결됐다.
 
 ## 실표본에서 사람 확정 흐름을 재현할 문서가 없다 (2026-09-10)
 
 - 상황: 35/59/142 모두 heading 선택기가 `ready`라 `needs_human_review` target이 만들어지지 않는다. R7의 확정 REST·화면·CLI 보조는 API 종단 테스트(`test_page_overview`·`test_prespec_v4_ops`)와 Playwright 목 검사로만 확인했다.
 - 후속: 다음 수집 회차에서 heading 선택기가 미결정인 사전규격이 나오면 `docs/validation-runs/2026-09-10-rhwp-r7-range-review.md`의 절차로 운영 확인하고 결과를 이 항목에 덧붙인다.
+- 종결(2026-09-11): 확정 REST는 `POST /api/pre-specs/{notice_id}/overview/range-confirmations`로,
+  대상 테이블은 `prespec_overview_run`으로 바뀌었다([ADR-0054](decisions/0054-prespec-overview-mvp-rewrite.md)).
+  옛 target 기반 확정 흐름과 그 테스트(`test_prespec_v4_ops`)는 함께 삭제됐으므로 이 항목은
+  해당 스택 폐기로 종결하고, 실표본 사람 확정 재현은 새 endpoint 기준으로 별도 후속을
+  연다.
 
 ## 개요 숫자 검증이 기간을 사업예산 근거로 허용한다 (2026-09-10, 새 v5 실행 해결)
 
 - 재현: `page_overview_validation.validate_page_overview_detailed`에 유효한 page-review v3 payload를 넣는다. 근거 페이지는 `사업을 진행한다. 시스템을 구축한다. 계약기간은 6개월이다. 예산은 미정이다.`, `budget_and_period`의 사실은 `사업예산은 6억원이다.`와 `evidence_pages=[1]`이다. 격리 합성 입력에서 결과는 `errors=[]`, `warnings=[]`였다.
 - 원인·영향: 숫자를 정수 문자열 집합으로 비교하므로 `6개월`과 `6억원`을 구분하지 않는다. 사업예산·기간·단위·수치의 관계가 틀려도 v4 runner가 완료 결과로 저장하고 화면이 근거 검사 통과로 표시할 수 있다. 실제 Qwen 응답에서 이 오류가 발생했다는 관측은 아니다.
 - 해결: 새 v5 실행은 주장별 정확 인용과 Decimal 수치·단위·주체·역할·VAT·기산점을 검사하고 별도 Qwen 의미 검토를 요구한다. 하나라도 미검증이면 전체 `needs_human_review`, 결과 없음이다. 검증된 문장만 결정적으로 구성한다. 과거 v3 parser·원응답·결과를 보존하며 새 검증 통과로 승격하지 않는다.
-- 검증: 새 순수 검증기의 고유 95개 사례와 runner 사실 실패·의미 불확실·최종 구성/소비자 재검사에서 기간→예산, 단위/주체/VAT 교환과 근거 위조를 차단했다([Plan](../0910_prespec-workflow-hardening/Plan.md)). 의미 응답은 fake이며 실제 Qwen 품질 검증·운영 배포는 아직 아니다.
+- 검증: 새 순수 검증기의 고유 95개 사례와 runner 사실 실패·의미 불확실·최종 구성/소비자 재검사에서 기간→예산, 단위/주체/VAT 교환과 근거 위조를 차단했다(Plan(0910 안정화 Plan, 폐기됨 — git 이력 `71b9954`)). 의미 응답은 fake이며 실제 Qwen 품질 검증·운영 배포는 아직 아니다.
 
 ## 사전규격 수집기를 같은 회차에 재실행하면 원문을 덮어쓴다 (2026-09-10, 해결)
 
 - 재현: 임시 `raw/prespec-page-001.json`에 기존 내용을 만든 뒤 `collect_notices.collect_source`를 같은 경로로 호출한다. HTTP 함수는 빈 정상 응답을 반환하는 fake로 교체한다. 외부 호출 없이 기존 파일이 새 응답으로 교체됨을 확인했다.
 - 원인·영향: `collect_notices.py`는 raw 페이지와 `collected-notices.json`을 모두 `write_text`로 쓰며 기존 회차를 거부하지 않는다. 운영 문서의 날짜 기반 회차 ID를 같은 날 재사용하면 과거 원문·정규화 산출물의 불변성이 깨진다. 발주계획 전용 수집기의 배타적 파일 생성과 다르다.
 - 해결: collector의 회차/파일 배타 생성과 `--from-raw SOURCE_RAW`→별도 새 출력 계약, lifecycle·예약 호출부를 함께 수정했다. 기존 빈 폴더·symlink·경로 이탈은 키 확인 전에 거부한다.
-- 검증: collector 최초 35건, 발주계획 정규화 회귀 8건, 교차 pipeline 2건, 직접 backend 호출부 22건 통과. 실제 두 프로세스 경쟁의 패자 키·HTTP 호출은 0회였고 기존 raw hash·부분 실패 보존을 확인했다. 이후 최종 JSON 저장 실패가 완료 provenance를 남기는 경계도 수정해 신규 사례 포함 관련 3건 통과(collector 고유 36건). 실행 명령은 [작업 Plan](../0910_prespec-workflow-hardening/Plan.md)에 기록한다. 운영 수집·기존 회차 변경은 하지 않았다.
+- 검증: collector 최초 35건, 발주계획 정규화 회귀 8건, 교차 pipeline 2건, 직접 backend 호출부 22건 통과. 실제 두 프로세스 경쟁의 패자 키·HTTP 호출은 0회였고 기존 raw hash·부분 실패 보존을 확인했다. 이후 최종 JSON 저장 실패가 완료 provenance를 남기는 경계도 수정해 신규 사례 포함 관련 3건 통과(collector 고유 36건). 실행 명령은 작업 Plan(0910 안정화 Plan, 폐기됨 — git 이력 `71b9954`)에 기록한다. 운영 수집·기존 회차 변경은 하지 않았다.
 
 ## 최초 모델 확인 실패가 개요 worker 수명 동안 캐시된다 (2026-09-10, 해결)
 
 - 재현: `PrespecV4OverviewRunner`에 첫 `verify_identity`만 실패하고 이후 정상인 fake client를 주고 `_resolve()`를 두 번 호출한다. 두 결과 모두 `(None, None)`이고 실제 identity 호출은 1회다. fake client를 직접 다시 확인하면 정상 identity를 반환한다.
 - 원인·영향: 실패도 `_resolved=(None, None)`으로 저장하고 이후 즉시 반환한다. 합성 worker가 runner를 loop 밖에서 한 번 만들기 때문에 사설 vLLM이 복구되어도 큐가 `awaiting_model`에 머문다. 기존 `PreSpecOverviewRunner`도 같은 실패 캐시 패턴이다.
 - 해결: 두 runner의 성공 binding cache와 일시 실패를 분리했다. purpose/endpoint 설정/model/revision/policy 결속과 10→30→60→120→300초 backoff, 고정 오류 차단, 내부 client 정리, 실행 중 identity 오류 무효화를 적용했다.
-- 검증: 두 runner와 core의 fake clock 사례에서 최초 실패 후 복구, 대기 중 문서 호출 0, 고정 불일치 유지와 설정 변경을 확인했다. [Plan](../0910_prespec-workflow-hardening/Plan.md)의 관련 core 57건/기존 개요·Luna·analysis 69건/v4 27건 범위에 포함되며 운영 장애를 유발하지 않았다.
+- 검증: 두 runner와 core의 fake clock 사례에서 최초 실패 후 복구, 대기 중 문서 호출 0, 고정 불일치 유지와 설정 변경을 확인했다. Plan(0910 안정화 Plan, 폐기됨 — git 이력 `71b9954`)의 관련 core 57건/기존 개요·Luna·analysis 69건/v4 27건 범위에 포함되며 운영 장애를 유발하지 않았다.
 
 ## 비활성 v4 대기 작업이 다른 문서의 기존 개요 처리도 막는다 (2026-09-10, 해결)
 
 - 재현: 격리 SQLite·filesystem fixture에서 v4 target을 활성화·enqueue한 뒤 비활성화한다. 처리 가능한 legacy runner를 주입하고 합성 개요 `run_once`를 부르면 `status=disabled`, `claimed=false`, legacy 호출 0회다.
 - 원인·영향: `prespec_v4_runner.py`는 queued/running v4 attempt가 하나라도 있고 activation이 OFF이면 legacy 분기와 lease 만료 처리 전에 반환한다. 해당 v4 문서를 제외한 기존 개요까지 진행되지 않으며 만료된 v4 running 상태도 이 경로에서는 닫히지 않는다.
 - 해결: OFF와 무관하게 lease를 정리하고, 처리 가능한 v4가 없으면 예약 문서를 제외한 legacy를 배정한다. OFF는 대기·실행 attempt와 연결 job을 같은 gate에서 취소하며 이전 activation의 늦은 응답은 call 이력만 남긴다.
-- 검증: fake worker/clock의 OFF·배정·만료·다른 소유자 사례와 임시 PostgreSQL 17의 두 세션 gate 경쟁 4건에서 중지 이후 claim/게시 차단, 초안·의미 응답 뒤 OFF→ON fence, 게시가 먼저인 완료 보존을 확인했다([Plan](../0910_prespec-workflow-hardening/Plan.md)). 운영 큐는 변경하지 않았다.
+- 검증: fake worker/clock의 OFF·배정·만료·다른 소유자 사례와 임시 PostgreSQL 17의 두 세션 gate 경쟁 4건에서 중지 이후 claim/게시 차단, 초안·의미 응답 뒤 OFF→ON fence, 게시가 먼저인 완료 보존을 확인했다(Plan(0910 안정화 Plan, 폐기됨 — git 이력 `71b9954`)). 운영 큐는 변경하지 않았다.
 
 ## ro_backup의 sequence SELECT 누락으로 운영 DB 백업이 실패한다 (2026-09-10, 해결)
 
@@ -1299,7 +1328,7 @@ runner 소비자가 없어 보류했다. 운영 DB/MinIO 쓰기·migration 적�
 - 재현: 승인된 신규 notice743·745·746·747·754·755의 안전한 RFP를 기존 `bidops-rdp-r7:20260910` worker, prepare_pdf=true/300초/64MiB 조건으로 각1회 준비하면 `pdf_preparation_failed:section_candidates_invalid`로 terminal 실패한다. 같은 실행의 다른9건은 snapshot을 만들었다.
 - 영향: 위6건은 개요 입력을 동결하지 못해 Qwen 호출 대상에서 제외된다. 원본15개 전체의 version/hash/size 재조회는 일치했으며 이 실패를 원문 변조나 악성코드 검출로 단정하지 않는다.
 - 원인: 사이드 리뷰의 pinned rhwp digest 재현은 6건 모두 exit0였다. 743·745·754·755는 정상 outline(전체/반환 5/5·5/5·28/28·1/1), 746·747은 67/50·111/50 부분 반환인데 BidOps가 mode와 전체=반환을 잘못 강제했다. 이는 전체 PDF 재변환 성공 근거는 아니다.
-- 수정/검증: outline·총/반환 수를 구분한 후보 v2, digest의 advisory 실패와 검증된 core 분리, 부분 후보의 수동 쪽 선택을 구현했다. native parser/processor·sidecar 소비·범위 연결 격리 검사가 통과했다([Plan](../0910_prespec-workflow-hardening/Plan.md)).
+- 수정/검증: outline·총/반환 수를 구분한 후보 v2, digest의 advisory 실패와 검증된 core 분리, 부분 후보의 수동 쪽 선택을 구현했다. native parser/processor·sidecar 소비·범위 연결 격리 검사가 통과했다(Plan(0910 안정화 Plan, 폐기됨 — git 이력 `71b9954`)).
 - 운영 확인: 후속 승인으로 수정 web/document-worker2를 반영하고 위6건만 각1회 준비해 모두 core PDF/page-text를 얻었다. 원본·기존 실패·결과·리뷰는 동일하고 새 snapshot/target각6을 추가했다. 743·745는 범위 시작 미확정,746·747은 부분 후보라 수동 확인이다. 754·755는 제안 작성 양식 오선택을 발견해 아래 후속으로 분리했다. Qwen은0, source-only 준비 뒤 OFF다. [새 실행 증거](../../.dryforge/prespec-mvp-deploy-20260911-OIBy24/README.md), [이전 실패 보존](../../.dryforge/prespec-0910-preparation-3vfrYK/pdf-execution.json).
 
 ## 준비된 선택 manifest의 공백 페이지 거부 (2026-09-11 코드·고정 입력 검증·배포 완료)
@@ -1326,4 +1355,9 @@ runner 소비자가 없어 보류했다. 운영 DB/MinIO 쓰기·migration 적�
 
 - 재현/범위: 승인된744·749·759·761의 고정 전체 선택 원문과 v5 binding으로 실제 Qwen 초안을 각1회 받았다. 네 응답 모두 파싱되며 형식 재생성·timeout·용량 초과는 없었다. 결정적 검사에서 모두 needs_human_review, semantic0·최종 개요0이다. [실행 증거](../../.dryforge/prespec-qwen-0911-mHF0bO/README.md).
 - 관측: 744·749·761의8개 주장 모두 business_overview로 분류되어 필수 main_tasks가 없다. 759는 두 필수 섹션이 있지만 수치 metadata/단위, 분석 전제 및 unknown 사유 검사가 실패했다. 전체32주장 중 결정적15 통과/17 실패이며 의미 검토 전이므로 통과15도 최종 검증 문장이 아니다. 수치·단위·관계·날짜 대조 오류 코드는 실제 사실 오류와 검증기 과탐을 구별한 사람 판정이 아니다.
+- 종결(2026-09-11): 이 관측은 policy v5·`bidops.prespec-overview-claims.v1`(8개 주장 상한 포함)·
+  activation v2·call ledger 스택 전체를 대상으로 한다. [ADR-0054](decisions/0054-prespec-overview-mvp-rewrite.md)로
+  이 스택을 삭제하고 정책 v6(`max_claims 12`)로 다시 썼으므로, 여기 기록된 8/32주장 비율과
+  실패 사유 개수는 새 스택에 그대로 적용되지 않는다. 새 실행 결과는 별도 참조 실행으로
+  다시 측정한다. 이 항목은 해당 스택 폐기로 종결한다.
 - 영향/다음 판단: 입력 준비·전송·암호화 저장·검증 실패/근거 PDF 조회는 작동하나 검증된 개요를 얻는 실제 성공 경로는 미확인이다. 다음 개선은 초안 section/quantity/unknown 계약과 결정적 규칙의 실원문 적합성을 이 고정 응답/인용으로 좁혀 확인하는 것이 우선이다. 이번 실행 요청에서 새 정책/검증 방식 변경·사실 자동 수정·재호출을 임의로 진행하지 않는다. 원문·기존 결과/사람 리뷰/참조 표식과 실패 응답을 보존했다.
