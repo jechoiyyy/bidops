@@ -4,12 +4,12 @@
   "attachments": [
     {
       "source_url": "https://www.g2b.go.kr/pn/pnz/pnza/UntyAtchFile/downloadFile.do?bfSpecRegNo=R26TEST00000001&fileType=BFDTL&fileSeq=1",
-      "filename": "합성-제안요청서.hwpx",
+      "filename": "합성-과업내용서.hwpx",
       "file": "rfp.hwpx"
     },
     {
       "source_url": "https://www.g2b.go.kr/pn/pnz/pnza/UntyAtchFile/downloadFile.do?bfSpecRegNo=R26TEST00000001&fileType=BFDTL&fileSeq=2",
-      "filename": "합성-사업설명.pdf",
+      "filename": "합성-제안요청서.pdf",
       "file": "overview.pdf"
     },
     {
@@ -19,13 +19,18 @@
     },
     {
       "source_url": "https://www.g2b.go.kr/pn/pnz/pnza/UntyAtchFile/downloadFile.do?bfSpecRegNo=R26TEST00000005&fileType=BFDTL&fileSeq=1",
-      "filename": "합성-제안요청서.hwpx",
+      "filename": "합성-과업내용서.hwpx",
       "file": "rfp.hwpx"
     },
     {
       "source_url": "https://www.g2b.go.kr/pn/pnz/pnza/UntyAtchFile/downloadFile.do?bfSpecRegNo=R26TEST00000005&fileType=BFDTL&fileSeq=2",
       "filename": "합성-첨부묶음.zip",
       "file": "forms.zip"
+    },
+    {
+      "source_url": "https://www.g2b.go.kr/pn/pnz/pnza/UntyAtchFile/downloadFile.do?bfSpecRegNo=R26TEST00000005&fileType=BFDTL&fileSeq=3",
+      "filename": "합성-제안요청서.pdf",
+      "file": "overview.pdf"
     }
   ]
 }
