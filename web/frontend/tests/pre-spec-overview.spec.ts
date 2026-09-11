@@ -38,7 +38,9 @@ test("완료된 개요는 네 항목의 주장과 인용 쪽 링크를 함께 �
   await expect(overview.getByRole("heading", { name: "입력 한계" })).toBeVisible();
 
   // 비차단 경고는 접힌 채로 건수를 밝힌다.
-  await expect(overview.getByText("경고 2건")).toBeVisible();
+  await expect(overview.getByText("경고 3건")).toBeVisible();
+  // 완료된 결과에서도 인용 대조에 실패해 제외된 주장은 접이식으로 남긴다.
+  await expect(overview.getByText("제외된 주장 1건 (원문 대조 실패)")).toBeVisible();
 });
 
 test("사람 확인이 필요한 개요는 완료 본문 대신 실패한 주장만 보여준다", async ({ page }) => {
