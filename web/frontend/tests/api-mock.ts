@@ -1056,7 +1056,14 @@ function overviewRun(overrides: Partial<OverviewRun> & Pick<OverviewRun, "id" | 
 const overviewCompletedRun = overviewRun({
   id: "b1a7f0c2-1111-4a11-9c11-000000000001",
   status: "completed",
-  warnings: ["quantity_metadata_mismatch", "date_mismatch"],
+  warnings: ["quantity_metadata_mismatch", "date_mismatch", "claims_dropped"],
+  failed_claims: [{
+    claim_id: "c9",
+    section: "important_conditions",
+    text: "하도급 비율은 30% 이하여야 한다.",
+    reason_codes: ["quote_not_found"],
+    evidence: [],
+  }],
   result: {
     business_overview: [{
       claim_id: "c1",
