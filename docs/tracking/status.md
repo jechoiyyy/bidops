@@ -6,6 +6,17 @@
 
 `구현됨`은 코드와 계약이 존재한다는 뜻이고, `검증됨`은 기록된 명령이 해당 범위에서 통과했다는 뜻이다. Mock 결과, 과거 브랜치 결과, 현재 worktree 결과, 외부 운영 승인을 서로 대신하지 않는다.
 
+## 2026-09-11 BidOps MVP 배관 수리와 개요 스택 재작성
+
+- P0(모델 게이트 완화, 첨부 plumbing, blocked projection) 브랜치 세 개를 `main`에 병합했다
+  (`b0814e4`). ADR-0050 §5 "모델 호출 게이트의 MVP 기간 완화" 항목이 이 병합의 결정 근거다.
+- P1(문서 정리) 진행 중: v3 권고형 개요·legacy v4 단일 호출·v5 주장 검증 스택
+  (activation v2·call ledger·verification)의 계약·운영 문서를 제거하고
+  `prespec_overview_run`(migration 0026) 단일 테이블 기반 MVP 개요 계약으로 재작성했다
+  ([ADR-0054](decisions/0054-prespec-overview-mvp-rewrite.md)). `docs/0910_prespec-workflow-hardening/`
+  폴더는 삭제했으며 상세는 git 이력(`71b9954`)에서 찾는다. 이 절의 코드(analysis worker 개요
+  slot·REST·화면)는 아직 이 문서 갱신을 따라가지 못했고 후속 P2·P3에서 구현한다.
+
 ## 사전규격 수집·주장 검증 안정화 (2026-09-10, 0025·웹 배포 / 0910 수집 완료)
 
 최신 실제 결과: 사용자가 추가 방화벽 체인 조회를 이번 기능 실행에서 생략하도록 지시한 뒤,
@@ -36,10 +47,11 @@ snapshot/cache로 연결했고, JSON null 후보와 핵심 hash 훼손은 거부
 snapshot6·target6·객체/location각34만 추가했다. source-only ON/OFF1쌍 뒤 최종 OFF는
 `fe91c298-aceb-47b2-95e9-7560edc04be1`이며 모델 activation/enqueue는0이다.
 실제 v2 경고·직접 쪽 선택 가능 상태·PDF200/hash/안전 헤더를 확인했다. C-1/C-2·이전4건
-payload·정상9건 변환·통과한 기존 검사는 재사용했다. 상세 검증과 승인 경계는
-[MVP 체크와 결과](../0910_prespec-workflow-hardening/Plan.md)를 따른다. 아래는 이전 시점 기록이다.
+payload·정상9건 변환·통과한 기존 검사는 재사용했다. 상세 검증과 승인 경계는 당시
+"MVP 체크와 결과"(0910 안정화 Plan, 2026-09-11 개요 스택 재작성으로 폐기·git 이력 `71b9954`)를
+따랐다. 아래는 이전 시점 기록이다.
 
-현재 작업 정본은 [0910 안정화 Plan](../0910_prespec-workflow-hardening/Plan.md)이다. 회차/파일
+당시 작업 정본은 0910 안정화 Plan(폐기, git 이력 `71b9954`)이었다. 회차/파일
 배타 생성과 raw 재분류 새 경로, policy v5의 결정적 검사+별도 Qwen 의미 검토 계약,
 검증 ledger/migration `0025_overview_claim_ledger`, 조회 v2·실패 근거 PDF·웹 상태·회사 핏
 reader와 worker 복구·중지 fence를 구현했다. 임시 PostgreSQL의 중지/게시 경쟁 4건도 통과했다.

@@ -19,7 +19,6 @@ bidops/
 │   ├── ADR.md                        결정 통합 색인 (상세는 tracking/decisions/)
 │   ├── PRD.md, PLAN.md               현재 착수 범위(발주계획 C-2 선별)의 요구와 순서
 │   ├── business-rules.md             생애주기·선별·심층 검토 상태 규칙
-│   ├── security.md                   접근·민감정보·모델 전송·감사 정책
 │   ├── standards.md                  구현·검증 강제 기준
 │   ├── engineering-notes.md          증상별 재발 방지 지식
 │   ├── operations.md                 설치·실행·백업·복구 절차
@@ -68,7 +67,7 @@ Astryx의 "레이아웃도 컴포넌트로만, `<div>` 금지" 규칙은 ADR-004
 - 모든 변경 전에 `docs/standards.md`, `docs/engineering-notes.md`, 변경 경로에서 가장 가까운 `AGENTS.md`를 읽는다.
 - 상태·등급·참여 준비·사람 판정 필드를 바꾸면 `docs/business-rules.md`를, JSON/YAML/REST/DB 계약을 바꾸면 `docs/contracts.md`를 확인한다.
 - DB·적재·회차를 바꾸면 원본 불변성, 부분 산출물 경고, DB 정본 리뷰, Alembic 경계를 확인한다.
-- 첨부·변환·다운로드·모델 전송·로그를 바꾸면 `docs/security.md`의 경로 격리, 최소 권한, 감사, 건별 외부 전송 승인을 확인한다.
+- 첨부·변환·다운로드·모델 전송·로그를 바꾸면 경로 격리, 최소 권한, 감사, 건별 외부 전송 승인(모델 전송 정책은 ADR-0050 완화 항목 참조)을 확인한다.
 - 배포·일정·모델·backup을 바꾸면 `docs/operations.md`의 현재 실행 명령과 fail-closed 기본값을 확인한다.
 - 발주계획 선별 제품 구현은 고정 3일 표본의 키워드·ColBERT·Qwen·GPT Luna 비교 실험과 사람 정답 보고서가 승인된 뒤 시작한다.
 
@@ -88,7 +87,7 @@ Astryx의 "레이아웃도 컴포넌트로만, `<div>` 금지" 규칙은 ADR-004
 - 모델의 숫자·요구사항·근거는 원문 위치와 연결하고 결정적 검증을 통과시킨다. 실패 결과는 사람 검토로 보내며 자동 보정하지 않는다.
 - 기존 파이프라인은 subprocess·버전 파일 계약으로 연결한다. 웹에서 내부 구현을 가져오거나 같은 업무 규칙을 복제하지 않는다.
 - 외부 모델은 승인된 payload만 건별 전송한다. 운영 장애 때 hosted OpenAI로 자동 fallback하지 않는다.
-- 모델 호출은 용도(`screening`·`overview`·`deep_review`)별 설정으로 나가며, 허용 host가 비었거나 배포 선언 revision이 64자 hex가 아니면 그 용도는 **호출 전에** fail closed한다(ADR-0050).
+- 모델 호출은 용도(`screening`·`overview`·`deep_review`)별 설정으로 나간다. MVP 기간에는 허용 host·선언 revision을 비워 둬도 그 용도는 호출한다(ADR-0050 §5 완화); 값이 있으면 허용 host 목록·64자 hex 여부를 그대로 검사해 어긋나면 **호출 전에** fail closed한다.
 - 참조 실행 결과(`quality_status=unmeasured_reference|mock_reference`)를 운영 완료·품질 근거·정책 활성화 근거로 적지 않는다. 표식 없음(`null`)을 미측정이나 측정으로 승격시키지 않는다.
 
 ## 현재 런타임 사실
@@ -98,9 +97,9 @@ Astryx의 "레이아웃도 컴포넌트로만, `<div>` 금지" 규칙은 ADR-004
 - 관리 화면은 **데스크톱·노트북 전용**이다. 지원 폭은 1280~1920px이며 모바일·태블릿 레이아웃과 터치 전용 조작을 만들지 않는다. 1280px 미만은 가로 스크롤을 허용하고 별도 레이아웃으로 전환하지 않는다(ADR-0047). 화면 검증 viewport는 laptop 1280x800과 desktop 1440x900 두 폭이다.
 - 현재 애플리케이션에는 로그인·역할 기반 권한이 없다. 사내망 접근 제한이 경계이고 담당자 이름은 감사 표식일 뿐 인증이 아니다.
 - 스케줄러와 always-on은 기본 비활성이다. 앱 startup은 migration, seed, 정책 활성화, 모델 호출을 수행하지 않는다.
-- 사전규격은 등급이 `우선 검토`이면 문서 준비를 자동으로 진행하고, `SW사업대상=Y`이며 같은 묶음의 검증된 개요와 현재 회사 핏 `matched`가 있어야 심층 검토를 자동 시작한다(ADR-0049, 2026-09-08 회사 핏 게이트 추가). 회사 핏은 기본 비활성이고 현재는 명시적으로 켠 참조 실행만 지원한다. 자동으로 여는 것은 분석의 시작뿐이며 추적 승인과 최종 Go/No-Go는 사람이 결정한다.
+- 사전규격은 등급이 `우선 검토`이면 문서 준비를 자동으로 진행한다. `BIDOPS_PRESPEC_OVERVIEW_ENABLED`가 켜져 있으면 ready 묶음에서 개요 run을 자동 enqueue하고, 개요 run이 `completed`이고 `SW사업대상=Y`이며 현재 회사 핏 `matched`인 게이트를 지나야 심층 검토를 자동 시작한다(ADR-0049·ADR-0054, 2026-09-08 회사 핏 게이트 추가, 2026-09-11 개요 스택 재작성). 회사 핏은 기본 비활성이고 현재는 명시적으로 켠 참조 실행만 지원한다. 자동으로 여는 것은 분석의 시작뿐이며 추적 승인과 최종 Go/No-Go는 사람이 결정한다.
 - C-1 공고 판정·사전규격 개요·심층 검토는 `app/core/model_client.py` 하나를 용도별 설정으로 부른다. C-2 발주계획 어댑터만 별도 transport로 남아 있다.
-- 준비·실패 재시작 화면, 입찰 delta 계산 worker, deep-review-v2 역할별 모델 분석, SSO, 알림은 아직 구현 전이다. 입찰 delta는 저장·REST·화면까지 있으나 비교를 실제로 계산하는 worker가 없어 `bid_delta_comparison`이 `pending`에 머문다.
+- 준비·실패 재시작 화면, 개요 run 실행기·REST·화면(P2·P3), 입찰 delta 계산 worker, deep-review-v2 역할별 모델 분석, SSO, 알림은 아직 구현 전이다. 입찰 delta는 저장·REST·화면까지 있으나 비교를 실제로 계산하는 worker가 없어 `bid_delta_comparison`이 `pending`에 머문다.
 
 ## 문제 보고
 

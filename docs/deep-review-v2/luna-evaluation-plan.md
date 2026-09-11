@@ -12,7 +12,7 @@
 > 대상 모델: `gpt-5.6-luna`, reasoning effort `xhigh`
 >
 > 관련 문서: [첨부문서 분석 설계](document-analysis-design.md),
-> [보안 정책](../security.md), [구현·검증 표준](../standards.md)
+> [구현·검증 표준](../standards.md) (모델 전송 정책은 ADR-0050 완화 항목 참조)
 
 ## 1. 목적
 
@@ -28,8 +28,8 @@ Luna는 운영 모델로 채택된 것이 아니다. 이 실험은 모델 품질
 
 ## 2. 현재 정책과 선행 조건
 
-현재 [보안 정책](../security.md)은 실험용 Luna·Sol에 공개 발주계획과 승인된 회사 역량
-요약만 허용하고 제안요청서·첨부 전송을 금지한다. 공개 RFP라도 회사 판단과 결합하면
+현재 모델 전송 정책(ADR-0050 완화 항목 참조)은 실험용 Luna·Sol에 공개 발주계획과 승인된
+회사 역량 요약만 허용하고 제안요청서·첨부 전송을 금지한다. 공개 RFP라도 회사 판단과 결합하면
 사내 자료로 취급하므로, 현 정책 상태에서는 이 실험을 실행할 수 없다.
 
 실제 호출 전에 다음 내용을 가진 1회성 제한 예외를 별도 결정 기록으로 승인해야 한다.
@@ -354,7 +354,7 @@ PDF만 개선되면 HWPX canonical은 유지하고 PDF를 시각·페이지 검�
 사람 scorecard 승인 뒤에만 다음 작업을 시작한다.
 
 1. 선택 결과와 기각 대안을 ADR로 기록한다.
-2. `ARCHITECTURE.md`, `security.md`, `business-rules.md`, `contracts.md`,
+2. `ARCHITECTURE.md`, `business-rules.md`, `contracts.md`,
    `deep-review-erd.md`에서 현재와 목표를 갱신한다.
 3. segment와 role artifact의 schema version을 확정한다.
 4. 기존 worker·validator·report/API/UI의 구현 계획을 선택 결과에 맞게 확정한다.

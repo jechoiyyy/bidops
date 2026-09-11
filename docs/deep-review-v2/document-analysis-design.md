@@ -11,7 +11,7 @@
 >
 > 관련 문서: [Luna 시안·품질 검증 계획](luna-evaluation-plan.md),
 > [업무 규칙](../business-rules.md), [계약](../contracts.md),
-> [보안 정책](../security.md), [심층 검토 ERD](../deep-review-erd.md)
+> [심층 검토 ERD](../deep-review-erd.md) (모델 전송 정책은 ADR-0050 완화 항목 참조)
 
 ## 1. 목적과 결정 경계
 
