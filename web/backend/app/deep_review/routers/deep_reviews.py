@@ -6,7 +6,7 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, Path as ApiPath
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, ValidationError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -35,35 +35,12 @@ from ..models import (
     DocumentBundle,
     DocumentBundleItem,
 )
-from ...core.object_store import object_store
-from ..schemas.page_overview import (
-    PageOverviewRangeConfirmationRequest,
-    PageOverviewRangeConfirmationResponse,
-    PageOverviewResponse,
-    PageOverviewResponseV2,
-)
 from ..schemas.company_fit import CompanyFitResponse
-from ..services.company_fit import company_fit_view
-from ..services.page_overview import (
-    PageOverviewError, list_page_overviews, list_page_overviews_v2, get_page_pdf, get_attempt_pdf, get_target_pdf,
-)
-from ..services.prespec_v4_ops import V4OpsError
-from ..services.prespec_v4_range import confirm_v4_range, range_review_projection
 from ..schemas.deep_reviews import AttemptView, DeepReviewView, OpportunityDeepReviewsResponse
-from ..schemas.prespec_overview import (
-    PreSpecOverviewReviewsResponse,
-    PreSpecOverviewReviewsV2Response,
-)
+from ..services.company_fit import company_fit_view
 from ..services.deep_reviews import DeepReviewService, DeepReviewServiceError
-from ..services.document_bundles import BundleServiceError, validate_actor
+from ..services.document_bundles import BundleServiceError, PageOverviewError, validate_actor
 from ..services.input_versions import InputVersionError
-from ..services.prespec_overview import (
-    OverviewPreparationError,
-    OverviewReviewNotFound,
-    OverviewScopeError,
-    get_overview_reviews,
-    get_overview_reviews_v2,
-)
 
 
 class _Strict(BaseModel):
@@ -249,223 +226,9 @@ def create_deep_review_attempt(
         return _error_response(DeepReviewServiceError("processing_failed", "processing failed", status_code=500), request_id=payload.request_id)
 
 
-# --- 사전규격 개요 검토 조회 (명세 §5.3: 경로는 pre_specs, 제공 모듈은 deep_review) ---
-# 경로·응답·OpenAPI tag를 옮기기 전과 똑같이 두려고 별도 router로 둔다. 조립
-# 계층(main.py)이 `router`와 나란히 등록한다.
+# --- 사전규격 화면이 부르는 조회 (명세 §5.3: 경로는 pre_specs, 제공 모듈은 deep_review) ---
+# 개요 검토 REST는 P2가 이 router에 다시 붙인다. 지금 남은 것은 회사 핏 조회뿐이다.
 pre_spec_overview_router = APIRouter(prefix="/api/pre-specs", tags=["pre-specs"])
-
-
-@pre_spec_overview_router.get(
-    "/{notice_id}/overview-reviews",
-    response_model=PreSpecOverviewReviewsResponse,
-)
-def get_pre_spec_overview_reviews(
-    notice_id: int = ApiPath(..., ge=1),
-    session: Session = Depends(get_db),
-) -> PreSpecOverviewReviewsResponse | JSONResponse:
-    """Return safe lineage metadata for the independent overview stage."""
-
-    try:
-        return get_overview_reviews(session, notice_id)
-    except OverviewReviewNotFound:
-        return JSONResponse(
-            status_code=404,
-            content={
-                "error": {
-                    "code": "not_found",
-                    "message": "요청한 사전규격 공고를 찾을 수 없습니다",
-                    "details": None,
-                },
-                "request_id": None,
-            },
-        )
-    except OverviewPreparationError:
-        return JSONResponse(
-            status_code=500,
-            content={
-                "error": {
-                    "code": "processing_failed",
-                    "message": "사전규격 개요 검토를 준비할 수 없습니다",
-                    "details": None,
-                },
-                "request_id": None,
-            },
-        )
-
-
-@pre_spec_overview_router.get(
-    "/{notice_id}/overview-reviews/v2",
-    response_model=PreSpecOverviewReviewsV2Response,
-)
-def get_pre_spec_overview_reviews_v2(
-    notice_id: int = ApiPath(..., ge=1),
-    session: Session = Depends(get_db),
-) -> PreSpecOverviewReviewsV2Response | JSONResponse:
-    """Return the phase-2 validated result projection without internals."""
-
-    try:
-        return get_overview_reviews_v2(session, notice_id)
-    except OverviewReviewNotFound:
-        return JSONResponse(
-            status_code=404,
-            content={
-                "error": {
-                    "code": "not_found",
-                    "message": "요청한 사전규격 공고를 찾을 수 없습니다",
-                    "details": None,
-                },
-                "request_id": None,
-            },
-        )
-    except OverviewScopeError:
-        return JSONResponse(
-            status_code=409,
-            content={
-                "error": {
-                    "code": "validation_failed",
-                    "message": "사전규격 개요 결과의 입력 범위를 검증할 수 없습니다",
-                    "details": None,
-                },
-                "request_id": None,
-            },
-        )
-    except OverviewPreparationError:
-        return JSONResponse(
-            status_code=500,
-            content={
-                "error": {
-                    "code": "processing_failed",
-                    "message": "사전규격 개요 검토를 준비할 수 없습니다",
-                    "details": None,
-                },
-                "request_id": None,
-            },
-        )
-
-
-__all__ = [
-    "DeepReviewAttemptRequest",
-    "DeepReviewCreateRequest",
-    "pre_spec_overview_router",
-    "router",
-    "service",
-]
-
-
-@pre_spec_overview_router.get("/{notice_id}/overview-pages", response_model=PageOverviewResponse)
-def get_overview_pages(notice_id: int = ApiPath(..., ge=1), session: Session = Depends(get_db)):
-    try:
-        response = list_page_overviews(session, notice_id)
-        # 범위 사람 확인 자리는 대상이 있을 때만 객체 저장소를 연다. 후보·manifest
-        # 읽기 실패는 빈 값으로 낮추지 않고 오류로 올린다(fail closed).
-        review = range_review_projection(
-            session, notice_id,
-            store_factory=lambda: object_store(namespaces=("structure",), read_namespaces=("structure",)),
-        )
-        return response if review is None else response.model_copy(update={"range_review": review})
-    except PageOverviewError as error:
-        return _page_error(error)
-    except V4OpsError as error:
-        code = "overview_contract_upgrade_required" if error.code == "overview_contract_upgrade_required" else "processing_failed"
-        return _page_error(PageOverviewError(code))
-    except Exception:
-        return _page_error(PageOverviewError("processing_failed"))
-
-
-@pre_spec_overview_router.get("/{notice_id}/overview-pages/v2", response_model=PageOverviewResponseV2)
-def get_overview_pages_v2(notice_id: int = ApiPath(..., ge=1), session: Session = Depends(get_db)):
-    try:
-        response = list_page_overviews_v2(session, notice_id)
-        review = range_review_projection(
-            session, notice_id,
-            store_factory=lambda: object_store(namespaces=("structure",), read_namespaces=("structure",)),
-            expanded=True,
-        )
-        return response if review is None else response.model_copy(update={"range_review": review})
-    except PageOverviewError as error:
-        return _page_error(error)
-    except Exception:
-        return _page_error(PageOverviewError("processing_failed"))
-
-
-#: 범위 확정의 바깥 오류. 내부 안전 코드는 여기 없는 것은 모두 500으로 닫는다.
-_RANGE_ERRORS: dict[str, tuple[int, str]] = {
-    "actor_name_required": (400, "담당자 이름이 필요합니다"),
-    "actor_name_invalid": (400, "담당자 이름이 올바르지 않습니다"),
-    "target_not_found": (404, "범위 확정 대상을 찾을 수 없습니다"),
-    "target_not_pending": (409, "이 대상은 범위 확정 대기 상태가 아닙니다"),
-    "target_execution_active": (409, "실행 중인 개요를 중지한 뒤 범위를 다시 확인하십시오"),
-    "document_not_current_safe": (409, "현재 문서와 안전 상태를 확인하십시오"),
-    "candidate_range_incomplete": (422, "절 후보가 일부만 제공되었습니다. PDF를 확인하여 쪽 범위를 직접 지정하십시오"),
-    "candidate_range_unavailable": (422, "절 후보를 사용할 수 없습니다. PDF를 확인하여 쪽 범위를 직접 지정하십시오"),
-    "range_invalid": (422, "선택한 범위가 올바르지 않습니다"),
-    "input_size_limit": (413, "선택한 범위가 입력 크기 한도를 넘습니다"),
-}
-
-
-def _range_error(code: str) -> JSONResponse:
-    status_code, message = _RANGE_ERRORS.get(code, (500, "범위 확정을 완료할 수 없습니다"))
-    safe_code = code if code in _RANGE_ERRORS else "processing_failed"
-    return JSONResponse(
-        status_code=status_code,
-        content={"error": {"code": safe_code, "message": message, "details": None}, "request_id": None},
-    )
-
-
-@pre_spec_overview_router.post(
-    "/{notice_id}/overview-pages/range-confirmations",
-    response_model=PageOverviewRangeConfirmationResponse,
-    status_code=201,
-)
-def confirm_overview_page_range(
-    payload: PageOverviewRangeConfirmationRequest,
-    notice_id: int = ApiPath(..., ge=1),
-    actor: Annotated[str | None, Header(alias="X-BidOps-Actor-Name")] = None,
-    actor_format: Annotated[str | None, Header(alias="X-BidOps-Actor-Name-Format")] = None,
-    session: Session = Depends(get_db),
-):
-    """사람이 확정한 개요 입력 범위로 새 ready target을 동결한다.
-
-    attempt를 만들지 않는다 — `attempt_enqueued`는 언제나 `false`이고 개요 검토
-    실행은 별도 승인 경로다.
-    """
-
-    try:
-        actor_name = validate_actor(actor, actor_format)
-    except BundleServiceError as error:
-        return _range_error(error.code)
-    except ValidationError:
-        return _range_error("actor_name_invalid")
-    try:
-        result = confirm_v4_range(
-            session,
-            object_store(namespaces=("structure",), read_namespaces=("structure",)),
-            notice_id=notice_id,
-            target_id=payload.target_id,
-            actor=actor_name,
-            start_index=payload.start_index,
-            end_index=payload.end_index,
-            first_page=payload.first_page,
-            last_page=payload.last_page,
-            note=payload.note,
-        )
-        if result.selection_status != "ready":
-            raise V4OpsError("range_confirmation_failed")
-        session.commit()
-    except V4OpsError as error:
-        session.rollback()
-        return _range_error(error.code)
-    except Exception:
-        session.rollback()
-        return _range_error("processing_failed")
-    return PageOverviewRangeConfirmationResponse(
-        target_id=result.target_id,
-        selection_status="ready",
-        first_page=result.first_page,
-        last_page=result.last_page,
-        page_numbers=list(result.page_numbers),
-        attempt_enqueued=False,
-    )
 
 
 @pre_spec_overview_router.get("/{notice_id}/company-fit", response_model=CompanyFitResponse)
@@ -478,59 +241,6 @@ def get_company_fit(notice_id: int = ApiPath(..., ge=1), session: Session = Depe
         return _page_error(PageOverviewError("processing_failed"))
 
 
-@pre_spec_overview_router.get(
-    "/{notice_id}/overview-pages/{review_id}/pdf", response_class=Response,
-    responses={200: {"content": {"application/pdf": {}}}},
-)
-def download_overview_pdf(notice_id: int, review_id: UUID, session: Session = Depends(get_db)):
-    try:
-        data = get_page_pdf(session, notice_id, review_id, object_store(namespaces=("source",), read_namespaces=("source",)))
-        return Response(data, media_type="application/pdf", headers={
-            "Content-Disposition": 'inline; filename="overview-reference.pdf"',
-            "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff",
-            "Content-Security-Policy": "default-src 'none'; sandbox",
-        })
-    except PageOverviewError as error:
-        return _page_error(error)
-    except Exception:
-        return _page_error(PageOverviewError("pdf_unavailable"))
-
-
-@pre_spec_overview_router.get(
-    "/{notice_id}/overview-pages/attempts/{attempt_id}/pdf", response_class=Response,
-    responses={200: {"content": {"application/pdf": {}}}},
-)
-def download_overview_attempt_pdf(notice_id: int, attempt_id: UUID, session: Session = Depends(get_db)):
-    try:
-        data = get_attempt_pdf(session, notice_id, attempt_id, object_store(namespaces=("source",), read_namespaces=("source",)))
-        return Response(data, media_type="application/pdf", headers={
-            "Content-Disposition": 'inline; filename="overview-reference.pdf"',
-            "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff",
-            "Content-Security-Policy": "default-src 'none'; sandbox",
-        })
-    except PageOverviewError as error:
-        return _page_error(error)
-    except Exception:
-        return _page_error(PageOverviewError("pdf_unavailable"))
-
-
-@pre_spec_overview_router.get(
-    "/{notice_id}/overview-pages/targets/{target_id}/pdf", response_class=Response,
-    responses={200: {"content": {"application/pdf": {}}}},
-)
-def download_overview_target_pdf(notice_id: int, target_id: UUID, session: Session = Depends(get_db)):
-    try:
-        data = get_target_pdf(session, notice_id, target_id, object_store(namespaces=("source",), read_namespaces=("source",)))
-        return Response(data, media_type="application/pdf", headers={
-            "Content-Disposition": 'inline; filename="overview-reference.pdf"',
-            "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff",
-            "Content-Security-Policy": "default-src 'none'; sandbox",
-        })
-    except PageOverviewError as error:
-        return _page_error(error)
-    except Exception:
-        return _page_error(PageOverviewError("pdf_unavailable"))
-
 
 def _page_error(error: PageOverviewError) -> JSONResponse:
     code = str(error)
@@ -540,3 +250,12 @@ def _page_error(error: PageOverviewError) -> JSONResponse:
         code = "processing_failed"
     return JSONResponse(status_code=statuses[code],
                         content={"error": {"code": code, "message": "개요 또는 PDF 근거를 확인할 수 없습니다", "details": None}, "request_id": None})
+
+
+__all__ = [
+    "DeepReviewAttemptRequest",
+    "DeepReviewCreateRequest",
+    "pre_spec_overview_router",
+    "router",
+    "service",
+]

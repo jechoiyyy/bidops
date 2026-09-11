@@ -7,6 +7,7 @@ lifecycle 목록이 넘긴 `notice_ids` 만큼을 상수 회 조회로 처리하
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+from uuid import uuid4
 
 import pytest
 from sqlalchemy import create_engine, event
@@ -15,7 +16,13 @@ from sqlalchemy.pool import StaticPool
 
 from app.core.db import init_db
 from app.lifecycle import OverviewDocumentProjection, PreSpecDocumentCounts
-from app.deep_review.models import AttachmentFetch, PreSpecOverviewReview
+from app.deep_review.models import (
+    AttachmentFetch,
+    ContentObject,
+    DocumentVersion,
+    PrespecOverviewRun,
+    WorkJob,
+)
 from app.lifecycle.models import Attachment, Notice
 from app.deep_review.services.prespec_projection import PreSpecOverviewDocumentProjection
 
@@ -31,6 +38,34 @@ def _notice(session: Session, key: str) -> Notice:
     session.add(notice)
     session.flush()
     return notice
+
+
+def _overview_run(session: Session, notice: Notice, status: str) -> PrespecOverviewRun:
+    """개요 run 한 건과 그 실행 job·문서를 최소한으로 세운다."""
+
+    content = ContentObject(
+        sha256=f"{notice.id:064d}", size_bytes=1, detected_mime="application/pdf",
+        retention_class="source",
+    )
+    session.add(content)
+    session.flush()
+    document = DocumentVersion(
+        notice_id=notice.id, content_object_id=content.id, version=1, source_kind="manual",
+        original_filename="제안요청서.pdf", role="제안요청서", is_current=True, safety_status="safe",
+    )
+    job = WorkJob(job_type="prespec_overview", aggregate_type="prespec_overview_run",
+                  aggregate_id=uuid4(), status="completed")
+    session.add_all([document, job])
+    session.flush()
+    run = PrespecOverviewRun(
+        notice_id=notice.id, document_version_id=document.id, work_job_id=job.id,
+        status=status, range_source="auto", range_reason_codes=[], policy_digest="0" * 64,
+        model_name="test-model", warnings_json=[], reason_codes=[], call_count=0,
+        raw_response_refs=[], result_json={"schema_version": "test"} if status == "completed" else None,
+    )
+    session.add(run)
+    session.flush()
+    return run
 
 
 def _fetch(attachment: Attachment, status: str, *, when: datetime) -> AttachmentFetch:
@@ -60,15 +95,8 @@ def projection_db():
     counted = _notice(session, "pre:COUNTED")
     bare = _notice(session, "pre:BARE")
 
-    session.add(PreSpecOverviewReview(notice_id=reviewed.id, status="needs_human_review"))
-    session.add(
-        PreSpecOverviewReview(
-            notice_id=counted.id,
-            status="completed",
-            result="추진 검토",
-            completed_at=when,
-        )
-    )
+    _overview_run(session, reviewed, "needs_human_review")
+    _overview_run(session, counted, "completed")
 
     attachments = [
         Attachment(notice=counted, name=f"{status}.pdf", origin="g2b")
@@ -170,7 +198,6 @@ def test_each_projection_method_uses_a_bounded_batch_projection(projection_db):
         projection.document_counts(session, ids)
     finally:
         event.remove(engine, "before_cursor_execute", record)
-    # status and count each read the v4 batch current projection (two relation
-    # queries when the fixture has no v4 rows) plus one legacy compatibility
-    # query; document counts remains one grouped query.
-    assert len(statements) == 7
+    # 상태와 건수는 각각 현재 run batch 조회 하나, 문서 건수는 grouped 조회
+    # 하나다. 공고 수가 늘어도 이 수는 그대로다.
+    assert len(statements) == 3

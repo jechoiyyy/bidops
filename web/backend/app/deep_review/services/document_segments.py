@@ -50,7 +50,7 @@ from .deep_review_validation import validate_document_segments
 
 # 목차 항목과 본문 heading의 문자열 정규화는 개요 절단이 이미 확정한 규칙이다.
 # 같은 업무 규칙을 두 벌 만들지 않기 위해 그 helper를 그대로 재사용한다.
-from .prespec_overview import (  # noqa: PLC2701 - 개요 절단 heading 규칙 재사용
+from .overview_range import (  # noqa: PLC2701 - 개요 절단 heading 규칙 재사용
     _meaningful_heading,
     _normalise_heading_text,
 )

@@ -15,8 +15,6 @@ from ..core import (
     get_settings,
 )
 from ..deep_review import (
-    PreSpecOverviewRunner,
-    PrespecV4OverviewRunner,
     PreSpecCompanyFitRunner,
     run_deep_review_once,
     run_prespec_overview_once,
@@ -41,14 +39,6 @@ def main() -> None:
         raise RuntimeError("analysis worker requires configured MinIO model-response storage") from error
     worker_id = settings.worker_id
     c2_worker = C2ScreeningWorker(settings=settings)
-    # 개요 runner도 C-2 worker와 같이 loop **밖에서** 한 번 만든다. poll마다
-    # 새로 만들면 binding 해석 캐시가 매번 비어 있어, 큐가 비었을 때도 policy를
-    # 다시 읽고 `/models`를 부르게 된다 (명세 §6.3).
-    # The shared overview slot gives claimed v4 documents the frozen target
-    # contract, while the legacy runner remains available for documents with
-    # no v4 boundary.  The dispatch wrapper excludes only those claimed
-    # document versions from the legacy selector.
-    overview_runner = PrespecV4OverviewRunner(legacy_runner=PreSpecOverviewRunner())
     company_fit_runner = PreSpecCompanyFitRunner(settings=settings)
     stopping = False
 
@@ -71,9 +61,7 @@ def main() -> None:
                         # 한 poll은 C-2·심층 검토·회사 핏·개요 중
                         # 하나만 잡는다. 회사 핏도 같은 모델 슬롯을 쓴다.
                         if not run_deep_review_once(session, worker_id).claimed and not company_fit_runner.run_once(session, worker_id):
-                            run_prespec_overview_once(
-                                session, worker_id, runner=overview_runner
-                            )
+                            run_prespec_overview_once(session, worker_id)
                 except Exception:
                     # run_claim commits its own fenced transitions. Any
                     # provider/materializer error not converted there must not

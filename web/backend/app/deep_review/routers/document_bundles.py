@@ -45,8 +45,14 @@ from ..schemas.document_bundles import (
     PatchDocumentVersionRequest,
 )
 from ..services import document_segments
-from ..services.document_bundles import BundleServiceError, DocumentBundleService, stable_api_error, validate_actor
-from ..services.page_overview import PageOverviewError, get_structure_pdf
+from ..services.document_bundles import (
+    BundleServiceError,
+    DocumentBundleService,
+    PageOverviewError,
+    get_structure_pdf,
+    stable_api_error,
+    validate_actor,
+)
 
 router = APIRouter(prefix="/api", tags=["document-bundles"])
 service = DocumentBundleService()

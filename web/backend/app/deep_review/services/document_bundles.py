@@ -53,7 +53,6 @@ from ...lifecycle import lock_active_attachments, lock_attachment, lock_notice, 
 from . import assets
 from .document_converter import ScratchDocumentProcessor
 from .document_structures import materialize_structure
-from .prespec_overview import prepare_overview_review
 from ...core.api_errors import (
     API_ERROR_CODES,
     MAX_ACTOR_NAME,
@@ -66,23 +65,6 @@ from ...core.api_errors import (
 
 CREATE_BUNDLE_RETRIES = 3
 DOCUMENT_ROLES = {"공고", "정정", "제안요청서", "과업지시서", "내역서", "제출서식", "부록", "기타"}
-
-
-def _prepare_pre_spec_overview(
-    session: Session,
-    notice_id: int,
-    *,
-    root: Path | None,
-) -> None:
-    """Materialize T-23 state only for a pre-spec notice.
-
-    ``DocumentBundleService`` also handles generic/manual notices.  Those
-    callers must not accidentally create an unrelated overview review row.
-    """
-
-    notice = session.get(Notice, notice_id)
-    if notice is not None and notice.source_type == "pre_spec":
-        prepare_overview_review(session, notice_id, root=root)
 
 
 
@@ -935,13 +917,6 @@ class DocumentBundleService:
                 self._add_location(session, content.id, "source", source_path, asset.sha256)
             else:
                 attachment.extract_status = inspected.error_code or inspected.safety_status
-            if inspected.safety_status == "safe":
-                # T-23 preparation runs only after the source location is
-                # persisted, while remaining inside this transaction so a
-                # failed cut cannot leave a partial bundle lineage.  A clean
-                # document with no materialized structure still gets the
-                # durable ``awaiting_structure`` state.
-                _prepare_pre_spec_overview(session, bundle.notice_id, root=self.root)
             if structure is not None:
                 self._seed_bundle_items(session, bundle)
             session.flush()
@@ -1329,8 +1304,6 @@ class DocumentBundleService:
             # persistence have succeeded, so a failed retry remains visible.
             if inspected_persisted and inspected.safety_status == "safe" and attachment.extract_status == "legacy_acquisition_failed":
                 attachment.extract_status = None
-            if inspected.safety_status == "safe":
-                _prepare_pre_spec_overview(session, bundle.notice_id, root=self.root)
 
             bundle.issues_snapshot = self._issues(session, bundle)
             session.add(
@@ -1563,10 +1536,6 @@ class DocumentBundleService:
                 session.add(document)
                 session.flush()
                 structure = self._materialize_structure(session, document, asset, inspected, request_paths)
-            if inspected.safety_status == "safe":
-                # Also refresh the logical review when this acquisition is a
-                # same-byte restore and no new structure row was needed.
-                _prepare_pre_spec_overview(session, bundle.notice_id, root=self.root)
 
             bundle.issues_snapshot = self._issues(session, bundle)
             session.add(
@@ -2097,3 +2066,61 @@ def _dedupe_issues(issues: Iterable[Mapping[str, Any]]) -> list[dict[str, Any]]:
         seen.add(key)
         result.append(issue)
     return result
+
+
+# --- 문서 구조의 고정 PDF 근거 -------------------------------------------------
+# 개요 스택이 갖고 있던 PDF 무결성 게이트를 그대로 옮겼다. 화면이 문단 좌표를
+# 확인할 때 여는 유일한 PDF 경로이며, 저장·모델 호출은 없다.
+
+
+class PageOverviewError(ValueError):
+    """Only stable codes may leave this boundary."""
+
+
+def _pdf_digest(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
+def _require(condition: bool, code: str) -> None:
+    if not condition:
+        raise PageOverviewError(code)
+
+
+def verified_pdf_bytes(session: Session, location_id: UUID | None, pdf_sha256: str | None, store: Any) -> bytes:
+    """Serve one pinned PDF object after re-checking its stored binding.
+
+    This is the single integrity gate behind the PDF endpoint: a verified
+    ``source`` location, the exact object version/etag/size/digest, and a
+    latest clean scan.
+    """
+
+    location = session.get(ContentObjectLocation, location_id) if location_id is not None else None
+    _require(location is not None and location.status == "verified" and location.namespace_key == "source" and bool(location.object_version_id), "pdf_unavailable")
+    content = session.get(ContentObject, location.content_object_id)
+    _require(content is not None and content.sha256 == pdf_sha256 and content.detected_mime == "application/pdf", "pdf_integrity_failed")
+    latest_scan = session.scalar(select(ContentScan).where(ContentScan.content_object_id == content.id)
+                                 .order_by(ContentScan.scanned_at.desc(), ContentScan.id.desc()).limit(1))
+    _require(latest_scan is not None and latest_scan.status == "clean", "pdf_unavailable")
+    data, meta = store.get("source", location.object_key, version_id=location.object_version_id)
+    _require(meta.object_version_id == location.object_version_id and meta.etag == location.etag and len(data) == content.size_bytes and _pdf_digest(data) == pdf_sha256, "pdf_integrity_failed")
+    return data
+
+
+def get_structure_pdf(session: Session, structure_id: UUID, store: Any) -> bytes:
+    """``GET /api/document-structures/{structure_id}/pdf``의 본문.
+
+    대응표를 가진 가장 최근 native snapshot의 PDF를 돌려준다. 페이지 번호는
+    대응표·page-text와 같은 물리 PDF 순번(1 기준)이다.
+    """
+
+    # 함수 안에서 든다. 조회 경계가 서로를 모듈 최상위에서 끌어들이지 않게 한다.
+    from .document_segments import latest_para_page_map_snapshot
+
+    structure = session.get(DocumentStructure, structure_id)
+    _require(structure is not None, "not_found")
+    document = session.get(DocumentVersion, structure.document_version_id)
+    _require(document is not None, "not_found")
+    _require(document.safety_status == "safe", "unsafe_document")
+    snapshot = latest_para_page_map_snapshot(session, structure_id)
+    _require(snapshot is not None, "not_found")
+    return verified_pdf_bytes(session, snapshot.pdf_location_id, snapshot.pdf_sha256, store)

@@ -1,10 +1,13 @@
 """사전규격 mock 종단 인수 흐름 (명세 §2 완료 기준 1·§12).
 
+**P2에서 개요 run 단계 복원.** 옛 개요 실행 스택이 철거된 동안 이 흐름은
+묶음 `ready`까지만 간다. 개요·심층 검토 단계는 실행하지 않으며 증거의 그
+자리는 `null`이다 — 실행하지 않은 것을 통과로 적지 않는다.
+
 저장소만으로, 모델과 외부망 없이 다음을 한 번에 완주시킨다.
 
     회차 적재 → 1차 판정 적재(mock) → `우선 검토` 건의 자동 문서 준비
-    (fake 취득 connector) → 개요 검토(mock transport) → SW사업대상=Y의 자동
-    심층 검토(mock) → 보고서·최종 의견 → 증거 JSON
+    (fake 취득 connector) → 증거 JSON
 
 `bc_e2e`·`agent_e2e`가 도는 API 인수 흐름의 형제지만 **전송 계층이 다르다.**
 저 둘은 떠 있는 API를 HTTP로 부르고, 이것은 격리된 workspace 안에서 같은
@@ -18,13 +21,11 @@ service·worker 함수를 직접 부른다. 사전규격 흐름의 촉발점(회
   등록은 호출자(CLI)가 이름으로 받아 하며, 판정이 하나도 적재되지 않으면
   fail closed한다 — 등급 없는 회차를 "자동 준비 대상 없음"으로 조용히 통과
   시키지 않는다는 뜻이다.
-- **live 호출이 없다.** 첨부는 fixture bytes를 돌려주는 fake connector,
-  개요는 `MockOverviewTransport`, 심층은 `MockAnalysisClient`다. 어떤 경로도
-  vLLM·Ollama·나라장터 주소를 열지 않는다.
+- **live 호출이 없다.** 첨부는 fixture bytes를 돌려주는 fake connector뿐이고
+  모델을 부르는 단계는 이 흐름에 없다. 어떤 경로도 vLLM·Ollama·나라장터
+  주소를 열지 않는다.
 - **증거 JSON에는 안전한 식별자·상태·건수만 담는다.** 원문, 프롬프트, 모델
   응답, object key, filesystem 경로, 회사 프로필 본문은 넣지 않는다(§7).
-- 참조 실행이므로 심층 검토의 `quality_status`는 `mock_reference`이며 운영
-  완료·품질 근거로 집계하지 않는다(§8).
 """
 
 from __future__ import annotations
@@ -33,7 +34,6 @@ from collections.abc import Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
 import base64
-import hashlib
 import json
 import os
 from pathlib import Path
@@ -49,7 +49,6 @@ from ...core.config import get_settings
 from ...core.constants import DEEP_REVIEW_CREATION_ACTION_BY_ACTOR_KIND
 from ...core.models import AuditEvent
 from ...core.db import isolated_test_boundary_active
-from ...core.model_client import ModelClient
 from ..document_mcp.processor import DocumentProcessor
 from ...lifecycle import ingest_run
 from ...lifecycle.models import Attachment, Notice
@@ -59,24 +58,13 @@ from ..models import (
     DeepReviewStage,
     DocumentBundle,
     DocumentBundleItem,
-    PreSpecOverviewAttempt,
-    PreSpecOverviewReview,
 )
 from ..schemas.reports import FinalOpinionRequest
-from ..workers.deep_review import run_once as run_deep_review_once
 from ..workers.prespec_attachment import run_once as run_prespec_attachment_once
-from ..workers.prespec_overview import run_once as run_prespec_overview_once
 from .auto_preparation import AUTO_ACTOR_NAME, auto_preparation_fields
-from .deep_reviews import DeepReviewService, quality_status_for_review
+from .deep_reviews import quality_status_for_review
 from .effective_grade import effective_grades
 from .input_versions import import_policy_version, import_profile_version
-from .mock_analysis_client import MockOverviewTransport
-from .prespec_overview import (
-    OverviewPolicyError,
-    load_overview_policy,
-    overview_quality_status,
-)
-from .prespec_overview_runner import PreSpecOverviewRunner
 from .reports import ReportService
 from . import assets
 
@@ -92,13 +80,6 @@ RUN_DIRECTORY_NAME = "20260901-20260903"
 SOURCE_SYSTEM = "g2b"
 #: 한 단계가 도는 최대 poll 수. 무한 재시작을 만들지 않기 위한 상한이다.
 MAX_FETCH_POLLS = 24
-MAX_OVERVIEW_POLLS = 12
-MAX_DEEP_REVIEW_POLLS = 6
-#: 개요 mock transport가 쓰는 loopback 주소. 호출은 주입 seam이 가져가므로
-#: 이 주소로 나가는 요청은 없다. 값이 필요한 이유는 용도별 설정이 없으면
-#: `ModelClient.for_purpose`가 fail closed하기 때문이다(§6.6).
-OVERVIEW_LOOPBACK_BASE_URL = "http://127.0.0.1:9/v1"
-OVERVIEW_LOOPBACK_HOST = "127.0.0.1"
 
 
 class PreSpecE2EError(RuntimeError):
@@ -261,11 +242,6 @@ def workspace_environment(workspace: Path) -> dict[str, str]:
         "BIDOPS_REFERENCE_WORKFLOW_MODE": "true",
         "BIDOPS_MODEL_RESPONSE_ENCRYPTION_KEY": _model_response_key(),
         "BIDOPS_MODEL_RESPONSE_ENCRYPTION_KEY_REF": "prespec-e2e-ephemeral",
-        "BIDOPS_VLLM_OVERVIEW_BASE_URL": OVERVIEW_LOOPBACK_BASE_URL,
-        "BIDOPS_VLLM_OVERVIEW_ALLOWED_HOSTS": OVERVIEW_LOOPBACK_HOST,
-        "BIDOPS_VLLM_OVERVIEW_MODEL_REVISION": hashlib.sha256(
-            b"bidops.prespec-overview.mock-reference"
-        ).hexdigest(),
     }
 
 
@@ -416,52 +392,6 @@ def _fetch_all(session: Session, fixture: PreSpecE2EFixture) -> None:
     raise PreSpecE2EError("fetch_not_settled", "취득 큐가 상한 안에 종결되지 않았다")
 
 
-def _overview_runner() -> tuple[PreSpecOverviewRunner, MockOverviewTransport]:
-    """policy가 지정한 모델명으로 묶인 mock transport 실행기.
-
-    binding은 `approved_overview_binding`이 만든다 — 여기서 `reference_only`나
-    `deployable`을 손으로 정하지 않는다는 뜻이다.
-    """
-
-    try:
-        policy = load_overview_policy()
-    except OverviewPolicyError as error:
-        raise PreSpecE2EError("overview_policy_unavailable", "개요 policy를 읽을 수 없다") from error
-    if policy is None:
-        raise PreSpecE2EError("overview_policy_unavailable", "개요 policy를 읽을 수 없다")
-    transport = MockOverviewTransport(policy.model_name)
-    client = ModelClient.for_purpose(
-        "overview",
-        model=policy.model_name,
-        output_contract=policy.output_contract,
-        settings=get_settings(),
-        completion_create=transport.completion_create,
-        models_list=transport.models_list,
-    )
-    return PreSpecOverviewRunner(client=client, policy=policy), transport
-
-
-def _run_overviews(session: Session) -> None:
-    """개요 슬롯을 상한 안에서 돌린다.
-
-    합성 analysis worker의 한 poll과 같은 자리를 부른다. 개요 전용 진입점을
-    만들지 않는다는 규칙은 그대로다.
-    """
-
-    runner, _transport = _overview_runner()
-    for _index in range(MAX_OVERVIEW_POLLS):
-        if not run_prespec_overview_once(session, "prespec-e2e-analysis-worker", runner=runner).claimed:
-            return
-    raise PreSpecE2EError("overview_not_settled", "개요 큐가 상한 안에 종결되지 않았다")
-
-
-def _run_deep_reviews(session: Session, service: DeepReviewService) -> None:
-    for _index in range(MAX_DEEP_REVIEW_POLLS):
-        if not run_deep_review_once(session, "prespec-e2e-analysis-worker", service=service).claimed:
-            return
-    raise PreSpecE2EError("deep_review_not_settled", "심층 검토 큐가 상한 안에 종결되지 않았다")
-
-
 # --- 증거 --------------------------------------------------------------------
 
 
@@ -493,29 +423,6 @@ def _bundle_evidence(session: Session, notice_id: int) -> dict[str, Any] | None:
         "blocking_issue_count": sum(
             1 for issue in issues if isinstance(issue, Mapping) and issue.get("blocking")
         ),
-    }
-
-
-def _overview_evidence(session: Session, notice_id: int) -> dict[str, Any] | None:
-    review = session.scalar(
-        select(PreSpecOverviewReview).where(PreSpecOverviewReview.notice_id == notice_id)
-    )
-    if review is None:
-        return None
-    attempt = session.scalars(
-        select(PreSpecOverviewAttempt)
-        .where(PreSpecOverviewAttempt.review_id == review.id)
-        .order_by(PreSpecOverviewAttempt.sequence.desc())
-        .limit(1)
-    ).first()
-    return {
-        "status": str(review.status),
-        "result": review.result,
-        "transport": "mock",
-        "attempt_status": str(attempt.status) if attempt is not None else None,
-        # 결정적 mock attempt는 완료할 수 없으므로(ADR·DB CHECK) 이 실행의
-        # 표식은 `unmeasured_reference`다. 운영 완료로 집계하지 않는다.
-        "quality_status": overview_quality_status(attempt) if attempt is not None else None,
     }
 
 
@@ -651,7 +558,8 @@ def _notice_evidence(session: Session, notice: Notice, actor: str) -> dict[str, 
         "grade_source": grade.source if grade is not None else None,
         "fetch_statuses": _fetch_counts(session, notice.id),
         "bundle": _bundle_evidence(session, notice.id),
-        "overview": _overview_evidence(session, notice.id),
+        # 개요·심층 검토 단계는 이 흐름에서 실행하지 않는다 (P2에서 복원).
+        "overview": None,
         "auto_preparation_status": fields.get("auto_preparation_status"),
         "auto_preparation_reason": fields.get("auto_preparation_reason"),
         "deep_review": _deep_review_evidence(session, notice.id, actor),
@@ -700,45 +608,47 @@ def run_prespec_e2e(
         active_versions = _activate_input_versions(session, actor_name)
     with session_factory() as session:
         _fetch_all(session, fixture)
-    with session_factory() as session:
-        _run_overviews(session)
-    service = DeepReviewService()
-    with session_factory() as session:
-        # This fixture has no approved company-fit measurement. Exercise the
-        # explicit human creation path in the isolated acceptance run, without
-        # weakening the production automatic gate or inventing a matched fit.
-        for notice in session.scalars(select(Notice).where(Notice.source_type == "pre_spec")):
-            if (notice.qualification_flags_json or {}).get("sw_business_status") != "Y":
-                continue
-            if session.scalar(select(DeepReview.id).where(DeepReview.notice_id == notice.id)) is not None:
-                continue
-            bundle = session.scalar(select(DocumentBundle).where(DocumentBundle.notice_id == notice.id, DocumentBundle.status == "ready")
-                                    .order_by(DocumentBundle.revision.desc()).limit(1))
-            if bundle is not None:
-                service.create_review(session, notice.id, bundle.id, actor_name, uuid4(), actor_kind="human")
-        _run_deep_reviews(session, service)
 
     with session_factory() as session:
         notices = session.scalars(
             select(Notice).where(Notice.source_type == "pre_spec").order_by(Notice.id.asc())
         ).all()
+        rows = [_notice_evidence(session, notice, actor_name) for notice in notices]
         evidence = {
             "schema": PRESPEC_E2E_RESULT_SCHEMA,
             "workflow": PRESPEC_E2E_WORKFLOW,
             "ingest": ingest,
             "active_input_versions": active_versions,
             "attachments": _attachment_totals(session),
-            "notices": [_notice_evidence(session, notice, actor_name) for notice in notices],
-            "passed": True,
+            "notices": rows,
+            # 개요 run이 없으므로 자동 심층 시작은 한 건도 없다. 빈 목록은
+            # "실행하지 않았다"이지 "0건 통과"가 아니다.
+            "auto_started_notice_keys": [
+                row["notice_key"] for row in rows if row["deep_review"] is not None
+            ],
+            # 개요 run이 없으므로 묶음은 `bundle_ready`에 머문다. 사람 클릭 자리
+            # (`deep_review_ready_for_click`)는 개요가 종결돼야 열리며 P2의 몫이다.
+            "bundle_ready_notice_keys": [
+                row["notice_key"] for row in rows if row["auto_preparation_status"] == "bundle_ready"
+            ],
+            "awaiting_click_notice_keys": [
+                row["notice_key"]
+                for row in rows
+                if row["auto_preparation_status"] == "deep_review_ready_for_click"
+            ],
+            # 이 흐름의 종료 기준은 사전규격마다 자동 확정된 `ready` 묶음이다.
+            "passed": bool(rows) and all(
+                (row["bundle"] or {}).get("status") == "ready"
+                and (row["bundle"] or {}).get("auto_confirmed") is True
+                for row in rows
+            ),
         }
         session.commit()
     return evidence
 
 
 __all__ = [
-    "MAX_DEEP_REVIEW_POLLS",
     "MAX_FETCH_POLLS",
-    "MAX_OVERVIEW_POLLS",
     "PRESPEC_E2E_FIXTURE_SCHEMA",
     "PRESPEC_E2E_PLAN_SCHEMA",
     "PRESPEC_E2E_RESULT_SCHEMA",

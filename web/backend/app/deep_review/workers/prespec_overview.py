@@ -3,26 +3,36 @@
 **단독 진입점이 아니다.** `python -m` 대상 module을 만들지 않으며, 이 함수는
 `app/workers/analysis.py`의 한 poll 안에서만 불린다. 개요 전용 process를 따로
 띄우면 모델 슬롯 1개 보장이 깨진다.
+
+지금은 **아무것도 하지 않는 자리**다. 옛 개요 실행 스택(v3·legacy v4·v5)은
+철거됐고, 새 계약의 enqueue·claim·실행은 P2에서 이 함수 뒤에 붙는다. 그때까지
+한 poll은 언제나 "할 일 없음"으로 닫힌다.
 """
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any
+from uuid import UUID
+
 from sqlalchemy.orm import Session
 
-from ..services.prespec_overview_runner import OverviewRunResult, PreSpecOverviewRunner
-from ..services.prespec_v4_runner import PrespecV4OverviewRunner, V4RunResult
+
+@dataclass(frozen=True)
+class OverviewRunResult:
+    """한 poll이 개요 슬롯에서 한 일. 원문·응답·경로는 담지 않는다."""
+
+    claimed: bool
+    attempt_id: UUID | None = None
+    status: str = "idle"
+    reason_code: str | None = None
+    expired_leases: int = 0
 
 
-def run_once(
-    session: Session,
-    worker_id: str,
-    *,
-    runner: Any | None = None,
-) -> OverviewRunResult | V4RunResult:
-    """개요 attempt를 최대 하나 진행시킨다."""
+def run_once(session: Session, worker_id: str | None = None, **_kwargs: Any) -> OverviewRunResult:
+    """개요 슬롯을 닫는다. P2가 실제 실행을 여기 붙인다."""
 
-    return (runner or PreSpecOverviewRunner()).run_once(session, worker_id)
+    return OverviewRunResult(claimed=False, status="idle", reason_code="overview_runner_absent")
 
 
-__all__ = ["OverviewRunResult", "PreSpecOverviewRunner", "PrespecV4OverviewRunner", "V4RunResult", "run_once"]
+__all__ = ["OverviewRunResult", "run_once"]
