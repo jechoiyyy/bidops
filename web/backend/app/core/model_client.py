@@ -17,7 +17,6 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 import hashlib
-import ipaddress
 import json
 import os
 import re
@@ -209,6 +208,9 @@ class StructuredRequestCapacity:
     chat_template_reserve_tokens: int
     reserved_output_tokens: int
     effective_context_tokens: int
+    #: 서버가 `max_model_len`을 내지 않아 문맥 상한을 확인하지 못한 실행.
+    #: 이때는 초과 판정을 하지 않는다(ADR-0050 완화, 2026-09-11).
+    context_unverified: bool = False
 
     @property
     def total_token_upper_bound(self) -> int:
@@ -303,10 +305,11 @@ def resolve_model_endpoint(purpose: str, *, settings: Any | None = None) -> Mode
     """용도 하나의 transport 설정을 해석한다 (명세 §6.6).
 
     공유 `BIDOPS_VLLM_*`가 기본값이고 `BIDOPS_VLLM_{용도}_*`가 있으면 그것을
-    쓴다. **허용 host가 비거나 선언 revision이 없으면 그 용도는 fail closed**
-    한다 — 여기서 실패시키는 것이 요점이다. client를 만든 뒤에 검사하면 이미
-    주소를 열어 둔 상태가 되고, hosted 주소가 기본값으로 새어 들어갈 자리가
-    생긴다.
+    쓴다. MVP 기간에는 **허용 host와 선언 revision이 비어 있어도 통과**시킨다
+    (ADR-0050 완화, 2026-09-11). 값이 주어지면 검사는 그대로다 — 허용 host가
+    있으면 base URL host를 그 목록으로 제한하고, 선언 revision이 있으면 64자
+    digest여야 한다. 검사 자리는 여전히 여기다: client를 만든 뒤에 검사하면
+    이미 주소를 열어 둔 상태가 된다.
     """
 
     if purpose not in MODEL_PURPOSES:
@@ -321,9 +324,8 @@ def resolve_model_endpoint(purpose: str, *, settings: Any | None = None) -> Mode
     revision = str(_endpoint_value(settings, purpose, "model_revision") or "")
     entries = allowed_raw.split(",") if isinstance(allowed_raw, str) else list(allowed_raw or ())
     allowed_hosts = tuple(entry.strip() for entry in entries if entry.strip())
-    if not allowed_hosts:
-        raise ModelEndpointError(f"{purpose} 용도의 허용 host 목록이 비어 있다")
-    if not _REVISION_PATTERN.fullmatch(revision):
+    # 목록이 비면 host 제한이 없다. 값이 있으면 그 목록만 허용한다.
+    if revision and not _REVISION_PATTERN.fullmatch(revision):
         raise ModelEndpointError(f"{purpose} 용도의 배포 선언 model revision이 64자 digest가 아니다")
     if not isinstance(api_key, SecretStr):
         api_key = SecretStr(str(api_key or "EMPTY"))
@@ -410,8 +412,11 @@ def build_prompt(
     *,
     profile: Mapping[str, Any] | None = None,
     prior_stages: Sequence[Mapping[str, Any]] = (),
+    max_chars: int = 24000,
 ) -> str:
     """Build a bounded JSON prompt with no storage metadata or credentials.
+
+    상한은 `max_chars`가 정한다. 기본값은 기존 호출자가 쓰던 24,000자다.
 
     출력 계약 문구는 policy가 ``prompt_output_contract``로 선언하면 그것을
     쓰고, 선언이 없으면 심층 검토 stage 계약을 쓴다. core가 도메인 계약을
@@ -453,31 +458,39 @@ def build_prompt(
             "추진 검토, 조건부 추진 검토, 보류, 검토 종료. The recommendation must be supported by prior verified claims."
         )
     prompt = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
-    if len(prompt) > 24000:
+    if len(prompt) > max_chars:
         raise PromptTooLargeError("bounded prompt exceeds the local analysis limit")
     return prompt
 
 
 def _validated_base_url(base_url: str, allowed_hosts: Sequence[str]) -> str:
+    """base URL의 모양을 검증한다.
+
+    MVP 기간에는 scheme을 http·https 둘 다 받고 host 종류(이름·IP)와 명시 포트를
+    강제하지 않는다(ADR-0050 완화, 2026-09-11). 허용 host 목록이 비어 있지 않으면
+    그 목록으로 host를 제한하고, `/v1` 경로와 userinfo·query·fragment 금지는
+    그대로 유지한다.
+    """
+
     parsed = urlsplit(base_url)
-    allowed = {"localhost", "127.0.0.1", "::1"}
-    allowed.update(item.strip().lower() for item in allowed_hosts if item.strip())
     hostname = parsed.hostname.lower() if parsed.hostname else None
-    if parsed.scheme != "http" or hostname is None or hostname not in allowed:
-        raise ValueError("vLLM base URL must use approved plain HTTP host")
-    if hostname != "localhost":
-        try:
-            ipaddress.ip_address(hostname)
-        except ValueError as exc:
-            raise ValueError("vLLM host must be localhost or a literal IP") from exc
+    if parsed.scheme not in {"http", "https"} or hostname is None:
+        raise ValueError("vLLM base URL must be an http or https URL with a host")
+    allowed = {item.strip().lower() for item in allowed_hosts if item.strip()}
+    if allowed:
+        allowed.update({"localhost", "127.0.0.1", "::1"})
+        if hostname not in allowed:
+            raise ValueError("vLLM base URL host is not in the allowed host list")
     if parsed.username is not None or parsed.password is not None or parsed.query or parsed.fragment:
         raise ValueError("vLLM base URL must not contain userinfo, query, or fragment")
     try:
         port = parsed.port
     except ValueError as exc:
         raise ValueError("vLLM base URL port is invalid") from exc
-    if port is None or not 1 <= port <= 65535 or parsed.path.rstrip("/") != "/v1":
-        raise ValueError("vLLM base URL must include an explicit port and /v1 path")
+    if port is not None and not 1 <= port <= 65535:
+        raise ValueError("vLLM base URL port is invalid")
+    if parsed.path.rstrip("/") != "/v1":
+        raise ValueError("vLLM base URL must end with the /v1 path")
     return base_url.rstrip("/")
 
 
@@ -625,9 +638,7 @@ def structured_request_capacity(
     """Preflight the exact structured request without tokenizer/network I/O."""
 
     if (
-        type(max_model_len) is not int
-        or max_model_len <= 0
-        or type(policy_context_ceiling) is not int
+        type(policy_context_ceiling) is not int
         or policy_context_ceiling <= 0
         or type(max_tokens) is not int
         or max_tokens <= 0
@@ -635,6 +646,9 @@ def structured_request_capacity(
         or chat_template_reserve_tokens < 0
     ):
         raise ModelInvocationError("input_capacity_exceeded", ())
+    # 서버가 문맥 길이를 내지 않으면 미확인으로 표시하고 초과 판정을 하지
+    # 않는다(ADR-0050 완화). 값을 내면 예전 계산 그대로다.
+    context_unverified = type(max_model_len) is not int or max_model_len <= 0
     request = _structured_request_kwargs(
         model=model,
         prompt=prompt,
@@ -656,9 +670,14 @@ def structured_request_capacity(
         input_token_upper_bound=len(encoded),
         chat_template_reserve_tokens=chat_template_reserve_tokens,
         reserved_output_tokens=max_tokens,
-        effective_context_tokens=min(max_model_len, policy_context_ceiling),
+        effective_context_tokens=(
+            policy_context_ceiling
+            if context_unverified
+            else min(int(max_model_len), policy_context_ceiling)
+        ),
+        context_unverified=context_unverified,
     )
-    if result.total_token_upper_bound > result.effective_context_tokens:
+    if not context_unverified and result.total_token_upper_bound > result.effective_context_tokens:
         raise ModelInvocationError("input_capacity_exceeded", ())
     return result
 
@@ -670,14 +689,13 @@ class ModelClient:
     C-1은 `BIDOPS_VLLM_SCREENING_MODEL`을 넘긴다.
 
     **승인 게이트는 이 생성자가 아니라 `resolve_model_endpoint`에 있다**
-    (명세 §6.6, ADR-0050). "허용 host가 비었거나 선언 revision이 64자 hex가
-    아니면 그 용도는 호출 전에 fail closed한다"는 규칙은 용도별 설정을 푸는
-    그 함수가 강제하며, 그래서 `for_purpose`는 client를 **만들기 전에** 멈춘다.
-    생성자를 직접 부르는 것은 transport 주입 seam이다 — 허용 host 목록과 선언
-    revision을 호출자가 책임지고 넘겨야 하고, 생성자는 그 둘의 존재를 다시
-    검사하지 않는다. 운영 경로는 예외 없이 `for_purpose`를 지난다. 직접
-    생성하는 제품 코드는 `app/screening/model_adapter.py`의 주입 transport
-    한 곳뿐이며, 그곳은 선언 revision을 스스로 64자 hex로 검사한다.
+    (명세 §6.6, ADR-0050). MVP 기간에는 허용 host와 선언 revision이 비어 있어도
+    통과하지만(ADR-0050 완화, 2026-09-11), 값이 주어졌을 때의 검사는 그대로
+    그 함수가 강제한다. 생성자를 직접 부르는 것은 transport 주입 seam이다 —
+    허용 host 목록과 선언 revision을 호출자가 책임지고 넘겨야 하고, 생성자는
+    그 둘의 존재를 다시 검사하지 않는다. 운영 경로는 예외 없이 `for_purpose`를
+    지난다. 직접 생성하는 제품 코드는 `app/screening/model_adapter.py`의 주입
+    transport 한 곳뿐이며, 그곳은 선언 revision이 있으면 64자 hex인지 검사한다.
 
     소유한 `httpx.Client`는 `close()`나 `with` 문으로 닫는다. 버릴 client를
     닫지 않으면 poll마다 연결이 쌓인다.
@@ -783,8 +801,9 @@ class ModelClient:
     ) -> "ModelClient":
         """용도별 설정으로 client를 만들고 identity를 확인한다 (명세 §6.6).
 
-        설정 해석이 먼저다. 허용 host나 선언 revision이 없으면 `/models`조차
-        부르지 않고 `ModelEndpointError`로 끝난다.
+        설정 해석이 먼저다. 허용 host 목록에 없는 host나 64자가 아닌 선언
+        revision이면 `/models`조차 부르지 않고 `ModelEndpointError`로 끝난다.
+        두 값이 비어 있는 것은 MVP 기간 동안 허용한다(ADR-0050 완화).
         """
 
         endpoint = resolve_model_endpoint(purpose, settings=settings)
@@ -846,6 +865,9 @@ class ModelClient:
         모델 digest는 배포가 선언한 64자 revision이다(ADR-0042). stock vLLM은
         `/models`에 revision을 싣지 않으므로 **부재는 실패가 아니다.** 값을
         내는 서버(또는 승인된 proxy)만 선언 revision과 대조한다.
+
+        배포가 revision을 선언하지 않으면(MVP 기간 완화, ADR-0050) 대조할 기준이
+        없으므로 서버가 낸 값은 대조 없이 identity 결과에 기록만 한다.
         """
 
         document = self._served_models()
@@ -856,10 +878,13 @@ class ModelClient:
         if not served:
             raise ModelIdentityError("model_not_served")
         max_model_lengths: set[int] = set()
+        reported_revisions: set[str] = set()
         context_confirmed = True
         for row in served:
             reported = row.get("model_revision", row.get("revision"))
-            if reported is not None and reported != self.model_revision:
+            if isinstance(reported, str) and reported:
+                reported_revisions.add(reported)
+            if self.model_revision and reported is not None and reported != self.model_revision:
                 raise ModelIdentityError("model_revision_invalid")
             reported_context = row.get("max_model_len")
             if type(reported_context) is int and reported_context > 0:
@@ -877,9 +902,13 @@ class ModelClient:
             if context_confirmed and len(max_model_lengths) == 1 else None
         )
         self.model_context_tokens = max_model_len
+        revision = self.model_revision
+        if not revision and len(reported_revisions) == 1:
+            # 선언이 없으면 대조하지 않는다. 서버가 낸 값은 기록만 남긴다.
+            revision = next(iter(reported_revisions))
         return ModelIdentity(
             model=self.model,
-            revision=self.model_revision,
+            revision=revision,
             max_model_len=max_model_len,
         )
 
@@ -1042,12 +1071,11 @@ class ModelClient:
                 if response.get("model") != self.model:
                     raise ModelIdentityError("model_not_served", retryable=False)
                 # 응답이 revision을 실어 보내면 배포 선언과 대조한다. stock
-                # vLLM은 내지 않으므로 부재는 통과다(ADR-0042). 판단 기준은
-                # **응답이 값을 냈는가**이지 배포가 선언했는가가 아니다 —
-                # 선언이 비었을 때 통과시키면 서버가 다른 weight를 말해도
-                # 그대로 받게 되고, `verify_identity`와도 어긋난다.
+                # vLLM은 내지 않으므로 부재는 통과다(ADR-0042). 배포가 선언을
+                # 하지 않았으면(MVP 기간 완화, ADR-0050) 대조할 기준이 없으므로
+                # 건너뛴다 — `verify_identity`와 같은 판단이다.
                 reported_revision = response.get("model_revision", response.get("revision"))
-                if reported_revision is not None and reported_revision != self.model_revision:
+                if self.model_revision and reported_revision is not None and reported_revision != self.model_revision:
                     raise ModelIdentityError("model_revision_invalid")
                 choices = response.get("choices")
                 if not isinstance(choices, list) or len(choices) != 1 or not isinstance(choices[0], Mapping):

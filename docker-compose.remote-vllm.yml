@@ -12,8 +12,9 @@
 #
 # 여기 주는 BIDOPS_VLLM_* 는 overview·deep_review 용도의 공유값이다. 용도별로
 # 다른 endpoint를 쓰려면 BIDOPS_VLLM_OVERVIEW_* / BIDOPS_VLLM_DEEP_REVIEW_* 를
-# 추가로 준다. 허용 host가 비었거나 선언 revision이 64자 hex가 아니면 그 용도는
-# 네트워크 호출 전에 fail closed한다(ADR-0050).
+# 추가로 준다. MVP 기간에는 허용 host와 선언 revision을 비워도 호출이 나간다
+# (ADR-0050 완화, 2026-09-11). 값을 주면 host 제한과 64자 hex 검사는 그대로이며
+# 어긋나면 네트워크 호출 전에 fail closed한다.
 services:
   web:
     environment:
@@ -26,9 +27,9 @@ services:
   analysis-worker:
     environment:
       BIDOPS_VLLM_BASE_URL: "${BIDOPS_VLLM_BASE_URL:?set an approved vLLM endpoint in env/vllm.env}"
-      BIDOPS_VLLM_ALLOWED_HOSTS: "${BIDOPS_VLLM_ALLOWED_HOSTS:?set the literal allowed host in env/vllm.env}"
+      BIDOPS_VLLM_ALLOWED_HOSTS: "${BIDOPS_VLLM_ALLOWED_HOSTS:-}"
       BIDOPS_VLLM_API_KEY: "${BIDOPS_VLLM_API_KEY:-EMPTY}"
-      BIDOPS_VLLM_MODEL_REVISION: "${BIDOPS_VLLM_MODEL_REVISION:?set the operator-attested 64-hex model revision in env/vllm.env}"
+      BIDOPS_VLLM_MODEL_REVISION: "${BIDOPS_VLLM_MODEL_REVISION:-}"
       BIDOPS_C2_EXECUTION_ALLOWED: "${BIDOPS_C2_EXECUTION_ALLOWED:-false}"
       BIDOPS_C2_CAPABILITIES_PATH: /run/c2/company-capabilities.json
       BIDOPS_C2_PROMPT_PATH: /run/c2/order-plan-prompt.txt

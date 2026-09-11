@@ -438,8 +438,6 @@ def test_vllm_length_finish_reason_is_safe_truncated_json_error():
 
 
 @pytest.mark.parametrize("base_url", [
-    "https://127.0.0.1:8000/v1",
-    "http://127.0.0.1/v1",
     "http://127.0.0.1:8000/v1/models",
     "http://user:pass@127.0.0.1:8000/v1",
     "http://127.0.0.1:8000/v1?secret=1",
@@ -450,14 +448,31 @@ def test_vllm_base_url_is_exact_openai_compatible_url(base_url):
         ModelClient(model=MODEL_NAME, output_contract=DEEP_REVIEW_STAGE_CONTRACT, base_url=base_url)
 
 
+@pytest.mark.parametrize("base_url", ["https://127.0.0.1:8000/v1", "http://127.0.0.1/v1"])
+def test_vllm_base_url_allows_https_and_the_default_port(base_url):
+    """MVP 기간에는 scheme과 명시 포트를 강제하지 않는다 (ADR-0050 완화)."""
+
+    client = ModelClient(
+        model=MODEL_NAME, output_contract=DEEP_REVIEW_STAGE_CONTRACT,
+        base_url=base_url, completion_create=lambda **_kwargs: {},
+    )
+    assert client.base_url == base_url
+
+
 def test_remote_vllm_ip_must_be_an_exact_explicit_allowlist_entry(monkeypatch):
     base_url = "http://10.23.45.67:58765/v1"
+    monkeypatch.setenv("BIDOPS_VLLM_ALLOWED_HOSTS", "10.23.45.68")
     with pytest.raises(ValueError):
         ModelClient(model=MODEL_NAME, output_contract=DEEP_REVIEW_STAGE_CONTRACT, base_url=base_url)
 
     monkeypatch.setenv("BIDOPS_VLLM_ALLOWED_HOSTS", "10.23.45.67")
     client = ModelClient(model=MODEL_NAME, output_contract=DEEP_REVIEW_STAGE_CONTRACT, base_url=base_url, completion_create=lambda **_kwargs: {})
     assert client.base_url == base_url
+
+    # 목록이 비면 제한이 없다(ADR-0050 완화). 승인 경계는 host 방화벽과 overlay다.
+    monkeypatch.setenv("BIDOPS_VLLM_ALLOWED_HOSTS", "")
+    unrestricted = ModelClient(model=MODEL_NAME, output_contract=DEEP_REVIEW_STAGE_CONTRACT, base_url=base_url, completion_create=lambda **_kwargs: {})
+    assert unrestricted.base_url == base_url
 
 
 def test_vllm_retention_is_clamped_to_one_to_ninety(monkeypatch):
@@ -1314,13 +1329,20 @@ def _fake_model_client_class(served: list[str] | None = None):
     return FakeTransportModelClient
 
 
-def _vllm_env(monkeypatch, *, reference: bool, allowed_hosts: str = "127.0.0.1", revision: str = _DEEP_REVIEW_REVISION):
+def _vllm_env(
+    monkeypatch,
+    *,
+    reference: bool,
+    allowed_hosts: str = "127.0.0.1",
+    revision: str = _DEEP_REVIEW_REVISION,
+    base_url: str = "http://127.0.0.1:8000/v1",
+):
     monkeypatch.setenv("BIDOPS_ANALYSIS_PROVIDER", "vllm")
     monkeypatch.setenv("BIDOPS_OPENAI_ENABLED", "false")
     monkeypatch.setenv("BIDOPS_REFERENCE_WORKFLOW_MODE", "true" if reference else "false")
     monkeypatch.setenv("BIDOPS_VLLM_ALLOWED_HOSTS", "")
     monkeypatch.setenv("BIDOPS_VLLM_MODEL_REVISION", "")
-    monkeypatch.setenv("BIDOPS_VLLM_DEEP_REVIEW_BASE_URL", "http://127.0.0.1:8000/v1")
+    monkeypatch.setenv("BIDOPS_VLLM_DEEP_REVIEW_BASE_URL", base_url)
     monkeypatch.setenv("BIDOPS_VLLM_DEEP_REVIEW_ALLOWED_HOSTS", allowed_hosts)
     monkeypatch.setenv("BIDOPS_VLLM_DEEP_REVIEW_MODEL_REVISION", revision)
     get_settings.cache_clear()
@@ -1416,32 +1438,44 @@ def test_quality_status_separates_measured_reference_and_mock_runs(engine, monke
         assert mock_service.view(session, UUID(mocked["id"]))["quality_status"] == "mock_reference"
 
 
-def test_deep_review_model_client_is_built_for_its_own_purpose_and_fails_closed(engine, monkeypatch, clear_settings_cache):
+def test_deep_review_model_client_is_built_for_its_own_purpose_and_rejects_wrong_values(engine, monkeypatch, clear_settings_cache):
+    """용도별 설정이 어긋나면 호출 전에 멈춘다.
+
+    MVP 기간에는 허용 host와 선언 revision이 **비어 있는** 것은 통과하지만
+    (ADR-0050 완화), 목록 밖의 host와 64자가 아닌 revision은 그대로 막힌다.
+    identity 확인(`model_not_served`)도 완화하지 않는다.
+    """
+
     notice_id, bundle_id, _profile_id, _policy_id = _seed_review_context(engine, monkeypatch)
-    _vllm_env(monkeypatch, reference=False, allowed_hosts="")
+    # loopback은 언제나 허용되므로 목록 밖 host는 loopback이 아닌 주소로 본다.
+    _vllm_env(
+        monkeypatch, reference=False,
+        base_url="http://10.23.45.68:8000/v1", allowed_hosts="10.23.45.67",
+    )
     monkeypatch.setattr(deep_reviews_module, "ModelClient", _fake_model_client_class())
     service = DeepReviewService(raw_response_store=_FixtureStore(), structure_loader=_fixture_structure)
     with Session(engine) as session:
         service.create_review(session, notice_id, bundle_id, "담당자", uuid4())
-        claim = service.claim_next_job(session, "worker-no-host")
+        claim = service.claim_next_job(session, "worker-wrong-host")
         assert claim is not None
         with pytest.raises(DeepReviewServiceError) as error:
             service.run_claim(session, claim)
         assert error.value.code == "service_unavailable" and error.value.status_code == 503
 
     other_notice, other_bundle, _p, _q = _seed_review_context(engine, monkeypatch)
-    _vllm_env(monkeypatch, reference=False, revision="")
-    empty_revision = DeepReviewService(raw_response_store=_FixtureStore(), structure_loader=_fixture_structure)
+    _vllm_env(monkeypatch, reference=False, revision="not-a-digest")
+    bad_revision = DeepReviewService(raw_response_store=_FixtureStore(), structure_loader=_fixture_structure)
     with Session(engine) as session:
-        empty_revision.create_review(session, other_notice, other_bundle, "담당자", uuid4())
-        claim = empty_revision.claim_next_job(session, "worker-no-revision")
+        bad_revision.create_review(session, other_notice, other_bundle, "담당자", uuid4())
+        claim = bad_revision.claim_next_job(session, "worker-bad-revision")
         assert claim is not None
         with pytest.raises(DeepReviewServiceError) as error:
-            empty_revision.run_claim(session, claim)
+            bad_revision.run_claim(session, claim)
         assert error.value.code == "service_unavailable"
 
     served_notice, served_bundle, _p, _q = _seed_review_context(engine, monkeypatch)
-    _vllm_env(monkeypatch, reference=False)
+    # 두 값이 비어 있어도 설정 해석은 통과하고 identity 확인까지 간다.
+    _vllm_env(monkeypatch, reference=False, allowed_hosts="", revision="")
     monkeypatch.setattr(deep_reviews_module, "ModelClient", _fake_model_client_class(served=["다른-모델"]))
     identity = DeepReviewService(raw_response_store=_FixtureStore(), structure_loader=_fixture_structure)
     with Session(engine) as session:
