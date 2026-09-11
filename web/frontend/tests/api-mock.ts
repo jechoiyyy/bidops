@@ -1020,19 +1020,16 @@ function overviewStatusCounts(items: readonly { overview_review_status: string |
 }
 
 // ── 사전규격 개요 검토(`bidops.prespec-overview.v1`) ────────────────────────
-// 백엔드는 아직 없다(P2 병행). 화면이 읽는 것은 계약 정본(docs/contracts.md
-// "사전규격 개요 검토 (MVP, 2026-09-11)")의 run envelope 하나뿐이므로 상태별
-// fixture를 여기서 만든다.
-
-export type OverviewMockScenario = "completed" | "needs_human_review" | "fallback_queued" | "absent";
-
-export interface OverviewMockTrace {
-  rangePosts: Array<{ body: unknown; headers: Record<string, string> }>;
-}
+// 백엔드는 아직 없다(P7 병행). 화면이 읽는 것은 계약 정본(docs/contracts.md
+// "사전규격 개요 검토 (MVP, 2026-09-11)")과 그 envelope 부록의 run 하나뿐이므로
+// 상태별 fixture를 여기서 만든다. 화면은 이 envelope을 `toPageOverviewResponse`로
+// 옮겨 읽는다.
 
 const OVERVIEW_SCHEMA = "bidops.prespec-overview.v1";
 
-function overviewRun(overrides: Partial<OverviewRun> & Pick<OverviewRun, "id" | "status">): OverviewRun {
+export function overviewRunFixture(
+  overrides: Partial<OverviewRun> & Pick<OverviewRun, "id" | "status">,
+): OverviewRun {
   return {
     range_source: "auto",
     page_start: 3,
@@ -1049,13 +1046,32 @@ function overviewRun(overrides: Partial<OverviewRun> & Pick<OverviewRun, "id" | 
     created_at: "2026-09-05T02:00:00Z",
     started_at: "2026-09-05T02:00:05Z",
     completed_at: "2026-09-05T02:04:00Z",
+    result_id: null,
+    prompt_version: "prespec-overview-v6",
+    verification_status: null,
+    document_version_id: "00000000-0000-0000-0000-000000000001",
+    source_sha256: "a".repeat(64),
+    pdf_sha256: "b".repeat(64),
+    pdf_page_count: 79,
+    reviewed_pages: [3, 4, 5, 6, 7, 8, 9, 10, 11],
+    payload_sha256: "c".repeat(64),
+    quality_status: "unmeasured_reference",
+    validation_status: "failed",
+    validation_errors: [],
+    evidence_check_status: "failed",
+    evidence_check_errors: [],
     ...overrides,
   };
 }
 
-const overviewCompletedRun = overviewRun({
+/** 완료된 run 하나. 결과 본문이 있으므로 화면의 개요 본문 자리를 채운다. */
+export const overviewCompletedRunFixture = overviewRunFixture({
   id: "b1a7f0c2-1111-4a11-9c11-000000000001",
   status: "completed",
+  result_id: "b1a7f0c2-1111-4a11-9c11-000000000001",
+  verification_status: "passed",
+  validation_status: "passed",
+  evidence_check_status: "passed",
   warnings: ["quantity_metadata_mismatch", "date_mismatch", "claims_dropped"],
   failed_claims: [{
     claim_id: "c9",
@@ -1095,10 +1111,13 @@ const overviewCompletedRun = overviewRun({
   },
 });
 
-const overviewNeedsHumanReviewRun = overviewRun({
+/** 사람 확인이 필요한 run. 결과 본문이 없고 검증 진단이 함께 온다. */
+export const overviewNeedsHumanReviewRunFixture = overviewRunFixture({
   id: "b1a7f0c2-2222-4a22-9c22-000000000002",
   status: "needs_human_review",
+  verification_status: "needs_human_review",
   reason_codes: ["quote_not_found"],
+  created_at: "2026-09-06T02:00:00Z",
   failed_claims: [{
     claim_id: "c7",
     section: "budget_and_period",
@@ -1108,7 +1127,22 @@ const overviewNeedsHumanReviewRun = overviewRun({
   }],
 });
 
-const overviewFallbackQueuedRun = overviewRun({
+export const overviewVerificationFixture: NonNullable<OverviewEnvelope["verification"]> = {
+  verification_id: overviewNeedsHumanReviewRunFixture.id,
+  status: "needs_human_review",
+  reason_codes: ["required_fact_missing"],
+  claims: [{
+    claim_id: "c7",
+    section: "budget_and_period",
+    text: "사업 예산은 700,000,000원이다.",
+    deterministic: { status: "failed", reason_codes: ["quantity_mismatch"] },
+    semantic: { status: "not_run", reason_codes: [] },
+    verified_evidence: [{ page: 4, quote: "사업예산 510,000,000원(VAT 포함)", start_char: 20, end_char: 42 }],
+  }],
+};
+
+/** 앞부분 fallback으로 대기 중인 run. 활성 run이므로 범위 확정이 막힌다. */
+export const overviewFallbackQueuedRunFixture = overviewRunFixture({
   id: "b1a7f0c2-3333-4a33-9c33-000000000003",
   status: "queued",
   range_source: "fallback",
@@ -1120,77 +1154,82 @@ const overviewFallbackQueuedRun = overviewRun({
   completed_at: null,
 });
 
-function overviewEnvelope(noticeId: number, current: OverviewRun | null, history: OverviewRun[] = []): OverviewEnvelope {
-  return { schema: OVERVIEW_SCHEMA, notice_id: noticeId, current, history };
+export const overviewRangeCandidatesFixture = [
+  { index: 0, title: "1. 사업 개요", page: 4, char_count: 120 },
+  { index: 1, title: "2. 사업 범위 및 기간", page: 6, char_count: 340 },
+  { index: 2, title: "3. 제출 서류", page: 12, char_count: 90 },
+];
+
+export function overviewRangeReviewFixture(
+  overrides: Partial<NonNullable<OverviewEnvelope["range_review"]>> = {},
+): NonNullable<OverviewEnvelope["range_review"]> {
+  return {
+    target_id: null,
+    status: "pending",
+    document_version_id: "00000000-0000-0000-0000-000000000001",
+    pdf_page_count: 79,
+    mode: "clause",
+    candidate_status: "complete",
+    candidate_count_total: 3,
+    candidate_count_returned: 3,
+    candidates: overviewRangeCandidatesFixture,
+    selected_pages: null,
+    warning_codes: [],
+    reason_code: "scope_heading_missing",
+    can_confirm: true,
+    assisted: null,
+    confirmation: null,
+    ...overrides,
+  };
 }
 
-function overviewScenarioEnvelope(noticeId: number, scenario: OverviewMockScenario): OverviewEnvelope {
-  if (scenario === "absent") return overviewEnvelope(noticeId, null);
-  if (scenario === "needs_human_review") {
-    return overviewEnvelope(noticeId, overviewNeedsHumanReviewRun, [overviewNeedsHumanReviewRun]);
-  }
-  if (scenario === "fallback_queued") {
-    return overviewEnvelope(noticeId, overviewFallbackQueuedRun, [overviewFallbackQueuedRun]);
-  }
-  return overviewEnvelope(noticeId, overviewCompletedRun, [overviewCompletedRun]);
+export function overviewEnvelopeFixture(
+  noticeId: number,
+  current: OverviewRun | null,
+  history: OverviewRun[] = [],
+  extra: Partial<Pick<OverviewEnvelope, "range_review" | "verification">> = {},
+): OverviewEnvelope {
+  return {
+    schema: OVERVIEW_SCHEMA,
+    notice_id: noticeId,
+    current,
+    history,
+    range_review: null,
+    verification: null,
+    ...extra,
+  };
 }
 
-/**
- * 개요 검토 envelope과 범위 확정 mock.
- *
- * 활성 run(queued/running)이 있는 시나리오에서 POST는 계약대로 409 `run_active`로
- * 닫히고, 그 밖에는 201을 돌려준 뒤 **다음 조회부터** 담당자 범위의 새 queued run을
- * 현재 run으로 준다 — 화면이 재조회하는지 그대로 드러난다.
- */
-export async function mockPreSpecOverview(
-  page: Page,
-  scenario: OverviewMockScenario = "completed",
-  noticeId = 991,
-): Promise<OverviewMockTrace> {
-  const trace: OverviewMockTrace = { rangePosts: [] };
-  let envelope = overviewScenarioEnvelope(noticeId, scenario);
-
-  await page.route("**/api/pre-specs/*/overview**", async (route) => {
-    const request = route.request();
-    const url = new URL(request.url());
-    const match = url.pathname.match(/^\/api\/pre-specs\/(\d+)\/overview(\/range-confirmations)?$/);
-    if (!match) {
-      await route.fallback();
-      return;
-    }
-    if (!match[2] && request.method() === "GET") {
-      await fulfillJson(route, envelope);
-      return;
-    }
-    if (match[2] && request.method() === "POST") {
-      trace.rangePosts.push({ body: request.postDataJSON(), headers: request.headers() });
-      const active = envelope.current;
-      if (active && (active.status === "queued" || active.status === "running")) {
-        await fulfillJson(route, { error: { code: "run_active", message: "합성 개요 오류", details: null }, request_id: null }, 409);
-        return;
-      }
-      const body = request.postDataJSON() as { page_start?: number; page_end?: number };
-      const confirmed = overviewRun({
-        id: "b1a7f0c2-4444-4a44-9c44-000000000004",
-        status: "queued",
-        range_source: "human",
-        page_start: body.page_start ?? null,
-        page_end: body.page_end ?? null,
-        range_reason_codes: ["human_range_confirmed"],
-        actor_name: fixtureActor(request.headers()) || null,
-        call_count: 0,
-        created_at: "2026-09-06T02:00:00Z",
-        started_at: null,
-        completed_at: null,
-      });
-      envelope = overviewEnvelope(noticeId, confirmed, [confirmed, ...envelope.history]);
-      await fulfillJson(route, { run_id: confirmed.id, attempt_enqueued: true }, 201);
-      return;
-    }
-    await route.fallback();
+/** 완료된 개요 + 절 후보가 있는 자동 선택 범위. */
+export function overviewCompletedEnvelope(noticeId = 991): OverviewEnvelope {
+  return overviewEnvelopeFixture(noticeId, overviewCompletedRunFixture, [overviewCompletedRunFixture], {
+    range_review: overviewRangeReviewFixture({
+      target_id: overviewCompletedRunFixture.id,
+      status: "ready",
+      reason_code: null,
+      selected_pages: [3, 11],
+    }),
   });
+}
 
-  return trace;
+/** 사람 확인이 필요한 개요 + 주장 검증 진단. */
+export function overviewNeedsHumanReviewEnvelope(noticeId = 991): OverviewEnvelope {
+  return overviewEnvelopeFixture(
+    noticeId,
+    overviewNeedsHumanReviewRunFixture,
+    [overviewNeedsHumanReviewRunFixture],
+    { verification: overviewVerificationFixture },
+  );
+}
+
+/** 실행은 없고 범위 확정만 기다리는 자리. */
+export function overviewPendingRangeEnvelope(noticeId = 991): OverviewEnvelope {
+  return overviewEnvelopeFixture(noticeId, null, [], { range_review: overviewRangeReviewFixture() });
+}
+
+/** 개요 run도 문서 snapshot도 없는 공고. 없는 것을 실패로 보이게 하지 않는다. */
+export function overviewAbsentEnvelope(noticeId = 991): OverviewEnvelope {
+  return overviewEnvelopeFixture(noticeId, null);
 }
 
 export interface DocumentStructurePageMockTrace {
@@ -1560,7 +1599,7 @@ export async function mockApi(page: Page): Promise<void> {
     if (fitMatch) { await fulfillJson(route, { schema_version: "bidops.prespec-company-fit.v1", notice_id: Number(fitMatch[1]), attempts: [], automation_enabled: false, auto_deep_review_reason: "company_fit_disabled", deep_review_id: null }); return; }
     // 개요 run이 없는 공고가 기본값이다. 없는 것을 실패로 보이게 하지 않는다.
     const overviewMatch = pathname.match(/^\/api\/pre-specs\/(\d+)\/overview$/);
-    if (overviewMatch) { await fulfillJson(route, overviewEnvelope(Number(overviewMatch[1]), null)); return; }
+    if (overviewMatch) { await fulfillJson(route, overviewAbsentEnvelope(Number(overviewMatch[1]))); return; }
 
     if (pathname === "/api/workload") { await fulfillJson(route, workloadResponse(page)); return; }
     // deep-review 합성 응답이 먼저, 그다음 갈무리 fixture, 마지막으로 T15 시각
