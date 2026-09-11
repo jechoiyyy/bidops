@@ -31,6 +31,12 @@ _NUMBERED = re.compile(r"^(\d+(?:\.\d+)*)\s*[.)、:：\-–—]?\s+(.+)$")
 _BULLET = re.compile(r"^[□■◆◇○●〇◦•·]\s*")
 #: The only manifest fields a human confirmation may add (ADR-RDP-004).
 _V4_SPAN_EXTRA_FIELDS = frozenset({"confirmed_from_target_id", "confirmed_by", "note", "candidate_indices"})
+#: 목차 표제. 장식 기호(`- 목  차 -`, `<목차>`, `[ 차례 ]`)를 걷어낸 뒤 본다.
+_TOC_TRIM = re.compile(r"[-<>\[\]():\s]+")
+_TOC_WORDS = frozenset({"목차", "차례", "contents", "tableofcontents"})
+#: 목차 항목 줄: 탭이나 점선 뒤에 쪽 번호로 끝난다.
+_TOC_ENTRY = re.compile(r"(?:\t\d{1,4}|[.·…]{2,}\s*\d{1,4})\s*$")
+_TOC_ENTRY_LINES = 5
 _TARGET_WORDS = frozenset(
     {
         "개요", "목적", "배경", "범위", "주요내용", "주요과업", "사업일반",
@@ -119,6 +125,11 @@ def _normalise_heading(value: str) -> str:
     text = re.sub(r"^[\(\[\{<「『【〔〈《]+", "", text)
     text = re.sub(r"[\)\]\}>」』】〕〉》]+$", "", text)
     return text.strip(" .·…\t")
+
+
+def _toc_label(text: str) -> bool:
+    value = _TOC_TRIM.sub("", unicodedata.normalize("NFKC", text)).casefold()
+    return value in _TOC_WORDS or _normalise_heading(text) in _TOC_WORDS
 
 
 def _heading_from_line(text: str) -> tuple[int | None, str | None, bool]:
@@ -228,11 +239,15 @@ def select_v4_input_range(payload: Mapping[str, Any], *, candidates_complete: bo
     lines = _lines(pages)
     if len(_canonical(payload)) > MAX_V4_MANIFEST_BYTES:
         raise V4PreparationError("input_size_limit")
-    toc_pages = {
-        line.page
-        for line in lines
-        if _normalise_heading(line.text) in {"목차", "차례", "contents", "tableofcontents"}
-    }
+    toc_pages = {line.page for line in lines if _toc_label(line.text)}
+    # 표제 없이 항목만 있는 목차 쪽도 있다 (0911 공고 805). 쪽 번호로 끝나는
+    # 줄이 여러 개면 그 쪽은 본문이 아니라 안내다. 한두 줄은 본문에도 있으므로
+    # 고정 하한(5줄)을 넘을 때만 제외한다.
+    entry_counts: dict[int, int] = defaultdict(int)
+    for line in lines:
+        if _TOC_ENTRY.search(line.text):
+            entry_counts[line.page] += 1
+    toc_pages |= {page for page, count in entry_counts.items() if count >= _TOC_ENTRY_LINES}
     body = [line for line in lines if line.page not in toc_pages]
     chapters = [line for line in body if line.chapter]
     # Multiple explicit chapter markers on one extracted line have no proven

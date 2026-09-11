@@ -321,7 +321,7 @@ migration 0021/0023/0024)과 주장 결정적 검증 함수는 그대로 유지�
 |---|---|---|
 | `queued` / `running` | 대기·실행 중 | 대기 |
 | `completed` | 모든 결정적 검사·의미 검토 통과, `result_json` 있음 | 진행 가능 |
-| `needs_human_review` | 인용 불일치·필수 섹션 누락·의미 검토 contradicted/insufficient | `overview_not_completed` |
+| `needs_human_review` | 인용 불일치·주장 0개(`claims_empty`)·의미 검토 contradicted/insufficient | `overview_not_completed` |
 | `failed` | 기술 실패(`reason_codes`: `pdf_preparation_failed:<code>`, `manifest_invalid`, `draft_format_retry_exhausted`, `semantic_response_invalid`, `timeout`, `input_capacity_exceeded`, `call_budget_exhausted`, `response_store_unavailable`, `lease_expired`, `runner_failed`) | `overview_not_completed` |
 | `cancelled` | 플래그 off로 닫힘 | `overview_not_completed` |
 
@@ -355,8 +355,9 @@ analysis worker의 개요 slot이 enqueue(플래그 on ∧ 활성 run 없음 ∧
 prepare(snapshot 없으면 `prepare_v4_pdf_snapshot`, 변환 300초) → range(human 확정값 또는
 자동 선택, 실패 시 fallback 1쪽~min(60쪽,100,000자)에 `range_fallback_head`; 전 쪽 공백이면
 `failed/manifest_invalid`) → draft(1회, 형식 오류 시 1회 재생성) →
-deterministic(인용 1곳 대응·페이지 범위·필수 섹션·duplicate_id·analysis 참조 실패는
-`needs_human_review`; 수치·역할·VAT·기산점·date·latin·requirement_id는 warnings) →
+deterministic(인용 1곳 대응·페이지 범위·duplicate_id·analysis 참조 실패와 주장 0개
+(`claims_empty`)는 `needs_human_review`; 섹션 배정·수치·역할·VAT·기산점·date·latin·
+requirement_id는 warnings) →
 semantic(1회; 모두 supported면 `completed`) → save 순서로 진행한다. 호출 상한은 attempt당
 3회(초안 2, 의미 1)이며 상한을 넘기면 `call_budget_exhausted`로 닫는다. 정책은
 `prespec-overview-policy-v6.json`(v5 상한 복제, max_pages 60, max_page_text_chars 100000,
@@ -367,10 +368,12 @@ max_model_context_tokens 393216). 문맥 상한 판정은 요청 JSON의 byte �
 
 결정적 검사에서 `quantity_mismatch`·`quantity_metadata_mismatch`·`quantity_relation_ambiguous`·
 `quantity_unit_missing`·`date_mismatch`·`requirement_id_mismatch`·`latin_term_mismatch`·
-`analysis_premise_unverified`·`unknown_reason_mismatch`는 **비차단 경고**이며 run의 `warnings`에만
-남는다. 차단은 `quote_not_found`·`quote_ambiguous`·`quote_empty`·`page_out_of_range`·
-`evidence_missing`·`fact_empty`·`required_fact_missing`·`duplicate_id`·`analysis_reference_missing`·
-`company_comparison_scope_mismatch`뿐이다.
+`analysis_premise_unverified`·`unknown_reason_mismatch`·`required_fact_missing`(섹션 배정 쏠림)·
+`evidence_fragment_match`(2단 편집 쪽에서 인용을 줄·리스트 표식 조각으로 나눠 순서대로 대조해
+통과)는 **비차단 경고**이며 run의 `warnings`에만 남는다. 차단은 `quote_not_found`·
+`quote_ambiguous`·`quote_empty`·`page_out_of_range`·`evidence_missing`·`fact_empty`·
+`duplicate_id`·`analysis_reference_missing`·`company_comparison_scope_mismatch`뿐이며, 주장이
+한 개도 없으면 run은 `needs_human_review/claims_empty`로 닫는다.
 
 개요 입력 PDF의 원본 위치가 여러 공고에 공유되면(같은 첨부 bytes) `source` 위치가 둘 이상이다.
 원본의 정체는 hash이므로 가장 오래된 검증 위치 하나를 고정해 고른다.
