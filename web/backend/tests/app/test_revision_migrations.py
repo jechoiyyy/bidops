@@ -6,7 +6,7 @@ import pytest
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import IntegrityError
 
-from app.core.db import ALEMBIC_HEAD
+from app.core.db import ALEMBIC_HEAD  # noqa: F401
 from app.screening.services.revisions import canonical_payload_sha256
 from tests.postgres import requires_postgres, run_alembic, temporary_database
 
@@ -297,7 +297,8 @@ def test_revision_rows_reject_update_and_delete(table: str, operation: str) -> N
 
 
 def test_0011_downgrade_refuses_when_any_revision_history_exists() -> None:
-    with temporary_database() as database_url:
+    # 0026이 그 아래 downgrade를 닫았으므로 0011 거부는 0011 판에서 본다.
+    with temporary_database(upgrade_to="0011_judgment_review_revisions") as database_url:
         engine = create_engine(database_url, future=True)
         digest = canonical_payload_sha256({})
         with engine.begin() as connection:
@@ -321,5 +322,5 @@ def test_0011_downgrade_refuses_when_any_revision_history_exists() -> None:
         )
         assert _scalar(
             engine, "SELECT version_num FROM bidops.alembic_version"
-        ) == ALEMBIC_HEAD
+        ) == "0011_judgment_review_revisions"
         engine.dispose()

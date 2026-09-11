@@ -533,19 +533,20 @@ def test_0012_to_head_and_0013_downgrade_upgrade_round_trip() -> None:
         _drop_integrity_objects(engine)
         assert _integrity_objects(engine) == (False, False, False)
 
-        upgraded = run_alembic(database_url, "upgrade", "head")
+        # 0026이 그 아래 downgrade를 닫았으므로 왕복은 0013 판에 고정한다.
+        upgraded = run_alembic(database_url, "upgrade", "0013_document_integrity")
         assert upgraded.returncode == 0, upgraded.stdout + upgraded.stderr
         assert _integrity_objects(engine) == (True, True, True)
         with engine.connect() as connection:
             assert connection.scalar(
                 text("SELECT version_num FROM bidops.alembic_version")
-            ) == ALEMBIC_HEAD
+            ) == "0013_document_integrity"
 
         downgraded = run_alembic(database_url, "downgrade", MIGRATION_BASE)
         assert downgraded.returncode == 0, downgraded.stdout + downgraded.stderr
         assert _integrity_objects(engine) == (False, False, False)
 
-        reupgraded = run_alembic(database_url, "upgrade", "head")
+        reupgraded = run_alembic(database_url, "upgrade", "0013_document_integrity")
         assert reupgraded.returncode == 0, reupgraded.stdout + reupgraded.stderr
         assert _integrity_objects(engine) == (True, True, True)
         engine.dispose()
