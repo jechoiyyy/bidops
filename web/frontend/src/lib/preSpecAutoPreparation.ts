@@ -47,9 +47,9 @@ const REASON_LABEL: Record<string, string> = {
   not_sw_business: "SW사업대상이 아닙니다.",
   bundle_not_auto_ready: "자동 확정 조건을 채우지 못한 묶음입니다.",
   overview_not_completed: "개요 검토가 아직 끝나지 않았습니다.",
-  overview_recommendation_closed: "개요 권고가 검토 종료입니다.",
-  overview_bundle_mismatch: "개요가 본 묶음과 현재 묶음이 다릅니다.",
   service_unavailable: "필요한 버전이나 서비스를 확인할 수 없습니다.",
+  attachments_failed: "첨부 원문 취득이 모두 차단·실패로 끝났습니다.",
+  deep_review_exists: "심층 검토가 이미 있습니다.",
 };
 
 /** 사유가 없으면 `null`을 돌려준다. 사유 `null`은 정상이므로 호출부는 아무것도

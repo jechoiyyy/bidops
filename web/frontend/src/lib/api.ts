@@ -32,11 +32,6 @@ import type {
   OrderPlanScreeningHistoryResponse,
   PreSpecListQuery,
   PreSpecListResponse,
-  PreSpecOverviewReviewsResponse,
-  PreSpecOverviewReviewsV2Response,
-  PageOverviewResponse,
-  PageOverviewRangeConfirmationRequest,
-  PageOverviewRangeConfirmationResponse,
   CompanyFitResponse,
   OpportunityDetailResponse,
   CandidateLinkDecisionRequest,
@@ -601,38 +596,8 @@ export const api = {
       options,
     ),
 
-  getPreSpecOverviewReviews: (noticeId: number, options?: ReadRequestOptions) =>
-    request<PreSpecOverviewReviewsResponse>(`/pre-specs/${noticeId}/overview-reviews`, options),
-
-  getPageOverviews: (noticeId: number, options?: ReadRequestOptions) =>
-    request<PageOverviewResponse>(`/pre-specs/${noticeId}/overview-pages/v2`, options),
   getCompanyFit: (noticeId: number, options?: ReadRequestOptions) =>
     request<CompanyFitResponse>(`/pre-specs/${noticeId}/company-fit`, options),
-
-  /**
-   * 개요 입력 범위를 사람이 확정한다. 담당자 이름은 감사 표식이며 인증이 아니다.
-   *
-   * 확정은 새 `ready` target 하나만 만들고 개요 검토 attempt·정책 활성화·모델
-   * 호출을 열지 않는다(`attempt_enqueued`는 항상 false). 오류는 `ApiError.code`의
-   * 안전 코드(`target_not_found`·`target_not_pending`·`range_invalid`·
-   * `input_size_limit`)로만 구분하고 서버 message를 분기 조건으로 쓰지 않는다.
-   */
-  confirmPageOverviewRange: (
-    noticeId: number,
-    payload: PageOverviewRangeConfirmationRequest,
-    actorName: string,
-  ) =>
-    request<PageOverviewRangeConfirmationResponse>(
-      `/pre-specs/${noticeId}/overview-pages/range-confirmations`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...actorHeaders(actorName) },
-        body: JSON.stringify(payload),
-      },
-    ),
-
-  getPreSpecOverviewReviewsV2: (noticeId: number, options?: ReadRequestOptions) =>
-    request<PreSpecOverviewReviewsV2Response>(`/pre-specs/${noticeId}/overview-reviews/v2`, options),
 
   getNotice: (noticePk: number) => request<NoticeDetailResponse>(`/notices/${noticePk}`),
 

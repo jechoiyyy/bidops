@@ -1,6 +1,5 @@
 import type { BadgeVariant } from "../components/common/Badge";
 import type { QualityStatus } from "../components/deep-review/types";
-import type { PreSpecOverviewQualityStatus } from "./types";
 
 // 개요 카드(사전규격 상세)와 심층 보고서(상단 카드·최종 의견 저장 form 위)가
 // 같은 문구를 각자 다시 정의하지 않도록 한곳에 모은다. 문구는 명세가 정한
@@ -17,7 +16,7 @@ export const QUALITY_STATUS_LABEL: Record<QualityStatus, string> = {
  * "표식이 없다"이므로 미측정으로 승격시키지 않는다. */
 export const QUALITY_STATUS_ABSENT_LABEL = "표식 없음";
 
-export function qualityStatusLabel(status: QualityStatus | PreSpecOverviewQualityStatus | null | undefined): string {
+export function qualityStatusLabel(status: QualityStatus | null | undefined): string {
   if (status === null || status === undefined) return QUALITY_STATUS_ABSENT_LABEL;
   return QUALITY_STATUS_LABEL[status];
 }
@@ -25,7 +24,7 @@ export function qualityStatusLabel(status: QualityStatus | PreSpecOverviewQualit
 /** 미측정·mock·표식 없음은 성공도 실패도 아니다. PRD §4.1이 정한 대로 무채색을
  * 쓰고, 색이 아니라 문구가 상태를 전달한다. */
 export function qualityStatusVariant(
-  status: QualityStatus | PreSpecOverviewQualityStatus | null | undefined,
+  status: QualityStatus | null | undefined,
 ): BadgeVariant {
   if (status === "measured") return "evidence-confirmed";
   if (status === null || status === undefined) return "evidence-unknown";
@@ -33,7 +32,7 @@ export function qualityStatusVariant(
 }
 
 export function qualityStatusNote(
-  status: QualityStatus | PreSpecOverviewQualityStatus | null | undefined,
+  status: QualityStatus | null | undefined,
 ): string {
   if (status === "measured") return "고정 입력의 품질 게이트를 통과한 실행입니다.";
   if (status === "mock_reference") return "mock provider로 만든 참조 실행입니다. 운영 결과가 아닙니다.";
