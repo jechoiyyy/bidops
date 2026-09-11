@@ -70,7 +70,15 @@ def numeric_case(source, text, metadata):
 
 
 def codes(checks):
+    """실행을 사람 검토로 보내는 **차단** 코드만."""
+
     return set(checks.reason_codes) | {code for row in checks.checks for code in row.deterministic.reason_codes}
+
+
+def warnings(checks):
+    """비차단 관찰. 대조는 어긋났지만 인용 자체는 성립한 경우다 (MVP 계약)."""
+
+    return set(checks.warnings)
 
 
 @pytest.mark.parametrize("source,text,metadata", [
@@ -89,13 +97,20 @@ def codes(checks):
     ("사업 기간은 계약일부터 90일이다.", "사업 기간은 90일이다.", [quantity("90", "일", role="period")]),
 ])
 def test_numeric_role_unit_subject_vat_basis_and_decimal_counterexamples(source, text, metadata):
+    """수치 대조 불일치는 **경고**로만 남고 인용 검사는 통과한다 (MVP 계약).
+
+    의미 검토가 이어서 돌고, 최종 개요에는 원문 그대로의 주장 문장이 남는다.
+    사람은 경고 코드를 보고 원문과 함께 확인한다.
+    """
+
     draft, checks = numeric_case(source, text, metadata)
-    assert "quantity_mismatch" in codes(checks)
-    assert checks.overall == "needs_human_review"
-    with pytest.raises(ValueError, match="deterministic_checks_failed"):
-        apply_semantic_review(draft, checks, supported(draft))
-    with pytest.raises(ValueError, match="verification_not_passed"):
-        compose_page_overview(draft, checks, verification_id=uuid4(), input_limitations=["선택 범위"])
+    assert "quantity_mismatch" in warnings(checks)
+    assert not codes(checks)
+    assert all(row.deterministic.status == "passed" for row in checks.checks)
+    reviewed = apply_semantic_review(draft, checks, supported(draft))
+    assert reviewed.overall == "passed"
+    assert "quantity_mismatch" in warnings(reviewed)
+    compose_page_overview(draft, reviewed, verification_id=uuid4(), input_limitations=["선택 범위"])
 
 
 @pytest.mark.parametrize("source,text,metadata", [
@@ -114,13 +129,13 @@ def test_explicit_equivalent_quantities_preserve_claim_text(source, text, metada
 @pytest.mark.parametrize("metadata", [[], [quantity("6", "억원")], [quantity("6", "개월", role="period")]])
 def test_model_quantity_metadata_does_not_supply_facts(metadata):
     _, checks = numeric_case("사업 기간은 6개월이다.", "사업 예산은 6억원이다.", metadata)
-    assert "quantity_mismatch" in codes(checks)
+    assert "quantity_mismatch" in warnings(checks)
 
 
 def test_missing_extra_or_wrong_evidence_index_metadata_is_rejected():
     for metadata in ([], [quantity("80000000", "원"), quantity("1", "원")], [{**quantity("80000000", "원"), "evidence_index": 1}]):
         _, checks = numeric_case("사업 예산은 80000000원이다.", "사업 예산은 80000000원이다.", metadata)
-        assert "quantity_metadata_mismatch" in codes(checks)
+        assert "quantity_metadata_mismatch" in warnings(checks)
 
 
 @pytest.mark.parametrize("source,text,metadata,code", [
@@ -135,7 +150,8 @@ def test_missing_extra_or_wrong_evidence_index_metadata_is_rejected():
 ])
 def test_ambiguous_tables_dates_and_requirement_ids(source, text, metadata, code):
     _, checks = numeric_case(source, text, metadata)
-    assert code in codes(checks)
+    assert code in warnings(checks)
+    assert not codes(checks)
 
 
 def test_valid_date_and_requirement_id_are_not_misread_as_untyped_counts():
@@ -189,8 +205,6 @@ def test_whitespace_only_page_citation_fails_without_verified_evidence():
     (lambda v: v["analysis"][0].update(id="c1"), "duplicate_id"),
     (lambda v: v["analysis"][0].update(supporting_claim_ids=[]), "analysis_reference_missing"),
     (lambda v: v["analysis"][0].update(supporting_claim_ids=["missing"]), "analysis_reference_missing"),
-    (lambda v: v["analysis"][0].update(text="담당 인원은 8명이어야 한다."), "analysis_premise_unverified"),
-    (lambda v: v["unknowns"][0].update(topic="budget"), "unknown_reason_mismatch"),
 ])
 def test_fact_and_analysis_completeness_never_requests_format_retry(change, code):
     value = draft_value()
@@ -201,12 +215,26 @@ def test_fact_and_analysis_completeness_never_requests_format_retry(change, code
         apply_semantic_review(draft, checks, supported(draft))
 
 
+@pytest.mark.parametrize("change,code", [
+    (lambda v: v["analysis"][0].update(text="담당 인원은 8명이어야 한다."), "analysis_premise_unverified"),
+    (lambda v: v["unknowns"][0].update(topic="budget"), "unknown_reason_mismatch"),
+])
+def test_premise_and_unknown_mismatches_are_warnings_not_blockers(change, code):
+    """전제·미확인 대조는 경고다. 의미 검토는 그대로 이어진다 (MVP 계약)."""
+
+    value = draft_value()
+    change(value)
+    draft, checks = check(value)
+    assert code in warnings(checks) and not codes(checks)
+    assert apply_semantic_review(draft, checks, supported(draft)).overall == "passed"
+
+
 def test_analysis_cannot_turn_supported_period_number_into_money():
     value = draft_value()
     value["claims"][1].update(text="사업 기간은 6개월이다.", evidence=[{"page": 4, "quote": "사업 기간은 6개월이다."}], quantities=[quantity("6", "개월", role="period")])
     value["analysis"][0]["text"] = "사업 예산은 6억원이므로 검토가 필요하다."
     _, checks = check(value, {3: BASE_PAGE, 4: "사업 기간은 6개월이다."})
-    assert "analysis_premise_unverified" in codes(checks)
+    assert "analysis_premise_unverified" in warnings(checks)
 
 
 def test_company_unknown_is_checked_against_server_execution_scope():
@@ -394,7 +422,7 @@ def test_stage_policy_is_an_isolated_copy_and_changed_binding_fails_closed():
         policy.stage_policy(CLAIMS_STAGE)
 
 
-def test_maximum_claim_quote_fixture_fits_both_24k_prompts_without_truncation():
+def test_maximum_claim_quote_fixture_fits_both_prompts_without_truncation():
     value = draft_value()
     value.update(claims=[], analysis=[], unknowns=[])
     source = []
@@ -414,7 +442,7 @@ def test_maximum_claim_quote_fixture_fits_both_24k_prompts_without_truncation():
     policy = load_claims_policy()
     for stage, kwargs in ((CLAIMS_STAGE, {}), (SEMANTIC_STAGE, {"draft": draft, "checks": checks})):
         prompt = build_claims_prompt(policy, stage, build_claims_stage_input({3: page}, **kwargs))
-        assert len(prompt) <= 24000
+        assert len(prompt) <= LIMITS["max_prompt_chars"]
         assert json.loads(prompt)["input_slice"]["blocks"][0]["text"] == page
         contract = policy.structured_output_contract(stage)
         capacity = structured_request_capacity(
@@ -441,13 +469,22 @@ def test_maximum_claim_quote_fixture_fits_both_24k_prompts_without_truncation():
             )
     with pytest.raises(ValueError, match="input_limit_exceeded"):
         build_claims_stage_input({3: "가" * (LIMITS["max_page_text_chars"] + 1)})
-    value["claims"].append(deepcopy(value["claims"][0]))
+    # 주장 수 상한(12) 안이라도 초안 전체가 `max_draft_chars`를 넘으면 잘라
+    # 맞추지 않고 출력 상한 초과로 닫는다.
+    while len(value["claims"]) < LIMITS["max_claims"]:
+        value["claims"].append(deepcopy(value["claims"][0]))
     with pytest.raises(ClaimDraftError, match="output_limit_exceeded"):
         parse_claims_draft(value)
 
 
 @pytest.mark.parametrize("stage", [CLAIMS_STAGE, SEMANTIC_STAGE])
-def test_each_stage_accepts_exact_prompt_limit_and_rejects_one_more_character(stage):
+def test_page_text_cap_binds_before_the_prompt_cap(stage):
+    """v6에서는 쪽 텍스트 상한이 먼저 걸린다.
+
+    허용 입력을 가득 채워도 프롬프트는 `max_prompt_chars` 안에 들어오고, 한 글자
+    더 넣으면 프롬프트 조립 전에 입력 경계가 막는다 — 원문을 잘라 맞추지 않는다.
+    """
+
     policy = load_claims_policy()
 
     def prompt_for(page):
@@ -455,9 +492,10 @@ def test_each_stage_accepts_exact_prompt_limit_and_rejects_one_more_character(st
         kwargs = {"draft": draft, "checks": checks} if stage == SEMANTIC_STAGE else {}
         return build_claims_prompt(policy, stage, build_claims_stage_input({3: page}, **kwargs))
 
-    source = BASE_PAGE + "가" * (LIMITS["max_prompt_chars"] - len(prompt_for(BASE_PAGE)))
+    source = BASE_PAGE + "가" * (LIMITS["max_page_text_chars"] - len(BASE_PAGE))
     prompt = prompt_for(source)
-    assert len(prompt) == LIMITS["max_prompt_chars"]
+    assert len(source) == LIMITS["max_page_text_chars"]
+    assert len(prompt) <= LIMITS["max_prompt_chars"]
     assert json.loads(prompt)["input_slice"]["blocks"][0]["text"] == source
     structured_request_capacity(
         model=policy.document["model_name"], prompt=prompt,
@@ -466,7 +504,7 @@ def test_each_stage_accepts_exact_prompt_limit_and_rejects_one_more_character(st
         policy_context_ceiling=LIMITS["max_model_context_tokens"],
         chat_template_reserve_tokens=LIMITS["chat_template_reserve_tokens"],
     )
-    with pytest.raises(PromptTooLargeError):
+    with pytest.raises(ValueError, match="input_limit_exceeded"):
         prompt_for(source + "가")
 
 

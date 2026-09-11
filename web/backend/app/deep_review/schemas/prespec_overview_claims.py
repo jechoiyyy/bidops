@@ -13,9 +13,9 @@ from ...core.schema_base import Digest
 CLAIMS_SCHEMA = "bidops.prespec-overview-claims.v1"
 CHECKS_SCHEMA = "bidops.prespec-overview-claim-checks.v1"
 SEMANTIC_SCHEMA = "bidops.prespec-overview-semantic.v1"
-VALIDATOR_VERSION = "prespec-claim-evidence.v1"
+VALIDATOR_VERSION = "prespec-claim-evidence.v2"
 FACT_SECTIONS = ("business_overview", "main_tasks", "budget_and_period", "important_conditions")
-MAX_CLAIMS = 8
+MAX_CLAIMS = 12
 MAX_ANALYSIS = 4
 MAX_UNKNOWNS = 6
 MAX_TEXT_CHARS = 300
@@ -138,26 +138,36 @@ class ClaimCheck(StrictClaimModel):
     text: BoundedText
     deterministic: DeterministicCheck
     semantic: SemanticCheck
+    #: 대조는 어긋났지만 인용 자체는 성립하는 비차단 관찰(수치·날짜·ID·라틴
+    #: 용어·analysis 전제). 사람이 원문과 함께 확인할 값이며 `deterministic`을
+    #: 실패로 만들지 않는다.
+    warnings: list[str] = Field(default_factory=list)
 
 
 class AnalysisCheck(SemanticCheck):
     analysis_id: Identifier
+    warnings: list[str] = Field(default_factory=list)
 
 
 class UnknownCheck(SemanticCheck):
     unknown_id: Identifier
+    warnings: list[str] = Field(default_factory=list)
 
 
+# 모델이 돌려주는 의미 검토 행은 저장 행과 **다른 계약**이다. `warnings`는
+# 서버가 결정적으로 만든 값이므로 모델 응답 schema에 넣지 않는다.
 class SemanticClaimCheck(SemanticCheck):
     claim_id: Identifier
     status: Literal["supported", "contradicted", "insufficient"]
 
 
-class SemanticAnalysisCheck(AnalysisCheck):
+class SemanticAnalysisCheck(SemanticCheck):
+    analysis_id: Identifier
     status: Literal["supported", "contradicted", "insufficient"]
 
 
-class SemanticUnknownCheck(UnknownCheck):
+class SemanticUnknownCheck(SemanticCheck):
+    unknown_id: Identifier
     status: Literal["supported", "contradicted", "insufficient"]
 
 
@@ -174,7 +184,7 @@ class OverviewClaimChecks(StrictClaimModel):
     input_sha256: Digest
     policy_digest: Digest
     binding_digest: Digest
-    validator_version: Literal["prespec-claim-evidence.v1"]
+    validator_version: Literal["prespec-claim-evidence.v2"]
     checks: list[ClaimCheck]
     analysis_checks: list[AnalysisCheck]
     unknown_checks: list[UnknownCheck]
@@ -183,6 +193,9 @@ class OverviewClaimChecks(StrictClaimModel):
     # Whole-draft failures (e.g. a missing required section) cannot vanish when
     # there is no individual claim to attach them to.
     reason_codes: list[DeterministicReason]
+    #: 검사 전체의 비차단 관찰. 행별 `warnings`의 합집합과 draft 전체 관찰을
+    #: 함께 담으며 `overall`을 바꾸지 않는다.
+    warnings: list[str] = Field(default_factory=list)
     overall: Literal["passed", "needs_human_review"]
 
     @model_validator(mode="after")
