@@ -35,6 +35,7 @@ from ...lifecycle import lock_notice
 from ...core.config import get_settings
 from .deep_review_validation import DeepReviewValidationError, merge_stage_chunks, validate_deep_review_stage
 from ...core.model_binding import canonical_json_bytes
+from .effective_grade import eligible_with_grade
 from .input_versions import (
     STAGES,
     GradeBasis,
@@ -593,9 +594,13 @@ class DeepReviewService:
                 if self.reference_workflow_mode
                 else policy_quality_snapshot(policy)
             )
+            # 등급 자체는 seam이 읽고 그대로 기록한다(`effective_grade_at_start`).
+            # 자격 판정만 자동 준비·개요와 **같은 helper**가 한다 — 플래그가
+            # 켜져 있으면 `SW사업대상=Y` 사전규격도 자격을 갖고, 꺼져 있으면
+            # 기존 `우선 검토` 규칙 그대로다(2026-09-11 MVP 완화).
             basis = effective_grade_basis(session, notice_id)
-            if basis.grade != "우선 검토":
-                raise DeepReviewServiceError("effective_grade_ineligible", "우선 검토 공고만 심층 분석할 수 있습니다", status_code=403, request_id=request_id)
+            if not eligible_with_grade(session, notice_id, basis.grade):
+                raise DeepReviewServiceError("effective_grade_ineligible", "우선 검토 또는 SW사업대상=Y 공고만 심층 분석할 수 있습니다", status_code=403, request_id=request_id)
             try:
                 bundle, _structures = bundle_context(session, bundle_id, structure_loader=self.structure_loader)
             except InputVersionError as error:

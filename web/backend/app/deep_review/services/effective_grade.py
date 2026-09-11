@@ -169,8 +169,35 @@ def overview_eligible(
     return frozenset(eligible)
 
 
+def eligible_with_grade(
+    session: Any,
+    notice_id: int,
+    grade: str | None,
+    *,
+    settings: Any | None = None,
+) -> bool:
+    """이미 자기 seam으로 읽은 등급 하나로 자격을 판정한다.
+
+    문서 bundle 생성(`DocumentBundleService.effective_grade`)과 심층 검토 생성
+    (`effective_grade_basis`)은 각자의 읽기 전용 seam으로 등급을 이미 읽는다.
+    그 seam은 그대로 두고 **자격 규칙만** `overview_eligible` 한 벌로 모은다 —
+    등급을 여기서 다시 조회하면 두 벌이 되고, 검사와 기록이 다른 값을 보게 된다.
+    """
+
+    notice_id = int(notice_id)
+    grades = (
+        {notice_id: EffectiveGrade(notice_id=notice_id, grade=grade, source=None)}
+        if grade is not None
+        else {}
+    )
+    return notice_id in overview_eligible(
+        session, [notice_id], settings=settings, grades=grades
+    )
+
+
 __all__ = [
     "EffectiveGrade",
+    "eligible_with_grade",
     "PRIORITY_GRADE",
     "SOURCE_HUMAN_REVIEW",
     "SOURCE_SCREENING_JUDGMENT",
