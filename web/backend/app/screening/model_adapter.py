@@ -195,8 +195,9 @@ class ScreeningModelClient:
         contract = self._output_contract("", {})
         if self.transport is not None:
             revision = getattr(self.transport, "model_revision", "")
-            # 주입된 transport도 선언 revision 규칙을 그대로 받는다.
-            if not isinstance(revision, str) or not _REVISION_RE.fullmatch(revision):
+            # 주입된 transport도 선언 revision 규칙을 그대로 받는다. MVP 기간에는
+            # 선언이 비어도 통과하고, 값이 있으면 64자 hex여야 한다(ADR-0050 완화).
+            if not isinstance(revision, str) or (revision and not _REVISION_RE.fullmatch(revision)):
                 raise ModelInspectionError("declared model revision is not a 64 hex digest")
             self._client = ModelClient(
                 base_url=_INJECTED_BASE_URL,
@@ -218,8 +219,8 @@ class ScreeningModelClient:
                 verify_identity=False,
             )
         except (ModelEndpointError, ValueError):
-            # 허용 host나 선언 revision이 없으면 부르기 전에 멈춘다. 다른
-            # 주소·provider로 넘어가지 않는다.
+            # base URL이나 선언 revision이 설정과 어긋나면 부르기 전에 멈춘다.
+            # 다른 주소·provider로 넘어가지 않는다.
             raise ModelInspectionError("screening model endpoint is not configured") from None
         return self._client
 

@@ -190,11 +190,15 @@ def test_inspection_served_id_or_declared_revision_failure_is_distinguishable() 
     assert caught.value.status_code == 503
     assert caught.value.failure_type == "model_inspection"
 
-    # 배포 선언 revision이 64자 digest가 아니면 부르기 전에 멈춘다.
+    # 배포 선언 revision에 값이 있으면 64자 digest여야 한다.
     with pytest.raises(ModelInspectionError):
         _client(FakeScreeningTransport(model_revision="A" * 64)).inspect_model()
     with pytest.raises(ModelInspectionError):
-        _client(FakeScreeningTransport(model_revision="")).inspect_model()
+        _client(FakeScreeningTransport(model_revision="a" * 63)).inspect_model()
+
+    # 선언이 비면 대조할 기준이 없다. MVP 기간에는 통과한다(ADR-0050 완화).
+    identity = _client(FakeScreeningTransport(model_revision="")).inspect_model()
+    assert identity == ModelIdentity(MODEL, "")
 
 
 @pytest.mark.parametrize(
@@ -348,11 +352,22 @@ def test_model_name_comes_from_settings_not_from_source_code() -> None:
     assert result.metadata.model_name == "배포가-정한-모델"
 
 
-def test_missing_declared_revision_fails_closed_before_any_call() -> None:
-    transport = FakeScreeningTransport(model_revision="")
+def test_a_malformed_declared_revision_fails_closed_before_any_call() -> None:
+    """선언 revision에 값이 있는데 64자 hex가 아니면 부르기 전에 멈춘다."""
+
+    transport = FakeScreeningTransport(model_revision="not-a-digest")
     with pytest.raises(ModelInspectionError):
         _client(transport).generate("p", schema_for_stage(NAMES[0]), stage=NAMES[0])
     assert transport.generate_requests == []
+
+
+def test_a_missing_declared_revision_still_calls_the_model() -> None:
+    """선언이 비면 통과한다 (ADR-0050 MVP 완화). 대조할 기준이 없을 뿐이다."""
+
+    transport = FakeScreeningTransport([completion(perspective(NAMES[0]))], model_revision="")
+    result = _client(transport).generate("p", schema_for_stage(NAMES[0]), stage=NAMES[0])
+    assert result.metadata.model_name == MODEL
+    assert len(transport.generate_requests) == 1
 
 
 def test_prompt_projection_excludes_raw_and_unknown_secret_and_accepts_braces_in_input() -> None:
