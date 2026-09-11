@@ -503,6 +503,79 @@ def validate_claims_deterministically(
     )
 
 
+@dataclass(frozen=True)
+class PassingSubset:
+    """결정적 검사를 통과한 주장만 남긴 계산용 부분집합 (저장 계약이 아니다)."""
+
+    draft: OverviewClaimsDraft
+    checks: OverviewClaimChecks
+    dropped_claim_ids: tuple[str, ...]
+    dropped_analysis_ids: tuple[str, ...]
+
+
+def drop_failed_claims(draft: OverviewClaimsDraft, checks: OverviewClaimChecks) -> PassingSubset:
+    """실패한 주장을 빼고 나머지로 계속 갈 수 있는 부분집합을 만든다.
+
+    12개 중 1~2개만 인용이 어긋난 run을 통째로 사람 검토로 보내지 않기 위한
+    규칙이다(2026-09-11 결정). 실패한 주장을 근거로 삼은 분석도 함께 뺀다.
+    호출자가 원래 draft·checks를 그대로 저장하고, 이 결과는 의미 검토·구성
+    입력으로만 쓴다. 통과 주장 수의 하한(절반)은 호출자가 판단한다.
+    """
+
+    failed = {row.claim_id for row in checks.checks if row.deterministic.status != "passed"}
+    if not failed:
+        return PassingSubset(draft, checks, (), ())
+    dropped_analysis = tuple(
+        row.id for row in draft.analysis if set(row.supporting_claim_ids) & failed
+    )
+    subset_draft = OverviewClaimsDraft.model_validate({
+        **draft.model_dump(mode="python"),
+        "claims": [c.model_dump(mode="python") for c in draft.claims if c.id not in failed],
+        "analysis": [a.model_dump(mode="python") for a in draft.analysis if a.id not in dropped_analysis],
+    })
+    data = checks.model_dump(mode="python")
+    data["checks"] = [row for row in data["checks"] if row["claim_id"] not in failed]
+    data["analysis_checks"] = [row for row in data["analysis_checks"] if row["analysis_id"] not in dropped_analysis]
+    data["analysis"] = [row for row in data["analysis"] if row["id"] not in dropped_analysis]
+    data["draft_sha256"] = canonical_sha256(subset_draft)
+    return PassingSubset(
+        subset_draft, OverviewClaimChecks.model_validate(data),
+        tuple(sorted(failed)), dropped_analysis,
+    )
+
+
+def merge_semantic_checks(checks: OverviewClaimChecks, reviewed: OverviewClaimChecks) -> OverviewClaimChecks:
+    """부분집합의 의미 판정을 전체 검사 결과에 id로 되붙인다.
+
+    저장되는 `checks_json`은 제외된 주장까지 담은 전체가 정본이며, 그래서
+    `failed_claims` 투영이 계속 그 한 곳에서 계산된다. 제외가 하나라도 있으면
+    전체의 `overall`은 통과가 아니다.
+    """
+
+    if [row.claim_id for row in checks.checks] == [row.claim_id for row in reviewed.checks]:
+        # 제외된 주장이 없으면 부분집합이 곧 전체다. 판정 결과를 그대로 쓴다.
+        return reviewed
+    semantic = {row.claim_id: row.semantic for row in reviewed.checks}
+    analysis = {row.analysis_id: row for row in reviewed.analysis_checks}
+    unknown = {row.unknown_id: row for row in reviewed.unknown_checks}
+    data = checks.model_dump(mode="python")
+    for row in data["checks"]:
+        found = semantic.get(row["claim_id"])
+        if found is not None:
+            row["semantic"] = found.model_dump(mode="python")
+    for row in data["analysis_checks"]:
+        found = analysis.get(row["analysis_id"])
+        if found is not None:
+            row["status"], row["reason_codes"] = found.status, list(found.reason_codes)
+    for row in data["unknown_checks"]:
+        found = unknown.get(row["unknown_id"])
+        if found is not None:
+            row["status"], row["reason_codes"] = found.status, list(found.reason_codes)
+    data["warnings"] = sorted({*checks.warnings, *reviewed.warnings})
+    data["overall"] = "needs_human_review"
+    return OverviewClaimChecks.model_validate(data)
+
+
 def _coverage(actual: list[str], expected: list[str]) -> bool:
     return len(actual) == len(set(actual)) and set(actual) == set(expected) and len(actual) == len(expected)
 
@@ -556,7 +629,9 @@ def apply_semantic_review(
         {**row.model_dump(), "warnings": unknown_warnings.get(row.unknown_id, [])}
         for row in parsed.unknown_checks
     ]
-    all_passed = all(c.status == "supported" for c in [*parsed.checks, *parsed.analysis_checks, *parsed.unknown_checks])
+    # unknown의 contradicted/insufficient는 그 항목만 결과에서 빼고 run은 계속
+    # 간다 (MVP 계약, 2026-09-11). 주장·분석의 판정은 그대로 전체를 막는다.
+    all_passed = all(c.status == "supported" for c in [*parsed.checks, *parsed.analysis_checks])
     result["overall"] = "passed" if all_passed else "needs_human_review"
     return OverviewClaimChecks.model_validate(result)
 
@@ -564,9 +639,24 @@ def apply_semantic_review(
 _TOPICS = {"budget": "예산", "period": "사업 기간", "eligibility": "참여 자격", "scope": "과업 범위", "schedule": "일정"}
 
 
-def render_unknowns(draft: OverviewClaimsDraft | OverviewClaimChecks) -> list[str]:
+def dropped_unknown_ids(checks: OverviewClaimChecks) -> list[str]:
+    """의미 검토가 반박·근거부족으로 본 unknown. 결과에 싣지 않는다."""
+
+    return sorted(
+        row.unknown_id for row in checks.unknown_checks
+        if row.status in {"contradicted", "insufficient"}
+    )
+
+
+def render_unknowns(
+    draft: OverviewClaimsDraft | OverviewClaimChecks, checks: OverviewClaimChecks | None = None,
+) -> list[str]:
+    holder = checks if checks is not None else (draft if isinstance(draft, OverviewClaimChecks) else None)
+    excluded = set(dropped_unknown_ids(holder)) if holder is not None else set()
     result = []
     for item in draft.unknowns:
+        if item.id in excluded:
+            continue
         if item.topic == "company_comparison":
             result.append("회사 역량·참여 요건 대조는 수행하지 않았습니다.")
         elif item.reason_code == "ambiguous_source":
@@ -609,7 +699,7 @@ def compose_page_overview(
         })
     return PageOverviewPayloadV4(
         schema_version="bidops.prespec-overview-page-review.v4", **result,
-        reviewer_analysis=draft.analysis, unknowns=render_unknowns(draft),
+        reviewer_analysis=draft.analysis, unknowns=render_unknowns(draft, checks),
         input_limitations=input_limitations, verification_id=verification_id,
         verification_sha256=canonical_sha256(checks),
     )
