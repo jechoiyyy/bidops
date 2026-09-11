@@ -37,6 +37,20 @@ def draft_value():
 
 BASE_PAGE = "예약 시스템 개편사업 감리용역이다. 설계와 시험 결과를 점검한다."
 
+#: 2단(두 열) 편집 쪽의 실제 export-text 모양 (0911 공고 792, 2쪽). 한 줄에
+#: 좌·우 열이 함께 나오므로 한 열에서 뽑은 인용은 원문에서 연속하지 않는다.
+TWO_COLUMN_PAGE = (
+    "Ⅰ 사업 개요                                          Ⅱ 사업추진 방안\n"
+    "1. 개요                                            1. 추진 목표\n"
+    "가. 사 업 명: 그룹웨어시스템 고도화                             가. 업무 효율성 및 생산성 향상\n"
+    "나. 사업기간: 계약체결일로부터 2027.02.까지                      ○ 반복 업무와 수기 결재 프로세스 간소화\n"
+    "다. 사업예산: 금100,000,000원(부가가치세 포함)                  ○ 실시간 정보 공유 및 협업 속도 가속화\n"
+    "2. 추진배경 및 필요성                                     ○ 부서 간 경계 없는 원활한 커뮤니케이션 체널 단일화\n"
+    "가. 업무 프로세스 표준화 및 효율화                              ○ 모바일을 활용한 신속한 의사결정 지원\n"
+    "나. 모바일 근무환경 대응                                    다. 지속 가능하고 안전한 시스템 확보"
+)
+TWO_COLUMN_QUOTE = "2. 추진배경 및 필요성 가. 업무 프로세스 표준화 및 효율화 나. 모바일 근무환경 대응"
+
 
 def check(value=None, pages=None, **kwargs):
     draft = parse_claims_draft(draft_value() if value is None else value)
@@ -198,8 +212,6 @@ def test_whitespace_only_page_citation_fails_without_verified_evidence():
 
 
 @pytest.mark.parametrize("change,code", [
-    (lambda v: v.update(claims=[]), "required_fact_missing"),
-    (lambda v: v["claims"].pop(), "required_fact_missing"),
     (lambda v: v["claims"][1].update(evidence=[]), "evidence_missing"),
     (lambda v: v["claims"][1].update(id="c1"), "duplicate_id"),
     (lambda v: v["analysis"][0].update(id="c1"), "duplicate_id"),
@@ -213,6 +225,53 @@ def test_fact_and_analysis_completeness_never_requests_format_retry(change, code
     assert code in codes(checks)
     with pytest.raises(ValueError, match="deterministic_checks_failed"):
         apply_semantic_review(draft, checks, supported(draft))
+
+
+def test_two_column_page_quote_passes_by_fragment_match_with_a_warning():
+    """2단 편집 쪽의 인용은 조각 대조로 통과하고 경고만 남는다 (2026-09-11).
+
+    쪽 텍스트가 좌·우 열을 줄 단위로 번갈아 내보내므로 한 열의 인용은 원문에서
+    연속하지 않는다. 근거는 첫 조각~마지막 조각의 **원문 slice**로 남는다.
+    """
+
+    value = draft_value()
+    value["claims"][1].update(
+        text="추진배경으로 업무 프로세스 표준화와 모바일 근무환경 대응을 든다.",
+        evidence=[{"page": 4, "quote": TWO_COLUMN_QUOTE}],
+    )
+
+    draft, checks = check(value, {3: BASE_PAGE, 4: TWO_COLUMN_PAGE})
+
+    assert "evidence_fragment_match" in warnings(checks)
+    assert not codes(checks)
+    row = next(item for item in checks.checks if item.claim_id == "c2")
+    assert "evidence_fragment_match" in row.warnings
+    evidence = row.deterministic.verified_evidence[0]
+    assert evidence.quote == TWO_COLUMN_PAGE[evidence.start_char:evidence.end_char]
+    assert evidence.quote.startswith("2. 추진배경 및 필요성")
+    assert evidence.quote.endswith("나. 모바일 근무환경 대응")
+    assert apply_semantic_review(draft, checks, supported(draft)).overall == "passed"
+
+
+def test_fragments_found_out_of_source_order_stay_quote_not_found():
+    reordered = "나. 모바일 근무환경 대응 가. 업무 프로세스 표준화 및 효율화"
+    with pytest.raises(ValueError, match="quote_not_found"):
+        verify_evidence(ClaimEvidence(page=4, quote=reordered), {4: TWO_COLUMN_PAGE})
+
+
+def test_section_assignment_is_a_warning_and_still_composes_the_overview():
+    """모델이 한 섹션에 몰아 넣은 것은 경고다 (MVP 계약, 2026-09-11)."""
+
+    value = draft_value()
+    value["claims"][1]["section"] = "business_overview"
+
+    draft, checks = check(value)
+
+    assert "required_fact_missing" in warnings(checks) and not codes(checks)
+    reviewed = apply_semantic_review(draft, checks, supported(draft))
+    assert reviewed.overall == "passed"
+    payload = compose_page_overview(draft, reviewed, verification_id=uuid4(), input_limitations=["서버 범위"])
+    assert payload.main_tasks == [] and len(payload.business_overview) == 2
 
 
 @pytest.mark.parametrize("change,code", [
