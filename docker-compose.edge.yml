@@ -8,9 +8,9 @@
 #   docker compose -f docker-compose.yml -f docker-compose.edge.yml up -d web
 #
 # 대가를 분명히 한다: bridge network는 inbound DNAT과 outbound NAT이 한 몸이라
-# 이 overlay를 붙이면 web 컨테이너에 아웃바운드 경로도 함께 생긴다. 모델 호출은
-# 허용 host와 배포 revision 게이트에서 여전히 호출 전에 fail closed하지만
-# (ADR-0050), 이 파일을 붙인 상태를 내부망 격리와 같다고 기록하지 않는다.
+# 이 overlay를 붙이면 web 컨테이너에 아웃바운드 경로도 함께 생긴다. 모델 호출의
+# 허용 host·배포 revision 게이트는 MVP 기간 동안 완화되어 있으므로(ADR-0050 완화
+# 항목), 이 파일을 붙인 상태를 내부망 격리와 같다고 기록하지 않는다.
 #
 # 노출 범위는 BIDOPS_WEB_BIND_HOST가 정한다. 기본값 127.0.0.1은 host loopback까지만
 # 열며, 원격 접근은 tailnet proxy처럼 loopback을 소비하는 경로로 붙인다. 이 값을

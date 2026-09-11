@@ -208,21 +208,22 @@ def test_screening_egress_is_an_explicit_override():
     assert all(network.get("internal") is True for network in base["networks"].values())
 
 
-def test_screening_overlay_fails_closed_without_endpoint_host_and_revision():
-    """endpoint·허용 host·선언 revision 중 하나라도 없으면 overlay가 멈춘다.
+def test_screening_overlay_fails_closed_without_an_endpoint():
+    """endpoint가 없으면 overlay가 멈춘다.
 
-    기본값을 채워 두면 C-1이 승인되지 않은 주소로 조용히 나갈 수 있다. 세
-    값에는 `:?` 형식만 쓴다.
+    기본값을 채워 두면 C-1이 승인되지 않은 주소로 조용히 나갈 수 있으므로
+    endpoint는 `:?`를 유지한다. 허용 host와 선언 revision은 MVP 기간 동안
+    비어 있어도 되므로 빈 기본값(`:-`)이다(ADR-0050 완화).
     """
 
     override = yaml.safe_load((ROOT / "docker-compose.screening.yml").read_text(encoding="utf-8"))
     environment = override["services"]["web"]["environment"]
+    assert environment["BIDOPS_VLLM_SCREENING_BASE_URL"].startswith("${BIDOPS_VLLM_SCREENING_BASE_URL:?")
     for name in (
-        "BIDOPS_VLLM_SCREENING_BASE_URL",
         "BIDOPS_VLLM_SCREENING_ALLOWED_HOSTS",
         "BIDOPS_VLLM_SCREENING_MODEL_REVISION",
     ):
-        assert environment[name].startswith("${" + name + ":?")
+        assert environment[name] == "${" + name + ":-}"
     assert environment["BIDOPS_VLLM_SCREENING_MODEL"] == "${BIDOPS_VLLM_SCREENING_MODEL:-qwen3.8-27B}"
     assert not [name for name in environment if "OLLAMA" in name]
 

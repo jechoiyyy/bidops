@@ -156,43 +156,49 @@ def test_purpose_override_replaces_only_the_declared_fields() -> None:
     assert resolve_model_endpoint("screening", settings=settings).base_url == "http://127.0.0.1:8000/v1"
 
 
-def test_empty_allowed_hosts_fails_closed() -> None:
-    """허용 host가 비면 그 용도의 client 생성 자체가 실패한다."""
+def test_empty_allowed_hosts_leave_the_host_unrestricted() -> None:
+    """허용 host가 비면 제한이 없다 (ADR-0050 MVP 완화)."""
 
     settings = _settings(vllm_allowed_hosts="")
     for purpose in MODEL_PURPOSES:
-        with pytest.raises(ModelEndpointError):
-            resolve_model_endpoint(purpose, settings=settings)
+        endpoint = resolve_model_endpoint(purpose, settings=settings)
+        assert endpoint.allowed_hosts == ()
+        assert endpoint.base_url == "http://127.0.0.1:8000/v1"
 
 
-def test_one_purpose_failing_closed_does_not_open_the_others() -> None:
-    """override를 가진 용도만 살아남고 나머지는 fail closed한다.
+def test_a_declared_allowed_host_still_bounds_the_base_url() -> None:
+    """목록에 값이 있으면 그 목록 밖의 base URL은 여전히 막힌다.
 
-    공유 허용 host가 비었는데 한 용도만 override를 갖는 배포에서, 나머지
-    용도가 그 override로 새어 나가지 않는지 본다.
+    override를 가진 용도만 자기 host로 나가고, 나머지 용도가 그 override로
+    새어 나가지 않는지도 함께 본다.
     """
 
-    settings = _settings(vllm_allowed_hosts="", vllm_screening_allowed_hosts="127.0.0.1")
-    assert resolve_model_endpoint("screening", settings=settings).allowed_hosts == ("127.0.0.1",)
+    settings = _settings(
+        vllm_base_url="http://198.51.100.7:8000/v1",
+        vllm_allowed_hosts="model.internal",
+        vllm_screening_allowed_hosts="198.51.100.7",
+    )
+    assert resolve_model_endpoint("screening", settings=settings).allowed_hosts == ("198.51.100.7",)
     for purpose in ("overview", "deep_review"):
-        with pytest.raises(ModelEndpointError):
+        # 공유 base URL은 198.51.100.7인데 허용 host는 model.internal뿐이다.
+        with pytest.raises(ValueError):
             resolve_model_endpoint(purpose, settings=settings)
 
 
-def test_missing_declared_revision_fails_closed() -> None:
-    """선언 revision이 비면 모델을 부르는 모든 용도가 fail closed한다."""
+def test_missing_declared_revision_is_allowed() -> None:
+    """선언 revision이 비면 대조 기준 없이 통과한다 (ADR-0050 MVP 완화)."""
 
     settings = _settings(vllm_model_revision="")
     for purpose in MODEL_PURPOSES:
-        with pytest.raises(ModelEndpointError):
-            resolve_model_endpoint(purpose, settings=settings)
+        assert resolve_model_endpoint(purpose, settings=settings).model_revision == ""
 
 
-def test_declared_revision_must_be_64_hex() -> None:
-    """선언 revision은 배포가 확인한 64자 digest여야 한다 (ADR-0042)."""
+@pytest.mark.parametrize("revision", ["not-a-digest", "a" * 63, "A" * 64, " " + "a" * 63])
+def test_a_declared_revision_must_still_be_64_hex(revision: str) -> None:
+    """값을 선언했으면 배포가 확인한 64자 digest여야 한다 (ADR-0042)."""
 
     with pytest.raises(ModelEndpointError):
-        resolve_model_endpoint("screening", settings=_settings(vllm_model_revision="not-a-digest"))
+        resolve_model_endpoint("screening", settings=_settings(vllm_model_revision=revision))
 
 
 def test_unknown_purpose_is_rejected() -> None:
@@ -250,20 +256,44 @@ def test_client_accepts_any_configured_model_name() -> None:
 
 
 @pytest.mark.parametrize(
-    "base_url",
+    "base_url,allowed_hosts",
     [
-        "http://127.0.0.1:8000",
-        "http://127.0.0.1:8000/v1/chat",
-        "https://127.0.0.1:8000/v1",
-        "http://198.51.100.7:8000/v1",
-        "http://127.0.0.1:8000/v1?x=1",
+        ("http://127.0.0.1:8000", "127.0.0.1"),
+        ("http://127.0.0.1:8000/v1/chat", "127.0.0.1"),
+        ("http://198.51.100.7:8000/v1", "127.0.0.1"),
+        ("http://127.0.0.1:8000/v1?x=1", "127.0.0.1"),
+        ("http://user:pw@127.0.0.1:8000/v1", "127.0.0.1"),
+        ("ftp://127.0.0.1:8000/v1", ""),
+        ("http://model.internal:8000/v1", "127.0.0.1"),
     ],
 )
-def test_base_url_must_be_an_allowlisted_v1_endpoint(base_url: str) -> None:
-    """redirect·다른 host·다른 path로 새지 않도록 base URL을 좁게 검증한다."""
+def test_base_url_outside_the_declared_boundary_is_rejected(base_url: str, allowed_hosts: str) -> None:
+    """redirect·다른 host·다른 path로 새지 않도록 base URL을 검증한다.
+
+    허용 host 목록에 값이 있으면 그 목록 밖의 host는 여전히 막힌다.
+    """
 
     with pytest.raises(ValueError):
-        ModelClient(model="합성-모델-a", output_contract=CONTRACT, base_url=base_url, allowed_hosts="127.0.0.1")
+        ModelClient(model="합성-모델-a", output_contract=CONTRACT, base_url=base_url, allowed_hosts=allowed_hosts)
+
+
+@pytest.mark.parametrize(
+    "base_url,allowed_hosts",
+    [
+        ("https://127.0.0.1:8000/v1", "127.0.0.1"),
+        ("https://model.internal/v1", ""),
+        ("http://model.internal/v1", "model.internal"),
+        ("http://127.0.0.1:8000/v1/", ""),
+    ],
+)
+def test_base_url_accepts_https_named_hosts_and_default_ports(base_url: str, allowed_hosts: str) -> None:
+    """MVP 기간에는 scheme·host 종류·명시 포트를 강제하지 않는다 (ADR-0050 완화)."""
+
+    client = ModelClient(
+        model="합성-모델-a", output_contract=CONTRACT, base_url=base_url,
+        allowed_hosts=allowed_hosts, completion_create=lambda **_kwargs: {},
+    )
+    assert client.base_url == base_url.rstrip("/")
 
 
 def test_transport_disables_redirects_environment_proxy_and_sdk_retries() -> None:
@@ -328,12 +358,11 @@ def test_reported_revision_mismatch_fails_the_invocation() -> None:
     assert error.value.code == "model_revision_invalid"
 
 
-def test_reported_revision_without_a_declared_one_fails_closed() -> None:
-    """선언 revision이 비었는데 서버가 값을 내면 통과시키지 않는다.
+def test_reported_revision_without_a_declared_one_is_not_compared() -> None:
+    """선언 revision이 없으면 대조할 기준이 없다 (ADR-0050 MVP 완화).
 
-    기준은 응답이 값을 냈는가다. 선언이 비었다고 대조를 건너뛰면 서버가
-    어떤 weight를 말해도 그대로 받게 되고, `verify_identity`와 판단이
-    갈린다.
+    `verify_identity`와 같은 판단이다. 선언이 있는 배포에서는 위 검사대로
+    불일치가 그대로 실패한다.
     """
 
     client = ModelClient(
@@ -344,9 +373,21 @@ def test_reported_revision_without_a_declared_one_fails_closed() -> None:
             "합성-모델-a", {"verdict": "ok"}, model_revision=REVISION
         ),
     )
-    with pytest.raises(ModelInvocationError) as error:
-        client.invoke("s1", {"item": "합성"}, {**POLICY, "chunking": {"retries": 0, "timeout_seconds": 300}})
-    assert error.value.code == "model_revision_invalid"
+    result = client.invoke("s1", {"item": "합성"}, {**POLICY, "chunking": {"retries": 0, "timeout_seconds": 300}})
+    assert result.structured_output == {"verdict": "ok"}
+
+
+def test_identity_records_a_reported_revision_when_none_is_declared() -> None:
+    """선언이 없으면 서버 보고값은 대조 없이 기록만 한다 (ADR-0050 MVP 완화)."""
+
+    client = ModelClient(
+        model="합성-모델-a",
+        output_contract=CONTRACT,
+        model_revision="",
+        completion_create=lambda **_kwargs: _completion("합성-모델-a", {"verdict": "ok"}),
+        models_list=lambda: {"data": [{"id": "합성-모델-a", "model_revision": REVISION}]},
+    )
+    assert client.verify_identity() == ModelIdentity(model="합성-모델-a", revision=REVISION)
 
 
 @pytest.mark.parametrize("declared", ["", REVISION])
@@ -440,7 +481,9 @@ def test_identity_preserves_reported_context_capacity() -> None:
 
 
 @pytest.mark.parametrize("reported_contexts", [[0], [True], ["262144"], [262144, None], [262144, 131072]])
-def test_unconfirmed_context_keeps_legacy_identity_but_blocks_capacity(reported_contexts) -> None:
+def test_unconfirmed_context_keeps_legacy_identity_and_marks_capacity_unverified(reported_contexts) -> None:
+    """서버가 문맥 길이를 내지 않으면 표식만 세우고 막지 않는다 (ADR-0050 완화)."""
+
     client = ModelClient(
         model="합성-모델-a", output_contract=CONTRACT, model_revision=REVISION,
         completion_create=lambda **_kwargs: pytest.fail("capacity check must not invoke the model"),
@@ -450,12 +493,13 @@ def test_unconfirmed_context_keeps_legacy_identity_but_blocks_capacity(reported_
     )
     assert client.verify_identity() == ModelIdentity(model="합성-모델-a", revision=REVISION)
     assert client.model_context_tokens is None
-    with pytest.raises(ModelInvocationError, match="input_capacity_exceeded"):
-        structured_request_capacity(
-            model="합성-모델-a", prompt="합성 입력", contract=CONTRACT,
-            api_dialect="vllm", max_model_len=client.model_context_tokens,
-            policy_context_ceiling=262144, chat_template_reserve_tokens=1024,
-        )
+    capacity = structured_request_capacity(
+        model="합성-모델-a", prompt="합성 입력", contract=CONTRACT,
+        api_dialect="vllm", max_model_len=client.model_context_tokens,
+        policy_context_ceiling=262144, chat_template_reserve_tokens=1024,
+    )
+    assert capacity.context_unverified is True
+    assert capacity.effective_context_tokens == 262144
 
 
 def test_structured_capacity_counts_full_request_and_output_reserve() -> None:
@@ -637,7 +681,7 @@ def test_for_purpose_verifies_identity_before_the_first_call() -> None:
 
 
 def test_for_purpose_fails_closed_before_touching_the_network() -> None:
-    """허용 host가 비면 `/models`조차 부르지 않고 실패한다."""
+    """설정 값이 규칙에 어긋나면 `/models`조차 부르지 않고 실패한다."""
 
     def models_list() -> Mapping[str, Any]:  # pragma: no cover - 불려서는 안 된다
         raise AssertionError("fail-closed 설정에서 identity 호출이 나갔다")
@@ -647,7 +691,7 @@ def test_for_purpose_fails_closed_before_touching_the_network() -> None:
             "screening",
             model="합성-모델-a",
             output_contract=CONTRACT,
-            settings=_settings(vllm_allowed_hosts=""),
+            settings=_settings(vllm_model_revision="not-a-digest"),
             completion_create=lambda **_kwargs: {},
             models_list=models_list,
         )
@@ -700,7 +744,8 @@ def test_the_approval_gate_lives_in_resolve_model_endpoint_not_the_constructor()
     seam이기 때문이다. 그 규칙은 용도별 설정을 푸는 `resolve_model_endpoint`가
     강제하고, 그래서 `for_purpose`는 client를 **만들기 전에** 멈춘다. 그러므로
     직접 생성하는 제품 코드가 있으면 그 자리가 스스로 책임져야 한다. 아래
-    목록은 그 예외를 명시적으로 좁힌다.
+    목록은 그 예외를 명시적으로 좁힌다. MVP 기간 동안 두 값이 **비어 있는**
+    것은 통과하지만(ADR-0050 완화), 게이트의 자리는 그대로다.
     """
 
     import re
