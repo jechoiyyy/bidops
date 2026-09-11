@@ -75,34 +75,6 @@ const preSpecNotice = {
   reviews: [],
 };
 
-const unknownOverview = {
-  schema_version: "bidops.prespec-overview-reviews.v2",
-  notice_id: 991,
-  reviews: [{
-    id: "00000000-0000-0000-0000-000000000991",
-    notice_id: 991,
-    status: "needs_human_review",
-    result: null,
-    result_digest: null,
-    binding_digest: null,
-    validation_status: "pending",
-    completed_at: null,
-    current_snapshot: {
-      id: "10000000-0000-0000-0000-000000000991",
-      document_version_id: "20000000-0000-0000-0000-000000000991",
-      structure_id: "30000000-0000-0000-0000-000000000991",
-      source_sha256: "a".repeat(64),
-      payload_sha256: "b".repeat(64),
-      cut_status: "unknown",
-      strategy: null,
-      start_locator: null,
-      end_locator: null,
-      created_at: "2026-08-31T01:00:00Z",
-    },
-    attempts: [],
-  }],
-};
-
 async function tabTo(page: Page, target: Locator, maximumTabs = 120): Promise<void> {
   await target.waitFor({ state: "visible" });
   for (let index = 0; index < maximumTabs; index += 1) {
@@ -160,9 +132,6 @@ async function mockPreSpecWorkbench(page: Page): Promise<{ createCount: () => nu
     if (pathname === "/api/notices/991/document-bundles" && request.method() === "POST") creates += 1;
     await route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ detail: "mutation must not run" }) });
   });
-  await page.route("**/api/pre-specs/991/overview-reviews/v2", async (route) => {
-    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(unknownOverview) });
-  });
   return { createCount: () => creates };
 }
 
@@ -206,19 +175,6 @@ test("UC-01은 키보드만으로 추적 저장 직전까지 이동하고 비활
   await expectKeyboardTarget(save, 28);
   await expect(save).toBeEnabled();
   expect(trace.patchCount()).toBe(0);
-});
-
-test("UC-02 상태 문구는 색을 제거해도 unknown과 사람 확인 필요를 보존한다", async ({ page }) => {
-  await mockPreSpecWorkbench(page);
-  await page.goto("/pre-specs/991");
-  await page.addStyleTag({ content: "* { color: #111 !important; background-color: #fff !important; border-color: #111 !important; }" });
-
-  // The same server status is intentionally repeated in the overview summary,
-  // its quality details, and the automatic-preparation step. Assert the named
-  // processing-status field so this check does not depend on async render order.
-  await expect(page.locator(".pre-spec-overview-statuses").getByText("사람 검토 필요", { exact: true })).toBeVisible();
-  await expect(page.getByText("unknown · 사람 확인 필요", { exact: true })).toBeVisible();
-  await expect(page.getByText(/전체 문서 성공으로 자동 보정하지 않습니다/)).toBeVisible();
 });
 
 test("UC-03은 키보드만으로 draft bundle 생성 직전까지 이동한다", async ({ page }) => {

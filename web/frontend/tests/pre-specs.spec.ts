@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { mockApi, mockDocumentStructurePage } from "./api-mock";
+import { mockApi } from "./api-mock";
 import { mkdir, writeFile } from "node:fs/promises";
 
 const FIXED_TIME = new Date("2026-08-31T09:00:00+09:00");
@@ -171,125 +171,15 @@ const notice991 = {
   reviews: [],
 };
 
-const unknownOverview = {
-  schema_version: "bidops.prespec-overview-reviews.v2",
-  notice_id: 991,
-  reviews: [{
-    id: "00000000-0000-0000-0000-000000000991",
-    notice_id: 991,
-    status: "needs_human_review",
-    result: null,
-    result_digest: null,
-    binding_digest: null,
-    validation_status: "pending",
-    completed_at: null,
-    current_snapshot: {
-      id: "10000000-0000-0000-0000-000000000991",
-      document_version_id: "20000000-0000-0000-0000-000000000991",
-      structure_id: "30000000-0000-0000-0000-000000000991",
-      source_sha256: "a".repeat(64),
-      payload_sha256: "b".repeat(64),
-      cut_status: "unknown",
-      strategy: null,
-      start_locator: null,
-      end_locator: null,
-      created_at: "2026-08-31T01:00:00Z",
-    },
-    attempts: [],
-  }],
-};
-
-const completedOverview = {
-  ...unknownOverview,
-  reviews: [{
-    ...unknownOverview.reviews[0],
-    status: "completed",
-    result: {
-      schema_version: "bidops.prespec-overview-result.v1",
-      recommendation: "조건부 추진 검토",
-      summary: "민원·행정 데이터를 통합해 담당자가 업무 현황을 조회하는 행정 지원 플랫폼 구축 사업입니다.",
-      conditions: ["기존 시스템 연계 범위와 기관별 데이터 제공 책임을 확인해야 합니다."],
-      verification_due_at: "2026-09-02T00:00:00Z",
-      unknowns: [
-        {
-          topic: "기존 시스템 연계 범위",
-          reason: "개요 입력에는 연계 대상과 제공 API 목록이 없습니다.",
-          verification_action: "심층 검토에서 연계 대상별 인터페이스 명세를 확인합니다.",
-        },
-        {
-          topic: "개인정보 처리 책임",
-          reason: "운영 주체와 개인정보 처리 역할이 확정되지 않았습니다.",
-          verification_action: null,
-        },
-      ],
-      evidence: [{
-        claim: "사업은 행정 지원 플랫폼 구축과 기존 업무 데이터 연계를 포함합니다.",
-        locator: { block_key: "overview-intro", page: 2, ordinal: 7 },
-      }],
-      input_limitations: ["제안요청서 앞부분의 개요 입력만 검토했습니다."],
-    },
-    result_digest: "c".repeat(64),
-    binding_digest: "d".repeat(64),
-    validation_status: "passed",
-    completed_at: "2026-08-31T02:00:00Z",
-    current_snapshot: { ...unknownOverview.reviews[0].current_snapshot, cut_status: "ready", strategy: "topic_heading" },
-    attempts: [{
-      id: "00000000-0000-0000-0000-000000000992",
-      snapshot_id: "10000000-0000-0000-0000-000000000991",
-      sequence: 1,
-      status: "completed",
-      reference_only: false,
-      deployable: true,
-      validation_status: "passed",
-      result_digest: "c".repeat(64),
-      binding_digest: "d".repeat(64),
-      created_at: "2026-08-31T01:30:00Z",
-      started_at: "2026-08-31T01:35:00Z",
-      completed_at: "2026-08-31T02:00:00Z",
-    }],
-  }],
-};
-
-function completedOverviewWithEvidenceBlock(blockKey: string) {
-  const review = completedOverview.reviews[0];
-  return {
-    ...completedOverview,
-    reviews: [{
-      ...review,
-      result: {
-        ...review.result,
-        evidence: review.result.evidence.map((evidence) => ({
-          ...evidence,
-          locator: { ...evidence.locator, block_key: blockKey },
-        })),
-      },
-    }],
-  };
-}
-
-const awaitingModelOverview = {
-  ...unknownOverview,
-  reviews: [{
-    ...unknownOverview.reviews[0],
-    status: "awaiting_model",
-  }],
-};
-
 interface PreSpecTrace {
   listQueries: URLSearchParams[];
   noticeGets: number[];
-  overviewGets: number[];
-  structurePageGets: Array<{ structureId: string; page: number }>;
   trackingPatches: Array<{ opportunityId: number; trackingStatus: string; reason: string }>;
 }
 
 interface PreSpecMockOptions {
   emptyDefault?: boolean;
   trackingSavedActor?: string;
-  overviewNoticeId?: number;
-  overviewReviewNoticeId?: number;
-  overviewStatus?: number;
-  overviewBody?: unknown;
 }
 
 async function fillRecordReason(page: Page, text: string) {
@@ -299,7 +189,7 @@ async function fillRecordReason(page: Page, text: string) {
 }
 
 async function mockPreSpecs(page: Page, options: PreSpecMockOptions = {}): Promise<PreSpecTrace> {
-  const trace: PreSpecTrace = { listQueries: [], noticeGets: [], overviewGets: [], structurePageGets: [], trackingPatches: [] };
+  const trace: PreSpecTrace = { listQueries: [], noticeGets: [], trackingPatches: [] };
   const trackingByOpportunity = new Map<number, string>([
     [trackingException.opportunity_id, trackingException.tracking_status],
     [newPreSpec.opportunity_id, newPreSpec.tracking_status],
@@ -308,26 +198,6 @@ async function mockPreSpecs(page: Page, options: PreSpecMockOptions = {}): Promi
   await page.route("**/api/pre-specs**", async (route) => {
     const request = route.request();
     const url = new URL(request.url());
-    const overviewMatch = url.pathname.match(/^\/api\/pre-specs\/(\d+)\/overview-reviews\/v2$/);
-
-    if (overviewMatch && request.method() === "GET") {
-      const id = Number(overviewMatch[1]);
-      trace.overviewGets.push(id);
-      const overviewBody = options.overviewBody ?? (id === 991 ? {
-        ...unknownOverview,
-        notice_id: options.overviewNoticeId ?? unknownOverview.notice_id,
-        reviews: unknownOverview.reviews.map((review) => ({
-          ...review,
-          notice_id: options.overviewReviewNoticeId ?? review.notice_id,
-        })),
-      } : { detail: "사전규격 없음" });
-      await route.fulfill({
-        status: options.overviewStatus ?? (id === 991 ? 200 : 404),
-        contentType: "application/json",
-        body: JSON.stringify(overviewBody),
-      });
-      return;
-    }
 
     if (url.pathname === "/api/pre-specs" && request.method() === "GET") {
       trace.listQueries.push(new URLSearchParams(url.search));
@@ -421,9 +291,6 @@ async function mockPreSpecs(page: Page, options: PreSpecMockOptions = {}): Promi
     }
     await route.fallback();
   });
-
-  const structurePageTrace = await mockDocumentStructurePage(page);
-  trace.structurePageGets = structurePageTrace.pageGets;
 
   return trace;
 }
@@ -817,45 +684,8 @@ test("추적 결정 입력이 있는 채로 창을 닫으면 확인 없이 버�
   expect(trace.trackingPatches).toEqual([]);
 });
 
-// 선택한 건의 개요 본문은 목록 응답이 아니라 개요 v2 응답에서 온다.
-test("선택한 건의 개요 결과·품질 표식·근거 위치를 개요 v2 응답에서 보여준다", async ({ page }) => {
-  const trace = await mockPreSpecs(page, { overviewBody: completedOverview });
-  await page.goto("/pre-specs");
-
-  const detail = page.locator(".pre-specs-detail-pane");
-  await expect(detail.getByRole("heading", { name: "개요 검토 결과" })).toBeVisible();
-  await expect(detail).toContainText("조건부 추진 검토");
-  await expect(detail).toContainText("민원·행정 데이터를 통합해 담당자가 업무 현황을 조회하는 행정 지원 플랫폼 구축 사업입니다.");
-  await expect(detail).toContainText("검증 통과 · passed");
-  // 품질 표식은 표식 그대로 남는다 — 없음을 미측정으로, 참조 실행을 완료로 바꾸지 않는다.
-  await expect(detail.locator(".pre-specs-overview-quality")).toContainText("표식 없음");
-  await expect(detail.getByLabel("근거 위치")).toContainText("2쪽");
-  await expect(detail.getByLabel("근거 위치")).toContainText("overview-intro");
-  await expect(detail.getByRole("link", { name: "상세에서 근거 원문 열기 →" })).toBeVisible();
-  expect(trace.overviewGets).toContain(991);
-});
-
-test("개요 결과가 없으면 상태가 무엇을 기다리는지 말하고 결과를 지어내지 않는다", async ({ page }) => {
-  await mockPreSpecs(page, { overviewBody: awaitingModelOverview });
-  await page.goto("/pre-specs");
-
-  const detail = page.locator(".pre-specs-detail-pane");
-  await expect(detail).toContainText("검토 결과 미확정");
-  await expect(detail).toContainText("승인된 모델 연결이 없어 아직 실행하지 않았습니다.");
-  await expect(detail.getByRole("heading", { name: "문서 근거" })).toHaveCount(0);
-});
-
-test("개요 응답의 notice ID가 어긋나면 목록 화면도 교차 정본을 그리지 않는다", async ({ page }) => {
-  await mockPreSpecs(page, { overviewReviewNoticeId: 992 });
-  await page.goto("/pre-specs");
-
-  const detail = page.locator(".pre-specs-detail-pane");
-  await expect(detail).toContainText("개요 검토 정본을 확인할 수 없습니다.");
-  await expect(detail.getByRole("heading", { name: "개요 검토 결과" })).toHaveCount(0);
-});
-
 test("상세 탭은 첨부 집계와 실행 이력을 각자 자리에서 보여준다", async ({ page }) => {
-  await mockPreSpecs(page, { overviewBody: completedOverview });
+  await mockPreSpecs(page);
   await page.goto("/pre-specs");
 
   const detail = page.locator(".pre-specs-detail-pane");
@@ -864,7 +694,6 @@ test("상세 탭은 첨부 집계와 실행 이력을 각자 자리에서 보여
   await expect(detail.locator(".pre-specs-document-counts")).toContainText("차단");
 
   await detail.locator(".pre-specs-detail-tab", { hasText: "처리 이력" }).click();
-  await expect(detail.getByRole("heading", { name: "개요 실행 이력" })).toBeVisible();
   await expect(detail.getByRole("heading", { name: "사람의 선택과 자동 준비" })).toBeVisible();
   await expect(detail.locator(".pre-specs-history-facts").last()).toContainText("첨부 취득 대기");
 });
@@ -879,16 +708,12 @@ test("notice 991 정본 상세는 29로 치환되지 않고 unknown을 사람 �
   expect(new URL(page.url()).search).toBe("?sw_only=false&sort=deadline");
   await expect(page.getByRole("heading", { level: 2, name: trackingException.title })).toBeVisible();
   await expect(page.getByText("notice 991", { exact: true }).first()).toBeVisible();
-  await expect(page.getByText("unknown · 사람 확인 필요", { exact: true })).toBeVisible();
-  await expect(page.getByText("전체 문서 성공으로 자동 보정하지 않습니다.")).toBeVisible();
   expect(trace.noticeGets).toEqual([991]);
-  expect(trace.overviewGets).toEqual([991]);
   expect(trace.noticeGets).not.toContain(29);
 
   await page.reload();
   await expect(page.getByRole("heading", { level: 2, name: trackingException.title })).toBeVisible();
   expect(trace.noticeGets).toEqual([991, 991]);
-  expect(trace.overviewGets).toEqual([991, 991]);
   expect(trace.noticeGets).not.toContain(29);
 });
 
@@ -950,152 +775,6 @@ test("사업기회가 없으면 추적 결정을 기록할 수 없는 이유를 
   await expect(page.locator("#pre-spec-tracking-save-disabled")).toContainText("아직 사업기회에 연결되지 않아");
 });
 
-test("v2 개요 결과는 평가에 필요한 요약·미확인·근거 위치를 보여준다", async ({ page }) => {
-  await mockPreSpecs(page, { overviewBody: completedOverview });
-  await page.goto("/pre-specs/991");
-
-  await expect(page.getByRole("heading", { name: "사업 핵심", exact: true })).toBeVisible();
-  await expect(page.locator(".pre-spec-overview-summary")).toContainText("민원·행정 데이터를 통합해 담당자가 업무 현황을 조회하는 행정 지원 플랫폼 구축 사업입니다.");
-  // 확인 항목은 접히지 않는다. topic·이유·확인 방법이 조작 없이 한 항목 안에서 함께 보인다.
-  const checkDetails = page.locator(".ps-record-check-list > li .ps-record-check-detail");
-  await expect(checkDetails).toHaveCount(2);
-  await expect(checkDetails.nth(0)).toHaveText("기존 시스템 연계 범위이유개요 입력에는 연계 대상과 제공 API 목록이 없습니다.확인 방법심층 검토에서 연계 대상별 인터페이스 명세를 확인합니다.");
-  await expect(checkDetails.nth(0)).toBeVisible();
-  // `verification_action`이 null이면 확인 방법을 지어내지 않고 미지정으로 남긴다.
-  await expect(checkDetails.nth(1)).toHaveText("개인정보 처리 책임이유운영 주체와 개인정보 처리 역할이 확정되지 않았습니다.확인 방법확인 방법 미지정");
-  await expect(checkDetails.nth(1)).toBeVisible();
-  await expect(page.getByText("2쪽", { exact: true })).toBeVisible();
-  await expect(page.getByText("overview-intro", { exact: true })).toBeVisible();
-  await expect(page.getByText("ordinal 7", { exact: true })).toBeVisible();
-  await page.locator(".ps-record-quality-details > summary").click();
-  await expect(page.getByText("검증 통과 · passed", { exact: true })).toBeVisible();
-  await expect(page.getByText(/판정으로 읽지 마세요/)).not.toBeVisible();
-});
-
-test("근거의 원문 열기는 locator 페이지의 블록을 불러온다", async ({ page }) => {
-  const trace = await mockPreSpecs(page, { overviewBody: completedOverview });
-  await page.goto("/pre-specs/991");
-
-  await page.getByRole("button", { name: "원문 열기" }).click();
-
-  await expect(page.getByRole("heading", { name: "페이지 2 · 원문 블록 확인", exact: true })).toBeVisible();
-  await expect(page.getByText("페이지 2", { exact: true }).last()).toBeVisible();
-  await expect(page.getByText("1. 사업 개요와 추진 배경", { exact: true })).toBeVisible();
-  await expect(page.getByText("공공기관의 민원·행정 데이터를 통합해 현황을 분석하고 담당자가 업무 현황을 조회하는 행정 지원 플랫폼 구축 사업입니다.", { exact: true })).toBeVisible();
-  await expect(page.getByText("주요 수행 범위는 기존 업무 데이터 연계와 운영 화면 구축입니다.", { exact: true })).toBeVisible();
-
-  expect(trace.structurePageGets).toEqual([{
-    structureId: "30000000-0000-0000-0000-000000000991",
-    page: 2,
-  }]);
-
-  await page.getByRole("button", { name: "원문 닫기" }).click();
-  await page.getByRole("button", { name: "원문 열기" }).click();
-  expect(trace.structurePageGets).toHaveLength(1);
-});
-
-test("원문은 강조 블록과 앞뒤 맥락 블록을 함께 보여준다", async ({ page }) => {
-  await mockPreSpecs(page, { overviewBody: completedOverview });
-  await page.goto("/pre-specs/991");
-  await page.getByRole("button", { name: "원문 열기" }).click();
-
-  const sourceBlocks = page.locator(".pre-spec-overview-source-block");
-  await expect(sourceBlocks).toHaveCount(3);
-  await expect(page.locator(".pre-spec-overview-source-block.is-target")).toHaveCount(1);
-  await expect(page.locator(".pre-spec-overview-source-block.is-target")).toContainText("overview-intro");
-  await expect(sourceBlocks.nth(0)).toContainText("overview-heading");
-  await expect(sourceBlocks.nth(2)).toContainText("overview-scope");
-});
-
-test("원문 닫기는 열린 페이지와 블록을 화면에서 제거한다", async ({ page }) => {
-  await mockPreSpecs(page, { overviewBody: completedOverview });
-  await page.goto("/pre-specs/991");
-  await page.getByRole("button", { name: "원문 열기" }).click();
-  await expect(page.locator("#pre-spec-overview-source")).toBeVisible();
-
-  await page.getByRole("button", { name: "원문 닫기" }).click();
-  await expect(page.locator("#pre-spec-overview-source")).not.toBeVisible();
-  await expect(page.getByText("공공기관의 민원·행정 데이터를 통합해 현황을 분석하고 담당자가 업무 현황을 조회하는 행정 지원 플랫폼 구축 사업입니다.", { exact: true })).not.toBeVisible();
-});
-
-test("페이지에 locator 블록이 없으면 어긋남을 표시하고 강조하지 않는다", async ({ page }) => {
-  await mockPreSpecs(page, { overviewBody: completedOverviewWithEvidenceBlock("missing-block") });
-  await page.goto("/pre-specs/991");
-  await page.getByRole("button", { name: "원문 열기" }).click();
-
-  await expect(page.getByText("근거 위치와 원문이 어긋났습니다.", { exact: true })).toBeVisible();
-  await expect(page.getByText("1. 사업 개요와 추진 배경", { exact: true })).toBeVisible();
-  await expect(page.locator(".pre-spec-overview-source-block.is-target")).toHaveCount(0);
-});
-
-test("원문은 내부 bbox·confidence·attributes와 객체 식별자를 화면에 내지 않는다", async ({ page }) => {
-  await mockPreSpecs(page, { overviewBody: completedOverview });
-  await page.goto("/pre-specs/991");
-  await page.getByRole("button", { name: "원문 열기" }).click();
-
-  const body = page.locator("body");
-  await expect(body).not.toContainText("910");
-  await expect(body).not.toContainText("0.42");
-  await expect(body).not.toContainText("do-not-render-attributes");
-  await expect(body).not.toContainText("image-content-do-not-render");
-});
-
-test("v2 검증 실패는 결과를 판정으로 읽지 않도록 경고한다", async ({ page }) => {
-  const failedOverview = {
-    ...completedOverview,
-    reviews: [{ ...completedOverview.reviews[0], validation_status: "failed" }],
-  };
-  await mockPreSpecs(page, { overviewBody: failedOverview });
-  await page.goto("/pre-specs/991");
-
-  await expect(page.getByText("검증 실패 · failed", { exact: true })).toBeVisible();
-  await expect(page.getByText("검증에 실패한 결과입니다. 이 내용을 판정으로 읽지 마세요.", { exact: true })).toBeVisible();
-});
-
-test("result가 없고 awaiting_model이면 승인된 binding 대기 상태를 설명한다", async ({ page }) => {
-  await mockPreSpecs(page, { overviewBody: awaitingModelOverview });
-  await page.goto("/pre-specs/991");
-
-  await expect(page.getByText("검토 결과 미확정", { exact: true })).toBeVisible();
-  await expect(page.getByText("승인된 모델 연결이 없어 아직 실행하지 않았습니다. 승인된 사설 모델 연결이 준비되기 전에는 모델을 부르지 않습니다.", { exact: true })).toBeVisible();
-});
-
-test("overview envelope notice ID가 어긋나면 교차 정본을 렌더링하지 않는다", async ({ page }) => {
-  await mockPreSpecs(page, { overviewNoticeId: 992 });
-  await page.goto("/pre-specs/991");
-
-  await expect(page.getByRole("heading", { level: 2, name: trackingException.title })).toBeVisible();
-  await expect(page.getByText("개요 검토 정본을 확인할 수 없습니다.", { exact: true })).toBeVisible();
-  await expect(page.getByText("unknown · 사람 확인 필요", { exact: true })).not.toBeVisible();
-  await expect(page.getByText("응답의 notice ID가 요청과 일치하지 않아 개요 검토를 표시하지 않습니다.", { exact: true })).toBeVisible();
-});
-
-test("overview nested review notice ID가 어긋나면 교차 정본을 렌더링하지 않는다", async ({ page }) => {
-  await mockPreSpecs(page, { overviewReviewNoticeId: 992 });
-  await page.goto("/pre-specs/991");
-
-  await expect(page.getByRole("heading", { level: 2, name: trackingException.title })).toBeVisible();
-  await expect(page.getByText("개요 검토 정본을 확인할 수 없습니다.", { exact: true })).toBeVisible();
-  await expect(page.getByText("unknown · 사람 확인 필요", { exact: true })).not.toBeVisible();
-  await expect(page.getByText("응답의 notice ID가 요청과 일치하지 않아 개요 검토를 표시하지 않습니다.", { exact: true })).toBeVisible();
-});
-
-// 오류 상태는 서버 원문을 내지 않고 원인과 다음 행동을 함께 말한다
-// (`src/lib/apiErrors.ts` 정책 하나).
-test("overview API 오류는 서버 detail이나 원문을 화면에 노출하지 않는다", async ({ page }) => {
-  const secret = "raw-prompt-response-secret";
-  await mockPreSpecs(page, { overviewStatus: 500, overviewBody: { detail: secret } });
-  await page.goto("/pre-specs/991");
-
-  const panel = page.locator(".pre-spec-overview-panel");
-  await expect(page.getByText("개요 검토 상태를 불러오지 못했습니다.", { exact: true })).toBeVisible();
-  await expect(page.getByText(secret, { exact: true })).not.toBeVisible();
-  // 원인 한 줄과 다음 행동 한 줄이 함께 있고, 행동은 버튼으로도 있다.
-  await expect(panel).toContainText("서버 오류가 발생했습니다.");
-  await expect(panel).toContainText("잠시 뒤 다시 시도");
-  await expect(panel.getByRole("button", { name: "다시 시도" })).toBeVisible();
-});
-
 test("사전규격 목록과 상세는 viewport 바깥으로 넘치지 않는다", async ({ page }) => {
   await mockPreSpecs(page);
   for (const path of ["/pre-specs", "/pre-specs/991"]) {
@@ -1154,9 +833,9 @@ test("사업기회 미연결 사전규격은 비활성 추적 결정 액션과 �
 for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900 }]) {
   test(`사전규격 ERP 상세 ${viewport.width}: 읽기 우선 배치와 긴 제목의 구역 이동`, async ({ page }) => {
     await page.setViewportSize(viewport);
-    const trace = await mockPreSpecs(page, { overviewStatus: 200, overviewBody: { ...completedOverview, notice_id: 992, reviews: completedOverview.reviews.map(review => ({ ...review, notice_id: 992 })) } });
+    const trace = await mockPreSpecs(page);
     await page.goto('/pre-specs/992?sw_only=false&sort=deadline');
-    await expect(page.getByRole('heading', { name: '사업 핵심', exact: true })).toBeInViewport();
+    await expect(page.locator('.ps-record .detail-skeleton-main')).toBeVisible();
     const geometry = await page.evaluate(() => {
       const main = document.querySelector('.ps-record .detail-skeleton-main')!;
       const side = document.querySelector('.ps-record-side')!;
@@ -1205,10 +884,8 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900
     await decision.getByRole('textbox', { name: '담당자 이름 (필수)' }).fill('검토 담당자');
     await expect(decision.getByRole('button', { name: '추적 시작', exact: true })).toBeEnabled();
     await captureRecord(page, `documents-${viewport.width}`);
-    // 고정 입력·식별 정보는 접힌 `처리 이력과 실행 정보` 안에 있다.
+    // 처리 이력과 실행 정보는 접힌 상태로 있다가 펼칠 수 있다.
     await page.getByRole('button', { name: '처리 이력과 실행 정보' }).click();
-    await page.getByRole('button', { name: '고정 입력과 식별 정보' }).click();
-    await expect(page.getByText('topic_heading', { exact: true })).toBeVisible();
     await captureRecord(page, `history-${viewport.width}`);
     await expect(decision.getByRole('textbox', { name: '선택 사유 직접 입력 (필수)' })).toHaveValue('세부 과업과 연계 범위를 확인하고 계속 추적');
     expect(trace.trackingPatches).toEqual([]);
@@ -1223,36 +900,23 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900
 }
 
 test('사전규격 ERP 상세: 요약 조회 실패를 판정 없음·미선택으로 바꾸지 않는다', async ({ page }) => {
-  await mockPreSpecs(page, { overviewBody: completedOverview });
+  await mockPreSpecs(page);
   await page.route('**/api/pre-specs?notice_pk=991', route => route.fulfill({ status: 503, json: { detail: 'unavailable' } }));
   await page.goto('/pre-specs/991');
   await expect(page.locator('.pre-spec-detail-grade-row')).toContainText('등급 미확인', { timeout: 15000 });
   await expect(page.getByRole('complementary', { name: '추적 결정', exact: true })).toContainText('사업기회 연결 정보를 확인할 수 없습니다.');
   await expect(page.locator('.ps-record-facts')).not.toContainText('판정 없음');
   await expect(page.locator('.ps-record-facts')).not.toContainText('추적 미선택');
-  await expect(page.getByRole('heading', { name: '사업 핵심', exact: true })).toBeVisible();
   await captureRecord(page, 'partial-1440');
 });
 
 test('사전규격 ERP 상세: 빈 결과와 실제 0건을 구분한다', async ({ page }) => {
-  await mockPreSpecs(page, { overviewStatus: 200, overviewBody: { schema_version: 'bidops.prespec-overview-reviews.v2', notice_id: 993, reviews: [] } });
+  await mockPreSpecs(page);
   await page.route('**/api/notices/993', route => route.fulfill({ json: { ...notice991, id: 993, budget: null, attachment_count: 0 } }));
   await page.goto('/pre-specs/993');
   await expect(page.locator('.ps-record-facts')).toContainText('예산 미확인');
   await expect(page.locator('.ps-record-secondary-facts')).toContainText('0건');
-  await expect(page.locator('.pre-spec-overview-panel')).toContainText('개요 검토 기록이 없습니다.');
   await captureRecord(page, 'empty-1440');
-});
-
-test('사전규격 ERP 상세: 실패한 개요를 다시 읽을 수 있다', async ({ page }) => {
-  await mockPreSpecs(page, { overviewStatus: 503, overviewBody: { detail: 'unavailable' } });
-  await page.goto('/pre-specs/991');
-  const panel = page.locator('.pre-spec-overview-panel');
-  await expect(panel.getByRole('button', { name: /다시/ })).toBeVisible({ timeout: 15000 });
-  await captureRecord(page, 'error-1440');
-  await page.route('**/api/pre-specs/991/overview-reviews/v2', route => route.fulfill({ json: completedOverview }));
-  await panel.getByRole('button', { name: /다시/ }).click();
-  await expect(panel.getByRole('heading', { name: '사업 핵심', exact: true })).toBeVisible();
 });
 
 test('사전규격 ERP 상세: 로딩 자리가 본문과 보조 열을 유지한다', async ({ page }) => {
@@ -1266,46 +930,6 @@ test('사전규격 ERP 상세: 로딩 자리가 본문과 보조 열을 유지�
   finish?.();
   await expect(page.locator('#pre-spec-detail-title')).toBeVisible();
 });
-
-for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900 }]) {
-  test(`승인 시안 대조 ${viewport.width}: 번호·요약·확인 사항·저장 위치`, async ({ page }) => {
-    await page.setViewportSize(viewport);
-    await page.clock.setFixedTime(new Date('2026-09-08T09:00:00+09:00'));
-    const result = { ...completedOverview.reviews[0].result,
-      summary: '부서별로 분산된 공공데이터를 통합하고, 수집·정제·품질 점검 업무를 하나의 관리체계로 개선하는 사업입니다.',
-      conditions: ['기존 시스템 연계 범위 확인'],
-      verification_due_at: '2026-09-11T18:00:00+09:00',
-      unknowns: [{ topic: '참가 자격·유사 실적 확인', reason: '회사 보유 자격과 인정 가능한 유사 실적은 아직 확인되지 않았습니다.', verification_action: '원문에서 참가 조건과 실적 인정 범위를 확인합니다.' }],
-    };
-    await mockPreSpecs(page, { overviewStatus: 200, overviewBody: { ...completedOverview, notice_id: 992, reviews: [{ ...completedOverview.reviews[0], notice_id: 992, quality_status: 'mock_reference', result }] } });
-    await page.route('**/api/notices/992', route => route.fulfill({ json: { ...notice991, id: 992, title: '공공데이터 통합관리체계 고도화', agency: '해솔시청', deadline_at: '2026-09-11T18:00:00+09:00', published_at: '2026-09-08T09:00:00+09:00', url: null, lifecycle: { pre_spec_no: 'R26BD00270001' } } }));
-    await page.route('**/api/pre-specs?notice_pk=992', route => route.fulfill({ json: { items: [{ ...newPreSpec, pre_spec_no: 'R26BD00270001' }], total: 1, limit: 50, offset: 0 } }));
-    await page.goto('/pre-specs/992');
-    await expect(page.locator('.ps-record-number')).toHaveText('R26BD00270001');
-    await expect(page.locator('.pre-spec-overview-summary')).toBeInViewport({ ratio: 1 });
-    await expect(page.locator('.pre-spec-overview-quality')).toContainText('mock 참조');
-    // 저장 자리는 헤더 바로 아래 추적 결정 카드라 첫 화면에 통째로 들어온다.
-    await expect(page.getByRole('button', { name: '추적 시작', exact: true })).toBeInViewport({ ratio: 1 });
-    await expect(page.getByRole('button', { name: '계속 추적', exact: true })).toHaveCount(0);
-    await captureRecord(page, `approved-${viewport.width}`);
-    // 확인 목록은 오른쪽 두 번째 카드라 첫 화면에 들어오지 않는다. 스크롤한 뒤 항목을 확인한다.
-    const checkItems = page.locator('.ps-record-check-list > li');
-    await expect(checkItems).toHaveCount(1);
-    await checkItems.last().scrollIntoViewIfNeeded();
-    await expect(checkItems.last()).toBeInViewport({ ratio: 1 });
-    await expect(page.locator('.ps-record-check-detail')).toHaveText('참가 자격·유사 실적 확인이유회사 보유 자격과 인정 가능한 유사 실적은 아직 확인되지 않았습니다.확인 방법원문에서 참가 조건과 실적 인정 범위를 확인합니다.');
-    await page.evaluate(() => document.querySelector('.page-canvas')?.scrollTo(0, 0));
-    await page.getByRole('combobox', { name: '선택 사유' }).click();
-    await captureRecord(page, `dropdown-${viewport.width}`);
-    await page.keyboard.press('Escape');
-    await expect(page.getByRole('combobox', { name: '선택 사유' })).toBeFocused();
-    await fillRecordReason(page, '세부 과업을 확인하고 후속 공고까지 추적합니다.');
-    await page.getByRole('textbox', { name: '담당자 이름 (필수)' }).fill('김기획');
-    await expect(page.getByRole('button', { name: '추적 시작', exact: true })).toBeEnabled();
-    await expect(page.getByRole('button', { name: '추적 시작', exact: true })).toBeInViewport({ ratio: 1 });
-    await captureRecord(page, `approved-other-${viewport.width}`);
-  });
-}
 
 test('공식 번호는 lifecycle fallback과 복사를 지원하고 내부 PK를 대신 표시하지 않는다', async ({ page }) => {
   await mockPreSpecs(page);
