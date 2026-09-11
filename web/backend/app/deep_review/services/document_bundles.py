@@ -426,7 +426,22 @@ class DocumentBundleService:
                 ):
                     issues.append(_error_issue("source_changed", "provider 첨부 source snapshot이 변경되었습니다", document_version_id=document.id))
             if attachment.name != document.original_filename:
-                issues.append(_error_issue("source_changed", "첨부 파일명이 document snapshot과 다릅니다", document_version_id=document.id))
+                # 원본의 정체는 hash와 크기이지 이름이 아니다. 나라장터 목록의
+                # `attachment.name`은 흔히 자리표시자("첨부 1")이고 실제 파일명은
+                # 취득 응답 header에서만 오므로, 둘이 다른 것은 정상적인 관측이다.
+                # **차단이 아니라 비차단 경고**로 남기고 이름 자체는 메시지에
+                # 넣지 않는다 — 원문 metadata를 issue 본문으로 흘리지 않는다.
+                # 원문이 실제로 바뀐 경우는 아래 크기·hash·provider snapshot
+                # 검사가 그대로 차단한다.
+                issues.append(
+                    _error_issue(
+                        "source_name_differs",
+                        "첨부 목록의 이름과 document snapshot의 파일명이 다릅니다",
+                        document_version_id=document.id,
+                        blocking=False,
+                        severity="보통",
+                    )
+                )
             if attachment.size_bytes is not None:
                 content = session.get(ContentObject, document.content_object_id)
                 if content is None or int(attachment.size_bytes) != int(content.size_bytes):

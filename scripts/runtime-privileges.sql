@@ -201,6 +201,10 @@ GRANT UPDATE (
     version, role, effective_date, replaces_document_version_id, is_current,
     safety_status, needs_human_review
 ) ON bidops.document_version TO app;
+-- bundle confirm의 행 잠금(FOR UPDATE)에 필요. PostgreSQL은 SELECT ... FOR UPDATE
+-- 에도 대상 테이블 한 열의 UPDATE 권한을 요구한다. structure identity는 잠금
+-- 대상으로만 쓰며 app은 구조 행을 다시 쓰지 않는다 (`notice.id`와 같은 이유).
+GRANT UPDATE (id) ON bidops.document_structure TO app;
 
 -- Human-facing rows are mutable only through their API-owned fields.  The
 -- immutable identity, actor, and creation columns are never update targets.

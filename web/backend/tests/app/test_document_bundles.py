@@ -299,25 +299,36 @@ def test_source_hash_change_blocks_confirm_and_stale_confirm_conflicts(context: 
         assert conflict.value.code == "version_conflict"
 
 
-def test_attachment_filename_drift_blocks_ready_confirmation(context: Context) -> None:
+def test_attachment_filename_drift_is_a_warning_not_a_blocking_issue(context: Context) -> None:
+    """이름만 다르고 hash·크기가 같으면 확정을 막지 않는다 (2026-09-11).
+
+    원본의 정체는 hash와 크기이지 이름이 아니다. 나라장터 목록의
+    `attachment.name`은 흔히 자리표시자("첨부 1")이고 실제 파일명은 취득 응답
+    header에서만 오므로 둘이 다른 것은 정상적인 관측이다. 크기·hash·provider
+    source snapshot이 어긋나는 경우는 여전히 차단이다.
+    """
+
     bundle = make_bundle(context)
     document = upload(context, bundle.id, filename="original-name.pdf")
     with Session(context.engine) as session:  # type: ignore[arg-type]
         attachment = session.get(Attachment, session.get(DocumentVersion, document.id).attachment_id)  # type: ignore[union-attr]
         assert attachment is not None
-        attachment.name = "renamed-after-upload.pdf"
+        attachment.name = "첨부 1"
         session.commit()
         request = ConfirmRequest(
             request_id=uuid4(),
             version=bundle.version,
             confirmed_documents=[{"document_version_id": document.id, "version": document.version}],
         )
-        with pytest.raises(BundleServiceError) as error:
-            context.service.confirm(session, bundle.id, request, "담당자")
-        assert error.value.code == "bundle_has_blocking_issues"
-        row = session.get(DocumentBundle, bundle.id)
-        assert row is not None
-        assert any(issue["code"] == "source_changed" for issue in row.issues_snapshot)
+        ready = context.service.confirm(session, bundle.id, request, "담당자")
+
+    assert ready.status == "ready"
+    assert not any(issue.code == "source_changed" for issue in ready.issues)
+    drift = [issue for issue in ready.issues if issue.code == "source_name_differs"]
+    assert len(drift) == 1
+    assert (drift[0].blocking, drift[0].severity) == (False, "보통")
+    # 두 이름 중 어느 것도 issue 본문으로 흘리지 않는다.
+    assert "첨부 1" not in drift[0].message and "original-name.pdf" not in drift[0].message
 
 
 def test_new_file_requires_new_bundle_and_old_ready_snapshot_is_preserved(context: Context) -> None:
