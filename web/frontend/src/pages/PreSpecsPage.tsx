@@ -35,6 +35,7 @@ import {
 } from "../components/pre-specs/TrackingDecisionControl";
 import { api } from "../lib/api";
 import { CompanyFitSection } from "../components/pre-specs/CompanyFitSection";
+import { PageOverviewSection, useCurrentPageOverview } from "../components/pre-specs/PageOverviewSection";
 import { describeApiError } from "../lib/apiErrors";
 import { describeDeadline, formatCompactPrice, shortDateLabel } from "../lib/deadline";
 import { formatDateTime, formatNumber } from "../lib/format";
@@ -49,6 +50,7 @@ import {
   PRE_SPEC_OVERVIEW_NOT_STARTED_LABEL,
   PRE_SPEC_OVERVIEW_STATUS_LABEL,
 } from "../lib/preSpecOverviewStatus";
+import { qualityStatusLabel, qualityStatusVariant } from "../lib/qualityStatus";
 import type {
   PreSpecListItem,
   PreSpecListResponse,
@@ -382,9 +384,9 @@ function DetailQueryError({
 /**
  * 선택한 사전규격 하나.
  *
- * 목록 응답에 있는 사실(기관·예산·마감·등급·자동 준비·첨부 집계·추적 상태)만
- * 보여 준다. 개요 검토 화면은 아직 재구현 전이라(P2) 이 화면은 그 결과를
- * 그리지 않는다.
+ * 목록 응답에 있는 사실(기관·예산·마감·등급·자동 준비·첨부 집계·추적 상태)과
+ * 별도 endpoint인 개요 검토 응답을 각자 자리에서 보여 준다. 목록 응답만으로 개요
+ * 본문을 만들지 않는다.
  */
 function PreSpecDetail({
   item,
@@ -411,6 +413,13 @@ function PreSpecDetail({
   const [tab, setTab] = useState<DetailTab>("overview");
   const noticePk = item.notice_pk;
   const detailUrl = `/pre-specs/${noticePk}${listSearch ? `?${listSearch}` : ""}`;
+
+  // 개요 본문과 같은 query를 읽는다(같은 key라 요청이 늘지 않는다). 이력 탭은
+  // 결과가 남은 실행만 나열하고 상태를 다시 판정하지 않는다.
+  const pageOverview = useCurrentPageOverview(noticePk);
+  const overviewRuns = pageOverview.isValid
+    ? [...(pageOverview.currentResult ? [pageOverview.currentResult] : []), ...pageOverview.history]
+    : [];
 
   // 첨부 문서는 사람이 그 탭을 열 때만 조회한다. 목록을 훑는 동안 문서 API를
   // 부르지 않는다.
@@ -528,6 +537,7 @@ function PreSpecDetail({
               </li>
             </ol>
 
+            <PageOverviewSection key={noticePk} noticeId={noticePk} />
             <CompanyFitSection key={`fit-${noticePk}`} noticeId={noticePk} />
           </>
         ) : null}
@@ -610,6 +620,38 @@ function PreSpecDetail({
 
         {tab === "history" ? (
           <div className="pre-specs-history">
+            <section className="pre-specs-overview-section" aria-labelledby="pre-specs-history-runs">
+              <div className="pre-specs-overview-section-head">
+                <h4 id="pre-specs-history-runs">개요 실행 이력</h4>
+                <span>{pageOverview.isValid ? `${overviewRuns.length}건` : "확인 중"}</span>
+              </div>
+              <p className="pre-specs-overview-note">
+                현재 상태 · {item.overview_review_status === null
+                  ? PRE_SPEC_OVERVIEW_NOT_STARTED_LABEL
+                  : PRE_SPEC_OVERVIEW_STATUS_LABEL[item.overview_review_status]}
+              </p>
+              {/* 결과 본문이 남은 실행만 여기 온다. 실패·취소한 실행의 사유는 위
+                  개요 자리의 현재 실행 카드가 말한다. */}
+              {pageOverview.isValid && overviewRuns.length === 0 ? (
+                <p className="pre-specs-overview-empty">결과가 남은 개요 실행이 없습니다.</p>
+              ) : null}
+              {pageOverview.isValid && overviewRuns.length > 0 ? (
+                <ul className="pre-specs-history-list">
+                  {overviewRuns.map((review) => (
+                    <li key={review.id}>
+                      <span>{formatDateTime(review.created_at)}</span>
+                      <Badge label={qualityStatusLabel(review.quality_status)} variant={qualityStatusVariant(review.quality_status)} />
+                      <span>{review.model_name}</span>
+                      <span className="mono">결과 ID {review.id}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+              {pageOverview.query.isError || (!pageOverview.isValid && !pageOverview.query.isPending) ? (
+                <p className="pre-specs-overview-empty">개요 실행 이력을 확인할 수 없습니다.</p>
+              ) : null}
+            </section>
+
             <section className="pre-specs-overview-section" aria-labelledby="pre-specs-history-tracking">
               <h4 id="pre-specs-history-tracking">사람의 선택과 자동 준비</h4>
               <dl className="pre-specs-history-facts">
@@ -1162,6 +1204,7 @@ export function PreSpecsPage() {
             <li>보기는 상태를 묶어 찾기 위한 탐색 도구입니다. 각 행의 개요 상태·등급·자동 준비·추적 상태는 서버 값 그대로입니다.</li>
             <li>SW 중심 기본 보기는 SW사업대상=Y와 추적 중인 발주계획에 연결된 예외를 함께 남깁니다. 목록의 <strong>추적 예외</strong>는 SW사업대상이 Y가 아니지만 추적 중인 발주계획에 연결된 건이고, 값이 없는 SW사업대상은 <strong>SW 미확인</strong>으로 적습니다.</li>
             <li>추적 상태는 사업기회 연결이 없으면 <strong>사업기회 미연결</strong>, 연결은 있는데 서버 값이 없으면 <strong>미확인</strong>입니다. 사람이 고른 <strong>미선택</strong>과 다릅니다.</li>
+            <li>품질 표식 · 참조 실행과 mock 참조는 운영 완료가 아니고, 표식 없음을 미측정으로 바꾸지 않습니다. 선택한 건의 현재 표식은 개요 검토 결과 머리줄에 있습니다.</li>
           </ul>
         </div>
       </Dialog>

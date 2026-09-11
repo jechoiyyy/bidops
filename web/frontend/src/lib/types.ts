@@ -378,6 +378,25 @@ export interface OverviewRun {
   created_at: string;
   started_at: string | null;
   completed_at: string | null;
+  /** `completed`면 run id, 아니면 `null`. */
+  result_id: string | null;
+  prompt_version: string;
+  /** 검증 기록이 없으면 `null`이다. 없음을 통과로 바꾸지 않는다. */
+  verification_status: "passed" | "needs_human_review" | null;
+  /** 입력 스냅샷의 식별값. 준비 전이면 `null`이다. */
+  document_version_id: string | null;
+  source_sha256: string | null;
+  pdf_sha256: string | null;
+  pdf_page_count: number | null;
+  /** 읽은 쪽 목록(`page_start`~`page_end`). 준비 전이면 빈 배열이다. */
+  reviewed_pages: number[];
+  payload_sha256: string | null;
+  /** 참조 실행 표식. 운영 완료 근거가 아니다. */
+  quality_status: "unmeasured_reference" | "mock_reference";
+  validation_status: "passed" | "failed";
+  validation_errors: string[];
+  evidence_check_status: "passed" | "failed";
+  evidence_check_errors: string[];
 }
 
 /** 공고 하나의 개요 검토 전체. `current`는 `created_at` 최신 run이고 run이 없으면
@@ -387,6 +406,10 @@ export interface OverviewEnvelope {
   notice_id: number;
   current: OverviewRun | null;
   history: OverviewRun[];
+  /** RFP 문서의 최신 안전 snapshot이 없으면 `null`이다. */
+  range_review: OverviewRangeReview | null;
+  /** 현재 run에 공개 가능한 검증 기록이 없으면 `null`이다. */
+  verification: OverviewVerification | null;
 }
 
 export interface OverviewRangeConfirmationRequest {
@@ -398,6 +421,245 @@ export interface OverviewRangeConfirmationRequest {
 export interface OverviewRangeConfirmationResponse {
   run_id: string;
   attempt_enqueued: boolean;
+  page_start: number;
+  page_end: number;
+}
+
+/** 절 후보 하나. 사람이 읽을 범위를 고르는 표의 한 행이다. */
+export interface OverviewRangeCandidate {
+  index: number;
+  title: string;
+  page: number;
+  char_count: number;
+}
+
+/** 담당자가 확정한 범위 기록. 감사 표식이며 인증이 아니다. */
+export interface OverviewRangeConfirmation {
+  page_start: number;
+  page_end: number;
+  actor_name: string;
+  note: string | null;
+  created_at: string;
+}
+
+/**
+ * 개요 입력 범위의 사람 확인 자리. RFP 문서의 최신 안전 snapshot이 없으면
+ * envelope에서 `null`이다.
+ *
+ * `status`는 최신 run이 정한다 — `human_confirmed`(담당자 확정), `pending`(자동
+ * 선택 실패·사람 검토 필요·실행 없음), `ready`(자동 선택 결과가 있음). 셋은 서로
+ * 대신하지 않는다.
+ */
+export interface OverviewRangeReview {
+  target_id: string | null;
+  status: "pending" | "ready" | "human_confirmed";
+  document_version_id: string;
+  pdf_page_count: number;
+  mode: "outline" | "clause" | "page" | null;
+  candidate_status: "complete" | "partial" | "unavailable";
+  candidate_count_total: number | null;
+  candidate_count_returned: number;
+  candidates: OverviewRangeCandidate[];
+  /** `[시작 쪽, 끝 쪽]`이며 확정 전이면 `null`이다. */
+  selected_pages: [number, number] | number[] | null;
+  warning_codes: string[];
+  reason_code: string | null;
+  can_confirm: boolean;
+  /** 모델 보조 제안은 계약에 없다. 서버는 항상 `null`을 보낸다. */
+  assisted: null;
+  confirmation: OverviewRangeConfirmation | null;
+}
+
+export interface OverviewVerificationClaim {
+  claim_id: string;
+  section: string;
+  text: string;
+  deterministic: { status: "passed" | "failed"; reason_codes: string[] };
+  semantic: { status: "supported" | "contradicted" | "insufficient" | "not_run"; reason_codes: string[] };
+  verified_evidence: Array<{ page: number; quote: string; start_char: number; end_char: number }>;
+}
+
+/** 현재 run의 주장 검증 기록. 검증 기록이 없으면 envelope에서 `null`이다. */
+export interface OverviewVerification {
+  verification_id: string;
+  status: "passed" | "needs_human_review";
+  reason_codes: string[];
+  claims: OverviewVerificationClaim[];
+}
+
+/* ── 개요 검토 화면이 읽는 view 타입군 ─────────────────────────────────────
+ *
+ * 화면은 새 envelope(`bidops.prespec-overview.v1`)를 `lib/api.ts`의 어댑터로
+ * 아래 모양으로 옮겨 읽는다. 서버가 주지 않는 값은 자리만 있고 채워지지 않으며
+ * (`?`), 화면은 없는 값을 지어내지 않는다. */
+
+export interface PageOverviewFactV3 { text: string; evidence_pages: number[] }
+export interface PageOverviewVerifiedEvidence {
+  page: number;
+  quote: string;
+  /** 주장 검증 기록에만 있다. 완료된 개요 결과의 인용에는 없다. */
+  start_char?: number;
+  end_char?: number;
+  /** 새 계약은 페이지 해시를 응답에 싣지 않는다. 없으면 표시하지 않는다. */
+  page_text_sha256?: string;
+}
+export interface PageOverviewFactV4 {
+  claim_id: string;
+  text: string;
+  evidence: PageOverviewVerifiedEvidence[];
+}
+export type PageOverviewFact = PageOverviewFactV3 | PageOverviewFactV4;
+export interface PageOverviewPayloadV3 {
+  schema_version: "bidops.prespec-overview-page-review.v3";
+  business_overview: PageOverviewFactV3[];
+  main_tasks: PageOverviewFactV3[];
+  budget_and_period: PageOverviewFactV3[];
+  important_conditions: PageOverviewFactV3[];
+  reviewer_analysis: string[];
+  unknowns: string[];
+  input_limitations: string[];
+}
+export interface PageOverviewAnalysisV4 {
+  id: string;
+  text: string;
+  supporting_claim_ids: string[];
+}
+export interface PageOverviewPayloadV4 {
+  schema_version: "bidops.prespec-overview-page-review.v4";
+  business_overview: PageOverviewFactV4[];
+  main_tasks: PageOverviewFactV4[];
+  budget_and_period: PageOverviewFactV4[];
+  important_conditions: PageOverviewFactV4[];
+  reviewer_analysis: PageOverviewAnalysisV4[];
+  unknowns: string[];
+  input_limitations: string[];
+  verification_id?: string;
+  verification_sha256?: string;
+}
+export type PageOverviewPayload = PageOverviewPayloadV3 | PageOverviewPayloadV4;
+export interface PageOverviewView {
+  id: string;
+  notice_id: number;
+  document_version_id: string;
+  source_sha256: string;
+  pdf_sha256: string;
+  pdf_page_count: number;
+  reviewed_pages: number[];
+  payload: PageOverviewPayload;
+  payload_sha256: string;
+  validation_status: "passed" | "failed";
+  validation_errors: string[];
+  evidence_check_status: "passed" | "failed";
+  evidence_check_errors: string[];
+  quality_status: "unmeasured_reference" | "mock_reference";
+  model_name: string;
+  prompt_version: string;
+  created_at: string;
+}
+/** `stale`은 새 계약에 없다. 서버는 보내지 않으며 화면이 만들지도 않는다. */
+export type PageOverviewCurrentStatus =
+  | "queued"
+  | "running"
+  | "completed"
+  | "failed"
+  | "needs_human_review"
+  | "stale"
+  | "cancelled";
+export interface PageOverviewCurrent {
+  attempt_id: string | null;
+  status: PageOverviewCurrentStatus;
+  result_id: string | null;
+  reason_code: string | null;
+  prompt_version: string | null;
+  created_at: string;
+  verification_status: "passed" | "needs_human_review" | null;
+}
+export interface PageOverviewRangeCandidate {
+  index: number;
+  title: string;
+  page: number;
+  char_count: number;
+}
+export interface PageOverviewRangeAssist {
+  start_index: number;
+  end_index: number;
+  model_name: string;
+  quality_status: "unmeasured_reference" | "mock_reference";
+  created_at: string;
+}
+export interface PageOverviewRangeConfirmation {
+  target_id: string;
+  confirmed_from_target_id: string;
+  /** 새 계약의 확정 기록은 쪽만 남긴다. 절 번호는 `null`이며 지어내지 않는다. */
+  start_index: number | null;
+  end_index: number | null;
+  first_page: number;
+  last_page: number;
+  page_numbers: number[];
+  actor: string;
+  note: string | null;
+  created_at: string;
+}
+export interface PageOverviewRangeReview {
+  schema_version: "bidops.prespec-overview-range-view.v2";
+  target_id: string;
+  snapshot_id: string;
+  selection_status: "needs_human_review" | "ready";
+  reason_code: string | null;
+  pdf_page_count: number;
+  created_at: string;
+  candidates_mode: "outline" | "clause" | "page" | null;
+  candidate_status: "complete" | "partial" | "unavailable";
+  candidate_count_total: number | null;
+  candidate_count_returned: number;
+  warning_codes: string[];
+  selected_pages: number[];
+  can_confirm: boolean;
+  candidates: PageOverviewRangeCandidate[];
+  assisted: PageOverviewRangeAssist | null;
+  confirmation: PageOverviewRangeConfirmation | null;
+}
+export interface PageOverviewRangeConfirmationRequest {
+  target_id: string;
+  start_index: number | null;
+  end_index: number | null;
+  first_page: number | null;
+  last_page: number | null;
+  note: string | null;
+}
+export interface PageOverviewRangeConfirmationResponse {
+  target_id: string;
+  selection_status: "ready";
+  first_page: number;
+  last_page: number;
+  page_numbers: number[];
+  /** 새 계약의 범위 확정은 그 범위로 개요 검토 run 하나를 예약한다. */
+  attempt_enqueued: boolean;
+}
+export interface PageOverviewVerificationClaim {
+  claim_id: string;
+  text: string;
+  deterministic_status: "passed" | "failed";
+  semantic_status: "supported" | "contradicted" | "insufficient" | "not_run";
+  reason_codes: string[];
+  verified_evidence: PageOverviewVerifiedEvidence[];
+}
+export interface PageOverviewVerification {
+  verification_id: string;
+  status: "passed" | "needs_human_review";
+  reason_codes: string[];
+  claims: PageOverviewVerificationClaim[];
+}
+export interface PageOverviewResponse {
+  schema_version: "bidops.prespec-overview-pages.v2";
+  notice_id: number;
+  reviews: PageOverviewView[];
+  /** 적용 기록 없음은 null이다. 실패/중단일 때 과거 성공을 현재로 대체하지 않는다. */
+  current: PageOverviewCurrent | null;
+  /** 범위 사람 확인 대상이 없으면 null이다. */
+  range_review: PageOverviewRangeReview | null;
+  /** 현재 attempt에 공개 가능한 검증 기록이 없으면 null이다. */
+  verification: PageOverviewVerification | null;
 }
 
 export interface HistoryItemResponse {
