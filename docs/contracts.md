@@ -319,7 +319,7 @@ migration 0021/0023/0024)과 주장 결정적 검증 함수는 그대로 유지�
 | `queued` / `running` | 대기·실행 중 | 대기 |
 | `completed` | 모든 결정적 검사·의미 검토 통과, `result_json` 있음 | 진행 가능 |
 | `needs_human_review` | 인용 불일치·필수 섹션 누락·의미 검토 contradicted/insufficient | `overview_not_completed` |
-| `failed` | 기술 실패(`reason_codes`: `pdf_preparation_failed:<code>`, `manifest_invalid`, `draft_format_retry_exhausted`, `semantic_response_invalid`, `timeout`, `input_capacity_exceeded`, `response_store_unavailable`, `lease_expired`, `runner_failed`) | `overview_not_completed` |
+| `failed` | 기술 실패(`reason_codes`: `pdf_preparation_failed:<code>`, `manifest_invalid`, `draft_format_retry_exhausted`, `semantic_response_invalid`, `timeout`, `input_capacity_exceeded`, `call_budget_exhausted`, `response_store_unavailable`, `lease_expired`, `runner_failed`) | `overview_not_completed` |
 | `cancelled` | 플래그 off로 닫힘 | `overview_not_completed` |
 
 공고의 "현재 개요"는 `created_at` 최신 run이다. 이력은 그 공고의 모든 run.
@@ -333,7 +333,7 @@ overview_not_completed → service_unavailable → 회사 핏 사유`다. `overv
 | 경로 | 응답 |
 |---|---|
 | `GET /api/pre-specs/{notice_id}/overview` | `{schema, notice_id, current: Run\|null, history: Run[]}` |
-| `POST /api/pre-specs/{notice_id}/overview/range-confirmations` | body `{page_start, page_end, note?}`, `X-Actor-Name` 헤더. 409 `run_active`(queued/running 있음), 409 `document_not_current_safe`, 422 `range_invalid`. 201 `{run_id, attempt_enqueued: true}` |
+| `POST /api/pre-specs/{notice_id}/overview/range-confirmations` | body `{page_start, page_end, note?}`, `X-BidOps-Actor-Name` 헤더(비ASCII 이름은 `X-BidOps-Actor-Name-Format: utf-8-percent`). 409 `run_active`(queued/running 있음), 409 `document_not_current_safe`, 422 `range_invalid`. 201 `{run_id, attempt_enqueued: true}` |
 | `GET /api/pre-specs/{notice_id}/overview/runs/{run_id}/pdf` | 고정 스냅샷 PDF. 404/409 safe 오류 |
 
 Run 응답 필드: `id, status, range_source(auto|fallback|human), page_start, page_end,
@@ -355,9 +355,22 @@ prepare(snapshot 없으면 `prepare_v4_pdf_snapshot`, 변환 300초) → range(h
 deterministic(인용 1곳 대응·페이지 범위·필수 섹션·duplicate_id·analysis 참조 실패는
 `needs_human_review`; 수치·역할·VAT·기산점·date·latin·requirement_id는 warnings) →
 semantic(1회; 모두 supported면 `completed`) → save 순서로 진행한다. 호출 상한은 attempt당
-3회(초안 2, 의미 1)이며 정책은 `prespec-overview-policy-v6.json`(v5 상한 복제, max_pages 60,
-max_page_text_chars 100000, max_prompt_chars 120000, max_claims 12, max_analysis 4,
-max_unknowns 6).
+3회(초안 2, 의미 1)이며 상한을 넘기면 `call_budget_exhausted`로 닫는다. 정책은
+`prespec-overview-policy-v6.json`(v5 상한 복제, max_pages 60, max_page_text_chars 100000,
+max_prompt_chars 120000, max_claims 12, max_analysis 4, max_unknowns 6,
+max_model_context_tokens 393216). 문맥 상한 판정은 요청 JSON의 byte 수를 token 상계로 쓰므로
+한국어 100,000자 입력이 지나갈 수 있도록 천장을 함께 올렸다. 서버가 `max_model_len`을 내지
+않으면 초과 판정을 하지 않고 run의 `warnings`에 `context_unverified`를 남긴다.
+
+결정적 검사에서 `quantity_mismatch`·`quantity_metadata_mismatch`·`quantity_relation_ambiguous`·
+`quantity_unit_missing`·`date_mismatch`·`requirement_id_mismatch`·`latin_term_mismatch`·
+`analysis_premise_unverified`·`unknown_reason_mismatch`는 **비차단 경고**이며 run의 `warnings`에만
+남는다. 차단은 `quote_not_found`·`quote_ambiguous`·`quote_empty`·`page_out_of_range`·
+`evidence_missing`·`fact_empty`·`required_fact_missing`·`duplicate_id`·`analysis_reference_missing`·
+`company_comparison_scope_mismatch`뿐이다.
+
+개요 입력 PDF의 원본 위치가 여러 공고에 공유되면(같은 첨부 bytes) `source` 위치가 둘 이상이다.
+원본의 정체는 hash이므로 가장 오래된 검증 위치 하나를 고정해 고른다.
 
 ### DB: `prespec_overview_run` (migration 0026)
 

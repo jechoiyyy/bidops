@@ -262,7 +262,7 @@ CLI 진입점은 모듈별로 하나씩이며 웹 없이 실행한다. migration
 
 ```bash
 python -m app.screening.cli --help          # run-one, score-candidate-quality
-python -m app.deep_review.cli --help        # run-bc-e2e, run-prespec-e2e, import-profile-policy
+python -m app.deep_review.cli --help        # run-bc-e2e, run-prespec-e2e, import-profile-policy, enqueue-overview
 python -m app.lifecycle.ingest.cli --help   # --run <회차> | --all
 ```
 
@@ -956,6 +956,14 @@ prepare(`prespec_v4_pdf_snapshot` 재사용 또는 신규 변환) → range(자�
 deterministic → semantic → save 순서로 실행한다. 상세 계약은
 [contracts.md](contracts.md#사전규격-개요-검토-mvp-2026-09-11)를 정본으로 한다. 진행·결과
 확인은 `GET /api/pre-specs/{notice_id}/overview`다(위 6단계 참조).
+
+플래그를 켜지 않고 한 건만 넣어 보려면 `python -m app.deep_review.cli enqueue-overview
+--notice-id <id> [--page-start A --page-end B --actor-name <담당자>]`를 쓴다. 이 명령은 대기열에
+넣기만 하고 모델을 부르지 않는다 — 실행은 analysis worker의 개요 slot이 한다. 쪽 범위를 주면
+`range_source=human`이고, 주지 않으면 자동 선택이다.
+
+묶음이 `ready`가 된 자리에서 enqueue가 실패하면 자동 준비 결과에 비차단 경고
+`overview_enqueue_failed`만 남고 방금 끝난 묶음 확정은 되돌리지 않는다.
 
 `prespec_v4_pdf_snapshot`(`0021`)·native rhwp 참조(`0023`)·절 후보(`0024`,
 `bidops.section-candidates.v1/v2`)는 그대로 유지한다. renderer는 native `rhwp-svg-pdf`
