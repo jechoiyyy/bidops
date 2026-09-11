@@ -68,6 +68,9 @@ AUTO_CONFIRM_ACTION = "document_bundle.auto_confirm"
 #: 취득 행의 종결 상태 (명세 §6.2 "자동 묶음").
 TERMINAL_FETCH_STATUSES = frozenset({"완료", "차단", "실패"})
 
+#: 종결됐지만 문서를 남기지 못한 취득 상태. 재시도가 남아 있지 않다.
+_FAILED_FETCH_STATUSES = frozenset({"차단", "실패"})
+
 #: 개요 검토가 아직 돌고 있다고 보는 상태.
 _OVERVIEW_RUNNING_STATUSES = frozenset(
     {"awaiting_structure", "preparing", "awaiting_model", "queued", "running"}
@@ -81,6 +84,9 @@ _OVERVIEW_SETTLED_STATUSES = frozenset(
 REASON_GRADE_NOT_PRIORITY = "grade_not_priority"
 REASON_AWAITING_FETCH = "awaiting_fetch"
 REASON_NO_READY_DOCUMENT = "no_ready_document"
+#: 취득 행이 모두 종결됐는데 그중 `차단`·`실패`가 있고 준비된 문서가 하나도
+#: 없다. "기다리는 중"이 아니라 사람이 손대야 끝나는 상태다.
+REASON_ATTACHMENTS_FAILED = "attachments_failed"
 REASON_BLOCKING_ISSUES = "bundle_has_blocking_issues"
 REASON_BUNDLE_UNCHANGED = "bundle_unchanged"
 REASON_HUMAN_DRAFT = "human_bundle_draft"
@@ -828,6 +834,8 @@ def _status_for(
     bundles: Sequence[tuple[int, str, Any, str | None]],
     overview_status: str | None,
     has_pending_fetch: bool,
+    attachments_failed: bool = False,
+    has_ready_document: bool = False,
     auto_start_reason_code: str | None = None,
 ) -> tuple[str, str | None]:
     """(`auto_preparation_status`, `auto_preparation_reason`)를 정한다.
@@ -840,6 +848,12 @@ def _status_for(
     `deep_review_ready_for_click`에서만 나온다 — 사람이 눌러야 하는 이유가
     바로 그 값이기 때문이다. 막은 것이 없으면 ``None``이고, 그 ``None``을
     자리표시자로 채우지 않는다.
+
+    `attachments_failed`는 "취득 행이 하나 이상 있고 모두 종결됐으며 그중
+    `차단`·`실패`가 있다"이고, `has_ready_document`는 safe·구조 준비 문서가
+    하나 이상 있다는 뜻이다. 둘이 겹치면 더 기다려도 아무것도 오지 않으므로
+    `waiting_attachments`가 아니라 `blocked`다. 아직 진행 중인 취득 행이
+    하나라도 있으면(`has_pending_fetch`) 그것이 먼저다.
     """
 
     if not is_pre_spec:
@@ -867,6 +881,10 @@ def _status_for(
         return "not_applicable", REASON_GRADE_NOT_PRIORITY
     if has_pending_fetch:
         return "waiting_attachments", REASON_AWAITING_FETCH
+    if attachments_failed and not has_ready_document:
+        # 취득이 전부 끝났는데 쓸 문서가 없다. 운영자가 "기다리는 중"으로
+        # 읽지 않도록 멈춘 상태로 보여 준다.
+        return "blocked", REASON_ATTACHMENTS_FAILED
     return "waiting_attachments", REASON_NO_READY_DOCUMENT
 
 
@@ -911,7 +929,11 @@ def auto_preparation_fields(
         sw_business[int(notice_id)] = _sw_business_object(flags)
     grades = effective_grades(session, ids)
 
+    # 같은 한 번의 순회로 두 가지를 센다: 아직 끝나지 않은 취득 행이 있는가와,
+    # 취득 행이 전부 종결됐는데 그중 `차단`·`실패`가 있는가. 두 번째가 있으면
+    # 더 기다려도 문서가 오지 않는다 (아래 `_status_for`의 `blocked`).
     pending_by_notice: set[int] = set()
+    failed_notices: set[int] = set()
     for notice_id, status in session.execute(
         select(Attachment.notice_id, AttachmentFetch.status)
         .join(Attachment, Attachment.id == AttachmentFetch.attachment_id)
@@ -919,6 +941,35 @@ def auto_preparation_fields(
     ).all():
         if status not in TERMINAL_FETCH_STATUSES:
             pending_by_notice.add(int(notice_id))
+        elif status in _FAILED_FETCH_STATUSES:
+            failed_notices.add(int(notice_id))
+    # 취득 행이 없는 공고는 `failed_notices`에 아예 들어오지 않는다 — "행이 하나
+    # 이상 있고 전부 종결"이 이 뺄셈으로 그대로 표현된다.
+    failed_only_by_notice = failed_notices - pending_by_notice
+
+    # `_ready_documents`와 **같은 조건**을 공고 집합 전체에 한 번 묻는다 (명세
+    # §8의 N+1 금지). 위 집합이 비면 물을 일이 없으므로 아예 조회하지 않는다.
+    ready_document_notices: set[int] = set()
+    if failed_only_by_notice:
+        ready_document_notices = {
+            int(notice_id)
+            for notice_id in session.scalars(
+                select(Attachment.notice_id)
+                .join(DocumentVersion, DocumentVersion.attachment_id == Attachment.id)
+                .join(
+                    DocumentStructure,
+                    DocumentStructure.document_version_id == DocumentVersion.id,
+                )
+                .where(
+                    Attachment.notice_id.in_(sorted(failed_only_by_notice)),
+                    Attachment.retired_at.is_(None),
+                    DocumentVersion.is_current.is_(True),
+                    DocumentVersion.safety_status == "safe",
+                    DocumentStructure.validation_status == "ready",
+                )
+                .distinct()
+            ).all()
+        }
 
     bundles_by_notice: dict[int, list[tuple[int, str, Any, str | None, str | None, UUID]]] = {}
     for notice_id, revision, status, issues, created_by, confirmed_by, bundle_id in session.execute(
@@ -1072,6 +1123,8 @@ def auto_preparation_fields(
             bundles=bundles_by_notice.get(notice_id, ()),
             overview_status=overview_status,
             has_pending_fetch=notice_id in pending_by_notice,
+            attachments_failed=notice_id in failed_only_by_notice,
+            has_ready_document=notice_id in ready_document_notices,
             auto_start_reason_code=auto_start_reason_code,
         )
         fields[notice_id] = {
@@ -1098,6 +1151,7 @@ __all__ = [
     "REASON_OVERVIEW_CLOSED",
     "REASON_OVERVIEW_NOT_COMPLETED",
     "REASON_PROCESSING_FAILED",
+    "REASON_ATTACHMENTS_FAILED",
     "REASON_BLOCKING_ISSUES",
     "REASON_BUNDLE_UNCHANGED",
     "REASON_GRADE_NOT_PRIORITY",
