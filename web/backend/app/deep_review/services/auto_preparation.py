@@ -97,6 +97,8 @@ AUTO_DEEP_REVIEW_ACTION = "deep_review.auto_create"
 REASON_NOT_SW_BUSINESS = "not_sw_business"
 REASON_BUNDLE_NOT_AUTO_READY = "bundle_not_auto_ready"
 REASON_OVERVIEW_NOT_COMPLETED = "overview_not_completed"
+#: 묶음이 ready가 된 뒤 개요 run을 넣지 못했다는 비차단 경고 (§6.3).
+WARNING_OVERVIEW_ENQUEUE_FAILED = "overview_enqueue_failed"
 REASON_DEEP_REVIEW_EXISTS = "deep_review_exists"
 #: active profile/policy 설정이 없거나 §6.5 조건이 맞지 않는다. 생성 경로가
 #: 내는 code와 같은 값이라 화면이 두 경로를 같은 이름으로 설명한다.
@@ -113,6 +115,10 @@ class AutoPreparationOutcome:
     created: bool = False
     confirmed: bool = False
     reason: str | None = None
+    #: 준비 자체는 끝났지만 파생 작업이 실패했다는 비차단 표시. 지금은 개요
+    #: enqueue 실패(`overview_enqueue_failed`) 한 가지뿐이며 확정을 되돌리지
+    #: 않는다.
+    warnings: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -302,9 +308,11 @@ def _prepare_one(
         # commit 뒤에 자동 시작을 부르는 것과 같은 이유다 — 이 함수가 끝나며
         # 작업 session이 닫힐 때 자동 시작이 만든 것까지 되돌아가면 안 된다.
         session.commit()
+        warnings = _enqueue_overview(session, notice_id)
         maybe_auto_start_deep_review(session, notice_id, service=deep_review_service)
         return AutoPreparationOutcome(
-            notice_id=notice_id, bundle_id=confirmed.id, reason=REASON_BUNDLE_UNCHANGED
+            notice_id=notice_id, bundle_id=confirmed.id, reason=REASON_BUNDLE_UNCHANGED,
+            warnings=warnings,
         )
 
     latest = bundles[0] if bundles else None
@@ -375,16 +383,37 @@ def _prepare_one(
         )
     )
     session.commit()
-    # 묶음이 방금 `ready`가 됐다. 개요가 이미 완료돼 있으면 여기서 심층 검토가
-    # 시작된다 (명세 §6.4). 실패는 안전한 사유 코드로만 남고 위의 확정을
-    # 되돌리지 않는다.
+    # 묶음이 방금 `ready`가 됐다. 개요 run을 넣고, 개요가 이미 완료돼 있으면
+    # 여기서 심층 검토가 시작된다 (명세 §6.3·§6.4). 실패는 안전한 코드로만
+    # 남고 위의 확정을 되돌리지 않는다.
+    warnings = _enqueue_overview(session, notice_id)
     maybe_auto_start_deep_review(session, notice_id, service=deep_review_service)
     return AutoPreparationOutcome(
-        notice_id=notice_id, bundle_id=view.id, created=created, confirmed=True
+        notice_id=notice_id, bundle_id=view.id, created=created, confirmed=True,
+        warnings=warnings,
     )
 
 
 # --- SW사업대상=Y 자동 심층 검토 시작 (명세 §6.4) ----------------------------
+
+
+def _enqueue_overview(session: Session, notice_id: int) -> tuple[str, ...]:
+    """묶음이 `ready`가 된 자리에서 개요 run을 넣는다 (§6.3).
+
+    플래그가 꺼져 있거나 조건이 안 맞으면 ``None``이 돌아오며 그것은 실패가
+    아니다. 실패는 안전한 경고 코드 하나로만 남고 방금 끝난 확정을 되돌리지
+    않는다 — 자동 준비는 개요보다 앞선 단계이기 때문이다.
+    """
+
+    from .overview_runs import enqueue_overview_run
+
+    try:
+        enqueue_overview_run(session, notice_id)
+        session.commit()
+    except Exception:
+        session.rollback()
+        return (WARNING_OVERVIEW_ENQUEUE_FAILED,)
+    return ()
 
 
 def _sw_business_object(flags: Any) -> bool:
@@ -974,6 +1003,7 @@ __all__ = [
     "AutoDeepReviewOutcome",
     "AutoPreparationOutcome",
     "TERMINAL_FETCH_STATUSES",
+    "WARNING_OVERVIEW_ENQUEUE_FAILED",
     "auto_preparation_fields",
     "auto_start_reason",
     "document_fingerprint",

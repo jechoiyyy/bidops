@@ -67,17 +67,16 @@ BIDOPS_TEST_MODE=1 .venv/bin/python -m app.deep_review.cli run-prespec-e2e \
 
 **`$WS/evidence.json`을 열어 두 건이 갈렸는지 본다.** 이것이 이 단계의 핵심이다.
 
-> **P1 임시 표기**: 개요 실행기(analysis worker 개요 slot)는 2026-09-11 개요 스택
-> 재작성 뒤 P2에서 복원 중이다. P2 복원 전까지는 개요 run이 자동으로 만들어지지 않으므로
-> `pre-1`·`pre-5` **두 건 모두** `bundle_ready`에 머문다(개요 run이 없으면 `bundle_ready`이며 결정 대기로
-> 세지 않는다). 아래 표는 개요 실행기 복원 뒤의 목표 동작이다.
-
 | | `pre-1` (SW=Y) | `pre-5` (SW=N) |
 |---|---|---|
 | 자동 준비 상태 | `deep_review_started` | `deep_review_ready_for_click` |
 | 사유 코드 | 없음 | `not_sw_business` |
 | 개요 검토 | `completed` | `completed` |
 | 심층 검토 | `completed`, 시스템이 시작 | **없음** — 사람이 눌러야 한다 |
+
+이 격리 실행에는 승인된 회사 핏 측정이 없으므로 `pre-1`의 심층 검토는 **사람이 누르는 생성
+경로**로 만든다. 자동 시작 게이트를 약화시키지 않고 흐름이 끝까지 이어지는지만 확인하는 것이며,
+`auto_started_notice_keys`는 "심층 검토까지 간 건"을 뜻한다.
 
 `pre-5`에 심층 검토가 없는 것이 **정상**이다. SW사업대상이 아닌 건은 개요까지만 자동으로
 가고 그 다음은 사람 판단이라는 규칙이 그대로 동작한 것이다.

@@ -133,11 +133,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.output is None:
             raise PreSpecE2EError("invalid_output", "변경을 만드는 실행에는 --output이 필요하다")
         evidence = _run(args)
-        started = [
-            notice["notice_key"]
-            for notice in evidence["notices"]
-            if notice.get("deep_review") and notice["deep_review"].get("created_by_actor_kind") == "system"
-        ]
+        # 심층 검토까지 간 건. 이 격리 실행에는 승인된 회사 핏 측정이 없어
+        # 생성은 사람 경로를 지나므로 "시스템이 만든 것"으로 세지 않는다.
+        started = list(evidence.get("auto_started_notice_keys") or [])
         waiting = [
             notice["notice_key"]
             for notice in evidence["notices"]
@@ -145,7 +143,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         ]
         print(json.dumps(
             {
-                "passed": True,
+                "passed": bool(evidence.get("passed")),
                 "workflow": evidence["workflow"],
                 "evidence_file": str(args.output.resolve()),
                 "notices": len(evidence["notices"]),

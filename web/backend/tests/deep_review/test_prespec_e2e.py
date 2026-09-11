@@ -3,9 +3,6 @@
 저장소만으로 도는 검사다. vLLM·Ollama·나라장터 주소를 부르지 않고, 첨부는
 fixture bytes이며 회사 원문·실제 공고는 들어 있지 않다.
 
-**P2에서 개요 run 단계 복원.** 개요 실행 스택이 철거된 동안 이 흐름은 묶음
-`ready`까지만 가고, 개요·심층 검토 증거 자리는 `null`이다.
-
 **선별 모듈을 import하지 않는다.** 판정 적재는 lifecycle 확장점의 몫이므로
 이 검사는 CLI에 확장점 제공자 이름을 문자열로 넘기고, deep_review 폴더의
 경계 규칙(§4)을 그대로 지킨다.
@@ -95,7 +92,7 @@ def test_dry_run_prints_the_bounded_plan_without_touching_the_workspace(
     assert plan["schema"] == "bidops.prespec-e2e-plan.v1"
     assert plan["workflow"] == "prespec-mock-reference"
     assert plan["notice_count"] == 2
-    assert plan["attachment_count"] == 5
+    assert plan["attachment_count"] == 6
     assert plan["unsupported_attachment_count"] == 2
     # dry-run은 아무것도 만들지 않는다.
     assert list(workspace.iterdir()) == []
@@ -147,7 +144,7 @@ def test_the_run_ingests_the_round_and_records_the_mock_judgments(evidence: dict
 def test_every_notice_reaches_a_confirmed_bundle_that_excludes_the_zip(evidence: dict) -> None:
     """형식 밖 첨부는 비차단 issue로만 남고 확정을 막지 않는다 (명세 §5·§6.2)."""
 
-    assert evidence["attachments"]["completed"] == 3
+    assert evidence["attachments"]["completed"] == 4
     assert evidence["attachments"]["unsupported_excluded"] == 2
     for notice in evidence["notices"]:
         bundle = notice["bundle"]
@@ -157,31 +154,38 @@ def test_every_notice_reaches_a_confirmed_bundle_that_excludes_the_zip(evidence:
         assert bundle["issue_codes"] == ["unsupported_attachment_excluded"]
 
 
-def test_no_overview_or_deep_review_runs_while_the_stack_is_torn_down(evidence: dict) -> None:
-    """개요 run 단계가 없으므로 증거의 그 자리는 `null`이다 (P2에서 복원).
+def test_every_notice_gets_one_completed_overview_run(evidence: dict) -> None:
+    """개요 슬롯이 mock transport로 두 건을 모두 `completed`로 닫는다.
 
-    실행하지 않은 것을 완료·0건 통과로 적지 않는다.
+    fixture 제안요청서에는 절 제목이 없으므로 범위는 fallback이고, 그 사실이
+    사유 코드로 남는다 — 추측으로 자른 것이 아니다.
     """
 
     for notice in evidence["notices"]:
-        assert notice["overview"] is None
-        assert notice["deep_review"] is None
-    assert evidence["auto_started_notice_keys"] == []
+        overview = notice["overview"]
+        assert overview["status"] == "completed"
+        assert overview["range_source"] == "fallback"
+        assert overview["range_reason_codes"][-1] == "range_fallback_head"
+        # 초안 1회 + 의미 검토 1회. 재생성은 일어나지 않았다.
+        assert overview["call_count"] == 2
+    assert evidence["auto_started_notice_keys"] == ["pre-1"]
 
 
-def test_every_confirmed_bundle_stops_at_bundle_ready(evidence: dict) -> None:
-    """개요 run이 없으므로 두 공고 모두 `bundle_ready`에 머문다.
+def test_sw_business_splits_automatic_start_from_the_human_click(evidence: dict) -> None:
+    """SW=Y는 심층 검토까지, SW=N은 사람 클릭 자리에서 멈춘다.
 
-    사람 클릭 자리(`deep_review_ready_for_click`)는 개요가 종결돼야 열린다.
-    없는 개요를 종결로 승격시키지 않는다는 것이 이 검사의 요점이다.
+    `not_sw_business`는 결함이 아니라 규칙이 그대로 동작한 결과다.
     """
 
-    assert sorted(evidence["bundle_ready_notice_keys"]) == ["pre-1", "pre-5"]
-    assert evidence["awaiting_click_notice_keys"] == []
-    for notice in evidence["notices"]:
-        assert notice["effective_grade"] == "우선 검토"
-        assert notice["auto_preparation_status"] == "bundle_ready"
-        assert notice["auto_preparation_reason"] is None
+    assert evidence["bundle_ready_notice_keys"] == []
+    assert evidence["awaiting_click_notice_keys"] == ["pre-5"]
+    by_key = {notice["notice_key"]: notice for notice in evidence["notices"]}
+    assert all(notice["effective_grade"] == "우선 검토" for notice in by_key.values())
+    assert by_key["pre-1"]["auto_preparation_status"] == "deep_review_started"
+    assert by_key["pre-1"]["auto_preparation_reason"] is None
+    assert by_key["pre-5"]["auto_preparation_status"] == "deep_review_ready_for_click"
+    assert by_key["pre-5"]["auto_preparation_reason"] == "not_sw_business"
+    assert by_key["pre-5"]["deep_review"] is None
 
 
 def test_the_evidence_carries_no_source_text_prompt_or_storage_location(

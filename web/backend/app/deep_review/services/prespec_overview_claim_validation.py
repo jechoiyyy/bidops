@@ -24,6 +24,31 @@ from ..schemas.prespec_overview_claims import (
 from .prespec_overview_claim_policy import FORMAT_RETRY_CODES, LIMITS, canonical_json, canonical_sha256
 
 
+#: 인용 자체는 성립하지만 대조가 어긋난 관찰. 사람이 원문과 함께 확인할
+#: 값이며 결정적 검사를 실패로 만들지 않는다 (MVP 계약, 2026-09-11). 인용
+#: 대응·페이지 범위·필수 섹션·중복 id·analysis 참조만 실패로 남는다.
+WARNING_REASON_CODES = frozenset({
+    "quantity_mismatch",
+    "quantity_metadata_mismatch",
+    "quantity_relation_ambiguous",
+    "quantity_unit_missing",
+    "date_mismatch",
+    "requirement_id_mismatch",
+    "latin_term_mismatch",
+    "analysis_premise_unverified",
+    "unknown_reason_mismatch",
+})
+
+
+def _split_reasons(codes: set[str]) -> tuple[list[str], list[str]]:
+    """실패 코드와 경고 코드를 나눈다. 순서는 결정적이다."""
+
+    return (
+        sorted(code for code in codes if code not in WARNING_REASON_CODES),
+        sorted(code for code in codes if code in WARNING_REASON_CODES),
+    )
+
+
 class ClaimDraftError(ValueError):
     """Safe parser classification; never embeds the model's text in errors."""
 
@@ -292,7 +317,9 @@ def validate_claims_deterministically(
     draft = parse_claims_draft(draft)
     global_errors: set[str] = set()
     if not pages or len(pages) > LIMITS["max_pages"] or sum(len(t) for t in pages.values()) > LIMITS["max_page_text_chars"]:
-        global_errors.add("input_limit_exceeded")
+        # 동결 입력이 상한을 넘은 것은 주장의 문제가 아니라 실행 자체가 성립하지
+        # 않는다는 뜻이다. 검사 결과로 접지 않고 올려서 run을 닫게 한다.
+        raise ValueError("input_limit_exceeded")
     if not all(any(c.section == section for c in draft.claims) for section in FACT_SECTIONS[:2]):
         global_errors.add("required_fact_missing")
     ids = [item.id for item in [*draft.claims, *draft.analysis, *draft.unknowns]]
@@ -338,10 +365,12 @@ def validate_claims_deterministically(
             errors.update(selected_errors)
             if _metadata_key(quantity) not in {q.key() for q in selected}:
                 errors.add("quantity_metadata_mismatch")
+        failures, warnings = _split_reasons(errors)
         checks.append(ClaimCheck(
             claim_id=claim.id, section=claim.section, text=claim.text,
-            deterministic=DeterministicCheck(status="failed" if errors else "passed", reason_codes=sorted(errors), verified_evidence=verified),
+            deterministic=DeterministicCheck(status="failed" if failures else "passed", reason_codes=failures, verified_evidence=verified),
             semantic=SemanticCheck(status="not_run", reason_codes=[]),
+            warnings=warnings,
         ))
     by_id = {claim.id: claim for claim in draft.claims}
     analysis_checks = []
@@ -363,25 +392,36 @@ def validate_claims_deterministically(
                 global_errors.add("analysis_premise_unverified")
                 if not reasons:
                     reasons.append("analysis_premise_unverified")
-        analysis_checks.append(AnalysisCheck(analysis_id=analysis.id, status="not_run", reason_codes=reasons))
+        analysis_checks.append(AnalysisCheck(analysis_id=analysis.id, status="not_run", reason_codes=[], warnings=sorted(set(reasons))))
     unknown_checks = []
     for unknown in draft.unknowns:
-        reasons = []
+        reasons: list[str] = []
+        warnings: list[str] = []
         company = unknown.topic == "company_comparison"
         not_performed = unknown.reason_code == "company_comparison_not_performed"
         if company != not_performed:
             global_errors.add("unknown_reason_mismatch")
-            reasons.append("company_comparison_scope_mismatch")
+            warnings.append("unknown_reason_mismatch")
         elif company and company_comparison_performed:
             global_errors.add("company_comparison_scope_mismatch")
             reasons.append("company_comparison_scope_mismatch")
-        unknown_checks.append(UnknownCheck(unknown_id=unknown.id, status="not_run", reason_codes=reasons))
+        unknown_checks.append(UnknownCheck(
+            unknown_id=unknown.id, status="not_run", reason_codes=reasons, warnings=warnings,
+        ))
+    global_failures, global_warnings = _split_reasons(global_errors)
     return OverviewClaimChecks(
         schema_version=CHECKS_SCHEMA, attempt_id=attempt_id, draft_sha256=canonical_sha256(draft),
         input_sha256=input_sha256, policy_digest=policy_digest, binding_digest=binding_digest,
         validator_version=VALIDATOR_VERSION, checks=checks, analysis_checks=analysis_checks,
         unknown_checks=unknown_checks, analysis=draft.analysis, unknowns=draft.unknowns,
-        reason_codes=sorted(global_errors), overall="needs_human_review",
+        reason_codes=global_failures,
+        warnings=sorted({
+            *global_warnings,
+            *(code for row in checks for code in row.warnings),
+            *(code for row in analysis_checks for code in row.warnings),
+            *(code for row in unknown_checks for code in row.warnings),
+        }),
+        overall="needs_human_review",
     )
 
 
@@ -426,8 +466,18 @@ def apply_semantic_review(
     for row in result["checks"]:
         semantic = semantic_by_id[row["claim_id"]]
         row["semantic"] = {"status": semantic.status, "reason_codes": semantic.reason_codes}
-    result["analysis_checks"] = [row.model_dump() for row in parsed.analysis_checks]
-    result["unknown_checks"] = [row.model_dump() for row in parsed.unknown_checks]
+    # 경고는 서버가 결정적으로 만든 값이다. 모델 판정으로 행을 갈아 끼우면서
+    # 잃어버리지 않게 id로 다시 붙인다.
+    analysis_warnings = {row.analysis_id: list(row.warnings) for row in checks.analysis_checks}
+    unknown_warnings = {row.unknown_id: list(row.warnings) for row in checks.unknown_checks}
+    result["analysis_checks"] = [
+        {**row.model_dump(), "warnings": analysis_warnings.get(row.analysis_id, [])}
+        for row in parsed.analysis_checks
+    ]
+    result["unknown_checks"] = [
+        {**row.model_dump(), "warnings": unknown_warnings.get(row.unknown_id, [])}
+        for row in parsed.unknown_checks
+    ]
     all_passed = all(c.status == "supported" for c in [*parsed.checks, *parsed.analysis_checks, *parsed.unknown_checks])
     result["overall"] = "passed" if all_passed else "needs_human_review"
     return OverviewClaimChecks.model_validate(result)

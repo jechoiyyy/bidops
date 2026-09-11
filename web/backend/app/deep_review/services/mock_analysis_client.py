@@ -229,19 +229,22 @@ class MockAnalysisClient:
 
 
 class MockOverviewTransport:
-    """사전규격 개요 판정의 결정적 transport (명세 §6.3).
+    """사전규격 개요 두 단계(draft·semantic)의 결정적 transport (명세 §6.3).
 
     `ModelClient`의 주입 seam(`completion_create`·`models_list`)만 채운다.
     C-1 판정의 mock transport(ADR-0029)와 같은 자리이며 **네트워크를 열지
-    않는다.** 모델 client·prompt 조립·검증·저장 경로는 실제 실행과 같고, 이
-    class는 그 경계 바깥에서 OpenAI 호환 응답 한 벌을 만들 뿐이다.
+    않는다.** 프롬프트 조립·결정적 검증·의미 검토·저장 경로는 실제 실행과 같고,
+    이 class는 그 경계 바깥에서 OpenAI 호환 응답 한 벌을 만들 뿐이다.
 
-    응답의 근거 locator는 프롬프트가 실은 block 중 **첫 block**을 가리킨다.
-    문장을 지어내 원문에 없는 위치를 만들지 않는다는 뜻이며, 그래서 결정적
-    검증이 실제 실행과 같은 규칙으로 통과하거나 실패한다.
+    주장의 본문은 **동결 입력 쪽의 한 줄을 그대로** 쓴다. 문장을 지어내 원문에
+    없는 인용을 만들지 않는다는 뜻이며, 그래서 결정적 검증이 실제 실행과 같은
+    규칙으로 통과하거나 실패한다.
     """
 
     provider_name = "mock-overview"
+    #: 주장 하나를 만들 수 있는 줄의 최소 길이. 너무 짧은 줄은 다른 쪽에서도
+    #: 나타나 인용이 모호해질 수 있다.
+    MIN_QUOTE_CHARS = 8
 
     def __init__(self, model: str) -> None:
         self.model = model
@@ -252,38 +255,102 @@ class MockOverviewTransport:
 
         return {"data": [{"id": self.model}]}
 
-    def completion_create(self, **request: Any) -> dict[str, Any]:
-        self.calls += 1
-        messages = request.get("messages") or []
-        prompt = messages[-1].get("content") if messages else None
-        if not isinstance(prompt, str):
-            raise ValueError("mock overview request has no prompt")
-        try:
-            blocks = json.loads(prompt)["input_slice"]["blocks"]
-        except (TypeError, KeyError, ValueError) as error:
-            raise ValueError("mock overview prompt does not carry an input slice") from error
+    @staticmethod
+    def _unique_lines(blocks: Sequence[Mapping[str, Any]]) -> list[tuple[int, str]]:
+        """쪽 안에서 **정확히 한 번** 나타나는 줄만 인용 후보로 남긴다."""
+
+        seen: dict[str, int] = {}
+        candidates: list[tuple[int, str]] = []
+        for block in blocks:
+            page = block.get("pdf_page")
+            text = block.get("text")
+            if not isinstance(page, int) or not isinstance(text, str):
+                continue
+            counts: dict[str, int] = {}
+            for line in text.splitlines():
+                stripped = line.strip()
+                if len(stripped) >= MockOverviewTransport.MIN_QUOTE_CHARS:
+                    counts[stripped] = counts.get(stripped, 0) + 1
+            for line, count in counts.items():
+                if count != 1 or line in seen:
+                    continue
+                seen[line] = page
+                candidates.append((page, line))
+        return candidates
+
+    def _draft(self, input_slice: Mapping[str, Any]) -> dict[str, Any]:
+        blocks = input_slice.get("blocks")
         if not isinstance(blocks, list) or not blocks:
             raise ValueError("mock overview prompt carries no block")
-        first = blocks[0]
-        output = {
-            "schema_version": "bidops.prespec-overview-result.v1",
-            "recommendation": "추진 검토",
-            "summary": "모의 개요 결과이며 실제 사업 판단이나 승인 근거가 아닙니다.",
-            "conditions": [],
-            "verification_due_at": None,
-            "unknowns": [],
-            "evidence": [
-                {
-                    "claim": "모의 개요 근거 자리표시자이며 실제 원문 판단이 아닙니다.",
-                    "locator": {
-                        "block_key": first.get("block_key"),
-                        "page": first.get("page"),
-                        "ordinal": first.get("ordinal"),
-                    },
-                }
-            ],
-            "input_limitations": ["모의 실행이며 사업개요 범위만 확인했습니다."],
+        candidates = self._unique_lines(blocks)
+        if len(candidates) < 2:
+            raise ValueError("mock overview input has no two unique quotes")
+        sections = ("business_overview", "main_tasks", "budget_and_period", "important_conditions")
+        claims = []
+        for index, (page, line) in enumerate(candidates[:len(sections)]):
+            claims.append({
+                "id": f"c{index + 1}",
+                "section": sections[index],
+                "text": line,
+                "evidence": [{"page": page, "quote": line}],
+                "quantities": [],
+            })
+        return {
+            "schema_version": "bidops.prespec-overview-claims.v1",
+            "claims": claims,
+            "analysis": [{
+                "id": "a1",
+                "text": "검토한 입력 범위의 사실만 옮긴 모의 분석이며 실제 사업 판단이 아닙니다.",
+                "supporting_claim_ids": [claim["id"] for claim in claims],
+            }],
+            "unknowns": [{
+                "id": "u1",
+                "topic": "company_comparison",
+                "reason_code": "company_comparison_not_performed",
+            }],
         }
+
+    @staticmethod
+    def _semantic(input_slice: Mapping[str, Any]) -> dict[str, Any]:
+        draft = input_slice.get("draft")
+        if not isinstance(draft, Mapping):
+            raise ValueError("mock overview semantic prompt carries no draft")
+        supported = {"status": "supported", "reason_codes": []}
+        return {
+            "schema_version": "bidops.prespec-overview-semantic.v1",
+            "checks": [
+                {"claim_id": row["id"], **supported} for row in draft.get("claims", [])
+            ],
+            "analysis_checks": [
+                {"analysis_id": row["id"], **supported} for row in draft.get("analysis", [])
+            ],
+            "unknown_checks": [
+                {"unknown_id": row["id"], **supported} for row in draft.get("unknowns", [])
+            ],
+        }
+
+    def completion_create(self, **request: Any) -> dict[str, Any]:
+        self.calls += 1
+        # 보정 지시는 프롬프트 **뒤에** 붙는 별도 user 메시지다. 마지막 메시지만
+        # 보면 재생성 호출에서 입력을 잃으므로 뒤에서부터 JSON 프롬프트를 찾는다.
+        input_slice: Any = None
+        for message in reversed(request.get("messages") or []):
+            content = message.get("content") if isinstance(message, Mapping) else None
+            if not isinstance(content, str):
+                continue
+            try:
+                candidate = json.loads(content)
+            except ValueError:
+                continue
+            if isinstance(candidate, Mapping) and isinstance(candidate.get("input_slice"), Mapping):
+                input_slice = candidate["input_slice"]
+                break
+        if input_slice is None:
+            raise ValueError("mock overview prompt does not carry an input slice")
+        output = (
+            self._semantic(input_slice) if input_slice.get("draft") is not None
+            else self._draft(input_slice)
+        )
         return {
             "model": request.get("model", self.model),
             "choices": [
