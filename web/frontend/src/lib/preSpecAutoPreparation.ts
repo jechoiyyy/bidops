@@ -46,7 +46,9 @@ const REASON_LABEL: Record<string, string> = {
   processing_failed: "처리가 실패했습니다.",
   not_sw_business: "SW사업대상이 아닙니다.",
   bundle_not_auto_ready: "자동 확정 조건을 채우지 못한 묶음입니다.",
-  overview_not_completed: "개요 검토가 아직 끝나지 않았습니다.",
+  // 새 계약(prespec_overview_run)에서 이 사유는 "최신 개요 run이 completed가
+  // 아니다"라는 뜻이다. 실패·취소·사람 확인 필요도 모두 여기로 온다.
+  overview_not_completed: "개요 run이 completed가 아닙니다.",
   service_unavailable: "필요한 버전이나 서비스를 확인할 수 없습니다.",
   attachments_failed: "첨부 원문 취득이 모두 차단·실패로 끝났습니다.",
   deep_review_exists: "심층 검토가 이미 있습니다.",

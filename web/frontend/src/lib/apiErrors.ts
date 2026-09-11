@@ -116,6 +116,21 @@ const KNOWN_CODE_DESCRIPTION: Record<string, CodeDescription> = {
     detail: "서버가 등급 조건으로 막았습니다. 등급과 대상 조건을 확인하십시오.",
     action: null,
   },
+  run_active: {
+    title: "이미 진행 중인 개요 검토가 있습니다.",
+    detail: "지금 실행이 끝난 뒤에 새 범위로 다시 검토할 수 있습니다. 최신 상태를 다시 불러와 확인하십시오.",
+    action: "reload",
+  },
+  document_not_current_safe: {
+    title: "개요를 읽을 문서가 현재 버전이 아니거나 안전 검사를 통과하지 않았습니다.",
+    detail: "문서 준비에서 묶음의 제안요청서 상태를 확인한 뒤 다시 시도하십시오.",
+    action: null,
+  },
+  range_invalid: {
+    title: "쪽 범위가 올바르지 않습니다.",
+    detail: "시작 쪽은 1 이상이고 끝 쪽보다 클 수 없으며 문서의 쪽 수와 정책 상한을 넘을 수 없습니다. 범위를 고쳐 다시 보내십시오.",
+    action: null,
+  },
   actor_name_required: {
     title: "담당자 이름이 필요합니다.",
     detail: "담당자 이름을 입력한 뒤 다시 저장하십시오. 이름은 감사 표식이며 인증이 아닙니다.",

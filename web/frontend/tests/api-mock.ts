@@ -6,7 +6,7 @@ import type {
   BidDeltaDecisionQueueItem, OpportunityListItem, OpportunitySectionCounts,
   OpportunityTrackingDecisionItem, OpportunityTrackingStatus, OrderPlanListItem,
   OrderPlanListScope, OrderPlanScreeningExecutionSummary, OrderPlanScreeningErrorCode,
-  OrderPlanTracking, PreSpecListItem, WorkloadKey, WorkloadResponse,
+  OrderPlanTracking, OverviewEnvelope, OverviewRun, PreSpecListItem, WorkloadKey, WorkloadResponse,
 } from "../src/lib/types";
 import { clickReadyUnlinkedPreSpec, decisionQueueItems, opportunityDeepReviews, opportunityTrackingHistory } from "./fixtures/lifecycle-v2";
 
@@ -1019,6 +1019,173 @@ function overviewStatusCounts(items: readonly { overview_review_status: string |
   }));
 }
 
+// ── 사전규격 개요 검토(`bidops.prespec-overview.v1`) ────────────────────────
+// 백엔드는 아직 없다(P2 병행). 화면이 읽는 것은 계약 정본(docs/contracts.md
+// "사전규격 개요 검토 (MVP, 2026-09-11)")의 run envelope 하나뿐이므로 상태별
+// fixture를 여기서 만든다.
+
+export type OverviewMockScenario = "completed" | "needs_human_review" | "fallback_queued" | "absent";
+
+export interface OverviewMockTrace {
+  rangePosts: Array<{ body: unknown; headers: Record<string, string> }>;
+}
+
+const OVERVIEW_SCHEMA = "bidops.prespec-overview.v1";
+
+function overviewRun(overrides: Partial<OverviewRun> & Pick<OverviewRun, "id" | "status">): OverviewRun {
+  return {
+    range_source: "auto",
+    page_start: 3,
+    page_end: 11,
+    range_reason_codes: ["heading_scope"],
+    reason_codes: [],
+    warnings: [],
+    result: null,
+    failed_claims: [],
+    model_name: "qwen3.8-27B",
+    model_revision: "e".repeat(64),
+    call_count: 2,
+    actor_name: null,
+    created_at: "2026-09-05T02:00:00Z",
+    started_at: "2026-09-05T02:00:05Z",
+    completed_at: "2026-09-05T02:04:00Z",
+    ...overrides,
+  };
+}
+
+const overviewCompletedRun = overviewRun({
+  id: "b1a7f0c2-1111-4a11-9c11-000000000001",
+  status: "completed",
+  warnings: ["quantity_metadata_mismatch", "date_mismatch"],
+  result: {
+    business_overview: [{
+      claim_id: "c1",
+      text: "차세대 통합 데이터 플랫폼을 구축하는 사업이다.",
+      evidence: [{ page: 3, quote: "차세대 통합 데이터 플랫폼 구축" }],
+    }],
+    main_tasks: [{
+      claim_id: "c2",
+      text: "기존 데이터를 신규 플랫폼으로 이관하고 검증한다.",
+      evidence: [{ page: 5, quote: "데이터 이관 및 검증" }, { page: 6, quote: "이관 결과 검증" }],
+    }],
+    budget_and_period: [{
+      claim_id: "c3",
+      text: "사업 예산은 510,000,000원(VAT 포함)이고 수행기간은 10개월이다.",
+      evidence: [{ page: 4, quote: "사업예산 510,000,000원(VAT 포함)" }],
+    }],
+    important_conditions: [{
+      claim_id: "c4",
+      text: "상주 인력 2명을 사업 기간 동안 배치해야 한다.",
+      evidence: [{ page: 9, quote: "상주 인력 2명 배치" }],
+    }],
+    reviewer_analysis: [{
+      id: "a1",
+      text: "데이터 이관 실적과 상주 대응 여력을 먼저 확인해야 한다.",
+      supporting_claim_ids: ["c2", "c4"],
+    }],
+    unknowns: ["평가 배점표가 읽은 범위에 없어 확인하지 못했다."],
+    input_limitations: ["3~11쪽의 본문 텍스트만 읽었다."],
+  },
+});
+
+const overviewNeedsHumanReviewRun = overviewRun({
+  id: "b1a7f0c2-2222-4a22-9c22-000000000002",
+  status: "needs_human_review",
+  reason_codes: ["quote_not_found"],
+  failed_claims: [{
+    claim_id: "c7",
+    section: "budget_and_period",
+    text: "사업 예산은 700,000,000원이다.",
+    reason_codes: ["quote_not_found", "quantity_mismatch"],
+    evidence: [{ page: 4, quote: "사업예산 510,000,000원(VAT 포함)" }],
+  }],
+});
+
+const overviewFallbackQueuedRun = overviewRun({
+  id: "b1a7f0c2-3333-4a33-9c33-000000000003",
+  status: "queued",
+  range_source: "fallback",
+  page_start: 1,
+  page_end: 60,
+  range_reason_codes: ["range_fallback_head", "scope_heading_missing"],
+  call_count: 0,
+  started_at: null,
+  completed_at: null,
+});
+
+function overviewEnvelope(noticeId: number, current: OverviewRun | null, history: OverviewRun[] = []): OverviewEnvelope {
+  return { schema: OVERVIEW_SCHEMA, notice_id: noticeId, current, history };
+}
+
+function overviewScenarioEnvelope(noticeId: number, scenario: OverviewMockScenario): OverviewEnvelope {
+  if (scenario === "absent") return overviewEnvelope(noticeId, null);
+  if (scenario === "needs_human_review") {
+    return overviewEnvelope(noticeId, overviewNeedsHumanReviewRun, [overviewNeedsHumanReviewRun]);
+  }
+  if (scenario === "fallback_queued") {
+    return overviewEnvelope(noticeId, overviewFallbackQueuedRun, [overviewFallbackQueuedRun]);
+  }
+  return overviewEnvelope(noticeId, overviewCompletedRun, [overviewCompletedRun]);
+}
+
+/**
+ * 개요 검토 envelope과 범위 확정 mock.
+ *
+ * 활성 run(queued/running)이 있는 시나리오에서 POST는 계약대로 409 `run_active`로
+ * 닫히고, 그 밖에는 201을 돌려준 뒤 **다음 조회부터** 담당자 범위의 새 queued run을
+ * 현재 run으로 준다 — 화면이 재조회하는지 그대로 드러난다.
+ */
+export async function mockPreSpecOverview(
+  page: Page,
+  scenario: OverviewMockScenario = "completed",
+  noticeId = 991,
+): Promise<OverviewMockTrace> {
+  const trace: OverviewMockTrace = { rangePosts: [] };
+  let envelope = overviewScenarioEnvelope(noticeId, scenario);
+
+  await page.route("**/api/pre-specs/*/overview**", async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    const match = url.pathname.match(/^\/api\/pre-specs\/(\d+)\/overview(\/range-confirmations)?$/);
+    if (!match) {
+      await route.fallback();
+      return;
+    }
+    if (!match[2] && request.method() === "GET") {
+      await fulfillJson(route, envelope);
+      return;
+    }
+    if (match[2] && request.method() === "POST") {
+      trace.rangePosts.push({ body: request.postDataJSON(), headers: request.headers() });
+      const active = envelope.current;
+      if (active && (active.status === "queued" || active.status === "running")) {
+        await fulfillJson(route, { error: { code: "run_active", message: "합성 개요 오류", details: null }, request_id: null }, 409);
+        return;
+      }
+      const body = request.postDataJSON() as { page_start?: number; page_end?: number };
+      const confirmed = overviewRun({
+        id: "b1a7f0c2-4444-4a44-9c44-000000000004",
+        status: "queued",
+        range_source: "human",
+        page_start: body.page_start ?? null,
+        page_end: body.page_end ?? null,
+        range_reason_codes: ["human_range_confirmed"],
+        actor_name: fixtureActor(request.headers()) || null,
+        call_count: 0,
+        created_at: "2026-09-06T02:00:00Z",
+        started_at: null,
+        completed_at: null,
+      });
+      envelope = overviewEnvelope(noticeId, confirmed, [confirmed, ...envelope.history]);
+      await fulfillJson(route, { run_id: confirmed.id, attempt_enqueued: true }, 201);
+      return;
+    }
+    await route.fallback();
+  });
+
+  return trace;
+}
+
 export interface DocumentStructurePageMockTrace {
   pageGets: Array<{ structureId: string; page: number }>;
 }
@@ -1384,6 +1551,9 @@ export async function mockApi(page: Page): Promise<void> {
     const pathname = new URL(route.request().url()).pathname;
     const fitMatch = pathname.match(/^\/api\/pre-specs\/(\d+)\/company-fit$/);
     if (fitMatch) { await fulfillJson(route, { schema_version: "bidops.prespec-company-fit.v1", notice_id: Number(fitMatch[1]), attempts: [], automation_enabled: false, auto_deep_review_reason: "company_fit_disabled", deep_review_id: null }); return; }
+    // 개요 run이 없는 공고가 기본값이다. 없는 것을 실패로 보이게 하지 않는다.
+    const overviewMatch = pathname.match(/^\/api\/pre-specs\/(\d+)\/overview$/);
+    if (overviewMatch) { await fulfillJson(route, overviewEnvelope(Number(overviewMatch[1]), null)); return; }
 
     if (pathname === "/api/workload") { await fulfillJson(route, workloadResponse(page)); return; }
     // deep-review 합성 응답이 먼저, 그다음 갈무리 fixture, 마지막으로 T15 시각

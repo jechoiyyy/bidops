@@ -15,6 +15,7 @@ import { SkeletonPanel } from "../components/common/Skeleton";
 import { PreSpecDocumentSummary, TrackingDecisionControl, updateTrackingProjection } from "../components/pre-specs/TrackingDecisionControl";
 import { api } from "../lib/api";
 import { PreSpecRecordIdentity } from "../components/pre-specs/PreSpecRecordIdentity";
+import { OverviewSection } from "../components/pre-specs/OverviewSection";
 import {
   CompanyFitAutomationNotice,
   CompanyFitExecutionInfo,
@@ -449,13 +450,19 @@ export function PreSpecDetailPage() {
             </Panel>
           </div>
 
+          {/* 개요 검토는 문서 준비 뒤, 회사 핏 앞이다. 준비된 문서에서 무엇을
+              읽었는지 먼저 보고 그다음 회사와 대조한다. */}
+          <div id="ps-record-overview" className="ps-record-section" tabIndex={-1}>
+            <OverviewSection noticeId={notice.id} />
+          </div>
+
           <div id="ps-record-history" className="ps-record-section ps-record-history ps-collapsed" tabIndex={-1}>
             <Collapsible key={historyIsOpen ? "history-open" : "history-closed"} trigger="처리 이력과 실행 정보" defaultIsOpen={historyIsOpen}>
               <ReviewHistoryLinkRail
                 className="detail-skeleton-rail"
                 historySections={[{
                   className: "detail-skeleton-rail-panel",
-                  content: <p className="detail-skeleton-rail-note">개요 검토 화면은 아직 재구현 전이라(P2) 처리 이력을 표시하지 않습니다.</p>,
+                  content: <p className="detail-skeleton-rail-note">개요 검토의 입력 범위와 실행 이력은 위 개요 검토 자리에서 봅니다.</p>,
                   entries: [],
                   label: "입력 범위와 실행",
                   showHeading: false,
