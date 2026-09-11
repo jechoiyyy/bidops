@@ -712,6 +712,9 @@ curl --fail "http://127.0.0.1:${BIDOPS_WEB_PORT:-18787}/api/deep-reviews/<deep_r
     4단계의 확인을 `overview`/`deep_review` 용도에 대해 다시 한다. **다른 endpoint나 hosted
     provider로 바꾸지 않는다.**
 
+사전규격 전체의 깔때기 지표(자격 후보·첨부 완료·묶음 ready·개요 run 상태·이탈 사유·심층
+자동 시작)를 한 번에 보려면: `BIDOPS_DATABASE_URL=<...> python scripts/validation/overview_funnel.py [--json] [--since YYYY-MM-DD]`
+
 ### 7단계. 화면 확인과 증거 기록
 
 화면은 데스크톱·노트북 전용이다. 확인 viewport는 laptop 1280x800과 desktop 1440x900이다.
