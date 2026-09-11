@@ -896,7 +896,7 @@ def _execute(
     if document is None:
         raise _RunFailure("failed", "runner_failed")
     if store is None:
-        store = object_store(namespaces=("source", "structure"), read_namespaces=("source", "structure"))
+        store = object_store(namespaces=("source", "structure"))
     if converter is None:
         from ...core.clamav import ClamAVScanner
         from .document_converter import ScratchDocumentProcessor
