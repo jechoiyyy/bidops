@@ -382,6 +382,8 @@ def test_the_latest_run_is_the_current_overview_even_with_older_history(context)
 
 
 def test_a_missing_run_is_not_reported_as_a_completed_overview(context):
+    """개요 run이 없으면 묶음은 `bundle_ready`에 머문다. 완료로 승격시키지 않는다."""
+
     session, inputs = context
     ready_bundle(session, inputs)
     session.delete(session.get(PrespecOverviewRun, UUID(inputs["overview_id"])))
@@ -390,8 +392,8 @@ def test_a_missing_run_is_not_reported_as_a_completed_overview(context):
     fields = auto_preparation_fields(session, [inputs["notice_id"]])[inputs["notice_id"]]
 
     assert fields["grade"] is None
-    assert fields["auto_preparation_status"] == "deep_review_ready_for_click"
-    assert fields["auto_preparation_reason"] == "overview_not_completed"
+    assert fields["auto_preparation_status"] == "bundle_ready"
+    assert fields["auto_preparation_reason"] is None
 
 
 def test_disabled_worker_performs_no_model_or_database_work(monkeypatch):

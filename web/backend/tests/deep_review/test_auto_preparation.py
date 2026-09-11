@@ -149,8 +149,8 @@ _BLOCKING = [{"code": "attachment_bytes_missing", "blocking": True}]
         ({"grade": _PRIORITY}, "waiting_attachments"),
         ({"bundles": [(1, "draft", [], AUTO_ACTOR_NAME)]}, "bundle_draft"),
         ({"bundles": [(1, "draft", _BLOCKING, AUTO_ACTOR_NAME)]}, "blocked"),
-        # 개요 run이 없으면(개요 기본 비활성) 사람 클릭 자리다.
-        ({"bundles": [(1, "ready", [], AUTO_ACTOR_NAME)]}, "deep_review_ready_for_click"),
+        # 개요 run이 아예 없으면 아직 `bundle_ready`다.
+        ({"bundles": [(1, "ready", [], AUTO_ACTOR_NAME)]}, "bundle_ready"),
         (
             {"bundles": [(1, "ready", [], AUTO_ACTOR_NAME)], "overview_status": "running"},
             "overview_running",

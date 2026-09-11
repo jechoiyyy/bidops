@@ -169,18 +169,19 @@ def test_no_overview_or_deep_review_runs_while_the_stack_is_torn_down(evidence: 
     assert evidence["auto_started_notice_keys"] == []
 
 
-def test_every_ready_bundle_waits_for_a_human_click(evidence: dict) -> None:
-    """개요가 완료되지 않았으므로 두 공고 모두 사람 클릭 자리에 남는다."""
+def test_every_confirmed_bundle_stops_at_bundle_ready(evidence: dict) -> None:
+    """개요 run이 없으므로 두 공고 모두 `bundle_ready`에 머문다.
 
-    assert sorted(evidence["awaiting_click_notice_keys"]) == ["pre-1", "pre-5"]
-    reasons = {
-        notice["notice_key"]: notice["auto_preparation_reason"]
-        for notice in evidence["notices"]
-    }
-    assert reasons == {"pre-1": "overview_not_completed", "pre-5": "not_sw_business"}
+    사람 클릭 자리(`deep_review_ready_for_click`)는 개요가 종결돼야 열린다.
+    없는 개요를 종결로 승격시키지 않는다는 것이 이 검사의 요점이다.
+    """
+
+    assert sorted(evidence["bundle_ready_notice_keys"]) == ["pre-1", "pre-5"]
+    assert evidence["awaiting_click_notice_keys"] == []
     for notice in evidence["notices"]:
         assert notice["effective_grade"] == "우선 검토"
-        assert notice["auto_preparation_status"] == "deep_review_ready_for_click"
+        assert notice["auto_preparation_status"] == "bundle_ready"
+        assert notice["auto_preparation_reason"] is None
 
 
 def test_the_evidence_carries_no_source_text_prompt_or_storage_location(
