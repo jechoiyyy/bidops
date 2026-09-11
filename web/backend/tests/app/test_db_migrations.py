@@ -702,96 +702,6 @@ def _seed_priority_grade_fetch(session: Session) -> int:
     return attachment.id
 
 
-def _seed_overview_attempt(session: Session, *, reference_only: bool):
-    """``queued`` 개요 attempt 하나와 그 검토·snapshot 계보를 만든다."""
-
-    from app.deep_review.models import (
-        PreSpecOverviewAttempt,
-        PreSpecOverviewReview,
-        PreSpecOverviewSnapshot,
-    )
-
-    notice, document, structure = _seed_prespec_document(session)
-    review = PreSpecOverviewReview(notice_id=notice.id, status="awaiting_model")
-    session.add(review)
-    session.flush()
-    snapshot = PreSpecOverviewSnapshot(
-        review_id=review.id,
-        notice_id=notice.id,
-        document_version_id=document.id,
-        structure_id=structure.id,
-        source_sha256="a" * 64,
-        payload_sha256="c" * 64,
-        cut_status="ready",
-        strategy="topic_heading",
-        start_locator={"block_key": "b1", "page": 1, "ordinal": 1},
-        end_locator={"block_key": "b2", "page": 1, "ordinal": 2},
-        input_block_keys=["b1"],
-    )
-    session.add(snapshot)
-    session.flush()
-    attempt = PreSpecOverviewAttempt(
-        review_id=review.id,
-        snapshot_id=snapshot.id,
-        sequence=1,
-        input_sha256="d" * 64,
-        status="queued",
-        reference_only=reference_only,
-        # 품질을 아직 재지 않은 실행이므로 운영 완료로는 집계하지 않는다.
-        deployable=False,
-        provider="openai-compatible",
-        model_name="qwen3.8-27B",
-        model_digest="e" * 64,
-        prompt_version="prespec-overview-v1",
-        binding_digest="f" * 64,
-    )
-    session.add(attempt)
-    session.flush()
-    session.commit()
-    return attempt.id, review.id, snapshot.id
-
-
-def _complete_overview_attempt(
-    session: Session, attempt_id, review_id, snapshot_id
-) -> None:
-    session.execute(
-        text(
-            "UPDATE bidops.prespec_overview_attempt"
-            " SET status = 'running', started_at = :when WHERE id = :id"
-        ),
-        {"id": attempt_id, "when": SEED_AT},
-    )
-    result_id = uuid4()
-    session.execute(
-        text(
-            "INSERT INTO bidops.prespec_overview_result"
-            " (id, attempt_id, review_id, snapshot_id, schema_version, payload_jsonb,"
-            "  payload_sha256, source_sha256, binding_digest, validation_status)"
-            " VALUES (:id, :attempt_id, :review_id, :snapshot_id,"
-            "  'bidops.prespec-overview-result.v1', CAST(:payload AS jsonb),"
-            "  :payload_sha256, :source_sha256, :binding_digest, 'passed')"
-        ),
-        {
-            "id": result_id,
-            "attempt_id": attempt_id,
-            "review_id": review_id,
-            "snapshot_id": snapshot_id,
-            "payload": json.dumps({"evidence": [{"block_key": "b1"}]}),
-            "payload_sha256": "9" * 64,
-            "source_sha256": "a" * 64,
-            "binding_digest": "f" * 64,
-        },
-    )
-    session.execute(
-        text(
-            "UPDATE bidops.prespec_overview_attempt"
-            " SET status = 'completed', completed_at = :when, result_id = :result_id"
-            " WHERE id = :id"
-        ),
-        {"id": attempt_id, "when": SEED_AT, "result_id": result_id},
-    )
-
-
 def test_0018_round_trips_between_the_segment_schema_and_0017() -> None:
     """빈 DB에서 0018까지 올라가고 0017로 내려갔다가 다시 올라온다."""
 
@@ -860,69 +770,6 @@ def test_attachment_fetch_accepts_priority_grade_and_rejects_an_unknown_reason()
                 {"id": attachment_id},
             )
         session.rollback()
-
-
-def test_unmeasured_overview_attempt_completes_but_a_mock_one_cannot() -> None:
-    """실제 모델의 품질 미측정 실행은 완료되고 mock 참조 실행은 막힌다 (명세 §6.3).
-
-    개요 attempt 테이블은 0026이 지웠으므로 0018 판에 고정해서 본다.
-    """
-
-    with migrated_engine(upgrade_to=SEGMENT_SCHEMA_HEAD) as engine, Session(engine) as session:
-        attempt_id, review_id, snapshot_id = _seed_overview_attempt(
-            session, reference_only=False
-        )
-        _complete_overview_attempt(session, attempt_id, review_id, snapshot_id)
-        session.commit()
-        assert _scalar(
-            engine,
-            "SELECT deployable FROM bidops.prespec_overview_attempt WHERE id = :id",
-            id=attempt_id,
-        ) is False
-        assert (
-            _scalar(
-                engine,
-                "SELECT status FROM bidops.prespec_overview_attempt WHERE id = :id",
-                id=attempt_id,
-            )
-            == "completed"
-        )
-
-        mock_ids = _seed_overview_attempt(session, reference_only=True)
-        with pytest.raises(IntegrityError):
-            _complete_overview_attempt(session, *mock_ids)
-        session.rollback()
-
-
-def test_overview_attempt_lease_columns_start_unknown_and_accept_a_worker_lease() -> None:
-    with migrated_engine(upgrade_to=SEGMENT_SCHEMA_HEAD) as engine, Session(engine) as session:
-        attempt_id, _review_id, _snapshot_id = _seed_overview_attempt(
-            session, reference_only=False
-        )
-        assert _scalar(
-            engine,
-            "SELECT lease_owner FROM bidops.prespec_overview_attempt WHERE id = :id",
-            id=attempt_id,
-        ) is None
-        session.execute(
-            text(
-                "UPDATE bidops.prespec_overview_attempt"
-                " SET status = 'running', started_at = :when,"
-                "     lease_owner = 'analysis-worker-1', lease_expires_at = :expires"
-                " WHERE id = :id"
-            ),
-            {"id": attempt_id, "when": SEED_AT, "expires": SEED_AT},
-        )
-        session.commit()
-        assert (
-            _scalar(
-                engine,
-                "SELECT lease_owner FROM bidops.prespec_overview_attempt"
-                " WHERE id = :id",
-                id=attempt_id,
-            )
-            == "analysis-worker-1"
-        )
 
 
 def test_document_segment_rows_cascade_from_their_document_structure() -> None:
@@ -1103,31 +950,6 @@ def test_0018_downgrade_refuses_to_discard_priority_grade_or_segment_rows() -> N
             assert (
                 _scalar(engine, "SELECT version_num FROM bidops.alembic_version")
                 == SEGMENT_SCHEMA_HEAD
-            )
-        finally:
-            engine.dispose()
-
-
-def test_0018_downgrade_refuses_to_discard_an_unmeasured_completed_attempt() -> None:
-    with temporary_database(upgrade_to=SEGMENT_SCHEMA_HEAD) as database_url:
-        from sqlalchemy import create_engine
-
-        from app.core.db import schema_bound
-
-        engine = schema_bound(create_engine(database_url, future=True))
-        try:
-            with Session(engine) as session:
-                attempt_id, review_id, snapshot_id = _seed_overview_attempt(
-                    session, reference_only=False
-                )
-                _complete_overview_attempt(session, attempt_id, review_id, snapshot_id)
-                session.commit()
-
-            result = run_alembic(database_url, "downgrade", SEGMENT_SCHEMA_BASE)
-            assert result.returncode != 0
-            assert "deployable=false" in (result.stdout + result.stderr)
-            assert {"lease_owner", "lease_expires_at"} <= _columns(
-                engine, "prespec_overview_attempt"
             )
         finally:
             engine.dispose()

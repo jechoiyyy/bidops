@@ -337,60 +337,6 @@ def test_backup_reads_existing_and_future_sequences_without_mutation() -> None:
 
 
 @requires_postgres
-def test_claim_ledger_effective_roles_and_app_stop() -> None:
-    from sqlalchemy.exc import DBAPIError
-    from tests.deep_review.test_overview_claim_ledger_postgres import (
-        _dispatch, _finish, _response, _seed_attempt, _start, _verification,
-    )
-
-    _ensure_roles()
-    with temporary_database() as database_url:
-        engine = schema_bound(_apply_policy(database_url))
-        try:
-            attempt = _seed_attempt(engine)
-            # App may pin/enqueue but cannot claim, rewrite an activation, or
-            # gain machine-record INSERT through a table-wide grant.
-            for statement in (
-                "UPDATE bidops.prespec_v4_attempt SET status='failed',completed_at=now() WHERE id=:id",
-                "UPDATE bidops.prespec_v4_attempt SET activation_id=NULL WHERE id=:id",
-                "INSERT INTO bidops.prespec_overview_call_event DEFAULT VALUES",
-                "INSERT INTO bidops.prespec_overview_verification DEFAULT VALUES",
-            ):
-                with pytest.raises(DBAPIError), engine.begin() as conn:
-                    conn.execute(text("SET LOCAL ROLE app"))
-                    conn.execute(text(statement), {"id": attempt})
-            _start(engine, attempt)
-            with Session(engine) as session, session.begin():
-                session.execute(text("SET LOCAL ROLE worker"))
-                call = _dispatch(session, attempt)
-            with engine.begin() as conn:
-                conn.execute(text("SET LOCAL ROLE app"))
-                conn.execute(text("UPDATE bidops.prespec_v4_attempt SET status='cancelled',completed_at=now(),error_code='v4_disabled',lease_owner=NULL,lease_expires_at=NULL WHERE id=:id"), {"id": attempt})
-                conn.execute(text("UPDATE bidops.work_job SET status='cancelled',completed_at=now(),last_error_code='v4_disabled',lease_owner=NULL,lease_expires_at=NULL WHERE id=(SELECT work_job_id FROM bidops.prespec_v4_attempt WHERE id=:id)"), {"id": attempt})
-            with Session(engine) as session, session.begin():
-                session.execute(text("SET LOCAL ROLE worker"))
-                _response(session, attempt, call)
-            for role in ("app", "worker", "ro_backup"):
-                with engine.begin() as conn:
-                    conn.execute(text(f"SET LOCAL ROLE {role}"))
-                    assert conn.scalar(text("SELECT count(*) FROM bidops.prespec_overview_call_event")) == 2
-                    assert conn.scalar(text("SELECT count(*) FROM bidops.prespec_overview_verification")) == 0
-                for table in ("prespec_overview_call_event", "prespec_overview_verification"):
-                    for operation in (f"DELETE FROM bidops.{table}", f"UPDATE bidops.{table} SET created_at=created_at"):
-                        with pytest.raises(DBAPIError), engine.begin() as conn:
-                            conn.execute(text(f"SET LOCAL ROLE {role}"))
-                            conn.execute(text(operation))
-            human_review = _seed_attempt(engine)
-            _start(engine, human_review)
-            with Session(engine) as session, session.begin():
-                session.execute(text("SET LOCAL ROLE worker"))
-                _verification(session, human_review, passed=False)
-                _finish(session, human_review, "needs_human_review")
-        finally:
-            engine.dispose()
-
-
-@requires_postgres
 def test_effective_runtime_role_matrix_and_future_defaults() -> None:
     _ensure_roles()
     with temporary_database() as database_url:
@@ -438,21 +384,8 @@ def test_effective_runtime_role_matrix_and_future_defaults() -> None:
                     assert not _table_privilege(connection, "worker", table, "UPDATE")
                 for table, column in (("notice", "title"), ("attachment", "source_url"), ("document_version", "source_url")):
                     assert not _column_privilege(connection, "worker", table, column, "UPDATE")
-                for table in (
-                    "prespec_overview_review",
-                    "prespec_overview_snapshot",
-                    "prespec_overview_attempt",
-                    "prespec_overview_result",
-                ):
-                    assert _table_privilege(connection, "app", table, "SELECT")
-                for table in (
-                    "prespec_overview_review",
-                    "prespec_overview_snapshot",
-                ):
-                    assert _table_privilege(connection, "app", table, "INSERT")
-                assert not _table_privilege(
-                    connection, "app", "prespec_overview_attempt", "INSERT"
-                )
+                assert _table_privilege(connection, "app", "prespec_overview_run", "SELECT")
+                assert _table_privilege(connection, "app", "prespec_overview_run", "INSERT")
                 for table in (
                     "order_plan_screening_policy",
                     "order_plan_screening_execution",
@@ -480,45 +413,8 @@ def test_effective_runtime_role_matrix_and_future_defaults() -> None:
                     "order_plan_screening_feedback",
                 ):
                     assert not _table_privilege(connection, "app", table, "DELETE")
-                assert not _table_privilege(
-                    connection, "app", "prespec_overview_review", "UPDATE"
-                )
-                for column in (
-                    "current_snapshot_id",
-                    "status",
-                    "result",
-                    "completed_at",
-                    "updated_at",
-                ):
-                    assert _column_privilege(
-                        connection,
-                        "app",
-                        "prespec_overview_review",
-                        column,
-                        "UPDATE",
-                    )
-                assert not _column_privilege(
-                    connection,
-                    "app",
-                    "prespec_overview_review",
-                    "notice_id",
-                    "UPDATE",
-                )
-                for table in (
-                    "prespec_overview_snapshot",
-                    "prespec_overview_attempt",
-                    "prespec_overview_result",
-                    "prespec_overview_attempt_event",
-                ):
-                    assert not _table_privilege(connection, "app", table, "UPDATE")
-                for table in (
-                    "prespec_overview_review",
-                    "prespec_overview_snapshot",
-                    "prespec_overview_attempt",
-                    "prespec_overview_result",
-                    "prespec_overview_attempt_event",
-                ):
-                    assert not _table_privilege(connection, "app", table, "DELETE")
+                assert _table_privilege(connection, "app", "prespec_overview_run", "UPDATE")
+                assert not _table_privilege(connection, "app", "prespec_overview_run", "DELETE")
                 for table in (
                     "notice_observation",
                     "judgment_revision",
@@ -560,20 +456,8 @@ def test_effective_runtime_role_matrix_and_future_defaults() -> None:
                 assert _column_privilege(
                     connection, "worker", "document_version", "is_current", "UPDATE"
                 )
-                for table in (
-                    "prespec_overview_review",
-                    "prespec_overview_snapshot",
-                    "prespec_overview_attempt",
-                    "prespec_overview_result",
-                    "prespec_overview_attempt_event",
-                ):
-                    assert _table_privilege(connection, "worker", table, "SELECT")
-                for table in (
-                    "prespec_overview_attempt",
-                    "prespec_overview_result",
-                    "prespec_overview_attempt_event",
-                ):
-                    assert _table_privilege(connection, "worker", table, "INSERT")
+                assert _table_privilege(connection, "worker", "prespec_overview_run", "SELECT")
+                assert _table_privilege(connection, "worker", "prespec_overview_run", "INSERT")
                 for table in (
                     "order_plan",
                     "order_plan_screening_policy",
@@ -606,62 +490,7 @@ def test_effective_runtime_role_matrix_and_future_defaults() -> None:
                     "order_plan_screening_feedback",
                 ):
                     assert not _table_privilege(connection, "worker", table, "DELETE")
-                assert not _table_privilege(
-                    connection, "worker", "prespec_overview_review", "UPDATE"
-                )
-                for column in (
-                    "current_snapshot_id",
-                    "status",
-                    "result",
-                    "completed_at",
-                    "updated_at",
-                ):
-                    assert _column_privilege(
-                        connection,
-                        "worker",
-                        "prespec_overview_review",
-                        column,
-                        "UPDATE",
-                    )
-                for column in (
-                    "status",
-                    "started_at",
-                    "completed_at",
-                    "result_id",
-                    "lease_owner",
-                    "lease_expires_at",
-                ):
-                    assert _column_privilege(
-                        connection,
-                        "worker",
-                        "prespec_overview_attempt",
-                        column,
-                        "UPDATE",
-                    )
-                for column in (
-                    "review_id",
-                    "snapshot_id",
-                    "input_sha256",
-                    "provider",
-                    "model_name",
-                    "model_digest",
-                    "prompt_version",
-                    "binding_digest",
-                ):
-                    assert not _column_privilege(
-                        connection,
-                        "worker",
-                        "prespec_overview_attempt",
-                        column,
-                        "UPDATE",
-                    )
-                assert not _column_privilege(
-                    connection,
-                    "worker",
-                    "prespec_overview_review",
-                    "notice_id",
-                    "UPDATE",
-                )
+                assert _table_privilege(connection, "worker", "prespec_overview_run", "UPDATE")
                 for table in (
                     "document_segment_manifest",
                     "document_segment",
@@ -672,23 +501,10 @@ def test_effective_runtime_role_matrix_and_future_defaults() -> None:
                         assert _table_privilege(connection, role, table, "INSERT")
                         assert not _table_privilege(connection, role, table, "UPDATE")
                         assert not _table_privilege(connection, role, table, "DELETE")
-                for table in (
-                    "prespec_overview_snapshot",
-                    "prespec_overview_attempt",
-                    "prespec_overview_result",
-                    "prespec_overview_attempt_event",
-                ):
-                    assert not _table_privilege(
-                        connection, "worker", table, "UPDATE"
-                    )
-                for table in (
-                    "prespec_overview_review",
-                    "prespec_overview_snapshot",
-                    "prespec_overview_attempt",
-                    "prespec_overview_result",
-                    "prespec_overview_attempt_event",
-                ):
-                    assert not _table_privilege(connection, "worker", table, "DELETE")
+                assert not _table_privilege(connection, "worker", "prespec_overview_run", "DELETE")
+                for role in ("app", "worker"):
+                    assert not _table_privilege(connection, role, "prespec_v4_pdf_snapshot", "UPDATE")
+                    assert not _table_privilege(connection, role, "prespec_v4_pdf_snapshot", "DELETE")
                 for table in (
                     "review",
                     "judgment_revision",
@@ -708,8 +524,8 @@ def test_effective_runtime_role_matrix_and_future_defaults() -> None:
                         )
                 for table in ("judgment", "judgment_revision", "review", "review_revision"):
                     assert _table_privilege(connection, "worker", table, "SELECT")
-                assert _table_privilege(connection, "app", "prespec_v4_attempt", "INSERT")
-                assert not _table_privilege(connection, "worker", "prespec_v4_attempt", "INSERT")
+                for role in ("app", "worker"):
+                    assert _table_privilege(connection, role, "prespec_v4_pdf_snapshot", "INSERT")
                 for table in (
                     "report_revision",
                     "audit_event",
