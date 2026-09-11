@@ -69,8 +69,8 @@ BIDOPS_TEST_MODE=1 .venv/bin/python -m app.deep_review.cli run-prespec-e2e \
 
 > **P1 임시 표기**: 개요 실행기(analysis worker 개요 slot)는 2026-09-11 개요 스택
 > 재작성 뒤 P2에서 복원 중이다. P2 복원 전까지는 개요 run이 자동으로 만들어지지 않으므로
-> `pre-1`·`pre-5` **두 건 모두** `deep_review_ready_for_click`으로 멈춘다. 아래 표는 개요
-> 실행기 복원 뒤의 목표 동작이다.
+> `pre-1`·`pre-5` **두 건 모두** `bundle_ready`에 머문다(개요 run이 없으면 `bundle_ready`이며 결정 대기로
+> 세지 않는다). 아래 표는 개요 실행기 복원 뒤의 목표 동작이다.
 
 | | `pre-1` (SW=Y) | `pre-5` (SW=N) |
 |---|---|---|
