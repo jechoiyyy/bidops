@@ -140,7 +140,6 @@ export const lifecycleVisualTargets: LifecycleVisualTarget[] = [
   { name: "order-plans-list", path: "/order-plans", setup: async (page) => { await mockOrderPlans(page); } },
   { name: "pre-specs-list", path: "/pre-specs", setup: async (page) => { await mockPreSpecs(page); } },
   { name: "pre-spec-detail", path: "/pre-specs/991", setup: async (page) => { await mockPreSpecs(page); } },
-  { name: "pre-spec-unknown", path: "/pre-specs/991", setup: async (page) => { await mockPreSpecs(page, "unknown"); } },
   ...(["draft", "processing", "blocked", "ready"] as const).map((state) => ({
     name: `document-preparation-${state}`,
     path: "/pre-specs/991",

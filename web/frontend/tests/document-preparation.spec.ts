@@ -59,12 +59,6 @@ const notice = {
   reviews: [],
 };
 
-const overview = {
-  schema_version: "bidops.prespec-overview-reviews.v2",
-  notice_id: NOTICE_ID,
-  reviews: [],
-};
-
 function documentView(overrides: Record<string, unknown> = {}) {
   return {
     id: DOCUMENT_ID,
@@ -153,10 +147,6 @@ async function mockDocumentPreparation(page: Page, scenario: Scenario): Promise<
 
     if (pathname === `/api/notices/${NOTICE_ID}` && method === "GET") {
       await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(notice) });
-      return;
-    }
-    if (pathname === `/api/pre-specs/${NOTICE_ID}/overview-reviews/v2` && method === "GET") {
-      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(overview) });
       return;
     }
     // 이 화면은 추적 결정 구역에서 사업기회 연결과 첨부 집계를 함께 조회한다.
