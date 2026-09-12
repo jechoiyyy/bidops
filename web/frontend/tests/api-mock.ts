@@ -911,7 +911,7 @@ export async function mockWorkload(page: Page, response: WorkloadResponse): Prom
   await page.route("**/api/workload", (route) => fulfillJson(route, response));
 }
 
-const visualPreSpecNotice = {
+export const visualPreSpecNotice = {
   id: 991,
   notice_key: "pre-spec:991",
   run_id: "source-run-not-used-for-routing",
@@ -1308,8 +1308,24 @@ export async function mockDocumentStructurePage(page: Page): Promise<DocumentStr
 }
 
 /** Deterministic pre-spec list/detail fixture. */
+export const inheritedPreSpecOpportunity = {
+  ...visualOpportunities[0],
+  id: 202,
+  tracking_status: "계속 추적" as const,
+  tracking_reason: "발주계획 단계에서 핵심 과업 부합으로 추적 시작",
+  tracking_selected_by: "발주계획 담당자",
+  tracking_selected_at: "2026-08-20T09:00:00Z",
+};
+
 export async function mockPreSpecs(page: Page): Promise<void> {
   let currentTrackingStatus = visualPreSpecItems[0].tracking_status;
+  await page.route("**/api/opportunities/202", async (route) => {
+    if (opportunityFixtures.has(page) || route.request().method() !== "GET") {
+      await route.fallback();
+      return;
+    }
+    await fulfillJson(route, inheritedPreSpecOpportunity);
+  });
   workloadProvider(page, "pre_spec_deep_review_ready", () => ({ count: visualPreSpecItems.filter((item) => item.auto_preparation_status === "deep_review_ready_for_click").length, unavailable_reason: null }));
   await page.route("**/api/pre-specs**", async (route) => {
     const request = route.request();

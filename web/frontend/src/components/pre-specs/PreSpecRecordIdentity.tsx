@@ -1,19 +1,11 @@
 import { useEffect, useState } from "react";
 import { Button } from "@astryxdesign/core/Button";
 import { ArrowUpRight, Copy } from "lucide-react";
-
-/** Only a collected absolute web URL can become the notice's original link. */
-function originalUrl(value: string | null): string | null {
-  if (!value) return null;
-  try {
-    const url = new URL(value);
-    return ["https:", "http:"].includes(url.protocol) && !url.username && !url.password ? url.href : null;
-  } catch { return null; }
-}
+import { collectedWebUrl } from "../../lib/collectedWebUrl";
 
 export function PreSpecRecordIdentity({ number, url }: { number: string | null; url: string | null }) {
   const [message, setMessage] = useState("");
-  const href = originalUrl(url);
+  const href = collectedWebUrl(url);
   useEffect(() => {
     if (!message) return;
     const timer = window.setTimeout(() => setMessage(""), 4500);

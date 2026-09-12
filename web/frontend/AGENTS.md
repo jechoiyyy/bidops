@@ -29,6 +29,18 @@
 
 - 목록 필터는 URL과 동기화하고 선택한 항목, 상세 scroll, 저장 후 이동을 예측 가능하게 유지한다.
 - **서버가 거르지 못하는 필터는 그 사실을 화면이 밝힌다.** `/pre-specs?grade=<값>`은 `GET /api/pre-specs`에 대응 질의 인자가 없어 이미 받은 페이지만 좁히는 브라우저 쪽 필터다. 같은 화면의 `overview_status_counts`는 필터 이전 전체 집합을 가리키므로 두 수를 같은 뜻으로 읽히게 두지 않는다. 허용 값은 `우선 검토|검토 권장|관찰 대상|제외|판정 없음`이고 그 밖의 값은 `전체`로 떨어지며, `grade`를 바꾸면 `offset`을 초기화한다.
+- 사전규격 목록의 업무 필터 둘은 성격이 다르니 섞지 않는다. `auto_preparation_status`는 `GET
+  /api/pre-specs`에 같은 이름의 질의 인자가 있는 **서버 필터**이고, `tracking_decision=pending`은
+  대응 인자가 없어 이미 불러온 페이지만 좁히는 **페이지 한정 필터**다(등급 필터와 같은 부류).
+  페이지 한정 필터는 켜져 있을 때 그 사실을 화면이 한 줄로 밝힌다. 둘 다 허용값 밖은 전체로
+  떨어지고 값이 바뀌면 `offset`을 초기화한다.
+- 사전규격 목록도 발주계획과 같이 ↑↓로 행을 옮기고(경계에서 페이지를 넘긴다)
+  `Ctrl/Cmd+Enter`로 상세 검토를 열며, 저장하지 않은 추적 입력이 있으면 이탈 확인이 먼저다.
+  행 컴포넌트는 `useRowKeyboardNavigation`의 `rowProps`(`data-row-key`·roving `tabIndex`)를
+  **그대로 행 요소까지 내려야** 한다. 내리지 않으면 선택만 움직이고 초점은 조용히 멈춰 있는다.
+- 문서 준비 구역은 상태 요약 한 줄과 `문서 준비 열기/닫기` 토글이며, 기본값은
+  `lib/documentPanelDefaultOpen.ts` 하나가 정한다. Astryx `Collapsible`을 쓰지 않는다 —
+  `display:none`으로 감추면 패널 조작과 폴링이 막힐다.
 - 계약에 없는 값을 화면이 채우지 않는다. 보고서의 segment 패널은 묶음에서 문서들의 `structure_id`를 얻을 endpoint가 없어 **선택된 근거가 가리키는 문서 하나**만 보여 주며, 그 사실을 문장으로 적는다. segment에는 wire 상 제목이 없으므로(원문 text를 싣지 않기로 한 결정의 결과) ordinal·taxonomy label·요구사항 id·`block_key`·page 링크만 보이고 제목이 없는 이유를 적는다.
 - 자동 연결 실행과 단계별 수동 실행은 같은 execution 상태 컴포넌트를 사용한다. 별도 상태 의미를 복제하지 않는다.
 - 문서 준비 화면은 upload, scan, convert, structure, bundle confirm을 구분하고 실패 stage와 안전한 retry action을 보여야 한다.
