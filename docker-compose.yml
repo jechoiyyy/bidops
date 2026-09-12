@@ -1,6 +1,46 @@
-# Lean v1 isolated production template. Always invoke with an explicit
-# COMPOSE_PROJECT_NAME from this worktree; volumes are intentionally unnamed so
-# Compose scopes them to that project and cannot overlap the main worktree.
+# 애플리케이션 스택의 기반 파일. 명시적 COMPOSE_PROJECT_NAME으로만 실행한다;
+# volume은 의도적으로 이름 없이 선언해 Compose가 그 project로 scope하고 다른
+# worktree와 겹치지 않게 한다.
+#
+# 이 파일 하나만으로는 host에 아무 포트도 열리지 않는다. 모든 network가
+# `internal: true`이고, Docker는 internal 전용 컨테이너의 `ports:` 선언을
+# 조용히 무시하기 때문이다(에러도 내지 않는다). 화면을 열려면 반드시
+# `docker-compose.edge.yml`을 함께 넘긴다. overlay 조합은 docs/operations.md의
+# "Compose 파일과 조합"을 본다.
+#
+#   기반   docker-compose.yml                 내부망 전용 스택 (egress 없음)
+#   노출   docker-compose.edge.yml            web을 host loopback에 publish
+#   모델   docker-compose.model-egress.yml    screening·overview·deep_review egress
+#   C-2    docker-compose.c2-order-plan.yml   발주계획 판정 입력 마운트
+#   첨부   docker-compose.prespec-attachment.yml  G2B 첨부 egress
+#   mock   docker-compose.mock-reference.yml  모델 없이 상태 전이만 확인
+
+# 여러 서비스가 같은 값을 쓰는 블록. 한 곳에서 바꾸면 web·worker가 함께 따라간다.
+# 자격증명은 최소 권한 경계대로 쪼개 둔다 — 격리 버킷은 첨부 원문을 직접 다루는
+# 경로만 받고 분석 worker는 받지 않는다.
+x-object-store-env: &object-store-env
+  BIDOPS_OBJECT_STORE_BACKEND: minio
+  BIDOPS_OBJECT_STORE_ENDPOINT: minio:9000
+  BIDOPS_OBJECT_STORE_SECURE: "false"
+  BIDOPS_SOURCE_ACCESS_KEY: "${BIDOPS_SOURCE_ACCESS_KEY:?set an external source access key}"
+  BIDOPS_SOURCE_SECRET_KEY: "${BIDOPS_SOURCE_SECRET_KEY:?set an external source secret key}"
+  BIDOPS_STRUCTURE_ACCESS_KEY: "${BIDOPS_STRUCTURE_ACCESS_KEY:?set an external structure access key}"
+  BIDOPS_STRUCTURE_SECRET_KEY: "${BIDOPS_STRUCTURE_SECRET_KEY:?set an external structure secret key}"
+  BIDOPS_STRUCTURE_READ_ACCESS_KEY: "${BIDOPS_STRUCTURE_READ_ACCESS_KEY:?set an external structure read access key}"
+  BIDOPS_STRUCTURE_READ_SECRET_KEY: "${BIDOPS_STRUCTURE_READ_SECRET_KEY:?set an external structure read secret key}"
+
+x-quarantine-env: &quarantine-env
+  BIDOPS_QUARANTINE_ACCESS_KEY: "${BIDOPS_QUARANTINE_ACCESS_KEY:?set an external quarantine access key}"
+  BIDOPS_QUARANTINE_SECRET_KEY: "${BIDOPS_QUARANTINE_SECRET_KEY:?set an external quarantine secret key}"
+
+x-clamav-env: &clamav-env
+  BIDOPS_CLAMAV_HOST: clamav
+  BIDOPS_CLAMAV_PORT: "3310"
+  BIDOPS_CLAMAV_TIMEOUT_SECONDS: "15"
+
+x-worker-database-url: &worker-database-url
+  "postgresql+psycopg://worker:${BIDOPS_WORKER_PASSWORD:?set an external worker password}@postgres:5432/bidops"
+
 services:
   postgres:
     image: postgres:17.11@sha256:051f7b7b3abdd564d5d1bd1e8c4b9c1b6e77087d1dd22020ede611c096a272e0
@@ -9,12 +49,9 @@ services:
       POSTGRES_USER: owner
       POSTGRES_PASSWORD: "${BIDOPS_OWNER_PASSWORD:?set an external owner password}"
     command: ["postgres", "-c", "search_path=bidops,public"]
-    ports:
-      # Admin surfaces bind to loopback by default.  The application API is the
-      # intended access boundary; publishing the database on every host
-      # interface would let the LAN reach it directly.  Remote administration is
-      # an explicit opt-in via BIDOPS_ADMIN_BIND_HOST plus a source allowlist.
-      - "${BIDOPS_ADMIN_BIND_HOST:-127.0.0.1}:${BIDOPS_POSTGRES_PORT:-15432}:5432"
+    # DB는 host에 publish하지 않는다. internal network에서는 `ports:`가 조용히
+    # 무시되므로 선언을 두면 열린 것처럼 보이기만 한다. 관리 접근은
+    # `docker compose exec postgres psql -U owner bidops`를 쓴다.
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
@@ -56,10 +93,8 @@ services:
     environment:
       MINIO_ROOT_USER: "${BIDOPS_MINIO_ROOT_USER:?set an external MinIO root user}"
       MINIO_ROOT_PASSWORD: "${BIDOPS_MINIO_ROOT_PASSWORD:?set an external MinIO root password}"
-    ports:
-      # Object store API and console are admin surfaces; see the postgres note.
-      - "${BIDOPS_ADMIN_BIND_HOST:-127.0.0.1}:${BIDOPS_MINIO_PORT:-19000}:9000"
-      - "${BIDOPS_ADMIN_BIND_HOST:-127.0.0.1}:${BIDOPS_MINIO_CONSOLE_PORT:-19001}:9001"
+    # 객체 저장소도 host에 publish하지 않는다(postgres 주석 참조).
+    # 관리 접근은 `docker compose exec minio mc ...`를 쓴다.
     volumes:
       - minio-data:/data
     healthcheck:
@@ -103,25 +138,13 @@ services:
       clamav: { condition: service_started }
       document-worker: { condition: service_started }
     environment:
+      <<: [*object-store-env, *quarantine-env, *clamav-env]
       BIDOPS_ROOT: /app
       BIDOPS_DATABASE_URL: "postgresql+psycopg://app:${BIDOPS_APP_PASSWORD:?set an external app password}@postgres:5432/bidops"
       BIDOPS_OPENAI_ENABLED: "false"
       BIDOPS_C2_EXECUTION_ALLOWED: "false"
       BIDOPS_DOCUMENT_WORKER_CONCURRENCY: "2"
       BIDOPS_DOCUMENT_CONVERTER_WAIT_SECONDS: "45"
-      BIDOPS_CLAMAV_HOST: clamav
-      BIDOPS_CLAMAV_PORT: "3310"
-      BIDOPS_OBJECT_STORE_BACKEND: minio
-      BIDOPS_OBJECT_STORE_ENDPOINT: minio:9000
-      BIDOPS_OBJECT_STORE_SECURE: "false"
-      BIDOPS_SOURCE_ACCESS_KEY: "${BIDOPS_SOURCE_ACCESS_KEY:?set an external source access key}"
-      BIDOPS_SOURCE_SECRET_KEY: "${BIDOPS_SOURCE_SECRET_KEY:?set an external source secret key}"
-      BIDOPS_STRUCTURE_ACCESS_KEY: "${BIDOPS_STRUCTURE_ACCESS_KEY:?set an external structure access key}"
-      BIDOPS_STRUCTURE_SECRET_KEY: "${BIDOPS_STRUCTURE_SECRET_KEY:?set an external structure secret key}"
-      BIDOPS_QUARANTINE_ACCESS_KEY: "${BIDOPS_QUARANTINE_ACCESS_KEY:?set an external quarantine access key}"
-      BIDOPS_STRUCTURE_READ_ACCESS_KEY: "${BIDOPS_STRUCTURE_READ_ACCESS_KEY:?set an external structure read access key}"
-      BIDOPS_STRUCTURE_READ_SECRET_KEY: "${BIDOPS_STRUCTURE_READ_SECRET_KEY:?set an external structure read secret key}"
-      BIDOPS_QUARANTINE_SECRET_KEY: "${BIDOPS_QUARANTINE_SECRET_KEY:?set an external quarantine secret key}"
       BIDOPS_ANALYSIS_WORKER_CONCURRENCY: "1"
       # These deployment references are intentionally optional while an
       # operator prepares a document bundle and evaluates a candidate policy.
@@ -133,8 +156,8 @@ services:
       BIDOPS_REFERENCE_WORKFLOW_MODE: "${BIDOPS_REFERENCE_WORKFLOW_MODE:-false}"
       BIDOPS_ACTIVE_ANALYSIS_POLICY_VERSION_ID: "${BIDOPS_ACTIVE_ANALYSIS_POLICY_VERSION_ID:-}"
       BIDOPS_PRESPEC_OVERVIEW_ENABLED: "${BIDOPS_PRESPEC_OVERVIEW_ENABLED:-false}"
-    ports:
-      - "${BIDOPS_WEB_BIND_HOST:-127.0.0.1}:${BIDOPS_WEB_PORT:-18787}:8787"
+    # host publish는 `docker-compose.edge.yml`이 소유한다. 여기에 `ports:`를
+    # 다시 두면 internal network 때문에 조용히 무시되는 선언이 된다.
     networks: [database, storage, scanning]
     volumes:
       - document-scratch:/scratch
@@ -188,8 +211,9 @@ services:
       migrate: { condition: service_completed_successfully }
       minio-init: { condition: service_completed_successfully }
     environment:
+      <<: [*object-store-env, *clamav-env]
       BIDOPS_ROOT: /app
-      BIDOPS_DATABASE_URL: "postgresql+psycopg://worker:${BIDOPS_WORKER_PASSWORD:?set an external worker password}@postgres:5432/bidops"
+      BIDOPS_DATABASE_URL: *worker-database-url
       BIDOPS_VLLM_BASE_URL: "${BIDOPS_VLLM_BASE_URL:-http://127.0.0.1:8000/v1}"
       BIDOPS_VLLM_ALLOWED_HOSTS: "${BIDOPS_VLLM_ALLOWED_HOSTS:-}"
       BIDOPS_VLLM_MODEL_REVISION: "${BIDOPS_VLLM_MODEL_REVISION:-}"
@@ -204,22 +228,11 @@ services:
       BIDOPS_PRESPEC_COMPANY_FIT_ENABLED: "${BIDOPS_PRESPEC_COMPANY_FIT_ENABLED:-false}"
       BIDOPS_PRESPEC_COMPANY_FIT_MODEL: "${BIDOPS_PRESPEC_COMPANY_FIT_MODEL:-}"
       BIDOPS_REFERENCE_WORKFLOW_MODE: "${BIDOPS_REFERENCE_WORKFLOW_MODE:-false}"
-      BIDOPS_OBJECT_STORE_BACKEND: minio
-      BIDOPS_OBJECT_STORE_ENDPOINT: minio:9000
-      BIDOPS_OBJECT_STORE_SECURE: "false"
-      BIDOPS_SOURCE_ACCESS_KEY: "${BIDOPS_SOURCE_ACCESS_KEY:?set an external source access key}"
-      BIDOPS_SOURCE_SECRET_KEY: "${BIDOPS_SOURCE_SECRET_KEY:?set an external source secret key}"
-      BIDOPS_STRUCTURE_ACCESS_KEY: "${BIDOPS_STRUCTURE_ACCESS_KEY:?set an external structure access key}"
-      BIDOPS_STRUCTURE_SECRET_KEY: "${BIDOPS_STRUCTURE_SECRET_KEY:?set an external structure secret key}"
+      # 모델 응답 원문 보관은 분석 worker만 쓴다.
       BIDOPS_MODEL_RESPONSE_ACCESS_KEY: "${BIDOPS_MODEL_RESPONSE_ACCESS_KEY:?set an external model-response access key}"
       BIDOPS_MODEL_RESPONSE_SECRET_KEY: "${BIDOPS_MODEL_RESPONSE_SECRET_KEY:?set an external model-response secret key}"
-      BIDOPS_STRUCTURE_READ_ACCESS_KEY: "${BIDOPS_STRUCTURE_READ_ACCESS_KEY:?set an external structure read access key}"
-      BIDOPS_STRUCTURE_READ_SECRET_KEY: "${BIDOPS_STRUCTURE_READ_SECRET_KEY:?set an external structure read secret key}"
       BIDOPS_MODEL_RESPONSE_ENCRYPTION_KEY: "${BIDOPS_MODEL_RESPONSE_ENCRYPTION_KEY:?set an external model-response encryption key}"
       BIDOPS_MODEL_RESPONSE_ENCRYPTION_KEY_REF: "${BIDOPS_MODEL_RESPONSE_ENCRYPTION_KEY_REF:?set an external model-response encryption key reference}"
-      BIDOPS_CLAMAV_HOST: clamav
-      BIDOPS_CLAMAV_PORT: "3310"
-      BIDOPS_CLAMAV_TIMEOUT_SECONDS: "15"
       BIDOPS_PRESPEC_OVERVIEW_ENABLED: "${BIDOPS_PRESPEC_OVERVIEW_ENABLED:-false}"
     command: ["python", "-m", "app.workers.analysis"]
     # Worker liveness is observed through its process/job lease; it does not
@@ -234,6 +247,38 @@ services:
       - ./experiments/order-plan-screening/config/order-plan-screening-generation-config.v4.json:/app/experiments/order-plan-screening/config/order-plan-screening-generation-config.v4.json:ro
     # scanning: ClamAV 검사.
     networks: [database, analysis, scanning]
+
+  prespec-attachment-worker:
+    build: { context: ., dockerfile: web/Dockerfile }
+    # 기본 스택에서는 뜨지 않는다. 서비스 이름을 명시해야 해당 profile이 켜진다.
+    # 바이트 취득은 egress overlay와 함께만 열린다:
+    #   docker compose -f docker-compose.yml -f docker-compose.prespec-attachment.yml \
+    #     up -d prespec-attachment-worker
+    profiles: [prespec]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      minio-init: { condition: service_completed_successfully }
+      clamav: { condition: service_started }
+    environment:
+      <<: [*object-store-env, *quarantine-env, *clamav-env]
+      BIDOPS_ROOT: /app
+      BIDOPS_DATABASE_URL: *worker-database-url
+      # 취득은 기본 비활성이고 허용 host도 비어 있다. egress overlay만 이 둘을 열며,
+      # overlay 없이 이 worker를 띄우면 connector가 idle하고 큐를 소비하지 않는다.
+      BIDOPS_G2B_ATTACHMENT_ENABLED: "false"
+      BIDOPS_G2B_ATTACHMENT_TIMEOUT_SECONDS: "30"
+      BIDOPS_PRESPEC_ATTACHMENT_WORKER_CONCURRENCY: "1"
+      BIDOPS_PRESPEC_ATTACHMENT_WORKER_POLL_SECONDS: "5"
+      BIDOPS_PRESPEC_ATTACHMENT_LEASE_SECONDS: "120"
+      # 취득 종결 뒤 자동 준비(문서 준비)가 이 프로세스에서 돌다.
+      BIDOPS_PRESPEC_OVERVIEW_ENABLED: "${BIDOPS_PRESPEC_OVERVIEW_ENABLED:-false}"
+    command: ["python", "-m", "app.deep_review.workers.prespec_attachment"]
+    healthcheck: { disable: true }
+    restart: unless-stopped
+    volumes:
+      - document-scratch:/scratch
+      - pipeline-data:/app/data
+    networks: [database, storage, scanning]
 
   ro-backup:
     build: { context: ., dockerfile: web/Dockerfile }

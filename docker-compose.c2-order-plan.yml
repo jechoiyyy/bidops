@@ -1,0 +1,31 @@
+# C-2 발주계획 판정이 읽는 승인 입력 파일 마운트와 실행 토글.
+#
+# 모델 egress는 `docker-compose.model-egress.yml`이 연다. 이 파일은 전송이 아니라
+# **입력**을 담당한다: 회사 역량 파일과 프롬프트는 저장소가 제공하지 않는 운영자
+# 승인 자료이며 이미지에 넣지 않고 host 경로로 읽기 전용 마운트한다.
+#
+#   docker compose --env-file .env --env-file env/model.env \
+#     -f docker-compose.yml -f docker-compose.edge.yml \
+#     -f docker-compose.model-egress.yml -f docker-compose.c2-order-plan.yml \
+#     up -d web analysis-worker
+#
+# BIDOPS_C2_EXECUTION_ALLOWED는 배포별 transport 승인과 활성 binding이 기록되기
+# 전까지 false로 둔다. 파일 경로가 없으면 이 overlay는 기동 전에 fail closed한다.
+services:
+  web:
+    environment:
+      BIDOPS_C2_EXECUTION_ALLOWED: "${BIDOPS_C2_EXECUTION_ALLOWED:-false}"
+      BIDOPS_C2_CAPABILITIES_PATH: /run/c2/company-capabilities.json
+      BIDOPS_C2_PROMPT_PATH: /run/c2/order-plan-prompt.txt
+    volumes:
+      - "${BIDOPS_C2_CAPABILITIES_HOST_PATH:?set an explicit approved capabilities file path}:/run/c2/company-capabilities.json:ro"
+      - "${BIDOPS_C2_PROMPT_HOST_PATH:?set an explicit approved prompt file path}:/run/c2/order-plan-prompt.txt:ro"
+
+  analysis-worker:
+    environment:
+      BIDOPS_C2_EXECUTION_ALLOWED: "${BIDOPS_C2_EXECUTION_ALLOWED:-false}"
+      BIDOPS_C2_CAPABILITIES_PATH: /run/c2/company-capabilities.json
+      BIDOPS_C2_PROMPT_PATH: /run/c2/order-plan-prompt.txt
+    volumes:
+      - "${BIDOPS_C2_CAPABILITIES_HOST_PATH:?set an explicit approved capabilities file path}:/run/c2/company-capabilities.json:ro"
+      - "${BIDOPS_C2_PROMPT_HOST_PATH:?set an explicit approved prompt file path}:/run/c2/order-plan-prompt.txt:ro"

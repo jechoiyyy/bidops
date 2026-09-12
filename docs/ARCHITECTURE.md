@@ -506,9 +506,9 @@ React는 FastAPI REST API의 consumer다. DB·MinIO·worker·모델 endpoint에 
 | document-worker | 문서 변환·구조화, network disabled |
 | analysis-worker | lease 기반 분석, 기본 concurrency 1 |
 | init/migrate/minio-init | 명시적 초기화·migration·bucket 정책 |
-| overlays | screening, remote-vllm, attachment, mock/reference 등 목적별 egress |
+| overlays | edge(화면 publish), model-egress(모델 egress), c2-order-plan(C-2 입력), prespec-attachment(G2B egress), mock-reference |
 
-관리 포트는 기본 loopback binding이다. 운영 secret은 환경·secret 파일 계약을 사용하며 이미지·Git·로그에 넣지 않는다. docker-compose.sqlite-ops.yml은 SQLite 기반 일회성 ops 입력·격리 테스트용으로 운영 정본을 대체하지 않는다.
+host에 열리는 것은 관리 화면 하나이며 `docker-compose.edge.yml`이 그 publish를 소유한다. 기본값은 loopback이고 PostgreSQL·MinIO는 internal network에만 있다. 운영 secret은 환경·secret 파일 계약을 사용하며 이미지·Git·로그에 넣지 않는다.
 
 ### 10.2 시작과 종료
 

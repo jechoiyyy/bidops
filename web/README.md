@@ -21,7 +21,7 @@ COMPOSE_PROJECT_NAME=bidops docker compose -f docker-compose.yml build
 COMPOSE_PROJECT_NAME=bidops docker compose -f docker-compose.yml up -d postgres minio clamav
 COMPOSE_PROJECT_NAME=bidops ./scripts/init-runtime.sh
 COMPOSE_PROJECT_NAME=bidops docker compose \
-  -f docker-compose.yml -f docker-compose.remote-vllm.yml \
+  -f docker-compose.yml -f docker-compose.edge.yml -f docker-compose.model-egress.yml \
   up -d web document-worker analysis-worker
 curl -fsS http://127.0.0.1:18787/api/health
 ```
