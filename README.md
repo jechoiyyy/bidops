@@ -15,6 +15,7 @@ BidOps는 기획·사업개발 담당자가 나라장터 **발주계획을 조�
 - [실행 1: Docker Compose 스택](#실행-1-docker-compose-스택)
 - [실행 2: 호스트 개발 서버](#실행-2-호스트-개발-서버)
 - [파이프라인 실행](#파이프라인-실행)
+  - [수동 워크플로우 wrapper](#수동-워크플로우-wrapper)
 - [산출물 적재](#산출물-적재)
 - [화면 사용법](#화면-사용법)
 - [테스트](#테스트)
@@ -65,8 +66,7 @@ cp .env.example .env
 | 파일 | 소비하는 compose | 담는 값 |
 |---|---|---|
 | `.env` | `docker-compose.yml` | 프로세스 정체성, 로그, DB·MinIO 자격증명, 암호화 키, port, 승인 profile/policy 참조 |
-| `env/vllm.env` | `docker-compose.remote-vllm.yml` | 심층 검토용 사설 vLLM endpoint·allowlist·API key |
-| `env/screening.env` | `docker-compose.screening.yml` | C-1 판정용 vLLM endpoint·allowlist·API key·선언 revision·모델 id |
+| `env/model.env` | `docker-compose.model-egress.yml`, `docker-compose.c2-order-plan.yml` | 용도별(`screening`·`overview`·`deep_review`) vLLM endpoint·allowlist·API key·선언 revision·모델 id, C-2 입력 파일 host 경로 |
 | `env/prespec-attachment.env` | `docker-compose.prespec-attachment.yml` | 사전규격 첨부 취득 host allowlist |
 | 없음 | `docker-compose.mock-reference.yml` | 전용 값을 override 파일 안에 리터럴로 선언한다 |
 
@@ -86,6 +86,19 @@ test -f web/backend/app/screening/baseline_company_profile.md && test -r web/bac
 
 `docker-compose.yml`이 기준 배포 파일이다. 항상 전용 `COMPOSE_PROJECT_NAME`을 쓰고, 다른 worktree의 컨테이너·volume을 건드리지 않는다.
 
+파일은 **여는 것 하나씩**을 소유한다. overlay를 붙이지 않으면 그 기능과 그 network는 열리지 않는다.
+
+| 파일 | 여는 것 |
+|---|---|
+| `docker-compose.yml` | 웹·DB·객체 저장소·검사·worker. network는 전부 internal이고 **host에 아무것도 publish하지 않는다** |
+| `docker-compose.edge.yml` | 관리 화면을 host loopback에 publish. `web`의 `ports:` 선언을 이 파일이 소유한다 |
+| `docker-compose.model-egress.yml` | 승인된 vLLM egress와 `screening`·`overview`·`deep_review` 설정 |
+| `docker-compose.c2-order-plan.yml` | C-2 발주계획 판정의 승인 입력 파일 마운트와 실행 토글 |
+| `docker-compose.prespec-attachment.yml` | 사전규격 첨부 worker의 G2B egress와 취득 활성화 |
+| `docker-compose.mock-reference.yml` | 모델 없이 상태 전이만 확인(egress 없음) |
+
+**기반 파일만으로 띄우면 화면에 접근할 수 없다.** internal network에만 붙은 컨테이너의 `ports:`를 Docker가 조용히 무시하기 때문이다(에러도 내지 않는다). `web`을 재생성할 때 `-f docker-compose.edge.yml`을 빼면 화면이 조용히 죽는다. `make` 명령의 `COMPOSE`에는 이 overlay가 이미 들어 있다.
+
 이미 설치된 서버는 저장소 루트에서 `make up`으로 켠다. `make status`, `make health`,
 `make logs`, `make restart`, `make stop`을 제공하며 `make help`로 사용법을 확인할 수 있다.
 기존 컨테이너를 사용하는 명령의 범위는 [일상 실행 절차](docs/operations.md#설치된-서버의-일상-실행)를 따른다.
@@ -93,7 +106,7 @@ test -f web/backend/app/screening/baseline_company_profile.md && test -r web/bac
 
 ```bash
 cp .env.example .env
-cp env/vllm.env.example env/vllm.env
+cp env/model.env.example env/model.env
 export COMPOSE_PROJECT_NAME=bidops
 
 docker compose -f docker-compose.yml build
@@ -102,14 +115,27 @@ docker compose -f docker-compose.yml up -d postgres minio clamav
 # DB 역할 초기화 → Alembic migration → MinIO 버킷·정책 초기화
 ./scripts/init-runtime.sh
 
-docker compose --env-file .env --env-file env/vllm.env \
-  -f docker-compose.yml -f docker-compose.remote-vllm.yml \
+docker compose --env-file .env --env-file env/model.env \
+  -f docker-compose.yml -f docker-compose.edge.yml -f docker-compose.model-egress.yml \
   up -d web document-worker analysis-worker
 
 curl --fail "http://127.0.0.1:${BIDOPS_WEB_PORT:-18787}/api/health"
 ```
 
-화면은 `http://127.0.0.1:18787` 이다. 관리 port(PostgreSQL 15432, MinIO 19000/19001)는 `BIDOPS_ADMIN_BIND_HOST` 기본값 `127.0.0.1`로 loopback에만 publish된다.
+화면은 `http://127.0.0.1:18787` 이다. `docker-compose.edge.yml`이 그 publish를 소유하며 기본값은 loopback이다.
+
+PostgreSQL과 MinIO는 host에 publish되지 않는다. 관리 접근은 exec으로 한다.
+
+```bash
+docker compose -f docker-compose.yml exec postgres psql -U owner -d bidops
+docker compose -f docker-compose.yml exec minio mc ls local/bidops-source
+```
+
+다른 기기에서 화면을 볼 때는 `BIDOPS_WEB_BIND_HOST`를 넓히는 대신 loopback을 소비하는 tailnet proxy를 쓴다. **`--http=`가 아니라 `--tcp=`이다** — HTTP 모드는 Host 헤더를 대조해서 tailnet IP로 붙으면 `404 page not found`가 나온다. 자세한 설명은 [다른 기기에서 화면 열기](docs/operations.md#다른-기기에서-화면-열기)에 있다.
+
+```bash
+tailscale serve --bg --tcp=18787 tcp://127.0.0.1:18787
+```
 
 몇 가지 주의점
 
@@ -123,9 +149,18 @@ curl --fail "http://127.0.0.1:${BIDOPS_WEB_PORT:-18787}/api/health"
 판정 파이프라인이 승인된 모델 endpoint·나라장터 OpenAPI에 접근해야 할 때만 egress를 연다.
 
 ```bash
-cp env/screening.env.example env/screening.env   # BIDOPS_VLLM_SCREENING_* 를 채운다
-docker compose --env-file .env --env-file env/screening.env \
-  -f docker-compose.yml -f docker-compose.screening.yml up -d web
+cp env/model.env.example env/model.env   # BIDOPS_VLLM_SCREENING_* 를 채운다
+docker compose --env-file .env --env-file env/model.env \
+  -f docker-compose.yml -f docker-compose.edge.yml -f docker-compose.model-egress.yml up -d web
+```
+
+C-2 발주계획 판정은 전송(model-egress)과 입력(c2-order-plan)을 **둘 다** 붙인다. 회사 역량 파일과 프롬프트는 저장소가 제공하지 않는 승인 자료라 host 경로를 `env/model.env`에 명시해야 하며, 비우면 overlay가 기동 전에 fail closed한다.
+
+```bash
+docker compose --env-file .env --env-file env/model.env \
+  -f docker-compose.yml -f docker-compose.edge.yml \
+  -f docker-compose.model-egress.yml -f docker-compose.c2-order-plan.yml \
+  up -d web analysis-worker
 ```
 
 사전규격 첨부 취득(기본 비활성, `SW사업대상=Y` 또는 추적 중 발주계획 연결 건만 대상):
@@ -137,6 +172,8 @@ docker compose --env-file .env --env-file env/prespec-attachment.env \
   -f docker-compose.yml -f docker-compose.prespec-attachment.yml \
   up -d prespec-attachment-worker
 ```
+
+`prespec-attachment-worker`는 기반 파일이 `prespec` profile로 소유한다. 서비스 이름을 명시해야 뜨므로 `up -d`만으로는 시작되지 않고, overlay 없이 띄우면 취득이 꾸진 채 idle한다.
 
 모델 없이 상태 전이와 저장·검증 계보만 확인할 때는 mock override를 쓴다. 추가 env 파일이 필요 없고 어떤 egress도 열지 않는다.
 
@@ -182,6 +219,111 @@ npm run dev        # http://localhost:5173
 ## 파이프라인 실행
 
 수집기는 명시적으로 실행한다. 스케줄러와 always-on은 기본 비활성이고, 운영자가 회차 디렉터리와 API key 주입을 확인한 뒤 실행한다.
+
+### 수동 워크플로우 wrapper
+
+발주계획과 사전규격은 서로 독립된 단계형 shell script로 실행할 수 있다. 두 스크립트 모두
+기존 회차를 덮어쓰지 않고, live 모델 호출이 가능한 명령에는 그 실행 한 번에만 유효한
+`--approve-model-call`을 요구한다. 실제 비밀·endpoint는 출력하거나 실행 응답 파일에 저장하지
+않는다.
+
+```bash
+scripts/run-order-plan-workflow.sh --help
+scripts/run-prespec-workflow.sh --help
+```
+
+#### 발주계획 wrapper
+
+`scripts/run-order-plan-workflow.sh`의 범위는 **발주계획 수집부터 C-2 실행 요청과 결과 게시
+대기까지**다.
+
+```text
+Phase 0 read-only 검증
+→ 발주계획 수집
+→ PostgreSQL 적재
+→ web·analysis-worker를 C-2 전용 설정으로 기동
+→ BM25 Top 300 + Qwen C-2 실행 enqueue
+→ worker가 C-2 결과를 게시
+```
+
+| 명령 | 이 명령이 진행하는 마지막 지점 |
+|---|---|
+| `preflight` | web health와 C-2 Phase 0 binding을 읽기 전용으로 검사한다. `execution_allowed=true`가 아니면 중단한다. |
+| `collect` | 새 `data/runs/<run-id>/collected-order-plans.json`과 raw page를 만든다. DB에는 적재하지 않는다. |
+| `ingest` | 회차를 web의 영속 pipeline volume에 복사하고 PostgreSQL에 적재한다. C-2는 시작하지 않는다. |
+| `start-worker` | web과 공유 analysis worker를 C-2 활성·사전규격 분석 비활성 설정으로 재기동한다. 실행 row는 만들지 않는다. |
+| `run` | 지정 회차의 C-2 execution을 `대기`로 생성한다. 호출 뒤 worker가 비동기로 BM25·Qwen·결과 게시를 수행한다. |
+| `status` | 지정 회차의 C-2 상태·건수·부분 산출물·안전한 오류 코드만 조회한다. 상태를 바꾸지 않는다. |
+| `all` | `preflight → collect → ingest → start-worker → run`을 수행하고 **C-2를 enqueue한 직후 반환**한다. 종결까지 기다리지 않는다. |
+| `stop-worker` | 공유 analysis worker를 중지한다. 실행·산출물·DB row는 삭제하지 않는다. |
+
+대표 실행:
+
+```bash
+scripts/run-order-plan-workflow.sh all \
+  --days 3 \
+  --actor '담당자 이름' \
+  --approve-model-call
+
+scripts/run-order-plan-workflow.sh status --run-id <run-id>
+```
+
+이 wrapper는 사람의 relevance 수정, 추적 시작·보류·종료, 사전규격 연결, 최종 Go/No-Go를
+자동으로 기록하지 않는다. C-2의 `relevant|uncertain|not_relevant`도 적합성 등급이나 입찰
+결정이 아니다. `성공|부분 성공|실패|중단됨`은 `status` 또는 `/order-plans`에서 사람이
+확인한다.
+
+#### 사전규격 wrapper
+
+`scripts/run-prespec-workflow.sh`의 범위는 **사전규격 수집부터 C-1 실행 요청, 그리고 조건을
+충족한 건의 첨부·문서 준비·개요·회사 핏 비동기 처리까지**다.
+
+```text
+active C-1·profile·policy·모델 설정 검증
+→ 사전규격만 수집
+→ validation-set 표본 선정·PostgreSQL 적재
+→ C-1 web + 첨부·문서·analysis worker 기동
+→ C-1 전량 판정 enqueue
+→ 우선 검토/SW 조건을 충족한 건의 첨부 취득·문서 준비
+→ 개요 run
+→ 회사 핏 attempt
+```
+
+| 명령 | 이 명령이 진행하는 마지막 지점 |
+|---|---|
+| `preflight` | web health, active C-1 policy, 세 overlay env, 회사자료 파일을 검사한다. 정책을 만들거나 활성화하지 않는다. |
+| `import-inputs` | 불변 심층검토 profile/policy 판을 import하고 UUID를 출력한다. `.env` 수정과 프로세스 재기동은 사람이 한다. C-1 정책을 만드는 명령은 아니다. |
+| `collect` | `--skip-bids`로 사전규격만 새 회차에 수집한다. 첨부 바이트를 받거나 DB에 적재하지 않는다. |
+| `ingest` | `validation-set.json`을 만들고 **그 표본만** 적재한 뒤 첨부 취득 자격을 재평가한다. 전량 적재는 `--analysis-count`·`--audit-count`를 명시해 표본 범위를 넓혀야 한다. |
+| `start-workers` | C-1용 web, document worker, 첨부 worker, 공유 analysis worker를 기동한다. C-2는 비활성으로 강제한다. 기존 queue가 있으면 그것도 같은 worker의 대상이다. |
+| `run-c1` | 지정 회차의 C-1 전량 판정을 enqueue한다. 이후 자격을 충족한 건은 worker와 hook이 첨부 → 문서 묶음 → 개요 → 회사 핏을 비동기로 이어 간다. |
+| `enqueue` | `--notice-id` 한 건 또는 `--limit` 범위의 eligible 건을 개요 queue에 넣는다. 회사 핏을 직접 생성하지 않으며 실제 모델 호출은 analysis worker가 한다. |
+| `status` | run ID가 있으면 C-1을, notice ID가 있으면 개요와 회사 핏을 조회한다. 둘 다 없으면 현재 사전규격 50건의 funnel 상태를 보여 준다. |
+| `all` | `preflight → collect → ingest → start-workers → run-c1`을 수행하고 **C-1을 enqueue한 직후 반환**한다. 첨부·개요·회사 핏 완료까지 기다리지 않는다. |
+| `stop-workers` | analysis worker와 첨부 worker를 중지한다. document worker와 web, 기존 결과는 유지한다. |
+
+대표 실행:
+
+```bash
+scripts/run-prespec-workflow.sh all \
+  --from-date 2026-09-10 \
+  --to-date 2026-09-12 \
+  --actor '담당자 이름' \
+  --approve-model-call
+
+scripts/run-prespec-workflow.sh status --run-id <run-id>
+scripts/run-prespec-workflow.sh status --notice-id <notice-id>
+```
+
+후속 자동 단계는 모든 사전규격에 무조건 실행되지 않는다. 첨부 취득 자격, 안전 검사,
+현재 문서, 자동 확정 `ready` 묶음과 최신 `completed` 개요가 필요하다. 회사 핏은 현재 등급이
+`우선 검토`이고 `SW사업대상=Y`이며 활성 profile/policy와 참조 실행 설정이 맞는 건만
+대상이다. 범위가 모호하거나 변환·검증이 실패하면 `needs_human_review`·`failed`·사유 코드로
+멈추며 wrapper가 값을 보정하거나 과거 완료 run으로 우회하지 않는다.
+
+이 wrapper의 회사 핏은 현재 참조 실행 범위다. 결과가 `matched`여도 운영 품질 통과나 추적
+승인, 심층 검토 승인, 최종 입찰 Go/No-Go를 뜻하지 않는다. 수동 범위 확정, 사람 검토 대기
+해소, 추적 결정과 최종 결정은 담당자가 화면/API에서 별도로 수행한다.
 
 ```bash
 # 최근 21일 발주계획 수집
@@ -297,9 +439,12 @@ DB dump와 객체 manifest는 같은 복구 지점을 식별할 수 있게 **함
 ```text
 bidops/
 ├── AGENTS.md, CLAUDE.md              작업 진입점이며 내용은 동일하다
-├── docker-compose.yml                PostgreSQL·MinIO 기반 애플리케이션 스택
-├── docker-compose.*.yml              목적별 egress·모델 overlay
-├── docker-compose.sqlite-ops.yml     SQLite 이전 입력용 ops 명령 (제거 후보)
+├── docker-compose.yml                PostgreSQL·MinIO 기반 애플리케이션 스택 (내부망 전용)
+├── docker-compose.edge.yml           관리 화면 host publish (이 파일만 포트를 연다)
+├── docker-compose.model-egress.yml   screening·overview·deep_review 모델 egress
+├── docker-compose.c2-order-plan.yml  C-2 발주계획 판정 입력 마운트
+├── docker-compose.prespec-attachment.yml  사전규격 첨부 G2B egress
+├── docker-compose.mock-reference.yml 모델 없는 참조 실행
 ├── run-tests.sh                      파이프라인 단위·교차 테스트
 ├── data/, reports/                   불변 회차 입력과 파생 보고서
 ├── env/                              overlay 전용 환경 파일
@@ -352,6 +497,11 @@ bidops/
 | Docker가 만든 파일을 지울 수 없다 | 컨테이너 사용자 번호가 host와 다르다. `id -u`·`id -g`를 `.env`의 `BIDOPS_UID`·`BIDOPS_GID`에 넣고 다시 띄운다 |
 | `document-worker`가 `PermissionError: '/scratch/inbox'`로 즉시 종료 | image가 `/scratch`를 만들기 전에 생성된 `document-scratch` volume이 root 소유다. 스택을 멈추고 **그 volume만** 지운 뒤 다시 올린다. 보존 대상이 아니다 |
 | 8787 포트 충돌 | `--port`로 바꾸고 `web/frontend/vite.config.ts`의 프록시 대상도 함께 바꾼다 |
+| 컨테이너는 healthy인데 화면 포트가 안 열린다 | `-f docker-compose.edge.yml`을 빠뜨린 채 `web`을 재생성했다. 기반 파일의 network는 전부 internal이라 Docker가 `ports:`를 조용히 무시한다. edge overlay를 붙여 다시 `up -d web` |
+| tailnet IP로 붙으면 `404 page not found` | `tailscale serve`가 HTTP 모드다. HTTP 모드는 Host 헤더를 MagicDNS 이름과 대조하므로 IP 접속이 걸리지 않는다. `tailscale serve --http=<port> off` 뒤 `tailscale serve --bg --tcp=<port> tcp://127.0.0.1:<port>` |
+| `up -d`를 했는데 `prespec-attachment-worker`가 없다 | 기반 파일이 그 worker를 `prespec` profile로 소유한다. 서비스 이름을 명시해야 뜬다 |
+| web이 `Database migration required: current X, expected Y`로 종료 | 정상 fail-closed다. 앱 startup은 migration을 하지 않는다. 이미지를 다시 빌드하고 `run --rm migrate`를 먼저 끝낸다 |
+| `all predefined address pools have been fully subnetted` | Docker 주소 풀이 찼다. 프로젝트 하나가 최대 7개 network를 쓰므로 동시 2개가 한계다. 쓰지 않는 Compose 프로젝트를 내리거나 `/etc/docker/daemon.json`의 `default-address-pools`를 넓힌다 |
 | `ensurepip is not available` | `sudo apt install python3.12-venv` 또는 Docker 실행을 쓴다 |
 | 대시보드 수집 건수가 값 없음 | 해당 회차에 `collected-notices.json`이 없다. 원문 페이지는 용량 때문에 저장소에서 제외되므로 새 클론에서는 정상이다 |
 | 첨부 업로드가 거부된다 | HWP·HWPX·PDF만 허용하고 상한은 50MB다. 거부 사유는 화면에 그대로 표시된다 |

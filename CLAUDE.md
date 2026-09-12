@@ -10,8 +10,11 @@ BidOps는 기획·사업개발 담당자가 나라장터 발주계획을 조기�
 bidops/
 ├── AGENTS.md, CLAUDE.md              작업 진입점이며 내용은 동일하다
 ├── docker-compose.yml                PostgreSQL·MinIO 기반 애플리케이션 스택
-├── docker-compose.*.yml              목적별 egress·모델 overlay
-├── docker-compose.sqlite-ops.yml     SQLite 이전 입력용 ops 명령 (제거 후보)
+├── docker-compose.edge.yml           관리 화면 host publish (이 파일만 포트를 연다)
+├── docker-compose.model-egress.yml   screening·overview·deep_review 모델 egress
+├── docker-compose.c2-order-plan.yml  C-2 발주계획 판정 입력 마운트
+├── docker-compose.prespec-attachment.yml  사전규격 첨부 G2B egress
+├── docker-compose.mock-reference.yml 모델 없는 참조 실행
 ├── run-tests.sh                      파이프라인 단위·교차 테스트
 ├── data/, reports/                   불변 회차 입력과 파생 보고서
 ├── docs/

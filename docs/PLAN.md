@@ -232,8 +232,8 @@ PostgreSQL 17에서 migration·적재·재적재 검증이 모두 통과해야 �
 - `web/backend/app/screening/services/vllm_client.py` 또는 목적별 전용 adapter
 - `web/backend/app/core/config.py`
 - `docker-compose.yml`
-- `docker-compose.remote-vllm.yml`
-- `env/vllm.env.example`
+- `docker-compose.model-egress.yml`
+- `env/model.env.example`
 
 ### 구현 내용
 

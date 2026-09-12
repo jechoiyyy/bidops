@@ -1,6 +1,6 @@
 # Docker 파일·컨테이너 정리 기록
 
-기준일: 2026-09-04
+기준일: 2026-09-04 (1~4절) · 2026-09-12 (5절)
 
 `t7` 접두사를 걷어내고 Compose 파일·프로젝트·호스트 자원을 하나의 이름 체계로 정리한 기록이다.
 `t7`은 과거 T-번호 작업 체계의 "T7: 심층 검토 런타임 통합"에서 온 꼬리표였고, 그 체계는 종료됐다.
@@ -87,3 +87,42 @@ docker compose -p bidops --env-file .env --env-file .dryforge/c2-e2e/vllm.env \
   `web/run-web-tests.sh`를 `npm run test:screens`로 바꿨는데 테스트는 아직 `npm run test:visual`을
   기대한다. HEAD에서 그대로 재현된다.
 - `docker compose ... config -q` 통과, `/api/health` ok.
+
+## 5. 2026-09-12 두 번째 정리: 파일을 목적 단위로 다시 나눴다
+
+`t7` 정리는 이름만 맞췄고 경계는 그대로였다. 이번에는 파일이 여는 것을 기준으로 다시 나눴다.
+
+| 이전 | 이후 | 이유 |
+|---|---|---|
+| `docker-compose.screening.yml` + `docker-compose.remote-vllm.yml` | `docker-compose.model-egress.yml` | 세 용도(`screening`·`overview`·`deep_review`)가 `app/core/model_client.py` 하나를 부르는데 egress overlay가 둘로 갈려 있었다. 실제로도 사전규격 workflow가 두 파일을 항상 함께 넘겼다 |
+| `docker-compose.remote-vllm.yml`의 C-2 마운트 | `docker-compose.c2-order-plan.yml` | 전송 경로와 **승인 입력 파일**은 다른 결정이다. 합쳐 두면 C-1만 쓰는 배포도 회사 역량 파일 경로를 요구받는다 |
+| `docker-compose.prespec-attachment.yml`의 worker 정의 | `docker-compose.yml`의 `prespec` profile | worker의 DB·객체 저장소·검사 설정은 다른 worker와 같다. overlay에는 G2B egress와 취득 활성화만 남겼다 |
+| `docker-compose.yml`의 `ports:` (web·postgres·minio) | `docker-compose.edge.yml` (web만) | **기반 파일의 포트 선언은 전부 죽어 있었다.** network가 전부 `internal: true`라 Docker가 publish를 조용히 무시한다(빈 compose로 재현 확인). 관리 포트라고 적혀 있었을 뿐 실제로는 열린 적이 없다 |
+| `env/screening.env` + `env/vllm.env` | `env/model.env` | overlay가 하나가 됐다 |
+| `docker-compose.sqlite-ops.yml`, `web/container-ops.sh` | 제거 | PostgreSQL이 정본이 된 뒤 실행 기록이 없다. `bidops-ops`를 부르는 곳도 이 파일뿐이었다 |
+
+부수 효과로 기반 파일의 중복 환경 블록을 YAML anchor(`x-object-store-env`·`x-quarantine-env`·
+`x-clamav-env`·`x-worker-database-url`)로 접었다. 격리 버킷 자격증명은 분석 worker에 주면
+안 되므로(최소 권한) anchor를 그 경계대로 쪼갰고, 실제로 기존 계약 테스트가 첫 시도에서
+이를 잡아냈다.
+
+overlay를 기반 파일에 합치는 방향은 택하지 않았다. `docker-compose.yml`만으로는 어떤 egress도
+host 노출도 생기지 않는다는 성질이 감사의 출발점이고, 계약 테스트도 그 성질을 고정한다.
+
+### 정리 뒤 파일
+
+```text
+docker-compose.yml                     내부망 전용 스택 (host 노출·egress 없음)
+docker-compose.edge.yml                관리 화면 host publish
+docker-compose.model-egress.yml        screening·overview·deep_review 모델 egress
+docker-compose.c2-order-plan.yml       C-2 발주계획 판정 입력 마운트
+docker-compose.prespec-attachment.yml  G2B 첨부 egress
+docker-compose.mock-reference.yml      모델 없는 참조 실행
+```
+
+### 사람이 확인할 것
+
+- `bidops_bidops-web-data`·`bidops_bidops-backups`·`bidops-agent_bidops-*` volume은 SQLite ops
+  전용이었고 이번 변경으로 참조가 사라졌다. 내용을 확인한 뒤 사람이 제거한다. 자동으로 지우지 않았다.
+- `BIDOPS_ADMIN_BIND_HOST`·`BIDOPS_POSTGRES_PORT`·`BIDOPS_MINIO_PORT`·`BIDOPS_MINIO_CONSOLE_PORT`는
+  `.env.example`에서 지웠다. 기존 `.env`에 남아 있어도 아무 효과가 없다.

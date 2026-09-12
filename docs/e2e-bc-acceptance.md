@@ -12,7 +12,7 @@
 - `app.deep_review.cli import-profile-policy`: 측정한 policy SHA와 실제 import 대상 SHA가 다르면 저장 전에 거부한다. import 결과는 active 설정을 자동 변경하지 않는다.
 - `app.deep_review.cli run-bc-e2e`: 문서 업로드·검사·구조화·역할 지정·전체 current 문서 확정 후 deep review를 만들고, 세 stage·validation·evidence를 확인한다.
 - `app.deep_review.cli run-prespec-e2e`: 사전규격 회차 적재부터 자동 문서 준비·개요 검토·SW=Y 자동 심층 검토·보고서·최종 의견까지를 mock transport와 fake 취득 connector로 완주하고 증거 JSON(`bidops.prespec-e2e-result.v1`)을 남긴다. 판정 제공자는 `--extension-provider app.screening:register_lifecycle_extensions`로 설정에서 주입하며, 저장소만으로 돌릴 때는 `BIDOPS_TEST_MODE=1`이 필요하다(파일 객체 저장소가 격리 경계에서만 열린다).
-- `docker-compose.remote-vllm.yml`: analysis worker에만 외부 모델 egress network를 추가하는 선택 override다. vLLM 자체는 이 Compose 밖의 승인 서버에서 운영한다.
+- `docker-compose.model-egress.yml`: web과 analysis worker에 외부 모델 egress network와 용도별 endpoint 설정을 추가하는 선택 override다. vLLM 자체는 이 Compose 밖의 승인 서버에서 운영한다.
 
 아래 항목은 저장소만으로 대신 만들 수 없는 실제 인수 입력이다.
 
@@ -41,27 +41,27 @@
 cd /path/to/bidops-agent
 docker compose --project-name bidops-deep-review-e2e \
   --env-file /secure/bidops-e2e.env \
-  -f docker-compose.yml -f docker-compose.remote-vllm.yml \
+  -f docker-compose.yml -f docker-compose.model-egress.yml \
   build
 docker compose --project-name bidops-deep-review-e2e \
   --env-file /secure/bidops-e2e.env \
-  -f docker-compose.yml -f docker-compose.remote-vllm.yml \
+  -f docker-compose.yml -f docker-compose.model-egress.yml \
   up -d postgres minio clamav
 COMPOSE_PROJECT_NAME=bidops-deep-review-e2e \
   docker compose --env-file /secure/bidops-e2e.env \
-  -f docker-compose.yml -f docker-compose.remote-vllm.yml \
+  -f docker-compose.yml -f docker-compose.model-egress.yml \
   run --rm postgres-init
 COMPOSE_PROJECT_NAME=bidops-deep-review-e2e \
   docker compose --env-file /secure/bidops-e2e.env \
-  -f docker-compose.yml -f docker-compose.remote-vllm.yml \
+  -f docker-compose.yml -f docker-compose.model-egress.yml \
   run --rm migrate
 COMPOSE_PROJECT_NAME=bidops-deep-review-e2e \
   docker compose --env-file /secure/bidops-e2e.env \
-  -f docker-compose.yml -f docker-compose.remote-vllm.yml \
+  -f docker-compose.yml -f docker-compose.model-egress.yml \
   run --rm minio-init
 ```
 
-`docker compose down -v`, volume 삭제, 다른 project의 `down`은 실행하지 않는다. 애플리케이션 Compose에는 모델 service를 포함하지 않는다. 외부 vLLM 서버와 연결할 때만 `docker-compose.remote-vllm.yml`을 사용하며, URL에 credential을 넣지 않고 아래 값을 외부 env에 정확히 지정한다.
+`docker compose down -v`, volume 삭제, 다른 project의 `down`은 실행하지 않는다. 애플리케이션 Compose에는 모델 service를 포함하지 않는다. 외부 vLLM 서버와 연결할 때만 `docker-compose.model-egress.yml`을 사용하며, URL에 credential을 넣지 않고 아래 값을 외부 env에 정확히 지정한다.
 
 ```text
 BIDOPS_VLLM_BASE_URL=http://<approved-ip>:<published-port>/v1
@@ -117,7 +117,7 @@ docker run --rm --network none --read-only --tmpfs /tmp \
 ```bash
 docker compose --project-name bidops-deep-review-e2e \
   --env-file /secure/bidops-e2e.env \
-  -f docker-compose.yml -f docker-compose.remote-vllm.yml \
+  -f docker-compose.yml -f docker-compose.model-egress.yml \
   run --rm --no-deps web \
   python -m app.deep_review.cli import-profile-policy \
   --actor 'E2E 담당자' \
@@ -142,13 +142,13 @@ BIDOPS_ACTIVE_ANALYSIS_POLICY_VERSION_ID=<policy_version_id>
 ```bash
 docker compose --project-name bidops-deep-review-e2e \
   --env-file /secure/bidops-e2e.env \
-  -f docker-compose.yml -f docker-compose.remote-vllm.yml \
+  -f docker-compose.yml -f docker-compose.model-egress.yml \
   run --rm --no-deps \
   -v "$PWD/data:/app/data:ro" \
   web python -m app.lifecycle.ingest.cli --run 20260817-20260823
 docker compose --project-name bidops-deep-review-e2e \
   --env-file /secure/bidops-e2e.env \
-  -f docker-compose.yml -f docker-compose.remote-vllm.yml \
+  -f docker-compose.yml -f docker-compose.model-egress.yml \
   up -d --force-recreate web document-worker analysis-worker
 ```
 
