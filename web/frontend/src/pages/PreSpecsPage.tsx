@@ -1,16 +1,14 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@astryxdesign/core/Button";
 import { Dialog, DialogHeader } from "@astryxdesign/core/Dialog";
-import { Heading } from "@astryxdesign/core/Heading";
 import { Selector } from "@astryxdesign/core/Selector";
-import { Token } from "@astryxdesign/core/Token";
-import { Badge } from "../components/common/Badge";
 import { EmptyState } from "../components/common/EmptyState";
 import { PageHeaderActions } from "../components/common/PageHeaderActions";
 import { useUnsavedGuard } from "../components/common/useUnsavedGuard";
-import { DenseList, DenseListRow, SplitWorkspace } from "../components/common/ReviewPrimitives";
+import { useRowKeyboardNavigation } from "../components/common/useRowKeyboardNavigation";
+import { DenseList, SplitWorkspace } from "../components/common/ReviewPrimitives";
 import {
   WorkspaceAdvancedToggle,
   WorkspaceFilterAdvanced,
@@ -22,46 +20,17 @@ import {
   WorkspaceSearch,
   WorkspaceViewTabs,
 } from "../components/common/WorkspaceFilters";
-import { getDocumentBundles } from "../components/deep-review/api";
-import {
-  BUNDLE_STATUS_LABELS,
-  SAFETY_STATUS_LABELS,
-  STRUCTURE_STATUS_LABELS,
-} from "../components/deep-review/DocumentPreparationPanel";
-import {
-  isInheritedTracking,
-  TrackingDecisionControl,
-  updateTrackingProjection,
-} from "../components/pre-specs/TrackingDecisionControl";
+import { updateTrackingProjection } from "../components/pre-specs/TrackingDecisionControl";
 import { api } from "../lib/api";
-import { CompanyFitSection } from "../components/pre-specs/CompanyFitSection";
-import { PageOverviewSection, useCurrentPageOverview } from "../components/pre-specs/PageOverviewSection";
-import { describeApiError } from "../lib/apiErrors";
-import { describeDeadline, formatCompactPrice, shortDateLabel } from "../lib/deadline";
-import { formatDateTime, formatNumber } from "../lib/format";
-import { GRADE_NONE_LABEL, GRADE_ORDER, gradeLabel, gradeSourceLabel } from "../lib/grade";
-import { originOf } from "../lib/opportunity";
 import {
-  PRE_SPEC_AUTO_PREPARATION_STATUS_LABEL,
-  preSpecAutoPreparationReasonLabel,
-  preSpecAutoPreparationVariant,
-} from "../lib/preSpecAutoPreparation";
-import {
-  hasCanonicalOverviewNoticeId,
-  PRE_SPEC_OVERVIEW_ATTEMPT_STATUS_LABEL,
-  PRE_SPEC_OVERVIEW_NOT_STARTED_LABEL,
-  PRE_SPEC_OVERVIEW_STATUS_LABEL,
-  PRE_SPEC_OVERVIEW_VALIDATION,
-  PRE_SPEC_OVERVIEW_WAITING_DESCRIPTION,
-} from "../lib/preSpecOverviewStatus";
-import { qualityStatusLabel, qualityStatusNote, qualityStatusVariant } from "../lib/qualityStatus";
+  AUTO_PREPARATION_FILTER_VALUES, GRADE_FILTER_VALUES, SORT_OPTIONS, VIEWS,
+  matchesGradeFilter, matchesTrackingDecision, matchesView,
+  validAutoPreparationStatus, validGrade, validTrackingDecision, validView, viewOf, type ViewKey,
+} from "../lib/preSpecViews";
+import { PRE_SPEC_AUTO_PREPARATION_STATUS_LABEL } from "../lib/preSpecAutoPreparation";
+import { PreSpecDetail } from "../components/pre-specs/PreSpecListDetailPane";
+import { PreSpecRow } from "../components/pre-specs/PreSpecListRow";
 import type {
-  PageOverviewCurrent,
-  PageOverviewCurrentStatus,
-  PageOverviewFactV4,
-  PageOverviewPayloadV4,
-  PageOverviewView,
-  PreSpecListItem,
   PreSpecListResponse,
   PreSpecOrigin,
   PreSpecOverviewReviewStatus,
@@ -89,104 +58,8 @@ const PAGE_SIZE = 200;
 const BUSINESS_DIVISIONS = ["일반용역", "기술용역"] as const;
 const ORIGINS: PreSpecOrigin[] = ["추적", "신규"];
 
-// 등급 필터 URL 계약: 허용값은 계약의 등급 4값과 `판정 없음`(= `grade`가 null)뿐이다.
-//
-// **서버 `GET /api/pre-specs`에는 `grade` 질의 인자가 없다**(docs/contracts.md).
-// 그래서 이 필터는 불러온 페이지에만 적용되고, 서버가 준 상태별 건수
-// (`overview_status_counts`)는 등급 필터 이전 기준이다. 그 비대칭을 화면이 직접
-// 문장으로 밝힌다.
-const GRADE_FILTER_VALUES = [...GRADE_ORDER, GRADE_NONE_LABEL] as const;
-type GradeFilter = (typeof GRADE_FILTER_VALUES)[number] | "";
-
-/**
- * 상단 보기는 **탐색 묶음**이지 새로운 업무 상태가 아니다.
- *
- * 각 행은 서버가 준 개별 개요 상태를 그대로 보여 주고, 보기는 11개 상태값을 사람이
- * 찾는 순서로 묶어 목록을 좁힐 뿐이다. `취소`는 실패와 뜻이 다르므로 실패 묶음에
- * 넣지 않고 자기 보기를 갖는다. 그래서 10값 + 미시작(null) 전부가 어느 보기에든
- * 도달한다 — 어떤 상태도 보기 밖으로 사라지지 않는다.
- */
-type ViewKey = "all" | "attention" | "pending" | "completed" | "failed" | "cancelled";
-
-interface ViewDefinition {
-  key: ViewKey;
-  label: string;
-  /** `null`이면 전체(상태로 좁히지 않음). 그 밖에는 이 상태 집합만 남긴다. */
-  statuses: readonly (PreSpecOverviewReviewStatus | null)[] | null;
-  description: string;
-}
-
-/**
- * 나열 순서는 **사람이 찾는 차례**다(사용자 결정 2026-09-08): 먼저 전체를 보고,
- * 끝난 건(`개요 완료`)을 확인한 뒤, 손이 필요한 건(`사람 확인`)과 아직 도는 건
- * (`진행·대기`)으로 내려가고, 예외인 `실패`·`취소`가 마지막이다. 묶음의 뜻과 key는
- * 그대로이므로 `validView`·`viewOf`·`viewCounts`는 영향을 받지 않는다.
- */
-const VIEWS: readonly ViewDefinition[] = [
-  { key: "all", label: "전체", statuses: null, description: "현재 필터에 맞는 사전규격 전체" },
-  { key: "completed", label: "개요 완료", statuses: ["completed"], description: "개요 검토가 완료된 건" },
-  { key: "attention", label: "사람 확인", statuses: ["needs_human_review"], description: "개요 입력 범위나 결과를 사람이 확인해야 하는 건" },
-  {
-    key: "pending",
-    label: "진행·대기",
-    statuses: [null, "awaiting_document", "awaiting_structure", "preparing", "awaiting_model", "queued", "running"],
-    description: "개요 검토를 아직 시작하지 않았거나 준비·실행을 기다리는 건",
-  },
-  { key: "failed", label: "실패", statuses: ["failed"], description: "개요 검토가 실패한 건" },
-  { key: "cancelled", label: "취소", statuses: ["cancelled"], description: "개요 검토 실행이 취소된 건" },
-];
-
-/**
- * 표시 순서. 기본값 `published`는 URL에 싣지 않으므로 인자가 없으면 게시 최신순이다.
- * 정렬은 서버 질의 인자이고 화면이 다시 줄 세우지 않는다.
- */
-const SORT_OPTIONS: readonly { value: PreSpecSort; label: string }[] = [
-  { value: "published", label: "게시 최신순" },
-  { value: "deadline", label: "마감 임박순" },
-];
-
-/** 추적 결정 사유로 자주 쓰는 문장. 예시일 뿐이며 저장되는 값은 사람이 적은 사유다. */
-const TRACKING_REASON_PRESETS = [
-  "후속 입찰공고 확인",
-  "세부 과업·연계 범위 확인",
-  "참여 자격·실적 확인 필요",
-] as const;
-
 /** 상세 필터 Selector의 "전체"를 나타내는 표식값. URL에는 실리지 않는다. */
 const ALL_OPTION = "__all__";
-
-type DetailTab = "overview" | "documents" | "history";
-
-const DETAIL_TABS: readonly { key: DetailTab; label: string }[] = [
-  { key: "overview", label: "개요 검토" },
-  { key: "documents", label: "첨부 문서" },
-  { key: "history", label: "처리 이력" },
-];
-
-function validGrade(value: string | null): GradeFilter {
-  return value && (GRADE_FILTER_VALUES as readonly string[]).includes(value) ? (value as GradeFilter) : "";
-}
-
-function matchesGradeFilter(item: PreSpecListItem, grade: GradeFilter): boolean {
-  if (!grade) return true;
-  if (grade === GRADE_NONE_LABEL) return item.grade === null;
-  return item.grade === grade;
-}
-
-function validView(value: string | null): ViewKey {
-  const found = VIEWS.find((view) => view.key === value);
-  return found ? found.key : "all";
-}
-
-function viewOf(key: ViewKey): ViewDefinition {
-  return VIEWS.find((view) => view.key === key) ?? VIEWS[0];
-}
-
-function matchesView(item: PreSpecListItem, key: ViewKey): boolean {
-  const statuses = viewOf(key).statuses;
-  if (statuses === null) return true;
-  return statuses.includes(item.overview_review_status);
-}
 
 function validDivision(value: string | null): string {
   return value && BUSINESS_DIVISIONS.includes(value as (typeof BUSINESS_DIVISIONS)[number]) ? value : "";
@@ -205,781 +78,17 @@ function readOffset(value: string | null): number {
   return Number.isInteger(parsed) && parsed >= 0 ? parsed : 0;
 }
 
-/** 목록의 예산. 좁은 pane에 맞춰 억·만 단위로 줄인다. 정확한 금액은 상세의 사실
- * 목록과 이 값의 `title`이 갖는다. 실제 0은 `0원`이고 `null`은 미확인이다 —
- * 둘을 같은 표시로 접지 않는다. */
-function budgetLabel(value: number | null): string {
-  return value === null || Number.isNaN(value) ? "예산 미확인" : formatCompactPrice(value);
-}
-
-/** 상세와 tooltip이 쓰는 정확한 금액. */
-function exactBudget(value: number | null): string {
-  return value === null || Number.isNaN(value) ? "예산 미확인" : `${formatNumber(value)}원`;
-}
-
-/**
- * 사람의 추적 선택 표시. 세 경우를 서로 접지 않는다.
- *
- * - 사업기회 연결이 없으면 아직 물어볼 자리가 없다 → `사업기회 미연결`
- * - 연결은 있는데 서버 값이 `null`이면 → `미확인` (사람이 고른 `미선택`이 아니다)
- * - 그 밖에는 사람이 고른 값 그대로
- */
-function trackingLabel(item: PreSpecListItem): string {
-  if (item.opportunity_id === null) return "사업기회 미연결";
-  return item.tracking_status ?? "미확인";
-}
-
-/** 시안의 상태 token 색. 실패는 오류, 사람 검토 필요는 경고, 나머지는 무채색이다.
- * 색만으로 뜻을 전하지 않으며 라벨이 늘 함께 있다. */
-function overviewTokenColor(status: PreSpecOverviewReviewStatus | null): "red" | "orange" | "default" {
-  if (status === "failed") return "red";
-  if (status === "needs_human_review") return "orange";
-  return "default";
-}
-
-/** 첨부 취득에서 사람이 손대야 하는 건수. 0은 실제 0이므로 아무것도 적지 않는다. */
-function attachmentAttention(item: PreSpecListItem): string | null {
-  const parts: string[] = [];
-  if (item.document["차단"] > 0) parts.push(`차단 ${item.document["차단"]}`);
-  if (item.document["실패"] > 0) parts.push(`실패 ${item.document["실패"]}`);
-  return parts.length > 0 ? `첨부 ${parts.join(" · ")}` : null;
-}
-
-function titleOf(item: PreSpecListItem): string {
-  return item.title?.trim() || "사업명 미확인";
-}
-
-function agencyOf(item: PreSpecListItem): string {
-  return item.agency?.trim() || "발주기관 미확인";
-}
-
-function overviewStatusLabel(status: PreSpecOverviewReviewStatus | null): string {
-  return status === null ? PRE_SPEC_OVERVIEW_NOT_STARTED_LABEL : PRE_SPEC_OVERVIEW_STATUS_LABEL[status];
-}
-
-/** 발견 구분. 연결이 없으면 `구분 미확인`이며 신규로 접지 않는다. */
-function originLabel(value: PreSpecOrigin | null): string {
-  return value === null ? "구분 미확인" : originOf(value);
-}
-
-/** SW사업대상. 기본 보기가 이미 `Y` 중심이므로 목록은 `Y`가 아닌 경우만 적는다.
- * 값이 없는 것(`SW 미확인`)과 실제 `N`은 서로 다른 표시다. */
-function swRowNote(value: string | null): string | null {
-  if (value === "Y") return null;
-  return value === null ? "SW 미확인" : `SW ${value}`;
-}
-
-function DeadlineMark({ value }: { value: string | null }) {
-  const deadline = describeDeadline(value);
-  return (
-    <span aria-label={`D-day: ${deadline.label}`} className={`pre-specs-deadline is-${deadline.urgency} mono tabular-nums`}>
-      {deadline.label}
-    </span>
-  );
-}
-
-/**
- * 목록 행 — 시안의 두 열 구조다.
- *
- * 왼쪽 열은 사업명(16px, 굵게) → 발주기관(16px) → 예산·발견 구분(14px) → 개요 상태와
- * 추적 상태(14px)를 그대로 쌓는다. 행에서 먼저 읽혀야 하는 것은 사업명이므로 시안의
- * 두 줄 차례를 뒤집었다(사용자 정정). 오른쪽 열은 의견등록 마감뿐이며 D-day와 짧은
- * 날짜만 둔다. 정확한 일시·금액과 등급·자동 준비 같은 나머지 사실은 선택한 건의
- * 상세가 보여 준다 — 목록에서 같은 사실을 강한 배지로 반복하지 않는다.
- *
- * 행은 스스로 판정하지 않는다. 서버가 준 상태를 옮길 뿐이고, 사업명을 눌러도
- * 목록을 떠나지 않고 오른쪽 상세만 바뀐다(상세 화면 진입은 상세 pane 바닥의
- * `상세 검토 열기`가 소유한다).
- */
-function PreSpecRow({
-  item,
-  isSelected,
-  onSelect,
-}: {
-  item: PreSpecListItem;
-  isSelected: boolean;
-  onSelect: () => void;
-}) {
-  const title = titleOf(item);
-  const swNote = swRowNote(item.sw_business_status);
-  const attention = attachmentAttention(item);
-  const shortDeadline = shortDateLabel(item.deadline_at);
-  return (
-    <DenseListRow
-      // 행 자체가 role="button"이 되므로 접근 가능한 이름을 사업명으로 고정한다.
-      aria-label={title}
-      className="pre-specs-row"
-      selected={isSelected}
-      onSelect={onSelect}
-      label={<span className="pre-specs-row-title">{title}</span>}
-      description={(
-        <>
-          <span className="pre-specs-row-agency">{agencyOf(item)}</span>
-          <span className="pre-specs-row-meta">
-            <span title={exactBudget(item.budget)}>{budgetLabel(item.budget)}</span>
-            <span aria-hidden="true">·</span>
-            <span>{originLabel(item.origin)}</span>
-            {swNote ? (
-              <>
-                <span aria-hidden="true">·</span>
-                <span>{swNote}</span>
-              </>
-            ) : null}
-            {item.kept_by_tracking ? (
-              <>
-                <span aria-hidden="true">·</span>
-                {/* 뜻은 `표시 범위` 대화상자가 문장으로 갖는다. 목록에는 짧은 표식만
-                    두고 그 뜻을 접근 가능한 이름으로 함께 남긴다. */}
-                <span
-                  aria-label="추적 예외 · SW사업대상 Y가 아니지만 추적 중인 발주계획에 연결됨"
-                  className="pre-specs-tracking-exception"
-                >
-                  추적 예외
-                </span>
-              </>
-            ) : null}
-          </span>
-          <span className="pre-specs-row-state">
-            <Token
-              size="sm"
-              label={overviewStatusLabel(item.overview_review_status)}
-              color={overviewTokenColor(item.overview_review_status)}
-            />
-            <span className="pre-specs-row-tracking">{trackingLabel(item)}</span>
-            {/* 0건은 실제 0이므로 아무것도 적지 않는다. 1건 이상일 때만 남긴다. */}
-            {attention ? <span className="pre-specs-row-attention">{attention}</span> : null}
-          </span>
-        </>
-      )}
-      endContent={(
-        <span className="pre-specs-row-end">
-          <DeadlineMark value={item.deadline_at} />
-          <span
-            className="pre-specs-row-deadline-at"
-            title={item.deadline_at ? formatDateTime(item.deadline_at) : undefined}
-          >
-            {shortDeadline ?? "일시 없음"}
-          </span>
-        </span>
-      )}
-    />
-  );
-}
-
-/** 조회 실패 한 자리. 서버 raw message는 여기까지 오지 않고 `describeApiError`가
- * 옮긴 안전한 문구만 나온다(docs/security.md). 같은 화면에 alert가 여럿 생기지
- * 않도록 이 자리는 polite status로 알린다. */
-function DetailQueryError({
-  error,
-  fallback,
-  onRetry,
-  title,
-}: {
-  error: unknown;
-  fallback: string;
-  onRetry: () => void;
-  title: string;
-}) {
-  const problem = describeApiError(error, fallback);
-  return (
-    <div className="pre-specs-detail-error" role="status">
-      <strong>{title}</strong>
-      <p>{problem.title} {problem.detail}{problem.code ? ` · 오류 코드 ${problem.code}` : ""}</p>
-      <button className="interaction-control" type="button" onClick={onRetry}>다시 시도</button>
-    </div>
-  );
-}
-
-/** 새 계약에는 `stale`이 없다. 남은 자리를 위한 문장만 두고 상태를 지어내지 않는다. */
-function overviewWaitingDescription(status: PageOverviewCurrentStatus): string {
-  return status === "stale"
-    ? "이전 입력 기준의 결과는 현재 결과로 쓸 수 없습니다. 사람 확인이 필요합니다."
-    : PRE_SPEC_OVERVIEW_WAITING_DESCRIPTION[status];
-}
-
-/** 결과 본문의 주장 전부. 섹션 순서를 유지한 채 근거 목록 하나로 모은다. */
-function overviewClaims(payload: PageOverviewPayloadV4): PageOverviewFactV4[] {
-  return [
-    ...payload.business_overview,
-    ...payload.main_tasks,
-    ...payload.budget_and_period,
-    ...payload.important_conditions,
-  ];
-}
-
-/** 개요 결과 본문 — 시안의 세 구역(결과 · 확인 조건 · 문서 근거)이다.
- *
- * **모든 값은 서버의 개요 응답 그대로다.** 결과가 없으면 없다고 말하고
- * metadata에서 결론을 지어내지 않는다. 품질 표식과 검증 상태는 결과 머리줄에
- * 붙어 있어 결과를 읽는 자리에서 함께 보인다 — 참조 실행이나 검증 실패를 운영
- * 완료처럼 보이게 하지 않는다. 권고 문장은 새 계약에 없으므로 그 자리에는
- * 검증된 첫 주장을 둔다(모델의 권고로 읽히지 않게 요약과 같은 사실이다). */
-function OverviewResult({
-  review,
-  current,
-  detailUrl,
-}: {
-  review: PageOverviewView | null;
-  current: PageOverviewCurrent | null;
-  detailUrl: string;
-}) {
-  const payload = review && review.payload.schema_version === "bidops.prespec-overview-page-review.v4"
-    ? review.payload
-    : null;
-  const validation = PRE_SPEC_OVERVIEW_VALIDATION[review ? review.validation_status : "pending"];
-  const claims = payload ? overviewClaims(payload) : [];
-  const evidenceCount = claims.reduce((total, claim) => total + claim.evidence.length, 0);
-  const summary = payload ? payload.business_overview.slice(1).map((fact) => fact.text).join(" ") : "";
-  const pdfUrl = review ? api.preSpecOverviewRunPdfUrl(review.notice_id, review.id) : null;
-  return (
-    <div className="pre-specs-overview">
-      <section className="pre-specs-overview-section is-result" aria-labelledby="pre-specs-overview-result">
-        <div className="pre-specs-overview-section-head">
-          <h4 id="pre-specs-overview-result">개요 검토 결과</h4>
-          {/* 품질 표식은 결과를 읽는 자리에 붙는다. 뜻을 적은 문장은 tooltip과
-              `표시 범위` 대화상자가 갖고, 기본 화면에는 표식만 둔다. */}
-          <span className="pre-specs-overview-quality" title={qualityStatusNote(review?.quality_status ?? null)}>
-            <Token size="sm" label={qualityStatusLabel(review?.quality_status ?? null)} color="default" />
-          </span>
-        </div>
-        {payload ? (
-          <>
-            <p className={`pre-specs-overview-recommendation${review?.validation_status === "passed" ? "" : " is-unverified"}`}>
-              {payload.business_overview[0]?.text ?? "검토 결과 미확정"}
-              <span className="pre-specs-overview-validation">{validation.label}</span>
-            </p>
-            {summary ? <p className="pre-specs-overview-summary">{summary}</p> : null}
-          </>
-        ) : (
-          <>
-            <p className="pre-specs-overview-recommendation is-unverified">
-              검토 결과 미확정
-              <span className="pre-specs-overview-validation">{validation.label}</span>
-            </p>
-            <p className="pre-specs-overview-summary">
-              {current ? overviewWaitingDescription(current.status) : "개요 검토 실행이 아직 없습니다."}
-            </p>
-          </>
-        )}
-        {validation.warning ? <p className="pre-specs-overview-warning" role="status">{validation.warning}</p> : null}
-      </section>
-
-      {payload ? (
-        <>
-          {payload.important_conditions.length > 0 ? (
-            <section className="pre-specs-overview-section" aria-labelledby="pre-specs-overview-conditions">
-              <div className="pre-specs-overview-section-head">
-                <h4 id="pre-specs-overview-conditions">확인 조건</h4>
-                {/* 확인 기한은 새 계약에 없다. 미지정 문구를 지어내지 않고 자리를 비운다. */}
-              </div>
-              <ul className="pre-specs-overview-list">
-                {payload.important_conditions.map((condition) => <li key={condition.claim_id}>{condition.text}</li>)}
-              </ul>
-            </section>
-          ) : null}
-
-          <section className="pre-specs-overview-section" aria-labelledby="pre-specs-overview-evidence">
-            <div className="pre-specs-overview-section-head">
-              <h4 id="pre-specs-overview-evidence">문서 근거</h4>
-              <span>{evidenceCount}건</span>
-            </div>
-            {claims.length > 0 ? (
-              <ul className="pre-specs-overview-evidence">
-                {claims.map((claim) => (
-                  <li key={claim.claim_id}>
-                    <p>{claim.text}</p>
-                    <span className="pre-specs-overview-locator" aria-label="근거 위치">
-                      {claim.evidence.map((evidence) => (
-                        <a
-                          key={`${claim.claim_id}-${evidence.page}`}
-                          href={`${pdfUrl}#page=${evidence.page}`}
-                          rel="noreferrer"
-                          target="_blank"
-                        >
-                          {evidence.page}쪽
-                        </a>
-                      ))}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            ) : <p className="pre-specs-overview-empty">근거 항목 없음</p>}
-            {/* 원문 열람은 상세 화면이 소유한다. 이 자리에서 원문을 여는 흉내를
-                내지 않고 실제로 여는 화면으로 보낸다. */}
-            <Link className="pre-specs-overview-source-link" to={detailUrl}>상세에서 근거 원문 열기 →</Link>
-          </section>
-
-          {payload.unknowns.length > 0 ? (
-            <section className="pre-specs-overview-section" aria-labelledby="pre-specs-overview-unknowns">
-              <div className="pre-specs-overview-section-head">
-                <h4 id="pre-specs-overview-unknowns">미확인</h4>
-                <span>{payload.unknowns.length}건</span>
-              </div>
-              <ul className="pre-specs-overview-unknowns">
-                {payload.unknowns.map((unknown) => <li key={unknown}><span>{unknown}</span></li>)}
-              </ul>
-            </section>
-          ) : null}
-
-          {payload.input_limitations.length > 0 ? (
-            <p className="pre-specs-overview-note">
-              이 판단의 한계 · {payload.input_limitations.join(" ")}
-            </p>
-          ) : null}
-        </>
-      ) : null}
-
-      <p className="pre-specs-overview-note">
-        개요 결과는 추적 상태·참여 준비·최종 Go/No-Go를 대신하지 않습니다.
-      </p>
-    </div>
-  );
-}
-
-/**
- * 선택한 사전규격 하나.
- *
- * 목록 응답에 있는 사실(기관·예산·마감·등급·자동 준비·첨부 집계·추적 상태)과
- * 별도 endpoint인 개요 검토 응답을 각자 자리에서 보여 준다. 목록 응답만으로 개요
- * 본문을 만들지 않는다.
- */
-function PreSpecDetail({
-  item,
-  listSearch,
-  onDirtyChange,
-  onSaved,
-  onTrackingDialogChange,
-  trackingDialogOpen,
-  trackingCloseRequested,
-  onTrackingCloseCancel,
-  onTrackingCloseConfirm,
-}: {
-  item: PreSpecListItem;
-  listSearch: string;
-  onDirtyChange: (dirty: boolean) => void;
-  onSaved: (saved: Parameters<typeof updateTrackingProjection>[2]) => void;
-  onTrackingDialogChange: (open: boolean) => void;
-  trackingDialogOpen: boolean;
-  trackingCloseRequested: boolean;
-  onTrackingCloseCancel: () => void;
-  onTrackingCloseConfirm: () => void;
-}) {
-  const navigate = useNavigate();
-  const [tab, setTab] = useState<DetailTab>("overview");
-  const noticePk = item.notice_pk;
-  const detailUrl = `/pre-specs/${noticePk}${listSearch ? `?${listSearch}` : ""}`;
-
-  // 개요 본문과 같은 query를 읽는다(같은 key라 요청이 늘지 않는다). 이력 탭은
-  // 결과가 남은 실행만 나열하고 상태를 다시 판정하지 않는다.
-  const pageOverview = useCurrentPageOverview(noticePk);
-  const overviewQuery = pageOverview.query;
-  // 응답이 이 공고의 정본인지만 본다. 어긋나면 다른 공고의 결과를 그리지 않는다.
-  const overviewInvalid = overviewQuery.isSuccess
-    && !hasCanonicalOverviewNoticeId(overviewQuery.data, noticePk);
-  const overviewValid = pageOverview.isValid && !overviewInvalid;
-  const overviewRuns = overviewValid
-    ? [...(pageOverview.currentResult ? [pageOverview.currentResult] : []), ...pageOverview.history]
-    : [];
-  const overviewCurrent = overviewValid ? pageOverview.current : null;
-  const overviewReview = overviewValid ? pageOverview.currentResult ?? pageOverview.legacyReview : null;
-  const overviewMissing = overviewValid && overviewCurrent === null && overviewReview === null;
-
-  // 첨부 문서는 사람이 그 탭을 열 때만 조회한다. 목록을 훑는 동안 문서 API를
-  // 부르지 않는다.
-  const bundleQuery = useQuery({
-    queryKey: ["document-bundles", noticePk],
-    queryFn: () => getDocumentBundles(noticePk),
-    enabled: tab === "documents",
-    staleTime: 30_000,
-  });
-
-  const latestBundle = [...(bundleQuery.data?.items ?? [])].sort((left, right) => right.revision - left.revision)[0] ?? null;
-  const autoReason = preSpecAutoPreparationReasonLabel(item.auto_preparation_reason);
-  const inherited = isInheritedTracking(item);
-  // 연결이 없으면 `사업기회 미연결`, 연결은 있는데 값이 없으면 `미확인`이다.
-  // 둘 중 어느 것도 사람이 고른 `미선택`으로 바꾸지 않는다.
-  const trackingText = trackingLabel(item);
-
-  // 다음 작업은 하나만 말한다. 서버가 준 개요 상태에서 고르고, 여기서 상태를
-  // 새로 판정하지 않는다.
-  const nextAction = item.overview_review_status === "completed"
-    ? { title: "다음 작업", text: "개요 결과의 근거와 심층 검토를 상세에서 확인" }
-    : item.overview_review_status === "needs_human_review"
-      ? { title: "확인할 작업", text: "개요 입력 문서와 범위를 사람이 확인" }
-      : item.overview_review_status === "failed" || item.overview_review_status === "cancelled"
-        ? { title: "확인할 작업", text: "실행 기록에서 실패·취소 내용을 확인" }
-        : { title: "확인할 작업", text: "현재 처리 상태를 확인" };
-
-  return (
-    <div className="pre-specs-detail">
-      <header className="pre-specs-detail-header">
-        <div className="pre-specs-detail-agency">
-          <span>발주기관</span>
-          <strong>{agencyOf(item)}</strong>
-        </div>
-        <div className="pre-specs-detail-title">
-          <Heading level={3}>{titleOf(item)}</Heading>
-        </div>
-        <div className="pre-specs-detail-identity">
-          <span>
-            사전규격 {item.pre_spec_no ? <code className="mono">{item.pre_spec_no}</code> : "번호 미확인"}
-          </span>
-          <span aria-hidden="true">·</span>
-          <span>{originLabel(item.origin)}</span>
-          <span className="pre-specs-detail-identity-end">
-            <Token size="sm" label={trackingText} color="default" />
-          </span>
-        </div>
-        <dl className="pre-specs-detail-facts">
-          <div>
-            <dt>사업 예산</dt>
-            <dd>{exactBudget(item.budget)}</dd>
-          </div>
-          <div>
-            <dt>의견등록 마감</dt>
-            <dd className="pre-specs-detail-deadline">
-              <span>{item.deadline_at ? formatDateTime(item.deadline_at) : "마감 일시 없음"}</span>
-              <DeadlineMark value={item.deadline_at} />
-            </dd>
-          </div>
-          <div>
-            <dt>적합성 등급</dt>
-            <dd>{gradeLabel(item.grade)}</dd>
-          </div>
-        </dl>
-        <p className="pre-specs-detail-meta">
-          {item.business_division?.trim() || "업무구분 미확인"}
-          {" · SW사업대상 "}
-          {item.sw_business_status === null ? "미확인" : item.sw_business_status}
-          {" · 등급 출처 "}
-          {gradeSourceLabel(item.grade_source)}
-          {" · 게시 "}
-          {formatDateTime(item.published_at)}
-        </p>
-      </header>
-
-      <nav className="pre-specs-detail-tabs" aria-label="사전규격 상세 정보">
-        {DETAIL_TABS.map((entry) => (
-          <button
-            key={entry.key}
-            type="button"
-            className="pre-specs-detail-tab"
-            aria-pressed={tab === entry.key}
-            onClick={() => setTab(entry.key)}
-          >
-            {entry.label}
-          </button>
-        ))}
-      </nav>
-
-      <div className="pre-specs-detail-scroll">
-        {tab === "overview" ? (
-          <>
-            <ol className="pre-specs-process" aria-label="자동 준비 진행">
-              <li>
-                <span>첨부</span>
-                <strong>{item.document["완료"] > 0 ? `취득 ${item.document["완료"]}건` : item.document.attachments > 0 ? "취득 대기" : "첨부 없음"}</strong>
-                {attachmentAttention(item) ? (
-                  <span className="pre-specs-process-detail">{attachmentAttention(item)}</span>
-                ) : null}
-              </li>
-              <li aria-hidden="true" className="pre-specs-process-arrow">›</li>
-              <li>
-                <span>개요</span>
-                <Token
-                  size="sm"
-                  label={overviewStatusLabel(item.overview_review_status)}
-                  color={overviewTokenColor(item.overview_review_status)}
-                />
-              </li>
-              <li aria-hidden="true" className="pre-specs-process-arrow">›</li>
-              <li>
-                <span>심층</span>
-                <strong>{PRE_SPEC_AUTO_PREPARATION_STATUS_LABEL[item.auto_preparation_status]}</strong>
-                {autoReason ? <span className="pre-specs-process-detail">{autoReason}</span> : null}
-              </li>
-            </ol>
-
-            <PageOverviewSection key={noticePk} noticeId={noticePk} />
-            <CompanyFitSection key={`fit-${noticePk}`} noticeId={noticePk} />
-            {overviewQuery.isPending ? (
-              <p className="pre-specs-detail-loading" role="status">개요 검토 결과를 불러오는 중입니다.</p>
-            ) : null}
-            {overviewQuery.isError ? (
-              <DetailQueryError
-                error={overviewQuery.error}
-                fallback="개요 검토 API 응답을 확인할 수 없습니다."
-                onRetry={() => { void overviewQuery.refetch(); }}
-                title="개요 검토 결과를 불러오지 못했습니다."
-              />
-            ) : null}
-            {overviewQuery.isSuccess && !overviewValid ? (
-              <div className="pre-specs-detail-error" role="status">
-                <strong>개요 검토 정본을 확인할 수 없습니다.</strong>
-                <p>응답의 notice ID가 요청과 일치하지 않아 개요 검토를 표시하지 않습니다.</p>
-              </div>
-            ) : null}
-            {overviewMissing ? (
-              <div className="pre-specs-detail-empty-block">
-                <strong>개요 검토 기록이 없습니다.</strong>
-                <p>서버가 제공한 개요 검토 기록이 없습니다. 목록의 상태와 다른 결과를 만들어 내지 않습니다.</p>
-              </div>
-            ) : null}
-            {overviewValid && !overviewMissing ? (
-              <OverviewResult review={overviewReview} current={overviewCurrent} detailUrl={detailUrl} />
-            ) : null}
-          </>
-        ) : null}
-
-        {tab === "documents" ? (
-          <div className="pre-specs-documents">
-            <section className="pre-specs-overview-section" aria-labelledby="pre-specs-documents-counts">
-              <div className="pre-specs-overview-section-head">
-                <h4 id="pre-specs-documents-counts">첨부 원문 취득 집계</h4>
-                <span>{item.document.attachments}건</span>
-              </div>
-              <dl className="pre-specs-document-counts">
-                <div><dt>완료</dt><dd>{item.document["완료"]}건</dd></div>
-                <div><dt>대기</dt><dd>{item.document["대기"]}건</dd></div>
-                <div><dt>진행</dt><dd>{item.document["진행"]}건</dd></div>
-                <div><dt>차단</dt><dd>{item.document["차단"]}건</dd></div>
-                <div><dt>실패</dt><dd>{item.document["실패"]}건</dd></div>
-              </dl>
-            </section>
-
-            <section className="pre-specs-overview-section" aria-labelledby="pre-specs-documents-bundle">
-              <div className="pre-specs-overview-section-head">
-                <h4 id="pre-specs-documents-bundle">문서 묶음</h4>
-                <span>{latestBundle ? `수정본 ${latestBundle.revision}` : "묶음 없음"}</span>
-              </div>
-              {bundleQuery.isPending ? (
-                <p className="pre-specs-detail-loading" role="status">문서 묶음을 불러오는 중입니다.</p>
-              ) : null}
-              {bundleQuery.isError ? (
-                <DetailQueryError
-                  error={bundleQuery.error}
-                  fallback="문서 묶음 API 응답을 확인할 수 없습니다."
-                  onRetry={() => { void bundleQuery.refetch(); }}
-                  title="문서 묶음을 불러오지 못했습니다."
-                />
-              ) : null}
-              {bundleQuery.isSuccess && !latestBundle ? (
-                <p className="pre-specs-overview-empty">이 사전규격에는 아직 문서 묶음이 없습니다. 초안으로 보정하지 않습니다.</p>
-              ) : null}
-              {latestBundle ? (
-                <>
-                  <p className="pre-specs-document-bundle-status">
-                    묶음 상태 · {BUNDLE_STATUS_LABELS[latestBundle.status]}
-                  </p>
-                  {latestBundle.documents.length > 0 ? (
-                    <ul className="pre-specs-document-list">
-                      {latestBundle.documents.map((document) => (
-                        <li key={document.id}>
-                          <strong>{document.original_filename}</strong>
-                          <span>
-                            {document.role} · {SAFETY_STATUS_LABELS[document.safety_status]} · {STRUCTURE_STATUS_LABELS[document.structure_status]}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : <p className="pre-specs-overview-empty">묶음에 등록된 문서가 없습니다.</p>}
-                  {latestBundle.issues.length > 0 ? (
-                    <ul className="pre-specs-document-issues">
-                      {latestBundle.issues.map((issue) => (
-                        <li key={issue.issue_id}>
-                          <Badge label={issue.severity} variant={issue.blocking ? "danger" : "alert"} />
-                          <span>{issue.message}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : null}
-                </>
-              ) : null}
-            </section>
-
-            {/* 문서 등록·변경·확정과 다운로드는 상세 화면의 문서 준비가 소유한다.
-                여기서 동작하는 것처럼 보이는 버튼을 만들지 않는다. */}
-            <p className="pre-specs-detail-note">
-              문서 등록·교체·묶음 확정과 원문 열람은 사전규격 상세의 문서 준비에서 수행합니다.
-              {" "}
-              <Link to={detailUrl}>상세 열기 →</Link>
-            </p>
-          </div>
-        ) : null}
-
-        {tab === "history" ? (
-          <div className="pre-specs-history">
-            <section className="pre-specs-overview-section" aria-labelledby="pre-specs-history-runs">
-              <div className="pre-specs-overview-section-head">
-                <h4 id="pre-specs-history-runs">개요 실행 이력</h4>
-                <span>{overviewValid ? `${overviewRuns.length}건` : "확인 중"}</span>
-              </div>
-              {overviewQuery.isError ? (
-                <DetailQueryError
-                  error={overviewQuery.error}
-                  fallback="개요 검토 API 응답을 확인할 수 없습니다."
-                  onRetry={() => { void overviewQuery.refetch(); }}
-                  title="개요 실행 이력을 불러오지 못했습니다."
-                />
-              ) : null}
-              <p className="pre-specs-overview-note">
-                현재 실행 · {overviewCurrent === null
-                  ? (item.overview_review_status === null
-                    ? PRE_SPEC_OVERVIEW_NOT_STARTED_LABEL
-                    : PRE_SPEC_OVERVIEW_STATUS_LABEL[item.overview_review_status])
-                  : overviewCurrent.status === "stale"
-                    ? "현재성 확인 필요"
-                    : PRE_SPEC_OVERVIEW_ATTEMPT_STATUS_LABEL[overviewCurrent.status]}
-              </p>
-              {/* 결과 본문이 남은 실행만 여기 온다. 실패·취소한 실행의 사유는 위
-                  개요 자리의 현재 실행 카드가 말한다. */}
-              {overviewValid && overviewRuns.length === 0 ? (
-                <p className="pre-specs-overview-empty">결과가 남은 개요 실행이 없습니다.</p>
-              ) : null}
-              {overviewValid && overviewRuns.length > 0 ? (
-                <ul className="pre-specs-history-list">
-                  {overviewRuns.map((review) => (
-                    <li key={review.id}>
-                      <span>{formatDateTime(review.created_at)}</span>
-                      <Badge label={qualityStatusLabel(review.quality_status)} variant={qualityStatusVariant(review.quality_status)} />
-                      <span>{PRE_SPEC_OVERVIEW_VALIDATION[review.validation_status].label}</span>
-                      <span>{review.model_name}</span>
-                      <span className="mono">결과 ID {review.id}</span>
-                    </li>
-                  ))}
-                </ul>
-              ) : null}
-              {!overviewValid && !overviewQuery.isPending && !overviewQuery.isError ? (
-                <p className="pre-specs-overview-empty">개요 실행 이력을 확인할 수 없습니다.</p>
-              ) : null}
-            </section>
-
-            <section className="pre-specs-overview-section" aria-labelledby="pre-specs-history-inputs">
-              <h4 id="pre-specs-history-inputs">고정 입력과 식별 해시</h4>
-              {/* 절단 전략·구조 버전은 새 계약에 없다. 남은 것은 스냅샷과 결과의
-                  해시, 그리고 그 결과를 만든 모델·프롬프트다. */}
-              {overviewRuns[0] ? (
-                <dl className="pre-specs-history-facts">
-                  <div><dt>원본 해시</dt><dd className="mono">{overviewRuns[0].source_sha256 || "없음"}</dd></div>
-                  <div><dt>PDF 해시</dt><dd className="mono">{overviewRuns[0].pdf_sha256 || "없음"}</dd></div>
-                  <div><dt>결과 해시</dt><dd className="mono">{overviewRuns[0].payload_sha256 || "없음"}</dd></div>
-                  <div><dt>프롬프트</dt><dd>{overviewRuns[0].prompt_version || "없음"}</dd></div>
-                  <div><dt>모델</dt><dd>{overviewRuns[0].model_name || "없음"}</dd></div>
-                  <div><dt>모델 revision</dt><dd className="mono">{overviewRuns[0].model_revision ?? "없음"}</dd></div>
-                </dl>
-              ) : <p className="pre-specs-overview-empty">현재 고정 입력이 없습니다.</p>}
-            </section>
-
-            <section className="pre-specs-overview-section" aria-labelledby="pre-specs-history-tracking">
-              <h4 id="pre-specs-history-tracking">사람의 선택과 자동 준비</h4>
-              <dl className="pre-specs-history-facts">
-                <div><dt>추적 선택</dt><dd>{trackingText}</dd></div>
-                <div>
-                  <dt>자동 준비</dt>
-                  <dd>
-                    {PRE_SPEC_AUTO_PREPARATION_STATUS_LABEL[item.auto_preparation_status]}
-                    {autoReason ? ` · ${autoReason}` : ""}
-                  </dd>
-                </div>
-                <div>
-                  <dt>자동 시작된 심층 검토</dt>
-                  <dd>
-                    {item.latest_deep_review_id
-                      ? <Link to={`/deep-reviews/${item.latest_deep_review_id}`}>보고서 열기 →</Link>
-                      : "시작 기록 없음"}
-                  </dd>
-                </div>
-              </dl>
-              <p className="pre-specs-detail-note">자동 분석의 시작은 사람의 추적 선택과 별개입니다.</p>
-            </section>
-          </div>
-        ) : null}
-      </div>
-
-      {/* 결정 블록은 본문 스크롤과 무관하게 늘 보인다. 위는 **사람의 추적 선택**,
-          아래는 다음 작업이다. 두 줄은 서로 다른 결정이며 추적 선택이 모델 분석
-          승인이나 최종 Go/No-Go를 뜻하지 않는다. */}
-      <footer className="pre-specs-detail-actions" id="pre-specs-tracking-target">
-        <div className="pre-specs-action-row">
-          <div>
-            <span>사람의 추적 선택</span>
-            <strong>
-              {trackingText}
-              {inherited ? " · 발주계획에서 이어짐" : ""}
-            </strong>
-          </div>
-          <Button
-            label="추적 선택 변경"
-            size="sm"
-            onClick={() => onTrackingDialogChange(true)}
-          />
-        </div>
-        <div className="pre-specs-action-row">
-          <div>
-            <span>{nextAction.title}</span>
-            <strong>{nextAction.text}</strong>
-          </div>
-          <Link className="interaction-control interaction-control-primary pre-specs-detail-open" to={detailUrl}>
-            상세 검토 열기 →
-          </Link>
-        </div>
-      </footer>
-
-      <Dialog
-        isOpen={trackingDialogOpen}
-        onOpenChange={(open) => onTrackingDialogChange(open)}
-        purpose="form"
-        width={620}
-      >
-        <DialogHeader
-          title="추적 선택"
-          subtitle={titleOf(item)}
-          onOpenChange={() => onTrackingDialogChange(false)}
-        />
-        <div className="pre-specs-dialog-body">
-          {/* 저장하지 않은 입력이 있는데 창을 닫으려 하면 이 확인이 먼저 뜬다.
-              modal 창 위에는 다른 창이 올라오지 못하므로 확인을 같은 창 안에 둔다. */}
-          {trackingCloseRequested ? (
-            <div className="pre-specs-dialog-guard" role="alert">
-              <strong>저장하지 않은 추적 결정 사유와 담당자 이름이 있습니다.</strong>
-              <p>지금 닫으면 입력이 사라지며 저장된 추적 상태는 바뀌지 않습니다.</p>
-              <div>
-                <button className="interaction-control" type="button" onClick={onTrackingCloseCancel}>계속 편집</button>
-                <button className="interaction-control" type="button" onClick={onTrackingCloseConfirm}>저장하지 않고 닫기</button>
-              </div>
-            </div>
-          ) : null}
-          <TrackingDecisionControl
-            key={noticePk}
-            item={item}
-            isPending={false}
-            isError={false}
-            onRetry={() => { void overviewQuery.refetch(); }}
-            headingLevel="h4"
-            compact
-            reasonPresets={TRACKING_REASON_PRESETS}
-            onDirtyChange={onDirtyChange}
-            // 발주계획에서 승계한 건은 이 화면이 추적을 다시 묻지 않으므로
-            // 한 조작 진입점도 신규 건에만 준다(ADR-0046 결정 6).
-            onStartedForDeepReview={inherited ? undefined : () => navigate(detailUrl)}
-            onSaved={(saved) => {
-              onSaved(saved);
-              onTrackingDialogChange(false);
-            }}
-          />
-        </div>
-      </Dialog>
-    </div>
-  );
-}
-
 export function PreSpecsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const swOnly = searchParams.get("sw_only") !== "false";
   const businessDivision = validDivision(searchParams.get("business_division"));
   const origin = validOrigin(searchParams.get("origin"));
   const gradeFilter = validGrade(searchParams.get("grade"));
+  // 서버 필터(질의 인자가 있다)와 페이지 한정 필터를 섞지 않는다.
+  const autoPreparationStatus = validAutoPreparationStatus(searchParams.get("auto_preparation_status"));
+  const trackingDecision = validTrackingDecision(searchParams.get("tracking_decision"));
   const view = validView(searchParams.get("view"));
   const queryText = searchParams.get("q") ?? "";
   const sort = validSort(searchParams.get("sort"));
@@ -993,6 +102,7 @@ export function PreSpecsPage() {
   // 같은 창 안에서 확인을 받는다.
   const [trackingCloseRequested, setTrackingCloseRequested] = useState(false);
   const [selectedPk, setSelectedPk] = useState<number | null>(null);
+  const listRef = useRef<HTMLDivElement | null>(null);
   // 대화상자의 추적 결정 입력(사유·담당자)은 행을 바꾸거나 창을 닫으면 사라진다.
   // route 이동은 컨트롤이 스스로 막으므로 여기서는 행 전환·닫기만 확인한다.
   const [trackingDirty, setTrackingDirty] = useState(false);
@@ -1010,12 +120,13 @@ export function PreSpecsPage() {
       sw_only: swOnly,
       business_division: businessDivision || null,
       origin: origin || null,
+      auto_preparation_status: autoPreparationStatus || null,
       q: queryText || null,
       sort,
       limit: PAGE_SIZE,
       offset,
     }),
-    [businessDivision, offset, origin, queryText, sort, swOnly],
+    [autoPreparationStatus, businessDivision, offset, origin, queryText, sort, swOnly],
   );
   const result = useQuery({
     queryKey: ["pre-specs", listQuery],
@@ -1032,14 +143,18 @@ export function PreSpecsPage() {
     () => loadedItems.filter((item) => matchesGradeFilter(item, gradeFilter)),
     [gradeFilter, loadedItems],
   );
+  // 추적 결정 대기도 서버 질의 인자가 없어 등급 필터와 같은 페이지 한정 필터다.
   const items = useMemo(
-    () => gradeFiltered.filter((item) => matchesView(item, view)),
-    [gradeFiltered, view],
+    () => gradeFiltered
+      .filter((item) => matchesTrackingDecision(item, trackingDecision))
+      .filter((item) => matchesView(item, view)),
+    [gradeFiltered, trackingDecision, view],
   );
   const total = result.data?.total ?? 0;
   const overviewStatusCounts = useMemo(() => result.data?.overview_status_counts ?? [], [result.data]);
   const listSearch = searchParams.toString();
   const isDefaultView = swOnly && !businessDivision && !origin && !gradeFilter && !queryText
+    && !autoPreparationStatus && !trackingDecision
     && view === "all" && sort === "published" && offset === 0;
 
   /** 보기 버튼의 건수는 **서버 전체 집계**다. 등급 필터와 페이지 범위는 반영하지
@@ -1060,6 +175,7 @@ export function PreSpecsPage() {
   }, [overviewStatusCounts, total]);
   const serverViewCount = viewCounts.get(view) ?? 0;
 
+  const itemKeys = useMemo(() => items.map((item) => item.notice_pk), [items]);
   const selectedItem = items.find((item) => item.notice_pk === selectedPk) ?? null;
 
   // 목록이 바뀌어 선택이 사라지면 첫 행을 고른다. 사람이 고르는 중이던 입력은
@@ -1084,6 +200,28 @@ export function PreSpecsPage() {
     });
   }, [trackingGuard]);
 
+  // 상세 화면으로 가는 것도 저장하지 않은 입력을 버릴 수 있으므로 같은 확인을 거친다.
+  const openDetail = useCallback((noticePk: number) => {
+    trackingGuard.confirmDiscard(() => {
+      navigate(`/pre-specs/${noticePk}${listSearch ? `?${listSearch}` : ""}`);
+    });
+  }, [listSearch, navigate, trackingGuard]);
+
+  const rowKeyboard = useRowKeyboardNavigation<number>({
+    containerRef: listRef,
+    keys: itemKeys,
+    selectedKey: selectedPk,
+    onSelect: selectPk,
+    // 경계에서는 페이지를 넘긴다. 서버 전체가 한 페이지보다 클 때만 움직인다.
+    onBoundary: (direction) => {
+      if (direction === "next" && offset + PAGE_SIZE < total) {
+        updateSearchParams({ offset: String(offset + PAGE_SIZE) });
+      } else if (direction === "previous" && offset > 0) {
+        updateSearchParams({ offset: offset - PAGE_SIZE > 0 ? String(offset - PAGE_SIZE) : null });
+      }
+    },
+  });
+
   const changeTrackingDialog = useCallback((open: boolean) => {
     if (open) {
       setTrackingDialogOpen(true);
@@ -1106,8 +244,9 @@ export function PreSpecsPage() {
       else next.set(key, value);
     }
     // 필터가 바뀌면 페이지를 처음으로 돌린다. 좁힌 조건에서 3페이지째를 보여 주는
-    // 것은 사람이 요청한 적 없는 상태다.
-    next.delete("offset");
+    // 것은 사람이 요청한 적 없는 상태다. 단, 호출자가 `offset`을 명시적으로 준
+    // 경우(키보드 경계 이동)는 그것이 요청된 페이지이므로 지우지 않는다.
+    if (!Object.prototype.hasOwnProperty.call(changes, "offset")) next.delete("offset");
     setSearchParams(next, { replace: true });
   }
 
@@ -1117,6 +256,8 @@ export function PreSpecsPage() {
       business_division: null,
       origin: null,
       grade: null,
+      auto_preparation_status: null,
+      tracking_decision: null,
       q: null,
       sort: null,
       view: null,
@@ -1132,7 +273,12 @@ export function PreSpecsPage() {
     if (isDefaultView) return "SW 중심 기본 보기에 맞는 항목이 없습니다. 전체 보기는 SW사업대상과 무관한 사전규격까지 명시적으로 요청합니다.";
     if (view !== "all") return `현재 보기(${viewOf(view).label})와 필터에 맞는 행이 불러온 목록에 없습니다. 보기를 바꾸거나 조건을 넓혀 보십시오.`;
     if (swOnly) return "SW 중심 기본 보기와 추가 필터가 함께 적용되어 있습니다. 기본값으로 돌아가거나 조건을 조정해 보십시오.";
-    if (businessDivision || origin || gradeFilter || queryText) return "현재 선택한 업무구분·구분·등급·검색어 조건에 맞는 누적 데이터가 없습니다.";
+    // 불러온 행을 페이지 한정 필터가 걸러 낸 경우를 `데이터 없음`으로 적지 않는다.
+    if (trackingDecision && loadedItems.length > 0) {
+      return "불러온 페이지에는 추적 결정 대기 상태인 행이 없습니다. 추적 결정 필터를 끄거나 다음 페이지를 확인하십시오.";
+    }
+    if (autoPreparationStatus) return "선택한 자동 준비 상태에 해당하는 사전규격이 없습니다.";
+    if (businessDivision || origin || gradeFilter || queryText || trackingDecision) return "현재 선택한 업무구분·구분·등급·추적 결정·검색어 조건에 맞는 누적 데이터가 없습니다.";
     return "누적 수집된 사전규격 데이터가 아직 없습니다.";
   }
 
@@ -1209,9 +355,12 @@ export function PreSpecsPage() {
             {/* 기본 화면에는 설명 문단을 두지 않는다. 필터의 적용 범위는 목록
                 바닥의 짧은 문구와 `표시 범위` 대화상자가 갖는다. 등급 필터는 서버가
                 거르지 못하는 필터라 켜져 있을 때만 한 줄로 밝힌다. */}
-            {gradeFilter ? (
+            {gradeFilter || trackingDecision ? (
               <p className="pre-specs-grade-filter-note" role="status">
-                등급 필터는 불러온 페이지에만 적용됩니다. 보기 건수는 서버 전체 집계입니다.
+                {gradeFilter && trackingDecision
+                  ? "등급·추적 결정 필터는"
+                  : gradeFilter ? "등급 필터는" : "추적 결정 필터는"}
+                {" 불러온 페이지에만 적용됩니다. 보기 건수는 서버 전체 집계입니다."}
               </p>
             ) : null}
           </WorkspaceFilterContext>
@@ -1256,7 +405,32 @@ export function PreSpecsPage() {
                 value={gradeFilter || ALL_OPTION}
                 onChange={(value) => updateSearchParams({ grade: value === ALL_OPTION ? null : value })}
               />
-              {/* 정렬은 사업 추적과 같은 자리(상세 필터 안 Selector)로 옮겼다. 접혀
+              {/* 자동 준비는 서버 질의 인자다 — 보기 건수와 같은 전체 집합을 좀힌다. */}
+              <Selector
+                label="자동 준비 상태"
+                size="sm"
+                options={[
+                  { value: ALL_OPTION, label: "전체" },
+                  ...AUTO_PREPARATION_FILTER_VALUES.map((value) => ({
+                    value,
+                    label: PRE_SPEC_AUTO_PREPARATION_STATUS_LABEL[value],
+                  })),
+                ]}
+                value={autoPreparationStatus || ALL_OPTION}
+                onChange={(value) => updateSearchParams({ auto_preparation_status: value === ALL_OPTION ? null : value })}
+              />
+              {/* 추적 결정 대기는 서버 질의 인자가 없어 불러온 페이지만 좀힌다. */}
+              <Selector
+                label="추적 결정"
+                size="sm"
+                options={[
+                  { value: ALL_OPTION, label: "전체" },
+                  { value: "pending", label: "추적 결정 대기" },
+                ]}
+                value={trackingDecision || ALL_OPTION}
+                onChange={(value) => updateSearchParams({ tracking_decision: value === ALL_OPTION ? null : value })}
+              />
+              {/* 정렬은 사업 추적과 같은 자리(상세 필터 안 Selector)로 옛겼다. 접혀
                   있어도 지금 어떤 순서인지는 목록 머리가 글자로 밝힌다. */}
               <Selector
                 label="표시 순서"
@@ -1297,7 +471,12 @@ export function PreSpecsPage() {
                 <span>사업명 / 발주기관</span>
                 <span>의견 마감</span>
               </div>
-              <div className="pre-specs-list-scroll">
+              <div
+                className="pre-specs-list-scroll"
+                ref={listRef}
+                onKeyDown={rowKeyboard.onKeyDown}
+                onPointerDownCapture={rowKeyboard.onPointerDownCapture}
+              >
                 {items.length === 0 ? (
                   <EmptyState
                     compact
@@ -1315,6 +494,13 @@ export function PreSpecsPage() {
                         item={item}
                         isSelected={item.notice_pk === selectedPk}
                         onSelect={() => selectPk(item.notice_pk)}
+                        // `Ctrl/Cmd+Enter`는 hook 밖에서 처리한다(발주계획과 같은 모양).
+                        onKeyDown={(event) => {
+                          if (event.key !== "Enter" || !(event.ctrlKey || event.metaKey)) return;
+                          event.preventDefault();
+                          openDetail(item.notice_pk);
+                        }}
+                        {...rowKeyboard.rowProps(item.notice_pk)}
                       />
                     ))}
                   </DenseList>
@@ -1329,6 +515,7 @@ export function PreSpecsPage() {
                   <span className="pre-specs-list-foot-note">
                     보기 <strong>{viewOf(view).label}</strong>의 서버 집계는 {serverViewCount}건입니다. 이 수는 필터 전체 기준이고 목록은 불러온 페이지 기준이라 서로 다를 수 있습니다.
                     {gradeFilter ? " 등급 필터는 불러온 페이지에만 적용됩니다." : ""}
+                    {trackingDecision ? " 추적 결정 필터도 불러온 페이지에만 적용됩니다." : ""}
                   </span>
                 ) : null}
               </footer>
@@ -1419,7 +606,7 @@ export function PreSpecsPage() {
           </p>
           <ul>
             <li>상단 보기 건수는 서버가 필터 전체에서 센 값(<code className="mono">overview_status_counts</code>)이며 페이지 범위와 등급 필터를 반영하지 않습니다.</li>
-            <li>적합성 등급 필터는 서버에 질의 인자가 없어 이미 불러온 페이지만 좁힙니다.</li>
+            <li>적합성 등급과 <strong>추적 결정 대기</strong> 필터는 서버에 질의 인자가 없어 이미 불러온 페이지만 좁힙니다. <strong>자동 준비 상태</strong>는 서버 필터라 전체 집합을 좁힙니다.</li>
             <li>보기는 상태를 묶어 찾기 위한 탐색 도구입니다. 각 행의 개요 상태·등급·자동 준비·추적 상태는 서버 값 그대로입니다.</li>
             <li>SW 중심 기본 보기는 SW사업대상=Y와 추적 중인 발주계획에 연결된 예외를 함께 남깁니다. 목록의 <strong>추적 예외</strong>는 SW사업대상이 Y가 아니지만 추적 중인 발주계획에 연결된 건이고, 값이 없는 SW사업대상은 <strong>SW 미확인</strong>으로 적습니다.</li>
             <li>추적 상태는 사업기회 연결이 없으면 <strong>사업기회 미연결</strong>, 연결은 있는데 서버 값이 없으면 <strong>미확인</strong>입니다. 사람이 고른 <strong>미선택</strong>과 다릅니다.</li>

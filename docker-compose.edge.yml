@@ -1,9 +1,9 @@
-# 관리 화면을 host에 노출하기 위한 edge overlay.
+# 관리 화면을 host에 노출하는 overlay.
 #
-# base stack의 web은 internal network(database·storage·scanning)에만 붙어 있다.
-# Docker는 internal 전용 컨테이너의 포트를 publish하지 않으며 에러도 내지 않으므로,
-# base 파일만으로 기동하면 `ports:` 선언이 조용히 무시된다. 이 overlay는 외부로
-# 라우팅되는 bridge network 하나를 web에 더 붙여 그 선언이 실제로 동작하게 한다.
+# 기본 스택의 network는 전부 `internal: true`다. Docker는 internal 전용
+# 컨테이너의 포트를 publish하지 않고 에러도 내지 않으므로, 화면을 여는 일은
+# 전부 이 파일이 소유한다 — 외부로 라우팅되는 bridge network와 `ports:` 선언이
+# 여기 함께 있다. 이 overlay 없이 `web`을 재생성하면 화면에 접근할 수 없다.
 #
 #   docker compose -f docker-compose.yml -f docker-compose.edge.yml up -d web
 #
@@ -19,6 +19,8 @@
 services:
   web:
     networks: [edge]
+    ports:
+      - "${BIDOPS_WEB_BIND_HOST:-127.0.0.1}:${BIDOPS_WEB_PORT:-18787}:8787"
 
 networks:
   edge:

@@ -145,20 +145,28 @@ def test_worker_network_and_command_boundaries_are_explicit():
     assert set(minio["networks"]) == {"storage", "analysis"}
 
 
-def test_admin_ports_bind_to_loopback_by_default():
-    """The application API is the access boundary; admin surfaces are not."""
+def test_host_exposure_lives_only_in_the_edge_overlay():
+    """기반 파일은 host에 아무것도 publish하지 않는다.
+
+    모든 network가 internal이라 Docker는 `ports:`를 조용히 무시한다. 기반
+    파일에 선언을 남겨 두면 열린 것처럼 읽히지만 실제로는 닿지 않는다.
+    그래서 노출은 edge overlay 하나만 소유한다.
+    """
+
     compose = yaml.safe_load((ROOT / "docker-compose.yml").read_text(encoding="utf-8"))
-    services = compose["services"]
-    admin_ports = services["postgres"]["ports"] + services["minio"]["ports"]
-    assert admin_ports == [
-        "${BIDOPS_ADMIN_BIND_HOST:-127.0.0.1}:${BIDOPS_POSTGRES_PORT:-15432}:5432",
-        "${BIDOPS_ADMIN_BIND_HOST:-127.0.0.1}:${BIDOPS_MINIO_PORT:-19000}:9000",
-        "${BIDOPS_ADMIN_BIND_HOST:-127.0.0.1}:${BIDOPS_MINIO_CONSOLE_PORT:-19001}:9001",
-    ]
-    # Every published admin port carries an explicit host-IP field.  A mapping
-    # written as "<host>:<container>" lets Docker bind every host interface.
-    for mapping in admin_ports:
-        assert mapping.count(":") >= 2 and mapping.startswith("${BIDOPS_ADMIN_BIND_HOST:-127.0.0.1}:")
+    for name, service in compose["services"].items():
+        assert "ports" not in service, f"{name} declares a port the base stack cannot publish"
+    assert all(network.get("internal") is True for network in compose["networks"].values())
+
+    edge = yaml.safe_load((ROOT / "docker-compose.edge.yml").read_text(encoding="utf-8"))
+    assert set(edge["services"]) == {"web"}
+    assert edge["services"]["web"]["networks"] == ["edge"]
+    assert edge["networks"]["edge"]["driver"] == "bridge"
+    # 발행 포트는 명시적인 host-IP 필드를 갖는다. "<host>:<container>" 형식은
+    # Docker가 모든 host interface에 bind하게 만든다.
+    ports = edge["services"]["web"]["ports"]
+    assert ports == ["${BIDOPS_WEB_BIND_HOST:-127.0.0.1}:${BIDOPS_WEB_PORT:-18787}:8787"]
+    assert ports[0].count(":") >= 2
 
 
 def test_compose_commands_and_recovery_scripts_exist():
@@ -190,81 +198,111 @@ def test_compose_commands_and_recovery_scripts_exist():
     assert "to_regclass('bidops.run')" in postgres_branch
 
 
-def test_remote_vllm_egress_is_an_explicit_override():
-    override = yaml.safe_load((ROOT / "docker-compose.remote-vllm.yml").read_text(encoding="utf-8"))
-    assert set(override["services"]["analysis-worker"]["networks"]) == {"database", "analysis", "model-egress"}
+def test_model_egress_is_one_explicit_override_for_every_purpose():
+    """세 용도가 한 transport를 쓰므로 egress overlay도 하나다."""
+
+    override = yaml.safe_load((ROOT / "docker-compose.model-egress.yml").read_text(encoding="utf-8"))
+    assert set(override["services"]) == {"web", "analysis-worker"}
     assert override["networks"] == {"model-egress": None}
     for service in override["services"].values():
-        assert service["environment"]["BIDOPS_C2_CAPABILITIES_PATH"] == "/run/c2/company-capabilities.json"
-        assert service["environment"]["BIDOPS_C2_PROMPT_PATH"] == "/run/c2/order-plan-prompt.txt"
-        assert all("./experiments/order-plan-screening:" not in volume for volume in service["volumes"])
-        assert any(":/run/c2/company-capabilities.json:ro" in volume for volume in service["volumes"])
-        assert any(":/run/c2/order-plan-prompt.txt:ro" in volume for volume in service["volumes"])
+        assert service["networks"] == ["model-egress"]
+        # egress overlay는 network와 설정만 열고 파일을 마운트하지 않는다.
+        assert "volumes" not in service
 
-
-def test_screening_egress_is_an_explicit_override():
-    override = yaml.safe_load((ROOT / "docker-compose.screening.yml").read_text(encoding="utf-8"))
-    assert set(override["services"]) == {"web"}
-    assert set(override["services"]["web"]["networks"]) == {
-        "database", "storage", "scanning", "model-egress",
-    }
-    assert override["networks"] == {"model-egress": None}
     base = yaml.safe_load((ROOT / "docker-compose.yml").read_text(encoding="utf-8"))
     assert "model-egress" not in base["networks"]
     assert all(network.get("internal") is True for network in base["networks"].values())
 
 
-def test_screening_overlay_fails_closed_without_an_endpoint():
-    """endpoint가 없으면 overlay가 멈춘다.
+def test_model_overlay_never_defaults_an_endpoint_for_an_unused_purpose():
+    """overlay는 주소를 발명하지 않고, 비면 앱이 fail closed한다.
 
-    기본값을 채워 두면 C-1이 승인되지 않은 주소로 조용히 나갈 수 있으므로
-    endpoint는 `:?`를 유지한다. 허용 host와 선언 revision은 MVP 기간 동안
-    비어 있어도 되므로 빈 기본값(`:-`)이다(ADR-0050 완화).
+    기본값을 채워 두면 승인되지 않은 주소로 조용히 나갈 수 있으므로 모든
+    endpoint는 빈 기본값이다. 빈 값으로 남은 용도는 `resolve_model_endpoint`가
+    네트워크 접촉 전에 거부한다(core/test_model_client.py의
+    `test_for_purpose_fails_closed_before_touching_the_network`). 허용 host와 선언
+    revision도 MVP 기간 동안 비어 있을 수 있다(ADR-0050 완화).
     """
 
-    override = yaml.safe_load((ROOT / "docker-compose.screening.yml").read_text(encoding="utf-8"))
-    environment = override["services"]["web"]["environment"]
-    assert environment["BIDOPS_VLLM_SCREENING_BASE_URL"].startswith("${BIDOPS_VLLM_SCREENING_BASE_URL:?")
-    for name in (
-        "BIDOPS_VLLM_SCREENING_ALLOWED_HOSTS",
-        "BIDOPS_VLLM_SCREENING_MODEL_REVISION",
-    ):
-        assert environment[name] == "${" + name + ":-}"
-    assert environment["BIDOPS_VLLM_SCREENING_MODEL"] == "${BIDOPS_VLLM_SCREENING_MODEL:-qwen3.8-27B}"
-    assert not [name for name in environment if "OLLAMA" in name]
+    override = yaml.safe_load((ROOT / "docker-compose.model-egress.yml").read_text(encoding="utf-8"))
+    purposes = ("SCREENING", "OVERVIEW", "DEEP_REVIEW")
+    web = override["services"]["web"]["environment"]
+    worker = override["services"]["analysis-worker"]["environment"]
+    for purpose in purposes:
+        for suffix in ("BASE_URL", "ALLOWED_HOSTS", "MODEL_REVISION"):
+            name = f"BIDOPS_VLLM_{purpose}_{suffix}"
+            assert web[name] == "${" + name + ":-}"
+            # 분석 worker는 C-1 판정을 하지 않으므로 screening 설정을 받지 않는다.
+            if purpose != "SCREENING":
+                assert worker[name] == "${" + name + ":-}"
+    assert not [name for name in worker if "SCREENING" in name]
+    for name in ("BIDOPS_VLLM_BASE_URL", "BIDOPS_VLLM_ALLOWED_HOSTS", "BIDOPS_VLLM_MODEL_REVISION"):
+        assert web[name] == "${" + name + ":-}"
+        assert worker[name] == "${" + name + ":-}"
+    assert web["BIDOPS_VLLM_SCREENING_MODEL"] == "${BIDOPS_VLLM_SCREENING_MODEL:-qwen3.8-27B}"
+    assert not [name for name in {**web, **worker} if "OLLAMA" in name]
 
-    example = (ROOT / "env/screening.env.example").read_text(encoding="utf-8")
-    assert "BIDOPS_VLLM_SCREENING_BASE_URL=\n" in example
-    assert "BIDOPS_VLLM_SCREENING_ALLOWED_HOSTS=\n" in example
-    assert "BIDOPS_VLLM_SCREENING_MODEL_REVISION=\n" in example
+    example = (ROOT / "env/model.env.example").read_text(encoding="utf-8")
+    for purpose in purposes:
+        assert f"BIDOPS_VLLM_{purpose}_BASE_URL=\n" in example
+        assert f"BIDOPS_VLLM_{purpose}_ALLOWED_HOSTS=\n" in example
+        assert f"BIDOPS_VLLM_{purpose}_MODEL_REVISION=\n" in example
     assert "OLLAMA" not in example
 
 
-def test_prespec_attachment_egress_is_an_explicit_override():
-    override = yaml.safe_load(
-        (ROOT / "docker-compose.prespec-attachment.yml").read_text(encoding="utf-8")
-    )
-    assert set(override["services"]) == {"prespec-attachment-worker"}
-    worker = override["services"]["prespec-attachment-worker"]
-    assert set(worker["networks"]) == {
-        "database", "storage", "scanning", "prespec-egress",
-    }
-    assert worker["environment"]["BIDOPS_G2B_ATTACHMENT_ENABLED"] == "true"
-    assert worker["environment"]["BIDOPS_G2B_ATTACHMENT_ALLOWED_HOSTS"].startswith(
-        "${BIDOPS_G2B_ATTACHMENT_ALLOWED_HOSTS:?"
-    )
+def test_c2_order_plan_inputs_are_a_separate_explicit_override():
+    """회사 역량 파일과 프롬프트는 이미지가 아니라 승인된 host 경로에서 온다."""
+
+    override = yaml.safe_load((ROOT / "docker-compose.c2-order-plan.yml").read_text(encoding="utf-8"))
+    assert set(override["services"]) == {"web", "analysis-worker"}
+    # 이 overlay는 입력만 담당한다. 전송 경로는 model-egress overlay가 열어야 한다.
+    assert "networks" not in override
+    for service in override["services"].values():
+        assert "networks" not in service
+        environment = service["environment"]
+        assert environment["BIDOPS_C2_EXECUTION_ALLOWED"] == "${BIDOPS_C2_EXECUTION_ALLOWED:-false}"
+        assert environment["BIDOPS_C2_CAPABILITIES_PATH"] == "/run/c2/company-capabilities.json"
+        assert environment["BIDOPS_C2_PROMPT_PATH"] == "/run/c2/order-plan-prompt.txt"
+        assert all("./experiments/order-plan-screening:" not in volume for volume in service["volumes"])
+        assert any(":/run/c2/company-capabilities.json:ro" in volume for volume in service["volumes"])
+        assert any(":/run/c2/order-plan-prompt.txt:ro" in volume for volume in service["volumes"])
+        # 경로를 주지 않으면 overlay가 기동 전에 멈춘다.
+        assert any(volume.startswith("${BIDOPS_C2_CAPABILITIES_HOST_PATH:?") for volume in service["volumes"])
+        assert any(volume.startswith("${BIDOPS_C2_PROMPT_HOST_PATH:?") for volume in service["volumes"])
+
+
+def test_prespec_attachment_worker_is_idle_without_its_egress_override():
+    """worker는 기반 스택이 profile로 소유하고, overlay는 egress만 연다."""
+
+    base = yaml.safe_load((ROOT / "docker-compose.yml").read_text(encoding="utf-8"))
+    worker = base["services"]["prespec-attachment-worker"]
+    assert worker["profiles"] == ["prespec"]
+    assert set(worker["networks"]) == {"database", "storage", "scanning"}
+    assert worker["environment"]["BIDOPS_G2B_ATTACHMENT_ENABLED"] == "false"
+    assert "BIDOPS_G2B_ATTACHMENT_ALLOWED_HOSTS" not in worker["environment"]
     assert worker["command"] == ["python", "-m", "app.deep_review.workers.prespec_attachment"]
     assert worker["healthcheck"] == {"disable": True}
     assert "document-scratch:/scratch" in worker["volumes"]
     assert "BIDOPS_STRUCTURE_ACCESS_KEY" in worker["environment"]
     assert "BIDOPS_STRUCTURE_SECRET_KEY" in worker["environment"]
-    assert override["networks"] == {"prespec-egress": None}
-    base = yaml.safe_load((ROOT / "docker-compose.yml").read_text(encoding="utf-8"))
-    web_environment = base['services']['web']['environment']
-    assert 'BIDOPS_STRUCTURE_READ_ACCESS_KEY' in web_environment
-    assert 'BIDOPS_STRUCTURE_READ_SECRET_KEY' in web_environment
+
+    web_environment = base["services"]["web"]["environment"]
+    assert "BIDOPS_STRUCTURE_READ_ACCESS_KEY" in web_environment
+    assert "BIDOPS_STRUCTURE_READ_SECRET_KEY" in web_environment
     assert "prespec-egress" not in base["networks"]
     assert all(network.get("internal") is True for network in base["networks"].values())
+
+    override = yaml.safe_load(
+        (ROOT / "docker-compose.prespec-attachment.yml").read_text(encoding="utf-8")
+    )
+    assert set(override["services"]) == {"prespec-attachment-worker"}
+    overlay_worker = override["services"]["prespec-attachment-worker"]
+    assert overlay_worker["networks"] == ["prespec-egress"]
+    assert overlay_worker["environment"]["BIDOPS_G2B_ATTACHMENT_ENABLED"] == "true"
+    assert overlay_worker["environment"]["BIDOPS_G2B_ATTACHMENT_ALLOWED_HOSTS"].startswith(
+        "${BIDOPS_G2B_ATTACHMENT_ALLOWED_HOSTS:?"
+    )
+    assert override["networks"] == {"prespec-egress": None}
 
 
 def test_non_http_workers_disable_the_shared_web_image_healthcheck():

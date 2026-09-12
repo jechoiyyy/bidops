@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { Selector } from "@astryxdesign/core/Selector";
 import { TextInput } from "@astryxdesign/core/TextInput";
@@ -13,6 +13,7 @@ import { MutationFeedback } from "../common/MutationFeedback";
 import { api } from "../../lib/api";
 import { describeApiError, type ApiErrorDescription } from "../../lib/apiErrors";
 import { originOf, trackingDescription, trackingVariant } from "../../lib/opportunity";
+import { formatDateTime, present } from "../../lib/format";
 import type {
   OpportunityDetailResponse,
   OpportunityTrackingStatus,
@@ -156,6 +157,28 @@ export function TrackingDecisionControl({
   showIntent = true,
 }: TrackingDecisionControlProps) {
   const Heading = headingLevel;
+  const opportunityId = item?.opportunity_id ?? null;
+  const inherited = item !== undefined && isInheritedTracking(item);
+  const opportunityQuery = useQuery({
+    queryKey: ["opportunity", opportunityId],
+    queryFn: () => api.getOpportunity(opportunityId as number),
+    enabled: inherited && opportunityId !== null && !isPending && !isError,
+    retry: false,
+    staleTime: 30_000,
+  });
+  const inheritedContext = !inherited ? null : opportunityQuery.isPending ? (
+    <p role="status">승계 사유를 불러오는 중입니다.</p>
+  ) : opportunityQuery.isError || opportunityQuery.data?.id !== opportunityId ? (
+    <p role="status">승계 사유 확인 불가</p>
+  ) : (
+    <p className="pre-spec-inherited-context">
+      사유 {present(opportunityQuery.data.tracking_reason, "미확인")}
+      {" · "}{present(opportunityQuery.data.tracking_selected_by, "담당자 미확인")}
+      {" · "}<time dateTime={opportunityQuery.data.tracking_selected_at ?? undefined}>
+        {formatDateTime(opportunityQuery.data.tracking_selected_at)}
+      </time>
+    </p>
+  );
   const record = presentation === "record";
   const [savedDecision, setSavedDecision] = useState<{ reason: string; actor: string } | null>(null);
   const hasPresets = Boolean(reasonPresets && reasonPresets.length > 0);
@@ -293,6 +316,7 @@ export function TrackingDecisionControl({
       <div className="ps-record-saved-decision">
         <Heading>{savedDecision ? "추적 시작을 저장했습니다" : isInheritedTracking(item) ? "발주계획에서 추적 결정을 이어받았습니다" : "추적 결정이 기록된 사업입니다"}</Heading>
         <p>현재 추적 상태 · {currentStatusLabel}</p>
+        {inheritedContext}
         {savedDecision ? <dl><div><dt>선택 사유</dt><dd>{savedDecision.reason}</dd></div><div><dt>담당자</dt><dd>{savedDecision.actor}</dd></div></dl> : null}
         <Link to={`/opportunities/${item.opportunity_id}`}>사업 추적에서 상태 관리 ↗</Link>
       </div>
@@ -313,8 +337,9 @@ export function TrackingDecisionControl({
           <div>
             <Heading id="pre-spec-tracking-decision-title">추적 상태 · 발주계획에서 승계</Heading>
             <p>
-              발주계획에서 고른 추적 상태를 그대로 잇습니다. 이 화면에서 다시 묻지 않으며 심층 검토가 정상 완료돼도 다시 묻지 않습니다.
+              발주계획에서 추적 결정을 이어받았습니다.
             </p>
+            {inheritedContext}
           </div>
           <div className="pre-spec-tracking-current" aria-label="현재 추적 상태">
             <span>현재 추적 상태</span>

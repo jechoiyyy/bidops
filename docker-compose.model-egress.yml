@@ -1,0 +1,66 @@
+# 승인된 OpenAI 호환 vLLM endpoint로 나가는 단 하나의 egress overlay.
+#
+# 세 용도(`screening`·`overview`·`deep_review`)가 `app/core/model_client.py`
+# 하나를 용도별 설정으로 부르므로 network도 설정도 한 파일이 소유한다. C-2
+# 발주계획 판정의 입력 파일 마운트는 `docker-compose.c2-order-plan.yml`이 따로
+# 소유한다.
+#
+#   docker compose --env-file .env --env-file env/model.env \
+#     -f docker-compose.yml -f docker-compose.edge.yml \
+#     -f docker-compose.model-egress.yml \
+#     up -d web document-worker analysis-worker
+#
+# 값을 주지 않은 용도는 endpoint가 빈 문자열로 남고, 그 용도의 호출은
+# `resolve_model_endpoint`에서 네트워크 접촉 전에 fail closed한다. 그래서 여기서
+# 기본 주소를 채워 넣지 않는다 — 쓰지 않는 용도까지 값을 요구하지 않으면서도
+# 승인되지 않은 주소로 조용히 나가지 않는다.
+#
+# 허용 host와 선언 revision은 MVP 기간 동안 비어 있어도 호출이 나간다(ADR-0050
+# 완화, 2026-09-11). 값을 주면 허용 host 목록과 64자 hex 검사는 그대로이며
+# 어긋나면 호출 전에 fail closed한다.
+#
+# overlay는 network만 연다. 승인된 IP/port 외 egress는 host 방화벽에서 막는다.
+services:
+  web:
+    networks: [model-egress]
+    environment:
+      # C-1 공고 판정
+      BIDOPS_VLLM_SCREENING_BASE_URL: "${BIDOPS_VLLM_SCREENING_BASE_URL:-}"
+      BIDOPS_VLLM_SCREENING_ALLOWED_HOSTS: "${BIDOPS_VLLM_SCREENING_ALLOWED_HOSTS:-}"
+      BIDOPS_VLLM_SCREENING_API_KEY: "${BIDOPS_VLLM_SCREENING_API_KEY:-EMPTY}"
+      BIDOPS_VLLM_SCREENING_MODEL_REVISION: "${BIDOPS_VLLM_SCREENING_MODEL_REVISION:-}"
+      BIDOPS_VLLM_SCREENING_MODEL: "${BIDOPS_VLLM_SCREENING_MODEL:-qwen3.8-27B}"
+      # 사전규격 개요·회사 핏
+      BIDOPS_VLLM_OVERVIEW_BASE_URL: "${BIDOPS_VLLM_OVERVIEW_BASE_URL:-}"
+      BIDOPS_VLLM_OVERVIEW_ALLOWED_HOSTS: "${BIDOPS_VLLM_OVERVIEW_ALLOWED_HOSTS:-}"
+      BIDOPS_VLLM_OVERVIEW_API_KEY: "${BIDOPS_VLLM_OVERVIEW_API_KEY:-EMPTY}"
+      BIDOPS_VLLM_OVERVIEW_MODEL_REVISION: "${BIDOPS_VLLM_OVERVIEW_MODEL_REVISION:-}"
+      # 심층 검토
+      BIDOPS_VLLM_DEEP_REVIEW_BASE_URL: "${BIDOPS_VLLM_DEEP_REVIEW_BASE_URL:-}"
+      BIDOPS_VLLM_DEEP_REVIEW_ALLOWED_HOSTS: "${BIDOPS_VLLM_DEEP_REVIEW_ALLOWED_HOSTS:-}"
+      BIDOPS_VLLM_DEEP_REVIEW_API_KEY: "${BIDOPS_VLLM_DEEP_REVIEW_API_KEY:-EMPTY}"
+      BIDOPS_VLLM_DEEP_REVIEW_MODEL_REVISION: "${BIDOPS_VLLM_DEEP_REVIEW_MODEL_REVISION:-}"
+      # 용도별 값이 비면 쓰는 공유값
+      BIDOPS_VLLM_BASE_URL: "${BIDOPS_VLLM_BASE_URL:-}"
+      BIDOPS_VLLM_ALLOWED_HOSTS: "${BIDOPS_VLLM_ALLOWED_HOSTS:-}"
+      BIDOPS_VLLM_API_KEY: "${BIDOPS_VLLM_API_KEY:-EMPTY}"
+      BIDOPS_VLLM_MODEL_REVISION: "${BIDOPS_VLLM_MODEL_REVISION:-}"
+
+  analysis-worker:
+    networks: [model-egress]
+    environment:
+      BIDOPS_VLLM_OVERVIEW_BASE_URL: "${BIDOPS_VLLM_OVERVIEW_BASE_URL:-}"
+      BIDOPS_VLLM_OVERVIEW_ALLOWED_HOSTS: "${BIDOPS_VLLM_OVERVIEW_ALLOWED_HOSTS:-}"
+      BIDOPS_VLLM_OVERVIEW_API_KEY: "${BIDOPS_VLLM_OVERVIEW_API_KEY:-EMPTY}"
+      BIDOPS_VLLM_OVERVIEW_MODEL_REVISION: "${BIDOPS_VLLM_OVERVIEW_MODEL_REVISION:-}"
+      BIDOPS_VLLM_DEEP_REVIEW_BASE_URL: "${BIDOPS_VLLM_DEEP_REVIEW_BASE_URL:-}"
+      BIDOPS_VLLM_DEEP_REVIEW_ALLOWED_HOSTS: "${BIDOPS_VLLM_DEEP_REVIEW_ALLOWED_HOSTS:-}"
+      BIDOPS_VLLM_DEEP_REVIEW_API_KEY: "${BIDOPS_VLLM_DEEP_REVIEW_API_KEY:-EMPTY}"
+      BIDOPS_VLLM_DEEP_REVIEW_MODEL_REVISION: "${BIDOPS_VLLM_DEEP_REVIEW_MODEL_REVISION:-}"
+      BIDOPS_VLLM_BASE_URL: "${BIDOPS_VLLM_BASE_URL:-}"
+      BIDOPS_VLLM_ALLOWED_HOSTS: "${BIDOPS_VLLM_ALLOWED_HOSTS:-}"
+      BIDOPS_VLLM_API_KEY: "${BIDOPS_VLLM_API_KEY:-EMPTY}"
+      BIDOPS_VLLM_MODEL_REVISION: "${BIDOPS_VLLM_MODEL_REVISION:-}"
+
+networks:
+  model-egress:
