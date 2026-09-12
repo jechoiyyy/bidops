@@ -274,6 +274,40 @@ const pendingRangeEnvelope = overviewEnvelopeFixture(991, null, [], {
   range_review: overviewRangeReviewFixture(),
 });
 
+test('detail range notification leads to the live confirmation form outside the verdict rail', async ({ page }) => {
+  await mockApi(page);
+  let confirmed: unknown;
+  let calls = 0;
+  await page.route(OVERVIEW_PATH, route => {
+    calls += 1;
+    return route.fulfill({ json: pendingRangeEnvelope });
+  });
+  await page.route(RANGE_PATH, route => {
+    confirmed = route.request().postDataJSON();
+    return route.fulfill({
+      status: 201,
+      json: { run_id: '00000000-0000-0000-0000-000000000803', attempt_enqueued: true, page_start: 6, page_end: 12 },
+    });
+  });
+  await page.goto('/pre-specs/991');
+  // 오른쪽 `현재 판단`에는 알림 한 줄만 있고 조작 폼은 왼쪽 열이 소유한다(ADR-0055 결정 4).
+  const verdict = page.locator('.ps-record-aside');
+  await expect(verdict.getByRole('radio')).toHaveCount(0);
+  const link = verdict.locator('a[href="#ps-record-range"]');
+  await expect(link).toContainText('확정하기');
+  await link.click();
+  const region = page.locator('#ps-record-range').getByRole('region', { name: '개요 범위 확인' });
+  await expect(region).toBeVisible();
+  await region.getByRole('radio', { name: '시작 #1' }).check();
+  await region.getByRole('radio', { name: '끝 #2' }).check();
+  await region.getByLabel('담당자 이름 (필수)').fill('최정인');
+  const before = calls;
+  await region.getByRole('button', { name: '범위 확정' }).click();
+  // 폼은 위치만 옮겼을 뿐 저장과 재조회 동작은 그대로다.
+  await expect.poll(() => confirmed).toEqual({ candidate_indices: [1, 2] });
+  await expect.poll(() => calls).toBeGreaterThan(before);
+});
+
 test('pending range review confirms a clause range and refetches the overview', async ({ page }) => {
   const posts: Array<{ body: unknown; actor: string | undefined; method: string }> = [];
   let overviewCalls = 0;
