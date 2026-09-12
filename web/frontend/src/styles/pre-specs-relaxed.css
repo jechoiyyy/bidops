@@ -570,7 +570,6 @@
 }
 
 .pre-specs-overview-list,
-.pre-specs-overview-unknowns,
 .pre-specs-overview-evidence,
 .pre-specs-document-list,
 .pre-specs-document-issues,
@@ -598,7 +597,6 @@
   font-weight: 600;
 }
 
-.pre-specs-overview-unknowns > li,
 .pre-specs-overview-evidence > li,
 .pre-specs-document-list > li {
   display: flex;
@@ -610,7 +608,6 @@
   background: var(--color-background-body);
 }
 
-.pre-specs-overview-unknowns span,
 .pre-specs-overview-locator,
 .pre-specs-document-list span {
   color: var(--color-text-secondary);
@@ -619,10 +616,6 @@
 
 /* 확인 방법이 없는 미확인 항목은 아무도 착수할 수 없다. 문구만으로 섞이지 않게
    표식을 남긴다. */
-.pre-specs-overview-unknowns .is-unverifiable {
-  color: var(--color-text-accent);
-  font-weight: 600;
-}
 
 .pre-specs-overview-locator {
   display: flex;

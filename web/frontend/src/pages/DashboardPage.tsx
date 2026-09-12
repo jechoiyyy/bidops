@@ -72,7 +72,7 @@ function DashboardWorkspace() {
     <nav className="dash-journey-strip" aria-label="업무 바로가기 · 회차와 무관한 누적 업무">
       {[
         ["01", "발주계획", "추적할 후보 선택", workloadNote("order_plan_pending", "검토 후보"), "/order-plans"],
-        ["02", "사전규격", "검토 결과·추적 여부 확인", workloadNote("pre_spec_deep_review_ready", "결정 대기"), "/pre-specs?sort=deadline"],
+        ["02", "사전규격", "검토 결과·추적 여부 확인", workloadNote("pre_spec_deep_review_ready", "결정 대기"), "/pre-specs?auto_preparation_status=deep_review_ready_for_click&sw_only=false&sort=deadline"],
         ["03", "사업 추적", "연결·예외 사항 확인", workloadNote("tracking_action_required", "조치 필요"), "/opportunities?section=조치 필요"],
         ["04", "최종 Go/No-Go", "입찰 참여 여부 결정", workloadNote("bid_final_decision_pending", "결정 대기"), "/go-no-go"],
       ].map(([step, title, action, note, to]) => <Link key={step} className="dash-journey-item" to={to}>

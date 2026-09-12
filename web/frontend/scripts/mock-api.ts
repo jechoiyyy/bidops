@@ -20,6 +20,10 @@ import {
   mockOpportunity,
   mockOrderPlans,
   mockPreSpecs,
+  overviewAbsentEnvelope,
+  overviewCompletedEnvelope,
+  overviewNeedsHumanReviewEnvelope,
+  overviewPendingRangeEnvelope,
 } from "../tests/api-mock";
 
 export interface MockApiRequest {
@@ -188,16 +192,71 @@ async function buildPage(): Promise<FakePage> {
   return page;
 }
 
+/**
+ * 개요 검토 상태 전환 (`?overview=`).
+ *
+ * 기본 fixture의 사전규격은 991(`needs_human_review`)·992(`failed`) 둘뿐이라
+ * **성공한 개요를 브라우저로 볼 수 없었다**. 상태별 envelope fixture는 이미
+ * `tests/api-mock.ts`에 있으므로(spec이 쓰는 것과 같은 값) 그것을 그대로 고른다.
+ * fixture를 새로 짓지 않는다.
+ */
+const OVERVIEW_ENVELOPES: Record<string, (noticeId: number) => unknown> = {
+  completed: overviewCompletedEnvelope,
+  needs_human_review: overviewNeedsHumanReviewEnvelope,
+  pending_range: overviewPendingRangeEnvelope,
+  absent: overviewAbsentEnvelope,
+};
+
+/** 목록 행의 상태 표시도 같이 맞춘다. 상세만 바뀌면 목록과 어긋나 보인다. */
+function patchOverviewStatus(body: string, status: string): string {
+  const parsed = JSON.parse(body) as {
+    items?: { overview_review_status?: string | null }[];
+    overview_status_counts?: { status: string | null; count: number }[];
+  };
+  if (!Array.isArray(parsed.items)) return body;
+  for (const item of parsed.items) item.overview_review_status = status;
+  if (Array.isArray(parsed.overview_status_counts)) {
+    // 상태 키 집합(게이트가 요구하는 10값)은 그대로 두고 개수만 다시 센다.
+    parsed.overview_status_counts = parsed.overview_status_counts.map((entry) => ({
+      ...entry,
+      count: parsed.items!.filter((item) => item.overview_review_status === entry.status).length,
+    }));
+  }
+  return JSON.stringify(parsed);
+}
+
 export async function resolveMockApi(input: MockApiRequest): Promise<MockApiResponse> {
   ready ??= buildPage();
   const page = await ready;
   page.setReferer(input.headers.referer ?? "");
 
+  // 화면 주소의 `?overview=`를 읽는다. 서버는 브라우저 주소를 모르므로 Referer를 쓴다.
+  const referer = input.headers.referer ? new URL(input.headers.referer) : null;
+  const overviewChoice = referer?.searchParams.get("overview") ?? null;
+  const envelopeFor = overviewChoice ? OVERVIEW_ENVELOPES[overviewChoice] : undefined;
+
+  if (envelopeFor) {
+    const overviewPath = new URL(input.url).pathname.match(/^\/api\/pre-specs\/(\d+)\/overview$/);
+    if (overviewPath) {
+      return {
+        status: 200,
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(envelopeFor(Number(overviewPath[1]))),
+      };
+    }
+  }
+
   const candidates = page.handlers.filter((entry) => matches(entry.pattern, input.url));
   for (let index = candidates.length - 1; index >= 0; index -= 1) {
     const route = new FakeRoute(input);
     await candidates[index].handler(route);
-    if (route.response) return route.response;
+    if (route.response) {
+      const isList = new URL(input.url).pathname === "/api/pre-specs";
+      if (envelopeFor && isList && overviewChoice !== "absent" && route.response.status === 200) {
+        return { ...route.response, body: patchOverviewStatus(route.response.body, overviewChoice!) };
+      }
+      return route.response;
+    }
     if (!route.fellBack) break;
   }
 

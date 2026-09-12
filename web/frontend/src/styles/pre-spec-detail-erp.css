@@ -963,3 +963,113 @@
   line-height: var(--bo-type-caption-leading);
 }
 .ps-record .ps-vbox .company-fit-notice { padding: 0; background: transparent; }
+
+/* ---- 담당자 브리핑 ---------------------------------------------------- */
+.ps-record .ps-record-briefing {
+  gap: var(--spacing-4);
+  scroll-margin-top: var(--spacing-3);
+}
+.ps-record .ps-briefing-group {
+  display: grid;
+  gap: var(--spacing-2);
+  min-width: 0;
+}
+.ps-record .ps-briefing-content {
+  display: grid;
+  gap: var(--spacing-2);
+  min-width: 0;
+}
+.ps-record .ps-briefing-content > p,
+.ps-record .ps-briefing-list li {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.ps-record .ps-briefing-content > p { line-height: 1.5; }
+.ps-record .ps-briefing-list {
+  display: grid;
+  gap: var(--spacing-2);
+  margin: 0;
+  padding-left: var(--spacing-5);
+  min-width: 0;
+}
+.ps-record .ps-briefing-list p { margin: 0; }
+.ps-record .ps-briefing-detail {
+  margin-top: var(--spacing-1);
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+  line-height: var(--bo-type-caption-leading);
+}
+.ps-record .ps-briefing-subgroup {
+  display: grid;
+  gap: var(--spacing-1);
+  min-width: 0;
+}
+.ps-record .ps-briefing-subgroup .ps-sub {
+  margin-top: var(--spacing-1);
+}
+.ps-record .ps-briefing-reviews {
+  gap: var(--spacing-3);
+}
+.ps-record .ps-briefing-reviews > li {
+  padding-bottom: var(--spacing-2);
+  border-bottom: var(--border-width) solid var(--ps-line);
+}
+.ps-record .ps-briefing-reviews > li:last-child { border-bottom: 0; padding-bottom: 0; }
+.ps-record .ps-briefing-facts {
+  display: grid;
+  gap: var(--spacing-2);
+  margin: 0;
+}
+.ps-record .ps-briefing-facts > div {
+  display: grid;
+  grid-template-columns: calc(var(--spacing-12) + var(--spacing-4)) minmax(0, 1fr);
+  gap: var(--spacing-3);
+  min-width: 0;
+}
+.ps-record .ps-briefing-facts dt {
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+}
+.ps-record .ps-briefing-facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+/* ---- 범위 확정 알림·변경 기록 ---------------------------------------- */
+.ps-record .ps-record-range {
+  min-width: 0;
+  scroll-margin-top: var(--spacing-3);
+}
+.ps-record .ps-record-range:empty { display: none; }
+.ps-record .ps-range-review-notice,
+.ps-record .ps-verification-notice {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--spacing-2);
+}
+.ps-record .ps-range-review-notice a,
+.ps-record .ps-verification-notice a { white-space: nowrap; }
+.ps-record .ps-record-lifecycle-change {
+  display: grid;
+  gap: var(--spacing-1);
+  min-width: 0;
+  padding: var(--spacing-3);
+  border-radius: var(--ps-radius-chip);
+  background: var(--color-background-body);
+}
+.ps-record .ps-record-lifecycle-change h3 { margin: 0; }
+.ps-record .ps-record-lifecycle-change p {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+  line-height: var(--bo-type-caption-leading);
+  overflow-wrap: anywhere;
+}
+.ps-record .page-overview-fact-line[id] { scroll-margin-top: var(--spacing-3); }
+.ps-record .page-overview-claim-links {
+  display: inline-flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--spacing-1);
+}

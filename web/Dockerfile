@@ -68,7 +68,6 @@ RUN chmod +x /app/scripts/*.sh
 COPY skills/ /app/skills/
 COPY skills/references/ /app/skills/references/
 COPY web/container-entrypoint.sh /usr/local/bin/bidops-entrypoint
-COPY web/container-ops.sh /usr/local/bin/bidops-ops
 COPY web/container-git-wrapper.sh /usr/local/bin/git
 
 # Data, report, backup, and scratch roots are group-writable, not
@@ -82,7 +81,7 @@ RUN install -d -o bidops -g bidops -m 0770 \
         /app/docs/reference /scratch \
     && install -d -o root -g root -m 0555 \
         /app/experiments/order-plan-screening/config /run/c2 \
-    && chmod 0555 /usr/local/bin/bidops-entrypoint /usr/local/bin/bidops-ops /usr/local/bin/git \
+    && chmod 0555 /usr/local/bin/bidops-entrypoint /usr/local/bin/git \
         /app/web/backend/app/deep_review/document_mcp/vendor/rhwp/bin/rhwp \
     && chown -R root:root /app/skills /app/docs \
     && find /app/skills /app/docs -type d -exec chmod 0555 {} + \

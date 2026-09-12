@@ -5,7 +5,7 @@
 | 문서 상태 | 현재 결정 기준선·통합 색인 |
 | 기준일 | 2026-09-09 |
 | 범위 | 수집, 선별, 사전규격 검토, 심층 검토, 입찰공고 추적, 운영·보안 |
-| 상세 결정 정본 | [`docs/tracking/decisions/`](tracking/decisions/)의 ADR-0001~0038·0042~0045·0049~0051·0053~0054, [`docs/design/ADR.md`](design/ADR.md)의 ADR-0039~0041·0046~0048 |
+| 상세 결정 정본 | [`docs/tracking/decisions/`](tracking/decisions/)의 ADR-0001~0038·0042~0045·0049~0051·0053~0054, [`docs/design/ADR.md`](design/ADR.md)의 ADR-0039~0041·0046~0048·0055 |
 | 함께 읽을 문서 | [`PRD.md`](PRD.md), [`ARCHITECTURE.md`](ARCHITECTURE.md), [`contracts.md`](contracts.md) |
 
 이 문서는 여러 시점에 작성된 결정 기록을 현재 관점에서 읽기 위한 통합 ADR이다. 각 결정의
@@ -135,6 +135,7 @@ R-xx/A-xx 작업 지시, 과거 API 경로는 현재 실행 진입점이 아니�
 | [0051](tracking/decisions/0051-deep-review-v2-deterministic-subset.md) | deep-review-v2의 결정적 부분만 채택 | 채택 — 부분 채택 | segment manifest·요구사항 inventory·검증 연결만 구현. 역할별 모델 분석과 Luna 평가는 보류 |
 | [0053](tracking/decisions/0053-decision-workload-read-contracts.md) | 결정 대기 조회와 모듈 소유 집계 계약 | 채택 | 신규 GET 세 개(`/api/workload`·기회별 심층 검토 목록·입찰 결정 큐), 업무 집계는 모듈 제공자 소유, DB migration 없음 |
 | [0054](tracking/decisions/0054-prespec-overview-mvp-rewrite.md) | 사전규격 개요 실행 스택 철거·MVP 재작성 | 채택 | v3·legacy v4·v5(activation·call ledger·verification) 폐기, `prespec_overview_run`(0026) 단일 테이블과 `bidops.prespec-overview.v1`로 재작성; 첨부·준비·변환·snapshot·결정적 검증 함수는 유지 |
+| [0055](design/ADR.md#adr-0055-사전규격-담당자-브리핑-우선-배치) | 사전규격 담당자 브리핑 우선 배치 | 채택 | 행 등급 글자·업무 필터, 상세 판정 사유·본공고·첨부, 범위 확정 알림·문서 준비 조건부 토글·실행 정보 후순위. 백엔드 계약 무변경 |
 
 ## 4. 주제별 결정 요약
 

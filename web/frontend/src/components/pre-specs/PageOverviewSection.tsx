@@ -93,11 +93,43 @@ export function pageOverviewPdfUrl(review: PageOverviewView): string {
   return api.preSpecOverviewRunPdfUrl(review.notice_id, review.id);
 }
 
-export function PageOverviewFactLine({ fact, review }: { fact: PageOverviewFact; review: PageOverviewView }) {
+export function claimAnchorId(claimId: string): string {
+  return `claim-${claimId}`;
+}
+
+/** 검토 포인트의 근거는 claim id 대신 그 주장 문장으로 잃는다. id는 기계용
+ * 이름이므로 `aria-label`에만 남긴다(ADR-0055 D3). */
+export function PageOverviewClaimLinks({
+  claimIds,
+  claimTextById,
+}: {
+  claimIds: string[];
+  claimTextById: ReadonlyMap<string, string>;
+}) {
+  const links = claimIds
+    .map((claimId) => ({ claimId, text: claimTextById.get(claimId) }))
+    .filter((item): item is { claimId: string; text: string } => Boolean(item.text));
+  if (links.length === 0) return <span className="page-overview-note">근거 주장 확인 필요</span>;
+  return (
+    <span className="page-overview-claim-links" aria-label="근거 주장">
+      {links.map(({ claimId, text }, index) => (
+        <span key={claimId}>
+          {index > 0 ? " · " : null}
+          <a href={`#${claimAnchorId(claimId)}`} aria-label={`근거 주장 ${claimId}`}>{text}</a>
+        </span>
+      ))}
+    </span>
+  );
+}
+
+export function PageOverviewFactLine({ fact, review, anchor = true }: { fact: PageOverviewFact; review: PageOverviewView; anchor?: boolean }) {
   const pdfUrl = pageOverviewPdfUrl(review);
   const pages = isV4Fact(fact) ? fact.evidence.map((item) => item.page) : fact.evidence_pages;
   return <>
-    <span className="page-overview-fact-line">{displayFact(fact)}</span>
+    <span
+      className="page-overview-fact-line"
+      id={anchor && isV4Fact(fact) ? claimAnchorId(fact.claim_id) : undefined}
+    >{displayFact(fact)}</span>
     <span className="page-overview-links" aria-label="PDF 페이지 근거">
       {[...new Set(pages)].sort((a, b) => a - b).map(page => (
         review.reviewed_pages.includes(page) && page <= review.pdf_page_count
@@ -113,11 +145,13 @@ export function PageOverviewFacts({
   items,
   review,
   ordered = false,
+  anchor = true,
 }: {
   title: string;
   items: PageOverviewFact[];
   review: PageOverviewView;
   ordered?: boolean;
+  anchor?: boolean;
 }) {
   const List = ordered ? "ol" : "ul";
   return (
@@ -126,7 +160,7 @@ export function PageOverviewFacts({
       {items.length === 0 ? <p className="page-overview-note">이번 입력에서는 확인되지 않았습니다.</p> : (
         <List className={ordered ? "page-overview-tasks" : "page-overview-facts"}>
           {items.map((fact, i) => <li key={i}>
-            <div className="page-overview-fact-content"><PageOverviewFactLine fact={fact} review={review} /></div>
+            <div className="page-overview-fact-content"><PageOverviewFactLine fact={fact} review={review} anchor={anchor} /></div>
           </li>)}
         </List>
       )}
@@ -140,12 +174,18 @@ export function PageOverviewAnalysis({ items }: { items: string[] }) {
   </section>;
 }
 
-function PageOverviewVerifiedAnalysis({ items }: { items: Array<{ id: string; text: string; supporting_claim_ids: string[] }> }) {
+function PageOverviewVerifiedAnalysis({
+  items,
+  claimTextById,
+}: {
+  items: Array<{ id: string; text: string; supporting_claim_ids: string[] }>;
+  claimTextById: ReadonlyMap<string, string>;
+}) {
   return <section className="page-overview-section"><h4>검토 포인트 <span className="page-overview-note">검증된 모델 의견</span></h4>
     {items.length ? <ul className="page-overview-analysis-list">{items.map((item) => (
       <li key={item.id}>
         <p>{item.text}</p>
-        <span className="page-overview-note">근거 주장 · {item.supporting_claim_ids.join(", ")}</span>
+        <span className="page-overview-note">근거 주장 · <PageOverviewClaimLinks claimIds={item.supporting_claim_ids} claimTextById={claimTextById} /></span>
       </li>
     ))}</ul> : <p className="page-overview-note">검토 포인트가 제시되지 않았습니다.</p>}
   </section>;
@@ -169,9 +209,15 @@ export function PageOverviewExecutionInfo({ review }: { review: PageOverviewView
   </details>;
 }
 
-export function PageOverviewResult({ review }: { review: PageOverviewView }) {
+export function PageOverviewResult({ review, anchor = true }: { review: PageOverviewView; anchor?: boolean }) {
   const payload = review.payload;
   const isVerifiedV4 = payload.schema_version === "bidops.prespec-overview-page-review.v4";
+  const claimTextById: ReadonlyMap<string, string> = isVerifiedV4
+    ? new Map(
+      [...payload.business_overview, ...payload.main_tasks, ...payload.budget_and_period, ...payload.important_conditions]
+        .map((fact) => [fact.claim_id, fact.text] as const),
+    )
+    : new Map();
   return <section className="page-overview" aria-label="PDF 기반 개요 검토">
     <header className="page-overview-heading">
       <h3>개요 검토 결과</h3>
@@ -184,12 +230,12 @@ export function PageOverviewResult({ review }: { review: PageOverviewView }) {
         <p>새 페이지 근거 검사는 통과했으나, 원실행의 검증 실패 기록은 유지합니다.</p>
       ) : null}
     </div>
-    <PageOverviewFacts title="사업 개요" items={payload.business_overview} review={review} />
-    <PageOverviewFacts title="주요 과업" items={payload.main_tasks} review={review} ordered />
-    <PageOverviewFacts title="사업 규모와 일정" items={payload.budget_and_period} review={review} />
-    <PageOverviewFacts title="핵심 조건" items={payload.important_conditions} review={review} />
+    <PageOverviewFacts title="사업 개요" items={payload.business_overview} review={review} anchor={anchor} />
+    <PageOverviewFacts title="주요 과업" items={payload.main_tasks} review={review} ordered anchor={anchor} />
+    <PageOverviewFacts title="사업 규모와 일정" items={payload.budget_and_period} review={review} anchor={anchor} />
+    <PageOverviewFacts title="핵심 조건" items={payload.important_conditions} review={review} anchor={anchor} />
     {isVerifiedV4
-      ? <PageOverviewVerifiedAnalysis items={payload.reviewer_analysis} />
+      ? <PageOverviewVerifiedAnalysis items={payload.reviewer_analysis} claimTextById={claimTextById} />
       : <PageOverviewAnalysis items={payload.reviewer_analysis} />}
     <PageOverviewUnknowns items={payload.unknowns} />
     <PageOverviewExecutionInfo review={review} />
@@ -325,7 +371,9 @@ export function PageOverviewHistory({ reviews }: { reviews: PageOverviewView[] }
                 <summary>
                   실행 시각 · {formatDateTime(review.created_at)} · {review.payload.schema_version === "bidops.prespec-overview-page-review.v3" ? "이전 검증 기준" : "주장 검증 v4"} · {qualityStatusLabel(review.quality_status)} · 결과 ID · {review.id}
                 </summary>
-                <PageOverviewResult review={review} />
+                {/* 이전 결과는 현재 결과와 같은 claim id를 갖는다. 이 자리까지 anchor를
+                    달면 문서 안에 같은 id가 둘이 되고 근거 링크가 엉뚜곳으로 뛰다. */}
+                <PageOverviewResult review={review} anchor={false} />
                 <div className="page-overview-history-links">
                   {review.validation_errors.length ? <p>검증 사유 · {review.validation_errors.join(", ")}</p> : null}
                   <a href={pdfUrl} target="_blank" rel="noreferrer">이력 근거 PDF 열기 ↗</a>

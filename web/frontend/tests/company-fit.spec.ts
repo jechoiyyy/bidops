@@ -87,7 +87,8 @@ test("unknown, stale, no result and failed states stay distinct", async ({ page 
   await expect(verdict.getByText("판정 결과가 생성되지 않았습니다. 불일치로 처리하지 않습니다.")).toBeVisible();
   data.attempts = [];
   await page.reload();
-  await expect(section.getByText("저장된 회사 핏 판정이 없습니다. 불일치로 판단한 상태가 아닙니다.")).toBeVisible();
+  // 문장은 짧아졌지만 `판정 없음 ≠ 불일치`라는 뜻은 그대로 남는다(ADR-0055 D8).
+  await expect(section.getByText("회사 핏 판정 없음 · 불일치 아님")).toBeVisible();
 });
 
 test("failed fetch and wrong notice response show safe errors", async ({ page }) => {

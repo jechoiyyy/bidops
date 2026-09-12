@@ -189,7 +189,9 @@ snapshot을 만들지 않는 fail-closed 계약을 검증하도록 분리했으�
 - 재현 조건: Docker Engine 29.7.2에서 `docker compose -f docker-compose.yml up -d`로 기동한 뒤 `curl http://127.0.0.1:18787/api/health`, `ss -ltn`으로 15432·18787·19000·19001을 확인한다.
 - 증상: 컨테이너는 정상이고 `web` 컨테이너 안에서 `/api/health`가 `{"status":"ok"}`를 반환하지만 host에서는 어떤 publish port도 바인딩되지 않는다. `HostConfig.PortBindings`에는 매핑이 남아 있으나 `NetworkSettings.Ports`가 `null`이다. `--internal` bridge 하나에만 붙은 컨테이너에 `-p`를 준 최소 재현에서도 host 연결이 실패하고, 일반 bridge에서는 같은 구성이 성공한다. `docker-compose.yml`의 `database`·`storage`·`scanning`·`analysis`는 모두 `internal: true`이므로 web·postgres·minio의 publish 선언이 전부 무효다.
 - 영향: 문서화된 최초 기동 절차의 host `curl` health 확인과 관리 화면 접근이 현재 Docker 버전에서 동작하지 않는다. 컨테이너 내부 실행으로만 상태를 확인할 수 있어 통합 검증 절차와 운영 접근 경로가 성립하지 않는다.
-- 지금 해결할 수 없는 이유: 해결하려면 `web`에 non-internal network를 추가해야 하는데, 이는 "기본 network는 내부망"이라는 배포 경계와 `test_runtime_contract.py`의 `all(network.get("internal") is True ...)` 계약을 함께 바꾸는 변경이다. 보안 경계 변경이므로 결정 기록과 회귀 테스트 갱신이 선행되어야 한다.
+- 상태: **해결** (2026-09-12, publish 소유권을 edge overlay로 옮김). `docker-compose.edge.yml`이 non-internal bridge와 `web`의 `ports:`를 **함께** 소유한다. 기반 파일에는 `ports:` 선언이 하나도 남지 않았으므로 "선언은 있는데 열리지는 않는" 상태가 구조적으로 불가능하다. 기반 파일의 모든 network가 `internal: true`라는 계약은 그대로다.
+- 검증: `test_host_exposure_lives_only_in_the_edge_overlay`가 기반 파일에 `ports:`가 없고 edge overlay가 loopback 기본값으로 publish하는 것을 고정한다. 빈 compose로 internal network + `ports:`를 만들어 publish가 무시되는 것도 다시 실측했다(PORTS=`80/tcp`, 연결 실패).
+- 남은 제약: edge overlay를 붙이면 `web`에 outbound NAT도 함께 생긴다. 이 상태를 내부망 격리와 같다고 기록하지 않는다(ADR-0050 완화 항목).
 - 접근 방법: `com.docker.network.bridge.enable_ip_masquerade=false`를 지정한 전용 edge bridge를 만들어 `web`에만 연결하는 방식을 실측했다. host에서 publish port가 열리고 컨테이너의 외부 TCP 연결은 계속 차단된다(다만 embedded DNS를 통한 외부 이름 해석은 남는다). 함께 `127.0.0.1` 바인딩을 명시해 현재 `0.0.0.0` publish를 좁히고, postgres·minio는 publish 없이 `docker compose exec`로만 접근하도록 분리한다. 계약 테스트는 "egress network는 overlay에서만 추가한다"와 "edge network는 masquerade 비활성"을 확인하도록 바꾼다.
 
 ## 발주계획 Qwen 잘림 응답의 실패 token 계측이 보존되지 않는다
@@ -274,9 +276,8 @@ snapshot을 만들지 않는 fail-closed 계약을 검증하도록 분리했으�
 - 재현 조건: 기본 `docker-compose.yml`을 기동하고 host의 listen address를 확인한다.
 - 증상: PostgreSQL, MinIO API, MinIO console port mapping에 host IP가 없어 Docker가 기본적으로 모든 host interface에 bind할 수 있다.
 - 영향: Compose internal network와 무관하게 LAN에서 DB·객체 저장소 port에 직접 접근할 수 있어 애플리케이션 API만 사용하는 접근 경계를 우회한다. 실제 노출 범위가 host firewall 상태에 의존한다.
-- 상태: **해결** (2026-09-01). 세 mapping 모두 `${BIDOPS_ADMIN_BIND_HOST:-127.0.0.1}:` prefix를 갖는다. 기본 template은 loopback에만 bind하고, 원격 관리는 `.env`에서 이 값을 명시적으로 넓히는 opt-in이다. `test_admin_ports_bind_to_loopback_by_default`가 세 mapping의 host IP field 존재를 계약으로 고정한다.
-- publish를 제거하지 않은 이유: host에서 `psql`·`mc`로 DB·객체를 확인하는 개발 검증 경로가 살아 있어야 한다. loopback bind는 그 경로를 유지하면서 LAN 노출만 없앤다. **애플리케이션 port(`BIDOPS_WEB_PORT`)는 사내망 접근이 설계된 경계이므로 좁히지 않았다.**
-- 남은 위험: 이 stack의 network가 전부 `internal: true`라 현재 Docker 버전에서는 publish 자체가 host에 bind되지 않는다(위 "애플리케이션 스택의 publish port가 host에서 열리지 않는다"). 그 항목을 해결해 실제로 bind되기 시작할 때 이 loopback 기본값이 효력을 갖는다. 지금은 선제적 방어다.
+- 상태: **해결** (2026-09-12, publish 선언 제거). 2026-09-01에는 세 mapping에 `${BIDOPS_ADMIN_BIND_HOST:-127.0.0.1}:` prefix를 붙였지만, 그 선언은 internal network 때문에 애초에 host에 bind된 적이 없다. 이제 PostgreSQL·MinIO의 `ports:`를 제거했고 관리 접근은 `docker compose exec`뿐이다. `BIDOPS_ADMIN_BIND_HOST`·`BIDOPS_POSTGRES_PORT`·`BIDOPS_MINIO_PORT`·`BIDOPS_MINIO_CONSOLE_PORT`도 `.env.example`에서 지웠다.
+- 개발 검증 경로: host의 `psql`·`mc` 대신 `docker compose exec postgres psql -U owner bidops`, `docker compose exec minio mc ...`를 쓴다. **애플리케이션 port(`BIDOPS_WEB_PORT`)는 사내망 접근이 설계된 경계이므로 좁히지 않았고, edge overlay가 loopback 기본값으로 publish한다.**
 
 ## legacy mutation 일부가 담당자 이름과 감사 기록 없이 실행된다
 

@@ -3,17 +3,62 @@
 ## 운영 기준선
 
 - 운영 정본은 PostgreSQL 17의 `bidops` schema와 버전 관리가 켜진 MinIO 객체 저장소다.
-- `docker-compose.yml`이 웹, DB, 객체 저장소, 악성코드 검사, 문서 worker, 분석 worker의 기준 배포 파일이다.
-- `docker-compose.sqlite-ops.yml`은 SQLite 이전 입력 스냅숏을 백업·검증하는 명시적 `ops` 명령만 제공한다. 애플리케이션 런타임으로 사용하지 않는다.
+- `docker-compose.yml`이 웹, DB, 객체 저장소, 악성코드 검사, 문서 worker, 분석 worker, 첨부 worker의 기준 배포 파일이다.
 - 모든 Compose 명령에는 전용 `COMPOSE_PROJECT_NAME`을 사용한다. 다른 worktree의 컨테이너와 volume을 중지하거나 삭제하지 않는다.
 - 일상 운영에서 `docker compose down -v`, volume 삭제, 원본 객체 삭제를 사용하지 않는다.
 - legacy notice attachment의 id 기반 다운로드 호환 사본은 `/app/web/data/attachments`에 있다. 같은 부모의 `/app/web/data/profile-snapshots`는 승인 프로필 projection이 읽는 artifact이므로 Compose named volume `web-data`가 `/app/web/data` 전체를 보존한다. 업로드는 quarantine·ClamAV 검사 후에만 등록된다.
 
+## Compose 파일과 조합
+
+기반 파일 하나에 목적별 overlay를 더해 쓴다. overlay를 붙이지 않으면 그 기능과 그
+네트워크는 열리지 않는다.
+
+| 파일 | 여는 것 | 함께 쓰는 env |
+|---|---|---|
+| `docker-compose.yml` | 웹·DB·객체 저장소·검사·worker. network는 전부 internal이고 host에 아무것도 publish하지 않는다 | `.env` |
+| `docker-compose.edge.yml` | 관리 화면을 host loopback에 publish(`web` 포트 선언을 이 파일이 소유) | `.env` |
+| `docker-compose.model-egress.yml` | 승인된 vLLM으로의 egress와 `screening`·`overview`·`deep_review` 설정 | `env/model.env` |
+| `docker-compose.c2-order-plan.yml` | C-2 발주계획 판정의 승인 입력 파일 마운트와 실행 토글 | `env/model.env` |
+| `docker-compose.prespec-attachment.yml` | 사전규격 첨부 worker의 G2B egress와 취득 활성화 | `env/prespec-attachment.env` |
+| `docker-compose.mock-reference.yml` | 모델 없이 상태 전이만 확인(egress 없음) | 없음(파일 안에 리터럴) |
+
+자주 쓰는 조합은 세 가지다.
+
+```bash
+# 1) 화면만 열기 (모델 호출 없음)
+docker compose -f docker-compose.yml -f docker-compose.edge.yml up -d web
+
+# 2) 사전규격 파이프라인 (판정·개요·심층 검토 + 첨부 취득)
+docker compose --env-file .env --env-file env/model.env --env-file env/prespec-attachment.env \
+  -f docker-compose.yml -f docker-compose.edge.yml \
+  -f docker-compose.model-egress.yml -f docker-compose.prespec-attachment.yml \
+  up -d web document-worker analysis-worker prespec-attachment-worker
+
+# 3) C-2 발주계획 판정
+docker compose --env-file .env --env-file env/model.env \
+  -f docker-compose.yml -f docker-compose.edge.yml \
+  -f docker-compose.model-egress.yml -f docker-compose.c2-order-plan.yml \
+  up -d web analysis-worker
+```
+
+`--env-file`을 명시하면 기본 `.env` 자동 로드가 꺼지므로 공통 파일과 overlay 파일을
+함께 넘긴다. `scripts/run-prespec-workflow.sh`와 `scripts/run-order-plan-workflow.sh`가
+이 조합을 그대로 가지고 있으므로 손으로 조합하기 전에 먼저 본다.
+
+### 없어진 파일
+
+2026-09-12 정리에서 `docker-compose.screening.yml`과 `docker-compose.remote-vllm.yml`은
+`docker-compose.model-egress.yml`·`docker-compose.c2-order-plan.yml`로 나뉘어 합쳤고,
+`env/screening.env`·`env/vllm.env`는 `env/model.env` 하나로 합쳤다. SQLite 이전 입력을
+다루던 `docker-compose.sqlite-ops.yml`과 `web/container-ops.sh`는 PostgreSQL이 정본이 된 뒤
+쓰이지 않아 제거했다. 이전 시점에 만들어진 `bidops_bidops-web-data`·`bidops_bidops-backups`
+volume은 자동으로 지워지지 않으므로 내용을 확인한 뒤 사람이 제거한다.
+
 ## 현재 배포 차단 조건
 
 **알려진 운영 배포 차단 조건은 2026-09-01에 전부 해소했다.** MinIO versioning은 bootstrap에서
-fail-closed로 검증하고, PostgreSQL·MinIO API·console port는 `BIDOPS_ADMIN_BIND_HOST`
-기본값 `127.0.0.1`로 loopback에만 publish한다.
+fail-closed로 검증하고, PostgreSQL·MinIO는 internal network에만 있어 host에 publish되지
+않는다. 관리 접근은 `docker compose exec`로만 한다.
 
 아직 남은 것은 차단 조건이 아니라 운영 훈련이다. 실제 secret, MinIO allow/deny,
 egress firewall, backup·restore를 **운영 환경에서** 한 번도 검증하지 않았다.
@@ -115,10 +160,19 @@ overlay를 붙이면 inbound publish와 함께 `web`에 아웃바운드 경로�
 열리지 않고 tailnet 노드에서만 보인다.
 
 ```bash
-tailscale serve --bg --http=18787 http://127.0.0.1:18787   # 켜기
-tailscale serve --http=18787 off                           # 끄기
+tailscale serve --bg --tcp=18787 tcp://127.0.0.1:18787   # 켜기
+tailscale serve --tcp=18787 off                          # 끄기
 tailscale serve status
 ```
+
+**`--http=`가 아니라 `--tcp=`를 쓴다.** HTTP 모드는 요청의 Host 헤더를 등록된
+MagicDNS 이름과 대조하므로, 다른 노드가 **tailnet IP로** 붙으면 어느 핸들러에도
+걸리지 않아 tailscaled가 `404 page not found`를 돌려준다(2026-09-12 실측).
+TCP 포워딩은 Host를 보지 않으므로 IP·MagicDNS 이름·IPv6 세 경로가 모두 동작한다.
+
+확인은 **다른 노드에서** 한다. 같은 호스트에서 자기 tailnet IP로 붙는 것은 hairpin이라
+정상 구성에서도 연결이 안 된다 — 이것을 장애 근거로 읽지 않는다. 호스트에서는
+`curl http://127.0.0.1:18787/api/health`까지만 확인할 수 있다.
 
 이 설정은 tailscaled가 보관하므로 재부팅 후에도 남는다. Funnel(공개 인터넷 노출)은 켜지
 않는다. WSL2 mirrored 네트워킹에서는 Hyper-V 방화벽 기본 inbound가 Block이라 컨테이너
@@ -129,13 +183,13 @@ tailscale serve status
 
 ```bash
 cp .env.example .env
-cp env/vllm.env.example env/vllm.env
+cp env/model.env.example env/model.env
 export COMPOSE_PROJECT_NAME=bidops
 docker compose -f docker-compose.yml build
 docker compose -f docker-compose.yml up -d postgres minio clamav
 ./scripts/init-runtime.sh
-docker compose --env-file .env --env-file env/vllm.env \
-  -f docker-compose.yml -f docker-compose.edge.yml -f docker-compose.remote-vllm.yml \
+docker compose --env-file .env --env-file env/model.env \
+  -f docker-compose.yml -f docker-compose.edge.yml -f docker-compose.model-egress.yml \
   up -d web document-worker analysis-worker
 curl --fail "http://127.0.0.1:${BIDOPS_WEB_PORT:-18787}/api/health"
 ```
@@ -146,19 +200,13 @@ curl --fail "http://127.0.0.1:${BIDOPS_WEB_PORT:-18787}/api/health"
 
 `migrate` service는 Alembic 성공 뒤 `scripts/runtime-privileges.sql`을 적용한다. 이 단계는 이전 blanket grant를 먼저 회수하고 현재 head의 table·operation allowlist를 다시 부여한다. 새 table은 `app`·`worker` 기본 DML을 받지 않으므로 migration에 runtime write path가 추가되면 같은 변경에서 allowlist와 역할 smoke test를 갱신해야 한다. `ro_backup`만 현재·향후 table의 `SELECT` 기본 권한을 유지한다.
 
-사설 vLLM 없이 웹과 문서 준비만 확인할 때는 remote-vLLM overlay를 빼고 기동할 수 있다. 이 경우 분석 worker가 모델 단계에서 실패하는 것은 정상이며 성공으로 보정하지 않는다.
+사설 vLLM 없이 웹과 문서 준비만 확인할 때는 model-egress overlay를 빼고 기동할 수 있다. 이 경우 분석 worker가 모델 단계에서 실패하는 것은 정상이며 성공으로 보정하지 않는다.
 
-판정 파이프라인이 승인된 모델 endpoint와 나라장터 OpenAPI에 접근해야 할 때만 다음 overlay를 추가한다. 이 overlay는 `web`에 `model-egress` network를 붙이고 `screening` 용도 설정을 주입한다.
+`env/model.env`에는 쓰는 용도만 채운다. 비워 둔 용도는 endpoint가 빈 문자열로 남고,
+그 용도의 호출은 `resolve_model_endpoint`가 네트워크 접촉 전에 거부한다. C-1 판정만
+할 때도 overview·deep_review 값을 요구하지 않고, 그 반대도 마찬가지다.
 
-```bash
-cp env/screening.env.example env/screening.env   # BIDOPS_VLLM_SCREENING_* 를 채운다
-COMPOSE_PROJECT_NAME=bidops docker compose \
-  --env-file .env --env-file env/screening.env \
-  -f docker-compose.yml -f docker-compose.screening.yml \
-  up -d web
-```
-
-overlay 추가만으로 egress가 안전해지지 않는다. host firewall의 목적지 제한과 실제 endpoint 승인을 함께 확인한다. endpoint나 allowlist가 비어 있으면 overlay가 기동 전에 fail closed한다.
+overlay 추가만으로 egress가 안전해지지 않는다. host firewall의 목적지 제한과 실제 endpoint 승인을 함께 확인한다.
 
 사전규격 첨부 바이트 취득은 기본 비활성이다. 메타데이터는 독립 수집 회차에 전량 보존하고,
 `SW사업대상=Y` 또는 추적 중인 발주계획으로 연결된 사전규격만 backend worker가 다운로드한다.
@@ -244,7 +292,7 @@ BIDOPS_MODULES=lifecycle,screening  # deep_review 경로 없음
 
 worker 진입점은 셋뿐이다. 모델을 쓰는 C-2 선별·심층 검토·사전규격 개요 worker에는 단독
 진입점이 없다. `app.workers.analysis` 한 프로세스가 셋을 합성하며, 이것이 **모델 슬롯 1개**
-보장이다. 한 바퀴에서 C-2 → 심층 → 개요 순서로 **하나만** claim한다. 셋을 따로 띄우는 명령을
+보장이다. 한 바퀴에서 C-2 → 심층 → 회사 핏 → 개요 순서로 **하나만** claim한다. 각 단계를 따로 띄우는 명령을
 만들지 않는다 — 동시에 뜨면 슬롯 1개 보장이 깨진다.
 
 ```bash
@@ -266,13 +314,27 @@ python -m app.deep_review.cli --help        # run-bc-e2e, run-prespec-e2e, impor
 python -m app.lifecycle.ingest.cli --help   # --run <회차> | --all
 ```
 
+수동 발주계획·사전규격 참조 실행은 아래 단계형 wrapper를 사용한다. 둘 다 기존 회차를
+덮어쓰지 않으며, live 모델을 쓸 수 있는 `start-worker(s)`·`run`·`run-c1`·`enqueue`·`all`에는
+그 명령 한 번에만 유효한 `--approve-model-call`이 필요하다. `all`은 장시간 대기하지 않고
+worker와 실행을 올린 뒤 반환하므로 `status`로 진행을 확인한다.
+
+```bash
+scripts/run-order-plan-workflow.sh --help
+scripts/run-prespec-workflow.sh --help
+```
+
+발주계획 wrapper는 C-2 Phase 0 validator가 `execution_allowed=true`일 때만 `all`을 진행한다.
+사전규격 wrapper는 승인된 active C-1 policy, 활성 profile/policy UUID, 개요·회사 핏 참조 실행
+설정이 모두 있어야 worker를 올린다. 이 검사는 품질 승인이나 방화벽 승인을 대신하지 않는다.
+
 ## 환경 파일 배치
 
 | 파일 | 소비하는 compose | 담는 값 |
 |---|---|---|
-| `.env` | `docker-compose.yml`, `docker-compose.sqlite-ops.yml` | 프로세스 정체성, 로그, DB·MinIO 자격증명, 암호화 키, port, 승인 profile/policy 참조 |
-| `env/vllm.env` | `docker-compose.remote-vllm.yml` | `BIDOPS_VLLM_BASE_URL`, `BIDOPS_VLLM_ALLOWED_HOSTS`, `BIDOPS_VLLM_API_KEY`, `BIDOPS_VLLM_MODEL_REVISION` |
-| `env/screening.env` | `docker-compose.screening.yml` | `BIDOPS_VLLM_SCREENING_BASE_URL`, `_ALLOWED_HOSTS`, `_API_KEY`, `_MODEL_REVISION`, `BIDOPS_VLLM_SCREENING_MODEL` |
+| `.env` | `docker-compose.yml`, `docker-compose.edge.yml` | 프로세스 정체성, 로그, DB·MinIO 자격증명, 암호화 키, 화면 port, 승인 profile/policy 참조 |
+| `env/model.env` | `docker-compose.model-egress.yml`, `docker-compose.c2-order-plan.yml` | 용도별 `BIDOPS_VLLM_{SCREENING,OVERVIEW,DEEP_REVIEW}_*`, 공유 `BIDOPS_VLLM_*`, C-2 입력 파일 host 경로 |
+| `env/prespec-attachment.env` | `docker-compose.prespec-attachment.yml` | `BIDOPS_G2B_ATTACHMENT_ALLOWED_HOSTS` |
 | 없음 | `docker-compose.mock-reference.yml` | 전용 값을 override 파일 안에 리터럴로 선언한다 |
 
 overlay 전용 값을 `.env`에 두지 않는다. `.env`에 두면 overlay를 붙이지 않은 기동에서도 endpoint가 주입되어 fail-closed 기본값이 흐려진다.
@@ -549,10 +611,10 @@ docker compose -f docker-compose.yml exec web \
 그 다음에 overlay를 붙인다.
 
 ```bash
-cp env/screening.env.example env/screening.env
+cp env/model.env.example env/model.env
 ```
 
-`env/screening.env`를 채운다. 주소는 **컨테이너에서 도달 가능한** 값이어야 한다.
+`env/model.env`의 screening 절을 채운다. 주소는 **컨테이너에서 도달 가능한** 값이어야 한다.
 
 ```text
 BIDOPS_VLLM_SCREENING_BASE_URL=http://<approved-ip>:<approved-port>/v1
@@ -580,8 +642,8 @@ curl --fail --silent --show-error \
 overlay를 붙여 `web`을 재기동한다.
 
 ```bash
-docker compose --env-file .env --env-file env/screening.env \
-  -f docker-compose.yml -f docker-compose.screening.yml \
+docker compose --env-file .env --env-file env/model.env \
+  -f docker-compose.yml -f docker-compose.edge.yml -f docker-compose.model-egress.yml \
   up -d web
 ```
 
@@ -648,33 +710,26 @@ worker 설정은 concurrency 1, poll 5초, lease 120초다.
 analysis-worker는 source·structure 쓰기 자격, scanning 네트워크, `document-scratch` 볼륨이
 필요하다(2026-09-11 반영).
 
-```bash
-cp env/vllm.env.example env/vllm.env
-```
-
-`env/vllm.env`를 채운다. 여기 값은 `overview`와 `deep_review` 용도의 공유값이 된다. MVP
-기간에는 `BIDOPS_VLLM_ALLOWED_HOSTS`·`BIDOPS_VLLM_MODEL_REVISION`이 비어 있어도 그 용도는
-fail closed하지 않는다(ADR-0050 §5 완화 항목) — 값을 채우면 기존 검사를 그대로 강제한다.
+`env/model.env`의 overview 절(개요·회사 핏)과 deep_review 절을 채운다. 두 절 중 비워 둔
+값은 공유 `BIDOPS_VLLM_*`로 떨어진다. MVP 기간에는 `*_ALLOWED_HOSTS`·`*_MODEL_REVISION`이
+비어 있어도 그 용도는 fail closed하지 않는다(ADR-0050 §5 완화 항목) — 값을 채우면 기존
+검사를 그대로 강제한다.
 
 ```text
-BIDOPS_VLLM_BASE_URL=http://<approved-ip>:<approved-port>/v1
-BIDOPS_VLLM_ALLOWED_HOSTS=<approved-ip>
-BIDOPS_VLLM_API_KEY=EMPTY
-BIDOPS_VLLM_MODEL_REVISION=<64-hex-revision>
+BIDOPS_VLLM_OVERVIEW_BASE_URL=http://<approved-ip>:<approved-port>/v1
+BIDOPS_VLLM_OVERVIEW_ALLOWED_HOSTS=<approved-ip>
+BIDOPS_VLLM_OVERVIEW_API_KEY=EMPTY
+BIDOPS_VLLM_OVERVIEW_MODEL_REVISION=<64-hex-revision>
 BIDOPS_PRESPEC_OVERVIEW_ENABLED=true
-BIDOPS_C2_EXECUTION_ALLOWED=false
-BIDOPS_C2_CAPABILITIES_HOST_PATH=<승인된 파일 경로>
-BIDOPS_C2_PROMPT_HOST_PATH=<승인된 파일 경로>
 ```
 
-`remote-vllm` overlay는 `web`에도 C-2용 read-only bind mount를 요구하므로 두 host 경로를
-비워 두면 기동이 거부된다. 이 참조 실행에서 C-2를 돌리지 않으므로
-`BIDOPS_C2_EXECUTION_ALLOWED`는 `false`로 둔다. `BIDOPS_PRESPEC_OVERVIEW_ENABLED`가
-`false`(기본값)면 개요 run이 자동으로 만들어지지 않는다.
+`BIDOPS_PRESPEC_OVERVIEW_ENABLED`가 `false`(기본값)면 개요 run이 자동으로 만들어지지
+않는다. 이 참조 실행은 C-2를 돌리지 않으므로 `docker-compose.c2-order-plan.yml`을 붙이지
+않으며, 따라서 C-2 입력 파일 host 경로도 필요 없다.
 
 ```bash
-docker compose --env-file .env --env-file env/vllm.env \
-  -f docker-compose.yml -f docker-compose.remote-vllm.yml \
+docker compose --env-file .env --env-file env/model.env \
+  -f docker-compose.yml -f docker-compose.model-egress.yml \
   up -d analysis-worker
 ```
 

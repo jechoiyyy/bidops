@@ -814,6 +814,9 @@ export const api = {
   getNoticeAttachments: (noticePk: number) =>
     request<AttachmentProcedureResponse>(`/notices/${noticePk}/attachments`),
 
+  attachmentDownloadUrl: (attachmentId: number) =>
+    `${API_PREFIX}/attachments/${attachmentId}/download`,
+
   uploadNoticeAttachments: (noticePk: number, file: File, actorName: string) => {
     const form = new FormData();
     form.append("files", file);

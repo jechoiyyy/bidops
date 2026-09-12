@@ -68,6 +68,27 @@
   (`pre-specs` 상세·`page-overview`·`company-fit`). 전체 스위트는 이 변경에서 돌리지 않는다.
 - **게이트 수치.** 2026-09-09 축소 게이트 61 passed · 0 failed — 상세 화면 관련 spec만(pre-specs 상세·page-overview·company-fit·screen-semantics 상세·document-preparation, --project=app, PW_PORT 분리). 전체 test:screens·contrast·pixel은 돌리지 않았다(수정 범위만 검증한다는 2026-09-09 지시).
 
+#### 2026-09-12 담당자 브리핑 재구성
+
+- **결정.** 사전규격 목록·상세를 담당자 의사결정 브리핑 중심으로 재배치한다
+  ([ADR-0055](ADR.md#adr-0055-사전규격-담당자-브리핑-우선-배치)). 상세는 등급 사유(회차 판정과 사람 정정을
+  분리), 본공고 칩·품명 분류, 첨부 목록과 다운로드, 범위 확정 알림+왼쪽 폼, 문서 준비 요약과
+  조건부 토글을 갖는다. 목록은 등급 글자 토큰, 자동 준비(서버)·추적 결정 대기(페이지 한정) 필터,
+  키보드 이동, 다음 작업 한 문장을 갖는다. 백엔드·수집기·REST는 바꾸지 않는다.
+- **문서 준비를 접는 방식.** 2026-09-09 항과 같은 이유로 Astryx `Collapsible`을 쓰지 않는다.
+  조건부 렌더 토글이므로 열린 동안은 패널 조작과 폴링이 온전하고, 기본값은
+  `lib/documentPanelDefaultOpen.ts` 하나가 정한다. 사람이 열어 둔 패널은 묶음이 `ready`로 바뛰어도
+  스스로 닫지 않는다 — 방금 한 조작의 결과가 사라지기 때문이다.
+- **구현 단위.** P0 `PreSpecsPage` 순수 분리(동작 불변, 1432→619행) → P1 상세 브리핑·lifecycle
+  타입 가드·근거 anchor → P2 첨부·문서 준비 토글·승계 맥락·회사 핏 축소 → P3 목록 재편·필터·
+  키보드·대시보드 링크 → P4 문구·문서·ADR-0055.
+- **검증 범위.** 두 화면 전부와 대시보드 진입 링크가 바뀌었으므로 P4에서 전체
+  `npm run test:screens`를 돌렸다(2026-09-09 항과 다른 점). 픽셀 층은 게이트가 아니고 기준선을
+  갈아 끼우지 않았으므로 돌리지 않았다.
+- **게이트 수치.** 2026-09-12 `test:screens` **510 passed · 5 skipped · 0 failed**(app·layout-laptop
+  ·layout-desktop), `test:contrast` 9/9, `tsc -b`·production build 통과. 상세 실행 기록과 계획과
+  다르게 결정한 항목은 [`../validation-runs/20260912-prespec-briefing-ux.md`](../validation-runs/20260912-prespec-briefing-ux.md)에 있다.
+
 2026-09-08 대시보드 시안도 사용자 승인으로 직접 구현·반영했다. 원본은
 `design-previews/bidops-dashboard-erp-20260908/`이고 새 소개 문단 없이 네 업무 바로가기,
 회차 선택 줄, 67:33 네 패널을 재사용한다. 회차·필터 URL 복원, null/0/미확인,

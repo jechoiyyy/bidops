@@ -13,7 +13,7 @@ export const statuses = { queued: "판정 대기", running: "판정 중", comple
 /** 저장된 판정이 없는 상태는 **불일치가 아니다**. 목록과 상세가 같은 문장을 쓰도록
  * 문구는 여기 하나만 두고 두 화면이 읽는다(CLAUDE.md 강제 게이트: `unknown`·`null`
  * 은 검증 대기 상태로 보존한다). */
-export const NO_CURRENT_ATTEMPT_NOTICE = "저장된 회사 핏 판정이 없습니다. 불일치로 판단한 상태가 아닙니다.";
+export const NO_CURRENT_ATTEMPT_NOTICE = "회사 핏 판정 없음 · 불일치 아님";
 
 
 function valueText(value: unknown): string {
@@ -125,8 +125,14 @@ export function CompanyFitAutomationNotice({ data }: { data: CompanyFitResponse 
   </div>;
 }
 
-export function CompanyFitSection({ noticeId }: { noticeId: number }) {
+export function CompanyFitSection({ noticeId, compact = false }: { noticeId: number; compact?: boolean }) {
   const { query, isValid, data, currentAttempt, previousAttempts } = useCompanyFit(noticeId);
+  if (compact && !query.isError && isValid && data !== null && !data.automation_enabled && !currentAttempt) {
+    return <section className="company-fit" aria-label="회사 업무 부합 여부">
+      <p>{NO_CURRENT_ATTEMPT_NOTICE} · 자동 판정 비활성{data.deep_review_id
+        ? <> · <a href={`/deep-reviews/${data.deep_review_id}`}>심층 검토 열기</a></> : null}</p>
+    </section>;
+  }
   return <section className="company-fit" aria-label="회사 업무 부합 여부">
     <h3>회사 업무 부합 여부</h3>
     <p className="company-fit-note">개요의 과업과 회사 정보를 대조한 분석입니다. 추적 승인과 최종 입찰 결정은 사람이 진행합니다.</p>

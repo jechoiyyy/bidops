@@ -379,6 +379,9 @@ test("403 effective grade gate를 우회하지 않고 안정 사유를 표시한
 test("ready·superseded 이력은 불변이고 503 profile/policy를 fail-closed로 표시한다", async ({ page }) => {
   const trace = await mockDocumentPreparation(page, "unavailable");
   await page.goto(`/pre-specs/${NOTICE_ID}`);
+  // 묶음이 `ready`이고 자동 준비가 조치 대기가 아니므로 문서 준비는 접힌 기본값이다
+  // (ADR-0055 결정 3). 조작하려면 먼저 열어야 한다.
+  await page.getByRole("button", { name: "문서 준비 열기" }).click();
   await page.getByLabel("문서 준비 담당자 이름").fill("홍길동");
 
   await page.getByRole("button", { name: /수정본 1/ }).click();
