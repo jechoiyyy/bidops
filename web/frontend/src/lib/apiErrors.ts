@@ -1,6 +1,6 @@
 import { BidDeltaApiError } from "../components/bid-delta/api";
 import { DeepReviewApiError } from "../components/deep-review/api";
-import { ApiError } from "./api";
+import { ApiError, OrderPlanBulkTrackingResultUnconfirmedError } from "./api";
 
 /**
  * 화면 하나의 오류 문구 정책.
@@ -40,6 +40,15 @@ export const API_ERROR_ACTION_LABEL: Record<Exclude<ApiErrorAction, null>, strin
 
 /** 서버 message가 code 자리에 실려 화면으로 새는 것을 막는 모양 검사. */
 const SAFE_CODE_PATTERN = /^[a-z][a-z0-9_]{0,63}$/;
+
+export type OrderPlanBulkTrackingErrorKind = "server" | "validation" | "result_unconfirmed";
+
+export interface OrderPlanBulkTrackingError {
+  status: number;
+  kind: OrderPlanBulkTrackingErrorKind;
+  code: string | null;
+  request_id: string | null;
+}
 
 type CodeDescription = Omit<ApiErrorDescription, "code">;
 
@@ -238,6 +247,69 @@ function safeCode(value: unknown): string | null {
 }
 
 /**
+ * Distinguish the stable server envelope from FastAPI's request-validation
+ * shape.  Bulk callers use this instead of branching on server messages.
+ */
+export function parseOrderPlanBulkTrackingError(error: unknown): OrderPlanBulkTrackingError | null {
+  if (error instanceof OrderPlanBulkTrackingResultUnconfirmedError) {
+    return {
+      status: 0,
+      kind: "result_unconfirmed",
+      code: "result_unconfirmed",
+      request_id: null,
+    };
+  }
+  if (!(error instanceof ApiError)) return null;
+  const envelope = isRecord(error.detail) && "code" in error.detail ? error.detail : null;
+  return {
+    status: error.status,
+    kind: error.status === 422 && envelope === null ? "validation" : "server",
+    code: envelope === null
+      ? error.status === 422 ? "invalid_request" : null
+      : safeCode(envelope.code),
+    request_id: error.requestId,
+  };
+}
+
+const BULK_RESULT_UNCONFIRMED_DESCRIPTION: ApiErrorDescription = {
+  title: "일괄 추적 결과를 확인할 수 없습니다.",
+  detail: "같은 요청 식별자와 입력을 그대로 사용해 저장된 요청 결과를 확인하십시오. 새 요청을 만들지 않습니다.",
+  action: "retry",
+  code: "result_unconfirmed",
+};
+
+/**
+ * Bulk mutations have a stricter recovery rule than ordinary mutations:
+ * response loss or parsing failure retries the same request, and an
+ * idempotency conflict never asks the caller to mint a new request key.
+ */
+export function describeOrderPlanBulkTrackingError(
+  error: unknown,
+  fallback = "일괄 추적 작업을 완료하지 못했습니다.",
+): ApiErrorDescription {
+  const parsed = parseOrderPlanBulkTrackingError(error);
+  if (!parsed) return describeApiError(error, fallback);
+  if (parsed.kind === "result_unconfirmed") return BULK_RESULT_UNCONFIRMED_DESCRIPTION;
+  if (parsed.code === "idempotency_conflict") {
+    return {
+      title: "같은 요청 식별자가 다른 요청에 이미 쓰였습니다.",
+      detail: "요청 식별자와 입력을 바꾸지 말고 저장된 요청 결과를 확인하십시오.",
+      action: "reload",
+      code: parsed.code,
+    };
+  }
+  if (parsed.kind === "validation") {
+    return {
+      title: "일괄 추적 요청 형식이 올바르지 않습니다.",
+      detail: "선택한 발주계획과 요청 입력을 확인한 뒤 다시 시도하십시오.",
+      action: null,
+      code: parsed.code,
+    };
+  }
+  return describeApiError(error, fallback);
+}
+
+/**
  * 안전한 오류 코드만 꺼낸다. `ApiError`는 typed code 자리가 없어 detail 객체의
  * `code`를 읽되, 모양 검사를 통과한 값만 코드로 인정한다.
  */
@@ -259,6 +331,10 @@ function readCode(error: unknown): string | null {
 export function describeApiError(error: unknown, fallback: string): ApiErrorDescription {
   const status = readStatus(error);
   const code = readCode(error);
+
+  if (error instanceof OrderPlanBulkTrackingResultUnconfirmedError) {
+    return BULK_RESULT_UNCONFIRMED_DESCRIPTION;
+  }
 
   if (status === 0) {
     return {

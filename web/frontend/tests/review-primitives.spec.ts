@@ -80,6 +80,94 @@ test("사전규격 보기 전환은 0건인 진행·대기도 숨기지 않는�
   await expect(page.locator(".pre-specs-row")).not.toHaveCount(0);
 });
 
+test("LS-02 DenseListRow native Space paths toggle once and preserve active state", async ({ page }) => {
+  await mockPreSpecs(page);
+  await page.goto("/pre-specs?sw_only=false");
+  const rows = page.locator(".pre-specs-row");
+  const first = rows.first();
+  const checkbox = first.getByRole("checkbox");
+  await first.click();
+  await first.focus();
+
+  // A repeat keydown is consumed only to suppress browser scrolling; it must
+  // not toggle the checked membership.
+  await first.dispatchEvent("keydown", { key: " ", code: "Space", bubbles: true, cancelable: true, repeat: true });
+  await expect(checkbox).not.toBeChecked();
+  await expect(first).toHaveAttribute("data-checked", "false");
+  await page.keyboard.press("Space");
+  await expect(checkbox).toBeChecked();
+  await expect(first).toHaveAttribute("data-checked", "true");
+
+  // Native checkbox Space is owned by the checkbox's onChange, not the row.
+  await checkbox.focus();
+  await page.keyboard.press("Space");
+  await expect(checkbox).not.toBeChecked();
+  await expect(first).toHaveAttribute("aria-current", "true");
+});
+
+test("LS-02 interactive children, IME, and modifiers never enter row Space handling", async ({ page }) => {
+  await mockPreSpecs(page);
+  await page.goto("/pre-specs?sw_only=false");
+  const first = page.locator(".pre-specs-row").first();
+  const checkbox = first.getByRole("checkbox");
+  await first.click();
+  await first.focus();
+  await page.keyboard.press("Space");
+  await expect(checkbox).toBeChecked();
+
+  await first.evaluate((row) => {
+    for (const [tag, id] of [
+      ["input", "test-child-input"],
+      ["textarea", "test-child-textarea"],
+      ["button", "test-child-button"],
+      ["a", "test-child-link"],
+      ["div", "test-child-editable"],
+    ] as const) {
+      const child = document.createElement(tag);
+      child.id = id;
+      child.setAttribute("aria-label", id);
+      if (tag === "a") child.setAttribute("href", "#child");
+      if (tag === "div") child.contentEditable = "true";
+      row.appendChild(child);
+    }
+  });
+  for (const id of ["test-child-input", "test-child-textarea", "test-child-button", "test-child-link", "test-child-editable"]) {
+    const child = page.locator(`#${id}`);
+    await child.focus();
+    await page.keyboard.press("Space");
+    await expect(first).toHaveAttribute("aria-current", "true");
+    await expect(checkbox).toBeChecked();
+  }
+
+  await first.focus();
+  for (const modifiers of [
+    { ctrlKey: true },
+    { metaKey: true },
+    { altKey: true },
+    { shiftKey: true },
+    { isComposing: true },
+  ]) {
+    await first.dispatchEvent("keydown", {
+      key: " ",
+      code: "Space",
+      bubbles: true,
+      cancelable: true,
+      ...modifiers,
+    });
+    await expect(checkbox).toBeChecked();
+  }
+});
+
+test("LS-06 Ctrl/Cmd+Enter keeps the existing single-record detail meaning", async ({ page }) => {
+  await mockPreSpecs(page);
+  await page.goto("/pre-specs?sw_only=false");
+  const first = page.locator(".pre-specs-row").first();
+  await first.focus();
+  await page.keyboard.press("Control+Enter");
+  await expect(page).toHaveURL(/\/pre-specs\/991\?.*sw_only=false/);
+  expect(new URL(page.url()).searchParams.has("selection_review")).toBe(false);
+});
+
 // ── 단계 B에서 추가한 primitive ────────────────────────────────────────────
 // 분할 화면 pane 바닥의 결정 액션, 접힌 보조 입력 영역과 그 append-only revision
 // 이력, 등급 4단 스케일.

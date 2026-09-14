@@ -306,6 +306,44 @@ def test_query_count_does_not_grow_with_population(tmp_path):
     assert counts[0] <= 5
 
 
+def test_selection_review_order_plan_pk_sort_and_pagination_keep_all_501_source_rows(
+    tmp_path, monkeypatch,
+):
+    """The API keeps source PK ASC and exposes every row over a 500-page split."""
+
+    settings, session, _policy, _binding, plans = _fixture(
+        tmp_path / "selection-review-501", count=501
+    )
+    service = OrderPlanScreeningService(settings)
+    monkeypatch.setattr(routes, "service", service)
+    application = FastAPI()
+    application.include_router(routes.router)
+    application.dependency_overrides[get_db] = lambda: session
+    try:
+        with TestClient(application) as client:
+            first_response = client.get("/api/order-plans", params={"limit": 500, "offset": 0})
+            second_response = client.get("/api/order-plans", params={"limit": 500, "offset": 500})
+
+        expected_ids = [plan.id for plan in plans]
+        assert first_response.status_code == second_response.status_code == 200
+        first = first_response.json()
+        second = second_response.json()
+        assert first["schema_version"] == "order-plan-list-response.v3"
+        assert first["total"] == second["total"] == 501
+        assert first["limit"] == second["limit"] == 500
+        assert first["offset"] == 0
+        assert second["offset"] == 500
+        assert [item["order_plan_pk"] for item in first["items"]] == expected_ids[:500]
+        assert [item["order_plan_pk"] for item in second["items"]] == expected_ids[500:]
+        assert len(first["items"]) == 500
+        assert len(second["items"]) == 1
+        assert [item["order_plan_pk"] for item in first["items"] + second["items"]] == expected_ids
+    finally:
+        application.dependency_overrides.clear()
+        session.close()
+        session.bind.dispose()
+
+
 def test_scope_ordering_uses_finished_then_queued_then_execution_id(listing):
     session, service, policy, _, client = listing
     first = execution(session, service, policy, minute=2, execution_id=UUID(int=1))

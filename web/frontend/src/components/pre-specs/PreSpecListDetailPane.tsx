@@ -123,10 +123,12 @@ export function OverviewResult({
   review,
   current,
   detailUrl,
+  onOpenDetail,
 }: {
   review: PageOverviewView | null;
   current: PageOverviewCurrent | null;
   detailUrl: string;
+  onOpenDetail?: () => void;
 }) {
   const payload = review && review.payload.schema_version === "bidops.prespec-overview-page-review.v4"
     ? review.payload
@@ -214,7 +216,17 @@ export function OverviewResult({
             ) : <p className="pre-specs-overview-empty">근거 항목 없음</p>}
             {/* 원문 열람은 상세 화면이 소유한다. 이 자리에서 원문을 여는 흉내를
                 내지 않고 실제로 여는 화면으로 보낸다. */}
-            <Link className="pre-specs-overview-source-link" to={detailUrl}>상세에서 근거 원문 열기 →</Link>
+            <Link
+              className="pre-specs-overview-source-link"
+              to={detailUrl}
+              onClick={(event) => {
+                if (!onOpenDetail || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+                event.preventDefault();
+                onOpenDetail();
+              }}
+            >
+              상세에서 근거 원문 열기 →
+            </Link>
           </section>
 
           {/* 미확인 목록은 위 개요 구역(`PageOverviewUnknowns`)이 이미 갖는다. 같은 탭
@@ -252,6 +264,8 @@ export function PreSpecDetail({
   trackingCloseRequested,
   onTrackingCloseCancel,
   onTrackingCloseConfirm,
+  onOpenDetail,
+  onOpenDetailAfterSaved,
 }: {
   item: PreSpecListItem;
   listSearch: string;
@@ -262,6 +276,10 @@ export function PreSpecDetail({
   trackingCloseRequested: boolean;
   onTrackingCloseCancel: () => void;
   onTrackingCloseConfirm: () => void;
+  onOpenDetail?: () => void;
+  /** Called after the tracking mutation has committed. Unlike a normal
+   * detail link, this transition has no unsaved draft to guard. */
+  onOpenDetailAfterSaved?: () => void;
 }) {
   const navigate = useNavigate();
   const [tab, setTab] = useState<DetailTab>("overview");
@@ -416,7 +434,12 @@ export function PreSpecDetail({
             {/* 목록 pane의 결과 본문은 이 구역 하나다(결과·확인 조건·문서 근거).
                 예전에는 wrapper가 같은 주장을 한 번 더 그려 본문이 둘이었다(ADR-0055 D7). */}
             {overviewValid && !overviewMissing ? (
-              <OverviewResult review={overviewReview} current={overviewCurrent} detailUrl={detailUrl} />
+              <OverviewResult
+                review={overviewReview}
+                current={overviewCurrent}
+                detailUrl={detailUrl}
+                onOpenDetail={onOpenDetail}
+              />
             ) : null}
           </>
         ) : null}
@@ -492,7 +515,16 @@ export function PreSpecDetail({
             <p className="pre-specs-detail-note">
               문서 등록·교체·묶음 확정과 원문 열람은 사전규격 상세의 문서 준비에서 수행합니다.
               {" "}
-              <Link to={detailUrl}>상세 열기 →</Link>
+              <Link
+                to={detailUrl}
+                onClick={(event) => {
+                  if (!onOpenDetail || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+                  event.preventDefault();
+                  onOpenDetail();
+                }}
+              >
+                상세 열기 →
+              </Link>
             </p>
           </div>
         ) : null}
@@ -609,7 +641,15 @@ export function PreSpecDetail({
             <span>{nextAction.title}</span>
             <strong>{nextAction.text}</strong>
           </div>
-          <Link className="interaction-control interaction-control-primary pre-specs-detail-open" to={detailUrl}>
+          <Link
+            className="interaction-control interaction-control-primary pre-specs-detail-open"
+            to={detailUrl}
+            onClick={(event) => {
+              if (!onOpenDetail || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+              event.preventDefault();
+              onOpenDetail();
+            }}
+          >
             상세 검토 열기 →
           </Link>
         </div>
@@ -651,7 +691,11 @@ export function PreSpecDetail({
             onDirtyChange={onDirtyChange}
             // 발주계획에서 승계한 건은 이 화면이 추적을 다시 묻지 않으므로
             // 한 조작 진입점도 신규 건에만 준다(ADR-0046 결정 6).
-            onStartedForDeepReview={inherited ? undefined : () => navigate(detailUrl)}
+            onStartedForDeepReview={inherited ? undefined : () => {
+              if (onOpenDetailAfterSaved) onOpenDetailAfterSaved();
+              else if (onOpenDetail) onOpenDetail();
+              else navigate(detailUrl);
+            }}
             onSaved={(saved) => {
               onSaved(saved);
               onTrackingDialogChange(false);

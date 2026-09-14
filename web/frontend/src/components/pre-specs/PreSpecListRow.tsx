@@ -1,5 +1,5 @@
 import { Token } from "@astryxdesign/core/Token";
-import { DenseListRow } from "../common/ReviewPrimitives";
+import { DenseListRow, type DenseListRowSelection } from "../common/ReviewPrimitives";
 import { describeDeadline, shortDateLabel } from "../../lib/deadline";
 import { formatDateTime } from "../../lib/format";
 import {
@@ -45,11 +45,13 @@ export function PreSpecRow({
   item,
   isSelected,
   onSelect,
+  selection,
   ...rowProps
 }: {
   item: PreSpecListItem;
   isSelected: boolean;
   onSelect: () => void;
+  selection?: DenseListRowSelection;
 } & Partial<RowKeyboardNavigationRowProps> & {
   onKeyDown?: KeyboardEventHandler<HTMLElement>;
 }) {
@@ -62,11 +64,13 @@ export function PreSpecRow({
       // `data-row-key`·roving `tabIndex`·`onKeyDown`은 키보드 이동 hook이 준다.
       // 그대로 행 요소까지 내려야 hook이 행을 찾아 초점을 옮길 수 있다.
       {...rowProps}
-      // 행 자체가 role="button"이 되므로 접근 가능한 이름을 사업명으로 고정한다.
+      // 선택 모드에서는 행과 체크박스가 독립된 컨트롤이므로 사업명을 행 이름으로 고정한다.
       aria-label={title}
       className="pre-specs-row"
+      data-checked={selection?.checked ? "true" : "false"}
       selected={isSelected}
       onSelect={onSelect}
+      selection={selection}
       label={<span className="pre-specs-row-title">{title}</span>}
       description={(
         <>

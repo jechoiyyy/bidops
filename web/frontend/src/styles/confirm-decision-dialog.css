@@ -1,16 +1,19 @@
 /*
  * 되돌릴 수 없는 결정의 확인 다이얼로그.
  *
- * radix Portal이 document.body로 내보내므로 `.app-shell`의 legacy token bridge
- * 밖에서 그려진다. 그래서 이 다이얼로그는 자기 요소에 `data-astryx-theme="bidops"`를
- * 달고 **bidops 테마 토큰만** 읽는다. `:root`나 여기서 `--color-*`를 새로 정의하지
- * 않고 새 hex 값도 만들지 않는다(ADR-0048).
+ * Astryx native dialog는 top layer에서 그려져 `.app-shell`의 legacy token
+ * bridge 밖에 놓인다. 그래서 이 다이얼로그는 자기 요소에
+ * `data-astryx-theme="bidops"`를 달고 **bidops 테마 토큰만** 읽는다.
+ * `:root`나 여기서 `--color-*`를 새로 정의하지 않고 새 hex 값도 만들지 않는다
+ * (ADR-0048).
  *
  * 확인 버튼은 accent(primary)다. 결정은 오류가 아니므로 위험 의미색을 쓰지 않고,
  * 되돌릴 수 없다는 사실은 색이 아니라 kicker·경고 문장·요약 표가 전달한다.
  */
 
 .confirm-decision-dialog {
+  /* Keep the native top-layer surface explicitly hit-testable when nested. */
+  pointer-events: auto;
   max-width: min(560px, calc(100% - var(--spacing-8)));
   max-height: calc(var(--bo-ui-viewport-dynamic-height) - var(--spacing-8));
   gap: var(--spacing-4);

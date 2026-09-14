@@ -21,7 +21,7 @@ C-1 `candidate_selection`의 기존 `collect-candidate.v2 / candidate_pool_all /
 `single_notice`의 사용자 지정 대상과 기존 고정 `quality_sample` 계약은 유지한다.
 기존 정책의 내용·digest를 바꾸거나 새 규칙을 품질 승인으로 취급하지 않는다.
 
-웹 클라이언트, 파이프라인 subprocess, 운영 도구가 의존하는 기본 REST 경로는 `/api`다. 발주계획 중심의 새 수집·기회 API는 아직 구현되지 않았으므로 현재 경로로 추정해 호출하지 않는다.
+웹 클라이언트, 파이프라인 subprocess, 운영 도구가 의존하는 기본 REST 경로는 `/api`다. 발주계획·사업기회 경로는 아래의 현재 버전 계약만 사용하며, 문서에 없는 경로를 추정해 호출하지 않는다.
 
 ## 공통 REST 규칙
 
@@ -211,10 +211,96 @@ revision-history의 404·409·500은 공통 안전 envelope를 사용하며 `det
 | `GET /api/opportunities/{opportunity_id}` | path DB integer opportunity ID | `OpportunityDetailResponse`; `검색 미확인` link를 포함한 전체 link 목록 | 404 `opportunity_not_found` |
 | `GET /api/opportunities/{opportunity_id}/deep-reviews` | path DB integer opportunity ID | 200 `{opportunity_id, items[]}` — 연결 공고 전체의 심층 검토 목록 | 404 `not_found`; 422 path; 500 `processing_failed` |
 | `GET /api/bid-delta/decision-queue` | `status=pending\|all`(기본 `pending`), `limit` 1..500(기본 50), `offset` 0 이상 | 200 `{items, total, limit, offset}` | 422 query; 500 안전 오류 |
+| `POST /api/opportunities/order-plan-tracking/preview` | body `{"schema_version":"order-plan-bulk-preview-request.v1","order_plan_ids":[1,2]}` (ID는 positive integer[]); 빈 목록·bool·0·음수·unknown field 거부 | 200 `order-plan-bulk-preview-response.v1` (아래 wire) | 422 body 또는 `invalid_request`; 503 `temporarily_unavailable` |
+| `POST /api/opportunities/order-plan-tracking/bulk-start` | actor headers; body `{"schema_version":"order-plan-bulk-start-request.v1","request_id":"UUID","order_plan_ids":[1,2],"reason":"nonblank"}` (ID는 positive integer[]) | 200 `order-plan-bulk-start-response.v1` 최종 receipt (아래 wire) | 400 actor; 409 `idempotency_conflict`; 422 body/`invalid_request`·`tracking_reason_required`; 500 `processing_failed`; 503 `temporarily_unavailable` |
 | `PATCH /api/opportunities/{opportunity_id}/tracking-status` | actor headers; body `{tracking_status, reason}` | 200 `OpportunityDetailResponse` | 400 `actor_name_required|actor_name_invalid`; 404 `opportunity_not_found`; 422 `tracking_status_invalid|tracking_reason_required` |
 | `PATCH /api/opportunities/links/{link_id}/decision` | actor headers; body `{decision=accepted|rejected, reason}` | 200 `OpportunityLinkView`; 동일 actor·판정·이유 replay는 같은 reviewed_at | 400 `actor_name_required|actor_name_invalid`; 404 `opportunity_link_not_found`; 409 `candidate_link_required|candidate_decision_conflict|candidate_state_conflict|candidate_target_required|candidate_target_already_authoritative`; 422 body·link ID·blank reason |
 
 추적 상태 변경은 `set_tracking_status()`를 통해 사람 선택과 감사 이벤트를 함께 기록한다. `X-BidOps-Actor-Name`은 인증이 아닌 감사 표식이며, 비ASCII 이름은 `X-BidOps-Actor-Name-Format: utf-8-percent-v1`과 canonical UTF-8 percent encoding을 사용한다. `recheck_signal`은 시스템 신호 여부이고 `recheck_signal_at`·`recheck_signal_link_id`는 그 시각과 근거 link를 가리킨다. 이 값들은 사람의 `tracking_status`·`tracking_reason`·`tracking_selected_by`·`tracking_selected_at`과 별도이며, `FinalOpinion` 또는 최종 입찰 `Go/No-Go`로 변환하지 않는다.
+
+#### 발주계획 일괄 추적 v1 wire·원자성
+
+두 POST는 RuntimeContractModel의 v1 field만 받는다. 계획 ID는 서버에서 중복 제거하고
+오름차순으로 정규화하므로 preview와 receipt의 `items` 순서도 그 순서다. preview는 계획
+존재·authoritative active owner(공식 확정 또는 사람 accepted 후보)·현재 상태만 set 조회하며
+추적·감사·receipt·모델 실행을 만들지 않는다. 미리보기 뒤 상태가 바뀔 수 있으므로 bulk-start가
+잠금 뒤 다시 확인한 결과가 최종이다.
+bulk-start body에는 임의 status나 owner ID가 없고 목표 상태는 고정 `계속 추적`이다.
+
+preview 응답은 정확히 `schema_version`, `selected_plan_count`, `unique_owner_count`,
+`eligible_plan_count`, `eligible_owner_count`, `excluded_by_status`, `failure_plan_count`,
+`items`를 갖는다. `excluded_by_status`는 `계속 추적|보류|종료` 각각
+`{plan_count, owner_count}`이고 item은 정확히
+`{order_plan_id, opportunity_id, tracking_status, eligibility, code}`다. eligibility는
+`eligible|excluded|failed`이며 `eligible`은 현재 `미선택`, `excluded`는 현재 세 상태,
+`failed`는 `order_plan_not_found|owning_opportunity_missing|owner_changed|ownership_conflict|processing_failed|temporarily_unavailable`
+중 안전 code를 갖는다. owner가 없거나 후보 확인 대기만 있는 계획을 새 사업기회로 만들지 않는다.
+eligible/excluded item은 `opportunity_id`가 non-null이고 각각
+`tracking_status=미선택` 또는 기존 제외 상태이며 `code=null`이다. failed item은 `code`가
+non-null이고 owner/status는 확인 가능한 경우에만 채운다. `unique_owner_count`와
+`eligible_owner_count`는 각 item의 non-null owner를 중복 제거한 수다.
+
+bulk-start의 최종 receipt는 정확히
+`{schema_version:"order-plan-bulk-start-response.v1", request_id, completed_at, items, summary}`다.
+`request_id`와 non-null `audit_event_id`는 UUID 문자열이며 `completed_at`은 timezone-aware
+ISO timestamp다.
+item은 `{order_plan_id, opportunity_id, outcome, status_at_decision, code, audit_event_id}`이고
+summary는
+`selected_plan_count`, `unique_owner_count`, `succeeded_plan_count`,
+`succeeded_owner_count`, `excluded_plan_count`, `excluded_by_status`,
+`failed_plan_count`를 갖는다.
+`selected_plan_count`는 세 outcome 합과 같고, 같은 owner로
+연결된 plan은 하나의 outcome/status/code/audit ID를 fan-out한다. 성공은
+`status_at_decision=계속 추적`·audit UUID, 제외는 기존 상태와 audit 없음, 실패는 안전 code와
+audit 없음이다. 전건 실패도 항목별 결과가 있으면 200 receipt이며 전건 성공을 뜻하지 않는다.
+`unique_owner_count`는 전체 item의 non-null owner 수이고 `succeeded_owner_count`는 성공
+owner의 중복 제거 수다. summary의 상태별 제외 plan/owner 수는 제외 item과 일치해야 하며
+성공 item은 owner/status/audit가 non-null, 제외 item은 owner/status만 non-null, 실패 item은
+안전 code만 필수이고 audit는 null이다.
+
+bulk는 owner ID 오름차순 잠금·savepoint로 처리하고, **현재 `미선택`인 owner만** `계속 추적`으로
+전환한다. 이미 `계속 추적|보류|종료`인 owner는 제외하며 actor·reason·시각·recheck·기존
+감사를 건드리지 않는다. 성공 결정·감사와 최종 JSON receipt는 한 transaction으로 commit한다.
+기존 `IdempotencyRecord`의 결정적 UUIDv5 요청 fence와 `request_sha256`을 사용하며 새 table,
+정규화한 schema/operation/request UUID/plan ID 집합/reason/actor를 hash에 포함한다. 새 table,
+batch job, outbox를 만들지 않는다. post-commit extension hook은 owner별 best-effort이고
+hook 전달의 exactly-once를 보장하지 않는다.
+동시에 실행된 단건 PATCH가 먼저 commit되면 bulk는 잠금 뒤 그 최신 비-미선택 상태를 제외하고
+감사를 만들지 않는다. bulk가 먼저 commit되면 대기 중인 단건 PATCH가 기존 규칙대로 뒤이어
+다른 상태 또는 같은 상태 재선택을 기록할 수 있으며 bulk receipt는 바뀌지 않는다. 단건에
+새 expected-version/freshness 조건을 추가하지 않는다.
+
+receipt JSON은 strict response DTO 검증 뒤 `model_dump(mode="json")`한 JSON primitive만
+저장한다. commit 후 응답이 유실되면 같은 request UUID와 동일 payload/actor로 저장된 status/body를
+재검증만 하고 그대로 replay한다. 현재 상태를 다시 판정하거나 시각·UUID·집계·배열 순서를
+재계산하지 않는다. 같은 key의 다른 actor·reason·ID 집합은 409다. commit 미확인은 결과를
+성공으로 추정하지 않고 같은 key로 확인한다. 완결 receipt의 실패 항목은 자동 재실행하지
+않으며, 사람이 결과를 확인한 뒤 실패 plan ID만 새 request UUID로 다시 제출한다(기존 receipt 보존).
+구조 검증을 통과하지 못한 JSON body는 공통 규칙대로 FastAPI `detail[]` 422이고, semantic
+bulk 오류만 위의 안전 envelope와 code를 사용한다.
+
+#### 목록 선택과 사전규격 상세 순회
+
+발주계획·사전규격 목록은 활성 행과 체크 묶음을 분리한다. 행 클릭·Enter·↑↓는 active만
+옮기고, native checkbox 또는 활성 행의 plain Space만 checked membership을 한 번 토글한다.
+선택은 각 화면의 별도 `sessionStorage` key에서 같은 탭의 page 이동·refresh·상세 왕복 동안
+유지하며 탭·계정 간 동기화나 장기 저장은 하지 않는다. 적용된 의미 필터가 달라지면 세대를
+올려 선택을 비우고, offset·정렬 변경·refetch는 선택을 유지한다. 정렬 변경 뒤 사전규격
+상세에 다시 들어갈 때만 새 순서를 만든다.
+
+발주계획 선택 순서는 기존 relevance 우선순위와 PK 오름차순 동률 규칙을 따른다. 사전규격은
+목록이 마지막으로 관측한 `published_at`(내림차순, null 마지막, PK 내림차순) 또는
+`deadline_at`(오름차순, null 마지막, PK 오름차순)을 사용한다. timezone offset과 최대
+microsecond를 보존해 비교하며, 서버 전체의 새 snapshot을 보장하지 않는다. 선택 검토에
+들어가면 이 순서를 opaque `selection_review` token으로 고정하고 위치·전체 건수·양끝
+disabled 이전/다음 버튼을 제공한다.
+
+상세의 navigation shell은 본문 성공 여부와 분리되어 loading·404·5xx·source/projection
+오류에서도 위치와 목록 복귀를 제공한다. 오류 항목을 자동으로 건너뛰거나 선택에서 지우지
+않으며 retry는 같은 항목에 머문다. 목록 복귀 URL은 filter·sort·offset만 보존하고 상세
+전용 token은 제거한다. `sessionStorage`를 읽거나 쓸 수 없으면 복원 가능한 bulk/선택 검토
+시작을 제공하지 않고 원인과 단건 경로를 안내한다. 기존 단건 상세와 단건 PATCH는 계속
+사용한다.
 
 ### 결정 대기 집계와 큐 응답
 
@@ -830,13 +916,13 @@ binding이 blocked이므로 실행·활성화 endpoint는 성공을 반환하지
 | `POST /api/order-plan-screening/policies/candidate` | actor header, `policy-candidate-request.v1`의 `{schema_version, producer, consumer, request_id, policy_version, base_policy_sha256, candidate_sha256, reason}` | `201`: `policy-candidate-response.v1`의 provenance와 `activation_candidate` version/status/digest | `invalid_request`, `idempotency_conflict`, `immutable_conflict` |
 | `POST /api/order-plan-screening/policies/{policy_version}/activate` | actor header, `policy-activate-request.v1`의 `{schema_version, producer, consumer, request_id, policy_sha256, quality_gate_artifact_sha256, explicit_confirmation:true}` | 승인 후에만 `200`: `policy-activate-response.v1`의 provenance와 active status·audit ID | 현재는 `activation_blocked(409)`, digest mismatch (`409`) |
 
-**미구현 — 발주계획 추적 결정 (요청안, 2026-09-04).** ADR-0046 결정 4가 추적 결정을 발주계획
-화면의 결정 1로 채택했으나 그 결정을 읽을·쓸 경로가 위 표에 없다. 목록·상세 응답의 `tracking`
-field와 `GET`/`POST /api/order-plans/{order_plan_pk}/tracking-decisions`를 백엔드 파트에
-요청했다. wire shape·오류·테스트 matrix는
-[`design/order-plan-tracking-contract-request.md`](design/order-plan-tracking-contract-request.md)에 있으며
-**제안이고 채택이 아니다.** 그 문서가 채택될 때까지 이 표가 발주계획 REST 계약의 전부다.
-화면의 Playwright fixture가 요청안의 모양을 mock하지만 그것은 구현 완료의 근거가 아니다.
+발주계획의 사람 추적 시작은 C-2 relevance와 별도인
+`POST /api/opportunities/order-plan-tracking/preview`·`bulk-start` 계약을 사용한다
+(상세 wire·원자성·receipt 규칙은 [사업기회와 추적](#사업기회와-추적)의
+`발주계획 일괄 추적 v1 wire·원자성`에 있다). 기존 C-2 screening execution을 만들거나
+`GET/POST /api/order-plans/{order_plan_pk}/tracking-decisions`를 호출하지 않는다.
+이 endpoint들은 API의 결과 확인·추적 결정을 위한 것이며 C-2 실행·모델 활성화·최종 입찰
+결정을 의미하지 않는다.
 
 actor header `X-BidOps-Actor-Name`은 인증이 아닌 감사 표식이다. request body에 actor를
 중복해서 받지 않으며, API 응답·error details에는 prompt/profile/model response 본문,

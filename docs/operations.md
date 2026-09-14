@@ -350,6 +350,23 @@ COMPOSE_PROJECT_NAME=bidops docker compose -f docker-compose.yml stop web analys
 
 로그에는 prompt, 모델 응답, 회사자료, 첨부 본문, 자격증명, URL 쿼리 문자열이 없어야 한다. traceback은 기본 비활성이고 안전한 식별자와 오류 분류만 확인한다.
 
+### 발주계획 일괄 추적 결과 확인
+
+- 응답 유실·시간 초과는 실패 건수가 아니라 **결과 미확인**이다. 같은 탭의 저장된 요청 결과 확인으로 원래 request UUID·대상·담당자·사유를 재전송한다. 새 UUID로 대체하거나 기존 receipt를 수정·삭제하지 않는다.
+- 운영자가 DB를 조회할 때는 `bidops.idempotency_record`의
+  `operation = 'order_plan_tracking_bulk_start'`와 `request_id`로 찾는다.
+  `response_status`, `response_snapshot`의 `completed_at`·`summary`·`items`가 최초 완료 결과다.
+  이는 현재 추적 상태의 projection이 아니므로 이후 단건 결정과 달라도 receipt를 보정하지 않는다.
+- 같은 request ID의 `bidops.audit_event`에서
+  `action = 'opportunity.tracking_status.changed'`인 건수는 receipt의
+  `succeeded_owner_count`와 대응한다. 한 소유자에 여러 plan이 있더라도 감사는 한 건이며,
+  같은 요청 replay로 늘지 않는다. 담당자·사유나 receipt 전문을 일반 로그·오류 보고서에 복사하지 않는다.
+- 항목 실패가 있는 **완료 결과를 확인한 뒤에만** 실패 건 재시도를 새 요청으로 확인한다.
+  `idempotency_conflict`는 다른 payload가 같은 key를 사용한 상태이지 새 key 자동 발급 지시가 아니다.
+  손상된 저장 결과는 안전 오류로 닫으며 PATCH 반복으로 우회하지 않는다.
+- 후처리 hook은 commit 뒤 best effort이다. hook 장애가 사람 결정을 취소하지 않으며,
+  replay가 hook의 durable 재전달을 보장하지 않는다. 별도 작업 큐·migration·모델 정책·egress 변경은 없다.
+
 ## 설정 범주
 
 | 범주 | 주요 설정 | 운영 규칙 |

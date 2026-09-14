@@ -24,6 +24,7 @@ import { useToast } from "../components/common/useToast";
 import { describeApiError } from "../lib/apiErrors";
 import { api } from "../lib/api";
 import { TERM } from "../lib/glossary";
+import { generateRequestId } from "../lib/requestId";
 import {
   createBidDeltaComparison,
   getBidDelta,
@@ -551,7 +552,7 @@ export function BidDeltaDecisionPage() {
       if (!baseline || !comparison) throw new Error("비교할 문서를 양쪽에서 하나씩 고르십시오.");
       const payload: BidDeltaComparisonCreateRequest = {
         schema_version: "bidops.bid-delta-comparison-create.v1",
-        request_id: crypto.randomUUID(),
+        request_id: generateRequestId(),
         category_policy_version: "bid-delta-policy.v1",
         baseline: toFence(baseline),
         comparison: toFence(comparison),
@@ -575,7 +576,7 @@ export function BidDeltaDecisionPage() {
       if (!current || !selectedComparisonId) throw new Error("재시도할 비교가 없습니다.");
       return retryBidDeltaAttempt(opportunityId, selectedComparisonId, retryActor, {
         schema_version: "bidops.bid-delta-attempt-create.v1",
-        request_id: crypto.randomUUID(),
+        request_id: generateRequestId(),
         expected_comparison_version: current.version,
       });
     },
@@ -961,7 +962,7 @@ export function BidDeltaDecisionPage() {
                       const previous = lastFrozenRequest.current;
                       const request: FrozenFinalDecision = previous && frozenRequestKey(previous) === frozenRequestKey(frozen)
                         ? previous
-                        : { ...frozen, payload: { ...frozen.payload, request_id: crypto.randomUUID() } };
+                        : { ...frozen, payload: { ...frozen.payload, request_id: generateRequestId() } };
                       lastFrozenRequest.current = request;
                       setDecisionConfirm({
                         request,

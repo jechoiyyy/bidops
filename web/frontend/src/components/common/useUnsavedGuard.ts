@@ -68,6 +68,7 @@ interface HostRequest extends Required<Omit<UnsavedGuardContent, "summary">> {
   owner: symbol;
   onConfirm: () => void;
   onCancel: () => void;
+  returnFocus: HTMLElement | null;
 }
 
 // --- 다이얼로그 host -------------------------------------------------------
@@ -77,9 +78,9 @@ interface HostRequest extends Required<Omit<UnsavedGuardContent, "summary">> {
 // 그려 달라"고 요구할 수 없다. 그래서 확인 다이얼로그는 body에 붙인 host root
 // 하나가 그린다. 셸이 host 컴포넌트를 한 번 그려 주면 이 root는 지울 수 있다.
 //
-// host는 한 번 만들고 지우지 않는다. 요청이 없으면 `open={false}`라 radix가
-// 아무것도 DOM에 남기지 않으므로, 다른 root를 렌더 중에 unmount하는 위험을
-// 만들 이유가 없다.
+// host는 한 번 만들고 지우지 않는다. 요청이 없으면 `open={false}`라
+// Astryx native dialog가 top layer에서 내려오므로, 다른 root를 렌더 중에
+// unmount하는 위험을 만들 이유가 없다.
 let hostContainer: HTMLElement | null = null;
 let hostRoot: Root | null = null;
 let activeRequest: HostRequest | null = null;
@@ -92,14 +93,14 @@ function paintHost(): void {
     confirmLabel: request?.confirmLabel ?? DEFAULT_CONFIRM_LABEL,
     onConfirm: () => {
       const current = activeRequest;
-      closeHost();
+      closeHost(false);
       current?.onConfirm();
     },
     onOpenChange: (next: boolean) => {
       // 취소·Esc·overlay 클릭은 모두 "이동하지 않는다"로 읽는다.
       if (next) return;
       const current = activeRequest;
-      closeHost();
+      closeHost(true);
       current?.onCancel();
     },
     open: request !== null,
@@ -110,9 +111,17 @@ function paintHost(): void {
   }));
 }
 
-function closeHost(): void {
+function closeHost(restoreFocus: boolean): void {
+  const focusTarget = activeRequest?.returnFocus;
   activeRequest = null;
   paintHost();
+  if (!restoreFocus || !focusTarget?.isConnected) return;
+  // Astryx Dialog restores its trigger when one exists. This host has no
+  // trigger (it is mounted once at document.body), so restore the element
+  // that owned focus before the guard opened after the native dialog closes.
+  requestAnimationFrame(() => {
+    if (focusTarget.isConnected) focusTarget.focus({ preventScroll: true });
+  });
 }
 
 function openHost(request: HostRequest): void {
@@ -122,7 +131,11 @@ function openHost(request: HostRequest): void {
     document.body.appendChild(hostContainer);
     hostRoot = createRoot(hostContainer);
   }
-  activeRequest = request;
+  const focused = document.activeElement;
+  activeRequest = {
+    ...request,
+    returnFocus: focused instanceof HTMLElement && focused !== document.body ? focused : null,
+  };
   paintHost();
 }
 
@@ -145,6 +158,7 @@ function requestFrom(
     onCancel: handlers.onCancel,
     onConfirm: handlers.onConfirm,
     owner,
+    returnFocus: null,
     summary: content.summary ?? [],
     title: content.title ?? DEFAULT_TITLE,
   };

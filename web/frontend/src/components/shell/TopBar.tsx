@@ -1,8 +1,9 @@
-import { Link } from "react-router-dom";
+import { Link, useLocation, useMatches } from "react-router-dom";
 import type { RunSummary } from "../../lib/types";
 import { BasisPopover } from "./BasisPopover";
 import { RunSelector } from "./RunSelector";
 import type { RouteCrumb, RouteDataScope, RouteTopbarMode } from "./route-meta";
+import { preSpecReviewListUrl } from "../../lib/preSpecSelectionReview";
 
 interface TopBarProps {
   /** 상단 경로. 마지막 `screen` 칸이 `<h1>`이 된다. 제목 모드에서는 그리지 않는다. */
@@ -58,6 +59,16 @@ export function TopBar({
   // 화면의 데이터 축이 정한다).
   const contextVisible = runSelectorVisible || (topbarMode === "breadcrumb" && Boolean(editScope));
   const lastIndex = crumbs.length - 1;
+  const routeLocation = useLocation();
+  const matches = useMatches();
+  const noticeIdParam = matches[matches.length - 1]?.params.noticeId;
+  const parsedNoticeId = Number(noticeIdParam);
+  const preSpecListUrl = routeLocation.pathname.startsWith("/pre-specs/")
+    ? preSpecReviewListUrl(
+      routeLocation.search,
+      Number.isSafeInteger(parsedNoticeId) && parsedNoticeId > 0 ? parsedNoticeId : null,
+    )
+    : null;
 
   return (
     <header className="topbar" data-route-data-scope={dataScope} data-shell-region="topbar" data-topbar-mode={topbarMode}>
@@ -71,7 +82,12 @@ export function TopBar({
               /* 구분자 `›`는 CSS ::before가 그린다. DOM에 넣으면 화면 이름 칸의
                  `<h1>` 글자에 섞여 제목을 읽는 쪽이 달라진다. */
               <li className={`topbar-crumb is-${crumb.role}`} key={`${crumb.role}-${crumb.label}`}>
-                <CrumbLabel crumb={crumb} isLast={index === lastIndex} runSearch={runSearch} />
+                <CrumbLabel
+                  crumb={crumb}
+                  isLast={index === lastIndex}
+                  preSpecListUrl={preSpecListUrl}
+                  runSearch={runSearch}
+                />
               </li>
             ))}
           </ol>
@@ -103,10 +119,25 @@ export function TopBar({
   );
 }
 
-function CrumbLabel({ crumb, isLast, runSearch }: { crumb: RouteCrumb; isLast: boolean; runSearch: string }) {
+function CrumbLabel({
+  crumb,
+  isLast,
+  preSpecListUrl,
+  runSearch,
+}: {
+  crumb: RouteCrumb;
+  isLast: boolean;
+  preSpecListUrl: string | null;
+  runSearch: string;
+}) {
   const current = isLast ? "page" as const : undefined;
+  const destination = crumb.context === "pre-spec-list" && preSpecListUrl
+    ? preSpecListUrl
+    : crumb.to
+      ? { pathname: crumb.to, search: runSearch }
+      : null;
   const label = crumb.to
-    ? <Link className="topbar-crumb-link" to={{ pathname: crumb.to, search: runSearch }}>{crumb.label}</Link>
+    ? <Link className="topbar-crumb-link" to={destination!}>{crumb.label}</Link>
     : crumb.label;
   // 화면 이름 칸만 `<h1>`이다. 나머지 칸은 위치를 설명하는 보조 문구다.
   // `<h1>`의 글자는 화면 제목 그대로 남기고 상세에서는 목록 링크가 된다.

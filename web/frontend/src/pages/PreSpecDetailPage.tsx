@@ -3,7 +3,7 @@ import { InternationalizationProvider } from "@astryxdesign/core/i18n";
 import koKR from "@astryxdesign/core/locales/ko-KR.json";
 import { Collapsible } from "@astryxdesign/core/Collapsible";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useRef, useState, type ReactNode } from "react";
+import { Fragment, useRef, useState, type ReactNode } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Badge, type BadgeVariant } from "../components/common/Badge";
 import { BUNDLE_STATUS_LABELS, DocumentPreparationPanel } from "../components/deep-review/DocumentPreparationPanel";
@@ -51,6 +51,11 @@ import {
   PRE_SPEC_OVERVIEW_STATUS_LABEL,
   preSpecOverviewStatusVariant,
 } from "../lib/preSpecOverviewStatus";
+import {
+  preSpecDetailUrl,
+  preSpecReviewListUrl,
+  readPreSpecSelectionReview,
+} from "../lib/preSpecSelectionReview";
 import { readPreSpecLifecycle, readProcurementClass } from "../lib/noticeLifecycle";
 import type { PageOverviewFact, PageOverviewView, PreSpecListResponse } from "../lib/types";
 import "../styles/pre-specs-relaxed.css";
@@ -107,16 +112,14 @@ function OverviewPdfReference({ review }: { review: PageOverviewView }) {
  */
 function PreSpecDetailSkeleton({ noticeId }: { noticeId: number }) {
   return (
-    <div className="pre-spec-detail-page detail-skeleton ps-record" data-astryx-theme="bidops">
-      <div className="detail-skeleton-grid">
-        <div className="detail-skeleton-main">
-          <SkeletonPanel label={`사전규격 ${noticeId} 상세를 불러오는 중`} lines={3} />
-          <SkeletonPanel label="사전규격 사실을 불러오는 중" lines={4} />
-          <SkeletonPanel label="개요 검토 상태를 불러오는 중" lines={5} />
-        </div>
-        <div className="ps-record-aside ps-record-side">
-          <SkeletonPanel label="추적 결정 정보를 불러오는 중" lines={6} />
-        </div>
+    <div className="detail-skeleton-grid">
+      <div className="detail-skeleton-main">
+        <SkeletonPanel label={`사전규격 ${noticeId} 상세를 불러오는 중`} lines={3} />
+        <SkeletonPanel label="사전규격 사실을 불러오는 중" lines={4} />
+        <SkeletonPanel label="개요 검토 상태를 불러오는 중" lines={5} />
+      </div>
+      <div className="ps-record-aside ps-record-side">
+        <SkeletonPanel label="추적 결정 정보를 불러오는 중" lines={6} />
       </div>
     </div>
   );
@@ -147,6 +150,78 @@ function PreSpecQueryError({
       problem={problem}
       action={apiErrorRecoveryAction(problem, onRetry)}
     />
+  );
+}
+
+/**
+ * 선택 검토 context를 읽는 유일한 상세 순회 표면이다. 현재 목록 응답이나
+ * 주소의 다른 query를 다시 정렬에 사용하지 않고, 저장된 snapshot의 인접 ID만
+ * 이동 대상으로 삼는다. token이 없거나 깨진 경우에는 명시적으로 단건 모드다.
+ */
+function PreSpecDetailNavigation({ noticeId, search }: { noticeId: number | null; search: string }) {
+  const navigate = useNavigate();
+  const review = readPreSpecSelectionReview(search, noticeId);
+  const index = review ? review.orderedNoticeIds.indexOf(noticeId as number) : -1;
+  const hasReview = review !== null && index >= 0;
+  const previousId = hasReview && index > 0 ? review.orderedNoticeIds[index - 1] : null;
+  const nextId = hasReview && index < review.orderedNoticeIds.length - 1
+    ? review.orderedNoticeIds[index + 1]
+    : null;
+  const moveTo = (nextNoticeId: number | null) => {
+    if (!review || nextNoticeId === null) return;
+    // 저장된 목록 query와 review token을 그대로 사용한다. 현재 상세 route의
+    // index나 이후 query 변경으로 snapshot 순서를 재계산하지 않는다.
+    navigate(preSpecDetailUrl(nextNoticeId, review.listSearch, review.reviewId));
+  };
+
+  return (
+    <nav className="ps-detail-navigation" aria-label="사전규격 선택 순회">
+      <div className="ps-detail-navigation-position">
+        <span className="ps-k">선택 항목</span>
+        <strong aria-live="polite">{hasReview ? `${index + 1} / ${review.orderedNoticeIds.length}` : "단건 상세"}</strong>
+      </div>
+      <div className="ps-detail-navigation-actions">
+        <button
+          className="ps-btn ps-btn-sm"
+          type="button"
+          aria-label="이전 선택 사전규격"
+          disabled={previousId === null}
+          onClick={() => moveTo(previousId)}
+        >
+          이전
+        </button>
+        <button
+          className="ps-btn ps-btn-sm"
+          type="button"
+          aria-label="다음 선택 사전규격"
+          disabled={nextId === null}
+          onClick={() => moveTo(nextId)}
+        >
+          다음
+        </button>
+      </div>
+    </nav>
+  );
+}
+
+function PreSpecDetailFrame({
+  noticeId,
+  search,
+  children,
+}: {
+  noticeId: number | null;
+  search: string;
+  children: ReactNode;
+}) {
+  return (
+    <section
+      className="pre-spec-detail-page detail-skeleton ps-record"
+      data-astryx-theme="bidops"
+      aria-label="사전규격 상세"
+    >
+      <PreSpecDetailNavigation noticeId={noticeId} search={search} />
+      {children}
+    </section>
   );
 }
 
@@ -238,19 +313,14 @@ function PageOverviewBriefing({ review }: { review: PageOverviewView }) {
   </div>;
 }
 
-export function PreSpecDetailPage() {
+function PreSpecRecordBody({ noticeId, listSearch }: { noticeId: number | null; listSearch: string }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { noticeId: noticeIdParam } = useParams();
-  const [searchParams] = useSearchParams();
-  const parsedNoticeId = Number(noticeIdParam);
-  const noticeId = Number.isInteger(parsedNoticeId) && parsedNoticeId > 0 ? parsedNoticeId : null;
-  const listSearch = searchParams.toString();
-  const listUrl = `/pre-specs${listSearch ? `?${listSearch}` : ""}`;
+  const listUrl = preSpecReviewListUrl(listSearch, noticeId);
 
   const noticeQuery = useQuery({
     queryKey: ["pre-spec-notice", noticeId],
-    queryFn: () => api.getNotice(noticeId as number),
+    queryFn: ({ signal }) => api.getNotice(noticeId as number, { signal }),
     enabled: noticeId !== null,
     staleTime: 30_000,
   });
@@ -387,7 +457,7 @@ export function PreSpecDetailPage() {
     : 0;
 
   return (
-    <section className="pre-spec-detail-page detail-skeleton ps-record" data-astryx-theme="bidops" aria-labelledby="pre-spec-detail-title">
+    <Fragment>
       {/* 자체 브레드크럼은 두지 않는다. 상단 경로(`nav[aria-label="현재 위치"]`)가
           `탐색과 추적 › 사전규격 › notice ID`를 이미 그리고, 사전규격 칸이 목록
           링크다. 경로가 두 벌이면 현재 위치를 두 번 읽어야 한다. */}
@@ -630,6 +700,7 @@ export function PreSpecDetailPage() {
                   여기는 조건부 렌더링이므로 열린 동안은 패널이 온전히 살아 있다. */}
               {documentPanelOpen ? (
                 <DocumentPreparationPanel
+                  key={noticeId}
                   noticeId={notice.id}
                   // 헤더가 보여 주는 것과 **같은 현재 등급**을 넘긴다. `notice.grade`는
                   // 사람 정정을 반영하지 않아 헤더와 다른 값을 말할 수 있다(명세 §6.2).
@@ -660,7 +731,7 @@ export function PreSpecDetailPage() {
           </div>
 
           <div id="ps-record-history" className="ps-record-section ps-record-history ps-collapsed" tabIndex={-1}>
-            <Collapsible key={historyIsOpen ? "history-open" : "history-closed"} trigger="처리 이력과 실행 정보" defaultIsOpen={historyIsOpen}>
+            <Collapsible key={`${noticeId}-${historyIsOpen ? "history-open" : "history-closed"}`} trigger="처리 이력과 실행 정보" defaultIsOpen={historyIsOpen}>
               <ReviewHistoryLinkRail
                 className="detail-skeleton-rail"
                 historySections={[{
@@ -796,6 +867,24 @@ export function PreSpecDetailPage() {
           )}
         </div>
       </div>
-    </section>
+    </Fragment>
+  );
+}
+
+export function PreSpecDetailPage() {
+  const { noticeId: noticeIdParam } = useParams();
+  const [searchParams] = useSearchParams();
+  const parsedNoticeId = Number(noticeIdParam);
+  const noticeId = Number.isInteger(parsedNoticeId) && parsedNoticeId > 0 ? parsedNoticeId : null;
+  const listSearch = searchParams.toString();
+  // A route param is the record identity. Keying the body here gives React a
+  // true record boundary: all query instances and local draft state are
+  // discarded together on A → B navigation, while this navigation shell stays
+  // mounted for loading and error states.
+  const recordKey = noticeId === null ? `invalid:${noticeIdParam ?? ""}` : String(noticeId);
+  return (
+    <PreSpecDetailFrame noticeId={noticeId} search={listSearch}>
+      <PreSpecRecordBody key={recordKey} noticeId={noticeId} listSearch={listSearch} />
+    </PreSpecDetailFrame>
   );
 }

@@ -449,3 +449,28 @@
 - 대응: 개요 runner의 PDF 준비는 `BIDOPS_STRUCTURE_ACCESS_KEY`/`SECRET_KEY`(쓰기 자격)로
   써야 한다. 커밋 482e040에서 스냅샷 artifact를 structure 쓰기 자격으로 쓰도록 고쳤다 —
   같은 증상이 재발하면 그 커밋 이후로 회귀했는지부터 본다.
+
+## JSON receipt 검증은 Python 객체와 저장된 wire 값을 구분한다
+
+- 일괄 추적의 UUID·aware datetime은 strict DTO 검증 뒤 `model_dump(mode="json")`으로
+  저장한다. replay는 검증만 하고 저장 JSON을 그대로 반환한다. UTC의 `Z`와
+  `+00:00`는 같은 시각이지만 문자열은 다르므로, `datetime.isoformat()`으로 만든
+  새 문자열을 최초 wire 값인 것처럼 비교하지 않는다.
+- 손상 receipt 테스트에서 중첩 JSON을 얕게 복사해 고치면 ORM의 기존 값도 같이
+  바뀌어 UPDATE가 감지되지 않을 수 있다. 격리 fixture를 깊게 복사하고, 새 session에서
+  손상이 실제 저장되었음을 먼저 확인한 뒤 replay 거부를 검사한다.
+- owner별 savepoint 성능 측정은 `SAVEPOINT`·`RELEASE SAVEPOINT`를 업무 SELECT·쓰기와
+  구분한다. 501·1,200·2,000 owner 검증은 실제 SQL 수와 지속 시간을 기록하며,
+  제어문을 누락한 임의 상한을 맞추려고 잠금·감사를 제거하지 않는다.
+
+## localhost에서 되는 UUID 생성이 HTTP 네트워크 주소에서는 실패한다
+
+- 증상: 사전규격 선택 검토가 저장소 오류를 알리며 멈춘다. 실제 `sessionStorage`는
+  정상이나 HTTP 네트워크 주소에서는 `crypto.randomUUID`가 없다.
+- 원인: localhost는 보안 컨텍스트로 취급되므로 localhost만 검증하면 문제를 놓친다.
+  UUID 생성까지 저장소 예외 처리로 묶어 원인도 잘못 안내했다.
+- 대응: 브라우저 UUID는 `lib/requestId.ts`의 `generateRequestId`를 사용한다.
+  HTTP에서도 제공되는 `crypto.getRandomValues`로 UUID v4를 생성하고, 암호학적 난수를
+  사용할 수 없으면 실패한다. `Math.random`으로 대체하지 않으며 생성 오류와 저장 오류를 구분한다.
+- 검증: localhost 외 실제 HTTP 네트워크 origin에서 선택→상세 순회와 요청 생성까지
+  확인한다. `isSecureContext`, UUID API 존재 여부, 저장소 쓰기를 각각 확인해 원인을 분리한다.

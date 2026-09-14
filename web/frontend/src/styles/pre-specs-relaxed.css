@@ -219,6 +219,37 @@
   color: var(--color-text-accent);
 }
 
+.pre-specs-selection-toolbar {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-4);
+  border-bottom: var(--border-width) solid var(--color-border);
+  background: var(--color-background-surface);
+}
+
+.pre-specs-selection-count {
+  color: var(--color-text-primary);
+  font-size: var(--bo-type-body);
+  font-weight: 600;
+}
+
+.pre-specs-selection-disabled-reason {
+  min-width: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+}
+
+.pre-specs-selection-message {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: var(--spacing-1) var(--spacing-4);
+  border-bottom: var(--border-width) solid var(--color-border);
+  color: var(--color-text-accent);
+  font-size: var(--bo-type-caption);
+}
+
 /* --- 목록 행 ---
  * 왼쪽 열에 사업명·기관·예산과 구분·상태를 쌓고 오른쪽 열은 의견등록 마감만
  * 갖는다. 좁은 pane에서 커진 글자가 읽히도록 시안이 정한 두 열 구조다.
@@ -234,6 +265,20 @@
   padding: var(--spacing-2) var(--spacing-4);
   cursor: pointer;
 }
+
+.pre-specs-row[data-selection-mode="multiple"] [type="checkbox"] {
+  width: var(--spacing-4);
+  height: var(--spacing-4);
+  flex: 0 0 auto;
+  margin: var(--spacing-0-5) var(--spacing-2) 0 0;
+  accent-color: var(--color-accent);
+}
+
+.pre-specs-row[data-selection-mode="multiple"] [type="checkbox"]:focus-visible {
+  outline: var(--focus-outline-width) solid var(--color-accent);
+  outline-offset: var(--spacing-0-5);
+}
+
 
 .pre-specs-row[aria-current="true"] {
   background: var(--color-accent-muted);

@@ -25,11 +25,23 @@ import { api } from "../lib/api";
 import {
   AUTO_PREPARATION_FILTER_VALUES, GRADE_FILTER_VALUES, SORT_OPTIONS, VIEWS,
   matchesGradeFilter, matchesTrackingDecision, matchesView,
-  validAutoPreparationStatus, validGrade, validTrackingDecision, validView, viewOf, type ViewKey,
+  titleOf, validAutoPreparationStatus, validGrade, validTrackingDecision, validView, viewOf, type ViewKey,
 } from "../lib/preSpecViews";
 import { PRE_SPEC_AUTO_PREPARATION_STATUS_LABEL } from "../lib/preSpecAutoPreparation";
 import { PreSpecDetail } from "../components/pre-specs/PreSpecListDetailPane";
 import { PreSpecRow } from "../components/pre-specs/PreSpecListRow";
+import { useListSelection } from "../components/common/useListSelection";
+import {
+  PRE_SPECS_SELECTION_STORAGE_KEY,
+  isPreSpecSelectionSortMetadata,
+  preSpecsFilterFingerprint,
+  sortPreSpecMetadata,
+  type PreSpecSelectionSortMetadata,
+} from "../lib/listSelection";
+import {
+  createPreSpecSelectionReview,
+  preSpecDetailUrl,
+} from "../lib/preSpecSelectionReview";
 import type {
   PreSpecListResponse,
   PreSpecOrigin,
@@ -93,6 +105,17 @@ export function PreSpecsPage() {
   const queryText = searchParams.get("q") ?? "";
   const sort = validSort(searchParams.get("sort"));
   const offset = readOffset(searchParams.get("offset"));
+  const listSearch = searchParams.toString();
+  const selectionFingerprint = preSpecsFilterFingerprint({
+    swOnly,
+    businessDivision,
+    origin,
+    grade: gradeFilter,
+    autoPreparationStatus,
+    trackingDecision,
+    view,
+    q: queryText,
+  });
 
   const [searchText, setSearchText] = useState(queryText);
   const [advancedOpen, setAdvancedOpen] = useState(false);
@@ -101,8 +124,11 @@ export function PreSpecsPage() {
   // 저장하지 않은 입력이 있는 채로 창을 닫으려 한 상태. 창은 열린 채로 두고
   // 같은 창 안에서 확인을 받는다.
   const [trackingCloseRequested, setTrackingCloseRequested] = useState(false);
+  const [selectionMessage, setSelectionMessage] = useState<string | null>(null);
   const [selectedPk, setSelectedPk] = useState<number | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
+  const scrollRestoredRef = useRef(false);
+  const boundaryLandingRef = useRef<{ offset: number; direction: "next" | "previous" } | null>(null);
   // 대화상자의 추적 결정 입력(사유·담당자)은 행을 바꾸거나 창을 닫으면 사라진다.
   // route 이동은 컨트롤이 스스로 막으므로 여기서는 행 전환·닫기만 확인한다.
   const [trackingDirty, setTrackingDirty] = useState(false);
@@ -112,8 +138,18 @@ export function PreSpecsPage() {
     message: "저장하지 않은 추적 결정 사유와 담당자 이름이 있습니다. 지금 옮기면 사라지며 저장된 추적 상태는 바뀌지 않습니다.",
     confirmLabel: "저장하지 않고 옮기기",
   });
+  const selection = useListSelection<number, PreSpecSelectionSortMetadata>({
+    storageKey: PRE_SPECS_SELECTION_STORAGE_KEY,
+    filterFingerprint: selectionFingerprint,
+    hydrationReady: true,
+    initial: { listSearch },
+    isValidMetadata: isPreSpecSelectionSortMetadata,
+  });
 
   useEffect(() => setSearchText(queryText), [queryText]);
+  useEffect(() => {
+    selection.setListSearch(listSearch);
+  }, [listSearch, selection.setListSearch]);
 
   const listQuery = useMemo(
     () => ({
@@ -135,6 +171,11 @@ export function PreSpecsPage() {
     // projection과 화면 상태가 같은지 확인한다.
     staleTime: 0,
   });
+  useEffect(() => {
+    if (scrollRestoredRef.current || !selection.hydrated || !result.isSuccess || !listRef.current) return;
+    scrollRestoredRef.current = true;
+    listRef.current.scrollTop = selection.state.listScrollTop;
+  }, [result.isSuccess, selection.hydrated, selection.state.listScrollTop]);
 
   const loadedItems = useMemo(() => result.data?.items ?? [], [result.data]);
   // 서버에 등급 질의가 없으므로 여기서 고른다. 판정의 재계산이 아니라 서버가 준
@@ -152,7 +193,6 @@ export function PreSpecsPage() {
   );
   const total = result.data?.total ?? 0;
   const overviewStatusCounts = useMemo(() => result.data?.overview_status_counts ?? [], [result.data]);
-  const listSearch = searchParams.toString();
   const isDefaultView = swOnly && !businessDivision && !origin && !gradeFilter && !queryText
     && !autoPreparationStatus && !trackingDecision
     && view === "all" && sort === "published" && offset === 0;
@@ -178,34 +218,119 @@ export function PreSpecsPage() {
   const itemKeys = useMemo(() => items.map((item) => item.notice_pk), [items]);
   const selectedItem = items.find((item) => item.notice_pk === selectedPk) ?? null;
 
+  // Every observed row refreshes only its compact ordering keys. Selection is
+  // never intersected with the current page, so off-page checks survive.
+  useEffect(() => {
+    for (const item of loadedItems) {
+      selection.setSortMetadata(item.notice_pk, {
+        id: item.notice_pk,
+        published_at: item.published_at,
+        deadline_at: item.deadline_at,
+      });
+    }
+  }, [loadedItems, selection.setSortMetadata]);
+
   // 목록이 바뀌어 선택이 사라지면 첫 행을 고른다. 사람이 고르는 중이던 입력은
   // 대화상자 안에 있고, 그 확인은 아래 `selectPk`가 맡는다.
   useEffect(() => {
+    if (!selection.hydrated) return;
     if (items.length === 0) {
       if (selectedPk !== null) setSelectedPk(null);
       return;
     }
-    if (!items.some((item) => item.notice_pk === selectedPk)) {
-      setSelectedPk(items[0].notice_pk);
+    const restoredActive = selection.hydrated ? selection.activeId : null;
+    const landing = boundaryLandingRef.current;
+    const next = landing?.offset === offset
+      ? (landing.direction === "previous" ? items[items.length - 1] : items[0]).notice_pk
+      : restoredActive !== null && items.some((item) => item.notice_pk === restoredActive)
+      ? restoredActive
+      : items.some((item) => item.notice_pk === selectedPk)
+        ? selectedPk
+        : items[0].notice_pk;
+    if (landing?.offset === offset) boundaryLandingRef.current = null;
+    if (next !== selectedPk) {
+      setSelectedPk(next);
+      selection.setActiveId(next);
       setTrackingDialogOpen(false);
       setTrackingCloseRequested(false);
     }
-  }, [items, selectedPk]);
+  }, [items, offset, selectedPk, selection.activeId, selection.hydrated, selection.setActiveId]);
 
   const selectPk = useCallback((next: number) => {
     trackingGuard.confirmDiscard(() => {
       setSelectedPk(next);
+      selection.setActiveId(next);
       setTrackingDialogOpen(false);
       setTrackingCloseRequested(false);
     });
-  }, [trackingGuard]);
+  }, [selection.setActiveId, trackingGuard]);
+
+  const selectedReviewIds = useMemo(() => {
+    const metadata = selection.selectedIds
+      .map((id) => selection.state.selectedSortMetadata[String(id)])
+      .filter((entry): entry is PreSpecSelectionSortMetadata => isPreSpecSelectionSortMetadata(entry));
+    if (metadata.length !== selection.selectedIds.length) return null;
+    try {
+      return sortPreSpecMetadata(metadata, sort).map((entry) => entry.id);
+    } catch {
+      return null;
+    }
+  }, [selection.selectedIds, selection.state.selectedSortMetadata, sort]);
+
+  const openDetailFromSelection = useCallback((noticePk: number) => {
+    const sortedIds = selectedReviewIds;
+    if (!selection.selectedIds.includes(noticePk)) {
+      navigate(preSpecDetailUrl(noticePk, listSearch));
+      return;
+    }
+    if (!sortedIds) {
+      setSelectionMessage("선택한 항목의 게시·마감 시각을 확인할 수 없어 선택 검토를 시작하지 못했습니다.");
+      return;
+    }
+    const durable = selection.persist();
+    if (!durable.ok) {
+      setSelectionMessage(durable.error?.message ?? "선택 검토 순서를 저장하지 못했습니다.");
+      return;
+    }
+    const created = createPreSpecSelectionReview({
+      orderedNoticeIds: sortedIds,
+      listSearch,
+      filterFingerprint: selectionFingerprint,
+      selectionGeneration: selection.state.selectionGeneration,
+      entryNoticeId: noticePk,
+    });
+    if (!created.ok) {
+      setSelectionMessage(created.error);
+      return;
+    }
+    setSelectionMessage(null);
+    navigate(preSpecDetailUrl(noticePk, listSearch, created.value.reviewId));
+  }, [
+    listSearch,
+    navigate,
+    selectedReviewIds,
+    selection.persist,
+    selection.selectedIds.length,
+    selection.state.selectionGeneration,
+    selection.state.selectedSortMetadata,
+    selectionFingerprint,
+  ]);
 
   // 상세 화면으로 가는 것도 저장하지 않은 입력을 버릴 수 있으므로 같은 확인을 거친다.
   const openDetail = useCallback((noticePk: number) => {
     trackingGuard.confirmDiscard(() => {
-      navigate(`/pre-specs/${noticePk}${listSearch ? `?${listSearch}` : ""}`);
+      openDetailFromSelection(noticePk);
     });
-  }, [listSearch, navigate, trackingGuard]);
+  }, [openDetailFromSelection, trackingGuard]);
+
+  const reviewSelected = useCallback(() => {
+    const sortedIds = selectedReviewIds;
+    if (!sortedIds || sortedIds.length === 0) {
+      setSelectionMessage("선택한 항목의 게시·마감 시각을 확인할 수 없어 선택 검토를 시작하지 못했습니다.");
+      return;
+    }
+    openDetail(sortedIds[0]);
+  }, [openDetail, selectedReviewIds]);
 
   const rowKeyboard = useRowKeyboardNavigation<number>({
     containerRef: listRef,
@@ -215,9 +340,15 @@ export function PreSpecsPage() {
     // 경계에서는 페이지를 넘긴다. 서버 전체가 한 페이지보다 클 때만 움직인다.
     onBoundary: (direction) => {
       if (direction === "next" && offset + PAGE_SIZE < total) {
-        updateSearchParams({ offset: String(offset + PAGE_SIZE) });
+        const targetOffset = offset + PAGE_SIZE;
+        updateSearchParams({ offset: String(targetOffset) }, () => {
+          boundaryLandingRef.current = { offset: targetOffset, direction };
+        });
       } else if (direction === "previous" && offset > 0) {
-        updateSearchParams({ offset: offset - PAGE_SIZE > 0 ? String(offset - PAGE_SIZE) : null });
+        const targetOffset = Math.max(0, offset - PAGE_SIZE);
+        updateSearchParams({ offset: targetOffset > 0 ? String(targetOffset) : null }, () => {
+          boundaryLandingRef.current = { offset: targetOffset, direction };
+        });
       }
     },
   });
@@ -237,7 +368,8 @@ export function PreSpecsPage() {
     setTrackingCloseRequested(false);
   }, [trackingDirty]);
 
-  function updateSearchParams(changes: Record<string, string | null>) {
+  function updateSearchParamsUnsafe(changes: Record<string, string | null>) {
+    boundaryLandingRef.current = null;
     const next = new URLSearchParams(searchParams);
     for (const [key, value] of Object.entries(changes)) {
       if (value === null || value === "") next.delete(key);
@@ -248,6 +380,16 @@ export function PreSpecsPage() {
     // 경우(키보드 경계 이동)는 그것이 요청된 페이지이므로 지우지 않는다.
     if (!Object.prototype.hasOwnProperty.call(changes, "offset")) next.delete("offset");
     setSearchParams(next, { replace: true });
+  }
+
+  function updateSearchParams(
+    changes: Record<string, string | null>,
+    after?: () => void,
+  ) {
+    trackingGuard.confirmDiscard(() => {
+      updateSearchParamsUnsafe(changes);
+      after?.();
+    });
   }
 
   function restoreDefaults() {
@@ -261,8 +403,7 @@ export function PreSpecsPage() {
       q: null,
       sort: null,
       view: null,
-    });
-    setSearchText("");
+    }, () => setSearchText(""));
   }
 
   function showAllPreSpecs() {
@@ -467,6 +608,43 @@ export function PreSpecsPage() {
                     `/pre-specs?sort=deadline`로 곧장 연결한다). */}
                 <span>{viewOf(view).description}{sort === "deadline" ? " · 마감 임박순" : ""}</span>
               </header>
+              <div className="pre-specs-selection-toolbar" aria-label="사전규격 선택 작업">
+                <span className="pre-specs-selection-count" aria-live="polite">
+                  선택 {selection.selectedIds.length}건
+                </span>
+                <button
+                  className="interaction-control"
+                  type="button"
+                  onClick={() => selection.clear()}
+                  disabled={selection.selectedIds.length === 0}
+                  aria-label="선택 전체 해제"
+                  aria-describedby={selection.selectedIds.length === 0 ? "pre-specs-selection-disabled" : undefined}
+                >
+                  전체 해제
+                </button>
+                <button
+                  className="interaction-control interaction-control-primary"
+                  type="button"
+                  onClick={reviewSelected}
+                  disabled={!selection.hydrationReady || !selection.storageAvailable || selection.selectedIds.length === 0 || !selectedReviewIds}
+                  aria-label="선택 항목 검토"
+                  aria-describedby="pre-specs-selection-disabled"
+                >
+                  선택 항목 검토
+                </button>
+                <span id="pre-specs-selection-disabled" className="pre-specs-selection-disabled-reason">
+                  {!selection.hydrationReady
+                    ? "선택 저장소를 준비하는 중입니다."
+                    : !selection.storageAvailable
+                      ? "이 탭의 선택 저장소를 사용할 수 없어 검토 순서를 저장할 수 없습니다."
+                    : selection.selectedIds.length === 0
+                      ? "선택한 항목이 없습니다."
+                      : !selectedReviewIds
+                        ? "선택 항목의 정렬 시각을 확인할 수 없습니다."
+                        : ""}
+                </span>
+              </div>
+              {selectionMessage ? <p className="pre-specs-selection-message" role="alert">{selectionMessage}</p> : null}
               <div className="pre-specs-list-columns" aria-hidden="true">
                 <span>사업명 / 발주기관</span>
                 <span>의견 마감</span>
@@ -474,6 +652,7 @@ export function PreSpecsPage() {
               <div
                 className="pre-specs-list-scroll"
                 ref={listRef}
+                onScroll={(event) => selection.setListScrollTop(event.currentTarget.scrollTop)}
                 onKeyDown={rowKeyboard.onKeyDown}
                 onPointerDownCapture={rowKeyboard.onPointerDownCapture}
               >
@@ -494,6 +673,15 @@ export function PreSpecsPage() {
                         item={item}
                         isSelected={item.notice_pk === selectedPk}
                         onSelect={() => selectPk(item.notice_pk)}
+                        selection={{
+                          checked: selection.selectedIdSet.has(item.notice_pk),
+                          ariaLabel: `사전규격 선택 · ${titleOf(item)}`,
+                          onCheckedChange: () => selection.toggle(item.notice_pk, {
+                            id: item.notice_pk,
+                            published_at: item.published_at,
+                            deadline_at: item.deadline_at,
+                          }),
+                        }}
                         // `Ctrl/Cmd+Enter`는 hook 밖에서 처리한다(발주계획과 같은 모양).
                         onKeyDown={(event) => {
                           if (event.key !== "Enter" || !(event.ctrlKey || event.metaKey)) return;
@@ -535,6 +723,8 @@ export function PreSpecsPage() {
                     setTrackingCloseRequested(false);
                     setTrackingDialogOpen(false);
                   }}
+                  onOpenDetail={() => openDetail(selectedItem.notice_pk)}
+                  onOpenDetailAfterSaved={() => openDetailFromSelection(selectedItem.notice_pk)}
                   onDirtyChange={setTrackingDirty}
                   onSaved={(saved) => {
                     const noticePk = selectedItem.notice_pk;
@@ -572,10 +762,9 @@ export function PreSpecsPage() {
               type="button"
               disabled={offset === 0}
               onClick={() => {
-                const next = new URLSearchParams(searchParams);
-                if (offset - PAGE_SIZE > 0) next.set("offset", String(offset - PAGE_SIZE));
-                else next.delete("offset");
-                setSearchParams(next, { replace: true });
+                updateSearchParams({
+                  offset: offset - PAGE_SIZE > 0 ? String(offset - PAGE_SIZE) : null,
+                });
               }}
             >
               이전
@@ -586,9 +775,7 @@ export function PreSpecsPage() {
               type="button"
               disabled={offset + PAGE_SIZE >= total}
               onClick={() => {
-                const next = new URLSearchParams(searchParams);
-                next.set("offset", String(offset + PAGE_SIZE));
-                setSearchParams(next, { replace: true });
+                updateSearchParams({ offset: String(offset + PAGE_SIZE) });
               }}
             >
               다음

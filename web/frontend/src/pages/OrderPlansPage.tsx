@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent, Ref } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router-dom";
@@ -20,6 +20,7 @@ import { PageHeaderActions } from "../components/common/PageHeaderActions";
 import { useRowKeyboardNavigation } from "../components/common/useRowKeyboardNavigation";
 import type { RowKeyboardNavigationRowProps } from "../components/common/useRowKeyboardNavigation";
 import { useUnsavedGuard } from "../components/common/useUnsavedGuard";
+import { useListSelection } from "../components/common/useListSelection";
 import {
   DenseList,
   DenseListRow,
@@ -47,6 +48,15 @@ import {
 import { api } from "../lib/api";
 import { describeApiError } from "../lib/apiErrors";
 import { formatCompactPrice } from "../lib/deadline";
+import { generateRequestId } from "../lib/requestId";
+import {
+  ORDER_PLANS_SELECTION_STORAGE_KEY,
+  orderPlansFilterFingerprint,
+} from "../lib/listSelection";
+import {
+  hasPendingOrderPlanBulkTrackingRequest,
+  OrderPlanBulkTrackingDialog,
+} from "../components/order-plans/OrderPlanBulkTrackingDialog";
 import type {
   OrderPlanFeedbackPriority,
   OrderPlanListItem,
@@ -149,11 +159,6 @@ interface SavedView {
   name: string;
   search: string;
   createdAt: string;
-}
-
-function requestId(): string {
-  if (typeof globalThis.crypto?.randomUUID === "function") return globalThis.crypto.randomUUID();
-  throw new Error("브라우저가 계약에 필요한 UUID 생성을 지원하지 않습니다.");
 }
 
 function formatMoment(value: string | null | undefined): string {
@@ -764,6 +769,7 @@ function TrackingDecisionFields({
   lastReason,
   onReuseLastReason,
   sectionRef,
+  isDisabled = false,
 }: {
   item: OrderPlanListItem;
   reasonChoice: string;
@@ -777,6 +783,7 @@ function TrackingDecisionFields({
   lastReason: string;
   onReuseLastReason: () => void;
   sectionRef: Ref<HTMLElement>;
+  isDisabled?: boolean;
 }) {
   const availability = trackingAvailability(item);
   /** 지금 계약에 실릴 사유. 이 값이 이미 있으면 다시 쓰기 단추를 그리지 않는다. */
@@ -800,6 +807,7 @@ function TrackingDecisionFields({
             placeholder="사유를 선택하세요"
             size="sm"
             value={reasonChoice || undefined}
+            isDisabled={isDisabled}
           />
           {/* 드롭다운을 미리 채우지 않는다(PRD §3.3). 직전 사유는 **사람이 누를 때에만**
               들어가는 후보이고, 무엇이 들어갈지 단추 이름이 그대로 말한다. */}
@@ -812,6 +820,7 @@ function TrackingDecisionFields({
                 onClick={onReuseLastReason}
                 size="sm"
                 variant="ghost"
+                isDisabled={isDisabled}
               />
             </span>
           ) : null}
@@ -822,6 +831,7 @@ function TrackingDecisionFields({
           value={actorName}
           onChange={onActorNameChange}
           placeholder="이름 입력"
+          isDisabled={isDisabled}
         />
       </div>
       {reasonChoice === OTHER_REASON ? (
@@ -831,6 +841,7 @@ function TrackingDecisionFields({
           value={customReason}
           onChange={onCustomReasonChange}
           placeholder="추적·보류·종료를 선택한 이유를 적어주세요"
+          isDisabled={isDisabled}
         />
       ) : null}
     </section>
@@ -840,12 +851,18 @@ function TrackingDecisionFields({
 function OrderPlanRow({
   item,
   isSelected,
+  isChecked,
+  onCheckedChange,
+  disabled = false,
   onKeyDown,
   onSelect,
   rowProps,
 }: {
   item: OrderPlanListItem;
   isSelected: boolean;
+  isChecked: boolean;
+  onCheckedChange: (checked: boolean) => void;
+  disabled?: boolean;
   /** 화면 단축키(Ctrl+Enter). `preventDefault()`하면 행 선택·↑↓ 이동보다 먼저다. */
   onKeyDown: (event: ReactKeyboardEvent<HTMLElement>) => void;
   onSelect: () => void;
@@ -902,6 +919,12 @@ function OrderPlanRow({
       onKeyDown={onKeyDown}
       onSelect={onSelect}
       selected={isSelected}
+      disabled={disabled}
+      selection={{
+        checked: isChecked,
+        onCheckedChange,
+        ariaLabel: `${textOrUnknown(item.title)} 선택`,
+      }}
     />
   );
 }
@@ -913,6 +936,9 @@ export function OrderPlansPage() {
   const [searchText, setSearchText] = useState(searchParams.get("q") ?? "");
   const [signalTab, setSignalTab] = useState<SignalTab>("signals");
   const [dialog, setDialog] = useState<SecondaryDialog | null>(null);
+  const [bulkDialogOpen, setBulkDialogOpen] = useState(false);
+  const [bulkPending, setBulkPending] = useState(false);
+  const [bulkRecoveryAvailable, setBulkRecoveryAvailable] = useState(() => hasPendingOrderPlanBulkTrackingRequest());
   const [advancedOpen, setAdvancedOpen] = useState(false);
   // `null`이면 시안의 38% 비율을 그대로 쓴다. 사람이 끌거나 화살표를 누르면 px 로 고정된다.
   const [listWidth, setListWidth] = useState<number | null>(() => loadListWidth());
@@ -967,16 +993,19 @@ export function OrderPlansPage() {
   const rowDraftSummary = [
     ...(feedbackDirty ? feedbackDraftSummary : []),
     ...(reasonDirty ? reasonDraftSummary : []),
+    ...(bulkPending ? [{ label: "일괄 추적 요청", value: "저장 결과 확인 전까지 요청과 선택을 보호합니다." }] : []),
   ];
   // route를 떠나면 사람 판단 수정 입력과 선택 사유가 사라진다. 담당자 이름은 이제 탭
   // 세션에 남으므로 잃는 값이 아니고, 그래서 이 확인의 조건에서 뺐다. 화면 안의
   // 이동(행·필터·페이지)은 경로가 바뀌지 않으므로 `pathname` 범위로 두고, 그 이동은
   // 아래에서 자기 문구로 묻는다.
-  const guard = useUnsavedGuard(feedbackDirty || reasonDirty, {
+  const guard = useUnsavedGuard(feedbackDirty || reasonDirty || bulkPending, {
     blockSpaNavigation: true,
-    scope: "pathname",
+    // During an in-flight bulk request even same-path back/forward/filter
+    // navigation must be confirmed; the request binding is URL-contextual.
+    scope: bulkPending ? "any" : "pathname",
     title: "발주계획 검토 화면을 떠납니다",
-    message: "저장하지 않은 입력이 있습니다. 지금 이동하면 사라지며 저장된 사람 피드백·추적 상태는 바뀌지 않습니다. 담당자 이름은 이 탭에 남습니다.",
+    message: "저장하지 않은 입력 또는 확인 중인 일괄 요청이 있습니다. 지금 이동하면 입력이 사라지거나 요청 결과를 놓칠 수 있습니다.",
     summary: rowDraftSummary,
   });
 
@@ -986,9 +1015,11 @@ export function OrderPlansPage() {
    */
   function withRowGuard(run: () => void) {
     guard.confirmDiscard(run, {
-      dirty: feedbackDirty || reasonDirty,
+      dirty: feedbackDirty || reasonDirty || bulkPending,
       title: "다른 발주계획으로 이동합니다",
-      message: "저장하지 않은 사람 판단 수정 입력과 선택 사유는 이 발주계획을 떠나면 사라집니다. 담당자 이름은 그대로 남습니다.",
+      message: bulkPending
+        ? "일괄 추적 요청이 결과 확인 중입니다. 이동하면 요청과 선택을 잃을 수 있습니다."
+        : "저장하지 않은 사람 판단 수정 입력과 선택 사유는 이 발주계획을 떠나면 사라집니다. 담당자 이름은 그대로 남습니다.",
       summary: rowDraftSummary,
     });
   }
@@ -1058,6 +1089,17 @@ export function OrderPlansPage() {
   const sourceRunId = requestedSourceRunId
     ?? (isExplicitDeepLink && selectedPk !== null ? deepLinkSourceRunId : fallbackSourceRunId);
 
+  // A fallback run is only provisional until the collection/execution queries
+  // resolve. Pin the effective run in the URL once it is known so a refresh,
+  // page change, or selection hydration cannot silently move to another run.
+  // Explicit source/deep-link lineage always remains authoritative.
+  useEffect(() => {
+    if (requestedSourceRunId || isExplicitDeepLink || !sourceRunId) return;
+    const params = new URLSearchParams(searchParams);
+    params.set("source_run_id", sourceRunId);
+    setSearchParams(params, { replace: true });
+  }, [isExplicitDeepLink, requestedSourceRunId, searchParams, setSearchParams, sourceRunId]);
+
   useEffect(() => {
     if (!isExplicitDeepLink || selectedPk === null || requestedSourceRunId || deepLinkPlanQuery.isPending || deepLinkPlanQuery.isError || !deepLinkSourceRunId) return;
     const params = new URLSearchParams(searchParams);
@@ -1108,6 +1150,26 @@ export function OrderPlansPage() {
   const qText = searchParams.get("q") ?? "";
   const offsetRaw = Number(searchParams.get("offset") ?? "0");
   const offset = Number.isFinite(offsetRaw) && offsetRaw >= 0 ? Math.floor(offsetRaw / PAGE_SIZE) * PAGE_SIZE : 0;
+  const selectionFingerprint = orderPlansFilterFingerprint({
+    sourceRunId: sourceRunId ?? null,
+    qwen: qwenSet,
+    stage1: stage1Set,
+    feedback: feedbackSet,
+    issue: issueOn,
+    q: qText,
+  });
+  const selectionHydrationReady = Boolean(sourceRunId)
+    && !executionsQuery.isPending
+    && !(isExplicitDeepLink && !requestedSourceRunId && deepLinkPlanQuery.isPending);
+  const orderPlanSelection = useListSelection<number>({
+    storageKey: ORDER_PLANS_SELECTION_STORAGE_KEY,
+    filterFingerprint: selectionFingerprint,
+    hydrationReady: selectionHydrationReady,
+    // A selected URL target owns only active/source/page context. Checked
+    // membership is an independent tab-session state and must still restore
+    // when the browser reloads an automatically selected URL.
+    restoreStoredState: true,
+  });
 
   const activePreset = (() => {
     if (qText) return null;
@@ -1134,6 +1196,7 @@ export function OrderPlansPage() {
     if (next.q !== undefined) params.set("q", next.q);
     params.delete("offset");
     setSearchParams(params, { replace: true });
+    if (next.q !== undefined) orderPlanSelection.setListSearch(next.q);
   }
 
   /** 사람이 누르는 필터 축. 필터가 바뀌면 선택한 행도 바뀌므로 먼저 확인한다. */
@@ -1189,7 +1252,7 @@ export function OrderPlansPage() {
     params.set("feedback", serializeTokens(feedbackSet));
     params.set("issue", issueOn ? "yes" : "");
     params.set("q", qText);
-    const view: SavedView = { id: requestId(), name, search: params.toString(), createdAt: new Date().toISOString() };
+    const view: SavedView = { id: generateRequestId(), name, search: params.toString(), createdAt: new Date().toISOString() };
     const next = [...savedViews, view];
     setSavedViews(next);
     persistSavedViews(next);
@@ -1204,6 +1267,7 @@ export function OrderPlansPage() {
   }
 
   function selectRow(pk: number) {
+    if (bulkPending) return;
     // 이미 보고 있는 건을 다시 고르는 것은 이동이 아니다. 여기서 막지 않으면 현재 행에서
     // Enter를 누르거나 다시 클릭할 때마다 "다른 발주계획으로 이동합니다" 확인이 뜬다.
     if (pk === selectedItem?.order_plan_pk) return;
@@ -1211,6 +1275,7 @@ export function OrderPlansPage() {
       const params = new URLSearchParams(searchParams);
       params.set("selected", String(pk));
       setSearchParams(params, { replace: true });
+      orderPlanSelection.setActiveId(pk);
     });
   }
 
@@ -1296,8 +1361,33 @@ export function OrderPlansPage() {
     ? (deepLinkPending || deepLinkFailed || !explicitTargetInFilteredItems
       ? null
       : filteredItems.find((item) => item.order_plan_pk === selectedPk) ?? null)
-    : ((selectedPk !== null ? filteredItems.find((item) => item.order_plan_pk === selectedPk) : undefined) ?? visibleItems[0] ?? null);
+    : ((selectedPk !== null
+      ? filteredItems.find((item) => item.order_plan_pk === selectedPk)
+      : orderPlanSelection.activeId !== null
+        ? filteredItems.find((item) => item.order_plan_pk === orderPlanSelection.activeId)
+        : undefined) ?? visibleItems[0] ?? null);
   const selectedSourceUrl = selectedItem ? safeExternalUrl(selectedItem.source_url) : null;
+
+  function toggleChecked(pk: number, checked: boolean) {
+    const currentlyChecked = orderPlanSelection.selectedIdSet.has(pk);
+    if (checked !== currentlyChecked) orderPlanSelection.toggle(pk);
+  }
+
+  const handleBulkPendingChange = useCallback((pending: boolean) => {
+    setBulkPending(pending);
+    if (!pending) setBulkRecoveryAvailable(hasPendingOrderPlanBulkTrackingRequest());
+  }, []);
+
+  async function invalidateBulkQueries() {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["order-plan-c2", "list"] }),
+      queryClient.invalidateQueries({ queryKey: ["opportunities"] }),
+      queryClient.invalidateQueries({ queryKey: ["opportunity"] }),
+      queryClient.invalidateQueries({ queryKey: ["opportunity-tracking-decisions"] }),
+      queryClient.invalidateQueries({ queryKey: ["workload"] }),
+      queryClient.invalidateQueries({ queryKey: ["pre-specs"] }),
+    ]);
+  }
 
   const feedbackHistoryQuery = useQuery({
     queryKey: ["order-plan-c2", "feedback-history", selectedItem?.order_plan_pk, latestExecution?.execution_id],
@@ -1353,14 +1443,22 @@ export function OrderPlansPage() {
   }, [allItems, deepLinkFailed, deepLinkPending, explicitTargetInFilteredItems, explicitTargetItem, isExplicitDeepLink, latestExecution, offset, searchParams, selectedPk, setSearchParams]);
 
   useEffect(() => {
-    if (!visibleItems.length || isExplicitDeepLink || invalidSelectedParam) return;
-    const stillValid = selectedPk !== null && filteredItems.some((item) => item.order_plan_pk === selectedPk);
+    if (!visibleItems.length || isExplicitDeepLink || invalidSelectedParam || !orderPlanSelection.hydrated) return;
+    const currentActivePk = selectedPk ?? orderPlanSelection.activeId;
+    const stillValid = currentActivePk !== null && filteredItems.some((item) => item.order_plan_pk === currentActivePk);
     if (stillValid) return;
     const params = new URLSearchParams(searchParams);
     params.set("selected", String(visibleItems[0].order_plan_pk));
     setSearchParams(params, { replace: true });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [invalidSelectedParam, isExplicitDeepLink, visibleItems.map((item) => item.order_plan_pk).join(","), selectedPk]);
+    orderPlanSelection.setActiveId(visibleItems[0].order_plan_pk);
+  }, [filteredItems, invalidSelectedParam, isExplicitDeepLink, orderPlanSelection, searchParams, selectedPk, setSearchParams, visibleItems]);
+
+  useEffect(() => {
+    if (!orderPlanSelection.hydrated || !selectedItem || isExplicitDeepLink) return;
+    if (orderPlanSelection.activeId !== selectedItem.order_plan_pk) {
+      orderPlanSelection.setActiveId(selectedItem.order_plan_pk);
+    }
+  }, [isExplicitDeepLink, orderPlanSelection, selectedItem]);
 
   // 행이 바뀌면 사람 판단 수정 입력과 선택 사유를 초기화한다. 입력을 잃는 것을 사람이
   // 확인한 뒤에만 여기까지 오도록 이동하는 자리마다 `withRowGuard`를 걸었다.
@@ -1418,7 +1516,7 @@ export function OrderPlansPage() {
         schema_version: "feedback-create-request.v1",
         producer: "human-review-client",
         consumer: "review-api",
-        request_id: requestId(),
+        request_id: generateRequestId(),
         execution_id: (latestExecution as OrderPlanScreeningExecutionSummary).execution_id,
         relevance,
         priority: priority || null,
@@ -1436,7 +1534,7 @@ export function OrderPlansPage() {
     },
   });
 
-  const ready = Boolean(selectedItem) && Boolean(latestExecution) && actorName.trim().length > 0;
+  const ready = !bulkPending && Boolean(selectedItem) && Boolean(latestExecution) && actorName.trim().length > 0;
   const decisionDisabledReason = !latestExecution ? "게시된 선별 결과가 있어야 모델 판단에 대한 수정본을 저장할 수 있습니다." : !actorName.trim() ? "담당자 이름을 입력하면 저장할 수 있습니다." : undefined;
 
   // 사람 판단 수정은 저장만 하고 다음 건으로 이동하지 않는다. 이동은 추적 결정이 소유한다.
@@ -1489,7 +1587,9 @@ export function OrderPlansPage() {
     },
   });
 
-  const trackingDisabledReason = trackingAvailabilityState === "contract_missing"
+  const trackingDisabledReason = bulkPending
+    ? "일괄 추적 저장 요청이 끝날 때까지 단건 추적 입력과 저장을 잠급니다."
+    : trackingAvailabilityState === "contract_missing"
     ? "추적 결정을 저장할 서버 계약이 아직 구현되지 않았습니다."
     : trackingAvailabilityState === "opportunity_missing"
       ? "이 발주계획을 소유한 사업기회를 확인하지 못해 추적 결정을 기록할 수 없습니다."
@@ -1504,7 +1604,7 @@ export function OrderPlansPage() {
             : trackingMutation.isPending
               ? "추적 결정 저장 요청을 처리하고 있습니다."
               : undefined;
-  const trackingReady = Boolean(selectedItem) && trackingDisabledReason === undefined;
+  const trackingReady = !bulkPending && Boolean(selectedItem) && trackingDisabledReason === undefined;
 
   function saveTracking(status: Exclude<OpportunityTrackingStatus, "미선택">) {
     setTrackingMessage(null);
@@ -1603,6 +1703,7 @@ export function OrderPlansPage() {
    * 초점을 옮긴다. 한 키가 사유를 지어내면 감사 기록이 사람의 판단이 아니게 된다.
    */
   function handleRowKeyDown(event: ReactKeyboardEvent<HTMLElement>, pk: number) {
+    if (bulkPending) return;
     if (!(event.ctrlKey || event.metaKey) || event.key !== "Enter") return;
     // 초점이 있는 행과 결정이 붙어 있는 건이 다르면(이탈 확인을 취소한 직후) 결정하지 않는다.
     if (pk !== selectedItem?.order_plan_pk) return;
@@ -1693,7 +1794,7 @@ export function OrderPlansPage() {
           없다. 상단바의 액션 슬롯으로 보낸다(`PageHeaderActions`). */}
       <PageHeaderActions>
         <div className="c2l-header-actions">
-          <ReviewFilterSelector className="c2l-run-selector" label="발주계획 수집 회차" clearable={false}
+          <ReviewFilterSelector className="c2l-run-selector" isDisabled={bulkPending} label="발주계획 수집 회차" clearable={false}
             options={runOptions} value={sourceRunId ?? null} onChange={changeSourceRun}
             placeholder="수집 회차 선택" />
           {/* 실행 상태는 낱말 하나로만 둔다. execution_id·시각·집계는 대화상자가 진다. */}
@@ -1704,6 +1805,14 @@ export function OrderPlansPage() {
             variant="ghost"
             onClick={() => setDialog("runtime")}
           />
+          {bulkRecoveryAvailable && !bulkDialogOpen ? (
+            <Button
+              label="저장된 일괄 요청 확인"
+              size="sm"
+              variant="secondary"
+              onClick={() => setBulkDialogOpen(true)}
+            />
+          ) : null}
           {sourceRunId ? (
             <Link className="c2l-scope-link" to={`/run-status?run=${encodeURIComponent(sourceRunId)}`}>
               실행 상세 →
@@ -1769,6 +1878,7 @@ export function OrderPlansPage() {
               />
               <WorkspaceFilterEnd>
                 <WorkspaceSearch
+                  isDisabled={bulkPending}
                   label="사업명·발주기관·계획번호 검색"
                   onChange={setSearchText}
                   onEnter={() => changeAxes({ q: searchText })}
@@ -1902,6 +2012,45 @@ export function OrderPlansPage() {
                       <Text type="supporting" color="secondary" as="p">{visibleItems.length ? offset + 1 : 0}–{Math.min(offset + visibleItems.length, total)} / {total.toLocaleString("ko-KR")}</Text>
                     )}
                   </div>
+                  <div className="c2l-selection-toolbar" data-testid="order-plan-selection-toolbar">
+                    <Text type="supporting" color="secondary" as="span" aria-live="polite">
+                      선택 {orderPlanSelection.selectedIds.length.toLocaleString("ko-KR")}건
+                    </Text>
+                    <span className="visually-hidden" id="c2l-selection-action-reason">
+                      {bulkPending
+                        ? "일괄 추적 요청을 처리하는 동안 선택을 바꿀 수 없습니다."
+                        : mutation.isPending || trackingMutation.isPending
+                          ? "기존 저장 요청이 끝날 때까지 일괄 추적을 시작할 수 없습니다."
+                        : !orderPlanSelection.hydrated
+                          ? "목록 선택 상태를 준비하는 중입니다."
+                          : !orderPlanSelection.storageAvailable || orderPlanSelection.storageError
+                            ? "선택 저장소를 확인하지 못해 단건 추적 경로를 사용하십시오."
+                            : orderPlanSelection.selectedIds.length === 0
+                              ? "하나 이상의 발주계획을 선택하십시오."
+                              : "선택한 발주계획을 일괄 추적하기 전에 대상과 공통 입력을 확인하십시오."}
+                    </span>
+                    <Button
+                      aria-describedby="c2l-selection-action-reason"
+                      label="선택 항목 검토"
+                      size="sm"
+                      variant="primary"
+                      isDisabled={bulkPending || mutation.isPending || trackingMutation.isPending || !orderPlanSelection.hydrated || !orderPlanSelection.storageAvailable || Boolean(orderPlanSelection.storageError) || orderPlanSelection.selectedIds.length === 0}
+                      onClick={() => setBulkDialogOpen(true)}
+                    />
+                    <Button
+                      aria-describedby="c2l-selection-action-reason"
+                      label="선택 전체 해제"
+                      size="sm"
+                      variant="ghost"
+                      isDisabled={bulkPending || orderPlanSelection.selectedIds.length === 0 || !orderPlanSelection.hydrated}
+                      onClick={() => orderPlanSelection.clear()}
+                    />
+                  </div>
+                  {(!orderPlanSelection.storageAvailable || orderPlanSelection.storageError) && orderPlanSelection.hydrated ? (
+                    <p className="c2l-selection-storage-warning" role="alert">
+                      이 탭의 선택 저장소를 사용할 수 없어 일괄 추적을 사용할 수 없습니다. 단건 추적 경로를 사용하십시오.
+                    </p>
+                  ) : null}
                   {/* 무엇을 보고 있는지는 한 줄로 남긴다. 축 안은 OR, 축끼리는 AND다. */}
                   <p className="c2l-list-scope" title={filterMeaning}>
                     <Text type="supporting" color="secondary" as="span">{filterMeaning}</Text>
@@ -1946,6 +2095,9 @@ export function OrderPlansPage() {
                         key={item.order_plan_pk}
                         item={item}
                         isSelected={selectedItem?.order_plan_pk === item.order_plan_pk}
+                        isChecked={orderPlanSelection.selectedIdSet.has(item.order_plan_pk)}
+                        onCheckedChange={(checked) => toggleChecked(item.order_plan_pk, checked)}
+                        disabled={bulkPending}
                         onKeyDown={(event) => handleRowKeyDown(event, item.order_plan_pk)}
                         onSelect={() => selectRow(item.order_plan_pk)}
                         rowProps={rowNavigation.rowProps(item.order_plan_pk)}
@@ -2101,6 +2253,7 @@ export function OrderPlansPage() {
                           label={`사람 판단 수정 · ${feedbackSummaryLabel}`}
                           size="sm"
                           variant="ghost"
+                          isDisabled={bulkPending}
                           onClick={() => setDialog("feedback")}
                         />
                         <Button
@@ -2148,6 +2301,7 @@ export function OrderPlansPage() {
                           position={`${selectedIndex} / ${total.toLocaleString("ko-KR")}건`}
                           reasonChoice={reasonChoice}
                           sectionRef={trackingSectionRef}
+                          isDisabled={bulkPending}
                         />
                       )}
                       actions={(
@@ -2157,21 +2311,21 @@ export function OrderPlansPage() {
                               문장이 세 번 쌓이지 않으면서 각 버튼이 사유를 읽는다. */}
                           <ReviewDecisionAction
                             disabledReasonId="c2l-tracking-decision-reason"
-                            isDisabled={!trackingReady}
+                            isDisabled={bulkPending || !trackingReady}
                             label="추적 시작"
                             variant="primary"
                             onClick={() => decideTracking("계속 추적")}
                           />
                           <ReviewDecisionAction
                             disabledReasonId="c2l-tracking-decision-reason"
-                            isDisabled={!trackingReady}
+                            isDisabled={bulkPending || !trackingReady}
                             label="보류"
                             variant="secondary"
                             onClick={() => decideTracking("보류")}
                           />
                           <ReviewDecisionAction
                             disabledReasonId="c2l-tracking-decision-reason"
-                            isDisabled={!trackingReady}
+                            isDisabled={bulkPending || !trackingReady}
                             label="추적 종료"
                             variant="secondary"
                             onClick={() => decideTracking("종료")}
@@ -2180,6 +2334,7 @@ export function OrderPlansPage() {
                           <ReviewDecisionAction
                             label="이번 건 넘기기"
                             variant="ghost"
+                            isDisabled={bulkPending}
                             onClick={skipCurrent}
                           />
                         </>
@@ -2290,7 +2445,7 @@ export function OrderPlansPage() {
 
           <div className="c2l-feedback-field">
             <Text type="label" color="secondary" as="p">relevance</Text>
-            <SegmentedControl value={relevance} onChange={(value) => setRelevance(value as OrderPlanRelevance)} label="사람 relevance 판단">
+            <SegmentedControl isDisabled={bulkPending} value={relevance} onChange={(value) => setRelevance(value as OrderPlanRelevance)} label="사람 relevance 판단">
               <SegmentedControlItem value="relevant" label="relevant" />
               <SegmentedControlItem value="uncertain" label="uncertain" />
               <SegmentedControlItem value="not_relevant" label="not_relevant" />
@@ -2299,7 +2454,7 @@ export function OrderPlansPage() {
 
           <div className="c2l-feedback-field">
             <Text type="label" color="secondary" as="p">priority</Text>
-            <SegmentedControl value={priority || "null"} onChange={(value) => setPriority(value === "null" ? "" : (value as OrderPlanFeedbackPriority))} label="사람 priority 판단">
+            <SegmentedControl isDisabled={bulkPending} value={priority || "null"} onChange={(value) => setPriority(value === "null" ? "" : (value as OrderPlanFeedbackPriority))} label="사람 priority 판단">
               <SegmentedControlItem value="high" label="high" />
               <SegmentedControlItem value="medium" label="medium" />
               <SegmentedControlItem value="low" label="low" />
@@ -2313,6 +2468,7 @@ export function OrderPlansPage() {
             onChange={setMemo}
             rows={3}
             placeholder="사람 검토 근거 또는 다음 확인 사항"
+            isDisabled={bulkPending}
           />
 
           <TextInput
@@ -2320,6 +2476,7 @@ export function OrderPlansPage() {
             value={actorName}
             onChange={setActorName}
             description="감사 귀속용 이름이며 로그인·신원 인증·권한 부여가 아닙니다."
+            isDisabled={bulkPending}
           />
 
           <div className="c2l-feedback-actions">
@@ -2350,6 +2507,23 @@ export function OrderPlansPage() {
         open={endConfirm !== null}
         summary={endConfirm?.summary ?? []}
         title={endConfirm?.title ?? "추적을 종료합니다"}
+      />
+      <OrderPlanBulkTrackingDialog
+        open={bulkDialogOpen}
+        selectedIds={orderPlanSelection.selectedIds}
+        selectionGeneration={orderPlanSelection.state.selectionGeneration}
+        filterFingerprint={selectionFingerprint}
+        actorName={trackingActor}
+        onClose={() => {
+          setBulkDialogOpen(false);
+          setBulkRecoveryAvailable(hasPendingOrderPlanBulkTrackingRequest());
+        }}
+        onApplied={(resolvedIds, generation) => orderPlanSelection.applyResult(resolvedIds, generation)}
+        onInvalidate={invalidateBulkQueries}
+        onPersistSelection={orderPlanSelection.persist}
+        onPendingChange={handleBulkPendingChange}
+        storageAvailable={orderPlanSelection.storageAvailable}
+        storageError={orderPlanSelection.storageError?.message ?? null}
       />
     </section>
   );

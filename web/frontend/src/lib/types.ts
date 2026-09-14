@@ -1469,6 +1469,81 @@ export interface TrackingStatusUpdateRequest {
   reason: string;
 }
 
+/** v1 contracts for read-only bulk tracking preview and its final receipt. */
+export type OrderPlanBulkExcludedStatus = "계속 추적" | "보류" | "종료";
+export type OrderPlanBulkEligibility = "eligible" | "excluded" | "failed";
+export type OrderPlanBulkOutcome = "succeeded" | "excluded" | "failed";
+export type OrderPlanBulkFailureCode =
+  | "order_plan_not_found"
+  | "owning_opportunity_missing"
+  | "owner_changed"
+  | "ownership_conflict"
+  | "processing_failed"
+  | "temporarily_unavailable";
+
+export interface OrderPlanBulkPreviewRequest {
+  schema_version: "order-plan-bulk-preview-request.v1";
+  order_plan_ids: number[];
+}
+
+export interface OrderPlanBulkStartRequest {
+  schema_version: "order-plan-bulk-start-request.v1";
+  request_id: string;
+  order_plan_ids: number[];
+  reason: string;
+}
+
+export interface OrderPlanBulkStatusCount {
+  plan_count: number;
+  owner_count: number;
+}
+
+export interface OrderPlanBulkPreviewItem {
+  order_plan_id: number;
+  opportunity_id: number | null;
+  tracking_status: OpportunityTrackingStatus | null;
+  eligibility: OrderPlanBulkEligibility;
+  code: OrderPlanBulkFailureCode | null;
+}
+
+export interface OrderPlanBulkPreviewResponse {
+  schema_version: "order-plan-bulk-preview-response.v1";
+  selected_plan_count: number;
+  unique_owner_count: number;
+  eligible_plan_count: number;
+  eligible_owner_count: number;
+  excluded_by_status: Record<OrderPlanBulkExcludedStatus, OrderPlanBulkStatusCount>;
+  failure_plan_count: number;
+  items: OrderPlanBulkPreviewItem[];
+}
+
+export interface OrderPlanBulkStartItem {
+  order_plan_id: number;
+  opportunity_id: number | null;
+  outcome: OrderPlanBulkOutcome;
+  status_at_decision: OpportunityTrackingStatus | null;
+  code: OrderPlanBulkFailureCode | null;
+  audit_event_id: string | null;
+}
+
+export interface OrderPlanBulkSummary {
+  selected_plan_count: number;
+  unique_owner_count: number;
+  succeeded_plan_count: number;
+  succeeded_owner_count: number;
+  excluded_plan_count: number;
+  excluded_by_status: Record<OrderPlanBulkExcludedStatus, OrderPlanBulkStatusCount>;
+  failed_plan_count: number;
+}
+
+export interface OrderPlanBulkStartResponse {
+  schema_version: "order-plan-bulk-start-response.v1";
+  request_id: string;
+  completed_at: string;
+  items: OrderPlanBulkStartItem[];
+  summary: OrderPlanBulkSummary;
+}
+
 /**
  * 후보 연결 하나에 대한 사람 판정 (`PATCH /opportunities/links/{id}/decision`).
  *
