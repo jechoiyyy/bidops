@@ -1,5 +1,19 @@
 import { expect, test } from "@playwright/test";
-import { mockApi, mockOrderPlans } from "./api-mock";
+import { mockApi, mockOrderPlanBulkTracking, mockOrderPlans } from "./api-mock";
+import {
+  ApiError,
+  OrderPlanBulkTrackingResultUnconfirmedError,
+  parseOrderPlanBulkPreviewResponse,
+  parseOrderPlanBulkStartResponse,
+} from "../src/lib/api";
+import {
+  describeOrderPlanBulkTrackingError,
+  parseOrderPlanBulkTrackingError,
+} from "../src/lib/apiErrors";
+import type {
+  OrderPlanBulkPreviewResponse,
+  OrderPlanBulkStartResponse,
+} from "../src/lib/types";
 
 test.beforeEach(async ({ page }) => {
   await mockApi(page);
@@ -1251,4 +1265,737 @@ test("담당자 이름은 새로고침 뒤에도 이 탭에 남는다", async ({
 
   await page.reload();
   await expect(page.getByLabel("담당자 이름 · 감사 표식")).toHaveValue("홍길동");
+});
+
+const BT_REQUEST_ID = "7a9c9b7a-0c11-4a5e-9f34-000000000001";
+const BT_AUDIT_ID = "f2f4d7c1-0a61-4f07-8d2e-000000000001";
+const BT_IDS = [10, 20, 30, 40, 50] as const;
+
+function bulkPreviewFixture(): OrderPlanBulkPreviewResponse {
+  return {
+    schema_version: "order-plan-bulk-preview-response.v1",
+    selected_plan_count: 5,
+    unique_owner_count: 3,
+    eligible_plan_count: 2,
+    eligible_owner_count: 1,
+    excluded_by_status: {
+      "계속 추적": { plan_count: 0, owner_count: 0 },
+      "보류": { plan_count: 1, owner_count: 1 },
+      "종료": { plan_count: 1, owner_count: 1 },
+    },
+    failure_plan_count: 1,
+    items: [
+      { order_plan_id: 10, opportunity_id: 100, tracking_status: "미선택", eligibility: "eligible", code: null },
+      { order_plan_id: 20, opportunity_id: 100, tracking_status: "미선택", eligibility: "eligible", code: null },
+      { order_plan_id: 30, opportunity_id: 200, tracking_status: "보류", eligibility: "excluded", code: null },
+      { order_plan_id: 40, opportunity_id: 300, tracking_status: "종료", eligibility: "excluded", code: null },
+      { order_plan_id: 50, opportunity_id: null, tracking_status: null, eligibility: "failed", code: "order_plan_not_found" },
+    ],
+  };
+}
+
+function bulkReceiptFixture(): OrderPlanBulkStartResponse {
+  return {
+    schema_version: "order-plan-bulk-start-response.v1",
+    request_id: BT_REQUEST_ID,
+    completed_at: "2026-09-02T01:00:00.123456+09:00",
+    items: [
+      { order_plan_id: 10, opportunity_id: 100, outcome: "succeeded", status_at_decision: "계속 추적", code: null, audit_event_id: BT_AUDIT_ID },
+      { order_plan_id: 20, opportunity_id: 100, outcome: "succeeded", status_at_decision: "계속 추적", code: null, audit_event_id: BT_AUDIT_ID },
+      { order_plan_id: 30, opportunity_id: 200, outcome: "excluded", status_at_decision: "보류", code: null, audit_event_id: null },
+      { order_plan_id: 40, opportunity_id: 300, outcome: "excluded", status_at_decision: "종료", code: null, audit_event_id: null },
+      { order_plan_id: 50, opportunity_id: null, outcome: "failed", status_at_decision: null, code: "order_plan_not_found", audit_event_id: null },
+    ],
+    summary: {
+      selected_plan_count: 5,
+      unique_owner_count: 3,
+      succeeded_plan_count: 2,
+      succeeded_owner_count: 1,
+      excluded_plan_count: 2,
+      excluded_by_status: {
+        "계속 추적": { plan_count: 0, owner_count: 0 },
+        "보류": { plan_count: 1, owner_count: 1 },
+        "종료": { plan_count: 1, owner_count: 1 },
+      },
+      failed_plan_count: 1,
+    },
+  };
+}
+
+function expectUnconfirmed(run: () => unknown) {
+  expect(run).toThrow(OrderPlanBulkTrackingResultUnconfirmedError);
+}
+
+test("BT-client-valid-mixed-receipt-preserves-UUID-aware-microsecond-values", () => {
+  const parsed = parseOrderPlanBulkStartResponse(
+    bulkReceiptFixture(),
+    [50, 10, 20, 10, 40, 30],
+    BT_REQUEST_ID,
+  );
+
+  expect(parsed.request_id).toBe(BT_REQUEST_ID);
+  expect(parsed.completed_at).toBe("2026-09-02T01:00:00.123456+09:00");
+  expect(parsed.items.map((item) => item.order_plan_id)).toEqual([...BT_IDS]);
+  expect(parsed.items[0].audit_event_id).toBe(BT_AUDIT_ID);
+  expect(parsed.items[1].audit_event_id).toBe(BT_AUDIT_ID);
+  expect(parsed.items[4].opportunity_id).toBeNull();
+  expect(parsed.items[4].status_at_decision).toBeNull();
+  expect(parsed.items[4].audit_event_id).toBeNull();
+});
+
+test("BT-client-duplicate-requested-IDs-normalize-before-set-and-order-check", () => {
+  const parsed = parseOrderPlanBulkPreviewResponse(
+    bulkPreviewFixture(),
+    [40, 10, 20, 10, 30, 50],
+  );
+
+  expect(parsed.items.map((item) => item.order_plan_id)).toEqual([...BT_IDS]);
+  expect(parsed.selected_plan_count).toBe(new Set([40, 10, 20, 30, 50]).size);
+  expect(parsed.items.filter((item) => item.eligibility === "eligible")).toHaveLength(2);
+});
+
+test("BT-client-response-order-must-match-exact-requested-ID-set", () => {
+  const reversed = {
+    ...bulkReceiptFixture(),
+    items: [...bulkReceiptFixture().items].reverse(),
+  };
+  expectUnconfirmed(() => parseOrderPlanBulkStartResponse(reversed, BT_IDS, BT_REQUEST_ID));
+
+  const missing = {
+    ...bulkPreviewFixture(),
+    items: bulkPreviewFixture().items.slice(0, 4),
+  };
+  expectUnconfirmed(() => parseOrderPlanBulkPreviewResponse(missing, BT_IDS));
+
+  const unexpectedId = {
+    ...bulkReceiptFixture(),
+    items: bulkReceiptFixture().items.map((item, index) => index === 4
+      ? { ...item, order_plan_id: 999 }
+      : item),
+  };
+  expectUnconfirmed(() => parseOrderPlanBulkStartResponse(unexpectedId, BT_IDS, BT_REQUEST_ID));
+});
+
+test("BT-client-unknown-extra-and-missing-fields-fail-closed", () => {
+  const preview = bulkPreviewFixture();
+  expectUnconfirmed(() => parseOrderPlanBulkPreviewResponse({ ...preview, private_debug: true }, BT_IDS));
+
+  const firstItem = preview.items[0];
+  const { code: _removed, ...missingItemCode } = firstItem;
+  expectUnconfirmed(() => parseOrderPlanBulkPreviewResponse({
+    ...preview,
+    items: [missingItemCode, ...preview.items.slice(1)],
+  }, BT_IDS));
+
+  const receipt = bulkReceiptFixture();
+  expectUnconfirmed(() => parseOrderPlanBulkStartResponse({
+    ...receipt,
+    items: receipt.items.map((item, index) => index === 0 ? { ...item, private_debug: true } : item),
+  }, BT_IDS, BT_REQUEST_ID));
+});
+
+test("BT-client-nullable-fields-are-only-valid-for-failure-results", () => {
+  const receipt = bulkReceiptFixture();
+  expectUnconfirmed(() => parseOrderPlanBulkStartResponse({
+    ...receipt,
+    items: receipt.items.map((item, index) => index === 0
+      ? { ...item, opportunity_id: null, status_at_decision: null }
+      : item),
+  }, BT_IDS, BT_REQUEST_ID));
+
+  const preview = bulkPreviewFixture();
+  expectUnconfirmed(() => parseOrderPlanBulkPreviewResponse({
+    ...preview,
+    items: preview.items.map((item, index) => index === 0
+      ? { ...item, opportunity_id: null, tracking_status: null }
+      : item),
+  }, BT_IDS));
+});
+
+test("BT-client-wrong-types-booleans-and-unknown-enums-fail-closed", () => {
+  const preview = bulkPreviewFixture();
+  expectUnconfirmed(() => parseOrderPlanBulkPreviewResponse({
+    ...preview,
+    selected_plan_count: true,
+  }, BT_IDS));
+  expectUnconfirmed(() => parseOrderPlanBulkPreviewResponse({
+    ...preview,
+    items: preview.items.map((item, index) => index === 0
+      ? { ...item, opportunity_id: true }
+      : item),
+  }, BT_IDS));
+  expectUnconfirmed(() => parseOrderPlanBulkPreviewResponse({
+    ...preview,
+    items: preview.items.map((item, index) => index === 2
+      ? { ...item, eligibility: "unknown" }
+      : item),
+  }, BT_IDS));
+});
+
+test("BT-client-unsafe-integer-PK-and-count-values-fail-closed", () => {
+  const preview = bulkPreviewFixture();
+  const roundedPk = Number.MAX_SAFE_INTEGER + 1;
+  expectUnconfirmed(() => parseOrderPlanBulkPreviewResponse({
+    ...preview,
+    items: preview.items.map((item, index) => index === 0
+      ? { ...item, order_plan_id: roundedPk }
+      : item),
+  }, BT_IDS));
+  expectUnconfirmed(() => parseOrderPlanBulkPreviewResponse({
+    ...preview,
+    selected_plan_count: roundedPk,
+  }, BT_IDS));
+  expectUnconfirmed(() => parseOrderPlanBulkStartResponse({
+    ...bulkReceiptFixture(),
+    summary: { ...bulkReceiptFixture().summary, unique_owner_count: roundedPk },
+  }, BT_IDS, BT_REQUEST_ID));
+});
+
+test("BT-client-invalid-UUID-date-and-timezone-fail-closed", () => {
+  const receipt = bulkReceiptFixture();
+  expectUnconfirmed(() => parseOrderPlanBulkStartResponse({
+    ...receipt,
+    completed_at: "2026-09-02T01:00:00.123456",
+  }, BT_IDS, BT_REQUEST_ID));
+  expectUnconfirmed(() => parseOrderPlanBulkStartResponse({
+    ...receipt,
+    completed_at: "2026-02-30T01:00:00.123456Z",
+  }, BT_IDS, BT_REQUEST_ID));
+  expectUnconfirmed(() => parseOrderPlanBulkStartResponse({
+    ...receipt,
+    completed_at: "2026-09-02T01:00:00.123456+24:00",
+  }, BT_IDS, BT_REQUEST_ID));
+  expectUnconfirmed(() => parseOrderPlanBulkStartResponse({
+    ...receipt,
+    items: receipt.items.map((item, index) => index === 0
+      ? { ...item, audit_event_id: "not-a-uuid" }
+      : item),
+  }, BT_IDS, BT_REQUEST_ID));
+});
+
+test("BT-client-invalid-summary-counts-and-excluded-status-counts-fail-closed", () => {
+  const receipt = bulkReceiptFixture();
+  expectUnconfirmed(() => parseOrderPlanBulkStartResponse({
+    ...receipt,
+    summary: { ...receipt.summary, succeeded_plan_count: 99 },
+  }, BT_IDS, BT_REQUEST_ID));
+  expectUnconfirmed(() => parseOrderPlanBulkStartResponse({
+    ...receipt,
+    summary: {
+      ...receipt.summary,
+      excluded_by_status: {
+        ...receipt.summary.excluded_by_status,
+        "보류": { plan_count: 2, owner_count: 1 },
+      },
+    },
+  }, BT_IDS, BT_REQUEST_ID));
+  const preview = bulkPreviewFixture();
+  expectUnconfirmed(() => parseOrderPlanBulkPreviewResponse({
+    ...preview,
+    excluded_by_status: {
+      ...preview.excluded_by_status,
+      "종료": { plan_count: 0, owner_count: 0 },
+    },
+  }, BT_IDS));
+});
+
+test("BT-client-owner-fanout-and-audit-consistency-are-enforced", () => {
+  const receipt = bulkReceiptFixture();
+  expectUnconfirmed(() => parseOrderPlanBulkStartResponse({
+    ...receipt,
+    items: receipt.items.map((item, index) => index === 1
+      ? { ...item, audit_event_id: "f2f4d7c1-0a61-4f07-8d2e-000000000002" }
+      : item),
+  }, BT_IDS, BT_REQUEST_ID));
+  expectUnconfirmed(() => parseOrderPlanBulkStartResponse({
+    ...receipt,
+    items: receipt.items.map((item, index) => index === 0
+      ? { ...item, outcome: "succeeded", audit_event_id: null }
+      : item),
+  }, BT_IDS, BT_REQUEST_ID));
+  expectUnconfirmed(() => parseOrderPlanBulkStartResponse({
+    ...receipt,
+    items: receipt.items.map((item, index) => index === 2
+      ? { ...item, audit_event_id: BT_AUDIT_ID }
+      : item),
+  }, BT_IDS, BT_REQUEST_ID));
+});
+
+test("BT-client-request-ID-mismatch-is-result-unconfirmed", () => {
+  expectUnconfirmed(() => parseOrderPlanBulkStartResponse(
+    bulkReceiptFixture(),
+    BT_IDS,
+    "7a9c9b7a-0c11-4a5e-9f34-000000000099",
+  ));
+  expectUnconfirmed(() => parseOrderPlanBulkStartResponse(
+    { ...bulkReceiptFixture(), request_id: "7a9c9b7a-0c11-4a5e-9f34-000000000099" },
+    BT_IDS,
+    BT_REQUEST_ID,
+  ));
+});
+
+test("BT-client-safe-server-envelope-and-FastAPI-422-remain-distinguishable", () => {
+  const safeEnvelope = parseOrderPlanBulkTrackingError(new ApiError(
+    409,
+    "서버 원문은 사용하지 않음",
+    { code: "idempotency_conflict", message: "내부 원문", details: null },
+    BT_REQUEST_ID,
+  ));
+  expect(safeEnvelope).toEqual({
+    status: 409,
+    kind: "server",
+    code: "idempotency_conflict",
+    request_id: BT_REQUEST_ID,
+  });
+
+  const fastApi422 = parseOrderPlanBulkTrackingError(new ApiError(
+    422,
+    "요청 형식 오류",
+    [{ type: "literal_error", loc: ["body", "schema_version"], msg: "invalid" }],
+  ));
+  expect(fastApi422).toEqual({
+    status: 422,
+    kind: "validation",
+    code: "invalid_request",
+    request_id: null,
+  });
+});
+
+test("BT-client-transport-unconfirmed-and-conflict-messages-never-suggest-a-new-key", () => {
+  const errors = [
+    describeOrderPlanBulkTrackingError(new ApiError(0, "network")),
+    describeOrderPlanBulkTrackingError(new OrderPlanBulkTrackingResultUnconfirmedError()),
+    describeOrderPlanBulkTrackingError(new ApiError(
+      409,
+      "ignored",
+      { code: "idempotency_conflict", message: "ignored", details: null },
+      BT_REQUEST_ID,
+    )),
+  ];
+  for (const description of errors) {
+    expect(`${description.title} ${description.detail}`).not.toMatch(
+      /새.*(request[_ -]?id|uuid|키|식별자).*(만들|생성|발급|사용)/i,
+    );
+  }
+  expect(errors[0].action).toBe("retry");
+  expect(errors[1].code).toBe("result_unconfirmed");
+  expect(errors[2].action).toBe("reload");
+});
+
+test("LS-cross-page-selection-survives-refresh-and-clears-on-applied-filter-change", async ({ page }) => {
+  await mockOrderPlans(page, "large");
+  await page.goto("/order-plans");
+  await expect(page.locator(".c2l-row")).toHaveCount(500);
+
+  await page.locator(".c2l-row").first().locator('input[type="checkbox"]').check();
+  await page.getByRole("button", { name: "다음", exact: true }).click();
+  await expect(page).toHaveURL(/offset=500/);
+  await expect(page.locator(".c2l-row")).toHaveCount(400);
+  await page.locator(".c2l-row").first().locator('input[type="checkbox"]').check();
+  await expect(page.getByTestId("order-plan-selection-toolbar")).toContainText("선택 2건");
+
+  await page.reload();
+  await expect(page.getByTestId("order-plan-selection-toolbar")).toContainText("선택 2건");
+  await expect(page.locator('.c2l-row input[type="checkbox"][data-checked="true"]')).toHaveCount(1);
+
+  await clickPreset(page, "전체");
+  await expect(page.getByTestId("order-plan-selection-toolbar")).toContainText("선택 0건");
+  await expect(page.locator('.c2l-row input[type="checkbox"][data-checked="true"]')).toHaveCount(0);
+});
+
+test("LS-checkbox-space-and-input-events-remain-independent-from-active-row", async ({ page }) => {
+  await mockOrderPlans(page);
+  await page.goto("/order-plans");
+  const rows = page.locator(".c2l-row");
+  await rows.nth(1).click();
+  const firstCheckbox = rows.first().locator('input[type="checkbox"]');
+  await firstCheckbox.press("Space");
+  await expect(firstCheckbox).toBeChecked();
+  await expect(rows.nth(1)).toHaveClass(/is-selected/);
+  await expect(rows.first()).not.toHaveClass(/is-selected/);
+
+  const firstRow = rows.first();
+  await firstRow.click();
+  await firstRow.focus();
+  await firstRow.press("Space");
+  await expect(firstCheckbox).not.toBeChecked();
+  // A held/repeated row Space must not toggle a second time.
+  await firstRow.dispatchEvent("keydown", { key: " ", code: "Space", repeat: true, bubbles: true });
+  await expect(firstCheckbox).not.toBeChecked();
+
+  await page.getByLabel("담당자 이름 · 감사 표식").fill("키보드 담당자");
+  await page.getByLabel("담당자 이름 · 감사 표식").press("Space");
+  await expect(firstCheckbox).not.toBeChecked();
+});
+
+test("BT-confirmation-shows-owner-and-status-exclusions-and-does-not-run-single-patch", async ({ page }) => {
+  const singleTrace = await mockOrderPlans(page);
+  await mockOrderPlanBulkTracking(page, "mixed");
+  await page.goto("/order-plans");
+  await clickPreset(page, "전체");
+  const rows = page.locator(".c2l-row");
+  await rows.filter({ hasText: "인공지능 기반 공공데이터" }).locator('input[type="checkbox"]').check();
+  await rows.filter({ hasText: "청사 시설관리" }).locator('input[type="checkbox"]').check();
+  await rows.filter({ hasText: "복지서비스 운영" }).locator('input[type="checkbox"]').check();
+  await expect(page.getByTestId("order-plan-selection-toolbar")).toContainText("선택 3건");
+  await selectReason(page, "후속 사전규격·공고 확인");
+  await page.getByLabel("담당자 이름 · 감사 표식").fill("일괄 담당자");
+
+  await page.getByRole("button", { name: "선택 항목 검토", exact: true }).click();
+  const dialog = page.getByTestId("order-plan-bulk-tracking-dialog");
+  await dialog.getByRole("button", { name: "선택 대상 미리보기", exact: true }).click();
+  await expect(dialog).toContainText("중복 제거한 소유 사업기회");
+  await expect(dialog).toContainText("보류로 제외");
+  await expect(dialog).toContainText("종료로 제외");
+  await dialog.getByRole("textbox", { name: "공통 담당자 이름 · 감사 표식" }).fill("일괄 담당자");
+  await dialog.getByRole("textbox", { name: "공통 추적 사유" }).fill("공통 검토 사유");
+  await expect(dialog).toContainText("최종 건수는 달라질 수 있습니다");
+
+  const confirm = dialog.getByRole("button", { name: "확인하고 일괄 추적 시작", exact: true });
+  await confirm.evaluate((button) => {
+    button.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    button.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+  });
+  await expect(dialog).toContainText("일괄 추적 결과를 확인했습니다");
+  await expect(dialog).toContainText("상태 제외");
+  expect(singleTrace.trackingPatches).toHaveLength(0);
+  expect(await page.locator(".c2l-detail-head h4").textContent()).toContain("인공지능 기반");
+  await expect(page.getByRole("combobox", { name: "선택 사유" })).toContainText("후속 사전규격·공고 확인");
+  await expect(page.getByTestId("order-plan-selection-toolbar")).toContainText("선택 0건");
+});
+
+test("BT-lost-response-keeps-identical-request-through-reload-and-manual-recovery", async ({ page }) => {
+  await mockOrderPlans(page);
+  const trace = await mockOrderPlanBulkTracking(page, "all-eligible");
+  let attempts = 0;
+  const lostRequests: Array<{ body: unknown; headers: Record<string, string> }> = [];
+  await page.route("**/api/opportunities/order-plan-tracking/bulk-start", async (route) => {
+    const request = route.request();
+    lostRequests.push({ body: request.postDataJSON(), headers: request.headers() });
+    attempts += 1;
+    if (attempts === 1) {
+      await route.abort("failed");
+      return;
+    }
+    await route.fallback();
+  });
+  await page.goto("/order-plans");
+  await page.locator(".c2l-row").first().locator('input[type="checkbox"]').check();
+  await page.getByRole("button", { name: "선택 항목 검토", exact: true }).click();
+  const dialog = page.getByTestId("order-plan-bulk-tracking-dialog");
+  await dialog.getByRole("button", { name: "선택 대상 미리보기", exact: true }).click();
+  await dialog.getByRole("textbox", { name: "공통 담당자 이름 · 감사 표식" }).fill("응답 복구 담당자");
+  await dialog.getByRole("textbox", { name: "공통 추적 사유" }).fill("응답 유실 확인");
+  await dialog.getByRole("button", { name: "확인하고 일괄 추적 시작", exact: true }).click();
+  await expect(dialog).toContainText("결과를 확인할 수 없습니다");
+  await page.reload();
+  await expect(page.getByTestId("order-plan-selection-toolbar")).toContainText("선택 1건");
+  await page.getByRole("button", { name: "선택 항목 검토", exact: true }).click();
+  const recovered = page.getByTestId("order-plan-bulk-tracking-dialog");
+  await expect(recovered).toContainText("저장된 요청 결과");
+  await recovered.getByRole("button", { name: "저장된 요청 결과 확인", exact: true }).click();
+  await expect(recovered).toContainText("일괄 추적 결과를 확인했습니다");
+  expect(lostRequests).toHaveLength(2);
+  expect(lostRequests[0].body).toEqual(lostRequests[1].body);
+  expect(lostRequests[0].headers["x-bidops-actor-name"]).toBe(lostRequests[1].headers["x-bidops-actor-name"]);
+  expect(trace.startPosts).toHaveLength(1);
+});
+
+test("BT-malformed-receipt-is-unconfirmed-and-preserves-selection", async ({ page }) => {
+  await mockOrderPlans(page);
+  await mockOrderPlanBulkTracking(page, "malformed-start");
+  await page.goto("/order-plans");
+  await page.locator(".c2l-row").first().locator('input[type="checkbox"]').check();
+  await page.getByRole("button", { name: "선택 항목 검토", exact: true }).click();
+  const dialog = page.getByTestId("order-plan-bulk-tracking-dialog");
+  await dialog.getByRole("button", { name: "선택 대상 미리보기", exact: true }).click();
+  await dialog.getByRole("textbox", { name: "공통 담당자 이름 · 감사 표식" }).fill("검증 담당자");
+  await dialog.getByRole("textbox", { name: "공통 추적 사유" }).fill("receipt 형식 확인");
+  await dialog.getByRole("button", { name: "확인하고 일괄 추적 시작", exact: true }).click();
+  await expect(dialog).toContainText("일괄 추적 결과를 확인할 수 없습니다");
+  await expect(page.getByTestId("order-plan-selection-toolbar")).toContainText("선택 1건");
+  await expect(dialog.getByRole("button", { name: "같은 요청 결과 확인", exact: true })).toBeVisible();
+});
+
+test("BT-gateway-error-preserves-unknown-request-identity", async ({ page }) => {
+  await mockOrderPlans(page);
+  await mockOrderPlanBulkTracking(page, "all-eligible");
+  const bodies: unknown[] = [];
+  await page.route("**/api/opportunities/order-plan-tracking/bulk-start", async (route) => {
+    bodies.push(route.request().postDataJSON());
+    await route.fulfill({ status: 502, contentType: "text/plain", body: "Bad Gateway" });
+  });
+  await page.goto("/order-plans");
+  await page.locator(".c2l-row").first().getByRole("checkbox").check();
+  await page.getByRole("button", { name: "선택 항목 검토", exact: true }).click();
+  const dialog = page.getByTestId("order-plan-bulk-tracking-dialog");
+  await dialog.getByRole("button", { name: "선택 대상 미리보기", exact: true }).click();
+  await dialog.getByRole("textbox", { name: "공통 담당자 이름 · 감사 표식" }).fill("검증 담당자");
+  await dialog.getByRole("textbox", { name: "공통 추적 사유" }).fill("응답 유실 확인");
+  await dialog.getByRole("button", { name: "확인하고 일괄 추적 시작", exact: true }).click();
+  const retry = dialog.getByRole("button", { name: "같은 요청 결과 확인", exact: true });
+  await expect(retry).toBeVisible();
+  await retry.click();
+  await expect.poll(() => bodies.length).toBe(2);
+  expect(bodies[1]).toEqual(bodies[0]);
+  await expect(page.getByTestId("order-plan-selection-toolbar")).toContainText("선택 1건");
+});
+
+test("BT-failed-only-retry-mints-a-new-key-only-after-human-confirmation", async ({ page }) => {
+  await mockOrderPlans(page);
+  await mockOrderPlanBulkTracking(page, "all-eligible");
+  const requestIds: string[] = [];
+  await page.route("**/api/opportunities/order-plan-tracking/bulk-start", async (route) => {
+    const body = route.request().postDataJSON() as { request_id: string; order_plan_ids: number[] };
+    requestIds.push(body.request_id);
+    const id = body.order_plan_ids[0];
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        schema_version: "order-plan-bulk-start-response.v1",
+        request_id: body.request_id,
+        completed_at: "2026-09-02T01:00:00.123456Z",
+        items: [{ order_plan_id: id, opportunity_id: null, outcome: "failed", status_at_decision: null, code: "order_plan_not_found", audit_event_id: null }],
+        summary: {
+          selected_plan_count: 1, unique_owner_count: 0, succeeded_plan_count: 0, succeeded_owner_count: 0,
+          excluded_plan_count: 0, excluded_by_status: {
+            "계속 추적": { plan_count: 0, owner_count: 0 }, "보류": { plan_count: 0, owner_count: 0 }, "종료": { plan_count: 0, owner_count: 0 },
+          }, failed_plan_count: 1,
+        },
+      }),
+    });
+  });
+  await page.goto("/order-plans");
+  await page.locator(".c2l-row").first().locator('input[type="checkbox"]').check();
+  await page.getByRole("button", { name: "선택 항목 검토", exact: true }).click();
+  const dialog = page.getByTestId("order-plan-bulk-tracking-dialog");
+  await dialog.getByRole("button", { name: "선택 대상 미리보기", exact: true }).click();
+  await dialog.getByRole("textbox", { name: "공통 담당자 이름 · 감사 표식" }).fill("실패 재시도 담당자");
+  await dialog.getByRole("textbox", { name: "공통 추적 사유" }).fill("실패 건을 다시 확인");
+  await dialog.getByRole("button", { name: "확인하고 일괄 추적 시작", exact: true }).click();
+  await expect(dialog).toContainText("실패 1건");
+  await expect(page.getByTestId("order-plan-selection-toolbar")).toContainText("선택 1건");
+  await dialog.getByRole("button", { name: "실패 건 재시도 준비", exact: true }).click();
+  await dialog.getByRole("button", { name: "선택 대상 미리보기", exact: true }).click();
+  await dialog.getByRole("button", { name: "확인하고 일괄 추적 시작", exact: true }).click();
+  await expect(dialog).toContainText("실패 1건");
+  const starts = await page.locator("body").evaluate(() => window.sessionStorage.getItem("bidops.order-plans.bulk-tracking.pending.v1"));
+  expect(starts).toBeNull();
+  expect(requestIds).toHaveLength(2);
+  expect(requestIds[0]).not.toBe(requestIds[1]);
+});
+
+test("BT-storage-quota-refusal-does-not-send-bulk-request", async ({ page }) => {
+  await page.addInitScript(() => {
+    const original = Storage.prototype.setItem;
+    Storage.prototype.setItem = function setItem(key: string, value: string) {
+      if (key === "bidops.order-plans.bulk-tracking.pending.v1") {
+        throw new DOMException("quota", "QuotaExceededError");
+      }
+      original.call(this, key, value);
+    };
+  });
+  await mockOrderPlans(page);
+  const trace = await mockOrderPlanBulkTracking(page, "all-eligible");
+  await page.goto("/order-plans");
+  await page.locator(".c2l-row").first().locator('input[type="checkbox"]').check();
+  await page.getByRole("button", { name: "선택 항목 검토", exact: true }).click();
+  const dialog = page.getByTestId("order-plan-bulk-tracking-dialog");
+  await dialog.getByRole("button", { name: "선택 대상 미리보기", exact: true }).click();
+  await dialog.getByRole("textbox", { name: "공통 담당자 이름 · 감사 표식" }).fill("저장 실패 담당자");
+  await dialog.getByRole("textbox", { name: "공통 추적 사유" }).fill("저장소 제한 확인");
+  await dialog.getByRole("button", { name: "확인하고 일괄 추적 시작", exact: true }).click();
+  await expect(dialog).toContainText("일괄 요청을 저장하지 못했습니다");
+  await expect(dialog).toContainText("단건 추적 경로를 사용하십시오");
+  expect(trace.startPosts).toHaveLength(0);
+});
+
+test("BT-confirmation-invalid-actor-or-reason-is-disabled-without-start-request", async ({ page }) => {
+  await mockOrderPlans(page);
+  const trace = await mockOrderPlanBulkTracking(page, "all-eligible");
+  await page.goto("/order-plans");
+  await page.locator(".c2l-row").first().locator('input[type="checkbox"]').check();
+  await page.getByRole("button", { name: "선택 항목 검토", exact: true }).click();
+  const dialog = page.getByTestId("order-plan-bulk-tracking-dialog");
+  // Preview intentionally remains available without attribution fields.
+  await dialog.getByRole("button", { name: "선택 대상 미리보기", exact: true }).click();
+  const confirm = dialog.getByRole("button", { name: "확인하고 일괄 추적 시작", exact: true });
+  await dialog.getByRole("textbox", { name: "공통 담당자 이름 · 감사 표식" }).fill("system");
+  await dialog.getByRole("textbox", { name: "공통 추적 사유" }).fill("유효한 사유");
+  await expect(confirm).toBeDisabled();
+  await expect(dialog).toContainText("system을 사용할 수 없습니다");
+  await dialog.getByRole("textbox", { name: "공통 담당자 이름 · 감사 표식" }).fill("정상 담당자");
+  await dialog.getByRole("textbox", { name: "공통 추적 사유" }).fill("   ");
+  await expect(confirm).toBeDisabled();
+  await expect(dialog).toContainText("공통 추적 사유를 입력하십시오");
+  expect(trace.previewPosts).toHaveLength(1);
+  expect(trace.startPosts).toHaveLength(0);
+});
+
+test("BT-same-frame-double-confirm-keeps-one-persisted-request-identity", async ({ page }) => {
+  await mockOrderPlans(page);
+  const trace = await mockOrderPlanBulkTracking(page, "all-eligible");
+  const wire: Array<{ body: unknown; actor: string }> = [];
+  let releaseLost: (() => void) | null = null;
+  const lostGate = new Promise<void>((resolve) => { releaseLost = resolve; });
+  await page.route("**/api/opportunities/order-plan-tracking/bulk-start", async (route) => {
+    const request = route.request();
+    wire.push({ body: request.postDataJSON(), actor: request.headers()["x-bidops-actor-name"] ?? "" });
+    if (wire.length === 1) {
+      await lostGate;
+      await route.abort("failed");
+      return;
+    }
+    await route.fallback();
+  });
+  await page.goto("/order-plans");
+  await page.locator(".c2l-row").first().locator('input[type="checkbox"]').check();
+  await page.getByRole("button", { name: "선택 항목 검토", exact: true }).click();
+  const dialog = page.getByTestId("order-plan-bulk-tracking-dialog");
+  await dialog.getByRole("button", { name: "선택 대상 미리보기", exact: true }).click();
+  await dialog.getByRole("textbox", { name: "공통 담당자 이름 · 감사 표식" }).fill("중복 확인 담당자");
+  await dialog.getByRole("textbox", { name: "공통 추적 사유" }).fill("같은 프레임 중복 확인");
+  const confirm = dialog.getByRole("button", { name: "확인하고 일괄 추적 시작", exact: true });
+  await confirm.evaluate((button) => {
+    button.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    button.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+  });
+  await expect(dialog).toContainText("일괄 추적 저장 중");
+  const pendingRaw = await page.evaluate(() => window.sessionStorage.getItem("bidops.order-plans.bulk-tracking.pending.v1"));
+  expect(pendingRaw).not.toBeNull();
+  const pending = JSON.parse(pendingRaw as string) as { request_id: string };
+  expect(pending.request_id).toMatch(/^[0-9a-f-]{36}$/i);
+  releaseLost?.();
+  await expect(dialog).toContainText("결과를 확인할 수 없습니다");
+  await dialog.getByRole("button", { name: "같은 요청 결과 확인", exact: true }).click();
+  await expect(dialog).toContainText("일괄 추적 결과를 확인했습니다");
+  expect(wire).toHaveLength(2);
+  expect(wire[0].body).toEqual(wire[1].body);
+  expect((wire[0].body as { request_id: string }).request_id).toBe(pending.request_id);
+  expect(wire[0].actor).toBe(wire[1].actor);
+  expect(trace.startPosts).toHaveLength(1);
+});
+
+test("BT-unknown-request-recovery-remains-reachable-after-filter-generation-clears-selection", async ({ page }) => {
+  await mockOrderPlans(page);
+  await mockOrderPlanBulkTracking(page, "all-eligible");
+  await page.route("**/api/opportunities/order-plan-tracking/bulk-start", async (route) => {
+    await route.abort("failed");
+  });
+  await page.goto("/order-plans");
+  await page.locator(".c2l-row").first().locator('input[type="checkbox"]').check();
+  await page.getByRole("button", { name: "선택 항목 검토", exact: true }).click();
+  const dialog = page.getByTestId("order-plan-bulk-tracking-dialog");
+  await dialog.getByRole("button", { name: "선택 대상 미리보기", exact: true }).click();
+  await dialog.getByRole("textbox", { name: "공통 담당자 이름 · 감사 표식" }).fill("복구 담당자");
+  await dialog.getByRole("textbox", { name: "공통 추적 사유" }).fill("필터 전환 뒤 결과 확인");
+  await dialog.getByRole("button", { name: "확인하고 일괄 추적 시작", exact: true }).click();
+  await expect(dialog).toContainText("결과를 확인할 수 없습니다");
+  await dialog.getByRole("button", { name: "닫기", exact: true }).click();
+  await clickPreset(page, "전체");
+  await expect(page.getByTestId("order-plan-selection-toolbar")).toContainText("선택 0건");
+  await expect(page.getByRole("button", { name: "저장된 일괄 요청 확인", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "저장된 일괄 요청 확인", exact: true }).click();
+  const recovery = page.getByTestId("order-plan-bulk-tracking-dialog");
+  await expect(recovery).toContainText("저장된 요청 결과를 아직 확인하지 않았습니다");
+  await expect(recovery.getByRole("button", { name: "저장된 요청 결과 확인", exact: true })).toBeVisible();
+});
+
+test("BT-late-preview-from-closed-dialog-cannot-overwrite-reopened-binding", async ({ page }) => {
+  await mockOrderPlans(page);
+  await mockOrderPlanBulkTracking(page, "all-eligible");
+  let releaseFirst: (() => void) | null = null;
+  let previewCalls = 0;
+  const firstPreview = new Promise<void>((resolve) => { releaseFirst = resolve; });
+  await page.route("**/api/opportunities/order-plan-tracking/preview", async (route) => {
+    previewCalls += 1;
+    if (previewCalls === 1) await firstPreview;
+    await route.fallback();
+  });
+  await page.goto("/order-plans");
+  const rows = page.locator(".c2l-row");
+  await rows.nth(0).locator('input[type="checkbox"]').check();
+  await page.getByRole("button", { name: "선택 항목 검토", exact: true }).click();
+  let dialog = page.getByTestId("order-plan-bulk-tracking-dialog");
+  await dialog.getByRole("button", { name: "선택 대상 미리보기", exact: true }).click();
+  await expect(dialog).toContainText("선택 대상의 최신 상태");
+  await dialog.getByRole("button", { name: "닫기", exact: true }).click();
+  await rows.nth(0).locator('input[type="checkbox"]').uncheck();
+  await rows.nth(1).locator('input[type="checkbox"]').check();
+  await page.getByRole("button", { name: "선택 항목 검토", exact: true }).click();
+  dialog = page.getByTestId("order-plan-bulk-tracking-dialog");
+  await dialog.getByRole("button", { name: "선택 대상 미리보기", exact: true }).click();
+  await expect(dialog.locator('[data-testid="order-plan-bulk-preview"]')).toContainText("102");
+  releaseFirst?.();
+  await expect(dialog.locator('[data-testid="order-plan-bulk-preview"]')).toContainText("102");
+  await expect(dialog.locator('[data-testid="order-plan-bulk-preview"]')).not.toContainText("101");
+});
+
+test("BT-preview-binding-refuses-confirm-after-browser-filter-generation-change", async ({ page }) => {
+  await mockOrderPlans(page);
+  const trace = await mockOrderPlanBulkTracking(page, "all-eligible");
+  await page.goto("/order-plans");
+  await page.locator(".c2l-row").first().locator('input[type="checkbox"]').check();
+  await page.getByRole("button", { name: "선택 항목 검토", exact: true }).click();
+  const dialog = page.getByTestId("order-plan-bulk-tracking-dialog");
+  await dialog.getByRole("button", { name: "선택 대상 미리보기", exact: true }).click();
+  await expect(dialog.locator('[data-testid="order-plan-bulk-preview"]')).toBeVisible();
+  await page.evaluate(() => {
+    window.history.pushState({}, "", "/order-plans?q=브라우저-뒤로앞으로");
+    window.dispatchEvent(new PopStateEvent("popstate"));
+  });
+  const confirm = dialog.getByRole("button", { name: "확인하고 일괄 추적 시작", exact: true });
+  await expect(confirm).toBeDisabled();
+  await expect(dialog).toContainText("현재 선택과 미리보기의 기준이 다릅니다");
+  expect(trace.startPosts).toHaveLength(0);
+});
+
+test("BT-bulk-actor-and-reason-drafts-do-not-mutate-single-drafts", async ({ page }) => {
+  await mockOrderPlans(page);
+  await mockOrderPlanBulkTracking(page, "all-eligible");
+  await page.goto("/order-plans");
+  await page.locator(".c2l-row").first().click();
+  await selectReason(page, "후속 사전규격·공고 확인");
+  await page.getByLabel("담당자 이름 · 감사 표식").fill("단건 담당자");
+  await page.locator(".c2l-row").first().locator('input[type="checkbox"]').check();
+  await page.getByRole("button", { name: "선택 항목 검토", exact: true }).click();
+  const dialog = page.getByTestId("order-plan-bulk-tracking-dialog");
+  await dialog.getByRole("textbox", { name: "공통 담당자 이름 · 감사 표식" }).fill("일괄 담당자");
+  await dialog.getByRole("textbox", { name: "공통 추적 사유" }).fill("일괄 전용 사유");
+  await dialog.getByRole("button", { name: "닫기", exact: true }).click();
+  await expect(page.locator(".c2l-tracking").getByLabel("담당자 이름 · 감사 표식")).toHaveValue("단건 담당자");
+  await expect(page.getByRole("combobox", { name: "선택 사유" })).toContainText("후속 사전규격·공고 확인");
+});
+
+test("BT-valid-receipt-stays-definitive-when-post-result-invalidation-fails", async ({ page }) => {
+  await mockOrderPlans(page);
+  await mockOrderPlanBulkTracking(page, "all-eligible");
+  let listReads = 0;
+  await page.route("**/api/order-plans**", async (route) => {
+    if (route.request().method() !== "GET") {
+      await route.fallback();
+      return;
+    }
+    listReads += 1;
+    if (listReads > 1) {
+      await route.fulfill({
+        status: 503,
+        contentType: "application/json",
+        body: JSON.stringify({ error: { code: "service_unavailable", message: "ignored", details: null } }),
+      });
+      return;
+    }
+    await route.fallback();
+  });
+  await page.goto("/order-plans");
+  await page.locator(".c2l-row").first().locator('input[type="checkbox"]').check();
+  await page.getByRole("button", { name: "선택 항목 검토", exact: true }).click();
+  const dialog = page.getByTestId("order-plan-bulk-tracking-dialog");
+  await dialog.getByRole("button", { name: "선택 대상 미리보기", exact: true }).click();
+  await dialog.getByRole("textbox", { name: "공통 담당자 이름 · 감사 표식" }).fill("결과 담당자");
+  await dialog.getByRole("textbox", { name: "공통 추적 사유" }).fill("결과 확정 후 목록 갱신");
+  await dialog.getByRole("button", { name: "확인하고 일괄 추적 시작", exact: true }).click();
+  await expect(dialog).toContainText("일괄 추적 결과를 확인했습니다");
+  await expect(dialog).not.toContainText("일괄 추적 결과를 확인할 수 없습니다");
 });

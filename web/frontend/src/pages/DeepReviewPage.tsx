@@ -29,6 +29,7 @@ import { ReviewHistoryLinkRail, StickyDecisionHeader } from "../components/commo
 import { describeApiError } from "../lib/apiErrors";
 import { TERM } from "../lib/glossary";
 import { qualityStatusLabel, qualityStatusNote, qualityStatusVariant } from "../lib/qualityStatus";
+import { generateRequestId } from "../lib/requestId";
 import type {
   AttemptView,
   DeepReviewReport,
@@ -237,7 +238,7 @@ export function DeepReviewPage() {
       if (!draft || !reportView) throw new Error("수정할 보고서가 없습니다.");
       const ids = factualEvidenceText.split(",").map((value) => value.trim()).filter(Boolean);
       return saveRevision(reviewId, actorName, {
-        request_id: crypto.randomUUID(), base_revision_id: reportView.current_revision_id, report: draft,
+        request_id: generateRequestId(), base_revision_id: reportView.current_revision_id, report: draft,
         reason: revisionReason, factual_change_evidence_ids: ids,
       });
     },
@@ -252,7 +253,7 @@ export function DeepReviewPage() {
     mutationFn: () => {
       if (!reportView) throw new Error("현재 보고서가 없습니다.");
       return saveFinalOpinion(reviewId, actorName, {
-        request_id: crypto.randomUUID(), report_revision_id: reportView.current_revision_id,
+        request_id: generateRequestId(), report_revision_id: reportView.current_revision_id,
         validation_run_id: reportView.validation.validation_run_id, value: opinionValue,
         reason: opinionReason, acknowledged_validation_failure: acknowledged,
       });

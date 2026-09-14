@@ -1,14 +1,6 @@
-import { useEffect } from "react";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "../ui/alert-dialog";
+import { useId } from "react";
+import { Button as AstryxButton } from "@astryxdesign/core/Button";
+import { Dialog as AstryxDialog } from "@astryxdesign/core/Dialog";
 import "../../styles/confirm-decision-dialog.css";
 
 /**
@@ -78,6 +70,83 @@ export interface ConfirmDecisionDialogProps {
   isPending?: boolean;
 }
 
+export function ConfirmDecisionDialog({
+  open,
+  title,
+  tone = "decision",
+  warning = TONE_WARNING[tone],
+  summary = [],
+  cancelLabel = "취소",
+  confirmLabel,
+  onConfirm,
+  onOpenChange,
+  isPending = false,
+}: ConfirmDecisionDialogProps) {
+  const id = useId().replace(/:/g, "");
+  const titleId = `confirm-decision-dialog-title-${id}`;
+  const descriptionId = `confirm-decision-dialog-description-${id}`;
+  return (
+    <AstryxDialog
+      aria-describedby={descriptionId}
+      aria-labelledby={titleId}
+      aria-modal="true"
+      className="confirm-decision-dialog"
+      data-astryx-theme="bidops"
+      data-tone={tone}
+      data-slot="alert-dialog-content"
+      isOpen={open}
+      onOpenChange={(next) => {
+        if (!next && !isPending) onOpenChange(false);
+      }}
+      // Unsaved guards and irreversible confirmations historically dismissed
+      // on backdrop click. Astryx's info purpose preserves that behavior while
+      // keeping Escape and native focus trapping in the same implementation.
+      purpose="info"
+      role="alertdialog"
+      width={560}
+      maxHeight="90dvh"
+      style={{ pointerEvents: "auto" }}
+    >
+      <header className="confirm-decision-dialog-header">
+        <span className="confirm-decision-dialog-kicker">
+          {TONE_KICKER[tone]}
+        </span>
+        <h2 id={titleId} data-slot="alert-dialog-title">{title}</h2>
+        <p id={descriptionId} data-slot="alert-dialog-description">{warning}</p>
+      </header>
+      {summary.length ? (
+        <dl className="confirm-decision-dialog-summary">
+          {summary.map((entry) => (
+            <div className="confirm-decision-dialog-summary-row" key={entry.label}>
+              <dt>{entry.label}</dt>
+              <dd>{entry.value}</dd>
+            </div>
+          ))}
+        </dl>
+      ) : null}
+      <footer className="confirm-decision-dialog-footer" data-slot="alert-dialog-footer">
+        <AstryxButton
+          className="confirm-decision-dialog-cancel"
+          data-autofocus="true"
+          data-slot="alert-dialog-cancel"
+          isDisabled={isPending}
+          label={cancelLabel}
+          onClick={() => onOpenChange(false)}
+          variant="secondary"
+        />
+        <AstryxButton
+          className="confirm-decision-dialog-confirm"
+          data-slot="alert-dialog-action"
+          isDisabled={isPending}
+          label={isPending ? "저장 중…" : confirmLabel}
+          onClick={onConfirm}
+          variant="primary"
+        />
+      </footer>
+    </AstryxDialog>
+  );
+}
+
 /** 긴 사유를 요약 줄 하나에 담는다. 값이 없으면 `값 없음`이며 빈 문자열로 두지 않는다. */
 export function decisionSummaryExcerpt(value: string, limit = 120): string {
   const trimmed = value.trim();
@@ -109,84 +178,4 @@ export function trackingEndConfirmContent({
       { label: "사유", value: decisionSummaryExcerpt(reason) },
     ],
   };
-}
-
-export function ConfirmDecisionDialog({
-  open,
-  onOpenChange,
-  title,
-  summary = [],
-  tone = "decision",
-  warning = TONE_WARNING[tone],
-  confirmLabel,
-  cancelLabel = "취소",
-  onConfirm,
-  isPending = false,
-}: ConfirmDecisionDialogProps) {
-  // radix의 AlertDialog는 바깥 클릭을 자기 handler로 막고 그 handler를 caller가
-  // 되돌릴 수 없다(`onInteractOutside`를 뒤에서 덮어쓴다). 이 단계가 지켜야 할
-  // 것은 "확인 없이는 저장하지 않는다" 하나이고 취소는 언제든 쉬워야 하므로,
-  // overlay를 누른 것은 취소로 읽는다. 저장 요청이 나간 뒤에는 닫지 않는다.
-  useEffect(() => {
-    if (!open) return undefined;
-    const handlePointerDown = (event: PointerEvent) => {
-      const target = event.target;
-      if (!(target instanceof Element)) return;
-      if (!target.closest('[data-slot="alert-dialog-overlay"]')) return;
-      if (isPending) return;
-      onOpenChange(false);
-    };
-    document.addEventListener("pointerdown", handlePointerDown, true);
-    return () => document.removeEventListener("pointerdown", handlePointerDown, true);
-  }, [isPending, onOpenChange, open]);
-
-  return (
-    <AlertDialog
-      open={open}
-      onOpenChange={(next) => {
-        // 저장 요청이 나간 동안에는 Esc로 닫지 않는다. 요청 결과는 화면의 기존
-        // 인라인 오류·성공 표시가 받는다.
-        if (!next && isPending) return;
-        onOpenChange(next);
-      }}
-    >
-      <AlertDialogContent className="confirm-decision-dialog" data-astryx-theme="bidops" data-tone={tone}>
-        <AlertDialogHeader className="confirm-decision-dialog-header">
-          <span className="confirm-decision-dialog-kicker">{TONE_KICKER[tone]}</span>
-          <AlertDialogTitle>{title}</AlertDialogTitle>
-          <AlertDialogDescription>{warning}</AlertDialogDescription>
-        </AlertDialogHeader>
-
-        {summary.length ? (
-          <dl className="confirm-decision-dialog-summary">
-            {summary.map((entry) => (
-              <div className="confirm-decision-dialog-summary-row" key={entry.label}>
-                <dt>{entry.label}</dt>
-                <dd>{entry.value}</dd>
-              </div>
-            ))}
-          </dl>
-        ) : null}
-
-        <AlertDialogFooter className="confirm-decision-dialog-footer">
-          {/* 열릴 때 초점은 취소에 있다(radix AlertDialog 기본). 실수로 Enter를
-              눌러도 저장이 아니라 취소가 된다. */}
-          <AlertDialogCancel className="confirm-decision-dialog-cancel" disabled={isPending}>
-            {cancelLabel}
-          </AlertDialogCancel>
-          <AlertDialogAction
-            className="confirm-decision-dialog-confirm"
-            disabled={isPending}
-            onClick={(event) => {
-              // 닫는 시점은 부르는 화면이 mutation 결과로 정한다.
-              event.preventDefault();
-              onConfirm();
-            }}
-          >
-            {isPending ? "저장 중…" : confirmLabel}
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
-  );
 }

@@ -18,6 +18,7 @@ import type {
   PatchDocumentVersionPayload,
   ReportView,
 } from "./types";
+import { generateRequestId } from "../../lib/requestId";
 
 const API_PREFIX = "/api";
 const UTF8_ACTOR_PREFIX = "UTF-8''";
@@ -145,7 +146,7 @@ export function uploadDocument(
   bundleId: string,
   file: File,
   actorName: string,
-  requestId: string = crypto.randomUUID(),
+  requestId: string = generateRequestId(),
 ): Promise<DocumentVersionView> {
   const form = new FormData();
   form.append("file", file);
@@ -199,7 +200,7 @@ export function getDocumentSegments(structureId: string): Promise<DocumentSegmen
 
 export function createDeepReview(noticeId: number, bundleId: string, actorName: string): Promise<DeepReviewView> {
   const payload: CreateDeepReviewPayload = {
-    request_id: crypto.randomUUID(),
+    request_id: generateRequestId(),
     bundle_id: bundleId,
   };
   return request<DeepReviewView>(`/notices/${encodeURIComponent(noticeId)}/deep-reviews`, {
@@ -212,7 +213,7 @@ export function createDeepReview(noticeId: number, bundleId: string, actorName: 
 export function createDeepReviewAttempt(
   deepReviewId: string,
   actorName: string,
-  requestId: string = crypto.randomUUID(),
+  requestId: string = generateRequestId(),
 ): Promise<AttemptView> {
   const payload: CreateDeepReviewAttemptPayload = { request_id: requestId };
   return request<AttemptView>(`/deep-reviews/${encodeURIComponent(deepReviewId)}/attempts`, {

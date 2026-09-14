@@ -28,6 +28,8 @@ export interface RouteCrumb {
   /** 이동할 화면이 없으면 `null`이다(그룹 라벨, 현재 위치인 마지막 칸). */
   to: string | null;
   role: RouteCrumbRole;
+  /** 상세에서 목록 query를 복원해야 하는 화면만 표시한다. */
+  context?: "pre-spec-list";
 }
 
 export interface RouteAncestor {
@@ -307,6 +309,7 @@ export function resolveRouteLocation(
     label: metadata.title,
     to: trailingRecord ? metadata.listPath : null,
     role: "screen",
+    ...(trailingRecord && metadata.listPath === "/pre-specs" ? { context: "pre-spec-list" as const } : {}),
   });
   if (trailingRecord) crumbs.push({ label: trailingRecord.label, to: trailingRecord.to, role: "record" });
   const topbarMode: RouteTopbarMode = metadata.topbar === "title" && record === null ? "title" : "breadcrumb";

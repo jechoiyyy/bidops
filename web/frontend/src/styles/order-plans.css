@@ -1739,3 +1739,118 @@
 .c2l-feedback-actions .review-decision-action {
   margin-left: auto;
 }
+
+/* 목록의 활성 행과 독립적인 checked 묶음. */
+.c2l-selection-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.c2l-selection-toolbar > span {
+  margin-right: auto;
+  font-weight: 700;
+}
+
+.c2l-selection-storage-warning {
+  margin: 0;
+  padding: var(--spacing-1-5) var(--spacing-2);
+  border: var(--border-width) solid var(--color-warning-edge);
+  border-radius: var(--radius-sm);
+  color: var(--color-warning);
+  overflow-wrap: anywhere;
+}
+
+.c2l-bulk-dialog {
+  min-width: 0;
+}
+
+.c2l-bulk-dialog .c2l-dialog-body {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--spacing-3);
+}
+
+.c2l-bulk-selection-summary,
+.c2l-bulk-actions,
+.c2l-bulk-pending,
+.c2l-bulk-error,
+.c2l-bulk-recovery,
+.c2l-bulk-result {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-2);
+}
+
+.c2l-bulk-selection-summary > span:last-child {
+  overflow-wrap: anywhere;
+}
+
+.c2l-bulk-actions {
+  justify-content: flex-end;
+}
+
+.c2l-bulk-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--spacing-2);
+  margin: 0;
+}
+
+.c2l-bulk-facts > div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--spacing-0-5);
+  padding: var(--spacing-2);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-background-muted);
+}
+
+.c2l-bulk-facts span {
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+}
+
+.c2l-bulk-facts strong {
+  overflow-wrap: anywhere;
+}
+
+.c2l-bulk-error {
+  align-items: flex-start;
+  flex-direction: column;
+  padding: var(--spacing-2);
+  border: var(--border-width) solid var(--color-error-edge);
+  border-radius: var(--radius-sm);
+  background: var(--color-error-bg);
+  color: var(--color-error);
+}
+
+.c2l-bulk-error code,
+.c2l-bulk-pending code {
+  overflow-wrap: anywhere;
+}
+
+.c2l-bulk-recovery,
+.c2l-bulk-pending {
+  align-items: flex-start;
+  flex-direction: column;
+  padding: var(--spacing-2);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-background-muted);
+}
+
+.c2l-bulk-failures {
+  width: 100%;
+  max-height: 180px;
+  margin: 0;
+  overflow-y: auto;
+  padding-left: var(--spacing-4);
+}

@@ -49,6 +49,15 @@ export function DenseList({ children, className, ref, ...props }: DenseListProps
   );
 }
 
+export interface DenseListRowSelection {
+  /** Native checkbox state; row active state remains the separate `selected` prop. */
+  checked: boolean;
+  /** Called by the checkbox's native change event or row Space handling. */
+  onCheckedChange: (checked: boolean) => void;
+  /** The business-identifying accessible name announced for this checkbox. */
+  ariaLabel: string;
+}
+
 export interface DenseListRowProps extends Omit<
   ListItemProps,
   "description" | "endContent" | "isDisabled" | "isSelected" | "label" | "onClick" | "startContent"
@@ -60,6 +69,8 @@ export interface DenseListRowProps extends Omit<
   selected?: boolean;
   startContent?: ReactNode;
   disabled?: boolean;
+  /** Opt in to an independent native checkbox for this row. */
+  selection?: DenseListRowSelection;
   ref?: Ref<HTMLLIElement>;
 }
 
@@ -75,11 +86,15 @@ export function DenseListRow({
   role,
   ref,
   selected = false,
+  selection,
   startContent,
   tabIndex,
   ...props
 }: DenseListRowProps) {
-  const rowRole = role ?? (onSelect ? "button" : undefined);
+  // In selection mode the root stays a real list item.  Passing a role to
+  // Astryx ListItem suppresses its invisible button, leaving the checkbox and
+  // the row focus target as separate controls.
+  const rowRole = selection ? "listitem" : role ?? (onSelect ? "button" : undefined);
   const handleClick = (event: ReactMouseEvent<Element>) => {
     if (disabled || !onSelect) return;
     const target = event.target;
@@ -87,13 +102,57 @@ export function DenseListRow({
     onSelect();
   };
   const handleKeyDown = (event: ReactKeyboardEvent<HTMLLIElement>) => {
+    const target = event.target;
+    const interactiveDescendant = target !== event.currentTarget
+      && target instanceof Element
+      && Boolean(target.closest("a,button,input,select,textarea,[contenteditable]"));
+    // A child checkbox/input owns its own keyboard contract. In particular,
+    // native checkbox Space must reach its onChange exactly once.
+    if (selection && interactiveDescendant) {
+      event.stopPropagation();
+      return;
+    }
     onKeyDown?.(event);
-    if (event.defaultPrevented || disabled || !onSelect) return;
-    if (event.key === "Enter" || event.key === " ") {
+    if (event.defaultPrevented || disabled) return;
+    if (selection && event.key === " ") {
+      if (
+        target !== event.currentTarget
+        || !selected
+        || event.nativeEvent.isComposing
+        || event.ctrlKey
+        || event.altKey
+        || event.metaKey
+        || event.shiftKey
+      ) return;
+      event.preventDefault();
+      if (event.repeat) return;
+      selection.onCheckedChange(!selection.checked);
+      return;
+    }
+    if (!onSelect) return;
+    if (event.key === "Enter") {
+      // Ctrl/Cmd+Enter is owned by the page's existing single-record action.
+      // Let it bubble without consuming it here.
+      if (event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return;
+      event.preventDefault();
+      onSelect();
+      return;
+    }
+    if (event.key === " ") {
       event.preventDefault();
       onSelect();
     }
   };
+  const selectionControl = selection ? (
+    <input
+      aria-label={selection.ariaLabel}
+      checked={selection.checked}
+      data-checked={selection.checked ? "true" : "false"}
+      disabled={disabled}
+      type="checkbox"
+      onChange={(event) => selection.onCheckedChange(event.target.checked)}
+    />
+  ) : null;
   return (
     <ListItem
       {...props}
@@ -106,11 +165,12 @@ export function DenseListRow({
       isSelected={selected}
       label={label}
       onClick={onSelect ? handleClick : undefined}
-      onKeyDown={onSelect ? handleKeyDown : onKeyDown}
+      onKeyDown={selection || onSelect ? handleKeyDown : onKeyDown}
       ref={ref}
       role={rowRole}
-      startContent={startContent}
+      startContent={selection ? <>{selectionControl}{startContent}</> : startContent}
       tabIndex={rowRole ? (disabled ? -1 : tabIndex ?? 0) : tabIndex}
+      data-selection-mode={selection ? "multiple" : undefined}
     />
   );
 }

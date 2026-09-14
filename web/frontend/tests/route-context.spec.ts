@@ -1,5 +1,5 @@
-import { expect, test } from "@playwright/test";
-import { mockApi } from "./api-mock";
+import { expect, test, type Page } from "@playwright/test";
+import { mockApi, visualPreSpecNotice } from "./api-mock";
 
 const RUN_ID = "20260817-20260823--20260824T090927.138116Z";
 
@@ -290,4 +290,215 @@ test("사업 추적에서 연 심층 검토 보고서는 사업 추적 아래로
     "심층 검토 보고서",
     "fixture-…",
   ]);
+});
+
+// ── PN 상세 선택 순회 context --------------------------------------------
+// 목록 통합 테스트와 분리해, 저장된 opaque context가 상세 shell에서만
+// 사용되고 오류·새로고침에도 임의 재구성되지 않는지만 확인한다.
+const PN_REVIEW_ID = "11111111-1111-4111-8111-111111111111";
+const PN_REVIEW_STORAGE_KEY = `bidops.pre-specs.review.v1.${PN_REVIEW_ID}`;
+const PN_REVIEW = {
+  version: 1,
+  reviewId: PN_REVIEW_ID,
+  orderedNoticeIds: [991, 992],
+  listSearch: "sw_only=false&q=%EC%95%88%EC%A0%84&offset=200",
+  filterFingerprint: "pn-route-context",
+  selectionGeneration: 7,
+  entryNoticeId: 991,
+};
+
+async function seedPreSpecReview(page: Page) {
+  await page.addInitScript(({ key, value }) => {
+    window.sessionStorage.setItem(key, JSON.stringify(value));
+  }, { key: PN_REVIEW_STORAGE_KEY, value: PN_REVIEW });
+}
+
+async function mockSecondPreSpecNotice(page: Page) {
+  await page.route("**/api/notices/992", async (route) => {
+    if (route.request().method() !== "GET") {
+      await route.fallback();
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        ...visualPreSpecNotice,
+        id: 992,
+        notice_key: "pre-spec:992",
+        title: "두 번째 사전규격 상세",
+        agency: "두 번째 발주기관",
+        lifecycle: { pre_spec_no: "PRE-992" },
+      }),
+    });
+  });
+}
+
+test("PN-02 선택 상세 navigation은 저장된 snapshot 인접 ID만 이동한다", async ({ page }) => {
+  await seedPreSpecReview(page);
+  await page.goto(`/pre-specs/991?${PN_REVIEW.listSearch}&selection_review=${PN_REVIEW_ID}`);
+
+  const navigation = page.getByRole("navigation", { name: "사전규격 선택 순회" });
+  await expect(navigation.locator("strong")).toHaveText("1 / 2");
+  await expect(navigation.getByRole("button", { name: "이전 선택 사전규격" })).toBeDisabled();
+  await expect(navigation.getByRole("button", { name: "다음 선택 사전규격" })).toBeEnabled();
+
+  await navigation.getByRole("button", { name: "다음 선택 사전규격" }).click();
+  await expect.poll(() => new URL(page.url()).pathname).toBe("/pre-specs/992");
+  await expect.poll(() => new URL(page.url()).searchParams.get("selection_review")).toBe(PN_REVIEW_ID);
+  await expect(navigation.locator("strong")).toHaveText("2 / 2");
+  await expect(navigation.getByRole("button", { name: "다음 선택 사전규격" })).toBeDisabled();
+});
+
+test("PN-03 상세 새로고침과 오류 branch도 위치·목록 context를 보존한다", async ({ page }) => {
+  await seedPreSpecReview(page);
+  await page.goto(`/pre-specs/991?${PN_REVIEW.listSearch}&selection_review=${PN_REVIEW_ID}`);
+
+  const navigation = page.getByRole("navigation", { name: "사전규격 선택 순회" });
+  await expect(navigation.locator("strong")).toHaveText("1 / 2");
+  await expect(page.locator(".ps-record-list-link")).toHaveAttribute(
+    "href",
+    "/pre-specs?sw_only=false&q=%EC%95%88%EC%A0%84&offset=200",
+  );
+  await expect(page.locator("header.topbar .topbar-crumb-link[href^='/pre-specs']")).toHaveAttribute(
+    "href",
+    "/pre-specs?sw_only=false&q=%EC%95%88%EC%A0%84&offset=200",
+  );
+
+  await page.reload();
+  await expect(navigation.locator("strong")).toHaveText("1 / 2");
+  await expect(page.locator(".ps-record-list-link")).toHaveAttribute(
+    "href",
+    "/pre-specs?sw_only=false&q=%EC%95%88%EC%A0%84&offset=200",
+  );
+
+  await navigation.getByRole("button", { name: "다음 선택 사전규격" }).click();
+  await expect(navigation.locator("strong")).toHaveText("2 / 2");
+  await expect(page.getByText("사전규격 992 상세를 불러오지 못했습니다.")).toBeVisible();
+  await expect(page.getByRole("link", { name: "사전규격 목록", exact: true })).toHaveAttribute(
+    "href",
+    "/pre-specs?sw_only=false&q=%EC%95%88%EC%A0%84&offset=200",
+  );
+});
+
+test("PN-04 token 없는 직접 주소는 저장된 선택과 무관하게 단건 mode다", async ({ page }) => {
+  await seedPreSpecReview(page);
+  await page.goto(`/pre-specs/991?${PN_REVIEW.listSearch}`);
+
+  const navigation = page.getByRole("navigation", { name: "사전규격 선택 순회" });
+  await expect(navigation.locator("strong")).toHaveText("단건 상세");
+  await expect(navigation.getByRole("button", { name: "이전 선택 사전규격" })).toBeDisabled();
+  await expect(navigation.getByRole("button", { name: "다음 선택 사전규격" })).toBeDisabled();
+  await expect(page.locator(".ps-record-list-link")).toHaveAttribute(
+    "href",
+    "/pre-specs?sw_only=false&q=%EC%95%88%EC%A0%84&offset=200",
+  );
+  await expect(page.locator("header.topbar .topbar-crumb-link[href^='/pre-specs']")).toHaveAttribute(
+    "href",
+    "/pre-specs?sw_only=false&q=%EC%95%88%EC%A0%84&offset=200",
+  );
+});
+
+test("PN-05 notice mismatch에서도 navigation shell은 위치를 잃지 않는다", async ({ page }) => {
+  await seedPreSpecReview(page);
+  await page.route("**/api/notices/991", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ ...visualPreSpecNotice, id: 992, source_type: "bid" }),
+    });
+  });
+  await page.goto(`/pre-specs/991?${PN_REVIEW.listSearch}&selection_review=${PN_REVIEW_ID}`);
+
+  const navigation = page.getByRole("navigation", { name: "사전규격 선택 순회" });
+  await expect(navigation.locator("strong")).toHaveText("1 / 2");
+  await expect(page.getByText("사전규격을 확인할 수 없습니다.")).toBeVisible();
+  await expect(navigation.getByRole("button", { name: "이전 선택 사전규격" })).toBeDisabled();
+  await expect(navigation.getByRole("button", { name: "다음 선택 사전규격" })).toBeEnabled();
+});
+
+test("PN-05 projection 부분 오류에서도 notice 본문과 navigation을 유지한다", async ({ page }) => {
+  await seedPreSpecReview(page);
+  await page.route((url) => url.pathname === "/api/pre-specs" && url.searchParams.get("notice_pk") === "991", async (route) => {
+    await route.fulfill({
+      status: 503,
+      contentType: "application/json",
+      body: JSON.stringify({ detail: "projection unavailable" }),
+    });
+  });
+  await page.goto(`/pre-specs/991?${PN_REVIEW.listSearch}&selection_review=${PN_REVIEW_ID}`);
+
+  const navigation = page.getByRole("navigation", { name: "사전규격 선택 순회" });
+  await expect(navigation.locator("strong")).toHaveText("1 / 2");
+  await expect(page.getByRole("heading", { name: "안전한 문서 준비 사전규격" })).toBeVisible();
+  await expect(page.getByText("첨부 원문 취득 집계를 불러오지 못했습니다.")).toBeVisible();
+  await expect(navigation.getByRole("button", { name: "다음 선택 사전규격" })).toBeEnabled();
+});
+
+test("PN-06 빠른 A→B 전환에서 늦은 A 응답이 B record를 덮지 않는다", async ({ page }) => {
+  await seedPreSpecReview(page);
+  await mockSecondPreSpecNotice(page);
+  let releaseNoticeA!: () => void;
+  const noticeAReady = new Promise<void>((resolve) => { releaseNoticeA = resolve; });
+  await page.route("**/api/notices/991", async (route) => {
+    await noticeAReady;
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(visualPreSpecNotice),
+    });
+  });
+
+  await page.goto(`/pre-specs/991?${PN_REVIEW.listSearch}&selection_review=${PN_REVIEW_ID}`, {
+    waitUntil: "domcontentloaded",
+  });
+  const navigation = page.getByRole("navigation", { name: "사전규격 선택 순회" });
+  await expect(navigation.locator("strong")).toHaveText("1 / 2");
+  await navigation.getByRole("button", { name: "다음 선택 사전규격" }).click();
+  await expect.poll(() => new URL(page.url()).pathname).toBe("/pre-specs/992");
+  await expect(page.getByRole("heading", { name: "두 번째 사전규격 상세" })).toBeVisible();
+  await expect(page.getByText("두 번째 발주기관")).toBeVisible();
+  await expect(page.getByText("PRE-992")).toBeVisible();
+
+  // The old request is resolved only after the new record is mounted. Its
+  // response must be ignored/aborted and never replace B's record fields.
+  releaseNoticeA();
+  await expect(page.getByRole("heading", { name: "두 번째 사전규격 상세" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "안전한 문서 준비 사전규격" })).toHaveCount(0);
+});
+
+test("PN-06 record key가 문서 패널 상태를 초기화하고 guard 취소는 A를 보존한다", async ({ page }) => {
+  await seedPreSpecReview(page);
+  await mockSecondPreSpecNotice(page);
+  await page.goto(`/pre-specs/991?${PN_REVIEW.listSearch}&selection_review=${PN_REVIEW_ID}`);
+
+  const panelToggle = page.getByRole("button", { name: "문서 준비 닫기", exact: true });
+  await expect(panelToggle).toBeVisible();
+  await panelToggle.click();
+  await expect(page.getByRole("button", { name: "문서 준비 열기", exact: true })).toBeVisible();
+
+  const navigation = page.getByRole("navigation", { name: "사전규격 선택 순회" });
+  await navigation.getByRole("button", { name: "다음 선택 사전규격" }).click();
+  await expect(page.getByRole("heading", { name: "두 번째 사전규격 상세" })).toBeVisible();
+  // B's keyed body uses its own default (no stale closed override from A).
+  await expect(page.getByRole("button", { name: "문서 준비 닫기", exact: true })).toBeVisible();
+
+  // 992 has a mutable tracking form. Moving back while it is dirty opens the
+  // existing child SPA guard; cancelling leaves B, its values, and context.
+  const reason = page.getByRole("combobox", { name: "선택 사유" });
+  await reason.click();
+  await page.getByRole("option", { name: "후속 입찰공고 확인" }).click();
+  const actor = page.getByRole("textbox", { name: "담당자 이름 (필수)" });
+  await actor.fill("PN-06 담당자");
+  await navigation.getByRole("button", { name: "이전 선택 사전규격" }).click();
+
+  const guard = page.getByRole("alertdialog");
+  await expect(guard).toBeVisible();
+  await expect(guard).toContainText("저장하지 않은 추적 결정 사유와 담당자 이름이 있습니다.");
+  await guard.getByRole("button", { name: "계속 편집", exact: true }).click();
+  await expect(guard).toHaveCount(0);
+  await expect.poll(() => new URL(page.url()).pathname).toBe("/pre-specs/992");
+  await expect(reason).toContainText("후속 입찰공고 확인");
+  await expect(actor).toHaveValue("PN-06 담당자");
+  await expect(navigation.locator("strong")).toHaveText("2 / 2");
 });

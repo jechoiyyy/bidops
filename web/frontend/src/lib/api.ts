@@ -48,6 +48,16 @@ import type {
   OpportunityLinkView,
   OpportunityListQuery,
   OpportunityListResponse,
+  OpportunityTrackingStatus,
+  OrderPlanBulkExcludedStatus,
+  OrderPlanBulkFailureCode,
+  OrderPlanBulkPreviewItem,
+  OrderPlanBulkPreviewResponse,
+  OrderPlanBulkStartItem,
+  OrderPlanBulkStartRequest,
+  OrderPlanBulkStartResponse,
+  OrderPlanBulkStatusCount,
+  OrderPlanBulkSummary,
   PolicyActivationRequest,
   PolicyActivationResponse,
   PolicyCandidateRequest,
@@ -126,6 +136,431 @@ function actorHeaders(actorName: string): Record<string, string> {
     "X-BidOps-Actor-Name": `UTF-8''${encodeURIComponent(trimmed)}`,
     "X-BidOps-Actor-Name-Format": "utf-8-percent-v1",
   };
+}
+
+/** A response was received, but it cannot safely be treated as a bulk receipt. */
+export class OrderPlanBulkTrackingResultUnconfirmedError extends ApiError {
+  constructor() {
+    super(0, "일괄 추적 결과를 확인할 수 없습니다.", { code: "result_unconfirmed" });
+    this.name = "OrderPlanBulkTrackingResultUnconfirmedError";
+  }
+}
+
+const BULK_EXCLUDED_STATUSES = ["계속 추적", "보류", "종료"] as const;
+const BULK_TRACKING_STATUSES = ["미선택", ...BULK_EXCLUDED_STATUSES] as const;
+const BULK_ELIGIBILITIES = ["eligible", "excluded", "failed"] as const;
+const BULK_OUTCOMES = ["succeeded", "excluded", "failed"] as const;
+const BULK_FAILURE_CODES = [
+  "order_plan_not_found",
+  "owning_opportunity_missing",
+  "owner_changed",
+  "ownership_conflict",
+  "processing_failed",
+  "temporarily_unavailable",
+] as const;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const AWARE_TIMESTAMP_PATTERN = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
+
+const PREVIEW_RESPONSE_KEYS = [
+  "schema_version", "selected_plan_count", "unique_owner_count",
+  "eligible_plan_count", "eligible_owner_count", "excluded_by_status",
+  "failure_plan_count", "items",
+] as const;
+const PREVIEW_ITEM_KEYS = [
+  "order_plan_id", "opportunity_id", "tracking_status", "eligibility", "code",
+] as const;
+const START_RESPONSE_KEYS = ["schema_version", "request_id", "completed_at", "items", "summary"] as const;
+const START_ITEM_KEYS = [
+  "order_plan_id", "opportunity_id", "outcome", "status_at_decision", "code", "audit_event_id",
+] as const;
+const SUMMARY_KEYS = [
+  "selected_plan_count", "unique_owner_count", "succeeded_plan_count",
+  "succeeded_owner_count", "excluded_plan_count", "excluded_by_status", "failed_plan_count",
+] as const;
+const STATUS_COUNT_KEYS = ["plan_count", "owner_count"] as const;
+
+type UnknownRecord = Record<string, unknown>;
+
+function exactRecord(value: unknown, keys: readonly string[]): UnknownRecord | null {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
+  const actual = Object.keys(value);
+  if (actual.length !== keys.length || !keys.every((key) => actual.includes(key))) return null;
+  const record: UnknownRecord = {};
+  for (const key of actual) {
+    record[key] = Object.getOwnPropertyDescriptor(value, key)?.value;
+  }
+  return record;
+}
+
+function strictInteger(value: unknown, minimum = 0): value is number {
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= minimum;
+}
+
+function positiveId(value: unknown): value is number {
+  return strictInteger(value, 1);
+}
+
+function nullablePositiveId(value: unknown): number | null | undefined {
+  if (value === null) return null;
+  return positiveId(value) ? value : undefined;
+}
+
+function nullableTrackingStatus(value: unknown): OpportunityTrackingStatus | null | undefined {
+  if (value === null) return null;
+  for (const status of BULK_TRACKING_STATUSES) {
+    if (value === status) return status;
+  }
+  return undefined;
+}
+
+function nullableFailureCode(value: unknown): OrderPlanBulkFailureCode | null | undefined {
+  if (value === null) return null;
+  for (const code of BULK_FAILURE_CODES) {
+    if (value === code) return code;
+  }
+  return undefined;
+}
+
+function isUuid(value: unknown): value is string {
+  return typeof value === "string" && UUID_PATTERN.test(value);
+}
+
+function isAwareTimestamp(value: unknown): value is string {
+  if (typeof value !== "string") return false;
+  const match = AWARE_TIMESTAMP_PATTERN.exec(value);
+  if (!match) return false;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const hour = Number(match[4]);
+  const minute = Number(match[5]);
+  const second = Number(match[6]);
+  const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  return year >= 1
+    && month >= 1 && month <= 12
+    && day >= 1 && day <= daysInMonth
+    && hour >= 0 && hour <= 23
+    && minute >= 0 && minute <= 59
+    && second >= 0 && second <= 59
+    && Number.isFinite(Date.parse(value));
+}
+
+function normalizedPlanIds(ids: readonly number[]): number[] {
+  if (!Array.isArray(ids) || ids.length === 0 || ids.some((id) => !positiveId(id))) {
+    throw new ApiError(422, "요청 형식이 올바르지 않습니다.", { code: "invalid_request" });
+  }
+  return [...new Set(ids)].sort((left, right) => left - right);
+}
+
+function parseStatusCount(value: unknown): OrderPlanBulkStatusCount | null {
+  const record = exactRecord(value, STATUS_COUNT_KEYS);
+  if (!record || !strictInteger(record.plan_count) || !strictInteger(record.owner_count)) return null;
+  return { plan_count: record.plan_count, owner_count: record.owner_count };
+}
+
+function parseExcludedByStatus(
+  value: unknown,
+): Record<OrderPlanBulkExcludedStatus, OrderPlanBulkStatusCount> | null {
+  const record = exactRecord(value, BULK_EXCLUDED_STATUSES);
+  if (!record) return null;
+  const continueCount = parseStatusCount(record["계속 추적"]);
+  const holdCount = parseStatusCount(record["보류"]);
+  const endCount = parseStatusCount(record["종료"]);
+  if (!continueCount || !holdCount || !endCount) return null;
+  return { "계속 추적": continueCount, "보류": holdCount, "종료": endCount };
+}
+
+function parsePreviewItem(value: unknown): OrderPlanBulkPreviewItem | null {
+  const record = exactRecord(value, PREVIEW_ITEM_KEYS);
+  if (!record || !positiveId(record.order_plan_id)) return null;
+  const opportunityId = nullablePositiveId(record.opportunity_id);
+  const trackingStatus = nullableTrackingStatus(record.tracking_status);
+  const code = nullableFailureCode(record.code);
+  if (opportunityId === undefined || trackingStatus === undefined || code === undefined) return null;
+  let eligibility: OrderPlanBulkPreviewItem["eligibility"] | undefined;
+  for (const candidate of BULK_ELIGIBILITIES) {
+    if (record.eligibility === candidate) {
+      eligibility = candidate;
+      break;
+    }
+  }
+  if (!eligibility) return null;
+  if (eligibility === "eligible" && (opportunityId === null || trackingStatus !== "미선택" || code !== null)) return null;
+  if (
+    eligibility === "excluded"
+    && (opportunityId === null
+      || trackingStatus === null
+      || !BULK_EXCLUDED_STATUSES.some((status) => status === trackingStatus)
+      || code !== null)
+  ) return null;
+  if (eligibility === "failed" && code === null) return null;
+  return {
+    order_plan_id: record.order_plan_id,
+    opportunity_id: opportunityId,
+    tracking_status: trackingStatus,
+    eligibility,
+    code,
+  };
+}
+
+function parsePreviewResponse(
+  value: unknown,
+  expectedIds: readonly number[],
+): OrderPlanBulkPreviewResponse {
+  const record = exactRecord(value, PREVIEW_RESPONSE_KEYS);
+  if (!record || record.schema_version !== "order-plan-bulk-preview-response.v1") {
+    throw new OrderPlanBulkTrackingResultUnconfirmedError();
+  }
+  const excludedByStatus = parseExcludedByStatus(record.excluded_by_status);
+  if (!excludedByStatus || !strictInteger(record.selected_plan_count, 1)
+      || !strictInteger(record.unique_owner_count)
+      || !strictInteger(record.eligible_plan_count)
+      || !strictInteger(record.eligible_owner_count)
+      || !strictInteger(record.failure_plan_count)
+      || !Array.isArray(record.items)
+      || record.items.length !== expectedIds.length) {
+    throw new OrderPlanBulkTrackingResultUnconfirmedError();
+  }
+  const items: OrderPlanBulkPreviewItem[] = [];
+  for (let index = 0; index < record.items.length; index += 1) {
+    const item = parsePreviewItem(record.items[index]);
+    if (!item || item.order_plan_id !== expectedIds[index]) {
+      throw new OrderPlanBulkTrackingResultUnconfirmedError();
+    }
+    items.push(item);
+  }
+  if (
+    record.selected_plan_count !== expectedIds.length
+    || new Set(items.map((item) => item.order_plan_id)).size !== expectedIds.length
+  ) {
+    throw new OrderPlanBulkTrackingResultUnconfirmedError();
+  }
+  const eligible = items.filter((item) => item.eligibility === "eligible");
+  const excluded = items.filter((item) => item.eligibility === "excluded");
+  const failed = items.filter((item) => item.eligibility === "failed");
+  const ownerIds = new Set(items.flatMap((item) => item.opportunity_id === null ? [] : [item.opportunity_id]));
+  const eligibleOwnerIds = new Set(
+    eligible.flatMap((item) => item.opportunity_id === null ? [] : [item.opportunity_id]),
+  );
+  if (
+    record.unique_owner_count !== ownerIds.size
+    || record.eligible_plan_count !== eligible.length
+    || record.eligible_owner_count !== eligibleOwnerIds.size
+    || record.failure_plan_count !== failed.length
+  ) {
+    throw new OrderPlanBulkTrackingResultUnconfirmedError();
+  }
+  const ownerEligibility = new Map<number, string>();
+  for (const item of items) {
+    if (item.opportunity_id === null) continue;
+    const resultKey = [item.eligibility, item.tracking_status, item.code].join("|");
+    const previous = ownerEligibility.get(item.opportunity_id);
+    if (previous !== undefined && previous !== resultKey) {
+      throw new OrderPlanBulkTrackingResultUnconfirmedError();
+    }
+    ownerEligibility.set(item.opportunity_id, resultKey);
+  }
+  for (const status of BULK_EXCLUDED_STATUSES) {
+    const matching = excluded.filter((item) => item.tracking_status === status);
+    const count = excludedByStatus[status];
+    if (
+      count.plan_count !== matching.length
+      || count.owner_count !== new Set(
+        matching.flatMap((item) => item.opportunity_id === null ? [] : [item.opportunity_id]),
+      ).size
+    ) {
+      throw new OrderPlanBulkTrackingResultUnconfirmedError();
+    }
+  }
+  return {
+    schema_version: "order-plan-bulk-preview-response.v1",
+    selected_plan_count: record.selected_plan_count,
+    unique_owner_count: record.unique_owner_count,
+    eligible_plan_count: record.eligible_plan_count,
+    eligible_owner_count: record.eligible_owner_count,
+    excluded_by_status: excludedByStatus,
+    failure_plan_count: record.failure_plan_count,
+    items,
+  };
+}
+
+function parseStartItem(value: unknown): OrderPlanBulkStartItem | null {
+  const record = exactRecord(value, START_ITEM_KEYS);
+  if (!record || !positiveId(record.order_plan_id)) return null;
+  const opportunityId = nullablePositiveId(record.opportunity_id);
+  const status = nullableTrackingStatus(record.status_at_decision);
+  const code = nullableFailureCode(record.code);
+  const auditEventId = record.audit_event_id === null
+    ? null
+    : isUuid(record.audit_event_id) ? record.audit_event_id : undefined;
+  if (opportunityId === undefined || status === undefined || code === undefined || auditEventId === undefined) return null;
+  let outcome: OrderPlanBulkStartItem["outcome"] | undefined;
+  for (const candidate of BULK_OUTCOMES) {
+    if (record.outcome === candidate) {
+      outcome = candidate;
+      break;
+    }
+  }
+  if (!outcome) return null;
+  if (
+    outcome === "succeeded"
+    && (opportunityId === null || status !== "계속 추적" || code !== null || auditEventId === null)
+  ) return null;
+  if (
+    outcome === "excluded"
+    && (opportunityId === null
+      || status === null
+      || !BULK_EXCLUDED_STATUSES.some((candidate) => candidate === status)
+      || code !== null
+      || auditEventId !== null)
+  ) return null;
+  if (outcome === "failed" && (code === null || auditEventId !== null)) return null;
+  return {
+    order_plan_id: record.order_plan_id,
+    opportunity_id: opportunityId,
+    outcome,
+    status_at_decision: status,
+    code,
+    audit_event_id: auditEventId,
+  };
+}
+
+function parseSummary(value: unknown): OrderPlanBulkSummary | null {
+  const record = exactRecord(value, SUMMARY_KEYS);
+  if (
+    !record
+    || !strictInteger(record.selected_plan_count, 1)
+    || !strictInteger(record.unique_owner_count)
+    || !strictInteger(record.succeeded_plan_count)
+    || !strictInteger(record.succeeded_owner_count)
+    || !strictInteger(record.excluded_plan_count)
+    || !strictInteger(record.failed_plan_count)
+  ) return null;
+  const excludedByStatus = parseExcludedByStatus(record.excluded_by_status);
+  if (!excludedByStatus) return null;
+  return {
+    selected_plan_count: record.selected_plan_count,
+    unique_owner_count: record.unique_owner_count,
+    succeeded_plan_count: record.succeeded_plan_count,
+    succeeded_owner_count: record.succeeded_owner_count,
+    excluded_plan_count: record.excluded_plan_count,
+    excluded_by_status: excludedByStatus,
+    failed_plan_count: record.failed_plan_count,
+  };
+}
+
+/**
+ * Parse a v1 preview and verify that the response is for exactly the selected
+ * set.  This is exported so consumers cannot accidentally bypass the wire
+ * contract when supplying a custom transport.
+ */
+export function parseOrderPlanBulkPreviewResponse(
+  value: unknown,
+  requestedIds: readonly number[],
+): OrderPlanBulkPreviewResponse {
+  return parsePreviewResponse(value, normalizedPlanIds(requestedIds));
+}
+
+/**
+ * Parse a v1 final receipt.  The expected request ID is optional for callers
+ * that only have a stored receipt; the API client always supplies it.
+ */
+export function parseOrderPlanBulkStartResponse(
+  value: unknown,
+  requestedIds: readonly number[],
+  expectedRequestId?: string,
+): OrderPlanBulkStartResponse {
+  const expectedIds = normalizedPlanIds(requestedIds);
+  const record = exactRecord(value, START_RESPONSE_KEYS);
+  if (
+    !record
+    || record.schema_version !== "order-plan-bulk-start-response.v1"
+    || !isUuid(record.request_id)
+    || (expectedRequestId !== undefined && record.request_id.toLowerCase() !== expectedRequestId.toLowerCase())
+    || !isAwareTimestamp(record.completed_at)
+    || !Array.isArray(record.items)
+    || record.items.length !== expectedIds.length
+  ) throw new OrderPlanBulkTrackingResultUnconfirmedError();
+  const summary = parseSummary(record.summary);
+  if (!summary) throw new OrderPlanBulkTrackingResultUnconfirmedError();
+  const items: OrderPlanBulkStartItem[] = [];
+  for (let index = 0; index < record.items.length; index += 1) {
+    const item = parseStartItem(record.items[index]);
+    if (!item || item.order_plan_id !== expectedIds[index]) {
+      throw new OrderPlanBulkTrackingResultUnconfirmedError();
+    }
+    items.push(item);
+  }
+  const succeeded = items.filter((item) => item.outcome === "succeeded");
+  const excluded = items.filter((item) => item.outcome === "excluded");
+  const failed = items.filter((item) => item.outcome === "failed");
+  const ownerIds = new Set(items.flatMap((item) => item.opportunity_id === null ? [] : [item.opportunity_id]));
+  const succeededOwnerIds = new Set(
+    succeeded.flatMap((item) => item.opportunity_id === null ? [] : [item.opportunity_id]),
+  );
+  if (
+    summary.selected_plan_count !== expectedIds.length
+    || new Set(items.map((item) => item.order_plan_id)).size !== expectedIds.length
+    || summary.succeeded_plan_count !== succeeded.length
+    || summary.excluded_plan_count !== excluded.length
+    || summary.failed_plan_count !== failed.length
+    || summary.unique_owner_count !== ownerIds.size
+    || summary.succeeded_owner_count !== succeededOwnerIds.size
+    || summary.selected_plan_count
+      !== summary.succeeded_plan_count + summary.excluded_plan_count + summary.failed_plan_count
+  ) throw new OrderPlanBulkTrackingResultUnconfirmedError();
+  const ownerResults = new Map<number, string>();
+  for (const item of items) {
+    if (item.opportunity_id === null) continue;
+    const resultKey = [
+      item.outcome,
+      item.status_at_decision,
+      item.code,
+      item.audit_event_id,
+    ].join("|");
+    const previous = ownerResults.get(item.opportunity_id);
+    if (previous !== undefined && previous !== resultKey) {
+      throw new OrderPlanBulkTrackingResultUnconfirmedError();
+    }
+    ownerResults.set(item.opportunity_id, resultKey);
+  }
+  for (const status of BULK_EXCLUDED_STATUSES) {
+    const matching = excluded.filter((item) => item.status_at_decision === status);
+    const count = summary.excluded_by_status[status];
+    if (
+      count.plan_count !== matching.length
+      || count.owner_count !== new Set(
+        matching.flatMap((item) => item.opportunity_id === null ? [] : [item.opportunity_id]),
+      ).size
+    ) throw new OrderPlanBulkTrackingResultUnconfirmedError();
+  }
+  return {
+    schema_version: "order-plan-bulk-start-response.v1",
+    request_id: record.request_id,
+    completed_at: record.completed_at,
+    items,
+    summary,
+  };
+}
+
+async function requestBulkResponse<T>(
+  path: string,
+  init: RequestInit,
+  parse: (body: unknown) => T,
+): Promise<T> {
+  let body: unknown;
+  try {
+    body = await request<unknown>(path, init);
+  } catch (error) {
+    if (error instanceof ApiError && error.status !== 0) throw error;
+    throw new OrderPlanBulkTrackingResultUnconfirmedError();
+  }
+  try {
+    return parse(body);
+  } catch (error) {
+    if (error instanceof OrderPlanBulkTrackingResultUnconfirmedError) throw error;
+    throw new OrderPlanBulkTrackingResultUnconfirmedError();
+  }
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -809,7 +1244,8 @@ export const api = {
   preSpecOverviewSnapshotPdfUrl: (noticeId: number) =>
     `${API_PREFIX}/pre-specs/${noticeId}/overview/snapshot/pdf`,
 
-  getNotice: (noticePk: number) => request<NoticeDetailResponse>(`/notices/${noticePk}`),
+  getNotice: (noticePk: number, options: ReadRequestOptions = {}) =>
+    request<NoticeDetailResponse>(`/notices/${noticePk}`, { signal: options.signal }),
 
   getNoticeAttachments: (noticePk: number) =>
     request<AttachmentProcedureResponse>(`/notices/${noticePk}/attachments`),
@@ -883,6 +1319,34 @@ export const api = {
 
   getOpportunity: (opportunityId: number, options?: ReadRequestOptions) =>
     request<OpportunityDetailResponse>(`/opportunities/${opportunityId}`, options),
+
+  /** Preview the selected plans without creating a decision or receipt. */
+  previewOrderPlanTracking: (orderPlanIds: readonly number[], options?: ReadRequestOptions) =>
+    requestBulkResponse(
+      "/opportunities/order-plan-tracking/preview",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          schema_version: "order-plan-bulk-preview-request.v1",
+          order_plan_ids: orderPlanIds,
+        }),
+        signal: options?.signal,
+      },
+      (body) => parseOrderPlanBulkPreviewResponse(body, orderPlanIds),
+    ),
+
+  /** Start tracking and return the server's durable, replayable receipt. */
+  startOrderPlanTracking: (payload: OrderPlanBulkStartRequest, actorName: string) =>
+    requestBulkResponse(
+      "/opportunities/order-plan-tracking/bulk-start",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...actorHeaders(actorName) },
+        body: JSON.stringify(payload),
+      },
+      (body) => parseOrderPlanBulkStartResponse(body, payload.order_plan_ids, payload.request_id),
+    ),
 
   /** 후보 연결 하나에 사람 판정을 남긴다. 응답은 갱신된 연결 하나다. */
   decideOpportunityLink: (

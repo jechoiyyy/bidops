@@ -6,11 +6,13 @@ import type {
   BidDeltaDecisionQueueItem, OpportunityListItem, OpportunitySectionCounts,
   OpportunityTrackingDecisionItem, OpportunityTrackingStatus, OrderPlanListItem,
   OrderPlanListScope, OrderPlanScreeningExecutionSummary, OrderPlanScreeningErrorCode,
-  OrderPlanTracking, OverviewEnvelope, OverviewRun, PreSpecListItem, WorkloadKey, WorkloadResponse,
+  OrderPlanTracking, OrderPlanBulkPreviewResponse, OrderPlanBulkStartResponse,
+  OverviewEnvelope, OverviewRun, PreSpecListItem, WorkloadKey, WorkloadResponse,
 } from "../src/lib/types";
 import { clickReadyUnlinkedPreSpec, decisionQueueItems, opportunityDeepReviews, opportunityTrackingHistory } from "./fixtures/lifecycle-v2";
 
 const opportunityFixtures = new WeakMap<Page, OpportunityListItem[]>();
+const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const workloadProviders = new WeakMap<Page, Map<WorkloadKey, () => { count: number | null; unavailable_reason: string | null }>>();
 function workloadProvider(page: Page, key: WorkloadKey, provider: () => { count: number | null; unavailable_reason: string | null }) {
   let providers = workloadProviders.get(page);
@@ -2202,7 +2204,6 @@ export async function mockOrderPlans(page: Page, scenario: OrderPlanMockScenario
     : { count: null, unavailable_reason: "no_completed_execution" });
 
   const createdRequests = new Map<string, { payload: string; response: unknown }>();
-  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   async function error(route: Route, code: OrderPlanScreeningErrorCode, requestId: unknown = null, status = 409) {
     await fulfillJson(route, { error: { code, message: "합성 안정 오류", details: null }, request_id: typeof requestId === "string" && uuidPattern.test(requestId) ? requestId : null }, status);
   }
@@ -2302,6 +2303,273 @@ export async function mockOrderPlans(page: Page, scenario: OrderPlanMockScenario
         }
         await fulfillJson(route, { id: opportunityId, tracking_status: saved.tracking_status, tracking_reason: saved.tracking_reason, tracking_selected_by: saved.tracking_selected_by, tracking_selected_at: saved.tracking_selected_at, recheck_signal: false, recheck_signal_at: null, recheck_signal_link_id: null, first_registered_stage: "order_plan", section: status === "계속 추적" ? "추적 중" : status === "보류" ? "보류" : status === "종료" ? "추적 종료" : null, pending_candidate_link_count: 0, open_blocking_item_count: 0, links: [] }); return;
       }
+    }
+    await route.fallback();
+  });
+  return trace;
+}
+
+/**
+ * Named v1 fixture for the order-plan bulk tracking endpoints.  It is
+ * deliberately separate from mockOrderPlans so existing C-2 route fixtures
+ * retain their original behavior.
+ */
+export type OrderPlanBulkMockScenario =
+  | "mixed"
+  | "all-eligible"
+  | "malformed-preview"
+  | "malformed-start"
+  | "server-error"
+  | "validation-error";
+
+export interface OrderPlanBulkMockOptions {
+  previewResponse?: unknown;
+  startResponse?: unknown;
+  errorStatus?: number;
+}
+
+export interface OrderPlanBulkMockTrace {
+  previewPosts: Array<{ body: unknown }>;
+  startPosts: Array<{ body: unknown; headers: Record<string, string> }>;
+}
+
+const BULK_MOCK_AUDIT_ID = "f2f4d7c1-0a61-4f07-8d2e-000000000001";
+
+function bulkMockIds(value: unknown): number[] {
+  if (!Array.isArray(value)) return [];
+  return [...new Set(value.filter((item): item is number => typeof item === "number" && Number.isInteger(item) && item > 0))]
+    .sort((left, right) => left - right);
+}
+
+function validBulkIdList(value: unknown): value is number[] {
+  return Array.isArray(value)
+    && value.length > 0
+    && value.every((item) => typeof item === "number" && Number.isInteger(item) && item > 0);
+}
+
+function hasBulkKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {
+  const actual = Object.keys(value);
+  return actual.length === keys.length && keys.every((key) => actual.includes(key));
+}
+
+function bulkMockPreview(ids: readonly number[], allEligible = false): OrderPlanBulkPreviewResponse {
+  const items: OrderPlanBulkPreviewResponse["items"] = ids.map((orderPlanId) => {
+    if (!allEligible && orderPlanId === 999) {
+      return {
+        order_plan_id: orderPlanId, opportunity_id: null, tracking_status: null,
+        eligibility: "failed" as const, code: "order_plan_not_found" as const,
+      };
+    }
+    if (!allEligible && orderPlanId === 103) {
+      return {
+        order_plan_id: orderPlanId, opportunity_id: 5103, tracking_status: "보류" as const,
+        eligibility: "excluded" as const, code: null,
+      };
+    }
+    if (!allEligible && orderPlanId === 104) {
+      return {
+        order_plan_id: orderPlanId, opportunity_id: 5104, tracking_status: "종료" as const,
+        eligibility: "excluded" as const, code: null,
+      };
+    }
+    return {
+      order_plan_id: orderPlanId, opportunity_id: 5101, tracking_status: "미선택" as const,
+      eligibility: "eligible" as const, code: null,
+    };
+  });
+  const eligible = items.filter((item) => item.eligibility === "eligible");
+  const excluded = items.filter((item) => item.eligibility === "excluded");
+  const failed = items.filter((item) => item.eligibility === "failed");
+  const excludedByStatus = {
+    "계속 추적": {
+      plan_count: excluded.filter((item) => item.tracking_status === "계속 추적").length,
+      owner_count: new Set(excluded.filter((item) => item.tracking_status === "계속 추적").map((item) => item.opportunity_id)).size,
+    },
+    "보류": {
+      plan_count: excluded.filter((item) => item.tracking_status === "보류").length,
+      owner_count: new Set(excluded.filter((item) => item.tracking_status === "보류").map((item) => item.opportunity_id)).size,
+    },
+    "종료": {
+      plan_count: excluded.filter((item) => item.tracking_status === "종료").length,
+      owner_count: new Set(excluded.filter((item) => item.tracking_status === "종료").map((item) => item.opportunity_id)).size,
+    },
+  };
+  return {
+    schema_version: "order-plan-bulk-preview-response.v1",
+    selected_plan_count: ids.length,
+    unique_owner_count: new Set(items.flatMap((item) => item.opportunity_id === null ? [] : [item.opportunity_id])).size,
+    eligible_plan_count: eligible.length,
+    eligible_owner_count: new Set(eligible.flatMap((item) => item.opportunity_id === null ? [] : [item.opportunity_id])).size,
+    excluded_by_status: excludedByStatus,
+    failure_plan_count: failed.length,
+    items,
+  };
+}
+
+function bulkMockStart(
+  requestId: string,
+  ids: readonly number[],
+  scenario: OrderPlanBulkMockScenario,
+): unknown {
+  const preview = bulkMockPreview(ids, scenario === "all-eligible");
+  const items = preview.items.map((item) => item.eligibility === "eligible"
+    ? {
+      order_plan_id: item.order_plan_id, opportunity_id: item.opportunity_id,
+      outcome: "succeeded" as const, status_at_decision: "계속 추적" as const,
+      code: null, audit_event_id: BULK_MOCK_AUDIT_ID,
+    }
+    : item.eligibility === "excluded"
+      ? {
+        order_plan_id: item.order_plan_id, opportunity_id: item.opportunity_id,
+        outcome: "excluded" as const, status_at_decision: item.tracking_status!,
+        code: null, audit_event_id: null,
+      }
+      : {
+        order_plan_id: item.order_plan_id, opportunity_id: item.opportunity_id,
+        outcome: "failed" as const, status_at_decision: item.tracking_status,
+        code: item.code!, audit_event_id: null,
+      });
+  const excluded = items.filter((item) => item.outcome === "excluded");
+  const response: OrderPlanBulkStartResponse = {
+    schema_version: "order-plan-bulk-start-response.v1",
+    request_id: requestId,
+    completed_at: "2026-09-02T01:00:00.123456Z",
+    items,
+    summary: {
+      selected_plan_count: ids.length,
+      unique_owner_count: new Set(items.flatMap((item) => item.opportunity_id === null ? [] : [item.opportunity_id])).size,
+      succeeded_plan_count: items.filter((item) => item.outcome === "succeeded").length,
+      succeeded_owner_count: new Set(items.filter((item) => item.outcome === "succeeded").flatMap((item) => item.opportunity_id === null ? [] : [item.opportunity_id])).size,
+      excluded_plan_count: excluded.length,
+      excluded_by_status: {
+        "계속 추적": {
+          plan_count: excluded.filter((item) => item.status_at_decision === "계속 추적").length,
+          owner_count: new Set(excluded.filter((item) => item.status_at_decision === "계속 추적").map((item) => item.opportunity_id)).size,
+        },
+        "보류": {
+          plan_count: excluded.filter((item) => item.status_at_decision === "보류").length,
+          owner_count: new Set(excluded.filter((item) => item.status_at_decision === "보류").map((item) => item.opportunity_id)).size,
+        },
+        "종료": {
+          plan_count: excluded.filter((item) => item.status_at_decision === "종료").length,
+          owner_count: new Set(excluded.filter((item) => item.status_at_decision === "종료").map((item) => item.opportunity_id)).size,
+        },
+      },
+      failed_plan_count: items.filter((item) => item.outcome === "failed").length,
+    },
+  };
+  if (scenario === "malformed-start") {
+    return withBulkMockExtraField(response);
+  }
+  return response;
+}
+
+function withBulkMockExtraField(value: unknown): unknown {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return { private_debug: "must-not-leak" };
+  }
+  return Object.assign({}, value, { private_debug: "must-not-leak" });
+}
+
+/** Register only the explicit order-plan bulk v1 routes. */
+export async function mockOrderPlanBulkTracking(
+  page: Page,
+  scenario: OrderPlanBulkMockScenario = "mixed",
+  options: OrderPlanBulkMockOptions = {},
+): Promise<OrderPlanBulkMockTrace> {
+  const trace: OrderPlanBulkMockTrace = { previewPosts: [], startPosts: [] };
+  const receipts = new Map<string, { fingerprint: string; response: unknown }>();
+  await page.route("**/api/**", async (route) => {
+    const request = route.request();
+    const pathname = new URL(request.url()).pathname;
+    const method = request.method();
+    if (pathname === "/api/opportunities/order-plan-tracking/preview" && method === "POST") {
+      const body = fixtureRecord(request.postDataJSON()) ?? {};
+      trace.previewPosts.push({ body });
+      if (scenario === "server-error") {
+        await fulfillJson(route, {
+          error: { code: "processing_failed", message: "합성 안정 오류", details: null },
+          request_id: null,
+        }, options.errorStatus ?? 500);
+        return;
+      }
+      if (scenario === "validation-error") {
+        await fulfillJson(route, {
+          detail: [{ type: "literal_error", loc: ["body", "schema_version"], msg: "invalid", input: body.schema_version }],
+        }, 422);
+        return;
+      }
+      if (
+        !hasBulkKeys(body, ["schema_version", "order_plan_ids"])
+        || body.schema_version !== "order-plan-bulk-preview-request.v1"
+        || !validBulkIdList(body.order_plan_ids)
+      ) {
+        await fulfillJson(route, {
+          detail: [{ type: "value_error", loc: ["body"], msg: "invalid", input: body }],
+        }, 422);
+        return;
+      }
+      const ids = bulkMockIds(body.order_plan_ids);
+      const response = options.previewResponse ?? bulkMockPreview(ids, scenario === "all-eligible");
+      if (scenario === "malformed-preview" && options.previewResponse === undefined) {
+        await fulfillJson(route, withBulkMockExtraField(response));
+        return;
+      }
+      await fulfillJson(route, response);
+      return;
+    }
+    if (pathname === "/api/opportunities/order-plan-tracking/bulk-start" && method === "POST") {
+      const body = fixtureRecord(request.postDataJSON()) ?? {};
+      const headers = request.headers();
+      trace.startPosts.push({ body, headers });
+      const requestId = typeof body.request_id === "string" ? body.request_id : null;
+      if (scenario === "server-error") {
+        await fulfillJson(route, {
+          error: { code: "processing_failed", message: "합성 안정 오류", details: null },
+          request_id: requestId,
+        }, options.errorStatus ?? 500);
+        return;
+      }
+      if (!fixtureActor(headers)) {
+        await fulfillJson(route, {
+          error: { code: "actor_name_required", message: "합성 안정 오류", details: null },
+          request_id: requestId,
+        }, 400);
+        return;
+      }
+      if (
+        scenario === "validation-error"
+        || !hasBulkKeys(body, ["schema_version", "request_id", "order_plan_ids", "reason"])
+        || body.schema_version !== "order-plan-bulk-start-request.v1"
+        || !requestId
+        || !uuidPattern.test(requestId)
+        || !validBulkIdList(body.order_plan_ids)
+        || typeof body.reason !== "string"
+        || !body.reason.trim()
+      ) {
+        await fulfillJson(route, {
+          detail: [{ type: "uuid_parsing", loc: ["body", "request_id"], msg: "invalid", input: requestId }],
+        }, 422);
+        return;
+      }
+      const ids = bulkMockIds(body.order_plan_ids);
+      const fingerprint = JSON.stringify({ body, actor: fixtureActor(headers) });
+      const previous = receipts.get(requestId);
+      if (previous) {
+        if (previous.fingerprint !== fingerprint) {
+          await fulfillJson(route, {
+            error: { code: "idempotency_conflict", message: "합성 안정 오류", details: null },
+            request_id: requestId,
+          }, 409);
+          return;
+        }
+        await fulfillJson(route, previous.response);
+        return;
+      }
+      const response = options.startResponse ?? bulkMockStart(requestId, ids, scenario);
+      receipts.set(requestId, { fingerprint, response });
+      await fulfillJson(route, response);
+      return;
     }
     await route.fallback();
   });

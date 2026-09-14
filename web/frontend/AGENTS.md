@@ -28,6 +28,26 @@
 ## 검토 흐름
 
 - 목록 필터는 URL과 동기화하고 선택한 항목, 상세 scroll, 저장 후 이동을 예측 가능하게 유지한다.
+- 발주계획·사전규격 목록은 active 행과 checked 집합을 분리한다. 행 클릭·Enter·↑↓는
+  active만 바꾸고, native checkbox 또는 활성 행의 plain Space만 checked를 한 번 토글한다.
+  각 목록은 서로 다른 `sessionStorage` key를 사용해 페이지 이동·새로고침·같은 탭 상세
+  왕복에서 선택을 복원하며, 탭·계정 간 동기화나 localStorage를 사용하지 않는다.
+- 적용된 의미 필터(검색 적용값 포함)가 바뀌면 selection generation을 올리고 선택을
+  비운다. offset·정렬 변경·query refetch·페이지 경계는 선택을 유지한다. 사전규격 상세
+  재진입 때만 현재 탭이 마지막으로 관측한 정렬 metadata로 새 순서를 만들며, 게시·마감
+  timestamp는 timezone offset과 microsecond를 보존하고 null/PK tie-break를 적용한다.
+- 일괄 추적은 기존 단건 PATCH를 반복 호출하지 않는다. preview 후 공통 actor/reason을
+  확인하고, 서버가 잠금 뒤 미선택 owner만 계속 추적으로 전환한다. 계속 추적·보류·종료는
+  상태별 제외이며, bulk에는 hold/close/select-all을 추가하지 않는다. 최종 receipt가
+  확인되지 않으면 같은 request ID로 확인하고, 사람이 실패 항목을 확인한 뒤 실패 plan만
+  새 request ID로 재시도한다. 성공 receipt가 단건 초안이나 active 이동을 바꾸지 않는다.
+- 상세 순회는 opaque `selection_review` token으로 고정하고 route notice ID를 기준으로
+  위치·건수·양끝 disabled를 계산한다. navigation shell은 본문 loading·404·5xx·
+  source/projection 오류에도 남기며 오류 항목을 자동으로 건너뛰거나 선택에서 삭제하지
+  않는다. retry는 같은 항목에 머물고 목록 복귀 URL은 list filter/sort/offset만 보존한다.
+- `sessionStorage` read/write 실패는 복원 가능하다고 표시하지 않는다. bulk 전송과 선택
+  순회 시작을 막고 원인·단건 경로를 안내하되, 기존 단건 상세와 단건 tracking PATCH는
+  계속 사용할 수 있게 한다.
 - **서버가 거르지 못하는 필터는 그 사실을 화면이 밝힌다.** `/pre-specs?grade=<값>`은 `GET /api/pre-specs`에 대응 질의 인자가 없어 이미 받은 페이지만 좁히는 브라우저 쪽 필터다. 같은 화면의 `overview_status_counts`는 필터 이전 전체 집합을 가리키므로 두 수를 같은 뜻으로 읽히게 두지 않는다. 허용 값은 `우선 검토|검토 권장|관찰 대상|제외|판정 없음`이고 그 밖의 값은 `전체`로 떨어지며, `grade`를 바꾸면 `offset`을 초기화한다.
 - 사전규격 목록의 업무 필터 둘은 성격이 다르니 섞지 않는다. `auto_preparation_status`는 `GET
   /api/pre-specs`에 같은 이름의 질의 인자가 있는 **서버 필터**이고, `tracking_decision=pending`은
@@ -55,7 +75,9 @@
 - 색은 `bidops` 테마(무드보드 파생, ADR-0048)가 정본이다. 화면은 토큰만 읽고 `:root`나 화면 CSS에서 `--color-*`를 재정의하지 않는다. 유일한 예외는 `styles/shell-relaxed.css`의 이행용 token bridge이며 새 색 값을 만들지 않는다. 색을 바꾸려면 `src/themes/bidops/bidopsTheme.ts`를 고치고 `astryx theme build`를 다시 돌린다.
 - Tailwind `@theme`에 디자인 시스템과 이름이 겹치는 `--color-*`를 추가하지 않는다. `@theme`은 `:root`로 방출돼 `@layer astryx-theme`을 이기므로 테마 값이 조용히 무시된다([engineering-notes.md](../../docs/engineering-notes.md)).
 - 공고 목록과 상세 정보 밀도를 유지한다. 마케팅식 큰 여백, 장식 아이콘, gradient, glass effect를 사용하지 않는다.
-- 긴 한글 제목, 표의 긴 요구사항, keyboard focus, empty/loading/error 상태를 설계한다. 지원 폭은 1280~1920px이며 모바일·태블릿 레이아웃을 만들지 않는다(ADR-0047). 1280px 미만은 가로 스크롤로 둔다.
+- 긴 한글 제목, 표의 긴 요구사항, keyboard focus, empty/loading/error 상태를 설계한다. 지원
+  데스크톱 검증 폭은 `1280x800`과 `1440x900`이고, 제품 폭은 1280~1920px이다. 모바일·
+  태블릿 레이아웃을 만들지 않는다(ADR-0047). 1280px 미만은 가로 스크롤로 둔다.
 
 ## 검증
 

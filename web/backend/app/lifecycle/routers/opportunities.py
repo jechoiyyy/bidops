@@ -23,8 +23,13 @@ from ..schemas.opportunities import (
     OpportunitySort,
     OpportunityTrackingStatus,
     TrackingStatusUpdateRequest,
+    OrderPlanBulkPreviewRequest,
+    OrderPlanBulkPreviewResponse,
+    OrderPlanBulkStartRequest,
+    OrderPlanBulkStartResponse,
 )
 from ..services import opportunity_integrity, opportunity_tracking, opportunity_queries
+from ..services import order_plan_bulk_tracking
 from ...core.api_errors import BundleServiceError, validate_actor
 
 
@@ -32,6 +37,7 @@ router = APIRouter(prefix="/api/opportunities", tags=["opportunities"])
 logger = logging.getLogger(__name__)
 
 _ERRORS: dict[str, tuple[int, str]] = {
+    "invalid_request": (422, "요청이 올바르지 않습니다"),
     "actor_name_required": (400, "담당자 이름이 필요합니다"),
     "actor_name_invalid": (400, "담당자 이름이 올바르지 않습니다"),
     "opportunity_not_found": (404, "사업기회를 찾을 수 없습니다"),
@@ -50,12 +56,17 @@ _ERRORS: dict[str, tuple[int, str]] = {
         409,
         "대상 레코드는 이미 확정된 사업기회에 연결되어 있습니다",
     ),
+    "idempotency_conflict": (409, "같은 request_id가 다른 요청에 사용되었습니다"),
+    "temporarily_unavailable": (503, "사업기회 작업을 일시적으로 사용할 수 없습니다"),
+    "service_unavailable": (503, "사업기회 작업을 일시적으로 사용할 수 없습니다"),
+    "processing_failed": (500, "사업기회 작업을 완료할 수 없습니다"),
 }
 
 
 def _error_response(
     error: opportunity_tracking.OpportunityTrackingError
     | opportunity_integrity.OpportunityIntegrityError
+    | order_plan_bulk_tracking.OrderPlanBulkTrackingError
     | BundleServiceError,
 ) -> JSONResponse:
     """Return only stable, safe API error data."""
@@ -66,6 +77,8 @@ def _error_response(
     )
     if isinstance(error, BundleServiceError):
         status_code = error.status_code
+    elif isinstance(error, order_plan_bulk_tracking.OrderPlanBulkTrackingError):
+        status_code = error.status_code
     return JSONResponse(
         status_code=status_code,
         content={
@@ -74,7 +87,14 @@ def _error_response(
                 "message": message,
                 "details": None,
             },
-            "request_id": None,
+            "request_id": (
+                str(error.request_id)
+                if isinstance(
+                    error, order_plan_bulk_tracking.OrderPlanBulkTrackingError
+                )
+                and error.request_id is not None
+                else None
+            ),
         },
     )
 
@@ -107,6 +127,67 @@ def list_opportunities(
         session, tracking_status=tracking_status, first_registered_stage=first_registered_stage,
         section=section, sort=sort, limit=limit, offset=offset,
     )
+
+
+@router.post(
+    "/order-plan-tracking/preview",
+    response_model=OrderPlanBulkPreviewResponse,
+)
+def preview_order_plan_tracking(
+    payload: OrderPlanBulkPreviewRequest,
+    session: Session = Depends(get_db),
+) -> OrderPlanBulkPreviewResponse | JSONResponse:
+    """Preview selected plans without creating tracking or audit state."""
+
+    try:
+        return order_plan_bulk_tracking.preview_order_plan_tracking(
+            session, payload.order_plan_ids
+        )
+    except order_plan_bulk_tracking.OrderPlanBulkTrackingError as error:
+        session.rollback()
+        return _error_response(error)
+    except Exception:  # pragma: no cover - defensive API boundary
+        session.rollback()
+        return _unexpected()
+
+
+@router.post(
+    "/order-plan-tracking/bulk-start",
+    response_model=OrderPlanBulkStartResponse,
+)
+def start_order_plan_tracking(
+    payload: OrderPlanBulkStartRequest,
+    actor: Annotated[str | None, Header(alias="X-BidOps-Actor-Name")] = None,
+    actor_format: Annotated[str | None, Header(alias="X-BidOps-Actor-Name-Format")] = None,
+    session: Session = Depends(get_db),
+) -> JSONResponse:
+    """Start tracking for selected plans and return their durable receipt."""
+
+    try:
+        actor_name = validate_actor(actor, actor_format)
+        result = order_plan_bulk_tracking.start_order_plan_tracking(
+            session,
+            payload.order_plan_ids,
+            request_id=payload.request_id,
+            reason=payload.reason,
+            selected_by=actor_name,
+        )
+        # ``result.snapshot`` is either the exact JSON committed in the
+        # IdempotencyRecord or the identical JSON that was just committed.
+        # Returning it directly avoids a replay-time DTO dump/recalculation.
+        return JSONResponse(
+            status_code=result.response_status,
+            content=result.snapshot,
+        )
+    except (
+        order_plan_bulk_tracking.OrderPlanBulkTrackingError,
+        BundleServiceError,
+    ) as error:
+        session.rollback()
+        return _error_response(error)
+    except Exception:  # pragma: no cover - defensive API boundary
+        session.rollback()
+        return _unexpected()
 
 
 @router.get("/{opportunity_id}", response_model=OpportunityDetailResponse)

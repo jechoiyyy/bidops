@@ -6,6 +6,7 @@ import { MutationFeedback } from "../common/MutationFeedback";
 import { StatusBadge, type StatusTone } from "../common/StatusBadge";
 import { describeApiError } from "../../lib/apiErrors";
 import { TERM } from "../../lib/glossary";
+import { generateRequestId } from "../../lib/requestId";
 import {
   confirmDocumentBundle,
   createDeepReview,
@@ -298,7 +299,7 @@ export function DocumentPreparationPanel({ noticeId, currentGrade, onDeepReviewC
           continue;
         }
         try {
-          const requestId = crypto.randomUUID();
+          const requestId = generateRequestId();
           const uploaded = await uploadDocument(selectedBundle?.id ?? "", file, actorName, requestId);
           outcomes[index] = {
             ...outcomes[index],
@@ -342,7 +343,7 @@ export function DocumentPreparationPanel({ noticeId, currentGrade, onDeepReviewC
 
   const confirmMutation = useMutation({
     mutationFn: () => confirmDocumentBundle(selectedBundle?.id ?? "", actorName, {
-      request_id: crypto.randomUUID(),
+      request_id: generateRequestId(),
       version: selectedBundle?.version ?? 0,
       confirmed_documents: documents.map((document) => ({
         document_version_id: document.id,

@@ -7,7 +7,7 @@ lifecycle 몫인 필터·추적 예외·정렬·페이지네이션만 본다.
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, timedelta, timezone
 
 import pytest
 from sqlalchemy import create_engine
@@ -18,6 +18,7 @@ from app.core.db import init_db
 from app.deep_review.models import AttachmentFetch, ContentObject, DocumentVersion
 from app.lifecycle.models import Attachment, Notice, Opportunity, OpportunityLink, OrderPlan
 from app.lifecycle.routers.pre_specs import list_pre_specs
+from tests.postgres import migrated_engine, requires_postgres
 
 
 def _add_notice(
@@ -549,6 +550,176 @@ def test_pre_specs_business_division_q_sort_and_pagination(pre_specs_api):
     assert paged["offset"] == 2
     assert paged["total"] == 9
     assert len(paged["items"]) == 2
+
+
+@requires_postgres
+def test_selection_review_prespec_published_sort_ties_microseconds_null_and_pages():
+    """Published order is DESC/NULLS LAST/PK DESC across a page boundary."""
+
+    with migrated_engine() as engine, Session(engine) as session:
+        common = {
+            "agency": "정렬 계약 기관",
+            "sw_status": "Y",
+            "business_division": "일반용역",
+            "deadline_at": datetime(2026, 9, 30, tzinfo=UTC),
+        }
+        newest = _add_notice(
+            session,
+            key="pre:SORT-PUBLISHED-NEWEST",
+            title="sort-contract published",
+            published_at=datetime(2026, 9, 3, 0, 0, 0, 1, tzinfo=UTC),
+            **common,
+        )
+        microsecond_later = _add_notice(
+            session,
+            key="pre:SORT-PUBLISHED-MICRO-LATER",
+            title="sort-contract published",
+            published_at=datetime(2026, 9, 2, 12, 0, 0, 123457, tzinfo=UTC),
+            **common,
+        )
+        tied_utc = _add_notice(
+            session,
+            key="pre:SORT-PUBLISHED-TIED-UTC",
+            title="sort-contract published",
+            published_at=datetime(2026, 9, 2, 12, 0, 0, 123456, tzinfo=UTC),
+            **common,
+        )
+        tied_seoul = _add_notice(
+            session,
+            key="pre:SORT-PUBLISHED-TIED-SEOUL",
+            title="sort-contract published",
+            published_at=datetime(2026, 9, 2, 21, 0, 0, 123456, tzinfo=timezone(timedelta(hours=9))),
+            **common,
+        )
+        older = _add_notice(
+            session,
+            key="pre:SORT-PUBLISHED-OLDER",
+            title="sort-contract published",
+            published_at=datetime(2026, 9, 1, 0, 0, 0, 999999, tzinfo=UTC),
+            **common,
+        )
+        null_published = _add_notice(
+            session,
+            key="pre:SORT-PUBLISHED-NULL",
+            title="sort-contract published",
+            published_at=None,
+            **common,
+        )
+        session.commit()
+
+        first = _payload(
+            session,
+            sw_only=False,
+            q="sort-contract",
+            sort="published",
+            limit=3,
+            offset=0,
+        )
+        second = _payload(
+            session,
+            sw_only=False,
+            q="sort-contract",
+            sort="published",
+            limit=3,
+            offset=3,
+        )
+
+        assert first["total"] == second["total"] == 6
+        assert [item["notice_pk"] for item in first["items"]] == [
+            newest.id,
+            microsecond_later.id,
+            tied_seoul.id,
+        ]
+        assert [item["notice_pk"] for item in second["items"]] == [
+            tied_utc.id,
+            older.id,
+            null_published.id,
+        ]
+
+
+@requires_postgres
+def test_selection_review_prespec_deadline_sort_ties_microseconds_null_and_pages():
+    """Deadline order is ASC/NULLS LAST/PK ASC across a page boundary."""
+
+    with migrated_engine() as engine, Session(engine) as session:
+        common = {
+            "agency": "정렬 계약 기관",
+            "sw_status": "Y",
+            "business_division": "일반용역",
+            "published_at": datetime(2026, 9, 1, tzinfo=UTC),
+        }
+        microsecond_early = _add_notice(
+            session,
+            key="pre:SORT-DEADLINE-MICRO-EARLY",
+            title="sort-contract deadline",
+            deadline_at=datetime(2026, 9, 1, 0, 0, 0, 123455, tzinfo=UTC),
+            **common,
+        )
+        early = _add_notice(
+            session,
+            key="pre:SORT-DEADLINE-EARLY",
+            title="sort-contract deadline",
+            deadline_at=datetime(2026, 9, 1, 0, 0, 0, 123456, tzinfo=UTC),
+            **common,
+        )
+        tied_utc = _add_notice(
+            session,
+            key="pre:SORT-DEADLINE-TIED-UTC",
+            title="sort-contract deadline",
+            deadline_at=datetime(2026, 9, 2, 0, 0, 0, 123456, tzinfo=UTC),
+            **common,
+        )
+        tied_seoul = _add_notice(
+            session,
+            key="pre:SORT-DEADLINE-TIED-SEOUL",
+            title="sort-contract deadline",
+            deadline_at=datetime(2026, 9, 2, 9, 0, 0, 123456, tzinfo=timezone(timedelta(hours=9))),
+            **common,
+        )
+        late = _add_notice(
+            session,
+            key="pre:SORT-DEADLINE-LATE",
+            title="sort-contract deadline",
+            deadline_at=datetime(2026, 9, 3, tzinfo=UTC),
+            **common,
+        )
+        null_deadline = _add_notice(
+            session,
+            key="pre:SORT-DEADLINE-NULL",
+            title="sort-contract deadline",
+            deadline_at=None,
+            **common,
+        )
+        session.commit()
+
+        first = _payload(
+            session,
+            sw_only=False,
+            q="sort-contract",
+            sort="deadline",
+            limit=3,
+            offset=0,
+        )
+        second = _payload(
+            session,
+            sw_only=False,
+            q="sort-contract",
+            sort="deadline",
+            limit=3,
+            offset=3,
+        )
+
+        assert first["total"] == second["total"] == 6
+        assert [item["notice_pk"] for item in first["items"]] == [
+            microsecond_early.id,
+            early.id,
+            tied_utc.id,
+        ]
+        assert [item["notice_pk"] for item in second["items"]] == [
+            tied_seoul.id,
+            late.id,
+            null_deadline.id,
+        ]
 
 
 def test_pre_specs_response_does_not_expose_storage_metadata(pre_specs_api):

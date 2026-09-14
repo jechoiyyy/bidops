@@ -1073,3 +1073,53 @@
   flex-wrap: wrap;
   gap: var(--spacing-1);
 }
+
+/* ---- 선택 상세 순회 -------------------------------------------------- */
+/* 이 셸은 조회 성공 여부와 무관하게 그려진다. flex-wrap과 min-width:0을
+ * 함께 두어 지원 폭(1280~1920px)에서 긴 상태·제목이 이전/다음 조작을
+ * 밀어내거나 잘라내지 않게 한다. */
+.ps-record .ps-detail-navigation {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--spacing-3) var(--spacing-4);
+  min-width: 0;
+  padding: var(--spacing-3) var(--spacing-4);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--ps-radius-card);
+  background: var(--color-background-surface);
+}
+.ps-record .ps-detail-navigation-position {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--spacing-2);
+  min-width: 0;
+}
+.ps-record .ps-detail-navigation-position .ps-k {
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+  font-weight: var(--font-weight-normal);
+  line-height: var(--bo-type-caption-leading);
+}
+.ps-record .ps-detail-navigation-position strong {
+  color: var(--color-text-primary);
+  font-size: var(--bo-type-body);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.4;
+}
+.ps-record .ps-detail-navigation-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: var(--spacing-2);
+}
+.ps-record .ps-detail-navigation-actions .ps-btn {
+  min-width: calc(var(--spacing-12) * 2 + var(--spacing-2));
+}
+.ps-record .ps-detail-navigation-actions .ps-btn:disabled {
+  color: var(--color-text-disabled);
+  background: var(--color-background-muted);
+  border-color: var(--color-border);
+  cursor: not-allowed;
+}

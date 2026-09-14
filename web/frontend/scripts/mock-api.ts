@@ -18,6 +18,7 @@ import {
   mockDeepReviewLifecycle,
   mockDocumentStructurePage,
   mockOpportunity,
+  mockOrderPlanBulkTracking,
   mockOrderPlans,
   mockPreSpecs,
   overviewAbsentEnvelope,
@@ -128,6 +129,7 @@ async function buildPage(): Promise<FakePage> {
   await mockOpportunity(page as never);
   await mockPreSpecs(page as never);
   await mockOrderPlans(page as never);
+  await mockOrderPlanBulkTracking(page as never);
   await mockDeepReviewLifecycle(page as never, "completed");
   await mockBidDelta(page as never, { calculationStatus: "completed", resultStatus: "changed", withHistory: true });
 
