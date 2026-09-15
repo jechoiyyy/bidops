@@ -1,0 +1,107 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&amp;display=swap">
+  <style>
+    :root { --bg:#ffffff; --surface:#ffffff; --muted-surface:#f6f7f4; --border:#e2e5df; --border-strong:#c9cfc3;
+      --text:#1b211d; --text-2:#4c5650; --text-3:#79837c; --disabled:#9aa39c;
+      --accent:#75a03b; --accent-strong:#587a2b; --accent-deep:#3f5a1c; --accent-soft:#f1f6e8; --accent-edge:#cfdfb5; --accent-row:#f4f8ee;
+      --red-bg:#facecb; --red-text:#89001a; --orange-bg:#fad0b5; --orange-text:#6e3500; --yellow-bg:#f8da9d; --yellow-text:#584400;
+      --gray-bg:#eef0ec; --gray-text:#3c4640; }
+    body { margin:0; background:#ffffff; color:#1b211d; font-family:"Pretendard","Noto Sans KR",system-ui,sans-serif; font-size:14px; line-height:1.5; font-variant-numeric:tabular-nums; -webkit-font-smoothing:antialiased; }
+    a { color:#587a2b; text-decoration:none; } a:hover { color:#3f5a1c; text-decoration:underline; }
+    h1,h2,h3,h4,p,dl,dd,dt,ul,ol { margin:0; }
+    ul,ol { padding:0; list-style:none; }
+    svg { display:block; flex-shrink:0; }
+    .nav-item { display:flex; align-items:center; gap:12px; min-height:36px; padding:8px 12px; border-radius:5.25px; font-size:14.25px; }
+    .btn { display:inline-flex; align-items:center; justify-content:center; gap:8px; height:28px; padding:0 12px; border-radius:8.75px; font-size:12px; font-weight:500; line-height:1.45; white-space:nowrap; border:0; }
+    .btn-primary { background:#587a2b; color:#ffffff; }
+    .btn-secondary { background:#f1f6e8; color:#3f5a1c; }
+    .btn-ghost { background:transparent; color:#1b211d; }
+    .btn-outline { background:#ffffff; color:#1b211d; box-shadow:inset 0 0 0 1px #e2e5df; }
+    .btn-disabled { background:#eef0ec; color:#9aa39c; }
+    .tok { display:inline-flex; align-items:center; height:20px; padding:0 8px; border-radius:5.25px; font-size:12px; font-weight:500; line-height:1; white-space:nowrap; background:#eef0ec; color:#3c4640; }
+    .tok-accent { background:#f1f6e8; color:#3f5a1c; }
+    .tok-red { background:#facecb; color:#89001a; }
+    .tok-orange { background:#fad0b5; color:#6e3500; }
+    .tok-yellow { background:#f8da9d; color:#584400; }
+    .tok-outline { background:#ffffff; color:#4c5650; box-shadow:inset 0 0 0 1px #e2e5df; }
+    .cap { font-size:12px; line-height:1.45; color:#79837c; }
+    .cap2 { font-size:12px; line-height:1.45; color:#4c5650; }
+    .sec-title { font-size:14px; line-height:1.4; font-weight:600; color:#1b211d; }
+    .card { background:#ffffff; border:1px solid #e2e5df; border-radius:10.5px; }
+    .dday { font-size:12px; font-weight:600; color:#587a2b; }
+    .dday-passed { color:#89001a; }
+    .field { display:flex; align-items:center; height:32px; padding:0 12px; border-radius:8.75px; border:1px solid #c9cfc3; background:#ffffff; font-size:14px; color:#79837c; }
+    .check { width:16px; height:16px; border-radius:4px; border:1px solid #c9cfc3; background:#ffffff; flex-shrink:0; }
+    .check-on { background:#75a03b; border-color:#75a03b; }
+
+    .card { background:#ffffff; border:1px solid transparent; border-radius:14px; box-shadow:0 1px 2px rgba(27,33,29,0.05), 0 6px 18px rgba(27,33,29,0.07); }
+    .utab { display:flex; align-items:center; gap:6px; height:32px; padding:0 4px; margin-right:12px; font-size:12px; font-weight:500; color:#79837c; }
+    .utab-on { color:#1b211d; font-weight:600; box-shadow: inset 0 -2px 0 #75a03b; }
+    .split-l { display:flex; flex:0 0 38%; min-width:0; flex-direction:column; border-right:1px solid #eef0ec; background:#ffffff; }
+    .split-r { display:flex; flex:1 1 auto; min-width:0; flex-direction:column; background:#ffffff; }
+    .lh { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:8px 16px; border-bottom:1px solid #eef0ec; }
+    .lf { display:flex; align-items:center; justify-content:space-between; padding:8px 16px; border-top:1px solid #eef0ec; background:#fbfcf9; font-size:12px; color:#4c5650; }
+    .row { display:flex; align-items:flex-start; gap:8px; padding:8px 16px; border-bottom:1px solid #eef0ec; }
+    .row-on { background:#f1f6e8; }
+    .th { text-align:left; padding:0 12px 6px 0; border-bottom:1px solid #e2e5df; font-size:12px; font-weight:500; color:#4c5650; }
+    .td { padding:10px 12px 10px 0; border-bottom:1px solid #eef0ec; font-size:14px; vertical-align:top; }
+    .kv { display:flex; flex-direction:column; gap:2px; }
+
+  </style>
+</helmet>
+<div style="display:flex; width:1422px; height:889px; box-sizing:border-box; background:#f6f7f4; overflow:hidden; align-items:stretch;">
+<aside style="display:flex; flex-direction:column; flex:0 0 248px; width:248px; height:100%; box-sizing:border-box; background:#f6f7f4; border-right:1px solid transparent;">
+  <div style="display:flex; align-items:center; gap:12px; padding:16px 16px 12px; border-bottom:1px solid transparent;">
+    <div style="display:flex; align-items:center; justify-content:center; width:40px; height:40px; border-radius:8.75px; background:#75a03b;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 19c0-7 4-13 14-14 0 10-5 14-12 14"></path><path d="M5 19c3-4 6-7 10-9"></path></svg></div>
+    <div style="display:flex; flex-direction:column; gap:2px;">
+      <div style="font-size:14.88px; font-weight:600; line-height:1.3; color:#1b211d;">BidOps</div>
+      <div style="font-size:12px; line-height:1.3; color:#79837c;">ROOTLAB · 사업기회 모니터링</div>
+    </div>
+  </div>
+  <nav style="display:flex; flex-direction:column; padding:4px 12px 24px; flex:1 1 auto;">
+    <div style="display:flex; flex-direction:column; padding-top:12px;">
+        <div style="padding:0 12px 8px; font-size:12px; font-weight:500; letter-spacing:.08em; color:#79837c;">오늘의 업무</div>
+        <div style="display:flex; flex-direction:column; gap:2px;"><a class="nav-item" href="#" style="color:#4c5650;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="9" rx="1"></rect><rect x="14" y="3" width="7" height="5" rx="1"></rect><rect x="14" y="12" width="7" height="9" rx="1"></rect><rect x="3" y="16" width="7" height="5" rx="1"></rect></svg><span>대시보드</span></a></div></div>
+    <div style="display:flex; flex-direction:column; padding-top:12px;">
+        <div style="padding:0 12px 8px; font-size:12px; font-weight:500; letter-spacing:.08em; color:#79837c;">탐색과 추적</div>
+        <div style="display:flex; flex-direction:column; gap:2px;"><a class="nav-item" href="#" style="color:#4c5650;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4h14v16H5z"></path><path d="M8 8h8M8 12h8M8 16h5"></path><path d="M8 4V2M16 4V2"></path></svg><span>발주계획</span></a><a class="nav-item" href="#" style="background:#ffffff; color:#3f5a1c; font-weight:600; box-shadow:0 1px 2px rgba(27,33,29,0.05), 0 6px 18px rgba(27,33,29,0.07);"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h9l4 4v14H6z"></path><path d="M14 3v5h5M9 13h7M9 17h5"></path></svg><span>사전규격</span></a><a class="nav-item" href="#" style="color:#4c5650;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h9"></path></svg><span>사업 추적</span></a><a class="nav-item" href="#" style="color:#4c5650;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h9l4 4v14H6z"></path><path d="M14 3v5h5M9 13h7M9 17h5"></path></svg><span>최종 Go/No-Go</span></a></div></div>
+    <div style="display:flex; flex-direction:column; padding-top:12px;">
+        <div style="padding:0 12px 8px; font-size:12px; font-weight:500; letter-spacing:.08em; color:#79837c;">기준과 운영</div>
+        <div style="display:flex; flex-direction:column; gap:2px;"><a class="nav-item" href="#" style="color:#4c5650;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h9l4 4v14H6z"></path><path d="M14 3v5h5M9 13h7M9 17h5"></path></svg><span>판정 기준</span></a><a class="nav-item" href="#" style="color:#4c5650;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 17h3l2-10 4 14 2-8h5"></path></svg><span>실행 상태</span></a></div></div>
+  </nav>
+  <div style="display:flex; flex-direction:column; gap:4px; padding:16px 20px 20px; border-top:1px solid transparent; font-size:12px; color:#79837c;">
+    <span>기획부 · 사업기획</span><span>관리자 화면</span>
+  </div>
+</aside>
+<div style="display:flex; flex:1 1 auto; min-width:0; flex-direction:column;">
+  <header style="display:flex; align-items:center; justify-content:space-between; gap:16px; height:76px; box-sizing:border-box; padding:12px 18px; background:#f6f7f4;">
+    <div style="display:flex; align-items:center; gap:6px; font-size:12px;"><span style="color:#4c5650;">오늘의 업무</span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#9aa39c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"></path></svg><span style="color:#1b211d; font-weight:600;">대시보드</span></div>
+    <div style="display:flex; align-items:center; gap:12px;"><div class="btn btn-ghost" style="gap:6px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#1b211d" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.7"></path><path d="M20 4v5h-5"></path></svg>새로고침</div><div class="btn btn-outline" style="gap:6px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#1b211d" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 17h3l2-10 4 14 2-8h5"></path></svg>실행 상태</div></div>
+  </header>
+  <main style="display:flex; flex:1 1 auto; min-height:0; flex-direction:column; gap:12px; padding:12px 18px 16px; background:#f6f7f4; ">
+    <div class="card" style="display:grid; grid-template-columns: repeat(4, minmax(0,1fr)); overflow:hidden;"><div class="kv" style="gap:2px; padding:14px 16px; border-right:1px solid #eef0ec;"><div style="display:flex; justify-content:space-between; align-items:center;"><span style="font-size:14px; font-weight:600;"><span style="color:#79837c; font-weight:500; margin-right:6px;">01</span>발주계획</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#79837c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></div><span style="font-size:14px;">추적할 후보 선택</span><span class="cap">검토 후보 4건</span></div><div class="kv" style="gap:2px; padding:14px 16px; border-right:1px solid #eef0ec;"><div style="display:flex; justify-content:space-between; align-items:center;"><span style="font-size:14px; font-weight:600;"><span style="color:#79837c; font-weight:500; margin-right:6px;">02</span>사전규격</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#79837c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></div><span style="font-size:14px;">검토 결과·추적 여부 확인</span><span class="cap">결정 대기 8건</span></div><div class="kv" style="gap:2px; padding:14px 16px; border-right:1px solid #eef0ec;"><div style="display:flex; justify-content:space-between; align-items:center;"><span style="font-size:14px; font-weight:600;"><span style="color:#79837c; font-weight:500; margin-right:6px;">03</span>사업 추적</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#79837c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></div><span style="font-size:14px;">연결·예외 사항 확인</span><span class="cap">조치 필요 건수 미확인</span></div><div class="kv" style="gap:2px; padding:14px 16px; border-right:1px solid #eef0ec;"><div style="display:flex; justify-content:space-between; align-items:center;"><span style="font-size:14px; font-weight:600;"><span style="color:#79837c; font-weight:500; margin-right:6px;">04</span>최종 Go/No-Go</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#79837c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></div><span style="font-size:14px;">입찰 참여 여부 결정</span><span class="cap">결정 대기 7건</span></div></div>
+    <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; padding:0 4px;">
+      <div style="display:flex; align-items:center; gap:10px;"><span style="font-size:14px; font-weight:600;">회차 자료</span><div class="field" style="width:330px; box-sizing:border-box; justify-content:space-between; color:#1b211d; white-space:nowrap;"><span>2026-09-14 ~ 2026-09-15 · 공고 판정 회차</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#79837c" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></div><span class="tok tok-outline">읽기 전용</span><span class="tok tok-accent">회차 완료</span></div>
+      <div style="display:flex; align-items:center; gap:10px;" class="cap2"><span>마감과 집계는 선택한 회차의 기준 시각을 따릅니다</span><a href="#" style="display:flex; align-items:center; gap:4px; font-weight:600;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#587a2b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"></path></svg>회차 실행 보기</a></div>
+    </div>
+    <div style="display:grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap:12px;"><div class="card kv" style="gap:6px; padding:18px 20px; "><span class="cap2">수집 건수</span><span style="font-size:30px; font-weight:600; line-height:1.1; letter-spacing:-0.01em;">300 <span style="font-size:14px; font-weight:500; color:#4c5650;">건</span></span><span class="cap">수집 산출물 기준 · 용역 본공고</span></div><div class="card kv" style="gap:6px; padding:18px 20px; "><span class="cap2">후보 풀</span><span style="font-size:30px; font-weight:600; line-height:1.1; letter-spacing:-0.01em;">36 <span style="font-size:14px; font-weight:500; color:#4c5650;">건</span></span><span class="cap">전체 수집의 12.0%</span></div><div class="card kv" style="gap:6px; padding:18px 20px; box-shadow:0 1px 2px rgba(27,33,29,0.05), 0 6px 18px rgba(27,33,29,0.07), inset 0 0 0 1px #cfdfb5; background:#f9fbf5;"><span class="cap2">우선 검토</span><span style="font-size:30px; font-weight:600; line-height:1.1; letter-spacing:-0.01em;">9 <span style="font-size:14px; font-weight:500; color:#4c5650;">건</span></span><span class="cap">분석 표본 30건의 30.0% <span class="tok tok-red" style="margin-left:4px;">임계 초과</span></span></div><div class="card kv" style="gap:6px; padding:18px 20px; "><span class="cap2">1차 필터 누락</span><span style="font-size:30px; font-weight:600; line-height:1.1; letter-spacing:-0.01em;">5 <span style="font-size:14px; font-weight:500; color:#4c5650;">/ 표본 미확인</span></span><span class="cap">감사 표본 분모를 확인할 수 없어 누락률을 계산하지 않습니다</span></div></div>
+    <div style="display:grid; grid-template-columns: minmax(0,1.35fr) minmax(0,1fr); gap:12px; flex:1 1 auto; min-height:0;">
+      <section class="card" style="display:flex; flex-direction:column;"><div style="display:flex; align-items:center; justify-content:space-between; padding:14px 20px; border-bottom:1px solid #eef0ec;"><span class="sec-title" style="font-size:15px;">판정 파이프라인</span><span class="cap">수집 → 후보 → 표본 → 검토 대기</span></div>
+        <div class="kv" style="gap:14px; padding:18px 20px;"><div style="display:grid; grid-template-columns: 64px minmax(0,1fr) 150px; gap:16px; align-items:center;"><span style="font-size:14px; color:#4c5650;">수집</span><div style="height:28px; border-radius:6px; background:#eef0ec; overflow:hidden;"><div style="width:100%; height:100%; background:#3f5a1c; display:flex; align-items:center; padding-left:10px; box-sizing:border-box; font-size:12px; font-weight:600; color:#ffffff;">100%</div></div><div class="kv" style="align-items:flex-end;"><span style="font-size:14px; font-weight:600;">300건</span><span class="cap">기준</span></div></div><div style="display:grid; grid-template-columns: 64px minmax(0,1fr) 150px; gap:16px; align-items:center;"><span style="font-size:14px; color:#4c5650;">후보</span><div style="height:28px; border-radius:6px; background:#eef0ec; overflow:hidden;"><div style="width:12%; height:100%; background:#75a03b; display:flex; align-items:center; padding-left:10px; box-sizing:border-box; font-size:12px; font-weight:600; color:#1b211d;">12.0%</div></div><div class="kv" style="align-items:flex-end;"><span style="font-size:14px; font-weight:600;">36건</span><span class="cap">감소 264건 · 88.0%</span></div></div><div style="display:grid; grid-template-columns: 64px minmax(0,1fr) 150px; gap:16px; align-items:center;"><span style="font-size:14px; color:#4c5650;">표본</span><div style="height:28px; border-radius:6px; background:#eef0ec; overflow:hidden;"><div style="width:10%; height:100%; background:#75a03b; display:flex; align-items:center; padding-left:10px; box-sizing:border-box; font-size:12px; font-weight:600; color:#1b211d;">10.0%</div></div><div class="kv" style="align-items:flex-end;"><span style="font-size:14px; font-weight:600;">30건</span><span class="cap">감소 6건 · 16.7%</span></div></div><div style="display:grid; grid-template-columns: 64px minmax(0,1fr) 150px; gap:16px; align-items:center;"><span style="font-size:14px; color:#4c5650;">검토 대기</span><div style="height:28px; border-radius:6px; background:#eef0ec; overflow:hidden;"><div style="width:30%; height:100%; background:#cfdfb5; display:flex; align-items:center; padding-left:10px; box-sizing:border-box; font-size:12px; font-weight:600; color:#1b211d;">30.0%</div></div><div class="kv" style="align-items:flex-end;"><span style="font-size:14px; font-weight:600;">9건</span><span class="cap">감소 21건 · 70.0%</span></div></div><div style="display:grid; grid-template-columns: 64px minmax(0,1fr) 150px; gap:16px;"><span></span><div style="display:flex; justify-content:space-between;" class="cap"><span>0%</span><span>25%</span><span>50%</span><span>75%</span><span>100%</span></div><span></span></div></div></section>
+      <section class="card" style="display:flex; flex-direction:column;"><div style="display:flex; align-items:center; justify-content:space-between; padding:14px 20px; border-bottom:1px solid #eef0ec;"><span class="sec-title" style="font-size:15px;">검증 통과 기준</span><span class="tok tok-red">3개 중 1개 미달 · 계산 불가 1</span></div>
+        <div class="kv" style="gap:10px; padding:16px 20px;"><div class="kv" style="gap:8px; padding:12px 14px; border-radius:10.5px; background:#fdf0ec; border:1px solid #f0cfc4;"><div style="display:flex; justify-content:space-between; align-items:center;"><span style="font-size:14px; font-weight:600;">변별력 <span style="font-weight:500; color:#89001a;">미달</span></span><span class="cap2"><b style="font-weight:600; color:#89001a;">30%</b> / 10~25%</span></div><div style="height:8px; border-radius:4px; background:#eef0ec; overflow:hidden;"><div style="width:30%; height:100%; background:#c9303a;"></div></div><span class="cap">근거 9 / 30건</span></div><div class="kv" style="gap:8px; padding:12px 14px; border-radius:10.5px; border:1px solid #eef0ec;"><div style="display:flex; justify-content:space-between; align-items:center;"><span style="font-size:14px; font-weight:600;">관점 분할 <span style="font-weight:500; color:#4c5650;">통과</span></span><span class="cap2"><b style="font-weight:600; color:#1b211d;">65%</b> / 40% 이상</span></div><div style="height:8px; border-radius:4px; background:#eef0ec; overflow:hidden;"><div style="width:65%; height:100%; background:#3f5a1c;"></div></div><span class="cap">근거 26 / 40건</span></div><div class="kv" style="gap:8px; padding:12px 14px; border-radius:10.5px; border:1px solid #eef0ec;"><div style="display:flex; justify-content:space-between; align-items:center;"><span style="font-size:14px; font-weight:600;">근거 타당성 <span style="font-weight:500; color:#4c5650;">계산 불가</span></span><span class="cap2"><b style="font-weight:600; color:#1b211d;">계산 불가</b> / 70% 이상</span></div><div style="height:8px; border-radius:4px; background:#eef0ec; overflow:hidden;"><div style="width:0%; height:100%; background:#c9cfc3;"></div></div><span class="cap">선택한 회차에 시스템 판정 평가가 기록된 리뷰가 없습니다</span></div></div></section>
+    </div>
+  </main>
+</div>
+</div>
+</x-dc>
+</body>
+</html>

@@ -1,0 +1,28 @@
+{
+  "pages": [
+    { "id": "page-1", "name": "화면 시안 · C 기준" },
+    { "id": "page-2", "name": "탐색 시안 (A · B · C-1~3)" }
+  ],
+  "artboards": [
+    { "file": "Main.dc.html", "title": "사전규격 목록", "x": 0, "y": 0, "w": 1422, "h": 889, "page": "page-1" },
+    { "file": "Dashboard.dc.html", "title": "대시보드", "x": 1522, "y": 0, "w": 1422, "h": 889, "page": "page-1" },
+    { "file": "OrderPlans.dc.html", "title": "발주계획", "x": 0, "y": 1060, "w": 1422, "h": 889, "page": "page-1" },
+    { "file": "Opportunities.dc.html", "title": "사업 추적", "x": 1522, "y": 1060, "w": 1422, "h": 889, "page": "page-1" },
+    { "file": "GoNoGo.dc.html", "title": "최종 Go/No-Go", "x": 0, "y": 2120, "w": 1422, "h": 889, "page": "page-1" },
+    { "file": "Criteria.dc.html", "title": "판정 기준", "x": 1522, "y": 2120, "w": 1422, "h": 889, "page": "page-1" },
+    { "file": "RunStatus.dc.html", "title": "실행 상태", "x": 0, "y": 3180, "w": 1422, "h": 889, "page": "page-1" },
+    { "file": "PreSpecDetail.dc.html", "title": "사전규격 상세", "x": 3044, "y": 0, "w": 1422, "h": 2600, "page": "page-1", "print": "flow" },
+    { "file": "DirectionC1.dc.html", "title": "C-1 · 밀집형", "x": 0, "y": 0, "w": 1422, "h": 889, "page": "page-2" },
+    { "file": "DirectionC2.dc.html", "title": "C-2 · 초록 밴드형", "x": 1522, "y": 0, "w": 1422, "h": 889, "page": "page-2" },
+    { "file": "DirectionC3.dc.html", "title": "C-3 · 결정 카드형", "x": 3044, "y": 0, "w": 1422, "h": 889, "page": "page-2" },
+    { "file": "DirectionA.dc.html", "title": "A · 경계선형", "x": 0, "y": 1060, "w": 1422, "h": 889, "page": "page-2" },
+    { "file": "DirectionB.dc.html", "title": "B · 브랜드 강조형", "x": 1522, "y": 1060, "w": 1422, "h": 889, "page": "page-2" }
+  ],
+  "annotations": [
+    { "id": "shell-note", "x": 0, "y": -170, "w": 700, "text": "C 기준 공통 셸: 회녹 바탕 #f6f7f4 위 흰 카드(그림자·반지름 14), 밑줄형 탭, 선 최소화. 포인트 #75a03b는 활성 메뉴·선택 행·진행 표시·완료 칩에, 단추 채움과 링크는 #587a2b. 레이아웃(사이드바 248 · 상단바 76 · 목록 38%)과 각 화면의 구성은 현재 운영 화면 그대로.\n프레임 1422×889 = zoom 0.9 기준 1280×800 창.", "page": "page-1" },
+    { "id": "detail-note", "x": 3044, "y": -170, "w": 640, "text": "사전규격 상세 · 세로 보고서형 6단: ① 사업명·기관·요약·예산·일정 ② 추적 결정(요약 바로 아래, 본문과 함께 스크롤) ③ 주요 과업과 수행 범위 ④ 참여 조건·회사 적합성·위험 및 미확인 ⑤ 근거 문서·첨부 ⑥ 처리 이력·문서 준비·검토 실행. 이전/다음 순회는 상단바 우측. 부족한 값은 전부 '미확인'.", "page": "page-1" },
+    { "id": "dash-note", "x": 1522, "y": -110, "w": 560, "text": "대시보드·사업 추적은 운영 화면이 비어 있어(회차 미선택 · 조치 필요 0건) 회차를 고른 상태와 '추적 중 7건' 상태로 그렸다. 판정 파이프라인·검증 통과 기준 구성은 기존 화면의 것.", "page": "page-1" },
+    { "id": "explore-note", "x": 0, "y": -150, "w": 640, "text": "방향 탐색 기록. C(부드러운 카드형)를 고른 뒤 파생한 C-1~3과 1차 시안 A·B. 채택된 것은 C 기준이며 첫 페이지에 모든 화면이 있다.", "page": "page-2" }
+  ],
+  "launch": { "view": "canvas", "page": "page-1" }
+}
