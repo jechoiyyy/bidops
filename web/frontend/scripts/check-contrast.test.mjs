@@ -1,7 +1,7 @@
 /**
- * bidops 테마 대비 게이트 — ADR-0048 결정 5, docs/design/PRD.md §4.1.
+ * bidops 테마 대비 게이트 — docs/0915_ui-redesign/spec.md §1.
  *
- * 무드보드 anchor 는 색을 제안하고 대비비가 그것을 이긴다. 이 검사는 빌드된
+ * 팔레트는 색을 제안하고 대비비가 그것을 이긴다. 이 검사는 빌드된
  * bidops.css 에서 실제 토큰 값을 읽어 검증하므로, 테마 정의를 고치고 다시
  * 빌드하지 않으면 통과하지 않는다.
  *
@@ -20,15 +20,21 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const css = readFileSync(join(root, 'src/themes/bidops/bidops.css'), 'utf8');
 // 등급 ramp 는 Astryx TokenName 이 닫힌 union 이라 테마가 아닌 프로젝트 토큰이다.
 const rampCss = readFileSync(join(root, 'src/themes/bidops/grade-ramp.css'), 'utf8');
+// 회사 포인트색도 같은 이유로 프로젝트 토큰이다(spec §1.2).
+const brandCss = readFileSync(join(root, 'src/themes/bidops/brand.css'), 'utf8');
 
 /** 빌드된 CSS 에서 토큰의 라이트 모드 값을 읽는다. */
 function token(name) {
-  const source = name.startsWith('bo-') ? rampCss : css;
-  const where = name.startsWith('bo-') ? 'grade-ramp.css' : 'bidops.css';
+  // `bo-` 이름은 프로젝트 토큰 두 파일에서 먼저 찾히는 쪽을 쓴다.
+  const sources = name.startsWith('bo-')
+    ? [['grade-ramp.css', rampCss], ['brand.css', brandCss]]
+    : [['bidops.css', css]];
   const re = new RegExp(`--${name}:\\s*(?:light-dark\\(\\s*([^,]+?)\\s*,[^)]*\\)|(#[0-9a-fA-F]{3,8}))\\s*;`);
-  const m = source.match(re);
-  assert.ok(m, `토큰 --${name} 을 ${where} 에서 찾지 못했다. 테마를 다시 빌드했는가?`);
-  return (m[1] ?? m[2]).trim();
+  for (const [, source] of sources) {
+    const m = source.match(re);
+    if (m) return (m[1] ?? m[2]).trim();
+  }
+  assert.fail(`토큰 --${name} 을 ${sources.map(([where]) => where).join('·')} 에서 찾지 못했다. 테마를 다시 빌드했는가?`);
 }
 
 function luminance(hex) {
@@ -70,6 +76,10 @@ const NON_TEXT = [
   ['color-icon-secondary', 'color-background-card'],
   ['color-icon-accent', 'color-background-body'],
   ['color-accent', 'color-background-body'],
+  // 회사 포인트색은 라벨을 동반한 비텍스트 표시에만 쓴다(spec §1.2). 그 표시가
+  // 놓이는 면은 흰 카드이며 3.07:1 이다. 회녹 canvas(#F6F7F4) 위에서는 2.85:1 로
+  // 3:1 에 못 미치므로 canvas 위 채움으로 쓰지 않는다.
+  ['bo-brand', 'color-background-card'],
 ];
 
 /** 적합성 등급 ramp — 배경과 그 위 라벨. 의미색이 아니라 농도 순서다. */
@@ -137,16 +147,10 @@ test('등급 ramp 4단과 판정 없음이 라벨 대비를 만족한다', () =>
   }
 });
 
-test('등급 ramp는 색만으로 구분되지 않으므로 라벨을 동반해야 한다', () => {
-  // 인접 단의 배경 대비가 3:1 미만임을 고정해 둔다. 이 사실이 바뀌면
-  // PRD §4.1 의 "항상 텍스트 라벨을 동반한다" 근거도 다시 써야 한다.
-  const ramp = ['bo-grade-1', 'bo-grade-2', 'bo-grade-3', 'bo-grade-4'];
-  const adjacent = ramp.slice(0, -1).map((g, i) => ratio(token(g), token(ramp[i + 1])));
-  assert.ok(
-    adjacent.every((r) => r < 3),
-    `인접 단이 3:1 이상으로 벌어졌다(${adjacent.map((r) => r.toFixed(2)).join(', ')}). PRD §4.1 근거를 재검토할 것`,
-  );
-});
+// 인접 단이 3:1 미만임을 고정하던 검사는 삭제했다. 새 초록 ramp 는 2단→3단이
+// 3.51:1 이라 그 단언이 성립하지 않는다.
+// "등급 표시는 항상 텍스트 라벨을 동반한다"는 규칙은 대비와 무관하게 intent 결정 2로
+// 고정됐으므로, 대비비로 그 근거를 대신 세우지 않는다(spec §1.3).
 
 test('cool gray anchor(#8D8F8E)가 텍스트 토큰에 배정되지 않는다', () => {
   // 흰 배경 3.25, greige canvas 위 2.87, greige anchor 위 2.08 로 AA 미달이다.
@@ -157,17 +161,18 @@ test('cool gray anchor(#8D8F8E)가 텍스트 토큰에 배정되지 않는다', 
   assert.deepEqual(offenders, [], `#8D8F8E 가 텍스트 토큰에 배정됐다: ${offenders.join(', ')}`);
 });
 
-test('의미색은 무드보드가 정하지 않는다 — neutral 값을 유지한다', () => {
-  // ADR-0048 결정 4. 실패·경고가 팔레트 톤에 묻히지 않아야 한다.
+test('성공만 포인트 계열, 경고·실패는 별도 hue를 유지한다', () => {
+  // intent 결정 1. 성공만 포인트 초록으로 옮기고, 경고·실패는 포인트와 경쟁하지
+  // 않도록 별도 hue 를 그대로 둔다.
   for (const [name, expected] of [
-    ['color-success', '#007004'],
+    ['color-success', '#3f5a1c'],
     ['color-error', '#a50c25'],
     ['color-warning', '#745b00'],
   ]) {
     assert.equal(
       token(name).toLowerCase(),
       expected,
-      `--${name} 이 바뀌었다. 의미색 변경은 ADR-0048 결정 4 를 다시 열어야 한다`,
+      `--${name} 이 바뀌었다. 의미색 변경은 intent 결정 1 을 다시 열어야 한다`,
     );
   }
 });

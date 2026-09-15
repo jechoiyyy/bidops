@@ -60,13 +60,17 @@ test("evidence: 사전규격 목록과 상세를 selector 단위로 조작하고
   await expect(header).toContainText("본공고");
   record("assert.containsText", ".pre-spec-detail-header", "본공고 칩");
 
-  // 범위 확정 폼은 오른쪽 판단 열이 아니라 왼쪽에 항상 붙어 있다.
+  // 범위 확정 폼은 ⑥ 카드 안에 늘 mount돼 있다(docs/0915_ui-redesign/spec.md §4 ⑥).
   await expect(page.locator("#ps-record-range")).toBeAttached();
   record("assert.attached", "#ps-record-range", "개요 입력 범위 확정 자리");
 
   const toggle = page.getByRole("button", { name: /문서 준비 (열기|닫기)/ });
   await expect(toggle).toBeVisible();
   record("assert.visible", "role=button[name=/문서 준비 (열기|닫기)/]", await toggle.innerText());
+
+  // 목록 우측 영역의 `근거 보기 →`가 앵커하는 자리(⑤ 근거 문서 카드).
+  await expect(page.locator("#ps-evidence")).toBeVisible();
+  record("assert.visible", "#ps-evidence", "근거 문서 · 첨부");
 
   await writeFile(`${OUT}/playwright-transcript.json`, JSON.stringify({
     schemaVersion: 1,

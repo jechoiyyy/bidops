@@ -10,9 +10,11 @@
   padding: var(--spacing-4) var(--spacing-6) var(--spacing-10);
 }
 .ps-record {
-  /* 시안 `--ps-line`: 카드 안의 연한 구분선(#ECE8E6). 테두리 색을 흰 표면 쪽으로
+  /* 시안 `--ps-line`: 카드 안의 연한 구분선. 테두리 색을 흰 표면 쪽으로
      섞어 만든다. 새 토큰을 정의하지 않는다. */
-  --ps-line: color-mix(in srgb, var(--color-border) 45%, var(--color-background-surface));
+  --ps-line: var(--color-background-muted);
+  /* ② 카드 머리 띠(#F9FBF5) — spec §4 ②. 새 색 토큰을 만들지 않고 섞는다. */
+  --ps-brand-band: color-mix(in srgb, var(--color-accent-muted) 50%, var(--color-background-surface));
   /* 시안 값은 px 이고 앱의 루트 글꼴은 14px 이라 rem 기반 `--radius-*`·
      `--font-size-*` 는 시안보다 0.875배로 나온다. 시안과 같은 픽셀을 내기 위해
      px 단위인 spacing·bo-type 토큰에서 파생한 별칭만 둔다. 새 색·새 척도를
@@ -23,29 +25,51 @@
   --ps-radius-chip: var(--spacing-1-5);                            /* 6px */
   --ps-radius-box: var(--spacing-1);                               /* 4px */
   --ps-type-lead: calc(var(--bo-type-caption) + var(--spacing-1) + var(--border-width)); /* 17px */
+  /* 세로 보고서형 6단: 카드 최대 폭 1040px 가운데 정렬, 카드 사이 16px
+     (docs/0915_ui-redesign/spec.md §4). */
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: var(--spacing-4);
   min-width: 0;
   color: var(--color-text-primary);
   font-size: var(--bo-type-body);
   line-height: 1.5;
 }
+.ps-record > * {
+  width: 100%;
+  max-width: calc(var(--spacing-12) * 21 + var(--spacing-8));  /* 1040px */
+  min-width: 0;
+}
 .ps-record a { color: var(--color-text-accent); }
 
 /* ---- 시안 원시 요소 --------------------------------------------------- */
+/* 카드는 선 없이 그림자로 뜬다(spec §1.1 `--shadow-low`·`--radius-container`). */
 .ps-record .ps-card {
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--ps-radius-card);
+  border: 0;
+  border-radius: var(--radius-container);
   background: var(--color-background-surface);
-  box-shadow: none;
+  box-shadow: var(--shadow-low);
 }
 .ps-record .ps-sec {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-3);
   min-width: 0;
-  padding: var(--spacing-5) var(--spacing-6);
+  padding: 0 0 var(--spacing-5);
+}
+/* 카드 머리는 한 줄 띠다: 제목 왼쪽, 상태 칩·링크·단추 오른쪽. */
+.ps-record .ps-sec > .ps-sec-head:first-child {
+  padding: calc(var(--spacing-3) + var(--spacing-0-5)) var(--spacing-6);
+  border-bottom: var(--border-width) solid var(--ps-line);
+}
+.ps-record .ps-sec > :not(.ps-sec-head:first-child) { margin-inline: var(--spacing-6); }
+.ps-record .ps-sec-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--spacing-2);
+  flex: 0 0 auto;
 }
 .ps-record .ps-sec-head {
   display: flex;
@@ -176,7 +200,7 @@
   gap: var(--spacing-1);
   min-width: 0;
   padding: calc(var(--spacing-3) + var(--spacing-0-5)) var(--spacing-5);
-  border-right: var(--border-width) solid var(--color-border);
+  border-right: var(--border-width) solid var(--ps-line);
   overflow-wrap: anywhere;
 }
 .ps-record .ps-fact:last-child { border-right: 0; }
@@ -206,19 +230,115 @@
   line-height: var(--bo-type-caption-leading);
 }
 
-/* 본문 두 열 */
-.ps-record .ps-grid {
+/* ④ 세 열 (참여 조건 · 회사 적합성 · 위험 및 미확인 사항) — spec §4 ④ */
+.ps-record .ps-tri {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) calc(var(--spacing-12) * 8 + var(--spacing-4));
-  gap: var(--spacing-4);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--spacing-5);
   align-items: start;
 }
-.ps-record .ps-col {
+.ps-record .ps-tri-col {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-4);
+  gap: var(--spacing-2);
   min-width: 0;
 }
+.ps-record .ps-tri-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--spacing-2);
+  min-width: 0;
+}
+.ps-record .ps-h-col {
+  margin: 0;
+  min-width: 0;
+  font-size: var(--bo-type-body);
+  line-height: 1.4;
+  font-weight: 600;
+}
+
+/* 위험 및 미확인 사항 목록: 칩 + 제목 + 설명 한 상자 */
+.ps-record .ps-risks {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ps-record .ps-risk {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  min-width: 0;
+  padding: var(--spacing-2) var(--spacing-3);
+  border: var(--border-width) solid var(--ps-line);
+  border-radius: var(--ps-radius-control);
+  background: var(--color-background-body);
+  overflow-wrap: anywhere;
+}
+.ps-record .ps-risk.is-caution {
+  border-color: color-mix(in srgb, var(--color-warning) 30%, var(--color-background-surface));
+  background: var(--color-background-orange, var(--color-warning-muted));
+}
+.ps-record .ps-risk-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--spacing-2);
+  min-width: 0;
+}
+.ps-record .ps-risk-head > strong { font-size: var(--bo-type-body); font-weight: 600; line-height: 1.45; }
+.ps-record .ps-risk > .ps-cap { color: var(--color-text-secondary); }
+
+/* 사업 규모와 일정 타일 */
+.ps-record .ps-tiles {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--spacing-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ps-record .ps-tile {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  min-width: 0;
+  padding: var(--spacing-3) calc(var(--spacing-3) + var(--spacing-0-5));
+  border-radius: var(--ps-radius-control);
+  background: var(--color-background-body);
+  overflow-wrap: anywhere;
+}
+
+/* ③ 알림 줄 */
+.ps-record .ps-notices { display: grid; gap: var(--spacing-2); }
+
+/* ⑤ 첨부 표 */
+.ps-record .ps-table { width: 100%; border-collapse: collapse; }
+.ps-record .ps-table th {
+  padding: 0 var(--spacing-3) var(--spacing-1-5) 0;
+  border-bottom: var(--border-width) solid var(--color-border);
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+  font-weight: 500;
+  text-align: left;
+}
+.ps-record .ps-table td {
+  padding: var(--spacing-2) var(--spacing-3) var(--spacing-2) 0;
+  border-bottom: var(--border-width) solid var(--ps-line);
+  font-size: var(--bo-type-body);
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+.ps-record .ps-table .ps-table-end { padding-right: 0; text-align: right; }
+.ps-record .ps-table td.ps-table-end { display: table-cell; white-space: nowrap; }
+.ps-record .ps-table td.ps-table-end > .ps-ref + .ps-ref { margin-left: var(--spacing-3); }
+.ps-record .ps-table td.ps-cap { color: var(--color-text-secondary); }
+
+/* ⑤ 주장별 원문 위치 */
+.ps-record .ps-evidence-claims { display: grid; gap: var(--spacing-2); }
 
 /* 목록(번호·점) */
 .ps-record .ps-bul {
@@ -284,49 +404,6 @@
 }
 .ps-record .ps-kv dd { margin: 0; font-size: var(--bo-type-body); line-height: 1.5; overflow-wrap: anywhere; }
 
-/* 판단 상자 */
-.ps-record .ps-verdict {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--spacing-3);
-  align-items: start;
-}
-.ps-record .ps-vbox {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-1-5);
-  min-width: 0;
-  padding: var(--spacing-3) calc(var(--spacing-3) + var(--spacing-0-5));
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--ps-radius-control);
-  background: transparent;
-  overflow-wrap: anywhere;
-}
-.ps-record .ps-vbox .ps-k {
-  display: block;
-  margin: 0;
-  color: var(--color-text-secondary);
-  font-size: var(--bo-type-caption);
-  line-height: var(--bo-type-caption-leading);
-}
-.ps-record .ps-vbox .ps-v {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-2);
-  min-width: 0;
-  font-size: var(--ps-type-lead);
-  font-weight: 600;
-  line-height: 1.3;
-}
-.ps-record .ps-vbox .ps-v .ps-dot { margin-top: 0; }
-.ps-record .ps-vbox .ps-why {
-  color: var(--color-text-secondary);
-  font-size: var(--bo-type-caption);
-  line-height: var(--bo-type-caption-leading);
-}
-.ps-record .ps-vbox .badge, .ps-record .ps-vbox .astryx-token { align-self: flex-start; }
-
-/* 안내 상자 */
 .ps-record .ps-note {
   display: block;
   padding: calc(var(--spacing-2) + var(--spacing-0-5)) var(--spacing-3);
@@ -427,11 +504,11 @@
 }
 
 /* 자동 준비 단계 */
+/* ⑥ 네 단계 카드 (spec §4 ⑥). 완료한 단계만 포인트 테두리와 번호 강조를 받는다. */
 .ps-record .ps-steps {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  column-gap: var(--spacing-6);
-  row-gap: var(--spacing-3);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--spacing-2);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -442,20 +519,45 @@
   align-items: flex-start;
   gap: var(--spacing-1-5);
   min-width: 0;
-  padding: 0 0 var(--spacing-3);
-  border: 0;
-  border-bottom: var(--border-width) solid var(--ps-line);
-  border-radius: 0;
-  background: transparent;
+  padding: var(--spacing-3) calc(var(--spacing-3) + var(--spacing-0-5));
+  border: var(--border-width) solid var(--ps-line);
+  border-radius: var(--ps-radius-control);
+  background: var(--color-background-surface);
   flex: initial;
 }
-.ps-record .ps-step:nth-child(n + 3) { padding-bottom: 0; border-bottom: 0; }
+.ps-record .ps-step.is-done {
+  border-color: var(--bo-brand-edge);
+  background: var(--ps-brand-band);
+}
 .ps-record .ps-step .ps-k {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  min-width: 0;
   color: var(--color-text-primary);
   font-size: calc(var(--bo-type-caption) + var(--border-width));
   font-weight: 600;
   line-height: var(--bo-type-caption-leading);
 }
+/* 번호는 동그라미 배경이고 가운뎃점은 화면에서만 감춘다 — 글자는 `n · 이름` 그대로다. */
+.ps-record .ps-step .ps-step-sep { display: none; }
+.ps-record .ps-step .ps-step-no {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--spacing-5);
+  height: var(--spacing-5);
+  border-radius: var(--radius-full);
+  background: var(--color-background-muted);
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+  font-weight: 600;
+  line-height: 1;
+  flex: 0 0 var(--spacing-5);
+}
+/* `--bo-brand` 위에는 흰 글자를 얹지 않는다(3.07:1). 번호 글자는 본문 색이다. */
+.ps-record .ps-step.is-done .ps-step-no { background: var(--bo-brand); color: var(--color-text-primary); }
+.ps-record .ps-step .ps-step-name { min-width: 0; overflow-wrap: anywhere; }
 .ps-record .ps-step .ps-d {
   color: var(--color-text-secondary);
   font-size: var(--bo-type-caption);
@@ -464,7 +566,8 @@
 
 /* 접힌 이력 줄 */
 .ps-record .ps-collapsed {
-  padding: var(--spacing-3) var(--spacing-1);
+  padding: var(--spacing-3) 0 0;
+  border-top: var(--border-width) solid var(--ps-line);
   color: var(--color-text-secondary);
   font-size: calc(var(--bo-type-caption) + var(--border-width));
 }
@@ -476,9 +579,17 @@
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: calc(var(--spacing-3) + var(--spacing-0-5));
-  padding: var(--spacing-5) var(--spacing-6);
+  gap: 0;
+  padding: 0;
 }
+/* 팩트 스트립은 같은 카드의 아랫단이다(spec §4 ①). 본문만 안쪽 여백을 갖는다. */
+.ps-record .ps-record-header-body {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--spacing-2) + var(--spacing-0-5));
+  padding: var(--spacing-5) var(--spacing-6) var(--spacing-4);
+}
+.ps-record .ps-record-facts { border-top: var(--border-width) solid var(--ps-line); }
 .ps-record-header-top {
   display: flex;
   align-items: flex-start;
@@ -568,8 +679,15 @@
   font-size: var(--bo-type-caption);
 }
 .ps-record-clipboard-helper { position: fixed; left: -100vw; top: 0; }
-.ps-record-summary { display: flex; align-items: flex-start; gap: var(--spacing-3); }
-.ps-record-summary > .ps-chip { margin-top: var(--spacing-0-5); }
+.ps-record-summary {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-3);
+  padding: var(--spacing-3) calc(var(--spacing-3) + var(--spacing-0-5));
+  border-radius: var(--ps-radius-control);
+  background: var(--color-background-body);
+}
+.ps-record-summary > .ps-chip { flex: 0 0 auto; margin-top: var(--spacing-0-5); }
 .ps-record-summary > p {
   flex: 1;
   min-width: 0;
@@ -586,6 +704,27 @@
   --ps-tracking-label: var(--spacing-6);
   --ps-tracking-control: var(--spacing-10);
   --ps-tracking-action: calc(var(--spacing-12) * 4 + var(--spacing-7));
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-width: 0;
+  padding: 0;
+  /* 결정 카드만 포인트 테두리를 두른다(spec §4 ②). 흰 글자를 얹지 않는 테두리라
+     `--bo-brand-edge`를 쓴다. */
+  box-shadow: var(--shadow-low), inset 0 0 0 var(--border-width) var(--bo-brand-edge);
+}
+.ps-record .ps-record-tracking-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-3);
+  min-width: 0;
+  padding: calc(var(--spacing-3) + var(--spacing-0-5)) var(--spacing-6);
+  border-bottom: var(--border-width) solid color-mix(in srgb, var(--bo-brand-edge) 60%, var(--color-background-surface));
+  border-radius: var(--radius-container) var(--radius-container) 0 0;
+  background: var(--ps-brand-band);
+}
+.ps-record .ps-record-tracking-body {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-3);
@@ -822,28 +961,9 @@
 .ps-record .pre-spec-overview-source-highlight-label { color: var(--color-text-secondary); font-weight: 500; }
 
 /* ---- 문서 준비 패널 --------------------------------------------------- */
-.ps-record .ps-record-documents { display: flex; flex-direction: column; min-width: 0; scroll-margin-top: var(--spacing-3); }
-.ps-record .ps-record-documents > .panel {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-3);
-  padding: var(--spacing-5) var(--spacing-6);
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--ps-radius-card);
-  background: var(--color-background-surface);
-  box-shadow: none;
-}
-.ps-record .ps-record-documents > .panel > .panel-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--spacing-3);
-  min-height: 0;
-  padding: 0;
-  border: 0;
-}
-.ps-record .ps-record-documents > .panel > .panel-header h3 { margin: 0; font-size: var(--bo-type-body); line-height: 1.4; font-weight: 600; }
-.ps-record .ps-record-documents > .panel > .panel-body { display: grid; gap: var(--spacing-3); padding: 0; }
+.ps-record .ps-record-documents { display: flex; flex-direction: column; gap: var(--spacing-3); min-width: 0; scroll-margin-top: var(--spacing-3); }
+.ps-record .ps-record-documents:empty { display: none; }
+.ps-record .ps-document-panel-summary-line { margin: 0; color: var(--color-text-secondary); font-size: var(--bo-type-caption); line-height: var(--bo-type-caption-leading); }
 .ps-record .pre-spec-auto-preparation { display: grid; gap: var(--spacing-3); margin: 0; }
 .ps-record .pre-spec-auto-preparation-note { margin: 0; color: var(--color-text-secondary); font-size: var(--bo-type-caption); line-height: var(--bo-type-caption-leading); }
 .ps-record .pre-spec-auto-preparation-link { font-size: var(--bo-type-caption); }
@@ -870,19 +990,20 @@
 .ps-record .pre-spec-detail-document-facts dd { margin: 0; }
 .ps-record .pre-spec-detail-document-summary > p { margin: 0; color: var(--color-text-secondary); font-size: var(--bo-type-caption); line-height: var(--bo-type-caption-leading); }
 
-/* ---- 처리 이력 (접힌 줄) ---------------------------------------------- */
-.ps-record .ps-record-history { display: flex; flex-direction: column; min-width: 0; scroll-margin-top: var(--spacing-3); }
-.ps-record .ps-record-history > .astryx-collapsible { gap: var(--spacing-3); }
-.ps-record .ps-record-history .astryx-collapsible-trigger {
+/* ---- 처리 이력과 접힌 진단 줄 ----------------------------------------- */
+.ps-record .ps-record-history { display: flex; flex-direction: column; gap: var(--spacing-3); min-width: 0; scroll-margin-top: var(--spacing-3); }
+.ps-record .ps-collapsed > .astryx-collapsible { gap: var(--spacing-3); }
+.ps-record .ps-collapsed .astryx-collapsible-trigger {
   justify-content: space-between;
   width: 100%;
   padding: 0;
   color: var(--color-text-secondary);
   font-size: calc(var(--bo-type-caption) + var(--border-width));
   font-weight: 500;
+  text-align: left;
 }
-.ps-record .ps-record-history .astryx-collapsible-content { min-width: 0; }
-.ps-record .ps-record-history .astryx-collapsible-content > * + * { margin-top: var(--spacing-3); }
+.ps-record .ps-collapsed .astryx-collapsible-content { min-width: 0; }
+.ps-record .ps-collapsed .astryx-collapsible-content > * + * { margin-top: var(--spacing-3); }
 .ps-record .detail-skeleton-rail { display: grid; gap: var(--spacing-3); }
 .ps-record .detail-skeleton-rail-panel { padding: var(--spacing-4); border: var(--border-width) solid var(--color-border); border-radius: var(--ps-radius-control); background: var(--color-background-surface); }
 .ps-record .detail-skeleton-rail-title { font-size: calc(var(--bo-type-caption) + var(--border-width)); }
@@ -925,50 +1046,47 @@
 .ps-record .ps-record-conditions > li { display: flex; align-items: flex-start; gap: var(--spacing-3); min-width: 0; }
 
 /* ---- 로딩·오류 자리 (시안에 없는 기능 요소) --------------------------- */
-.ps-record .detail-skeleton-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) calc(var(--spacing-12) * 8 + var(--spacing-4));
-  gap: var(--spacing-4);
-  align-items: start;
-}
-.ps-record .detail-skeleton-main, .ps-record .ps-record-aside { display: flex; flex-direction: column; gap: var(--spacing-4); min-width: 0; }
+.ps-record .detail-skeleton-main { display: flex; flex-direction: column; gap: var(--spacing-4); min-width: 0; }
 .ps-record .empty-state, .ps-record .mutation-feedback { border-radius: var(--ps-radius-chip); font-size: var(--bo-type-caption); }
 .ps-record .interaction-control { min-height: var(--spacing-8); font-size: var(--bo-type-body); }
 .ps-record :is(a, button, summary, [tabindex="-1"]):focus-visible {
   outline: var(--focus-outline-width) solid var(--color-accent);
   outline-offset: var(--spacing-0-5);
 }
-#ps-record-evidence { scroll-margin-top: var(--spacing-3); }
+#ps-evidence { scroll-margin-top: var(--spacing-3); }
 
-/* ---- 회사 업무 부합 여부 카드 안의 판단 요약 --------------------------- */
-/* 판정 한 줄은 점과 문장이 같은 줄이고 품질 표식은 그 아래 칸이다(시안 `.vbox`). */
-.ps-record .ps-vbox .company-fit-heading { display: flex; align-items: center; flex-wrap: wrap; gap: 0 var(--spacing-2); min-width: 0; }
-.ps-record .ps-vbox .company-fit-heading > strong { flex: 1 1 0; }
-.ps-record .ps-vbox .company-fit-heading > .astryx-token { flex: 0 0 100%; width: max-content; margin-top: var(--spacing-1-5); }
-.ps-record .ps-vbox .company-fit-heading::before {
-  content: "";
-  width: var(--spacing-2);
-  height: var(--spacing-2);
-  border-radius: var(--radius-full);
-  background: var(--color-data-neutral);
-  flex: 0 0 var(--spacing-2);
+/* ---- ④ 회사 적합성 열 안의 판정 요약 ---------------------------------- */
+/* `CompanyFitSection compact`가 그대로 들어온다. 판정 한 줄은 점과 문장이 같은
+   줄이고 품질 표식은 그 옆이다(spec §4 ④). */
+.ps-record .ps-record-briefing .company-fit {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  min-width: 0;
+  padding: var(--spacing-3) calc(var(--spacing-3) + var(--spacing-0-5));
+  border: var(--border-width) solid var(--ps-line);
+  border-radius: var(--ps-radius-control);
+  background: var(--color-background-surface);
 }
-.ps-record .ps-vbox.is-matched .company-fit-heading::before { background: var(--color-success); }
-.ps-record .ps-vbox.is-mismatch .company-fit-heading::before { background: var(--color-error); }
-.ps-record .ps-vbox .company-fit-heading strong { min-width: 0; font-size: var(--ps-type-lead); font-weight: 600; line-height: 1.3; }
-.ps-record .ps-vbox :is(.company-fit-summary, .company-fit-notice, .ps-vbox > p) {
+.ps-record .ps-record-briefing .company-fit > h3 {
+  margin: 0;
+  font-size: calc(var(--bo-type-caption) + var(--border-width));
+  font-weight: 600;
+}
+.ps-record .ps-record-briefing .company-fit :is(p, li) { overflow-wrap: anywhere; }
+.ps-record .ps-record-briefing .company-fit-heading { display: flex; align-items: center; flex-wrap: wrap; gap: var(--spacing-2); min-width: 0; }
+.ps-record .ps-record-briefing .company-fit-heading > strong { min-width: 0; font-size: var(--bo-type-body); font-weight: 600; line-height: 1.4; }
+.ps-record .ps-record-briefing :is(.company-fit-note, .company-fit-summary, .company-fit-notice) {
   margin: 0;
   color: var(--color-text-secondary);
   font-size: var(--bo-type-caption);
   line-height: var(--bo-type-caption-leading);
 }
-.ps-record .ps-vbox .company-fit-notice { padding: 0; background: transparent; }
+.ps-record .ps-record-briefing .company-fit-notice { padding: 0; background: transparent; }
+.ps-record .ps-briefing-next-action { margin: 0; }
 
 /* ---- 담당자 브리핑 ---------------------------------------------------- */
-.ps-record .ps-record-briefing {
-  gap: var(--spacing-4);
-  scroll-margin-top: var(--spacing-3);
-}
+.ps-record .ps-record-briefing { gap: var(--spacing-3); }
 .ps-record .ps-briefing-group {
   display: grid;
   gap: var(--spacing-2);
@@ -1074,52 +1192,66 @@
   gap: var(--spacing-1);
 }
 
-/* ---- 선택 상세 순회 -------------------------------------------------- */
-/* 이 셸은 조회 성공 여부와 무관하게 그려진다. flex-wrap과 min-width:0을
- * 함께 두어 지원 폭(1280~1920px)에서 긴 상태·제목이 이전/다음 조작을
- * 밀어내거나 잘라내지 않게 한다. */
-.ps-record .ps-detail-navigation {
+/* ---- 선택 상세 순회 (상단바 액션 슬롯) ------------------------------- */
+/* 순회는 `PageHeaderActions` portal 로 상단바에 들어가 `.ps-record` 밖에 있다
+ * (docs/0915_ui-redesign/spec.md §4 상단바). 화면 CSS 가 닿지 않는 자리라
+ * `.ps-record` 안의 별칭 토큰을 쓰지 않고 테마 토큰만 읽는다. 조회 성공 여부와
+ * 무관하게 그려지므로 min-width:0 으로 긴 값이 조작을 밀어내지 않게 한다. */
+#page-header-actions .ps-detail-navigation {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: var(--spacing-3) var(--spacing-4);
+  gap: var(--spacing-3);
   min-width: 0;
-  padding: var(--spacing-3) var(--spacing-4);
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--ps-radius-card);
-  background: var(--color-background-surface);
 }
-.ps-record .ps-detail-navigation-position {
+#page-header-actions .ps-detail-navigation-position {
   display: flex;
   align-items: baseline;
-  flex-wrap: wrap;
-  gap: var(--spacing-2);
+  gap: var(--spacing-1-5);
   min-width: 0;
+  white-space: nowrap;
 }
-.ps-record .ps-detail-navigation-position .ps-k {
+#page-header-actions .ps-detail-navigation-position .ps-k {
   color: var(--color-text-secondary);
   font-size: var(--bo-type-caption);
   font-weight: var(--font-weight-normal);
   line-height: var(--bo-type-caption-leading);
 }
-.ps-record .ps-detail-navigation-position strong {
+#page-header-actions .ps-detail-navigation-position strong {
   color: var(--color-text-primary);
-  font-size: var(--bo-type-body);
+  font-size: var(--bo-type-caption);
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
-  line-height: 1.4;
+  line-height: var(--bo-type-caption-leading);
 }
-.ps-record .ps-detail-navigation-actions {
+#page-header-actions .ps-detail-navigation-actions {
   display: flex;
   flex: 0 0 auto;
   gap: var(--spacing-2);
 }
-.ps-record .ps-detail-navigation-actions .ps-btn {
-  min-width: calc(var(--spacing-12) * 2 + var(--spacing-2));
+#page-header-actions .ps-detail-navigation-actions .ps-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: var(--spacing-7);
+  padding: 0 var(--spacing-3);
+  border: 0;
+  border-radius: var(--radius-element);
+  box-shadow: inset 0 0 0 var(--border-width) var(--color-border);
+  background: var(--color-background-surface);
+  color: var(--color-text-primary);
+  font-size: var(--bo-type-caption);
+  font-weight: 500;
+  line-height: 1.45;
+  white-space: nowrap;
+  cursor: pointer;
 }
-.ps-record .ps-detail-navigation-actions .ps-btn:disabled {
-  color: var(--color-text-disabled);
+#page-header-actions .ps-detail-navigation-actions .ps-btn:disabled {
+  box-shadow: none;
   background: var(--color-background-muted);
-  border-color: var(--color-border);
+  color: var(--color-text-disabled);
   cursor: not-allowed;
+}
+#page-header-actions .ps-detail-navigation-actions .ps-btn:focus-visible {
+  outline: var(--focus-outline-width) solid var(--color-accent);
+  outline-offset: var(--spacing-0-5);
 }

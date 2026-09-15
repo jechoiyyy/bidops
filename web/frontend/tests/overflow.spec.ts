@@ -34,17 +34,18 @@ for (const target of lifecycleVisualTargets) {
   });
 }
 
-// 사전규격 목록에서 심층 추적 승인 패널을 연 상태는 단순 goto만으로 도달할 수
-// 없는 상호작용이라 별도 타깃으로 둔다(목록 타깃은 패널이 닫힌 기본 상태다).
+// 추적 결정은 대화상자가 아니라 우측 정보 영역 바닥의 인라인 폼이다
+// (docs/0915_ui-redesign/spec.md §3.3). 폼이 실제로 그려지는 건(신규·미선택)을
+// 골라야 사유 Selector·담당자 칸·저장 단추가 같은 줄에 들어가는지 잰다.
 test("pre-specs-tracking-panel 화면이 가로로 넘치지 않는다", async ({ page }) => {
   await mockPreSpecs(page);
   await page.goto("/pre-specs");
   await expect(page.locator("h1").first()).toBeVisible();
   const trackedRow = page
     .locator('.pre-specs-list-pane [data-review-primitive="dense-list-row"]')
-    .filter({ hasText: "안전한 문서 준비 사전규격" });
+    .filter({ hasText: "신규 지능형 행정 지원 사전규격" });
   await trackedRow.click();
-  await page.getByRole("button", { name: "추적 선택 변경", exact: true }).click();
+  await expect(page.locator("#pre-specs-tracking-target .pre-spec-tracking-form")).toBeVisible();
   await expect(page.locator("#pre-specs-tracking-target")).toBeVisible();
   await page.waitForLoadState("networkidle");
   await expectNoHorizontalOverflow(page);

@@ -330,6 +330,32 @@ export function toggleSelection<Id extends ListSelectionId, Metadata>(
   };
 }
 
+/**
+ * spec §3.4: `전체 선택`은 현재 페이지의 `ids`를 기존 `selectedIds` 뒤에 순서
+ * 그대로, 중복 없이 덧붙인다. 이미 선택된 id는 자리도 메타데이터도 바꾸지
+ * 않고, 새 id의 메타데이터는 `toggleSelection`과 같은 규칙(값이 있을 때만
+ * `metadataKey(id)`로 기록)을 따른다. 추가된 것이 없으면 같은 참조를 반환한다.
+ */
+export function selectMany<Id extends ListSelectionId, Metadata>(
+  state: ListSelectionState<Id, Metadata>,
+  ids: readonly Id[],
+  metadataById?: Record<string, Metadata>,
+): ListSelectionState<Id, Metadata> {
+  const existing = new Set(state.selectedIds);
+  const additions = dedupeIds(ids).filter((id) => !existing.has(id));
+  if (additions.length === 0) return state;
+  const selectedSortMetadata = { ...state.selectedSortMetadata };
+  for (const id of additions) {
+    const metadata = metadataById?.[metadataKey(id)];
+    if (metadata !== undefined) selectedSortMetadata[metadataKey(id)] = metadata;
+  }
+  return {
+    ...state,
+    selectedIds: [...state.selectedIds, ...additions],
+    selectedSortMetadata,
+  };
+}
+
 export function updateSelectionSortMetadata<Id extends ListSelectionId, Metadata>(
   state: ListSelectionState<Id, Metadata>,
   id: Id,

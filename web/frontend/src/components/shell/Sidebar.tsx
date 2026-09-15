@@ -125,10 +125,15 @@ export function Sidebar({ activeNavPath, runSearch }: { activeNavPath: string | 
         className={`sidebar-brand ${atHome ? "is-current" : ""}`.trim()}
         to={{ pathname: "/", search: runSearch }}
       >
-        <img alt="" className="sidebar-brand-logo" src="/rootlab-icon-light.svg" />
-        <span className="sidebar-brand-text">
+        {/* 브랜드 줄 C안(워드마크형, spec §2.1): 면 없이 아이콘 28px + BidOps
+            20/700, 아래 짧은 --bo-brand 선 + 부제. 아이콘은 CSS mask로 칠하므로
+            보조 기술에는 옆의 브랜드 글자만 노출한다. */}
+        <span className="sidebar-brand-row">
+          <span aria-hidden="true" className="sidebar-brand-logo" />
           <strong>BidOps</strong>
-          <span>ROOTLAB · 사업기회 모니터링</span>
+        </span>
+        <span className="sidebar-brand-sub">
+          <span className="sidebar-brand-subtext">ROOTLAB · 사업기회 모니터링</span>
         </span>
       </Link>
       <nav aria-label="주 메뉴" className="sidebar-nav">

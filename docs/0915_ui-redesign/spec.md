@@ -40,12 +40,14 @@ HTML이며, 아트보드의 값은 앱 `zoom: 0.9` 기준 **논리 px**라 CSS �
 
 | 토큰 | 값 | 쓰는 곳 |
 |---|---|---|
-| `--bo-brand` | `#75A03B` | 활성 메뉴 좌측 바, 진행 막대 채움, 완료 단계 테두리·번호 배경, 밑줄 탭 |
+| `--bo-brand` | `#75A03B` | 진행 막대 채움, 완료 단계 테두리·번호 배경, 밑줄 탭 |
 | `--bo-brand-edge` | `#CFDFB5` | 완료 단계 카드 테두리, 상세 열기 단추 테두리 |
 | `--bo-brand-deep` | `#3F5A1C` | 진행 막대 첫 단(100%) |
 
 `--bo-brand`는 **글자에도, 흰 글자를 얹는 채움에도 쓰지 않는다**(3.07:1).
-`check-contrast.test.mjs`에 `['bo-brand', 'color-background-body'] ≥ 3.0`(비텍스트)만 추가한다.
+`check-contrast.test.mjs`에 `['bo-brand', 'color-background-card'] ≥ 3.0`(비텍스트, 실측
+3.07:1)만 추가한다. `['bo-brand', 'color-background-body']`(canvas 위)는 실측 2.85:1로
+3:1에 못 미쳐 대상이 아니다 — `--bo-brand`는 흰 카드 위 비텍스트에만 쓴다.
 
 ### 1.3 등급 ramp (`grade-ramp.css`)
 
@@ -78,7 +80,7 @@ HTML이며, 아트보드의 값은 앱 `zoom: 0.9` 기준 **논리 px**라 CSS �
 | 부위 | 값 |
 |---|---|
 | 셸·canvas 배경 | `--color-background-body` (`#F6F7F4`) |
-| 사이드바 | 폭 248 유지. 배경 `--color-background-body`, 우측 테두리 없음. 브랜드 마크 40×40 `--color-accent` 채움 + 잎 아이콘(`--color-on-accent`). 그룹 라벨 `--color-text-secondary` 12px. 항목 36px·8px 12px·반지름 5.25 유지, 글자 `--color-text-secondary`; 활성은 배경 `--color-background-surface` + `--shadow-low`, 글자 `--color-text-accent` 600. 사이드바 본문은 `--color-on-dark`를 더는 읽지 않는다 |
+| 사이드바 | 폭 248 유지. 배경 `--color-background-body`, 우측 테두리 없음. 브랜드 줄: 면 없이 아이콘 28px(`--color-accent`, mask) + `BidOps` 20/700, 아래 부제 12/500, 좌우 16px 안쪽 1px `--color-border` 구분선(C안). 그룹 라벨 `--color-text-secondary` 12px. 항목 36px·8px 12px·반지름 5.25 유지, 글자 `--color-text-secondary`; 활성은 배경 `--color-background-surface` + `--shadow-low`, 글자 `--color-text-accent` 600. 사이드바 본문은 `--color-on-dark`를 더는 읽지 않는다 |
 | 상단바 | 높이 76 유지. 배경 `--color-background-body`, 하단 테두리 없음. 제목 모드 h1 20/600, 경로 모드 12px 유지 |
 | canvas 여백 | `12px 18px 16px` (기존 `16px 18px`; 필터 줄이 상단바에 붙어 보이도록 위만 4px 줄임). `design-shell.spec.ts`의 기본 여백 기대값을 함께 바꾼다 |
 | 전역 배율 | `zoom: 0.9` 유지 |
@@ -89,8 +91,9 @@ HTML이며, 아트보드의 값은 앱 `zoom: 0.9` 기준 **논리 px**라 CSS �
 ### 2.2 필터 줄과 보기 탭 (`components/common/WorkspaceFilters.tsx`의 `WorkspaceFilterBar`, `styles/workspace-filters.css`)
 
 - 필터 줄은 테두리·배경 없이 canvas 위에 놓인다(`padding: 0 4px`).
-- 보기 탭은 밑줄형: 높이 32, 글자 12px, 비활성 `--color-text-disabled`(카운트
-  포함), 활성 `--color-text-primary` 600 + `box-shadow: inset 0 -2px 0 var(--bo-brand)`,
+- 보기 탭은 밑줄형: 높이 32, 글자 12px, 비활성 라벨 `--color-text-secondary`(비활성
+  탭도 누를 수 있는 글자라 4.5:1을 지킨다; 건수만 `--color-text-disabled`), 활성
+  `--color-text-primary` 600 + `box-shadow: inset 0 -2px 0 var(--bo-brand)`, 활성
   카운트는 `--color-text-accent`. 탭 사이 12px.
 - 검색 입력 264×32, 반지름 8.75, 테두리 `--color-border-emphasized`. 고급 필터
   토글은 32×32 outline 단추.
@@ -188,7 +191,7 @@ HTML이며, 아트보드의 값은 앱 `zoom: 0.9` 기준 **논리 px**라 CSS �
 | ① | 머리 카드 | 칩 줄(`사전규격 · {origin}`, D-day, `SW사업대상`, `본공고 {번호|미확인}`, 구분) · 제목 22/600 · 기관·`PreSpecRecordIdentity`(번호 복사·나라장터 원문)·품명 분류 · `사업 요약` 띠(`business_overview[0]` + 근거 링크) · 우측 `추적 결정 · {상태}` 칩 + `목록으로 돌아가기` · 팩트 스트립 6칸(사업 예산·의견등록 마감·게시·구분·적합성 등급(출처)·첨부 원문) 유지 |
 | ② | 추적 결정 | `TrackingDecisionControl presentation="record"` 그대로. 카드 테두리 inset 1px `--bo-brand-edge`, 머리 띠 `#F9FBF5`. 캡션 두 줄 유지. 승계·기록 사업은 기존 상태 블록 |
 | ③ | 주요 과업과 수행 범위 | `main_tasks` 번호 목록(제목 = 첫 문장, 나머지 본문, 우측 근거 `제안요청서 p.n §`) · `사업 규모와 일정` = `budget_and_period` 항목을 타일로(문장 그대로, 파싱 없음) · 머리 우측 검증 라벨 칩 + `전체 근거 PDF 열기 ↗`. `현재 판단`의 `개요 입력 범위 확정 필요 · 확정하기 →`·`사람 확인 필요 · 사유 n건 → 보기` 알림은 이 카드 맨 위 알림 줄로 옮긴다 |
-| ④ | 참여 조건 · 회사 적합성 · 위험 및 미확인 사항 | 3열 grid. **참여 조건**: `important_conditions` + v1 `지켜야 할 조건`(있을 때) 체크 목록 + 근거 링크. **회사 적합성**: 적합성 등급 칩 + 출처·판정 사유(`judgment.summary`, 관점) + `사람 정정 사유`(없으면 `사람 정정 사유 없음`) + `회사 업무 부합 여부`(`CompanyFitSection compact`, 판정 없음 문구 그대로). **위험 및 미확인**: 검증 실패 주장(orange `근거 위치 없음`) → `unknowns`(중립 `미확인`) → `judgment.counterarguments`·`verification_items` → 회사 핏 `verification_items`. 카드 머리 우측 캡션 `적합성 등급 · 추적 결정 · 최종 Go/No-Go는 서로 대신하지 않음` |
+| ④ | 참여 조건 · 회사 적합성 · 위험 및 미확인 사항 | 3열 grid. **참여 조건**: `important_conditions` + v1 `지켜야 할 조건`(있을 때) 체크 목록 + 근거 링크. **회사 적합성**: 출처·판정 사유(`judgment.summary`, 관점; 등급 칩은 다시 그리지 않는다 — 등급 라벨은 ① 팩트 스트립이 1회 소유) + `사람 정정 사유`(없으면 `사람 정정 사유 없음`) + `회사 업무 부합 여부`(`CompanyFitSection compact`, 판정 없음 문구 그대로). **위험 및 미확인**: 검증 실패 주장(orange `근거 위치 없음`) → `unknowns`(중립 `미확인`) → `judgment.counterarguments`·`verification_items` → 회사 핏 `verification_items`. 카드 머리 우측 캡션 `적합성 등급 · 추적 결정 · 최종 Go/No-Go는 서로 대신하지 않음` |
 | ⑤ | 근거 문서 · 첨부 | `PreSpecAttachmentList`를 표(파일 · 형식·크기 · 본문 추출 · 열기)로 · `문서 근거` 주장별 원문 위치 목록(`상세에서 근거 원문 열기 →`, 원문 블록 뷰어 유지) · 첨부 URL 규칙 캡션 |
 | ⑥ | 처리 이력 · 문서 준비 · 검토 실행 | 머리 우측 단추: `문서 준비 열기/닫기`(조건부 렌더 토글, 기본값 규칙 `documentPanelDefaultOpen` 그대로) · `심층 검토 보고서 열기 →`(없으면 disabled `시작 기록 없음`) · 4단계 카드(첨부 취득·문서 묶음·개요 검토·심층 검토, 완료는 `--bo-brand-edge` 테두리 + 번호 `--bo-brand`) · 자동 시작 캡션 · 열렸을 때 `개요 입력 범위 확정`(`#ps-record-range`, 항상 mount) → `DocumentPreparationPanel` → `PreSpecDocumentSummary` · `처리 이력` 타임라인(시각·점·제목·설명; `변경 일시·사유`, 개요 실행 이력, 회사 핏 이전 판정) · 접힌 `현재 주장 검증 진단 · 고정 입력과 식별 해시 · 회사 적합성 실행 정보`(`Collapsible`; 실패·사람 확인 상태면 기본 열림) |
 

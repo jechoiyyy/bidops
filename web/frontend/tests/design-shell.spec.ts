@@ -80,7 +80,7 @@ test("셸에 좁은 폭 서랍이 없고 사이드바가 항상 보인다", asyn
 // 폭 하나에서만 도는 검사의 조건은 `layout-desktop`이다. 이 파일은 layout project
 // 두 개(`layout-laptop`·`layout-desktop`)에서만 돌므로 옛 이름(`desktop`)으로 비교하면
 // 두 폭 모두에서 skip되어 검사가 조용히 죽는다.
-test("1440px 셸의 무드보드 색과 기준 치수를 고정한다", async ({ page }, testInfo) => {
+test("1440px 셸의 팔레트 색과 기준 치수를 고정한다", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "layout-desktop", "desktop fixture only");
 
   await page.goto("/", { waitUntil: "domcontentloaded" });
@@ -93,14 +93,17 @@ test("1440px 셸의 무드보드 색과 기준 치수를 고정한다", async ({
     const sidebar = element('[data-shell-region="sidebar"]');
     const topbar = element('[data-shell-region="topbar"]');
     const canvas = element('[data-shell-region="canvas"]');
+    const brand = element('.sidebar-brand');
     const rootStyle = getComputedStyle(shell);
     const sidebarStyle = getComputedStyle(sidebar);
     const topbarStyle = getComputedStyle(topbar);
     const canvasStyle = getComputedStyle(canvas);
+    const brandStyle = getComputedStyle(brand);
     return {
       colorScheme: rootStyle.colorScheme,
       shellBackground: rootStyle.backgroundColor,
       sidebarBackground: sidebarStyle.backgroundColor,
+      brandBackground: brandStyle.backgroundColor,
       sidebarWidth: sidebar.getBoundingClientRect().width,
       topbarBackground: topbarStyle.backgroundColor,
       topbarHeight: topbar.getBoundingClientRect().height,
@@ -111,19 +114,21 @@ test("1440px 셸의 무드보드 색과 기준 치수를 고정한다", async ({
       uiScale: Number.parseFloat(rootStyle.getPropertyValue("--bo-ui-scale")),
       rootZoom: getComputedStyle(document.documentElement).zoom,
       accentToken: rootStyle.getPropertyValue("--color-accent").trim(),
-      // legacy @theme 이 :root 로 방출되어 테마를 이기던 토큰들(ADR-0048 §4-1).
+      // legacy @theme 이 :root 로 방출되어 테마를 이기던 토큰들.
       borderToken: rootStyle.getPropertyValue("--color-border").trim(),
       successToken: rootStyle.getPropertyValue("--color-success").trim(),
     };
   });
 
-  // 색은 docs/design/PRD.md §4.1 의 무드보드 토큰 표와 1:1로 대응한다.
+  // 색은 docs/0915_ui-redesign/spec.md §2.1 의 셸 표와 1:1로 대응한다.
+  // 사이드바·상단바는 더는 어두운 면·흰 면이 아니라 canvas와 같은 회녹 바탕이다.
   expect(metrics).toMatchObject({
     colorScheme: "light",
-    shellBackground: "rgb(242, 240, 239)", // #F2F0EF greige 30% + white
-    sidebarBackground: "rgb(22, 27, 47)", // #161B2F navy anchor
-    topbarBackground: "rgb(255, 255, 255)",
-    canvasBackground: "rgb(242, 240, 239)",
+    shellBackground: "rgb(246, 247, 244)", // #F6F7F4 회녹 canvas
+    sidebarBackground: "rgb(246, 247, 244)", // 셸과 같은 면
+    brandBackground: "rgba(0, 0, 0, 0)", // 면 없음(C안, spec §2.1)
+    topbarBackground: "rgb(246, 247, 244)",
+    canvasBackground: "rgb(246, 247, 244)",
     uiScale: 0.9,
     rootZoom: "0.9",
   });
@@ -135,15 +140,20 @@ test("1440px 셸의 무드보드 색과 기준 치수를 고정한다", async ({
   expect(Number.parseFloat(metrics.shellMinWidth)).toBeCloseTo(1280 / 0.9, 1);
   expect(Number.parseFloat(metrics.bodyMinWidth)).toBeCloseTo(1280 / 0.9, 1);
 
-  // accent 는 무드보드 slate 다. RootLab 녹색이 되돌아오지 않았는지도 함께 본다.
-  expect(metrics.accentToken.toUpperCase()).toContain("5B687C");
+  // accent 는 회사 포인트색을 한 단계 내린 #587A2B 다(spec §1.1). 옛 slate 와
+  // RootLab 녹색이 되돌아오지 않았는지도 함께 본다.
+  expect(metrics.accentToken.toUpperCase()).toContain("587A2B");
+  expect(metrics.accentToken.toUpperCase()).not.toContain("5B687C");
   expect(metrics.accentToken).not.toContain("1D7B4E");
   expect(metrics.accentToken).not.toContain("7FD9AE");
 
   // legacy @theme 은 :root 로 방출되어 @layer astryx-theme 을 이긴다. 이름이 겹치는
   // 토큰을 theme.css 에 되살리면 테마 값이 조용히 무시되므로 여기서 막는다.
-  expect(metrics.borderToken.toUpperCase()).toContain("D4CDCB");
+  expect(metrics.borderToken.toUpperCase()).toContain("E2E5DF");
+  expect(metrics.borderToken.toUpperCase()).not.toContain("D4CDCB");
   expect(metrics.borderToken.toUpperCase()).not.toContain("D7E1DB");
+  // 성공만 포인트 초록 계열로 옮겼다(intent 결정 1).
+  expect(metrics.successToken.toUpperCase()).toContain("3F5A1C");
   expect(metrics.successToken).not.toContain("276238");
 
   // canvas 여백은 셸의 기본값이지만 시안을 통째로 옮긴 화면(ERP 대시보드는
@@ -154,12 +164,12 @@ test("1440px 셸의 무드보드 색과 기준 치수를 고정한다", async ({
     const style = getComputedStyle(canvas);
     return [style.paddingTop, style.paddingRight, style.paddingBottom, style.paddingLeft];
   });
-  expect(canvasPadding).toEqual(["16px", "18px", "16px", "18px"]);
+  expect(canvasPadding).toEqual(["12px", "18px", "16px", "18px"]);
 });
 
 // 제목 모드는 상단바가 화면의 시각 제목을 맡는다. 페이지가 제목 줄을 지운 뒤
 // 이 글자가 20px 위계를 잃으면 화면에서 제목이 사라진 것과 같으므로 값을 고정한다.
-// 상단바 높이는 두 모드가 같아야 한다(논리 76px, PRD §5). 전역 90% 배율이
+// 상단바 높이는 두 모드가 같아야 한다(논리 76px). 전역 90% 배율이
 // 적용되므로 브라우저에 그려지는 높이는 68.4px이며, 모드에 따라 셸이 흔들리면
 // 목록과 상세를 오갈 때마다 본문이 위아래로 튄다.
 test("제목 모드 상단바가 20px 논리 제목을 쓰고 물리 높이는 68.4px다", async ({ page }, testInfo) => {

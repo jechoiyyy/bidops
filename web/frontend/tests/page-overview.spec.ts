@@ -47,18 +47,27 @@ for (const width of [1280, 1440]) {
     await page.route(OVERVIEW_PATH, route => route.fulfill({
       json: envelope(overviewCompletedRunFixture, [overviewCompletedRunFixture]),
     }));
-    await page.goto('/pre-specs?notice_pk=991');
+    await page.goto('/pre-specs/991');
+    // 상세 세로 6단에서 검증 라벨·품질 표식은 ③ 카드 머리가, 요약 한 줄은 ① 머리
+    // 카드가, 미확인 항목은 ④ `위험 및 미확인 사항` 열이 갖는다
+    // (docs/0915_ui-redesign/spec.md §4). 확인하는 사실은 그대로다.
+    const tasks = page.locator('#ps-tasks');
     const review = page.getByRole('region', { name: 'PDF 기반 개요 검토' });
     await expect(review).toBeVisible();
-    await expect(review.getByText('주장 검증 완료 · 운영 승인 아님')).toBeVisible();
-    await expect(review.getByText('참조 실행 · 품질 미측정')).toBeVisible();
-    await expect(review.getByText('사업 개요', { exact: true })).toBeVisible();
+    await expect(tasks.getByText('주장 검증 완료 · 운영 승인 아님')).toBeVisible();
+    await expect(tasks.getByText('참조 실행 · 품질 미측정')).toBeVisible();
+    await expect(page.locator('#ps-summary')).toContainText('사업 요약');
+    await expect(page.locator('#ps-summary')).toContainText(currentFactText);
     await expect(review).toContainText(currentFactText);
-    await expect(review.getByRole('link', { name: 'PDF 3페이지 ↗' }).first()).toHaveAttribute(
+    // 첫 주장의 근거 링크는 ① 요약 띠가 갖는다(③ 본문은 같은 문장을 계약대로
+    // 담되 화면에서는 감춘다). 링크가 가리키는 run·쪽은 그대로다.
+    await expect(page.locator('#ps-summary').getByRole('link', { name: 'PDF 3페이지 ↗' }).first()).toHaveAttribute(
       'href',
       `/api/pre-specs/991/overview/runs/${overviewCompletedRunFixture.id}/pdf#page=3`,
     );
-    await expect(review.getByText('추가 확인 사항', { exact: true })).toHaveCount(1);
+    const risks = page.locator('#ps-conditions .ps-risks');
+    await expect(risks.getByText('평가 배점표가 읽은 범위에 없어 확인하지 못했다.', { exact: true })).toHaveCount(1);
+    await expect(risks.getByText('미확인', { exact: true })).toHaveCount(1);
     expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(false);
     await page.goto('/pre-specs/991');
     await expect(page.getByRole('region', { name: 'PDF 기반 개요 검토' })).toBeVisible();
@@ -68,7 +77,7 @@ for (const width of [1280, 1440]) {
 test('page overview errors and wrong-notice results stay distinct from a rendered review', async ({ page }) => {
   await mockApi(page);
   await page.route(OVERVIEW_PATH, route => route.fulfill({ status: 503, json: { error: { code: 'unavailable', message: 'unavailable' } } }));
-  await page.goto('/pre-specs?notice_pk=991');
+  await page.goto('/pre-specs/991');
   await expect(page.getByText('PDF 기반 개요를 불러오지 못했습니다.', { exact: false })).toBeVisible();
   await page.route(OVERVIEW_PATH, route => route.fulfill({
     json: { ...envelope(overviewCompletedRunFixture, [overviewCompletedRunFixture]), notice_id: 992 },
@@ -102,14 +111,15 @@ test('current result is selected by result_id and terminal state refreshes relat
     await route.fulfill({ json: body });
   });
 
-  await page.goto('/pre-specs?notice_pk=991');
+  await page.goto('/pre-specs/991');
   await expect(page.getByRole('region', { name: '현재 v4 개요 실행' })).toContainText('개요 검토 대기');
   await expect.poll(() => overviewCalls, { timeout: 12_000 }).toBeGreaterThan(1);
   await expect(page.getByRole('region', { name: '현재 v4 개요 실행' })).toContainText('개요 검토 완료');
   const currentRegion = page.getByRole('region', { name: 'PDF 기반 개요 검토' });
   await expect(currentRegion).toContainText(currentFactText);
   await expect(currentRegion).not.toContainText('과거 성공 결과의 본문이다.');
-  await expect(currentRegion.getByRole('link', { name: 'PDF 3페이지 ↗' }).first()).toHaveAttribute(
+  // 첫 주장의 근거 링크는 ① 요약 띠가 갖는다. 링크는 **현재** run의 pdf를 가리킨다.
+  await expect(page.locator('#ps-summary').getByRole('link', { name: 'PDF 3페이지 ↗' }).first()).toHaveAttribute(
     'href',
     new RegExp(`${overviewCompletedRunFixture.id}/pdf#page=3$`),
   );
@@ -248,14 +258,16 @@ test('current body keeps long text and limitations without client truncation', a
   };
   await mockApi(page);
   await page.route(OVERVIEW_PATH, route => route.fulfill({ json: envelope(longRun, [longRun]) }));
-  await page.goto('/pre-specs?notice_pk=991');
+  await page.goto('/pre-specs/991');
   const currentRegion = page.getByRole('region', { name: 'PDF 기반 개요 검토' });
   await expect(currentRegion).toContainText(longText);
-  await expect(currentRegion.getByRole('link', { name: 'PDF 3페이지 ↗' }).first()).toHaveAttribute(
+  await expect(page.locator('#ps-summary')).toContainText(longText);
+  await expect(page.locator('#ps-summary').getByRole('link', { name: 'PDF 3페이지 ↗' }).first()).toHaveAttribute(
     'href',
     new RegExp(`${longRun.id}/pdf#page=3$`),
   );
-  await expect(currentRegion).toContainText('선택된 PDF 3~11페이지를 기준으로 검토했습니다.');
+  // 검토 범위·실행 정보는 ⑥ 카드의 접힌 진단 줄이 갖는다(spec §4 ⑥). 본문은 잘리지 않는다.
+  await expect(page.locator('#ps-process')).toContainText('선택된 PDF 3~11페이지를 기준으로 검토했습니다.');
 });
 
 test('an envelope that does not match the contract fails closed', async ({ page }) => {
@@ -290,10 +302,11 @@ test('detail range notification leads to the live confirmation form outside the 
     });
   });
   await page.goto('/pre-specs/991');
-  // 오른쪽 `현재 판단`에는 알림 한 줄만 있고 조작 폼은 왼쪽 열이 소유한다(ADR-0055 결정 4).
-  const verdict = page.locator('.ps-record-aside');
-  await expect(verdict.getByRole('radio')).toHaveCount(0);
-  const link = verdict.locator('a[href="#ps-record-range"]');
+  // ③ 카드 맨 위에는 알림 한 줄만 있고 조작 폼은 ⑥ 카드가 소유한다
+  // (docs/0915_ui-redesign/spec.md §4 ③·⑥).
+  const notices = page.locator('#ps-tasks .ps-notices');
+  await expect(notices.getByRole('radio')).toHaveCount(0);
+  const link = notices.locator('a[href="#ps-record-range"]');
   await expect(link).toContainText('확정하기');
   await link.click();
   const region = page.locator('#ps-record-range').getByRole('region', { name: '개요 범위 확인' });
@@ -325,7 +338,7 @@ test('pending range review confirms a clause range and refetches the overview', 
     await route.fulfill({ json: pendingRangeEnvelope });
   });
 
-  await page.goto('/pre-specs?notice_pk=991');
+  await page.goto('/pre-specs/991');
   const region = page.getByRole('region', { name: '개요 범위 확인' });
   await expect(region).toContainText('범위 확인 필요');
   await expect(region).toContainText('범위 제목을 찾지 못함');
@@ -377,7 +390,7 @@ test('range review without clause candidates confirms a page range', async ({ pa
     }),
   }));
 
-  await page.goto('/pre-specs?notice_pk=991');
+  await page.goto('/pre-specs/991');
   const region = page.getByRole('region', { name: '개요 범위 확인' });
   await expect(region).toContainText('쪽 범위로 직접 확정합니다.');
   await expect(region.getByRole('link', { name: '변환 PDF 열기 ↗' })).toHaveAttribute(
@@ -411,7 +424,7 @@ test('complete candidates keep clause default but allow an exact page pair', asy
   });
   await page.route(OVERVIEW_PATH, route => route.fulfill({ json: pendingRangeEnvelope }));
 
-  await page.goto('/pre-specs?notice_pk=991');
+  await page.goto('/pre-specs/991');
   const region = page.getByRole('region', { name: '개요 범위 확인' });
   await expect(region.getByRole('radio', { name: '시작 #0' })).toBeVisible();
   await region.getByRole('button', { name: '쪽 직접 선택' }).click();
@@ -440,7 +453,7 @@ test('partial candidates are reference-only and page selection remains available
     }),
   }));
 
-  await page.goto('/pre-specs?notice_pk=991');
+  await page.goto('/pre-specs/991');
   const region = page.getByRole('region', { name: '개요 범위 확인' });
   await expect(region.getByRole('button', { name: '절 후보 선택' })).toHaveCount(0);
   await expect(region.getByLabel('시작 쪽')).toBeVisible();
@@ -472,7 +485,7 @@ test('ready automatic range with failed capacity keeps PDF and separates prepara
 
   for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900 }]) {
     await page.setViewportSize(viewport);
-    await page.goto('/pre-specs?notice_pk=991');
+    await page.goto('/pre-specs/991');
     const region = page.getByRole('region', { name: '개요 범위 확인' });
     await expect(region).toContainText('변환 완료 · 자동 선택 · 내용 검증 상태는 개요 상태에서 확인');
     await expect(region).toContainText('자동 선택 범위 2~18쪽');
@@ -502,7 +515,7 @@ test('unsafe or active ready target explains why confirmation is blocked without
     }),
   }));
 
-  await page.goto('/pre-specs?notice_pk=991');
+  await page.goto('/pre-specs/991');
   const region = page.getByRole('region', { name: '개요 범위 확인' });
   await expect(region).toContainText('실행 중인 개요가 있어 새 범위를 저장할 수 없습니다');
   await expect(region.getByRole('button', { name: '범위 확정' })).toBeDisabled();

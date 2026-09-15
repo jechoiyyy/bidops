@@ -1,5 +1,5 @@
 /*
- * 적합성 등급 ramp — ADR-0048 결정 3, docs/design/PRD.md §4.1.
+ * 적합성 등급 ramp — docs/0915_ui-redesign/spec.md §1.3.
  *
  * bidopsTheme.ts 에 두지 못하는 이유: Astryx 의 `TokenName` 이 닫힌 union
  * (`CoreTokenName | DomainTokenName`)이라 커스텀 토큰을 받지 않는다.
@@ -7,24 +7,25 @@
  * 그래서 `--color-*` 가 아닌 프로젝트 접두사 `--bo-*` 로 두고, 색이 한곳에
  * 모이도록 테마 디렉터리에 함께 둔다. 화면 CSS 는 읽기만 한다.
  *
- * 등급은 심각도가 아니라 우선순위 순서다. 의미색에 싣지 않고 slate accent
- * (#5B687C)의 농도 4단으로 순서만 나타낸다. 인접 단의 배경 대비는 1.9~2.1
- * 이라 색만으로는 구분되지 않으므로 **등급 표시는 항상 텍스트 라벨을 동반한다.**
+ * 등급은 심각도가 아니라 우선순위 순서다. 의미색에 싣지 않고 포인트 초록
+ * 농도 4단(intent 결정 2, spec §1.3)으로 순서만 나타낸다. 2단이 주 단추 채움
+ * (`--color-accent` #587A2B)과 같은 값인 것은 intent 결정 2로 허용한다 —
+ * **등급 표시는 항상 텍스트 라벨을 동반하므로** 채움색이 겹쳐도 뜻이 섞이지 않는다.
  * `판정 없음`은 다섯 번째 등급이 아니라 아직 판정하지 않음이므로 ramp 바깥의
- * 무채색이다.
+ * 흰 바탕이며, 화면에서는 1px `--color-border` 를 두른다.
  *
  * 라벨 대비는 scripts/check-contrast.test.mjs 가 고정한다.
  */
 [data-astryx-theme='bidops'] {
-  --bo-grade-1: #2f3a4c; /* 최우선 · 라벨 #FFFFFF · 11.47:1 */
-  --bo-grade-2: #5b687c; /* 라벨 #FFFFFF · 5.65:1 */
-  --bo-grade-3: #93a0b0; /* 라벨 #17181F · 6.65:1 */
-  --bo-grade-4: #d3d9e1; /* 라벨 #17181F · 12.45:1 */
-  --bo-grade-none: #e5e5e5; /* 판정 없음 · 라벨 #262626 · 12.01:1 · ramp 바깥 */
+  --bo-grade-1: #3f5a1c; /* 우선 검토 · 라벨 #FFFFFF · 7.80:1 */
+  --bo-grade-2: #587a2b; /* 검토 권장 · 라벨 #FFFFFF · 4.96:1 */
+  --bo-grade-3: #cfdfb5; /* 관찰 대상 · 라벨 #1B211D · 11.60:1 */
+  --bo-grade-4: #eef0ec; /* 제외 · 라벨 #3C4640 · 8.55:1 */
+  --bo-grade-none: #ffffff; /* 판정 없음 · 라벨 #4C5650 · 7.62:1 · ramp 바깥 */
 
   --bo-on-grade-1: #ffffff;
   --bo-on-grade-2: #ffffff;
-  --bo-on-grade-3: #17181f;
-  --bo-on-grade-4: #17181f;
-  --bo-on-grade-none: #262626;
+  --bo-on-grade-3: #1b211d;
+  --bo-on-grade-4: #3c4640;
+  --bo-on-grade-none: #4c5650;
 }

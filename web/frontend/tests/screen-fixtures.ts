@@ -7,6 +7,8 @@ import {
   mockOpportunity,
   mockOrderPlans,
   mockPreSpecs,
+  overviewEnvelopeFixture,
+  overviewRunFixture,
 } from "./api-mock";
 
 // 화면 검사 세 층(의미·구조·픽셀)이 같은 고정 입력에서 출발하도록 여기 모은다.
@@ -167,3 +169,239 @@ export const contractFixtureScenarios = {
     setup: (page: Page) => mockPreSpecs(page),
   },
 } as const;
+
+
+// ─ docs/0915_ui-redesign/spec.md §6 A3·A5 표본 ─────────────────────────────
+// 목록 우측 정보 영역이 1280×800에서 스크롤 없이 보이는지(A3), 그리고 구역
+// 순서와 값 없음 표기(A5)를 재려면 **개요 완료 · 주의 1건 · 미확인 2건 · 과업
+// 4건**인 건과 **값이 거의 없는** 건이 한 응답에 함께 있어야 한다.
+//
+// 기존 표본(`api-mock.ts`의 `visualPreSpecItems`)은 다른 spec이 값까지 의존하므로
+// 건드리지 않는다. `api-mock.ts`는 이 작업의 소유 밖이라 여기서 `page.route`로
+// 덮어 새 표본만 추가한다.
+
+export const PRE_SPEC_CAUTION_SAMPLE_PK = 7701;
+export const PRE_SPEC_EMPTY_SAMPLE_PK = 7702;
+
+// 이 표본을 쓰는 검사는 시계를 고정하지 않는다(A3는 실제 배치 높이를 잰다).
+// D-day가 늘 같은 자리에 보이도록 마감은 지금으로부터 며칠 뒤로 잡는다.
+const SAMPLE_DAY_MS = 86_400_000;
+const sampleNow = Date.now();
+
+const cautionSampleItem = {
+  notice_pk: PRE_SPEC_CAUTION_SAMPLE_PK,
+  pre_spec_no: "R26BD00273769",
+  title: "예술인 공제사업 통합관리시스템 중장기 ISMP 수립",
+  agency: "한국예술인복지재단",
+  published_at: new Date(sampleNow - 3 * SAMPLE_DAY_MS).toISOString(),
+  deadline_at: new Date(sampleNow + 2.5 * SAMPLE_DAY_MS).toISOString(),
+  budget: 49_844_864,
+  sw_business_status: "Y",
+  business_division: "일반용역",
+  origin: "신규",
+  // 사업기회에 연결돼 있고 아직 사람이 고르지 않았다 — 바닥의 인라인 추적 폼이
+  // 그려지는 가장 높은 상태이고, A3는 그 상태에서 재야 의미가 있다.
+  opportunity_id: 7801,
+  tracking_status: "미선택",
+  kept_by_tracking: false,
+  document: { attachments: 3, "완료": 3, "대기": 0, "진행": 0, "차단": 0, "실패": 0 },
+  overview_review_status: "completed",
+  grade: "검토 권장",
+  grade_source: "screening_judgment",
+  auto_preparation_status: "bundle_ready",
+  auto_preparation_reason: null,
+  latest_deep_review_id: null,
+};
+
+/** 값이 거의 없는 건. A5의 `미확인` 계열 표기를 재는 자리다. */
+const emptySampleItem = {
+  notice_pk: PRE_SPEC_EMPTY_SAMPLE_PK,
+  pre_spec_no: null,
+  title: null,
+  agency: null,
+  published_at: null,
+  deadline_at: null,
+  budget: null,
+  sw_business_status: null,
+  business_division: null,
+  origin: "신규",
+  opportunity_id: null,
+  tracking_status: null,
+  kept_by_tracking: false,
+  document: { attachments: 0, "완료": 0, "대기": 0, "진행": 0, "차단": 0, "실패": 0 },
+  overview_review_status: null,
+  grade: null,
+  grade_source: null,
+  auto_preparation_status: "not_applicable",
+  auto_preparation_reason: null,
+  latest_deep_review_id: null,
+};
+
+export const PRE_SPEC_CAUTION_SAMPLE_TASKS = [
+  "현행 공제사업 3개 시스템 업무·데이터 현황 분석 및 이해관계자 요구 조사",
+  "통합관리시스템 목표 모델과 정보화 전략 수립 (기능·데이터·연계 아키텍처)",
+  "3개년 단계별 이행 계획과 소요 예산 산정, 사업 발주 방안 제시",
+  "정보화 사업 발주를 위한 제안요청서 초안과 평가 기준 작성",
+];
+
+export const PRE_SPEC_CAUTION_SAMPLE_DESCRIPTION =
+  "예술인 공제사업(창작준비금·산재보험 등)을 하나의 통합관리시스템으로 재구축하기 위한 중장기 정보화 전략(ISMP)을 수립하는 사업으로, 현행 3개 시스템의 업무·데이터를 분석해 목표 모델과 3개년 이행 계획을 도출한다.";
+
+export const PRE_SPEC_CAUTION_SAMPLE_SCALE = "사업 예산은 49,844,864원(VAT 포함)이고 수행기간은 착수 후 6개월이다.";
+
+export const PRE_SPEC_CAUTION_SAMPLE_UNKNOWNS = [
+  "평가 배점표가 읽은 범위에 없어 확인하지 못했다.",
+  "본공고 예정 시기가 읽은 범위에 없어 확인하지 못했다.",
+];
+
+/** 결정적 검사에 실패한 주장 하나 = spec §3.2의 주의 1건. */
+export const PRE_SPEC_CAUTION_SAMPLE_HEADLINE = "수행 인력 상주 조건이 근거 위치와 연결되지 않았다.";
+
+export const PRE_SPEC_CAUTION_SAMPLE_BID_NOTICE_NO = "R26BD00291144";
+
+const cautionSampleRun = overviewRunFixture({
+  id: "c1a7f0c2-7701-4a77-9c77-000000007701",
+  status: "completed",
+  result_id: "c1a7f0c2-7701-4a77-9c77-000000007701",
+  verification_status: "needs_human_review",
+  validation_status: "passed",
+  evidence_check_status: "passed",
+  warnings: [],
+  failed_claims: [],
+  result: {
+    business_overview: [{
+      claim_id: "s1",
+      text: PRE_SPEC_CAUTION_SAMPLE_DESCRIPTION,
+      evidence: [{ page: 3, quote: "중장기 정보화 전략(ISMP) 수립" }],
+    }],
+    main_tasks: PRE_SPEC_CAUTION_SAMPLE_TASKS.map((text, index) => ({
+      claim_id: `s2-${index + 1}`,
+      text,
+      evidence: [{ page: 5 + index, quote: text.slice(0, 12) }],
+    })),
+    budget_and_period: [{
+      claim_id: "s3",
+      text: PRE_SPEC_CAUTION_SAMPLE_SCALE,
+      evidence: [{ page: 4, quote: "사업예산 49,844,864원" }],
+    }],
+    important_conditions: [{
+      claim_id: "s4",
+      text: "상주 인력 2명을 사업 기간 동안 배치해야 한다.",
+      evidence: [{ page: 9, quote: "상주 인력 2명 배치" }],
+    }],
+    reviewer_analysis: [],
+    unknowns: [...PRE_SPEC_CAUTION_SAMPLE_UNKNOWNS],
+    input_limitations: [],
+  },
+});
+
+const cautionSampleVerification = {
+  verification_id: cautionSampleRun.id,
+  status: "needs_human_review" as const,
+  reason_codes: ["required_fact_missing"],
+  claims: [{
+    claim_id: "s4",
+    section: "important_conditions",
+    text: PRE_SPEC_CAUTION_SAMPLE_HEADLINE,
+    deterministic: { status: "failed" as const, reason_codes: ["quote_not_found"] },
+    semantic: { status: "not_run" as const, reason_codes: [] },
+    verified_evidence: [],
+  }],
+};
+
+const cautionSampleNotice = {
+  id: PRE_SPEC_CAUTION_SAMPLE_PK,
+  notice_key: `pre-spec:${PRE_SPEC_CAUTION_SAMPLE_PK}`,
+  run_id: "sample-run",
+  title: cautionSampleItem.title,
+  agency: cautionSampleItem.agency,
+  published_at: cautionSampleItem.published_at,
+  deadline_at: cautionSampleItem.deadline_at,
+  estimated_price: null,
+  sample_role: null,
+  sample_stratum: null,
+  collection_bucket: null,
+  grade: null,
+  readiness: null,
+  focus: null,
+  attachment_count: 3,
+  attachment_status: "g2b",
+  bid_no: null,
+  bid_ord: null,
+  source_type: "pre_spec",
+  budget: cautionSampleItem.budget,
+  method: null,
+  url: null,
+  timezone: "Asia/Seoul",
+  procurement_class: null,
+  region_limit: null,
+  lifecycle: {
+    pre_spec_no: cautionSampleItem.pre_spec_no,
+    bid_ntice_no_list: PRE_SPEC_CAUTION_SAMPLE_BID_NOTICE_NO,
+  },
+  qualification_flags: { sw_business_status: "Y" },
+  focus_matches: [],
+  performance_matches: [],
+  performance_top_score: null,
+  candidate_sources: [],
+  judgment: null,
+  attachments: [],
+  reviews: [],
+};
+
+const SAMPLE_OVERVIEW_STATUSES: (string | null)[] = ["completed", null];
+
+/**
+ * A3·A5 표본을 목록·개요·notice 세 응답에 함께 올린다. `mockApi` 뒤에 등록해야
+ * 하며(뒤에 등록한 handler가 이긴다), 기존 표본은 그대로 둔 채 이 두 건만 쓴다.
+ */
+export async function mockPreSpecCautionSample(page: Page): Promise<void> {
+  const items = [cautionSampleItem, emptySampleItem];
+  await page.route("**/api/pre-specs**", async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    const overviewMatch = url.pathname.match(/^\/api\/pre-specs\/(\d+)\/overview$/);
+    if (overviewMatch && request.method() === "GET") {
+      const noticeId = Number(overviewMatch[1]);
+      await route.fulfill({
+        json: noticeId === PRE_SPEC_CAUTION_SAMPLE_PK
+          ? overviewEnvelopeFixture(noticeId, cautionSampleRun, [cautionSampleRun], {
+            verification: cautionSampleVerification,
+          })
+          : overviewEnvelopeFixture(noticeId, null),
+      });
+      return;
+    }
+    if (url.pathname === "/api/pre-specs" && request.method() === "GET") {
+      const requested = url.searchParams.has("notice_pk") ? Number(url.searchParams.get("notice_pk")) : null;
+      const shown = requested === null ? items : items.filter((item) => item.notice_pk === requested);
+      await route.fulfill({
+        json: {
+          items: shown,
+          total: shown.length,
+          limit: 200,
+          offset: 0,
+          overview_status_counts: SAMPLE_OVERVIEW_STATUSES.map((status) => ({
+            status,
+            count: shown.filter((item) => item.overview_review_status === status).length,
+          })),
+        },
+      });
+      return;
+    }
+    await route.fallback();
+  });
+  await page.route("**/api/notices/**", async (route) => {
+    const request = route.request();
+    const match = new URL(request.url()).pathname.match(/^\/api\/notices\/(\d+)$/);
+    if (!match || request.method() !== "GET") {
+      await route.fallback();
+      return;
+    }
+    const noticeId = Number(match[1]);
+    await route.fulfill({
+      status: noticeId === PRE_SPEC_CAUTION_SAMPLE_PK ? 200 : 404,
+      json: noticeId === PRE_SPEC_CAUTION_SAMPLE_PK ? cautionSampleNotice : { detail: "공고 없음" },
+    });
+  });
+}

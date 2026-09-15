@@ -2,7 +2,8 @@
 .page-overview-heading{display:flex;align-items:center;justify-content:space-between;gap:var(--spacing-2);flex-wrap:wrap}
 .page-overview h3,.page-overview h4{margin:0;font-size:var(--bo-type-section-title);font-weight:600}
 .page-overview p{margin:0;line-height:1.65;white-space:pre-wrap}
-.page-overview-section{display:grid;gap:var(--spacing-2);padding-block:var(--spacing-3);border-bottom:var(--border-width) solid var(--color-border)}
+/* docs/0915_ui-redesign/spec.md §2.3: 카드 안 구분선은 --color-background-muted 1px */
+.page-overview-section{display:grid;gap:var(--spacing-2);padding-block:var(--spacing-3);border-bottom:var(--border-width) solid var(--color-background-muted)}
 .page-overview-facts,.page-overview-tasks{margin:0;display:grid;gap:var(--spacing-3)}
 .page-overview-facts{list-style:none;padding:0}.page-overview-tasks{list-style:decimal;padding-left:var(--spacing-5)}
 .page-overview-links{display:flex;gap:var(--spacing-3);flex-wrap:wrap;padding-top:var(--spacing-1)}
@@ -13,7 +14,7 @@
 .page-overview-execution-meta dt{font-weight:600}.page-overview-execution-meta dd{margin:0;overflow-wrap:anywhere}
 .page-overview-history-list{display:grid;gap:var(--spacing-3);margin:0;padding-left:var(--spacing-5)}
 .page-overview-history-item{display:grid;gap:var(--spacing-1)}
-.page-overview-history-item + .page-overview-history-item{padding-top:var(--spacing-3);border-top:var(--border-width) solid var(--color-border)}
+.page-overview-history-item + .page-overview-history-item{padding-top:var(--spacing-3);border-top:var(--border-width) solid var(--color-background-muted)}
 .page-overview-history-links{display:grid;gap:var(--spacing-1)}
 .page-overview-history-links a{color:var(--color-text-accent);font-size:var(--bo-type-caption);text-decoration:underline;text-underline-offset:var(--spacing-0-5)}
 .page-overview-analysis-list,.page-overview-verification-claims,.page-overview-evidence-list{display:grid;gap:var(--spacing-2);margin:0;padding-left:var(--spacing-5)}

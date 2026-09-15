@@ -120,17 +120,14 @@ export function PreSpecsPage() {
   const [searchText, setSearchText] = useState(queryText);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [scopeDialogOpen, setScopeDialogOpen] = useState(false);
-  const [trackingDialogOpen, setTrackingDialogOpen] = useState(false);
-  // 저장하지 않은 입력이 있는 채로 창을 닫으려 한 상태. 창은 열린 채로 두고
-  // 같은 창 안에서 확인을 받는다.
-  const [trackingCloseRequested, setTrackingCloseRequested] = useState(false);
   const [selectionMessage, setSelectionMessage] = useState<string | null>(null);
   const [selectedPk, setSelectedPk] = useState<number | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
   const scrollRestoredRef = useRef(false);
   const boundaryLandingRef = useRef<{ offset: number; direction: "next" | "previous" } | null>(null);
-  // 대화상자의 추적 결정 입력(사유·담당자)은 행을 바꾸거나 창을 닫으면 사라진다.
-  // route 이동은 컨트롤이 스스로 막으므로 여기서는 행 전환·닫기만 확인한다.
+  // 상세 pane 바닥의 인라인 추적 폼이 `onDirtyChange`로 알려 주는 미저장 입력
+  // (사유·담당자). route 이동은 컨트롤이 스스로 막으므로 여기서는 행 전환·필터
+  // 변경·상세 이동·페이지 이동만 확인한다(docs/0915_ui-redesign/spec.md §3.3).
   const [trackingDirty, setTrackingDirty] = useState(false);
   const trackingGuard = useUnsavedGuard(trackingDirty, {
     scope: "pathname",
@@ -218,6 +215,24 @@ export function PreSpecsPage() {
   const itemKeys = useMemo(() => items.map((item) => item.notice_pk), [items]);
   const selectedItem = items.find((item) => item.notice_pk === selectedPk) ?? null;
 
+  // spec §3.4 `전체 선택` — **지금 이 페이지에 그려진 행만** 기존 선택 뒤에
+  // 중복 없이 덧붙인다. 검색 결과 전체를 고르는 조작이 아니며, 다른 페이지에서
+  // 고른 ID는 그대로 남는다. 정렬 메타데이터는 체크박스 `toggle`과 같은 규칙으로
+  // 함께 기록한다 — 없으면 선택 검토 순서를 만들 수 없다.
+  const pageFullySelected = items.length > 0
+    && items.every((item) => selection.selectedIdSet.has(item.notice_pk));
+  const selectCurrentPage = useCallback(() => {
+    const metadataById: Record<string, PreSpecSelectionSortMetadata> = {};
+    for (const item of items) {
+      metadataById[String(item.notice_pk)] = {
+        id: item.notice_pk,
+        published_at: item.published_at,
+        deadline_at: item.deadline_at,
+      };
+    }
+    selection.selectMany(items.map((item) => item.notice_pk), metadataById);
+  }, [items, selection.selectMany]);
+
   // Every observed row refreshes only its compact ordering keys. Selection is
   // never intersected with the current page, so off-page checks survive.
   useEffect(() => {
@@ -231,7 +246,7 @@ export function PreSpecsPage() {
   }, [loadedItems, selection.setSortMetadata]);
 
   // 목록이 바뀌어 선택이 사라지면 첫 행을 고른다. 사람이 고르는 중이던 입력은
-  // 대화상자 안에 있고, 그 확인은 아래 `selectPk`가 맡는다.
+  // 상세 pane 바닥의 인라인 폼에 있고, 그 확인은 아래 `selectPk`가 맡는다.
   useEffect(() => {
     if (!selection.hydrated) return;
     if (items.length === 0) {
@@ -251,8 +266,6 @@ export function PreSpecsPage() {
     if (next !== selectedPk) {
       setSelectedPk(next);
       selection.setActiveId(next);
-      setTrackingDialogOpen(false);
-      setTrackingCloseRequested(false);
     }
   }, [items, offset, selectedPk, selection.activeId, selection.hydrated, selection.setActiveId]);
 
@@ -260,8 +273,6 @@ export function PreSpecsPage() {
     trackingGuard.confirmDiscard(() => {
       setSelectedPk(next);
       selection.setActiveId(next);
-      setTrackingDialogOpen(false);
-      setTrackingCloseRequested(false);
     });
   }, [selection.setActiveId, trackingGuard]);
 
@@ -352,21 +363,6 @@ export function PreSpecsPage() {
       }
     },
   });
-
-  const changeTrackingDialog = useCallback((open: boolean) => {
-    if (open) {
-      setTrackingDialogOpen(true);
-      setTrackingCloseRequested(false);
-      return;
-    }
-    // 저장하지 않은 입력이 있으면 창을 닫지 않고 확인을 먼저 보여 준다.
-    if (trackingDirty) {
-      setTrackingCloseRequested(true);
-      return;
-    }
-    setTrackingDialogOpen(false);
-    setTrackingCloseRequested(false);
-  }, [trackingDirty]);
 
   function updateSearchParamsUnsafe(changes: Record<string, string | null>) {
     boundaryLandingRef.current = null;
@@ -615,6 +611,15 @@ export function PreSpecsPage() {
                 <button
                   className="interaction-control"
                   type="button"
+                  onClick={selectCurrentPage}
+                  disabled={items.length === 0 || pageFullySelected}
+                  aria-label="현재 페이지 전체 선택"
+                >
+                  전체 선택
+                </button>
+                <button
+                  className="interaction-control"
+                  type="button"
                   onClick={() => selection.clear()}
                   disabled={selection.selectedIds.length === 0}
                   aria-label="선택 전체 해제"
@@ -643,6 +648,9 @@ export function PreSpecsPage() {
                         ? "선택 항목의 정렬 시각을 확인할 수 없습니다."
                         : ""}
                 </span>
+                {/* `전체 선택`의 범위를 글자로 밝힌다 — 이 단추는 검색 결과 전체가
+                    아니라 지금 보이는 페이지만 더한다(spec §3.4). */}
+                <span className="pre-specs-selection-page-note">이 페이지만 추가</span>
               </div>
               {selectionMessage ? <p className="pre-specs-selection-message" role="alert">{selectionMessage}</p> : null}
               <div className="pre-specs-list-columns" aria-hidden="true">
@@ -715,14 +723,6 @@ export function PreSpecsPage() {
                   key={selectedItem.notice_pk}
                   item={selectedItem}
                   listSearch={listSearch}
-                  trackingDialogOpen={trackingDialogOpen}
-                  onTrackingDialogChange={changeTrackingDialog}
-                  trackingCloseRequested={trackingCloseRequested}
-                  onTrackingCloseCancel={() => setTrackingCloseRequested(false)}
-                  onTrackingCloseConfirm={() => {
-                    setTrackingCloseRequested(false);
-                    setTrackingDialogOpen(false);
-                  }}
                   onOpenDetail={() => openDetail(selectedItem.notice_pk)}
                   onOpenDetailAfterSaved={() => openDetailFromSelection(selectedItem.notice_pk)}
                   onDirtyChange={setTrackingDirty}

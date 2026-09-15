@@ -12,6 +12,10 @@
  *
  * 지원 폭은 1280~1920px 하나뿐이다(ADR-0047). 미디어 쿼리로 다른 배치를
  * 만들지 않는다.
+ *
+ * 2026-09-15: 카드 외곽 테두리 → `--shadow-low` 그림자, 카드 안 구분선 →
+ * `--color-background-muted` 1px (docs/0915_ui-redesign/spec.md §2.3). 진행 막대
+ * 채움은 accent 대신 `--bo-brand`를 읽는다(spec §1.2).
  */
 
 .rs-page {
@@ -143,9 +147,9 @@
   min-width: 0;
   margin-top: var(--spacing-3);
   padding: var(--spacing-2) var(--spacing-4);
-  border: var(--border-width) solid var(--color-border);
-  border-bottom: 0;
-  border-radius: var(--radius-element) var(--radius-element) 0 0;
+  border: 0;
+  border-radius: var(--radius-container) var(--radius-container) 0 0;
+  box-shadow: var(--shadow-low);
   background: var(--color-background-surface);
 }
 
@@ -158,7 +162,7 @@
 
 .rs-summary-item + .rs-summary-item {
   padding-left: var(--spacing-3);
-  border-left: var(--border-width) solid var(--color-border);
+  border-left: var(--border-width) solid var(--color-background-muted);
 }
 
 .rs-summary-value {
@@ -182,8 +186,9 @@
   flex-direction: row;
   align-items: stretch;
   min-height: 0;
-  border: var(--border-width) solid var(--color-border);
-  border-radius: 0 0 var(--radius-element) var(--radius-element);
+  border: 0;
+  border-radius: 0 0 var(--radius-container) var(--radius-container);
+  box-shadow: var(--shadow-low);
   background: var(--color-background-surface);
   overflow: hidden;
 }
@@ -195,7 +200,7 @@
   width: 38%;
   min-width: 0;
   min-height: 0;
-  border-right: var(--border-width) solid var(--color-border);
+  border-right: var(--border-width) solid var(--color-background-muted);
 }
 
 .rs-list-head {
@@ -205,7 +210,7 @@
   justify-content: space-between;
   gap: var(--spacing-2);
   padding: var(--spacing-3) var(--spacing-4);
-  border-bottom: var(--border-width) solid var(--color-border);
+  border-bottom: var(--border-width) solid var(--color-background-muted);
 }
 
 .rs-list-title {
@@ -218,7 +223,7 @@
   flex: 0 0 auto;
   gap: var(--spacing-2);
   padding: var(--spacing-3);
-  border-bottom: var(--border-width) solid var(--color-border);
+  border-bottom: var(--border-width) solid var(--color-background-muted);
 }
 
 /* 목록 pane 안의 입력은 pane 폭을 넘지 않는다. 회차 식별자가 길어도 선택기가
@@ -270,7 +275,7 @@
 .rs-detail-foot {
   flex: 0 0 auto;
   padding: var(--spacing-3) var(--spacing-4);
-  border-top: var(--border-width) solid var(--color-border);
+  border-top: var(--border-width) solid var(--color-background-muted);
   background: var(--color-background-body);
 }
 
@@ -281,7 +286,7 @@
   width: 100%;
   padding: var(--spacing-3) var(--spacing-4);
   border: 0;
-  border-bottom: var(--border-width) solid var(--color-border);
+  border-bottom: var(--border-width) solid var(--color-background-muted);
   background: transparent;
   color: inherit;
   text-align: left;
@@ -298,8 +303,8 @@
 }
 
 .rs-record[aria-pressed="true"] {
+  /* 선택 행 좌측 inset 바 없음(spec §2.3). */
   background: var(--color-accent-muted);
-  box-shadow: inset var(--spacing-1) 0 0 var(--color-accent);
 }
 
 .rs-record-title {
@@ -373,8 +378,8 @@
   flex: 0 0 auto;
   gap: var(--spacing-3);
   padding: 0 var(--spacing-5);
-  border-top: var(--border-width) solid var(--color-border);
-  border-bottom: var(--border-width) solid var(--color-border);
+  border-top: var(--border-width) solid var(--color-background-muted);
+  border-bottom: var(--border-width) solid var(--color-background-muted);
   overflow-x: auto;
 }
 
@@ -519,8 +524,9 @@
 .rs-stage-track {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-inner);
+  border: 0;
+  border-radius: var(--radius-container);
+  box-shadow: var(--shadow-low);
   overflow: hidden;
 }
 
@@ -533,7 +539,7 @@
 }
 
 .rs-stage + .rs-stage {
-  border-left: var(--border-width) solid var(--color-border);
+  border-left: var(--border-width) solid var(--color-background-muted);
 }
 
 .rs-stage.is-current {
@@ -562,8 +568,9 @@
 }
 
 .rs-progress-value {
+  /* 진행 막대 채움: 글자를 얹지 않는 빈 막대라 --bo-brand를 읽는다(spec §1.2). */
   height: 100%;
-  background: var(--color-accent);
+  background: var(--bo-brand);
 }
 
 .rs-stat-line {
@@ -571,7 +578,7 @@
   align-items: flex-start;
   gap: var(--spacing-3);
   padding: var(--spacing-3) 0;
-  border-bottom: var(--border-width) solid var(--color-border);
+  border-bottom: var(--border-width) solid var(--color-background-muted);
 }
 
 .rs-stat-line > div {
@@ -585,7 +592,7 @@
 
 .rs-stat-line > div + div {
   padding-left: var(--spacing-3);
-  border-left: var(--border-width) solid var(--color-border);
+  border-left: var(--border-width) solid var(--color-background-muted);
 }
 
 .rs-stat-value {
@@ -604,7 +611,7 @@
 .rs-table th,
 .rs-table td {
   padding: var(--spacing-3);
-  border-bottom: var(--border-width) solid var(--color-border);
+  border-bottom: var(--border-width) solid var(--color-background-muted);
   text-align: left;
   vertical-align: top;
   overflow-wrap: anywhere;
@@ -638,7 +645,7 @@
   width: 100%;
   padding: var(--spacing-3) 0;
   border: 0;
-  border-bottom: var(--border-width) solid var(--color-border);
+  border-bottom: var(--border-width) solid var(--color-background-muted);
   background: transparent;
   color: inherit;
   text-align: left;
@@ -646,7 +653,7 @@
 }
 
 .rs-failure-row:first-child {
-  border-top: var(--border-width) solid var(--color-border);
+  border-top: var(--border-width) solid var(--color-background-muted);
 }
 
 .rs-failure-row:hover {
@@ -666,7 +673,7 @@
 }
 
 .rs-disclosure {
-  border-top: var(--border-width) solid var(--color-border);
+  border-top: var(--border-width) solid var(--color-background-muted);
   padding-top: var(--spacing-3);
 }
 
@@ -695,8 +702,9 @@
   max-height: calc(var(--spacing-12) * 6);
   overflow: auto;
   padding: var(--spacing-2);
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-inner);
+  border: 0;
+  border-radius: var(--radius-container);
+  box-shadow: var(--shadow-low);
   background: var(--color-background-body);
   font-size: var(--bo-type-caption);
 }
@@ -840,7 +848,7 @@
   justify-content: flex-end;
   gap: var(--spacing-2);
   padding-top: var(--spacing-4);
-  border-top: var(--border-width) solid var(--color-border);
+  border-top: var(--border-width) solid var(--color-background-muted);
 }
 
 .rs-dialog-error {
@@ -861,8 +869,9 @@
   justify-content: space-between;
   gap: var(--spacing-3);
   padding: var(--spacing-2) var(--spacing-3);
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-inner);
+  border: 0;
+  border-radius: var(--radius-container);
+  box-shadow: var(--shadow-low);
   min-width: 0;
 }
 
@@ -885,7 +894,7 @@
   grid-template-columns: minmax(0, 12rem) minmax(0, 1fr);
   gap: var(--spacing-2);
   padding-bottom: var(--spacing-2);
-  border-bottom: var(--border-width) solid var(--color-border);
+  border-bottom: var(--border-width) solid var(--color-background-muted);
   min-width: 0;
 }
 
@@ -952,7 +961,8 @@
   font-size: var(--bo-type-caption);
 }
 .rs-enable-dialog :is(.operations-dialog-binding, .operations-dialog-binding-row) {
-  border-color: var(--color-border);
+  /* 카드 안 구분선(spec §2.3). 밑 테두리 너비는 operations.css(소유 밖)가 준다. */
+  border-color: var(--color-background-muted);
 }
 .rs-enable-dialog .operations-dialog-field {
   color: var(--color-text-primary);
@@ -976,7 +986,7 @@
   position: sticky;
   bottom: 0;
   padding-top: var(--spacing-4);
-  border-top: var(--border-width) solid var(--color-border);
+  border-top: var(--border-width) solid var(--color-background-muted);
   background: var(--color-background-surface);
 }
 .rs-enable-dialog :is(.operations-dialog-cancel, .operations-dialog-confirm) {

@@ -99,8 +99,11 @@ export interface TrackingDecisionControlProps {
    * 상태값·사유 필수·비활성 사유 같은 업무 규칙은 그대로 이 컴포넌트가
    * 소유한다(CLAUDE.md "같은 업무 규칙을 복제하지 않는다"). */
   compact?: boolean;
-  /** Approved record presentation; the shared mutation and input guard remain here. */
-  presentation?: "default" | "record";
+  /** Approved record presentation; the shared mutation and input guard remain here.
+   * `inline`은 목록 우측 정보 영역 바닥의 한 줄 배치다(docs/0915_ui-redesign/spec.md §3.3).
+   * `record`와 **같은 업무 규칙·필드·문구**를 쓰고 CSS 배치만 다르다 — 선택 가능한
+   * 상태값·사유 필수·담당자 기억·비활성 사유를 다시 구현하지 않는다. */
+  presentation?: "default" | "record" | "inline";
   noticeNumber?: string | null;
   /** 헤더가 같은 배지를 이미 그릴 때 중복을 피하기 위한 배치 옵션. 상태 계산은 이 컴포넌트가 계속 소유한다. */
   showRecordHeading?: boolean;
@@ -179,7 +182,11 @@ export function TrackingDecisionControl({
       </time>
     </p>
   );
-  const record = presentation === "record";
+  // spec §3.3: inline은 record 변형의 배치 변형이다. 아래의 모든 업무 규칙 분기는
+  // `record`를 그대로 읽으므로 두 변형이 같은 규칙을 공유한다.
+  const inline = presentation === "inline";
+  const record = presentation === "record" || inline;
+  const inlineClass = inline ? " is-inline" : "";
   const [savedDecision, setSavedDecision] = useState<{ reason: string; actor: string } | null>(null);
   const hasPresets = Boolean(reasonPresets && reasonPresets.length > 0);
   // 사전규격에서 고를 수 있는 값은 `계속 추적` 하나뿐이다(ADR-0046 결정 6).
@@ -311,7 +318,7 @@ export function TrackingDecisionControl({
   </>;
   const stateManagement = <p className="pre-spec-tracking-elsewhere"><strong>보류·추적 종료</strong>는 사업 추적에서 변경합니다.{hasOpportunity ? <Link to={`/opportunities/${item.opportunity_id}`}>사업 추적으로 이동 ↗</Link> : null}</p>;
   if (recorded) {
-    return <section className="pre-spec-tracking-decision is-compact is-record is-recorded" aria-labelledby="pre-spec-tracking-decision-title">
+    return <section className={`pre-spec-tracking-decision is-compact is-record is-recorded${inlineClass}`} aria-labelledby="pre-spec-tracking-decision-title">
       {showRecordHeading ? recordHeading : null}
       <div className="ps-record-saved-decision">
         <Heading>{savedDecision ? "추적 시작을 저장했습니다" : isInheritedTracking(item) ? "발주계획에서 추적 결정을 이어받았습니다" : "추적 결정이 기록된 사업입니다"}</Heading>
@@ -358,7 +365,7 @@ export function TrackingDecisionControl({
 
   return (
     <section
-      className={`pre-spec-tracking-decision${compact ? " is-compact" : ""}${record ? " is-record" : ""}`}
+      className={`pre-spec-tracking-decision${compact ? " is-compact" : ""}${record ? " is-record" : ""}${inlineClass}`}
       aria-labelledby="pre-spec-tracking-decision-title"
     >
       {record ? (showRecordHeading ? recordHeading : null) : (
@@ -393,7 +400,7 @@ export function TrackingDecisionControl({
       ) : null}
 
       <form
-        className={`pre-spec-tracking-form${compact ? " is-compact" : ""}`}
+        className={`pre-spec-tracking-form${compact ? " is-compact" : ""}${inlineClass}`}
         id={formId}
         onSubmit={(event) => {
           event.preventDefault();
@@ -438,7 +445,7 @@ export function TrackingDecisionControl({
               <div className="pre-spec-tracking-reason-preset">
                 <Selector
                   label="선택 사유"
-                  size={record ? "md" : "sm"}
+                  size={record && !inline ? "md" : "sm"}
                   placeholder={record ? "추적을 시작하는 사유를 선택하세요" : "사유를 선택하세요"}
                   isRequired={record}
                   isDisabled={mutation.isPending}
@@ -482,7 +489,10 @@ export function TrackingDecisionControl({
               required
               value={actorName}
               onChange={setActorName}
-              placeholder="예: 홍길동"
+              // 한 줄 배치에서는 라벨 줄이 화면에 보이지 않으므로(시안
+              // mockups/artboards/Main.dc.html 198줄) 무슨 칸인지 placeholder가 말한다.
+              // 라벨 자체는 문서에 그대로 남는다.
+              placeholder={inline ? "담당자 이름 (필수)" : "예: 홍길동"}
               autoComplete="off"
               description={record ? "이 이름을 결정 이력에 기록하며 이 브라우저에 기억합니다." : undefined}
               showRememberNote={!record}
@@ -511,7 +521,10 @@ export function TrackingDecisionControl({
             한 조작이지만 기록은 둘입니다. 추적 시작을 지금 남기고, 심층 검토 실행 승인은 문서 묶음이 준비된 상세에서 이어서 남깁니다.
           </p>
         ) : null}
-        {record ? stateManagement : (        <p className="pre-spec-tracking-elsewhere">
+        {/* spec §3.3에서 `보류·추적 종료는 사업 추적에서 변경` 캡션은 줄 1이 소유하므로
+            inline 폼은 같은 문장을 한 번 더 적지 않는다. 승계·기록된 사업의 상태 블록은
+            record와 똑같이 이 문장을 그대로 그린다. */}
+        {record ? (inline ? null : stateManagement) : (        <p className="pre-spec-tracking-elsewhere">
           <strong>보류</strong>와 <strong>추적 종료</strong>는 이 화면에 없습니다. 사업 추적에서만 사람이 고릅니다.
         </p>)}
       </form>

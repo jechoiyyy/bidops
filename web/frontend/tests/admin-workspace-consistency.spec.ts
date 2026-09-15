@@ -78,10 +78,12 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900
       expect(metrics.titleWeight, `${path} 목록 제목 굵기`).toBe("600");
       expect(metrics.tabsHeight, `${path} 승인된 밑줄 탭`).toBeCloseTo(physical(37), 0);
       expect(metrics.summaryHeight, `${path} 요약 한 줄`).toBeCloseTo(physical(49), 0);
-      expect(metrics.y, `${path} 시안 도구 모음 제외 본문 시작`).toBeCloseTo(physical(190), 0);
+      // canvas 위 여백 16→12(docs/0915_ui-redesign/spec.md §2.1)로 본문 시작이 4px 올라갔다.
+      expect(metrics.y, `${path} 시안 도구 모음 제외 본문 시작`).toBeCloseTo(physical(186), 0);
       expect(Math.abs(metrics.y - metrics.summaryBottom), `${path} 요약과 본문 사이 틈`).toBeLessThanOrEqual(1);
       expect(metrics.footerHeight, `${path} 하단 액션 높이`).toBeCloseTo(physical(57), 0);
-      expect(metrics.footerBottom, `${path} 하단 버튼 위치`).toBeCloseTo(viewport.height - physical(38), 0);
+      // 작업 영역 카드의 1px 테두리가 그림자로 바뀌어(spec §2.3) 하단 단추가 1px 내려왔다.
+      expect(metrics.footerBottom, `${path} 하단 버튼 위치`).toBeCloseTo(viewport.height - physical(37), 0);
       if (metrics.buttonFont) expect(metrics.buttonFont, `${path} 하단 버튼 크기`).toBe("14px");
       if (metrics.bodyOverflow) expect(metrics.bodyOverflow, path).toBe("auto");
 

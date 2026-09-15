@@ -6,6 +6,7 @@ import "@astryxdesign/core/reset.css";
 import "@astryxdesign/core/astryx.css";
 import "./themes/bidops/bidops.css";
 import "./themes/bidops/grade-ramp.css";
+import "./themes/bidops/brand.css";
 import "./styles/theme.css";
 import "./styles/typography.css";
 import "./styles/shell-relaxed.css";

@@ -335,7 +335,7 @@ test("사전규격 선택 상세가 등급 4값과 판정 없음, 자동 준비 
     await rows.filter({ hasText: `자동 준비 표본 ${index + 1}` }).click();
     const detail = page.locator(".pre-specs-detail-pane");
     await expect(detail.locator(".pre-specs-detail-facts")).toContainText(grades[index]);
-    await expect(detail.locator(".pre-specs-process")).toContainText(AUTO_PREPARATION_LABELS[index]);
+    // 자동 준비 8값의 진행 줄은 목록 우측 영역에서 빠졌다(spec §3.1). 상세 ⑥이 보여 준다.
   }
 });
 
@@ -360,7 +360,6 @@ test("사전규격 등급 필터는 URL과 동기화되고 적용 범위를 밝�
   await page.getByRole("option", { name: "판정 없음", exact: true }).click();
   await expect.poll(() => new URL(page.url()).searchParams.get("grade")).toBe("판정 없음");
   await expect(rows).toHaveCount(1);
-  await expect(page.locator(".pre-specs-process")).toContainText("자동 준비 대상 아님");
 
   await page.getByRole("button", { name: "기본값으로" }).click();
   await expect.poll(() => new URL(page.url()).searchParams.get("grade")).toBeNull();

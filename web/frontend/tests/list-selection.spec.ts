@@ -8,6 +8,7 @@ import {
   preSpecsFilterFingerprint,
   readListSelection,
   resetSelectionForFilter,
+  selectMany,
   setSelectionContext,
   sortOrderPlanItems,
   sortPreSpecMetadata,
@@ -313,6 +314,44 @@ test("LS-S6 selected state keeps active row and checked membership independent",
 test("LS-S7 unchanged list context preserves the state object", () => {
   const state = createEmptyListSelection("fp", { activeId: 2, listSearch: "q=x", listScrollTop: 12 });
   expect(setSelectionContext(state, { activeId: 2, listSearch: "q=x", listScrollTop: 12 })).toBe(state);
+});
+
+test("LS-08 selectMany는 현재 페이지만 더하고 다른 페이지 선택·순서를 유지하며 중복이 없다", () => {
+  type Meta = { source: string };
+  const empty = createEmptyListSelection<number, Meta>("fp");
+
+  // (a) 빈 상태에 [3,1,2] → [3,1,2]
+  const metadataPage1: Record<string, Meta> = {
+    "3": { source: "page1" },
+    "1": { source: "page1" },
+    "2": { source: "page1" },
+  };
+  const afterPage1 = selectMany(empty, [3, 1, 2], metadataPage1);
+  expect(afterPage1.selectedIds).toEqual([3, 1, 2]);
+
+  // (c) 메타데이터는 toggleSelection이 같은 id·값을 같은 순서로 넣었을 때와 같은 모양
+  let viaToggle = empty;
+  viaToggle = toggleSelection(viaToggle, 3, metadataPage1["3"]);
+  viaToggle = toggleSelection(viaToggle, 1, metadataPage1["1"]);
+  viaToggle = toggleSelection(viaToggle, 2, metadataPage1["2"]);
+  expect(afterPage1.selectedIds).toEqual(viaToggle.selectedIds);
+  expect(afterPage1.selectedSortMetadata).toEqual(viaToggle.selectedSortMetadata);
+
+  // (b) [3,1,2]에 [2,5,1,5] → [3,1,2,5] (순서 유지·중복 없음, 이미 있는 id는 자리·메타데이터 그대로)
+  const metadataPage2: Record<string, Meta> = {
+    "2": { source: "page2-이미-있음-무시" },
+    "5": { source: "page2" },
+    "1": { source: "page2-이미-있음-무시" },
+  };
+  const afterPage2 = selectMany(afterPage1, [2, 5, 1, 5], metadataPage2);
+  expect(afterPage2.selectedIds).toEqual([3, 1, 2, 5]);
+  expect(afterPage2.selectedSortMetadata["1"]).toBe(afterPage1.selectedSortMetadata["1"]);
+  expect(afterPage2.selectedSortMetadata["2"]).toBe(afterPage1.selectedSortMetadata["2"]);
+  expect(afterPage2.selectedSortMetadata["5"]).toEqual(metadataPage2["5"]);
+
+  // (d) 전부 이미 있으면 같은 참조 반환
+  expect(selectMany(afterPage2, [3, 1, 2, 5])).toBe(afterPage2);
+  expect(selectMany(afterPage2, [])).toBe(afterPage2);
 });
 
 test("PN-S3 selection review uses getRandomValues when randomUUID is unavailable", () => {

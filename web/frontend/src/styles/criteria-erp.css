@@ -14,6 +14,9 @@
  * 색은 `bidops` 테마 토큰만 읽는다(ADR-0048). `:root`나 이 파일에서 `--color-*`를
  * 새로 정의하지 않는다. raw hex·px를 두지 않는다.
  * 지원 폭은 1280~1920px 하나뿐이므로(ADR-0047) 폭에 따른 레이아웃 분기가 없다.
+ *
+ * 2026-09-15: 카드 외곽 테두리 → `--shadow-low` 그림자, 카드 안 구분선 →
+ * `--color-background-muted` 1px (docs/0915_ui-redesign/spec.md §2.3).
  */
 
 .crit-page {
@@ -120,9 +123,9 @@
   min-width: 0;
   margin-top: var(--spacing-3);
   padding: var(--spacing-2) var(--spacing-4);
-  border: var(--border-width) solid var(--color-border);
-  border-bottom: 0;
-  border-radius: var(--radius-element) var(--radius-element) 0 0;
+  border: 0;
+  border-radius: var(--radius-container) var(--radius-container) 0 0;
+  box-shadow: var(--shadow-low);
   background: var(--color-background-surface);
 }
 
@@ -135,7 +138,7 @@
 
 .crit-summary-item + .crit-summary-item {
   padding-left: var(--spacing-5);
-  border-left: var(--border-width) solid var(--color-border);
+  border-left: var(--border-width) solid var(--color-background-muted);
 }
 
 .crit-summary-value {
@@ -162,8 +165,9 @@
   align-items: stretch;
   min-height: 0;
   min-width: 0;
-  border: var(--border-width) solid var(--color-border);
-  border-radius: 0 0 var(--radius-element) var(--radius-element);
+  border: 0;
+  border-radius: 0 0 var(--radius-container) var(--radius-container);
+  box-shadow: var(--shadow-low);
   background: var(--color-background-surface);
   overflow: hidden;
 }
@@ -175,7 +179,7 @@
   width: 38%;
   min-width: 0;
   min-height: 0;
-  border-right: var(--border-width) solid var(--color-border);
+  border-right: var(--border-width) solid var(--color-background-muted);
 }
 
 .crit-detail {
@@ -193,7 +197,7 @@
   justify-content: space-between;
   gap: var(--spacing-2);
   padding: var(--spacing-3) var(--spacing-4);
-  border-bottom: var(--border-width) solid var(--color-border);
+  border-bottom: var(--border-width) solid var(--color-background-muted);
 }
 
 .crit-queue-tools {
@@ -201,7 +205,7 @@
   flex: 0 0 auto;
   gap: var(--spacing-2);
   padding: var(--spacing-3);
-  border-bottom: var(--border-width) solid var(--color-border);
+  border-bottom: var(--border-width) solid var(--color-background-muted);
 }
 
 .crit-filters {
@@ -238,7 +242,7 @@
   gap: var(--spacing-2);
   flex-wrap: wrap;
   padding: var(--spacing-3) var(--spacing-4);
-  border-top: var(--border-width) solid var(--color-border);
+  border-top: var(--border-width) solid var(--color-background-muted);
   background: var(--color-background-body);
 }
 
@@ -301,11 +305,8 @@
 }
 
 .crit-queue .astryx-table-row:has([aria-pressed="true"]) {
+  /* 선택 행 좌측 inset 바 없음(spec §2.3). */
   background: var(--color-accent-muted);
-}
-
-.crit-queue .astryx-table-row:has([aria-pressed="true"]) td {
-  box-shadow: inset var(--spacing-1) 0 0 var(--color-accent);
 }
 
 /* --- 상세 --- */
@@ -365,7 +366,7 @@
   /* 시안 실측 57px = 내용 32 + 위아래 패딩 24 + 위 테두리 1. */
   min-height: calc(var(--spacing-8) + var(--spacing-6) + var(--border-width));
   padding: var(--spacing-3) var(--spacing-4);
-  border-top: var(--border-width) solid var(--color-border);
+  border-top: var(--border-width) solid var(--color-background-muted);
   background: var(--color-background-body);
 }
 
@@ -474,7 +475,7 @@
   gap: var(--spacing-3);
   min-width: 0;
   padding: var(--spacing-3) 0;
-  border-bottom: var(--border-width) solid var(--color-border);
+  border-bottom: var(--border-width) solid var(--color-background-muted);
 }
 
 .crit-stat-line > div {
@@ -486,7 +487,7 @@
 
 .crit-stat-line > div + div {
   padding-left: var(--spacing-3);
-  border-left: var(--border-width) solid var(--color-border);
+  border-left: var(--border-width) solid var(--color-background-muted);
 }
 
 .crit-page .crit-stat-value {
@@ -521,7 +522,7 @@
 /* 기술 키·참조 횟수·원본 JSON은 접어 둔다. 검토에 필요한 사람만 편다. */
 .crit-disclosure {
   padding-top: var(--spacing-3);
-  border-top: var(--border-width) solid var(--color-border);
+  border-top: var(--border-width) solid var(--color-background-muted);
   min-width: 0;
 }
 
@@ -575,7 +576,7 @@
   gap: var(--spacing-3);
   margin: 0;
   padding-left: var(--spacing-4);
-  border-left: var(--border-width) solid var(--color-border);
+  border-left: var(--border-width) solid var(--color-background-muted);
   min-width: 0;
   list-style: none;
 }
@@ -702,7 +703,7 @@
   gap: var(--spacing-2);
   padding-top: var(--spacing-4);
   padding-bottom: var(--spacing-1);
-  border-top: var(--border-width) solid var(--color-border);
+  border-top: var(--border-width) solid var(--color-background-muted);
   background: var(--color-background-card);
 }
 

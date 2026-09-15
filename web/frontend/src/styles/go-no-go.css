@@ -11,6 +11,9 @@
  *
  * `.gng-empty`는 실행 상태 화면과 공유하는 이름이라 이 파일에서 다시 정의하지
  * 않는다(`styles/criteria-runstatus.css`). 이 화면의 빈 상태는 `.gng-list-empty`다.
+ *
+ * 2026-09-15: 카드 외곽 테두리 → `--shadow-low` 그림자, 카드 안 구분선 →
+ * `--color-background-muted` 1px (docs/0915_ui-redesign/spec.md §2.3).
  */
 
 .gng-page {
@@ -114,8 +117,9 @@
   flex-direction: row;
   align-items: stretch;
   min-height: 0;
-  border: var(--border-width) solid var(--color-border);
-  border-radius: 0 0 var(--radius-element) var(--radius-element);
+  border: 0;
+  border-radius: 0 0 var(--radius-container) var(--radius-container);
+  box-shadow: var(--shadow-low);
   background: var(--color-background-card);
   overflow: hidden;
 }
@@ -127,7 +131,7 @@
   width: 38%;
   min-width: 0;
   min-height: 0;
-  border-right: var(--border-width) solid var(--color-border);
+  border-right: var(--border-width) solid var(--color-background-muted);
 }
 
 .gng-list-head {
@@ -137,7 +141,7 @@
   justify-content: space-between;
   gap: var(--spacing-2);
   padding: var(--spacing-2) var(--spacing-4);
-  border-bottom: var(--border-width) solid var(--color-border);
+  border-bottom: var(--border-width) solid var(--color-background-muted);
 }
 
 .gng-list-title {
@@ -159,7 +163,7 @@
   gap: var(--spacing-2) var(--spacing-3);
   flex-wrap: wrap;
   padding: var(--spacing-2) var(--spacing-4);
-  border-top: var(--border-width) solid var(--color-border);
+  border-top: var(--border-width) solid var(--color-background-muted);
   background: var(--color-background-body);
 }
 
@@ -197,11 +201,8 @@
 }
 
 .gng-page .astryx-table-row:has([aria-pressed="true"]) {
+  /* 선택 행 좌측 inset 바 없음(spec §2.3). */
   background: var(--color-accent-muted);
-}
-
-.gng-page .astryx-table-row:has([aria-pressed="true"]) > td:first-child {
-  box-shadow: inset var(--spacing-1) 0 0 var(--color-accent);
 }
 
 .gng-row {
@@ -332,8 +333,8 @@
   flex: 0 0 auto;
   gap: var(--spacing-3);
   padding: 0 var(--spacing-4);
-  border-top: var(--border-width) solid var(--color-border);
-  border-bottom: var(--border-width) solid var(--color-border);
+  border-top: var(--border-width) solid var(--color-background-muted);
+  border-bottom: var(--border-width) solid var(--color-background-muted);
 }
 
 .gng-detail-tabs .astryx-button {
@@ -397,8 +398,9 @@
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   overflow: hidden;
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-inner);
+  border: 0;
+  border-radius: var(--radius-container);
+  box-shadow: var(--shadow-low);
   background: var(--color-background-body);
 }
 
@@ -410,7 +412,7 @@
 }
 
 .gng-delta-counts > div + div {
-  border-left: var(--border-width) solid var(--color-border);
+  border-left: var(--border-width) solid var(--color-background-muted);
 }
 
 .gng-delta-counts > div:last-child {
@@ -446,7 +448,7 @@
   min-width: 0;
   padding: var(--spacing-2) 0;
   border: 0;
-  border-bottom: var(--border-width) solid var(--color-border);
+  border-bottom: var(--border-width) solid var(--color-background-muted);
   background: transparent;
   color: var(--color-text-primary);
   font: inherit;
@@ -525,8 +527,9 @@
   gap: var(--spacing-2);
   min-width: 0;
   padding: var(--spacing-4);
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-inner);
+  border: 0;
+  border-radius: var(--radius-container);
+  box-shadow: var(--shadow-low);
   background: var(--color-background-body);
   overflow-wrap: anywhere;
 }
@@ -554,7 +557,7 @@
   display: grid;
   gap: var(--spacing-2);
   padding: var(--spacing-4) 0;
-  border-bottom: var(--border-width) solid var(--color-border);
+  border-bottom: var(--border-width) solid var(--color-background-muted);
   min-width: 0;
   overflow-wrap: anywhere;
 }
@@ -569,7 +572,7 @@
   flex: 0 0 auto;
   gap: var(--spacing-2);
   padding: var(--spacing-3) var(--spacing-4);
-  border-top: var(--border-width) solid var(--color-border);
+  border-top: var(--border-width) solid var(--color-background-muted);
   background: var(--color-background-body);
 }
 
@@ -612,8 +615,9 @@
   gap: var(--spacing-2);
   min-width: 0;
   padding: var(--spacing-4);
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-inner);
+  border: 0;
+  border-radius: var(--radius-container);
+  box-shadow: var(--shadow-low);
   background: var(--color-background-body);
   overflow-wrap: anywhere;
 }

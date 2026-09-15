@@ -10,10 +10,13 @@ import "../../styles/company-fit.css";
 export const decisions = { matched: "부합", mismatch: "불일치", unknown: "판단 보류 · 정보 부족" };
 export const statuses = { queued: "판정 대기", running: "판정 중", completed: "판정 결과", failed: "실행 실패", needs_human_review: "검증 실패 · 사람 확인 필요" };
 
-/** 저장된 판정이 없는 상태는 **불일치가 아니다**. 목록과 상세가 같은 문장을 쓰도록
+/** 화면 문구는 `회사 적합성`으로 통일한다(docs/0915_ui-redesign/spec.md §4 용어).
+ * API 필드명(`company_fit`)·함수명은 그대로 둔다.
+ *
+ * 저장된 판정이 없는 상태는 **불일치가 아니다**. 목록과 상세가 같은 문장을 쓰도록
  * 문구는 여기 하나만 두고 두 화면이 읽는다(CLAUDE.md 강제 게이트: `unknown`·`null`
  * 은 검증 대기 상태로 보존한다). */
-export const NO_CURRENT_ATTEMPT_NOTICE = "회사 핏 판정 없음 · 불일치 아님";
+export const NO_CURRENT_ATTEMPT_NOTICE = "회사 적합성 판정 없음 · 불일치 아님";
 
 
 function valueText(value: unknown): string {
@@ -121,7 +124,7 @@ export function CompanyFitAutomationNotice({ data }: { data: CompanyFitResponse 
   return <div className="company-fit-notice"><strong>자동 심층 검토</strong>
     {data.deep_review_id ? <p>생성된 심층 검토가 있습니다. <a href={`/deep-reviews/${data.deep_review_id}`}>심층 검토 열기</a></p> :
       <p>{data.auto_deep_review_reason ? preSpecAutoPreparationReasonLabel(data.auto_deep_review_reason) : "생성된 심층 검토가 없습니다."}</p>}
-    {!data.automation_enabled && <p>회사 핏 자동 판정은 비활성입니다.</p>}
+    {!data.automation_enabled && <p>회사 적합성 자동 판정은 비활성입니다.</p>}
   </div>;
 }
 
@@ -136,9 +139,9 @@ export function CompanyFitSection({ noticeId, compact = false }: { noticeId: num
   return <section className="company-fit" aria-label="회사 업무 부합 여부">
     <h3>회사 업무 부합 여부</h3>
     <p className="company-fit-note">개요의 과업과 회사 정보를 대조한 분석입니다. 추적 승인과 최종 입찰 결정은 사람이 진행합니다.</p>
-    {query.isPending ? <p role="status">회사 핏 판정을 불러오는 중입니다.</p> : query.isError ? <div role="alert">
-      <p>회사 핏 판정을 불러오지 못했습니다.</p>
-      <Button label="회사 핏 다시 불러오기" size="sm" onClick={() => { void query.refetch(); }} />
+    {query.isPending ? <p role="status">회사 적합성 판정을 불러오는 중입니다.</p> : query.isError ? <div role="alert">
+      <p>회사 적합성 판정을 불러오지 못했습니다.</p>
+      <Button label="회사 적합성 다시 불러오기" size="sm" onClick={() => { void query.refetch(); }} />
     </div> : !isValid || data === null ?
       <p role="alert">판정 응답의 공고 또는 구조가 일치하지 않아 표시하지 않습니다.</p> : <>
         {currentAttempt ? <Assessment attempt={currentAttempt} /> : <p>{NO_CURRENT_ATTEMPT_NOTICE}</p>}

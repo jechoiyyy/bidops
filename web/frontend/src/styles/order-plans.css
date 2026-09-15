@@ -899,8 +899,9 @@
   background: transparent;
 }
 
-.c2l-filters .astryx-text-input,
-.c2l-filters .astryx-selector {
+/* 목록 검색 입력은 공용 필터 줄이 소유한다(spec §2.2: 264x32 · 반지름 8.75 ·
+   테두리 `--color-border-emphasized`). 여기서 덧쓰면 화면마다 검색 칸이 달라진다. */
+.c2l-filters :where(.astryx-text-input, .astryx-selector):not(.workspace-search) {
   display: flex;
   align-items: center;
   gap: var(--spacing-1);
@@ -912,8 +913,7 @@
   background: var(--color-background-card);
 }
 
-.c2l-filters .astryx-text-input:focus-within,
-.c2l-filters .astryx-selector:focus-within {
+.c2l-filters :where(.astryx-text-input, .astryx-selector):not(.workspace-search):focus-within {
   border-color: var(--color-accent);
 }
 
@@ -976,15 +976,17 @@
  *
  * 툴바 바로 아래에 이어 붙는 한 덩어리이고, 남은 높이를 전부 채운다. 스크롤은 목록과
  * 상세 본문 안에서만 일어나므로 바닥의 결정 블록은 늘 보인다. */
+/* spec §2.3 — 필터 줄과 이어 붙던 상자가 아니라 그림자로 뜬 카드 하나다. */
 .c2l-workspace {
   display: flex;
   flex: 1 1 0;
   flex-direction: row;
   align-items: stretch;
   min-height: 0;
-  border: var(--border-width) solid var(--color-border);
-  border-radius: 0 0 var(--radius-element) var(--radius-element);
-  background: var(--color-background-card);
+  border: 0;
+  border-radius: var(--radius-container);
+  background: var(--color-background-surface);
+  box-shadow: var(--shadow-low);
   overflow: hidden;
 }
 
@@ -995,7 +997,7 @@
   flex: 0 0 var(--c2l-list-width, 38%);
   width: var(--c2l-list-width, 38%);
   min-width: 0;
-  border-right: var(--border-width) solid var(--color-border);
+  border-right: var(--border-width) solid var(--review-split-line);
   min-height: 0;
 }
 
@@ -1005,7 +1007,7 @@
   flex-direction: column;
   gap: var(--spacing-0-5);
   padding: var(--spacing-2) var(--spacing-4);
-  border-bottom: var(--border-width) solid var(--color-border);
+  border-bottom: var(--border-width) solid var(--review-split-line);
 }
 
 .c2l-list-head p {
@@ -1066,8 +1068,7 @@
   min-width: 0;
   padding: var(--spacing-2) var(--spacing-4);
   border: 0;
-  border-bottom: var(--border-width) solid var(--color-border);
-  border-left: 3px solid transparent;
+  border-bottom: var(--border-width) solid var(--review-split-line);
   background: transparent;
   text-align: left;
   cursor: pointer;
@@ -1075,9 +1076,9 @@
   color: inherit;
 }
 
+/* spec §2.3 — 선택 행은 `--color-accent-muted` 배경 하나로만 말한다(좌측 바 없음). */
 .c2l-row-wrap.is-selected {
-  background: var(--color-background-muted);
-  border-left-color: var(--color-accent);
+  background: var(--color-accent-muted);
 }
 
 .c2l-row:hover {
@@ -1186,7 +1187,8 @@
   justify-content: center;
   gap: var(--spacing-3);
   padding: var(--spacing-3);
-  border-top: var(--border-width) solid var(--color-border);
+  border-top: var(--border-width) solid var(--review-split-line);
+  background: var(--review-quiet-surface);
 }
 
 /* --- 크기 조절 separator --- */
@@ -1195,7 +1197,7 @@
   width: 6px;
   min-height: 0;
   cursor: col-resize;
-  background: var(--color-border);
+  background: var(--review-split-line);
   border: 0;
 }
 
@@ -1224,7 +1226,7 @@
   flex-direction: column;
   gap: var(--spacing-1-5);
   padding: var(--spacing-3) var(--spacing-4);
-  border-bottom: var(--border-width) solid var(--color-border);
+  border-bottom: var(--border-width) solid var(--review-split-line);
 }
 
 .c2l-detail-head h4 {
@@ -1602,11 +1604,13 @@
   text-underline-offset: var(--spacing-0-5);
 }
 
+/* 목록 바닥은 읽을 것이 아니라 지금 보는 범위를 적는 줄이다(spec §2.3). */
 .c2l-list-foot {
   min-width: 0;
   margin: 0;
   padding: var(--spacing-2) var(--spacing-4);
-  border-top: var(--border-width) solid var(--color-border);
+  border-top: var(--border-width) solid var(--review-split-line);
+  background: var(--review-quiet-surface);
   overflow-wrap: anywhere;
 }
 
@@ -1619,7 +1623,8 @@
   align-items: stretch;
   gap: var(--spacing-2);
   padding: var(--spacing-3) var(--spacing-4);
-  background: var(--color-background-body);
+  /* 카드 안의 조용한 면(spec §2.3). canvas 색을 카드 안에 끌어들이지 않는다. */
+  background: var(--review-quiet-surface);
 }
 
 .c2l-page .c2l-detail-actions .review-decision-bar-actions {

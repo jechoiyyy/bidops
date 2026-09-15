@@ -173,7 +173,7 @@ test("사업명·기관·행 어디를 눌러도 목록을 떠나지 않고 오�
 
 // 선택된 행이 눈으로 구분되지 않으면 어떤 사업의 상세를 보고 있는지 알 수 없다.
 // 표식이 표가 아니라 행의 선택 버튼에 있으므로 실제 표시를 함께 확인한다.
-test("선택한 행은 배경과 왼쪽 강조선으로 표시되고 다른 행을 고르면 함께 옮겨간다", async ({ page }) => {
+test("선택한 행은 배경으로 표시되고 다른 행을 고르면 함께 옮겨간다", async ({ page }) => {
   await mockOpportunities(page);
   for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900 }]) {
     await page.setViewportSize(viewport);
@@ -195,12 +195,10 @@ test("선택한 행은 배경과 왼쪽 강조선으로 표시되고 다른 행�
     const selected = first.filter((row) => row.pressed);
     expect(selected, `${viewport.width}px 선택 행`).toHaveLength(1);
     expect(selected[0].title).toBe("공공데이터 통합관리체계 고도화");
-    // 선택 행만 배경과 왼쪽 강조선을 갖는다.
+    // 선택 행만 배경을 갖는다(docs/0915_ui-redesign/spec.md §2.3: 좌측 inset 바 없음).
     expect(selected[0].background).not.toBe("rgba(0, 0, 0, 0)");
-    expect(selected[0].accent).not.toBe("none");
     for (const row of first.filter((entry) => !entry.pressed)) {
       expect(row.background, `${viewport.width}px 비선택 행 배경`).not.toBe(selected[0].background);
-      expect(row.accent, `${viewport.width}px 비선택 행 강조선`).toBe("none");
     }
 
     await page.locator("tbody tr", { hasText: "시설관리 업무시스템 구축" }).locator(".opportunity-row-title").click();
@@ -211,9 +209,8 @@ test("선택한 행은 배경과 왼쪽 강조선으로 표시되고 다른 행�
     expect(movedSelection[0].title).toBe("시설관리 업무시스템 구축");
     // 포인터가 올라간 행은 hover가 겹쳐 색이 미세하게 달라진다. 표시가 옮겨갔는지만 본다.
     expect(movedSelection[0].background).not.toBe("rgba(0, 0, 0, 0)");
-    expect(movedSelection[0].accent).toBe(selected[0].accent);
     const previous = moved.find((row) => row.title === "공공데이터 통합관리체계 고도화");
-    expect(previous?.accent, `${viewport.width}px 이전 선택 행 강조선`).toBe("none");
+    expect(previous?.background, `${viewport.width}px 이전 선택 행 배경`).not.toBe(movedSelection[0].background);
   }
 });
 
