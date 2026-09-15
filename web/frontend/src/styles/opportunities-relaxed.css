@@ -122,15 +122,23 @@
 /* --- 목록 38% : 상세 62% ---
  * 발주계획·사전규격 화면과 같은 기본 비율이다. 고정 px로 근사하지 않는다. */
 
+/* spec §2.3 — 필터 줄과 이어 붙던 상자가 아니라 그림자로 뜬 카드 하나다. 안쪽 선은
+ * 전부 같은 옅은 값(`--color-background-muted`)을 쓰고, 바닥처럼 범위를 적는 줄만
+ * body와 surface의 중간 면을 깐다(spec §2.3이 지정한 `color-mix`).
+ * 이 화면은 공용 `SplitWorkspace`를 쓰지 않으므로 두 값을 여기서 정의한다. */
 .opportunity-workspace {
+  --review-split-line: var(--color-background-muted);
+  --review-quiet-surface: color-mix(in srgb, var(--color-background-body) 50%, var(--color-background-surface));
+
   display: flex;
   flex: 1 1 0;
   flex-direction: row;
   align-items: stretch;
   min-height: 0;
-  border: var(--border-width) solid var(--color-border);
-  border-radius: 0 0 var(--radius-element) var(--radius-element);
-  background: var(--color-background-card);
+  border: 0;
+  border-radius: var(--radius-container);
+  background: var(--color-background-surface);
+  box-shadow: var(--shadow-low);
   overflow: hidden;
 }
 
@@ -141,7 +149,7 @@
   width: 38%;
   min-width: 0;
   min-height: 0;
-  border-right: var(--border-width) solid var(--color-border);
+  border-right: var(--border-width) solid var(--review-split-line);
 }
 
 .opportunity-list-head {
@@ -151,7 +159,7 @@
   justify-content: space-between;
   gap: var(--spacing-2);
   padding: var(--spacing-2) var(--spacing-4);
-  border-bottom: var(--border-width) solid var(--color-border);
+  border-bottom: var(--border-width) solid var(--review-split-line);
 }
 
 .opportunity-list-title {
@@ -171,35 +179,36 @@
   flex-direction: column;
   gap: var(--spacing-0-5);
   padding: var(--spacing-2) var(--spacing-4);
-  border-top: var(--border-width) solid var(--color-border);
-  background: var(--color-background-body);
+  border-top: var(--border-width) solid var(--review-split-line);
+  background: var(--review-quiet-surface);
 }
 
 /* --- 목록 행 --- */
 
 .opportunities-page .astryx-table-cell {
   padding: var(--spacing-3);
+  border-bottom-color: var(--review-split-line);
   vertical-align: top;
 }
 
+/* 열 이름 줄 — 시안의 카드 안 조용한 면(spec §2.3). */
 .opportunities-page .astryx-table-header-cell {
   position: sticky;
   top: 0;
   z-index: 1;
   padding: var(--spacing-2) var(--spacing-3);
-  background: var(--color-background-body);
+  border-bottom-color: var(--review-split-line);
+  background: var(--review-quiet-surface);
   font-size: var(--bo-type-caption);
 }
 
 /* 선택 표시는 행의 선택 버튼이 진다. Astryx `Table`의 data 모드는 선택 상태를
    갖지 않으므로 표가 아니라 `aria-pressed`를 그대로 읽는다 — 두 곳이 서로 다른
    상태를 그리지 않게 표식은 하나만 둔다. */
+/* spec §2.3 — 선택 행은 `--color-accent-muted` 배경 하나로만 말한다. 좌측 inset 바는
+   두지 않는다(흰 카드 위에서 등급 레일과 겹쳐 서로를 지웠다). */
 .opportunities-page tbody tr:has(.opportunity-row-business[aria-pressed="true"]) {
   background: var(--color-accent-muted);
-}
-
-.opportunities-page tbody tr:has(.opportunity-row-business[aria-pressed="true"]) > td:first-child {
-  box-shadow: inset var(--spacing-1) 0 0 var(--color-accent);
 }
 
 .opportunity-row-business {
@@ -326,8 +335,8 @@
 .opportunity-detail-tabs {
   flex: 0 0 auto;
   padding: 0 var(--spacing-4);
-  border-top: var(--border-width) solid var(--color-border);
-  border-bottom: var(--border-width) solid var(--color-border);
+  border-top: 0;
+  border-bottom: var(--border-width) solid var(--review-split-line);
 }
 
 .opportunity-detail-tabs .astryx-tab {
@@ -632,8 +641,8 @@
   flex: 0 0 auto;
   gap: var(--spacing-2);
   padding: var(--spacing-3) var(--spacing-4);
-  border-top: var(--border-width) solid var(--color-border);
-  background: var(--color-background-body);
+  border-top: var(--border-width) solid var(--review-split-line);
+  background: var(--review-quiet-surface);
 }
 
 .opportunity-tracking-summary {
@@ -777,12 +786,16 @@
  * 목록 없이 상세 하나만 열지만 골격·비율·고정 액션은 같은 컴포넌트를 쓴다. */
 
 .opportunity-standalone-pane {
+  --review-split-line: var(--color-background-muted);
+  --review-quiet-surface: color-mix(in srgb, var(--color-background-body) 50%, var(--color-background-surface));
+
   display: flex;
   flex: 1 1 0;
   flex-direction: column;
   min-height: 0;
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-element);
+  border: 0;
+  border-radius: var(--radius-container);
   background: var(--color-background-surface);
+  box-shadow: var(--shadow-low);
   overflow: hidden;
 }

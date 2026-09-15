@@ -32,3 +32,22 @@
   일반 visual test의 baseline update 명령이 이 경로를 건드리게 하지 않는다.
 - `shots/`는 1440px 한 폭이다. 1280px 기준 이미지는 구현 화면에서 새로 만들고 시안과
   픽셀 비교하지 않는다(`PLAN.md` §3.2).
+
+## 2026-09-15 재설계(C 기준) 시안은 다른 폴더에 있다
+
+관리 화면 흰 바탕·초록 포인트 재설계(C 기준, 8화면)의 시각 정본은 이 디렉터리가
+아니라 저장소 루트의 [`docs/0915_ui-redesign/mockups/`](../../../../docs/0915_ui-redesign/mockups/)
+에 있다. 위 "왜 여기 있나" 절의 사정(옛 생성기로 덮이는 문제)과 무관한 별도
+작업이라 이 디렉터리 안의 기존 파일(`shots/`·`preview/`·`artboards/`·
+`MANIFEST.txt`)은 이번에 건드리지 않았다.
+
+| 경로 | 내용 |
+|---|---|
+| `docs/0915_ui-redesign/mockups/shots/` | PNG 8장, 1440×900 |
+| `docs/0915_ui-redesign/mockups/artboards/` | 캔버스 아트보드 HTML 8장(`*.dc.html`). 값은 앱 `zoom: 0.9` 기준 논리 px라 CSS 값과 1:1 |
+| `docs/0915_ui-redesign/mockups/MANIFEST.txt` | 두 묶음의 sha256 |
+
+시안과 [`docs/0915_ui-redesign/spec.md`](../../../../docs/0915_ui-redesign/spec.md)가
+어긋나면 시안이 이기고, 시안이 [`docs/0915_ui-redesign/intent.md`](../../../../docs/0915_ui-redesign/intent.md)
+§제약의 업무 규칙과 어긋나면 업무 규칙이 이긴다. 결정 기록은
+`docs/0915_ui-redesign/decisions.md`·`notes.md`에 있다.

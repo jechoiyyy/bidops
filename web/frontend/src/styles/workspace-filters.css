@@ -2,10 +2,10 @@
  * 탐색과 추적 4화면이 공유하는 필터 바 — `components/common/WorkspaceFilters.tsx`.
  *
  * 출처: 승인된 사업 추적 시안(`opportunities-relaxed.css`의 `.opportunity-filters`
- * 계열)의 골격을 이름만 `workspace-*`로 바꿔 옮겼다. 프레임 값(배경 `--color-background-card`,
- * 아래 테두리 없음, 위 radius만, padding `2 3`)은 발주계획(`order-plans.css`의
- * `.c2l-filters`)을 기준으로 맞춘다 — 필터 바는 바로 아래 workspace와 한 덩어리로
- * 이어 붙는 면이므로 아래 테두리와 아래 radius를 두지 않는다.
+ * 계열)의 골격을 이름만 `workspace-*`로 바꿔 옮겼다. 프레임은
+ * `docs/0915_ui-redesign/spec.md` §2.2로 바뀌었다 — 필터 줄은 더는 카드 면이 아니라
+ * **canvas 위에 그대로 놓인 줄**이라 배경·테두리·radius를 갖지 않고 좌우 4px만 둔다.
+ * 아래 workspace가 자기 카드(그림자)를 갖고 두 면을 선으로 잇지 않기 때문이다.
  *
  * 규칙:
  * - 색·간격·반경은 `bidops` 테마 토큰만 읽는다. `--color-*`를 새로 정의하지 않는다(ADR-0048).
@@ -27,18 +27,19 @@
   min-height: 0;
 }
 
+/* spec §2.2 — 테두리·배경 없이 canvas 위에 놓인다. 좌우 4px는 탭·검색이 canvas
+   가장자리에 붙지 않게 하는 여백이고, 아래 workspace와의 8px 틈은 `.workspace-frame`의
+   gap이 준다. */
 .workspace-filters {
   display: flex;
   flex: 0 0 auto;
   flex-direction: column;
   gap: var(--spacing-2);
   min-width: 0;
-  padding: var(--spacing-2) var(--spacing-3);
-  border: var(--border-width) solid var(--color-border);
-  /* 아래는 workspace가 곧바로 이어 붙는다. 두 면 사이에 선을 두 번 그리지 않는다. */
-  border-bottom: 0;
-  border-radius: var(--radius-element) var(--radius-element) 0 0;
-  background: var(--color-background-card);
+  padding: 0 var(--spacing-1);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
 }
 
 .workspace-filter-line {
@@ -49,23 +50,63 @@
   min-width: 0;
 }
 
-/* 보기 탭 — 여섯 개까지 늘어나는 화면(사전규격)이 있어 1280px에서 줄바꿈을 허용한다. */
+/* 보기 탭 — 여섯 개까지 늘어나는 화면(사전규격)이 있어 1280px에서 줄바꿈을 허용한다.
+ *
+ * spec §2.2의 밑줄형이다. 채움·테두리를 갖지 않고 활성만 글자색·굵기와 2px 밑줄로
+ * 말한다. 밑줄은 canvas(`#F6F7F4`) 위 2.85:1인 `--bo-brand`를 쓰지만 상태를 혼자
+ * 나르는 표시가 아니라(글자색·굵기가 함께 바뀐다) spec이 정한 장식이다. */
 .workspace-view-tabs {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--spacing-1);
+  align-items: center;
+  gap: var(--spacing-3);
   min-width: 0;
 }
 
 .workspace-view-tabs .astryx-button {
+  height: var(--size-element-md);
+  min-height: var(--size-element-md);
+  padding: 0 var(--spacing-1);
+  border: 0;
+  border-radius: 0;
+  /* 시안은 비활성 라벨을 `#79837C`(3.1:1)로, spec §2.2는 `--color-text-disabled`
+     (2.2:1)로 적는다. 둘 다 intent §제약의 글자 4.5:1에 못 미치고 비활성 탭도 누를 수
+     있는 조작이라, 같은 위계를 지키는 가장 진한 값인 secondary(7.2:1)를 쓴다. */
+  color: var(--color-text-secondary);
   background: transparent;
-  border-color: transparent;
+  box-shadow: none;
+  font-weight: var(--font-weight-medium);
 }
 
-.workspace-view-tabs [aria-pressed="true"] {
-  background: var(--color-accent-muted);
-  border-color: var(--color-border);
+.workspace-view-tabs .astryx-button[aria-pressed="true"] {
+  color: var(--color-text-primary);
   font-weight: var(--bo-type-section-title-weight);
+  box-shadow: inset 0 calc(-2 * var(--border-width)) 0 var(--bo-brand);
+}
+
+/* 라벨과 건수는 버튼의 접근 이름(`label`) 그대로를 두 조각으로 그린 것이다. 화면 CSS가
+   `span`에 본문 크기를 주므로 여기서 캡션 단을 다시 못 박는다(특이성 0,2,0). */
+.workspace-view-tabs .workspace-view-tab-label {
+  /* 사용자 요청 2026-09-15: 보기 탭 라벨 +1px */
+  font-size: calc(var(--bo-type-caption) + 1px);
+  line-height: var(--bo-type-caption-leading);
+}
+
+.workspace-view-tabs .workspace-view-tab-count {
+  font-size: var(--bo-type-caption);
+  line-height: var(--bo-type-caption-leading);
+}
+
+/* 라벨과 건수 사이 6px. Astryx 는 `children`을 라벨 span 하나로 감싸므로 버튼의 gap이
+   두 조각 사이로 가지 않는다. */
+.workspace-view-tabs .workspace-view-tab-count {
+  margin-left: var(--spacing-1-5);
+  color: var(--color-text-disabled);
+  font-variant-numeric: tabular-nums;
+}
+
+.workspace-view-tabs .astryx-button[aria-pressed="true"] .workspace-view-tab-count {
+  color: var(--color-text-accent);
 }
 
 .workspace-filter-end {
@@ -75,9 +116,15 @@
   min-width: 0;
 }
 
+/* spec §2.2 — 264x32, 반지름 8.75, 테두리 `--color-border-emphasized`.
+   Astryx 는 테두리·반지름을 이미 그 값으로 주므로 폭과 높이만 못 박는다. */
 .workspace-filters .workspace-search {
   width: calc(var(--spacing-12) * 5.5);
   max-width: 100%;
+  height: var(--size-element-md);
+  padding: 0 var(--spacing-3);
+  border-color: var(--color-border-emphasized);
+  border-radius: var(--radius-element);
 }
 
 .workspace-advanced-toggle {
@@ -87,10 +134,24 @@
   gap: var(--spacing-1);
 }
 
-/* 열려 있는 동안 토글이 눌린 상태임을 보인다(보기 탭의 눌림과 같은 표현). */
+/* spec §2.2 — 32x32 outline 단추. 테두리는 흰 면 위 1px inset 이라 높이를 먹지 않는다. */
+.workspace-advanced-toggle .astryx-button {
+  width: var(--size-element-md);
+  height: var(--size-element-md);
+  min-height: var(--size-element-md);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-element);
+  color: var(--color-text-primary);
+  background: var(--color-background-surface);
+  box-shadow: inset 0 0 0 var(--border-width) var(--color-border);
+}
+
+/* 열려 있는 동안 토글이 눌린 상태임을 보인다(사전규격 SW 스위치와 같은 표현). */
 .workspace-advanced-toggle .astryx-button[aria-expanded="true"] {
   background: var(--color-accent-muted);
-  border-color: var(--color-border);
+  color: var(--color-text-accent);
+  box-shadow: inset 0 0 0 var(--border-width) var(--bo-brand-edge);
 }
 
 /* 접힌 상세 필터에 걸린 필터 수. 버튼 이름에 섞지 않으려고 따로 그린다. */
@@ -108,7 +169,8 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* 둘째 줄 — 필터가 아니라 지금 보고 있는 범위의 사실을 적는 자리다. */
+/* 둘째 줄 — 필터가 아니라 지금 보고 있는 범위의 사실을 적는 자리다.
+   필터 줄이 면을 갖지 않으므로 줄 사이 구분선도 두지 않는다(spec §2.2). */
 .workspace-filter-context {
   display: flex;
   flex-wrap: wrap;
@@ -116,8 +178,9 @@
   justify-content: space-between;
   gap: var(--spacing-2) var(--spacing-3);
   min-width: 0;
-  padding-top: var(--spacing-2);
-  border-top: var(--border-width) solid var(--color-border);
+  padding-top: 0;
+  padding-bottom: var(--spacing-2);
+  border-top: 0;
 }
 
 /* 상세 필터: 축 n개 + 오른쪽 끝의 초기화 버튼. 열 수는 화면이 `columns`로 정한다. */

@@ -7,6 +7,7 @@ import {
   readListSelection,
   nextSelectionGeneration,
   resetSelectionForFilter,
+  selectMany,
   setSelectionActiveId,
   setSelectionContext,
   toggleSelection,
@@ -51,6 +52,8 @@ export interface UseListSelectionResult<Id extends ListSelectionId = ListSelecti
   storageAvailable: boolean;
   storageError: ListSelectionStorageError | null;
   toggle: (id: Id, metadata?: Metadata) => void;
+  /** spec §3.4: 현재 페이지의 `ids`를 기존 선택 뒤에 중복 없이 덧붙인다. */
+  selectMany: (ids: readonly Id[], metadataById?: Record<string, Metadata>) => void;
   clear: () => void;
   setActiveId: (id: Id | null) => void;
   setListSearch: (value: string) => void;
@@ -157,6 +160,9 @@ export function useListSelection<Id extends ListSelectionId = ListSelectionId, M
   const toggle = useCallback((id: Id, metadata?: Metadata) => {
     updateState((current) => toggleSelection(current, id, metadata));
   }, [updateState]);
+  const selectManyCallback = useCallback((ids: readonly Id[], metadataById?: Record<string, Metadata>) => {
+    updateState((current) => selectMany(current, ids, metadataById));
+  }, [updateState]);
   const clear = useCallback(() => {
     updateState((current) => clearSelection(current));
   }, [updateState]);
@@ -209,6 +215,7 @@ export function useListSelection<Id extends ListSelectionId = ListSelectionId, M
       && storageError?.code !== "storage_write_failed",
     storageError,
     toggle,
+    selectMany: selectManyCallback,
     clear,
     setActiveId,
     setListSearch,

@@ -26,7 +26,13 @@ function mockApiPlugin(): Plugin {
         if (!req.url?.startsWith("/api/")) return next();
         const { resolveMockApi } = await server.ssrLoadModule("/scripts/mock-api.ts") as typeof import("./scripts/mock-api");
         const chunks: Buffer[] = [];
-        for await (const chunk of req) chunks.push(chunk as Buffer);
+        try {
+          for await (const chunk of req) chunks.push(chunk as Buffer);
+        } catch {
+          // 브라우저가 요청을 중간에 끊으면(ECONNRESET) 본문 읽기가 reject 된다. 처리되지
+          // 않은 거부는 dev 서버 프로세스 전체를 죽이므로 그 요청만 버린다.
+          return;
+        }
         const body = chunks.length > 0 ? Buffer.concat(chunks).toString("utf8") : null;
         try {
           const result = await resolveMockApi({

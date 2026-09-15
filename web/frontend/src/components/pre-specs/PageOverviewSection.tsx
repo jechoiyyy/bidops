@@ -225,7 +225,7 @@ export function PageOverviewResult({ review, anchor = true }: { review: PageOver
     </header>
     <div className="page-overview-validation" role="status">
       <strong>{review.validation_status === "failed" ? "검증 실패 · 사람 확인 필요" : isVerifiedV4 ? "주장 검증 완료 · 운영 승인 아님" : "근거 검사 통과 · 이전 검증 기준"}</strong>
-      <p>사업 설명을 위한 요약입니다. 추적 승인과 최종 입찰 결정은 사람이 진행하며, 현재 회사 핏과 조건을 충족한 경우에만 심층 검토가 자동 시작됩니다.</p>
+      <p>사업 설명을 위한 요약입니다. 추적 승인과 최종 입찰 결정은 사람이 진행하며, 현재 회사 적합성과 조건을 충족한 경우에만 심층 검토가 자동 시작됩니다.</p>
       {review.validation_status === "failed" && review.evidence_check_status === "passed" ? (
         <p>새 페이지 근거 검사는 통과했으나, 원실행의 검증 실패 기록은 유지합니다.</p>
       ) : null}
@@ -355,6 +355,78 @@ export function PageOverviewCurrent({
       </div>
     </section>
   );
+}
+
+/**
+ * 상세 ③ 카드 맨 위 알림 줄(docs/0915_ui-redesign/spec.md §4 ③).
+ *
+ * 종전 오른쪽 `현재 판단` 열이 갖고 있던 두 알림을 그대로 옮긴 것이다. 문장과
+ * 상태 어휘는 바꾸지 않고 자리만 바뀐다 — 알림은 조작 자리(`#ps-record-range`,
+ * `#ps-record-history`)로 보내는 링크 한 줄이고, 폼은 여전히 아래 카드가 갖는다.
+ */
+export function PageOverviewNotices({
+  rangeReview,
+  current,
+  verification,
+  verificationReasonCount,
+}: {
+  rangeReview: PageOverviewRangeReviewData | null;
+  current: PageOverviewCurrent | null;
+  verification: PageOverviewVerification | null;
+  verificationReasonCount: number;
+}) {
+  const rangePending = rangeReview?.selection_status === "needs_human_review";
+  const humanReview = current?.status === "needs_human_review" || verification?.status === "needs_human_review";
+  if (!rangePending && !humanReview) return null;
+  return (
+    <div className="ps-notices">
+      {rangePending ? (
+        <p className="ps-note ps-range-review-notice">
+          <strong>개요 입력 범위 확정 필요</strong>
+          <a href="#ps-record-range">확정하기 →</a>
+        </p>
+      ) : null}
+      {humanReview ? (
+        <p className="ps-note ps-verification-notice">
+          <strong>사람 확인 필요 · 사유 {verificationReasonCount}건</strong>
+          <a href="#ps-record-history">→ 보기</a>
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+export interface PageOverviewRisk {
+  /** 칩 글자. 색은 `tone`이 정한다. */
+  label: string;
+  tone: "caution" | "neutral";
+  title: string;
+  detail: string | null;
+}
+
+/**
+ * 상세 ④ `위험 및 미확인 사항` 열이 읽는 개요 쪽 항목(spec §4 ④).
+ *
+ * 결정적 검사에 실패한 주장이 먼저 오고(`근거 위치 없음`), 그다음이 결과가 남긴
+ * `unknowns`다. 새 분석·문장 생성은 없고 이미 받은 값만 고른다. 실패 판정 규칙은
+ * `lib/preSpecCautions.ts`의 주의 건수와 같은 `deterministic_status === "failed"`다.
+ */
+export function pageOverviewRisks(
+  verification: PageOverviewVerification | null,
+  unknowns: readonly string[],
+): PageOverviewRisk[] {
+  const failed = (verification?.claims ?? [])
+    .filter((claim) => claim.deterministic_status === "failed")
+    .map((claim): PageOverviewRisk => ({
+      label: "근거 위치 없음",
+      tone: "caution",
+      title: claim.text,
+      detail: claim.reason_codes.length ? claim.reason_codes.join(", ") : null,
+    }));
+  return [
+    ...failed,
+    ...unknowns.map((text): PageOverviewRisk => ({ label: "미확인", tone: "neutral", title: text, detail: null })),
+  ];
 }
 
 export function PageOverviewHistory({ reviews }: { reviews: PageOverviewView[] }) {

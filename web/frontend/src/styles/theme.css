@@ -2285,7 +2285,8 @@ a {
 }
 
 .rail-grade-none {
-  --rail-color: var(--bo-grade-none);
+  /* 판정 없음 배경이 흰색(spec §1.3)이라 레일은 테두리색으로 표시한다. */
+  --rail-color: var(--color-border);
 }
 
 .queue-list-item {

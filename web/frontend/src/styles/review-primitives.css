@@ -16,19 +16,55 @@
   padding: 0;
 }
 
+/* 행 사이 구분선은 Astryx `hasDividers`가 `--color-border`로 긋는다. 시안의 목록은
+   카드 안이라 더 옅은 선을 쓴다(spec §2.3: 구분선은 전부 `--color-background-muted`). */
 .review-dense-list-row {
   min-width: 0;
+  border-block-end-color: var(--color-background-muted);
   overflow-wrap: anywhere;
+}
+
+/* 선택 행은 채운 배경 하나로만 말한다. 좌측 inset 바는 두지 않는다(spec §2.3) —
+   등급 레일과 겹쳐 흰 카드 위에서 두 표식이 서로를 지웠다. */
+.review-dense-list-row.is-selected,
+.review-dense-list-row[aria-current="true"] {
+  background: var(--color-accent-muted);
+  box-shadow: none;
 }
 
 .review-dense-list-row :where(button, a) {
   min-height: var(--size-element-lg);
 }
 
+/* 선택 체크박스는 16px, 체크됨은 `--bo-brand` 채움 + 흰 체크(spec §2.3). 라벨이 늘
+   함께 있으므로 채움색이 글자를 지지 않는다. */
+.review-dense-list-row[data-selection-mode="multiple"] [type="checkbox"] {
+  width: var(--spacing-4);
+  height: var(--spacing-4);
+  flex: 0 0 auto;
+  accent-color: var(--bo-brand);
+}
+
+/* --- 분할 작업 영역 (docs/0915_ui-redesign/spec.md §2.3) ---
+ *
+ * 목록과 상세는 테두리로 나뉜 두 상자가 아니라 **카드 하나** 안의 두 면이다. 카드는
+ * 선 대신 그림자로 canvas 위에 뜨고, 안쪽 선(두 면 사이·머리·도구줄·행·바닥)은 전부
+ * 같은 옅은 값 하나(`--color-background-muted`)를 쓴다.
+ *
+ * `--review-quiet-surface`는 새 색이 아니라 body와 surface의 중간이다(spec §2.3이
+ * 지정한 `color-mix`). 바닥과 열 이름 줄처럼 "읽을 것이 아니라 범위를 적는 줄"만
+ * 이 값을 깔아 본문 면과 구분한다. */
 .review-split-workspace {
+  --review-split-line: var(--color-background-muted);
+  --review-quiet-surface: color-mix(in srgb, var(--color-background-body) 50%, var(--color-background-surface));
+
   display: flex;
   min-width: 0;
   min-height: 0;
+  border: 0;
+  border-radius: var(--radius-container);
+  background: var(--color-background-surface);
+  box-shadow: var(--shadow-low);
   overflow: hidden;
 }
 
@@ -39,11 +75,21 @@
 }
 
 .review-split-list {
-  flex: 0 0 36%;
+  flex: 0 0 38%;
+  border-right: var(--border-width) solid var(--review-split-line);
 }
 
 .review-split-detail {
   flex: 1 1 auto;
+}
+
+/* --- 칩 ---
+ * outline 칩은 Astryx `Token`이 변형을 늘릴 수 없어(닫힌 union) 프로젝트 클래스로
+ * 둔다(spec §2.3). 흰 바탕 + inset 1px 테두리이므로 높이를 먹지 않는다. */
+.review-chip-outline {
+  color: var(--color-text-secondary);
+  background: var(--color-background-surface);
+  box-shadow: inset 0 0 0 var(--border-width) var(--color-border);
 }
 
 .review-filter-bar {
@@ -329,8 +375,9 @@
   gap: var(--spacing-2) var(--spacing-3);
   min-width: 0;
   padding: var(--spacing-3) var(--spacing-4);
-  border-top: var(--border-width) solid var(--color-border);
-  background: var(--color-background-card);
+  /* 카드 안의 선과 조용한 면(spec §2.3). 바깥 canvas 색을 카드 안으로 들이지 않는다. */
+  border-top: var(--border-width) solid var(--review-split-line, var(--color-background-muted));
+  background: var(--review-quiet-surface, var(--color-background-card));
 }
 
 /* 액션과 안내는 좁아지면 **줄을 바꾼다.** 한쪽이 0에 가깝게 눌리면 긴 한글이 한 글자씩

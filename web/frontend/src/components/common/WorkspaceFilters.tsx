@@ -127,9 +127,12 @@ export interface WorkspaceViewTabsProps<K extends string> {
  * 화면의 다른 필터 축과 함께 걸린다. 라디오로 그리면 축이 하나뿐이라는 뜻이 되고,
  * `role="tab"`으로 그리면 tabpanel 계약(패널 하나가 탭에 종속)을 만들어야 한다.
  *
- * 라벨은 `${label}  ${count}`(두 칸)이다. Astryx `Button`의 `label`은 문자열이라
- * 건수를 별도 요소로 꾸밀 수 없고, 두 칸이 시각적 구분을 대신한다. 건수는 접근 이름의
- * 일부이므로 테스트는 `getByRole("button", { name: /^전체/ })`처럼 앞부분으로 찾는다.
+ * 접근 이름은 여전히 `${label}  ${count}`(두 칸)이다. Astryx `Button`의 `label`은
+ * 문자열이지만 `children`을 주면 그것을 그리고 `label`은 `aria-label`로 남으므로,
+ * 표기 형식과 접근 이름을 바꾸지 않은 채 건수만 따로 칠할 수 있다
+ * (`docs/0915_ui-redesign/spec.md` §2.2: 활성 탭의 건수는 `--color-text-accent`).
+ * 건수는 접근 이름의 일부이므로 테스트는 `getByRole("button", { name: /^전체/ })`처럼
+ * 앞부분으로 찾는다.
  */
 export function WorkspaceViewTabs<K extends string>({
   className,
@@ -140,20 +143,24 @@ export function WorkspaceViewTabs<K extends string>({
 }: WorkspaceViewTabsProps<K>) {
   return (
     <div aria-label={label} className={joinClassNames("workspace-view-tabs", className)} role="group">
-      {tabs.map((tab) => (
-        <Button
-          aria-pressed={value === tab.key}
-          data-view-key={tab.key}
-          key={tab.key}
-          label={
-            tab.count === undefined
-              ? tab.label
-              : `${tab.label}  ${tab.count === null ? "–" : formatCount(tab.count)}`
-          }
-          onClick={() => onChange(tab.key)}
-          size="sm"
-        />
-      ))}
+      {tabs.map((tab) => {
+        const countText = tab.count === undefined
+          ? null
+          : tab.count === null ? "–" : formatCount(tab.count);
+        return (
+          <Button
+            aria-pressed={value === tab.key}
+            data-view-key={tab.key}
+            key={tab.key}
+            label={countText === null ? tab.label : `${tab.label}  ${countText}`}
+            onClick={() => onChange(tab.key)}
+            size="sm"
+          >
+            <span className="workspace-view-tab-label">{tab.label}</span>
+            {countText === null ? null : <span className="workspace-view-tab-count">{countText}</span>}
+          </Button>
+        );
+      })}
     </div>
   );
 }

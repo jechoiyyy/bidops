@@ -123,11 +123,12 @@
 
 | 단계 | 명령 | 결과 | 캡처·기록 |
 |---|---|---|---|
-| P0 | `npm run build` · `npm run test:contrast` · `npm run test:design` | | 1440 캡처 8장 색 대조 |
-| P1 | `npm run test:screens` | | 6화면 캡처 대조 |
-| P2 | `npm run test:screens`(+ `LS-08`·A3·A5) | | 1280×800 캡처 |
-| P3 | `npm run test:screens`(+ A6·A7) | | 상세 2600 캡처 |
-| P4 | `npm run test:pixel:update` | | 사유·영향 화면·승인자·승인 시각 |
+| 기준선 | `npm run test:screens` (clean tree, 2026-09-15) | 571 passed / 1 failed / 6 skipped | 실패 1건 `common-interactions.spec.ts:636 UC-05`는 clean tree에서도 재현(35.9px < 36, zoom 0.9 반올림) — 기존 결함 |
+| P0 | `npm run build` · `npm run test:contrast` · `npm run test:design` | build ✓ · contrast 8/0 · design 11 passed / 0 failed / 3 skipped | 1440 캡처 8장 색 대조: 셸 일치, 옛 팔레트 잔존 0. 대비 pair는 `bo-brand`×card(3.07:1)로 정정(§1.2) |
+| P1 | `npm run test:screens` | 571 passed / 1 failed(UC-05) / 6 skipped | 6화면 캡처 대조 일치. 색·테두리에 묶인 기대 5곳 수정(opportunities 강조선, review-primitives ramp, admin-workspace 본문 시작·하단 단추, screen-semantics svg) |
+| P2 | `npm run test:screens`(+ `LS-08`·A3·A5) | 575 passed / 5 failed / 6 skipped → page-overview 4건은 P3에서 상세 구조로 개정 | 1280×800 캡처: 7구역 스크롤 없이 표시. page-overview·company-fit·screen-semantics의 목록 pane 참조 정리 |
+| P3 | `npm run test:screens`(+ A6·A7) | 580 passed / 1 failed(UC-05) / 6 skipped | 상세 1440×2600 캡처 6단 대조 일치. `pre-specs.spec.ts` 상세 기하(400px 열)·추적 상태 1회 기대 개정 |
+| P4 | `npm run test:pixel:update` | **미실행 — 승인 대기** | decisions.md·notes.md·README 작성 완료. 최종 1440 캡처 8장 `~/.local/state/bidops/redesign-shots-20260915/` |
 
 시안 대조(A10)는 픽셀 동일이 아니라 구성·색·간격의 일치를 사람이 보고 기록한다.
 검증 실행 범위: 단계마다 영향 경로만 돌리고, 통과하면 종료한다. 통과 결과를 얻기 위한

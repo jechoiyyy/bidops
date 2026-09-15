@@ -1,10 +1,13 @@
+/* docs/0915_ui-redesign/spec.md §2.3: 카드 외곽 테두리 → --shadow-low 그림자,
+ * 카드 안 구분선 → --color-background-muted 1px. */
 .document-preparation {
   display: grid;
   min-width: 0;
   gap: 16px;
   padding: 24px;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-lg);
+  border: 0;
+  border-radius: var(--radius-container);
+  box-shadow: var(--shadow-low);
   background: var(--surface-card);
 }
 
@@ -160,7 +163,7 @@
 .document-preparation-bundle-bar {
   align-items: end;
   padding-top: 14px;
-  border-top: 1px solid var(--border-subtle);
+  border-top: 1px solid var(--color-background-muted);
 }
 
 .document-preparation-bundle-bar > div {
@@ -181,7 +184,9 @@
 }
 
 .document-preparation button:hover:not(:disabled) {
-  background: var(--color-deep);
+  /* 주 단추 채움: 옛 --color-deep(=--color-background-inverted) bridge 대신
+   * --color-accent를 읽는다(P0 확인 사실, spec §1.1). */
+  background: var(--color-accent);
 }
 
 .document-preparation button:disabled {
@@ -228,8 +233,9 @@
   min-width: 0;
   gap: 16px;
   padding: 20px;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
+  border: 0;
+  border-radius: var(--radius-container);
+  box-shadow: var(--shadow-low);
   background: var(--surface-app);
 }
 
@@ -258,8 +264,9 @@
   gap: 7px;
   min-width: 0;
   padding: 10px;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
+  border: 0;
+  border-radius: var(--radius-container);
+  box-shadow: var(--shadow-low);
   background: var(--surface-card);
 }
 
@@ -339,9 +346,11 @@
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 2px 10px;
   padding: 10px 12px;
-  border: 1px solid var(--border-subtle);
+  /* border-left는 상태 식별(성공·실패)이라 그대로 두고, 나머지 외곽만 그림자로 바꾼다. */
+  border: 0;
   border-left: 3px solid var(--color-info);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-container);
+  box-shadow: var(--shadow-low);
   background: var(--surface-card);
 }
 
@@ -370,8 +379,9 @@
   min-width: 0;
   gap: 12px;
   padding: 16px;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
+  border: 0;
+  border-radius: var(--radius-container);
+  box-shadow: var(--shadow-low);
   background: var(--surface-card);
 }
 
@@ -414,8 +424,9 @@
   align-items: center;
   gap: 8px;
   padding: 8px 10px;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
+  border: 0;
+  border-radius: var(--radius-container);
+  box-shadow: var(--shadow-low);
   background: var(--surface-secondary);
 }
 
@@ -471,8 +482,9 @@
 .document-preparation-start-review {
   align-items: center;
   padding: 14px;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
+  border: 0;
+  border-radius: var(--radius-container);
+  box-shadow: var(--shadow-low);
   background: var(--surface-card);
 }
 

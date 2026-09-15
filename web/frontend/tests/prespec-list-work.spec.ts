@@ -6,6 +6,15 @@ import {
   overviewCompletedRunFixture,
   overviewEnvelopeFixture,
 } from "./api-mock";
+import {
+  mockPreSpecCautionSample,
+  PRE_SPEC_CAUTION_SAMPLE_BID_NOTICE_NO,
+  PRE_SPEC_CAUTION_SAMPLE_DESCRIPTION,
+  PRE_SPEC_CAUTION_SAMPLE_HEADLINE,
+  PRE_SPEC_CAUTION_SAMPLE_TASKS,
+} from "./screen-fixtures";
+import { formatPreSpecCaution, preSpecCautions } from "../src/lib/preSpecCautions";
+import type { PageOverviewVerification, PreSpecListItem } from "../src/lib/types";
 
 async function mockPagedPreSpecs(page: Page, total = 220): Promise<void> {
   await page.route("**/api/pre-specs**", async (route) => {
@@ -341,7 +350,7 @@ test("PN-03 선택 행의 상세 링크는 같은 순회 index를 시작하고 �
   await rows.nth(0).getByRole("checkbox").check();
   await rows.nth(1).getByRole("checkbox").check();
   await rows.nth(1).click();
-  const selectedDetail = page.getByRole("link", { name: "상세 검토 열기 →", exact: true });
+  const selectedDetail = page.getByRole("link", { name: "상세 페이지 열기 →", exact: true });
   await expect(selectedDetail).toHaveAttribute("href", /\/pre-specs\/992\?.*sw_only=false/);
   await selectedDetail.click();
   await expect(page).toHaveURL(/\/pre-specs\/992\?.*selection_review=[0-9a-f-]+/);
@@ -362,7 +371,7 @@ test("PN-03 선택 행의 상세 링크는 같은 순회 index를 시작하고 �
   await expect(returnedRows.nth(0).getByRole("checkbox")).toBeChecked();
   await expect(returnedRows.nth(1).getByRole("checkbox")).toBeChecked();
   await returnedRows.nth(2).click();
-  const unselectedDetail = page.getByRole("link", { name: "상세 검토 열기 →", exact: true });
+  const unselectedDetail = page.getByRole("link", { name: "상세 페이지 열기 →", exact: true });
   await expect(unselectedDetail).toHaveAttribute("href", /\/pre-specs\/993\?.*sw_only=false/);
   await unselectedDetail.click();
   await expect(page).toHaveURL(/\/pre-specs\/993\?.*sw_only=false(?!.*selection_review)/);
@@ -392,9 +401,9 @@ test("LS-06 필터·상세 이탈 guard 취소는 URL·active·check·입력을 
   const rows = page.locator(".pre-specs-row");
   await rows.nth(1).click();
   await rows.nth(1).getByRole("checkbox").check();
-  await page.getByRole("button", { name: "추적 선택 변경", exact: true }).click();
-  const dialog = page.getByRole("dialog");
-  const actor = dialog.getByRole("textbox", { name: "담당자 이름 (필수)" });
+  // 대화상자는 없다(spec §3.3). 추적 폼은 상세 pane 바닥에 늘 열려 있다.
+  const decision = page.locator(".pre-specs-detail-actions");
+  const actor = decision.getByRole("textbox", { name: "담당자 이름 (필수)" });
   await actor.fill("guard 취소 담당자");
   await actor.focus();
   const beforeUrl = page.url();
@@ -423,7 +432,7 @@ test("LS-06 필터·상세 이탈 guard 취소는 URL·active·check·입력을 
 
   await page.evaluate(() => {
     const link = [...document.querySelectorAll("a")]
-      .find((candidate) => candidate.textContent?.trim() === "상세 검토 열기 →") as HTMLAnchorElement | undefined;
+      .find((candidate) => candidate.textContent?.trim() === "상세 페이지 열기 →") as HTMLAnchorElement | undefined;
     link?.click();
   });
   const detailGuard = page.getByRole("alertdialog");
@@ -433,10 +442,12 @@ test("LS-06 필터·상세 이탈 guard 취소는 URL·active·check·입력을 
   await expect(actor).toHaveValue("guard 취소 담당자");
   await expect(actor).toBeFocused();
 
-  await page.keyboard.press("Escape");
-  await expect(page.locator(".pre-specs-dialog-guard")).toBeVisible();
+  // 행 전환도 같은 guard를 거친다 — 저장하지 않은 입력을 확인 없이 버리지 않는다.
+  await rows.nth(2).click();
+  const rowGuard = page.getByRole("alertdialog");
+  await expect(rowGuard).toBeVisible();
+  await rowGuard.getByRole("button", { name: "계속 편집", exact: true }).click();
   await expect(rows.nth(1)).toHaveAttribute("aria-current", "true");
-  await page.locator(".pre-specs-dialog-guard").getByRole("button", { name: "계속 편집", exact: true }).click();
   await expect(actor).toHaveValue("guard 취소 담당자");
 });
 
@@ -447,9 +458,7 @@ test("LS-06 pager guard 취소는 경계 URL·active·check·입력을 보존한
   const rows = page.locator(".pre-specs-row");
   await rows.first().click();
   await rows.first().getByRole("checkbox").check();
-  await page.getByRole("button", { name: "추적 선택 변경", exact: true }).click();
-  const dialog = page.getByRole("dialog");
-  const actor = dialog.getByRole("textbox", { name: "담당자 이름 (필수)" });
+  const actor = page.locator(".pre-specs-detail-actions").getByRole("textbox", { name: "담당자 이름 (필수)" });
   await actor.fill("pager guard 취소 담당자");
   await actor.focus();
   const beforeUrl = page.url();
@@ -485,28 +494,253 @@ test("개요 결과 본문과 첫 주장은 한 번만 렌더된다", async ({ p
     json: overviewEnvelopeFixture(991, overviewCompletedRunFixture, [overviewCompletedRunFixture, previousRun]),
   }));
   await page.goto("/pre-specs?notice_pk=991&sw_only=false");
-  await expect(page.locator(".pre-specs-detail")).toBeVisible();
-  // 결과 본문 구역이 둘이면 같은 주장이 두 번 보인다(ADR-0055 D7).
-  await expect(page.locator(".pre-specs-overview-section.is-result")).toHaveCount(1);
-  // 결과 머리줄이 이미 첫 주장을 말하므로 `문서 근거` 목록은 그것을 다시 적지 않는다.
+  const detail = page.locator(".pre-specs-detail");
+  await expect(detail).toBeVisible();
+  // 우측 정보 영역에는 결과 본문 구역이 하나뿐이다(spec §3.1 2행). 첫 주장은
+  // `사업 설명`이 갖고 다른 구역이 같은 문장을 한 번 더 그리지 않는다.
   const firstClaim = overviewCompletedRunFixture.result!.business_overview[0].text;
-  await expect(page.locator(".pre-specs-overview").getByText(firstClaim, { exact: false })).toHaveCount(1);
-  // 구역 밖까지 넓혀, 미확인 목록이 탭 안에서 두 번 나오지 않는지도 본다(ADR-0055 D7).
-  // 접힌 이력 안의 과거 결과는 그 회차의 내용을 갖는 것이 정상이다. 중복이란
-  // 한 번에 **보이는** 자리에서 같은 문장을 두 번 읽는 것을 말한다.
-  const unknowns = overviewCompletedRunFixture.result!.unknowns;
-  if (unknowns.length > 0) {
-    const visible = page.locator(".pre-specs-detail-pane")
-      .getByText(unknowns[0], { exact: false })
-      .locator("visible=true");
-    await expect(visible).toHaveCount(1);
-  }
-  // 이전 결과가 실제로 한 건 그려진 상태여야 이 검사가 의미를 갖는다.
-  await expect(page.getByText("이전 개요 결과 1건", { exact: true })).toBeVisible();
-  // 근거 링크가 가리키는 anchor id는 문서 안에서 유일해야 한다 — 이력까지
-  // anchor를 달면 같은 id가 둘이 되고 근거 링크가 엉뚜곳으로 뛰다.
-  const anchorIds = await page.evaluate(() =>
-    [...document.querySelectorAll('[id^="claim-"]')].map((node) => node.id));
-  expect(anchorIds.length).toBeGreaterThan(0);
-  expect(anchorIds.length).toBe(new Set(anchorIds).size);
+  await expect(detail.locator(".pre-specs-detail-summary")).toHaveCount(1);
+  await expect(detail.getByText(firstClaim, { exact: false })).toHaveCount(1);
+  await expect(detail.locator('.pre-specs-detail-block[aria-label="사업 설명"]')).toContainText(firstClaim);
+  // 과업 요약은 과업 주장만 갖고 첫 주장을 되풀이하지 않는다.
+  await expect(detail.locator(".pre-specs-detail-tasks"))
+    .toContainText(overviewCompletedRunFixture.result!.main_tasks[0].text);
+  await expect(detail.locator(".pre-specs-detail-tasks")).not.toContainText(firstClaim);
+});
+
+// docs/0915_ui-redesign/spec.md §6 A3 — 우측 정보 영역은 최소 지원 폭에서도
+// 추적 조작까지 한 화면에 들어간다. 스크롤이 생기면 담당자가 추적 여부를
+// 판단하려고 다시 굴려야 한다는 뜻이다.
+test("우측 정보 영역은 1280×800에서 스크롤하지 않는다", async ({ page }) => {
+  // 이 spec은 `app` project(1440×900)로 돌므로 최소 지원 폭을 여기서 만든다.
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await mockApi(page);
+  await mockPreSpecCautionSample(page);
+  await page.goto("/pre-specs?sw_only=false");
+
+  const detail = page.locator(".pre-specs-detail");
+  await expect(detail).toBeVisible();
+  // 개요 결과·주의 줄·본공고까지 다 온 뒤에 재야 실제 높이를 잰다.
+  await expect(detail.locator('.pre-specs-detail-block[aria-label="사업 설명"]'))
+    .toContainText(PRE_SPEC_CAUTION_SAMPLE_DESCRIPTION);
+  await expect(detail.locator(".pre-specs-detail-caution")).toContainText("주의 1건");
+  await expect(detail.locator(".pre-specs-detail-figures")).toContainText(PRE_SPEC_CAUTION_SAMPLE_BID_NOTICE_NO);
+
+  const box = await detail.locator(".pre-specs-detail-scroll").evaluate((element) => ({
+    scrollHeight: element.scrollHeight,
+    clientHeight: element.clientHeight,
+  }));
+  expect(box.scrollHeight, JSON.stringify(box)).toBe(box.clientHeight);
+  // 바닥 고정 블록의 상세 진입도 잘리지 않고 보인다.
+  await expect(detail.getByRole("link", { name: "상세 페이지 열기 →", exact: true })).toBeInViewport();
+});
+
+// spec §3.4 / §6 A4 — `전체 선택`은 **지금 페이지에 그려진 행만** 더한다.
+test("LS-08 전체 선택은 현재 페이지만 더하고 다른 페이지 선택을 유지한다", async ({ page }) => {
+  await mockApi(page);
+  // 220건 = 1페이지 200건 + 2페이지 20건.
+  await mockPagedPreSpecs(page);
+  await page.goto("/pre-specs?sw_only=false");
+  const rows = page.locator(".pre-specs-row");
+  await expect(rows).toHaveCount(200);
+  const selectPage = page.getByRole("button", { name: "현재 페이지 전체 선택", exact: true });
+  await expect(selectPage).toBeEnabled();
+
+  await rows.first().getByRole("checkbox").check();
+  await expect(page.getByText("선택 1건", { exact: true })).toBeVisible();
+
+  await page.getByRole("button", { name: "다음", exact: true }).click();
+  await expect(rows).toHaveCount(20);
+  await selectPage.click();
+  // 1건(1페이지) + 20건(2페이지). 페이지를 넘나든 선택이 합쳐진다.
+  await expect(page.getByText("선택 21건", { exact: true })).toBeVisible();
+  await expect(selectPage).toBeDisabled();
+
+  await page.getByRole("button", { name: "이전", exact: true }).click();
+  await expect(rows).toHaveCount(200);
+  await expect(rows.first().getByRole("checkbox")).toBeChecked();
+  await expect(page.getByText("선택 21건", { exact: true })).toBeVisible();
+
+  // 1페이지는 아직 전부 선택되지 않았으므로 다시 누를 수 있고, 이미 고른 한 건은
+  // 두 번 더해지지 않는다(220건이지 221건이 아니다).
+  await expect(selectPage).toBeEnabled();
+  await selectPage.click();
+  await expect(page.getByText("선택 220건", { exact: true })).toBeVisible();
+  await expect(selectPage).toBeDisabled();
+});
+
+// spec §6 A5 — 구역 순서와 값 없음 표기. 시안(mockups/shots/Main.png)과 spec §3.1은
+// 발주기관을 사업명 위에 두므로 DOM 순서도 그대로다.
+test("우측 정보 영역은 사업명·기관·설명·과업 3건·예산·마감·게시·본공고·주의 한 줄·추적 폼·상세 링크를 순서대로 둔다", async ({ page }) => {
+  await mockApi(page);
+  await mockPreSpecCautionSample(page);
+  await page.goto("/pre-specs?sw_only=false");
+
+  const detail = page.locator(".pre-specs-detail");
+  await expect(detail.locator(".pre-specs-detail-caution")).toContainText("주의 1건");
+
+  const SECTIONS = [
+    ["기관", ".pre-specs-detail-agency"],
+    ["사업명", ".pre-specs-detail-title"],
+    ["식별", ".pre-specs-detail-facts"],
+    ["사업 설명", ".pre-specs-detail-summary"],
+    ["주요 과업", ".pre-specs-detail-tasks"],
+    ["예산·일정 4칸", ".pre-specs-detail-figures"],
+    ["규모·일정 한 줄", ".pre-specs-detail-scale"],
+    ["주의사항", ".pre-specs-detail-caution"],
+    ["추적 폼", ".pre-spec-tracking-form"],
+    ["상세 링크", ".pre-specs-detail-open"],
+  ] as const;
+  const found = await detail.evaluate((root, selectors) => {
+    const all = [...root.querySelectorAll("*")];
+    return selectors.map(([name, selector]) => {
+      const node = root.querySelector(selector);
+      return { name, index: node ? all.indexOf(node) : -1 };
+    });
+  }, SECTIONS.map(([name, selector]) => [name, selector] as [string, string]));
+  expect(found.filter((entry) => entry.index < 0)).toEqual([]);
+  const indexes = found.map((entry) => entry.index);
+  expect(indexes, JSON.stringify(found)).toEqual([...indexes].sort((left, right) => left - right));
+
+  // 과업은 앞 세 건만 오고 전체 건수를 숨기지 않는다.
+  await expect(detail.locator(".pre-specs-detail-tasks > li")).toHaveCount(3);
+  await expect(detail.locator(".pre-specs-detail-tasks")).toContainText(PRE_SPEC_CAUTION_SAMPLE_TASKS[2]);
+  await expect(detail.locator(".pre-specs-detail-tasks")).not.toContainText(PRE_SPEC_CAUTION_SAMPLE_TASKS[3]);
+  await expect(detail.locator('.pre-specs-detail-block[aria-label="주요 과업 요약"]'))
+    .toContainText("4건 중 3건 · 전체는 상세에서");
+
+  const figures = detail.locator(".pre-specs-detail-figures");
+  await expect(figures).toContainText("49,844,864원");
+  await expect(figures).toContainText(PRE_SPEC_CAUTION_SAMPLE_BID_NOTICE_NO);
+  await expect(figures.locator(".pre-specs-detail-deadline")).toContainText("D-");
+  await expect(detail.locator(".pre-specs-detail-caution")).toContainText(PRE_SPEC_CAUTION_SAMPLE_HEADLINE);
+  await expect(detail.locator(".pre-specs-detail-caution")).toContainText("미확인 2");
+
+  // 값이 없는 건은 지어내지 않고 `미확인` 계열로 남는다.
+  await page.locator(".pre-specs-row").nth(1).click();
+  await expect(detail.locator(".pre-specs-detail-agency")).toContainText("발주기관 미확인");
+  await expect(detail.locator(".pre-specs-detail-title")).toContainText("사업명 미확인");
+  await expect(detail.locator(".pre-specs-detail-facts")).toContainText("번호 미확인");
+  await expect(detail.locator(".pre-specs-detail-facts")).toContainText("판정 없음");
+  await expect(detail.locator(".pre-specs-detail-chips")).toContainText("SW 미확인");
+  await expect(detail.locator(".pre-specs-detail-figures")).toContainText("예산 미확인");
+  await expect(detail.locator(".pre-specs-detail-figures")).toContainText("마감 일시 없음");
+  await expect(detail.locator(".pre-specs-detail-figures")).toContainText("미확인");
+  await expect(detail.locator(".pre-specs-detail-tasks")).toHaveCount(0);
+});
+
+// docs/0915_ui-redesign/spec.md §3.2 — 주의사항 한 줄은 결정적 산출이고 모델
+// 호출이 없다. 화면 없이 순수 함수만 부른다(화면 검사는 P2-C가 붙인다).
+test.describe("preSpecCautions (spec §3.2)", () => {
+  const cautionItem = (overrides: Partial<PreSpecListItem> = {}): PreSpecListItem => ({
+    notice_pk: 991,
+    pre_spec_no: "PRE-991",
+    title: "주의 표본",
+    agency: "표본 발주기관",
+    published_at: "2026-09-01T00:00:00Z",
+    deadline_at: null,
+    budget: null,
+    sw_business_status: "Y",
+    business_division: "일반용역",
+    origin: "신규",
+    opportunity_id: null,
+    tracking_status: null,
+    kept_by_tracking: false,
+    document: { attachments: 0, "완료": 0, "대기": 0, "진행": 0, "차단": 0, "실패": 0 },
+    overview_review_status: "completed",
+    grade: null,
+    grade_source: null,
+    auto_preparation_status: "not_applicable",
+    auto_preparation_reason: null,
+    latest_deep_review_id: null,
+    ...overrides,
+  });
+
+  const verification = (claims: PageOverviewVerification["claims"]): PageOverviewVerification => ({
+    verification_id: "v-991",
+    status: "needs_human_review",
+    reason_codes: [],
+    claims,
+  });
+
+  const claim = (
+    claim_id: string,
+    text: string,
+    deterministic_status: "passed" | "failed",
+  ): PageOverviewVerification["claims"][number] => ({
+    claim_id,
+    text,
+    deterministic_status,
+    semantic_status: "not_run",
+    reason_codes: [],
+    verified_evidence: [],
+  });
+
+  test("결정적 검사가 실패한 주장만 있으면 그 주장 문장이 한 줄이 된다", () => {
+    // 통과한 주장은 세지 않는다. `deterministic_status === "failed"`만 주의다.
+    const result = preSpecCautions({
+      item: cautionItem(),
+      verification: verification([
+        claim("c-1", "총 사업비는 12억원이다", "passed"),
+        claim("c-2", "의견등록 마감은 9월 20일이다", "failed"),
+      ]),
+      unknowns: [],
+    });
+    expect(result.count).toBe(1);
+    expect(result.unknownCount).toBe(0);
+    expect(result.headline).toBe("의견등록 마감은 9월 20일이다");
+    expect(result.tone).toBe("caution");
+    expect(formatPreSpecCaution(result)).toBe("주의 1건 · 의견등록 마감은 9월 20일이다");
+  });
+
+  test("첨부 차단·실패만 있으면 건수를 더하고 첨부 문구를 쓴다", () => {
+    const result = preSpecCautions({
+      item: cautionItem({ document: { attachments: 5, "완료": 2, "대기": 0, "진행": 0, "차단": 2, "실패": 1 } }),
+      verification: null,
+      unknowns: [],
+    });
+    expect(result.count).toBe(3);
+    expect(result.unknownCount).toBe(0);
+    expect(result.headline).toBe("첨부 차단 2 · 실패 1");
+    expect(result.tone).toBe("caution");
+    expect(formatPreSpecCaution(result)).toBe("주의 3건 · 첨부 차단 2 · 실패 1");
+  });
+
+  test("자동 준비 blocked만 있으면 1건이고 사유 라벨이 한 줄이 된다", () => {
+    const result = preSpecCautions({
+      item: cautionItem({
+        auto_preparation_status: "blocked",
+        auto_preparation_reason: "bundle_has_blocking_issues",
+      }),
+      verification: null,
+      unknowns: ["계약 기간 미확인"],
+    });
+    expect(result.count).toBe(1);
+    expect(result.unknownCount).toBe(1);
+    expect(result.headline).toBe("묶음에 차단 issue가 있습니다.");
+    expect(result.tone).toBe("caution");
+    expect(formatPreSpecCaution(result)).toBe("주의 1건 · 묶음에 차단 issue가 있습니다. · 미확인 1");
+  });
+
+  test("미확인만 있으면 주의는 0건이고 미확인 수만 말한다", () => {
+    const result = preSpecCautions({
+      item: cautionItem(),
+      verification: verification([claim("c-1", "총 사업비는 12억원이다", "passed")]),
+      unknowns: ["계약 기간 미확인", "과업 착수일 미확인"],
+    });
+    expect(result.count).toBe(0);
+    // 주의가 없어도 문구 우선순위의 마지막 자리는 `unknowns[0]`이다(spec §3.2).
+    expect(result.headline).toBe("계약 기간 미확인");
+    expect(result.tone).toBe("none");
+    expect(formatPreSpecCaution(result)).toBe("주의 없음 · 미확인 2");
+  });
+
+  test("아무 출처도 없으면 문구를 지어내지 않고 주의 없음만 남는다", () => {
+    const result = preSpecCautions({ item: cautionItem(), verification: null, unknowns: [] });
+    expect(result.count).toBe(0);
+    expect(result.unknownCount).toBe(0);
+    expect(result.headline).toBeNull();
+    expect(result.tone).toBe("none");
+    expect(formatPreSpecCaution(result)).toBe("주의 없음");
+  });
 });

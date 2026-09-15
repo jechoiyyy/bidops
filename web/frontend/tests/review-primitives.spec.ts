@@ -280,10 +280,11 @@ test("등급 4단은 한 벌의 농도 스케일을 쓰고 색만이 아니라 �
   expect(distinct.size).toBe(byLevel.size);
 
   const ramp: Record<string, string> = {
-    "1": "rgb(47, 58, 76)",
-    "2": "rgb(91, 104, 124)",
-    "3": "rgb(147, 160, 176)",
-    "4": "rgb(211, 217, 225)",
+    // docs/0915_ui-redesign/spec.md §1.3 — 포인트 초록 농도 4단.
+    "1": "rgb(63, 90, 28)",
+    "2": "rgb(88, 122, 43)",
+    "3": "rgb(207, 223, 181)",
+    "4": "rgb(238, 240, 236)",
   };
   for (const [level, colors] of byLevel) expect([...colors][0], `등급 ${level}`).toBe(ramp[level]);
 });

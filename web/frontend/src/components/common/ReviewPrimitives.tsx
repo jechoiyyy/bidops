@@ -16,6 +16,7 @@ import { Selector, type SelectorOptionData } from "@astryxdesign/core/Selector";
 import { SegmentedControl, SegmentedControlItem } from "@astryxdesign/core/SegmentedControl";
 import { StatusDot, type StatusDotVariant } from "@astryxdesign/core/StatusDot";
 import { TextInput } from "@astryxdesign/core/TextInput";
+import { Token as AstryxToken, type TokenProps } from "@astryxdesign/core/Token";
 
 function joinClassNames(...names: Array<string | undefined | false>): string {
   return names.filter(Boolean).join(" ");
@@ -993,5 +994,27 @@ export function ReviewDecisionAction({
       />
       {hasReason ? <span className="review-decision-action-reason" id={reasonId}>{disabledReason}</span> : null}
     </span>
+  );
+}
+
+export type ReviewOutlineChipProps = Omit<TokenProps, "color">;
+
+/**
+ * outline 칩 — 흰 바탕 + inset 1px `--color-border`, 글자 secondary
+ * (`docs/0915_ui-redesign/spec.md` §2.3). 추적 결정처럼 **아직 아무 뜻도 싣지 않은
+ * 상태**를 중립 칩과 구분해 적는 자리에 쓴다(§1.4).
+ *
+ * 새 컴포넌트가 아니라 Astryx `Token`에 프로젝트 클래스를 얹는 얇은 자리다. Astryx
+ * `TokenColor`는 닫힌 union이라 변형을 늘릴 수 없고, 화면마다 같은 className을 손으로
+ * 적으면 한 곳만 빠졌을 때 칩이 조용히 다른 모양이 된다.
+ */
+export function ReviewOutlineChip({ className, size = "sm", ...props }: ReviewOutlineChipProps) {
+  return (
+    <AstryxToken
+      {...props}
+      className={joinClassNames("review-chip-outline", className)}
+      color="default"
+      size={size}
+    />
   );
 }

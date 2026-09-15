@@ -64,14 +64,15 @@ test("첨부는 안전한 원본 URL과 실제 다운로드 경로만 제공하�
     ],
   } }));
   await page.goto("/pre-specs/991");
-  const attachments = page.getByRole("list", { name: "첨부 파일 목록" });
-  await expect(attachments.getByRole("listitem")).toHaveCount(2);
+  const attachments = page.getByRole("table", { name: "첨부 파일 목록" });
+  const rows = attachments.locator("tbody").getByRole("row");
+  await expect(rows).toHaveCount(2);
   await expect(attachments.getByRole("link", { name: "다운로드" }).first()).toHaveAttribute("href", "/api/attachments/71/download");
   await expect(attachments.getByRole("link", { name: "다운로드" }).nth(1)).toHaveAttribute("href", "/api/attachments/72/download");
   await expect(attachments.getByRole("link", { name: "원본 열기" })).toHaveCount(1);
   await expect(attachments.getByRole("link", { name: "원본 열기" })).toHaveAttribute("rel", "noopener noreferrer");
-  await expect(attachments.getByRole("listitem").first()).toContainText("0 B");
-  await expect(attachments.getByRole("listitem").nth(1)).toContainText("크기 미확인");
+  await expect(rows.first()).toContainText("0 B");
+  await expect(rows.nth(1)).toContainText("크기 미확인");
 });
 
 test("승계 사유와 담당자를 읽되 조회 오류는 미확인으로 남긴다", async ({ page }) => {
@@ -84,4 +85,36 @@ test("승계 사유와 담당자를 읽되 조회 오류는 미확인으로 남�
   await page.reload();
   await expect(card.getByText("승계 사유 확인 불가", { exact: true })).toBeVisible();
   await expect(card.getByRole("button", { name: "추적 상태 저장", exact: true })).toHaveCount(0);
+});
+
+// A6(docs/0915_ui-redesign/spec.md §6): 상세는 세로 보고서형 6단이고, 순회는 상단바
+// 액션 슬롯이 가지며, 등급 라벨과 현재 추적 상태 글자는 화면에 각각 한 번만 나온다.
+test("상세 6단이 DOM 순서대로 있고 순회는 상단바가 가지며 등급·추적 상태는 한 번만 나온다", async ({ page }) => {
+  await mockApi(page);
+  await page.goto("/pre-specs/991");
+  await expect(page.locator("#ps-process")).toBeVisible();
+
+  const cards = await page.evaluate(() => [...document.querySelectorAll<HTMLElement>(".ps-record > [id]")].map(element => element.id));
+  expect(cards).toEqual(["ps-summary", "ps-tracking", "ps-tasks", "ps-conditions", "ps-evidence", "ps-process"]);
+  expect(await page.locator("#ps-tasks h2").innerText()).toContain("주요 과업과 수행 범위");
+  expect(await page.locator("#ps-conditions h2").innerText()).toContain("참여 조건 · 회사 적합성 · 위험 및 미확인 사항");
+  expect(await page.locator("#ps-evidence h2").innerText()).toContain("근거 문서 · 첨부");
+  expect(await page.locator("#ps-process h2").innerText()).toContain("처리 이력 · 문서 준비 · 검토 실행");
+
+  const navigation = page.getByRole("navigation", { name: "사전규격 선택 순회" });
+  await expect(page.locator("header.topbar").getByRole("navigation", { name: "사전규격 선택 순회" })).toHaveCount(1);
+  await expect(page.locator(".ps-record").getByRole("navigation", { name: "사전규격 선택 순회" })).toHaveCount(0);
+  await expect(navigation.getByRole("button", { name: "이전 선택 사전규격" })).toBeVisible();
+  await expect(navigation.getByRole("button", { name: "다음 선택 사전규격" })).toBeVisible();
+
+  // 등급 라벨은 ① 팩트 스트립 한 자리에만 있다(다른 자리는 등급 출처·사유만 말한다).
+  const gradeTexts = await page.evaluate(() => {
+    const labels = ["우선 검토", "검토 권장", "관찰 대상", "제외", "판정 없음"];
+    return [...document.querySelectorAll<HTMLElement>(".ps-record *")]
+      .filter(element => element.children.length === 0)
+      .map(element => (element.textContent ?? "").trim())
+      .filter(text => labels.includes(text));
+  });
+  expect(gradeTexts).toEqual(["우선 검토"]);
+  await expect(page.getByText("현재 추적 상태", { exact: false })).toHaveCount(1);
 });
