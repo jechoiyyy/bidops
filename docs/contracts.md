@@ -550,7 +550,9 @@ run의 `warnings`에만 남는다. 차단은 `quote_not_found`·`quote_ambiguous
 자동 선택은 **목차 우선**이다(ADR-0057 결정 2). 입력 manifest의 `strategy`는
 `toc_scope`(목차 항목의 인쇄 쪽을 본문 제목 대조로 물리 쪽에 맞춰 고름)·`heading_scope`(본문
 heading만으로 고름)·`human_confirmed`(사람이 확정한 쪽 span) 셋이다. `range_source`는
-그대로 `auto|fallback|human`이며 `toc_scope`·`heading_scope` 모두 `auto`다.
+그대로 `auto|fallback|human`이며 `toc_scope`·`heading_scope` 모두 `auto`다. 목차 전략은 절 후보를
+쓰지 않으므로 절 후보 완결성(`candidates_truncated`)과 무관하게 먼저 시도하며, 후보가 잘렸을 때의
+자동 확정 금지(`section_candidates_incomplete`)는 목차가 실패한 뒤의 본문 전략에만 적용한다.
 
 목차 전략이 실패하면 본문 전략으로 내려간다. 실패 사유는 `toc_missing`(앞 5쪽에
 "제목 … 쪽번호" 항목이 4개 이상인 쪽이 없음)·`toc_alignment_failed`(인쇄 쪽 → 물리 쪽
