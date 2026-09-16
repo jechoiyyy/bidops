@@ -619,4 +619,4 @@ validator 실패는 결과를 자동 보정하지 않는다. report renderer는 
 - 결정 상세: docs/tracking/decisions/
 - 미해결 findings: docs/tracking/findings.md
 - 공고 판정 런타임: docs/agent/agent-runtime.md, docs/scheduling.md, docs/model-quality-gate.md, docs/e2e-bc-acceptance.md
-- 화면 개선: docs/design/
+- 화면 개선: docs/0915_ui-redesign/(재설계 C 정본), docs/design/mockups/(사전규격 검토 시안 참고자료)

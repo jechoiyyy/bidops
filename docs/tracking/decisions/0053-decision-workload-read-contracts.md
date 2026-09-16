@@ -3,7 +3,7 @@
 - 상태: 채택
 - 결정일: 2026-09-07
 - 이식일: 2026-09-09 — 이 결정의 백엔드 구현은 미병합 브랜치에 있다가 한 번 유실됐고, `main`에는 확장점(`WorkloadCount`·`WorkloadProjection`·`register_workload_projection`·`workload_counts`)과 프론트 타입만 남아 있었다. 2026-09-09에 백엔드 수직 슬라이스를 다시 이식했다.
-- 관련 결정: [모듈 경계 ADR-0045](0045-backend-module-layout.md), [정보구조 ADR-0046](../../design/ADR.md#adr-0046-사업-추적-중심-정보구조와-추적-결정의-위치)
+- 관련 결정: [모듈 경계 ADR-0045](0045-backend-module-layout.md), 정보구조 ADR-0046(git 이력 docs/design/ADR.md, 삭제됨)
 
 ## 배경
 
