@@ -371,9 +371,12 @@ export interface OverviewRunResult {
   business_overview: OverviewClaim[];
   main_tasks: OverviewClaim[];
   budget_and_period: OverviewClaim[];
-  important_conditions: OverviewClaim[];
-  reviewer_analysis: OverviewReviewerAnalysis[];
-  unknowns: string[];
+  /** v7 이후 응답에 없음(심층 검토 몫). */
+  important_conditions?: OverviewClaim[];
+  /** v7 이후 응답에 없음(심층 검토 몫). */
+  reviewer_analysis?: OverviewReviewerAnalysis[];
+  /** v7 이후 응답에 없음(심층 검토 몫). */
+  unknowns?: string[];
   input_limitations: string[];
 }
 
@@ -561,9 +564,12 @@ export interface PageOverviewPayloadV4 {
   business_overview: PageOverviewFactV4[];
   main_tasks: PageOverviewFactV4[];
   budget_and_period: PageOverviewFactV4[];
-  important_conditions: PageOverviewFactV4[];
-  reviewer_analysis: PageOverviewAnalysisV4[];
-  unknowns: string[];
+  /** v7 이후 응답에 없음(심층 검토 몫). */
+  important_conditions?: PageOverviewFactV4[];
+  /** v7 이후 응답에 없음(심층 검토 몫). */
+  reviewer_analysis?: PageOverviewAnalysisV4[];
+  /** v7 이후 응답에 없음(심층 검토 몫). */
+  unknowns?: string[];
   input_limitations: string[];
   verification_id?: string;
   verification_sha256?: string;
