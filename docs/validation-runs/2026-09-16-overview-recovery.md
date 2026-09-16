@@ -91,3 +91,13 @@
   main 작업 트리에서는 통과). 두 디렉터리를 main으로 symlink한 뒤 그 48건이 든 부분집합만 재실행: **423 passed, 14 skipped**
   (PostgreSQL 전용 skip) → 일회용 `postgres:17.11`에 `BIDOPS_TEST_POSTGRES_URL`을 주고 같은 부분집합 재실행: **437 passed, 0 skipped, 0 failed**(컨테이너 제거).
   변경과 무관한 기존 실패는 이번 전체 실행에서 0건이었다(memory 기준선의 기존 실패 4건은 재현되지 않음).
+
+## P5 운영 반영 (08:15~08:20 UTC, main 68a1c83)
+
+- 병합: `integ/prespec-recovery`를 main에 fast-forward. main 작업 트리의 미커밋 중복 변경(docs/design 삭제 5개·findings.md 9/15 항목)은 브랜치 커밋이 같은 내용을 담아 버렸다.
+- 이미지: `bidops-web`·`bidops-analysis-worker`·`bidops-prespec-attachment-worker`·`bidops-migrate` `:latest`를 main 68a1c83로 빌드(웹 `127f4946…`, analysis `5b5fecb7…`, attachment `a1776f85…`).
+- 백업: `ro-backup` → `backups/postgres/full/bidops-20260916T081546Z.dump`(9.6 MB, SHA-256 앞 16자 `6c1ed085908f365c`, `pg_restore --list` TABLE DATA 76개). restore 시험은 하지 않았다.
+- migrate: Alembic head `0026_overview_mvp` 유지, `runtime-privileges.sql` 재적용 COMMIT. worker 역할에 `document_bundle`·`document_bundle_item`·`idempotency_record`·`work_job` INSERT와 열 한정 UPDATE가 실효 권한으로 확인됐다. DELETE 없음.
+- 재생성: web·analysis-worker(개요 플래그 ON)·prespec-attachment-worker를 표준 compose 4종(base·edge·model-egress·prespec-attachment)으로 `--no-deps --no-build --force-recreate`. attachment worker는 9/11 배포 json 대신 표준 compose로 돌아왔다(네트워크 database·prespec-egress·scanning·storage).
+- 확인: `/api/health` 200, 세 컨테이너 재기동 뒤 3분간 오류·42501 없음, `close-overview-run` CLI 존재, 상한 초과 활성 job 0건. document-worker 2개는 손대지 않았다.
+- 하지 않은 것: 개요 대기열 재투입(취소 33건은 그대로), 모델 호출, 첨부 재수집.
