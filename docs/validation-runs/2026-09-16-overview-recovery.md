@@ -125,3 +125,20 @@ web·analysis-worker·prespec-attachment-worker만 재생성했고 migration·�
 - 심층 검토 0건·회사 핏 attempt 0건을 재확인했다(자동 심층 검토는 시작되지 않았다).
 - **남은 결함 1건:** 781은 rhwp 절 후보가 잘려(`section_candidates_incomplete`) 운영 경로가 `candidates_complete=False`를 넘기고, 그 값이 목차 전략까지 건너뛰게 해 fallback으로 갔다. 목차 전략은 절 후보를 쓰지 않으므로 이 조건과 분리해야 한다(브랜치 `fix/overview-toc-ignores-candidates`에서 수정 중).
 - 결과는 `unmeasured_reference`이며 품질 측정·운영 활성화 근거가 아니다.
+
+### 781 재실행 (목차 전략 조건 분리 뒤, 13:2x UTC, main 4d51728)
+
+`fix/overview-toc-ignores-candidates`를 병합·배포하고 781만 다시 실행했다.
+
+| 항목 | 값 |
+|---|---|
+| 범위 | **auto 3~4쪽**, `range_reason_codes` 없음(오전·재실행 1차는 fallback 1~60) |
+| 결과 | `needs_human_review` / `semantic_review_failed` |
+| 호출·토큰 | 초안 1,284 / 1,466, 의미 3,106 / 327 · 0.9분 |
+| 주장 | 9개 중 결정적 탈락 1(claim-001 `quote_not_found`), 의미 `contradicted` 2(claim-003·004 `role_mismatch`) |
+
+claim-003·004는 감리 대상 개발사업의 과업(거래정보 검증·신고 기능 개선·유관기관 연계 등)을 **감리 용역의 과업**으로
+적었다. 정책 v7 의미 검토 지시의 "사업 주체와 역할(감리/개발)" 검사가 이를 잡은 것이며, 검증기가 의도대로 작동한
+사례다. 파이프라인 결함이 아니라 모델 초안의 역할 혼동이므로 사람 검토로 두고 보정·재실행하지 않았다.
+같은 공고의 fallback(1~60쪽) 실행은 completed였는데, 넓은 입력에서 같은 혼동이 드러나지 않았을 수 있다는 점은
+품질 측정 전까지 판단하지 않는다. 심층 검토 0건 유지.
