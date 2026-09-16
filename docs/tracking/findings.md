@@ -1398,6 +1398,35 @@ runner 소비자가 없어 보류했다. 운영 DB/MinIO 쓰기·migration 적�
   있다. 지금 범위에서는 해결하지 않는다.
 - 영향/다음 판단: 입력 준비·전송·암호화 저장·검증 실패/근거 PDF 조회는 작동하나 검증된 개요를 얻는 실제 성공 경로는 미확인이다. 다음 개선은 초안 section/quantity/unknown 계약과 결정적 규칙의 실원문 적합성을 이 고정 응답/인용으로 좁혀 확인하는 것이 우선이다. 이번 실행 요청에서 새 정책/검증 방식 변경·사실 자동 수정·재호출을 임의로 진행하지 않는다. 원문·기존 결과/사람 리뷰/참조 표식과 실패 응답을 보존했다.
 
+## 첨부 worker의 자동 문서 준비가 DB 권한에서 거부된다 (2026-09-15, 미해결)
+
+- 재현: 운영 PostgreSQL의 `worker` 역할로 실행 중인 `prespec-attachment-worker`가
+  사전규격 첨부를 `완료`로 종결한 뒤 `fetch_claimed`의 `maybe_auto_prepare`를 호출하면
+  `ProgrammingError`, SQLSTATE `42501`로 자동 준비가 실패한다. 2026-09-14 수집 회차
+  `prespecs-20260914-live-20260915T1200--20260915T015208.137811Z`에서 재현했으며,
+  첨부 취득 자체는 `완료 28 / 차단 6`으로 정상 종결됐다.
+- 원인·영향: `prespec_attachments.fetch_claimed`는 첨부 worker 프로세스에서 묶음 생성·확정까지
+  호출하지만 `scripts/runtime-privileges.sql`의 worker INSERT allowlist에는
+  `document_bundle`과 `document_bundle_item`이 없다. 따라서 첨부 종결 촉발점의 자동 준비는
+  항상 권한에서 막히고, 운영자가 app 역할의 `prepare-overviews` 보정 명령을 실행해야 개요
+  queue가 만들어진다. 첨부 결과는 자동 준비와 별도 transaction이라 되돌아가지 않는다.
+- 지금 해결하지 않은 이유·후속: 이번 범위는 2026-09-14 실사용 회차 실행이며 역할 권한 계약,
+  최소 권한 검사, 운영 권한 재적용을 함께 바꾸는 백엔드 수정은 포함하지 않았다. 자동 준비를
+  app 소유 queue/hook으로 옮기거나 worker에 필요한 묶음 생성 권한만 좁게 부여하는 두 안을
+  비교하고, 임시 PostgreSQL에서 허용 INSERT와 기존 UPDATE/DELETE 거부를 검증한 뒤 운영에
+  적용한다. 이번 회차는 app 역할에서 대상 notice 26건만 동일 서비스로 다시 호출해 보정했다.
+- 브랜치에서 해결(confirm 제자리 갱신), 운영 적용은 별도: worker에
+  `document_bundle`·`document_bundle_item`·`idempotency_record`·`work_job` INSERT와
+  확정에 쓰는 열만 여는 `document_bundle`·`document_bundle_item` 열 한정 UPDATE, 잠금용
+  `document_structure (id)` UPDATE를 부여했다. 함께 `_seed_bundle_items`가 문서 집합·순서가
+  그대로면 기존 draft item을 지우지 않고 제자리로 갱신하게 고쳐(`in_place`), 자동 준비
+  경로가 `document_bundle_item` DELETE 권한 없이 끝난다. 문서 집합이 달라진 draft는 종전대로
+  다시 넣고(`reseed`) 그 경로는 app 역할이 쓴다. 두 경로의 확정 결과는 같고 감사 행에
+  `item_refresh`로 어느 쪽이었는지 남는다. worker는 어느 table에도 DELETE를 갖지 않는다.
+- 후속: 같은 촉발점의 `maybe_auto_start_deep_review`는 worker 프로세스에서 `deep_review`를
+  INSERT할 수 있으나 worker에는 그 권한이 없다(현재는 개요 run이 `completed`인 공고가 다시
+  촉발될 때만 닿는다). 권한을 줄지 자동 시작을 app 경로로 옮길지는 미결이다.
+
 ## 운영 모델 주소가 TEST-NET 자리표시자로 배포됐다 (2026-09-16, 운영 조치 완료·코드 방지 진행 중)
 
 - 재현: 2026-09-16 `bidops-web-1`·`bidops-analysis-worker-1` 환경의

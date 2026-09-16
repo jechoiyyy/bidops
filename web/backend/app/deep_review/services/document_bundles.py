@@ -777,7 +777,20 @@ class DocumentBundleService:
         # The loop either returns or raises after the final collision.
         raise BundleServiceError("processing_failed", "문서 bundle을 만들 수 없습니다", status_code=500)
 
-    def _seed_bundle_items(self, session: Session, bundle: DocumentBundle) -> None:
+    def _seed_bundle_items(self, session: Session, bundle: DocumentBundle) -> str:
+        """Draft item 투영을 현재 문서 집합에 맞춘다. 갱신 방식을 돌려준다.
+
+        `in_place`는 저장된 항목의 (document_version_id, ordinal)이 이번에 만들
+        집합과 완전히 같아 기존 행의 snapshot 열만 갱신한 경우다. `reseed`는
+        문서 집합이나 순서가 달라져 DELETE 후 다시 넣은 경우다. **두 경로의
+        결과 행 수·열 값·순서는 같다** — 다른 것은 같은 값에 이르는 방법뿐이다.
+
+        제자리 갱신 경로가 따로 있는 이유는 첨부 worker다. 자동 준비는 문서가
+        확정된 뒤 묶음을 만들고 곧바로 확정하므로 두 시점의 집합이 같고, 그때는
+        `document_bundle_item` DELETE 권한 없이 확정이 끝나야 한다
+        (`scripts/runtime-privileges.sql`의 worker 절).
+        """
+
         documents = session.scalars(
             select(DocumentVersion)
             .join(Attachment, Attachment.id == DocumentVersion.attachment_id)
@@ -788,16 +801,14 @@ class DocumentBundleService:
             )
             .order_by(DocumentVersion.created_at.asc(), DocumentVersion.id.asc())
         ).all()
-        existing_items = session.scalars(select(DocumentBundleItem).where(DocumentBundleItem.bundle_id == bundle.id)).all()
-        for item in existing_items:
-            # Draft items are a live projection.  Recreate the projection in
-            # canonical order rather than updating ordinals in place: an
-            # immediate (bundle_id, ordinal) unique constraint cannot permit
-            # transient swaps.  Ready item rows are never passed here.
-            session.delete(item)
-        if existing_items:
-            session.flush()
+        existing_items = {
+            item.document_version_id: item
+            for item in session.scalars(
+                select(DocumentBundleItem).where(DocumentBundleItem.bundle_id == bundle.id)
+            ).all()
+        }
 
+        planned: list[tuple[int, DocumentVersion, DocumentStructure, ContentObject, str]] = []
         ordinal = 0
         for document in documents:
             structure = self._structure_for(session, document.id)
@@ -808,31 +819,54 @@ class DocumentBundleService:
                 continue
             payload = self._load_structure_payload(session, structure, allow_unsafe=True)
             payload_hash = structure.payload_sha256 if payload is not None else "0" * 64
-            session.add(
-                DocumentBundleItem(
+            planned.append((ordinal, document, structure, content, payload_hash))
+            ordinal += 1
+
+        in_place = {document.id: position for position, document, _s, _c, _h in planned} == {
+            document_version_id: item.ordinal
+            for document_version_id, item in existing_items.items()
+        }
+        if not in_place:
+            for item in existing_items.values():
+                # Draft items are a live projection.  When the document set or
+                # its canonical order changed, recreate the projection rather
+                # than updating ordinals in place: an immediate
+                # (bundle_id, ordinal) unique constraint cannot permit
+                # transient swaps.  Ready item rows are never passed here.
+                session.delete(item)
+            if existing_items:
+                session.flush()
+
+        for position, document, structure, content, payload_hash in planned:
+            item = (
+                existing_items[document.id]
+                if in_place
+                else DocumentBundleItem(
                     bundle_id=bundle.id,
                     document_version_id=document.id,
-                    ordinal=ordinal,
-                    document_version_version=document.version,
-                    content_object_id=document.content_object_id,
-                    content_sha256=content.sha256,
-                    detected_mime=content.detected_mime,
-                    size_bytes=content.size_bytes,
-                    original_filename=document.original_filename,
-                    source_kind=document.source_kind,
-                    source_system=document.source_system,
-                    source_attachment_key=document.source_attachment_key,
-                    source_url=document.source_url,
-                    role_at_confirmation=document.role,
-                    effective_date_at_confirmation=document.effective_date,
-                    replaces_id_at_confirmation=document.replaces_document_version_id,
-                    is_current_at_confirmation=document.is_current,
-                    safety_status_at_confirmation=document.safety_status,
-                    structure_id_at_confirmation=structure.id,
-                    structure_payload_sha256=payload_hash,
+                    ordinal=position,
                 )
             )
-            ordinal += 1
+            item.document_version_version = document.version
+            item.content_object_id = document.content_object_id
+            item.content_sha256 = content.sha256
+            item.detected_mime = content.detected_mime
+            item.size_bytes = content.size_bytes
+            item.original_filename = document.original_filename
+            item.source_kind = document.source_kind
+            item.source_system = document.source_system
+            item.source_attachment_key = document.source_attachment_key
+            item.source_url = document.source_url
+            item.role_at_confirmation = document.role
+            item.effective_date_at_confirmation = document.effective_date
+            item.replaces_id_at_confirmation = document.replaces_document_version_id
+            item.is_current_at_confirmation = document.is_current
+            item.safety_status_at_confirmation = document.safety_status
+            item.structure_id_at_confirmation = structure.id
+            item.structure_payload_sha256 = payload_hash
+            if not in_place:
+                session.add(item)
+        return "in_place" if in_place else "reseed"
 
     async def upload_document(self, session: Session, bundle_id: UUID, upload: Any, actor: str, request_id: UUID) -> DocumentVersionView:
         claimed_name = validate_actor(actor)
@@ -1945,7 +1979,7 @@ class DocumentBundleService:
 
         # Seed only after the locked scope is known.  _issues then validates
         # the same rows/structures that will become the immutable snapshot.
-        self._seed_bundle_items(session, bundle)
+        item_refresh = self._seed_bundle_items(session, bundle)
         session.flush()
         issues = self._issues(session, bundle)
         issues.extend(scope_issues)
@@ -2035,6 +2069,10 @@ class DocumentBundleService:
                 safe_metadata={
                     "version": bundle.version,
                     "document_count": len(response.documents),
+                    # 확정 시점의 item 투영을 제자리로 갱신했는지(`in_place`),
+                    # 문서 집합이 달라져 다시 넣었는지(`reseed`). 결과는 같고
+                    # 방법만 다르므로 안전한 코드 하나로만 남긴다.
+                    "item_refresh": item_refresh,
                     **self._lineage_metadata(correlation_id),
                     **(dict(trigger_metadata) if trigger_metadata else {}),
                 },

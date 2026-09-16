@@ -1131,6 +1131,57 @@ def test_terminal_fetch_creates_and_confirms_the_bundle_as_a_system_actor(
     assert actions["document_bundle.auto_confirm"].safe_metadata["notice_id"] == notice.id
 
 
+def test_the_automatic_confirmation_refreshes_bundle_items_in_place(
+    db_session: Session, tmp_path: Path
+):
+    """자동 준비의 확정은 draft item을 지우지 않는다.
+
+    묶음 생성 시점과 확정 시점의 문서 집합·순서가 같으므로 `_seed_bundle_items`가
+    제자리 갱신을 고른다. 취득 worker는 `document_bundle_item` DELETE 권한이 없고
+    (`scripts/runtime-privileges.sql`), 이 경로가 그 권한 없이 끝나야 한다.
+    """
+
+    notice, attachments = _priority_notice(db_session, ["제안요청서.pdf"])
+    statements: list[str] = []
+
+    def _record(_conn, _cursor, statement, _parameters, _context, _executemany):
+        statements.append(" ".join(statement.split()))
+
+    engine = db_session.get_bind()
+    event.listen(engine, "before_cursor_execute", _record)
+    try:
+        _drain_queue(
+            db_session, _responses(db_session, attachments, [SAFE_PDF.read_bytes()]), tmp_path
+        )
+    finally:
+        event.remove(engine, "before_cursor_execute", _record)
+
+    bundles = _bundles(db_session, notice)
+    assert [(bundle.revision, bundle.status) for bundle in bundles] == [(1, "ready")]
+    verbs = [
+        statement.split()[0].upper()
+        for statement in statements
+        if "document_bundle_item" in statement
+    ]
+    # 항목 행은 묶음 생성 때 한 번 들어가고 확정은 그 행을 지우지 않는다 —
+    # 확정 뒤에 남은 행이 생성 때 넣은 바로 그 행이라는 뜻이다.
+    assert verbs.count("DELETE") == 0
+    assert verbs.count("INSERT") == 1
+    actions = _audit_actions(db_session, bundles[0].id)
+    assert actions["document_bundle.confirm"].safe_metadata["item_refresh"] == "in_place"
+
+    document = db_session.scalar(
+        select(DocumentVersion).where(DocumentVersion.notice_id == notice.id)
+    )
+    items = db_session.scalars(
+        select(DocumentBundleItem).where(DocumentBundleItem.bundle_id == bundles[0].id)
+    ).all()
+    assert [(item.document_version_id, item.ordinal) for item in items] == [(document.id, 0)]
+    assert items[0].content_object_id == document.content_object_id
+    assert items[0].safety_status_at_confirmation == "safe"
+    assert items[0].structure_id_at_confirmation is not None
+
+
 def test_an_unsupported_attachment_does_not_stop_the_automatic_confirmation(
     db_session: Session, tmp_path: Path
 ):
