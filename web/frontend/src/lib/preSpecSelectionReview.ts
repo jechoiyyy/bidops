@@ -6,7 +6,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-
 const LIST_PARAMS = new Set([
   "sw_only", "business_division", "origin", "grade", "auto_preparation_status",
   "tracking_decision", "tracking_status", "workspace", "overview_view", "source_run_id",
-  "observed_from", "observed_to", "deadline_status", "view", "q", "sort", "offset", "selected", "run",
+  "observed_from", "observed_to", "deadline_status", "view", "q", "sort", "offset", "selected",
 ]);
 const OVERVIEW_VIEW_KEYS = new Set(["all", "attention", "pending", "completed", "failed", "cancelled", "not_started"]);
 

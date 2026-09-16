@@ -2,7 +2,7 @@ import { Link, useLocation, useMatches } from "react-router-dom";
 import type { RunSummary } from "../../lib/types";
 import { BasisPopover } from "./BasisPopover";
 import { RunSelector } from "./RunSelector";
-import type { RouteCrumb, RouteDataScope, RouteTopbarMode } from "./route-meta";
+import { runSearchFor, type RouteCrumb, type RouteDataScope, type RouteTopbarMode } from "./route-meta";
 import { preSpecReviewListUrl } from "../../lib/preSpecSelectionReview";
 
 interface TopBarProps {
@@ -134,7 +134,7 @@ function CrumbLabel({
   const destination = crumb.context === "pre-spec-list" && preSpecListUrl
     ? preSpecListUrl
     : crumb.to
-      ? { pathname: crumb.to, search: runSearch }
+      ? { pathname: crumb.to, search: runSearchFor(crumb.to, runSearch) }
       : null;
   const label = crumb.to
     ? <Link className="topbar-crumb-link" to={destination!}>{crumb.label}</Link>

@@ -316,6 +316,22 @@ export function resolveRouteLocation(
   return { navPath: origin.navPath, crumbs, topbarMode, title: metadata.title };
 }
 
+/** `run` 질의 파라미터를 읽지 않는 화면의 경로.
+ *  셸이 만드는 이동 링크는 이 경로로 갈 때 회차 선택을 넘기지 않는다.
+ *  거부 목록인 이유: `/metrics`·`/runs`·`/attachments`는 metadata상 `cumulative`여도
+ *  페이지가 `run`을 직접 읽으므로 `dataScope`로는 구분할 수 없고, 모르는 경로는
+ *  회차를 쓰는 쪽(현행 동작)으로 남겨야 안전하다. */
+const RUN_FREE_PATHS = ["/opportunities", "/order-plans", "/pre-specs", "/go-no-go", "/deep-reviews"];
+
+function isRunFreePath(path: string): boolean {
+  return RUN_FREE_PATHS.some((p) => path === p || path.startsWith(`${p}/`));
+}
+
+/** 목적지가 회차를 읽지 않으면 빈 문자열을 준다. `runSearch`는 `?run=...` 형태다. */
+export function runSearchFor(path: string, runSearch: string): string {
+  return isRunFreePath(path) ? "" : runSearch;
+}
+
 export function routeHandle(metadata: RouteMetadata): RouteMetadataHandle {
   return { routeMetadata: metadata };
 }

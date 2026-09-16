@@ -1,4 +1,5 @@
 import { Link, useLocation } from "react-router-dom";
+import { runSearchFor } from "./route-meta";
 
 type IconName = "dashboard" | "queue" | "deadline" | "judgment" | "review" | "profile" | "metrics" | "quality" | "policy" | "runs" | "attachments" | "operations" | "audit" | "order-plan";
 
@@ -166,7 +167,7 @@ function NavLinkItem({ item, active, runSearch }: { item: NavItem; active: boole
     <Link
       aria-current={active ? "page" : undefined}
       className={`sidebar-item ${active ? "is-active" : ""}`.trim()}
-      to={{ pathname: item.path, search: runSearch }}
+      to={{ pathname: item.path, search: runSearchFor(item.path, runSearch) }}
     >
       <NavIcon name={item.icon} />
       <span>{item.label}</span>
