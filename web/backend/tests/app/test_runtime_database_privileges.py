@@ -130,6 +130,17 @@ def test_prespec_overview_run_grants_match_reviewed_runtime_paths() -> None:
         assert "prespec_overview_run" in _table_grants(role, "INSERT")
         assert "prespec_overview_run" in _table_grants(role, "UPDATE")
         assert "prespec_overview_run" not in _table_grants(role, "DELETE")
+    # 첨부 취득이 종결되면 worker 프로세스가 사람 경로와 같은 서비스 함수로 묶음을
+    # 만들고 확정한 뒤 개요 run을 넣는다(명세 §6.2·§6.3). 그 경로의 묶음·큐·재생
+    # 기록 INSERT가 함께 열려 있어야 성립하며, 어느 것도 삭제 권한을 얻지 않는다.
+    auto_preparation_tables = {
+        "document_bundle",
+        "document_bundle_item",
+        "idempotency_record",
+        "work_job",
+    }
+    assert auto_preparation_tables <= _table_grants("worker", "INSERT")
+    assert not auto_preparation_tables & _table_grants("worker", "DELETE")
 
 
 def test_overview_worker_update_stays_column_scoped_for_source_rows() -> None:
@@ -140,6 +151,14 @@ def test_overview_worker_update_stays_column_scoped_for_source_rows() -> None:
     assert _column_update_grant("worker", "attachment") == {"extract_status"}
     assert _column_update_grant("worker", "document_version") == {"is_current"}
     assert not {"notice", "attachment", "document_version"} & worker_updates
+    # 자동 준비가 쓰는 묶음 열만 열린다. revision·notice_id·created_by_name 같은
+    # 계보 열과 구조 상태는 worker에게 닫혀 있다.
+    assert _column_update_grant("worker", "document_bundle") == {
+        "issues_snapshot", "status", "version", "confirmed_by_name", "confirmed_at"
+    }
+    assert _column_update_grant("worker", "document_structure") == {"id"}
+    assert not {"document_bundle", "document_structure"} & worker_updates
+    assert "document_bundle_item" not in worker_updates
     # 준비 스냅샷은 append-only다. 어느 role도 UPDATE·DELETE를 갖지 않는다.
     for role in ("app", "worker"):
         assert "prespec_v4_pdf_snapshot" not in _table_grants(role, "UPDATE")
@@ -648,6 +667,64 @@ def test_effective_runtime_role_matrix_and_future_defaults() -> None:
                     assert not _table_privilege(
                         connection, "ro_backup", "future_privilege_probe", privilege
                     )
+        finally:
+            engine.dispose()
+
+
+@requires_postgres
+def test_effective_worker_auto_preparation_writes_without_deletes() -> None:
+    """첨부 worker의 자동 준비 경로가 필요로 하는 쓰기만 실제로 열려 있다.
+
+    묶음·item·큐 INSERT는 통과하고, 어느 것도 DELETE를 얻지 않으며, 묶음 UPDATE는
+    확정에 쓰는 열에서만 성립한다.
+    """
+
+    from sqlalchemy.exc import DBAPIError
+
+    _ensure_roles()
+    with temporary_database() as database_url:
+        engine = _apply_policy(database_url)
+        try:
+            with engine.begin() as connection:
+                for table in ("document_bundle", "document_bundle_item", "work_job"):
+                    assert _table_privilege(connection, "worker", table, "SELECT")
+                    assert _table_privilege(connection, "worker", table, "INSERT")
+                    assert not _table_privilege(connection, "worker", table, "DELETE")
+                assert _table_privilege(connection, "worker", "idempotency_record", "INSERT")
+                assert not _table_privilege(
+                    connection, "worker", "idempotency_record", "DELETE"
+                )
+                assert not _table_privilege(connection, "worker", "document_bundle", "UPDATE")
+                for column in (
+                    "issues_snapshot",
+                    "status",
+                    "version",
+                    "confirmed_by_name",
+                    "confirmed_at",
+                ):
+                    assert _column_privilege(
+                        connection, "worker", "document_bundle", column, "UPDATE"
+                    )
+                for column in ("revision", "notice_id", "created_by_name"):
+                    assert not _column_privilege(
+                        connection, "worker", "document_bundle", column, "UPDATE"
+                    )
+                assert not _table_privilege(
+                    connection, "worker", "document_bundle_item", "UPDATE"
+                )
+                # 구조 행은 잠금 대상일 뿐이다. 상태 열은 그대로 닫혀 있다.
+                assert _column_privilege(
+                    connection, "worker", "document_structure", "id", "UPDATE"
+                )
+                assert not _column_privilege(
+                    connection, "worker", "document_structure", "validation_status", "UPDATE"
+                )
+            for table in ("document_bundle", "document_bundle_item", "work_job"):
+                with pytest.raises(DBAPIError) as error:
+                    with engine.begin() as connection:
+                        connection.exec_driver_sql("SET LOCAL ROLE worker")
+                        connection.exec_driver_sql(f"DELETE FROM bidops.{table}")
+                assert error.value.orig.sqlstate == "42501"
         finally:
             engine.dispose()
 

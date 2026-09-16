@@ -1394,3 +1394,29 @@ runner 소비자가 없어 보류했다. 운영 DB/MinIO 쓰기·migration 적�
   더 이른 시점에 확보해 `attachment.name`에 반영할 수 있으면 이 경고를 줄일 수
   있다. 지금 범위에서는 해결하지 않는다.
 - 영향/다음 판단: 입력 준비·전송·암호화 저장·검증 실패/근거 PDF 조회는 작동하나 검증된 개요를 얻는 실제 성공 경로는 미확인이다. 다음 개선은 초안 section/quantity/unknown 계약과 결정적 규칙의 실원문 적합성을 이 고정 응답/인용으로 좁혀 확인하는 것이 우선이다. 이번 실행 요청에서 새 정책/검증 방식 변경·사실 자동 수정·재호출을 임의로 진행하지 않는다. 원문·기존 결과/사람 리뷰/참조 표식과 실패 응답을 보존했다.
+
+## 첨부 worker의 자동 문서 준비가 DB 권한에서 거부된다 (2026-09-15, 미해결)
+
+- 재현: 운영 PostgreSQL의 `worker` 역할로 실행 중인 `prespec-attachment-worker`가
+  사전규격 첨부를 `완료`로 종결한 뒤 `fetch_claimed`의 `maybe_auto_prepare`를 호출하면
+  `ProgrammingError`, SQLSTATE `42501`로 자동 준비가 실패한다. 2026-09-14 수집 회차
+  `prespecs-20260914-live-20260915T1200--20260915T015208.137811Z`에서 재현했으며,
+  첨부 취득 자체는 `완료 28 / 차단 6`으로 정상 종결됐다.
+- 원인·영향: `prespec_attachments.fetch_claimed`는 첨부 worker 프로세스에서 묶음 생성·확정까지
+  호출하지만 `scripts/runtime-privileges.sql`의 worker INSERT allowlist에는
+  `document_bundle`과 `document_bundle_item`이 없다. 따라서 첨부 종결 촉발점의 자동 준비는
+  항상 권한에서 막히고, 운영자가 app 역할의 `prepare-overviews` 보정 명령을 실행해야 개요
+  queue가 만들어진다. 첨부 결과는 자동 준비와 별도 transaction이라 되돌아가지 않는다.
+- 지금 해결하지 않은 이유·후속: 이번 범위는 2026-09-14 실사용 회차 실행이며 역할 권한 계약,
+  최소 권한 검사, 운영 권한 재적용을 함께 바꾸는 백엔드 수정은 포함하지 않았다. 자동 준비를
+  app 소유 queue/hook으로 옮기거나 worker에 필요한 묶음 생성 권한만 좁게 부여하는 두 안을
+  비교하고, 임시 PostgreSQL에서 허용 INSERT와 기존 UPDATE/DELETE 거부를 검증한 뒤 운영에
+  적용한다. 이번 회차는 app 역할에서 대상 notice 26건만 동일 서비스로 다시 호출해 보정했다.
+- 부분 해결(브랜치 `feat/worker-bundle-privileges`, 운영 적용은 별도): worker에
+  `document_bundle`·`document_bundle_item`·`idempotency_record`·`work_job` INSERT와
+  확정에 쓰는 열만 여는 `document_bundle` 열 한정 UPDATE, 잠금용 `document_structure (id)`
+  UPDATE를 부여했다. 다만 `confirm`의 `_seed_bundle_items`는 draft의 기존 item을 지우고
+  다시 넣으므로(`web/backend/app/deep_review/services/document_bundles.py:797`) worker에
+  `document_bundle_item` DELETE가 없는 한 확정은 여전히 `42501`이다. 그 상태로 적용하면
+  묶음 초안만 만들어지고 확정되지 않으므로, DELETE 부여 여부나 재seed를 피하는 코드 수정이
+  결정될 때까지 이 grant를 운영에 적용하지 않는다.
