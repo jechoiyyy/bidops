@@ -383,10 +383,19 @@ budget_and_period·important_conditions)의 쏠림은 2026-09-11부터 경고 `r
 
 ### fallback 범위 규칙
 
+자동 선택은 목차를 먼저 본다(ADR-0057 결정 2). 앞 5쪽에서 "제목 … 쪽번호" 항목이 4개 이상인
+쪽을 목차로 읽고, 첫 level-1 항목의 제목을 본문에서 찾아 인쇄 쪽과 물리 쪽의 차이를 구한다.
+두 장 이상이 같은 차이를 낼 때만 정렬을 확정하며, 확정하면 개요 키워드가 있는 첫 장(없으면 첫
+장)부터 다음 장 직전까지가 범위다(`strategy=toc_scope`). 정렬을 확정하지 못하면 추측하지 않고
+`toc_missing`·`toc_alignment_failed`·`toc_target_missing` 중 한 사유를 남긴 뒤 본문 heading
+선택기로 내려간다. 본문 선택기는 로마숫자 표식과 다음 줄 제목이 갈라진 조판을 한 장으로 읽고,
+`제안서 작성 안내`류 헤딩 뒤의 장은 발주처 사업 범위가 아니므로 시작 후보에서 뺀다.
+목차로 확정한 범위에는 아래 최소 크기 규칙을 적용하지 않는다.
+
 결정적 heading 선택기가 범위를 정하지 못하면 실패가 아니라 1쪽부터
 `min(60쪽, 100,000자)`까지를 `range_fallback_head` 사유로 자동 선택한다(`range_source=fallback`).
-자동 선택이 2쪽 미만이거나 1,500자 미만이면 목차·표제만 고른 것으로 보고 `range_too_small`을
-남기고 같은 fallback을 탄다. 반대로 자동 선택이 60쪽·100,000자를 넘으면 버리지 않고 시작
+본문 선택기(`strategy=heading_scope`)의 자동 선택이 2쪽 미만이거나 1,500자 미만이면 목차·표제만
+고른 것으로 보고 `range_too_small`을 남기고 같은 fallback을 탄다. 반대로 자동 선택이 60쪽·100,000자를 넘으면 버리지 않고 시작
 쪽부터 상한까지 잘라 쓰며 `range_clipped_to_limit`를 남긴다(`range_source=auto` 유지).
 선택 범위 전체가 공백이면 모델을 호출하지 않고 `failed/manifest_invalid`로 닫는다. 사람이
 `POST /api/pre-specs/{notice_id}/overview/range-confirmations`로 직접 쪽 범위를 확정하면

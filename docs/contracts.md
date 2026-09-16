@@ -535,6 +535,19 @@ max_model_context_tokens 393216). 문맥 상한 판정은 요청 JSON의 byte �
 `duplicate_id`·`analysis_reference_missing`·`company_comparison_scope_mismatch`뿐이며, 주장이
 한 개도 없으면 run은 `needs_human_review/claims_empty`로 닫는다.
 
+#### 범위 선택 전략과 사유 코드 (2026-09-16)
+
+자동 선택은 **목차 우선**이다(ADR-0057 결정 2). 입력 manifest의 `strategy`는
+`toc_scope`(목차 항목의 인쇄 쪽을 본문 제목 대조로 물리 쪽에 맞춰 고름)·`heading_scope`(본문
+heading만으로 고름)·`human_confirmed`(사람이 확정한 쪽 span) 셋이다. `range_source`는
+그대로 `auto|fallback|human`이며 `toc_scope`·`heading_scope` 모두 `auto`다.
+
+목차 전략이 실패하면 본문 전략으로 내려가고 그 사유가 `range_reason_codes`에 남는다:
+`toc_missing`(앞 5쪽에 "제목 … 쪽번호" 항목이 4개 이상인 쪽이 없음)·`toc_alignment_failed`
+(인쇄 쪽 → 물리 쪽 offset을 두 장 이상에서 같은 값으로 확정하지 못함)·`toc_target_missing`
+(시작·끝으로 삼을 장 항목이 없음). 목차로 확정하면 사유를 남기지 않는다. 이 코드들은 뒤이은
+본문 선택이 성공해도 함께 남으므로 `range_source=auto`·`range_review.reason_code`와 같이 읽는다.
+
 #### 부분 완료 (2026-09-11)
 
 주장별 차단 코드는 **그 주장만** 결과에서 뺀다. 통과 주장이 1개 이상이고 전체 주장의

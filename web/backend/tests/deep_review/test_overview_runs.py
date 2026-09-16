@@ -369,6 +369,21 @@ def test_a_too_small_auto_range_is_not_frozen_and_falls_back_to_the_head(context
     assert selection.page_numbers == (1, 2)
 
 
+def test_a_toc_confirmed_range_keeps_one_page_without_the_minimum_size_rule(context):
+    """목차로 확정한 한 쪽짜리 개요 장은 최소 크기 규칙을 타지 않는다 (0916 공고 785)."""
+
+    session, store = context
+
+    selection, codes = _range_of(session, store, [
+        "목 차\nⅠ. 사업 안내\t1\n 1. 사업개요\t1\nⅡ. 유지관리 대상\t2\n 1. 시스템 현황\t2\n",
+        "Ⅰ. 사업 안내\n1. 사업개요\n짧은 본문이다.",
+        "Ⅱ. 유지관리 대상\n1. 시스템 현황\n다음 장 본문이다.",
+    ])
+
+    assert selection.strategy == "toc_scope" and selection.page_numbers == (2,)
+    assert codes == []
+
+
 def test_an_over_limit_auto_range_is_clipped_and_stays_auto(context):
     """상한을 넘은 자동 선택은 버리지 않고 상한까지만 잘라 쓴다 (0911 공고 796)."""
 

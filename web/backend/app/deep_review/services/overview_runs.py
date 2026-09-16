@@ -1164,8 +1164,14 @@ def _select_range(
                     start_locator=_locator(numbers[0], "page"),
                     end_locator=_locator(clipped_last, "page"),
                 ), ["range_clipped_to_limit"]
-        elif len(numbers) >= MIN_AUTO_RANGE_PAGES and chars >= MIN_AUTO_RANGE_CHARS:
-            return selection, []
+        elif selection.strategy != "heading_scope" or (
+            len(numbers) >= MIN_AUTO_RANGE_PAGES and chars >= MIN_AUTO_RANGE_CHARS
+        ):
+            # 목차로 확정한 범위(`toc_scope`)에는 최소 크기 규칙을 적용하지
+            # 않는다. 목차·본문이 대응한 경계이므로 한 쪽짜리 개요 장도
+            # 그대로 쓴다 (ADR-0057 결정 2). `reasons`는 목차 전략이 실패해
+            # 본문 전략으로 내려온 사유이며 성공한 전략의 사유가 아니다.
+            return selection, reasons
         else:
             reasons = ["range_too_small"]
     last = _fallback_pages(pages)
