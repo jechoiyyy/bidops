@@ -7,7 +7,8 @@ import { Fragment, useRef, useState, type ReactNode } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Badge, type BadgeVariant } from "../components/common/Badge";
 import { BUNDLE_STATUS_LABELS, DocumentPreparationPanel } from "../components/deep-review/DocumentPreparationPanel";
-import { getDocumentBundles } from "../components/deep-review/api";
+import { getDeepReview, getDocumentBundles, getReport } from "../components/deep-review/api";
+import type { ReportSection } from "../components/deep-review/types";
 import { EmptyState } from "../components/common/EmptyState";
 import { Panel } from "../components/common/Panel";
 import { ReviewHistoryLinkRail } from "../components/common/ReviewPrimitives";
@@ -28,7 +29,6 @@ import {
 } from "../components/pre-specs/CompanyFitSection";
 import {
   PageOverviewCurrent,
-  PageOverviewClaimLinks,
   PageOverviewExecutionInfo,
   PageOverviewFactLine,
   PageOverviewHistory,
@@ -36,8 +36,8 @@ import {
   PageOverviewRangeReview,
   PageOverviewVerificationDetails,
   pageOverviewPdfUrl,
-  pageOverviewRisks,
   useCurrentPageOverview,
+  type PageOverviewRisk,
 } from "../components/pre-specs/PageOverviewSection";
 import { PageHeaderActions } from "../components/common/PageHeaderActions";
 import { apiErrorRecoveryAction, describeApiError } from "../lib/apiErrors";
@@ -85,6 +85,20 @@ function deadlineChipVariant(urgency: ReturnType<typeof describeDeadline>["urgen
 
 function OverviewPdfReference({ review }: { review: PageOverviewView }) {
   return <a className="ps-ref" href={pageOverviewPdfUrl(review)} target="_blank" rel="noreferrer">전체 근거 PDF 열기 ↗</a>;
+}
+
+/**
+ * ④ `참여 조건` 열이 심층 검토 보고서의 `eligibility_matrix` 절에서 읽는 항목.
+ * 개요는 앞부분 요약만 맡으므로(ADR-0057 결정 1) 참여 조건은 심층 검토 결과가
+ * 있을 때만 그 결과에서 읽는다 — 새 분석·문장 생성은 하지 않고 이미 받은 절의
+ * 표 행·본문만 고른다.
+ */
+function reportSectionBullets(section: ReportSection | undefined): string[] {
+  if (!section) return [];
+  return section.blocks.flatMap((block) => {
+    if (block.rows.length > 0) return block.rows.map((row) => `${row.label} · ${row.cells.join(" · ")}`);
+    return block.body ? [block.body] : [];
+  });
 }
 
 /**
@@ -257,20 +271,14 @@ function FactBullets({ items, review }: { items: PageOverviewFact[]; review: Pag
 }
 
 /**
- * ③ 카드 본문(spec §4 ③). 주요 과업 번호 목록과 `사업 규모와 일정` 타일이 본문이고,
- * 검증 라벨 칩·품질 표식·근거 PDF 링크는 카드 머리가 갖는다. 핵심 조건은 ④의
- * `참여 조건` 열이, 미확인 사항은 ④의 `위험 및 미확인 사항` 열이 소유한다.
+ * ③ 카드 본문(spec §4 ③, ADR-0057 결정 1). 사업 개요 → 주요 과업 → 예산·기간
+ * (`사업 규모와 일정` 타일) 세 섹션만 읽는다. 검증 라벨 칩·품질 표식·근거 PDF
+ * 링크는 카드 머리가 갖는다. 참여 조건·회사 적합성·위험 및 미확인 사항은
+ * 심층 검토 영역이 소유한다.
  */
 function PageOverviewBriefing({ review }: { review: PageOverviewView }) {
   const { payload } = review;
-  const isVerifiedV4 = payload.schema_version === "bidops.prespec-overview-page-review.v4";
   const remainingOverview = payload.business_overview.slice(1);
-  const claimTextById: ReadonlyMap<string, string> = isVerifiedV4
-    ? new Map(
-      [...payload.business_overview, ...payload.main_tasks, ...payload.budget_and_period, ...payload.important_conditions]
-        .map((fact) => [fact.claim_id, fact.text] as const),
-    )
-    : new Map();
   return <div className="page-overview">
     {/* 헤더 띠가 첫 문장을 이미 보여 준다. 개요 본문 영역이 같은 문장을 계약대로
         담고 있어야 하므로 자리만 유지하고 화면에서는 감춘다. */}
@@ -287,7 +295,7 @@ function PageOverviewBriefing({ review }: { review: PageOverviewView }) {
       <h4 className="ps-sub">사업 개요</h4>
       <FactBullets items={remainingOverview} review={review} />
     </> : null}
-    {payload.main_tasks.length === 0 ? <p className="ps-cap ps-muted">이번 입력에서는 확인되지 않았습니다.</p> : (
+    {payload.main_tasks.length === 0 ? <p className="ps-cap ps-muted">이번 입력 범위에는 없음</p> : (
       <ol className="ps-bul ps-tasks">
         {payload.main_tasks.map((fact, index) => (
           <li key={index}>
@@ -298,7 +306,7 @@ function PageOverviewBriefing({ review }: { review: PageOverviewView }) {
       </ol>
     )}
     <h4 className="ps-sub">사업 규모와 일정</h4>
-    {payload.budget_and_period.length === 0 ? <p className="ps-cap ps-muted">이번 입력에서는 확인되지 않았습니다.</p> : (
+    {payload.budget_and_period.length === 0 ? <p className="ps-cap ps-muted">이번 입력 범위에는 없음</p> : (
       <ul className="ps-tiles">
         {payload.budget_and_period.map((fact, index) => (
           <li key={index} className="ps-tile">
@@ -307,10 +315,6 @@ function PageOverviewBriefing({ review }: { review: PageOverviewView }) {
         ))}
       </ul>
     )}
-    <h4 className="ps-sub">검토 포인트 <span className="ps-cnt">모델 의견</span></h4>
-    {isVerifiedV4
-      ? payload.reviewer_analysis.map((item) => <p key={item.id}>{item.text} <span className="ps-cap ps-muted">근거 주장 · <PageOverviewClaimLinks claimIds={item.supporting_claim_ids} claimTextById={claimTextById} /></span></p>)
-      : payload.reviewer_analysis.map((text, index) => <p key={index}>{text}</p>)}
   </div>;
 }
 
@@ -341,6 +345,22 @@ function PreSpecRecordBody({ noticeId, listSearch }: { noticeId: number | null; 
   });
   const pageOverviewState = useCurrentPageOverview(noticeId);
   const companyFitState = useCompanyFit(noticeId);
+  // 참여 조건·위험 및 미확인 사항은 심층 검토 결과가 있을 때만 그 결과에서 읽는다
+  // (ADR-0057 결정 1·4). 목록 projection이 최신 심층 검토 id를 이미 주므로 그
+  // id로만 조회하고, 완료 전에는 보고서를 요청하지 않는다.
+  const earlyDeepReviewId = preSpecProjectionQuery.data?.items.find((item) => item.notice_pk === noticeId)?.latest_deep_review_id ?? null;
+  const deepReviewStatusQuery = useQuery({
+    queryKey: ["deep-review", earlyDeepReviewId],
+    queryFn: () => getDeepReview(earlyDeepReviewId as string),
+    enabled: earlyDeepReviewId !== null,
+    staleTime: 30_000,
+  });
+  const deepReviewReportQuery = useQuery({
+    queryKey: ["deep-review-report", earlyDeepReviewId],
+    queryFn: () => getReport(earlyDeepReviewId as string),
+    enabled: earlyDeepReviewId !== null && deepReviewStatusQuery.data?.status === "completed",
+    staleTime: 30_000,
+  });
   // 사람이 직접 여닫거나 닫기 전에는 `null`이고, 그동안은 묶음·자동 준비 상태가
   // 정하는 기본값을 따른다. 응답이 늦게 와도 기본값이 다시 계산된다.
   const [documentPanelOverride, setDocumentPanelOverride] = useState<boolean | null>(null);
@@ -457,16 +477,37 @@ function PreSpecRecordBody({ noticeId, listSearch }: { noticeId: number | null; 
       + pageOverviewVerification.claims.reduce((total, claim) => total + claim.reason_codes.length, 0)
     : 0;
 
-  const risks = pageOverviewRisks(pageOverviewVerification, pageOverviewUnknowns);
+  // 참여 조건·위험 및 미확인 사항은 개요가 아니라 심층 검토 보고서에서 읽는다
+  // (ADR-0057 결정 1). 보고서가 없으면(심층 검토 미시작 또는 미완료) 각 열이
+  // "심층 검토에서 확인" 한 줄만 보인다.
+  const deepReviewReport = deepReviewReportQuery.data?.report ?? null;
+  const hasDeepReviewReport = deepReviewReport !== null;
+  const deepReviewUnknowns = deepReviewReport?.unknowns ?? [];
+  const eligibilityItems = reportSectionBullets(
+    deepReviewReport?.sections.find((section) => section.section_key === "eligibility_matrix"),
+  );
+  const risks: PageOverviewRisk[] = deepReviewUnknowns.map((text) => ({
+    label: "미확인",
+    tone: "neutral",
+    title: text,
+    detail: null,
+  }));
   const judgment = notice.judgment;
   const judgmentRiskCount = (judgment?.counterarguments.length ?? 0) + (judgment?.verification_items.length ?? 0);
+  // 이 상세 화면은 심층 검토 보고서를 실제로 읽는 경로(`deepReviewReportQuery`)가
+  // 있으므로 그 결과가 있을 때만 미확인 건수를 채운다(ADR-0057).
   const cautionCounts = preSpecItem
-    ? preSpecCautions({ item: preSpecItem, verification: pageOverviewVerification, unknowns: pageOverviewUnknowns })
+    ? preSpecCautions({
+      item: preSpecItem,
+      verification: pageOverviewVerification,
+      deepReviewUnknownCount: hasDeepReviewReport ? deepReviewUnknowns.length : null,
+    })
     : null;
   // v4 주장만 원문 위치를 갖는다. 이전 세대 결과는 claim id가 없으므로 ⑤의 주장별
-  // 목록을 만들지 않는다 — 없는 식별자를 지어내지 않는다(spec §4 ⑤).
+  // 목록을 만들지 않는다 — 없는 식별자를 지어내지 않는다(spec §4 ⑤). 참여 조건은
+  // 더 이상 개요 결과에 없으므로(ADR-0057) 세 섹션만 모은다.
   const evidenceClaims = shown
-    ? [...shown.payload.business_overview, ...shown.payload.main_tasks, ...shown.payload.budget_and_period, ...shown.payload.important_conditions]
+    ? [...shown.payload.business_overview, ...shown.payload.main_tasks, ...shown.payload.budget_and_period]
       .filter((fact): fact is Extract<PageOverviewFact, { claim_id: string }> => "claim_id" in fact)
     : [];
   const overviewValidationLabel = shown
@@ -644,83 +685,6 @@ function PreSpecRecordBody({ noticeId, listSearch }: { noticeId: number | null; 
               : "개요 검토 실행 기록이 없어 주요 과업을 표시할 수 없습니다."}</p>
           </div>
         )}
-      </section>
-
-      {/* ④ 참여 조건 · 회사 적합성 · 위험 및 미확인 사항 (spec §4 ④) */}
-      <section id="ps-conditions" className="ps-card ps-sec ps-record-quad" aria-labelledby="ps-conditions-title">
-        <div className="ps-sec-head">
-          <h2 id="ps-conditions-title" className="ps-h-sec">참여 조건 · 회사 적합성 · 위험 및 미확인 사항</h2>
-          <span className="ps-cap ps-dim">적합성 등급 · 추적 결정 · 최종 Go/No-Go는 서로 대신하지 않음</span>
-        </div>
-        <div className="ps-tri">
-          <section className="ps-tri-col" aria-labelledby="ps-conditions-list-title">
-            <div className="ps-tri-head">
-              <h3 id="ps-conditions-list-title" className="ps-h-col">참여 조건</h3>
-              <span className="ps-cap ps-dim">{shown ? `${shown.payload.important_conditions.length}건` : "미확인"}</span>
-            </div>
-            {shown && shown.payload.important_conditions.length > 0 ? (
-              <ul className="ps-check ps-record-conditions">
-                {shown.payload.important_conditions.map((fact, index) => (
-                  <li key={index}>
-                    <span className="ps-box" aria-hidden="true" />
-                    <span className="ps-t"><PageOverviewFactLine fact={fact} review={shown} /></span>
-                  </li>
-                ))}
-              </ul>
-            ) : <p className="ps-cap ps-muted">이번 입력에서는 확인되지 않았습니다.</p>}
-          </section>
-
-          <PreSpecBriefingSection noticeId={noticeId} judgment={judgment} reviews={notice.reviews} />
-
-          <section className="ps-tri-col" aria-labelledby="ps-risk-title">
-            <div className="ps-tri-head">
-              <h3 id="ps-risk-title" className="ps-h-col">위험 및 미확인 사항</h3>
-              <span className="ps-cap ps-dim">
-                주의 {cautionCounts?.count ?? 0} · 미확인 {pageOverviewUnknowns.length}
-              </span>
-            </div>
-            {risks.length === 0 && judgmentRiskCount === 0 && companyFitVerificationItems.length === 0 ? (
-              <p className="pre-spec-overview-empty">추가 조건·미확인 항목 없음</p>
-            ) : (
-              <ul className="ps-risks">
-                {risks.map((risk, index) => (
-                  <li key={`overview-${index}`} className={`ps-risk is-${risk.tone}`}>
-                    <div className="ps-risk-head">
-                      <span className={`ps-chip ${risk.tone === "caution" ? "ps-chip-warn" : "ps-chip-neutral"}`}>{risk.label}</span>
-                      <strong>{risk.title}</strong>
-                    </div>
-                    {risk.detail ? <span className="ps-cap ps-muted">{risk.detail}</span> : null}
-                  </li>
-                ))}
-                {(judgment?.counterarguments ?? []).map((counterargument, index) => (
-                  <li key={counterargument.id} className="ps-risk is-neutral">
-                    <div className="ps-risk-head">
-                      <span className="ps-chip ps-chip-neutral">반론</span>
-                      <strong>{counterargument.text?.trim() || `반론 ${index + 1} 내용 미확인`}</strong>
-                    </div>
-                  </li>
-                ))}
-                {(judgment?.verification_items ?? []).map((item, index) => (
-                  <li key={item.id} className="ps-risk is-neutral">
-                    <div className="ps-risk-head">
-                      <span className="ps-chip ps-chip-neutral">확인 항목</span>
-                      <strong>{item.item?.trim() || `확인 항목 ${index + 1}`}</strong>
-                    </div>
-                    {item.why?.trim() ? <span className="ps-cap ps-muted">{item.why}</span> : null}
-                  </li>
-                ))}
-                {companyFitVerificationItems.map((item, index) => (
-                  <li key={`fit-${index}`} className="ps-risk is-neutral">
-                    <div className="ps-risk-head">
-                      <span className="ps-chip ps-chip-neutral">회사 적합성 확인</span>
-                      <strong>{item}</strong>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
-        </div>
       </section>
 
       {/* ⑤ 근거 문서 · 첨부 (spec §4 ⑤). 목록 우측 영역의 `근거 보기 →`가 이 자리로 온다. */}
@@ -942,6 +906,88 @@ function PreSpecRecordBody({ noticeId, listSearch }: { noticeId: number | null; 
             ) : null}
             {shown ? <PageOverviewExecutionInfo review={shown} /> : null}
           </Collapsible>
+        </div>
+      </section>
+
+      {/* ④ 참여 조건 · 회사 적합성 · 위험 및 미확인 사항 — 심층 검토 영역
+          (spec §4 ④, ADR-0057 결정 1·4). 개요는 앞부분 요약만 맡으므로 참여
+          조건·위험/미확인은 심층 검토 결과가 있을 때만 그 결과에서 읽는다.
+          회사 적합성(`CompanyFitSection`)은 이 영역에 그대로 둔다. */}
+      <section id="ps-conditions" className="ps-card ps-sec ps-record-quad" aria-labelledby="ps-conditions-title">
+        <div className="ps-sec-head">
+          <h2 id="ps-conditions-title" className="ps-h-sec">참여 조건 · 회사 적합성 · 위험 및 미확인 사항</h2>
+          <span className="ps-cap ps-dim">적합성 등급 · 추적 결정 · 최종 Go/No-Go는 서로 대신하지 않음</span>
+        </div>
+        <div className="ps-tri">
+          <section className="ps-tri-col" aria-labelledby="ps-conditions-list-title">
+            <div className="ps-tri-head">
+              <h3 id="ps-conditions-list-title" className="ps-h-col">참여 조건</h3>
+              <span className="ps-cap ps-dim">{hasDeepReviewReport ? `${eligibilityItems.length}건` : "심층 검토 대기"}</span>
+            </div>
+            {!hasDeepReviewReport ? (
+              <p className="ps-cap ps-muted">심층 검토에서 확인</p>
+            ) : eligibilityItems.length > 0 ? (
+              <ul className="ps-check ps-record-conditions">
+                {eligibilityItems.map((text, index) => (
+                  <li key={index}>
+                    <span className="ps-box" aria-hidden="true" />
+                    <span className="ps-t">{text}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : <p className="ps-cap ps-muted">이번 입력 범위에는 없음</p>}
+          </section>
+
+          <PreSpecBriefingSection noticeId={noticeId} judgment={judgment} reviews={notice.reviews} />
+
+          <section className="ps-tri-col" aria-labelledby="ps-risk-title">
+            <div className="ps-tri-head">
+              <h3 id="ps-risk-title" className="ps-h-col">위험 및 미확인 사항</h3>
+              <span className="ps-cap ps-dim">
+                주의 {cautionCounts?.count ?? 0} · 미확인 {deepReviewUnknowns.length}
+              </span>
+            </div>
+            {risks.length === 0 && judgmentRiskCount === 0 && companyFitVerificationItems.length === 0 ? (
+              <p className="pre-spec-overview-empty">{hasDeepReviewReport ? "추가 조건·미확인 항목 없음" : "심층 검토에서 확인"}</p>
+            ) : (
+              <ul className="ps-risks">
+                {risks.map((risk, index) => (
+                  <li key={`deep-review-${index}`} className={`ps-risk is-${risk.tone}`}>
+                    <div className="ps-risk-head">
+                      <span className={`ps-chip ${risk.tone === "caution" ? "ps-chip-warn" : "ps-chip-neutral"}`}>{risk.label}</span>
+                      <strong>{risk.title}</strong>
+                    </div>
+                    {risk.detail ? <span className="ps-cap ps-muted">{risk.detail}</span> : null}
+                  </li>
+                ))}
+                {(judgment?.counterarguments ?? []).map((counterargument, index) => (
+                  <li key={counterargument.id} className="ps-risk is-neutral">
+                    <div className="ps-risk-head">
+                      <span className="ps-chip ps-chip-neutral">반론</span>
+                      <strong>{counterargument.text?.trim() || `반론 ${index + 1} 내용 미확인`}</strong>
+                    </div>
+                  </li>
+                ))}
+                {(judgment?.verification_items ?? []).map((item, index) => (
+                  <li key={item.id} className="ps-risk is-neutral">
+                    <div className="ps-risk-head">
+                      <span className="ps-chip ps-chip-neutral">확인 항목</span>
+                      <strong>{item.item?.trim() || `확인 항목 ${index + 1}`}</strong>
+                    </div>
+                    {item.why?.trim() ? <span className="ps-cap ps-muted">{item.why}</span> : null}
+                  </li>
+                ))}
+                {companyFitVerificationItems.map((item, index) => (
+                  <li key={`fit-${index}`} className="ps-risk is-neutral">
+                    <div className="ps-risk-head">
+                      <span className="ps-chip ps-chip-neutral">회사 적합성 확인</span>
+                      <strong>{item}</strong>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
         </div>
       </section>
     </Fragment>

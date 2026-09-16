@@ -97,31 +97,6 @@ export function claimAnchorId(claimId: string): string {
   return `claim-${claimId}`;
 }
 
-/** 검토 포인트의 근거는 claim id 대신 그 주장 문장으로 잃는다. id는 기계용
- * 이름이므로 `aria-label`에만 남긴다(ADR-0055 D3). */
-export function PageOverviewClaimLinks({
-  claimIds,
-  claimTextById,
-}: {
-  claimIds: string[];
-  claimTextById: ReadonlyMap<string, string>;
-}) {
-  const links = claimIds
-    .map((claimId) => ({ claimId, text: claimTextById.get(claimId) }))
-    .filter((item): item is { claimId: string; text: string } => Boolean(item.text));
-  if (links.length === 0) return <span className="page-overview-note">근거 주장 확인 필요</span>;
-  return (
-    <span className="page-overview-claim-links" aria-label="근거 주장">
-      {links.map(({ claimId, text }, index) => (
-        <span key={claimId}>
-          {index > 0 ? " · " : null}
-          <a href={`#${claimAnchorId(claimId)}`} aria-label={`근거 주장 ${claimId}`}>{text}</a>
-        </span>
-      ))}
-    </span>
-  );
-}
-
 export function PageOverviewFactLine({ fact, review, anchor = true }: { fact: PageOverviewFact; review: PageOverviewView; anchor?: boolean }) {
   const pdfUrl = pageOverviewPdfUrl(review);
   const pages = isV4Fact(fact) ? fact.evidence.map((item) => item.page) : fact.evidence_pages;
@@ -157,7 +132,7 @@ export function PageOverviewFacts({
   return (
     <section className="page-overview-section">
       <h4>{title}</h4>
-      {items.length === 0 ? <p className="page-overview-note">이번 입력에서는 확인되지 않았습니다.</p> : (
+      {items.length === 0 ? <p className="page-overview-note">이번 입력 범위에는 없음</p> : (
         <List className={ordered ? "page-overview-tasks" : "page-overview-facts"}>
           {items.map((fact, i) => <li key={i}>
             <div className="page-overview-fact-content"><PageOverviewFactLine fact={fact} review={review} anchor={anchor} /></div>
@@ -166,35 +141,6 @@ export function PageOverviewFacts({
       )}
     </section>
   );
-}
-
-export function PageOverviewAnalysis({ items }: { items: string[] }) {
-  return <section className="page-overview-section"><h4>검토 포인트 <span className="page-overview-note">모델 의견</span></h4>
-    {items.map((text, i) => <p key={i}>{text}</p>)}
-  </section>;
-}
-
-function PageOverviewVerifiedAnalysis({
-  items,
-  claimTextById,
-}: {
-  items: Array<{ id: string; text: string; supporting_claim_ids: string[] }>;
-  claimTextById: ReadonlyMap<string, string>;
-}) {
-  return <section className="page-overview-section"><h4>검토 포인트 <span className="page-overview-note">검증된 모델 의견</span></h4>
-    {items.length ? <ul className="page-overview-analysis-list">{items.map((item) => (
-      <li key={item.id}>
-        <p>{item.text}</p>
-        <span className="page-overview-note">근거 주장 · <PageOverviewClaimLinks claimIds={item.supporting_claim_ids} claimTextById={claimTextById} /></span>
-      </li>
-    ))}</ul> : <p className="page-overview-note">검토 포인트가 제시되지 않았습니다.</p>}
-  </section>;
-}
-
-export function PageOverviewUnknowns({ items }: { items: string[] }) {
-  return <section className="page-overview-section"><h4>추가 확인 사항</h4>
-    {items.length ? <ul>{items.map((text, i) => <li key={i}>{text}</li>)}</ul> : <p className="page-overview-note">추가 확인 사항이 제시되지 않았습니다.</p>}
-  </section>;
 }
 
 export function PageOverviewExecutionInfo({ review }: { review: PageOverviewView }) {
@@ -212,12 +158,6 @@ export function PageOverviewExecutionInfo({ review }: { review: PageOverviewView
 export function PageOverviewResult({ review, anchor = true }: { review: PageOverviewView; anchor?: boolean }) {
   const payload = review.payload;
   const isVerifiedV4 = payload.schema_version === "bidops.prespec-overview-page-review.v4";
-  const claimTextById: ReadonlyMap<string, string> = isVerifiedV4
-    ? new Map(
-      [...payload.business_overview, ...payload.main_tasks, ...payload.budget_and_period, ...payload.important_conditions]
-        .map((fact) => [fact.claim_id, fact.text] as const),
-    )
-    : new Map();
   return <section className="page-overview" aria-label="PDF 기반 개요 검토">
     <header className="page-overview-heading">
       <h3>개요 검토 결과</h3>
@@ -233,11 +173,6 @@ export function PageOverviewResult({ review, anchor = true }: { review: PageOver
     <PageOverviewFacts title="사업 개요" items={payload.business_overview} review={review} anchor={anchor} />
     <PageOverviewFacts title="주요 과업" items={payload.main_tasks} review={review} ordered anchor={anchor} />
     <PageOverviewFacts title="사업 규모와 일정" items={payload.budget_and_period} review={review} anchor={anchor} />
-    <PageOverviewFacts title="핵심 조건" items={payload.important_conditions} review={review} anchor={anchor} />
-    {isVerifiedV4
-      ? <PageOverviewVerifiedAnalysis items={payload.reviewer_analysis} claimTextById={claimTextById} />
-      : <PageOverviewAnalysis items={payload.reviewer_analysis} />}
-    <PageOverviewUnknowns items={payload.unknowns} />
     <PageOverviewExecutionInfo review={review} />
   </section>;
 }
@@ -396,37 +331,18 @@ export function PageOverviewNotices({
   );
 }
 
+/**
+ * 상세 ④ `위험 및 미확인 사항` 열이 읽는 항목 하나의 모양(spec §4 ④).
+ *
+ * 개요는 앞부분 요약만 맡고(ADR-0057 결정 1), 참여 조건·위험·미확인은 심층
+ * 검토가 있을 때만 그 결과에서 읽는다 — 개요 결과에서 새 분석을 만들지 않는다.
+ */
 export interface PageOverviewRisk {
   /** 칩 글자. 색은 `tone`이 정한다. */
   label: string;
   tone: "caution" | "neutral";
   title: string;
   detail: string | null;
-}
-
-/**
- * 상세 ④ `위험 및 미확인 사항` 열이 읽는 개요 쪽 항목(spec §4 ④).
- *
- * 결정적 검사에 실패한 주장이 먼저 오고(`근거 위치 없음`), 그다음이 결과가 남긴
- * `unknowns`다. 새 분석·문장 생성은 없고 이미 받은 값만 고른다. 실패 판정 규칙은
- * `lib/preSpecCautions.ts`의 주의 건수와 같은 `deterministic_status === "failed"`다.
- */
-export function pageOverviewRisks(
-  verification: PageOverviewVerification | null,
-  unknowns: readonly string[],
-): PageOverviewRisk[] {
-  const failed = (verification?.claims ?? [])
-    .filter((claim) => claim.deterministic_status === "failed")
-    .map((claim): PageOverviewRisk => ({
-      label: "근거 위치 없음",
-      tone: "caution",
-      title: claim.text,
-      detail: claim.reason_codes.length ? claim.reason_codes.join(", ") : null,
-    }));
-  return [
-    ...failed,
-    ...unknowns.map((text): PageOverviewRisk => ({ label: "미확인", tone: "neutral", title: text, detail: null })),
-  ];
 }
 
 export function PageOverviewHistory({ reviews }: { reviews: PageOverviewView[] }) {
