@@ -285,7 +285,7 @@ class MockOverviewTransport:
         candidates = self._unique_lines(blocks)
         if len(candidates) < 2:
             raise ValueError("mock overview input has no two unique quotes")
-        sections = ("business_overview", "main_tasks", "budget_and_period", "important_conditions")
+        sections = ("business_overview", "main_tasks", "budget_and_period")
         claims = []
         for index, (page, line) in enumerate(candidates[:len(sections)]):
             claims.append({
@@ -298,16 +298,6 @@ class MockOverviewTransport:
         return {
             "schema_version": "bidops.prespec-overview-claims.v1",
             "claims": claims,
-            "analysis": [{
-                "id": "a1",
-                "text": "검토한 입력 범위의 사실만 옮긴 모의 분석이며 실제 사업 판단이 아닙니다.",
-                "supporting_claim_ids": [claim["id"] for claim in claims],
-            }],
-            "unknowns": [{
-                "id": "u1",
-                "topic": "company_comparison",
-                "reason_code": "company_comparison_not_performed",
-            }],
         }
 
     @staticmethod
@@ -320,12 +310,6 @@ class MockOverviewTransport:
             "schema_version": "bidops.prespec-overview-semantic.v1",
             "checks": [
                 {"claim_id": row["id"], **supported} for row in draft.get("claims", [])
-            ],
-            "analysis_checks": [
-                {"analysis_id": row["id"], **supported} for row in draft.get("analysis", [])
-            ],
-            "unknown_checks": [
-                {"unknown_id": row["id"], **supported} for row in draft.get("unknowns", [])
             ],
         }
 

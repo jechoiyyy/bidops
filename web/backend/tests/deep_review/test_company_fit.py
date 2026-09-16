@@ -58,15 +58,12 @@ class _FakeStore:
 
 #: 완료된 개요 run의 결과. 회사 핏 입력이 읽는 절·인용 좌표만 담는다.
 OVERVIEW_RESULT = {
-    "schema_version": "bidops.prespec-overview-page-review.v4",
+    "schema_version": "bidops.prespec-overview-claims.v2",
     "business_overview": [{"claim_id": "c1", "text": "업무 시스템을 구축한다.",
                            "evidence": [{"page": 3, "quote": "업무 시스템을 구축한다."}]}],
     "main_tasks": [{"claim_id": "c2", "text": "업무 시스템 구축 과업을 수행한다.",
                     "evidence": [{"page": 3, "quote": "업무 시스템 구축 과업"}]}],
     "budget_and_period": [],
-    "important_conditions": [],
-    "reviewer_analysis": [],
-    "unknowns": [],
     "input_limitations": ["page_text_only"],
 }
 

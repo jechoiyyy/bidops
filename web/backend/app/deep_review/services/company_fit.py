@@ -73,8 +73,9 @@ class OverviewInput:
     quality_status: str
 
 
-#: 완료된 개요 결과에서 사실을 읽는 절 순서. 계약이 정한 네 절뿐이다.
-_FACT_SECTIONS = ("business_overview", "main_tasks", "budget_and_period", "important_conditions")
+#: 완료된 개요 결과에서 사실을 읽는 절 순서. 계약이 정한 세 절뿐이다
+#: (ADR-0057 결정 1이 `important_conditions`를 개요에서 뺐다).
+_FACT_SECTIONS = ("business_overview", "main_tasks", "budget_and_period")
 
 
 def _run_facts(result: Mapping[str, Any]) -> list[dict[str, Any]]:
