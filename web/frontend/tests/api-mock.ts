@@ -1514,7 +1514,16 @@ export async function mockPreSpecs(page: Page): Promise<void> {
   await page.route("**/api/runs", async (route) => {
     const request = route.request();
     if (new URL(request.url()).pathname === "/api/runs" && request.method() === "GET") {
-      await fulfillJson(route, { items: PRE_SPEC_RUNS, total: PRE_SPEC_RUNS.length });
+      // 사전규격 전용 회차만 돌려주면 다른 화면이 주소로 지정한 기본 회차
+      // (예: route-context 검증의 RUN_ID)가 목록에서 사라져 셸의 기본 선택
+      // 로직으로 튕긴다. 공용 기본 목록과 합쳐 run_id 기준으로 중복을
+      // 제거하고, 실제 API처럼 generated_at 내림차순으로 정렬한다.
+      const defaultRuns = (responses["/api/runs"] as { items?: RunSummary[] } | undefined)?.items ?? [];
+      const merged = new Map<string, RunSummary>();
+      for (const run of defaultRuns) merged.set(run.run_id, run);
+      for (const run of PRE_SPEC_RUNS) merged.set(run.run_id, run);
+      const items = [...merged.values()].sort((a, b) => b.generated_at.localeCompare(a.generated_at));
+      await fulfillJson(route, { items, total: items.length });
       return;
     }
     await route.fallback();
