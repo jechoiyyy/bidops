@@ -1412,11 +1412,14 @@ runner 소비자가 없어 보류했다. 운영 DB/MinIO 쓰기·migration 적�
   app 소유 queue/hook으로 옮기거나 worker에 필요한 묶음 생성 권한만 좁게 부여하는 두 안을
   비교하고, 임시 PostgreSQL에서 허용 INSERT와 기존 UPDATE/DELETE 거부를 검증한 뒤 운영에
   적용한다. 이번 회차는 app 역할에서 대상 notice 26건만 동일 서비스로 다시 호출해 보정했다.
-- 부분 해결(브랜치 `feat/worker-bundle-privileges`, 운영 적용은 별도): worker에
+- 브랜치에서 해결(confirm 제자리 갱신), 운영 적용은 별도: worker에
   `document_bundle`·`document_bundle_item`·`idempotency_record`·`work_job` INSERT와
-  확정에 쓰는 열만 여는 `document_bundle` 열 한정 UPDATE, 잠금용 `document_structure (id)`
-  UPDATE를 부여했다. 다만 `confirm`의 `_seed_bundle_items`는 draft의 기존 item을 지우고
-  다시 넣으므로(`web/backend/app/deep_review/services/document_bundles.py:797`) worker에
-  `document_bundle_item` DELETE가 없는 한 확정은 여전히 `42501`이다. 그 상태로 적용하면
-  묶음 초안만 만들어지고 확정되지 않으므로, DELETE 부여 여부나 재seed를 피하는 코드 수정이
-  결정될 때까지 이 grant를 운영에 적용하지 않는다.
+  확정에 쓰는 열만 여는 `document_bundle`·`document_bundle_item` 열 한정 UPDATE, 잠금용
+  `document_structure (id)` UPDATE를 부여했다. 함께 `_seed_bundle_items`가 문서 집합·순서가
+  그대로면 기존 draft item을 지우지 않고 제자리로 갱신하게 고쳐(`in_place`), 자동 준비
+  경로가 `document_bundle_item` DELETE 권한 없이 끝난다. 문서 집합이 달라진 draft는 종전대로
+  다시 넣고(`reseed`) 그 경로는 app 역할이 쓴다. 두 경로의 확정 결과는 같고 감사 행에
+  `item_refresh`로 어느 쪽이었는지 남는다. worker는 어느 table에도 DELETE를 갖지 않는다.
+- 후속: 같은 촉발점의 `maybe_auto_start_deep_review`는 worker 프로세스에서 `deep_review`를
+  INSERT할 수 있으나 worker에는 그 권한이 없다(현재는 개요 run이 `completed`인 공고가 다시
+  촉발될 때만 닿는다). 권한을 줄지 자동 시작을 app 경로로 옮길지는 미결이다.

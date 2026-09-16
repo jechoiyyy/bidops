@@ -410,6 +410,17 @@ GRANT UPDATE (
 -- confirm이 구조 행을 잠그기만 한다(app과 같은 이유). 구조 상태(validation_status)는
 -- worker에게 닫혀 있다.
 GRANT UPDATE (id) ON bidops.document_structure TO worker;
+-- 문서 집합·순서가 그대로면 `_seed_bundle_items`가 draft item을 제자리로 갱신한다.
+-- 확정 시 다시 쓰는 snapshot 열만 열고 `ordinal`은 닫아 둔다 — worker는 항목 순서를
+-- 바꾸지 못하고, DELETE 없이 확정이 끝난다.
+GRANT UPDATE (
+    document_version_version, content_object_id, content_sha256, detected_mime,
+    size_bytes, original_filename, source_kind, source_system,
+    source_attachment_key, source_url, role_at_confirmation,
+    effective_date_at_confirmation, replaces_id_at_confirmation,
+    is_current_at_confirmation, safety_status_at_confirmation,
+    structure_id_at_confirmation, structure_payload_sha256
+) ON bidops.document_bundle_item TO worker;
 
 -- Backup reads current/future tables and sequence state without advancing it.
 GRANT SELECT ON ALL TABLES IN SCHEMA bidops TO ro_backup;

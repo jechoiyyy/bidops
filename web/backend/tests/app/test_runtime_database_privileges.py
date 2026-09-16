@@ -158,6 +158,18 @@ def test_overview_worker_update_stays_column_scoped_for_source_rows() -> None:
     }
     assert _column_update_grant("worker", "document_structure") == {"id"}
     assert not {"document_bundle", "document_structure"} & worker_updates
+    # 제자리 갱신은 snapshot 열만 다시 쓴다. `ordinal`이 닫혀 있어야 worker가
+    # 항목 순서를 바꿀 수 없다.
+    item_columns = _column_update_grant("worker", "document_bundle_item")
+    assert item_columns == {
+        "document_version_version", "content_object_id", "content_sha256",
+        "detected_mime", "size_bytes", "original_filename", "source_kind",
+        "source_system", "source_attachment_key", "source_url",
+        "role_at_confirmation", "effective_date_at_confirmation",
+        "replaces_id_at_confirmation", "is_current_at_confirmation",
+        "safety_status_at_confirmation", "structure_id_at_confirmation",
+        "structure_payload_sha256",
+    }
     assert "document_bundle_item" not in worker_updates
     # 준비 스냅샷은 append-only다. 어느 role도 UPDATE·DELETE를 갖지 않는다.
     for role in ("app", "worker"):
@@ -711,6 +723,14 @@ def test_effective_worker_auto_preparation_writes_without_deletes() -> None:
                     )
                 assert not _table_privilege(
                     connection, "worker", "document_bundle_item", "UPDATE"
+                )
+                # 제자리 갱신이 다시 쓰는 snapshot 열만 열려 있고 순서 열은 닫혀 있다.
+                for column in ("structure_id_at_confirmation", "content_sha256"):
+                    assert _column_privilege(
+                        connection, "worker", "document_bundle_item", column, "UPDATE"
+                    )
+                assert not _column_privilege(
+                    connection, "worker", "document_bundle_item", "ordinal", "UPDATE"
                 )
                 # 구조 행은 잠금 대상일 뿐이다. 상태 열은 그대로 닫혀 있다.
                 assert _column_privilege(
