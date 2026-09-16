@@ -323,6 +323,7 @@ snapshot을 만들지 않는 fail-closed 계약을 검증하도록 분리했으�
 - 영향: 담당자는 curl 또는 CLI를 사용해야 하므로 목표 업무 흐름이 화면에서 끊기고, actor·idempotency·상태 fence를 잘못 다룰 가능성이 커진다.
 - 지금 해결할 수 없는 이유: backend 계약은 준비됐지만 frontend Phase 3 구현과 browser 회귀 검증이 별도 코드 작업으로 남아 있다.
 - 접근 방법: typed Lean API client, document preparation panel, terminal failure 전용 retry, polling, 403/503 상태 표현을 구현하고 fake API browser 흐름과 좁은 viewport를 검증한다.
+- 종결(2026-09-16): 코드에 구현됨(DocumentPreparationPanel 연결). 첨부 취득 실패 재시작만 미구현으로 남는다.
 
 ## 개발계정 일일 1,000회 한도의 실제 여유가 측정되지 않았다
 
@@ -368,9 +369,10 @@ snapshot을 만들지 않는 fail-closed 계약을 검증하도록 분리했으�
 
 - 재현 조건: 공고 판정 이력에서 심층 검토를 생성해 `/deep-reviews/{id}`로 이동한 뒤 화면을 벗어난다. 사업기회 화면이나 공고 화면에서 그 보고서를 다시 연다.
 - 증상: `web/backend/app/deep_review/routers/deep_reviews.py`가 제공하는 읽기 계약은 `GET /deep-reviews/{deep_review_id}` 단건뿐이다. 사업기회·공고로 보고서를 나열하는 endpoint가 없고, 사업기회 목록·상세 응답과 공고 응답에도 `deep_review_id`가 없다. 보고서 식별자를 따로 적어 두지 않으면 만든 보고서로 돌아갈 길이 없다.
-- 영향: `docs/design/PRD.md` §2.2가 요구한 "사업기회 화면의 명시적 진입점"을 데이터로 채울 수 없다. 2026-09-02 화면 개선 2단계는 사업기회 상세에 식별자로 여는 진입점을 두고 목록을 제공할 수 없다는 사실을 화면에 명시하는 선에서 멈췄다. 목록이 비어 보이는 것을 보고서가 없다는 뜻으로 오해할 위험은 문구로만 막고 있다.
+- 영향: 구 `docs/design/PRD.md`(git 이력, 삭제됨) §2.2가 요구한 "사업기회 화면의 명시적 진입점"을 데이터로 채울 수 없다. 2026-09-02 화면 개선 2단계는 사업기회 상세에 식별자로 여는 진입점을 두고 목록을 제공할 수 없다는 사실을 화면에 명시하는 선에서 멈췄다. 목록이 비어 보이는 것을 보고서가 없다는 뜻으로 오해할 위험은 문구로만 막고 있다.
 - 지금 해결할 수 없는 이유: 해결에는 REST 계약 추가(사업기회 또는 공고별 심층 검토 목록)나 기존 응답에 식별자 노출이 필요하다. 화면 개선 2단계의 범위는 프론트엔드이며 `docs/contracts.md`의 소비자 계약과 백엔드를 바꾸지 않기로 했다.
 - 접근 방법: `GET /opportunities/{id}/deep-reviews` 또는 `GET /notices/{notice_id}/deep-reviews`를 추가해 보고서 식별자·생성 시각·현재 상태를 돌려주고, `docs/contracts.md`와 `docs/deep-review-erd.md`에 소비자 계약으로 등록한다. 그 뒤 사업기회 화면의 진입점을 식별자 입력이 아니라 목록으로 바꾼다.
+- 종결(2026-09-16): 코드에 구현됨(GET /api/opportunities/{id}/deep-reviews).
 
 ## Go/No-Go 결정 대기 사업기회를 N+1 없이 집계할 endpoint가 없다
 
@@ -604,16 +606,17 @@ snapshot을 만들지 않는 fail-closed 계약을 검증하도록 분리했으�
 - 영향: B-F 화면의 기능·반응형·접근성 검증은 가능하지만, 승인된 기준 이미지와 픽셀/crop 일치 여부를 주장할 수 없다. 승인 없이 기존 snapshot을 갱신하면 설계 검수 증거를 덮어쓰게 된다.
 - 상태: **차단** (2026-09-03 독립검증). 코드 구현 완료의 차단이 아니라 PLAN 전체 완료 정의에 포함된 승인 설계 자산의 부재다.
 - 지금 해결할 수 없는 이유: 14개 artboard의 제품 승인 PNG와 각 fixture·viewport·crop의 승인 메타데이터가 저장소나 현재 요청에 제공되지 않았다. 이를 임의로 생성하거나 기존 baseline을 승인본으로 승격할 권한이 없다.
-- 접근 방법: 제품·디자인 담당자가 14개 PNG와 source hash, viewport, fixture, crop, 승인자·승인 시각을 제공하면 `tests/design-snapshots/manifest.json`과 manifest-driven `design.spec.ts`를 추가하고, 기준선 변경은 승인 기록이 있을 때만 갱신한다. 그 뒤 laptop 1280x800·desktop 1440x900 두 폭(ADR-0047)과 접근성 게이트를 다시 실행한다. 2026-09-04 팔레트 전환으로 기준 이미지는 무드보드 v2로 만들어야 하며, 그 선행 조건은 [design/PLAN.md](../design/PLAN.md) §0-3·0-4다.
+- 접근 방법: 제품·디자인 담당자가 14개 PNG와 source hash, viewport, fixture, crop, 승인자·승인 시각을 제공하면 `tests/design-snapshots/manifest.json`과 manifest-driven `design.spec.ts`를 추가하고, 기준선 변경은 승인 기록이 있을 때만 갱신한다. 그 뒤 laptop 1280x800·desktop 1440x900 두 폭(ADR-0047)과 접근성 게이트를 다시 실행한다. 2026-09-04 팔레트 전환으로 기준 이미지는 무드보드 v2로 만들어야 하며, 그 선행 조건은 design/PLAN.md(git 이력 docs/design/PLAN.md, 삭제됨) §0-3·0-4다.
 
 ## 발주계획 추적 결정(결정 1)을 저장할 REST 계약이 없다
 
 - 재현 조건: `web/backend/app/screening/routers/order_plans.py`의 경로 다섯 개를 확인한다. 목록·상세·screening-history·screening-feedback(GET/POST)뿐이다. `PATCH /opportunities/{id}/tracking-status`는 사업기회 식별자로만 부를 수 있고, `OrderPlanListItem`·`OrderPlanDetailResponse`(둘 다 `_Strict`)에는 `opportunity_id`도 추적 상태도 없다.
-- 증상: [ADR-0046](../design/ADR.md) 결정 4가 추적 결정을 발주계획 화면의 결정 1로 채택했는데, 그 결정을 읽을 수도 쓸 수도 없다. `docs/design/PLAN.md` 단계 C 작업 5(추적 결정을 상세 pane 바닥의 결정 액션으로)와 완료 게이트 2("추적 결정과 사람 판단 수정이 서로 다른 요청으로 저장된다")를 서버 없이 만족시킬 수 없다.
+- 증상: ADR-0046(git 이력 docs/design/ADR.md, 삭제됨) 결정 4가 추적 결정을 발주계획 화면의 결정 1로 채택했는데, 그 결정을 읽을 수도 쓸 수도 없다. 구 `docs/design/PLAN.md`(git 이력, 삭제됨) 단계 C 작업 5(추적 결정을 상세 pane 바닥의 결정 액션으로)와 완료 게이트 2("추적 결정과 사람 판단 수정이 서로 다른 요청으로 저장된다")를 서버 없이 만족시킬 수 없다.
 - 영향: 단계 C의 화면은 만들 수 있으나 **결정이 서버에 남지 않는다.** 이 상태에서 결정을 화면 상태나 localStorage에 기록하면 담당자에게 저장된 것처럼 보이면서 실제로는 사라지므로, 그렇게 만들지 않는다.
 - 상태: **차단** (2026-09-04). 화면 구현의 차단이 아니라 계약의 부재다.
 - 지금 해결할 수 없는 이유: REST·DB 계약은 백엔드 파트의 소유이고, 화면 작업이 임의로 endpoint를 만들거나 기존 사업기회 계약의 의미를 바꿀 권한이 없다.
-- 접근 방법: 요청안을 [`order-plan-tracking-contract-request.md`](../design/order-plan-tracking-contract-request.md)로 작성해 백엔드 파트에 보낸다. 조사 결과 **새 table은 필요하지 않을 가능성이 높다** — 소유 사업기회와 `stage='order_plan'` official 링크는 `ingest/loader.py`가 이미 만들고, 상태 4값과 append-only `AuditEvent`도 이미 있다. 없는 것은 응답에 그 상태를 싣는 것과 발주계획 식별자로 쓸 경로 둘이다. 계약이 확정될 때까지 화면은 요청안 §7의 규칙을 지킨다: adapter 한 곳으로 호출을 모으고, 실패를 성공으로 보이게 하지 않으며, 응답에 추적 상태가 없으면 `계약 미구현`으로 표시하고 `미선택`으로 바꾸지 않는다. 계약이 구현·검증되기 전에는 단계 C를 완료로 적지 않는다.
+- 접근 방법: 요청안을 `order-plan-tracking-contract-request.md`(git 이력 docs/design/order-plan-tracking-contract-request.md, 삭제됨)로 작성해 백엔드 파트에 보낸다. 조사 결과 **새 table은 필요하지 않을 가능성이 높다** — 소유 사업기회와 `stage='order_plan'` official 링크는 `ingest/loader.py`가 이미 만들고, 상태 4값과 append-only `AuditEvent`도 이미 있다. 없는 것은 응답에 그 상태를 싣는 것과 발주계획 식별자로 쓸 경로 둘이다. 계약이 확정될 때까지 화면은 요청안 §7의 규칙을 지킨다: adapter 한 곳으로 호출을 모으고, 실패를 성공으로 보이게 하지 않으며, 응답에 추적 상태가 없으면 `계약 미구현`으로 표시하고 `미선택`으로 바꾸지 않는다. 계약이 구현·검증되기 전에는 단계 C를 완료로 적지 않는다.
+- 종결(2026-09-16): 코드에 구현됨(일괄·단건 추적 REST).
 
 ## 팔레트 전환 뒤 화면 단위 시각 회귀를 잡을 기준선이 없다 (해결)
 
@@ -626,18 +629,18 @@ snapshot을 만들지 않는 fail-closed 계약을 검증하도록 분리했으�
 - **해결 (2026-09-04, 화면 검사 층 분리).** 원인은 팔레트가 아니라 **한 파일이 세 가지 일을 하고 있었던 것**이다. `visual.spec.ts` 87개가 픽셀 36 + 가로 넘침 36 + 의미 15로 섞여 있어, 픽셀이 깨지면 나머지 51개의 초록이 같은 실행 결과에 묻혔다. 그래서 "실패하지만 정상"이라는 단서를 문서 다섯 군데에 적어야 했다.
 - 조치: 파일을 세 층으로 갈랐다 — `screen-semantics.spec.ts`(의미, 한 폭) · `overflow.spec.ts`(구조, 두 폭) · `pixel-screens.spec.ts`(픽셀, 게이트 밖). 공유 fixture는 `screen-fixtures.ts`로 뺐다. 게이트는 앞의 두 층(`npm run test:screens`)이고 픽셀은 `npm run test:pixel`로만 돈다.
 - **기준선 교체 승인 기록.** 사유: 팔레트 전환(ADR-0048)으로 옛 무채색 기준선이 전부 무효가 됐고, 앞으로 화면을 고칠 계획이라 회귀 기준선이 필요하다. 영향 화면: 아래 여덟 장으로 줄였다 — `dashboard`·`criteria`·`order-plans-list`·`order-plan-detail`·`pre-specs-list`·`opportunities-list`·`deep-review-complete`·`bid-delta-changed`. 통짜 36장은 화면을 건드릴 때마다 기준선 커밋을 끌고 오면서 실제로 잡아 주는 것은 골격 여덟 가지가 거의 다였다. 나머지 화면은 구조·의미 층이 본다. 승인: 저장소 소유자의 명시 지시(2026-09-04). 옛 기준선 144장(39MB)은 지우고 새 여덟 장(1.1MB)을 만들었다.
-- **남은 한계.** 이 기준선은 **앱이 자기 화면을 찍은 회귀 기준선이며 승인된 시안이 아니다.** 시안 충실도 대조는 여전히 열려 있고 그 선행 조건은 [design/PLAN.md](../design/PLAN.md) §0-3·0-4다 — 위의 "B-F 설계 승인 baseline과 manifest가 없어 전체 설계 게이트를 완료할 수 없다"가 그 항목이다. 또한 발주계획 추적 결정 계약이 없어 화면이 `계약 미구현`을 띄우는 상태가 기준 이미지에 그대로 들어 있다. 회귀 감지에는 문제없지만 **"이 화면이 옳다"는 승인으로 읽지 않는다.**
+- **남은 한계.** 이 기준선은 **앱이 자기 화면을 찍은 회귀 기준선이며 승인된 시안이 아니다.** 시안 충실도 대조는 여전히 열려 있고 그 선행 조건은 design/PLAN.md(git 이력 docs/design/PLAN.md, 삭제됨) §0-3·0-4다 — 위의 "B-F 설계 승인 baseline과 manifest가 없어 전체 설계 게이트를 완료할 수 없다"가 그 항목이다. 또한 발주계획 추적 결정 계약이 없어 화면이 `계약 미구현`을 띄우는 상태가 기준 이미지에 그대로 들어 있다. 회귀 감지에는 문제없지만 **"이 화면이 옳다"는 승인으로 읽지 않는다.**
 - 곁들여 고친 것: 마감·감사 경로 검사가 전체 실행에서만 깨지던 flake. 이동 후 주소 확인 여유가 기본 5초여서 400여 개가 동시에 붙으면 못 들어왔다. 단독 실행 6회는 통과했다. 여유를 15초로 늘렸다.
 
 ## 사업기회 추적 이력을 읽을 계약이 없고 구역별 집계도 서버가 세지 않는다
 
 - 재현 조건: `web/backend/app/lifecycle/routers/opportunities.py`의 경로 넷을 확인한다. 목록(`GET ""`)·상세(`GET /{id}`)·후보 연결 판정(`PATCH /links/{id}/decision`)·추적 상태 변경(`PATCH /{id}/tracking-status`)뿐이다. 목록 query는 `tracking_status`·`first_registered_stage`·`sort`·`limit`·`offset`이다.
-- 증상 1 — **추적 이력이 최근 한 건뿐이다.** `opportunity_tracking`은 상태 변경마다 append-only `AuditEvent`(`opportunity.tracking_status.changed`)를 남기지만 그것을 읽는 endpoint가 없다. 화면이 받는 것은 `OpportunityStateView`의 `tracking_status`·`tracking_reason`·`tracking_selected_by`·`tracking_selected_at` 넷, 즉 **마지막 한 건**이다. [ADR-0046](../design/ADR.md) 결정 2가 요구한 사업 추적 상세의 `추적 이력` 탭이 이전 결정을 보여줄 수 없다.
+- 증상 1 — **추적 이력이 최근 한 건뿐이다.** `opportunity_tracking`은 상태 변경마다 append-only `AuditEvent`(`opportunity.tracking_status.changed`)를 남기지만 그것을 읽는 endpoint가 없다. 화면이 받는 것은 `OpportunityStateView`의 `tracking_status`·`tracking_reason`·`tracking_selected_by`·`tracking_selected_at` 넷, 즉 **마지막 한 건**이다. ADR-0046(git 이력 docs/design/ADR.md, 삭제됨) 결정 2가 요구한 사업 추적 상세의 `추적 이력` 탭이 이전 결정을 보여줄 수 없다.
 - 증상 2 — **구역별 집계와 필터가 없다.** ADR-0046 결정 2의 구역 `조치 필요`는 저장된 상태가 아니라 "미선택이거나, 재검토 신호나 예외 작업이 남았다"는 파생 조건이다. 서버에 `recheck_signal` 필터도 후보 연결 대기 필터도 집계 응답도 없어, 화면이 한 페이지를 받아 직접 나눈다.
 - 영향: (1) `추적 이력` 탭은 최근 한 건만 보여주고, 그것이 이전 결정이 없다는 뜻이 아님을 화면이 직접 밝힌다(`.opportunity-contract-gap`). 이전 revision을 화면이 지어내지 않는다. (2) `조치 필요` 구역의 건수는 **받은 페이지 안에서 센 값**이며, 목록 머리말이 그 사실과 남은 건수를 함께 적는다. 전체 총계로 읽으면 과소 계상된다.
 - 상태: **수용됨** (2026-09-04, 단계 E). 화면 구현의 차단이 아니라 계약의 부재이며, 두 한계 모두 화면이 숨기지 않고 표시한다.
 - 지금 해결할 수 없는 이유: REST·DB 계약은 백엔드 파트의 소유이고, 화면 작업이 감사 기록 읽기 경로를 새로 만들거나 목록 계약의 의미를 바꿀 권한이 없다.
-- 접근 방법: (1) `GET /api/opportunities/{id}/tracking-decisions`를 추가해 append-only 이력을 `revision`·`tracking_status`·`reason`·`selected_by`·`selected_at`·`audit_event_id`로 연다. 발주계획 쪽 같은 요청([`order-plan-tracking-contract-request.md`](../design/order-plan-tracking-contract-request.md) §2.1)과 같은 wire shape를 쓰면 화면이 `ReviewRevisionHistory` 하나로 둘을 그린다. (2) 목록에 `recheck_signal`·`has_pending_candidate_link` 필터와 구역별 `section_counts` 집계를 추가하고 `docs/contracts.md`의 `OpportunityList` 항목에 등록한다. 그 전까지 화면은 저장된 추적 상태로 서버를 거르고(`추적 중`·`보류`·`추적 종료`) `조치 필요`만 받은 페이지에서 나눈다.
+- 접근 방법: (1) `GET /api/opportunities/{id}/tracking-decisions`를 추가해 append-only 이력을 `revision`·`tracking_status`·`reason`·`selected_by`·`selected_at`·`audit_event_id`로 연다. 발주계획 쪽 같은 요청(`order-plan-tracking-contract-request.md`(git 이력 docs/design/order-plan-tracking-contract-request.md, 삭제됨) §2.1)과 같은 wire shape를 쓰면 화면이 `ReviewRevisionHistory` 하나로 둘을 그린다. (2) 목록에 `recheck_signal`·`has_pending_candidate_link` 필터와 구역별 `section_counts` 집계를 추가하고 `docs/contracts.md`의 `OpportunityList` 항목에 등록한다. 그 전까지 화면은 저장된 추적 상태로 서버를 거르고(`추적 중`·`보류`·`추적 종료`) `조치 필요`만 받은 페이지에서 나눈다.
 
 ## C-1 모델명이 바뀌어 기존 실행·판정 row가 새 실행에서 거부된다
 
@@ -1394,3 +1397,30 @@ runner 소비자가 없어 보류했다. 운영 DB/MinIO 쓰기·migration 적�
   더 이른 시점에 확보해 `attachment.name`에 반영할 수 있으면 이 경고를 줄일 수
   있다. 지금 범위에서는 해결하지 않는다.
 - 영향/다음 판단: 입력 준비·전송·암호화 저장·검증 실패/근거 PDF 조회는 작동하나 검증된 개요를 얻는 실제 성공 경로는 미확인이다. 다음 개선은 초안 section/quantity/unknown 계약과 결정적 규칙의 실원문 적합성을 이 고정 응답/인용으로 좁혀 확인하는 것이 우선이다. 이번 실행 요청에서 새 정책/검증 방식 변경·사실 자동 수정·재호출을 임의로 진행하지 않는다. 원문·기존 결과/사람 리뷰/참조 표식과 실패 응답을 보존했다.
+
+## 운영 모델 주소가 TEST-NET 자리표시자로 배포됐다 (2026-09-16, 운영 조치 완료·코드 방지 진행 중)
+
+- 재현: 2026-09-16 `bidops-web-1`·`bidops-analysis-worker-1` 환경의
+  `BIDOPS_VLLM_BASE_URL=http://192.0.2.10:8000/v1`, `BIDOPS_VLLM_ALLOWED_HOSTS=192.0.2.10`.
+  worker 안에서 TCP connect가 timeout. 개요 run은 9/15 이후 완료 0건, 대기 38건.
+- 원인: 2026-09-12 compose 정리에서 `env/vllm.env`(자리표시자 값)를 `env/model.env`로
+  합치면서 실제 주소(`http://192.168.0.139:58765/v1`, 9/11 검증 기록)가 유실됐다.
+  `_validated_base_url`은 allowlist 문자열 일치만 보고 예약 대역을 거부하지 않는다.
+- 조치: 2026-09-16 `env/model.env`를 실제 주소로 정정하고 analysis worker를
+  재생성했다(validation-run `2026-09-16-overview-recovery.md`). 브랜치
+  `feat/overview-claim-guard`가 RFC 5737 예약 대역을 호출 전에 거부하도록 한다.
+- 후속: worker 기동 시 endpoint preflight는 아직 없다.
+
+## 개요 worker의 claim 루프가 재시도 상한을 무시한다 (2026-09-16, 코드 수정 진행 중)
+
+- 재현: 운영 `work_job`에서 `max_attempts=3`인 개요 job의 `attempt_count`가
+  205(실행 중)·321(9/15 `lease_expired` 실패). 대기 38건이 처리되지 않았다.
+- 원인: `overview_runs._claim_next`가 claim 시 `attempt_count`를 올리고,
+  `verify_identity()` 실패를 `_release`로 `queued`에 되돌리며 카운터·상한을 보지
+  않는다. `max_attempts`는 `work_job` 경로 어디서도 읽히지 않고
+  `deep_reviews.claim_next_job`의 만료 reclaim도 같다. 사람이 run을 닫는
+  REST·CLI가 없다.
+- 영향: 모델 endpoint가 죽어 있으면 한 작업이 1초 poll마다 재점유돼 대기열
+  머리를 영구히 막는다.
+- 후속: 브랜치 `feat/overview-claim-guard`가 상한 게이트·`_release` 복원·identity
+  backoff·`close-overview-run` CLI를 추가한다.

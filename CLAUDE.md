@@ -36,12 +36,7 @@ bidops/
 │   ├── e2e-lifecycle-fill.md         공고·사전규격·리뷰 테이블 채우기와 화면 확인 절차
 │   ├── docker-consolidation.md       t7 접두사 제거와 Compose 프로젝트·호스트 자원 정리 기록
 │   ├── agent/agent-runtime.md        공고 판정 worker의 입력 동결·span·telemetry
-│   ├── design/                       화면 시안 기준 작업의 정본
-│   │   ├── ADR.md                    ADR-0039~0048 (디자인 시스템·정보구조·지원 폭·팔레트)
-│   │   ├── PRD.md                    화면 요구와 무드보드 색 토큰 표
-│   │   ├── PLAN.md                   시안 기준 구현 순서(단계 A~F)와 검증 절차
-│   │   ├── order-plan-tracking-contract-request.md  발주계획 추적 결정 계약 요청안(제안, 미채택)
-│   │   └── moodborad.jpg             색 팔레트의 원본 무드보드
+│   ├── 0915_ui-redesign/            관리 화면 재설계 C 정본(2026-09-15 채택, 시안·plan·notes)
 │   ├── deep-review-v2/               첨부문서 분석 설계(결정적 부분만 구현, ADR-0051)와 Luna 시안 검증 계획(보류)
 │   ├── rhwp-document-pipeline/       rhwp 네이티브 변환 파이프라인 작업 정본(ADR·Requirements·Design·Spec·Plan, 2026-09-10 시작)
 │   ├── reference/                    회사 프로필·실적 근거자료
@@ -63,7 +58,7 @@ bidops/
 
 `docs/validation-runs`는 시점별 실행 증거이며 현재 코드와 위 핵심 문서의 계약을 대체하지 않는다. 완료·미채택 계획, 과거 리뷰·목업, 인수인계 문서는 저장소에 보관하지 않으며 필요하면 git 이력에서 찾는다. 과거의 `R-xx`·`A-xx`·phase·T-번호 체계는 종료됐고 새 작업에 다시 쓰지 않는다. 외부 의존성은 나라장터 OpenAPI, PostgreSQL 17, MinIO, ClamAV, 승인된 사설 OpenAI-compatible vLLM(`qwen3.8-27B`), 문서 변환기, 승인 프로필 기준선 검증용 Git, Astryx 디자인 시스템(`@astryxdesign/core@0.5.2`, `@astryxdesign/cli@0.5.2`, 테마 아이콘 레지스트리가 요구하는 `lucide-react@1.39.0`)이다.
 Astryx의 "레이아웃도 컴포넌트로만, `<div>` 금지" 규칙은 ADR-0040에 따라 이 저장소에 적용하지 않으며 레이아웃은 프로젝트가 소유한다.
-화면의 색은 무드보드(`docs/design/moodborad.jpg`)에서 파생한 프로젝트 소유 테마 `bidops`가 정본이며(ADR-0048), 화면은 테마 토큰만 읽고 `:root`나 화면 CSS에서 `--color-*`를 재정의하지 않는다. 성공·실패·경고 의미색은 무드보드가 정하지 않는다.
+화면의 색은 무드보드(git 이력 `docs/design/moodborad.jpg`, 삭제됨)에서 파생한 프로젝트 소유 테마 `bidops`가 정본이며(ADR-0048), 화면은 테마 토큰만 읽고 `:root`나 화면 CSS에서 `--color-*`를 재정의하지 않는다. 성공·실패·경고 의미색은 무드보드가 정하지 않는다.
 
 ## 작업 전 확인
 
@@ -114,7 +109,7 @@ Astryx의 "레이아웃도 컴포넌트로만, `<div>` 금지" 규칙은 ADR-004
 - 스케줄러와 always-on은 기본 비활성이다. 앱 startup은 migration, seed, 정책 활성화, 모델 호출을 수행하지 않는다.
 - 사전규격은 등급이 `우선 검토`이면 문서 준비를 자동으로 진행한다. `BIDOPS_PRESPEC_OVERVIEW_ENABLED`가 켜져 있으면 ready 묶음에서 개요 run을 자동 enqueue하고, 개요 run이 `completed`이고 `SW사업대상=Y`이며 현재 회사 핏 `matched`인 게이트를 지나야 심층 검토를 자동 시작한다(ADR-0049·ADR-0054, 2026-09-08 회사 핏 게이트 추가, 2026-09-11 개요 스택 재작성). 회사 핏은 기본 비활성이고 현재는 명시적으로 켠 참조 실행만 지원한다. 자동으로 여는 것은 분석의 시작뿐이며 추적 승인과 최종 Go/No-Go는 사람이 결정한다.
 - C-1 공고 판정·사전규격 개요·심층 검토는 `app/core/model_client.py` 하나를 용도별 설정으로 부른다. C-2 발주계획 어댑터만 별도 transport로 남아 있다.
-- 준비·실패 재시작 화면, 개요 run 실행기·REST·화면(P2·P3), 입찰 delta 계산 worker, deep-review-v2 역할별 모델 분석, SSO, 알림은 아직 구현 전이다. 입찰 delta는 저장·REST·화면까지 있으나 비교를 실제로 계산하는 worker가 없어 `bid_delta_comparison`이 `pending`에 머문다.
+- 첨부 취득 실패·묶음 failed 재시작 화면, 입찰 delta 계산 worker, deep-review-v2 역할별 모델 분석, SSO, 알림은 아직 구현 전이다. 문서 준비 화면과 개요 run 실행기·REST·화면은 구현돼 있다. 입찰 delta는 저장·REST·화면까지 있으나 비교를 실제로 계산하는 worker가 없어 `bid_delta_comparison`이 `pending`에 머문다.
 
 ## 문제 보고
 
