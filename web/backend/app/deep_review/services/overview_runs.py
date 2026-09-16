@@ -96,6 +96,14 @@ from .prespec_overview_claim_validation import (
 
 #: 사람이 쪽 범위를 확정했을 때 남기는 감사 action.
 RANGE_CONFIRMATION_ACTION = "prespec_overview.range_confirmation"
+#: claim 상한을 이미 쓴 run을 claim하지 않고 닫을 때 남기는 감사 action.
+ATTEMPTS_EXHAUSTED_ACTION = "prespec_overview.attempts_exhausted"
+#: 운영자가 활성 run을 손으로 닫을 때 남기는 감사 action.
+OPERATOR_CLOSE_ACTION = "prespec_overview.operator_close"
+#: 종결 사유 코드 (contracts.md "사전규격 개요 검토 (MVP)").
+ATTEMPTS_EXHAUSTED_REASON = "attempts_exhausted"
+IDENTITY_UNAVAILABLE_REASON = "identity_unavailable"
+OPERATOR_CLOSE_REASON = "operator_close"
 #: WorkJob 계약 (contracts.md "사전규격 개요 검토 (MVP)").
 OVERVIEW_JOB_TYPE = "prespec_overview"
 OVERVIEW_AGGREGATE_TYPE = "prespec_overview_run"
@@ -144,6 +152,11 @@ class OverviewRunResult:
     status: str = "idle"
     reason_code: str | None = None
     expired_leases: int = 0
+    #: 모델 신원 확인이 막혔을 때 그 실패 자체. worker가 재확인 backoff를
+    #: 계산하려면 코드뿐 아니라 재시도 분류(`retryable`)가 필요하고, 그 분류는
+    #: 응답 본문을 담지 않으려고 예외 객체가 out-of-band로 들고 있다. 확인이
+    #: 막히지 않았으면 ``None``이다.
+    identity_error: ModelEndpointError | ModelIdentityError | None = None
 
 
 logger = logging.getLogger(__name__)
@@ -819,10 +832,16 @@ class _RunFailure(Exception):
 
 
 class _IdentityUnavailable(Exception):
-    """모델 신원을 확인할 수 없다. run은 건드리지 않고 다음 poll에 다시 본다."""
+    """모델 신원을 확인할 수 없다. 남은 시도가 있으면 다음 poll에 다시 본다.
 
-    def __init__(self, code: str) -> None:
+    `source`는 client가 낸 실패 그대로다(코드와 재시도 분류만 들어 있다).
+    worker의 재확인 backoff가 "일시 장애"와 "설정을 고쳐야 낫는 실패"를
+    가르는 기준이므로 코드 문자열만 옮기면 그 구분이 사라진다.
+    """
+
+    def __init__(self, code: str, source: ModelEndpointError | ModelIdentityError) -> None:
         self.code = code
+        self.source = source
         super().__init__(code)
 
 
@@ -855,37 +874,86 @@ def _expire_leases(session: Session, clock: Callable[[], datetime]) -> int:
     return expired
 
 
+def _close_exhausted(session: Session, run: PrespecOverviewRun, job: WorkJob, now: datetime) -> None:
+    """claim 상한을 다 쓴 queued run 하나를 잡지 않고 닫는다.
+
+    상한을 claim **전에** 보는 이유는 claim이 곧 시도 하나이기 때문이다.
+    잡은 뒤에 보면 이미 counter를 올린 상태라 같은 run이 한 바퀴 더 돈다.
+    """
+
+    run.status = "failed"
+    run.reason_codes = [*_string_list(run.reason_codes), ATTEMPTS_EXHAUSTED_REASON]
+    run.completed_at = now
+    job.status = "failed"
+    job.last_error_code = ATTEMPTS_EXHAUSTED_REASON
+    job.completed_at = now
+    job.lease_owner = None
+    job.lease_expires_at = None
+    session.add(AuditEvent(
+        actor_kind="system",
+        claimed_name=None,
+        action=ATTEMPTS_EXHAUSTED_ACTION,
+        aggregate_type=OVERVIEW_AGGREGATE_TYPE,
+        aggregate_id=str(run.id),
+        safe_metadata={
+            "run_id": str(run.id),
+            "job_id": str(job.id),
+            "notice_id": int(run.notice_id),
+            "attempt_count": int(job.attempt_count),
+            "max_attempts": int(job.max_attempts),
+            "reason_code": ATTEMPTS_EXHAUSTED_REASON,
+        },
+    ))
+
+
 def _claim_next(session: Session, worker_id: str, clock: Callable[[], datetime]) -> UUID | None:
-    """가장 오래된 queued run 하나를 WorkJob lease로 잡는다."""
+    """가장 오래된 queued run 하나를 WorkJob lease로 잡는다.
+
+    상한(`work_job.max_attempts`)을 다 쓴 후보는 잡지 않고 닫은 뒤 다음
+    후보로 넘어간다. 닫은 만큼 후보가 줄어들므로 이 순회는 끝난다.
+    """
 
     now = clock()
     if session.in_transaction():
         session.commit()
-    row = session.execute(
-        select(PrespecOverviewRun, WorkJob)
-        .join(WorkJob, WorkJob.id == PrespecOverviewRun.work_job_id)
-        .where(PrespecOverviewRun.status == "queued", WorkJob.status == "queued")
-        .order_by(PrespecOverviewRun.created_at.asc(), PrespecOverviewRun.id.asc())
-        .with_for_update(skip_locked=True, of=WorkJob)
-        .limit(1)
-    ).first()
-    if row is None:
+    while True:
+        row = session.execute(
+            select(PrespecOverviewRun, WorkJob)
+            .join(WorkJob, WorkJob.id == PrespecOverviewRun.work_job_id)
+            .where(PrespecOverviewRun.status == "queued", WorkJob.status == "queued")
+            .order_by(PrespecOverviewRun.created_at.asc(), PrespecOverviewRun.id.asc())
+            .with_for_update(skip_locked=True, of=WorkJob)
+            .limit(1)
+        ).first()
+        if row is None:
+            session.commit()
+            return None
+        run, job = row
+        if int(job.attempt_count) >= int(job.max_attempts):
+            _close_exhausted(session, run, job, now)
+            session.commit()
+            continue
+        job.status = "running"
+        job.lease_owner = worker_id
+        job.lease_fence = int(job.lease_fence) + 1
+        job.lease_expires_at = now + timedelta(seconds=LIMITS["lease_seconds"])
+        job.attempt_count = int(job.attempt_count) + 1
+        run.status = "running"
+        run.started_at = now
         session.commit()
-        return None
-    run, job = row
-    job.status = "running"
-    job.lease_owner = worker_id
-    job.lease_fence = int(job.lease_fence) + 1
-    job.lease_expires_at = now + timedelta(seconds=LIMITS["lease_seconds"])
-    job.attempt_count = int(job.attempt_count) + 1
-    run.status = "running"
-    run.started_at = now
-    session.commit()
-    return run.id
+        return run.id
 
 
-def _release(session: Session, run: PrespecOverviewRun, job: WorkJob | None) -> None:
-    """claim을 되돌린다. 실행하지 않은 것을 실패로 적지 않는다."""
+def _release(
+    session: Session, run: PrespecOverviewRun, job: WorkJob | None, *, restore_attempt: bool = True
+) -> None:
+    """claim을 되돌린다. 실행하지 않은 것을 실패로 적지 않는다.
+
+    `restore_attempt`가 참이면 claim이 올린 `attempt_count`도 함께 되돌린다 —
+    일을 하지 않고 돌려놓는 것이므로 시도를 쓴 것이 아니다. 모델 신원 확인이
+    막혀 돌려놓을 때만 거짓이다. 그 경우는 **시도를 쓴 것**으로 세야 상한이
+    의미를 갖고, 세지 않으면 같은 run을 무한히 재점유한다(운영에서 205회).
+    """
 
     run.status = "queued"
     run.started_at = None
@@ -893,6 +961,8 @@ def _release(session: Session, run: PrespecOverviewRun, job: WorkJob | None) -> 
         job.status = "queued"
         job.lease_owner = None
         job.lease_expires_at = None
+        if restore_attempt:
+            job.attempt_count = max(int(job.attempt_count) - 1, 0)
 
 
 def _source_location(session: Session, document: DocumentVersion) -> ContentObjectLocation:
@@ -1136,7 +1206,22 @@ class _Caller:
         self.clock = clock
         self._store: Any | None = None
 
-    def _record(self, stage: str, raw: bytes | None) -> None:
+    def _record(
+        self,
+        stage: str,
+        raw: bytes | None,
+        *,
+        prompt_tokens: int | None = None,
+        output_tokens: int | None = None,
+        latency_ms: int | None = None,
+    ) -> None:
+        """원응답 하나를 저장하고 그 호출의 계측값을 ref에 함께 남긴다.
+
+        토큰 수와 지연은 provider가 낸 사실이며 새 판정이 아니다. 실패 호출은
+        usage를 받지 못하므로 `null`로 남긴다 — 0으로 적으면 "측정했는데 0"이
+        되어 미측정과 섞인다.
+        """
+
         if raw is None:
             return
         if self._store is None:
@@ -1146,7 +1231,13 @@ class _Caller:
         except (ObjectStoreError, ValueError, TypeError) as error:
             raise _RunFailure("failed", "response_store_unavailable") from error
         refs = list(self.run.raw_response_refs or [])
-        refs.append({"stage": stage, "sha256": digest})
+        refs.append({
+            "stage": stage,
+            "sha256": digest,
+            "prompt_tokens": int(prompt_tokens) if isinstance(prompt_tokens, int) else None,
+            "output_tokens": int(output_tokens) if isinstance(output_tokens, int) else None,
+            "latency_ms": int(latency_ms) if isinstance(latency_ms, int) else None,
+        })
         self.run.raw_response_refs = refs
 
     def invoke(self, stage: str, ledger_stage: str, input_slice: Mapping[str, Any], *, correction: str | None = None, seed: int | None = None) -> tuple[Any, bytes]:
@@ -1184,10 +1275,16 @@ class _Caller:
                 prompt_max_chars=LIMITS["max_prompt_chars"],
             )
         except ModelInvocationError as error:
+            # 실패 호출은 usage를 내지 않는다. 세 값은 `null`로 남는다.
             self._record(ledger_stage, error.raw_response)
             raise
         raw = bytes(response.raw_response)
-        self._record(ledger_stage, raw)
+        self._record(
+            ledger_stage, raw,
+            prompt_tokens=getattr(response, "prompt_tokens", None),
+            output_tokens=getattr(response, "output_tokens", None),
+            latency_ms=getattr(response, "latency_ms", None),
+        )
         return response, raw
 
 
@@ -1305,7 +1402,9 @@ def _execute(
         )
         identity = client.verify_identity()
     except (ModelEndpointError, ModelIdentityError) as error:
-        raise _IdentityUnavailable(str(getattr(error, "code", "") or "identity_unavailable")) from error
+        raise _IdentityUnavailable(
+            str(getattr(error, "code", "") or IDENTITY_UNAVAILABLE_REASON), error
+        ) from error
     run.model_revision = str(getattr(identity, "revision", "") or "") or None
     caller = _Caller(session, run, client, policy, settings=settings, clock=clock)
 
@@ -1446,9 +1545,24 @@ def run_once(
             converter=converter, store=store,
         )
     except _IdentityUnavailable as error:
-        _release(session, run, session.get(WorkJob, run.work_job_id))
+        job = session.get(WorkJob, run.work_job_id)
+        # 모델이 죽어 있으면 상한까지만 다시 잡고 그 뒤에는 닫는다. 돌려놓기만
+        # 하면 대기열이 이 run 하나로 막힌다.
+        if job is not None and int(job.attempt_count) >= int(job.max_attempts):
+            _log_run_failure(run_id, run.notice_id, error, IDENTITY_UNAVAILABLE_REASON)
+            _finish(session, run, "failed", [IDENTITY_UNAVAILABLE_REASON], clock)
+            session.commit()
+            return OverviewRunResult(
+                True, attempt_id=run_id, status="failed",
+                reason_code=IDENTITY_UNAVAILABLE_REASON,
+                expired_leases=expired, identity_error=error.source,
+            )
+        _release(session, run, job, restore_attempt=False)
         session.commit()
-        return OverviewRunResult(False, attempt_id=run_id, status="idle", reason_code=error.code, expired_leases=expired)
+        return OverviewRunResult(
+            False, attempt_id=run_id, status="idle", reason_code=error.code,
+            expired_leases=expired, identity_error=error.source,
+        )
     except _RunFailure as failure:
         if failure.status == "failed":
             _log_run_failure(run_id, run.notice_id, failure, failure.code)
@@ -1473,7 +1587,62 @@ def run_once(
     return OverviewRunResult(True, attempt_id=run_id, status="completed", expired_leases=expired)
 
 
-# --- 사람 요청 경계 (REST가 부르는 것) ---------------------------------------
+# --- 사람 요청 경계 (REST와 운영 CLI가 부르는 것) ----------------------------
+
+
+def close_run(
+    session: Session,
+    run_id: UUID,
+    *,
+    actor_name: str,
+    reason: str = OPERATOR_CLOSE_REASON,
+    clock: Callable[[], datetime] | None = None,
+) -> dict[str, Any]:
+    """운영자가 활성 run 하나를 닫는다 (`close-overview-run`).
+
+    `queued`는 `cancelled`, `running`은 `failed`다 — 실행 중이던 것을 취소로
+    적으면 반쪽 결과가 남았을 수 있다는 사실이 사라진다. 이미 종결된 run은
+    `run_not_active`로 거절하고 아무것도 바꾸지 않는다(종결은 불변이다).
+    커밋은 호출자가 한다.
+    """
+
+    if not isinstance(actor_name, str) or not actor_name.strip():
+        raise OverviewRequestError("actor_name_invalid")
+    now = (clock or _now)()
+    run = session.get(PrespecOverviewRun, run_id)
+    if run is None or run.status not in ACTIVE_STATUSES:
+        raise OverviewRequestError("run_not_active")
+    status = "cancelled" if run.status == "queued" else "failed"
+    run.status = status
+    run.reason_codes = [*_string_list(run.reason_codes), reason]
+    run.completed_at = now
+    job = session.get(WorkJob, run.work_job_id)
+    if job is not None and job.status in ACTIVE_STATUSES:
+        job.status = status
+        job.last_error_code = reason
+        job.completed_at = now
+        job.lease_owner = None
+        job.lease_expires_at = None
+    session.add(AuditEvent(
+        actor_kind="human",
+        claimed_name=actor_name.strip(),
+        action=OPERATOR_CLOSE_ACTION,
+        aggregate_type=OVERVIEW_AGGREGATE_TYPE,
+        aggregate_id=str(run.id),
+        safe_metadata={
+            "run_id": str(run.id),
+            "job_id": str(run.work_job_id),
+            "notice_id": int(run.notice_id),
+            "status": status,
+            "reason_code": reason,
+        },
+    ))
+    return {
+        "status": status,
+        "run_id": str(run.id),
+        "notice_id": int(run.notice_id),
+        "reason": reason,
+    }
 
 
 def latest_snapshot(session: Session, document_version_id: UUID) -> PrespecV4PdfSnapshot | None:

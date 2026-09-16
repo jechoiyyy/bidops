@@ -432,6 +432,14 @@ migration 0021/0023/0024)과 주장 결정적 검증 함수는 그대로 유지�
 | `failed` | 기술 실패(`reason_codes`: `pdf_preparation_failed:<code>`, `manifest_invalid`, `draft_format_retry_exhausted`, `semantic_response_invalid`, `timeout`, `input_capacity_exceeded`, `call_budget_exhausted`, `response_store_unavailable`, `lease_expired`, `runner_failed`) | `overview_not_completed` |
 | `cancelled` | 플래그 off로 닫힘 | `overview_not_completed` |
 
+종결 사유 코드 중 실행 자체가 막혀 닫는 세 가지는 다음과 같다.
+
+| reason code | 닫히는 status | 뜻 |
+|---|---|---|
+| `attempts_exhausted` | `failed` | `work_job.max_attempts`를 이미 쓴 queued run을 claim하지 않고 닫았다 |
+| `identity_unavailable` | `failed` | 모델 신원 확인이 연속으로 막혀 남은 시도를 다 썼다 |
+| `operator_close` | `queued`→`cancelled`, `running`→`failed` | 운영자가 `close-overview-run`으로 닫았다 |
+
 공고의 "현재 개요"는 `created_at` 최신 run이다. 이력은 그 공고의 모든 run.
 목록·상세의 `overview_review_status`는 최신 run의 status를 그대로 쓰고, run이 없으면 `null`이다.
 자동 심층 검토 사유 판정 순서는 `not_sw_business → bundle_not_auto_ready →
@@ -552,6 +560,7 @@ max_model_context_tokens 393216). 문맥 상한 판정은 요청 JSON의 byte �
 page_start?, page_end?, range_reason_codes, input_sha256?, policy_digest, model_name,
 model_revision?, draft_json?, checks_json?, result_json?, warnings_json, reason_codes,
 call_count, raw_response_refs, actor_name?, created_at, started_at, completed_at`.
+`raw_response_refs`의 각 항목은 `{stage, sha256, prompt_tokens, output_tokens, latency_ms}`이며 세 계측값은 provider가 낸 사실이고 실패 호출에서는 `null`이다.
 인덱스 `ix_prespec_overview_run_notice_created(notice_id, created_at desc)`, 부분 유니크
 `uq_prespec_overview_run_active(notice_id) where status in ('queued','running')`. app role은
 SELECT/INSERT/UPDATE, worker role은 SELECT/INSERT/UPDATE만 갖는다.

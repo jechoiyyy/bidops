@@ -811,6 +811,25 @@ class DeepReviewService:
                 )
                 session.commit()
                 return None
+            if int(job.attempt_count) >= int(job.max_attempts):
+                # 만료된 lease를 상한 없이 다시 잡으면 같은 job이 무한히
+                # 재점유된다. 시도를 다 쓴 job은 여기서 닫는다.
+                # 심층 쪽 attempt·review 상태는 건드리지 않는다: 이 경로에는
+                # 소유 lease와 fence가 없어 `_fail_claim`(모든 UPDATE가 자기
+                # fence를 조건으로 한다)을 부를 수 없고, 같은 자리의 형제
+                # 분기(`review_scope_missing`·`expired_attempt_not_active`)도
+                # job만 닫고 감사 행을 남긴다.
+                job.status = "failed"
+                job.last_error_code = "attempts_exhausted"
+                job.completed_at = job.completed_at or now
+                job.lease_expires_at = None
+                _add_job_audit(
+                    session, action="deep_review.job.failed", job_id=job.id,
+                    review_id=review.id, attempt_id=attempt.id,
+                    fence=int(job.lease_fence), status="failed",
+                )
+                session.commit()
+                return None
             if attempt.status not in {"queued", "running"} or review.status not in {"queued", "running"}:
                 job.status = "failed"
                 job.last_error_code = "expired_attempt_not_active"

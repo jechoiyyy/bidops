@@ -49,7 +49,8 @@ def _install(monkeypatch: pytest.MonkeyPatch, *, c2_result: Any, deep_claimed: b
 
     def _overview(_session: Any, _worker_id: str) -> Any:
         calls["overview"] += 1
-        return SimpleNamespace(claimed=False)
+        # 개요 슬롯의 결과는 identity 실패 여부까지 알린다 (backoff 입력).
+        return SimpleNamespace(claimed=False, identity_error=None)
 
     settings = SimpleNamespace(
         analysis_worker_concurrency=1,

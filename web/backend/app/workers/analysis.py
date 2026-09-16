@@ -6,8 +6,10 @@ import logging
 import signal
 import time
 import argparse
+from datetime import UTC, datetime
 
 from ..core import (
+    ModelIdentityCheckState,
     ObjectStoreError,
     SessionLocal,
     assert_object_store_runtime,
@@ -40,6 +42,9 @@ def main() -> None:
     worker_id = settings.worker_id
     c2_worker = C2ScreeningWorker(settings=settings)
     company_fit_runner = PreSpecCompanyFitRunner(settings=settings)
+    # 개요 슬롯의 모델 신원 재확인 상태. 모델이 닿지 않는 동안 poll마다 claim을
+    # 되풀이하면 같은 run이 상한까지 순식간에 타 버린다.
+    overview_identity = ModelIdentityCheckState()
     stopping = False
 
     def stop(_signum: int, _frame: object) -> None:
@@ -61,7 +66,16 @@ def main() -> None:
                         # 한 poll은 C-2·심층 검토·회사 핏·개요 중
                         # 하나만 잡는다. 회사 핏도 같은 모델 슬롯을 쓴다.
                         if not run_deep_review_once(session, worker_id).claimed and not company_fit_runner.run_once(session, worker_id):
-                            run_prespec_overview_once(session, worker_id)
+                            # 모델 신원 확인이 막혀 있으면 다음 개요 claim을
+                            # 10→30→60→120→300초 뒤로 민다. 설정을 고쳐야 낫는
+                            # 실패는 이 runner에서 다시 확인하지 않는다.
+                            now = datetime.now(UTC)
+                            if overview_identity.should_check(now):
+                                overview = run_prespec_overview_once(session, worker_id)
+                                if overview.identity_error is not None:
+                                    overview_identity.record_failure(overview.identity_error, now)
+                                elif overview.claimed:
+                                    overview_identity.record_success()
                 except Exception:
                     # run_claim commits its own fenced transitions. Any
                     # provider/materializer error not converted there must not
