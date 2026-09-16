@@ -17,7 +17,7 @@ from urllib.error import HTTPError
 from uuid import UUID, uuid4
 
 import pytest
-from sqlalchemy import create_engine, select
+from sqlalchemy import create_engine, event, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
@@ -1026,6 +1026,78 @@ def test_confirm_scope_ignores_retired_attachment_but_requires_all_active_curren
         assert ready.status == "ready"
         items = session.scalars(select(DocumentBundleItem).where(DocumentBundleItem.bundle_id == bundle.id)).all()
         assert [item.document_version_id for item in items] == [active.id]
+
+
+def test_confirm_reseeds_items_when_the_document_set_changed(context: Context) -> None:
+    """문서 집합이나 순서가 달라진 draft는 확정 시 다시 넣는다.
+
+    제자리 갱신은 (document_version_id, ordinal)이 그대로일 때만이다. 첨부가
+    폐기돼 남은 문서의 순서까지 바뀌면 지우고 다시 넣으며, 결과 행은 제자리
+    갱신과 같은 모양이다. 감사에는 어느 경로였는지만 안전한 코드로 남는다.
+    """
+
+    bundle = make_bundle(context)
+    retired = upload(context, bundle.id, filename="retired.pdf")
+    active = upload(context, bundle.id, filename="active.pdf")
+    statements: list[str] = []
+
+    def _record(_conn, _cursor, statement, _parameters, _context, _executemany):
+        statements.append(" ".join(statement.split()))
+
+    with Session(context.engine) as session:  # type: ignore[arg-type]
+        attachment = session.get(Attachment, session.get(DocumentVersion, retired.id).attachment_id)  # type: ignore[union-attr]
+        assert attachment is not None
+        attachment.retired_at = datetime.now(UTC)
+        session.commit()
+        before = session.scalars(
+            select(DocumentBundleItem)
+            .where(DocumentBundleItem.bundle_id == bundle.id)
+            .order_by(DocumentBundleItem.ordinal.asc())
+        ).all()
+        assert [(item.document_version_id, item.ordinal) for item in before] == [
+            (retired.id, 0),
+            (active.id, 1),
+        ]
+
+        event.listen(context.engine, "before_cursor_execute", _record)
+        try:
+            ready = context.service.confirm(
+                session,
+                bundle.id,
+                ConfirmRequest(
+                    request_id=uuid4(),
+                    version=bundle.version,
+                    confirmed_documents=[{"document_version_id": active.id, "version": active.version}],
+                ),
+                "담당자",
+            )
+        finally:
+            event.remove(context.engine, "before_cursor_execute", _record)
+
+        assert ready.status == "ready"
+        verbs = [
+            statement.split()[0].upper()
+            for statement in statements
+            if "document_bundle_item" in statement
+        ]
+        # 지우고 다시 넣는다. 여러 행이 한 문장으로 묶일 수 있으므로 문장 수가
+        # 아니라 두 종류가 모두 나왔는지만 본다.
+        assert "DELETE" in verbs
+        assert "INSERT" in verbs
+        items = session.scalars(
+            select(DocumentBundleItem)
+            .where(DocumentBundleItem.bundle_id == bundle.id)
+            .order_by(DocumentBundleItem.ordinal.asc())
+        ).all()
+        assert [(item.document_version_id, item.ordinal) for item in items] == [(active.id, 0)]
+        confirmation = session.scalar(
+            select(AuditEvent).where(
+                AuditEvent.aggregate_id == str(bundle.id),
+                AuditEvent.action == "document_bundle.confirm",
+            )
+        )
+        assert confirmation is not None
+        assert confirmation.safe_metadata["item_refresh"] == "reseed"
 
 
 def test_confirm_preserves_version_mismatch_and_rejects_duplicate_ids(context: Context) -> None:
