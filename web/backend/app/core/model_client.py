@@ -17,6 +17,7 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 import hashlib
+import ipaddress
 import json
 import os
 import re
@@ -51,6 +52,15 @@ MAX_COMPLETION_TOKENS = 16_384
 MODEL_PURPOSES: Final[tuple[str, ...]] = ("screening", "overview", "deep_review")
 
 _REVISION_PATTERN = re.compile(r"[0-9a-f]{64}")
+
+#: 문서·예시 전용으로 예약된 대역 (RFC 5737, RFC 3849). 여기로 나가는 배포는
+#: 자리표시자를 그대로 둔 것이므로 호출 전에 막는다.
+_DOCUMENTATION_NETWORKS: Final[tuple[Any, ...]] = (
+    ipaddress.ip_network("192.0.2.0/24"),
+    ipaddress.ip_network("198.51.100.0/24"),
+    ipaddress.ip_network("203.0.113.0/24"),
+    ipaddress.ip_network("2001:db8::/32"),
+)
 APPROVED_GENERATION = {
     "enable_thinking": False,
     "max_completion_tokens": MAX_COMPLETION_TOKENS,
@@ -463,6 +473,16 @@ def build_prompt(
     return prompt
 
 
+def _is_documentation_address(hostname: str) -> bool:
+    """RFC 5737·3849가 문서·예시 전용으로 예약한 주소인가."""
+
+    try:
+        address = ipaddress.ip_address(hostname)
+    except ValueError:
+        return False  # 이름은 대역으로 판정하지 않는다.
+    return any(address in network for network in _DOCUMENTATION_NETWORKS)
+
+
 def _validated_base_url(base_url: str, allowed_hosts: Sequence[str]) -> str:
     """base URL의 모양을 검증한다.
 
@@ -470,12 +490,20 @@ def _validated_base_url(base_url: str, allowed_hosts: Sequence[str]) -> str:
     강제하지 않는다(ADR-0050 완화, 2026-09-11). 허용 host 목록이 비어 있지 않으면
     그 목록으로 host를 제한하고, `/v1` 경로와 userinfo·query·fragment 금지는
     그대로 유지한다.
+
+    문서용 예약 대역은 **허용 목록보다 먼저** 막는다. 자리표시자를 그대로 둔
+    배포는 설정이 빈 것과 같은데도 허용 목록에 적어 두면 통과해 버리고, 그
+    뒤로는 모든 호출이 연결 timeout으로만 보인다(운영에서 `192.0.2.10`).
     """
 
     parsed = urlsplit(base_url)
     hostname = parsed.hostname.lower() if parsed.hostname else None
     if parsed.scheme not in {"http", "https"} or hostname is None:
         raise ValueError("vLLM base URL must be an http or https URL with a host")
+    if _is_documentation_address(hostname):
+        raise ModelEndpointError(
+            "vLLM base URL이 문서용 예약 대역이다 (RFC 5737·3849 자리표시자)"
+        )
     allowed = {item.strip().lower() for item in allowed_hosts if item.strip()}
     if allowed:
         allowed.update({"localhost", "127.0.0.1", "::1"})

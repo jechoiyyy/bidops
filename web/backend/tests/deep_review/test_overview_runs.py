@@ -17,7 +17,8 @@ from sqlalchemy.pool import StaticPool
 
 from app.core.config import get_settings
 from app.core.db import Base
-from app.core.model_client import ModelClient
+from app.core.model_client import ModelClient, ModelIdentityError
+from app.core.models import AuditEvent
 from app.core.object_store import ObjectMetadata
 from app.deep_review.models import (
     ContentObject,
@@ -493,6 +494,165 @@ def test_expired_lease_closes_the_running_run(context):
     assert not session.scalars(
         select(PrespecOverviewRun).where(PrespecOverviewRun.status.in_(overview_runs.ACTIVE_STATUSES))
     ).all()
+
+
+# --- claim 상한 --------------------------------------------------------------
+
+
+def test_a_queued_run_at_the_attempt_cap_is_closed_instead_of_claimed(context):
+    """시도를 다 쓴 queued run은 다시 잡지 않고 닫는다 (운영 205회 재점유)."""
+
+    session, store = context
+    notice, _document, snapshot = seed(session, store)
+    run = overview_runs.enqueue_overview_run(session, notice.id, settings=get_settings())
+    run.snapshot_id = snapshot.id
+    job = session.get(WorkJob, run.work_job_id)
+    job.attempt_count = int(job.max_attempts)
+    session.commit()
+
+    result = overview_runs.run_once(session, "test-worker", settings=get_settings(), store=store)
+
+    assert result.claimed is False and result.status == "idle"
+    row = session.get(PrespecOverviewRun, run.id)
+    assert row.status == "failed" and row.reason_codes == ["attempts_exhausted"]
+    job = session.get(WorkJob, run.work_job_id)
+    assert job.status == "failed" and job.last_error_code == "attempts_exhausted"
+    # 다시 잡지 않았으므로 counter는 그대로다.
+    assert job.attempt_count == int(job.max_attempts) and job.lease_owner is None
+    audits = session.scalars(
+        select(AuditEvent).where(AuditEvent.action == overview_runs.ATTEMPTS_EXHAUSTED_ACTION)
+    ).all()
+    assert len(audits) == 1 and audits[0].aggregate_id == str(run.id)
+    assert audits[0].actor_kind == "system" and audits[0].safe_metadata["notice_id"] == notice.id
+
+
+def test_each_raw_response_ref_carries_the_call_measurements(context):
+    """호출별 토큰·지연은 provider가 낸 사실이며 ref에 함께 남는다."""
+
+    session, store = context
+    notice, _document, snapshot = seed(session, store)
+    run = overview_runs.enqueue_overview_run(session, notice.id, settings=get_settings())
+    run.snapshot_id = snapshot.id
+    session.commit()
+
+    class _WithUsage(MockOverviewTransport):
+        def completion_create(self, **request):
+            response = super().completion_create(**request)
+            response["usage"] = {"prompt_tokens": 1234, "completion_tokens": 56}
+            return response
+
+    result = _run(session, store, _WithUsage(load_claims_policy().document["model_name"]))
+
+    assert result.status == "completed"
+    refs = session.get(PrespecOverviewRun, run.id).raw_response_refs
+    assert [ref["stage"] for ref in refs] == ["draft", "semantic"]
+    for ref in refs:
+        assert set(ref) == {"stage", "sha256", "prompt_tokens", "output_tokens", "latency_ms"}
+        assert (ref["prompt_tokens"], ref["output_tokens"]) == (1234, 56)
+        assert isinstance(ref["latency_ms"], int) and ref["latency_ms"] >= 0
+
+
+def test_release_gives_back_the_attempt_the_claim_took(context):
+    """일하지 않고 돌려놓는 release는 시도를 쓴 것이 아니다."""
+
+    session, store = context
+    notice, _document, _snapshot = seed(session, store)
+    run = overview_runs.enqueue_overview_run(session, notice.id, settings=get_settings())
+    session.commit()
+
+    claimed = overview_runs._claim_next(session, "test-worker", overview_runs._now)
+    assert claimed == run.id and session.get(WorkJob, run.work_job_id).attempt_count == 1
+
+    overview_runs._release(
+        session, session.get(PrespecOverviewRun, run.id), session.get(WorkJob, run.work_job_id)
+    )
+    session.commit()
+
+    job = session.get(WorkJob, run.work_job_id)
+    assert job.status == "queued" and job.attempt_count == 0 and job.lease_owner is None
+    assert session.get(PrespecOverviewRun, run.id).status == "queued"
+
+
+def test_identity_failures_spend_attempts_and_close_the_run_at_the_cap(context):
+    """모델 신원 확인이 계속 막히면 상한만큼만 다시 잡고 닫는다."""
+
+    session, store = context
+    notice, _document, snapshot = seed(session, store)
+    run = overview_runs.enqueue_overview_run(session, notice.id, settings=get_settings())
+    run.snapshot_id = snapshot.id
+    session.commit()
+    cap = int(session.get(WorkJob, run.work_job_id).max_attempts)
+
+    def factory(_policy):
+        raise ModelIdentityError("identity_unavailable", retryable=True)
+
+    results = [
+        overview_runs.run_once(
+            session, "test-worker", settings=get_settings(), client_factory=factory, store=store
+        )
+        for _ in range(cap)
+    ]
+
+    assert [item.status for item in results] == ["idle"] * (cap - 1) + ["failed"]
+    assert all(item.identity_error is not None for item in results)
+    assert all(item.identity_error.retryable is True for item in results)
+    row = session.get(PrespecOverviewRun, run.id)
+    assert row.status == "failed" and row.reason_codes == ["identity_unavailable"]
+    job = session.get(WorkJob, run.work_job_id)
+    assert job.status == "failed" and job.last_error_code == "identity_unavailable"
+    assert job.attempt_count == cap
+
+
+def test_the_operator_close_command_closes_one_active_run(context, monkeypatch, capsys):
+    """`close-overview-run`은 queued를 취소로, running을 실패로 닫는다."""
+
+    from app.core import db as core_db
+    from app.deep_review.cli import main as deep_review_cli_main
+
+    session, store = context
+    notice, _document, _snapshot = seed(session, store)
+    queued = overview_runs.enqueue_overview_run(session, notice.id, settings=get_settings())
+    session.commit()
+    engine = session.get_bind()
+    monkeypatch.setattr(core_db, "init_db", lambda *args, **kwargs: None)
+    monkeypatch.setattr(core_db, "SessionLocal", lambda: Session(engine))
+
+    code = deep_review_cli_main([
+        "close-overview-run", "--run-id", str(queued.id),
+        "--reason", "operator_close", "--actor-name", "담당자",
+    ])
+
+    assert code == 0
+    assert json.loads(capsys.readouterr().out.strip().splitlines()[-1]) == {
+        "notice_id": notice.id, "reason": "operator_close",
+        "run_id": str(queued.id), "status": "cancelled",
+    }
+    session.expire_all()
+    row = session.get(PrespecOverviewRun, queued.id)
+    assert row.status == "cancelled" and row.reason_codes == ["operator_close"]
+    job = session.get(WorkJob, row.work_job_id)
+    assert job.status == "cancelled" and job.last_error_code == "operator_close"
+    assert job.lease_owner is None and job.lease_expires_at is None
+    audit = session.scalars(
+        select(AuditEvent).where(AuditEvent.action == overview_runs.OPERATOR_CLOSE_ACTION)
+    ).all()
+    assert len(audit) == 1 and audit[0].claimed_name == "담당자"
+
+    # 이미 종결된 run은 다시 닫지 않는다.
+    assert deep_review_cli_main([
+        "close-overview-run", "--run-id", str(queued.id), "--actor-name", "담당자",
+    ]) == 2
+    assert json.loads(capsys.readouterr().out.strip().splitlines()[-1]) == {"error": "run_not_active"}
+
+    # 실행 중이던 run은 실패로 닫는다 — 반쪽 결과가 남았을 수 있다.
+    running = overview_runs.enqueue_overview_run(session, notice.id, settings=get_settings())
+    assert overview_runs._claim_next(session, "test-worker", overview_runs._now) == running.id
+    assert deep_review_cli_main([
+        "close-overview-run", "--run-id", str(running.id), "--actor-name", "담당자",
+    ]) == 0
+    session.expire_all()
+    assert session.get(PrespecOverviewRun, running.id).status == "failed"
+    assert session.get(WorkJob, running.work_job_id).status == "failed"
 
 
 # --- 부분 완료 ---------------------------------------------------------------

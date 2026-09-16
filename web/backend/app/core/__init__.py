@@ -41,6 +41,7 @@ from .generation_config import (
 )
 from .health import router as health_router
 from .logging_setup import configure
+from .model_client import ModelIdentityCheckState
 from .object_store import ObjectStoreError, assert_object_store_runtime
 from .run_id import deterministic_run_id, parse_run_id
 
@@ -56,6 +57,7 @@ __all__ = [
     "MIN_NUM_CTX",
     "MIN_NUM_PREDICT",
     "MODULE_NAMES",
+    "ModelIdentityCheckState",
     "ObjectStoreError",
     "SessionLocal",
     "Settings",

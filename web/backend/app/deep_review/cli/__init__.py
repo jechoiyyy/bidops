@@ -1,6 +1,6 @@
 """deep_review의 서버측 관리 CLI 명령.
 
-`python -m app.deep_review.cli`가 다섯 하위 명령을 모두 받는다.
+`python -m app.deep_review.cli`가 여섯 하위 명령을 모두 받는다.
 
 - ``run-bc-e2e``: 문서 준비(B)에서 심층 검토(C)까지의 격리 인수 흐름을 돌린다.
 - ``run-prespec-e2e``: 사전규격 회차 적재부터 보고서·최종 의견까지의 mock
@@ -8,6 +8,7 @@
 - ``import-profile-policy``: 불변 회사 프로필·분석 policy 판을 import한다.
 - ``enqueue-overview``: 사전규격 공고 한 건의 개요 run을 대기열에 넣는다.
 - ``prepare-overviews``: 이미 적재된 사전규격의 자동 준비를 한 번에 돌린다.
+- ``close-overview-run``: 활성 개요 run 하나를 사람이 닫는다.
 
 T8 2단계가 두 스크립트에 패키지 진입점을 만들어 하나의 하위 명령 체계로
 합쳤다. 합친 것은 **진입점뿐**이고, 각 하위 명령의 인자·출력·종료 코드는
@@ -46,6 +47,10 @@ _SUBCOMMANDS: dict[str, tuple[str, str]] = {
     "prepare-overviews": (
         ".prepare_overviews",
         "자격을 갖춘 사전규격의 자동 준비를 한 번에 돌린다 (개요 backfill)",
+    ),
+    "close-overview-run": (
+        ".close_overview_run",
+        "활성 사전규격 개요 run 하나를 닫는다 (queued→cancelled, running→failed)",
     ),
 }
 

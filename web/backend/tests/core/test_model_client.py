@@ -174,13 +174,13 @@ def test_a_declared_allowed_host_still_bounds_the_base_url() -> None:
     """
 
     settings = _settings(
-        vllm_base_url="http://198.51.100.7:8000/v1",
+        vllm_base_url="http://10.7.0.7:8000/v1",
         vllm_allowed_hosts="model.internal",
-        vllm_screening_allowed_hosts="198.51.100.7",
+        vllm_screening_allowed_hosts="10.7.0.7",
     )
-    assert resolve_model_endpoint("screening", settings=settings).allowed_hosts == ("198.51.100.7",)
+    assert resolve_model_endpoint("screening", settings=settings).allowed_hosts == ("10.7.0.7",)
     for purpose in ("overview", "deep_review"):
-        # 공유 base URL은 198.51.100.7인데 허용 host는 model.internal뿐이다.
+        # 공유 base URL은 10.7.0.7인데 허용 host는 model.internal뿐이다.
         with pytest.raises(ValueError):
             resolve_model_endpoint(purpose, settings=settings)
 
@@ -260,7 +260,7 @@ def test_client_accepts_any_configured_model_name() -> None:
     [
         ("http://127.0.0.1:8000", "127.0.0.1"),
         ("http://127.0.0.1:8000/v1/chat", "127.0.0.1"),
-        ("http://198.51.100.7:8000/v1", "127.0.0.1"),
+        ("http://10.7.0.7:8000/v1", "127.0.0.1"),
         ("http://127.0.0.1:8000/v1?x=1", "127.0.0.1"),
         ("http://user:pw@127.0.0.1:8000/v1", "127.0.0.1"),
         ("ftp://127.0.0.1:8000/v1", ""),
@@ -275,6 +275,28 @@ def test_base_url_outside_the_declared_boundary_is_rejected(base_url: str, allow
 
     with pytest.raises(ValueError):
         ModelClient(model="합성-모델-a", output_contract=CONTRACT, base_url=base_url, allowed_hosts=allowed_hosts)
+
+
+@pytest.mark.parametrize(
+    "base_url,allowed_hosts",
+    [
+        ("http://192.0.2.10:8000/v1", "192.0.2.10"),
+        ("http://198.51.100.7:8000/v1", "198.51.100.7"),
+        ("http://203.0.113.9:8000/v1", "203.0.113.9"),
+        ("http://[2001:db8::1]:8000/v1", "2001:db8::1"),
+    ],
+)
+def test_documentation_ranges_are_rejected_before_the_allowed_host_check(
+    base_url: str, allowed_hosts: str
+) -> None:
+    """자리표시자 주소는 허용 목록에 적어 두어도 막는다 (RFC 5737·3849)."""
+
+    with pytest.raises(ModelEndpointError) as error:
+        ModelClient(
+            model="합성-모델-a", output_contract=CONTRACT,
+            base_url=base_url, allowed_hosts=allowed_hosts,
+        )
+    assert "문서용 예약 대역" in str(error.value)
 
 
 @pytest.mark.parametrize(

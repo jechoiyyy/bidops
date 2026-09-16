@@ -791,6 +791,9 @@ def test_job_transition_audits_are_fenced_and_safe(engine, monkeypatch):
         assert first.safe_metadata["status"] == "running"
         job = session.get(WorkJob, claim.job_id)
         assert job is not None
+        # 재점유는 시도가 남아 있을 때의 경로다. seed의 max_attempts는 1이므로
+        # 이 검사만 한 번 더 잡을 수 있게 둔다 (상한 종결은 자기 검사가 본다).
+        job.max_attempts = 2
         job.lease_expires_at = datetime.now(UTC) - timedelta(seconds=1)
         session.commit()
         reclaimed = service.claim_next_job(session, "worker-b")
@@ -1106,6 +1109,9 @@ def test_expired_reclaim_refences_inflight_stage_and_rejects_old_worker(engine, 
         job = session.get(WorkJob, old_claim.job_id)
         assert stage is not None and job is not None
         stage.status = "running"
+        # 재점유는 시도가 남아 있을 때의 경로다. seed의 max_attempts는 1이므로
+        # 이 검사만 한 번 더 잡을 수 있게 둔다 (상한 종결은 자기 검사가 본다).
+        job.max_attempts = 2
         job.lease_expires_at = datetime.now(UTC) - timedelta(seconds=1)
         session.commit()
         new_claim = service.claim_next_job(session, "worker-new")
@@ -1115,6 +1121,32 @@ def test_expired_reclaim_refences_inflight_stage_and_rejects_old_worker(engine, 
             service._renew_lease(session, old_claim)
         service.run_claim(session, new_claim)
         assert service.view(session, UUID(created["id"]))["status"] == "completed"
+
+
+def test_an_expired_reclaim_stops_at_the_attempt_cap(engine, monkeypatch):
+    """시도를 다 쓴 job은 lease가 만료돼도 다시 잡지 않고 닫는다."""
+
+    notice_id, bundle_id, _profile_id, _policy_id = _seed_review_context(engine, monkeypatch)
+    service = DeepReviewService(structure_loader=_fixture_structure)
+    with Session(engine) as session:
+        service.create_review(session, notice_id, bundle_id, "담당자", uuid4())
+        claim = service.claim_next_job(session, "worker-a")
+        assert claim is not None
+        job = session.get(WorkJob, claim.job_id)
+        assert job is not None and job.attempt_count == 1 and job.max_attempts == 1
+        job.lease_expires_at = datetime.now(UTC) - timedelta(seconds=1)
+        session.commit()
+
+        assert service.claim_next_job(session, "worker-b") is None
+
+        job = session.get(WorkJob, claim.job_id)
+        assert job.status == "failed" and job.last_error_code == "attempts_exhausted"
+        assert job.attempt_count == 1 and job.lease_expires_at is None
+        audit = session.scalars(select(AuditEvent).where(
+            AuditEvent.aggregate_id == str(claim.job_id),
+            AuditEvent.action == "deep_review.job.failed",
+        )).all()
+        assert len(audit) == 1 and audit[0].safe_metadata["status"] == "failed"
 
 
 def test_failure_after_completed_stage_keeps_completed_stage_and_allows_new_attempt(engine, monkeypatch):
@@ -1228,6 +1260,9 @@ def test_reclaim_resumes_after_immutable_stage_one_prefix_and_rejects_noncontigu
         stages[1].status = "running"
         job = session.get(WorkJob, old_claim.job_id)
         assert job is not None
+        # 재점유는 시도가 남아 있을 때의 경로다. seed의 max_attempts는 1이므로
+        # 이 검사만 한 번 더 잡을 수 있게 둔다 (상한 종결은 자기 검사가 본다).
+        job.max_attempts = 2
         job.lease_expires_at = datetime.now(UTC) - timedelta(seconds=1)
         session.commit()
         new_claim = service.claim_next_job(session, "worker-new")
