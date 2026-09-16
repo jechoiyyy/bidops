@@ -227,7 +227,7 @@ def create_deep_review_attempt(
 
 
 # --- 사전규격 화면이 부르는 조회 (명세 §5.3: 경로는 pre_specs, 제공 모듈은 deep_review) ---
-# 개요 검토 REST는 P2가 이 router에 다시 붙인다. 지금 남은 것은 회사 핏 조회뿐이다.
+# 개요 검토 REST는 routers/overviews.py에 있다. 이 router에는 회사 핏 조회만 남는다.
 pre_spec_overview_router = APIRouter(prefix="/api/pre-specs", tags=["pre-specs"])
 
 

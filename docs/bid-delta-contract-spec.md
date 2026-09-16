@@ -2,7 +2,7 @@
 
 - 작업: UI/UX 수정 계획 R-07
 - 기준 HEAD: `52469dc`
-- 상태: 채택 — [ADR-0034](tracking/decisions/0034-bid-delta-final-decision.md), 구현 전
+- 상태: 채택 — ADR-0034. 저장·REST·화면은 구현됐고 비교를 계산하는 worker와 모델 binding은 미구현(2026-09-16 확인)
 - 범위: OpenAPI wire shape, DB 제약, 감사 event, 오류, 테스트 matrix
 - 비범위: production code, migration, frontend 구현, 모델 호출, 운영 활성화
 

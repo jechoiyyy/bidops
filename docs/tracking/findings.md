@@ -323,6 +323,7 @@ snapshot을 만들지 않는 fail-closed 계약을 검증하도록 분리했으�
 - 영향: 담당자는 curl 또는 CLI를 사용해야 하므로 목표 업무 흐름이 화면에서 끊기고, actor·idempotency·상태 fence를 잘못 다룰 가능성이 커진다.
 - 지금 해결할 수 없는 이유: backend 계약은 준비됐지만 frontend Phase 3 구현과 browser 회귀 검증이 별도 코드 작업으로 남아 있다.
 - 접근 방법: typed Lean API client, document preparation panel, terminal failure 전용 retry, polling, 403/503 상태 표현을 구현하고 fake API browser 흐름과 좁은 viewport를 검증한다.
+- 종결(2026-09-16): 코드에 구현됨(DocumentPreparationPanel 연결). 첨부 취득 실패 재시작만 미구현으로 남는다.
 
 ## 개발계정 일일 1,000회 한도의 실제 여유가 측정되지 않았다
 
@@ -368,9 +369,10 @@ snapshot을 만들지 않는 fail-closed 계약을 검증하도록 분리했으�
 
 - 재현 조건: 공고 판정 이력에서 심층 검토를 생성해 `/deep-reviews/{id}`로 이동한 뒤 화면을 벗어난다. 사업기회 화면이나 공고 화면에서 그 보고서를 다시 연다.
 - 증상: `web/backend/app/deep_review/routers/deep_reviews.py`가 제공하는 읽기 계약은 `GET /deep-reviews/{deep_review_id}` 단건뿐이다. 사업기회·공고로 보고서를 나열하는 endpoint가 없고, 사업기회 목록·상세 응답과 공고 응답에도 `deep_review_id`가 없다. 보고서 식별자를 따로 적어 두지 않으면 만든 보고서로 돌아갈 길이 없다.
-- 영향: `docs/design/PRD.md` §2.2가 요구한 "사업기회 화면의 명시적 진입점"을 데이터로 채울 수 없다. 2026-09-02 화면 개선 2단계는 사업기회 상세에 식별자로 여는 진입점을 두고 목록을 제공할 수 없다는 사실을 화면에 명시하는 선에서 멈췄다. 목록이 비어 보이는 것을 보고서가 없다는 뜻으로 오해할 위험은 문구로만 막고 있다.
+- 영향: 구 `docs/design/PRD.md`(git 이력, 삭제됨) §2.2가 요구한 "사업기회 화면의 명시적 진입점"을 데이터로 채울 수 없다. 2026-09-02 화면 개선 2단계는 사업기회 상세에 식별자로 여는 진입점을 두고 목록을 제공할 수 없다는 사실을 화면에 명시하는 선에서 멈췄다. 목록이 비어 보이는 것을 보고서가 없다는 뜻으로 오해할 위험은 문구로만 막고 있다.
 - 지금 해결할 수 없는 이유: 해결에는 REST 계약 추가(사업기회 또는 공고별 심층 검토 목록)나 기존 응답에 식별자 노출이 필요하다. 화면 개선 2단계의 범위는 프론트엔드이며 `docs/contracts.md`의 소비자 계약과 백엔드를 바꾸지 않기로 했다.
 - 접근 방법: `GET /opportunities/{id}/deep-reviews` 또는 `GET /notices/{notice_id}/deep-reviews`를 추가해 보고서 식별자·생성 시각·현재 상태를 돌려주고, `docs/contracts.md`와 `docs/deep-review-erd.md`에 소비자 계약으로 등록한다. 그 뒤 사업기회 화면의 진입점을 식별자 입력이 아니라 목록으로 바꾼다.
+- 종결(2026-09-16): 코드에 구현됨(GET /api/opportunities/{id}/deep-reviews).
 
 ## Go/No-Go 결정 대기 사업기회를 N+1 없이 집계할 endpoint가 없다
 
@@ -609,11 +611,12 @@ snapshot을 만들지 않는 fail-closed 계약을 검증하도록 분리했으�
 ## 발주계획 추적 결정(결정 1)을 저장할 REST 계약이 없다
 
 - 재현 조건: `web/backend/app/screening/routers/order_plans.py`의 경로 다섯 개를 확인한다. 목록·상세·screening-history·screening-feedback(GET/POST)뿐이다. `PATCH /opportunities/{id}/tracking-status`는 사업기회 식별자로만 부를 수 있고, `OrderPlanListItem`·`OrderPlanDetailResponse`(둘 다 `_Strict`)에는 `opportunity_id`도 추적 상태도 없다.
-- 증상: [ADR-0046](../design/ADR.md) 결정 4가 추적 결정을 발주계획 화면의 결정 1로 채택했는데, 그 결정을 읽을 수도 쓸 수도 없다. `docs/design/PLAN.md` 단계 C 작업 5(추적 결정을 상세 pane 바닥의 결정 액션으로)와 완료 게이트 2("추적 결정과 사람 판단 수정이 서로 다른 요청으로 저장된다")를 서버 없이 만족시킬 수 없다.
+- 증상: [ADR-0046](../design/ADR.md) 결정 4가 추적 결정을 발주계획 화면의 결정 1로 채택했는데, 그 결정을 읽을 수도 쓸 수도 없다. 구 `docs/design/PLAN.md`(git 이력, 삭제됨) 단계 C 작업 5(추적 결정을 상세 pane 바닥의 결정 액션으로)와 완료 게이트 2("추적 결정과 사람 판단 수정이 서로 다른 요청으로 저장된다")를 서버 없이 만족시킬 수 없다.
 - 영향: 단계 C의 화면은 만들 수 있으나 **결정이 서버에 남지 않는다.** 이 상태에서 결정을 화면 상태나 localStorage에 기록하면 담당자에게 저장된 것처럼 보이면서 실제로는 사라지므로, 그렇게 만들지 않는다.
 - 상태: **차단** (2026-09-04). 화면 구현의 차단이 아니라 계약의 부재다.
 - 지금 해결할 수 없는 이유: REST·DB 계약은 백엔드 파트의 소유이고, 화면 작업이 임의로 endpoint를 만들거나 기존 사업기회 계약의 의미를 바꿀 권한이 없다.
 - 접근 방법: 요청안을 [`order-plan-tracking-contract-request.md`](../design/order-plan-tracking-contract-request.md)로 작성해 백엔드 파트에 보낸다. 조사 결과 **새 table은 필요하지 않을 가능성이 높다** — 소유 사업기회와 `stage='order_plan'` official 링크는 `ingest/loader.py`가 이미 만들고, 상태 4값과 append-only `AuditEvent`도 이미 있다. 없는 것은 응답에 그 상태를 싣는 것과 발주계획 식별자로 쓸 경로 둘이다. 계약이 확정될 때까지 화면은 요청안 §7의 규칙을 지킨다: adapter 한 곳으로 호출을 모으고, 실패를 성공으로 보이게 하지 않으며, 응답에 추적 상태가 없으면 `계약 미구현`으로 표시하고 `미선택`으로 바꾸지 않는다. 계약이 구현·검증되기 전에는 단계 C를 완료로 적지 않는다.
+- 종결(2026-09-16): 코드에 구현됨(일괄·단건 추적 REST).
 
 ## 팔레트 전환 뒤 화면 단위 시각 회귀를 잡을 기준선이 없다 (해결)
 
@@ -1394,3 +1397,30 @@ runner 소비자가 없어 보류했다. 운영 DB/MinIO 쓰기·migration 적�
   더 이른 시점에 확보해 `attachment.name`에 반영할 수 있으면 이 경고를 줄일 수
   있다. 지금 범위에서는 해결하지 않는다.
 - 영향/다음 판단: 입력 준비·전송·암호화 저장·검증 실패/근거 PDF 조회는 작동하나 검증된 개요를 얻는 실제 성공 경로는 미확인이다. 다음 개선은 초안 section/quantity/unknown 계약과 결정적 규칙의 실원문 적합성을 이 고정 응답/인용으로 좁혀 확인하는 것이 우선이다. 이번 실행 요청에서 새 정책/검증 방식 변경·사실 자동 수정·재호출을 임의로 진행하지 않는다. 원문·기존 결과/사람 리뷰/참조 표식과 실패 응답을 보존했다.
+
+## 운영 모델 주소가 TEST-NET 자리표시자로 배포됐다 (2026-09-16, 운영 조치 완료·코드 방지 진행 중)
+
+- 재현: 2026-09-16 `bidops-web-1`·`bidops-analysis-worker-1` 환경의
+  `BIDOPS_VLLM_BASE_URL=http://192.0.2.10:8000/v1`, `BIDOPS_VLLM_ALLOWED_HOSTS=192.0.2.10`.
+  worker 안에서 TCP connect가 timeout. 개요 run은 9/15 이후 완료 0건, 대기 38건.
+- 원인: 2026-09-12 compose 정리에서 `env/vllm.env`(자리표시자 값)를 `env/model.env`로
+  합치면서 실제 주소(`http://192.168.0.139:58765/v1`, 9/11 검증 기록)가 유실됐다.
+  `_validated_base_url`은 allowlist 문자열 일치만 보고 예약 대역을 거부하지 않는다.
+- 조치: 2026-09-16 `env/model.env`를 실제 주소로 정정하고 analysis worker를
+  재생성했다(validation-run `2026-09-16-overview-recovery.md`). 브랜치
+  `feat/overview-claim-guard`가 RFC 5737 예약 대역을 호출 전에 거부하도록 한다.
+- 후속: worker 기동 시 endpoint preflight는 아직 없다.
+
+## 개요 worker의 claim 루프가 재시도 상한을 무시한다 (2026-09-16, 코드 수정 진행 중)
+
+- 재현: 운영 `work_job`에서 `max_attempts=3`인 개요 job의 `attempt_count`가
+  205(실행 중)·321(9/15 `lease_expired` 실패). 대기 38건이 처리되지 않았다.
+- 원인: `overview_runs._claim_next`가 claim 시 `attempt_count`를 올리고,
+  `verify_identity()` 실패를 `_release`로 `queued`에 되돌리며 카운터·상한을 보지
+  않는다. `max_attempts`는 `work_job` 경로 어디서도 읽히지 않고
+  `deep_reviews.claim_next_job`의 만료 reclaim도 같다. 사람이 run을 닫는
+  REST·CLI가 없다.
+- 영향: 모델 endpoint가 죽어 있으면 한 작업이 1초 poll마다 재점유돼 대기열
+  머리를 영구히 막는다.
+- 후속: 브랜치 `feat/overview-claim-guard`가 상한 게이트·`_release` 복원·identity
+  backoff·`close-overview-run` CLI를 추가한다.
