@@ -17,31 +17,27 @@
  * (`web/frontend/AGENTS.md` "UI 패턴")과도 같은 방향이다.
  *
  * **값이 px인 이유.** Astryx의 `--font-size-*`는 rem이고 이 앱의 root는 14px다
- * (`theme.css`의 `:root { font-size: ... }`). 그래서 `--font-size-sm`(0.75rem)은
- * 이름과 달리 12px가 아니라 **10.5px**로 계산된다. 4단을 그 토큰으로 정의하면
- * 최소 크기 약속이 조용히 깨지므로 여기서는 실제 크기를 적는다. root 크기를
- * 16px로 올리는 쪽은 Astryx 컴포넌트 전부를 14% 키우므로 택하지 않았다.
- * 전역 UI 배율은 `shell-relaxed.css`의 `--bo-ui-scale: 0.9`로 시각 결과에만
- * 적용된다. 따라서 논리 캡션 12px은 브라우저 100%에서 물리적으로 10.8px로
- * 보인다. 이 값은 사용자가 요청한 화면 배율 예외이며, 캡션 단 자체를 10.8px로
- * 낮추지 않는다.
+ * (`theme.css`의 `:root { font-size: ... }`). 기존 화면은 전역 zoom으로 이
+ * 값을 물리적으로 90%로 그렸으므로, native 전환에서는 compact 토큰이 그
+ * 물리값을 직접 소유한다. root의 rem 기반 Astryx 글꼴은 `theme.css`의
+ * compact root 크기로 같은 결과를 얻는다.
  *
- * 최소 크기는 12px이다. 10~11px 글자가 337곳 있었고 1280~1920px 데스크톱에서도
- * 읽기 어려웠다. 화면별로 이 스케일을 벗어나야 하면 그 자리에 이유를 주석으로
- * 남긴다.
+ * 이 토큰은 기존 화면 밀도를 보존하기 위한 것이며 브라우저 확대 기능을
+ * 대체하지 않는다. 화면별로 이 스케일을 벗어나야 하면 그 자리에 이유를
+ * 주석으로 남긴다.
  */
 :root {
-  --bo-type-page-title: 20px;
+  --bo-type-page-title: calc(20px * var(--bo-ui-scale));
   --bo-type-page-title-leading: 1.35;
   --bo-type-page-title-weight: 600;
 
-  --bo-type-section-title: 14px;
+  --bo-type-section-title: calc(14px * var(--bo-ui-scale));
   --bo-type-section-title-leading: 1.4;
   --bo-type-section-title-weight: 600;
 
-  --bo-type-body: 14px;
+  --bo-type-body: calc(14px * var(--bo-ui-scale));
   --bo-type-body-leading: 1.5;
 
-  --bo-type-caption: 12px;
+  --bo-type-caption: calc(12px * var(--bo-ui-scale));
   --bo-type-caption-leading: 1.45;
 }

@@ -88,7 +88,7 @@
    `span`에 본문 크기를 주므로 여기서 캡션 단을 다시 못 박는다(특이성 0,2,0). */
 .workspace-view-tabs .workspace-view-tab-label {
   /* 사용자 요청 2026-09-15: 보기 탭 라벨 +1px */
-  font-size: calc(var(--bo-type-caption) + 1px);
+  font-size: calc(var(--bo-type-caption) + 0.9px);
   line-height: var(--bo-type-caption-leading);
 }
 

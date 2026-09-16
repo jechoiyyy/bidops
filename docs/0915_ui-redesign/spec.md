@@ -2,7 +2,8 @@
 
 [`intent.md`](intent.md)의 결과를 구현 가능한 값과 규칙으로 옮긴다. 시각 정본은
 [`mockups/shots/`](mockups/shots/) 8장과 [`mockups/artboards/`](mockups/artboards/)의
-HTML이며, 아트보드의 값은 앱 `zoom: 0.9` 기준 **논리 px**라 CSS 값과 1:1이다
+HTML이며, 아트보드의 값은 과거 앱 `zoom: 0.9` 기준 논리 px다. 제품은 같은 물리 크기를
+native compact CSS 토큰으로 옮겼으므로 전역 배율을 적용하지 않는다.
 (프레임 1422×889 = 1280×800 창). 시안의 건수·사업명·문안은 규칙을 설명하는 예시
 데이터이고 운영 사실이 아니다.
 
@@ -80,10 +81,10 @@ HTML이며, 아트보드의 값은 앱 `zoom: 0.9` 기준 **논리 px**라 CSS �
 | 부위 | 값 |
 |---|---|
 | 셸·canvas 배경 | `--color-background-body` (`#F6F7F4`) |
-| 사이드바 | 폭 248 유지. 배경 `--color-background-body`, 우측 테두리 없음. 브랜드 줄: 면 없이 아이콘 28px(`--color-accent`, mask) + `BidOps` 20/700, 아래 부제 12/500, 좌우 16px 안쪽 1px `--color-border` 구분선(C안). 그룹 라벨 `--color-text-secondary` 12px. 항목 36px·8px 12px·반지름 5.25 유지, 글자 `--color-text-secondary`; 활성은 배경 `--color-background-surface` + `--shadow-low`, 글자 `--color-text-accent` 600. 사이드바 본문은 `--color-on-dark`를 더는 읽지 않는다 |
-| 상단바 | 높이 76 유지. 배경 `--color-background-body`, 하단 테두리 없음. 제목 모드 h1 20/600, 경로 모드 12px 유지 |
-| canvas 여백 | `12px 18px 16px` (기존 `16px 18px`; 필터 줄이 상단바에 붙어 보이도록 위만 4px 줄임). `design-shell.spec.ts`의 기본 여백 기대값을 함께 바꾼다 |
-| 전역 배율 | `zoom: 0.9` 유지 |
+| 사이드바 | 폭 223.2px. 배경 `--color-background-body`, 우측 테두리 없음. 브랜드 줄: 면 없이 아이콘 25.2px(`--color-accent`, mask) + `BidOps` 18/700, 아래 부제 10.8/500, 좌우 14.4px 안쪽 1px `--color-border` 구분선(C안). 항목 최소 높이 32.4px이며 활성은 배경 `--color-background-surface` + `--shadow-low`, 글자 `--color-text-accent` 600. 사이드바 본문은 `--color-on-dark`를 더는 읽지 않는다 |
+| 상단바 | 높이 68.4px. 배경 `--color-background-body`, 하단 테두리 없음. 제목 모드 h1 18/600, 경로 모드 10.8px |
+| canvas 여백 | `10.8px 16.2px 14.4px`. `design-shell.spec.ts`의 기본 여백 기대값을 함께 바꾼다 |
+| 화면 밀도 | 전역 zoom 없이 기존 90% 물리 크기의 native compact 토큰 유지 |
 
 `design-shell.spec.ts` "1440px 셸의 무드보드 색과 기준 치수" 기대값을 위 값으로
 바꾸고, `accentToken`이 `587A2B`를 포함하고 `5B687C`를 포함하지 않는지로 뒤집는다.
@@ -91,13 +92,12 @@ HTML이며, 아트보드의 값은 앱 `zoom: 0.9` 기준 **논리 px**라 CSS �
 ### 2.2 필터 줄과 보기 탭 (`components/common/WorkspaceFilters.tsx`의 `WorkspaceFilterBar`, `styles/workspace-filters.css`)
 
 - 필터 줄은 테두리·배경 없이 canvas 위에 놓인다(`padding: 0 4px`).
-- 보기 탭은 밑줄형: 높이 32, 글자 12px, 비활성 라벨 `--color-text-secondary`(비활성
+- 보기 탭은 밑줄형: 높이 28.8px, 글자 10.8px, 비활성 라벨 `--color-text-secondary`(비활성
   탭도 누를 수 있는 글자라 4.5:1을 지킨다; 건수만 `--color-text-disabled`), 활성
   `--color-text-primary` 600 + `box-shadow: inset 0 -2px 0 var(--bo-brand)`, 활성
-  카운트는 `--color-text-accent`. 탭 사이 12px.
-- 검색 입력 264×32, 반지름 8.75, 테두리 `--color-border-emphasized`. 고급 필터
-  토글은 32×32 outline 단추.
-- `SW 중심 · 추적 예외 포함` 스위치는 28px, `--color-accent-muted` 바탕 + inset
+  카운트는 `--color-text-accent`. 탭 사이 10.8px.
+- 검색 입력과 고급 필터 토글은 native compact 컨트롤 높이 28.8px을 쓴다.
+- `SW 중심 · 추적 예외 포함` 스위치는 native compact 크기, `--color-accent-muted` 바탕 + inset
   1px `--bo-brand-edge`, 글자 `--color-text-accent` 600.
 
 ### 2.3 분할 작업 영역과 목록 (`components/common/ReviewPrimitives.tsx`의 `SplitWorkspace`, `styles/review-primitives.css`, `pre-specs-relaxed.css`, `order-plans.css` 등)
@@ -107,13 +107,13 @@ HTML이며, 아트보드의 값은 앱 `zoom: 0.9` 기준 **논리 px**라 CSS �
 - 목록 머리·선택 도구줄·열 이름 줄·행·바닥의 구분선은 전부 `--color-background-muted`
   1px. 바닥과 열 이름 줄 배경 `#FBFCF9`(= body와 surface의 중간; 토큰은
   `color-mix(in srgb, var(--color-background-body) 50%, var(--color-background-surface))`).
-- 행: 패딩 8px 16px, 제목 15/600, 기관 14, 메타 12 `--color-text-secondary` 유지.
-  선택 행 배경 `--color-accent-muted`, 좌측 inset 바 없음. 체크박스 16px, 체크됨은
+- 행: 패딩 7.2px 14.4px, 제목 13.5/600, 기관 12.6, 메타 10.8 `--color-text-secondary`.
+  선택 행 배경 `--color-accent-muted`, 좌측 inset 바 없음. 체크박스도 compact 토큰을 쓰며 체크됨은
   `--bo-brand` 채움 + 흰 체크.
-- 단추: Astryx `sm` 28px·반지름 8.75·12px/500 유지. primary 채움 `--color-accent`,
+- 단추: Astryx `sm` 25.2px·10.8px/500. primary 채움 `--color-accent`,
   outline은 흰 바탕 + inset 1px `--color-border`, ghost 투명. disabled 채움
   `--color-background-muted` + `--color-text-disabled`.
-- 칩(Astryx `Token`) 20px·반지름 5.25·12px/500 유지. `outline` 칩(흰 바탕 + inset 1px
+- 칩(Astryx `Token`)도 native compact 높이·글자 크기를 쓴다. `outline` 칩(흰 바탕 + inset 1px
   `--color-border`, 글자 secondary)은 `Token`이 변형을 못 늘리므로 `ReviewPrimitives`의
   프로젝트 클래스로 둔다.
 

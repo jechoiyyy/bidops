@@ -417,7 +417,7 @@
 
 .quality-result-banner strong {
   color: var(--color-deep);
-  font-size: 16px;
+  font-size: 14.4px;
 }
 
 .quality-result-banner span {
@@ -534,7 +534,7 @@
 }
 
 .quality-metric-summary span { color: var(--color-muted-soft); font-size: var(--bo-type-caption); }
-.quality-metric-summary strong { color: var(--color-deep); font-size: 16px; }
+.quality-metric-summary strong { color: var(--color-deep); font-size: 14.4px; }
 
 .quality-table-wrap {
   max-height: 560px;

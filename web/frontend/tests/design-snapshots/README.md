@@ -44,7 +44,7 @@
 | 경로 | 내용 |
 |---|---|
 | `docs/0915_ui-redesign/mockups/shots/` | PNG 8장, 1440×900 |
-| `docs/0915_ui-redesign/mockups/artboards/` | 캔버스 아트보드 HTML 8장(`*.dc.html`). 값은 앱 `zoom: 0.9` 기준 논리 px라 CSS 값과 1:1 |
+| `docs/0915_ui-redesign/mockups/artboards/` | 캔버스 아트보드 HTML 8장(`*.dc.html`). 값은 과거 `zoom: 0.9` 기준 논리 px이며 제품은 같은 물리 크기를 native compact CSS로 표현 |
 | `docs/0915_ui-redesign/mockups/MANIFEST.txt` | 두 묶음의 sha256 |
 
 시안과 [`docs/0915_ui-redesign/spec.md`](../../../../docs/0915_ui-redesign/spec.md)가

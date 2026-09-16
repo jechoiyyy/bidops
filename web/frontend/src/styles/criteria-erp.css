@@ -22,7 +22,7 @@
 .crit-page {
   /* 목록 첫 줄은 본문보다 한 단 크다(시안 `--bo-type-list: 15px`). 시안과 같은
      방식으로 본문 토큰에서 계산한다. */
-  --crit-type-list: calc(var(--bo-type-body) + var(--border-width));
+  --crit-type-list: calc(var(--bo-type-body) + 0.9px);
 
   display: flex;
   flex-direction: column;

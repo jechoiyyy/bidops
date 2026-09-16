@@ -62,8 +62,7 @@ test("목록 workspace는 page canvas의 남은 높이를 채운다", async ({ p
       const pageBox = pageRoot.getBoundingClientRect();
       const workspaceBox = workspace.getBoundingClientRect();
       const canvasStyle = getComputedStyle(canvas);
-      const uiScale = Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--bo-ui-scale")) || 1;
-      const contentBottom = canvasBox.bottom - Number.parseFloat(canvasStyle.paddingBottom) * uiScale;
+      const contentBottom = canvasBox.bottom - Number.parseFloat(canvasStyle.paddingBottom);
       return {
         contentBottom,
         pageBottom: pageBox.bottom,
@@ -646,7 +645,7 @@ test("두 지원 폭에서 가로로 넘치지 않고 상세 바닥 액션이 �
   }
 });
 
-test("목록의 글자 크기가 승인된 시안의 15px·14px 단을 지킨다", async ({ page }) => {
+test("목록의 글자 크기가 기존 물리 크기의 13.5px·12.6px 단을 지킨다", async ({ page }) => {
   await mockOpportunities(page);
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/opportunities");
@@ -664,11 +663,10 @@ test("목록의 글자 크기가 승인된 시안의 15px·14px 단을 지킨다
       detailAgency: size(".opportunity-agency-name"),
     };
   });
-  expect(sizes.title).toBe("15px");
-  expect(sizes.agency).toBe("15px");
-  expect(sizes.meta).toBe("14px");
-  expect(sizes.next).toBe("14px");
-  expect(sizes.detailTitle).toBe("20px");
-  // 목록만 15px로 낮췄다. 상세의 발주기관은 시안대로 16px를 유지한다.
-  expect(sizes.detailAgency).toBe("16px");
+  expect(sizes.title).toBe("13.5px");
+  expect(sizes.agency).toBe("13.5px");
+  expect(sizes.meta).toBe("12.6px");
+  expect(sizes.next).toBe("12.6px");
+  expect(sizes.detailTitle).toBe("18px");
+  expect(sizes.detailAgency).toBe("14.4px");
 });

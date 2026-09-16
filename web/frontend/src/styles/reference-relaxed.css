@@ -133,7 +133,7 @@
 
 .profile-summary-item strong {
   color: var(--color-deep);
-  font-size: 28px;
+  font-size: 25.2px;
   font-weight: 600;
   line-height: 1;
 }
@@ -297,7 +297,7 @@
 .profile-section-title strong {
   min-width: 0;
   color: var(--color-deep);
-  font-size: 15px;
+  font-size: 13.5px;
   font-weight: 650;
   line-height: 1.45;
   overflow-wrap: anywhere;
@@ -733,7 +733,7 @@
 .metrics-current-value strong {
   color: var(--color-primary-strong);
   font-family: var(--font-mono);
-  font-size: 32px;
+  font-size: 28.8px;
   font-weight: 600;
   line-height: 1.05;
   overflow-wrap: anywhere;
@@ -742,7 +742,7 @@
 .metrics-card-not_measurable .metrics-current-value strong {
   color: var(--color-muted-soft);
   font-family: var(--font-sans);
-  font-size: 18px;
+  font-size: 16.2px;
   font-weight: 600;
 }
 

@@ -1122,7 +1122,7 @@
 /* 위 `:where(dd, li, p, span)` 규칙이 본문 14px를 주므로 `.c2l-page`로 특정도를 올려
  * 목록 첫 줄만 한 단 키운다(판정 기준 화면의 `--crit-type-list`와 같은 계산). */
 .c2l-page .c2l-row-title {
-  font-size: calc(var(--bo-type-body) + var(--border-width));
+  font-size: calc(var(--bo-type-body) + 0.9px);
   font-weight: var(--font-weight-semibold);
   line-height: var(--bo-type-body-leading);
 }

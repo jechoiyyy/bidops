@@ -20,7 +20,7 @@
   /* 목록 첫 줄(사업명·발주기관)은 본문보다 한 단 크다. 사용자가 16px에서 15px로
      낮춘 최신 시안 값이며 시안 CSS와 같은 방식으로 본문 토큰에서 계산한다
      (`--gng-row-primary: calc(var(--bo-type-body) + var(--bo-line))`). */
-  --gng-row-primary: calc(var(--bo-type-body) + var(--border-width));
+  --gng-row-primary: calc(var(--bo-type-body) + 0.9px);
 
   display: flex;
   flex-direction: column;

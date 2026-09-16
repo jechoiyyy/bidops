@@ -85,9 +85,9 @@ const LIST_WIDTH_STORAGE_KEY = "bidops.order-plans.listWidth";
 const SAVED_VIEWS_STORAGE_KEY = "bidops.order-plans.views";
 
 /**
- * 마우스 좌표는 화면에 그려진 배율의 좌표이고 목록 폭은 CSS layout px 이다.
+ * 마우스 좌표는 화면에 그려진 좌표이고 목록 폭은 CSS layout px 이다.
  * offsetWidth와 bounding rect는 모두 목록 테두리를 포함하므로, 두 값을 나누면
- * 조상 `zoom`이나 브라우저가 계산한 실제 배율을 선언값 없이 얻을 수 있다.
+ * 브라우저가 계산한 실제 렌더링 배율을 선언값 없이 얻을 수 있다.
  */
 function renderedHorizontalScale(element: HTMLElement): number {
   const layoutWidth = element.offsetWidth;
@@ -97,17 +97,9 @@ function renderedHorizontalScale(element: HTMLElement): number {
     if (Number.isFinite(scale) && scale > 0) return scale;
   }
 
-  // 요소가 아직 layout 되지 않은 순간에는 computed zoom을 따라간다. zoom은
-  // 상속되지 않으므로 조상 값을 곱해 중첩 배율도 보존한다.
-  let scale = 1;
-  let foundZoom = false;
-  for (let ancestor: HTMLElement | null = element; ancestor; ancestor = ancestor.parentElement) {
-    const zoom = Number.parseFloat(getComputedStyle(ancestor).zoom);
-    if (!Number.isFinite(zoom) || zoom <= 0) continue;
-    scale *= zoom;
-    foundZoom = true;
-  }
-  return foundZoom && Number.isFinite(scale) && scale > 0 ? scale : 1;
+  // Native compact CSS does not add a document-level scale. Keep the neutral
+  // fallback for the pre-layout event rather than guessing from a stale style.
+  return 1;
 }
 /**
  * 두 값만 **탭 세션** 동안 기억한다(localStorage가 아니다).

@@ -169,15 +169,13 @@
   color: var(--color-text);
   background: var(--color-soft-surface);
   font-family: var(--font-sans);
-  /* root 크기는 타이포 4단과 따로 둔다. Astryx의 `--font-size-*`가 rem이라
-     이 값을 바꾸면 디자인 시스템 컴포넌트 전체가 같은 비율로 커지거나 작아진다.
-     본문 크기를 조정할 자리는 `styles/typography.css`의 `--bo-type-body`다. */
-  font-size: 14px;
+  /* Astryx의 rem 기반 글꼴은 전역 zoom 없이 현재 물리 크기를 유지하도록
+     compact 기준(14px × 0.9)으로 둔다. 고정 px 글꼴은 typography 토큰이
+     직접 compact 값을 소유한다. */
+  font-size: calc(14px * var(--bo-ui-scale));
   line-height: 1.6;
   font-variant-numeric: tabular-nums;
   font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
 }
 
 * {
@@ -186,7 +184,7 @@
 
 body {
   /* 지원 폭 아래에서는 레이아웃을 바꾸지 않고 가로 스크롤을 허용한다(ADR-0047). */
-  min-width: calc(1280px / var(--bo-ui-scale));
+  min-width: 1280px;
   min-height: var(--bo-ui-viewport-height);
   margin: 0;
   background: var(--color-soft-surface);
@@ -280,7 +278,7 @@ a {
 .sidebar-brand strong {
   display: block;
   color: var(--color-white);
-  font-size: 15px;
+  font-size: 13.5px;
   font-weight: 600;
   letter-spacing: -0.01em;
 }
@@ -1428,7 +1426,7 @@ a {
 .dashboard-kpi-value {
   margin-top: 5px;
   color: var(--color-charcoal);
-  font-size: 27px;
+  font-size: 24.3px;
   font-weight: 500;
   letter-spacing: -0.02em;
   line-height: 1.15;
@@ -1441,12 +1439,12 @@ a {
 .dashboard-kpi-unit {
   margin-left: 4px;
   color: var(--color-muted);
-  font-size: 15px;
+  font-size: 13.5px;
 }
 
 .dashboard-kpi-fraction {
   color: var(--color-muted);
-  font-size: 15px;
+  font-size: 13.5px;
 }
 
 .dashboard-kpi-description {
@@ -3522,7 +3520,7 @@ a {
 
 .profile-summary-item strong {
   color: var(--color-text);
-  font-size: 17px;
+  font-size: 15.3px;
   font-weight: 500;
 }
 
@@ -3926,7 +3924,7 @@ a {
 .metrics-value-row strong {
   color: var(--color-primary-strong);
   font-family: var(--font-mono);
-  font-size: 24px;
+  font-size: 21.6px;
   font-weight: 500;
   line-height: 1;
 }
@@ -3934,7 +3932,7 @@ a {
 .metrics-card-not_measurable .metrics-value-row strong {
   color: var(--color-muted);
   font-family: var(--font-sans);
-  font-size: 15px;
+  font-size: 13.5px;
 }
 
 .metrics-value-row span {
@@ -4290,7 +4288,7 @@ a {
 
 .attachments-count strong {
   color: var(--color-primary-strong);
-  font-size: 25px;
+  font-size: 22.5px;
   font-weight: 500;
 }
 
@@ -4625,7 +4623,7 @@ a {
 
 .judgment-banner-grade strong {
   color: var(--color-deep);
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 600;
   letter-spacing: -0.01em;
   line-height: 1.25;
@@ -4712,7 +4710,7 @@ a {
 
 .judgment-banner-counts dd {
   margin: 0;
-  font-size: 15px;
+  font-size: 13.5px;
   font-weight: 500;
 }
 
@@ -4912,7 +4910,7 @@ a {
 
 .dashboard-action-item > .dashboard-action-metric > strong {
   color: var(--color-primary-strong);
-  font-size: 22px;
+  font-size: 19.8px;
   font-weight: 500;
   letter-spacing: -0.02em;
   line-height: 1.15;
@@ -4998,7 +4996,7 @@ a {
 }
 
 .dashboard-action-item.is-compact > .dashboard-action-metric > strong {
-  font-size: 15px;
+  font-size: 13.5px;
 }
 
 .dashboard-action-item.is-compact > .dashboard-action-item-title {

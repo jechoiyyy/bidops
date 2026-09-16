@@ -166,9 +166,9 @@ test("기본 목록은 밀집 행이고 판정에 필요한 값만 담으며, �
     };
   });
   expect(geometry.titleTop).toBeLessThan(geometry.agencyTop);
-  expect(geometry.titleFontSize).toBe(geometry.agencyFontSize + 1);
+  expect(geometry.titleFontSize).toBeCloseTo(geometry.agencyFontSize + 0.9, 1);
   expect(geometry.titleWeight).toBeGreaterThanOrEqual(600);
-  expect(geometry.agencyFontSize).toBeGreaterThanOrEqual(14);
+  expect(geometry.agencyFontSize).toBeGreaterThanOrEqual(12.6);
   expect(geometry.agencyWeight).toBeLessThan(600);
 
   // 상세 pane은 행을 고른 뒤에 채워진다.
@@ -236,8 +236,7 @@ test("기본 상세는 실제 모델 근거와 알려진 출처 필드만 보여
   await expect(head.locator(".c2l-agency-label")).toHaveText("발주기관");
   await expect(head.locator(".c2l-agency-name")).toHaveText("서울특별시 디지털정책관");
 
-  // 시안 기준 글자 크기: 사업명 20px, 발주기관 14px 굵게. Astryx rem 기본값(12.25px)으로
-  // 되돌아가면 화면 전체가 시안보다 작아진다(docs/engineering-notes.md).
+  // 전역 zoom 때의 물리 크기: 사업명 18px, 발주기관 12.6px 굵게.
   const type = await page.locator(".c2l-detail-pane").evaluate((pane) => {
     const size = (selector: string) => {
       const element = pane.querySelector<HTMLElement>(selector);
@@ -246,10 +245,10 @@ test("기본 상세는 실제 모델 근거와 알려진 출처 필드만 보여
     };
     return { title: size("h4"), agency: size(".c2l-agency-name"), body: size(".c2l-evidence-body") };
   });
-  expect(type.title.fontSize).toBe(20);
-  expect(type.agency.fontSize).toBe(14);
+  expect(type.title.fontSize).toBe(18);
+  expect(type.agency.fontSize).toBe(12.6);
   expect(type.agency.weight).toBeGreaterThanOrEqual(600);
-  expect(type.body.fontSize).toBe(14);
+  expect(type.body.fontSize).toBe(12.6);
 });
 
 test("토큰 필터는 축끼리 AND, 축 안에서는 OR로 조합되고 프리셋은 이름 붙은 지름길일 뿐이다", async ({ page }) => {
@@ -787,8 +786,7 @@ test("크기 조절 가능한 상세 영역: 드래그와 화살표 키로 폭�
   const separatorAfterReload = page.getByRole("separator", { name: "목록 폭 조절" });
   await expect(separatorAfterReload).toHaveAttribute("aria-valuenow", String(after));
 
-  // `clientX`는 화면에 그려진 좌표이고 aria 값·localStorage는 논리 CSS px이다.
-  // 전역 UI zoom이 있어도 두 지원 폭에서 손잡이가 실제 포인터 이동만큼 따라가야 한다.
+  // `clientX`, aria 값, localStorage가 모두 native CSS px를 사용한다.
   for (const width of [1280, 1440]) {
     await page.setViewportSize({ width, height: 900 });
     await page.evaluate(() => window.localStorage.removeItem("bidops.order-plans.listWidth"));
