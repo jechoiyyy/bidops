@@ -1453,3 +1453,17 @@ runner 소비자가 없어 보류했다. 운영 DB/MinIO 쓰기·migration 적�
   머리를 영구히 막는다.
 - 후속: 브랜치 `feat/overview-claim-guard`가 상한 게이트·`_release` 복원·identity
   backoff·`close-overview-run` CLI를 추가한다.
+
+## 화면 스위트의 발주계획·공통 골격 spec 53건이 main에서 실패한다 (2026-09-16, 원인 미확인)
+
+- 재현: main `bdd6c25`에서 `PW_PORT=4183 npx playwright test <spec> --project=app --workers=2`.
+  `order-plans.spec.ts` 46건, `review-primitives.spec.ts` 3건, `admin-workspace-consistency.spec.ts` 2건,
+  `review-workspace-consistency.spec.ts` 1건, `explore-workspace-consistency.spec.ts` 1건이 실패한다.
+  발주계획 목록은 mock 응답이 있는데도 "조건에 맞는 계획이 없습니다"로 비어 `.c2l-row`가 0개이고,
+  실행 상태 화면은 `.rs-detail-foot`이 없다. 부하를 줄여(worker 2) 다시 돌려도 같은 건수다.
+- 영향: 같은 날 오전 `10cb5be` 기록은 `--project=app` 449 passed·0 failed였다. 그 사이 main의 프런트 코드
+  변경은 없고(백엔드·권한 SQL·문서만), 개요 3섹션 변경(ADR-0057) 통합 트리도 같은 53건만 실패했다
+  (그 외 1건은 의도한 배치 변경의 spec 기대값 누락이라 고쳤다). 따라서 이번 변경의 회귀는 아니다.
+- 지금 해결하지 않은 이유: 원인을 확인하지 않았다. 날짜에 의존하는 mock 데이터(관측 기간·마감 기준)나
+  공유 mock의 회차 목록이 후보다. 이번 범위는 개요 검토 재설계라 확장하지 않았다.
+- 후속: `10cb5be`를 격리 워크트리로 체크아웃해 같은 spec을 돌려 날짜 의존인지 코드 의존인지 먼저 가른다.
