@@ -425,7 +425,10 @@ def test_a_table_of_contents_that_does_not_align_hands_the_range_to_the_heading_
     selection = select_v4_input_range(payload)
 
     assert selection.status == "ready" and selection.strategy == "heading_scope"
-    assert selection.reason_code == "toc_alignment_failed"
+    # 성공한 선택에는 사유가 없다. 목차 실패 사유는 따로 따라가며 최종 결과가
+    # fallback·사람 검토일 때만 `range_reason_codes`에 남는다.
+    assert selection.reason_code is None
+    assert selection.toc_reason_code == "toc_alignment_failed"
     assert selection.page_numbers == (2,)
 
 

@@ -1169,9 +1169,9 @@ def _select_range(
         ):
             # 목차로 확정한 범위(`toc_scope`)에는 최소 크기 규칙을 적용하지
             # 않는다. 목차·본문이 대응한 경계이므로 한 쪽짜리 개요 장도
-            # 그대로 쓴다 (ADR-0057 결정 2). `reasons`는 목차 전략이 실패해
-            # 본문 전략으로 내려온 사유이며 성공한 전략의 사유가 아니다.
-            return selection, reasons
+            # 그대로 쓴다 (ADR-0057 결정 2). 성공한 자동 선택에는 사유를
+            # 붙이지 않는다 — 어느 전략이었는지는 manifest `strategy`가 말한다.
+            return selection, []
         else:
             reasons = ["range_too_small"]
     last = _fallback_pages(pages)
@@ -1182,7 +1182,10 @@ def _select_range(
         start_locator=_locator(1, "page"),
         end_locator=_locator(last, "page"),
     )
-    return fallback, [*reasons, "range_fallback_head"]
+    # 목차 전략이 실패한 사유는 최종 결과가 fallback·사람 검토일 때만, 본문
+    # 사유 뒤에 남긴다. 성공한 자동 선택에는 붙이지 않는다 (ADR-0057 결정 2).
+    toc_reason = [code for code in (selection.toc_reason_code,) if code]
+    return fallback, [*reasons, *toc_reason, "range_fallback_head"]
 
 
 def _stage_pages(selection: Any) -> dict[int, str]:

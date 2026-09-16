@@ -542,11 +542,13 @@ max_model_context_tokens 393216). 문맥 상한 판정은 요청 JSON의 byte �
 heading만으로 고름)·`human_confirmed`(사람이 확정한 쪽 span) 셋이다. `range_source`는
 그대로 `auto|fallback|human`이며 `toc_scope`·`heading_scope` 모두 `auto`다.
 
-목차 전략이 실패하면 본문 전략으로 내려가고 그 사유가 `range_reason_codes`에 남는다:
-`toc_missing`(앞 5쪽에 "제목 … 쪽번호" 항목이 4개 이상인 쪽이 없음)·`toc_alignment_failed`
-(인쇄 쪽 → 물리 쪽 offset을 두 장 이상에서 같은 값으로 확정하지 못함)·`toc_target_missing`
-(시작·끝으로 삼을 장 항목이 없음). 목차로 확정하면 사유를 남기지 않는다. 이 코드들은 뒤이은
-본문 선택이 성공해도 함께 남으므로 `range_source=auto`·`range_review.reason_code`와 같이 읽는다.
+목차 전략이 실패하면 본문 전략으로 내려간다. 실패 사유는 `toc_missing`(앞 5쪽에
+"제목 … 쪽번호" 항목이 4개 이상인 쪽이 없음)·`toc_alignment_failed`(인쇄 쪽 → 물리 쪽
+offset을 두 장 이상에서 같은 값으로 확정하지 못함)·`toc_target_missing`(시작·끝으로 삼을 장
+항목이 없음) 셋이다. **자동 선택이 성공하면 `range_reason_codes`는 비어 있다** — 어느 전략을
+썼는지는 manifest `strategy`가 말하며, 성공한 선택에 사유를 붙여 `range_review.reason_code`로
+노출하지 않는다. 목차 사유는 최종 결과가 fallback이거나 사람 검토일 때만 본문 사유
+(`range_too_small`·`scope_heading_missing` 등) **뒤에** `range_fallback_head` 앞자리로 남는다.
 
 #### 부분 완료 (2026-09-11)
 
