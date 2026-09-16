@@ -15,7 +15,8 @@ export const clickReadyUnlinkedPreSpec: PreSpecListItem = {
   document: { attachments: 1, 완료: 1, 대기: 0, 진행: 0, 차단: 0, 실패: 0 },
   overview_review_status: "completed", grade: "우선 검토", grade_source: "screening_judgment",
   auto_preparation_status: "deep_review_ready_for_click", auto_preparation_reason: "not_sw_business",
-  latest_deep_review_id: null,
+  latest_deep_review_id: null, first_observed_at: "2026-09-16T00:00:00Z", last_observed_at: "2026-09-16T00:00:00Z",
+  next_action: "open_deep_review",
 };
 
 const queueBase = {

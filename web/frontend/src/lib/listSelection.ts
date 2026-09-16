@@ -507,7 +507,13 @@ export function preSpecsFilterFingerprint(filters: {
   grade: string;
   autoPreparationStatus: string;
   trackingDecision: string;
-  view: string;
+  trackingStatus?: string;
+  workspace?: string;
+  overviewView?: string;
+  sourceRunId?: string;
+  observedFrom?: string;
+  observedTo?: string;
+  deadlineStatus?: string;
   q: string;
 }): string {
   const normalized = {
@@ -517,7 +523,13 @@ export function preSpecsFilterFingerprint(filters: {
     grade: filters.grade,
     autoPreparationStatus: filters.autoPreparationStatus,
     trackingDecision: filters.trackingDecision,
-    view: filters.view,
+    trackingStatus: filters.trackingStatus ?? "",
+    workspace: filters.workspace ?? "",
+    overviewView: filters.overviewView ?? "",
+    sourceRunId: filters.sourceRunId ?? "",
+    observedFrom: filters.observedFrom ?? "",
+    observedTo: filters.observedTo ?? "",
+    deadlineStatus: filters.deadlineStatus ?? "",
     q: filters.q,
   };
   return `pre-specs:${canonicalizeFilterValue(normalized)}`;
@@ -553,19 +565,23 @@ export interface PreSpecSelectionSortMetadata {
   id: ListSelectionId;
   published_at: string | null;
   deadline_at: string | null;
+  last_observed_at?: string | null;
 }
 
 export function isPreSpecSelectionSortMetadata(value: unknown): value is PreSpecSelectionSortMetadata {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const record = value as Record<string, unknown>;
   const keys = Object.keys(record).sort();
-  return keys.length === 3
-    && keys[0] === "deadline_at"
-    && keys[1] === "id"
-    && keys[2] === "published_at"
+  const hasObserved = keys.includes("last_observed_at");
+  const expectedKeys = hasObserved
+    ? ["deadline_at", "id", "last_observed_at", "published_at"]
+    : ["deadline_at", "id", "published_at"];
+  return keys.length === expectedKeys.length
+    && expectedKeys.every((key, index) => keys[index] === key)
     && isListSelectionId(record.id)
     && (record.published_at === null || (typeof record.published_at === "string" && normalizeTimestamp(record.published_at) !== null))
-    && (record.deadline_at === null || (typeof record.deadline_at === "string" && normalizeTimestamp(record.deadline_at) !== null));
+    && (record.deadline_at === null || (typeof record.deadline_at === "string" && normalizeTimestamp(record.deadline_at) !== null))
+    && (!hasObserved || record.last_observed_at === null || (typeof record.last_observed_at === "string" && normalizeTimestamp(record.last_observed_at) !== null));
 }
 
 function isLeapYear(year: number): boolean {
@@ -649,28 +665,51 @@ function compareNullableTimestamp(left: string | null | undefined, right: string
   return leftValue < rightValue ? -direction : direction;
 }
 
+function compareDeadlineTimestamp(left: string | null, right: string | null): number {
+  if (left === null || right === null) return compareNullableTimestamp(left, right, 1);
+  const leftValue = normalizeTimestamp(left);
+  const rightValue = normalizeTimestamp(right);
+  if (leftValue === null || rightValue === null) {
+    throw new Error("사전규격 정렬 메타데이터의 마감 timestamp를 확인할 수 없습니다.");
+  }
+  const now = BigInt(Date.now()) * 1_000n;
+  const leftPassed = leftValue < now;
+  const rightPassed = rightValue < now;
+  if (leftPassed !== rightPassed) return leftPassed ? 1 : -1;
+  // Future deadlines are nearest first; past deadlines are most recently
+  // passed first so the server and the selection-review order agree.
+  if (leftValue === rightValue) return 0;
+  if (leftPassed) return leftValue < rightValue ? 1 : -1;
+  return leftValue < rightValue ? -1 : 1;
+}
+
 export function comparePreSpecMetadata(
   left: PreSpecSelectionSortMetadata,
   right: PreSpecSelectionSortMetadata,
-  sort: "published" | "deadline",
+  sort: "published" | "deadline" | "observed",
 ): number {
   if (!isPreSpecSelectionSortMetadata(left) || !isPreSpecSelectionSortMetadata(right)) {
     throw new Error("사전규격 정렬 메타데이터가 올바르지 않습니다.");
   }
   const timestampResult = sort === "published"
     ? compareNullableTimestamp(left.published_at, right.published_at, -1)
-    : compareNullableTimestamp(left.deadline_at, right.deadline_at, 1);
+    : sort === "deadline"
+      ? compareDeadlineTimestamp(left.deadline_at, right.deadline_at)
+      // Old persisted selections predate observed metadata. Treat their
+      // missing value as null so adding the recent sort does not invalidate
+      // an otherwise restorable selection.
+      : compareNullableTimestamp(left.last_observed_at ?? null, right.last_observed_at ?? null, -1);
   if (timestampResult !== 0) return timestampResult;
   if (left.id === right.id) return 0;
   const idResult = typeof left.id === "number" && typeof right.id === "number"
     ? left.id < right.id ? -1 : 1
     : String(left.id).localeCompare(String(right.id));
-  return sort === "published" ? -idResult : idResult;
+  return sort === "published" || sort === "observed" ? -idResult : idResult;
 }
 
 export function sortPreSpecMetadata(
   items: readonly PreSpecSelectionSortMetadata[],
-  sort: "published" | "deadline",
+  sort: "published" | "deadline" | "observed",
 ): PreSpecSelectionSortMetadata[] {
   for (const item of items) {
     if (!isPreSpecSelectionSortMetadata(item)) {

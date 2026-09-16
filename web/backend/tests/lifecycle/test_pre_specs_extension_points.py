@@ -112,9 +112,17 @@ class _FakeOverviewProjection:
     def __init__(self) -> None:
         self.calls: list[tuple[str, tuple[int, ...]]] = []
 
+    @staticmethod
+    def _projected_id(notice_ids: Sequence[int]) -> int | None:
+        # 목록은 published/id DESC로 페이지를 정렬하지만, projection 입력은
+        # SQL의 무순서 후보 집합이다. ID를 명시적으로 고정해 두어 호출 순서에
+        # 결과가 우연히 결합되지 않도록 한다.
+        return max(notice_ids) if notice_ids else None
+
     def overview_status(self, session: Any, notice_ids: Sequence[int]) -> Mapping[int, str]:
         self.calls.append(("overview_status", tuple(notice_ids)))
-        return {notice_ids[0]: "completed"} if notice_ids else {}
+        projected_id = self._projected_id(notice_ids)
+        return {projected_id: "completed"} if projected_id is not None else {}
 
     def overview_status_counts(self, session: Any, notice_ids: Sequence[int]) -> Mapping[str, int]:
         self.calls.append(("overview_status_counts", tuple(notice_ids)))
@@ -122,16 +130,22 @@ class _FakeOverviewProjection:
 
     def document_counts(self, session: Any, notice_ids: Sequence[int]) -> Mapping[int, PreSpecDocumentCounts]:
         self.calls.append(("document_counts", tuple(notice_ids)))
-        return {notice_ids[0]: PreSpecDocumentCounts(completed=2, blocked=1)} if notice_ids else {}
+        projected_id = self._projected_id(notice_ids)
+        return (
+            {projected_id: PreSpecDocumentCounts(completed=2, blocked=1)}
+            if projected_id is not None
+            else {}
+        )
 
     def prespec_status_fields(
         self, session: Any, notice_ids: Sequence[int]
     ) -> Mapping[int, Mapping[str, Any]]:
         self.calls.append(("prespec_status_fields", tuple(notice_ids)))
-        if not notice_ids:
+        projected_id = self._projected_id(notice_ids)
+        if projected_id is None:
             return {}
         return {
-            notice_ids[0]: {
+            projected_id: {
                 "grade": "우선 검토",
                 "grade_source": "human_review",
                 "auto_preparation_status": "bundle_ready",
@@ -151,8 +165,8 @@ def test_with_a_provider_the_projection_values_are_carried_into_the_response(reg
 
     by_id = {item["notice_pk"]: item for item in payload["items"]}
     calls = dict(projection.calls)
-    # 가짜 제공자는 페이지 순서의 첫 공고에만 값을 준다.
-    projected_id = calls["overview_status"][0]
+    # 가짜 제공자는 안정적으로 가장 큰 ID의 공고에만 값을 준다.
+    projected_id = max(calls["overview_status"])
     assert projected_id in {first.id, second.id}
     assert calls["document_counts"][0] == projected_id
     assert by_id[projected_id]["overview_review_status"] == "completed"
@@ -173,12 +187,13 @@ def test_with_a_provider_the_projection_values_are_carried_into_the_response(reg
     counts = {row["status"]: row["count"] for row in payload["overview_status_counts"]}
     assert counts["completed"] == 1
     assert counts[None] == 1
-    # 네 메서드가 각각 한 번씩만 불렸고, 페이지 밖 공고는 넘기지 않는다.
+    # 상태·필드 필터와 집계를 위해 전체 후보를 먼저 받고, 문서 상세 건수만
+    # 반환 페이지를 받는다. 각 확장점은 여전히 공고당 조회를 만들지 않는다.
     assert [name for name, _ids in projection.calls] == [
-        "overview_status_counts",
         "overview_status",
-        "document_counts",
         "prespec_status_fields",
+        "overview_status_counts",
+        "document_counts",
     ]
     assert all(set(ids) == {first.id, second.id} for _name, ids in projection.calls)
 
@@ -194,9 +209,9 @@ def test_projection_receives_only_the_page_for_per_notice_values(registry, db_se
     page_id = payload["items"][0]["notice_pk"]
     calls = dict(projection.calls)
     assert set(calls["overview_status_counts"]) == {notice.id for notice in notices}
-    assert calls["overview_status"] == (page_id,)
+    assert set(calls["overview_status"]) == {notice.id for notice in notices}
+    assert set(calls["prespec_status_fields"]) == {notice.id for notice in notices}
     assert calls["document_counts"] == (page_id,)
-    assert calls["prespec_status_fields"] == (page_id,)
 
 
 class _RecordingTrackingHook:

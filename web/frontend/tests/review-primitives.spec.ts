@@ -66,17 +66,19 @@ test("발주계획 C-2는 공통 필터·목록·상세·상태·결정 action�
   expect(overflow).toBeLessThanOrEqual(1);
 });
 
-test("사전규격 보기 전환은 0건인 진행·대기도 숨기지 않는다", async ({ page }) => {
+test("사전규격 고급 상태 필터는 0건인 진행·대기도 숨기지 않는다", async ({ page }) => {
   await mockPreSpecs(page);
-  await page.goto("/pre-specs?sw_only=false");
-  const pending = page.getByRole("button", { name: /^진행·대기/ });
-  await expect(pending).toContainText("0");
+  await page.goto("/pre-specs?workspace=all&sw_only=false");
+  await page.getByRole("button", { name: "상세 필터", exact: true }).click();
+  const pending = page.getByRole("combobox", { name: "개요 상태" });
   await pending.click();
-  await expect(pending).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("option", { name: "진행·대기", exact: true }).click();
+  await expect.poll(() => new URL(page.url()).searchParams.get("overview_view")).toBe("pending");
   await expect(page.locator(".pre-specs-row")).toHaveCount(0);
   await expect(page.getByText("조건에 맞는 사전규격이 없습니다.", { exact: true })).toBeVisible();
-  await page.locator(".pre-specs-views").getByRole("button", { name: /^전체/ }).click();
-  await expect(pending).toHaveAttribute("aria-pressed", "false");
+  await pending.click();
+  await page.getByRole("option", { name: "전체 상태", exact: true }).click();
+  await expect.poll(() => new URL(page.url()).searchParams.has("overview_view")).toBe(false);
   await expect(page.locator(".pre-specs-row")).not.toHaveCount(0);
 });
 

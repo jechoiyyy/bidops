@@ -17,6 +17,7 @@ from sqlalchemy.pool import StaticPool
 from app.core.db import init_db
 from app.deep_review.models import AttachmentFetch, ContentObject, DocumentVersion
 from app.lifecycle.models import Attachment, Notice, Opportunity, OpportunityLink, OrderPlan
+from app.lifecycle.routers import pre_specs as pre_specs_router
 from app.lifecycle.routers.pre_specs import list_pre_specs
 from tests.postgres import migrated_engine, requires_postgres
 
@@ -543,7 +544,9 @@ def test_pre_specs_business_division_q_sort_and_pagination(pre_specs_api):
     assert [item["notice_pk"] for item in searched["items"]] == [refs["tracked_no"].id]
 
     deadline = _payload(session, sw_only=False, sort="deadline")
-    assert deadline["items"][0]["notice_pk"] == refs["tracked_no"].id
+    # The fixture is entirely past the fixed current date; passed deadlines are
+    # ordered newest first and null deadlines would come after them.
+    assert deadline["items"][0]["notice_pk"] == refs["null_status"].id
 
     paged = _payload(session, sw_only=False, sort="published", limit=2, offset=2)
     assert paged["limit"] == 2
@@ -638,10 +641,12 @@ def test_selection_review_prespec_published_sort_ties_microseconds_null_and_page
 
 
 @requires_postgres
-def test_selection_review_prespec_deadline_sort_ties_microseconds_null_and_pages():
-    """Deadline order is ASC/NULLS LAST/PK ASC across a page boundary."""
+def test_selection_review_prespec_deadline_sort_ties_microseconds_null_and_pages(monkeypatch):
+    """Deadline order partitions future/past/null and is stable across pages."""
 
     with migrated_engine() as engine, Session(engine) as session:
+        fixed_now = datetime(2026, 9, 16, 0, 0, tzinfo=UTC)
+        monkeypatch.setattr(pre_specs_router, "_now_utc", lambda: fixed_now)
         common = {
             "agency": "정렬 계약 기관",
             "sw_status": "Y",
@@ -652,35 +657,35 @@ def test_selection_review_prespec_deadline_sort_ties_microseconds_null_and_pages
             session,
             key="pre:SORT-DEADLINE-MICRO-EARLY",
             title="sort-contract deadline",
-            deadline_at=datetime(2026, 9, 1, 0, 0, 0, 123455, tzinfo=UTC),
+            deadline_at=datetime(2026, 9, 16, 0, 0, 0, 123455, tzinfo=UTC),
             **common,
         )
         early = _add_notice(
             session,
             key="pre:SORT-DEADLINE-EARLY",
             title="sort-contract deadline",
-            deadline_at=datetime(2026, 9, 1, 0, 0, 0, 123456, tzinfo=UTC),
+            deadline_at=datetime(2026, 9, 16, 0, 0, 0, 123456, tzinfo=UTC),
             **common,
         )
         tied_utc = _add_notice(
             session,
             key="pre:SORT-DEADLINE-TIED-UTC",
             title="sort-contract deadline",
-            deadline_at=datetime(2026, 9, 2, 0, 0, 0, 123456, tzinfo=UTC),
+            deadline_at=datetime(2026, 9, 17, 0, 0, 0, 123456, tzinfo=UTC),
             **common,
         )
         tied_seoul = _add_notice(
             session,
             key="pre:SORT-DEADLINE-TIED-SEOUL",
             title="sort-contract deadline",
-            deadline_at=datetime(2026, 9, 2, 9, 0, 0, 123456, tzinfo=timezone(timedelta(hours=9))),
+            deadline_at=datetime(2026, 9, 17, 9, 0, 0, 123456, tzinfo=timezone(timedelta(hours=9))),
             **common,
         )
         late = _add_notice(
             session,
             key="pre:SORT-DEADLINE-LATE",
             title="sort-contract deadline",
-            deadline_at=datetime(2026, 9, 3, tzinfo=UTC),
+            deadline_at=datetime(2026, 9, 15, 23, 59, 59, 999999, tzinfo=UTC),
             **common,
         )
         null_deadline = _add_notice(

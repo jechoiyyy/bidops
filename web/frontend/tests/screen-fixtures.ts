@@ -211,6 +211,9 @@ const cautionSampleItem = {
   auto_preparation_status: "bundle_ready",
   auto_preparation_reason: null,
   latest_deep_review_id: null,
+  first_observed_at: new Date(sampleNow - 2 * SAMPLE_DAY_MS).toISOString(),
+  last_observed_at: new Date(sampleNow - SAMPLE_DAY_MS).toISOString(),
+  next_action: "decide_tracking",
 };
 
 /** 값이 거의 없는 건. A5의 `미확인` 계열 표기를 재는 자리다. */
@@ -235,6 +238,9 @@ const emptySampleItem = {
   auto_preparation_status: "not_applicable",
   auto_preparation_reason: null,
   latest_deep_review_id: null,
+  first_observed_at: null,
+  last_observed_at: null,
+  next_action: null,
 };
 
 export const PRE_SPEC_CAUTION_SAMPLE_TASKS = [
@@ -385,6 +391,7 @@ export async function mockPreSpecCautionSample(page: Page): Promise<void> {
             status,
             count: shown.filter((item) => item.overview_review_status === status).length,
           })),
+          workspace_counts: { actionable: shown.filter((item) => item.next_action !== null).length, recent: shown.filter((item) => item.last_observed_at !== null).length, tracking: 0, all: shown.length },
         },
       });
       return;

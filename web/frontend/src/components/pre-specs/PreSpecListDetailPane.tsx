@@ -12,7 +12,6 @@ import {
 } from "./TrackingDecisionControl";
 import { useCurrentPageOverview } from "./PageOverviewSection";
 import { DeadlineMark } from "./PreSpecListRow";
-import { nextActionOf } from "../../lib/preSpecNextAction";
 import { api } from "../../lib/api";
 import { formatDateTime } from "../../lib/format";
 import { gradeLabel, gradeSourceLabel } from "../../lib/grade";
@@ -22,6 +21,7 @@ import { preSpecDetailUrl } from "../../lib/preSpecSelectionReview";
 import {
   agencyOf,
   exactBudget,
+  nextActionLabel,
   originLabel,
   titleOf,
   trackingLabel,
@@ -181,6 +181,10 @@ export function PreSpecDetail({
   // 연결이 없으면 `사업기회 미연결`, 연결은 있는데 값이 없으면 `미확인`이다.
   // 둘 중 어느 것도 사람이 고른 `미선택`으로 바꾸지 않는다.
   const trackingText = trackingLabel(item);
+  // 목록과 상세가 서로 다른 우선순위를 계산하지 않도록 서버가 정한
+  // nullable next_action 코드 하나만 표시한다. null은 추가 행동이 없다는
+  // 뜻이며 실패·마감 문구를 클라이언트에서 새로 만들지 않는다.
+  const serverNextAction = nextActionLabel(item.next_action);
   // 이미 기록된 건은 폼 대신 "현재 추적 상태" 블록이 나오고, 그 블록이
   // `보류·추적 종료는 사업 추적에서 변경합니다.`를 스스로 그린다. 같은 문장을
   // 줄 1에서 한 번 더 적지 않는다(spec §3.3 줄 1 캡션은 폼이 있을 때의 것이다).
@@ -361,7 +365,7 @@ export function PreSpecDetail({
         <div className="pre-specs-action-row">
           <div className="pre-specs-next-action">
             <span>다음 작업</span>
-            <strong>{nextActionOf(item)}</strong>
+            <strong>{serverNextAction ?? "다음 작업 없음"}</strong>
             <span aria-hidden="true">·</span>
             <span>입찰 참여 여부는 최종 Go/No-Go에서 결정</span>
           </div>

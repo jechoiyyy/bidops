@@ -118,7 +118,8 @@ test("LS-S1 canonical fingerprints normalize set order and exclude paging contex
     grade: "",
     autoPreparationStatus: "",
     trackingDecision: "",
-    view: "all",
+    workspace: "actionable",
+    overviewView: "all",
     q: "",
   })).toBe(preSpecsFilterFingerprint({
     swOnly: true,
@@ -127,7 +128,8 @@ test("LS-S1 canonical fingerprints normalize set order and exclude paging contex
     grade: "",
     autoPreparationStatus: "",
     trackingDecision: "",
-    view: "all",
+    workspace: "actionable",
+    overviewView: "all",
     q: "",
   }));
   expect(preSpecsFilterFingerprint({
@@ -137,7 +139,8 @@ test("LS-S1 canonical fingerprints normalize set order and exclude paging contex
     grade: "",
     autoPreparationStatus: "",
     trackingDecision: "",
-    view: "all",
+    workspace: "actionable",
+    overviewView: "all",
     q: "",
   })).not.toBe(preSpecsFilterFingerprint({
     swOnly: true,
@@ -146,7 +149,8 @@ test("LS-S1 canonical fingerprints normalize set order and exclude paging contex
     grade: "",
     autoPreparationStatus: "",
     trackingDecision: "",
-    view: "all",
+    workspace: "actionable",
+    overviewView: "all",
     q: "",
   }));
 });
@@ -267,6 +271,12 @@ test("PN-S2 pre-spec ordering preserves timezone offsets and microseconds", () =
     { id: 2, published_at: null, deadline_at: "2026-01-03T00:00:00.000001Z" },
   ];
   expect(sortPreSpecMetadata(deadlineRows, "deadline").map((item) => item.id)).toEqual([2, 3, 8]);
+  expect(sortPreSpecMetadata([
+    { id: 4, published_at: null, deadline_at: "2099-01-02T00:00:00Z" },
+    { id: 5, published_at: null, deadline_at: "2099-01-01T00:00:00Z" },
+    { id: 6, published_at: null, deadline_at: "2000-01-02T00:00:00Z" },
+    { id: 7, published_at: null, deadline_at: "2000-01-01T00:00:00Z" },
+  ], "deadline").map((item) => item.id)).toEqual([5, 4, 6, 7]);
   expect(normalizeTimestamp("2026-01-03T00:00:00.000001")).toBeNull();
   expect(normalizeTimestamp("0000-01-03T00:00:00Z")).toBeNull();
   expect(normalizeTimestamp("2026-02-29T00:00:00Z")).toBeNull();
@@ -298,6 +308,21 @@ test("PN-S2 pre-spec ordering preserves timezone offsets and microseconds", () =
   const storage = new MemoryStorage();
   storage.setItem("malformed-pre-spec", JSON.stringify(malformedState));
   expect(readListSelection("malformed-pre-spec", storage).status).toBe("invalid");
+});
+
+test("PN-S3 recent observation ordering puts latest observations first and unknown last", () => {
+  const observedRows: PreSpecSelectionSortMetadata[] = [
+    { id: 1, published_at: null, deadline_at: null, last_observed_at: "2026-09-15T00:00:00.000001Z" },
+    { id: 2, published_at: null, deadline_at: null, last_observed_at: "2026-09-15T00:00:00.000002Z" },
+    { id: 3, published_at: null, deadline_at: null, last_observed_at: null },
+  ];
+  expect(sortPreSpecMetadata(observedRows, "observed").map((item) => item.id)).toEqual([2, 1, 3]);
+  expect(sortPreSpecMetadata([
+    { id: 4, published_at: null, deadline_at: null, last_observed_at: "2026-09-15T00:00:00Z" },
+    { id: 5, published_at: null, deadline_at: null, last_observed_at: "2026-09-15T00:00:00Z" },
+  ], "observed").map((item) => item.id)).toEqual([5, 4]);
+  expect(isPreSpecSelectionSortMetadata(observedRows[0])).toBe(true);
+  expect(isPreSpecSelectionSortMetadata({ ...observedRows[0], last_observed_at: "invalid" })).toBe(false);
 });
 
 test("LS-S6 selected state keeps active row and checked membership independent", () => {

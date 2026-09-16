@@ -7,6 +7,7 @@ import {
   attachmentAttention,
   budgetLabel,
   exactBudget,
+  nextActionLabel,
   originLabel,
   overviewStatusLabel,
   overviewTokenColor,
@@ -58,6 +59,7 @@ export function PreSpecRow({
   const title = titleOf(item);
   const swNote = swRowNote(item.sw_business_status);
   const attention = attachmentAttention(item);
+  const nextAction = nextActionLabel(item.next_action);
   const shortDeadline = shortDateLabel(item.deadline_at);
   return (
     <DenseListRow
@@ -110,6 +112,7 @@ export function PreSpecRow({
               color={overviewTokenColor(item.overview_review_status)}
             />
             <span className="pre-specs-row-tracking">{trackingLabel(item)}</span>
+            {nextAction ? <span className="pre-specs-row-next-action">다음: {nextAction}</span> : null}
             {/* 0건은 실제 0이므로 아무것도 적지 않는다. 1건 이상일 때만 남긴다. */}
             {attention ? <span className="pre-specs-row-attention">{attention}</span> : null}
           </span>
@@ -129,5 +132,4 @@ export function PreSpecRow({
     />
   );
 }
-
 
