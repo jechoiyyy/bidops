@@ -365,7 +365,8 @@ def test_a_too_small_auto_range_is_not_frozen_and_falls_back_to_the_head(context
         "Ⅲ. 그 밖의 사항\n본문",
     ])
 
-    assert codes == ["range_too_small", "range_fallback_head"]
+    # 목차 사유(`toc_missing`)는 fallback으로 갈 때만 본문 사유 뒤에 붙는다.
+    assert codes == ["range_too_small", "toc_missing", "range_fallback_head"]
     assert selection.page_numbers == (1, 2)
 
 

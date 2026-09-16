@@ -99,6 +99,10 @@ class V4RangeSelection:
     manifest: dict[str, Any]
     manifest_bytes: bytes
     input_sha256: str
+    #: 이 선택을 만들기 **전에** 목차 전략이 실패한 사유. 성공한 선택의 사유가
+    #: 아니므로 manifest에도 넣지 않고, 최종 결과가 fallback·사람 검토일 때만
+    #: 호출부가 `range_reason_codes` 끝에 덧붙인다 (ADR-0057 결정 2).
+    toc_reason_code: str | None = None
 
 
 def _canonical(value: Any) -> bytes:
@@ -384,8 +388,8 @@ def select_v4_input_range(payload: Mapping[str, Any], *, candidates_complete: bo
     heading만 인식해 가장 가까운 장을 유지하고 다음 장에서 멈춘다.
 
     어느 쪽도 시작·끝을 확정하지 못하면 전체 문서를 고르거나 고정 쪽 수로 자르지
-    않고 사람 확인 manifest를 낸다. 목차 전략이 실패한 사유는 본문 전략이 성공해도
-    `reason_code`로 남는다.
+    않고 사람 확인 manifest를 낸다. 목차 전략이 실패한 사유는 성공한 선택의 사유가
+    아니므로 `reason_code`가 아니라 `toc_reason_code`로만 따라간다.
     """
 
     pages = _structure_pages(payload)
@@ -531,12 +535,12 @@ def select_v4_input_range(payload: Mapping[str, Any], *, candidates_complete: bo
         raw = _canonical(manifest)
         return V4RangeSelection(
             "needs_human_review", manifest["reason_code"], "heading_scope", None, None,
-            (), (), manifest, raw, _sha256_bytes(raw),
+            (), (), manifest, raw, _sha256_bytes(raw), toc_reason,
         )
 
     return _range_from_lines(
         payload, pages, lines, line_positions, start, end,
-        strategy="heading_scope", reason_code=toc_reason,
+        strategy="heading_scope", toc_reason_code=toc_reason,
     )
 
 
@@ -549,7 +553,7 @@ def _range_from_lines(
     end: _Line,
     *,
     strategy: str,
-    reason_code: str | None = None,
+    toc_reason_code: str | None = None,
 ) -> V4RangeSelection:
     """`start`(포함)부터 `end`(배타)까지를 동결 입력 manifest로 만든다.
 
@@ -599,7 +603,7 @@ def _range_from_lines(
         start_locator=_locator(start, start_ordinal),
         end_locator=_locator(end, end_ordinal),
         strategy=strategy,
-        reason_code=reason_code,
+        toc_reason_code=toc_reason_code,
     )
 
 
@@ -679,7 +683,7 @@ def _ready_range_selection(
     end_locator: Mapping[str, Any],
     strategy: str,
     extra: Mapping[str, Any] | None = None,
-    reason_code: str | None = None,
+    toc_reason_code: str | None = None,
 ) -> V4RangeSelection:
     """Assemble one ready input manifest from an already bounded page selection.
 
@@ -687,8 +691,9 @@ def _ready_range_selection(
     must emit the exact same manifest shape, so the assembly lives here once.
     ``extra`` only carries the human-confirmation fields; the input digest is
     taken before it is merged so the same pages keep the same input identity.
-    ``reason_code``는 범위를 정한 사유가 아니라 **앞선 전략이 실패한 사유**다
-    (목차 전략 실패 뒤 본문 전략이 고른 경우). manifest에는 넣지 않는다.
+    ``toc_reason_code``는 범위를 정한 사유가 아니라 **앞선 목차 전략이 실패한
+    사유**다. 성공한 선택의 `reason_code`는 언제나 ``None``이며, 이 값은 manifest
+    에도 들어가지 않는다.
     """
 
     input_payload = {
@@ -715,10 +720,10 @@ def _ready_range_selection(
     if len(raw) > MAX_V4_MANIFEST_BYTES:
         raise V4PreparationError("input_size_limit")
     return V4RangeSelection(
-        "ready", reason_code, strategy, dict(start_locator), dict(end_locator),
+        "ready", None, strategy, dict(start_locator), dict(end_locator),
         tuple(int(item["number"]) for item in page_payloads),
         tuple(dict(item) for item in page_hashes),
-        manifest, raw, _sha256_bytes(input_raw),
+        manifest, raw, _sha256_bytes(input_raw), toc_reason_code,
     )
 
 
