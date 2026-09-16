@@ -42,6 +42,9 @@
   background: transparent;
 }
 
+/* 첫 줄 — 왼쪽은 보기 탭, 오른쪽은 검색과 상세 필터 토글이다. 화면은 그 사이에 자기
+   블록을 끼울 수 있고(사전규격의 SW 중심 스위치), 그때는 화면 CSS가 자기 접두 클래스로
+   정렬을 덧쓴다(`pre-specs-relaxed.css`). 여기 값은 네 화면 공용이라 바꾸지 않는다. */
 .workspace-filter-line {
   display: flex;
   align-items: center;

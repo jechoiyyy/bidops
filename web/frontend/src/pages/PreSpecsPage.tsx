@@ -588,6 +588,23 @@ export function PreSpecsPage() {
               }))}
               value={workspace}
             />
+            {/* 범위 스위치는 필터가 아니라 "지금 무엇을 보고 있는가"다. 보기 탭 바로
+                옆에 두어 탭 선택과 한눈에 읽히게 한다(검색 칸은 오른쪽 끝에 남는다). */}
+            <div className="pre-specs-filter-context-start">
+              <label className="pre-specs-switch">
+                <input
+                  checked={swOnly}
+                  type="checkbox"
+                  onChange={(event) => updateSearchParams({ sw_only: event.target.checked ? null : "false" })}
+                />
+                <span>SW 중심 · 추적 예외 포함</span>
+              </label>
+              <span className="pre-specs-filter-help">
+                {swOnly
+                  ? "일반·기술용역 / SW사업대상 Y + 추적 예외"
+                  : "SW사업대상과 무관한 사전규격까지 조회"}
+              </span>
+            </div>
             <WorkspaceFilterEnd>
               {/* `q`는 서버 질의 인자다. 글자를 칠 때마다 목록을 다시 부르지 않고
                   Enter로 적용한다(적용 시점은 데이터 원천이 정한다). */}
@@ -606,21 +623,6 @@ export function PreSpecsPage() {
           </WorkspaceFilterLine>
 
           <WorkspaceFilterContext className="pre-specs-filter-context">
-            <div className="pre-specs-filter-context-start">
-              <label className="pre-specs-switch">
-                <input
-                  checked={swOnly}
-                  type="checkbox"
-                  onChange={(event) => updateSearchParams({ sw_only: event.target.checked ? null : "false" })}
-                />
-                <span>SW 중심 · 추적 예외 포함</span>
-              </label>
-              <span className="pre-specs-filter-help">
-                {swOnly
-                  ? "일반·기술용역 / SW사업대상 Y + 추적 예외"
-                  : "SW사업대상과 무관한 사전규격까지 조회"}
-              </span>
-            </div>
             <div className="pre-specs-filter-context-range">
               <Selector
                 className="pre-specs-source-run"

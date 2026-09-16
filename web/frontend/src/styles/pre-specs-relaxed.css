@@ -75,8 +75,21 @@
 
 /* --- 압축 필터 ---
  * 골격(바·첫 줄·보기 탭·검색·상세 필터)은 공용 `styles/workspace-filters.css`가
- * 소유한다. 이 화면이 더 갖는 것은 둘째 줄의 SW 중심 스위치와 범위 안내,
- * 수집 회차·관측 날짜 입력이다. */
+ * 소유한다. 이 화면이 더 갖는 것은 첫 줄의 SW 중심 스위치와 범위 안내,
+ * 둘째 줄의 수집 회차·관측 날짜 입력이다. */
+
+/* 첫 줄 — 이 화면만 보기 탭과 검색 칸 사이에 범위 스위치를 하나 더 둔다. 공용
+   규칙은 `space-between`이라 자식이 셋이 되면 스위치가 가운데로 떠 버리므로, 시작
+   정렬로 바꾸고 검색 칸만 `margin-left: auto`로 오른쪽 끝에 밀어 붙인다.
+   `flex-wrap`은 1280px에서 넘칠 때 가로 스크롤 대신 줄을 내리게 한다. */
+.pre-specs-filters > .workspace-filter-line {
+  flex-wrap: wrap;
+  justify-content: flex-start;
+}
+
+.pre-specs-filters > .workspace-filter-line > .workspace-filter-end {
+  margin-left: auto;
+}
 
 /* 필터 줄이 canvas 위의 면 없는 줄이 되면서 줄 사이 구분선도 사라진다(spec §2.2). */
 .pre-specs-filter-context {
@@ -90,8 +103,12 @@
   border-top: 0;
 }
 
+/* SW 중심 스위치와 안내 문구. 이름은 남기지만 자리는 첫 줄(보기 탭 옆)이다.
+   `flex: 0 1 auto` + `min-width: 0`이라 좁은 폭에서는 검색 칸을 밀어내는 대신
+   안내 문구가 이 블록 안에서 줄바꿈한다. */
 .pre-specs-filter-context-start {
   display: flex;
+  flex: 0 1 auto;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--spacing-2);
@@ -141,13 +158,29 @@
   font-size: var(--bo-type-caption);
 }
 
+/* 둘째 줄 — 스위치가 첫 줄로 가면서 이 블록이 줄의 시작 자리를 쓴다. 수집 회차
+   다음에 관측 날짜 범위가 이어 붙는다. */
 .pre-specs-filter-context-range {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: flex-start;
   gap: var(--spacing-2) var(--spacing-3);
   min-width: 0;
+}
+
+/* 「수집 회차」는 라벨과 선택기를 한 줄에 둔다. Astryx `Selector`는 `className`을
+   안쪽 트리거(`.astryx-selector`)에만 넘기고 `Field` 루트에는 넘기지 않으므로
+   (`Selector.tsx`가 `<Field>`에 `className`을 주지 않는다) 루트는 자리로 잡는다.
+   관측 날짜의 `DateInput`은 `.pre-specs-observation-range` 안이라 걸리지 않는다. */
+.pre-specs-filter-context-range > .astryx-field {
+  flex-direction: row;
+  align-items: center;
+  gap: var(--spacing-2);
+}
+
+.pre-specs-filter-context-range > .astryx-field > .astryx-field-label {
+  white-space: nowrap;
 }
 
 .pre-specs-source-run {
