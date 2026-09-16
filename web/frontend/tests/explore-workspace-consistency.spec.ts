@@ -111,7 +111,10 @@ function measure(selectors: Selectors) {
 
     filtersBackground: filtersStyle.backgroundColor,
     filtersBorderBottom: filtersStyle.borderBottomWidth,
-    filterEndCount: filters.querySelectorAll(":scope > .workspace-filter-line > [role='group'] + .workspace-filter-end").length,
+    // 사전규격만 보기 탭과 검색 칸 사이에 범위 스위치를 하나 더 둔다. 그래서 인접
+    // 형제(`+`)가 아니라 일반 형제(`~`)로 센다 — 계약은 여전히 "보기 탭 다음에
+    // 검색·상세 필터 칸이 하나"다.
+    filterEndCount: filters.querySelectorAll(":scope > .workspace-filter-line > [role='group'] ~ .workspace-filter-end").length,
 
     filtersBottom: filters.getBoundingClientRect().bottom,
     workspaceTop: workspace.getBoundingClientRect().top,
