@@ -494,8 +494,14 @@ function PreSpecRecordBody({ noticeId, listSearch }: { noticeId: number | null; 
   }));
   const judgment = notice.judgment;
   const judgmentRiskCount = (judgment?.counterarguments.length ?? 0) + (judgment?.verification_items.length ?? 0);
+  // 이 상세 화면은 심층 검토 보고서를 실제로 읽는 경로(`deepReviewReportQuery`)가
+  // 있으므로 그 결과가 있을 때만 미확인 건수를 채운다(ADR-0057).
   const cautionCounts = preSpecItem
-    ? preSpecCautions({ item: preSpecItem, verification: pageOverviewVerification, unknowns: pageOverviewUnknowns })
+    ? preSpecCautions({
+      item: preSpecItem,
+      verification: pageOverviewVerification,
+      deepReviewUnknownCount: hasDeepReviewReport ? deepReviewUnknowns.length : null,
+    })
     : null;
   // v4 주장만 원문 위치를 갖는다. 이전 세대 결과는 claim id가 없으므로 ⑤의 주장별
   // 목록을 만들지 않는다 — 없는 식별자를 지어내지 않는다(spec §4 ⑤). 참여 조건은

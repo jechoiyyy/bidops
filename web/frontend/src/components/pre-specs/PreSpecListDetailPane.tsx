@@ -170,11 +170,12 @@ export function PreSpecDetail({
     : null;
 
   // spec §3.2 — 결정적 산출이고 모델 호출이 없다. 검증 기록·첨부 집계·자동 준비
-  // 상태·`unknowns`만 세고 고른다.
+  // 상태만 세고 고른다. 이 목록 상세는 심층 검토 보고서를 읽지 않으므로
+  // 미확인 건수는 `null`(알 수 없음)로 남기고 지어내지 않는다(ADR-0057).
   const caution = preSpecCautions({
     item,
     verification: overviewValid ? pageOverview.verification : null,
-    unknowns: payload?.unknowns ?? [],
+    deepReviewUnknownCount: null,
   });
 
   const inherited = isInheritedTracking(item);

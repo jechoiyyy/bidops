@@ -720,7 +720,9 @@ test("우측 정보 영역은 사업명·기관·설명·과업 3건·예산·�
   await expect(figures).toContainText(PRE_SPEC_CAUTION_SAMPLE_BID_NOTICE_NO);
   await expect(figures.locator(".pre-specs-detail-deadline")).toContainText("D-");
   await expect(detail.locator(".pre-specs-detail-caution")).toContainText(PRE_SPEC_CAUTION_SAMPLE_HEADLINE);
-  await expect(detail.locator(".pre-specs-detail-caution")).toContainText("미확인 2");
+  // 목록 상세는 심층 검토 보고서를 읽지 않으므로(그 경로가 없다) 미확인 건수는
+  // 알 수 없다고 남기고 "미확인 0건"처럼 측정한 값으로 지어내지 않는다(ADR-0057).
+  await expect(detail.locator(".pre-specs-detail-caution")).not.toContainText("미확인");
 
   // 값이 없는 건은 지어내지 않고 `미확인` 계열로 남는다.
   await page.locator(".pre-specs-row").nth(1).click();
@@ -793,10 +795,11 @@ test.describe("preSpecCautions (spec §3.2)", () => {
         claim("c-1", "총 사업비는 12억원이다", "passed"),
         claim("c-2", "의견등록 마감은 9월 20일이다", "failed"),
       ]),
-      unknowns: [],
+      // 심층 검토 보고서를 읽지 않는 호출은 `null`이다(ADR-0057).
+      deepReviewUnknownCount: null,
     });
     expect(result.count).toBe(1);
-    expect(result.unknownCount).toBe(0);
+    expect(result.unknownCount).toBeNull();
     expect(result.headline).toBe("의견등록 마감은 9월 20일이다");
     expect(result.tone).toBe("caution");
     expect(formatPreSpecCaution(result)).toBe("주의 1건 · 의견등록 마감은 9월 20일이다");
@@ -806,23 +809,24 @@ test.describe("preSpecCautions (spec §3.2)", () => {
     const result = preSpecCautions({
       item: cautionItem({ document: { attachments: 5, "완료": 2, "대기": 0, "진행": 0, "차단": 2, "실패": 1 } }),
       verification: null,
-      unknowns: [],
+      deepReviewUnknownCount: null,
     });
     expect(result.count).toBe(3);
-    expect(result.unknownCount).toBe(0);
+    expect(result.unknownCount).toBeNull();
     expect(result.headline).toBe("첨부 차단 2 · 실패 1");
     expect(result.tone).toBe("caution");
     expect(formatPreSpecCaution(result)).toBe("주의 3건 · 첨부 차단 2 · 실패 1");
   });
 
-  test("자동 준비 blocked만 있으면 1건이고 사유 라벨이 한 줄이 된다", () => {
+  test("자동 준비 blocked와 심층 검토 미확인이 함께 있으면 사유 라벨과 미확인 수를 함께 말한다", () => {
     const result = preSpecCautions({
       item: cautionItem({
         auto_preparation_status: "blocked",
         auto_preparation_reason: "bundle_has_blocking_issues",
       }),
       verification: null,
-      unknowns: ["계약 기간 미확인"],
+      // 심층 검토 보고서를 읽어 얻은 실제 건수다.
+      deepReviewUnknownCount: 1,
     });
     expect(result.count).toBe(1);
     expect(result.unknownCount).toBe(1);
@@ -831,23 +835,24 @@ test.describe("preSpecCautions (spec §3.2)", () => {
     expect(formatPreSpecCaution(result)).toBe("주의 1건 · 묶음에 차단 issue가 있습니다. · 미확인 1");
   });
 
-  test("미확인만 있으면 주의는 0건이고 미확인 수만 말한다", () => {
+  test("심층 검토 미확인만 있으면 주의는 0건이고 미확인 수만 말한다", () => {
     const result = preSpecCautions({
       item: cautionItem(),
       verification: verification([claim("c-1", "총 사업비는 12억원이다", "passed")]),
-      unknowns: ["계약 기간 미확인", "과업 착수일 미확인"],
+      // 개요 결과에는 더 이상 unknowns 텍스트가 없으므로 headline은 건수의
+      // 출처가 되지 못한다 — 심층 검토 미확인은 건수만 말한다(ADR-0057).
+      deepReviewUnknownCount: 2,
     });
     expect(result.count).toBe(0);
-    // 주의가 없어도 문구 우선순위의 마지막 자리는 `unknowns[0]`이다(spec §3.2).
-    expect(result.headline).toBe("계약 기간 미확인");
+    expect(result.headline).toBeNull();
     expect(result.tone).toBe("none");
     expect(formatPreSpecCaution(result)).toBe("주의 없음 · 미확인 2");
   });
 
-  test("아무 출처도 없으면 문구를 지어내지 않고 주의 없음만 남는다", () => {
-    const result = preSpecCautions({ item: cautionItem(), verification: null, unknowns: [] });
+  test("심층 검토 보고서를 읽지 않았으면 미확인 0건으로 지어내지 않고 캡션을 내지 않는다", () => {
+    const result = preSpecCautions({ item: cautionItem(), verification: null, deepReviewUnknownCount: null });
     expect(result.count).toBe(0);
-    expect(result.unknownCount).toBe(0);
+    expect(result.unknownCount).toBeNull();
     expect(result.headline).toBeNull();
     expect(result.tone).toBe("none");
     expect(formatPreSpecCaution(result)).toBe("주의 없음");
