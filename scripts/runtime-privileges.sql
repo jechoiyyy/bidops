@@ -52,6 +52,8 @@ GRANT SELECT ON TABLE
     bidops.profile_evidence,
     bidops.analysis_policy_version,
     bidops.deep_review,
+    bidops.bid_delta_comparison,
+    bidops.bid_final_decision,
     bidops.deep_review_attempt,
     bidops.deep_review_stage,
     bidops.claim,

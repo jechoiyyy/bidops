@@ -237,7 +237,7 @@ export function PreSpecDetail({
             읽지 않게 한다(spec §3.1 2행). */}
         <section className="pre-specs-detail-block" aria-label="사업 설명">
           <p className="pre-specs-detail-caption">
-            <span>사업 설명</span>
+            <span className="pre-specs-detail-section-label">사업 설명</span>
             <span aria-hidden="true">·</span>
             <span>개요 검토 결과 · {validation.label}</span>
           </p>
@@ -249,7 +249,7 @@ export function PreSpecDetail({
         {/* ③ 주요 과업 요약 — 앞 세 건만이고 건수를 숨기지 않는다. */}
         <section className="pre-specs-detail-block" aria-label="주요 과업 요약">
           <p className="pre-specs-detail-caption">
-            <span>주요 과업 요약</span>
+            <span className="pre-specs-detail-section-label">주요 과업 요약</span>
             <span className="pre-specs-detail-caption-end">
               {taskTexts.length > 0
                 ? `${taskTexts.length}건 중 ${shownTasks.length}건 · 전체는 상세에서`
@@ -274,24 +274,24 @@ export function PreSpecDetail({
             갖는다(spec §3.1 4행). */}
         <dl className="pre-specs-detail-figures">
           <div>
-            <dt>사업 예산</dt>
+            <dt className="pre-specs-detail-field-label">사업 예산</dt>
             <dd>{exactBudget(item.budget)}</dd>
           </div>
           <div>
-            <dt>의견등록 마감</dt>
+            <dt className="pre-specs-detail-field-label">의견등록 마감</dt>
             <dd className="pre-specs-detail-deadline">
               <span>{shortDateTime(item.deadline_at) ?? "마감 일시 없음"}</span>
               {item.deadline_at ? <DeadlineMark value={item.deadline_at} /> : null}
             </dd>
           </div>
           <div>
-            <dt>게시</dt>
+            <dt className="pre-specs-detail-field-label">게시</dt>
             <dd className={shortDateTime(item.published_at) ? undefined : "is-unknown"}>
               {shortDateTime(item.published_at) ?? "미확인"}
             </dd>
           </div>
           <div>
-            <dt>본공고</dt>
+            <dt className="pre-specs-detail-field-label">본공고</dt>
             <dd className={bidNoticeNo ? undefined : "is-unknown"}>{bidNoticeNo ?? "미확인"}</dd>
           </div>
         </dl>

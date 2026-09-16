@@ -584,8 +584,17 @@
   gap: var(--spacing-1);
   margin: 0;
   color: var(--color-text-secondary);
-  font-size: var(--bo-type-caption);
+  font-size: calc(var(--bo-type-caption) + var(--border-width));
   line-height: var(--bo-type-caption-leading);
+}
+
+/* 목록 상세의 구역 표지는 굵게 구분하되, 옆의 검증 상태·건수는 보통 굵기로
+   남긴다. 실제 설명·과업·수치도 이 표식의 굵기를 상속하지 않는다. */
+.pre-specs-detail-section-label,
+.pre-specs-detail-field-label,
+.pre-specs-detail-scale-label {
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-bold);
 }
 
 .pre-specs-detail-caption > [aria-hidden="true"] {
@@ -605,7 +614,7 @@
   overflow: hidden;
   margin: 0;
   color: var(--color-text-primary);
-  font-size: var(--bo-type-body);
+  font-size: calc(var(--bo-type-body) + var(--border-width));
   line-height: 1.55;
 }
 
@@ -626,7 +635,7 @@
   display: flex;
   gap: var(--spacing-2);
   min-width: 0;
-  font-size: var(--bo-type-body);
+  font-size: calc(var(--bo-type-body) + var(--border-width));
   line-height: 1.45;
 }
 
@@ -665,7 +674,7 @@
 
 .pre-specs-detail-figures dt {
   color: var(--color-text-secondary);
-  font-size: var(--bo-type-caption);
+  font-size: calc(var(--bo-type-caption) + var(--border-width));
   line-height: var(--bo-type-caption-leading);
 }
 
@@ -673,8 +682,8 @@
   margin: 0;
   min-width: 0;
   color: var(--color-text-primary);
-  font-size: var(--bo-type-section-title);
-  font-weight: 600;
+  font-size: calc(var(--bo-type-body) + var(--border-width));
+  font-weight: var(--font-weight-normal);
   line-height: 1.3;
   overflow-wrap: anywhere;
 }
@@ -699,7 +708,7 @@
   min-width: 0;
   margin: 0;
   color: var(--color-text-primary);
-  font-size: var(--bo-type-caption);
+  font-size: calc(var(--bo-type-caption) + var(--border-width));
   line-height: var(--bo-type-caption-leading);
 }
 
@@ -734,7 +743,7 @@
   border-radius: var(--radius-element);
   background: var(--color-background-muted);
   color: var(--color-text-primary);
-  font-size: var(--bo-type-body);
+  font-size: calc(var(--bo-type-body) + var(--border-width));
   line-height: 1.45;
 }
 
@@ -753,7 +762,7 @@
   flex: 0 0 auto;
   margin-left: auto;
   color: var(--color-text-accent);
-  font-size: var(--bo-type-caption);
+  font-size: calc(var(--bo-type-caption) + var(--border-width));
   white-space: nowrap;
 }
 
@@ -799,7 +808,8 @@
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: var(--spacing-2);
+  gap: var(--spacing-3);
+  min-height: var(--size-element-lg);
   min-width: 0;
 }
 
@@ -846,22 +856,23 @@
   line-height: var(--bo-type-caption-leading);
 }
 
-/* 상세 진입은 시안의 32px outline 단추다(테두리는 포인트 계열 edge). */
+/* 상세 진입은 선택 항목 검토와 같은 채운 Primary 단추다. 링크 동작과
+   selection_review URL은 유지하되, 바닥 action row에서 충분한 조작 면적을 준다. */
 .pre-specs-page .pre-specs-detail-open {
-  min-height: var(--spacing-8);
-  padding: 0 var(--spacing-3);
+  min-height: var(--size-element-lg);
+  padding: 0 var(--spacing-4);
   border: 0;
   border-radius: var(--radius-element);
-  color: var(--color-text-accent);
-  background: var(--color-background-surface);
-  box-shadow: inset 0 0 0 var(--border-width) var(--bo-brand-edge);
-  font-size: var(--bo-type-caption);
-  font-weight: var(--font-weight-medium);
+  color: var(--color-on-accent);
+  background: var(--color-accent);
+  box-shadow: none;
+  font-size: var(--bo-type-body);
+  font-weight: var(--font-weight-semibold);
   white-space: nowrap;
 }
 
 .pre-specs-page .pre-specs-detail-open:hover {
-  background: var(--color-accent-muted);
+  background: var(--color-text-accent);
 }
 
 .pre-specs-dialog-body {

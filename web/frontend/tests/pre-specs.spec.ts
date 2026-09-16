@@ -590,6 +590,110 @@ test("사전규격 workspace가 canvas 남은 높이를 채우고 pane 안에서
   expect(metrics.detailOverflowY).toBe("auto");
 });
 
+for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900 }]) {
+  test(`목록 상세의 읽기 글자·구역 라벨·고정 action은 ${viewport.width}×${viewport.height}에서 계약을 지킨다`, async ({ page }) => {
+    await page.setViewportSize(viewport);
+    await mockPreSpecs(page, { overviewBody: overviewCompletedEnvelope() });
+    await page.goto("/pre-specs");
+
+    const detail = page.locator(".pre-specs-detail");
+    const scroll = detail.locator(".pre-specs-detail-scroll");
+    await expect(detail.locator('.pre-specs-detail-block[aria-label="사업 설명"]')).toContainText("차세대 통합 데이터 플랫폼을 구축하는 사업이다.");
+    await expect(scroll.locator(".pre-specs-detail-tasks > li").first()).toBeVisible();
+    await expect(scroll.locator(".pre-specs-detail-scale")).toBeVisible();
+
+    const styles = await scroll.evaluate((element) => {
+      const styleOf = (selector: string) => {
+        const node = element.querySelector<HTMLElement>(selector);
+        if (!node) throw new Error(`누락된 상세 요소: ${selector}`);
+        const style = getComputedStyle(node);
+        return {
+          fontSize: Number.parseFloat(style.fontSize),
+          fontWeight: Number.parseInt(style.fontWeight, 10),
+        };
+      };
+      const detailPane = element.closest<HTMLElement>(".pre-specs-detail");
+      const footer = detailPane?.querySelector<HTMLElement>(".pre-specs-detail-actions");
+      const footerStyle = footer ? getComputedStyle(footer) : null;
+      const rows = [...element.closest<HTMLElement>(".pre-specs-detail")!.querySelectorAll<HTMLElement>(".pre-specs-action-row")]
+        .map((row) => Number.parseFloat(getComputedStyle(row).minHeight));
+      const detailScrollStyle = getComputedStyle(element);
+      return {
+        summary: styleOf(".pre-specs-detail-summary"),
+        task: styleOf(".pre-specs-detail-tasks > li"),
+        fieldValue: styleOf(".pre-specs-detail-figures dd"),
+        caption: styleOf(".pre-specs-detail-caption"),
+        fieldLabel: styleOf(".pre-specs-detail-field-label"),
+        scale: styleOf(".pre-specs-detail-scale"),
+        sectionLabel: styleOf(".pre-specs-detail-section-label"),
+        scaleLabel: styleOf(".pre-specs-detail-scale-label"),
+        validation: styleOf(".pre-specs-detail-caption > span:last-child"),
+        taskText: styleOf(".pre-specs-detail-tasks > li > span:last-child"),
+        scaleText: styleOf(".pre-specs-detail-scale-text"),
+        rows,
+        footerDisplay: footerStyle?.display,
+        detailFlexGrow: detailScrollStyle.flexGrow,
+        detailMinHeight: detailScrollStyle.minHeight,
+        detailOverflowY: detailScrollStyle.overflowY,
+      };
+    });
+
+    expect(styles.summary.fontSize).toBe(15);
+    expect(styles.task.fontSize).toBe(15);
+    expect(styles.fieldValue.fontSize).toBe(15);
+    expect(styles.caption.fontSize).toBe(13);
+    expect(styles.fieldLabel.fontSize).toBe(13);
+    expect(styles.scale.fontSize).toBe(13);
+    expect(styles.sectionLabel.fontWeight).toBeGreaterThanOrEqual(700);
+    expect(styles.fieldLabel.fontWeight).toBeGreaterThanOrEqual(700);
+    expect(styles.scaleLabel.fontWeight).toBeGreaterThanOrEqual(700);
+    expect(styles.validation.fontWeight).toBeLessThan(600);
+    expect(styles.taskText.fontWeight).toBeLessThan(600);
+    expect(styles.scaleText.fontWeight).toBeLessThan(600);
+    expect(styles.rows).toEqual([36, 36]);
+    expect(styles.footerDisplay).toBe("flex");
+    expect(styles.detailFlexGrow).toBe("1");
+    expect(styles.detailMinHeight).toBe("0px");
+    expect(styles.detailOverflowY).toBe("auto");
+
+    const actionLink = detail.getByRole("link", { name: "상세 페이지 열기 →", exact: true });
+    await expect(actionLink).toHaveAttribute("href", /\/pre-specs\/991/);
+    const linkStyle = await actionLink.evaluate((element) => {
+      const style = getComputedStyle(element);
+      return {
+        minHeight: Number.parseFloat(style.minHeight),
+        fontSize: Number.parseFloat(style.fontSize),
+        fontWeight: Number.parseInt(style.fontWeight, 10),
+        background: style.backgroundColor,
+      };
+    });
+    expect(linkStyle.minHeight).toBe(36);
+    expect(linkStyle.fontSize).toBe(14);
+    expect(linkStyle.fontWeight).toBeGreaterThanOrEqual(600);
+    expect(linkStyle.background).not.toBe("rgba(0, 0, 0, 0)");
+
+    // 목록 도구줄의 채운 Primary와 상세 진입 링크는 같은 기본·hover 색을
+    // 사용한다. 링크가 `<a>`인 것은 그대로 두고, 선택 검토는 실제로 활성화해
+    // 두 조작의 스타일 계약만 비교한다.
+    await page.locator(".pre-specs-row").first().getByRole("checkbox").check();
+    const selectionReview = page.getByRole("button", { name: "선택 항목 검토", exact: true });
+    await expect(selectionReview).toBeEnabled();
+    const backgroundOf = async (locator: ReturnType<typeof page.locator>) => locator.evaluate((element) => getComputedStyle(element).backgroundColor);
+    expect(await backgroundOf(actionLink)).toBe(await backgroundOf(selectionReview));
+    await actionLink.hover();
+    const linkHoverBackground = await backgroundOf(actionLink);
+    await selectionReview.hover();
+    expect(linkHoverBackground).toBe(await backgroundOf(selectionReview));
+
+    const footerBefore = await detail.locator(".pre-specs-detail-actions").boundingBox();
+    await scroll.evaluate((element) => { element.scrollTop = element.scrollHeight; });
+    await expect.poll(async () => (await detail.locator(".pre-specs-detail-actions").boundingBox())?.top)
+      .toBe(footerBefore?.top);
+    await expect(actionLink).toBeInViewport();
+    await expect(scroll).toHaveCSS("overflow-y", "auto");
+  });
+}
+
 test("등급 필터는 불러온 페이지에만 적용된다는 사실을 화면이 밝힌다", async ({ page }) => {
   await mockPreSpecs(page);
   await page.goto("/pre-specs");
