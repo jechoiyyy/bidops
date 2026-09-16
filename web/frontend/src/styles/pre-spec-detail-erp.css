@@ -351,8 +351,15 @@
 /* ③ 알림 줄 */
 .ps-record .ps-notices { display: grid; gap: var(--spacing-2); }
 
-/* ⑤ 첨부 표 */
-.ps-record .ps-table { width: 100%; border-collapse: collapse; }
+/* ⑤ 첨부 표
+ *
+ * `width`를 못 박지 않는다. `.ps-sec`는 세로 flex 컨테이너이고, `width: 100%`를 주면
+ * cross size가 definite가 되어 `align-items: stretch`가 꺼진다. 그러면 100%가 카드
+ * 전체 폭으로 풀리고 형제 규칙(`.ps-sec > :not(.ps-sec-head:first-child)`)이 준
+ * `margin-inline`이 그 바깥에 더해져, 표가 카드 오른쪽으로 24px 삐져나온다 —
+ * 오른쪽 끝에 붙는 `열기` 칸의 다운로드·원본 열기가 섹션 밖에 놓였다.
+ * 폭을 stretch에 맡기면 옆의 `.ps-evidence-claims`와 같은 `카드 폭 - 좌우 여백`이 된다. */
+.ps-record .ps-table { border-collapse: collapse; }
 .ps-record .ps-table th {
   padding: 0 var(--spacing-3) var(--spacing-1-5) 0;
   border-bottom: var(--border-width) solid var(--color-border);
