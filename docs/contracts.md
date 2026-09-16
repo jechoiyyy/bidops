@@ -420,7 +420,9 @@ migration 0021/0023/0024)과 주장 결정적 검증 함수는 그대로 유지�
   조건이 "effective grade `우선 검토` **또는** `SW사업대상=Y`"로 완화된다(2026-09-11 MVP 결정).
   운영 DB에 C-1 판정이 0건이라 `우선 검토`가 없으면 개요를 한 번도 실행할 수 없기 때문이며,
   플래그가 `false`면 완화 없이 기존 등급 규칙만 적용한다.
-- `BIDOPS_PRESPEC_OVERVIEW_POLICY_PATH`(기본 `app/deep_review/policies/prespec-overview-policy-v6.json`).
+- `BIDOPS_PRESPEC_OVERVIEW_POLICY_PATH`(기본 `app/deep_review/policies/prespec-overview-policy-v7.json`).
+  v7은 개요를 **앞부분 요약 세 절**로 좁힌다([ADR-0057](tracking/decisions/0057-overview-scope-and-company-fit-in-deep-review.md)).
+  v6 파일은 그 정책으로 만든 기존 run의 기록으로 남기지만 현재 loader는 v7만 읽는다.
 
 ### 상태 의미
 
@@ -429,7 +431,7 @@ migration 0021/0023/0024)과 주장 결정적 검증 함수는 그대로 유지�
 | `queued` / `running` | 대기·실행 중 | 대기 |
 | `completed` | 남은 주장이 결정적 검사·의미 검토를 통과, `result_json` 있음 | 진행 가능 |
 | `needs_human_review` | 통과 주장이 절반 미만·주장 0개(`claims_empty`)·주장/분석의 의미 검토 contradicted/insufficient | `overview_not_completed` |
-| `failed` | 기술 실패(`reason_codes`: `pdf_preparation_failed:<code>`, `manifest_invalid`, `draft_format_retry_exhausted`, `semantic_response_invalid`, `timeout`, `input_capacity_exceeded`, `call_budget_exhausted`, `response_store_unavailable`, `lease_expired`, `runner_failed`) | `overview_not_completed` |
+| `failed` | 기술 실패(`reason_codes`: `pdf_preparation_failed:<code>`, `manifest_invalid`, `draft_format_retry_exhausted`, `semantic_schema_invalid`, `semantic_missing_ids`, `semantic_duplicate_ids`, `semantic_response_invalid`, `timeout`, `input_capacity_exceeded`, `call_budget_exhausted`, `response_store_unavailable`, `lease_expired`, `runner_failed`) | `overview_not_completed` |
 | `cancelled` | 플래그 off로 닫힘 | `overview_not_completed` |
 
 종결 사유 코드 중 실행 자체가 막혀 닫는 세 가지는 다음과 같다.
@@ -462,9 +464,9 @@ overview_not_completed → service_unavailable → 회사 핏 사유`다. `overv
 
 Run 응답 필드: `id, status, range_source(auto|fallback|human), page_start, page_end,
 range_reason_codes, reason_codes, warnings, result(완료 시:
-business_overview/main_tasks/budget_and_period/important_conditions 각
-[{claim_id,text,evidence:[{page,quote}]}], reviewer_analysis[], unknowns[],
-input_limitations[]), failed_claims(`completed`·`needs_human_review` 모두:
+business_overview/main_tasks/budget_and_period 각
+[{claim_id,text,evidence:[{page,quote}]}], input_limitations[]),
+failed_claims(`completed`·`needs_human_review` 모두:
 [{claim_id,section,text,reason_codes,evidence}]), model_name, model_revision,
 call_count, actor_name, created_at, started_at, completed_at`. 모델 원문·`raw_response_refs`·
 내부 경로는 반환하지 않는다.
@@ -502,6 +504,12 @@ Run의 파생 필드(저장 값을 옮긴 것이며 새 판정이 아니다):
 | `assisted` | 항상 `null`(범위 보조 실행은 MVP에 없다) |
 | `confirmation` | 가장 최근 사람 확정 `{page_start, page_end, actor_name, note, created_at}`. `note` 본문은 저장하지 않으므로 항상 `null`이고 없으면 전체가 `null` |
 
+2026-09-16 [ADR-0057](tracking/decisions/0057-overview-scope-and-company-fit-in-deep-review.md) 결정 1로
+`result`에서 `important_conditions`·`reviewer_analysis`·`unknowns` **key가 사라졌다.** 빈 배열이
+아니라 key 자체가 없으며, 그 자리는 심층 검토가 갖는다. 저장된 `result_json`의 계약 식별자는
+`bidops.prespec-overview-claims.v2`이고 폐기된 `bidops.prespec-overview-page-review.v4`는 더
+이상 생산하지 않는다. v4 시절 행은 그대로 두고 읽을 때 세 절만 투영한다.
+
 `verification`(현재 run에 `checks_json`이 없으면 `null`): `{verification_id: run id, status:
 passed\|needs_human_review, reason_codes: [], claims: [{claim_id, section, text,
 deterministic: {status: passed\|failed, reason_codes: []}, semantic: {status:
@@ -515,25 +523,27 @@ analysis worker의 개요 slot이 enqueue(플래그 on ∧ 활성 run 없음 ∧
 prepare(snapshot 없으면 `prepare_v4_pdf_snapshot`, 변환 300초) → range(human 확정값 또는
 자동 선택, 실패 시 fallback 1쪽~min(60쪽,100,000자)에 `range_fallback_head`; 전 쪽 공백이면
 `failed/manifest_invalid`) → draft(1회, 형식 오류 시 1회 재생성) →
-deterministic(인용 1곳 대응·페이지 범위·duplicate_id·analysis 참조 실패와 주장 0개
+deterministic(인용 1곳 대응·페이지 범위·duplicate_id 실패와 주장 0개
 (`claims_empty`)는 `needs_human_review`; 섹션 배정·수치·역할·VAT·기산점·date·latin·
 requirement_id는 warnings) →
-semantic(1회; 남은 주장·분석이 모두 supported면 `completed`) → save 순서로 진행한다. 호출 상한은 attempt당
+semantic(1회; 남은 주장이 모두 supported면 `completed`) → save 순서로 진행한다. 호출 상한은 attempt당
 3회(초안 2, 의미 1)이며 상한을 넘기면 `call_budget_exhausted`로 닫는다. 정책은
-`prespec-overview-policy-v6.json`(v5 상한 복제, max_pages 60, max_page_text_chars 100000,
-max_prompt_chars 120000, max_claims 12, max_analysis 4, max_unknowns 6,
-max_model_context_tokens 393216). 문맥 상한 판정은 요청 JSON의 byte 수를 token 상계로 쓰므로
+`prespec-overview-policy-v7.json`(max_pages 60, max_page_text_chars 100000,
+max_prompt_chars 120000, max_claims 12, max_model_context_tokens 393216).
+의미 단계 입력에는 `expected_claim_ids`와 `expected_check_count`가 들어가고, 그 run의 응답
+schema `checks`는 `minItems=maxItems=expected_check_count`로 좁혀 나간다. 정책 파일의
+`max_claims`는 상한 검증으로만 남고 **정책 digest는 바뀌지 않는다.** 문맥 상한 판정은 요청 JSON의 byte 수를 token 상계로 쓰므로
 한국어 100,000자 입력이 지나갈 수 있도록 천장을 함께 올렸다. 서버가 `max_model_len`을 내지
 않으면 초과 판정을 하지 않고 run의 `warnings`에 `context_unverified`를 남긴다.
 
 결정적 검사에서 `quantity_mismatch`·`quantity_metadata_mismatch`·`quantity_relation_ambiguous`·
 `quantity_unit_missing`·`date_mismatch`·`requirement_id_mismatch`·`latin_term_mismatch`·
-`analysis_premise_unverified`·`unknown_reason_mismatch`·`required_fact_missing`(섹션 배정 쏠림)·
-`evidence_fragment_match`(2단 편집 쪽에서 인용을 줄·리스트 표식 조각으로 나눠 순서대로 대조해
-통과)는 **비차단 경고**이며 run의 `warnings`에만 남는다. 차단은 `quote_not_found`·
-`quote_ambiguous`·`quote_empty`·`page_out_of_range`·`evidence_missing`·`fact_empty`·
-`duplicate_id`·`analysis_reference_missing`·`company_comparison_scope_mismatch`뿐이며, 주장이
-한 개도 없으면 run은 `needs_human_review/claims_empty`로 닫는다.
+`required_fact_missing`(섹션 배정 쏠림)·`evidence_fragment_match`(2단 편집 쪽에서 인용을 줄·
+리스트 표식·생략 기호(`…`·`...`) 조각으로 나눠 순서대로 대조해 통과)·`evidence_dropped`(인용
+둘 중 하나만 `quote_not_found`·`quote_ambiguous`라서 그 인용만 뺐다)는 **비차단 경고**이며
+run의 `warnings`에만 남는다. 차단은 `quote_not_found`·`quote_ambiguous`·`quote_empty`·
+`page_out_of_range`·`evidence_missing`·`fact_empty`·`duplicate_id`뿐이며, 주장이 한 개도
+없으면 run은 `needs_human_review/claims_empty`로 닫는다.
 
 #### 범위 선택 전략과 사유 코드 (2026-09-16)
 
@@ -550,21 +560,29 @@ offset을 두 장 이상에서 같은 값으로 확정하지 못함)·`toc_targe
 노출하지 않는다. 목차 사유는 최종 결과가 fallback이거나 사람 검토일 때만 본문 사유
 (`range_too_small`·`scope_heading_missing` 등) **뒤에** `range_fallback_head` 앞자리로 남는다.
 
-#### 부분 완료 (2026-09-11)
+의미 검토 응답에 기대 주장 ID가 모두 정확히 한 번씩 있으면 그 밖의 항목은 무시하고 경고
+`semantic_extra_ids`를 남긴다. 누락은 `failed/semantic_missing_ids`, 중복은
+`failed/semantic_duplicate_ids`, schema·상한 위반은 `failed/semantic_schema_invalid`다
+([ADR-0057](tracking/decisions/0057-overview-scope-and-company-fit-in-deep-review.md) 결정 3).
+
+선택 범위에 예산·기간이 없어 결과의 절이 비면 run의 `warnings`에 `section_empty:<section>`을
+남긴다. 빈 절은 사실이며 채우지 않는다.
+
+#### 부분 완료 (2026-09-11, 2026-09-16 갱신)
 
 주장별 차단 코드는 **그 주장만** 결과에서 뺀다. 통과 주장이 1개 이상이고 전체 주장의
 `ceil(n/2)` 이상이면 남은 주장으로 의미 검토·구성을 계속해 `completed`가 되고, 미만이면
-`needs_human_review/deterministic_check_failed`로 닫는다. `duplicate_id`·
-`analysis_reference_missing`·`company_comparison_scope_mismatch`처럼 초안 전체에 붙는 코드는
-그대로 전체를 닫는다. 빠진 주장을 `supporting_claim_ids`로 삼은 분석도 함께 빠진다.
-의미 검토에서 unknown이 `contradicted`·`insufficient`면 그 unknown만 결과에서 빠지고, 주장·
-분석의 같은 판정은 `needs_human_review/semantic_review_failed`로 닫는다.
+`needs_human_review/deterministic_check_failed`로 닫는다. `duplicate_id`처럼 초안 전체에
+붙는 코드는 그대로 전체를 닫는다. 주장의 인용이 둘이고 하나만 `quote_not_found`·
+`quote_ambiguous`이면 **그 인용만** 빼고 주장은 통과하며 경고 `evidence_dropped`가 남는다.
+인용이 모두 어긋나면 종전대로 그 주장이 빠진다. 의미 검토에서 주장이 `contradicted`·
+`insufficient`면 `needs_human_review/semantic_review_failed`로 닫는다.
 
 이때 run의 `warnings`에 남는 코드는 `claims_dropped`(주장이 하나 이상 빠짐)·
-`analysis_dropped`(분석이 하나 이상 빠짐)·`unknown_contradicted`·`unknown_insufficient`다.
+`evidence_dropped`·`semantic_extra_ids`·`section_empty:<section>`이다.
 `draft_json`·`checks_json`은 빠진 주장까지 담은 **전체**를 그대로 저장하며(`failed_claims`
 투영이 `checks_json`에서 계산된다), 의미 검토·구성에 쓰는 부분집합은 저장하지 않는다.
-`result_json`에는 빠진 주장·분석·unknown이 들어가지 않는다.
+`result_json`에는 빠진 주장과 빠진 인용이 들어가지 않는다.
 
 개요 입력 PDF의 원본 위치가 여러 공고에 공유되면(같은 첨부 bytes) `source` 위치가 둘 이상이다.
 원본의 정체는 hash이므로 가장 오래된 검증 위치 하나를 고정해 고른다.
@@ -586,8 +604,10 @@ SELECT/INSERT/UPDATE, worker role은 SELECT/INSERT/UPDATE만 갖는다.
 ### 삭제되는 계약
 
 `bidops.prespec-overview-reviews.v1/v2`, `bidops.prespec-overview-pages.v1/v2`,
-`bidops.prespec-overview-page-review.v3/v4`, `bidops.prespec-overview-claims.v1`(내부용으로만
-유지, 문서 계약 아님), `bidops.prespec-overview-claim-checks.v1`,
+`bidops.prespec-overview-page-review.v3/v4`(v4는 2026-09-16
+[ADR-0057](tracking/decisions/0057-overview-scope-and-company-fit-in-deep-review.md)로 폐기,
+결과 계약은 `bidops.prespec-overview-claims.v2`), `bidops.prespec-overview-claims.v1`(초안
+단계 내부용으로만 유지, 문서 계약 아님), `bidops.prespec-overview-claim-checks.v1`,
 `bidops.prespec-overview-policy.v1/v4/v5`, `bidops.prespec-v4-activation.v1/v2`,
 `bidops.prespec-overview-range-view.v2`, v4 cohort ops CLI, Luna 명시 참조 실행. 함께 drop되는
 테이블은 `prespec_overview_verification`, `prespec_overview_call_event`,

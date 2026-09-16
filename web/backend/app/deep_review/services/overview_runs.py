@@ -88,6 +88,7 @@ from .prespec_overview_claim_validation import (
     compose_page_overview,
     draft_failure_checks,
     drop_failed_claims,
+    empty_sections,
     merge_semantic_checks,
     parse_claims_draft,
     validate_claims_deterministically,
@@ -276,7 +277,10 @@ def _evidence_view(rows: Any) -> list[dict[str, Any]]:
     return result
 
 
-_RESULT_SECTIONS = ("business_overview", "main_tasks", "budget_and_period", "important_conditions")
+#: 개요 결과의 절. 참여 조건·검토 의견·미확인은 심층 검토가 소유하므로
+#: 응답에 `important_conditions`·`reviewer_analysis`·`unknowns` key를 내지
+#: 않는다 — 옛 run의 `result_json`에 남아 있어도 투영하지 않는다 (ADR-0057).
+_RESULT_SECTIONS = ("business_overview", "main_tasks", "budget_and_period")
 
 
 def _result_view(result: Any) -> dict[str, Any] | None:
@@ -296,16 +300,6 @@ def _result_view(result: Any) -> dict[str, Any] | None:
             for row in (rows if isinstance(rows, list) else [])
             if isinstance(row, Mapping)
         ]
-    view["reviewer_analysis"] = [
-        {
-            "id": str(row.get("id")),
-            "text": str(row.get("text")),
-            "supporting_claim_ids": _string_list(row.get("supporting_claim_ids")),
-        }
-        for row in (result.get("reviewer_analysis") or [])
-        if isinstance(row, Mapping)
-    ]
-    view["unknowns"] = _string_list(result.get("unknowns"))
     view["input_limitations"] = _string_list(result.get("input_limitations"))
     return view
 
@@ -1249,10 +1243,18 @@ class _Caller:
         })
         self.run.raw_response_refs = refs
 
-    def invoke(self, stage: str, ledger_stage: str, input_slice: Mapping[str, Any], *, correction: str | None = None, seed: int | None = None) -> tuple[Any, bytes]:
+    def invoke(
+        self, stage: str, ledger_stage: str, input_slice: Mapping[str, Any], *,
+        correction: str | None = None, seed: int | None = None,
+        expected_check_count: int | None = None,
+    ) -> tuple[Any, bytes]:
         if int(self.run.call_count) >= LIMITS["max_calls"]:
             raise _RunFailure("failed", "call_budget_exhausted")
-        contract = self.policy.structured_output_contract(stage)
+        # 의미 단계의 `checks` 길이는 이 run의 실제 주장 수로 못박는다. 정책
+        # 파일은 그대로이고 digest도 바뀌지 않는다 (ADR-0057 결정 3).
+        contract = self.policy.structured_output_contract(
+            stage, expected_check_count=expected_check_count,
+        )
         stage_policy = self.policy.stage_policy(stage)
         try:
             prompt = build_claims_prompt(self.policy, stage, dict(input_slice))
@@ -1457,7 +1459,6 @@ def _execute(
     run.warnings_json = sorted({
         *_string_list(run.warnings_json),
         *(["claims_dropped"] if subset.dropped_claim_ids else []),
-        *(["analysis_dropped"] if subset.dropped_analysis_ids else []),
     })
 
     # --- semantic -------------------------------------------------------------
@@ -1466,23 +1467,23 @@ def _execute(
     except ValueError as error:
         raise _RunFailure("failed", "input_capacity_exceeded") from error
     try:
-        _response, raw = caller.invoke(SEMANTIC_STAGE, "semantic", semantic_input)
+        _response, raw = caller.invoke(
+            SEMANTIC_STAGE, "semantic", semantic_input,
+            expected_check_count=len(draft.claims),
+        )
     except ModelInvocationError as error:
         raise _RunFailure("failed", str(getattr(error, "code", "") or "semantic_response_invalid")) from error
     try:
         checks = apply_semantic_review(draft, checks, _draft_text(raw))
+    # 실패 사유를 구분해 그대로 남긴다 — 누락·중복·스키마 위반은 서로 다른
+    # 문제이며 사람이 다르게 고친다 (ADR-0057 결정 3).
     except SemanticResponseError as error:
-        raise _RunFailure("failed", "semantic_response_invalid") from error
+        raise _RunFailure("failed", error.code) from error
     except (UnicodeError, ValueError) as error:
         raise _RunFailure("failed", "semantic_response_invalid") from error
     stored = merge_semantic_checks(full_checks, checks) if subset.dropped_claim_ids else checks
     run.checks_json = stored.model_dump(mode="json")
-    # 반박·근거부족으로 본 unknown은 그 항목만 빠지고 run은 계속 간다.
-    run.warnings_json = sorted({
-        *_string_list(run.warnings_json), *stored.warnings,
-        *(f"unknown_{row.status}" for row in checks.unknown_checks
-          if row.status in {"contradicted", "insufficient"}),
-    })
+    run.warnings_json = sorted({*_string_list(run.warnings_json), *stored.warnings})
     if checks.overall != "passed":
         raise _RunFailure("needs_human_review", "semantic_review_failed")
 
@@ -1500,6 +1501,8 @@ def _execute(
     except ValueError as error:
         raise _RunFailure("needs_human_review", "composition_not_verified") from error
     run.result_json = payload.model_dump(mode="json")
+    # 선택 범위에 예산·기간이 없어 비는 절은 사실이며 채우지 않는다.
+    run.warnings_json = sorted({*_string_list(run.warnings_json), *empty_sections(payload)})
 
 
 def _finish(session: Session, run: PrespecOverviewRun, status: str, codes: Sequence[str], clock: Callable[[], datetime]) -> None:
