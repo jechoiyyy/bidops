@@ -3,8 +3,8 @@ import { mockApi } from "./api-mock";
 import { installRunStatusMock } from "./run-status-fixtures";
 
 // 두 병렬 구현이 각각 통과해도 탭 모양·시작 위치·목록 폭이 서로 달라질 수 있다.
-// 승인 HTML의 논리 실측(탭 37px, 목록 38%, 제목 15px)을 두 페이지의 여덟 탭에
-// 적용한다. 전역 UI 배율은 CSS zoom으로 물리 rect만 90%로 그린다.
+// 승인 HTML의 치수를 native compact CSS로 옮긴 결과를 두 페이지의 여덟 탭에
+// 적용한다. UI_SCALE은 document zoom이 아니라 기존 물리 크기와의 대응값이다.
 const UI_SCALE = 0.9;
 const physical = (logical: number) => logical * UI_SCALE;
 // 업무 값은 기존 API fixture로 공급하며 운영 API에는 접근하지 않는다.
@@ -74,7 +74,7 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900
 
       expect(metrics.rootOverflow, path).toBeLessThanOrEqual(1);
       expect(metrics.ratio, `${path} 목록 비율`).toBeCloseTo(0.38, 2);
-      expect(metrics.titleFont, `${path} 목록 제목 크기`).toBe("15px");
+      expect(metrics.titleFont, `${path} 목록 제목 크기`).toBe("13.5px");
       expect(metrics.titleWeight, `${path} 목록 제목 굵기`).toBe("600");
       expect(metrics.tabsHeight, `${path} 승인된 밑줄 탭`).toBeCloseTo(physical(37), 0);
       expect(metrics.summaryHeight, `${path} 요약 한 줄`).toBeCloseTo(physical(49), 0);
@@ -84,7 +84,7 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900
       expect(metrics.footerHeight, `${path} 하단 액션 높이`).toBeCloseTo(physical(57), 0);
       // 작업 영역 카드의 1px 테두리가 그림자로 바뀌어(spec §2.3) 하단 단추가 1px 내려왔다.
       expect(metrics.footerBottom, `${path} 하단 버튼 위치`).toBeCloseTo(viewport.height - physical(37), 0);
-      if (metrics.buttonFont) expect(metrics.buttonFont, `${path} 하단 버튼 크기`).toBe("14px");
+      if (metrics.buttonFont) expect(metrics.buttonFont, `${path} 하단 버튼 크기`).toBe("12.6px");
       if (metrics.bodyOverflow) expect(metrics.bodyOverflow, path).toBe("auto");
 
       firstWidth ??= metrics.listWidth;

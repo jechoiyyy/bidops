@@ -522,15 +522,15 @@ for (const width of [1280, 1440]) {
     expect(geometry.strip).toBeCloseTo(physical(49), 0);
     expect(geometry.footer).toBeCloseTo(physical(57), 0);
     expect(geometry.tabs).toBeCloseTo(physical(37), 0);
-    expect(geometry.buttonFont).toBe("14px");
-    expect(geometry.listTitleFont).toBe("15px");
+    expect(geometry.buttonFont).toBe("12.6px");
+    expect(geometry.listTitleFont).toBe("13.5px");
     expect(geometry.listTitleWeight).toBe("600");
-    expect(geometry.detailTitleFont).toBe("20px");
+    expect(geometry.detailTitleFont).toBe("18px");
     // 각주는 두 폭 모두 한 줄이다. 두 줄이 되면 작업 영역이 그만큼 짧아진다.
     expect(geometry.boundaryLines).toBe(1);
-    expect(geometry.boundaryFont).toBe("12px");
-    // The compensated shell still fills the physical viewport. Preserve the
-    // approved bottom inset (37px logical), whose rendered size is scaled.
+    expect(geometry.boundaryFont).toBe("10.8px");
+    // The native compact shell fills the viewport while preserving the former
+    // 90%-rendered bottom inset.
     const viewportHeight = width === 1280 ? 800 : 900;
     expect(geometry.workspaceBottom).toBeCloseTo(viewportHeight - physical(37), 0);
   });

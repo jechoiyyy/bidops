@@ -85,7 +85,7 @@ test("대시보드는 네 업무를 한 줄에 두고 미확인을 작은 주석
   const unavailable = decisions.locator(".dash-small").filter({ hasText: "미확인" });
   await expect(unavailable).toHaveCount(3);
   const sizes = await unavailable.evaluateAll(values => values.map(value => Number.parseFloat(getComputedStyle(value).fontSize)));
-  for (const size of sizes) expect(size).toBe(12);
+  for (const size of sizes) expect(size).toBe(10.8);
   const context = page.getByRole("region", { name: "회차 자료 범위" });
   expect(await context.evaluate(item => item.getBoundingClientRect().top)).toBeGreaterThan(rows[0]);
 });

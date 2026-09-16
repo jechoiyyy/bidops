@@ -9,7 +9,7 @@
 .app-shell[data-astryx-theme="bidops"] .app-content:has(> .page-canvas > .dash-page) > .topbar { padding-inline: var(--spacing-6); }
 .app-shell[data-astryx-theme="bidops"] .app-content:has(> .page-canvas > .dash-page) > .topbar h1 { font-size: var(--bo-type-page-title); font-weight: var(--bo-type-page-title-weight); }
 .dash-header-actions { margin-left: auto; }
-.dash-page { --bo-type-list: calc(var(--bo-type-body) + var(--border-width)); --bo-line: var(--border-width); height: 100%; color: var(--color-text-primary); font-size: var(--bo-type-body); line-height: 1.5; }
+.dash-page { --bo-type-list: calc(var(--bo-type-body) + 0.9px); --bo-line: var(--border-width); height: 100%; color: var(--color-text-primary); font-size: var(--bo-type-body); line-height: 1.5; }
 .dash-page .astryx-text { font: inherit; color: inherit; }
 .dash-page .astryx-heading { margin: 0; font-family: inherit; font-weight: var(--font-weight-semibold); }
 .dash-page h2 { font-size: var(--bo-type-page-title); }

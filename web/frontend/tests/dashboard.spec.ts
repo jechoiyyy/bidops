@@ -23,7 +23,7 @@ for (const [width,height] of [[1280,800],[1440,900]]) {
     });
     expect(measured.overflow).toBe(0);expect(measured.footer).toBeLessThanOrEqual(height);
     expect(measured.third).toBeLessThanOrEqual(measured.body+1);
-    expect(measured.font).toBe('15px');expect(measured.agencyFont).toBe('15px');expect(measured.weight).toBe('600');
+    expect(measured.font).toBe('13.5px');expect(measured.agencyFont).toBe('13.5px');expect(measured.weight).toBe('600');
     expect(measured.first).toBeCloseTo(physical(92), 0);expect(measured.left).toBeCloseTo(physical(272), 0);
     expect(measured.widths[0]/(measured.widths[0]+measured.widths[1])).toBeCloseTo(.67,2);
     await page.screenshot({path:info.outputPath(`dashboard-${width}.png`),animations:'disabled'});expect(writes).toEqual([]);

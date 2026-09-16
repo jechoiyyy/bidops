@@ -13,7 +13,7 @@
 .opportunities-page {
   /* 목록 첫 줄(사업명·발주기관)은 본문보다 한 단 크다. 사용자가 16px에서 15px로
      낮춘 최종 시안의 값이며 시안 CSS와 같은 방식으로 본문 토큰에서 계산한다. */
-  --opportunity-row-primary: calc(var(--bo-type-body) + var(--border-width));
+  --opportunity-row-primary: calc(var(--bo-type-body) + 0.9px);
   --opportunity-step-size: var(--spacing-7);
 
   display: flex;

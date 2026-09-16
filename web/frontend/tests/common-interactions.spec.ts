@@ -84,9 +84,8 @@ async function tabTo(page: Page, target: Locator, maximumTabs = 120): Promise<vo
   throw new Error(`키보드 Tab ${maximumTabs}회 안에 대상 control에 도달하지 못했습니다.`);
 }
 
-// The application is intentionally rendered at the approved 90% UI scale. Keep
-// the logical control-size requirement here, then compare the physical box after
-// browser zoom rounding. Focus and visible outline remain required at all scales.
+// Native compact CSS preserves the former 90% physical control size without a
+// document zoom. Focus and visible outline remain required at that density.
 const APPROVED_UI_SCALE = 0.9;
 
 async function expectKeyboardTarget(target: Locator, minimumHeight = 40): Promise<void> {
@@ -95,7 +94,7 @@ async function expectKeyboardTarget(target: Locator, minimumHeight = 40): Promis
     const style = getComputedStyle(element);
     return { height: element.getBoundingClientRect().height, outline: style.outlineStyle };
   });
-  expect(metrics.height).toBeGreaterThanOrEqual(Math.floor(minimumHeight * APPROVED_UI_SCALE));
+  expect(metrics.height).toBeGreaterThanOrEqual(minimumHeight * APPROVED_UI_SCALE - 0.2);
   expect(metrics.outline).not.toBe("none");
 }
 

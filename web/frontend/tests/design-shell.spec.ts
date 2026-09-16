@@ -130,15 +130,14 @@ test("1440px 셸의 팔레트 색과 기준 치수를 고정한다", async ({ pa
     topbarBackground: "rgb(246, 247, 244)",
     canvasBackground: "rgb(246, 247, 244)",
     uiScale: 0.9,
-    rootZoom: "0.9",
+    rootZoom: "1",
   });
-  // Assert the rendered geometry against the logical shell contract. Chromium can
-  // choose different subpixel serialization across versions, so do not freeze its
-  // exact fractional output or the computed `calc()` string.
+  // Native compact CSS keeps the former rendered geometry without scaling the
+  // document. Chromium can serialize fractional values differently.
   expect(metrics.sidebarWidth).toBeCloseTo(248 * 0.9, 1);
   expect(metrics.topbarHeight).toBeCloseTo(76 * 0.9, 1);
-  expect(Number.parseFloat(metrics.shellMinWidth)).toBeCloseTo(1280 / 0.9, 1);
-  expect(Number.parseFloat(metrics.bodyMinWidth)).toBeCloseTo(1280 / 0.9, 1);
+  expect(Number.parseFloat(metrics.shellMinWidth)).toBeCloseTo(1280, 1);
+  expect(Number.parseFloat(metrics.bodyMinWidth)).toBeCloseTo(1280, 1);
 
   // accent 는 회사 포인트색을 한 단계 내린 #587A2B 다(spec §1.1). 옛 slate 와
   // RootLab 녹색이 되돌아오지 않았는지도 함께 본다.
@@ -164,15 +163,15 @@ test("1440px 셸의 팔레트 색과 기준 치수를 고정한다", async ({ pa
     const style = getComputedStyle(canvas);
     return [style.paddingTop, style.paddingRight, style.paddingBottom, style.paddingLeft];
   });
-  expect(canvasPadding).toEqual(["12px", "18px", "16px", "18px"]);
+  expect(canvasPadding).toEqual(["10.8px", "16.2px", "14.4px", "16.2px"]);
 });
 
 // 제목 모드는 상단바가 화면의 시각 제목을 맡는다. 페이지가 제목 줄을 지운 뒤
-// 이 글자가 20px 위계를 잃으면 화면에서 제목이 사라진 것과 같으므로 값을 고정한다.
-// 상단바 높이는 두 모드가 같아야 한다(논리 76px). 전역 90% 배율이
-// 적용되므로 브라우저에 그려지는 높이는 68.4px이며, 모드에 따라 셸이 흔들리면
+// 이 글자는 기존 물리 크기인 18px 위계를 유지해야 한다.
+// 상단바 높이는 두 모드가 같아야 한다. native compact CSS가 기존 68.4px을
+// 직접 소유하며, 모드에 따라 셸이 흔들리면
 // 목록과 상세를 오갈 때마다 본문이 위아래로 튄다.
-test("제목 모드 상단바가 20px 논리 제목을 쓰고 물리 높이는 68.4px다", async ({ page }, testInfo) => {
+test("제목 모드 상단바가 18px 제목을 쓰고 높이는 68.4px다", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "layout-desktop", "치수 기준은 시안 폭에서만 고정한다");
 
   await page.goto("/order-plans", { waitUntil: "domcontentloaded" });
@@ -192,11 +191,11 @@ test("제목 모드 상단바가 20px 논리 제목을 쓰고 물리 높이는 6
       topbarHeight: element.getBoundingClientRect().height,
     };
   });
-  expect(metrics).toMatchObject({ fontSize: "20px", fontWeight: "600" });
+  expect(metrics).toMatchObject({ fontSize: "18px", fontWeight: "600" });
   expect(metrics.topbarHeight).toBeCloseTo(68.4, 1);
 });
 
-test("전역 배율이 드롭다운·대화상자를 viewport 안에 두고 키보드 초점을 되돌린다", async ({ page }) => {
+test("native compact 셸이 드롭다운·대화상자를 viewport 안에 두고 키보드 초점을 되돌린다", async ({ page }) => {
   await page.goto("/pre-specs", { waitUntil: "domcontentloaded" });
   const viewport = page.viewportSize();
   if (!viewport) throw new Error("viewport 정보를 읽을 수 없습니다.");
