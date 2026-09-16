@@ -243,17 +243,17 @@ test("대시보드는 경로 모드이면서 상단바 액션 슬롯을 그대�
   await expect(topbar.getByRole("button", { name: "새로고침" })).toBeVisible();
 });
 
-const DETAIL_BACK_LINKS: Array<{ name: string; path: string; back: string; settles?: RegExp }> = [
-  { name: "pre-spec detail", path: "/pre-specs/991", back: "/pre-specs" },
-  { name: "opportunity detail", path: "/opportunities/501", back: "/opportunities" },
-  { name: "bid delta", path: "/opportunities/501/bid-delta", back: "/opportunities" },
+const DETAIL_BACK_LINKS: Array<{ name: string; path: string; back: string; keepsRun: boolean; settles?: RegExp }> = [
+  { name: "pre-spec detail", path: "/pre-specs/991", back: "/pre-specs", keepsRun: false },
+  { name: "opportunity detail", path: "/opportunities/501", back: "/opportunities", keepsRun: false },
+  { name: "bid delta", path: "/opportunities/501/bid-delta", back: "/opportunities", keepsRun: false },
   // 검토 대기열·공고 판정 이력은 목록·상세가 한 화면이라, 목록 주소로 가면
   // 화면이 첫 공고를 스스로 다시 고른다(QueuePage·NoticeDetailPage의 replace
   // navigate). 링크는 목록으로 가고 그 화면이 선택을 되살리므로 착지 주소는
   // 목록이거나 목록이 되살린 선택 하나다.
-  { name: "queue detail", path: "/queue/29", back: "/queue", settles: /^\/queue(?:\/\d+)?$/ },
-  { name: "judgments detail", path: "/judgments/29", back: "/judgments", settles: /^\/judgments(?:\/\d+)?$/ },
-  { name: "deep review", path: "/deep-reviews/fixture-review", back: "/pre-specs" },
+  { name: "queue detail", path: "/queue/29", back: "/queue", keepsRun: true, settles: /^\/queue(?:\/\d+)?$/ },
+  { name: "judgments detail", path: "/judgments/29", back: "/judgments", keepsRun: true, settles: /^\/judgments(?:\/\d+)?$/ },
+  { name: "deep review", path: "/deep-reviews/fixture-review", back: "/pre-specs", keepsRun: false },
 ];
 
 for (const context of DETAIL_BACK_LINKS) {
@@ -262,8 +262,13 @@ for (const context of DETAIL_BACK_LINKS) {
     const breadcrumb = page.locator("header.topbar .topbar-breadcrumb");
     const back = breadcrumb.locator(`a[href^="${context.back}?"], a[href="${context.back}"]`);
     await expect(back).toHaveCount(1);
-    // 회차 선택은 주소에만 있다. 경로 링크가 그것을 잃으면 최신 회차로 되돌아간다.
-    await expect(back).toHaveAttribute("href", `${context.back}?run=${encodeURIComponent(RUN_ID)}`);
+    // 회차 선택은 주소에만 있고, 목적지가 회차를 읽는 화면일 때만 경로 링크에
+    // 그대로 남는다(route-meta.ts의 runSearchFor). `run`을 읽지 않는 화면으로
+    // 돌아갈 때는 옛 회차 선택이 되살아나지 않아야 한다.
+    await expect(back).toHaveAttribute(
+      "href",
+      context.keepsRun ? `${context.back}?run=${encodeURIComponent(RUN_ID)}` : context.back,
+    );
     await back.click();
     await expect.poll(() => new URL(page.url()).pathname).toMatch(context.settles ?? new RegExp(`^${context.back}$`));
   });
