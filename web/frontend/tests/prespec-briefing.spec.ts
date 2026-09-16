@@ -110,7 +110,10 @@ test("상세 6단이 DOM 순서대로 있고 순회는 상단바가 가지며 �
   await expect(page.locator("#ps-process")).toBeVisible();
 
   const cards = await page.evaluate(() => [...document.querySelectorAll<HTMLElement>(".ps-record > [id]")].map(element => element.id));
-  expect(cards).toEqual(["ps-summary", "ps-tracking", "ps-tasks", "ps-conditions", "ps-evidence", "ps-process"]);
+  // ④ 참여 조건 · 회사 적합성 · 위험 및 미확인 사항은 개요 결과가 아니라
+  // 심층 검토 영역에 속하므로 ⑥ 문서 준비/검토 실행 카드 다음으로 옮겼다
+  // (ADR-0057 결정 1·4).
+  expect(cards).toEqual(["ps-summary", "ps-tracking", "ps-tasks", "ps-evidence", "ps-process", "ps-conditions"]);
   expect(await page.locator("#ps-tasks h2").innerText()).toContain("주요 과업과 수행 범위");
   expect(await page.locator("#ps-conditions h2").innerText()).toContain("참여 조건 · 회사 적합성 · 위험 및 미확인 사항");
   expect(await page.locator("#ps-evidence h2").innerText()).toContain("근거 문서 · 첨부");
