@@ -136,7 +136,8 @@ R-xx/A-xx 작업 지시, 과거 API 경로는 현재 실행 진입점이 아니�
 | [0053](tracking/decisions/0053-decision-workload-read-contracts.md) | 결정 대기 조회와 모듈 소유 집계 계약 | 채택 | 신규 GET 세 개(`/api/workload`·기회별 심층 검토 목록·입찰 결정 큐), 업무 집계는 모듈 제공자 소유, DB migration 없음 |
 | [0054](tracking/decisions/0054-prespec-overview-mvp-rewrite.md) | 사전규격 개요 실행 스택 철거·MVP 재작성 | 채택 | v3·legacy v4·v5(activation·call ledger·verification) 폐기, `prespec_overview_run`(0026) 단일 테이블과 `bidops.prespec-overview.v1`로 재작성; 첨부·준비·변환·snapshot·결정적 검증 함수는 유지 |
 | 0055(git 이력 docs/design/ADR.md, 삭제됨) | 사전규격 담당자 브리핑 우선 배치 | 채택 | 행 등급 글자·업무 필터, 상세 판정 사유·본공고·첨부, 범위 확정 알림·문서 준비 조건부 토글·실행 정보 후순위. 백엔드 계약 무변경 |
-| [0056](tracking/decisions/0056-company-fit-in-overview-run.md) | 회사 핏을 개요 run 2단계 호출로 통합 | 제안 | 별도 큐·runner·플래그 3개·worker 슬롯을 폐지하고 개요 run 검증 통과 직후 1회 호출로 흡수; 후보 0건 문제 해소 |
+| [0056](tracking/decisions/0056-company-fit-in-overview-run.md) | 회사 핏을 개요 run 2단계 호출로 통합 | 폐기(0057 대체) | 별도 큐·runner·플래그 3개·worker 슬롯을 폐지하고 개요 run 검증 통과 직후 1회 호출로 흡수; 후보 0건 문제 해소 |
+| [0057](tracking/decisions/0057-overview-scope-and-company-fit-in-deep-review.md) | 개요 검토를 앞부분 요약 3섹션으로 좁히고 회사 적합성은 심층 검토 1단계로 | 채택 | 목차 우선 범위 선택, important_conditions·reviewer_analysis·unknowns 제거, 자동 심층 게이트에서 회사 핏 제거, 검증 완화 4항목 |
 
 ## 4. 주제별 결정 요약
 

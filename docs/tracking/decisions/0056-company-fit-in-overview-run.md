@@ -1,6 +1,6 @@
 # 회사 핏을 개요 run 2단계 호출로 통합
 
-- 상태: 제안
+- 상태: 폐기 (2026-09-16, [ADR-0057](0057-overview-scope-and-company-fit-in-deep-review.md)가 대체)
 - 일자: 2026-09-16
 
 ## 맥락
