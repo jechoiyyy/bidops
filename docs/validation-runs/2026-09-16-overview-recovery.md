@@ -101,3 +101,27 @@
 - 재생성: web·analysis-worker(개요 플래그 ON)·prespec-attachment-worker를 표준 compose 4종(base·edge·model-egress·prespec-attachment)으로 `--no-deps --no-build --force-recreate`. attachment worker는 9/11 배포 json 대신 표준 compose로 돌아왔다(네트워크 database·prespec-egress·scanning·storage).
 - 확인: `/api/health` 200, 세 컨테이너 재기동 뒤 3분간 오류·42501 없음, `close-overview-run` CLI 존재, 상한 초과 활성 job 0건. document-worker 2개는 손대지 않았다.
 - 하지 않은 것: 개요 대기열 재투입(취소 33건은 그대로), 모델 호출, 첨부 재수집.
+
+## 개요 재설계 반영 뒤 표본 5건 재실행 (12:54~13:00 UTC, main ac92c2a)
+
+ADR-0057 결정 1~3(목차 우선 범위 선택·결과 3섹션·검증 완화)을 병합·배포한 뒤 같은 5건을 다시 실행했다.
+결정 4(회사 핏의 심층 검토 1단계 이동·자동 심층 게이트 변경)는 담당자 지시로 보류해 배포하지 않았다.
+배포 전 백업 `backups/postgres/full/bidops-20260916T125324Z.dump`(SHA-256 앞 16자 `6ebbc44e58d2fa2d`).
+web·analysis-worker·prespec-attachment-worker만 재생성했고 migration·권한 변경은 없다. 로드된 정책은
+`bidops.prespec-overview-policy.v7`(digest 앞 12자 `1dd717d36642`).
+
+토큰은 이번부터 run의 `raw_response_refs`에 provider usage가 그대로 저장된다.
+
+| notice | 오전 결과 | 재실행 결과 | 범위 | 초안 입력/출력 tok | 의미 입력/출력 tok | 소요 | 절(개요/과업/예산기간) |
+|---|---|---|---|---|---|---|---|
+| 780 | failed, fallback 1~24 | **completed** | auto 3~6 | 2,580 / 1,922 | 5,498 / 439 | 1.2분 | 4/5/3 |
+| 781 | completed, fallback 1~60 | completed | **fallback 1~60** | 26,913 / 2,072 | 30,111 / 206 | 1.6분 | 3/4/4 |
+| 785 | failed, fallback 1~60 | **completed** | auto 3 | 1,100 / 1,600 | 3,582 / 371 | 0.9분 | 3/4/3 |
+| 805 | completed, auto 74~98(오선택) | completed | **auto 4~6** | 1,823 / 1,890 | 5,074 / 223 | 1.0분 | 5/5/2 |
+| 833 | failed, fallback 1~60 | **completed** | auto 3~5 | 1,471 / 1,209 | 3,103 / 303 | 0.7분 | 4/2/2 |
+
+- 완료 2/5 → **5/5**. 입력 토큰 합계는 오전 약 223k에서 약 81k로 줄었고, 자동 범위로 간 4건은 run당 입력이 1만 토큰 미만이다.
+- `semantic_extra_ids`·`evidence_dropped` 경고는 이번 5건에서 나오지 않았다. 남은 경고는 수치 메타데이터 계열(`quantity_*`)과 780의 조각 대조뿐이다.
+- 심층 검토 0건·회사 핏 attempt 0건을 재확인했다(자동 심층 검토는 시작되지 않았다).
+- **남은 결함 1건:** 781은 rhwp 절 후보가 잘려(`section_candidates_incomplete`) 운영 경로가 `candidates_complete=False`를 넘기고, 그 값이 목차 전략까지 건너뛰게 해 fallback으로 갔다. 목차 전략은 절 후보를 쓰지 않으므로 이 조건과 분리해야 한다(브랜치 `fix/overview-toc-ignores-candidates`에서 수정 중).
+- 결과는 `unmeasured_reference`이며 품질 측정·운영 활성화 근거가 아니다.
