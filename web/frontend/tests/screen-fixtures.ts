@@ -290,13 +290,8 @@ const cautionSampleRun = overviewRunFixture({
       text: PRE_SPEC_CAUTION_SAMPLE_SCALE,
       evidence: [{ page: 4, quote: "사업예산 49,844,864원" }],
     }],
-    important_conditions: [{
-      claim_id: "s4",
-      text: "상주 인력 2명을 사업 기간 동안 배치해야 한다.",
-      evidence: [{ page: 9, quote: "상주 인력 2명 배치" }],
-    }],
-    reviewer_analysis: [],
-    unknowns: [...PRE_SPEC_CAUTION_SAMPLE_UNKNOWNS],
+    // v7 이후 응답은 important_conditions·reviewer_analysis·unknowns 키 자체가
+    // 없다(ADR-0057 결정 1). 참여 조건·위험/미확인은 심층 검토 결과가 갖는다.
     input_limitations: [],
   },
 });

@@ -49,8 +49,9 @@ for (const width of [1280, 1440]) {
     }));
     await page.goto('/pre-specs/991');
     // 상세 세로 6단에서 검증 라벨·품질 표식은 ③ 카드 머리가, 요약 한 줄은 ① 머리
-    // 카드가, 미확인 항목은 ④ `위험 및 미확인 사항` 열이 갖는다
-    // (docs/0915_ui-redesign/spec.md §4). 확인하는 사실은 그대로다.
+    // 카드가 갖는다(docs/0915_ui-redesign/spec.md §4). 참여 조건·위험 및
+    // 미확인 사항은 심층 검토 영역(④)이 갖고, 개요 결과에서는 읽지 않는다
+    // (ADR-0057 결정 1). 확인하는 사실은 그대로다.
     const tasks = page.locator('#ps-tasks');
     const review = page.getByRole('region', { name: 'PDF 기반 개요 검토' });
     await expect(review).toBeVisible();
@@ -65,9 +66,12 @@ for (const width of [1280, 1440]) {
       'href',
       `/api/pre-specs/991/overview/runs/${overviewCompletedRunFixture.id}/pdf#page=3`,
     );
-    const risks = page.locator('#ps-conditions .ps-risks');
-    await expect(risks.getByText('평가 배점표가 읽은 범위에 없어 확인하지 못했다.', { exact: true })).toHaveCount(1);
-    await expect(risks.getByText('미확인', { exact: true })).toHaveCount(1);
+    // 심층 검토가 없는 건(fixture의 `latest_deep_review_id`는 null)이라 참여
+    // 조건·위험 및 미확인 사항 두 열 모두 "심층 검토에서 확인" 안내만 남는다.
+    const conditions = page.locator('#ps-conditions');
+    await expect(conditions.locator('#ps-conditions-list-title')).toBeVisible();
+    await expect(conditions.getByText('심층 검토에서 확인')).toHaveCount(2);
+    await expect(conditions.locator('.ps-risks')).toHaveCount(0);
     expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(false);
     await page.goto('/pre-specs/991');
     await expect(page.getByRole('region', { name: 'PDF 기반 개요 검토' })).toBeVisible();

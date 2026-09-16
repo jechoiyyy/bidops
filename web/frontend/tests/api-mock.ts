@@ -1288,17 +1288,8 @@ export const overviewCompletedRunFixture = overviewRunFixture({
       text: "사업 예산은 510,000,000원(VAT 포함)이고 수행기간은 10개월이다.",
       evidence: [{ page: 4, quote: "사업예산 510,000,000원(VAT 포함)" }],
     }],
-    important_conditions: [{
-      claim_id: "c4",
-      text: "상주 인력 2명을 사업 기간 동안 배치해야 한다.",
-      evidence: [{ page: 9, quote: "상주 인력 2명 배치" }],
-    }],
-    reviewer_analysis: [{
-      id: "a1",
-      text: "데이터 이관 실적과 상주 대응 여력을 먼저 확인해야 한다.",
-      supporting_claim_ids: ["c2", "c4"],
-    }],
-    unknowns: ["평가 배점표가 읽은 범위에 없어 확인하지 못했다."],
+    // v7 이후 응답은 important_conditions·reviewer_analysis·unknowns 키 자체가
+    // 없다(ADR-0057 결정 1). 참여 조건·위험/미확인은 심층 검토 결과가 갖는다.
     input_limitations: ["3~11쪽의 본문 텍스트만 읽었다."],
   },
 });
