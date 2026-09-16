@@ -1,4 +1,4 @@
-"""Read-only v6 policy and bounded stage payloads; never calls a model."""
+"""Read-only v7 policy and bounded stage payloads; never calls a model."""
 from dataclasses import dataclass
 from copy import deepcopy
 import hashlib
@@ -13,7 +13,7 @@ from ..schemas.prespec_overview_claims import (
 
 CLAIMS_STAGE = "prespec_overview_claims"
 SEMANTIC_STAGE = "prespec_overview_semantic"
-POLICY_PATH = Path(__file__).resolve().parents[1] / "policies" / "prespec-overview-policy-v6.json"
+POLICY_PATH = Path(__file__).resolve().parents[1] / "policies" / "prespec-overview-policy-v7.json"
 LIMITS = {
     "max_calls": 3, "max_draft_calls": 2, "max_semantic_calls": 1,
     "timeout_seconds": 300, "lease_seconds": 1200, "dispatch_reserve_seconds": 360,
@@ -24,7 +24,7 @@ LIMITS = {
     "max_model_context_tokens": 393216,
     "chat_template_reserve_tokens": 1024,
     "max_draft_chars": 10000, "max_response_chars": 16000,
-    "max_claims": 12, "max_analysis": 4, "max_unknowns": 6,
+    "max_claims": 12,
     "max_text_chars": 300, "max_evidence_per_claim": 2, "max_quote_chars": 300,
     "max_quantities_per_claim": 4,
 }
@@ -48,9 +48,27 @@ class ClaimsOverviewPolicy:
     document: dict[str, Any]
     digest: str
 
-    def structured_output_contract(self, stage: str) -> StructuredOutputContract:
+    def structured_output_contract(
+        self, stage: str, *, expected_check_count: int | None = None,
+    ) -> StructuredOutputContract:
+        """이 run이 보낼 구조화 출력 계약.
+
+        `expected_check_count`를 주면 의미 단계의 `checks` 길이를 그 run의 실제
+        주장 수로 못박는다. 정책 파일의 `max_claims`(12)는 그대로 상한 검증에만
+        쓰이고 **파일은 바뀌지 않는다** — `stage_policy`가 `deepcopy`를 돌려주고
+        digest는 `self.document`에서만 계산하므로 policy digest에 영향이 없다.
+        """
+
         policy = self.stage_policy(stage)
-        return StructuredOutputContract(name=stage, schema=policy["output_schema"], system_prompt=policy["system_prompt"])
+        schema = policy["output_schema"]
+        if expected_check_count is not None:
+            if stage != SEMANTIC_STAGE:
+                raise ValueError("overview_stage_invalid")
+            if not 1 <= expected_check_count <= LIMITS["max_claims"]:
+                raise ValueError("expected_check_count_invalid")
+            schema["properties"]["checks"]["minItems"] = expected_check_count
+            schema["properties"]["checks"]["maxItems"] = expected_check_count
+        return StructuredOutputContract(name=stage, schema=schema, system_prompt=policy["system_prompt"])
 
     def stage_policy(self, stage: str) -> dict[str, Any]:
         if canonical_sha256(self.document) != self.digest:
@@ -73,7 +91,7 @@ def load_claims_policy(path: Path | None = None) -> ClaimsOverviewPolicy:
         if set(value) != {"schema", "model_name", "model_endpoint_ref", "prompt_version", "limits", "verification", "stages"}:
             raise ValueError
         if (value["schema"], value["model_name"], value["model_endpoint_ref"], value["prompt_version"]) != (
-            "bidops.prespec-overview-policy.v6", "qwen3.8-27B", "vllm-openai-compatible", "prespec-overview-v6",
+            "bidops.prespec-overview-policy.v7", "qwen3.8-27B", "vllm-openai-compatible", "prespec-overview-v7",
         ) or value["limits"] != LIMITS:
             raise ValueError
         # The set order is immaterial to validation but the original file order
@@ -131,6 +149,11 @@ def build_claims_stage_input(
                 if page is None or hashlib.sha256(page.encode("utf-8")).hexdigest() != evidence.page_text_sha256 or page[evidence.start_char:evidence.end_char] != evidence.quote:
                     raise ValueError("verified_input_mismatch")
         result["draft"] = draft.model_dump(mode="json")
+        # 기대 ID와 개수를 입력에 명시한다. 응답 schema의 `checks` 길이도 이
+        # 값으로 못박으므로 모델이 상한(12)을 채우려고 분석·미확인 ID를 지어
+        # 넣을 자리가 없다 (ADR-0057 결정 3).
+        result["expected_claim_ids"] = [claim.id for claim in draft.claims]
+        result["expected_check_count"] = len(draft.claims)
         result["verified_evidence"] = [
             {"claim_id": row.claim_id, "evidence": [e.model_dump(mode="json") for e in row.deterministic.verified_evidence]}
             for row in checks.checks

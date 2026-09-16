@@ -1,4 +1,4 @@
-"""Pure evidence/claim gates and deterministic publication for page review v4.
+"""Pure evidence/claim gates and deterministic publication of the overview result.
 
 No inference engine, model transport, DB, or source-object access lives here.
 Unknown numeric relations fail closed; semantic judgments never override them.
@@ -16,10 +16,10 @@ from uuid import UUID
 from pydantic import ValidationError
 
 from ..schemas.prespec_overview_claims import (
-    CHECKS_SCHEMA, FACT_SECTIONS, VALIDATOR_VERSION, AnalysisCheck, ClaimCheck,
+    CHECKS_SCHEMA, FACT_SECTIONS, RESULT_SCHEMA, VALIDATOR_VERSION, ClaimCheck,
     ClaimEvidence, DeterministicCheck, OverviewClaimChecks, OverviewClaimsDraft,
-    OverviewSemanticResponse, PageOverviewPayloadV4, Quantity, SemanticCheck,
-    UnknownCheck, VerifiedEvidence,
+    OverviewResultPayload, OverviewSemanticResponse, Quantity, SemanticCheck,
+    VerifiedEvidence,
 )
 from .prespec_overview_claim_policy import FORMAT_RETRY_CODES, LIMITS, canonical_json, canonical_sha256
 
@@ -31,9 +31,14 @@ from .prespec_overview_claim_policy import FORMAT_RETRY_CODES, LIMITS, canonical
 #: `required_fact_missing`(섹션 배정 쏠림)과 `evidence_fragment_match`(2단
 #: 편집 쪽의 조각 대조)는 2026-09-11 운영 첫 실행 결과로 경고가 됐다. 주장이
 #: 0개인 것은 여전히 사람 검토이며 run이 `claims_empty`로 닫는다.
+#: `evidence_dropped`와 `semantic_extra_ids`는 ADR-0057 결정 3이 더한 경고다.
+#: 앞은 인용 둘 중 하나만 대조에 실패해 그 인용만 뺐다는 뜻이고, 뒤는 의미
+#: 검토 응답에 기대 밖 ID가 섞였으나 기대 ID는 모두 한 번씩 있었다는 뜻이다.
 WARNING_REASON_CODES = frozenset({
     "required_fact_missing",
     "evidence_fragment_match",
+    "evidence_dropped",
+    "semantic_extra_ids",
     "quantity_mismatch",
     "quantity_metadata_mismatch",
     "quantity_relation_ambiguous",
@@ -41,8 +46,6 @@ WARNING_REASON_CODES = frozenset({
     "date_mismatch",
     "requirement_id_mismatch",
     "latin_term_mismatch",
-    "analysis_premise_unverified",
-    "unknown_reason_mismatch",
 })
 
 
@@ -65,10 +68,16 @@ class ClaimDraftError(ValueError):
 
 
 class SemanticResponseError(ValueError):
-    code = "semantic_response_invalid"
+    """의미 검토 응답을 받을 수 없는 이유. run의 `reason_codes`에 그대로 남는다.
 
-    def __init__(self):
-        super().__init__(self.code)
+    `semantic_schema_invalid`(스키마·상한 위반), `semantic_missing_ids`(기대
+    주장 판정 누락), `semantic_duplicate_ids`(같은 주장에 두 판정)로 나뉜다.
+    기대 밖 ID는 실패가 아니라 경고 `semantic_extra_ids`다 (ADR-0057 결정 3).
+    """
+
+    def __init__(self, code: str = "semantic_response_invalid"):
+        self.code = code
+        super().__init__(code)
 
 
 def _reject_duplicate_keys(pairs):
@@ -141,8 +150,8 @@ def draft_failure_checks(
     return OverviewClaimChecks(
         schema_version=CHECKS_SCHEMA, attempt_id=attempt_id, draft_sha256=raw_digest,
         input_sha256=input_sha256, policy_digest=policy_digest, binding_digest=binding_digest,
-        validator_version=VALIDATOR_VERSION, checks=[], analysis_checks=[], unknown_checks=[],
-        analysis=[], unknowns=[], reason_codes=[error.code], overall="needs_human_review",
+        validator_version=VALIDATOR_VERSION, checks=[],
+        reason_codes=[error.code], overall="needs_human_review",
     )
 
 
@@ -151,11 +160,15 @@ def _space_map(text: str) -> tuple[str, list[int]]:
     return "".join(text[i] for i in offsets), offsets
 
 
-#: 인용을 자르는 경계: 줄바꿈과 리스트 표식 바로 앞. 2단(두 열) 편집 쪽의
-#: 텍스트는 좌·우 열을 **줄 단위로 번갈아** 내보내므로 한 열에서 뽑은 인용은
-#: 원문에서 연속하지 않는다. 표식 자체는 뒤 조각에 남겨 대조에 쓴다.
+#: 인용을 자르는 경계: 생략 기호, 줄바꿈, 리스트 표식 바로 앞. 2단(두 열)
+#: 편집 쪽의 텍스트는 좌·우 열을 **줄 단위로 번갈아** 내보내므로 한 열에서
+#: 뽑은 인용은 원문에서 연속하지 않는다.
+#:
+#: 앞의 두 갈래(`…`·`...`·개행)는 **먹는** 경계다 — 생략 기호와 개행은 원문의
+#: 그 자리에 없으므로 조각에 남기면 대조가 깨진다. 리스트 표식은 폭 0으로
+#: 잘라 뒤 조각에 남겨 대조에 쓴다 (ADR-0057 결정 3이 생략 기호를 더했다).
 _FRAGMENT_BOUNDARY = re.compile(
-    r"\n|(?:^|(?<=\s))(?=(?:[가나다라마바사아자차카타파하]|\d{1,2})\s*[.)]\s|[○●□■◇◆▶▷•·]|-\s)"
+    r"…+|\.{3,}|\n|(?:^|(?<=\s))(?=(?:[가나다라마바사아자차카타파하]|\d{1,2})\s*[.)]\s|[○●□■◇◆▶▷•·]|-\s)"
 )
 #: 이보다 짧은 조각(공백 제거 기준)은 혼자서는 한 곳을 가리키지 못한다.
 _MIN_FRAGMENT_CHARS = 6
@@ -169,10 +182,16 @@ def _matches(normalized: str, needle: str) -> list[int]:
 def _fragments(quote: str) -> list[str]:
     """인용을 줄·리스트 표식 경계로 자른다. 짧은 조각은 앞 조각에 붙인다."""
 
-    cuts = [0, *(match.start() for match in _FRAGMENT_BOUNDARY.finditer(quote)), len(quote)]
+    pieces: list[str] = []
+    position = 0
+    for match in _FRAGMENT_BOUNDARY.finditer(quote):
+        pieces.append(quote[position:match.start()])
+        # 폭 0 경계(리스트 표식)는 `end == start`이므로 표식이 뒤 조각에 남고,
+        # 생략 기호·개행은 `end > start`라 조각에서 빠진다.
+        position = max(position, match.end())
+    pieces.append(quote[position:])
     fragments: list[str] = []
-    for start, end in zip(cuts, cuts[1:]):
-        piece = quote[start:end]
+    for piece in pieces:
         compact, _ = _space_map(piece)
         if not compact:
             continue
@@ -385,10 +404,14 @@ def _literal_checks(text: str, source: str) -> set[str]:
     return errors
 
 
+#: 인용 하나가 이 사유로 어긋났을 때만 그 인용을 빼고 주장을 살린다. 페이지
+#: 범위 밖·빈 인용처럼 구조가 깨진 근거는 뺄 대상이 아니다.
+_DROPPABLE_EVIDENCE_REASONS = frozenset({"quote_not_found", "quote_ambiguous"})
+
+
 def validate_claims_deterministically(
     draft: OverviewClaimsDraft, pages: dict[int, str], *, attempt_id: UUID,
     input_sha256: str, policy_digest: str, binding_digest: str,
-    company_comparison_performed: bool = False,
 ) -> OverviewClaimChecks:
     draft = parse_claims_draft(draft)
     global_errors: set[str] = set()
@@ -398,7 +421,7 @@ def validate_claims_deterministically(
         raise ValueError("input_limit_exceeded")
     if not all(any(c.section == section for c in draft.claims) for section in FACT_SECTIONS[:2]):
         global_errors.add("required_fact_missing")
-    ids = [item.id for item in [*draft.claims, *draft.analysis, *draft.unknowns]]
+    ids = [claim.id for claim in draft.claims]
     if len(set(ids)) != len(ids):
         global_errors.add("duplicate_id")
     checks = []
@@ -406,6 +429,7 @@ def validate_claims_deterministically(
         errors: set[str] = set()
         verified = []
         indexed: dict[int, VerifiedEvidence] = {}
+        evidence_errors: dict[int, str] = {}
         if not claim.text.strip():
             errors.add("fact_empty")
         if not claim.evidence:
@@ -418,7 +442,14 @@ def validate_claims_deterministically(
                 if fragment_match:
                     errors.add("evidence_fragment_match")
             except ValueError as error:
-                errors.add(str(error))
+                evidence_errors[i] = str(error)
+        # 인용이 둘이고 하나만 대조에 실패하면 **그 인용만** 빼고 주장은 남긴다
+        # (ADR-0057 결정 3). 검증된 인용이 하나도 없으면 종전대로 실패다.
+        if (len(claim.evidence) == 2 and len(evidence_errors) == 1 and verified
+                and set(evidence_errors.values()) <= _DROPPABLE_EVIDENCE_REASONS):
+            errors.add("evidence_dropped")
+        else:
+            errors.update(evidence_errors.values())
         source = "\n".join(e.quote for e in verified)
         errors.update(_literal_checks(claim.text, source))
         extracted, quantity_errors = extract_quantities(claim.text)
@@ -450,54 +481,15 @@ def validate_claims_deterministically(
             semantic=SemanticCheck(status="not_run", reason_codes=[]),
             warnings=warnings,
         ))
-    by_id = {claim.id: claim for claim in draft.claims}
-    analysis_checks = []
-    for analysis in draft.analysis:
-        reasons = []
-        if not analysis.text.strip() or not analysis.supporting_claim_ids or len(set(analysis.supporting_claim_ids)) != len(analysis.supporting_claim_ids) or set(analysis.supporting_claim_ids) - set(by_id):
-            global_errors.add("analysis_reference_missing")
-            reasons.append("analysis_premise_unverified")
-        else:
-            source = "\n".join(by_id[key].text for key in analysis.supporting_claim_ids)
-            # Exact numeric spellings preserve dates, IDs and decimal precision.
-            # New numbers in opinions cannot hide behind a supported judgment.
-            if Counter(re.findall(_NUMBER, analysis.text)) - Counter(re.findall(_NUMBER, source)) or _literal_checks(analysis.text, source):
-                global_errors.add("analysis_premise_unverified")
-                reasons.append("analysis_premise_unverified")
-            aq, _ = extract_quantities(analysis.text)
-            sq, _ = extract_quantities(source)
-            if Counter(_numeric_key(q.value, q.unit) for q in aq) - Counter(_numeric_key(q.value, q.unit) for q in sq):
-                global_errors.add("analysis_premise_unverified")
-                if not reasons:
-                    reasons.append("analysis_premise_unverified")
-        analysis_checks.append(AnalysisCheck(analysis_id=analysis.id, status="not_run", reason_codes=[], warnings=sorted(set(reasons))))
-    unknown_checks = []
-    for unknown in draft.unknowns:
-        reasons: list[str] = []
-        warnings: list[str] = []
-        company = unknown.topic == "company_comparison"
-        not_performed = unknown.reason_code == "company_comparison_not_performed"
-        if company != not_performed:
-            global_errors.add("unknown_reason_mismatch")
-            warnings.append("unknown_reason_mismatch")
-        elif company and company_comparison_performed:
-            global_errors.add("company_comparison_scope_mismatch")
-            reasons.append("company_comparison_scope_mismatch")
-        unknown_checks.append(UnknownCheck(
-            unknown_id=unknown.id, status="not_run", reason_codes=reasons, warnings=warnings,
-        ))
     global_failures, global_warnings = _split_reasons(global_errors)
     return OverviewClaimChecks(
         schema_version=CHECKS_SCHEMA, attempt_id=attempt_id, draft_sha256=canonical_sha256(draft),
         input_sha256=input_sha256, policy_digest=policy_digest, binding_digest=binding_digest,
-        validator_version=VALIDATOR_VERSION, checks=checks, analysis_checks=analysis_checks,
-        unknown_checks=unknown_checks, analysis=draft.analysis, unknowns=draft.unknowns,
+        validator_version=VALIDATOR_VERSION, checks=checks,
         reason_codes=global_failures,
         warnings=sorted({
             *global_warnings,
             *(code for row in checks for code in row.warnings),
-            *(code for row in analysis_checks for code in row.warnings),
-            *(code for row in unknown_checks for code in row.warnings),
         }),
         overall="needs_human_review",
     )
@@ -510,37 +502,29 @@ class PassingSubset:
     draft: OverviewClaimsDraft
     checks: OverviewClaimChecks
     dropped_claim_ids: tuple[str, ...]
-    dropped_analysis_ids: tuple[str, ...]
 
 
 def drop_failed_claims(draft: OverviewClaimsDraft, checks: OverviewClaimChecks) -> PassingSubset:
     """실패한 주장을 빼고 나머지로 계속 갈 수 있는 부분집합을 만든다.
 
     12개 중 1~2개만 인용이 어긋난 run을 통째로 사람 검토로 보내지 않기 위한
-    규칙이다(2026-09-11 결정). 실패한 주장을 근거로 삼은 분석도 함께 뺀다.
-    호출자가 원래 draft·checks를 그대로 저장하고, 이 결과는 의미 검토·구성
-    입력으로만 쓴다. 통과 주장 수의 하한(절반)은 호출자가 판단한다.
+    규칙이다(2026-09-11 결정). 호출자가 원래 draft·checks를 그대로 저장하고,
+    이 결과는 의미 검토·구성 입력으로만 쓴다. 통과 주장 수의 하한(절반)은
+    호출자가 판단한다.
     """
 
     failed = {row.claim_id for row in checks.checks if row.deterministic.status != "passed"}
     if not failed:
-        return PassingSubset(draft, checks, (), ())
-    dropped_analysis = tuple(
-        row.id for row in draft.analysis if set(row.supporting_claim_ids) & failed
-    )
+        return PassingSubset(draft, checks, ())
     subset_draft = OverviewClaimsDraft.model_validate({
         **draft.model_dump(mode="python"),
         "claims": [c.model_dump(mode="python") for c in draft.claims if c.id not in failed],
-        "analysis": [a.model_dump(mode="python") for a in draft.analysis if a.id not in dropped_analysis],
     })
     data = checks.model_dump(mode="python")
     data["checks"] = [row for row in data["checks"] if row["claim_id"] not in failed]
-    data["analysis_checks"] = [row for row in data["analysis_checks"] if row["analysis_id"] not in dropped_analysis]
-    data["analysis"] = [row for row in data["analysis"] if row["id"] not in dropped_analysis]
     data["draft_sha256"] = canonical_sha256(subset_draft)
     return PassingSubset(
-        subset_draft, OverviewClaimChecks.model_validate(data),
-        tuple(sorted(failed)), dropped_analysis,
+        subset_draft, OverviewClaimChecks.model_validate(data), tuple(sorted(failed)),
     )
 
 
@@ -556,21 +540,11 @@ def merge_semantic_checks(checks: OverviewClaimChecks, reviewed: OverviewClaimCh
         # 제외된 주장이 없으면 부분집합이 곧 전체다. 판정 결과를 그대로 쓴다.
         return reviewed
     semantic = {row.claim_id: row.semantic for row in reviewed.checks}
-    analysis = {row.analysis_id: row for row in reviewed.analysis_checks}
-    unknown = {row.unknown_id: row for row in reviewed.unknown_checks}
     data = checks.model_dump(mode="python")
     for row in data["checks"]:
         found = semantic.get(row["claim_id"])
         if found is not None:
             row["semantic"] = found.model_dump(mode="python")
-    for row in data["analysis_checks"]:
-        found = analysis.get(row["analysis_id"])
-        if found is not None:
-            row["status"], row["reason_codes"] = found.status, list(found.reason_codes)
-    for row in data["unknown_checks"]:
-        found = unknown.get(row["unknown_id"])
-        if found is not None:
-            row["status"], row["reason_codes"] = found.status, list(found.reason_codes)
     data["warnings"] = sorted({*checks.warnings, *reviewed.warnings})
     data["overall"] = "needs_human_review"
     return OverviewClaimChecks.model_validate(data)
@@ -581,12 +555,12 @@ def _coverage(actual: list[str], expected: list[str]) -> bool:
 
 
 def _verify_draft_binding(draft: OverviewClaimsDraft, checks: OverviewClaimChecks) -> None:
-    if checks.draft_sha256 != canonical_sha256(draft) or not _coverage([c.claim_id for c in checks.checks], [c.id for c in draft.claims]) or not _coverage(
-        [c.analysis_id for c in checks.analysis_checks], [c.id for c in draft.analysis]
-    ) or not _coverage([c.unknown_id for c in checks.unknown_checks], [c.id for c in draft.unknowns]):
+    if checks.draft_sha256 != canonical_sha256(draft) or not _coverage(
+        [c.claim_id for c in checks.checks], [c.id for c in draft.claims]
+    ):
         raise ValueError("verification_binding_mismatch")
     by_id = {claim.id: claim for claim in draft.claims}
-    if any(row.text != by_id[row.claim_id].text or row.section != by_id[row.claim_id].section for row in checks.checks) or checks.analysis != draft.analysis or checks.unknowns != draft.unknowns:
+    if any(row.text != by_id[row.claim_id].text or row.section != by_id[row.claim_id].section for row in checks.checks):
         raise ValueError("verification_binding_mismatch")
 
 
@@ -607,63 +581,26 @@ def apply_semantic_review(
             raise ValueError
         parsed = OverviewSemanticResponse.model_validate(response)
     except (ValueError, TypeError):
-        raise SemanticResponseError() from None
-    if not _coverage([c.claim_id for c in parsed.checks], [c.id for c in draft.claims]) or not _coverage(
-        [c.analysis_id for c in parsed.analysis_checks], [c.id for c in draft.analysis]
-    ) or not _coverage([c.unknown_id for c in parsed.unknown_checks], [c.id for c in draft.unknowns]):
-        raise SemanticResponseError()
-    semantic_by_id = {c.claim_id: c for c in parsed.checks}
+        raise SemanticResponseError("semantic_schema_invalid") from None
+    # 기대 주장 ID가 모두 **정확히 한 번씩** 있으면 그 밖의 항목은 무시하고
+    # 경고만 남긴다 (ADR-0057 결정 3). 누락·중복은 그대로 실패다 — 판정이
+    # 없는 주장을 통과로 올리거나 두 판정 중 하나를 골라서는 안 된다.
+    expected = [claim.id for claim in draft.claims]
+    seen = Counter(row.claim_id for row in parsed.checks)
+    if any(seen[claim_id] == 0 for claim_id in expected):
+        raise SemanticResponseError("semantic_missing_ids")
+    if any(seen[claim_id] > 1 for claim_id in expected):
+        raise SemanticResponseError("semantic_duplicate_ids")
+    semantic_by_id = {c.claim_id: c for c in parsed.checks if c.claim_id in set(expected)}
     result = checks.model_dump(mode="python")
     for row in result["checks"]:
         semantic = semantic_by_id[row["claim_id"]]
         row["semantic"] = {"status": semantic.status, "reason_codes": semantic.reason_codes}
-    # 경고는 서버가 결정적으로 만든 값이다. 모델 판정으로 행을 갈아 끼우면서
-    # 잃어버리지 않게 id로 다시 붙인다.
-    analysis_warnings = {row.analysis_id: list(row.warnings) for row in checks.analysis_checks}
-    unknown_warnings = {row.unknown_id: list(row.warnings) for row in checks.unknown_checks}
-    result["analysis_checks"] = [
-        {**row.model_dump(), "warnings": analysis_warnings.get(row.analysis_id, [])}
-        for row in parsed.analysis_checks
-    ]
-    result["unknown_checks"] = [
-        {**row.model_dump(), "warnings": unknown_warnings.get(row.unknown_id, [])}
-        for row in parsed.unknown_checks
-    ]
-    # unknown의 contradicted/insufficient는 그 항목만 결과에서 빼고 run은 계속
-    # 간다 (MVP 계약, 2026-09-11). 주장·분석의 판정은 그대로 전체를 막는다.
-    all_passed = all(c.status == "supported" for c in [*parsed.checks, *parsed.analysis_checks])
+    if len(seen) > len(expected):
+        result["warnings"] = sorted({*checks.warnings, "semantic_extra_ids"})
+    all_passed = all(semantic_by_id[claim_id].status == "supported" for claim_id in expected)
     result["overall"] = "passed" if all_passed else "needs_human_review"
     return OverviewClaimChecks.model_validate(result)
-
-
-_TOPICS = {"budget": "예산", "period": "사업 기간", "eligibility": "참여 자격", "scope": "과업 범위", "schedule": "일정"}
-
-
-def dropped_unknown_ids(checks: OverviewClaimChecks) -> list[str]:
-    """의미 검토가 반박·근거부족으로 본 unknown. 결과에 싣지 않는다."""
-
-    return sorted(
-        row.unknown_id for row in checks.unknown_checks
-        if row.status in {"contradicted", "insufficient"}
-    )
-
-
-def render_unknowns(
-    draft: OverviewClaimsDraft | OverviewClaimChecks, checks: OverviewClaimChecks | None = None,
-) -> list[str]:
-    holder = checks if checks is not None else (draft if isinstance(draft, OverviewClaimChecks) else None)
-    excluded = set(dropped_unknown_ids(holder)) if holder is not None else set()
-    result = []
-    for item in draft.unknowns:
-        if item.id in excluded:
-            continue
-        if item.topic == "company_comparison":
-            result.append("회사 역량·참여 요건 대조는 수행하지 않았습니다.")
-        elif item.reason_code == "ambiguous_source":
-            result.append(f"검토한 입력에서 {_TOPICS[item.topic]}의 의미가 불명확하여 원문 확인이 필요합니다.")
-        else:
-            result.append(f"검토한 입력에서 {_TOPICS[item.topic]}을 확인하지 못했습니다.")
-    return result
 
 
 def build_input_limitations(
@@ -684,7 +621,7 @@ def build_input_limitations(
 def compose_page_overview(
     draft: OverviewClaimsDraft, checks: OverviewClaimChecks, *, verification_id: UUID,
     input_limitations: list[str],
-) -> PageOverviewPayloadV4:
+) -> OverviewResultPayload:
     _verify_draft_binding(draft, checks)
     # Revalidate even when a caller used model_copy/update on an existing model.
     checks = OverviewClaimChecks.model_validate(checks.model_dump(mode="python"))
@@ -697,16 +634,21 @@ def compose_page_overview(
             "claim_id": claim.id, "text": claim.text,
             "evidence": by_id[claim.id].deterministic.verified_evidence,
         })
-    return PageOverviewPayloadV4(
-        schema_version="bidops.prespec-overview-page-review.v4", **result,
-        reviewer_analysis=draft.analysis, unknowns=render_unknowns(draft, checks),
+    return OverviewResultPayload(
+        schema_version=RESULT_SCHEMA, **result,
         input_limitations=input_limitations, verification_id=verification_id,
         verification_sha256=canonical_sha256(checks),
     )
 
 
+def empty_sections(payload: OverviewResultPayload) -> list[str]:
+    """비어 있는 절의 경고 코드. 예산·기간이 선택 범위에 없으면 남는다."""
+
+    return [f"section_empty:{section}" for section in FACT_SECTIONS if not getattr(payload, section)]
+
+
 def verify_composed_page_overview(
-    payload: PageOverviewPayloadV4, draft: OverviewClaimsDraft, checks: OverviewClaimChecks,
+    payload: OverviewResultPayload, draft: OverviewClaimsDraft, checks: OverviewClaimChecks,
 ) -> bool:
     """Downstream gate: match the entire deterministic composition and digest."""
     try:
@@ -717,7 +659,7 @@ def verify_composed_page_overview(
 
 
 def validate_composed_page_overview(payload: object, checks: object) -> list[str]:
-    """Recheck persisted v4 facts/analysis/unknowns without the model draft.
+    """Recheck the persisted facts without the model draft.
 
     Storage/currentness callers additionally bind verification_id, attempt and
     input/model/policy hashes to their append-only rows and frozen snapshot.
@@ -727,7 +669,7 @@ def validate_composed_page_overview(payload: object, checks: object) -> list[str
             payload = payload.model_dump(mode="json")
         if hasattr(checks, "model_dump"):
             checks = checks.model_dump(mode="json")
-        payload = PageOverviewPayloadV4.model_validate_json(canonical_json(payload))
+        payload = OverviewResultPayload.model_validate_json(canonical_json(payload))
         checks = OverviewClaimChecks.model_validate_json(canonical_json(checks))
     except (ValueError, TypeError):
         return ["verification_schema_invalid"]
@@ -742,6 +684,4 @@ def validate_composed_page_overview(payload: object, checks: object) -> list[str
         ]
         if [c.model_dump(mode="json") for c in getattr(payload, section)] != expected:
             return ["verification_content_mismatch"]
-    if payload.reviewer_analysis != checks.analysis or payload.unknowns != render_unknowns(checks):
-        return ["verification_content_mismatch"]
     return []

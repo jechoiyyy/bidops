@@ -107,21 +107,18 @@ def _completed_run(session, notice, snapshot) -> PrespecOverviewRun:
         model_name="test-overview", warnings_json=["quantity_unit_missing"], reason_codes=[],
         call_count=2, raw_response_refs=[{"stage": "draft", "sha256": "e" * 64}],
         result_json={
-            "schema_version": "bidops.prespec-overview-page-review.v4",
+            "schema_version": "bidops.prespec-overview-claims.v2",
             "business_overview": [{"claim_id": "c1", "text": "합성 사업개요 문장이다.",
                                    "evidence": [{"page": 1, "quote": "합성 사업개요 문장이다.",
                                                  "start_char": 0, "end_char": 12,
                                                  "page_text_sha256": "f" * 64}]}],
-            "main_tasks": [], "budget_and_period": [], "important_conditions": [],
-            "reviewer_analysis": [{"id": "a1", "text": "모의 분석", "supporting_claim_ids": ["c1"]}],
-            "unknowns": ["회사 역량 대조는 수행하지 않았습니다."],
+            "main_tasks": [], "budget_and_period": [],
             "input_limitations": ["PDF 총 1페이지 중 선택된 1페이지만 검토했습니다."],
         },
         draft_json={
             "schema_version": "bidops.prespec-overview-claims.v1",
             "claims": [{"id": "c1", "section": "business_overview", "text": "합성 사업개요 문장이다.",
                         "evidence": [], "quantities": []}],
-            "analysis": [], "unknowns": [],
         },
         checks_json={
             "schema_version": "bidops.prespec-overview-claim-checks.v1",
@@ -136,7 +133,7 @@ def _completed_run(session, notice, snapshot) -> PrespecOverviewRun:
                 "semantic": {"status": "supported", "reason_codes": []},
                 "warnings": [],
             }],
-            "analysis_checks": [], "unknown_checks": [], "reason_codes": [],
+            "reason_codes": [],
         },
         completed_at=datetime.now(UTC),
     )
@@ -156,9 +153,10 @@ def test_overview_envelope_hides_raw_response_references(api):
     assert body["schema"] == "bidops.prespec-overview.v1"
     assert body["current"]["id"] == str(run.id) and len(body["history"]) == 1
     assert body["current"]["warnings"] == ["quantity_unit_missing"]
-    assert body["current"]["result"]["reviewer_analysis"] == [
-        {"id": "a1", "text": "모의 분석", "supporting_claim_ids": ["c1"]}
-    ]
+    # 개요 결과는 앞부분 요약 세 절뿐이다 (ADR-0057 결정 1).
+    assert set(body["current"]["result"]) == {
+        "business_overview", "main_tasks", "budget_and_period", "input_limitations",
+    }
     # 근거는 `{page, quote}`뿐이고 원응답 참조·내부 offset은 나가지 않는다.
     assert body["current"]["result"]["business_overview"][0]["evidence"] == [
         {"page": 1, "quote": "합성 사업개요 문장이다."}
@@ -232,7 +230,7 @@ def test_envelope_carries_range_review_verification_and_run_facts(api):
     body = client.get(f"/api/pre-specs/{notice.id}/overview").json()
 
     current = body["current"]
-    assert current["result_id"] == str(run.id) and current["prompt_version"] == "prespec-overview-v6"
+    assert current["result_id"] == str(run.id) and current["prompt_version"] == "prespec-overview-v7"
     assert current["verification_status"] == "passed"
     assert current["document_version_id"] == str(snapshot.document_version_id)
     assert (current["source_sha256"], current["pdf_sha256"]) == (snapshot.source_sha256, snapshot.pdf_sha256)

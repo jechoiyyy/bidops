@@ -19,7 +19,7 @@ DEFAULT_BIDOPS_ROOT = Path(__file__).resolve().parents[4]
 
 #: 사전규격 개요 정책 파일의 기본 위치. core는 계약 내용을 모르고 경로만 갖는다.
 DEFAULT_PRESPEC_OVERVIEW_POLICY_PATH = (
-    Path(__file__).resolve().parents[1] / "deep_review" / "policies" / "prespec-overview-policy-v6.json"
+    Path(__file__).resolve().parents[1] / "deep_review" / "policies" / "prespec-overview-policy-v7.json"
 )
 
 #: 조립 계층이 고를 수 있는 도메인 모듈 (명세 §7). core는 선택 대상이 아니라

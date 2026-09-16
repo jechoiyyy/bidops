@@ -683,7 +683,7 @@ class _TwelveClaims(MockOverviewTransport):
     broken: tuple[int, ...] = ()
 
     def _draft(self, input_slice):
-        sections = ("business_overview", "main_tasks", "budget_and_period", "important_conditions")
+        sections = ("business_overview", "main_tasks", "budget_and_period")
         page = input_slice["blocks"][0]["pdf_page"]
         claims = [
             {
@@ -696,17 +696,7 @@ class _TwelveClaims(MockOverviewTransport):
             }
             for index, line in enumerate(CLAIM_LINES)
         ]
-        return {
-            "schema_version": "bidops.prespec-overview-claims.v1",
-            "claims": claims,
-            "analysis": [
-                {"id": "a1", "text": "통과한 주장만 근거로 삼은 모의 분석이다.", "supporting_claim_ids": ["c1"]},
-                {"id": "a2", "text": "빠진 주장을 근거로 삼은 모의 분석이다.",
-                 "supporting_claim_ids": [f"c{(min(self.broken) if self.broken else 0) + 1}"]},
-            ],
-            "unknowns": [{"id": "u1", "topic": "company_comparison",
-                          "reason_code": "company_comparison_not_performed"}],
-        }
+        return {"schema_version": "bidops.prespec-overview-claims.v1", "claims": claims}
 
 
 def _run_twelve(session, store, broken: tuple[int, ...]):
@@ -731,15 +721,16 @@ def test_two_failed_claims_are_dropped_and_the_rest_completes(context):
     view = overview_runs.run_view(row)
     assert [item["claim_id"] for item in view["failed_claims"]] == ["c2", "c3"]
     assert all("quote_not_found" in item["reason_codes"] for item in view["failed_claims"])
-    assert {"claims_dropped", "analysis_dropped"} <= set(view["warnings"])
+    assert "claims_dropped" in set(view["warnings"])
     published = [
-        item["claim_id"] for section in ("business_overview", "main_tasks",
-                                         "budget_and_period", "important_conditions")
+        item["claim_id"] for section in ("business_overview", "main_tasks", "budget_and_period")
         for item in view["result"][section]
     ]
     assert sorted(published) == sorted(f"c{n}" for n in range(1, 13) if n not in {2, 3})
-    # 빠진 주장을 근거로 삼은 분석은 함께 빠진다.
-    assert [item["id"] for item in view["result"]["reviewer_analysis"]] == ["a1"]
+    # 개요 결과에는 검토 의견·미확인 key가 없다 (ADR-0057 결정 1).
+    assert set(view["result"]) == {
+        "business_overview", "main_tasks", "budget_and_period", "input_limitations",
+    }
 
 
 def test_fewer_than_half_passing_claims_still_go_to_human_review(context):
@@ -752,10 +743,22 @@ def test_fewer_than_half_passing_claims_still_go_to_human_review(context):
     assert "claims_dropped" not in (row.warnings_json or [])
 
 
-class _WrongUnknown(MockOverviewTransport):
+class _ExtraSemanticIds(MockOverviewTransport):
+    """상한을 채우려고 기대 밖 ID를 덧붙이는 응답 (표본 5건 중 3건의 모양)."""
+
     def _semantic(self, input_slice):
         output = MockOverviewTransport._semantic(input_slice)
-        output["unknown_checks"][0].update(status="contradicted", reason_codes=["unknown_contradicted"])
+        output["checks"].extend(
+            {"claim_id": extra, "status": "insufficient", "reason_codes": ["insufficient_evidence"]}
+            for extra in ("A01", "U01")
+        )
+        return output
+
+
+class _MissingSemanticId(MockOverviewTransport):
+    def _semantic(self, input_slice):
+        output = MockOverviewTransport._semantic(input_slice)
+        output["checks"].pop()
         return output
 
 
@@ -775,16 +778,26 @@ def _run_with(session, store, transport_class):
     return result, session.get(PrespecOverviewRun, run.id)
 
 
-def test_a_contradicted_unknown_is_dropped_and_the_run_completes(context):
+def test_extra_semantic_ids_only_warn_and_the_run_completes(context):
+    """기대 ID가 모두 한 번씩 있으면 그 밖의 판정은 무시한다 (ADR-0057 결정 3)."""
+
     session, store = context
 
-    result, row = _run_with(session, store, _WrongUnknown)
+    result, row = _run_with(session, store, _ExtraSemanticIds)
 
     assert result.status == "completed"
     view = overview_runs.run_view(row)
-    assert "unknown_contradicted" in view["warnings"]
-    assert view["result"]["unknowns"] == []
-    assert view["failed_claims"] == []
+    assert "semantic_extra_ids" in view["warnings"]
+    assert view["failed_claims"] == [] and row.reason_codes == []
+
+
+def test_a_missing_semantic_id_closes_the_run_with_its_own_reason_code(context):
+    session, store = context
+
+    result, row = _run_with(session, store, _MissingSemanticId)
+
+    assert result.status == "failed"
+    assert row.reason_codes == ["semantic_missing_ids"] and row.result_json is None
 
 
 def test_a_contradicted_claim_still_sends_the_run_to_human_review(context):
