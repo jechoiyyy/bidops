@@ -27,6 +27,15 @@ V4_RANGE_REVIEW_SCHEMA = "bidops.prespec-v4-range-review.v1"
 MAX_V4_MANIFEST_BYTES = 8 * 1024 * 1024
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _CHAPTER = re.compile(r"^([ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ]+)\s*[.)、:：\-–—]?\s*(.+)$")
+#: 같은 장 표식의 다른 표기. 조판기가 로마숫자를 ASCII로 떨어뜨리기도 하고
+#: (0916 공고 780) `제3장` 표기를 쓰는 문서도 있다. ASCII 표기는 `IT 장비`
+#: 같은 본문 줄을 장으로 오인할 수 있으므로 구분 기호나 공백을 요구한다.
+_CHAPTER_ASCII = re.compile(r"^([IVX]{1,4})(?:\s*[.)、:：\-–—]\s*|\s+)(.+)$")
+_CHAPTER_KO = re.compile(r"^(제\s*\d{1,2}\s*장)\s*[.)、:：\-–—]?\s*(.+)$")
+#: 장 표식만 있고 제목이 다음 줄로 갈라진 줄 (0916 공고 781·805의 `Ⅰ` 줄).
+_CHAPTER_MARKER_ONLY = re.compile(
+    r"^(?:[ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ]+|[IVX]{1,4}|제\s*\d{1,2}\s*장)\s*[.)、:：\-–—]?$"
+)
 _NUMBERED = re.compile(r"^(\d+(?:\.\d+)*)\s*[.)、:：\-–—]?\s+(.+)$")
 _BULLET = re.compile(r"^[□■◆◇○●〇◦•·]\s*")
 #: The only manifest fields a human confirmation may add (ADR-RDP-004).
@@ -37,12 +46,26 @@ _TOC_WORDS = frozenset({"목차", "차례", "contents", "tableofcontents"})
 #: 목차 항목 줄: 탭이나 점선 뒤에 쪽 번호로 끝난다.
 _TOC_ENTRY = re.compile(r"(?:\t\d{1,4}|[.·…]{2,}\s*\d{1,4})\s*$")
 _TOC_ENTRY_LINES = 5
+#: 같은 항목을 제목과 인쇄 쪽번호로 갈라 읽는다. 탭·점선 외에 공백 연속으로
+#: 자리를 맞춘 목차도 있다 (ADR-0057 결정 2).
+_TOC_ENTRY_LINE = re.compile(
+    r"^\s*(?P<title>\S.*?)(?:\t+\s*|\s*[.·…]{2,}\s*|\s{2,})(?P<page>\d{1,3})\s*$"
+)
+#: 목차를 찾는 앞쪽 범위와 한 쪽을 목차로 보는 항목 수 하한.
+_TOC_SCAN_PAGES = 5
+_TOC_MIN_ENTRIES = 4
 _TARGET_WORDS = frozenset(
     {
         "개요", "목적", "배경", "범위", "주요내용", "주요과업", "사업일반",
         "사업개요", "감리개요", "감리목적", "감리대상사업", "감리방법",
         "감리과업내용", "과업개요", "과업안내", "과업내용", "추진근거", "추진계획",
     }
+)
+#: 제안사가 쓰는 양식 안내 장. 이 헤딩 뒤의 장은 발주처의 사업 범위가 아니라
+#: 제안서 작성 양식이므로 본문 전략의 후보에서 뺀다 (0916 공고 805의 70쪽
+#: `제안서 목차` 양식이 첫 장으로 잡혔다).
+_FORM_CHAPTER_WORDS = (
+    "제안서작성안내", "제안서작성요령", "제안서작성방법", "제안서목차", "세부작성지침",
 )
 
 MAX_V4_PROVENANCE_BYTES = 128 * 1024
@@ -137,10 +160,16 @@ def _heading_from_line(text: str) -> tuple[int | None, str | None, bool]:
     # ASCII I/II.  Match the chapter marker before normalising; otherwise the
     # parent chapter disappears from every locator and range boundary.
     stripped = text.strip()
-    chapter = _CHAPTER.match(stripped)
+    chapter = _CHAPTER.match(stripped) or _CHAPTER_KO.match(stripped)
     if chapter:
         title = chapter.group(2).strip()
         return 1, title, bool(_normalise_heading(title))
+    ascii_chapter = _CHAPTER_ASCII.match(stripped)
+    if ascii_chapter:
+        title = ascii_chapter.group(2).strip()
+        # ASCII 표기는 오인 여지가 크므로 제목이 실제 제목일 때만 장으로 본다.
+        if _meaningful_heading(title):
+            return 1, title, True
     numbered = _NUMBERED.match(stripped)
     if numbered:
         title = numbered.group(2).strip()
@@ -198,20 +227,140 @@ def _lines(pages: Sequence[Mapping[str, Any]]) -> list[_Line]:
         page_text = str(page["text"])
         block_key = (page.get("block_keys") or [f"page-{page_number}-text"])[0]
         offset = 0
-        for line_index, text in enumerate(page_text.splitlines() or [page_text]):
+        texts = page_text.splitlines() or [page_text]
+        for line_index, text in enumerate(texts):
             char_start = offset
             char_end = char_start + len(text)
             level, title, chapter = _heading_from_line(text)
+            if level is None and _CHAPTER_MARKER_ONLY.match(text.strip()):
+                # 장 표식과 제목이 두 줄로 갈라진 조판. 같은 쪽의 다음 비공백
+                # 줄까지가 하나의 장 heading이며, 장은 표식 줄에서 시작한다.
+                follower = next((item for item in texts[line_index + 1:] if item.strip()), "")
+                if follower:
+                    level, title, chapter = _heading_from_line(f"{text.strip()} {follower.strip()}")
             output.append(_Line(page_number, block_key, line_index, char_start, char_end, text, level, title, chapter))
             offset = char_end + 1
     return output
 
 
-def _is_target_heading(line: _Line) -> bool:
-    if line.heading_title is None:
+def _has_target_word(title: str | None) -> bool:
+    if not title:
         return False
-    normalized = _normalise_heading(line.heading_title)
+    normalized = _normalise_heading(title)
     return any(word in normalized for word in _TARGET_WORDS)
+
+
+def _is_target_heading(line: _Line) -> bool:
+    return _has_target_word(line.heading_title)
+
+
+@dataclass(frozen=True)
+class _TocEntry:
+    """목차 한 항목. `printed_page`는 목차가 적어 둔 **인쇄** 쪽번호다."""
+
+    level: int | None
+    title: str
+    printed_page: int | None
+
+
+def _toc_entry_pages(pages: Sequence[Mapping[str, Any]]) -> set[int]:
+    """앞 `_TOC_SCAN_PAGES`쪽 중 "제목 … 쪽번호" 항목이 하한 이상인 쪽."""
+
+    found: set[int] = set()
+    for page in pages[:_TOC_SCAN_PAGES]:
+        count = sum(1 for text in str(page["text"]).splitlines() if _TOC_ENTRY_LINE.match(text))
+        if count >= _TOC_MIN_ENTRIES:
+            found.add(int(page["number"]))
+    return found
+
+
+def _toc_entries(pages: Sequence[Mapping[str, Any]], entry_pages: set[int]) -> list[_TocEntry]:
+    """목차 쪽을 (level, 제목, 인쇄 쪽번호) 항목 목록으로 읽는다.
+
+    쪽번호가 없는 줄은 장 표식(로마숫자·`제N장`)이 있을 때만 항목으로 본다.
+    안내 문구를 목차 항목으로 승격시키지 않기 위해서다 (0916 공고 805는 장
+    줄에 쪽번호가 없고 하위 절에만 있다).
+    """
+
+    entries: list[_TocEntry] = []
+    for page in pages:
+        if int(page["number"]) not in entry_pages:
+            continue
+        for text in str(page["text"]).splitlines():
+            match = _TOC_ENTRY_LINE.match(text)
+            title_raw = (match.group("title") if match else text).strip()
+            if not title_raw:
+                continue
+            printed = int(match.group("page")) if match else None
+            level, title, _chapter = _heading_from_line(title_raw)
+            if printed is None and level != 1:
+                continue
+            entries.append(_TocEntry(level, (title or title_raw).strip(), printed))
+    return entries
+
+
+def _toc_chapters(entries: Sequence[_TocEntry]) -> list[tuple[int, _TocEntry, int | None]]:
+    """장 항목과 그 인쇄 쪽. 쪽이 없는 장은 자기 첫 하위 항목의 쪽을 쓴다."""
+
+    chapters: list[tuple[int, _TocEntry, int | None]] = []
+    for index, entry in enumerate(entries):
+        if entry.level != 1:
+            continue
+        printed = entry.printed_page
+        if printed is None:
+            for follower in entries[index + 1:]:
+                if follower.level == 1:
+                    break
+                if follower.printed_page is not None:
+                    printed = follower.printed_page
+                    break
+        chapters.append((index, entry, printed))
+    return chapters
+
+
+def _toc_offset(
+    chapters: Sequence[tuple[int, _TocEntry, int | None]],
+    body_headings: Mapping[str, Sequence[_Line]],
+) -> int | None:
+    """인쇄 쪽 → 물리 쪽 offset. 두 장 이상이 같은 값을 낼 때만 확정한다."""
+
+    offsets = [
+        {line.page - printed for line in body_headings.get(_normalise_heading(entry.title), [])}
+        if printed is not None else set()
+        for _index, entry, printed in chapters
+    ]
+    if not offsets or not offsets[0]:
+        return None
+    support = {offset: sum(1 for item in offsets if offset in item) for offset in offsets[0]}
+    best = max(support.values())
+    winners = [offset for offset, count in support.items() if count == best]
+    if best < 2 or len(winners) != 1:
+        return None
+    return winners[0]
+
+
+def _carry_first_work_section(
+    entries: Sequence[_TocEntry], end_index: int, end_entry: _TocEntry, end_printed: int | None,
+) -> tuple[str, int | None]:
+    """끝 장이 `과업 내용`이면 그 장의 첫 절까지 범위에 넣는다.
+
+    본문 전략의 같은 예외를 목차 항목으로 옮긴 것이다. 끝은 여전히 배타이므로
+    **둘째** 절이 새 끝이 되고, 절이 하나뿐이면 끝 장을 그대로 쓴다.
+    """
+
+    if "과업내용" not in _normalise_heading(end_entry.title):
+        return end_entry.title, end_printed
+    sections: list[_TocEntry] = []
+    for follower in entries[end_index + 1:]:
+        if follower.level == 1:
+            break
+        if follower.level == 2 and follower.printed_page is not None:
+            sections.append(follower)
+    first = next((index for index, item in enumerate(sections) if _has_target_word(item.title)), None)
+    if first is None or first + 1 >= len(sections):
+        return end_entry.title, end_printed
+    following = sections[first + 1]
+    return following.title, following.printed_page
 
 
 def _locator(line: _Line, ordinal: int) -> dict[str, Any]:
@@ -228,11 +377,15 @@ def _locator(line: _Line, ordinal: int) -> dict[str, Any]:
 def select_v4_input_range(payload: Mapping[str, Any], *, candidates_complete: bool = True) -> V4RangeSelection:
     """Select a contiguous, source-bound overview/purpose/scope range.
 
-    The selector recognizes only explicit chapter/numbered heading forms.  It
-    drops pages marked as a table of contents, keeps the nearest chapter parent
-    and stops at the next heading of the selected section's level.  If a start
-    or end cannot be established it emits a human-review manifest rather than
-    selecting the whole document or cutting by a fixed page count.
+    두 전략을 순서대로 쓴다 (ADR-0032 결정 1, ADR-0057 결정 2).
+    ① 목차(`toc_scope`): 앞 5쪽의 목차 항목을 읽고 인쇄 쪽번호를 본문 제목 대조로
+    물리 쪽에 맞춘 뒤 개요 장의 시작과 다음 장을 경계로 삼는다.
+    ② 본문 heading(`heading_scope`): 목차를 쓸 수 없을 때만, 명시적인 장·번호
+    heading만 인식해 가장 가까운 장을 유지하고 다음 장에서 멈춘다.
+
+    어느 쪽도 시작·끝을 확정하지 못하면 전체 문서를 고르거나 고정 쪽 수로 자르지
+    않고 사람 확인 manifest를 낸다. 목차 전략이 실패한 사유는 본문 전략이 성공해도
+    `reason_code`로 남는다.
     """
 
     pages = _structure_pages(payload)
@@ -248,8 +401,35 @@ def select_v4_input_range(payload: Mapping[str, Any], *, candidates_complete: bo
         if _TOC_ENTRY.search(line.text):
             entry_counts[line.page] += 1
     toc_pages |= {page for page, count in entry_counts.items() if count >= _TOC_ENTRY_LINES}
+    entry_pages = _toc_entry_pages(pages)
+    toc_pages |= entry_pages
+    line_positions = {id(line): ordinal for ordinal, line in enumerate(lines)}
+    # 목차가 본문과 대응하면 목차가 1순위다 (ADR-0032 결정 1, ADR-0057 결정 2).
+    # 후보 목록이 일부만 있으면 자동 확정을 하지 않으므로 목차도 시도하지 않는다.
+    toc_reason: str | None = None
+    if candidates_complete:
+        toc_selection, toc_reason = _select_by_toc(payload, pages, lines, line_positions, toc_pages, entry_pages)
+        if toc_selection is not None:
+            return toc_selection
     body = [line for line in lines if line.page not in toc_pages]
     chapters = [line for line in body if line.chapter]
+    # 제안서 작성 양식 안내 뒤의 장은 발주처 사업 범위가 아니다 (ADR-0057 결정 2).
+    form_ordinal = next(
+        (
+            line_positions[id(line)] for line in body
+            if line.heading_title
+            and any(word in _normalise_heading(line.heading_title) for word in _FORM_CHAPTER_WORDS)
+        ),
+        None,
+    )
+    # 양식 안내 뒤의 장은 시작 후보가 아니지만 **끝 경계**로는 그대로 쓴다.
+    selectable_chapters = (
+        len(chapters) if form_ordinal is None
+        else next(
+            (index for index, line in enumerate(chapters) if line_positions[id(line)] >= form_ordinal),
+            len(chapters),
+        )
+    )
     # Multiple explicit chapter markers on one extracted line have no proven
     # reading order (for example a two-column overview followed by chapter II).
     # Do not infer a column layout or silently keep the rest of the document.
@@ -262,13 +442,14 @@ def select_v4_input_range(payload: Mapping[str, Any], *, candidates_complete: bo
     start: _Line | None = None
     last: _Line | None = None
     end: _Line | None = None
-    line_positions = {id(line): ordinal for ordinal, line in enumerate(lines)}
     selected_chapter: _Line | None = None
     selected_chapter_index: int | None = None
     chapter_anchors: list[_Line] = []
-    for chapter_index, chapter in enumerate(chapters):
+    for chapter_index, chapter in enumerate(chapters[:selectable_chapters]):
         chapter_start = line_positions[id(chapter)]
         chapter_end = line_positions[id(chapters[chapter_index + 1])] if chapter_index + 1 < len(chapters) else len(lines)
+        if form_ordinal is not None:
+            chapter_end = min(chapter_end, form_ordinal)
         candidates = [
             line for line in body[0:]
             if chapter_start < line_positions[id(line)] < chapter_end and _is_target_heading(line)
@@ -353,9 +534,34 @@ def select_v4_input_range(payload: Mapping[str, Any], *, candidates_complete: bo
             (), (), manifest, raw, _sha256_bytes(raw),
         )
 
+    return _range_from_lines(
+        payload, pages, lines, line_positions, start, end,
+        strategy="heading_scope", reason_code=toc_reason,
+    )
+
+
+def _range_from_lines(
+    payload: Mapping[str, Any],
+    pages: Sequence[Mapping[str, Any]],
+    lines: Sequence[_Line],
+    line_positions: Mapping[int, int],
+    start: _Line,
+    end: _Line,
+    *,
+    strategy: str,
+    reason_code: str | None = None,
+) -> V4RangeSelection:
+    """`start`(포함)부터 `end`(배타)까지를 동결 입력 manifest로 만든다.
+
+    두 전략이 같은 manifest 모양과 같은 쪽 부분 문자열 규칙을 쓰도록 한 곳에
+    둔다. 끝 경계 앞의 공백만 있는 줄은 쪽을 늘리기만 하므로 버린다.
+    """
+
     start_ordinal = line_positions[id(start)]
     end_ordinal = line_positions[id(end)]
-    selected = lines[start_ordinal:end_ordinal]
+    selected = list(lines[start_ordinal:end_ordinal])
+    while selected and not selected[-1].text.strip():
+        selected.pop()
     if not selected:
         raise V4PreparationError("ambiguous_scope")
     selected_pages = sorted({line.page for line in selected})
@@ -392,8 +598,74 @@ def select_v4_input_range(payload: Mapping[str, Any], *, candidates_complete: bo
         block_keys=sorted({line.block_key for line in selected}),
         start_locator=_locator(start, start_ordinal),
         end_locator=_locator(end, end_ordinal),
-        strategy="heading_scope",
+        strategy=strategy,
+        reason_code=reason_code,
     )
+
+
+def _select_by_toc(
+    payload: Mapping[str, Any],
+    pages: Sequence[Mapping[str, Any]],
+    lines: Sequence[_Line],
+    line_positions: Mapping[int, int],
+    toc_pages: set[int],
+    entry_pages: set[int],
+) -> tuple[V4RangeSelection | None, str | None]:
+    """목차로 앞부분 장을 고른다. 못 고르면 (None, 사유)를 돌려준다.
+
+    인쇄 쪽번호는 본문 제목 대조로 물리 쪽에 맞춘다. 두 장 이상이 같은 offset을
+    내지 못하면 추측하지 않고 본문 전략에 넘긴다 (ADR-0057 결정 2).
+    """
+
+    entries = _toc_entries(pages, entry_pages)
+    if not entries:
+        return None, "toc_missing"
+    chapters = [item for item in _toc_chapters(entries) if item[2] is not None]
+    if len(chapters) < 2:
+        return None, "toc_target_missing"
+    body_headings: dict[str, list[_Line]] = defaultdict(list)
+    lines_by_page: dict[int, list[_Line]] = defaultdict(list)
+    for line in lines:
+        lines_by_page[line.page].append(line)
+        if line.page in toc_pages or line.level != 1 or not line.heading_title:
+            continue
+        body_headings[_normalise_heading(line.heading_title)].append(line)
+    offset = _toc_offset(chapters, body_headings)
+    if offset is None:
+        return None, "toc_alignment_failed"
+    start_at = next(
+        (index for index, (_i, entry, _p) in enumerate(chapters) if _has_target_word(entry.title)), 0
+    )
+    if start_at + 1 >= len(chapters):
+        return None, "toc_target_missing"
+    _start_index, start_entry, start_printed = chapters[start_at]
+    end_index, end_entry, end_printed = chapters[start_at + 1]
+    end_title, end_printed = _carry_first_work_section(entries, end_index, end_entry, end_printed)
+    if start_printed is None or end_printed is None:
+        return None, "toc_target_missing"
+
+    def aligned(title: str, printed: int) -> _Line | None:
+        page = printed + offset
+        if page < 1 or page > len(pages) or page in toc_pages:
+            return None
+        page_lines = lines_by_page.get(page) or []
+        normalized = _normalise_heading(title)
+        for line in page_lines:
+            if line.heading_title and _normalise_heading(line.heading_title) == normalized:
+                return line
+        # 정렬은 확정됐고 그 쪽에서 장이 시작한다. 제목 줄을 못 찾으면 쪽 첫
+        # 줄을 경계로 쓴다(끝 경계에서는 그 쪽을 통째로 뺀다).
+        return page_lines[0] if page_lines else None
+
+    start_line = aligned(start_entry.title, start_printed)
+    end_line = aligned(end_title, end_printed)
+    if start_line is None or end_line is None:
+        return None, "toc_target_missing"
+    if line_positions[id(end_line)] <= line_positions[id(start_line)]:
+        return None, "toc_alignment_failed"
+    return _range_from_lines(
+        payload, pages, lines, line_positions, start_line, end_line, strategy="toc_scope",
+    ), None
 
 
 def _ready_range_selection(
@@ -407,6 +679,7 @@ def _ready_range_selection(
     end_locator: Mapping[str, Any],
     strategy: str,
     extra: Mapping[str, Any] | None = None,
+    reason_code: str | None = None,
 ) -> V4RangeSelection:
     """Assemble one ready input manifest from an already bounded page selection.
 
@@ -414,6 +687,8 @@ def _ready_range_selection(
     must emit the exact same manifest shape, so the assembly lives here once.
     ``extra`` only carries the human-confirmation fields; the input digest is
     taken before it is merged so the same pages keep the same input identity.
+    ``reason_code``는 범위를 정한 사유가 아니라 **앞선 전략이 실패한 사유**다
+    (목차 전략 실패 뒤 본문 전략이 고른 경우). manifest에는 넣지 않는다.
     """
 
     input_payload = {
@@ -440,7 +715,7 @@ def _ready_range_selection(
     if len(raw) > MAX_V4_MANIFEST_BYTES:
         raise V4PreparationError("input_size_limit")
     return V4RangeSelection(
-        "ready", None, strategy, dict(start_locator), dict(end_locator),
+        "ready", reason_code, strategy, dict(start_locator), dict(end_locator),
         tuple(int(item["number"]) for item in page_payloads),
         tuple(dict(item) for item in page_hashes),
         manifest, raw, _sha256_bytes(input_raw),

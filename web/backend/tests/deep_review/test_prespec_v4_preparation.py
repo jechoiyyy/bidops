@@ -380,6 +380,92 @@ def test_table_of_contents_page_never_establishes_the_range():
     assert select_v4_input_range(payload).page_numbers == (2,)
 
 
+def test_the_table_of_contents_aligns_printed_pages_and_bounds_the_overview_chapter():
+    """목차 항목의 인쇄 쪽을 본문 제목 대조로 물리 쪽에 맞춘다 (ADR-0057 결정 2)."""
+
+    payload = {"pages": [
+        {"number": 1, "text": "제 안 요 청 서\n2026. 9."},
+        {"number": 2, "text": (
+            "목 차\n"
+            "Ⅰ. 사업 개요\t1\n"
+            " 1. 사업 일반\t1\n"
+            " 2. 사업 목표\t2\n"
+            "Ⅱ. 제안 안내\t3\n"
+            " 1. 입찰 참가자격\t3\n"
+        )},
+        {"number": 3, "text": "Ⅰ. 사업 개요\n1. 사업 일반\n사업명은 합성 통합 시스템 구축이다.\n- 1 -"},
+        {"number": 4, "text": "2. 사업 목표\n목표는 합성 자료의 연계다.\n- 2 -"},
+        {"number": 5, "text": "Ⅱ. 제안 안내\n1. 입찰 참가자격\n자격은 원문으로 확인한다.\n- 3 -"},
+    ], "blocks": []}
+
+    selection = select_v4_input_range(payload)
+
+    assert selection.status == "ready" and selection.strategy == "toc_scope"
+    assert selection.reason_code is None
+    # 인쇄 1~2쪽 = 물리 3~4쪽. 끝 장은 배타이므로 물리 5쪽은 들어가지 않는다.
+    assert selection.page_numbers == (3, 4)
+    assert selection.start_locator["page"] == 3 and selection.end_locator["page"] == 5
+    assert all("Ⅱ. 제안 안내" not in item["text"] for item in selection.manifest["pages"])
+
+
+def test_a_table_of_contents_that_does_not_align_hands_the_range_to_the_heading_scope():
+    """한 장만 맞는 offset은 확정이 아니다. 추측하지 않고 본문 전략으로 간다."""
+
+    payload = {"pages": [
+        {"number": 1, "text": (
+            "목 차\n"
+            "Ⅰ. 사업 개요\t1\n"
+            " 1. 사업 일반\t1\n"
+            "Ⅱ. 제안 안내\t5\n"
+            " 1. 입찰 참가자격\t5\n"
+        )},
+        {"number": 2, "text": "Ⅰ. 사업 개요\n1. 사업 일반\n본문이다.\nⅡ. 제안 안내\n다음 장"},
+    ], "blocks": []}
+
+    selection = select_v4_input_range(payload)
+
+    assert selection.status == "ready" and selection.strategy == "heading_scope"
+    assert selection.reason_code == "toc_alignment_failed"
+    assert selection.page_numbers == (2,)
+
+
+def test_a_chapter_marker_split_from_its_title_is_still_one_heading():
+    """`Ⅰ`과 제목이 두 줄로 갈라진 조판도 한 장이다 (0916 공고 781·805)."""
+
+    payload = {"pages": [
+        {"number": 1, "text": "Ⅰ\n\n 사업 개요\n1. 목적\n합성 사업의 목적이다."},
+        {"number": 2, "text": "Ⅱ\n\n 제안요청 사항\n1. 상세 요구사항"},
+    ], "blocks": []}
+
+    selection = select_v4_input_range(payload)
+
+    assert selection.status == "ready" and selection.strategy == "heading_scope"
+    assert selection.page_numbers == (1,)
+    # 장은 제목 줄이 아니라 표식 줄에서 시작한다.
+    assert (selection.start_locator["page"], selection.start_locator["line"]) == (1, 0)
+    assert (selection.end_locator["page"], selection.end_locator["line"]) == (2, 0)
+
+
+def test_a_proposal_form_chapter_and_everything_after_it_is_not_an_overview_chapter():
+    """제안서 작성 안내 뒤의 양식 장은 후보가 아니다 (0916 공고 805의 70쪽)."""
+
+    payload = {"pages": [
+        {"number": 1, "text": "Ⅰ. 사업 안내\n발주 안내 본문이다."},
+        {"number": 2, "text": (
+            "Ⅴ. 제안서 작성 안내\n"
+            "3. 제안서 목차\n"
+            "Ⅰ. 사업 개요\n"
+            "1. 목적\n"
+            "Ⅱ. 사업 내용\n"
+        )},
+    ], "blocks": []}
+
+    selection = select_v4_input_range(payload)
+
+    assert selection.status == "needs_human_review"
+    assert selection.reason_code == "scope_heading_missing" and selection.page_numbers == ()
+
+
 def test_partial_section_list_requires_manual_range_even_with_clear_headings():
     payload = {"pages": [{"number": 1, "text": "Ⅰ 사업 개요\n1. 사업 목적\n전체 본문\nⅡ 추진 방안"}], "blocks": []}
     selected = select_v4_input_range(payload, candidates_complete=False)
