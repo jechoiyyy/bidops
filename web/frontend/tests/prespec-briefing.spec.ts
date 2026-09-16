@@ -73,6 +73,21 @@ test("첨부는 안전한 원본 URL과 실제 다운로드 경로만 제공하�
   await expect(attachments.getByRole("link", { name: "원본 열기" })).toHaveAttribute("rel", "noopener noreferrer");
   await expect(rows.first()).toContainText("0 B");
   await expect(rows.nth(1)).toContainText("크기 미확인");
+
+  // 표는 `.ps-sec`의 세로 flex 자식이다. 폭을 `100%`로 못 박으면 형제 여백이 그
+  // 바깥에 더해져 오른쪽 끝의 `열기` 칸이 카드 밖으로 나간다(2026-09-16 실측 24px).
+  const bounds = await page.evaluate(() => {
+    const section = document.querySelector("#ps-evidence")!;
+    const table = section.querySelector(".ps-table")!;
+    const end = section.querySelector("td.ps-table-end")!;
+    return {
+      sectionRight: section.getBoundingClientRect().right,
+      tableRight: table.getBoundingClientRect().right,
+      endRight: end.getBoundingClientRect().right,
+    };
+  });
+  expect(bounds.tableRight).toBeLessThanOrEqual(bounds.sectionRight);
+  expect(bounds.endRight).toBeLessThanOrEqual(bounds.sectionRight);
 });
 
 test("승계 사유와 담당자를 읽되 조회 오류는 미확인으로 남긴다", async ({ page }) => {
