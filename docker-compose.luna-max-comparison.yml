@@ -1,0 +1,39 @@
+# Same-project comparison overlay for the Luna max UI build.
+#
+# This file adds one web container only.  It deliberately does not define a
+# database, object store, scanner, or worker: run the comparison service with
+# `--no-deps` so the already-running bidops infrastructure and the web service
+# on 18787 are left untouched.
+#
+# The service extends the base web definition so it keeps the same database,
+# MinIO, ClamAV, profile-input, pipeline-data, report, and web-data contracts.
+# Those stores are intentionally shared with the current web service; saves
+# made through either port are visible to the other port.
+#
+# The image tag and host port are separate from the current `bidops-web` /
+# 18787 pair.  If 18887 is occupied, set BIDOPS_COMPARISON_WEB_PORT=18888 for
+# the build/up/health commands instead of changing BIDOPS_WEB_PORT.
+services:
+  web-comparison:
+    extends:
+      file: docker-compose.yml
+      service: web
+    image: bidops-web:luna-max
+    build:
+      context: .
+      dockerfile: web/Dockerfile
+    # The inherited web service declares init/worker dependencies for the
+    # normal deployment.  A comparison preview must not start those services
+    # or rerun a migration, so clear that edge from this service entirely.
+    depends_on: !reset []
+    ports:
+      - "${BIDOPS_COMPARISON_WEB_BIND_HOST:-127.0.0.1}:${BIDOPS_COMPARISON_WEB_PORT:-18887}:8787"
+    networks:
+      - edge
+
+networks:
+  # Reuse the project's existing edge network when the comparison overlay is
+  # composed with COMPOSE_PROJECT_NAME=bidops; no second host-facing network
+  # is needed.
+  edge:
+    driver: bridge

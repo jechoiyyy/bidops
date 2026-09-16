@@ -39,7 +39,7 @@ for (const target of lifecycleVisualTargets) {
 // 골라야 사유 Selector·담당자 칸·저장 단추가 같은 줄에 들어가는지 잰다.
 test("pre-specs-tracking-panel 화면이 가로로 넘치지 않는다", async ({ page }) => {
   await mockPreSpecs(page);
-  await page.goto("/pre-specs");
+  await page.goto("/pre-specs?workspace=all&sw_only=false");
   await expect(page.locator("h1").first()).toBeVisible();
   const trackedRow = page
     .locator('.pre-specs-list-pane [data-review-primitive="dense-list-row"]')

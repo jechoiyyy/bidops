@@ -7,7 +7,7 @@ import type {
   OpportunityTrackingDecisionItem, OpportunityTrackingStatus, OrderPlanListItem,
   OrderPlanListScope, OrderPlanScreeningExecutionSummary, OrderPlanScreeningErrorCode,
   OrderPlanTracking, OrderPlanBulkPreviewResponse, OrderPlanBulkStartResponse,
-  OverviewEnvelope, OverviewRun, PreSpecListItem, WorkloadKey, WorkloadResponse,
+  OverviewEnvelope, OverviewRun, PreSpecListItem, RunSummary, WorkloadKey, WorkloadResponse,
 } from "../src/lib/types";
 import { clickReadyUnlinkedPreSpec, decisionQueueItems, opportunityDeepReviews, opportunityTrackingHistory } from "./fixtures/lifecycle-v2";
 
@@ -972,6 +972,9 @@ const visualPreSpecItems: PreSpecListItem[] = [
     auto_preparation_status: "blocked",
     auto_preparation_reason: "bundle_has_blocking_issues",
     latest_deep_review_id: null,
+    first_observed_at: "2026-09-14T00:00:00Z",
+    last_observed_at: "2026-09-15T00:00:00Z",
+    next_action: "confirm_overview",
   },
   {
     notice_pk: 992,
@@ -994,6 +997,9 @@ const visualPreSpecItems: PreSpecListItem[] = [
     auto_preparation_status: "not_applicable",
     auto_preparation_reason: null,
     latest_deep_review_id: null,
+    first_observed_at: "2026-09-14T00:00:00Z",
+    last_observed_at: "2026-09-14T00:00:00Z",
+    next_action: null,
   },
   clickReadyUnlinkedPreSpec,
 ];
@@ -1019,6 +1025,190 @@ function overviewStatusCounts(items: readonly { overview_review_status: string |
     status,
     count: items.filter((item) => item.overview_review_status === status).length,
   }));
+}
+
+type FixtureObservation = { source_run_id: string; observed_at: string };
+
+const PRE_SPEC_OBSERVATIONS: Record<number, FixtureObservation[]> = {
+  991: [
+    { source_run_id: "pre-spec-run-a", observed_at: "2026-09-14T00:00:00Z" },
+    { source_run_id: "pre-spec-run-b", observed_at: "2026-09-15T00:00:00Z" },
+  ],
+  992: [{ source_run_id: "pre-spec-run-b", observed_at: "2026-09-14T00:00:00Z" }],
+  993: [{ source_run_id: "pre-spec-run-c", observed_at: "2026-09-16T00:00:00Z" }],
+};
+
+const PRE_SPEC_RUNS: RunSummary[] = [
+  {
+    kind: "notices",
+    run_id: "pre-spec-run-c",
+    window_from: "2026-09-16",
+    window_to: "2026-09-16",
+    timezone: "Asia/Seoul",
+    generated_at: "2026-09-16T01:00:00Z",
+    screening_basis: null,
+    status: "active",
+    superseded_by: null,
+    counts: { notices: 1, judgments: 0, reviews: 0, collection: {} },
+  },
+  {
+    kind: "mixed",
+    run_id: "pre-spec-run-b",
+    window_from: "2026-09-14",
+    window_to: "2026-09-15",
+    timezone: "Asia/Seoul",
+    generated_at: "2026-09-15T01:00:00Z",
+    screening_basis: null,
+    status: "active",
+    superseded_by: null,
+    counts: { notices: 2, judgments: 0, reviews: 0, collection: {} },
+  },
+  {
+    kind: "notices",
+    run_id: "pre-spec-run-a",
+    window_from: "2026-09-14",
+    window_to: "2026-09-14",
+    timezone: "Asia/Seoul",
+    generated_at: "2026-09-14T01:00:00Z",
+    screening_basis: null,
+    status: "active",
+    superseded_by: null,
+    counts: { notices: 1, judgments: 0, reviews: 0, collection: {} },
+  },
+];
+
+function kstDate(value: string): string {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Seoul", year: "numeric", month: "2-digit", day: "2-digit",
+  }).formatToParts(new Date(value));
+  const part = (type: string) => parts.find((entry) => entry.type === type)?.value ?? "";
+  return `${part("year")}-${part("month")}-${part("day")}`;
+}
+
+function shiftDate(value: string, days: number): string {
+  const [year, month, day] = value.split("-").map(Number);
+  const shifted = new Date(Date.UTC(year, month - 1, day));
+  shifted.setUTCDate(shifted.getUTCDate() + days);
+  return shifted.toISOString().slice(0, 10);
+}
+
+function recentRange(): { from: string; to: string } {
+  const to = kstDate(new Date().toISOString());
+  return { from: shiftDate(to, -6), to };
+}
+
+function observationsFor(item: Pick<PreSpecListItem, "notice_pk" | "first_observed_at" | "last_observed_at">): FixtureObservation[] {
+  return PRE_SPEC_OBSERVATIONS[item.notice_pk] ?? (item.first_observed_at && item.last_observed_at
+    ? [{ source_run_id: "pre-spec-run-default", observed_at: item.last_observed_at }]
+    : []);
+}
+
+function matchesObservation(item: PreSpecListItem, sourceRunId: string | null, from: string | null, to: string | null): boolean {
+  return observationsFor(item).some((observation) => {
+    if (sourceRunId && observation.source_run_id !== sourceRunId) return false;
+    const day = kstDate(observation.observed_at);
+    return (!from || day >= from) && (!to || day <= to);
+  });
+}
+
+function matchesOverviewView(item: PreSpecListItem, view: string | null): boolean {
+  if (!view || view === "all") return true;
+  if (view === "attention") return item.overview_review_status === "needs_human_review";
+  if (view === "pending") return ["awaiting_document", "awaiting_structure", "preparing", "awaiting_model", "queued", "running"].includes(item.overview_review_status ?? "");
+  if (view === "not_started") return item.overview_review_status === null;
+  return item.overview_review_status === view;
+}
+
+function isPendingTracking(item: PreSpecListItem): boolean {
+  return item.origin === "신규" && (item.tracking_status === null || item.tracking_status === "미선택");
+}
+
+function matchesWorkspace(
+  item: PreSpecListItem,
+  workspace: string | null,
+  from: string | null,
+  to: string | null,
+  sourceRunId: string | null = null,
+): boolean {
+  if (!workspace || workspace === "all") return true;
+  if (workspace === "tracking") return item.tracking_status === "계속 추적" || item.tracking_status === "보류";
+  if (workspace === "recent") return matchesObservation(item, sourceRunId, from, to);
+  return item.overview_review_status === "needs_human_review"
+    || item.auto_preparation_status === "deep_review_ready_for_click"
+    || (item.overview_review_status === "completed" && isPendingTracking(item));
+}
+
+function matchesDeadlineStatus(item: PreSpecListItem, status: string | null): boolean {
+  if (!status) return true;
+  if (item.deadline_at === null) return status === "unknown";
+  const passed = Date.parse(item.deadline_at) < Date.now();
+  return status === "passed" ? passed : status === "open" ? !passed : false;
+}
+
+function preSpecMatches(item: PreSpecListItem, search: URLSearchParams, includeWorkspace = true): boolean {
+  const observedFrom = search.get("observed_from");
+  const observedTo = search.get("observed_to");
+  const workspace = search.get("workspace");
+  const recentDefaults = !observedFrom && !observedTo ? recentRange() : null;
+  const recentFrom = observedFrom ?? recentDefaults?.from ?? null;
+  const recentTo = observedTo ?? recentDefaults?.to ?? null;
+  const sourceRunId = search.get("source_run_id");
+  if (includeWorkspace && !matchesWorkspace(
+    item,
+    workspace,
+    workspace === "recent" ? recentFrom : null,
+    workspace === "recent" ? recentTo : null,
+    workspace === "recent" ? sourceRunId : null,
+  )) return false;
+  if (!matchesOverviewView(item, search.get("overview_view"))) return false;
+  const grade = search.get("grade");
+  if (grade && (grade === "판정 없음" ? item.grade !== null : item.grade !== grade)) return false;
+  if (search.get("tracking_decision") === "pending" && !isPendingTracking(item)) return false;
+  if (search.get("tracking_status") && item.tracking_status !== search.get("tracking_status")) return false;
+  if (sourceRunId && !matchesObservation(item, sourceRunId, observedFrom, observedTo)) return false;
+  if (observedFrom || observedTo) {
+    if (!matchesObservation(item, null, observedFrom, observedTo)) return false;
+  }
+  if (!matchesDeadlineStatus(item, search.get("deadline_status"))) return false;
+  return true;
+}
+
+function workspaceCounts(items: readonly PreSpecListItem[], search: URLSearchParams): Record<string, number> {
+  const counts: Record<string, number> = {};
+  const observedFrom = search.get("observed_from");
+  const observedTo = search.get("observed_to");
+  const defaults = !observedFrom && !observedTo ? recentRange() : null;
+  const from = observedFrom ?? defaults?.from ?? null;
+  const to = observedTo ?? defaults?.to ?? null;
+  const sourceRunId = search.get("source_run_id");
+  for (const workspace of ["actionable", "recent", "tracking", "all"]) {
+    counts[workspace] = items.filter((item) => matchesWorkspace(
+      item,
+      workspace,
+      workspace === "recent" ? from : null,
+      workspace === "recent" ? to : null,
+      workspace === "recent" ? sourceRunId : null,
+    )).length;
+  }
+  return counts;
+}
+
+function compareFixtureItems(left: PreSpecListItem, right: PreSpecListItem, sort: string | null): number {
+  const leftValue = sort === "deadline" ? left.deadline_at : sort === "observed" ? left.last_observed_at : left.published_at;
+  const rightValue = sort === "deadline" ? right.deadline_at : sort === "observed" ? right.last_observed_at : right.published_at;
+  if (leftValue === null && rightValue !== null) return 1;
+  if (leftValue !== null && rightValue === null) return -1;
+  if (leftValue !== null && rightValue !== null && leftValue !== rightValue) {
+    if (sort === "deadline") {
+      const leftPassed = Date.parse(leftValue) < Date.now();
+      const rightPassed = Date.parse(rightValue) < Date.now();
+      if (leftPassed !== rightPassed) return leftPassed ? 1 : -1;
+      if (leftPassed) return leftValue < rightValue ? 1 : -1;
+      return leftValue < rightValue ? -1 : 1;
+    }
+    return leftValue < rightValue ? 1 : -1;
+  }
+  return sort === "deadline" ? left.notice_pk - right.notice_pk : right.notice_pk - left.notice_pk;
 }
 
 // ── 사전규격 개요 검토(`bidops.prespec-overview.v1`) ────────────────────────
@@ -1321,6 +1511,14 @@ export const inheritedPreSpecOpportunity = {
 
 export async function mockPreSpecs(page: Page): Promise<void> {
   let currentTrackingStatus = visualPreSpecItems[0].tracking_status;
+  await page.route("**/api/runs", async (route) => {
+    const request = route.request();
+    if (new URL(request.url()).pathname === "/api/runs" && request.method() === "GET") {
+      await fulfillJson(route, { items: PRE_SPEC_RUNS, total: PRE_SPEC_RUNS.length });
+      return;
+    }
+    await route.fallback();
+  });
   await page.route("**/api/opportunities/202", async (route) => {
     if (opportunityFixtures.has(page) || route.request().method() !== "GET") {
       await route.fallback();
@@ -1334,19 +1532,33 @@ export async function mockPreSpecs(page: Page): Promise<void> {
     const url = new URL(request.url());
     if (url.pathname === "/api/pre-specs" && request.method() === "GET") {
       const requestedNoticePk = Number(url.searchParams.get("notice_pk"));
-      const items = visualPreSpecItems
+      const candidateItems = visualPreSpecItems
         .map((item) => item.notice_pk === 991 ? { ...item, tracking_status: opportunityFixtures.get(page)?.find((entry) => entry.id === 202)?.tracking_status ?? currentTrackingStatus } : item)
         .filter((item) => !url.searchParams.has("notice_pk") || item.notice_pk === requestedNoticePk)
         .filter((item) => url.searchParams.get("sw_only") === "false" || item.sw_business_status === "Y" || item.kept_by_tracking)
         .filter((item) => !url.searchParams.get("auto_preparation_status") || item.auto_preparation_status === url.searchParams.get("auto_preparation_status"))
         .filter((item) => !url.searchParams.get("business_division") || item.business_division === url.searchParams.get("business_division"))
         .filter((item) => !url.searchParams.get("origin") || item.origin === url.searchParams.get("origin"))
-        .filter((item) => !url.searchParams.get("q") || `${item.title} ${item.agency} ${item.pre_spec_no}`.includes(url.searchParams.get("q")!));
+        .filter((item) => !url.searchParams.get("q") || `${item.title} ${item.agency} ${item.pre_spec_no}`.includes(url.searchParams.get("q")!))
+      const allItems = candidateItems.filter((item) => preSpecMatches(item, url.searchParams));
+      const unscoped = candidateItems.filter((item) => preSpecMatches(item, url.searchParams, false));
+      const sort = url.searchParams.get("sort") ?? (url.searchParams.get("workspace") === "actionable" ? "deadline" : url.searchParams.get("workspace") === "recent" ? "observed" : "published");
+      const items = [...allItems].sort((left, right) => compareFixtureItems(left, right, sort));
+      const statusSearch = new URLSearchParams(url.searchParams);
+      statusSearch.delete("overview_view");
+      const statusItems = candidateItems.filter((item) => preSpecMatches(item, statusSearch));
       const limit = Number(url.searchParams.get("limit") ?? 50), offset = Number(url.searchParams.get("offset") ?? 0);
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({ items: items.slice(offset, offset + limit), total: items.length, limit, offset, overview_status_counts: overviewStatusCounts(items) }),
+        body: JSON.stringify({
+          items: items.slice(offset, offset + limit),
+          total: items.length,
+          limit,
+          offset,
+          overview_status_counts: overviewStatusCounts(statusItems),
+          workspace_counts: workspaceCounts(unscoped, url.searchParams),
+        }),
       });
       return;
     }
@@ -1435,6 +1647,9 @@ const preSpecMatrixItems = AUTO_PREPARATION_MATRIX.map((entry, index) => ({
   auto_preparation_status: entry.status,
   auto_preparation_reason: entry.reason,
   latest_deep_review_id: entry.deepReviewId,
+  first_observed_at: `2026-09-${String(10 + index).padStart(2, "0")}T00:00:00Z`,
+  last_observed_at: `2026-09-${String(10 + index).padStart(2, "0")}T00:00:00Z`,
+  next_action: entry.status === "deep_review_ready_for_click" ? "open_deep_review" : "confirm_overview",
 }));
 
 /** 등급·자동 준비 8값을 한 화면에 올리는 사전규격 목록 fixture. */
@@ -1446,15 +1661,23 @@ export async function mockPreSpecMatrix(page: Page): Promise<void> {
       await route.fallback();
       return;
     }
+    const candidates = preSpecMatrixItems.filter((item) => preSpecMatches(item as PreSpecListItem, url.searchParams));
+    const unscoped = preSpecMatrixItems.filter((item) => preSpecMatches(item as PreSpecListItem, url.searchParams, false));
+    const limit = Number(url.searchParams.get("limit") ?? 200);
+    const offset = Number(url.searchParams.get("offset") ?? 0);
+    const statusSearch = new URLSearchParams(url.searchParams);
+    statusSearch.delete("overview_view");
+    const statusItems = preSpecMatrixItems.filter((item) => preSpecMatches(item as PreSpecListItem, statusSearch));
     await route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
-        items: preSpecMatrixItems,
-        total: preSpecMatrixItems.length,
-        limit: 200,
-        offset: 0,
-        overview_status_counts: overviewStatusCounts(preSpecMatrixItems),
+        items: candidates.slice(offset, offset + limit),
+        total: candidates.length,
+        limit,
+        offset,
+        overview_status_counts: overviewStatusCounts(statusItems),
+        workspace_counts: workspaceCounts(unscoped as PreSpecListItem[], url.searchParams),
       }),
     });
   });
@@ -1487,7 +1710,7 @@ export async function mockPreSpecAutoDetail(page: Page, state: PreSpecAutoDetail
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({ items: [item], total: 1, limit: 50, offset: 0, overview_status_counts: overviewStatusCounts([item]) }),
+        body: JSON.stringify({ items: [item], total: 1, limit: 50, offset: 0, overview_status_counts: overviewStatusCounts([item]), workspace_counts: { actionable: 1, recent: 1, tracking: 1, all: 1 } }),
       });
       return;
     }
@@ -1595,7 +1818,7 @@ export async function mockDocumentPreparationVisual(page: Page, state: DocumentP
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({ items, total: items.length, limit: 50, offset: 0, overview_status_counts: overviewStatusCounts(items) }),
+        body: JSON.stringify({ items, total: items.length, limit: 50, offset: 0, overview_status_counts: overviewStatusCounts(items), workspace_counts: { actionable: items.length, recent: items.length, tracking: items.length, all: items.length } }),
       });
       return;
     }

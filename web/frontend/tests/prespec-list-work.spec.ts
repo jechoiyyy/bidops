@@ -48,6 +48,9 @@ async function mockPagedPreSpecs(page: Page, total = 220): Promise<void> {
         auto_preparation_status: "not_applicable",
         auto_preparation_reason: null,
         latest_deep_review_id: null,
+        first_observed_at: null,
+        last_observed_at: null,
+        next_action: null,
       };
     });
     await route.fulfill({
@@ -57,6 +60,7 @@ async function mockPagedPreSpecs(page: Page, total = 220): Promise<void> {
         limit,
         offset,
         overview_status_counts: [{ status: "completed", count: total }],
+        workspace_counts: { actionable: total, recent: total, tracking: 0, all: total },
       },
     });
   });
@@ -74,7 +78,7 @@ test("행은 색 없는 등급 글자 토큰을 두고 판정 없음을 접지 �
   expect([...new Set(classes)]).toEqual(["pre-specs-row-grade"]);
 });
 
-test("자동 준비 필터는 서버 질의에 실리고 추적 결정 대기는 페이지 한정임을 밝힌다", async ({ page }) => {
+test("새 사전규격 필터는 페이지 전에 서버 질의로 적용된다", async ({ page }) => {
   const queries: URLSearchParams[] = [];
   page.on("request", (request) => {
     const url = new URL(request.url());
@@ -86,11 +90,13 @@ test("자동 준비 필터는 서버 질의에 실리고 추적 결정 대기는
   await page.goto("/pre-specs?auto_preparation_status=deep_review_ready_for_click&sw_only=false");
   await expect.poll(() => queries.at(-1)?.get("auto_preparation_status")).toBe("deep_review_ready_for_click");
   expect(queries.at(-1)?.get("sw_only")).toBe("false");
+  // 예전 대시보드 링크는 workspace가 없었으므로 누적 결과 전체를 유지한다.
+  expect(queries.at(-1)?.get("workspace")).toBe("all");
 
-  // 추적 결정 대기는 서버 인자가 아니므로 질의에 실리지 않고 고지만 남는다.
+  // 추적 결정 대기도 서버 인자이며, 페이지 한정 필터 안내는 만들지 않는다.
   await page.goto("/pre-specs?tracking_decision=pending&sw_only=false");
-  await expect(page.locator(".pre-specs-grade-filter-note")).toContainText("추적 결정 필터는 불러온 페이지에만 적용됩니다");
-  expect(queries.at(-1)?.has("tracking_decision")).toBe(false);
+  await expect.poll(() => queries.at(-1)?.get("tracking_decision")).toBe("pending");
+  await expect(page.locator(".pre-specs-grade-filter-note")).toHaveCount(0);
 
   // 허용값이 아니면 무시하고 전체로 떨어진다 — 빈 목록을 지어내지 않는다.
   await page.goto("/pre-specs?auto_preparation_status=not_a_status&tracking_decision=yes&sw_only=false");
@@ -103,7 +109,69 @@ test("대시보드 결정 대기 링크가 같은 집합의 목록 필터로 잇
   await page.goto("/");
   // 사이드바에도 같은 이름의 링크가 있으므로 업무 바로가기 띄로 좁힌다.
   await expect(page.locator(".dash-journey-strip").getByRole("link", { name: /사전규격/ }))
-    .toHaveAttribute("href", "/pre-specs?auto_preparation_status=deep_review_ready_for_click&sw_only=false&sort=deadline");
+    .toHaveAttribute("href", "/pre-specs?workspace=all&auto_preparation_status=deep_review_ready_for_click&sw_only=false&sort=deadline");
+});
+
+test("최근 workspace는 KST 관측 범위 기본값과 수집 회차를 API에 전달한다", async ({ page }) => {
+  const queries: URLSearchParams[] = [];
+  page.on("request", (request) => {
+    const url = new URL(request.url());
+    if (url.pathname === "/api/pre-specs") queries.push(url.searchParams);
+  });
+  await mockApi(page);
+  await mockPreSpecs(page);
+  await page.goto("/pre-specs?workspace=recent&sw_only=false");
+
+  await expect.poll(() => queries.at(-1)?.get("workspace")).toBe("recent");
+  const query = queries.at(-1);
+  expect(query?.get("workspace")).toBe("recent");
+  expect(query?.get("sort")).toBe("observed");
+  // The picker shows the derived seven-day Korea range, while omitted wire
+  // bounds let the server apply that default only to the recent bucket.
+  expect(query?.has("observed_from")).toBe(false);
+  expect(query?.has("observed_to")).toBe(false);
+  await expect(page.getByRole("button", { name: "수집 회차" })).toBeVisible();
+  await expect(page.getByRole("combobox", { name: "관측 시작일" })).toBeVisible();
+  await expect(page.getByRole("combobox", { name: "관측 종료일" })).toBeVisible();
+
+  await page.getByRole("button", { name: "수집 회차" }).click();
+  const sourceRun = page.getByRole("option", { name: /2026-09-14 ~ 2026-09-15 수집/ });
+  await expect(sourceRun).toBeVisible();
+  await sourceRun.click();
+  await expect.poll(() => queries.at(-1)?.get("source_run_id")).toBe("pre-spec-run-b");
+
+  await page.getByRole("button", { name: /^전체 이력/ }).click();
+  await expect.poll(() => new URL(page.url()).searchParams.get("workspace")).toBe("all");
+  const allParams = new URL(page.url()).searchParams;
+  expect(allParams.has("observed_from")).toBe(false);
+  expect(allParams.has("observed_to")).toBe(false);
+  expect(allParams.has("sort")).toBe(false);
+
+  // 날짜를 직접 고른 recent 탭도 빠져나가면 recent 전용 범위를 남기지 않는다.
+  await page.goto("/pre-specs?workspace=recent&sw_only=false&observed_from=2026-09-10&observed_to=2026-09-15&sort=published");
+  await page.getByRole("button", { name: /^전체 이력/ }).click();
+  await expect.poll(() => new URL(page.url()).searchParams.get("workspace")).toBe("all");
+  const resetParams = new URL(page.url()).searchParams;
+  expect(resetParams.has("observed_from")).toBe(false);
+  expect(resetParams.has("observed_to")).toBe(false);
+  expect(resetParams.has("sort")).toBe(false);
+});
+
+test("기존 view URL은 전체 workspace의 overview_view로 정규화된다", async ({ page }) => {
+  const queries: URLSearchParams[] = [];
+  page.on("request", (request) => {
+    const url = new URL(request.url());
+    if (url.pathname === "/api/pre-specs") queries.push(url.searchParams);
+  });
+  await mockApi(page);
+  await mockPreSpecs(page);
+  await page.goto("/pre-specs?view=completed&sw_only=false");
+
+  await expect.poll(() => queries.at(-1)?.get("workspace")).toBe("all");
+  await expect.poll(() => queries.at(-1)?.get("overview_view")).toBe("completed");
+  await expect.poll(() => new URL(page.url()).searchParams.get("workspace")).toBe("all");
+  expect(new URL(page.url()).searchParams.get("overview_view")).toBe("completed");
+  expect(new URL(page.url()).searchParams.has("view")).toBe(false);
 });
 
 test("목록에서 방향키로 행을 옮기고 선택이 화면에 남는다", async ({ page }) => {
@@ -150,8 +218,9 @@ test("경계에서 방향키가 페이지를 넘기고 필터 변경은 첫 페�
       overview_review_status: "completed", grade: null, grade_source: null,
       auto_preparation_status: "not_applicable", auto_preparation_reason: null,
       latest_deep_review_id: null,
+      first_observed_at: null, last_observed_at: null, next_action: null,
     }));
-    await route.fulfill({ json: { items, total, limit, offset, overview_status_counts: [{ status: "completed", count: total }] } });
+    await route.fulfill({ json: { items, total, limit, offset, overview_status_counts: [{ status: "completed", count: total }], workspace_counts: { actionable: total, recent: total, tracking: 0, all: total } } });
   });
 
   await page.goto("/pre-specs?sw_only=false");
@@ -176,7 +245,7 @@ test("경계에서 방향키가 페이지를 넘기고 필터 변경은 첫 페�
   // 반대로 필터를 바꾸면 사람이 요청한 적 없는 3페이지째를 보여 주지 않는다.
   await page.getByRole("button", { name: "상세 필터" }).click();
   await page.getByRole("combobox", { name: "발견 구분" }).click();
-  await page.getByRole("option", { name: "신규", exact: true }).click();
+  await page.getByRole("option", { name: "독립 발견", exact: true }).click();
   await expect.poll(() => new URL(page.url()).searchParams.get("offset")).toBeNull();
 });
 
@@ -214,9 +283,12 @@ test("LS-04 선택은 두 페이지·새로고침·정렬에 남고 실제 필�
         auto_preparation_status: "not_applicable",
         auto_preparation_reason: null,
         latest_deep_review_id: null,
+        first_observed_at: null,
+        last_observed_at: null,
+        next_action: null,
       };
     });
-    await route.fulfill({ json: { items, total, limit, offset, overview_status_counts: [{ status: "completed", count: total }] } });
+    await route.fulfill({ json: { items, total, limit, offset, overview_status_counts: [{ status: "completed", count: total }], workspace_counts: { actionable: total, recent: total, tracking: 0, all: total } } });
   });
 
   await page.goto("/pre-specs?sw_only=false");
@@ -247,7 +319,7 @@ test("LS-04 선택은 두 페이지·새로고침·정렬에 남고 실제 필�
   await page.getByRole("option", { name: "마감 임박순", exact: true }).click();
   await expect(page.getByText("선택 2건", { exact: true })).toBeVisible();
   await page.getByRole("combobox", { name: "발견 구분" }).click();
-  await page.getByRole("option", { name: "추적", exact: true }).click();
+  await page.getByRole("option", { name: "발주계획 연계", exact: true }).click();
   await expect(page.getByText("선택 0건", { exact: true })).toBeVisible();
 });
 
@@ -275,10 +347,10 @@ test("LS-02 native checkbox toggles without changing active row or detail draft"
 test("PN-01 선택 검토는 목록 정렬의 첫 ID를 opaque context로 연다", async ({ page }) => {
   await mockApi(page);
   await mockPreSpecs(page);
-  await page.goto("/pre-specs?sw_only=false");
-  const rows = page.locator(".pre-specs-row");
-  await rows.nth(1).getByRole("checkbox").check();
-  await rows.first().getByRole("checkbox").check();
+  await page.goto("/pre-specs?workspace=all&sw_only=false");
+  const rowFor = (title: string) => page.locator(".pre-specs-row").filter({ hasText: title });
+  await rowFor("신규 지능형 행정 지원 사전규격").getByRole("checkbox").check();
+  await rowFor("안전한 문서 준비 사전규격").getByRole("checkbox").check();
   await page.getByRole("button", { name: "선택 항목 검토", exact: true }).click();
   await expect(page).toHaveURL(/\/pre-specs\/992\?.*selection_review=[0-9a-f-]+/);
   await expect(page).toHaveURL(/selection_review=/);
@@ -286,10 +358,11 @@ test("PN-01 선택 검토는 목록 정렬의 첫 ID를 opaque context로 연다
 
 for (const sort of ["published", "deadline"] as const) {
   test(`PN-01 cross-page metadata preserves timezone ties microseconds and nulls (${sort})`, async ({ page }, testInfo) => {
+    await page.clock.setFixedTime(new Date("2026-09-16T09:00:00+09:00"));
     await mockApi(page);
     const selected = [199, 201, 202, 204];
     const fillers = Array.from({ length: 204 }, (_, index) => index + 1).filter((id) => !selected.includes(id));
-    const expected = sort === "published" ? [199, 202, 201, 204] : [199, 201, 202, 204];
+    const expected = sort === "published" ? [199, 202, 201, 204] : [201, 202, 199, 204];
     const serverIds = [...expected.slice(0, 3), ...fillers.sort((a, b) => sort === "published" ? b - a : a - b), 204];
     const timestamps = {
       199: { published_at: "2026-09-02T00:00:00.000002Z", deadline_at: "2026-09-02T00:00:00.000001Z" },
@@ -310,11 +383,12 @@ for (const sort of ["published", "deadline"] as const) {
         document: { attachments: 0, "완료": 0, "대기": 0, "진행": 0, "차단": 0, "실패": 0 },
         overview_review_status: "completed", grade: null, grade_source: null,
         auto_preparation_status: "not_applicable", auto_preparation_reason: null, latest_deep_review_id: null,
+        first_observed_at: null, last_observed_at: null, next_action: null,
         ...(timestamps[noticePk as keyof typeof timestamps] ?? {
           published_at: "2026-09-01T00:00:00Z", deadline_at: "2026-10-01T00:00:00Z",
         }),
       }));
-      await route.fulfill({ json: { items, total: 204, limit, offset, overview_status_counts: [{ status: "completed", count: 204 }] } });
+      await route.fulfill({ json: { items, total: 204, limit, offset, overview_status_counts: [{ status: "completed", count: 204 }], workspace_counts: { actionable: 204, recent: 204, tracking: 0, all: 204 } } });
     });
     await page.goto(`/pre-specs?sw_only=false&sort=${sort}`);
     const checkbox = (id: number) => page.getByRole("checkbox", { name: `사전규격 선택 · 순서 표본 ${id}`, exact: true });
@@ -327,14 +401,14 @@ for (const sort of ["published", "deadline"] as const) {
     await checkbox(202).check();
     await expect(page.locator(".pre-specs-selection-toolbar")).toContainText("선택 4건");
     await page.getByRole("button", { name: "선택 항목 검토", exact: true }).click();
-    await expect(page).toHaveURL(/\/pre-specs\/199\?.*selection_review=/);
+    await expect(page).toHaveURL(new RegExp(`\\/pre-specs\\/${expected[0]}\\?.*selection_review=`));
     const token = new URL(page.url()).searchParams.get("selection_review");
     const snapshot = await page.evaluate((reviewToken) => {
       const raw = sessionStorage.getItem(`bidops.pre-specs.review.v1.${reviewToken}`);
       return raw ? JSON.parse(raw) : null;
     }, token);
     expect(snapshot.orderedNoticeIds).toEqual(expected);
-    expect(snapshot.entryNoticeId).toBe(199);
+    expect(snapshot.entryNoticeId).toBe(expected[0]);
     const navigation = page.getByRole("navigation", { name: "사전규격 선택 순회" });
     await expect(navigation).toContainText("1 / 4");
     await expect(navigation.getByRole("button", { name: "이전 선택 사전규격" })).toBeDisabled();
@@ -345,13 +419,13 @@ for (const sort of ["published", "deadline"] as const) {
 
 test("PN-03 선택 행의 상세 링크는 같은 순회 index를 시작하고 미선택 행은 단건 URL을 쓴다", async ({ page }) => {
   await mockPreSpecs(page);
-  await page.goto("/pre-specs?sw_only=false");
-  const rows = page.locator(".pre-specs-row");
-  await rows.nth(0).getByRole("checkbox").check();
-  await rows.nth(1).getByRole("checkbox").check();
-  await rows.nth(1).click();
+  await page.goto("/pre-specs?workspace=all&sw_only=false");
+  const rowFor = (title: string) => page.locator(".pre-specs-row").filter({ hasText: title });
+  await rowFor("신규 지능형 행정 지원 사전규격").getByRole("checkbox").check();
+  await rowFor("안전한 문서 준비 사전규격").getByRole("checkbox").check();
+  await rowFor("신규 지능형 행정 지원 사전규격").click();
   const selectedDetail = page.getByRole("link", { name: "상세 페이지 열기 →", exact: true });
-  await expect(selectedDetail).toHaveAttribute("href", /\/pre-specs\/992\?.*sw_only=false/);
+  await expect(selectedDetail).toHaveAttribute("href", /\/pre-specs\/992\?.*workspace=all.*sw_only=false/);
   await selectedDetail.click();
   await expect(page).toHaveURL(/\/pre-specs\/992\?.*selection_review=[0-9a-f-]+/);
   const selectedUrl = new URL(page.url());
@@ -365,16 +439,15 @@ test("PN-03 선택 행의 상세 링크는 같은 순회 index를 시작하고 �
   expect(snapshot?.entryNoticeId).toBe(992);
 
   await page.goBack();
-  await expect(page).toHaveURL(/\/pre-specs\?sw_only=false/);
-  const returnedRows = page.locator(".pre-specs-row");
-  await expect(returnedRows.nth(1)).toHaveAttribute("aria-current", "true");
-  await expect(returnedRows.nth(0).getByRole("checkbox")).toBeChecked();
-  await expect(returnedRows.nth(1).getByRole("checkbox")).toBeChecked();
-  await returnedRows.nth(2).click();
+  await expect(page).toHaveURL(/\/pre-specs\?workspace=all&sw_only=false/);
+  await expect(rowFor("신규 지능형 행정 지원 사전규격")).toHaveAttribute("aria-current", "true");
+  await expect(rowFor("신규 지능형 행정 지원 사전규격").getByRole("checkbox")).toBeChecked();
+  await expect(rowFor("안전한 문서 준비 사전규격").getByRole("checkbox")).toBeChecked();
+  await rowFor("독립 수집된 심층 검토 클릭 대기 사전규격").click();
   const unselectedDetail = page.getByRole("link", { name: "상세 페이지 열기 →", exact: true });
-  await expect(unselectedDetail).toHaveAttribute("href", /\/pre-specs\/993\?.*sw_only=false/);
+  await expect(unselectedDetail).toHaveAttribute("href", /\/pre-specs\/993\?.*workspace=all.*sw_only=false/);
   await unselectedDetail.click();
-  await expect(page).toHaveURL(/\/pre-specs\/993\?.*sw_only=false(?!.*selection_review)/);
+  await expect(page).toHaveURL(/\/pre-specs\/993\?.*workspace=all.*sw_only=false(?!.*selection_review)/);
 });
 
 test("PN-03 선택 저장소를 사용할 수 없으면 검토 순서를 성공인 것처럼 열지 않는다", async ({ page }) => {
@@ -397,7 +470,7 @@ test("PN-03 선택 저장소를 사용할 수 없으면 검토 순서를 성공�
 
 test("LS-06 필터·상세 이탈 guard 취소는 URL·active·check·입력을 보존한다", async ({ page }) => {
   await mockPreSpecs(page);
-  await page.goto("/pre-specs?sw_only=false");
+  await page.goto("/pre-specs?workspace=all&sw_only=false");
   const rows = page.locator(".pre-specs-row");
   await rows.nth(1).click();
   await rows.nth(1).getByRole("checkbox").check();
@@ -508,10 +581,9 @@ test("개요 결과 본문과 첫 주장은 한 번만 렌더된다", async ({ p
   await expect(detail.locator(".pre-specs-detail-tasks")).not.toContainText(firstClaim);
 });
 
-// docs/0915_ui-redesign/spec.md §6 A3 — 우측 정보 영역은 최소 지원 폭에서도
-// 추적 조작까지 한 화면에 들어간다. 스크롤이 생기면 담당자가 추적 여부를
-// 판단하려고 다시 굴려야 한다는 뜻이다.
-test("우측 정보 영역은 1280×800에서 스크롤하지 않는다", async ({ page }) => {
+// docs/0915_ui-redesign/spec.md §6 A3 — 긴 판단 문장을 말줄임하지 않고
+// 폭 안에서 줄바꿈한다. 높이가 넘치면 본문만 스크롤하고 추적 조작은 남는다.
+test("우측 정보 영역은 긴 내용을 생략하지 않고 필요하면 본문만 스크롤한다", async ({ page }) => {
   // 이 spec은 `app` project(1440×900)로 돌므로 최소 지원 폭을 여기서 만든다.
   await page.setViewportSize({ width: 1280, height: 800 });
   await mockApi(page);
@@ -526,12 +598,46 @@ test("우측 정보 영역은 1280×800에서 스크롤하지 않는다", async 
   await expect(detail.locator(".pre-specs-detail-caution")).toContainText("주의 1건");
   await expect(detail.locator(".pre-specs-detail-figures")).toContainText(PRE_SPEC_CAUTION_SAMPLE_BID_NOTICE_NO);
 
-  const box = await detail.locator(".pre-specs-detail-scroll").evaluate((element) => ({
-    scrollHeight: element.scrollHeight,
-    clientHeight: element.clientHeight,
-  }));
-  expect(box.scrollHeight, JSON.stringify(box)).toBe(box.clientHeight);
-  // 바닥 고정 블록의 상세 진입도 잘리지 않고 보인다.
+  const scroll = detail.locator(".pre-specs-detail-scroll");
+  const metrics = await scroll.evaluate((element) => {
+    const textStyle = (selector: string) => {
+      const node = element.querySelector<HTMLElement>(selector);
+      if (!node) throw new Error(`누락된 상세 요소: ${selector}`);
+      const style = getComputedStyle(node);
+      return {
+        lineClamp: style.getPropertyValue("-webkit-line-clamp"),
+        overflow: style.overflow,
+        textOverflow: style.textOverflow,
+        whiteSpace: style.whiteSpace,
+        overflowWrap: style.overflowWrap,
+      };
+    };
+    element.scrollTop = element.scrollHeight;
+    return {
+      summary: textStyle(".pre-specs-detail-summary"),
+      task: textStyle(".pre-specs-detail-tasks > li > span:last-child"),
+      scale: textStyle(".pre-specs-detail-scale-text"),
+      caution: textStyle(".pre-specs-detail-caution-text"),
+      overflowY: getComputedStyle(element).overflowY,
+      scrollHeight: element.scrollHeight,
+      clientHeight: element.clientHeight,
+      scrollTop: element.scrollTop,
+    };
+  });
+
+  for (const style of [metrics.summary, metrics.task, metrics.scale, metrics.caution]) {
+    expect(style.lineClamp).toBe("none");
+    expect(style.textOverflow).toBe("clip");
+    expect(style.whiteSpace).toBe("normal");
+    expect(style.overflowWrap).toBe("anywhere");
+  }
+  expect(metrics.summary.overflow).toBe("visible");
+  expect(metrics.task.overflow).toBe("visible");
+  expect(metrics.overflowY).toBe("auto");
+  expect(metrics.scrollHeight).toBeGreaterThanOrEqual(metrics.clientHeight);
+  expect(metrics.scrollTop).toBe(metrics.scrollHeight - metrics.clientHeight);
+
+  // 바닥 고정 블록의 상세 진입은 본문을 끝까지 굴려도 계속 보인다.
   await expect(detail.getByRole("link", { name: "상세 페이지 열기 →", exact: true })).toBeInViewport();
 });
 
@@ -653,6 +759,9 @@ test.describe("preSpecCautions (spec §3.2)", () => {
     auto_preparation_status: "not_applicable",
     auto_preparation_reason: null,
     latest_deep_review_id: null,
+    first_observed_at: null,
+    last_observed_at: null,
+    next_action: null,
     ...overrides,
   });
 

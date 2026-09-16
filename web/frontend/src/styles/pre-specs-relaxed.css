@@ -76,7 +76,7 @@
 /* --- 압축 필터 ---
  * 골격(바·첫 줄·보기 탭·검색·상세 필터)은 공용 `styles/workspace-filters.css`가
  * 소유한다. 이 화면이 더 갖는 것은 둘째 줄의 SW 중심 스위치와 범위 안내,
- * 서버가 거르지 못하는 등급 필터의 사실 문장뿐이다. */
+ * 수집 회차·관측 날짜 입력이다. */
 
 /* 필터 줄이 canvas 위의 면 없는 줄이 되면서 줄 사이 구분선도 사라진다(spec §2.2). */
 .pre-specs-filter-context {
@@ -139,6 +139,35 @@
 .pre-specs-filter-help {
   color: var(--color-text-secondary);
   font-size: var(--bo-type-caption);
+}
+
+.pre-specs-filter-context-range {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--spacing-2) var(--spacing-3);
+  min-width: 0;
+}
+
+.pre-specs-source-run {
+  min-width: calc(var(--spacing-12) * 6);
+}
+
+.pre-specs-observation-range {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--spacing-1);
+  min-width: 0;
+}
+
+.pre-specs-observation-range > span {
+  padding-bottom: var(--spacing-2);
+  color: var(--color-text-secondary);
+}
+
+.pre-specs-observation-range .pre-specs-observation-date {
+  min-width: calc(var(--spacing-12) * 4);
 }
 
 .pre-specs-grade-filter-note,
@@ -410,9 +439,14 @@
 }
 
 .pre-specs-row-tracking,
-.pre-specs-row-attention {
+.pre-specs-row-attention,
+.pre-specs-row-next-action {
   color: var(--color-text-secondary);
   font-size: var(--ps-list-secondary);
+}
+
+.pre-specs-row-next-action {
+  color: var(--color-text-accent);
 }
 
 .pre-specs-row-attention {
@@ -458,9 +492,9 @@
 /* --- 상세 pane ---
  * spec §3.1·§3.3의 일곱 구역이다: 머리 → 사업 설명 → 주요 과업 요약 →
  * 예산·일정 4칸 → 일정·규모 한 줄 → 주의사항, 그리고 바닥에 고정된 추적 조작과
- * 상세 진입. 1~6은 스크롤 컨테이너 안에 있고 1280×800(논리 889px)에서 7까지
- * 스크롤 없이 보이는 것이 수용 기준이다(§6 A3). 넘치면 사업 설명·과업 요약의
- * `-webkit-line-clamp`를 먼저 줄이고 글자는 12px 아래로 내리지 않는다.
+ * 상세 진입. 1~6은 스크롤 컨테이너 안에 두고 긴 본문은 말줄임 없이
+ * 줄바꿈한다. 내용이 높이를 넘으면 본문만 스크롤하고 머리와 바닥 조작은
+ * 제자리에 남는다(§6 A3).
  *
  * 머리(①)는 스크롤 밖에 남는다. 어떤 사업을 보고 있는지가 본문을 굴려도 계속
  * 보여야 하고, 네 목록 화면이 공유하는 `상세 머리 여백 12px 16px` 계약
@@ -606,16 +640,14 @@
   text-align: right;
 }
 
-/* 사업 설명은 두 줄까지다. 값이 없으면 같은 자리에 무엇을 기다리는지 적는다. */
+/* 사업 설명은 생략하지 않고 패널 폭 안에서 전체를 줄바꿈한다. */
 .pre-specs-detail-summary {
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
   margin: 0;
   color: var(--color-text-primary);
   font-size: calc(var(--bo-type-body) + 0.9px);
   line-height: 1.55;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .pre-specs-detail-summary.is-empty {
@@ -645,13 +677,11 @@
   font-weight: 600;
 }
 
-/* 과업 한 건은 한 줄까지다. 길면 잘리고 전체는 상세가 갖는다. */
+/* 과업 한 건도 문장 전체를 줄바꿈해 보여 준다. */
 .pre-specs-detail-tasks > li > span:last-child {
-  display: -webkit-box;
-  -webkit-line-clamp: 1;
-  -webkit-box-orient: vertical;
   min-width: 0;
-  overflow: hidden;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 /* ④ 예산·일정 4칸 — 구조화 필드만 온다. */
@@ -703,6 +733,7 @@
 /* ⑤ 일정·규모 한 줄 — 모델 문장은 칸이 아니라 이 한 줄에만 온다. */
 .pre-specs-detail-scale {
   display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
   gap: var(--spacing-1);
   min-width: 0;
@@ -719,10 +750,10 @@
 }
 
 .pre-specs-detail-scale-text {
+  flex: 1 1 auto;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .pre-specs-detail-scale a {
@@ -735,7 +766,8 @@
    쓴다(spec §3.2). 색이 없어도 문구가 건수를 말한다. */
 .pre-specs-detail-caution {
   display: flex;
-  align-items: center;
+  flex-wrap: wrap;
+  align-items: flex-start;
   gap: var(--spacing-2);
   min-width: 0;
   margin: 0;
@@ -752,10 +784,10 @@
 }
 
 .pre-specs-detail-caution-text {
+  flex: 1 1 auto;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .pre-specs-detail-caution-link {

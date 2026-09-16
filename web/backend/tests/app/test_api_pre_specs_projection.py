@@ -33,6 +33,7 @@ from app.deep_review.models import (
     WorkJob,
 )
 from app.lifecycle.models import Attachment, Notice
+from app.lifecycle.routers import pre_specs as pre_specs_router
 from app.screening.models import Judgment, Review
 from tests.app.test_api_pre_specs import _items_by_id, _payload, pre_specs_api  # noqa: F401
 
@@ -121,12 +122,41 @@ def capture_scenarios(session, refs) -> dict[str, dict]:
     return captured
 
 
-def test_pre_specs_list_matches_captured_baseline(pre_specs_api):
+def _legacy_shape(payload: dict) -> dict:
+    """Drop additive cumulative-workspace fields for the frozen old fixture."""
+
+    item_fields = {"first_observed_at", "last_observed_at", "next_action"}
+    normalized: dict = {}
+    for scenario, response in payload.items():
+        response_copy = dict(response)
+        response_copy.pop("workspace_counts", None)
+        response_copy["items"] = [
+            {key: value for key, value in item.items() if key not in item_fields}
+            for item in response["items"]
+        ]
+        normalized[scenario] = response_copy
+    return normalized
+
+
+def test_pre_specs_list_matches_captured_baseline(pre_specs_api, monkeypatch):
     session, _engine, refs = pre_specs_api
+    monkeypatch.setattr(
+        pre_specs_router,
+        "_now_utc",
+        lambda: datetime(2026, 9, 16, tzinfo=UTC),
+    )
 
     baseline = json.loads(BASELINE_PATH.read_text(encoding="utf-8"))
+    # The frozen fixture predates the deadline workspace rule. Keep its field
+    # values as-is and update only this scenario's expected order; the focused
+    # deadline-contract tests below own the future/past/null ordering details.
+    deadline_order = [4, 6, 7, 8, 5, 9, 1, 2, 3]
+    order_index = {notice_id: index for index, notice_id in enumerate(deadline_order)}
+    baseline["deadline"]["items"] = sorted(
+        baseline["deadline"]["items"], key=lambda item: order_index[item["notice_pk"]]
+    )
 
-    assert capture_scenarios(session, refs) == baseline
+    assert _legacy_shape(capture_scenarios(session, refs)) == baseline
 
 
 def test_pre_specs_document_counts_fetch_statuses_and_unqueued_attachments(pre_specs_api):

@@ -55,6 +55,9 @@ const trackingException = {
   auto_preparation_status: "waiting_attachments",
   auto_preparation_reason: "awaiting_fetch",
   latest_deep_review_id: null,
+  first_observed_at: "2026-08-29T00:00:00Z",
+  last_observed_at: "2026-08-30T00:00:00Z",
+  next_action: "confirm_overview",
 };
 
 test("다음 행동은 사람 확인과 차단을 먼저 읽고 추적·실행·마감을 구분한다", () => {
@@ -109,6 +112,9 @@ const newPreSpec = {
   auto_preparation_status: "blocked",
   auto_preparation_reason: "processing_failed",
   latest_deep_review_id: null,
+  first_observed_at: "2026-08-30T00:00:00Z",
+  last_observed_at: "2026-08-30T00:00:00Z",
+  next_action: null,
 };
 
 const allOnlyPreSpec = {
@@ -135,6 +141,9 @@ const allOnlyPreSpec = {
   auto_preparation_status: "not_applicable",
   auto_preparation_reason: null,
   latest_deep_review_id: null,
+  first_observed_at: "2026-08-31T00:00:00Z",
+  last_observed_at: "2026-08-31T00:00:00Z",
+  next_action: null,
 };
 
 // 사업기회에 연결돼 있지만 서버가 준 추적 상태가 `null`인 건. 사람이 고른
@@ -172,6 +181,49 @@ function overviewStatusCounts(items: readonly { overview_review_status: string |
     status,
     count: items.filter((item) => item.overview_review_status === status).length,
   }));
+}
+
+function localPreSpecWorkspace(item: { overview_review_status: string | null; auto_preparation_status: string; origin: string | null; tracking_status: string | null }, workspace: string | null): boolean {
+  if (!workspace || workspace === "all") return true;
+  if (workspace === "tracking") return item.tracking_status === "계속 추적" || item.tracking_status === "보류";
+  if (workspace === "recent") return true;
+  return item.overview_review_status === "needs_human_review"
+    || item.auto_preparation_status === "deep_review_ready_for_click"
+    || (item.overview_review_status === "completed" && item.origin === "신규" && (item.tracking_status === null || item.tracking_status === "미선택"));
+}
+
+function localPreSpecView(item: { overview_review_status: string | null }, view: string | null): boolean {
+  if (!view || view === "all") return true;
+  if (view === "attention") return item.overview_review_status === "needs_human_review";
+  if (view === "pending") return ["awaiting_document", "awaiting_structure", "preparing", "awaiting_model", "queued", "running"].includes(item.overview_review_status ?? "");
+  if (view === "not_started") return item.overview_review_status === null;
+  return item.overview_review_status === view;
+}
+
+function localPreSpecMatches(
+  item: typeof trackingException,
+  search: URLSearchParams,
+  includeWorkspace = true,
+): boolean {
+  if (includeWorkspace && !localPreSpecWorkspace(item, search.get("workspace"))) return false;
+  if (!localPreSpecView(item, search.get("overview_view"))) return false;
+  const grade = search.get("grade");
+  if (grade && (grade === "판정 없음" ? item.grade !== null : item.grade !== grade)) return false;
+  if (search.get("tracking_decision") === "pending" && !(item.origin === "신규" && (item.tracking_status === null || item.tracking_status === "미선택"))) return false;
+  if (search.get("tracking_status") && item.tracking_status !== search.get("tracking_status")) return false;
+  if (search.get("deadline_status")) {
+    const status = item.deadline_at === null ? "unknown" : Date.parse(item.deadline_at) < Date.now() ? "passed" : "open";
+    if (status !== search.get("deadline_status")) return false;
+  }
+  if (search.get("source_run_id")) {
+    const sourceByNotice: Record<number, string> = { 991: "run-a", 992: "run-b", 993: "run-c", 994: "run-b" };
+    if (sourceByNotice[item.notice_pk] !== search.get("source_run_id")) return false;
+  }
+  const from = search.get("observed_from");
+  const to = search.get("observed_to");
+  if (from && (item.last_observed_at ?? "") < from) return false;
+  if (to && (item.first_observed_at ?? "") > `${to}T23:59:59Z`) return false;
+  return true;
 }
 
 const notice991 = {
@@ -264,20 +316,34 @@ async function mockPreSpecs(page: Page, options: PreSpecMockOptions = {}): Promi
         unknownTrackingPreSpec,
         allOnlyPreSpec,
       ];
-      const items = noticePk !== null
+      const candidates = noticePk !== null
         ? allItems.filter((item) => item.notice_pk === noticePk)
         : swOnly
           ? options.emptyDefault ? [] : allItems.slice(0, 3)
           : allItems;
+      const items = candidates.filter((item) => localPreSpecMatches(item, url.searchParams));
+      const unscoped = candidates.filter((item) => localPreSpecMatches(item, url.searchParams, false));
+      const workspaceCounts = {
+        actionable: unscoped.filter((item) => localPreSpecWorkspace(item, "actionable")).length,
+        recent: unscoped.filter((item) => localPreSpecWorkspace(item, "recent")).length,
+        tracking: unscoped.filter((item) => localPreSpecWorkspace(item, "tracking")).length,
+        all: unscoped.length,
+      };
+      const statusSearch = new URLSearchParams(url.searchParams);
+      statusSearch.delete("overview_view");
+      const statusItems = candidates.filter((item) => localPreSpecMatches(item, statusSearch));
+      const limit = Number(url.searchParams.get("limit") ?? 200);
+      const offset = Number(url.searchParams.get("offset") ?? 0);
       await route.fulfill({
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({
-          items,
+          items: items.slice(offset, offset + limit),
           total: items.length,
-          limit: 50,
-          offset: 0,
-          overview_status_counts: overviewStatusCounts(items),
+          limit,
+          offset,
+          overview_status_counts: overviewStatusCounts(statusItems),
+          workspace_counts: workspaceCounts,
         }),
       });
       return;
@@ -455,7 +521,7 @@ test("목록 행은 사업명·기관·예산·상태를 정해진 순서와 글
 
 test("행은 개요 상태와 추적 상태만 상태 줄에 두고 첨부 차단·실패를 숨기지 않는다", async ({ page }) => {
   await mockPreSpecs(page);
-  await page.goto("/pre-specs");
+  await page.goto("/pre-specs?workspace=all&sw_only=false");
 
   const trackedRow = preSpecRow(page, trackingException.title);
   await expect(trackedRow.locator(".pre-specs-row-state")).toContainText("사람 검토 필요");
@@ -471,61 +537,60 @@ test("행은 개요 상태와 추적 상태만 상태 줄에 두고 첨부 차�
   await expect(newRow.locator(".pre-specs-row-attention")).toHaveCount(0);
 });
 
-// 상단 보기는 목록을 좁히는 탐색 묶음이다. 건수는 서버 전체 집계이고 목록은
-// 불러온 페이지 기준이므로 두 숫자가 다를 수 있다는 사실을 화면이 밝힌다.
-test("상단 보기는 URL과 동기화되고 건수의 기준을 밝힌다", async ({ page }) => {
+// 상단 workspace는 누적 집합을 바꾸는 탐색 지름길이다. 숫자는 현재 workspace가
+// 아니라 같은 조건에서 workspace만 바꿔 센 서버 집계다.
+test("상단 workspace는 URL과 동기화되고 서버 workspace 집계를 보여준다", async ({ page }) => {
   await mockPreSpecs(page);
   await page.goto("/pre-specs");
 
   const views = page.locator(".pre-specs-views");
-  const attention = views.getByRole("button", { name: /^사람 확인/ });
-  await expect(attention).toContainText("1");
-  await attention.click();
-  await expect.poll(() => new URL(page.url()).searchParams.get("view")).toBe("attention");
+  await expect(views.getByRole("button", { name: /^검토할 항목/ })).toContainText("2");
+  await expect(views.getByRole("button", { name: /^전체 이력/ })).toContainText("3");
+  await views.getByRole("button", { name: /^최근 수집/ }).click();
+  await expect.poll(() => new URL(page.url()).searchParams.get("workspace")).toBe("recent");
   await expect(preSpecRow(page, trackingException.title)).toBeVisible();
-  await expect(preSpecRow(page, newPreSpec.title)).toHaveCount(0);
+  await expect(views.getByRole("button", { name: /^전체 이력/ })).toBeVisible();
 
-  await views.getByRole("button", { name: /^전체/ }).click();
-  await expect.poll(() => new URL(page.url()).searchParams.has("view")).toBe(false);
+  await views.getByRole("button", { name: /^전체 이력/ }).click();
+  await expect.poll(() => new URL(page.url()).searchParams.get("workspace")).toBe("all");
   await expect(preSpecRow(page, newPreSpec.title)).toBeVisible();
 });
 
-// 나열 순서는 사람이 찾는 차례다(사용자 결정 2026-09-08): 전체 → 끝난 건 →
-// 손이 필요한 건 → 아직 도는 건 → 예외. 건수가 0인 `취소`는 자리만 차지하므로
-// 지금 보고 있지 않으면 그리지 않는다.
-test("보기 탭은 전체·개요 완료·사람 확인·진행·대기·실패 차례로 늘어선다", async ({ page }) => {
+test("개요 상태 고급 필터는 미시작과 진행·대기를 구분한다", async ({ page }) => {
   await mockPreSpecs(page);
-  await page.goto("/pre-specs");
+  await page.goto("/pre-specs?workspace=all&sw_only=false");
 
-  const tabs = page.locator(".pre-specs-views").getByRole("button");
-  await expect(tabs).toHaveCount(5);
-  // 건수는 접근 이름의 일부라 라벨만 떼어 비교한다(`${라벨}  ${건수}`).
-  await expect.poll(async () => (await tabs.allTextContents()).map((text) => text.replace(/[\s\u00a0]*[\d,–]*$/u, "").trim()))
-    .toEqual(["전체", "개요 완료", "사람 확인", "진행·대기", "실패"]);
+  await page.getByRole("button", { name: "상세 필터", exact: true }).click();
+  const overview = page.getByRole("combobox", { name: "개요 상태" });
+  await overview.click();
+  await expect(page.getByRole("option", { name: "미시작", exact: true })).toBeVisible();
+  await page.getByRole("option", { name: "미시작", exact: true }).click();
+  await expect.poll(() => new URL(page.url()).searchParams.get("overview_view")).toBe("not_started");
+  await expect(page.locator(".pre-specs-list-foot")).toContainText("전체 1건");
 });
 
 // 정렬은 사업 추적과 같은 자리(상세 필터 안 Selector)로 옮겼다. 접히면 보이지
 // 않으므로 지금 어떤 순서인지는 목록 머리가 늘 글자로 밝힌다.
-test("표시 순서 Selector는 sort=deadline을 기록하고 목록 머리가 그 순서를 밝힌다", async ({ page }) => {
+test("workspace 기본 정렬과 수동 정렬은 URL·목록 머리에 반영된다", async ({ page }) => {
   const trace = await mockPreSpecs(page);
   await page.goto("/pre-specs");
 
   const listHead = page.locator(".pre-specs-list-head");
-  await expect(listHead).not.toContainText("마감 임박순");
+  await expect(listHead).toContainText("마감 임박순");
 
   await page.getByRole("button", { name: "상세 필터", exact: true }).click();
   await page.getByRole("combobox", { name: "표시 순서" }).click();
-  await page.getByRole("option", { name: "마감 임박순", exact: true }).click();
-
-  await expect.poll(() => new URL(page.url()).searchParams.get("sort")).toBe("deadline");
-  await expect.poll(() => trace.listQueries.at(-1)?.get("sort")).toBe("deadline");
-  await expect(listHead).toContainText("마감 임박순");
-
-  // 기본값(게시 최신순)으로 되돌리면 URL에서 인자가 사라진다.
-  await page.getByRole("combobox", { name: "표시 순서" }).click();
   await page.getByRole("option", { name: "게시 최신순", exact: true }).click();
+
+  await expect.poll(() => new URL(page.url()).searchParams.get("sort")).toBe("published");
+  await expect.poll(() => trace.listQueries.at(-1)?.get("sort")).toBe("published");
+  await expect(listHead).toContainText("게시 최신순");
+
+  // workspace 기본값(마감 임박순)으로 되돌리면 URL에서 인자가 사라진다.
+  await page.getByRole("combobox", { name: "표시 순서" }).click();
+  await page.getByRole("option", { name: "마감 임박순", exact: true }).click();
   await expect.poll(() => new URL(page.url()).searchParams.has("sort")).toBe(false);
-  await expect(listHead).not.toContainText("마감 임박순");
+  await expect(listHead).toContainText("마감 임박순");
 });
 
 // 제목은 셸 상단바가 그리고 페이지는 같은 이름을 다시 쓰지 않는다. 페이지 상태를
@@ -694,25 +759,25 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900
   });
 }
 
-test("등급 필터는 불러온 페이지에만 적용된다는 사실을 화면이 밝힌다", async ({ page }) => {
+test("등급 필터는 서버 페이지 전에 적용되고 전체 건수와 일치한다", async ({ page }) => {
   await mockPreSpecs(page);
-  await page.goto("/pre-specs");
+  await page.goto("/pre-specs?workspace=all&sw_only=false");
 
   await page.getByRole("button", { name: "상세 필터", exact: true }).click();
   await page.getByRole("combobox", { name: "적합성 등급" }).click();
   await page.getByRole("option", { name: "검토 권장", exact: true }).click();
 
   await expect.poll(() => new URL(page.url()).searchParams.get("grade")).toBe("검토 권장");
-  await expect(page.locator(".pre-specs-grade-filter-note")).toContainText("불러온 페이지에만 적용됩니다");
   await expect(preSpecRow(page, newPreSpec.title)).toBeVisible();
   await expect(preSpecRow(page, trackingException.title)).toHaveCount(0);
+  await expect(page.locator(".pre-specs-list-head")).toContainText("1건");
 });
 
 // 시안의 목록은 행을 고르면 오른쪽 상세만 바뀐다. 사업명을 눌러도 목록을 떠나지
 // 않으며, 상세 화면 진입은 상세 pane 바닥의 `상세 페이지 열기`가 소유한다.
 test("사업명을 눌러도 목록에 남고 오른쪽 상세만 바뀐다", async ({ page }) => {
   await mockPreSpecs(page);
-  await page.goto("/pre-specs");
+  await page.goto("/pre-specs?workspace=all");
 
   const detail = page.locator(".pre-specs-detail-pane");
   // 첫 행이 기본 선택이므로 다른 행의 사업명을 눌러 바뀌는 것을 본다.
@@ -734,7 +799,7 @@ test("사업명을 눌러도 목록에 남고 오른쪽 상세만 바뀐다", as
 // `null`은 사람이 고른 `미선택`이 아니다. 연결이 없는 것과도 다르다.
 test("추적 상태의 미확인·미연결·미선택을 서로 다른 표시로 남긴다", async ({ page }) => {
   await mockPreSpecs(page);
-  await page.goto("/pre-specs?sw_only=false");
+  await page.goto("/pre-specs?workspace=all&sw_only=false");
 
   await expect(preSpecRow(page, unknownTrackingPreSpec.title).locator(".pre-specs-row-state"))
     .toContainText("미확인");
@@ -774,7 +839,7 @@ test("발주계획에서 승계한 건은 폼 대신 현재 추적 상태를 보
 // 드롭다운이고 `기타`를 골랐을 때만 직접 입력이 열린다.
 test("신규 사전규격은 사유 드롭다운과 담당자로 추적을 시작하고 상세로 이어진다", async ({ page }) => {
   const trace = await mockPreSpecs(page);
-  await page.goto("/pre-specs");
+  await page.goto("/pre-specs?workspace=all");
 
   await selectPreSpecRow(page, newPreSpec.title);
 
@@ -799,7 +864,7 @@ test("신규 사전규격은 사유 드롭다운과 담당자로 추적을 시�
 
 test("사유 예시를 고르면 그 문장이 그대로 저장 사유가 된다", async ({ page }) => {
   const trace = await mockPreSpecs(page);
-  await page.goto("/pre-specs");
+  await page.goto("/pre-specs?workspace=all");
 
   await selectPreSpecRow(page, newPreSpec.title);
   const decision = page.locator(".pre-specs-detail-actions");
@@ -821,7 +886,7 @@ test("사유 예시를 고르면 그 문장이 그대로 저장 사유가 된다
 // 확인 없이 버리지 않는다(spec §3.3의 `onDirtyChange` → 목록 guard 경로).
 test("추적 결정 입력이 있는 채로 행을 옮기면 확인 없이 버리지 않는다", async ({ page }) => {
   const trace = await mockPreSpecs(page);
-  await page.goto("/pre-specs");
+  await page.goto("/pre-specs?workspace=all");
 
   await selectPreSpecRow(page, newPreSpec.title);
   const decision = page.locator(".pre-specs-detail-actions");

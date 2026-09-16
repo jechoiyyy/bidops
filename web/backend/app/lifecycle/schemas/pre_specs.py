@@ -22,7 +22,21 @@ from .opportunities import OpportunityTrackingStatus
 
 
 PreSpecOrigin = Literal["추적", "신규"]
-PreSpecSort = Literal["published", "deadline"]
+PreSpecSort = Literal["published", "deadline", "observed"]
+PreSpecWorkspace = Literal["actionable", "recent", "tracking", "all"]
+PreSpecOverviewView = Literal[
+    "all",
+    "attention",
+    "pending",
+    "completed",
+    "failed",
+    "cancelled",
+    "not_started",
+]
+PreSpecTrackingDecision = Literal["pending"]
+PreSpecDeadlineStatus = Literal["open", "passed", "unknown"]
+PreSpecGradeFilter = Literal["우선 검토", "검토 권장", "관찰 대상", "제외", "판정 없음"]
+PreSpecNextAction = Literal["confirm_overview", "open_deep_review", "decide_tracking"]
 
 
 class PreSpecDocumentSummary(RuntimeContractModel):
@@ -73,6 +87,9 @@ class PreSpecListItem(RuntimeContractModel):
     #: 왜 다음 단계로 가지 않는가. 안전한 코드이며 없으면 `None`이다.
     auto_preparation_reason: str | None = None
     latest_deep_review_id: UUID | None = None
+    first_observed_at: AwareDateTime | None = None
+    last_observed_at: AwareDateTime | None = None
+    next_action: PreSpecNextAction | None = None
 
 
 class PreSpecOverviewStatusCount(RuntimeContractModel):
@@ -99,6 +116,7 @@ class PreSpecListResponse(RuntimeContractModel):
     # correct counts while ``items``/``total``/``limit``/``offset`` keep their
     # existing pagination meaning (docs/design/PLAN.md 3단계 결정 (a)/(b)).
     overview_status_counts: list[PreSpecOverviewStatusCount] = Field(default_factory=list)
+    workspace_counts: dict[PreSpecWorkspace, int] = Field(default_factory=dict)
 
 
 __all__ = [
@@ -106,6 +124,12 @@ __all__ = [
     "PreSpecListItem",
     "PreSpecListResponse",
     "PreSpecOrigin",
+    "PreSpecWorkspace",
+    "PreSpecOverviewView",
+    "PreSpecTrackingDecision",
+    "PreSpecDeadlineStatus",
+    "PreSpecGradeFilter",
+    "PreSpecNextAction",
     "PreSpecOverviewStatusCount",
     "PreSpecSort",
 ]

@@ -199,7 +199,18 @@ export interface NoticeListResponse {
 }
 
 export type PreSpecOrigin = "추적" | "신규";
-export type PreSpecSort = "published" | "deadline";
+export type PreSpecWorkspace = "actionable" | "recent" | "tracking" | "all";
+export type PreSpecOverviewView =
+  | "all"
+  | "attention"
+  | "pending"
+  | "completed"
+  | "failed"
+  | "cancelled"
+  | "not_started";
+export type PreSpecDeadlineStatus = "open" | "passed" | "unknown";
+export type PreSpecNextAction = "confirm_overview" | "open_deep_review" | "decide_tracking";
+export type PreSpecSort = "published" | "deadline" | "observed";
 
 /** 사전규격 응답의 `grade`가 어디서 왔는가. 사람 정정이 있으면 `human_review`,
  * 판정만 있으면 `screening_judgment`, 둘 다 없으면 `null`(등급도 `null`)이다. */
@@ -257,6 +268,12 @@ export interface PreSpecListItem {
   auto_preparation_reason: string | null;
   /** 자동으로 시작된(또는 마지막) 심층 검토 식별자. 없으면 `null`이다. */
   latest_deep_review_id: string | null;
+  /** 현재 projection에 포함된 관측 중 가장 이른 시각. 없으면 `null`이다. */
+  first_observed_at: string | null;
+  /** 현재 projection에 포함된 관측 중 가장 늦은 시각. 없으면 `null`이다. */
+  last_observed_at: string | null;
+  /** 서버가 정한 탐색용 다음 행동. 새 업무 상태가 아니다. */
+  next_action: PreSpecNextAction | null;
 }
 
 /** 개요 검토 상태 그룹 하나의 전체 건수. `limit`/`offset`과 무관하게 현재
@@ -272,6 +289,8 @@ export interface PreSpecListResponse {
   limit: number;
   offset: number;
   overview_status_counts: PreSpecOverviewStatusCount[];
+  /** 활성 workspace를 제외한 나머지 필터 기준의 누적 건수. */
+  workspace_counts: Record<PreSpecWorkspace, number>;
 }
 
 export interface PreSpecListQuery {
@@ -280,6 +299,15 @@ export interface PreSpecListQuery {
   auto_preparation_status?: PreSpecAutoPreparationStatus | null;
   business_division?: string | null;
   origin?: PreSpecOrigin | null;
+  workspace?: PreSpecWorkspace | null;
+  overview_view?: PreSpecOverviewView | null;
+  grade?: string | null;
+  tracking_decision?: "pending" | null;
+  tracking_status?: OpportunityTrackingStatus | null;
+  source_run_id?: string | null;
+  observed_from?: string | null;
+  observed_to?: string | null;
+  deadline_status?: PreSpecDeadlineStatus | null;
   q?: string | null;
   sort?: PreSpecSort | null;
   limit?: number | null;

@@ -339,7 +339,7 @@ test("사전규격 선택 상세가 등급 4값과 판정 없음, 자동 준비 
   }
 });
 
-test("사전규격 등급 필터는 URL과 동기화되고 적용 범위를 밝힌다", async ({ page }) => {
+test("사전규격 등급 필터는 URL과 동기화되고 서버 전체 건수를 줄인다", async ({ page }) => {
   await mockPreSpecMatrix(page);
   await page.goto("/pre-specs");
   await expect(page.locator(".pre-specs-list").first()).toBeVisible({ timeout: 10_000 });
@@ -348,11 +348,10 @@ test("사전규격 등급 필터는 URL과 동기화되고 적용 범위를 밝�
   await page.getByRole("combobox", { name: /적합성 등급/ }).click();
   await page.getByRole("option", { name: "제외", exact: true }).click();
   await expect.poll(() => new URL(page.url()).searchParams.get("grade")).toBe("제외");
-  const note = page.locator(".pre-specs-grade-filter-note");
-  await expect(note).toContainText("불러온 페이지에만 적용됩니다");
-  await expect(note).toContainText("서버 전체 집계");
+  await expect(page.locator(".pre-specs-grade-filter-note")).toHaveCount(0);
   const rows = page.locator('.pre-specs-list [data-review-primitive="dense-list-row"]');
   await expect(rows).toHaveCount(1);
+  await expect(page.locator(".pre-specs-list-head")).toContainText("1건");
   await expect(page.locator(".pre-specs-detail-facts")).toContainText("제외");
 
   // `판정 없음`은 다섯 번째 등급이 아니라 등급이 null인 건이다.

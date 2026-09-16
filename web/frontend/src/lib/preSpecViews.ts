@@ -9,17 +9,30 @@ import {
 import type {
   PreSpecAutoPreparationStatus,
   PreSpecListItem,
+  PreSpecDeadlineStatus,
+  PreSpecNextAction,
+  PreSpecOverviewView,
   PreSpecOverviewReviewStatus,
   PreSpecSort,
+  PreSpecWorkspace,
 } from "./types";
 
-// 서버에는 등급 필터가 없으므로 불러온 페이지에만 적용한다.
+// 목록의 등급 필터 허용값은 API와 화면이 공유한다. 행을 다시 줄 세우거나
+// 상태를 재계산하지 않고, 서버가 준 등급을 그대로 표시한다.
 export const GRADE_FILTER_VALUES = [...GRADE_ORDER, GRADE_NONE_LABEL] as const;
 type GradeFilter = (typeof GRADE_FILTER_VALUES)[number] | "";
 
-export type ViewKey = "all" | "attention" | "pending" | "completed" | "failed" | "cancelled";
+export type WorkspaceKey = PreSpecWorkspace;
+export type ViewKey = PreSpecOverviewView;
 
-interface ViewDefinition {
+export interface WorkspaceDefinition {
+  key: WorkspaceKey;
+  label: string;
+  description: string;
+  defaultSort: PreSpecSort;
+}
+
+export interface ViewDefinition {
   key: ViewKey;
   label: string;
   /** `null`이면 전체(상태로 좁히지 않음). */
@@ -27,17 +40,45 @@ interface ViewDefinition {
   description: string;
 }
 
+export const WORKSPACES: readonly WorkspaceDefinition[] = [
+  {
+    key: "actionable",
+    label: "검토할 항목",
+    description: "사람 확인·심층 검토·추적 결정이 필요한 건",
+    defaultSort: "deadline",
+  },
+  {
+    key: "recent",
+    label: "최근 수집",
+    description: "최근 관측된 사전규격",
+    defaultSort: "observed",
+  },
+  {
+    key: "tracking",
+    label: "추적 중",
+    description: "계속 추적·보류 중인 사업",
+    defaultSort: "published",
+  },
+  {
+    key: "all",
+    label: "전체 이력",
+    description: "누적 사전규격 전체",
+    defaultSort: "published",
+  },
+];
+
 // 탐색 묶음이며 새로운 업무 상태가 아니다. 취소는 실패와 별도로 유지한다.
 export const VIEWS: readonly ViewDefinition[] = [
-  { key: "all", label: "전체", statuses: null, description: "현재 필터에 맞는 사전규격 전체" },
-  { key: "completed", label: "개요 완료", statuses: ["completed"], description: "개요 검토가 완료된 건" },
-  { key: "attention", label: "사람 확인", statuses: ["needs_human_review"], description: "개요 입력 범위나 결과를 사람이 확인해야 하는 건" },
+  { key: "all", label: "전체 상태", statuses: null, description: "현재 필터에 맞는 사전규격 전체" },
+  { key: "attention", label: "사람 확인 필요", statuses: ["needs_human_review"], description: "개요 입력 범위나 결과를 사람이 확인해야 하는 건" },
   {
     key: "pending",
     label: "진행·대기",
-    statuses: [null, "awaiting_document", "awaiting_structure", "preparing", "awaiting_model", "queued", "running"],
-    description: "개요 검토를 아직 시작하지 않았거나 준비·실행을 기다리는 건",
+    statuses: ["awaiting_document", "awaiting_structure", "preparing", "awaiting_model", "queued", "running"],
+    description: "개요 검토가 준비·실행을 기다리는 건",
   },
+  { key: "not_started", label: "미시작", statuses: [null], description: "개요 검토 실행 기록이 없는 건" },
+  { key: "completed", label: "개요 완료", statuses: ["completed"], description: "개요 검토가 완료된 건" },
   { key: "failed", label: "실패", statuses: ["failed"], description: "개요 검토가 실패한 건" },
   { key: "cancelled", label: "취소", statuses: ["cancelled"], description: "개요 검토 실행이 취소된 건" },
 ];
@@ -46,7 +87,50 @@ export const VIEWS: readonly ViewDefinition[] = [
 export const SORT_OPTIONS: readonly { value: PreSpecSort; label: string }[] = [
   { value: "published", label: "게시 최신순" },
   { value: "deadline", label: "마감 임박순" },
+  { value: "observed", label: "최근 관측순" },
 ];
+
+export const DEADLINE_STATUS_OPTIONS: readonly { value: PreSpecDeadlineStatus; label: string }[] = [
+  { value: "open", label: "마감 전" },
+  { value: "passed", label: "마감 경과" },
+  { value: "unknown", label: "마감 미확인" },
+];
+
+export const TRACKING_STATUS_OPTIONS = ["계속 추적", "보류", "종료", "미선택"] as const;
+
+export const PRE_SPEC_NEXT_ACTION_LABEL: Record<PreSpecNextAction, string> = {
+  confirm_overview: "개요 사람 확인",
+  open_deep_review: "심층 검토 열기",
+  decide_tracking: "추적 결정",
+};
+
+export function workspaceOf(key: WorkspaceKey): WorkspaceDefinition {
+  return WORKSPACES.find((workspace) => workspace.key === key) ?? WORKSPACES[0];
+}
+
+export function validWorkspace(value: string | null): WorkspaceKey {
+  return WORKSPACES.some((workspace) => workspace.key === value) ? value as WorkspaceKey : "actionable";
+}
+
+export function validOverviewView(value: string | null): ViewKey {
+  return VIEWS.some((view) => view.key === value) ? value as ViewKey : "all";
+}
+
+export function validDeadlineStatus(value: string | null): PreSpecDeadlineStatus | "" {
+  return DEADLINE_STATUS_OPTIONS.some((option) => option.value === value)
+    ? value as PreSpecDeadlineStatus
+    : "";
+}
+
+export function validTrackingStatus(value: string | null): typeof TRACKING_STATUS_OPTIONS[number] | "" {
+  return TRACKING_STATUS_OPTIONS.includes(value as typeof TRACKING_STATUS_OPTIONS[number])
+    ? value as typeof TRACKING_STATUS_OPTIONS[number]
+    : "";
+}
+
+export function validObservedDate(value: string | null): string | "" {
+  return value && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : "";
+}
 
 export function validGrade(value: string | null): GradeFilter {
   return value && (GRADE_FILTER_VALUES as readonly string[]).includes(value) ? (value as GradeFilter) : "";
@@ -76,7 +160,7 @@ export function validAutoPreparationStatus(value: string | null): PreSpecAutoPre
     : "";
 }
 
-/** 서버에 질의 인자가 없는 페이지 한정 필터. 열려 있으면 화면이 그 사실을 밝힌다. */
+/** 서버 `GET /api/pre-specs`의 추적 결정 대기 허용값. */
 export function validTrackingDecision(value: string | null): "pending" | "" {
   return value === "pending" ? "pending" : "";
 }
@@ -89,8 +173,7 @@ export function matchesTrackingDecision(item: PreSpecListItem, filter: "pending"
 }
 
 export function validView(value: string | null): ViewKey {
-  const found = VIEWS.find((view) => view.key === value);
-  return found ? found.key : "all";
+  return validOverviewView(value);
 }
 
 export function viewOf(key: ViewKey): ViewDefinition {
@@ -101,6 +184,10 @@ export function matchesView(item: PreSpecListItem, key: ViewKey): boolean {
   const statuses = viewOf(key).statuses;
   if (statuses === null) return true;
   return statuses.includes(item.overview_review_status);
+}
+
+export function nextActionLabel(value: PreSpecListItem["next_action"]): string | null {
+  return value ? PRE_SPEC_NEXT_ACTION_LABEL[value] ?? null : null;
 }
 
 /** 목록과 상세에서 같은 서버 값을 같은 문장으로 옮기는 순수 표시 도우미. */
@@ -143,7 +230,8 @@ export function overviewStatusLabel(status: PreSpecOverviewReviewStatus | null):
 }
 
 export function originLabel(value: PreSpecListItem["origin"]): string {
-  return value === null ? "구분 미확인" : originOf(value);
+  if (value === null) return "구분 미확인";
+  return originOf(value) === "추적" ? "발주계획 연계" : "독립 발견";
 }
 
 export function swRowNote(value: string | null): string | null {

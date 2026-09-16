@@ -5,8 +5,10 @@ const TOKEN_PARAM = "selection_review";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const LIST_PARAMS = new Set([
   "sw_only", "business_division", "origin", "grade", "auto_preparation_status",
-  "tracking_decision", "view", "q", "sort", "offset", "selected", "run",
+  "tracking_decision", "tracking_status", "workspace", "overview_view", "source_run_id",
+  "observed_from", "observed_to", "deadline_status", "view", "q", "sort", "offset", "selected", "run",
 ]);
+const OVERVIEW_VIEW_KEYS = new Set(["all", "attention", "pending", "completed", "failed", "cancelled", "not_started"]);
 
 export interface PreSpecSelectionReview {
   version: 1;
@@ -25,6 +27,12 @@ export type ReviewStorageResult<T> =
 /** Only list-owned query parameters may cross the detail/list boundary. */
 export function preSpecListSearch(search: string): string {
   const params = new URLSearchParams(search);
+  const legacyView = params.get("view");
+  if (legacyView !== null) {
+    params.delete("view");
+    params.set("workspace", "all");
+    params.set("overview_view", OVERVIEW_VIEW_KEYS.has(legacyView) ? legacyView : "all");
+  }
   for (const key of [...params.keys()]) {
     if (!LIST_PARAMS.has(key)) params.delete(key);
   }

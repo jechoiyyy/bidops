@@ -181,6 +181,30 @@ TCP 포워딩은 Host를 보지 않으므로 IP·MagicDNS 이름·IPv6 세 경�
 
 ## 최초 기동
 
+### 기존 화면을 유지하는 사전규격 비교 서버
+
+기존 `bidops` 프로젝트의 DB·MinIO·ClamAV가 실행 중일 때, 비교 overlay는
+`web-comparison`만 추가한다. 기존 `web`(18787)을 재생성하지 않으며 별도 이미지와
+18887 포트를 쓴다. 포트가 사용 중이면 `BIDOPS_COMPARISON_WEB_PORT=18888`을 명시한다.
+두 웹은 같은 데이터를 사용하므로 어느 쪽에서 저장해도 양쪽에 반영된다.
+
+```bash
+COMPOSE_PROJECT_NAME=bidops docker compose --env-file .env \
+  -f docker-compose.yml -f docker-compose.edge.yml \
+  -f docker-compose.luna-max-comparison.yml build web-comparison
+COMPOSE_PROJECT_NAME=bidops docker compose --env-file .env \
+  -f docker-compose.yml -f docker-compose.edge.yml \
+  -f docker-compose.luna-max-comparison.yml up -d --no-deps --no-build web-comparison
+curl --fail http://127.0.0.1:18787/api/health
+curl --fail http://127.0.0.1:18887/api/health
+```
+
+비교용 worker·migration·수집기는 실행하지 않는다. 원격 확인이 필요하면 기존 18787
+전달은 유지하고 `tailscale serve --bg --tcp=18887 tcp://127.0.0.1:18887`을 추가한다.
+WSL mirrored 환경에서 비교 컨테이너를 재생성할 때 해당 비교 포트의 serve만 잠시
+끄고 기동 후 복원한다. 비교를 마칠 때는 위 Compose 파일 조합으로
+`stop web-comparison`만 실행하며 전체 프로젝트 `down`이나 볼륨 삭제를 하지 않는다.
+
 ```bash
 cp .env.example .env
 cp env/model.env.example env/model.env
