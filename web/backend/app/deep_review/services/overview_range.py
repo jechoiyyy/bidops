@@ -409,12 +409,12 @@ def select_v4_input_range(payload: Mapping[str, Any], *, candidates_complete: bo
     toc_pages |= entry_pages
     line_positions = {id(line): ordinal for ordinal, line in enumerate(lines)}
     # 목차가 본문과 대응하면 목차가 1순위다 (ADR-0032 결정 1, ADR-0057 결정 2).
-    # 후보 목록이 일부만 있으면 자동 확정을 하지 않으므로 목차도 시도하지 않는다.
-    toc_reason: str | None = None
-    if candidates_complete:
-        toc_selection, toc_reason = _select_by_toc(payload, pages, lines, line_positions, toc_pages, entry_pages)
-        if toc_selection is not None:
-            return toc_selection
+    # 목차 전략은 rhwp 절 후보를 쓰지 않으므로 후보 완결성과 무관하게 먼저 시도한다.
+    # `candidates_complete=False`의 자동 확정 금지는 아래 본문 전략에만 걸린다
+    # (2026-09-16 운영 재실행: 공고 781이 후보 잘림으로 목차를 건너뛰고 fallback).
+    toc_selection, toc_reason = _select_by_toc(payload, pages, lines, line_positions, toc_pages, entry_pages)
+    if toc_selection is not None:
+        return toc_selection
     body = [line for line in lines if line.page not in toc_pages]
     chapters = [line for line in body if line.chapter]
     # 제안서 작성 양식 안내 뒤의 장은 발주처 사업 범위가 아니다 (ADR-0057 결정 2).

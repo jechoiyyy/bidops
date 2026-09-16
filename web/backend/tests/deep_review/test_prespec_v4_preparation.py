@@ -476,6 +476,27 @@ def test_partial_section_list_requires_manual_range_even_with_clear_headings():
     assert selected.reason_code == "section_candidates_incomplete" and selected.page_numbers == ()
 
 
+def test_a_table_of_contents_selects_the_range_even_when_section_candidates_are_truncated():
+    """목차 전략은 절 후보를 쓰지 않는다. 후보가 잘려도 목차로 고른다 (0916 공고 781)."""
+
+    payload = {"pages": [
+        {"number": 1, "text": (
+            "목 차\n"
+            "Ⅰ. 제안요청 개요\t1\n"
+            " 1. 사업 개요\t1\n"
+            "Ⅱ. 제안요청 사항\t2\n"
+            " 1. 과업 범위\t2\n"
+        )},
+        {"number": 2, "text": "Ⅰ\n\n 제안요청 개요\n1. 사업 개요\n합성 사업의 개요다.\n- 1 -"},
+        {"number": 3, "text": "Ⅱ\n\n 제안요청 사항\n1. 과업 범위\n다음 장 본문이다.\n- 2 -"},
+    ], "blocks": []}
+
+    selected = select_v4_input_range(payload, candidates_complete=False)
+
+    assert selected.status == "ready" and selected.strategy == "toc_scope"
+    assert selected.reason_code is None and selected.page_numbers == (2,)
+
+
 def test_snapshot_rejects_page_text_or_scanner_failure(tmp_path: Path):
     source = b"%PDF-1.7\nfixture"
     engine = _engine()
