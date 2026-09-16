@@ -49,6 +49,33 @@ def _column_update_grant(role: str, table: str) -> set[str]:
     return {column.strip() for column in match.group(1).split(",")}
 
 
+BID_DELTA_TABLES = {
+    "bid_delta_comparison",
+    "bid_delta_attempt",
+    "bid_delta_item",
+    "bid_delta_evidence",
+    "bid_final_decision",
+}
+
+
+def test_bid_delta_runtime_grants_are_read_only_app_allowlist() -> None:
+    """The app reads only the two queue projection tables.
+
+    Calculation attempts, items, and evidence remain worker-owned append-only
+    data.  Keeping the complete five-table set here prevents a future broad
+    grant from silently exposing the worker-side calculation lineage.
+    """
+
+    assert _table_grants("app", "SELECT") & BID_DELTA_TABLES == {
+        "bid_delta_comparison",
+        "bid_final_decision",
+    }
+    for role in ("app", "worker"):
+        for privilege in ("INSERT", "UPDATE", "DELETE"):
+            assert not _table_grants(role, privilege) & BID_DELTA_TABLES
+    assert not _table_grants("worker", "SELECT") & BID_DELTA_TABLES
+
+
 def test_migrate_uses_a_separate_fail_closed_privilege_policy() -> None:
     assert "runtime-privileges.sql" in MIGRATE
     assert "SELECT, INSERT, UPDATE, DELETE ON ALL TABLES" not in MIGRATE
@@ -288,6 +315,53 @@ def _column_privilege(
             },
         )
     )
+
+
+@requires_postgres
+def test_effective_app_bid_delta_read_allowlist_and_worker_denial() -> None:
+    """Apply the policy to PostgreSQL 17 and exercise the real role boundary."""
+
+    from sqlalchemy.exc import DBAPIError
+
+    _ensure_roles()
+    with temporary_database() as database_url:
+        engine = _apply_policy(database_url)
+        try:
+            with engine.begin() as connection:
+                for role in ("app", "worker"):
+                    for table in BID_DELTA_TABLES:
+                        assert not _table_privilege(connection, role, table, "INSERT")
+                        assert not _table_privilege(connection, role, table, "UPDATE")
+                        assert not _table_privilege(connection, role, table, "DELETE")
+                assert _table_privilege(connection, "app", "bid_delta_comparison", "SELECT")
+                assert _table_privilege(connection, "app", "bid_final_decision", "SELECT")
+                assert not _table_privilege(connection, "worker", "bid_delta_comparison", "SELECT")
+                assert not _table_privilege(connection, "worker", "bid_final_decision", "SELECT")
+                for table in BID_DELTA_TABLES - {"bid_delta_comparison", "bid_final_decision"}:
+                    assert not _table_privilege(connection, "app", table, "SELECT")
+                    assert not _table_privilege(connection, "worker", table, "SELECT")
+
+            with engine.begin() as connection:
+                connection.exec_driver_sql("SET LOCAL ROLE app")
+                assert connection.scalar(text("SELECT current_user")) == "app"
+                for table in ("bid_delta_comparison", "bid_final_decision"):
+                    assert connection.scalar(
+                        text(f"SELECT count(*) FROM bidops.{table}")
+                    ) == 0
+
+            for table in ("bid_delta_comparison", "bid_final_decision"):
+                for statement in (
+                    f"INSERT INTO bidops.{table} DEFAULT VALUES",
+                    f"UPDATE bidops.{table} SET id = id",
+                    f"DELETE FROM bidops.{table}",
+                ):
+                    with pytest.raises(DBAPIError) as error:
+                        with engine.begin() as connection:
+                            connection.exec_driver_sql("SET LOCAL ROLE app")
+                            connection.exec_driver_sql(statement)
+                    assert error.value.orig.sqlstate == "42501"
+        finally:
+            engine.dispose()
 
 
 @requires_postgres

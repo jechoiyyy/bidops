@@ -1,6 +1,7 @@
 """조립된 업무 제공자와 PostgreSQL 목록의 workload 계약을 대조한다."""
 from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from uuid import uuid4
 
 from fastapi.testclient import TestClient
@@ -23,10 +24,13 @@ from app.deep_review.models import (
     WorkJob,
 )
 from tests.postgres import migrated_engine, requires_postgres
+from tests.app.test_runtime_database_privileges import _ensure_roles
 from tests.screening.test_order_plan_list_v2 import owner, result
 from tests.deep_review.decision_queue_fixtures import comparison, decide, opportunity
 
 NOW = datetime(2026, 9, 7, tzinfo=UTC)
+ROOT = Path(__file__).resolve().parents[4]
+RUNTIME_POLICY = (ROOT / "scripts/runtime-privileges.sql").read_text(encoding="utf-8")
 KEYS = ("order_plan_pending", "pre_spec_deep_review_ready", "tracking_action_required", "bid_final_decision_pending")
 COMBINATIONS = (("lifecycle",), ("lifecycle", "screening"), ("lifecycle", "screening", "deep_review"))
 pytestmark = requires_postgres
@@ -35,6 +39,13 @@ pytestmark = requires_postgres
 @pytest.fixture(scope="module")
 def workload_engine():
     with migrated_engine() as engine:
+        _ensure_roles()
+        with engine.connect() as connection:
+            cursor = connection.connection.driver_connection.cursor()
+            try:
+                cursor.execute(RUNTIME_POLICY, prepare=False)
+            finally:
+                cursor.close()
         yield engine
 
 
@@ -221,7 +232,10 @@ def add_plan(session, execution, *, tracking="미선택", relevance="relevant", 
 
 
 @pytest.mark.parametrize("modules", COMBINATIONS)
-def test_workload_matches_real_list_totals_and_tracking_exceptions(workload_session, empty_extensions, modules, monkeypatch):
+@pytest.mark.parametrize("runtime_role", (None, "app"), ids=("owner", "app"))
+def test_workload_matches_real_list_totals_and_tracking_exceptions(
+    workload_session, empty_extensions, modules, runtime_role, monkeypatch
+):
     session = workload_session
     calls = []
     for name, provider in (("screening", ScreeningWorkloadProjection), ("deep_review", DeepReviewWorkloadProjection)):
@@ -265,6 +279,8 @@ def test_workload_matches_real_list_totals_and_tracking_exceptions(workload_sess
     no_date.published_at = None
     link_notice(session, undecided, no_date)
     session.flush()
+    if runtime_role == "app":
+        session.connection().exec_driver_sql("SET LOCAL ROLE app")
     with client_for(session, modules) as client:
         values = workload(client)
         assert calls == [name for name in modules if name != "lifecycle"]
