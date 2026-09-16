@@ -120,22 +120,22 @@ R-xx/A-xx 작업 지시, 과거 API 경로는 현재 실행 진입점이 아니�
 | [0036](tracking/decisions/0036-judgment-model-lineage-source.md) | 판정의 모델 계보는 revision→execution 경로를 정본으로 함 | 채택 | legacy 계보는 `unknown` |
 | [0037](tracking/decisions/0037-order-plan-c2-bm25-top300-qwen.md) | C-2 발주계획 선별은 BM25 Top 300 뒤 Qwen으로 확정 | 채택 | 현재 선택; 운영 활성화와 별개 |
 | [0038](tracking/decisions/0038-order-plan-c2-phase0-contracts.md) | C-2 Phase 0 전용 파일·REST·DB 계약과 상태 경계 고정 | 채택 — 계약만 | 제품 adapter·DB·실행은 후속 phase |
-| [0039](design/ADR.md#adr-0039-astryx-디자인-시스템-채택과-승인-범위) | Astryx 디자인 시스템 채택과 승인 범위 | 채택 | 고정 빌드 산출물; 테마는 0048이 개정; 화면 이행은 후속 단계 |
-| [0040](design/ADR.md#adr-0040-레이아웃-소유권과-화면-단위-이행) | 레이아웃 소유권과 화면 단위 이행 | 채택 | 레이아웃은 프로젝트 소유; 화면별 이행 |
-| [0041](design/ADR.md#adr-0041-정보구조와-판정-동선) | 정보구조와 판정 동선 | 채택 | 회차·누적 축과 같은 화면 판정 입력을 유지; 결정 1·2·4는 0046가 개정 |
+| 0039(git 이력 docs/design/ADR.md, 삭제됨) | Astryx 디자인 시스템 채택과 승인 범위 | 채택 | 고정 빌드 산출물; 테마는 0048이 개정; 화면 이행은 후속 단계 |
+| 0040(git 이력 docs/design/ADR.md, 삭제됨) | 레이아웃 소유권과 화면 단위 이행 | 채택 | 레이아웃은 프로젝트 소유; 화면별 이행 |
+| 0041(git 이력 docs/design/ADR.md, 삭제됨) | 정보구조와 판정 동선 | 채택 | 회차·누적 축과 같은 화면 판정 입력을 유지; 결정 1·2·4는 0046가 개정 |
 | [0042](tracking/decisions/0042-c2-model-revision-declared-at-deployment.md) | C-2 모델 revision은 배포 시점 선언으로 1회 대조 | 채택 | vLLM이 revision을 노출하지 않음; 응답 값은 있으면 대조; [0050](tracking/decisions/0050-unified-openai-compatible-model-client.md)이 판정·개요·심층으로 확장 |
 | [0043](tracking/decisions/0043-screening-deep-review-module-boundary.md) | 선별과 심층 검토를 한 배포 단위 안의 독립 모듈로 분리 | 채택 | 구조 경계만 고정; 배포 단위·운영 활성화는 불변; [0045](tracking/decisions/0045-backend-module-layout.md)가 네 모듈로 보강 |
 | [0044](tracking/decisions/0044-c2-stage2-matches-the-measured-method.md) | C-2 stage 2를 측정된 방법과 일치시킴 | 채택 | item_id payload·strict schema·승인 generation config; binding v2 |
 | [0045](tracking/decisions/0045-backend-module-layout.md) | 백엔드를 core·lifecycle·screening·deep_review 네 모듈과 조립 계층으로 배치 | 채택 | ADR-0043 보강; lifecycle 확장점·`BIDOPS_MODULES`·경계 강제 테스트; REST 표면 불변. core의 모델 transport 이름은 [0050](tracking/decisions/0050-unified-openai-compatible-model-client.md)이 `model_client`로, 확장점은 [0049](tracking/decisions/0049-prespec-auto-preparation-and-auto-deep-review.md)가 다섯째로 갱신 |
-| [0046](design/ADR.md#adr-0046-사업-추적-중심-정보구조와-추적-결정의-위치) | 사업 추적 중심 정보구조와 추적 결정의 위치 | 채택 | 사이드바 16→7, 검토 대기열→사업 추적; 결정 1은 발주계획의 추적 결정 |
-| [0047](design/ADR.md#adr-0047-데스크톱노트북-전용-지원-폭) | 데스크톱·노트북 전용 지원 폭 | 채택 | 1280~1920px만 지원; 검증 viewport 두 폭 |
-| [0048](design/ADR.md#adr-0048-무드보드-기반-색-팔레트와-테마-소유권) | 무드보드 기반 색 팔레트와 테마 소유권 | 채택 | 무드보드 5색 anchor에서 파생한 `bidops` 테마; 화면은 토큰만 읽고 `--color-*`를 재정의하지 않음; 의미색은 무드보드가 정하지 않음 |
+| 0046(git 이력 docs/design/ADR.md, 삭제됨) | 사업 추적 중심 정보구조와 추적 결정의 위치 | 채택 | 사이드바 16→7, 검토 대기열→사업 추적; 결정 1은 발주계획의 추적 결정 |
+| 0047(git 이력 docs/design/ADR.md, 삭제됨) | 데스크톱·노트북 전용 지원 폭 | 채택 | 1280~1920px만 지원; 검증 viewport 두 폭 |
+| 0048(git 이력 docs/design/ADR.md, 삭제됨) | 무드보드 기반 색 팔레트와 테마 소유권 | 채택 | 무드보드 5색 anchor에서 파생한 `bidops` 테마; 화면은 토큰만 읽고 `--color-*`를 재정의하지 않음; 의미색은 무드보드가 정하지 않음 |
 | [0049](tracking/decisions/0049-prespec-auto-preparation-and-auto-deep-review.md) | 사전규격 문서 준비를 등급으로 자동화하고 `SW사업대상=Y`는 심층 검토까지 자동 시작 | 채택 | FR-DOC-07·ADR-0031·0033의 "사람 승인"을 이 규칙으로 대체; 고비용 전량 분석의 승인 경계는 유지 |
 | [0050](tracking/decisions/0050-unified-openai-compatible-model-client.md) | 모델 호출을 하나의 OpenAI 호환 client와 용도별 설정으로 통일 | 채택 | C-1·개요·심층이 `core/model_client`를 씀; 용도별 endpoint·선언 revision·참조 실행 표식; 이전 로컬 provider 경로 제거; MVP 기간에는 §5 "ADR-0050 모델 호출 게이트의 MVP 기간 완화"로 일부 완화됨 |
 | [0051](tracking/decisions/0051-deep-review-v2-deterministic-subset.md) | deep-review-v2의 결정적 부분만 채택 | 채택 — 부분 채택 | segment manifest·요구사항 inventory·검증 연결만 구현. 역할별 모델 분석과 Luna 평가는 보류 |
 | [0053](tracking/decisions/0053-decision-workload-read-contracts.md) | 결정 대기 조회와 모듈 소유 집계 계약 | 채택 | 신규 GET 세 개(`/api/workload`·기회별 심층 검토 목록·입찰 결정 큐), 업무 집계는 모듈 제공자 소유, DB migration 없음 |
 | [0054](tracking/decisions/0054-prespec-overview-mvp-rewrite.md) | 사전규격 개요 실행 스택 철거·MVP 재작성 | 채택 | v3·legacy v4·v5(activation·call ledger·verification) 폐기, `prespec_overview_run`(0026) 단일 테이블과 `bidops.prespec-overview.v1`로 재작성; 첨부·준비·변환·snapshot·결정적 검증 함수는 유지 |
-| [0055](design/ADR.md#adr-0055-사전규격-담당자-브리핑-우선-배치) | 사전규격 담당자 브리핑 우선 배치 | 채택 | 행 등급 글자·업무 필터, 상세 판정 사유·본공고·첨부, 범위 확정 알림·문서 준비 조건부 토글·실행 정보 후순위. 백엔드 계약 무변경 |
+| 0055(git 이력 docs/design/ADR.md, 삭제됨) | 사전규격 담당자 브리핑 우선 배치 | 채택 | 행 등급 글자·업무 필터, 상세 판정 사유·본공고·첨부, 범위 확정 알림·문서 준비 조건부 토글·실행 정보 후순위. 백엔드 계약 무변경 |
 | [0056](tracking/decisions/0056-company-fit-in-overview-run.md) | 회사 핏을 개요 run 2단계 호출로 통합 | 제안 | 별도 큐·runner·플래그 3개·worker 슬롯을 폐지하고 개요 run 검증 통과 직후 1회 호출로 흡수; 후보 0건 문제 해소 |
 
 ## 4. 주제별 결정 요약
