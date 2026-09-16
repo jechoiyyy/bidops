@@ -8,7 +8,7 @@ import pytest
 from pydantic import ValidationError
 
 from app.core.model_client import ModelInvocationError, PromptTooLargeError, structured_request_capacity
-from app.deep_review.schemas.prespec_overview_claims import PageOverviewPayloadV4, parse_page_overview_payload
+from app.deep_review.schemas.prespec_overview_claims import RESULT_SCHEMA, parse_overview_result_payload
 from app.deep_review.schemas.prespec_overview_claims import ClaimEvidence, OverviewClaimChecks, OverviewClaimsDraft
 from app.deep_review.services.prespec_overview_claim_policy import (
     CLAIMS_STAGE, SEMANTIC_STAGE, LIMITS, build_claims_prompt, build_claims_stage_input,
@@ -16,9 +16,9 @@ from app.deep_review.services.prespec_overview_claim_policy import (
 )
 from app.deep_review.services.prespec_overview_claim_validation import (
     ClaimDraftError, SemanticResponseError, apply_semantic_review, build_input_limitations,
-    compose_page_overview, draft_failure_checks, drop_failed_claims, merge_semantic_checks,
-    parse_claims_draft, validate_claims_deterministically,
-    validate_composed_page_overview, verify_evidence,
+    compose_page_overview, draft_failure_checks, drop_failed_claims, empty_sections,
+    merge_semantic_checks, parse_claims_draft, validate_claims_deterministically,
+    validate_composed_page_overview, verify_evidence, verify_evidence_span,
 )
 
 
@@ -31,8 +31,6 @@ def draft_value():
             {"id": "c2", "section": "main_tasks", "text": "설계와 시험 결과를 점검한다.",
              "evidence": [{"page": 3, "quote": "설계와 시험 결과를 점검한다."}], "quantities": []},
         ],
-        "analysis": [{"id": "a1", "text": "점검 범위를 먼저 대조할 필요가 있다.", "supporting_claim_ids": ["c2"]}],
-        "unknowns": [{"id": "u1", "topic": "company_comparison", "reason_code": "company_comparison_not_performed"}],
     }
 
 
@@ -66,8 +64,6 @@ def supported(draft):
     return {
         "schema_version": "bidops.prespec-overview-semantic.v1",
         "checks": [{"claim_id": c.id, "status": "supported", "reason_codes": []} for c in draft.claims],
-        "analysis_checks": [{"analysis_id": a.id, "status": "supported", "reason_codes": []} for a in draft.analysis],
-        "unknown_checks": [{"unknown_id": u.id, "status": "supported", "reason_codes": []} for u in draft.unknowns],
     }
 
 
@@ -215,11 +211,8 @@ def test_whitespace_only_page_citation_fails_without_verified_evidence():
 @pytest.mark.parametrize("change,code", [
     (lambda v: v["claims"][1].update(evidence=[]), "evidence_missing"),
     (lambda v: v["claims"][1].update(id="c1"), "duplicate_id"),
-    (lambda v: v["analysis"][0].update(id="c1"), "duplicate_id"),
-    (lambda v: v["analysis"][0].update(supporting_claim_ids=[]), "analysis_reference_missing"),
-    (lambda v: v["analysis"][0].update(supporting_claim_ids=["missing"]), "analysis_reference_missing"),
 ])
-def test_fact_and_analysis_completeness_never_requests_format_retry(change, code):
+def test_fact_completeness_never_requests_format_retry(change, code):
     value = draft_value()
     change(value)
     draft, checks = check(value)
@@ -275,37 +268,10 @@ def test_section_assignment_is_a_warning_and_still_composes_the_overview():
     assert payload.main_tasks == [] and len(payload.business_overview) == 2
 
 
-@pytest.mark.parametrize("change,code", [
-    (lambda v: v["analysis"][0].update(text="담당 인원은 8명이어야 한다."), "analysis_premise_unverified"),
-    (lambda v: v["unknowns"][0].update(topic="budget"), "unknown_reason_mismatch"),
-])
-def test_premise_and_unknown_mismatches_are_warnings_not_blockers(change, code):
-    """전제·미확인 대조는 경고다. 의미 검토는 그대로 이어진다 (MVP 계약)."""
-
-    value = draft_value()
-    change(value)
-    draft, checks = check(value)
-    assert code in warnings(checks) and not codes(checks)
-    assert apply_semantic_review(draft, checks, supported(draft)).overall == "passed"
-
-
-def test_analysis_cannot_turn_supported_period_number_into_money():
-    value = draft_value()
-    value["claims"][1].update(text="사업 기간은 6개월이다.", evidence=[{"page": 4, "quote": "사업 기간은 6개월이다."}], quantities=[quantity("6", "개월", role="period")])
-    value["analysis"][0]["text"] = "사업 예산은 6억원이므로 검토가 필요하다."
-    _, checks = check(value, {3: BASE_PAGE, 4: "사업 기간은 6개월이다."})
-    assert "analysis_premise_unverified" in warnings(checks)
-
-
-def test_company_unknown_is_checked_against_server_execution_scope():
-    _, checks = check(company_comparison_performed=True)
-    assert "company_comparison_scope_mismatch" in codes(checks)
-
-
 @pytest.mark.parametrize("raw,code,retryable", [
     ('{"schema_version":', "json_invalid", True),
     ([], "top_level_invalid", True),
-    ({**draft_value(), "analysis": "wrong type"}, "field_type_invalid", True),
+    ({**draft_value(), "claims": "wrong type"}, "field_type_invalid", True),
     ({**draft_value(), "free_facts": "임의 사실"}, "extra_field_forbidden", True),
     ({k: v for k, v in draft_value().items() if k != "claims"}, "fact_structure_missing", False),
     ({**draft_value(), "schema_version": "unknown"}, "fact_schema_invalid", False),
@@ -322,7 +288,7 @@ def test_parser_retry_allowlist(raw, code, retryable):
 def test_missing_evidence_or_out_of_range_page_wins_over_format_problem():
     value = draft_value()
     del value["claims"][0]["evidence"]
-    value["analysis"] = "wrong"
+    value["free_facts"] = "임의 사실"
     with pytest.raises(ClaimDraftError) as caught:
         parse_claims_draft(value)
     assert not caught.value.retryable
@@ -352,25 +318,61 @@ def test_unparseable_factual_failure_has_safe_persistable_checks_without_repairi
                              policy_digest="b" * 64, binding_digest="c" * 64)
 
 
-@pytest.mark.parametrize("change", [
-    lambda r: r["checks"].pop(),
-    lambda r: r["checks"].append(deepcopy(r["checks"][0])),
-    lambda r: r["checks"][0].update(claim_id="foreign"),
-    lambda r: r["checks"][0].update(status="maybe"),
-    lambda r: r["checks"][0].update(status="not_run"),
-    lambda r: r["checks"][0].update(reason_codes=["free_reason"]),
-    lambda r: r["checks"][0].update(page=999),
-    lambda r: r["checks"][0].update(reasoning="원문 지시를 따름"),
-    lambda r: r["analysis_checks"].clear(),
-    lambda r: r["unknown_checks"].clear(),
-    lambda r: r["unknown_checks"][0].update(unknown_id="foreign"),
+@pytest.mark.parametrize("change,code", [
+    (lambda r: r["checks"].pop(), "semantic_missing_ids"),
+    (lambda r: r["checks"][0].update(claim_id="foreign"), "semantic_missing_ids"),
+    (lambda r: r["checks"].append(deepcopy(r["checks"][0])), "semantic_duplicate_ids"),
+    (lambda r: r["checks"][0].update(status="maybe"), "semantic_schema_invalid"),
+    (lambda r: r["checks"][0].update(status="not_run"), "semantic_schema_invalid"),
+    (lambda r: r["checks"][0].update(reason_codes=["free_reason"]), "semantic_schema_invalid"),
+    (lambda r: r["checks"][0].update(page=999), "semantic_schema_invalid"),
+    (lambda r: r["checks"][0].update(reasoning="원문 지시를 따름"), "semantic_schema_invalid"),
+    # 개요에서 뺀 묶음을 되돌려 보내는 응답도 계약 위반이다 (ADR-0057 결정 1).
+    (lambda r: r.update(analysis_checks=[]), "semantic_schema_invalid"),
+    (lambda r: r.update(unknown_checks=[]), "semantic_schema_invalid"),
 ])
-def test_semantic_response_requires_exact_all_id_coverage_and_closed_enums(change):
+def test_semantic_response_requires_exact_claim_coverage_and_closed_enums(change, code):
+    """누락·중복·스키마 위반은 저마다 다른 사유 코드로 닫는다 (ADR-0057 결정 3)."""
+
     draft, checks = check()
     response = supported(draft)
     change(response)
-    with pytest.raises(SemanticResponseError, match="semantic_response_invalid"):
+    with pytest.raises(SemanticResponseError) as caught:
         apply_semantic_review(draft, checks, response)
+    assert caught.value.code == code
+
+
+def test_extra_semantic_ids_are_ignored_with_a_warning():
+    """기대 ID가 모두 한 번씩 있으면 그 밖의 항목은 무시하고 경고만 남긴다.
+
+    상한을 채우려고 모델이 지어 넣은 분석·미확인 ID가 run 전체를 실패시키던
+    것이 표본 5건 중 3건의 원인이었다 (ADR-0057 결정 3).
+    """
+
+    draft, checks = check()
+    response = supported(draft)
+    response["checks"].append(
+        {"claim_id": "A01", "status": "insufficient", "reason_codes": ["insufficient_evidence"]}
+    )
+
+    reviewed = apply_semantic_review(draft, checks, response)
+
+    assert reviewed.overall == "passed"
+    assert "semantic_extra_ids" in warnings(reviewed)
+    assert [row.claim_id for row in reviewed.checks] == ["c1", "c2"]
+    compose_page_overview(draft, reviewed, verification_id=uuid4(), input_limitations=["서버 범위"])
+
+
+def test_a_missing_expected_claim_id_is_not_covered_by_an_extra_one():
+    draft, checks = check()
+    response = supported(draft)
+    response["checks"] = [row for row in response["checks"] if row["claim_id"] != "c2"]
+    response["checks"].append({"claim_id": "U01", "status": "supported", "reason_codes": []})
+
+    with pytest.raises(SemanticResponseError) as caught:
+        apply_semantic_review(draft, checks, response)
+
+    assert caught.value.code == "semantic_missing_ids"
 
 
 @pytest.mark.parametrize("source,text,reason", [
@@ -403,52 +405,88 @@ def test_separate_fake_semantic_counterexamples_receive_full_frozen_context(sour
         compose_page_overview(draft, final_checks, verification_id=uuid4(), input_limitations=["서버 범위"])
 
 
-@pytest.mark.parametrize("group,reason", [("checks", "insufficient_evidence"), ("analysis_checks", "company_capability_unverified")])
-def test_uncertain_claims_and_analysis_block_whole_result(group, reason):
+def test_uncertain_claims_block_whole_result():
     draft, checks = check()
     response = supported(draft)
-    response[group][0].update(status="insufficient", reason_codes=[reason])
+    response["checks"][0].update(status="insufficient", reason_codes=["insufficient_evidence"])
     assert apply_semantic_review(draft, checks, response).overall == "needs_human_review"
 
 
-@pytest.mark.parametrize("status,reason", [("contradicted", "unknown_contradicted"), ("insufficient", "insufficient_evidence")])
-def test_a_wrong_unknown_is_dropped_instead_of_blocking_the_result(status, reason):
-    """unknown의 반박·근거부족은 그 항목만 빼고 나머지는 그대로 게시한다 (2026-09-11)."""
-
-    draft, checks = check()
-    response = supported(draft)
-    response["unknown_checks"][0].update(status=status, reason_codes=[reason])
-
-    reviewed = apply_semantic_review(draft, checks, response)
-
-    assert reviewed.overall == "passed"
-    payload = compose_page_overview(draft, reviewed, verification_id=uuid4(), input_limitations=["서버 범위"])
-    assert payload.unknowns == []
-    assert validate_composed_page_overview(payload.model_dump(mode="json"), reviewed.model_dump(mode="json")) == []
-
-
-def test_a_failed_claim_and_the_analysis_that_leans_on_it_leave_the_subset():
-    """결정적 검사에 실패한 주장·그 주장을 근거로 삼은 분석만 빠진다."""
+def test_a_failed_claim_leaves_the_subset_and_stays_in_the_stored_checks():
+    """결정적 검사에 실패한 주장만 부분집합에서 빠진다."""
 
     value = draft_value()
     value["claims"][1]["evidence"][0]["quote"] = "원문에 없는 인용 문장이다."
-    value["analysis"].append({"id": "a2", "text": "사업 성격을 먼저 확인한다.", "supporting_claim_ids": ["c1"]})
     draft, checks = check(value)
     assert "quote_not_found" in codes(checks)
 
     subset = drop_failed_claims(draft, checks)
 
-    assert subset.dropped_claim_ids == ("c2",) and subset.dropped_analysis_ids == ("a1",)
+    assert subset.dropped_claim_ids == ("c2",)
     assert [c.id for c in subset.draft.claims] == ["c1"]
-    assert [a.id for a in subset.draft.analysis] == ["a2"]
     # 부분집합은 의미 검토 입력이 요구하는 "모든 check가 passed"를 만족한다.
-    build_claims_stage_input({3: BASE_PAGE}, draft=subset.draft, checks=subset.checks)
+    stage_input = build_claims_stage_input({3: BASE_PAGE}, draft=subset.draft, checks=subset.checks)
+    assert stage_input["expected_claim_ids"] == ["c1"] and stage_input["expected_check_count"] == 1
     reviewed = apply_semantic_review(subset.draft, subset.checks, supported(subset.draft))
     assert reviewed.overall == "passed"
     # 저장되는 전체 검사 결과에는 빠진 주장이 그대로 남는다.
     merged = merge_semantic_checks(checks, reviewed)
     assert [row.claim_id for row in merged.checks] == ["c1", "c2"]
     assert merged.overall == "needs_human_review"
+
+
+def test_one_unmatched_quote_of_two_keeps_the_claim_with_a_warning():
+    """인용 둘 중 하나만 어긋나면 그 인용만 빼고 주장은 남는다 (ADR-0057 결정 3)."""
+
+    value = draft_value()
+    value["claims"][1]["evidence"].append({"page": 3, "quote": "원문에 없는 인용 문장이다."})
+
+    draft, checks = check(value)
+
+    row = next(item for item in checks.checks if item.claim_id == "c2")
+    assert row.deterministic.status == "passed"
+    assert [e.quote for e in row.deterministic.verified_evidence] == ["설계와 시험 결과를 점검한다."]
+    assert "evidence_dropped" in warnings(checks) and not codes(checks)
+    reviewed = apply_semantic_review(draft, checks, supported(draft))
+    payload = compose_page_overview(draft, reviewed, verification_id=uuid4(), input_limitations=["서버 범위"])
+    # 빠진 인용은 결과에도 검증 입력에도 남지 않는다.
+    assert [e.quote for e in payload.main_tasks[0].evidence] == ["설계와 시험 결과를 점검한다."]
+    assert validate_composed_page_overview(payload.model_dump(mode="json"), reviewed.model_dump(mode="json")) == []
+    build_claims_stage_input({3: BASE_PAGE}, draft=draft, checks=checks)
+
+    # 인용이 모두 어긋나면 종전대로 실패다.
+    value["claims"][1]["evidence"] = [
+        {"page": 3, "quote": "원문에 없는 첫 인용이다."}, {"page": 3, "quote": "원문에 없는 둘째 인용이다."},
+    ]
+    _, both = check(value)
+    assert "quote_not_found" in codes(both)
+    assert "evidence_dropped" not in warnings(both)
+
+
+ELLIPSIS_PAGE = (
+    "머리말 문단이다.\n"
+    "사업 목적은 행정 표준화이다. 중간 설명이 길게 이어진다. 최종 산출물은 운영 보고서다. 끝."
+)
+
+
+@pytest.mark.parametrize("ellipsis", ["…", "...", "……"])
+def test_an_elided_quote_matches_as_ordered_fragments(ellipsis):
+    """`…`로 가운데를 줄인 인용은 조각 대조로 통과하고 경고만 남긴다."""
+
+    quote = f"사업 목적은 행정 표준화이다.{ellipsis}최종 산출물은 운영 보고서다."
+
+    evidence, fragment_match = verify_evidence_span(ClaimEvidence(page=3, quote=quote), {3: ELLIPSIS_PAGE})
+
+    assert fragment_match is True
+    assert evidence.quote == ELLIPSIS_PAGE[evidence.start_char:evidence.end_char]
+    assert evidence.quote.startswith("사업 목적은 행정 표준화이다.")
+    assert evidence.quote.endswith("최종 산출물은 운영 보고서다.")
+    # 순서가 뒤집힌 조각은 여전히 우연한 일치로 보고 닫는다.
+    with pytest.raises(ValueError, match="quote_not_found"):
+        verify_evidence(
+            ClaimEvidence(page=3, quote=f"최종 산출물은 운영 보고서다.{ellipsis}사업 목적은 행정 표준화이다."),
+            {3: ELLIPSIS_PAGE},
+        )
 
 
 def test_compose_and_persisted_recheck_preserve_every_verified_sentence_and_hash():
@@ -460,14 +498,34 @@ def test_compose_and_persisted_recheck_preserve_every_verified_sentence_and_hash
     assert draft.model_dump(mode="json") == original
     assert payload.verification_sha256 == canonical_sha256(checked)
     assert payload.business_overview[0].text == draft.claims[0].text
-    assert payload.reviewer_analysis == draft.analysis
-    assert payload.unknowns == ["회사 역량·참여 요건 대조는 수행하지 않았습니다."]
     assert "internal-safe-code" not in str(payload.input_limitations)
     assert any("텍스트만 검토" in text and "표의 배치" in text for text in payload.input_limitations)
-    assert parse_page_overview_payload(payload.model_dump(mode="json")) == payload
+    assert parse_overview_result_payload(payload.model_dump(mode="json")) == payload
     assert validate_composed_page_overview(payload.model_dump(mode="json"), checked.model_dump(mode="json")) == []
     assert OverviewClaimChecks.model_validate_json(canonical_json(checked)) == checked
-    assert "quote" not in checked.model_dump()["unknowns"][0]
+
+
+def test_the_result_has_three_sections_and_no_condition_opinion_or_unknown_key():
+    """개요 결과는 앞부분 요약 세 절뿐이다 (ADR-0057 결정 1).
+
+    뺀 묶음은 빈 배열이 아니라 **key 자체가 없다.** 빈 배열로 남기면 소비자가
+    "검토했는데 없었다"로 읽는다.
+    """
+
+    draft, checks = check()
+    reviewed = apply_semantic_review(draft, checks, supported(draft))
+
+    payload = compose_page_overview(draft, reviewed, verification_id=uuid4(), input_limitations=["서버 범위"])
+    value = payload.model_dump(mode="json")
+
+    assert value["schema_version"] == RESULT_SCHEMA == "bidops.prespec-overview-claims.v2"
+    assert set(value) == {
+        "schema_version", "business_overview", "main_tasks", "budget_and_period",
+        "input_limitations", "verification_id", "verification_sha256",
+    }
+    # 선택 범위에 예산·기간이 없어 빈 절은 경고로 남는다.
+    assert empty_sections(payload) == ["section_empty:budget_and_period"]
+    assert parse_overview_result_payload(value) == payload
 
 
 @pytest.mark.parametrize("change", [
@@ -475,9 +533,6 @@ def test_compose_and_persisted_recheck_preserve_every_verified_sentence_and_hash
     lambda p: p["main_tasks"].append(deepcopy(p["main_tasks"][0])),
     lambda p: p["business_overview"][0]["evidence"][0].update(page=4),
     lambda p: p["business_overview"][0]["evidence"][0].update(page_text_sha256="f" * 64),
-    lambda p: p["reviewer_analysis"][0].update(text="사업비가 충분하다."),
-    lambda p: p["reviewer_analysis"][0].update(supporting_claim_ids=["c1"]),
-    lambda p: p["unknowns"].append("문서 전체에 예산이 없다."),
     lambda p: p.update(verification_sha256="f" * 64),
 ])
 def test_downstream_recheck_rejects_post_verification_facts_and_locator_changes(change):
@@ -512,6 +567,35 @@ def test_policy_has_stage_contracts_and_does_not_enlarge_existing_context():
         assert policy.structured_output_contract(stage).schema == stage_policy["output_schema"]
 
 
+def test_semantic_contract_pins_checks_to_this_runs_claim_count():
+    """의미 단계 응답 schema의 `checks` 길이를 그 run의 주장 수로 못박는다.
+
+    정책 파일의 상한(12)은 그대로 남고 policy digest도 바뀌지 않는다 — 동적
+    값은 호출 시점 contract 객체에만 있다 (ADR-0057 결정 3).
+    """
+
+    policy = load_claims_policy()
+    digest = policy.digest
+    draft, checks = check()
+
+    stage_input = build_claims_stage_input({3: BASE_PAGE}, draft=draft, checks=checks)
+    contract = policy.structured_output_contract(SEMANTIC_STAGE, expected_check_count=2)
+
+    assert stage_input["expected_claim_ids"] == ["c1", "c2"]
+    assert stage_input["expected_check_count"] == 2
+    assert contract.schema["properties"]["checks"]["minItems"] == 2
+    assert contract.schema["properties"]["checks"]["maxItems"] == 2
+    assert policy.digest == digest
+    assert policy.stage_policy(SEMANTIC_STAGE)["output_schema"]["properties"]["checks"]["maxItems"] == LIMITS["max_claims"]
+    assert "minItems" not in policy.stage_policy(SEMANTIC_STAGE)["output_schema"]["properties"]["checks"]
+    assert policy.structured_output_contract(SEMANTIC_STAGE).schema["properties"]["checks"]["maxItems"] == LIMITS["max_claims"]
+    for invalid in (0, LIMITS["max_claims"] + 1):
+        with pytest.raises(ValueError, match="expected_check_count_invalid"):
+            policy.structured_output_contract(SEMANTIC_STAGE, expected_check_count=invalid)
+    with pytest.raises(ValueError, match="overview_stage_invalid"):
+        policy.structured_output_contract(CLAIMS_STAGE, expected_check_count=2)
+
+
 def test_stage_policy_is_an_isolated_copy_and_changed_binding_fails_closed():
     policy = load_claims_policy()
     stage = policy.stage_policy(CLAIMS_STAGE)
@@ -524,7 +608,7 @@ def test_stage_policy_is_an_isolated_copy_and_changed_binding_fails_closed():
 
 def test_maximum_claim_quote_fixture_fits_both_prompts_without_truncation():
     value = draft_value()
-    value.update(claims=[], analysis=[], unknowns=[])
+    value.update(claims=[])
     source = []
     for i in range(8):
         # Distinct Unicode letters keep the cap fixture deterministic and quote
@@ -626,11 +710,12 @@ def test_semantic_preflight_rejects_another_frozen_document_or_missing_checks():
 
 
 def test_read_parser_rejects_every_retired_or_unknown_schema():
-    """폐기된 v3와 알 수 없는 판은 읽지 않는다. 검증된 v4 하나만 남는다."""
+    """폐기된 v3·v4와 알 수 없는 판은 읽지 않는다. 검증된 결과 하나만 남는다."""
 
-    v3 = {"schema_version": "bidops.prespec-overview-page-review.v3", "business_overview": [{"text": "기존 개요", "evidence_pages": [1]}],
-          "main_tasks": [{"text": "기존 과업", "evidence_pages": [1]}], "budget_and_period": [], "important_conditions": [],
-          "reviewer_analysis": ["기존 의견"], "unknowns": [], "input_limitations": ["기존 범위"]}
-    for payload in (v3, {**v3, "schema_version": "bidops.prespec-overview-page-review.v5"}):
+    old = {"schema_version": "bidops.prespec-overview-page-review.v3", "business_overview": [{"text": "기존 개요", "evidence_pages": [1]}],
+           "main_tasks": [{"text": "기존 과업", "evidence_pages": [1]}], "budget_and_period": [], "important_conditions": [],
+           "reviewer_analysis": ["기존 의견"], "unknowns": [], "input_limitations": ["기존 범위"]}
+    for version in ("bidops.prespec-overview-page-review.v3", "bidops.prespec-overview-page-review.v4",
+                    "bidops.prespec-overview-page-review.v5", "bidops.prespec-overview-claims.v1"):
         with pytest.raises(ValueError, match="overview_schema_unsupported"):
-            parse_page_overview_payload(payload)
+            parse_overview_result_payload({**old, "schema_version": version})
