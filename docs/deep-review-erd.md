@@ -707,10 +707,10 @@ v3 개요 review/snapshot/attempt/result(`0012`·`0014`), v4 target/attempt(`002
 | `page_start`, `page_end` | int, null | 1부터 시작하는 물리 PDF 쪽. 준비 전 null |
 | `range_reason_codes` | jsonb | 자동 선택·fallback 사유 코드 목록 |
 | `input_sha256` | char(64), null | 동결 입력 hash |
-| `policy_digest` | char(64) | 정책 v6 digest |
+| `policy_digest` | char(64) | 정책 v7 digest |
 | `model_name` | text | |
 | `model_revision` | text, null | |
-| `draft_json`, `checks_json`, `result_json` | jsonb, null | 초안·검사 결과·최종 개요 |
+| `draft_json`, `checks_json`, `result_json` | jsonb, null | 초안·검사 결과·최종 개요. `result_json`(`bidops.prespec-overview-claims.v2`)은 앞부분 요약 세 절 `business_overview`·`main_tasks`·`budget_and_period`와 `input_limitations`만 갖고 `important_conditions`·`reviewer_analysis`·`unknowns` key는 **없다**([ADR-0057](tracking/decisions/0057-overview-scope-and-company-fit-in-deep-review.md)). 2026-09-16 이전 행의 `bidops.prespec-overview-page-review.v4` 결과는 그대로 두고 읽을 때 세 절만 투영한다 |
 | `warnings_json` | jsonb | 수치·역할·날짜 대조 경고 등 비차단 경고 |
 | `reason_codes` | jsonb | 실패·사람 검토 사유 코드 |
 | `call_count` | int | 모델 호출 수 |

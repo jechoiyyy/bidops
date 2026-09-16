@@ -257,7 +257,7 @@ HWP 원본은 그대로 보존하고 HWP 분석에는 검증된 HWPX 변환 결�
 
 요구사항 대응 상태는 `대응 가능`, `추가 확인`, `갭`, `해당 없음` 중 하나다. 위험은 `차단`, `중대`, `보통`, `낮음`으로 표시하고 근거, 영향, 확인·완화 행동, 담당 역할, 기한, 잔여 위험을 가진다. 정보가 없으면 항목을 삭제하지 않고 `산정 불가`와 필요한 자료를 남긴다.
 
-사전규격 개요 검토는 권고를 만들지 않는다(2026-09-11 MVP 재작성, 위 "사전규격 개요 검토 상태 (MVP)" 절 참조). `completed` 개요 run의 구조화 결과(business_overview·main_tasks·budget_and_period·important_conditions)가 심층 검토 입력의 참고 자료이며, 이 결과와 사람이 고른 `계속 추적`은 최종 입찰 참여 승인이 아니다.
+사전규격 개요 검토는 권고를 만들지 않는다(2026-09-11 MVP 재작성, 위 "사전규격 개요 검토 상태 (MVP)" 절 참조). `completed` 개요 run의 구조화 결과(business_overview·main_tasks·budget_and_period)가 심층 검토 입력의 참고 자료이며, 이 결과와 사람이 고른 `계속 추적`은 최종 입찰 참여 승인이 아니다.
 
 ## 근거와 검증
 
@@ -353,32 +353,45 @@ run이 이전 run의 결과를 덮어쓰지 않는다.
 회사 핏 사유` 순으로 평가하며 첫 일치가 이긴다. `overview_recommendation_closed`·
 `overview_bundle_mismatch`는 새 개요 run에 권고 필드 자체가 없으므로 삭제했다.
 
+### 개요가 만드는 것 (2026-09-16)
+
+개요 검토는 공고 **앞부분의 목적·내용·기간·금액만** 읽어 요약한다. 결과는 세 절
+`business_overview`·`main_tasks`·`budget_and_period`뿐이며 참여 조건, 검토 의견, 미확인 판정은
+개요가 내리지 않고 심층 검토가 소유한다([ADR-0057](tracking/decisions/0057-overview-scope-and-company-fit-in-deep-review.md) 결정 1).
+`important_conditions`·`reviewer_analysis`·`unknowns`는 결과에서 **key 자체가 빠졌다** — 빈
+배열로 남기면 "검토했는데 없었다"로 읽히기 때문이다. 선택 범위에 예산·기간이 없어 절이 비면
+run의 `warnings`에 `section_empty:<section>`을 남긴다.
+
 ### 검증 규칙: 경고와 사람 검토를 구분한다
 
 주장별 정확한 인용 대조(원문 한 곳에 유일하게 대응하는지)는 실패하면 **사람 검토로
 보낸다**(`needs_human_review`). 2단(두 열) 편집 쪽처럼 원문에서 인용이 연속하지 않으면 줄·
-리스트 표식 조각으로 나눠 각 조각이 한 곳에 순서대로 대응할 때만 통과시키고 경고
-`evidence_fragment_match`를 남긴다. 섹션 배정(business_overview·main_tasks·
-budget_and_period·important_conditions)의 쏠림은 2026-09-11부터 경고 `required_fact_missing`이며
+리스트 표식·생략 기호(`…`·`...`) 조각으로 나눠 각 조각이 한 곳에 순서대로 대응할 때만
+통과시키고 경고 `evidence_fragment_match`를 남긴다. 한 주장의 인용이 둘이고 **하나만**
+대조에 실패하면 그 인용만 빼고 주장은 통과하며 경고 `evidence_dropped`를 남긴다 — 인용이
+모두 실패하면 종전대로 그 주장이 빠진다. 섹션 배정(business_overview·main_tasks·
+budget_and_period)의 쏠림은 2026-09-11부터 경고 `required_fact_missing`이며
 차단하지 않는다. 수치·단위·역할·VAT·기산점·날짜·라틴 표기·requirement_id 대조의 불일치도
 **경고**(`warnings`)로만 남긴다. 주장이 한 개도 없으면(`claims_empty`) attempt 전체가
 `needs_human_review`로 끝나며 결과는 없다. 검증 실패를 자동 보정하지 않는다.
 
-### 부분 완료 규칙 (2026-09-11)
+의미 검토 입력에는 기대 주장 ID 목록과 개수를 명시하고 응답 schema의 `checks` 길이를 그 run의
+실제 주장 수로 못박는다. 응답에 기대 ID가 **모두 정확히 한 번씩** 있으면 그 밖의 항목은 무시하고
+경고 `semantic_extra_ids`를 남긴다. 누락(`semantic_missing_ids`)·중복(`semantic_duplicate_ids`)·
+schema 위반(`semantic_schema_invalid`)은 계속 `failed`이며 그 사유 코드가 run에 남는다.
+
+### 부분 완료 규칙 (2026-09-11, 2026-09-16 갱신)
 
 결정적 검사에 **실패한 주장은 결과에서 빼고 나머지로 계속 간다.** 통과한 주장이 1개 이상이고
 전체 주장의 절반(`ceil(n/2)`) 이상이면 의미 검토·구성을 거쳐 `completed`가 되고, 그 미만이면
 예전처럼 `needs_human_review`(`deterministic_check_failed`)로 끝난다. 12개 중 1~2개만 인용이
 어긋난 run을 통째로 사람 검토로 보내지 않기 위한 규칙이다. 빠진 주장은 `failed_claims`로 계속
-노출하고 run의 `warnings`에 `claims_dropped`가 남는다. 빠진 주장을 `supporting_claim_ids`로
-삼은 분석도 함께 빠지며 `analysis_dropped`가 남는다.
+노출하고 run의 `warnings`에 `claims_dropped`가 남는다.
 
-의미 검토에서 **미확인 항목(unknown)이 `contradicted`·`insufficient`이면 그 unknown만** 결과에서
-빠지고 run의 `warnings`에 `unknown_contradicted`·`unknown_insufficient`가 남는다. 주장·분석의
-`contradicted`·`insufficient`는 그대로 attempt 전체를 `needs_human_review`
+주장의 `contradicted`·`insufficient`는 그대로 attempt 전체를 `needs_human_review`
 (`semantic_review_failed`)로 보낸다.
 
-미검증 문장은 여전히 게시되지 않는다. 빠진 주장·분석·unknown은 `result_json`에 들어가지 않으며,
+미검증 문장은 여전히 게시되지 않는다. 빠진 주장과 빠진 인용은 `result_json`에 들어가지 않으며,
 결과에 남는 문장은 모두 인용 대조와 의미 검토를 통과한 것이다.
 
 ### fallback 범위 규칙
