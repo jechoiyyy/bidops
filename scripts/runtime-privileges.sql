@@ -389,6 +389,28 @@ GRANT UPDATE (
     lease_owner, lease_expires_at, completed_at, prompt_tokens, output_tokens, latency_ms
 ) ON bidops.prespec_company_fit_attempt TO worker;
 
+-- 사전규격 첨부 worker의 자동 문서 준비 경로(명세 §6.2·§6.3). 취득 행이 종결되면
+-- `prespec_attachments.fetch_claimed`가 `auto_preparation.maybe_auto_prepare`를 부르고,
+-- 그 안에서 사람 경로와 **같은** 서비스 함수가 묶음을 만들고 확정한 뒤 개요 run을
+-- 큐에 넣는다. 아래는 그 경로가 실제로 실행하는 쓰기만 연다.
+-- auto_preparation._prepare_one -> DocumentBundleService.create_bundle: 묶음 초안 INSERT
+GRANT INSERT ON TABLE bidops.document_bundle TO worker;
+-- create_bundle/confirm의 _seed_bundle_items: 확정 범위 item snapshot INSERT
+GRANT INSERT ON TABLE bidops.document_bundle_item TO worker;
+-- DocumentBundleService.confirm: 확정 요청 재생을 위한 idempotency 기록 INSERT
+GRANT INSERT ON TABLE bidops.idempotency_record TO worker;
+-- auto_preparation._enqueue_overview -> overview_runs.enqueue_overview_run: 개요 run의 큐 행 INSERT
+GRANT INSERT ON TABLE bidops.work_job TO worker;
+-- create_bundle의 issue snapshot 기록과 confirm의 version fence·확정 표식·supersede만
+-- 연다. revision·notice_id·created_by_name 같은 계보 열은 닫혀 있고, 이 열 권한이
+-- confirm의 `SELECT ... FOR UPDATE` 행 잠금도 함께 만족시킨다.
+GRANT UPDATE (
+    issues_snapshot, status, version, confirmed_by_name, confirmed_at
+) ON bidops.document_bundle TO worker;
+-- confirm이 구조 행을 잠그기만 한다(app과 같은 이유). 구조 상태(validation_status)는
+-- worker에게 닫혀 있다.
+GRANT UPDATE (id) ON bidops.document_structure TO worker;
+
 -- Backup reads current/future tables and sequence state without advancing it.
 GRANT SELECT ON ALL TABLES IN SCHEMA bidops TO ro_backup;
 ALTER DEFAULT PRIVILEGES IN SCHEMA bidops GRANT SELECT ON TABLES TO ro_backup;
