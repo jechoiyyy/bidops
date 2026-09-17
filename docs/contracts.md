@@ -100,8 +100,8 @@ run 행이 아직 없으면 `null`이다(개요 검토 미시작). `overview_sta
 - `JudgmentResponse`: `id`, `schema_version?`, `grade?`, `readiness?`, `primary_focus?`, `exclusion_category?`, `summary?`, `next_action?`, `perspectives[]`, `counterarguments[]`, `verification_items[]`, `matched_performances[]`. perspective는 `id`, `position?`, `name?`, `assessment?`, `reason?`, `evidence[{id,source?,status?,fact?}]`; counterargument는 `id`, `position?`, `text?`; verification item은 `id`, `item?`, `why?`, `blocking`, `status?`; matched performance는 `id`, `name?`, `match_reason?`, `mismatch_or_limit?`, `source?`, `status?`다. 이 legacy 문자열도 wire enum으로 강제되지 않는다.
 - `RelatedNoticeListResponse`: `notice_pk`, `items[]`; item은 `relation=ordinal|unified|pre_spec`, `notice_pk`, `notice_key`, `title?`, `grade?`, `published_at?`, `change_reason?`다. `NoticeHistoryResponse`는 `notice_key`, `items[]`; history item은 `notice_pk`, `run_id`, `window_from?`, `window_to?`, `timezone`, `generated_at`, `grade?`, `readiness?`, `focus?`, `summary?`, `corrected_grade?`, `corrected_readiness?`, `review_reason?`다.
 - `NoticeRevisionHistoryResponse`는 정확히 `notice_pk`, `judgments[]`, `reviews[]`를 갖는다. judgment item은 `id`, `sequence>=1`, `source_kind=runtime|legacy_import|carry_over`, nullable `run_id`, nullable `recording_execution_id`, nullable `source_revision_id`, nullable `origin_execution_id`, `payload_schema_version`, opaque JSON object `payload`, 64자 lowercase SHA-256 `payload_sha256`, `captured_at`이다. review item은 `id`, `sequence>=1`, `source_kind=human|legacy_import`, nullable `run_id`, nullable `judgment_revision_id`, nullable `origin_execution_id`, `payload_schema_version`, opaque JSON object `payload`, 64자 lowercase SHA-256 `payload_sha256`, `captured_at`이다. `origin_execution_id`는 judgment 승계 chain 또는 review가 고정한 exact judgment revision의 runtime root이며, legacy/unaligned 이력은 `null`이다.
-- `OpportunityListResponse`는 `items`, `total`, `limit`, `offset`이다. 기본 목록에는 `merged_into_opportunity_id`가 없는 active row만 포함한다. item은 `id`, `tracking_status=미선택|계속 추적|보류|종료`, `tracking_reason?`, `tracking_selected_by?`, `tracking_selected_at?`, `recheck_signal`, `recheck_signal_at?`, `recheck_signal_link_id?`, `first_registered_stage=order_plan|pre_spec|bid_notice`, nullable `merged_into_opportunity_id`·`merged_at`·`merge_reason`, `links[]`다. `first_registered_stage=order_plan`이면 화면 의미는 `추적`, 그 밖의 `pre_spec|bid_notice`이면 `신규`이며 이 매핑을 화면이 다시 정하지 않는다.
-- `OpportunityDetailResponse`는 위 사업기회 field와 `links[]` 전체를 반환한다. link는 `id`, `stage=order_plan|notice`, `link_type=official|candidate`, `status=확정|후보 확인 대기|사람 확인 완료|검색 미확인`, `search_strategy?`, `attempted_strategies[]`, `agency_match?`, `last_searched_at?`, `evidence_external_no?`, `evidence_bid_no?`, `human_decision?`, `reviewer_name?`, `reviewed_at?`, `review_reason?`, `record_type?`, `record_id?`, `notice_id?`, `order_plan_id?`, `source_type?`, `title?`, `agency?`, `external_id?`, `record_external_id?`다. `검색 미확인` link도 포함하며 이 상태를 `사전규격 없음`으로 변환하지 않는다. target이 있으면 `title`·`record_external_id`가 해당 공고 또는 발주계획을 가리키고, `id`와 `evidence_external_no`로 link 자체와 근거 번호를 식별한다. raw record, filesystem path, object-store metadata는 반환하지 않는다.
+- `OpportunityListResponse`는 `section_counts`, `action_reason_counts`, `items`, `total`, `limit`, `offset`이다. 기본 목록에는 `merged_into_opportunity_id`가 없는 active row만 포함한다. item은 `id`, `tracking_status=미선택|계속 추적|보류|종료`, `tracking_reason?`, `tracking_selected_by?`, `tracking_selected_at?`, `recheck_signal`, `recheck_signal_at?`, `recheck_signal_link_id?`, `first_registered_stage=order_plan|pre_spec|bid_notice`, nullable `merged_into_opportunity_id`·`merged_at`·`merge_reason`, `section?`, `action_reasons[]`, nullable `hold_review_due_at`, `links[]`다. `first_registered_stage=order_plan`이면 화면 의미는 `추적`, 그 밖의 `pre_spec|bid_notice`이면 `신규`이며 이 매핑을 화면이 다시 정하지 않는다. `section_counts`는 `조치 필요`·`추적 중`·`보류`·`추적 종료`·`신규 입찰공고`·`미결정` 6키다. `action_reason_counts`는 `new_link`·`candidate_pending`·`merge_confirmation`·`blocking_item`·`hold_overdue` 5키이며 현재 활성 `reason` 필터만 뺀 조건으로 센다(spec §7.4). 구역·사유 정의는 아래 "사업기회 구역·사유·보류 기한" 절을 따른다.
+- `OpportunityDetailResponse`는 위 사업기회 field와 `links[]` 전체를 반환한다. link는 `id`, `stage=order_plan|notice`, `link_type=official|candidate`, `status=확정|후보 확인 대기|사람 확인 완료|검색 미확인|사람 확인 병합`, `search_strategy?=full|breaking_split|normalized|longest_fragment|prefix12|merge_confirmation`, `attempted_strategies[]`, `agency_match?`, `last_searched_at?`, `evidence_external_no?`, `evidence_bid_no?`, `search_target_kind?=pre_spec|bid_notice`, `human_decision?`, `reviewer_name?`, `reviewed_at?`, `review_reason?`, `record_type?`, `record_id?`, `notice_id?`, `order_plan_id?`, `source_type?`, `title?`, `agency?`, `external_id?`, `record_external_id?`다. `검색 미확인` link도 포함하며 이 상태를 `사전규격 없음`으로 변환하지 않는다. `사람 확인 병합`은 병합으로 끝난 후보 수락 link(비소유, `human_decision=accepted`)이고, `search_strategy=merge_confirmation`은 사람 상태가 있는 사업기회끼리 자동 병합을 거부해 만든 `후보 확인 대기` link다(spec §3.2·§3.3). `search_target_kind`는 `검색 미확인` link가 어느 종류를 찾다 실패했는지 구분한다. target이 있으면 `title`·`record_external_id`가 해당 공고 또는 발주계획을 가리키고, `id`와 `evidence_external_no`로 link 자체와 근거 번호를 식별한다. raw record, filesystem path, object-store metadata는 반환하지 않는다.
 - `TrackingStatusUpdateRequest`는 body의 `tracking_status`와 nonblank `reason`만 받는다. actor는 body에 두지 않고 `X-BidOps-Actor-Name` header에서 얻는다. `tracking_status`는 위 네 값만 허용하며 서버 시각을 `tracking_selected_at`으로 기록한다. `미선택`으로 되돌릴 때 현재 row의 작성자·이유·시각은 null이지만 감사 이벤트에는 남는다. `status`·`tracking_reason`는 이전 호출자와의 호환 입력 alias이며 새 client는 canonical field를 사용한다.
 - authoritative opportunity link는 `(official + 확정)` 또는 `(candidate + 사람 확인 완료 + human_decision=accepted)`뿐이다. 후보 대기·거절·검색 미확인은 소유권과 자동 병합에 사용하지 않고 이력으로 보존한다. `PATCH /api/opportunities/links/{link_id}/decision`은 actor header와 `{decision: accepted|rejected, reason}`을 받아 후보 판정·검토 시각·감사 이벤트를 같은 transaction에 기록한다. 같은 reviewer·decision·reason 재전송은 기존 결과를 반환하고 다른 재판정은 409다.
 - `AttachmentProcedureResponse`: `notice_pk`, `agency?`, `bid_no?`, `title?`, `status`, `matched_portal?`, `search_url?`, `portal_message`, `steps[]`, `attachments[]`. 현재 producer의 status는 `missing|provided|completed`이지만 legacy schema는 일반 string으로 받는다. `AttachmentQueueResponse`는 `run_id`, `total`, `items[]`; item은 `NoticeListItem` 전체와 `bid_no?`, `matched_portal?`, `search_url?`, `portal_message`다.
@@ -138,6 +138,17 @@ run 행이 아직 없으면 `null`이다(개요 검토 미시작). `overview_sta
 `fail_attempt`)로만 존재하며 HTTP로 노출하지 않는다. 승인된 회사 내부망 binding을 확인할 수
 없으면 비교 생성은 503 `bid_delta_service_unavailable`로 fail closed하고 어떤 외부 전송도
 하지 않는다. 운영 활성화는 별도 결정이다.
+
+**결정 근거 분리 (ADR-0058, migration `0028_final_decision_basis`).** 비교 worker가 없어도
+사람이 최종 Go/No-Go를 기록할 수 있도록, `bid_final_decision.basis_kind`가 `comparison`(위
+비교 fence) 또는 `notice_conditions`(공고 조건)를 갖는다. 공고 조건 근거는 `GET
+/api/opportunities/{id}/bid-conditions`(모델 호출 없는 결정적 읽기: authoritative 입찰공고를
+`bid_no`·`bid_ord` 순으로 나열하고 차수 간 변경·사전규격 대비를 계산)와 `POST
+/api/opportunities/{id}/final-decisions`(`expected_notice_id`·`expected_observation_sha256`
+fence, actor·사유·idempotency는 비교 근거와 같은 함수 공유)로 별도 경로를 갖는다. 현재성은
+근거별로 `services/bid_delta_currentness.py` 한 곳에서 계산해 workspace·결정 큐·업무 집계가
+같은 값을 쓴다. 상세 wire shape·오류 표는 [입찰 delta 계약 명세](bid-delta-contract-spec.md)와
+[심층 검토 ERD](deep-review-erd.md) §8.6, 결정 배경은 [ADR-0058](tracking/decisions/0058-final-decision-basis-separated-from-comparison.md)이 정본이다.
 
 경로는 다음과 같다.
 
@@ -227,16 +238,45 @@ revision-history의 404·409·500은 공통 안전 envelope를 사용하며 `det
 
 | 호출 | 입력 | 성공 응답 | 주요 실패 |
 |---|---|---|---|
-| `GET /api/opportunities` | optional `tracking_status`, `first_registered_stage`, `sort=created_at|tracking_status|first_registered_stage`, `limit` 1..500(default 50), `offset` 0 이상 | `{items: OpportunityListItem[], total, limit, offset}`; 기본값은 `종료`를 포함한 전체 | 422 query |
+| `GET /api/opportunities` | optional `tracking_status`, `first_registered_stage`, `section=조치 필요\|추적 중\|보류\|추적 종료\|신규 입찰공고`, `reason=new_link\|candidate_pending\|merge_confirmation\|blocking_item\|hold_overdue`, `hold_review=overdue\|due_soon\|attention`, `q`(2~100자), `sort=created_at\|tracking_status\|first_registered_stage\|hold_review_due_at`, `limit` 1..500(default 50), `offset` 0 이상 | `OpportunityListResponse`(`section_counts`·`action_reason_counts` 포함); 기본값은 `종료`를 포함한 전체 | 422 query(`section=미결정`은 집계 전용이라 값 자체를 거부) |
 | `GET /api/opportunities/{opportunity_id}` | path DB integer opportunity ID | `OpportunityDetailResponse`; `검색 미확인` link를 포함한 전체 link 목록 | 404 `opportunity_not_found` |
 | `GET /api/opportunities/{opportunity_id}/deep-reviews` | path DB integer opportunity ID | 200 `{opportunity_id, items[]}` — 연결 공고 전체의 심층 검토 목록 | 404 `not_found`; 422 path; 500 `processing_failed` |
+| `GET /api/opportunities/{opportunity_id}/tracking-decisions` | path DB integer opportunity ID | 200 `{opportunity_id, items[], recheck_events[]}`; `items`는 append-only 추적 결정 이력, `recheck_events`는 신호 생성·확인·해제를 감사에서 투영한 이력(`kind=created\|acknowledged\|cleared_by_decision`, `link_id?`, `actor_kind`, `claimed_name?`, `created_at`, `note_present`) | 404 `opportunity_not_found` |
+| `POST /api/opportunities/{opportunity_id}/recheck-acknowledgements` | actor headers; body `{expected_link_id, note?(≤500자)}` | 200 `OpportunityDetailResponse`; 신호를 해제하고 추적 상태는 바꾸지 않음 | 400 `actor_name_required\|actor_name_invalid`; 404 `opportunity_not_found`; 409 `recheck_signal_absent`(신호 없음)·`recheck_signal_changed`(근거 링크가 바뀜, details `{current_link_id}`)·`opportunity_merged`; 422 body |
+| `POST /api/opportunities/{opportunity_id}/searches` | actor headers; body `{target=pre_spec\|bid_notice}` | 200 `OpportunitySearchResponse`(`searched_at`, `target`, `attempted_strategies[]`, `candidates: OpportunityLinkView[]`, `search_unconfirmed`) | 400 actor; 404 `opportunity_not_found`; 409 `opportunity_merged`; 422 `search_source_missing`(소유 발주계획·사전규격 없음)·body |
+| `GET /api/pre-specs/{notice_pk}/order-plan-candidates` | path DB integer notice PK | 200 `PreSpecOrderPlanCandidatesResponse`(`notice_pk`, `items[]`; item은 `link`, `opportunity_id`, `tracking_status`, `order_plans[]` 발주계획 요약) | 404 사전규격 없음 |
 | `GET /api/bid-delta/decision-queue` | `status=pending\|all`(기본 `pending`), `limit` 1..500(기본 50), `offset` 0 이상 | 200 `{items, total, limit, offset}` | 422 query; 500 안전 오류 |
 | `POST /api/opportunities/order-plan-tracking/preview` | body `{"schema_version":"order-plan-bulk-preview-request.v1","order_plan_ids":[1,2]}` (ID는 positive integer[]); 빈 목록·bool·0·음수·unknown field 거부 | 200 `order-plan-bulk-preview-response.v1` (아래 wire) | 422 body 또는 `invalid_request`; 503 `temporarily_unavailable` |
 | `POST /api/opportunities/order-plan-tracking/bulk-start` | actor headers; body `{"schema_version":"order-plan-bulk-start-request.v1","request_id":"UUID","order_plan_ids":[1,2],"reason":"nonblank"}` (ID는 positive integer[]) | 200 `order-plan-bulk-start-response.v1` 최종 receipt (아래 wire) | 400 actor; 409 `idempotency_conflict`; 422 body/`invalid_request`·`tracking_reason_required`; 500 `processing_failed`; 503 `temporarily_unavailable` |
 | `PATCH /api/opportunities/{opportunity_id}/tracking-status` | actor headers; body `{tracking_status, reason}` | 200 `OpportunityDetailResponse` | 400 `actor_name_required|actor_name_invalid`; 404 `opportunity_not_found`; 422 `tracking_status_invalid|tracking_reason_required` |
-| `PATCH /api/opportunities/links/{link_id}/decision` | actor headers; body `{decision=accepted|rejected, reason}` | 200 `OpportunityLinkView`; 동일 actor·판정·이유 replay는 같은 reviewed_at | 400 `actor_name_required|actor_name_invalid`; 404 `opportunity_link_not_found`; 409 `candidate_link_required|candidate_decision_conflict|candidate_state_conflict|candidate_target_required|candidate_target_already_authoritative`; 422 body·link ID·blank reason |
+| `PATCH /api/opportunities/links/{link_id}/decision` | actor headers; body `{decision=accepted|rejected, reason}` | 200 `OpportunityLinkView`; 동일 actor·판정·이유 replay는 같은 reviewed_at | 400 `actor_name_required|actor_name_invalid`; 404 `opportunity_link_not_found`; 409 `candidate_link_required|candidate_decision_conflict|candidate_state_conflict|candidate_target_required|candidate_target_already_authoritative|candidate_merge_state_conflict|opportunity_merge_state_conflict`; 422 body·link ID·blank reason |
 
 추적 상태 변경은 `set_tracking_status()`를 통해 사람 선택과 감사 이벤트를 함께 기록한다. `X-BidOps-Actor-Name`은 인증이 아닌 감사 표식이며, 비ASCII 이름은 `X-BidOps-Actor-Name-Format: utf-8-percent-v1`과 canonical UTF-8 percent encoding을 사용한다. `recheck_signal`은 시스템 신호 여부이고 `recheck_signal_at`·`recheck_signal_link_id`는 그 시각과 근거 link를 가리킨다. 이 값들은 사람의 `tracking_status`·`tracking_reason`·`tracking_selected_by`·`tracking_selected_at`과 별도이며, `FinalOpinion` 또는 최종 입찰 `Go/No-Go`로 변환하지 않는다.
+
+후보 수락(`PATCH …/links/{id}/decision` `accepted`)이 대상을 이미 소유한 다른 active 사업기회로 이끌면 §3.2와 같은 규칙으로 병합한다. 사람 상태 보유(`tracking_status ≠ 미선택` 또는 `recheck_signal_at IS NOT NULL`) 사업기회가 둘 중 1개 이하면 병합하고 후보 link를 `사람 확인 병합`(비소유, `human_decision=accepted`)으로 남긴다 — 소유권은 옮겨진 공식 link가 갖는다. 둘 다 사람 상태를 가지면 409 `candidate_merge_state_conflict`이고 details는 `{opportunities: [{id, tracking_status, tracking_selected_by, tracking_selected_at, recheck_signal}]}`다. 자동 병합(공식 키 재적재)이 같은 조건으로 막히면 경고 `opportunity_merge_confirmation_required`와 함께 `병합 확인` 후보(`search_strategy=merge_confirmation`)를 만들며, 도착 레코드는 고아로 남지 않고 자기 사업기회(없으면 새로 생성)에 붙는다.
+
+### 사업기회 구역·사유·보류 기한
+
+구역(`section`, 첫 일치)과 사유(`action_reasons[]`, 모든 행에 계산)는 서로 다른 축이며 같은 SQL 한 식으로 계산해 목록·집계·`GET /api/workload`가 항상 같은 모집단을 쓴다.
+
+| 구역 | 조건 |
+|---|---|
+| `조치 필요` | (`계속 추적`\|`보류` AND 사유 1개 이상) OR (`종료` AND `new_link`\|`candidate_pending`\|`merge_confirmation` 중 하나) |
+| `추적 중` | `계속 추적`이고 위 조건에 해당하지 않음 |
+| `보류` | `보류`이고 위 조건에 해당하지 않음 |
+| `추적 종료` | `종료`이고 위 조건에 해당하지 않음 |
+| `신규 입찰공고` | `미선택` AND `first_registered_stage=bid_notice` |
+| (`미결정`, 집계 전용) | 그 밖의 `미선택`; 목록 `section` 필터 값으로는 받지 않음(422) |
+
+| 사유 코드 | 조건 |
+|---|---|
+| `new_link` | `recheck_signal_at IS NOT NULL` |
+| `candidate_pending` | 소유 사업기회에 `candidate`·`후보 확인 대기`·`search_strategy ≠ merge_confirmation` link 존재 |
+| `merge_confirmation` | 소유 사업기회에 `candidate`·`후보 확인 대기`·`search_strategy = merge_confirmation` link 존재 |
+| `blocking_item` | 연결 공고의 미답변 차단 항목 1개 이상 (기존 projection) |
+| `hold_overdue` | `tracking_status=보류` AND `tracking_selected_at + 14일 ≤ now` |
+
+보류 재검토 기한은 lifecycle 상수 `HOLD_REVIEW_PERIOD_DAYS=14`로 고정한다. `hold_review_due_at = tracking_selected_at + 14일`은 `보류`일 때만 값이 있고 저장하지 않는 파생값이다. 기준 시각은 요청마다 Python에서 timezone-aware UTC로 한 번 계산해 SQL 파라미터로 넘기므로 SQLite·PostgreSQL이 마이크로초까지 일치한다. `보류`를 다시 저장하면 `tracking_selected_at`이 갱신되어 기한이 새로 시작한다. `GET /api/opportunities`의 `hold_review=due_soon`은 `now < 기한 ≤ now+3일`, `attention`은 `overdue`와 `due_soon`의 합집합이다.
 
 #### 발주계획 일괄 추적 v1 wire·원자성
 
@@ -326,9 +366,9 @@ disabled 이전/다음 버튼을 제공한다.
 
 [ADR-0053](tracking/decisions/0053-decision-workload-read-contracts.md)의 읽기 전용 계약이다. 세 경로 모두 DB 열을 새로 만들지 않고 기존 목록과 **같은 모집단**을 센다.
 
-- `WorkloadResponse`: `generated_at`(UTC aware)과 `items[]`. item은 `key`, nullable `count`(0 이상), nullable `unavailable_reason` 셋뿐이다. `items`의 순서는 고정이며 `order_plan_pending`, `pre_spec_deep_review_ready`, `tracking_action_required`, `bid_final_decision_pending` 넷이 언제나 모두 있다.
+- `WorkloadResponse`: `generated_at`(UTC aware)과 `items[]`. item은 `key`, nullable `count`(0 이상), nullable `unavailable_reason` 셋뿐이다. `items`의 순서는 고정이며 `order_plan_pending`, `pre_spec_deep_review_ready`, `tracking_action_required`, `tracking_hold_review_due`, `bid_final_decision_pending` 다섯이 언제나 모두 있다(ADR-0053 §1·§4 갱신, spec §8).
 - **제공자 부재와 실제 0은 다르다.** 소유 모듈이 등록되지 않았으면 `count=null`·`unavailable_reason="provider_absent"`이고, screening이 있어도 완료된 C-2 실행이 없으면 `count=null`·`unavailable_reason="no_completed_execution"`이다. 셀 수 있었다면 정수와 `unavailable_reason=null`이다. `null`을 0으로, 0을 `null`로 접지 않는다.
-- 각 건수의 소유자는 모듈이다. `order_plan_pending`은 screening이 `GET /api/order-plans`의 최신 완료 실행 범위와 같은 필터(`stage1_status=selected`, `qwen_relevance=relevant,uncertain`, `tracking_status=미선택`)로, `pre_spec_deep_review_ready`는 deep_review가 `GET /api/pre-specs?auto_preparation_status=deep_review_ready_for_click&sw_only=false`와 같은 집합으로, `bid_final_decision_pending`은 deep_review가 `GET /api/bid-delta/decision-queue?status=pending`의 `total`과 같은 값으로 센다. `tracking_action_required`는 lifecycle이 `GET /api/opportunities`의 `조치 필요` 구역과 같은 첫 일치 규칙으로 직접 센다.
+- 각 건수의 소유자는 모듈이다. `order_plan_pending`은 screening이 `GET /api/order-plans`의 최신 완료 실행 범위와 같은 필터(`stage1_status=selected`, `qwen_relevance=relevant,uncertain`, `tracking_status=미선택`)로, `pre_spec_deep_review_ready`는 deep_review가 `GET /api/pre-specs?auto_preparation_status=deep_review_ready_for_click&sw_only=false`와 같은 집합으로, `bid_final_decision_pending`은 deep_review가 `GET /api/bid-delta/decision-queue?status=pending`의 `total`과 같은 값으로 센다. `tracking_action_required`와 `tracking_hold_review_due`는 lifecycle이 각각 `GET /api/opportunities`의 `조치 필요` 구역, `hold_review=overdue` 건수와 같은 첫 일치 규칙으로 직접 센다.
 - 심층 검토 목록 item은 `deep_review_id`, `notice_id`, nullable `notice_title`, `status`, nullable `quality_status`, `created_at`, nullable `current_attempt_status`, nullable `latest_final_opinion={value, decided_at}`다. 사업기회에 연결된 공고를 중복 제거해 읽으며 후보 링크도 포함한다 — 이 목록은 안전한 색인이지 소유권 확정이 아니다. 생성 시각 내림차순이고, 사업기회가 있고 실행이 없으면 200 빈 목록, 사업기회가 없으면 404다. `quality_status`의 `null`·참조·mock 의미를 승격하지 않는다.
 - 최종 결정 큐 item은 `opportunity_id`, nullable `title`, nullable `agency`, `tracking_status`, `first_registered_stage`, `recheck_signal`, nullable `bid_notice_external_id`, 정수 `comparison_count`, nullable `latest_final_decision={decision, decided_at, claimed_name}`, `decision_currentness=current|stale|unknown`이다. `pending`은 active·`계속 추적`·권위 있는 입찰공고 연결이면서 최종 결정이 없거나 그 결정이 `stale`인 건이다. 미결정 `unknown`은 포함하고 기결정 `unknown`은 제외한다. `all`은 입찰공고 미연결 건도 포함한다. 전체를 판정한 뒤 페이지를 자르며 미결정 우선·최근 등록순으로 정렬한다.
 - `GET /api/pre-specs`의 `auto_preparation_status`는 응답 필드와 같은 어휘의 optional 필터다. 기존 조건에 AND하며 `total`·`overview_status_counts`·페이지가 **같은 집합**을 읽는다. 제공자(deep_review)가 없으면 빈 집합이고, 그 빈 집합을 "제한하지 않음"으로 바꾸지 않는다. 인자를 주지 않으면 필터가 없다.
@@ -685,6 +725,49 @@ provenance v1 필드는 `schema_version`, `generated_at`, nullable `source_raw`,
 이 선택 필드를 가질 수 있다. 발주계획 전체 원본은 공고 계약의 조용한 확장이 아니라 아래의
 독립적인 `collected-order-plans.json` / `bidops.collected-order-plans.v1`로 분리한다.
 
+`bidops.collected.v2`는 사업 추적 연결을 위한 optional 필드 넷을 추가로 가질 수 있다(spec §1.2,
+2026-09-17). 모두 미확인이면 `null`이고 기존 필드의 의미는 바꾸지 않는다.
+
+| 필드 | 원천 | 값 |
+|---|---|---|
+| 사전규격 `demand_agency` | `rlDminsttNm` | 문자열 또는 `null`. 기존 `agency`는 발주기관(`orderInsttNm`) 그대로 |
+| 입찰공고 `lifecycle.opening_at` | `opengDt` | timezone-aware ISO 또는 `null` |
+| 입찰공고 `qualification_flags.sw_industry_1468` | 1468(소프트웨어사업자) 업종 조회 | `Y`(포함)·`N`(조회 성공·미포함)·`null`(조회 실패·부분 수집) |
+| 발주계획 `bid_ntice_no_list` | `bidNtceNoList` | `collect_order_plans.py`의 필드명 오타를 고친 뒤 원문 값 |
+
+`sw_industry_1468`은 수집기 플래그 `--tag-bid-sw-industry`로 켠 조회이며 1468 조회 원문은
+`raw/industry1468-page-NNN.json`으로 별도 보관한다(파일명이 `bid-`로 시작하지 않으므로 재분류가
+입찰공고 raw 페이지로 잘못 읽지 않는다). 수집 파일 최상위 `metadata.sw_industry_1468`에
+`{status: complete|failed|partial|not_requested, total, pages}`를 남긴다. 조회가 실패·부분이면
+그 회차의 모든 입찰공고 `sw_industry_1468`이 `null`이고 수집기는 경고와 함께 비0 종료 코드로
+끝나 일일 스크립트가 적재 전에 멈춘다(다음 날 창에서 다시 조회). `demand_agency`·
+`lifecycle.opening_at`·`qualification_flags.sw_industry_1468`은 값이 `null`이면 관측 snapshot에
+넣지 않고, `demand_agency`는 값이 있어도 snapshot에 넣지 않는다(C-1 판정 입력이 이 필드를 싣지
+않으므로 같은 회차 C-1 적재와 snapshot hash가 충돌하지 않는다). `Notice.demand_agency` DB 열에는
+저장한다.
+
+### 적재 CLI와 수집 색인 (spec §2)
+
+`python -m app.lifecycle.ingest.cli`는 세 모드를 갖는다(`--run`/`--all`은 상호 배타).
+
+| 모드 | 뜻 |
+|---|---|
+| `--run <회차>`(기본 `selection="validation"`) | 검증 표본(`validation-set.json`)이나 C-1 입력(`screening-input.json`)의 공고만 적재한다. 발주계획은 전량 적재한다. 기존 C-1 적재 경로이며 코드의 실제 selector 값은 `validation`이다 |
+| `--run <회차> --collection`(`selection="collection"`) | 표본이 없어도 오류가 아니다. `collected-order-plans.json`·`collected-notices.json`의 모든 레코드를 `collected_record_index`(migration `0027`)에 한 행씩 남기고, 선별 규칙(아래 표)에 맞는 레코드만 같은 적재 경로로 적재한다 |
+| `--tracked-backfill` | `계속 추적`·`보류` 사업기회가 가리키는 색인의 미적재 레코드를 찾아 적재한다(추적 상태 저장 직후와 daily 스크립트 마지막 단계에서도 호출) |
+
+선별 사유 코드(`ck_collected_record_index_selection_reason`과 같은 닫힌 집합)는
+`order_plan_all`, `pre_spec_sw`, `pre_spec_referenced`, `pre_spec_known`, `bid_same_notice_no`,
+`bid_tracked_reference`, `bid_sw_prespec_reference`, `bid_sw_industry_competitive`,
+`tracked_backfill`, `search_result` 10개다. 조건에 쓰는 값이 `null`이면 그 조건은 불일치로 보고
+색인에만 남긴다(추정 적재하지 않는다). `--collection` 적재의 `IngestResult.selection`과
+`run.counts_json["selection"]`은 원천(`order_plan`·`pre_spec`·`bid_notice`)별
+`{collected, selected: {사유코드: 건수}, skipped}`이며 `collected = sum(selected) + skipped`가
+항상 성립한다. 이 통계는 **그 회차 적재 시점의 선별 결과 snapshot**이다 — 나중에 추적 보충
+(`--tracked-backfill`)이나 찾아보기(`POST /api/opportunities/{id}/searches`)로 적재된 레코드는
+색인 행의 `selection_reason`에만 반영되고 회차 통계는 다시 쓰지 않는다. 같은 회차 재실행은
+색인 unique 제약과 관측 snapshot 검사로 no-op이다.
+
 발주계획 artifact의 canonical `order_plans[]`는 실측 API 필드를 다음처럼 보존·정규화한다.
 
 artifact의 `metadata`에는 endpoint 식별자와 적용한 업무구분 범위를 함께 남긴다. 현재
@@ -804,7 +887,10 @@ snapshot의 후보 참조 세 열은 이 경우 함께 null이며 원본·PDF·�
 
 ## DB와 migration 계약
 
-- 코드와 승인 적용된 운영 DB의 Alembic head는 `0025_overview_claim_ledger`이다. 이번 MVP 보완에서는 migration을 실행하지 않았다. 그 이전 T-23 phase 2
+- 이 작업 브랜치의 Alembic head는 `0028_final_decision_basis`다(`app/core/db.py:103`). `main`의 head는
+  `0026_overview_mvp`이고 `0027`·`0028`은 2026-09-17 기준 미병합 브랜치에만 있다. 운영 DB 적용 기록은
+  `docs/tracking/status.md`가 정본이다(기록상 `0025_overview_claim_ledger`까지). `0019`~`0026`은 이 목록에 개별 bullet이 없고 각자의 계약
+  절(사전규격 개요 §`0026`은 위 "사전규격 개요 검토" §DB 참조)에서 다룬다. 그 이전 T-23 phase 2
   migration은 `0014_prespec_overview_attempt_result`이며, 아래 T-23 검증 증거는 `0014`
   경계에 해당한다.
 - `0001_lean_v1_postgresql`은 기존 수집·리뷰와 심층 검토 table, `0002_screening_basis_text`는 긴 판정 설명 보존, `0003_screening_runtime_pg`는 판정 실행·품질·정책·일정·감사와 불변 trigger를 추가한다.
@@ -831,6 +917,25 @@ snapshot의 후보 참조 세 열은 이 경우 함께 null이며 원본·PDF·�
   `(structure_id, taxonomy_version, extractor_binding_sha256)`다. runtime role에는 SELECT와
   INSERT만 준다. downgrade는 `priority_grade` 행, `deployable=false` 완료 attempt, 세 table의
   행이 하나라도 있으면 추정 보정 없이 거부한다.
+- `0027_collection_index_and_linkage`는 `collected_record_index`(선별 여부와 무관하게 수집
+  레코드마다 한 행, unique `(run_id, record_kind, record_key)`)와 자식 `collected_record_token`
+  (`bidNtceNoList` 토큰)을 추가한다. `notice.demand_agency`(사전규격 수요기관)와 같은 공고번호의
+  다른 차수 조회용 `ix_notice_bid_no`(기존 `0001`로 생성된 신규 DB에는 이미 있음, 기존 DB에만
+  추가)도 더한다. `opportunity_link`의 `ck_opportunity_link_status`에 `사람 확인 병합`,
+  `ck_opportunity_link_search_strategy`에 `merge_confirmation`을 더하고 `검색 미확인` 행이 어느
+  종류를 찾다 실패했는지 구분하는 nullable `search_target_kind`(`pre_spec`·`bid_notice`)와 CHECK를
+  추가한다. downgrade는 색인 행, non-null `demand_agency`, 새 status·strategy·search_target_kind
+  값이 하나라도 있으면 거부한다. 권한: app SELECT/INSERT와 색인의 `selection_reason`·
+  `ingested_*` 열 UPDATE, worker SELECT; 토큰 table은 app SELECT/INSERT.
+- `0028_final_decision_basis`(ADR-0058)는 `bid_final_decision`의 비교 5열
+  (`comparison_id`·`comparison_version`·`result_sha256`·양쪽 document version ID)을 nullable로
+  바꾸고, `basis_kind`(`comparison`\|`notice_conditions`, NOT NULL, 기존 행은 `comparison`),
+  `basis_notice_id`(FK `notice`), `basis_observation_sha256`(64 hex)을 추가한다. CHECK는 근거가
+  `comparison`이면 비교 5열이 모두 있고 basis 두 열이 비고, `notice_conditions`면 그 반대임을
+  강제한다. `ADD COLUMN ... DEFAULT`로 기존 행을 채운 뒤 기본값은 지워 새 INSERT가 근거를
+  명시하게 한다. append-only trigger·unique·supersession FK는 그대로다. downgrade는
+  `notice_conditions` 행이 하나라도 있으면 거부한다. 권한: app에 `bid_final_decision` INSERT와
+  tip 잠금용 `UPDATE (id)`를 추가하며 비교·attempt·item·evidence 권한은 바꾸지 않는다.
 - 앱 startup은 revision과 필수 table 존재만 확인한다. migration과 seed를 실행하지 않는다.
 - fresh migration은 schedule과 always-on singleton, migration audit만 만든다. screening policy와 agency portal은 명시적 운영 명령 또는 API로 생성한다.
 - active screening slot과 active policy는 각각 최대 하나다. queue claim은 queue number FIFO와 짧은 transaction으로 처리한다. deep-review job claim은 PostgreSQL row lock과 `SKIP LOCKED`를 사용한다.
