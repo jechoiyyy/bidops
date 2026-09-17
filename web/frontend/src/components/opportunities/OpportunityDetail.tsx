@@ -16,33 +16,50 @@ import {
   type TrackingException,
 } from "../../lib/opportunity";
 import { qualityStatusLabel, qualityStatusVariant } from "../../lib/qualityStatus";
-import type { NoticeDetailResponse, OpportunityDetailResponse, OpportunityLinkView } from "../../lib/types";
+import type {
+  NoticeDetailResponse,
+  OpportunityLinkView,
+  OpportunitySearchResponse,
+  OpportunitySearchTarget,
+} from "../../lib/types";
 import { CandidateLinkDialog } from "./CandidateLinkDialog";
 import { NoticeCorrectionDialog } from "./NoticeCorrectionDialog";
+import { RecheckAcknowledgement } from "./RecheckAcknowledgement";
+import { RecordSearchPanel } from "./RecordSearchPanel";
+import { TrackingHistory } from "./TrackingHistory";
 import { TrackingStatusDialog } from "./TrackingStatusDialog";
 import {
+  actionReasonsOf,
   connectionLabel,
   formatMoment,
+  holdReviewText,
   isConfirmedLink,
   isPendingCandidate,
   isRejectedCandidate,
   latestConfirmedStage,
   nextCheckOf,
+  pendingCandidateFor,
   primaryAgency,
   primaryTitle,
   recordRoute,
   recordRouteLabel,
+  searchStrategyLabel,
+  searchTargetKindOf,
+  searchTargetLabel,
   stageOfLink,
   stageViews,
+  visibleUnconfirmedSearches,
+  type LifecycleStage,
+  type OpportunityDetailIntent,
 } from "./trackingFlow";
 
 /**
  * 사업 추적 상세. 분할 화면의 오른쪽 pane과 단독 상세 route가 같이 쓴다.
  *
- * 세 탭은 승인된 시안 그대로다.
- *   사업 흐름       — 3단계 연결 현황, 다음 확인 하나, 연결된 공고
- *   확인 사항       — 사람이 해소해야 할 예외와 그 처리 경로
- *   최근 추적 결정  — 서버가 여는 가장 최근 결정 한 건
+ * 세 탭.
+ *   사업 흐름   — 3단계 연결 현황(찾아보기 포함), 다음 확인 하나, 연결된 공고
+ *   확인 사항   — 사람이 해소해야 할 예외와 그 처리 경로(새 공고 확인 완료 포함)
+ *   추적 이력   — 현재 추적 결정과, 결정 revision·재검토 신호 이벤트의 시간순 이력
  *
  * 3단계 줄의 체크 표시는 **연결 확정**만 뜻한다. 분석 완료나 입찰 참여 승인이
  * 아니며, 최종 Go/No-Go는 다른 화면이 갖는다.
@@ -102,9 +119,14 @@ export interface OpportunityDetailProps {
   onSaved: (message: string) => void;
   opportunityId: number;
   returnSearch: string;
+  /**
+   * 목록 행의 주 행동이 요청한 자리. `nonce`가 바뀔 때마다 한 번 연다(같은 행을 다시
+   * 눌러도 다시 열린다). 단독 상세는 넘기지 않는다.
+   */
+  intent?: { action: OpportunityDetailIntent; nonce: number } | null;
 }
 
-export function OpportunityDetail({ onDirtyChange, onSaved, opportunityId, returnSearch }: OpportunityDetailProps) {
+export function OpportunityDetail({ intent = null, onDirtyChange, onSaved, opportunityId, returnSearch }: OpportunityDetailProps) {
   const [tab, setTab] = useState<DetailTab>("flow");
   const [dialog, setDialog] = useState<OpenDialog>(null);
   // 확인 사항 패널은 늘 그려 두지만(연결 화면으로 가는 길이 항상 DOM에 있어야
@@ -112,7 +134,11 @@ export function OpportunityDetail({ onDirtyChange, onSaved, opportunityId, retur
   // 화면이 서버 부하를 만든다.
   const [checksOpened, setChecksOpened] = useState(false);
   const [dirtySources, setDirtySources] = useState<Record<string, boolean>>({});
+  const [searchTarget, setSearchTarget] = useState<OpportunitySearchTarget | null>(null);
+  const [searchResult, setSearchResult] = useState<OpportunitySearchResponse | null>(null);
+  const [recheckNotice, setRecheckNotice] = useState<string | null>(null);
   const scroll = useRef<HTMLDivElement>(null);
+  const handledIntent = useRef<number | null>(null);
 
   const setSourceDirty = useCallback((key: string, dirty: boolean) => {
     setDirtySources((current) => (Boolean(current[key]) === dirty ? current : { ...current, [key]: dirty }));
@@ -120,6 +146,7 @@ export function OpportunityDetail({ onDirtyChange, onSaved, opportunityId, retur
   const trackingDirty = useCallback((dirty: boolean) => setSourceDirty("tracking", dirty), [setSourceDirty]);
   const candidateDirty = useCallback((dirty: boolean) => setSourceDirty("candidate", dirty), [setSourceDirty]);
   const noticeDirty = useCallback((dirty: boolean) => setSourceDirty("notice", dirty), [setSourceDirty]);
+  const recheckDirty = useCallback((dirty: boolean) => setSourceDirty("recheck", dirty), [setSourceDirty]);
 
   const detail = useQuery({
     queryKey: ["opportunity", opportunityId],
@@ -153,7 +180,31 @@ export function OpportunityDetail({ onDirtyChange, onSaved, opportunityId, retur
     setChecksOpened(false);
     setDialog(null);
     setDirtySources({});
+    setSearchTarget(null);
+    setSearchResult(null);
+    setRecheckNotice(null);
   }, [opportunityId]);
+
+  // 목록 행의 주 행동. 상세를 읽은 뒤 요청 번호마다 한 번만 연다. 후보가 이미 처리돼
+  // 목록과 상세가 어긋나면 대화상자를 지어내지 않고 확인 사항을 연다.
+  useEffect(() => {
+    if (!intent || !item || handledIntent.current === intent.nonce) return;
+    handledIntent.current = intent.nonce;
+    const action = intent.action;
+    if (action.kind === "tracking") {
+      setDialog({ kind: "tracking" });
+      return;
+    }
+    if (action.kind === "candidate" && action.linkId !== null) {
+      const linkId = action.linkId;
+      if (item.links.some((link) => link.id === linkId && isPendingCandidate(link))) {
+        setDialog({ kind: "candidate", linkId });
+        return;
+      }
+    }
+    setChecksOpened(true);
+    setTab("checks");
+  }, [intent, item]);
 
   useEffect(() => {
     if (scroll.current) scroll.current.scrollTop = 0;
@@ -175,8 +226,9 @@ export function OpportunityDetail({ onDirtyChange, onSaved, opportunityId, retur
   const stages = stageViews(links);
   const nextCheck = nextCheckOf(item);
   const pendingCandidates = links.filter(isPendingCandidate);
-  const unconfirmedSearches = links.filter((link) => link.status === "검색 미확인");
-  const unstagedLinks = links.filter((link) => stageOfLink(link) === null);
+  const unconfirmedSearches = visibleUnconfirmedSearches(links);
+  const visibleLinks = links.filter((link) => link.status !== "검색 미확인" || unconfirmedSearches.includes(link));
+  const unstagedLinks = visibleLinks.filter((link) => stageOfLink(link) === null);
   const notices = noticeQueries
     .map((query) => query.data)
     .filter((data): data is NoticeDetailResponse => Boolean(data));
@@ -185,10 +237,24 @@ export function OpportunityDetail({ onDirtyChange, onSaved, opportunityId, retur
   const verificationExceptions: TrackingException[] = notices.flatMap((notice) => noticeVerificationExceptions(notice));
   const signalLink = links.find((link) => link.id === item.recheck_signal_link_id) ?? null;
   const bidNoticeLink = links.find((link) => stageOfLink(link) === "입찰공고" && isConfirmedLink(link)) ?? null;
+  const holdOverdue = actionReasonsOf(item).includes("hold_overdue");
+  const holdText = holdReviewText(item);
   const openIssueCount = item.pending_candidate_link_count
     + (item.recheck_signal ? 1 : 0)
     + item.open_blocking_item_count
-    + unconfirmedSearches.length;
+    + unconfirmedSearches.length
+    + (holdOverdue ? 1 : 0);
+
+  // 찾아보기의 기준이 되는 소유 레코드(spec §4.3). 단계가 확정됐거나 대기 후보가 있으면
+  // 찾아보기 대신 그 연결을 본다.
+  const ownsStage = (stage: LifecycleStage) => links.some((link) => stageOfLink(link) === stage && isConfirmedLink(link));
+  const searchableTarget = (stage: LifecycleStage): OpportunitySearchTarget | null => {
+    const view = stages.find((entry) => entry.stage === stage);
+    if (!view || view.confirmed || view.candidate) return null;
+    if (stage === "사전규격") return ownsStage("발주계획") ? "pre_spec" : null;
+    if (stage === "입찰공고") return ownsStage("사전규격") || ownsStage("발주계획") ? "bid_notice" : null;
+    return null;
+  };
 
   const openTracking = () => setDialog({ kind: "tracking" });
   const openCandidate = (linkId: number) => setDialog({ kind: "candidate", linkId });
@@ -199,20 +265,26 @@ export function OpportunityDetail({ onDirtyChange, onSaved, opportunityId, retur
 
   const primaryAction = () => {
     if (nextCheck.key === "tracking_decision") return { label: "추적 여부 선택", run: openTracking };
-    if (nextCheck.key === "candidate_link" && pendingCandidates[0]) {
-      const first = pendingCandidates[0];
-      return { label: "후보 연결 확인", run: () => openCandidate(first.id) };
+    if (nextCheck.key === "candidate_link" || nextCheck.key === "merge_confirmation") {
+      const first = pendingCandidateFor(links, nextCheck.key === "merge_confirmation" ? "merge_confirmation" : "candidate_pending");
+      if (first) return { label: "후보 연결 확인", run: () => openCandidate(first.id) };
     }
+    if (nextCheck.key === "hold_overdue") return { label: "재검토", run: openTracking };
     if (nextCheck.key === "recheck" || nextCheck.key === "blocking_item" || nextCheck.key === "search_unconfirmed") {
       return { label: "확인 사항 열기", run: openChecks };
     }
     if (nextCheck.key === "hold_reason" || nextCheck.key === "end_reason") {
-      return { label: "최근 결정 보기", run: () => setTab("decision") };
+      return { label: "추적 이력 보기", run: () => setTab("decision") };
     }
     return { label: "연결 공고 보기", run: () => setTab("flow") };
   };
   const action = primaryAction();
   const latestDecision = decisions.data?.items[0] ?? null;
+  const dialogCandidate = dialog?.kind === "candidate"
+    ? links.find((link) => link.id === dialog.linkId)
+      ?? searchResult?.candidates.find((link) => link.id === dialog.linkId)
+      ?? null
+    : null;
 
   return (
     <div className="opportunity-detail">
@@ -247,7 +319,7 @@ export function OpportunityDetail({ onDirtyChange, onSaved, opportunityId, retur
           panelId="opportunity-panel-checks"
           value="checks"
         />
-        <Tab label="최근 추적 결정" panelId="opportunity-panel-decision" value="decision" />
+        <Tab label="추적 이력" panelId="opportunity-panel-decision" value="decision" />
       </TabList>
 
       <div className="opportunity-detail-scroll" ref={scroll}>
@@ -258,20 +330,33 @@ export function OpportunityDetail({ onDirtyChange, onSaved, opportunityId, retur
               <p className="opportunity-caption">확정된 최근 단계 · {latestConfirmedStage(links)}</p>
             </div>
             <ol className="opportunity-lifecycle">
-              {stages.map((view, index) => (
-                <li
-                  className={view.confirmed ? "is-confirmed" : view.candidate ? "is-candidate" : "is-unknown"}
-                  key={view.stage}
-                >
-                  <div className="opportunity-row">
-                    <span aria-hidden="true" className="opportunity-step">
-                      {view.confirmed ? <Check /> : index + 1}
-                    </span>
-                    <p><strong>{view.stage}</strong></p>
-                  </div>
-                  <p className="opportunity-connection-label">{view.connection}</p>
-                </li>
-              ))}
+              {stages.map((view, index) => {
+                const target = searchableTarget(view.stage);
+                return (
+                  <li
+                    className={view.confirmed ? "is-confirmed" : view.candidate ? "is-candidate" : "is-unknown"}
+                    key={view.stage}
+                  >
+                    <div className="opportunity-row">
+                      <span aria-hidden="true" className="opportunity-step">
+                        {view.confirmed ? <Check /> : index + 1}
+                      </span>
+                      <p><strong>{view.stage}</strong></p>
+                    </div>
+                    <p className="opportunity-connection-label">{view.connection}</p>
+                    {target ? (
+                      <Button
+                        aria-expanded={searchTarget === target}
+                        className="opportunity-stage-search"
+                        label={`${view.stage} 찾아보기`}
+                        onClick={() => setSearchTarget(searchTarget === target ? null : target)}
+                        size="sm"
+                        variant="ghost"
+                      />
+                    ) : null}
+                  </li>
+                );
+              })}
             </ol>
             <p className="opportunity-caption">
               체크 = <strong>연결 확정</strong> · 분석 완료·입찰 참여 승인은 별도입니다.
@@ -279,6 +364,17 @@ export function OpportunityDetail({ onDirtyChange, onSaved, opportunityId, retur
                 ? ` 단계를 알 수 없는 연결 ${unstagedLinks.length}건은 아래 목록에 있습니다.`
                 : ""}
             </p>
+            {searchTarget ? (
+              <RecordSearchPanel
+                key={searchTarget}
+                onClose={() => setSearchTarget(null)}
+                onOpenCandidate={(candidate) => openCandidate(candidate.id)}
+                onResult={setSearchResult}
+                opportunityId={item.id}
+                result={searchResult}
+                target={searchTarget}
+              />
+            ) : null}
           </section>
 
           <section className="opportunity-next-check">
@@ -292,13 +388,13 @@ export function OpportunityDetail({ onDirtyChange, onSaved, opportunityId, retur
           <section className="opportunity-linked-section">
             <div className="opportunity-row opportunity-spread">
               <h4>연결된 공고</h4>
-              <p className="opportunity-caption">후보·검색 기록 포함 {links.length}건</p>
+              <p className="opportunity-caption">후보·검색 기록 포함 {visibleLinks.length}건</p>
             </div>
-            {links.length === 0 ? (
+            {visibleLinks.length === 0 ? (
               <p className="opportunity-caption">저장된 연결이 없습니다. 연결이 없다는 뜻이며 레코드가 없다는 뜻은 아닙니다.</p>
             ) : (
               <ul className="opportunity-linked-rows">
-                {links.map((link) => (
+                {visibleLinks.map((link) => (
                   <LinkedRow key={link.id} link={link} onCompare={() => openCandidate(link.id)} onOpenChecks={openChecks} />
                 ))}
               </ul>
@@ -321,25 +417,34 @@ export function OpportunityDetail({ onDirtyChange, onSaved, opportunityId, retur
                 연결된 공고 {noticesFailed}건을 읽지 못해 그 공고의 확인 항목은 이 목록에 없습니다. 예외가 없다는 뜻이 아닙니다.
               </MutationFeedback>
             ) : null}
+            {recheckNotice ? (
+              <MutationFeedback className="opportunity-recheck-notice" tone="warning">{recheckNotice}</MutationFeedback>
+            ) : null}
 
-            {pendingCandidates.map((link) => (
-              <div className="opportunity-check-item" key={`candidate-${link.id}`}>
-                <CircleHelp aria-hidden="true" />
-                <div>
-                  <p><strong>연결 후보 확인 · {stageOfLink(link) ?? linkRecordLabel(link)}</strong></p>
-                  <p>
-                    공식 통합번호 없이 이름 검색으로 발견한 후보입니다. 원천의 사업명과 기관을 비교한 뒤 수용·기각을
-                    선택합니다. 화면이 대신 확정하지 않습니다.
-                  </p>
-                  <div className="opportunity-check-actions">
-                    <Button label="후보 연결 확인" onClick={() => openCandidate(link.id)} size="sm" />
+            {pendingCandidates.map((link) => {
+              const merge = link.search_strategy === "merge_confirmation";
+              return (
+                <div className="opportunity-check-item" key={`candidate-${link.id}`}>
+                  <CircleHelp aria-hidden="true" />
+                  <div>
+                    <p><strong>{merge ? "병합 확인" : "연결 후보 확인"} · {stageOfLink(link) ?? linkRecordLabel(link)}</strong></p>
+                    <p>
+                      {merge
+                        ? "공식 번호로 이어진 레코드가 사람이 고른 추적 상태를 가진 다른 사업기회에 있어 자동으로 병합하지 않았습니다. 원천 정보를 비교한 뒤 수용하면 두 사업기회가 병합됩니다."
+                        : "공식 통합번호 없이 이름 검색으로 발견한 후보입니다. 원천의 사업명과 기관을 비교한 뒤 수용·기각을 선택합니다."}
+                      {" "}화면이 대신 확정하지 않습니다.
+                    </p>
+                    <p className="opportunity-caption">검색 방식 · {searchStrategyLabel(link.search_strategy)}</p>
+                    <div className="opportunity-check-actions">
+                      <Button label="후보 연결 확인" onClick={() => openCandidate(link.id)} size="sm" />
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
 
             {item.recheck_signal ? (
-              <div className="opportunity-check-item">
+              <div className="opportunity-check-item opportunity-recheck-item">
                 <CircleHelp aria-hidden="true" />
                 <div>
                   <p><strong>새 공고 재검토</strong></p>
@@ -349,19 +454,46 @@ export function OpportunityDetail({ onDirtyChange, onSaved, opportunityId, retur
                   </p>
                   <p className="opportunity-caption">
                     근거 · {signalLink
-                      ? `${stageOfLink(signalLink) ?? linkRecordLabel(signalLink)} · ${externalIdOf(signalLink)}`
+                      ? `${stageOfLink(signalLink) ?? linkRecordLabel(signalLink)} · ${signalLink.title?.trim() || "제목 미확인"} · ${externalIdOf(signalLink)}`
                       : "근거 링크를 찾지 못했습니다"}
                   </p>
-                  <div className="opportunity-check-actions">
-                    {signalLink && recordRoute(signalLink) ? (
+                  <p className="opportunity-caption">신호 시각 · {formatMoment(item.recheck_signal_at)}</p>
+                  {signalLink && recordRoute(signalLink) ? (
+                    <div className="opportunity-check-actions">
                       <Link className="opportunity-linked-link" to={recordRoute(signalLink) as string}>
                         {recordRouteLabel(signalLink)} →
                       </Link>
-                    ) : null}
-                  </div>
+                    </div>
+                  ) : null}
                   <p className="opportunity-caption">
                     변경 비교 결과 · 계산 대기. 아직 비교 결과가 없습니다.
                   </p>
+                  <RecheckAcknowledgement
+                    key={`${item.id}:${item.recheck_signal_link_id ?? "none"}`}
+                    onDirtyChange={recheckDirty}
+                    onSaved={(message) => {
+                      setRecheckNotice(null);
+                      onSaved(message);
+                    }}
+                    onStale={setRecheckNotice}
+                    opportunity={item}
+                  />
+                </div>
+              </div>
+            ) : null}
+
+            {holdOverdue ? (
+              <div className="opportunity-check-item">
+                <CircleHelp aria-hidden="true" />
+                <div>
+                  <p><strong>보류 재검토 · {holdText ?? "보류 기한 지남"}</strong></p>
+                  <p>
+                    보류로 저장한 뒤 재검토 기한({formatMoment(item.hold_review_due_at)})이 지났습니다. 보류는 자동으로
+                    풀리지 않으며, 추적 상태를 다시 저장하면 기한이 새로 시작합니다.
+                  </p>
+                  <div className="opportunity-check-actions">
+                    <Button label="재검토" onClick={openTracking} size="sm" />
+                  </div>
                 </div>
               </div>
             ) : null}
@@ -400,20 +532,25 @@ export function OpportunityDetail({ onDirtyChange, onSaved, opportunityId, retur
               );
             })}
 
-            {unconfirmedSearches.map((link) => (
-              <div className="opportunity-search-log" key={`search-${link.id}`}>
-                <p><strong>연결 근거 확인 · {stageOfLink(link) ?? linkRecordLabel(link)}</strong></p>
-                <p>
-                  이름 검색에서 레코드를 찾지 못했습니다. 레코드가 없다는 뜻이 아니며, 이 화면이 만들어 낼 수 있는
-                  연결도 아닙니다.
-                </p>
-                <p className="opportunity-caption">
-                  검색 방식 · {link.search_strategy ?? "미확인"}
-                  {link.attempted_strategies.length > 0 ? ` · 시도 ${link.attempted_strategies.join(", ")}` : ""}
-                </p>
-                <p className="opportunity-caption">마지막 검색 · {formatMoment(link.last_searched_at)}</p>
-              </div>
-            ))}
+            {unconfirmedSearches.map((link) => {
+              const target = searchTargetKindOf(link);
+              return (
+                <div className="opportunity-search-log" key={`search-${link.id}`}>
+                  <p><strong>연결 근거 확인 · {target ? searchTargetLabel(target) : linkRecordLabel(link)}</strong></p>
+                  <p>
+                    이름 검색에서 레코드를 찾지 못했습니다. 레코드가 없다는 뜻이 아니며, 이 화면이 만들어 낼 수 있는
+                    연결도 아닙니다.
+                  </p>
+                  <p className="opportunity-caption">
+                    검색 방식 · {searchStrategyLabel(link.search_strategy)}
+                    {link.attempted_strategies.length > 0
+                      ? ` · 시도 ${link.attempted_strategies.map(searchStrategyLabel).join(", ")}`
+                      : ""}
+                  </p>
+                  <p className="opportunity-caption">검색 미확인 · 마지막 검색 {formatMoment(link.last_searched_at)}</p>
+                </div>
+              );
+            })}
 
             {openIssueCount === 0 && !noticesLoading ? (
               <div className="opportunity-quiet-state">
@@ -453,16 +590,16 @@ export function OpportunityDetail({ onDirtyChange, onSaved, opportunityId, retur
           </section>
         </div>
 
-        <div aria-label="최근 추적 결정" hidden={tab !== "decision"} id="opportunity-panel-decision" role="tabpanel">
+        <div aria-label="추적 이력" hidden={tab !== "decision"} id="opportunity-panel-decision" role="tabpanel">
           <section className="opportunity-decision-panel">
             <div className="opportunity-row opportunity-spread">
-              <h4>가장 최근 추적 결정</h4>
+              <h4>현재 추적 결정</h4>
               <Token label={item.tracking_status} size="sm" />
             </div>
             {decisions.isPending ? <p className="opportunity-detail-status" role="status">불러오는 중…</p> : null}
             {decisions.isError ? (
               <MutationFeedback tone="warning">
-                최근 추적 결정 기록을 불러오지 못했습니다. 아래는 사업기회에 저장된 현재 추적 값이며 결정 기록 자체가
+                추적 이력을 불러오지 못했습니다. 아래는 사업기회에 저장된 현재 추적 값이며 결정 기록 자체가
                 없다는 뜻이 아닙니다.
               </MutationFeedback>
             ) : null}
@@ -488,14 +625,30 @@ export function OpportunityDetail({ onDirtyChange, onSaved, opportunityId, retur
                 <dd>{formatMoment(latestDecision?.decided_at ?? item.tracking_selected_at)}</dd>
               </div>
             </dl>
-            <p className="opportunity-caption">
-              이 화면에서는 가장 최근 결정 한 건을 보여줍니다.
-              {latestDecision?.previous_tracking_status
-                ? ` 이전 상태 · ${latestDecision.previous_tracking_status} → ${latestDecision.tracking_status}.`
-                : ""}
-              {" "}결정 기록자는 감사 표식이며 담당자 지정이나 신원 인증이 아닙니다.
-            </p>
+            {holdText ? <p className="opportunity-caption">보류 재검토 기한 · {holdText} ({formatMoment(item.hold_review_due_at)})</p> : null}
+            <p className="opportunity-caption">결정 기록자는 감사 표식이며 담당자 지정이나 신원 인증이 아닙니다.</p>
           </section>
+
+          {decisions.isSuccess ? (
+            <section aria-labelledby="opportunity-history-title" className="opportunity-history-section">
+              <div className="opportunity-row opportunity-spread">
+                <h4 id="opportunity-history-title">추적 이력</h4>
+                <p className="opportunity-caption">
+                  결정 {decisions.data.items.length}건 · 재검토 신호 {decisions.data.recheck_events?.length ?? 0}건
+                </p>
+              </div>
+              <p className="opportunity-caption">결정 기록과 재검토 신호 기록을 시간순(최신이 위)으로 함께 보여줍니다.</p>
+              {decisions.data.items.length + (decisions.data.recheck_events?.length ?? 0) === 0 ? (
+                <p className="opportunity-caption">기록된 이력이 없습니다.</p>
+              ) : (
+                <TrackingHistory
+                  decisions={decisions.data.items}
+                  events={decisions.data.recheck_events ?? []}
+                  links={links}
+                />
+              )}
+            </section>
+          ) : null}
         </div>
       </div>
 
@@ -529,9 +682,9 @@ export function OpportunityDetail({ onDirtyChange, onSaved, opportunityId, retur
         opportunity={item}
         title={title}
       />
-      {dialog?.kind === "candidate" && links.some((link) => link.id === dialog.linkId) ? (
+      {dialog?.kind === "candidate" && dialogCandidate ? (
         <CandidateLinkDialog
-          candidate={links.find((link) => link.id === dialog.linkId) as OpportunityLinkView}
+          candidate={dialogCandidate}
           links={links}
           onDirtyChange={candidateDirty}
           onOpenChange={(next) => setDialog(next ? dialog : null)}
