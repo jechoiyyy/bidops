@@ -42,6 +42,7 @@ from .overview_range import (
     _bounded_object,
     _canonical,
     _filename_document_candidate,
+    _filename_task_order_candidate,
     _sha256_bytes,
     _sha256_json,
     _SHA256,
@@ -158,16 +159,28 @@ def _assert_source_pdf_provenance(
 
 
 def choose_rfp_document(documents: Iterable[DocumentVersion]) -> DocumentCandidateSelection:
-    """Reuse the established filename-only RFP selection rule.
+    """Filename-only RFP selection: 제안요청서 first, 과업지시서 as fallback.
+
+    제안요청서 후보가 정확히 하나면 그것을 선택한다. 제안요청서 후보가 둘 이상이면
+    과업지시서로 내려가지 않고 `ambiguous_rfp_filename`이다. 제안요청서 후보가
+    없을 때만 과업지시서 후보를 본다 — 하나면 선택하고, 둘 이상이면
+    `ambiguous_rfp_filename`, 없으면 `rfp_filename_missing`이다 (2026-09-17
+    사용자 결정, 2026-09-07 결정 갱신).
 
     Currentness/safety belong to the DB preparation caller.  This pure helper
     intentionally never chooses by role, upload time, extension, or UUID.
     """
 
-    candidates = [item for item in documents if _filename_document_candidate(item.original_filename)]
-    if len(candidates) == 1:
-        return DocumentCandidateSelection(candidates[0], None)
-    if len(candidates) > 1:
+    materialised = list(documents)
+    rfp_candidates = [item for item in materialised if _filename_document_candidate(item.original_filename)]
+    if len(rfp_candidates) == 1:
+        return DocumentCandidateSelection(rfp_candidates[0], None)
+    if len(rfp_candidates) > 1:
+        return DocumentCandidateSelection(None, "ambiguous_rfp_filename")
+    task_order_candidates = [item for item in materialised if _filename_task_order_candidate(item.original_filename)]
+    if len(task_order_candidates) == 1:
+        return DocumentCandidateSelection(task_order_candidates[0], None)
+    if len(task_order_candidates) > 1:
         return DocumentCandidateSelection(None, "ambiguous_rfp_filename")
     return DocumentCandidateSelection(None, "rfp_filename_missing")
 
