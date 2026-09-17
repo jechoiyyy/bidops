@@ -887,9 +887,9 @@ snapshot의 후보 참조 세 열은 이 경우 함께 null이며 원본·PDF·�
 
 ## DB와 migration 계약
 
-- 코드의 Alembic head는 `0028_final_decision_basis`다(`app/core/db.py:103`). 2026-09-17 시점
-  운영 승인 DB는 아직 `0025_overview_claim_ledger`이며 `0026`~`0028`은 미병합 브랜치에만 있다
-  (`docs/tracking/status.md` 참조). `0019`~`0026`은 이 목록에 개별 bullet이 없고 각자의 계약
+- 이 작업 브랜치의 Alembic head는 `0028_final_decision_basis`다(`app/core/db.py:103`). `main`의 head는
+  `0026_overview_mvp`이고 `0027`·`0028`은 2026-09-17 기준 미병합 브랜치에만 있다. 운영 DB 적용 기록은
+  `docs/tracking/status.md`가 정본이다(기록상 `0025_overview_claim_ledger`까지). `0019`~`0026`은 이 목록에 개별 bullet이 없고 각자의 계약
   절(사전규격 개요 §`0026`은 위 "사전규격 개요 검토" §DB 참조)에서 다룬다. 그 이전 T-23 phase 2
   migration은 `0014_prespec_overview_attempt_result`이며, 아래 T-23 검증 증거는 `0014`
   경계에 해당한다.
