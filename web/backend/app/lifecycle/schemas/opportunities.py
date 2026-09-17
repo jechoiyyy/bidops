@@ -11,8 +11,20 @@ from pydantic import AliasChoices, Field, StrictInt, field_validator, model_vali
 from ...core.schema_base import AwareDateTime, RuntimeContractModel
 
 
-OpportunitySection = Literal["조치 필요", "추적 중", "보류", "추적 종료"]
-OpportunitySectionCountKey = Literal["조치 필요", "추적 중", "보류", "추적 종료", "미결정"]
+# ``신규 입찰공고``는 입찰공고로 처음 등록된 미선택 사업이다. ``미결정``은 그 밖의
+# 미선택 사업이며 집계 전용이라 목록 필터로는 받지 않는다(spec §7.2).
+OpportunitySection = Literal["조치 필요", "추적 중", "보류", "추적 종료", "신규 입찰공고"]
+OpportunitySectionCountKey = Literal[
+    "조치 필요", "추적 중", "보류", "추적 종료", "신규 입찰공고", "미결정"
+]
+#: 조치 필요 사유 (spec §7.1). 모든 행에 계산하며 구역과 별개의 축이다.
+OpportunityActionReason = Literal[
+    "new_link", "candidate_pending", "merge_confirmation", "blocking_item", "hold_overdue"
+]
+#: 보류 재검토 기한 필터 (spec §7.3). ``attention``은 ``overdue``와 ``due_soon``의 합집합이다.
+OpportunityHoldReview = Literal["overdue", "due_soon", "attention"]
+#: 찾아보기 대상 (spec §4.3).
+OpportunitySearchTarget = Literal["pre_spec", "bid_notice"]
 
 OpportunityTrackingStatus = Literal["미선택", "계속 추적", "보류", "종료"]
 OpportunityFirstRegisteredStage = Literal["order_plan", "pre_spec", "bid_notice"]
@@ -81,6 +93,9 @@ class OpportunityStateView(RuntimeContractModel):
     merged_into_opportunity_id: int | None = Field(default=None, ge=1)
     merged_at: AwareDateTime | None = None
     merge_reason: str | None = None
+    action_reasons: list[OpportunityActionReason] = Field(default_factory=list)
+    # ``보류``일 때만 ``tracking_selected_at + 14일``이다. 저장하지 않는 파생값이다.
+    hold_review_due_at: AwareDateTime | None = None
 
 
 class OpportunityListItem(OpportunityStateView):
@@ -131,6 +146,8 @@ class OpportunityTrackingDecisionsResponse(RuntimeContractModel):
 
 class OpportunityListResponse(RuntimeContractModel):
     section_counts: dict[OpportunitySectionCountKey, int]
+    # 활성 ``reason`` 필터만 뺀 조건으로 센 사유별 건수. 한 행은 여러 사유에 들어간다.
+    action_reason_counts: dict[OpportunityActionReason, int]
     items: list[OpportunityListItem] = Field(default_factory=list)
     total: int = Field(ge=0)
     limit: int = Field(ge=1, le=500)
@@ -169,7 +186,29 @@ class CandidateDecisionRequest(RuntimeContractModel):
     reason: str = Field(min_length=1)
 
 
-OpportunitySort = Literal["created_at", "tracking_status", "first_registered_stage"]
+class OpportunitySearchRequest(RuntimeContractModel):
+    """Server-side name search over the archived collection index (spec §4.3)."""
+
+    target: OpportunitySearchTarget
+
+
+class OpportunitySearchResponse(RuntimeContractModel):
+    """One synchronous search.
+
+    ``search_unconfirmed`` means the search could not confirm a record; it is
+    not a claim that no record exists (ADR-0025).
+    """
+
+    searched_at: AwareDateTime
+    target: OpportunitySearchTarget
+    attempted_strategies: list[OpportunitySearchStrategy] = Field(default_factory=list)
+    candidates: list[OpportunityLinkView] = Field(default_factory=list)
+    search_unconfirmed: bool
+
+
+OpportunitySort = Literal[
+    "created_at", "tracking_status", "first_registered_stage", "hold_review_due_at"
+]
 
 # The bulk wire contracts deliberately have their own versioned vocabulary.
 # ``OpportunityTrackingStatus`` includes the reset state used by the single
@@ -431,6 +470,11 @@ class OrderPlanBulkStartResponse(RuntimeContractModel):
 
 __all__ = [
     "CandidateDecisionRequest",
+    "OpportunityActionReason",
+    "OpportunityHoldReview",
+    "OpportunitySearchRequest",
+    "OpportunitySearchResponse",
+    "OpportunitySearchTarget",
     "OpportunityDetailResponse",
     "OpportunityFirstRegisteredStage",
     "OpportunityLinkView",
