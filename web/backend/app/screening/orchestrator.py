@@ -46,6 +46,10 @@ COMMON_NOTICE_KEYS = (
     "unknown_fields", "sample_stratum", "sample_role", "raw_source",
 )
 SAMPLE_METADATA_KEYS = frozenset({"sample_stratum", "sample_role"})
+#: Optional collected.v2 top-level keys (spec §1.2).  They are validated on
+#: input but are not part of the frozen notice projection, so the screening
+#: input and result key sets stay exactly ``COMMON_NOTICE_KEYS``.
+OPTIONAL_NOTICE_KEYS = frozenset({"demand_agency"})
 JUDGMENT_MODES = {"신규", "재판정", "승계"}
 REJUDGE_REASONS = {"정정", "재공고", "본공고 전환", "담당자 요청"}
 EXECUTION_RE = re.compile(r"^scr-[0-9a-f]{32}$")
@@ -1244,7 +1248,9 @@ def _notice_common(value: Any, *, require_sample_metadata: bool = False) -> dict
     required_keys = set(COMMON_NOTICE_KEYS).difference(SAMPLE_METADATA_KEYS)
     if require_sample_metadata:
         required_keys.update(SAMPLE_METADATA_KEYS)
-    if not required_keys.issubset(value) or set(value).difference(COMMON_NOTICE_KEYS):
+    if not required_keys.issubset(value) or set(value).difference(COMMON_NOTICE_KEYS, OPTIONAL_NOTICE_KEYS):
+        raise ScreeningCreationError("input_error")
+    if not _nullable_string(value.get("demand_agency")):
         raise ScreeningCreationError("input_error")
     result = {key: value.get(key) for key in COMMON_NOTICE_KEYS}
     if not isinstance(result["notice_id"], str) or not result["notice_id"].strip():
@@ -1269,8 +1275,9 @@ def _notice_common(value: Any, *, require_sample_metadata: bool = False) -> dict
 _PROCUREMENT_KEYS = ("large", "middle", "detail", "code")
 _REGION_KEYS = ("basis", "joint_contract_regions", "joint_contract_rate", "regional_joint_contract_limit")
 _LIFECYCLE_KEYS = ("pre_spec_no", "re_notice", "changed_at", "change_reason", "unified_notice_no", "previous_failed_notice_no")
-_OPTIONAL_LIFECYCLE_KEYS = ("order_plan_no", "bid_ntice_no_list")
-_OPTIONAL_QUALIFICATION_KEYS = ("sw_business_status", "business_division")
+_OPTIONAL_LIFECYCLE_KEYS = ("order_plan_no", "bid_ntice_no_list", "opening_at")
+_OPTIONAL_QUALIFICATION_KEYS = ("sw_business_status", "business_division", "sw_industry_1468")
+_SW_INDUSTRY_1468_VALUES = frozenset({"Y", "N"})
 _QUALIFICATION_KEYS = ("participation_limited", "industry_limited", "information_business", "general_service", "service_division", "joint_contract_method", "performance_restricted_competition", "pq_evaluation", "technical_evaluation", "technical_evaluation_rate", "successful_bid_method")
 _SAMPLE_ROLES = {"analysis", "audit"}
 _SAMPLE_STRATA = {"AI/데이터", "블록체인·DID", "공공 SI·통합관리", "수행실적 유사", "분류 근접", "실적 유사 근접", "무작위"}
@@ -1331,7 +1338,7 @@ def _validate_collected_notice(item: Mapping[str, Any]) -> None:
     if not isinstance(region["joint_contract_regions"], list) or any(not isinstance(v, str) or not v.strip() for v in region["joint_contract_regions"]):
         raise ScreeningCreationError("input_error")
     lifecycle = item["lifecycle"]
-    if not _aware_datetime(lifecycle["changed_at"]):
+    if not _aware_datetime(lifecycle["changed_at"]) or not _aware_datetime(lifecycle.get("opening_at")):
         raise ScreeningCreationError("input_error")
     if any(not _nullable_string(lifecycle[key]) for key in ("pre_spec_no", "re_notice", "change_reason", "unified_notice_no", "previous_failed_notice_no")):
         raise ScreeningCreationError("input_error")
@@ -1339,6 +1346,8 @@ def _validate_collected_notice(item: Mapping[str, Any]) -> None:
     if not isinstance(qualification, Mapping) or (qualification and (not set(_QUALIFICATION_KEYS).issubset(qualification) or set(qualification).difference((*_QUALIFICATION_KEYS, *_OPTIONAL_QUALIFICATION_KEYS)))):
         raise ScreeningCreationError("input_error")
     if any(not _nullable_string(value) for value in qualification.values()):
+        raise ScreeningCreationError("input_error")
+    if qualification.get("sw_industry_1468") not in _SW_INDUSTRY_1468_VALUES | {None}:
         raise ScreeningCreationError("input_error")
     for key in ("attachments", "focus_matches", "performance_matches"):
         if not isinstance(item[key], list):

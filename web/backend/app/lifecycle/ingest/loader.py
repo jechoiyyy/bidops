@@ -7,11 +7,12 @@ import json
 import math
 import re
 from collections import Counter
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import date, datetime, timezone
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import BaseModel, ValidationError
@@ -20,6 +21,7 @@ from sqlalchemy.orm import Session
 
 from ..models import (
     Attachment,
+    CollectedRecordIndex,
     IngestWarning,
     Notice,
     NoticeObservation,
@@ -53,6 +55,22 @@ from ..services.opportunity_integrity import (
     merge_opportunities,
 )
 from ..services.opportunity_connections import parse_attachment_key
+from ..services.collection_index import (
+    BACKFILL_TRACKING_STATUSES,
+    RECORD_KINDS,
+    TRACKED_REFERENCE_STATUSES,
+    IndexValues,
+    chunks as _chunks,
+    index_text as _index_text,
+    latest_row_per_identity,
+    latest_rows,
+    mark_selected,
+    rows_with_tokens,
+    selection_stats,
+    split_tokens,
+    tokens_for,
+    upsert_index_rows,
+)
 from ...core.run_id import (
     DEFAULT_TIMEZONE,
     RUN_ID_RE,
@@ -88,6 +106,15 @@ ORDER_PLAN_ARTIFACT_SCHEMAS = {
     "bidops.order-plans.v1",
 }
 ORDER_PLAN_FILE = "collected-order-plans.json"
+COLLECTION_FILE = "collected-notices.json"
+COLLECTION_ARTIFACT_SCHEMA = "bidops.collected.v2"
+#: ``validation``은 표본(`validation-set.json`)·C-1 입력(`screening-input.json`)을,
+#: ``collection``은 수집 파일 전체를 색인한 뒤 선별 규칙에 맞는 레코드를 적재한다.
+IngestSelection = Literal["validation", "collection"]
+INGEST_SELECTIONS = ("validation", "collection")
+INDEXED_INGEST_REASONS = ("tracked_backfill", "search_result")
+_PRE_SPEC_SOURCE_TYPES = frozenset({"pre_spec", "prespec", "pre-spec"})
+_PRE_SPEC_KEY_PREFIXES = ("pre:", "pre_spec:", "prespec:", "pre-spec:", "spec:")
 NOTICE_OBSERVATION_SNAPSHOT_SCHEMA = "bidops.notice-observation-snapshot.v1"
 ORDER_PLAN_OBSERVATION_SNAPSHOT_SCHEMA = "bidops.order-plan-observation-snapshot.v1"
 class ObservationSnapshotConflictError(ValueError):
@@ -123,6 +150,9 @@ class IngestResult:
     screening_results: int = 0
     screening_artifacts: int = 0
     screening_feedback: int = 0
+    # Collection-mode selection statistics (spec §2.2).  ``None`` for the
+    # validation/screening path so its output shape is unchanged.
+    selection: dict[str, Any] | None = None
 
     @property
     def warning_counts(self) -> dict[str, int]:
@@ -146,6 +176,8 @@ class IngestResult:
         if self.generation_config is not None and self.generation_config_digest is not None:
             result["generation_config"] = self.generation_config
             result["generation_config_digest"] = self.generation_config_digest
+        if self.selection is not None:
+            result["selection"] = self.selection
         return result
 
 
@@ -627,6 +659,13 @@ def _check_existing_observation_snapshot(
     )
 
 
+#: Optional collected.v2 keys added after historical artifacts were frozen.  A
+#: null or absent value is omitted from stored JSON and from the observation
+#: snapshot so old runs keep their digest (spec §1.2).
+_NULL_OMITTED_LIFECYCLE_FIELDS = ("opening_at",)
+_NULL_OMITTED_QUALIFICATION_FIELDS = ("sw_industry_1468",)
+
+
 def _qualification_flags_payload(notice: NoticeContract) -> dict[str, Any] | None:
     """Keep pre-spec-only flags out of notices whose artifact never set them.
 
@@ -645,6 +684,13 @@ def _qualification_flags_payload(notice: NoticeContract) -> dict[str, Any] | Non
         for optional_field in ("sw_business_status", "business_division"):
             if optional_field not in notice.qualification_flags.model_fields_set:
                 payload.pop(optional_field, None)
+    # The 1468 industry tag (spec §1.2) is stricter: it is stored only with a
+    # value.  Current producers write an explicit null for every pre-spec and
+    # every incomplete query, and that null must not change the digest of a
+    # record whose older artifact never had the key.
+    for optional_field in _NULL_OMITTED_QUALIFICATION_FIELDS:
+        if payload.get(optional_field) is None:
+            payload.pop(optional_field, None)
     return payload
 
 
@@ -667,6 +713,11 @@ def _lifecycle_payload(notice: NoticeContract, raw: dict[str, Any]) -> dict[str,
         for optional_field in ("order_plan_no", "bid_ntice_no_list"):
             if optional_field not in notice.lifecycle.model_fields_set:
                 payload.pop(optional_field, None)
+    # ``opening_at`` (spec §1.2) is kept only with a value; an explicit null
+    # from a current producer and an absent key give the same stored identity.
+    for optional_field in _NULL_OMITTED_LIFECYCLE_FIELDS:
+        if payload.get(optional_field) is None:
+            payload.pop(optional_field, None)
     for raw_key, stored_key in (
         ("orderPlanUntyNo", "order_plan_no"),
         ("order_plan_unty_no", "order_plan_no"),
@@ -752,35 +803,38 @@ def _stored_pre_spec_number(notice: Notice) -> str | None:
             if not is_blank(value):
                 return str(value).strip()
     if notice.source_type in {"pre_spec", "prespec", "pre-spec"}:
-        key = str(notice.notice_key)
         # ``skills/bidops-collect`` emits ``pre:<bfSpecRgstNo>``.  Keep the
         # other historical spellings because the backend also ingests older
         # validation artifacts, but do not treat an arbitrary notice key as a
         # pre-spec number unless it is a pre-spec source row.
-        for prefix in ("pre:", "pre_spec:", "prespec:", "pre-spec:", "spec:"):
-            if key.startswith(prefix) and not is_blank(key[len(prefix):]):
-                return key[len(prefix):]
-        if ":" not in key:
-            return key
+        return _pre_spec_number_from_key(str(notice.notice_key))
     return None
+
+
+def _pre_spec_number_from_key(key: str) -> str | None:
+    """Read a pre-spec number from a pre-spec row's own notice key."""
+
+    for prefix in _PRE_SPEC_KEY_PREFIXES:
+        if key.startswith(prefix) and not is_blank(key[len(prefix):]):
+            return key[len(prefix):]
+    if ":" not in key:
+        return key
+    return None
+
+
+def _pre_spec_notice_keys(pre_spec_no: str) -> tuple[str, ...]:
+    """Every notice-key spelling a pre-spec with this number may be stored as."""
+
+    return tuple(
+        dict.fromkeys((pre_spec_no, *(f"{prefix}{pre_spec_no}" for prefix in _PRE_SPEC_KEY_PREFIXES)))
+    )
 
 
 def _find_pre_spec_notice(session: Session, pre_spec_no: str) -> Notice | None:
     """Resolve a pre-spec Notice by the external registration number."""
 
     source_types = ("pre_spec", "prespec", "pre-spec")
-    keys = tuple(
-        dict.fromkeys(
-            (
-                pre_spec_no,
-                f"pre:{pre_spec_no}",
-                f"pre_spec:{pre_spec_no}",
-                f"prespec:{pre_spec_no}",
-                f"pre-spec:{pre_spec_no}",
-                f"spec:{pre_spec_no}",
-            )
-        )
-    )
+    keys = _pre_spec_notice_keys(pre_spec_no)
     direct = session.scalar(
         select(Notice).where(
             Notice.source_type.in_(source_types),
@@ -1397,6 +1451,13 @@ def _ensure_official_opportunity_links(
     )
 
 
+def _demand_agency_value(notice: NoticeContract) -> str | None:
+    value = notice.demand_agency
+    if is_blank(value):
+        return None
+    return str(value).strip()
+
+
 def _float_or_none(value: Any) -> float | None:
     if is_blank(value):
         return None
@@ -1431,6 +1492,14 @@ def _upsert_notice(
             else None
         ),
     )
+    # ``demand_agency`` is a projection column only.  It stays out of the
+    # observation snapshot: the C-1 screening input (screening-input.v1) keeps
+    # its closed notice key set, so including the value would make the same
+    # run's screening replay conflict with its collection ingest.  It is
+    # written only when the artifact supplied the key, so an input that never
+    # carried it cannot erase a value another artifact observed.
+    demand_agency_supplied = "demand_agency" in notice.model_fields_set
+    demand_agency = _demand_agency_value(notice) if demand_agency_supplied else None
     existing = session.scalar(
         select(Notice).where(Notice.notice_key == notice_key)
     )
@@ -1455,6 +1524,11 @@ def _upsert_notice(
             snapshot_jsonb=snapshot,
             source_sha256=snapshot_sha256,
         ):
+            # A same-run replay is otherwise a no-op.  The one exception fills
+            # a still-empty demand agency from the same observed record, e.g.
+            # when the screening projection of this run was loaded first.
+            if demand_agency is not None and existing.demand_agency is None:
+                existing.demand_agency = demand_agency
             return existing
     if existing is None:
         existing = Notice(notice_key=notice_key)
@@ -1466,6 +1540,10 @@ def _upsert_notice(
     ]
     for key, value in values.items():
         setattr(existing, key, value)
+    if demand_agency_supplied:
+        if not is_new and existing.demand_agency != demand_agency:
+            changed_fields.append("demand_agency")
+        existing.demand_agency = demand_agency
     _upsert_attachments(
         session,
         existing,
@@ -2404,6 +2482,36 @@ _SCREENING_COMMON_NOTICE_KEYS = (
     "performance_top_score", "candidate_sources", "unknown_fields", "sample_stratum",
     "sample_role", "raw_source",
 )
+#: Optional top-level notice keys a screening input may carry beyond the fixed
+#: projection.  The backend orchestrator does not write them; the skills-side
+#: validator accepts them, so the importer accepts them too (spec §1.2).
+_SCREENING_OPTIONAL_NOTICE_KEYS = frozenset({"demand_agency"})
+_SCREENING_JUDGMENT_INPUT_KEYS = frozenset({"judgment_mode", "carry_over_from", "rejudge_reason"})
+_SCREENING_LIFECYCLE_KEYS = frozenset({
+    "pre_spec_no", "re_notice", "changed_at", "change_reason", "unified_notice_no",
+    "previous_failed_notice_no",
+})
+_SCREENING_OPTIONAL_LIFECYCLE_KEYS = frozenset({"order_plan_no", "bid_ntice_no_list", "opening_at"})
+_SCREENING_QUALIFICATION_KEYS = frozenset({
+    "participation_limited", "industry_limited", "information_business", "general_service",
+    "service_division", "joint_contract_method", "performance_restricted_competition",
+    "pq_evaluation", "technical_evaluation", "technical_evaluation_rate", "successful_bid_method",
+})
+_SCREENING_OPTIONAL_QUALIFICATION_KEYS = frozenset({
+    "sw_business_status", "business_division", "sw_industry_1468",
+})
+_SW_INDUSTRY_1468_VALUES = frozenset({"Y", "N"})
+
+
+def _screening_notice_keys_valid(notice: Any) -> bool:
+    """Fixed input keys are required; only the declared optional keys may be added."""
+
+    if not isinstance(notice, dict):
+        return False
+    required = set(_SCREENING_COMMON_NOTICE_KEYS) | _SCREENING_JUDGMENT_INPUT_KEYS
+    return required <= set(notice) <= required | _SCREENING_OPTIONAL_NOTICE_KEYS
+
+
 _SCREENING_INPUT_KEYS = {
     "schema_version", "execution_id", "run_id", "generated_at", "source_window",
     "policy_version", "prompt_version", "company_profile_version", "company_profile_digest",
@@ -2454,11 +2562,13 @@ def _screening_input_error(raw: Any) -> str | None:
     notices = raw.get("notices")
     if not isinstance(notices, list) or type(raw.get("candidate_count")) is not int or raw["candidate_count"] < 0 or raw["candidate_count"] != len(notices):
         return "candidate count is invalid"
-    expected_keys = set(_SCREENING_COMMON_NOTICE_KEYS) | {"judgment_mode", "carry_over_from", "rejudge_reason"}
     seen: set[str] = set()
     for notice in notices:
-        if not isinstance(notice, dict) or set(notice) != expected_keys:
+        if not _screening_notice_keys_valid(notice):
             return "notice fields are not exact"
+        demand_agency = notice.get("demand_agency")
+        if demand_agency is not None and (not isinstance(demand_agency, str) or not demand_agency.strip()):
+            return "notice string is invalid"
         notice_id = notice.get("notice_id")
         if not isinstance(notice_id, str) or not notice_id.strip() or notice_id in seen:
             return "notice identity is duplicated or invalid"
@@ -2495,27 +2605,34 @@ def _screening_input_error(raw: Any) -> str | None:
         nested = {
             "procurement_class": {"large", "middle", "detail", "code"},
             "region_limit": {"basis", "joint_contract_regions", "joint_contract_rate", "regional_joint_contract_limit"},
-            "lifecycle": {"pre_spec_no", "re_notice", "changed_at", "change_reason", "unified_notice_no", "previous_failed_notice_no"},
+            "lifecycle": set(_SCREENING_LIFECYCLE_KEYS),
         }
         for key, keys in nested.items():
             actual_keys = set(common[key]) if isinstance(common[key], dict) else set()
-            allowed_keys = keys | {"order_plan_no"} if key == "lifecycle" else keys
+            allowed_keys = keys | _SCREENING_OPTIONAL_LIFECYCLE_KEYS if key == "lifecycle" else keys
             if (
                 not isinstance(common[key], dict)
-                or (actual_keys != keys and actual_keys != allowed_keys)
+                or not keys <= actual_keys <= allowed_keys
             ):
                 return "notice nested fields are not exact"
             if any(value is not None and (not isinstance(value, str) or not value.strip()) for value in common[key].values() if key != "region_limit" or value != common[key].get("joint_contract_regions")):
                 return "notice nested string is invalid"
         qualification = common["qualification_flags"]
-        qualification_keys = {"participation_limited", "industry_limited", "information_business", "general_service", "service_division", "joint_contract_method", "performance_restricted_competition", "pq_evaluation", "technical_evaluation", "technical_evaluation_rate", "successful_bid_method"}
-        if not isinstance(qualification, dict) or (qualification and set(qualification) != qualification_keys):
+        if not isinstance(qualification, dict) or (
+            qualification
+            and not _SCREENING_QUALIFICATION_KEYS
+            <= set(qualification)
+            <= _SCREENING_QUALIFICATION_KEYS | _SCREENING_OPTIONAL_QUALIFICATION_KEYS
+        ):
             return "qualification flags are invalid"
         if any(value is not None and (not isinstance(value, str) or not value.strip()) for value in qualification.values()):
             return "qualification flags are invalid"
-        lifecycle_changed = common["lifecycle"].get("changed_at")
-        if lifecycle_changed is not None and not _is_aware_iso(lifecycle_changed):
-            return "lifecycle timestamp is invalid"
+        if qualification.get("sw_industry_1468") not in _SW_INDUSTRY_1468_VALUES | {None}:
+            return "qualification flags are invalid"
+        for lifecycle_timestamp in ("changed_at", "opening_at"):
+            value = common["lifecycle"].get(lifecycle_timestamp)
+            if value is not None and not _is_aware_iso(value):
+                return "lifecycle timestamp is invalid"
         if common["sample_role"] is not None and common["sample_role"] not in {"analysis", "audit"}:
             return "sample role is invalid"
         if common["sample_stratum"] is not None and common["sample_stratum"] not in {"AI/데이터", "블록체인·DID", "공공 SI·통합관리", "수행실적 유사", "분류 근접", "실적 유사 근접", "무작위"}:
@@ -2586,12 +2703,17 @@ def _load_screening_input_notices(
     if not isinstance(notices_raw, list):
         return {}
     notices: dict[str, Notice] = {}
-    input_keys = set(_SCREENING_COMMON_NOTICE_KEYS) | {"judgment_mode", "carry_over_from", "rejudge_reason"}
     for index, raw_notice in enumerate(notices_raw):
-        if not isinstance(raw_notice, dict) or set(raw_notice) != input_keys:
+        if not _screening_notice_keys_valid(raw_notice):
             return {}
-        notice_model = NoticeContract.model_validate({key: raw_notice[key] for key in _SCREENING_COMMON_NOTICE_KEYS})
-        item = _upsert_notice(session, run_id, notice_model, {key: raw_notice[key] for key in _SCREENING_COMMON_NOTICE_KEYS}, timezone_name)
+        common = {key: raw_notice[key] for key in _SCREENING_COMMON_NOTICE_KEYS}
+        # An optional key the input carried is passed through unchanged; the
+        # observation snapshot does not depend on it (see `_upsert_notice`).
+        common.update(
+            {key: raw_notice[key] for key in sorted(_SCREENING_OPTIONAL_NOTICE_KEYS) if key in raw_notice}
+        )
+        notice_model = NoticeContract.model_validate(common)
+        item = _upsert_notice(session, run_id, notice_model, common, timezone_name)
         if item is not None:
             notices[item.notice_key] = item
     session.flush()
@@ -2790,6 +2912,784 @@ def _load_order_plans(
     return loaded
 
 
+# ---------------------------------------------------------------------------
+# 수집 색인과 선별 적재 (spec §2)
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class _CollectedNotice:
+    """One valid collected notice with the values its index row was built from."""
+
+    values: IndexValues
+    contract: NoticeContract
+    raw: dict[str, Any]
+
+
+@dataclass
+class _TrackedKeys:
+    """Official keys owned by active opportunities in the requested states.
+
+    A deferred (targetless) official link is an authoritative ownership claim
+    on its external number, so its evidence number counts as a key as well.
+    """
+
+    order_plan_nos: set[str] = field(default_factory=set)
+    pre_spec_nos: set[str] = field(default_factory=set)
+    bid_nos: set[str] = field(default_factory=set)
+    order_plan_tokens: set[str] = field(default_factory=set)
+    pre_spec_tokens: set[str] = field(default_factory=set)
+
+    def references_bid(self, values: IndexValues) -> bool:
+        """Decision 1 ①: the bid's official key points at a tracked record."""
+
+        if values.order_plan_unty_no is not None and values.order_plan_unty_no in self.order_plan_nos:
+            return True
+        if values.bf_spec_rgst_no is not None and values.bf_spec_rgst_no in self.pre_spec_nos:
+            return True
+        if values.bid_no is None:
+            return False
+        # A plan token is the 13-character bid number plus its order; a
+        # pre-spec token is the bid number alone.  Both compare exactly.
+        if values.bid_ord is not None and f"{values.bid_no}{values.bid_ord}" in self.order_plan_tokens:
+            return True
+        return values.bid_no in self.pre_spec_tokens
+
+
+@dataclass
+class IndexedIngestResult:
+    """What one indexed-record load did.  ``notices`` is keyed by index row id."""
+
+    loaded: Counter[str] = field(default_factory=Counter)
+    unavailable: int = 0
+    notices: dict[int, Notice] = field(default_factory=dict)
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "loaded": dict(sorted(self.loaded.items())),
+            "unavailable": self.unavailable,
+        }
+
+
+def _collection_record_kind(source_type: Any) -> str | None:
+    value = source_type.strip().lower() if isinstance(source_type, str) else ""
+    if value in _PRE_SPEC_SOURCE_TYPES:
+        return "pre_spec"
+    if value == "bid_notice":
+        return "bid_notice"
+    return None
+
+
+def _notice_index_values(
+    notice: NoticeContract,
+    raw: dict[str, Any],
+    timezone_name: str,
+) -> tuple[IndexValues | None, tuple[str, ...]]:
+    """Build index values from a collected notice without inventing a value."""
+
+    record_kind = _collection_record_kind(notice.source_type)
+    record_key = _index_text(notice.notice_id)
+    if record_kind is None or record_key is None:
+        return None, ()
+    order_plan_no, pre_spec_no = _notice_linkage_keys(notice, raw)
+    lifecycle = _mapping_value(notice.lifecycle)
+    flags = _mapping_value(notice.qualification_flags)
+    bid_no: str | None = None
+    bid_ord: str | None = None
+    tokens: tuple[str, ...] = ()
+    rejected: tuple[str, ...] = ()
+    if record_kind == "pre_spec":
+        pre_spec_no = pre_spec_no or _pre_spec_number_from_key(record_key)
+        tokens, rejected = split_tokens(lifecycle.get("bid_ntice_no_list"))
+    else:
+        bid_no, bid_ord = parse_notice_key(record_key)
+    try:
+        published_at = _parse_datetime(notice.published_at, timezone_name, field_name="published_at")
+    except ValueError:
+        # The loader records invalid_datetime when the record is loaded; an
+        # unparsable value is simply absent from the search index.
+        published_at = None
+    return (
+        IndexValues(
+            record_kind=record_kind,
+            record_key=record_key,
+            title=_index_text(notice.title),
+            agency=_index_text(notice.agency),
+            demand_agency=_index_text(notice.demand_agency),
+            order_plan_unty_no=order_plan_no,
+            bf_spec_rgst_no=pre_spec_no,
+            bid_no=bid_no,
+            bid_ord=bid_ord,
+            sw_business_status=_index_text(flags.get("sw_business_status")),
+            sw_industry_1468=_index_text(flags.get("sw_industry_1468")),
+            contract_method=_index_text(notice.method),
+            published_at=published_at,
+            tokens=tokens,
+        ),
+        rejected,
+    )
+
+
+def _order_plan_index_values(
+    raw_plan: dict[str, Any],
+    timezone_name: str,
+) -> tuple[IndexValues | None, tuple[str, ...]]:
+    plan_no = _plan_text(raw_plan, *_ORDER_PLAN_FIELD_ALIASES["order_plan_unty_no"])
+    if plan_no is None:
+        return None, ()
+    try:
+        published_at = _parse_order_plan_datetime(
+            _plan_first_value(raw_plan, *_ORDER_PLAN_FIELD_ALIASES["published_at"]),
+            timezone_name,
+            field_name="published_at",
+        )
+    except ValueError:
+        published_at = None
+    tokens, rejected = split_tokens(
+        _plan_first_value(raw_plan, *_ORDER_PLAN_FIELD_ALIASES["bid_ntice_no_list"])
+    )
+    return (
+        IndexValues(
+            record_kind="order_plan",
+            record_key=plan_no,
+            title=_plan_text(raw_plan, *_ORDER_PLAN_FIELD_ALIASES["title"]),
+            agency=_plan_text(raw_plan, *_ORDER_PLAN_FIELD_ALIASES["agency_name"]),
+            order_plan_unty_no=plan_no,
+            sw_business_status=_plan_text(raw_plan, *_ORDER_PLAN_FIELD_ALIASES["sw_business_status"]),
+            contract_method=_plan_text(raw_plan, *_ORDER_PLAN_FIELD_ALIASES["contract_method"]),
+            published_at=published_at,
+            tokens=tokens,
+        ),
+        rejected,
+    )
+
+
+def _record_unindexed_tokens(
+    session: Session,
+    run_id: str,
+    values: IndexValues,
+    rejected: tuple[str, ...],
+) -> None:
+    if not rejected:
+        return
+    _record_warning(
+        session,
+        run_id,
+        "warning",
+        "collection_token_unindexed",
+        "bidNtceNoList 토큰이 색인 길이를 넘어 색인하지 않았습니다. 회차 원문에는 그대로 남아 있습니다.",
+        {
+            "record_kind": values.record_kind,
+            "record_key": values.record_key,
+            "token_count": len(rejected),
+        },
+    )
+
+
+def _collection_order_plan_rows(raw: dict[str, Any]) -> list[dict[str, Any]]:
+    """Plan rows of an artifact that `_load_order_plans` would read at all."""
+
+    if raw.get("schema_version") not in ORDER_PLAN_ARTIFACT_SCHEMAS:
+        return []
+    try:
+        OrderPlanArtifact.model_validate(raw)
+    except ValidationError:
+        return []
+    rows, _key = _order_plan_items(raw)
+    return [row for row in rows or [] if isinstance(row, dict)]
+
+
+def _collection_notice_records(
+    session: Session,
+    run_id: str,
+    raw: dict[str, Any],
+    source_file: str,
+    timezone_name: str,
+) -> list[_CollectedNotice]:
+    """Parse every collected notice; invalid rows are warned and skipped."""
+
+    try:
+        CollectionArtifact.model_validate({**raw, "notices": []})
+    except ValidationError:
+        # `_load_collection_stats` has already recorded the metadata warning.
+        return []
+    if raw.get("schema_version") != COLLECTION_ARTIFACT_SCHEMA:
+        _record_warning(
+            session,
+            run_id,
+            "error",
+            "collected_notices_invalid",
+            f"{COLLECTION_FILE} schema_version이 지원되지 않아 공고를 적재하지 않았습니다.",
+            {"file": source_file, "schema_version": raw.get("schema_version")},
+        )
+        return []
+    notices_raw = raw.get("notices")
+    if not isinstance(notices_raw, list):
+        _record_warning(
+            session,
+            run_id,
+            "error",
+            "collected_notices_missing",
+            f"{COLLECTION_FILE}에 notices 목록이 없습니다.",
+            {"file": source_file},
+        )
+        return []
+    records: list[_CollectedNotice] = []
+    seen: set[tuple[str, str]] = set()
+    for index, raw_notice in enumerate(notices_raw):
+        if not isinstance(raw_notice, dict):
+            _record_warning(
+                session, run_id, "error", "notice_invalid",
+                "공고 항목이 객체가 아니어서 건너뛰었습니다.",
+                {"file": source_file, "index": index},
+            )
+            continue
+        try:
+            notice_model = NoticeContract.model_validate(raw_notice)
+        except ValidationError as exc:
+            _record_warning(
+                session, run_id, "error", "notice_invalid",
+                "공고 항목 계약을 해석하지 못해 건너뛰었습니다.",
+                {"file": source_file, "index": index, "error": str(exc)},
+            )
+            continue
+        _record_unknown_fields(
+            session, run_id, model_extra_fields(notice_model, "notice"), source_file
+        )
+        values, rejected = _notice_index_values(notice_model, raw_notice, timezone_name)
+        if values is None:
+            if is_blank(notice_model.notice_id):
+                _record_warning(
+                    session, run_id, "error", "notice_id_missing",
+                    "notice_id가 없는 공고를 적재하지 않았습니다.",
+                    {"file": source_file, "index": index, "field": "notice_id"},
+                )
+            else:
+                _record_warning(
+                    session, run_id, "warning", "collection_record_kind_unknown",
+                    "source_type을 색인 원천으로 해석하지 못해 건너뛰었습니다.",
+                    {"file": source_file, "index": index, "source_type": notice_model.source_type},
+                )
+            continue
+        if values.identity in seen:
+            _record_warning(
+                session, run_id, "error", "collection_notice_duplicate",
+                "같은 notice_id가 한 수집 파일에 중복되어 뒤 항목을 건너뛰었습니다.",
+                {"file": source_file, "index": index, "notice_id": values.record_key},
+            )
+            continue
+        seen.add(values.identity)
+        _record_unindexed_tokens(session, run_id, values, rejected)
+        records.append(_CollectedNotice(values=values, contract=notice_model, raw=raw_notice))
+    return records
+
+
+def _collection_path_for_run(runs_root: Path | None, run_id: str) -> Path | None:
+    """The collected-notices file of a run directory, or ``None`` if unsafe."""
+
+    if runs_root is None:
+        return None
+    parsed = parse_run_id(run_id)
+    name = parsed[0] if parsed else run_id.split("--", 1)[0]
+    if not name or name in {".", ".."} or "\\" in name or Path(name).name != name:
+        return None
+    directory = runs_root / name
+    path = directory / COLLECTION_FILE
+    if directory.is_symlink() or path.is_symlink():
+        return None
+    return path
+
+
+class _IndexedRecordLoader:
+    """Load index rows through `_upsert_notice` from their own run files.
+
+    The observation is recorded against the run the record was collected in,
+    so its snapshot and ``observed_at`` describe that run's immutable bytes.
+    Rows of the run being ingested reuse the records already parsed in memory.
+    """
+
+    def __init__(
+        self,
+        session: Session,
+        *,
+        runs_root: Path | None,
+        current_run_id: str | None = None,
+        current_records: dict[str, _CollectedNotice] | None = None,
+    ) -> None:
+        self.session = session
+        self.runs_root = runs_root
+        self.current_run_id = current_run_id
+        self.current_records = current_records or {}
+        self.result = IndexedIngestResult()
+        self._files: dict[str, dict[str, dict[str, Any]] | None] = {}
+        self._touched_runs: set[str] = set()
+
+    def _run_records(self, run_id: str) -> dict[str, dict[str, Any]] | None:
+        if run_id not in self._files:
+            path = _collection_path_for_run(self.runs_root, run_id)
+            raw = _read_optional_json(path) if path is not None else None
+            mapping: dict[str, dict[str, Any]] | None = None
+            if raw is not None and raw.get("schema_version") == COLLECTION_ARTIFACT_SCHEMA:
+                notices = raw.get("notices")
+                if isinstance(notices, list):
+                    mapping = {}
+                    for item in notices:
+                        key = _index_text(item.get("notice_id")) if isinstance(item, dict) else None
+                        if key is not None:
+                            mapping.setdefault(key, item)
+            self._files[run_id] = mapping
+        return self._files[run_id]
+
+    def _unavailable(self, row: CollectedRecordIndex) -> None:
+        self.result.unavailable += 1
+        _record_warning(
+            self.session,
+            self.current_run_id or row.run_id,
+            "warning",
+            "collection_record_unavailable",
+            "색인이 가리키는 수집 레코드를 회차 파일에서 읽지 못해 적재하지 않았습니다.",
+            {
+                "run_id": row.run_id,
+                "record_kind": row.record_kind,
+                "record_key": row.record_key,
+            },
+        )
+
+    def _record(self, row: CollectedRecordIndex) -> tuple[NoticeContract, dict[str, Any]] | None:
+        if row.run_id == self.current_run_id:
+            current = self.current_records.get(row.record_key)
+            if current is not None and current.values.record_kind == row.record_kind:
+                return current.contract, current.raw
+        records = self._run_records(row.run_id)
+        raw = records.get(row.record_key) if records is not None else None
+        if raw is None:
+            return None
+        try:
+            contract = NoticeContract.model_validate(raw)
+        except ValidationError:
+            return None
+        if _collection_record_kind(contract.source_type) != row.record_kind:
+            return None
+        return contract, raw
+
+    def load(self, row: CollectedRecordIndex, reason: str) -> Notice | None:
+        record = self._record(row)
+        if record is None:
+            self._unavailable(row)
+            return None
+        contract, raw = record
+        run = self.session.get(Run, row.run_id)
+        timezone_name, _zone = _ensure_zone(run.timezone if run is not None else None)
+        item = _upsert_notice(self.session, row.run_id, contract, raw, timezone_name)
+        if item is None:
+            return None
+        self.session.flush()
+        mark_selected(row, reason, notice_id=item.id)
+        self.result.loaded[reason] += 1
+        self.result.notices[row.id] = item
+        if row.run_id != self.current_run_id:
+            self._touched_runs.add(row.run_id)
+        return item
+
+    def load_bid(
+        self,
+        row: CollectedRecordIndex,
+        reason: str,
+        pre_spec_rows: dict[str, CollectedRecordIndex] | None = None,
+    ) -> Notice | None:
+        """Load a referenced, not-yet-loaded pre-spec first, then the bid."""
+
+        number = row.bf_spec_rgst_no
+        if number is not None and _find_pre_spec_notice(self.session, number) is None:
+            if pre_spec_rows is None:
+                pre_spec_rows = latest_rows(
+                    self.session, "pre_spec", CollectedRecordIndex.bf_spec_rgst_no, [number]
+                )
+            referenced = pre_spec_rows.get(number)
+            if referenced is not None:
+                self.load(referenced, "pre_spec_referenced")
+        return self.load(row, reason)
+
+    def refresh_touched_runs(self) -> None:
+        """Keep the notice count of an earlier run that received an observation."""
+
+        for run_id in sorted(self._touched_runs):
+            run = self.session.get(Run, run_id)
+            if run is None:  # pragma: no cover - an index row always has its run.
+                continue
+            current = run.counts_json if isinstance(run.counts_json, dict) else {}
+            run.counts_json = {**current, "notices": _observed_notice_count(self.session, run_id)}
+
+
+def _observed_notice_count(session: Session, run_id: str) -> int:
+    return int(
+        session.scalar(
+            select(func.count(func.distinct(Notice.id)))
+            .join(NoticeObservation, NoticeObservation.notice_id == Notice.id)
+            .where(NoticeObservation.run_id == run_id)
+        )
+        or 0
+    )
+
+
+def _tracked_reference_keys(
+    session: Session,
+    statuses: Iterable[str],
+    *,
+    opportunity_ids: Iterable[int] | None = None,
+) -> _TrackedKeys:
+    """Collect official keys of records owned by active, tracked opportunities."""
+
+    keys = _TrackedKeys()
+    statement = (
+        select(OpportunityLink, OrderPlan, Notice)
+        .join(Opportunity, Opportunity.id == OpportunityLink.opportunity_id)
+        .outerjoin(OrderPlan, OrderPlan.id == OpportunityLink.order_plan_id)
+        .outerjoin(Notice, Notice.id == OpportunityLink.notice_id)
+        .where(
+            authoritative_link_predicate(OpportunityLink),
+            active_opportunity_predicate(Opportunity),
+            Opportunity.tracking_status.in_(tuple(statuses)),
+        )
+    )
+    if opportunity_ids is not None:
+        statement = statement.where(Opportunity.id.in_(sorted(set(opportunity_ids))))
+    for link, plan, notice in session.execute(statement).tuples():
+        if plan is not None:
+            keys.order_plan_nos.add(plan.order_plan_unty_no)
+            keys.order_plan_tokens.update(split_tokens(plan.bid_ntice_no_list)[0])
+        elif notice is not None:
+            if (notice.source_type or "").strip().lower() in _PRE_SPEC_SOURCE_TYPES:
+                number = _stored_pre_spec_number(notice)
+                if number is not None:
+                    keys.pre_spec_nos.add(number)
+                lifecycle = notice.lifecycle_json if isinstance(notice.lifecycle_json, dict) else {}
+                keys.pre_spec_tokens.update(split_tokens(lifecycle.get("bid_ntice_no_list"))[0])
+            elif not is_blank(notice.bid_no):
+                keys.bid_nos.add(str(notice.bid_no))
+        elif link.link_type == "official" and not is_blank(link.evidence_external_no):
+            reference = str(link.evidence_external_no).strip()
+            if link.stage == "order_plan":
+                keys.order_plan_nos.add(reference)
+            else:
+                keys.pre_spec_nos.add(reference)
+    keys.order_plan_tokens.update(
+        tokens_for(session, "order_plan", CollectedRecordIndex.record_key, keys.order_plan_nos)
+    )
+    keys.pre_spec_tokens.update(
+        tokens_for(session, "pre_spec", CollectedRecordIndex.bf_spec_rgst_no, keys.pre_spec_nos)
+    )
+    return keys
+
+
+def _existing_bid_numbers(session: Session, bid_nos: Iterable[str]) -> set[str]:
+    found: set[str] = set()
+    for batch in _chunks(sorted(set(bid_nos))):
+        found.update(
+            session.scalars(select(Notice.bid_no).where(Notice.bid_no.in_(batch)).distinct())
+        )
+    return found
+
+
+def _sw_pre_spec_numbers_in_db(session: Session, numbers: Iterable[str]) -> set[str]:
+    """Pre-spec numbers whose stored Notice projection says SW사업대상 Y."""
+
+    by_key: dict[str, str] = {}
+    for number in sorted(set(numbers)):
+        for key in _pre_spec_notice_keys(number):
+            by_key.setdefault(key, number)
+    found: set[str] = set()
+    for batch in _chunks(sorted(by_key)):
+        for notice in session.scalars(
+            select(Notice).where(
+                Notice.source_type.in_(tuple(sorted(_PRE_SPEC_SOURCE_TYPES))),
+                Notice.notice_key.in_(batch),
+            )
+        ):
+            flags = notice.qualification_flags_json
+            if isinstance(flags, dict) and flags.get("sw_business_status") == "Y":
+                found.add(by_key[notice.notice_key])
+    return found
+
+
+def _sw_industry_competitive(values: IndexValues) -> bool:
+    """Decision 1 ③: 1468 tag Y on a competitive bid.  Null never matches."""
+
+    method = values.contract_method
+    return values.sw_industry_1468 == "Y" and method is not None and "수의" not in method
+
+
+def _load_collection_run(
+    session: Session,
+    run: Run,
+    directory: Path,
+    *,
+    order_plan_raw: dict[str, Any] | None,
+    order_plan_path: Path,
+    collection_raw: dict[str, Any] | None,
+    collection_path: Path,
+    timezone_name: str,
+) -> tuple[int, dict[str, Any]]:
+    """Index a whole run and load the selected records (spec §2.2).
+
+    Order plans → pre-specs → bids.  A row that already carries a selection
+    reason keeps it and is replayed through the same idempotent loader, so a
+    re-run of the same run is a no-op.  Every other row is evaluated once;
+    the first matching reason wins and a null condition value never matches.
+    """
+
+    run_id = run.id
+    order_plans_count = 0
+    if order_plan_raw is None and collection_raw is None:
+        _record_warning(
+            session,
+            run_id,
+            "error",
+            "collection_missing",
+            "수집 파일이 없어 선별 적재를 하지 않았습니다.",
+            {"files": [ORDER_PLAN_FILE, COLLECTION_FILE]},
+        )
+
+    if order_plan_raw is not None:
+        plan_values: list[IndexValues] = []
+        for raw_plan in _collection_order_plan_rows(order_plan_raw):
+            values, rejected = _order_plan_index_values(raw_plan, timezone_name)
+            if values is None:
+                continue
+            _record_unindexed_tokens(session, run_id, values, rejected)
+            plan_values.append(values)
+        plan_rows = upsert_index_rows(session, run_id, plan_values)
+        order_plans_count = _load_order_plans(
+            session, run_id, order_plan_raw, timezone_name, str(order_plan_path)
+        )
+        # A Result has ``keys()``, so ``dict(result)`` would treat it as a mapping.
+        observed_plans = {
+            plan_no: plan_id
+            for plan_no, plan_id in session.execute(
+                select(OrderPlan.order_plan_unty_no, OrderPlan.id)
+                .join(OrderPlanObservation, OrderPlanObservation.order_plan_id == OrderPlan.id)
+                .where(OrderPlanObservation.run_id == run_id)
+            )
+        }
+        for (kind, key), row in plan_rows.items():
+            if kind == "order_plan" and key in observed_plans:
+                mark_selected(row, "order_plan_all", order_plan_id=observed_plans[key])
+
+    if collection_raw is not None:
+        _load_collection_stats(session, run_id, collection_raw, str(collection_path), run)
+        records = _collection_notice_records(
+            session, run_id, collection_raw, str(collection_path), timezone_name
+        )
+        rows = upsert_index_rows(session, run_id, [record.values for record in records])
+        loader = _IndexedRecordLoader(
+            session,
+            runs_root=directory.parent,
+            current_run_id=run_id,
+            current_records={record.values.record_key: record for record in records},
+        )
+
+        for record in records:
+            if record.values.record_kind != "pre_spec":
+                continue
+            row = rows[record.values.identity]
+            reason = row.selection_reason
+            if reason is None and record.values.sw_business_status == "Y":
+                reason = "pre_spec_sw"
+            if reason is not None:
+                loader.load(row, reason)
+
+        bids = [record for record in records if record.values.record_kind == "bid_notice"]
+        if bids:
+            existing_bid_nos = _existing_bid_numbers(
+                session, (record.values.bid_no for record in bids if record.values.bid_no)
+            )
+            tracked = _tracked_reference_keys(session, TRACKED_REFERENCE_STATUSES)
+            referenced_numbers = {
+                record.values.bf_spec_rgst_no for record in bids if record.values.bf_spec_rgst_no
+            }
+            pre_spec_rows = latest_rows(
+                session, "pre_spec", CollectedRecordIndex.bf_spec_rgst_no, referenced_numbers
+            )
+            sw_pre_specs = {
+                number for number, row in pre_spec_rows.items() if row.sw_business_status == "Y"
+            } | _sw_pre_spec_numbers_in_db(session, referenced_numbers)
+
+            # Rules ①–③ do not depend on load order.  ``bid_same_notice_no``
+            # then sees the database before this stage (any order of the bid
+            # number, so a bid already loaded is re-observed in a later run)
+            # plus every other order of the same bid number that ①–③ selected
+            # in this run, so the outcome does not depend on the file order.
+            static_reasons: dict[str, str | None] = {}
+            selected_orders: dict[str, set[str]] = {}
+            for record in bids:
+                values = record.values
+                if tracked.references_bid(values):
+                    reason = "bid_tracked_reference"
+                elif values.bf_spec_rgst_no is not None and values.bf_spec_rgst_no in sw_pre_specs:
+                    reason = "bid_sw_prespec_reference"
+                elif _sw_industry_competitive(values):
+                    reason = "bid_sw_industry_competitive"
+                else:
+                    reason = None
+                static_reasons[values.record_key] = reason
+                if reason is not None and values.bid_no is not None:
+                    selected_orders.setdefault(values.bid_no, set()).add(values.record_key)
+
+            for record in bids:
+                values = record.values
+                row = rows[values.identity]
+                reason = row.selection_reason
+                if reason is None:
+                    same_number = values.bid_no is not None and (
+                        values.bid_no in existing_bid_nos
+                        or bool(selected_orders.get(values.bid_no, set()) - {values.record_key})
+                    )
+                    reason = "bid_same_notice_no" if same_number else static_reasons[values.record_key]
+                if reason is not None:
+                    loader.load_bid(row, reason, pre_spec_rows)
+        loader.refresh_touched_runs()
+
+    return order_plans_count, selection_stats(session, run_id)
+
+
+def ingest_indexed_records(
+    session: Session,
+    rows: Iterable[CollectedRecordIndex],
+    *,
+    reason: str,
+    runs_root: str | Path,
+) -> IndexedIngestResult:
+    """Load index rows from their run files through the ordinary notice path.
+
+    Used by tracked backfill (``tracked_backfill``) and by search
+    (``search_result``).  Pre-specs load before bids; a bid whose
+    ``bfSpecRgstNo`` names a pre-spec that is only in the index loads that
+    pre-spec first as ``pre_spec_referenced``.  Order plans are always loaded
+    in full with their run and are refused here.  The caller owns commit.
+    """
+
+    if reason not in INDEXED_INGEST_REASONS:
+        raise ValueError(f"indexed ingest reason must be one of {INDEXED_INGEST_REASONS}")
+    ordered = sorted(
+        rows,
+        key=lambda row: (RECORD_KINDS.index(row.record_kind), row.record_key, row.run_id),
+    )
+    if any(row.record_kind == "order_plan" for row in ordered):
+        raise ValueError("order plans are loaded in full with their run, not from the index")
+    loader = _IndexedRecordLoader(session, runs_root=Path(runs_root))
+    for row in ordered:
+        if row.record_kind == "bid_notice":
+            loader.load_bid(row, reason)
+        else:
+            loader.load(row, reason)
+    loader.refresh_touched_runs()
+    session.flush()
+    return loader.result
+
+
+def _tracked_backfill_rows(
+    session: Session,
+    *,
+    opportunity_ids: Iterable[int] | None = None,
+) -> list[CollectedRecordIndex]:
+    """Newest un-ingested index rows referencing a tracked opportunity (spec §5)."""
+
+    keys = _tracked_reference_keys(
+        session, BACKFILL_TRACKING_STATUSES, opportunity_ids=opportunity_ids
+    )
+    candidates: list[CollectedRecordIndex] = []
+
+    def rows_where(record_kind: str, column: Any, values: Iterable[str]) -> list[CollectedRecordIndex]:
+        found: list[CollectedRecordIndex] = []
+        for batch in _chunks(sorted({value for value in values if value})):
+            found.extend(
+                session.scalars(
+                    select(CollectedRecordIndex).where(
+                        CollectedRecordIndex.record_kind == record_kind,
+                        column.in_(batch),
+                    )
+                )
+            )
+        return found
+
+    candidates.extend(rows_where("bid_notice", CollectedRecordIndex.order_plan_unty_no, keys.order_plan_nos))
+    candidates.extend(rows_where("bid_notice", CollectedRecordIndex.bf_spec_rgst_no, keys.pre_spec_nos))
+    candidates.extend(
+        rows_where("bid_notice", CollectedRecordIndex.bid_no, keys.bid_nos | keys.pre_spec_tokens)
+    )
+    # A plan token is bid number + order.  The three-character tail is removed
+    # only to narrow the query; the match itself is the exact full token.
+    candidates.extend(
+        row
+        for row in rows_where(
+            "bid_notice",
+            CollectedRecordIndex.bid_no,
+            {token[:-3] for token in keys.order_plan_tokens if len(token) > 3},
+        )
+        if row.bid_ord is not None and f"{row.bid_no}{row.bid_ord}" in keys.order_plan_tokens
+    )
+    candidates.extend(rows_where("pre_spec", CollectedRecordIndex.bf_spec_rgst_no, keys.pre_spec_nos))
+    candidates.extend(rows_with_tokens(session, "pre_spec", keys.bid_nos))
+
+    latest = latest_row_per_identity(session, candidates)
+    existing_keys: set[str] = set()
+    for batch in _chunks(sorted({row.record_key for row in latest})):
+        existing_keys.update(session.scalars(select(Notice.notice_key).where(Notice.notice_key.in_(batch))))
+    result: list[CollectedRecordIndex] = []
+    for row in latest:
+        if row.record_key in existing_keys:
+            continue
+        if (
+            row.record_kind == "pre_spec"
+            and row.bf_spec_rgst_no is not None
+            and _find_pre_spec_notice(session, row.bf_spec_rgst_no) is not None
+        ):
+            continue
+        result.append(row)
+    return result
+
+
+def tracked_backfill(
+    session: Session,
+    *,
+    runs_root: str | Path,
+    opportunity_ids: Iterable[int] | None = None,
+) -> dict[str, Any]:
+    """Load index-only records referenced by 계속 추적·보류 opportunities (spec §5).
+
+    Repeats until a pass finds no new candidate, because a loaded bid adds its
+    own bid number as a key.  Each record identity is attempted at most once,
+    so an unreadable run file cannot loop.  The caller owns commit.
+    """
+
+    ids = None if opportunity_ids is None else sorted(set(opportunity_ids))
+    attempted: set[tuple[str, str]] = set()
+    loaded: Counter[str] = Counter()
+    unavailable = 0
+    passes = 0
+    while True:
+        rows = [
+            row
+            for row in _tracked_backfill_rows(session, opportunity_ids=ids)
+            if (row.record_kind, row.record_key) not in attempted
+        ]
+        if not rows:
+            break
+        passes += 1
+        attempted.update((row.record_kind, row.record_key) for row in rows)
+        result = ingest_indexed_records(
+            session, rows, reason="tracked_backfill", runs_root=runs_root
+        )
+        loaded.update(result.loaded)
+        unavailable += result.unavailable
+    return {
+        "passes": passes,
+        "candidates": len(attempted),
+        "loaded": dict(sorted(loaded.items())),
+        "unavailable": unavailable,
+    }
+
+
 def _warning_dicts(session: Session, run_id: str) -> list[dict[str, Any]]:
     rows = session.scalars(
         select(IngestWarning).where(IngestWarning.run_id == run_id).order_by(IngestWarning.id)
@@ -2922,6 +3822,58 @@ def _store_generation_metadata(
     return config, digest
 
 
+def _complete_run_ingest(
+    session: Session,
+    run: Run,
+    directory: Path,
+    *,
+    extensions: Any,
+    reports_path: Path | None,
+    order_plans_count: int,
+    selection: dict[str, Any] | None = None,
+) -> IngestResult:
+    """Run the ingest hooks, refresh counts, and commit one loaded run."""
+
+    from ..extensions import RunIngestCounts
+
+    run_id = run.id
+    # 공고·발주계획·첨부 메타 적재가 끝났다. 판정·리뷰는 여기서부터 hook의
+    # 몫이며 같은 session·같은 transaction에서 동기적으로 실행된다.
+    if extensions.run_ingest_hook_count == 0:
+        _record_warning(
+            session,
+            run_id,
+            "warning",
+            "judgment_ingest_skipped",
+            "판정 적재를 제공하는 모듈이 없어 공고까지만 적재했습니다.",
+            {"run_id": run_id},
+        )
+        hook_counts = RunIngestCounts()
+    else:
+        hook_counts = _run_ingested_hooks(
+            session, run_id, directory, reports_root=reports_path
+        )
+    generation_config_result, generation_digest_result = _store_generation_metadata(
+        run, hook_counts.generation_config, hook_counts.generation_config_digest
+    )
+    notices_count = _update_counts(
+        session, run, judgments=hook_counts.judgments, reviews=hook_counts.reviews
+    )
+    session.commit()
+    warnings = _warning_dicts(session, run_id)
+    return IngestResult(
+        run_id=run_id,
+        notices=notices_count,
+        order_plans=order_plans_count,
+        judgments=hook_counts.judgments,
+        reviews=hook_counts.reviews,
+        generation_config=generation_config_result,
+        generation_config_digest=generation_digest_result,
+        warnings=warnings,
+        selection=selection,
+    )
+
+
 def ingest_run(
     run_directory: str | Path,
     session: Session | None = None,
@@ -2929,6 +3881,7 @@ def ingest_run(
     reports_root: str | Path | None = None,
     policy_path: str | Path | None = None,
     binding_path: str | Path | None = None,
+    selection: IngestSelection = "validation",
 ) -> IngestResult:
     """Ingest one run directory.
 
@@ -2937,14 +3890,28 @@ def ingest_run(
     판정 관련 건수는 그 hook이 돌려준 값으로 채운다(명세 §6.2). 등록된 hook이
     없으면 그 건수는 0이고 경고 한 줄이 남는다.
 
-    개별 공고의 오류는 기록하되 다른 공고의 적재를 막지 않는다. 유일한 파일 단위
-    중단은 검증 표본을 읽지 못하는 경우다(ADR-003).
+    ``selection``이 무엇을 공고로 적재할지 정한다.
+
+    - ``"validation"``(기본): 검증 표본(`validation-set.json`)이나 C-1 입력
+      (`screening-input.json`)의 공고만 적재한다. 유일한 파일 단위 중단은 검증
+      표본을 읽지 못하는 경우다(ADR-003). 발주계획은 전량 적재한다.
+    - ``"collection"``: 표본이 없어도 오류가 아니다. `collected-order-plans.json`·
+      `collected-notices.json`의 **모든** 레코드를 수집 색인에 한 행씩 남기고,
+      spec §2.2 선별 규칙(발주계획 전량 → SW사업대상 사전규격 → 추적·SW 관련
+      입찰공고)에 맞는 레코드만 같은 `_upsert_notice` 경로로 적재한다. 원천별
+      수집·사유별 선별·제외 건수는 `IngestResult.selection`과
+      `run.counts_json["selection"]`에 남는다. 같은 회차 재실행은 색인 unique와 관측
+      snapshot 검사로 no-op이다.
+
+    개별 공고의 오류는 기록하되 다른 공고의 적재를 막지 않는다.
     """
 
     # lifecycle 공개 표면(`app.lifecycle`)은 이 파일을 다시 import하므로 모듈
     # 최상단에서 가져오면 순환이 된다. 확장점 모듈만 함수 안에서 가져온다.
-    from ..extensions import RunIngestCounts, extension_registry
+    from ..extensions import extension_registry
 
+    if selection not in INGEST_SELECTIONS:
+        raise ValueError(f"selection must be one of {INGEST_SELECTIONS}")
     owns_session = session is None
     if owns_session:
         from ...core.db import SessionFactory
@@ -2956,7 +3923,7 @@ def ingest_run(
     reports_path = Path(reports_root) if reports_root is not None else None
     validation_path = directory / "validation-set.json"
     screening_input_path = directory / "screening-input.json"
-    collection_path = directory / "collected-notices.json"
+    collection_path = directory / COLLECTION_FILE
     order_plan_path = directory / ORDER_PLAN_FILE
 
     validation_raw = _read_optional_json(validation_path)
@@ -3039,6 +4006,28 @@ def ingest_run(
             generated_at,
             screening_basis,
         )
+        if selection == "collection":
+            order_plans_count, selection_counts = _load_collection_run(
+                session,
+                run,
+                directory,
+                order_plan_raw=order_plan_raw,
+                order_plan_path=order_plan_path,
+                collection_raw=collection_raw,
+                collection_path=collection_path,
+                timezone_name=timezone_name,
+            )
+            current = run.counts_json if isinstance(run.counts_json, dict) else {}
+            run.counts_json = {**current, "selection": selection_counts}
+            return _complete_run_ingest(
+                session,
+                run,
+                directory,
+                extensions=extensions,
+                reports_path=reports_path,
+                order_plans_count=order_plans_count,
+                selection=selection_counts,
+            )
         order_plans_count = 0
         if order_plan_raw is not None:
             order_plans_count = _load_order_plans(
@@ -3132,39 +4121,13 @@ def ingest_run(
         if collection_raw is not None:
             _load_collection_stats(session, run_id, collection_raw, str(collection_path), run)
 
-        # 공고·발주계획·첨부 메타 적재가 끝났다. 판정·리뷰는 여기서부터 hook의
-        # 몫이며 같은 session·같은 transaction에서 동기적으로 실행된다.
-        if extensions.run_ingest_hook_count == 0:
-            _record_warning(
-                session,
-                run_id,
-                "warning",
-                "judgment_ingest_skipped",
-                "판정 적재를 제공하는 모듈이 없어 공고까지만 적재했습니다.",
-                {"run_id": run_id},
-            )
-            hook_counts = RunIngestCounts()
-        else:
-            hook_counts = _run_ingested_hooks(
-                session, run_id, directory, reports_root=reports_path
-            )
-        generation_config_result, generation_digest_result = _store_generation_metadata(
-            run, hook_counts.generation_config, hook_counts.generation_config_digest
-        )
-        notices_count = _update_counts(
-            session, run, judgments=hook_counts.judgments, reviews=hook_counts.reviews
-        )
-        session.commit()
-        warnings = _warning_dicts(session, run_id)
-        return IngestResult(
-            run_id=run_id,
-            notices=notices_count,
-            order_plans=order_plans_count,
-            judgments=hook_counts.judgments,
-            reviews=hook_counts.reviews,
-            generation_config=generation_config_result,
-            generation_config_digest=generation_digest_result,
-            warnings=warnings,
+        return _complete_run_ingest(
+            session,
+            run,
+            directory,
+            extensions=extensions,
+            reports_path=reports_path,
+            order_plans_count=order_plans_count,
         )
     except Exception:
         session.rollback()
