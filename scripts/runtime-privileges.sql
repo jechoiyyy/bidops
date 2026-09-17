@@ -147,6 +147,7 @@ GRANT INSERT ON TABLE
     bidops.validation_run,
     bidops.validation_check,
     bidops.final_opinion,
+    bidops.bid_final_decision,
     bidops.work_job,
     bidops.idempotency_record,
     bidops.audit_event,
@@ -217,6 +218,10 @@ GRANT UPDATE (
 -- 에도 대상 테이블 한 열의 UPDATE 권한을 요구한다. structure identity는 잠금
 -- 대상으로만 쓰며 app은 구조 행을 다시 쓰지 않는다 (`notice.id`와 같은 이유).
 GRANT UPDATE (id) ON bidops.document_structure TO app;
+-- 최종 Go/No-Go 기록(ADR-0058)이 직전 결정 tip을 `SELECT ... FOR UPDATE`로 잠근다.
+-- 결정 행은 append-only이며(trigger가 모든 UPDATE·DELETE를 거부) app은 잠금 대상
+-- 식별자 한 열만 갖는다. 비교 계산 계보(comparison·attempt·item·evidence)는 닫혀 있다.
+GRANT UPDATE (id) ON bidops.bid_final_decision TO app;
 
 -- Human-facing rows are mutable only through their API-owned fields.  The
 -- immutable identity, actor, and creation columns are never update targets.

@@ -577,3 +577,48 @@ def test_final_decision_enum_idempotency_and_supersession_uniques():
         session.add(branch)
         with pytest.raises(IntegrityError):
             session.commit()
+
+
+def test_final_decision_basis_is_exactly_comparison_or_notice_conditions():
+    """ADR-0058: a decision row carries one basis; mixed or partial bases are rejected."""
+
+    engine = _engine()
+    with Session(engine) as session:
+        scope = _scope(session, "decision-basis")
+        common = {
+            "opportunity_id": scope["opportunity"].id,
+            "decision": "go",
+            "reason": "reason",
+            "claimed_name": "actor",
+            "created_at": NOW,
+        }
+        comparison_basis = {
+            "comparison_id": scope["comparison"].id,
+            "comparison_version": 1,
+            "result_sha256": SHA_A,
+            "baseline_document_version_id": scope["baseline_document"].id,
+            "comparison_document_version_id": scope["comparison_document"].id,
+        }
+        notice_basis = {
+            "basis_kind": "notice_conditions",
+            "basis_notice_id": scope["comparison_notice"].id,
+            "basis_observation_sha256": SHA_B,
+        }
+        for sequence, basis in enumerate((notice_basis, comparison_basis), start=1):
+            session.add(BidFinalDecision(sequence=sequence, request_id=uuid4(), **common, **basis))
+            session.commit()
+
+        invalid = (
+            {**notice_basis, **comparison_basis},
+            {**notice_basis, "basis_notice_id": None},
+            {**notice_basis, "basis_observation_sha256": "B" * 64},
+            {**comparison_basis, "basis_notice_id": scope["comparison_notice"].id},
+            {**comparison_basis, "result_sha256": None},
+            {**comparison_basis, "basis_kind": "manual"},
+            {"basis_kind": "comparison"},
+        )
+        for basis in invalid:
+            session.add(BidFinalDecision(sequence=3, request_id=uuid4(), **common, **basis))
+            with pytest.raises(IntegrityError):
+                session.commit()
+            session.rollback()
