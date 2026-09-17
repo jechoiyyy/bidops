@@ -1,15 +1,15 @@
 import { expect, test, type Page } from "@playwright/test";
 import { mockApi } from "./api-mock";
-import { comparisonFor, mockGoNoGo, mockWorkspaceRecovery } from "./go-no-go-fixtures";
+import { comparisonFor, mockGoNoGo, mockWorkspaceRecovery, queueItemFor, SCENARIOS } from "./go-no-go-fixtures";
 
 /**
  * 최종 Go/No-Go 결정 검토 목록.
  *
  * 승인된 시안(`design-previews/bidops-go-no-go-erp-20260907/`)의 첫 화면이다. 이
- * spec은 화면이 **업무 상태를 옳게 말하는가**를 본다: 계속 추적만 대상인지,
+ * spec은 화면이 **업무 상태를 옳게 말하는가**를 본다: 결정 대기열 한 번으로 그리는지,
  * 미결정과 오래된 결정을 함께 검토 대상으로 두는지, 조회 중·실패·계산 대기·
- * 비교 없음을 변경 없음이나 미결정으로 접지 않는지, 집계가 받은 페이지 기준이라고
- * 밝히는지, 저장은 이 화면에서 하지 않는지.
+ * 비교 없음을 변경 없음이나 미결정으로 접지 않는지, 집계 범위를 밝히는지, 저장은
+ * 이 화면에서 하지 않는지.
  *
  * 공유 `api-mock.ts`는 고치지 않는다. 고정 입력은 `go-no-go-fixtures.ts`가 준다.
  */
@@ -28,79 +28,139 @@ function rows(page: Page) {
   return page.locator(".gng-table-scroll tbody tr");
 }
 
-test("기본 검토 대상은 미결정과 오래된 결정·조회 미확인을 함께 남긴다", async ({ page }) => {
+test("기본 검토 대상은 미결정·오래된 결정·효력 미확인을 함께 남기고 입찰공고 미연결은 뺀다", async ({ page }) => {
   await openList(page);
 
-  // 미결정 5건 + stale Go 1건 + 조회 실패 1건 + 조회 중 1건 = 8건.
-  await expect(page.locator(".gng-list-head")).toContainText("결정 검토 목록 · 8건");
-  await expect(rows(page)).toHaveCount(8);
+  // 입찰공고가 연결된 미결정 7건 + stale Go 1건 + 효력 미확인 No-Go 1건 = 9건.
+  await expect(page.locator(".gng-list-head")).toContainText("결정 검토 목록 · 9건");
+  await expect(rows(page)).toHaveCount(9);
 
   // 오래된 Go 결정이 목록에서 사라지지 않는다. 미결정만 남기면 놓친다.
   const stale = rows(page).filter({ hasText: "교통정보 수집·제공 플랫폼 고도화" });
   await expect(stale).toContainText("Go · 재검토");
+  // 현재성을 모르는 결정도 끝난 것이 아니다.
+  await expect(rows(page).filter({ hasText: "공고 조건 기준 결정 사업" })).toContainText("No-Go · 효력 미확인");
 
-  // 이미 확정된 현재 결정은 기본 보기에 없다.
+  // 이미 확정된 현재 결정과 결정할 입찰공고가 없는 사업은 기본 보기에 없다.
   await expect(rows(page).filter({ hasText: "문화시설 통합예약 서비스 구축" })).toHaveCount(0);
+  await expect(rows(page).filter({ hasText: "입찰공고 미연결 추적 사업" })).toHaveCount(0);
 });
 
 test("보기 탭은 검토 대상·재검토·결정 기록·전체를 서로 다르게 센다", async ({ page }) => {
   await openList(page);
   const tabs = page.locator(".gng-view-tabs");
-  await expect(tabs.getByRole("button", { name: /검토 대상/ })).toContainText("8");
-  await expect(tabs.getByRole("button", { name: /재검토/ })).toContainText("1");
-  await expect(tabs.getByRole("button", { name: /결정 기록/ })).toContainText("3");
-  await expect(tabs.getByRole("button", { name: /전체/ })).toContainText("10");
+  await expect(tabs.getByRole("button", { name: /검토 대상/ })).toContainText("9");
+  await expect(tabs.getByRole("button", { name: /재검토/ })).toContainText("2");
+  await expect(tabs.getByRole("button", { name: /결정 기록/ })).toContainText("4");
+  await expect(tabs.getByRole("button", { name: /전체/ })).toContainText(String(SCENARIOS.length));
 
   await tabs.getByRole("button", { name: /재검토/ }).click();
   await expect.poll(() => new URL(page.url()).searchParams.get("show")).toBe("recheck");
-  await expect(rows(page)).toHaveCount(1);
-  await expect(rows(page).first()).toContainText("Go · 재검토");
+  await expect(rows(page)).toHaveCount(2);
+  await expect(rows(page).filter({ hasText: "교통정보 수집·제공 플랫폼 고도화" })).toContainText("Go · 재검토");
 
   await tabs.getByRole("button", { name: /결정 기록/ }).click();
-  await expect(rows(page)).toHaveCount(3);
+  await expect(rows(page)).toHaveCount(4);
+
+  // 입찰공고가 없는 사업은 전체 보기에만 있고, 미결정이 아니라 미연결이라고 적는다.
+  await tabs.getByRole("button", { name: /전체/ }).click();
+  await expect(rows(page).filter({ hasText: "입찰공고 미연결 추적 사업" })).toContainText("입찰공고 미연결");
 });
 
-test("집계와 검색 범위가 받은 페이지 기준이라고 밝힌다", async ({ page }) => {
+// spec §11.3: 목록은 결정 대기열 한 번으로 그린다. 행마다 workspace를 조회하던 N+1을
+// 되살리지 않는다 — 상세는 선택한 사업 하나만 받는다.
+test("목록은 결정 대기열 한 번으로 그리고 행마다 비교를 조회하지 않는다", async ({ page }) => {
+  await mockApi(page);
+  await mockGoNoGo(page, SLOW);
+  const queueQueries: Array<Record<string, string>> = [];
+  const workspaceIds: number[] = [];
+  let opportunityListRequests = 0;
+  page.on("request", (request) => {
+    const url = new URL(request.url());
+    if (url.pathname === "/api/bid-delta/decision-queue") queueQueries.push(Object.fromEntries(url.searchParams.entries()));
+    if (url.pathname === "/api/opportunities") opportunityListRequests += 1;
+    const workspace = /^\/api\/opportunities\/(\d+)\/bid-delta$/.exec(url.pathname);
+    if (workspace) workspaceIds.push(Number(workspace[1]));
+  });
+
+  await page.goto("/go-no-go?show=all&selected=903");
+  await expect(rows(page)).toHaveCount(SCENARIOS.length);
+  // 선택한 사업의 상세가 실제로 그려질 때까지 기다린 뒤 센다.
+  await expect(page.getByRole("heading", { name: "변경 비교 계산을 기다리고 있습니다" })).toBeVisible();
+  expect(queueQueries).toHaveLength(1);
+  expect(queueQueries[0]).toMatchObject({ status: "all", limit: "500", offset: "0" });
+  expect(opportunityListRequests).toBe(0);
+  expect([...new Set(workspaceIds)]).toEqual([903]);
+
+  // 다른 행을 골라도 대기열은 다시 받지 않고 그 행 하나만 조회한다.
+  await rows(page).filter({ hasText: "학교 통합정보서비스 운영 및 유지관리" }).locator(".gng-row").click();
+  await expect(page.getByRole("heading", { name: "변경 비교 결과가 아직 없습니다" })).toBeVisible();
+  expect(queueQueries).toHaveLength(1);
+  expect([...new Set(workspaceIds)].sort()).toEqual([903, 904]);
+});
+
+test("집계와 검색 범위를 밝히고 대기열이 넘치면 받은 범위 기준이라고 적는다", async ({ page }) => {
   await openList(page);
-  await expect(page.locator(".gng-summary")).toContainText("받은 10건 기준");
-  await expect(page.locator(".gng-summary")).toContainText("전체 총계가 아닙니다");
+  await expect(page.locator(".gng-summary")).toContainText(`전체 ${SCENARIOS.length}건 기준`);
+  await expect(page.locator(".gng-summary")).not.toContainText("일부");
 
   await page.getByPlaceholder("사업명·발주기관 검색").fill("교통");
   await expect(rows(page)).toHaveCount(1);
-  await expect(page.locator(".gng-filter-context")).toContainText("검색은 받은 페이지 안에서만 좁힙니다");
+  await expect(page.locator(".gng-filter-context")).not.toContainText("받은 범위 안에서만");
 
   await page.getByPlaceholder("사업명·발주기관 검색").fill("없는사업");
   await expect(page.getByRole("heading", { name: "조건에 맞는 사업이 없습니다" })).toBeVisible();
-  await expect(page.getByText("전체에 없다는 뜻은 아닙니다.", { exact: false })).toBeVisible();
+  await expect(page.getByText("계속 추적 중인 사업 전체에서 찾았습니다.", { exact: false })).toBeVisible();
   await page.getByRole("button", { name: "필터 초기화", exact: true }).click();
-  await expect(rows(page)).toHaveCount(8);
+  await expect(rows(page)).toHaveCount(9);
+
+  // 서버 상한(500건)을 넘는 대기열은 받은 범위만 센다고 직접 밝히고 페이저를 둔다.
+  await page.route("**/api/bid-delta/decision-queue**", async (route) => {
+    const items = SCENARIOS.map((_, index) => queueItemFor(index));
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ items, total: 600, limit: 500, offset: 0 }) });
+  });
+  await page.goto("/go-no-go?show=all&q=교통");
+  await expect(rows(page)).toHaveCount(1);
+  await expect(page.locator(".gng-summary")).toContainText(`받은 ${SCENARIOS.length}건 기준`);
+  await expect(page.locator(".gng-summary")).toContainText("전체 600건 중 일부입니다");
+  await expect(page.locator(".gng-filter-context")).toContainText("검색은 받은 범위 안에서만 좁힙니다");
+  await expect(page.getByRole("navigation", { name: "결정 대기열 페이지" })).toContainText(`1–${SCENARIOS.length} / 600`);
 });
 
-test("조회 중·조회 실패·비교 없음·계산 대기를 미결정이나 변경 없음으로 접지 않는다", async ({ page }) => {
+test("상세 조회 중·조회 실패·비교 없음·계산 대기를 미결정이나 변경 없음으로 접지 않는다", async ({ page }) => {
   await openList(page, "?show=all");
 
-  await expect(rows(page).filter({ hasText: "의료정보 연계 기반 구축" })).toContainText("조회 실패");
-  await expect(rows(page).filter({ hasText: "관광데이터 분석 환경 구축" })).toContainText("조회 중");
+  // 행의 비교 건수와 사람 결정은 대기열 값이다. 비교 0건은 값으로 적는다.
   await expect(rows(page).filter({ hasText: "학교 통합정보서비스 운영 및 유지관리" })).toContainText("변경 비교 결과 없음");
-  await expect(rows(page).filter({ hasText: "시설관리 업무시스템 구축" })).toContainText("계산 대기");
+  await expect(rows(page).filter({ hasText: "시설관리 업무시스템 구축" })).toContainText("변경 비교 1건");
 
-  // 조회 실패 행을 골라도 결정 상태를 단정하지 않는다.
-  await rows(page).filter({ hasText: "의료정보 연계 기반 구축" }).click();
-  await expect(page.getByRole("heading", { name: "결정 상태를 불러오지 못했습니다" })).toBeVisible();
-  await expect(page.getByText("조회가 끝나기 전에는 미결정 또는 변경 없음으로 표시하지 않습니다.")).toBeVisible();
-  await expect(page.locator(".gng-action-footer")).toContainText("미확인");
+  // 상세 조회가 실패해도 대기열이 준 사람 결정은 그대로이고, 상세를 단정하지 않는다.
+  await rows(page).filter({ hasText: "의료정보 연계 기반 구축" }).locator(".gng-row").click();
+  await expect(page.getByRole("heading", { name: "비교·결정 상세를 불러오지 못했습니다" })).toBeVisible();
+  await expect(rows(page).filter({ hasText: "의료정보 연계 기반 구축" })).toContainText("미결정");
+  await expect(page.locator(".gng-action-footer")).toContainText("아직 결정하지 않음");
+
+  await rows(page).filter({ hasText: "관광데이터 분석 환경 구축" }).locator(".gng-row").click();
+  await expect(page.getByRole("heading", { name: "비교·결정 상세를 확인하고 있습니다" })).toBeVisible();
+  await expect(page.getByText("조회가 끝나기 전에는 변경 없음으로 표시하지 않습니다.", { exact: false })).toBeVisible();
 });
 
-test("계산 대기·비교 없음 상세는 결정 화면으로만 데려가고 저장을 열지 않는다", async ({ page }) => {
+test("완료된 비교가 없으면 결정 화면의 공고 조건 근거로 안내하고 저장을 열지 않는다", async ({ page }) => {
   await openList(page, "?show=all&selected=902");
   await expect(page.getByRole("heading", { name: "변경 비교 계산을 기다리고 있습니다" })).toBeVisible();
-  await expect(page.locator(".gng-action-footer")).toContainText("계산 완료 전에는 최종 결정을 기록할 수 없습니다");
-  await expect(page.getByRole("button", { name: "비교 상태 확인" })).toBeVisible();
+  await expect(page.locator(".gng-action-footer")).toContainText("공고 조건을 근거로 기록합니다");
+  await expect(page.getByRole("button", { name: "공고 조건 검토·결정 열기" })).toBeVisible();
   await expect(page.getByRole("button", { name: "변경 검토·결정 열기" })).toHaveCount(0);
 
   await page.goto("/go-no-go?show=all&selected=904");
   await expect(page.getByRole("heading", { name: "변경 비교 결과가 아직 없습니다" })).toBeVisible();
   await expect(page.getByText("비교가 없다는 것은 변경이 없다는 뜻이 아닙니다.", { exact: false })).toBeVisible();
+
+  // 입찰공고가 없으면 결정할 공고가 없다고 적는다.
+  await page.goto("/go-no-go?show=all&selected=911");
+  await expect(page.getByRole("button", { name: "결정 화면 열기" })).toBeVisible();
+  await expect(page.locator(".gng-action-footer")).toContainText("연결된 입찰공고가 없어 최종 결정을 기록할 수 없습니다");
+  await expect(page.locator(".gng-detail-head")).toContainText("입찰공고 미연결");
 });
 
 test("완료된 비교는 중요·비중요·확인 필요를 서로 다르게 세고 실제 0을 0으로 적는다", async ({ page }) => {
@@ -160,7 +220,7 @@ test("비교 문서 탭은 API가 준 양쪽 문서 스냅숏만 보여 준다",
   await expect(page.getByText("문서가 없다는 뜻은 아닙니다.", { exact: false })).toBeVisible();
 });
 
-test("결정 기록 탭은 마지막 결정만 보여 주고 이력을 지어내지 않는다", async ({ page }) => {
+test("결정 기록 탭은 마지막 결정과 근거 종류만 보여 주고 이력을 지어내지 않는다", async ({ page }) => {
   await openList(page, "?show=all&selected=903");
   await page.getByRole("button", { name: "결정 기록", exact: true }).click();
   const history = page.locator(".gng-decision-history");
@@ -168,8 +228,16 @@ test("결정 기록 탭은 마지막 결정만 보여 주고 이력을 지어내
   await expect(history).toContainText("재검토 필요");
   await expect(history).toContainText("기존 검토자");
   await expect(history).toContainText("결정 이후 새 정정공고 문서 버전이 연결되었습니다.");
-  await expect(history).toContainText("전체 이력은 결정 화면에 있습니다");
+  await expect(history).toContainText("비교 결과 기준 · 비교 버전 2");
+  await expect(history).toContainText("이 목록은 사업기회의 마지막 결정만 보여 줍니다");
   await expect(page.locator(".gng-history-entry")).toHaveCount(1);
+
+  // 공고 조건 근거 결정은 비교 필드 대신 기준 입찰공고와 관측 해시를 적는다.
+  await page.goto("/go-no-go?show=all&selected=912");
+  await page.getByRole("button", { name: "결정 기록", exact: true }).click();
+  await expect(page.locator(".gng-decision-history")).toContainText("No-Go · 불참");
+  await expect(page.locator(".gng-decision-history")).toContainText("공고 조건 기준 · 기준 입찰공고 ID 91200 · 관측 해시 ffffffffffff");
+  await expect(page.locator(".gng-decision-history")).not.toContainText("비교 버전");
 
   // 결정이 없으면 없다고 적고 추적 상태를 결정으로 승격하지 않는다.
   await page.goto("/go-no-go?show=all&selected=901");
@@ -197,21 +265,6 @@ test("결정 화면 열기는 선택한 비교와 돌아올 검색 조건을 함
   await page.getByRole("link", { name: "결정 목록으로" }).click();
   await expect(page).toHaveURL(/\/go-no-go\?/);
   await expect.poll(() => new URL(page.url()).searchParams.get("selected")).toBe("901");
-});
-
-test("추적 상태가 계속 추적인 사업기회만 조회한다", async ({ page }) => {
-  const queries: Array<Record<string, string>> = [];
-  await mockApi(page);
-  await mockGoNoGo(page, SLOW);
-  // 마지막에 등록한 handler 가 먼저 잡는다. 세기만 하고 고정 입력으로 넘긴다.
-  await page.route(/\/api\/opportunities(\?|$)/, async (route) => {
-    const url = new URL(route.request().url());
-    queries.push(Object.fromEntries(url.searchParams.entries()));
-    await route.fallback();
-  });
-  await page.goto("/go-no-go");
-  await expect(page.locator(".gng-row").first()).toBeVisible();
-  expect(queries[0]).toMatchObject({ tracking_status: "계속 추적", limit: "25", offset: "0" });
 });
 
 // 목록 4화면은 상단바가 제목을 그리고 페이지는 제목 줄을 두지 않는다(계획서 §1).
@@ -266,22 +319,24 @@ test("데이터 현황은 API 경계와 집계 범위를 기본 화면 밖에서
   await page.getByRole("button", { name: "데이터 현황", exact: true }).click();
   const dialog = page.getByRole("dialog");
   await expect(dialog).toContainText("‘계속 추적’인 사업기회만 최종 Go/No-Go 대상입니다");
-  await expect(dialog).toContainText("전체 총계가 아닙니다");
+  await expect(dialog).toContainText("최종 결정 대기열을 한 번 받아 그립니다");
+  await expect(dialog).toContainText("입찰공고가 연결되지 않은 사업은 결정할 공고가 없어 전체 보기에만 둡니다");
   await expect(dialog).toContainText("변경 비교를 계산하는 프로그램은 아직 운영에 없습니다");
   await expect(dialog).toContainText("최종 결정 저장은 결정 화면에서만 합니다");
 });
 
-// 실패한 것은 사업기회 목록이 아니라 **이 행의 결정 상태 조회**다. 목록을 다시
-// 받아 봐야 실패한 workspace 조회는 그대로 실패로 남는다.
-test("결정 상태 조회 실패는 그 조회를 다시 불러 회복한다", async ({ page }) => {
+// 실패한 것은 결정 대기열이 아니라 **선택한 사업의 비교·결정 상세 조회**다. 대기열을
+// 다시 받아 봐야 실패한 workspace 조회는 그대로 실패로 남는다.
+test("선택한 사업의 상세 조회 실패는 그 조회를 다시 불러 회복한다", async ({ page }) => {
   await mockApi(page);
   await mockGoNoGo(page, SLOW);
   const trace = await mockWorkspaceRecovery(page);
   await page.goto("/go-no-go?show=all&selected=909");
 
   const failedRow = rows(page).filter({ hasText: "의료정보 연계 기반 구축" });
-  await expect(failedRow).toContainText("조회 실패");
-  await expect(page.getByRole("heading", { name: "결정 상태를 불러오지 못했습니다" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "비교·결정 상세를 불러오지 못했습니다" })).toBeVisible();
+  // 행의 사람 결정은 대기열 값이라 상세 조회 실패와 무관하게 그대로다.
+  await expect(failedRow).toContainText("미결정");
   const failedGets = trace.gets;
   expect(failedGets).toBeGreaterThan(0);
 
@@ -290,8 +345,7 @@ test("결정 상태 조회 실패는 그 조회를 다시 불러 회복한다", 
 
   // 같은 조회가 다시 나가고, 회복된 뒤에는 실제 상태를 말한다.
   await expect.poll(() => trace.gets).toBeGreaterThan(failedGets);
-  await expect(failedRow).toContainText("미결정");
-  await expect(page.getByRole("heading", { name: "결정 상태를 불러오지 못했습니다" })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "비교·결정 상세를 불러오지 못했습니다" })).toHaveCount(0);
   await expect(page.locator(".gng-delta-counts")).toBeVisible();
   await expect(page.getByRole("button", { name: "다시 조회", exact: true })).toHaveCount(0);
 });
