@@ -312,11 +312,15 @@ body {
   background: var(--color-background-muted);
 }
 
-/* 활성 항목만 흰 카드로 떠오른다(spec §2.1). 좌측 띠나 테두리는 두지 않는다. */
+/* 활성 항목만 흰 카드로 떠오른다(spec §2.1). 좌측 띠는 두지 않되, 키보드
+   focus-visible과 같은 outline(2px solid var(--color-text-accent), offset 2px)을
+   기본값으로 상시 노출한다. */
 .app-shell[data-astryx-theme="bidops"] .sidebar-item.is-active {
   color: var(--color-text-accent);
   background: var(--color-background-surface);
   box-shadow: var(--shadow-low);
+  outline: 2px solid var(--color-text-accent);
+  outline-offset: 2px;
   font-weight: 600;
 }
 
