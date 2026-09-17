@@ -18,9 +18,8 @@ OpportunityTrackingStatus = Literal["미선택", "계속 추적", "보류", "종
 OpportunityFirstRegisteredStage = Literal["order_plan", "pre_spec", "bid_notice"]
 OpportunityLinkStage = Literal["order_plan", "notice"]
 OpportunityLinkType = Literal["official", "candidate"]
-# ``사람 확인 병합``·``merge_confirmation``은 migration 0027이 허용한 값이다. 이 값을
-# 만드는 병합 흐름은 아직 없지만(spec §3), 저장된 행을 읽는 화면이 500이 되지 않도록
-# 읽기 계약을 DB CHECK와 같은 범위로 넓혀 둔다.
+# ``사람 확인 병합``은 병합으로 끝난 후보 수락(비소유 행), ``merge_confirmation``은
+# 사람 상태가 있는 사업기회끼리 자동 병합을 거부했을 때 만든 병합 확인 후보다(spec §3).
 OpportunityLinkStatus = Literal[
     "확정", "후보 확인 대기", "사람 확인 완료", "검색 미확인", "사람 확인 병합"
 ]
@@ -106,9 +105,28 @@ class OpportunityTrackingDecisionView(RuntimeContractModel):
     cleared_recheck_signal: bool
 
 
+OpportunityRecheckEventKind = Literal["created", "acknowledged", "cleared_by_decision"]
+
+
+class OpportunityRecheckEventView(RuntimeContractModel):
+    """One recheck-signal event projected from the audit trail (spec §6.3).
+
+    ``note_present`` says only whether an acknowledgement carried a note; the
+    note text is never stored.
+    """
+
+    kind: OpportunityRecheckEventKind
+    link_id: int | None = Field(default=None, ge=1)
+    actor_kind: Literal["human", "system"]
+    claimed_name: str | None = None
+    created_at: AwareDateTime
+    note_present: bool
+
+
 class OpportunityTrackingDecisionsResponse(RuntimeContractModel):
     opportunity_id: int = Field(ge=1)
     items: list[OpportunityTrackingDecisionView] = Field(default_factory=list)
+    recheck_events: list[OpportunityRecheckEventView] = Field(default_factory=list)
 
 
 class OpportunityListResponse(RuntimeContractModel):
@@ -130,6 +148,18 @@ class TrackingStatusUpdateRequest(RuntimeContractModel):
         validation_alias=AliasChoices("reason", "tracking_reason"),
         min_length=1,
     )
+
+
+class RecheckAcknowledgementRequest(RuntimeContractModel):
+    """Acknowledge the current recheck signal without a new tracking decision.
+
+    ``expected_link_id`` is the evidence link the person looked at; a signal
+    that moved on to another link is not cleared.  Actor identity comes only
+    from request headers.
+    """
+
+    expected_link_id: StrictInt = Field(ge=1)
+    note: str | None = Field(default=None, max_length=500)
 
 
 class CandidateDecisionRequest(RuntimeContractModel):
@@ -407,6 +437,8 @@ __all__ = [
     "OpportunityListItem",
     "OpportunityListResponse",
     "OpportunityLinkStage",
+    "OpportunityRecheckEventKind",
+    "OpportunityRecheckEventView",
     "OpportunityLinkStatus",
     "OpportunityLinkType",
     "OpportunitySearchStrategy",
@@ -428,5 +460,6 @@ __all__ = [
     "OrderPlanBulkStartRequest",
     "OrderPlanBulkStartResponse",
     "OrderPlanBulkSummary",
+    "RecheckAcknowledgementRequest",
     "TrackingStatusUpdateRequest",
 ]
