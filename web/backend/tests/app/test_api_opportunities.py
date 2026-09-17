@@ -957,6 +957,9 @@ def test_search_endpoint_errors_are_safe_and_write_nothing(opportunity_api, empt
     assert unconfirmed.json()["search_unconfirmed"] is True and unconfirmed.json()["candidates"] == []
     detail = client.get(f"/api/opportunities/{retained_id}").json()
     assert any(
-        link["status"] == "검색 미확인" and link["last_searched_at"] is not None for link in detail["links"]
+        link["status"] == "검색 미확인"
+        and link["last_searched_at"] is not None
+        and link["search_target_kind"] == "bid_notice"
+        for link in detail["links"]
     )
 

@@ -1472,6 +1472,9 @@ export interface OpportunityLinkView {
   last_searched_at: string | null;
   evidence_external_no: string | null;
   evidence_bid_no: string | null;
+  // `검색 미확인` 행이 어느 찾아보기 대상의 기록인지(spec §3.3). 다른 행은 null이다.
+  // 이 필드를 싣기 전의 응답·고정 입력에는 없을 수 있어 선택 필드로 둔다.
+  search_target_kind?: OpportunitySearchTarget | null;
   human_decision: "accepted" | "rejected" | null;
   reviewer_name: string | null;
   reviewed_at: string | null;

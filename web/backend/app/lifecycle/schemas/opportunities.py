@@ -58,6 +58,8 @@ class OpportunityLinkView(RuntimeContractModel):
     last_searched_at: AwareDateTime | None = None
     evidence_external_no: str | None = None
     evidence_bid_no: str | None = None
+    # ``검색 미확인`` 행이 어느 찾아보기 대상의 기록인지(spec §3.3·§4.3). 다른 행은 ``None``이다.
+    search_target_kind: OpportunitySearchTarget | None = None
     human_decision: Literal["accepted", "rejected"] | None = None
     reviewer_name: str | None = None
     reviewed_at: AwareDateTime | None = None
