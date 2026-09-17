@@ -36,7 +36,7 @@
  * Astryx의 `--font-size-*`는 rem이고 이 앱의 root는 14px다. 컴포넌트가 그 토큰을
  * 그대로 쓰면 본문이 12.25px, 보조가 10.5px로 계산돼 시안(20/14/14/12px)보다
  * 작다(`styles/typography.css`). 이 화면이 쓰는 컴포넌트에만 네 단을 되돌린다. */
-:is(.bid-delta-page, .bid-delta-dialog-body) :where(.astryx-text, p, li, dd, span, input, textarea, blockquote) {
+:is(.bid-delta-page, .bid-delta-dialog-body) :where(.astryx-text, p, li, dd, span, input, textarea, blockquote, th, td) {
   font-size: var(--bo-type-body);
   line-height: var(--bo-type-body-leading);
 }
@@ -310,6 +310,113 @@
   padding: var(--spacing-2) var(--spacing-3);
   border-left: var(--spacing-1) solid var(--color-accent);
   background: var(--color-accent-muted);
+}
+
+.bid-delta-worker-note > button {
+  justify-self: start;
+}
+
+/* --- 왼쪽: 공고 조건 요약 (spec §11.3) ---
+ * 최신 차수 표는 항목·값 두 쌍을 한 줄에 둔다. 15개 항목이 한 열이면 읽기 칸의 첫
+ * 화면을 표 하나가 다 차지한다. 상태는 색이 아니라 `변경`·`변경 없음`·`미확인`
+ * 문자 토큰으로 전달하고, 변경만 테두리로 한 번 더 강조한다. */
+
+.bid-delta-conditions,
+.bid-delta-conditions-sub {
+  display: grid;
+  gap: var(--spacing-2);
+  min-width: 0;
+}
+
+.bid-delta-conditions {
+  gap: var(--spacing-3);
+  padding-bottom: var(--spacing-4);
+  border-bottom: var(--border-width) solid var(--color-border);
+}
+
+.bid-delta-conditions-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.bid-delta-conditions-table th,
+.bid-delta-conditions-table td {
+  padding: var(--spacing-1-5) var(--spacing-2);
+  border: var(--border-width) solid var(--color-border);
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+
+.bid-delta-conditions-table th {
+  width: 18%;
+  color: var(--color-text-secondary);
+  font-weight: var(--bo-type-section-title-weight);
+  background: var(--color-background-body);
+}
+
+.bid-delta-round-stack {
+  display: grid;
+  gap: var(--spacing-2);
+}
+
+.bid-delta-round {
+  display: grid;
+  gap: var(--spacing-2);
+  min-width: 0;
+  padding: var(--spacing-2) var(--spacing-3);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-inner);
+  background: var(--color-background-body);
+}
+
+.bid-delta-round-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--spacing-1) var(--spacing-3);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.bid-delta-round-list {
+  display: grid;
+  gap: var(--spacing-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.bid-delta-round-list > li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-1) var(--spacing-2);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.bid-delta-round-changed > li {
+  padding: var(--spacing-1) var(--spacing-2);
+  border-left: var(--spacing-1) solid var(--color-accent);
+  background: var(--color-accent-muted);
+}
+
+.bid-delta-condition-change-values {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-1);
+  min-width: 0;
+}
+
+.bid-delta-condition-change-values > svg {
+  flex: 0 0 auto;
+  width: var(--spacing-4);
+  height: var(--spacing-4);
+  color: var(--color-text-secondary);
 }
 
 /* --- 왼쪽: 범주별 항목 --- */
@@ -625,6 +732,44 @@
 
 .bid-delta-save-conditions > li[data-met="true"] {
   color: var(--color-text-primary);
+}
+
+/* 체크리스트는 한 줄에 흘려 쓴다. 세 줄로 세우면 결정 칸 첫 화면에서 담당자 입력이 밀린다. */
+.bid-delta-save-conditions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-1) var(--spacing-3);
+  list-style: none;
+  padding-left: 0;
+}
+
+.bid-delta-save-conditions > li {
+  display: flex;
+  align-items: baseline;
+  gap: var(--spacing-1);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* 충족 여부는 색만이 아니라 `확인됨`·`필요` 문자로 먼저 말한다. */
+.bid-delta-check-state {
+  flex: 0 0 auto;
+  padding: 0 var(--spacing-1);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-inner);
+  text-align: center;
+  font-size: var(--bo-type-caption);
+}
+
+.bid-delta-save-conditions > li[data-met="true"] .bid-delta-check-state {
+  border-color: var(--color-accent);
+  color: var(--color-text-accent);
+}
+
+.bid-delta-decision-basis {
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+  overflow-wrap: anywhere;
 }
 
 .bid-delta-final-form {
