@@ -312,7 +312,7 @@ def normalize_order_plan(
         "sw_business_status": None,
         "published_at": published_at,
         "changed_at": changed_at,
-        "bid_ntice_no_list": text_value(record.get("bidNticeNoList")),
+        "bid_ntice_no_list": text_value(record.get("bidNtceNoList")),
         "notice_posted": text_value(record.get("ntceNticeYn")),
         # An empty rcritRgstNo is a known, nullable contract field.  It is not
         # removed and is not converted into a fabricated identifier.

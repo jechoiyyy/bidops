@@ -200,10 +200,11 @@ class CollectionTests(unittest.TestCase):
 
 class NormalizationTests(unittest.TestCase):
     def test_sw_status_is_null_and_unknown_and_empty_rcrit_field_is_retained(self) -> None:
+        raw_item = source_item("P1", rcrit="")
         with tempfile.TemporaryDirectory() as directory:
             _fetcher, _pages, artifact = collect_fixture(
                 Path(directory),
-                {1: payload([source_item("P1", rcrit="")], page=1, total=1)},
+                {1: payload([raw_item], page=1, total=1)},
             )
         plan = artifact["order_plans"][0]
         self.assertIsNone(plan["sw_business_status"])
@@ -215,6 +216,7 @@ class NormalizationTests(unittest.TestCase):
         self.assertEqual(123456789, plan["budget_amount"])
         self.assertEqual(64, len(plan["source_sha256"]))
         self.assertEqual("raw/page-00001.json", plan["raw_source"])
+        self.assertEqual(raw_item["bidNtceNoList"], plan["bid_ntice_no_list"])
 
     def test_reclassify_uses_raw_pages_and_reproduces_the_same_records(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
