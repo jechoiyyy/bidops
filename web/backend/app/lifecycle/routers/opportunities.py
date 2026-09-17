@@ -16,8 +16,10 @@ from .. import extension_registry
 from ..ingest.loader import tracked_backfill
 from ..schemas.opportunities import (
     CandidateDecisionRequest,
+    OpportunityActionReason,
     OpportunityDetailResponse,
     OpportunityFirstRegisteredStage,
+    OpportunityHoldReview,
     OpportunityLinkView,
     OpportunityListResponse,
     OpportunitySection,
@@ -31,7 +33,8 @@ from ..schemas.opportunities import (
     OrderPlanBulkStartRequest,
     OrderPlanBulkStartResponse,
 )
-from ..services import opportunity_integrity, opportunity_tracking, opportunity_queries
+from ..services import opportunity_integrity, opportunity_tracking
+from ..services import opportunity_queries
 from ..services import order_plan_bulk_tracking
 from ..services.collection_index import BACKFILL_TRACKING_STATUSES
 from ...core.api_errors import BundleServiceError, validate_actor
@@ -196,20 +199,37 @@ def _backfill_tracked_records(session: Session, opportunity_id: int) -> None:
         )
 
 
+def _request_now() -> datetime:
+    """One request-wide UTC clock value for hold-review sections and filters."""
+
+    return datetime.now(UTC)
+
+
 @router.get("", response_model=OpportunityListResponse)
 def list_opportunities(
     tracking_status: OpportunityTrackingStatus | None = Query(default=None),
     first_registered_stage: OpportunityFirstRegisteredStage | None = Query(default=None),
     section: OpportunitySection | None = Query(default=None),
+    reason: OpportunityActionReason | None = Query(default=None),
+    hold_review: OpportunityHoldReview | None = Query(default=None),
+    q: str | None = Query(
+        default=None,
+        min_length=opportunity_queries.SEARCH_QUERY_MIN_LENGTH,
+        max_length=opportunity_queries.SEARCH_QUERY_MAX_LENGTH,
+    ),
     sort: OpportunitySort = Query(default="created_at"),
     limit: int = Query(default=50, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
     session: Session = Depends(get_db),
-) -> OpportunityListResponse:
-    return opportunity_queries.list_opportunities(
-        session, tracking_status=tracking_status, first_registered_stage=first_registered_stage,
-        section=section, sort=sort, limit=limit, offset=offset,
-    )
+) -> OpportunityListResponse | JSONResponse:
+    try:
+        return opportunity_queries.list_opportunities(
+            session, tracking_status=tracking_status, first_registered_stage=first_registered_stage,
+            section=section, reason=reason, hold_review=hold_review, q=q, sort=sort,
+            limit=limit, offset=offset, now=_request_now(),
+        )
+    except opportunity_tracking.OpportunityTrackingError as error:
+        return _error_response(error)
 
 
 @router.post(
@@ -279,7 +299,7 @@ def get_opportunity(
     session: Session = Depends(get_db),
 ) -> OpportunityDetailResponse | JSONResponse:
     try:
-        return opportunity_queries.get_opportunity(session, opportunity_id)
+        return opportunity_queries.get_opportunity(session, opportunity_id, now=_request_now())
     except opportunity_tracking.OpportunityTrackingError as error:
         return _error_response(error)
 
@@ -364,7 +384,7 @@ def update_tracking_status(
             # Backfill first so the hook below sees any record it loaded.
             _backfill_tracked_records(session, opportunity_id)
         _notify_tracking_decision(session, opportunity_id)
-        return opportunity_queries.get_opportunity(session, opportunity_id)
+        return opportunity_queries.get_opportunity(session, opportunity_id, now=_request_now())
     except (opportunity_tracking.OpportunityTrackingError, BundleServiceError) as error:
         session.rollback()
         return _error_response(error)
@@ -397,7 +417,7 @@ def acknowledge_recheck_signal(
             acknowledged_at=datetime.now(UTC),
         )
         session.commit()
-        return opportunity_queries.get_opportunity(session, opportunity_id)
+        return opportunity_queries.get_opportunity(session, opportunity_id, now=_request_now())
     except (opportunity_tracking.OpportunityTrackingError, BundleServiceError) as error:
         session.rollback()
         return _error_response(error)

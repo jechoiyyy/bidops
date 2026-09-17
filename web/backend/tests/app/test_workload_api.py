@@ -31,7 +31,9 @@ from tests.deep_review.decision_queue_fixtures import comparison, decide, opport
 NOW = datetime(2026, 9, 7, tzinfo=UTC)
 ROOT = Path(__file__).resolve().parents[4]
 RUNTIME_POLICY = (ROOT / "scripts/runtime-privileges.sql").read_text(encoding="utf-8")
-KEYS = ("order_plan_pending", "pre_spec_deep_review_ready", "tracking_action_required", "bid_final_decision_pending")
+KEYS = ("order_plan_pending", "pre_spec_deep_review_ready", "tracking_action_required",
+        "tracking_hold_review_due", "bid_final_decision_pending")
+ORDER_PLAN, DEEP_REVIEW, ACTION, HOLD_DUE, FINAL_DECISION = KEYS
 COMBINATIONS = (("lifecycle",), ("lifecycle", "screening"), ("lifecycle", "screening", "deep_review"))
 pytestmark = requires_postgres
 
@@ -87,7 +89,7 @@ def workload(client):
 def test_workload_empty_module_combinations(workload_session, empty_extensions, modules):
     with client_for(workload_session, modules) as client:
         expected = dict.fromkeys(KEYS, (None, "provider_absent"))
-        expected["tracking_action_required"] = (0, None)
+        expected[ACTION] = expected[HOLD_DUE] = (0, None)
         if "screening" in modules:
             expected["order_plan_pending"] = (None, "no_completed_execution")
         if "deep_review" in modules:
@@ -107,12 +109,16 @@ def test_workload_calls_each_provider_once_and_preserves_values(workload_session
             calls.append(self.name)
             return self.counts
     with client_for(workload_session, ("lifecycle",)) as client:
-        empty_extensions.register_workload_projection(Provider("first", {KEYS[0]: provided}), owner="first")
-        empty_extensions.register_workload_projection(Provider("second", {KEYS[1]: WorkloadCount(0), KEYS[3]: WorkloadCount(None, "fixture_pending")}), owner="second")
+        empty_extensions.register_workload_projection(Provider("first", {ORDER_PLAN: provided}), owner="first")
+        # lifecycle이 직접 세는 두 키는 제공자 값으로 덮이지 않는다.
+        empty_extensions.register_workload_projection(Provider("second", {
+            DEEP_REVIEW: WorkloadCount(0), FINAL_DECISION: WorkloadCount(None, "fixture_pending"),
+            HOLD_DUE: WorkloadCount(99),
+        }), owner="second")
         for request_number in (1, 2):
             assert workload(client) == {
-                KEYS[0]: (provided.count, provided.unavailable_reason), KEYS[1]: (0, None),
-                KEYS[2]: (0, None), KEYS[3]: (None, "fixture_pending"),
+                ORDER_PLAN: (provided.count, provided.unavailable_reason), DEEP_REVIEW: (0, None),
+                ACTION: (0, None), HOLD_DUE: (0, None), FINAL_DECISION: (None, "fixture_pending"),
             }
             assert calls == ["first", "second"] * request_number
 
@@ -167,6 +173,16 @@ def add_prespec(session, sw, *, tracking=None):
     return row
 
 
+def overdue_hold(session, *, stage="bid_notice"):
+    """실제 시계와 무관하게 기한이 지난 보류(workload는 요청 시각을 쓴다)."""
+
+    row = Opportunity(first_registered_stage=stage, tracking_status="보류", tracking_reason="대기",
+        tracking_selected_by="fixture", tracking_selected_at=datetime.now(UTC) - timedelta(days=30))
+    session.add(row)
+    session.flush()
+    return row
+
+
 def seed_sections(session):
     first = Opportunity(first_registered_stage="bid_notice")
     ordinary = Opportunity(first_registered_stage="order_plan")
@@ -176,10 +192,13 @@ def seed_sections(session):
     recheck_link = link_notice(session, ended, add_notice(session, "bid_notice"))
     ended.recheck_signal_at, ended.recheck_signal_link_id = NOW, recheck_link.id
     pending = opportunity(session, tracking="보류")
+    # 대기 후보만으로 조치 필요다. 선택 시각은 요청 시각과 무관하게 기한 전으로 둔다.
+    pending.tracking_selected_at = datetime.now(UTC) + timedelta(days=1)
     link_notice(session, pending, add_notice(session, "pre_spec"), status="후보 확인 대기", kind="candidate")
+    overdue = overdue_hold(session)
     searched = opportunity(session, tracking="미선택")
     link_notice(session, searched, None, status="검색 미확인", kind="candidate")
-    blocked = opportunity(session, tracking="미선택")
+    blocked = opportunity(session, tracking="계속 추적")
     notice = add_notice(session, "pre_spec")
     run = Run(id=f"workload:{uuid4()}", generated_at=NOW)
     notice.run = run
@@ -192,7 +211,8 @@ def seed_sections(session):
         merged_at=NOW, merge_reason="fixture")
     session.add(merged)
     session.flush()
-    return {"first": first.id, "ended": ended.id, "pending": pending.id, "blocked": blocked.id}
+    return {"first": first.id, "ended": ended.id, "pending": pending.id, "overdue": overdue.id,
+            "blocked": blocked.id}
 
 
 def seed_execution(session, *, minute=1, status="성공"):
@@ -285,30 +305,37 @@ def test_workload_matches_real_list_totals_and_tracking_exceptions(
         values = workload(client)
         assert calls == [name for name in modules if name != "lifecycle"]
         actions = get_json(client, "/api/opportunities", section="조치 필요", limit=1)
+        # 입찰공고 최초 등록 미선택(first)은 신규 입찰공고로 분리된다. 차단 항목은
+        # 판정 제공자가 있을 때만 계속 추적(blocked)을 올린다.
         expected_action = 4 if "screening" in modules else 3
-        assert values[KEYS[2]] == (expected_action, None)
+        assert values[ACTION] == (expected_action, None)
         assert actions["total"] == actions["section_counts"]["조치 필요"] == expected_action
         action_ids = {row["id"] for row in get_json(client, "/api/opportunities", section="조치 필요")["items"]}
-        assert action_ids == {sections[key] for key in ("first", "ended", "pending", "blocked") if key != "blocked" or "screening" in modules}
+        assert action_ids == {sections[key] for key in ("ended", "pending", "overdue", "blocked") if key != "blocked" or "screening" in modules}
+        newcomers = get_json(client, "/api/opportunities", section="신규 입찰공고")
+        assert sections["first"] in {row["id"] for row in newcomers["items"]}
+        due = get_json(client, "/api/opportunities", hold_review="overdue", limit=1)
+        assert values[HOLD_DUE] == (due["total"], None) == (1, None)
+        assert due["items"][0]["id"] == sections["overdue"]
         if "screening" in modules:
             listing = get_json(client, "/api/order-plans", stage1_status="selected", qwen_relevance="relevant,uncertain", tracking_status="미선택", limit=1)
             assert listing["scope"]["execution_id"] == str(latest.execution_id)
-            assert values[KEYS[0]] == (listing["total"], None) == (2, None)
+            assert values[ORDER_PLAN] == (listing["total"], None) == (2, None)
         else:
-            assert values[KEYS[0]] == (None, "provider_absent")
+            assert values[ORDER_PLAN] == (None, "provider_absent")
         ready = get_json(client, "/api/pre-specs", auto_preparation_status="deep_review_ready_for_click", sw_only=False)
         if "deep_review" in modules:
-            assert values[KEYS[1]] == (ready["total"], None) == (3, None)
+            assert values[DEEP_REVIEW] == (ready["total"], None) == (3, None)
             assert {row["notice_pk"] for row in ready["items"]} == {non_sw.id, sw.id, tracked_non_sw.id}
             assert get_json(client, "/api/pre-specs", auto_preparation_status="deep_review_ready_for_click", sw_only=True)["total"] == 2
             pending = get_json(client, "/api/bid-delta/decision-queue", status="pending", limit=1)
-            assert values[KEYS[3]] == (pending["total"], None) == (2, None)
+            assert values[FINAL_DECISION] == (pending["total"], None) == (2, None)
         else:
             assert ready["total"] == 0
-            assert values[KEYS[1]] == values[KEYS[3]] == (None, "provider_absent")
+            assert values[DEEP_REVIEW] == values[FINAL_DECISION] == (None, "provider_absent")
         if "screening" in modules:
             seed_execution(session, minute=4)
-            assert workload(client)[KEYS[0]] == (0, None)
+            assert workload(client)[ORDER_PLAN] == (0, None)
             assert calls == [name for name in modules if name != "lifecycle"] * 2
 
 
@@ -321,7 +348,7 @@ def test_workload_query_count_is_constant_across_large_population(workload_sessi
             add_prespec(session, "N")
             add_plan(session, execution)
             link_notice(session, opportunity(session), add_notice(session, "bid_notice"))
-            session.add(Opportunity(first_registered_stage="bid_notice"))
+            overdue_hold(session)
         session.flush()
     counts = []
     with client_for(session, modules) as client:
@@ -336,10 +363,10 @@ def test_workload_query_count_is_constant_across_large_population(workload_sessi
                 values = workload(client)
             finally:
                 event.remove(session.bind, "before_cursor_execute", record)
-            assert values[KEYS[2]] == (total, None)
+            assert values[ACTION] == values[HOLD_DUE] == (total, None)
             if "screening" in modules:
-                assert values[KEYS[0]] == (total, None)
+                assert values[ORDER_PLAN] == (total, None)
             if "deep_review" in modules:
-                assert values[KEYS[1]] == values[KEYS[3]] == (total, None)
+                assert values[DEEP_REVIEW] == values[FINAL_DECISION] == (total, None)
             counts.append(len(statements))
     assert 0 < counts[0] == counts[1] <= 30

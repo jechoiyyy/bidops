@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import json
 from types import SimpleNamespace
 from urllib.parse import quote
@@ -108,7 +108,7 @@ def test_opportunity_list_includes_ended_by_default_and_uses_pagination_shape(op
 
     assert response.status_code == 200
     payload = response.json()
-    assert set(payload) == {"items", "total", "limit", "offset", "section_counts"}
+    assert set(payload) == {"items", "total", "limit", "offset", "section_counts", "action_reason_counts"}
     assert payload["total"] == 2
     assert payload["limit"] == 1
     assert payload["offset"] == 0
@@ -128,6 +128,56 @@ def test_opportunity_list_filters_tracking_status_and_first_stage(opportunity_ap
     assert [item["tracking_status"] for item in closed["items"]] == ["종료"]
     assert plans["total"] == 1
     assert [item["first_registered_stage"] for item in plans["items"]] == ["order_plan"]
+
+
+def test_opportunity_list_query_params_and_reason_fields(opportunity_api, monkeypatch):
+    client, session, ended, plan_opportunity = opportunity_api
+    now = datetime(2026, 9, 17, 3, 0, 0, 500000, tzinfo=timezone.utc)
+    monkeypatch.setattr(opportunities_router, "_request_now", lambda: now)
+    held = Opportunity(first_registered_stage="bid_notice", tracking_status="보류", tracking_reason="대기",
+                       tracking_selected_by="담당자", tracking_selected_at=datetime(2026, 9, 3, 12, 0, 0, 500000,
+                       tzinfo=timezone(timedelta(hours=9))))
+    newcomer = Opportunity(first_registered_stage="bid_notice")
+    session.add_all([held, newcomer])
+    session.commit()
+
+    listing = client.get("/api/opportunities").json()
+    rows = {row["id"]: row for row in listing["items"]}
+    assert set(rows[ended.id]) >= {"action_reasons", "hold_review_due_at"}
+    assert rows[ended.id]["action_reasons"] == ["new_link"] and rows[ended.id]["section"] == "조치 필요"
+    # +09:00 선택 시각 + 14일 = 요청 시각과 같은 순간이므로 기한 지남이다.
+    assert datetime.fromisoformat(rows[held.id]["hold_review_due_at"]) == now
+    assert rows[held.id]["action_reasons"] == ["hold_overdue"]
+    assert rows[newcomer.id]["section"] == "신규 입찰공고" and rows[newcomer.id]["action_reasons"] == []
+    assert listing["section_counts"] == {"조치 필요": 2, "추적 중": 0, "보류": 0, "추적 종료": 0,
+                                         "신규 입찰공고": 1, "미결정": 1}
+    assert listing["action_reason_counts"] == {"new_link": 1, "candidate_pending": 0,
+                                               "merge_confirmation": 0, "blocking_item": 0, "hold_overdue": 1}
+    detail = client.get(f"/api/opportunities/{held.id}").json()
+    assert detail["action_reasons"] == ["hold_overdue"] and detail["hold_review_due_at"] == rows[held.id]["hold_review_due_at"]
+
+    def ids(**params):
+        response = client.get("/api/opportunities", params=params)
+        assert response.status_code == 200, response.text
+        return [row["id"] for row in response.json()["items"]]
+
+    assert ids(reason="new_link") == [ended.id]
+    assert ids(section="조치 필요", reason="hold_overdue") == [held.id]
+    assert ids(hold_review="overdue") == [held.id]
+    assert ids(hold_review="due_soon") == []
+    assert ids(hold_review="attention", sort="hold_review_due_at", limit=5) == [held.id]
+    assert ids(sort="hold_review_due_at")[0] == held.id
+    assert ids(section="신규 입찰공고") == [newcomer.id]
+    assert ids(q="사업기회 발주계획") == [plan_opportunity.id]
+    assert ids(q="테스트  기관") == [ended.id]
+    for params, code in (
+        ({"section": "미결정"}, None), ({"reason": "unknown"}, None), ({"hold_review": "later"}, None),
+        ({"sort": "due"}, None), ({"q": "a"}, None), ({"q": "x" * 101}, None), ({"q": "   "}, "invalid_request"),
+    ):
+        response = client.get("/api/opportunities", params=params)
+        assert response.status_code == 422, params
+        if code is not None:
+            assert response.json()["error"]["code"] == code
 
 
 def test_opportunity_detail_keeps_search_unconfirmed_link_and_recheck_evidence(opportunity_api):
