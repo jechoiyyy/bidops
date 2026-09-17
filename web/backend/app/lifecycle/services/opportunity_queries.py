@@ -15,6 +15,7 @@ from ..schemas.opportunities import (
     OpportunityLinkView,
     OpportunityListItem,
     OpportunityListResponse,
+    OpportunityRecheckEventView,
     OpportunitySection,
     OpportunitySort,
     OpportunityTrackingDecisionsResponse,
@@ -22,7 +23,12 @@ from ..schemas.opportunities import (
     OpportunityTrackingStatus,
 )
 from .opportunity_integrity import active_opportunity_predicate
-from .opportunity_tracking import HUMAN_TRACKING_ACTION, OpportunityTrackingError
+from .opportunity_tracking import (
+    ACKNOWLEDGED_RECHECK_ACTION,
+    HUMAN_TRACKING_ACTION,
+    SYSTEM_RECHECK_ACTION,
+    OpportunityTrackingError,
+)
 
 _TRACKING_STATUS_ORDER = ("미선택", "계속 추적", "보류", "종료")
 _FIRST_STAGE_ORDER = ("order_plan", "pre_spec", "bid_notice")
@@ -279,30 +285,71 @@ def get_opportunity(session: Session, opportunity_id: int) -> OpportunityDetailR
     )
 
 
+def _metadata_link_id(metadata: dict[str, Any], key: str) -> int | None:
+    value = metadata.get(key)
+    if isinstance(value, int) and not isinstance(value, bool) and value >= 1:
+        return value
+    return None
+
+
 def tracking_decisions(session: Session, opportunity_id: int) -> OpportunityTrackingDecisionsResponse:
+    """Human decision history and recheck-signal events from one audit query."""
+
     if session.get(Opportunity, opportunity_id) is None:
         raise OpportunityTrackingError('opportunity_not_found', '사업기회를 찾을 수 없습니다')
     audits = session.scalars(
         select(AuditEvent)
         .where(
-            AuditEvent.action == HUMAN_TRACKING_ACTION,
+            AuditEvent.action.in_(
+                (HUMAN_TRACKING_ACTION, SYSTEM_RECHECK_ACTION, ACKNOWLEDGED_RECHECK_ACTION)
+            ),
             AuditEvent.aggregate_type == "opportunity",
             AuditEvent.aggregate_id == str(opportunity_id),
         )
         .order_by(AuditEvent.created_at.desc(), AuditEvent.id.desc())
     ).all()
     items = []
+    recheck_events = []
     for audit in audits:
-        metadata = audit.safe_metadata
-        items.append(
-            OpportunityTrackingDecisionView(
-                decided_at=audit.created_at,
-                tracking_status=metadata["tracking_status"],
-                previous_tracking_status=metadata.get("previous_tracking_status"),
-                reason=metadata.get("reason"),
+        metadata = audit.safe_metadata if isinstance(audit.safe_metadata, dict) else {}
+        if audit.action == HUMAN_TRACKING_ACTION:
+            cleared_link_id = metadata.get("cleared_recheck_signal_link_id")
+            items.append(
+                OpportunityTrackingDecisionView(
+                    decided_at=audit.created_at,
+                    tracking_status=metadata["tracking_status"],
+                    previous_tracking_status=metadata.get("previous_tracking_status"),
+                    reason=metadata.get("reason"),
+                    claimed_name=audit.claimed_name,
+                    audit_event_id=audit.id,
+                    cleared_recheck_signal=cleared_link_id is not None,
+                )
+            )
+            if cleared_link_id is None:
+                continue
+            kind, link_id, note_present = (
+                "cleared_by_decision",
+                _metadata_link_id(metadata, "cleared_recheck_signal_link_id"),
+                False,
+            )
+        elif audit.action == SYSTEM_RECHECK_ACTION:
+            kind, link_id, note_present = "created", _metadata_link_id(metadata, "link_id"), False
+        else:
+            kind, link_id, note_present = (
+                "acknowledged",
+                _metadata_link_id(metadata, "link_id"),
+                metadata.get("note_present") is True,
+            )
+        recheck_events.append(
+            OpportunityRecheckEventView(
+                kind=kind,
+                link_id=link_id,
+                actor_kind=audit.actor_kind,
                 claimed_name=audit.claimed_name,
-                audit_event_id=audit.id,
-                cleared_recheck_signal=metadata.get("cleared_recheck_signal_link_id") is not None,
+                created_at=audit.created_at,
+                note_present=note_present,
             )
         )
-    return OpportunityTrackingDecisionsResponse(opportunity_id=opportunity_id, items=items)
+    return OpportunityTrackingDecisionsResponse(
+        opportunity_id=opportunity_id, items=items, recheck_events=recheck_events
+    )

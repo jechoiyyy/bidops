@@ -1,4 +1,6 @@
 from datetime import datetime, timezone
+import json
+from types import SimpleNamespace
 from urllib.parse import quote
 
 import pytest
@@ -10,7 +12,9 @@ from sqlalchemy.pool import StaticPool
 from app.core.db import get_db, init_db
 from app.main import app
 from app.core.models import AuditEvent
-from app.lifecycle.models import Notice, Opportunity, OpportunityLink, OrderPlan
+from app.lifecycle import ingest_run
+from app.lifecycle.models import CollectedRecordIndex, Notice, Opportunity, OpportunityLink, OrderPlan
+from app.lifecycle.routers import opportunities as opportunities_router
 from app.lifecycle.services.opportunity_integrity import merge_opportunities
 from app.lifecycle.services.opportunity_tracking import raise_recheck_signal, set_tracking_status
 
@@ -341,3 +345,401 @@ def test_active_list_excludes_merged_row_but_direct_detail_keeps_trace(opportuni
     assert traced.status_code == 200
     assert traced.json()["merged_into_opportunity_id"] == retained.id
     assert traced.json()["merge_reason"] == "authoritative_lifecycle_link"
+
+
+# --- 재검토 신호 확인·병합 수락·추적 보충 (spec §3.3·§5·§6) ------------------
+
+
+class _RecordingTrackingHook:
+    def __init__(self) -> None:
+        self.calls: list[int] = []
+
+    def tracking_decision_changed(self, session, opportunity_id) -> None:
+        self.calls.append(opportunity_id)
+
+
+def _ack(client, opportunity_id, body, actor="확인 담당자"):
+    headers = {}
+    if actor is not None:
+        headers = {
+            "X-BidOps-Actor-Name": f"UTF-8''{quote(actor, safe='')}",
+            "X-BidOps-Actor-Name-Format": "utf-8-percent-v1",
+        }
+    return client.post(
+        f"/api/opportunities/{opportunity_id}/recheck-acknowledgements",
+        json=body,
+        headers=headers,
+    )
+
+
+def test_recheck_acknowledgement_clears_signal_keeps_tracking_and_projects_history(
+    opportunity_api,
+):
+    client, session, ended, _plan_opportunity = opportunity_api
+    link_id = ended.recheck_signal_link_id
+    before = (
+        ended.tracking_status,
+        ended.tracking_reason,
+        ended.tracking_selected_by,
+        ended.tracking_selected_at,
+    )
+
+    response = _ack(client, ended.id, {"expected_link_id": link_id, "note": "새 공고 비밀 메모"})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["id"] == ended.id
+    assert body["recheck_signal"] is False
+    assert body["recheck_signal_at"] is None and body["recheck_signal_link_id"] is None
+    assert body["tracking_status"] == "종료"
+    session.expire_all()
+    stored = session.get(Opportunity, ended.id)
+    assert (
+        stored.tracking_status,
+        stored.tracking_reason,
+        stored.tracking_selected_by,
+        stored.tracking_selected_at,
+    ) == before
+    audit = session.scalars(
+        select(AuditEvent).where(AuditEvent.action == "opportunity.recheck_signal.acknowledged")
+    ).one()
+    assert audit.actor_kind == "human"
+    assert audit.claimed_name == "확인 담당자"
+    assert audit.safe_metadata == {
+        "opportunity_id": ended.id,
+        "link_id": link_id,
+        "note_present": True,
+    }
+    assert "비밀 메모" not in str(audit.safe_metadata)
+    # Acknowledging is not a tracking decision.
+    assert session.scalar(
+        select(AuditEvent).where(AuditEvent.action == "opportunity.tracking_status.changed")
+    ) is None
+
+    history = client.get(f"/api/opportunities/{ended.id}/tracking-decisions")
+    assert history.status_code == 200
+    payload = history.json()
+    assert payload["items"] == []
+    events = payload["recheck_events"]
+    assert [event["kind"] for event in events] == ["acknowledged", "created"]
+    assert events[0] == {
+        "kind": "acknowledged",
+        "link_id": link_id,
+        "actor_kind": "human",
+        "claimed_name": "확인 담당자",
+        "created_at": events[0]["created_at"],
+        "note_present": True,
+    }
+    assert events[1]["actor_kind"] == "system" and events[1]["claimed_name"] is None
+    assert events[1]["link_id"] == link_id and events[1]["note_present"] is False
+    assert all(
+        datetime.fromisoformat(event["created_at"]).tzinfo is not None for event in events
+    )
+    assert "비밀 메모" not in history.text
+
+    absent = _ack(client, ended.id, {"expected_link_id": link_id})
+    assert absent.status_code == 409
+    assert absent.json()["error"] == {
+        "code": "recheck_signal_absent",
+        "message": "확인할 재검토 신호가 없습니다",
+        "details": None,
+    }
+
+
+def test_recheck_acknowledgement_errors_leave_the_signal_untouched(opportunity_api):
+    client, session, ended, plan_opportunity = opportunity_api
+    link_id = ended.recheck_signal_link_id
+
+    changed = _ack(client, ended.id, {"expected_link_id": link_id + 1000})
+    assert changed.status_code == 409
+    assert changed.json()["error"]["code"] == "recheck_signal_changed"
+    assert changed.json()["error"]["details"] == {"current_link_id": link_id}
+
+    missing = _ack(client, 999999, {"expected_link_id": link_id})
+    assert missing.status_code == 404
+    assert missing.json()["error"]["code"] == "opportunity_not_found"
+
+    for body in (
+        {},
+        {"expected_link_id": "1"},
+        {"expected_link_id": 0},
+        {"expected_link_id": link_id, "note": "가" * 501},
+        {"expected_link_id": link_id, "reason": "추가 필드"},
+    ):
+        assert _ack(client, ended.id, body).status_code == 422
+
+    no_actor = _ack(client, ended.id, {"expected_link_id": link_id}, actor=None)
+    assert no_actor.status_code == 400
+    assert no_actor.json()["error"]["code"] == "actor_name_required"
+    system_actor = client.post(
+        f"/api/opportunities/{ended.id}/recheck-acknowledgements",
+        json={"expected_link_id": link_id},
+        headers={"X-BidOps-Actor-Name": "system"},
+    )
+    assert system_actor.status_code == 400
+    assert system_actor.json()["error"]["code"] == "actor_name_invalid"
+
+    session.expire_all()
+    stored = session.get(Opportunity, ended.id)
+    assert stored.recheck_signal_link_id == link_id and stored.recheck_signal_at is not None
+    assert session.scalar(
+        select(AuditEvent).where(AuditEvent.action == "opportunity.recheck_signal.acknowledged")
+    ) is None
+
+    merged_notice = Notice(notice_key="bid:ACK-MERGED:000", source_type="bid_notice")
+    secondary = Opportunity(
+        first_registered_stage="bid_notice",
+        created_at=datetime(2026, 9, 30, tzinfo=timezone.utc),
+    )
+    session.add_all([merged_notice, secondary])
+    session.flush()
+    session.add(
+        OpportunityLink(
+            opportunity=secondary,
+            notice=merged_notice,
+            stage="notice",
+            link_type="official",
+            status="확정",
+            evidence_external_no="ACK-MERGED",
+        )
+    )
+    session.flush()
+    merge_opportunities(session, [plan_opportunity, secondary])
+    session.commit()
+    merged = _ack(client, secondary.id, {"expected_link_id": link_id})
+    assert merged.status_code == 409
+    assert merged.json()["error"]["code"] == "opportunity_merged"
+
+
+def test_accepting_a_candidate_owned_elsewhere_merges_and_reruns_the_tracking_hook(
+    opportunity_api, empty_extensions
+):
+    client, session, ended, plan_opportunity = opportunity_api
+    hook = _RecordingTrackingHook()
+    empty_extensions.register_tracking_decision_hook(hook, owner="test")
+    target_notice_id = next(link.notice_id for link in ended.links if link.link_type == "official")
+    signal_link_id = ended.recheck_signal_link_id
+    candidate = OpportunityLink(
+        opportunity=plan_opportunity,
+        notice_id=target_notice_id,
+        stage="notice",
+        link_type="candidate",
+        status="후보 확인 대기",
+        search_strategy="full",
+    )
+    session.add(candidate)
+    session.commit()
+
+    request = {"decision": "accepted", "reason": "같은 사업으로 확인"}
+    headers = {"X-BidOps-Actor-Name": "merge-reviewer"}
+    response = client.patch(
+        f"/api/opportunities/links/{candidate.id}/decision", json=request, headers=headers
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "사람 확인 병합"
+    assert body["human_decision"] == "accepted"
+    assert datetime.fromisoformat(body["reviewed_at"]).tzinfo is not None
+    # Only the closed opportunity holds human state: it is retained as it was.
+    assert hook.calls == [ended.id]
+    session.expire_all()
+    retained = session.get(Opportunity, ended.id)
+    assert retained.merged_into_opportunity_id is None
+    assert retained.tracking_status == "종료"
+    assert retained.recheck_signal_link_id == signal_link_id
+    assert session.get(Opportunity, plan_opportunity.id).merged_into_opportunity_id == ended.id
+    assert session.get(OpportunityLink, candidate.id).opportunity_id == ended.id
+    merged_audit = session.scalars(
+        select(AuditEvent).where(AuditEvent.action == "opportunity.merged.human_confirmed")
+    ).one()
+    assert merged_audit.safe_metadata == {
+        "retained_opportunity_id": ended.id,
+        "secondary_opportunity_id": plan_opportunity.id,
+        "opportunity_link_id": candidate.id,
+    }
+    detail = client.get(f"/api/opportunities/{ended.id}").json()
+    assert {link["status"] for link in detail["links"]} >= {"확정", "사람 확인 병합"}
+
+    replay = client.patch(
+        f"/api/opportunities/links/{candidate.id}/decision", json=request, headers=headers
+    )
+    assert replay.status_code == 200
+    assert replay.json()["reviewed_at"] == body["reviewed_at"]
+    assert hook.calls == [ended.id]
+    assert len(
+        session.scalars(
+            select(AuditEvent).where(AuditEvent.action == "opportunity.merged.human_confirmed")
+        ).all()
+    ) == 1
+
+
+def test_accepting_a_candidate_between_two_human_states_returns_both_states(opportunity_api):
+    client, session, ended, plan_opportunity = opportunity_api
+    set_tracking_status(
+        session,
+        plan_opportunity,
+        status="계속 추적",
+        reason="계획 단계부터 추적",
+        selected_by="계획 담당자",
+        selected_at=datetime(2026, 8, 30, 3, 4, 5, 678901, tzinfo=timezone.utc),
+    )
+    target_notice_id = next(link.notice_id for link in ended.links if link.link_type == "official")
+    candidate = OpportunityLink(
+        opportunity=plan_opportunity,
+        notice_id=target_notice_id,
+        stage="notice",
+        link_type="candidate",
+        status="후보 확인 대기",
+        search_strategy="full",
+    )
+    session.add(candidate)
+    session.commit()
+
+    response = client.patch(
+        f"/api/opportunities/links/{candidate.id}/decision",
+        json={"decision": "accepted", "reason": "같은 사업으로 확인"},
+        headers={"X-BidOps-Actor-Name": "merge-reviewer"},
+    )
+
+    assert response.status_code == 409
+    error = response.json()["error"]
+    assert error["code"] == "candidate_merge_state_conflict"
+    assert error["details"] == {
+        "opportunities": [
+            {
+                "id": plan_opportunity.id,
+                "tracking_status": "계속 추적",
+                "tracking_selected_by": "계획 담당자",
+                "tracking_selected_at": "2026-08-30T03:04:05.678901+00:00",
+                "recheck_signal": False,
+            },
+            {
+                "id": ended.id,
+                "tracking_status": "종료",
+                "tracking_selected_by": "기존 담당자",
+                "tracking_selected_at": "2026-08-29T01:00:00+00:00",
+                "recheck_signal": True,
+            },
+        ]
+    }
+    session.expire_all()
+    assert session.get(OpportunityLink, candidate.id).status == "후보 확인 대기"
+    assert session.get(Opportunity, plan_opportunity.id).merged_into_opportunity_id is None
+
+
+def _write_collection_run(root, name, plan_no, bid_no):
+    run_dir = root / "data" / "runs" / name
+    run_dir.mkdir(parents=True)
+    window = {"from": "2026-09-16", "to": "2026-09-16", "timezone": "Asia/Seoul"}
+    (run_dir / "collected-order-plans.json").write_text(
+        json.dumps(
+            {
+                "schema_version": "bidops.collected-order-plans.v1",
+                "generated_at": "2026-09-16T00:00:00+00:00",
+                "source_window": window,
+                "counts": {"total": 1},
+                "order_plans": [
+                    {
+                        "order_plan_unty_no": plan_no,
+                        "title": "추적 보충 발주계획",
+                        "agency_name": "보충 기관",
+                        "published_at": "2026-09-10T09:00:00+09:00",
+                        "source_sha256": "b" * 64,
+                        "raw_source": "raw/page-00001.json",
+                    }
+                ],
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    (run_dir / "collected-notices.json").write_text(
+        json.dumps(
+            {
+                "schema_version": "bidops.collected.v2",
+                "generated_at": "2026-09-16T00:00:00+00:00",
+                "source_window": window,
+                "counts": {"total": 1, "candidate_pool": 0, "audit_pool": 1},
+                "warnings": [],
+                "metadata": {"sw_industry_1468": {"status": "complete", "total": 0, "pages": 1}},
+                "notices": [
+                    {
+                        "notice_id": f"bid:{bid_no}:000",
+                        "source_type": "bid_notice",
+                        "title": "색인에만 있는 입찰공고",
+                        "agency": "보충 기관",
+                        "published_at": "2026-09-16T10:00:00+09:00",
+                        "method": "일반경쟁",
+                        "lifecycle": {"order_plan_no": plan_no},
+                        "qualification_flags": {"sw_industry_1468": "N"},
+                        "raw_source": "raw/bid-page-001.json",
+                    }
+                ],
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    return run_dir
+
+
+def test_saving_a_tracked_status_backfills_index_only_records(
+    opportunity_api, empty_extensions, monkeypatch, tmp_path
+):
+    client, session, _ended, _plan_opportunity = opportunity_api
+    plan_no, bid_no = "R26DD20859001", "R26BK01699101"
+    run_dir = _write_collection_run(tmp_path, "lifecycle-20260916-notices", plan_no, bid_no)
+    ingest_run(run_dir, session, selection="collection")
+    plan = session.scalar(select(OrderPlan).where(OrderPlan.order_plan_unty_no == plan_no))
+    owner_id = session.scalar(
+        select(OpportunityLink.opportunity_id).where(OpportunityLink.order_plan_id == plan.id)
+    )
+    assert session.scalar(select(Notice).where(Notice.notice_key == f"bid:{bid_no}:000")) is None
+    monkeypatch.setattr(
+        opportunities_router, "get_settings", lambda: SimpleNamespace(bidops_root=tmp_path)
+    )
+
+    response = client.patch(
+        f"/api/opportunities/{owner_id}/tracking-status",
+        json={"tracking_status": "보류", "reason": "공고 대기"},
+        headers={"X-BidOps-Actor-Name": "tracker"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["tracking_status"] == "보류"
+    bid = session.scalar(select(Notice).where(Notice.notice_key == f"bid:{bid_no}:000"))
+    assert bid is not None
+    assert bid.id in {link["notice_id"] for link in body["links"]}
+    row = session.scalar(
+        select(CollectedRecordIndex).where(CollectedRecordIndex.record_key == f"bid:{bid_no}:000")
+    )
+    assert row.selection_reason == "tracked_backfill" and row.ingested_notice_id == bid.id
+    # The backfilled bid joined a held opportunity automatically: new link signal.
+    assert body["recheck_signal"] is True
+
+
+def test_backfill_failure_after_tracking_save_keeps_the_decision(
+    opportunity_api, empty_extensions, monkeypatch, caplog
+):
+    client, session, _ended, plan_opportunity = opportunity_api
+
+    def fail(*_args, **_kwargs):
+        raise RuntimeError("/private/runs secret")
+
+    monkeypatch.setattr(opportunities_router, "tracked_backfill", fail)
+    with caplog.at_level("WARNING"):
+        response = client.patch(
+            f"/api/opportunities/{plan_opportunity.id}/tracking-status",
+            json={"tracking_status": "계속 추적", "reason": "추적 시작"},
+            headers={"X-BidOps-Actor-Name": "tracker"},
+        )
+
+    assert response.status_code == 200
+    assert response.json()["tracking_status"] == "계속 추적"
+    session.expire_all()
+    assert session.get(Opportunity, plan_opportunity.id).tracking_status == "계속 추적"
+    events = [getattr(record, "bidops", {}) for record in caplog.records]
+    assert {"event": "opportunity.tracked_backfill_failed", "failure_type": "RuntimeError"} in events
+    assert "/private/runs" not in caplog.text
