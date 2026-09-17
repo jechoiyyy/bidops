@@ -139,6 +139,7 @@ R-xx/A-xx 작업 지시, 과거 API 경로는 현재 실행 진입점이 아니�
 | [0056](tracking/decisions/0056-company-fit-in-overview-run.md) | 회사 핏을 개요 run 2단계 호출로 통합 | 폐기(0057 대체) | 별도 큐·runner·플래그 3개·worker 슬롯을 폐지하고 개요 run 검증 통과 직후 1회 호출로 흡수; 후보 0건 문제 해소 |
 | [0057](tracking/decisions/0057-overview-scope-and-company-fit-in-deep-review.md) | 개요 검토를 앞부분 요약 3섹션으로 좁히고 회사 적합성은 심층 검토 1단계로 | 부분 채택(결정 4 보류) | 목차 우선 범위 선택, important_conditions·reviewer_analysis·unknowns 제거, 자동 심층 게이트에서 회사 핏 제거, 검증 완화 4항목 |
 | [0058](tracking/decisions/0058-final-decision-basis-separated-from-comparison.md) | 최종 Go/No-Go 결정 근거를 모델 문서 비교와 분리 | 채택 | 근거 `comparison`·`notice_conditions` 중 하나(migration 0028), 공고 조건 요약·결정 endpoint, 근거별 현재성 단일 규칙; [0034](tracking/decisions/0034-bid-delta-final-decision.md) §5를 비교 근거에 한정, 비교 worker는 보류 |
+| [0059](tracking/decisions/0059-full-collection-selective-ingest-and-index-search.md) | 발주계획·사전규격·입찰공고는 전량 수집하고 추적·SW 관련 레코드만 적재 | 채택 | 입찰공고 선별 사유 3종(추적 참조·SW 사전규격 참조·1468 경쟁입찰), 1468은 수집 필터가 아니라 표시로만 사용(실측: SW 사전규격 계보 입찰공고의 29%가 1468 밖), 제외 레코드는 수집 색인(migration 0027)에 보존 |
 
 ## 4. 주제별 결정 요약
 

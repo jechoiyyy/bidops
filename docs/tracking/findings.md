@@ -1468,3 +1468,36 @@ runner 소비자가 없어 보류했다. 운영 DB/MinIO 쓰기·migration 적�
 - 지금 해결하지 않은 이유: 원인을 확인하지 않았다. 날짜에 의존하는 mock 데이터(관측 기간·마감 기준)나
   공유 mock의 회차 목록이 후보다. 이번 범위는 개요 검토 재설계라 확장하지 않았다.
 - 후속: `10cb5be`를 격리 워크트리로 체크아웃해 같은 spec을 돌려 날짜 의존인지 코드 의존인지 먼저 가른다.
+
+## 비교 근거 최종 결정 경로가 runtime `app` 역할에서 실행되지 않는다 (2026-09-17, 수용됨)
+
+- 재현 조건: `scripts/runtime-privileges.sql:55`에서 `bid_delta_comparison`은 app에 SELECT만
+  주고, `bid_delta_attempt`·`bid_delta_item`·`bid_delta_evidence`는 app·worker 어느 쪽에도
+  아무 권한이 없다(파일 어디에도 이름이 없다). `POST /api/opportunities/{id}/bid-delta/comparisons`
+  (`services/bid_delta.py:806` `create_comparison`)는 `session.add(comparison)`·
+  `session.add(attempt)`로 두 table에 INSERT한다. 최소 권한의 `app` DB 역할로 이 endpoint를
+  호출하면 PostgreSQL이 권한 오류(SQLSTATE `42501`)로 거부한다.
+- 증상: 비교 생성 202 응답과 `pending` comparison·`queued` attempt는 테스트·상승된 DB 자격
+  증명(migration/superuser 역할)으로 검증됐을 뿐, 운영이 쓰는 `app` 역할로는 재현되지 않는다.
+  이 경로는 애초에 비교를 실제로 계산하는 worker가 없어 `pending`에 머무는 것으로 문서화돼
+  있었지만([ADR-0058](decisions/0058-final-decision-basis-separated-from-comparison.md) 맥락,
+  `docs/contracts.md` "구현된 계약 — 입찰 delta와 최종 결정"), 이번 확인으로 **`pending`조차
+  runtime 권한으로는 만들 수 없다**는 사실이 드러났다.
+- 영향: `basis_kind=comparison` 최종 결정 경로 전체(비교 생성 → attempt 재시도 →
+  완료된 비교 기반 결정)가 운영 `app` 역할에서 시작조차 되지 않는다. `basis_kind=
+  notice_conditions` 경로(공고 조건 결정, ADR-0058)는 영향 없다 — 그 경로는 `bid_final_decision`
+  INSERT와 `UPDATE (id)`만 필요하며 두 권한 모두 이미 app에 있다(`runtime-privileges.sql:150,224`).
+- 지금 해결할 수 없는 이유: 비교를 실제로 계산하는 worker가 아직 구현되지 않았고 이번 계획은
+  그 구현을 명시적으로 보류했다(ADR-0058 §6 "비교 계산 worker와 모델 binding은 계속 보류").
+  worker 없이 `bid_delta_comparison`·`bid_delta_attempt`·`bid_delta_item`·`bid_delta_evidence`
+  INSERT 권한만 먼저 열면 계산되지 않는 `pending` 행만 쌓이고 실제 문제(모델 호출·계산 로직
+  부재)는 그대로다. 권한 설계는 그 worker의 쓰기 경계(app이 만들고 worker가 계산·완료하는
+  분리, `bid_final_decision`이 이미 쓰는 패턴)와 함께 정해야 중복 개정을 피한다.
+- 접근 방법: 비교 계산 worker를 구현할 때 함께 `scripts/runtime-privileges.sql`에 app의
+  `bid_delta_comparison`·`bid_delta_attempt` INSERT(비교·attempt 생성은 API가 함)와 worker의
+  계산 완료용 column-scoped UPDATE(`0014_prespec_overview_attempt_result`가 쓴 것과 같은
+  패턴: `status`·`started_at`·`completed_at`·result 참조 열만)를 추가하고
+  `tests/app/test_runtime_database_privileges.py`에 각 table의 허용 INSERT/UPDATE와 거부되는
+  DELETE·다른 열 UPDATE를 고정한다.
+- 상태: 수용됨. 현재 범위(공고 조건 근거 경로)는 이 권한 공백과 무관하게 동작하므로 이번
+  계획에서는 수정하지 않는다.

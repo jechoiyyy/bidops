@@ -18,7 +18,7 @@ app/
 │                  models 2개
 ├── lifecycle/     회차 적재와 기회 identity, 공고·발주계획·사전규격·첨부 메타
 │                  api, extensions, ingest/, routers/, services/, schemas/, runtime
-│                  models 10개
+│                  models 12개
 ├── screening/     C-1 공고 판정과 C-2 발주계획 선별
 │                  orchestrator/queue/worker/policy/projection/ingest, routers/, services/,
 │                  schemas/, workers/order_plan, cli/, runtime
@@ -107,7 +107,7 @@ app/
 ```bash
 python -m app.screening.cli {run-one, score-candidate-quality}
 python -m app.deep_review.cli {run-bc-e2e, run-prespec-e2e, import-profile-policy}
-python -m app.lifecycle.ingest.cli {--run <회차> | --all}
+python -m app.lifecycle.ingest.cli {--run <회차> [--collection] | --all | --tracked-backfill}
 
 python -m app.deep_review.workers.document            # 자격증명 없는 문서 worker
 python -m app.deep_review.workers.prespec_attachment  # 사전규격 첨부 취득 worker

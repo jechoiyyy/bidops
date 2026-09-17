@@ -28,3 +28,23 @@
 - 단건·batch currentness를 각각 구현하는 방식은 같은 업무 규칙이 두 벌이 되므로 채택하지 않았다.
 
 모듈 격리, PostgreSQL 검색·집계·페이지, 목록과 workload의 동일 건수, 모집단이 커져도 상수인 조회 수를 함께 검증한다. 상세 필드는 [contracts.md](../../contracts.md)가 정본이다.
+
+## 개정 (2026-09-17)
+
+[사업 추적 연결·조치 고도화](../../0917_opportunity-tracking/intent.md)가 결정 1의 항목 수를
+넷에서 **다섯**으로 늘린다. `tracking_hold_review_due`를 `GET /api/workload`에 추가하고, 값은
+lifecycle이 `GET /api/opportunities?hold_review=overdue`와 같은 첫 일치 규칙으로 직접 센다
+(결정 4의 "제공자가 아니라 lifecycle이 직접 센다" 원칙을 그대로 따른다). `items`의 고정 순서는
+`order_plan_pending`, `pre_spec_deep_review_ready`, `tracking_action_required`,
+`tracking_hold_review_due`, `bid_final_decision_pending`이다.
+
+`tracking_action_required`가 세는 **모집단(`조치 필요` 구역)의 정의도 바뀐다.** 이전에는 서버가
+구현한 첫 일치 규칙이 사유 없는 `미선택` 신규 입찰공고까지 섞어 셌다. 이번 계획은 구역과 사유를
+분리해, `조치 필요`는 추적 대상(`계속 추적`·`보류`·`종료`)의 할 일만 세고 입찰공고로 처음 등록된
+미선택 건은 별도 구역 `신규 입찰공고`로 뺀다(spec §7.2). `tracking_action_required`와 목록의
+`조치 필요` 구역 건수가 항상 같은 모집단이라는 이 ADR의 결정 4는 그대로 유지되며, 다만 그
+모집단 자체가 이번 계획으로 좁아졌다.
+
+결정 6(최종 결정 큐·currentness 단일 규칙)은 [ADR-0058](0058-final-decision-basis-separated-from-comparison.md)이
+근거별(`comparison`\|`notice_conditions`) 계산으로 확장했다 — "동일한 currentness 규칙을 한 곳"
+원칙은 유지되고 그 한 곳이 근거를 함께 인식하게 됐을 뿐이다.
