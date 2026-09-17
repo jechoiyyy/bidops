@@ -610,17 +610,43 @@ test("결정 기록 조회가 실패해도 저장된 값을 결정 기록으로 
   await expect(page.locator("#opportunity-panel-decision")).toContainText("결정 기록 자체가 없다는 뜻이 아닙니다");
 });
 
-test("심층 검토 보고서 진입점과 계약 한계를 확인 사항에 남긴다", async ({ page }) => {
-  await mockOpportunities(page);
+test("심층 검토 보고서 목록을 API에서 받아 상태·품질 표식·최종 의견과 함께 보여 준다", async ({ page }) => {
+  const trace = await mockOpportunities(page);
   await page.goto("/opportunities/404");
 
   await page.getByRole("tab", { name: /확인 사항/ }).click();
   const entry = page.locator(".opportunity-deep-review");
   await expect(entry.getByRole("heading", { name: "심층 검토 보고서" })).toBeVisible();
-  await expect(entry).toContainText("서버가 사업기회별 보고서 목록을 제공하지 않아");
-  await entry.getByLabel("심층 검토 보고서 ID").fill("fixture-review");
-  await expect(entry.getByRole("link", { name: "보고서 열기 →" }))
-    .toHaveAttribute("href", "/deep-reviews/fixture-review?from=opportunities");
+
+  const rows = entry.locator(".opportunity-deep-review-item");
+  await expect(rows).toHaveCount(2);
+
+  const completedRow = rows.filter({ hasText: "환경측정 데이터 품질관리 용역" });
+  await expect(completedRow).toContainText("완료");
+  await expect(completedRow).toContainText("측정 통과");
+  await expect(completedRow).toContainText("최종 의견 · 추진");
+  await expect(completedRow.getByRole("link", { name: "보고서 열기 →" }))
+    .toHaveAttribute("href", "/deep-reviews/d1111111-1111-4111-8111-111111111111?from=opportunities");
+
+  const runningRow = rows.filter({ hasText: "공고명 미확인" });
+  await expect(runningRow).toContainText("진행 중");
+  await expect(runningRow).toContainText("표식 없음");
+  await expect(runningRow).toContainText("최종 의견 없음");
+  await expect(runningRow.getByRole("link", { name: "보고서 열기 →" }))
+    .toHaveAttribute("href", "/deep-reviews/d2222222-2222-4222-8222-222222222222?from=opportunities");
+
+  expect(trace.deepReviewGets).toContain(404);
+});
+
+test("연결된 심층 검토 보고서가 없으면 빈 상태를 보여주고 목록을 지어내지 않는다", async ({ page }) => {
+  await mockOpportunities(page);
+  await page.goto("/opportunities/606");
+
+  await page.getByRole("tab", { name: /확인 사항/ }).click();
+  const entry = page.locator(".opportunity-deep-review");
+  await expect(entry.getByRole("heading", { name: "심층 검토 보고서" })).toBeVisible();
+  await expect(entry).toContainText("연결된 심층 검토 보고서가 없습니다. 사전규격 상세에서 시작합니다.");
+  await expect(entry.locator(".opportunity-deep-review-item")).toHaveCount(0);
 });
 
 test("두 지원 폭에서 가로로 넘치지 않고 상세 바닥 액션이 보인다", async ({ page }) => {

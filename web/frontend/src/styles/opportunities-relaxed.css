@@ -583,22 +583,22 @@
   min-width: 0;
 }
 
-.opportunity-deep-review-form {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
+.opportunity-deep-review-list {
+  display: grid;
   gap: var(--spacing-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
-.opportunity-deep-review-form input {
-  min-width: calc(var(--spacing-12) * 4);
-  min-height: var(--size-element-sm, var(--spacing-8));
-  padding: var(--spacing-1) var(--spacing-2);
+.opportunity-deep-review-item {
+  display: grid;
+  gap: var(--spacing-1-5);
+  padding: var(--spacing-3);
+  background: var(--color-background-body);
   border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-inner);
-  background: var(--color-background-body);
-  color: var(--color-text-primary);
-  font: inherit;
+  min-width: 0;
 }
 
 .opportunity-linked-link {
