@@ -6,6 +6,7 @@ Revises: 0026_overview_mvp
 - ``collected_record_index``·``collected_record_token``: 선별 적재 여부와 무관하게
   수집 레코드마다 한 행을 남기는 검색 색인과 ``bidNtceNoList`` 토큰.
 - ``notice.demand_agency``: 사전규격 수요기관(``rlDminsttNm``).
+- ``ix_notice_bid_no``: 같은 공고번호의 다른 차수 조회와 ``bid_same_notice_no`` 선별.
 - ``opportunity_link``: status에 ``사람 확인 병합``, search_strategy에
   ``merge_confirmation``, ``검색 미확인`` 행을 구분하는 ``search_target_kind``.
 
@@ -52,6 +53,8 @@ _SELECTION_REASON = (
     "'tracked_backfill', 'search_result')"
 )
 
+_NOTICE_BID_NO_INDEX = "ix_notice_bid_no"
+
 _INDEX_INDEXES = (
     ("ix_collected_record_index_kind_key", ["record_kind", "record_key"]),
     ("ix_collected_record_index_order_plan_unty_no", ["order_plan_unty_no"]),
@@ -71,6 +74,18 @@ def _column_exists(table: str, column: str) -> bool:
                 "AND column_name = :column_name"
             ),
             {"schema": SCHEMA, "table_name": table, "column_name": column},
+        )
+    )
+
+
+def _index_exists(name: str) -> bool:
+    return bool(
+        op.get_bind().scalar(
+            sa.text(
+                "SELECT 1 FROM pg_catalog.pg_indexes "
+                "WHERE schemaname = :schema AND indexname = :name"
+            ),
+            {"schema": SCHEMA, "name": name},
         )
     )
 
@@ -190,6 +205,11 @@ def upgrade() -> None:
             schema=SCHEMA,
         )
 
+    # Like ``demand_agency``, a fresh ``0001`` already builds this index from
+    # the declarative model.
+    if not _index_exists(_NOTICE_BID_NO_INDEX):
+        op.create_index(_NOTICE_BID_NO_INDEX, "notice", ["bid_no"], schema=SCHEMA)
+
     _replace_check("opportunity_link", "ck_opportunity_link_status", _STATUS)
     _replace_check("opportunity_link", "ck_opportunity_link_search_strategy", _STRATEGY)
     op.add_column(
@@ -234,6 +254,8 @@ def downgrade() -> None:
     op.drop_column("opportunity_link", "search_target_kind", schema=SCHEMA)
     _replace_check("opportunity_link", "ck_opportunity_link_search_strategy", _OLD_STRATEGY)
     _replace_check("opportunity_link", "ck_opportunity_link_status", _OLD_STATUS)
+    if _index_exists(_NOTICE_BID_NO_INDEX):
+        op.drop_index(_NOTICE_BID_NO_INDEX, table_name="notice", schema=SCHEMA)
     op.drop_column("notice", "demand_agency", schema=SCHEMA)
     op.drop_table("collected_record_token", schema=SCHEMA)
     op.drop_table("collected_record_index", schema=SCHEMA)

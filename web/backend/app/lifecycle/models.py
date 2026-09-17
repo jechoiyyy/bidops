@@ -100,6 +100,9 @@ class Notice(Base):
         Index("ix_notice_collection_sample", "collection_bucket", "sample_role"),
         Index("ix_notice_notice_key", "notice_key"),
         Index("ix_notice_deadline_at", "deadline_at"),
+        # 같은 공고번호의 다른 차수·선별 사유(`bid_same_notice_no`) 조회용
+        # (``0027_collection_index_and_linkage``).
+        Index("ix_notice_bid_no", "bid_no"),
         UniqueConstraint("notice_key", name="uq_notice_key"),
     )
 
