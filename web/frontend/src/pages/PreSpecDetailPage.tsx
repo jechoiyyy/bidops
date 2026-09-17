@@ -16,6 +16,7 @@ import { SkeletonPanel } from "../components/common/Skeleton";
 import { PreSpecDocumentSummary, TrackingDecisionControl, updateTrackingProjection } from "../components/pre-specs/TrackingDecisionControl";
 import { PreSpecBriefingSection } from "../components/pre-specs/PreSpecBriefingSection";
 import { PreSpecAttachmentList } from "../components/pre-specs/PreSpecAttachmentList";
+import { OrderPlanCandidatesSection } from "../components/pre-specs/OrderPlanCandidatesSection";
 import { documentPanelDefaultOpen } from "../lib/documentPanelDefaultOpen";
 import { api } from "../lib/api";
 import { PreSpecRecordIdentity } from "../components/pre-specs/PreSpecRecordIdentity";
@@ -857,6 +858,10 @@ function PreSpecRecordBody({ noticeId, listSearch }: { noticeId: number | null; 
             </Panel>
           ) : null}
         </div>
+
+        {/* 발주계획 후보(docs/0917_opportunity-tracking/spec.md §11.4). 6단 구조를 늘리지
+            않도록 ⑥의 `처리 이력과 연결` 바로 위에 둔다. 연결 확인은 사람이 한다. */}
+        <OrderPlanCandidatesSection noticeId={noticeId} />
 
         <div id="ps-record-history" className="ps-record-section ps-record-history" tabIndex={-1}>
           <ReviewHistoryLinkRail
