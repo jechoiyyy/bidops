@@ -451,6 +451,7 @@ test("누적 집계 미확인과 회차 자료 읽기 전용을 별도로 표시
     { key: "order_plan_pending", count: 24, unavailable_reason: null },
     { key: "pre_spec_deep_review_ready", count: null, unavailable_reason: "provider_absent" },
     { key: "tracking_action_required", count: null, unavailable_reason: "provider_absent" },
+    { key: "tracking_hold_review_due", count: 2, unavailable_reason: null },
     { key: "bid_final_decision_pending", count: null, unavailable_reason: null },
   ] });
   await page.goto("/");
