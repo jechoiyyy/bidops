@@ -756,7 +756,7 @@ class CollectedRecordIndex(Base):
         ),
         CheckConstraint(
             "selection_reason IS NULL OR selection_reason IN ("
-            "'order_plan_all', 'pre_spec_sw', 'pre_spec_referenced', "
+            "'order_plan_all', 'pre_spec_sw', 'pre_spec_referenced', 'pre_spec_known', "
             "'bid_same_notice_no', 'bid_tracked_reference', "
             "'bid_sw_prespec_reference', 'bid_sw_industry_competitive', "
             "'tracked_backfill', 'search_result')",

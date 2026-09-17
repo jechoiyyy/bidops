@@ -16,12 +16,14 @@ from typing import Any, Literal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import BaseModel, ValidationError
-from sqlalchemy import delete, func, select
+from sqlalchemy import String, cast, delete, func, or_, select
 from sqlalchemy.orm import Session
+from sqlalchemy.sql.elements import ColumnElement
 
 from ..models import (
     Attachment,
     CollectedRecordIndex,
+    CollectedRecordToken,
     IngestWarning,
     Notice,
     NoticeObservation,
@@ -46,11 +48,15 @@ from ...core.generation_config import (
     legacy_generation_config,
     validate_digest,
 )
-from ..services.opportunity_tracking import record_recheck_signal
+from ..services.opportunity_tracking import (
+    RECHECK_SIGNAL_TRACKING_STATUSES,
+    raise_recheck_signal,
+)
 from ..services.opportunity_integrity import (
+    MERGE_CONFIRMATION_STRATEGY,
     MERGE_REASON_OFFICIAL_LINK,
-    OpportunityIntegrityError,
     active_opportunity_predicate,
+    apply_merge_rule,
     authoritative_link_predicate,
     merge_opportunities,
 )
@@ -851,7 +857,66 @@ def _find_pre_spec_notice(session: Session, pre_spec_no: str) -> Notice | None:
     return None
 
 
-def _find_order_plan_by_bid_reference(session: Session, notice: Notice) -> OrderPlan | None:
+def _unindexed_record(record_kind: str, record_key: Any) -> ColumnElement[bool]:
+    """SQL predicate: no collection-index row describes this stored record.
+
+    Records loaded before the collection index existed (or through the
+    validation path) have no index rows; their stored reference lists are the
+    only source of their tokens.
+    """
+
+    return ~(
+        select(CollectedRecordIndex.id)
+        .where(
+            CollectedRecordIndex.record_kind == record_kind,
+            CollectedRecordIndex.record_key == record_key,
+        )
+        .exists()
+    )
+
+
+def _plans_claiming_bid_reference(
+    session: Session,
+    bid_no: str,
+    bid_reference: str,
+) -> set[str]:
+    """Order-plan numbers whose ``bidNtceNoList`` contains the exact token.
+
+    Indexed plans are found through ``collected_record_token``.  A stored plan
+    without index rows is narrowed in SQL by a substring of the bid number
+    and then compared token by token; plans are never scanned in Python.
+    """
+
+    numbers = set(
+        session.scalars(
+            select(CollectedRecordIndex.record_key)
+            .join(
+                CollectedRecordToken,
+                CollectedRecordToken.index_id == CollectedRecordIndex.id,
+            )
+            .where(
+                CollectedRecordIndex.record_kind == "order_plan",
+                CollectedRecordToken.token == bid_reference,
+            )
+            .distinct()
+        )
+    )
+    for plan_no, stored in session.execute(
+        select(OrderPlan.order_plan_unty_no, OrderPlan.bid_ntice_no_list).where(
+            OrderPlan.bid_ntice_no_list.contains(bid_no, autoescape=True),
+            _unindexed_record("order_plan", OrderPlan.order_plan_unty_no),
+        )
+    ):
+        if bid_reference in split_tokens(stored)[0]:
+            numbers.add(plan_no)
+    return numbers
+
+
+def _find_order_plan_by_bid_reference(
+    session: Session,
+    notice: Notice,
+    run_id: str | None = None,
+) -> OrderPlan | None:
     """Resolve one plan from the measured 16-character bid reference list.
 
     ``bidNtceNoList`` is the plan-side official key: each comma-separated
@@ -863,21 +928,100 @@ def _find_order_plan_by_bid_reference(session: Session, notice: Notice) -> Order
 
     if is_blank(notice.bid_no) or is_blank(notice.bid_ord):
         return None
-    bid_reference = f"{notice.bid_no}{notice.bid_ord}"
-    matches: list[OrderPlan] = []
-    for candidate in session.scalars(
-        select(OrderPlan).where(OrderPlan.bid_ntice_no_list.is_not(None))
+    bid_no = str(notice.bid_no)
+    bid_reference = f"{bid_no}{notice.bid_ord}"
+    numbers = _plans_claiming_bid_reference(session, bid_no, bid_reference)
+    if len(numbers) > 1:
+        if run_id is not None:
+            _record_linkage_warning(
+                session,
+                run_id,
+                notice=notice,
+                target_type="order_plan",
+                external_key=bid_reference,
+                code="opportunity_link_reference_ambiguous",
+                reason="ambiguous",
+            )
+        return None
+    if not numbers:
+        return None
+    (number,) = numbers
+    return session.scalar(select(OrderPlan).where(OrderPlan.order_plan_unty_no == number))
+
+
+def _pre_specs_claiming_bid_no(session: Session, bid_no: str) -> dict[str, Notice | None]:
+    """Pre-spec numbers whose ``bidNtceNoList`` names ``bid_no`` exactly.
+
+    A pre-spec token is the 13-character bid number alone.  Index tokens cover
+    collected pre-specs, including ones not loaded into the database (mapped
+    to ``None``); a stored pre-spec without index rows is narrowed in SQL by
+    its serialized lifecycle text and then compared token by token.
+    """
+
+    claims: dict[str, Notice | None] = {}
+    for record_key, number in session.execute(
+        select(CollectedRecordIndex.record_key, CollectedRecordIndex.bf_spec_rgst_no)
+        .join(
+            CollectedRecordToken,
+            CollectedRecordToken.index_id == CollectedRecordIndex.id,
+        )
+        .where(
+            CollectedRecordIndex.record_kind == "pre_spec",
+            CollectedRecordToken.token == bid_no,
+        )
+        .distinct()
     ):
-        values = {
-            item.strip()
-            for item in str(candidate.bid_ntice_no_list).split(",")
-            if item.strip()
-        }
-        if bid_reference in values:
-            matches.append(candidate)
-            if len(matches) > 1:
-                return None
-    return matches[0] if matches else None
+        identity = number or _pre_spec_number_from_key(record_key) or record_key
+        if claims.get(identity) is None:
+            claims[identity] = session.scalar(
+                select(Notice).where(
+                    Notice.source_type.in_(tuple(sorted(_PRE_SPEC_SOURCE_TYPES))),
+                    Notice.notice_key.in_(
+                        tuple({record_key, *_pre_spec_notice_keys(identity)})
+                    ),
+                )
+            )
+    for stored in session.scalars(
+        select(Notice).where(
+            Notice.source_type.in_(tuple(sorted(_PRE_SPEC_SOURCE_TYPES))),
+            cast(Notice.lifecycle_json, String).contains(bid_no, autoescape=True),
+            _unindexed_record("pre_spec", Notice.notice_key),
+        )
+    ):
+        lifecycle = stored.lifecycle_json if isinstance(stored.lifecycle_json, dict) else {}
+        if bid_no in split_tokens(lifecycle.get("bid_ntice_no_list"))[0]:
+            identity = _stored_pre_spec_number(stored) or stored.notice_key
+            claims[identity] = stored
+    return claims
+
+
+def _find_pre_spec_by_bid_token(
+    session: Session,
+    run_id: str | None,
+    notice: Notice,
+) -> tuple[Notice, str] | None:
+    """Resolve the one stored pre-spec whose token list names this bid number."""
+
+    if is_blank(notice.bid_no):
+        return None
+    bid_no = str(notice.bid_no)
+    claims = _pre_specs_claiming_bid_no(session, bid_no)
+    if len(claims) > 1:
+        if run_id is not None:
+            _record_linkage_warning(
+                session,
+                run_id,
+                notice=notice,
+                target_type="pre_spec",
+                external_key=bid_no,
+                code="opportunity_link_reference_ambiguous",
+                reason="ambiguous",
+            )
+        return None
+    if not claims:
+        return None
+    ((number, pre_spec),) = claims.items()
+    return (pre_spec, number) if pre_spec is not None else None
 
 
 def _record_linkage_warning(
@@ -949,6 +1093,198 @@ def _target_opportunities(
     return list(unique.values())
 
 
+def _record_owner_link(
+    session: Session,
+    record: Notice | OrderPlan,
+) -> OpportunityLink | None:
+    """The authoritative link that makes an active opportunity own ``record``."""
+
+    if record.id is None:
+        session.flush()
+    statement = (
+        select(OpportunityLink)
+        .join(Opportunity, Opportunity.id == OpportunityLink.opportunity_id)
+        .where(
+            authoritative_link_predicate(OpportunityLink),
+            active_opportunity_predicate(Opportunity),
+        )
+        .order_by(OpportunityLink.id)
+        .limit(1)
+    )
+    if isinstance(record, OrderPlan):
+        statement = statement.where(OpportunityLink.order_plan_id == record.id)
+    else:
+        statement = statement.where(OpportunityLink.notice_id == record.id)
+    return session.scalar(statement)
+
+
+@dataclass
+class _Arrival:
+    """One lifecycle record being linked, and the merges refused on the way.
+
+    Every automatic merge while linking the record uses the spec §3.2 rule.
+    A refusal (two or more opportunities with human state) is collected here
+    instead of rolling anything back; :func:`_finish_arrival` turns it into
+    ``merge_confirmation`` candidates once the record has its final owner.
+    """
+
+    record: Notice | OrderPlan
+    own_stage: str
+    previous_owner_id: int | None
+    held_ids: set[int] = field(default_factory=set)
+
+    @property
+    def refused(self) -> bool:
+        return bool(self.held_ids)
+
+
+def _begin_arrival(
+    session: Session,
+    record: Notice | OrderPlan,
+    *,
+    own_stage: str,
+) -> _Arrival:
+    owner = _record_owner_link(session, record)
+    return _Arrival(
+        record=record,
+        own_stage=own_stage,
+        previous_owner_id=owner.opportunity_id if owner is not None else None,
+    )
+
+
+def _merge_for_arrival(
+    session: Session,
+    opportunities: Iterable[Opportunity],
+    arrival: _Arrival,
+) -> Opportunity | None:
+    """Merge by the shared rule; a refusal is recorded and returns ``None``."""
+
+    outcome = apply_merge_rule(
+        session,
+        list(opportunities),
+        reason=MERGE_REASON_OFFICIAL_LINK,
+    )
+    if outcome.refused:
+        arrival.held_ids.update(int(item.id) for item in outcome.held)
+        return None
+    return outcome.primary
+
+
+def _active_root(session: Session, opportunity_id: int) -> Opportunity | None:
+    current = session.get(Opportunity, opportunity_id)
+    seen: set[int] = set()
+    while current is not None and current.merged_into_opportunity_id is not None:
+        if current.id in seen:  # pragma: no cover - the CHECK forbids self merge.
+            return None
+        seen.add(current.id)
+        current = session.get(Opportunity, current.merged_into_opportunity_id)
+    return current
+
+
+def _ensure_merge_confirmation_candidate(
+    session: Session,
+    opportunity: Opportunity,
+    record: Notice | OrderPlan,
+) -> bool:
+    """Ask a person whether ``opportunity`` and the record's owner are one business.
+
+    A pending or rejected candidate with the same owner and target already
+    carries that question or its answer, so none is added.
+    """
+
+    is_plan = isinstance(record, OrderPlan)
+    target_column = OpportunityLink.order_plan_id if is_plan else OpportunityLink.notice_id
+    existing = session.scalar(
+        select(OpportunityLink.id)
+        .where(
+            OpportunityLink.opportunity_id == opportunity.id,
+            OpportunityLink.link_type == "candidate",
+            target_column == record.id,
+            or_(
+                OpportunityLink.status == "후보 확인 대기",
+                OpportunityLink.human_decision == "rejected",
+            ),
+        )
+        .limit(1)
+    )
+    if existing is not None:
+        return False
+    session.add(
+        OpportunityLink(
+            opportunity_id=opportunity.id,
+            order_plan_id=record.id if is_plan else None,
+            notice_id=None if is_plan else record.id,
+            stage="order_plan" if is_plan else "notice",
+            link_type="candidate",
+            status="후보 확인 대기",
+            search_strategy=MERGE_CONFIRMATION_STRATEGY,
+        )
+    )
+    session.flush()
+    return True
+
+
+def _finish_arrival(
+    session: Session,
+    arrival: _Arrival,
+    *,
+    run_id: str | None,
+) -> None:
+    """Resolve refused merges and the recheck signal for one linked record.
+
+    - A refused merge leaves the record on its own opportunity.  Every other
+      opportunity with human state gets a ``merge_confirmation`` candidate
+      targeting the record, and one warning is recorded for the arrival.
+    - When automatic linking or merging moved the record into an opportunity
+      that did not own it before, that opportunity's recheck signal is raised
+      with the record's official link (spec §3.2, §6.1).
+    """
+
+    owner_link = _record_owner_link(session, arrival.record)
+    if owner_link is None:  # pragma: no cover - every linking path assigns one owner.
+        raise RuntimeError("lifecycle record has no owning opportunity")
+    owner = owner_link.opportunity
+    if arrival.refused:
+        held: dict[int, Opportunity] = {}
+        for opportunity_id in sorted(arrival.held_ids):
+            root = _active_root(session, opportunity_id)
+            if root is not None and root.id != owner.id:
+                held[root.id] = root
+        created = sum(
+            _ensure_merge_confirmation_candidate(session, opportunity, arrival.record)
+            for opportunity in held.values()
+        )
+        if run_id is not None:
+            identity = (
+                {"order_plan_no": arrival.record.order_plan_unty_no}
+                if isinstance(arrival.record, OrderPlan)
+                else {"notice_id": arrival.record.notice_key}
+            )
+            _record_warning(
+                session,
+                run_id,
+                "warning",
+                "opportunity_merge_confirmation_required",
+                "사람 추적 선택 또는 재검토 신호가 있는 사업기회가 둘 이상이라 자동 병합하지 않고 병합 확인 후보를 만들었습니다.",
+                {
+                    **identity,
+                    "owner_opportunity_id": owner.id,
+                    "held_opportunity_ids": sorted(arrival.held_ids),
+                    "created_candidate_count": created,
+                    "requires_human_review": True,
+                },
+            )
+    if (
+        owner.id != arrival.previous_owner_id
+        and owner.tracking_status in RECHECK_SIGNAL_TRACKING_STATUSES
+        and owner_link.link_type == "official"
+        and owner_link.status == "확정"
+    ):
+        # The service is deliberately the only path that writes the system
+        # recheck columns; it leaves human tracking fields alone.
+        raise_recheck_signal(session, owner, owner_link)
+
+
 def _waiting_official_links(
     session: Session,
     *,
@@ -978,6 +1314,7 @@ def _waiting_official_links(
 def _attach_waiting_official_links(
     session: Session,
     *,
+    arrival: _Arrival,
     stage: str,
     evidence_external_no: str,
     order_plan: OrderPlan | None = None,
@@ -987,11 +1324,12 @@ def _attach_waiting_official_links(
     """Attach all deferred links for one exact official number to a target.
 
     If the arriving target already belongs to another opportunity, that
-    opportunity and the waiting-link opportunities are merged here.  The
-    merge is safe because this function is called only with the same official
-    external number; it never uses name similarity.  Every link row is moved
-    or updated in place, including rejected candidate links on the merged
-    opportunities.
+    opportunity and the waiting-link opportunities are merged here by the
+    shared rule.  The merge is safe because this function is called only with
+    the same official external number; it never uses name similarity.  Every
+    link row is moved or updated in place, including rejected candidate links
+    on the merged opportunities.  A refused merge leaves every row as it was
+    and is resolved by the arrival.
     """
 
     if (order_plan is None) == (notice is None):
@@ -1016,9 +1354,9 @@ def _attach_waiting_official_links(
             notice=notice,
         )
     )
-    primary = _merge_opportunities(session, list(opportunities))
-    if primary is None:  # pragma: no cover - every waiting link has an owner.
-        raise RuntimeError("deferred official link has no opportunity")
+    primary = _merge_for_arrival(session, opportunities, arrival)
+    if primary is None:
+        return 0
 
     # The target may already have one authoritative owner, or multiple
     # targetless official references may have converged here.  The partial
@@ -1041,11 +1379,6 @@ def _attach_waiting_official_links(
             attachable.notice = notice
             attachable.order_plan = None
     session.flush()
-    if attachable is not None:
-        # The deferred official row is now attached to its concrete lifecycle
-        # record.  The service is deliberately the only path that can write
-        # the system recheck columns; it leaves human tracking fields alone.
-        record_recheck_signal(session, primary, attachable)
     return 1 if attachable is not None else 0
 
 
@@ -1054,6 +1387,7 @@ def resolve_order_plan_opportunity_links(
     order_plan: OrderPlan,
     *,
     evidence_bid_no: str | None = None,
+    run_id: str | None = None,
 ) -> int:
     """Resolve waiting bid references when an order plan is ingested later.
 
@@ -1061,8 +1395,9 @@ def resolve_order_plan_opportunity_links(
     canonical ``OrderPlan`` row is flushed.  Keeping the operation as a
     loader helper also lets offline/import callers resolve a plan without
     re-ingesting the originating bid notice.  When there is no waiting bid,
-    the plan itself is still registered as an ``order_plan`` opportunity so
-    every lifecycle record has exactly one owning opportunity.
+    or the merge with it is refused, the plan itself is still registered as an
+    ``order_plan`` opportunity so every lifecycle record has exactly one
+    owning opportunity.  ``run_id`` receives the merge-confirmation warning.
     """
 
     if evidence_bid_no is None:
@@ -1072,8 +1407,10 @@ def resolve_order_plan_opportunity_links(
     # SQL ``IS NULL`` predicate to unrelated deferred links.
     if order_plan.id is None:
         session.flush()
+    arrival = _begin_arrival(session, order_plan, own_stage="order_plan")
     attached = _attach_waiting_official_links(
         session,
+        arrival=arrival,
         stage="order_plan",
         evidence_external_no=order_plan.order_plan_unty_no,
         order_plan=order_plan,
@@ -1082,6 +1419,7 @@ def resolve_order_plan_opportunity_links(
     if not _target_opportunities(session, order_plan=order_plan):
         opportunity = _ensure_opportunity(
             session,
+            arrival=arrival,
             first_registered_stage="order_plan",
             order_plan=order_plan,
         )
@@ -1093,6 +1431,7 @@ def resolve_order_plan_opportunity_links(
             evidence_external_no=order_plan.order_plan_unty_no,
             evidence_bid_no=evidence_bid_no,
         )
+    _finish_arrival(session, arrival, run_id=run_id)
     return attached
 
 
@@ -1112,26 +1451,65 @@ def _merge_opportunities(
 def _ensure_opportunity(
     session: Session,
     *,
+    arrival: _Arrival,
     first_registered_stage: str,
     order_plan: OrderPlan | None = None,
     notice: Notice | None = None,
     additional_notices: tuple[Notice, ...] = (),
 ) -> Opportunity:
-    existing = _merge_opportunities(
+    """Return the one opportunity the arriving record should belong to.
+
+    Opportunities owning any of the given records are merged by the shared
+    rule.  When the rule refuses, the arriving record keeps its current owner,
+    or gets a new opportunity registered at its own stage; the refusal is
+    resolved by :func:`_finish_arrival`.
+    """
+
+    owners = _target_opportunities(
         session,
-        _target_opportunities(
-            session,
-            order_plan=order_plan,
-            notice=notice,
-            additional_notices=additional_notices,
-        ),
+        order_plan=order_plan,
+        notice=notice,
+        additional_notices=additional_notices,
     )
-    if existing is not None:
-        return existing
-    opportunity = Opportunity(first_registered_stage=first_registered_stage)
+    stage = first_registered_stage
+    if owners:
+        primary = _merge_for_arrival(session, owners, arrival)
+        if primary is not None:
+            return primary
+        own = _record_owner_link(session, arrival.record)
+        if own is not None:
+            return own.opportunity
+        stage = arrival.own_stage
+    opportunity = Opportunity(first_registered_stage=stage)
     session.add(opportunity)
     session.flush()
     return opportunity
+
+
+def _owned_by_another_opportunity(
+    session: Session,
+    opportunity: Opportunity,
+    *,
+    order_plan: OrderPlan | None,
+    notice: Notice | None,
+) -> bool:
+    statement = (
+        select(OpportunityLink.id)
+        .join(Opportunity, Opportunity.id == OpportunityLink.opportunity_id)
+        .where(
+            OpportunityLink.opportunity_id != opportunity.id,
+            authoritative_link_predicate(OpportunityLink),
+            active_opportunity_predicate(Opportunity),
+        )
+        .limit(1)
+    )
+    if order_plan is not None:
+        statement = statement.where(OpportunityLink.order_plan_id == order_plan.id)
+    elif notice is not None:
+        statement = statement.where(OpportunityLink.notice_id == notice.id)
+    else:
+        return False
+    return session.scalar(statement) is not None
 
 
 def _ensure_official_link(
@@ -1143,19 +1521,25 @@ def _ensure_official_link(
     notice: Notice | None = None,
     evidence_external_no: str,
     evidence_bid_no: str | None = None,
-) -> OpportunityLink:
+) -> OpportunityLink | None:
     """Insert or resolve one official link while retaining its evidence.
 
     Passing neither target is intentional for a deferred upstream reference.
     In that case the exact external number identifies the waiting row; the
     later target-ingest path fills the target ID without creating a new
-    opportunity.
+    opportunity.  A target that another active opportunity owns is left to
+    its owner (a refused merge); ``None`` is returned and nothing is written.
+    Recheck signals are raised by the arrival, not per link.
     """
 
     if order_plan is not None and notice is not None:
         raise ValueError("an official link cannot target both plan and notice")
     if not is_blank(evidence_external_no):
         evidence_external_no = str(evidence_external_no).strip()
+    if _owned_by_another_opportunity(
+        session, opportunity, order_plan=order_plan, notice=notice
+    ):
+        return None
 
     # A human-accepted candidate is already authoritative ownership.  If an
     # exact official reference later arrives for that same target, promote the
@@ -1218,7 +1602,6 @@ def _ensure_official_link(
         # 0025 provenance without creating a duplicate link.  The same update
         # also resolves a targetless official link when the target is already
         # known in this opportunity.
-        was_targetless = existing.order_plan_id is None and existing.notice_id is None
         if order_plan is not None:
             existing.order_plan = order_plan
             existing.notice = None
@@ -1227,9 +1610,7 @@ def _ensure_official_link(
             existing.order_plan = None
         if evidence_bid_no is not None and existing.evidence_bid_no is None:
             existing.evidence_bid_no = evidence_bid_no
-        if was_targetless and (order_plan is not None or notice is not None):
-            session.flush()
-            record_recheck_signal(session, opportunity, existing)
+        session.flush()
         return existing
     link = OpportunityLink(
         opportunity_id=opportunity.id,
@@ -1243,8 +1624,79 @@ def _ensure_official_link(
     )
     session.add(link)
     session.flush()
-    record_recheck_signal(session, opportunity, link)
     return link
+
+
+def _other_bid_orders(session: Session, notice: Notice) -> tuple[Notice, ...]:
+    """Stored notices with the same bid number and another order (spec §3.1)."""
+
+    if is_blank(notice.bid_no):
+        return ()
+    return tuple(
+        session.scalars(
+            select(Notice)
+            .where(Notice.bid_no == notice.bid_no, Notice.id != notice.id)
+            .order_by(Notice.id)
+        )
+    )
+
+
+def _link_bids_named_by_pre_spec(
+    session: Session,
+    run_id: str,
+    pre_spec: Notice,
+    own_number: str,
+    arrival: _Arrival,
+) -> None:
+    """Join stored bids whose number this pre-spec's token list names.
+
+    A pre-spec token is the 13-character bid number.  Only bids without their
+    own ``bfSpecRgstNo`` are joined (that key would be the authoritative one),
+    and a bid number claimed by another pre-spec as well stays unlinked with
+    an ambiguity warning.  Each bid number is resolved by the shared rule.
+    """
+
+    lifecycle = pre_spec.lifecycle_json if isinstance(pre_spec.lifecycle_json, dict) else {}
+    tokens = sorted(set(split_tokens(lifecycle.get("bid_ntice_no_list"))[0]))
+    for bid_no in tokens:
+        bids = tuple(
+            bid
+            for bid in session.scalars(
+                select(Notice)
+                .where(Notice.bid_no == bid_no, Notice.id != pre_spec.id)
+                .order_by(Notice.id)
+            )
+            if _stored_pre_spec_number(bid) is None
+        )
+        if not bids:
+            continue
+        claimers = set(_pre_specs_claiming_bid_no(session, bid_no)) | {own_number}
+        if len(claimers) > 1:
+            _record_linkage_warning(
+                session,
+                run_id,
+                notice=pre_spec,
+                target_type="bid_notice",
+                external_key=bid_no,
+                code="opportunity_link_reference_ambiguous",
+                reason="ambiguous",
+            )
+            continue
+        primary = _merge_for_arrival(
+            session,
+            _target_opportunities(session, notice=pre_spec, additional_notices=bids),
+            arrival,
+        )
+        if primary is None:
+            continue
+        _ensure_official_link(
+            session,
+            opportunity=primary,
+            stage="notice",
+            notice=pre_spec,
+            evidence_external_no=own_number,
+            evidence_bid_no=bid_no,
+        )
 
 
 def _ensure_official_opportunity_links(
@@ -1258,7 +1710,9 @@ def _ensure_official_opportunity_links(
 
     Name-search candidate creation deliberately does not live here.  This
     helper only consumes official references already present in the normalized
-    notice and links records that are already in the database.
+    notice and links records that are already in the database.  Every merge
+    uses the shared rule (spec §3.2); a refused merge never leaves the notice
+    without an owner.
     """
 
     contract = notice_contract
@@ -1269,6 +1723,11 @@ def _ensure_official_opportunity_links(
             lifecycle=notice.lifecycle_json,
             raw_source=notice.raw_source,
         )
+    source_type = (notice.source_type or "").strip().lower()
+    is_pre_spec = source_type in _PRE_SPEC_SOURCE_TYPES
+    arrival = _begin_arrival(
+        session, notice, own_stage="pre_spec" if is_pre_spec else "bid_notice"
+    )
     order_plan_raw, pre_spec_no = _notice_linkage_keys(contract, raw)
     order_plan: OrderPlan | None = None
     order_plan_reference = order_plan_raw
@@ -1309,11 +1768,14 @@ def _ensure_official_opportunity_links(
         # the bid and the bid payload does not repeat orderPlanUntyNo.  Only
         # exact comma-delimited tokens are accepted; an ambiguous token stays
         # unresolved rather than creating a false automatic link.
-        order_plan = _find_order_plan_by_bid_reference(session, notice)
+        order_plan = _find_order_plan_by_bid_reference(session, notice, run_id)
         if order_plan is not None:
             order_plan_reference = order_plan.order_plan_unty_no
 
     pre_spec: Notice | None = None
+    # The pre-spec number that names the pre-spec link: the bid's own
+    # bfSpecRgstNo, or the pre-spec whose token list names this bid number.
+    pre_spec_reference: str | None = pre_spec_no
     if pre_spec_no is not None:
         pre_spec = _find_pre_spec_notice(session, pre_spec_no)
         if pre_spec is None:
@@ -1326,9 +1788,11 @@ def _ensure_official_opportunity_links(
                 code="opportunity_link_target_missing",
                 reason="target_missing",
             )
+    elif not is_pre_spec:
+        found = _find_pre_spec_by_bid_token(session, run_id, notice)
+        if found is not None:
+            pre_spec, pre_spec_reference = found
 
-    source_type = (notice.source_type or "").strip().lower()
-    is_pre_spec = source_type in {"pre_spec", "prespec", "pre-spec"}
     if is_pre_spec:
         # An independently collected pre-spec is a first registration point
         # when no earlier official relation is available.  Its own external
@@ -1336,6 +1800,7 @@ def _ensure_official_opportunity_links(
         own_pre_spec_no = _stored_pre_spec_number(notice) or notice.notice_key
         opportunity = _ensure_opportunity(
             session,
+            arrival=arrival,
             first_registered_stage="pre_spec",
             notice=notice,
         )
@@ -1350,10 +1815,15 @@ def _ensure_official_opportunity_links(
         # retained bfSpecRgstNo now, preserving the bid-first opportunity.
         _attach_waiting_official_links(
             session,
+            arrival=arrival,
             stage="notice",
             evidence_external_no=own_pre_spec_no,
             notice=notice,
         )
+        # A bid without bfSpecRgstNo may already be stored under a bid number
+        # this pre-spec's token list names.
+        _link_bids_named_by_pre_spec(session, run_id, notice, own_pre_spec_no, arrival)
+        _finish_arrival(session, arrival, run_id=run_id)
         return
 
     # A target that arrived before this bid may itself have a deferred link.
@@ -1362,6 +1832,7 @@ def _ensure_official_opportunity_links(
     if order_plan is not None:
         _attach_waiting_official_links(
             session,
+            arrival=arrival,
             stage="order_plan",
             evidence_external_no=order_plan.order_plan_unty_no,
             order_plan=order_plan,
@@ -1370,8 +1841,9 @@ def _ensure_official_opportunity_links(
     if pre_spec is not None:
         _attach_waiting_official_links(
             session,
+            arrival=arrival,
             stage="notice",
-            evidence_external_no=pre_spec_no or pre_spec.notice_key,
+            evidence_external_no=pre_spec_reference or pre_spec.notice_key,
             notice=pre_spec,
             evidence_bid_no=notice.bid_no,
         )
@@ -1384,13 +1856,15 @@ def _ensure_official_opportunity_links(
         first_stage = "bid_notice"
     opportunity = _ensure_opportunity(
         session,
+        arrival=arrival,
         first_registered_stage=first_stage,
         order_plan=order_plan,
         notice=pre_spec,
         # A bid may already have a candidate relation or an independently
-        # created opportunity.  Include only this exact notice in the identity
-        # lookup; no title/name similarity is used for merging.
-        additional_notices=(notice,),
+        # created opportunity, and another order of the same bid number is the
+        # same procurement (spec §3.1).  Only these exact notices join the
+        # identity lookup; no title/name similarity is used for merging.
+        additional_notices=(notice, *_other_bid_orders(session, notice)),
     )
 
     if order_plan is not None:
@@ -1412,13 +1886,12 @@ def _ensure_official_opportunity_links(
         )
 
     if pre_spec is not None:
-        pre_spec_reference = pre_spec_no or pre_spec.notice_key
         _ensure_official_link(
             session,
             opportunity=opportunity,
             stage="notice",
             notice=pre_spec,
-            evidence_external_no=pre_spec_reference,
+            evidence_external_no=pre_spec_reference or pre_spec.notice_key,
             evidence_bid_no=notice.bid_no,
         )
     elif pre_spec_no is not None:
@@ -1449,6 +1922,7 @@ def _ensure_official_opportunity_links(
         evidence_external_no=bid_evidence,
         evidence_bid_no=notice.bid_no,
     )
+    _finish_arrival(session, arrival, run_id=run_id)
 
 
 def _demand_agency_value(notice: NoticeContract) -> str | None:
@@ -1581,32 +2055,16 @@ def _upsert_notice(
     # here so a malformed artifact containing the same notice key twice cannot
     # create two pending observation rows for the same notice/run pair.
     session.flush()
-    try:
-        # Lifecycle mutations are a smaller boundary than the immutable notice
-        # observation.  A human-selected/recheck merge conflict rolls back only
-        # those relationship writes and becomes a durable ingest warning.
-        with session.begin_nested():
-            _ensure_official_opportunity_links(
-                session,
-                run_id,
-                existing,
-                raw,
-                notice,
-            )
-    except OpportunityIntegrityError as error:
-        if error.code != "opportunity_merge_state_conflict":
-            raise
-        _record_warning(
-            session,
-            run_id,
-            "warning",
-            "opportunity_merge_state_conflict",
-            "사람 선택 또는 재검토 상태가 있어 사업기회를 자동 병합하지 않았습니다.",
-            {
-                "notice_id": existing.notice_key,
-                "requires_human_review": True,
-            },
-        )
+    # A merge refused by the shared rule never rolls these writes back: the
+    # notice keeps (or gets) its own opportunity and people are asked through
+    # merge-confirmation candidates (spec §3.2).
+    _ensure_official_opportunity_links(
+        session,
+        run_id,
+        existing,
+        raw,
+        notice,
+    )
     return existing
 
 
@@ -2156,42 +2614,12 @@ def _upsert_order_plan(
             f"unexpected order-plan observation race: plan={plan_no}, run_id={run_id}"
         )
     session.flush()
-    try:
-        with session.begin_nested():
-            resolve_order_plan_opportunity_links(
-                session,
-                existing,
-                evidence_bid_no=_first_order_plan_bid_no(existing.bid_ntice_no_list),
-            )
-    except OpportunityIntegrityError as error:
-        if error.code != "opportunity_merge_state_conflict":
-            raise
-        _record_warning(
-            session,
-            run_id,
-            "warning",
-            "opportunity_merge_state_conflict",
-            "사람 선택 또는 재검토 상태가 있어 사업기회를 자동 병합하지 않았습니다.",
-            {
-                "order_plan_no": existing.order_plan_unty_no,
-                "requires_human_review": True,
-            },
-        )
-        # The official target still needs one unambiguous active owner.  If it
-        # had none before the conflicting deferred references arrived, create
-        # a standalone opportunity without attaching those disputed rows.
-        if not _target_opportunities(session, order_plan=existing):
-            standalone = Opportunity(first_registered_stage="order_plan")
-            session.add(standalone)
-            session.flush()
-            _ensure_official_link(
-                session,
-                opportunity=standalone,
-                stage="order_plan",
-                order_plan=existing,
-                evidence_external_no=existing.order_plan_unty_no,
-                evidence_bid_no=_first_order_plan_bid_no(existing.bid_ntice_no_list),
-            )
+    resolve_order_plan_opportunity_links(
+        session,
+        existing,
+        evidence_bid_no=_first_order_plan_bid_no(existing.bid_ntice_no_list),
+        run_id=run_id,
+    )
     return existing
 
 
@@ -3412,6 +3840,30 @@ def _sw_pre_spec_numbers_in_db(session: Session, numbers: Iterable[str]) -> set[
     return found
 
 
+def _stored_pre_spec_record_keys(
+    session: Session,
+    values: Iterable[IndexValues],
+) -> set[str]:
+    """Record keys of collected pre-specs whose Notice is already stored."""
+
+    by_key: dict[str, str] = {}
+    for item in values:
+        by_key.setdefault(item.record_key, item.record_key)
+        if item.bf_spec_rgst_no is not None:
+            for key in _pre_spec_notice_keys(item.bf_spec_rgst_no):
+                by_key.setdefault(key, item.record_key)
+    found: set[str] = set()
+    for batch in _chunks(sorted(by_key)):
+        for key in session.scalars(
+            select(Notice.notice_key).where(
+                Notice.source_type.in_(tuple(sorted(_PRE_SPEC_SOURCE_TYPES))),
+                Notice.notice_key.in_(batch),
+            )
+        ):
+            found.add(by_key[key])
+    return found
+
+
 def _sw_industry_competitive(values: IndexValues) -> bool:
     """Decision 1 ③: 1468 tag Y on a competitive bid.  Null never matches."""
 
@@ -3488,13 +3940,19 @@ def _load_collection_run(
             current_records={record.values.record_key: record for record in records},
         )
 
-        for record in records:
-            if record.values.record_kind != "pre_spec":
-                continue
+        pre_specs = [record for record in records if record.values.record_kind == "pre_spec"]
+        known_pre_specs = _stored_pre_spec_record_keys(
+            session, (record.values for record in pre_specs)
+        )
+        for record in pre_specs:
             row = rows[record.values.identity]
             reason = row.selection_reason
             if reason is None and record.values.sw_business_status == "Y":
                 reason = "pre_spec_sw"
+            elif reason is None and record.values.record_key in known_pre_specs:
+                # A pre-spec already in the database is refreshed from every
+                # later observation, whatever first selected it.
+                reason = "pre_spec_known"
             if reason is not None:
                 loader.load(row, reason)
 
