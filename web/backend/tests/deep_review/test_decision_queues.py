@@ -451,8 +451,9 @@ def test_bid_conditions_summarize_each_ordinal_without_guessing(queue_session):
 
     with bid_delta_client(session) as client:
         body = client.get(f"/api/opportunities/{owner.id}/bid-conditions").json()
-        assert set(body) == {"opportunity_id", "generated_at", "pre_spec", "bid_notices",
-            "pre_spec_comparison", "not_comparable"}
+        assert set(body) == {"opportunity_id", "generated_at", "latest_notice_id", "latest_observation_sha256",
+            "pre_spec", "bid_notices", "pre_spec_comparison", "not_comparable"}
+        assert (body["latest_notice_id"], body["latest_observation_sha256"]) == (second.id, SHA_B)
         assert [row["notice_id"] for row in body["bid_notices"]] == [first.id, second.id]
         assert [row["observation_sha256"] for row in body["bid_notices"]] == [SHA_A, SHA_B]
         head, tail = body["bid_notices"]
@@ -486,10 +487,39 @@ def test_bid_conditions_summarize_each_ordinal_without_guessing(queue_session):
 
         blank = client.get(f"/api/opportunities/{empty.id}/bid-conditions").json()
         assert (blank["bid_notices"], blank["pre_spec"], blank["pre_spec_comparison"]) == ([], None, [])
+        assert (blank["latest_notice_id"], blank["latest_observation_sha256"]) == (None, None)
         missing = client.get("/api/opportunities/999999999/bid-conditions")
         assert (missing.status_code, missing.json()["error"]["code"]) == (404, "opportunity_not_found")
         folded = client.get(f"/api/opportunities/{merged.id}/bid-conditions")
         assert (folded.status_code, folded.json()["error"]["code"]) == (409, "opportunity_merged")
+
+
+def test_bid_conditions_latest_fence_is_what_the_decision_endpoint_accepts(queue_session):
+    """List order (bid_no, bid_ord) is display only; the latest fence follows published_at."""
+    session = queue_session
+    owner = opportunity(session)
+    latest = linked_notice(session, owner, bid_no="R26BK00001", bid_ord="000",
+        published=NOW + timedelta(days=1), sha=SHA_A)
+    listed_last = linked_notice(session, owner, bid_no="R26BK00002", bid_ord="000", published=NOW, sha=SHA_B)
+    session.commit()
+    url = f"/api/opportunities/{owner.id}"
+
+    with bid_delta_client(session) as client:
+        body = client.get(f"{url}/bid-conditions").json()
+        assert [row["notice_id"] for row in body["bid_notices"]] == [latest.id, listed_last.id]
+        assert (body["latest_notice_id"], body["latest_observation_sha256"]) == (latest.id, SHA_A)
+        wrong = client.post(f"{url}/final-decisions", json=decision_body(listed_last.id, SHA_B), headers=ACTOR)
+        assert (wrong.status_code, wrong.json()["error"]["code"]) == (409, "final_decision_notice_not_latest")
+        accepted = client.post(f"{url}/final-decisions", json=decision_body(
+            body["latest_notice_id"], body["latest_observation_sha256"]), headers=ACTOR)
+        assert accepted.status_code == 201, accepted.text
+        assert accepted.json()["basis_notice_id"] == latest.id
+
+        # An order that cannot be determined is reported as null, never guessed.
+        linked_notice(session, owner, bid_no="R26BK00003", bid_ord="000", published=None, sha=SHA_C)
+        session.commit()
+        unknown = client.get(f"{url}/bid-conditions").json()
+        assert (unknown["latest_notice_id"], unknown["latest_observation_sha256"]) == (None, None)
 
 
 def test_notice_conditions_decision_is_fenced_replayed_and_superseded(queue_session):
@@ -529,6 +559,7 @@ def test_notice_conditions_decision_is_fenced_replayed_and_superseded(queue_sess
         first = client.post(url, json=payload, headers=ACTOR)
         assert first.status_code == 201, first.text
         view = first.json()
+        assert view["schema_version"] == "bidops.bid-final-decision.v2"
         assert view["basis_kind"] == "notice_conditions"
         assert (view["basis_notice_id"], view["basis_observation_sha256"]) == (bid.id, SHA_A)
         assert [view[key] for key in ("comparison_id", "comparison_version", "result_sha256",

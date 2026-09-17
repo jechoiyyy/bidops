@@ -20,7 +20,7 @@ from ...lifecycle import authoritative_link_predicate
 from ...lifecycle.models import Notice, OpportunityLink
 from ..schemas.bid_delta import BidConditionsView
 from .bid_delta import BidDeltaService
-from .bid_delta_currentness import authoritative_bid_notices, latest_observation_hashes
+from .bid_delta_currentness import authoritative_bid_notices, latest_bid_notice, latest_observation_hashes
 
 #: Response order of ``conditions`` and of each ``changes_from_previous`` list.
 CONDITION_FIELDS = (
@@ -180,6 +180,9 @@ def bid_conditions(session: Session, opportunity_id: int) -> dict[str, Any]:
         key=lambda notice: (notice.bid_no or "", _ordinal_key(notice.bid_ord), notice.id),
     )
     hashes = latest_observation_hashes(session, [notice.id for notice in bids])
+    # The same helpers the final-decision endpoint checks, so the client submits
+    # exactly this fence. List order (bid_no, bid_ord) is display only.
+    latest, _reason = latest_bid_notice(bids)
     rows: list[dict[str, Any]] = []
     previous: dict[str, Any] | None = None
     for notice in bids:
@@ -221,6 +224,8 @@ def bid_conditions(session: Session, opportunity_id: int) -> dict[str, Any]:
     view = BidConditionsView(
         opportunity_id=opportunity.id,
         generated_at=datetime.now(UTC),
+        latest_notice_id=latest.id if latest is not None else None,
+        latest_observation_sha256=hashes.get(latest.id) if latest is not None else None,
         pre_spec=pre_spec,
         bid_notices=rows,
         pre_spec_comparison=comparison,
