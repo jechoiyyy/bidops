@@ -10,8 +10,8 @@ export function Small({ children, className = "" }: { children: ReactNode; class
   return <Text as="span" className={`dash-small ${className}`} color="secondary">{children}</Text>;
 }
 
-export function Tag({ label, tone = "neutral" }: { label: string; tone?: "neutral" | "error" | "success" }) {
-  return <Token label={label} color={tone === "error" ? "red" : tone === "success" ? "green" : "gray"} size="sm" />;
+export function Tag({ label, tone = "neutral" }: { label: string; tone?: "neutral" | "error" | "success" | "warning" }) {
+  return <Token label={label} color={tone === "error" ? "red" : tone === "success" ? "green" : tone === "warning" ? "orange" : "gray"} size="sm" />;
 }
 
 function RouterAnchor({ href = "", ...props }: AnchorHTMLAttributes<HTMLAnchorElement>) {
@@ -22,11 +22,12 @@ export function LinkButton({ to, label, icon, secondary = false }: { to: string;
   return <Button as={RouterAnchor} href={to} label={label} icon={icon} size="sm" variant={secondary ? "secondary" : "ghost"} />;
 }
 
-export function DashboardPanel({ title, action, className = "", children, footer }: {
-  title: string; action?: ReactNode; className?: string; children: ReactNode; footer?: ReactNode;
+export function DashboardPanel({ title, caption, action, className = "", children, footer }: {
+  title: string; caption?: ReactNode; action?: ReactNode; className?: string; children: ReactNode; footer?: ReactNode;
 }) {
+  const heading = <Heading level={2}>{title}</Heading>;
   return <section className={`dash-panel ${className}`} aria-label={title}>
-    <header className="dash-panel-head"><Heading level={2}>{title}</Heading>{action}</header>
+    <header className="dash-panel-head">{caption ? <div className="dash-panel-title">{heading}<Small>{caption}</Small></div> : heading}{action}</header>
     <div className="dash-panel-body">{children}</div>
     {footer && <footer className="dash-panel-foot">{footer}</footer>}
   </section>;
