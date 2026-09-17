@@ -1,5 +1,5 @@
 import type { Page } from "@playwright/test";
-import type { DeadlineNotice, RunStatsResponse, RunSummary, ValidationMetricsResponse, WorkloadResponse } from "../src/lib/types";
+import type { DeadlineNotice, OpportunityListItem, OpportunityListResponse, RunStatsResponse, RunSummary, ValidationMetricsResponse, WorkloadResponse } from "../src/lib/types";
 import { mockApi } from "./api-mock";
 
 export const DASH_RUN = "dashboard-preview-20260907";
@@ -51,12 +51,47 @@ export const dashboardRuns: RunSummary[] =[DASH_RUN,OTHER_RUN].map((run_id,index
   counts:{notices:1240,judgments:180,reviews:index ? 18 : 32,collection:{}},
 }));
 
+// 보류 재검토 패널 기준 시각. KST 2026-09-17 12:00이다.
+export const HOLD_NOW = "2026-09-17T03:00:00Z";
+function holdItem(id: number, title: string | null, dueAt: string, overdue: boolean, reason: string | null, selectedBy: string | null): OpportunityListItem {
+  return {
+    id, section: overdue ? "조치 필요" : "보류", pending_candidate_link_count: 0, open_blocking_item_count: 0,
+    tracking_status: "보류", tracking_reason: reason, tracking_selected_by: selectedBy,
+    tracking_selected_at: new Date(Date.parse(dueAt) - 14 * 86_400_000).toISOString(),
+    recheck_signal: false, recheck_signal_at: null, recheck_signal_link_id: null, first_registered_stage: "pre_spec",
+    action_reasons: overdue ? ["hold_overdue"] : [], hold_review_due_at: dueAt,
+    links: title === null ? [] : [{
+      id: id * 10, stage: "notice", link_type: "official", status: "확정", search_strategy: null, attempted_strategies: [],
+      agency_match: null, last_searched_at: null, evidence_external_no: null, evidence_bid_no: null, human_decision: null,
+      reviewer_name: null, reviewed_at: null, review_reason: null, record_type: "pre_spec", record_id: id, notice_id: id,
+      order_plan_id: null, source_type: "pre_spec", title, agency: "해솔시청", external_id: `PRE-${id}`, record_external_id: `PRE-${id}`,
+    }],
+  };
+}
+// 서버가 기한순으로 준 기한 지남 2건과 3일 이내 3건. 마이크로초와 한국 자정 경계를 함께 둔다.
+export const holdReviewItems: OpportunityListItem[] = [
+  holdItem(401, "공공데이터 통합관리체계 고도화", "2026-09-14T05:00:00Z", true, "예산 편성 결과를 확인한 뒤 다시 검토", "김보류"),
+  holdItem(402, null, "2026-09-17T01:00:00.654321Z", true, null, null),
+  holdItem(403, "시민 통합행정서비스 구축", "2026-09-17T15:30:00.123456Z", false, "발주처 사업 범위 확정 대기", "이담당"),
+  holdItem(404, "지역산업 데이터 연계 플랫폼 구축", "2026-09-19T14:59:59Z", false, "  ", "박선택"),
+  holdItem(405, "통합 인증·증명 서비스 운영", "2026-09-20T02:00:00+00:00", false, "공동수급 조건 확인 필요", "최담당"),
+];
+export function holdReviewList(items: OpportunityListItem[], total = items.length): OpportunityListResponse {
+  return {
+    items, total, limit: 5, offset: 0,
+    section_counts: { "조치 필요": 0, "추적 중": 0, "보류": 0, "추적 종료": 0, "신규 입찰공고": 0, "미결정": 0 },
+    action_reason_counts: { new_link: 0, candidate_pending: 0, merge_confirmation: 0, blocking_item: 0, hold_overdue: 0 },
+  };
+}
+
 export async function mockDashboard(page: Page, options: {
   stats?: Partial<RunStatsResponse>; metrics?: ValidationMetricsResponse; runs?: RunSummary[]; workload?: WorkloadResponse;
-  statsError?: boolean; metricsError?: boolean; runsError?: boolean; workloadError?: boolean;
+  holdReviews?: OpportunityListResponse;
+  statsError?: boolean; metricsError?: boolean; runsError?: boolean; workloadError?: boolean; holdReviewError?: boolean;
 } = {}) {
   await mockApi(page);
   const writes: string[] = [];
+  const holdRequests: URLSearchParams[] = [];
   page.on("request", request=> { if(request.url().includes("/api/") && !["GET","HEAD"].includes(request.method())) writes.push(request.method()+" "+request.url()); });
   await page.route("**/api/**", async route=> {
     const url=new URL(route.request().url());
@@ -70,8 +105,10 @@ export async function mockDashboard(page: Page, options: {
     }
     else if(url.pathname==="/api/metrics/validation") {body={...(options.metrics ?? dashboardMetrics),run_id:url.searchParams.get("run_id")};failure=!!options.metricsError;}
     else if(url.pathname==="/api/workload") {body=options.workload ?? dashboardWorkload;failure=!!options.workloadError;}
+    // 기본은 재검토할 보류가 없는 상태다. 승인 시안 배치 검사는 빈 패널 위에서 잰다.
+    else if(url.pathname==="/api/opportunities") {holdRequests.push(url.searchParams);body=options.holdReviews ?? holdReviewList([]);failure=!!options.holdReviewError;}
     else return route.fallback();
     await route.fulfill({status:failure?503:200,contentType:"application/json",body:JSON.stringify(failure?{error:{code:"fixture_unavailable",message:"합성 조회 실패",details:null}}:body)});
   });
-  return {writes};
+  return {writes,holdRequests};
 }
