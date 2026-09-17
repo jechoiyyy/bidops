@@ -303,6 +303,7 @@ export interface Trace {
   listQueries: URLSearchParams[];
   detailGets: number[];
   decisionGets: number[];
+  deepReviewGets: number[];
   patches: Array<{ id: number; body: Record<string, unknown>; headers: Record<string, string> }>;
   linkDecisions: Array<{ linkId: number; body: Record<string, unknown>; headers: Record<string, string> }>;
   reviewPuts: Array<{ noticePk: number; body: Record<string, unknown> }>;
@@ -320,7 +321,7 @@ export interface MockOptions {
 }
 
 export async function mockOpportunities(page: Page, options: MockOptions = {}): Promise<Trace> {
-  const trace: Trace = { listQueries: [], detailGets: [], decisionGets: [], patches: [], linkDecisions: [], reviewPuts: [] };
+  const trace: Trace = { listQueries: [], detailGets: [], decisionGets: [], deepReviewGets: [], patches: [], linkDecisions: [], reviewPuts: [] };
   const details = new Map<number, Fixture>(FIXTURES.map((item) => [item.id, structuredClone(item)]));
   if (options.longTitle) {
     const long = "공공데이터 통합관리체계 및 기관 간 정보연계 플랫폼 고도화와 데이터 품질관리 기반 구축 사업";
@@ -336,6 +337,34 @@ export async function mockOpportunities(page: Page, options: MockOptions = {}): 
       audit_event_id: "f1000000-0000-4000-8000-000000000001",
       cleared_recheck_signal: false,
     }]],
+  ]);
+
+  // 사업기회별 심층 검토 보고서 목록. 404는 완료 1건·진행 중 1건(공고명 미확인
+  // 상태 포함)을 갖고, 606은 명시적으로 빈 목록이다(§11.1 빈 상태 회귀).
+  const deepReviews = new Map<number, Array<Record<string, unknown>>>([
+    [404, [
+      {
+        deep_review_id: "d1111111-1111-4111-8111-111111111111",
+        notice_id: 61,
+        notice_title: "환경측정 데이터 품질관리 용역",
+        status: "completed",
+        quality_status: "measured",
+        created_at: "2026-09-10T01:00:00Z",
+        current_attempt_status: "completed",
+        latest_final_opinion: { value: "추진", decided_at: "2026-09-11T02:00:00Z" },
+      },
+      {
+        deep_review_id: "d2222222-2222-4222-8222-222222222222",
+        notice_id: 61,
+        notice_title: null,
+        status: "running",
+        quality_status: null,
+        created_at: "2026-09-12T03:00:00Z",
+        current_attempt_status: "running",
+        latest_final_opinion: null,
+      },
+    ]],
+    [606, []],
   ]);
 
   // 연결된 공고는 모두 응답한다. 확인 항목이 있는 것은 61 하나뿐이다.
@@ -451,7 +480,7 @@ export async function mockOpportunities(page: Page, options: MockOptions = {}): 
       return;
     }
 
-    const match = url.pathname.match(/^\/api\/opportunities\/(\d+)(?:\/(tracking-status|tracking-decisions))?$/);
+    const match = url.pathname.match(/^\/api\/opportunities\/(\d+)(?:\/(tracking-status|tracking-decisions|deep-reviews))?$/);
     if (!match) {
       await route.fallback();
       return;
@@ -473,6 +502,16 @@ export async function mockOpportunities(page: Page, options: MockOptions = {}): 
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({ opportunity_id: id, items: options.emptyDecisions ? [] : decisions.get(id) ?? [] }),
+      });
+      return;
+    }
+
+    if (match[2] === "deep-reviews" && request.method() === "GET") {
+      trace.deepReviewGets.push(id);
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ opportunity_id: id, items: deepReviews.get(id) ?? [] }),
       });
       return;
     }

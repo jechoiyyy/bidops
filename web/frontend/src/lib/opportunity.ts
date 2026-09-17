@@ -78,10 +78,6 @@ export function linkRecordLabel(link: OpportunityLinkView): string {
 // 집계를 만들어 내지 않는다. `조치 필요`는 저장된 상태가 아니라 "지금 사람이
 // 손대야 하는 것이 남아 있다"는 화면 판단이며, 그 근거를 항상 함께 보여 준다.
 
-export type TrackingSection = "조치 필요" | "추적 중" | "보류" | "추적 종료";
-
-export const TRACKING_SECTIONS: TrackingSection[] = ["조치 필요", "추적 중", "보류", "추적 종료"];
-
 /** 예외 작업 한 건. `kind`는 PLAN 단계 E 작업 3-2가 열거한 세 종류다. */
 export type TrackingExceptionKind = "연결 불확실" | "근거 없음" | "검증 실패";
 
@@ -130,49 +126,6 @@ export function linkExceptions(links: readonly OpportunityLinkView[]): TrackingE
     }
   }
   return found;
-}
-
-/**
- * 구역은 하나만 고른다. 한 사업기회가 목록에 두 행으로 나타나지 않게, 구역
- * 판정은 위에서부터 처음 맞는 하나에서 멈춘다(PLAN 단계 E 완료 게이트).
- *
- * `조치 필요`가 저장된 상태보다 앞선다. 사람이 `종료`를 골라 둔 뒤 새 공고가
- * 붙어도 그 사실이 구역 밖으로 사라지면 안 되기 때문이다. 행에는 저장된 추적
- * 상태 배지가 그대로 남아 무엇을 골라 뒀는지 감추지 않는다.
- */
-export function trackingSectionOf(
-  item: { tracking_status: OpportunityTrackingStatus; recheck_signal: boolean; links: readonly OpportunityLinkView[] },
-): TrackingSection {
-  if (item.tracking_status === "미선택") return "조치 필요";
-  if (item.recheck_signal) return "조치 필요";
-  if (linkExceptions(item.links).length > 0) return "조치 필요";
-  if (item.tracking_status === "보류") return "보류";
-  if (item.tracking_status === "종료") return "추적 종료";
-  return "추적 중";
-}
-
-export function trackingSectionDescription(section: TrackingSection): string {
-  if (section === "조치 필요") return "추적 결정이 미선택이거나, 재검토 신호나 예외 작업이 남아 있는 건입니다.";
-  if (section === "추적 중") return "계속 추적으로 저장돼 있고 지금 사람이 손댈 것이 없는 건입니다.";
-  if (section === "보류") return "사람이 보류를 골라 결정을 미뤄 둔 건입니다. 자동 제외가 아닙니다.";
-  return "사람이 능동 추적을 끝낸 건입니다. 영구 배제가 아닙니다.";
-}
-
-/**
- * 다음 행동은 하나만 말한다. 여러 개를 나열하면 무엇부터 할지 화면이 답하지
- * 못하고, 사람은 결국 상세를 다시 읽어야 한다.
- */
-export function nextActionOf(
-  item: { tracking_status: OpportunityTrackingStatus; recheck_signal: boolean; links: readonly OpportunityLinkView[] },
-): { label: string; variant: BadgeVariant } {
-  if (item.tracking_status === "미선택") return { label: "추적 결정", variant: "alert" };
-  const exceptions = linkExceptions(item.links);
-  if (exceptions.some((entry) => entry.kind === "연결 불확실")) return { label: "연결 확인", variant: "alert" };
-  if (item.recheck_signal) return { label: "재검토", variant: "alert" };
-  if (exceptions.length > 0) return { label: "근거 확인", variant: "evidence-unknown" };
-  if (item.tracking_status === "보류") return { label: "보류 유지", variant: "neutral" };
-  if (item.tracking_status === "종료") return { label: "조치 없음", variant: "neutral" };
-  return { label: "추적 유지", variant: "focus" };
 }
 
 /**
