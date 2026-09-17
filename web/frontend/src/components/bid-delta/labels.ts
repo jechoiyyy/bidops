@@ -13,11 +13,38 @@ import type {
   BidDeltaEvidenceView,
   BidDeltaItemView,
   BidDeltaCategory,
+  BidFinalDecisionView,
   CalculationStatus,
+  ChangeStatus,
   Currentness,
+  FinalDecisionBasisKind,
   Materiality,
   ResultStatus,
 } from "./types";
+
+/** 최종 결정의 근거 종류(ADR-0058). 목록·결정 화면·이력이 같은 낱말을 쓴다. */
+export const BASIS_LABELS: Record<FinalDecisionBasisKind, string> = {
+  comparison: "비교 결과 기준",
+  notice_conditions: "공고 조건 기준",
+};
+
+/** 공고 조건 차수 간·사전규격 대비 비교 상태. `unknown`은 변경 없음이 아니다. */
+export const CHANGE_STATUS_LABELS: Record<ChangeStatus, string> = {
+  changed: "변경",
+  unchanged: "변경 없음",
+  unknown: "미확인",
+};
+
+/**
+ * 결정이 묶인 근거 한 줄. 비교 근거는 비교 버전·결과 해시를, 공고 조건 근거는
+ * 기준 입찰공고 ID와 관측 해시를 적는다. 서버가 준 값을 옮길 뿐 채우지 않는다.
+ */
+export function decisionBasisDetail(decision: BidFinalDecisionView): string {
+  if (decision.basis_kind === "notice_conditions") {
+    return `기준 입찰공고 ID ${decision.basis_notice_id ?? "값 없음"} · 관측 해시 ${shortHash(decision.basis_observation_sha256)}`;
+  }
+  return `비교 버전 ${decision.comparison_version ?? "값 없음"} · 결과 해시 ${shortHash(decision.result_sha256)}`;
+}
 
 export const CATEGORY_LABELS: Record<BidDeltaCategory, string> = {
   budget_and_economics: "금액·경제성",
