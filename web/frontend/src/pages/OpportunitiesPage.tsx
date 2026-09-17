@@ -1,24 +1,32 @@
-import { useCallback, useEffect, useMemo, useState, type MouseEvent as ReactMouseEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { Button } from "@astryxdesign/core/Button";
 import { Dialog, DialogHeader } from "@astryxdesign/core/Dialog";
 import { Selector } from "@astryxdesign/core/Selector";
 import { Table, pixel, proportional, type TableColumn } from "@astryxdesign/core/Table";
+import { Token } from "@astryxdesign/core/Token";
 import { Activity, Search } from "lucide-react";
 import { OpportunityDetail } from "../components/opportunities/OpportunityDetail";
 import {
+  ACTION_REASON_ORDER,
+  actionReasonLabel,
+  actionReasonsOf,
+  holdReviewText,
   latestConfirmedStage,
   nextCheckNote,
   nextCheckOf,
   primaryAgency,
   primaryTitle,
+  rowPrimaryAction,
+  type OpportunityDetailIntent,
 } from "../components/opportunities/trackingFlow";
 import { PageHeaderActions } from "../components/common/PageHeaderActions";
 import {
   WorkspaceAdvancedToggle,
   WorkspaceFilterAdvanced,
   WorkspaceFilterBar,
+  WorkspaceFilterContext,
   WorkspaceFilterEnd,
   WorkspaceFilterLine,
   WorkspaceFrame,
@@ -31,6 +39,7 @@ import { useUnsavedGuard } from "../components/common/useUnsavedGuard";
 import { api } from "../lib/api";
 import { originDescription } from "../lib/opportunity";
 import type {
+  OpportunityActionReason,
   OpportunityFirstRegisteredStage,
   OpportunityListItem,
   OpportunitySection,
@@ -49,7 +58,8 @@ import "../styles/opportunities-relaxed.css";
  * 승인·최종 입찰 Go/No-Go를 대신하지 않는다.
  */
 
-const SECTIONS: OpportunitySection[] = ["조치 필요", "추적 중", "보류", "추적 종료"];
+const SECTIONS: OpportunitySection[] = ["조치 필요", "추적 중", "보류", "추적 종료", "신규 입찰공고"];
+const ACTION_VIEW: OpportunitySection = "조치 필요";
 const ALL_VIEW = "전체";
 type ViewKey = OpportunitySection | typeof ALL_VIEW;
 const VIEWS: ViewKey[] = [...SECTIONS, ALL_VIEW];
@@ -63,6 +73,17 @@ const SORT_LABELS: Record<OpportunitySort, string> = {
   first_registered_stage: "최초 발견 단계순",
 };
 const PAGE_SIZE = 100;
+
+/** 서버 검색 `q`의 허용 길이(spec §7.4). 밖이면 보내지 않는다. */
+const SEARCH_MIN = 2;
+const SEARCH_MAX = 100;
+const SEARCH_DEBOUNCE_MS = 300;
+
+/** 입력을 서버에 보낼 검색어로 바꾼다. 길이 밖이면 `null`이며 목록을 좁히지 않는다. */
+function appliedSearch(value: string): string | null {
+  const trimmed = value.trim();
+  return trimmed.length >= SEARCH_MIN && trimmed.length <= SEARCH_MAX ? trimmed : null;
+}
 
 /** Astryx `Table`은 행 type이 index signature를 갖기를 요구한다. 값은 그대로다. */
 type OpportunityRow = OpportunityListItem & Record<string, unknown>;
@@ -100,17 +121,24 @@ export function OpportunitiesPage() {
     : "created_at";
   const requestedOffset = Number(searchParams.get("offset") ?? "0");
   const offset = Number.isInteger(requestedOffset) && requestedOffset >= 0 ? requestedOffset : 0;
-  const search = (searchParams.get("q") ?? "").trim();
-  const [searchText, setSearchText] = useState(search);
-  useEffect(() => setSearchText(search), [search]);
+  // 사유 칩은 `조치 필요` 구역 안의 필터다. 다른 구역의 주소에 남아 있어도 보내지 않는다.
+  const requestedReason = searchParams.get("reason");
+  const reason: OpportunityActionReason | null = view === ACTION_VIEW && ACTION_REASON_ORDER.includes(requestedReason as OpportunityActionReason)
+    ? (requestedReason as OpportunityActionReason)
+    : null;
+  const rawSearch = (searchParams.get("q") ?? "").trim();
+  const search = appliedSearch(rawSearch);
+  const [searchText, setSearchText] = useState(rawSearch);
 
   const list = useQuery({
-    queryKey: ["opportunities", view, stage, sort, offset],
+    queryKey: ["opportunities", view, stage, sort, reason, search, offset],
     queryFn: ({ signal }) =>
       api.getOpportunities(
         {
           section: view === ALL_VIEW ? null : view,
           first_registered_stage: stage,
+          reason,
+          q: search,
           sort,
           limit: PAGE_SIZE,
           offset,
@@ -119,27 +147,22 @@ export function OpportunitiesPage() {
       ),
   });
 
-  const received = useMemo(() => list.data?.items ?? [], [list.data]);
+  const rows = useMemo(() => list.data?.items ?? [], [list.data]);
   const total = list.data?.total ?? 0;
   const counts = list.data?.section_counts ?? null;
+  const reasonCounts = list.data?.action_reason_counts ?? null;
   const undecided = counts?.["미결정"] ?? 0;
   const allCount = counts ? Object.values(counts).reduce((sum, value) => sum + value, 0) : 0;
-
-  // 검색은 서버 질의 인자가 없어 **이미 받은 페이지 안에서만** 걸린다. 구역 건수는
-  // 필터 이전 전체 집합이므로 두 수를 같은 뜻으로 읽히게 두지 않는다. 입력은 바로
-  // 목록을 좁히고, 주소의 `q`는 Enter로 확정해 공유 가능한 링크로 남는다.
-  const applied = searchText.trim();
-  const rows = useMemo(() => {
-    if (!applied) return received;
-    const needle = applied.toLowerCase();
-    return received.filter((item) => `${primaryTitle(item)} ${primaryAgency(item)}`.toLowerCase().includes(needle));
-  }, [received, applied]);
 
   const selectedParam = Number(searchParams.get("selected") ?? "");
   const selectedId = rows.some((item) => item.id === selectedParam) ? selectedParam : rows[0]?.id ?? null;
   const returnSearch = searchParams.toString();
 
-  function applyParams(changes: Record<string, string | null>, confirm: { title: string; message: string; confirmLabel: string }) {
+  function applyParams(
+    changes: Record<string, string | null>,
+    confirm: { title: string; message: string; confirmLabel: string },
+    onApplied?: () => void,
+  ) {
     guard.confirmDiscard(() => {
       const next = new URLSearchParams(searchParams);
       for (const [key, value] of Object.entries(changes)) {
@@ -149,23 +172,54 @@ export function OpportunitiesPage() {
       next.delete("offset");
       next.delete("selected");
       setSearchParams(next, { replace: true });
+      onApplied?.();
     }, confirm);
   }
 
-  const changeFilter = (key: string, value: string | null) =>
-    applyParams({ [key]: value }, {
+  const changeFilters = (changes: Record<string, string | null>) =>
+    applyParams(changes, {
       title: "목록을 바꿉니다",
       message: "목록을 바꾸면 열려 있던 사업기회가 닫히고 저장하지 않은 입력이 사라집니다.",
       confirmLabel: "저장하지 않고 목록 바꾸기",
     });
+  const changeFilter = (key: string, value: string | null) => changeFilters({ [key]: value });
+
+  // 서버 검색(spec §7.5). 입력이 300ms 멈추면 적용하고, 적용하면 첫 페이지로 간다.
+  // 주소의 `q`는 적용된 값이다. 입력이 만든 주소 변경은 입력칸을 다시 덮지 않고,
+  // 뒤로 가기·초기화처럼 밖에서 바뀐 주소만 입력칸으로 옮긴다.
+  const applySearchRef = useRef<(next: string | null) => void>(() => undefined);
+  const inputAppliedRef = useRef(false);
+  applySearchRef.current = (next) => {
+    applyParams({ q: next }, {
+      title: "목록을 바꿉니다",
+      message: "검색어를 적용하면 열려 있던 사업기회가 닫히고 저장하지 않은 입력이 사라집니다.",
+      confirmLabel: "저장하지 않고 검색",
+    }, () => {
+      inputAppliedRef.current = true;
+    });
+  };
+  useEffect(() => {
+    const next = appliedSearch(searchText);
+    if (next === search) return undefined;
+    const timer = window.setTimeout(() => applySearchRef.current(next), SEARCH_DEBOUNCE_MS);
+    return () => window.clearTimeout(timer);
+  }, [searchText, search]);
+  const searchTextRef = useRef(searchText);
+  searchTextRef.current = searchText;
+  useEffect(() => {
+    if (inputAppliedRef.current) {
+      inputAppliedRef.current = false;
+      return;
+    }
+    if (appliedSearch(searchTextRef.current) !== search) setSearchText(rawSearch);
+  }, [rawSearch, search]);
 
   const resetFilters = () => {
-    setSearchText("");
-    applyParams({ section: null, first_registered_stage: null, sort: null, q: null }, {
+    applyParams({ section: null, first_registered_stage: null, sort: null, q: null, reason: null }, {
       title: "필터를 초기화합니다",
       message: "필터를 초기화하면 열려 있던 사업기회가 닫히고 저장하지 않은 입력이 사라집니다.",
       confirmLabel: "저장하지 않고 초기화",
-    });
+    }, () => setSearchText(""));
   };
 
   function changeOffset(nextOffset: number) {
@@ -181,6 +235,32 @@ export function OpportunitiesPage() {
     });
   }
 
+  // 행의 주 행동은 그 사업기회를 열고 상세의 해당 자리(확인 사항·후보 대화상자·추적
+  // 상태 대화상자)를 연다. 같은 행을 다시 눌러도 다시 열리도록 요청마다 번호를 바꾼다.
+  const [intent, setIntent] = useState<{ id: number; action: OpportunityDetailIntent; nonce: number } | null>(null);
+  const intentNonce = useRef(0);
+  function runRowAction(item: OpportunityListItem) {
+    const action = rowPrimaryAction(item);
+    if (!action) return;
+    const open = () => {
+      intentNonce.current += 1;
+      setIntent({ id: item.id, action: action.intent, nonce: intentNonce.current });
+    };
+    if (item.id === selectedId) {
+      open();
+      return;
+    }
+    guard.confirmDiscard(() => {
+      const next = new URLSearchParams(searchParams);
+      next.set("selected", String(item.id));
+      setSearchParams(next, { replace: true });
+      open();
+    }, {
+      title: "다른 사업기회를 엽니다",
+      message: "저장하지 않은 입력은 이 사업기회를 닫으면 사라집니다.",
+    });
+  }
+
   function selectRow(id: number) {
     if (id === selectedId) return;
     guard.confirmDiscard(() => {
@@ -193,40 +273,76 @@ export function OpportunitiesPage() {
     });
   }
 
+  const now = new Date();
   const columns: TableColumn<OpportunityRow>[] = [
     {
       key: "business",
       header: "사업명 / 발주기관",
       width: proportional(1),
-      renderCell: (item) => (
-        <button
-          aria-pressed={item.id === selectedId}
-          className="opportunity-row-business"
-          onClick={() => selectRow(item.id)}
-          type="button"
-        >
-          <span className="opportunity-row-title">{primaryTitle(item)}</span>
-          <span className="opportunity-row-agency">{primaryAgency(item)}</span>
-          <span className="opportunity-row-meta">
-            <span className="opportunity-caption">{latestConfirmedStage(item.links)}</span>
-            <span className="opportunity-caption">·</span>
-            <span className="opportunity-caption">{item.tracking_status}</span>
-          </span>
-        </button>
-      ),
+      renderCell: (item) => {
+        const present = actionReasonsOf(item);
+        const hold = holdReviewText(item, now);
+        const chips = ACTION_REASON_ORDER.filter((code) => present.includes(code));
+        // 모르는 사유 코드는 감추지 않고 뒤에 그대로 붙인다.
+        const unknown = present.filter((code) => !ACTION_REASON_ORDER.includes(code));
+        return (
+          <div className="opportunity-row-cell">
+            <button
+              aria-pressed={item.id === selectedId}
+              className="opportunity-row-business"
+              onClick={() => selectRow(item.id)}
+              type="button"
+            >
+              <span className="opportunity-row-title">{primaryTitle(item)}</span>
+              <span className="opportunity-row-agency">{primaryAgency(item)}</span>
+              <span className="opportunity-row-meta">
+                <span className="opportunity-caption">{latestConfirmedStage(item.links)}</span>
+                <span className="opportunity-caption">·</span>
+                <span className="opportunity-caption">{item.tracking_status}</span>
+              </span>
+            </button>
+            {chips.length + unknown.length > 0 || hold ? (
+              <ul aria-label="조치 사유" className="opportunity-row-reasons">
+                {[...chips, ...unknown].map((code) => (
+                  <li key={code}>
+                    <Token
+                      label={code === "hold_overdue" && hold ? hold : actionReasonLabel(code)}
+                      size="sm"
+                    />
+                  </li>
+                ))}
+                {hold && !present.includes("hold_overdue") ? (
+                  <li className="opportunity-caption opportunity-row-hold">{hold}</li>
+                ) : null}
+              </ul>
+            ) : null}
+          </div>
+        );
+      },
     },
     {
       key: "next",
       header: "다음 확인",
-      width: pixel(105),
-      renderCell: (item) => (
-        <span className="opportunity-next-cell">
-          <span className={`opportunity-next-label${item.section === "조치 필요" ? " is-action" : ""}`}>
-            {nextCheckOf(item).label}
+      width: pixel(120),
+      renderCell: (item) => {
+        const action = rowPrimaryAction(item);
+        return (
+          <span className="opportunity-next-cell">
+            <span className={`opportunity-next-label${item.section === ACTION_VIEW ? " is-action" : ""}`}>
+              {nextCheckOf(item).label}
+            </span>
+            <span className="opportunity-caption">{nextCheckNote(item)}</span>
+            {action ? (
+              <Button
+                className="opportunity-row-action"
+                label={action.label}
+                onClick={() => runRowAction(item)}
+                size="sm"
+              />
+            ) : null}
           </span>
-          <span className="opportunity-caption">{nextCheckNote(item)}</span>
-        </span>
-      ),
+        );
+      },
     },
   ];
 
@@ -268,7 +384,7 @@ export function OpportunitiesPage() {
             <WorkspaceViewTabs
               className="opportunity-view-tabs"
               label="추적 구역"
-              onChange={(value) => changeFilter("section", value === "조치 필요" ? null : value)}
+              onChange={(value) => changeFilters({ section: value === ACTION_VIEW ? null : value, reason: null })}
               tabs={VIEWS.map((value) => ({
                 key: value,
                 label: value,
@@ -277,13 +393,16 @@ export function OpportunitiesPage() {
               value={view}
             />
             <WorkspaceFilterEnd>
-              {/* 입력은 이미 받은 목록을 바로 좁히고, 주소의 `q`는 Enter로 확정한다.
-                  두 겹은 데이터 원천(서버 질의 인자 없음)이 정한 것이라 그대로 둔다. */}
+              {/* `q`는 서버 질의 인자다(spec §7.5). 입력이 멈추면 적용하고, Enter는 기다리지
+                  않고 바로 적용한다. 두 글자 미만은 보내지 않는다. */}
               <WorkspaceSearch
                 className="opportunity-search"
                 label="사업명·발주기관 검색"
                 onChange={setSearchText}
-                onEnter={() => changeFilter("q", searchText.trim() || null)}
+                onEnter={() => {
+                  const next = appliedSearch(searchText);
+                  if (next !== search) applySearchRef.current(next);
+                }}
                 value={searchText}
               />
               <WorkspaceAdvancedToggle
@@ -293,6 +412,36 @@ export function OpportunitiesPage() {
               />
             </WorkspaceFilterEnd>
           </WorkspaceFilterLine>
+          {view === ACTION_VIEW ? (
+            <WorkspaceFilterContext className="opportunity-reason-filters">
+              {/* 건수는 서버가 사유 필터만 빼고 센 값이다(`action_reason_counts`). 한 사업은
+                  여러 사유에 들어가므로 합이 구역 건수와 같지 않다. */}
+              <div aria-label="조치 사유" className="opportunity-reason-chips" role="group">
+                {ACTION_REASON_ORDER.map((code) => {
+                  const count = reasonCounts ? reasonCounts[code] ?? null : undefined;
+                  const countText = count === undefined ? null : count === null ? "–" : countLabel(count);
+                  return (
+                    <Button
+                      aria-pressed={reason === code}
+                      data-reason={code}
+                      key={code}
+                      label={countText === null ? actionReasonLabel(code) : `${actionReasonLabel(code)}  ${countText}`}
+                      onClick={() => changeFilter("reason", reason === code ? null : code)}
+                      size="sm"
+                    >
+                      <span className="opportunity-reason-chip-label">{actionReasonLabel(code)}</span>
+                      {countText === null ? null : <span className="opportunity-reason-chip-count">{countText}</span>}
+                    </Button>
+                  );
+                })}
+              </div>
+              <p className="opportunity-caption">
+                {reason
+                  ? `${actionReasonLabel(reason)} 사유만 봅니다. 구역 건수도 이 사유 기준이며 같은 칩을 다시 누르면 풀립니다.`
+                  : "사유 칩을 누르면 그 사유가 있는 사업만 봅니다. 한 사업이 여러 사유에 들어갈 수 있습니다."}
+              </p>
+            </WorkspaceFilterContext>
+          ) : null}
           {advanced ? (
             <WorkspaceFilterAdvanced columns={2} id="opportunity-filter-advanced" onReset={resetFilters}>
               <Selector
@@ -320,7 +469,9 @@ export function OpportunitiesPage() {
             <header className="opportunity-list-head">
               <p className="opportunity-list-title">사업 추적 목록 · {countLabel(rows.length)}건</p>
               <p className="opportunity-caption">
-                {list.isSuccess ? `${view} 전체 ${countLabel(view === ALL_VIEW ? allCount : total)}건` : "사업 단위"}
+                {list.isSuccess
+                  ? `${view}${reason ? ` · ${actionReasonLabel(reason)}` : ""}${search ? ` · 검색 "${search}"` : ""} 전체 ${countLabel(total)}건`
+                  : "사업 단위"}
               </p>
             </header>
             <div className="opportunity-table-scroll" onClick={selectFromRow} role="presentation">
@@ -356,17 +507,22 @@ export function OpportunitiesPage() {
             </div>
             <footer className="opportunity-list-foot">
               <p className="opportunity-caption">
-                불러온 {countLabel(received.length)}건 기준 · {countLabel(rows.length)}건 표시
-                {applied ? ` · 검색어 "${applied}"는 불러온 목록 안에서만 걸립니다` : ""}
+                서버 {countLabel(total)}건 중 {countLabel(rows.length)}건 표시
+                {search ? ` · 검색어 "${search}"는 서버가 페이지를 나누기 전에 적용합니다` : ""}
               </p>
+              {searchText.trim() && appliedSearch(searchText) === null ? (
+                <p className="opportunity-caption">
+                  검색어는 {SEARCH_MIN}~{SEARCH_MAX}자일 때만 적용합니다. 지금 목록은 검색어 없이 받은 것입니다.
+                </p>
+              ) : null}
               {undecided > 0 ? (
                 <p className="opportunity-caption">
                   구역이 정해지지 않은 미결정 {countLabel(undecided)}건은 전체에서만 보입니다.
                 </p>
               ) : null}
-              {total > offset + received.length ? (
+              {total > offset + rows.length ? (
                 <p className="opportunity-caption">
-                  뒤에 {countLabel(total - offset - received.length)}건이 더 있습니다.
+                  뒤에 {countLabel(total - offset - rows.length)}건이 더 있습니다.
                 </p>
               ) : null}
               {total > PAGE_SIZE ? (
@@ -378,7 +534,7 @@ export function OpportunitiesPage() {
                     size="sm"
                   />
                   <span className="opportunity-caption">
-                    {offset + 1}–{Math.min(offset + received.length, total)} / {countLabel(total)}
+                    {offset + 1}–{Math.min(offset + rows.length, total)} / {countLabel(total)}
                   </span>
                   <Button
                     isDisabled={offset + PAGE_SIZE >= total}
@@ -402,6 +558,7 @@ export function OpportunitiesPage() {
               </div>
             ) : (
               <OpportunityDetail
+                intent={intent?.id === selectedId ? intent : null}
                 key={selectedId}
                 onDirtyChange={handleDirtyChange}
                 onSaved={showToast}
@@ -424,9 +581,10 @@ export function OpportunitiesPage() {
         <div className="opportunity-dialog-body">
           <DialogHeader title="데이터 현황" onOpenChange={(next) => setDataDialog(next)} />
           <p>
-            구역 건수는 서버가 센 <strong>전체 집합</strong>의 수입니다. 목록은 한 번에 최대 {countLabel(PAGE_SIZE)}건을
-            받으며, 검색어는 서버 질의 인자가 없어 <strong>이미 받은 페이지 안에서만</strong> 걸립니다. 두 수가 다를 수
-            있고 같은 뜻이 아닙니다.
+            구역 건수는 서버가 센 수이며 <strong>구역 조건만 빼고</strong> 검색어·최초 발견 단계·사유 필터를 반영합니다.
+            사유 칩 건수는 사유 필터만 빼고 센 수이고, 한 사업이 여러 사유에 들어갈 수 있어 합이 구역 건수와 같지
+            않습니다. 목록은 한 번에 최대 {countLabel(PAGE_SIZE)}건을 받으며, 검색어는 서버가 페이지를 나누기 전에
+            적용합니다.
           </p>
           <p>
             구역은 서버가 정합니다. 사람이 고른 추적 상태와 구역은 서로 다른 축이며, 한 사업기회는 어느 구역에서도 한
@@ -438,7 +596,7 @@ export function OpportunitiesPage() {
             비교 결과가 없으면 계산 대기이며, 화면이 결과를 만들어 내지 않습니다.
           </p>
           <p className="opportunity-caption">
-            현재 구역 {view} · 서버 {countLabel(total)}건 중 {countLabel(received.length)}건을 받았습니다.
+            현재 구역 {view} · 서버 {countLabel(total)}건 중 {countLabel(rows.length)}건을 받았습니다.
             {counts
               ? ` 구역 건수 — ${SECTIONS.map((key) => `${key} ${countLabel(counts[key])}`).join(" · ")} · 미결정 ${countLabel(undecided)}`
               : " 구역 건수를 아직 받지 못했습니다."}
