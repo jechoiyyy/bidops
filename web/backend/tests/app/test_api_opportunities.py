@@ -793,3 +793,170 @@ def test_backfill_failure_after_tracking_save_keeps_the_decision(
     events = [getattr(record, "bidops", {}) for record in caplog.records]
     assert {"event": "opportunity.tracked_backfill_failed", "failure_type": "RuntimeError"} in events
     assert "/private/runs" not in caplog.text
+
+
+def _write_search_run(root, name, plan_no, pre_spec_no):
+    """발주계획 하나와 SW사업대상이 아닌(색인에만 남는) 사전규격 하나."""
+
+    run_dir = root / "data" / "runs" / name
+    run_dir.mkdir(parents=True)
+    window = {"from": "2026-09-16", "to": "2026-09-16", "timezone": "Asia/Seoul"}
+    (run_dir / "collected-order-plans.json").write_text(
+        json.dumps(
+            {
+                "schema_version": "bidops.collected-order-plans.v1",
+                "generated_at": "2026-09-16T00:00:00+00:00",
+                "source_window": window,
+                "counts": {"total": 1},
+                "order_plans": [
+                    {
+                        "order_plan_unty_no": plan_no,
+                        "title": "지능형 민원 상담 플랫폼 구축",
+                        "agency_name": "찾기 기관",
+                        "published_at": "2026-09-10T09:00:00+09:00",
+                        "planned_order_year": "2026",
+                        "budget_amount": "250000000",
+                        "source_sha256": "c" * 64,
+                        "raw_source": "raw/page-00001.json",
+                    }
+                ],
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    (run_dir / "collected-notices.json").write_text(
+        json.dumps(
+            {
+                "schema_version": "bidops.collected.v2",
+                "generated_at": "2026-09-16T00:00:00+00:00",
+                "source_window": window,
+                "counts": {"total": 1, "candidate_pool": 0, "audit_pool": 1},
+                "warnings": [],
+                "metadata": {"sw_industry_1468": {"status": "complete", "total": 0, "pages": 1}},
+                "notices": [
+                    {
+                        "notice_id": f"pre:{pre_spec_no}",
+                        "source_type": "pre_spec",
+                        "title": "2026 지능형 민원 상담 플랫폼 구축 사전규격",
+                        "agency": "조달청",
+                        "demand_agency": "찾기 기관",
+                        "published_at": "2026-09-16T10:00:00+09:00",
+                        "lifecycle": {"pre_spec_no": pre_spec_no},
+                        "qualification_flags": {"sw_business_status": "N"},
+                        "raw_source": "raw/prespec-page-001.json",
+                    }
+                ],
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    return run_dir
+
+
+def test_search_endpoint_proposes_an_index_only_pre_spec_and_lists_it_on_the_pre_spec(
+    opportunity_api, empty_extensions, monkeypatch, tmp_path
+):
+    client, session, ended, _plan_opportunity = opportunity_api
+    plan_no, pre_spec_no = "R26DD20859701", "R26BD00279701"
+    run_dir = _write_search_run(tmp_path, "lifecycle-20260916-notices", plan_no, pre_spec_no)
+    ingest_run(run_dir, session, selection="collection")
+    plan = session.scalar(select(OrderPlan).where(OrderPlan.order_plan_unty_no == plan_no))
+    owner_id = session.scalar(
+        select(OpportunityLink.opportunity_id).where(OpportunityLink.order_plan_id == plan.id)
+    )
+    assert session.scalar(select(Notice).where(Notice.notice_key == f"pre:{pre_spec_no}")) is None
+    monkeypatch.setattr(
+        opportunities_router, "get_settings", lambda: SimpleNamespace(bidops_root=tmp_path)
+    )
+    actor = "김도윤"
+    headers = {
+        "X-BidOps-Actor-Name": f"UTF-8''{quote(actor, safe='')}",
+        "X-BidOps-Actor-Name-Format": "utf-8-percent-v1",
+    }
+
+    response = client.post(
+        f"/api/opportunities/{owner_id}/searches", json={"target": "pre_spec"}, headers=headers
+    )
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert set(body) == {"searched_at", "target", "attempted_strategies", "candidates", "search_unconfirmed"}
+    assert body["target"] == "pre_spec" and body["search_unconfirmed"] is False
+    assert body["attempted_strategies"] == ["full", "prefix12"]
+    (candidate,) = body["candidates"]
+    assert candidate["status"] == "후보 확인 대기" and candidate["link_type"] == "candidate"
+    assert candidate["search_strategy"] == "full" and candidate["agency_match"] is True
+    assert candidate["record_external_id"] == f"pre:{pre_spec_no}"
+    audit = session.scalar(select(AuditEvent).where(AuditEvent.action == "opportunity.search.performed"))
+    assert audit.claimed_name == actor
+    assert set(audit.safe_metadata) >= {"candidate_count", "loaded_count", "search_unconfirmed"}
+    assert "지능형" not in json.dumps(audit.safe_metadata, ensure_ascii=False)
+
+    pre_spec = session.scalar(select(Notice).where(Notice.notice_key == f"pre:{pre_spec_no}"))
+    listed = client.get(f"/api/pre-specs/{pre_spec.id}/order-plan-candidates")
+    assert listed.status_code == 200, listed.text
+    listing = listed.json()
+    assert listing["notice_pk"] == pre_spec.id
+    (item,) = listing["items"]
+    assert item["opportunity_id"] == owner_id and item["tracking_status"] == "미선택"
+    assert item["link"]["id"] == candidate["id"]
+    assert item["order_plans"] == [
+        {
+            "order_plan_id": plan.id,
+            "order_plan_unty_no": plan_no,
+            "title": "지능형 민원 상담 플랫폼 구축",
+            "agency_name": "찾기 기관",
+            "planned_order_year": "2026",
+            "planned_order_month": None,
+            "budget_amount": 250000000.0,
+        }
+    ]
+    ended_notice_id = next(link.notice_id for link in ended.links if link.link_type == "official")
+    assert client.get(f"/api/pre-specs/{ended_notice_id}/order-plan-candidates").status_code == 404
+    assert client.get("/api/pre-specs/999999/order-plan-candidates").status_code == 404
+
+
+def test_search_endpoint_errors_are_safe_and_write_nothing(opportunity_api, empty_extensions, monkeypatch, tmp_path):
+    client, session, ended, plan_opportunity = opportunity_api
+    monkeypatch.setattr(
+        opportunities_router, "get_settings", lambda: SimpleNamespace(bidops_root=tmp_path)
+    )
+    headers = {"X-BidOps-Actor-Name": "searcher"}
+
+    missing_actor = client.post(f"/api/opportunities/{ended.id}/searches", json={"target": "pre_spec"})
+    assert missing_actor.status_code == 400
+    assert missing_actor.json()["error"]["code"] == "actor_name_required"
+    unknown = client.post("/api/opportunities/999999/searches", json={"target": "pre_spec"}, headers=headers)
+    assert unknown.status_code == 404 and unknown.json()["error"]["code"] == "opportunity_not_found"
+    source = client.post(f"/api/opportunities/{ended.id}/searches", json={"target": "pre_spec"}, headers=headers)
+    assert source.status_code == 422
+    assert source.json()["error"] == {
+        "code": "search_source_missing",
+        "message": "찾아보기의 기준이 될 소유 발주계획 또는 사전규격이 없습니다",
+        "details": {"target": "pre_spec"},
+    }
+    invalid = client.post(f"/api/opportunities/{ended.id}/searches", json={"target": "order_plan"}, headers=headers)
+    assert invalid.status_code == 422
+    merge_opportunities(session, [plan_opportunity, ended])
+    session.commit()
+    merged_id = plan_opportunity.id if plan_opportunity.merged_into_opportunity_id else ended.id
+    merged = client.post(f"/api/opportunities/{merged_id}/searches", json={"target": "pre_spec"}, headers=headers)
+    assert merged.status_code == 409 and merged.json()["error"]["code"] == "opportunity_merged"
+    assert session.scalar(
+        select(AuditEvent).where(AuditEvent.action == "opportunity.search.performed")
+    ) is None
+
+    # 찾은 것이 없으면 검색 미확인이다. 소유 발주계획이 기준이 된다.
+    retained_id = ended.id if merged_id != ended.id else plan_opportunity.id
+    unconfirmed = client.post(
+        f"/api/opportunities/{retained_id}/searches", json={"target": "bid_notice"}, headers=headers
+    )
+    assert unconfirmed.status_code == 200, unconfirmed.text
+    assert unconfirmed.json()["search_unconfirmed"] is True and unconfirmed.json()["candidates"] == []
+    detail = client.get(f"/api/opportunities/{retained_id}").json()
+    assert any(
+        link["status"] == "검색 미확인" and link["last_searched_at"] is not None for link in detail["links"]
+    )
+

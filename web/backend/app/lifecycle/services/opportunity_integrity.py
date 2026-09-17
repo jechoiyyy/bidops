@@ -339,8 +339,10 @@ def record_candidate_decision(
     human state they are merged and the candidate becomes ``사람 확인 병합``,
     a non-owning row, because ownership is carried by the moved official
     link; with both holding human state nothing changes and
-    ``candidate_merge_state_conflict`` names both states.  A human-confirmed
-    merge never raises a recheck signal.
+    ``candidate_merge_state_conflict`` names both states.  Accepting a stale
+    candidate whose target the candidate owner already owns records the
+    acceptance as ``사람 확인 병합`` without merging.  A human-confirmed merge
+    never raises a recheck signal.
     """
 
     if decision not in {"accepted", "rejected"}:
@@ -398,12 +400,13 @@ def record_candidate_decision(
                 "현재 상태에서는 후보 연결을 판정할 수 없습니다",
             )
         target_owner = _candidate_target_owner(session, target)
-        if target_owner is not None:
-            if target_owner.id == owner.id:
-                raise OpportunityIntegrityError(
-                    "candidate_target_already_authoritative",
-                    "대상 레코드는 이미 확정된 사업기회에 연결되어 있습니다",
-                )
+        if target_owner is not None and target_owner.id == owner.id:
+            # A later official link or automatic merge already gave the owner
+            # this record, so the candidate is stale.  The person's acceptance
+            # agrees with that ownership: record it on the non-owning merged
+            # status without merging anything or adding a second owner.
+            status = HUMAN_MERGED_LINK_STATUS
+        elif target_owner is not None:
             merge = apply_merge_rule(
                 session,
                 [owner, target_owner],
