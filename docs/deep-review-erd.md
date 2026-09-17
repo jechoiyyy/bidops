@@ -728,6 +728,30 @@ SELECT/INSERT/UPDATE, worker role은 SELECT/INSERT/UPDATE만 갖는다. 함께 d
 `prespec_v4_pdf_snapshot`(`0021`)과 `bidops.section-candidates.v1/v2`는 유지한다. 적용 전
 pg_dump 백업 절차는 [operations.md](operations.md#0026-적용-전-개요-테이블-백업)를 따른다.
 
+## 8.6 입찰 최종 결정 근거 (`0028`, 2026-09-17 추가)
+
+입찰 delta 5개 table(`bid_delta_comparison`·`bid_delta_attempt`·`bid_delta_item`·
+`bid_delta_evidence`·`bid_final_decision`)은 `0015`가 만들고 상세 제약은
+[입찰 delta 계약 명세](bid-delta-contract-spec.md) §5가 정본이다. `0028`은
+`bid_final_decision`의 결정 근거를 모델 비교와 분리한다
+([ADR-0058](tracking/decisions/0058-final-decision-basis-separated-from-comparison.md)).
+
+| 열 | 타입 | 뜻 |
+|---|---|---|
+| `basis_kind` | varchar(32) NOT NULL CHECK | `comparison\|notice_conditions`. 기존 행은 `comparison`으로 채우고 기본값은 두지 않는다 |
+| `comparison_id`, `comparison_version`, `result_sha256`, `baseline_document_version_id`, `comparison_document_version_id` | 기존 타입, **nullable로 변경** | 비교 근거 fence |
+| `basis_notice_id` | int FK `notice`(RESTRICT), null | 공고 조건 근거인 authoritative 입찰공고 |
+| `basis_observation_sha256` | varchar(64), null, 64 hex CHECK | 결정 시점 그 공고의 최신 관측 `source_sha256` |
+
+- `ck_bid_final_decision_basis_fields`: 비교 근거는 비교 5열 NOT NULL·basis 2열 NULL, 공고 조건
+  근거는 반대다. 섞이거나 빠진 행은 DB가 거부한다.
+- append-only trigger(`tr_bid_delta_final_decision_append_only`), sequence·supersession·idempotency
+  unique, supersession·comparison 범위 FK는 그대로다. 기존 행은 UPDATE하지 않는다.
+- 현재성은 저장하지 않는다. 공고 조건 근거는 기준 공고보다 새 authoritative 입찰공고나 관측 hash
+  변경이 있으면 `stale`, 판정 불가면 `unknown`으로 읽을 때 계산한다.
+- app role은 `bid_final_decision` SELECT·INSERT와 잠금용 `UPDATE (id)`만 갖는다. worker는 권한이 없다.
+- downgrade는 `notice_conditions` 행이 하나라도 있으면 거부하고, 없으면 비교 5열 NOT NULL을 되돌린다.
+
 ## 9. FK 삭제와 불변 정책
 
 기본 FK는 `RESTRICT`/`NO ACTION`이다.

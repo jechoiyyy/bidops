@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from ...core.db import get_db
 from ..schemas.bid_delta import (
+    BidConditionsView,
     BidDecisionQueueResponse,
     BidDeltaAttemptCreateRequest,
     BidDeltaComparisonCreateRequest,
@@ -18,7 +19,9 @@ from ..schemas.bid_delta import (
     BidDeltaWorkspaceView,
     BidFinalDecisionCreateRequest,
     BidFinalDecisionView,
+    BidNoticeFinalDecisionCreateRequest,
 )
+from ..services.bid_conditions import bid_conditions
 from ..services.bid_delta import BidDeltaService, BidDeltaServiceError
 
 
@@ -51,6 +54,9 @@ _MESSAGES = {
     "bid_delta_category_policy_invalid": "지원하지 않는 category policy입니다",
     "final_decision_value_invalid": "최종 결정 값이 올바르지 않습니다",
     "final_decision_input_fence_invalid": "최종 결정 입력 fence가 비교와 다릅니다",
+    "final_decision_bid_notice_missing": "최종 결정할 입찰공고가 없습니다",
+    "final_decision_notice_not_latest": "최신 입찰공고가 아닙니다",
+    "final_decision_observation_changed": "입찰공고 관측 내용이 변경되었습니다",
     "actor_name_required": "담당자 이름이 필요합니다",
     "actor_name_invalid": "담당자 이름이 올바르지 않습니다",
     "final_decision_reason_required": "최종 결정 사유가 필요합니다",
@@ -112,6 +118,40 @@ def get_bid_delta_workspace(
         return _error_response(error)
     except Exception:
         return _unexpected(session)
+
+
+@router.get("/{opportunity_id}/bid-conditions", response_model=BidConditionsView)
+def get_bid_conditions(
+    opportunity_id: int,
+    session: Session = Depends(get_db),
+) -> dict[str, object] | JSONResponse:
+    try:
+        return bid_conditions(session, opportunity_id)
+    except BidDeltaServiceError as error:
+        session.rollback()
+        return _error_response(error)
+    except Exception:
+        return _unexpected(session)
+
+
+@router.post(
+    "/{opportunity_id}/final-decisions",
+    response_model=BidFinalDecisionView,
+    status_code=201,
+)
+def create_notice_final_decision(
+    opportunity_id: int,
+    payload: BidNoticeFinalDecisionCreateRequest,
+    actor: Annotated[str | None, Header(alias="X-BidOps-Actor-Name")] = None,
+    actor_format: Annotated[str | None, Header(alias="X-BidOps-Actor-Name-Format")] = None,
+    session: Session = Depends(get_db),
+) -> dict[str, object] | JSONResponse:
+    try:
+        return service.record_notice_final_decision(session, opportunity_id, payload, actor, actor_format)
+    except BidDeltaServiceError as error:
+        return _error_response(error)
+    except Exception:
+        return _unexpected(session, payload.request_id)
 
 
 @router.post(
