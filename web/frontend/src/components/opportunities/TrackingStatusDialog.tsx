@@ -223,6 +223,10 @@ export function TrackingStatusDialog({
                   : "추적 상태·선택 사유·결정 기록자를 함께 남깁니다."}{" "}
                 적합성 등급·참여 준비 상태·심층 검토 승인·최종 입찰 Go/No-Go는 바뀌지 않습니다.
               </p>
+              {/* 추적 상태 저장은 재검토 신호를 해제한다(spec §6.2). 따로 확인할 필요가 없음을 먼저 알린다. */}
+              {opportunity.recheck_signal ? (
+                <p className="opportunity-caption opportunity-tracking-signal-note">저장하면 새 공고 확인도 함께 처리됩니다.</p>
+              ) : null}
               {problem ? (
                 <MutationFeedback problem={problem} tone="error">
                   <p>입력한 내용은 그대로 남아 있습니다. 저장된 추적 상태는 바뀌지 않았습니다.</p>

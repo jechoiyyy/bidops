@@ -7,11 +7,19 @@ import { Link } from "react-router-dom";
 import { ActorField } from "../common/ActorField";
 import { DisabledReason } from "../common/DisabledReason";
 import { MutationFeedback } from "../common/MutationFeedback";
-import { api } from "../../lib/api";
+import { ApiError, api } from "../../lib/api";
 import { describeApiError, type ApiErrorDescription } from "../../lib/apiErrors";
 import { linkRecordLabel } from "../../lib/opportunity";
-import type { OpportunityLinkView } from "../../lib/types";
-import { connectionLabel, isConfirmedLink, recordRoute, recordRouteLabel } from "./trackingFlow";
+import type { OpportunityLinkView, OpportunityMergeConflictState, OpportunityTrackingStatus } from "../../lib/types";
+import {
+  agencyMatchLabel,
+  connectionLabel,
+  formatMoment,
+  isConfirmedLink,
+  recordRoute,
+  recordRouteLabel,
+  searchStrategyLabel,
+} from "./trackingFlow";
 
 /**
  * 후보 연결 확인 (시안의 `후보 연결 확인` 대화상자).
@@ -23,12 +31,58 @@ import { connectionLabel, isConfirmedLink, recordRoute, recordRouteLabel } from 
  * 같은 사업이라고 화면이 판정하지 않으며, 기각한 후보를 확정으로 승격시키지도
  * 않는다. 이 판정은 연결 관계만 바꾸고 추적 상태·등급·준비 상태·최종 Go/No-Go를
  * 바꾸지 않는다.
+ *
+ * 대상 레코드를 다른 사업기회가 이미 갖고 있으면 수락은 두 사업기회의 병합이다
+ * (spec §3.3). 병합된 후보는 `사람 확인 병합`으로 남고, 양쪽 모두 사람이 고른 추적
+ * 상태가 있으면 서버가 409 `candidate_merge_state_conflict`로 거절하며 양쪽 상태를
+ * `details.opportunities[]`로 준다. 화면은 그 값을 그대로 보여 주고 한쪽을 먼저
+ * 정리하라고 안내한다 — 어느 쪽을 남길지 화면이 고르지 않는다.
  */
 
 const REASON_OPTIONS: Record<string, string[]> = {
   "수용": ["원천 정보를 비교해 같은 사업임을 확인", "공식 식별자 관계를 별도로 확인", "기타"],
   "기각": ["서로 다른 사업임을 확인", "연결 근거가 부족함", "기타"],
 };
+
+const TRACKING_STATUSES: readonly OpportunityTrackingStatus[] = ["미선택", "계속 추적", "보류", "종료"];
+
+function nullableText(value: unknown): string | null | undefined {
+  if (value === null) return null;
+  return typeof value === "string" ? value : undefined;
+}
+
+/**
+ * 409 `candidate_merge_state_conflict`의 양쪽 상태. 이 코드가 아니면 `null`이다.
+ * 모양이 계약과 다른 원소는 버리고, 무엇이 남았는지는 화면이 그대로 말한다.
+ */
+function mergeConflictStates(error: unknown): OpportunityMergeConflictState[] | null {
+  if (!(error instanceof ApiError) || error.code !== "candidate_merge_state_conflict") return null;
+  const detail = error.detail;
+  const details = typeof detail === "object" && detail !== null && "details" in detail ? detail.details : null;
+  const raw = typeof details === "object" && details !== null && "opportunities" in details ? details.opportunities : null;
+  if (!Array.isArray(raw)) return [];
+  const states: OpportunityMergeConflictState[] = [];
+  for (const entry of raw as unknown[]) {
+    if (typeof entry !== "object" || entry === null) continue;
+    const record = entry as Record<string, unknown>;
+    const status = TRACKING_STATUSES.find((value) => value === record.tracking_status);
+    const selectedBy = nullableText(record.tracking_selected_by);
+    const selectedAt = nullableText(record.tracking_selected_at);
+    if (
+      typeof record.id !== "number" || !Number.isSafeInteger(record.id) || record.id < 1
+      || status === undefined || selectedBy === undefined || selectedAt === undefined
+      || typeof record.recheck_signal !== "boolean"
+    ) continue;
+    states.push({
+      id: record.id,
+      tracking_status: status,
+      tracking_selected_by: selectedBy,
+      tracking_selected_at: selectedAt,
+      recheck_signal: record.recheck_signal,
+    });
+  }
+  return states;
+}
 
 function externalIdOf(link: OpportunityLinkView): string {
   return link.record_external_id || link.external_id || link.evidence_external_no || "식별자 미확인";
@@ -73,7 +127,9 @@ export function CandidateLinkDialog({
   const [custom, setCustom] = useState("");
   const [actorName, setActorName] = useState("");
   const [problem, setProblem] = useState<ApiErrorDescription | null>(null);
+  const [conflict, setConflict] = useState<OpportunityMergeConflictState[] | null>(null);
   const [discarding, setDiscarding] = useState(false);
+  const mergeCandidate = candidate.search_strategy === "merge_confirmation";
 
   const current = links.filter(isConfirmedLink).at(-1) ?? null;
   const validReason = (reason === "기타" ? custom : reason).trim();
@@ -92,6 +148,7 @@ export function CandidateLinkDialog({
     setCustom("");
     setActorName("");
     setProblem(null);
+    setConflict(null);
     setDiscarding(false);
   };
 
@@ -102,16 +159,29 @@ export function CandidateLinkDialog({
         { decision: decision === "수용" ? "accepted" : "rejected", reason: validReason },
         actorName,
       ),
-    onSuccess: async () => {
-      const saved = decision;
+    onSuccess: async (saved) => {
+      const chosen = decision;
       reset();
       onDirtyChange(false);
       onOpenChange(false);
       await queryClient.invalidateQueries({ queryKey: ["opportunity"] });
       await queryClient.invalidateQueries({ queryKey: ["opportunities"] });
-      onSaved(saved === "수용" ? "후보 연결을 수용으로 기록했습니다." : "후보 연결을 기각으로 기록했습니다.");
+      onSaved(
+        chosen === "기각"
+          ? "후보 연결을 기각으로 기록했습니다."
+          : saved?.status === "사람 확인 병합"
+            ? "후보를 수용해 두 사업기회를 병합했습니다(사람 확인 병합)."
+            : "후보 연결을 수용으로 기록했습니다.",
+      );
     },
     onError: (caught: unknown) => {
+      const states = mergeConflictStates(caught);
+      if (states !== null) {
+        setProblem(null);
+        setConflict(states);
+        return;
+      }
+      setConflict(null);
       setProblem(describeApiError(caught, "후보 연결 판정을 저장하지 못했습니다."));
     },
   });
@@ -177,22 +247,19 @@ export function CandidateLinkDialog({
                   <p>확정된 연결이 아직 없습니다. 비교할 확정 레코드가 없다는 뜻이며 후보가 맞다는 뜻이 아닙니다.</p>
                 )}
               </section>
-              <section aria-label="이름 검색으로 발견한 후보">
-                <h3>이름 검색으로 발견한 후보</h3>
+              <section aria-label={mergeCandidate ? "공식 번호로 이어진 병합 확인 후보" : "이름 검색으로 발견한 후보"}>
+                <h3>{mergeCandidate ? "공식 번호로 이어진 병합 확인 후보" : "이름 검색으로 발견한 후보"}</h3>
                 <RecordFacts link={candidate} />
-                {candidate.search_strategy ? (
-                  <p className="opportunity-caption">검색 방식 · {candidate.search_strategy}</p>
-                ) : null}
+                <p className="opportunity-caption">검색 방식 · {searchStrategyLabel(candidate.search_strategy)}</p>
                 {candidate.agency_match !== null ? (
-                  <p className="opportunity-caption">
-                    기관 일치 · {candidate.agency_match ? "예" : "아니오"}
-                  </p>
+                  <p className="opportunity-caption">{agencyMatchLabel(candidate.agency_match)}</p>
                 ) : null}
               </section>
             </div>
             <p>
-              사업명과 기관이 같아도 같은 사업으로 자동 확정하지 않습니다. 원천 정보를 확인하고 연결 여부를
-              선택해 주세요.
+              {mergeCandidate
+                ? "이 레코드는 공식 번호로 이어졌지만 사람이 고른 추적 상태를 가진 다른 사업기회가 갖고 있어 자동으로 병합하지 않았습니다. 수용하면 두 사업기회가 병합되고 후보는 사람 확인 병합으로 남습니다."
+                : "사업명과 기관이 같아도 같은 사업으로 자동 확정하지 않습니다. 원천 정보를 확인하고 연결 여부를 선택해 주세요."}
             </p>
             <div className="opportunity-form-columns">
               <Selector
@@ -233,6 +300,28 @@ export function CandidateLinkDialog({
             />
             {problem ? (
               <MutationFeedback problem={problem} tone="error">
+                <p>연결 상태는 바뀌지 않았습니다. 입력한 내용은 그대로 남아 있습니다.</p>
+              </MutationFeedback>
+            ) : null}
+            {conflict ? (
+              <MutationFeedback className="opportunity-merge-conflict" tone="error">
+                <p><strong>병합할 수 없습니다</strong></p>
+                <p>양쪽 모두 사람이 고른 추적 상태가 있어 병합할 수 없습니다. 한쪽의 추적 결정을 먼저 정리하세요.</p>
+                {conflict.length > 0 ? (
+                  <ul aria-label="병합 대상 사업기회의 추적 상태" className="opportunity-dialog-list">
+                    {conflict.map((state) => (
+                      <li className="opportunity-dialog-item" key={state.id}>
+                        <p><strong>사업 #{String(state.id).padStart(3, "0")} · {state.tracking_status}</strong></p>
+                        <p className="opportunity-caption">
+                          선택자 · {state.tracking_selected_by?.trim() || "미확인"} · 선택 시각 · {formatMoment(state.tracking_selected_at)}
+                        </p>
+                        <p className="opportunity-caption">재검토 신호 · {state.recheck_signal ? "있음" : "없음"}</p>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="opportunity-caption">서버가 양쪽 사업기회의 상태를 주지 않았습니다. 사업 추적 목록에서 두 사업을 직접 확인하세요.</p>
+                )}
                 <p>연결 상태는 바뀌지 않았습니다. 입력한 내용은 그대로 남아 있습니다.</p>
               </MutationFeedback>
             ) : null}
