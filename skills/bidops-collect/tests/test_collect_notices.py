@@ -198,6 +198,7 @@ class FieldExtractionTests(unittest.TestCase):
         "bidPrtcptLmtYn": "Y",
         "sucsfbidMthdNm": "협상에의한계약",
         "srvceDivNm": "일반용역",
+        "opengDt": "2026-08-29 11:00:00",
     }
 
     def test_region_limit_comes_from_the_regional_judgement_basis(self) -> None:
@@ -229,6 +230,18 @@ class FieldExtractionTests(unittest.TestCase):
         self.assertEqual("과업내용서 정정", lifecycle["change_reason"])
         self.assertEqual("R26BK00000000", lifecycle["previous_failed_notice_no"])
         self.assertEqual("R26DD20999999", lifecycle["order_plan_no"])
+        self.assertEqual("2026-08-29T11:00:00+09:00", lifecycle["opening_at"])
+
+    def test_bid_opening_demand_agency_and_industry_tag_default_to_null(self) -> None:
+        record = dict(self.RECORD)
+        record.pop("opengDt")
+        notice = COLLECT.normalize_bid(record, "fixture")
+        self.assertIsNone(notice["lifecycle"]["opening_at"])
+        # Bid `agency` is already the demand agency; the separate key stays null.
+        self.assertEqual("테스트청", notice["agency"])
+        self.assertIsNone(notice["demand_agency"])
+        self.assertIsNone(notice["qualification_flags"]["sw_industry_1468"])
+        self.assertNotIn("demand_agency", notice["unknown_fields"])
 
     def test_qualification_flags_carry_eligibility_signals(self) -> None:
         notice = COLLECT.normalize_bid(dict(self.RECORD), "fixture")
@@ -294,6 +307,35 @@ class PrespecNormalizationTests(unittest.TestCase):
         self.assertEqual("Y", notice["qualification_flags"]["sw_business_status"])
         self.assertEqual("일반용역", notice["qualification_flags"]["business_division"])
         self.assertEqual("R26BK01698278000", notice["lifecycle"]["bid_ntice_no_list"])
+
+    def test_demand_agency_comes_from_rl_dminstt_without_changing_agency(self) -> None:
+        notice = COLLECT.normalize_prespec(
+            {
+                "bfSpecRgstNo": "20260800105",
+                "bfSpecNm": "수요기관 확인",
+                "orderInsttNm": "조달청",
+                "rlDminsttNm": "테스트시청",
+            },
+            "fixture",
+        )
+        self.assertEqual("조달청", notice["agency"])
+        self.assertEqual("테스트시청", notice["demand_agency"])
+        missing = COLLECT.normalize_prespec(
+            {"bfSpecRgstNo": "20260800106", "bfSpecNm": "수요기관 없음", "orderInsttNm": "조달청"},
+            "fixture",
+        )
+        self.assertIsNone(missing["demand_agency"])
+        self.assertNotIn("demand_agency", missing["unknown_fields"])
+        # Shape parity with bid records; pre-specs are never tagged or opened.
+        self.assertIsNone(missing["lifecycle"]["opening_at"])
+        self.assertIsNone(missing["qualification_flags"]["sw_industry_1468"])
+        bid = COLLECT.normalize_bid({"bidNtceNo": "R26BK1", "bidNtceOrd": "000"}, "fixture")
+        self.assertEqual(set(bid), set(notice))
+        self.assertEqual(set(bid["lifecycle"]) - {"order_plan_no"}, set(notice["lifecycle"]) - {"bid_ntice_no_list"})
+        self.assertEqual(
+            set(bid["qualification_flags"]),
+            set(notice["qualification_flags"]) - {"sw_business_status", "business_division"},
+        )
 
     # ADR-0024: swBizObjYn으로 걸러 내지 않는다. 650건 중 Y는 55건(8.5%)뿐이라
     # 필터를 켜면 91.5%가 사라진다. 표시 값으로만 쓴다.
@@ -378,12 +420,26 @@ class ReclassifyTests(unittest.TestCase):
 
 
 class ImmutableCollectionTests(unittest.TestCase):
-    def args(self, root: Path, *, output: Path | None = None, source: Path | None = None):
+    def args(self, root: Path, *, output: Path | None = None, source: Path | None = None, tag: bool = False):
         return argparse.Namespace(
             from_date=date(2026, 9, 1), to_date=date(2026, 9, 2),
             output_dir=output or root / "new-run", allowed_root=root, from_raw=source,
             skip_bids=False, skip_prespecs=True, rows=500, timeout=1,
+            tag_bid_sw_industry=tag,
         )
+
+    @staticmethod
+    def bids_payload(*numbers: str, total: int | None = None):
+        return {"response": {"header": {"resultCode": "00"}, "body": {
+            "totalCount": len(numbers) if total is None else total,
+            "items": [{"bidNtceNo": number, "bidNtceOrd": "00", "bidNtceNm": "통합 플랫폼 구축"}
+                      for number in numbers],
+        }}}
+
+    def tags(self, output_dir: Path) -> tuple[dict, dict]:
+        result = json.loads((output_dir / "collected-notices.json").read_text())
+        return result, {notice["notice_id"]: notice["qualification_flags"]["sw_industry_1468"]
+                        for notice in result["notices"]}
 
     def payload(self, *, total=1):
         return {"response": {"header": {"resultCode": "00"}, "body": {
@@ -418,7 +474,7 @@ class ImmutableCollectionTests(unittest.TestCase):
             args = argparse.Namespace(
                 from_date=date(2026, 9, 1), to_date=date(2026, 9, 1), output_dir=output,
                 allowed_root=Path(directory), from_raw=None, skip_bids=False,
-                skip_prespecs=True, rows=500, timeout=1,
+                skip_prespecs=True, rows=500, timeout=1, tag_bid_sw_industry=False,
             )
             with patch.object(COLLECT, "parse_args", return_value=args), patch.object(
                 COLLECT, "get_service_key", side_effect=AssertionError("key loaded")
@@ -531,6 +587,99 @@ class ImmutableCollectionTests(unittest.TestCase):
             result = json.loads((replay.output_dir / "collected-notices.json").read_text())
             self.assertTrue(result["warnings"])
             self.assertFalse(json.loads((replay.output_dir / "collection-provenance.json").read_text())["complete"])
+
+    def test_complete_industry_query_marks_bids_y_and_n(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            args = self.args(Path(directory), tag=True)
+            with patch.object(COLLECT, "get_service_key", return_value="fake"), patch.object(
+                COLLECT, "request_json",
+                side_effect=[self.bids_payload("RAW-1", "RAW-2"), self.bids_payload("RAW-1", "OTHER-9")],
+            ) as request:
+                self.assertEqual(0, self.invoke(args))
+            self.assertEqual(2, request.call_count)
+            bid_call, industry_call = request.call_args_list
+            self.assertEqual(COLLECT.SW_INDUSTRY_ENDPOINT, industry_call.args[0])
+            self.assertEqual("1468", industry_call.args[1]["indstrytyCd"])
+            self.assertNotIn("indstrytyCd", bid_call.args[1])
+            for name in ("inqryDiv", "inqryBgnDt", "inqryEndDt", "numOfRows"):
+                self.assertEqual(bid_call.args[1][name], industry_call.args[1][name])
+            result, tags = self.tags(args.output_dir)
+            self.assertEqual({"bid:RAW-1:00": "Y", "bid:RAW-2:00": "N"}, tags)
+            self.assertEqual({"sw_industry_1468": {"status": "complete", "total": 2, "pages": 1}}, result["metadata"])
+            self.assertEqual([], result["warnings"])
+            self.assertTrue((args.output_dir / "raw/industry1468-page-001.json").is_file())
+            provenance = json.loads((args.output_dir / "collection-provenance.json").read_text())
+            self.assertTrue(provenance["complete"])
+            self.assertIn("raw/industry1468-page-001.json", [page["path"] for page in provenance["raw_pages"]])
+
+    def test_failed_or_partial_industry_query_never_writes_n(self) -> None:
+        cases = (
+            ("failed", [RuntimeError("offline")], {"status": "failed", "total": None, "pages": 0}),
+            ("partial", [self.bids_payload("RAW-1", total=3), self.bids_payload(total=3)],
+             {"status": "partial", "total": 3, "pages": 2}),
+        )
+        for name, industry_responses, expected in cases:
+            with self.subTest(case=name), tempfile.TemporaryDirectory() as directory:
+                args = self.args(Path(directory), tag=True)
+                with patch.object(COLLECT, "get_service_key", return_value="fake"), patch.object(
+                    COLLECT, "request_json",
+                    side_effect=[self.bids_payload("RAW-1", "RAW-2"), *industry_responses],
+                ):
+                    self.assertEqual(1, self.invoke(args))
+                result, tags = self.tags(args.output_dir)
+                self.assertEqual({"bid:RAW-1:00": None, "bid:RAW-2:00": None}, tags)
+                self.assertEqual({"sw_industry_1468": expected}, result["metadata"])
+                self.assertTrue(any("1468" in warning for warning in result["warnings"]))
+                self.assertFalse(json.loads((args.output_dir / "collection-provenance.json").read_text())["complete"])
+
+    def test_without_flag_industry_query_is_not_requested(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            args = self.args(Path(directory))
+            with patch.object(COLLECT, "get_service_key", return_value="fake"), patch.object(
+                COLLECT, "request_json", return_value=self.bids_payload("RAW-1")
+            ) as request:
+                self.assertEqual(0, self.invoke(args))
+            self.assertEqual(1, request.call_count)
+            result, tags = self.tags(args.output_dir)
+            self.assertEqual({"bid:RAW-1:00": None}, tags)
+            self.assertEqual({"sw_industry_1468": {"status": "not_requested", "total": None, "pages": 0}},
+                             result["metadata"])
+            self.assertEqual([], sorted(path.name for path in (args.output_dir / "raw").glob("industry1468-*")))
+
+    def test_industry_pages_are_not_bid_pages_and_tags_recompute_from_raw(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "original" / "raw"
+            source.mkdir(parents=True)
+            (source / "bid-page-001.json").write_text(json.dumps(self.bids_payload("RAW-1", "RAW-2")))
+            (source / "industry1468-page-001.json").write_text(json.dumps(self.bids_payload("RAW-2")))
+            records, warnings = COLLECT.reclassify_source(source="bid", raw_dir=source)
+            self.assertEqual([], warnings)
+            self.assertEqual(["bid:RAW-1:00", "bid:RAW-2:00"], [record["notice_id"] for record in records])
+            for tag, expected_tags, expected_status in (
+                (True, {"bid:RAW-1:00": "N", "bid:RAW-2:00": "Y"}, "complete"),
+                (False, {"bid:RAW-1:00": None, "bid:RAW-2:00": None}, "not_requested"),
+            ):
+                with self.subTest(tag=tag):
+                    args = self.args(root, output=root / f"replay-{tag}", source=source, tag=tag)
+                    with patch.object(COLLECT, "get_service_key") as key, patch.object(COLLECT, "request_json") as request:
+                        self.assertEqual(0, self.invoke(args))
+                    key.assert_not_called()
+                    request.assert_not_called()
+                    result, tags = self.tags(args.output_dir)
+                    self.assertEqual(expected_tags, tags)
+                    self.assertEqual(expected_status, result["metadata"]["sw_industry_1468"]["status"])
+            # An error page preserved by a failed tag query still lets bids reclassify.
+            (source / "industry1468-page-002.json").write_text(
+                json.dumps({"response": {"header": {"resultCode": "22", "resultMsg": "LIMITED"}, "body": {}}})
+            )
+            args = self.args(root, output=root / "replay-invalid", source=source, tag=True)
+            with patch.object(COLLECT, "request_json") as request:
+                self.assertEqual(1, self.invoke(args))
+            request.assert_not_called()
+            result, tags = self.tags(args.output_dir)
+            self.assertEqual({"bid:RAW-1:00": None, "bid:RAW-2:00": None}, tags)
+            self.assertEqual({"status": "failed", "total": 1, "pages": 2}, result["metadata"]["sw_industry_1468"])
 
     def test_final_write_failure_never_marks_provenance_complete(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

@@ -37,10 +37,13 @@
 | `notice_id` | 공고번호·차수 또는 사전규격번호를 이용한 안정 식별자 |
 | `source_type` | `bid_notice` 또는 `pre_spec` |
 | `title`, `agency`, `published_at`, `deadline_at`, `budget`, `estimated_price`, `method`, `url` | 정규화된 기본 정보 |
+| `demand_agency` | 선택 필드. 사전규격은 원문 `rlDminsttNm`(수요기관), 입찰공고는 `agency`가 이미 수요기관이라 항상 `null`이다. 사전규격 `agency`는 발주기관(`orderInsttNm`) 그대로이며 값이 없으면 `null`을 보존한다 |
 | `procurement_class` | 조달 분류. `large`, `middle`, `detail`, `code`를 포함한다 |
 | `region_limit` | 지역 제한. `basis`, `joint_contract_regions`, `joint_contract_rate`, `regional_joint_contract_limit`을 포함한다 |
 | `lifecycle` | 공고 생애주기. `pre_spec_no`, `re_notice`, `changed_at`, `change_reason`, `unified_notice_no`, `previous_failed_notice_no`와 선택적 `order_plan_no`를 포함한다. `order_plan_no`는 원문 `orderPlanUntyNo`의 optional v2 projection이다 |
+| `lifecycle.opening_at` | 선택 필드. 입찰공고 원문 `opengDt`(개찰일시)의 timezone ISO 값, 없으면 `null`. 사전규격은 항상 `null`이다 |
 | `qualification_flags` | 참가제한, 업종제한, 정보사업 여부, 실적제한경쟁, PQ·기술평가 여부와 배점 등 API가 직접 제공한 자격 관련 플래그 |
+| `qualification_flags.sw_industry_1468` | 선택 필드. `--tag-bid-sw-industry` 1468 업종 조회가 완전할 때만 입찰공고에 `Y`(포함)·`N`(미포함), 조회 실패·부분 수집·미요청·사전규격은 `null`이다. 조회 상태는 최상위 `metadata.sw_industry_1468` `{status: complete\|failed\|partial\|not_requested, total, pages}`에 남고 원문은 `raw/industry1468-page-NNN.json`이다 |
 | `attachments` | API가 제공한 첨부 문서 이름과 URL |
 | `focus_matches` | 정규화 개념 일치 신호의 목록. 의미 판정 결과가 아니다 |
 | `performance_matches` | 회사소개서 41–46페이지 사업명과 비교한 상위 탐색 신호 |
