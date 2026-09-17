@@ -46,7 +46,7 @@ export function isPendingCandidate(link: OpportunityLinkView): boolean {
   return link.link_type === "candidate" && link.status === "후보 확인 대기";
 }
 
-export type StageConnection = "공식 연결" | "사람 확인 완료" | "후보 확인 대기" | "검색 미확인" | "연결 미확인";
+export type StageConnection = "공식 연결" | "사람 확인 완료" | "후보 확인 대기" | "검색 미확인" | "사람 확인 병합" | "연결 미확인";
 
 export interface StageView {
   stage: LifecycleStage;

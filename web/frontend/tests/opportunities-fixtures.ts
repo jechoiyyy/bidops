@@ -81,6 +81,8 @@ const candidatePending: Fixture = {
   section: "조치 필요",
   pending_candidate_link_count: 1,
   open_blocking_item_count: 0,
+  action_reasons: ["candidate_pending"],
+  hold_review_due_at: null,
   tracking_status: "계속 추적",
   tracking_reason: "사업 범위와 기존 검토 방향이 맞아 후속 공고 확인",
   tracking_selected_by: "검토 담당자",
@@ -108,6 +110,8 @@ const recheckSignal: Fixture = {
   section: "조치 필요",
   pending_candidate_link_count: 0,
   open_blocking_item_count: 0,
+  action_reasons: ["new_link"],
+  hold_review_due_at: null,
   tracking_status: "계속 추적",
   tracking_reason: "후속 공고를 계속 확인",
   tracking_selected_by: "검토 담당자",
@@ -122,12 +126,17 @@ const recheckSignal: Fixture = {
   ],
 };
 
-/** 아직 아무도 추적을 고르지 않은 건. */
+/** 아직 아무도 추적을 고르지 않은 건. 이 mock server는 §7.2의 새 구역 규칙을
+ * 다시 판정하지 않고 각 픽스처가 스스로 밝힌 `section`을 그대로 돌려준다.
+ * opportunities.spec.ts의 구역별 건수(§7.2를 반영한 화면은 F1-F4에서 나온다)가
+ * 이 값에 매여 있어 여기서는 바꾸지 않는다. */
 const unselected: Fixture = {
   id: 303,
   section: "조치 필요",
   pending_candidate_link_count: 0,
   open_blocking_item_count: 0,
+  action_reasons: [],
+  hold_review_due_at: null,
   tracking_status: "미선택",
   tracking_reason: null,
   tracking_selected_by: null,
@@ -145,6 +154,8 @@ const blockingItem: Fixture = {
   section: "조치 필요",
   pending_candidate_link_count: 0,
   open_blocking_item_count: 1,
+  action_reasons: ["blocking_item"],
+  hold_review_due_at: null,
   tracking_status: "계속 추적",
   tracking_reason: "참여 조건 확인 후 재검토",
   tracking_selected_by: "검토 담당자",
@@ -162,6 +173,8 @@ const searchUnconfirmed: Fixture = {
   section: "추적 중",
   pending_candidate_link_count: 0,
   open_blocking_item_count: 0,
+  action_reasons: [],
+  hold_review_due_at: null,
   tracking_status: "계속 추적",
   tracking_reason: "후속 공고 확인",
   tracking_selected_by: "검토 담당자",
@@ -190,6 +203,9 @@ const held: Fixture = {
   section: "보류",
   pending_candidate_link_count: 0,
   open_blocking_item_count: 0,
+  // `tracking_selected_at + 14일`. 아직 기한이 지나지 않아 사유가 없다.
+  action_reasons: [],
+  hold_review_due_at: "2026-09-18T05:20:00Z",
   tracking_status: "보류",
   tracking_reason: "참여 조건을 추가 확인한 뒤 다시 검토",
   tracking_selected_by: "시안 검토자",
@@ -206,6 +222,8 @@ const ended: Fixture = {
   section: "추적 종료",
   pending_candidate_link_count: 0,
   open_blocking_item_count: 0,
+  action_reasons: [],
+  hold_review_due_at: null,
   tracking_status: "종료",
   tracking_reason: "현재 사업 방향과 맞지 않아 추적 종료",
   tracking_selected_by: "시안 검토자",
@@ -223,6 +241,8 @@ const undecided: Fixture = {
   section: null,
   pending_candidate_link_count: 0,
   open_blocking_item_count: 0,
+  action_reasons: [],
+  hold_review_due_at: null,
   tracking_status: "미선택",
   tracking_reason: null,
   tracking_selected_by: null,
@@ -434,8 +454,12 @@ export async function mockOpportunities(page: Page, options: MockOptions = {}): 
       }
       const stage = url.searchParams.get("first_registered_stage");
       const scoped = [...details.values()].filter((item) => !stage || item.first_registered_stage === stage);
-      const section_counts: Record<string, number> = { "조치 필요": 0, "추적 중": 0, "보류": 0, "추적 종료": 0, "미결정": 0 };
-      for (const item of scoped) section_counts[(item.section as string | null) ?? "미결정"] += 1;
+      const section_counts: Record<string, number> = { "조치 필요": 0, "추적 중": 0, "보류": 0, "추적 종료": 0, "신규 입찰공고": 0, "미결정": 0 };
+      const action_reason_counts: Record<string, number> = { new_link: 0, candidate_pending: 0, merge_confirmation: 0, blocking_item: 0, hold_overdue: 0 };
+      for (const item of scoped) {
+        section_counts[(item.section as string | null) ?? "미결정"] += 1;
+        for (const code of (item.action_reasons as string[] | undefined) ?? []) action_reason_counts[code] += 1;
+      }
       const requested = url.searchParams.get("section");
       const items = requested ? scoped.filter((item) => item.section === requested) : scoped;
       await route.fulfill({
@@ -444,6 +468,7 @@ export async function mockOpportunities(page: Page, options: MockOptions = {}): 
         body: JSON.stringify({
           items,
           section_counts,
+          action_reason_counts,
           total: requested ? section_counts[requested] : scoped.length,
           limit: Number(url.searchParams.get("limit") ?? 100),
           offset: Number(url.searchParams.get("offset") ?? 0),
@@ -501,7 +526,7 @@ export async function mockOpportunities(page: Page, options: MockOptions = {}): 
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({ opportunity_id: id, items: options.emptyDecisions ? [] : decisions.get(id) ?? [] }),
+        body: JSON.stringify({ opportunity_id: id, items: options.emptyDecisions ? [] : decisions.get(id) ?? [], recheck_events: [] }),
       });
       return;
     }

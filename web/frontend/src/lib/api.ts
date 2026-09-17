@@ -42,13 +42,17 @@ import type {
   PageOverviewView,
   PreSpecListQuery,
   PreSpecListResponse,
+  PreSpecOrderPlanCandidatesResponse,
   CompanyFitResponse,
   OpportunityDetailResponse,
   CandidateLinkDecisionRequest,
   OpportunityLinkView,
   OpportunityListQuery,
   OpportunityListResponse,
+  OpportunitySearchRequest,
+  OpportunitySearchResponse,
   OpportunityTrackingStatus,
+  RecheckAcknowledgementRequest,
   OrderPlanBulkExcludedStatus,
   OrderPlanBulkFailureCode,
   OrderPlanBulkPreviewItem,
@@ -1199,6 +1203,10 @@ export const api = {
   getCompanyFit: (noticeId: number, options?: ReadRequestOptions) =>
     request<CompanyFitResponse>(`/pre-specs/${noticeId}/company-fit`, options),
 
+  /** 이 사전규격을 target으로 하는 `후보 확인 대기` 발주계획 연결 목록(spec §4.4). */
+  getPreSpecOrderPlanCandidates: (noticePk: number, options?: ReadRequestOptions) =>
+    request<PreSpecOrderPlanCandidatesResponse>(`/pre-specs/${noticePk}/order-plan-candidates`, options),
+
   /** 사전규격 개요 검토 전체(`bidops.prespec-overview.v1`)를 화면 view 모양으로
    * 읽는다(`toPageOverviewResponse`). run이 없으면 `current`가 `null`이며 화면은
    * 그것을 미시작으로 읽는다. */
@@ -1319,6 +1327,9 @@ export const api = {
         section: params.section,
         tracking_status: params.tracking_status,
         first_registered_stage: params.first_registered_stage,
+        reason: params.reason,
+        hold_review: params.hold_review,
+        q: params.q,
         sort: params.sort,
         limit: params.limit,
         offset: params.offset,
@@ -1376,6 +1387,37 @@ export const api = {
   ) =>
     request<OpportunityDetailResponse>(`/opportunities/${opportunityId}/tracking-status`, {
       method: "PATCH",
+      headers: { "Content-Type": "application/json", ...actorHeaders(actorName) },
+      body: JSON.stringify(payload),
+    }),
+
+  /**
+   * 현재 재검토 신호를 확인 처리한다(spec §6.2). 추적 상태는 바꾸지 않는다.
+   * 신호가 없으면 409 `recheck_signal_absent`, 근거 연결이 바뀌었으면 409
+   * `recheck_signal_changed`(`details.current_link_id`)로 거절된다.
+   */
+  acknowledgeRecheckSignal: (
+    opportunityId: number,
+    payload: RecheckAcknowledgementRequest,
+    actorName: string,
+  ) =>
+    request<OpportunityDetailResponse>(`/opportunities/${opportunityId}/recheck-acknowledgements`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...actorHeaders(actorName) },
+      body: JSON.stringify(payload),
+    }),
+
+  /**
+   * 수집 색인에서 사전규격·입찰공고를 동기로 찾아본다(spec §4.3). 소유
+   * 발주계획·사전규격이 없으면 422 `search_source_missing`이다.
+   */
+  searchOpportunityRecords: (
+    opportunityId: number,
+    payload: OpportunitySearchRequest,
+    actorName: string,
+  ) =>
+    request<OpportunitySearchResponse>(`/opportunities/${opportunityId}/searches`, {
+      method: "POST",
       headers: { "Content-Type": "application/json", ...actorHeaders(actorName) },
       body: JSON.stringify(payload),
     }),

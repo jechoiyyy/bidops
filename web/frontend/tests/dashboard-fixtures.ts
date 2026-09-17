@@ -41,6 +41,7 @@ export const dashboardWorkload: WorkloadResponse = {
     {key:"order_plan_pending",count:24,unavailable_reason:null},
     {key:"pre_spec_deep_review_ready",count:7,unavailable_reason:null},
     {key:"tracking_action_required",count:3,unavailable_reason:null},
+    {key:"tracking_hold_review_due",count:1,unavailable_reason:null},
     {key:"bid_final_decision_pending",count:0,unavailable_reason:null},
   ],
 };

@@ -4,10 +4,11 @@ import { getVisualResponse } from "./fixtures/visual-api";
 
 import type {
   BidDeltaDecisionQueueItem, OpportunityListItem, OpportunitySectionCounts,
-  OpportunityTrackingDecisionItem, OpportunityTrackingStatus, OrderPlanListItem,
-  OrderPlanListScope, OrderPlanScreeningExecutionSummary, OrderPlanScreeningErrorCode,
+  OpportunityRecheckEventView, OpportunityTrackingDecisionItem, OpportunityTrackingStatus,
+  OrderPlanListItem, OrderPlanListScope, OrderPlanScreeningExecutionSummary, OrderPlanScreeningErrorCode,
   OrderPlanTracking, OrderPlanBulkPreviewResponse, OrderPlanBulkStartResponse,
-  OverviewEnvelope, OverviewRun, PreSpecListItem, RunSummary, WorkloadKey, WorkloadResponse,
+  OverviewEnvelope, OverviewRun, PreSpecListItem, PreSpecOrderPlanCandidatesResponse,
+  RunSummary, WorkloadKey, WorkloadResponse,
 } from "../src/lib/types";
 import { clickReadyUnlinkedPreSpec, decisionQueueItems, opportunityDeepReviews, opportunityTrackingHistory } from "./fixtures/lifecycle-v2";
 
@@ -20,7 +21,7 @@ function workloadProvider(page: Page, key: WorkloadKey, provider: () => { count:
   providers.set(key, provider);
 }
 function workloadResponse(page: Page): WorkloadResponse {
-  const keys: WorkloadKey[] = ["order_plan_pending", "pre_spec_deep_review_ready", "tracking_action_required", "bid_final_decision_pending"];
+  const keys: WorkloadKey[] = ["order_plan_pending", "pre_spec_deep_review_ready", "tracking_action_required", "tracking_hold_review_due", "bid_final_decision_pending"];
   return { generated_at: "2026-09-01T09:00:00Z", items: keys.map((key) => ({ key, ...(workloadProviders.get(page)?.get(key)?.() ?? { count: null, unavailable_reason: "provider_absent" }) })) };
 }
 function fixtureActor(headers: Record<string, string>): string {
@@ -566,15 +567,18 @@ function deltaItems(resultStatus: BidDeltaResultFixture | null) {
 
 function deltaDecision(sequence: number, decision: "go" | "no_go", comparisonVersion: number) {
   return {
-    schema_version: "bidops.bid-final-decision.v1",
+    schema_version: "bidops.bid-final-decision.v2",
     id: `aaaaaaaa-1111-4111-8111-aaaaaaaaaaa${sequence}`,
     opportunity_id: 501,
     sequence,
+    basis_kind: "comparison",
     comparison_id: bidDeltaComparisonId,
     comparison_version: comparisonVersion,
     result_sha256: "e".repeat(64),
     baseline_document_version_id: bidDeltaBaseline.document_version_id,
     comparison_document_version_id: bidDeltaComparison.document_version_id,
+    basis_notice_id: null,
+    basis_observation_sha256: null,
     supersedes_final_decision_id: sequence > 1 ? "aaaaaaaa-1111-4111-8111-aaaaaaaaaaa1" : null,
     decision,
     reason: sequence > 1 ? "최신 결정 이유" : "이전 결정 이유",
@@ -685,6 +689,48 @@ export async function mockBidDelta(page: Page, options: BidDeltaMockOptions = {}
       await route.fulfill({ status: 202, contentType: "application/json", body: JSON.stringify(snapshot()) });
       return;
     }
+    if (pathname === "/api/opportunities/501/bid-conditions" && method === "GET") {
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({
+        opportunity_id: 501,
+        generated_at: "2026-08-31T09:03:00Z",
+        latest_notice_id: 1102,
+        latest_observation_sha256: "e".repeat(64),
+        pre_spec: null,
+        bid_notices: [],
+        pre_spec_comparison: [],
+        not_comparable: ["deadline_at"],
+      }) });
+      return;
+    }
+    if (pathname === "/api/opportunities/501/final-decisions" && method === "POST") {
+      const body = JSON.parse(request.postData() ?? "{}") as Record<string, unknown>;
+      trace.finalDecisionPosts.push({ body, headers: request.headers() });
+      const sequence = decisions.length + 1;
+      const saved = {
+        schema_version: "bidops.bid-final-decision.v2",
+        id: `bbbbbbbb-2222-4222-8222-bbbbbbbbbbb${sequence}`,
+        opportunity_id: 501,
+        sequence,
+        basis_kind: "notice_conditions",
+        comparison_id: null,
+        comparison_version: null,
+        result_sha256: null,
+        baseline_document_version_id: null,
+        comparison_document_version_id: null,
+        basis_notice_id: Number(body.expected_notice_id ?? 0),
+        basis_observation_sha256: String(body.expected_observation_sha256 ?? ""),
+        supersedes_final_decision_id: (body.supersedes_final_decision_id as string | null) ?? null,
+        decision: body.decision === "go" ? "go" : "no_go",
+        reason: String(body.reason ?? ""),
+        claimed_name: "테스트 담당자",
+        request_id: String(body.request_id ?? ""),
+        created_at: "2026-08-31T09:15:00Z",
+        currentness: "current",
+        currentness_reasons: [],
+      };
+      await route.fulfill({ status: 201, contentType: "application/json", body: JSON.stringify(saved) });
+      return;
+    }
     if (pathname === `${basePath}/comparisons/${bidDeltaComparisonId}/final-decisions` && method === "POST") {
       const body = JSON.parse(request.postData() ?? "{}") as Record<string, unknown>;
       trace.finalDecisionPosts.push({ body, headers: request.headers() });
@@ -724,6 +770,7 @@ const visualOpportunities: OpportunityListItem[] = [
   {
     id: 101,
     section: null, pending_candidate_link_count: 0, open_blocking_item_count: 0,
+    action_reasons: [], hold_review_due_at: null,
     tracking_status: "미선택",
     tracking_reason: null,
     tracking_selected_by: null,
@@ -752,6 +799,7 @@ const visualOpportunities: OpportunityListItem[] = [
   {
     id: 202,
     section: "조치 필요", pending_candidate_link_count: 0, open_blocking_item_count: 0,
+    action_reasons: ["new_link"], hold_review_due_at: null,
     tracking_status: "종료",
     tracking_reason: "현재 범위와 맞지 않아 능동 추적을 종료함",
     tracking_selected_by: "기존 담당자",
@@ -795,6 +843,7 @@ const visualOpportunities: OpportunityListItem[] = [
   {
     id: 303,
     section: "조치 필요", pending_candidate_link_count: 1, open_blocking_item_count: 0,
+    action_reasons: ["candidate_pending"], hold_review_due_at: null,
     tracking_status: "계속 추적",
     tracking_reason: "후보 관계를 사람이 확인할 때까지 계속 추적",
     tracking_selected_by: "검토 담당자",
@@ -827,20 +876,44 @@ const visualOpportunities: OpportunityListItem[] = [
 ] as const;
 
 /** Mock-server transitions only; screens consume the explicit section projection. */
+/** Mock-server-only derivation of §7.1 action reasons from the item's own flags. */
+function mockActionReasons(item: OpportunityListItem): OpportunityListItem["action_reasons"] {
+  const reasons: OpportunityListItem["action_reasons"] = [];
+  if (item.recheck_signal) reasons.push("new_link");
+  if (item.pending_candidate_link_count > 0) {
+    const mergeConfirmation = item.links.some((link) => link.status === "후보 확인 대기" && link.search_strategy === "merge_confirmation");
+    reasons.push(mergeConfirmation ? "merge_confirmation" : "candidate_pending");
+  }
+  if (item.open_blocking_item_count > 0) reasons.push("blocking_item");
+  if (item.tracking_status === "보류" && item.tracking_selected_at
+    && Date.now() >= new Date(item.tracking_selected_at).getTime() + 14 * 24 * 60 * 60 * 1000) reasons.push("hold_overdue");
+  return reasons;
+}
+
+/** Mock-server transitions only; screens consume the explicit section projection.
+ * §7.2: 미선택은 `신규 입찰공고`(입찰공고로 첫 등록)·`미결정`(그 밖)으로만 가고
+ * `조치 필요`에는 가지 않는다. `계속 추적`·`보류`는 사유가 있어야, `종료`는
+ * `new_link`·`candidate_pending`·`merge_confirmation` 중 하나가 있어야 `조치 필요`다. */
 function mockTrackingSection(item: OpportunityListItem): OpportunityListItem["section"] {
-  if ((item.tracking_status === "미선택" && item.first_registered_stage === "bid_notice") || item.recheck_signal || item.pending_candidate_link_count > 0 || item.open_blocking_item_count > 0) return "조치 필요";
-  return item.tracking_status === "보류" ? "보류" : item.tracking_status === "종료" ? "추적 종료" : item.tracking_status === "계속 추적" ? "추적 중" : null;
+  if (item.tracking_status === "미선택") return item.first_registered_stage === "bid_notice" ? "신규 입찰공고" : null;
+  const reasons = mockActionReasons(item);
+  const actionable = item.tracking_status === "종료"
+    ? reasons.some((code) => code === "new_link" || code === "candidate_pending" || code === "merge_confirmation")
+    : reasons.length > 0;
+  if (actionable) return "조치 필요";
+  return item.tracking_status === "보류" ? "보류" : item.tracking_status === "종료" ? "추적 종료" : "추적 중";
 }
 
 export async function mockOpportunity(page: Page): Promise<void> {
   const items: OpportunityListItem[] = structuredClone(visualOpportunities);
   items.push(
-    { ...structuredClone(items[0]), id: 304, tracking_status: "보류", section: "보류", links: [] },
-    { ...structuredClone(items[0]), id: 305, tracking_status: "종료", section: "추적 종료", links: [] },
-    { ...structuredClone(items[0]), id: 306, tracking_status: "미선택", first_registered_stage: "bid_notice", section: "조치 필요", links: [] },
+    { ...structuredClone(items[0]), id: 304, tracking_status: "보류", section: "보류", action_reasons: [], hold_review_due_at: null, links: [] },
+    { ...structuredClone(items[0]), id: 305, tracking_status: "종료", section: "추적 종료", action_reasons: [], hold_review_due_at: null, links: [] },
+    { ...structuredClone(items[0]), id: 306, tracking_status: "미선택", first_registered_stage: "bid_notice", section: "신규 입찰공고", action_reasons: [], hold_review_due_at: null, links: [] },
     ...decisionQueueItems.map((item): OpportunityListItem => ({
       ...structuredClone(visualOpportunities[0]), id: item.opportunity_id,
       tracking_status: "계속 추적", section: "추적 중", first_registered_stage: "pre_spec",
+      action_reasons: [], hold_review_due_at: null,
       links: item.bid_notice_external_id ? [{
         ...visualOpportunities[1].links[1], id: item.opportunity_id * 10,
         notice_id: item.opportunity_id, record_id: item.opportunity_id,
@@ -851,20 +924,72 @@ export async function mockOpportunity(page: Page): Promise<void> {
   );
   opportunityFixtures.set(page, items);
   const histories = new Map<number, OpportunityTrackingDecisionItem[]>([[202, structuredClone(opportunityTrackingHistory.items)]]);
+  const recheckEvents = new Map<number, OpportunityRecheckEventView[]>([[202, structuredClone(opportunityTrackingHistory.recheck_events)]]);
   workloadProvider(page, "tracking_action_required", () => ({ count: items.filter((item) => item.section === "조치 필요").length, unavailable_reason: null }));
+  workloadProvider(page, "tracking_hold_review_due", () => ({ count: items.filter((item) => item.action_reasons.includes("hold_overdue")).length, unavailable_reason: null }));
   await page.route("**/api/opportunities**", async (route) => {
     const request = route.request();
     const url = new URL(request.url());
     if (url.pathname === "/api/opportunities" && request.method() === "GET") {
       const search = url.searchParams;
       let filtered = items.filter((item) => (!search.get("tracking_status") || item.tracking_status === search.get("tracking_status")) && (!search.get("first_registered_stage") || item.first_registered_stage === search.get("first_registered_stage")));
-      const section_counts: OpportunitySectionCounts = { "조치 필요": 0, "추적 중": 0, "보류": 0, "추적 종료": 0, "미결정": 0 };
-      for (const item of filtered) section_counts[item.section ?? "미결정"] += 1;
+      const section_counts: OpportunitySectionCounts = { "조치 필요": 0, "추적 중": 0, "보류": 0, "추적 종료": 0, "신규 입찰공고": 0, "미결정": 0 };
+      const action_reason_counts: Record<string, number> = { new_link: 0, candidate_pending: 0, merge_confirmation: 0, blocking_item: 0, hold_overdue: 0 };
+      for (const item of filtered) {
+        section_counts[item.section ?? "미결정"] += 1;
+        for (const code of item.action_reasons) action_reason_counts[code] += 1;
+      }
+      if (search.get("reason")) filtered = filtered.filter((item) => item.action_reasons.includes(search.get("reason") as never));
       if (search.get("section")) filtered = filtered.filter((item) => item.section === search.get("section"));
+      if (search.get("q")) {
+        const needle = String(search.get("q")).trim().toLowerCase();
+        filtered = filtered.filter((item) => item.links.some((link) => (link.title ?? "").toLowerCase().includes(needle) || (link.agency ?? "").toLowerCase().includes(needle)));
+      }
       if (search.get("sort") === "tracking_status") filtered.sort((a, b) => a.tracking_status.localeCompare(b.tracking_status));
       if (search.get("sort") === "first_registered_stage") filtered.sort((a, b) => a.first_registered_stage.localeCompare(b.first_registered_stage));
+      if (search.get("sort") === "hold_review_due_at") filtered.sort((a, b) => (a.hold_review_due_at ?? "").localeCompare(b.hold_review_due_at ?? "") || (a.hold_review_due_at === null ? 1 : b.hold_review_due_at === null ? -1 : 0));
       const limit = Number(search.get("limit") ?? 50), offset = Number(search.get("offset") ?? 0);
-      await fulfillJson(route, { items: filtered.slice(offset, offset + limit), total: filtered.length, limit, offset, section_counts });
+      await fulfillJson(route, { items: filtered.slice(offset, offset + limit), total: filtered.length, limit, offset, section_counts, action_reason_counts });
+      return;
+    }
+    const searchMatch = url.pathname.match(/^\/api\/opportunities\/(\d+)\/searches$/);
+    if (searchMatch && request.method() === "POST") {
+      const item = items.find((candidate) => candidate.id === Number(searchMatch[1]));
+      if (!item) { await trackingError(route, "opportunity_not_found"); return; }
+      const actor = fixtureActor(request.headers());
+      if (!actor) { await trackingError(route, "actor_name_required"); return; }
+      const body = fixtureRecord(request.postDataJSON()) ?? {};
+      await fulfillJson(route, {
+        searched_at: "2026-09-02T01:00:00Z",
+        target: body.target === "bid_notice" ? "bid_notice" : "pre_spec",
+        attempted_strategies: ["full", "normalized"],
+        candidates: [],
+        search_unconfirmed: true,
+      });
+      return;
+    }
+    const ackMatch = url.pathname.match(/^\/api\/opportunities\/(\d+)\/recheck-acknowledgements$/);
+    if (ackMatch && request.method() === "POST") {
+      const item = items.find((candidate) => candidate.id === Number(ackMatch[1]));
+      if (!item) { await trackingError(route, "opportunity_not_found"); return; }
+      const actor = fixtureActor(request.headers());
+      if (!actor) { await trackingError(route, "actor_name_required"); return; }
+      const body = fixtureRecord(request.postDataJSON()) ?? {};
+      if (!item.recheck_signal) {
+        await fulfillJson(route, { error: { code: "recheck_signal_absent", message: "합성 확인 오류", details: null }, request_id: null }, 409);
+        return;
+      }
+      if (Number(body.expected_link_id) !== item.recheck_signal_link_id) {
+        await fulfillJson(route, { error: { code: "recheck_signal_changed", message: "합성 확인 오류", details: { current_link_id: item.recheck_signal_link_id } }, request_id: null }, 409);
+        return;
+      }
+      const events = recheckEvents.get(item.id) ?? [];
+      events.unshift({ kind: "acknowledged", link_id: item.recheck_signal_link_id, actor_kind: "human", claimed_name: actor, created_at: "2026-09-02T01:00:00Z", note_present: typeof body.note === "string" && body.note.trim().length > 0 });
+      recheckEvents.set(item.id, events);
+      item.recheck_signal = false; item.recheck_signal_at = null; item.recheck_signal_link_id = null;
+      item.action_reasons = mockActionReasons(item);
+      item.section = mockTrackingSection(item);
+      await fulfillJson(route, item);
       return;
     }
     const match = url.pathname.match(/^\/api\/opportunities\/(\d+)(?:\/(tracking-status|tracking-decisions|deep-reviews))?$/);
@@ -872,7 +997,7 @@ export async function mockOpportunity(page: Page): Promise<void> {
     const item = items.find((candidate) => candidate.id === Number(match[1]));
     if (!item) { await fulfillJson(route, { detail: "사업기회를 찾을 수 없습니다" }, 404); return; }
     if (request.method() === "GET") {
-      await fulfillJson(route, match[2] === "tracking-decisions" ? { opportunity_id: item.id, items: histories.get(item.id) ?? [] }
+      await fulfillJson(route, match[2] === "tracking-decisions" ? { opportunity_id: item.id, items: histories.get(item.id) ?? [], recheck_events: recheckEvents.get(item.id) ?? [] }
         : match[2] === "deep-reviews" ? { opportunity_id: item.id, items: item.id === 202 ? opportunityDeepReviews.items : [] } : item);
       return;
     }
@@ -885,11 +1010,17 @@ export async function mockOpportunity(page: Page): Promise<void> {
       const decisions = histories.get(item.id) ?? [];
       decisions.unshift({ decided_at: "2026-09-02T01:00:00Z", tracking_status: String(body.tracking_status), previous_tracking_status: item.tracking_status, reason: body.reason, claimed_name: actor, audit_event_id: `f2000000-0000-4000-8000-${String(decisions.length + 1).padStart(12, "0")}`, cleared_recheck_signal: item.recheck_signal });
       histories.set(item.id, decisions);
+      if (item.recheck_signal) {
+        const events = recheckEvents.get(item.id) ?? [];
+        events.unshift({ kind: "cleared_by_decision", link_id: item.recheck_signal_link_id, actor_kind: "human", claimed_name: actor, created_at: "2026-09-02T01:00:00Z", note_present: false });
+        recheckEvents.set(item.id, events);
+      }
       item.tracking_status = body.tracking_status as OpportunityTrackingStatus;
       item.tracking_reason = item.tracking_status === "미선택" ? null : body.reason;
       item.tracking_selected_by = item.tracking_status === "미선택" ? null : actor;
       item.tracking_selected_at = item.tracking_status === "미선택" ? null : decisions[0].decided_at;
       item.recheck_signal = false; item.recheck_signal_at = null; item.recheck_signal_link_id = null;
+      item.action_reasons = mockActionReasons(item);
       item.section = mockTrackingSection(item);
       await fulfillJson(route, item);
       return;
@@ -1562,6 +1693,13 @@ export async function mockPreSpecs(page: Page): Promise<void> {
       });
       return;
     }
+    const candidatesMatch = url.pathname.match(/^\/api\/pre-specs\/(\d+)\/order-plan-candidates$/);
+    if (candidatesMatch && request.method() === "GET") {
+      const notice_pk = Number(candidatesMatch[1]);
+      const response: PreSpecOrderPlanCandidatesResponse = { notice_pk, items: [] };
+      await fulfillJson(route, response);
+      return;
+    }
     await route.fallback();
   });
   await page.route("**/api/opportunities/*/tracking-status", async (route) => {
@@ -1585,6 +1723,7 @@ export async function mockPreSpecs(page: Page): Promise<void> {
         id: 202,
         section: currentTrackingStatus === "계속 추적" ? "추적 중" : currentTrackingStatus === "보류" ? "보류" : currentTrackingStatus === "종료" ? "추적 종료" : null,
         pending_candidate_link_count: 0, open_blocking_item_count: 0,
+        action_reasons: [], hold_review_due_at: null,
         tracking_status: currentTrackingStatus,
         tracking_reason: body.reason,
         tracking_selected_by: request.headers()["x-bidops-actor-name"] ?? "시각 테스트 담당자",
@@ -2396,6 +2535,7 @@ export async function mockOrderPlans(page: Page, scenario: OrderPlanMockScenario
         recheck_signal: false, recheck_signal_at: null, recheck_signal_link_id: null,
         first_registered_stage: "order_plan", section: null,
         pending_candidate_link_count: 0, open_blocking_item_count: 0,
+        action_reasons: [], hold_review_due_at: null,
         links: [{ ...visualOpportunities[0].links[0], id: 5000 + plan.order_plan_pk,
           record_id: plan.order_plan_pk, order_plan_id: plan.order_plan_pk,
           title: plan.title, agency: plan.agency_name,
