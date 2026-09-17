@@ -2,14 +2,14 @@
 
 - 작업: UI/UX 수정 계획 R-07
 - 기준 HEAD: `52469dc`
-- 상태: 채택 — ADR-0034. 저장·REST·화면은 구현됐고 비교를 계산하는 worker와 모델 binding은 미구현(2026-09-16 확인)
+- 상태: 채택 — ADR-0034, 결정 근거 분리는 [ADR-0058](tracking/decisions/0058-final-decision-basis-separated-from-comparison.md)(2026-09-17). 저장·REST·화면은 구현됐고 비교를 계산하는 worker와 모델 binding은 미구현
 - 범위: OpenAPI wire shape, DB 제약, 감사 event, 오류, 테스트 matrix
-- 비범위: production code, migration, frontend 구현, 모델 호출, 운영 활성화
+- 비범위: 모델 호출, 운영 활성화
 
-이 문서는 채택된 구현 명세다. 현재 backend에는 아래 endpoint와 table이 없다. 작업 트리의
-untracked bid-delta frontend는 존재하지 않는 endpoint를 호출하는 시안이며 이 계약의
-producer나 구현 완료 근거가 아니다. ADR-0034 채택으로 R-08 진입 gate는 열렸지만 R-09는
-실제 R-08 API와 typed error가 구현·검증된 뒤에만 시작한다.
+이 문서는 채택된 구현 명세다. 아래 endpoint는 `app/deep_review/routers/bid_delta.py`에,
+table은 migration `0015_bid_delta_final_decision`과 `0028_final_decision_basis`에 있다.
+비교 계산 worker가 없으므로 비교는 `pending`에 머문다. 최종 Go/No-Go는 완료된 비교(§3.7) 또는
+입찰공고 조건(§3.8·§3.9) 중 하나를 근거로 기록한다(ADR-0058).
 
 ## 1. 현재 코드 조사 결과
 
@@ -180,6 +180,8 @@ baseline은 `pre_spec`, comparison은 `bid_notice`다. 여러 후보를 정렬�
 응답에 만들지 않는다. `comparisons`는 `id`, `sequence`, 양쪽 ref, calculation/result/
 materiality, `version`, `result_sha256?`, 시각을 가진 summary다. `latest_final_decision`은
 sequence가 가장 큰 row일 뿐 current임을 뜻하지 않으며 반드시 currentness와 함께 소비한다.
+최신 결정의 근거가 `notice_conditions`이면 비교 필드는 `null`이고 currentness는 §4.3의 공고 조건
+규칙으로 계산한다. 비교 없는 결정 때문에 503을 내지 않는다.
 
 주요 실패:
 
@@ -419,11 +421,14 @@ actor header와 `BidFinalDecisionCreateRequest`를 요구한다. `decision`은 A
   "id": "aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa",
   "opportunity_id": 17,
   "sequence": 1,
+  "basis_kind": "comparison",
   "comparison_id": "77777777-7777-4777-8777-777777777777",
   "comparison_version": 4,
   "result_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
   "baseline_document_version_id": "22222222-2222-4222-8222-222222222222",
   "comparison_document_version_id": "55555555-5555-4555-8555-555555555555",
+  "basis_notice_id": null,
+  "basis_observation_sha256": null,
   "supersedes_final_decision_id": null,
   "decision": "go",
   "reason": "입찰공고의 추가 자격을 확인했고 대응 계획을 승인함",
@@ -447,6 +452,104 @@ actor header와 `BidFinalDecisionCreateRequest`를 요구한다. `decision`은 A
 - 503 `bid_delta_currentness_unavailable`
 
 503은 결정을 쓰지 않는다. 확인 실패를 current로 가정하거나 기존 결정을 수정하지 않는다.
+
+`BidFinalDecisionView`는 두 근거가 같은 shape를 쓴다. `basis_kind=comparison`이면 비교 5열이 차
+있고 `basis_notice_id`·`basis_observation_sha256`이 `null`이며, `notice_conditions`면 그 반대다.
+`schema_version`은 `bidops.bid-final-decision.v1` 그대로다.
+
+### 3.8 공고 조건 요약
+
+```text
+GET /api/opportunities/{opportunity_id}/bid-conditions
+```
+
+모델을 부르지 않는 결정적 읽기다. 성공은 200이다.
+
+```json
+{
+  "opportunity_id": 17,
+  "generated_at": "2026-09-17T09:00:00Z",
+  "pre_spec": {"notice_id": 40, "title": "스마트 행정 시스템 구축", "agency": "발주기관", "budget": "150000000"},
+  "bid_notices": [
+    {
+      "notice_id": 41, "bid_no": "R26BK01699", "bid_ord": "000",
+      "published_at": "2026-09-10T01:00:00Z", "observation_sha256": "aaaa…(64 hex)",
+      "conditions": {
+        "budget": "150000000", "estimated_price": null, "deadline_at": "2026-09-20T01:00:00Z",
+        "opening_at": "2026-09-20T11:00:00+09:00", "method": "일반경쟁",
+        "participation_limited": "Y", "industry_limited": "Y", "sw_industry_1468": "Y",
+        "joint_contract_method": "공동이행", "successful_bid_method": "협상에의한계약",
+        "technical_evaluation_rate": "90", "region_limit_basis": "본사소재지",
+        "joint_contract_regions": ["서울"], "change_reason": null, "re_notice": "N"
+      },
+      "changes_from_previous": []
+    }
+  ],
+  "pre_spec_comparison": [
+    {"field": "budget", "status": "unchanged", "before": "150000000", "after": "150000000"},
+    {"field": "title", "status": "unchanged", "before": "스마트 행정 시스템 구축", "after": "스마트 행정 시스템 구축"}
+  ],
+  "not_comparable": ["deadline_at"]
+}
+```
+
+- `bid_notices`는 active opportunity의 authoritative 입찰공고를 `bid_no`, `bid_ord`(10진이면 수치)
+  순으로 나열한다. 후보·기각 링크는 제외한다.
+- 값 출처: `budget`·`estimated_price`·`deadline_at`·`method`는 `notice` 열, `opening_at`·
+  `change_reason`·`re_notice`는 `lifecycle_json`, 자격 여섯 키는 `qualification_flags_json`,
+  `region_limit_basis`·`joint_contract_regions`는 `region_limit_json`의 `basis`·
+  `joint_contract_regions`다. 금액은 Decimal 정규화 문자열이다.
+- `observation_sha256`은 그 공고의 최신 관측(`observed_at`, 같으면 id) `source_sha256`이며 과거
+  snapshot 없는 관측이면 `null`이다.
+- `changes_from_previous`는 바로 앞 차수와 15개 필드를 모두 비교한다. 첫 차수는 빈 배열이다.
+  어느 한쪽이 `null`이면 `unknown`이다. 금액은 Decimal, 시각은 같은 순간인지, 문자열은 연속 공백을
+  하나로 본 값으로 비교한다.
+- `pre_spec`은 authoritative 사전규격 중 가장 늦게 게시된 것(표시 선택), `pre_spec_comparison`은
+  목록의 마지막 차수와 `budget`·`title`만 비교한다. 사전규격 `deadline_at`은 의견등록 마감이라
+  `not_comparable`이다.
+- 실패: 404 `opportunity_not_found`, 409 `opportunity_merged`.
+
+### 3.9 공고 조건 근거 최종 결정
+
+```text
+POST /api/opportunities/{opportunity_id}/final-decisions
+```
+
+actor header와 다음 body를 요구한다. 열거하지 않은 field는 거부한다.
+
+```json
+{
+  "request_id": "bd47bc02-c51c-4260-a285-68c39b991fa2",
+  "expected_notice_id": 41,
+  "expected_observation_sha256": "aaaa…(64 hex)",
+  "supersedes_final_decision_id": null,
+  "decision": "go",
+  "reason": "정정 공고의 마감 연장과 자격 조건을 확인함"
+}
+```
+
+서버는 최신 공고를 대신 고르지 않는다. 사업기회 행을 잠그고 idempotency 재생을 확인한 뒤 다음을
+확인한다. 최신 공고는 `published_at`이 가장 늦은 authoritative 입찰공고이고 같으면 10진 `bid_ord`가
+큰 것이다.
+
+| 검사 | 실패 |
+|---|---|
+| authoritative 입찰공고가 있음 | 409 `final_decision_bid_notice_missing` |
+| 모든 authoritative 입찰공고에 `published_at`이 있고 최신 공고가 하나로 정해짐 | 503 `bid_delta_currentness_unavailable` |
+| `expected_notice_id` = 최신 공고 | 409 `final_decision_notice_not_latest` |
+| 그 공고 최신 관측 hash가 있고 `expected_observation_sha256`과 같음 | 없으면 503 `bid_delta_currentness_unavailable`, 다르면 409 `final_decision_observation_changed` |
+
+actor·사유·결정 값·supersession·idempotency·감사·sequence·잠금 순서는 §3.7과 같은 서비스 함수를
+쓴다. 성공은 201 `BidFinalDecisionView`(`basis_kind=notice_conditions`, `currentness=current`)다.
+
+주요 실패:
+
+- 400 `actor_name_required | actor_name_invalid | final_decision_reason_required`
+- 404 `opportunity_not_found | final_decision_not_found`
+- 409 `opportunity_merged | final_decision_bid_notice_missing | final_decision_notice_not_latest |
+  final_decision_observation_changed | final_decision_supersession_conflict | idempotency_conflict`
+- 422 `final_decision_value_invalid`
+- 503 `bid_delta_currentness_unavailable`
 
 ## 4. 다중 공고·정정 선택 규칙
 
@@ -480,11 +583,20 @@ schema version을 제안한다. v1에서 묵시적으로 여러 문서를 합치
 comparison이나 final decision을 수정하지 않는다. 채택한 strict C1에 따라 기존 결정은
 derived `stale`, 정책 판단에 필요한 순서를 확정할 수 없으면 `unknown`이다.
 
+현재성은 `services/bid_delta_currentness.py`의 `decision_currentness` 한 곳이 근거별로 계산하고
+workspace·결정 큐·`bid_final_decision_pending`이 같은 결과를 쓴다(ADR-0053 §6).
+
+| 근거 | `stale` | `unknown` |
+|---|---|---|
+| `comparison` | 비교 시점보다 늦게 게시된 authoritative 입찰공고(`newer_bid_notice`), 새 ready 문서 version(`newer_ready_document_version`) | 비교 공고나 authoritative 입찰공고의 `published_at` 없음(`ordering_unknown`) |
+| `notice_conditions` | 기준 공고보다 새 authoritative 입찰공고(`published_at`, 같으면 `bid_ord`; `newer_bid_notice`), 기준 공고 최신 관측 hash 변경(`notice_observation_changed`) | 순서 판정 불가(`ordering_unknown`), 기준 공고 관측 hash 없음(`observation_unknown`) |
+
+공고 조건 근거에서 확실한 `stale` 사유는 `unknown`보다 우선하고, 둘 다 없을 때만 `current`다.
+
 ## 5. DB 목표 설계 계약
 
-이 절은 migration 자체가 아니라 R-08 backend 구현에 적용할 제약 명세다. ADR-0034 채택으로
-R-08 진입 gate는 열렸지만, 실제 revision 번호는 구현 세션에서 배정하며 PostgreSQL 검증 전에는
-구현 완료로 보지 않는다.
+이 절은 table 제약 명세다. 구현 revision은 `0015_bid_delta_final_decision`(5개 table·trigger)과
+`0028_final_decision_basis`(최종 결정 근거 분리)이며 PostgreSQL 17에서 검증한다.
 
 ### 5.1 `bid_delta_comparison`
 
@@ -544,12 +656,19 @@ item·evidence UPDATE/DELETE를 trigger로 거부한다. 실패 attempt의 부�
 주요 column:
 
 - `id UUID PK`, `opportunity_id`, `sequence`
-- `comparison_id`, `comparison_version`, `result_sha256`
-- baseline/comparison document version ID
+- `basis_kind` NOT NULL(`comparison | notice_conditions`, 기본값 없음, `0028` 이전 행은 `comparison`)
+- 비교 근거 5열(nullable): `comparison_id`, `comparison_version`, `result_sha256`,
+  baseline/comparison document version ID
+- 공고 조건 근거 2열(nullable): `basis_notice_id` FK `notice`(RESTRICT), `basis_observation_sha256`(64 hex)
 - nullable `supersedes_final_decision_id`
 - 결정 enum, nonblank reason, claimed name, UUID request ID, created time
 
 필수 제약:
+
+- `ck_bid_final_decision_basis_fields`: `comparison`이면 비교 5열 NOT NULL·basis 2열 NULL,
+  `notice_conditions`면 반대. `ck_bid_final_decision_basis_kind`,
+  `ck_bid_final_decision_basis_observation_sha256`
+- `0028` downgrade는 `notice_conditions` 행이 있으면 거부한다
 
 - `UNIQUE(opportunity_id, sequence)`
 - `UNIQUE(opportunity_id, id)` for scoped self FK
@@ -561,12 +680,14 @@ item·evidence UPDATE/DELETE를 trigger로 거부한다. 실패 attempt의 부�
 - 모든 UPDATE·DELETE를 거부하는 append-only trigger
 
 직전 tip 확인과 sequence 배정은 opportunity row lock 안에서 수행한다. DB current flag는 두지
-않는다. 현재성은 comparison fence, 새 authoritative 입력, 채택 정책으로 계산한 projection이다.
+않는다. 현재성은 결정 근거의 fence, 새 authoritative 입력, 채택 정책으로 계산한 projection이다(§4.3).
 
 ### 5.5 권한
 
-- `app`: comparison 요청, attempt retry 요청, final decision·idempotency·audit INSERT와 필요한
-  제한 column status update만 허용한다.
+- `app`: 현재 `scripts/runtime-privileges.sql`은 `bid_delta_comparison`·`bid_final_decision`
+  SELECT, `bid_final_decision`·idempotency·audit INSERT, tip 잠금용 `bid_final_decision UPDATE (id)`만
+  준다(ADR-0058). comparison·attempt INSERT와 comparison 잠금 권한은 비교 worker를 구현할 때 검토하며,
+  그 전에는 비교 생성·비교 근거 결정이 app role에서 실행되지 않는다.
 - `worker`: lease/fence가 맞는 attempt·item·evidence INSERT와 comparison terminal 전이만
   허용한다. final decision에는 쓰기 권한이 없다.
 - 새 table은 runtime DML allowlist에 자동 포함하지 않는다. migration 뒤 명시적으로 검토한다.
@@ -586,7 +707,7 @@ item·evidence UPDATE/DELETE를 trigger로 거부한다. 실패 attempt의 부�
 | `bid_delta.comparison_completed` | system | terminal result·items·evidence | comparison ID, result/materiality, category status counts, result hash, runtime binding ID/digest |
 | `bid_delta.comparison_failed` | system | failed terminal state | comparison/attempt ID, safe error code |
 | `bid_delta.retry_requested` | human | 새 attempt·idempotency | comparison/attempt ID, sequence |
-| `bid_final_decision.recorded` | human | decision·idempotency | decision/opportunity/comparison ID, sequence, decision enum, superseded ID |
+| `bid_final_decision.recorded` | human | decision·idempotency | decision/opportunity ID, `basis_kind`, comparison ID 또는 basis notice ID·관측 hash, sequence, decision enum, superseded ID |
 | `bid_final_decision.recheck_required` | system | 재검토 projection 근거 | decision ID, 새 link/document ID, reason code |
 
 감사 metadata에는 reason 전문, quote, 원문, actor 이름, object key, path, prompt, 모델 응답을
@@ -612,6 +733,9 @@ item·evidence UPDATE/DELETE를 trigger로 거부한다. 실패 attempt의 부�
 | 409 | `bid_delta_result_digest_conflict` | expected result digest 불일치 |
 | 409 | `bid_delta_comparison_stale` | 채택 currentness policy상 새 입력 재검토 필요 |
 | 409 | `final_decision_supersession_conflict` | 직전 결정 tip fence 불일치 |
+| 409 | `final_decision_bid_notice_missing` | 공고 조건 결정에 authoritative 입찰공고가 없음 |
+| 409 | `final_decision_notice_not_latest` | `expected_notice_id`가 최신 authoritative 입찰공고가 아님 |
+| 409 | `final_decision_observation_changed` | 최신 공고의 최신 관측 hash가 기대 값과 다름 |
 | 409 | `active_attempt_exists` | active attempt 중복 |
 | 409 | `idempotency_conflict` | 같은 actor·request ID의 다른 payload |
 | 422 | `bid_delta_same_input` | 양쪽 document version이 같음 |
@@ -623,7 +747,7 @@ item·evidence UPDATE/DELETE를 trigger로 거부한다. 실패 attempt의 부�
 | 503 | `bid_delta_policy_unavailable` | approved category/material policy를 읽을 수 없음 |
 | 503 | `bid_delta_service_unavailable` | worker/model/필수 내부 서비스가 준비되지 않음 |
 | 503 | `bid_delta_projection_unavailable` | 안전한 조회 projection을 만들 수 없음 |
-| 503 | `bid_delta_currentness_unavailable` | currentness를 fail-closed 검증할 수 없음 |
+| 503 | `bid_delta_currentness_unavailable` | currentness 또는 최신 공고 순서·관측 hash를 fail-closed 검증할 수 없음 |
 
 400 actor code와 reason code는 기존 `actor_name_required`, `actor_name_invalid`,
 `final_decision_reason_required`를 재사용한다. 알 수 없는 내부 예외는 500
@@ -633,7 +757,7 @@ item·evidence UPDATE/DELETE를 trigger로 거부한다. 실패 attempt의 부�
 
 | 영역 | 시나리오 | 기대 |
 |---|---|---|
-| 현재 API 조사 | main/OpenAPI route 목록 | 현재 기준 bid-delta endpoint 0개 |
+| API 등록 | 조립 앱 OpenAPI route 목록 | §3의 bid-delta·bid-conditions·final-decisions 경로가 deep_review 모듈에만 있음 |
 | 후보 | authoritative pre_spec + ready exact bundle item | baseline 후보 1개 |
 | 후보 | pending/rejected/search-unconfirmed link | 선택 후보에서 제외, absence로 오인하지 않음 |
 | 후보 | blocked/failed/needs_review document | selectable 아님, 안전한 reason |
@@ -664,6 +788,12 @@ item·evidence UPDATE/DELETE를 trigger로 거부한다. 실패 attempt의 부�
 | version fence | stale version/digest/document ID | 각 409/422 안정 code, row 없음 |
 | currentness | 새 authoritative bid/ready document 등장 | 기존 row 불변, strict면 stale·recheck event |
 | currentness | 새 입력 순서 판단 불가 | unknown, current 아님 |
+| 공고 조건 요약 | 차수 2개, 한쪽 값 `null`, 사전규격 연결 | 차수 순서·필드별 changed/unchanged/unknown, 예산·사업명만 비교, 마감 `not_comparable` |
+| 공고 조건 결정 | 최신 공고·관측 hash fence 일치 | 201 `notice_conditions` row+idempotency+audit, replay 동일 응답 |
+| 공고 조건 결정 | 최신 아님·hash 변경·입찰공고 없음·`published_at` 없음 | 409·409·409·503, row 없음 |
+| 공고 조건 현재성 | 새 차수 적재·관측 hash 변경·순서 불명 | stale·stale·unknown, 결정 큐 pending은 stale만 |
+| DB 근거 CHECK | 섞인 근거·빠진 열·기본값 없는 `basis_kind` | PostgreSQL이 거부, `0028` downgrade는 공고 조건 행이 있으면 거부 |
+| 권한 | app role로 공고 조건 결정·supersede | INSERT와 `UPDATE (id)` 잠금 성공, UPDATE·DELETE는 거부 |
 | 사람 경계 | delta completed/changed | final decision 자동 생성 0건 |
 | 사람 경계 | 이전 decision + unchanged 새 comparison | 자동 승계 0건 |
 | 보안 | 모든 성공·오류·audit | object key/path/signed URL/prompt/model body/원문 없음 |
