@@ -518,7 +518,8 @@ GET /api/opportunities/{opportunity_id}/bid-conditions
   어느 한쪽이 `null`이면 `unknown`이다. 금액은 Decimal, 시각은 같은 순간인지, 문자열은 연속 공백을
   하나로 본 값으로 비교한다.
 - `pre_spec`은 authoritative 사전규격 중 가장 늦게 게시된 것(표시 선택), `pre_spec_comparison`은
-  목록의 마지막 차수와 `budget`·`title`만 비교한다. 사전규격 `deadline_at`은 의견등록 마감이라
+  `latest_notice_id`가 가리키는 최신 공고와 `budget`·`title`만 비교한다. 최신을 확정할 수 없으면
+  두 필드 모두 `unknown`이며 목록 순서로 대신하지 않는다. 사전규격 `deadline_at`은 의견등록 마감이라
   `not_comparable`이다.
 - 실패: 404 `opportunity_not_found`, 409 `opportunity_merged`.
 

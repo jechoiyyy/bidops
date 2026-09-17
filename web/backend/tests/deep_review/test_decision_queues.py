@@ -498,9 +498,11 @@ def test_bid_conditions_latest_fence_is_what_the_decision_endpoint_accepts(queue
     """List order (bid_no, bid_ord) is display only; the latest fence follows published_at."""
     session = queue_session
     owner = opportunity(session)
+    linked_notice(session, owner, source_type="pre_spec", title="최신 사업명")
     latest = linked_notice(session, owner, bid_no="R26BK00001", bid_ord="000",
-        published=NOW + timedelta(days=1), sha=SHA_A)
-    listed_last = linked_notice(session, owner, bid_no="R26BK00002", bid_ord="000", published=NOW, sha=SHA_B)
+        published=NOW + timedelta(days=1), sha=SHA_A, title="최신 사업명")
+    listed_last = linked_notice(session, owner, bid_no="R26BK00002", bid_ord="000", published=NOW, sha=SHA_B,
+        title="이전 사업명")
     session.commit()
     url = f"/api/opportunities/{owner.id}"
 
@@ -508,6 +510,8 @@ def test_bid_conditions_latest_fence_is_what_the_decision_endpoint_accepts(queue
         body = client.get(f"{url}/bid-conditions").json()
         assert [row["notice_id"] for row in body["bid_notices"]] == [latest.id, listed_last.id]
         assert (body["latest_notice_id"], body["latest_observation_sha256"]) == (latest.id, SHA_A)
+        assert body["pre_spec_comparison"][1] == {"field": "title", "status": "unchanged",
+            "before": "최신 사업명", "after": "최신 사업명"}
         wrong = client.post(f"{url}/final-decisions", json=decision_body(listed_last.id, SHA_B), headers=ACTOR)
         assert (wrong.status_code, wrong.json()["error"]["code"]) == (409, "final_decision_notice_not_latest")
         accepted = client.post(f"{url}/final-decisions", json=decision_body(
@@ -520,6 +524,8 @@ def test_bid_conditions_latest_fence_is_what_the_decision_endpoint_accepts(queue
         session.commit()
         unknown = client.get(f"{url}/bid-conditions").json()
         assert (unknown["latest_notice_id"], unknown["latest_observation_sha256"]) == (None, None)
+        assert [(row["status"], row["after"]) for row in unknown["pre_spec_comparison"]] == [
+            ("unknown", None), ("unknown", None)]
 
 
 def test_notice_conditions_decision_is_fenced_replayed_and_superseded(queue_session):
@@ -587,8 +593,12 @@ def test_notice_conditions_decision_is_fenced_replayed_and_superseded(queue_sess
     assert all("공고 조건 확인" not in str(audit.safe_metadata) for audit in audits)
 
 
-def test_notice_conditions_currentness_drives_queue_workspace_and_workload(queue_session):
+def test_notice_conditions_currentness_drives_queue_workspace_and_workload(queue_session, monkeypatch):
     from app.deep_review.models import BidFinalDecision
+    from app.deep_review.services import auto_preparation
+    # Only bid_final_decision_pending is under test. The pre-spec count reads the
+    # screening grade seam, whose tables are absent when this file runs alone.
+    monkeypatch.setattr(auto_preparation, "effective_grades", lambda _session, _ids: {})
     session = queue_session
     registry = register_lifecycle_extensions(ExtensionRegistry())
     compared_owner = opportunity(session, created_at=NOW - timedelta(days=1))

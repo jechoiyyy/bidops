@@ -215,11 +215,12 @@ def bid_conditions(session: Session, opportunity_id: int) -> dict[str, Any]:
             "agency": pre_spec_notice.agency,
             "budget": _amount(pre_spec_notice.budget),
         }
-        # Compared with the last listed 차수, the one the decision screen shows.
-        last = bids[-1] if bids else None
+        # Compared with the latest fence only. When the latest notice cannot be
+        # determined the after side is null, so both fields are unknown; list
+        # order is never used as a fallback.
         comparison = [
-            _change("budget", pre_spec["budget"], _amount(last.budget) if last is not None else None),
-            _change("title", pre_spec_notice.title, last.title if last is not None else None),
+            _change("budget", pre_spec["budget"], _amount(latest.budget) if latest is not None else None),
+            _change("title", pre_spec_notice.title, latest.title if latest is not None else None),
         ]
     view = BidConditionsView(
         opportunity_id=opportunity.id,
