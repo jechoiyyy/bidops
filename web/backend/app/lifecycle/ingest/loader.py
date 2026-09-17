@@ -837,9 +837,18 @@ def _pre_spec_notice_keys(pre_spec_no: str) -> tuple[str, ...]:
 
 
 def _find_pre_spec_notice(session: Session, pre_spec_no: str) -> Notice | None:
-    """Resolve a pre-spec Notice by the external registration number."""
+    """Resolve a pre-spec Notice by the external registration number.
 
-    source_types = ("pre_spec", "prespec", "pre-spec")
+    Every key spelling the number may be stored as is looked up exactly first.
+    A row whose own key does not spell the number can still carry it in its
+    stored lifecycle or raw source (``_stored_pre_spec_number``); those rows
+    are narrowed in SQL by the number's text and then compared exactly, so no
+    pre-spec is loaded into Python unless it names the number.  G2B
+    registration numbers are ASCII letters and digits, which JSON text keeps
+    verbatim on both dialects.
+    """
+
+    source_types = tuple(sorted(_PRE_SPEC_SOURCE_TYPES))
     keys = _pre_spec_notice_keys(pre_spec_no)
     direct = session.scalar(
         select(Notice).where(
@@ -850,7 +859,15 @@ def _find_pre_spec_notice(session: Session, pre_spec_no: str) -> Notice | None:
     if direct is not None:
         return direct
     for candidate in session.scalars(
-        select(Notice).where(Notice.source_type.in_(source_types))
+        select(Notice)
+        .where(
+            Notice.source_type.in_(source_types),
+            or_(
+                cast(Notice.lifecycle_json, String).contains(pre_spec_no, autoescape=True),
+                cast(Notice.raw_source, String).contains(pre_spec_no, autoescape=True),
+            ),
+        )
+        .order_by(Notice.id)
     ):
         if _stored_pre_spec_number(candidate) == pre_spec_no:
             return candidate
