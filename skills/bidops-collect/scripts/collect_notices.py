@@ -31,6 +31,17 @@ PRESPEC_ENDPOINT = (
     "https://apis.data.go.kr/1230000/ao/HrcspSsstndrdInfoService/"
     "getPublicPrcureThngInfoServcPPSSrch"
 )
+# The PPSSrch variant filters bids by the industry code of an industry-limited
+# notice.  Its result is used only as a key set to mark collected bids; it is
+# never a collection filter (docs/validation-runs/20260917-bid-collection-probe.md).
+SW_INDUSTRY_ENDPOINT = (
+    "https://apis.data.go.kr/1230000/ad/BidPublicInfoService/"
+    "getBidPblancListInfoServcPPSSrch"
+)
+SW_INDUSTRY_CODE = "1468"
+# The raw page prefix must not start with "bid-": reclassify_source selects
+# bid pages by that prefix.
+SW_INDUSTRY_SOURCE = "industry1468"
 
 PRESPEC_QUALIFICATION_FIELDS = (
     "participation_limited",
@@ -212,6 +223,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--timeout", type=int, default=30)
     parser.add_argument("--skip-bids", action="store_true")
     parser.add_argument("--skip-prespecs", action="store_true")
+    parser.add_argument(
+        "--tag-bid-sw-industry", action="store_true",
+        help="입찰공고에 1468 업종 조회 포함 여부(sw_industry_1468)를 표시한다. --from-raw에서는 보존된 원문 페이지로 다시 계산한다.",
+    )
     parser.add_argument(
         "--from-raw",
         type=Path, metavar="SOURCE_RAW",
@@ -539,9 +554,14 @@ def candidate_sources(
     return sources
 
 
-def normalize_bid(record: dict[str, Any], raw_source: str) -> dict[str, Any]:
+def bid_key(record: dict[str, Any]) -> tuple[str, str]:
     number = text_value(first(record, "bidNtceNo", "bidPblancNo")) or "unknown"
     order = text_value(first(record, "bidNtceOrd", "bidPblancOrd")) or "00"
+    return number, order
+
+
+def normalize_bid(record: dict[str, Any], raw_source: str) -> dict[str, Any]:
+    number, order = bid_key(record)
     title = text_value(first(record, "bidNtceNm", "bidPblancNm", "ntceNm"))
     agency = text_value(first(record, "dminsttNm", "ntceInsttNm", "orderInsttNm"))
     method = text_value(first(record, "cntrctCnclsMthdNm", "bidMethdNm"))
@@ -583,7 +603,10 @@ def normalize_bid(record: dict[str, Any], raw_source: str) -> dict[str, Any]:
         "notice_id": f"bid:{number}:{order}",
         "source_type": "bid_notice",
         "title": title,
+        # Bid `agency` is already the demand agency (dminsttNm).  The key is
+        # kept for the same optional key set as pre-spec records.
         "agency": agency,
+        "demand_agency": None,
         "published_at": normalize_datetime(first(record, "bidNtceDt", "bidNtceDate")),
         "deadline_at": normalize_datetime(first(record, "bidClseDt", "bidClseDate")),
         "budget": first(record, "asignBdgtAmt", "presmptPrce", "bsisAmount"),
@@ -624,6 +647,7 @@ def normalize_bid(record: dict[str, Any], raw_source: str) -> dict[str, Any]:
             "change_reason": text_value(record.get("chgNtceRsn")),
             "unified_notice_no": text_value(record.get("untyNtceNo")),
             "previous_failed_notice_no": text_value(record.get("befBidBbancNo")),
+            "opening_at": normalize_datetime(record.get("opengDt")),
         },
         "attachments": attachments,
         "qualification_flags": {
@@ -638,6 +662,8 @@ def normalize_bid(record: dict[str, Any], raw_source: str) -> dict[str, Any]:
             "technical_evaluation": text_value(record.get("tpEvalYn")),
             "technical_evaluation_rate": text_value(record.get("techAbltEvlRt")),
             "successful_bid_method": text_value(record.get("sucsfbidMthdNm")),
+            # Set only from a complete 1468 industry query (apply_sw_industry_1468).
+            "sw_industry_1468": None,
         },
         "focus_matches": signals,
         "performance_matches": matched_performances,
@@ -699,7 +725,9 @@ def normalize_prespec(record: dict[str, Any], raw_source: str) -> dict[str, Any]
         "notice_id": f"pre:{number}",
         "source_type": "pre_spec",
         "title": title,
+        # `agency` stays the ordering agency; the demand agency is separate.
         "agency": agency,
+        "demand_agency": text_value(record.get("rlDminsttNm")),
         "published_at": normalize_datetime(first(record, "rgstDt", "rcptDt", "opninRgstDt")),
         "deadline_at": normalize_datetime(
             first(record, "opninRgstClseDt", "opninRgstClseDate")
@@ -730,6 +758,7 @@ def normalize_prespec(record: dict[str, Any], raw_source: str) -> dict[str, Any]
             "change_reason": text_value(record.get("chgNtceRsn")),
             "unified_notice_no": None,
             "previous_failed_notice_no": None,
+            "opening_at": None,
             "bid_ntice_no_list": bid_ntice_no_list,
         },
         "attachments": attachments,
@@ -737,6 +766,7 @@ def normalize_prespec(record: dict[str, Any], raw_source: str) -> dict[str, Any]
             **{field: None for field in PRESPEC_QUALIFICATION_FIELDS},
             "sw_business_status": sw_business_status,
             "business_division": business_division,
+            "sw_industry_1468": None,
         },
         "focus_matches": signals,
         "performance_matches": matched_performances,
@@ -834,7 +864,7 @@ def raw_pages(raw_dir: Path) -> list[Path]:
     with directory_fd(raw_dir) as directory:
         pages = [raw_dir / name for name in sorted(os.listdir(directory))]
         for page in pages:
-            if not re.fullmatch(r"(?:bid|prespec)-page-[0-9]{3}\.json", page.name):
+            if not re.fullmatch(r"(?:bid|prespec|industry1468)-page-[0-9]{3}\.json", page.name):
                 raise RuntimeError("collection_raw_name_invalid")
             if not stat.S_ISREG(os.stat(page.name, dir_fd=directory, follow_symlinks=False).st_mode):
                 raise RuntimeError("collection_raw_not_regular")
@@ -869,11 +899,29 @@ def raw_payload(data: bytes) -> dict[str, Any]:
 def copy_raw_pages(source: Path, target: Path) -> None:
     for page in raw_pages(source):
         data = read_regular_bytes(page)
-        raw_payload(data)
+        # A 1468 page is only a tag key set.  It is validated when the tag is
+        # recomputed (failure -> null tags), so an error page preserved by a
+        # failed tag query does not block bid and pre-spec reclassification.
+        if not page.name.startswith(f"{SW_INDUSTRY_SOURCE}-"):
+            raw_payload(data)
         destination = target / page.name
         write_bytes_new(destination, data)
         if hashlib.sha256(read_regular_bytes(destination)).digest() != hashlib.sha256(data).digest():
             raise RuntimeError("collection_raw_hash_mismatch")
+
+
+def window_params(
+    *, service_key: str, page: int, rows: int, from_date: date, to_date: date
+) -> dict[str, Any]:
+    return {
+        "serviceKey": service_key,
+        "pageNo": page,
+        "numOfRows": rows,
+        "type": "json",
+        "inqryDiv": "1",
+        "inqryBgnDt": from_date.strftime("%Y%m%d") + "0000",
+        "inqryEndDt": to_date.strftime("%Y%m%d") + "2359",
+    }
 
 
 def collect_source(
@@ -888,15 +936,10 @@ def collect_source(
         raw_path = raw_dir / f"{source}-page-{page:03d}.json"
         if os.path.lexists(raw_path):
             raise RuntimeError("collection_file_exists")
-        params = {
-            "serviceKey": service_key,
-            "pageNo": page,
-            "numOfRows": rows,
-            "type": "json",
-            "inqryDiv": "1",
-            "inqryBgnDt": from_date.strftime("%Y%m%d") + "0000",
-            "inqryEndDt": to_date.strftime("%Y%m%d") + "2359",
-        }
+        params = window_params(
+            service_key=service_key, page=page, rows=rows,
+            from_date=from_date, to_date=to_date,
+        )
         payload = request_json(endpoint, params, timeout)
         write_json_new(raw_path, payload)
         body = get_body(payload)
@@ -940,6 +983,108 @@ def reclassify_source(*, source: str, raw_dir: Path) -> tuple[list[dict[str, Any
     return records, warnings
 
 
+def sw_industry_metadata(status: str, total: int | None = None, pages: int = 0) -> dict[str, Any]:
+    return {"status": status, "total": total, "pages": pages}
+
+
+SW_INDUSTRY_FAILED_WARNING = "bid: 1468 업종 조회가 실패해 sw_industry_1468을 null로 남깁니다."
+SW_INDUSTRY_PARTIAL_WARNING = "bid: 1468 업종 조회가 부분 수집이라 sw_industry_1468을 null로 남깁니다."
+
+
+def collect_sw_industry_keys(
+    *, service_key: str, from_date: date, to_date: date, rows: int,
+    timeout: int, raw_dir: Path,
+) -> tuple[set[tuple[str, str]] | None, dict[str, Any], list[str]]:
+    """Query the 1468 industry key set; return keys only when complete.
+
+    A failure or a partial result never yields keys, so no bid is marked "N"
+    from an incomplete query.  Every page is validated from its preserved raw
+    bytes so a later --from-raw recomputation reaches the same status.
+    """
+    keys: set[tuple[str, str]] = set()
+    count = 0
+    total: int | None = None
+    pages = 0
+    page = 1
+    try:
+        while True:
+            raw_path = raw_dir / f"{SW_INDUSTRY_SOURCE}-page-{page:03d}.json"
+            if os.path.lexists(raw_path):
+                raise RuntimeError("collection_file_exists")
+            params = {
+                **window_params(
+                    service_key=service_key, page=page, rows=rows,
+                    from_date=from_date, to_date=to_date,
+                ),
+                "indstrytyCd": SW_INDUSTRY_CODE,
+            }
+            payload = request_json(SW_INDUSTRY_ENDPOINT, params, timeout)
+            write_json_new(raw_path, payload)
+            pages = page
+            body = get_body(raw_payload(read_regular_bytes(raw_path)))
+            total = int(body["totalCount"])
+            items = get_items(body)
+            count += len(items)
+            keys.update(bid_key(item) for item in items)
+            if not items or count >= total:
+                break
+            page += 1
+            if page > 100:
+                break
+    except (RuntimeError, OSError, ValueError):
+        return None, sw_industry_metadata("failed", total, pages), [SW_INDUSTRY_FAILED_WARNING]
+    if count != total:
+        return None, sw_industry_metadata("partial", total, pages), [SW_INDUSTRY_PARTIAL_WARNING]
+    return keys, sw_industry_metadata("complete", total, pages), []
+
+
+def reclassify_sw_industry_keys(
+    *, raw_dir: Path,
+) -> tuple[set[tuple[str, str]] | None, dict[str, Any], list[str]]:
+    """Recompute the 1468 key set from preserved pages without calling the API."""
+    pages = [
+        page for page in raw_pages(raw_dir)
+        if page.name.startswith(f"{SW_INDUSTRY_SOURCE}-")
+    ]
+    if not pages:
+        return None, sw_industry_metadata("failed"), [SW_INDUSTRY_FAILED_WARNING]
+    keys: set[tuple[str, str]] = set()
+    count = 0
+    totals: set[int] = set()
+    contiguous = True
+    try:
+        for page_no, raw_path in enumerate(pages, 1):
+            if raw_path.name != f"{SW_INDUSTRY_SOURCE}-page-{page_no:03d}.json":
+                contiguous = False
+            body = get_body(raw_payload(read_regular_bytes(raw_path)))
+            totals.add(int(body["totalCount"]))
+            items = get_items(body)
+            count += len(items)
+            keys.update(bid_key(item) for item in items)
+    except (RuntimeError, OSError, ValueError):
+        total = next(iter(totals)) if len(totals) == 1 else None
+        return None, sw_industry_metadata("failed", total, len(pages)), [SW_INDUSTRY_FAILED_WARNING]
+    total = next(iter(totals)) if len(totals) == 1 else None
+    if not contiguous or totals != {count}:
+        return None, sw_industry_metadata("partial", total, len(pages)), [SW_INDUSTRY_PARTIAL_WARNING]
+    return keys, sw_industry_metadata("complete", total, len(pages)), []
+
+
+def apply_sw_industry_1468(
+    notices: Iterable[dict[str, Any]], keys: set[tuple[str, str]]
+) -> None:
+    """Mark bids from a complete key set.  A bid without a notice number stays null."""
+    for notice in notices:
+        if notice.get("source_type") != "bid_notice":
+            continue
+        number, order = notice["notice_id"].removeprefix("bid:").rsplit(":", 1)
+        if number == "unknown":
+            continue
+        notice["qualification_flags"]["sw_industry_1468"] = (
+            "Y" if (number, order) in keys else "N"
+        )
+
+
 def main() -> int:
     args = parse_args()
     if args.from_date > args.to_date:
@@ -972,6 +1117,8 @@ def main() -> int:
         "from": args.from_date.isoformat(), "to": args.to_date.isoformat(),
         "timezone": "Asia/Seoul",
     }
+    tag_sw_industry = args.tag_bid_sw_industry and not args.skip_bids
+    sw_industry = sw_industry_metadata("not_requested")
 
     def record_provenance(*, complete: bool) -> None:
         write_json_new(output_dir / "collection-provenance.json", {
@@ -980,9 +1127,12 @@ def main() -> int:
             "source_raw": str(source_raw.relative_to(args.allowed_root.absolute())) if source_raw else None,
             "source_window": source_window,
             "options": {"rows": args.rows, "timeout": args.timeout,
-                        "skip_bids": args.skip_bids, "skip_prespecs": args.skip_prespecs},
+                        "skip_bids": args.skip_bids, "skip_prespecs": args.skip_prespecs,
+                        "tag_bid_sw_industry": args.tag_bid_sw_industry},
             "sources": [{"source": source, "endpoint": endpoint}
-                        for source, endpoint, skip in plan if not skip],
+                        for source, endpoint, skip in plan if not skip]
+                       + ([{"source": SW_INDUSTRY_SOURCE, "endpoint": SW_INDUSTRY_ENDPOINT}]
+                          if tag_sw_industry else []),
             "complete": complete,
             "warnings": warnings,
             "raw_pages": [{"path": f"raw/{page.name}",
@@ -1008,6 +1158,18 @@ def main() -> int:
                 )
             notices.extend(batch)
             warnings.extend(batch_warnings)
+            if source == "bid" and tag_sw_industry:
+                if source_raw is not None:
+                    keys, sw_industry, tag_warnings = reclassify_sw_industry_keys(raw_dir=raw_dir)
+                else:
+                    keys, sw_industry, tag_warnings = collect_sw_industry_keys(
+                        service_key=service_key, from_date=args.from_date,
+                        to_date=args.to_date, rows=args.rows,
+                        timeout=args.timeout, raw_dir=raw_dir,
+                    )
+                warnings.extend(tag_warnings)
+                if keys is not None:
+                    apply_sw_industry_1468(batch, keys)
     except (RuntimeError, OSError, ValueError):
         record_provenance(complete=False)
         raise
@@ -1028,6 +1190,7 @@ def main() -> int:
             "audit_pool": len(ordered) - candidate_count,
         },
         "warnings": warnings,
+        "metadata": {"sw_industry_1468": sw_industry},
         "notices": ordered,
     }
     output_path = output_dir / "collected-notices.json"

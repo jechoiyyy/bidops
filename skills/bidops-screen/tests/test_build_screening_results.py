@@ -574,6 +574,43 @@ class V3ContractTests(unittest.TestCase):
             with self.subTest(object_name=object_name, key=key), self.assertRaises(SystemExit):
                 BUILD.merge(input_value, v3_decisions(input_value, [v3_judgment("bid:v3:0")]))
 
+    def test_optional_collected_additions_are_accepted_but_not_required(self) -> None:
+        # Historical collected.v2 notices omit every optional addition.
+        old_input = v3_input()
+        self.assertEqual(1, BUILD.merge(old_input, v3_decisions(old_input, [v3_judgment("bid:v3:0")]))["result_count"])
+
+        def with_additions(**overrides) -> dict:
+            value = v3_input()
+            notice = value["notices"][0]
+            notice["demand_agency"] = overrides.get("demand_agency", "테스트시청")
+            notice["lifecycle"]["opening_at"] = overrides.get("opening_at", "2026-08-29T11:00:00+09:00")
+            notice["qualification_flags"] = {
+                **{name: None for name in (
+                    "participation_limited", "industry_limited", "information_business",
+                    "general_service", "service_division", "joint_contract_method",
+                    "performance_restricted_competition", "pq_evaluation",
+                    "technical_evaluation", "technical_evaluation_rate", "successful_bid_method",
+                )},
+                "sw_industry_1468": overrides.get("sw_industry_1468", "Y"),
+            }
+            return value
+
+        for tag in ("Y", "N", None):
+            new_input = with_additions(sw_industry_1468=tag)
+            with self.subTest(sw_industry_1468=tag):
+                output = BUILD.merge(new_input, v3_decisions(new_input, [v3_judgment("bid:v3:0")]))
+                notice = output["results"][0]["notice"]
+                self.assertEqual(set(BUILD.COMMON_NOTICE_KEYS), set(notice))
+                self.assertEqual("2026-08-29T11:00:00+09:00", notice["lifecycle"]["opening_at"])
+                self.assertEqual(tag, notice["qualification_flags"]["sw_industry_1468"])
+        for overrides in (
+            {"demand_agency": ""}, {"demand_agency": 1}, {"opening_at": "2026-08-29 11:00"},
+            {"sw_industry_1468": "yes"}, {"sw_industry_1468": ""},
+        ):
+            invalid_input = with_additions(**overrides)
+            with self.subTest(invalid=overrides), self.assertRaises(SystemExit):
+                BUILD.merge(invalid_input, v3_decisions(invalid_input, [v3_judgment("bid:v3:0")]))
+
     def test_malformed_attachments_is_rejected_as_contract_error(self) -> None:
         input_value = v3_input()
         input_value["notices"][0]["attachments"] = None

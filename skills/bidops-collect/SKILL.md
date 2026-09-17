@@ -29,6 +29,8 @@ python3 skills/bidops-collect/scripts/select_validation_sample.py \
   --output data/runs/20260817-20260823/validation-set.json
 ```
 
+입찰공고에 1468 업종 표시(`qualification_flags.sw_industry_1468`)를 남기려면 `--tag-bid-sw-industry`를 더한다. 1468 조회가 실패하거나 부분 수집이면 모든 입찰공고 값은 `null`이고 경고와 exit 1이 남으며, `--from-raw`와 함께 주면 보존된 `raw/industry1468-page-NNN.json`으로 다시 계산한다.
+
 탐색 규칙을 바꾸는 데는 API를 새로 호출할 필요가 없다. `--from-raw SOURCE_RAW`는 원본을 읽기만 하고 별도의 새 회차에 검증 복사·정규화한다. 기존 출력 폴더(빈 폴더 포함)·symlink·허용 루트(`data/runs` 기본값) 이탈은 키 확인 전에 거부한다. 부분 수집의 경고/exit 1은 완전한 회차로 적재하지 않는다:
 
 ```bash
