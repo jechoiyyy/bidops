@@ -6,12 +6,11 @@ import { MutationFeedback } from "../common/MutationFeedback";
 import { Toast } from "../common/Toast";
 import { useToast } from "../common/useToast";
 import { CandidateLinkDialog } from "../opportunities/CandidateLinkDialog";
-import { ApiError, api } from "../../lib/api";
+import { agencyMatchLabel, searchStrategyLabel } from "../opportunities/trackingFlow";
+import { api } from "../../lib/api";
 import { apiErrorRecoveryAction, describeApiError } from "../../lib/apiErrors";
 import { formatNumber, present } from "../../lib/format";
 import type {
-  OpportunityMergeConflictState,
-  OpportunitySearchStrategy,
   PreSpecOrderPlanCandidate,
   PreSpecOrderPlanCandidatesResponse,
 } from "../../lib/types";
@@ -32,30 +31,11 @@ import "../../styles/opportunities-relaxed.css";
  *
  * 후보가 0건이면 한 줄 안내만 남긴다. 자동 대조는 SW사업대상 사전규격을 적재할 때만
  * 돌기 때문에(spec §4.2) 0건은 "발주계획이 없다"는 뜻이 아니다.
+ *
+ * 수용이 병합 충돌(409 `candidate_merge_state_conflict`)이면 안내와 양쪽 상태는
+ * `CandidateLinkDialog`가 대화상자 안에서 한 번만 보여 준다. 이 구역은 같은 안내를
+ * 다시 그리지 않는다. 대조 방식 이름도 사업 추적 화면과 같은 이름표(`trackingFlow`)를 쓴다.
  */
-
-const STRATEGY_LABEL: Record<OpportunitySearchStrategy, string> = {
-  full: "사업명 전체 일치",
-  breaking_split: "특수문자 앞뒤 조각 일치",
-  normalized: "구분자·머리말 정리 후 일치",
-  longest_fragment: "가장 긴 조각 일치",
-  prefix12: "앞 12자 일치",
-  merge_confirmation: "병합 확인",
-};
-
-/** 아는 전략만 한국어로 옮긴다. 모르는 코드는 숨기지 않고 그대로 보여 준다. */
-function strategyLabel(value: string | null): string {
-  if (value === null) return "미확인";
-  return Object.prototype.hasOwnProperty.call(STRATEGY_LABEL, value)
-    ? STRATEGY_LABEL[value as OpportunitySearchStrategy]
-    : value;
-}
-
-function agencyMatchLabel(value: boolean | null): string {
-  if (value === true) return "기관 일치";
-  if (value === false) return "기관 불일치";
-  return "기관 일치 미확인";
-}
 
 /**
  * 발주 예정 시기. 수집 값은 월만(`09`) 또는 연월(`2026-09`)이다. 같은 연도를 두 번
@@ -78,21 +58,6 @@ function budgetLabel(value: number | null): string {
   return value === null ? "값 없음" : `${formatNumber(value)}원`;
 }
 
-function kstMoment(value: string | null): string | null {
-  if (!value || Number.isNaN(Date.parse(value))) return null;
-  const parts = new Intl.DateTimeFormat("en-GB", {
-    timeZone: "Asia/Seoul",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    hourCycle: "h23",
-  }).formatToParts(new Date(value));
-  const part = (type: string) => parts.find((item) => item.type === type)?.value;
-  return `${part("year")}.${part("month")}.${part("day")} ${part("hour")}:${part("minute")} KST`;
-}
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -106,61 +71,6 @@ function isCandidatesResponse(value: unknown, noticeId: number): value is PreSpe
     && typeof item.opportunity_id === "number"
     && typeof item.tracking_status === "string"
     && Array.isArray(item.order_plans));
-}
-
-function isMergeConflictState(value: unknown): value is OpportunityMergeConflictState {
-  return isRecord(value)
-    && typeof value.id === "number"
-    && typeof value.tracking_status === "string"
-    && (value.tracking_selected_by === null || typeof value.tracking_selected_by === "string")
-    && (value.tracking_selected_at === null || typeof value.tracking_selected_at === "string")
-    && typeof value.recheck_signal === "boolean";
-}
-
-/**
- * 후보 수락 409 `candidate_merge_state_conflict`의 `details.opportunities[]`.
- * 분기는 typed code로만 한다. 코드는 맞는데 details 모양이 다르면 빈 목록으로 두고
- * 안내 문장만 남긴다 — 없는 사업기회를 지어내지 않는다.
- */
-function readMergeConflict(error: unknown): OpportunityMergeConflictState[] | null {
-  if (!(error instanceof ApiError) || error.status !== 409 || error.code !== "candidate_merge_state_conflict") return null;
-  const details = isRecord(error.detail) ? error.detail.details : null;
-  const opportunities = isRecord(details) && Array.isArray(details.opportunities) ? details.opportunities : [];
-  return opportunities.filter(isMergeConflictState);
-}
-
-interface MergeConflictNotice {
-  linkId: number;
-  opportunities: OpportunityMergeConflictState[];
-}
-
-function MergeConflictFeedback({ conflict }: { conflict: MergeConflictNotice }) {
-  return (
-    <MutationFeedback className="ps-plan-candidates-conflict" tone="error">
-      <strong className="mutation-feedback-title">병합할 수 없어 후보를 연결하지 않았습니다.</strong>
-      <p className="mutation-feedback-detail">
-        양쪽 모두 사람이 고른 추적 상태가 있어 병합할 수 없습니다. 사업 추적에서 한쪽의 추적 결정을 먼저 정리하세요.
-        <span className="mutation-feedback-code"> · 오류 코드 candidate_merge_state_conflict</span>
-      </p>
-      {conflict.opportunities.length > 0 ? (
-        <ul aria-label="병합할 수 없는 사업기회">
-          {conflict.opportunities.map((opportunity) => (
-            <li key={opportunity.id}>
-              <Link className="ps-ref" to={`/opportunities/${opportunity.id}`}>
-                사업 추적에서 사업기회 #{opportunity.id} 열기 →
-              </Link>
-              {" · 추적 "}{opportunity.tracking_status}
-              {" · 결정 기록자 "}{present(opportunity.tracking_selected_by, "미확인")}
-              {" · 결정 시각 "}{kstMoment(opportunity.tracking_selected_at) ?? "미확인"}
-              {" · 재검토 신호 "}{opportunity.recheck_signal ? "있음" : "없음"}
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p>충돌한 사업기회 정보가 응답에 없어 목록을 표시하지 않습니다.</p>
-      )}
-    </MutationFeedback>
-  );
 }
 
 function CandidateRow({
@@ -193,7 +103,7 @@ function CandidateRow({
           </div>
         ))}
         <p className="ps-plan-candidate-facts">
-          <span className="ps-chip ps-chip-neutral">대조 방식 · {strategyLabel(link.search_strategy)}</span>
+          <span className="ps-chip ps-chip-neutral">대조 방식 · {searchStrategyLabel(link.search_strategy)}</span>
           <span className={`ps-chip ${link.agency_match === false ? "ps-chip-warn" : "ps-chip-neutral"}`}>
             {agencyMatchLabel(link.agency_match)}
           </span>
@@ -213,7 +123,6 @@ export function OrderPlanCandidatesSection({ noticeId }: { noticeId: number }) {
   const headingId = `ps-plan-candidates-title-${useId()}`;
   const { toast, showToast, dismissToast } = useToast();
   const [active, setActive] = useState<PreSpecOrderPlanCandidate | null>(null);
-  const [conflict, setConflict] = useState<MergeConflictNotice | null>(null);
   const [dialogDirty, setDialogDirty] = useState(false);
 
   const candidatesQuery = useQuery({
@@ -233,20 +142,6 @@ export function OrderPlanCandidatesSection({ noticeId }: { noticeId: number }) {
     staleTime: 30_000,
   });
 
-  // `CandidateLinkDialog`는 판정 오류를 자기 안에서 일반 409 문구로만 보여 주고 부모에
-  // 알리지 않는다(그 컴포넌트는 이 작업의 소유가 아니다). 대화상자가 열린 동안에만
-  // mutation 오류를 듣고, 병합 충돌 typed code일 때 details를 이 구역에 남긴다.
-  const activeLinkId = active?.link.id ?? null;
-  useEffect(() => {
-    if (activeLinkId === null) return undefined;
-    return queryClient.getMutationCache().subscribe((event) => {
-      if (event.type !== "updated" || event.action.type !== "error") return;
-      const opportunities = readMergeConflict(event.action.error);
-      if (opportunities === null) return;
-      setConflict({ linkId: activeLinkId, opportunities });
-    });
-  }, [activeLinkId, queryClient]);
-
   // route 이동 확인(`useBlocker`)은 라우터당 하나만 동작하고 이 화면은 추적 결정 폼이
   // 이미 갖고 있다. 여기서 하나를 더 걸면 그 폼의 보호가 조용히 꺼지므로, 대화상자
   // 입력은 새로고침·창 닫기만 native 경고로 지킨다.
@@ -261,7 +156,6 @@ export function OrderPlanCandidatesSection({ noticeId }: { noticeId: number }) {
   }, [dialogDirty]);
 
   const openCandidate = (item: PreSpecOrderPlanCandidate) => {
-    setConflict(null);
     if (active?.link.id === item.link.id) {
       void ownerQuery.refetch();
       return;
@@ -270,7 +164,6 @@ export function OrderPlanCandidatesSection({ noticeId }: { noticeId: number }) {
   };
 
   const onSaved = (message: string) => {
-    setConflict(null);
     showToast(message);
     void queryClient.invalidateQueries({ queryKey: ["pre-spec-order-plan-candidates", noticeId] });
     void queryClient.invalidateQueries({ queryKey: ["pre-spec-detail"] });
@@ -324,7 +217,6 @@ export function OrderPlanCandidatesSection({ noticeId }: { noticeId: number }) {
     return frame(<p className="ps-cap ps-muted">발주계획 후보 없음 (자동 대조는 SW사업대상 사전규격에서만 합니다)</p>);
   }
 
-  const visibleConflict = conflict && items.some((item) => item.link.id === conflict.linkId) ? conflict : null;
   const owner = activeOwnerId !== null && ownerQuery.isSuccess
     && ownerQuery.data?.id === activeOwnerId && Array.isArray(ownerQuery.data.links)
     ? ownerQuery.data
@@ -347,7 +239,6 @@ export function OrderPlanCandidatesSection({ noticeId }: { noticeId: number }) {
         <h3 id={headingId} className="ps-sub">발주계획 후보 {items.length}건</h3>
         <p className="ps-cap ps-muted">공고명과 기관이 비슷한 발주계획입니다. 같은 사업인지 사람이 확인해야 연결됩니다.</p>
       </div>
-      {visibleConflict ? <MergeConflictFeedback conflict={visibleConflict} /> : null}
       <ul className="ps-plan-candidate-list">
         {items.map((item) => (
           <CandidateRow key={item.link.id} item={item} onConfirm={() => openCandidate(item)} />

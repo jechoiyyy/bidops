@@ -53,11 +53,11 @@ export function searchTargetLabel(target: OpportunitySearchTarget): LifecycleSta
 /**
  * `검색 미확인` 행이 어느 찾아보기 대상의 기록인지(spec §3.3 `search_target_kind`).
  *
- * DB 열은 있지만 현재 `OpportunityLinkView` 계약에는 실려 있지 않다. 값이 오면 읽고,
- * 오지 않으면 `null`(대상 미확인)로 둔다 — 화면이 대상을 추정해 채우지 않는다.
+ * 값이 오면 읽고, 없거나 모르는 값이면 `null`(대상 미확인)로 둔다 — 화면이 대상을
+ * 추정해 채우지 않는다.
  */
 export function searchTargetKindOf(link: OpportunityLinkView): OpportunitySearchTarget | null {
-  const value = (link as OpportunityLinkView & { search_target_kind?: unknown }).search_target_kind;
+  const value: unknown = link.search_target_kind;
   return value === "pre_spec" || value === "bid_notice" ? value : null;
 }
 

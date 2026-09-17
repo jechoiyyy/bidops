@@ -690,13 +690,40 @@ export async function mockBidDelta(page: Page, options: BidDeltaMockOptions = {}
       return;
     }
     if (pathname === "/api/opportunities/501/bid-conditions" && method === "GET") {
+      // 기본 공고 조건은 비교 대상 입찰공고(1102) 한 차수다. 서버처럼 `latest_notice_id`와
+      // `latest_observation_sha256`은 `bid_notices` 안의 그 차수를 가리킨다. 사업기회 501에는
+      // 확정 연결된 사전규격이 없어 서버와 같이 `pre_spec`은 null, 사전규격 대비는 빈 목록이다.
       await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({
         opportunity_id: 501,
         generated_at: "2026-08-31T09:03:00Z",
-        latest_notice_id: 1102,
+        latest_notice_id: bidDeltaComparison.notice_id,
         latest_observation_sha256: "e".repeat(64),
         pre_spec: null,
-        bid_notices: [],
+        bid_notices: [{
+          notice_id: bidDeltaComparison.notice_id,
+          bid_no: bidDeltaComparison.notice_external_id,
+          bid_ord: bidDeltaComparison.bid_ordinal,
+          published_at: bidDeltaComparison.published_at,
+          observation_sha256: "e".repeat(64),
+          conditions: {
+            budget: "150000000",
+            estimated_price: null,
+            deadline_at: "2026-09-10T10:00:00+09:00",
+            opening_at: "2026-09-10T11:00:00+09:00",
+            method: "일반경쟁",
+            participation_limited: "Y",
+            industry_limited: "Y",
+            sw_industry_1468: "N",
+            joint_contract_method: "공동이행",
+            successful_bid_method: "협상에의한계약",
+            technical_evaluation_rate: "90",
+            region_limit_basis: null,
+            joint_contract_regions: [],
+            change_reason: null,
+            re_notice: "N",
+          },
+          changes_from_previous: [],
+        }],
         pre_spec_comparison: [],
         not_comparable: ["deadline_at"],
       }) });
@@ -890,6 +917,40 @@ function mockActionReasons(item: OpportunityListItem): OpportunityListItem["acti
   return reasons;
 }
 
+const MOCK_DAY_MS = 24 * 60 * 60 * 1000;
+/** `hold_review=due_soon`의 창(일). 서버 `HOLD_REVIEW_DUE_SOON_DAYS`와 같다. */
+const MOCK_HOLD_DUE_SOON_DAYS = 3;
+
+/**
+ * Mock-server-only §7.3 `hold_review` 필터.
+ *
+ * - `overdue`: 행의 `action_reasons`에 `hold_overdue`가 있다(서버가 준 사유를 그대로 읽는다).
+ * - `due_soon`: `보류`이고 기한이 지나지 않았으며 `hold_review_due_at`이 기준 시각 뒤 3일 안이다
+ *   (서버의 `now < 기한 ≤ now + 3일`).
+ * - `attention`: 둘의 합집합.
+ *
+ * 기준 시각은 이 mock이 `mockActionReasons`에서 쓰는 것과 같은 `Date.now()`다. 고정 mock
+ * 시계가 따로 없으므로, 기한이 없는 `보류` 행은 어느 쪽에도 들지 않는다(서버도 선택 시각이
+ * 없는 보류는 기한을 계산하지 않는다). 모르는 값은 호출자가 422로 돌려준다.
+ */
+function mockHoldReviewMatches(item: OpportunityListItem, kind: "overdue" | "due_soon" | "attention", now = Date.now()): boolean {
+  const overdue = item.action_reasons.includes("hold_overdue");
+  const due = item.hold_review_due_at === null ? Number.NaN : Date.parse(item.hold_review_due_at);
+  const dueSoon = item.tracking_status === "보류" && !overdue
+    && Number.isFinite(due) && due > now && due <= now + MOCK_HOLD_DUE_SOON_DAYS * MOCK_DAY_MS;
+  if (kind === "overdue") return overdue;
+  if (kind === "due_soon") return dueSoon;
+  return overdue || dueSoon;
+}
+
+/** `sort=hold_review_due_at`: 기한 오름차순, 기한 없는 행은 마지막(서버와 같은 nulls last). */
+function compareHoldReviewDue(left: OpportunityListItem, right: OpportunityListItem): number {
+  const l = left.hold_review_due_at === null ? null : Date.parse(left.hold_review_due_at);
+  const r = right.hold_review_due_at === null ? null : Date.parse(right.hold_review_due_at);
+  if (l === null || r === null) return l === r ? 0 : l === null ? 1 : -1;
+  return l - r;
+}
+
 /** Mock-server transitions only; screens consume the explicit section projection.
  * §7.2: 미선택은 `신규 입찰공고`(입찰공고로 첫 등록)·`미결정`(그 밖)으로만 가고
  * `조치 필요`에는 가지 않는다. `계속 추적`·`보류`는 사유가 있어야, `종료`는
@@ -932,7 +993,15 @@ export async function mockOpportunity(page: Page): Promise<void> {
     const url = new URL(request.url());
     if (url.pathname === "/api/opportunities" && request.method() === "GET") {
       const search = url.searchParams;
-      let filtered = items.filter((item) => (!search.get("tracking_status") || item.tracking_status === search.get("tracking_status")) && (!search.get("first_registered_stage") || item.first_registered_stage === search.get("first_registered_stage")));
+      const holdReview = search.get("hold_review");
+      if (holdReview !== null && holdReview !== "overdue" && holdReview !== "due_soon" && holdReview !== "attention") {
+        await fulfillJson(route, { detail: "hold_review 값이 올바르지 않습니다" }, 422);
+        return;
+      }
+      // 서버처럼 hold_review는 목록·집계 모두에 걸리는 기본 조건이다.
+      let filtered = items.filter((item) => (!search.get("tracking_status") || item.tracking_status === search.get("tracking_status"))
+        && (!search.get("first_registered_stage") || item.first_registered_stage === search.get("first_registered_stage"))
+        && (holdReview === null || mockHoldReviewMatches(item, holdReview)));
       const section_counts: OpportunitySectionCounts = { "조치 필요": 0, "추적 중": 0, "보류": 0, "추적 종료": 0, "신규 입찰공고": 0, "미결정": 0 };
       const action_reason_counts: Record<string, number> = { new_link: 0, candidate_pending: 0, merge_confirmation: 0, blocking_item: 0, hold_overdue: 0 };
       for (const item of filtered) {
@@ -947,7 +1016,7 @@ export async function mockOpportunity(page: Page): Promise<void> {
       }
       if (search.get("sort") === "tracking_status") filtered.sort((a, b) => a.tracking_status.localeCompare(b.tracking_status));
       if (search.get("sort") === "first_registered_stage") filtered.sort((a, b) => a.first_registered_stage.localeCompare(b.first_registered_stage));
-      if (search.get("sort") === "hold_review_due_at") filtered.sort((a, b) => (a.hold_review_due_at ?? "").localeCompare(b.hold_review_due_at ?? "") || (a.hold_review_due_at === null ? 1 : b.hold_review_due_at === null ? -1 : 0));
+      if (search.get("sort") === "hold_review_due_at") filtered.sort(compareHoldReviewDue);
       const limit = Number(search.get("limit") ?? 50), offset = Number(search.get("offset") ?? 0);
       await fulfillJson(route, { items: filtered.slice(offset, offset + limit), total: filtered.length, limit, offset, section_counts, action_reason_counts });
       return;
