@@ -276,6 +276,7 @@ def test_worker_aggregation_and_final_decision_boundary(bid_delta_api):
     assert final.status_code == 201, final.text
     assert final.json()["claimed_name"] == "홍길동"
     # The comparison path keeps its fence and records the comparison basis (ADR-0058).
+    assert final.json()["schema_version"] == "bidops.bid-final-decision.v2"
     assert final.json()["basis_kind"] == "comparison"
     assert (final.json()["basis_notice_id"], final.json()["basis_observation_sha256"]) == (None, None)
     assert final.json()["comparison_id"] == str(completed.id)
@@ -570,6 +571,25 @@ def test_final_decision_rejects_malformed_actor_and_idempotency_conflict(bid_del
     assert conflict.status_code == 409
     assert conflict.json()["error"]["code"] == "idempotency_conflict"
     assert session.query(BidFinalDecision).count() == 1
+
+    # A receipt stored before ADR-0058 (v1, no basis fields) still replays, read as v2.
+    import copy
+
+    record = session.scalar(select(IdempotencyRecord).where(IdempotencyRecord.operation == "bid_final_decision"))
+    legacy = copy.deepcopy(record.response_snapshot)
+    for key in ("basis_kind", "basis_notice_id", "basis_observation_sha256"):
+        legacy.pop(key)
+    legacy["schema_version"] = "bidops.bid-final-decision.v1"
+    record.response_snapshot = legacy
+    session.commit()
+    session.expire_all()
+    stored = session.scalar(
+        select(IdempotencyRecord.response_snapshot).where(IdempotencyRecord.operation == "bid_final_decision")
+    )
+    assert stored["schema_version"] == "bidops.bid-final-decision.v1"
+    upgraded = client.post(url, json=_decision_payload(completed, baseline, comparison, request_id=str(request_id)), headers=headers)
+    assert upgraded.status_code == 201, upgraded.text
+    assert upgraded.json() == first.json()
 
 
 def test_new_authoritative_bid_notice_makes_the_comparison_stale(bid_delta_api):

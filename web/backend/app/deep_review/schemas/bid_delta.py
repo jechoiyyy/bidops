@@ -135,7 +135,10 @@ class BidDeltaAttemptView(BidDeltaModel):
 
 
 class BidFinalDecisionView(BidDeltaModel):
-    schema_version: Literal["bidops.bid-final-decision.v1"]
+    # v2 (ADR-0058): basis_kind·basis_* added and the comparison fields became
+    # nullable. Stored v1 replay receipts are upgraded on read, see
+    # ``services.bid_delta.final_decision_receipt``.
+    schema_version: Literal["bidops.bid-final-decision.v2"]
     id: UUID
     opportunity_id: int = Field(ge=1)
     sequence: int = Field(ge=1)
@@ -315,6 +318,11 @@ class BidConditionPreSpecChange(BidDeltaModel):
 class BidConditionsView(BidDeltaModel):
     opportunity_id: int = Field(ge=1)
     generated_at: datetime
+    # The exact fence a notice-conditions final decision must submit. Both are
+    # null when there is no authoritative bid notice or the latest one cannot be
+    # determined; the observation hash is also null when that notice has none.
+    latest_notice_id: int | None = Field(ge=1)
+    latest_observation_sha256: str | None = Field(pattern=r"^[0-9a-f]{64}$")
     pre_spec: BidConditionPreSpec | None
     bid_notices: list[BidConditionNotice]
     pre_spec_comparison: list[BidConditionPreSpecChange]

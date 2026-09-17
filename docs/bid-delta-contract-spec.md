@@ -43,6 +43,7 @@ table은 migration `0015_bid_delta_final_decision`과 `0028_final_decision_basis
 | 비교 조회 | `bidops.bid-delta-comparison.v1` |
 | attempt 생성 요청 | `bidops.bid-delta-attempt-create.v1` |
 | 최종 결정 생성 요청 | `bidops.bid-final-decision-create.v1` |
+| 최종 결정 조회(생성 응답, workspace·비교 조회의 결정) | `bidops.bid-final-decision.v2` |
 
 모든 response field는 명시적으로 필수다. `?`로 표시한 field만 필수 nullable이며, `optional`로
 표시하지 않은 field는 생략할 수 없다. UUID, date, timezone-aware datetime은 JSON string이다.
@@ -418,6 +419,7 @@ actor header와 `BidFinalDecisionCreateRequest`를 요구한다. `decision`은 A
 
 ```json
 {
+  "schema_version": "bidops.bid-final-decision.v2",
   "id": "aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa",
   "opportunity_id": 17,
   "sequence": 1,
@@ -455,7 +457,12 @@ actor header와 `BidFinalDecisionCreateRequest`를 요구한다. `decision`은 A
 
 `BidFinalDecisionView`는 두 근거가 같은 shape를 쓴다. `basis_kind=comparison`이면 비교 5열이 차
 있고 `basis_notice_id`·`basis_observation_sha256`이 `null`이며, `notice_conditions`면 그 반대다.
-`schema_version`은 `bidops.bid-final-decision.v1` 그대로다.
+비교 필드가 필수에서 nullable로 바뀌고 basis 필드가 더해졌으므로 `schema_version`은
+`bidops.bid-final-decision.v2`다(ADR-0058). 저장된 결정 row는 언제나 v2로 읽는다. `0028` 이전에 저장된
+v1 idempotency 응답을 재생하면 `basis_kind=comparison`·basis 2열 `null`을 더한 v2로 돌려주며 ID·결정·
+사유·시각은 저장 값 그대로다. 이 view를 품는 workspace(`bidops.bid-delta-workspace.v1`)와 비교 조회
+(`bidops.bid-delta-comparison.v1`)는 자기 필드가 바뀌지 않아 version을 유지한다. 품은 결정 객체가 자기
+`schema_version`을 갖는다.
 
 ### 3.8 공고 조건 요약
 
@@ -469,6 +476,8 @@ GET /api/opportunities/{opportunity_id}/bid-conditions
 {
   "opportunity_id": 17,
   "generated_at": "2026-09-17T09:00:00Z",
+  "latest_notice_id": 41,
+  "latest_observation_sha256": "aaaa…(64 hex)",
   "pre_spec": {"notice_id": 40, "title": "스마트 행정 시스템 구축", "agency": "발주기관", "budget": "150000000"},
   "bid_notices": [
     {
@@ -494,7 +503,11 @@ GET /api/opportunities/{opportunity_id}/bid-conditions
 ```
 
 - `bid_notices`는 active opportunity의 authoritative 입찰공고를 `bid_no`, `bid_ord`(10진이면 수치)
-  순으로 나열한다. 후보·기각 링크는 제외한다.
+  순으로 나열한다. 후보·기각 링크는 제외한다. 이 순서는 표시용이며 최신 차수를 뜻하지 않는다.
+- `latest_notice_id`·`latest_observation_sha256`은 §3.9 결정 endpoint가 검사하는 것과 같은 함수로
+  계산한 fence다(최신 = `published_at`, 같으면 10진 `bid_ord`). authoritative 입찰공고가 없거나
+  최신을 확정할 수 없으면 둘 다 `null`이고, 최신 공고에 관측 hash가 없으면 hash만 `null`이다. client는
+  이 두 값을 그대로 `expected_notice_id`·`expected_observation_sha256`으로 보낸다.
 - 값 출처: `budget`·`estimated_price`·`deadline_at`·`method`는 `notice` 열, `opening_at`·
   `change_reason`·`re_notice`는 `lifecycle_json`, 자격 여섯 키는 `qualification_flags_json`,
   `region_limit_basis`·`joint_contract_regions`는 `region_limit_json`의 `basis`·

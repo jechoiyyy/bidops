@@ -71,6 +71,8 @@ BASELINE_DOCUMENT_ROLES = ("제안요청서", "과업지시서", "내역서", "�
 COMPARISON_DOCUMENT_ROLES = ("공고", "정정", "제안요청서", "과업지시서", "내역서", "제출서식")
 
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
+FINAL_DECISION_SCHEMA_VERSION = "bidops.bid-final-decision.v2"
+_FINAL_DECISION_SCHEMA_V1 = "bidops.bid-final-decision.v1"
 _SAFE_ERROR_CODE = re.compile(r"^[a-z0-9][a-z0-9_.-]{0,127}$")
 _LOCAL_HOSTS = {"localhost", "127.0.0.1", "::1"}
 
@@ -162,6 +164,25 @@ def _is_authoritative(link: OpportunityLink) -> bool:
             )
         )
     )
+
+
+def final_decision_receipt(snapshot: dict[str, Any]) -> dict[str, Any]:
+    """Read a stored final-decision replay receipt in the current v2 shape.
+
+    Every v1 receipt predates ADR-0058 and therefore recorded a comparison
+    basis, so the upgrade only adds the basis marker and its empty notice
+    fence. Identity, decision, reason, and timestamps stay exactly as stored.
+    """
+
+    if snapshot.get("schema_version") != _FINAL_DECISION_SCHEMA_V1:
+        return snapshot
+    return {
+        **snapshot,
+        "schema_version": FINAL_DECISION_SCHEMA_VERSION,
+        "basis_kind": "comparison",
+        "basis_notice_id": None,
+        "basis_observation_sha256": None,
+    }
 
 
 def _request_hash(payload: Any) -> str:
@@ -748,7 +769,7 @@ class BidDeltaService:
         if decision is None:
             return None
         return {
-            "schema_version": "bidops.bid-final-decision.v1",
+            "schema_version": FINAL_DECISION_SCHEMA_VERSION,
             "id": decision.id,
             "opportunity_id": decision.opportunity_id,
             "sequence": decision.sequence,
@@ -1389,7 +1410,7 @@ class BidDeltaService:
             )
             if duplicate is not None:
                 session.commit()
-                return duplicate
+                return final_decision_receipt(duplicate)
             basis, currentness, reasons = resolve_basis(opportunity, locked)
             latest = session.scalar(
                 select(BidFinalDecision)
@@ -1471,7 +1492,7 @@ class BidDeltaService:
             )
             if duplicate is not None:
                 session.commit()
-                return duplicate
+                return final_decision_receipt(duplicate)
             raise _error("final_decision_supersession_conflict", "동시에 다른 최종 결정이 생성되었습니다", status_code=409, request_id=request_id) from exc
         except Exception as exc:
             session.rollback()
@@ -1590,6 +1611,7 @@ __all__ = [
     "BASELINE_DOCUMENT_ROLES",
     "BID_DELTA_CATEGORIES",
     "COMPARISON_DOCUMENT_ROLES",
+    "FINAL_DECISION_SCHEMA_VERSION",
     "SUPPORTED_CATEGORY_POLICY_VERSIONS",
     "BidDeltaService",
     "BidDeltaServiceError",

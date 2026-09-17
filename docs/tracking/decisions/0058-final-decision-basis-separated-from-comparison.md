@@ -86,8 +86,12 @@ item·evidence의 권한은 바꾸지 않는다.
   downgrade는 `notice_conditions` 행이 하나라도 있으면 거부한다.
 - 새 차수·정정이 적재되거나 기준 공고의 관측 내용이 바뀌면 결정은 `stale`로 표시되고 결정 큐에 다시
   올라온다.
-- 최종 결정 응답(`bidops.bid-final-decision.v1`)에 `basis_kind`·`basis_notice_id`·
-  `basis_observation_sha256`이 더해지고 비교 필드는 nullable이 된다. 화면 소비자는 후속 단계에서 갱신한다.
+- 최종 결정 응답은 `bidops.bid-final-decision.v2`다. `basis_kind`·`basis_notice_id`·
+  `basis_observation_sha256`이 더해지고 비교 필드는 nullable이 된다. 저장된 v1 재생 응답은 비교 근거로
+  읽어 v2로 돌려준다. 화면 소비자는 후속 단계에서 갱신한다.
+- 공고 조건 요약은 결정 endpoint와 같은 함수로 계산한 `latest_notice_id`·`latest_observation_sha256`을
+  함께 준다. 표시 순서(`bid_no`·`bid_ord`)와 최신 판정(`published_at`·`bid_ord`)이 달라도 client가
+  보낼 fence는 하나다.
 - 비교 근거 경로는 app role에서 여전히 실행되지 않는다(비교 행 INSERT·잠금 권한 없음). 비교 worker를
   구현할 때 그 권한을 함께 검토한다.
 - 상세 wire shape·제약·오류 표는 [입찰 delta 계약 명세](../../bid-delta-contract-spec.md)와
