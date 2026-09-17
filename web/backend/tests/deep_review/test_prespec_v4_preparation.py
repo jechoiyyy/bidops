@@ -39,6 +39,7 @@ from app.deep_review.services.overview_range import (
 from app.deep_review.services.pdf_snapshot import (
     _NATIVE_REFERENCE_FIELDS,
     _validate_native_references,
+    choose_rfp_document,
     prepare_v4_pdf_snapshot,
     read_snapshot_section_candidates,
 )
@@ -732,3 +733,29 @@ def test_range_review_manifest_binds_the_candidate_list_without_titles():
     with pytest.raises(V4PreparationError) as error:
         build_v4_range_review_manifest(selection, candidates_sha256="not-a-digest")
     assert error.value.code == "section_candidates_invalid"
+
+
+@pytest.mark.parametrize(
+    ("filenames", "expected_index", "expected_reason_code"),
+    [
+        (["제안요청서.hwp"], 0, None),
+        (["과업지시서.hwp"], 0, None),
+        (["과업지시서.hwp", "제안요청서.hwp"], 1, None),
+        (["과업지시서(1).hwp", "과업지시서(2).hwp"], None, "ambiguous_rfp_filename"),
+        (["붙임1.hwp", "붙임2.hwp"], None, "rfp_filename_missing"),
+        (["과 업 지 시 서.hwp"], 0, None),
+    ],
+)
+def test_choose_rfp_document_prefers_rfp_then_falls_back_to_task_order(
+    filenames: list[str], expected_index: int | None, expected_reason_code: str | None,
+) -> None:
+    """제안요청서가 우선이고, 없을 때만 과업지시서로 내려간다 (2026-09-17 사용자 결정)."""
+
+    documents = [SimpleNamespace(original_filename=name) for name in filenames]
+    selection = choose_rfp_document(documents)
+    if expected_index is None:
+        assert selection.document is None
+        assert selection.reason_code == expected_reason_code
+    else:
+        assert selection.document is documents[expected_index]
+        assert selection.reason_code is None
