@@ -934,14 +934,36 @@ def _meaningful_heading(text: object, *, toc: bool = False) -> bool:
 
 
 
+def _normalise_filename_label(original_filename: object) -> str | None:
+    """NFKC + casefold + 공백 제거한 파일명. 문자열이 아니면 ``None``.
+
+    `_filename_document_candidate`·`_filename_task_order_candidate`가 같은
+    정규화를 공유하도록 한 곳에 둔다.
+    """
+
+    if not isinstance(original_filename, str):
+        return None
+    value = unicodedata.normalize("NFKC", original_filename).casefold()
+    return _WHITESPACE.sub("", value)
+
+
 def _filename_document_candidate(original_filename: object) -> bool:
     """Match the Korean RFP filename label, allowing formatting whitespace."""
 
-    if not isinstance(original_filename, str):
-        return False
-    value = unicodedata.normalize("NFKC", original_filename).casefold()
-    compact = _WHITESPACE.sub("", value)
-    return "제안요청서" in compact
+    compact = _normalise_filename_label(original_filename)
+    return compact is not None and "제안요청서" in compact
+
+
+def _filename_task_order_candidate(original_filename: object) -> bool:
+    """Match the Korean task-order (과업지시서) filename label.
+
+    Same normalisation as `_filename_document_candidate`; used only as a
+    fallback input document when no 제안요청서 candidate exists
+    (2026-09-17 user decision).
+    """
+
+    compact = _normalise_filename_label(original_filename)
+    return compact is not None and "과업지시서" in compact
 
 
 __all__ = [
