@@ -1035,6 +1035,42 @@
 
 /* ---- 처리 이력과 접힌 진단 줄 ----------------------------------------- */
 .ps-record .ps-record-history { display: flex; flex-direction: column; gap: var(--spacing-3); min-width: 0; scroll-margin-top: var(--spacing-3); }
+
+/* ⑥ 발주계획 후보 (docs/0917_opportunity-tracking/spec.md §11.4). 후보는 조밀한 행이며
+   카드로 감싸지 않는다. 기관 불일치는 색과 함께 `기관 불일치` 글자로 말한다. */
+.ps-record .ps-plan-candidates { display: grid; gap: var(--spacing-2); min-width: 0; scroll-margin-top: var(--spacing-3); }
+.ps-record .ps-plan-candidates p { margin: 0; }
+.ps-record .ps-plan-candidates-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--spacing-1) var(--spacing-3); min-width: 0; }
+.ps-record .ps-plan-candidates-head .ps-sub { margin: 0; }
+.ps-record .ps-plan-candidate-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: var(--border-width) solid var(--ps-line);
+}
+.ps-record .ps-plan-candidate {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--spacing-4);
+  min-width: 0;
+  padding: calc(var(--spacing-2) + var(--spacing-0-5)) 0;
+  border-bottom: var(--border-width) solid var(--ps-line);
+}
+.ps-record .ps-plan-candidate-body { display: grid; gap: var(--spacing-1-5); min-width: 0; }
+.ps-record .ps-plan-candidate-plan { display: grid; gap: var(--spacing-0-5); min-width: 0; }
+.ps-record .ps-plan-candidate-title { font-weight: 600; overflow-wrap: anywhere; }
+.ps-record .ps-plan-candidate-meta {
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+  line-height: var(--bo-type-caption-leading);
+  overflow-wrap: anywhere;
+}
+.ps-record .ps-plan-candidate-facts { display: flex; flex-wrap: wrap; align-items: center; gap: var(--spacing-1-5) var(--spacing-2); }
+.ps-record .ps-plan-candidates-conflict ul { display: grid; gap: var(--spacing-1); margin: var(--spacing-1) 0 0; padding: 0; list-style: none; }
+.ps-record .ps-plan-candidates-conflict li { font-size: var(--bo-type-caption); line-height: var(--bo-type-caption-leading); overflow-wrap: anywhere; }
 .ps-record .ps-collapsed > .astryx-collapsible { gap: var(--spacing-3); }
 .ps-record .ps-collapsed .astryx-collapsible-trigger {
   justify-content: space-between;
