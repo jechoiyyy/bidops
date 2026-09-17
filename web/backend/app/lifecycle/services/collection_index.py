@@ -32,6 +32,7 @@ SELECTION_REASONS = (
     "order_plan_all",
     "pre_spec_sw",
     "pre_spec_referenced",
+    "pre_spec_known",
     "bid_same_notice_no",
     "bid_tracked_reference",
     "bid_sw_prespec_reference",
@@ -43,7 +44,7 @@ SELECTION_REASONS = (
 #: 통계에 늘 싣는 원천별 사유. 추적 보충·찾아보기 사유는 실제로 쓰인 회차에만 나온다.
 STATS_REASONS: dict[str, tuple[str, ...]] = {
     "order_plan": ("order_plan_all",),
-    "pre_spec": ("pre_spec_sw", "pre_spec_referenced"),
+    "pre_spec": ("pre_spec_sw", "pre_spec_referenced", "pre_spec_known"),
     "bid_notice": (
         "bid_same_notice_no",
         "bid_tracked_reference",

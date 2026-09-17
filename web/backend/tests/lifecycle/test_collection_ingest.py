@@ -22,9 +22,11 @@ from app.lifecycle import SCREENING_COMMON_NOTICE_KEYS, ingest_run, screening_in
 from app.lifecycle.ingest import cli
 from app.lifecycle.ingest.contracts import NoticeContract
 from app.lifecycle.ingest.loader import _upsert_notice, tracked_backfill
+from app.core.models import AuditEvent
 from app.lifecycle.models import (
     CollectedRecordIndex,
     CollectedRecordToken,
+    IngestWarning,
     Notice,
     NoticeObservation,
     Opportunity,
@@ -386,7 +388,7 @@ def test_every_record_is_indexed_once_and_a_rerun_is_a_no_op(tmp_path, empty_ext
             "order_plan": {"collected": 2, "selected": {"order_plan_all": 2}, "skipped": 0},
             "pre_spec": {
                 "collected": 2,
-                "selected": {"pre_spec_sw": 1, "pre_spec_referenced": 0},
+                "selected": {"pre_spec_sw": 1, "pre_spec_referenced": 0, "pre_spec_known": 0},
                 "skipped": 1,
             },
             "bid_notice": {
@@ -517,7 +519,11 @@ def test_each_selection_reason_and_its_precedence(tmp_path, empty_extensions):
             },
             "skipped": 0,
         }
-        assert run2.selection["pre_spec"]["selected"] == {"pre_spec_sw": 1, "pre_spec_referenced": 0}
+        assert run2.selection["pre_spec"]["selected"] == {
+            "pre_spec_sw": 1,
+            "pre_spec_referenced": 0,
+            "pre_spec_known": 0,
+        }
         tokens = set(session.scalars(select(CollectedRecordToken.token)))
         assert {f"{BID_PLAN_TOKEN}000", BID_PRESPEC_TOKEN} <= tokens
 
@@ -549,7 +555,7 @@ def test_null_or_non_competitive_conditions_never_select(tmp_path, empty_extensi
         assert result.notices == 0
         assert result.selection["pre_spec"] == {
             "collected": 1,
-            "selected": {"pre_spec_sw": 0, "pre_spec_referenced": 0},
+            "selected": {"pre_spec_sw": 0, "pre_spec_referenced": 0, "pre_spec_known": 0},
             "skipped": 1,
         }
         assert result.selection["bid_notice"]["collected"] == 6
@@ -741,6 +747,185 @@ def test_tracked_backfill_loads_an_index_only_bid_after_tracking_starts(tmp_path
         assert [item.run_id for item in bid.observations] == [ingested.run_id]
         assert _owner(session, notice=bid).id == opportunity.id
         assert tracked_backfill(session, runs_root=run_dir.parent)["passes"] == 0
+
+
+PLAN_TOKEN_TRACKED = "R26DD20856001"
+PRE_TOKEN = "R26BD00276001"
+BID_TOKEN_PLAN = "R26BK01697001"
+BID_TOKEN_PRE = "R26BK01697002"
+
+
+def test_collection_links_official_tokens_and_bid_orders_and_signals_the_tracked_owner(
+    tmp_path, empty_extensions
+):
+    run1_dir = _write_run(
+        tmp_path,
+        "lifecycle-20260915-notices",
+        generated_at="2026-09-15T00:00:00+00:00",
+        plans=[_plan(PLAN_TOKEN_TRACKED, bid_ntice_no_list=f"{BID_TOKEN_PLAN}000")],
+        notices=[_pre_spec(PRE_TOKEN, sw="Y", bid_ntice_no_list=BID_TOKEN_PRE)],
+    )
+    run2_dir = _write_run(
+        tmp_path,
+        "lifecycle-20260916-notices",
+        notices=[
+            # no orderPlanUntyNo: the tracked plan's token names it
+            _bid(BID_TOKEN_PLAN, "000"),
+            # another order of the same bid number, no key at all
+            _bid(BID_TOKEN_PLAN, "001"),
+            # no bfSpecRgstNo: the SW pre-spec's token names its bid number
+            _bid(BID_TOKEN_PRE, "000", sw_industry_1468="Y"),
+        ],
+    )
+    with _session() as session:
+        ingest_run(run1_dir, session, selection="collection")
+        plan = session.scalar(select(OrderPlan).where(OrderPlan.order_plan_unty_no == PLAN_TOKEN_TRACKED))
+        plan_owner = _owner(session, order_plan=plan)
+        _track(session, plan_owner, "계속 추적")
+        pre_spec = _notice(session, f"pre:{PRE_TOKEN}")
+        pre_spec_owner = _owner(session, notice=pre_spec)
+
+        run2 = ingest_run(run2_dir, session, selection="collection")
+
+        reasons = {key: row.selection_reason for key, row in _index_rows(session, run2.run_id).items()}
+        assert reasons == {
+            f"bid:{BID_TOKEN_PLAN}:000": "bid_tracked_reference",
+            f"bid:{BID_TOKEN_PLAN}:001": "bid_same_notice_no",
+            f"bid:{BID_TOKEN_PRE}:000": "bid_sw_industry_competitive",
+        }
+        first_order = _notice(session, f"bid:{BID_TOKEN_PLAN}:000")
+        second_order = _notice(session, f"bid:{BID_TOKEN_PLAN}:001")
+        assert _owner(session, notice=first_order).id == plan_owner.id
+        assert _owner(session, notice=second_order).id == plan_owner.id
+        session.refresh(plan_owner)
+        assert plan_owner.tracking_status == "계속 추적"
+        assert plan_owner.recheck_signal_at is not None
+        assert plan_owner.recheck_signal_at.tzinfo is not None
+        signal_link = session.get(OpportunityLink, plan_owner.recheck_signal_link_id)
+        assert signal_link.notice_id in {first_order.id, second_order.id}
+        signaled_links = [
+            event.safe_metadata["link_id"]
+            for event in session.scalars(
+                select(AuditEvent).where(
+                    AuditEvent.action == "opportunity.recheck_signal.created",
+                    AuditEvent.aggregate_id == str(plan_owner.id),
+                )
+            )
+        ]
+        assert len(signaled_links) == 2 and signal_link.id in signaled_links
+
+        pre_bid = _notice(session, f"bid:{BID_TOKEN_PRE}:000")
+        assert _owner(session, notice=pre_bid).id == pre_spec_owner.id
+        pre_link = session.scalars(
+            select(OpportunityLink).where(
+                OpportunityLink.notice_id == pre_spec.id,
+                authoritative_link_predicate(OpportunityLink),
+            )
+        ).one()
+        assert (pre_link.evidence_external_no, pre_link.evidence_bid_no) == (PRE_TOKEN, BID_TOKEN_PRE)
+        session.refresh(pre_spec_owner)
+        assert pre_spec_owner.recheck_signal_at is None
+        assert not any(item["code"].startswith("opportunity_") for item in run2.warnings)
+
+
+def test_collection_refused_merge_keeps_the_bid_owned_and_asks_both_people(
+    tmp_path, empty_extensions
+):
+    plan_no = "R26DD20857001"
+    pre_no = "R26BD00277001"
+    bid_key = "bid:R26BK01698001:000"
+    run1_dir = _write_run(
+        tmp_path,
+        "lifecycle-20260915-notices",
+        generated_at="2026-09-15T00:00:00+00:00",
+        plans=[_plan(plan_no)],
+        notices=[_pre_spec(pre_no, sw="Y")],
+    )
+    run2_dir = _write_run(
+        tmp_path,
+        "lifecycle-20260916-notices",
+        notices=[_bid("R26BK01698001", order_plan_no=plan_no, pre_spec_no=pre_no)],
+    )
+    with _session() as session:
+        ingest_run(run1_dir, session, selection="collection")
+        plan_owner = _owner(session, order_plan=session.scalar(select(OrderPlan)))
+        pre_spec_owner = _owner(session, notice=_notice(session, f"pre:{pre_no}"))
+        _track(session, plan_owner, "계속 추적")
+        _track(session, pre_spec_owner, "보류")
+
+        run2 = ingest_run(run2_dir, session, selection="collection")
+
+        assert _index_rows(session, run2.run_id)[bid_key].selection_reason == "bid_tracked_reference"
+        bid = _notice(session, bid_key)
+        bid_owner = _owner(session, notice=bid)
+        assert bid_owner.id not in {plan_owner.id, pre_spec_owner.id}
+        candidates = session.scalars(
+            select(OpportunityLink).where(OpportunityLink.search_strategy == "merge_confirmation")
+        ).all()
+        assert sorted((item.opportunity_id, item.notice_id, item.status) for item in candidates) == sorted(
+            [
+                (plan_owner.id, bid.id, "후보 확인 대기"),
+                (pre_spec_owner.id, bid.id, "후보 확인 대기"),
+            ]
+        )
+        codes = [item["code"] for item in run2.warnings]
+        assert codes.count("opportunity_merge_confirmation_required") == 1
+        assert "opportunity_merge_state_conflict" not in codes
+        for owner in (plan_owner, pre_spec_owner):
+            session.refresh(owner)
+            assert owner.merged_into_opportunity_id is None and owner.recheck_signal_at is None
+
+
+def test_known_pre_spec_is_refreshed_and_its_tokens_attach_stored_bids(tmp_path, empty_extensions):
+    pre_no = "R26BD00278001"
+    keyed_bid = "R26BK01699001"
+    token_bid = "R26BK01699002"
+    run1_dir = _write_run(
+        tmp_path,
+        "lifecycle-20260915-notices",
+        generated_at="2026-09-15T00:00:00+00:00",
+        notices=[
+            _pre_spec(pre_no, sw="N", title="첫 관측 사전규격"),
+            _bid(keyed_bid, pre_spec_no=pre_no, sw_industry_1468="Y"),
+            _bid(token_bid, sw_industry_1468="Y"),
+        ],
+    )
+    run2_dir = _write_run(
+        tmp_path,
+        "lifecycle-20260916-notices",
+        notices=[_pre_spec(pre_no, sw="N", title="다시 관측한 사전규격", bid_ntice_no_list=token_bid)],
+    )
+    with _session() as session:
+        run1 = ingest_run(run1_dir, session, selection="collection")
+        assert _index_rows(session, run1.run_id)[f"pre:{pre_no}"].selection_reason == "pre_spec_referenced"
+        pre_spec = _notice(session, f"pre:{pre_no}")
+        token_notice = _notice(session, f"bid:{token_bid}:000")
+        assert _owner(session, notice=token_notice).id != _owner(session, notice=pre_spec).id
+
+        run2 = ingest_run(run2_dir, session, selection="collection")
+
+        row = _index_rows(session, run2.run_id)[f"pre:{pre_no}"]
+        assert row.selection_reason == "pre_spec_known"
+        assert row.ingested_notice_id == pre_spec.id
+        assert run2.selection["pre_spec"] == {
+            "collected": 1,
+            "selected": {"pre_spec_sw": 0, "pre_spec_referenced": 0, "pre_spec_known": 1},
+            "skipped": 0,
+        }
+        session.refresh(pre_spec)
+        assert pre_spec.title == "다시 관측한 사전규격"
+        assert sorted(item.run_id for item in pre_spec.observations) == sorted([run1.run_id, run2.run_id])
+        # The re-observed token list joins the stored bid without bfSpecRgstNo.
+        assert _owner(session, notice=token_notice).id == _owner(session, notice=pre_spec).id
+        assert _owner(session, notice=_notice(session, f"bid:{keyed_bid}:000")).id == _owner(
+            session, notice=pre_spec
+        ).id
+        assert session.scalar(select(func.count()).select_from(IngestWarning).where(
+            IngestWarning.run_id == run2.run_id,
+            IngestWarning.code.in_(
+                ["opportunity_link_reference_ambiguous", "opportunity_merge_confirmation_required"]
+            ),
+        )) == 0
 
 
 @pytest.mark.parametrize(
