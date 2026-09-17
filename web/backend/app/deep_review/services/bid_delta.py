@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections import Counter
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 import hashlib
@@ -42,6 +42,13 @@ from ..schemas.bid_delta import (
     BidDeltaInputFence,
     BidDeltaWorkspaceView,
     BidFinalDecisionCreateRequest,
+    BidNoticeFinalDecisionCreateRequest,
+)
+from .bid_delta_currentness import (
+    authoritative_bid_notices,
+    decision_currentness as decision_currentness_for,
+    latest_bid_notice,
+    latest_observation_hashes,
 )
 from .document_bundles import BundleServiceError, validate_actor
 
@@ -64,6 +71,8 @@ BASELINE_DOCUMENT_ROLES = ("제안요청서", "과업지시서", "내역서", "�
 COMPARISON_DOCUMENT_ROLES = ("공고", "정정", "제안요청서", "과업지시서", "내역서", "제출서식")
 
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
+FINAL_DECISION_SCHEMA_VERSION = "bidops.bid-final-decision.v2"
+_FINAL_DECISION_SCHEMA_V1 = "bidops.bid-final-decision.v1"
 _SAFE_ERROR_CODE = re.compile(r"^[a-z0-9][a-z0-9_.-]{0,127}$")
 _LOCAL_HOSTS = {"localhost", "127.0.0.1", "::1"}
 
@@ -155,6 +164,25 @@ def _is_authoritative(link: OpportunityLink) -> bool:
             )
         )
     )
+
+
+def final_decision_receipt(snapshot: dict[str, Any]) -> dict[str, Any]:
+    """Read a stored final-decision replay receipt in the current v2 shape.
+
+    Every v1 receipt predates ADR-0058 and therefore recorded a comparison
+    basis, so the upgrade only adds the basis marker and its empty notice
+    fence. Identity, decision, reason, and timestamps stay exactly as stored.
+    """
+
+    if snapshot.get("schema_version") != _FINAL_DECISION_SCHEMA_V1:
+        return snapshot
+    return {
+        **snapshot,
+        "schema_version": FINAL_DECISION_SCHEMA_VERSION,
+        "basis_kind": "comparison",
+        "basis_notice_id": None,
+        "basis_observation_sha256": None,
+    }
 
 
 def _request_hash(payload: Any) -> str:
@@ -624,10 +652,16 @@ class BidDeltaService:
         currentness_reasons = ["no_final_decision"]
         if decisions:
             latest_decision = decisions[-1]
-            latest_comparison = session.get(BidDeltaComparison, latest_decision.comparison_id)
-            if latest_comparison is None:
-                raise _error("bid_delta_projection_unavailable", "입찰 delta 조회를 사용할 수 없습니다", status_code=503)
-            decision_currentness, currentness_reasons = self._currentness(session, latest_comparison)
+            comparisons_for_decision = None
+            if latest_decision.basis_kind == "comparison":
+                latest_comparison = session.get(BidDeltaComparison, latest_decision.comparison_id)
+                if latest_comparison is None:
+                    raise _error("bid_delta_projection_unavailable", "입찰 delta 조회를 사용할 수 없습니다", status_code=503)
+                comparisons_for_decision = [latest_comparison]
+            # 공고 조건 근거 결정은 비교가 없다. 근거별 현재성은 한 규칙이 계산한다.
+            decision_currentness, currentness_reasons = decision_currentness_for(
+                session, [opportunity.id], [latest_decision], comparisons=comparisons_for_decision
+            )[latest_decision.id]
         comparison_views = [self._comparison_summary(session, row) for row in comparisons]
         latest_view = self._decision_view(latest_decision, decision_currentness, currentness_reasons) if latest_decision else None
         return _jsonable(
@@ -735,15 +769,18 @@ class BidDeltaService:
         if decision is None:
             return None
         return {
-            "schema_version": "bidops.bid-final-decision.v1",
+            "schema_version": FINAL_DECISION_SCHEMA_VERSION,
             "id": decision.id,
             "opportunity_id": decision.opportunity_id,
             "sequence": decision.sequence,
+            "basis_kind": decision.basis_kind,
             "comparison_id": decision.comparison_id,
             "comparison_version": decision.comparison_version,
             "result_sha256": decision.result_sha256,
             "baseline_document_version_id": decision.baseline_document_version_id,
             "comparison_document_version_id": decision.comparison_document_version_id,
+            "basis_notice_id": decision.basis_notice_id,
+            "basis_observation_sha256": decision.basis_observation_sha256,
             "supersedes_final_decision_id": decision.supersedes_final_decision_id,
             "decision": decision.decision,
             "reason": decision.reason,
@@ -1325,53 +1362,56 @@ class BidDeltaService:
             session.rollback()
             raise _error("processing_failed", "입찰 delta 작업을 완료할 수 없습니다", status_code=500) from exc
 
-    def record_final_decision(
+    def _final_decision_request(
         self,
-        session: Session,
-        opportunity_id: int,
-        comparison_id: UUID,
-        payload: BidFinalDecisionCreateRequest,
+        payload: BidFinalDecisionCreateRequest | BidNoticeFinalDecisionCreateRequest,
         actor: str | None,
-        actor_format: str | None = None,
-    ) -> dict[str, Any]:
+        actor_format: str | None,
+    ) -> tuple[str, str]:
+        """Actor, reason, decision value, and the idempotency payload hash."""
+
         claimed_name = self._actor(actor, actor_format, payload.request_id)
         if not payload.reason.strip():
             raise _error("final_decision_reason_required", "최종 결정 사유가 필요합니다", status_code=400, request_id=payload.request_id)
         if payload.decision not in {"go", "no_go"}:
             raise _error("final_decision_value_invalid", "최종 결정 값이 올바르지 않습니다", status_code=422, request_id=payload.request_id)
-        request_hash = _request_hash(payload)
+        return claimed_name, _request_hash(payload)
+
+    def _append_final_decision(
+        self,
+        session: Session,
+        opportunity_id: int,
+        payload: BidFinalDecisionCreateRequest | BidNoticeFinalDecisionCreateRequest,
+        claimed_name: str,
+        request_hash: str,
+        *,
+        lock_basis: Callable[[Opportunity], Any],
+        resolve_basis: Callable[[Opportunity, Any], tuple[dict[str, Any], str, list[str]]],
+    ) -> dict[str, Any]:
+        """One lock order, replay, supersession chain, sequence, audit, and receipt.
+
+        Order: opportunity row → basis rows (``lock_basis``) → idempotent replay →
+        basis fence checks (``resolve_basis``) → latest decision tip → insert. Both
+        decision bases share every step except the basis itself.
+        """
+
+        request_id = payload.request_id
         try:
             opportunity = self._opportunity(session, opportunity_id)
-            comparison = session.scalar(select(BidDeltaComparison).where(BidDeltaComparison.id == comparison_id).with_for_update())
-            if comparison is None:
-                raise _error("bid_delta_comparison_not_found", "비교를 찾을 수 없습니다", status_code=404, request_id=payload.request_id)
-            if comparison.opportunity_id != opportunity.id:
-                raise _error("bid_delta_comparison_scope_conflict", "비교의 사업기회 범위가 다릅니다", status_code=409, request_id=payload.request_id)
+            locked = lock_basis(opportunity)
             duplicate = self._idempotent(
                 session,
                 operation="bid_final_decision",
                 aggregate_type="opportunity",
                 aggregate_id=str(opportunity.id),
                 actor=claimed_name,
-                request_id=payload.request_id,
+                request_id=request_id,
                 request_hash=request_hash,
             )
             if duplicate is not None:
                 session.commit()
-                return duplicate
-            if comparison.calculation_status != "completed" or comparison.result_status == "failed":
-                raise _error("bid_delta_comparison_not_completed", "완료된 비교만 최종 결정할 수 있습니다", status_code=409, request_id=payload.request_id)
-            if comparison.version != payload.expected_comparison_version:
-                raise _error("bid_delta_version_conflict", "비교 버전이 변경되었습니다", status_code=409, request_id=payload.request_id)
-            if comparison.result_sha256 != payload.expected_result_sha256:
-                raise _error("bid_delta_result_digest_conflict", "비교 결과 digest가 변경되었습니다", status_code=409, request_id=payload.request_id)
-            if payload.baseline_document_version_id != comparison.baseline_document_version_id or payload.comparison_document_version_id != comparison.comparison_document_version_id:
-                raise _error("final_decision_input_fence_invalid", "최종 결정 입력 fence가 비교와 다릅니다", status_code=422, request_id=payload.request_id)
-            currentness, reasons = self._currentness(session, comparison)
-            if currentness == "stale":
-                raise _error("bid_delta_comparison_stale", "새로운 비교 입력이 있어 재검토가 필요합니다", status_code=409, request_id=payload.request_id)
-            if currentness == "unknown":
-                raise _error("bid_delta_currentness_unavailable", "비교 현재성을 확인할 수 없습니다", status_code=503, request_id=payload.request_id)
+                return final_decision_receipt(duplicate)
+            basis, currentness, reasons = resolve_basis(opportunity, locked)
             latest = session.scalar(
                 select(BidFinalDecision)
                 .where(BidFinalDecision.opportunity_id == opportunity.id)
@@ -1380,9 +1420,9 @@ class BidDeltaService:
                 .limit(1)
             )
             if payload.supersedes_final_decision_id is not None and session.get(BidFinalDecision, payload.supersedes_final_decision_id) is None:
-                raise _error("final_decision_not_found", "앞선 최종 결정을 찾을 수 없습니다", status_code=404, request_id=payload.request_id)
+                raise _error("final_decision_not_found", "앞선 최종 결정을 찾을 수 없습니다", status_code=404, request_id=request_id)
             if (latest is None and payload.supersedes_final_decision_id is not None) or (latest is not None and payload.supersedes_final_decision_id != latest.id):
-                raise _error("final_decision_supersession_conflict", "최종 결정의 supersession 대상이 변경되었습니다", status_code=409, request_id=payload.request_id)
+                raise _error("final_decision_supersession_conflict", "최종 결정의 supersession 대상이 변경되었습니다", status_code=409, request_id=request_id)
             sequence = int(
                 session.scalar(select(func.max(BidFinalDecision.sequence)).where(BidFinalDecision.opportunity_id == opportunity.id)) or 0
             ) + 1
@@ -1390,17 +1430,13 @@ class BidDeltaService:
                 id=uuid4(),
                 opportunity_id=opportunity.id,
                 sequence=sequence,
-                comparison_id=comparison.id,
-                comparison_version=comparison.version,
-                result_sha256=comparison.result_sha256,
-                baseline_document_version_id=comparison.baseline_document_version_id,
-                comparison_document_version_id=comparison.comparison_document_version_id,
                 supersedes_final_decision_id=payload.supersedes_final_decision_id,
                 decision=payload.decision,
                 reason=payload.reason,
                 claimed_name=claimed_name,
-                request_id=payload.request_id,
+                request_id=request_id,
                 created_at=_now(),
+                **basis,
             )
             session.add(decision)
             session.flush()
@@ -1412,11 +1448,14 @@ class BidDeltaService:
                     action="bid_final_decision.recorded",
                     aggregate_type="bid_final_decision",
                     aggregate_id=str(decision.id),
-                    request_id=str(payload.request_id),
+                    request_id=str(request_id),
                     safe_metadata={
                         "decision_id": str(decision.id),
                         "opportunity_id": opportunity.id,
-                        "comparison_id": str(comparison.id),
+                        "basis_kind": decision.basis_kind,
+                        "comparison_id": str(decision.comparison_id) if decision.comparison_id else None,
+                        "basis_notice_id": decision.basis_notice_id,
+                        "basis_observation_sha256": decision.basis_observation_sha256,
                         "sequence": decision.sequence,
                         "decision": decision.decision,
                         "supersedes_final_decision_id": str(decision.supersedes_final_decision_id) if decision.supersedes_final_decision_id else None,
@@ -1429,7 +1468,7 @@ class BidDeltaService:
                     aggregate_type="opportunity",
                     aggregate_id=str(opportunity.id),
                     claimed_name=claimed_name,
-                    request_id=payload.request_id,
+                    request_id=request_id,
                     request_sha256=request_hash,
                     response_status=201,
                     response_snapshot=response,
@@ -1448,22 +1487,131 @@ class BidDeltaService:
                 aggregate_type="opportunity",
                 aggregate_id=str(opportunity_id),
                 actor=claimed_name,
-                request_id=payload.request_id,
+                request_id=request_id,
                 request_hash=request_hash,
             )
             if duplicate is not None:
                 session.commit()
-                return duplicate
-            raise _error("final_decision_supersession_conflict", "동시에 다른 최종 결정이 생성되었습니다", status_code=409, request_id=payload.request_id) from exc
+                return final_decision_receipt(duplicate)
+            raise _error("final_decision_supersession_conflict", "동시에 다른 최종 결정이 생성되었습니다", status_code=409, request_id=request_id) from exc
         except Exception as exc:
             session.rollback()
-            raise _error("processing_failed", "최종 결정을 기록할 수 없습니다", status_code=500, request_id=payload.request_id) from exc
+            raise _error("processing_failed", "최종 결정을 기록할 수 없습니다", status_code=500, request_id=request_id) from exc
+
+    def record_final_decision(
+        self,
+        session: Session,
+        opportunity_id: int,
+        comparison_id: UUID,
+        payload: BidFinalDecisionCreateRequest,
+        actor: str | None,
+        actor_format: str | None = None,
+    ) -> dict[str, Any]:
+        """Record a decision whose basis is one completed, current comparison."""
+
+        claimed_name, request_hash = self._final_decision_request(payload, actor, actor_format)
+
+        def lock_comparison(opportunity: Opportunity) -> BidDeltaComparison:
+            comparison = session.scalar(select(BidDeltaComparison).where(BidDeltaComparison.id == comparison_id).with_for_update())
+            if comparison is None:
+                raise _error("bid_delta_comparison_not_found", "비교를 찾을 수 없습니다", status_code=404, request_id=payload.request_id)
+            if comparison.opportunity_id != opportunity.id:
+                raise _error("bid_delta_comparison_scope_conflict", "비교의 사업기회 범위가 다릅니다", status_code=409, request_id=payload.request_id)
+            return comparison
+
+        def resolve_comparison(
+            _opportunity: Opportunity, comparison: BidDeltaComparison
+        ) -> tuple[dict[str, Any], str, list[str]]:
+            if comparison.calculation_status != "completed" or comparison.result_status == "failed":
+                raise _error("bid_delta_comparison_not_completed", "완료된 비교만 최종 결정할 수 있습니다", status_code=409, request_id=payload.request_id)
+            if comparison.version != payload.expected_comparison_version:
+                raise _error("bid_delta_version_conflict", "비교 버전이 변경되었습니다", status_code=409, request_id=payload.request_id)
+            if comparison.result_sha256 != payload.expected_result_sha256:
+                raise _error("bid_delta_result_digest_conflict", "비교 결과 digest가 변경되었습니다", status_code=409, request_id=payload.request_id)
+            if payload.baseline_document_version_id != comparison.baseline_document_version_id or payload.comparison_document_version_id != comparison.comparison_document_version_id:
+                raise _error("final_decision_input_fence_invalid", "최종 결정 입력 fence가 비교와 다릅니다", status_code=422, request_id=payload.request_id)
+            currentness, reasons = self._currentness(session, comparison)
+            if currentness == "stale":
+                raise _error("bid_delta_comparison_stale", "새로운 비교 입력이 있어 재검토가 필요합니다", status_code=409, request_id=payload.request_id)
+            if currentness == "unknown":
+                raise _error("bid_delta_currentness_unavailable", "비교 현재성을 확인할 수 없습니다", status_code=503, request_id=payload.request_id)
+            basis = {
+                "basis_kind": "comparison",
+                "comparison_id": comparison.id,
+                "comparison_version": comparison.version,
+                "result_sha256": comparison.result_sha256,
+                "baseline_document_version_id": comparison.baseline_document_version_id,
+                "comparison_document_version_id": comparison.comparison_document_version_id,
+            }
+            return basis, currentness, reasons
+
+        return self._append_final_decision(
+            session,
+            opportunity_id,
+            payload,
+            claimed_name,
+            request_hash,
+            lock_basis=lock_comparison,
+            resolve_basis=resolve_comparison,
+        )
+
+    def record_notice_final_decision(
+        self,
+        session: Session,
+        opportunity_id: int,
+        payload: BidNoticeFinalDecisionCreateRequest,
+        actor: str | None,
+        actor_format: str | None = None,
+    ) -> dict[str, Any]:
+        """Record a decision whose basis is the latest bid notice's conditions.
+
+        The client fences the exact notice and observation it showed. The server
+        refuses a notice that is not the latest authoritative bid notice, a
+        changed observation, and an order it cannot establish; it never picks a
+        notice for the person. No lifecycle row is locked: a 차수 arriving after
+        this commit makes the decision ``stale`` through the shared rule.
+        """
+
+        claimed_name, request_hash = self._final_decision_request(payload, actor, actor_format)
+
+        def resolve_notice(opportunity: Opportunity, _locked: None) -> tuple[dict[str, Any], str, list[str]]:
+            latest, reason = latest_bid_notice(authoritative_bid_notices(session, [opportunity.id]).get(opportunity.id, []))
+            if reason == "bid_notice_missing":
+                raise _error("final_decision_bid_notice_missing", "최종 결정할 입찰공고가 없습니다", status_code=409, request_id=payload.request_id)
+            if latest is None:
+                raise _error("bid_delta_currentness_unavailable", "비교 현재성을 확인할 수 없습니다", status_code=503, request_id=payload.request_id)
+            if latest.id != payload.expected_notice_id:
+                raise _error("final_decision_notice_not_latest", "최신 입찰공고가 아닙니다", status_code=409, request_id=payload.request_id)
+            observed = latest_observation_hashes(session, [latest.id]).get(latest.id)
+            if observed is None:
+                raise _error("bid_delta_currentness_unavailable", "비교 현재성을 확인할 수 없습니다", status_code=503, request_id=payload.request_id)
+            if observed != payload.expected_observation_sha256:
+                raise _error("final_decision_observation_changed", "입찰공고 관측 내용이 변경되었습니다", status_code=409, request_id=payload.request_id)
+            basis = {
+                "basis_kind": "notice_conditions",
+                "basis_notice_id": latest.id,
+                "basis_observation_sha256": observed,
+            }
+            # The checks above are the shared rule's inputs: the basis is the
+            # latest determinable notice and its latest observation matches.
+            return basis, "current", []
+
+        return self._append_final_decision(
+            session,
+            opportunity_id,
+            payload,
+            claimed_name,
+            request_hash,
+            lock_basis=lambda _opportunity: None,
+            resolve_basis=resolve_notice,
+        )
 
 
 __all__ = [
     "BASELINE_DOCUMENT_ROLES",
     "BID_DELTA_CATEGORIES",
     "COMPARISON_DOCUMENT_ROLES",
+    "FINAL_DECISION_SCHEMA_VERSION",
     "SUPPORTED_CATEGORY_POLICY_VERSIONS",
     "BidDeltaService",
     "BidDeltaServiceError",

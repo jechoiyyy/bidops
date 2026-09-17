@@ -1238,8 +1238,26 @@ class BidDeltaEvidence(Base):
     created_at: Mapped[datetime] = mapped_column(AwareDateTime(), default=utc_now, nullable=False)
 
 
+# ``0028``: 최종 결정 근거는 완료된 비교(``comparison``) 또는 입찰공고 조건
+# (``notice_conditions``) 중 하나다(ADR-0058). 한쪽 근거 열이 채워지면 다른 쪽은
+# 반드시 비어 있다.
+BID_FINAL_DECISION_BASIS_KINDS = ("comparison", "notice_conditions")
+_BID_FINAL_DECISION_BASIS_FIELDS_SQL = (
+    "(basis_kind = 'comparison' AND comparison_id IS NOT NULL "
+    "AND comparison_version IS NOT NULL AND result_sha256 IS NOT NULL "
+    "AND baseline_document_version_id IS NOT NULL "
+    "AND comparison_document_version_id IS NOT NULL "
+    "AND basis_notice_id IS NULL AND basis_observation_sha256 IS NULL) "
+    "OR (basis_kind = 'notice_conditions' AND comparison_id IS NULL "
+    "AND comparison_version IS NULL AND result_sha256 IS NULL "
+    "AND baseline_document_version_id IS NULL "
+    "AND comparison_document_version_id IS NULL "
+    "AND basis_notice_id IS NOT NULL AND basis_observation_sha256 IS NOT NULL)"
+)
+
+
 class BidFinalDecision(Base):
-    """An append-only human Go/No-Go decision for a completed comparison."""
+    """An append-only human Go/No-Go decision on a comparison or notice conditions."""
 
     __tablename__ = "bid_final_decision"
     __table_args__ = (
@@ -1281,16 +1299,37 @@ class BidFinalDecision(Base):
             ),
             name="ck_bid_final_decision_result_sha256",
         ),
+        CheckConstraint(
+            "basis_kind IN ('comparison','notice_conditions')",
+            name="ck_bid_final_decision_basis_kind",
+        ),
+        CheckConstraint(
+            _BID_FINAL_DECISION_BASIS_FIELDS_SQL,
+            name="ck_bid_final_decision_basis_fields",
+        ),
+        CheckConstraint(
+            DualSQL(
+                "basis_observation_sha256 IS NULL OR (length(basis_observation_sha256) = 64 "
+                "AND basis_observation_sha256 NOT GLOB '*[^0-9a-f]*')",
+                "basis_observation_sha256 IS NULL OR basis_observation_sha256 ~ '^[0-9a-f]{64}$'",
+            ),
+            name="ck_bid_final_decision_basis_observation_sha256",
+        ),
     )
 
     id: Mapped[uuid_module.UUID] = _uuid_column(primary_key=True)
     opportunity_id: Mapped[int] = mapped_column(_fk("opportunity.id", ondelete="RESTRICT"), nullable=False)
     sequence: Mapped[int] = mapped_column(Integer, nullable=False)
-    comparison_id: Mapped[uuid_module.UUID] = mapped_column(_fk("bid_delta_comparison.id", ondelete="RESTRICT"), nullable=False)
-    comparison_version: Mapped[int] = mapped_column(Integer, nullable=False)
-    result_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
-    baseline_document_version_id: Mapped[uuid_module.UUID] = mapped_column(_fk("document_version.id", ondelete="RESTRICT"), nullable=False)
-    comparison_document_version_id: Mapped[uuid_module.UUID] = mapped_column(_fk("document_version.id", ondelete="RESTRICT"), nullable=False)
+    # 모든 기존 호출자는 비교 근거였다. 공고 조건 근거는 서비스가 명시하고, 섞인
+    # 조합은 ``ck_bid_final_decision_basis_fields``가 거부한다.
+    basis_kind: Mapped[str] = mapped_column(String(32), default="comparison", nullable=False)
+    comparison_id: Mapped[uuid_module.UUID | None] = mapped_column(_fk("bid_delta_comparison.id", ondelete="RESTRICT"), nullable=True)
+    comparison_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    result_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    baseline_document_version_id: Mapped[uuid_module.UUID | None] = mapped_column(_fk("document_version.id", ondelete="RESTRICT"), nullable=True)
+    comparison_document_version_id: Mapped[uuid_module.UUID | None] = mapped_column(_fk("document_version.id", ondelete="RESTRICT"), nullable=True)
+    basis_notice_id: Mapped[int | None] = mapped_column(_fk("notice.id", ondelete="RESTRICT"), nullable=True)
+    basis_observation_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
     supersedes_final_decision_id: Mapped[uuid_module.UUID | None] = mapped_column(
         Uuid(as_uuid=True), nullable=True
     )

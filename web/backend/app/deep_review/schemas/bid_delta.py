@@ -22,6 +22,8 @@ CalculationStatus = Literal["pending", "running", "completed", "failed"]
 ResultStatus = Literal["changed", "unchanged", "unknown", "failed"]
 Materiality = Literal["material", "non_material", "unknown"]
 Currentness = Literal["current", "stale", "unknown"]
+FinalDecisionBasisKind = Literal["comparison", "notice_conditions"]
+ChangeStatus = Literal["changed", "unchanged", "unknown"]
 
 
 class BidDeltaModel(BaseModel):
@@ -82,6 +84,21 @@ class BidFinalDecisionCreateRequest(BidDeltaModel):
     reason: str
 
 
+class BidNoticeFinalDecisionCreateRequest(BidDeltaModel):
+    """Final decision on the latest bid notice's conditions (ADR-0058).
+
+    The two expected values fence the exact bid notice and observation the
+    person reviewed; the server does not pick a notice on the client's behalf.
+    """
+
+    request_id: UUID
+    expected_notice_id: int = Field(ge=1)
+    expected_observation_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    supersedes_final_decision_id: UUID | None
+    decision: str
+    reason: str
+
+
 class BidDeltaEvidenceView(BidDeltaModel):
     id: UUID
     side: Literal["baseline", "comparison"]
@@ -118,15 +135,23 @@ class BidDeltaAttemptView(BidDeltaModel):
 
 
 class BidFinalDecisionView(BidDeltaModel):
-    schema_version: Literal["bidops.bid-final-decision.v1"]
+    # v2 (ADR-0058): basis_kind·basis_* added and the comparison fields became
+    # nullable. Stored v1 replay receipts are upgraded on read, see
+    # ``services.bid_delta.final_decision_receipt``.
+    schema_version: Literal["bidops.bid-final-decision.v2"]
     id: UUID
     opportunity_id: int = Field(ge=1)
     sequence: int = Field(ge=1)
-    comparison_id: UUID
-    comparison_version: int = Field(ge=1)
-    result_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
-    baseline_document_version_id: UUID
-    comparison_document_version_id: UUID
+    basis_kind: FinalDecisionBasisKind
+    # comparison basis: the five comparison fields are set and basis_* are null.
+    # notice_conditions basis: the reverse (DB CHECK ck_bid_final_decision_basis_fields).
+    comparison_id: UUID | None
+    comparison_version: int | None = Field(ge=1)
+    result_sha256: str | None = Field(pattern=r"^[0-9a-f]{64}$")
+    baseline_document_version_id: UUID | None
+    comparison_document_version_id: UUID | None
+    basis_notice_id: int | None = Field(ge=1)
+    basis_observation_sha256: str | None = Field(pattern=r"^[0-9a-f]{64}$")
     supersedes_final_decision_id: UUID | None
     decision: Literal["go", "no_go"]
     reason: str
@@ -216,7 +241,101 @@ class BidDecisionQueueResponse(BidDeltaModel):
     offset: int
 
 
+class BidConditionValues(BidDeltaModel):
+    """Deterministic conditions read from the collected notice (no model call).
+
+    Amounts are Decimal strings; timestamps keep the stored instant. ``null``
+    means the value was not observed and is never read as "none" or ``N``.
+    """
+
+    budget: str | None
+    estimated_price: str | None
+    deadline_at: datetime | None
+    opening_at: str | None
+    method: str | None
+    participation_limited: str | None
+    industry_limited: str | None
+    sw_industry_1468: str | None
+    joint_contract_method: str | None
+    successful_bid_method: str | None
+    technical_evaluation_rate: str | None
+    region_limit_basis: str | None
+    joint_contract_regions: list[str] | None
+    change_reason: str | None
+    re_notice: str | None
+
+
+BidConditionField = Literal[
+    "budget",
+    "estimated_price",
+    "deadline_at",
+    "opening_at",
+    "method",
+    "participation_limited",
+    "industry_limited",
+    "sw_industry_1468",
+    "joint_contract_method",
+    "successful_bid_method",
+    "technical_evaluation_rate",
+    "region_limit_basis",
+    "joint_contract_regions",
+    "change_reason",
+    "re_notice",
+]
+
+
+class BidConditionChange(BidDeltaModel):
+    field: BidConditionField
+    status: ChangeStatus
+    before: Any
+    after: Any
+
+
+class BidConditionNotice(BidDeltaModel):
+    notice_id: int = Field(ge=1)
+    bid_no: str | None
+    bid_ord: str | None
+    published_at: datetime | None
+    observation_sha256: str | None = Field(pattern=r"^[0-9a-f]{64}$")
+    conditions: BidConditionValues
+    changes_from_previous: list[BidConditionChange]
+
+
+class BidConditionPreSpec(BidDeltaModel):
+    notice_id: int = Field(ge=1)
+    title: str | None
+    agency: str | None
+    budget: str | None
+
+
+class BidConditionPreSpecChange(BidDeltaModel):
+    field: Literal["budget", "title"]
+    status: ChangeStatus
+    before: str | None
+    after: str | None
+
+
+class BidConditionsView(BidDeltaModel):
+    opportunity_id: int = Field(ge=1)
+    generated_at: datetime
+    # The exact fence a notice-conditions final decision must submit. Both are
+    # null when there is no authoritative bid notice or the latest one cannot be
+    # determined; the observation hash is also null when that notice has none.
+    latest_notice_id: int | None = Field(ge=1)
+    latest_observation_sha256: str | None = Field(pattern=r"^[0-9a-f]{64}$")
+    pre_spec: BidConditionPreSpec | None
+    bid_notices: list[BidConditionNotice]
+    pre_spec_comparison: list[BidConditionPreSpecChange]
+    not_comparable: list[Literal["deadline_at"]]
+
+
 __all__ = [
+    "BidConditionChange",
+    "BidConditionNotice",
+    "BidConditionPreSpec",
+    "BidConditionPreSpecChange",
+    "BidConditionValues",
+    "BidConditionsView",
     "BidDecisionQueueItem",
     "BidDecisionQueueLatestDecision",
     "BidDecisionQueueResponse",
@@ -233,4 +352,5 @@ __all__ = [
     "BidDeltaWorkspaceView",
     "BidFinalDecisionCreateRequest",
     "BidFinalDecisionView",
+    "BidNoticeFinalDecisionCreateRequest",
 ]
