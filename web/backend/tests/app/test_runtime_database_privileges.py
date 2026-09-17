@@ -59,22 +59,39 @@ BID_DELTA_TABLES = {
 }
 
 
-def test_bid_delta_runtime_grants_are_read_only_app_allowlist() -> None:
-    """The app reads only the two queue projection tables.
+def test_bid_delta_runtime_grants_let_the_app_append_only_final_decisions() -> None:
+    """The app reads the two queue projection tables and appends human decisions.
 
-    Calculation attempts, items, and evidence remain worker-owned append-only
-    data.  Keeping the complete five-table set here prevents a future broad
-    grant from silently exposing the worker-side calculation lineage.
+    ADR-0058 opens INSERT on ``bid_final_decision`` and a column-scoped
+    ``UPDATE (id)`` so the decision tip can be locked with ``FOR UPDATE``; the
+    append-only trigger still refuses every UPDATE and DELETE. Comparisons,
+    attempts, items, and evidence keep no runtime DML, and the worker has no
+    access at all. Keeping the complete five-table set here prevents a future
+    broad grant from silently exposing the calculation lineage.
     """
 
     assert _table_grants("app", "SELECT") & BID_DELTA_TABLES == {
         "bid_delta_comparison",
         "bid_final_decision",
     }
+    assert _table_grants("app", "INSERT") & BID_DELTA_TABLES == {"bid_final_decision"}
+    assert {"idempotency_record", "audit_event"} <= _table_grants("app", "INSERT")
+    assert _column_update_grant("app", "bid_final_decision") == {"id"}
     for role in ("app", "worker"):
-        for privilege in ("INSERT", "UPDATE", "DELETE"):
+        for privilege in ("UPDATE", "DELETE"):
             assert not _table_grants(role, privilege) & BID_DELTA_TABLES
-    assert not _table_grants("worker", "SELECT") & BID_DELTA_TABLES
+        for table in sorted(BID_DELTA_TABLES):
+            if (role, table) == ("app", "bid_final_decision"):
+                continue
+            assert (
+                re.search(
+                    rf"GRANT\s+UPDATE\s*\([^)]*\)\s+ON\s+bidops\.{table}\s+TO\s+{role};",
+                    POLICY,
+                )
+                is None
+            )
+    for privilege in ("SELECT", "INSERT"):
+        assert not _table_grants("worker", privilege) & BID_DELTA_TABLES
 
 
 COLLECTION_INDEX_TABLES = {"collected_record_index", "collected_record_token"}
@@ -378,7 +395,7 @@ def _column_privilege(
 
 
 @requires_postgres
-def test_effective_app_bid_delta_read_allowlist_and_worker_denial() -> None:
+def test_effective_app_bid_delta_grants_and_worker_denial() -> None:
     """Apply the policy to PostgreSQL 17 and exercise the real role boundary."""
 
     from sqlalchemy.exc import DBAPIError
@@ -388,18 +405,22 @@ def test_effective_app_bid_delta_read_allowlist_and_worker_denial() -> None:
         engine = _apply_policy(database_url)
         try:
             with engine.begin() as connection:
-                for role in ("app", "worker"):
-                    for table in BID_DELTA_TABLES:
-                        assert not _table_privilege(connection, role, table, "INSERT")
-                        assert not _table_privilege(connection, role, table, "UPDATE")
-                        assert not _table_privilege(connection, role, table, "DELETE")
-                assert _table_privilege(connection, "app", "bid_delta_comparison", "SELECT")
-                assert _table_privilege(connection, "app", "bid_final_decision", "SELECT")
-                assert not _table_privilege(connection, "worker", "bid_delta_comparison", "SELECT")
-                assert not _table_privilege(connection, "worker", "bid_final_decision", "SELECT")
-                for table in BID_DELTA_TABLES - {"bid_delta_comparison", "bid_final_decision"}:
-                    assert not _table_privilege(connection, "app", table, "SELECT")
-                    assert not _table_privilege(connection, "worker", table, "SELECT")
+                for table in BID_DELTA_TABLES:
+                    for privilege in ("SELECT", "INSERT", "UPDATE", "DELETE"):
+                        assert not _table_privilege(connection, "worker", table, privilege)
+                    assert not _table_privilege(connection, "app", table, "UPDATE")
+                    assert not _table_privilege(connection, "app", table, "DELETE")
+                    assert _table_privilege(connection, "app", table, "INSERT") == (
+                        table == "bid_final_decision"
+                    )
+                    assert _table_privilege(connection, "app", table, "SELECT") == (
+                        table in {"bid_delta_comparison", "bid_final_decision"}
+                    )
+                assert _column_privilege(connection, "app", "bid_final_decision", "id", "UPDATE")
+                for column in ("decision", "reason", "basis_kind", "basis_notice_id", "comparison_id"):
+                    assert not _column_privilege(
+                        connection, "app", "bid_final_decision", column, "UPDATE"
+                    )
 
             with engine.begin() as connection:
                 connection.exec_driver_sql("SET LOCAL ROLE app")
@@ -409,19 +430,107 @@ def test_effective_app_bid_delta_read_allowlist_and_worker_denial() -> None:
                         text(f"SELECT count(*) FROM bidops.{table}")
                     ) == 0
 
-            for table in ("bid_delta_comparison", "bid_final_decision"):
-                for statement in (
-                    f"INSERT INTO bidops.{table} DEFAULT VALUES",
-                    f"UPDATE bidops.{table} SET id = id",
-                    f"DELETE FROM bidops.{table}",
-                ):
-                    with pytest.raises(DBAPIError) as error:
-                        with engine.begin() as connection:
-                            connection.exec_driver_sql("SET LOCAL ROLE app")
-                            connection.exec_driver_sql(statement)
-                    assert error.value.orig.sqlstate == "42501"
+            for statement in (
+                "INSERT INTO bidops.bid_delta_comparison DEFAULT VALUES",
+                "UPDATE bidops.bid_delta_comparison SET id = id",
+                "DELETE FROM bidops.bid_delta_comparison",
+                "UPDATE bidops.bid_final_decision SET reason = reason",
+                "DELETE FROM bidops.bid_final_decision",
+            ):
+                with pytest.raises(DBAPIError) as error:
+                    with engine.begin() as connection:
+                        connection.exec_driver_sql("SET LOCAL ROLE app")
+                        connection.exec_driver_sql(statement)
+                assert error.value.orig.sqlstate == "42501", statement
         finally:
             engine.dispose()
+
+
+@requires_postgres
+def test_notice_final_decision_records_and_locks_with_the_app_runtime_role() -> None:
+    """ADR-0058 decisions complete under the app credential, including the tip lock."""
+
+    from uuid import UUID, uuid4
+
+    from sqlalchemy.exc import DBAPIError
+
+    from app.deep_review.models import BidFinalDecision
+    from app.deep_review.schemas.bid_delta import BidNoticeFinalDecisionCreateRequest
+    from app.deep_review.services.bid_delta import BidDeltaService
+    from app.lifecycle.models import Notice, NoticeObservation, Opportunity, OpportunityLink
+
+    _ensure_roles()
+    with temporary_database() as database_url:
+        policy_engine = _apply_policy(database_url)
+        owner_engine = schema_bound(create_engine(database_url, future=True))
+        app_engine = schema_bound(create_engine(database_url, future=True))
+        try:
+            observed = datetime(2026, 9, 16, 1, tzinfo=timezone.utc)
+            with Session(owner_engine) as session:
+                run = Run(id="privilege-final-decision", timezone="Asia/Seoul", generated_at=observed)
+                opportunity = Opportunity(first_registered_stage="bid_notice")
+                notice = Notice(
+                    notice_key="bid:R26BK09999001:000", source_type="bid_notice",
+                    bid_no="R26BK09999001", bid_ord="000", published_at=observed,
+                )
+                session.add_all([run, opportunity, notice])
+                session.flush()
+                session.add_all([
+                    OpportunityLink(
+                        opportunity_id=opportunity.id, notice_id=notice.id, stage="notice",
+                        link_type="official", status="확정", evidence_external_no="R26BK09999001",
+                    ),
+                    NoticeObservation(
+                        notice_id=notice.id, run_id=run.id, observed_at=observed,
+                        snapshot_schema_version="fixture.v1", snapshot_jsonb={"fixture": True},
+                        source_sha256="a" * 64,
+                    ),
+                ])
+                session.commit()
+                opportunity_id, notice_id = opportunity.id, notice.id
+
+            def request(**overrides: object) -> BidNoticeFinalDecisionCreateRequest:
+                values: dict[str, object] = {
+                    "request_id": uuid4(), "expected_notice_id": notice_id,
+                    "expected_observation_sha256": "a" * 64, "supersedes_final_decision_id": None,
+                    "decision": "go", "reason": "권한 검사",
+                }
+                values.update(overrides)
+                return BidNoticeFinalDecisionCreateRequest(**values)
+
+            service = BidDeltaService()
+            with Session(app_engine) as session:
+                session.connection().exec_driver_sql("SET ROLE app")
+                assert session.scalar(text("SELECT current_user")) == "app"
+                first = service.record_notice_final_decision(session, opportunity_id, request(), "담당자")
+                # The superseding decision locks the previous tip with SELECT ... FOR UPDATE.
+                session.connection().exec_driver_sql("SET ROLE app")
+                second = service.record_notice_final_decision(
+                    session, opportunity_id,
+                    request(decision="no_go", supersedes_final_decision_id=UUID(first["id"])),
+                    "담당자",
+                )
+                assert (first["sequence"], second["sequence"]) == (1, 2)
+
+            # The lock column is granted, but the append-only trigger still refuses it.
+            with pytest.raises(DBAPIError) as error:
+                with app_engine.begin() as connection:
+                    connection.exec_driver_sql("SET LOCAL ROLE app")
+                    connection.exec_driver_sql("UPDATE bidops.bid_final_decision SET id = id")
+            assert error.value.orig.sqlstate == "23514"
+
+            with Session(owner_engine) as session:
+                rows = session.scalars(
+                    select(BidFinalDecision).order_by(BidFinalDecision.sequence)
+                ).all()
+                assert [(row.basis_kind, row.decision) for row in rows] == [
+                    ("notice_conditions", "go"),
+                    ("notice_conditions", "no_go"),
+                ]
+        finally:
+            app_engine.dispose()
+            owner_engine.dispose()
+            policy_engine.dispose()
 
 
 @requires_postgres
