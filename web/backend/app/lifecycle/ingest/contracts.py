@@ -55,6 +55,10 @@ class Lifecycle(ContractModel):
     # Optional projection of the pre-spec response's bidNtceNoList.  Empty
     # source values remain null; a missing field is not fabricated.
     bid_ntice_no_list: Any = None
+    # Optional projection of the bid response's opengDt (timezone-aware ISO).
+    # Pre-specs always carry null.  The loader keeps a null or absent value out
+    # of the stored lifecycle JSON so historical observation digests are stable.
+    opening_at: Any = None
 
 
 class QualificationFlags(ContractModel):
@@ -73,6 +77,9 @@ class QualificationFlags(ContractModel):
     # notices and bid-only qualification objects remain readable.
     sw_business_status: Any = None
     business_division: Any = None
+    # Optional bid-only 1468 industry tag: "Y"/"N" only when the key-set query
+    # completed, otherwise null.  A null or absent value is omitted on storage.
+    sw_industry_1468: Any = None
 
 
 class AttachmentContract(ContractModel):
@@ -87,6 +94,8 @@ class NoticeContract(ContractModel):
     source_type: str | None = None
     title: str | None = None
     agency: str | None = None
+    # Optional collected.v2 field: pre-spec rlDminsttNm, always null for bids.
+    demand_agency: str | None = None
     published_at: datetime | str | None = None
     deadline_at: datetime | str | None = None
     budget: Decimal | int | float | str | None = None
@@ -213,6 +222,9 @@ class CollectionArtifact(ContractModel):
     source_window: SourceWindow | dict[str, Any] | None = None
     counts: dict[str, Any] | None = None
     warnings: list[Any] | None = None
+    # Optional collection metadata, e.g. ``sw_industry_1468: {status, total,
+    # pages}``.  Its keys are producer data, not further contract fields.
+    metadata: dict[str, Any] | None = None
     notices: list[NoticeContract | dict[str, Any]] | None = None
 
 

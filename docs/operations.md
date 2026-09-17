@@ -639,7 +639,9 @@ docker compose -f docker-compose.yml exec web \
 - **함정 1**: `ingest.cli --run`은 `validation-set.json`의 표본만 적재한다. 회차 전체를
   넣으려면 `collected-notices.json`의 `counts.candidate_pool`·`counts.audit_pool` 값을
   `select_validation_sample.py … --analysis-count <candidate_pool 값> --audit-count
-  <audit_pool 값>`에 넘겨 전 건이 담긴 선택 파일을 만든다.
+  <audit_pool 값>`에 넘겨 전 건이 담긴 선택 파일을 만든다. `--run <회차> --collection`을 붙이면
+  표본 대신 수집 파일 전체를 수집 색인에 남기고 선별 규칙에 맞는 레코드(발주계획 전량·SW사업대상
+  사전규격·추적·SW 관련 입찰공고)만 적재한다.
 - **함정 2**: ingest CLI 경로에서는 첨부 자격 갱신 hook이 돌지 않는다(웹 API 경로에만
   연결돼 있다). 적재 뒤 web 컨테이너에서 한 번 수동으로 갱신한다(후속 수정 전 임시 절차).
 

@@ -174,6 +174,40 @@ def test_collected_prespec_linkage_and_sw_flags_preserve_source(tmp_path: Path, 
         assert source["notices"][0]["qualification_flags"] == item["qualification_flags"]
 
 
+@pytest.mark.parametrize("invalid", [None, "demand_agency", "opening_at", "sw_industry_1468"])
+def test_collected_demand_opening_and_1468_keys_are_optional_and_not_projected(tmp_path: Path, invalid: str | None):
+    """spec §1.2 optional keys: nested values pass through, `demand_agency` stays out of the frozen input."""
+
+    root, _settings, _engine, _factory, _body = _fixture(tmp_path)
+    path = root / "data/runs/run-1/collected-notices.json"
+    value = json.loads(path.read_text())
+    item = value["notices"][0]
+    item["demand_agency"] = None
+    item["lifecycle"]["opening_at"] = "2026-09-26T11:00:00+09:00"
+    item["qualification_flags"] = dict.fromkeys((
+        "participation_limited", "industry_limited", "information_business", "general_service",
+        "service_division", "joint_contract_method", "performance_restricted_competition",
+        "pq_evaluation", "technical_evaluation", "technical_evaluation_rate", "successful_bid_method",
+    ))
+    item["qualification_flags"]["sw_industry_1468"] = "Y"
+    if invalid == "demand_agency":
+        item["demand_agency"] = " "
+    elif invalid == "opening_at":
+        item["lifecycle"]["opening_at"] = "2026-09-26T11:00:00"
+    elif invalid == "sw_industry_1468":
+        item["qualification_flags"]["sw_industry_1468"] = "X"
+    path.write_text(json.dumps(value, ensure_ascii=False))
+    if invalid:
+        with pytest.raises(ScreeningCreationError):
+            _source_notices(path.parent)
+    else:
+        source, _collection = _source_notices(path.parent)
+        projected = source["notices"][0]
+        assert "demand_agency" not in projected
+        assert projected["lifecycle"] == item["lifecycle"]
+        assert projected["qualification_flags"] == item["qualification_flags"]
+
+
 @pytest.mark.parametrize(
     "mutate",
     [

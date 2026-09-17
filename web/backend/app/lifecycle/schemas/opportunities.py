@@ -18,13 +18,19 @@ OpportunityTrackingStatus = Literal["미선택", "계속 추적", "보류", "종
 OpportunityFirstRegisteredStage = Literal["order_plan", "pre_spec", "bid_notice"]
 OpportunityLinkStage = Literal["order_plan", "notice"]
 OpportunityLinkType = Literal["official", "candidate"]
-OpportunityLinkStatus = Literal["확정", "후보 확인 대기", "사람 확인 완료", "검색 미확인"]
+# ``사람 확인 병합``·``merge_confirmation``은 migration 0027이 허용한 값이다. 이 값을
+# 만드는 병합 흐름은 아직 없지만(spec §3), 저장된 행을 읽는 화면이 500이 되지 않도록
+# 읽기 계약을 DB CHECK와 같은 범위로 넓혀 둔다.
+OpportunityLinkStatus = Literal[
+    "확정", "후보 확인 대기", "사람 확인 완료", "검색 미확인", "사람 확인 병합"
+]
 OpportunitySearchStrategy = Literal[
     "full",
     "breaking_split",
     "normalized",
     "longest_fragment",
     "prefix12",
+    "merge_confirmation",
 ]
 
 

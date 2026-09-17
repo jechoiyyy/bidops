@@ -8,6 +8,7 @@ privileges rather than trusting the grant text alone.
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import json
 import re
 from pathlib import Path
 
@@ -74,6 +75,34 @@ def test_bid_delta_runtime_grants_are_read_only_app_allowlist() -> None:
         for privilege in ("INSERT", "UPDATE", "DELETE"):
             assert not _table_grants(role, privilege) & BID_DELTA_TABLES
     assert not _table_grants("worker", "SELECT") & BID_DELTA_TABLES
+
+
+COLLECTION_INDEX_TABLES = {"collected_record_index", "collected_record_token"}
+
+
+def test_collection_index_grants_match_the_ingest_paths() -> None:
+    """수집 색인은 적재(app)가 쓰고 선별 결과 열만 갱신한다. worker는 색인만 읽는다."""
+
+    assert COLLECTION_INDEX_TABLES <= _table_grants("app", "SELECT")
+    assert COLLECTION_INDEX_TABLES <= _table_grants("app", "INSERT")
+    for role in ("app", "worker"):
+        assert not COLLECTION_INDEX_TABLES & _table_grants(role, "UPDATE")
+        assert not COLLECTION_INDEX_TABLES & _table_grants(role, "DELETE")
+    assert _column_update_grant("app", "collected_record_index") == {
+        "selection_reason", "ingested_notice_id", "ingested_order_plan_id"
+    }
+    assert (
+        re.search(
+            r"GRANT\s+UPDATE\s*\([^)]*\)\s+ON\s+bidops\.collected_record_token\s+TO\s+\w+;",
+            POLICY,
+        )
+        is None
+    )
+    assert _table_grants("worker", "SELECT") & COLLECTION_INDEX_TABLES == {"collected_record_index"}
+    assert not COLLECTION_INDEX_TABLES & _table_grants("worker", "INSERT")
+    # The loader writes the new notice projection column.
+    assert "demand_agency" in _column_update_grant("app", "notice")
+    assert _column_update_grant("worker", "notice") == {"id"}
 
 
 def test_migrate_uses_a_separate_fail_closed_privilege_policy() -> None:
@@ -790,6 +819,143 @@ def test_c2_ingest_completes_with_the_app_runtime_role(tmp_path) -> None:
         finally:
             policy_engine.dispose()
             owner_engine.dispose()
+
+
+def _write_collection_run(root: Path) -> Path:
+    """A minimal collected run: one plan, one SW pre-spec, a 1468 bid, an index-only bid."""
+
+    run_dir = root / "runs" / "lifecycle-20260916-notices"
+    run_dir.mkdir(parents=True)
+    window = {"from": "2026-09-14", "to": "2026-09-16", "timezone": "Asia/Seoul"}
+    generated_at = "2026-09-16T00:00:00+00:00"
+    qualification = dict.fromkeys((
+        "participation_limited", "industry_limited", "information_business", "general_service",
+        "service_division", "joint_contract_method", "performance_restricted_competition",
+        "pq_evaluation", "technical_evaluation", "technical_evaluation_rate", "successful_bid_method",
+    ))
+
+    def notice(notice_id: str, source_type: str, **overrides: object) -> dict[str, object]:
+        record: dict[str, object] = {
+            "notice_id": notice_id, "source_type": source_type, "title": "권한 검사 사업",
+            "agency": "기관", "demand_agency": None, "published_at": "2026-09-15T10:00:00+09:00",
+            "deadline_at": None, "budget": None, "estimated_price": None, "method": None, "url": None,
+            "procurement_class": {"large": None, "middle": None, "detail": None, "code": None},
+            "region_limit": {"basis": None, "joint_contract_regions": [], "joint_contract_rate": None, "regional_joint_contract_limit": None},
+            "lifecycle": {"pre_spec_no": None, "re_notice": None, "changed_at": None, "change_reason": None, "unified_notice_no": None, "previous_failed_notice_no": None, "opening_at": None},
+            "attachments": [], "qualification_flags": {**qualification, "sw_industry_1468": None},
+            "focus_matches": [], "performance_matches": [], "performance_top_score": None,
+            "candidate_sources": [], "collection_bucket": "audit_pool", "unknown_fields": [],
+            "raw_source": "raw/page-001.json",
+        }
+        record.update(overrides)
+        return record
+
+    notices = [
+        notice(
+            "pre:R26BD00279001", "pre_spec", demand_agency="수요기관",
+            lifecycle={"pre_spec_no": "R26BD00279001", "re_notice": None, "changed_at": None, "change_reason": None, "unified_notice_no": None, "previous_failed_notice_no": None, "opening_at": None, "bid_ntice_no_list": "R26BK01699001"},
+            qualification_flags={**qualification, "sw_business_status": "Y", "business_division": "일반용역", "sw_industry_1468": None},
+        ),
+        notice(
+            "bid:R26BK01699001:000", "bid_notice", method="일반경쟁",
+            lifecycle={"pre_spec_no": "R26BD00279001", "order_plan_no": None, "re_notice": "N", "changed_at": None, "change_reason": None, "unified_notice_no": None, "previous_failed_notice_no": None, "opening_at": "2026-09-26T11:00:00+09:00"},
+            qualification_flags={**qualification, "sw_industry_1468": "Y"},
+        ),
+        notice(
+            "bid:R26BK01699002:000", "bid_notice", method="일반경쟁",
+            lifecycle={"pre_spec_no": None, "order_plan_no": "R26DD20859001", "re_notice": "N", "changed_at": None, "change_reason": None, "unified_notice_no": None, "previous_failed_notice_no": None, "opening_at": None},
+            qualification_flags={**qualification, "sw_industry_1468": "N"},
+        ),
+    ]
+    (run_dir / "collected-notices.json").write_text(json.dumps({
+        "schema_version": "bidops.collected.v2", "generated_at": generated_at,
+        "source_window": window, "counts": {"total": 3}, "warnings": [],
+        "metadata": {"sw_industry_1468": {"status": "complete", "total": 1, "pages": 1}},
+        "notices": notices,
+    }, ensure_ascii=False), encoding="utf-8")
+    (run_dir / "collected-order-plans.json").write_text(json.dumps({
+        "schema_version": "bidops.collected-order-plans.v1", "generated_at": generated_at,
+        "source_window": window, "counts": {"total": 1},
+        "order_plans": [{
+            "order_plan_unty_no": "R26DD20859001", "title": "권한 검사 발주계획",
+            "agency_name": "기관", "published_at": "2026-09-10T09:00:00+09:00",
+            "bid_ntice_no_list": "R26BK01699002000", "source_sha256": "b" * 64,
+            "raw_source": "raw/page-00001.json",
+        }],
+    }, ensure_ascii=False), encoding="utf-8")
+    return run_dir
+
+
+@requires_postgres
+def test_collection_ingest_and_tracked_backfill_complete_with_the_app_runtime_role(tmp_path) -> None:
+    """The ingest credential can index, select, and backfill; worker only reads the index."""
+
+    from app.lifecycle.ingest.loader import tracked_backfill
+    from app.lifecycle.models import (
+        CollectedRecordIndex,
+        Opportunity,
+        OpportunityLink,
+        OrderPlan,
+    )
+    from app.lifecycle.services.opportunity_tracking import set_tracking_status
+
+    _ensure_roles()
+    with temporary_database() as database_url:
+        policy_engine = _apply_policy(database_url)
+        app_engine = schema_bound(create_engine(database_url, future=True))
+        try:
+            with policy_engine.begin() as connection:
+                for table in sorted(COLLECTION_INDEX_TABLES):
+                    assert _table_privilege(connection, "app", table, "SELECT")
+                    assert _table_privilege(connection, "app", table, "INSERT")
+                    assert not _table_privilege(connection, "app", table, "UPDATE")
+                    assert not _table_privilege(connection, "app", table, "DELETE")
+                    for privilege in ("INSERT", "UPDATE", "DELETE"):
+                        assert not _table_privilege(connection, "worker", table, privilege)
+                assert _table_privilege(connection, "worker", "collected_record_index", "SELECT")
+                assert not _table_privilege(connection, "worker", "collected_record_token", "SELECT")
+                assert _column_privilege(connection, "app", "collected_record_index", "selection_reason", "UPDATE")
+                assert not _column_privilege(connection, "app", "collected_record_index", "record_key", "UPDATE")
+                assert _column_privilege(connection, "app", "notice", "demand_agency", "UPDATE")
+                assert _column_privilege(connection, "app", "opportunity_link", "search_target_kind", "UPDATE")
+
+            run_dir = _write_collection_run(tmp_path)
+            with Session(app_engine) as session:
+                session.connection().exec_driver_sql("SET ROLE app")
+                result = ingest_run(run_dir, session, selection="collection")
+                assert result.selection["pre_spec"]["selected"]["pre_spec_sw"] == 1
+                assert result.selection["bid_notice"]["selected"]["bid_sw_prespec_reference"] == 1
+                assert result.selection["bid_notice"]["skipped"] == 1
+
+                session.connection().exec_driver_sql("SET ROLE app")
+                opportunity = session.scalars(
+                    select(Opportunity)
+                    .join(OpportunityLink, OpportunityLink.opportunity_id == Opportunity.id)
+                    .join(OrderPlan, OrderPlan.id == OpportunityLink.order_plan_id)
+                ).one()
+                set_tracking_status(
+                    session,
+                    opportunity,
+                    status="계속 추적",
+                    reason="권한 검사",
+                    selected_by="담당자",
+                    selected_at=datetime(2026, 9, 16, 1, tzinfo=timezone.utc),
+                )
+                backfill = tracked_backfill(session, runs_root=run_dir.parent)
+                session.commit()
+                assert backfill["loaded"] == {"tracked_backfill": 1}
+
+                session.connection().exec_driver_sql("SET ROLE app")
+                assert set(
+                    session.scalars(
+                        select(CollectedRecordIndex.selection_reason).where(
+                            CollectedRecordIndex.record_kind == "bid_notice"
+                        )
+                    )
+                ) == {"bid_sw_prespec_reference", "tracked_backfill"}
+        finally:
+            app_engine.dispose()
+            policy_engine.dispose()
 
 
 def test_company_fit_runtime_privileges():
