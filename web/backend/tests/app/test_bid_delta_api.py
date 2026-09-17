@@ -275,6 +275,10 @@ def test_worker_aggregation_and_final_decision_boundary(bid_delta_api):
     )
     assert final.status_code == 201, final.text
     assert final.json()["claimed_name"] == "홍길동"
+    # The comparison path keeps its fence and records the comparison basis (ADR-0058).
+    assert final.json()["basis_kind"] == "comparison"
+    assert (final.json()["basis_notice_id"], final.json()["basis_observation_sha256"]) == (None, None)
+    assert final.json()["comparison_id"] == str(completed.id)
     assert session.query(BidFinalDecision).count() == 1
     assert detail["result_status"] == "unknown"
 
