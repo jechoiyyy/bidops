@@ -199,15 +199,21 @@ function finalDecision(index: number, scenario: Scenario) {
   if (!scenario.decision) return null;
   const id = BASE_ID + index;
   return {
-    schema_version: "bidops.bid-final-decision.v1",
+    // v2(ADR-0058): 이 고정 입력은 기존 비교 근거(`basis_kind: "comparison"`)만
+    // 모델링한다. `notice_conditions` 근거는 `mockGoNoGo`의 `bid-conditions` 경로와
+    // 별도 시나리오(§9.2)가 다룬다.
+    schema_version: "bidops.bid-final-decision.v2",
     id: uuid(id, "d"),
     opportunity_id: id,
     sequence: scenario.decision.sequence,
+    basis_kind: "comparison",
     comparison_id: uuid(id, "7"),
     comparison_version: 2,
     result_sha256: hex(id, "e"),
     baseline_document_version_id: uuid(id, "2"),
     comparison_document_version_id: uuid(id, "5"),
+    basis_notice_id: null,
+    basis_observation_sha256: null,
     supersedes_final_decision_id: null,
     decision: scenario.decision.value,
     reason: scenario.decision.reason,
@@ -292,6 +298,8 @@ export function opportunityFor(index: number, title?: string) {
     section: "추적 중",
     pending_candidate_link_count: 0,
     open_blocking_item_count: 0,
+    action_reasons: [],
+    hold_review_due_at: null,
     id,
     tracking_status: "계속 추적",
     tracking_reason: "입찰공고를 확인하고 변경을 비교합니다.",
@@ -366,7 +374,8 @@ export async function mockGoNoGo(page: Page, options: GoNoGoMockOptions = {}): P
       total: opportunities.length,
       limit,
       offset,
-      section_counts: { "조치 필요": 0, "추적 중": opportunities.length, "보류": 0, "추적 종료": 0, "미결정": 0 },
+      section_counts: { "조치 필요": 0, "추적 중": opportunities.length, "보류": 0, "추적 종료": 0, "신규 입찰공고": 0, "미결정": 0 },
+      action_reason_counts: { new_link: 0, candidate_pending: 0, merge_confirmation: 0, blocking_item: 0, hold_overdue: 0 },
     });
   });
 
@@ -400,6 +409,53 @@ export async function mockGoNoGo(page: Page, options: GoNoGoMockOptions = {}): P
     if (!view) { await json(route, { detail: "비교를 찾을 수 없습니다" }, 404); return; }
     await json(route, view);
   });
+
+  // 공고 조건 요약(spec §9.1)과 조건만으로 한 최종 결정(spec §9.2). 현재 화면은
+  // 아직 이 경로를 부르지 않지만(F1-F4에서 연결), 계약 형태의 최소 응답을 둔다.
+  await page.route(/\/api\/opportunities\/\d+\/bid-conditions$/, async (route) => {
+    const id = Number(/\/api\/opportunities\/(\d+)\//.exec(new URL(route.request().url()).pathname)?.[1] ?? 0);
+    const index = id - BASE_ID;
+    const item = opportunities.find((candidate) => candidate.id === id);
+    const link = item?.links.find((entry) => entry.record_type === "bid_notice") ?? null;
+    if (!item) { await json(route, { detail: "사업기회를 찾을 수 없습니다" }, 404); return; }
+    await json(route, {
+      opportunity_id: id,
+      generated_at: "2026-09-07T06:00:00Z",
+      latest_notice_id: link?.notice_id ?? null,
+      latest_observation_sha256: link ? hex(BASE_ID + index, "e") : null,
+      pre_spec: null,
+      bid_notices: [],
+      pre_spec_comparison: [],
+      not_comparable: ["deadline_at"],
+    });
+  });
+
+  await page.route(/\/api\/opportunities\/\d+\/final-decisions$/, async (route) => {
+    const id = Number(/\/api\/opportunities\/(\d+)\//.exec(new URL(route.request().url()).pathname)?.[1] ?? 0);
+    const body = route.request().postDataJSON() as Record<string, unknown>;
+    await json(route, {
+      schema_version: "bidops.bid-final-decision.v2",
+      id: uuid(id, "n"),
+      opportunity_id: id,
+      sequence: 1,
+      basis_kind: "notice_conditions",
+      comparison_id: null,
+      comparison_version: null,
+      result_sha256: null,
+      baseline_document_version_id: null,
+      comparison_document_version_id: null,
+      basis_notice_id: Number(body.expected_notice_id ?? 0),
+      basis_observation_sha256: String(body.expected_observation_sha256 ?? ""),
+      supersedes_final_decision_id: (body.supersedes_final_decision_id as string | null) ?? null,
+      decision: body.decision === "go" ? "go" : "no_go",
+      reason: String(body.reason ?? ""),
+      claimed_name: "테스트 담당자",
+      request_id: String(body.request_id ?? ""),
+      created_at: "2026-09-07T06:05:00Z",
+      currentness: "current",
+      currentness_reasons: [],
+    }, 201);
+  });
 }
 
 export interface DecisionRaceTrace {
@@ -431,15 +487,18 @@ export async function mockDecisionRace(page: Page): Promise<DecisionRaceTrace> {
   const newComparison = { ...comparison, document_version_id: uuid(RACE_ID, "9"), document_version_version: 4 };
 
   const priorDecision = {
-    schema_version: "bidops.bid-final-decision.v1",
+    schema_version: "bidops.bid-final-decision.v2",
     id: SUPERSEDED_ID,
     opportunity_id: RACE_ID,
     sequence: 1,
+    basis_kind: "comparison",
     comparison_id: RACE_COMPARISON_ID,
     comparison_version: 3,
     result_sha256: NEW_SHA,
     baseline_document_version_id: newBaseline.document_version_id,
     comparison_document_version_id: newComparison.document_version_id,
+    basis_notice_id: null,
+    basis_observation_sha256: null,
     supersedes_final_decision_id: null,
     decision: "go",
     reason: "확인 창이 열린 뒤 다른 담당자가 저장한 결정",

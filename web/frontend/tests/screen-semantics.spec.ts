@@ -72,6 +72,7 @@ test("대시보드는 네 업무를 한 줄에 두고 미확인을 작은 주석
     { key: "order_plan_pending", count: 24, unavailable_reason: null },
     { key: "pre_spec_deep_review_ready", count: null, unavailable_reason: "provider_absent" },
     { key: "tracking_action_required", count: null, unavailable_reason: "no_completed_execution" },
+    { key: "tracking_hold_review_due", count: 2, unavailable_reason: null },
     { key: "bid_final_decision_pending", count: null, unavailable_reason: null },
   ] });
   await page.goto(`/?run=${encodeURIComponent(RUN_ID)}`);
@@ -465,7 +466,9 @@ test("심층 보고서 우측 열이 문서 inventory와 사람 확인 필요 se
 
 test("자동 심층 검토가 있어도 사업 추적 화면은 미선택을 그대로 보여준다", async ({ page }) => {
   await mockOpportunity(page);
-  await page.goto("/opportunities");
+  // §7.2: `미선택`은 더 이상 `조치 필요`(기본 탭)에 들지 않는다(`신규 입찰공고`·
+  // `미결정`으로만 간다). `전체`로 이동해 `미선택` 표시가 여전히 그대로인지 본다.
+  await page.goto("/opportunities?section=%EC%A0%84%EC%B2%B4");
   await expect(page.locator("header.topbar h1")).toHaveText("사업 추적", { timeout: 10_000 });
   await expect(page.getByText("미선택").first()).toBeVisible();
   // 자동 심층 검토를 위한 새 구역을 만들지 않는다.

@@ -37,6 +37,9 @@ export const opportunityTrackingHistory: OpportunityTrackingDecisionsResponse = 
     { decided_at: "2026-08-20T09:00:00Z", tracking_status: "종료", previous_tracking_status: "계속 추적", reason: "현재 범위 검토 완료", claimed_name: "합성 담당자", audit_event_id: "f1000000-0000-4000-8000-000000000002", cleared_recheck_signal: false },
     { decided_at: "2026-08-19T09:00:00Z", tracking_status: "계속 추적", previous_tracking_status: null, reason: null, claimed_name: null, audit_event_id: "f1000000-0000-4000-8000-000000000001", cleared_recheck_signal: false },
   ],
+  recheck_events: [
+    { kind: "created", link_id: 2002, actor_kind: "system", claimed_name: null, created_at: "2026-08-31T01:30:00Z", note_present: false },
+  ],
 };
 export const opportunityDeepReviews: OpportunityDeepReviewsResponse = {
   opportunity_id: 202,
@@ -51,18 +54,20 @@ export const unavailableWorkload: WorkloadResponse = {
     { key: "order_plan_pending", count: null, unavailable_reason: "provider_absent" },
     { key: "pre_spec_deep_review_ready", count: null, unavailable_reason: "provider_absent" },
     { key: "tracking_action_required", count: 0, unavailable_reason: null },
+    { key: "tracking_hold_review_due", count: null, unavailable_reason: "provider_absent" },
     { key: "bid_final_decision_pending", count: null, unavailable_reason: "provider_absent" },
   ],
 };
 
 
-/** All providers present; all four queues were measured and are empty. */
+/** All providers present; all five queues were measured and are empty. */
 export const emptyWorkload: WorkloadResponse = {
   generated_at: "2026-09-01T09:00:00Z",
   items: [
     { key: "order_plan_pending", count: 0, unavailable_reason: null },
     { key: "pre_spec_deep_review_ready", count: 0, unavailable_reason: null },
     { key: "tracking_action_required", count: 0, unavailable_reason: null },
+    { key: "tracking_hold_review_due", count: 0, unavailable_reason: null },
     { key: "bid_final_decision_pending", count: 0, unavailable_reason: null },
   ],
 };
