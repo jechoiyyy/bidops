@@ -122,6 +122,7 @@ def link_view(link: OpportunityLink) -> OpportunityLinkView:
         last_searched_at=link.last_searched_at,
         evidence_external_no=link.evidence_external_no,
         evidence_bid_no=link.evidence_bid_no,
+        search_target_kind=link.search_target_kind,
         human_decision=link.human_decision,
         reviewer_name=link.reviewer_name,
         reviewed_at=link.reviewed_at,

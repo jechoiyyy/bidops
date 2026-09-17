@@ -1441,7 +1441,8 @@ test("발주계획 후보는 요약·대조 방식·기관 일치를 보여 주�
 
   const first = section.getByRole("listitem").filter({ hasText: "신규 행정 서비스 통합 구축" });
   await expect(first).toContainText("신규 발주기관 · 발주 예정 2026년 10월 · 예산 1,200,000,000원 · 통합번호 R26DD00001001");
-  await expect(first).toContainText("대조 방식 · 사업명 전체 일치");
+  // 대조 방식 이름은 사업 추적 화면과 같은 이름표(`trackingFlow.searchStrategyLabel`)다.
+  await expect(first).toContainText("대조 방식 · 전체 이름 일치");
   await expect(first).toContainText("기관 일치");
   await expect(first).not.toContainText("기관 불일치");
   await expect(first).toContainText("후보 사업기회 추적 · 미선택");
@@ -1463,14 +1464,15 @@ test("발주계획 후보는 요약·대조 방식·기관 일치를 보여 주�
   expect(candidates.decisions[0].body).toEqual({ decision: "accepted", reason: "원천 정보를 비교해 같은 사업임을 확인" });
   expect(candidates.decisions[0].headers["x-bidops-actor-name"]).toBe("UTF-8''%ED%99%8D%EA%B8%B8%EB%8F%99");
   await expect(dialog).toHaveCount(0);
-  await expect(page.getByText("후보 연결을 수용으로 기록했습니다.", { exact: true })).toBeVisible();
+  // 결정 응답이 `사람 확인 병합`이므로 수용은 두 사업기회의 병합으로 알린다(CandidateLinkDialog).
+  await expect(page.getByText("후보를 수용해 두 사업기회를 병합했습니다(사람 확인 병합).", { exact: true })).toBeVisible();
   await expect(section.getByText("발주계획 후보 없음 (자동 대조는 SW사업대상 사전규격에서만 합니다)", { exact: true })).toBeVisible();
   await expect(section.getByRole("listitem")).toHaveCount(0);
   expect(candidates.candidateGets).toBeGreaterThanOrEqual(2);
   await expect.poll(() => trace.listQueries.filter((query) => query.get("notice_pk") === "992").length).toBeGreaterThan(detailQueriesBefore);
 });
 
-test("발주계획 후보 수용이 병합 충돌이면 양쪽 사업기회로 가는 정리 안내를 남긴다", async ({ page }) => {
+test("발주계획 후보 수용이 병합 충돌이면 대화상자 안에서만 양쪽 상태를 한 번 안내하고 후보를 남긴다", async ({ page }) => {
   await mockPreSpecs(page);
   const candidates = await mockPlanCandidates(page, {
     status: 409,
@@ -1491,18 +1493,31 @@ test("발주계획 후보 수용이 병합 충돌이면 양쪽 사업기회로 �
   await page.goto("/pre-specs/992");
 
   const dialog = await acceptPlanCandidate(page, "신규 행정 서비스 통합 구축");
-  await expect(dialog).toContainText("연결 상태는 바뀌지 않았습니다");
+  const conflict = dialog.locator(".opportunity-merge-conflict");
+  await expect(conflict).toContainText("양쪽 모두 사람이 고른 추적 상태가 있어 병합할 수 없습니다. 한쪽의 추적 결정을 먼저 정리하세요.");
+  const states = conflict.getByRole("list", { name: "병합 대상 사업기회의 추적 상태" }).getByRole("listitem");
+  await expect(states).toHaveCount(2);
+  await expect(states.nth(0)).toContainText("사업 #301 · 계속 추적");
+  await expect(states.nth(0)).toContainText("선택자 · 김기획");
+  await expect(states.nth(0)).toContainText("재검토 신호 · 없음");
+  // 값이 없는 선택자·선택 시각은 미확인으로 남기고 지어내지 않는다.
+  await expect(states.nth(1)).toContainText("사업 #078 · 보류");
+  await expect(states.nth(1)).toContainText("선택자 · 미확인 · 선택 시각 · 미확인");
+  await expect(states.nth(1)).toContainText("재검토 신호 · 있음");
+  await expect(conflict).toContainText("연결 상태는 바뀌지 않았습니다");
+  await expect(dialog.getByLabel("결정 기록자")).toHaveValue("홍길동");
+  // 안내는 대화상자 안에 한 번만 있다. 사전규격 구역이 같은 안내를 다시 그리지 않는다.
+  const guidance = page.getByText("양쪽 모두 사람이 고른 추적 상태가 있어 병합할 수 없습니다", { exact: false });
+  await expect(guidance).toHaveCount(1);
+
   await dialog.getByRole("button", { name: "취소", exact: true }).click();
   await dialog.getByRole("button", { name: "입력 버리고 닫기", exact: true }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
 
+  // 대화상자를 닫으면 안내도 사라진다. 구역에 병합 충돌 알림이 따로 남지 않는다.
   const section = page.locator("#ps-record-plan-candidates");
-  const notice = section.getByRole("alert");
-  await expect(notice).toContainText("양쪽 모두 사람이 고른 추적 상태가 있어 병합할 수 없습니다. 사업 추적에서 한쪽의 추적 결정을 먼저 정리하세요.");
-  await expect(notice.getByRole("link", { name: "사업 추적에서 사업기회 #301 열기 →" })).toHaveAttribute("href", "/opportunities/301");
-  await expect(notice.getByRole("link", { name: "사업 추적에서 사업기회 #78 열기 →" })).toHaveAttribute("href", "/opportunities/78");
-  await expect(notice.getByRole("listitem").filter({ hasText: "#301" })).toContainText("추적 계속 추적 · 결정 기록자 김기획 · 결정 시각 2026.09.01 09:00 KST · 재검토 신호 없음");
-  await expect(notice.getByRole("listitem").filter({ hasText: "#78" })).toContainText("추적 보류 · 결정 기록자 미확인 · 결정 시각 미확인 · 재검토 신호 있음");
+  await expect(guidance).toHaveCount(0);
+  await expect(section.getByRole("alert")).toHaveCount(0);
   // 연결되지 않았으므로 후보는 그대로 남는다.
   await expect(section.getByRole("heading", { name: "발주계획 후보 2건" })).toBeVisible();
   expect(candidates.decisions).toHaveLength(1);
