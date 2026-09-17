@@ -380,16 +380,34 @@ test("흡수한 옛 경로는 404를 내지 않고 목적지 화면의 해당 �
 test("심층 검토 보고서 진입점이 사업 추적 화면에 명시된다", async ({ page }) => {
   await mockApi(page);
   await mockOpportunity(page);
+  // 공용 mock은 501에 빈 보고서 목록을 준다. 진입점 이동을 보려고 이 테스트에서만 한 건을 준다.
+  await page.route("**/api/opportunities/501/deep-reviews", (route) => route.fulfill({
+    json: {
+      opportunity_id: 501,
+      items: [{
+        deep_review_id: "fixture-review",
+        notice_id: 61,
+        notice_title: "합성 사전규격",
+        status: "completed",
+        quality_status: "unmeasured_reference",
+        created_at: "2026-08-26T00:00:00Z",
+        current_attempt_status: "completed",
+        latest_final_opinion: null,
+      }],
+    },
+  }));
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/opportunities/501");
 
   await page.getByRole("tab", { name: /확인 사항/ }).click();
   const entry = page.locator(".opportunity-deep-review");
   await expect(entry.getByRole("heading", { name: "심층 검토 보고서" })).toBeVisible();
-  // 서버가 사업기회별 보고서 목록을 주지 않는다는 사실을 감추지 않는다.
-  await expect(entry).toContainText("서버가 사업기회별 보고서 목록을 제공하지 않아");
-  await entry.getByLabel("심층 검토 보고서 ID").fill("fixture-review");
-  await entry.getByRole("link", { name: "보고서 열기 →" }).click();
+  // ID 입력 없이 `GET /api/opportunities/{id}/deep-reviews` 목록에서 보고서를 연다.
+  await expect(entry.getByLabel("심층 검토 보고서 ID")).toHaveCount(0);
+  const items = entry.locator(".opportunity-deep-review-item");
+  await expect(items).toHaveCount(1);
+  await expect(items).toContainText("합성 사전규격");
+  await items.getByRole("link", { name: "보고서 열기 →" }).click();
   await expect(page).toHaveURL(/\/deep-reviews\/fixture-review\?from=opportunities/);
   // 이 화면에서 연 보고서는 사업 추적 아래로 보인다(route-meta의 alternateOrigin).
   await expect(page.locator("aside.sidebar .sidebar-item.is-active")).toHaveText("사업 추적");
