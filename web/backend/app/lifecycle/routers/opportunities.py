@@ -22,6 +22,8 @@ from ..schemas.opportunities import (
     OpportunityHoldReview,
     OpportunityLinkView,
     OpportunityListResponse,
+    OpportunitySearchRequest,
+    OpportunitySearchResponse,
     OpportunitySection,
     OpportunityTrackingDecisionsResponse,
     OpportunitySort,
@@ -33,7 +35,7 @@ from ..schemas.opportunities import (
     OrderPlanBulkStartRequest,
     OrderPlanBulkStartResponse,
 )
-from ..services import opportunity_integrity, opportunity_tracking
+from ..services import opportunity_candidates, opportunity_integrity, opportunity_tracking
 from ..services import opportunity_queries
 from ..services import order_plan_bulk_tracking
 from ..services.collection_index import BACKFILL_TRACKING_STATUSES
@@ -71,6 +73,10 @@ _ERRORS: dict[str, tuple[int, str]] = {
     "opportunity_merge_state_conflict": (
         409,
         "사람 추적 선택 또는 재검토 신호가 있는 사업기회가 둘 이상이라 병합할 수 없습니다",
+    ),
+    "search_source_missing": (
+        422,
+        "찾아보기의 기준이 될 소유 발주계획 또는 사전규격이 없습니다",
     ),
     "recheck_signal_absent": (409, "확인할 재검토 신호가 없습니다"),
     "recheck_signal_changed": (409, "재검토 신호의 근거 연결이 바뀌었습니다"),
@@ -418,6 +424,41 @@ def acknowledge_recheck_signal(
         )
         session.commit()
         return opportunity_queries.get_opportunity(session, opportunity_id, now=_request_now())
+    except (opportunity_tracking.OpportunityTrackingError, BundleServiceError) as error:
+        session.rollback()
+        return _error_response(error)
+    except Exception:  # pragma: no cover - defensive API boundary
+        session.rollback()
+        return _unexpected()
+
+
+@router.post("/{opportunity_id}/searches", response_model=OpportunitySearchResponse)
+def search_opportunity_records(
+    opportunity_id: int,
+    payload: OpportunitySearchRequest,
+    actor: Annotated[str | None, Header(alias="X-BidOps-Actor-Name")] = None,
+    actor_format: Annotated[str | None, Header(alias="X-BidOps-Actor-Name-Format")] = None,
+    session: Session = Depends(get_db),
+) -> OpportunitySearchResponse | JSONResponse:
+    """Search the archived collection index and propose candidates (spec §4.3)."""
+
+    try:
+        actor_name = validate_actor(actor, actor_format)
+        outcome = opportunity_candidates.search_opportunity_records(
+            session,
+            opportunity_id,
+            target=payload.target,
+            searched_by=actor_name,
+            runs_root=get_settings().bidops_root / "data" / "runs",
+            searched_at=_request_now(),
+        )
+        session.commit()
+        if outcome.loaded_count:
+            # A loaded record may have joined the opportunity through an
+            # official key; attachment eligibility follows the same hook as a
+            # tracking decision.  Its failure never undoes the search.
+            _notify_tracking_decision(session, outcome.owner_opportunity_id)
+        return outcome.response
     except (opportunity_tracking.OpportunityTrackingError, BundleServiceError) as error:
         session.rollback()
         return _error_response(error)

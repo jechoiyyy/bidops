@@ -61,6 +61,7 @@ from ..services.opportunity_integrity import (
     merge_opportunities,
 )
 from ..services.opportunity_connections import parse_attachment_key
+from ..services.opportunity_candidates import create_pre_spec_auto_candidates
 from ..services.collection_index import (
     BACKFILL_TRACKING_STATUSES,
     RECORD_KINDS,
@@ -3888,6 +3889,30 @@ def _sw_industry_competitive(values: IndexValues) -> bool:
     return values.sw_industry_1468 == "Y" and method is not None and "수의" not in method
 
 
+def _propose_order_plan_candidates(session: Session, run_id: str, notice: Notice) -> None:
+    """SW사업대상 사전규격의 발주계획 후보를 같은 트랜잭션에서 만든다 (spec §4.2).
+
+    후보는 사람 확인을 요청할 뿐이므로 실패가 적재를 막지 않는다. savepoint가 후보
+    쓰기만 되돌리고 안전한 경고를 남긴다. 기관이나 제목이 없는 사전규격은 대조할
+    값이 없으므로 savepoint를 열지 않는다.
+    """
+
+    if is_blank(notice.title) or (is_blank(notice.agency) and is_blank(notice.demand_agency)):
+        return
+    try:
+        with session.begin_nested():
+            create_pre_spec_auto_candidates(session, notice)
+    except Exception as error:
+        _record_warning(
+            session,
+            run_id,
+            "warning",
+            "opportunity_candidate_match_failed",
+            "사전규격의 발주계획 후보 대조에 실패해 후보를 만들지 않았습니다. 적재는 계속합니다.",
+            {"notice_id": notice.notice_key, "failure_type": type(error).__name__},
+        )
+
+
 def _load_collection_run(
     session: Session,
     run: Run,
@@ -3970,8 +3995,14 @@ def _load_collection_run(
                 # A pre-spec already in the database is refreshed from every
                 # later observation, whatever first selected it.
                 reason = "pre_spec_known"
-            if reason is not None:
-                loader.load(row, reason)
+            if reason is None:
+                continue
+            notice = loader.load(row, reason)
+            if notice is not None and record.values.sw_business_status == "Y" and reason in (
+                "pre_spec_sw",
+                "pre_spec_known",
+            ):
+                _propose_order_plan_candidates(session, run_id, notice)
 
         bids = [record for record in records if record.values.record_kind == "bid_notice"]
         if bids:
