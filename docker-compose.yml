@@ -143,9 +143,12 @@ services:
       BIDOPS_DATABASE_URL: "postgresql+psycopg://app:${BIDOPS_APP_PASSWORD:?set an external app password}@postgres:5432/bidops"
       BIDOPS_OPENAI_ENABLED: "false"
       BIDOPS_C2_EXECUTION_ALLOWED: "false"
+      BIDOPS_C2_DAILY_TRIGGER_ENABLED: "false"
       BIDOPS_DOCUMENT_WORKER_CONCURRENCY: "2"
       BIDOPS_DOCUMENT_CONVERTER_WAIT_SECONDS: "45"
       BIDOPS_ANALYSIS_WORKER_CONCURRENCY: "1"
+      BIDOPS_GPU_BUSY_LIMIT_SECONDS: "${BIDOPS_GPU_BUSY_LIMIT_SECONDS:-0}"
+      BIDOPS_GPU_REST_SECONDS: "${BIDOPS_GPU_REST_SECONDS:-0}"
       # These deployment references are intentionally optional while an
       # operator prepares a document bundle and evaluates a candidate policy.
       # Deep-review creation fails closed until both immutable IDs are set and
@@ -223,6 +226,8 @@ services:
       BIDOPS_C2_EXECUTION_ALLOWED: "false"
       BIDOPS_OPENAI_ENABLED: "false"
       BIDOPS_ANALYSIS_WORKER_CONCURRENCY: "1"
+      BIDOPS_GPU_BUSY_LIMIT_SECONDS: "${BIDOPS_GPU_BUSY_LIMIT_SECONDS:-0}"
+      BIDOPS_GPU_REST_SECONDS: "${BIDOPS_GPU_REST_SECONDS:-0}"
       BIDOPS_ACTIVE_PROFILE_VERSION_ID: "${BIDOPS_ACTIVE_PROFILE_VERSION_ID:-}"
       BIDOPS_ACTIVE_ANALYSIS_POLICY_VERSION_ID: "${BIDOPS_ACTIVE_ANALYSIS_POLICY_VERSION_ID:-}"
       BIDOPS_PRESPEC_COMPANY_FIT_ENABLED: "${BIDOPS_PRESPEC_COMPANY_FIT_ENABLED:-false}"

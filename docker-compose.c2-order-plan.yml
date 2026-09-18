@@ -15,6 +15,7 @@ services:
   web:
     environment:
       BIDOPS_C2_EXECUTION_ALLOWED: "${BIDOPS_C2_EXECUTION_ALLOWED:-false}"
+      BIDOPS_C2_DAILY_TRIGGER_ENABLED: "${BIDOPS_C2_DAILY_TRIGGER_ENABLED:-false}"
       BIDOPS_C2_CAPABILITIES_PATH: /run/c2/company-capabilities.json
       BIDOPS_C2_PROMPT_PATH: /run/c2/order-plan-prompt.txt
     volumes:
