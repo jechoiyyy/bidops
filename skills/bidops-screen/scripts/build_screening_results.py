@@ -46,6 +46,10 @@ COMMON_NOTICE_KEYS = (
     "performance_matches", "performance_top_score", "candidate_sources",
     "unknown_fields", "sample_stratum", "sample_role", "raw_source",
 )
+# Optional collected.v2 additions.  Historical notices omit them; they are
+# accepted on input but not added to the fixed v3 result projection.
+OPTIONAL_NOTICE_KEYS = ("demand_agency",)
+SW_INDUSTRY_1468_VALUES = {"Y", "N"}
 SCREENING_INPUT_KEYS = (
     "schema_version", "execution_id", "run_id", "generated_at",
     "source_window", "policy_version", "prompt_version",
@@ -576,8 +580,10 @@ def _validate_nested_notice(notice: dict[str, Any], prefix: str) -> list[str]:
     optional_keys = {
         # Optional projections were added without changing the collected.v2
         # record shape.  Historical artifacts may omit them entirely.
-        "lifecycle": ("order_plan_no", "bid_ntice_no_list"),
-        "qualification_flags": ("sw_business_status", "business_division"),
+        "lifecycle": ("order_plan_no", "bid_ntice_no_list", "opening_at"),
+        "qualification_flags": (
+            "sw_business_status", "business_division", "sw_industry_1468",
+        ),
     }
     for name, keys in object_keys.items():
         value = notice.get(name)
@@ -598,6 +604,9 @@ def _validate_nested_notice(notice: dict[str, Any], prefix: str) -> list[str]:
     if isinstance(lifecycle, dict):
         errors.extend(_timestamp(
             lifecycle.get("changed_at"), f"{prefix}.lifecycle.changed_at", nullable=True
+        ))
+        errors.extend(_timestamp(
+            lifecycle.get("opening_at"), f"{prefix}.lifecycle.opening_at", nullable=True
         ))
         for key in (
             "pre_spec_no", "re_notice", "change_reason", "unified_notice_no",
@@ -641,6 +650,9 @@ def _validate_nested_notice(notice: dict[str, Any], prefix: str) -> list[str]:
             errors.extend(_nullable_string_type(
                 qualification_flags.get(key), f"{prefix}.qualification_flags.{key}"
             ))
+        sw_industry_1468 = qualification_flags.get("sw_industry_1468")
+        if sw_industry_1468 is not None and not _enum(sw_industry_1468, SW_INDUSTRY_1468_VALUES):
+            errors.append(f"{prefix}.qualification_flags.sw_industry_1468는 Y, N 또는 null이어야 합니다.")
     for index, item in enumerate(
         notice.get("attachments") if isinstance(notice.get("attachments"), list) else []
     ):
@@ -689,14 +701,14 @@ def _validate_nested_notice(notice: dict[str, Any], prefix: str) -> list[str]:
 def validate_common_notice(notice: Any, prefix: str = "notice") -> list[str]:
     """Validate the exact common collected.v2 notice projection used by v1."""
 
-    errors = _keys_error(notice, COMMON_NOTICE_KEYS, prefix)
+    errors = _keys_error(notice, COMMON_NOTICE_KEYS, prefix, optional=OPTIONAL_NOTICE_KEYS)
     if errors or not isinstance(notice, dict):
         return errors
     if not _nonempty(notice.get("notice_id")):
         errors.append(f"{prefix}.notice_id가 비어 있습니다.")
     if not _enum(notice.get("source_type"), SOURCE_TYPES):
         errors.append(f"{prefix}.source_type가 잘못되었습니다.")
-    for key in ("title", "agency", "method", "url"):
+    for key in ("title", "agency", "demand_agency", "method", "url"):
         if notice.get(key) is not None and not _nonempty(notice.get(key)):
             errors.append(f"{prefix}.{key}가 비어 있습니다.")
     for key in ("published_at", "deadline_at"):
@@ -768,10 +780,11 @@ def validate_screening_input(value: Any) -> list[str]:
     seen: set[str] = set()
     for index, notice in enumerate(notices):
         prefix = f"screening-input.notices[{index}]"
-        errors.extend(_keys_error(notice, (*COMMON_NOTICE_KEYS, "judgment_mode", "carry_over_from", "rejudge_reason"), prefix))
+        errors.extend(_keys_error(notice, (*COMMON_NOTICE_KEYS, "judgment_mode", "carry_over_from", "rejudge_reason"), prefix, optional=OPTIONAL_NOTICE_KEYS))
         if not isinstance(notice, dict):
             continue
         common = {key: notice.get(key) for key in COMMON_NOTICE_KEYS}
+        common.update({key: notice[key] for key in OPTIONAL_NOTICE_KEYS if key in notice})
         errors.extend(validate_common_notice(common, prefix))
         notice_id = notice.get("notice_id")
         if not isinstance(notice_id, str):

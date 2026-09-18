@@ -90,7 +90,9 @@ GRANT SELECT ON TABLE
     bidops.order_plan_screening_batch_attempt,
     bidops.order_plan_screening_result,
     bidops.order_plan_screening_artifact,
-    bidops.order_plan_screening_feedback
+    bidops.order_plan_screening_feedback,
+    bidops.collected_record_index,
+    bidops.collected_record_token
 TO app;
 
 -- App-owned create paths include ingestion, UI mutations, orchestration, and
@@ -145,6 +147,7 @@ GRANT INSERT ON TABLE
     bidops.validation_run,
     bidops.validation_check,
     bidops.final_opinion,
+    bidops.bid_final_decision,
     bidops.work_job,
     bidops.idempotency_record,
     bidops.audit_event,
@@ -168,7 +171,9 @@ GRANT INSERT ON TABLE
     bidops.order_plan_screening_batch_attempt,
     bidops.order_plan_screening_artifact,
     bidops.order_plan_screening_result,
-    bidops.order_plan_screening_feedback
+    bidops.order_plan_screening_feedback,
+    bidops.collected_record_index,
+    bidops.collected_record_token
 TO app;
 
 -- Mutable source projections expose only their refreshable columns.  Their
@@ -178,12 +183,12 @@ GRANT UPDATE (
     superseded_by, counts_json
 ) ON bidops.run TO app;
 GRANT UPDATE (
-    bid_no, bid_ord, source_type, title, agency, published_at, deadline_at,
-    budget, estimated_price, method, url, sample_role, sample_stratum,
-    collection_bucket, procurement_class_json, region_limit_json,
-    lifecycle_json, qualification_flags_json, focus_matches_json,
-    performance_matches_json, performance_top_score, candidate_sources_json,
-    unknown_fields_json, raw_source
+    bid_no, bid_ord, source_type, title, agency, demand_agency, published_at,
+    deadline_at, budget, estimated_price, method, url, sample_role,
+    sample_stratum, collection_bucket, procurement_class_json,
+    region_limit_json, lifecycle_json, qualification_flags_json,
+    focus_matches_json, performance_matches_json, performance_top_score,
+    candidate_sources_json, unknown_fields_json, raw_source
 ) ON bidops.notice TO app;
 GRANT UPDATE (
     title, agency_code, agency_name, supervising_agency_name,
@@ -199,6 +204,12 @@ GRANT UPDATE (
     extract_status, source_system, source_attachment_key, last_seen_at,
     retired_at, retired_reason, retired_by_name
 ) ON bidops.attachment TO app;
+-- The collection index is a search projection of immutable run files.  Only
+-- the selection outcome is written after insert; the observed record values,
+-- run identity, and tokens are never rewritten.  Tokens are append-only.
+GRANT UPDATE (
+    selection_reason, ingested_notice_id, ingested_order_plan_id
+) ON bidops.collected_record_index TO app;
 GRANT UPDATE (
     version, role, effective_date, replaces_document_version_id, is_current,
     safety_status, needs_human_review
@@ -207,6 +218,10 @@ GRANT UPDATE (
 -- 에도 대상 테이블 한 열의 UPDATE 권한을 요구한다. structure identity는 잠금
 -- 대상으로만 쓰며 app은 구조 행을 다시 쓰지 않는다 (`notice.id`와 같은 이유).
 GRANT UPDATE (id) ON bidops.document_structure TO app;
+-- 최종 Go/No-Go 기록(ADR-0058)이 직전 결정 tip을 `SELECT ... FOR UPDATE`로 잠근다.
+-- 결정 행은 append-only이며(trigger가 모든 UPDATE·DELETE를 거부) app은 잠금 대상
+-- 식별자 한 열만 갖는다. 비교 계산 계보(comparison·attempt·item·evidence)는 닫혀 있다.
+GRANT UPDATE (id) ON bidops.bid_final_decision TO app;
 
 -- Human-facing rows are mutable only through their API-owned fields.  The
 -- immutable identity, actor, and creation columns are never update targets.
@@ -328,7 +343,8 @@ GRANT SELECT ON TABLE
     bidops.order_plan_screening_policy,
     bidops.order_plan_screening_execution,
     bidops.order_plan_screening_batch_attempt,
-    bidops.order_plan_screening_artifact
+    bidops.order_plan_screening_artifact,
+    bidops.collected_record_index
 TO worker;
 
 GRANT INSERT ON TABLE

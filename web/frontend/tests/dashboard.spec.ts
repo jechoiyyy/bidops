@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { DASH_RUN, OTHER_RUN, dashboardMetrics, dashboardNotices, dashboardStats, dashboardWorkload, mockDashboard } from "./dashboard-fixtures";
+import { DASH_RUN, HOLD_NOW, OTHER_RUN, dashboardMetrics, dashboardNotices, dashboardStats, dashboardWorkload, holdReviewItems, holdReviewList, mockDashboard } from "./dashboard-fixtures";
 import { settleFonts } from "./screen-fixtures";
 
 const selected = `/?run=${DASH_RUN}`;
@@ -96,7 +96,7 @@ test('마감은 회차 시각으로 계산하고 지난 날짜·미확인 날짜
   await page.clock.setFixedTime(new Date('2028-01-01T00:00:00Z'));
   await mockDashboard(page,{stats:{imminent_deadlines:[...dashboardNotices,{...dashboardNotices[0],id:98,title:'지난 공고',deadline_at:'2026-09-06T08:00:00Z'},{...dashboardNotices[0],id:99,title:'날짜 미확인',deadline_at:null}]}});
   await page.goto(selected);await expect(page.locator('.dash-deadlines-panel')).toContainText('D-1');
-  await expect(page.locator('.dash-panel-foot').first()).toContainText('3 / 5건');
+  await expect(page.locator('.dash-deadlines-panel .dash-panel-foot')).toContainText('3 / 5건');
 });
 
 test('빈 회차의 목록과 검증 없음은 성공으로 표시하지 않는다',async({page})=>{
@@ -176,4 +176,76 @@ test('회차 자료를 기다리는 동안 누적 바로가기를 사용할 수 
     await expect(page.locator('.dash-dashboard-grid')).toHaveCount(0);
   } finally { release(); }
   await expect(page.locator('.dash-notice-link')).toHaveCount(3);
+});
+
+const holdWorkload = (count: number | null) => ({...dashboardWorkload,items:dashboardWorkload.items.map(item=>item.key==='tracking_hold_review_due' ? {...item,count,unavailable_reason:count===null ? 'provider_absent' : null} : item)});
+
+test('보류 재검토는 회차 없이 기한순 5건을 한국 날짜 D+n·D-n으로 보여 준다', async ({page}) => {
+  await page.clock.setFixedTime(new Date(HOLD_NOW));
+  const {holdRequests} = await mockDashboard(page, {holdReviews: holdReviewList(holdReviewItems, 7), workload: holdWorkload(2)});
+  await page.goto('/');
+  await expect(page.getByRole('heading', {name: '확인할 회차를 선택해 주세요'})).toBeVisible();
+  const panel = page.getByRole('region', {name: '보류 재검토', exact: true});
+  await expect(panel).toContainText('보류는 선택 후 14일이 지나면 다시 검토합니다.');
+  await expect(panel.locator('.dash-panel-head')).toContainText('기한 지남 2건');
+  const rows = panel.getByRole('row');
+  await expect(rows).toHaveCount(6);
+  expect(holdRequests).toHaveLength(1);
+  expect(Object.fromEntries(holdRequests[0])).toEqual({hold_review: 'attention', sort: 'hold_review_due_at', limit: '5'});
+  await expect(rows.nth(1)).toContainText('공공데이터 통합관리체계 고도화');
+  await expect(rows.nth(1)).toContainText('예산 편성 결과를 확인한 뒤 다시 검토');
+  await expect(rows.nth(1)).toContainText('기한 지남 D+3');
+  await expect(rows.nth(1)).toContainText('김보류');
+  // 같은 한국 날짜에 지난 기한은 D+0이고, 사유·선택자·제목이 없으면 미확인으로 남긴다.
+  await expect(rows.nth(2)).toContainText('제목 미확인');
+  await expect(rows.nth(2)).toContainText('사유 미확인');
+  await expect(rows.nth(2)).toContainText('기한 지남 D+0');
+  await expect(rows.nth(2)).toContainText('선택자 미확인');
+  // UTC로는 같은 날이지만 한국 시간으로는 다음 날 00:30이다.
+  await expect(rows.nth(3)).toContainText('D-1');
+  await expect(rows.nth(3)).toContainText('09.18 00:30');
+  await expect(rows.nth(3)).not.toContainText('기한 지남');
+  await expect(rows.nth(4)).toContainText('D-2');
+  await expect(rows.nth(4)).toContainText('사유 미확인');
+  await expect(rows.nth(5)).toContainText('D-3');
+  await expect(rows.nth(1).getByRole('link')).toHaveAttribute('href', '/opportunities/401');
+  await expect(rows.nth(2).getByRole('link')).toHaveAttribute('href', '/opportunities/402');
+  await expect(panel.locator('.dash-panel-foot')).toContainText('기한 지남·임박 7건 중 5건 표시');
+  const all = new URL(await panel.getByRole('link', {name: '사업 추적에서 모두 보기', exact: true}).getAttribute('href') ?? '', 'http://test');
+  expect(all.pathname).toBe('/opportunities');
+  expect(Object.fromEntries(all.searchParams)).toEqual({section: '조치 필요', reason: 'hold_overdue'});
+});
+
+test('보류 기한 지남 건수를 받지 못하면 0건으로 채우지 않는다', async ({page}) => {
+  await mockDashboard(page, {holdReviews: holdReviewList(holdReviewItems.slice(0, 1)), workload: holdWorkload(null)});
+  await page.goto(selected);
+  const head = page.getByRole('region', {name: '보류 재검토', exact: true}).locator('.dash-panel-head');
+  await expect(head).toContainText('기한 지남 건수 미확인');
+  await expect(head).not.toContainText('0건');
+  await expect(page.locator('.dash-journey-item').nth(2)).toContainText('조치 필요 3건');
+});
+
+test('보류 재검토의 로딩·조회 실패·빈 목록을 문자로 구분하고 다시 조회한다', async ({page}) => {
+  const options = {holdReviewError: true};
+  await mockDashboard(page, options);
+  let release!: () => void;
+  const pending = new Promise<void>(resolve => { release = resolve; });
+  await page.route(url => url.pathname === '/api/opportunities', async route => { await pending; await route.fallback(); });
+  const panel = page.getByRole('region', {name: '보류 재검토', exact: true});
+  // Astryx Button은 자기 live region(role=status)을 품으므로 상태 문구는 패널 본문에서 찾는다.
+  const body = panel.locator('.dash-panel-body');
+  try {
+    await page.goto('/');
+    await expect(body.getByRole('status')).toHaveText('보류 재검토 목록을 불러오는 중입니다.');
+    await expect(panel.locator('.dash-panel-foot')).toContainText('건수 확인 중');
+  } finally { release(); }
+  await expect(panel.getByRole('alert')).toContainText('보류 재검토 목록을 불러오지 못했습니다.');
+  await expect(panel.locator('.dash-panel-foot')).toContainText('건수 미확인');
+  await expect(panel).not.toContainText('재검토가 필요한 보류 사업이 없습니다.');
+  options.holdReviewError = false;
+  await panel.getByRole('button', {name: '보류 재검토 다시 조회', exact: true}).click();
+  await expect(body.getByRole('status')).toHaveText('재검토가 필요한 보류 사업이 없습니다.');
+  await expect(panel.getByRole('alert')).toHaveCount(0);
+  await expect(panel.locator('.dash-panel-foot')).toContainText('기한 지남·임박 0건');
+  await expect(panel.getByRole('link', {name: '사업 추적에서 모두 보기', exact: true})).toBeVisible();
 });

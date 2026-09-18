@@ -237,6 +237,45 @@ flowchart LR
 
 발주계획은 전체 population을 보존하고, C-2는 그 회차의 고정 표본·정책·모델 binding을 이용한다. 사전규격은 general/technical service를 수집하며 소프트웨어 여부는 필터가 아니라 라벨이다. 제목 후보는 공식 관계가 아니다.
 
+### 5.1a 일일 수집 → 선별 적재 → 연결·병합 → 후보 (2026-09-17)
+
+~~~mermaid
+flowchart LR
+    daily[일일 수집<br/>발주계획 21일·사전규격/입찰 3일]
+    index[수집 색인<br/>전량, 선별 무관]
+    select{선별 규칙}
+    ingest[사업기회 적재]
+    link[공식 키 연결]
+    merge{사람 상태 보유 H}
+    candidate[사람 확인 후보]
+    search[찾아보기/추적 보충]
+
+    daily --> index
+    index --> select
+    select -->|추적·SW 관련만| ingest
+    select -.제외.-> index
+    ingest --> link
+    link --> merge
+    merge -->|0 또는 1| ingest
+    merge -->|2 이상| candidate
+    index -.나중에 검색.-> search --> ingest
+~~~
+
+발주계획·사전규격·입찰공고를 매일 전량 수집해 회차 파일로 보관하고, 모든 수집 레코드를 검색
+전용 **수집 색인**(`collected_record_index`)에 한 행씩 남긴다. 그중 추적·SW 관련 레코드만
+사업기회로 적재한다(선별 사유 10종, [ADR-0059](tracking/decisions/0059-full-collection-selective-ingest-and-index-search.md)).
+1468(소프트웨어사업자) 업종 조회는 수집 필터가 아니라 표시로만 쓴다 — 실측으로 SW 사전규격을
+잇는 입찰공고의 29%가 1468 밖임을 확인했다.
+
+공식 키(발주계획 통합번호·사전규격 등록번호·공고번호+차수, 양방향)로 연결되는 자동 병합은
+관련 사업기회 중 **사람 상태 보유**(`tracking_status ≠ 미선택` 또는 `recheck_signal_at`)가
+1개 이하일 때만 수행하고, 유지 쪽의 사람 선택은 바꾸지 않는다. 2개 이상이면 병합하지 않고
+`병합 확인` 후보를 만들어 도착 레코드가 고아로 남지 않게 한다. 후보 수락도 같은 규칙을 쓴다.
+SW=Y 사전규격 적재 시 기관·이름이 일치하는 발주계획을 자동 대조하고, 그 밖의 연결은 담당자가
+찾아보기로 보관 색인을 검색한다(모델 호출 없음). 상세는
+[spec.md](0917_opportunity-tracking/spec.md), [business-rules.md](business-rules.md#전량-수집과-선별-적재2026-09-17)가
+정본이다.
+
 ### 5.2 발주계획 C-2 선별 흐름
 
 ~~~mermaid
@@ -352,6 +391,14 @@ flowchart LR
 ~~~
 
 비교는 latest 두 개를 임의로 고르는 방식이 아니라 exact snapshot fence로 고정한다. 계산 상태와 결과를 구분하며, 계산 실패·비교 불가·unknown은 변경 없음으로 축약하지 않는다. delta item은 이전·이후 locator와 계산 상태를 보유하고, 최종 결정은 append-only 이벤트로 남긴다.
+
+**결정 근거 분리 (2026-09-17, [ADR-0058](tracking/decisions/0058-final-decision-basis-separated-from-comparison.md)).**
+비교를 계산하는 worker가 아직 없으므로, `bid_final_decision.basis_kind`가 위 비교 fence
+(`comparison`) 또는 모델 호출 없이 수집기가 정규화한 **입찰공고 조건**(`notice_conditions`)
+중 하나를 가리키게 해 비교 없이도 결정을 기록할 수 있게 했다. 공고 조건 근거는 authoritative
+입찰공고를 차수 순으로 나열하고 차수 간 변경·사전규격 대비를 결정적으로 계산하며, 담당자가
+확인한 정확한 공고·관측에 fence를 건다. 두 근거는 같은 append-only·supersession·현재성 규칙을
+공유한다. 상세는 [spec.md §9](0917_opportunity-tracking/spec.md#9-최종-gono-go)가 정본이다.
 
 ## 6. 논리 데이터 모델과 lineage
 

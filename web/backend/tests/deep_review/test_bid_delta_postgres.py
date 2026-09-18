@@ -284,8 +284,8 @@ def test_postgres_append_only_triggers_cover_final_item_and_evidence():
             connection.execute(
                 text(
                     "INSERT INTO bidops.bid_final_decision "
-                    "(id, opportunity_id, sequence, comparison_id, comparison_version, result_sha256, baseline_document_version_id, comparison_document_version_id, decision, reason, claimed_name, request_id, created_at) "
-                    "VALUES (:id, :opportunity_id, 1, :comparison_id, 1, :result_sha256, :baseline_doc, :comparison_doc, 'go', 'reason', 'actor', :request_id, :created_at)"
+                    "(id, opportunity_id, sequence, basis_kind, comparison_id, comparison_version, result_sha256, baseline_document_version_id, comparison_document_version_id, decision, reason, claimed_name, request_id, created_at) "
+                    "VALUES (:id, :opportunity_id, 1, 'comparison', :comparison_id, 1, :result_sha256, :baseline_doc, :comparison_doc, 'go', 'reason', 'actor', :request_id, :created_at)"
                 ),
                 {"id": decision_id, "opportunity_id": scope["opportunity_id"], "comparison_id": scope["comparison_id"], "result_sha256": "a" * 64, "baseline_doc": scope["baseline_doc"], "comparison_doc": scope["comparison_doc"], "request_id": request_id, "created_at": NOW},
             )
@@ -373,3 +373,118 @@ def test_postgres_composite_scope_and_active_attempt_constraints():
                     ),
                     {"id": uuid4(), "comparison_id": scope["comparison_id"], "created_at": NOW},
                 )
+
+
+_DECISION_INSERT = (
+    "INSERT INTO bidops.bid_final_decision "
+    "(id, opportunity_id, sequence, {basis_columns}decision, reason, claimed_name, request_id, created_at) "
+    "VALUES (:id, :opportunity_id, :sequence, {basis_values}'go', 'reason', 'actor', :request_id, :created_at)"
+)
+_COMPARISON_BASIS = (
+    "comparison_id, comparison_version, result_sha256, baseline_document_version_id, comparison_document_version_id, ",
+    ":comparison_id, 1, :result_sha256, :baseline_doc, :comparison_doc, ",
+)
+
+
+def _insert_decision(connection, scope, sequence, columns="", values="", **extra):
+    connection.execute(
+        text(_DECISION_INSERT.format(basis_columns=columns, basis_values=values)),
+        {
+            "id": uuid4(),
+            "opportunity_id": scope["opportunity_id"],
+            "sequence": sequence,
+            "comparison_id": scope["comparison_id"],
+            "result_sha256": "a" * 64,
+            "baseline_doc": scope["baseline_doc"],
+            "comparison_doc": scope["comparison_doc"],
+            "notice_id": scope["comparison_notice_id"],
+            "hash": "b" * 64,
+            "request_id": uuid4(),
+            "created_at": NOW,
+            **extra,
+        },
+    )
+
+
+def _column_facts(engine, column):
+    with engine.connect() as connection:
+        return connection.execute(
+            text(
+                "SELECT is_nullable, column_default FROM information_schema.columns "
+                "WHERE table_schema = 'bidops' AND table_name = 'bid_final_decision' "
+                "AND column_name = :column"
+            ),
+            {"column": column},
+        ).one()
+
+
+def test_postgres_final_decision_basis_checks_both_ways():
+    """ADR-0058: the database rejects partial or mixed decision bases."""
+
+    with migrated_engine() as engine:
+        scope = _seed_scope(engine, "basis-check")
+        comparison_columns = ("basis_kind, " + _COMPARISON_BASIS[0], "'comparison', " + _COMPARISON_BASIS[1])
+        notice_columns = (
+            "basis_kind, basis_notice_id, basis_observation_sha256, ",
+            "'notice_conditions', :notice_id, :hash, ",
+        )
+        with engine.begin() as connection:
+            _insert_decision(connection, scope, 1, *notice_columns)
+            _insert_decision(connection, scope, 2, *comparison_columns)
+        rejected = (
+            # basis_kind has no default: a new row must state its basis.
+            _COMPARISON_BASIS,
+            (notice_columns[0] + _COMPARISON_BASIS[0], notice_columns[1] + _COMPARISON_BASIS[1]),
+            ("basis_kind, basis_observation_sha256, ", "'notice_conditions', :hash, "),
+            (notice_columns[0], notice_columns[1].replace(":hash", "'" + "B" * 64 + "'")),
+            (comparison_columns[0] + "basis_notice_id, ", comparison_columns[1] + ":notice_id, "),
+            ("basis_kind, comparison_id, comparison_version, ", "'comparison', :comparison_id, 1, "),
+            ("basis_kind, " + _COMPARISON_BASIS[0], "'manual', " + _COMPARISON_BASIS[1]),
+        )
+        for columns, values in rejected:
+            with pytest.raises(IntegrityError):
+                with engine.begin() as connection:
+                    _insert_decision(connection, scope, 3, columns, values)
+        assert _column_facts(engine, "basis_kind") == ("NO", None)
+        assert _column_facts(engine, "comparison_id") == ("YES", None)
+
+
+def test_0027_comparison_decisions_backfill_round_trip_and_guard_notice_basis():
+    with temporary_database(upgrade_to="0027_collection_index_and_linkage") as database_url:
+        engine = create_engine(database_url, future=True)
+        try:
+            scope = _seed_scope(engine, "basis-upgrade")
+            with engine.begin() as connection:
+                _insert_decision(connection, scope, 1, *_COMPARISON_BASIS)
+
+            upgraded = run_alembic(database_url, "upgrade", "0028_final_decision_basis")
+            assert upgraded.returncode == 0, upgraded.stderr
+            with engine.connect() as connection:
+                assert connection.scalar(text("SELECT basis_kind FROM bidops.bid_final_decision")) == "comparison"
+            assert _column_facts(engine, "basis_kind") == ("NO", None)
+
+            downgraded = run_alembic(database_url, "downgrade", "0027_collection_index_and_linkage")
+            assert downgraded.returncode == 0, downgraded.stderr
+            assert _column_facts(engine, "comparison_id") == ("NO", None)
+            with engine.connect() as connection:
+                assert connection.scalar(text("SELECT count(*) FROM bidops.bid_final_decision")) == 1
+
+            assert run_alembic(database_url, "upgrade", "0028_final_decision_basis").returncode == 0
+            with engine.begin() as connection:
+                _insert_decision(
+                    connection,
+                    scope,
+                    2,
+                    "basis_kind, basis_notice_id, basis_observation_sha256, ",
+                    "'notice_conditions', :notice_id, :hash, ",
+                )
+            refused = run_alembic(database_url, "downgrade", "0027_collection_index_and_linkage")
+            assert refused.returncode != 0
+            assert "notice_conditions" in refused.stdout + refused.stderr
+            with engine.connect() as connection:
+                assert connection.scalar(text("SELECT version_num FROM bidops.alembic_version")) == (
+                    "0028_final_decision_basis"
+                )
+                assert connection.scalar(text("SELECT count(*) FROM bidops.bid_final_decision")) == 2
+        finally:
+            engine.dispose()

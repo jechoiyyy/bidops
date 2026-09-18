@@ -12,7 +12,8 @@ import { formatNumber } from "../lib/format";
 import { PageHeaderActions } from "../components/common/PageHeaderActions";
 import { DashboardState, LinkButton, Small, Tag } from "../components/dashboard/DashboardPrimitives";
 import { DeadlinePanel, SummaryPanel, ValidationPanel, VerificationPanel } from "../components/dashboard/DashboardPanels";
-import { deadlineFilter, runLink, runOptionLabel, snapshotTime } from "../components/dashboard/dashboardData";
+import { HoldReviewPanel } from "../components/dashboard/HoldReviewPanel";
+import { HOLD_REVIEW_LIMIT, deadlineFilter, runLink, runOptionLabel, snapshotTime } from "../components/dashboard/dashboardData";
 import "../styles/dashboard-erp.css";
 
 // 서버가 정한 안전 코드다. 문장이 있는 코드만 옮기고 모르는 코드는 그대로 보여 준다.
@@ -36,6 +37,12 @@ function DashboardWorkspace() {
   const validationQuery = useQuery({ queryKey: ["validation-metrics", runId], queryFn: () => api.getValidationMetrics(runId!), enabled: Boolean(runId), staleTime: 30_000 });
   // 누적 업무 건수는 서버가 한 번에 준다. 브라우저에서 목록을 다시 세지 않는다.
   const workloadQuery = useQuery({ queryKey: ["workload"], queryFn: ({ signal }) => api.getWorkload({ signal }), staleTime: 60_000 });
+  // 보류 재검토도 회차와 무관하다. 기한 지남·임박 선별과 정렬은 서버가 한다(spec §8).
+  const holdReviewQuery = useQuery({
+    queryKey: ["opportunities", "dashboard-hold-review"],
+    queryFn: ({ signal }) => api.getOpportunities({ hold_review: "attention", sort: "hold_review_due_at", limit: HOLD_REVIEW_LIMIT }, { signal }),
+    staleTime: 60_000,
+  });
   const runs = runsQuery.data?.items ?? [];
   const selectedRun = runs.find(run => run.run_id === runId);
   const stats = statsQuery.data;
@@ -43,12 +50,12 @@ function DashboardWorkspace() {
   const timezone = stats?.timezone === "Asia/Seoul" ? "KST" : stats?.timezone ?? "";
   const noRun = !runId;
   // 건수를 못 받으면 0으로 채우지 않고 미확인으로 두며, 서버가 준 사유를 함께 남긴다.
-  const workloadNote = (key: WorkloadKey, label: string) => {
+  const workloadNote = (key: WorkloadKey, label: string, suffix = " · 누적") => {
     if (workloadQuery.isPending) return `${label} 확인 중`;
     const item = workloadQuery.isSuccess ? workloadQuery.data.items.find(entry => entry.key === key) : undefined;
     if (!item) return `${label} 건수 미확인`;
     if (item.count === null) return `${label} 건수 미확인 · ${item.unavailable_reason === null ? "사유 없음" : WORKLOAD_UNAVAILABLE_REASON[item.unavailable_reason] ?? item.unavailable_reason}`;
-    return `${label} ${formatNumber(item.count)}건 · 누적`;
+    return `${label} ${formatNumber(item.count)}건${suffix}`;
   };
   const setRun = (value: string) => setParams(current => {
     const next = new URLSearchParams(current);
@@ -62,10 +69,10 @@ function DashboardWorkspace() {
     return next;
   });
   const refresh = () => {
-    void workloadQuery.refetch(); void runsQuery.refetch();
+    void workloadQuery.refetch(); void runsQuery.refetch(); void holdReviewQuery.refetch();
     if (runId) { void statsQuery.refetch(); void validationQuery.refetch(); }
   };
-  const isRefreshing = workloadQuery.isFetching || runsQuery.isFetching || statsQuery.isFetching || validationQuery.isFetching;
+  const isRefreshing = workloadQuery.isFetching || runsQuery.isFetching || statsQuery.isFetching || validationQuery.isFetching || holdReviewQuery.isFetching;
 
   return <section className="dash-page" aria-label="대시보드" data-astryx-theme="bidops">
     <PageHeaderActions><div className="dash-header-actions"><Button label="새로고침" size="sm" variant="ghost" icon={<RefreshCw aria-hidden="true" />} isDisabled={isRefreshing} onClick={refresh} /><LinkButton label="실행 상태" to={runLink("/run-status", runId)} icon={<Activity aria-hidden="true" />} secondary /></div></PageHeaderActions>
@@ -80,6 +87,9 @@ function DashboardWorkspace() {
         <Text>{action}</Text><Small>{note}</Small>
       </Link>)}
     </nav>
+
+    <HoldReviewPanel data={holdReviewQuery.data} isPending={holdReviewQuery.isPending} isError={holdReviewQuery.isError}
+      onRetry={() => { void holdReviewQuery.refetch(); }} overdueNote={workloadNote("tracking_hold_review_due", "기한 지남", "")} now={Date.now()} />
 
     <section className="dash-run-context" aria-label="회차 자료 범위">
       <div className="dash-row"><Text weight="semibold">회차 자료</Text><Selector label="조회할 실행 회차" isLabelHidden size="sm" value={runId ?? ""} onChange={setRun} hasSearch searchPlaceholder="회차 검색" emptySearchText="일치하는 회차가 없습니다"

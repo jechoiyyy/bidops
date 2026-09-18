@@ -81,6 +81,8 @@ const candidatePending: Fixture = {
   section: "조치 필요",
   pending_candidate_link_count: 1,
   open_blocking_item_count: 0,
+  action_reasons: ["candidate_pending"],
+  hold_review_due_at: null,
   tracking_status: "계속 추적",
   tracking_reason: "사업 범위와 기존 검토 방향이 맞아 후속 공고 확인",
   tracking_selected_by: "검토 담당자",
@@ -108,6 +110,8 @@ const recheckSignal: Fixture = {
   section: "조치 필요",
   pending_candidate_link_count: 0,
   open_blocking_item_count: 0,
+  action_reasons: ["new_link"],
+  hold_review_due_at: null,
   tracking_status: "계속 추적",
   tracking_reason: "후속 공고를 계속 확인",
   tracking_selected_by: "검토 담당자",
@@ -122,12 +126,16 @@ const recheckSignal: Fixture = {
   ],
 };
 
-/** 아직 아무도 추적을 고르지 않은 건. */
+/** 입찰공고로 처음 등록됐고 아직 아무도 추적을 고르지 않은 건. §7.2에 따라 서버는
+ * `신규 입찰공고` 구역으로 준다. 이 mock server는 구역을 다시 판정하지 않고 각
+ * 픽스처가 밝힌 `section`을 그대로 돌려준다. */
 const unselected: Fixture = {
   id: 303,
-  section: "조치 필요",
+  section: "신규 입찰공고",
   pending_candidate_link_count: 0,
   open_blocking_item_count: 0,
+  action_reasons: [],
+  hold_review_due_at: null,
   tracking_status: "미선택",
   tracking_reason: null,
   tracking_selected_by: null,
@@ -145,6 +153,8 @@ const blockingItem: Fixture = {
   section: "조치 필요",
   pending_candidate_link_count: 0,
   open_blocking_item_count: 1,
+  action_reasons: ["blocking_item"],
+  hold_review_due_at: null,
   tracking_status: "계속 추적",
   tracking_reason: "참여 조건 확인 후 재검토",
   tracking_selected_by: "검토 담당자",
@@ -162,6 +172,8 @@ const searchUnconfirmed: Fixture = {
   section: "추적 중",
   pending_candidate_link_count: 0,
   open_blocking_item_count: 0,
+  action_reasons: [],
+  hold_review_due_at: null,
   tracking_status: "계속 추적",
   tracking_reason: "후속 공고 확인",
   tracking_selected_by: "검토 담당자",
@@ -190,6 +202,9 @@ const held: Fixture = {
   section: "보류",
   pending_candidate_link_count: 0,
   open_blocking_item_count: 0,
+  // `tracking_selected_at + 14일`. 아직 기한이 지나지 않아 사유가 없다.
+  action_reasons: [],
+  hold_review_due_at: "2026-09-18T05:20:00Z",
   tracking_status: "보류",
   tracking_reason: "참여 조건을 추가 확인한 뒤 다시 검토",
   tracking_selected_by: "시안 검토자",
@@ -206,6 +221,8 @@ const ended: Fixture = {
   section: "추적 종료",
   pending_candidate_link_count: 0,
   open_blocking_item_count: 0,
+  action_reasons: [],
+  hold_review_due_at: null,
   tracking_status: "종료",
   tracking_reason: "현재 사업 방향과 맞지 않아 추적 종료",
   tracking_selected_by: "시안 검토자",
@@ -223,6 +240,8 @@ const undecided: Fixture = {
   section: null,
   pending_candidate_link_count: 0,
   open_blocking_item_count: 0,
+  action_reasons: [],
+  hold_review_due_at: null,
   tracking_status: "미선택",
   tracking_reason: null,
   tracking_selected_by: null,
@@ -234,6 +253,52 @@ const undecided: Fixture = {
   links: [orderPlanLink(8001, "공공업무 시스템 개선 용역", "기관 미확인", "DEMO-OP-008")],
 };
 
+/** 공식 번호로 이어진 레코드가 사람 상태를 가진 다른 사업기회에 있어 병합 확인 후보가 된 건(§3.2 |H|≥2). */
+const mergeConfirmation: Fixture = {
+  id: 909,
+  section: "조치 필요",
+  pending_candidate_link_count: 1,
+  open_blocking_item_count: 0,
+  action_reasons: ["merge_confirmation"],
+  hold_review_due_at: null,
+  tracking_status: "계속 추적",
+  tracking_reason: "민원 상담 범위를 계속 확인",
+  tracking_selected_by: "검토 담당자",
+  tracking_selected_at: "2026-09-05T01:00:00Z",
+  recheck_signal: false,
+  recheck_signal_at: null,
+  recheck_signal_link_id: null,
+  first_registered_stage: "order_plan",
+  links: [
+    orderPlanLink(9001, "스마트 민원 상담 플랫폼 구축", "한울시청", "DEMO-OP-009"),
+    noticeLink(9002, "bid_notice", "스마트 민원 상담 플랫폼 구축", "한울시청", "DEMO-BN-009", {
+      link_type: "candidate",
+      status: "후보 확인 대기",
+      search_strategy: "merge_confirmation",
+      last_searched_at: "2026-09-10T01:00:00Z",
+    }),
+  ],
+};
+
+/** 보류 뒤 14일 재검토 기한이 지난 건(§7.3). 기한은 서버 값이다. */
+const holdOverdue: Fixture = {
+  id: 910,
+  section: "조치 필요",
+  pending_candidate_link_count: 0,
+  open_blocking_item_count: 0,
+  action_reasons: ["hold_overdue"],
+  hold_review_due_at: "2026-09-15T01:00:00Z",
+  tracking_status: "보류",
+  tracking_reason: "예산 편성 결과를 확인한 뒤 재검토",
+  tracking_selected_by: "검토 담당자",
+  tracking_selected_at: "2026-09-01T01:00:00Z",
+  recheck_signal: false,
+  recheck_signal_at: null,
+  recheck_signal_link_id: null,
+  first_registered_stage: "order_plan",
+  links: [orderPlanLink(9101, "도시계획 정보체계 유지관리", "다온군청", "DEMO-OP-010")],
+};
+
 export const FIXTURES: Fixture[] = [
   candidatePending,
   recheckSignal,
@@ -243,7 +308,12 @@ export const FIXTURES: Fixture[] = [
   held,
   ended,
   undecided,
+  mergeConfirmation,
+  holdOverdue,
 ];
+
+/** 화면이 보류 기한 D±n을 계산하는 기준 시각. 한국 시간 2026-09-17 12:00이다. */
+export const FIXED_NOW = new Date("2026-09-17T03:00:00Z");
 
 /** blocking 확인 항목을 가진 공고. 답변이 없어 예외로 남는다. */
 export const exceptionNotice = {
@@ -303,15 +373,24 @@ export interface Trace {
   listQueries: URLSearchParams[];
   detailGets: number[];
   decisionGets: number[];
+  deepReviewGets: number[];
   patches: Array<{ id: number; body: Record<string, unknown>; headers: Record<string, string> }>;
   linkDecisions: Array<{ linkId: number; body: Record<string, unknown>; headers: Record<string, string> }>;
   reviewPuts: Array<{ noticePk: number; body: Record<string, unknown> }>;
+  acks: Array<{ id: number; body: Record<string, unknown>; headers: Record<string, string> }>;
+  searches: Array<{ id: number; body: Record<string, unknown>; headers: Record<string, string> }>;
 }
 
 export interface MockOptions {
   listStatus?: number;
   trackingStatus?: number;
   linkDecisionStatus?: number;
+  /** 후보 수락을 409 `candidate_merge_state_conflict`(양쪽 사람 상태)로 거절한다. */
+  linkDecisionMergeConflict?: boolean;
+  /** 확인 완료 직전에 신호 근거가 다른 연결로 바뀐 상태를 만든다(409 `recheck_signal_changed`). */
+  recheckChanged?: boolean;
+  /** 찾아보기 결과. 기본은 후보 2건이다. */
+  searchScenario?: "candidates" | "empty" | "source_missing";
   decisionsStatus?: number;
   /** 추적 결정 기록을 비워 "기록 없음"을 만든다. */
   emptyDecisions?: boolean;
@@ -320,7 +399,9 @@ export interface MockOptions {
 }
 
 export async function mockOpportunities(page: Page, options: MockOptions = {}): Promise<Trace> {
-  const trace: Trace = { listQueries: [], detailGets: [], decisionGets: [], patches: [], linkDecisions: [], reviewPuts: [] };
+  const trace: Trace = {
+    listQueries: [], detailGets: [], decisionGets: [], deepReviewGets: [], patches: [], linkDecisions: [], reviewPuts: [], acks: [], searches: [],
+  };
   const details = new Map<number, Fixture>(FIXTURES.map((item) => [item.id, structuredClone(item)]));
   if (options.longTitle) {
     const long = "공공데이터 통합관리체계 및 기관 간 정보연계 플랫폼 고도화와 데이터 품질관리 기반 구축 사업";
@@ -336,6 +417,67 @@ export async function mockOpportunities(page: Page, options: MockOptions = {}): 
       audit_event_id: "f1000000-0000-4000-8000-000000000001",
       cleared_recheck_signal: false,
     }]],
+    // 서버 순서(최신 먼저). 두 번째 결정은 재검토 신호를 함께 해제했다.
+    [202, [{
+      decided_at: "2026-09-04T05:20:00.000100Z",
+      tracking_status: "계속 추적",
+      previous_tracking_status: "보류",
+      reason: "후속 공고를 계속 확인",
+      claimed_name: "검토 담당자",
+      audit_event_id: "f1000000-0000-4000-8000-000000000203",
+      cleared_recheck_signal: true,
+    }, {
+      decided_at: "2026-09-02T00:00:00Z",
+      tracking_status: "보류",
+      previous_tracking_status: null,
+      reason: "예산·일정 추가 확인 필요",
+      claimed_name: "검토 담당자",
+      audit_event_id: "f1000000-0000-4000-8000-000000000202",
+      cleared_recheck_signal: false,
+    }]],
+  ]);
+
+  let recheckChangeApplied = false;
+
+  // 재검토 신호 이벤트(감사 투영, §6.3). 일부러 오래된 순으로 둬 화면이 정렬하는지 본다.
+  // 결정 저장으로 해제한 이벤트는 그 결정과 같은 밀리초 안의 300마이크로초 뒤다.
+  // 확인 완료 이벤트는 한국 시간 offset으로 온다(UTC 09-06 00:00). offset을 무시하면 마지막 생성 이벤트보다 뒤로 간다.
+  const recheckEvents = new Map<number, Array<Record<string, unknown>>>([
+    [202, [
+      { kind: "created", link_id: 2002, actor_kind: "system", claimed_name: null, created_at: "2026-09-03T00:00:00Z", note_present: false },
+      { kind: "cleared_by_decision", link_id: 2002, actor_kind: "human", claimed_name: "검토 담당자", created_at: "2026-09-04T05:20:00.000400Z", note_present: false },
+      { kind: "created", link_id: 2002, actor_kind: "system", claimed_name: null, created_at: "2026-09-05T00:00:00Z", note_present: false },
+      { kind: "acknowledged", link_id: 2002, actor_kind: "human", claimed_name: "홍길동", created_at: "2026-09-06T09:00:00+09:00", note_present: true },
+      { kind: "created", link_id: 2002, actor_kind: "system", claimed_name: null, created_at: "2026-09-06T01:30:00Z", note_present: false },
+    ]],
+  ]);
+
+  // 사업기회별 심층 검토 보고서 목록. 404는 완료 1건·진행 중 1건(공고명 미확인
+  // 상태 포함)을 갖고, 606은 명시적으로 빈 목록이다(§11.1 빈 상태 회귀).
+  const deepReviews = new Map<number, Array<Record<string, unknown>>>([
+    [404, [
+      {
+        deep_review_id: "d1111111-1111-4111-8111-111111111111",
+        notice_id: 61,
+        notice_title: "환경측정 데이터 품질관리 용역",
+        status: "completed",
+        quality_status: "measured",
+        created_at: "2026-09-10T01:00:00Z",
+        current_attempt_status: "completed",
+        latest_final_opinion: { value: "추진", decided_at: "2026-09-11T02:00:00Z" },
+      },
+      {
+        deep_review_id: "d2222222-2222-4222-8222-222222222222",
+        notice_id: 61,
+        notice_title: null,
+        status: "running",
+        quality_status: null,
+        created_at: "2026-09-12T03:00:00Z",
+        current_attempt_status: "running",
+        latest_final_opinion: null,
+      },
+    ]],
+    [606, []],
   ]);
 
   // 연결된 공고는 모두 응답한다. 확인 항목이 있는 것은 61 하나뿐이다.
@@ -404,20 +546,36 @@ export async function mockOpportunities(page: Page, options: MockOptions = {}): 
         return;
       }
       const stage = url.searchParams.get("first_registered_stage");
-      const scoped = [...details.values()].filter((item) => !stage || item.first_registered_stage === stage);
-      const section_counts: Record<string, number> = { "조치 필요": 0, "추적 중": 0, "보류": 0, "추적 종료": 0, "미결정": 0 };
-      for (const item of scoped) section_counts[(item.section as string | null) ?? "미결정"] += 1;
+      const needle = url.searchParams.get("q")?.trim().toLowerCase() ?? "";
+      // 서버 facet 규칙(opportunity_queries.list_opportunities): 구역 건수는 `section`만,
+      // 사유 건수는 `reason`만 빼고 센다. 검색은 확정 연결의 제목·기관만 본다.
+      const scoped = [...details.values()].filter((item) => (!stage || item.first_registered_stage === stage)
+        && (!needle || (item.links as Array<Record<string, unknown>>).some((link) => (
+          (link.link_type === "official" && link.status === "확정") || link.status === "사람 확인 완료"
+        ) && `${link.title ?? ""} ${link.agency ?? ""}`.toLowerCase().includes(needle))));
       const requested = url.searchParams.get("section");
-      const items = requested ? scoped.filter((item) => item.section === requested) : scoped;
+      const reason = url.searchParams.get("reason");
+      const reasonsOf = (item: Fixture) => (item.action_reasons as string[] | undefined) ?? [];
+      const section_counts: Record<string, number> = { "조치 필요": 0, "추적 중": 0, "보류": 0, "추적 종료": 0, "신규 입찰공고": 0, "미결정": 0 };
+      const action_reason_counts: Record<string, number> = { new_link: 0, candidate_pending: 0, merge_confirmation: 0, blocking_item: 0, hold_overdue: 0 };
+      for (const item of scoped) {
+        const key = (item.section as string | null) ?? "미결정";
+        if (!reason || reasonsOf(item).includes(reason)) section_counts[key] += 1;
+        if (!requested || key === requested) for (const code of reasonsOf(item)) action_reason_counts[code] += 1;
+      }
+      const matched = scoped.filter((item) => (!requested || item.section === requested) && (!reason || reasonsOf(item).includes(reason)));
+      const limit = Number(url.searchParams.get("limit") ?? 100);
+      const offset = Number(url.searchParams.get("offset") ?? 0);
       await route.fulfill({
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({
-          items,
+          items: matched.slice(offset, offset + limit),
           section_counts,
-          total: requested ? section_counts[requested] : scoped.length,
-          limit: Number(url.searchParams.get("limit") ?? 100),
-          offset: Number(url.searchParams.get("offset") ?? 0),
+          action_reason_counts,
+          total: matched.length,
+          limit,
+          offset,
         }),
       });
       return;
@@ -428,6 +586,26 @@ export async function mockOpportunities(page: Page, options: MockOptions = {}): 
       const linkId = Number(linkMatch[1]);
       const body = JSON.parse(request.postData() ?? "{}") as Record<string, unknown>;
       trace.linkDecisions.push({ linkId, body, headers: request.headers() });
+      if (options.linkDecisionMergeConflict && body.decision === "accepted") {
+        await route.fulfill({
+          status: 409,
+          contentType: "application/json",
+          body: JSON.stringify({
+            error: {
+              code: "candidate_merge_state_conflict",
+              message: "합성 병합 충돌",
+              details: {
+                opportunities: [
+                  { id: 909, tracking_status: "계속 추적", tracking_selected_by: "검토 담당자", tracking_selected_at: "2026-09-05T01:00:00Z", recheck_signal: false },
+                  { id: 912, tracking_status: "보류", tracking_selected_by: "다른 담당자", tracking_selected_at: "2026-09-08T02:30:00Z", recheck_signal: true },
+                ],
+              },
+            },
+            request_id: null,
+          }),
+        });
+        return;
+      }
       if (options.linkDecisionStatus) {
         await route.fulfill({
           status: options.linkDecisionStatus,
@@ -451,7 +629,7 @@ export async function mockOpportunities(page: Page, options: MockOptions = {}): 
       return;
     }
 
-    const match = url.pathname.match(/^\/api\/opportunities\/(\d+)(?:\/(tracking-status|tracking-decisions))?$/);
+    const match = url.pathname.match(/^\/api\/opportunities\/(\d+)(?:\/(tracking-status|tracking-decisions|deep-reviews|recheck-acknowledgements|searches))?$/);
     if (!match) {
       await route.fallback();
       return;
@@ -472,7 +650,21 @@ export async function mockOpportunities(page: Page, options: MockOptions = {}): 
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({ opportunity_id: id, items: options.emptyDecisions ? [] : decisions.get(id) ?? [] }),
+        body: JSON.stringify({
+          opportunity_id: id,
+          items: options.emptyDecisions ? [] : decisions.get(id) ?? [],
+          recheck_events: options.emptyDecisions ? [] : recheckEvents.get(id) ?? [],
+        }),
+      });
+      return;
+    }
+
+    if (match[2] === "deep-reviews" && request.method() === "GET") {
+      trace.deepReviewGets.push(id);
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ opportunity_id: id, items: deepReviews.get(id) ?? [] }),
       });
       return;
     }
@@ -483,6 +675,96 @@ export async function mockOpportunities(page: Page, options: MockOptions = {}): 
         status: detail ? 200 : 404,
         contentType: "application/json",
         body: JSON.stringify(detail ?? { error: { code: "opportunity_not_found", message: "사업기회를 찾을 수 없습니다", details: null }, request_id: null }),
+      });
+      return;
+    }
+
+    if (match[2] === "recheck-acknowledgements" && request.method() === "POST" && detail) {
+      const body = JSON.parse(request.postData() ?? "{}") as Record<string, unknown>;
+      trace.acks.push({ id, body, headers: request.headers() });
+      if (options.recheckChanged && !recheckChangeApplied) {
+        // 사람이 보던 사이 정정공고가 새 근거로 붙었다.
+        recheckChangeApplied = true;
+        (detail.links as Array<Record<string, unknown>>).push(noticeLink(2003, "bid_notice", "시설관리 업무시스템 구축 정정공고", "도담도시공사", "DEMO-BN-002-1"));
+        detail.recheck_signal_link_id = 2003;
+        detail.recheck_signal_at = "2026-09-07T02:00:00Z";
+      }
+      if (!detail.recheck_signal) {
+        await route.fulfill({
+          status: 409,
+          contentType: "application/json",
+          body: JSON.stringify({ error: { code: "recheck_signal_absent", message: "합성 확인 오류", details: null }, request_id: null }),
+        });
+        return;
+      }
+      if (body.expected_link_id !== detail.recheck_signal_link_id) {
+        await route.fulfill({
+          status: 409,
+          contentType: "application/json",
+          body: JSON.stringify({
+            error: { code: "recheck_signal_changed", message: "합성 확인 오류", details: { current_link_id: detail.recheck_signal_link_id } },
+            request_id: null,
+          }),
+        });
+        return;
+      }
+      const events = recheckEvents.get(id) ?? [];
+      events.push({
+        kind: "acknowledged", link_id: detail.recheck_signal_link_id, actor_kind: "human", claimed_name: "홍길동",
+        created_at: "2026-09-07T06:00:00Z", note_present: typeof body.note === "string" && body.note.trim().length > 0,
+      });
+      recheckEvents.set(id, events);
+      detail.recheck_signal = false;
+      detail.recheck_signal_at = null;
+      detail.recheck_signal_link_id = null;
+      detail.action_reasons = (detail.action_reasons as string[]).filter((code) => code !== "new_link");
+      if ((detail.action_reasons as string[]).length === 0 && detail.section === "조치 필요") detail.section = "추적 중";
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(detail) });
+      return;
+    }
+
+    if (match[2] === "searches" && request.method() === "POST" && detail) {
+      const body = JSON.parse(request.postData() ?? "{}") as Record<string, unknown>;
+      trace.searches.push({ id, body, headers: request.headers() });
+      const target = body.target === "bid_notice" ? "bid_notice" : "pre_spec";
+      if (options.searchScenario === "source_missing") {
+        await route.fulfill({
+          status: 422,
+          contentType: "application/json",
+          body: JSON.stringify({ error: { code: "search_source_missing", message: "합성 찾아보기 오류", details: { target } }, request_id: null }),
+        });
+        return;
+      }
+      const searchedAt = "2026-09-17T02:00:00Z";
+      const attempted = ["full", "breaking_split", "normalized", "longest_fragment"];
+      if (options.searchScenario === "empty") {
+        (detail.links as Array<Record<string, unknown>>).push({
+          ...baseLink, id: 9901, stage: "notice", link_type: "candidate", status: "검색 미확인",
+          attempted_strategies: attempted, last_searched_at: searchedAt,
+        });
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({ searched_at: searchedAt, target, attempted_strategies: attempted, candidates: [], search_unconfirmed: true }),
+        });
+        return;
+      }
+      const candidates = [
+        noticeLink(9801, target, "학사행정시스템 통합 유지관리 사업", "온빛대학교", "DEMO-FOUND-1", {
+          link_type: "candidate", status: "후보 확인 대기", search_strategy: "full", attempted_strategies: attempted,
+          agency_match: true, last_searched_at: searchedAt,
+        }),
+        noticeLink(9802, target, "학사행정 통합 유지관리", "온빛교육재단", "DEMO-FOUND-2", {
+          link_type: "candidate", status: "후보 확인 대기", search_strategy: "longest_fragment", attempted_strategies: attempted,
+          agency_match: false, last_searched_at: searchedAt,
+        }),
+      ];
+      (detail.links as Array<Record<string, unknown>>).push(...candidates);
+      detail.pending_candidate_link_count = (detail.pending_candidate_link_count as number) + candidates.length;
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ searched_at: searchedAt, target, attempted_strategies: attempted, candidates, search_unconfirmed: false }),
       });
       return;
     }

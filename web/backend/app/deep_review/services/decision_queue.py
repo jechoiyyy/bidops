@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from ...lifecycle import active_opportunity_predicate, authoritative_link_predicate
 from ...lifecycle.models import Notice, Opportunity, OpportunityLink, OrderPlan
 from ..models import BidDeltaComparison, BidFinalDecision
-from .bid_delta_currentness import comparison_currentness
+from .bid_delta_currentness import decision_currentness
 
 
 def decision_queue(session: Session, *, status: str = "pending", limit: int = 50, offset: int = 0) -> dict:
@@ -24,13 +24,16 @@ def decision_queue(session: Session, *, status: str = "pending", limit: int = 50
     ).group_by(BidFinalDecision.opportunity_id).subquery()
     decisions = {}
     comparisons = []
+    # A notice-conditions decision has no comparison (ADR-0058); an inner join
+    # would drop it and leave a decided opportunity in the pending queue.
     for decision, comparison in session.execute(select(BidFinalDecision, BidDeltaComparison)
         .join(latest_sequence, (latest_sequence.c.opportunity_id == BidFinalDecision.opportunity_id)
             & (latest_sequence.c.sequence == BidFinalDecision.sequence))
-        .join(BidDeltaComparison, BidDeltaComparison.id == BidFinalDecision.comparison_id)).all():
+        .outerjoin(BidDeltaComparison, BidDeltaComparison.id == BidFinalDecision.comparison_id)).all():
         decisions[decision.opportunity_id] = decision
-        comparisons.append(comparison)
-    currentness = comparison_currentness(session, ids, comparisons=comparisons)
+        if comparison is not None:
+            comparisons.append(comparison)
+    currentness = decision_currentness(session, ids, list(decisions.values()), comparisons=comparisons)
     comparison_counts = dict(session.execute(select(BidDeltaComparison.opportunity_id, func.count())
         .where(BidDeltaComparison.opportunity_id.in_(ids)).group_by(BidDeltaComparison.opportunity_id)).all())
 
@@ -55,7 +58,7 @@ def decision_queue(session: Session, *, status: str = "pending", limit: int = 50
         )) if bids else None
         record = bid or next((notice if notice is not None else plan for notice, plan in linked if notice is not None or plan is not None), None)
         decision = decisions.get(opportunity.id)
-        state = currentness[decision.comparison_id][0] if decision is not None else "unknown"
+        state = currentness[decision.id][0] if decision is not None else "unknown"
         if status == "pending" and (bid is None or (decision is not None and state != "stale")):
             continue
         items.append({"opportunity_id": opportunity.id,

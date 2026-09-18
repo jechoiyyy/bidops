@@ -8,6 +8,7 @@ privileges rather than trusting the grant text alone.
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import json
 import re
 from pathlib import Path
 
@@ -58,22 +59,67 @@ BID_DELTA_TABLES = {
 }
 
 
-def test_bid_delta_runtime_grants_are_read_only_app_allowlist() -> None:
-    """The app reads only the two queue projection tables.
+def test_bid_delta_runtime_grants_let_the_app_append_only_final_decisions() -> None:
+    """The app reads the two queue projection tables and appends human decisions.
 
-    Calculation attempts, items, and evidence remain worker-owned append-only
-    data.  Keeping the complete five-table set here prevents a future broad
-    grant from silently exposing the worker-side calculation lineage.
+    ADR-0058 opens INSERT on ``bid_final_decision`` and a column-scoped
+    ``UPDATE (id)`` so the decision tip can be locked with ``FOR UPDATE``; the
+    append-only trigger still refuses every UPDATE and DELETE. Comparisons,
+    attempts, items, and evidence keep no runtime DML, and the worker has no
+    access at all. Keeping the complete five-table set here prevents a future
+    broad grant from silently exposing the calculation lineage.
     """
 
     assert _table_grants("app", "SELECT") & BID_DELTA_TABLES == {
         "bid_delta_comparison",
         "bid_final_decision",
     }
+    assert _table_grants("app", "INSERT") & BID_DELTA_TABLES == {"bid_final_decision"}
+    assert {"idempotency_record", "audit_event"} <= _table_grants("app", "INSERT")
+    assert _column_update_grant("app", "bid_final_decision") == {"id"}
     for role in ("app", "worker"):
-        for privilege in ("INSERT", "UPDATE", "DELETE"):
+        for privilege in ("UPDATE", "DELETE"):
             assert not _table_grants(role, privilege) & BID_DELTA_TABLES
-    assert not _table_grants("worker", "SELECT") & BID_DELTA_TABLES
+        for table in sorted(BID_DELTA_TABLES):
+            if (role, table) == ("app", "bid_final_decision"):
+                continue
+            assert (
+                re.search(
+                    rf"GRANT\s+UPDATE\s*\([^)]*\)\s+ON\s+bidops\.{table}\s+TO\s+{role};",
+                    POLICY,
+                )
+                is None
+            )
+    for privilege in ("SELECT", "INSERT"):
+        assert not _table_grants("worker", privilege) & BID_DELTA_TABLES
+
+
+COLLECTION_INDEX_TABLES = {"collected_record_index", "collected_record_token"}
+
+
+def test_collection_index_grants_match_the_ingest_paths() -> None:
+    """수집 색인은 적재(app)가 쓰고 선별 결과 열만 갱신한다. worker는 색인만 읽는다."""
+
+    assert COLLECTION_INDEX_TABLES <= _table_grants("app", "SELECT")
+    assert COLLECTION_INDEX_TABLES <= _table_grants("app", "INSERT")
+    for role in ("app", "worker"):
+        assert not COLLECTION_INDEX_TABLES & _table_grants(role, "UPDATE")
+        assert not COLLECTION_INDEX_TABLES & _table_grants(role, "DELETE")
+    assert _column_update_grant("app", "collected_record_index") == {
+        "selection_reason", "ingested_notice_id", "ingested_order_plan_id"
+    }
+    assert (
+        re.search(
+            r"GRANT\s+UPDATE\s*\([^)]*\)\s+ON\s+bidops\.collected_record_token\s+TO\s+\w+;",
+            POLICY,
+        )
+        is None
+    )
+    assert _table_grants("worker", "SELECT") & COLLECTION_INDEX_TABLES == {"collected_record_index"}
+    assert not COLLECTION_INDEX_TABLES & _table_grants("worker", "INSERT")
+    # The loader writes the new notice projection column.
+    assert "demand_agency" in _column_update_grant("app", "notice")
+    assert _column_update_grant("worker", "notice") == {"id"}
 
 
 def test_migrate_uses_a_separate_fail_closed_privilege_policy() -> None:
@@ -349,7 +395,7 @@ def _column_privilege(
 
 
 @requires_postgres
-def test_effective_app_bid_delta_read_allowlist_and_worker_denial() -> None:
+def test_effective_app_bid_delta_grants_and_worker_denial() -> None:
     """Apply the policy to PostgreSQL 17 and exercise the real role boundary."""
 
     from sqlalchemy.exc import DBAPIError
@@ -359,18 +405,22 @@ def test_effective_app_bid_delta_read_allowlist_and_worker_denial() -> None:
         engine = _apply_policy(database_url)
         try:
             with engine.begin() as connection:
-                for role in ("app", "worker"):
-                    for table in BID_DELTA_TABLES:
-                        assert not _table_privilege(connection, role, table, "INSERT")
-                        assert not _table_privilege(connection, role, table, "UPDATE")
-                        assert not _table_privilege(connection, role, table, "DELETE")
-                assert _table_privilege(connection, "app", "bid_delta_comparison", "SELECT")
-                assert _table_privilege(connection, "app", "bid_final_decision", "SELECT")
-                assert not _table_privilege(connection, "worker", "bid_delta_comparison", "SELECT")
-                assert not _table_privilege(connection, "worker", "bid_final_decision", "SELECT")
-                for table in BID_DELTA_TABLES - {"bid_delta_comparison", "bid_final_decision"}:
-                    assert not _table_privilege(connection, "app", table, "SELECT")
-                    assert not _table_privilege(connection, "worker", table, "SELECT")
+                for table in BID_DELTA_TABLES:
+                    for privilege in ("SELECT", "INSERT", "UPDATE", "DELETE"):
+                        assert not _table_privilege(connection, "worker", table, privilege)
+                    assert not _table_privilege(connection, "app", table, "UPDATE")
+                    assert not _table_privilege(connection, "app", table, "DELETE")
+                    assert _table_privilege(connection, "app", table, "INSERT") == (
+                        table == "bid_final_decision"
+                    )
+                    assert _table_privilege(connection, "app", table, "SELECT") == (
+                        table in {"bid_delta_comparison", "bid_final_decision"}
+                    )
+                assert _column_privilege(connection, "app", "bid_final_decision", "id", "UPDATE")
+                for column in ("decision", "reason", "basis_kind", "basis_notice_id", "comparison_id"):
+                    assert not _column_privilege(
+                        connection, "app", "bid_final_decision", column, "UPDATE"
+                    )
 
             with engine.begin() as connection:
                 connection.exec_driver_sql("SET LOCAL ROLE app")
@@ -380,19 +430,107 @@ def test_effective_app_bid_delta_read_allowlist_and_worker_denial() -> None:
                         text(f"SELECT count(*) FROM bidops.{table}")
                     ) == 0
 
-            for table in ("bid_delta_comparison", "bid_final_decision"):
-                for statement in (
-                    f"INSERT INTO bidops.{table} DEFAULT VALUES",
-                    f"UPDATE bidops.{table} SET id = id",
-                    f"DELETE FROM bidops.{table}",
-                ):
-                    with pytest.raises(DBAPIError) as error:
-                        with engine.begin() as connection:
-                            connection.exec_driver_sql("SET LOCAL ROLE app")
-                            connection.exec_driver_sql(statement)
-                    assert error.value.orig.sqlstate == "42501"
+            for statement in (
+                "INSERT INTO bidops.bid_delta_comparison DEFAULT VALUES",
+                "UPDATE bidops.bid_delta_comparison SET id = id",
+                "DELETE FROM bidops.bid_delta_comparison",
+                "UPDATE bidops.bid_final_decision SET reason = reason",
+                "DELETE FROM bidops.bid_final_decision",
+            ):
+                with pytest.raises(DBAPIError) as error:
+                    with engine.begin() as connection:
+                        connection.exec_driver_sql("SET LOCAL ROLE app")
+                        connection.exec_driver_sql(statement)
+                assert error.value.orig.sqlstate == "42501", statement
         finally:
             engine.dispose()
+
+
+@requires_postgres
+def test_notice_final_decision_records_and_locks_with_the_app_runtime_role() -> None:
+    """ADR-0058 decisions complete under the app credential, including the tip lock."""
+
+    from uuid import UUID, uuid4
+
+    from sqlalchemy.exc import DBAPIError
+
+    from app.deep_review.models import BidFinalDecision
+    from app.deep_review.schemas.bid_delta import BidNoticeFinalDecisionCreateRequest
+    from app.deep_review.services.bid_delta import BidDeltaService
+    from app.lifecycle.models import Notice, NoticeObservation, Opportunity, OpportunityLink
+
+    _ensure_roles()
+    with temporary_database() as database_url:
+        policy_engine = _apply_policy(database_url)
+        owner_engine = schema_bound(create_engine(database_url, future=True))
+        app_engine = schema_bound(create_engine(database_url, future=True))
+        try:
+            observed = datetime(2026, 9, 16, 1, tzinfo=timezone.utc)
+            with Session(owner_engine) as session:
+                run = Run(id="privilege-final-decision", timezone="Asia/Seoul", generated_at=observed)
+                opportunity = Opportunity(first_registered_stage="bid_notice")
+                notice = Notice(
+                    notice_key="bid:R26BK09999001:000", source_type="bid_notice",
+                    bid_no="R26BK09999001", bid_ord="000", published_at=observed,
+                )
+                session.add_all([run, opportunity, notice])
+                session.flush()
+                session.add_all([
+                    OpportunityLink(
+                        opportunity_id=opportunity.id, notice_id=notice.id, stage="notice",
+                        link_type="official", status="확정", evidence_external_no="R26BK09999001",
+                    ),
+                    NoticeObservation(
+                        notice_id=notice.id, run_id=run.id, observed_at=observed,
+                        snapshot_schema_version="fixture.v1", snapshot_jsonb={"fixture": True},
+                        source_sha256="a" * 64,
+                    ),
+                ])
+                session.commit()
+                opportunity_id, notice_id = opportunity.id, notice.id
+
+            def request(**overrides: object) -> BidNoticeFinalDecisionCreateRequest:
+                values: dict[str, object] = {
+                    "request_id": uuid4(), "expected_notice_id": notice_id,
+                    "expected_observation_sha256": "a" * 64, "supersedes_final_decision_id": None,
+                    "decision": "go", "reason": "권한 검사",
+                }
+                values.update(overrides)
+                return BidNoticeFinalDecisionCreateRequest(**values)
+
+            service = BidDeltaService()
+            with Session(app_engine) as session:
+                session.connection().exec_driver_sql("SET ROLE app")
+                assert session.scalar(text("SELECT current_user")) == "app"
+                first = service.record_notice_final_decision(session, opportunity_id, request(), "담당자")
+                # The superseding decision locks the previous tip with SELECT ... FOR UPDATE.
+                session.connection().exec_driver_sql("SET ROLE app")
+                second = service.record_notice_final_decision(
+                    session, opportunity_id,
+                    request(decision="no_go", supersedes_final_decision_id=UUID(first["id"])),
+                    "담당자",
+                )
+                assert (first["sequence"], second["sequence"]) == (1, 2)
+
+            # The lock column is granted, but the append-only trigger still refuses it.
+            with pytest.raises(DBAPIError) as error:
+                with app_engine.begin() as connection:
+                    connection.exec_driver_sql("SET LOCAL ROLE app")
+                    connection.exec_driver_sql("UPDATE bidops.bid_final_decision SET id = id")
+            assert error.value.orig.sqlstate == "23514"
+
+            with Session(owner_engine) as session:
+                rows = session.scalars(
+                    select(BidFinalDecision).order_by(BidFinalDecision.sequence)
+                ).all()
+                assert [(row.basis_kind, row.decision) for row in rows] == [
+                    ("notice_conditions", "go"),
+                    ("notice_conditions", "no_go"),
+                ]
+        finally:
+            app_engine.dispose()
+            owner_engine.dispose()
+            policy_engine.dispose()
 
 
 @requires_postgres
@@ -790,6 +928,143 @@ def test_c2_ingest_completes_with_the_app_runtime_role(tmp_path) -> None:
         finally:
             policy_engine.dispose()
             owner_engine.dispose()
+
+
+def _write_collection_run(root: Path) -> Path:
+    """A minimal collected run: one plan, one SW pre-spec, a 1468 bid, an index-only bid."""
+
+    run_dir = root / "runs" / "lifecycle-20260916-notices"
+    run_dir.mkdir(parents=True)
+    window = {"from": "2026-09-14", "to": "2026-09-16", "timezone": "Asia/Seoul"}
+    generated_at = "2026-09-16T00:00:00+00:00"
+    qualification = dict.fromkeys((
+        "participation_limited", "industry_limited", "information_business", "general_service",
+        "service_division", "joint_contract_method", "performance_restricted_competition",
+        "pq_evaluation", "technical_evaluation", "technical_evaluation_rate", "successful_bid_method",
+    ))
+
+    def notice(notice_id: str, source_type: str, **overrides: object) -> dict[str, object]:
+        record: dict[str, object] = {
+            "notice_id": notice_id, "source_type": source_type, "title": "권한 검사 사업",
+            "agency": "기관", "demand_agency": None, "published_at": "2026-09-15T10:00:00+09:00",
+            "deadline_at": None, "budget": None, "estimated_price": None, "method": None, "url": None,
+            "procurement_class": {"large": None, "middle": None, "detail": None, "code": None},
+            "region_limit": {"basis": None, "joint_contract_regions": [], "joint_contract_rate": None, "regional_joint_contract_limit": None},
+            "lifecycle": {"pre_spec_no": None, "re_notice": None, "changed_at": None, "change_reason": None, "unified_notice_no": None, "previous_failed_notice_no": None, "opening_at": None},
+            "attachments": [], "qualification_flags": {**qualification, "sw_industry_1468": None},
+            "focus_matches": [], "performance_matches": [], "performance_top_score": None,
+            "candidate_sources": [], "collection_bucket": "audit_pool", "unknown_fields": [],
+            "raw_source": "raw/page-001.json",
+        }
+        record.update(overrides)
+        return record
+
+    notices = [
+        notice(
+            "pre:R26BD00279001", "pre_spec", demand_agency="수요기관",
+            lifecycle={"pre_spec_no": "R26BD00279001", "re_notice": None, "changed_at": None, "change_reason": None, "unified_notice_no": None, "previous_failed_notice_no": None, "opening_at": None, "bid_ntice_no_list": "R26BK01699001"},
+            qualification_flags={**qualification, "sw_business_status": "Y", "business_division": "일반용역", "sw_industry_1468": None},
+        ),
+        notice(
+            "bid:R26BK01699001:000", "bid_notice", method="일반경쟁",
+            lifecycle={"pre_spec_no": "R26BD00279001", "order_plan_no": None, "re_notice": "N", "changed_at": None, "change_reason": None, "unified_notice_no": None, "previous_failed_notice_no": None, "opening_at": "2026-09-26T11:00:00+09:00"},
+            qualification_flags={**qualification, "sw_industry_1468": "Y"},
+        ),
+        notice(
+            "bid:R26BK01699002:000", "bid_notice", method="일반경쟁",
+            lifecycle={"pre_spec_no": None, "order_plan_no": "R26DD20859001", "re_notice": "N", "changed_at": None, "change_reason": None, "unified_notice_no": None, "previous_failed_notice_no": None, "opening_at": None},
+            qualification_flags={**qualification, "sw_industry_1468": "N"},
+        ),
+    ]
+    (run_dir / "collected-notices.json").write_text(json.dumps({
+        "schema_version": "bidops.collected.v2", "generated_at": generated_at,
+        "source_window": window, "counts": {"total": 3}, "warnings": [],
+        "metadata": {"sw_industry_1468": {"status": "complete", "total": 1, "pages": 1}},
+        "notices": notices,
+    }, ensure_ascii=False), encoding="utf-8")
+    (run_dir / "collected-order-plans.json").write_text(json.dumps({
+        "schema_version": "bidops.collected-order-plans.v1", "generated_at": generated_at,
+        "source_window": window, "counts": {"total": 1},
+        "order_plans": [{
+            "order_plan_unty_no": "R26DD20859001", "title": "권한 검사 발주계획",
+            "agency_name": "기관", "published_at": "2026-09-10T09:00:00+09:00",
+            "bid_ntice_no_list": "R26BK01699002000", "source_sha256": "b" * 64,
+            "raw_source": "raw/page-00001.json",
+        }],
+    }, ensure_ascii=False), encoding="utf-8")
+    return run_dir
+
+
+@requires_postgres
+def test_collection_ingest_and_tracked_backfill_complete_with_the_app_runtime_role(tmp_path) -> None:
+    """The ingest credential can index, select, and backfill; worker only reads the index."""
+
+    from app.lifecycle.ingest.loader import tracked_backfill
+    from app.lifecycle.models import (
+        CollectedRecordIndex,
+        Opportunity,
+        OpportunityLink,
+        OrderPlan,
+    )
+    from app.lifecycle.services.opportunity_tracking import set_tracking_status
+
+    _ensure_roles()
+    with temporary_database() as database_url:
+        policy_engine = _apply_policy(database_url)
+        app_engine = schema_bound(create_engine(database_url, future=True))
+        try:
+            with policy_engine.begin() as connection:
+                for table in sorted(COLLECTION_INDEX_TABLES):
+                    assert _table_privilege(connection, "app", table, "SELECT")
+                    assert _table_privilege(connection, "app", table, "INSERT")
+                    assert not _table_privilege(connection, "app", table, "UPDATE")
+                    assert not _table_privilege(connection, "app", table, "DELETE")
+                    for privilege in ("INSERT", "UPDATE", "DELETE"):
+                        assert not _table_privilege(connection, "worker", table, privilege)
+                assert _table_privilege(connection, "worker", "collected_record_index", "SELECT")
+                assert not _table_privilege(connection, "worker", "collected_record_token", "SELECT")
+                assert _column_privilege(connection, "app", "collected_record_index", "selection_reason", "UPDATE")
+                assert not _column_privilege(connection, "app", "collected_record_index", "record_key", "UPDATE")
+                assert _column_privilege(connection, "app", "notice", "demand_agency", "UPDATE")
+                assert _column_privilege(connection, "app", "opportunity_link", "search_target_kind", "UPDATE")
+
+            run_dir = _write_collection_run(tmp_path)
+            with Session(app_engine) as session:
+                session.connection().exec_driver_sql("SET ROLE app")
+                result = ingest_run(run_dir, session, selection="collection")
+                assert result.selection["pre_spec"]["selected"]["pre_spec_sw"] == 1
+                assert result.selection["bid_notice"]["selected"]["bid_sw_prespec_reference"] == 1
+                assert result.selection["bid_notice"]["skipped"] == 1
+
+                session.connection().exec_driver_sql("SET ROLE app")
+                opportunity = session.scalars(
+                    select(Opportunity)
+                    .join(OpportunityLink, OpportunityLink.opportunity_id == Opportunity.id)
+                    .join(OrderPlan, OrderPlan.id == OpportunityLink.order_plan_id)
+                ).one()
+                set_tracking_status(
+                    session,
+                    opportunity,
+                    status="계속 추적",
+                    reason="권한 검사",
+                    selected_by="담당자",
+                    selected_at=datetime(2026, 9, 16, 1, tzinfo=timezone.utc),
+                )
+                backfill = tracked_backfill(session, runs_root=run_dir.parent)
+                session.commit()
+                assert backfill["loaded"] == {"tracked_backfill": 1}
+
+                session.connection().exec_driver_sql("SET ROLE app")
+                assert set(
+                    session.scalars(
+                        select(CollectedRecordIndex.selection_reason).where(
+                            CollectedRecordIndex.record_kind == "bid_notice"
+                        )
+                    )
+                ) == {"bid_sw_prespec_reference", "tracked_backfill"}
+        finally:
+            app_engine.dispose()
+            policy_engine.dispose()
 
 
 def test_company_fit_runtime_privileges():

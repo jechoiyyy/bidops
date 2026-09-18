@@ -1,4 +1,5 @@
 import type { Page, Route } from "@playwright/test";
+import type { BidConditionsView } from "../src/components/bid-delta/types";
 
 /**
  * 최종 Go/No-Go 목록·결정 화면의 고정 입력.
@@ -10,6 +11,10 @@ import type { Page, Route } from "@playwright/test";
  *
  * 변경 비교를 계산하는 worker는 아직 구현 전이므로 `completed` 비교는 **앞으로의
  * 완료 상태를 검증하기 위한 계약 형태의 고정 입력**이다. 운영 결과가 아니다.
+ *
+ * 목록은 결정 대기열(`/api/bid-delta/decision-queue`) 한 번으로 그리므로 대기열 응답도
+ * 같은 시나리오에서 만든다. 행의 결정·현재성은 대기열 값이고, workspace 조회 실패·지연은
+ * 선택한 사업의 상세에만 영향을 준다.
  */
 
 const BASE_ID = 901;
@@ -30,6 +35,8 @@ export const BUSINESSES: Business[] = [
   { agency: "온빛대학교", title: "학사행정시스템 통합 유지관리" },
   { agency: "이음공공의료원", title: "의료정보 연계 기반 구축" },
   { agency: "다솜관광공사", title: "관광데이터 분석 환경 구축" },
+  { agency: "누리시청", title: "입찰공고 미연결 추적 사업" },
+  { agency: "한빛구청", title: "공고 조건 기준 결정 사업" },
 ];
 
 export const LONG_TITLE = "공공데이터 통합관리체계와 기관 간 정보연계 플랫폼 고도화 및 데이터 품질관리 기반 구축 사업";
@@ -42,11 +49,13 @@ interface Scenario {
   /** 이 사업기회의 비교 계산 상태. `null`이면 비교 자체가 없다. */
   calculation: CalculationStatus | null;
   result?: ResultStatus;
-  /** 마지막 최종 결정. 없으면 미결정. */
-  decision?: { value: "go" | "no_go"; reason: string; sequence: number };
+  /** 마지막 최종 결정. 없으면 미결정. `basis`가 없으면 비교 근거다. */
+  decision?: { value: "go" | "no_go"; reason: string; sequence: number; basis?: "comparison" | "notice_conditions" };
   currentness: Currentness;
-  /** workspace 조회를 실패시키거나 늦춘다. */
+  /** workspace 조회를 실패시키거나 늦춘다(선택한 사업의 상세만 영향을 받는다). */
   lookup?: "failed" | "slow";
+  /** `false`면 확정 연결된 입찰공고가 없다. */
+  bidNotice?: boolean;
 }
 
 export const SCENARIOS: Scenario[] = [
@@ -74,6 +83,12 @@ export const SCENARIOS: Scenario[] = [
   },
   { calculation: "completed", result: "changed", currentness: "unknown", lookup: "failed" },
   { calculation: "completed", result: "changed", currentness: "unknown", lookup: "slow" },
+  { calculation: null, currentness: "unknown", bidNotice: false },
+  {
+    calculation: null,
+    currentness: "unknown",
+    decision: { value: "no_go", reason: "공고 조건의 참가제한을 충족하지 못해 불참합니다.", sequence: 1, basis: "notice_conditions" },
+  },
 ];
 
 function hex(seed: number, char: string): string {
@@ -198,16 +213,21 @@ function items(index: number, result: ResultStatus) {
 function finalDecision(index: number, scenario: Scenario) {
   if (!scenario.decision) return null;
   const id = BASE_ID + index;
+  // v2(ADR-0058): 비교 근거면 비교 다섯 필드, 공고 조건 근거면 basis 두 필드만 채운다.
+  const notice = scenario.decision.basis === "notice_conditions";
   return {
-    schema_version: "bidops.bid-final-decision.v1",
+    schema_version: "bidops.bid-final-decision.v2",
     id: uuid(id, "d"),
     opportunity_id: id,
     sequence: scenario.decision.sequence,
-    comparison_id: uuid(id, "7"),
-    comparison_version: 2,
-    result_sha256: hex(id, "e"),
-    baseline_document_version_id: uuid(id, "2"),
-    comparison_document_version_id: uuid(id, "5"),
+    basis_kind: notice ? "notice_conditions" : "comparison",
+    comparison_id: notice ? null : uuid(id, "7"),
+    comparison_version: notice ? null : 2,
+    result_sha256: notice ? null : hex(id, "e"),
+    baseline_document_version_id: notice ? null : uuid(id, "2"),
+    comparison_document_version_id: notice ? null : uuid(id, "5"),
+    basis_notice_id: notice ? id * 100 : null,
+    basis_observation_sha256: notice ? hex(id, "f") : null,
     supersedes_final_decision_id: null,
     decision: scenario.decision.value,
     reason: scenario.decision.reason,
@@ -292,6 +312,8 @@ export function opportunityFor(index: number, title?: string) {
     section: "추적 중",
     pending_candidate_link_count: 0,
     open_blocking_item_count: 0,
+    action_reasons: [],
+    hold_review_due_at: null,
     id,
     tracking_status: "계속 추적",
     tracking_reason: "입찰공고를 확인하고 변경을 비교합니다.",
@@ -332,9 +354,9 @@ export function opportunityFor(index: number, title?: string) {
 export interface GoNoGoMockOptions {
   /** 첫 사업의 제목을 긴 한글 제목으로 바꾼다. */
   longTitle?: boolean;
-  /** 사업기회 목록 자체를 실패시킨다. */
+  /** 결정 대기열 자체를 실패시킨다. */
   listError?: boolean;
-  /** `조회 중` 상태를 캡처할 수 있게 slow workspace 응답을 더 오래 붙든다. */
+  /** 조회가 늦은 workspace 응답을 더 오래 붙든다(선택한 사업의 상세만 늦어진다). */
   slowMs?: number;
   /** 사업기회 수를 줄인다(페이저 없는 기본 목록). */
   count?: number;
@@ -345,29 +367,177 @@ async function json(route: Route, body: unknown, status = 200): Promise<void> {
 }
 
 /**
- * 목록·workspace·비교 상세를 한 벌로 연결한다. `mockApi(page)` 뒤에 부르면 이
- * 경로만 덮어쓴다.
+ * 결정 대기열 한 행. 서버(`decision_queue.py`)와 같은 모양이며, 결정은 마지막 결정의
+ * 값·시각·담당자만 싣는다. 사유·근거는 workspace가 준다.
+ */
+export function queueItemFor(index: number, title?: string) {
+  const id = BASE_ID + index;
+  const scenario = SCENARIOS[index];
+  const business = BUSINESSES[index];
+  const decision = finalDecision(index, scenario);
+  return {
+    opportunity_id: id,
+    title: title ?? business.title,
+    agency: business.agency,
+    tracking_status: "계속 추적",
+    first_registered_stage: "pre_spec",
+    recheck_signal: scenario.currentness === "stale",
+    bid_notice_external_id: scenario.bidNotice === false ? null : `BN-2026-${id}`,
+    comparison_count: scenario.calculation ? 1 : 0,
+    latest_final_decision: decision
+      ? { decision: decision.decision, decided_at: decision.created_at, claimed_name: decision.claimed_name }
+      : null,
+    decision_currentness: decision ? scenario.currentness : "unknown",
+  };
+}
+
+function conditionValues(overrides: Partial<BidConditionsView["bid_notices"][number]["conditions"]> = {}) {
+  return {
+    budget: "150000000",
+    estimated_price: null,
+    deadline_at: "2026-09-20T01:00:00Z",
+    opening_at: "2026-09-20T11:00:00+09:00",
+    method: "일반경쟁",
+    participation_limited: "Y",
+    industry_limited: "Y",
+    sw_industry_1468: "N",
+    joint_contract_method: "공동이행",
+    successful_bid_method: "협상에의한계약",
+    technical_evaluation_rate: null,
+    region_limit_basis: null,
+    joint_contract_regions: [],
+    change_reason: null,
+    re_notice: "N",
+    ...overrides,
+  };
+}
+
+/**
+ * 공고 조건 요약 고정 입력(spec §9.1). 차수 셋: 000 → 001(예산 변경·기술평가비율 미확인)
+ * → 002(입찰마감·정정 사유 변경). 추정가격은 모든 차수에서 `null`(값 없음), 1468 표시는
+ * 실제 `N`이다. 최신은 서버가 정한 `latest_notice_id` 하나다.
+ */
+export function bidConditionsFixture(opportunityId: number, options: {
+  latestNoticeId?: number | null;
+  latestObservation?: string | null;
+  firstNoticeId?: number;
+} = {}): BidConditionsView {
+  const first = options.firstNoticeId ?? 1100;
+  const ids = [first, first + 1, first + 2];
+  const round0 = conditionValues();
+  const round1 = conditionValues({ budget: "160000000", technical_evaluation_rate: "90" });
+  const round2 = conditionValues({
+    budget: "160000000",
+    technical_evaluation_rate: "90",
+    deadline_at: "2026-09-27T01:00:00Z",
+    change_reason: "입찰마감 일시 연장",
+  });
+  const fields = Object.keys(round0) as Array<keyof typeof round0>;
+  const changes = (before: typeof round0, after: typeof round0) => fields.map((field) => {
+    const left = before[field];
+    const right = after[field];
+    const status = left === null || right === null
+      ? "unknown"
+      : JSON.stringify(left) === JSON.stringify(right) ? "unchanged" : "changed";
+    return { field, status, before: left, after: right };
+  }) as BidConditionsView["bid_notices"][number]["changes_from_previous"];
+  const latestNoticeId = options.latestNoticeId === undefined ? ids[2] : options.latestNoticeId;
+  // 서버는 같은 함수로 fence와 차수별 관측 해시를 계산한다. 마지막 차수의 관측 해시도 같은 값이다.
+  const latestObservation = options.latestObservation === undefined ? "e".repeat(64) : options.latestObservation;
+  return {
+    opportunity_id: opportunityId,
+    generated_at: "2026-09-17T09:00:00Z",
+    latest_notice_id: latestNoticeId,
+    latest_observation_sha256: latestNoticeId === null ? null : latestObservation,
+    pre_spec: { notice_id: first - 10, title: "공고 조건 검토 사업", agency: "테스트 조달기관", budget: "150000000" },
+    bid_notices: [
+      { notice_id: ids[0], bid_no: "R26BK00267196", bid_ord: "000", published_at: "2026-09-01T01:00:00Z", observation_sha256: "a".repeat(64), conditions: round0, changes_from_previous: [] },
+      { notice_id: ids[1], bid_no: "R26BK00267196", bid_ord: "001", published_at: "2026-09-05T01:00:00Z", observation_sha256: "b".repeat(64), conditions: round1, changes_from_previous: changes(round0, round1) },
+      { notice_id: ids[2], bid_no: "R26BK00267196", bid_ord: "002", published_at: "2026-09-10T01:00:00Z", observation_sha256: latestObservation, conditions: round2, changes_from_previous: changes(round1, round2) },
+    ],
+    pre_spec_comparison: [
+      { field: "budget", status: "changed", before: "150000000", after: "160000000" },
+      { field: "title", status: "unchanged", before: "공고 조건 검토 사업", after: "공고 조건 검토 사업" },
+    ],
+    not_comparable: ["deadline_at"],
+  };
+}
+
+export interface BidConditionsTrace {
+  gets: number;
+}
+
+/**
+ * 한 사업기회의 공고 조건 응답을 덮어쓴다. `views`는 조회 순서대로 쓰이고 마지막 값이
+ * 이후 조회에 남는다(다시 읽은 뒤 새 차수가 보이는 상황). 나중에 등록한 route가 먼저
+ * 잡으므로 `mockBidDelta`·`mockGoNoGo` 뒤에 부른다.
+ */
+export async function mockBidConditions(page: Page, opportunityId: number, views: BidConditionsView[]): Promise<BidConditionsTrace> {
+  const trace: BidConditionsTrace = { gets: 0 };
+  await page.route(new RegExp(`/api/opportunities/${opportunityId}/bid-conditions$`), async (route) => {
+    const view = views[Math.min(trace.gets, views.length - 1)];
+    trace.gets += 1;
+    await json(route, view);
+  });
+  return trace;
+}
+
+/** 공고 조건 근거 최종 결정 한 건(v2). 비교 다섯 필드는 `null`이다. */
+export function noticeBasisDecision(opportunityId: number, sequence: number, overrides: Record<string, unknown> = {}) {
+  return {
+    schema_version: "bidops.bid-final-decision.v2",
+    id: `cccccccc-3333-4333-8333-ccccccccccc${sequence}`,
+    opportunity_id: opportunityId,
+    sequence,
+    basis_kind: "notice_conditions",
+    comparison_id: null,
+    comparison_version: null,
+    result_sha256: null,
+    baseline_document_version_id: null,
+    comparison_document_version_id: null,
+    basis_notice_id: 1102,
+    basis_observation_sha256: "e".repeat(64),
+    supersedes_final_decision_id: null,
+    decision: "go",
+    reason: "공고 조건과 차수 간 변경을 확인하고 참여합니다.",
+    claimed_name: "조건 검토자",
+    request_id: `dddddddd-4444-4444-8444-ddddddddddd${sequence}`,
+    created_at: "2026-09-12T02:00:00Z",
+    currentness: "current",
+    currentness_reasons: [],
+    ...overrides,
+  };
+}
+
+/**
+ * 대기열·workspace·비교 상세·공고 조건을 한 벌로 연결한다. `mockApi(page)` 뒤에 부르면
+ * 이 경로만 덮어쓴다.
  */
 export async function mockGoNoGo(page: Page, options: GoNoGoMockOptions = {}): Promise<void> {
   const count = options.count ?? SCENARIOS.length;
-  const opportunities = SCENARIOS.slice(0, count).map((_, index) =>
-    opportunityFor(index, index === 0 && options.longTitle ? LONG_TITLE : undefined));
+  const opportunities = SCENARIOS.slice(0, count).map((scenario, index) => {
+    const item = opportunityFor(index, index === 0 && options.longTitle ? LONG_TITLE : undefined);
+    return scenario.bidNotice === false ? { ...item, links: [] } : item;
+  });
+  // 서버와 같은 순서: 결정이 없는 사업이 먼저, 그 안에서는 등록 순서.
+  const queueItems = SCENARIOS.slice(0, count)
+    .map((_, index) => queueItemFor(index, index === 0 && options.longTitle ? LONG_TITLE : undefined))
+    .sort((left, right) => Number(left.latest_final_decision !== null) - Number(right.latest_final_decision !== null));
 
-  await page.route(/\/api\/opportunities(\?|$)/, async (route) => {
+  await page.route("**/api/bid-delta/decision-queue**", async (route) => {
     if (options.listError) {
       await json(route, { error: { code: "internal_error", message: "합성 실패", details: null }, request_id: null }, 500);
       return;
     }
     const url = new URL(route.request().url());
-    const limit = Number(url.searchParams.get("limit") ?? "25");
+    const status = url.searchParams.get("status") ?? "pending";
+    const limit = Number(url.searchParams.get("limit") ?? "50");
     const offset = Number(url.searchParams.get("offset") ?? "0");
-    await json(route, {
-      items: opportunities.slice(offset, offset + limit),
-      total: opportunities.length,
-      limit,
-      offset,
-      section_counts: { "조치 필요": 0, "추적 중": opportunities.length, "보류": 0, "추적 종료": 0, "미결정": 0 },
-    });
+    const filtered = status === "all"
+      ? queueItems
+      : queueItems.filter((item) => item.bid_notice_external_id !== null
+        && (item.latest_final_decision === null || item.decision_currentness === "stale"));
+    await json(route, { items: filtered.slice(offset, offset + limit), total: filtered.length, limit, offset });
   });
 
   await page.route(/\/api\/opportunities\/\d+(\?|$)/, async (route) => {
@@ -400,6 +570,43 @@ export async function mockGoNoGo(page: Page, options: GoNoGoMockOptions = {}): P
     if (!view) { await json(route, { detail: "비교를 찾을 수 없습니다" }, 404); return; }
     await json(route, view);
   });
+
+  // 공고 조건 요약(spec §9.1). 입찰공고가 연결된 사업은 차수 셋, 없는 사업은 빈 목록과
+  // `null` fence다.
+  await page.route(/\/api\/opportunities\/\d+\/bid-conditions$/, async (route) => {
+    const id = Number(/\/api\/opportunities\/(\d+)\//.exec(new URL(route.request().url()).pathname)?.[1] ?? 0);
+    const index = id - BASE_ID;
+    const scenario = SCENARIOS[index];
+    if (!scenario || index >= count) { await json(route, { detail: "사업기회를 찾을 수 없습니다" }, 404); return; }
+    if (scenario.bidNotice === false) {
+      await json(route, {
+        opportunity_id: id,
+        generated_at: "2026-09-17T09:00:00Z",
+        latest_notice_id: null,
+        latest_observation_sha256: null,
+        pre_spec: null,
+        bid_notices: [],
+        pre_spec_comparison: [],
+        not_comparable: ["deadline_at"],
+      });
+      return;
+    }
+    await json(route, bidConditionsFixture(id, { firstNoticeId: id * 100 }));
+  });
+
+  await page.route(/\/api\/opportunities\/\d+\/final-decisions$/, async (route) => {
+    const id = Number(/\/api\/opportunities\/(\d+)\//.exec(new URL(route.request().url()).pathname)?.[1] ?? 0);
+    const body = route.request().postDataJSON() as Record<string, unknown>;
+    await json(route, noticeBasisDecision(id, 1, {
+      basis_notice_id: Number(body.expected_notice_id ?? 0),
+      basis_observation_sha256: String(body.expected_observation_sha256 ?? ""),
+      supersedes_final_decision_id: (body.supersedes_final_decision_id as string | null) ?? null,
+      decision: body.decision === "go" ? "go" : "no_go",
+      reason: String(body.reason ?? ""),
+      claimed_name: "테스트 담당자",
+      request_id: String(body.request_id ?? ""),
+    }), 201);
+  });
 }
 
 export interface DecisionRaceTrace {
@@ -431,15 +638,18 @@ export async function mockDecisionRace(page: Page): Promise<DecisionRaceTrace> {
   const newComparison = { ...comparison, document_version_id: uuid(RACE_ID, "9"), document_version_version: 4 };
 
   const priorDecision = {
-    schema_version: "bidops.bid-final-decision.v1",
+    schema_version: "bidops.bid-final-decision.v2",
     id: SUPERSEDED_ID,
     opportunity_id: RACE_ID,
     sequence: 1,
+    basis_kind: "comparison",
     comparison_id: RACE_COMPARISON_ID,
     comparison_version: 3,
     result_sha256: NEW_SHA,
     baseline_document_version_id: newBaseline.document_version_id,
     comparison_document_version_id: newComparison.document_version_id,
+    basis_notice_id: null,
+    basis_observation_sha256: null,
     supersedes_final_decision_id: null,
     decision: "go",
     reason: "확인 창이 열린 뒤 다른 담당자가 저장한 결정",

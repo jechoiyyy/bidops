@@ -368,3 +368,304 @@ def test_currentness_detects_new_bundle_version_without_new_revision(queue_sessi
     baseline["bundle"].version = 2
     session.commit()
     assert BidDeltaService()._currentness(session, compared) == ("stale", ["newer_ready_document_version"])
+
+
+# --- ADR-0058: 공고 조건 근거의 최종 결정 --------------------------------------
+
+SHA_A, SHA_B, SHA_C = "a" * 64, "b" * 64, "c" * 64
+ACTOR = {"X-BidOps-Actor-Name": "reviewer"}
+
+
+def observe(session, notice, sha, *, observed_at=NOW):
+    from app.lifecycle.models import NoticeObservation, Run
+    run = Run(id=f"fixture-run-{uuid4()}", generated_at=observed_at)
+    session.add(run)
+    session.flush()
+    session.add(NoticeObservation(notice_id=notice.id, run_id=run.id, observed_at=observed_at,
+        snapshot_schema_version="fixture.v1", snapshot_jsonb={"fixture": True}, source_sha256=sha))
+    session.flush()
+
+
+def linked_notice(session, owner, *, source_type="bid_notice", bid_no="R26BK01699", bid_ord="000",
+                  published=NOW, sha=None, kind="official", status="확정", **columns):
+    notice = Notice(notice_key=f"{source_type}:{bid_no}:{bid_ord}:{uuid4()}", source_type=source_type,
+        bid_no=bid_no if source_type == "bid_notice" else None,
+        bid_ord=bid_ord if source_type == "bid_notice" else None, published_at=published, **columns)
+    session.add(notice)
+    session.flush()
+    session.add(OpportunityLink(opportunity_id=owner.id, notice_id=notice.id, stage="notice", link_type=kind,
+        status=status, evidence_external_no=str(uuid4())))
+    session.flush()
+    if sha is not None:
+        observe(session, notice, sha)
+    return notice
+
+
+def bid_delta_client(session):
+    from app.deep_review.routers import bid_delta
+    app = FastAPI()
+    app.include_router(bid_delta.decision_queue_router)
+    app.include_router(bid_delta.router)
+    app.dependency_overrides[get_db] = lambda: session
+    return TestClient(app)
+
+
+def decision_body(notice_id, sha, **overrides):
+    body = {"request_id": str(uuid4()), "expected_notice_id": notice_id, "expected_observation_sha256": sha,
+        "supersedes_final_decision_id": None, "decision": "go", "reason": "공고 조건 확인"}
+    body.update(overrides)
+    return body
+
+
+def test_bid_conditions_summarize_each_ordinal_without_guessing(queue_session):
+    from decimal import Decimal
+    from app.deep_review.services.bid_conditions import CONDITION_FIELDS
+    session = queue_session
+    owner = opportunity(session)
+    pre = linked_notice(session, owner, source_type="pre_spec", title="스마트 행정 시스템 구축",
+        agency="발주기관", budget=Decimal("150000000.00"), deadline_at=NOW + timedelta(days=3))
+    first = linked_notice(session, owner, bid_ord="000", sha=SHA_A, title="스마트 행정 시스템 구축",
+        budget=Decimal("150000000.00"), deadline_at=NOW + timedelta(days=10), method="일반경쟁",
+        qualification_flags_json={"participation_limited": "Y", "industry_limited": "Y", "sw_industry_1468": "Y",
+            "joint_contract_method": "공동이행", "successful_bid_method": "협상에의한계약",
+            "technical_evaluation_rate": "90"},
+        region_limit_json={"basis": "본사소재지", "joint_contract_regions": ["서울"]},
+        lifecycle_json={"opening_at": "2026-09-20T11:00:00+09:00", "re_notice": "N"})
+    second = linked_notice(session, owner, bid_ord="001", published=NOW + timedelta(days=1),
+        title="스마트 행정 시스템 구축(정정)", budget=Decimal("150000000"),
+        deadline_at=NOW + timedelta(days=12), method="일반경쟁",
+        qualification_flags_json={"participation_limited": "Y", "industry_limited": "Y",
+            "joint_contract_method": "공동이행", "successful_bid_method": "협상에의한계약",
+            "technical_evaluation_rate": "80"},
+        region_limit_json={"basis": "본사소재지", "joint_contract_regions": ["서울"]},
+        lifecycle_json={"opening_at": "2026-09-20T02:00:00+00:00", "re_notice": "N", "change_reason": "마감 연장"})
+    observe(session, second, SHA_C, observed_at=NOW)
+    observe(session, second, SHA_B, observed_at=NOW + timedelta(hours=1))
+    linked_notice(session, owner, bid_ord="002", published=NOW + timedelta(days=2),
+        kind="candidate", status="후보 확인 대기")
+    empty = opportunity(session)
+    merged = opportunity(session)
+    merged.merged_into_opportunity_id = owner.id
+    merged.merged_at, merged.merge_reason = NOW, "fixture"
+    session.commit()
+
+    with bid_delta_client(session) as client:
+        body = client.get(f"/api/opportunities/{owner.id}/bid-conditions").json()
+        assert set(body) == {"opportunity_id", "generated_at", "latest_notice_id", "latest_observation_sha256",
+            "pre_spec", "bid_notices", "pre_spec_comparison", "not_comparable"}
+        assert (body["latest_notice_id"], body["latest_observation_sha256"]) == (second.id, SHA_B)
+        assert [row["notice_id"] for row in body["bid_notices"]] == [first.id, second.id]
+        assert [row["observation_sha256"] for row in body["bid_notices"]] == [SHA_A, SHA_B]
+        head, tail = body["bid_notices"]
+        assert list(head["conditions"]) == list(CONDITION_FIELDS)
+        assert head["changes_from_previous"] == []
+        assert head["conditions"]["budget"] == "150000000"
+        assert head["conditions"]["sw_industry_1468"] == "Y"
+        assert head["conditions"]["joint_contract_regions"] == ["서울"]
+        assert head["conditions"]["change_reason"] is None
+        assert tail["conditions"]["sw_industry_1468"] is None
+        assert [change["field"] for change in tail["changes_from_previous"]] == list(CONDITION_FIELDS)
+        statuses = {change["field"]: change["status"] for change in tail["changes_from_previous"]}
+        assert statuses == {
+            "budget": "unchanged", "estimated_price": "unknown", "deadline_at": "changed",
+            "opening_at": "unchanged", "method": "unchanged", "participation_limited": "unchanged",
+            "industry_limited": "unchanged", "sw_industry_1468": "unknown",
+            "joint_contract_method": "unchanged", "successful_bid_method": "unchanged",
+            "technical_evaluation_rate": "changed", "region_limit_basis": "unchanged",
+            "joint_contract_regions": "unchanged", "change_reason": "unknown", "re_notice": "unchanged",
+        }
+        rate = next(change for change in tail["changes_from_previous"] if change["field"] == "technical_evaluation_rate")
+        assert (rate["before"], rate["after"]) == ("90", "80")
+        assert body["pre_spec"] == {"notice_id": pre.id, "title": "스마트 행정 시스템 구축",
+            "agency": "발주기관", "budget": "150000000"}
+        assert body["pre_spec_comparison"] == [
+            {"field": "budget", "status": "unchanged", "before": "150000000", "after": "150000000"},
+            {"field": "title", "status": "changed", "before": "스마트 행정 시스템 구축",
+             "after": "스마트 행정 시스템 구축(정정)"},
+        ]
+        assert body["not_comparable"] == ["deadline_at"]
+
+        blank = client.get(f"/api/opportunities/{empty.id}/bid-conditions").json()
+        assert (blank["bid_notices"], blank["pre_spec"], blank["pre_spec_comparison"]) == ([], None, [])
+        assert (blank["latest_notice_id"], blank["latest_observation_sha256"]) == (None, None)
+        missing = client.get("/api/opportunities/999999999/bid-conditions")
+        assert (missing.status_code, missing.json()["error"]["code"]) == (404, "opportunity_not_found")
+        folded = client.get(f"/api/opportunities/{merged.id}/bid-conditions")
+        assert (folded.status_code, folded.json()["error"]["code"]) == (409, "opportunity_merged")
+
+
+def test_bid_conditions_latest_fence_is_what_the_decision_endpoint_accepts(queue_session):
+    """List order (bid_no, bid_ord) is display only; the latest fence follows published_at."""
+    session = queue_session
+    owner = opportunity(session)
+    linked_notice(session, owner, source_type="pre_spec", title="최신 사업명")
+    latest = linked_notice(session, owner, bid_no="R26BK00001", bid_ord="000",
+        published=NOW + timedelta(days=1), sha=SHA_A, title="최신 사업명")
+    listed_last = linked_notice(session, owner, bid_no="R26BK00002", bid_ord="000", published=NOW, sha=SHA_B,
+        title="이전 사업명")
+    session.commit()
+    url = f"/api/opportunities/{owner.id}"
+
+    with bid_delta_client(session) as client:
+        body = client.get(f"{url}/bid-conditions").json()
+        assert [row["notice_id"] for row in body["bid_notices"]] == [latest.id, listed_last.id]
+        assert (body["latest_notice_id"], body["latest_observation_sha256"]) == (latest.id, SHA_A)
+        assert body["pre_spec_comparison"][1] == {"field": "title", "status": "unchanged",
+            "before": "최신 사업명", "after": "최신 사업명"}
+        wrong = client.post(f"{url}/final-decisions", json=decision_body(listed_last.id, SHA_B), headers=ACTOR)
+        assert (wrong.status_code, wrong.json()["error"]["code"]) == (409, "final_decision_notice_not_latest")
+        accepted = client.post(f"{url}/final-decisions", json=decision_body(
+            body["latest_notice_id"], body["latest_observation_sha256"]), headers=ACTOR)
+        assert accepted.status_code == 201, accepted.text
+        assert accepted.json()["basis_notice_id"] == latest.id
+
+        # An order that cannot be determined is reported as null, never guessed.
+        linked_notice(session, owner, bid_no="R26BK00003", bid_ord="000", published=None, sha=SHA_C)
+        session.commit()
+        unknown = client.get(f"{url}/bid-conditions").json()
+        assert (unknown["latest_notice_id"], unknown["latest_observation_sha256"]) == (None, None)
+        assert [(row["status"], row["after"]) for row in unknown["pre_spec_comparison"]] == [
+            ("unknown", None), ("unknown", None)]
+
+
+def test_notice_conditions_decision_is_fenced_replayed_and_superseded(queue_session):
+    from app.core.models import AuditEvent
+    from app.deep_review.models import BidFinalDecision
+    session = queue_session
+    owner = opportunity(session)
+    pre = linked_notice(session, owner, source_type="pre_spec", sha=SHA_C)
+    session.commit()
+    url = f"/api/opportunities/{owner.id}/final-decisions"
+
+    def error(response):
+        return response.status_code, response.json()["error"]["code"]
+
+    with bid_delta_client(session) as client:
+        assert error(client.post(url, json=decision_body(pre.id, SHA_C), headers=ACTOR)) == (
+            409, "final_decision_bid_notice_missing")
+        bid = linked_notice(session, owner, published=None, sha=SHA_A)
+        session.commit()
+        assert error(client.post(url, json=decision_body(bid.id, SHA_A), headers=ACTOR)) == (
+            503, "bid_delta_currentness_unavailable")
+        bid.published_at = NOW
+        session.commit()
+        assert error(client.post(url, json=decision_body(pre.id, SHA_A), headers=ACTOR)) == (
+            409, "final_decision_notice_not_latest")
+        assert error(client.post(url, json=decision_body(bid.id, SHA_B), headers=ACTOR)) == (
+            409, "final_decision_observation_changed")
+        assert error(client.post(url, json=decision_body(bid.id, SHA_A))) == (400, "actor_name_required")
+        assert error(client.post(url, json=decision_body(bid.id, SHA_A, reason="  "), headers=ACTOR)) == (
+            400, "final_decision_reason_required")
+        assert error(client.post(url, json=decision_body(bid.id, SHA_A, decision="hold"), headers=ACTOR)) == (
+            422, "final_decision_value_invalid")
+        assert client.post(url, json=decision_body(bid.id, "A" * 64), headers=ACTOR).status_code == 422
+        assert session.scalar(select(BidFinalDecision.id)) is None
+
+        payload = decision_body(bid.id, SHA_A)
+        first = client.post(url, json=payload, headers=ACTOR)
+        assert first.status_code == 201, first.text
+        view = first.json()
+        assert view["schema_version"] == "bidops.bid-final-decision.v2"
+        assert view["basis_kind"] == "notice_conditions"
+        assert (view["basis_notice_id"], view["basis_observation_sha256"]) == (bid.id, SHA_A)
+        assert [view[key] for key in ("comparison_id", "comparison_version", "result_sha256",
+            "baseline_document_version_id", "comparison_document_version_id")] == [None] * 5
+        assert (view["sequence"], view["currentness"], view["currentness_reasons"]) == (1, "current", [])
+        replay = client.post(url, json=payload, headers=ACTOR)
+        assert (replay.status_code, replay.json()) == (201, view)
+        assert error(client.post(url, json={**payload, "reason": "다른 사유"}, headers=ACTOR)) == (
+            409, "idempotency_conflict")
+        assert error(client.post(url, json=decision_body(bid.id, SHA_A), headers=ACTOR)) == (
+            409, "final_decision_supersession_conflict")
+        assert error(client.post(url, json=decision_body(bid.id, SHA_A, supersedes_final_decision_id=str(uuid4())),
+            headers=ACTOR)) == (404, "final_decision_not_found")
+        second = client.post(url, json=decision_body(bid.id, SHA_A, decision="no_go",
+            supersedes_final_decision_id=view["id"]), headers=ACTOR)
+        assert second.status_code == 201, second.text
+        assert (second.json()["sequence"], second.json()["supersedes_final_decision_id"]) == (2, view["id"])
+
+    rows = session.scalars(select(BidFinalDecision).order_by(BidFinalDecision.sequence)).all()
+    assert [(row.sequence, row.decision, row.basis_kind) for row in rows] == [
+        (1, "go", "notice_conditions"), (2, "no_go", "notice_conditions")]
+    audits = session.scalars(select(AuditEvent).where(AuditEvent.action == "bid_final_decision.recorded")).all()
+    assert len(audits) == 2
+    assert {audit.safe_metadata["basis_kind"] for audit in audits} == {"notice_conditions"}
+    assert all("공고 조건 확인" not in str(audit.safe_metadata) for audit in audits)
+
+
+def test_notice_conditions_currentness_drives_queue_workspace_and_workload(queue_session, monkeypatch):
+    from app.deep_review.models import BidFinalDecision
+    from app.deep_review.services import auto_preparation
+    # Only bid_final_decision_pending is under test. The pre-spec count reads the
+    # screening grade seam, whose tables are absent when this file runs alone.
+    monkeypatch.setattr(auto_preparation, "effective_grades", lambda _session, _ids: {})
+    session = queue_session
+    registry = register_lifecycle_extensions(ExtensionRegistry())
+    compared_owner = opportunity(session, created_at=NOW - timedelta(days=1))
+    compared, _baseline, _bid = comparison(session, compared_owner)
+    decide(session, compared_owner, compared)
+    owner = opportunity(session)
+    first = linked_notice(session, owner, bid_ord="000", sha=SHA_A)
+    session.commit()
+    service = BidDeltaService()
+
+    def queue_state():
+        rows = {row["opportunity_id"]: row for row in service.decision_queue(session, status="all")["items"]}
+        return rows[owner.id]["decision_currentness"], service.decision_queue(session)["total"]
+
+    with bid_delta_client(session) as client:
+        assert queue_state() == ("unknown", 1)
+        recorded = client.post(f"/api/opportunities/{owner.id}/final-decisions",
+            json=decision_body(first.id, SHA_A), headers=ACTOR)
+        assert recorded.status_code == 201, recorded.text
+        # Decided and current: neither the queue nor the workload count it as pending.
+        assert queue_state() == ("current", 0)
+        assert registry.workload_counts(session)["bid_final_decision_pending"] == WorkloadCount(0)
+        rows = {row["opportunity_id"]: row for row in service.decision_queue(session, status="all")["items"]}
+        assert rows[compared_owner.id]["decision_currentness"] == "current"
+        assert rows[owner.id]["latest_final_decision"]["decision"] == "go"
+        workspace = client.get(f"/api/opportunities/{owner.id}/bid-delta")
+        assert workspace.status_code == 200, workspace.text
+        assert workspace.json()["latest_final_decision"]["basis_kind"] == "notice_conditions"
+        assert (workspace.json()["decision_currentness"], workspace.json()["currentness_reasons"]) == ("current", [])
+
+        observe(session, first, SHA_B, observed_at=NOW + timedelta(hours=2))
+        session.commit()
+        assert client.get(f"/api/opportunities/{owner.id}/bid-delta").json()["currentness_reasons"] == [
+            "notice_observation_changed"]
+        second = linked_notice(session, owner, bid_ord="001", published=NOW + timedelta(days=1), sha=SHA_C)
+        session.commit()
+        stale = client.get(f"/api/opportunities/{owner.id}/bid-delta").json()
+        assert (stale["decision_currentness"], stale["currentness_reasons"]) == (
+            "stale", ["newer_bid_notice", "notice_observation_changed"])
+        assert queue_state() == ("stale", 1)
+        assert registry.workload_counts(session)["bid_final_decision_pending"] == WorkloadCount(1)
+
+        renewed = client.post(f"/api/opportunities/{owner.id}/final-decisions", json=decision_body(
+            second.id, SHA_C, supersedes_final_decision_id=recorded.json()["id"]), headers=ACTOR)
+        assert renewed.status_code == 201, renewed.text
+        assert queue_state() == ("current", 0)
+        # An undated authoritative notice makes the order unknown, not current or stale.
+        linked_notice(session, owner, bid_ord="002", published=None, sha=SHA_A)
+        session.commit()
+        assert client.get(f"/api/opportunities/{owner.id}/bid-delta").json()["currentness_reasons"] == [
+            "ordering_unknown"]
+        assert queue_state() == ("unknown", 0)
+
+    # The shared rule stays a constant number of reads as decided opportunities grow.
+    def add_decided(count):
+        for _ in range(count):
+            row = opportunity(session)
+            notice = linked_notice(session, row, sha=SHA_A)
+            session.add(BidFinalDecision(opportunity_id=row.id, sequence=1, basis_kind="notice_conditions",
+                basis_notice_id=notice.id, basis_observation_sha256=SHA_A, decision="go", reason="fixture",
+                claimed_name="reviewer", request_id=uuid4(), created_at=NOW))
+        session.commit()
+
+    add_decided(1)
+    with counted(session) as small:
+        service.decision_queue(session, status="all")
+    add_decided(20)
+    with counted(session) as large:
+        service.decision_queue(session, status="all")
+    assert len(small) == len(large)
