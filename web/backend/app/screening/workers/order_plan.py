@@ -36,6 +36,7 @@ from ..models import (
     OrderPlanScreeningResult,
 )
 from ...core.object_store import EncryptedModelResponseStore, ObjectStoreError
+from ..services.order_plan_policy import BINDING_STATUSES
 from ..services.order_plan_screening import (
     ACTIVE_STATUSES,
     TERMINAL_STATUSES,
@@ -261,17 +262,26 @@ class C2ScreeningWorker:
             policy_model = OrderPlanScreeningPolicyArtifact.model_validate(policy)
         except ValidationError:
             raise C2WorkerError("binding_mismatch") from None
+        # The file's policy_status is a publish-time snapshot (ADR-0060): its
+        # enum validity comes from the artifact model and it must only agree
+        # with the binding's copy below.  Activation authority is the DB row,
+        # which the service checked before it froze this directory.
         if (
-            policy_model.policy_status != "active"
-            or policy_model.policy_version != input_model.policy.version
+            policy_model.policy_version != input_model.policy.version
             or _sha256_bytes((directory / "policy.json").read_bytes()) != input_model.policy.sha256
         ):
             raise C2WorkerError("binding_mismatch")
+        transport = binding.get("external_transport")
         if (
             binding.get("schema_version") != "bidops.order-plan-screening-phase0-binding.v1"
             or binding.get("producer") != "phase0-contracts"
             or binding.get("consumer") != "phase1-screening-pipeline"
-            or binding.get("status") != "blocked"
+            or binding.get("status") not in BINDING_STATUSES
+            or (
+                binding.get("status") == "blocked"
+                and isinstance(transport, Mapping)
+                and transport.get("execution_allowed") is True
+            )
         ):
             raise C2WorkerError("binding_mismatch")
         policy_ref = binding.get("policy")
