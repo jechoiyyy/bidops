@@ -2,7 +2,7 @@
 
 - 상태: 채택 — 계약만 (구현은 `docs/0918_daily-operation/plan.md` 웨이브 2~4, 운영 활성화는 사람 결정 D-a~D-e 뒤)
 - 일자: 2026-09-18
-- 관련 결정: [ADR-0038](0038-order-plan-c2-phase0-contracts.md) 부분 개정(binding `status` 허용값, "현재 차단 경계"의 실행 조건), [ADR-0017](0017-human-enabled-quality-gate.md)(품질 게이트 통과 후 사람이 활성화), [ADR-0037](0037-order-plan-c2-bm25-top300-qwen.md)(C-2 방식), [ADR-0042](0042-c2-model-revision-declared-at-deployment.md)(model revision 선언), [ADR-0061](0061-daily-one-day-collection-window.md)(일 단위 수집)
+- 관련 결정: [ADR-0038](0038-order-plan-c2-phase0-contracts.md) 부분 개정(binding `status` 허용값, "현재 차단 경계"의 실행 조건), [ADR-0017](0017-human-enabled-quality-gate.md)(품질 게이트 통과 후 사람이 활성화), [ADR-0037](0037-order-plan-c2-bm25-top300-qwen.md)(C-2 방식), [ADR-0042](0042-c2-model-revision-declared-at-deployment.md)(model revision 선언), [ADR-0061](0061-daily-collection-window.md)(일 단위 수집)
 - 근거 요청: 일일 운영 고도화 계획(`docs/0918_daily-operation/`) intent 결정 2·18~22, spec §1·§3·§4·§8
 - 정본: wire·DB 세부는 [`docs/contracts.md`](../../contracts.md)의 "C-2 수동 REST 계약"과 "C-2 DB·migration 경계"
 
