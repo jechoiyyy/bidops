@@ -1240,8 +1240,9 @@ nullable `quality_gate_status=not_measured|measured|passed|failed`, `policy_sha2
   `artifact_sha256`로 활성화를 요청하면 검증 3~7번을 통과한다 — 조회와 활성화의 답이 갈리지 않는다.
 - 환경 변수 `BIDOPS_C2_EXECUTION_ALLOWED`는 활성화 조건이 아니다. 실행과 일일 스위치가 따로 본다.
 
-**활성화 검증 순서** — 한 transaction에서, 대상 policy 행과 artifact가 가리키는 게이트 행을 `with_for_update()`로 잠근
-채 순서대로 검사한다. actor 헤더(400)·body(422)·idempotency replay/`idempotency_conflict`(409)는 이보다 먼저다.
+**활성화 검증 순서** — 한 transaction에서, 대상 policy 행을 `with_for_update()`로 잠근 채 순서대로 검사한다. 게이트 행은
+잠그지 않는다 — app 역할은 게이트 테이블에 UPDATE 권한이 없어 `FOR UPDATE`를 쓸 수 없고(0029 권한), evaluation 기록도
+같은 policy 행을 잠가 활성화와 직렬화한다. actor 헤더(400)·body(422)·idempotency replay/`idempotency_conflict`(409)는 이보다 먼저다.
 
 | # | 검사 | 실패 |
 |---|---|---|
