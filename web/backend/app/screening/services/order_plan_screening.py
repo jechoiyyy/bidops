@@ -938,6 +938,7 @@ class OrderPlanScreeningService:
         result: OrderPlanScreeningResult | None,
         feedback: OrderPlanScreeningFeedback | None,
         opportunity: Opportunity | None,
+        first_observed_at: datetime | None = None,
     ) -> dict[str, Any]:
         return {
             "order_plan_pk": plan.id,
@@ -961,7 +962,26 @@ class OrderPlanScreeningService:
             "qwen_reason": result.qwen_reason if result is not None else None,
             "human_feedback": self._feedback_summary(feedback),
             "tracking": self._tracking_summary(opportunity),
+            "execution_id": result.execution_id if result is not None else None,
+            "policy_version": result.policy_version if result is not None else None,
+            "first_observed_at": first_observed_at,
         }
+
+    @staticmethod
+    def _cumulative_executions():
+        """누적 범위: 활성화된 적 있는 policy의 운영 목적 완료 실행 전부(현재 active 여부는 묻지 않는다)."""
+        return select(OrderPlanScreeningExecution).join(
+            OrderPlanScreeningPolicy,
+            OrderPlanScreeningPolicy.policy_version == OrderPlanScreeningExecution.policy_version,
+        ).where(
+            OrderPlanScreeningPolicy.activated_at.is_not(None),
+            OrderPlanScreeningExecution.purpose == "operational",
+            OrderPlanScreeningExecution.status.in_({"성공", "부분 성공"}),
+        )
+
+    def has_cumulative_execution(self, session: Session) -> bool:
+        statement = self._cumulative_executions().with_only_columns(OrderPlanScreeningExecution.execution_id)
+        return session.scalar(statement.limit(1)) is not None
 
     @staticmethod
     def _filter_values(value: str | None, allowed: set[str]) -> set[str] | None:
@@ -994,8 +1014,11 @@ class OrderPlanScreeningService:
             ("human_relevance", self._filter_values(human_relevance, {"relevant", "not_relevant", "uncertain", "missing"})),
             ("tracking_status", self._filter_values(tracking_status, {"미선택", "계속 추적", "보류", "종료"})),
         )
-        execution_id = self._latest_completed_execution(session, source_run_id)
-        execution = session.get(OrderPlanScreeningExecution, execution_id) if execution_id is not None else None
+        execution: OrderPlanScreeningExecution | None = None
+        if source_run_id is not None:
+            # 회차 모드(감사용): 그 회차의 최신 완료 실행 하나. policy·purpose를 묻지 않는다.
+            execution_id = self._latest_completed_execution(session, source_run_id)
+            execution = session.get(OrderPlanScreeningExecution, execution_id) if execution_id is not None else None
 
         observations = select(
             OrderPlanObservation,
@@ -1008,22 +1031,46 @@ class OrderPlanScreeningService:
             observations = observations.where(OrderPlanObservation.run_id == source_run_id)
         observation_rows = observations.subquery()
         observation = aliased(OrderPlanObservation, observation_rows)
+        first_observations = select(
+            OrderPlanObservation.order_plan_id,
+            func.min(OrderPlanObservation.observed_at).label("first_observed_at"),
+        ).group_by(OrderPlanObservation.order_plan_id).subquery()
+        # 결과는 발주계획마다 범위 안 최신 1건이다. 누적 모드는 누적 범위 실행 전부, 회차 모드는 그 실행 하나.
+        executions = (
+            self._cumulative_executions()
+            if source_run_id is None
+            else select(OrderPlanScreeningExecution).where(
+                OrderPlanScreeningExecution.execution_id == (execution.execution_id if execution is not None else None)
+            )
+        ).subquery()
+        result_rows = select(
+            OrderPlanScreeningResult,
+            func.row_number().over(
+                partition_by=OrderPlanScreeningResult.order_plan_id,
+                order_by=(executions.c.finished_at.desc(), executions.c.execution_id.desc()),
+            ).label("position"),
+        ).join(executions, executions.c.execution_id == OrderPlanScreeningResult.execution_id).subquery()
+        result = aliased(OrderPlanScreeningResult, result_rows)
+        # feedback은 두 모드 모두 발주계획마다 최신 1건이다. 실행과 무관하다.
         feedback_rows = select(
             OrderPlanScreeningFeedback,
             func.row_number().over(
                 partition_by=OrderPlanScreeningFeedback.order_plan_id,
                 order_by=(OrderPlanScreeningFeedback.created_at.desc(), OrderPlanScreeningFeedback.revision.desc()),
             ).label("position"),
-        ).where(OrderPlanScreeningFeedback.execution_id == execution_id).subquery()
+        ).subquery()
         feedback = aliased(OrderPlanScreeningFeedback, feedback_rows)
         owners = self._tracking_owners()
-        result = OrderPlanScreeningResult
-        statement = select(OrderPlan, observation, result, feedback, Opportunity).join(
+        statement = select(
+            OrderPlan, observation, result, feedback, Opportunity, first_observations.c.first_observed_at,
+        ).join(
             observation,
             and_(observation.order_plan_id == OrderPlan.id, observation_rows.c.position == 1),
+        ).join(
+            first_observations, first_observations.c.order_plan_id == OrderPlan.id,
         ).outerjoin(
             result,
-            and_(result.order_plan_id == OrderPlan.id, result.execution_id == execution_id),
+            and_(result.order_plan_id == OrderPlan.id, result_rows.c.position == 1),
         ).outerjoin(
             feedback,
             and_(feedback.order_plan_id == OrderPlan.id, feedback_rows.c.position == 1),
@@ -1060,16 +1107,33 @@ class OrderPlanScreeningService:
             ))
         total = int(session.scalar(select(func.count()).select_from(statement.subquery())) or 0)
         rows = session.execute(statement.order_by(OrderPlan.id.asc()).limit(limit).offset(offset)).all()
-        return {
-            "schema_version": "order-plan-list-response.v3",
-            "producer": "order-plan-review-api",
-            "consumer": "order-plan-review-client",
-            "scope": {
+        scope: dict[str, Any] | None
+        if source_run_id is None:
+            scope = {
+                "mode": "cumulative",
+                "policy_versions": list(session.scalars(
+                    select(OrderPlanScreeningPolicy.policy_version).where(
+                        OrderPlanScreeningPolicy.activated_at.is_not(None),
+                    ).order_by(OrderPlanScreeningPolicy.activated_at.asc(), OrderPlanScreeningPolicy.policy_version.asc())
+                )),
+            }
+        elif execution is not None:
+            scope = {
+                "mode": "run",
                 "execution_id": execution.execution_id,
                 "source_run_id": execution.source_run_id,
                 "status": execution.status,
                 "finished_at": execution.finished_at,
-            } if execution is not None else None,
+                "policy_version": execution.policy_version,
+                "purpose": execution.purpose,
+            }
+        else:
+            scope = None
+        return {
+            "schema_version": "order-plan-list-response.v4",
+            "producer": "order-plan-review-api",
+            "consumer": "order-plan-review-client",
+            "scope": scope,
             "items": [self._order_plan_item(*row) for row in rows],
             "total": total,
             "limit": limit,
