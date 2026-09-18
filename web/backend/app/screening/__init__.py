@@ -56,6 +56,7 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     # (§5.3). screening을 끄면 그 경로도 404다.
     "notice_reviews_router": (".routers.reviews", "notice_router"),
     "order_plans_router": (".routers.order_plans", "router"),
+    "order_plan_quality_gates_router": (".routers.order_plan_quality_gates", "router"),
     "policies_router": (".routers.policies", "router"),
     "profile_router": (".routers.profile", "router"),
     "quality_gates_router": (".routers.quality_gates", "router"),
