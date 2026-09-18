@@ -462,34 +462,51 @@ python3 skills/bidops-collect/scripts/collect_order_plans.py \
 
 ### 일일 수집·선별 적재 (`scripts/run-daily-lifecycle.sh`)
 
-위 운영 목표 중 발주계획·사전규격·입찰공고 수집과 선별 적재를 한 번에 묶어 실행하는
-host 스크립트다. `--date YYYY-MM-DD`(기준일, 한국시간, 생략 시 오늘)를 받아 4단계를
-순서대로 실행하고 첫 실패에서 즉시 멈춘다(`set -euo pipefail`).
+위 운영 목표 중 발주계획·사전규격·입찰공고 수집과 선별 적재를 실행하는 host 스크립트다.
+`--track order-plans|notices`(필수, 기본값 없음)로 **한 번에 한 트랙만** 돌고, `--date YYYY-MM-DD`
+(기준일, 한국시간, 생략 시 **전일**)를 받는다. 발주계획 트랙은 기준일 **하루**, 공고 트랙은 기준일을
+포함한 **4일**을 수집한다. 사전규격은 조회 기준인 등록일시(`rgstDt`)보다 공개(접수일시 `rcptDt`)가
+최대 3일 늦을 수 있어 하루 창이면 영구히 빠지는 건이 생긴다(2026-09-18 측정). 겹쳐 다시 관측된
+공고는 적재에서 no-op이며 첨부·문서 묶음·개요 검토를 다시 만들지 않는다
+([ADR-0061](tracking/decisions/0061-daily-collection-window.md)). 트랙 안에서는 첫 실패에서 즉시
+멈추고(`set -euo pipefail`), 두 트랙은 서로의 성공을 전제하지 않는다.
 
 1. Preflight: `manual-workflow-common.sh`의 web 헬스체크. `BIDOPS_G2B_API_KEY` 존재 확인은
    collector 자신이 하므로 스크립트는 별도로 값을 읽거나 출력하지 않는다.
-2. 발주계획: 기준일을 포함해 최근 21일 창을 회차 `lifecycle-<YYYYMMDD>-plans`로 수집한다
-   (`collect_order_plans.py`, `--to-date`는 제외구간이므로 기준일+1일로 넘긴다).
-3. 사전규격·입찰공고: 기준일을 포함해 최근 3일 창을 회차 `lifecycle-<YYYYMMDD>-notices`로
-   수집한다(`collect_notices.py --tag-bid-sw-industry`, 이 collector의 `--to-date`는
-   포함구간이므로 기준일 그대로 넘긴다). 사전규격·입찰공고 스킵 플래그는 쓰지 않아 전량이
-   한 회차에 담기고, 입찰공고에는 1468(SW 유사업종) 표시가 함께 붙는다.
-4. 적재: 두 회차를 web 컨테이너로 복사한 뒤 `ingest.cli --run <plans> --collection` →
-   `--run <notices> --collection` → `--tracked-backfill` → 첨부 취득 자격 갱신
-   (`refresh_fetch_eligibility`) 순서로 실행한다(발주계획 → 공고 순서는 공고 선별이
-   발주계획 사업기회 상태를 읽기 때문에 고정이다).
+2. 공고 트랙(`--track notices`): 사전규격·입찰공고를 회차 `lifecycle-<YYYYMMDD>-notices`로
+   수집한다(`collect_notices.py --from-date <기준일−3일> --to-date <기준일> --tag-bid-sw-industry`, 이
+   collector의 `--to-date`는 포함구간). 사전규격·입찰공고 스킵 플래그는 쓰지 않아 전량이 한 회차에
+   담기고, 입찰공고에는 1468(SW 유사업종) 표시가 함께 붙는다. 이어서 회차를 web 컨테이너로 복사하고
+   `ingest.cli --run <notices> --collection` → `--tracked-backfill` → 첨부 취득 자격 갱신
+   (`refresh_fetch_eligibility`) 순서로 적재한다.
+3. 발주계획 트랙(`--track order-plans`): 발주계획을 회차 `lifecycle-<YYYYMMDD>-plans`로 수집한다
+   (`collect_order_plans.py --from-date <기준일> --to-date <기준일+1일>`, `--to-date`는 제외구간). 이어서
+   `ingest.cli --run <plans> --collection` → `--tracked-backfill` 순서로 적재한다. **C-2 발주계획 선별이
+   활성화되고 일일 자동 실행이 켜지기 전에는 이 트랙을 운영하지 않는다** — 판정 없는 발주계획을 화면에
+   쌓지 않는다. C-2 실행·감사 표본 연결은 이 트랙에 뒤따라 붙는다.
+4. 적재 순서는 트랙 사이에 고정하지 않는다. 공고 선별이 읽는 발주계획 상태는 사람이 정한 추적
+   상태(`계속 추적`·`보류`·`종료`)이고, 기준일 하루 창으로 들어온 발주계획에는 아직 추적 상태가 없으므로
+   같은 날 발주계획이 먼저 적재됐는지가 공고 선별 결과를 바꾸지 않는다. `--tracked-backfill`은 두 트랙
+   끝에서 각각 부르며 다시 불러도 no-op이다.
+
+`--collect-only --run-suffix <name>`은 측정·점검용이다. preflight와 적재 없이 수집만 하며 회차 id는
+`lifecycle-<YYYYMMDD>-<plans|notices>-<name>`이 되어 일일 회차 id를 차지하지 않는다(`retry<N>`은
+재수집 접미사로 예약돼 쓸 수 없다).
 
 `--dry-run`은 계산한 회차 id·창·정확한 명령만 출력하고 수집·적재·Docker 호출을 하지
 않는다(preflight의 web 헬스체크도 건너뛰고 그렇게 건너뛴다고 알린다). 기존 회차 디렉터리가
 있으면 절대 덮어쓰지 않고 즉시 멈춘다(회차는 불변). 이 스크립트는 아무것도 삭제하지 않고
 cron을 설치하지 않으며 모델을 호출하지 않는다.
 
-**스케줄은 기본 비활성이다.** 아래는 매일 06:30(KST) 실행 예시일 뿐이며 이 저장소는 이
-줄을 설치하지 않는다(스케줄러·always-on 기본 비활성 원칙, `CLAUDE.md`).
+**스케줄은 기본 비활성이다.** 아래는 실행 예시일 뿐이며 이 저장소는 이 줄을 설치하지 않는다(스케줄러·
+always-on 기본 비활성 원칙, `CLAUDE.md`). 트랙마다 한 줄이고 시각은 운영 결정이다. 발주계획 줄은 C-2
+활성화와 일일 자동 실행이 켜진 뒤에만 설치한다.
 
 ```cron
 # 문서용 예시 — 설치되어 있지 않음. crontab -e로 운영자가 직접 추가할 때만 참고한다.
-30 6 * * * cd /path/to/bidops && ./scripts/run-daily-lifecycle.sh >> reports/daily-lifecycle.log 2>&1
+30 6 * * * cd /path/to/bidops && ./scripts/run-daily-lifecycle.sh --track notices >> reports/daily-lifecycle-notices.log 2>&1
+# C-2 활성화·일일 자동 실행이 켜진 뒤에만 설치한다.
+0 7 * * * cd /path/to/bidops && ./scripts/run-daily-lifecycle.sh --track order-plans >> reports/daily-lifecycle-plans.log 2>&1
 ```
 
 **보관**: 회차 디렉터리(`data/runs/lifecycle-*`)는 불변이며 자동으로 지우지 않는다. 보관
