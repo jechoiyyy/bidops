@@ -66,6 +66,80 @@ workflow_check_new_run_dir() {
     || workflow_die "run directory already exists; choose a new run id: ${run_dir}"
 }
 
+# --- Run lookup (daily collection resume) -----------------------------------
+# A date's run is lifecycle-<YYYYMMDD>-<plans|notices> or its -retry<N>
+# recollections. Directories are only read here: an incomplete directory is
+# never removed or overwritten; a new -retry<N> takes its place.
+
+# Prints the existing run ids for a base run id, base first, then -retry<N>
+# in ascending N. Symlinked entries are skipped (they are never ours).
+workflow_run_candidates() {
+  local base="$1" root="${WORKFLOW_ROOT}/data/runs" path name
+  workflow_validate_run_id "${base}"
+  if [[ -d "${root}/${base}" && ! -L "${root}/${base}" ]]; then
+    printf '%s\n' "${base}"
+  fi
+  for path in "${root}/${base}"-retry*; do
+    name="${path##*/}"
+    [[ "${name}" =~ ^${base}-retry([1-9][0-9]*)$ ]] || continue
+    [[ -d "${path}" && ! -L "${path}" ]] || continue
+    printf '%s %s\n' "${BASH_REMATCH[1]}" "${name}"
+  done | sort -n | awk '{ print $NF }'
+}
+
+# Prints the smallest N >= 1 for which <base>-retry<N> does not exist at all
+# (a file, dangling symlink, or directory all occupy the name).
+workflow_next_retry_number() {
+  local base="$1" root="${WORKFLOW_ROOT}/data/runs" n=1
+  workflow_validate_run_id "${base}"
+  while [[ -e "${root}/${base}-retry${n}" || -L "${root}/${base}-retry${n}" ]]; do
+    n=$((n + 1))
+  done
+  printf '%s\n' "${n}"
+}
+
+# Prints counts.total when the collected artifact in run_dir carries a true
+# completion marker; prints nothing when the marker is missing, false,
+# unreadable, or the total is not a non-negative integer.
+#   plans:   collected-order-plans.json .metadata.collection.complete
+#   notices: collection-provenance.json .complete (collected-notices.json has
+#            no marker of its own), total from collected-notices.json
+workflow_complete_collection_total() {
+  local kind="$1" run_dir="$2" total_filter
+  total_filter='.counts.total | select(type == "number" and . >= 0 and . == floor)'
+  case "${kind}" in
+    plans)
+      [[ -f "${run_dir}/collected-order-plans.json" ]] || return 0
+      jq -er "select(.metadata.collection.complete == true) | ${total_filter}" \
+        "${run_dir}/collected-order-plans.json" 2>/dev/null || true
+      ;;
+    notices)
+      [[ -f "${run_dir}/collection-provenance.json" && -f "${run_dir}/collected-notices.json" ]] \
+        || return 0
+      jq -e '.complete == true' "${run_dir}/collection-provenance.json" >/dev/null 2>&1 \
+        || return 0
+      jq -er "${total_filter}" "${run_dir}/collected-notices.json" 2>/dev/null || true
+      ;;
+    *) workflow_die "unknown collection kind: ${kind}" ;;
+  esac
+}
+
+# Exit 0 when the web has a Run row for run_id (200), 1 when it does not
+# (404). Any other answer, including no answer, stops the caller.
+workflow_run_row_exists() {
+  local run_id="$1" code
+  workflow_validate_run_id "${run_id}"
+  code="$(curl --connect-timeout 3 --max-time 10 --silent --show-error \
+    --output /dev/null --write-out '%{http_code}' \
+    "${BIDOPS_WORKFLOW_WEB_URL}/api/runs/${run_id}")" \
+    || workflow_die "run lookup failed: ${BIDOPS_WORKFLOW_WEB_URL}/api/runs/${run_id}"
+  case "${code}" in
+    200) return 0 ;;
+    404) return 1 ;;
+    *) workflow_die "run lookup returned HTTP ${code}: ${BIDOPS_WORKFLOW_WEB_URL}/api/runs/${run_id}" ;;
+  esac
+}
+
 workflow_check_web() {
   curl --connect-timeout 3 --max-time 10 --fail --silent --show-error \
     "${BIDOPS_WORKFLOW_WEB_URL}/api/health" >/dev/null \
