@@ -1,6 +1,6 @@
 # 일일 운영 고도화 — 계획
 
-- 상태: 초안 (승인 전). 2026-09-18 fable 검토와 같은 날 2차 검토 인터뷰(결정 10~27)를 반영해 개정했다. 의도는 [`intent.md`](intent.md), 동작은 [`spec.md`](spec.md).
+- 상태: 구현 중(2026-09-18 착수). fable 검토·2차 검토 인터뷰(결정 10~27)·M0 결과(결정 28)를 반영했다. 의도는 [`intent.md`](intent.md), 동작은 [`spec.md`](spec.md).
 - 기준 트리: `main` 6191f35. 이 계획이 건드리는 파일을 수정하는 미병합 브랜치는 없다.
 - 구현은 **opus·sonnet 서브에이전트**에 위임한다. 작업 패키지마다 모델을 정했다(§1, 기준은 §6).
 
@@ -13,13 +13,13 @@
 
 | ID | 내용 | 모델 | 웨이브 | 선행 | 파일 소유 (요약) |
 |---|---|---|---|---|---|
-| M0 | 늦은 색인 측정(발주계획·공고, D일·D+2일) | 리더 직접 | 0 | 사용자 승인 | `docs/validation-runs/` 기록 1건 |
+| M0 | 늦은 색인 측정(발주계획·공고) — **완료**, 사전규격 공개 지연 발견 → 결정 28 | 리더 직접 | 0 | 사용자 승인 | `docs/validation-runs/20260918-late-indexing.md` |
 | S1a | 계약·ADR 문안 | **opus** | 1 | — | `docs/tracking/decisions/**`, `docs/ADR.md`, `docs/contracts.md` |
 | S1b | 수집 창·적재 순서 서술 치환 | **sonnet** | 1 | — | `docs/business-rules.md`, `docs/ARCHITECTURE.md`, `docs/operations.md`, `docs/model-quality-gate.md`, `skills/bidops-collect/AGENTS.md`, `docs/tracking/lifecycle-workstream.md` |
 | S1c | `docs/PLAN.md` 개정·findings 정리 | **opus** | 1 | — | `docs/PLAN.md`, `docs/tracking/findings.md` |
 | S0 | 설정 배선(기본값 전부 꺼짐) | **sonnet** | 1 | — | `app/core/config.py` |
 | S2 | Alembic `0029` + 권한 | **opus** | 1 | — | `alembic/versions/0029_*.py`, `app/screening/models.py`, `scripts/runtime-privileges.sql`, `app/core/db.py` |
-| S9a | 일일 스크립트: 트랙 분리·전일 기준·1일 창·`--collect-only` | **sonnet** | 1 | — | `scripts/run-daily-lifecycle.sh` |
+| S9a | 일일 스크립트: 트랙 분리·전일 기준·발주계획 1일·공고 4일 창·`--collect-only` | **sonnet** | 1 | — | `scripts/run-daily-lifecycle.sh` |
 | S3 | policy 적재 CLI | **sonnet** | 2 | S2 | `app/screening/c2_policy.py`(신규) |
 | S4a | policy REST·활성화 | **opus** | 2 | S2 | `services/order_plan_policy.py`·`routers/order_plan_policies.py`(신규), `schemas/order_plans.py`, `app/main.py` |
 | S4c | 일일 자동 실행 스위치 서비스·REST | **opus** | 2 | S0·S2 | `services/order_plan_daily_trigger.py`·`routers/order_plan_daily_trigger.py`·`schemas/order_plan_daily_trigger.py`(신규) |
@@ -28,6 +28,7 @@
 | S6 | 감사 표본 산출 | **opus** | 2 | S2 | `services/order_plan_audit_sample.py`·`routers/order_plan_audit_sample.py`(신규) |
 | S8a | 누적 투영 백엔드 | **opus** | 2 | S2 | `services/order_plan_screening.py`(목록 함수만), `app/screening/projection.py` |
 | S11 | GPU 휴지(연속 가동 시간 기준) | **sonnet** | 2 | S0 | `app/workers/analysis.py`, `app/screening/worker.py` |
+| S15 | 개요 run 중복 방지(결정 28) | **opus** | 2 | — | `app/deep_review/services/overview_runs.py`(`enqueue_overview_run`만), 신규 테스트 |
 | S4b | 실행 게이트 수정(헤더·`purpose`·측정 경로·파일 status 제거) + router 등록 | **opus** | 3 | S4c·S5a·S8a | `services/order_plan_screening.py`(실행 생성 경로), `workers/order_plan.py`, `routers/order_plans.py`, `app/main.py` |
 | S9b | 회차 조회·`-retryN`·단계별 따라잡기 | **opus** | 3 | S9a | `scripts/run-daily-lifecycle.sh`, `scripts/manual-workflow-common.sh` |
 | S13a | 프런트 API·타입 배선 | **sonnet** | 3 | S4a·S4c·S5a·S8a | `web/frontend/src/lib/api.ts`, `lib/types.ts` |
@@ -38,7 +39,7 @@
 | S14 | 운영 문서·상태 기록 마감 | **sonnet** | 5 | 전부 | `docs/operations.md`, `docs/tracking/status.md`, `web/backend/AGENTS.md`, `CLAUDE.md`·`AGENTS.md`(런타임 사실 절) |
 | S3b | v3 policy·binding 발행·마운트 | **sonnet** | 사람 결정 뒤 | D-c 값·D-d 값, S3 | `experiments/order-plan-screening/config/*.v3.json`(신규), `docker-compose.yml`, `app/core/config.py`(기본 경로) |
 
-opus 13개, sonnet 10개(+리더 1). 웨이브마다 통합·게이트·diff 검수는 리더가 한다(§6).
+opus 14개(S15 추가, 결정 28), sonnet 10개(+리더 1). 웨이브마다 통합·게이트·diff 검수는 리더가 한다(§6).
 
 ### M0 — 늦은 색인 측정 (리더 직접, 위임 없음)
 
@@ -242,6 +243,16 @@ C-1 자동화 때 한다 — [§7](#7-이-계획-밖--c-1-자동화-때-할-일)
 | 검증 | 기본 0.0에서 기존 워커 테스트 전부 통과(동작 동일, `tests/app/test_analysis_worker_slots.py` 포함). N=5·M=7, 시계 주입: 2초짜리 잡 2개 뒤에는 `poll`만, 3번째 뒤 `wait(7)` 1회 후 `busy=0`; 8초짜리 잡 하나 뒤 `wait(7)`; 잡 없이 idle 7초면 `busy=0`; SIGTERM이 wait를 즉시 깨운다; `run_until` 경로는 휴지 없음 |
 | 사람 결정 | 없음 (값은 운영자가 나중에 정한다) |
 
+### S15 — 개요 run 중복 방지 (opus, 결정 28)
+
+| | |
+|---|---|
+| 목적 | 공고 트랙 4일 창에서 같은 사전규격이 최대 4회 재관측된다. 재관측 적재는 `run_ingested` hook → `maybe_auto_prepare` → `bundle_unchanged` → `_enqueue_overview`로 이어지는데 `enqueue_overview_run`(`overview_runs.py:711`)은 활성 run(대기·실행 중)만 확인해 **완료된 run이 있어도 새 run을 만든다** — 개요·회사 핏 모델 호출이 반복된다. 추적 보충·입찰공고가 가리키는 사전규격 적재도 같은 경로를 탄다 |
+| 파일 | `app/deep_review/services/overview_runs.py`의 `enqueue_overview_run`만, 신규 테스트 |
+| 규칙 | `range_source="auto"`일 때: 같은 `notice_id`·같은 `document_version_id`(고른 `ready` 묶음 문서)·같은 `policy_digest`로 `completed` 또는 `needs_human_review` run이 있으면 `None`(조용히 물러남). `failed`·`cancelled`는 지금처럼 재시도된다. 사람이 범위를 확정한 `range_source="human"`은 이 규칙을 적용하지 않는다(사람의 명시적 재실행). 문서가 바뀌면(새 묶음·새 버전) 새 run이 들어간다. policy가 바뀌어도 새 run이 들어간다 |
+| 검증 | 같은 문서·policy에 `completed` run → `None`; `needs_human_review` → `None`; `failed`·`cancelled`만 → 새 run; 문서 버전이 다르면 새 run; policy digest가 다르면 새 run; `range_source="human"`은 `completed`가 있어도 새 run. 기존 개요 run 테스트 파일 통과 |
+| 사람 결정 | 없음(규칙은 결정 28에서 확정) |
+
 ### S12 — (이관) notice 관측 snapshot v2
 
 C-1 자동화 때 한다 — [§7](#7-이-계획-밖--c-1-자동화-때-할-일). 번호는 참조 안정성을 위해 남긴다.
@@ -278,7 +289,7 @@ C-1 자동화 때 한다 — [§7](#7-이-계획-밖--c-1-자동화-때-할-일)
 ```
 웨이브 0  M0 늦은 색인 측정 시작(리더) · docs/0918 WIP 커밋(사용자 승인)
 웨이브 1  S1a  S1b  S1c  S0  S2  S9a                    ← 서로 파일이 겹치지 않는다
-웨이브 2  S3  S4a  S4c  S5a  S5b  S6  S8a  S11          ← S2·S0 뒤. 신규 파일 위주
+웨이브 2  S3  S4a  S4c  S5a  S5b  S6  S8a  S11  S15     ← S2·S0 뒤. 신규 파일 위주
 웨이브 3  S4b  S9b  S13a                                ← S4b는 S8a와 같은 파일의 다른 함수라 통합 뒤 출발
 웨이브 4  S9c  S8b  S13b
 웨이브 5  S5c  S14
@@ -301,7 +312,7 @@ C-1 자동화 때 한다 — [§7](#7-이-계획-밖--c-1-자동화-때-할-일)
 | D-d | 승인 단위 = **binding 튜플**(결정 20). `approval_required_per_execution`은 false | 승인자·승인 시각, 고정할 `model_digest`(현재 서버 선언 revision `5fa804ff…` ≠ v2 binding `6ae70ca3…`), 방화벽/egress 승인 | v3 binding `external_transport`, `BIDOPS_C2_EXECUTION_ALLOWED` |
 | D-e | 트리거 = **환경 cap + 버전에 묶인 DB 스위치**(결정 21). 활성화와 **별개 결정**이다 | 활성화를 누가 어떤 절차로 누르나(화면의 사전 확인 항목을 누가 보나). **운영시작일**과 cron 설치(매 달력일, 두 줄의 시각 — C-2·개요·심층 검토는 분석 워커가 직렬로 처리하므로 시각을 떼는 것은 GPU 충돌 회피가 아니라 처리 순서의 선호다). **트리거를 켜기 전 확인 항목**(PLAN.md Phase 6에서 옮겨 옴): 수동 실행에서 본 요청 수·duration·실패 분포, 나라장터 API 할당량, backup·restore와 stale execution 복구 훈련 | 활성화 화면, `BIDOPS_C2_DAILY_TRIGGER_ENABLED`, cron |
 | D-f | **제품 재실행(측정 전용 실행)으로 닫음**(결정 22) | — | gate `evaluation_basis='product_rerun'` |
-| D-g | 공고 수집 창 **1일**로 닫음(결정 8) | M0 측정에서 차이가 나오면 재개 | [`spec.md` §9.4](spec.md) |
+| D-g | M0 측정(사전규격 공개 지연)으로 재개해 공고 수집 창 **4일**로 닫음(결정 28) | — | [`spec.md` §9.4](spec.md) |
 
 ## 4. 이 계획으로도 아직 못 켜는 것
 
@@ -315,7 +326,7 @@ C-1 자동화 때 한다 — [§7](#7-이-계획-밖--c-1-자동화-때-할-일)
 | 무인 일일 운영 | 스위치와 환경 cap이 둘 다 꺼져 있다 | **D-e** |
 | 운영 품질·용량 근거 | 배치 실측 1건이 `quality_status=unmeasured_reference`다. **운영 근거로 쓸 수 없다.** BM25 1단계 소요시간은 기록이 없다 | 측정 전용 실행의 telemetry + 활성화 뒤 수동 관측(D-e 확인 항목) |
 | 발주계획 측 갱신 관측 | 1일 창이라 `bidNtceNoList`·`changed_at` 갱신을 못 본다. 추적 중인 사업의 예산·발주 시기 변경도 화면에 반영되지 않는다(결정 16). 연결은 입찰공고 측 `orderPlanUntyNo`(76.7%)로만 | 결정 7의 대가. **후속 과제: 추적 중 발주계획만 주기적 재조회**(나라장터 API의 번호 지정 조회 지원 여부부터 확인) |
-| 사전규격 등록 후 변경 관측 | 공고도 1일 창이라 등록 다음 날 이후의 사전규격 변경(`chgDt`)을 못 본다. 실측 회차당 0.7~3.6% | D-g의 대가. 필요하면 변경일 기준 조회(API 지원 확인 필요) |
+| 사전규격 등록 후 변경 관측 | 공고는 4일 창(결정 28)이라 등록 뒤 3일 안의 변경만 다시 관측한다. 그 뒤의 사전규격 변경(`chgDt`)은 못 본다(수집본 4개 기준 회차당 0.7~3.6%, 3일 안 변경 포함 값) | 필요하면 변경일 기준 조회(API 지원 확인 필요) |
 | C-1 공고 판정 | 자동화 전까지 **운영에 쓰지 않는다**(결정 27). C-1 게이트 0건, policy 둘 다 `activation_candidate`, always-on 미승인, `BIDOPS_SCHEDULER_ENABLED=false`(2026-09-18 운영 확인) | §7 C-1 자동화 트랙 |
 | 회사 핏·심층 검토의 운영 사용, 공고명 1차 판별 | 모델 출력이 다음 단계를 자동으로 막는데 품질을 잴 장치가 없다([`intent.md` §6](intent.md), 결정 26) | **운영에서 켜기 전 게이트 필수** — 각자 별도 계획. C-2 게이트 구조를 다시 쓸 수 있다 |
 | 사전규격 개요의 품질 근거 | 운영 중이지만 표식은 항상 `unmeasured_reference`이고 표본 점검 라벨을 담을 자리가 없다 | 표본 점검(별도 계획) |
@@ -404,7 +415,8 @@ CLAUDE.md의 검증 범위 규칙을 따른다 — 변경 경로와 직접 영�
 **그 사이 지킬 것.**
 
 - scheduler를 켜기 전에 adopt가 먼저다. S10 없이 켜면 scheduler가 따로 수집해 같은 날 공고가 두 회차에 들어간다.
-  둘 다 1일 창이라 내용은 같고 회차가 달라 충돌은 없지만 낭비다.
+- 공고 회차 창(4일, 결정 28)과 scheduler 예약 창(1일)이 다르다. adopt하면 겹친 공고가 매일 C-1 대상에 다시 들어가
+  중복 판정이 된다([`spec.md` §9.2](spec.md)). 판정 대상을 그 회차에서 처음 관측된 공고로 좁히는 방법을 그때 정한다.
 - C-1을 점검용으로 부를 수는 있다(`lifecycle-<D−1>-notices`에 `POST /api/runs/{run_id}/pipeline/judgment`, 결과가 파생
   회차로 적재되므로 snapshot 충돌은 없다). 그 판정은 **미측정 policy의 판정**이며 운영 판단의 근거로 쓰지 않는다.
 
@@ -460,3 +472,4 @@ snapshot v2(표본 필드 제외)")은 ⓐ로 정할 때 그대로 쓴다. 모�
 | 14 | (인터뷰 중) 게이트 측정의 순환 — 실행 API가 active만 받음 | 결정 22 — [`spec.md` §4.1](spec.md), S4b·S5c |
 | 15 | (인터뷰 중) PLAN.md "실행 버튼은 사람이 눌러야 한다"와 cron 자동 실행의 충돌 | 결정 17 — S1c |
 | 16 | (인터뷰 중) C-2 밖의 모델 사용 지점에 품질 장치가 없음, C-1 수동 경로의 우회 | 결정 26·27 — [`intent.md` §6](intent.md), §4·§7, S1c |
+| 17 | (구현 중, M0) 사전규격은 `rgstDt`로 조회되고 `rcptDt`에 공개돼 1일 창이 영구 누락을 만든다. 겹친 창의 재관측은 개요 run을 다시 넣는다 | 결정 28 — [`spec.md` §9.4](spec.md), S9a·S15, [M0 기록](../validation-runs/20260918-late-indexing.md) |
