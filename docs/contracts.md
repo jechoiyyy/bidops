@@ -1339,12 +1339,21 @@ performance_similarity_proximity|uniform_hash`, `selection_rank`(1부터), `plan
 | 실행 `purpose='gate_measurement'` | `not_applicable` | `reason="execution.purpose.gate_measurement"`, `sample=null` |
 | `population_count` ≤ policy stage1 top_k(현재 300) | `not_applicable` | `reason="stage1.population.at_or_below_top_k"`, `sample=null` |
 | `audit_sample.enabled is not True` 또는 `max_per_execution`·`review_cadence` 중 하나라도 없음 | `pending_human_approval` | `pending_decision="max_per_execution_and_review_cadence"`, `sample=null`. **값을 추정하지 않는다** |
+| 탈락 > N인데 층 규칙이 없거나 규칙·`strata`·`selection_order`·`replacement` 형식이 틀림 | `pending_human_approval` | `pending_decision="audit_sample_strata_rules"`, `sample=null` |
 | 이미 기록된 행이 있음 | `drawn` | 기록된 행 |
 | 그 밖 | GET `preview` / POST `drawn` | 계산한 표본 |
 
 - 형태: 실행당 상한 N(`max_per_execution`)건, 탈락이 N 이하면 전건. 각 건은 정책 `strata` 우선순위에서 처음 일치하는
   층 **하나에만** 배정되고(`replacement: none`), 순서는 `stratum_priority_then_sha256_plan_id` — 층 우선순위, 층 안에서
   `plan_id_sha256` 오름차순이다. 같은 입력은 byte 단위로 같은 표본을 낸다. 층 정의는 spec §5다.
+- 층 규칙은 policy `audit_sample.strata_rules`(v3에서 발행)다. `classification_proximity`: `{"field": <발주계획 열>,
+  "values": [<문자열>, ...]}` — `field`는 `business_division_code`·`service_type_code`·`procurement_method`·
+  `contract_method`·`agency_code` 중 하나이고, 그 열 값이 `values`에 있으면 이 층이다. `performance_similarity_proximity`:
+  `{"rank_window": W}`(양의 정수) — `top_k < stage1_rank ≤ top_k + W`. `uniform_hash`: 규칙 없음(나머지 전부). 규칙은
+  `strata`에 있는 두 층 모두에 있어야 한다(값은 D-c 사람 결정, `docs/0918_daily-operation/plan.md` §3).
+- 탈락이 N을 넘는데 규칙이 없거나, 규칙·`strata`·`selection_order`·`replacement`의 형식이 틀리면 `pending_human_approval`,
+  `pending_decision="audit_sample_strata_rules"`, `sample=null`(200)이다. 탈락이 N 이하이고 규칙이 없으면 전건을
+  `uniform_hash`로 매긴다(전건이라 배분이 의미 없다). 층 안 순서가 같은 `plan_id_sha256`이면 `order_plan_pk` 오름차순이다.
 
 | endpoint | 요청 | 성공 응답 | 오류 |
 |---|---|---|---|
