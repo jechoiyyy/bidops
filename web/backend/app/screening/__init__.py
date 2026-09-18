@@ -58,6 +58,7 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "order_plan_daily_trigger_router": (".routers.order_plan_daily_trigger", "router"),
     "order_plan_policies_router": (".routers.order_plan_policies", "router"),
     "order_plans_router": (".routers.order_plans", "router"),
+    "order_plan_quality_gates_router": (".routers.order_plan_quality_gates", "router"),
     "policies_router": (".routers.policies", "router"),
     "profile_router": (".routers.profile", "router"),
     "quality_gates_router": (".routers.quality_gates", "router"),

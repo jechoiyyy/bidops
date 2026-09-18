@@ -68,6 +68,7 @@ _ROUTER_REGISTRATION: tuple[tuple[str, str], ...] = (
     ("screening", "order_plans_router"),
     ("screening", "order_plan_policies_router"),
     ("screening", "order_plan_daily_trigger_router"),
+    ("screening", "order_plan_quality_gates_router"),
     # deep_review가 제공하는 사전규격 개요 검토 조회 (§5.3). 경로는 pre_specs다.
     ("deep_review", "pre_spec_overview_router"),
     ("deep_review", "prespec_overviews_router"),
