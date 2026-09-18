@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { DASH_RUN, HOLD_NOW, OTHER_RUN, dashboardMetrics, dashboardNotices, dashboardStats, dashboardWorkload, holdReviewItems, holdReviewList, mockDashboard } from "./dashboard-fixtures";
 import { settleFonts } from "./screen-fixtures";
+import { mockApi, mockOrderPlans } from "./api-mock";
 
 const selected = `/?run=${DASH_RUN}`;
 const UI_SCALE = 0.9;
@@ -249,3 +250,20 @@ test('보류 재검토의 로딩·조회 실패·빈 목록을 문자로 구분�
   await expect(panel.locator('.dash-panel-foot')).toContainText('기한 지남·임박 0건');
   await expect(panel.getByRole('link', {name: '사업 추적에서 모두 보기', exact: true})).toBeVisible();
 });
+
+// 대시보드의 `발주계획 · 검토 후보 N건 · 누적`은 발주계획 화면의 누적 기본 보기와 같은 집합이다(spec §7).
+// 회차를 고르지 않고 들어가도 화면이 누적으로 열려 같은 건수를 보여야 `누적` 문구가 사실이다.
+for (const [width,height] of [[1280,800],[1440,900]]) {
+  test(`발주계획 바로가기는 회차 없이 누적 기본 보기로 열고 검토 후보 건수와 같다 ${width}`, async ({page}) => {
+    await mockApi(page);await mockOrderPlans(page);
+    await page.setViewportSize({width,height});await page.goto('/');
+    const entry=page.locator('.dash-journey-item').first();
+    await expect(entry).toContainText('검토 후보 2건');
+    await entry.click();
+    await expect.poll(()=>new URL(page.url()).pathname).toBe('/order-plans');
+    expect(new URL(page.url()).searchParams.has('source_run_id')).toBe(false);
+    await expect(page.getByTestId('order-plan-list-scope')).toHaveText('누적 · 판정 policy c2-policy.v1');
+    await expect(page.locator('.c2l-list-head')).toContainText('현재 필터 결과 2건');
+    await expect(page.locator('.c2l-row')).toHaveCount(2);
+  });
+}
