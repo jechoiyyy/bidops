@@ -3,10 +3,11 @@
 | 항목 | 내용 |
 |---|---|
 | 문서 상태 | 초안 — 착수 순서와 검증 게이트 |
-| 문서 버전 | v0.2 |
-| 기준일 | 2026-09-02 |
+| 문서 버전 | v0.3 |
+| 기준일 | 2026-09-02 (Phase 5·6은 2026-09-18 개정) |
 | 요구사항 | [PRD.md](PRD.md) |
-| 채택 결정 | [ADR-0037](tracking/decisions/0037-order-plan-c2-bm25-top300-qwen.md) |
+| 채택 결정 | [ADR-0037](tracking/decisions/0037-order-plan-c2-bm25-top300-qwen.md), [ADR-0060](tracking/decisions/0060-c2-policy-db-row-authority.md), [ADR-0061](tracking/decisions/0061-daily-collection-window.md) |
+| 후속 계획 | [일일 운영 고도화](0918_daily-operation/plan.md) — P5-2 구현, 측정 전용 실행, 일일 트리거 |
 
 이 계획은 `BM25 Top 300 + Qwen`을 scheduler 없이 수동 실행 가능한 제품 기능으로 만드는
 순서를 정의한다. 각 단계는 앞 단계의 계약과 검증 증거를 입력으로 사용한다. 코드가 있다는
@@ -35,8 +36,8 @@
 | Phase 2 | 불변 DB 저장과 적재 | SQLAlchemy model, Alembic, loader, runtime privilege | 임시 PostgreSQL 17 검증 | 구현 완료 — `c136dfd`; loader 회귀 1건이 P5-0에 남음 |
 | Phase 3 | 수동 실행 API와 Qwen worker | execution service, queue, vLLM adapter, telemetry | fake E2E와 명시적 live smoke | 구현 완료 — `aaaef22`; live smoke 미실행 |
 | Phase 4 | 발주계획 검토 화면 | 누적 목록, 실행 상세, 필터, 사람 피드백 | TypeScript build·visual 회귀 | 완료 — `da508e0` |
-| Phase 5 | 품질 gate와 수동 운영 승인 | human gold 평가, policy candidate·activation | 명시적 운영 승인, 자동 실행 없음 | 착수 대상 |
-| Phase 6 | 고도화: scheduler | 일일 수집·선별 예약, catch-up, 월·목 검토 흐름 | 별도 ADR·운영 검증 뒤 opt-in | 대기 |
+| Phase 5 | 품질 gate와 수동 운영 승인 | human gold 평가, policy candidate·activation, 일일 트리거 스위치 | 명시적 운영 승인, 자동 실행은 사람이 옵트인한 일일 스크립트뿐 | 착수 대상 — P5-2는 [일일 운영 고도화 계획](0918_daily-operation/plan.md)이 구현 |
+| Phase 6 | 고도화: scheduler | 일일 스크립트의 C-2 트리거를 앱 scheduler로 통합 | 별도 ADR·운영 검증 뒤 opt-in | 대기 |
 | Phase 7 | 생애주기 확장 | 사전규격 독립 수집·연결·delta 추적 | 단계별 별도 계약과 사람 결정 | 대기 |
 
 Phase 2~4의 통합 보정 커밋은 `5e58f20`, `3ce0dcf`이며 `5e58f20`이 만든 migration 회귀 1건도
@@ -390,51 +391,65 @@ API mock은 성공, 부분 성공, 전체 실패, 결과 없음, `null` 계측, 
 ### P5-1 · 사람 결정
 
 측정 자체가 이 결정들에 종속된다. 정해지기 전까지 값은 `null`로 두고 추정하지 않는다.
+2026-09-18 일일 운영 고도화 인터뷰로 **형태는 닫혔고 남은 것은 값이다**([`0918_daily-operation/plan.md` §3](0918_daily-operation/plan.md)).
+값은 이 문서에서 정하지 않는다.
 
-| ID | 결정 | 현재 값 | 없으면 막히는 것 |
-|---|---|---|---|
-| D-a | gold를 언제 "승인된 사람 gold"로 볼 것인가 | 사람 22 / draft 603 / 잔여 확인 87 | P5-3의 채점 입력 |
-| D-b | quality gate 임계값 `recall`·`precision`·`important_missed_max`·`review_load_max` | 넷 다 `null` | 통과·미달 판정 자체 |
-| D-c | 감사 표본 `sample_size`·`review_cadence`·`enabled` | `null`, `pending_human_approval` | BM25 탈락 감사 |
-| D-d | 사설 vLLM 전송 승인(D-7 방화벽)과 model artifact digest 고정 | `not_allowed_for_product_runtime` | 반복 실행 측정, live smoke |
-| D-e | 활성화 승인 주체·절차와 audit 기록 범위 | 미정 | P5-4 |
-| D-f | 채점 대상을 기존 실험 산출물로 할 것인가, 제품 파이프라인 재실행 결과로 할 것인가 | 미정 | P5-3 전체의 성격 |
+| ID | 결정 | 닫힌 형태 (2026-09-18) | 남은 사람 결정 | 없으면 막히는 것 |
+|---|---|---|---|---|
+| D-a | gold를 언제 "승인된 사람 gold"로 볼 것인가 | 권고안 = **풀링 방식**. 어느 방식이든 후보로 올렸거나 불확실하다고 본 건은 사람이 전수 확정하고, 나머지는 무작위 표본만 확인하며 관련 건이 나오면 gold에 편입하고 표본을 넓힌다 | 표본 크기, 최종 승인. 현재 사람 22 / draft 603 / 잔여 확인 87 | P5-3의 채점 입력 |
+| D-b | quality gate 임계값 `recall`·`precision`·`important_missed_max`·`review_load_max` | 판정 규칙 = **하나라도 미달이면 차단**, 같은 묶음 두 pass가 **모두** 통과해야 통과, 채점 단위 = **게시일별**(4일치 일괄은 참고값), 검토량 상한은 하루 기준 | 네 값. 현재 넷 다 `null` | 통과·미달 판정 자체 |
+| D-c | 감사 표본 `max_per_execution`·`review_cadence`·`enabled` | 형태 = **실행당 상한 N건, 탈락이 N 이하인 날은 전건**. v3 policy는 `sample_size`를 쓰지 않는다 | N, 상한을 넘는 날의 층 배분, 검토 주기, 무복원 범위. 현재 `null`, `pending_human_approval` | BM25 탈락 감사 |
+| D-d | 사설 vLLM 전송 승인(D-7 방화벽)과 model artifact digest 고정 | 승인 단위 = **binding 튜플**(policy, binding, model_digest, allowlist). 튜플이 바뀌면 policy를 retire한다. 실행별 승인(`approval_required_per_execution`)은 false. payload 승인은 유지하고 승인 행위의 단위만 튜플이다([ADR-0060](tracking/decisions/0060-c2-policy-db-row-authority.md)) | 승인자·승인 시각, 고정할 `model_digest`, 방화벽/egress 승인. 현재 `not_allowed_for_product_runtime` | 측정 전용 실행, 반복 실행 측정, live smoke |
+| D-e | 활성화 승인 주체·절차와 audit 기록 범위 | 일일 트리거 = **환경 cap + policy 버전에 묶인 DB 스위치**. 활성화와 별개 결정이다 | 활성화 승인 주체·절차, 운영시작일과 cron 시각, 트리거를 켜기 전 확인 항목(Phase 6에서 옮겨 옴) | P5-4, 일일 트리거 |
+| D-f | 채점 대상을 기존 실험 산출물로 할 것인가, 제품 파이프라인 재실행 결과로 할 것인가 | **제품 재실행으로 닫음** — 후보 상태 policy의 측정 전용 실행(`purpose=gate_measurement`) | — | — |
 
 참고 실측(625건, 방식 선택 근거이며 목표치가 아니다): 검토 유지 recall 96.61%,
-precision 44.88%, 사람 검토 후보 127건, BM25 누락 2건.
+precision 44.88%, 사람 검토 후보 127건, BM25 누락 2건. 4일치 일괄 조건의 값이므로 게시일별 조건의 값도 아니다.
 
-D-f를 "제품 재실행"으로 정하면 P5-3 전체가 D-d에 종속된다. "기존 산출물 재채점"으로 정하면
-지금 측정할 수 있지만 그 결과는 제품이 낸 결과가 아니므로 gate artifact에 그 사실을 남긴다.
+D-f를 제품 재실행으로 닫았으므로 P5-3 전체가 D-d에 종속된다. 실행 API가 active policy만 받아
+"게이트를 통과하려면 실행이 필요하고 실행하려면 게이트 통과가 필요한" 순환은 `X-BidOps-Trigger: gate_measurement`
+요청이 `activation_candidate` policy로 gate의 측정 회차에만 실행을 만드는 측정 전용 실행으로 푼다. 기존 산출물 재채점
+(`evaluation_basis=reference_artifact_rescore`)은 비교용 기록으로만 남고 `통과`여도 활성화를 열지 못한다.
 
 ### P5-2 · 구현
 
 임계값이 없어도 구조는 fail-closed로 만들 수 있다. P5-1과 병행한다.
+2026-09-18부터 이 단계는 [일일 운영 고도화 계획](0918_daily-operation/plan.md)의 S3~S6·S13 작업 패키지가
+구현한다. 각 항목 끝에 담당 패키지를 적는다. 동작 정본은 [`0918_daily-operation/spec.md`](0918_daily-operation/spec.md)다.
 
 1. **policy 등록 경로.** 승인된 policy 파일을 digest 그대로 `draft`로 적재하는 명시적 경로를
-   만든다. 앱 startup, image build, migration은 이 일을 하지 않는다.
-2. **policy REST 3개 구현.** `GET /api/order-plan-screening/policies/{policy_version}`,
-   `POST .../policies/candidate`, `POST .../policies/{policy_version}/activate`.
-   `activation_allowed=false`인 동안 활성화는 `activation_blocked(409)`로 닫혀 있어야 한다.
-3. **quality gate 산출물의 저장 계약 확정.** artifact와 digest를 어디에 두는지 정하고
-   `policy_status`·`quality_gate_status` 전이와 append-only audit을 함께 고정한다. legacy
-   `quality_gate` table을 재사용하지 않는다면 그 이유를 계약에 남긴다. migration `0018`의
-   필요 여부는 이 결정에서 나온다.
-4. **감사 표본 선정기.** policy의 strata, 선정 순서, 무복원 규칙을 결정적으로 구현한다. 현재
-   규칙은 문서와 policy 파일에만 있고 실행 코드가 없다.
+   만든다. 앱 startup, image build, migration은 이 일을 하지 않는다. policy 활성 여부의 정본은
+   DB 행이며 파일의 상태성 필드는 발행 시점 스냅샷이라 어떤 게이트도 읽지 않는다
+   ([ADR-0060](tracking/decisions/0060-c2-policy-db-row-authority.md)). → S3(적재 CLI), S3b(v3 policy·binding
+   발행, D-c·D-d 값 뒤)
+2. **policy REST 구현.** `GET /api/order-plan-screening/policies/{policy_version}`,
+   `GET .../policies`(활성화 화면용 목록), `POST .../policies/candidate`,
+   `POST .../policies/{policy_version}/activate`. blocker는 전부 런타임에서 계산하고
+   `activation_allowed=false`인 동안 활성화는 `activation_blocked(409)`로 닫혀 있어야 한다. → S4a.
+   실행 게이트에서 파일 status 검사를 빼고 측정 전용 실행(`purpose=gate_measurement`)과 트리거 헤더를 받는
+   변경은 S4b, 일일 자동 실행 스위치는 S4c
+3. **quality gate 산출물의 저장 계약 확정.** 결정: legacy `quality_gate` table은 재사용하지 않는다
+   (C-2가 채울 수 없는 NOT NULL 열과 C-1 활성화 경로 재검토 부담, [`spec.md` §2.1](0918_daily-operation/spec.md)).
+   C-2 전용 gate·append-only evaluation table과 실행 행의 `purpose` 열을 Alembic `0029`로 추가하고,
+   `quality_gate_status` 전이와 append-only audit을 함께 고정한다. → S2(migration `0029`·권한), S5a(저장소·REST·판정
+   규칙), S5b(gold 게시일별 분할), S5c(측정 스크립트)
+4. **감사 표본 선정기.** policy의 strata, 선정 순서, 무복원 규칙을 결정적으로 구현한다. 형태는
+   실행당 상한 N건, 그 이하는 전건이며 값이 없으면 `pending_human_approval`로 닫힌다. → S6
 5. **활성화 화면.** 후보 policy, exact binding, gate 결과, 남은 blocker를 사람이 확인하고
    명시적으로 승인하는 동선. `미측정`과 `미달`을 다른 표면으로 구분하고, 승인 전에는 활성
-   정책처럼 보이지 않게 한다.
+   정책처럼 보이지 않게 한다. 같은 화면에 일일 자동 실행 스위치를 둔다. → S13a(API·타입), S13b(화면)
 
 ### P5-3 · 측정
 
-1. 승인된 사람 gold로 고정 모집단을 다시 채점한다.
+1. 승인된 사람 gold 회차를 게시일별 파생 회차로 나누고, 후보 policy의 측정 전용 실행으로 같은 묶음을
+   두 번(pass 1·2) 돌려 게시일별로 채점한다.
 2. recall, precision, review load, 중요 누락, BM25 rank 분포, 시간·token을 계산한다.
 3. accepted-stage1-misses와 새 중요 누락을 함께 검토한다.
-4. 같은 binding 반복 실행으로 batch 안정성과 판정 변동을 측정한다.
+4. 두 pass의 판정 일치율로 batch 안정성과 판정 변동을 기록한다.
 5. 감사 표본에서 BM25 탈락의 관련 건수를 사람 판정으로 확인한다.
 
-산출물은 임계값 대비 `통과`·`미달`·`미측정`을 구분한 gate artifact 하나다. 실패와 미측정을
-0이나 `not_relevant`로 보정하지 않는다.
+산출물은 임계값 대비 `통과`·`미달`·`미측정`·`보류`를 구분한 gate artifact 하나다. 코드는 채점하지 않고
+사람이 만든 artifact를 evaluation으로 기록한다. 실패와 미측정을 0이나 `not_relevant`로 보정하지 않는다.
 
 ### P5-4 · 활성화
 
@@ -443,7 +458,10 @@ D-f를 "제품 재실행"으로 정하면 P5-3 전체가 D-d에 종속된다. "�
 
 ### 활성화 뒤에도 유지할 경계
 
-- 실행 버튼은 사람이 눌러야 한다.
+- 실행은 사람 또는 사람이 옵트인한 일일 스크립트가 요청한다. 일일 스크립트는 환경 cap
+  (`BIDOPS_C2_DAILY_TRIGGER_ENABLED`, 기본 false)과 활성 policy 버전에 묶인 DB 스위치가 모두 켜졌을 때만
+  실행을 만들고, policy를 교체하면 새 버전에서 스위치를 다시 켜야 한다. actor는 cron을 설치하고 자기 이름을
+  넣은 사람이다([ADR-0060](tracking/decisions/0060-c2-policy-db-row-authority.md)).
 - scheduler와 always-on은 비활성이다.
 - 정책 활성화가 곧 모델 호출은 아니다.
 - 실패를 다른 provider 호출로 복구하지 않는다.
@@ -458,26 +476,33 @@ D-f를 "제품 재실행"으로 정하면 P5-3 전체가 D-d에 종속된다. "�
 
 ## 9. Phase 6 · 고도화: scheduler
 
-이 단계는 MVP와 분리한다. Phase 0~5가 완료되고 수동 운영에서 실행시간·API 호출량·실패율을
-관측한 뒤 별도 ADR과 변경 계획으로 착수한다.
+이 단계는 MVP와 분리한다. Phase 0~5가 완료된 뒤 별도 ADR과 변경 계획으로 착수한다.
+
+2026-09-18 개정: 매일 1일치 수집과 C-2 실행은 이 단계를 기다리지 않고 일일 스크립트
+(`run-daily-lifecycle.sh --track order-plans`)가 맡는다([일일 운영 고도화 계획](0918_daily-operation/plan.md),
+[ADR-0060](tracking/decisions/0060-c2-policy-db-row-authority.md)·[ADR-0061](tracking/decisions/0061-daily-collection-window.md)).
+발주계획 전일 1일 창·공고 4일 창, 트랙 분리, 단계별 따라잡기, 환경 cap과 버전에 묶인 DB 스위치가 거기서 정해졌다. 이 단계에는
+그 트리거를 앱 scheduler로 옮기는 **scheduler 통합만** 남는다.
 
 ### 선행 조건
 
-- active C-2 policy와 통과한 operational quality gate
-- 수동 실행에서 확인한 요청 수, token, duration, 실패·재시도 분포
-- 나라장터 API 할당량과 700회 경고·900회 신규 호출 중지 정책 검증
-- 모델 endpoint와 host firewall 운영 승인
-- backup·restore와 stale execution 복구 훈련
-- scheduler actor·audit·중복 예약·catch-up 계약 확정
+- 일일 스크립트 경로의 C-2 운영이 먼저 성립해 있다(active C-2 policy, 통과한 quality gate, 전송 승인, 켜진 일일 스위치).
+- scheduler actor·audit·중복 예약·catch-up 계약 확정. 일일 스크립트와 scheduler가 같은 날짜를 두 번 실행하지 않는 규칙을 포함한다.
+
+이전 선행 조건 중 여전히 유효한 것 — 수동 실행에서 확인한 요청 수·token·duration·실패·재시도 분포, 나라장터 API
+할당량과 700회 경고·900회 신규 호출 중지 정책 검증, backup·restore와 stale execution 복구 훈련 — 은 **일일 트리거를
+켜기 전 확인 항목**으로 옮겼다([`0918_daily-operation/plan.md` §3 D-e](0918_daily-operation/plan.md)). 모델 endpoint와
+host firewall 운영 승인은 D-d가 맡는다.
 
 ### 목표 동작
 
-- 발주계획은 최근 21일 창을 매일 독립 수집한다.
+- scheduler가 일일 스크립트와 같은 규칙으로 발주계획 트랙을 돈다 — 발주계획 전일 1일 창·공고 4일 창, 트리거가 꺼져 있으면 수집하지 않음,
+  0건이면 실행 없이 종료, 단계별 따라잡기.
 - 원본 수집과 C-2 실행을 별도 상태로 기록하고 부분 수집이면 선별을 시작하지 않는다.
-- 월요일·목요일에는 누적 미검토 후보를 사람이 볼 수 있게 하되 수집 자체는 매일 유지한다.
 - 동일 source run·policy의 중복 실행은 idempotency 규칙으로 건너뛴다.
 - 누락 기간 복구는 새 execution으로 남기고 과거 회차를 덮지 않는다.
-- 환경 cap과 DB switch가 모두 켜지고 exact quality binding이 일치할 때만 effective enabled가 된다.
+- 환경 cap과 DB switch가 모두 켜지고 exact quality binding이 일치할 때만 effective enabled가 된다. 일일 스크립트와
+  같은 스위치를 읽는다.
 - 앱 startup은 밀린 실행을 임의로 시작하지 않는다.
 
 ### 예상 변경 영역
@@ -555,3 +580,7 @@ live endpoint 호출은 이 목록에 포함하지 않는다. 별도 승인된 s
 다음 착수점은 P5-0이다. 회귀 6건과 downgrade 불가를 닫고 잘못 기록된 기준선을 정정한 뒤,
 P5-1의 사람 결정과 P5-2의 구현을 병행한다. 측정(P5-3)은 D-a~D-d가 정해진 뒤에 시작한다.
 scheduler 설계는 이 착수점에 포함하지 않는다.
+
+2026-09-18 개정: 위 표는 2026-09-02 시점 기록이다. policy 등록·활성화, quality gate 저장 자리, 감사 표본 선정기는
+[일일 운영 고도화 계획](0918_daily-operation/plan.md)이 구현 순서와 담당 패키지를 정했다(다음 migration은 `0029`).
+현재 구현·검증 상태는 [`tracking/status.md`](tracking/status.md)가 정본이다.
