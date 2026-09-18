@@ -41,6 +41,7 @@ _MESSAGES = {
     "binding_mismatch": "C-2 binding이 일치하지 않습니다",
     "service_unavailable": "승인된 private vLLM transport를 사용할 수 없습니다",
     "active_execution_exists": "다른 C-2 execution이 실행 중입니다",
+    "daily_trigger_off": "C-2 일일 자동 실행이 꺼져 있습니다",
     "idempotency_conflict": "같은 request_id가 다른 요청에 사용되었습니다",
     "immutable_conflict": "불변 C-2 artifact가 이미 존재합니다",
     "execution_not_stoppable": "현재 C-2 execution은 중지할 수 없습니다",
@@ -57,7 +58,8 @@ def _error_response(error: OrderPlanScreeningError) -> JSONResponse:
     return JSONResponse(
         status_code=status,
         content={
-            "error": {"code": code, "message": _MESSAGES[code], "details": None},
+            # Only errors that carry details (`daily_trigger_off`) fill this.
+            "error": {"code": code, "message": _MESSAGES[code], "details": getattr(error, "details", None)},
             "request_id": str(error.request_id) if error.request_id is not None else None,
         },
     )
@@ -153,10 +155,12 @@ def create_execution(
     payload: ExecutionCreateRequest,
     actor: Annotated[str | None, Header(alias="X-BidOps-Actor-Name")] = None,
     actor_format: Annotated[str | None, Header(alias="X-BidOps-Actor-Name-Format")] = None,
+    trigger: Annotated[str | None, Header(alias="X-BidOps-Trigger")] = None,
     session: Session = Depends(get_db),
 ) -> dict[str, object] | JSONResponse:
+    """`X-BidOps-Trigger`: 없음·`daily_script`·`manual_resume`·`gate_measurement`. 그 외 값과 빈 문자열은 422다."""
     try:
-        return service.create_execution(session, payload, actor, actor_format)
+        return service.create_execution(session, payload, actor, actor_format, trigger)
     except OrderPlanScreeningError as error:
         return _error_response(error)
     except Exception:

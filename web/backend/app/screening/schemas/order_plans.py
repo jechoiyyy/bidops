@@ -101,6 +101,7 @@ class ExecutionSummary(_Strict):
     stage2_binding_version: str
     stage2_binding_sha256: str
     counts: ExecutionCounts
+    purpose: Literal["operational", "gate_measurement"]
     partial_artifact: bool
     error_code: str | None
     queued_at: datetime
@@ -160,7 +161,7 @@ class ExecutionCreateResponse(_Strict):
 
 
 class ExecutionListResponse(_Strict):
-    schema_version: Literal["execution-list-response.v1"]
+    schema_version: Literal["execution-list-response.v2"]
     producer: Literal["screening-api"]
     consumer: Literal["human-review-client"]
     items: list[ExecutionSummary]
@@ -170,7 +171,7 @@ class ExecutionListResponse(_Strict):
 
 
 class ExecutionDetailResponse(ExecutionSummary):
-    schema_version: Literal["execution-detail-response.v1"]
+    schema_version: Literal["execution-detail-response.v2"]
     producer: Literal["screening-api"]
     consumer: Literal["human-review-client"]
     artifacts: list[ArtifactSummary]
