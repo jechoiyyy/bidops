@@ -55,6 +55,7 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     # 접두사(`/api/notices`, `/api/runs`)를 쓰지만 제공 모듈은 screening이다
     # (§5.3). screening을 끄면 그 경로도 404다.
     "notice_reviews_router": (".routers.reviews", "notice_router"),
+    "order_plan_audit_sample_router": (".routers.order_plan_audit_sample", "router"),
     "order_plan_daily_trigger_router": (".routers.order_plan_daily_trigger", "router"),
     "order_plan_policies_router": (".routers.order_plan_policies", "router"),
     "order_plans_router": (".routers.order_plans", "router"),
