@@ -98,7 +98,8 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900
       });
       const afterScroll = await footer.boundingBox();
       expect(Math.abs(afterScroll!.y - metrics.footerTop), `${path} 본문 스크롤과 하단 액션 분리`).toBeLessThanOrEqual(1);
-      await expect(page.locator(`.${prefix}-tabs [role="tab"]`)).toHaveCount(4);
+      // 판정 기준은 발주계획 선별 정책 탭까지 5개, 실행 상태는 4개다. 새 탭은 이 골격 비교 대상에 넣지 않는다.
+      await expect(page.locator(`.${prefix}-tabs [role="tab"]`)).toHaveCount(prefix === "crit" ? 5 : 4);
       await page.screenshot({ path: testInfo.outputPath(`${path.slice(1)}-${viewport.width}.png`), animations: "disabled" });
     }
     await testInfo.attach("admin-workspace-geometry", {
