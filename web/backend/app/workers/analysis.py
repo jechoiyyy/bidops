@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import signal
+import threading
 import time
 import argparse
 from datetime import UTC, datetime
@@ -22,6 +23,7 @@ from ..deep_review import (
     run_prespec_overview_once,
 )
 from ..screening import C2ScreeningWorker
+from .gpu_rest import GpuRestGate
 
 
 logger = logging.getLogger(__name__)
@@ -46,14 +48,19 @@ def main() -> None:
     # 되풀이하면 같은 run이 상한까지 순식간에 타 버린다.
     overview_identity = ModelIdentityCheckState()
     stopping = False
+    stop_event = threading.Event()
+    gate = GpuRestGate(settings.gpu_busy_limit_seconds, settings.gpu_rest_seconds)
 
     def stop(_signum: int, _frame: object) -> None:
         nonlocal stopping
         stopping = True
+        stop_event.set()
 
     signal.signal(signal.SIGTERM, stop)
     signal.signal(signal.SIGINT, stop)
     while not stopping:
+        started = time.monotonic()
+        did_work = False
         try:
             with SessionLocal() as session:
                 try:
@@ -62,24 +69,29 @@ def main() -> None:
                     # the legacy deep-review job is considered only when no
                     # C-2 execution is queued.
                     c2_result = c2_worker.run_once(session)
-                    if c2_result is None:
-                        # 한 poll은 C-2·심층 검토·회사 핏·개요 중
-                        # 하나만 잡는다. 회사 핏도 같은 모델 슬롯을 쓴다.
-                        if not run_deep_review_once(session, worker_id).claimed and not company_fit_runner.run_once(session, worker_id):
-                            # 모델 신원 확인이 막혀 있으면 다음 개요 claim을
-                            # 10→30→60→120→300초 뒤로 민다. 설정을 고쳐야 낫는
-                            # 실패는 이 runner에서 다시 확인하지 않는다.
-                            now = datetime.now(UTC)
-                            if overview_identity.should_check(now):
-                                overview = run_prespec_overview_once(session, worker_id)
-                                if overview.identity_error is not None:
-                                    overview_identity.record_failure(overview.identity_error, now)
-                                elif overview.claimed:
-                                    overview_identity.record_success()
+                    if c2_result is not None:
+                        did_work = True
+                    elif run_deep_review_once(session, worker_id).claimed:
+                        did_work = True
+                    elif company_fit_runner.run_once(session, worker_id):
+                        did_work = True
+                    else:
+                        # 모델 신원 확인이 막혀 있으면 다음 개요 claim을
+                        # 10→30→60→120→300초 뒤로 민다. 설정을 고쳐야 낫는
+                        # 실패는 이 runner에서 다시 확인하지 않는다.
+                        now = datetime.now(UTC)
+                        if overview_identity.should_check(now):
+                            overview = run_prespec_overview_once(session, worker_id)
+                            if overview.identity_error is not None:
+                                overview_identity.record_failure(overview.identity_error, now)
+                            elif overview.claimed:
+                                overview_identity.record_success()
+                                did_work = True
                 except Exception:
                     # run_claim commits its own fenced transitions. Any
                     # provider/materializer error not converted there must not
                     # leave a transaction open for the next poll.
+                    did_work = True
                     session.rollback()
                     logger.warning(
                         "analysis worker job failed",
@@ -107,10 +119,18 @@ def main() -> None:
                 },
                 exc_info=True,
             )
+        finished = time.monotonic()
+        rest = gate.after_poll(did_work=did_work, work_seconds=finished - started, now=finished)
         if args.once or stopping:
             return
-        if not stopping:
-            time.sleep(max(settings.analysis_worker_poll_seconds, 0.1))
+        if rest is not None:
+            logger.info(
+                "analysis worker resting",
+                extra={"bidops": {"event": "worker.gpu_rest", "worker_id": worker_id, "rest_seconds": rest}},
+            )
+            stop_event.wait(rest)
+        else:
+            stop_event.wait(max(settings.analysis_worker_poll_seconds, 0.1))
 
 
 if __name__ == "__main__":
