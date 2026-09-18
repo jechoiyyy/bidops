@@ -110,8 +110,10 @@ OVERVIEW_JOB_TYPE = "prespec_overview"
 OVERVIEW_AGGREGATE_TYPE = "prespec_overview_run"
 #: queued·running은 공고당 하나뿐이다 (부분 유니크 `uq_prespec_overview_run_active`).
 ACTIVE_STATUSES = ("queued", "running")
+#: 결과가 남은 종결 상태. 자동 enqueue의 중복 방지가 막는 기준이다 (결정 28).
+RESULT_STATUSES = ("completed", "needs_human_review")
 #: 종결 상태. 없는 것(`None`)을 종결로 승격시키지 않는다.
-SETTLED_STATUSES = ("completed", "needs_human_review", "failed", "cancelled")
+SETTLED_STATUSES = (*RESULT_STATUSES, "failed", "cancelled")
 #: 개요 입력 PDF 준비 option. 옛 v4 ops CLI가 쓰던 값 그대로다.
 SNAPSHOT_OPTIONS: Mapping[str, Any] = {
     "prepare_pdf": True,
@@ -725,6 +727,14 @@ def enqueue_overview_run(
     자격은 effective grade `우선 검토`이고, 플래그가 켜져 있으면 `SW사업대상=Y`
     사전규격도 포함한다(MVP 완화). 부분 유니크 인덱스가 최종 방어이고 여기서는
     사전 조회로 조용히 물러난다.
+
+    자동 촉발(`range_source="auto"`)에는 중복 방지가 하나 더 붙는다(결정 28).
+    같은 공고·같은 제안요청서 문서 버전·같은 policy digest로 이미
+    `completed`·`needs_human_review`로 닫힌 run이 있으면 새 run을 만들지 않는다.
+    공고 트랙의 4일 창이 같은 사전규격을 여러 번 재관측해도 개요·회사 핏 모델
+    호출을 반복하지 않게 하려는 것이다. `failed`·`cancelled`만 있으면 다음
+    촉발이 재시도하고, 문서나 policy가 바뀌면 새 run이 들어간다. 사람이 범위를
+    확정한 `human` 재실행은 이 규칙을 지나지 않는다.
     """
 
     settings = settings or get_settings()
@@ -752,6 +762,20 @@ def enqueue_overview_run(
     if document is None:
         return None
     policy = load_claims_policy(settings.prespec_overview_policy_path)
+    if range_source == "auto":
+        # 결과가 남은 종결만 막는다. `failed`·`cancelled`는 재시도 대상이다.
+        already_reviewed = session.scalars(
+            select(PrespecOverviewRun.id)
+            .where(
+                PrespecOverviewRun.notice_id == int(notice_id),
+                PrespecOverviewRun.document_version_id == document.id,
+                PrespecOverviewRun.policy_digest == policy.digest,
+                PrespecOverviewRun.status.in_(RESULT_STATUSES),
+            )
+            .limit(1)
+        ).first()
+        if already_reviewed is not None:
+            return None
     run_id = uuid4()
     job = WorkJob(
         id=uuid4(),
@@ -1827,6 +1851,7 @@ __all__ = [
     "OVERVIEW_ENVELOPE_SCHEMA",
     "OVERVIEW_JOB_TYPE",
     "RANGE_CONFIRMATION_ACTION",
+    "RESULT_STATUSES",
     "SETTLED_STATUSES",
     "OverviewEnqueueError",
     "OverviewRequestError",
