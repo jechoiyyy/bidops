@@ -2114,6 +2114,7 @@ function c2Execution(overrides: Partial<OrderPlanScreeningExecutionSummary> = {}
     source_run_id: "91d8c2e4-3f09-4e6a-9bd9-0c2e4e6d0101",
     policy_version: "c2-policy.v1",
     status: "부분 성공",
+    purpose: "operational",
     requested_by: "screening-worker",
     execution_allowed: true,
     population_count: 625,
@@ -2207,7 +2208,10 @@ const c2Running = c2Execution({
   partial_artifact: false,
 });
 
-const c2Items: Omit<OrderPlanListItem, "tracking">[] = [
+/** `execution_id`·`policy_version`·`first_observed_at`은 `listItems()`가 요청 시점에 계산해 붙인다(누적/회차 모드 공통). */
+type C2OrderPlanFixtureItem = Omit<OrderPlanListItem, "tracking" | "execution_id" | "policy_version" | "first_observed_at">;
+
+const c2Items: C2OrderPlanFixtureItem[] = [
   {
     order_plan_pk: 101,
     order_plan_unty_no: "OP-2026-00101",
@@ -2393,7 +2397,7 @@ const c2Items: Omit<OrderPlanListItem, "tracking">[] = [
   },
 ];
 
-const c2LargeItems: Omit<OrderPlanListItem, "tracking">[] = Array.from({ length: 1200 }, (_, index) => {
+const c2LargeItems: C2OrderPlanFixtureItem[] = Array.from({ length: 1200 }, (_, index) => {
   const failed = index >= 900;
   return {
     ...c2Items[0],
@@ -2544,7 +2548,7 @@ function c2ExecutionDetail(execution: OrderPlanScreeningExecutionSummary) {
       finished_at: "2026-08-31T02:02:05Z",
     }];
   return {
-    schema_version: "execution-detail-response.v1",
+    schema_version: "execution-detail-response.v2",
     producer: "screening-api",
     consumer: "human-review-client",
     ...execution,
@@ -2568,7 +2572,7 @@ export async function mockOrderPlans(page: Page, scenario: OrderPlanMockScenario
     : scenario === "failure" ? [c2Failed]
       : scenario === "stopped" ? [c2Execution({ execution_id: "a2f4d7c1-0a61-4a07-8d2e-7f1d1d010401", status: "중단됨", finished_at: "2026-09-01T05:00:00Z", error_code: "user_requested" })]
         : scenario === "large" ? [c2LargeExecution] : [c2Running, c2Failed, partial, c2OlderSuccess];
-  const planItems: Omit<OrderPlanListItem, "tracking">[] = scenario === "no-results" ? [] : scenario === "large" ? c2LargeItems : [...c2Items, {
+  const planItems: C2OrderPlanFixtureItem[] = scenario === "no-results" ? [] : scenario === "large" ? c2LargeItems : [...c2Items, {
     ...c2Items[0], order_plan_pk: 109, order_plan_unty_no: "OP-2026-00109", title: "아직 선별 관측값이 없는 합성 발주계획",
     stage1_status: null, stage1_rank: null, stage1_score: null, stage2_status: null, qwen_relevance: null,
     qwen_score: null, qwen_reason: null, human_feedback: null,
@@ -2582,11 +2586,23 @@ export async function mockOrderPlans(page: Page, scenario: OrderPlanMockScenario
       stage2_failed_count: 1, stage2_rejected_count: 1, human_review_count: 1,
     };
   }
-  function scopeFor(sourceRunId: string | null): OrderPlanListScope | null {
+  /** v3까지의 "회차 스코프" 계산. v4 wire `scope`뿐 아니라 항목별 결과 연결에도 쓴다. */
+  function latestCompletedExecution(sourceRunId: string | null): OrderPlanScreeningExecutionSummary | null {
     const eligible = executions.filter((item) => (item.status === "성공" || item.status === "부분 성공") && (!sourceRunId || item.source_run_id === sourceRunId));
     eligible.sort((a, b) => (b.finished_at ?? "").localeCompare(a.finished_at ?? "") || b.queued_at.localeCompare(a.queued_at) || b.execution_id.localeCompare(a.execution_id));
-    const latest = eligible[0];
-    return latest ? { execution_id: latest.execution_id, source_run_id: latest.source_run_id, status: latest.status as OrderPlanListScope["status"], finished_at: latest.finished_at } : null;
+    return eligible[0] ?? null;
+  }
+  /** v4 wire `scope`. `source_run_id`가 있으면 회차 모드, 없으면 누적 모드다. */
+  function scopeFor(sourceRunId: string | null): OrderPlanListScope | null {
+    const latest = latestCompletedExecution(sourceRunId);
+    if (sourceRunId) {
+      return latest ? {
+        mode: "run", execution_id: latest.execution_id, source_run_id: latest.source_run_id,
+        status: latest.status as "성공" | "부분 성공", finished_at: latest.finished_at,
+        policy_version: latest.policy_version, purpose: latest.purpose,
+      } : null;
+    }
+    return { mode: "cumulative", policy_versions: latest ? [latest.policy_version] : [] };
   }
   function trackingProjection(orderPlanPk: number): OrderPlanTracking | null {
     if (scenario === "no-owning-opportunity") return null;
@@ -2613,14 +2629,18 @@ export async function mockOrderPlans(page: Page, scenario: OrderPlanMockScenario
     }
   }
   function listItems(search: URLSearchParams): OrderPlanListItem[] {
-    const scope = scopeFor(search.get("source_run_id"));
+    const sourceRunId = search.get("source_run_id");
+    const latest = latestCompletedExecution(sourceRunId);
     return planItems.map((item): OrderPlanListItem => {
-      const feedback = feedbackItems.filter((entry) => entry.order_plan_pk === item.order_plan_pk && entry.execution_id === scope?.execution_id).at(-1);
+      const feedback = feedbackItems.filter((entry) => entry.order_plan_pk === item.order_plan_pk && entry.execution_id === latest?.execution_id).at(-1);
       return {
         ...item,
-        ...(!scope ? { stage1_status: null, stage1_rank: null, stage1_score: null, stage2_status: null, qwen_relevance: null, qwen_score: null, qwen_reason: null } : {}),
+        ...(!latest ? { stage1_status: null, stage1_rank: null, stage1_score: null, stage2_status: null, qwen_relevance: null, qwen_score: null, qwen_reason: null } : {}),
         human_feedback: feedback ? { revision: feedback.revision, relevance: feedback.relevance as "relevant" | "not_relevant" | "uncertain", priority: feedback.priority as "high" | "medium" | "low" | null, memo: feedback.memo, claimed_name: feedback.claimed_name, created_at: feedback.created_at } : null,
         tracking: trackingProjection(item.order_plan_pk),
+        execution_id: latest ? latest.execution_id : null,
+        policy_version: latest ? latest.policy_version : null,
+        first_observed_at: item.observed_at,
       };
     }).filter((item) => (!search.get("source_run_id") || item.source_run_id === search.get("source_run_id"))
       && matchesValues(item.stage1_status, search.get("stage1_status"))
@@ -2631,7 +2651,7 @@ export async function mockOrderPlans(page: Page, scenario: OrderPlanMockScenario
       && (search.get("issue") !== "true" || ["failed", "rejected"].includes(item.stage1_status ?? "") || ["failed", "rejected"].includes(item.stage2_status ?? ""))
       && (!search.get("q") || `${item.title} ${item.agency_name} ${item.order_plan_unty_no}`.toLocaleLowerCase("ko-KR").includes(search.get("q")!.toLocaleLowerCase("ko-KR"))));
   }
-  workloadProvider(page, "order_plan_pending", () => scopeFor(null)
+  workloadProvider(page, "order_plan_pending", () => latestCompletedExecution(null)
     ? { count: listItems(new URLSearchParams({ stage1_status: "selected", qwen_relevance: "relevant,uncertain", tracking_status: "미선택" })).length, unavailable_reason: null }
     : { count: null, unavailable_reason: "no_completed_execution" });
 
@@ -2645,7 +2665,7 @@ export async function mockOrderPlans(page: Page, scenario: OrderPlanMockScenario
     if (pathname === "/api/order-plan-screening/executions" && method === "GET") {
       const filtered = executions.filter((item) => (!search.get("source_run_id") || item.source_run_id === search.get("source_run_id")) && (!search.get("status") || item.status === search.get("status")));
       const limit = Number(search.get("limit") ?? 100), offset = Number(search.get("offset") ?? 0);
-      await fulfillJson(route, { schema_version: "execution-list-response.v1", producer: "screening-api", consumer: "human-review-client", items: filtered.slice(offset, offset + limit), total: filtered.length, limit, offset }); return;
+      await fulfillJson(route, { schema_version: "execution-list-response.v2", producer: "screening-api", consumer: "human-review-client", items: filtered.slice(offset, offset + limit), total: filtered.length, limit, offset }); return;
     }
     if (pathname === "/api/order-plan-screening/executions" && method === "POST") {
       const body = fixtureRecord(request.postDataJSON()) ?? {};
@@ -2680,9 +2700,41 @@ export async function mockOrderPlans(page: Page, scenario: OrderPlanMockScenario
         await fulfillJson(route, { schema_version: "execution-stop-response.v1", producer: "screening-api", consumer: "human-review-client", execution_id: executionId, request_id: body.request_id, status: execution.status }, 202); return;
       }
     }
+    // C-2 일일 운영 계약 기본 handler. 다른 spec이 필요한 policy·게이트·스위치
+    // 상태를 만들려면 이 route보다 나중에 등록한 page.route로 덮어쓴다.
+    if (pathname === "/api/order-plan-screening/daily-trigger" && method === "GET") {
+      await fulfillJson(route, {
+        schema_version: "daily-trigger-state-response.v1",
+        producer: "daily-trigger-api",
+        consumer: "human-review-client",
+        effective_enabled: false,
+        policy_version: null,
+        policy_sha256: null,
+        switch: null,
+        reasons: ["env_cap_off", "no_active_policy"],
+      }); return;
+    }
+    if (pathname === "/api/order-plan-screening/policies" && method === "GET") {
+      await fulfillJson(route, {
+        schema_version: "policy-list-response.v1",
+        producer: "policy-api",
+        consumer: "human-review-client",
+        items: [],
+        total: 0,
+      }); return;
+    }
+    if (pathname === "/api/order-plan-screening/quality-gates" && method === "GET") {
+      await fulfillJson(route, {
+        schema_version: "order-plan-quality-gate-list-response.v1",
+        producer: "quality-gate-api",
+        consumer: "human-review-client",
+        policy_version: search.get("policy_version"),
+        items: [],
+      }); return;
+    }
     if (pathname === "/api/order-plans" && method === "GET") {
       const items = listItems(search), limit = Number(search.get("limit") ?? 100), offset = Number(search.get("offset") ?? 0);
-      await fulfillJson(route, { schema_version: "order-plan-list-response.v3", producer: "order-plan-review-api", consumer: "order-plan-review-client", scope: scopeFor(search.get("source_run_id")), items: items.slice(offset, offset + limit).map((item) => {
+      await fulfillJson(route, { schema_version: "order-plan-list-response.v4", producer: "order-plan-review-api", consumer: "order-plan-review-client", scope: scopeFor(search.get("source_run_id")), items: items.slice(offset, offset + limit).map((item) => {
         if (!options.omitTracking) return item;
         const { tracking: _tracking, ...legacy } = item;
         return legacy;
@@ -2692,7 +2744,7 @@ export async function mockOrderPlans(page: Page, scenario: OrderPlanMockScenario
     if (planMatch) {
       const orderPlanPk = Number(planMatch[1]), plan = listItems(new URLSearchParams()).find((item) => item.order_plan_pk === orderPlanPk);
       if (!plan) { await error(route, "not_found", null, 404); return; }
-      const history = scopeFor(null) && orderPlanPk === 101 ? c2Detail.screening_history : [];
+      const history = latestCompletedExecution(null) && orderPlanPk === 101 ? c2Detail.screening_history : [];
       if (method === "GET" && !planMatch[2]) {
         await fulfillJson(route, { ...c2Detail, order_plan_pk: orderPlanPk, order_plan_unty_no: plan.order_plan_unty_no, source_url: plan.source_url, title: plan.title, agency_name: plan.agency_name, budget_amount: plan.budget_amount, business_division: plan.business_division, planned_order_year: plan.planned_order_year, planned_order_month: plan.planned_order_month, screening_history: history, latest_human_feedback: plan.human_feedback, tracking: plan.tracking }); return;
       }
