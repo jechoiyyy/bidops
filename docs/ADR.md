@@ -139,9 +139,9 @@ R-xx/A-xx 작업 지시, 과거 API 경로는 현재 실행 진입점이 아니�
 | [0056](tracking/decisions/0056-company-fit-in-overview-run.md) | 회사 핏을 개요 run 2단계 호출로 통합 | 폐기(0057 대체) | 별도 큐·runner·플래그 3개·worker 슬롯을 폐지하고 개요 run 검증 통과 직후 1회 호출로 흡수; 후보 0건 문제 해소 |
 | [0057](tracking/decisions/0057-overview-scope-and-company-fit-in-deep-review.md) | 개요 검토를 앞부분 요약 3섹션으로 좁히고 회사 적합성은 심층 검토 1단계로 | 부분 채택(결정 4 보류) | 목차 우선 범위 선택, important_conditions·reviewer_analysis·unknowns 제거, 자동 심층 게이트에서 회사 핏 제거, 검증 완화 4항목 |
 | [0058](tracking/decisions/0058-final-decision-basis-separated-from-comparison.md) | 최종 Go/No-Go 결정 근거를 모델 문서 비교와 분리 | 채택 | 근거 `comparison`·`notice_conditions` 중 하나(migration 0028), 공고 조건 요약·결정 endpoint, 근거별 현재성 단일 규칙; [0034](tracking/decisions/0034-bid-delta-final-decision.md) §5를 비교 근거에 한정, 비교 worker는 보류 |
-| [0059](tracking/decisions/0059-full-collection-selective-ingest-and-index-search.md) | 발주계획·사전규격·입찰공고는 전량 수집하고 추적·SW 관련 레코드만 적재 | 채택 | 입찰공고 선별 사유 3종(추적 참조·SW 사전규격 참조·1468 경쟁입찰), 1468은 수집 필터가 아니라 표시로만 사용(실측: SW 사전규격 계보 입찰공고의 29%가 1468 밖), 제외 레코드는 수집 색인(migration 0027)에 보존; 결정 1의 수집 창(21일 재조회·3일 창)은 [0061](tracking/decisions/0061-daily-one-day-collection-window.md)이 개정 |
+| [0059](tracking/decisions/0059-full-collection-selective-ingest-and-index-search.md) | 발주계획·사전규격·입찰공고는 전량 수집하고 추적·SW 관련 레코드만 적재 | 채택 | 입찰공고 선별 사유 3종(추적 참조·SW 사전규격 참조·1468 경쟁입찰), 1468은 수집 필터가 아니라 표시로만 사용(실측: SW 사전규격 계보 입찰공고의 29%가 1468 밖), 제외 레코드는 수집 색인(migration 0027)에 보존; 결정 1의 수집 창(21일 재조회·3일 창)은 [0061](tracking/decisions/0061-daily-collection-window.md)이 개정 |
 | [0060](tracking/decisions/0060-c2-policy-db-row-authority.md) | C-2 policy의 활성 정본은 DB 행이고 파일의 상태성 필드는 발행 시점 스냅샷 | 채택 — 계약만 | blocker는 런타임 계산, 임계값 정본은 DB 게이트 행(migration 0029); binding `status` 허용값 확대와 `blocked`∧`execution_allowed` 거부([0038](tracking/decisions/0038-order-plan-c2-phase0-contracts.md) 부분 개정); 전송 승인 단위는 binding 튜플; 일일 스크립트 actor는 cron 설치자의 옵트인(`X-BidOps-Trigger`); 게이트는 후보 상태의 측정 전용 실행(`product_rerun`만 활성화를 연다); 일일 자동 실행은 환경 cap + 버전에 묶인 DB 스위치 |
-| [0061](tracking/decisions/0061-daily-one-day-collection-window.md) | 발주계획과 공고는 전일 하루 창으로 수집 | 채택 | [0027](tracking/decisions/0027-order-plan-requery-window.md) 폐기·[0059](tracking/decisions/0059-full-collection-selective-ingest-and-index-search.md) 결정 1 개정; 한 발주계획 = 한 회차 = 한 운영 실행; 트랙 분리·적재 순서 고정 해제(테스트로 확인할 추론); 대가는 추적 중 발주계획·등록 후 사전규격의 변경 미관측; 늦은 색인 측정 결과로 재개 가능 |
+| [0061](tracking/decisions/0061-daily-collection-window.md) | 발주계획은 전일 하루, 공고는 기준일 포함 4일 창으로 수집 | 채택 | [0027](tracking/decisions/0027-order-plan-requery-window.md) 폐기·[0059](tracking/decisions/0059-full-collection-selective-ingest-and-index-search.md) 결정 1 개정; 한 발주계획 = 한 회차 = 한 운영 실행; 공고 4일 창은 사전규격 공개 지연(`rgstDt` 조회·`rcptDt` 공개, 늦은 색인 측정 4일 창 누락 0) 때문; 트랙 분리·적재 순서 고정 해제(테스트로 확인할 추론); 대가는 추적 중 발주계획 변경 미관측, 공고 회차 창과 scheduler 1일 창의 불일치(C-1 자동화 선행조건) |
 
 ## 4. 주제별 결정 요약
 
@@ -159,11 +159,12 @@ R-xx/A-xx 작업 지시, 과거 API 경로는 현재 실행 진입점이 아니�
   또는 사람이 수락한 후보만 갖는다.
 - 발주공고에서 처음 발견한 사업도 새 opportunity로 등록한다. 종료한 기회를 삭제하거나
   유사 제목을 같은 사업으로 자동 병합하지 않는다.
-- 발주계획과 공고(사전규격·입찰공고)는 전일(KST) 하루 창으로 수집한다(ADR-0061). 발주계획 21일
-  재조회(ADR-0027)는 폐기했다 — 21일 근거가 종단 관측에서 재현되지 않았고, 겹치지 않는 세 회차 사이
+- 발주계획은 전일(KST) 하루 창, 공고(사전규격·입찰공고)는 기준일 포함 4일 창 `[기준일−3일, 기준일]`로
+  수집한다(ADR-0061). 공고 겹침은 사전규격이 등록일로 조회되지만 접수일부터 공개돼 1~3일 늦게 보이는 건 때문이다.
+  발주계획 21일 재조회(ADR-0027)는 폐기했다 — 21일 근거가 종단 관측에서 재현되지 않았고, 겹치지 않는 세 회차 사이
   통합번호 재등장이 0건이었다. 발주계획 → 입찰공고 연결은 입찰공고 측 `orderPlanUntyNo`로만 확정하며,
-  추적 중 발주계획과 등록 후 사전규격의 변경은 관측하지 않는다(후속 과제). 늦은 색인 측정에서 차이가
-  나오면 창을 다시 연다.
+  추적 중 발주계획의 변경은 관측하지 않는다(후속 과제). 공고 회차 창(4일)이 scheduler 일일 예약 창(1일)과
+  달라 C-1 자동화 때 겹친 공고의 중복 판정을 먼저 풀어야 한다.
 
 근거: ADR-0022, ADR-0024~0028, ADR-0059·0061 및 [`20260828-lifecycle-linkage-survey.md`](validation-runs/20260828-lifecycle-linkage-survey.md).
 

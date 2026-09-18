@@ -1137,7 +1137,7 @@ schema version을 만들며, 기존 C-2 v1 consumer는 알 수 없는 version을
 ### C-2 일일 운영 계약 (2026-09-18, ADR-0060·0061)
 
 [ADR-0060](tracking/decisions/0060-c2-policy-db-row-authority.md)(policy 활성 정본·게이트·트리거)과
-[ADR-0061](tracking/decisions/0061-daily-one-day-collection-window.md)(하루 창)의 wire 정본이다. 아래 표의 요청·응답
+[ADR-0061](tracking/decisions/0061-daily-collection-window.md)(발주계획 하루·공고 4일 수집 창)의 wire 정본이다. 아래 표의 요청·응답
 필드와 오류 코드를 그대로 구현한다. 동작 서술은 `docs/0918_daily-operation/spec.md` §1·§3~§5·§7·§8이다.
 
 #### 공통 규칙
@@ -1469,7 +1469,8 @@ C-2가 채울 수 없으므로 재사용하지 않는다.
 | `order_plan_screening_execution`(기존) | `purpose` `String(24)` NOT NULL DEFAULT `'operational'` | `CHECK (purpose IN ('operational','gate_measurement'))`. 기존 행은 전부 `operational`로 채운다. INSERT 때만 쓴다 |
 
 첫 초안의 실행 열 `population_scope_version`·`source_population_count`·`excluded_count`·`excluded_sha256`과 결과 열
-`input_title_sha256`은 만들지 않는다 — 하루 창에서는 재관측이 없어 모집단 범위도 제목 변경 재판정도 없다(ADR-0061).
+`input_title_sha256`은 만들지 않는다 — 발주계획은 하루 창으로 수집해 재관측이 없으므로 모집단 범위도 제목 변경 재판정도
+없다(ADR-0061 결정 1·4).
 
 권한(`scripts/runtime-privileges.sql`):
 
