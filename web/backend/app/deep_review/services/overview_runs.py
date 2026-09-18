@@ -110,8 +110,10 @@ OVERVIEW_JOB_TYPE = "prespec_overview"
 OVERVIEW_AGGREGATE_TYPE = "prespec_overview_run"
 #: queued·running은 공고당 하나뿐이다 (부분 유니크 `uq_prespec_overview_run_active`).
 ACTIVE_STATUSES = ("queued", "running")
+#: 결과가 남은 종결 상태. 자동 enqueue의 중복 방지가 막는 기준이다 (결정 28).
+RESULT_STATUSES = ("completed", "needs_human_review")
 #: 종결 상태. 없는 것(`None`)을 종결로 승격시키지 않는다.
-SETTLED_STATUSES = ("completed", "needs_human_review", "failed", "cancelled")
+SETTLED_STATUSES = (*RESULT_STATUSES, "failed", "cancelled")
 #: 개요 입력 PDF 준비 option. 옛 v4 ops CLI가 쓰던 값 그대로다.
 SNAPSHOT_OPTIONS: Mapping[str, Any] = {
     "prepare_pdf": True,
@@ -761,16 +763,14 @@ def enqueue_overview_run(
         return None
     policy = load_claims_policy(settings.prespec_overview_policy_path)
     if range_source == "auto":
-        # SETTLED_STATUSES의 앞 둘(`completed`·`needs_human_review`)만 결과가 남은
-        # 종결이다. `failed`·`cancelled`는 재시도 대상이라 막지 않는다.
-        settled_with_result = SETTLED_STATUSES[:2]
+        # 결과가 남은 종결만 막는다. `failed`·`cancelled`는 재시도 대상이다.
         already_reviewed = session.scalars(
             select(PrespecOverviewRun.id)
             .where(
                 PrespecOverviewRun.notice_id == int(notice_id),
                 PrespecOverviewRun.document_version_id == document.id,
                 PrespecOverviewRun.policy_digest == policy.digest,
-                PrespecOverviewRun.status.in_(settled_with_result),
+                PrespecOverviewRun.status.in_(RESULT_STATUSES),
             )
             .limit(1)
         ).first()
@@ -1851,6 +1851,7 @@ __all__ = [
     "OVERVIEW_ENVELOPE_SCHEMA",
     "OVERVIEW_JOB_TYPE",
     "RANGE_CONFIRMATION_ACTION",
+    "RESULT_STATUSES",
     "SETTLED_STATUSES",
     "OverviewEnqueueError",
     "OverviewRequestError",
