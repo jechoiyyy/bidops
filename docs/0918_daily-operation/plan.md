@@ -32,6 +32,7 @@
 | S4b | 실행 게이트 수정(헤더·`purpose`·측정 경로·파일 status 제거) + router 등록 | **opus** | 3 | S4c·S5a·S8a | `services/order_plan_screening.py`(실행 생성 경로), `workers/order_plan.py`, `routers/order_plans.py`, `app/main.py` |
 | S9b | 회차 조회·`-retryN`·단계별 따라잡기 | **opus** | 3 | S9a | `scripts/run-daily-lifecycle.sh`, `scripts/manual-workflow-common.sh` |
 | S13a | 프런트 API·타입 배선 | **sonnet** | 3 | S4a·S4c·S5a·S8a | `web/frontend/src/lib/api.ts`, `lib/types.ts` |
+| S16 | 참조 적재가 policy 행을 활성으로 만들지 못하게(ADR-0060, 착수 중 발견) | **opus** | 3 | — | `app/screening/ingest.py`(`_c2_policy_row`만), 테스트 |
 | S9c | `run-daily-c2.sh` + 발주계획 트랙 연결·자동 draw | **opus** | 4 | S4b·S6·S9b | `scripts/run-daily-c2.sh`·`scripts/c2-execution-common.sh`(신규), `scripts/run-daily-lifecycle.sh` |
 | S8b | 발주계획 화면: 누적 기본·버전/첫 관측일·배너 | **opus** | 4 | S8a·S13a | `pages/OrderPlansPage.tsx`, `tests/order-plans.spec.ts`, `tests/dashboard.spec.ts` |
 | S13b | C-2 활성화 화면(기준 화면의 새 탭) | **opus** | 4 | S4a·S4c·S5a·S13a | `pages/OrderPlanPolicyPage.tsx`(신규), `pages/CriteriaPage.tsx`, 신규 spec·fixture |
@@ -284,13 +285,21 @@ C-1 자동화 때 한다 — [§7](#7-이-계획-밖--c-1-자동화-때-할-일)
 | 방식 | 최종 통합 트리의 실제 옵션·env 이름을 리더가 뽑아 프롬프트에 그대로 준다 |
 | 검증 | diff만. `CLAUDE.md`와 `AGENTS.md`가 동일한지 확인 |
 
+### S16 — 참조 적재의 policy 행 활성 우회 차단 (opus, 2026-09-18 착수 중 발견)
+
+| | |
+|---|---|
+| 문제 | C-2 실행 디렉터리 참조 적재(`POST /api/runs/ingest`)는 policy 파일의 `policy_status`·`quality_gate.status`·`activation.approved_by/at`을 DB 행에 그대로 복사하고, 파일이 `active`면 `active_slot=1`까지 채운다(`app/screening/ingest.py:1379-1394`). ADR-0060에서 파일 상태는 스냅샷이고 활성 정본은 DB 행이므로, 이 경로는 활성화 API·게이트를 거치지 않고 활성 행을 만들 수 있다. 활성화된 적 있는 policy는 누적 투영(S8a)에도 들어간다 |
+| 규칙 | 참조 적재가 **새 행을 만들 때** 파일 `policy_status`는 `draft`·`activation_candidate`만 받고(그 외는 contract error), 행의 `quality_gate_status`는 `passed`가 될 수 없으며, `active_slot`·`activated_by`·`activated_at`은 늘 NULL이다. **이미 있는 행**(적재 CLI·활성화 API가 만든 것)은 digest가 같으면 상태 열을 비교하지 않고 그대로 쓴다 — 파일 상태로 DB 상태를 판정하지 않는다 |
+| 검증 | 파일 `active` → 거부; 파일 `activation_candidate` → 행 `activation_candidate`·`activated_at` NULL; 이미 active인 행과 같은 digest의 참조 적재 → 행 불변·적재 성공; 기존 Ollama 참조 적재 테스트 통과 |
+
 ## 2. 의존 순서와 웨이브
 
 ```
 웨이브 0  M0 늦은 색인 측정 시작(리더) · docs/0918 WIP 커밋(사용자 승인)
 웨이브 1  S1a  S1b  S1c  S0  S2  S9a                    ← 서로 파일이 겹치지 않는다
 웨이브 2  S3  S4a  S4c  S5a  S5b  S6  S8a  S11  S15     ← S2·S0 뒤. 신규 파일 위주
-웨이브 3  S4b  S9b  S13a                                ← S4b는 S8a와 같은 파일의 다른 함수라 통합 뒤 출발
+웨이브 3  S4b  S9b  S13a  S16                           ← S4b는 S8a와 같은 파일의 다른 함수라 통합 뒤 출발
 웨이브 4  S9c  S8b  S13b
 웨이브 5  S5c  S14
 사람 결정 뒤  S3b → (사람) 측정 2회 → 채점·기록 → 활성화 → 스위치 → cron A
