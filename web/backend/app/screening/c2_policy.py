@@ -99,6 +99,10 @@ def _validate_binding(binding: Mapping[str, Any], policy: OrderPlanScreeningPoli
         raise C2PolicyLoadError("binding_policy_digest_mismatch")
     if reference.get("policy_version") != policy.policy_version:
         raise C2PolicyLoadError("binding_policy_version_mismatch")
+    if reference.get("policy_status") != policy.policy_status:
+        # Same rule as the worker: the two files must agree with each other.
+        # The value itself is a publication snapshot and gates nothing.
+        raise C2PolicyLoadError("binding_policy_status_mismatch")
     status = binding.get("status")
     if status not in BINDING_STATUSES:
         raise C2PolicyLoadError("binding_status_invalid")

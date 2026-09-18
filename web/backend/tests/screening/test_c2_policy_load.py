@@ -45,6 +45,7 @@ def _write_pair(tmp_path: Path, policy: dict, binding: dict | None = None, *, na
     binding = json.loads(BINDING_V2.read_bytes()) if binding is None else binding
     binding["policy"]["sha256"] = _sha(policy_path.read_bytes())
     binding["policy"]["policy_version"] = policy["policy_version"]
+    binding["policy"]["policy_status"] = policy["policy_status"]
     binding_path = folder / "binding.json"
     binding_path.write_text(json.dumps(binding, ensure_ascii=False, indent=2), encoding="utf-8")
     return policy_path, binding_path
@@ -223,3 +224,17 @@ def test_cli_exit_codes_and_output_omit_path_and_body(
 
     assert main(["load", "--policy", str(POLICY_V2), "--binding", str(BINDING_V2), "--created-by", "system"]) == 2
     assert capsys.readouterr().err.strip() == "c2 policy load failed: created_by_invalid"
+
+
+def test_binding_policy_status_must_match_policy_file(session: Session, tmp_path: Path) -> None:
+    policy = json.loads(POLICY_V2.read_bytes())
+    policy["policy_version"] = "c2-order-plan-screening-status-mismatch"
+    policy_path, binding_path = _write_pair(tmp_path, policy)
+    binding = json.loads(binding_path.read_bytes())
+    binding["policy"]["policy_status"] = "active"
+    binding_path.write_text(json.dumps(binding), encoding="utf-8")
+
+    with pytest.raises(C2PolicyLoadError) as error:
+        _load(session, policy_path, binding_path)
+    assert error.value.code == "binding_policy_status_mismatch"
+    assert session.scalar(select(func.count()).select_from(OrderPlanScreeningPolicy)) == 0
