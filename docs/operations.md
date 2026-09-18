@@ -464,14 +464,17 @@ python3 skills/bidops-collect/scripts/collect_order_plans.py \
 
 위 운영 목표 중 발주계획·사전규격·입찰공고 수집과 선별 적재를 실행하는 host 스크립트다.
 `--track order-plans|notices`(필수, 기본값 없음)로 **한 번에 한 트랙만** 돌고, `--date YYYY-MM-DD`
-(기준일, 한국시간, 생략 시 **전일**)를 받는다. 두 트랙 모두 기준일 **하루**만 수집하며 재조회하지 않는다
-([ADR-0061](tracking/decisions/0061-daily-one-day-collection-window.md)). 트랙 안에서는 첫 실패에서 즉시
+(기준일, 한국시간, 생략 시 **전일**)를 받는다. 발주계획 트랙은 기준일 **하루**, 공고 트랙은 기준일을
+포함한 **4일**을 수집한다. 사전규격은 조회 기준인 등록일시(`rgstDt`)보다 공개(접수일시 `rcptDt`)가
+최대 3일 늦을 수 있어 하루 창이면 영구히 빠지는 건이 생긴다(2026-09-18 측정). 겹쳐 다시 관측된
+공고는 적재에서 no-op이며 첨부·문서 묶음·개요 검토를 다시 만들지 않는다
+([ADR-0061](tracking/decisions/0061-daily-collection-window.md)). 트랙 안에서는 첫 실패에서 즉시
 멈추고(`set -euo pipefail`), 두 트랙은 서로의 성공을 전제하지 않는다.
 
 1. Preflight: `manual-workflow-common.sh`의 web 헬스체크. `BIDOPS_G2B_API_KEY` 존재 확인은
    collector 자신이 하므로 스크립트는 별도로 값을 읽거나 출력하지 않는다.
 2. 공고 트랙(`--track notices`): 사전규격·입찰공고를 회차 `lifecycle-<YYYYMMDD>-notices`로
-   수집한다(`collect_notices.py --from-date <기준일> --to-date <기준일> --tag-bid-sw-industry`, 이
+   수집한다(`collect_notices.py --from-date <기준일−3일> --to-date <기준일> --tag-bid-sw-industry`, 이
    collector의 `--to-date`는 포함구간). 사전규격·입찰공고 스킵 플래그는 쓰지 않아 전량이 한 회차에
    담기고, 입찰공고에는 1468(SW 유사업종) 표시가 함께 붙는다. 이어서 회차를 web 컨테이너로 복사하고
    `ingest.cli --run <notices> --collection` → `--tracked-backfill` → 첨부 취득 자격 갱신
