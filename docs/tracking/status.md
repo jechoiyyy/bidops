@@ -6,6 +6,49 @@
 
 `구현됨`은 코드와 계약이 존재한다는 뜻이고, `검증됨`은 기록된 명령이 해당 범위에서 통과했다는 뜻이다. Mock 결과, 과거 브랜치 결과, 현재 worktree 결과, 외부 운영 승인을 서로 대신하지 않는다.
 
+## 일일 운영 고도화 (2026-09-18, 미병합)
+
+[일일 운영 고도화 계획](../0918_daily-operation/plan.md)의 웨이브 1~5를 구현했다. 통합 브랜치는
+`feat/do-integration`이다. **`main`에 병합하지 않았다.**
+
+구현된 것: migration `0029`(신규 테이블 4개 — 품질 게이트·evaluation·감사 표본·일일 자동 실행
+스위치 — 와 실행 행 `purpose` 컬럼), policy 파일 적재 CLI(`app/screening/c2_policy.py`), C-2
+policy REST·활성화(런타임 blocker 계산·후보 지정), 일일 자동 실행 스위치(4중 기본-닫힘), 품질
+게이트 저장소·REST·판정 규칙(게시일별 채점, 두 pass 중 나쁜 쪽 값), 감사 표본 산출(상한
+N건·층 3종·`pending_human_approval`/`not_applicable`), 판정의 누적 투영(policy 교체 뒤에도
+과거 판정이 남는 v4), 실행 게이트 수정(`X-BidOps-Trigger` 헤더·`purpose`·측정 전용 실행 경로·
+파일 status 검사 제거), 참조 적재가 policy 행을 활성으로 만드는 우회 차단(ADR-0060), 개요 run
+중복 방지(결정 28 — 완료·확인대기 run이 있으면 같은 문서·policy digest의 자동 재관측이 새 개요
+run을 만들지 않음), GPU 휴지(연속 가동 시간 기준, 기본 꺼짐), 일일 스크립트의 트랙 분리·전일
+기준·회차 조회·`-retryN`·단계별 따라잡기·C-2 실행 연결(`scripts/run-daily-lifecycle.sh`·
+`scripts/run-daily-c2.sh`·`scripts/c2-execution-common.sh`), 게이트 측정 스크립트
+(`scripts/run-c2-gate-measurement.sh`), gold 게시일별 분할 도구
+(`skills/bidops-collect/scripts/split_order_plan_run_by_day.py`), C-2 활성화 화면(기준 화면의
+`발주계획 선별 정책` 탭, `/order-plan-policies`), 발주계획 화면의 누적 기본·판정 policy 버전·
+첫 관측일 표시·자동 실행 꺼짐 배너.
+
+결정 28(공고 수집 창을 기준일 포함 4일로 — 사전규격이 등록일 `rgstDt`로 조회되고 접수일
+`rcptDt`부터 공개돼 1일 창이면 영구 누락이 생긴다는 늦은 색인 측정에 근거, [M0 기록](../validation-runs/20260918-late-indexing.md))도
+이번 웨이브에서 반영했다.
+
+아직 못 켜는 것은 [`plan.md` §4](../0918_daily-operation/plan.md)의 표가 정본이다 — 발주계획
+트랙 자체, C-2 실행, 게이트 `통과` 판정, policy 활성화, 감사 표본 실제 draw, 무인 일일 운영은
+모두 v3 policy·binding 발행([`plan.md` S3b](../0918_daily-operation/plan.md))과 아래 사람 결정
+값을 기다린다. S3b는 D-c·D-d 값이 있어야 발행할 수 있어 아직 시작하지 않았다.
+
+남은 사람 결정([`plan.md` §3](../0918_daily-operation/plan.md)): **D-a**(gold 표본 크기·최종
+승인), **D-b**(임계값 4개 값), **D-c**(①감사 표본 상한 N ②층 배분 ③검토 주기 ④무복원 범위
+⑤층 정의 값 — `classification_proximity` 기준 열·코드 목록, `performance_similarity_proximity`
+컷 직후 구간 폭), **D-d**(승인자·승인 시각·고정할 model_digest·방화벽/egress 승인),
+**D-e**(활성화 승인 주체·절차, 운영시작일, cron 시각, 트리거 켜기 전 확인 항목의 실제 확인).
+값이 없으면 관련 기능은 fail closed로 동작한다(정상).
+
+기존 결함 두 건은 이번 웨이브의 변경과 무관하며 `main` 6191f35에서도 재현한다 —
+`tests/deep_review/test_auto_preparation.py::test_the_flag_opens_preparation_for_sw_business_without_a_grade`,
+`web/frontend/tests/admin-workspace-consistency.spec.ts:23`(1280×800·1440×900, `/runs`).
+
+최종 게이트: (리더 기록)
+
 ## 사업 추적 연결·선별 적재·Go/No-Go 분리 (2026-09-17, 미병합)
 
 [사업 추적 연결·조치 고도화 계획](../0917_opportunity-tracking/plan.md)의 P0~P5를 구현했다 —
