@@ -38,6 +38,7 @@ bidops/
 │   ├── agent/agent-runtime.md        공고 판정 worker의 입력 동결·span·telemetry
 │   ├── 0915_ui-redesign/            관리 화면 재설계 C 정본(2026-09-15 채택, 시안·plan·notes)
 │   ├── 0917_opportunity-tracking/   사업 추적 연결·선별 적재·Go/No-Go 분리 정본(2026-09-17 승인, intent·spec·plan)
+│   ├── 0918_daily-operation/       매일 1일치 수집·판정 운영 고도화 논의 중(2026-09-18, intent·spec·plan, 미승인)
 │   ├── deep-review-v2/               첨부문서 분석 설계(결정적 부분만 구현, ADR-0051)와 Luna 시안 검증 계획(보류)
 │   ├── rhwp-document-pipeline/       rhwp 네이티브 변환 파이프라인 작업 정본(ADR·Requirements·Design·Spec·Plan, 2026-09-10 시작)
 │   ├── reference/                    회사 프로필·실적 근거자료
