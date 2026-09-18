@@ -91,6 +91,10 @@ GRANT SELECT ON TABLE
     bidops.order_plan_screening_result,
     bidops.order_plan_screening_artifact,
     bidops.order_plan_screening_feedback,
+    bidops.order_plan_screening_quality_gate,
+    bidops.order_plan_screening_quality_evaluation,
+    bidops.order_plan_screening_audit_sample,
+    bidops.order_plan_screening_daily_trigger,
     bidops.collected_record_index,
     bidops.collected_record_token
 TO app;
@@ -101,6 +105,8 @@ TO app;
 -- receives the later execution-state UPDATE grant below. App may only cancel
 -- an unfinished v4 attempt; the database trigger enforces that transition.
 -- UPDATE and DELETE are narrower lists below.
+-- C-2 품질 게이트·감사 표본·일일 스위치(0029)는 app만 SELECT·INSERT한다. 넷 다
+-- UPDATE·DELETE 권한이 없고 trigger도 거부한다. worker는 이 테이블을 읽지 않는다.
 GRANT INSERT ON TABLE
     bidops.run,
     bidops.notice,
@@ -172,6 +178,10 @@ GRANT INSERT ON TABLE
     bidops.order_plan_screening_artifact,
     bidops.order_plan_screening_result,
     bidops.order_plan_screening_feedback,
+    bidops.order_plan_screening_quality_gate,
+    bidops.order_plan_screening_quality_evaluation,
+    bidops.order_plan_screening_audit_sample,
+    bidops.order_plan_screening_daily_trigger,
     bidops.collected_record_index,
     bidops.collected_record_token
 TO app;
@@ -236,8 +246,10 @@ GRANT UPDATE (
 GRANT UPDATE (
     status, active_slot, activated_at, activated_by, quality_gate_result_id
 ) ON bidops.screening_policy TO app;
+-- quality_gate_status는 활성화 전이에서 'passed'로 쓸 때만 guard trigger가 받는다(0029).
+-- 실행 행의 purpose는 INSERT 때만 정하므로 아래 두 execution UPDATE 목록에 없다.
 GRANT UPDATE (
-    policy_status, active_slot, activated_at, activated_by
+    policy_status, active_slot, activated_at, activated_by, quality_gate_status
 ) ON bidops.order_plan_screening_policy TO app;
 GRANT UPDATE (
     status, active_slot, partial_artifact, candidate_count, completed_count,
