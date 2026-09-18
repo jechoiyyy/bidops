@@ -423,11 +423,13 @@ class OrderPlanScreeningService:
             return replay
         execution_dir: Path | None = None
         try:
-            if trigger in DAILY_TRIGGERS:
-                self._require_daily_trigger(session, payload.policy_version, request_id)
+            # Row state, digests and transport approval (503) come first for
+            # every trigger; the daily switch is rechecked only after them.
             policy, stage1, stage2, policy_bytes, binding_bytes = self._policy_binding(
                 session, payload.policy_version, request_id, purpose=purpose
             )
+            if trigger in DAILY_TRIGGERS:
+                self._require_daily_trigger(session, payload.policy_version, request_id)
             if purpose == "gate_measurement":
                 self._require_measurement_run(session, policy.policy_version, payload.source_run_id, request_id)
             active = session.scalar(

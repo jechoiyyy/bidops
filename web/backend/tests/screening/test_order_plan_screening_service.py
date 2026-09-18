@@ -513,6 +513,16 @@ def test_daily_triggers_recheck_the_daily_switch(tmp_path: Path, trigger: str) -
     assert session.scalar(select(OrderPlanScreeningExecution)) is None
 
 
+@pytest.mark.parametrize("trigger", ["daily_script", "manual_resume"])
+def test_daily_triggers_report_transport_unavailable_before_the_switch(tmp_path: Path, trigger: str) -> None:
+    settings, session, policy_version, _, _ = _fixture(tmp_path)
+    settings.c2_execution_allowed = False
+    with pytest.raises(OrderPlanScreeningError) as raised:
+        _create(OrderPlanScreeningService(settings), session, policy_version, trigger)
+    assert raised.value.code == "service_unavailable"
+    assert raised.value.status_code == 503
+
+
 def test_daily_script_runs_when_the_switch_is_effective(tmp_path: Path) -> None:
     settings, session, policy_version, _, _ = _fixture(tmp_path)
     settings.c2_daily_trigger_enabled = True
