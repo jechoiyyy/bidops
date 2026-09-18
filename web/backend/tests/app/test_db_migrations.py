@@ -985,3 +985,394 @@ def test_every_revision_identifier_fits_the_version_column() -> None:
     assert identifiers, "no Alembic revisions were found"
     too_long = {value: len(value) for value in identifiers if len(value) > VERSION_NUM_WIDTH}
     assert not too_long, f"revision identifiers exceed VARCHAR({VERSION_NUM_WIDTH}): {too_long}"
+
+
+# ---------------------------------------------------------------------------
+# 0029 — C-2 품질 게이트·감사 표본·일일 스위치, 실행 purpose
+# ---------------------------------------------------------------------------
+
+C2_GATE_BASE = "0028_final_decision_basis"
+C2_GATE_HEAD = "0029_c2_quality_gate"
+#: 표 이름 → UPDATE 시도에 쓸 문자열 열.
+C2_GATE_TABLES = {
+    "order_plan_screening_quality_gate": "created_by",
+    "order_plan_screening_quality_evaluation": "evaluated_by",
+    "order_plan_screening_audit_sample": "drawn_by",
+    "order_plan_screening_daily_trigger": "set_by",
+}
+C2_AT = datetime(2026, 9, 18, tzinfo=timezone.utc)
+_POLICY_CASTS = {
+    "policy_payload_jsonb": "jsonb",
+    "binding_payload_jsonb": "jsonb",
+    "activation_metadata_jsonb": "jsonb",
+}
+_GATE_CASTS = {"measurement_run_ids_json": "jsonb"}
+_EVALUATION_CASTS = {
+    "pass_execution_ids_json": "jsonb",
+    "metrics_json": "jsonb",
+    "reasons_json": "jsonb",
+}
+
+
+def _insert(connection, table: str, row: dict, casts: dict | None = None) -> None:
+    """ORM 없이 열 이름을 직접 적는다. 0028 시점(purpose 열 없음)에도 쓴다."""
+
+    casts = casts or {}
+    columns = ", ".join(row)
+    values = ", ".join(
+        f"CAST(:{name} AS {casts[name]})" if name in casts else f":{name}" for name in row
+    )
+    connection.execute(text(f"INSERT INTO bidops.{table} ({columns}) VALUES ({values})"), row)
+
+
+def _c2_policy_row(policy_version: str) -> dict:
+    return {
+        "id": uuid4(),
+        "policy_version": policy_version,
+        "schema_version": "bidops.order-plan-screening-policy.v1",
+        "producer": "phase0-contracts",
+        "consumer": "phase1-screening-pipeline",
+        "policy_status": "draft",
+        "decision_scope": "c2_order_plan_first_pass",
+        "policy_payload_jsonb": "{}",
+        "binding_payload_jsonb": "{}",
+        "policy_sha256": "a" * 64,
+        "binding_sha256": "b" * 64,
+        "activation_metadata_jsonb": "{}",
+        "quality_gate_status": None,
+        "created_by": "migration-test",
+        "created_at": C2_AT,
+    }
+
+
+def _c2_execution_row(policy_version: str, run_id: str) -> dict:
+    execution_id = uuid4()
+    return {
+        "execution_id": execution_id,
+        "request_id": execution_id,
+        "schema_version": "bidops.order-plan-screening-execution-row.v1",
+        "producer": "screening-api",
+        "consumer": "screening-worker-and-review-api",
+        "source_run_id": run_id,
+        "source_artifact_name": "collected-order-plans.json",
+        "source_artifact_schema_version": "bidops.collected-order-plans.v1",
+        "source_artifact_sha256": "c" * 64,
+        "input_artifact_sha256": "d" * 64,
+        "population_count": 1,
+        "population_sha256": "e" * 64,
+        "policy_version": policy_version,
+        "policy_sha256": "a" * 64,
+        "binding_sha256": "b" * 64,
+        "stage1_binding_version": "bm25-v1",
+        "stage1_binding_sha256": "f" * 64,
+        "stage2_binding_version": "qwen-v1",
+        "stage2_binding_sha256": "1" * 64,
+        "status": "성공",
+        "requested_by": "migration-test",
+        "partial_artifact": False,
+        **dict.fromkeys(
+            (
+                "candidate_count", "completed_count", "failure_count",
+                "stage1_selected_count", "stage1_filtered_out_count", "stage1_failed_count",
+                "stage2_relevant_count", "stage2_not_relevant_count", "stage2_uncertain_count",
+                "stage2_failed_count", "stage2_rejected_count", "human_review_count",
+            ),
+            0,
+        ),
+        "queued_at": C2_AT,
+        "started_at": C2_AT,
+        "finished_at": C2_AT,
+        "created_at": C2_AT,
+    }
+
+
+def _seed_c2_execution(connection, *, policy_version: str, run_id: str) -> dict:
+    connection.execute(
+        text(
+            "INSERT INTO bidops.run (id, timezone, generated_at, status)"
+            " VALUES (:id, 'Asia/Seoul', :at, 'active')"
+        ),
+        {"id": run_id, "at": C2_AT},
+    )
+    _insert(connection, "order_plan_screening_policy", _c2_policy_row(policy_version), _POLICY_CASTS)
+    execution = _c2_execution_row(policy_version, run_id)
+    _insert(connection, "order_plan_screening_execution", execution)
+    return execution
+
+
+def _c2_gate_row(policy_version: str, **thresholds) -> dict:
+    return {
+        "gate_id": "c2gate-" + uuid4().hex,
+        "policy_version": policy_version,
+        "policy_sha256": "a" * 64,
+        "binding_sha256": "b" * 64,
+        "gold_manifest_sha256": "2" * 64,
+        "gold_artifact_sha256": "3" * 64,
+        "gold_status": "adjudicated",
+        "scoring_input_sha256": "4" * 64,
+        "evaluation_basis": "product_rerun",
+        "scoring_unit": "per_published_day",
+        "measurement_run_ids_json": json.dumps(["gold-day-1"]),
+        "required_pass_count": 2,
+        "threshold_recall_pct": thresholds.get("recall"),
+        "threshold_precision_pct": thresholds.get("precision"),
+        "threshold_important_missed_max": thresholds.get("missed"),
+        "threshold_review_load_max": thresholds.get("load"),
+        "created_by": "migration-test",
+        "created_at": C2_AT,
+    }
+
+
+def _c2_evaluation_row(gate_id: str, result_status: str, revision: int = 1) -> dict:
+    return {
+        "evaluation_id": "c2gateeval-" + uuid4().hex,
+        "gate_id": gate_id,
+        "revision": revision,
+        "result_status": result_status,
+        "pass_execution_ids_json": json.dumps({"pass_1": [], "pass_2": []}),
+        "metrics_json": "{}",
+        "reasons_json": "[]",
+        # artifact digest는 모든 evaluation에서 유일하다.
+        "artifact_sha256": uuid4().hex * 2,
+        "evaluated_by": "migration-test",
+        "evaluated_at": C2_AT,
+    }
+
+
+def test_0029_round_trips_and_backfills_the_execution_purpose() -> None:
+    """0028의 실행 행이 0029에서 ``operational``로 채워지고, 0028로 내려갔다 다시 올라온다."""
+
+    with temporary_database(upgrade_to=C2_GATE_BASE) as database_url:
+        from sqlalchemy import create_engine
+
+        engine = create_engine(database_url, future=True)
+        try:
+            with engine.begin() as connection:
+                execution = _seed_c2_execution(
+                    connection, policy_version="c2-roundtrip", run_id="c2-roundtrip-run"
+                )
+            assert "purpose" not in _columns(engine, "order_plan_screening_execution")
+
+            for _ in range(2):
+                result = run_alembic(database_url, "upgrade", C2_GATE_HEAD)
+                assert result.returncode == 0, result.stderr
+                assert set(C2_GATE_TABLES) <= _tables(engine)
+                assert _scalars(
+                    engine, "SELECT purpose FROM bidops.order_plan_screening_execution"
+                ) == ["operational"]
+                assert _scalar(engine, "SELECT version_num FROM bidops.alembic_version") == C2_GATE_HEAD
+
+                result = run_alembic(database_url, "downgrade", C2_GATE_BASE)
+                assert result.returncode == 0, result.stderr
+                assert not set(C2_GATE_TABLES) & _tables(engine)
+                assert "purpose" not in _columns(engine, "order_plan_screening_execution")
+                assert _scalar(engine, "SELECT version_num FROM bidops.alembic_version") == C2_GATE_BASE
+                assert _scalars(
+                    engine, "SELECT execution_id FROM bidops.order_plan_screening_execution"
+                ) == [execution["execution_id"]]
+
+            # 게이트 행이 생긴 뒤에는 downgrade가 그 행을 버리지 않는다.
+            assert run_alembic(database_url, "upgrade", C2_GATE_HEAD).returncode == 0
+            with engine.begin() as connection:
+                _insert(
+                    connection, "order_plan_screening_quality_gate",
+                    _c2_gate_row("c2-roundtrip"), _GATE_CASTS,
+                )
+            result = run_alembic(database_url, "downgrade", C2_GATE_BASE)
+            assert result.returncode != 0
+            assert "0029 downgrade is blocked" in result.stderr
+            assert _scalar(engine, "SELECT version_num FROM bidops.alembic_version") == C2_GATE_HEAD
+        finally:
+            engine.dispose()
+
+
+def test_0029_gate_tables_are_append_only_and_undecided_thresholds_only_allow_unmeasured() -> None:
+    with migrated_engine() as engine:
+        with engine.begin() as connection:
+            execution = _seed_c2_execution(connection, policy_version="c2-gate", run_id="c2-gate-run")
+            order_plan_id = connection.scalar(
+                text(
+                    "INSERT INTO bidops.order_plan (order_plan_unty_no, title)"
+                    " VALUES ('R26DD20999998', '계획') RETURNING id"
+                )
+            )
+            # 검토량 한도만 비어 있어도 미결정이다.
+            undecided = _c2_gate_row(
+                "c2-gate", recall=Decimal("95"), precision=Decimal("60"), missed=0
+            )
+            decided = _c2_gate_row(
+                "c2-gate", recall=Decimal("95"), precision=Decimal("60"), missed=0, load=40
+            )
+            for gate in (undecided, decided):
+                _insert(connection, "order_plan_screening_quality_gate", gate, _GATE_CASTS)
+            assert connection.scalar(
+                text(
+                    "SELECT purpose FROM bidops.order_plan_screening_execution"
+                    " WHERE execution_id = :id"
+                ),
+                {"id": execution["execution_id"]},
+            ) == "operational"
+
+        # 임계값이 하나라도 NULL이면 `미측정`만 들어간다. 계산 불가를 통과로 바꾸지 않는다.
+        for status in ("통과", "미달", "보류"):
+            with pytest.raises(IntegrityError, match="thresholds are undecided"):
+                with engine.begin() as connection:
+                    _insert(
+                        connection, "order_plan_screening_quality_evaluation",
+                        _c2_evaluation_row(undecided["gate_id"], status), _EVALUATION_CASTS,
+                    )
+        with engine.begin() as connection:
+            _insert(
+                connection, "order_plan_screening_quality_evaluation",
+                _c2_evaluation_row(undecided["gate_id"], "미측정"), _EVALUATION_CASTS,
+            )
+            _insert(
+                connection, "order_plan_screening_quality_evaluation",
+                _c2_evaluation_row(decided["gate_id"], "통과"), _EVALUATION_CASTS,
+            )
+            _insert(
+                connection, "order_plan_screening_audit_sample",
+                {
+                    "id": uuid4(),
+                    "execution_id": execution["execution_id"],
+                    "order_plan_id": order_plan_id,
+                    "stratum": "uniform_hash",
+                    "selection_rank": 1,
+                    "plan_id_sha256": "6" * 64,
+                    "filtered_out_count": 1,
+                    "max_per_execution": 5,
+                    "review_cadence": "weekday",
+                    "policy_version": "c2-gate",
+                    "policy_sha256": "a" * 64,
+                    "drawn_by": "migration-test",
+                    "drawn_at": C2_AT,
+                },
+            )
+            _insert(
+                connection, "order_plan_screening_daily_trigger",
+                {
+                    "id": uuid4(),
+                    "policy_version": "c2-gate",
+                    "policy_sha256": "a" * 64,
+                    "enabled": False,
+                    "reason": None,
+                    "set_by": "migration-test",
+                    "set_at": C2_AT,
+                    "request_id": uuid4(),
+                },
+            )
+
+        for table, column in C2_GATE_TABLES.items():
+            for statement in (
+                f"UPDATE bidops.{table} SET {column} = 'tampered'",
+                f"DELETE FROM bidops.{table}",
+            ):
+                with pytest.raises(IntegrityError, match="append-only"):
+                    with engine.begin() as connection:
+                        connection.execute(text(statement))
+
+        # 고정값이 아닌 pass 수, 같은 revision의 재기록은 CHECK·UNIQUE가 거부한다.
+        with pytest.raises(IntegrityError, match="ck_order_plan_screening_quality_gate_pass_count"):
+            with engine.begin() as connection:
+                _insert(
+                    connection, "order_plan_screening_quality_gate",
+                    {**_c2_gate_row("c2-gate"), "required_pass_count": 1}, _GATE_CASTS,
+                )
+        with pytest.raises(IntegrityError, match="uq_order_plan_screening_quality_evaluation_revision"):
+            with engine.begin() as connection:
+                _insert(
+                    connection, "order_plan_screening_quality_evaluation",
+                    _c2_evaluation_row(decided["gate_id"], "통과"), _EVALUATION_CASTS,
+                )
+
+        # 활성화가 artifact digest로 evaluation을 특정하므로 같은 digest는 두 번 들어가지 않는다.
+        first = _c2_evaluation_row(decided["gate_id"], "미달", revision=2)
+        with engine.begin() as connection:
+            _insert(connection, "order_plan_screening_quality_evaluation", first, _EVALUATION_CASTS)
+        with pytest.raises(IntegrityError, match="uq_order_plan_screening_quality_evaluation_artifact"):
+            with engine.begin() as connection:
+                _insert(
+                    connection, "order_plan_screening_quality_evaluation",
+                    {
+                        **_c2_evaluation_row(decided["gate_id"], "미달", revision=3),
+                        "artifact_sha256": first["artifact_sha256"],
+                    },
+                    _EVALUATION_CASTS,
+                )
+
+        # purpose: 두 값만 받고, INSERT 뒤에는 바꾸지 못한다.
+        with pytest.raises(IntegrityError, match="ck_order_plan_screening_execution_purpose"):
+            with engine.begin() as connection:
+                _insert(
+                    connection, "order_plan_screening_execution",
+                    {**_c2_execution_row("c2-gate", "c2-gate-run"), "purpose": "reference"},
+                )
+        measurement = {
+            **_c2_execution_row("c2-gate", "c2-gate-run"),
+            "purpose": "gate_measurement",
+            "status": "대기",
+            "started_at": None,
+            "finished_at": None,
+        }
+        with engine.begin() as connection:
+            _insert(connection, "order_plan_screening_execution", measurement)
+        with pytest.raises(IntegrityError, match="purpose is immutable"):
+            with engine.begin() as connection:
+                connection.execute(
+                    text(
+                        "UPDATE bidops.order_plan_screening_execution SET purpose = 'operational'"
+                        " WHERE execution_id = :id"
+                    ),
+                    {"id": measurement["execution_id"]},
+                )
+
+
+def test_0029_policy_quality_gate_status_is_written_only_on_activation() -> None:
+    activate = (
+        "UPDATE bidops.order_plan_screening_policy SET policy_status = 'active',"
+        " active_slot = 1, activated_by = 'migration-test', activated_at = now(),"
+        " quality_gate_status = :status WHERE policy_version = 'c2-activate'"
+    )
+    with migrated_engine() as engine:
+        with engine.begin() as connection:
+            _insert(connection, "order_plan_screening_policy", _c2_policy_row("c2-activate"), _POLICY_CASTS)
+
+        with pytest.raises(IntegrityError, match="written only on activation"):
+            with engine.begin() as connection:
+                connection.execute(
+                    text(
+                        "UPDATE bidops.order_plan_screening_policy SET quality_gate_status = 'passed'"
+                        " WHERE policy_version = 'c2-activate'"
+                    )
+                )
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    "UPDATE bidops.order_plan_screening_policy"
+                    " SET policy_status = 'activation_candidate'"
+                    " WHERE policy_version = 'c2-activate'"
+                )
+            )
+        with pytest.raises(IntegrityError, match="written only on activation"):
+            with engine.begin() as connection:
+                connection.execute(text(activate), {"status": "failed"})
+        # 게이트 통과 기록 없이는 active로 올라가지 못한다(명세 §3.3 9번).
+        with pytest.raises(IntegrityError, match="requires quality_gate_status passed"):
+            with engine.begin() as connection:
+                connection.execute(text(activate), {"status": None})
+        with engine.begin() as connection:
+            connection.execute(text(activate), {"status": "passed"})
+        assert _scalar(
+            engine,
+            "SELECT quality_gate_status FROM bidops.order_plan_screening_policy"
+            " WHERE policy_version = 'c2-activate'",
+        ) == "passed"
+        # 다른 payload 열의 불변 조건은 0016 그대로다.
+        with pytest.raises(IntegrityError, match="payload is immutable"):
+            with engine.begin() as connection:
+                connection.execute(
+                    text(
+                        "UPDATE bidops.order_plan_screening_policy SET created_by = 'tampered'"
+                        " WHERE policy_version = 'c2-activate'"
+                    )
+                )
