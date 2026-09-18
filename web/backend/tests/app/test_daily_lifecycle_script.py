@@ -66,11 +66,11 @@ def _log_lines(fake_bin_dir: Path) -> list[str]:
     return [line for line in log_path.read_text(encoding="utf-8").splitlines() if line]
 
 
-def test_notices_dry_run_prints_one_day_inclusive_window(fake_bin_dir: Path) -> None:
+def test_notices_dry_run_prints_four_day_inclusive_window(fake_bin_dir: Path) -> None:
     result = _run(["--track", "notices", "--date", "2026-09-17", "--dry-run"], fake_bin_dir)
     assert result.returncode == 0, result.stderr
     assert "lifecycle-20260917-notices" in result.stdout
-    assert "--from-date 2026-09-17 --to-date 2026-09-17" in result.stdout
+    assert "--from-date 2026-09-14 --to-date 2026-09-17" in result.stdout
     assert "refresh_fetch_eligibility" in result.stdout
     assert "collect_order_plans.py" not in result.stdout
 

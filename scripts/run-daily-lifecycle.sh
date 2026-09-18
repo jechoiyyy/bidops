@@ -21,9 +21,10 @@ schedule):
     C-2 screening is not wired into the order-plans track yet; do not
     schedule that track until it is (decision 10, docs/0918_daily-operation).
   notices track (pre-specs + bids, tagged with 1468 SW-industry status):
-    preflight -> notice collection (1-day window, both ends inclusive) ->
-    ingest (--collection) -> --tracked-backfill -> attachment
-    fetch-eligibility refresh. Run id lifecycle-<YYYYMMDD>-notices.
+    preflight -> notice collection (4-day window ending on the reference
+    day, both ends inclusive (late-published pre-specs)) -> ingest
+    (--collection) -> --tracked-backfill -> attachment fetch-eligibility
+    refresh. Run id lifecycle-<YYYYMMDD>-notices.
 
 Options:
   --track order-plans|notices
@@ -114,13 +115,16 @@ if [[ -n "${run_suffix}" ]]; then
 fi
 run_dir="$(workflow_run_dir "${run_id}")"
 
-# Both tracks now cover exactly the reference day (1 day). collect_order_plans.py
-# --to-date is exclusive; collect_notices.py --to-date is inclusive.
+# order-plans: 1 day, [reference day, reference day + 1) — collect_order_plans.py
+# --to-date is exclusive.
+# notices: 4 days ending on the reference day, both ends inclusive —
+# pre-specs are queried by rgstDt but become visible at rcptDt up to 3 days
+# later (M0, 2026-09-18). collect_notices.py --to-date is inclusive.
 if [[ "${opt_track}" == "order-plans" ]]; then
   from_date="${ref_date}"
   to_date="$(date -d "${ref_date} +1 day" +%Y-%m-%d)"
 else
-  from_date="${ref_date}"
+  from_date="$(date -d "${ref_date} -3 days" +%Y-%m-%d)"
   to_date="${ref_date}"
 fi
 
@@ -131,7 +135,7 @@ print_plan() {
   if [[ "${opt_track}" == "order-plans" ]]; then
     workflow_note "  window: --from-date ${from_date} --to-date ${to_date} (half-open, exclusive end; 1 day: ${ref_date})"
   else
-    workflow_note "  window: --from-date ${from_date} --to-date ${to_date} (closed, inclusive both ends; 1 day: ${ref_date})"
+    workflow_note "  window: --from-date ${from_date} --to-date ${to_date} (closed, inclusive both ends; 4 days: ${from_date}..${ref_date})"
   fi
   workflow_note "  dir:    ${run_dir}"
   if [[ "${collect_only}" == "true" ]]; then
