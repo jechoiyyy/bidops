@@ -18,9 +18,11 @@ from app.core.models import AuditEvent
 from app.lifecycle.models import OrderPlan, OrderPlanObservation, Run
 from app.screening.models import (
     OrderPlanScreeningBatchAttempt,
+    OrderPlanScreeningDailyTrigger,
     OrderPlanScreeningExecution,
     OrderPlanScreeningFeedback,
     OrderPlanScreeningPolicy,
+    OrderPlanScreeningQualityGate,
     OrderPlanScreeningResult,
 )
 from app.screening.schemas.order_plans import ExecutionCreateRequest, ExecutionStopRequest, FeedbackCreateRequest
@@ -38,7 +40,13 @@ def _sha(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
-def _fixture(tmp_path: Path, count: int = 2) -> tuple[Settings, Session, str, str, list[OrderPlan]]:
+def _fixture(
+    tmp_path: Path,
+    count: int = 2,
+    *,
+    file_policy_status: str = "active",
+    binding_status: str = "approved",
+) -> tuple[Settings, Session, str, str, list[OrderPlan]]:
     root = tmp_path / "project"
     source_dir = root / "data" / "runs" / "run-c2"
     source_dir.mkdir(parents=True)
@@ -65,10 +73,13 @@ def _fixture(tmp_path: Path, count: int = 2) -> tuple[Settings, Session, str, st
 
     policy = json.loads((REPO_ROOT / "experiments/order-plan-screening/config/order-plan-screening-policy.v2.json").read_text())
     binding = json.loads((REPO_ROOT / "experiments/order-plan-screening/config/order-plan-screening-phase0-binding.v2.json").read_text())
-    policy["policy_status"] = "active"
+    # The file policy_status is a publish-time snapshot; the DB row below is
+    # the activation authority (ADR-0060).  The binding copy must agree.
+    policy["policy_status"] = file_policy_status
     policy["activation"] = {"status": "active", "enabled": True, "approved_by": "approver", "approved_at": "2026-09-02T00:00:00+00:00"}
+    binding["status"] = binding_status
     binding["external_transport"]["execution_allowed"] = True
-    binding["policy"]["policy_status"] = "active"
+    binding["policy"]["policy_status"] = file_policy_status
     policy_path = root / "policy.json"
     binding_path = root / "binding.json"
     policy_bytes = _canonical(policy)
@@ -128,7 +139,12 @@ def _fixture(tmp_path: Path, count: int = 2) -> tuple[Settings, Session, str, st
     return settings, session, policy["policy_version"], _sha(binding_bytes), plans
 
 
-def _create(service: OrderPlanScreeningService, session: Session, policy_version: str) -> tuple[dict[str, object], ExecutionCreateRequest]:
+def _create(
+    service: OrderPlanScreeningService,
+    session: Session,
+    policy_version: str,
+    trigger: str | None = None,
+) -> tuple[dict[str, object], ExecutionCreateRequest]:
     request = ExecutionCreateRequest(
         schema_version="execution-create-request.v1",
         producer="human-review-client",
@@ -137,7 +153,7 @@ def _create(service: OrderPlanScreeningService, session: Session, policy_version
         source_run_id="run-c2",
         policy_version=policy_version,
     )
-    return service.create_execution(session, request, "reviewer"), request
+    return service.create_execution(session, request, "reviewer", trigger=trigger), request
 
 
 def test_create_freezes_input_and_audits_in_same_transaction(tmp_path: Path) -> None:
@@ -395,3 +411,185 @@ def test_create_fails_closed_when_the_generation_config_is_not_approved(tmp_path
     with pytest.raises(OrderPlanScreeningError) as error:
         _create(service, session, policy_version)
     assert error.value.code == "binding_mismatch"
+
+
+# --- 실행 게이트 (ADR-0060, contracts "실행 트리거 헤더와 게이트") -------------
+
+
+def _policy_row(session: Session, policy_version: str) -> OrderPlanScreeningPolicy:
+    policy = session.scalar(select(OrderPlanScreeningPolicy).where(OrderPlanScreeningPolicy.policy_version == policy_version))
+    assert policy is not None
+    return policy
+
+
+def _make_candidate(session: Session, policy_version: str) -> None:
+    policy = _policy_row(session, policy_version)
+    policy.policy_status = "activation_candidate"
+    policy.quality_gate_status = "not_measured"
+    policy.active_slot = None
+    policy.activated_by = None
+    policy.activated_at = None
+    session.commit()
+
+
+def _add_gate(session: Session, policy_version: str, run_ids: list[str]) -> None:
+    policy = _policy_row(session, policy_version)
+    session.add(OrderPlanScreeningQualityGate(
+        gate_id="c2gate-" + "0" * 32,
+        policy_version=policy_version,
+        policy_sha256=policy.policy_sha256,
+        binding_sha256=policy.binding_sha256,
+        gold_manifest_sha256="a" * 64,
+        gold_artifact_sha256="b" * 64,
+        gold_status="approved",
+        scoring_input_sha256="c" * 64,
+        evaluation_basis="product_rerun",
+        scoring_unit="per_published_day",
+        measurement_run_ids_json=run_ids,
+        required_pass_count=2,
+        created_by="gate-owner",
+        created_at=datetime(2026, 9, 2, tzinfo=UTC),
+    ))
+    session.commit()
+
+
+def _audit_created(session: Session, execution_id: object) -> AuditEvent:
+    event = session.scalar(select(AuditEvent).where(
+        AuditEvent.action == "c2.execution_created", AuditEvent.aggregate_id == str(execution_id)
+    ))
+    assert event is not None
+    return event
+
+
+def test_create_ignores_the_file_policy_status_when_the_row_is_active(tmp_path: Path) -> None:
+    settings, session, policy_version, _, _ = _fixture(tmp_path, file_policy_status="activation_candidate")
+    response, _ = _create(OrderPlanScreeningService(settings), session, policy_version)
+    execution = session.get(OrderPlanScreeningExecution, UUID(str(response["execution_id"])))
+    assert execution is not None and execution.purpose == "operational"
+    event = _audit_created(session, execution.execution_id)
+    assert event.actor_kind == "human"
+    assert event.safe_metadata["trigger"] is None
+
+
+def test_create_rejects_file_and_binding_policy_status_disagreement(tmp_path: Path) -> None:
+    settings, session, policy_version, _, _ = _fixture(tmp_path, file_policy_status="activation_candidate")
+    policy = _policy_row(session, policy_version)
+    binding = dict(policy.binding_payload_jsonb)
+    binding["policy"] = {**binding["policy"], "policy_status": "active"}
+    binding_bytes = _canonical(binding)
+    Path(str(settings.c2_binding_path)).write_bytes(binding_bytes)
+    policy.binding_payload_jsonb = binding
+    policy.binding_sha256 = _sha(binding_bytes)
+    session.commit()
+
+    with pytest.raises(OrderPlanScreeningError) as raised:
+        _create(OrderPlanScreeningService(settings), session, policy_version)
+    assert raised.value.code == "binding_mismatch"
+
+
+def test_create_rejects_a_blocked_binding_that_allows_execution(tmp_path: Path) -> None:
+    settings, session, policy_version, _, _ = _fixture(tmp_path, binding_status="blocked")
+    with pytest.raises(OrderPlanScreeningError) as raised:
+        _create(OrderPlanScreeningService(settings), session, policy_version)
+    assert raised.value.code == "binding_mismatch"
+
+
+def test_create_requires_the_mounted_policy_file(tmp_path: Path) -> None:
+    settings, session, policy_version, _, _ = _fixture(tmp_path)
+    Path(str(settings.c2_policy_path)).unlink()
+    with pytest.raises(OrderPlanScreeningError) as raised:
+        _create(OrderPlanScreeningService(settings), session, policy_version)
+    assert raised.value.code == "binding_mismatch"
+
+
+@pytest.mark.parametrize("trigger", ["daily_script", "manual_resume"])
+def test_daily_triggers_recheck_the_daily_switch(tmp_path: Path, trigger: str) -> None:
+    settings, session, policy_version, _, _ = _fixture(tmp_path)
+    with pytest.raises(OrderPlanScreeningError) as raised:
+        _create(OrderPlanScreeningService(settings), session, policy_version, trigger)
+    assert raised.value.code == "daily_trigger_off"
+    assert raised.value.status_code == 409
+    assert raised.value.details == {"reasons": ["env_cap_off", "switch_off"]}  # type: ignore[attr-defined]
+    assert session.scalar(select(OrderPlanScreeningExecution)) is None
+
+
+@pytest.mark.parametrize("trigger", ["daily_script", "manual_resume"])
+def test_daily_triggers_report_transport_unavailable_before_the_switch(tmp_path: Path, trigger: str) -> None:
+    settings, session, policy_version, _, _ = _fixture(tmp_path)
+    settings.c2_execution_allowed = False
+    with pytest.raises(OrderPlanScreeningError) as raised:
+        _create(OrderPlanScreeningService(settings), session, policy_version, trigger)
+    assert raised.value.code == "service_unavailable"
+    assert raised.value.status_code == 503
+
+
+def test_daily_script_runs_when_the_switch_is_effective(tmp_path: Path) -> None:
+    settings, session, policy_version, _, _ = _fixture(tmp_path)
+    settings.c2_daily_trigger_enabled = True
+    policy = _policy_row(session, policy_version)
+    session.add(OrderPlanScreeningDailyTrigger(
+        id=uuid4(), policy_version=policy_version, policy_sha256=policy.policy_sha256, enabled=True,
+        reason=None, set_by="operator", set_at=datetime(2026, 9, 2, tzinfo=UTC), request_id=uuid4(),
+    ))
+    session.commit()
+    service = OrderPlanScreeningService(settings)
+
+    with pytest.raises(OrderPlanScreeningError) as raised:
+        _create(service, session, "c2-order-plan-screening-other", "daily_script")
+    assert raised.value.code == "policy_not_active"
+
+    response, _ = _create(service, session, policy_version, "daily_script")
+    execution = session.get(OrderPlanScreeningExecution, UUID(str(response["execution_id"])))
+    assert execution is not None and execution.purpose == "operational"
+    assert _audit_created(session, execution.execution_id).safe_metadata["trigger"] == "daily_script"
+
+
+def test_gate_measurement_runs_a_candidate_policy_on_a_measurement_run(tmp_path: Path) -> None:
+    settings, session, policy_version, _, _ = _fixture(tmp_path)
+    _make_candidate(session, policy_version)
+    _add_gate(session, policy_version, ["gate-gold-20260827-plans", "run-c2"])
+    service = OrderPlanScreeningService(settings)
+
+    with pytest.raises(OrderPlanScreeningError) as raised:
+        _create(service, session, policy_version)
+    assert raised.value.code == "policy_not_active"
+
+    response, _ = _create(service, session, policy_version, "gate_measurement")
+    execution = session.get(OrderPlanScreeningExecution, UUID(str(response["execution_id"])))
+    assert execution is not None and execution.purpose == "gate_measurement"
+    event = _audit_created(session, execution.execution_id)
+    assert event.safe_metadata["trigger"] == "gate_measurement"
+    detail = service.execution_detail(session, execution.execution_id)
+    assert detail["schema_version"] == "execution-detail-response.v2"
+    assert detail["purpose"] == "gate_measurement"
+
+
+def test_gate_measurement_rejects_a_run_outside_the_gate(tmp_path: Path) -> None:
+    settings, session, policy_version, _, _ = _fixture(tmp_path)
+    _make_candidate(session, policy_version)
+    _add_gate(session, policy_version, ["gate-gold-20260827-plans"])
+    with pytest.raises(OrderPlanScreeningError) as raised:
+        _create(OrderPlanScreeningService(settings), session, policy_version, "gate_measurement")
+    assert raised.value.code == "invalid_request"
+    assert raised.value.status_code == 422
+    assert session.scalar(select(OrderPlanScreeningExecution)) is None
+
+
+def test_gate_measurement_still_needs_transport_approval(tmp_path: Path) -> None:
+    settings, session, policy_version, _, _ = _fixture(tmp_path)
+    _make_candidate(session, policy_version)
+    _add_gate(session, policy_version, ["run-c2"])
+    settings.c2_execution_allowed = False
+    with pytest.raises(OrderPlanScreeningError) as raised:
+        _create(OrderPlanScreeningService(settings), session, policy_version, "gate_measurement")
+    assert raised.value.code == "service_unavailable"
+    assert raised.value.status_code == 503
+
+
+@pytest.mark.parametrize("trigger", ["", "cron", "GATE_MEASUREMENT"])
+def test_create_rejects_an_unknown_trigger(tmp_path: Path, trigger: str) -> None:
+    settings, session, policy_version, _, _ = _fixture(tmp_path)
+    with pytest.raises(OrderPlanScreeningError) as raised:
+        _create(OrderPlanScreeningService(settings), session, policy_version, trigger)
+    assert raised.value.code == "invalid_request"
+    assert raised.value.status_code == 422
