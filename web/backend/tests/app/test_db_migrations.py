@@ -1132,7 +1132,8 @@ def _c2_evaluation_row(gate_id: str, result_status: str, revision: int = 1) -> d
         "pass_execution_ids_json": json.dumps({"pass_1": [], "pass_2": []}),
         "metrics_json": "{}",
         "reasons_json": "[]",
-        "artifact_sha256": "5" * 64,
+        # artifact digest는 모든 evaluation에서 유일하다.
+        "artifact_sha256": uuid4().hex * 2,
         "evaluated_by": "migration-test",
         "evaluated_at": C2_AT,
     }
@@ -1284,6 +1285,21 @@ def test_0029_gate_tables_are_append_only_and_undecided_thresholds_only_allow_un
                     _c2_evaluation_row(decided["gate_id"], "통과"), _EVALUATION_CASTS,
                 )
 
+        # 활성화가 artifact digest로 evaluation을 특정하므로 같은 digest는 두 번 들어가지 않는다.
+        first = _c2_evaluation_row(decided["gate_id"], "미달", revision=2)
+        with engine.begin() as connection:
+            _insert(connection, "order_plan_screening_quality_evaluation", first, _EVALUATION_CASTS)
+        with pytest.raises(IntegrityError, match="uq_order_plan_screening_quality_evaluation_artifact"):
+            with engine.begin() as connection:
+                _insert(
+                    connection, "order_plan_screening_quality_evaluation",
+                    {
+                        **_c2_evaluation_row(decided["gate_id"], "미달", revision=3),
+                        "artifact_sha256": first["artifact_sha256"],
+                    },
+                    _EVALUATION_CASTS,
+                )
+
         # purpose: 두 값만 받고, INSERT 뒤에는 바꾸지 못한다.
         with pytest.raises(IntegrityError, match="ck_order_plan_screening_execution_purpose"):
             with engine.begin() as connection:
@@ -1340,6 +1356,10 @@ def test_0029_policy_quality_gate_status_is_written_only_on_activation() -> None
         with pytest.raises(IntegrityError, match="written only on activation"):
             with engine.begin() as connection:
                 connection.execute(text(activate), {"status": "failed"})
+        # 게이트 통과 기록 없이는 active로 올라가지 못한다(명세 §3.3 9번).
+        with pytest.raises(IntegrityError, match="requires quality_gate_status passed"):
+            with engine.begin() as connection:
+                connection.execute(text(activate), {"status": None})
         with engine.begin() as connection:
             connection.execute(text(activate), {"status": "passed"})
         assert _scalar(

@@ -16,7 +16,10 @@ Revises: 0028_final_decision_basis
   trigger가 발동하지 않는다. 값은 INSERT 때만 정하고 이후 UPDATE를 거부한다.
 - policy guard가 ``quality_gate_status`` 변경을 전부 막고 있었으므로, 활성화 전이
   (``activation_candidate`` → ``active``)에서 ``passed``로 쓰는 것만 허용하도록 다시
-  만든다(명세 §3.3 9번). 그 밖의 payload 불변 조건은 0016 그대로다.
+  만든다(명세 §3.3 9번). 그 전이는 ``passed``일 때만 성립한다. 그 밖의 payload 불변
+  조건은 0016 그대로다.
+- evaluation ``artifact_sha256``는 모든 evaluation에서 유일하다. 활성화가 이 값으로
+  evaluation을 특정한다.
 
 값·서비스·REST는 만들지 않는다. 임계값은 NULL로 남는다. 권한은
 ``scripts/runtime-privileges.sql``이 migration 뒤에 적용한다.
@@ -139,6 +142,8 @@ def _create_tables() -> None:
         sa.Column("evaluated_by", sa.String(length=128), nullable=False),
         sa.Column("evaluated_at", sa.DateTime(timezone=True), nullable=False),
         sa.UniqueConstraint("gate_id", "revision", name="uq_order_plan_screening_quality_evaluation_revision"),
+        # 활성화 요청의 quality_gate_artifact_sha256가 evaluation 하나를 특정한다(명세 §3.3 3번).
+        sa.UniqueConstraint("artifact_sha256", name="uq_order_plan_screening_quality_evaluation_artifact"),
         sa.ForeignKeyConstraint(
             ["gate_id"], [f"{SCHEMA}.{GATE}.gate_id"],
             name="fk_order_plan_screening_quality_evaluation_gate", ondelete="RESTRICT",
@@ -338,6 +343,10 @@ def _policy_guard_sql(*, allow_gate_status_on_activation: bool) -> str:
                 AND NEW.policy_status = 'active'
                 AND NEW.quality_gate_status = 'passed')
     THEN RAISE EXCEPTION 'order_plan_screening_policy quality_gate_status is written only on activation' USING ERRCODE = 'check_violation';
+    END IF;
+    IF OLD.policy_status = 'activation_candidate' AND NEW.policy_status = 'active'
+       AND NEW.quality_gate_status IS DISTINCT FROM 'passed'
+    THEN RAISE EXCEPTION 'active policy requires quality_gate_status passed' USING ERRCODE = 'check_violation';
     END IF;
 """
         if allow_gate_status_on_activation
