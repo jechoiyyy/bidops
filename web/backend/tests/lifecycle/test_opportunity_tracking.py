@@ -406,15 +406,20 @@ def test_ingest_new_official_bid_signals_closed_opportunity_without_changing_hum
         engine.dispose()
 
 
-@pytest.mark.parametrize("status", ["계속 추적", "보류"])
-def test_ingest_does_not_raise_recheck_signal_for_non_closed_tracking_status(tmp_path, status):
+@pytest.mark.parametrize(
+    ("status", "signaled"),
+    [("계속 추적", True), ("보류", True), ("미선택", False)],
+)
+def test_ingest_raises_recheck_signal_for_every_tracked_status(tmp_path, status, signaled):
+    """Spec §6.1: 계속 추적·보류·종료 receive the signal, 미선택 never does."""
+
     engine = _engine()
     try:
         plan_no = "R26DD20999999"
         with Session(engine) as session:
             first_dir = _write_tracking_run(
                 tmp_path,
-                "non-closed-first-run",
+                "tracked-first-run",
                 "bid:R26BK01696186:000",
                 plan_no,
                 include_plan=True,
@@ -422,19 +427,21 @@ def test_ingest_does_not_raise_recheck_signal_for_non_closed_tracking_status(tmp
             ingest_run(first_dir, session, reports_root=tmp_path / "reports")
             opportunity = session.scalar(select(Opportunity))
             assert opportunity is not None
-            set_tracking_status(
-                session,
-                opportunity,
-                status=status,
-                reason="상태별 신호 정책 확인",
-                selected_by="담당자",
-                selected_at=datetime(2026, 8, 29, 9, tzinfo=timezone.utc),
-            )
-            session.commit()
+            selected_at = datetime(2026, 8, 29, 9, tzinfo=timezone.utc)
+            if status != "미선택":
+                set_tracking_status(
+                    session,
+                    opportunity,
+                    status=status,
+                    reason="상태별 신호 정책 확인",
+                    selected_by="담당자",
+                    selected_at=selected_at,
+                )
+                session.commit()
 
             second_dir = _write_tracking_run(
                 tmp_path,
-                "non-closed-second-run",
+                "tracked-second-run",
                 "bid:R26BK01696187:000",
                 plan_no,
             )
@@ -442,15 +449,28 @@ def test_ingest_does_not_raise_recheck_signal_for_non_closed_tracking_status(tmp
             stored = session.get(Opportunity, opportunity.id)
             assert stored is not None
             assert stored.tracking_status == status
-            assert stored.recheck_signal_at is None
-            assert stored.recheck_signal_link_id is None
-            assert session.scalar(
+            assert stored.tracking_selected_at == (selected_at if signaled else None)
+            events = session.scalars(
                 select(AuditEvent).where(
                     AuditEvent.aggregate_type == "opportunity",
                     AuditEvent.aggregate_id == str(opportunity.id),
                     AuditEvent.action == "opportunity.recheck_signal.created",
                 )
-            ) is None
+            ).all()
+            if not signaled:
+                assert stored.recheck_signal_at is None
+                assert stored.recheck_signal_link_id is None
+                assert events == []
+                return
+            new_bid = session.scalar(
+                select(Notice).where(Notice.notice_key == "bid:R26BK01696187:000")
+            )
+            signal_link = session.get(OpportunityLink, stored.recheck_signal_link_id)
+            assert signal_link is not None and signal_link.notice_id == new_bid.id
+            assert stored.recheck_signal_at is not None
+            assert stored.recheck_signal_at.tzinfo is not None
+            assert [event.safe_metadata["tracking_status"] for event in events] == [status]
+            assert [event.safe_metadata["link_id"] for event in events] == [signal_link.id]
     finally:
         engine.dispose()
 
@@ -512,33 +532,36 @@ def test_recheck_signal_keeps_latest_distinct_official_link_and_deduplicates_sam
         engine.dispose()
 
 
-def test_merge_with_human_selected_tracking_status_fails_closed():
+def test_merge_retains_the_human_selected_opportunity_without_changing_its_choice():
     engine = _engine()
     try:
         with Session(engine) as session:
-            primary = _opportunity(
-                created_at=datetime(2026, 8, 29, 8, tzinfo=timezone.utc),
+            selected_at = datetime(2026, 8, 29, 7, tzinfo=timezone.utc)
+            # The human-selected row is the newer one: retention follows the
+            # human state, not age.
+            closed = _opportunity(
+                created_at=datetime(2026, 8, 29, 9, tzinfo=timezone.utc),
                 tracking_status="종료",
                 tracking_reason="현재 추적 종료",
                 tracking_selected_by="담당자",
-                tracking_selected_at=datetime(2026, 8, 29, 7, tzinfo=timezone.utc),
+                tracking_selected_at=selected_at,
             )
-            secondary = _opportunity(
-                created_at=datetime(2026, 8, 29, 9, tzinfo=timezone.utc),
+            untouched = _opportunity(
+                created_at=datetime(2026, 8, 29, 8, tzinfo=timezone.utc),
             )
-            primary_notice = Notice(
+            closed_notice = Notice(
                 notice_key="bid:R26BK01696186:000",
                 source_type="bid_notice",
             )
-            secondary_notice = Notice(
+            untouched_notice = Notice(
                 notice_key="bid:R26BK01698765:000",
                 source_type="bid_notice",
             )
-            session.add_all([primary, secondary, primary_notice, secondary_notice])
+            session.add_all([closed, untouched, closed_notice, untouched_notice])
             session.flush()
             moved_link = OpportunityLink(
-                opportunity=secondary,
-                notice=secondary_notice,
+                opportunity=untouched,
+                notice=untouched_notice,
                 stage="notice",
                 link_type="official",
                 status="확정",
@@ -546,8 +569,8 @@ def test_merge_with_human_selected_tracking_status_fails_closed():
             )
             session.add(
                 OpportunityLink(
-                    opportunity=primary,
-                    notice=primary_notice,
+                    opportunity=closed,
+                    notice=closed_notice,
                     stage="notice",
                     link_type="official",
                     status="확정",
@@ -557,31 +580,42 @@ def test_merge_with_human_selected_tracking_status_fails_closed():
             session.add(moved_link)
             session.flush()
 
-            with pytest.raises(
-                OpportunityIntegrityError,
-                match="자동 병합할 수 없습니다",
-            ):
-                _merge_opportunities(session, [primary, secondary])
+            retained = _merge_opportunities(session, [untouched, closed])
             session.commit()
 
-            stored = session.get(Opportunity, primary.id)
-            stored_secondary = session.get(Opportunity, secondary.id)
-            assert stored is not None
-            assert stored_secondary is not None
+            assert retained is not None and retained.id == closed.id
+            stored = session.get(Opportunity, closed.id)
+            stored_untouched = session.get(Opportunity, untouched.id)
             assert stored.merged_into_opportunity_id is None
-            assert stored_secondary.merged_into_opportunity_id is None
+            assert stored_untouched.merged_into_opportunity_id == closed.id
             assert stored.tracking_status == "종료"
             assert stored.tracking_reason == "현재 추적 종료"
             assert stored.tracking_selected_by == "담당자"
-            assert stored.tracking_selected_at == datetime(2026, 8, 29, 7, tzinfo=timezone.utc)
+            assert stored.tracking_selected_at == selected_at
             assert stored.recheck_signal_link_id is None
-            assert moved_link.opportunity_id == stored_secondary.id
+            assert moved_link.opportunity_id == closed.id
+            # The merge service never raises the signal itself; the ingest
+            # arrival that caused a merge does.
             assert session.scalar(
                 select(AuditEvent).where(
-                    AuditEvent.aggregate_id == str(primary.id),
+                    AuditEvent.aggregate_id == str(closed.id),
                     AuditEvent.action == "opportunity.recheck_signal.created",
                 )
             ) is None
+
+            held = _opportunity(
+                tracking_status="보류",
+                tracking_reason="정보 대기",
+                tracking_selected_by="다른 담당자",
+                tracking_selected_at=selected_at,
+            )
+            session.add(held)
+            session.commit()
+            with pytest.raises(OpportunityIntegrityError, match="병합할 수 없습니다"):
+                _merge_opportunities(session, [closed, held])
+            session.commit()
+            assert session.get(Opportunity, held.id).merged_into_opportunity_id is None
+            assert session.get(Opportunity, closed.id).merged_into_opportunity_id is None
     finally:
         engine.dispose()
 

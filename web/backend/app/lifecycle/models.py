@@ -1,4 +1,4 @@
-"""lifecycle이 소유하는 선언적 모델 (명세 §5.1의 10개 테이블).
+"""lifecycle이 소유하는 선언적 모델 (명세 §5.1의 10개 테이블 + 수집 색인 2개).
 
 회차, 공고, 발주계획, 관측, 기회와 기회 연결, 첨부 메타, 기관 포털, 적재
 경고가 여기 있다. lifecycle 모델은 다른 모듈의 모델로 향하는 ``relationship``을
@@ -17,6 +17,7 @@ from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import (
+    BigInteger,
     Boolean,
     CheckConstraint,
     Date,
@@ -99,6 +100,9 @@ class Notice(Base):
         Index("ix_notice_collection_sample", "collection_bucket", "sample_role"),
         Index("ix_notice_notice_key", "notice_key"),
         Index("ix_notice_deadline_at", "deadline_at"),
+        # 같은 공고번호의 다른 차수·선별 사유(`bid_same_notice_no`) 조회용
+        # (``0027_collection_index_and_linkage``).
+        Index("ix_notice_bid_no", "bid_no"),
         UniqueConstraint("notice_key", name="uq_notice_key"),
     )
 
@@ -109,6 +113,10 @@ class Notice(Base):
     source_type: Mapped[str | None] = mapped_column(String(64), nullable=True)
     title: Mapped[str | None] = mapped_column(Text, nullable=True)
     agency: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # 사전규격 원문 ``rlDminsttNm``(수요기관). 사전규격 ``agency``는 발주기관이고
+    # 입찰공고 ``agency``는 이미 수요기관이라 입찰공고에서는 항상 비어 있다.
+    # 관측 snapshot에는 넣지 않는다(적재기 ``_upsert_notice`` 참고).
+    demand_agency: Mapped[str | None] = mapped_column(String(255), nullable=True)
     published_at: Mapped[datetime | None] = mapped_column(AwareDateTime(), nullable=True)
     deadline_at: Mapped[datetime | None] = mapped_column(AwareDateTime(), nullable=True)
     budget: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
@@ -523,13 +531,19 @@ class OpportunityLink(Base):
             name="ck_opportunity_link_type",
         ),
         CheckConstraint(
-            "status IN ('확정', '후보 확인 대기', '사람 확인 완료', '검색 미확인')",
+            "status IN ('확정', '후보 확인 대기', '사람 확인 완료', '검색 미확인', "
+            "'사람 확인 병합')",
             name="ck_opportunity_link_status",
         ),
         CheckConstraint(
             "search_strategy IS NULL OR search_strategy IN "
-            "('full', 'breaking_split', 'normalized', 'longest_fragment', 'prefix12')",
+            "('full', 'breaking_split', 'normalized', 'longest_fragment', 'prefix12', "
+            "'merge_confirmation')",
             name="ck_opportunity_link_search_strategy",
+        ),
+        CheckConstraint(
+            "search_target_kind IS NULL OR search_target_kind IN ('pre_spec', 'bid_notice')",
+            name="ck_opportunity_link_search_target_kind",
         ),
         CheckConstraint(
             "link_type <> 'official' OR status = '확정'",
@@ -607,6 +621,9 @@ class OpportunityLink(Base):
     # external key that actually matched (for example bfSpecRgstNo).
     evidence_bid_no: Mapped[str | None] = mapped_column(String(64), nullable=True)
     search_strategy: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # ``검색 미확인`` 행이 어느 찾아보기(사전규격·입찰공고)의 결과인지 구분한다
+    # (spec §4.3). 다른 행에서는 비어 있다.
+    search_target_kind: Mapped[str | None] = mapped_column(String(16), nullable=True)
     agency_match: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     last_searched_at: Mapped[datetime | None] = mapped_column(AwareDateTime(), nullable=True)
     attempted_strategies_json: Mapped[Any] = mapped_column(JSONB_COMPAT, nullable=True)
@@ -720,6 +737,106 @@ class AgencyPortal(Base):
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
+class CollectedRecordIndex(Base):
+    """수집 회차의 레코드 한 건을 가리키는 검색용 색인 (spec §2.1).
+
+    선별 적재 여부와 무관하게 수집된 발주계획·사전규격·입찰공고마다 회차당 한 행을
+    남긴다. 사업기회나 공고가 아니며 원문도 아니다 — 원문은 회차 파일에 그대로
+    있고, 적재가 필요하면 ``run_id``의 회차 파일에서 같은 레코드를 다시 읽는다.
+    ``selection_reason``이 비어 있으면 그 회차 적재에서 제외된 레코드다(제외는
+    경고가 아니다). ``null`` 값은 추정으로 채우지 않는다.
+    """
+
+    __tablename__ = "collected_record_index"
+    __table_args__ = (
+        UniqueConstraint(
+            "run_id", "record_kind", "record_key",
+            name="uq_collected_record_index_run_kind_key",
+        ),
+        CheckConstraint(
+            "record_kind IN ('order_plan', 'pre_spec', 'bid_notice')",
+            name="ck_collected_record_index_record_kind",
+        ),
+        CheckConstraint(
+            "selection_reason IS NULL OR selection_reason IN ("
+            "'order_plan_all', 'pre_spec_sw', 'pre_spec_referenced', 'pre_spec_known', "
+            "'bid_same_notice_no', 'bid_tracked_reference', "
+            "'bid_sw_prespec_reference', 'bid_sw_industry_competitive', "
+            "'tracked_backfill', 'search_result')",
+            name="ck_collected_record_index_selection_reason",
+        ),
+        Index("ix_collected_record_index_kind_key", "record_kind", "record_key"),
+        Index("ix_collected_record_index_order_plan_unty_no", "order_plan_unty_no"),
+        Index("ix_collected_record_index_bf_spec_rgst_no", "bf_spec_rgst_no"),
+        Index("ix_collected_record_index_bid_no", "bid_no"),
+        Index("ix_collected_record_index_kind_title", "record_kind", "title_normalized"),
+        Index("ix_collected_record_index_agency", "agency"),
+    )
+
+    id: Mapped[int] = mapped_column(
+        BigInteger().with_variant(Integer(), "sqlite"), primary_key=True
+    )
+    run_id: Mapped[str] = mapped_column(_fk("run.id", ondelete="CASCADE"), nullable=False)
+    record_kind: Mapped[str] = mapped_column(String(16), nullable=False)
+    record_key: Mapped[str] = mapped_column(String(255), nullable=False)
+    title: Mapped[str | None] = mapped_column(Text, nullable=True)
+    title_normalized: Mapped[str | None] = mapped_column(Text, nullable=True)
+    agency: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    demand_agency: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    order_plan_unty_no: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    bf_spec_rgst_no: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    bid_no: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    bid_ord: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    sw_business_status: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    sw_industry_1468: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    contract_method: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    published_at: Mapped[datetime | None] = mapped_column(AwareDateTime(), nullable=True)
+    selection_reason: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    ingested_notice_id: Mapped[int | None] = mapped_column(
+        _fk("notice.id", ondelete="SET NULL"), nullable=True
+    )
+    ingested_order_plan_id: Mapped[int | None] = mapped_column(
+        _fk("order_plan.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        AwareDateTime(), default=utc_now, server_default=text("CURRENT_TIMESTAMP"), nullable=False
+    )
+
+    tokens: Mapped[list["CollectedRecordToken"]] = relationship(
+        back_populates="index_row",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        order_by="CollectedRecordToken.id",
+    )
+
+
+class CollectedRecordToken(Base):
+    """발주계획·사전규격 ``bidNtceNoList``의 토큰 한 개 (spec §2.1).
+
+    발주계획 토큰은 공고번호 13자+차수 3자, 사전규격 토큰은 공고번호 13자로
+    관측됐다. 모양을 고치거나 잘라 내지 않고 원문 토큰 그대로 둔다. 배열 열 대신
+    행으로 두어 SQLite·PostgreSQL 모두 인덱스로 조회한다.
+    """
+
+    __tablename__ = "collected_record_token"
+    __table_args__ = (
+        Index("ix_collected_record_token_token", "token"),
+        Index("ix_collected_record_token_index", "index_id"),
+    )
+
+    id: Mapped[int] = mapped_column(
+        BigInteger().with_variant(Integer(), "sqlite"), primary_key=True
+    )
+    index_id: Mapped[int] = mapped_column(
+        BigInteger().with_variant(Integer(), "sqlite"),
+        _fk("collected_record_index.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    token: Mapped[str] = mapped_column(String(32), nullable=False)
+
+    index_row: Mapped["CollectedRecordIndex"] = relationship(back_populates="tokens")
+
+
 class IngestWarning(Base):
     __tablename__ = "ingest_warning"
 
@@ -737,11 +854,14 @@ class IngestWarning(Base):
 # of the legacy/Lean v1 tuples prevents an older revision from creating them
 # before its upgrade has established the observation and opportunity links.
 OPPORTUNITY_TABLES = ("opportunity", "opportunity_link")
+# ``0027_collection_index_and_linkage``가 만든다. 선별 적재의 검색 색인이다.
+COLLECTION_INDEX_TABLES = ("collected_record_index", "collected_record_token")
 
 
 IDENTITY_TABLES = (
     "notice_observation", "order_plan", "order_plan_observation",
     *OPPORTUNITY_TABLES,
+    *COLLECTION_INDEX_TABLES,
 )
 
 

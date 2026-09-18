@@ -9,7 +9,12 @@ import {
 } from "./api-mock";
 import { mkdir, writeFile } from "node:fs/promises";
 import { nextActionOf } from "../src/lib/preSpecNextAction";
-import type { PreSpecListItem } from "../src/lib/types";
+import type {
+  OpportunityDetailResponse,
+  OpportunityLinkView,
+  PreSpecListItem,
+  PreSpecOrderPlanCandidatesResponse,
+} from "../src/lib/types";
 
 const FIXED_TIME = new Date("2026-08-31T09:00:00+09:00");
 
@@ -1264,4 +1269,291 @@ test('수집된 원문 URL을 새 탭으로 열고 추적 저장 실패 시 입�
   await expect(page.getByRole('textbox', { name: '담당자 이름 (필수)' })).toHaveValue('김기획');
   await expect(page.getByRole('button', { name: '다시 저장', exact: true })).toBeInViewport();
   await captureRecord(page, 'save-error-1440');
+});
+
+// ---------------------------------------------------------------------------
+// 발주계획 후보 구역 (docs/0917_opportunity-tracking/spec.md §4.4·§11.4)
+
+function planCandidateLink(id: number, overrides: Partial<OpportunityLinkView> = {}): OpportunityLinkView {
+  return {
+    id,
+    stage: "notice",
+    link_type: "candidate",
+    status: "후보 확인 대기",
+    search_strategy: "full",
+    attempted_strategies: ["full"],
+    agency_match: true,
+    last_searched_at: "2026-08-31T00:00:00Z",
+    evidence_external_no: null,
+    evidence_bid_no: null,
+    human_decision: null,
+    reviewer_name: null,
+    reviewed_at: null,
+    review_reason: null,
+    record_type: "notice",
+    record_id: 992,
+    notice_id: 992,
+    order_plan_id: null,
+    source_type: "pre_spec",
+    title: newPreSpec.title,
+    agency: newPreSpec.agency,
+    external_id: newPreSpec.pre_spec_no,
+    record_external_id: newPreSpec.pre_spec_no,
+    ...overrides,
+  };
+}
+
+const planCandidates: PreSpecOrderPlanCandidatesResponse = {
+  notice_pk: 992,
+  items: [
+    {
+      link: planCandidateLink(9001),
+      opportunity_id: 301,
+      tracking_status: "미선택",
+      order_plans: [{
+        order_plan_id: 5101,
+        order_plan_unty_no: "R26DD00001001",
+        title: "신규 행정 서비스 통합 구축",
+        agency_name: "신규 발주기관",
+        planned_order_year: "2026",
+        // 수집 값이 연월이면 같은 연도를 두 번 적지 않는다.
+        planned_order_month: "2026-10",
+        budget_amount: 1_200_000_000,
+      }],
+    },
+    {
+      link: planCandidateLink(9002, {
+        search_strategy: "longest_fragment",
+        attempted_strategies: ["full", "breaking_split", "normalized", "longest_fragment"],
+        agency_match: false,
+      }),
+      opportunity_id: 302,
+      tracking_status: "계속 추적",
+      order_plans: [{
+        order_plan_id: 5102,
+        order_plan_unty_no: "R26DD00001002",
+        title: "행정 서비스 고도화 사업",
+        agency_name: "다른 발주기관",
+        planned_order_year: null,
+        planned_order_month: null,
+        budget_amount: null,
+      }],
+    },
+  ],
+};
+
+function planCandidateOwner(id: number): OpportunityDetailResponse {
+  return {
+    section: "조치 필요",
+    pending_candidate_link_count: 1,
+    open_blocking_item_count: 0,
+    id,
+    tracking_status: "미선택",
+    tracking_reason: null,
+    tracking_selected_by: null,
+    tracking_selected_at: null,
+    recheck_signal: false,
+    recheck_signal_at: null,
+    recheck_signal_link_id: null,
+    first_registered_stage: "order_plan",
+    action_reasons: ["candidate_pending"],
+    hold_review_due_at: null,
+    links: [
+      planCandidateLink(8001, {
+        stage: "order_plan",
+        link_type: "official",
+        status: "확정",
+        search_strategy: null,
+        attempted_strategies: [],
+        agency_match: null,
+        last_searched_at: null,
+        record_type: "order_plan",
+        record_id: 5101,
+        notice_id: null,
+        order_plan_id: 5101,
+        source_type: null,
+        title: "신규 행정 서비스 통합 구축",
+        agency: "신규 발주기관",
+        external_id: "R26DD00001001",
+        record_external_id: "R26DD00001001",
+      }),
+      planCandidateLink(9001),
+    ],
+  };
+}
+
+interface PlanCandidateTrace {
+  candidateGets: number;
+  ownerGets: number[];
+  decisions: Array<{ linkId: number; body: unknown; headers: Record<string, string> }>;
+}
+
+async function mockPlanCandidates(
+  page: Page,
+  decision: { status: number; body: unknown } = { status: 200, body: planCandidateLink(9001, { status: "사람 확인 병합", human_decision: "accepted" }) },
+): Promise<PlanCandidateTrace> {
+  const trace: PlanCandidateTrace = { candidateGets: 0, ownerGets: [], decisions: [] };
+  await page.route("**/api/pre-specs/992/order-plan-candidates", async (route) => {
+    trace.candidateGets += 1;
+    const decided = trace.decisions.length > 0 && decision.status === 200;
+    await route.fulfill({ json: decided ? { notice_pk: 992, items: [] } : planCandidates });
+  });
+  await page.route("**/api/opportunities/{301,302}", async (route) => {
+    if (route.request().method() !== "GET") { await route.fallback(); return; }
+    const id = Number(new URL(route.request().url()).pathname.split("/").at(-1));
+    trace.ownerGets.push(id);
+    await route.fulfill({ json: planCandidateOwner(id) });
+  });
+  await page.route("**/api/opportunities/links/*/decision", async (route) => {
+    const request = route.request();
+    if (request.method() !== "PATCH") { await route.fallback(); return; }
+    trace.decisions.push({
+      linkId: Number(new URL(request.url()).pathname.split("/").at(-2)),
+      body: request.postDataJSON(),
+      headers: request.headers(),
+    });
+    await route.fulfill({ status: decision.status, json: decision.body });
+  });
+  return trace;
+}
+
+async function acceptPlanCandidate(page: Page, title: string) {
+  const section = page.locator("#ps-record-plan-candidates");
+  await section.getByRole("listitem").filter({ hasText: title }).getByRole("button", { name: "확인", exact: true }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByRole("combobox", { name: "판단 사유" }).click();
+  await page.getByRole("option", { name: "원천 정보를 비교해 같은 사업임을 확인" }).click();
+  await dialog.getByLabel("결정 기록자").fill("홍길동");
+  await dialog.getByRole("button", { name: "같은 사업으로 연결" }).click();
+  return dialog;
+}
+
+test("발주계획 후보는 요약·대조 방식·기관 일치를 보여 주고 수용하면 결정을 보내 다시 읽는다", async ({ page }) => {
+  const trace = await mockPreSpecs(page);
+  const candidates = await mockPlanCandidates(page);
+  await page.goto("/pre-specs/992");
+
+  const section = page.locator("#ps-record-plan-candidates");
+  // 6단 구조를 늘리지 않고 ⑥ 처리 이력 카드 안에 있다.
+  await expect(page.locator("#ps-process #ps-record-plan-candidates")).toHaveCount(1);
+  await expect(section.getByRole("heading", { name: "발주계획 후보 2건" })).toBeVisible();
+  await expect(section).toContainText("공고명과 기관이 비슷한 발주계획입니다. 같은 사업인지 사람이 확인해야 연결됩니다.");
+
+  const first = section.getByRole("listitem").filter({ hasText: "신규 행정 서비스 통합 구축" });
+  await expect(first).toContainText("신규 발주기관 · 발주 예정 2026년 10월 · 예산 1,200,000,000원 · 통합번호 R26DD00001001");
+  // 대조 방식 이름은 사업 추적 화면과 같은 이름표(`trackingFlow.searchStrategyLabel`)다.
+  await expect(first).toContainText("대조 방식 · 전체 이름 일치");
+  await expect(first).toContainText("기관 일치");
+  await expect(first).not.toContainText("기관 불일치");
+  await expect(first).toContainText("후보 사업기회 추적 · 미선택");
+  await expect(first.getByRole("link", { name: "사업기회 #301 →" })).toHaveAttribute("href", "/opportunities/301");
+
+  // null 예정 시기·예산은 0이나 없음으로 접지 않는다.
+  const second = section.getByRole("listitem").filter({ hasText: "행정 서비스 고도화 사업" });
+  await expect(second).toContainText("다른 발주기관 · 발주 예정 미확인 · 예산 값 없음");
+  await expect(second).toContainText("대조 방식 · 가장 긴 조각 일치");
+  await expect(second).toContainText("기관 불일치");
+  await expect(second).toContainText("후보 사업기회 추적 · 계속 추적");
+
+  const detailQueriesBefore = trace.listQueries.filter((query) => query.get("notice_pk") === "992").length;
+  const dialog = await acceptPlanCandidate(page, "신규 행정 서비스 통합 구축");
+
+  await expect.poll(() => candidates.decisions.length).toBe(1);
+  expect(candidates.ownerGets).toEqual([301]);
+  expect(candidates.decisions[0].linkId).toBe(9001);
+  expect(candidates.decisions[0].body).toEqual({ decision: "accepted", reason: "원천 정보를 비교해 같은 사업임을 확인" });
+  expect(candidates.decisions[0].headers["x-bidops-actor-name"]).toBe("UTF-8''%ED%99%8D%EA%B8%B8%EB%8F%99");
+  await expect(dialog).toHaveCount(0);
+  // 결정 응답이 `사람 확인 병합`이므로 수용은 두 사업기회의 병합으로 알린다(CandidateLinkDialog).
+  await expect(page.getByText("후보를 수용해 두 사업기회를 병합했습니다(사람 확인 병합).", { exact: true })).toBeVisible();
+  await expect(section.getByText("발주계획 후보 없음 (자동 대조는 SW사업대상 사전규격에서만 합니다)", { exact: true })).toBeVisible();
+  await expect(section.getByRole("listitem")).toHaveCount(0);
+  expect(candidates.candidateGets).toBeGreaterThanOrEqual(2);
+  await expect.poll(() => trace.listQueries.filter((query) => query.get("notice_pk") === "992").length).toBeGreaterThan(detailQueriesBefore);
+});
+
+test("발주계획 후보 수용이 병합 충돌이면 대화상자 안에서만 양쪽 상태를 한 번 안내하고 후보를 남긴다", async ({ page }) => {
+  await mockPreSpecs(page);
+  const candidates = await mockPlanCandidates(page, {
+    status: 409,
+    body: {
+      error: {
+        code: "candidate_merge_state_conflict",
+        message: "두 사업기회 모두 사람 추적 선택 또는 재검토 신호가 있어 병합할 수 없습니다",
+        details: {
+          opportunities: [
+            { id: 301, tracking_status: "계속 추적", tracking_selected_by: "김기획", tracking_selected_at: "2026-09-01T00:00:00Z", recheck_signal: false },
+            { id: 78, tracking_status: "보류", tracking_selected_by: null, tracking_selected_at: null, recheck_signal: true },
+          ],
+        },
+      },
+      request_id: null,
+    },
+  });
+  await page.goto("/pre-specs/992");
+
+  const dialog = await acceptPlanCandidate(page, "신규 행정 서비스 통합 구축");
+  const conflict = dialog.locator(".opportunity-merge-conflict");
+  await expect(conflict).toContainText("양쪽 모두 사람이 고른 추적 상태가 있어 병합할 수 없습니다. 한쪽의 추적 결정을 먼저 정리하세요.");
+  const states = conflict.getByRole("list", { name: "병합 대상 사업기회의 추적 상태" }).getByRole("listitem");
+  await expect(states).toHaveCount(2);
+  await expect(states.nth(0)).toContainText("사업 #301 · 계속 추적");
+  await expect(states.nth(0)).toContainText("선택자 · 김기획");
+  await expect(states.nth(0)).toContainText("재검토 신호 · 없음");
+  // 값이 없는 선택자·선택 시각은 미확인으로 남기고 지어내지 않는다.
+  await expect(states.nth(1)).toContainText("사업 #078 · 보류");
+  await expect(states.nth(1)).toContainText("선택자 · 미확인 · 선택 시각 · 미확인");
+  await expect(states.nth(1)).toContainText("재검토 신호 · 있음");
+  await expect(conflict).toContainText("연결 상태는 바뀌지 않았습니다");
+  await expect(dialog.getByLabel("결정 기록자")).toHaveValue("홍길동");
+  // 안내는 대화상자 안에 한 번만 있다. 사전규격 구역이 같은 안내를 다시 그리지 않는다.
+  const guidance = page.getByText("양쪽 모두 사람이 고른 추적 상태가 있어 병합할 수 없습니다", { exact: false });
+  await expect(guidance).toHaveCount(1);
+
+  await dialog.getByRole("button", { name: "취소", exact: true }).click();
+  await dialog.getByRole("button", { name: "입력 버리고 닫기", exact: true }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+
+  // 대화상자를 닫으면 안내도 사라진다. 구역에 병합 충돌 알림이 따로 남지 않는다.
+  const section = page.locator("#ps-record-plan-candidates");
+  await expect(guidance).toHaveCount(0);
+  await expect(section.getByRole("alert")).toHaveCount(0);
+  // 연결되지 않았으므로 후보는 그대로 남는다.
+  await expect(section.getByRole("heading", { name: "발주계획 후보 2건" })).toBeVisible();
+  expect(candidates.decisions).toHaveLength(1);
+});
+
+test("발주계획 후보가 없으면 없음으로 단정하지 않는 한 줄 안내만 남긴다", async ({ page }) => {
+  await mockPreSpecs(page);
+  await page.goto("/pre-specs/992");
+
+  const section = page.locator("#ps-record-plan-candidates");
+  await expect(section).toHaveText("발주계획 후보 없음 (자동 대조는 SW사업대상 사전규격에서만 합니다)");
+  await expect(section.getByRole("heading")).toHaveCount(0);
+  await expect(section.getByRole("button")).toHaveCount(0);
+  await expect(page.getByText("발주계획 없음", { exact: true })).toHaveCount(0);
+});
+
+test("발주계획 후보 조회가 실패하면 후보 없음 대신 오류를 말하고 다시 시도로 읽는다", async ({ page }) => {
+  await mockPreSpecs(page);
+  let failing = true;
+  await page.route("**/api/pre-specs/992/order-plan-candidates", async (route) => {
+    if (failing) {
+      await route.fulfill({ status: 503, json: { error: { code: "service_unavailable", message: "unavailable", details: null }, request_id: null } });
+      return;
+    }
+    await route.fulfill({ json: planCandidates });
+  });
+  await page.goto("/pre-specs/992");
+
+  const section = page.locator("#ps-record-plan-candidates");
+  const alert = section.getByRole("alert");
+  await expect(alert).toContainText("발주계획 후보를 불러오지 못했습니다.");
+  await expect(alert).toContainText("후보가 없다는 뜻이 아닙니다.");
+  await expect(section).not.toContainText("발주계획 후보 없음");
+
+  failing = false;
+  await section.getByRole("button", { name: "다시 시도", exact: true }).click();
+  await expect(section.getByRole("heading", { name: "발주계획 후보 2건" })).toBeVisible();
+  await expect(section.getByRole("alert")).toHaveCount(0);
 });

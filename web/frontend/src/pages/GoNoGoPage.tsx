@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQueries, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@astryxdesign/core/Button";
 import { Dialog, DialogHeader } from "@astryxdesign/core/Dialog";
@@ -32,13 +32,14 @@ import {
 } from "../components/common/WorkspaceFilters";
 import { getBidDelta, getBidDeltaComparison } from "../components/bid-delta/api";
 import {
+  BASIS_LABELS,
   CATEGORY_LABELS,
   countDeltaItems,
   decisionRelevantItems,
   defaultComparison,
+  decisionBasisDetail,
   itemKindLabel,
   evidenceLocationLabel,
-  SHORT_CALCULATION_LABELS,
   formatMoment,
   shortHash,
 } from "../components/bid-delta/labels";
@@ -51,7 +52,7 @@ import type {
 } from "../components/bid-delta/types";
 import { api } from "../lib/api";
 import { apiErrorRecoveryAction, describeApiError } from "../lib/apiErrors";
-import type { OpportunityListItem } from "../lib/types";
+import type { BidDeltaDecisionQueueItem } from "../lib/types";
 import "../styles/go-no-go.css";
 
 // docs/design/PLAN.md 2단계 · ADR-0041 결정 3: 최종 Go/No-Go를 최상위 메뉴로
@@ -67,9 +68,9 @@ import "../styles/go-no-go.css";
 // BidDeltaDecisionPage에서만 한다(시안도 목록에서 저장하지 않는다). 적합성 등급·
 // 참여 준비 상태·심층 추적 승인을 이 화면에서 대신 채우지 않는다(ADR-0041 결정 5).
 //
-// 서버에 결정 목록·집계 endpoint가 없다(routers/bid_delta.py는 사업기회 하나의
-// workspace만 준다). 추적 중인 사업기회를 페이지 단위로 받고 **화면에 있는 행만**
-// 결정 상태를 조회한다. 조회 전 상태를 "결정 없음"으로 단정하지 않는다.
+// 목록은 서버의 결정 대기열(`GET /api/bid-delta/decision-queue`) 한 번으로 그린다
+// (spec §11.3). 행의 마지막 결정·현재성·재확인 신호는 그 응답이 준 값이고, 행마다
+// workspace를 조회하지 않는다. 선택한 사업 하나의 비교·결정 상세만 따로 받는다.
 
 /** 시안의 네 보기. `review`가 기본이고 URL의 `show`와 동기화한다. */
 type DecisionView = "review" | "recheck" | "decided" | "all";
@@ -89,10 +90,10 @@ const DETAIL_TABS: Array<{ key: DetailTab; label: string }> = [
   { key: "decision", label: "결정 기록" },
 ];
 
-// 한 화면이 사업기회 100건을 받고 **행마다** workspace를 하나씩 조회했다 —
-// 최대 101 요청이다. 서버에 결정 목록 엔드포인트가 없다는 사실은 그대로지만,
-// 한 번에 보는 만큼만 받으면 행 조회도 그만큼으로 줄어든다.
-const PAGE_SIZE = 25;
+// 결정 대기열이 한 번에 줄 수 있는 최대 건수(서버 `limit` 상한 500). 계속 추적 중인
+// 사업은 대개 이보다 적어 보기 건수가 전체 기준이 된다. 넘치면 받은 범위 기준이라고
+// 화면이 직접 밝히고 페이저로 나머지를 받는다.
+const PAGE_SIZE = 500;
 
 function readOffset(raw: string | null): number {
   const parsed = Number(raw);
@@ -105,52 +106,38 @@ function readView(raw: string | null): DecisionView {
 
 /** 사람이 아는 이름으로 행을 연다. 식별자만 있는 행은 담당자가 무슨 사업인지
  * 알 수 없어 결국 하나씩 열어 봐야 한다(`GoNoGo` 아트보드). */
-function opportunityTitle(item: OpportunityListItem): string {
-  const named = item.links.find((link) => link.title && link.title.trim());
-  return named?.title?.trim() ?? "제목 미확인";
+function opportunityTitle(item: BidDeltaDecisionQueueItem): string {
+  return item.title?.trim() || "제목 미확인";
 }
 
-function opportunityAgency(item: OpportunityListItem): string {
-  return item.links.find((link) => link.agency && link.agency.trim())?.agency?.trim() ?? "발주기관 미확인";
+function opportunityAgency(item: BidDeltaDecisionQueueItem): string {
+  return item.agency?.trim() || "발주기관 미확인";
 }
 
 interface DecisionRow extends Record<string, unknown> {
-  opportunity: OpportunityListItem;
-  workspace: BidDeltaWorkspaceView | undefined;
-  isPending: boolean;
-  isError: boolean;
+  item: BidDeltaDecisionQueueItem;
   id: number;
-  /** 이 행의 결정 상태(workspace) 조회만 다시 부른다. */
-  refetchWorkspace: () => void;
-}
-
-/** 조회가 끝났고 workspace를 받은 행만 결정 상태를 말할 수 있다. */
-function isLoaded(row: DecisionRow): boolean {
-  return !row.isPending && !row.isError && Boolean(row.workspace);
 }
 
 /**
  * 기본 검토 대상.
  *
- * 미결정만 남기면 **오래된 Go 결정**이 목록에서 사라진다. 새 정정공고로 현재성이
+ * 미결정만 남기면 **오래된 Go 결정**이 목록에서 사라진다. 새 차수로 현재성이
  * `stale`이 된 결정과 현재성 `unknown`은 담당자가 다시 봐야 하는 것이지 끝난 것이
- * 아니다. 조회 중·조회 실패도 어느 쪽으로도 단정하지 않고 남긴다.
+ * 아니다. 결정이 없어도 입찰공고가 연결되지 않은 사업은 결정할 공고가 없으므로
+ * 검토 대상에 올리지 않고 전체 보기에 남긴다.
  */
 function isReviewTarget(row: DecisionRow): boolean {
-  if (!isLoaded(row)) return true;
-  const workspace = row.workspace as BidDeltaWorkspaceView;
-  if (!workspace.latest_final_decision) return true;
-  return workspace.decision_currentness !== "current";
+  if (!row.item.latest_final_decision) return row.item.bid_notice_external_id !== null;
+  return row.item.decision_currentness !== "current";
 }
 
 function isRecheckTarget(row: DecisionRow): boolean {
-  if (!isLoaded(row)) return false;
-  const workspace = row.workspace as BidDeltaWorkspaceView;
-  return Boolean(workspace.latest_final_decision) && workspace.decision_currentness !== "current";
+  return Boolean(row.item.latest_final_decision) && row.item.decision_currentness !== "current";
 }
 
 function hasDecisionRecord(row: DecisionRow): boolean {
-  return isLoaded(row) && Boolean((row.workspace as BidDeltaWorkspaceView).latest_final_decision);
+  return Boolean(row.item.latest_final_decision);
 }
 
 function matchesView(row: DecisionRow, view: DecisionView): boolean {
@@ -160,39 +147,30 @@ function matchesView(row: DecisionRow, view: DecisionView): boolean {
   return hasDecisionRecord(row);
 }
 
-/** 사람 결정 한 줄. 조회 전·실패를 미결정으로 바꾸지 않는다. */
-function decisionStateLabel(row: DecisionRow): string {
-  if (row.isPending) return "조회 중";
-  if (row.isError) return "조회 실패";
-  const workspace = row.workspace;
-  if (!workspace) return "결정 상태 unknown";
-  const decision = workspace.latest_final_decision;
+/** 사람 결정 한 줄. 서버 대기열이 준 마지막 결정과 현재성만 옮긴다. */
+function decisionStateLabel(item: BidDeltaDecisionQueueItem): string {
+  const decision = item.latest_final_decision;
   if (!decision) return "미결정";
   const value = decision.decision === "go" ? "Go" : "No-Go";
-  if (workspace.decision_currentness === "stale") return `${value} · 재검토`;
-  if (workspace.decision_currentness === "unknown") return `${value} · 효력 미확인`;
+  if (item.decision_currentness === "stale") return `${value} · 재검토`;
+  if (item.decision_currentness === "unknown") return `${value} · 효력 미확인`;
   return value;
 }
 
-function decisionSubLabel(row: DecisionRow): string | null {
-  if (!isLoaded(row)) return null;
-  const workspace = row.workspace as BidDeltaWorkspaceView;
+function decisionSubLabel(item: BidDeltaDecisionQueueItem): string {
   // 결정이 없으면 현재성은 말할 것이 없다. 기록 없음에 `현재성 미확인`을 덧붙이면
   // 없는 결정이 확인 대기 중인 것처럼 읽힌다.
-  if (!workspace.latest_final_decision) return "기록 없음";
-  if (workspace.decision_currentness === "stale") return "재계산·재검토 필요";
-  if (workspace.decision_currentness === "unknown") return "현재성 미확인";
+  if (!item.latest_final_decision) return item.bid_notice_external_id ? "기록 없음" : "입찰공고 미연결";
+  if (item.decision_currentness === "stale") return "재검토 필요";
+  if (item.decision_currentness === "unknown") return "현재성 미확인";
   return "기록 있음";
 }
 
-/** 비교 계산 상태 한 낱말. 비교가 0건인 것은 값이고 조회 전은 미확인이다. */
-function comparisonStateLabel(row: DecisionRow): string {
-  if (!isLoaded(row)) return "비교 상태 미확인";
-  const active = defaultComparison((row.workspace as BidDeltaWorkspaceView).comparisons);
+/** 비교 건수 한 낱말. 비교가 0건인 것은 값이다. 계산 상태는 선택한 사업의 상세가 말한다. */
+function comparisonCountLabel(item: BidDeltaDecisionQueueItem): string {
   // 비교 0건을 `비교 0건`으로 눌러 담으면 "아직 안 봤다"와 "봤는데 비교할 것이
   // 없다"가 같은 자리에서 사라진다(PLAN 단계 E 작업 5).
-  if (!active) return "변경 비교 결과 없음";
-  return SHORT_CALCULATION_LABELS[active.calculation_status];
+  return item.comparison_count === 0 ? "변경 비교 결과 없음" : `변경 비교 ${item.comparison_count}건`;
 }
 
 function EvidenceSide({
@@ -232,56 +210,44 @@ export function GoNoGoPage() {
   const [dialog, setDialog] = useState<"data" | "evidence" | null>(null);
   const [evidenceItem, setEvidenceItem] = useState<BidDeltaItemView | null>(null);
 
-  // 최종 Go/No-Go까지 가는 것은 계속 추적하기로 한 사업기회다. 보류·종료·미선택을
-  // 결정 검토 대상으로 끌어올리지 않는다.
-  const opportunitiesQuery = useQuery({
-    queryKey: ["opportunities", "tracking", "계속 추적", offset],
-    queryFn: ({ signal }) => api.getOpportunities(
-      { tracking_status: "계속 추적", limit: PAGE_SIZE, offset },
-      { signal },
-    ),
+  // 최종 Go/No-Go까지 가는 것은 계속 추적하기로 한 사업기회다. 서버의 결정 대기열
+  // `status=all`이 그 모집단(계속 추적)을 준다. 보기 탭은 받은 행의 결정 필드로 나눈다.
+  const queueQuery = useQuery({
+    queryKey: ["bid-delta-decision-queue", "all", offset],
+    queryFn: ({ signal }) => api.getBidDeltaDecisionQueue({ status: "all", limit: PAGE_SIZE, offset }, { signal }),
     staleTime: 30_000,
   });
-  const opportunities = opportunitiesQuery.data?.items ?? [];
-  const total = opportunitiesQuery.data?.total ?? opportunities.length;
+  const queueItems = queueQuery.data?.items ?? [];
+  const total = queueQuery.data?.total ?? queueItems.length;
+  // 받은 범위가 전체인지. 넘치면 보기 건수와 검색은 받은 범위 기준이라고 밝힌다.
+  const receivedAll = offset === 0 && queueItems.length >= total;
   const returnSearch = searchParams.toString();
 
-  const workspaceQueries = useQueries({
-    queries: opportunities.map((item) => ({
-      queryKey: ["bid-delta", item.id],
-      queryFn: () => getBidDelta(item.id),
-      staleTime: 30_000,
-    })),
-  });
+  const rows: DecisionRow[] = queueItems.map((item) => ({ id: item.opportunity_id, item }));
 
-  const rows: DecisionRow[] = opportunities.map((opportunity, index) => ({
-    id: opportunity.id,
-    opportunity,
-    workspace: workspaceQueries[index]?.data,
-    isPending: workspaceQueries[index]?.isPending ?? true,
-    isError: workspaceQueries[index]?.isError ?? false,
-    // 실패한 것은 이 행의 결정 상태 조회다. 사업기회 목록을 다시 받아도 실패한
-    // workspace 조회는 그대로 실패로 남는다 — 실패한 그 조회를 다시 부른다.
-    refetchWorkspace: () => { void workspaceQueries[index]?.refetch(); },
-  }));
-
-  // 검색은 서버 인자가 없어 **받은 페이지 안에서만** 좁히는 브라우저 쪽 필터다.
-  // 그 사실은 필터 줄이 직접 말한다(web/frontend/AGENTS.md 검토 흐름).
   const trimmedQuery = query.trim();
   const scope = trimmedQuery
-    ? rows.filter((row) => `${opportunityTitle(row.opportunity)} ${opportunityAgency(row.opportunity)}`.includes(trimmedQuery))
+    ? rows.filter((row) => `${opportunityTitle(row.item)} ${opportunityAgency(row.item)}`.includes(trimmedQuery))
     : rows;
   const visibleRows = scope.filter((row) => matchesView(row, view));
 
   const selectedRow = visibleRows.find((row) => row.id === selectedParam) ?? visibleRows[0];
-  const selectedWorkspace = selectedRow?.workspace;
+
+  // 선택한 사업 **하나의** 비교·결정 상세만 받는다. 목록의 행마다 조회하지 않는다.
+  const workspaceQuery = useQuery<BidDeltaWorkspaceView>({
+    queryKey: ["bid-delta", selectedRow?.id ?? 0],
+    queryFn: () => getBidDelta(selectedRow?.id as number),
+    enabled: Boolean(selectedRow),
+    staleTime: 30_000,
+  });
+  const selectedWorkspace = selectedRow ? workspaceQuery.data : undefined;
+  const workspaceLoaded = Boolean(selectedWorkspace);
   const comparisons: BidDeltaComparisonSummary[] = selectedWorkspace?.comparisons ?? [];
   const comparisonParam = searchParams.get("comparison");
   const activeComparison = comparisons.find((item) => item.id === comparisonParam)
     ?? defaultComparison(comparisons);
 
-  // 선택한 사업기회의 **선택한 비교 하나만** 상세를 받는다. 목록의 모든 행에 대해
-  // 상세 보고서를 미리 받지 않는다.
+  // 선택한 사업기회의 **선택한 비교 하나만** 상세를 받는다.
   const comparisonQuery = useQuery<BidDeltaComparisonView>({
     queryKey: ["bid-delta-comparison", selectedRow?.id ?? 0, activeComparison?.id ?? ""],
     queryFn: () => getBidDeltaComparison(selectedRow?.id as number, activeComparison?.id as string),
@@ -294,10 +260,11 @@ export function GoNoGoPage() {
     : null;
   const relevantItems = comparisonView ? decisionRelevantItems(comparisonView.items) : [];
   const latestDecision = selectedWorkspace?.latest_final_decision ?? null;
-  const currentness = selectedWorkspace?.decision_currentness ?? "unknown";
-  // 저장 전제조건은 결정 화면의 규칙 그대로다(계산 완료 · 결과가 분석 실패가 아님).
-  // 여기서 느슨하게 만들지 않고 같은 문장으로만 안내한다.
-  const canRecordDecision = Boolean(
+  const selectedItem = selectedRow?.item ?? null;
+  const currentness = selectedItem?.decision_currentness ?? "unknown";
+  // 결정 화면의 근거 규칙 그대로다: 완료된 비교(분석 실패 아님)가 있으면 그 결과로,
+  // 없으면 연결된 최신 입찰공고의 조건으로 기록한다. 여기서 저장하지 않는다.
+  const comparisonBasisReady = Boolean(
     comparisonView
     && comparisonView.calculation_status === "completed"
     && comparisonView.result_status !== "failed",
@@ -313,9 +280,8 @@ export function GoNoGoPage() {
   }
 
   function setView(next: DecisionView) {
-    // 보는 범위가 달라진다. 옛 페이지 위치와 옛 선택을 그대로 두면 빈 페이지가
-    // 열리거나 목록에 없는 행의 상세가 남는다.
-    patchParams({ show: next === "review" ? null : next, offset: null, selected: null, comparison: null });
+    // 보는 범위가 달라진다. 옛 선택을 그대로 두면 목록에 없는 행의 상세가 남는다.
+    patchParams({ show: next === "review" ? null : next, selected: null, comparison: null });
     setTab("summary");
   }
 
@@ -341,8 +307,8 @@ export function GoNoGoPage() {
     navigate({ pathname: `/opportunities/${selectedRow.id}/bid-delta`, search: search.toString() });
   }
 
-  const opportunitiesProblem = opportunitiesQuery.error
-    ? describeApiError(opportunitiesQuery.error, "추적 중인 사업기회 목록을 확인할 수 없습니다.")
+  const queueProblem = queueQuery.error
+    ? describeApiError(queueQuery.error, "최종 결정 대기열을 확인할 수 없습니다.")
     : null;
 
   const columns = [
@@ -357,10 +323,10 @@ export function GoNoGoPage() {
           aria-pressed={selectedRow?.id === row.id}
           onClick={() => selectRow(row.id)}
         >
-          <Text className="gng-row-title" as="span">{opportunityTitle(row.opportunity)}</Text>
-          <Text className="gng-row-agency" as="span">{opportunityAgency(row.opportunity)}</Text>
+          <Text className="gng-row-title" as="span">{opportunityTitle(row.item)}</Text>
+          <Text className="gng-row-agency" as="span">{opportunityAgency(row.item)}</Text>
           <Text className="gng-caption" type="supporting" color="secondary" as="span">
-            {comparisonStateLabel(row)} · 사업기회 {row.id}
+            {comparisonCountLabel(row.item)} · 사업기회 {row.id}
           </Text>
         </button>
       ),
@@ -371,10 +337,8 @@ export function GoNoGoPage() {
       width: pixel(112),
       renderCell: (row: DecisionRow) => (
         <div className="gng-decision-cell">
-          <Text className="gng-decision-state" as="span">{decisionStateLabel(row)}</Text>
-          {decisionSubLabel(row) ? (
-            <Text className="gng-caption" type="supporting" color="secondary" as="span">{decisionSubLabel(row)}</Text>
-          ) : null}
+          <Text className="gng-decision-state" as="span">{decisionStateLabel(row.item)}</Text>
+          <Text className="gng-caption" type="supporting" color="secondary" as="span">{decisionSubLabel(row.item)}</Text>
         </div>
       ),
     },
@@ -384,33 +348,41 @@ export function GoNoGoPage() {
     <div className="gng-availability">
       <Clock aria-hidden="true" />
       <Heading level={3}>
-        {selectedRow.isPending ? "결정 상태를 확인하고 있습니다"
-          : selectedRow.isError ? "결정 상태를 불러오지 못했습니다"
+        {workspaceQuery.isError ? "비교·결정 상세를 불러오지 못했습니다"
+          : !workspaceLoaded ? "비교·결정 상세를 확인하고 있습니다"
             : !activeComparison ? "변경 비교 결과가 아직 없습니다"
               : comparisonQuery.isError ? "비교 상세를 불러오지 못했습니다"
                 : "비교 상세를 불러오는 중입니다"}
       </Heading>
       <Text as="p">
-        {!isLoaded(selectedRow)
-          ? "조회가 끝나기 전에는 미결정 또는 변경 없음으로 표시하지 않습니다."
+        {!workspaceLoaded
+          ? "조회가 끝나기 전에는 변경 없음으로 표시하지 않습니다. 사람 결정은 목록의 대기열 값 그대로입니다."
           : !activeComparison
-            ? "비교할 사전규격과 입찰공고 문서를 사람이 고른 뒤 비교를 시작해야 합니다. 비교가 없다는 것은 변경이 없다는 뜻이 아닙니다."
+            ? "변경 비교를 계산하는 프로그램이 아직 없어 비교를 만들지 않습니다. 비교가 없다는 것은 변경이 없다는 뜻이 아닙니다."
             : comparisonQuery.isError
               ? "조회 실패를 변경 없음으로 해석하지 않습니다."
               : "결과가 나올 때까지 중요 변경과 확인 필요 건수는 미확인으로 남습니다."}
       </Text>
-      {selectedRow.isError || comparisonQuery.isError ? (
+      {workspaceQuery.isError || comparisonQuery.isError ? (
         <Button
           label="다시 조회"
           size="sm"
           onClick={() => {
-            if (selectedRow.isError) selectedRow.refetchWorkspace();
+            if (workspaceQuery.isError) void workspaceQuery.refetch();
             if (comparisonQuery.isError) void comparisonQuery.refetch();
           }}
         />
       ) : null}
     </div>
   ) : null;
+
+  const footerAction = !selectedItem
+    ? null
+    : comparisonBasisReady
+      ? { label: "변경 검토·결정 열기", note: "검토 결과를 확인한 뒤 사람이 Go 또는 No-Go를 선택합니다. 이 목록에서는 저장하지 않습니다." }
+      : selectedItem.bid_notice_external_id
+        ? { label: "공고 조건 검토·결정 열기", note: "완료된 변경 비교가 없어 결정 화면에서 최신 입찰공고 조건을 근거로 기록합니다. 이 목록에서는 저장하지 않습니다." }
+        : { label: "결정 화면 열기", note: "연결된 입찰공고가 없어 최종 결정을 기록할 수 없습니다. 결정 화면에서 공고 연결 상태를 확인합니다." };
 
   return (
     <section aria-labelledby="go-no-go-title" className="gng-page" data-astryx-theme="bidops">
@@ -424,29 +396,29 @@ export function GoNoGoPage() {
         </div>
       </PageHeaderActions>
 
-      {opportunitiesQuery.isError ? (
+      {queueQuery.isError ? (
         <EmptyState
           compact
           tone="error"
-          title="추적 중인 사업기회를 불러오지 못했습니다."
+          title="최종 결정 대기열을 불러오지 못했습니다."
           description="조회 실패를 결정 대기 없음으로 해석하지 않습니다."
-          problem={opportunitiesProblem ?? undefined}
-          action={opportunitiesProblem
-            ? apiErrorRecoveryAction(opportunitiesProblem, () => { void opportunitiesQuery.refetch(); })
+          problem={queueProblem ?? undefined}
+          action={queueProblem
+            ? apiErrorRecoveryAction(queueProblem, () => { void queueQuery.refetch(); })
             : undefined}
         />
       ) : null}
 
-      {opportunitiesQuery.isPending ? (
-        <SkeletonPanel label="추적 중인 사업기회를 불러오는 중" lines={5} />
+      {queueQuery.isPending ? (
+        <SkeletonPanel label="최종 결정 대기열을 불러오는 중" lines={5} />
       ) : null}
 
-      {!opportunitiesQuery.isPending && !opportunitiesQuery.isError ? (
+      {!queueQuery.isPending && !queueQuery.isError ? (
         <>
           <WorkspaceFrame>
             {/* 필터 골격은 4화면 공용(`components/common/WorkspaceFilters.tsx`)이다.
                 필터 집합·URL 파라미터·검색 적용 시점은 그대로 이 화면이 정한다:
-                목록은 이미 받아 둔 페이지이므로 검색은 Enter가 아니라 입력 즉시
+                대기열은 이미 받아 둔 목록이므로 검색은 Enter가 아니라 입력 즉시
                 좁히고, 상세 필터로 접을 축이 없어 토글을 두지 않는다(계획서 §2). */}
             <WorkspaceFilterBar aria-label="결정 검토 목록 필터">
               <WorkspaceFilterLine>
@@ -471,11 +443,13 @@ export function GoNoGoPage() {
               </WorkspaceFilterLine>
               <WorkspaceFilterContext className="gng-filter-context">
                 <Text className="gng-caption" type="supporting" color="secondary" as="p">
-                  계속 추적 중인 사업 · 미결정·재검토·조회 미확인 포함
-                  {trimmedQuery ? " · 검색은 받은 페이지 안에서만 좁힙니다" : ""}
+                  계속 추적 중인 사업 · 미결정·재검토 포함 · 입찰공고 미연결은 전체 보기에만
+                  {trimmedQuery && !receivedAll ? " · 검색은 받은 범위 안에서만 좁힙니다" : ""}
                 </Text>
                 <Text className="gng-caption" type="supporting" color="secondary" as="p">
-                  받은 {rows.length.toLocaleString("ko-KR")}건 기준
+                  {receivedAll
+                    ? `전체 ${total.toLocaleString("ko-KR")}건 기준`
+                    : `받은 ${rows.length.toLocaleString("ko-KR")}건 기준 · 전체 ${total.toLocaleString("ko-KR")}건`}
                 </Text>
               </WorkspaceFilterContext>
             </WorkspaceFilterBar>
@@ -502,24 +476,27 @@ export function GoNoGoPage() {
                       <Search aria-hidden="true" />
                       <Heading level={3}>조건에 맞는 사업이 없습니다</Heading>
                       <Text className="gng-caption" type="supporting" color="secondary" as="p">
-                        받은 페이지 안에 없을 뿐, 전체에 없다는 뜻은 아닙니다.
+                        {receivedAll
+                          ? "계속 추적 중인 사업 전체에서 찾았습니다. 보기나 검색어를 바꿔 보십시오."
+                          : "받은 범위 안에 없을 뿐, 전체에 없다는 뜻은 아닙니다."}
                       </Text>
                       <Button label="필터 초기화" size="sm" onClick={resetFilters} />
                     </div>
                   )}
                 </div>
                 <footer className="gng-list-foot">
-                  {/* 상단 요약은 받은 목록에서 센 값이다. 서버가 결정 상태를 집계하지
-                      않으므로 전체 총계로 읽으면 안 된다(docs/tracking/findings.md). */}
+                  {/* 보기 건수는 받은 대기열에서 센 값이다. 한 번에 다 받았으면 전체 기준이고,
+                      넘쳐서 나눠 받았으면 그 사실을 여기서 밝힌다. */}
                   <p className="gng-summary">
-                    받은 {rows.length.toLocaleString("ko-KR")}건 기준 · {visibleRows.length.toLocaleString("ko-KR")}건 표시 ·
-                    {" "}전체 총계가 아닙니다
+                    {receivedAll
+                      ? `전체 ${total.toLocaleString("ko-KR")}건 기준 · ${visibleRows.length.toLocaleString("ko-KR")}건 표시`
+                      : `받은 ${rows.length.toLocaleString("ko-KR")}건 기준 · ${visibleRows.length.toLocaleString("ko-KR")}건 표시 · 전체 ${total.toLocaleString("ko-KR")}건 중 일부입니다`}
                   </p>
-                  {/* 페이저는 이 페이지의 모든 행이 보기 조건에 걸러졌을 때도 남는다.
-                      다음 페이지로 갈 길까지 사라지면 "없다"와 "이 페이지에 없다"가
+                  {/* 페이저는 이 범위의 모든 행이 보기 조건에 걸러졌을 때도 남는다.
+                      다음 범위로 갈 길까지 사라지면 "없다"와 "이 범위에 없다"가
                       같아진다. */}
                   {total > PAGE_SIZE ? (
-                    <nav aria-label="사업기회 목록 페이지" className="gng-pager">
+                    <nav aria-label="결정 대기열 페이지" className="gng-pager">
                       <button
                         className="interaction-control"
                         type="button"
@@ -529,7 +506,7 @@ export function GoNoGoPage() {
                         이전
                       </button>
                       <Text className="gng-caption" type="supporting" color="secondary" as="span">
-                        {offset + 1}–{Math.min(offset + opportunities.length, total)} / {total}
+                        {offset + 1}–{Math.min(offset + queueItems.length, total)} / {total}
                       </Text>
                       <button
                         className="interaction-control"
@@ -545,21 +522,22 @@ export function GoNoGoPage() {
               </section>
 
               <section className="gng-detail-pane" aria-label="선택한 결정 검토 사업">
-                {selectedRow ? (
+                {selectedRow && selectedItem ? (
                   <>
                     <header className="gng-detail-head">
                       <div className="gng-agency">
                         <Building2 aria-hidden="true" />
                         <Text className="gng-caption" type="supporting" color="secondary" as="span">발주기관</Text>
-                        <Text className="gng-agency-name" as="span">{opportunityAgency(selectedRow.opportunity)}</Text>
+                        <Text className="gng-agency-name" as="span">{opportunityAgency(selectedItem)}</Text>
                       </div>
-                      <Heading level={2}>{opportunityTitle(selectedRow.opportunity)}</Heading>
+                      <Heading level={2}>{opportunityTitle(selectedItem)}</Heading>
                       <div className="gng-row-line gng-spread">
                         <Text className="gng-caption" type="supporting" color="secondary" as="p">
-                          사업기회 {selectedRow.id} · {selectedRow.opportunity.tracking_status}
-                          {selectedRow.opportunity.recheck_signal ? " · 재확인 신호 있음" : ""}
+                          사업기회 {selectedRow.id} · {selectedItem.tracking_status}
+                          {" · "}입찰공고 {selectedItem.bid_notice_external_id ?? "미연결"}
+                          {selectedItem.recheck_signal ? " · 재확인 신호 있음" : ""}
                         </Text>
-                        <Token size="sm" label={decisionStateLabel(selectedRow)} />
+                        <Token size="sm" label={decisionStateLabel(selectedItem)} />
                       </div>
                     </header>
 
@@ -578,15 +556,15 @@ export function GoNoGoPage() {
                     <div className="gng-detail-scroll">
                       {tab === "summary" ? (
                         <>
-                          {latestDecision && currentness !== "current" ? (
+                          {selectedItem.latest_final_decision && currentness !== "current" ? (
                             <div className="gng-review-notice">
                               <RefreshCw aria-hidden="true" />
                               <div>
                                 <Text weight="semibold" as="p">
-                                  기존 {latestDecision.decision === "go" ? "Go" : "No-Go"} 결정을 다시 검토해야 합니다
+                                  기존 {selectedItem.latest_final_decision.decision === "go" ? "Go" : "No-Go"} 결정을 다시 검토해야 합니다
                                 </Text>
                                 <Text className="gng-caption" type="supporting" color="secondary" as="p">
-                                  {currentness === "stale" ? "결정 이후 비교 입력이 달라졌습니다." : "결정의 현재성을 확인하지 못했습니다."}
+                                  {currentness === "stale" ? "결정 이후 결정의 근거가 달라졌습니다." : "결정의 현재성을 확인하지 못했습니다."}
                                   {" "}이전 결정 기록은 보존되며 새 결정은 덮어쓰지 않고 추가됩니다.
                                 </Text>
                               </div>
@@ -682,7 +660,7 @@ export function GoNoGoPage() {
                               </Heading>
                               <Text as="p">
                                 {comparisonView.calculation_status === "failed"
-                                  ? "실패를 변경 없음으로 처리하지 않습니다. 최종 결정은 계산된 결과를 확인한 뒤 기록합니다."
+                                  ? "실패를 변경 없음으로 처리하지 않습니다."
                                   : "비교 결과가 나올 때까지 중요 변경과 확인 필요 건수는 미확인으로 남습니다."}
                               </Text>
                               {comparisonView.last_error_code ? (
@@ -691,7 +669,7 @@ export function GoNoGoPage() {
                                 </Text>
                               ) : null}
                               <Text className="gng-caption" type="supporting" color="secondary" as="p">
-                                변경 비교를 계산하는 프로그램은 아직 운영에 없습니다. 재시도는 결정 화면에서 담당자 이름과 함께 실행합니다.
+                                변경 비교를 계산하는 프로그램은 아직 운영에 없습니다. 최종 결정은 결정 화면에서 공고 조건을 근거로 기록할 수 있습니다.
                               </Text>
                             </div>
                           ) : availability}
@@ -702,7 +680,9 @@ export function GoNoGoPage() {
                         <section className="gng-documents" aria-label="이번 비교의 기준 문서">
                           <div className="gng-row-line gng-spread">
                             <Heading level={3}>이번 비교의 기준 문서</Heading>
-                            <Text className="gng-caption" type="supporting" color="secondary" as="p">{comparisons.length}건의 비교</Text>
+                            <Text className="gng-caption" type="supporting" color="secondary" as="p">
+                              {workspaceLoaded ? `${comparisons.length}건의 비교` : `대기열 기준 ${selectedItem.comparison_count}건의 비교`}
+                            </Text>
                           </div>
                           {comparisons.length > 1 ? (
                             <div className="gng-comparison-picker">
@@ -717,7 +697,7 @@ export function GoNoGoPage() {
                                 onChange={(value) => patchParams({ comparison: value })}
                               />
                               <Text className="gng-caption" type="supporting" color="secondary" as="p">
-                                기본값은 요청 순서가 가장 늦은 비교입니다. 새 비교의 문서 쌍은 결정 화면에서 사람이 직접 고릅니다.
+                                기본값은 요청 순서가 가장 늦은 비교입니다. 비교 계산 프로그램이 없어 새 비교는 만들지 않습니다.
                               </Text>
                             </div>
                           ) : null}
@@ -747,14 +727,14 @@ export function GoNoGoPage() {
                                 </div>
                               </div>
                               <Text className="gng-caption" type="supporting" color="secondary" as="p">
-                                최종 결정은 여기 있는 양쪽 문서 버전과 비교 결과에 연결됩니다. 문서 쌍은 화면이 고르지 않습니다.
+                                비교 결과 기준 결정은 여기 있는 양쪽 문서 버전과 비교 결과에 연결됩니다. 문서 쌍은 화면이 고르지 않습니다.
                               </Text>
                             </>
                           ) : (
                             <div className="gng-quiet">
                               <Text as="p">아직 선택된 비교 문서가 없습니다.</Text>
                               <Text className="gng-caption" type="supporting" color="secondary" as="p">
-                                문서가 없다는 뜻은 아닙니다. 비교에 사용할 양쪽 원문을 결정 화면에서 사람이 고릅니다.
+                                문서가 없다는 뜻은 아닙니다. 비교 계산 프로그램이 없어 문서 쌍 비교를 만들지 않았습니다.
                               </Text>
                             </div>
                           )}
@@ -780,6 +760,9 @@ export function GoNoGoPage() {
                                 <Text className="gng-caption" type="supporting" color="secondary" as="p">
                                   {latestDecision.claimed_name} · {formatMoment(latestDecision.created_at)} · 결정 기록 {latestDecision.sequence}
                                 </Text>
+                                <Text className="gng-caption gng-decision-basis" type="supporting" color="secondary" as="p">
+                                  {BASIS_LABELS[latestDecision.basis_kind]} · {decisionBasisDetail(latestDecision)}
+                                </Text>
                               </div>
                               {selectedWorkspace && selectedWorkspace.currentness_reasons.length > 0 ? (
                                 <Text className="gng-caption" type="supporting" color="secondary" as="p">
@@ -787,14 +770,23 @@ export function GoNoGoPage() {
                                 </Text>
                               ) : null}
                               <Text className="gng-caption" type="supporting" color="secondary" as="p">
-                                이 목록은 사업기회의 마지막 결정만 보여 줍니다. 이전 기록을 포함한 전체 이력은 결정 화면에 있습니다.
+                                이 목록은 사업기회의 마지막 결정만 보여 줍니다. 이전 기록은 결정 화면에서 확인합니다.
                               </Text>
                             </>
-                          ) : (
+                          ) : selectedItem.latest_final_decision ? (
                             <div className="gng-quiet">
                               <Text as="p">
-                                {isLoaded(selectedRow) ? "아직 기록된 최종 결정이 없습니다." : "결정 상태를 아직 확인하지 못했습니다."}
+                                {selectedItem.latest_final_decision.decision === "go" ? "Go" : "No-Go"} · {selectedItem.latest_final_decision.claimed_name} · {formatMoment(selectedItem.latest_final_decision.decided_at)}
                               </Text>
+                              <Text className="gng-caption" type="supporting" color="secondary" as="p">
+                                {workspaceQuery.isError
+                                  ? "결정 사유와 근거를 불러오지 못했습니다. 검토 요약에서 다시 조회하십시오."
+                                  : "결정 사유와 근거를 불러오는 중입니다."}
+                              </Text>
+                            </div>
+                          ) : (
+                            <div className="gng-quiet">
+                              <Text as="p">아직 기록된 최종 결정이 없습니다.</Text>
                               <Text className="gng-caption" type="supporting" color="secondary" as="p">
                                 추적 상태 ‘계속 추적’은 입찰 참여를 결정했다는 뜻이 아닙니다.
                               </Text>
@@ -809,26 +801,26 @@ export function GoNoGoPage() {
                         <div className="gng-tracking-summary">
                           <Text className="gng-caption" type="supporting" color="secondary" as="p">현재 사람 결정</Text>
                           <p className="gng-caption">
-                            {!isLoaded(selectedRow)
-                              ? "미확인"
-                              : latestDecision
-                                ? `${latestDecision.decision === "go" ? "Go" : "No-Go"} · ${currentness === "current" ? "기록 있음" : currentness === "stale" ? "재검토 필요" : "효력 미확인"}`
-                                : "아직 결정하지 않음"}
+                            {selectedItem.latest_final_decision
+                              ? `${selectedItem.latest_final_decision.decision === "go" ? "Go" : "No-Go"} · ${currentness === "current" ? "기록 있음" : currentness === "stale" ? "재검토 필요" : "효력 미확인"}`
+                              : "아직 결정하지 않음"}
                           </p>
                         </div>
-                        <Button
-                          label={canRecordDecision ? "변경 검토·결정 열기" : "비교 상태 확인"}
-                          variant="primary"
-                          size="sm"
-                          icon={<ChevronRight aria-hidden="true" />}
-                          onClick={openReview}
-                        />
+                        {footerAction ? (
+                          <Button
+                            label={footerAction.label}
+                            variant="primary"
+                            size="sm"
+                            icon={<ChevronRight aria-hidden="true" />}
+                            onClick={openReview}
+                          />
+                        ) : null}
                       </div>
-                      <Text className="gng-caption" type="supporting" color="secondary" as="p">
-                        {canRecordDecision
-                          ? "검토 결과를 확인한 뒤 사람이 Go 또는 No-Go를 선택합니다. 이 목록에서는 저장하지 않습니다."
-                          : "계산 완료 전에는 최종 결정을 기록할 수 없습니다. 결정 화면에서 비교 상태와 재시도를 확인합니다."}
-                      </Text>
+                      {footerAction ? (
+                        <Text className="gng-caption" type="supporting" color="secondary" as="p">
+                          {footerAction.note}
+                        </Text>
+                      ) : null}
                     </footer>
                   </>
                 ) : (
@@ -849,15 +841,16 @@ export function GoNoGoPage() {
             추적 상태가 ‘계속 추적’인 사업기회만 최종 Go/No-Go 대상입니다. 보류·종료·미선택은 이 목록에 올리지 않습니다.
           </Text>
           <Text as="p">
-            서버에 결정 목록·집계 endpoint가 없어 페이지 하나(최대 {PAGE_SIZE}건)를 받고 그 행만 사업기회별 결정 상태를
-            하나씩 조회합니다. 보기 탭의 건수와 아래 요약은 <strong>받은 페이지 기준</strong>이며 전체 총계가 아닙니다.
+            목록은 서버의 최종 결정 대기열을 한 번 받아 그립니다(한 번에 최대 {PAGE_SIZE}건). 사람 결정·현재성·재확인 신호는
+            대기열이 준 값이며 행마다 따로 조회하지 않습니다. 대기열이 {PAGE_SIZE}건을 넘으면 보기 건수와 검색은 받은 범위 기준입니다.
           </Text>
           <Text as="p">
-            검색은 서버 질의 인자가 없어 받은 페이지 안에서만 좁히는 브라우저 쪽 필터입니다.
+            검토 대상은 입찰공고가 연결된 미결정 사업과, 결정이 있어도 현재성이 ‘현재’가 아닌 사업입니다. 입찰공고가 연결되지 않은
+            사업은 결정할 공고가 없어 전체 보기에만 둡니다.
           </Text>
           <Text as="p">
-            변경 비교를 계산하는 프로그램은 아직 운영에 없습니다. 계산 대기·계산 실패·비교 없음·조회 실패는 모두
-            ‘변경 없음’이나 ‘확인 완료’와 다른 상태이며 그대로 표시합니다.
+            변경 비교를 계산하는 프로그램은 아직 운영에 없습니다. 최종 결정은 결정 화면에서 최신 입찰공고의 공고 조건을 근거로
+            기록할 수 있습니다. 계산 대기·계산 실패·비교 없음·조회 실패는 모두 ‘변경 없음’이나 ‘확인 완료’와 다른 상태이며 그대로 표시합니다.
           </Text>
           <Text as="p">
             이 화면은 적합성 등급·참여 준비 상태·심층 추적 승인을 대신하지 않습니다. 최종 결정 저장은 결정 화면에서만 합니다.

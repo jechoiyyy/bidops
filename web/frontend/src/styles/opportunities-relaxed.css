@@ -272,6 +272,93 @@
   font-weight: 600;
 }
 
+/* 행의 주 행동 하나(spec §11.1). 열 폭 안에서 줄을 바꾸지 않는다. */
+.opportunity-next-cell > .opportunity-row-action {
+  justify-self: start;
+  white-space: nowrap;
+}
+
+/* 첫 열은 선택 버튼(사업명·기관·단계 줄)과 그 아래 사유 칩 줄이다. 칩은 버튼 밖에
+   두어 버튼 안에 다른 조작이 들어가지 않게 한다. */
+.opportunity-row-cell {
+  display: grid;
+  gap: var(--spacing-2);
+  min-width: 0;
+}
+
+.opportunity-row-reasons {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-1-5);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  min-width: 0;
+}
+
+.opportunity-row-reasons > li {
+  display: inline-flex;
+  min-width: 0;
+}
+
+/* 사유 칩은 누르는 것이 아니다. 옆 열의 주 행동 단추와 같은 회색 면으로 보이지 않게
+   윤곽 칩(`review-chip-outline`과 같은 값)으로 그린다. */
+.opportunity-row-reasons .astryx-token {
+  color: var(--color-text-secondary);
+  background: var(--color-background-surface);
+  box-shadow: inset 0 0 0 var(--border-width) var(--color-border);
+}
+
+.opportunities-page .opportunity-row-reasons > li.opportunity-row-hold {
+  font-size: var(--bo-type-caption);
+  line-height: var(--bo-type-caption-leading);
+}
+
+/* --- 조치 필요 사유 칩 필터 ---
+ * 사전규격 범위 스위치와 같은 28px 칩이다. 켜짐은 배경·글자 굵기·inset 테두리로 함께
+ * 말하고 색만으로 말하지 않는다(`aria-pressed`와 캡션 문장이 같은 사실을 말한다). */
+.opportunity-reason-filters {
+  justify-content: flex-start;
+}
+
+.opportunity-reason-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-2);
+  min-width: 0;
+}
+
+.opportunity-reason-chips .astryx-button {
+  height: var(--size-element-sm);
+  min-height: var(--size-element-sm);
+  padding: 0 var(--spacing-2);
+  border: 0;
+  border-radius: var(--radius-inner);
+  color: var(--color-text-secondary);
+  background: var(--color-background-surface);
+  box-shadow: inset 0 0 0 var(--border-width) var(--color-border);
+  font-weight: var(--font-weight-medium);
+}
+
+.opportunity-reason-chips .astryx-button[aria-pressed="true"] {
+  color: var(--color-text-accent);
+  background: var(--color-accent-muted);
+  box-shadow: inset 0 0 0 var(--border-width) var(--bo-brand-edge);
+  font-weight: 600;
+}
+
+.opportunities-page .opportunity-reason-chips :where(.opportunity-reason-chip-label, .opportunity-reason-chip-count) {
+  font-size: var(--bo-type-caption);
+  line-height: var(--bo-type-caption-leading);
+}
+
+.opportunity-reason-chip-count {
+  margin-left: var(--spacing-1-5);
+  font-variant-numeric: tabular-nums;
+}
+
 /* --- 상세 --- */
 
 .opportunity-detail-pane {
@@ -432,6 +519,69 @@
   font-size: var(--bo-type-caption);
 }
 
+/* 단계 칸 안의 찾아보기. 단계 이름·연결 상태와 같은 들여쓰기에 둔다. */
+.opportunity-lifecycle .opportunity-stage-search {
+  justify-self: start;
+  margin-left: var(--opportunity-step-size);
+  white-space: nowrap;
+}
+
+/* --- 찾아보기 결과 --- */
+
+.opportunity-record-search {
+  display: grid;
+  gap: var(--spacing-2);
+  min-width: 0;
+  padding: var(--spacing-3);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-inner);
+  background: var(--color-background-body);
+}
+
+/* 기록자 칸 아래 설명 문장이 붙으므로 실행 단추는 칸 옆이 아니라 아래 줄에 둔다. */
+.opportunity-record-search-form {
+  display: grid;
+  gap: var(--spacing-2);
+  min-width: 0;
+}
+
+.opportunity-record-search-form > .astryx-button {
+  justify-self: start;
+}
+
+.opportunity-search-result {
+  display: grid;
+  gap: var(--spacing-2);
+  min-width: 0;
+}
+
+.opportunity-search-results {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: var(--border-width) solid var(--color-border);
+}
+
+.opportunity-search-candidate {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  padding-block: var(--spacing-2);
+  border-bottom: var(--border-width) solid var(--color-border);
+}
+
+.opportunity-search-candidate > div {
+  display: grid;
+  flex: 1;
+  gap: var(--spacing-0-5);
+  min-width: 0;
+}
+
+.opportunity-search-candidate > div > p {
+  overflow-wrap: anywhere;
+}
+
 .opportunity-next-check {
   display: grid;
   gap: var(--spacing-1);
@@ -553,6 +703,39 @@
   gap: var(--spacing-2);
 }
 
+/* 새 공고 확인 완료 입력. 상세 pane 안이라 대화상자의 입력 규칙을 따로 준다. */
+.opportunity-ack-form {
+  display: grid;
+  gap: var(--spacing-2);
+  min-width: 0;
+  padding-top: var(--spacing-2);
+  border-top: var(--border-width) solid var(--color-border);
+}
+
+.opportunity-ack-form > label {
+  display: grid;
+  gap: var(--spacing-1);
+  min-width: 0;
+}
+
+.opportunities-page .opportunity-ack-form > label > span {
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+  line-height: var(--bo-type-caption-leading);
+}
+
+.opportunity-ack-form textarea {
+  min-width: 0;
+  padding: var(--spacing-2) var(--spacing-3);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-inner);
+  background: var(--color-background-surface);
+  color: var(--color-text-primary);
+  font: inherit;
+  font-size: var(--bo-type-body);
+  resize: vertical;
+}
+
 .opportunity-search-log,
 .opportunity-quiet-state {
   display: grid;
@@ -583,22 +766,22 @@
   min-width: 0;
 }
 
-.opportunity-deep-review-form {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
+.opportunity-deep-review-list {
+  display: grid;
   gap: var(--spacing-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
-.opportunity-deep-review-form input {
-  min-width: calc(var(--spacing-12) * 4);
-  min-height: var(--size-element-sm, var(--spacing-8));
-  padding: var(--spacing-1) var(--spacing-2);
+.opportunity-deep-review-item {
+  display: grid;
+  gap: var(--spacing-1-5);
+  padding: var(--spacing-3);
+  background: var(--color-background-body);
   border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-inner);
-  background: var(--color-background-body);
-  color: var(--color-text-primary);
-  font: inherit;
+  min-width: 0;
 }
 
 .opportunity-linked-link {
@@ -630,6 +813,51 @@
 .opportunity-decision-facts dd {
   margin: 0;
   overflow-wrap: anywhere;
+}
+
+/* 결정 revision과 재검토 신호 이벤트를 한 줄기로 읽는 이력(spec §6.3). 종류는 색이
+   아니라 앞 칸의 문자로 말한다. */
+.opportunity-history-section {
+  display: grid;
+  gap: var(--spacing-2);
+  padding-block: var(--spacing-2);
+  border-top: var(--border-width) solid var(--color-border);
+}
+
+.opportunity-history {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.opportunity-history-item {
+  display: grid;
+  grid-template-columns: calc(var(--spacing-12) * 2) minmax(0, 1fr);
+  gap: var(--spacing-3);
+  padding-block: var(--spacing-2);
+  border-bottom: var(--border-width) solid var(--color-border);
+}
+
+.opportunity-history-item > div {
+  display: grid;
+  gap: var(--spacing-0-5);
+  min-width: 0;
+}
+
+.opportunity-history-item > div > p {
+  overflow-wrap: anywhere;
+}
+
+.opportunities-page .opportunity-history-kind {
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+  line-height: var(--bo-type-caption-leading);
+}
+
+.opportunity-history-item[data-history-kind="recheck"] .opportunity-history-kind {
+  color: var(--color-text-accent);
+  font-weight: 600;
 }
 
 /* --- 상세 바닥의 고정 액션 --- */

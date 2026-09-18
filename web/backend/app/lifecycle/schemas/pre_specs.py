@@ -18,7 +18,7 @@ from ...core.constants import (
     PreSpecOverviewReviewStatus,
 )
 from ...core.schema_base import AwareDateTime, RuntimeContractModel
-from .opportunities import OpportunityTrackingStatus
+from .opportunities import OpportunityLinkView, OpportunityTrackingStatus
 
 
 PreSpecOrigin = Literal["추적", "신규"]
@@ -119,8 +119,41 @@ class PreSpecListResponse(RuntimeContractModel):
     workspace_counts: dict[PreSpecWorkspace, int] = Field(default_factory=dict)
 
 
+class PreSpecCandidateOrderPlan(RuntimeContractModel):
+    """Order-plan summary of an opportunity that proposes a pre-spec candidate."""
+
+    order_plan_id: int = Field(ge=1)
+    order_plan_unty_no: str
+    title: str | None = None
+    agency_name: str | None = None
+    planned_order_year: str | None = None
+    planned_order_month: str | None = None
+    budget_amount: float | None = None
+
+
+class PreSpecOrderPlanCandidate(RuntimeContractModel):
+    """One pending candidate link that targets this pre-spec (spec §4.4).
+
+    ``order_plans`` lists every order plan the owner opportunity owns; it is
+    empty when the owner (for example a merge-confirmation owner) owns none.
+    """
+
+    link: OpportunityLinkView
+    opportunity_id: int = Field(ge=1)
+    tracking_status: OpportunityTrackingStatus
+    order_plans: list[PreSpecCandidateOrderPlan] = Field(default_factory=list)
+
+
+class PreSpecOrderPlanCandidatesResponse(RuntimeContractModel):
+    notice_pk: int = Field(ge=1)
+    items: list[PreSpecOrderPlanCandidate] = Field(default_factory=list)
+
+
 __all__ = [
+    "PreSpecCandidateOrderPlan",
     "PreSpecDocumentSummary",
+    "PreSpecOrderPlanCandidate",
+    "PreSpecOrderPlanCandidatesResponse",
     "PreSpecListItem",
     "PreSpecListResponse",
     "PreSpecOrigin",

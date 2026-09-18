@@ -6,6 +6,28 @@
 
 `구현됨`은 코드와 계약이 존재한다는 뜻이고, `검증됨`은 기록된 명령이 해당 범위에서 통과했다는 뜻이다. Mock 결과, 과거 브랜치 결과, 현재 worktree 결과, 외부 운영 승인을 서로 대신하지 않는다.
 
+## 사업 추적 연결·선별 적재·Go/No-Go 분리 (2026-09-17, 미병합)
+
+[사업 추적 연결·조치 고도화 계획](../0917_opportunity-tracking/plan.md)의 P0~P5를 구현했다 —
+전량 수집·선별 적재·수집 색인(migration `0027`), 공식 키 병합 규칙 확장과 후보 대조·찾아보기,
+재검토 신호 확장과 확인 처리, `조치 필요`·`신규 입찰공고` 구역과 보류 14일 재검토, Go/No-Go
+결정 근거 분리(migration `0028`, [ADR-0058](decisions/0058-final-decision-basis-separated-from-comparison.md)·[ADR-0059](decisions/0059-full-collection-selective-ingest-and-index-search.md)),
+일일 수집·적재 스크립트(`scripts/run-daily-lifecycle.sh`), 관련 화면 갱신을 갖는다. 백엔드는
+`feat/ot-integration`(P0~P5-F0, `feat/ot-p1-1`·`-p1-2`·`-p1-3`·`-p2a-backend`·`-p2a-collect`·
+`-p2b`·`-p2c`·`-p3`·`-p4`·`-p5-f0`를 통합) 브랜치에 있고, 화면은 `feat/ot-p5-f1`(사업 추적)·
+`-p5-f2`(대시보드)·`-p5-f3`(Go/No-Go)·`-p5-f4`(사전규격 후보) 브랜치에 있다. **`main`에
+병합하지 않았다.**
+
+- 운영 DB에는 배포하지 않았다. `scripts/run-daily-lifecycle.sh`는 존재하지만 cron은 설치하지
+  않았다(기본 비활성 원칙 유지, `docs/operations.md` cron 예시는 설치 안내일 뿐 자동 실행이
+  아니다).
+- 프런트 픽셀 기준선은 아직 승인 대기다 — F1~F4의 1280×800·1440×900 캡처를 사용자에게
+  제시하고 승인받은 뒤에만 기준선을 교체한다(`docs/standards.md` 절차).
+- 대표 통합 테스트(`tests/app/test_tracking_lifecycle_flow.py`)와 단계별 게이트는 각 phase
+  브랜치·`feat/ot-integration`에서 실행했다. 전체 트리 1회 게이트·최종 병합 결정은 아직
+  남아 있다.
+- 문서(`docs/0917_opportunity-tracking/`, 본 문서 갱신 포함)는 `feat/ot-p6-docs`에 있다.
+
 ## 사전규격 누적 탐색과 비교 서버 (2026-09-16)
 
 - 검토할 항목·최근 수집·추적 중·전체 이력, 서버 페이지 이전 필터와 집계,

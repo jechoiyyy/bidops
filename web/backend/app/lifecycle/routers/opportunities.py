@@ -10,26 +10,35 @@ from fastapi import APIRouter, Depends, Header, Query
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
+from ...core.config import get_settings
 from ...core.db import get_db
 from .. import extension_registry
+from ..ingest.loader import tracked_backfill
 from ..schemas.opportunities import (
     CandidateDecisionRequest,
+    OpportunityActionReason,
     OpportunityDetailResponse,
     OpportunityFirstRegisteredStage,
+    OpportunityHoldReview,
     OpportunityLinkView,
     OpportunityListResponse,
+    OpportunitySearchRequest,
+    OpportunitySearchResponse,
     OpportunitySection,
     OpportunityTrackingDecisionsResponse,
     OpportunitySort,
     OpportunityTrackingStatus,
+    RecheckAcknowledgementRequest,
     TrackingStatusUpdateRequest,
     OrderPlanBulkPreviewRequest,
     OrderPlanBulkPreviewResponse,
     OrderPlanBulkStartRequest,
     OrderPlanBulkStartResponse,
 )
-from ..services import opportunity_integrity, opportunity_tracking, opportunity_queries
+from ..services import opportunity_candidates, opportunity_integrity, opportunity_tracking
+from ..services import opportunity_queries
 from ..services import order_plan_bulk_tracking
+from ..services.collection_index import BACKFILL_TRACKING_STATUSES
 from ...core.api_errors import BundleServiceError, validate_actor
 
 
@@ -56,6 +65,21 @@ _ERRORS: dict[str, tuple[int, str]] = {
         409,
         "대상 레코드는 이미 확정된 사업기회에 연결되어 있습니다",
     ),
+    "candidate_decision_invalid": (422, "지원하지 않는 후보 연결 판정입니다"),
+    "candidate_merge_state_conflict": (
+        409,
+        "두 사업기회 모두 사람 추적 선택 또는 재검토 신호가 있어 병합할 수 없습니다",
+    ),
+    "opportunity_merge_state_conflict": (
+        409,
+        "사람 추적 선택 또는 재검토 신호가 있는 사업기회가 둘 이상이라 병합할 수 없습니다",
+    ),
+    "search_source_missing": (
+        422,
+        "찾아보기의 기준이 될 소유 발주계획 또는 사전규격이 없습니다",
+    ),
+    "recheck_signal_absent": (409, "확인할 재검토 신호가 없습니다"),
+    "recheck_signal_changed": (409, "재검토 신호의 근거 연결이 바뀌었습니다"),
     "idempotency_conflict": (409, "같은 request_id가 다른 요청에 사용되었습니다"),
     "temporarily_unavailable": (503, "사업기회 작업을 일시적으로 사용할 수 없습니다"),
     "service_unavailable": (503, "사업기회 작업을 일시적으로 사용할 수 없습니다"),
@@ -75,6 +99,10 @@ def _error_response(
         error.code,
         (500, "사업기회 작업을 완료할 수 없습니다"),
     )
+    registered = error.code in _ERRORS
+    # Only a registered domain error forwards its details, which the services
+    # restrict to safe identifiers and state values.
+    details = getattr(error, "details", None) if registered else None
     if isinstance(error, BundleServiceError):
         status_code = error.status_code
     elif isinstance(error, order_plan_bulk_tracking.OrderPlanBulkTrackingError):
@@ -83,9 +111,9 @@ def _error_response(
         status_code=status_code,
         content={
             "error": {
-                "code": error.code if error.code in _ERRORS else "processing_failed",
+                "code": error.code if registered else "processing_failed",
                 "message": message,
-                "details": None,
+                "details": details if isinstance(details, dict) else None,
             },
             "request_id": (
                 str(error.request_id)
@@ -113,20 +141,101 @@ def _unexpected() -> JSONResponse:
     )
 
 
+def _notify_tracking_decision(session: Session, opportunity_id: int) -> None:
+    """Run the tracking-decision hook after a committed human decision.
+
+    어느 모듈이 무엇을 하는지는 모르고, 사람 결정이 commit된 뒤 별도 transaction에서
+    부른다(추적 결정 변경됨 hook, 명세 §6.2).
+    """
+
+    registry = None
+    try:
+        registry = extension_registry()
+        registry.tracking_decision_changed(session, opportunity_id)
+        session.commit()
+    except Exception as error:
+        # The human decision is already durable.  The hook is a retryable
+        # side effect and must never rewrite the human choice fields or turn a
+        # successful request into a 500 response.
+        session.rollback()
+        # 어느 제공자가 무엇을 하는지 모르므로 확장점 어휘로만 남긴다.
+        # 등록자 수와 예외 타입은 lifecycle이 정당하게 아는 값이다.
+        logger.warning(
+            "tracking decision extension hook failed",
+            extra={
+                "bidops": {
+                    "event": "extension.tracking_decision_hook_failed",
+                    "hook_count": (
+                        registry.tracking_decision_hook_count
+                        if registry is not None
+                        else None
+                    ),
+                    "error_type": type(error).__name__,
+                }
+            },
+        )
+
+
+def _backfill_tracked_records(session: Session, opportunity_id: int) -> None:
+    """Load index-only records this newly tracked opportunity names (spec §5).
+
+    Runs after the tracking decision is committed and commits separately; a
+    failure is logged with a safe code and never undoes the saved decision.
+    """
+
+    try:
+        tracked_backfill(
+            session,
+            runs_root=get_settings().bidops_root / "data" / "runs",
+            opportunity_ids=[opportunity_id],
+        )
+        session.commit()
+    except Exception as error:
+        session.rollback()
+        logger.warning(
+            "tracked backfill after tracking decision failed",
+            extra={
+                "bidops": {
+                    "event": "opportunity.tracked_backfill_failed",
+                    # ``failure_type`` is an allowlisted log field; the
+                    # exception text may carry paths and is not logged.
+                    "failure_type": type(error).__name__,
+                }
+            },
+        )
+
+
+def _request_now() -> datetime:
+    """One request-wide UTC clock value for hold-review sections and filters."""
+
+    return datetime.now(UTC)
+
+
 @router.get("", response_model=OpportunityListResponse)
 def list_opportunities(
     tracking_status: OpportunityTrackingStatus | None = Query(default=None),
     first_registered_stage: OpportunityFirstRegisteredStage | None = Query(default=None),
     section: OpportunitySection | None = Query(default=None),
+    reason: OpportunityActionReason | None = Query(default=None),
+    hold_review: OpportunityHoldReview | None = Query(default=None),
+    q: str | None = Query(
+        default=None,
+        min_length=opportunity_queries.SEARCH_QUERY_MIN_LENGTH,
+        max_length=opportunity_queries.SEARCH_QUERY_MAX_LENGTH,
+    ),
     sort: OpportunitySort = Query(default="created_at"),
     limit: int = Query(default=50, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
     session: Session = Depends(get_db),
-) -> OpportunityListResponse:
-    return opportunity_queries.list_opportunities(
-        session, tracking_status=tracking_status, first_registered_stage=first_registered_stage,
-        section=section, sort=sort, limit=limit, offset=offset,
-    )
+) -> OpportunityListResponse | JSONResponse:
+    try:
+        return opportunity_queries.list_opportunities(
+            session, tracking_status=tracking_status, first_registered_stage=first_registered_stage,
+            section=section, reason=reason, hold_review=hold_review, q=q, sort=sort,
+            limit=limit, offset=offset, now=_request_now(),
+        )
+    except opportunity_tracking.OpportunityTrackingError as error:
+        return _error_response(error)
 
 
 @router.post(
@@ -196,7 +305,7 @@ def get_opportunity(
     session: Session = Depends(get_db),
 ) -> OpportunityDetailResponse | JSONResponse:
     try:
-        return opportunity_queries.get_opportunity(session, opportunity_id)
+        return opportunity_queries.get_opportunity(session, opportunity_id, now=_request_now())
     except opportunity_tracking.OpportunityTrackingError as error:
         return _error_response(error)
 
@@ -227,7 +336,7 @@ def decide_candidate_link(
 
     try:
         actor_name = validate_actor(actor, actor_format)
-        link = opportunity_integrity.decide_candidate_link(
+        outcome = opportunity_integrity.record_candidate_decision(
             session,
             link_id,
             decision=payload.decision,
@@ -236,6 +345,12 @@ def decide_candidate_link(
             reviewed_at=datetime.now(UTC),
         )
         session.commit()
+        if outcome.merged and outcome.retained_opportunity_id is not None:
+            # A human-confirmed merge changes which records the retained
+            # opportunity owns; attachment eligibility is re-evaluated the same
+            # way as after a tracking decision.
+            _notify_tracking_decision(session, outcome.retained_opportunity_id)
+        link = outcome.link
         session.refresh(link)
         return opportunity_queries.link_view(link)
     except (
@@ -271,35 +386,79 @@ def update_tracking_status(
             selected_at=datetime.now(UTC),
         )
         session.commit()
-        registry = None
-        try:
-            # 추적 결정 변경됨 hook(명세 §6.2). 어느 모듈이 무엇을 하는지는 모르고,
-            # 사람 결정이 commit된 뒤 별도 transaction에서 부른다.
-            registry = extension_registry()
-            registry.tracking_decision_changed(session, opportunity_id)
-            session.commit()
-        except Exception as error:
-            # The human tracking decision is already durable.  The hook is a
-            # retryable side effect and must never rewrite the four human
-            # choice fields or turn a successful PATCH into a 500 response.
-            session.rollback()
-            # 어느 제공자가 무엇을 하는지 모르므로 확장점 어휘로만 남긴다.
-            # 등록자 수와 예외 타입은 lifecycle이 정당하게 아는 값이다.
-            logger.warning(
-                "tracking decision extension hook failed",
-                extra={
-                    "bidops": {
-                        "event": "extension.tracking_decision_hook_failed",
-                        "hook_count": (
-                            registry.tracking_decision_hook_count
-                            if registry is not None
-                            else None
-                        ),
-                        "error_type": type(error).__name__,
-                    }
-                },
-            )
-        return opportunity_queries.get_opportunity(session, opportunity_id)
+        if payload.tracking_status in BACKFILL_TRACKING_STATUSES:
+            # Backfill first so the hook below sees any record it loaded.
+            _backfill_tracked_records(session, opportunity_id)
+        _notify_tracking_decision(session, opportunity_id)
+        return opportunity_queries.get_opportunity(session, opportunity_id, now=_request_now())
+    except (opportunity_tracking.OpportunityTrackingError, BundleServiceError) as error:
+        session.rollback()
+        return _error_response(error)
+    except Exception:  # pragma: no cover - defensive API boundary
+        session.rollback()
+        return _unexpected()
+
+
+@router.post(
+    "/{opportunity_id}/recheck-acknowledgements",
+    response_model=OpportunityDetailResponse,
+)
+def acknowledge_recheck_signal(
+    opportunity_id: int,
+    payload: RecheckAcknowledgementRequest,
+    actor: Annotated[str | None, Header(alias="X-BidOps-Actor-Name")] = None,
+    actor_format: Annotated[str | None, Header(alias="X-BidOps-Actor-Name-Format")] = None,
+    session: Session = Depends(get_db),
+) -> OpportunityDetailResponse | JSONResponse:
+    """Clear the current recheck signal; the human tracking choice is kept."""
+
+    try:
+        actor_name = validate_actor(actor, actor_format)
+        opportunity_tracking.acknowledge_recheck_signal(
+            session,
+            opportunity_id,
+            expected_link_id=payload.expected_link_id,
+            note=payload.note,
+            acknowledged_by=actor_name,
+            acknowledged_at=datetime.now(UTC),
+        )
+        session.commit()
+        return opportunity_queries.get_opportunity(session, opportunity_id, now=_request_now())
+    except (opportunity_tracking.OpportunityTrackingError, BundleServiceError) as error:
+        session.rollback()
+        return _error_response(error)
+    except Exception:  # pragma: no cover - defensive API boundary
+        session.rollback()
+        return _unexpected()
+
+
+@router.post("/{opportunity_id}/searches", response_model=OpportunitySearchResponse)
+def search_opportunity_records(
+    opportunity_id: int,
+    payload: OpportunitySearchRequest,
+    actor: Annotated[str | None, Header(alias="X-BidOps-Actor-Name")] = None,
+    actor_format: Annotated[str | None, Header(alias="X-BidOps-Actor-Name-Format")] = None,
+    session: Session = Depends(get_db),
+) -> OpportunitySearchResponse | JSONResponse:
+    """Search the archived collection index and propose candidates (spec §4.3)."""
+
+    try:
+        actor_name = validate_actor(actor, actor_format)
+        outcome = opportunity_candidates.search_opportunity_records(
+            session,
+            opportunity_id,
+            target=payload.target,
+            searched_by=actor_name,
+            runs_root=get_settings().bidops_root / "data" / "runs",
+            searched_at=_request_now(),
+        )
+        session.commit()
+        if outcome.loaded_count:
+            # A loaded record may have joined the opportunity through an
+            # official key; attachment eligibility follows the same hook as a
+            # tracking decision.  Its failure never undoes the search.
+            _notify_tracking_decision(session, outcome.owner_opportunity_id)
+        return outcome.response
     except (opportunity_tracking.OpportunityTrackingError, BundleServiceError) as error:
         session.rollback()
         return _error_response(error)

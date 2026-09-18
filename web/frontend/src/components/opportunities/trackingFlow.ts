@@ -1,4 +1,12 @@
-import type { OpportunityDetailResponse, OpportunityLinkView, OpportunityListItem } from "../../lib/types";
+import type {
+  OpportunityActionReason,
+  OpportunityDetailResponse,
+  OpportunityLinkView,
+  OpportunityListItem,
+  OpportunityRecheckEventKind,
+  OpportunitySearchStrategy,
+  OpportunitySearchTarget,
+} from "../../lib/types";
 
 /**
  * 사업 추적 화면이 읽는 생애주기 사실.
@@ -25,7 +33,32 @@ export function stageOfLink(link: OpportunityLinkView): LifecycleStage | null {
   if (link.stage === "order_plan") return "발주계획";
   if (link.source_type === "pre_spec") return "사전규격";
   if (link.source_type === "bid_notice") return "입찰공고";
+  // `검색 미확인`에는 원천 레코드가 없다. 찾아보기 대상(`search_target_kind`)이 실려
+  // 있을 때만 그 단계로 읽고, 없으면 단계를 추정하지 않는다.
+  const target = searchTargetKindOf(link);
+  if (link.status === "검색 미확인" && target !== null) return SEARCH_TARGET_STAGE[target];
   return null;
+}
+
+const SEARCH_TARGET_STAGE: Record<OpportunitySearchTarget, LifecycleStage> = {
+  pre_spec: "사전규격",
+  bid_notice: "입찰공고",
+};
+
+/** 찾아보기 대상의 화면 이름. */
+export function searchTargetLabel(target: OpportunitySearchTarget): LifecycleStage {
+  return SEARCH_TARGET_STAGE[target];
+}
+
+/**
+ * `검색 미확인` 행이 어느 찾아보기 대상의 기록인지(spec §3.3 `search_target_kind`).
+ *
+ * 값이 오면 읽고, 없거나 모르는 값이면 `null`(대상 미확인)로 둔다 — 화면이 대상을
+ * 추정해 채우지 않는다.
+ */
+export function searchTargetKindOf(link: OpportunityLinkView): OpportunitySearchTarget | null {
+  const value: unknown = link.search_target_kind;
+  return value === "pre_spec" || value === "bid_notice" ? value : null;
 }
 
 /** 사람이 기각한 후보. 확정으로 쓰지 않지만 목록에서 숨기지도 않는다. */
@@ -46,7 +79,7 @@ export function isPendingCandidate(link: OpportunityLinkView): boolean {
   return link.link_type === "candidate" && link.status === "후보 확인 대기";
 }
 
-export type StageConnection = "공식 연결" | "사람 확인 완료" | "후보 확인 대기" | "검색 미확인" | "연결 미확인";
+export type StageConnection = "공식 연결" | "사람 확인 완료" | "후보 확인 대기" | "검색 미확인" | "사람 확인 병합" | "연결 미확인";
 
 export interface StageView {
   stage: LifecycleStage;
@@ -57,8 +90,11 @@ export interface StageView {
 
 /** 3단계 줄 하나. 같은 단계에 연결이 여럿이면 확정을 우선해 상태를 정한다. */
 export function stageViews(links: readonly OpportunityLinkView[]): StageView[] {
+  const visibleSearches = new Set(visibleUnconfirmedSearches(links));
   return LIFECYCLE_STAGES.map((stage) => {
-    const inStage = links.filter((link) => stageOfLink(link) === stage && !isRejectedCandidate(link));
+    const inStage = links.filter((link) => stageOfLink(link) === stage
+      && !isRejectedCandidate(link)
+      && (link.status !== "검색 미확인" || visibleSearches.has(link)));
     const confirmed = inStage.find(isConfirmedLink);
     if (confirmed) {
       return {
@@ -87,7 +123,9 @@ export function latestConfirmedStage(links: readonly OpportunityLinkView[]): Lif
 export type NextCheckKey =
   | "tracking_decision"
   | "candidate_link"
+  | "merge_confirmation"
   | "recheck"
+  | "hold_overdue"
   | "blocking_item"
   | "search_unconfirmed"
   | "hold_reason"
@@ -103,14 +141,221 @@ export interface NextCheck {
 
 type TrackingFacts = Pick<
   OpportunityListItem,
-  "tracking_status" | "tracking_reason" | "recheck_signal" | "pending_candidate_link_count" | "open_blocking_item_count" | "links"
+  | "tracking_status"
+  | "tracking_reason"
+  | "recheck_signal"
+  | "pending_candidate_link_count"
+  | "open_blocking_item_count"
+  | "links"
+  | "action_reasons"
 >;
+
+// ---------------------------------------------------------------------------
+// 조치 사유 (spec §7.1). 사유는 서버가 모든 행에 계산해 준다. 화면은 이름과 순서만 정한다.
+
+/** 칩·필터에 나열하는 순서(spec §11.1의 표기 순서). */
+export const ACTION_REASON_ORDER: readonly OpportunityActionReason[] = [
+  "new_link",
+  "candidate_pending",
+  "merge_confirmation",
+  "blocking_item",
+  "hold_overdue",
+];
+
+/** 행의 주 행동 하나를 고르는 우선순위. 앞의 사유가 있으면 뒤는 칩으로만 남는다. */
+export const ACTION_REASON_PRIORITY: readonly OpportunityActionReason[] = [
+  "new_link",
+  "merge_confirmation",
+  "candidate_pending",
+  "hold_overdue",
+  "blocking_item",
+];
+
+const ACTION_REASON_LABELS: Record<OpportunityActionReason, string> = {
+  new_link: "새 공고",
+  candidate_pending: "후보 확인",
+  merge_confirmation: "병합 확인",
+  blocking_item: "확인 항목",
+  hold_overdue: "보류 기한 지남",
+};
+
+/** 사유 코드의 이름. 모르는 코드는 바꾸거나 숨기지 않고 그대로 보여 준다. */
+export function actionReasonLabel(code: string): string {
+  return (ACTION_REASON_LABELS as Record<string, string | undefined>)[code] ?? code;
+}
+
+/** 서버가 준 사유 배열. 오래된 응답처럼 필드가 없으면 빈 배열이며 사유를 계산해 채우지 않는다. */
+export function actionReasonsOf(item: Pick<OpportunityListItem, "action_reasons">): readonly OpportunityActionReason[] {
+  return Array.isArray(item.action_reasons) ? item.action_reasons : [];
+}
+
+/** 우선순위가 가장 높은 사유 하나. */
+export function topActionReason(item: Pick<OpportunityListItem, "action_reasons">): OpportunityActionReason | null {
+  const present = actionReasonsOf(item);
+  return ACTION_REASON_PRIORITY.find((code) => present.includes(code)) ?? null;
+}
+
+/** 목록 행의 주 행동이 상세에서 여는 자리. */
+export type OpportunityDetailIntent =
+  | { kind: "checks" }
+  | { kind: "candidate"; linkId: number | null }
+  | { kind: "tracking" };
+
+export interface RowPrimaryAction {
+  reason: OpportunityActionReason;
+  label: string;
+  intent: OpportunityDetailIntent;
+}
+
+/** 사유에 맞는 대기 후보 하나. 병합 확인과 이름 검색 후보를 섞지 않는다. */
+export function pendingCandidateFor(
+  links: readonly OpportunityLinkView[],
+  reason: "candidate_pending" | "merge_confirmation",
+): OpportunityLinkView | null {
+  const pending = links.filter(isPendingCandidate);
+  const matched = pending.find((link) => (link.search_strategy === "merge_confirmation") === (reason === "merge_confirmation"));
+  return matched ?? pending[0] ?? null;
+}
+
+/** 행 하나의 주 행동(spec §11.1). 사유가 없으면 행동을 만들지 않는다. */
+export function rowPrimaryAction(item: Pick<OpportunityListItem, "action_reasons" | "links">): RowPrimaryAction | null {
+  const reason = topActionReason(item);
+  if (reason === "new_link") return { reason, label: "확인", intent: { kind: "checks" } };
+  if (reason === "merge_confirmation" || reason === "candidate_pending") {
+    return { reason, label: "후보 확인", intent: { kind: "candidate", linkId: pendingCandidateFor(item.links, reason)?.id ?? null } };
+  }
+  if (reason === "hold_overdue") return { reason, label: "재검토", intent: { kind: "tracking" } };
+  if (reason === "blocking_item") return { reason, label: "확인 사항 열기", intent: { kind: "checks" } };
+  return null;
+}
+
+// ---------------------------------------------------------------------------
+// 보류 재검토 기한 (spec §7.3). 기한은 서버 값이고 화면은 한국 시간 날짜 차이만 적는다.
+
+const KST_DATE = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "Asia/Seoul",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
+function kstDayNumber(instant: Date): number {
+  const parts = KST_DATE.formatToParts(instant);
+  const part = (type: "year" | "month" | "day") => Number(parts.find((entry) => entry.type === type)?.value);
+  return Date.UTC(part("year"), part("month") - 1, part("day")) / 86_400_000;
+}
+
+/** 기한 날짜 − 오늘(한국 시간 달력 기준). 값이 없거나 읽을 수 없으면 null이다. */
+export function holdReviewDayDelta(dueAt: string | null, now: Date = new Date()): number | null {
+  if (!dueAt) return null;
+  const due = new Date(dueAt);
+  if (Number.isNaN(due.getTime())) return null;
+  return kstDayNumber(due) - kstDayNumber(now);
+}
+
+/**
+ * 행에 붙일 보류 기한 표기. `hold_overdue`가 있으면 `보류 기한 지남 D+n`(사유 칩),
+ * 보류 중이고 기한이 남았으면 `보류 기한 D-n`(중립 캡션)이다. 기한 값이 없으면
+ * 날짜를 만들어 내지 않는다.
+ */
+export function holdReviewText(
+  item: Pick<OpportunityListItem, "action_reasons" | "hold_review_due_at" | "tracking_status">,
+  now: Date = new Date(),
+): string | null {
+  const delta = holdReviewDayDelta(item.hold_review_due_at, now);
+  if (actionReasonsOf(item).includes("hold_overdue")) {
+    return delta === null ? "보류 기한 지남" : `보류 기한 지남 D+${-delta}`;
+  }
+  if (item.tracking_status !== "보류" || delta === null) return null;
+  return delta >= 0 ? `보류 기한 D-${delta}` : `보류 기한 D+${-delta}`;
+}
+
+// ---------------------------------------------------------------------------
+// 찾아보기 전략 (spec §4.1). 저장된 코드를 바꾸지 않고 이름만 붙인다.
+
+const SEARCH_STRATEGY_LABELS: Record<OpportunitySearchStrategy, string> = {
+  full: "전체 이름 일치",
+  breaking_split: "구분자 분할 일치",
+  normalized: "정규화 이름 일치",
+  longest_fragment: "가장 긴 조각 일치",
+  prefix12: "앞 12자 일치",
+  merge_confirmation: "공식 번호 병합 확인",
+};
+
+export function searchStrategyLabel(strategy: string | null): string {
+  if (!strategy) return "미확인";
+  return (SEARCH_STRATEGY_LABELS as Record<string, string | undefined>)[strategy] ?? strategy;
+}
+
+/** 기관 일치 여부. `null`은 비교하지 않았거나 모르는 것이며 불일치가 아니다. */
+export function agencyMatchLabel(value: boolean | null): string {
+  if (value === true) return "기관 일치";
+  if (value === false) return "기관 불일치";
+  return "기관 일치 미확인";
+}
+
+// ---------------------------------------------------------------------------
+// 시각 비교. `Date`는 밀리초까지만 읽으므로 마이크로초는 문자열에서 따로 읽는다.
+
+function instantKey(value: string | null): [number, number] | null {
+  if (!value) return null;
+  const ms = Date.parse(value);
+  if (Number.isNaN(ms)) return null;
+  const fraction = /T\d{2}:\d{2}:\d{2}\.(\d+)/.exec(value)?.[1] ?? "";
+  return [ms, Number(fraction.slice(3, 6).padEnd(3, "0"))];
+}
+
+/** 오름차순 비교. 읽을 수 없는 값·`null`은 가장 이르다. */
+export function compareInstants(a: string | null, b: string | null): number {
+  const left = instantKey(a);
+  const right = instantKey(b);
+  if (left === null || right === null) return left === right ? 0 : left === null ? -1 : 1;
+  return left[0] - right[0] || left[1] - right[1];
+}
+
+/**
+ * 화면에 남길 `검색 미확인` 기록.
+ *
+ * 찾아보기 대상마다 가장 최근 기록 하나만 남기고, 같은 대상에서 그보다 나중에 찾은
+ * 후보가 있으면 그 기록은 지난 검색이므로 숨긴다(`last_searched_at` 비교). 대상을
+ * 알 수 없는 기록은 한 묶음으로 두고 후보와 비교하지 않는다 — 대상을 추정하지 않는다.
+ */
+export function visibleUnconfirmedSearches(links: readonly OpportunityLinkView[]): OpportunityLinkView[] {
+  const newest = new Map<string, OpportunityLinkView>();
+  for (const link of links) {
+    if (link.status !== "검색 미확인") continue;
+    const key = searchTargetKindOf(link) ?? "unknown";
+    const current = newest.get(key);
+    const order = current ? compareInstants(link.last_searched_at, current.last_searched_at) : 1;
+    if (!current || order > 0 || (order === 0 && link.id > current.id)) newest.set(key, link);
+  }
+  const kept = new Set(
+    [...newest.values()].filter((search) => {
+      const target = searchTargetKindOf(search);
+      if (target === null) return true;
+      return !links.some((other) => other.link_type === "candidate"
+        && other.status !== "검색 미확인"
+        && other.source_type === target
+        && compareInstants(other.last_searched_at, search.last_searched_at) > 0);
+    }),
+  );
+  return links.filter((link) => kept.has(link));
+}
+
+/** 재검토 신호 이력 이벤트의 이름(spec §6.3). 모르는 코드는 그대로 둔다. */
+export function recheckEventLabel(kind: OpportunityRecheckEventKind | string): string {
+  if (kind === "created") return "신호 생성";
+  if (kind === "acknowledged") return "확인 완료";
+  if (kind === "cleared_by_decision") return "결정 저장으로 해제";
+  return kind;
+}
 
 /**
  * 다음 확인 하나.
  *
  * 여러 개를 나열하면 무엇부터 할지 화면이 답하지 못한다. 위에서부터 처음 맞는
- * 하나에서 멈춘다.
+ * 하나에서 멈춘다. 사유가 있으면 서버가 준 사유를 행의 주 행동과 같은 우선순위로
+ * 읽는다(`ACTION_REASON_PRIORITY`).
  */
 export function nextCheckOf(item: TrackingFacts): NextCheck {
   if (item.tracking_status === "미선택") {
@@ -120,28 +365,43 @@ export function nextCheckOf(item: TrackingFacts): NextCheck {
       description: "아직 추적 여부를 선택하지 않았습니다. 연결된 공고를 읽고 추적 범위를 정해 주세요.",
     };
   }
-  if (item.pending_candidate_link_count > 0) {
-    return {
-      key: "candidate_link",
-      label: "연결 후보 확인",
-      description: "공식 통합번호가 아니라 이름 검색으로 찾은 후보입니다. 같은 사업인지 확인하면 사업 흐름에 연결할 수 있습니다.",
-    };
-  }
-  if (item.recheck_signal) {
+  const reason = topActionReason(item);
+  if (reason === "new_link") {
     return {
       key: "recheck",
       label: "새 공고 재검토",
       description: "새 공식 레코드가 연결되어 재검토 신호가 남아 있습니다. 공고 내용과 기존 검토 내용을 확인해 주세요.",
     };
   }
-  if (item.open_blocking_item_count > 0) {
+  if (reason === "merge_confirmation") {
+    return {
+      key: "merge_confirmation",
+      label: "병합 확인",
+      description: "공식 번호로 이어진 레코드가 사람이 고른 추적 상태를 가진 다른 사업기회에 있어 자동으로 병합하지 않았습니다. 같은 사업인지 확인해 주세요.",
+    };
+  }
+  if (reason === "candidate_pending") {
+    return {
+      key: "candidate_link",
+      label: "연결 후보 확인",
+      description: "공식 통합번호가 아니라 이름 검색으로 찾은 후보입니다. 같은 사업인지 확인하면 사업 흐름에 연결할 수 있습니다.",
+    };
+  }
+  if (reason === "hold_overdue") {
+    return {
+      key: "hold_overdue",
+      label: "보류 재검토",
+      description: "보류로 저장한 뒤 재검토 기한이 지났습니다. 추적 상태를 다시 정해 주세요. 보류는 자동으로 풀리지 않습니다.",
+    };
+  }
+  if (reason === "blocking_item") {
     return {
       key: "blocking_item",
       label: "확인 항목 답변",
       description: "연결된 공고의 blocking 확인 항목에 담당자 답변이 없습니다. 원문에서 확인한 사실을 남겨 주세요.",
     };
   }
-  if (item.links.some((link) => link.status === "검색 미확인")) {
+  if (visibleUnconfirmedSearches(item.links).length > 0) {
     return {
       key: "search_unconfirmed",
       label: "연결 근거 확인",
@@ -169,11 +429,14 @@ export function nextCheckOf(item: TrackingFacts): NextCheck {
   };
 }
 
-/** 행 오른쪽 열의 보조 한 줄. 숫자는 서버가 센 값만 쓴다. */
+/** 행 오른쪽 열의 보조 한 줄. 숫자는 서버가 센 값만 쓰고 주 행동과 같은 사유를 말한다. */
 export function nextCheckNote(item: TrackingFacts & { id: number }): string {
-  if (item.pending_candidate_link_count > 0) return `후보 ${item.pending_candidate_link_count}건`;
-  if (item.recheck_signal) return "재검토 신호";
-  if (item.open_blocking_item_count > 0) return `확인 항목 ${item.open_blocking_item_count}건`;
+  const reason = topActionReason(item);
+  if (reason === "new_link") return "재검토 신호";
+  if ((reason === "merge_confirmation" || reason === "candidate_pending") && item.pending_candidate_link_count > 0) {
+    return `후보 ${item.pending_candidate_link_count}건`;
+  }
+  if (reason === "blocking_item" && item.open_blocking_item_count > 0) return `확인 항목 ${item.open_blocking_item_count}건`;
   return `#${String(item.id).padStart(3, "0")}`;
 }
 

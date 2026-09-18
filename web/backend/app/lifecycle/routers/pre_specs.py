@@ -17,6 +17,7 @@ from .. import PreSpecDocumentCounts, extension_registry
 from ..models import Attachment, Notice, NoticeObservation, Opportunity, OpportunityLink
 from ..schemas.pre_specs import (
     PreSpecDocumentSummary,
+    PreSpecOrderPlanCandidatesResponse,
     PreSpecListItem,
     PreSpecListResponse,
     PreSpecDeadlineStatus,
@@ -30,6 +31,7 @@ from ..schemas.pre_specs import (
     PreSpecWorkspace,
 )
 from ..schemas.opportunities import OpportunityTrackingStatus
+from ..services.opportunity_candidates import pre_spec_order_plan_candidates
 from ..services.opportunity_connections import tracked_order_plan_connection_predicate
 from ..services.opportunity_integrity import (
     active_opportunity_predicate,
@@ -668,6 +670,22 @@ def list_pre_specs(
         overview_status_counts=overview_status_counts,
         workspace_counts=workspace_counts,
     )
+
+
+@router.get(
+    "/{notice_pk}/order-plan-candidates",
+    response_model=PreSpecOrderPlanCandidatesResponse,
+)
+def list_order_plan_candidates(
+    notice_pk: int,
+    session: Session = Depends(get_db),
+) -> PreSpecOrderPlanCandidatesResponse:
+    """Pending order-plan candidates proposed for one pre-spec (spec §4.4)."""
+
+    response = pre_spec_order_plan_candidates(session, notice_pk)
+    if response is None:
+        raise HTTPException(status_code=404, detail="사전규격을 찾을 수 없습니다.")
+    return response
 
 
 __all__ = ["router"]

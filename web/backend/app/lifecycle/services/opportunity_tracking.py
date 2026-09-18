@@ -3,7 +3,9 @@
 The two kinds of state deliberately have separate write paths.  Human
 choices are written only by :func:`set_tracking_status`; ingestion may only
 call :func:`raise_recheck_signal`, which changes the two recheck columns and
-appends a system audit event.
+appends a system audit event.  A person may clear the signal without a new
+tracking decision through :func:`acknowledge_recheck_signal`, which also
+leaves the human tracking columns alone.
 """
 
 from __future__ import annotations
@@ -20,15 +22,31 @@ from ..models import Opportunity, OpportunityLink
 
 TRACKING_STATUSES = ("미선택", "계속 추적", "보류", "종료")
 _TRACKING_STATUS_SET = frozenset(TRACKING_STATUSES)
+#: 새 공식 연결이 재검토 신호를 켜는 추적 상태 (spec §6.1). ``미선택``은 아직 사람의
+#: 시야 밖이므로 켜지 않는다.
+RECHECK_SIGNAL_TRACKING_STATUSES = ("계속 추적", "보류", "종료")
 HUMAN_TRACKING_ACTION = "opportunity.tracking_status.changed"
 SYSTEM_RECHECK_ACTION = "opportunity.recheck_signal.created"
+ACKNOWLEDGED_RECHECK_ACTION = "opportunity.recheck_signal.acknowledged"
+RECHECK_NOTE_MAX_LENGTH = 500
 
 
 class OpportunityTrackingError(ValueError):
-    """Raised when a tracking transition cannot be represented safely."""
+    """Raised when a tracking transition cannot be represented safely.
 
-    def __init__(self, code: str, message: str) -> None:
+    ``details`` carries only safe identifiers or state values that an API
+    boundary may return verbatim.
+    """
+
+    def __init__(
+        self,
+        code: str,
+        message: str,
+        *,
+        details: dict[str, Any] | None = None,
+    ) -> None:
         self.code = code
+        self.details = details
         super().__init__(message)
 
 
@@ -191,11 +209,13 @@ def raise_recheck_signal(
 ) -> bool:
     """Raise or refresh a recheck signal for one newly attached official link.
 
-    Only an opportunity currently marked ``종료`` receives a signal.  A
-    repeated observation of the same link is a no-op.  A different official
-    link replaces the singular current signal with that newest evidence and
-    appends another system audit event.  No human tracking column is assigned
-    here.
+    An opportunity whose human tracking status is ``계속 추적``, ``보류`` or
+    ``종료`` receives a signal (spec §6.1); ``미선택`` never does.  Callers
+    raise it only for automatic linking or merging that brings a record into
+    the opportunity; a human-confirmed merge does not.  A repeated observation
+    of the same link is a no-op.  A different official link replaces the
+    singular current signal with that newest evidence and appends another
+    system audit event.  No human tracking column is assigned here.
     """
 
     target = _resolve_opportunity(session, opportunity)
@@ -210,7 +230,7 @@ def raise_recheck_signal(
             "link_not_official",
             "재검토 신호의 근거는 확정 공식 연결이어야 합니다",
         )
-    if target.tracking_status != "종료":
+    if target.tracking_status not in RECHECK_SIGNAL_TRACKING_STATUSES:
         return False
     if (
         target.recheck_signal_link_id is not None
@@ -248,6 +268,80 @@ def raise_recheck_signal(
     return True
 
 
+def _validate_note(value: str | None) -> bool:
+    """Return whether a non-blank note was supplied; the text itself is not kept."""
+
+    if value is None:
+        return False
+    if not isinstance(value, str) or len(value) > RECHECK_NOTE_MAX_LENGTH:
+        raise OpportunityTrackingError("invalid_request", "요청이 올바르지 않습니다")
+    return bool(value.strip())
+
+
+def acknowledge_recheck_signal(
+    session: Session,
+    opportunity: Opportunity | int,
+    *,
+    expected_link_id: int,
+    acknowledged_by: str,
+    acknowledged_at: datetime,
+    note: str | None = None,
+) -> Opportunity:
+    """Clear the current recheck signal without touching the human choice.
+
+    The caller names the evidence link it looked at.  If the signal is gone,
+    or now points at a different link, nothing changes and the caller must
+    read the current state again (spec §6.2).  The audit event records the
+    opportunity, the acknowledged link and whether a note was written; the
+    note text is not stored anywhere.
+    """
+
+    if (
+        not isinstance(expected_link_id, int)
+        or isinstance(expected_link_id, bool)
+        or expected_link_id < 1
+    ):
+        raise OpportunityTrackingError(
+            "opportunity_link_invalid", "사업기회 연결 식별자가 올바르지 않습니다"
+        )
+    note_present = _validate_note(note)
+    clean_actor = _validate_human_name(acknowledged_by)
+    event_at = _validate_timestamp(acknowledged_at)
+    target = _resolve_opportunity(session, opportunity)
+    if target.recheck_signal_at is None or target.recheck_signal_link_id is None:
+        raise OpportunityTrackingError(
+            "recheck_signal_absent", "확인할 재검토 신호가 없습니다"
+        )
+    if target.recheck_signal_link_id != expected_link_id:
+        raise OpportunityTrackingError(
+            "recheck_signal_changed",
+            "재검토 신호의 근거 연결이 바뀌었습니다",
+            details={"current_link_id": target.recheck_signal_link_id},
+        )
+
+    link_id = target.recheck_signal_link_id
+    target.recheck_signal_at = None
+    target.recheck_signal_link_id = None
+    session.add(
+        AuditEvent(
+            actor_kind="human",
+            claimed_name=clean_actor,
+            action=ACKNOWLEDGED_RECHECK_ACTION,
+            aggregate_type="opportunity",
+            aggregate_id=str(target.id),
+            safe_metadata={
+                "opportunity_id": target.id,
+                "link_id": link_id,
+                "note_present": note_present,
+            },
+            request_id=None,
+            created_at=event_at,
+        )
+    )
+    session.flush()
+    return target
+
+
 # These aliases keep the service discoverable under the verbs used by the
 # tracking workstream while retaining one implementation and one write path.
 change_tracking_status = set_tracking_status
@@ -264,3 +358,4 @@ class OpportunityTrackingService:
     change_tracking_status = staticmethod(set_tracking_status)
     raise_recheck_signal = staticmethod(raise_recheck_signal)
     record_recheck_signal = staticmethod(raise_recheck_signal)
+    acknowledge_recheck_signal = staticmethod(acknowledge_recheck_signal)

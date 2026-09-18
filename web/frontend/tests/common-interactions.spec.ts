@@ -1,5 +1,6 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { mockApi, mockDeepReviewLifecycle, mockWorkload } from "./api-mock";
+import type { BidDeltaDecisionQueueItem } from "../src/lib/types";
 
 const opportunity = {
   id: 501,
@@ -220,7 +221,7 @@ test("사업 추적 상세는 변경 비교로 이동하고 추적 저장과 최
   await expect(page.getByRole("button", { name: "추적 상태 변경", exact: true })).toHaveCount(1);
   await expect(page.getByRole("dialog")).not.toBeVisible();
   await expect(page.locator(".opportunity-action-footer")).toContainText("미선택");
-  await page.getByRole("tab", { name: "최근 추적 결정", exact: true }).click();
+  await page.getByRole("tab", { name: "추적 이력", exact: true }).click();
   await expect(page.locator("#opportunity-panel-decision")).toContainText("미선택");
   await expect(page.locator("#opportunity-panel-decision")).toContainText("아직 선택하지 않았습니다");
 });
@@ -380,16 +381,34 @@ test("흡수한 옛 경로는 404를 내지 않고 목적지 화면의 해당 �
 test("심층 검토 보고서 진입점이 사업 추적 화면에 명시된다", async ({ page }) => {
   await mockApi(page);
   await mockOpportunity(page);
+  // 공용 mock은 501에 빈 보고서 목록을 준다. 진입점 이동을 보려고 이 테스트에서만 한 건을 준다.
+  await page.route("**/api/opportunities/501/deep-reviews", (route) => route.fulfill({
+    json: {
+      opportunity_id: 501,
+      items: [{
+        deep_review_id: "fixture-review",
+        notice_id: 61,
+        notice_title: "합성 사전규격",
+        status: "completed",
+        quality_status: "unmeasured_reference",
+        created_at: "2026-08-26T00:00:00Z",
+        current_attempt_status: "completed",
+        latest_final_opinion: null,
+      }],
+    },
+  }));
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/opportunities/501");
 
   await page.getByRole("tab", { name: /확인 사항/ }).click();
   const entry = page.locator(".opportunity-deep-review");
   await expect(entry.getByRole("heading", { name: "심층 검토 보고서" })).toBeVisible();
-  // 서버가 사업기회별 보고서 목록을 주지 않는다는 사실을 감추지 않는다.
-  await expect(entry).toContainText("서버가 사업기회별 보고서 목록을 제공하지 않아");
-  await entry.getByLabel("심층 검토 보고서 ID").fill("fixture-review");
-  await entry.getByRole("link", { name: "보고서 열기 →" }).click();
+  // ID 입력 없이 `GET /api/opportunities/{id}/deep-reviews` 목록에서 보고서를 연다.
+  await expect(entry.getByLabel("심층 검토 보고서 ID")).toHaveCount(0);
+  const items = entry.locator(".opportunity-deep-review-item");
+  await expect(items).toHaveCount(1);
+  await expect(items).toContainText("합성 사전규격");
+  await items.getByRole("link", { name: "보고서 열기 →" }).click();
   await expect(page).toHaveURL(/\/deep-reviews\/fixture-review\?from=opportunities/);
   // 이 화면에서 연 보고서는 사업 추적 아래로 보인다(route-meta의 alternateOrigin).
   await expect(page.locator("aside.sidebar .sidebar-item.is-active")).toHaveText("사업 추적");
@@ -451,6 +470,7 @@ test("누적 집계 미확인과 회차 자료 읽기 전용을 별도로 표시
     { key: "order_plan_pending", count: 24, unavailable_reason: null },
     { key: "pre_spec_deep_review_ready", count: null, unavailable_reason: "provider_absent" },
     { key: "tracking_action_required", count: null, unavailable_reason: "provider_absent" },
+    { key: "tracking_hold_review_due", count: 2, unavailable_reason: null },
     { key: "bid_final_decision_pending", count: null, unavailable_reason: null },
   ] });
   await page.goto("/");
@@ -503,109 +523,121 @@ test("실행 상태는 모든 탭에서 운영 텔레메트리 위치와 상시 
   }
 });
 
+/** 결정 대기열 한 행. 목록의 사업 이름·비교 건수·사람 결정은 이 응답이 준 값이다. */
+function queueItem(overrides: Partial<BidDeltaDecisionQueueItem> = {}): BidDeltaDecisionQueueItem {
+  return {
+    opportunity_id: 501,
+    title: "접근성 검증 입찰공고",
+    agency: "테스트 조달기관",
+    tracking_status: "계속 추적",
+    first_registered_stage: "order_plan",
+    recheck_signal: false,
+    bid_notice_external_id: "R26BK00267196",
+    comparison_count: 0,
+    latest_final_decision: null,
+    decision_currentness: "unknown",
+    ...overrides,
+  };
+}
+
+/** 비교가 하나도 없는 workspace. 선택한 사업 하나의 상세에만 쓰인다. */
+function emptyWorkspace(opportunityId: number) {
+  return {
+    schema_version: "bidops.bid-delta-workspace.v1",
+    opportunity_id: opportunityId,
+    baseline_candidates: [],
+    comparison_candidates: [],
+    comparisons: [],
+    latest_final_decision: null,
+    final_decisions: [],
+    decision_currentness: "unknown",
+    currentness_reasons: [],
+  };
+}
+
+interface GoNoGoRequestTrace {
+  queueQueries: Array<Record<string, string>>;
+  opportunityListRequests: number;
+  workspaceIds: number[];
+}
+
+/** 대기열·workspace를 고정하고 목록이 실제로 보낸 요청을 센다. `mockApi` 뒤에 부른다. */
+async function mockDecisionQueueList(page: Page, items: BidDeltaDecisionQueueItem[]): Promise<GoNoGoRequestTrace> {
+  const trace: GoNoGoRequestTrace = { queueQueries: [], opportunityListRequests: 0, workspaceIds: [] };
+  page.on("request", (request) => {
+    const url = new URL(request.url());
+    if (url.pathname === "/api/bid-delta/decision-queue") trace.queueQueries.push(Object.fromEntries(url.searchParams.entries()));
+    if (url.pathname === "/api/opportunities") trace.opportunityListRequests += 1;
+    const workspace = /^\/api\/opportunities\/(\d+)\/bid-delta$/.exec(url.pathname);
+    if (workspace) trace.workspaceIds.push(Number(workspace[1]));
+  });
+  await page.route("**/api/bid-delta/decision-queue**", async (route) => {
+    const url = new URL(route.request().url());
+    const limit = Number(url.searchParams.get("limit") ?? "50");
+    const offset = Number(url.searchParams.get("offset") ?? "0");
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ items: items.slice(offset, offset + limit), total: items.length, limit, offset }),
+    });
+  });
+  await page.route(/\/api\/opportunities\/\d+\/bid-delta$/, async (route) => {
+    const id = Number(/\/api\/opportunities\/(\d+)\/bid-delta$/.exec(new URL(route.request().url()).pathname)?.[1] ?? 0);
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(emptyWorkspace(id)) });
+  });
+  return trace;
+}
+
 test("최종 Go/No-Go 목록은 사업 이름과 변경 비교 결과 없음을 값으로 보여준다", async ({ page }) => {
   await mockApi(page);
-  await page.route(/\/api\/opportunities(\?|$)/, async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({ items: [opportunity], total: 1, limit: 100, offset: 0 }),
-    });
-  });
-  // 비교가 하나도 없는 workspace다. `비교 0건`이 아니라 값으로 읽혀야 한다.
-  await page.route(/\/api\/opportunities\/501\/bid-delta/, async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({
-        schema_version: "bidops.bid-delta-workspace.v1",
-        opportunity_id: 501,
-        baseline_candidates: [],
-        comparison_candidates: [],
-        comparisons: [],
-        latest_final_decision: null,
-        final_decisions: [],
-        decision_currentness: "unknown",
-        currentness_reasons: [],
-      }),
-    });
-  });
+  const trace = await mockDecisionQueueList(page, [queueItem()]);
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/go-no-go?show=all");
 
   const rows = page.locator(".gng-row");
-  await expect(rows.first()).toBeVisible();
+  await expect(rows).toHaveCount(1);
   // 식별자만 있는 행은 무슨 사업인지 알 수 없어 결국 하나씩 열어 봐야 한다.
-  await expect(rows.first()).toContainText("접근성 검증 입찰공고");
-  await expect(rows.first()).toContainText("테스트 조달기관");
+  await expect(rows.nth(0)).toContainText("접근성 검증 입찰공고");
+  await expect(rows.nth(0)).toContainText("테스트 조달기관");
   // 비교 0건은 값이다. `비교 0건`으로 눌러 담아 "아직 안 봤다"와 섞지 않는다.
-  await expect(rows.first()).toContainText("변경 비교 결과 없음");
-  // 받은 목록에서 센 값이라는 사실을 요약이 직접 말한다.
-  await expect(page.locator(".gng-summary")).toContainText("전체 총계가 아닙니다");
+  await expect(rows.nth(0)).toContainText("변경 비교 결과 없음");
+  // 선택한 사업의 상세가 그려진 뒤에 요청을 센다.
+  await expect(page.getByRole("heading", { name: "변경 비교 결과가 아직 없습니다" })).toBeVisible();
+  // 대기열을 한 번에 다 받았으므로 요약은 전체 기준이라고 말한다.
+  await expect(page.locator(".gng-summary")).toHaveText("전체 1건 기준 · 1건 표시");
+  expect(trace.queueQueries).toHaveLength(1);
+  expect(trace.queueQueries[0]).toMatchObject({ status: "all", offset: "0" });
+  expect(trace.opportunityListRequests).toBe(0);
 });
 
-// 결정 대기 목록은 서버에 집계 엔드포인트가 없어 행마다 workspace를 하나씩
-// 조회한다. 100건을 한꺼번에 받으면 그 자리에서 101 요청이 나갔다 — 화면에
-// 있는 만큼(25건)만 받고 나머지는 페이저 뒤로 둔다.
-test("최종 Go/No-Go 목록은 25건씩 받고 보이는 행만 결정 상태를 조회한다", async ({ page }) => {
+// 결정 대기 목록은 서버의 결정 대기열 한 번으로 그린다(spec §11.3). 행마다 workspace를
+// 조회하던 N+1을 되살리지 않는다 — 상세는 선택한 사업 하나만 받는다.
+test("최종 Go/No-Go 목록은 결정 대기열 한 번으로 그리고 행마다 workspace를 조회하지 않는다", async ({ page }) => {
   await mockApi(page);
-  const many = Array.from({ length: 30 }, (_, index) => ({
-    ...opportunity,
-    id: 600 + index,
-    links: [{ ...opportunity.links[0], id: 6000 + index, title: `결정 대기 사업 ${index + 1}` }],
+  const many = Array.from({ length: 30 }, (_, index) => queueItem({
+    opportunity_id: 600 + index,
+    title: `결정 대기 사업 ${index + 1}`,
+    bid_notice_external_id: `BID-${600 + index}`,
   }));
-  const listQueries: Array<{ limit: string | null; offset: string | null }> = [];
-  const workspaceIds: number[] = [];
-
-  await page.route(/\/api\/opportunities(\?|$)/, async (route) => {
-    const url = new URL(route.request().url());
-    const limit = Number(url.searchParams.get("limit") ?? "25");
-    const offset = Number(url.searchParams.get("offset") ?? "0");
-    listQueries.push({ limit: url.searchParams.get("limit"), offset: url.searchParams.get("offset") });
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({ items: many.slice(offset, offset + limit), total: many.length, limit, offset }),
-    });
-  });
-  await page.route(/\/api\/opportunities\/\d+\/bid-delta/, async (route) => {
-    const matched = /\/api\/opportunities\/(\d+)\/bid-delta/.exec(new URL(route.request().url()).pathname);
-    workspaceIds.push(Number(matched?.[1] ?? 0));
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({
-        schema_version: "bidops.bid-delta-workspace.v1",
-        opportunity_id: Number(matched?.[1] ?? 0),
-        baseline_candidates: [],
-        comparison_candidates: [],
-        comparisons: [],
-        latest_final_decision: null,
-        final_decisions: [],
-        decision_currentness: "unknown",
-        currentness_reasons: [],
-      }),
-    });
-  });
-
+  const trace = await mockDecisionQueueList(page, many);
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/go-no-go?show=all");
 
-  await expect(page.locator(".gng-row")).toHaveCount(25);
-  expect(listQueries[0]).toEqual({ limit: "25", offset: "0" });
-  await expect.poll(() => new Set(workspaceIds).size).toBe(25);
-  // 요약은 여전히 받은 목록에서 센 값이며 전체 총계가 아니라고 밝힌다.
-  await expect(page.locator(".gng-summary")).toContainText("받은 25건 기준");
-  await expect(page.locator(".gng-summary")).toContainText("전체 총계가 아닙니다");
+  await expect(page.locator(".gng-row")).toHaveCount(30);
+  await expect(page.getByRole("heading", { name: "변경 비교 결과가 아직 없습니다" })).toBeVisible();
+  expect(trace.queueQueries).toHaveLength(1);
+  expect(trace.queueQueries[0]).toMatchObject({ status: "all", limit: "500", offset: "0" });
+  expect(trace.opportunityListRequests).toBe(0);
+  // 첫 행이 선택되고 그 사업 하나만 상세를 받는다.
+  expect([...new Set(trace.workspaceIds)]).toEqual([600]);
+  await expect(page.locator(".gng-summary")).toHaveText("전체 30건 기준 · 30건 표시");
+  // 서버 상한(500건) 안이므로 받은 범위 페이저를 두지 않는다.
+  await expect(page.getByRole("navigation", { name: "결정 대기열 페이지" })).toHaveCount(0);
 
-  const pager = page.getByRole("navigation", { name: "사업기회 목록 페이지" });
-  await expect(pager).toContainText("1–25 / 30");
-  await expect(pager.getByRole("button", { name: "이전" })).toBeDisabled();
-  await pager.getByRole("button", { name: "다음" }).click();
-
-  await expect(page.locator(".gng-row")).toHaveCount(5);
-  await expect.poll(() => new URL(page.url()).searchParams.get("offset")).toBe("25");
-  await expect.poll(() => new Set(workspaceIds).size).toBe(30);
+  // 다른 행을 골라도 대기열은 다시 받지 않고 그 행 하나만 조회한다.
+  await page.locator(".gng-row").filter({ hasText: "결정 대기 사업 12" }).click();
+  await expect.poll(() => [...new Set(trace.workspaceIds)].sort()).toEqual([600, 611]);
+  expect(trace.queueQueries).toHaveLength(1);
 });
 
 // 저장 알림은 읽는 동안 사라지면 안 된다. 자동 소멸 시간을 늘리고, hover·focus

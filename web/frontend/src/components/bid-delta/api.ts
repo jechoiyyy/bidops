@@ -1,10 +1,12 @@
 import type {
+  BidConditionsView,
   BidDeltaAttemptCreateRequest,
   BidDeltaComparisonCreateRequest,
   BidDeltaComparisonView,
   BidDeltaWorkspaceView,
   BidFinalDecisionCreateRequest,
   BidFinalDecisionView,
+  BidNoticeFinalDecisionCreateRequest,
 } from "./types";
 
 const API_PREFIX = "/api";
@@ -112,6 +114,25 @@ export function getBidDeltaComparison(opportunityId: number, comparisonId: strin
   return request<BidDeltaComparisonView>(
     `/opportunities/${encodeURIComponent(String(opportunityId))}/bid-delta/comparisons/${encodeURIComponent(comparisonId)}`,
   );
+}
+
+/** 모델 호출 없는 공고 조건 요약(spec §9.1). deep_review가 소유하고 lifecycle 모델은
+ * 읽기 전용으로만 참조한다. */
+export function getBidConditions(opportunityId: number): Promise<BidConditionsView> {
+  return request<BidConditionsView>(`/opportunities/${encodeURIComponent(String(opportunityId))}/bid-conditions`);
+}
+
+/** 최신 입찰공고 조건만으로 최종 결정을 남긴다(spec §9.2). */
+export function recordNoticeConditionsDecision(
+  opportunityId: number,
+  actorName: string,
+  payload: BidNoticeFinalDecisionCreateRequest,
+): Promise<BidFinalDecisionView> {
+  return request<BidFinalDecisionView>(`/opportunities/${encodeURIComponent(String(opportunityId))}/final-decisions`, {
+    method: "POST",
+    headers: jsonMutationHeaders(actorName),
+    body: JSON.stringify(payload),
+  });
 }
 
 export function createBidDeltaComparison(

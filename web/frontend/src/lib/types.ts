@@ -314,6 +314,34 @@ export interface PreSpecListQuery {
   offset?: number | null;
 }
 
+/** 후보가 제시하는 소유 발주계획 요약(spec §4.4). */
+export interface PreSpecCandidateOrderPlan {
+  order_plan_id: number;
+  order_plan_unty_no: string;
+  title: string | null;
+  agency_name: string | null;
+  planned_order_year: string | null;
+  planned_order_month: string | null;
+  budget_amount: number | null;
+}
+
+/**
+ * 이 사전규격을 target으로 하는 `후보 확인 대기` 연결 하나(spec §4.4).
+ * `order_plans`는 owner 사업기회가 가진 모든 발주계획이며, owner가(병합 확인
+ * owner처럼) 발주계획을 하나도 갖지 않으면 빈 배열이다.
+ */
+export interface PreSpecOrderPlanCandidate {
+  link: OpportunityLinkView;
+  opportunity_id: number;
+  tracking_status: OpportunityTrackingStatus;
+  order_plans: PreSpecCandidateOrderPlan[];
+}
+
+export interface PreSpecOrderPlanCandidatesResponse {
+  notice_pk: number;
+  items: PreSpecOrderPlanCandidate[];
+}
+
 /** 개요 검토 실행 상태 10값. 목록·상세가 배지·라벨에 쓰는 계약값이며, 개요 실행
  * 세부 view 타입군(v2 리뷰·attempt·결과)은 새 계약(prespec_overview_run)으로
  * 대체되어 삭제됐지만 이 열거값 자체는 목록 계약(`overview_review_status`,
@@ -1421,13 +1449,17 @@ export type OpportunityTrackingStatus = "미선택" | "계속 추적" | "보류"
 export type OpportunityFirstRegisteredStage = "order_plan" | "pre_spec" | "bid_notice";
 export type OpportunityLinkStage = "order_plan" | "notice";
 export type OpportunityLinkType = "official" | "candidate";
-export type OpportunityLinkStatus = "확정" | "후보 확인 대기" | "사람 확인 완료" | "검색 미확인";
+// "사람 확인 병합"은 병합으로 끝난 후보 수락(비소유 행)의 상태다(spec §3, §10).
+export type OpportunityLinkStatus = "확정" | "후보 확인 대기" | "사람 확인 완료" | "검색 미확인" | "사람 확인 병합";
+// "merge_confirmation"은 사람 상태가 있는 사업기회끼리 자동 병합을 거부했을 때
+// 만든 병합 확인 후보의 전략이다(spec §3, §7.1 action reason과 다른 축).
 export type OpportunitySearchStrategy =
   | "full"
   | "breaking_split"
   | "normalized"
   | "longest_fragment"
-  | "prefix12";
+  | "prefix12"
+  | "merge_confirmation";
 
 export interface OpportunityLinkView {
   id: number;
@@ -1440,6 +1472,9 @@ export interface OpportunityLinkView {
   last_searched_at: string | null;
   evidence_external_no: string | null;
   evidence_bid_no: string | null;
+  // `검색 미확인` 행이 어느 찾아보기 대상의 기록인지(spec §3.3). 다른 행은 null이다.
+  // 이 필드를 싣기 전의 응답·고정 입력에는 없을 수 있어 선택 필드로 둔다.
+  search_target_kind?: OpportunitySearchTarget | null;
   human_decision: "accepted" | "rejected" | null;
   reviewer_name: string | null;
   reviewed_at: string | null;
@@ -1455,8 +1490,24 @@ export interface OpportunityLinkView {
   record_external_id: string | null;
 }
 
-export type OpportunitySection = "조치 필요" | "추적 중" | "보류" | "추적 종료";
+// "신규 입찰공고"는 입찰공고로 처음 등록된 미선택 사업이다. "미결정"은 그 밖의
+// 미선택 사업이며 집계 전용이라 목록 필터로는 받지 않는다(spec §7.2).
+export type OpportunitySection = "조치 필요" | "추적 중" | "보류" | "추적 종료" | "신규 입찰공고";
 export type OpportunitySectionCounts = Record<OpportunitySection | "미결정", number>;
+
+// 조치 필요 사유(spec §7.1). 모든 행에 계산하며 구역과 별개의 축이다.
+export type OpportunityActionReason =
+  | "new_link"
+  | "candidate_pending"
+  | "merge_confirmation"
+  | "blocking_item"
+  | "hold_overdue";
+
+// 보류 재검토 기한 필터(spec §7.3). "attention"은 "overdue"와 "due_soon"의 합집합이다.
+export type OpportunityHoldReview = "overdue" | "due_soon" | "attention";
+
+// 찾아보기 대상(spec §4.3).
+export type OpportunitySearchTarget = "pre_spec" | "bid_notice";
 
 export interface OpportunityStateView {
   section: OpportunitySection | null;
@@ -1471,6 +1522,9 @@ export interface OpportunityStateView {
   recheck_signal_at: string | null;
   recheck_signal_link_id: number | null;
   first_registered_stage: OpportunityFirstRegisteredStage;
+  action_reasons: OpportunityActionReason[];
+  /** "보류"일 때만 `tracking_selected_at + 14일`이다. 저장하지 않는 파생값이다. */
+  hold_review_due_at: string | null;
 }
 
 export interface OpportunityListItem extends OpportunityStateView {
@@ -1483,6 +1537,8 @@ export interface OpportunityDetailResponse extends OpportunityStateView {
 
 export interface OpportunityListResponse {
   section_counts: OpportunitySectionCounts;
+  // 활성 `reason` 필터만 뺀 조건으로 센 사유별 건수. 한 행은 여러 사유에 들어간다.
+  action_reason_counts: Record<OpportunityActionReason, number>;
   items: OpportunityListItem[];
   total: number;
   limit: number;
@@ -1493,7 +1549,11 @@ export interface OpportunityListQuery {
   section?: OpportunitySection | null;
   tracking_status?: OpportunityTrackingStatus | null;
   first_registered_stage?: OpportunityFirstRegisteredStage | null;
-  sort?: "created_at" | "tracking_status" | "first_registered_stage" | null;
+  reason?: OpportunityActionReason | null;
+  hold_review?: OpportunityHoldReview | null;
+  /** 서버 검색(공백 정규화·소문자 부분일치), 2~100자(spec §7.5). */
+  q?: string | null;
+  sort?: "created_at" | "tracking_status" | "first_registered_stage" | "hold_review_due_at" | null;
   limit?: number | null;
   offset?: number | null;
 }
@@ -1501,6 +1561,52 @@ export interface OpportunityListQuery {
 export interface TrackingStatusUpdateRequest {
   tracking_status: OpportunityTrackingStatus;
   reason: string;
+}
+
+/**
+ * 현재 재검토 신호를 확인 처리한다(`POST /opportunities/{id}/recheck-acknowledgements`,
+ * spec §6.2). `expected_link_id`는 사람이 실제로 본 근거 연결이며, 신호가 이미 다른
+ * 연결로 바뀌었으면 서버가 409 `recheck_signal_changed`로 거절한다. 추적 상태는
+ * 바꾸지 않는다.
+ */
+export interface RecheckAcknowledgementRequest {
+  expected_link_id: number;
+  note?: string | null;
+}
+
+/** `recheck_signal_changed` 409의 `details` (spec §6.2). */
+export interface RecheckSignalChangedDetails {
+  current_link_id: number;
+}
+
+/** `candidate_merge_state_conflict` 409의 `details.opportunities[]` 원소 (spec §11.1). */
+export interface OpportunityMergeConflictState {
+  id: number;
+  tracking_status: OpportunityTrackingStatus;
+  tracking_selected_by: string | null;
+  tracking_selected_at: string | null;
+  recheck_signal: boolean;
+}
+
+export interface CandidateMergeStateConflictDetails {
+  opportunities: OpportunityMergeConflictState[];
+}
+
+/** 서버 측 이름 사다리 찾아보기 요청(`POST /opportunities/{id}/searches`, spec §4.3). */
+export interface OpportunitySearchRequest {
+  target: OpportunitySearchTarget;
+}
+
+/**
+ * 찾아보기 응답. `search_unconfirmed`는 검색이 레코드를 확인하지 못했다는
+ * 뜻이며 "레코드가 없다"는 주장이 아니다(ADR-0025).
+ */
+export interface OpportunitySearchResponse {
+  searched_at: string;
+  target: OpportunitySearchTarget;
+  attempted_strategies: OpportunitySearchStrategy[];
+  candidates: OpportunityLinkView[];
+  search_unconfirmed: boolean;
 }
 
 /** v1 contracts for read-only bulk tracking preview and its final receipt. */
@@ -1911,9 +2017,25 @@ export interface OpportunityTrackingDecisionItem {
   cleared_recheck_signal: boolean;
 }
 
+export type OpportunityRecheckEventKind = "created" | "acknowledged" | "cleared_by_decision";
+
+/**
+ * 재검토 신호 이벤트 하나(감사 로그 투영, spec §6.3). `note_present`는 확인이
+ * 메모를 가졌는지만 말하며 메모 원문은 저장·노출하지 않는다.
+ */
+export interface OpportunityRecheckEventView {
+  kind: OpportunityRecheckEventKind;
+  link_id: number | null;
+  actor_kind: "human" | "system";
+  claimed_name: string | null;
+  created_at: string;
+  note_present: boolean;
+}
+
 export interface OpportunityTrackingDecisionsResponse {
   opportunity_id: number;
   items: OpportunityTrackingDecisionItem[];
+  recheck_events: OpportunityRecheckEventView[];
 }
 
 export interface OpportunityDeepReviewItem {
@@ -1932,7 +2054,9 @@ export interface OpportunityDeepReviewsResponse {
   items: OpportunityDeepReviewItem[];
 }
 
-export type WorkloadKey = "order_plan_pending" | "pre_spec_deep_review_ready" | "tracking_action_required" | "bid_final_decision_pending";
+// 키 순서 고정(ADR-0053 §1·§4): order_plan_pending, pre_spec_deep_review_ready,
+// tracking_action_required, tracking_hold_review_due, bid_final_decision_pending.
+export type WorkloadKey = "order_plan_pending" | "pre_spec_deep_review_ready" | "tracking_action_required" | "tracking_hold_review_due" | "bid_final_decision_pending";
 export interface WorkloadItem {
   key: WorkloadKey;
   count: number | null;

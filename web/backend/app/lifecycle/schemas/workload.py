@@ -9,6 +9,7 @@ WorkloadKey = Literal[
     "order_plan_pending",
     "pre_spec_deep_review_ready",
     "tracking_action_required",
+    "tracking_hold_review_due",
     "bid_final_decision_pending",
 ]
 
