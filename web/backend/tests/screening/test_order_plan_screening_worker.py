@@ -381,3 +381,17 @@ def test_new_attempt_records_the_generation_identity_it_ran_with(tmp_path: Path)
     assert attempt.model_digest == stage2["model_digest"]
     assert attempt.prompt_sha256 == stage2["prompt_sha256"]
     assert attempt.company_profile_sha256 == stage2["company_profile_sha256"]
+
+
+def test_worker_accepts_a_candidate_file_status_frozen_under_an_active_row(tmp_path: Path) -> None:
+    """The file policy_status is a snapshot; the worker only checks file ↔ binding agreement."""
+
+    settings, session, policy_version, _, _ = _fixture(tmp_path, count=3, file_policy_status="activation_candidate")
+    from app.screening.services.order_plan_screening import OrderPlanScreeningService
+
+    response, _ = _create(OrderPlanScreeningService(settings), session, policy_version)
+    worker = C2ScreeningWorker(settings=settings, adapter=FakeAdapter(), raw_response_store=MemoryResponseStore())
+    result = worker.run_once(session)
+    assert result and result["status"] == "성공"
+    execution = session.get(OrderPlanScreeningExecution, UUID(str(response["execution_id"])))
+    assert execution is not None and execution.status == "성공" and execution.error_code is None
