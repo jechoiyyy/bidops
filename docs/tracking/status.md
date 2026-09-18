@@ -47,7 +47,7 @@ run을 만들지 않음), GPU 휴지(연속 가동 시간 기준, 기본 꺼짐)
 `tests/deep_review/test_auto_preparation.py::test_the_flag_opens_preparation_for_sw_business_without_a_grade`,
 `web/frontend/tests/admin-workspace-consistency.spec.ts:23`(1280×800·1440×900, `/runs`).
 
-최종 게이트: (리더 기록)
+최종 게이트(2026-09-18, 통합 트리 bc7e338에서 1회): 백엔드 `pytest tests/` 2340 passed·5 skipped·2 failed — 실패 2건은 `test_module_boundaries.py`(새 `gpu_rest.py`의 모듈 배정·`screening→workers` import)로 e80ab21에서 `app/core/gpu_rest.py`로 옮겨 고쳤고 영향 파일 4개 55 passed; 파이프라인 `./run-tests.sh` 통과; 프런트 `tsc -b --force`·build 통과, `test:screens`(app·layout 2종) 631 passed·6 skipped·3 failed — `admin-workspace-consistency.spec.ts:23` 2건은 main 6191f35에서도 실패하는 기존 결함(`/runs`의 `.rs-detail-foot`), `bid-delta.spec.ts:508` 1건은 부하 중 단독 재실행에서도 실패했으나 부하가 낮을 때 단독 1회 통과(main에서도 통과) — 초안 수정과 재조회가 겹치는 부하 의존 flake로 판정. 기존 결함 `test_auto_preparation.py::test_the_flag_opens_preparation_for_sw_business_without_a_grade`는 단독 실행에서만 실패하고 전체 실행에서는 통과했다. S14 문서 병합(e2ec733) 뒤 코드 변경 없음.
 
 ## 사업 추적 연결·선별 적재·Go/No-Go 분리 (2026-09-17, 미병합)
 
