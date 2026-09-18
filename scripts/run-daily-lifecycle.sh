@@ -4,6 +4,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=scripts/manual-workflow-common.sh
 source "${SCRIPT_DIR}/manual-workflow-common.sh"
+# shellcheck source=scripts/c2-execution-common.sh
+source "${SCRIPT_DIR}/c2-execution-common.sh"
 
 usage() {
   cat <<'EOF'
@@ -16,11 +18,16 @@ Usage:
 Runs one day of collection and selective ingest for a single track (the
 order-plans and notices tracks are independent; run each on its own
 schedule):
-  order-plans track: preflight -> order-plan collection (1-day window,
-    [reference day, reference day + 1), exclusive end) -> ingest
-    (--collection) -> --tracked-backfill. Run id lifecycle-<YYYYMMDD>-plans.
-    C-2 screening is not wired into the order-plans track yet; do not
-    schedule that track until it is (decision 10, docs/0918_daily-operation).
+  order-plans track: preflight -> daily C-2 trigger check (GET
+    /api/order-plan-screening/daily-trigger; when effective_enabled is false
+    it prints daily_trigger_off with its reasons and exits 0 WITHOUT
+    collecting) -> order-plan collection (1-day window, [reference day,
+    reference day + 1), exclusive end) -> ingest (--collection) ->
+    --tracked-backfill -> C-2 execution (X-BidOps-Trigger: daily_script,
+    polled to a terminal status) -> audit-sample draw. Run id
+    lifecycle-<YYYYMMDD>-plans. The four stages always run together
+    (decision 10); the C-2 rules are those of scripts/run-daily-c2.sh.
+    Requires BIDOPS_C2_DAILY_ACTOR (no default).
   notices track (pre-specs + bids, tagged with 1468 SW-industry status):
     preflight -> notice collection (4-day window ending on the reference
     day, both ends inclusive (late-published pre-specs)) -> ingest
@@ -33,6 +40,10 @@ Each reference day resumes from the first missing stage:
   empty           a complete collection with counts.total == 0 -> done; no
                   ingest (no Run row is needed).
   ingest_pending  a complete collection without a Run row -> ingest only.
+  (order-plans)   after the above, a non-empty run continues with the C-2
+                  stage: no 성공/부분 성공 execution -> execute first; one
+                  exists -> draw the audit sample if not drawn yet. An empty
+                  run ends as empty_population (no execution).
   collect_new     no run directory -> collect into lifecycle-<day>-<kind>.
   collect_retry<N>
                   only incomplete directories (marker missing or false) ->
@@ -50,8 +61,8 @@ Options:
                       required together; not combinable with --date or
                       --collect-only. No sleep between days. The first
                       failing day stops the track; later days do not run.
-  --collect-only      Collect only; skip preflight, run lookup, and ingest
-                      entirely. Requires --run-suffix so it does not occupy
+  --collect-only      Collect only; skip preflight, the daily C-2 trigger
+                      check, run lookup, ingest, and C-2 entirely. Requires --run-suffix so it does not occupy
                       the daily run id.
   --run-suffix NAME   Suffix appended to the run id. Only valid with
                       --collect-only. Lowercase alphanumeric/hyphen
@@ -64,12 +75,27 @@ Options:
                       collection shows as complete_or_ingest_pending.
   -h, --help          Show this help.
 
+Environment (order-plans track):
+  BIDOPS_C2_DAILY_ACTOR                  required, no default; not needed for
+                                         --collect-only or --dry-run.
+  BIDOPS_C2_DAILY_RETRY_WAIT_SECONDS     default 600.
+  BIDOPS_C2_DAILY_POLL_TIMEOUT_SECONDS   default 7200.
+  BIDOPS_C2_DAILY_POLL_INTERVAL_SECONDS  default 30.
+
+Exit 0 for success and the normal skips (daily_trigger_off, empty_population,
+active_execution_exists, already_executed, retry_limit_reached, and an
+execution POST answered with policy_not_active, daily_trigger_off, or 503).
+daily_trigger_off, policy_not_active, 503, and active_execution_exists end the
+track there (later days of a range would get the same answer); the other skips
+continue with the next day.
+
 Safety:
   - Stops on the first failure (no partial silent continuation).
   - Never overwrites or deletes an existing immutable run directory,
     including incomplete ones.
   - Never installs cron; the scheduler stays disabled by default (see
-    CLAUDE.md). No model calls are made.
+    CLAUDE.md). The script itself calls no model; a C-2 execution it
+    requests runs in the analysis worker under the approved binding.
 EOF
 }
 
@@ -281,20 +307,39 @@ EOF
   fi
 }
 
+print_dry_run_c2() {
+  [[ "${opt_track}" == "order-plans" ]] || return 0
+  cat <<EOF
+
+  C-2 stage (same rules as scripts/run-daily-c2.sh ${run_id}):
+    GET  /api/order-plan-screening/executions?source_run_id=${run_id}&limit=500
+    POST /api/order-plan-screening/executions   X-BidOps-Trigger: daily_script
+         (only without a 성공/부분 성공/대기/실행 중/중지 요청 execution; attempt > 2 -> retry_limit_reached)
+    GET  /api/order-plan-screening/executions/<id>   until terminal
+    POST /api/order-plan-screening/executions/<id>/audit-sample   X-BidOps-Trigger: daily_script
+EOF
+}
+
 print_dry_run_day() {
   case "${state}" in
     empty)
-      workflow_note "[dry-run] empty run (counts.total == 0): nothing to ingest"
+      if [[ "${opt_track}" == "order-plans" ]]; then
+        workflow_note "[dry-run] empty run (counts.total == 0): nothing to ingest; empty_population, no C-2 execution"
+      else
+        workflow_note "[dry-run] empty run (counts.total == 0): nothing to ingest"
+      fi
       ;;
     complete_or_ingest_pending)
       workflow_note "[dry-run] web lookup skipped; complete if the Run row exists, otherwise ingest only:"
       print_dry_run_ingest
+      print_dry_run_c2
       ;;
     collect_*)
       print_dry_run_collect
       if [[ "${collect_only}" != "true" ]]; then
         printf '\n  (ingest only when the collection is marked complete and counts.total > 0)'
         print_dry_run_ingest
+        print_dry_run_c2
       fi
       ;;
   esac
@@ -414,15 +459,32 @@ collect_and_ingest_day() {
   esac
 }
 
+# C-2 stage of one order-plans day (spec §8): an empty run ends as
+# empty_population; a complete run executes (or, when already executed, only
+# draws the audit sample). Outcomes that later days would share end the track
+# with exit 0.
+c2_day() {
+  if [[ "${state}" == "empty" ]]; then
+    workflow_note "empty_population: ${run_id} has counts.total == 0; no C-2 execution"
+    return 0
+  fi
+  c2_run_source_run "${run_id}" "${C2_POLICY_VERSION}" daily
+  workflow_note "C-2 stage for ${run_id} done: ${C2_OUTCOME}"
+  if c2_outcome_stops_track "${C2_OUTCOME}"; then
+    workflow_note "daily ${opt_track} track stopped at ${ref_date}: ${C2_OUTCOME} (normal skip)"
+    exit 0
+  fi
+}
+
 run_day() {
   set_day_context "$1"
   resolve_run_state "true"
   print_plan
   print_decision
   collect_and_ingest_day
-  # C-2 execution and the audit-sample draw (S9c) attach here for the
-  # order-plans track: a complete run resumes at execution, an empty run
-  # ends as empty_population.
+  if [[ "${opt_track}" == "order-plans" ]]; then
+    c2_day
+  fi
   workflow_note "daily ${opt_track} track done for ${ref_date}: ${state} (${run_id})"
 }
 
@@ -442,10 +504,20 @@ if [[ "${collect_only}" == "true" ]]; then
   exit 0
 fi
 
+if [[ "${opt_track}" == "order-plans" ]]; then
+  c2_validate_settings
+fi
+
 if [[ "${dry_run}" == "true" ]]; then
   workflow_require_command jq
   workflow_note "dry-run: skipping workflow_common_preflight (it requires a running web container)"
   workflow_note "dry-run: web lookup skipped (Run rows are not checked)"
+  if [[ "${opt_track}" == "order-plans" ]]; then
+    if [[ -z "${BIDOPS_C2_DAILY_ACTOR:-}" ]]; then
+      workflow_note "BIDOPS_C2_DAILY_ACTOR is not set; a real run would not start"
+    fi
+    workflow_note "[dry-run] would check GET /api/order-plan-screening/daily-trigger once before any collection (effective_enabled=false -> daily_trigger_off, exit 0, nothing collected)"
+  fi
   for day in "${ref_dates[@]}"; do
     set_day_context "${day}"
     resolve_run_state "false"
@@ -456,7 +528,21 @@ if [[ "${dry_run}" == "true" ]]; then
   exit 0
 fi
 
+if [[ "${opt_track}" == "order-plans" ]]; then
+  c2_require_actor
+fi
 workflow_common_preflight
+if [[ "${opt_track}" == "order-plans" ]]; then
+  # Checked once per invocation, before any collection (spec §8 자동 실행 확인):
+  # while the trigger is off no order plan is collected without a verdict.
+  c2_fetch_daily_trigger
+  if [[ "${C2_TRIGGER_ENABLED}" != "true" ]]; then
+    c2_print_trigger_off "${C2_TRIGGER_REASONS}"
+    workflow_note "daily ${opt_track} track skipped: nothing collected"
+    exit 0
+  fi
+  workflow_note "daily C-2 trigger on: policy ${C2_POLICY_VERSION}"
+fi
 for day in "${ref_dates[@]}"; do
   run_day "${day}"
 done
