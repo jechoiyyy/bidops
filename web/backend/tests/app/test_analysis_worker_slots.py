@@ -56,6 +56,8 @@ def _install(monkeypatch: pytest.MonkeyPatch, *, c2_result: Any, deep_claimed: b
         analysis_worker_concurrency=1,
         analysis_worker_poll_seconds=0.1,
         worker_id="test-analysis-worker",
+        gpu_busy_limit_seconds=0.0,
+        gpu_rest_seconds=0.0,
     )
     monkeypatch.setattr(analysis, "get_settings", lambda: settings)
     monkeypatch.setattr(analysis, "configure", lambda _settings: None)
