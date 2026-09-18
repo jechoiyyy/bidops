@@ -47,3 +47,37 @@ def test_analysis_provider_is_limited_to_vllm_and_mock() -> None:
         Settings(analysis_provider="external-reference")
     assert not [name for name in Settings.model_fields if "codex" in name.lower()]
     assert not [name for name in dir(Settings) if "codex" in name.lower()]
+
+
+def test_gpu_rest_and_c2_daily_trigger_default_off() -> None:
+    """GPU 휴지와 C-2 일일 자동 실행은 기본 꺼짐이다 (docs/0918_daily-operation/spec.md §10, §3.4)."""
+
+    settings = Settings()
+    assert settings.gpu_busy_limit_seconds == 0.0
+    assert settings.gpu_rest_seconds == 0.0
+    assert settings.c2_daily_trigger_enabled is False
+
+
+def test_gpu_rest_and_c2_daily_trigger_read_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("BIDOPS_GPU_BUSY_LIMIT_SECONDS", "1800")
+    monkeypatch.setenv("BIDOPS_GPU_REST_SECONDS", "600")
+    monkeypatch.setenv("BIDOPS_C2_DAILY_TRIGGER_ENABLED", "true")
+    settings = Settings()
+    assert settings.gpu_busy_limit_seconds == 1800.0
+    assert settings.gpu_rest_seconds == 600.0
+    assert settings.c2_daily_trigger_enabled is True
+
+
+def test_gpu_rest_seconds_reject_negative_and_non_finite() -> None:
+    with pytest.raises(ValueError):
+        Settings(gpu_busy_limit_seconds=-1)
+    with pytest.raises(ValueError):
+        Settings(gpu_rest_seconds=-1)
+    with pytest.raises(ValueError):
+        Settings(gpu_busy_limit_seconds=float("nan"))
+    with pytest.raises(ValueError):
+        Settings(gpu_busy_limit_seconds=float("inf"))
+    with pytest.raises(ValueError):
+        Settings(gpu_rest_seconds=float("nan"))
+    with pytest.raises(ValueError):
+        Settings(gpu_rest_seconds=float("inf"))
