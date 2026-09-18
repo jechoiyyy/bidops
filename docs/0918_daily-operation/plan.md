@@ -20,9 +20,9 @@
 | S0 | 설정 배선(기본값 전부 꺼짐) | **sonnet** | 1 | — | `app/core/config.py` |
 | S2 | Alembic `0029` + 권한 | **opus** | 1 | — | `alembic/versions/0029_*.py`, `app/screening/models.py`, `scripts/runtime-privileges.sql`, `app/core/db.py` |
 | S9a | 일일 스크립트: 트랙 분리·전일 기준·발주계획 1일·공고 4일 창·`--collect-only` | **sonnet** | 1 | — | `scripts/run-daily-lifecycle.sh` |
-| S3 | policy 적재 CLI | **sonnet** | 2 | S2 | `app/screening/c2_policy.py`(신규) |
+| S3 | policy 적재 CLI | **opus**(착수 때 변경 — C-1 `load_policy_file`이 C-2에 안 맞고 권한·guard 판단이 섞임) | 2 | S2 | `app/screening/c2_policy.py`(신규) |
 | S4a | policy REST·활성화 | **opus** | 2 | S2 | `services/order_plan_policy.py`·`routers/order_plan_policies.py`(신규), `schemas/order_plans.py`, `app/main.py` |
-| S4c | 일일 자동 실행 스위치 서비스·REST | **opus** | 2 | S0·S2 | `services/order_plan_daily_trigger.py`·`routers/order_plan_daily_trigger.py`·`schemas/order_plan_daily_trigger.py`(신규) |
+| S4c | 일일 자동 실행 스위치 서비스·REST (착수 때 S4a와 한 패키지로 합침 — 파일 digest·전송 승인 판정 공유) | **opus** | 2 | S0·S2 | `services/order_plan_daily_trigger.py`·`routers/order_plan_daily_trigger.py`·`schemas/order_plan_daily_trigger.py`(신규) |
 | S5a | 품질 게이트 저장소·REST·판정 규칙 | **opus** | 2 | S2 | `services/order_plan_quality_gate.py`·`routers/order_plan_quality_gates.py`·`schemas/order_plan_quality_gates.py`(신규) |
 | S5b | gold 게시일별 분할 도구 | **sonnet** | 2 | — | `skills/bidops-collect/scripts/split_order_plan_run_by_day.py`(신규) |
 | S6 | 감사 표본 산출 | **opus** | 2 | S2 | `services/order_plan_audit_sample.py`·`routers/order_plan_audit_sample.py`(신규) |
@@ -308,7 +308,7 @@ C-1 자동화 때 한다 — [§7](#7-이-계획-밖--c-1-자동화-때-할-일)
 |---|---|---|---|
 | D-a | 권고안 = **풀링 방식**(결정 24). 어느 방식이든 후보로 올렸거나 불확실하다고 본 건은 사람이 전수 확정(현재 잔여 87건), 나머지는 무작위 표본만 확인하고 관련 건이 나오면 gold에 편입하고 표본을 넓힌다 | 표본 크기, "승인된 사람 gold" 최종 승인 | gate `gold_*` digest |
 | D-b | 판정 규칙 = **하나라도 미달이면 차단**, 두 pass 모두 통과, 채점 단위 = **게시일별**(결정 22~24) | `recall`·`precision`·`important_missed_max`·`review_load_max`(하루 기준) 네 값. 누락 쪽은 엄격하게, 검토량 쪽은 담당자의 실제 처리 능력(월·목 검토)에 맞춘다. 참고 실측(625건 일괄: recall 96.61%, precision 44.88%, 검토후보 127, 누락 2)은 **방식 선택 근거이지 목표치가 아니고 게시일별 조건의 값도 아니다** | gate `threshold_*` 4컬럼 |
-| D-c | 형태 = **상한 N건, 그 이하는 전건**(결정 15) | ① N ② 상한을 넘는 날의 층 3종 배분(정책 문자열은 우선순위 소진이다 — 균등으로 바꿀 것인가) ③ 검토 주기 — 매일인가 월·목인가(`docs/business-rules.md:55`) ④ `replacement: none`이 한 draw 안인가 날짜를 넘어서도인가 | v3 policy `audit_sample.*` |
+| D-c | 형태 = **상한 N건, 그 이하는 전건**(결정 15) | ① N ② 상한을 넘는 날의 층 3종 배분(정책 문자열은 우선순위 소진이다 — 균등으로 바꿀 것인가) ③ 검토 주기 — 매일인가 월·목인가(`docs/business-rules.md:55`) ④ `replacement: none`이 한 draw 안인가 날짜를 넘어서도인가 ⑤ **층 정의 값**(2026-09-18 착수 중 발견): `classification_proximity`의 기준 열과 코드 목록, `performance_similarity_proximity`의 컷 직후 구간 폭 W. v3 policy `audit_sample.strata_rules`에 넣고, 없으면 탈락 > N인 날은 `pending_human_approval` | v3 policy `audit_sample.*` |
 | D-d | 승인 단위 = **binding 튜플**(결정 20). `approval_required_per_execution`은 false | 승인자·승인 시각, 고정할 `model_digest`(현재 서버 선언 revision `5fa804ff…` ≠ v2 binding `6ae70ca3…`), 방화벽/egress 승인 | v3 binding `external_transport`, `BIDOPS_C2_EXECUTION_ALLOWED` |
 | D-e | 트리거 = **환경 cap + 버전에 묶인 DB 스위치**(결정 21). 활성화와 **별개 결정**이다 | 활성화를 누가 어떤 절차로 누르나(화면의 사전 확인 항목을 누가 보나). **운영시작일**과 cron 설치(매 달력일, 두 줄의 시각 — C-2·개요·심층 검토는 분석 워커가 직렬로 처리하므로 시각을 떼는 것은 GPU 충돌 회피가 아니라 처리 순서의 선호다). **트리거를 켜기 전 확인 항목**(PLAN.md Phase 6에서 옮겨 옴): 수동 실행에서 본 요청 수·duration·실패 분포, 나라장터 API 할당량, backup·restore와 stale execution 복구 훈련 | 활성화 화면, `BIDOPS_C2_DAILY_TRIGGER_ENABLED`, cron |
 | D-f | **제품 재실행(측정 전용 실행)으로 닫음**(결정 22) | — | gate `evaluation_basis='product_rerun'` |
