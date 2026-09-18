@@ -1,6 +1,6 @@
 # 발주계획·사전규격·입찰공고는 전량 수집하고 추적·SW 관련 레코드만 적재한다
 
-- 상태: 채택
+- 상태: 채택 (결정 1의 수집 창은 2026-09-18 [ADR-0061](0061-daily-one-day-collection-window.md)이 개정)
 - 일자: 2026-09-17
 - 관련 결정: [ADR-0022](0022-plan-prespec-centered-lifecycle.md)(생애주기 구성), [ADR-0024](0024-prespec-collect-all-flag-sw.md)(사전규격 전량 수집), [ADR-0025](0025-prespec-link-search-unconfirmed-state.md) §개정(기관 조건·색인 검색), [ADR-0027](0027-order-plan-requery-window.md)(발주계획 21일 창), [ADR-0028](0028-bid-first-opportunity-registration.md) §개정(적재된 레코드 기준), [ADR-0030](0030-opportunity-tracking-state.md) §개정(신호 확장)
 - 근거 요청: 사업 추적 연결·조치 고도화 계획(`docs/0917_opportunity-tracking/`) intent 결정 1~4, [실측](../../validation-runs/20260917-bid-collection-probe.md)
@@ -90,3 +90,10 @@
   대상은 수의계약과 수집 이전 공고로 좁혀진다.
 - 이 결정은 새 적재부터 적용하고 기존 운영 데이터에 소급하지 않는다.
 - 3일 창 1회 실측이며 요일·월말 편차는 측정하지 않았다. 운영 관측으로 비율을 갱신한다.
+
+## 개정 (2026-09-18)
+
+[ADR-0061](0061-daily-one-day-collection-window.md)이 결정 1의 수집 창을 바꾼다. "발주계획은 기존대로 21일 재조회"와
+"사전규격·입찰공고는 3일 창"은 더 적용하지 않는다 — 발주계획·사전규격·입찰공고 모두 전일(KST) 하루 창으로 수집하고
+발주계획은 재조회하지 않는다([ADR-0027](0027-order-plan-requery-window.md) 폐기). 맥락 절의 "발주계획 21일 재조회"도
+당시 사실로 읽는다. 전량 수집·회차 보관·원본 불변과 결정 2~4(선별 적재·SW 사전규격 적재·수집 색인)는 그대로다.
