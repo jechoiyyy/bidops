@@ -1559,3 +1559,39 @@ runner 소비자가 없어 보류했다. 운영 DB/MinIO 쓰기·migration 적�
 - 후속 방향: C-1 자동화 때 [`0918_daily-operation/plan.md` §7](../0918_daily-operation/plan.md)의 선행조건 ② "수동 경로
   정리"에서 두 안 중 하나를 고른다. 그 전까지 C-1을 점검용으로 부른 판정은 미측정 policy의 판정이며 운영 판단의
   근거로 쓰지 않는다.
+
+## 운영 DB의 C-2 policy v2가 활성화 API 없이 active·passed로 있다 (2026-09-18, 미해결)
+
+- 재현 조건: 운영 DB에 `c2-order-plan-screening-v2`가 `policy_status=active`·`quality_gate_status=passed`
+  (`active_slot=1`)로, v1이 `retired`·`passed`로 있다. 2026-09-03 종단 확인 때 테스트 전용 SQL로 직접
+  DB 행을 활성화한 것이며(`docs/tracking/status.md`의 발주계획 C-2 선별 항목 "테스트 전용 policy 사본으로만
+  활성화했고 품질 근거가 아니다"), 그 활성화에 대응하는 `AuditEvent(action="c2.policy_activated")`나 그
+  실행 이력이 없다.
+- 영향: 이번 웨이브의 새 활성화 탭(`/order-plan-policies`)은 policy 행의 `policy_status`·
+  `quality_gate_status`·`active_slot`을 읽어 게이트를 통과한 활성 policy처럼 보여준다 — v2는 이 조건을
+  전부 만족한다. 실제로는 v2 binding의 `external_transport.execution_allowed`가 승인되지 않았고
+  `BIDOPS_C2_EXECUTION_ALLOWED`도 기본 false이므로 C-2 실행과 일일 자동 실행은 여전히 fail closed다. 화면
+  표시와 실제 실행 가능 여부가 갈리는 지점이라 담당자가 "이미 활성화됐다"고 오인할 수 있다.
+- 지금 해결할 수 없는 이유: 활성 행을 되돌리는 것은 DB 데이터를 직접 고치는 운영 작업이라 사람 승인이
+  필요하고, 이번 계획의 범위(코드·문서)를 넘는다. v2를 그대로 retire하면 그 근거가 된 2026-09-03 종단
+  확인 기록과의 관계도 함께 정리해야 한다.
+- 후속 방향: v3 policy를 활성화 API로 정식 활성화할 때 이전 active 행(v2)이 같은 트랜잭션에서 `retired`로
+  내려가므로(§3.3 9번, `docs/0918_daily-operation/spec.md`) 그때 자동으로 정리된다. v3 활성화 전에 v2가
+  화면에서 혼란을 준다면 사람 승인 뒤 v2를 먼저 `retired`로 내리는 별도 운영 작업을 고려한다.
+
+## 발주계획 화면이 누적 목록을 500행씩 전부 받아 브라우저에서 거른다 (2026-09-18, 미해결)
+
+- 재현 조건: `web/frontend/src/pages/OrderPlansPage.tsx:77`의 `PAGE_SIZE = 500`으로 누적 목록을 한 번에
+  최대 500행 받아 브라우저에서 필터링한다. 활성화 뒤 발주계획은 하루 약 300건씩 누적으로 늘어난다
+  (`docs/0918_daily-operation/spec.md` §7 — 활성화된 적 있는 policy의 운영 목적 완료 실행 전부가 누적
+  범위).
+- 영향: 누적 기간이 늘수록(며칠만 지나도 500건을 넘는다) 서버가 이미 필터링해 줄 수 있는 조건도 클라이언트가
+  전량을 받아서 걸러야 하므로 응답 크기와 렌더 비용이 계속 커진다. 목록 응답의 `human_feedback`에
+  `execution_id`가 없어 화면이 `expected_revision`(다음 사람 피드백 저장 시 낙관적 잠금에 쓰는 값)을
+  계산하려면 별도 조회가 필요하다.
+- 지금 해결할 수 없는 이유: 서버 쪽 필터·페이지네이션은 목록 쿼리(`services/order_plan_screening.py`의
+  누적 투영)와 화면 양쪽을 함께 다시 설계해야 하고, 이번 일일 운영 고도화 계획은 누적 투영을 "회차 선택
+  없이 전체를 한 번에 반환"하는 현재 모양으로 두고 활성화 경로만 구현했다.
+- 후속 방향: 별도 계획으로 목록 API에 서버 쪽 필터·페이지 파라미터를 추가하고, 응답 `human_feedback`에
+  `execution_id`를 실어 화면이 재조회 없이 `expected_revision`을 계산하게 한다(`docs/contracts.md`
+  변경 제안).
