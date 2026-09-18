@@ -10,6 +10,7 @@ import argparse
 from datetime import UTC, datetime
 
 from ..core import (
+    GpuRestGate,
     ModelIdentityCheckState,
     ObjectStoreError,
     SessionLocal,
@@ -23,7 +24,6 @@ from ..deep_review import (
     run_prespec_overview_once,
 )
 from ..screening import C2ScreeningWorker
-from .gpu_rest import GpuRestGate
 
 
 logger = logging.getLogger(__name__)
