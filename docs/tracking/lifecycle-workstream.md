@@ -90,7 +90,7 @@
 | T-1b는 원인 격리 6회부터 한다 | 2026-08-28 합의 |
 | 이름 검색은 네 전략을 모두 쓰고 후보에 전략을 표시한다. 못 찾은 건은 `검색 미확인`으로 남기고 "사전규격 없음"으로 표시하지 않는다 | [ADR-0025](decisions/0025-prespec-link-search-unconfirmed-state.md) |
 | 공고를 외부 식별자로 누적하고 회차를 관측 이력으로 강등한다. 발주계획은 `notice`가 아니라 별도 테이블 | [ADR-0026](decisions/0026-cumulative-external-identity-schema.md) |
-| 발주계획은 최근 21일 구간을 매일 재조회한다. `chgDt`는 갱신 신호로 쓰지 않는다 | [ADR-0027](decisions/0027-order-plan-requery-window.md) |
+| ~~발주계획은 최근 21일 구간을 매일 재조회한다. `chgDt`는 갱신 신호로 쓰지 않는다~~ 2026-09-18 폐기 — 발주계획·공고 모두 기준일(전일) 하루 창으로 수집하고 재조회하지 않는다 | [ADR-0061](decisions/0061-daily-one-day-collection-window.md)(ADR-0027 대체) |
 | 입찰공고에서 처음 등장한 사업도 기회로 등록한다. 해소 안 된 공식 참조번호는 링크에 보존한다 | [ADR-0028](decisions/0028-bid-first-opportunity-registration.md) |
 | 1차 분류 소비 계층의 결정적 mock은 실제 C-2 adapter가 연결될 때까지 유지하며 운영 결과로 보지 않는다 | [ADR-0029](decisions/0029-screening-mock-provider.md), [ADR-0037](decisions/0037-order-plan-c2-bm25-top300-qwen.md) |
 | 모든 사업기회가 추적 상태를 갖고 기본값은 `미선택`이다. 사람 선택과 시스템 재검토 신호를 분리한다 | [ADR-0030](decisions/0030-opportunity-tracking-state.md) |
@@ -123,7 +123,7 @@ D-7·D-8·D-9 등 실행·관측·운영 승인 항목은 이 문서, `status.md
 | T-1a | 검색어 정규화·전략 사다리 구현과 오프라인 측정 | 완료 | 테스트 36개 통과. `name-strategy/offline-analysis-v2.md` |
 | T-1b | 격리 6 + 관용도 24 + 사다리 73 = **103회 완료**. 재현율 80.5% → 87.4% | 완료 | D-4 근거 제공 |
 | T-2 | 채움 곡선 횡단면 측정 | 완료 | [fill-curve](../validation-runs/20260829-order-plan-fill-curve.md). D-3 근거 확보 |
-| T-2b | 같은 구간 종단 관측점 쌓기 | **진행 중 — 횡단면과 어긋났다** | 3번째 점 확보(2026-08-31). 같은 997건이 5일 동안 45.6% → 46.6%로 **1 포인트**만 올랐다. 같은 나이(6일)의 횡단면 점은 67.8%로 **21 포인트 차이**다. 미리 정한 규칙대로 종단이 정본이므로 **ADR-0027의 21일 근거가 확인되지 않았다.** 점이 3개뿐이라 21일이 틀렸다고 단정할 수는 없다. 나이 15·21일 근처(9월 8일·14일 무렵) 관측이 결정적이다. [validation-run](../validation-runs/20260831-order-plan-longitudinal.md) |
+| T-2b | 같은 구간 종단 관측점 쌓기 | **종료 — ADR-0061로 재조회 폐기** | 2026-09-18 [ADR-0061](decisions/0061-daily-one-day-collection-window.md)이 발주계획 재조회를 폐기해 이 과제를 닫는다. 이하 기록은 그대로 둔다. 3번째 점 확보(2026-08-31). 같은 997건이 5일 동안 45.6% → 46.6%로 **1 포인트**만 올랐다. 같은 나이(6일)의 횡단면 점은 67.8%로 **21 포인트 차이**다. 미리 정한 규칙대로 종단이 정본이므로 **ADR-0027의 21일 근거가 확인되지 않았다.** 점이 3개뿐이라 21일이 틀렸다고 단정할 수는 없다. 나이 15·21일 근처(9월 8일·14일 무렵) 관측이 결정적이다. [validation-run](../validation-runs/20260831-order-plan-longitudinal.md) |
 | T-2c | 사전규격에도 같은 채움 곡선 측정 | 완료 | 나이 3·9·17·31·60·150일 횡단면 6점. `bidNtceNoList`는 3일 5.5% → 9일 66.9% → 31일 84.3%로 **약 31일에 평평해진다**(발주계획 15~17일보다 늦다). `chgDt`는 모든 나이에서 90~94%라 갱신 신호로 못 쓴다 — 발주계획과 결론은 같고 이유는 반대다. `swBizObjYn=Y` 7.8~10.5%, 첨부 URL 보유 88~91%로 안정적이다. [validation-run](../validation-runs/20260831-prespec-fill-curve.md) |
 | T-3 | 문서 변환기가 HWP를 처리하는지 확인 | 완료 | **외부 의존성이 아니었다.** 변환기는 `app/document_mcp/vendor/rhwp`로 저장소에 벤더링돼 있고 Node로 실행된다. host(Node v22.23.2)에서 `tests/fixtures/documents/labor_template.hwp`(OLE CFB, 25,600B)를 처리해 page 1 · block 71을 경고 없이 추출했다. extractor는 `hwp-rhwp-hwpx` v1(upstream `96a2633f`). **남은 미확인**: 실제 과업지시서·제안요청서처럼 표와 목차가 많은 문서에서의 품질은 T-21에서 본다 |
 | T-4 | 사전규격 정규화기 보강 (endpoint 전환, 첨부·SW대상·업무구분·공고번호) | 완료 | `PPSSrch`로 전환하고 `specDocFileUrl1~5`를 `attachments`로, `swBizObjYn`·`bsnsDivNm`을 `qualification_flags`로, `bidNtceNoList`를 `lifecycle`로 옮겼다. 응답에 없는 필드를 읽던 `url` 경로는 제거하고 `None`으로 둔다. 누락은 `unknown_fields`로 남긴다. **`swBizObjYn` 필터는 얹지 않았다** ([ADR-0024](decisions/0024-prespec-collect-all-flag-sw.md)). 첨부 실제 다운로드는 별도 작업 |
@@ -209,6 +209,7 @@ D-7·D-8·D-9 등 실행·관측·운영 승인 항목은 이 문서, `status.md
 | 2026-09-05 | 사전규격 자동 문서 준비와 `SW사업대상=Y` 자동 심층 시작. 새 확장점 `effective_grade_changed`, `GET /api/pre-specs`의 등급·자동 준비 필드 다섯 | [ADR-0049](decisions/0049-prespec-auto-preparation-and-auto-deep-review.md), `0018_prespec_auto_preparation_segments` |
 | 2026-09-05 | 결정적 문서 segment manifest·요구사항 inventory와 검증 연결. deep-review-v2의 결정적 부분만 채택하고 역할별 모델 분석·Luna 평가는 보류 | [ADR-0051](decisions/0051-deep-review-v2-deterministic-subset.md), `GET /api/document-structures/{id}/segments` |
 | 2026-09-05 | 사전규격 개요 모델 실행 worker를 통일 client 위로 구현. T-23 완료(참조 실행 단계) | `prespec_overview_runner.py`, 감사 action `prespec_overview.attempt_run` |
+| 2026-09-18 | 발주계획 21일 재조회·공고 3일 창 폐기. 두 원천 모두 전일 1일 창, 트랙 분리. T-2b 종료 | [ADR-0061](decisions/0061-daily-one-day-collection-window.md) |
 
 ## 소거한 항목
 

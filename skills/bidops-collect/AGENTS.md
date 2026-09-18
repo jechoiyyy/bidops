@@ -55,7 +55,10 @@ python3 -m unittest discover -s skills/bidops-collect/tests -p 'test_*.py' -v
 
 `collect_order_plans.py`는 공고 수집기와 별도의 회차로 발주계획을 수집한다. 기본 모드는
 Asia/Seoul 오늘을 포함한 최근 21일이며, `--from-date`·`--to-date`를 함께 주면 `to-date`
-미만의 명시적인 반개구간으로 조회한다. 범위는 `bsnsDivNm`이 `일반용역` 또는 `기술용역`인
+미만의 명시적인 반개구간으로 조회한다. 일일 운영 스크립트(`scripts/run-daily-lifecycle.sh`)는
+이 기본 21일 모드를 쓰지 않고 항상 기준일(전일) 하루를 `--from-date <기준일> --to-date <기준일+1일>`로
+명시해 부른다(`docs/tracking/decisions/0061-daily-one-day-collection-window.md`). 기본 모드는
+수동 조회용으로만 남는다. 범위는 `bsnsDivNm`이 `일반용역` 또는 `기술용역`인
 항목이며, 범위 밖 원문 건수도 artifact의 `counts`에 남긴다. 발주월 query 범위
 `200412`~`999912`는 생략하지 않는다.
 
