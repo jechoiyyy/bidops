@@ -241,7 +241,7 @@ flowchart LR
 
 ~~~mermaid
 flowchart LR
-    daily[일일 수집<br/>발주계획 21일·사전규격/입찰 3일]
+    daily[일일 수집<br/>전일 1일 창·트랙별<br/>발주계획 / 사전규격·입찰]
     index[수집 색인<br/>전량, 선별 무관]
     select{선별 규칙}
     ingest[사업기회 적재]
