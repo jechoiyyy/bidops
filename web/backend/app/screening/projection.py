@@ -729,24 +729,25 @@ class ScreeningJudgmentProjection:
 
 
 class ScreeningWorkloadProjection:
-    """발주계획 검토 대기를 기존 목록의 실행 범위·선별 조건으로 집계한다."""
+    """발주계획 검토 대기를 목록 누적 모드의 범위·선별 조건으로 집계한다.
+
+    누적 범위에 완료된 운영 실행이 하나도 없을 때만 `null`이다. 오늘 실행이 없다는 이유로 `null`이 되지 않는다.
+    """
 
     def workload_counts(self, session: Session) -> Mapping[str, WorkloadCount]:
         from .services.order_plan_screening import OrderPlanScreeningService
 
-        listing = OrderPlanScreeningService().list_order_plans(
+        service = OrderPlanScreeningService()
+        if not service.has_cumulative_execution(session):
+            return {"order_plan_pending": WorkloadCount(None, "no_completed_execution")}
+        listing = service.list_order_plans(
             session,
             stage1_status="selected",
             qwen_relevance="relevant,uncertain",
             tracking_status="미선택",
             limit=1,
         )
-        count = (
-            WorkloadCount(None, "no_completed_execution")
-            if listing["scope"] is None
-            else WorkloadCount(listing["total"])
-        )
-        return {"order_plan_pending": count}
+        return {"order_plan_pending": WorkloadCount(listing["total"])}
 
 
 __all__ = [

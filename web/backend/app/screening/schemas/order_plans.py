@@ -203,11 +203,23 @@ class OrderPlanTracking(_Strict):
     tracking_selected_at: datetime | None
 
 
-class OrderPlanExecutionScope(_Strict):
+class OrderPlanCumulativeScope(_Strict):
+    """누적 모드: 활성화된 적 있는 policy 버전(`activated_at` 오름차순). 비어 있을 수 있다."""
+
+    mode: Literal["cumulative"]
+    policy_versions: list[str]
+
+
+class OrderPlanRunScope(_Strict):
+    """회차 모드: 그 회차의 최신 완료 실행 하나. policy·purpose를 묻지 않는다."""
+
+    mode: Literal["run"]
     execution_id: UUID
     source_run_id: str
     status: Literal["성공", "부분 성공"]
     finished_at: datetime | None
+    policy_version: str
+    purpose: Literal["operational", "gate_measurement"]
 
 
 class OrderPlanListItem(_Strict):
@@ -232,13 +244,16 @@ class OrderPlanListItem(_Strict):
     qwen_reason: str | None
     human_feedback: HumanFeedbackSummary | None
     tracking: OrderPlanTracking | None
+    execution_id: UUID | None
+    policy_version: str | None
+    first_observed_at: datetime | None
 
 
 class OrderPlanListResponse(_Strict):
-    schema_version: Literal["order-plan-list-response.v3"]
+    schema_version: Literal["order-plan-list-response.v4"]
     producer: Literal["order-plan-review-api"]
     consumer: Literal["order-plan-review-client"]
-    scope: OrderPlanExecutionScope | None
+    scope: Annotated[OrderPlanCumulativeScope | OrderPlanRunScope, Field(discriminator="mode")] | None
     items: list[OrderPlanListItem]
     total: int = Field(ge=0)
     limit: int = Field(ge=1, le=500)
