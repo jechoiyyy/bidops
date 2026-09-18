@@ -21,10 +21,10 @@ from sqlalchemy import select, update
 from sqlalchemy.orm import Session, sessionmaker
 
 from ..core.config import Settings, get_settings
+from ..core.gpu_rest import GpuRestGate
 from ..core.run_id import parse_run_id
 from ..lifecycle import delete_run, ingest_run
 from ..lifecycle.models import Notice, NoticeObservation, Run
-from ..workers.gpu_rest import GpuRestGate
 from .models import (
     CompanyProfileSnapshot,
     Judgment,
