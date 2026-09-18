@@ -1,0 +1,68 @@
+/* 발주계획 선별 정책(C-2 활성화) 탭 — `pages/OrderPlanPolicyPage.tsx` 전용.
+ *
+ * 골격은 판정 기준 화면(`criteria-erp.css`)의 `crit-*`를 그대로 쓰고, 여기에는
+ * 이 탭에만 있는 조각(게이트 결과 표면·digest 복사 줄·자동 실행 스위치 줄)만 둔다.
+ * 색은 `bidops` 테마 토큰만 읽는다(ADR-0048). `--color-*`를 새로 정의하지 않는다.
+ */
+
+/* 게이트 결과 표면. `미측정`·`보류`는 성공도 실패도 아니므로 중립 테두리다.
+ * 색만으로 말하지 않는다 — 표제 문구와 상태 표식이 결과를 직접 적는다. */
+.opp-gate-surface {
+  display: grid;
+  gap: var(--spacing-2);
+  min-width: 0;
+  padding: var(--spacing-3);
+  border-left: var(--spacing-1) solid var(--color-border);
+  background: var(--color-background-body);
+}
+
+.opp-gate-surface[data-tone="success"] {
+  border-left-color: var(--color-success);
+}
+
+.opp-gate-surface[data-tone="error"] {
+  border-left-color: var(--color-error);
+}
+
+.opp-gate-surface-head {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  min-width: 0;
+}
+
+.opp-list {
+  display: grid;
+  gap: var(--spacing-1);
+  margin: 0;
+  padding-left: var(--spacing-5);
+}
+
+.opp-digest {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  min-width: 0;
+}
+
+.opp-digest code {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.opp-switch-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-5);
+  min-width: 0;
+}
+
+.opp-switch-row > * {
+  min-width: 0;
+}
+
+.opp-switch-guide {
+  display: grid;
+  gap: var(--spacing-1);
+  flex: 1 1 0;
+}
