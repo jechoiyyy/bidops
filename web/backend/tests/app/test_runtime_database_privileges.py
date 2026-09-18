@@ -307,7 +307,7 @@ def test_c2_runtime_grants_are_role_specific_and_column_scoped() -> None:
     } & worker_deletes
 
     assert _column_update_grant("app", "order_plan_screening_policy") == {
-        "policy_status", "active_slot", "activated_at", "activated_by"
+        "policy_status", "active_slot", "activated_at", "activated_by", "quality_gate_status"
     }
     assert _column_update_grant("app", "order_plan_screening_execution") == {
         "status", "active_slot", "partial_artifact", "candidate_count",
@@ -331,6 +331,41 @@ def test_c2_runtime_grants_are_role_specific_and_column_scoped() -> None:
         "started_at", "finished_at", "heartbeat_at",
     }
 
+
+C2_GATE_TABLES = {
+    "order_plan_screening_quality_gate",
+    "order_plan_screening_quality_evaluation",
+    "order_plan_screening_audit_sample",
+    "order_plan_screening_daily_trigger",
+}
+
+
+def test_c2_gate_tables_are_app_append_only_and_closed_to_the_worker() -> None:
+    """0029의 4테이블은 app만 SELECT·INSERT한다. 실행 purpose는 어느 UPDATE 목록에도 없다."""
+
+    assert C2_GATE_TABLES <= _table_grants("app", "SELECT")
+    assert C2_GATE_TABLES <= _table_grants("app", "INSERT")
+    for role in ("app", "worker"):
+        for privilege in ("UPDATE", "DELETE"):
+            assert not C2_GATE_TABLES & _table_grants(role, privilege)
+        for table in sorted(C2_GATE_TABLES):
+            assert (
+                re.search(
+                    rf"GRANT\s+UPDATE\s*\([^)]*\)\s+ON\s+bidops\.{table}\s+TO\s+{role};",
+                    POLICY,
+                )
+                is None
+            )
+        assert "purpose" not in _column_update_grant(role, "order_plan_screening_execution")
+    for privilege in ("SELECT", "INSERT"):
+        assert not C2_GATE_TABLES & _table_grants("worker", privilege)
+    assert (
+        re.search(
+            r"GRANT\s+UPDATE\s*\([^)]*\)\s+ON\s+bidops\.order_plan_screening_policy\s+TO\s+worker;",
+            POLICY,
+        )
+        is None
+    )
 
 
 @pytest.fixture(autouse=True)
@@ -442,6 +477,58 @@ def test_effective_app_bid_delta_grants_and_worker_denial() -> None:
                         connection.exec_driver_sql("SET LOCAL ROLE app")
                         connection.exec_driver_sql(statement)
                 assert error.value.orig.sqlstate == "42501", statement
+        finally:
+            engine.dispose()
+
+
+@requires_postgres
+def test_effective_c2_gate_grants_deny_app_updates_and_every_worker_access() -> None:
+    """정책을 PostgreSQL 17에 적용해 0029 4테이블의 실제 역할 경계를 확인한다."""
+
+    from sqlalchemy.exc import DBAPIError
+
+    _ensure_roles()
+    with temporary_database() as database_url:
+        engine = _apply_policy(database_url)
+        try:
+            with engine.begin() as connection:
+                for table in sorted(C2_GATE_TABLES):
+                    assert _table_privilege(connection, "app", table, "SELECT")
+                    assert _table_privilege(connection, "app", table, "INSERT")
+                    for privilege in ("UPDATE", "DELETE"):
+                        assert not _table_privilege(connection, "app", table, privilege)
+                    for privilege in ("SELECT", "INSERT", "UPDATE", "DELETE"):
+                        assert not _table_privilege(connection, "worker", table, privilege)
+                assert _column_privilege(
+                    connection, "app", "order_plan_screening_policy", "quality_gate_status", "UPDATE"
+                )
+                assert not _column_privilege(
+                    connection, "worker", "order_plan_screening_policy", "quality_gate_status", "UPDATE"
+                )
+                for role in ("app", "worker"):
+                    assert not _column_privilege(
+                        connection, role, "order_plan_screening_execution", "purpose", "UPDATE"
+                    )
+
+            with engine.begin() as connection:
+                connection.exec_driver_sql("SET LOCAL ROLE app")
+                for table in sorted(C2_GATE_TABLES):
+                    assert connection.scalar(text(f"SELECT count(*) FROM bidops.{table}")) == 0
+
+            denied = [
+                ("app", "UPDATE bidops.order_plan_screening_quality_gate SET created_by = created_by"),
+                ("app", "UPDATE bidops.order_plan_screening_quality_evaluation SET evaluated_by = evaluated_by"),
+                ("app", "DELETE FROM bidops.order_plan_screening_audit_sample"),
+                ("app", "UPDATE bidops.order_plan_screening_daily_trigger SET enabled = enabled"),
+                ("app", "UPDATE bidops.order_plan_screening_execution SET purpose = purpose"),
+                ("worker", "UPDATE bidops.order_plan_screening_execution SET purpose = purpose"),
+            ] + [("worker", f"SELECT 1 FROM bidops.{table}") for table in sorted(C2_GATE_TABLES)]
+            for role, statement in denied:
+                with pytest.raises(DBAPIError) as error:
+                    with engine.begin() as connection:
+                        connection.exec_driver_sql(f"SET LOCAL ROLE {role}")
+                        connection.exec_driver_sql(statement)
+                assert error.value.orig.sqlstate == "42501", (role, statement)
         finally:
             engine.dispose()
 

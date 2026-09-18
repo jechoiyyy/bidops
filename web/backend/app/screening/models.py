@@ -962,6 +962,10 @@ class OrderPlanScreeningExecution(Base):
             "length(trim(requested_by)) > 0 AND length(trim(policy_version)) > 0 AND length(trim(stage1_binding_version)) > 0 AND length(trim(stage2_binding_version)) > 0",
             name="ck_order_plan_screening_execution_strings",
         ),
+        CheckConstraint(
+            "purpose IN ('operational','gate_measurement')",
+            name="ck_order_plan_screening_execution_purpose",
+        ),
     )
 
     execution_id: Mapped[uuid_module.UUID] = _uuid_column(primary_key=True)
@@ -1005,6 +1009,11 @@ class OrderPlanScreeningExecution(Base):
     heartbeat_at: Mapped[datetime | None] = mapped_column(AwareDateTime(), nullable=True)
     finished_at: Mapped[datetime | None] = mapped_column(AwareDateTime(), nullable=True)
     created_at: Mapped[datetime] = mapped_column(AwareDateTime(), nullable=False)
+    # 품질 게이트 측정 전용 실행(명세 §4.1)은 누적 투영·워크로드·감사 표본에서 빠진다.
+    # INSERT 때만 정하고 DB trigger가 이후 변경을 거부한다.
+    purpose: Mapped[str] = mapped_column(
+        String(24), nullable=False, default="operational", server_default=text("'operational'")
+    )
 
 
 class OrderPlanScreeningBatchAttempt(Base):
@@ -1199,6 +1208,188 @@ class OrderPlanScreeningFeedback(Base):
     created_at: Mapped[datetime] = mapped_column(AwareDateTime(), nullable=False)
 
 
+# C-2 품질 게이트·감사 표본·일일 스위치 (``0029_c2_quality_gate``, 명세 §2.1).
+# 넷 다 PostgreSQL trigger가 UPDATE·DELETE를 거부한다. 임계값이 NULL이면 evaluation이
+# ``미측정``만 받는 규칙은 두 테이블에 걸쳐 있어 PostgreSQL BEFORE INSERT trigger만
+# 강제한다. SQLite 격리 테스트의 ``create_all``에는 이 trigger들이 없다.
+
+
+def _c2_pct(column: str) -> str:
+    return f"{column} IS NULL OR ({column} >= 0 AND {column} <= 100)"
+
+
+class OrderPlanScreeningQualityGate(Base):
+    __tablename__ = "order_plan_screening_quality_gate"
+    __table_args__ = (
+        CheckConstraint(
+            dual("length(gate_id) = 39 AND substr(gate_id, 1, 7) = 'c2gate-' AND substr(gate_id, 8) NOT GLOB '*[^0-9a-f]*'"),
+            name="ck_order_plan_screening_quality_gate_id",
+        ),
+        CheckConstraint(
+            dual("length(policy_sha256) = 64 AND policy_sha256 NOT GLOB '*[^0-9a-f]*' AND length(binding_sha256) = 64 AND binding_sha256 NOT GLOB '*[^0-9a-f]*' AND length(gold_manifest_sha256) = 64 AND gold_manifest_sha256 NOT GLOB '*[^0-9a-f]*' AND length(gold_artifact_sha256) = 64 AND gold_artifact_sha256 NOT GLOB '*[^0-9a-f]*' AND length(scoring_input_sha256) = 64 AND scoring_input_sha256 NOT GLOB '*[^0-9a-f]*'"),
+            name="ck_order_plan_screening_quality_gate_hashes",
+        ),
+        CheckConstraint(
+            "evaluation_basis IN ('product_rerun','reference_artifact_rescore')",
+            name="ck_order_plan_screening_quality_gate_basis",
+        ),
+        CheckConstraint("scoring_unit = 'per_published_day'", name="ck_order_plan_screening_quality_gate_scoring_unit"),
+        CheckConstraint("required_pass_count = 2", name="ck_order_plan_screening_quality_gate_pass_count"),
+        CheckConstraint(
+            DualSQL(
+                "json_valid(measurement_run_ids_json) AND json_type(measurement_run_ids_json) = 'array'",
+                "jsonb_typeof(measurement_run_ids_json) = 'array'",
+            ),
+            name="ck_order_plan_screening_quality_gate_run_ids",
+        ),
+        CheckConstraint(
+            f"({_c2_pct('threshold_recall_pct')}) AND ({_c2_pct('threshold_precision_pct')}) "
+            "AND (threshold_important_missed_max IS NULL OR threshold_important_missed_max >= 0) "
+            "AND (threshold_review_load_max IS NULL OR threshold_review_load_max >= 0)",
+            name="ck_order_plan_screening_quality_gate_thresholds",
+        ),
+        CheckConstraint(
+            "length(trim(gold_status)) > 0 AND length(trim(created_by)) > 0",
+            name="ck_order_plan_screening_quality_gate_strings",
+        ),
+    )
+
+    gate_id: Mapped[str] = mapped_column(String(39), primary_key=True)
+    policy_version: Mapped[str] = mapped_column(_fk("order_plan_screening_policy.policy_version", ondelete="RESTRICT"), nullable=False)
+    policy_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    binding_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    gold_manifest_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    gold_artifact_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    gold_status: Mapped[str] = mapped_column(String(32), nullable=False)
+    scoring_input_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    evaluation_basis: Mapped[str] = mapped_column(String(32), nullable=False)
+    scoring_unit: Mapped[str] = mapped_column(String(32), nullable=False)
+    measurement_run_ids_json: Mapped[Any] = mapped_column(JSONB_COMPAT, nullable=False)
+    required_pass_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    # NULL = 사람 결정(D-b) 전. 임계값의 정본이 이 행이다(명세 §1.1).
+    threshold_recall_pct: Mapped[Decimal | None] = mapped_column(Numeric(7, 4), nullable=True)
+    threshold_precision_pct: Mapped[Decimal | None] = mapped_column(Numeric(7, 4), nullable=True)
+    threshold_important_missed_max: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    threshold_review_load_max: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    created_by: Mapped[str] = mapped_column(String(128), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(AwareDateTime(), nullable=False)
+
+
+class OrderPlanScreeningQualityEvaluation(Base):
+    __tablename__ = "order_plan_screening_quality_evaluation"
+    __table_args__ = (
+        UniqueConstraint("gate_id", "revision", name="uq_order_plan_screening_quality_evaluation_revision"),
+        CheckConstraint(
+            dual("length(evaluation_id) = 43 AND substr(evaluation_id, 1, 11) = 'c2gateeval-' AND substr(evaluation_id, 12) NOT GLOB '*[^0-9a-f]*'"),
+            name="ck_order_plan_screening_quality_evaluation_id",
+        ),
+        CheckConstraint("revision >= 1", name="ck_order_plan_screening_quality_evaluation_revision"),
+        CheckConstraint(
+            "result_status IN ('통과','미달','미측정','보류')",
+            name="ck_order_plan_screening_quality_evaluation_status",
+        ),
+        CheckConstraint(
+            DualSQL(
+                "json_valid(pass_execution_ids_json) AND json_type(pass_execution_ids_json) = 'object' AND json_valid(metrics_json) AND json_type(metrics_json) = 'object' AND json_valid(reasons_json) AND json_type(reasons_json) = 'array'",
+                "jsonb_typeof(pass_execution_ids_json) = 'object' AND jsonb_typeof(metrics_json) = 'object' AND jsonb_typeof(reasons_json) = 'array'",
+            ),
+            name="ck_order_plan_screening_quality_evaluation_json",
+        ),
+        CheckConstraint(
+            f"({_c2_pct('measured_recall_pct')}) AND ({_c2_pct('measured_precision_pct')}) "
+            "AND (measured_important_missed IS NULL OR measured_important_missed >= 0) "
+            "AND (measured_review_load IS NULL OR measured_review_load >= 0)",
+            name="ck_order_plan_screening_quality_evaluation_measured",
+        ),
+        CheckConstraint(
+            dual("length(artifact_sha256) = 64 AND artifact_sha256 NOT GLOB '*[^0-9a-f]*'"),
+            name="ck_order_plan_screening_quality_evaluation_artifact",
+        ),
+        CheckConstraint("length(trim(evaluated_by)) > 0", name="ck_order_plan_screening_quality_evaluation_strings"),
+    )
+
+    evaluation_id: Mapped[str] = mapped_column(String(43), primary_key=True)
+    gate_id: Mapped[str] = mapped_column(_fk("order_plan_screening_quality_gate.gate_id", ondelete="RESTRICT"), nullable=False)
+    revision: Mapped[int] = mapped_column(Integer, nullable=False)
+    result_status: Mapped[str] = mapped_column(String(16), nullable=False)
+    pass_execution_ids_json: Mapped[Any] = mapped_column(JSONB_COMPAT, nullable=False)
+    # 두 pass 중 나쁜 쪽 값(명세 §2.1). 계산할 수 없으면 NULL로 남긴다.
+    measured_recall_pct: Mapped[Decimal | None] = mapped_column(Numeric(7, 4), nullable=True)
+    measured_precision_pct: Mapped[Decimal | None] = mapped_column(Numeric(7, 4), nullable=True)
+    measured_important_missed: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    measured_review_load: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    metrics_json: Mapped[Any] = mapped_column(JSONB_COMPAT, nullable=False)
+    reasons_json: Mapped[Any] = mapped_column(JSONB_COMPAT, nullable=False)
+    artifact_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    evaluated_by: Mapped[str] = mapped_column(String(128), nullable=False)
+    evaluated_at: Mapped[datetime] = mapped_column(AwareDateTime(), nullable=False)
+
+
+class OrderPlanScreeningAuditSample(Base):
+    __tablename__ = "order_plan_screening_audit_sample"
+    __table_args__ = (
+        # 무복원 추출의 근거(명세 §5 ``replacement: none``).
+        UniqueConstraint("execution_id", "order_plan_id", name="uq_order_plan_screening_audit_sample_plan"),
+        CheckConstraint(
+            "stratum IN ('classification_proximity','performance_similarity_proximity','uniform_hash')",
+            name="ck_order_plan_screening_audit_sample_stratum",
+        ),
+        CheckConstraint(
+            "selection_rank >= 1 AND filtered_out_count >= 0 AND max_per_execution >= 1",
+            name="ck_order_plan_screening_audit_sample_numbers",
+        ),
+        CheckConstraint(
+            dual("length(plan_id_sha256) = 64 AND plan_id_sha256 NOT GLOB '*[^0-9a-f]*' AND length(policy_sha256) = 64 AND policy_sha256 NOT GLOB '*[^0-9a-f]*'"),
+            name="ck_order_plan_screening_audit_sample_hashes",
+        ),
+        CheckConstraint(
+            "length(trim(review_cadence)) > 0 AND length(trim(policy_version)) > 0 AND length(trim(drawn_by)) > 0",
+            name="ck_order_plan_screening_audit_sample_strings",
+        ),
+    )
+
+    id: Mapped[uuid_module.UUID] = _uuid_column(primary_key=True)
+    execution_id: Mapped[uuid_module.UUID] = mapped_column(_fk("order_plan_screening_execution.execution_id", ondelete="RESTRICT"), nullable=False)
+    order_plan_id: Mapped[int] = mapped_column(_fk("order_plan.id", ondelete="RESTRICT"), nullable=False)
+    stratum: Mapped[str] = mapped_column(String(48), nullable=False)
+    selection_rank: Mapped[int] = mapped_column(Integer, nullable=False)
+    plan_id_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    filtered_out_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    max_per_execution: Mapped[int] = mapped_column(Integer, nullable=False)
+    review_cadence: Mapped[str] = mapped_column(String(64), nullable=False)
+    policy_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    policy_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    drawn_by: Mapped[str] = mapped_column(String(128), nullable=False)
+    drawn_at: Mapped[datetime] = mapped_column(AwareDateTime(), nullable=False)
+
+
+class OrderPlanScreeningDailyTrigger(Base):
+    """일일 자동 실행 스위치(결정 21). 현재 값은 그 policy_version의 최신 행이다."""
+
+    __tablename__ = "order_plan_screening_daily_trigger"
+    __table_args__ = (
+        UniqueConstraint("request_id", name="uq_order_plan_screening_daily_trigger_request"),
+        Index("ix_order_plan_screening_daily_trigger_latest", "policy_version", "set_at"),
+        CheckConstraint(
+            dual("length(policy_sha256) = 64 AND policy_sha256 NOT GLOB '*[^0-9a-f]*'"),
+            name="ck_order_plan_screening_daily_trigger_policy_sha256",
+        ),
+        CheckConstraint(
+            "length(trim(set_by)) > 0 AND (reason IS NULL OR length(trim(reason)) > 0)",
+            name="ck_order_plan_screening_daily_trigger_strings",
+        ),
+    )
+
+    id: Mapped[uuid_module.UUID] = _uuid_column(primary_key=True)
+    policy_version: Mapped[str] = mapped_column(_fk("order_plan_screening_policy.policy_version", ondelete="RESTRICT"), nullable=False)
+    policy_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    reason: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    set_by: Mapped[str] = mapped_column(String(128), nullable=False)
+    set_at: Mapped[datetime] = mapped_column(AwareDateTime(), nullable=False)
+    request_id: Mapped[uuid_module.UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
+
+
 ORDER_PLAN_SCREENING_TABLES = (
     "order_plan_screening_policy",
     "order_plan_screening_execution",
@@ -1206,6 +1397,10 @@ ORDER_PLAN_SCREENING_TABLES = (
     "order_plan_screening_result",
     "order_plan_screening_artifact",
     "order_plan_screening_feedback",
+    "order_plan_screening_quality_gate",
+    "order_plan_screening_quality_evaluation",
+    "order_plan_screening_audit_sample",
+    "order_plan_screening_daily_trigger",
 )
 
 
