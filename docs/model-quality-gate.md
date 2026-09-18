@@ -2,6 +2,11 @@
 
 품질 게이트는 모델 비교 evidence와 운영 승인 evidence를 분리한다. pass는 정책을 자동 활성화하지 않으며, 이 문서의 수치는 구현에 고정된 이번 회차 계약이다.
 
+**이 문서는 C-1 공고 판정 policy의 게이트만 다룬다.** C-2 발주계획 1차 선별은 별도 테이블
+(`order_plan_screening_quality_gate`·`order_plan_screening_quality_evaluation`)과 게시일별 채점·2회 통과 규칙을 쓰며
+[ADR-0060](tracking/decisions/0060-c2-policy-db-row-authority.md)과 [contracts.md](contracts.md)가 정본이다. 이 문서의
+고정 입력·통과 기준을 C-2에 적용하지 않는다.
+
 ## 고정 입력
 
 - `FIXED_RUN_ID=20260817-20260823`
