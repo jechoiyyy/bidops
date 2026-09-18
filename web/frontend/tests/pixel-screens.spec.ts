@@ -20,8 +20,7 @@ import {
 const REPRESENTATIVE = [
   "dashboard", // 셸 · 요약 · 퍼널
   "criteria", // 기준·운영 탭 화면
-  "order-plans-list", // 목록·상세 split과 pane 바닥 결정
-  "order-plan-detail", // 상세 3종 골격
+  "order-plans-list", // 목록·상세 split과 pane 바닥 결정 (2e232b7 이후 상세도 이 작업면 안에 있다)
   "pre-specs-list", // 접이식 상태 그룹
   "opportunities-list", // 사업 추적 구역
   "deep-review-complete", // 본문 반복 목록 · 근거 rail
@@ -59,10 +58,11 @@ for (const target of setupTargets) {
     await page.waitForLoadState("networkidle");
     await settleFonts(page);
     if (target.name === "opportunities-list") {
-      // 세 fixture 모두 미선택·재검토 신호·후보 확인 대기 중 하나를 갖고 있어
-      // 기본 구역인 `조치 필요`에 모인다(ADR-0046 결정 2). 목록은 Astryx `Table`이라
-      // 행은 `tbody tr`이다(옛 밀집 행 선택자 `.review-dense-list-row`는 더 이상 없다).
-      await expect(page.locator(".opportunity-table-scroll tbody tr")).toHaveCount(3);
+      // 재검토 신호와 후보 확인 대기를 가진 두 fixture만 기본 구역인 `조치 필요`에
+      // 모인다. 미선택 fixture는 사람이 아직 고르지 않았을 뿐 할 일이 아니므로
+      // `미결정`으로 빠진다(spec §7.2). 목록은 Astryx `Table`이라 행은 `tbody tr`이다
+      // (옛 밀집 행 선택자 `.review-dense-list-row`는 더 이상 없다).
+      await expect(page.locator(".opportunity-table-scroll tbody tr")).toHaveCount(2);
     }
     await expect(page).toHaveScreenshot(`${target.name}.png`, {
       fullPage: true,
