@@ -134,7 +134,7 @@ v3 binding의 `external_transport`(결정 20): `execution_allowed`, `approval_sc
 - **트리거 표식은 요청 헤더로 보낸다(결정 19).** `X-BidOps-Trigger: daily_script | manual_resume | gate_measurement`.
   없으면 사람의 수동 운영 실행이다. 그 외 값은 `invalid_request`. 헤더는 `docs/contracts.md`에 추가한다. 헤더는 요청
   hash에 들어가지 않는다 — idempotency는 `request_id`와 본문으로만 판정한다.
-- BM25 절단 코드 전부: `skills/bidops-screen/scripts/rank_order_plans_bm25.py:45,275-276,336,576`,
+- BM25 절단 코드 전부(단 binding `status` 검사 `:330`은 §1.2와 같은 허용값으로 넓힌다 — 2026-09-18 S4b가 발견, 이 검사가 `blocked`만 받아 새 규칙에서는 어떤 binding도 실행되지 않았다): `skills/bidops-screen/scripts/rank_order_plans_bm25.py:45,275-276,336,576`,
   `build_order_plan_screening_results.py:53,290-294`, `workers/order_plan.py:299,415`. 모집단이 300 미만인 날은
   `min(TOP_K, len(ranked))`로 전건이 선택된다(`:576`) — 주말 9~18건도 그대로 돈다.
 - `validate_order_plan_phase0.py`. v2 phase-0 증거 전용으로 못박고 v3 binding을 검증 범위에서
