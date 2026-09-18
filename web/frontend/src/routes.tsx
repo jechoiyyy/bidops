@@ -83,6 +83,7 @@ export const routes: RouteObject[] = [
           { path: "metrics", element: criteriaView, handle: routeHandle(routeMetadata.criteria) },
           { path: "quality-gates", element: criteriaView, handle: routeHandle(routeMetadata.criteria) },
           { path: "policies", element: criteriaView, handle: routeHandle(routeMetadata.criteria) },
+          { path: "order-plan-policies", element: criteriaView, handle: routeHandle(routeMetadata.criteria) },
           // 운영 3화면과 산출물 감사 로그는 실행 상태 한 화면의 탭이다.
           { path: "run-status", element: runStatusView, handle: routeHandle(routeMetadata.runStatus) },
           { path: "runs", element: runStatusView, handle: routeHandle(routeMetadata.runStatus) },
