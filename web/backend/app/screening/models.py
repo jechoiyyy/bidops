@@ -1279,6 +1279,8 @@ class OrderPlanScreeningQualityEvaluation(Base):
     __tablename__ = "order_plan_screening_quality_evaluation"
     __table_args__ = (
         UniqueConstraint("gate_id", "revision", name="uq_order_plan_screening_quality_evaluation_revision"),
+        # 활성화 요청의 quality_gate_artifact_sha256가 evaluation 하나를 특정한다(명세 §3.3 3번).
+        UniqueConstraint("artifact_sha256", name="uq_order_plan_screening_quality_evaluation_artifact"),
         CheckConstraint(
             dual("length(evaluation_id) = 43 AND substr(evaluation_id, 1, 11) = 'c2gateeval-' AND substr(evaluation_id, 12) NOT GLOB '*[^0-9a-f]*'"),
             name="ck_order_plan_screening_quality_evaluation_id",
