@@ -127,6 +127,19 @@ worker가 한 바퀴에 C-2 → 심층 → 회사 핏 → 개요 순서로 **하
 **개요 슬롯은 지금 비어 있다.** 옛 실행 스택(v3·legacy v4·v5)은 철거됐고 `workers/prespec_overview.run_once`는
 언제나 "할 일 없음"으로 닫힌다. 새 계약(`prespec_overview_run`)의 enqueue·실행은 P2가 그 자리에 붙인다.
 
+일일 운영 고도화(2026-09-18)는 C-2에 신규 service·CLI·worker를 더했다 — policy 활성화는
+`services/order_plan_policy.py`, 일일 자동 실행 스위치는 `services/order_plan_daily_trigger.py`,
+품질 게이트 저장소·판정은 `services/order_plan_quality_gate.py`, 감사 표본 산출은
+`services/order_plan_audit_sample.py`이며 각각 자기 router(`routers/order_plan_policies.py`·
+`order_plan_daily_trigger.py`·`order_plan_quality_gates.py`·`order_plan_audit_sample.py`)를 갖는다.
+policy 파일을 DB draft 행으로 적재하는 명시적 운영 명령은 `app/screening/c2_policy.py`
+(`python -m app.screening.c2_policy load`)다. GPU 휴지는 `app/workers/gpu_rest.py`가 분석
+합성 worker와 C-1 worker 양쪽에서 쓰는 공유 규칙이다. 검사는
+`tests/screening/test_c2_*.py`(policy 적재·활성화·일일 스위치·품질 게이트·감사 표본),
+`tests/app/test_daily_*_script.py`(`run-daily-lifecycle.sh`·`run-daily-c2.sh` 계약),
+`tests/app/test_c2_gate_measurement_script.py`(`run-c2-gate-measurement.sh`),
+`tests/app/test_gpu_rest.py`에 있다.
+
 ## 경계
 
 - 파이프라인은 versioned file과 subprocess로 호출한다. 내부 script 함수를 서비스로 import하거나 같은 판정 규칙을 다시 구현하지 않는다.
