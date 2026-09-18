@@ -259,7 +259,7 @@ TABLE_OWNER: dict[str, str] = {
     "ingest_warning": LIFECYCLE,
     "collected_record_index": LIFECYCLE,
     "collected_record_token": LIFECYCLE,
-    # screening (28)
+    # screening (32)
     "judgment": SCREENING,
     "judgment_revision": SCREENING,
     "perspective": SCREENING,
@@ -288,6 +288,10 @@ TABLE_OWNER: dict[str, str] = {
     "order_plan_screening_result": SCREENING,
     "order_plan_screening_artifact": SCREENING,
     "order_plan_screening_feedback": SCREENING,
+    "order_plan_screening_quality_gate": SCREENING,
+    "order_plan_screening_quality_evaluation": SCREENING,
+    "order_plan_screening_audit_sample": SCREENING,
+    "order_plan_screening_daily_trigger": SCREENING,
     # deep_review (38)
     "attachment_fetch": DEEP_REVIEW,
     "content_object": DEEP_REVIEW,
