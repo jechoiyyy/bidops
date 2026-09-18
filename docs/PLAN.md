@@ -6,7 +6,7 @@
 | 문서 버전 | v0.3 |
 | 기준일 | 2026-09-02 (Phase 5·6은 2026-09-18 개정) |
 | 요구사항 | [PRD.md](PRD.md) |
-| 채택 결정 | [ADR-0037](tracking/decisions/0037-order-plan-c2-bm25-top300-qwen.md), [ADR-0060](tracking/decisions/0060-c2-policy-db-row-authority.md), [ADR-0061](tracking/decisions/0061-daily-one-day-collection-window.md) |
+| 채택 결정 | [ADR-0037](tracking/decisions/0037-order-plan-c2-bm25-top300-qwen.md), [ADR-0060](tracking/decisions/0060-c2-policy-db-row-authority.md), [ADR-0061](tracking/decisions/0061-daily-collection-window.md) |
 | 후속 계획 | [일일 운영 고도화](0918_daily-operation/plan.md) — P5-2 구현, 측정 전용 실행, 일일 트리거 |
 
 이 계획은 `BM25 Top 300 + Qwen`을 scheduler 없이 수동 실행 가능한 제품 기능으로 만드는
@@ -480,8 +480,8 @@ D-f를 제품 재실행으로 닫았으므로 P5-3 전체가 D-d에 종속된다
 
 2026-09-18 개정: 매일 1일치 수집과 C-2 실행은 이 단계를 기다리지 않고 일일 스크립트
 (`run-daily-lifecycle.sh --track order-plans`)가 맡는다([일일 운영 고도화 계획](0918_daily-operation/plan.md),
-[ADR-0060](tracking/decisions/0060-c2-policy-db-row-authority.md)·[ADR-0061](tracking/decisions/0061-daily-one-day-collection-window.md)).
-전일 1일 창, 트랙 분리, 단계별 따라잡기, 환경 cap과 버전에 묶인 DB 스위치가 거기서 정해졌다. 이 단계에는
+[ADR-0060](tracking/decisions/0060-c2-policy-db-row-authority.md)·[ADR-0061](tracking/decisions/0061-daily-collection-window.md)).
+발주계획 전일 1일 창·공고 4일 창, 트랙 분리, 단계별 따라잡기, 환경 cap과 버전에 묶인 DB 스위치가 거기서 정해졌다. 이 단계에는
 그 트리거를 앱 scheduler로 옮기는 **scheduler 통합만** 남는다.
 
 ### 선행 조건
@@ -496,7 +496,7 @@ host firewall 운영 승인은 D-d가 맡는다.
 
 ### 목표 동작
 
-- scheduler가 일일 스크립트와 같은 규칙으로 발주계획 트랙을 돈다 — 전일 1일 창, 트리거가 꺼져 있으면 수집하지 않음,
+- scheduler가 일일 스크립트와 같은 규칙으로 발주계획 트랙을 돈다 — 발주계획 전일 1일 창·공고 4일 창, 트리거가 꺼져 있으면 수집하지 않음,
   0건이면 실행 없이 종료, 단계별 따라잡기.
 - 원본 수집과 C-2 실행을 별도 상태로 기록하고 부분 수집이면 선별을 시작하지 않는다.
 - 동일 source run·policy의 중복 실행은 idempotency 규칙으로 건너뛴다.
