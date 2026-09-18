@@ -13,9 +13,9 @@ from typing import Any
 
 import pytest
 
+from app.core.gpu_rest import GpuRestGate
 from app.screening.worker import ScreeningWorker
 from app.workers import analysis
-from app.workers.gpu_rest import GpuRestGate
 
 
 # --- GpuRestGate -----------------------------------------------------------
