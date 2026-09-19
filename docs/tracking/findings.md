@@ -2,6 +2,30 @@
 
 기준일: 2026-09-03
 
+## model_digest를 바꾸면 generation config도 함께 새로 발행해야 한다
+
+- 확인: 2026-09-19
+- 상태: **해결** (2026-09-19, generation config v5 + policy·binding v4 발행)
+- 재현 조건: policy·binding v3(`model_digest=5fa804ff…`)를 적재·후보 지정하고 게이트 측정
+  pass 1을 돌리면 워커가 모델 호출 전에 `binding_mismatch`로 실패한다. 동결된
+  `generation-config.json`(= `order-plan-screening-generation-config.v4.json`, sha256
+  `1fd2f511…`, binding `stage2_binding.generation_config_sha256`이 고정)의 `model_revision`이
+  `6ae70ca3…`이기 때문이다. 워커는 `generation.model_revision == stage2.model_digest`를 요구한다
+  (`workers/order_plan.py:383-391`).
+- 원인: `model_digest`는 policy `stage2`·`bindings`, binding `stage2_binding`, **그리고 승인
+  generation config 안**까지 네 곳에 있는데 v3 발행이 앞의 셋만 바꿨다. 발행 검증이 적재 CLI와
+  조회 blocker만 돌리고 **워커의 파일 묶음 검증을 돌리지 않아** 발행 시점에 드러나지 않았다.
+  적재 CLI(`c2_policy.load`)와 `assess_policy`는 generation config를 아예 읽지 않는다.
+- 해결: generation config v5(v4에서 `model_revision`·`method_version`만 교체)를 발행하고
+  policy·binding v4가 그것을 참조하게 했다. 발행 전에 서비스가 동결하는 것과 같은 6개 파일 묶음을
+  임시 디렉터리에 만들어 워커의 `_load_binding_inputs`·`_load_ranking`을 실제로 호출해 통과를
+  확인했고, generation config만 v4로 되돌리면 같은 `binding_mismatch`가 재현되는 것도 확인했다.
+- 재발 방지: **policy·binding을 새로 발행할 때는 워커 파일 묶음 검증을 건식으로 돌린다.** 적재
+  CLI 통과와 조회 blocker 소멸은 실행 가능성을 증명하지 않는다 — 둘 다 stage-2 승인 입력
+  (capabilities·prompt·generation config)을 읽지 않기 때문이다.
+- 남은 공백: 운영 DB의 `c2-order-plan-screening-v3` 행과 그 게이트(`c2gate-203ab7a5…`)는
+  버전+digest가 immutable이라 남는다. 실행에 쓰지 않으려면 retire CLI로 내린다.
+
 ## 승인 사설 vLLM이 weight revision을 노출하지 않는다
 
 - 확인: 2026-09-03

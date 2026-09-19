@@ -38,7 +38,7 @@
 | S13b | C-2 활성화 화면(기준 화면의 새 탭) | **opus** | 4 | S4a·S4c·S5a·S13a | `pages/OrderPlanPolicyPage.tsx`(신규), `pages/CriteriaPage.tsx`, 신규 spec·fixture |
 | S5c | 게이트 측정 스크립트 | **sonnet** | 5 | S4b·S9c | `scripts/run-c2-gate-measurement.sh`(신규) |
 | S14 | 운영 문서·상태 기록 마감 | **sonnet** | 5 | 전부 | `docs/operations.md`, `docs/tracking/status.md`, `web/backend/AGENTS.md`, `CLAUDE.md`·`AGENTS.md`(런타임 사실 절) |
-| S3b | v3 policy·binding 발행·마운트 | **sonnet** | 사람 결정 뒤 | D-c 값·D-d 값, S3 | `experiments/order-plan-screening/config/*.v3.json`(신규), `docker-compose.yml`, `app/core/config.py`(기본 경로) |
+| S3b | v4 policy·binding·generation config v5 발행·마운트 | **sonnet** | 사람 결정 뒤 | D-c 값·D-d 값, S3 | `experiments/order-plan-screening/config/*.v3.json`(신규), `docker-compose.yml`, `app/core/config.py`(기본 경로) |
 
 opus 14개(S15 추가, 결정 28), sonnet 10개(+리더 1). 웨이브마다 통합·게이트·diff 검수는 리더가 한다(§6).
 
@@ -109,14 +109,14 @@ opus 14개(S15 추가, 결정 28), sonnet 10개(+리더 1). 웨이브마다 통�
 | 검증 | 2회 적재 no-op, 1 byte 바뀐 파일 거부, `policy_status='draft'`·`active_slot IS NULL`, digest가 파일 bytes 기준(canonical 아님), 파일 `policy_status`가 `active`여도 행은 `draft` |
 | 사람 결정 | 없음 (draft 적재는 활성화가 아니다) |
 
-### S3b — v3 policy·binding 발행·마운트 (sonnet, 사람 결정 뒤)
+### S3b — v4 policy·binding·generation config v5 발행·마운트 (sonnet, 사람 결정 뒤)
 
 | | |
 |---|---|
 | 선행 | **D-c 값**(`max_per_execution`·`review_cadence`·`enabled`)과 **D-d 값**(`approved_by`·`approved_at`·model_digest). 값 없이 발행하지 않는다 |
-| 파일 | `experiments/order-plan-screening/config/order-plan-screening-policy.v3.json`·`…-phase0-binding.v3.json`(신규. v2는 고치지 않는다), `docker-compose.yml:177-178,245-246`(마운트 파일명), `app/core/config.py:298-301`(기본 경로) |
+| 파일 | `experiments/order-plan-screening/config/order-plan-screening-policy.v4.json`·`…-phase0-binding.v4.json`·`…-generation-config.v5.json`(전부 신규. v2·v3와 generation config v4는 고치지 않는다), `docker-compose.yml:180-182,250-252`(마운트 파일명 세 줄), `app/core/config.py:308-312`(기본 경로 셋). **`model_digest`를 바꾸면 generation config도 함께 발행해야 한다** — 워커가 `generation.model_revision == stage2.model_digest`를 대조한다(`workers/order_plan.py:383-391`). v3는 이것 때문에 실행되지 않았다 |
 | 내용 | [`spec.md` §1.1·§1.3·§5](spec.md) — `audit_sample.max_per_execution`, `external_transport.approval_scope="per_binding"` 등. 상태성 필드는 발행 시점 값으로 두되 `quality_gate.targets`는 null. binding `status`는 `activation_candidate` 또는 `approved`. binding의 `policy.sha256`은 새 policy 파일 bytes의 sha256 |
-| 검증 | S3 CLI로 임시 DB에 적재 성공, `policy_file_missing` blocker가 사라짐, v2 파일 bytes 불변. digest는 리더가 직접 다시 계산해 대조한다 |
+| 검증 | S3 CLI로 임시 DB에 적재 성공, `policy_file_missing` blocker가 사라짐, 이전 버전 파일 bytes 불변. **발행 전에 서비스가 동결하는 것과 같은 6개 파일 묶음으로 워커 `_load_binding_inputs`·`_load_ranking`을 건식 호출**해 `binding_mismatch`가 없는지 본다. digest는 리더가 직접 다시 계산해 대조한다 |
 
 ### S4a — C-2 policy REST·활성화 (opus)
 
@@ -317,8 +317,8 @@ C-1 자동화 때 한다 — [§7](#7-이-계획-밖--c-1-자동화-때-할-일)
 |---|---|---|---|
 | D-a | 권고안 = **풀링 방식**(결정 24). 어느 방식이든 후보로 올렸거나 불확실하다고 본 건은 사람이 전수 확정(현재 잔여 87건), 나머지는 무작위 표본만 확인하고 관련 건이 나오면 gold에 편입하고 표본을 넓힌다 | 2026-09-19 확인 큐 87건을 사람이 전수 확정했다(gold adjudicated **v3**, 검토자 jechoi — 관련 54·비관련 571, 사람 확정 109·초안 516·잔여 0). **큐 밖 516건은 여전히 초안 라벨이다 — 전수 사람 확정이 아니다.** 남은 것: 큐 밖 무작위 표본 크기와 "승인된 사람 gold" 최종 승인 | gate `gold_*` digest |
 | D-b | 판정 규칙 = **하나라도 미달이면 차단**, 두 pass 모두 통과, 채점 단위 = **게시일별**(결정 22~24) | **2026-09-19 결정(사용자 jechoi, PoC용 — 운영 전환 때 다시 정한다)**: `recall ≥ 0.90`, `precision ≥ 0.35`, `important_missed_max = 3`, `review_load_max = 80`(하루). 정본은 **DB 게이트 행**이고 v3 파일 `quality_gate.targets`는 `null`이다(§1.1). 게이트 행 생성(S5a)이 남았다 | gate `threshold_*` 4컬럼 |
-| D-c | 형태 = **상한 N건, 그 이하는 전건**(결정 15) | **2026-09-19 결정(사용자 jechoi, PoC용 — 운영 전환 때 다시 정한다)**, v3 policy `audit_sample`에 발행: ① `max_per_execution=10`(탈락 ≤ 10이면 전건) ② 층 배분은 **우선순위 소진 유지**(`selection_order` 그대로) ③ `review_cadence="weekly_mon_thu"`(월·목) ④ `replacement: none`은 **한 draw(하루) 안** ⑤ 층 정의 값은 S3b가 제안·발행 — `classification_proximity={field: contract_method, values: [제한경쟁, 일반경쟁]}`, `performance_similarity_proximity={rank_window: 25}` | v3 policy `audit_sample.*` |
-| D-d | 승인 단위 = **binding 튜플**(결정 20). `approval_required_per_execution`은 false | **2026-09-19 결정(사용자 jechoi, PoC용 — 운영 전환 때 다시 정한다)**, v3 binding `external_transport`에 발행: `execution_allowed=true`, `approval_scope="per_binding"`, `approval_required_per_execution=false`, `approved_by="jechoi"`, `approved_at=2026-09-19T07:42:00+00:00`, `stage2_binding.model_digest=5fa804ff…`. 호출 대상 allowlist는 v2와 같이 `endpoint_source: runtime_secret_and_literal_allowlist`로 두고 실제 host는 파일에 넣지 않는다. **남은 것: `BIDOPS_C2_EXECUTION_ALLOWED=true`와 방화벽/egress 승인** | v3 binding `external_transport`, `BIDOPS_C2_EXECUTION_ALLOWED` |
+| D-c | 형태 = **상한 N건, 그 이하는 전건**(결정 15) | **2026-09-19 결정(사용자 jechoi, PoC용 — 운영 전환 때 다시 정한다)**, v4 policy `audit_sample`에 발행(첫 발행은 v3였으나 generation config revision 불일치로 실행되지 않아 v4로 대체했다): ① `max_per_execution=10`(탈락 ≤ 10이면 전건) ② 층 배분은 **우선순위 소진 유지**(`selection_order` 그대로) ③ `review_cadence="weekly_mon_thu"`(월·목) ④ `replacement: none`은 **한 draw(하루) 안** ⑤ 층 정의 값은 S3b가 제안·발행 — `classification_proximity={field: contract_method, values: [제한경쟁, 일반경쟁]}`, `performance_similarity_proximity={rank_window: 25}` | v3 policy `audit_sample.*` |
+| D-d | 승인 단위 = **binding 튜플**(결정 20). `approval_required_per_execution`은 false | **2026-09-19 결정(사용자 jechoi, PoC용 — 운영 전환 때 다시 정한다)**, v4 binding `external_transport`에 발행: `execution_allowed=true`, `approval_scope="per_binding"`, `approval_required_per_execution=false`, `approved_by="jechoi"`, `approved_at=2026-09-19T07:42:00+00:00`, `stage2_binding.model_digest=5fa804ff…`. 호출 대상 allowlist는 v2와 같이 `endpoint_source: runtime_secret_and_literal_allowlist`로 두고 실제 host는 파일에 넣지 않는다. **남은 것: `BIDOPS_C2_EXECUTION_ALLOWED=true`와 방화벽/egress 승인** | v3 binding `external_transport`, `BIDOPS_C2_EXECUTION_ALLOWED` |
 | D-e | 트리거 = **환경 cap + 버전에 묶인 DB 스위치**(결정 21). 활성화와 **별개 결정**이다 | **2026-09-19 결정(사용자 jechoi, PoC용 — 운영 전환 때 다시 정한다)**: 활성화는 jechoi가 관리 화면에서 직접 누른다. 운영시작일은 게이트 통과·활성화 **다음 날**부터 매 달력일. cron은 공고 트랙 **07:00**, 발주계획 트랙 **07:30**(KST) 두 줄. 트리거를 켜기 전 확인 항목은 PoC에서 **게이트 측정 2회(제품 경로 8실행)의 요청 수·소요시간·실패 분포로 갈음**한다. 남은 것: 실제 활성화·cron 설치와 `BIDOPS_C2_DAILY_TRIGGER_ENABLED` | 활성화 화면, `BIDOPS_C2_DAILY_TRIGGER_ENABLED`, cron |
 | D-f | **제품 재실행(측정 전용 실행)으로 닫음**(결정 22) | — | gate `evaluation_basis='product_rerun'` |
 | D-g | M0 측정(사전규격 공개 지연)으로 재개해 공고 수집 창 **4일**로 닫음(결정 28) | — | [`spec.md` §9.4](spec.md) |
@@ -340,7 +340,7 @@ C-1 자동화 때 한다 — [§7](#7-이-계획-밖--c-1-자동화-때-할-일)
 | 회사 핏·심층 검토의 운영 사용, 공고명 1차 판별 | 모델 출력이 다음 단계를 자동으로 막는데 품질을 잴 장치가 없다([`intent.md` §6](intent.md), 결정 26) | **운영에서 켜기 전 게이트 필수** — 각자 별도 계획. C-2 게이트 구조를 다시 쓸 수 있다 |
 | 사전규격 개요의 품질 근거 | 운영 중이지만 표식은 항상 `unmeasured_reference`이고 표본 점검 라벨을 담을 자리가 없다 | 표본 점검(별도 계획) |
 | scheduler 기반 C-2 | `docs/PLAN.md` Phase 6이 별도 ADR과 별도 변경 계획을 요구한다 | Phase 6 |
-| `validate_order_plan_phase0.py`로 v3 binding 검증 | 이 validator는 20260827 phase-0 증거에 고정돼 있고 `activation_eligible is False`를 요구한다(`:1365`) | 별도 activation validator 또는 검증 범위 명시 |
+| `validate_order_plan_phase0.py`로 v3·v4 binding 검증 | 이 validator는 20260827 phase-0 증거에 고정돼 있고 `activation_eligible is False`를 요구한다(`:1365`) | 별도 activation validator 또는 검증 범위 명시 |
 
 ## 5. 검증 범위
 
