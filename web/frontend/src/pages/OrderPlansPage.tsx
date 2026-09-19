@@ -1224,14 +1224,15 @@ export function OrderPlansPage() {
    */
   const judgmentsAvailable = listScope != null
     && (listScope.mode === "run" || listScope.policy_versions.length > 0);
-  // 상태 칩·실행 상태 대화상자가 읽는 실행 범위. 회차 모드는 그 회차의 실행 전부다. 누적
-  // 모드는 목록 범위가 실제로 판정을 가져온 policy 버전(`policy_versions`)의 운영 실행만 본다 —
-  // 측정 전용 실행이나 한 번도 활성화되지 않은 policy의 참조 실행을 "최근 판정"처럼 보이지 않는다.
-  // 그 버전에 완료 실행이 하나도 없으면 목록도 판정을 못 보이므로 칩도 비운다.
+  // 상태 칩·실행 상태 대화상자·"누적 판정 없음" 배너가 읽는 실행 범위. 회차 모드는 그 회차의
+  // 실행 전부다. 누적 모드는 활성화된 적 있는 policy(`activated_policy_versions`)의 운영 실행만
+  // 본다 — 측정 전용 실행이나 한 번도 활성화되지 않은 policy의 참조 실행을 "최근 운영 실행"처럼
+  // 보이지 않는다. 판정 유무(`policy_versions`)가 아니라 활성화 이력으로 가르므로, 막 활성화한
+  // policy의 첫 실행이 대기·실행 중·실패여도 칩에서 사라지지 않는다.
   const operationalExecutions = executions.filter((execution) => execution.purpose === "operational");
   const scopedExecutions = sourceRunId
     ? executions.filter((execution) => execution.source_run_id === sourceRunId)
-    : operationalExecutions.filter((execution) => listScope?.mode !== "cumulative" || listScope.policy_versions.includes(execution.policy_version));
+    : operationalExecutions.filter((execution) => listScope?.mode !== "cumulative" || listScope.activated_policy_versions.includes(execution.policy_version));
   const latestExecution = latestCompletedExecution(scopedExecutions);
 
   // Keep the normal review default while resolving a selected row. Once the
@@ -1965,11 +1966,13 @@ export function OrderPlansPage() {
         <Banner status="info" title="선별 전 · 수집 데이터 조회"
           description="이 회차에 게시된 선별 결과가 없습니다. 원본 발주계획을 조회하며 모델 판단은 값 없음으로 표시합니다." collapsible={false} />
       ) : null}
+      {/* 판정이 없는 이유를 말할 때 나열하는 실행도 범위 안의 것(`scopedExecutions`)만이다.
+          한 번도 활성화되지 않은 policy의 참조 실행을 "최근 운영 실행"으로 적지 않는다. */}
       {listQuery.isSuccess && listScope?.mode === "cumulative" && listScope.policy_versions.length === 0 ? (
         <Banner status="info" title="누적 판정 없음 · 수집 데이터 조회"
           description={`활성화된 적 있는 policy의 운영 판정이 아직 없습니다. 수집된 발주계획을 조회하며 모델 판단은 값 없음으로 표시합니다.${
-            operationalExecutions.length
-              ? ` 최근 운영 실행: ${operationalExecutions.slice(0, 3).map((item) => `${item.status} (${item.execution_id.slice(0, 8)})`).join(", ")}. 실패·중단·중지 상태를 성공 결과로 해석하지 않습니다.`
+            scopedExecutions.length
+              ? ` 최근 운영 실행: ${scopedExecutions.slice(0, 3).map((item) => `${item.status} (${item.execution_id.slice(0, 8)})`).join(", ")}. 실패·중단·중지 상태를 성공 결과로 해석하지 않습니다.`
               : ""}`} collapsible={false} />
       ) : null}
 

@@ -205,10 +205,16 @@ class OrderPlanTracking(_Strict):
 
 
 class OrderPlanCumulativeScope(_Strict):
-    """누적 모드: 범위에 실행이 있는 policy 버전(policy `activated_at` 오름차순). 범위가 비면 빈 목록이다."""
+    """누적 모드의 두 목록. 둘 다 policy `activated_at` 오름차순(동률은 버전 오름차순)이다.
+
+    - `policy_versions`: 범위에 완료 실행이 실제로 있는 버전. 판정 유무를 말한다. 없으면 빈 목록이다.
+    - `activated_policy_versions`: 활성화된 적 있는(`activated_at IS NOT NULL`) 버전 전부. 실행 상태를
+      보일 범위를 말하므로 결과가 아직 없는 실행도 포함한다. `policy_versions`는 이것의 부분집합이다.
+    """
 
     mode: Literal["cumulative"]
     policy_versions: list[str]
+    activated_policy_versions: list[str]
 
 
 class OrderPlanRunScope(_Strict):

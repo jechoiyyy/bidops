@@ -2087,6 +2087,9 @@ export interface OrderPlanMockTrace {
   stopPosts: Array<{ executionId: string; body: unknown; headers: Record<string, string> }>;
 }
 export interface OrderPlanMockOptions {
+  /** 누적 scope의 `activated_policy_versions`. 기본은 mock이 운영 policy로 쓰는 한 버전이다.
+      빈 배열이면 "활성화된 적 없는 policy의 운영 실행만 있는" 운영 DB 상태를 흉내낸다. */
+  activatedPolicyVersions?: string[];
   omitTracking?: boolean;
   createErrorCode?: OrderPlanScreeningErrorCode;
   stopErrorCode?: OrderPlanScreeningErrorCode;
@@ -2602,7 +2605,15 @@ export async function mockOrderPlans(page: Page, scenario: OrderPlanMockScenario
         policy_version: latest.policy_version, purpose: latest.purpose,
       } : null;
     }
-    return { mode: "cumulative", policy_versions: latest ? [latest.policy_version] : [] };
+    // `policy_versions`는 판정 유무(범위에 완료 실행이 있는 버전), `activated_policy_versions`는
+    // 실행 상태를 보일 범위(활성화된 적 있는 버전 전부)다. 서버처럼 앞을 뒤의 부분집합으로 둔다 —
+    // 활성화된 적 없는 policy의 완료 실행은 누적 판정이 아니다.
+    const activated = options.activatedPolicyVersions ?? [c2Execution().policy_version];
+    return {
+      mode: "cumulative",
+      policy_versions: latest && activated.includes(latest.policy_version) ? [latest.policy_version] : [],
+      activated_policy_versions: activated,
+    };
   }
   function trackingProjection(orderPlanPk: number): OrderPlanTracking | null {
     if (scenario === "no-owning-opportunity") return null;
