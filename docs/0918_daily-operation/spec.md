@@ -349,6 +349,8 @@ prompt·profile 본문과 경로는 넣지 않는다.
 ### 4.3 기록
 
 **코드가 채점하지 않는다.** 사람이 만든 gate artifact에서 읽어 기록한다. 코드는 연결과 판정 규칙만 검사한다.
+제품 밖 도구 `scripts/score-c2-gate.py`가 gold와 실행 결과를 대조해 그 artifact 초안과 POST body를 만들며,
+아무것도 POST하지 않는다 — 사람이 확인하고 제출한다(`docs/operations.md` 활성화 절차 9단계).
 
 | endpoint | 내용 |
 |---|---|

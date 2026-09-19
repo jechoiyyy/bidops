@@ -626,10 +626,38 @@ always-on 기본 비활성 원칙, `CLAUDE.md`). 트랙마다 한 줄이고 시�
    ```
 
    이 스크립트는 게이트의 측정 회차를 순서대로 실행·폴링만 하고 채점하지 않는다.
-9. **채점·기록.** 사람이 채점한 gate artifact를
-   `POST /api/order-plan-screening/quality-gates/{gate_id}/evaluations`로 기록한다. 코드가 두
-   pass 중 나쁜 쪽 값을 넣고 판정한다(통과·미달·
-   보류·미측정).
+9. **채점·기록.** 채점은 제품 밖에서 한다. `scripts/score-c2-gate.py`가 gold와 두 pass의
+   실행 결과를 대조해 gate artifact 초안과 evaluations POST body 예시를 만든다. **도구는
+   계산만 하고 아무것도 POST하지 않는다 — 사람이 artifact를 확인한 뒤 직접 제출한다.**
+
+   ```bash
+   # pass가 끝날 때마다 결과를 받아 둔다. 목록 API의 회차 모드는 그 회차의 "최신" 완료
+   # 실행만 돌려주므로, pass 2를 돌리고 나면 pass 1의 결과는 REST로 읽을 수 없다.
+   python3 scripts/score-c2-gate.py \
+     --gold data/experiments/order-plan-screening/20260827-20260830-gold-adjudicated-v2/review/gold-adjudicated-full-population.tsv \
+     --api http://127.0.0.1:18787 --pass1 <실행 id 4개> \
+     --out reports/c2-gate-pass1.json --dump-results reports/c2-gate-pass1-results.json
+
+   # pass 2까지 끝나면 pass 1은 dump에서, pass 2는 REST에서 읽어 함께 채점한다.
+   python3 scripts/score-c2-gate.py \
+     --gold …/gold-adjudicated-full-population.tsv --gate-id <c2gate-...> \
+     --results-json reports/c2-gate-pass1-results.json \
+     --api http://127.0.0.1:18787 \
+     --pass1 <pass 1 실행 id 4개> --pass2 <pass 2 실행 id 4개> \
+     --out reports/c2-gate-artifact.json --summary-out reports/c2-gate-summary.md \
+     --body-out reports/c2-gate-evaluation-body.json
+   ```
+
+   도구는 예측 양성을 검토 후보(`stage1_status=selected` ∧ `qwen_relevance∈{relevant,uncertain}`),
+   gold 양성을 `effective_relevance=관련`, 중요 누락을 `effective_priority=높음`인 gold 양성의
+   누락으로 센다. recall·precision·중요 누락은 게시일별 결과를 합산하고 검토량은 게시일별
+   최댓값(하루 기준)이며, 분모가 0이면 `null`로 남긴다. gold와 네 실행의 모집단이 다르면
+   오류로 멈추고, 실행 상태가 `성공`이 아니거나 gold 양성에 `label_source=draft`가 남아 있으면
+   artifact와 stderr에 경고로 남긴다(막지는 않는다 — 사람이 판단한다).
+
+   사람이 `--out` artifact와 요약을 확인한 뒤, 출력된 body(같은 artifact의 `artifact_sha256`를
+   담고 있다)를 `POST /api/order-plan-screening/quality-gates/{gate_id}/evaluations`로 기록한다.
+   코드가 두 pass 중 나쁜 쪽 값을 넣고 판정한다(통과·미달·보류·미측정).
 10. **활성화.** 활성화 화면(`발주계획 선별 정책` 탭)에서 policy digest·게이트 결과·런타임
     blocker를 확인한 뒤 승인한다. blocker가 하나라도 있으면 승인 단추는 비활성이다.
 11. **자동 실행 켜기.** 같은 화면의 스위치(policy_version에 묶인 DB 행)를 켠다. 이것만으로는
