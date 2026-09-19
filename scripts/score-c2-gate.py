@@ -27,6 +27,15 @@ Scoring rule (spec §4.2, docs/contracts.md "품질 게이트 REST"):
 
 Inputs come from the REST read surface (``--api``) or from an offline dump
 (``--results-json``), so the tool runs with no network in tests.
+
+Two commands:
+
+* ``scoring-input`` — run **before** the gate is created. Prints the canonical
+  scoring input, its sha256 (the gate's ``scoring_input_sha256``) and the gold
+  fields of the quality-gate create request.
+* ``score`` — run after both measurement passes. Recomputes the same digest,
+  compares it with ``--expect-scoring-input-sha256`` when given, and writes the
+  gate artifact draft plus the evaluation POST body.
 """
 
 from __future__ import annotations
@@ -54,7 +63,15 @@ TOOL_NAME = "scripts/score-c2-gate.py"
 TOOL_VERSION = "score-c2-gate.v1"
 ARTIFACT_SCHEMA_VERSION = "bidops.order-plan-quality-gate-artifact.v1"
 RESULTS_SCHEMA_VERSION = "bidops.order-plan-gate-scoring-results.v1"
+SCORING_INPUT_SCHEMA_VERSION = "bidops.c2-gate-scoring-input.v1"
 EVALUATION_SCHEMA_VERSION = "order-plan-quality-evaluation-create-request.v1"
+
+# The two rule strings are part of the scoring-input digest: changing either one
+# changes scoring_input_sha256, so a gate created under the old rule no longer
+# matches. They are values, not prose — do not reword them for style.
+CANDIDATE_RULE = "stage1_selected_and_qwen_relevant_or_uncertain"
+IMPORTANT_RULE = "gold_relevant_and_priority_high"
+SCORING_UNIT = "per_published_day"
 
 KST = timezone(timedelta(hours=9))
 
@@ -115,6 +132,18 @@ def canonical_json_bytes(value: Any) -> bytes:
     """Canonical artifact bytes: sorted keys, UTF-8, two-space indent, final newline."""
     return (
         json.dumps(value, ensure_ascii=False, sort_keys=True, indent=2, allow_nan=False) + "\n"
+    ).encode("utf-8")
+
+
+def canonical_digest_bytes(value: Any) -> bytes:
+    """Canonical bytes for a digest: sorted keys, UTF-8, tightest separators, no newline.
+
+    Separate from :func:`canonical_json_bytes` on purpose. An artifact file is read
+    by people and keeps its indent and final newline; a value that is hashed and
+    then compared across hosts must not depend on either.
+    """
+    return json.dumps(
+        value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False
     ).encode("utf-8")
 
 
@@ -743,6 +772,46 @@ def worse_side(first: dict[str, Any], second: dict[str, Any] | None) -> dict[str
 
 
 # --------------------------------------------------------------------------
+# scoring input digest
+# --------------------------------------------------------------------------
+
+
+def build_scoring_input(gold: Gold, run_ids: Iterable[str], tool_sha256: str) -> dict[str, Any]:
+    """The scoring input that is fixed **before** the measurement runs.
+
+    Its digest is the gate's ``scoring_input_sha256`` (docs/contracts.md "품질
+    게이트 REST"): gold bytes, gold manifest bytes, the measurement run ids, this
+    tool's bytes and the two rule strings. Anything that would change a score
+    without changing a measurement result is in here, so a gate created on Monday
+    can be shown on Friday to have been scored with the same input.
+
+    The run ids are sorted, so the order they are passed in does not matter.
+    """
+    if gold.manifest_path is None:
+        raise ScoringError(
+            "gold_manifest_missing",
+            f"gold manifest.json이 없습니다: {gold.path.parent}. --gold-manifest로 지정하십시오",
+        )
+    ids = sorted({str(run_id).strip() for run_id in run_ids})
+    if not ids or any(not run_id for run_id in ids):
+        raise ScoringError("invalid_run_id", "measurement_run_ids가 비었습니다")
+    return {
+        "schema_version": SCORING_INPUT_SCHEMA_VERSION,
+        "gold_artifact_sha256": gold.sha256,
+        "gold_manifest_sha256": sha256_file(gold.manifest_path),
+        "measurement_run_ids": ids,
+        "scoring_tool_sha256": tool_sha256,
+        "scoring_unit": SCORING_UNIT,
+        "candidate_rule": CANDIDATE_RULE,
+        "important_rule": IMPORTANT_RULE,
+    }
+
+
+def scoring_input_digest(scoring_input: dict[str, Any]) -> str:
+    return hashlib.sha256(canonical_digest_bytes(scoring_input)).hexdigest()
+
+
+# --------------------------------------------------------------------------
 # artifact and report
 # --------------------------------------------------------------------------
 
@@ -756,6 +825,7 @@ def build_artifact(
     agreement: dict[str, Any] | None,
     warnings: list[dict[str, str]],
     tool_sha256: str,
+    scoring_input: dict[str, Any] | None,
 ) -> dict[str, Any]:
     return {
         "schema_version": ARTIFACT_SCHEMA_VERSION,
@@ -763,14 +833,21 @@ def build_artifact(
         "created_at": datetime.now(KST).isoformat(),
         "tool": {"name": TOOL_NAME, "version": TOOL_VERSION, "sha256": tool_sha256},
         "gate_id": gate_id,
+        "scoring_input": scoring_input,
+        "scoring_input_sha256": (
+            scoring_input_digest(scoring_input) if scoring_input is not None else None
+        ),
         "scoring_rule": {
             "predicted_positive": "stage1_status == 'selected' AND qwen_relevance IN ('relevant','uncertain')",
             "gold_positive": "effective_relevance == '관련'",
             "important_missed": "gold_positive AND effective_priority == '높음' AND NOT predicted_positive",
-            "scoring_unit": "per_published_day",
+            "scoring_unit": SCORING_UNIT,
             "aggregation": "recall·precision·important_missed는 게시일 합산, review_load는 게시일별 최댓값",
             "zero_denominator": "null (계산 불가를 통과로 바꾸지 않는다)",
-            "reference_full_window": "같은 게시일별 결과를 4일 전체로 합산한 참고값. review_load는 창 전체 합계",
+            "reference_full_window": (
+                "게시일별 결과를 창 전체로 pool한 값이다(review_load는 창 전체 합계). "
+                "ADR-0037의 단일 625건 batch와는 batch 구성이 달라 직접 비교값이 아니다"
+            ),
             "source": "docs/0918_daily-operation/spec.md §4.2, docs/contracts.md '품질 게이트 REST'",
         },
         "gold": gold.summary(),
@@ -873,10 +950,16 @@ def render_summary(artifact: dict[str, Any], artifact_path: Path, artifact_sha25
         lines.append("두 pass 판정 일치율: 계산 불가(pass 2 없음)")
     reference = artifact["reference_full_window_worse_side"]
     lines.append(
-        f"참고(4일 일괄): recall {_fmt(reference['recall_pct'])}% / precision "
+        f"참고(창 전체 pool, 나쁜 쪽): recall {_fmt(reference['recall_pct'])}% / precision "
         f"{_fmt(reference['precision_pct'])}% / 중요 누락 {_fmt(reference['important_missed'])} / "
         f"검토 후보 {_fmt(reference['review_load'])}건"
     )
+    lines.append(
+        "  └ 게시일별 결과를 창 전체로 pool한 값이다. ADR-0037의 단일 625건 batch와는 batch "
+        "구성이 달라 직접 비교값이 아니다."
+    )
+    lines.append("")
+    lines.append(f"scoring_input_sha256: `{artifact['scoring_input_sha256'] or 'null'}`")
     lines.append("")
     lines.append("## 게시일별 분해")
     lines.append("")
@@ -914,30 +997,62 @@ def _fmt(value: Any) -> str:
 # --------------------------------------------------------------------------
 
 
-def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="scripts/score-c2-gate.py",
+        description=(
+            "C-2 품질 게이트의 채점 입력 digest(scoring-input)와 측정 채점(score)을 만든다. "
+            "아무것도 POST하지 않는다."
+        ),
+    )
+    commands = parser.add_subparsers(dest="command", required=True, metavar="COMMAND")
+
+    def add_gold_options(target: argparse.ArgumentParser) -> None:
+        target.add_argument("--gold", required=True, type=Path, help="gold TSV 경로")
+        target.add_argument(
+            "--gold-manifest",
+            type=Path,
+            default=None,
+            help="gold manifest.json 경로 (기본값: gold 파일 옆 manifest.json)",
+        )
+
+    scoring_input = commands.add_parser(
+        "scoring-input",
+        help="게이트 생성 전에 채점 입력 digest와 gold 관련 게이트 필드를 출력한다",
+        description=(
+            "POST /api/order-plan-screening/quality-gates 전에 고정되는 채점 입력의 canonical "
+            "JSON과 sha256, 그리고 게이트 요청의 gold 관련 네 필드를 출력한다. 임계값과 policy·"
+            "binding digest는 이 도구가 채우지 않는다(사람 결정·policy 행)."
+        ),
+    )
+    add_gold_options(scoring_input)
+    scoring_input.add_argument(
+        "--run-id",
+        action="append",
+        required=True,
+        metavar="RUN_ID",
+        help="측정 회차 id. 여러 번 준다. 저장 전에 정렬하므로 주는 순서는 digest에 영향이 없다",
+    )
+    scoring_input.add_argument("--out", type=Path, default=None, help="채점 입력 JSON을 쓸 경로")
+
+    score = commands.add_parser(
+        "score",
+        help="측정 실행을 gold와 대조해 gate artifact 초안과 evaluations POST body를 만든다",
         description=(
             "C-2 품질 게이트 측정 실행을 gold와 대조해 gate artifact 초안과 evaluations POST "
             "body 예시를 만든다. 아무것도 POST하지 않는다."
         ),
     )
-    parser.add_argument("--gold", required=True, type=Path, help="gold TSV 경로")
-    parser.add_argument(
-        "--gold-manifest",
-        type=Path,
-        default=None,
-        help="gold manifest.json 경로 (기본값: gold 파일 옆 manifest.json)",
-    )
-    parser.add_argument(
+    add_gold_options(score)
+    score.add_argument(
         "--pass1", nargs="+", required=True, metavar="EXECUTION_ID", help="pass 1의 실행 id 목록"
     )
-    parser.add_argument(
+    score.add_argument(
         "--pass2", nargs="+", default=None, metavar="EXECUTION_ID", help="pass 2의 실행 id 목록"
     )
-    parser.add_argument("--gate-id", default=None, help="c2gate-<32 hex>. 주면 artifact와 POST 예시에 넣는다")
-    parser.add_argument("--api", default=None, help="web base URL. 예: http://127.0.0.1:18787")
-    parser.add_argument(
+    score.add_argument("--gate-id", default=None, help="c2gate-<32 hex>. 주면 artifact와 POST 예시에 넣는다")
+    score.add_argument("--api", default=None, help="web base URL. 예: http://127.0.0.1:18787")
+    score.add_argument(
         "--results-json",
         action="append",
         default=[],
@@ -945,16 +1060,29 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         metavar="FILE",
         help="오프라인 결과 dump. 여러 번 줄 수 있다. 여기 있는 실행은 --api로 읽지 않는다",
     )
-    parser.add_argument("--out", required=True, type=Path, help="gate artifact JSON을 쓸 경로")
-    parser.add_argument("--summary-out", type=Path, default=None, help="사람이 읽는 요약 .md 경로")
-    parser.add_argument("--body-out", type=Path, default=None, help="evaluations POST body 예시 경로")
-    parser.add_argument(
+    score.add_argument(
+        "--expect-scoring-input-sha256",
+        default=None,
+        metavar="HEX",
+        help=(
+            "게이트에 기록한 scoring_input_sha256. 다시 계산한 값과 다르면 오류로 끝낸다 "
+            "(게이트 생성 뒤 gold나 채점 도구가 바뀐 것을 잡는다)"
+        ),
+    )
+    score.add_argument("--out", required=True, type=Path, help="gate artifact JSON을 쓸 경로")
+    score.add_argument("--summary-out", type=Path, default=None, help="사람이 읽는 요약 .md 경로")
+    score.add_argument("--body-out", type=Path, default=None, help="evaluations POST body 예시 경로")
+    score.add_argument(
         "--dump-results",
         type=Path,
         default=None,
         help="읽은 결과를 --results-json 형식으로 저장한다(pass 1을 뒤에 다시 채점하려면 필요)",
     )
-    return parser.parse_args(argv)
+    return parser
+
+
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    return build_parser().parse_args(argv)
 
 
 def collect_executions(
@@ -989,7 +1117,37 @@ def validate_uuid(value: str) -> str:
     return value
 
 
+def run_scoring_input(args: argparse.Namespace) -> int:
+    gold = load_gold(args.gold, args.gold_manifest)
+    scoring_input = build_scoring_input(gold, args.run_id, sha256_file(Path(__file__).resolve()))
+    digest = scoring_input_digest(scoring_input)
+    if args.out is not None:
+        atomic_write_bytes(args.out, canonical_json_bytes(scoring_input))
+
+    summary = gold.summary()
+    gate_fields = {
+        "gold_artifact_sha256": scoring_input["gold_artifact_sha256"],
+        "gold_manifest_sha256": scoring_input["gold_manifest_sha256"],
+        "gold_status": summary["manifest_status"],
+        "scoring_input_sha256": digest,
+        "measurement_run_ids": scoring_input["measurement_run_ids"],
+    }
+    sys.stdout.write("# 채점 입력 (게이트 생성 전에 고정한다)\n\n")
+    sys.stdout.write(canonical_digest_bytes(scoring_input).decode("utf-8") + "\n\n")
+    sys.stdout.write(f"scoring_input_sha256: {digest}\n\n")
+    sys.stdout.write(
+        "POST /api/order-plan-screening/quality-gates 요청의 gold 관련 필드 "
+        "(임계값·policy·binding digest는 사람이 채운다)\n"
+    )
+    sys.stdout.write(json.dumps(gate_fields, ensure_ascii=False, sort_keys=True, indent=2) + "\n")
+    if summary["manifest_status"] is None:
+        sys.stderr.write("warning: gold_status_missing: manifest에 status가 없습니다\n")
+    return 0
+
+
 def run(args: argparse.Namespace) -> int:
+    if args.command == "scoring-input":
+        return run_scoring_input(args)
     if args.gate_id is not None and not GATE_ID_PATTERN.match(args.gate_id):
         raise ScoringError("invalid_gate_id", f"--gate-id는 c2gate-<32 hex>입니다: {args.gate_id}")
     pass_1_ids = [validate_uuid(value) for value in args.pass1]
@@ -1052,6 +1210,35 @@ def run(args: argparse.Namespace) -> int:
         else None
     )
 
+    # The measurement run ids are the ones the executions actually ran on, so a
+    # mismatch with the gate's scoring_input_sha256 also catches a pass that was
+    # run against the wrong runs — not only a changed gold or tool.
+    tool_sha256 = sha256_file(Path(__file__).resolve())
+    measurement_run_ids = sorted(
+        {execution.source_run_id for execution in pass_1_executions}
+        | {execution.source_run_id for execution in (pass_2_executions or [])}
+    )
+    scoring_input: dict[str, Any] | None
+    try:
+        scoring_input = build_scoring_input(gold, measurement_run_ids, tool_sha256)
+    except ScoringError as error:
+        if args.expect_scoring_input_sha256 is not None:
+            raise
+        scoring_input = None
+        warnings.append({"code": error.code, "message": error.message})
+    if args.expect_scoring_input_sha256 is not None:
+        assert scoring_input is not None
+        computed = scoring_input_digest(scoring_input)
+        if computed != args.expect_scoring_input_sha256.strip().lower():
+            raise ScoringError(
+                "scoring_input_mismatch",
+                (
+                    f"채점 입력 digest가 게이트의 값과 다릅니다: 계산 {computed}, "
+                    f"기대 {args.expect_scoring_input_sha256}. gold·측정 회차·채점 도구 중 "
+                    "하나가 게이트 생성 뒤에 바뀌었습니다"
+                ),
+            )
+
     artifact = build_artifact(
         gold=gold,
         gate_id=args.gate_id,
@@ -1059,7 +1246,8 @@ def run(args: argparse.Namespace) -> int:
         pass_2=pass_2,
         agreement=agreement,
         warnings=warnings,
-        tool_sha256=sha256_file(Path(__file__).resolve()),
+        tool_sha256=tool_sha256,
+        scoring_input=scoring_input,
     )
     payload = canonical_json_bytes(artifact)
     atomic_write_bytes(args.out, payload)

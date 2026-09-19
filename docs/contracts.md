@@ -1282,6 +1282,13 @@ artifact의 값을 기록하고 연결과 판정 규칙만 검사한다.
 `measurement_run_ids[]`(요청 순서 보존), `required_pass_count=2`, `thresholds={recall_pct?, precision_pct?,
 important_missed_max?, review_load_max?}`, `created_by`, `created_at`, nullable `latest_evaluation: EvaluationView`.
 
+`scoring_input_sha256`은 측정 전에 고정되는 채점 입력의 digest다 — canonical JSON(정렬 키·UTF-8·최소 구분자·끝
+개행 없음) `{schema_version:"bidops.c2-gate-scoring-input.v1", gold_artifact_sha256, gold_manifest_sha256,
+measurement_run_ids(정렬), scoring_tool_sha256, scoring_unit, candidate_rule, important_rule}`의 sha256이며
+`scripts/score-c2-gate.py scoring-input`이 계산한다. 측정 결과를 바꾸지 않고 점수만 바꿀 수 있는 것(gold, 측정
+회차 집합, 채점 도구, 후보·중요 규칙)이 전부 들어가므로, 채점 때 다시 계산해 이 값과 대조하면 게이트 생성 뒤의
+교체를 잡는다. 서버는 이 값을 대조하지 않고 기록만 한다(코드는 채점하지 않는다).
+
 **`EvaluationView`**: `evaluation_id`(불투명 문자열), `gate_id`, `revision`(1부터), `result_status=통과|미달|미측정|보류`,
 `pass_execution_ids={pass_1: [UUID], pass_2: [UUID]?}`, nullable `measured_recall_pct`·`measured_precision_pct`·
 `measured_important_missed`·`measured_review_load`, `metrics={pass_1, pass_2?, agreement_pct?, reference_full_window?}`,
