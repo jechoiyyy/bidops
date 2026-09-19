@@ -149,7 +149,9 @@ def test_cumulative_mode_projects_latest_result_per_plan_and_run_mode_narrows(li
     session.commit()
     body = client.get("/api/order-plans").json()
     assert body["schema_version"] == "order-plan-list-response.v4"
-    assert body["scope"] == {"mode": "cumulative", "policy_versions": [policy]}
+    assert body["scope"] == {
+        "mode": "cumulative", "policy_versions": [policy], "activated_policy_versions": [policy],
+    }
     assert len(body["items"]) == 9
     first, second, third = body["items"][:3]
     # 완료되지 않은 실행의 결과는 빌리지 않고, feedback은 실행과 무관하게 발주계획별 최신 1건이다.
@@ -183,7 +185,10 @@ def test_no_completed_execution_keeps_original_items(listing):
     cumulative = client.get("/api/order-plans")
     assert len(ids(cumulative)) == 9
     # 활성화 이력은 있지만 완료 실행이 없다 — `policy_versions`는 빈 목록이고 누적 실행 유무와 같이 간다.
-    assert cumulative.json()["scope"] == {"mode": "cumulative", "policy_versions": []}
+    # `activated_policy_versions`는 활성화 이력 그대로라 화면이 이 실패 실행을 범위 안에서 계속 보인다.
+    assert cumulative.json()["scope"] == {
+        "mode": "cumulative", "policy_versions": [], "activated_policy_versions": [policy],
+    }
     assert service.has_cumulative_execution(session) is False
     run = client.get("/api/order-plans", params={"source_run_id": "run-c2"})
     assert len(ids(run)) == 9
@@ -500,7 +505,11 @@ def check_cumulative_projection(session):
     # 참조·측정 실행만 있으면 누적 범위가 비어 있고 워크로드는 null이다. v3·v4는 활성화된 적
     # 있지만 범위 실행이 0건이라 `policy_versions`에도 들어가지 않는다 — 빈 목록과 null은 함께 간다.
     empty = service.list_order_plans(session)
-    assert empty["scope"] == {"mode": "cumulative", "policy_versions": []}
+    # 실행이 0건이어도 활성화된 두 버전은 `activated_policy_versions`에 다 있다. 한 번도 활성화된
+    # 적 없는 참조 policy(s8a-ref)는 그 실행이 완료됐어도 두 목록 어디에도 들어가지 않는다.
+    assert empty["scope"] == {
+        "mode": "cumulative", "policy_versions": [], "activated_policy_versions": ["s8a-v3", "s8a-v4"],
+    }
     assert service.has_cumulative_execution(session) is False
     assert all(item["execution_id"] is None for item in empty["items"])
     assert workload.workload_counts(session) == {"order_plan_pending": WorkloadCount(None, "no_completed_execution")}
@@ -511,7 +520,9 @@ def check_cumulative_projection(session):
     feedback(session, yesterday, a, relevance="relevant")
     session.commit()
     # 실행이 생긴 버전만 들어간다. v4는 아직 운영 완료 실행이 없어 활성화 이력만으로는 빠진다.
-    assert service.list_order_plans(session)["scope"] == {"mode": "cumulative", "policy_versions": ["s8a-v3"]}
+    assert service.list_order_plans(session)["scope"] == {
+        "mode": "cumulative", "policy_versions": ["s8a-v3"], "activated_policy_versions": ["s8a-v3", "s8a-v4"],
+    }
     assert service.has_cumulative_execution(session) is True
     today = direct_execution(session, "s8a-v4", runs["day2"].id, NOW + DAY + timedelta(hours=1), status="부분 성공")
     result(session, today, a, relevance="uncertain")
@@ -522,7 +533,9 @@ def check_cumulative_projection(session):
     listing = service.list_order_plans(session)
     assert listing["schema_version"] == "order-plan-list-response.v4"
     # 두 버전 모두 범위 실행을 가졌다. 순서는 policy `activated_at` 오름차순이고 v4의 실패 실행은 세지 않는다.
-    assert listing["scope"] == {"mode": "cumulative", "policy_versions": ["s8a-v3", "s8a-v4"]}
+    assert listing["scope"] == {
+        "mode": "cumulative", "policy_versions": ["s8a-v3", "s8a-v4"], "activated_policy_versions": ["s8a-v3", "s8a-v4"],
+    }
     rows = {item["order_plan_pk"]: item for item in listing["items"]}
     assert listing["total"] == 4
     # 오늘 실행의 판정과 어제 실행의 feedback이 같은 행에 함께 실린다.
