@@ -474,3 +474,17 @@
   사용할 수 없으면 실패한다. `Math.random`으로 대체하지 않으며 생성 오류와 저장 오류를 구분한다.
 - 검증: localhost 외 실제 HTTP 네트워크 origin에서 선택→상세 순회와 요청 생성까지
   확인한다. `isSecureContext`, UUID API 존재 여부, 저장소 쓰기를 각각 확인해 원인을 분리한다.
+
+## 단위 검사는 CLI 프로세스와 web 프로세스의 확장점 등록 차이를 보지 못한다
+
+- 증상: 적재 CLI로 넣은 회차에만 `judgment_ingest_skipped` 경고가 남고, 그 경고 하나로
+  C-2 실행 생성이 `409 source_run_incomplete`가 된다. 전체 테스트는 녹색이다.
+- 원인: hook은 `extension_registry()` 전역 싱글턴에서만 온다. pytest는 conftest가 이미
+  `app.screening`·`app.deep_review`를 끌어와 등록을 채워 두므로, `ingest_run`을 직접 부르는
+  검사는 언제나 "등록이 있는" 상태만 본다. 실제 운영 명령은 `python -m ...`이고 그 프로세스의
+  registry는 비어 있다. 같은 모양의 함정을 T6의 순환 import가 이미 한 번 만들었다.
+- 대응: 프로세스 경계를 넘는 진입점은 **새 인터프리터로 실행해** 결과를 DB에서 다시 읽는
+  검사를 하나 둔다(`tests/app/test_ingest_cli_extensions.py`). `--help`만 띄우는 검사는
+  import 순서만 보증할 뿐 등록 여부를 보증하지 않는다. 등록 없이 성공으로 끝나는 경로가
+  생기지 않도록 등록 실패는 fail closed로 만들고, "제공자가 없는 배포"는 설정
+  (`BIDOPS_MODULES`)으로만 표현한다.

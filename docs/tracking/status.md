@@ -130,6 +130,15 @@ env 값(`BIDOPS_VLLM_BASE_URL=http://192.168.0.139:58765/v1`,
 
 병합 전 후속 수정(2026-09-19): 누적 모드 `scope.policy_versions`를 범위에 실행이 실제로 있는 버전으로 좁히고(대시보드 `no_completed_execution`과 함께 간다) `activated_policy_versions`를 더해 화면의 실행 상태 표시 범위를 활성화 이력으로 가른다 — 활성화된 적 없는 policy의 참조 실행을 "최근 운영 실행"으로 적지 않는다. 교체 없는 retire CLI(`python -m app.screening.c2_policy retire`, 사유를 담은 `c2.policy_retired` AuditEvent)를 더했고, 발주계획 선택 fingerprint에 추적 축을 정식으로 넣었다. ADR-0060·0061은 2026-09-19 사용자 승인을 받았다. 검사(병합 트리, 영향 범위만): 일회용 PostgreSQL 17에서 `test_order_plan_list_v2.py` 26 passed·skip 0, `test_c2_policy_retire.py`·`test_workload_projection.py` 통과; 프런트 `tsc -b`, `order-plans`·`dashboard`·`list-selection`·`order-plan-policies` spec 121 passed; pixel 8장 중 `order-plans-list`·`criteria` 2장을 승인받아 교체했다(나머지 6장 통과). 전체 스위트는 다시 돌리지 않았다. 운영 DB의 테스트 SQL 활성 행 `c2-order-plan-screening-v2`는 2026-09-19 배포 때 retire CLI로 내렸다([findings](findings.md)).
 
+PoC 후속(2026-09-19, 브랜치 `feat/poc-ingest-cli-hooks`, 미병합): 게이트 측정 pass 1이 첫 회차에서
+`409 source_run_incomplete`로 멈춘 원인을 고쳤다. 적재 CLI 프로세스에 lifecycle 확장점이 등록돼
+있지 않아 CLI로 적재한 모든 회차에 `judgment_ingest_skipped` 경고가 남았고, C-2 실행 생성은 그
+경고 하나로 회차를 거부한다 — 일일 발주계획 트랙도 같은 이유로 매일 막혔다. CLI가 이제
+`BIDOPS_MODULES` 선택대로 web 프로세스와 같은 확장점을 등록한 뒤 적재하며(2026-09-11의 deep_review
+첨부 자격 hook 누락 finding도 같은 수정으로 닫혔다), C-2 거부 사유는 서버 로그에 남는다(응답 계약은
+그대로). 검사는 새 인터프리터로 적재하고 같은 DB에서 C-2 source run 검사를 부르는 통합 1건
+(`tests/app/test_ingest_cli_extensions.py`)과 영향 파일의 기존 검사만 돌렸다. [findings](findings.md)
+
 ## 사업 추적 연결·선별 적재·Go/No-Go 분리 (2026-09-17, main 병합 7249ae9·2026-09-19 운영 배포)
 
 [사업 추적 연결·조치 고도화 계획](../0917_opportunity-tracking/plan.md)의 P0~P5를 구현했다 —
