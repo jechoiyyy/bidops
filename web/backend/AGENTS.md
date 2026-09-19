@@ -114,6 +114,13 @@ python -m app.deep_review.workers.prespec_attachment  # 사전규격 첨부 취�
 python -m app.workers.analysis                        # 모델을 쓰는 합성 worker
 ```
 
+`app.lifecycle.ingest.cli`는 적재 전에 `register_configured_extensions()`로 `BIDOPS_MODULES`가 고른
+모듈의 `register_lifecycle_extensions`를 등록한다 — `create_app`과 **같은 선택**이라 CLI 적재와 API
+적재가 같은 hook 집합을 부른다. lifecycle은 형제 모듈을 import하지 않으므로 이름을 런타임에 푼다
+(`run-prespec-e2e`의 `--extension-provider`와 같은 방식). 고른 모듈에 등록 함수가 없으면 fail closed다.
+등록이 없으면 회차에 `judgment_ingest_skipped`가 남고 그 회차는 C-2 source run으로 쓸 수 없다 —
+프로세스 경계를 넘는 회귀 검사는 `tests/app/test_ingest_cli_extensions.py`가 갖는다.
+
 `run-prespec-e2e`는 사전규격 종단 인수 실행이며 격리 실행 경계
 (`BIDOPS_TEST_MODE=1` 또는 pytest)에서만 돈다. 자기 workspace의 SQLite와 filesystem 객체
 저장소만 쓰고 live 모델·나라장터를 부르지 않으며, 판정 적재 제공자는

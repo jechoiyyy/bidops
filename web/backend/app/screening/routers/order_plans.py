@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Annotated, Literal
 from uuid import UUID
 
@@ -27,6 +28,8 @@ from ..schemas.order_plans import (
 )
 from ..services.order_plan_screening import OrderPlanScreeningError, OrderPlanScreeningService
 
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api", tags=["order-plan-screening"])
 service = OrderPlanScreeningService()
@@ -55,6 +58,16 @@ _MESSAGES = {
 def _error_response(error: OrderPlanScreeningError) -> JSONResponse:
     code = error.code if error.code in _MESSAGES else "processing_failed"
     status = error.status_code if code == error.code else 500
+    # 응답 message는 code별 고정 문구다(`docs/contracts.md`). 서비스가 만든 구체
+    # 사유는 여기서 버려지므로, 운영이 원인을 볼 수 있도록 서버 로그에 남긴다.
+    # 사유 문자열은 안전한 분류·식별자만 담는다(내부 경로·비밀 없음).
+    logger.warning(
+        "c2 request rejected: code=%s status=%s request_id=%s reason=%s",
+        code,
+        status,
+        error.request_id,
+        error.message,
+    )
     return JSONResponse(
         status_code=status,
         content={

@@ -402,6 +402,61 @@ class OrderPlanScreeningService:
             "execution_allowed": True,
         }
 
+    def require_complete_source_run(
+        self,
+        session: Session,
+        source_run_id: str,
+        *,
+        request_id: UUID | None = None,
+    ) -> tuple[Run, Path, bytes, list[dict[str, str]]]:
+        """C-2가 실행을 만들 수 있는 source run인지 확인하고 모집단을 돌려준다.
+
+        세 가지를 차례로 본다 — 회차가 있는가, 적재 경고가 하나도 없는가,
+        DB projection이 수집 원본 모집단과 정확히 같은가. 셋 다 실패 code는
+        `source_run_incomplete` 하나이고 사유만 다르다. **어긋난 사유는 응답이
+        아니라 서버 로그로 나간다**(`docs/contracts.md`가 이 code의 `details`를
+        `null`로 고정하고 message를 일반 문구로 고정한다).
+
+        회차 적재 경고는 그 자체로 "이 회차는 계약대로 다 적재되지 않았다"는
+        뜻이므로 하나라도 있으면 거부한다. 적재 경로가 확장점을 등록하지 않아
+        생기는 `judgment_ingest_skipped`도 여기서 걸린다 — 그것이 적재 프로세스
+        결함일 뿐이더라도, 이 검사를 code로 예외 처리하면 진짜 부분 적재까지
+        함께 통과한다.
+        """
+
+        run = session.get(Run, source_run_id)
+        if run is None:
+            raise OrderPlanScreeningError("source_run_incomplete", "source run을 찾을 수 없습니다", request_id=request_id)
+        warning_codes = list(
+            dict.fromkeys(
+                session.scalars(
+                    select(IngestWarning.code).where(IngestWarning.run_id == run.id).limit(20)
+                ).all()
+            )
+        )
+        if warning_codes:
+            raise OrderPlanScreeningError(
+                "source_run_incomplete",
+                "source run에 ingest warning이 있습니다 (" + ", ".join(warning_codes) + ")",
+                request_id=request_id,
+            )
+        source_path = _source_directory(self.settings, run.id) / "collected-order-plans.json"
+        source_raw, source_bytes = _safe_json_bytes(source_path)
+        source_population = _source_population(source_raw)
+        plans = {
+            row.order_plan_unty_no: row
+            for row in session.scalars(
+                select(OrderPlan).join(OrderPlanObservation).where(OrderPlanObservation.run_id == run.id)
+            ).all()
+        }
+        if set(plans) != {row["plan_id"] for row in source_population} or any(
+            plans[row["plan_id"]].title != row["title"]
+            or plans[row["plan_id"]].source_sha256 != row["source_sha256"]
+            for row in source_population
+        ):
+            raise OrderPlanScreeningError("source_run_incomplete", "source run DB projection이 모집단과 다릅니다", request_id=request_id)
+        return run, source_path, source_bytes, source_population
+
     def create_execution(
         self,
         session: Session,
@@ -441,33 +496,13 @@ class OrderPlanScreeningService:
                 raise OrderPlanScreeningError("active_execution_exists", "다른 C-2 execution이 실행 중입니다", request_id=request_id)
             binding_document = json.loads(binding_bytes.decode("utf-8"))
             approved_inputs = self._approved_inputs(stage2, request_id)
-            run = session.get(Run, payload.source_run_id)
-            if run is None:
-                raise OrderPlanScreeningError("source_run_incomplete", "source run을 찾을 수 없습니다", request_id=request_id)
-            warning = session.scalar(
-                select(IngestWarning.id).where(IngestWarning.run_id == run.id).limit(1)
+            run, source_path, source_bytes, source_population = self.require_complete_source_run(
+                session, payload.source_run_id, request_id=request_id
             )
-            if warning is not None:
-                raise OrderPlanScreeningError("source_run_incomplete", "source run에 ingest warning이 있습니다", request_id=request_id)
-            source_path = _source_directory(self.settings, run.id) / "collected-order-plans.json"
-            source_raw, source_bytes = _safe_json_bytes(source_path)
-            source_population = _source_population(source_raw)
             population = [
                 {"plan_id": row["plan_id"], "title": row["title"]}
                 for row in source_population
             ]
-            plans = {
-                row.order_plan_unty_no: row
-                for row in session.scalars(
-                    select(OrderPlan).join(OrderPlanObservation).where(OrderPlanObservation.run_id == run.id)
-                ).all()
-            }
-            if set(plans) != {row["plan_id"] for row in source_population} or any(
-                plans[row["plan_id"]].title != row["title"]
-                or plans[row["plan_id"]].source_sha256 != row["source_sha256"]
-                for row in source_population
-            ):
-                raise OrderPlanScreeningError("source_run_incomplete", "source run DB projection이 모집단과 다릅니다", request_id=request_id)
             execution_id = uuid4()
             execution_dir = execution_directory(self.settings, run.id, execution_id)
             execution_dir.parent.mkdir(parents=True, exist_ok=True)

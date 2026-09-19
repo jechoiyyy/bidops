@@ -1392,7 +1392,7 @@ runner 소비자가 없어 보류했다. 운영 DB/MinIO 쓰기·migration 적�
   실패 사유 개수는 새 스택에 그대로 적용되지 않는다. 새 실행 결과는 별도 참조 실행으로
   다시 측정한다. 이 항목은 해당 스택 폐기로 종결한다.
 
-## ingest CLI 경로가 deep_review 첨부 자격 hook을 부르지 않는다 (2026-09-11, 미해결)
+## ingest CLI 경로가 deep_review 첨부 자격 hook을 부르지 않는다 (2026-09-11, 해결 2026-09-19)
 
 - 재현: `python -m app.lifecycle.ingest.cli --run <RUN_ID>`는 `app.deep_review`의
   등록 함수를 import하지 않는다. `app/lifecycle/ingest/loader.py`는 module-level
@@ -1404,10 +1404,12 @@ runner 소비자가 없어 보류했다. 운영 DB/MinIO 쓰기·migration 적�
 - 영향: ingest CLI로 적재한 회차는 사전규격 첨부 취득 자격이 자동으로 재평가되지
   않는다. `docs/operations.md` 3단계에 web 컨테이너에서 `refresh_fetch_eligibility`를
   수동으로 1회 부르는 임시 절차를 추가해 이 공백을 메웠다(2026-09-11).
-- 후속: `app/lifecycle/ingest/cli.py`가 `run_prespec_e2e.py`처럼 `--extension-provider
-  모듈:이름` 인자로 `PreSpecAttachmentEligibilityHook` 등록 함수를 주입받게 하거나,
-  CLI가 항상 `app.deep_review`의 등록 함수를 부르도록 고친다. 지금 범위에서는
-  해결하지 않는다.
+- 해결(2026-09-19): `app/lifecycle/ingest/cli.py`가 적재 전에
+  `register_configured_extensions()`로 `BIDOPS_MODULES`가 고른 모듈의
+  `register_lifecycle_extensions`를 `run_prespec_e2e.py`와 같은 방식(이름을 런타임에
+  푼다)으로 등록한다. web 프로세스(`create_app`)와 **같은 선택**을 쓰므로 CLI 적재와
+  API 적재가 같은 hook 집합을 부른다. 제공자를 찾지 못하면 fail closed다. 아래의
+  같은 뿌리 결함(C-2 409)과 한 수정으로 함께 닫혔다.
 
 ## 운영 `attachment.name`이 나라장터 자리표시자라 파일명 대조가 무의미하다 (2026-09-11, 경고로 완화됨·미해결)
 
@@ -1640,3 +1642,28 @@ runner 소비자가 없어 보류했다. 운영 DB/MinIO 쓰기·migration 적�
 - 지금 해결할 수 없는 이유: 일일 운영 고도화(`feat/do-integration`) 병합 범위와 무관한 기존 main의 배치이고,
   패널 행 수·높이를 줄이는 것은 대시보드 구성 결정이다. 2026-09-19 사용자가 그대로 두기로 했다.
 - 후속 방향: 대시보드를 다시 손댈 때 보류 패널의 행 상한 또는 패널 높이 배분을 함께 정한다.
+
+## 적재 CLI로 넣은 회차를 C-2가 `409 source_run_incomplete`로 거부한다 (2026-09-19, 해결 2026-09-19)
+
+- 재현: `python -m app.lifecycle.ingest.cli --run <id> --collection`(일일 스크립트
+  `scripts/run-daily-lifecycle.sh`와 `docs/operations.md` 활성화 절차 7단계가 쓰는 경로)은
+  CLI 프로세스에 모듈 확장점이 등록돼 있지 않아 `loader.py:_complete_run_ingest`가
+  `extensions.run_ingest_hook_count == 0` 분기로 빠지고 회차에
+  `IngestWarning(code="judgment_ingest_skipped")`를 남긴다. C-2 실행 생성은 source run에
+  ingest warning이 하나라도 있으면 `409 source_run_incomplete`로 거부하므로, CLI로 적재한
+  회차는 C-2 입력이 될 수 없었다.
+- 영향: 2026-09-19 운영에서 게이트 측정 pass 1이 첫 회차에서 멈췄다. **일일 발주계획 트랙
+  (`--track order-plans` → CLI 적재 → `run-daily-c2.sh`)도 같은 이유로 매일 409가 된다.**
+  `docs/0918_daily-operation/spec.md` §9.2의 공고 adopt 검사("IngestWarning 0건")도 CLI 적재
+  회차에서는 항상 실패했다. 우회로는 같은 회차를 web 프로세스의 `POST /api/runs/ingest`로 다시
+  적재하는 것뿐이었고(재적재가 그 회차 경고를 지운다), REST 적재에는 `--collection` 모드가 없다.
+- 진단이 늦은 이유: router(`routers/order_plans.py`)가 응답 message를 code별 고정 문구로
+  바꾸므로 "source run에 ingest warning이 있습니다"라는 구체 사유가 API 응답에 보이지 않았고,
+  거부를 남기는 서버 로그도 없었다.
+- 해결(2026-09-19): ① CLI가 `BIDOPS_MODULES` 선택대로 확장점을 등록한 뒤 적재한다(위 항목과
+  같은 수정). ② `_error_response`가 서비스의 구체 사유를 서버 로그에 남긴다 — 응답 `details`는
+  `docs/contracts.md`가 이 code에서 `null`로 고정하므로 바꾸지 않았다. ③ source run 검사를
+  `OrderPlanScreeningService.require_complete_source_run`으로 뽑아 회귀 검사가 제품 코드를
+  그대로 부른다(`tests/app/test_ingest_cli_extensions.py`, 새 인터프리터로 적재 → 같은 DB에서 검사).
+- 남은 것: 적재 경고 자체는 계속 C-2를 막는다(부분 적재 회차를 통과시키지 않기 위해 의도한 것이다).
+  등록이 되는데도 경고가 남는 회차는 진짜 부분 적재이므로 경고 code로 원인을 본다.

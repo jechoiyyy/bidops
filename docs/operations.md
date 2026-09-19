@@ -340,6 +340,13 @@ python -m app.deep_review.cli --help        # run-bc-e2e, run-prespec-e2e, impor
 python -m app.lifecycle.ingest.cli --help   # --run <회차> | --all
 ```
 
+적재 CLI는 `BIDOPS_MODULES`가 고른 모듈의 lifecycle 확장점을 web 프로세스(`create_app`)와
+**같은 선택으로 등록한 뒤** 적재한다(2026-09-19 수정). 즉 CLI로 적재해도 판정·리뷰 적재와
+사전규격 첨부 자격 재평가가 web API 적재와 같게 돈다. 등록한 모듈 이름은 stderr에
+`extensions: screening, deep_review` 한 줄로 찍히며 stdout은 JSON 결과만 낸다.
+`BIDOPS_MODULES=lifecycle`로 좁히면 제공자가 없으므로 회차에 `judgment_ingest_skipped`
+경고가 남고, 그 회차는 C-2 실행의 source run으로 쓸 수 없다.
+
 수동 발주계획·사전규격 참조 실행은 아래 단계형 wrapper를 사용한다. 둘 다 기존 회차를
 덮어쓰지 않으며, live 모델을 쓸 수 있는 `start-worker(s)`·`run`·`run-c1`·`enqueue`·`all`에는
 그 명령 한 번에만 유효한 `--approve-model-call`이 필요하다. `all`은 장시간 대기하지 않고
@@ -632,6 +639,12 @@ always-on 기본 비활성 원칙, `CLAUDE.md`). 트랙마다 한 줄이고 시�
    docker compose -f docker-compose.yml exec web \
      python -m app.lifecycle.ingest.cli --run "gate-gold-<YYYYMMDD>-plans" --collection
    ```
+
+   적재 결과의 `warnings`가 **네 회차 모두 빈 배열**인지 확인한다. C-2 실행 생성은 source run에
+   적재 경고가 하나라도 있으면 `409 source_run_incomplete`로 거부하며, 응답 message는 code별
+   고정 문구라 사유가 보이지 않는다. 사유는 web 컨테이너 로그
+   (`docker compose -f docker-compose.yml logs web | grep "c2 request rejected"`)와
+   `GET /api/runs/<회차>/warnings`에서 읽는다.
 
    네 회차를 모두 적재한 뒤 게이트를 만든다(`POST /api/order-plan-screening/quality-gates`, 측정
    회차 4개를 `measurement_run_ids`에 고정. 요청 필드는 `docs/contracts.md`의
@@ -935,9 +948,10 @@ docker compose -f docker-compose.yml exec web \
   <audit_pool 값>`에 넘겨 전 건이 담긴 선택 파일을 만든다. `--run <회차> --collection`을 붙이면
   표본 대신 수집 파일 전체를 수집 색인에 남기고 선별 규칙에 맞는 레코드(발주계획 전량·SW사업대상
   사전규격·추적·SW 관련 입찰공고)만 적재한다. `scripts/run-daily-lifecycle.sh`가 매일 이 경로를 쓴다.
-- **함정 2**: ingest CLI 경로에서는 첨부 자격 갱신 hook이 돌지 않는다(웹 API 경로에만
-  연결돼 있다). 적재 뒤 web 컨테이너에서 한 번 수동으로 갱신한다(후속 수정 전 임시 절차).
-  `scripts/run-daily-lifecycle.sh`는 적재 뒤 이 갱신을 매번 명시적으로 실행한다.
+- **함정 2(2026-09-19 해소)**: ingest CLI는 이제 확장점을 등록하고 적재하므로 첨부 자격
+  갱신 hook이 CLI 경로에서도 돈다. 아래 수동 갱신은 더 이상 필수가 아니며,
+  `scripts/run-daily-lifecycle.sh`가 공고 트랙 끝에서 부르는 같은 호출도 중복 실행일 뿐
+  해롭지는 않다(멱등). 과거 회차를 손으로 다시 맞출 때만 쓴다.
 
   ```bash
   docker compose -f docker-compose.yml exec web python -c \
