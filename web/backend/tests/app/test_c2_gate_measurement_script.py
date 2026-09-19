@@ -71,6 +71,10 @@ def _gate_view(gate_id: str, measurement_run_ids: list[str]) -> dict:
 
 
 def set_gate(env: Env, gate_id: str, measurement_run_ids: list[str]) -> None:
+    # 게이트의 `measurement_run_ids`는 이미 회차 행의 기본키다(적재가 만든 id를
+    # 그대로 적는다). 가짜 REST는 실제 서비스처럼 그 기본키의 행만 실행에 쓴다.
+    for run_id in measurement_run_ids:
+        env.row(run_id, exact=True)
     (env.state / "gates.json").write_text(
         json.dumps(
             {

@@ -10,6 +10,12 @@
 # model is called from here (the analysis worker owns the execution).
 set -euo pipefail
 
+# Every run id in this file is the CANONICAL run id (the Run primary key,
+# `<run directory>--<generated_at>Z`), never the run directory name: C-2 looks
+# its source run up by primary key and answers 409 source_run_incomplete for a
+# directory name. The callers resolve it with workflow_lookup_run_row
+# (scripts/manual-workflow-common.sh) before calling in here.
+#
 # request_id namespace for uuidv5. Fixed so the same (source run, policy
 # version, attempt) always maps to the same request_id on every host and every
 # rerun: a POST repeated after a crash replays the original 202 instead of
@@ -104,6 +110,7 @@ c2_uuid5() {
 }
 
 # request_id = uuidv5(NAMESPACE, "<source_run_id>|<policy_version>|<attempt>")
+# with source_run_id = the canonical run id (see the file header).
 c2_execution_request_id() {
   c2_uuid5 "$1|$2|$3"
 }
@@ -216,6 +223,39 @@ c2_create_execution() {
   esac
 }
 
+# Prints every execution that holds the run back and dies when one of them has
+# been queued or running for more than twice the poll budget. Without this the
+# skip is silent and repeats every day: the worker only reclaims stale 실행 중 and
+# 중지 요청 rows (ACTIVE_STATUSES), and only while a worker is alive to claim, so
+# a 대기 row left behind by a worker that died never closes and the daily track
+# keeps exiting 0 (docs/tracking/findings.md, W-5). Age counts
+# from started_at when the worker picked the execution up, from queued_at
+# otherwise.
+c2_report_active_executions() {
+  local run_id="$1" limit now id status since age stale=0
+  limit=$(( C2_POLL_TIMEOUT_SECONDS * 2 ))
+  now="$(date +%s)"
+  workflow_note "active_execution_exists: ${run_id} has a queued or running execution; no new execution"
+  while IFS=$'\t' read -r id status since; do
+    [[ -n "${id}" ]] || continue
+    if [[ -n "${since}" ]] && age="$(date -d "${since}" +%s 2>/dev/null)"; then
+      age=$(( now - age ))
+      workflow_note "  execution ${id}: ${status} since ${since} (${age}s)"
+      if (( limit > 0 && age > limit )); then
+        stale=1
+      fi
+    else
+      workflow_note "  execution ${id}: ${status}, start time unknown (${since:-none})"
+    fi
+  done < <(jq -r '.[]
+    | select(.status == "대기" or .status == "실행 중" or .status == "중지 요청")
+    | [.execution_id, .status, (.started_at // .queued_at // "")]
+    | @tsv' <<<"${C2_RUN_EXECUTIONS}")
+  if (( stale == 1 )); then
+    workflow_die "an execution of ${run_id} has been active for more than ${limit}s (2x BIDOPS_C2_DAILY_POLL_TIMEOUT_SECONDS); the analysis worker may be gone. A 대기 execution is never reclaimed automatically — check the worker and stop the execution (POST /api/order-plan-screening/executions/<id>/stop) before the next daily run."
+  fi
+}
+
 # Polls until the execution reaches a terminal status; sets C2_EXECUTION_STATUS.
 c2_poll_execution() {
   local execution_id="$1" started="${SECONDS}"
@@ -305,7 +345,7 @@ c2_run_source_run() {
     if jq -e 'any(.[]; .status == "대기" or .status == "실행 중" or .status == "중지 요청")' \
         <<<"${C2_RUN_EXECUTIONS}" >/dev/null; then
       C2_OUTCOME="active_execution_exists"
-      workflow_note "active_execution_exists: ${run_id} has a queued or running execution; no new execution"
+      c2_report_active_executions "${run_id}"
       return 0
     fi
 

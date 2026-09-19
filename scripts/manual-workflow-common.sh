@@ -124,19 +124,90 @@ workflow_complete_collection_total() {
   esac
 }
 
-# Exit 0 when the web has a Run row for run_id (200), 1 when it does not
-# (404). Any other answer, including no answer, stops the caller.
-workflow_run_row_exists() {
-  local run_id="$1" code
-  workflow_validate_run_id "${run_id}"
-  code="$(curl --connect-timeout 3 --max-time 10 --silent --show-error \
-    --output /dev/null --write-out '%{http_code}' \
-    "${BIDOPS_WORKFLOW_WEB_URL}/api/runs/${run_id}")" \
-    || workflow_die "run lookup failed: ${BIDOPS_WORKFLOW_WEB_URL}/api/runs/${run_id}"
-  case "${code}" in
-    200) return 0 ;;
+# --- Canonical run identity -------------------------------------------------
+# A run directory is `lifecycle-<YYYYMMDD>-<plans|notices>[-retry<N>]`, but the
+# ingest loader keys the Run row by `<directory>--<generated_at>Z`
+# (app/core/run_id.py deterministic_run_id, loader `_upsert_run`). Only
+# `GET /api/runs/{id}` resolves a bare directory name to that row; every other
+# API takes the primary key. C-2 in particular looks its source run up by
+# primary key and answers 409 source_run_incomplete for a directory name
+# (app/screening/services/order_plan_screening.py). So these scripts ask the
+# web for the canonical id once and use it for every C-2 call.
+
+WORKFLOW_HTTP_CODE=""
+WORKFLOW_HTTP_BODY=""
+# Canonical run id of the last successful workflow_lookup_run_row.
+WORKFLOW_RUN_ROW_ID=""
+
+# workflow_get PATH — sets WORKFLOW_HTTP_CODE and WORKFLOW_HTTP_BODY. A
+# transport failure stops the caller.
+workflow_get() {
+  local path="$1" response
+  response="$(curl --connect-timeout 3 --max-time 10 --silent --show-error \
+    --write-out '\n%{http_code}' "${BIDOPS_WORKFLOW_WEB_URL}${path}")" \
+    || workflow_die "request failed: GET ${BIDOPS_WORKFLOW_WEB_URL}${path}"
+  WORKFLOW_HTTP_CODE="${response##*$'\n'}"
+  if [[ "${response}" == *$'\n'* ]]; then
+    WORKFLOW_HTTP_BODY="${response%$'\n'*}"
+  else
+    WORKFLOW_HTTP_BODY=""
+  fi
+}
+
+# The directory a run id belongs to: a canonical id without its `--<stamp>Z`
+# suffix (app/core/run_id.py RUN_ID_RE), or the id itself when it has none.
+workflow_run_directory_name() {
+  local run_id="$1"
+  if [[ "${run_id}" =~ ^(.+)--[0-9]{8}T[0-9]{6}(\.[0-9]{1,6})?Z$ ]]; then
+    printf '%s\n' "${BASH_REMATCH[1]}"
+  else
+    printf '%s\n' "${run_id}"
+  fi
+}
+
+# Exit 0 when the web has a Run row for the directory name (200), 1 when it
+# does not (404). On 200 WORKFLOW_RUN_ROW_ID holds the canonical run id of that
+# row. Any other answer, including no answer, stops the caller.
+workflow_lookup_run_row() {
+  local name="$1" canonical
+  workflow_validate_run_id "${name}"
+  WORKFLOW_RUN_ROW_ID=""
+  workflow_get "/api/runs/${name}"
+  case "${WORKFLOW_HTTP_CODE}" in
+    200) ;;
     404) return 1 ;;
-    *) workflow_die "run lookup returned HTTP ${code}: ${BIDOPS_WORKFLOW_WEB_URL}/api/runs/${run_id}" ;;
+    *) workflow_die "run lookup returned HTTP ${WORKFLOW_HTTP_CODE}: ${BIDOPS_WORKFLOW_WEB_URL}/api/runs/${name}" ;;
+  esac
+  canonical="$(jq -er '.run_id // empty' <<<"${WORKFLOW_HTTP_BODY}")" \
+    || workflow_die "run lookup for ${name} answered without a run_id"
+  workflow_validate_run_id "${canonical}"
+  [[ "$(workflow_run_directory_name "${canonical}")" == "${name}" ]] \
+    || workflow_die "run lookup for ${name} resolved to another run directory: ${canonical}"
+  WORKFLOW_RUN_ROW_ID="${canonical}"
+  return 0
+}
+
+# Dies unless exactly one Run row belongs to this directory name. `GET
+# /api/runs/{directory}` answers with the newest row and hides the others, so
+# the count comes from the run list. Two rows mean the directory was ingested
+# under two different `generated_at` values, which can only happen if the run
+# artifact changed after the first ingest (the immutable-run rule forbids it).
+# Which row C-2 should judge is then a human decision, not a guess.
+workflow_require_single_run_row() {
+  local name="$1" ids count
+  workflow_validate_run_id "${name}"
+  workflow_get "/api/runs"
+  [[ "${WORKFLOW_HTTP_CODE}" == "200" ]] \
+    || workflow_die "run list returned HTTP ${WORKFLOW_HTTP_CODE}: ${BIDOPS_WORKFLOW_WEB_URL}/api/runs"
+  ids="$(jq -er --arg base "${name}" \
+    '[.items[].run_id | select(. == $base or startswith($base + "--"))] | sort | join(" ")' \
+    <<<"${WORKFLOW_HTTP_BODY}")" \
+    || workflow_die "run list is not the expected JSON: ${BIDOPS_WORKFLOW_WEB_URL}/api/runs"
+  count="$(wc -w <<<"${ids}")"
+  case "${count}" in
+    1) return 0 ;;
+    0) workflow_die "the run list has no Run row for ${name} although the run lookup answered 200" ;;
+    *) workflow_die "${count} Run rows belong to the directory ${name} (${ids}); the run artifact must have changed after the first ingest. Pick the run to judge by hand (scripts/run-daily-c2.sh <canonical run id>) after checking why." ;;
   esac
 }
 
