@@ -47,19 +47,37 @@ D-c·D-d 값이 2026-09-19에 나와 v3 두 파일을 발행했다. **값은 전
 
 - `experiments/order-plan-screening/config/order-plan-screening-policy.v3.json`
   (`policy_version=c2-order-plan-screening-v3`, sha256
-  `83fc7674154c7a00a80ff0e92030e27adddfaf828afa06fc5293d53d4065f2d0`) — `audit_sample`:
+  `fa6a144b3070880ef18f837f73ab691769a3a97034765da706ab2754adab99af`) — `audit_sample`:
   `enabled=true`, `max_per_execution=10`, `review_cadence="weekly_mon_thu"`(월·목),
-  `replacement: none`은 한 draw 안, 층 배분은 우선순위 소진 그대로, `strata_rules`는
+  층 배분은 우선순위 소진 그대로, `strata_rules`는
   `classification_proximity={field: contract_method, values: [제한경쟁, 일반경쟁]}`·
-  `performance_similarity_proximity={rank_window: 25}`. `quality_gate.targets`는 **`null`**이다 —
-  임계값 정본은 DB 게이트 행이다(ADR-0060 §2).
+  `performance_similarity_proximity={rank_window: 25}`. `replacement: none`의 범위는 한 draw(하루)
+  안이며 이는 구현이 이미 그렇게 동작한다 — 파일에 키를 새로 만들지 않았다.
+  `quality_gate.targets`는 **`null`**이다 — 임계값 정본은 DB 게이트 행이다(ADR-0060 §2).
+  `quality_gate`의 gold 스냅샷은 adjudicated **v3** 기준이다(`queue_human_adjudicated`, manifest
+  `72d6749d…`, artifact `cbdb7adf…`, 사람 확정 109·초안 516·잔여 0).
+
+  층 정의 값의 근거(gold v3 625건·관련 54건, `contract_method`별):
+
+  | `contract_method` | 전체 | 관련 | 관련율 | 층 |
+  |---|---:|---:|---:|---|
+  | 제한경쟁 | 330 | 37 | 11.21% | `classification_proximity` |
+  | 일반경쟁 | 122 | 13 | 10.66% | `classification_proximity` |
+  | 수의계약 | 161 | 4 | 2.48% | — |
+  | 지명경쟁 | 12 | 0 | 0.00% | — |
+
+  층에 들어가는 두 값이 모집단의 72.3%(452건)에 관련 건의 **92.6%**(50/54)를 담고, 층 안 관련율
+  11.06%가 층 밖 2.31%의 4.8배다(전체 기준선 8.64%). `rank_window: 25`는 게시일별 BM25 재계산에서
+  탈락이 0·8·23·38·79건이던 6일 관측을 근거로 골랐다 — 상한 10건의 2.5배라 늘 채울 수 있고,
+  탈락이 많은 날에도 `uniform_hash` 층에 꼬리를 남긴다.
 - `…-phase0-binding.v3.json`(`status=approved`, sha256
-  `bc69e5b0e97c8ddadea6fe6fc1726934cafe7ce5876338c473c7114facac999c`) — `external_transport`:
+  `2d19e7c89becbe151dd0e35eba8c8377ad302e2cc78b62b82b0a7666c551a6d9`) — `external_transport`:
   `execution_allowed=true`, `approval_scope="per_binding"`,
   `approval_required_per_execution=false`, `approved_by="jechoi"`. 호출 대상 allowlist는 v2와 같이
   `endpoint_source: runtime_secret_and_literal_allowlist`로 두고 실제 host는 파일에 넣지 않는다.
   `stage2_binding.model_digest`는 2026-09-11·09-15 서버가 보고한 revision
   `5fa804ff0ecc0de9167f8b63127c42e1d421a9451662922ace8622d0b01b824e`이다(v2의 `6ae70ca3…`와 다르다).
+  `gold` 절도 adjudicated v3 경로·digest·건수로 맞췄다.
 
 v2 두 파일은 bytes 그대로 두었다. `docker-compose.yml`(web·analysis-worker)과
 `app/core/config.py`의 기본 경로가 v3를 가리킨다. **운영 반영은 아직이다** — 컨테이너 재생성,
@@ -67,12 +85,15 @@ v2 두 파일은 bytes 그대로 두었다. `docker-compose.yml`(web·analysis-w
 `draft`·`active_slot=NULL`로 생기고 digest가 파일 bytes와 일치함을, 그리고 남는 blocker가
 `quality_gate_missing` 하나임을 확인했다(마운트가 없으면 `policy_file_missing`이 하나 더 붙는다).
 
-남은 사람 결정([`plan.md` §3](../0918_daily-operation/plan.md)): **D-a**(gold 표본 크기·최종
-승인 — 확인 큐 87건이 아직 남아 있다), **D-e**(활성화 승인 주체·절차, 운영시작일, cron 시각,
-트리거 켜기 전 확인 항목의 실제 확인). **D-b**(임계값 4개)는 2026-09-19에 값이 나왔으나
-들어가는 자리가 DB 게이트 행이라 게이트 생성(S5a 경로) 때 기록한다. **D-c·D-d**는 위 v3 발행으로
-닫혔고, D-d의 `BIDOPS_C2_EXECUTION_ALLOWED`와 방화벽·egress 승인만 남았다.
-값이 없으면 관련 기능은 fail closed로 동작한다(정상).
+남은 사람 결정([`plan.md` §3](../0918_daily-operation/plan.md)): **D-a**만 열려 있다 —
+2026-09-19에 확인 큐 87건을 사람이 전수 확정해 gold adjudicated **v3**(관련 54·비관련 571)가
+됐지만 **큐 밖 516건은 여전히 초안 라벨이다**. 큐 밖 무작위 표본 크기와 "승인된 사람 gold" 최종
+승인이 남았다. **D-b**(임계값 4개)는 값이 나왔으나 들어가는 자리가 DB 게이트 행이라 게이트 생성
+때 기록한다. **D-c·D-d**는 위 v3 발행으로 닫혔고 D-d의 `BIDOPS_C2_EXECUTION_ALLOWED`와
+방화벽·egress 승인만 남았다. **D-e**도 2026-09-19에 값이 나왔다(PoC용) — 활성화는 jechoi가 관리
+화면에서 직접, 운영시작일은 게이트 통과·활성화 다음 날부터 매 달력일, cron은 공고 트랙 07:00·
+발주계획 트랙 07:30(KST) 두 줄, 트리거를 켜기 전 확인 항목은 게이트 측정 2회(제품 경로 8실행)의
+요청 수·소요시간·실패 분포로 갈음한다. 값이 없으면 관련 기능은 fail closed로 동작한다(정상).
 
 기존 결함 두 건은 이번 웨이브의 변경과 무관하며 `main` 6191f35에서도 재현한다 —
 `tests/deep_review/test_auto_preparation.py::test_the_flag_opens_preparation_for_sw_business_without_a_grade`,

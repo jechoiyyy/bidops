@@ -169,7 +169,6 @@
     },
     "selection_order": "stratum_priority_then_sha256_plan_id",
     "replacement": "none",
-    "replacement_scope": "single_draw",
     "sample_size": null,
     "max_per_execution": 10,
     "review_cadence": "weekly_mon_thu",
@@ -235,12 +234,12 @@
   },
   "quality_gate": {
     "status": "not_measured",
-    "gold_status": "partially_human_adjudicated",
-    "gold_manifest_sha256": "6089b8421540a39352af9fa06b082d72d67ee5868d6c843051bae802ebc1b6e5",
-    "gold_artifact_sha256": "07d1986ab9d8abc7ef8ce12466e65998044928127682b9b7f743b08f4aacc4cd",
-    "human_adjudication_count": 22,
-    "draft_label_count": 603,
-    "remaining_confirmation_count": 87,
+    "gold_status": "queue_human_adjudicated",
+    "gold_manifest_sha256": "72d6749daa5fa0972b240970bec900a686faea88c4ee991367358e0e9058a5f5",
+    "gold_artifact_sha256": "cbdb7adf060dab8136ee391e46100a41dfa444e0b5b86f27f18a69f912f16aa9",
+    "human_adjudication_count": 109,
+    "draft_label_count": 516,
+    "remaining_confirmation_count": 0,
     "targets": null,
     "activation_eligible": false
   },
@@ -257,13 +256,13 @@
     "approved_by": null,
     "approved_at": null,
     "required_conditions": [
-      "c1_gold_fully_human_adjudicated",
+      "c1_gold_human_adjudication_approved",
       "audit_sample_size_and_cadence_approved",
       "quality_gate_passed_with_exact_binding",
       "per_binding_private_vllm_transport_approved"
     ],
     "blockers": [
-      "c1_gold_incomplete",
+      "c1_gold_final_approval_pending",
       "quality_gate_not_measured"
     ]
   }

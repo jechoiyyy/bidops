@@ -9,7 +9,7 @@
     "path": "experiments/order-plan-screening/config/order-plan-screening-policy.v3.json",
     "schema_version": "bidops.order-plan-screening-policy.v1",
     "policy_version": "c2-order-plan-screening-v3",
-    "sha256": "83fc7674154c7a00a80ff0e92030e27adddfaf828afa06fc5293d53d4065f2d0",
+    "sha256": "fa6a144b3070880ef18f837f73ab691769a3a97034765da706ab2754adab99af",
     "policy_status": "draft"
   },
   "selection_decision": {
@@ -92,18 +92,18 @@
     "active_prompt_sha256": "639f7332e1120a41b2e8d8306126f121ae1ed37068a81b1687aff9ce66ab9d12"
   },
   "gold": {
-    "manifest_path": "data/experiments/order-plan-screening/20260827-20260830-gold-adjudicated-v2/review/manifest.json",
+    "manifest_path": "data/experiments/order-plan-screening/20260827-20260830-gold-adjudicated-v3/review/manifest.json",
     "manifest_schema_version": "bidops.order-plan-gold-adjudication-manifest.v1",
-    "manifest_sha256": "6089b8421540a39352af9fa06b082d72d67ee5868d6c843051bae802ebc1b6e5",
-    "status": "partially_human_adjudicated",
-    "full_artifact_path": "data/experiments/order-plan-screening/20260827-20260830-gold-adjudicated-v2/review/gold-adjudicated-full-population.tsv",
-    "full_artifact_sha256": "07d1986ab9d8abc7ef8ce12466e65998044928127682b9b7f743b08f4aacc4cd",
-    "remaining_queue_path": "data/experiments/order-plan-screening/20260827-20260830-gold-adjudicated-v2/review/remaining-confirmation-queue.tsv",
-    "remaining_queue_sha256": "2f1dc92be41029f8a5a4e5c078fa3dc44c626ce706fc863e59c36544b81d65a8",
+    "manifest_sha256": "72d6749daa5fa0972b240970bec900a686faea88c4ee991367358e0e9058a5f5",
+    "status": "queue_human_adjudicated",
+    "full_artifact_path": "data/experiments/order-plan-screening/20260827-20260830-gold-adjudicated-v3/review/gold-adjudicated-full-population.tsv",
+    "full_artifact_sha256": "cbdb7adf060dab8136ee391e46100a41dfa444e0b5b86f27f18a69f912f16aa9",
+    "remaining_queue_path": "data/experiments/order-plan-screening/20260827-20260830-gold-adjudicated-v3/review/remaining-confirmation-queue.tsv",
+    "remaining_queue_sha256": "0b7ea7ca9c936fca7658d6fda5b3c31f800554a6f02c7b0449c87f01926bb225",
     "population_count": 625,
-    "human_adjudication_count": 22,
-    "draft_label_count": 603,
-    "remaining_confirmation_count": 87,
+    "human_adjudication_count": 109,
+    "draft_label_count": 516,
+    "remaining_confirmation_count": 0,
     "activation_eligible": false
   },
   "external_transport": {
@@ -130,7 +130,7 @@
     "approved_by": null,
     "approved_at": null,
     "blockers": [
-      "c1_gold_incomplete",
+      "c1_gold_final_approval_pending",
       "quality_gate_not_measured"
     ]
   }

@@ -583,9 +583,9 @@ always-on 기본 비활성 원칙, `CLAUDE.md`). 트랙마다 한 줄이고 시�
    전환 때 다시 정한다.**
 4. **v3 policy·binding 발행 → 컨테이너 마운트.** 2026-09-19에 발행했다(S3b) —
    `experiments/order-plan-screening/config/order-plan-screening-policy.v3.json`
-   (sha256 `83fc7674154c7a00a80ff0e92030e27adddfaf828afa06fc5293d53d4065f2d0`)·
+   (sha256 `fa6a144b3070880ef18f837f73ab691769a3a97034765da706ab2754adab99af`)·
    `…-phase0-binding.v3.json`
-   (sha256 `bc69e5b0e97c8ddadea6fe6fc1726934cafe7ce5876338c473c7114facac999c`).
+   (sha256 `2d19e7c89becbe151dd0e35eba8c8377ad302e2cc78b62b82b0a7666c551a6d9`).
    `docker-compose.yml`의 web(`:180-181`)·analysis-worker(`:250-251`) 마운트와
    `app/core/config.py`의 `BIDOPS_C2_POLICY_PATH`·`BIDOPS_C2_BINDING_PATH` 기본 경로
    (`:308,310`)가 같은 변경에서 v3를 가리킨다. v2 파일 자체는 고치지 않았다 — 값은 전부 v3에만
