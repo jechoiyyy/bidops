@@ -38,13 +38,40 @@ run을 만들지 않음), GPU 휴지(연속 가동 시간 기준, 기본 꺼짐)
 아직 못 켜는 것은 [`plan.md` §4](../0918_daily-operation/plan.md)의 표가 정본이다 — 발주계획
 트랙 자체, C-2 실행, 게이트 `통과` 판정, policy 활성화, 감사 표본 실제 draw, 무인 일일 운영은
 모두 v3 policy·binding 발행([`plan.md` S3b](../0918_daily-operation/plan.md))과 아래 사람 결정
-값을 기다린다. S3b는 D-c·D-d 값이 있어야 발행할 수 있어 아직 시작하지 않았다.
+값을 기다린다.
+
+### S3b — v3 policy·binding 발행 (2026-09-19, 미배포)
+
+D-c·D-d 값이 2026-09-19에 나와 v3 두 파일을 발행했다. **값은 전부 PoC용이며 운영 전환 때 다시
+정한다**(승인자 `jechoi`, 승인 시각 `2026-09-19T07:42:00+00:00`, 파일의 `decision_note`에도 남겼다).
+
+- `experiments/order-plan-screening/config/order-plan-screening-policy.v3.json`
+  (`policy_version=c2-order-plan-screening-v3`, sha256
+  `83fc7674154c7a00a80ff0e92030e27adddfaf828afa06fc5293d53d4065f2d0`) — `audit_sample`:
+  `enabled=true`, `max_per_execution=10`, `review_cadence="weekly_mon_thu"`(월·목),
+  `replacement: none`은 한 draw 안, 층 배분은 우선순위 소진 그대로, `strata_rules`는
+  `classification_proximity={field: contract_method, values: [제한경쟁, 일반경쟁]}`·
+  `performance_similarity_proximity={rank_window: 25}`. `quality_gate.targets`는 **`null`**이다 —
+  임계값 정본은 DB 게이트 행이다(ADR-0060 §2).
+- `…-phase0-binding.v3.json`(`status=approved`, sha256
+  `bc69e5b0e97c8ddadea6fe6fc1726934cafe7ce5876338c473c7114facac999c`) — `external_transport`:
+  `execution_allowed=true`, `approval_scope="per_binding"`,
+  `approval_required_per_execution=false`, `approved_by="jechoi"`. 호출 대상 allowlist는 v2와 같이
+  `endpoint_source: runtime_secret_and_literal_allowlist`로 두고 실제 host는 파일에 넣지 않는다.
+  `stage2_binding.model_digest`는 2026-09-11·09-15 서버가 보고한 revision
+  `5fa804ff0ecc0de9167f8b63127c42e1d421a9451662922ace8622d0b01b824e`이다(v2의 `6ae70ca3…`와 다르다).
+
+v2 두 파일은 bytes 그대로 두었다. `docker-compose.yml`(web·analysis-worker)과
+`app/core/config.py`의 기본 경로가 v3를 가리킨다. **운영 반영은 아직이다** — 컨테이너 재생성,
+적재 CLI 실행, `BIDOPS_C2_EXECUTION_ALLOWED`, 활성화는 하지 않았다. 임시 SQLite에 적재해 행이
+`draft`·`active_slot=NULL`로 생기고 digest가 파일 bytes와 일치함을, 그리고 남는 blocker가
+`quality_gate_missing` 하나임을 확인했다(마운트가 없으면 `policy_file_missing`이 하나 더 붙는다).
 
 남은 사람 결정([`plan.md` §3](../0918_daily-operation/plan.md)): **D-a**(gold 표본 크기·최종
-승인), **D-b**(임계값 4개 값), **D-c**(①감사 표본 상한 N ②층 배분 ③검토 주기 ④무복원 범위
-⑤층 정의 값 — `classification_proximity` 기준 열·코드 목록, `performance_similarity_proximity`
-컷 직후 구간 폭), **D-d**(승인자·승인 시각·고정할 model_digest·방화벽/egress 승인),
-**D-e**(활성화 승인 주체·절차, 운영시작일, cron 시각, 트리거 켜기 전 확인 항목의 실제 확인).
+승인 — 확인 큐 87건이 아직 남아 있다), **D-e**(활성화 승인 주체·절차, 운영시작일, cron 시각,
+트리거 켜기 전 확인 항목의 실제 확인). **D-b**(임계값 4개)는 2026-09-19에 값이 나왔으나
+들어가는 자리가 DB 게이트 행이라 게이트 생성(S5a 경로) 때 기록한다. **D-c·D-d**는 위 v3 발행으로
+닫혔고, D-d의 `BIDOPS_C2_EXECUTION_ALLOWED`와 방화벽·egress 승인만 남았다.
 값이 없으면 관련 기능은 fail closed로 동작한다(정상).
 
 기존 결함 두 건은 이번 웨이브의 변경과 무관하며 `main` 6191f35에서도 재현한다 —

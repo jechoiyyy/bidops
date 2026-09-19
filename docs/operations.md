@@ -576,14 +576,21 @@ always-on 기본 비활성 원칙, `CLAUDE.md`). 트랙마다 한 줄이고 시�
    기록한다 — fail closed가 정상 동작이다.
 3. **감사 표본 값.** policy `audit_sample.max_per_execution`·`review_cadence`·`enabled`와 **층
    규칙** `audit_sample.strata_rules`([`docs/contracts.md`](contracts.md) "감사 표본 REST" 참조).
-   값이 없으면 draw는 매일 `pending_human_approval`로 끝난다.
-4. **v3 policy·binding 발행 → 컨테이너 마운트.** **아직 발행 전이다** —
-   [`plan.md` S3b](0918_daily-operation/plan.md)가 위 D-c 값과 D-d 값(다음 단계)을 받아
-   `experiments/order-plan-screening/config/order-plan-screening-policy.v3.json`·
-   `…-phase0-binding.v3.json`을 만든다. 발행하면 `docker-compose.yml`의 web(현재 v2 마운트
-   `:180-181`)·analysis-worker(`:250-251`) 마운트 파일명과 `app/core/config.py`의
-   `BIDOPS_C2_POLICY_PATH`·`BIDOPS_C2_BINDING_PATH` 기본 경로(현재 v2, `:308,310`)를 **함께** v3로
-   바꾼다. v2 파일 자체는 고치지 않는다. 그 뒤 적재 CLI로 draft 행을 만든다.
+   값이 없으면 draw는 매일 `pending_human_approval`로 끝난다. 2026-09-19 결정으로 v3에
+   들어갔다 — `enabled=true`, `max_per_execution=10`, `review_cadence="weekly_mon_thu"`,
+   `strata_rules.classification_proximity={contract_method: [제한경쟁, 일반경쟁]}`,
+   `strata_rules.performance_similarity_proximity={rank_window: 25}`. **PoC용 값이며 운영
+   전환 때 다시 정한다.**
+4. **v3 policy·binding 발행 → 컨테이너 마운트.** 2026-09-19에 발행했다(S3b) —
+   `experiments/order-plan-screening/config/order-plan-screening-policy.v3.json`
+   (sha256 `83fc7674154c7a00a80ff0e92030e27adddfaf828afa06fc5293d53d4065f2d0`)·
+   `…-phase0-binding.v3.json`
+   (sha256 `bc69e5b0e97c8ddadea6fe6fc1726934cafe7ce5876338c473c7114facac999c`).
+   `docker-compose.yml`의 web(`:180-181`)·analysis-worker(`:250-251`) 마운트와
+   `app/core/config.py`의 `BIDOPS_C2_POLICY_PATH`·`BIDOPS_C2_BINDING_PATH` 기본 경로
+   (`:308,310`)가 같은 변경에서 v3를 가리킨다. v2 파일 자체는 고치지 않았다 — 값은 전부 v3에만
+   들어간다. **운영 반영은 아직이다**: compose 변경을 반영한 컨테이너 재생성과 아래 적재 CLI
+   실행이 남아 있다. 그 뒤 적재 CLI로 draft 행을 만든다.
 
    ```bash
    python -m app.screening.c2_policy load \
@@ -594,6 +601,10 @@ always-on 기본 비활성 원칙, `CLAUDE.md`). 트랙마다 한 줄이고 시�
 
 5. **전송 승인(D-d).** binding 튜플(policy, binding, model_digest, allowlist) 단위 승인이다.
    `BIDOPS_C2_EXECUTION_ALLOWED=true`와 host 방화벽·egress 승인이 함께 필요하다.
+   2026-09-19에 v3 binding의 `external_transport`로 기록했다 — `execution_allowed=true`,
+   `approval_scope="per_binding"`, `approval_required_per_execution=false`,
+   `approved_by="jechoi"`, `model_digest=5fa804ff…`(2026-09-11·09-15 서버 선언 revision).
+   **환경변수와 방화벽·egress 승인은 아직 남아 있다.**
 6. **후보 지정.** 기준 화면(`발주계획 선별 정책` 탭, `/order-plan-policies`)에서 draft 행을
    `activation_candidate`로 올린다(`POST /api/order-plan-screening/policies/candidate`).
 7. **gold 게시일별 파생 회차 만들기.**
