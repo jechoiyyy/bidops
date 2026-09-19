@@ -1243,16 +1243,15 @@ export function OrderPlansPage() {
   const qText = searchParams.get("q") ?? "";
   const offsetRaw = Number(searchParams.get("offset") ?? "0");
   const offset = Number.isFinite(offsetRaw) && offsetRaw >= 0 ? Math.floor(offsetRaw / PAGE_SIZE) * PAGE_SIZE : 0;
-  // 공용 fingerprint 함수는 추적 축을 모른다. 추적 축이 바뀌어도 선택을 비우도록 같은 문자열
-  // 뒤에 붙인다(정렬해 순서와 무관하게 같은 값).
-  const selectionFingerprint = `${orderPlansFilterFingerprint({
+  const selectionFingerprint = orderPlansFilterFingerprint({
     sourceRunId,
     qwen: qwenSet,
     stage1: stage1Set,
     feedback: feedbackSet,
+    tracking: trackingSet,
     issue: issueOn,
     q: qText,
-  })}|tracking:${Array.from(trackingSet).sort().join(",")}`;
+  });
   // 기본 보기는 목록의 범위(`scope`)를 보고 정해진다. 범위를 알기 전에 선택을 복원하면
   // fingerprint가 바로 바뀌어 복원한 선택을 지운다.
   const selectionHydrationReady = !listQuery.isPending;
