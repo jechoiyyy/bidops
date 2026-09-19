@@ -650,6 +650,25 @@ always-on 기본 비활성 원칙, `CLAUDE.md`). 트랙마다 한 줄이고 시�
 12. **cron 발주계획 줄 설치.** 운영시작일부터 매 달력일. 앞선 날짜가 있으면 스크립트의
     `--from-date`/`--to-date`로 하루씩 따라잡는다.
 
+**교체 없이 활성 policy를 내린다(예외).** 정상 경로는 위 10번 활성화가 이전 active 행을 같은
+transaction에서 `retired`로 내리는 자동 교체다. 대체 버전 없이 자리를 비워야 할 때만 아래 명령을
+쓴다 — 예외 운영 조치이며 사람 승인이 먼저다. SQL로 행을 직접 고치지 않는다(감사 기록이 남지
+않는다).
+
+```bash
+docker compose -f docker-compose.yml exec web \
+  python -m app.screening.c2_policy retire \
+    --policy-version <v> --retired-by <담당자 이름> --reason "<사유>"
+```
+
+`active` 행만 내려가고 `active_slot`이 비며 `activated_by`·`activated_at`·`quality_gate_status`는
+이력으로 남는다. 같은 transaction에 `AuditEvent(action="c2.policy_retired")`가 쌓인다
+(`replaced_by_policy_version`은 교체가 아니므로 `null`, `reason`·`via="cli"` 포함). 이미
+`retired`면 아무것도 바꾸지 않고 `already_retired`를 출력하며 0으로 끝나고, `draft`·
+`activation_candidate`는 `policy_not_active`로 거부한다(비 0). **활성 policy가 없어지면 일일 자동
+실행은 `no_active_policy`로 꺼진다** — 다시 켜려면 새 버전을 활성화하고 그 버전의 스위치를 켜야
+한다. 일일 자동 실행 스위치 행은 이 명령이 건드리지 않는다(append-only).
+
 **트리거를 켜기 전 확인 항목(D-e).** 위 11을 켜기 전에 다음을 사람이 확인한다 — 수동 실행에서 본
 요청 수·소요 시간·실패 분포, 나라장터 API 일일 할당량 여유, backup·restore와 stale execution
 복구 훈련. 이 확인은 게이트 통과나 방화벽 승인을 대신하지 않는다.

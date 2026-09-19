@@ -1,8 +1,15 @@
-"""Explicit operator command that loads one C-2 policy/binding file pair.
+"""Explicit operator commands for the C-2 policy row (load, retire).
 
 ``python -m app.screening.c2_policy load --policy <path> --binding <path>
 --created-by <name>`` creates one ``order_plan_screening_policy`` row.  App
 startup, migrations and image builds never do this (ADR-0060 §4).
+
+``python -m app.screening.c2_policy retire --policy-version <v> --retired-by
+<name> --reason <text>`` takes the active row down to ``retired`` **without a
+replacement**.  That is an exceptional operational action: the normal path is
+the automatic retirement of the previous active row when a new version is
+activated.  The transition itself lives in
+``services/order_plan_policy.retire_policy``.
 
 The digests are ``sha256`` of the file bytes as published.  The v2 files are
 not canonical JSON, so re-serializing them would produce a digest that no
@@ -212,6 +219,38 @@ def load_policy(
     return C2PolicyLoadResult(row=row, created=True)
 
 
+def _retire(args: argparse.Namespace) -> int:
+    """``retire`` 서브커맨드. 서비스가 전이·감사를 하고 여기서 commit한다."""
+
+    # 지연 import: ``load`` 경로의 import 그래프를 넓히지 않는다(순환 import 사고 예방).
+    from ..core.db import SessionLocal
+    from .services.order_plan_policy import retire_policy
+    from .services.order_plan_screening import OrderPlanScreeningError
+
+    try:
+        with SessionLocal() as session:
+            result = retire_policy(
+                session,
+                policy_version=args.policy_version,
+                retired_by=args.retired_by,
+                reason=args.reason,
+            )
+            session.commit()
+            row = result.policy
+            outcome = "retired" if result.changed else "already_retired"
+            print(f"{row.policy_version} {row.policy_status} {row.policy_sha256} {row.binding_sha256} {outcome}")
+        return 0
+    except OrderPlanScreeningError as exc:
+        # 안정 code만 낸다. ``policy_not_active``는 고정 enum인 현재 상태를 덧붙인다.
+        status = (getattr(exc, "details", None) or {}).get("policy_status")
+        suffix = f" (policy_status={status})" if status else ""
+        print(f"c2 policy retire failed: {exc.code}{suffix}", file=sys.stderr)
+        return 2
+    except Exception:
+        print("c2 policy retire failed", file=sys.stderr)
+        return 1
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m app.screening.c2_policy")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -219,7 +258,13 @@ def main(argv: list[str] | None = None) -> int:
     load_parser.add_argument("--policy", required=True, type=Path)
     load_parser.add_argument("--binding", required=True, type=Path)
     load_parser.add_argument("--created-by", required=True)
+    retire_parser = subparsers.add_parser("retire")
+    retire_parser.add_argument("--policy-version", required=True)
+    retire_parser.add_argument("--retired-by", required=True)
+    retire_parser.add_argument("--reason", required=True)
     args = parser.parse_args(argv)
+    if args.command == "retire":
+        return _retire(args)
     if args.command != "load":  # pragma: no cover - argparse choices
         return 2
     try:

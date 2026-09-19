@@ -133,8 +133,10 @@ worker가 한 바퀴에 C-2 → 심층 → 회사 핏 → 개요 순서로 **하
 `services/order_plan_audit_sample.py`이며 각각 자기 router(`routers/order_plan_policies.py`·
 `order_plan_daily_trigger.py`·`order_plan_quality_gates.py`·`order_plan_audit_sample.py`)를 갖는다.
 policy 파일을 DB draft 행으로 적재하는 명시적 운영 명령은 `app/screening/c2_policy.py`
-(`python -m app.screening.c2_policy load`)다. GPU 휴지는 `app/workers/gpu_rest.py`가 분석
-합성 worker와 C-1 worker 양쪽에서 쓰는 공유 규칙이다. 검사는
+(`python -m app.screening.c2_policy load`)다. 같은 CLI의 `retire`는 대체 버전 없이 active 행을
+`retired`로 내리는 예외 운영 조치이며(전이는 `services/order_plan_policy.retire_policy`,
+`activated_*`·`quality_gate_status` 보존, 이미 `retired`면 멱등) 정상 교체는 활성화가 한다.
+GPU 휴지는 `app/workers/gpu_rest.py`가 분석 합성 worker와 C-1 worker 양쪽에서 쓰는 공유 규칙이다. 검사는
 `tests/screening/test_c2_*.py`(policy 적재·활성화·일일 스위치·품질 게이트·감사 표본),
 `tests/app/test_daily_*_script.py`(`run-daily-lifecycle.sh`·`run-daily-c2.sh` 계약),
 `tests/app/test_c2_gate_measurement_script.py`(`run-c2-gate-measurement.sh`),
