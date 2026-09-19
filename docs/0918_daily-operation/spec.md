@@ -430,7 +430,7 @@ gold의 게시일별 파생 회차는 원본과 같은 발주계획을 다시 �
 | 누적 범위 | — | **활성화된 적 있는 policy(`activated_at IS NOT NULL`)의 운영 목적(`purpose='operational'`) 완료 실행 전부**(결정 11). 현재 active인지는 묻지 않는다 — policy를 교체해도 과거 판정이 남는다. 참조 실행(policy v2, 한 번도 active가 아님)과 측정 전용 실행은 자연히 제외된다. C-2 실행 행에는 `quality_status` 표식이 없다(deep_review 전용) |
 | 행 표시 | — | 행마다 판정한 `policy_version`과 발주계획의 **첫 관측일**을 싣는다(결정 16 — 발주계획은 첫 관측 그대로 고정된다) |
 | `source_run_id` | 화면이 항상 보냄 | 주면 그 회차의 실행으로 좁히고(감사용, policy·purpose 무관), 안 주면 누적. **API 계약은 이미 둘 다 지원한다** |
-| `scope` 응답 | 단일 실행 서술 | 누적 모드에서는 `{"mode":"cumulative","policy_versions":[…]}`, 회차 모드에서는 기존 서술. 화면이 둘을 구분해 표시한다 |
+| `scope` 응답 | 단일 실행 서술 | 누적 모드에서는 `{"mode":"cumulative","policy_versions":[…]}` — **위 누적 범위에 실행이 실제로 있는** policy 버전만이며, 활성화 이력만 있고 범위 실행이 0건이면 빈 목록이다(워크로드 `null`과 함께 간다). 회차 모드에서는 기존 서술. 화면이 둘을 구분해 표시한다 |
 | 워크로드 | `no_completed_execution`이면 건수가 사라짐 (`projection.py:744-747`) | 누적 기준. 실행이 없는 날에도 0으로 죽지 않는다 |
 | 화면 | 회차 선택기가 필수 (`OrderPlansPage.tsx:1789`, `:433,437`) | 기본 해제. 기본 보기는 "추적을 정하지 않은 관련 건". 자동 실행이 꺼져 있으면 배너(§3.4) |
 

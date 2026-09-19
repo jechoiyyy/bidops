@@ -1201,13 +1201,17 @@ class OrderPlanScreeningService:
         rows = session.execute(statement.order_by(OrderPlan.id.asc()).limit(limit).offset(offset)).all()
         scope: dict[str, Any] | None
         if source_run_id is None:
+            # 누적 범위에 실행이 실제로 있는 policy 버전만 말한다. 활성화 이력만 있고 운영 완료
+            # 실행이 0건인 policy는 빠지므로 빈 목록과 `has_cumulative_execution()`이 함께 간다.
+            # 조건은 복제하지 않고 범위 정본(`_cumulative_executions`)에서 파생시킨다.
+            versions = self._cumulative_executions().with_only_columns(
+                OrderPlanScreeningExecution.policy_version, OrderPlanScreeningPolicy.activated_at,
+            ).distinct().order_by(
+                OrderPlanScreeningPolicy.activated_at.asc(), OrderPlanScreeningExecution.policy_version.asc(),
+            )
             scope = {
                 "mode": "cumulative",
-                "policy_versions": list(session.scalars(
-                    select(OrderPlanScreeningPolicy.policy_version).where(
-                        OrderPlanScreeningPolicy.activated_at.is_not(None),
-                    ).order_by(OrderPlanScreeningPolicy.activated_at.asc(), OrderPlanScreeningPolicy.policy_version.asc())
-                )),
+                "policy_versions": [row.policy_version for row in session.execute(versions)],
             }
         elif execution is not None:
             scope = {

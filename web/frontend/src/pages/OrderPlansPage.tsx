@@ -202,6 +202,7 @@ function verdictLabel(item: Pick<OrderPlanListItem, "policy_version" | "first_ob
 /**
  * 목록 응답의 `scope`를 한 줄로 말한다. 누적과 회차는 뜻이 다르므로 같은 문장으로 접지 않는다.
  * - 누적: 활성화된 적 있는 policy의 운영 판정을 발주계획마다 최신 1건씩 모은 범위다.
+ *   `policy_versions`는 그 범위에 실행이 실제로 있는 버전만이고, 없으면 빈 목록이다.
  * - 회차: 그 회차의 최신 완료 실행 하나(감사용). policy·purpose를 묻지 않으므로 측정 전용 실행이면 밝힌다.
  * - `null`: 회차에 완료 실행이 없다 — 판정 없음이며 비관련이 아니다.
  */
@@ -1217,14 +1218,16 @@ export function OrderPlansPage() {
   const listScope: OrderPlanListScope | null | undefined = listQuery.data ? listQuery.data.scope : undefined;
   const isCumulative = sourceRunId === null;
   /**
-   * 판정이 하나라도 있는 범위인지. 누적인데 활성화된 적 있는 policy가 없거나 회차에 완료 실행이
-   * 없으면 기본 보기(관련 건만)가 모든 행을 숨기므로 전체를 보인다 — 판정 없음을 비관련으로 읽지 않는다.
+   * 판정이 하나라도 있는 범위인지. 누적 범위에 실행이 하나도 없어(`policy_versions`가 비어) 판정이
+   * 없거나 회차에 완료 실행이 없으면 기본 보기(관련 건만)가 모든 행을 숨기므로 전체를 보인다 —
+   * 판정 없음을 비관련으로 읽지 않는다. 서버의 빈 목록은 대시보드의 `no_completed_execution`과 같은 사실이다.
    */
   const judgmentsAvailable = listScope != null
     && (listScope.mode === "run" || listScope.policy_versions.length > 0);
   // 상태 칩·실행 상태 대화상자가 읽는 실행 범위. 회차 모드는 그 회차의 실행 전부다. 누적
-  // 모드는 목록 범위와 같은 운영 실행(활성화된 적 있는 policy, `purpose=operational`)만 본다 —
+  // 모드는 목록 범위가 실제로 판정을 가져온 policy 버전(`policy_versions`)의 운영 실행만 본다 —
   // 측정 전용 실행이나 한 번도 활성화되지 않은 policy의 참조 실행을 "최근 판정"처럼 보이지 않는다.
+  // 그 버전에 완료 실행이 하나도 없으면 목록도 판정을 못 보이므로 칩도 비운다.
   const operationalExecutions = executions.filter((execution) => execution.purpose === "operational");
   const scopedExecutions = sourceRunId
     ? executions.filter((execution) => execution.source_run_id === sourceRunId)
