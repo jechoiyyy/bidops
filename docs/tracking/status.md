@@ -40,14 +40,29 @@ run을 만들지 않음), GPU 휴지(연속 가동 시간 기준, 기본 꺼짐)
 모두 v3 policy·binding 발행([`plan.md` S3b](../0918_daily-operation/plan.md))과 아래 사람 결정
 값을 기다린다.
 
-### S3b — v3 policy·binding 발행 (2026-09-19, 미배포)
+### S3b — v4 policy·binding·generation config v5 발행 (2026-09-19, 미배포)
 
-D-c·D-d 값이 2026-09-19에 나와 v3 두 파일을 발행했다. **값은 전부 PoC용이며 운영 전환 때 다시
-정한다**(승인자 `jechoi`, 승인 시각 `2026-09-19T07:42:00+00:00`, 파일의 `decision_note`에도 남겼다).
+D-c·D-d 값이 2026-09-19에 나와 먼저 v3 두 파일을 발행했으나, **v3로는 제품 실행이 되지 않았다** —
+게이트 측정 pass 1에서 워커가 모델 호출 전에 `binding_mismatch`로 실패했다. 동결된
+`generation-config.json`(= generation config **v4**)의 `model_revision`이 `6ae70ca3…`인데 v3
+binding의 `model_digest`는 `5fa804ff…`였고, 워커가 그 둘을 대조한다
+(`workers/order_plan.py:383-391`). `model_digest`를 바꾸려면 generation config를 함께 새로
+발행해야 한다([findings](findings.md)).
 
-- `experiments/order-plan-screening/config/order-plan-screening-policy.v3.json`
-  (`policy_version=c2-order-plan-screening-v3`, sha256
-  `fa6a144b3070880ef18f837f73ab691769a3a97034765da706ab2754adab99af`) — `audit_sample`:
+그래서 generation config **v5**와 policy·binding **v4**를 발행했다. 운영 DB의
+`c2-order-plan-screening-v3` 행(candidate, 게이트 `c2gate-203ab7a5…`)은 버전+digest가
+immutable이라 재사용할 수 없어 그대로 남는다. v2·v3 파일과 generation config v4는 bytes 불변이다.
+**값은 전부 PoC용이며 운영 전환 때 다시 정한다**(승인자 `jechoi`, 승인 시각
+`2026-09-19T08:05:23+00:00`, 파일의 `decision_note`에도 남겼다).
+
+- `experiments/order-plan-screening/config/order-plan-screening-generation-config.v5.json`
+  (sha256 `82ced6035d95313f889cd32cc3b5b414b98334f5f090745f0cedb0564804a405`) — v4에서
+  `model_revision`(→ `5fa804ff…`)과 `method_version`(→
+  `vllm-qwen-order-plan-batch-nonthinking-v5`) 둘만 다르다. 다른 값·키 순서·서식은 그대로다.
+
+- `experiments/order-plan-screening/config/order-plan-screening-policy.v4.json`
+  (`policy_version=c2-order-plan-screening-v4`, sha256
+  `c5abe3e3fbd3a628486e8a3ee05ce009ac488c9b9df8e83a0f0c22cd6d877461`) — `audit_sample`:
   `enabled=true`, `max_per_execution=10`, `review_cadence="weekly_mon_thu"`(월·목),
   층 배분은 우선순위 소진 그대로, `strata_rules`는
   `classification_proximity={field: contract_method, values: [제한경쟁, 일반경쟁]}`·
@@ -70,8 +85,8 @@ D-c·D-d 값이 2026-09-19에 나와 v3 두 파일을 발행했다. **값은 전
   11.06%가 층 밖 2.31%의 4.8배다(전체 기준선 8.64%). `rank_window: 25`는 게시일별 BM25 재계산에서
   탈락이 0·8·23·38·79건이던 6일 관측을 근거로 골랐다 — 상한 10건의 2.5배라 늘 채울 수 있고,
   탈락이 많은 날에도 `uniform_hash` 층에 꼬리를 남긴다.
-- `…-phase0-binding.v3.json`(`status=approved`, sha256
-  `2d19e7c89becbe151dd0e35eba8c8377ad302e2cc78b62b82b0a7666c551a6d9`) — `external_transport`:
+- `…-phase0-binding.v4.json`(`status=approved`, sha256
+  `682cb16dd2ac5ed622386a6cea42891633659f2d8073c3bcb6e1af419087790c`) — `external_transport`:
   `execution_allowed=true`, `approval_scope="per_binding"`,
   `approval_required_per_execution=false`, `approved_by="jechoi"`. 호출 대상 allowlist는 v2와 같이
   `endpoint_source: runtime_secret_and_literal_allowlist`로 두고 실제 host는 파일에 넣지 않는다.
@@ -79,11 +94,23 @@ D-c·D-d 값이 2026-09-19에 나와 v3 두 파일을 발행했다. **값은 전
   `5fa804ff0ecc0de9167f8b63127c42e1d421a9451662922ace8622d0b01b824e`이다(v2의 `6ae70ca3…`와 다르다).
   `gold` 절도 adjudicated v3 경로·digest·건수로 맞췄다.
 
-v2 두 파일은 bytes 그대로 두었다. `docker-compose.yml`(web·analysis-worker)과
-`app/core/config.py`의 기본 경로가 v3를 가리킨다. **운영 반영은 아직이다** — 컨테이너 재생성,
-적재 CLI 실행, `BIDOPS_C2_EXECUTION_ALLOWED`, 활성화는 하지 않았다. 임시 SQLite에 적재해 행이
-`draft`·`active_slot=NULL`로 생기고 digest가 파일 bytes와 일치함을, 그리고 남는 blocker가
-`quality_gate_missing` 하나임을 확인했다(마운트가 없으면 `policy_file_missing`이 하나 더 붙는다).
+`docker-compose.yml`(web·analysis-worker)의 마운트 세 줄과 `app/core/config.py`의 기본 경로
+셋이 v4·v5를 가리킨다. **운영 반영은 아직이다** — 컨테이너 재생성, 적재 CLI 실행,
+`BIDOPS_C2_EXECUTION_ALLOWED`, 활성화는 하지 않았다.
+
+검증(발행 전, 실행 없이): 임시 SQLite 적재에서 행이 `draft`·`active_slot=NULL`로 생기고 digest가
+파일 bytes와 일치하며 남는 blocker는 `quality_gate_missing` 하나다(마운트가 없으면
+`policy_file_missing`이 하나 더). **서비스가 동결하는 것과 같은 6개 파일 묶음**
+(`policy.json`·`binding.json`·`capabilities.json`·`prompt.txt`·`generation-config.json`·
+`screening-input.json`)을 임시 디렉터리에 만들어 워커의 `_load_binding_inputs`와 `_load_ranking`
+(실제 BM25 CLI subprocess)을 호출해 `binding_mismatch` 없이 통과하는 것을 확인했고, 같은 묶음에서
+generation config만 v4로 되돌리면 `binding_mismatch`가 재현된다. `OrderPlanVllmAdapter`도 운영
+env 값(`BIDOPS_VLLM_BASE_URL=http://192.168.0.139:58765/v1`,
+`BIDOPS_VLLM_ALLOWED_HOSTS=192.168.0.139`, `BIDOPS_VLLM_MODEL_REVISION=5fa804ff…`)으로 생성만
+해 보고 호출은 하지 않았다 — 통과한다. adapter가 generation config에서 읽는 것은
+`max_output_tokens`·`timeout_seconds`·`chat_template_kwargs` 셋뿐이고,
+`base_url_env`·`revision_env`·`allowed_hosts`·`allowed_bind_interfaces`·`bind_interface_env`는
+제품 경로가 읽지 않는 실험 harness 서술 필드다(값 자체는 운영 설정과 어긋나지 않는다).
 
 남은 사람 결정([`plan.md` §3](../0918_daily-operation/plan.md)): **D-a**만 열려 있다 —
 2026-09-19에 확인 큐 87건을 사람이 전수 확정해 gold adjudicated **v3**(관련 54·비관련 571)가

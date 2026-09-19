@@ -305,11 +305,11 @@ class Settings(BaseSettings):
         if self.attachments_dir is None:
             self.attachments_dir = self.data_dir / "attachments"
         if self.c2_policy_path is None:
-            self.c2_policy_path = self.bidops_root / "experiments/order-plan-screening/config/order-plan-screening-policy.v3.json"
+            self.c2_policy_path = self.bidops_root / "experiments/order-plan-screening/config/order-plan-screening-policy.v4.json"
         if self.c2_binding_path is None:
-            self.c2_binding_path = self.bidops_root / "experiments/order-plan-screening/config/order-plan-screening-phase0-binding.v3.json"
+            self.c2_binding_path = self.bidops_root / "experiments/order-plan-screening/config/order-plan-screening-phase0-binding.v4.json"
         if self.c2_generation_config_path is None:
-            self.c2_generation_config_path = self.bidops_root / "experiments/order-plan-screening/config/order-plan-screening-generation-config.v4.json"
+            self.c2_generation_config_path = self.bidops_root / "experiments/order-plan-screening/config/order-plan-screening-generation-config.v5.json"
         # Capabilities and prompt are deployment/company inputs.  They are
         # intentionally never inferred from the repository: an operator must
         # supply explicit paths before a C-2 execution can be created.
