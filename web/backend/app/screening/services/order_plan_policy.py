@@ -46,10 +46,12 @@ CONSUMER = "human-review-client"
 AGGREGATE_TYPE = "order_plan_screening_policy"
 BINDING_STATUSES = frozenset({"blocked", "activation_candidate", "approved"})
 PASSED = "통과"
+RETIRE_ACTION = "c2.policy_retired"
+MAX_RETIRE_REASON = 500
 
 
 class C2PolicyError(OrderPlanScreeningError):
-    """C-2 envelope 오류에 ``details``를 싣는다(``activation_blocked``만 채운다)."""
+    """C-2 envelope 오류에 ``details``를 싣는다(``activation_blocked``·``policy_not_active``만 채운다)."""
 
     def __init__(
         self,
@@ -699,16 +701,97 @@ class OrderPlanPolicyService:
             return self._replay_after_conflict(session, ACTIVATE_OPERATION, request_id, request_hash, error)
 
 
+# --- 교체 없는 retire (운영 명령 전용) --------------------------------------
+
+
+@dataclass(frozen=True)
+class PolicyRetirement:
+    """`retire_policy`의 결과. ``changed=False``는 이미 ``retired``였다는 뜻이다."""
+
+    policy: OrderPlanScreeningPolicy
+    changed: bool
+
+
+def retire_policy(
+    session: Session, *, policy_version: str, retired_by: str, reason: str
+) -> PolicyRetirement:
+    """active policy 하나를 **교체 없이** ``retired``로 내린다.
+
+    정상 경로는 활성화 9번이 이전 active를 같은 transaction에서 내리는 것이고, 이 함수는
+    그 자리를 비우는 예외 운영 조치다(`python -m app.screening.c2_policy retire`).
+    REST endpoint를 갖지 않으므로 idempotency 행도 만들지 않는다 — 멱등은 행 상태로
+    판정한다(이미 ``retired``면 아무것도 쓰지 않는다).
+
+    ``activated_by``·``activated_at``·``quality_gate_status``는 건드리지 않는다. DB guard가
+    활성화 provenance 보존을 강제하고 누적 범위 판정이 그 값을 읽는다. 대상 행만
+    ``FOR UPDATE``로 잠근다 — 게이트 행은 활성화와 같은 이유로 잠그지 않는다.
+    flush만 하고 commit은 호출자가 한다.
+    """
+
+    actor = _safe_actor(retired_by, None, None)
+    safe_reason = reason.strip() if isinstance(reason, str) else ""
+    if not safe_reason:
+        raise C2PolicyError("invalid_request", "retire 사유가 비어 있습니다", status_code=422)
+    if len(safe_reason) > MAX_RETIRE_REASON:
+        raise C2PolicyError(
+            "invalid_request", f"retire 사유는 {MAX_RETIRE_REASON}자 이하여야 합니다", status_code=422
+        )
+    policy = session.scalar(
+        select(OrderPlanScreeningPolicy)
+        .where(OrderPlanScreeningPolicy.policy_version == policy_version)
+        .with_for_update()
+    )
+    if policy is None:
+        raise C2PolicyError("not_found", "C-2 policy를 찾을 수 없습니다", status_code=404)
+    if policy.policy_status == "retired":
+        return PolicyRetirement(policy=policy, changed=False)
+    if policy.policy_status != "active":
+        raise C2PolicyError(
+            "policy_not_active",
+            "active policy만 retire할 수 있습니다",
+            status_code=409,
+            details={"policy_status": policy.policy_status},
+        )
+    now = _now()
+    policy.policy_status = "retired"
+    policy.active_slot = None
+    session.add(AuditEvent(
+        id=uuid4(),
+        actor_kind="human",
+        claimed_name=actor,
+        action=RETIRE_ACTION,
+        aggregate_type=AGGREGATE_TYPE,
+        aggregate_id=policy.policy_version,
+        safe_metadata={
+            "from_status": "active",
+            "to_status": "retired",
+            # 교체가 아니라 자리를 비우는 조치다. 활성화가 남기는 같은 action의
+            # metadata와 모양을 맞추고 대체 버전이 없다는 것을 ``None``으로 말한다.
+            "replaced_by_policy_version": None,
+            "reason": safe_reason,
+            "via": "cli",
+        },
+        request_id=None,
+        created_at=now,
+    ))
+    session.flush()
+    return PolicyRetirement(policy=policy, changed=True)
+
+
 __all__ = [
+    "MAX_RETIRE_REASON",
+    "RETIRE_ACTION",
     "C2PolicyError",
     "MountedFiles",
     "OrderPlanPolicyService",
     "PolicyAssessment",
+    "PolicyRetirement",
     "assess_policy",
     "audit_sample_approved",
     "binding_consistent",
     "binding_transport_approved",
     "execution_transport_allowed",
     "mounted_files",
+    "retire_policy",
     "select_gate",
 ]

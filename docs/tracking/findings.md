@@ -1575,9 +1575,12 @@ runner 소비자가 없어 보류했다. 운영 DB/MinIO 쓰기·migration 적�
 - 지금 해결할 수 없는 이유: 활성 행을 되돌리는 것은 DB 데이터를 직접 고치는 운영 작업이라 사람 승인이
   필요하고, 이번 계획의 범위(코드·문서)를 넘는다. v2를 그대로 retire하면 그 근거가 된 2026-09-03 종단
   확인 기록과의 관계도 함께 정리해야 한다.
-- 후속 방향: v3 policy를 활성화 API로 정식 활성화할 때 이전 active 행(v2)이 같은 트랜잭션에서 `retired`로
-  내려가므로(§3.3 9번, `docs/0918_daily-operation/spec.md`) 그때 자동으로 정리된다. v3 활성화 전에 v2가
-  화면에서 혼란을 준다면 사람 승인 뒤 v2를 먼저 `retired`로 내리는 별도 운영 작업을 고려한다.
+- 후속 방향: 배포 때 `python -m app.screening.c2_policy retire`로 v2를 내린다(사람 승인됨, 2026-09-19).
+  교체 없이 `retired`·`active_slot=NULL`로 내려가고 감사 이벤트(`c2.policy_retired`,
+  `replaced_by_policy_version=null`)가 남으며, 활성 policy가 없으므로 일일 자동 실행도
+  `no_active_policy`로 꺼진 채 시작한다(절차는 `docs/operations.md`의 C-2 활성화 절). 운영 조치 전이므로
+  이 항목은 실제 실행과 그 결과 확인 뒤에 닫는다. v3를 정식 활성화하면 그 시점에는 활성화 transaction이
+  이전 active를 자동으로 내린다(§3.3 9번, `docs/0918_daily-operation/spec.md`).
 
 ## 발주계획 화면이 누적 목록을 500행씩 전부 받아 브라우저에서 거른다 (2026-09-18, 미해결)
 
