@@ -1560,7 +1560,7 @@ runner 소비자가 없어 보류했다. 운영 DB/MinIO 쓰기·migration 적�
   정리"에서 두 안 중 하나를 고른다. 그 전까지 C-1을 점검용으로 부른 판정은 미측정 policy의 판정이며 운영 판단의
   근거로 쓰지 않는다.
 
-## 운영 DB의 C-2 policy v2가 활성화 API 없이 active·passed로 있다 (2026-09-18, 미해결)
+## 운영 DB의 C-2 policy v2가 활성화 API 없이 active·passed로 있다 (2026-09-18, 운영 조치 완료 2026-09-19)
 
 - 재현 조건: 운영 DB에 `c2-order-plan-screening-v2`가 `policy_status=active`·`quality_gate_status=passed`
   (`active_slot=1`)로, v1이 `retired`·`passed`로 있다. 2026-09-03 종단 확인 때 테스트 전용 SQL로 직접
@@ -1581,6 +1581,13 @@ runner 소비자가 없어 보류했다. 운영 DB/MinIO 쓰기·migration 적�
   `no_active_policy`로 꺼진 채 시작한다(절차는 `docs/operations.md`의 C-2 활성화 절). 운영 조치 전이므로
   이 항목은 실제 실행과 그 결과 확인 뒤에 닫는다. v3를 정식 활성화하면 그 시점에는 활성화 transaction이
   이전 active를 자동으로 내린다(§3.3 9번, `docs/0918_daily-operation/spec.md`).
+- 조치 결과(2026-09-19): 운영 DB를 백업(`backups/postgres/full/bidops-20260919T063021Z.dump`, SHA-256
+  `f0fb31f1…3e4a09`)하고 그 사본으로 0026→0029 migration과 retire CLI를 격리 리허설한 뒤, 운영에 migration
+  `0029_c2_quality_gate`를 적용하고 web 컨테이너에서 retire CLI를 실행했다(담당자 `jechoi`). v2는
+  `retired`·`active_slot=NULL`이고 `c2.policy_retired` 감사 이벤트 1건이 남았다. `activated_by=e2e-test`·
+  `quality_gate_status=passed`는 이력으로 그대로 남는다 — 품질 근거가 아니다. 화면 확인: 활성화 탭 "운영 활성
+  없음", 발주계획 "누적 판정 없음"(참조 실행을 "최근 운영 실행"으로 적지 않음), 자동 실행 배너 없음, 대시보드
+  "완료된 선별 실행 없음". 활성화 탭은 교체 없이 내린 v2도 "교체됨"으로 표시한다(문구 미수정).
 
 ## 발주계획 화면이 누적 목록을 500행씩 전부 받아 브라우저에서 거른다 (2026-09-18, 미해결)
 
