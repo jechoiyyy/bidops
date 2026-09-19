@@ -139,6 +139,20 @@ PoC 후속(2026-09-19, 브랜치 `feat/poc-ingest-cli-hooks`, 미병합): 게이
 그대로). 검사는 새 인터프리터로 적재하고 같은 DB에서 C-2 source run 검사를 부르는 통합 1건
 (`tests/app/test_ingest_cli_extensions.py`)과 영향 파일의 기존 검사만 돌렸다. [findings](findings.md)
 
+PoC 개시(2026-09-19): `c2-order-plan-screening-v4`가 게이트 `c2gate-9b40807f6d554473abd5087b2c6c5ca4`를
+evaluation `c2gateeval-154ffbb1a6ff4c87ba43a2bd7f578181`로 통과했고(두 pass 동일 — recall 100%,
+precision 36.7%, 중요 누락 0, 하루 최대 검토량 79, 일치율 100%; 여유가 작다) jechoi가 관리 화면에서
+활성화했다(20:26 KST). 일일 자동 실행 스위치도 화면에서 켰다(21:53 KST, 사유 "PoC 일일 운영 개시").
+독립 검증이 찾은 차단 결함(일일 스크립트가 C-2에 디렉터리 이름을 회차 id로 보내 매일 409)은
+`b1f0013`에서 고쳤다. cron 설치 전 **감독 시운전 1회**를 cron과 같은 명령(`env -i`·`flock`·`timeout`)으로
+돌렸다 — 회차 `lifecycle-20260918-plans`(271건, 적재 경고 0) → 정규 id 조회 → 운영 실행
+`550b940f-3d65-41b0-8e5b-e31528f027c8` `성공`(약 8분, 관련 18·불확실 40·비관련 213, 실패 0, 사람 검토 58) →
+감사 표본은 `not_applicable`(모집단 271 ≤ top_k 300이라 1단계 탈락이 없다), 종료 코드 0. 일일 경로가
+운영에서 끝까지 돈 첫 사례다. 그 뒤 cron 두 줄을 설치했다(공고 07:00·발주계획 07:30 KST, 공용 lock
+`~/.local/state/bidops/daily.lock`, 로그 `~/.local/state/bidops/logs/daily-{notices,plans}.log`, 설치본
+`~/.local/state/bidops/crontab.bidops`). **공고 트랙은 운영에서 아직 한 번도 돌지 않았다** — 첫 무인 실행은
+2026-09-20 07:00이고 4일 창의 첨부→변환→개요 연쇄 규모는 미실측이라 첫 2~3일 로그·경고·상태 분포를 본다.
+
 ## 사업 추적 연결·선별 적재·Go/No-Go 분리 (2026-09-17, main 병합 7249ae9·2026-09-19 운영 배포)
 
 [사업 추적 연결·조치 고도화 계획](../0917_opportunity-tracking/plan.md)의 P0~P5를 구현했다 —
@@ -151,9 +165,8 @@ PoC 후속(2026-09-19, 브랜치 `feat/poc-ingest-cli-hooks`, 미병합): 게이
 `-p5-f2`(대시보드)·`-p5-f3`(Go/No-Go)·`-p5-f4`(사전규격 후보) 브랜치에서 만들어 `main`에 병합했다
 (7249ae9, 픽셀 기준선 6191f35).
 
-- 운영 DB에는 2026-09-19 일일 운영 고도화와 함께 배포했다(migration `0027`·`0028` 포함). `scripts/run-daily-lifecycle.sh`는 존재하지만 cron은 설치하지
-  않았다(기본 비활성 원칙 유지, `docs/operations.md` cron 예시는 설치 안내일 뿐 자동 실행이
-  아니다).
+- 운영 DB에는 2026-09-19 일일 운영 고도화와 함께 배포했다(migration `0027`·`0028` 포함). `scripts/run-daily-lifecycle.sh`의 cron은 2026-09-19 밤 감독 시운전 뒤
+  사용자 확인을 받아 설치했다(위 "PoC 개시" 단락).
 - 프런트 픽셀 기준선은 승인받아 교체했다(main 6191f35).
 - 대표 통합 테스트(`tests/app/test_tracking_lifecycle_flow.py`)와 단계별 게이트는 각 phase
   브랜치·`feat/ot-integration`에서 실행했다. 전체 트리 1회 게이트·최종 병합 결정은 아직
