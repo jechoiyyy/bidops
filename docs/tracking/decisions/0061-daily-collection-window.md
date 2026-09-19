@@ -1,6 +1,6 @@
 # 발주계획은 전일 하루, 공고는 기준일 포함 4일 창으로 수집한다
 
-- 상태: 채택 (2026-09-18 늦은 색인 측정 반영 — 공고 창 1일 → 4일, 사용자 결정 28)
+- 상태: 채택 (2026-09-18 늦은 색인 측정 반영 — 공고 창 1일 → 4일, 사용자 결정 28; 2026-09-19 사용자 승인)
 - 일자: 2026-09-18
 - 관련 결정: [ADR-0027](0027-order-plan-requery-window.md) 폐기(대체), [ADR-0059](0059-full-collection-selective-ingest-and-index-search.md) 결정 1 개정(발주계획 21일 재조회·공고 3일 창), [ADR-0016](0016-daily-run-rejudgment.md)(일간 회차), [ADR-0037](0037-order-plan-c2-bm25-top300-qwen.md)(BM25 idf 코퍼스), [ADR-0058](0058-final-decision-basis-separated-from-comparison.md)(새 차수·정정 → `stale`), [ADR-0060](0060-c2-policy-db-row-authority.md)(C-2 일일 실행)
 - 근거 요청: 일일 운영 고도화 계획(`docs/0918_daily-operation/`) intent 결정 6~9·16·28, spec §0·§6·§8·§9.4, 늦은 색인 측정 [`20260918-late-indexing.md`](../../validation-runs/20260918-late-indexing.md)
