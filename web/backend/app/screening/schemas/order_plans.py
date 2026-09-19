@@ -205,7 +205,7 @@ class OrderPlanTracking(_Strict):
 
 
 class OrderPlanCumulativeScope(_Strict):
-    """누적 모드: 활성화된 적 있는 policy 버전(`activated_at` 오름차순). 비어 있을 수 있다."""
+    """누적 모드: 범위에 실행이 있는 policy 버전(policy `activated_at` 오름차순). 범위가 비면 빈 목록이다."""
 
     mode: Literal["cumulative"]
     policy_versions: list[str]

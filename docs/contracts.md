@@ -1411,8 +1411,10 @@ active 버전의 최신 스위치 행 `enabled=true` ∧ `BIDOPS_C2_EXECUTION_AL
   - 결과: 발주계획마다 범위 안 결과 중 **최신 1건**(실행 `finished_at` 내림차순, 같으면 `execution_id` 내림차순).
   - feedback: 발주계획마다 **최신 1건**(`created_at` 내림차순, 같으면 `revision` 내림차순). 실행과 무관하다.
   - 관측: 발주계획마다 최신 관측 1건(기존 규칙).
-  - `scope = {"mode": "cumulative", "policy_versions": [...]}` — 활성화된 적 있는 policy 버전을 `activated_at` 오름차순으로.
-    범위가 비어도 `scope`는 있고 `policy_versions`는 빈 목록일 수 있다.
+  - `scope = {"mode": "cumulative", "policy_versions": [...]}` — **위 범위에 실행이 실제로 있는** policy 버전을 그 policy의
+    `activated_at` 오름차순(같으면 버전 오름차순)으로. 활성화된 적은 있지만 범위 실행이 0건인 policy는 들어가지 않는다.
+    범위가 비면 `scope`는 있고 `policy_versions`는 빈 목록이며, 이때 대시보드의 `order_plan_pending`도
+    `no_completed_execution`으로 `null`이다 — 두 값은 언제나 함께 간다.
 - **회차 모드**(`source_run_id` 있음, 감사용): 그 회차의 최신 완료 실행 하나로 좁힌다. policy·purpose를 묻지 않는다.
   관측은 그 회차의 관측이다. feedback은 누적 모드와 같이 발주계획별 최신 1건이다. `scope = {"mode": "run", "execution_id",
   "source_run_id", "status": "성공"|"부분 성공", "finished_at"?, "policy_version", "purpose"}`이고 그 회차에 완료 실행이
