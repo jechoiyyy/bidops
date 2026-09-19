@@ -1266,6 +1266,9 @@ nullable `quality_gate_status=not_measured|measured|passed|failed`, `policy_sha2
   quality_gate_artifact_sha256, evaluation_id, previous_active_policy_version})`. 내려간 이전 active 행에는
   `action="c2.policy_retired"`(`safe_metadata={from_status:"active", to_status:"retired", replaced_by_policy_version}`)를
   같은 transaction에 남긴다. 후보 지정은 `action="c2.policy_candidate_set"`이다.
+- 같은 `c2.policy_retired`를 운영 명령 `python -m app.screening.c2_policy retire`도 남긴다(교체 없는 retire). 그때는
+  `safe_metadata={from_status:"active", to_status:"retired", replaced_by_policy_version:null, reason, via:"cli"}`이고
+  `request_id`는 `null`이다 — 소비자는 `replaced_by_policy_version`이 `null`일 수 있다고 읽는다.
 - 새 버전을 활성화하면 그 버전에는 일일 스위치 행이 없으므로 자동 실행은 꺼진다(아래 스위치 절).
 
 #### 품질 게이트 REST
