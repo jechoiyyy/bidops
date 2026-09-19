@@ -7,9 +7,15 @@ C-2 실행·감사 표본 draw 연결(S9c)은 `test_daily_c2_script.py`가 이 �
 저장소 `data/runs`와 섞이지 않는다. `BIDOPS_WEB_PORT`를 주고 가짜 `docker`·`python3`·
 `curl`을 PATH 맨 앞에 둔다. 가짜들은 호출을 로그에 한 줄씩 남기고, 상태 디렉터리로
 동작한다: `python3`는 수집기 흉내(날짜별 모드: 완료 N건·불완전·실패), `docker`는 적재 때
-회차 행 표식 파일을 만들고, `curl`은 그 표식으로 `GET /api/runs/{id}`에 200/404를 주며 C-2 REST
+회차 행 표식 파일을 만들고, `curl`은 그 표식으로 `GET /api/runs/{id}`·`GET /api/runs`에 답하고 C-2 REST
 (일일 자동 실행 확인·실행 목록·생성·상세·감사 표본)를 상태 디렉터리로 흉내 낸다 — 자동 실행 확인의
 기본 답은 사람 결정 전 서버의 답(`env_cap_off`)이다. `jq`는 진짜를 쓴다.
+
+**회차 행의 기본키는 실제 계약과 같은 `<디렉터리>--<generated_at>Z`다**(`app/core/run_id.py`
+`deterministic_run_id`). `GET /api/runs/<디렉터리>`만 alias를 풀어 정규 id를 돌려주고,
+C-2 endpoint는 정규 id만 받는다 — 디렉터리 이름으로 실행을 만들려 하면 실제 서비스처럼
+409 `source_run_incomplete`으로 답한다. 가짜 서버가 이 모양을 틀리게 잡고 있어서 매일 409로
+죽는 결함이 테스트를 통과했었다(`docs/engineering-notes.md`).
 """
 
 from __future__ import annotations
@@ -20,7 +26,7 @@ import shutil
 import stat
 import subprocess
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -28,6 +34,22 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[4]
 SCRIPTS = ("run-daily-lifecycle.sh", "manual-workflow-common.sh", "run-daily-c2.sh", "c2-execution-common.sh")
+
+# 가짜 적재기가 회차 행에 붙이는 generated_at. 실제 값은 수집 산출물의 generated_at에서
+# 온다(loader.py `_first_generated_at`); 테스트는 고정 값 하나로 충분하다.
+RUN_STAMP = "20260918T031500Z"
+
+
+def utc_stamp(seconds_ago: float = 0) -> str:
+    """실행 시각 fixture. 지금을 기준으로 잡아 실제 시계가 흘러도 뜻이 바뀌지 않는다."""
+
+    return (datetime.now(timezone.utc) - timedelta(seconds=seconds_ago)).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def canonical(run_id: str) -> str:
+    """디렉터리 이름을 회차 행의 기본키로 바꾼다. 이미 기본키면 그대로 둔다."""
+
+    return run_id if "--" in run_id else f"{run_id}--{RUN_STAMP}"
 
 _FAKE_BIN = r"""#!/usr/bin/env bash
 state="${FAKE_STATE:?}"
@@ -57,9 +79,31 @@ case "${name}" in
     fi
     case "${method} ${path}" in
       "GET /api/health") exit 0 ;;
+      "GET /api/runs")
+        respond 200 "$(
+          for row in "${state}"/rows/*; do
+            [[ -e "${row}" ]] || continue
+            printf '%s\n' "${row##*/}"
+          done | jq -Rsc '{items: [splits("\n") | select(. != "") | {run_id: ., status: "active", superseded_by: null}]}
+                          | . + {total: (.items | length)}'
+        )" ;;
       "GET /api/runs/"*)
-        if [[ -e "${state}/rows/${path##*/}" ]]; then printf '200'; else printf '404'; fi
-        exit 0 ;;
+        # 기본키는 <디렉터리>--<generated_at>Z다. 정확 일치가 먼저이고, 디렉터리
+        # 이름이면 그 접두사의 행 중 최신 하나로 풀어 준다(routers/common.py get_run).
+        id="${path##*/}"
+        run_row=""
+        if [[ -e "${state}/rows/${id}" ]]; then
+          run_row="${id}"
+        else
+          for row in "${state}/rows/${id}--"*; do
+            [[ -e "${row}" ]] || continue
+            if [[ -z "${run_row}" || "${row##*/}" > "${run_row}" ]]; then run_row="${row##*/}"; fi
+          done
+        fi
+        [[ -n "${run_row}" ]] || respond 404 '{"detail": "회차를 찾을 수 없습니다"}'
+        respond 200 "$(jq -nc --arg id "${run_row}" \
+          '{run_id: $id, kind: "order_plans", status: "active", superseded_by: null,
+            generated_at: "2026-09-18T03:15:00Z", counts: {}}')" ;;
       "GET /api/order-plan-screening/daily-trigger")
         # 기본값은 사람 결정 전 서버의 답(환경 cap 기본 false, active policy 없음)이다.
         [[ -f "${state}/trigger.json" ]] && respond 200 "$(cat "${state}/trigger.json")"
@@ -71,6 +115,10 @@ case "${name}" in
            | {schema_version: "execution-list-response.v2", items: $items, total: ($items | length), limit: 500, offset: 0}')" ;;
       "POST /api/order-plan-screening/executions")
         [[ -f "${state}/post_execution" ]] && respond_file "${state}/post_execution"
+        # services/order_plan_screening.py는 source run을 기본키로만 찾는다.
+        source_run="$(jq -r .source_run_id <<<"${data}")"
+        [[ -e "${state}/rows/${source_run}" ]] || respond 409 \
+          '{"error": {"code": "source_run_incomplete", "message": "C-2 source run을 사용할 수 없습니다", "details": null}}'
         rid="$(jq -r .request_id <<<"${data}")"
         for f in "${state}"/execs/*.json; do
           [[ -f "${f}" ]] || continue
@@ -87,6 +135,7 @@ case "${name}" in
         jq -nc --arg id "${id}" --arg final "${final}" --argjson n "${n}" --argjson req "${data}" \
           '{execution_id: $id, request_id: $req.request_id, source_run_id: $req.source_run_id,
             policy_version: $req.policy_version, purpose: "operational", status: "대기", _final: $final,
+            queued_at: "2026-09-18T00:00:00Z", started_at: null,
             finished_at: ("2026-09-18T00:00:" + ($n | tostring | if length < 2 then "0" + . else . end) + "Z")}' \
           > "${state}/execs/$(printf '%03d' "${n}").json"
         respond 202 "$(jq -nc --arg id "${id}" --arg rid "${rid}" '{execution_id: $id, request_id: $rid, status: "대기"}')" ;;
@@ -118,7 +167,8 @@ case "${name}" in
       *"exec -T web test -e"*) exit 1 ;;
       *"--collection"*)
         run_id="$(sed -E 's/.*--run ([^ ]+) --collection.*/\1/' <<<"${args}")"
-        : > "${state}/rows/${run_id}"
+        # 적재기는 회차 행을 <디렉터리>--<generated_at>Z로 만든다(loader.py:4468).
+        : > "${state}/rows/${run_id}--__RUN_STAMP__"
         printf '{"selection": {}}\n'; exit 0 ;;
       *"--tracked-backfill"*) printf '{"counts": {}}\n'; exit 0 ;;
       *"python -c"*) printf '{}\n'; exit 0 ;;
@@ -209,8 +259,17 @@ class Env:
         self.trigger(enabled=True)
 
     def execution(
-        self, run_id: str, status: str, *, policy_version: str = "v3", purpose: str = "operational"
+        self,
+        run_id: str,
+        status: str,
+        *,
+        policy_version: str = "v3",
+        purpose: str = "operational",
+        queued_at: str | None = None,
+        started_at: str | None = None,
     ) -> str:
+        """회차 행의 기본키에 달린 실행 하나. `run_id`는 디렉터리 이름으로 줘도 된다."""
+
         n = len(list((self.state / "execs").glob("*.json"))) + 1
         execution_id = f"00000000-0000-4000-8000-{n:012d}"
         (self.state / "execs" / f"{n:03d}.json").write_text(
@@ -218,10 +277,12 @@ class Env:
                 {
                     "execution_id": execution_id,
                     "request_id": f"10000000-0000-4000-8000-{n:012d}",
-                    "source_run_id": run_id,
+                    "source_run_id": canonical(run_id),
                     "policy_version": policy_version,
                     "purpose": purpose,
                     "status": status,
+                    "queued_at": queued_at or utc_stamp(),
+                    "started_at": started_at,
                     "finished_at": f"2026-09-17T00:00:{n:02d}Z",
                 }
             ),
@@ -279,8 +340,11 @@ class Env:
     def mode(self, day: str, mode: str) -> None:
         (self.state / "modes" / day).write_text(mode, encoding="utf-8")
 
-    def row(self, run_id: str) -> None:
-        (self.state / "rows" / run_id).touch()
+    def row(self, run_id: str, *, exact: bool = False) -> None:
+        """적재가 만든 회차 행. 디렉터리 이름을 주면 기본키 모양으로 만들고,
+        `exact=True`면 준 값을 그대로 기본키로 쓴다."""
+
+        (self.state / "rows" / (run_id if exact else canonical(run_id))).touch()
 
     def plans_dir(self, run_id: str, *, complete: bool | None, total: int = 2) -> Path:
         path = self.runs / run_id
@@ -325,7 +389,7 @@ def make_env(tmp_path: Path) -> Env:
     bin_dir.mkdir()
     for name in ("docker", "python3", "curl"):
         path = bin_dir / name
-        path.write_text(_FAKE_BIN, encoding="utf-8")
+        path.write_text(_FAKE_BIN.replace("__RUN_STAMP__", RUN_STAMP), encoding="utf-8")
         path.chmod(path.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
     return Env(root=root, state=state, bin_dir=bin_dir)
 

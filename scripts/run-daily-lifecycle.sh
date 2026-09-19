@@ -23,11 +23,11 @@ schedule):
     it prints daily_trigger_off with its reasons and exits 0 WITHOUT
     collecting) -> order-plan collection (1-day window, [reference day,
     reference day + 1), exclusive end) -> ingest (--collection) ->
-    --tracked-backfill -> C-2 execution (X-BidOps-Trigger: daily_script,
-    polled to a terminal status) -> audit-sample draw. Run id
-    lifecycle-<YYYYMMDD>-plans. The four stages always run together
-    (decision 10); the C-2 rules are those of scripts/run-daily-c2.sh.
-    Requires BIDOPS_C2_DAILY_ACTOR (no default).
+    --tracked-backfill -> canonical run id lookup (GET /api/runs/<run dir>)
+    -> C-2 execution (X-BidOps-Trigger: daily_script, polled to a terminal
+    status) -> audit-sample draw. Run id lifecycle-<YYYYMMDD>-plans. The four
+    stages always run together (decision 10); the C-2 rules are those of
+    scripts/run-daily-c2.sh. Requires BIDOPS_C2_DAILY_ACTOR (no default).
   notices track (pre-specs + bids, tagged with 1468 SW-industry status):
     preflight -> notice collection (4-day window ending on the reference
     day, both ends inclusive (late-published pre-specs)) -> ingest
@@ -36,7 +36,9 @@ schedule):
 
 Each reference day resumes from the first missing stage:
   complete        a run directory whose collection is marked complete and
-                  whose Run row exists in the web -> nothing to do.
+                  whose Run row exists in the web -> nothing to do. The Run
+                  row is keyed by <run dir>--<generated_at>Z; the web resolves
+                  the directory name to it and C-2 uses that canonical id.
   empty           a complete collection with counts.total == 0 -> done; no
                   ingest (no Run row is needed).
   ingest_pending  a complete collection without a Run row -> ingest only.
@@ -72,7 +74,8 @@ Options:
                       exact commands of its stage; do not collect, ingest,
                       or touch Docker or the web. Local run directories are
                       read; the web Run lookup is skipped, so a complete
-                      collection shows as complete_or_ingest_pending.
+                      collection shows as complete_or_ingest_pending and the
+                      canonical run id C-2 needs is not resolved.
   -h, --help          Show this help.
 
 Environment (order-plans track):
@@ -85,6 +88,9 @@ Environment (order-plans track):
 Exit 0 for success and the normal skips (daily_trigger_off, empty_population,
 active_execution_exists, already_executed, retry_limit_reached, and an
 execution POST answered with policy_not_active, daily_trigger_off, or 503).
+An active execution that has been queued or running for more than twice
+BIDOPS_C2_DAILY_POLL_TIMEOUT_SECONDS is not a normal skip: it is printed with
+its id, status and age and exits non-zero so somebody looks at the worker.
 daily_trigger_off, policy_not_active, 503, and active_execution_exists end the
 track there (later days of a range would get the same answer); the other skips
 continue with the next day.
@@ -235,7 +241,7 @@ resolve_run_state() {
       state="empty"
     elif [[ "${check_rows}" != "true" ]]; then
       state="complete_or_ingest_pending"
-    elif workflow_run_row_exists "${candidate}"; then
+    elif workflow_lookup_run_row "${candidate}"; then
       state="complete"
     else
       state="ingest_pending"
@@ -312,7 +318,10 @@ print_dry_run_c2() {
   cat <<EOF
 
   C-2 stage (same rules as scripts/run-daily-c2.sh ${run_id}):
-    GET  /api/order-plan-screening/executions?source_run_id=${run_id}&limit=500
+    GET  /api/runs/${run_id}   -> <canonical run id> = ${run_id}--<generated_at>Z
+         (the ingest loader keys the Run row that way; C-2 takes that id only.
+          A dry run calls no web, so the id is not resolved here.)
+    GET  /api/order-plan-screening/executions?source_run_id=<canonical run id>&limit=500
     POST /api/order-plan-screening/executions   X-BidOps-Trigger: daily_script
          (only without a 성공/부분 성공/대기/실행 중/중지 요청 execution; attempt > 2 -> retry_limit_reached)
     GET  /api/order-plan-screening/executions/<id>   until terminal
@@ -464,12 +473,21 @@ collect_and_ingest_day() {
 # draws the audit sample). Outcomes that later days would share end the track
 # with exit 0.
 c2_day() {
+  local source_run_id
   if [[ "${state}" == "empty" ]]; then
     workflow_note "empty_population: ${run_id} has counts.total == 0; no C-2 execution"
     return 0
   fi
-  c2_run_source_run "${run_id}" "${C2_POLICY_VERSION}" daily
-  workflow_note "C-2 stage for ${run_id} done: ${C2_OUTCOME}"
+  # C-2 takes the canonical run id (the Run primary key), not the directory
+  # name: the directory name only resolves in GET /api/runs/{id}, and the
+  # execution POST answers 409 source_run_incomplete for it.
+  workflow_lookup_run_row "${run_id}" \
+    || workflow_die "no Run row for ${run_id} after ingest; C-2 cannot run without the canonical run id"
+  workflow_require_single_run_row "${run_id}"
+  source_run_id="${WORKFLOW_RUN_ROW_ID}"
+  workflow_note "c2 source run: ${source_run_id} (directory ${run_id})"
+  c2_run_source_run "${source_run_id}" "${C2_POLICY_VERSION}" daily
+  workflow_note "C-2 stage for ${source_run_id} done: ${C2_OUTCOME}"
   if c2_outcome_stops_track "${C2_OUTCOME}"; then
     workflow_note "daily ${opt_track} track stopped at ${ref_date}: ${C2_OUTCOME} (normal skip)"
     exit 0

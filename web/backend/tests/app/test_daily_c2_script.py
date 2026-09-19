@@ -7,6 +7,8 @@
 
 from __future__ import annotations
 
+import json
+import os
 import subprocess
 import uuid
 from pathlib import Path
@@ -14,11 +16,13 @@ from pathlib import Path
 import pytest
 
 from app.core.config import Settings
-from tests.app.test_daily_lifecycle_script import Env, make_env
+from tests.app.test_daily_lifecycle_script import Env, canonical, make_env, utc_stamp
 
 GUIDANCE = "policy를 교체하면 자동 실행이 멈춥니다. 새 버전에서 다시 켜야 합니다."
 NAMESPACE = uuid.UUID("4e9f787e-8b77-500c-8957-fe046c52e9cf")
+# 디렉터리 이름과 그 회차 행의 기본키. C-2는 기본키만 받는다(B-1, 2026-09-19).
 RUN = "lifecycle-20260917-plans"
+CANON = canonical(RUN)
 
 
 @pytest.fixture
@@ -42,7 +46,9 @@ def _header(post: dict, name: str) -> str | None:
 
 
 def _request_id(run_id: str, policy_version: str, attempt: int) -> str:
-    return str(uuid.uuid5(NAMESPACE, f"{run_id}|{policy_version}|{attempt}"))
+    """`run_id`는 회차 행의 기본키다 — 유도식의 입력이 디렉터리 이름이면 멱등 replay가 어긋난다."""
+
+    return str(uuid.uuid5(NAMESPACE, f"{canonical(run_id)}|{policy_version}|{attempt}"))
 
 
 # --- 자동 실행 확인: 꺼져 있으면 수집하지 않는다 --------------------------------
@@ -131,7 +137,7 @@ def test_daily_track_collects_ingests_executes_and_draws_in_order(env: Env) -> N
         "producer": "human-review-client",
         "consumer": "screening-api",
         "request_id": _request_id(RUN, "v3", 1),
-        "source_run_id": RUN,
+        "source_run_id": CANON,
         "policy_version": "v3",
     }
     assert _header(post, "X-BidOps-Trigger") == "daily_script"
@@ -184,8 +190,8 @@ def test_catch_up_resumes_a_collected_day_at_execution(env: Env) -> None:
     assert env.collected() == [RUN]
     assert env.ingested() == [RUN]
     assert [post["body"]["source_run_id"] for post in env.execution_posts()] == [
-        "lifecycle-20260916-plans",
-        RUN,
+        canonical("lifecycle-20260916-plans"),
+        CANON,
     ]
     assert len(env.draw_posts()) == 2
 
@@ -198,8 +204,8 @@ def test_catch_up_day_with_success_only_draws(env: Env) -> None:
     result = env.run("--track", "order-plans", "--from-date", "2026-09-16", "--to-date", "2026-09-17")
 
     assert result.returncode == 0, result.stderr
-    assert "already_executed: lifecycle-20260916-plans" in result.stdout
-    assert [post["body"]["source_run_id"] for post in env.execution_posts()] == [RUN]
+    assert f"already_executed: {canonical('lifecycle-20260916-plans')}" in result.stdout
+    assert [post["body"]["source_run_id"] for post in env.execution_posts()] == [CANON]
     assert len(env.draw_posts()) == 2
 
 
@@ -299,7 +305,7 @@ def test_two_failures_reach_the_retry_limit(env: Env) -> None:
 
     assert result.returncode == 0, result.stderr
     assert "retry_limit_reached" in result.stdout
-    assert f"scripts/run-daily-c2.sh {RUN} --extra-attempt" in result.stdout
+    assert f"scripts/run-daily-c2.sh {CANON} --extra-attempt" in result.stdout
     assert env.posts() == []
 
 
@@ -420,7 +426,7 @@ def test_draw_failure_exits_non_zero_and_keeps_the_execution(env: Env) -> None:
     assert result.returncode != 0
     assert "execution results are kept" in result.stderr
     [post] = env.execution_posts()
-    assert post["body"]["source_run_id"] == RUN
+    assert post["body"]["source_run_id"] == CANON
     # 실행은 성공으로 남고 중지·삭제 요청은 없다.
     assert not any("/stop" in item["path"] for item in env.posts())
     listed = env.c2(RUN)
@@ -461,15 +467,162 @@ def test_order_plans_dry_run_prints_trigger_check_and_c2_stage_without_calls(env
     assert env.calls() == []
 
 
+# --- 정규 회차 id: 디렉터리 이름으로는 C-2를 부를 수 없다 (B-1) ------------------
+
+
+def _post_execution_directly(env: Env, source_run_id: str) -> str:
+    """가짜 REST에 실행 생성을 직접 POST하고 `<본문>\n<상태코드>`를 돌려준다."""
+
+    body = json.dumps(
+        {
+            "schema_version": "execution-create-request.v1",
+            "producer": "human-review-client",
+            "consumer": "screening-api",
+            "request_id": "20000000-0000-4000-8000-000000000001",
+            "source_run_id": source_run_id,
+            "policy_version": "v3",
+        }
+    )
+    result = subprocess.run(
+        [
+            str(env.bin_dir / "curl"), "-X", "POST", "--data-binary", body,
+            "http://127.0.0.1:18787/api/order-plan-screening/executions",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=30,
+        env={
+            "FAKE_STATE": str(env.state),
+            "PATH": f"{env.bin_dir}{os.pathsep}{os.environ.get('PATH', '')}",
+        },
+    )
+    assert result.returncode == 0, result.stderr
+    return result.stdout
+
+
+def test_the_fake_rest_rejects_the_directory_name_like_the_service_does(env: Env) -> None:
+    # 이 답이 B-1의 재현이다: 회차 행은 있는데 디렉터리 이름으로 부르면 409다.
+    env.row(RUN)
+
+    rejected = _post_execution_directly(env, RUN)
+    accepted = _post_execution_directly(env, CANON)
+
+    assert rejected.endswith("\n409")
+    assert "source_run_incomplete" in rejected
+    assert accepted.endswith("\n202")
+
+
+def test_daily_track_never_sends_the_directory_name_as_source_run_id(env: Env) -> None:
+    env.trigger_on()
+
+    result = env.run("--track", "order-plans", "--date", "2026-09-17")
+
+    assert result.returncode == 0, result.stderr
+    assert f"c2 source run: {CANON} (directory {RUN})" in result.stdout
+    assert [post["body"]["source_run_id"] for post in env.execution_posts()] == [CANON]
+    # 실행 목록 조회도 정규 id로 건다(그러지 않으면 attempt가 늘 1로 리셋된다).
+    listed = [line for line in env.calls() if "source_run_id=" in line]
+    assert listed and all(f"source_run_id={CANON}&" in line for line in listed)
+
+
+def test_standalone_accepts_either_spelling_of_the_run_id(env: Env) -> None:
+    env.trigger_on()
+    _ready_run(env)
+
+    by_directory = env.c2(RUN)
+    by_canonical = env.c2(CANON)
+
+    assert by_directory.returncode == 0, by_directory.stderr
+    assert by_canonical.returncode == 0, by_canonical.stderr
+    [post] = env.execution_posts()
+    assert post["body"]["source_run_id"] == CANON
+    assert "already_executed" in by_canonical.stdout
+
+
+def test_canonical_id_that_is_not_the_resolved_row_stops_the_script(env: Env) -> None:
+    env.trigger_on()
+    _ready_run(env)
+
+    result = env.c2(f"{RUN}--20260101T000000Z")
+
+    assert result.returncode != 0
+    assert "not to the given" in result.stderr
+    assert env.posts() == []
+
+
+def test_two_run_rows_for_one_directory_fail_closed(env: Env) -> None:
+    # 같은 디렉터리를 다른 generated_at으로 다시 적재한 상태(회차 불변 위반의 흔적).
+    env.trigger_on()
+    _ready_run(env)
+    env.row(f"{RUN}--20260919T090000Z")
+
+    result = env.c2(RUN)
+
+    assert result.returncode != 0
+    assert "2 Run rows belong to the directory" in result.stderr
+    assert env.posts() == []
+
+
+def test_missing_run_row_names_the_ingest_command(env: Env) -> None:
+    env.trigger_on()
+    env.plans_dir(RUN, complete=True)
+
+    result = env.c2(RUN)
+
+    assert result.returncode != 0
+    assert f"no Run row for {RUN}" in result.stderr
+    assert "--collection" in result.stderr
+    assert env.posts() == []
+
+
+# --- 워커가 죽어 굳은 실행 (W-5) ------------------------------------------------
+
+
+def test_active_execution_is_printed_with_its_id_status_and_age(env: Env) -> None:
+    env.trigger_on()
+    _ready_run(env)
+    execution_id = env.execution(RUN, "대기", queued_at=utc_stamp(30))
+
+    result = env.c2(RUN, BIDOPS_C2_DAILY_POLL_TIMEOUT_SECONDS="60")
+
+    assert result.returncode == 0, result.stderr
+    assert f"execution {execution_id}: 대기 since " in result.stdout
+    assert env.posts() == []
+
+
+def test_active_execution_older_than_twice_the_poll_budget_exits_non_zero(env: Env) -> None:
+    env.trigger_on()
+    _ready_run(env)
+    execution_id = env.execution(RUN, "대기", queued_at=utc_stamp(300))
+
+    result = env.c2(RUN, BIDOPS_C2_DAILY_POLL_TIMEOUT_SECONDS="60")
+
+    assert result.returncode != 0
+    assert f"execution {execution_id}: 대기 since " in result.stdout
+    assert "active for more than 120s" in result.stderr
+    assert env.posts() == []
+
+
+def test_age_counts_from_started_at_when_the_worker_picked_it_up(env: Env) -> None:
+    env.trigger_on()
+    _ready_run(env)
+    env.execution(RUN, "실행 중", queued_at=utc_stamp(300), started_at=utc_stamp(30))
+
+    result = env.c2(RUN, BIDOPS_C2_DAILY_POLL_TIMEOUT_SECONDS="60")
+
+    assert result.returncode == 0, result.stderr
+    assert "실행 중 since " in result.stdout
+
+
 # --- request_id ------------------------------------------------------------
 
 
 def test_request_id_is_uuidv5_of_run_policy_attempt_and_deterministic(env: Env) -> None:
     script = (
         f'source "{env.root}/scripts/c2-execution-common.sh"; '
-        'c2_execution_request_id lifecycle-20260917-plans v3 1; '
-        'c2_execution_request_id lifecycle-20260917-plans v3 1; '
-        'c2_execution_request_id lifecycle-20260917-plans v3 2; '
+        f'c2_execution_request_id {CANON} v3 1; '
+        f'c2_execution_request_id {CANON} v3 1; '
+        f'c2_execution_request_id {CANON} v3 2; '
         'c2_execution_request_id "한글-run" v3 1'
     )
     result = subprocess.run(["bash", "-c", script], capture_output=True, text=True, timeout=30)
@@ -478,4 +631,4 @@ def test_request_id_is_uuidv5_of_run_policy_attempt_and_deterministic(env: Env) 
     first, again, second, korean = result.stdout.split()
     assert first == again == _request_id(RUN, "v3", 1)
     assert second == _request_id(RUN, "v3", 2)
-    assert korean == _request_id("한글-run", "v3", 1)
+    assert korean == str(uuid.uuid5(NAMESPACE, "한글-run|v3|1"))
