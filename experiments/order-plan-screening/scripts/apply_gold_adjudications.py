@@ -142,7 +142,9 @@ def main() -> int:
     write_tsv_new(remaining_path, OUTPUT_FIELDS, remaining)
     manifest = {
         "schema_version": "bidops.order-plan-gold-adjudication-manifest.v1",
-        "status": "partially_human_adjudicated",
+        # 확인 큐가 비면 큐 전체를 사람이 확정한 것이다. 큐 밖(`확인 큐 제외`) 행은 여전히 초안
+        # 라벨이므로 "전수 사람 확정"이라고 적지 않는다.
+        "status": "partially_human_adjudicated" if remaining else "queue_human_adjudicated",
         "draft_path": str(args.draft),
         "draft_sha256": sha256(args.draft),
         "adjudication_path": str(args.adjudications),
