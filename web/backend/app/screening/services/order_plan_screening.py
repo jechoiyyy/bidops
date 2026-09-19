@@ -1212,6 +1212,14 @@ class OrderPlanScreeningService:
             scope = {
                 "mode": "cumulative",
                 "policy_versions": [row.policy_version for row in session.execute(versions)],
+                # 활성화된 적 있는 policy 전부. 화면은 이 목록으로 "어떤 실행이 이 범위의 것인지"를
+                # 가른다 — 아직 결과가 없는 대기·실행 중·실패도 범위 안이고, 한 번도 활성화되지
+                # 않은 policy의 실행(참조 실행)은 밖이다. `policy_versions`는 이것의 부분집합이다.
+                "activated_policy_versions": list(session.scalars(
+                    select(OrderPlanScreeningPolicy.policy_version).where(
+                        OrderPlanScreeningPolicy.activated_at.is_not(None),
+                    ).order_by(OrderPlanScreeningPolicy.activated_at.asc(), OrderPlanScreeningPolicy.policy_version.asc())
+                )),
             }
         elif execution is not None:
             scope = {

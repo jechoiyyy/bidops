@@ -114,7 +114,7 @@ async function mockReorderedOrderPlanList(
         schema_version: "order-plan-list-response.v4",
         producer: "order-plan-review-api",
         consumer: "order-plan-review-client",
-        scope: { mode: "cumulative", policy_versions: ["c2-policy.v1"] },
+        scope: { mode: "cumulative", policy_versions: ["c2-policy.v1"], activated_policy_versions: ["c2-policy.v1"] },
         items: items.slice(offset, offset + limit),
         total: items.length,
         limit,
@@ -763,6 +763,14 @@ test("실패·결과 없음·중지/비허용 상태를 성공 결과로 바꾸�
   await expect(page.locator(".c2l-row")).toHaveCount(9);
   await expect(page.locator(".c2l-row").first().locator(".c2l-row-verdict")).toContainText("판정 없음");
   await expect(page.getByTestId("order-plan-list-scope")).toContainText("누적 · 판정 policy 없음");
+
+  // 한 번도 활성화되지 않은 policy의 운영 목적 실행(참조 실행)은 누적 범위 밖이다.
+  // 배너는 그것을 "최근 운영 실행"으로 적지 않는다 — 참조 실행을 운영 결과로 말하지 않는다.
+  await mockOrderPlans(page, "failure", { activatedPolicyVersions: [] });
+  await page.goto("/order-plans");
+  const neverActivated = page.getByRole("status").filter({ hasText: "누적 판정 없음 · 수집 데이터 조회" });
+  await expect(neverActivated).toBeVisible();
+  await expect(neverActivated).not.toContainText("최근 운영 실행");
 
   await mockOrderPlans(page, "no-results");
   await page.goto("/order-plans");
