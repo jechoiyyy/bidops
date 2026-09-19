@@ -38,7 +38,7 @@ bidops/
 │   ├── agent/agent-runtime.md        공고 판정 worker의 입력 동결·span·telemetry
 │   ├── 0915_ui-redesign/            관리 화면 재설계 C 정본(2026-09-15 채택, 시안·plan·notes)
 │   ├── 0917_opportunity-tracking/   사업 추적 연결·선별 적재·Go/No-Go 분리 정본(2026-09-17 승인, intent·spec·plan)
-│   ├── 0918_daily-operation/       매일 1일치 수집·판정 운영 고도화 정본(2026-09-18 승인, 2026-09-19 main 병합·운영 배포, C-2 활성화는 사람 결정 뒤, intent·spec·plan)
+│   ├── 0918_daily-operation/       매일 1일치 수집·판정 운영 고도화 정본(2026-09-18 승인, 2026-09-19 main 병합·운영 배포·C-2 v4 게이트 통과와 활성화, 사람 결정 D-a~D-e 값은 plan.md §결정 표, intent·spec·plan)
 │   ├── deep-review-v2/               첨부문서 분석 설계(결정적 부분만 구현, ADR-0051)와 Luna 시안 검증 계획(보류)
 │   ├── rhwp-document-pipeline/       rhwp 네이티브 변환 파이프라인 작업 정본(ADR·Requirements·Design·Spec·Plan, 2026-09-10 시작)
 │   ├── reference/                    회사 프로필·실적 근거자료
@@ -112,9 +112,36 @@ Astryx의 "레이아웃도 컴포넌트로만, `<div>` 금지" 규칙은 ADR-004
 - 사전규격은 등급이 `우선 검토`이면 문서 준비를 자동으로 진행한다. `BIDOPS_PRESPEC_OVERVIEW_ENABLED`가 켜져 있으면 ready 묶음에서 개요 run을 자동 enqueue하고, 개요 run이 `completed`이고 `SW사업대상=Y`이며 현재 회사 핏 `matched`인 게이트를 지나야 심층 검토를 자동 시작한다(ADR-0049·ADR-0054, 2026-09-08 회사 핏 게이트 추가, 2026-09-11 개요 스택 재작성). 회사 핏은 기본 비활성이고 현재는 명시적으로 켠 참조 실행만 지원한다. 자동으로 여는 것은 분석의 시작뿐이며 추적 승인과 최종 Go/No-Go는 사람이 결정한다.
 - C-1 공고 판정·사전규격 개요·심층 검토는 `app/core/model_client.py` 하나를 용도별 설정으로 부른다. C-2 발주계획 어댑터만 별도 transport로 남아 있다.
 - 일일 수집은 `scripts/run-daily-lifecycle.sh --track notices|order-plans`로 트랙마다 따로 실행하며 기준일은 전일(KST)이 기본이고 공고는 4일 창·발주계획은 1일 창이다. 발주계획 트랙은 C-2 활성화와 일일 자동 실행(환경 cap `BIDOPS_C2_DAILY_TRIGGER_ENABLED` + 활성 policy 버전에 묶인 DB 스위치)이 켜지기 전에는 수집조차 하지 않는다([ADR-0060](docs/tracking/decisions/0060-c2-policy-db-row-authority.md)·[ADR-0061](docs/tracking/decisions/0061-daily-collection-window.md)).
-- C-2 policy 활성 정본은 DB 행이다. 활성화와 일일 자동 실행 스위치는 관리 화면 `/order-plan-policies` 탭에서 다루고, 품질 게이트는 제품 경로를 그대로 타는 측정 전용 실행 2회와 게시일별 채점으로 판정한다. 임계값·감사 표본 값(상한·층 배분·주기)·전송 승인은 아직 사람 결정 전이라 관련 실행·활성화·표본 draw는 모두 fail closed다.
-- GPU 휴지(`BIDOPS_GPU_BUSY_LIMIT_SECONDS`·`BIDOPS_GPU_REST_SECONDS`)는 기본값이 둘 다 0(꺼짐)이며 값을 주지 않으면 기존 워커 동작과 같다.
+- C-2 policy 활성 정본은 DB 행이다. 활성화와 일일 자동 실행 스위치는 관리 화면 `/order-plan-policies` 탭에서 다루고, 품질 게이트는 제품 경로를 그대로 타는 측정 전용 실행 2회와 게시일별 채점으로 판정한다. 2026-09-19에 `c2-order-plan-screening-v4`가 gold adjudicated v3 기준 게이트(recall ≥ 0.90·precision ≥ 0.35·중요 누락 ≤ 3·하루 검토량 ≤ 80, 두 pass 모두)를 통과해 활성화됐고 일일 자동 실행 스위치도 켜져 있다. 이 임계값·감사 표본 값(실행당 상한 10건, 월·목 검토)·전송 승인(binding 단위)은 **PoC용 결정**이며 운영 전환 때 다시 정한다(값과 근거는 `docs/0918_daily-operation/plan.md` 결정 표 D-a~D-e). 측정 여유가 작다(precision 36.7%, 하루 최대 검토량 79건)는 점을 품질 근거로 인용할 때 함께 적는다. v3 policy는 generation config revision 불일치로 한 번도 실행되지 못한 채 남은 행이며 되살리지 않는다.
+- GPU 휴지(`BIDOPS_GPU_BUSY_LIMIT_SECONDS`·`BIDOPS_GPU_REST_SECONDS`)는 기본값이 둘 다 0(꺼짐)이며 값을 주지 않으면 기존 워커 동작과 같다. 운영은 `env/c2.env`에서 600초 사용·300초 휴지로 켜 두었고, 휴지는 작업 사이에서만 들어간다.
 - 첨부 취득 실패·묶음 failed 재시작 화면, 입찰 delta 계산 worker, deep-review-v2 역할별 모델 분석, SSO, 알림은 아직 구현 전이다. 문서 준비 화면과 개요 run 실행기·REST·화면은 구현돼 있다. 입찰 delta는 저장·REST·화면까지 있으나 비교를 실제로 계산하는 worker가 없어 `bid_delta_comparison`이 `pending`에 머문다.
+
+## 운영 변경·배포 시 유의
+
+2026-09-19 PoC 배포·게이트·시운전에서 실제로 걸린 것만 적는다. 절차 전문은 `docs/operations.md`, 증상별 기록은 `docs/engineering-notes.md`가 정본이다.
+
+- **운영 변경은 직전에 사람 확인을 받는다.** 재배포, migration, 실제 모델 호출, policy 활성화·retire, cron 설치가 해당한다. 앞 단계의 승인은 다음 단계로 이어지지 않는다. 사람이 "화면에서 했다"고 한 조작은 다음 단계 전에 서버 상태(예: `GET /api/order-plan-screening/daily-trigger`)로 확인한다 — 확인 창을 끝까지 제출하지 않으면 기록이 남지 않는다.
+- **운영 DB 행을 SQL로 고치지 않는다.** 활성화·retire·스위치·게이트·evaluation은 감사 기록이 남는 화면·REST·CLI(`python -m app.screening.c2_policy ...`)로만 바꾼다(ADR-0060).
+- **policy·binding·generation config 파일은 버전+sha256으로 고정된 immutable 파일이다.** 값 하나라도 바꾸려면 새 버전을 발행하고 compose 마운트와 `app/core/config.py` 기본 경로를 함께 올린다. 실패한 옛 버전의 행·게이트·실행은 흔적으로 남긴다.
+- **발행 전에 워커 검증을 건식으로 통과시킨다.** binding `model_digest` = generation config `model_revision` = 서버 선언 revision(`BIDOPS_VLLM_MODEL_REVISION`)이 모두 같아야 한다. 어긋나면 워커가 `binding_mismatch`로 실행을 거부하고, 그때는 재발행 말고 길이 없다.
+- **운영 compose는 파일 5개 + env 파일 4개 조합이다**(`.env`·`env/model.env`·`env/prespec-attachment.env`·`env/c2.env`, 기반+edge+model-egress+prespec-attachment+c2-order-plan, `--profile prespec`, `COMPOSE_PROJECT_NAME=bidops`). 서비스 교체는 `up -d --no-deps --no-build --force-recreate <services>`로 하고, 올린 뒤 `docker compose config`나 컨테이너 env로 플래그가 실제로 렌더됐는지 본다. `env/*.env`는 gitignore라 새 환경에서는 직접 만들어야 한다. 셸 주입에 기대는 값은 env 파일로 옮긴다.
+- **배포 전에 전체 백업과 롤백 태그를 남긴다**(`backups/postgres/full/`, `before-<작업>-<날짜>` 태그). migration head를 배포 기록에 적는다.
+- **회차 Run의 기본키는 `<디렉터리>--<generated_at>Z`다.** `GET /api/runs/{id}`만 디렉터리 이름을 풀어 주고 C-2 API는 정규 id만 받는다. 스크립트·도구는 적재 뒤 web에서 정규 id를 받아 쓰고, 한 디렉터리에 Run 행이 둘 이상이면 추정하지 않고 멈춘다.
+- **적재 경고가 하나라도 있으면 그 회차의 C-2 실행은 409 `source_run_incomplete`로 막힌다.** 적재 직후 `GET /api/runs/<회차>/warnings`를 본다. 적재 CLI와 web은 같은 lifecycle 확장점을 등록해야 한다 — 진입점을 새로 만들면 `BIDOPS_MODULES` 확장점 등록을 같이 넣는다.
+- **host에서 도는 `scripts/*.sh` 변경은 컨테이너 재배포가 필요 없다.** 대신 cron과 같은 깨끗한 환경(`env -i HOME=… PATH=…`)에서 `--dry-run`과 실제 web 조회를 한 번 돌려 본다.
+- **cron은 `flock`(두 트랙 공용 lock)과 `timeout`을 붙여 설치하고, 설치 전에 같은 명령으로 감독 시운전을 한 번 한다.** 자동 따라잡기는 없다 — 빠진 날은 `--date`·`--from-date/--to-date`로 사람이 메운다. `대기`로 굳은 실행은 제품 워커가 복구하지 않는다(findings).
+- **10분을 넘는 실행은 분리해서 돌린다**(`setsid nohup … > log; echo exit=$? >> log`). 로그를 감시하되 진행·실패·종료 코드를 모두 잡는 필터를 쓴다. 조용함은 성공이 아니다.
+- **origin push와 브랜치 삭제는 요청이 있을 때만 한다.**
+
+## 테스트 방향
+
+- **가짜 서버는 실제 계약에서 파생한다.** 스크립트 테스트의 가짜 web·가짜 모델 서버를 고치거나 새로 만들 때는 실제 서비스 응답을 한 번 확인해 맞추고, **옛 코드가 그 가짜에서 실패하는 것**을 먼저 본다. 가짜가 결함과 같은 가정을 품으면 테스트 전체가 결함을 굳힌다(디렉터리 이름을 `source_run_id`로 받아 주던 가짜 web이 그랬다).
+- **가짜로는 증명되지 않는 경로를 구분해 적는다.** 생성(202)→폴링→후속 호출처럼 여러 서비스를 가로지르는 경로는 실제 스택에서 한 번 돌기 전까지 "검증됨"이라고 쓰지 않는다. 운영 자동화는 감독 시운전 1회가 그 증거다.
+- **응답 shape를 바꾸면 PostgreSQL 변형까지 돌린다.** 개별 파일만 지정하면 PostgreSQL 테스트가 skip되므로, 일회용 `postgres:17.11` 컨테이너와 `BIDOPS_TEST_POSTGRES_URL`로 해당 파일을 돌린다. strict dict 기대값은 postgres 전용 테스트에만 있을 수 있다.
+- **같은 기능의 진입점이 여럿이면 진입점마다 검사한다.** CLI·web·worker가 같은 확장점·설정을 읽는지 진입점별 테스트를 둔다(`tests/app/test_ingest_cli_extensions.py`).
+- **위임 결과는 리더가 영향 범위 검사를 직접 돌려 받는다.** 작업자의 "통과" 보고에는 skip된 변형이 빠져 있을 수 있다.
+- **운영 자동화(cron·스케줄러)를 켜기 전에는 독립 검증을 거친다.** 구현에 관여하지 않은 컨텍스트가 코드·스크립트·실제 환경을 읽고 차단/주의로 나눠 보고하며, 차단이 0이 된 뒤에 설치한다.
+- **품질 게이트 채점은 제품 밖에서 한다.** `scripts/score-c2-gate.py`가 gold·manifest·측정 실행 id·도구 sha256으로 `scoring_input_sha256`을 고정하고, 사람이 evaluation을 제출한다. gold를 고치면 새 adjudicated 버전 디렉터리를 만들고 옛 버전은 그대로 둔다.
 
 ## 문제 보고
 
