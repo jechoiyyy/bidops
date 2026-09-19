@@ -97,6 +97,7 @@ test("LS-S1 canonical fingerprints normalize set order and exclude paging contex
     qwen: ["uncertain", "relevant"],
     stage1: new Set(["failed", "selected"]),
     feedback: ["none", "has"],
+    tracking: [],
     issue: true,
     q: "  접근성  ",
   });
@@ -104,6 +105,7 @@ test("LS-S1 canonical fingerprints normalize set order and exclude paging contex
     q: "  접근성  ",
     issue: true,
     feedback: ["has", "none"],
+    tracking: [],
     stage1: ["selected", "failed"],
     qwen: ["relevant", "uncertain"],
     sourceRunId: "run-a",
@@ -161,10 +163,29 @@ function reorderedInput() {
     qwen: ["relevant", "uncertain"],
     stage1: ["selected", "failed"],
     feedback: ["has", "none"],
+    tracking: [],
     issue: true,
     q: "  접근성  ",
   };
 }
+
+test("LS-S1a tracking axis changes the order-plan fingerprint", () => {
+  const withoutTracking = orderPlansFilterFingerprint({ ...reorderedInput(), tracking: [] });
+  const withTracking = orderPlansFilterFingerprint({ ...reorderedInput(), tracking: ["continue"] });
+  expect(withTracking).not.toBe(withoutTracking);
+});
+
+test("LS-S1b tracking token order does not change the order-plan fingerprint", () => {
+  const first = orderPlansFilterFingerprint({
+    ...reorderedInput(),
+    tracking: ["continue", "hold"],
+  });
+  const reordered = orderPlansFilterFingerprint({
+    ...reorderedInput(),
+    tracking: new Set(["hold", "continue"]),
+  });
+  expect(first).toBe(reordered);
+});
 
 test("LS-S2 hydration validates version and IDs, deduplicates, and drops stale metadata", () => {
   const storage = new MemoryStorage();
