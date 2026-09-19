@@ -168,7 +168,7 @@ C-2는 이 중 어느 것도 채울 수 없다. `purpose`에 세 번째 값을 �
 | `gate_id` PK | `c2gate-` + 32 hex |
 | `policy_version`, `policy_sha256`, `binding_sha256` | 활성화 시 policy 행과 정확히 대조 |
 | `gold_manifest_sha256`, `gold_artifact_sha256`, `gold_status` | 채점 입력 |
-| `scoring_input_sha256` | |
+| `scoring_input_sha256` | 측정 전에 고정되는 **채점 입력**의 digest. canonical JSON(정렬 키·UTF-8·최소 구분자·끝 개행 없음) `{schema_version:"bidops.c2-gate-scoring-input.v1", gold_artifact_sha256, gold_manifest_sha256, measurement_run_ids(정렬), scoring_tool_sha256, scoring_unit, candidate_rule, important_rule}`의 sha256이다. gold·측정 회차·채점 도구·채점 규칙 중 하나라도 바뀌면 달라지므로 게이트 생성 뒤의 교체를 잡는다. `scripts/score-c2-gate.py scoring-input`이 계산한다 |
 | `evaluation_basis` | `product_rerun` \| `reference_artifact_rescore` (§4 — 활성화를 여는 것은 `product_rerun`뿐) |
 | `scoring_unit` | `per_published_day` 고정(결정 23) |
 | `measurement_run_ids_json` | 측정 대상 회차 id 목록(gold 회차의 게시일별 파생 회차). 측정 전용 실행은 이 목록의 회차에만 만들 수 있다 |
@@ -349,6 +349,8 @@ prompt·profile 본문과 경로는 넣지 않는다.
 ### 4.3 기록
 
 **코드가 채점하지 않는다.** 사람이 만든 gate artifact에서 읽어 기록한다. 코드는 연결과 판정 규칙만 검사한다.
+제품 밖 도구 `scripts/score-c2-gate.py`가 gold와 실행 결과를 대조해 그 artifact 초안과 POST body를 만들며,
+아무것도 POST하지 않는다 — 사람이 확인하고 제출한다(`docs/operations.md` 활성화 절차 9단계).
 
 | endpoint | 내용 |
 |---|---|
