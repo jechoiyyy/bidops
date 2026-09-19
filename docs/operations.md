@@ -480,14 +480,17 @@ python3 skills/bidops-collect/scripts/collect_order_plans.py \
 
 1. Preflight: `manual-workflow-common.sh`의 web 헬스체크. `BIDOPS_G2B_API_KEY` 존재 확인은
    collector 자신이 하므로 스크립트는 별도로 값을 읽거나 출력하지 않는다.
-2. 발주계획 트랙(`--track order-plans`): 아래 여섯 단계가 항상 함께 돈다(`--c2` 같은 부분 실행
+2. 발주계획 트랙(`--track order-plans`): 아래 다섯 단계가 항상 함께 돈다(`--c2` 같은 부분 실행
    플래그는 없다) — ① 자동 실행 확인 `GET /api/order-plan-screening/daily-trigger`. 응답의
    `effective_enabled`가 `false`이면 `daily_trigger_off`와 `reasons[]`, "policy를 교체하면 자동
    실행이 멈춥니다. 새 버전에서 다시 켜야 합니다." 안내문구를 출력하고 **수집 없이** exit 0(다음 절
    참조). 실행에 쓸 `policy_version`도 이 응답에서 받는다. ② 발주계획을 회차
    `lifecycle-<YYYYMMDD>-plans`로 수집한다(`collect_order_plans.py --from-date <기준일> --to-date
    <기준일+1일>`, `--to-date`는 제외구간). ③ `ingest.cli --run <plans> --collection` →
-   `--tracked-backfill`. ④ C-2 실행 요청(`POST /api/order-plan-screening/executions`, 헤더
+   `--tracked-backfill`. 이어서 `GET /api/runs/<회차 디렉터리>`로 **정규 회차 id**
+   (`<디렉터리>--<generated_at>Z`, 적재가 만드는 `Run` 기본키)를 받는다 — 아래 ④·⑤와 실행 목록
+   조회·attempt 계산은 전부 이 값을 쓴다. 한 디렉터리에 `Run` 행이 둘 이상이면 어느 것을 판정할지
+   추정하지 않고 멈춘다. ④ C-2 실행 요청(`POST /api/order-plan-screening/executions`, 헤더
    `X-BidOps-Trigger: daily_script`, 202를 폴링해 종결 상태까지 기다린다). ⑤ 종결 뒤 감사 표본 draw
    (`POST /api/order-plan-screening/executions/{id}/audit-sample`). 회차·실행·draw의 스킵·재시도
    규칙은 `scripts/run-daily-c2.sh`가 정하며(아래), 발주계획 트랙은 이 스크립트를 그대로 부른다.
@@ -532,6 +535,13 @@ C-2를 전부 건너뛰고 수집만 하며 회차 id는 `lifecycle-<YYYYMMDD>-<
 그 밖의 실패는 exit 비0이며 `set -euo pipefail`로 그 트랙을 즉시 멈춘다. 같은 날 재시도까지
 실패해도 exit는 비0이다(아래 재시도 규칙).
 
+`active_execution_exists`에는 예외가 하나 있다. 스킵할 때 그 실행의 id·상태·경과 시간을 함께
+출력하고, 경과가 `BIDOPS_C2_DAILY_POLL_TIMEOUT_SECONDS`의 **2배를 넘으면 exit 비0**이다. 워커가
+죽어 `대기`로 굳은 실행은 제품 워커의 stale 회수 대상이 아니어서(회수 대상은 `실행 중`·`중지 요청`뿐이고
+그나마 살아 있는 워커가 다음 작업을 집을 때만 돈다) 그대로 두면 매일 조용히 exit 0으로 건너뛰기만
+한다. 이 경우 워커 상태를 확인하고 실행을 `POST /api/order-plan-screening/executions/<id>/stop`으로
+닫은 뒤 다시 돌린다.
+
 **발주계획 트랙 전용 환경변수** (`scripts/run-daily-c2.sh`·`scripts/c2-execution-common.sh`가 읽는다):
 
 | 변수 | 기본값 | 뜻 |
@@ -543,7 +553,9 @@ C-2를 전부 건너뛰고 수집만 하며 회차 id는 `lifecycle-<YYYYMMDD>-<
 
 **복구 절차.** 자동 재시도(attempt 2)까지 실패한 회차는 `attempt > 2`로 `retry_limit_reached`
 스킵을 낸다 — 이후로는 자동 재시도하지 않는다. 사람이 재개할 때만
-`scripts/run-daily-c2.sh <plans run id> --extra-attempt`를 쓴다. 헤더 `X-BidOps-Trigger:
+`scripts/run-daily-c2.sh <plans run id> --extra-attempt`를 쓴다. 회차 id는 디렉터리 이름
+(`lifecycle-<YYYYMMDD>-plans`)으로 줘도 되고 정규 id로 줘도 된다 — 스크립트가 `GET /api/runs/<id>`로
+정규 id를 확정한 뒤 C-2를 부른다. `retry_limit_reached` 안내에는 정규 id가 실린다. 헤더 `X-BidOps-Trigger:
 manual_resume`으로 실행 하나만 만들고 자동 재시도는 없다. `--dry-run`으로 먼저 계획된 요청을
 확인할 수 있다. `retry_limit_reached`를 출력할 때 이 명령을 함께 안내한다.
 
@@ -553,9 +565,15 @@ always-on 기본 비활성 원칙, `CLAUDE.md`). 트랙마다 한 줄이고 시�
 
 ```cron
 # 문서용 예시 — 설치되어 있지 않음. crontab -e로 운영자가 직접 추가할 때만 참고한다.
-30 6 * * * cd /path/to/bidops && ./scripts/run-daily-lifecycle.sh --track notices >> reports/daily-lifecycle-notices.log 2>&1
+# 먼저 한 번: mkdir -p ~/.local/state/bidops/logs
+# flock -n: 앞 실행이 아직 돌고 있으면 그 날 줄은 아무것도 하지 않고 끝난다(회차 중복 방지).
+# timeout: 멈춘 실행을 끊는다. 발주계획은 폴링 2시간 + 재시도 대기 10분 + 2회차 2시간이 최대이므로 6h로 둔다.
+#          timeout이 스크립트를 끊어도 C-2 실행 자체는 분석 워커에서 계속 돌고, 다음 날은
+#          active_execution_exists로 건너뛴다(경과가 길면 비0으로 끝나 사람이 본다).
+# crontab에서 %는 \%로 적어야 한다. 로그는 저장소 밖에 쌓아 회차·보고서와 섞지 않는다.
+30 6 * * * cd /path/to/bidops && flock -n ~/.local/state/bidops/notices.lock timeout 3h ./scripts/run-daily-lifecycle.sh --track notices >> ~/.local/state/bidops/logs/notices-$(date +\%Y%m).log 2>&1
 # C-2 활성화·일일 자동 실행이 켜진 뒤에만 설치한다. BIDOPS_C2_DAILY_ACTOR는 감사 표식이며 인증이 아니다.
-0 7 * * * cd /path/to/bidops && BIDOPS_C2_DAILY_ACTOR=<담당자 이름> ./scripts/run-daily-lifecycle.sh --track order-plans >> reports/daily-lifecycle-plans.log 2>&1
+0 7 * * * cd /path/to/bidops && BIDOPS_C2_DAILY_ACTOR=<담당자 이름> flock -n ~/.local/state/bidops/plans.lock timeout 6h ./scripts/run-daily-lifecycle.sh --track order-plans >> ~/.local/state/bidops/logs/plans-$(date +\%Y%m).log 2>&1
 ```
 
 **보관**: 회차 디렉터리(`data/runs/lifecycle-*`)는 불변이며 자동으로 지우지 않는다. 보관
@@ -563,7 +581,12 @@ always-on 기본 비활성 원칙, `CLAUDE.md`). 트랙마다 한 줄이고 시�
 
 **중단 기준**: 아래 중 하나면 실행을 멈추고 원인을 확인한 뒤 그날 몫을 다시 실행한다.
 - collector(수집 단계)가 0이 아닌 코드로 종료.
-- 적재 뒤 `GET /api/runs/<run_id>/warnings`에 차단 등급 경고가 있음.
+- 적재 뒤 `GET /api/runs/<run_id>/warnings`에 차단 등급 경고가 있음. 이 조회는 회차 **디렉터리
+  이름**도 받아 준다(`GET /api/runs/{id}`가 `<디렉터리>--%`로 alias를 풀기 때문이다). 반면 C-2
+  실행 생성·조회는 정규 id만 받고 디렉터리 이름에는 409 `source_run_incomplete`으로 답한다 —
+  화면·warnings 조회에서 되던 표기가 C-2에서 안 되는 이 비대칭이 B-1의 원인이었다
+  (`docs/tracking/findings.md`). 손으로 C-2를 부를 때는 `GET /api/runs/<디렉터리>` 응답의
+  `run_id`를 쓴다.
 - 수집 결과의 `sw_industry_1468.status != complete`(조회 실패·부분 수집). 이 경우 1468
   표시는 해당 입찰공고에서 `null`로 남아 `bid_sw_industry_competitive` 선별 사유로
   적재되지 않는다 — 다음 날 창에서 같은 공고가 다시 조회되면 자연히 회복되므로, 그날은
