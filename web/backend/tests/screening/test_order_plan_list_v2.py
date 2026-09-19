@@ -423,7 +423,7 @@ def test_postgres_list_filters_pagination_and_tracking_projection(tmp_path, scre
         assert [row["order_plan_pk"] for row in missing["items"]] == [unreviewed.id]
         # 적재 fixture의 policy는 활성화된 적 없는 참조 policy라 누적 모드에는 결과가 없다.
         cumulative = service.list_order_plans(session, stage1_status="missing", stage2_status="missing", qwen_relevance="missing")
-        assert cumulative["scope"] == {"mode": "cumulative", "policy_versions": []}
+        assert cumulative["scope"] == {"mode": "cumulative", "policy_versions": [], "activated_policy_versions": []}
         assert [row["order_plan_pk"] for row in cumulative["items"]] == [plan.id, unreviewed.id]
         assert service.list_order_plans(session, issue=True)["total"] == 0
         beyond = service.list_order_plans(session, limit=1, offset=5)

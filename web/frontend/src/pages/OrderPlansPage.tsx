@@ -1232,7 +1232,8 @@ export function OrderPlansPage() {
   const operationalExecutions = executions.filter((execution) => execution.purpose === "operational");
   const scopedExecutions = sourceRunId
     ? executions.filter((execution) => execution.source_run_id === sourceRunId)
-    : operationalExecutions.filter((execution) => listScope?.mode !== "cumulative" || listScope.activated_policy_versions.includes(execution.policy_version));
+    // 범위를 알기 전(목록 로딩 중)에는 비워 둔다 — 참조 실행이 한 프레임이라도 칩에 보이지 않게 한다.
+    : operationalExecutions.filter((execution) => listScope?.mode === "cumulative" && listScope.activated_policy_versions.includes(execution.policy_version));
   const latestExecution = latestCompletedExecution(scopedExecutions);
 
   // Keep the normal review default while resolving a selected row. Once the
