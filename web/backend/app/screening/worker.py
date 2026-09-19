@@ -21,6 +21,7 @@ from sqlalchemy import select, update
 from sqlalchemy.orm import Session, sessionmaker
 
 from ..core.config import Settings, get_settings
+from ..core.gpu_rest import GpuRestGate
 from ..core.run_id import parse_run_id
 from ..lifecycle import delete_run, ingest_run
 from ..lifecycle.models import Notice, NoticeObservation, Run
@@ -263,6 +264,7 @@ class ScreeningWorker:
         sleep: Callable[[float], None] = time.sleep,
         poll_seconds: float = 1.0,
         popen: Callable[..., Any] = subprocess.run,
+        monotonic: Callable[[], float] = time.monotonic,
     ) -> None:
         self.settings = settings or get_settings()
         if isinstance(session_factory, Session):
@@ -274,6 +276,7 @@ class ScreeningWorker:
         self.sleep = sleep
         self.poll_seconds = max(0.01, float(poll_seconds))
         self._popen = popen
+        self.monotonic = monotonic
 
     def run_once(self) -> ScreeningExecution | None:
         row = self.store.claim(now=_aware(self.clock))
@@ -293,9 +296,15 @@ class ScreeningWorker:
     def run_forever(self, stop_event: Event | None = None, *, poll_seconds: float | None = None) -> None:
         event = stop_event or Event()
         delay = self.poll_seconds if poll_seconds is None else max(0.01, poll_seconds)
+        gate = GpuRestGate(self.settings.gpu_busy_limit_seconds, self.settings.gpu_rest_seconds)
         while not event.is_set():
+            started = self.monotonic()
             row = self.run_once()
-            if row is None:
+            finished = self.monotonic()
+            rest = gate.after_poll(did_work=row is not None, work_seconds=finished - started, now=finished)
+            if rest is not None:
+                event.wait(rest)
+            elif row is None:
                 self.sleep(delay)
 
     def run_until(self, target_execution_id: str, *, stop_event: Event | None = None, poll_seconds: float | None = None) -> ScreeningExecution:

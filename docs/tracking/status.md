@@ -6,7 +6,53 @@
 
 `구현됨`은 코드와 계약이 존재한다는 뜻이고, `검증됨`은 기록된 명령이 해당 범위에서 통과했다는 뜻이다. Mock 결과, 과거 브랜치 결과, 현재 worktree 결과, 외부 운영 승인을 서로 대신하지 않는다.
 
-## 사업 추적 연결·선별 적재·Go/No-Go 분리 (2026-09-17, 미병합)
+## 일일 운영 고도화 (2026-09-18, 2026-09-19 main 병합·운영 배포 전)
+
+[일일 운영 고도화 계획](../0918_daily-operation/plan.md)의 웨이브 1~5를 구현했다. 통합 브랜치는
+`feat/do-integration`이고 2026-09-19 `main`에 병합했다. **운영 DB·운영 스택에는 배포하지 않았다**(migration
+`0027`~`0029` 미적용, 운영 head `0026_overview_mvp`).
+
+구현된 것: migration `0029`(신규 테이블 4개 — 품질 게이트·evaluation·감사 표본·일일 자동 실행
+스위치 — 와 실행 행 `purpose` 컬럼), policy 파일 적재 CLI(`app/screening/c2_policy.py`), C-2
+policy REST·활성화(런타임 blocker 계산·후보 지정), 일일 자동 실행 스위치(4중 기본-닫힘), 품질
+게이트 저장소·REST·판정 규칙(게시일별 채점, 두 pass 중 나쁜 쪽 값), 감사 표본 산출(상한
+N건·층 3종·`pending_human_approval`/`not_applicable`), 판정의 누적 투영(policy 교체 뒤에도
+과거 판정이 남는 v4), 실행 게이트 수정(`X-BidOps-Trigger` 헤더·`purpose`·측정 전용 실행 경로·
+파일 status 검사 제거), 참조 적재가 policy 행을 활성으로 만드는 우회 차단(ADR-0060), 개요 run
+중복 방지(결정 28 — 완료·확인대기 run이 있으면 같은 문서·policy digest의 자동 재관측이 새 개요
+run을 만들지 않음), GPU 휴지(연속 가동 시간 기준, 기본 꺼짐), 일일 스크립트의 트랙 분리·전일
+기준·회차 조회·`-retryN`·단계별 따라잡기·C-2 실행 연결(`scripts/run-daily-lifecycle.sh`·
+`scripts/run-daily-c2.sh`·`scripts/c2-execution-common.sh`), 게이트 측정 스크립트
+(`scripts/run-c2-gate-measurement.sh`), gold 게시일별 분할 도구
+(`skills/bidops-collect/scripts/split_order_plan_run_by_day.py`), C-2 활성화 화면(기준 화면의
+`발주계획 선별 정책` 탭, `/order-plan-policies`), 발주계획 화면의 누적 기본·판정 policy 버전·
+첫 관측일 표시·자동 실행 꺼짐 배너.
+
+결정 28(공고 수집 창을 기준일 포함 4일로 — 사전규격이 등록일 `rgstDt`로 조회되고 접수일
+`rcptDt`부터 공개돼 1일 창이면 영구 누락이 생긴다는 늦은 색인 측정에 근거, [M0 기록](../validation-runs/20260918-late-indexing.md))도
+이번 웨이브에서 반영했다.
+
+아직 못 켜는 것은 [`plan.md` §4](../0918_daily-operation/plan.md)의 표가 정본이다 — 발주계획
+트랙 자체, C-2 실행, 게이트 `통과` 판정, policy 활성화, 감사 표본 실제 draw, 무인 일일 운영은
+모두 v3 policy·binding 발행([`plan.md` S3b](../0918_daily-operation/plan.md))과 아래 사람 결정
+값을 기다린다. S3b는 D-c·D-d 값이 있어야 발행할 수 있어 아직 시작하지 않았다.
+
+남은 사람 결정([`plan.md` §3](../0918_daily-operation/plan.md)): **D-a**(gold 표본 크기·최종
+승인), **D-b**(임계값 4개 값), **D-c**(①감사 표본 상한 N ②층 배분 ③검토 주기 ④무복원 범위
+⑤층 정의 값 — `classification_proximity` 기준 열·코드 목록, `performance_similarity_proximity`
+컷 직후 구간 폭), **D-d**(승인자·승인 시각·고정할 model_digest·방화벽/egress 승인),
+**D-e**(활성화 승인 주체·절차, 운영시작일, cron 시각, 트리거 켜기 전 확인 항목의 실제 확인).
+값이 없으면 관련 기능은 fail closed로 동작한다(정상).
+
+기존 결함 두 건은 이번 웨이브의 변경과 무관하며 `main` 6191f35에서도 재현한다 —
+`tests/deep_review/test_auto_preparation.py::test_the_flag_opens_preparation_for_sw_business_without_a_grade`,
+`web/frontend/tests/admin-workspace-consistency.spec.ts:23`(1280×800·1440×900, `/runs`).
+
+최종 게이트(2026-09-18, 통합 트리 bc7e338에서 1회): 백엔드 `pytest tests/` 2340 passed·5 skipped·2 failed — 실패 2건은 `test_module_boundaries.py`(새 `gpu_rest.py`의 모듈 배정·`screening→workers` import)로 e80ab21에서 `app/core/gpu_rest.py`로 옮겨 고쳤고 영향 파일 4개 55 passed; 파이프라인 `./run-tests.sh` 통과; 프런트 `tsc -b --force`·build 통과, `test:screens`(app·layout 2종) 631 passed·6 skipped·3 failed — `admin-workspace-consistency.spec.ts:23` 2건은 main 6191f35에서도 실패하는 기존 결함(`/runs`의 `.rs-detail-foot`), `bid-delta.spec.ts:508` 1건은 부하 중 단독 재실행에서도 실패했으나 부하가 낮을 때 단독 1회 통과(main에서도 통과) — 초안 수정과 재조회가 겹치는 부하 의존 flake로 판정. 기존 결함 `test_auto_preparation.py::test_the_flag_opens_preparation_for_sw_business_without_a_grade`는 단독 실행에서만 실패하고 전체 실행에서는 통과했다. S14 문서 병합(e2ec733) 뒤 코드 변경 없음.
+
+병합 전 후속 수정(2026-09-19): 누적 모드 `scope.policy_versions`를 범위에 실행이 실제로 있는 버전으로 좁히고(대시보드 `no_completed_execution`과 함께 간다) `activated_policy_versions`를 더해 화면의 실행 상태 표시 범위를 활성화 이력으로 가른다 — 활성화된 적 없는 policy의 참조 실행을 "최근 운영 실행"으로 적지 않는다. 교체 없는 retire CLI(`python -m app.screening.c2_policy retire`, 사유를 담은 `c2.policy_retired` AuditEvent)를 더했고, 발주계획 선택 fingerprint에 추적 축을 정식으로 넣었다. ADR-0060·0061은 2026-09-19 사용자 승인을 받았다. 검사(병합 트리, 영향 범위만): 일회용 PostgreSQL 17에서 `test_order_plan_list_v2.py` 26 passed·skip 0, `test_c2_policy_retire.py`·`test_workload_projection.py` 통과; 프런트 `tsc -b`, `order-plans`·`dashboard`·`list-selection`·`order-plan-policies` spec 121 passed; pixel 8장 중 `order-plans-list`·`criteria` 2장을 승인받아 교체했다(나머지 6장 통과). 전체 스위트는 다시 돌리지 않았다. 운영 DB의 테스트 SQL 활성 행 `c2-order-plan-screening-v2`는 배포 때 retire CLI로 내리기로 했다(미실행, [findings](findings.md)).
+
+## 사업 추적 연결·선별 적재·Go/No-Go 분리 (2026-09-17, main 병합 7249ae9·운영 배포 전)
 
 [사업 추적 연결·조치 고도화 계획](../0917_opportunity-tracking/plan.md)의 P0~P5를 구현했다 —
 전량 수집·선별 적재·수집 색인(migration `0027`), 공식 키 병합 규칙 확장과 후보 대조·찾아보기,
@@ -15,8 +61,8 @@
 일일 수집·적재 스크립트(`scripts/run-daily-lifecycle.sh`), 관련 화면 갱신을 갖는다. 백엔드는
 `feat/ot-integration`(P0~P5-F0, `feat/ot-p1-1`·`-p1-2`·`-p1-3`·`-p2a-backend`·`-p2a-collect`·
 `-p2b`·`-p2c`·`-p3`·`-p4`·`-p5-f0`를 통합) 브랜치에 있고, 화면은 `feat/ot-p5-f1`(사업 추적)·
-`-p5-f2`(대시보드)·`-p5-f3`(Go/No-Go)·`-p5-f4`(사전규격 후보) 브랜치에 있다. **`main`에
-병합하지 않았다.**
+`-p5-f2`(대시보드)·`-p5-f3`(Go/No-Go)·`-p5-f4`(사전규격 후보) 브랜치에서 만들어 `main`에 병합했다
+(7249ae9, 픽셀 기준선 6191f35).
 
 - 운영 DB에는 배포하지 않았다. `scripts/run-daily-lifecycle.sh`는 존재하지만 cron은 설치하지
   않았다(기본 비활성 원칙 유지, `docs/operations.md` cron 예시는 설치 안내일 뿐 자동 실행이

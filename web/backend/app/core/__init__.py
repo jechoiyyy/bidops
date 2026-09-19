@@ -39,6 +39,7 @@ from .generation_config import (
     MIN_NUM_CTX,
     MIN_NUM_PREDICT,
 )
+from .gpu_rest import GpuRestGate
 from .health import router as health_router
 from .logging_setup import configure
 from .model_client import ModelIdentityCheckState
@@ -51,6 +52,7 @@ __all__ = [
     "Base",
     "DEFAULT_MODULES",
     "GENERATION_CONFIG_SCHEMA",
+    "GpuRestGate",
     "MAX_NUM_CTX",
     "MAX_NUM_PREDICT",
     "MIGRATION_COMMAND",

@@ -323,12 +323,20 @@ def _validate_policy_document(document: Any) -> dict[str, Any]:
     return policy
 
 
+BINDING_STATUSES = frozenset({"blocked", "activation_candidate", "approved"})
+
+
 def _validate_binding_document(document: Any) -> dict[str, Any]:
     """Check the fixed portions of an optional immutable Phase 0 binding."""
 
     binding = PHASE0.require_exact_keys(document, BINDING_DOCUMENT_KEYS, "phase0 binding")
-    if binding["schema_version"] != "bidops.order-plan-screening-phase0-binding.v1" or binding["producer"] != "phase0-contracts" or binding["consumer"] != "phase1-screening-pipeline" or binding["status"] != "blocked":
+    if binding["schema_version"] != "bidops.order-plan-screening-phase0-binding.v1" or binding["producer"] != "phase0-contracts" or binding["consumer"] != "phase1-screening-pipeline" or binding["status"] not in BINDING_STATUSES:
         _error("binding_invalid", "phase0 binding provenance/status가 다릅니다")
+    transport = binding["external_transport"]
+    # A blocked binding that allows execution is contradictory (ADR-0060); the
+    # service and worker reject the same combination.
+    if binding["status"] == "blocked" and isinstance(transport, dict) and transport.get("execution_allowed") is True:
+        _error("binding_invalid", "blocked binding이 실행을 허용합니다")
     _string(binding["binding_version"], "binding.binding_version")
     PHASE0.parse_timestamp(binding["created_at"], "binding.created_at")
     stage1 = PHASE0.require_exact_keys(binding["stage1_binding"], {"method", "path", "schema_version", "sha256", "top_k", "tie_break"}, "binding.stage1_binding")

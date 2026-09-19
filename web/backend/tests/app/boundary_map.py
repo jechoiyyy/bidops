@@ -214,6 +214,10 @@ FILE_MODULES: dict[str, str] = {
     # core·lifecycle·screening·deep_review
     # T7 1·2·3단계가 네 모듈의 소유 파일을 모두 자기 폴더로 옮겼다. 이제
     # 폴더 규칙(MODULE_FOLDERS)이 판정하므로 여기 남은 항목이 없다.
+    # gpu_rest.py는 app/core/ 폴더 안에 있어 폴더 규칙으로도 CORE로 판정되지만,
+    # S11 회귀(원래 app/workers/gpu_rest.py였고 FILE_MODULES에 없어 미배정으로
+    # 잡혔다)를 명시적으로 남기기 위해 여기에도 적어 둔다.
+    "app/core/gpu_rest.py": CORE,
 }
 
 # 디렉터리 단위로 통째로 한 모듈에 속하는 경로 (§5.2).
@@ -259,7 +263,7 @@ TABLE_OWNER: dict[str, str] = {
     "ingest_warning": LIFECYCLE,
     "collected_record_index": LIFECYCLE,
     "collected_record_token": LIFECYCLE,
-    # screening (28)
+    # screening (32)
     "judgment": SCREENING,
     "judgment_revision": SCREENING,
     "perspective": SCREENING,
@@ -288,6 +292,10 @@ TABLE_OWNER: dict[str, str] = {
     "order_plan_screening_result": SCREENING,
     "order_plan_screening_artifact": SCREENING,
     "order_plan_screening_feedback": SCREENING,
+    "order_plan_screening_quality_gate": SCREENING,
+    "order_plan_screening_quality_evaluation": SCREENING,
+    "order_plan_screening_audit_sample": SCREENING,
+    "order_plan_screening_daily_trigger": SCREENING,
     # deep_review (38)
     "attachment_fetch": DEEP_REVIEW,
     "content_object": DEEP_REVIEW,

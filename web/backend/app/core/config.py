@@ -7,6 +7,7 @@ process environment and are never given a source-code default.
 
 from __future__ import annotations
 
+import math
 from functools import lru_cache
 from pathlib import Path
 from typing import Literal
@@ -219,6 +220,11 @@ class Settings(BaseSettings):
     clamav_port: int = Field(default=3310, validation_alias="BIDOPS_CLAMAV_PORT")
     clamav_timeout_seconds: float = Field(default=15.0, validation_alias="BIDOPS_CLAMAV_TIMEOUT_SECONDS")
     analysis_worker_poll_seconds: float = Field(default=1.0, validation_alias="BIDOPS_ANALYSIS_WORKER_POLL_SECONDS")
+    # GPU 휴지(연속 가동 시간 기준, docs/0918_daily-operation/spec.md §10). 작업을 쉬지 않고
+    # 처리한 시간이 limit 이상이면 다음 claim 전에 rest만큼 쉰다. 둘 다 0보다 커야 켜진다.
+    # 기본 0.0 = 휴지 없음(현재 동작 그대로).
+    gpu_busy_limit_seconds: float = Field(default=0.0, validation_alias="BIDOPS_GPU_BUSY_LIMIT_SECONDS")
+    gpu_rest_seconds: float = Field(default=0.0, validation_alias="BIDOPS_GPU_REST_SECONDS")
     # Manual C-2 execution references.  These are read-only inputs copied into
     # an execution snapshot; startup never validates, activates, or calls them.
     c2_policy_path: Path | None = Field(default=None, validation_alias="BIDOPS_C2_POLICY_PATH")
@@ -229,6 +235,9 @@ class Settings(BaseSettings):
     c2_bm25_script: Path | None = Field(default=None, validation_alias="BIDOPS_C2_BM25_SCRIPT")
     c2_merge_script: Path | None = Field(default=None, validation_alias="BIDOPS_C2_MERGE_SCRIPT")
     c2_execution_allowed: bool = Field(default=False, validation_alias="BIDOPS_C2_EXECUTION_ALLOWED")
+    # 일일 스크립트 C-2 자동 실행의 환경 cap(4중 기본-닫힘의 첫째, spec §3.4). 기본 false.
+    # 켜도 활성 policy 버전의 DB 스위치가 켜져 있어야 실행된다.
+    c2_daily_trigger_enabled: bool = Field(default=False, validation_alias="BIDOPS_C2_DAILY_TRIGGER_ENABLED")
     c2_worker_stale_seconds: int = Field(default=900, validation_alias="BIDOPS_C2_WORKER_STALE_SECONDS")
     c2_response_retention_days: int = Field(default=30, validation_alias="BIDOPS_C2_RESPONSE_RETENTION_DAYS")
     prespec_attachment_worker_concurrency: int = Field(
@@ -310,6 +319,13 @@ class Settings(BaseSettings):
             self.c2_merge_script = self.bidops_root / "skills/bidops-screen/scripts/build_order_plan_screening_results.py"
         if self.c2_worker_stale_seconds < 1 or self.c2_response_retention_days < 1:
             raise ValueError("C-2 worker limits must be positive")
+        if not (
+            math.isfinite(self.gpu_busy_limit_seconds)
+            and math.isfinite(self.gpu_rest_seconds)
+            and self.gpu_busy_limit_seconds >= 0
+            and self.gpu_rest_seconds >= 0
+        ):
+            raise ValueError("BIDOPS_GPU_BUSY_LIMIT_SECONDS and BIDOPS_GPU_REST_SECONDS must be finite and not negative")
         if self.heartbeat_seconds >= self.stale_seconds:
             raise ValueError(
                 "BIDOPS_SCREEN_HEARTBEAT_SECONDS must be less than "

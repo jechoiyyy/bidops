@@ -162,11 +162,13 @@ snapshot을 만들지 않는 fail-closed 계약을 검증하도록 분리했으�
 
 ## ADR-0027의 21일 재조회 근거가 종단 관측에서 재현되지 않는다
 
+- 상태: **해결** (2026-09-18, [ADR-0061](decisions/0061-daily-collection-window.md))
 - 재현 조건: `experiments/lifecycle-linkage-survey/scripts/survey.py`로 게시일 2026-08-24~2026-08-26 구간을 재조회하고 `--baseline-raw`로 이전 관측과 대조한다. 실행 기록은 [`20260831-order-plan-longitudinal.md`](../validation-runs/20260831-order-plan-longitudinal.md)에 있다.
 - 증상: 같은 997건이 5일 동안 `bidNtceNoList` 채움률 45.6% → 46.6%로 **1 포인트**만 올랐다. 같은 나이(6일)의 횡단면 점은 67.8%다. 횡단면 곡선은 3일 45.8% → 6일 67.8% → 9일 77.1%로 가파르게 오르지만 실제로 추적 가능한 코호트는 그 속도로 채워지지 않는다.
 - 영향: [ADR-0027](decisions/0027-order-plan-requery-window.md)이 재조회 범위를 최근 21일로 정한 근거는 횡단면 곡선의 "15~17일 평탄화"다. 실제 코호트가 훨씬 느리게 채워진다면 평탄화 시점이 21일보다 뒤일 수 있고 그러면 창이 짧아 공고 전환을 놓친다. [fill-curve](../validation-runs/20260829-order-plan-fill-curve.md)가 "횡단면과 종단이 어긋나면 종단이 정본"이라고 미리 정해 두었으므로 이 관측이 우선한다.
 - 지금 해결할 수 없는 이유: 종단 관측점이 세 개이고 기간이 5일뿐이다. 21일이 틀렸다고 단정하기에 부족하다. 나이 15일과 21일 근처(2026-09-08, 2026-09-14 무렵) 관측이 나와야 판단할 수 있고, 재조회 범위 변경은 수집 비용과 API 한도에 직접 영향을 주므로 사람 결정이 필요하다.
 - 접근 방법: 같은 구간의 재조회를 계속 쌓아 나이 21일 이후까지 본다. 횡단면 구간들은 폭이 3일로 같은데 건수가 28~997로 흔들려(08-15 광복절 구간이 28건) 비교 가능한 코호트가 아니다. 횡단면 기울기가 나이 효과인지 코호트 구성 차이인지 구분하려면 요일 구성이 같은 구간끼리 비교하거나, 08-21~08-23 구간도 종단으로 추적해 두 방법을 같은 코호트에서 직접 대조한다.
+- 해결: ADR-0061이 ADR-0027을 폐기하고 발주계획을 전일 하루 창으로 수집하고 재조회하지 않기로 정했다. 21일 창의 길이를 맞추는 문제가 아니라 재조회 자체를 그만두므로 이 관측이 요구한 추가 종단 관측은 더 필요 없다. 발주계획→입찰공고 연결은 입찰공고 측 `orderPlanUntyNo`(ADR-0027 결과 절의 76.7%)가 유일 경로다. 겹치지 않는 세 회차(625·1,040·482건) 사이에 같은 통합번호가 다시 나온 경우는 0건이었다(2026-09-18 실측). 대가로 추적 중 발주계획의 `bidNtceNoList`·예산·발주 시기 변경을 관측하지 못하며, 이는 ADR-0061과 [`0918_daily-operation/plan.md` §4](../0918_daily-operation/plan.md)에 후속 과제로 남겼다.
 
 ## Alembic revision 식별자가 version table 컬럼보다 길어 PostgreSQL 배포가 불가능했다
 
@@ -1501,3 +1503,109 @@ runner 소비자가 없어 보류했다. 운영 DB/MinIO 쓰기·migration 적�
   DELETE·다른 열 UPDATE를 고정한다.
 - 상태: 수용됨. 현재 범위(공고 조건 근거 경로)는 이 권한 공백과 무관하게 동작하므로 이번
   계획에서는 수정하지 않는다.
+
+## 회사 핏은 심층 검토를 막는데 품질을 잴 장치가 없다 (2026-09-18, 미해결)
+
+- 재현 조건: `BIDOPS_PRESPEC_COMPANY_FIT_ENABLED=true`(기본 false, `web/backend/app/core/config.py:197`)와
+  참조 실행 모드에서 사전규격 개요가 `completed`인 공고의 회사 핏 결과가 `matched`가 아니면
+  `web/backend/app/deep_review/services/company_fit.py:272-273`이 `company_fit_<decision>` 사유를 내고,
+  `web/backend/app/deep_review/services/auto_preparation.py:460-461`이 그 사유로 심층 검토 자동 시작을 막는다.
+  회사 핏 시도 table의 `quality_status`는 CHECK로 `unmeasured_reference`·`mock_reference`만 허용한다
+  (`web/backend/app/deep_review/models.py:1723`). 회사 핏에는 gold·임계값·활성화 게이트가 없다.
+- 영향: 모델 출력이 사람 눈에 닿기 전에 다음 단계를 막는 지점인데, 떨어진 건이 맞게 떨어졌는지 잴 방법이 없다.
+  `quality_status`가 `measured`가 될 수 없는 구조라 측정을 해도 기록할 자리가 없다. 핏에서 떨어진 공고도 목록에는
+  남으므로 C-2 탈락보다는 피해가 작다. 지금은 기본 비활성이고, 켜도 참조 실행 모드가 아니면
+  `company_fit_reference_only`로 닫히므로(`company_fit.py:245-246`) 운영에 닿지 않는다.
+- 지금 해결할 수 없는 이유: 일일 운영 고도화 계획은 C-2 게이트만 구현하고 C-2 밖의 품질 장치는 지도와 선행조건만
+  기록하기로 했다([`0918_daily-operation/intent.md` §6](../0918_daily-operation/intent.md) 결정 26). 회사 핏 gold를
+  만들 표본과 사람 정답이 아직 없고 임계값은 사람 결정이다.
+- 후속 방향: 회사 핏을 운영에서 켜기 전에 게이트를 먼저 만든다(별도 계획). C-2 게이트 구조 — 승인된 사람 gold,
+  NULL이면 `미측정`인 임계값, 같은 묶음 2 pass, append-only evaluation — 를 다시 쓸 수 있다. `quality_status` CHECK에
+  측정값을 담을 자리를 함께 설계한다.
+
+## 사전규격 개요는 운영 중인데 표본 점검 라벨을 담을 자리가 없다 (2026-09-18, 미해결)
+
+- 재현 조건: 운영의 web·분석 워커·첨부 워커는 `BIDOPS_PRESPEC_OVERVIEW_ENABLED=true`로 개요를 자동으로 돌린다
+  (2026-09-18 컨테이너 확인). 개요 run의 `quality_status`는 항상 `unmeasured_reference`(모델명이 `mock`이면
+  `mock_reference`)다(`web/backend/app/deep_review/services/overview_runs.py:481-483`). 개요 결과에 사람이 정답·오답을
+  다는 table·REST가 없다 — 개요의 쓰기 REST는 쪽 범위 확정(`POST /api/pre-specs/{notice_id}/overview/range-confirmations`,
+  `web/backend/app/deep_review/routers/overviews.py:91`)뿐이다. 수량·날짜 불일치 일부(`quantity_mismatch`·
+  `quantity_metadata_mismatch`·`quantity_relation_ambiguous`·`quantity_unit_missing`·`date_mismatch` 등)는 실패가 아니라
+  경고로 분류된다(`web/backend/app/deep_review/services/prespec_overview_claim_validation.py:37-49`).
+- 영향: 개요는 건을 거르지 않는다 — 대상은 나라장터 SW 대상 표시로 정해지고 모델 판단이 아니다
+  (`web/backend/app/deep_review/services/effective_grade.py:135-169`). 인용문·쪽수를 원문과 대조하는 결정적 검증이 있고
+  실패하면 `needs_human_review`다. 그러나 경고로 완화된 수량·날짜 불일치가 담당자에게 얼마나 자주 틀린 정보로
+  닿는지 셀 방법이 없고, 품질 표식이 참조 표식에서 벗어날 근거도 쌓이지 않는다.
+- 지금 해결할 수 없는 이유: 사람이 근거와 함께 읽는 지점이라 정식 게이트보다 표본 점검이 맞다고 판단했지만
+  ([`0918_daily-operation/intent.md` §6](../0918_daily-operation/intent.md)), 라벨 축·저장 table·REST·화면을 새로
+  설계해야 하고 일일 운영 고도화 계획은 C-2만 구현한다(결정 26).
+- 후속 방향: 별도 계획으로 개요 run 단위의 표본 점검 라벨(주장별 맞음·틀림·원문 없음 등)을 append-only로 담을 자리를
+  만들고, 경고 코드별 발생률과 라벨을 대조해 경고로 둘지 실패로 올릴지 다시 정한다. 라벨이 쌓이기 전까지
+  `unmeasured_reference`를 측정으로 승격시키지 않는다.
+
+## C-1 수동 경로가 후보 policy를 받고 그 `제외`가 기본 목록에서 숨는다 (2026-09-18, 수용됨)
+
+- 재현 조건: C-1 공고 판정을 수동 경로(`cli_single`·`manual_run`)로 부르면 `activation_candidate` policy도 받는다 —
+  `web/backend/app/screening/orchestrator.py:1623`(trigger가 `schedule`이 아니면 `activation_candidate|active` 허용),
+  `web/backend/app/screening/worker.py:375-377`, `web/backend/app/screening/queue.py:427-429`. 그 결과의 `제외` 판정은
+  필터가 없을 때 공고 목록 기본 조건에서 빠진다(`web/backend/app/screening/projection.py:52`의
+  `DEFAULT_EXCLUDED_GRADE = "제외"`, `:585`의 `Judgment.grade != DEFAULT_EXCLUDED_GRADE`).
+- 영향: 품질 게이트를 통과한 적 없는 policy의 `제외`가 담당자의 기본 보기에서 공고를 숨긴다. 테이블 채우기 같은 참조
+  실행 절차(`docs/e2e-lifecycle-fill.md` 6단계의 `/runs` 화면 판정 실행)가 이 경로를 쓰므로 참조 실행 결과가 운영 화면의 기본 보기를 바꿀 수 있다.
+  C-1 게이트는 0건이고 policy 둘 다 `activation_candidate`이며 `BIDOPS_SCHEDULER_ENABLED=false`다(2026-09-18 운영 확인).
+- 지금 해결할 수 없는 이유: 활성화된 적 없는 policy의 `제외`를 숨기지 않게 할지, 수동 경로도 `active`만 받게 할지는
+  C-1 자동화 방식과 함께 정해야 한다. 뒤쪽을 고르면 참조 실행 절차를 함께 고쳐야 한다. 일일 운영 고도화 계획은
+  C-1 코드를 그대로 두고 **C-1 자동화 전까지 C-1을 운영에 쓰지 않기로** 정했다(결정 27).
+- 후속 방향: C-1 자동화 때 [`0918_daily-operation/plan.md` §7](../0918_daily-operation/plan.md)의 선행조건 ② "수동 경로
+  정리"에서 두 안 중 하나를 고른다. 그 전까지 C-1을 점검용으로 부른 판정은 미측정 policy의 판정이며 운영 판단의
+  근거로 쓰지 않는다.
+
+## 운영 DB의 C-2 policy v2가 활성화 API 없이 active·passed로 있다 (2026-09-18, 미해결)
+
+- 재현 조건: 운영 DB에 `c2-order-plan-screening-v2`가 `policy_status=active`·`quality_gate_status=passed`
+  (`active_slot=1`)로, v1이 `retired`·`passed`로 있다. 2026-09-03 종단 확인 때 테스트 전용 SQL로 직접
+  DB 행을 활성화한 것이며(`docs/tracking/status.md`의 발주계획 C-2 선별 항목 "테스트 전용 policy 사본으로만
+  활성화했고 품질 근거가 아니다"), 그 활성화에 대응하는 `AuditEvent(action="c2.policy_activated")`나 그
+  실행 이력이 없다.
+- 영향: 이번 웨이브의 새 활성화 탭(`/order-plan-policies`)은 policy 행의 `policy_status`·
+  `quality_gate_status`·`active_slot`을 읽어 게이트를 통과한 활성 policy처럼 보여준다 — v2는 이 조건을
+  전부 만족한다. 실제로는 v2 binding의 `external_transport.execution_allowed`가 승인되지 않았고
+  `BIDOPS_C2_EXECUTION_ALLOWED`도 기본 false이므로 C-2 실행과 일일 자동 실행은 여전히 fail closed다. 화면
+  표시와 실제 실행 가능 여부가 갈리는 지점이라 담당자가 "이미 활성화됐다"고 오인할 수 있다.
+- 지금 해결할 수 없는 이유: 활성 행을 되돌리는 것은 DB 데이터를 직접 고치는 운영 작업이라 사람 승인이
+  필요하고, 이번 계획의 범위(코드·문서)를 넘는다. v2를 그대로 retire하면 그 근거가 된 2026-09-03 종단
+  확인 기록과의 관계도 함께 정리해야 한다.
+- 후속 방향: 배포 때 `python -m app.screening.c2_policy retire`로 v2를 내린다(사람 승인됨, 2026-09-19).
+  교체 없이 `retired`·`active_slot=NULL`로 내려가고 감사 이벤트(`c2.policy_retired`,
+  `replaced_by_policy_version=null`)가 남으며, 활성 policy가 없으므로 일일 자동 실행도
+  `no_active_policy`로 꺼진 채 시작한다(절차는 `docs/operations.md`의 C-2 활성화 절). 운영 조치 전이므로
+  이 항목은 실제 실행과 그 결과 확인 뒤에 닫는다. v3를 정식 활성화하면 그 시점에는 활성화 transaction이
+  이전 active를 자동으로 내린다(§3.3 9번, `docs/0918_daily-operation/spec.md`).
+
+## 발주계획 화면이 누적 목록을 500행씩 전부 받아 브라우저에서 거른다 (2026-09-18, 미해결)
+
+- 재현 조건: `web/frontend/src/pages/OrderPlansPage.tsx:77`의 `PAGE_SIZE = 500`으로 누적 목록을 한 번에
+  최대 500행 받아 브라우저에서 필터링한다. 활성화 뒤 발주계획은 하루 약 300건씩 누적으로 늘어난다
+  (`docs/0918_daily-operation/spec.md` §7 — 활성화된 적 있는 policy의 운영 목적 완료 실행 전부가 누적
+  범위).
+- 영향: 누적 기간이 늘수록(며칠만 지나도 500건을 넘는다) 서버가 이미 필터링해 줄 수 있는 조건도 클라이언트가
+  전량을 받아서 걸러야 하므로 응답 크기와 렌더 비용이 계속 커진다. 목록 응답의 `human_feedback`에
+  `execution_id`가 없어 화면이 `expected_revision`(다음 사람 피드백 저장 시 낙관적 잠금에 쓰는 값)을
+  계산하려면 별도 조회가 필요하다.
+- 지금 해결할 수 없는 이유: 서버 쪽 필터·페이지네이션은 목록 쿼리(`services/order_plan_screening.py`의
+  누적 투영)와 화면 양쪽을 함께 다시 설계해야 하고, 이번 일일 운영 고도화 계획은 누적 투영을 "회차 선택
+  없이 전체를 한 번에 반환"하는 현재 모양으로 두고 활성화 경로만 구현했다.
+- 후속 방향: 별도 계획으로 목록 API에 서버 쪽 필터·페이지 파라미터를 추가하고, 응답 `human_feedback`에
+  `execution_id`를 실어 화면이 재조회 없이 `expected_revision`을 계산하게 한다(`docs/contracts.md`
+  변경 제안).
+
+## 1280 폭 대시보드에 세로 스크롤이 생긴다 (2026-09-19, 수용됨)
+
+- 재현 조건: viewport 1280x800에서 대시보드(`/`)를 열고 사업 추적 보류 패널이 5행일 때 페이지에 약 170px
+  세로 스크롤이 생긴다. 2026-09-17 사업 추적 고도화(main 7249ae9)에서 들어온 배치이며 그 작업의 화면 확인
+  때 관측한 값이다. 2026-09-19에는 다시 재지 않았다.
+- 영향: 1280 폭에서 대시보드 하단 패널을 보려면 스크롤해야 한다. 가로 스크롤이나 별도 레이아웃 전환이
+  아니므로 ADR-0047(지원 폭 1280~1920px) 위반은 아니다.
+- 지금 해결할 수 없는 이유: 일일 운영 고도화(`feat/do-integration`) 병합 범위와 무관한 기존 main의 배치이고,
+  패널 행 수·높이를 줄이는 것은 대시보드 구성 결정이다. 2026-09-19 사용자가 그대로 두기로 했다.
+- 후속 방향: 대시보드를 다시 손댈 때 보류 패널의 행 상한 또는 패널 높이 배분을 함께 정한다.

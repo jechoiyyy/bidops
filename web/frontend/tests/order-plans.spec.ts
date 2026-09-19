@@ -52,6 +52,9 @@ async function resetFilters(page: import("@playwright/test").Page) {
 }
 
 const TEST_ORDER_PLAN_SOURCE_RUN_ID = "91d8c2e4-3f09-4e6a-9bd9-0c2e4e6d0101";
+/** 공용 mock의 최신 완료 운영 실행(부분 성공)과 그보다 앞선 성공 실행. */
+const TEST_LATEST_EXECUTION_ID = "a2f4d7c1-0a61-4a07-8d2e-7f1d1d010101";
+const TEST_OLDER_EXECUTION_ID = "a2f4d7c1-0a61-4a07-8d2e-7f1d1d083101";
 
 function testOrderPlanItem(orderPlanPk: number, relevance: "relevant" | "uncertain" | "not_relevant" | null, title: string) {
   return {
@@ -77,11 +80,15 @@ function testOrderPlanItem(orderPlanPk: number, relevance: "relevant" | "uncerta
     human_feedback: null,
     tracking: {
       opportunity_id: 5000 + orderPlanPk,
-      tracking_status: "미선택",
+      tracking_status: "미선택" as "미선택" | "계속 추적" | "보류" | "종료",
       tracking_reason: null,
       tracking_selected_by: null,
       tracking_selected_at: null,
     },
+    // v4: 그 행의 결과를 낸 실행과 policy, 발주계획의 첫 관측 시각.
+    execution_id: relevance === null ? null as string | null : TEST_LATEST_EXECUTION_ID,
+    policy_version: relevance === null ? null as string | null : "c2-policy.v1",
+    first_observed_at: "2026-08-31T16:30:00Z" as string | null,
   };
 }
 
@@ -90,7 +97,7 @@ async function mockReorderedOrderPlanList(
   page: import("@playwright/test").Page,
   items: ReturnType<typeof testOrderPlanItem>[],
 ) {
-  await mockOrderPlans(page);
+  const trace = await mockOrderPlans(page);
   await page.route("**/api/order-plans**", async (route) => {
     const request = route.request();
     const url = new URL(request.url());
@@ -104,15 +111,10 @@ async function mockReorderedOrderPlanList(
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
-        schema_version: "order-plan-list-response.v3",
+        schema_version: "order-plan-list-response.v4",
         producer: "order-plan-review-api",
         consumer: "order-plan-review-client",
-        scope: {
-          execution_id: "a2f4d7c1-0a61-4a07-8d2e-7f1d1d010101",
-          source_run_id: TEST_ORDER_PLAN_SOURCE_RUN_ID,
-          status: "부분 성공",
-          finished_at: "2026-09-01T02:05:00Z",
-        },
+        scope: { mode: "cumulative", policy_versions: ["c2-policy.v1"], activated_policy_versions: ["c2-policy.v1"] },
         items: items.slice(offset, offset + limit),
         total: items.length,
         limit,
@@ -120,6 +122,7 @@ async function mockReorderedOrderPlanList(
       }),
     });
   });
+  return trace;
 }
 
 // 화면 제목은 `발주계획` 한 낱말이고(승인 시안), 목록 행은 사업명 → 상태 배지 → metadata(발주기관·
@@ -678,7 +681,8 @@ test("이번 건 넘기기는 아무것도 저장하지 않고 미선택을 종�
 // 요청안 §7 규칙 2·3. 계약이 없는 현재 서버에서 결정을 눌러도 저장된 것처럼 보이지 않는다.
 test("추적 결정 계약이 없으면 계약 미구현으로 표시하고 미선택으로 바꾸지 않는다", async ({ page }) => {
   const trace = await mockOrderPlans(page, "default", { omitTracking: true });
-  await page.goto("/order-plans");
+  // 기본 보기는 추적 `미선택`만 보인다. 추적 계약이 없는 행은 미선택이 아니므로 관련도 축만 건다.
+  await page.goto("/order-plans?qwen=relevant,uncertain");
   await page.locator(".c2l-row").first().click();
 
   const tracking = page.locator(".c2l-tracking");
@@ -701,7 +705,8 @@ test("추적 결정 계약이 없으면 계약 미구현으로 표시하고 미�
 
 test("소유 사업기회를 확인하지 못하면 저장을 시도하지 않고 다음 건으로도 이동하지 않는다", async ({ page }) => {
   const trace = await mockOrderPlans(page, "no-owning-opportunity");
-  await page.goto("/order-plans");
+  // 소유 사업기회가 없는 행은 추적 `미선택`이 아니라 기본 보기에 없다. 관련도 축만 건다.
+  await page.goto("/order-plans?qwen=relevant,uncertain");
   await page.locator(".c2l-row").first().click();
 
   const tracking = page.locator(".c2l-tracking");
@@ -749,14 +754,28 @@ test("filtered_out·not_relevant·unknown·null이 서로 바뀌어 표시되지
 });
 
 test("실패·결과 없음·중지/비허용 상태를 성공 결과로 바꾸지 않는다", async ({ page }) => {
+  // 누적 범위에 판정이 없으면 원본을 그대로 보이고, 실패한 실행을 성공처럼 말하지 않는다.
   await mockOrderPlans(page, "failure");
   await page.goto("/order-plans");
-  await expect(page.getByText("검토에 사용할 성공/부분 성공 결과가 없습니다.")).toBeVisible();
-  await expect(page.locator(".c2l-execution-empty")).toContainText("실패");
+  const noJudgment = page.getByRole("status").filter({ hasText: "누적 판정 없음 · 수집 데이터 조회" });
+  await expect(noJudgment).toBeVisible();
+  await expect(noJudgment).toContainText("최근 운영 실행: 실패 (a2f4d7c1)");
+  await expect(page.locator(".c2l-row")).toHaveCount(9);
+  await expect(page.locator(".c2l-row").first().locator(".c2l-row-verdict")).toContainText("판정 없음");
+  await expect(page.getByTestId("order-plan-list-scope")).toContainText("누적 · 판정 policy 없음");
+
+  // 한 번도 활성화되지 않은 policy의 운영 목적 실행(참조 실행)은 누적 범위 밖이다.
+  // 배너는 그것을 "최근 운영 실행"으로 적지 않는다 — 참조 실행을 운영 결과로 말하지 않는다.
+  await mockOrderPlans(page, "failure", { activatedPolicyVersions: [] });
+  await page.goto("/order-plans");
+  const neverActivated = page.getByRole("status").filter({ hasText: "누적 판정 없음 · 수집 데이터 조회" });
+  await expect(neverActivated).toBeVisible();
+  await expect(neverActivated).not.toContainText("최근 운영 실행");
 
   await mockOrderPlans(page, "no-results");
   await page.goto("/order-plans");
-  await expect(page.getByText("C-2 실행 결과가 없습니다.")).toBeVisible();
+  await expect(page.getByText("누적 판정 없음 · 수집 데이터 조회", { exact: true })).toBeVisible();
+  await expect(page.locator(".c2l-list-pane").getByText("조건에 맞는 계획이 없습니다")).toBeVisible();
 
   await mockOrderPlans(page, "live-disabled");
   await page.goto("/order-plans");
@@ -905,12 +924,14 @@ test("사람 피드백 축과 텍스트 검색도 다른 축과 AND로 조합된
   await expect(page.locator(".c2l-row")).toContainText("지방공기업");
 });
 
-test("legacy 발주계획 URL은 회차를 해석한 목록의 선택 행으로 들어간다", async ({ page }) => {
+test("legacy 발주계획 URL은 누적 목록의 선택 행으로 들어간다", async ({ page }) => {
   await mockOrderPlans(page);
   await page.goto("/order-plans/101");
 
   await expect(page).toHaveURL(/\/order-plans\?.*selected=101/);
-  await expect.poll(() => new URL(page.url()).searchParams.get("source_run_id")).toBe(TEST_ORDER_PLAN_SOURCE_RUN_ID);
+  // 누적 목록 안에서 그 행을 고른다. 회차를 골라 URL에 박지 않는다.
+  await expect(page.locator(".c2l-row-wrap.is-selected")).toContainText("공공데이터 통합");
+  expect(new URL(page.url()).searchParams.has("source_run_id")).toBe(false);
   await expect(page.locator("header.topbar h1")).toHaveText("발주계획");
   await expect(page.locator(".c2l-page-header")).toHaveCount(0);
   await expect(page.locator(".c2l-row-wrap.is-selected")).toContainText("공공데이터 통합");
@@ -918,13 +939,13 @@ test("legacy 발주계획 URL은 회차를 해석한 목록의 선택 행으로 
   await expect(page.getByRole("link", { name: "전체 상세 열기", exact: true })).toHaveCount(0);
 });
 
-test("legacy URL은 필터에 가려진 not_relevant 대상의 회차·선택을 보존한다", async ({ page }) => {
+test("legacy URL은 필터에 가려진 not_relevant 대상의 선택을 보존한다", async ({ page }) => {
   await mockOrderPlans(page);
   await page.goto("/order-plans/103?qwen=relevant");
 
   await expect(page).toHaveURL(/\/order-plans\?.*selected=103/);
-  await expect.poll(() => new URL(page.url()).searchParams.get("source_run_id")).toBe(TEST_ORDER_PLAN_SOURCE_RUN_ID);
   await expect.poll(() => new URL(page.url()).searchParams.get("qwen")).toBe("");
+  expect(new URL(page.url()).searchParams.has("source_run_id")).toBe(false);
   await expect(page.locator(".c2l-row-wrap.is-selected")).toContainText("시설관리 용역");
   await expect(page.locator(".c2l-detail-pane")).toContainText("시설관리 용역");
 });
@@ -934,7 +955,7 @@ test("legacy URL의 알 수 없는 발주계획은 첫 행으로 대체하지 �
   await page.goto("/order-plans/9999");
 
   await expect(page).toHaveURL(/\/order-plans\?.*selected=9999/);
-  await expect(page.getByText("요청한 발주계획을 찾을 수 없습니다.", { exact: true })).toBeVisible();
+  await expect(page.getByText("요청한 발주계획을 누적 목록에서 찾을 수 없습니다.", { exact: true })).toBeVisible();
   await expect(page.locator(".c2l-row-wrap.is-selected")).toHaveCount(0);
 });
 
@@ -1996,4 +2017,209 @@ test("BT-valid-receipt-stays-definitive-when-post-result-invalidation-fails", as
   await dialog.getByRole("button", { name: "확인하고 일괄 추적 시작", exact: true }).click();
   await expect(dialog).toContainText("일괄 추적 결과를 확인했습니다");
   await expect(dialog).not.toContainText("일괄 추적 결과를 확인할 수 없습니다");
+});
+
+// ---- 일일 운영: 누적 기본·회차 모드·판정 표식·행의 실행으로 저장·자동 실행 배너 (spec §7·§3.4·§11) ----
+
+const ORDER_PLAN_RUN = {
+  kind: "order_plans", run_id: TEST_ORDER_PLAN_SOURCE_RUN_ID, generated_at: "2026-09-01T00:30:00Z",
+  window_from: "2026-08-31", window_to: "2026-08-31", timezone: "Asia/Seoul",
+  screening_basis: null, status: "collected", superseded_by: null,
+  counts: { notices: 0, judgments: 0, reviews: 0, collection: {} },
+};
+
+function dailyTriggerState(overrides: Record<string, unknown>) {
+  return {
+    schema_version: "daily-trigger-state-response.v1",
+    producer: "daily-trigger-api",
+    consumer: "human-review-client",
+    effective_enabled: false,
+    policy_version: null,
+    policy_sha256: null,
+    switch: null,
+    reasons: ["env_cap_off", "no_active_policy"],
+    ...overrides,
+  };
+}
+
+async function mockDailyTrigger(page: import("@playwright/test").Page, state: Record<string, unknown>) {
+  await page.route("**/api/order-plan-screening/daily-trigger", (route) => route.request().method() === "GET"
+    ? route.fulfill({ json: state })
+    : route.fallback());
+}
+
+/** 목록 요청의 query만 모은다. 누적/회차 모드는 `source_run_id` 유무로 갈린다. */
+function recordListRequests(page: import("@playwright/test").Page): URLSearchParams[] {
+  const requests: URLSearchParams[] = [];
+  page.on("request", (request) => {
+    const url = new URL(request.url());
+    if (url.pathname === "/api/order-plans" && request.method() === "GET") requests.push(url.searchParams);
+  });
+  return requests;
+}
+
+for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900 }]) {
+  test.describe(`일일 운영 누적 화면 ${viewport.width}x${viewport.height}`, () => {
+    test.use({ viewport });
+
+    test("회차를 고르지 않으면 누적으로 열고, 고르면 회차 모드, 비우면 다시 누적이다", async ({ page }) => {
+      await mockOrderPlans(page);
+      await page.route("**/api/runs", (route) => route.fulfill({ json: { items: [ORDER_PLAN_RUN], total: 1 } }));
+      const listRequests = recordListRequests(page);
+      await page.goto("/order-plans");
+
+      // 누적: source_run_id 없이 부르고 URL에도 회차를 박지 않는다.
+      const scope = page.getByTestId("order-plan-list-scope");
+      await expect(scope).toHaveText("누적 · 판정 policy c2-policy.v1");
+      await expect(page.locator(".c2l-row")).toHaveCount(2);
+      expect(listRequests.length).toBeGreaterThan(0);
+      expect(listRequests.every((params) => !params.has("source_run_id"))).toBe(true);
+      expect(new URL(page.url()).searchParams.has("source_run_id")).toBe(false);
+      const runSelector = page.locator("header.topbar").getByRole("combobox", { name: "발주계획 수집 회차" });
+      await expect(runSelector).toContainText("누적 · 회차 선택 안 함");
+
+      // 기본 보기 = 추적을 정하지 않은 관련 건. 조합 문장과 행의 판정 표식을 함께 밝힌다.
+      await expect(page.locator(".c2l-list-scope").filter({ hasText: "기본 보기" }))
+        .toHaveText("기본 보기 · 추적을 정하지 않은 관련 건 (모델 판단 관련·불확실 AND 추적 미선택)");
+      await expect(presetTab(page, "검토 대상")).toHaveAttribute("aria-pressed", "true");
+      // 첫 관측은 한국 날짜다(2026-09-01T01:00Z → 2026-09-01).
+      await expect(page.locator(".c2l-row").first().locator(".c2l-row-verdict")).toHaveText("판정 policy c2-policy.v1 · 첫 관측 2026-09-01");
+      expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(0);
+
+      // 회차를 고르면 그 회차의 실행으로 좁힌다(감사용). 회차 모드의 범위를 말한다.
+      await runSelector.click();
+      await page.getByRole("option", { name: /2026-08-31~2026-08-31 수집/ }).click();
+      await expect.poll(() => new URL(page.url()).searchParams.get("source_run_id")).toBe(TEST_ORDER_PLAN_SOURCE_RUN_ID);
+      await expect(scope).toHaveText("회차 · 실행 a2f4d7c1 · 부분 성공 · 판정 policy c2-policy.v1");
+      expect(listRequests.at(-1)?.get("source_run_id")).toBe(TEST_ORDER_PLAN_SOURCE_RUN_ID);
+
+      // 비우면 누적 기본 보기로 돌아간다. 이미 읽은 누적 목록은 캐시에서 다시 쓸 수 있으므로
+      // 새 요청이 없을 수도 있다 — 있다면 회차 없이 나가야 한다.
+      const requestsBeforeClear = listRequests.length;
+      await runSelector.click();
+      await page.getByRole("option", { name: /누적 · 회차 선택 안 함/ }).click();
+      await expect.poll(() => new URL(page.url()).searchParams.has("source_run_id")).toBe(false);
+      await expect(scope).toHaveText("누적 · 판정 policy c2-policy.v1");
+      await expect(page.locator(".c2l-row")).toHaveCount(2);
+      expect(listRequests.slice(requestsBeforeClear).every((params) => !params.has("source_run_id"))).toBe(true);
+    });
+
+    test("active policy가 있는데 자동 실행이 꺼져 있으면 사유와 활성화 화면 링크를 보인다", async ({ page }) => {
+      await mockOrderPlans(page);
+      await mockDailyTrigger(page, dailyTriggerState({
+        policy_version: "c2-policy.v3",
+        policy_sha256: "c".repeat(64),
+        switch: null,
+        reasons: ["env_cap_off", "switch_bound_to_other_version", "quality_gate_not_passed", "execution_transport_not_allowed", "policy_file_missing", "future_reason"],
+      }));
+      await page.goto("/order-plans");
+      await expect(page.locator(".c2l-row")).toHaveCount(2);
+
+      const banner = page.getByRole("alert").filter({ hasText: "발주계획 자동 실행 꺼짐" });
+      await expect(banner).toBeVisible();
+      await expect(banner).toContainText("policy c2-policy.v3");
+      const reasons = banner.getByRole("list", { name: "자동 실행이 꺼진 사유" }).getByRole("listitem");
+      await expect(reasons).toHaveText([
+        "운영자가 환경 설정을 켜야 합니다.",
+        "policy를 교체하면 자동 실행이 멈춥니다. 새 버전에서 다시 켜야 합니다.",
+        "현재 policy의 품질 게이트가 통과 상태가 아닙니다.",
+        "모델 전송이 허용되지 않았습니다(환경 설정 또는 모델 연결의 전송 승인).",
+        "digest가 일치하는 policy·모델 연결 파일이 컨테이너에 없습니다.",
+        // 모르는 code는 바꾸거나 숨기지 않고 그대로 보인다.
+        "future_reason",
+      ]);
+      await expect(banner.getByRole("link", { name: "활성화 화면에서 확인 →" })).toHaveAttribute("href", "/order-plan-policies");
+      // 배너는 작업 영역 위에 있다.
+      const bannerBottom = await banner.evaluate((element) => element.getBoundingClientRect().bottom);
+      const workspaceTop = await page.locator(".c2l-workspace").evaluate((element) => element.getBoundingClientRect().top);
+      expect(bannerBottom).toBeLessThanOrEqual(workspaceTop);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(0);
+    });
+  });
+}
+
+test("자동 실행 배너는 active policy가 없거나 자동 실행이 켜져 있으면 두지 않는다", async ({ page }) => {
+  // 공용 mock 기본값: active policy 없음(no_active_policy). 활성화 전에는 꺼져 있는 것이 정상이다.
+  await mockOrderPlans(page);
+  const triggerRequests: string[] = [];
+  page.on("request", (request) => { if (request.url().includes("/api/order-plan-screening/daily-trigger")) triggerRequests.push(request.method()); });
+  await page.goto("/order-plans");
+  await expect(page.locator(".c2l-row")).toHaveCount(2);
+  await expect.poll(() => triggerRequests).toEqual(["GET"]);
+  await expect(page.getByText("발주계획 자동 실행 꺼짐", { exact: false })).toHaveCount(0);
+
+  await mockDailyTrigger(page, dailyTriggerState({
+    effective_enabled: true,
+    policy_version: "c2-policy.v3",
+    policy_sha256: "c".repeat(64),
+    switch: { enabled: true, reason: null, set_by: "운영 담당", set_at: "2026-09-18T00:00:00Z" },
+    reasons: [],
+  }));
+  await page.reload();
+  await expect(page.locator(".c2l-row")).toHaveCount(2);
+  await expect.poll(() => triggerRequests.length).toBe(2);
+  await expect(page.getByText("발주계획 자동 실행 꺼짐", { exact: false })).toHaveCount(0);
+});
+
+test("누적 기본 보기는 추적을 이미 정한 건을 숨기고, 결과 없는 행은 판정 없음이며 사람 판단 수정을 막는다", async ({ page }) => {
+  const decided = testOrderPlanItem(103, "relevant", "이미 계속 추적 중인 관련 사업");
+  decided.tracking.tracking_status = "계속 추적";
+  const items = [
+    testOrderPlanItem(101, "relevant", "누적 관련 사업"),
+    decided,
+    testOrderPlanItem(104, null, "판정 결과가 없는 사업"),
+  ];
+  const trace = await mockReorderedOrderPlanList(page, items);
+  await page.goto("/order-plans");
+
+  // 기본 보기: 관련·불확실 AND 추적 미선택 → 101만 남는다.
+  await expect(page.locator(".c2l-row")).toHaveCount(1);
+  await expect(page.locator(".c2l-row")).toContainText("누적 관련 사업");
+  await expect(presetTab(page, "검토 대상")).toContainText("1");
+
+  await clickPreset(page, "전체");
+  await expect(page.locator(".c2l-row")).toHaveCount(3);
+  const noResult = page.locator(".c2l-row").filter({ hasText: "판정 결과가 없는 사업" });
+  await expect(noResult.locator(".c2l-row-verdict")).toHaveText("판정 없음 · 첫 관측 2026-09-01");
+
+  await noResult.click();
+  await page.getByRole("button", { name: "사람 판단 수정 열기" }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toContainText("이 발주계획에는 판정 결과가 없어 모델 판단에 대한 수정본을 저장할 수 없습니다.");
+  await expect(dialog.getByRole("button", { name: "새 수정본 저장", exact: true })).toBeDisabled();
+  await expect(dialog.getByLabel("memo")).toBeDisabled();
+  await expect(dialog.getByLabel("사람 판단 담당자 이름")).toBeDisabled();
+  expect(trace.feedbackPosts).toHaveLength(0);
+});
+
+test("사람 판단 수정은 화면의 최신 실행이 아니라 그 행의 execution_id로 저장하고 수정본 번호도 그 실행에서 센다", async ({ page }) => {
+  // 101의 결과는 앞선 실행(083101)이 냈다. 공용 mock의 수정본 이력에는 최신 실행(010101)에
+  // 붙은 revision 1이 있지만, 이 실행에는 수정본이 없으므로 expected_revision은 0이다.
+  const olderRow = testOrderPlanItem(101, "relevant", "앞선 실행이 판정한 사업");
+  olderRow.execution_id = TEST_OLDER_EXECUTION_ID;
+  const trace = await mockReorderedOrderPlanList(page, [olderRow]);
+  await page.goto("/order-plans");
+  await expect(page.locator(".c2l-row")).toHaveCount(1);
+  await page.locator(".c2l-row").first().click();
+
+  // 실행 기록 탭도 이 행의 실행을 보인다.
+  await page.getByRole("button", { name: "선별 신호와 실행 기록 열기" }).click();
+  await page.getByRole("tab", { name: "실행 기록" }).click();
+  await expect(page.locator("#c2l-panel-telemetry")).toContainText(TEST_OLDER_EXECUTION_ID);
+  await page.keyboard.press("Escape");
+
+  await page.getByRole("button", { name: "사람 판단 수정 열기" }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toContainText("수정본을 붙일 판정 · 실행 a2f4d7c1 · policy c2-policy.v1");
+  await dialog.getByRole("radiogroup", { name: "사람 relevance 판단" }).getByRole("radio", { name: "not_relevant" }).click();
+  await dialog.getByLabel("사람 판단 담당자 이름").fill("누적 검토자");
+  await dialog.getByRole("button", { name: "새 수정본 저장", exact: true }).click();
+  await expect(page.getByText("사람 피드백 수정본을 저장했습니다. 추적 상태는 바뀌지 않았습니다.")).toBeVisible();
+
+  expect(trace.feedbackPosts).toHaveLength(1);
+  expect(trace.feedbackPosts[0].body).toMatchObject({
+    execution_id: TEST_OLDER_EXECUTION_ID,
+    relevance: "not_relevant",
+    expected_revision: 0,
+  });
 });

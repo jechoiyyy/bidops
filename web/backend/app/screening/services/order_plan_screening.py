@@ -30,6 +30,7 @@ from ..models import (
     OrderPlanScreeningExecution,
     OrderPlanScreeningFeedback,
     OrderPlanScreeningPolicy,
+    OrderPlanScreeningQualityGate,
     OrderPlanScreeningResult,
 )
 from ...core.api_errors import BundleServiceError, validate_actor
@@ -60,6 +61,9 @@ STOP_OPERATION = "c2_execution_stop"
 FEEDBACK_OPERATION = "c2_feedback_create"
 TERMINAL_STATUSES = {"성공", "부분 성공", "실패", "중단됨"}
 ACTIVE_STATUSES = {"실행 중", "중지 요청"}
+# `X-BidOps-Trigger` 값(contracts "실행 트리거 헤더와 게이트"). 헤더 없음(None)은 사람의 수동 운영 실행이다.
+EXECUTION_TRIGGERS = frozenset({"daily_script", "manual_resume", "gate_measurement"})
+DAILY_TRIGGERS = frozenset({"daily_script", "manual_resume"})
 
 
 class OrderPlanScreeningError(RuntimeError):
@@ -138,6 +142,20 @@ def _safe_copy(source: Path, target: Path) -> bytes:
         raise OrderPlanScreeningError("immutable_conflict", "C-2 execution artifact가 이미 존재합니다", status_code=409) from None
     except OSError:
         raise OrderPlanScreeningError("binding_mismatch", "C-2 승인 binding을 읽을 수 없습니다", status_code=409) from None
+    return data
+
+
+def _read_pinned(path: Path, expected_sha256: str, request_id: UUID) -> bytes:
+    """Read a mounted approved file and re-check its bytes digest."""
+
+    try:
+        if path.is_symlink() or not path.is_file():
+            raise OSError("not a regular file")
+        data = path.read_bytes()
+    except OSError:
+        raise OrderPlanScreeningError("binding_mismatch", "C-2 승인 binding을 읽을 수 없습니다", request_id=request_id) from None
+    if _sha256_bytes(data) != expected_sha256:
+        raise OrderPlanScreeningError("binding_mismatch", "C-2 policy·binding 파일이 digest와 일치하지 않습니다", request_id=request_id)
     return data
 
 
@@ -247,28 +265,48 @@ class OrderPlanScreeningService:
             raise OrderPlanScreeningError("idempotency_conflict", "idempotency 응답을 재생할 수 없습니다", request_id=request_id)
         return dict(row.response_snapshot)
 
-    def _policy_binding(self, session: Session, policy_version: str, request_id: UUID) -> tuple[OrderPlanScreeningPolicy, dict[str, Any], dict[str, Any], bytes, bytes]:
+    def _policy_binding(
+        self,
+        session: Session,
+        policy_version: str,
+        request_id: UUID,
+        *,
+        purpose: str = "operational",
+    ) -> tuple[OrderPlanScreeningPolicy, dict[str, Any], dict[str, Any], bytes, bytes]:
+        """Gate on the DB row and pin the mounted policy·binding bytes (ADR-0060).
+
+        The row is the only activation authority.  The policy file's
+        ``policy_status`` is a publish-time snapshot, so only its enum validity
+        is checked (by the artifact model) and it must agree with the binding's
+        copy.  A measurement-only execution accepts an ``activation_candidate``
+        row without a passed gate; every other check is the same.
+        """
+
+        from .order_plan_policy import binding_consistent, execution_transport_allowed, mounted_files
+
         policy = session.scalar(
             select(OrderPlanScreeningPolicy).where(OrderPlanScreeningPolicy.policy_version == policy_version).with_for_update()
         )
         if policy is None:
             raise OrderPlanScreeningError("policy_not_active", "C-2 policy가 활성 상태가 아닙니다", request_id=request_id)
-        if policy.policy_status != "active" or policy.quality_gate_status != "passed":
+        if purpose == "gate_measurement":
+            allowed = policy.policy_status in {"activation_candidate", "active"}
+        else:
+            allowed = policy.policy_status == "active" and policy.quality_gate_status == "passed"
+        if not allowed:
             raise OrderPlanScreeningError("policy_not_active", "C-2 policy가 활성 상태가 아닙니다", request_id=request_id)
         try:
             policy_model = OrderPlanScreeningPolicyArtifact.model_validate(policy.policy_payload_jsonb)
         except ValidationError:
             raise OrderPlanScreeningError("binding_mismatch", "C-2 policy binding이 유효하지 않습니다", request_id=request_id) from None
-        if policy_model.policy_version != policy_version or policy_model.policy_status != "active":
+        if policy_model.policy_version != policy_version:
             raise OrderPlanScreeningError("binding_mismatch", "C-2 policy binding이 유효하지 않습니다", request_id=request_id)
-        policy_path = Path(self.settings.c2_policy_path or "")
-        policy_bytes = _canonical(policy.policy_payload_jsonb)
-        if policy_path.is_file() and not policy_path.is_symlink():
-            candidate = policy_path.read_bytes()
-            if _sha256_bytes(candidate) == policy.policy_sha256:
-                policy_bytes = candidate
-        if _sha256_bytes(policy_bytes) != policy.policy_sha256:
-            raise OrderPlanScreeningError("binding_mismatch", "C-2 policy digest가 일치하지 않습니다", request_id=request_id)
+        # Digests are over the mounted file bytes, never a canonical re-dump.
+        # Without both regular files at the configured paths there is nothing
+        # approved to freeze into the execution directory.
+        if mounted_files(self.settings, policy).missing is not None:
+            raise OrderPlanScreeningError("binding_mismatch", "C-2 policy·binding 파일이 digest와 일치하지 않습니다", request_id=request_id)
+        policy_bytes = _read_pinned(Path(self.settings.c2_policy_path or ""), policy.policy_sha256, request_id)
         binding = policy.binding_payload_jsonb
         if not isinstance(binding, Mapping) or binding.get("schema_version") != "bidops.order-plan-screening-phase0-binding.v1":
             raise OrderPlanScreeningError("binding_mismatch", "C-2 phase0 binding이 유효하지 않습니다", request_id=request_id)
@@ -276,19 +314,49 @@ class OrderPlanScreeningService:
         stage2 = binding.get("stage2_binding")
         if not isinstance(stage1, Mapping) or not isinstance(stage2, Mapping):
             raise OrderPlanScreeningError("binding_mismatch", "C-2 stage binding이 유효하지 않습니다", request_id=request_id)
-        binding_path = Path(self.settings.c2_binding_path or "")
-        binding_bytes = _canonical(binding)
-        if binding_path.is_file() and not binding_path.is_symlink():
-            candidate = binding_path.read_bytes()
-            if _sha256_bytes(candidate) == policy.binding_sha256:
-                binding_bytes = candidate
-        if _sha256_bytes(binding_bytes) != policy.binding_sha256:
-            raise OrderPlanScreeningError("binding_mismatch", "C-2 binding digest가 일치하지 않습니다", request_id=request_id)
-        if binding.get("policy", {}).get("policy_version") != policy_version:
+        binding_bytes = _read_pinned(Path(self.settings.c2_binding_path or ""), policy.binding_sha256, request_id)
+        # binding_consistent also rejects status=blocked with execution_allowed=true.
+        policy_reference = binding.get("policy")
+        if (
+            not binding_consistent(policy)
+            or not isinstance(policy_reference, Mapping)
+            or policy_reference.get("policy_status") != policy_model.policy_status
+        ):
             raise OrderPlanScreeningError("binding_mismatch", "C-2 policy와 binding이 다릅니다", request_id=request_id)
-        if not self.settings.c2_execution_allowed or binding.get("external_transport", {}).get("execution_allowed") is not True:
+        if not execution_transport_allowed(self.settings, policy):
             raise OrderPlanScreeningError("service_unavailable", "승인된 private vLLM transport를 사용할 수 없습니다", status_code=503, request_id=request_id)
         return policy, dict(stage1), dict(stage2), policy_bytes, binding_bytes
+
+    @staticmethod
+    def _require_measurement_run(session: Session, policy_version: str, source_run_id: str, request_id: UUID) -> None:
+        """A measurement-only execution may only run a gate's frozen measurement run."""
+
+        gates = session.scalars(
+            select(OrderPlanScreeningQualityGate.measurement_run_ids_json).where(
+                OrderPlanScreeningQualityGate.policy_version == policy_version
+            )
+        ).all()
+        if not any(isinstance(run_ids, list) and source_run_id in run_ids for run_ids in gates):
+            raise OrderPlanScreeningError(
+                "invalid_request", "게이트 측정 회차가 아닌 source run입니다", status_code=422, request_id=request_id
+            )
+
+    def _require_daily_trigger(self, session: Session, policy_version: str, request_id: UUID) -> None:
+        """Recompute the daily switch for script-originated requests (결정 21)."""
+
+        from .order_plan_daily_trigger import effective_state
+        from .order_plan_policy import C2PolicyError
+
+        state = effective_state(session, self.settings)
+        if not state.effective_enabled:
+            raise C2PolicyError(
+                "daily_trigger_off",
+                "C-2 일일 자동 실행이 꺼져 있습니다",
+                request_id=request_id,
+                details={"reasons": list(state.reasons)},
+            )
+        if state.policy is None or state.policy.policy_version != policy_version:
+            raise OrderPlanScreeningError("policy_not_active", "C-2 policy가 활성 상태가 아닙니다", request_id=request_id)
 
     def _approved_inputs(self, stage2: Mapping[str, Any], request_id: UUID) -> tuple[tuple[Path, bytes], ...]:
         """Read the three approved stage-2 inputs and pin each to its digest.
@@ -334,16 +402,36 @@ class OrderPlanScreeningService:
             "execution_allowed": True,
         }
 
-    def create_execution(self, session: Session, payload: Any, actor: str | None, actor_format: str | None = None) -> dict[str, Any]:
+    def create_execution(
+        self,
+        session: Session,
+        payload: Any,
+        actor: str | None,
+        actor_format: str | None = None,
+        trigger: str | None = None,
+    ) -> dict[str, Any]:
         request_id = payload.request_id
         claimed_name = _safe_actor(actor, actor_format, request_id)
+        if trigger is not None and trigger not in EXECUTION_TRIGGERS:
+            raise OrderPlanScreeningError("invalid_request", "X-BidOps-Trigger 값이 올바르지 않습니다", status_code=422, request_id=request_id)
+        purpose = "gate_measurement" if trigger == "gate_measurement" else "operational"
+        # The trigger header is not part of the request hash: the same
+        # request_id and body replay the original response under any header.
         request_hash = _sha256_json(payload.model_dump(mode="json"))
         replay = self._idempotent(session, EXECUTION_OPERATION, request_id, request_hash)
         if replay is not None:
             return replay
         execution_dir: Path | None = None
         try:
-            policy, stage1, stage2, policy_bytes, binding_bytes = self._policy_binding(session, payload.policy_version, request_id)
+            # Row state, digests and transport approval (503) come first for
+            # every trigger; the daily switch is rechecked only after them.
+            policy, stage1, stage2, policy_bytes, binding_bytes = self._policy_binding(
+                session, payload.policy_version, request_id, purpose=purpose
+            )
+            if trigger in DAILY_TRIGGERS:
+                self._require_daily_trigger(session, payload.policy_version, request_id)
+            if purpose == "gate_measurement":
+                self._require_measurement_run(session, policy.policy_version, payload.source_run_id, request_id)
             active = session.scalar(
                 select(OrderPlanScreeningExecution).where(
                     OrderPlanScreeningExecution.status.in_(ACTIVE_STATUSES)
@@ -450,6 +538,7 @@ class OrderPlanScreeningService:
                 partial_artifact=False,
                 queued_at=created_at,
                 created_at=created_at,
+                purpose=purpose,
             )
             session.add(execution)
             # The artifact row carries a real foreign key to this execution and
@@ -484,6 +573,8 @@ class OrderPlanScreeningService:
                     "policy_version": policy.policy_version,
                     "policy_sha256": policy.policy_sha256,
                     "binding_sha256": policy.binding_sha256,
+                    "trigger": trigger,
+                    "purpose": purpose,
                 },
                 request_id=str(request_id),
                 created_at=created_at,
@@ -550,6 +641,7 @@ class OrderPlanScreeningService:
             "stage2_binding_version": execution.stage2_binding_version,
             "stage2_binding_sha256": execution.stage2_binding_sha256,
             "counts": self._counts(execution),
+            "purpose": execution.purpose,
             "partial_artifact": execution.partial_artifact,
             "error_code": execution.error_code,
             "queued_at": execution.queued_at,
@@ -569,7 +661,7 @@ class OrderPlanScreeningService:
             count_statement = count_statement.where(OrderPlanScreeningExecution.status == status)
         rows = session.scalars(statement.order_by(OrderPlanScreeningExecution.queued_at, OrderPlanScreeningExecution.execution_id).limit(limit).offset(offset)).all()
         return {
-            "schema_version": "execution-list-response.v1",
+            "schema_version": "execution-list-response.v2",
             "producer": "screening-api",
             "consumer": "human-review-client",
             "items": [self.execution_view(row) for row in rows],
@@ -596,7 +688,7 @@ class OrderPlanScreeningService:
             .order_by(OrderPlanScreeningBatchAttempt.sequence, OrderPlanScreeningBatchAttempt.attempt_no)
         ).all()
         response.update({
-            "schema_version": "execution-detail-response.v1",
+            "schema_version": "execution-detail-response.v2",
             "producer": "screening-api",
             "consumer": "human-review-client",
             "artifacts": [self.artifact_view(row) for row in artifacts],
@@ -938,6 +1030,7 @@ class OrderPlanScreeningService:
         result: OrderPlanScreeningResult | None,
         feedback: OrderPlanScreeningFeedback | None,
         opportunity: Opportunity | None,
+        first_observed_at: datetime | None = None,
     ) -> dict[str, Any]:
         return {
             "order_plan_pk": plan.id,
@@ -961,7 +1054,26 @@ class OrderPlanScreeningService:
             "qwen_reason": result.qwen_reason if result is not None else None,
             "human_feedback": self._feedback_summary(feedback),
             "tracking": self._tracking_summary(opportunity),
+            "execution_id": result.execution_id if result is not None else None,
+            "policy_version": result.policy_version if result is not None else None,
+            "first_observed_at": first_observed_at,
         }
+
+    @staticmethod
+    def _cumulative_executions():
+        """누적 범위: 활성화된 적 있는 policy의 운영 목적 완료 실행 전부(현재 active 여부는 묻지 않는다)."""
+        return select(OrderPlanScreeningExecution).join(
+            OrderPlanScreeningPolicy,
+            OrderPlanScreeningPolicy.policy_version == OrderPlanScreeningExecution.policy_version,
+        ).where(
+            OrderPlanScreeningPolicy.activated_at.is_not(None),
+            OrderPlanScreeningExecution.purpose == "operational",
+            OrderPlanScreeningExecution.status.in_({"성공", "부분 성공"}),
+        )
+
+    def has_cumulative_execution(self, session: Session) -> bool:
+        statement = self._cumulative_executions().with_only_columns(OrderPlanScreeningExecution.execution_id)
+        return session.scalar(statement.limit(1)) is not None
 
     @staticmethod
     def _filter_values(value: str | None, allowed: set[str]) -> set[str] | None:
@@ -994,8 +1106,11 @@ class OrderPlanScreeningService:
             ("human_relevance", self._filter_values(human_relevance, {"relevant", "not_relevant", "uncertain", "missing"})),
             ("tracking_status", self._filter_values(tracking_status, {"미선택", "계속 추적", "보류", "종료"})),
         )
-        execution_id = self._latest_completed_execution(session, source_run_id)
-        execution = session.get(OrderPlanScreeningExecution, execution_id) if execution_id is not None else None
+        execution: OrderPlanScreeningExecution | None = None
+        if source_run_id is not None:
+            # 회차 모드(감사용): 그 회차의 최신 완료 실행 하나. policy·purpose를 묻지 않는다.
+            execution_id = self._latest_completed_execution(session, source_run_id)
+            execution = session.get(OrderPlanScreeningExecution, execution_id) if execution_id is not None else None
 
         observations = select(
             OrderPlanObservation,
@@ -1008,22 +1123,46 @@ class OrderPlanScreeningService:
             observations = observations.where(OrderPlanObservation.run_id == source_run_id)
         observation_rows = observations.subquery()
         observation = aliased(OrderPlanObservation, observation_rows)
+        first_observations = select(
+            OrderPlanObservation.order_plan_id,
+            func.min(OrderPlanObservation.observed_at).label("first_observed_at"),
+        ).group_by(OrderPlanObservation.order_plan_id).subquery()
+        # 결과는 발주계획마다 범위 안 최신 1건이다. 누적 모드는 누적 범위 실행 전부, 회차 모드는 그 실행 하나.
+        executions = (
+            self._cumulative_executions()
+            if source_run_id is None
+            else select(OrderPlanScreeningExecution).where(
+                OrderPlanScreeningExecution.execution_id == (execution.execution_id if execution is not None else None)
+            )
+        ).subquery()
+        result_rows = select(
+            OrderPlanScreeningResult,
+            func.row_number().over(
+                partition_by=OrderPlanScreeningResult.order_plan_id,
+                order_by=(executions.c.finished_at.desc(), executions.c.execution_id.desc()),
+            ).label("position"),
+        ).join(executions, executions.c.execution_id == OrderPlanScreeningResult.execution_id).subquery()
+        result = aliased(OrderPlanScreeningResult, result_rows)
+        # feedback은 두 모드 모두 발주계획마다 최신 1건이다. 실행과 무관하다.
         feedback_rows = select(
             OrderPlanScreeningFeedback,
             func.row_number().over(
                 partition_by=OrderPlanScreeningFeedback.order_plan_id,
                 order_by=(OrderPlanScreeningFeedback.created_at.desc(), OrderPlanScreeningFeedback.revision.desc()),
             ).label("position"),
-        ).where(OrderPlanScreeningFeedback.execution_id == execution_id).subquery()
+        ).subquery()
         feedback = aliased(OrderPlanScreeningFeedback, feedback_rows)
         owners = self._tracking_owners()
-        result = OrderPlanScreeningResult
-        statement = select(OrderPlan, observation, result, feedback, Opportunity).join(
+        statement = select(
+            OrderPlan, observation, result, feedback, Opportunity, first_observations.c.first_observed_at,
+        ).join(
             observation,
             and_(observation.order_plan_id == OrderPlan.id, observation_rows.c.position == 1),
+        ).join(
+            first_observations, first_observations.c.order_plan_id == OrderPlan.id,
         ).outerjoin(
             result,
-            and_(result.order_plan_id == OrderPlan.id, result.execution_id == execution_id),
+            and_(result.order_plan_id == OrderPlan.id, result_rows.c.position == 1),
         ).outerjoin(
             feedback,
             and_(feedback.order_plan_id == OrderPlan.id, feedback_rows.c.position == 1),
@@ -1060,16 +1199,45 @@ class OrderPlanScreeningService:
             ))
         total = int(session.scalar(select(func.count()).select_from(statement.subquery())) or 0)
         rows = session.execute(statement.order_by(OrderPlan.id.asc()).limit(limit).offset(offset)).all()
-        return {
-            "schema_version": "order-plan-list-response.v3",
-            "producer": "order-plan-review-api",
-            "consumer": "order-plan-review-client",
-            "scope": {
+        scope: dict[str, Any] | None
+        if source_run_id is None:
+            # 누적 범위에 실행이 실제로 있는 policy 버전만 말한다. 활성화 이력만 있고 운영 완료
+            # 실행이 0건인 policy는 빠지므로 빈 목록과 `has_cumulative_execution()`이 함께 간다.
+            # 조건은 복제하지 않고 범위 정본(`_cumulative_executions`)에서 파생시킨다.
+            versions = self._cumulative_executions().with_only_columns(
+                OrderPlanScreeningExecution.policy_version, OrderPlanScreeningPolicy.activated_at,
+            ).distinct().order_by(
+                OrderPlanScreeningPolicy.activated_at.asc(), OrderPlanScreeningExecution.policy_version.asc(),
+            )
+            scope = {
+                "mode": "cumulative",
+                "policy_versions": [row.policy_version for row in session.execute(versions)],
+                # 활성화된 적 있는 policy 전부. 화면은 이 목록으로 "어떤 실행이 이 범위의 것인지"를
+                # 가른다 — 아직 결과가 없는 대기·실행 중·실패도 범위 안이고, 한 번도 활성화되지
+                # 않은 policy의 실행(참조 실행)은 밖이다. `policy_versions`는 이것의 부분집합이다.
+                "activated_policy_versions": list(session.scalars(
+                    select(OrderPlanScreeningPolicy.policy_version).where(
+                        OrderPlanScreeningPolicy.activated_at.is_not(None),
+                    ).order_by(OrderPlanScreeningPolicy.activated_at.asc(), OrderPlanScreeningPolicy.policy_version.asc())
+                )),
+            }
+        elif execution is not None:
+            scope = {
+                "mode": "run",
                 "execution_id": execution.execution_id,
                 "source_run_id": execution.source_run_id,
                 "status": execution.status,
                 "finished_at": execution.finished_at,
-            } if execution is not None else None,
+                "policy_version": execution.policy_version,
+                "purpose": execution.purpose,
+            }
+        else:
+            scope = None
+        return {
+            "schema_version": "order-plan-list-response.v4",
+            "producer": "order-plan-review-api",
+            "consumer": "order-plan-review-client",
+            "scope": scope,
             "items": [self._order_plan_item(*row) for row in rows],
             "total": total,
             "limit": limit,

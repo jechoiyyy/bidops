@@ -134,7 +134,7 @@ def test_registration_adds_only_screening_workload_and_preserves_missing_scope(t
         session.bind.dispose()
 
 
-def test_order_plan_pending_reuses_the_latest_completed_scope_and_tracking_filters(tmp_path):
+def test_order_plan_pending_reuses_the_cumulative_scope_and_tracking_filters(tmp_path):
     settings, session, policy, _, plans = _fixture(tmp_path, count=9)
     service = OrderPlanScreeningService(settings)
     registry = register_lifecycle_extensions(ExtensionRegistry())
@@ -163,13 +163,16 @@ def test_order_plan_pending_reuses_the_latest_completed_scope_and_tracking_filte
         assert registry.workload_counts(session)["order_plan_pending"] == WorkloadCount(2)
         latest = execution(session, service, policy, status="부분 성공", minute=3)
         result(session, latest, plans[8])
+        result(session, latest, plans[0], relevance="not_relevant")
         session.commit()
-        assert registry.workload_counts(session)["order_plan_pending"] == WorkloadCount(1)
+        # 누적 범위: plans[1]은 첫 실행의 판정으로 남고, plans[0]은 최신 실행의 not_relevant로 빠지며 plans[8]이 더해진다.
+        assert registry.workload_counts(session)["order_plan_pending"] == WorkloadCount(2)
         listing = service.list_order_plans(session, stage1_status="selected", qwen_relevance="relevant,uncertain", tracking_status="미선택", limit=1)
-        assert listing["scope"]["execution_id"] == latest.execution_id
-        assert listing["total"] == 1
+        assert listing["scope"]["mode"] == "cumulative"
+        assert listing["total"] == 2
+        assert listing["items"][0]["order_plan_pk"] == plans[1].id
         execution(session, service, policy, minute=4)
-        assert registry.workload_counts(session)["order_plan_pending"] == WorkloadCount(0)
+        assert registry.workload_counts(session)["order_plan_pending"] == WorkloadCount(2)
     finally:
         session.close()
         session.bind.dispose()

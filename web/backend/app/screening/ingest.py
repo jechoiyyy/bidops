@@ -1088,21 +1088,6 @@ def _c2_reference_file(
     raise OrderPlanScreeningContractError("C-2 binding reference is absent")
 
 
-def _c2_timestamp(value: Any, label: str) -> datetime:
-    if isinstance(value, datetime):
-        parsed = value
-    elif isinstance(value, str):
-        try:
-            parsed = datetime.fromisoformat(value[:-1] + "+00:00" if value.endswith("Z") else value)
-        except ValueError as exc:
-            raise OrderPlanScreeningContractError(f"{label} timestamp is invalid") from exc
-    else:
-        raise OrderPlanScreeningContractError(f"{label} timestamp is invalid")
-    if parsed.tzinfo is None or parsed.utcoffset() is None:
-        raise OrderPlanScreeningContractError(f"{label} timestamp has no timezone")
-    return parsed
-
-
 def _c2_sha256_file(path: Path) -> str:
     try:
         return hashlib.sha256(path.read_bytes()).hexdigest()
@@ -1373,9 +1358,33 @@ def _c2_policy_row(
             or activation.get("approved_at") is not None
         ):
             raise OrderPlanScreeningContractError("Ollama artifacts require an unmeasured reference policy")
-    activated_by = activation.get("approved_by")
-    activated_at = activation.get("approved_at")
-    activated_at_value = _c2_timestamp(activated_at, "policy.activation.approved_at") if activated_at is not None else None
+    existing = session.scalar(
+        select(OrderPlanScreeningPolicy).where(
+            OrderPlanScreeningPolicy.policy_version == policy_model.policy_version
+        )
+    )
+    if existing is not None:
+        # ADR-0060: the DB row is the activation authority.  A row made by the
+        # load CLI or moved by the activation API is reused as-is when both
+        # digests match; its state columns are never judged against the file.
+        if existing.policy_sha256 != policy_digest or existing.binding_sha256 != binding_digest:
+            raise OrderPlanScreeningConflictError(
+                f"C-2 immutable conflict: policy={policy_model.policy_version}"
+            )
+        return existing, binding_digest
+    # The file's state fields are a publication snapshot.  A reference import
+    # may only create an inactive row; activation goes through the load CLI and
+    # the activation API with its quality gate.
+    if policy_model.policy_status not in ("draft", "activation_candidate"):
+        raise OrderPlanScreeningContractError(
+            "C-2 reference import accepts only draft or activation_candidate policies; "
+            "activation is only through the load CLI and the activation API"
+        )
+    if quality_gate.get("status") == "passed":
+        raise OrderPlanScreeningContractError(
+            "C-2 reference import cannot record a passed quality gate; "
+            "activation is only through the load CLI and the activation API"
+        )
     values = {
         "policy_version": policy_model.policy_version,
         "schema_version": policy_model.schema_version,
@@ -1387,21 +1396,18 @@ def _c2_policy_row(
         "binding_payload_jsonb": binding_raw,
         "policy_sha256": policy_digest,
         "binding_sha256": binding_digest,
-        "activation_metadata_jsonb": activation,
-        "quality_gate_status": quality_gate.get("status"),
-        "active_slot": 1 if policy_model.policy_status == "active" else None,
+        # The file's ``activation`` block stays in the payload snapshot;
+        # activation provenance lives in ``activated_by/at``.
+        "activation_metadata_jsonb": {},
+        "quality_gate_status": "not_measured",
+        "active_slot": None,
         "created_by": policy_model.producer,
         "created_at": policy_model.created_at,
-        "activated_by": activated_by,
-        "activated_at": activated_at_value,
+        "activated_by": None,
+        "activated_at": None,
     }
-    existing = session.scalar(
-        select(OrderPlanScreeningPolicy).where(
-            OrderPlanScreeningPolicy.policy_version == policy_model.policy_version
-        )
-    )
     row = _c2_compare_or_add(
-        session, existing, values, label="policy", identity=policy_model.policy_version,
+        session, None, values, label="policy", identity=policy_model.policy_version,
         model=OrderPlanScreeningPolicy,
     )
     return row, binding_digest

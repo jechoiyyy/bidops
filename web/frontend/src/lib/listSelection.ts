@@ -485,6 +485,7 @@ export function orderPlansFilterFingerprint(filters: {
   qwen: AppliedFilterTokens;
   stage1: AppliedFilterTokens;
   feedback: AppliedFilterTokens;
+  tracking: AppliedFilterTokens;
   issue: boolean;
   q: string;
 }): string {
@@ -493,6 +494,7 @@ export function orderPlansFilterFingerprint(filters: {
     qwen: canonicalFilterTokens(filters.qwen),
     stage1: canonicalFilterTokens(filters.stage1),
     feedback: canonicalFilterTokens(filters.feedback),
+    tracking: canonicalFilterTokens(filters.tracking),
     issue: filters.issue,
     q: filters.q,
   };
