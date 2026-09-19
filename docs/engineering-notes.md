@@ -6,6 +6,20 @@
 - 원인: `app/core/db.py`의 `ALEMBIC_HEAD` 동기화가 빠졌고, 선택한 ledger 검사는 runtime 기동 게이트를 거치지 않았다.
 - 대응: 새 migration과 기대 revision을 함께 맞춘다. 기존 `test_alembic_reports_exactly_one_head`와 `test_migrated_database_is_at_head_before_lifespan`을 임시 PostgreSQL로 선택 실행하고 배포 이미지의 실제 health를 확인한다. DB downgrade나 startup 게이트 완화로 우회하지 않는다.
 
+## 가짜 서버가 실제 API 계약과 다르면 스크립트 테스트가 결함을 굳힌다
+
+- 증상: 일일 발주계획 트랙이 매일 C-2에서 409 `source_run_incomplete`으로 죽는데, 그 스크립트의
+  테스트는 전부 통과하고 있었다(2026-09-19, B-1).
+- 원인: 테스트의 가짜 web이 회차 행을 **디렉터리 이름**으로 등록했다. 실제 적재기의 기본키는
+  `<디렉터리>--<generated_at>Z`이고, 디렉터리 이름을 풀어 주는 API는 `GET /api/runs/{id}` 하나뿐이다.
+  가짜가 틀린 모양을 쓰니 스크립트의 틀린 id도 통과했다 — 테스트가 결함을 재현하는 대신 굳혔다.
+- 대응: 가짜 서버는 **식별자의 모양과 조회 규칙까지** 제품 계약을 따른다. 기본키를 만드는 곳
+  (여기서는 `app/core/run_id.py`·`loader.py`)과 그 키를 받는 곳(라우터·서비스)을 읽고, alias를 푸는
+  endpoint와 기본키만 받는 endpoint를 가짜에서도 다르게 답하게 한다. 고치기 전에 **수정 전 스크립트가
+  그 가짜에서 실패하는 것**을 먼저 확인한다(확인하지 않으면 새 가짜도 틀렸는지 알 수 없다).
+- 같이 보는 것: 한 화면·한 REST에서 되던 식별자 표기가 다른 REST에서 안 되는 비대칭은 문서에
+  적어 둔다(`docs/operations.md` "중단 기준").
+
 ## C-2 순위와 수집 순서를 같은 것으로 비교하면 실제 모집단 적재가 실패한다
 
 - ranking은 BM25 순위, input/result는 수집 원본 순서다. 전체 ID 집합을 비교하고
