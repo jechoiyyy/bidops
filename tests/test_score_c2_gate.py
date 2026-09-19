@@ -132,9 +132,18 @@ class ScoreC2GateTestCase(unittest.TestCase):
         self.addCleanup(self._tmp.cleanup)
         self.gold = self.write_gold(GOLD_ROWS)
 
-    def write_gold(self, rows: list[tuple[str, str, str, str, str]]) -> Path:
-        path = self.tmp / "gold.tsv"
+    def write_gold(
+        self, rows: list[tuple[str, str, str, str, str]], *, name: str = "gold"
+    ) -> Path:
+        """gold TSV와 그 옆의 manifest.json을 함께 쓴다(채점 입력 digest가 둘 다 읽는다)."""
+        directory = self.tmp / name
+        directory.mkdir(exist_ok=True)
+        path = directory / "gold-adjudicated-full-population.tsv"
         path.write_text(GOLD_HEADER + "".join("\t".join(row) + "\n" for row in rows), encoding="utf-8")
+        (directory / "manifest.json").write_text(
+            json.dumps({"status": "partially_human_adjudicated", "population_count": len(rows)}),
+            encoding="utf-8",
+        )
         return path
 
     def write_results(self, executions: list[dict[str, object]], name: str = "results.json") -> Path:
@@ -153,7 +162,7 @@ class ScoreC2GateTestCase(unittest.TestCase):
 
     def run_tool(self, argv: list[str]) -> tuple[int, dict[str, object] | None]:
         out = self.tmp / "artifact.json"
-        code = self.quiet_main(argv + ["--out", str(out)])
+        code = self.quiet_main(["score", *argv, "--out", str(out)])
         artifact = json.loads(out.read_text(encoding="utf-8")) if out.is_file() else None
         return code, artifact
 
@@ -215,7 +224,8 @@ class ScoreC2GateTestCase(unittest.TestCase):
             [
                 ("P1", "2026-08-27T09:00:00+09:00", "비관련", "해당없음", "human"),
                 ("P2", "2026-08-27T10:00:00+09:00", "비관련", "해당없음", "human"),
-            ]
+            ],
+            name="gold-negative-only",
         )
         day = execution(EXEC_1, "gate-gold-20260827-plans", [filtered_out("P1"), filtered_out("P2")])
         results = self.write_results([day])
@@ -384,6 +394,7 @@ class ScoreC2GateTestCase(unittest.TestCase):
         gate_id = "c2gate-" + "0" * 32
         code = self.quiet_main(
             [
+                "score",
                 "--gold", str(self.gold),
                 "--results-json", str(results),
                 "--pass1", EXEC_1, EXEC_2,
@@ -412,6 +423,7 @@ class ScoreC2GateTestCase(unittest.TestCase):
         dump = self.tmp / "dump.json"
         code = self.quiet_main(
             [
+                "score",
                 "--gold", str(self.gold),
                 "--results-json", str(results),
                 "--pass1", EXEC_1, EXEC_2,
@@ -422,7 +434,7 @@ class ScoreC2GateTestCase(unittest.TestCase):
         self.assertEqual(code, 0)
         second = self.tmp / "artifact2.json"
         code = self.quiet_main(
-            ["--gold", str(self.gold), "--results-json", str(dump), "--pass1", EXEC_1, EXEC_2, "--out", str(second)]
+            ["score", "--gold", str(self.gold), "--results-json", str(dump), "--pass1", EXEC_1, EXEC_2, "--out", str(second)]
         )
         self.assertEqual(code, 0)
         first_metrics = json.loads((self.tmp / "artifact.json").read_text(encoding="utf-8"))
@@ -436,7 +448,7 @@ class ScoreC2GateTestCase(unittest.TestCase):
         out = self.tmp / "cli-artifact.json"
         completed = subprocess.run(
             [
-                sys.executable, str(SCRIPT),
+                sys.executable, str(SCRIPT), "score",
                 "--gold", str(self.gold),
                 "--results-json", str(results),
                 "--pass1", EXEC_1, EXEC_2,
@@ -451,6 +463,98 @@ class ScoreC2GateTestCase(unittest.TestCase):
         self.assertIn("evaluations", completed.stdout)
         self.assertIn("warning: pass_2_missing", completed.stderr)
         self.assertTrue(out.is_file())
+
+    # -- 채점 입력 digest ---------------------------------------------------
+
+    def test_scoring_input_digest_is_deterministic_and_order_independent(self) -> None:
+        tool_sha = score.sha256_file(SCRIPT)
+        gold = score.load_gold(self.gold, None)
+        forward = score.build_scoring_input(
+            gold, ["gate-gold-20260828-plans", "gate-gold-20260827-plans"], tool_sha
+        )
+        backward = score.build_scoring_input(
+            gold, ["gate-gold-20260827-plans", "gate-gold-20260828-plans"], tool_sha
+        )
+        # 회차 id는 정렬해서 담으므로 주는 순서가 digest를 바꾸지 않는다.
+        self.assertEqual(forward, backward)
+        self.assertEqual(
+            forward["measurement_run_ids"],
+            ["gate-gold-20260827-plans", "gate-gold-20260828-plans"],
+        )
+        self.assertEqual(forward["schema_version"], score.SCORING_INPUT_SCHEMA_VERSION)
+        self.assertEqual(forward["candidate_rule"], score.CANDIDATE_RULE)
+        self.assertEqual(forward["important_rule"], score.IMPORTANT_RULE)
+        self.assertEqual(forward["gold_artifact_sha256"], score.sha256_file(self.gold))
+
+        # digest는 canonical 규칙(정렬 키·최소 구분자·끝 개행 없음)으로 고정된다.
+        payload = score.canonical_digest_bytes(forward)
+        self.assertFalse(payload.endswith(b"\n"))
+        self.assertEqual(
+            score.scoring_input_digest(forward), hashlib.sha256(payload).hexdigest()
+        )
+        # gold가 한 줄이라도 바뀌면 digest가 달라진다.
+        other = score.load_gold(self.write_gold(GOLD_ROWS[:-1], name="gold-short"), None)
+        self.assertNotEqual(
+            score.scoring_input_digest(forward),
+            score.scoring_input_digest(
+                score.build_scoring_input(other, ["gate-gold-20260827-plans"], tool_sha)
+            ),
+        )
+
+    def test_scoring_input_command_prints_gate_fields(self) -> None:
+        out = self.tmp / "scoring-input.json"
+        buffer = io.StringIO()
+        with contextlib.redirect_stdout(buffer), contextlib.redirect_stderr(io.StringIO()):
+            code = score.main(
+                [
+                    "scoring-input",
+                    "--gold", str(self.gold),
+                    "--run-id", "gate-gold-20260828-plans",
+                    "--run-id", "gate-gold-20260827-plans",
+                    "--out", str(out),
+                ]
+            )
+        self.assertEqual(code, 0)
+        written = json.loads(out.read_text(encoding="utf-8"))
+        digest = score.scoring_input_digest(written)
+        printed = buffer.getvalue()
+        self.assertIn(digest, printed)
+        self.assertIn("gold_status", printed)
+        self.assertIn("partially_human_adjudicated", printed)
+        # 임계값과 policy digest는 도구가 채우지 않는다.
+        self.assertNotIn("threshold_", printed)
+        self.assertNotIn("policy_sha256", printed)
+
+    def test_expect_scoring_input_sha256_mismatch_is_an_error(self) -> None:
+        results = self.write_results([PASS1_DAY1, PASS1_DAY2])
+        expected = score.scoring_input_digest(
+            score.build_scoring_input(
+                score.load_gold(self.gold, None),
+                ["gate-gold-20260827-plans", "gate-gold-20260828-plans"],
+                score.sha256_file(SCRIPT),
+            )
+        )
+        code, artifact = self.run_tool(
+            [
+                "--gold", str(self.gold),
+                "--results-json", str(results),
+                "--pass1", EXEC_1, EXEC_2,
+                "--expect-scoring-input-sha256", expected,
+            ]
+        )
+        self.assertEqual(code, 0)
+        assert artifact is not None
+        self.assertEqual(artifact["scoring_input_sha256"], expected)
+
+        code, _ = self.run_tool(
+            [
+                "--gold", str(self.gold),
+                "--results-json", str(results),
+                "--pass1", EXEC_1, EXEC_2,
+                "--expect-scoring-input-sha256", "f" * 64,
+            ]
+        )
+        self.assertEqual(code, 2)
 
     def test_missing_results_without_api_is_an_error(self) -> None:
         results = self.write_results([PASS1_DAY1])
