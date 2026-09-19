@@ -1,0 +1,269 @@
+{
+  "schema_version": "bidops.order-plan-screening-policy.v1",
+  "producer": "phase0-contracts",
+  "consumer": "phase1-screening-pipeline",
+  "policy_version": "c2-order-plan-screening-v4",
+  "policy_status": "draft",
+  "decision_scope": "c2_order_plan_first_pass",
+  "created_at": "2026-09-19T08:05:23+00:00",
+  "stage1": {
+    "method": "bm25",
+    "config": {
+      "path": "experiments/order-plan-screening/config/bm25.json",
+      "schema_version": "bidops.order-plan-bm25.v1",
+      "sha256": "e026b2bdd2f99ddc09ae17bc83b1cd9cc40ef413f3b72372a35db32918d696da",
+      "method_version": "bm25-char-title-capability-v1",
+      "normalization": {
+        "unicode": "NFKC",
+        "case": "casefold",
+        "whitespace": "collapse_runs_and_trim",
+        "fields": [
+          "title"
+        ]
+      },
+      "tokenization": {
+        "type": "character_ngram",
+        "min_n": 2,
+        "max_n": 5,
+        "boundary": "within_field"
+      },
+      "scoring": {
+        "k1": 1.2,
+        "b": 0.75,
+        "query_term_frequency": "binary",
+        "capability_aggregation": "max_bm25",
+        "idf_corpus": "full_population_titles"
+      },
+      "tie_break": [
+        "score_desc",
+        "order_plan_unty_no_asc"
+      ]
+    },
+    "top_k": 300,
+    "population": {
+      "source_schema_version": "bidops.collected-order-plans.v1",
+      "business_divisions": [
+        "기술용역",
+        "일반용역"
+      ],
+      "complete_required": true,
+      "empty_population": "reject",
+      "at_or_below_top_k": {
+        "action": "select_all",
+        "audit_sample": "not_applicable"
+      },
+      "above_top_k": {
+        "action": "select_exact_top_k"
+      }
+    }
+  },
+  "stage2": {
+    "provider": "approved_private_vllm",
+    "model_name": "qwen3.8-27B",
+    "model_digest": "5fa804ff0ecc0de9167f8b63127c42e1d421a9451662922ace8622d0b01b824e",
+    "generation_config": {
+      "version": "vllm-qwen-order-plan-batch-nonthinking-v5",
+      "sha256": "82ced6035d95313f889cd32cc3b5b414b98334f5f090745f0cedb0564804a405"
+    },
+    "prompt": {
+      "version": "order-plan-batch-relevance-v3",
+      "sha256": "639f7332e1120a41b2e8d8306126f121ae1ed37068a81b1687aff9ce66ab9d12"
+    },
+    "company_profile": {
+      "version": "rootlab-company-profile-2026-08-96731dd5f77d",
+      "sha256": "8f60dfece1934bdf857cd7e57d0fdd1860d01871131d98c3f2e8f9d71f271eae",
+      "allowed_fields": [
+        "profile_version",
+        "capabilities"
+      ]
+    },
+    "payload": {
+      "allowed_plan_fields": [
+        "title"
+      ],
+      "allowed_company_fields": [
+        "profile_version",
+        "capabilities"
+      ],
+      "forbidden_fields": [
+        "agency_code",
+        "agency_name",
+        "attachment",
+        "budget_amount",
+        "business_division",
+        "contract_amount",
+        "credential",
+        "plan_id",
+        "raw_source",
+        "review",
+        "source_url"
+      ]
+    },
+    "batching": {
+      "mode": "fixed_rank_contiguous",
+      "size": 25,
+      "last_batch": "shorter_allowed",
+      "concurrency": 1,
+      "order": "stage1_rank_ascending"
+    },
+    "response": {
+      "format": "strict_json",
+      "required_item_cardinality": "exactly_once",
+      "labels": [
+        "relevant",
+        "not_relevant",
+        "uncertain"
+      ],
+      "review_retained_labels": [
+        "relevant",
+        "uncertain"
+      ],
+      "score": {
+        "finite": true,
+        "minimum": 0.0,
+        "maximum": 1.0
+      },
+      "reason": {
+        "min_length": 1,
+        "max_length": 500
+      }
+    },
+    "retry": {
+      "max_attempts": 2,
+      "retryable_failure_types": [
+        "timeout",
+        "truncated_output",
+        "schema_violation",
+        "id_mismatch",
+        "transport"
+      ],
+      "non_retryable_failure_types": [
+        "model_mismatch",
+        "binding_mismatch",
+        "payload_not_approved",
+        "policy_rejected"
+      ],
+      "after_exhaustion": "human_review_required"
+    }
+  },
+  "audit_sample": {
+    "status": "approved",
+    "enabled": true,
+    "population": "stage1_filtered_out",
+    "strata": [
+      "classification_proximity",
+      "performance_similarity_proximity",
+      "uniform_hash"
+    ],
+    "strata_rules": {
+      "classification_proximity": {
+        "field": "contract_method",
+        "values": [
+          "제한경쟁",
+          "일반경쟁"
+        ]
+      },
+      "performance_similarity_proximity": {
+        "rank_window": 25
+      }
+    },
+    "selection_order": "stratum_priority_then_sha256_plan_id",
+    "replacement": "none",
+    "sample_size": null,
+    "max_per_execution": 10,
+    "review_cadence": "weekly_mon_thu",
+    "allowed_review_labels": [
+      "relevant",
+      "not_relevant",
+      "uncertain"
+    ],
+    "pending_decision": null,
+    "approved_by": "jechoi",
+    "approved_at": "2026-09-19T08:05:23+00:00",
+    "decision_note": "PoC용 값이며 운영 전환 때 다시 정한다 (2026-09-19 사용자 jechoi 결정, docs/0918_daily-operation/plan.md D-c·D-d)"
+  },
+  "execution": {
+    "active_slot": 1,
+    "queue_order": "fifo",
+    "stale_recovery": "manual_new_execution",
+    "automatic_resume": false,
+    "statuses": [
+      "대기",
+      "실행 중",
+      "중지 요청",
+      "성공",
+      "부분 성공",
+      "실패",
+      "중단됨"
+    ],
+    "terminal_statuses": [
+      "성공",
+      "부분 성공",
+      "실패",
+      "중단됨"
+    ],
+    "status_rules": {
+      "성공": "모든 eligible batch가 검증을 통과하고 full-population merge와 publish가 성공함",
+      "부분 성공": "하나 이상의 batch 결과가 유효하고 하나 이상의 batch가 failed 또는 rejected임",
+      "실패": "유효한 결과를 publish하지 못했거나 preflight·BM25·merge가 실패함",
+      "중단됨": "stop 요청 또는 stale/process interruption으로 종료되며 보존된 성공 subset을 폐기하지 않음"
+    }
+  },
+  "feedback": {
+    "schema_version": "bidops.order-plan-screening-feedback.v1",
+    "relevance": [
+      "relevant",
+      "not_relevant",
+      "uncertain"
+    ],
+    "priority": [
+      "high",
+      "medium",
+      "low"
+    ],
+    "priority_unspecified": null,
+    "memo_unspecified": null,
+    "revision": "append_only_sequence_per_execution_plan",
+    "update_policy": "new_revision_only",
+    "does_not_update": [
+      "grade",
+      "readiness",
+      "tracking_status",
+      "final_go_no_go"
+    ]
+  },
+  "quality_gate": {
+    "status": "not_measured",
+    "gold_status": "queue_human_adjudicated",
+    "gold_manifest_sha256": "72d6749daa5fa0972b240970bec900a686faea88c4ee991367358e0e9058a5f5",
+    "gold_artifact_sha256": "cbdb7adf060dab8136ee391e46100a41dfa444e0b5b86f27f18a69f912f16aa9",
+    "human_adjudication_count": 109,
+    "draft_label_count": 516,
+    "remaining_confirmation_count": 0,
+    "targets": null,
+    "activation_eligible": false
+  },
+  "bindings": {
+    "bm25_config_sha256": "e026b2bdd2f99ddc09ae17bc83b1cd9cc40ef413f3b72372a35db32918d696da",
+    "prompt_sha256": "639f7332e1120a41b2e8d8306126f121ae1ed37068a81b1687aff9ce66ab9d12",
+    "company_profile_sha256": "8f60dfece1934bdf857cd7e57d0fdd1860d01871131d98c3f2e8f9d71f271eae",
+    "model_digest": "5fa804ff0ecc0de9167f8b63127c42e1d421a9451662922ace8622d0b01b824e",
+    "generation_config_sha256": "82ced6035d95313f889cd32cc3b5b414b98334f5f090745f0cedb0564804a405"
+  },
+  "activation": {
+    "status": "blocked",
+    "enabled": false,
+    "approved_by": null,
+    "approved_at": null,
+    "required_conditions": [
+      "c1_gold_human_adjudication_approved",
+      "audit_sample_size_and_cadence_approved",
+      "quality_gate_passed_with_exact_binding",
+      "per_binding_private_vllm_transport_approved"
+    ],
+    "blockers": [
+      "c1_gold_final_approval_pending",
+      "quality_gate_not_measured"
+    ]
+  }
+}

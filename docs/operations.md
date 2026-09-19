@@ -576,32 +576,42 @@ always-on 기본 비활성 원칙, `CLAUDE.md`). 트랙마다 한 줄이고 시�
    기록한다 — fail closed가 정상 동작이다.
 3. **감사 표본 값.** policy `audit_sample.max_per_execution`·`review_cadence`·`enabled`와 **층
    규칙** `audit_sample.strata_rules`([`docs/contracts.md`](contracts.md) "감사 표본 REST" 참조).
-   값이 없으면 draw는 매일 `pending_human_approval`로 끝난다. 2026-09-19 결정으로 v3에
+   값이 없으면 draw는 매일 `pending_human_approval`로 끝난다. 2026-09-19 결정으로 v4에
    들어갔다 — `enabled=true`, `max_per_execution=10`, `review_cadence="weekly_mon_thu"`,
    `strata_rules.classification_proximity={contract_method: [제한경쟁, 일반경쟁]}`,
    `strata_rules.performance_similarity_proximity={rank_window: 25}`. **PoC용 값이며 운영
    전환 때 다시 정한다.**
-4. **v3 policy·binding 발행 → 컨테이너 마운트.** 2026-09-19에 발행했다(S3b) —
-   `experiments/order-plan-screening/config/order-plan-screening-policy.v3.json`
-   (sha256 `fa6a144b3070880ef18f837f73ab691769a3a97034765da706ab2754adab99af`)·
-   `…-phase0-binding.v3.json`
-   (sha256 `2d19e7c89becbe151dd0e35eba8c8377ad302e2cc78b62b82b0a7666c551a6d9`).
-   `docker-compose.yml`의 web(`:180-181`)·analysis-worker(`:250-251`) 마운트와
-   `app/core/config.py`의 `BIDOPS_C2_POLICY_PATH`·`BIDOPS_C2_BINDING_PATH` 기본 경로
-   (`:308,310`)가 같은 변경에서 v3를 가리킨다. v2 파일 자체는 고치지 않았다 — 값은 전부 v3에만
-   들어간다. **운영 반영은 아직이다**: compose 변경을 반영한 컨테이너 재생성과 아래 적재 CLI
-   실행이 남아 있다. 그 뒤 적재 CLI로 draft 행을 만든다.
+4. **v4 policy·binding·generation config 발행 → 컨테이너 마운트.** 2026-09-19에 발행했다(S3b).
+   **`model_digest`를 바꾸면 generation config도 함께 새로 발행해야 한다** — 워커가 동결된
+   `generation-config.json`의 `model_revision`을 binding `model_digest`와 대조한다
+   (`workers/order_plan.py:383-391`). v3는 이 대조에서 걸려 실행되지 않았다
+   ([findings](tracking/findings.md)).
+
+   | 파일 | sha256 |
+   |---|---|
+   | `…/order-plan-screening-generation-config.v5.json` | `82ced6035d95313f889cd32cc3b5b414b98334f5f090745f0cedb0564804a405` |
+   | `…/order-plan-screening-policy.v4.json` | `c5abe3e3fbd3a628486e8a3ee05ce009ac488c9b9df8e83a0f0c22cd6d877461` |
+   | `…/order-plan-screening-phase0-binding.v4.json` | `682cb16dd2ac5ed622386a6cea42891633659f2d8073c3bcb6e1af419087790c` |
+
+   generation config v5는 v4에서 `model_revision`(→ `5fa804ff…`)과 `method_version`
+   (→ `vllm-qwen-order-plan-batch-nonthinking-v5`) 둘만 다르다. `docker-compose.yml`의
+   web(`:180-182`)·analysis-worker(`:250-252`) 마운트 세 줄과 `app/core/config.py`의
+   `BIDOPS_C2_POLICY_PATH`·`BIDOPS_C2_BINDING_PATH`·generation config 기본 경로(`:308-312`)가
+   같은 변경에서 v4·v5를 가리킨다. v2·v3 파일과 generation config v4는 고치지 않았다.
+   **운영 반영은 아직이다**: compose 변경을 반영한 컨테이너 재생성과 아래 적재 CLI 실행이
+   남아 있다. 운영 DB의 `c2-order-plan-screening-v3` 행은 버전+digest가 immutable이라 그대로
+   `activation_candidate`로 남으며, 필요하면 retire CLI로 내린다.
 
    ```bash
    python -m app.screening.c2_policy load \
-     --policy experiments/order-plan-screening/config/order-plan-screening-policy.v3.json \
-     --binding experiments/order-plan-screening/config/order-plan-screening-phase0-binding.v3.json \
+     --policy experiments/order-plan-screening/config/order-plan-screening-policy.v4.json \
+     --binding experiments/order-plan-screening/config/order-plan-screening-phase0-binding.v4.json \
      --created-by <담당자 이름>
    ```
 
 5. **전송 승인(D-d).** binding 튜플(policy, binding, model_digest, allowlist) 단위 승인이다.
    `BIDOPS_C2_EXECUTION_ALLOWED=true`와 host 방화벽·egress 승인이 함께 필요하다.
-   2026-09-19에 v3 binding의 `external_transport`로 기록했다 — `execution_allowed=true`,
+   2026-09-19에 v4 binding의 `external_transport`로 기록했다 — `execution_allowed=true`,
    `approval_scope="per_binding"`, `approval_required_per_execution=false`,
    `approved_by="jechoi"`, `model_digest=5fa804ff…`(2026-09-11·09-15 서버 선언 revision).
    **환경변수와 방화벽·egress 승인은 아직 남아 있다.**
