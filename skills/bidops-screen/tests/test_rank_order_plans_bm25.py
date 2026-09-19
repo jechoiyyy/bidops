@@ -269,6 +269,28 @@ class RankOrderPlansBm25Tests(unittest.TestCase):
                     rank(input_path, root / "ranking.json", references)
                 self.assertEqual("binding_mismatch", raised.exception.code)
 
+    def test_binding_status_allows_three_values_and_rejects_blocked_execution(self) -> None:
+        template = json.loads(BINDING_TEMPLATE_PATH.read_text(encoding="utf-8"))
+        for status, execution_allowed, accepted in (
+            ("blocked", False, True),
+            ("activation_candidate", False, True),
+            ("approved", False, True),
+            ("activation_candidate", True, True),
+            ("approved", True, True),
+            ("blocked", True, False),
+            ("draft", False, False),
+        ):
+            with self.subTest(status=status, execution_allowed=execution_allowed):
+                binding = json.loads(json.dumps(template))
+                binding["status"] = status
+                binding["external_transport"]["execution_allowed"] = execution_allowed
+                if accepted:
+                    RANKER._validate_binding_document(binding)
+                else:
+                    with self.assertRaises(RANKER.ContractError) as raised:
+                        RANKER._validate_binding_document(binding)
+                    self.assertEqual("binding_invalid", raised.exception.code)
+
 
 if __name__ == "__main__":
     unittest.main()

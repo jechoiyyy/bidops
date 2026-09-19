@@ -101,6 +101,7 @@ class ExecutionSummary(_Strict):
     stage2_binding_version: str
     stage2_binding_sha256: str
     counts: ExecutionCounts
+    purpose: Literal["operational", "gate_measurement"]
     partial_artifact: bool
     error_code: str | None
     queued_at: datetime
@@ -160,7 +161,7 @@ class ExecutionCreateResponse(_Strict):
 
 
 class ExecutionListResponse(_Strict):
-    schema_version: Literal["execution-list-response.v1"]
+    schema_version: Literal["execution-list-response.v2"]
     producer: Literal["screening-api"]
     consumer: Literal["human-review-client"]
     items: list[ExecutionSummary]
@@ -170,7 +171,7 @@ class ExecutionListResponse(_Strict):
 
 
 class ExecutionDetailResponse(ExecutionSummary):
-    schema_version: Literal["execution-detail-response.v1"]
+    schema_version: Literal["execution-detail-response.v2"]
     producer: Literal["screening-api"]
     consumer: Literal["human-review-client"]
     artifacts: list[ArtifactSummary]
@@ -203,11 +204,29 @@ class OrderPlanTracking(_Strict):
     tracking_selected_at: datetime | None
 
 
-class OrderPlanExecutionScope(_Strict):
+class OrderPlanCumulativeScope(_Strict):
+    """누적 모드의 두 목록. 둘 다 policy `activated_at` 오름차순(동률은 버전 오름차순)이다.
+
+    - `policy_versions`: 범위에 완료 실행이 실제로 있는 버전. 판정 유무를 말한다. 없으면 빈 목록이다.
+    - `activated_policy_versions`: 활성화된 적 있는(`activated_at IS NOT NULL`) 버전 전부. 실행 상태를
+      보일 범위를 말하므로 결과가 아직 없는 실행도 포함한다. `policy_versions`는 이것의 부분집합이다.
+    """
+
+    mode: Literal["cumulative"]
+    policy_versions: list[str]
+    activated_policy_versions: list[str]
+
+
+class OrderPlanRunScope(_Strict):
+    """회차 모드: 그 회차의 최신 완료 실행 하나. policy·purpose를 묻지 않는다."""
+
+    mode: Literal["run"]
     execution_id: UUID
     source_run_id: str
     status: Literal["성공", "부분 성공"]
     finished_at: datetime | None
+    policy_version: str
+    purpose: Literal["operational", "gate_measurement"]
 
 
 class OrderPlanListItem(_Strict):
@@ -232,13 +251,16 @@ class OrderPlanListItem(_Strict):
     qwen_reason: str | None
     human_feedback: HumanFeedbackSummary | None
     tracking: OrderPlanTracking | None
+    execution_id: UUID | None
+    policy_version: str | None
+    first_observed_at: datetime | None
 
 
 class OrderPlanListResponse(_Strict):
-    schema_version: Literal["order-plan-list-response.v3"]
+    schema_version: Literal["order-plan-list-response.v4"]
     producer: Literal["order-plan-review-api"]
     consumer: Literal["order-plan-review-client"]
-    scope: OrderPlanExecutionScope | None
+    scope: Annotated[OrderPlanCumulativeScope | OrderPlanRunScope, Field(discriminator="mode")] | None
     items: list[OrderPlanListItem]
     total: int = Field(ge=0)
     limit: int = Field(ge=1, le=500)

@@ -3,6 +3,7 @@ import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { Tab, TabList } from "@astryxdesign/core/TabList";
 import { CriteriaSummary } from "../components/criteria/CriteriaSummary";
 import { MetricsPage } from "./MetricsPage";
+import { OrderPlanPolicyPage } from "./OrderPlanPolicyPage";
 import { PoliciesPage } from "./PoliciesPage";
 import { ProfilePage } from "./ProfilePage";
 import { QualityGatesPage } from "./QualityGatesPage";
@@ -23,12 +24,14 @@ import "../styles/criteria-erp.css";
 // 옛 고정 2열 경계 패널은 없앴고, 그 문장은 아래 경계 안내 한 줄과 요약 줄,
 // 그리고 판정 정책 탭의 "활성화 조건"으로 옮겼다 — 사라지지 않는다.
 
-export type CriteriaTab = "profile" | "policies" | "quality-gates" | "metrics";
+export type CriteriaTab = "profile" | "policies" | "quality-gates" | "order-plan-policies" | "metrics";
 
 const TABS: { value: CriteriaTab; label: string; path: string }[] = [
   { value: "profile", label: "회사 프로필", path: "/profile" },
   { value: "policies", label: "판정 정책", path: "/policies" },
   { value: "quality-gates", label: "품질 게이트", path: "/quality-gates" },
+  // C-2 발주계획 선별 policy의 사람 승인과 일일 자동 실행 스위치(docs/0918_daily-operation/spec.md §11).
+  { value: "order-plan-policies", label: "발주계획 선별 정책", path: "/order-plan-policies" },
   { value: "metrics", label: "검증 지표", path: "/metrics" },
 ];
 
@@ -77,6 +80,7 @@ export function CriteriaPage() {
       {tab === "profile" ? <ProfilePage /> : null}
       {tab === "policies" ? <PoliciesPage /> : null}
       {tab === "quality-gates" ? <QualityGatesPage /> : null}
+      {tab === "order-plan-policies" ? <OrderPlanPolicyPage /> : null}
       {tab === "metrics" ? <MetricsPage /> : null}
       {/* 1280px에서도 한 줄이어야 한다. 두 줄이 되면 작업 영역이 그만큼 짧아져
         * 상세 하단 액션이 시안보다 위로 올라온다. 자세한 조건(정책별 차단 사유,

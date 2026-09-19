@@ -58,9 +58,18 @@ def test_manual_execution_and_review_api_contract(tmp_path, monkeypatch) -> None
                 headers=headers,
             )
             assert replay.status_code == 202 and replay.json() == created.json()
+            # The trigger header is not part of the request hash.
+            replay_with_header = client.post(
+                "/api/order-plan-screening/executions",
+                json=request.model_dump(mode="json"),
+                headers={**headers, "X-BidOps-Trigger": "gate_measurement"},
+            )
+            assert replay_with_header.status_code == 202 and replay_with_header.json() == created.json()
 
             listed = client.get("/api/order-plan-screening/executions?limit=10")
             assert listed.status_code == 200 and listed.json()["total"] == 1
+            assert listed.json()["schema_version"] == "execution-list-response.v2"
+            assert listed.json()["items"][0]["purpose"] == "operational"
             session.add(OrderPlanScreeningBatchAttempt(
                 attempt_id=uuid4(),
                 execution_id=UUID(execution_id),
@@ -96,6 +105,8 @@ def test_manual_execution_and_review_api_contract(tmp_path, monkeypatch) -> None
             session.commit()
             detail = client.get(f"/api/order-plan-screening/executions/{execution_id}")
             assert detail.status_code == 200
+            assert detail.json()["schema_version"] == "execution-detail-response.v2"
+            assert detail.json()["purpose"] == "operational"
             assert detail.json()["heartbeat_at"] is None
             assert detail.json()["artifacts"][0]["kind"] == "screening_input"
             assert detail.json()["attempts"][0]["batch_id"] == "batch-0001"
@@ -147,7 +158,7 @@ def test_manual_execution_and_review_api_contract(tmp_path, monkeypatch) -> None
             session.commit()
             plan_list = client.get("/api/order-plans?source_run_id=run-c2&limit=10")
             assert plan_list.status_code == 200
-            assert plan_list.json()["schema_version"] == "order-plan-list-response.v3"
+            assert plan_list.json()["schema_version"] == "order-plan-list-response.v4"
             assert plan_list.json()["scope"]["execution_id"] == execution_id
             assert plan_list.json()["scope"]["status"] == "성공"
             assert plan_list.json()["items"][0]["budget_amount"] == 123456789.0
@@ -179,5 +190,47 @@ def test_manual_execution_and_review_api_contract(tmp_path, monkeypatch) -> None
             assert plan_detail.json()["budget_amount"] == 123456789.0
             assert plan_detail.json()["planned_order_year"] == "2027"
             assert plan_detail.json()["planned_order_month"] == "09"
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+
+
+def test_execution_trigger_header_errors(tmp_path, monkeypatch) -> None:
+    settings, session, policy_version, _, _ = _fixture(tmp_path)
+    monkeypatch.setattr(order_plans_router, "service", OrderPlanScreeningService(settings))
+
+    def override_get_db():
+        yield session
+
+    def body() -> dict[str, object]:
+        return ExecutionCreateRequest(
+            schema_version="execution-create-request.v1",
+            producer="human-review-client",
+            consumer="screening-api",
+            request_id=uuid4(),
+            source_run_id="run-c2",
+            policy_version=policy_version,
+        ).model_dump(mode="json")
+
+    app.dependency_overrides[get_db] = override_get_db
+    try:
+        with TestClient(app) as client:
+            for value in ("", "cron"):
+                rejected = client.post(
+                    "/api/order-plan-screening/executions",
+                    json=body(),
+                    headers={"X-BidOps-Actor-Name": "reviewer", "X-BidOps-Trigger": value},
+                )
+                assert rejected.status_code == 422, (value, rejected.text)
+                assert rejected.json()["error"]["code"] == "invalid_request"
+
+            off = client.post(
+                "/api/order-plan-screening/executions",
+                json=body(),
+                headers={"X-BidOps-Actor-Name": "reviewer", "X-BidOps-Trigger": "daily_script"},
+            )
+            assert off.status_code == 409, off.text
+            assert off.json()["error"]["code"] == "daily_trigger_off"
+            assert off.json()["error"]["details"] == {"reasons": ["env_cap_off", "switch_off"]}
+            assert client.get("/api/order-plan-screening/executions").json()["total"] == 0
     finally:
         app.dependency_overrides.pop(get_db, None)

@@ -10,6 +10,17 @@ import type {
   OrderPlanScreeningExecutionStopResponse,
   OrderPlanScreeningError,
   OrderPlanScreeningErrorCode,
+  C2PolicyListResponse,
+  C2PolicyInspectResponse,
+  C2PolicyCandidateRequest,
+  C2PolicyCandidateResponse,
+  C2PolicyActivateRequest,
+  C2PolicyActivateResponse,
+  C2QualityGateListResponse,
+  C2DailyTriggerStateResponse,
+  C2DailyTriggerSetRequest,
+  C2DailyTriggerSetResponse,
+  C2AuditSamplePreviewResponse,
   AgencyPortal,
   AlwaysOnSwitchResponse,
   AlwaysOnSwitchUpdateRequest,
@@ -988,6 +999,61 @@ export const api = {
         headers: { "Content-Type": "application/json", ...actorHeaders(actorName) },
         body: JSON.stringify(payload),
       },
+    ),
+
+  // C-2 일일 운영 계약 (docs/contracts.md "C-2 일일 운영 계약") — policy·품질
+  // 게이트·일일 자동 실행 스위치·감사 표본. 발주계획 목록·실행 endpoint와
+  // 같은 actor header·request_id idempotency 관례를 그대로 쓴다.
+  listC2Policies: (options?: ReadRequestOptions) =>
+    request<C2PolicyListResponse>("/order-plan-screening/policies", options),
+
+  getC2Policy: (policyVersion: string, options?: ReadRequestOptions) =>
+    request<C2PolicyInspectResponse>(
+      `/order-plan-screening/policies/${encodeURIComponent(policyVersion)}`,
+      options,
+    ),
+
+  designateC2PolicyCandidate: (payload: C2PolicyCandidateRequest, actorName: string) =>
+    request<C2PolicyCandidateResponse>("/order-plan-screening/policies/candidate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...actorHeaders(actorName) },
+      body: JSON.stringify(payload),
+    }),
+
+  activateC2Policy: (
+    policyVersion: string,
+    payload: C2PolicyActivateRequest,
+    actorName: string,
+  ) =>
+    request<C2PolicyActivateResponse>(
+      `/order-plan-screening/policies/${encodeURIComponent(policyVersion)}/activate`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...actorHeaders(actorName) },
+        body: JSON.stringify(payload),
+      },
+    ),
+
+  listC2QualityGates: (policyVersion: string, options?: ReadRequestOptions) =>
+    request<C2QualityGateListResponse>(
+      `/order-plan-screening/quality-gates${query({ policy_version: policyVersion })}`,
+      options,
+    ),
+
+  getC2DailyTrigger: (options?: ReadRequestOptions) =>
+    request<C2DailyTriggerStateResponse>("/order-plan-screening/daily-trigger", options),
+
+  setC2DailyTrigger: (payload: C2DailyTriggerSetRequest, actorName: string) =>
+    request<C2DailyTriggerSetResponse>("/order-plan-screening/daily-trigger", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...actorHeaders(actorName) },
+      body: JSON.stringify(payload),
+    }),
+
+  getC2AuditSample: (executionId: string, options?: ReadRequestOptions) =>
+    request<C2AuditSamplePreviewResponse>(
+      `/order-plan-screening/executions/${encodeURIComponent(executionId)}/audit-sample`,
+      options,
     ),
 
   getPipelineLogs: (

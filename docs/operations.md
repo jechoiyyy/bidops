@@ -462,34 +462,93 @@ python3 skills/bidops-collect/scripts/collect_order_plans.py \
 
 ### 일일 수집·선별 적재 (`scripts/run-daily-lifecycle.sh`)
 
-위 운영 목표 중 발주계획·사전규격·입찰공고 수집과 선별 적재를 한 번에 묶어 실행하는
-host 스크립트다. `--date YYYY-MM-DD`(기준일, 한국시간, 생략 시 오늘)를 받아 4단계를
-순서대로 실행하고 첫 실패에서 즉시 멈춘다(`set -euo pipefail`).
+위 운영 목표 중 발주계획·사전규격·입찰공고 수집과 선별 적재를 실행하는 host 스크립트다.
+`--track order-plans|notices`(필수, 기본값 없음)로 **한 번에 한 트랙만** 돌고, `--date YYYY-MM-DD`
+(기준일, 한국시간, 생략 시 **전일**)를 받는다. 발주계획 트랙은 기준일 **하루**, 공고 트랙은 기준일을
+포함한 **4일**을 수집한다. 사전규격은 조회 기준인 등록일시(`rgstDt`)보다 공개(접수일시 `rcptDt`)가
+최대 3일 늦을 수 있어 하루 창이면 영구히 빠지는 건이 생긴다(2026-09-18 측정). 겹쳐 다시 관측된
+공고는 적재에서 no-op이며 첨부·문서 묶음·개요 검토를 다시 만들지 않는다
+([ADR-0061](tracking/decisions/0061-daily-collection-window.md)). 트랙 안에서는 첫 실패에서 즉시
+멈추고(`set -euo pipefail`), 두 트랙은 서로의 성공을 전제하지 않는다.
 
 1. Preflight: `manual-workflow-common.sh`의 web 헬스체크. `BIDOPS_G2B_API_KEY` 존재 확인은
    collector 자신이 하므로 스크립트는 별도로 값을 읽거나 출력하지 않는다.
-2. 발주계획: 기준일을 포함해 최근 21일 창을 회차 `lifecycle-<YYYYMMDD>-plans`로 수집한다
-   (`collect_order_plans.py`, `--to-date`는 제외구간이므로 기준일+1일로 넘긴다).
-3. 사전규격·입찰공고: 기준일을 포함해 최근 3일 창을 회차 `lifecycle-<YYYYMMDD>-notices`로
-   수집한다(`collect_notices.py --tag-bid-sw-industry`, 이 collector의 `--to-date`는
-   포함구간이므로 기준일 그대로 넘긴다). 사전규격·입찰공고 스킵 플래그는 쓰지 않아 전량이
-   한 회차에 담기고, 입찰공고에는 1468(SW 유사업종) 표시가 함께 붙는다.
-4. 적재: 두 회차를 web 컨테이너로 복사한 뒤 `ingest.cli --run <plans> --collection` →
-   `--run <notices> --collection` → `--tracked-backfill` → 첨부 취득 자격 갱신
-   (`refresh_fetch_eligibility`) 순서로 실행한다(발주계획 → 공고 순서는 공고 선별이
-   발주계획 사업기회 상태를 읽기 때문에 고정이다).
+2. 발주계획 트랙(`--track order-plans`): 아래 여섯 단계가 항상 함께 돈다(`--c2` 같은 부분 실행
+   플래그는 없다) — ① 자동 실행 확인 `GET /api/order-plan-screening/daily-trigger`. 응답의
+   `effective_enabled`가 `false`이면 `daily_trigger_off`와 `reasons[]`, "policy를 교체하면 자동
+   실행이 멈춥니다. 새 버전에서 다시 켜야 합니다." 안내문구를 출력하고 **수집 없이** exit 0(다음 절
+   참조). 실행에 쓸 `policy_version`도 이 응답에서 받는다. ② 발주계획을 회차
+   `lifecycle-<YYYYMMDD>-plans`로 수집한다(`collect_order_plans.py --from-date <기준일> --to-date
+   <기준일+1일>`, `--to-date`는 제외구간). ③ `ingest.cli --run <plans> --collection` →
+   `--tracked-backfill`. ④ C-2 실행 요청(`POST /api/order-plan-screening/executions`, 헤더
+   `X-BidOps-Trigger: daily_script`, 202를 폴링해 종결 상태까지 기다린다). ⑤ 종결 뒤 감사 표본 draw
+   (`POST /api/order-plan-screening/executions/{id}/audit-sample`). 회차·실행·draw의 스킵·재시도
+   규칙은 `scripts/run-daily-c2.sh`가 정하며(아래), 발주계획 트랙은 이 스크립트를 그대로 부른다.
+3. 공고 트랙(`--track notices`): 사전규격·입찰공고를 회차 `lifecycle-<YYYYMMDD>-notices`로
+   수집한다(`collect_notices.py --from-date <기준일−3일> --to-date <기준일> --tag-bid-sw-industry`, 이
+   collector의 `--to-date`는 포함구간). 사전규격·입찰공고 스킵 플래그는 쓰지 않아 전량이 한 회차에
+   담기고, 입찰공고에는 1468(SW 유사업종) 표시가 함께 붙는다. 이어서 회차를 web 컨테이너로 복사하고
+   `ingest.cli --run <notices> --collection` → `--tracked-backfill` → 첨부 취득 자격 갱신
+   (`refresh_fetch_eligibility`) 순서로 적재한다.
+4. 적재 순서는 트랙 사이에 고정하지 않는다. 공고 선별이 읽는 발주계획 상태는 사람이 정한 추적
+   상태(`계속 추적`·`보류`·`종료`)이고, 기준일 하루 창으로 들어온 발주계획에는 아직 추적 상태가 없으므로
+   같은 날 발주계획이 먼저 적재됐는지가 공고 선별 결과를 바꾸지 않는다. `--tracked-backfill`은 두 트랙
+   끝에서 각각 부르며 다시 불러도 no-op이다.
 
-`--dry-run`은 계산한 회차 id·창·정확한 명령만 출력하고 수집·적재·Docker 호출을 하지
-않는다(preflight의 web 헬스체크도 건너뛰고 그렇게 건너뛴다고 알린다). 기존 회차 디렉터리가
-있으면 절대 덮어쓰지 않고 즉시 멈춘다(회차는 불변). 이 스크립트는 아무것도 삭제하지 않고
-cron을 설치하지 않으며 모델을 호출하지 않는다.
+각 기준일은 그 날짜가 처음 걸리는 단계에서 이어 돈다 — `complete`(회차가 완결이고 web에 `Run`
+행도 있음, 할 일 없음), `empty`(완결이고 `counts.total == 0`, 적재 없이 종료), `ingest_pending`
+(완결인데 `Run` 행이 없음, 적재만), `collect_new`(회차 디렉터리 없음, 수집부터),
+`collect_retry<N>`(불완전한 디렉터리가 있으면 **그 디렉터리는 그대로 두고**
+`lifecycle-<YYYYMMDD>-<plans|notices>-retry<N>`(가장 작은 미사용 N)으로 새로 수집). 발주계획
+트랙은 회차가 비어 있지 않으면 이 뒤에 더 이어간다 — `성공`·`부분 성공` 실행이 없으면 실행부터,
+있는데 감사 표본이 아직 안 뽑혔으면 draw만. 회차 디렉터리는 회차 원본 불변 원칙에 따라 절대
+덮어쓰거나 지우지 않는다.
 
-**스케줄은 기본 비활성이다.** 아래는 매일 06:30(KST) 실행 예시일 뿐이며 이 저장소는 이
-줄을 설치하지 않는다(스케줄러·always-on 기본 비활성 원칙, `CLAUDE.md`).
+`--collect-only --run-suffix <name>`은 측정·점검용이다. preflight·자동 실행 확인·회차 조회·적재·
+C-2를 전부 건너뛰고 수집만 하며 회차 id는 `lifecycle-<YYYYMMDD>-<plans|notices>-<name>`이 되어
+일일 회차 id를 차지하지 않는다(`retry<N>`은 재수집 접미사로 예약돼 쓸 수 없다).
+
+`--dry-run`은 계산한 회차 id·창·각 단계의 정확한 명령만 출력하고 수집·적재·C-2 실행·Docker 호출을
+하지 않는다(preflight의 web 헬스체크와 web `Run` 조회도 건너뛰고, 완결 회차는
+`complete_or_ingest_pending`으로만 표시한다). 기존 회차 디렉터리가 있으면 절대 덮어쓰지 않고 즉시 멈춘다(회차는
+불변). 이 스크립트는 아무것도 삭제하지 않고 cron을 설치하지 않으며, 스크립트 자체는 모델을 호출하지
+않는다 — 발주계획 트랙이 요청하는 C-2 실행은 승인된 binding 아래 분석 워커에서 돈다.
+
+**스킵의 세 가지 뜻이 다르다.**
+
+| 뜻 | 값 | exit |
+|---|---|---|
+| 정상 스킵(할 일 없음) | `daily_trigger_off`, `empty_population`, `active_execution_exists`, `already_executed`, `retry_limit_reached`, POST가 `policy_not_active`·`daily_trigger_off`·503으로 답함 | 0 |
+| 트랙을 그 자리에서 멈추는 스킵(따라잡기 중이면 나머지 날짜도 같은 사유로 끝난다) | `daily_trigger_off`, `policy_not_active`, 503, `active_execution_exists` | 0 |
+| 다음 날짜로 넘어가는 스킵(따라잡기가 이어진다) | `already_executed`, `empty_population`, `retry_limit_reached` | 0 |
+
+그 밖의 실패는 exit 비0이며 `set -euo pipefail`로 그 트랙을 즉시 멈춘다. 같은 날 재시도까지
+실패해도 exit는 비0이다(아래 재시도 규칙).
+
+**발주계획 트랙 전용 환경변수** (`scripts/run-daily-c2.sh`·`scripts/c2-execution-common.sh`가 읽는다):
+
+| 변수 | 기본값 | 뜻 |
+|---|---|---|
+| `BIDOPS_C2_DAILY_ACTOR` | 없음(필수) | C-2 실행·audit 요청에 실리는 담당자 이름. 감사 표식일 뿐 인증이 아니다. 없으면 시작하지 않는다 |
+| `BIDOPS_C2_DAILY_RETRY_WAIT_SECONDS` | 600 | 그 날짜의 실행이 `실패`·`중단됨`뿐일 때, 자동 재시도(attempt+1) 전에 기다리는 시간 |
+| `BIDOPS_C2_DAILY_POLL_TIMEOUT_SECONDS` | 7200 | 실행을 종결 상태까지 기다리는 최대 시간. 넘기면 exit 비0으로 스크립트는 멈추지만 실행 자체는 분석 워커에서 계속 진행되고, 다음 호출은 `active_execution_exists`로 건너뛴다 |
+| `BIDOPS_C2_DAILY_POLL_INTERVAL_SECONDS` | 30 | 폴링 주기 |
+
+**복구 절차.** 자동 재시도(attempt 2)까지 실패한 회차는 `attempt > 2`로 `retry_limit_reached`
+스킵을 낸다 — 이후로는 자동 재시도하지 않는다. 사람이 재개할 때만
+`scripts/run-daily-c2.sh <plans run id> --extra-attempt`를 쓴다. 헤더 `X-BidOps-Trigger:
+manual_resume`으로 실행 하나만 만들고 자동 재시도는 없다. `--dry-run`으로 먼저 계획된 요청을
+확인할 수 있다. `retry_limit_reached`를 출력할 때 이 명령을 함께 안내한다.
+
+**스케줄은 기본 비활성이다.** 아래는 실행 예시일 뿐이며 이 저장소는 이 줄을 설치하지 않는다(스케줄러·
+always-on 기본 비활성 원칙, `CLAUDE.md`). 트랙마다 한 줄이고 시각은 운영 결정이다. 발주계획 줄은
+아래 "C-2 발주계획 선별 활성화 절차"를 마친 뒤에만 설치하고 `BIDOPS_C2_DAILY_ACTOR`를 함께 준다.
 
 ```cron
 # 문서용 예시 — 설치되어 있지 않음. crontab -e로 운영자가 직접 추가할 때만 참고한다.
-30 6 * * * cd /path/to/bidops && ./scripts/run-daily-lifecycle.sh >> reports/daily-lifecycle.log 2>&1
+30 6 * * * cd /path/to/bidops && ./scripts/run-daily-lifecycle.sh --track notices >> reports/daily-lifecycle-notices.log 2>&1
+# C-2 활성화·일일 자동 실행이 켜진 뒤에만 설치한다. BIDOPS_C2_DAILY_ACTOR는 감사 표식이며 인증이 아니다.
+0 7 * * * cd /path/to/bidops && BIDOPS_C2_DAILY_ACTOR=<담당자 이름> ./scripts/run-daily-lifecycle.sh --track order-plans >> reports/daily-lifecycle-plans.log 2>&1
 ```
 
 **보관**: 회차 디렉터리(`data/runs/lifecycle-*`)는 불변이며 자동으로 지우지 않는다. 보관
@@ -502,6 +561,129 @@ cron을 설치하지 않으며 모델을 호출하지 않는다.
   표시는 해당 입찰공고에서 `null`로 남아 `bid_sw_industry_competitive` 선별 사유로
   적재되지 않는다 — 다음 날 창에서 같은 공고가 다시 조회되면 자연히 회복되므로, 그날은
   값을 추정해 채우지 말고 다음 날 재실행으로 넘긴다.
+- 발주계획 트랙에서 `daily_trigger_off`·`policy_not_active`·503이 아닌 사유로 C-2 실행이 멈춤,
+  또는 `retry_limit_reached`가 반복됨 — `--extra-attempt`로 성급하게 재개하기 전에 원인을 본다.
+
+### C-2 발주계획 선별 활성화 절차
+
+발주계획 트랙(위 절)은 이 절차를 전부 마치기 전까지 매일 `daily_trigger_off`로 끝나고 수집하지
+않는다. 열두 단계이며 ①~③은 사람 결정 값이 필요하고, 나머지는 그 값이 갖춰진 뒤의 명령·화면
+동작이다(`docs/0918_daily-operation/spec.md` §0ⓑ·§3·§4·§11).
+
+1. **gold 확정.** 사람이 확정한 발주계획 정답 표본. 표본 크기와 최종 승인은 운영 결정이다.
+2. **임계값 4개.** `threshold_recall_pct`·`threshold_precision_pct`·`threshold_important_missed_max`·
+   `threshold_review_load_max`(검토량은 **하루** 기준). 값이 없으면(`null`) 게이트는 `미측정`만
+   기록한다 — fail closed가 정상 동작이다.
+3. **감사 표본 값.** policy `audit_sample.max_per_execution`·`review_cadence`·`enabled`와 **층
+   규칙** `audit_sample.strata_rules`([`docs/contracts.md`](contracts.md) "감사 표본 REST" 참조).
+   값이 없으면 draw는 매일 `pending_human_approval`로 끝난다.
+4. **v3 policy·binding 발행 → 컨테이너 마운트.** **아직 발행 전이다** —
+   [`plan.md` S3b](0918_daily-operation/plan.md)가 위 D-c 값과 D-d 값(다음 단계)을 받아
+   `experiments/order-plan-screening/config/order-plan-screening-policy.v3.json`·
+   `…-phase0-binding.v3.json`을 만든다. 발행하면 `docker-compose.yml`의 web(현재 v2 마운트
+   `:180-181`)·analysis-worker(`:250-251`) 마운트 파일명과 `app/core/config.py`의
+   `BIDOPS_C2_POLICY_PATH`·`BIDOPS_C2_BINDING_PATH` 기본 경로(현재 v2, `:308,310`)를 **함께** v3로
+   바꾼다. v2 파일 자체는 고치지 않는다. 그 뒤 적재 CLI로 draft 행을 만든다.
+
+   ```bash
+   python -m app.screening.c2_policy load \
+     --policy experiments/order-plan-screening/config/order-plan-screening-policy.v3.json \
+     --binding experiments/order-plan-screening/config/order-plan-screening-phase0-binding.v3.json \
+     --created-by <담당자 이름>
+   ```
+
+5. **전송 승인(D-d).** binding 튜플(policy, binding, model_digest, allowlist) 단위 승인이다.
+   `BIDOPS_C2_EXECUTION_ALLOWED=true`와 host 방화벽·egress 승인이 함께 필요하다.
+6. **후보 지정.** 기준 화면(`발주계획 선별 정책` 탭, `/order-plan-policies`)에서 draft 행을
+   `activation_candidate`로 올린다(`POST /api/order-plan-screening/policies/candidate`).
+7. **gold 게시일별 파생 회차 만들기.**
+
+   ```bash
+   python3 skills/bidops-collect/scripts/split_order_plan_run_by_day.py \
+     --input-run data/runs/order-plans-20260827-20260830-retry1
+   ```
+
+   gold 625건을 게시일별 4개 회차(308·290·9·18건, `data/runs/gate-gold-<YYYYMMDD>-plans`)로
+   나눈다. 원본은 고치지 않는다. 각 회차를 컨테이너에 복사하고 적재한다.
+
+   ```bash
+   docker compose -f docker-compose.yml cp "data/runs/gate-gold-<YYYYMMDD>-plans" web:/app/data/runs/
+   docker compose -f docker-compose.yml exec web \
+     python -m app.lifecycle.ingest.cli --run "gate-gold-<YYYYMMDD>-plans" --collection
+   ```
+
+   네 회차를 모두 적재한 뒤 게이트를 만든다(`POST /api/order-plan-screening/quality-gates`, 측정
+   회차 4개를 `measurement_run_ids`에 고정. 요청 필드는 `docs/contracts.md`의
+   `order-plan-quality-gate-create-request.v1`을 따른다).
+8. **측정 실행 2회.** 같은 묶음(policy·binding·프롬프트·model digest·회사 역량)으로 두 번 돌려 둘
+   다 통과해야 한다.
+
+   ```bash
+   BIDOPS_C2_GATE_ACTOR=<담당자 이름> scripts/run-c2-gate-measurement.sh \
+     --policy-version <v> --gate-id <c2gate-...> --pass 1
+   BIDOPS_C2_GATE_ACTOR=<담당자 이름> scripts/run-c2-gate-measurement.sh \
+     --policy-version <v> --gate-id <c2gate-...> --pass 2
+   ```
+
+   이 스크립트는 게이트의 측정 회차를 순서대로 실행·폴링만 하고 채점하지 않는다.
+9. **채점·기록.** 사람이 채점한 gate artifact를
+   `POST /api/order-plan-screening/quality-gates/{gate_id}/evaluations`로 기록한다. 코드가 두
+   pass 중 나쁜 쪽 값을 넣고 판정한다(통과·미달·
+   보류·미측정).
+10. **활성화.** 활성화 화면(`발주계획 선별 정책` 탭)에서 policy digest·게이트 결과·런타임
+    blocker를 확인한 뒤 승인한다. blocker가 하나라도 있으면 승인 단추는 비활성이다.
+11. **자동 실행 켜기.** 같은 화면의 스위치(policy_version에 묶인 DB 행)를 켠다. 이것만으로는
+    켜지지 않는다 — 운영자가 설치 때 한 번 환경 cap을 켜고 web을 재배포해야 한다.
+
+    ```bash
+    # env/model.env 또는 .env에 추가한 뒤
+    BIDOPS_C2_DAILY_TRIGGER_ENABLED=true
+    docker compose --env-file .env --env-file env/model.env \
+      -f docker-compose.yml -f docker-compose.edge.yml \
+      -f docker-compose.model-egress.yml -f docker-compose.c2-order-plan.yml \
+      up -d --force-recreate web
+    ```
+
+    `docker-compose.c2-order-plan.yml`이 이 값을 web에 전달한다(base compose는 항상 `false`로
+    고정한다). **policy를 교체하면 자동 실행이 멈춘다.** 스위치는 이전 버전에 묶여 있으므로 새
+    버전에서 다시 켜야 한다.
+12. **cron 발주계획 줄 설치.** 운영시작일부터 매 달력일. 앞선 날짜가 있으면 스크립트의
+    `--from-date`/`--to-date`로 하루씩 따라잡는다.
+
+**교체 없이 활성 policy를 내린다(예외).** 정상 경로는 위 10번 활성화가 이전 active 행을 같은
+transaction에서 `retired`로 내리는 자동 교체다. 대체 버전 없이 자리를 비워야 할 때만 아래 명령을
+쓴다 — 예외 운영 조치이며 사람 승인이 먼저다. SQL로 행을 직접 고치지 않는다(감사 기록이 남지
+않는다).
+
+```bash
+docker compose -f docker-compose.yml exec web \
+  python -m app.screening.c2_policy retire \
+    --policy-version <v> --retired-by <담당자 이름> --reason "<사유>"
+```
+
+`active` 행만 내려가고 `active_slot`이 비며 `activated_by`·`activated_at`·`quality_gate_status`는
+이력으로 남는다. 같은 transaction에 `AuditEvent(action="c2.policy_retired")`가 쌓인다
+(`replaced_by_policy_version`은 교체가 아니므로 `null`, `reason`·`via="cli"` 포함). 이미
+`retired`면 아무것도 바꾸지 않고 `already_retired`를 출력하며 0으로 끝나고, `draft`·
+`activation_candidate`는 `policy_not_active`로 거부한다(비 0). **활성 policy가 없어지면 일일 자동
+실행은 `no_active_policy`로 꺼진다** — 다시 켜려면 새 버전을 활성화하고 그 버전의 스위치를 켜야
+한다. 일일 자동 실행 스위치 행은 이 명령이 건드리지 않는다(append-only).
+
+**트리거를 켜기 전 확인 항목(D-e).** 위 11을 켜기 전에 다음을 사람이 확인한다 — 수동 실행에서 본
+요청 수·소요 시간·실패 분포, 나라장터 API 일일 할당량 여유, backup·restore와 stale execution
+복구 훈련. 이 확인은 게이트 통과나 방화벽 승인을 대신하지 않는다.
+
+## GPU 휴지
+
+`BIDOPS_GPU_BUSY_LIMIT_SECONDS`·`BIDOPS_GPU_REST_SECONDS`는 기본값이 둘 다 `0`(꺼짐)이며, 둘
+다 0보다 커야 켜진다. 켜지면 워커가 쉬지 않고 일한 시간의 합이 `BIDOPS_GPU_BUSY_LIMIT_SECONDS`
+이상일 때 다음 작업을 잡기 전에 `BIDOPS_GPU_REST_SECONDS`만큼 쉬고 그 합을 0으로 되돌린다.
+**작업 중간은 끊지 않는다** — C-2 한 실행이나 심층 검토 한 건이 한도를 넘겨도 끝까지 간 뒤에
+쉰다. idle이 휴지 시간 이상 이어지면 그것이 곧 휴지이므로 합은 0으로 되돌아간다. 분석 워커
+(C-2·심층 검토·회사 핏·개요를 합성하는 한 슬롯)와 web 프로세스 안의 C-1 워커가 이 규칙을 각자
+따로 적용하며 서로 조율하지 않는다. `docker-compose.yml`은 두 값을
+`${BIDOPS_GPU_BUSY_LIMIT_SECONDS:-0}`·`${BIDOPS_GPU_REST_SECONDS:-0}` 형태로 전달하므로 값을
+주지 않으면 기존 동작과 같다.
 
 ## 사전규격 심층 검토 참조 실행
 

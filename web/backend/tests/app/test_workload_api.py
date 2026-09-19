@@ -219,9 +219,10 @@ def seed_execution(session, *, minute=1, status="성공"):
     run = Run(id=f"workload:{uuid4()}", generated_at=NOW)
     version = f"fixture:{uuid4()}"
     policy = OrderPlanScreeningPolicy(policy_version=version, schema_version="bidops.order-plan-screening-policy.v1",
-        producer="phase0-contracts", consumer="phase1-screening-pipeline", policy_status="draft",
+        producer="phase0-contracts", consumer="phase1-screening-pipeline", policy_status="retired",
         decision_scope="c2_order_plan_first_pass", policy_payload_jsonb={}, binding_payload_jsonb={},
-        policy_sha256="a"*64, binding_sha256="b"*64, activation_metadata_jsonb={}, created_by="fixture", created_at=NOW)
+        policy_sha256="a"*64, binding_sha256="b"*64, activation_metadata_jsonb={}, created_by="fixture", created_at=NOW,
+        activated_by="fixture", activated_at=NOW)
     session.add_all([run, policy])
     session.flush()
     row = OrderPlanScreeningExecution(request_id=uuid4(), schema_version="bidops.order-plan-screening-execution-row.v1",
@@ -319,8 +320,9 @@ def test_workload_matches_real_list_totals_and_tracking_exceptions(
         assert due["items"][0]["id"] == sections["overdue"]
         if "screening" in modules:
             listing = get_json(client, "/api/order-plans", stage1_status="selected", qwen_relevance="relevant,uncertain", tracking_status="미선택", limit=1)
-            assert listing["scope"]["execution_id"] == str(latest.execution_id)
-            assert values[ORDER_PLAN] == (listing["total"], None) == (2, None)
+            assert listing["scope"]["mode"] == "cumulative"
+            # 누적 범위: 앞 실행(old)의 판정도 남는다.
+            assert values[ORDER_PLAN] == (listing["total"], None) == (3, None)
         else:
             assert values[ORDER_PLAN] == (None, "provider_absent")
         ready = get_json(client, "/api/pre-specs", auto_preparation_status="deep_review_ready_for_click", sw_only=False)
@@ -335,7 +337,7 @@ def test_workload_matches_real_list_totals_and_tracking_exceptions(
             assert values[DEEP_REVIEW] == values[FINAL_DECISION] == (None, "provider_absent")
         if "screening" in modules:
             seed_execution(session, minute=4)
-            assert workload(client)[ORDER_PLAN] == (0, None)
+            assert workload(client)[ORDER_PLAN] == (3, None)
             assert calls == [name for name in modules if name != "lifecycle"] * 2
 
 

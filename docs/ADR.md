@@ -5,7 +5,7 @@
 | 문서 상태 | 현재 결정 기준선·통합 색인 |
 | 기준일 | 2026-09-09 |
 | 범위 | 수집, 선별, 사전규격 검토, 심층 검토, 입찰공고 추적, 운영·보안 |
-| 상세 결정 정본 | [`docs/tracking/decisions/`](tracking/decisions/)의 ADR-0001~0038·0042~0045·0049~0051·0053~0054, ADR-0039~0041·0046~0048·0055(구 `docs/design/ADR.md`, git 이력에서 확인) |
+| 상세 결정 정본 | [`docs/tracking/decisions/`](tracking/decisions/)의 ADR-0001~0038·0042~0045·0049~0051·0053~0054·0056~0061, ADR-0039~0041·0046~0048·0055(구 `docs/design/ADR.md`, git 이력에서 확인) |
 | 함께 읽을 문서 | [`PRD.md`](PRD.md), [`ARCHITECTURE.md`](ARCHITECTURE.md), [`contracts.md`](contracts.md) |
 
 이 문서는 여러 시점에 작성된 결정 기록을 현재 관점에서 읽기 위한 통합 ADR이다. 각 결정의
@@ -108,7 +108,7 @@ R-xx/A-xx 작업 지시, 과거 API 경로는 현재 실행 진입점이 아니�
 | [0024](tracking/decisions/0024-prespec-collect-all-flag-sw.md) | 사전규격은 전량 수집하고 SW사업대상 여부는 표시 값으로 관리 | 채택 | 업무구분만 수집 범위, SW flag는 필터·표시 |
 | [0025](tracking/decisions/0025-prespec-link-search-unconfirmed-state.md) | 사전규격 후보 연결은 전략을 표시하고 못 찾은 건은 미확인으로 유지 | 채택 | 검색 미확인을 부재로 표시하지 않음 |
 | [0026](tracking/decisions/0026-cumulative-external-identity-schema.md) | 공고는 외부 식별자로 누적하고 회차는 관측 이력으로 강등 | 채택 | 누적 현재값+회차 observation |
-| [0027](tracking/decisions/0027-order-plan-requery-window.md) | 발주계획은 최근 21일 구간을 매일 재조회 | 채택 | 종단 관측으로 후속 재평가 |
+| [0027](tracking/decisions/0027-order-plan-requery-window.md) | 발주계획은 최근 21일 구간을 매일 재조회 | 폐기(0061 대체) | 21일 근거가 종단 관측에서 재현되지 않았고 일 단위 수집으로 재관측이 필요 없어짐; 발주계획→입찰공고 연결은 입찰공고 측 `orderPlanUntyNo`만 |
 | [0028](tracking/decisions/0028-bid-first-opportunity-registration.md) | 입찰공고에서 처음 등장한 사업도 기회로 등록 | 채택 | 첫 단계가 bid인 기회 허용 |
 | [0029](tracking/decisions/0029-screening-mock-provider.md) | 1차 분류는 결정적 mock 제공자로 소비 계층을 먼저 구현 | 채택 | mock은 reference-only |
 | [0030](tracking/decisions/0030-opportunity-tracking-state.md) | 추적 상태는 모든 사업기회가 갖고 사람 선택과 시스템 신호를 분리 | 채택 | `미선택·계속 추적·보류·종료` |
@@ -119,7 +119,7 @@ R-xx/A-xx 작업 지시, 과거 API 경로는 현재 실행 진입점이 아니�
 | [0035](tracking/decisions/0035-prespec-overview-attempt-result-lifecycle.md) | 개요 모델 attempt의 상태 전이와 검증 결과를 분리 | 채택 | result/event와 안전한 v2 projection |
 | [0036](tracking/decisions/0036-judgment-model-lineage-source.md) | 판정의 모델 계보는 revision→execution 경로를 정본으로 함 | 채택 | legacy 계보는 `unknown` |
 | [0037](tracking/decisions/0037-order-plan-c2-bm25-top300-qwen.md) | C-2 발주계획 선별은 BM25 Top 300 뒤 Qwen으로 확정 | 채택 | 현재 선택; 운영 활성화와 별개 |
-| [0038](tracking/decisions/0038-order-plan-c2-phase0-contracts.md) | C-2 Phase 0 전용 파일·REST·DB 계약과 상태 경계 고정 | 채택 — 계약만 | 제품 adapter·DB·실행은 후속 phase |
+| [0038](tracking/decisions/0038-order-plan-c2-phase0-contracts.md) | C-2 Phase 0 전용 파일·REST·DB 계약과 상태 경계 고정 | 채택 — 계약만 | 제품 adapter·DB·실행은 후속 phase; binding `status` 허용값과 파일 상태성 필드의 게이트 제외는 [0060](tracking/decisions/0060-c2-policy-db-row-authority.md)이 개정 |
 | 0039(git 이력 docs/design/ADR.md, 삭제됨) | Astryx 디자인 시스템 채택과 승인 범위 | 채택 | 고정 빌드 산출물; 테마는 0048이 개정; 화면 이행은 후속 단계 |
 | 0040(git 이력 docs/design/ADR.md, 삭제됨) | 레이아웃 소유권과 화면 단위 이행 | 채택 | 레이아웃은 프로젝트 소유; 화면별 이행 |
 | 0041(git 이력 docs/design/ADR.md, 삭제됨) | 정보구조와 판정 동선 | 채택 | 회차·누적 축과 같은 화면 판정 입력을 유지; 결정 1·2·4는 0046가 개정 |
@@ -139,7 +139,9 @@ R-xx/A-xx 작업 지시, 과거 API 경로는 현재 실행 진입점이 아니�
 | [0056](tracking/decisions/0056-company-fit-in-overview-run.md) | 회사 핏을 개요 run 2단계 호출로 통합 | 폐기(0057 대체) | 별도 큐·runner·플래그 3개·worker 슬롯을 폐지하고 개요 run 검증 통과 직후 1회 호출로 흡수; 후보 0건 문제 해소 |
 | [0057](tracking/decisions/0057-overview-scope-and-company-fit-in-deep-review.md) | 개요 검토를 앞부분 요약 3섹션으로 좁히고 회사 적합성은 심층 검토 1단계로 | 부분 채택(결정 4 보류) | 목차 우선 범위 선택, important_conditions·reviewer_analysis·unknowns 제거, 자동 심층 게이트에서 회사 핏 제거, 검증 완화 4항목 |
 | [0058](tracking/decisions/0058-final-decision-basis-separated-from-comparison.md) | 최종 Go/No-Go 결정 근거를 모델 문서 비교와 분리 | 채택 | 근거 `comparison`·`notice_conditions` 중 하나(migration 0028), 공고 조건 요약·결정 endpoint, 근거별 현재성 단일 규칙; [0034](tracking/decisions/0034-bid-delta-final-decision.md) §5를 비교 근거에 한정, 비교 worker는 보류 |
-| [0059](tracking/decisions/0059-full-collection-selective-ingest-and-index-search.md) | 발주계획·사전규격·입찰공고는 전량 수집하고 추적·SW 관련 레코드만 적재 | 채택 | 입찰공고 선별 사유 3종(추적 참조·SW 사전규격 참조·1468 경쟁입찰), 1468은 수집 필터가 아니라 표시로만 사용(실측: SW 사전규격 계보 입찰공고의 29%가 1468 밖), 제외 레코드는 수집 색인(migration 0027)에 보존 |
+| [0059](tracking/decisions/0059-full-collection-selective-ingest-and-index-search.md) | 발주계획·사전규격·입찰공고는 전량 수집하고 추적·SW 관련 레코드만 적재 | 채택 | 입찰공고 선별 사유 3종(추적 참조·SW 사전규격 참조·1468 경쟁입찰), 1468은 수집 필터가 아니라 표시로만 사용(실측: SW 사전규격 계보 입찰공고의 29%가 1468 밖), 제외 레코드는 수집 색인(migration 0027)에 보존; 결정 1의 수집 창(21일 재조회·3일 창)은 [0061](tracking/decisions/0061-daily-collection-window.md)이 개정 |
+| [0060](tracking/decisions/0060-c2-policy-db-row-authority.md) | C-2 policy의 활성 정본은 DB 행이고 파일의 상태성 필드는 발행 시점 스냅샷 | 채택 — 계약만 | blocker는 런타임 계산, 임계값 정본은 DB 게이트 행(migration 0029); binding `status` 허용값 확대와 `blocked`∧`execution_allowed` 거부([0038](tracking/decisions/0038-order-plan-c2-phase0-contracts.md) 부분 개정); 전송 승인 단위는 binding 튜플; 일일 스크립트 actor는 cron 설치자의 옵트인(`X-BidOps-Trigger`); 게이트는 후보 상태의 측정 전용 실행(`product_rerun`만 활성화를 연다); 일일 자동 실행은 환경 cap + 버전에 묶인 DB 스위치 |
+| [0061](tracking/decisions/0061-daily-collection-window.md) | 발주계획은 전일 하루, 공고는 기준일 포함 4일 창으로 수집 | 채택 | [0027](tracking/decisions/0027-order-plan-requery-window.md) 폐기·[0059](tracking/decisions/0059-full-collection-selective-ingest-and-index-search.md) 결정 1 개정; 한 발주계획 = 한 회차 = 한 운영 실행; 공고 4일 창은 사전규격 공개 지연(`rgstDt` 조회·`rcptDt` 공개, 늦은 색인 측정 4일 창 누락 0) 때문; 트랙 분리·적재 순서 고정 해제(테스트로 확인할 추론); 대가는 추적 중 발주계획 변경 미관측, 공고 회차 창과 scheduler 1일 창의 불일치(C-1 자동화 선행조건) |
 
 ## 4. 주제별 결정 요약
 
@@ -157,10 +159,14 @@ R-xx/A-xx 작업 지시, 과거 API 경로는 현재 실행 진입점이 아니�
   또는 사람이 수락한 후보만 갖는다.
 - 발주공고에서 처음 발견한 사업도 새 opportunity로 등록한다. 종료한 기회를 삭제하거나
   유사 제목을 같은 사업으로 자동 병합하지 않는다.
-- 발주계획 최근 21일 재조회는 현재 유지하되 2026-09-08·09-14 부근의 종단 관측 뒤 범위를
-  재평가한다. 관측 전에는 변경을 추정하지 않는다.
+- 발주계획은 전일(KST) 하루 창, 공고(사전규격·입찰공고)는 기준일 포함 4일 창 `[기준일−3일, 기준일]`로
+  수집한다(ADR-0061). 공고 겹침은 사전규격이 등록일로 조회되지만 접수일부터 공개돼 1~3일 늦게 보이는 건 때문이다.
+  발주계획 21일 재조회(ADR-0027)는 폐기했다 — 21일 근거가 종단 관측에서 재현되지 않았고, 겹치지 않는 세 회차 사이
+  통합번호 재등장이 0건이었다. 발주계획 → 입찰공고 연결은 입찰공고 측 `orderPlanUntyNo`로만 확정하며,
+  추적 중 발주계획의 변경은 관측하지 않는다(후속 과제). 공고 회차 창(4일)이 scheduler 일일 예약 창(1일)과
+  달라 C-1 자동화 때 겹친 공고의 중복 판정을 먼저 풀어야 한다.
 
-근거: ADR-0022, ADR-0024~0028 및 [`20260828-lifecycle-linkage-survey.md`](validation-runs/20260828-lifecycle-linkage-survey.md).
+근거: ADR-0022, ADR-0024~0028, ADR-0059·0061 및 [`20260828-lifecycle-linkage-survey.md`](validation-runs/20260828-lifecycle-linkage-survey.md).
 
 ### 4.2 적합성·판정·피드백
 
@@ -272,7 +278,7 @@ ADR-0021은 “운영 제품 전에 동일 모집단과 사람 정답으로 비�
 |---|---|---|
 | C-2 Phase 0 | 계약 고정, `valid_but_blocked` | 제품 adapter·DB·API·worker 구현 후 별도 승인 |
 | C-2 품질 gold | 실험별 corpus가 다름 | C-2 625건 manifest의 사람 adjudication·감사 표본·threshold 확정 |
-| C-2 외부 transport | `execution_allowed=false` | 실행별 private vLLM 전송 승인, allowlist·payload preview·binding 일치 |
+| C-2 외부 transport | `execution_allowed=false` | binding 튜플(policy·binding·model digest·allowlist) 단위 private vLLM 전송 승인([0060](tracking/decisions/0060-c2-policy-db-row-authority.md)), payload·binding digest 일치 |
 | 개요 검토 model worker | 2026-09-11 MVP 재작성([0054](tracking/decisions/0054-prespec-overview-mvp-rewrite.md)) 진행 중. `prespec_overview_run`·REST·화면·실행기는 P1~P3에서 순차 구현 | 승인된 사설 vLLM artifact와 사람 gold로 측정한 품질. 참조 실행 결과는 활성화 근거가 아니다 |
 | 입찰 delta | schema·REST·화면 계약과 migration 존재, 계산 worker 미완료 | exact pair 기반 계산·근거 검증·Go/No-Go 연속 E2E |
 | 심층 품질 | Mock E2E, 단일 live 기록, 참조 실행 모드 결과는 모두 품질 승인이 아님 | immutable model artifact, 대표 HWP/PDF, 사람 gold로 gate 측정 |

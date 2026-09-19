@@ -8,13 +8,21 @@ from uuid import UUID, uuid4
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 import pytest
-from sqlalchemy import event, select
+from sqlalchemy import create_engine, event, select
 from sqlalchemy.orm import Session
+from sqlalchemy.pool import StaticPool
 
-from app.core.db import get_db
+from app.core.db import Base, get_db
+from app.lifecycle import WorkloadCount
 from app.lifecycle import ingest_run
 from app.lifecycle.models import Opportunity, OpportunityLink, OrderPlan, OrderPlanObservation, Run
-from app.screening.models import OrderPlanScreeningExecution, OrderPlanScreeningFeedback, OrderPlanScreeningResult
+from app.screening.models import (
+    OrderPlanScreeningExecution,
+    OrderPlanScreeningFeedback,
+    OrderPlanScreeningPolicy,
+    OrderPlanScreeningResult,
+)
+from app.screening.projection import ScreeningWorkloadProjection
 from app.screening.routers import order_plans as routes
 from app.screening.services.order_plan_screening import OrderPlanScreeningService
 from tests.c2_fixtures import write_c2_fixture
@@ -120,7 +128,7 @@ def ids(response):
     return [item["order_plan_pk"] for item in response.json()["items"]]
 
 
-def test_scope_is_one_completed_execution_and_never_borrows_results(listing):
+def test_cumulative_mode_projects_latest_result_per_plan_and_run_mode_narrows(listing):
     session, service, policy, plans, client = listing
     plans[0].source_url = "https://www.g2b.go.kr/link/PRPA015_01/single/?oderPlanNo=P-0"
     session.commit()
@@ -129,7 +137,7 @@ def test_scope_is_one_completed_execution_and_never_borrows_results(listing):
     feedback(session, old, plans[0])
     run = Run(id="other", timezone="Asia/Seoul", generated_at=NOW)
     session.add(run)
-    session.add(OrderPlanObservation(order_plan_id=plans[1].id, run=run, observed_at=NOW))
+    session.add(OrderPlanObservation(order_plan_id=plans[1].id, run=run, observed_at=NOW + timedelta(days=1)))
     session.commit()
     latest = execution(session, service, policy, source_run_id="other", status="부분 성공", minute=2)
     result(session, latest, plans[1], relevance="uncertain")
@@ -140,32 +148,57 @@ def test_scope_is_one_completed_execution_and_never_borrows_results(listing):
     feedback(session, stopped, plans[0], relevance="not_relevant", minute=4)
     session.commit()
     body = client.get("/api/order-plans").json()
-    assert body["schema_version"] == "order-plan-list-response.v3"
-    assert body["scope"] == {"execution_id": str(latest.execution_id), "source_run_id": "other", "status": "부분 성공", "finished_at": "2026-09-02T00:02:00Z"}
+    assert body["schema_version"] == "order-plan-list-response.v4"
+    assert body["scope"] == {
+        "mode": "cumulative", "policy_versions": [policy], "activated_policy_versions": [policy],
+    }
     assert len(body["items"]) == 9
-    assert body["items"][0]["stage1_status"] is None
-    assert body["items"][0]["stage2_status"] is None
-    assert body["items"][0]["qwen_relevance"] is None
-    assert body["items"][0]["human_feedback"] is None
-    assert body["items"][0]["source_url"] == "https://www.g2b.go.kr/link/PRPA015_01/single/?oderPlanNo=P-0"
-    assert body["items"][1]["qwen_relevance"] == "uncertain"
+    first, second, third = body["items"][:3]
+    # 완료되지 않은 실행의 결과는 빌리지 않고, feedback은 실행과 무관하게 발주계획별 최신 1건이다.
+    assert (first["qwen_relevance"], first["execution_id"], first["policy_version"]) == ("relevant", str(old.execution_id), policy)
+    assert first["human_feedback"]["relevance"] == "not_relevant"
+    assert first["source_url"] == "https://www.g2b.go.kr/link/PRPA015_01/single/?oderPlanNo=P-0"
+    assert (second["qwen_relevance"], second["execution_id"]) == ("uncertain", str(latest.execution_id))
+    assert second["source_run_id"] == "other"
+    assert second["observed_at"] == "2026-09-03T00:00:00Z"
+    assert second["first_observed_at"] == "2026-09-02T00:00:00Z"
+    assert third["stage2_status"] is None and third["execution_id"] is None and third["policy_version"] is None
     scoped = client.get("/api/order-plans", params={"source_run_id": "run-c2"}).json()
-    assert scoped["scope"]["execution_id"] == str(old.execution_id)
-    assert scoped["items"][0]["human_feedback"]["relevance"] == "relevant"
+    assert scoped["scope"] == {
+        "mode": "run", "execution_id": str(old.execution_id), "source_run_id": "run-c2", "status": "성공",
+        "finished_at": "2026-09-02T00:01:00Z", "policy_version": policy, "purpose": "operational",
+    }
+    assert scoped["items"][0]["qwen_relevance"] == "relevant"
+    assert scoped["items"][0]["human_feedback"]["relevance"] == "not_relevant"
     assert scoped["items"][1]["stage2_status"] is None
+    other = client.get("/api/order-plans", params={"source_run_id": "other"}).json()
+    assert [item["order_plan_pk"] for item in other["items"]] == [plans[1].id]
+    assert other["items"][0]["first_observed_at"] == "2026-09-02T00:00:00Z"
 
 
-def test_no_completed_execution_keeps_original_items_with_null_scope(listing):
+def test_no_completed_execution_keeps_original_items(listing):
     session, service, policy, plans, client = listing
     failed = execution(session, service, policy, status="실패")
     result(session, failed, plans[0], stage2="failed")
     feedback(session, failed, plans[0])
     session.commit()
-    for params in ({}, {"source_run_id": "run-c2"}):
-        response = client.get("/api/order-plans", params=params)
-        assert len(ids(response)) == 9
-        assert response.json()["scope"] is None
-        assert all(item["stage1_status"] is None and item["human_feedback"] is None for item in response.json()["items"])
+    cumulative = client.get("/api/order-plans")
+    assert len(ids(cumulative)) == 9
+    # 활성화 이력은 있지만 완료 실행이 없다 — `policy_versions`는 빈 목록이고 누적 실행 유무와 같이 간다.
+    # `activated_policy_versions`는 활성화 이력 그대로라 화면이 이 실패 실행을 범위 안에서 계속 보인다.
+    assert cumulative.json()["scope"] == {
+        "mode": "cumulative", "policy_versions": [], "activated_policy_versions": [policy],
+    }
+    assert service.has_cumulative_execution(session) is False
+    run = client.get("/api/order-plans", params={"source_run_id": "run-c2"})
+    assert len(ids(run)) == 9
+    assert run.json()["scope"] is None
+    for response in (cumulative, run):
+        items = response.json()["items"]
+        assert all(item["stage1_status"] is None and item["execution_id"] is None for item in items)
+        # feedback은 실행과 무관한 발주계획별 최신 1건이다.
+        assert items[0]["human_feedback"]["relevance"] == "relevant"
+        assert all(item["human_feedback"] is None for item in items[1:])
 
 
 def test_multi_value_filters_missing_and_issue_are_independent_axes(listing):
@@ -328,7 +361,7 @@ def test_selection_review_order_plan_pk_sort_and_pagination_keep_all_501_source_
         assert first_response.status_code == second_response.status_code == 200
         first = first_response.json()
         second = second_response.json()
-        assert first["schema_version"] == "order-plan-list-response.v3"
+        assert first["schema_version"] == "order-plan-list-response.v4"
         assert first["total"] == second["total"] == 501
         assert first["limit"] == second["limit"] == 500
         assert first["offset"] == 0
@@ -344,8 +377,8 @@ def test_selection_review_order_plan_pk_sort_and_pagination_keep_all_501_source_
         session.bind.dispose()
 
 
-def test_scope_ordering_uses_finished_then_queued_then_execution_id(listing):
-    session, service, policy, _, client = listing
+def test_scope_ordering_uses_finished_then_execution_id(listing):
+    session, service, policy, plans, client = listing
     first = execution(session, service, policy, minute=2, execution_id=UUID(int=1))
     by_queue = execution(session, service, policy, minute=2, execution_id=UUID(int=2))
     by_queue.queued_at = NOW + timedelta(seconds=1)
@@ -353,9 +386,14 @@ def test_scope_ordering_uses_finished_then_queued_then_execution_id(listing):
     by_id.queued_at = by_queue.queued_at
     older = execution(session, service, policy, minute=1, execution_id=UUID(int=4))
     older.queued_at = NOW + timedelta(seconds=2)
+    result(session, first, plans[0], relevance="not_relevant")
+    result(session, by_queue, plans[0], relevance="not_relevant")
+    result(session, by_id, plans[0], relevance="uncertain")
+    result(session, older, plans[0], relevance="not_relevant")
     session.commit()
-    for params in ({}, {"source_run_id": "run-c2"}):
-        assert client.get("/api/order-plans", params=params).json()["scope"]["execution_id"] == str(by_id.execution_id)
+    assert client.get("/api/order-plans", params={"source_run_id": "run-c2"}).json()["scope"]["execution_id"] == str(by_id.execution_id)
+    item = client.get("/api/order-plans").json()["items"][0]
+    assert (item["execution_id"], item["qwen_relevance"]) == (str(by_id.execution_id), "uncertain")
     assert first.execution_id != by_id.execution_id
 
 
@@ -381,8 +419,12 @@ def test_postgres_list_filters_pagination_and_tracking_projection(tmp_path, scre
         assert listing["total"] == 1
         assert listing["items"][0]["order_plan_pk"] == plan.id
         assert listing["items"][0]["tracking"]["tracking_status"] == "미선택"
-        missing = service.list_order_plans(session, stage1_status="missing", stage2_status="missing", qwen_relevance="missing")
+        missing = service.list_order_plans(session, source_run_id=source_run_id, stage1_status="missing", stage2_status="missing", qwen_relevance="missing")
         assert [row["order_plan_pk"] for row in missing["items"]] == [unreviewed.id]
+        # 적재 fixture의 policy는 활성화된 적 없는 참조 policy라 누적 모드에는 결과가 없다.
+        cumulative = service.list_order_plans(session, stage1_status="missing", stage2_status="missing", qwen_relevance="missing")
+        assert cumulative["scope"] == {"mode": "cumulative", "policy_versions": [], "activated_policy_versions": []}
+        assert [row["order_plan_pk"] for row in cumulative["items"]] == [plan.id, unreviewed.id]
         assert service.list_order_plans(session, issue=True)["total"] == 0
         beyond = service.list_order_plans(session, limit=1, offset=5)
         assert beyond["total"] == 2 and beyond["items"] == []
@@ -398,3 +440,156 @@ def test_postgres_list_filters_pagination_and_tracking_projection(tmp_path, scre
             searched = service.list_order_plans(session, q=query, limit=1, offset=1)
             assert searched["total"] == 2
             assert [item["order_plan_pk"] for item in searched["items"]] == [second.id]
+
+
+DAY = timedelta(days=1)
+
+
+def policy_row(session, version, status, activated_at=None):
+    session.add(OrderPlanScreeningPolicy(
+        id=uuid4(), policy_version=version, schema_version="bidops.order-plan-screening-policy.v1",
+        producer="phase0-contracts", consumer="phase1-screening-pipeline", policy_status=status,
+        decision_scope="c2_order_plan_first_pass", policy_payload_jsonb={}, binding_payload_jsonb={},
+        policy_sha256="a" * 64, binding_sha256="b" * 64, activation_metadata_jsonb={},
+        quality_gate_status="passed" if activated_at is not None else None,
+        active_slot=1 if status == "active" else None, created_by="fixture", created_at=NOW,
+        activated_by="approver" if activated_at is not None else None, activated_at=activated_at,
+    ))
+    session.flush()
+
+
+def direct_execution(session, version, run_id, finished_at, *, status="성공", purpose="operational"):
+    row = OrderPlanScreeningExecution(
+        execution_id=uuid4(), request_id=uuid4(), schema_version="bidops.order-plan-screening-execution-row.v1",
+        producer="screening-api", consumer="screening-worker-and-review-api", source_run_id=run_id,
+        source_artifact_name="collected-order-plans.json", source_artifact_schema_version="bidops.collected-order-plans.v1",
+        source_artifact_sha256="a" * 64, input_artifact_sha256="a" * 64, population_count=1, population_sha256="a" * 64,
+        policy_version=version, policy_sha256="a" * 64, binding_sha256="b" * 64,
+        stage1_binding_version="fixture", stage1_binding_sha256="c" * 64,
+        stage2_binding_version="fixture", stage2_binding_sha256="d" * 64,
+        status=status, requested_by="fixture", partial_artifact=status != "성공",
+        queued_at=finished_at - timedelta(minutes=5), started_at=finished_at - timedelta(minutes=4),
+        finished_at=finished_at, created_at=finished_at - timedelta(minutes=5), purpose=purpose,
+    )
+    session.add(row)
+    session.flush()
+    return row
+
+
+def check_cumulative_projection(session):
+    """어제·오늘 실행, policy 교체, 참조·측정 실행, 회차 선택, 실행 없는 날의 워크로드를 한 흐름으로 확인한다."""
+    service = OrderPlanScreeningService()
+    workload = ScreeningWorkloadProjection()
+    runs = {name: Run(id=f"s8a-{name}", timezone="Asia/Seoul", generated_at=NOW) for name in ("day1", "day2", "ref", "gate")}
+    session.add_all(runs.values())
+    # v3은 어제 쓰이고 retire됐고 v4가 오늘 active다. 참조 policy는 한 번도 활성화된 적이 없다.
+    policy_row(session, "s8a-v3", "retired", NOW)
+    policy_row(session, "s8a-v4", "active", NOW + DAY)
+    policy_row(session, "s8a-ref", "draft")
+    plans = [OrderPlan(order_plan_unty_no=f"S8A-{index}", title=f"누적 투영 {index}") for index in range(4)]
+    session.add_all(plans)
+    session.flush()
+    a, b, c, d = plans
+    for plan, run, when in ((a, "day1", NOW), (a, "day2", NOW + DAY), (b, "gate", NOW - DAY), (b, "day2", NOW + DAY),
+                            (c, "day1", NOW), (d, "ref", NOW)):
+        session.add(OrderPlanObservation(order_plan_id=plan.id, run_id=runs[run].id, observed_at=when))
+    owner(session, a)
+    owner(session, b)
+    reference = direct_execution(session, "s8a-ref", runs["ref"].id, NOW + 3 * DAY)
+    result(session, reference, a, relevance="not_relevant")
+    result(session, reference, d)
+    gate = direct_execution(session, "s8a-v4", runs["gate"].id, NOW + 3 * DAY, purpose="gate_measurement")
+    result(session, gate, b, relevance="not_relevant")
+    session.commit()
+
+    # 참조·측정 실행만 있으면 누적 범위가 비어 있고 워크로드는 null이다. v3·v4는 활성화된 적
+    # 있지만 범위 실행이 0건이라 `policy_versions`에도 들어가지 않는다 — 빈 목록과 null은 함께 간다.
+    empty = service.list_order_plans(session)
+    # 실행이 0건이어도 활성화된 두 버전은 `activated_policy_versions`에 다 있다. 한 번도 활성화된
+    # 적 없는 참조 policy(s8a-ref)는 그 실행이 완료됐어도 두 목록 어디에도 들어가지 않는다.
+    assert empty["scope"] == {
+        "mode": "cumulative", "policy_versions": [], "activated_policy_versions": ["s8a-v3", "s8a-v4"],
+    }
+    assert service.has_cumulative_execution(session) is False
+    assert all(item["execution_id"] is None for item in empty["items"])
+    assert workload.workload_counts(session) == {"order_plan_pending": WorkloadCount(None, "no_completed_execution")}
+
+    yesterday = direct_execution(session, "s8a-v3", runs["day1"].id, NOW + timedelta(hours=1))
+    result(session, yesterday, a)
+    result(session, yesterday, c, relevance="not_relevant")
+    feedback(session, yesterday, a, relevance="relevant")
+    session.commit()
+    # 실행이 생긴 버전만 들어간다. v4는 아직 운영 완료 실행이 없어 활성화 이력만으로는 빠진다.
+    assert service.list_order_plans(session)["scope"] == {
+        "mode": "cumulative", "policy_versions": ["s8a-v3"], "activated_policy_versions": ["s8a-v3", "s8a-v4"],
+    }
+    assert service.has_cumulative_execution(session) is True
+    today = direct_execution(session, "s8a-v4", runs["day2"].id, NOW + DAY + timedelta(hours=1), status="부분 성공")
+    result(session, today, a, relevance="uncertain")
+    result(session, today, b)
+    direct_execution(session, "s8a-v4", runs["day2"].id, NOW + 2 * DAY, status="실패")
+    session.commit()
+
+    listing = service.list_order_plans(session)
+    assert listing["schema_version"] == "order-plan-list-response.v4"
+    # 두 버전 모두 범위 실행을 가졌다. 순서는 policy `activated_at` 오름차순이고 v4의 실패 실행은 세지 않는다.
+    assert listing["scope"] == {
+        "mode": "cumulative", "policy_versions": ["s8a-v3", "s8a-v4"], "activated_policy_versions": ["s8a-v3", "s8a-v4"],
+    }
+    rows = {item["order_plan_pk"]: item for item in listing["items"]}
+    assert listing["total"] == 4
+    # 오늘 실행의 판정과 어제 실행의 feedback이 같은 행에 함께 실린다.
+    assert (rows[a.id]["execution_id"], rows[a.id]["policy_version"], rows[a.id]["qwen_relevance"]) == (today.execution_id, "s8a-v4", "uncertain")
+    assert rows[a.id]["human_feedback"]["relevance"] == "relevant"
+    assert rows[a.id]["source_run_id"] == runs["day2"].id
+    assert rows[a.id]["first_observed_at"] == NOW
+    assert rows[a.id]["observed_at"] == NOW + DAY
+    assert (rows[b.id]["execution_id"], rows[b.id]["qwen_relevance"]) == (today.execution_id, "relevant")
+    assert rows[b.id]["first_observed_at"] == NOW - DAY
+    # retire된 v3의 판정이 누적에 남는다.
+    assert (rows[c.id]["execution_id"], rows[c.id]["policy_version"], rows[c.id]["qwen_relevance"]) == (yesterday.execution_id, "s8a-v3", "not_relevant")
+    # 참조 실행의 판정은 누적에 없다.
+    assert rows[d.id]["execution_id"] is None and rows[d.id]["policy_version"] is None and rows[d.id]["qwen_relevance"] is None
+
+    def pks(**params):
+        return [item["order_plan_pk"] for item in service.list_order_plans(session, **params)["items"]]
+
+    assert pks(qwen_relevance="relevant") == [b.id]
+    assert pks(qwen_relevance="missing") == [d.id]
+    assert pks(human_relevance="relevant") == [a.id]
+    assert pks(stage1_status="selected", qwen_relevance="relevant,uncertain", tracking_status="미선택") == [a.id, b.id]
+    page = service.list_order_plans(session, limit=1, offset=1)
+    assert page["total"] == 4 and [item["order_plan_pk"] for item in page["items"]] == [b.id]
+
+    # 회차 모드는 policy·purpose를 묻지 않고 그 회차의 최신 완료 실행 하나만 보인다.
+    audit = service.list_order_plans(session, source_run_id=runs["ref"].id)
+    assert audit["scope"]["mode"] == "run"
+    assert (audit["scope"]["execution_id"], audit["scope"]["policy_version"], audit["scope"]["purpose"]) == (reference.execution_id, "s8a-ref", "operational")
+    assert [(item["order_plan_pk"], item["qwen_relevance"], item["policy_version"]) for item in audit["items"]] == [(d.id, "relevant", "s8a-ref")]
+    measured = service.list_order_plans(session, source_run_id=runs["gate"].id)
+    assert (measured["scope"]["execution_id"], measured["scope"]["purpose"]) == (gate.execution_id, "gate_measurement")
+    assert [(item["order_plan_pk"], item["qwen_relevance"]) for item in measured["items"]] == [(b.id, "not_relevant")]
+    assert measured["items"][0]["observed_at"] == NOW - DAY
+    day1 = service.list_order_plans(session, source_run_id=runs["day1"].id)
+    assert day1["scope"]["execution_id"] == yesterday.execution_id
+    assert [(item["order_plan_pk"], item["qwen_relevance"]) for item in day1["items"]] == [(a.id, "relevant"), (c.id, "not_relevant")]
+    assert day1["items"][0]["first_observed_at"] == NOW
+
+    # 워크로드는 누적 범위로 센다. 오늘 새 실행이 없어도(마지막 실행이 실패여도) null이 되지 않는다.
+    assert workload.workload_counts(session) == {"order_plan_pending": WorkloadCount(2)}
+
+
+def test_cumulative_projection_keeps_retired_policy_results_and_excludes_reference_and_gate(tmp_path):
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+    Base.metadata.create_all(engine)
+    try:
+        with Session(engine) as session:
+            check_cumulative_projection(session)
+    finally:
+        engine.dispose()
+
+
+@requires_postgres
+def test_postgres_cumulative_projection(screening_extensions):
+    with migrated_engine() as engine, Session(engine) as session:
+        check_cumulative_projection(session)

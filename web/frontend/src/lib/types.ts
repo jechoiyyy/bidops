@@ -1711,6 +1711,7 @@ export type OrderPlanStage1Status = "selected" | "filtered_out" | "failed" | "re
 export type OrderPlanStage2Status = "not_attempted" | "success" | "failed" | "rejected" | "unknown";
 export type OrderPlanRelevance = "relevant" | "not_relevant" | "uncertain";
 export type OrderPlanScreeningStatus = "대기" | "실행 중" | "중지 요청" | "성공" | "부분 성공" | "실패" | "중단됨";
+export type OrderPlanScreeningExecutionPurpose = "operational" | "gate_measurement";
 export type OrderPlanScreeningAttemptStatus = "running" | "success" | "failed" | "rejected";
 export type OrderPlanScreeningFailureType =
   | "timeout"
@@ -1773,10 +1774,13 @@ export interface OrderPlanListItem {
   qwen_reason: string | null;
   human_feedback: OrderPlanHumanFeedbackSummary | null;
   tracking: OrderPlanTracking | null;
+  execution_id: string | null;
+  policy_version: string | null;
+  first_observed_at: string | null;
 }
 
 export interface OrderPlanListResponse {
-  schema_version: "order-plan-list-response.v3";
+  schema_version: "order-plan-list-response.v4";
   scope: OrderPlanListScope | null;
   producer: "order-plan-review-api";
   consumer: "order-plan-review-client";
@@ -1793,12 +1797,30 @@ export type OrderPlanStage1Filter = OrderPlanStage1Status | MissingFilter;
 export type OrderPlanStage2Filter = OrderPlanStage2Status | MissingFilter;
 export type OrderPlanRelevanceFilter = OrderPlanRelevance | MissingFilter;
 
-export interface OrderPlanListScope {
+/**
+ * 누적 모드의 두 목록. 둘 다 policy `activated_at` 오름차순(동률은 버전 오름차순)이다.
+ * - `policy_versions`: 범위에 완료 실행이 실제로 있는 버전 — 판정 유무. 범위가 비면 빈 목록이다.
+ * - `activated_policy_versions`: 활성화된 적 있는 버전 전부 — 실행 상태를 보일 범위이므로 결과가
+ *   아직 없는 대기·실행 중·실패도 포함한다. `policy_versions`는 이것의 부분집합이다.
+ */
+export interface OrderPlanCumulativeScope {
+  mode: "cumulative";
+  policy_versions: string[];
+  activated_policy_versions: string[];
+}
+
+/** 회차 모드: 그 회차의 최신 완료 실행 하나. policy·purpose를 묻지 않는다. */
+export interface OrderPlanRunScope {
+  mode: "run";
   execution_id: string;
   source_run_id: string;
   status: "성공" | "부분 성공";
   finished_at: string | null;
+  policy_version: string;
+  purpose: OrderPlanScreeningExecutionPurpose;
 }
+
+export type OrderPlanListScope = OrderPlanCumulativeScope | OrderPlanRunScope;
 
 export interface OrderPlanListQuery {
   source_run_id?: string | null;
@@ -1938,6 +1960,7 @@ export interface OrderPlanScreeningExecutionSummary {
   source_run_id: string;
   policy_version: string;
   status: OrderPlanScreeningStatus;
+  purpose: OrderPlanScreeningExecutionPurpose;
   requested_by: string;
   execution_allowed: boolean;
   population_count: number;
@@ -1958,7 +1981,7 @@ export interface OrderPlanScreeningExecutionSummary {
 }
 
 export interface OrderPlanScreeningExecutionListResponse {
-  schema_version: "execution-list-response.v1";
+  schema_version: "execution-list-response.v2";
   producer: "screening-api";
   consumer: "human-review-client";
   items: OrderPlanScreeningExecutionSummary[];
@@ -1992,7 +2015,7 @@ export interface OrderPlanScreeningAttemptSummary {
 }
 
 export interface OrderPlanScreeningExecutionDetailResponse extends OrderPlanScreeningExecutionSummary {
-  schema_version: "execution-detail-response.v1";
+  schema_version: "execution-detail-response.v2";
   producer: "screening-api";
   consumer: "human-review-client";
   artifacts: OrderPlanScreeningArtifactSummary[];
@@ -2191,4 +2214,392 @@ export interface CompanyFitResponse {
   automation_enabled: boolean;
   auto_deep_review_reason: string | null;
   deep_review_id: string | null;
+}
+
+// ---------------------------------------------------------------------------
+// C-2 일일 운영 계약 (docs/contracts.md "C-2 일일 운영 계약", ADR-0060·0061).
+//
+// Exact server request/response contracts — field names, nullability, and
+// literals are carried over verbatim from the pydantic schemas below. The
+// `C2` prefix avoids collisions with the legacy C-1 notice-screening policy
+// and quality-gate types above, which are a separate domain.
+//   - screening/schemas/order_plan_policies.py
+//   - screening/schemas/order_plan_daily_trigger.py
+//   - screening/schemas/order_plan_quality_gates.py
+//   - screening/schemas/order_plan_audit_sample.py
+
+// -- order_plan_policies.py --------------------------------------------------
+
+export type C2PolicyStatus = "draft" | "activation_candidate" | "active" | "retired";
+export type C2PolicyQualityGateStatus = "not_measured" | "measured" | "passed" | "failed";
+
+export interface C2PolicyCandidateRequest {
+  schema_version: "policy-candidate-request.v1";
+  producer: "human-review-client";
+  consumer: "policy-api";
+  request_id: string;
+  policy_version: string;
+  base_policy_sha256: string | null;
+  candidate_sha256: string;
+  reason: string;
+}
+
+export interface C2PolicyActivateRequest {
+  schema_version: "policy-activate-request.v1";
+  producer: "human-review-client";
+  consumer: "policy-api";
+  request_id: string;
+  policy_sha256: string;
+  quality_gate_artifact_sha256: string;
+  // `true`로 고정하지 않는다. `false`는 활성화 검증 순서 8번에서 invalid_request가 된다.
+  explicit_confirmation: boolean;
+}
+
+export interface C2PolicySummary {
+  policy_version: string;
+  policy_status: C2PolicyStatus;
+  quality_gate_status: C2PolicyQualityGateStatus | null;
+  policy_sha256: string;
+  binding_sha256: string;
+  created_by: string;
+  created_at: string;
+  activated_by: string | null;
+  activated_at: string | null;
+}
+
+export interface C2PolicyListResponse {
+  schema_version: "policy-list-response.v1";
+  producer: "policy-api";
+  consumer: "human-review-client";
+  items: C2PolicySummary[];
+  total: number;
+}
+
+export interface C2PolicyBlocker {
+  code: string;
+  detail: string | null;
+}
+
+export interface C2PolicyExternalTransportView {
+  execution_allowed: boolean | null;
+  approval_scope: string | null;
+  approved_by: string | null;
+  approved_at: string | null;
+  approval_required_per_execution: boolean | null;
+}
+
+export interface C2PolicyAuditSampleSettingView {
+  enabled: boolean | null;
+  max_per_execution: number | null;
+  review_cadence: string | null;
+}
+
+export interface C2PolicyLatestEvaluationView {
+  evaluation_id: string;
+  revision: number;
+  result_status: "통과" | "미달" | "미측정" | "보류";
+  artifact_sha256: string;
+  evaluated_at: string;
+}
+
+export interface C2PolicySelectedGateView {
+  gate_id: string;
+  evaluation_basis: "product_rerun" | "reference_artifact_rescore";
+  thresholds_decided: boolean;
+  latest_evaluation: C2PolicyLatestEvaluationView | null;
+}
+
+export interface C2PolicyInspectResponse extends C2PolicySummary {
+  schema_version: "policy-inspect-response.v1";
+  producer: "policy-api";
+  consumer: "human-review-client";
+  binding_status: string | null;
+  policy_file_present: boolean;
+  binding_file_present: boolean;
+  external_transport: C2PolicyExternalTransportView | null;
+  audit_sample: C2PolicyAuditSampleSettingView | null;
+  quality_gate: C2PolicySelectedGateView | null;
+  activation_allowed: boolean;
+  blockers: C2PolicyBlocker[];
+}
+
+export interface C2PolicyCandidateResponse {
+  schema_version: "policy-candidate-response.v1";
+  producer: "policy-api";
+  consumer: "human-review-client";
+  request_id: string;
+  policy_version: string;
+  policy_status: "activation_candidate";
+  policy_sha256: string;
+  binding_sha256: string;
+  audit_event_id: string;
+}
+
+export interface C2PolicyActivateResponse {
+  schema_version: "policy-activate-response.v1";
+  producer: "policy-api";
+  consumer: "human-review-client";
+  request_id: string;
+  policy_version: string;
+  policy_status: "active";
+  quality_gate_status: "passed";
+  policy_sha256: string;
+  binding_sha256: string;
+  gate_id: string;
+  evaluation_id: string;
+  previous_active_policy_version: string | null;
+  activated_by: string;
+  activated_at: string;
+  audit_event_id: string;
+}
+
+// -- order_plan_daily_trigger.py ---------------------------------------------
+
+export type C2DailyTriggerReason =
+  | "env_cap_off"
+  | "no_active_policy"
+  | "switch_off"
+  | "switch_bound_to_other_version"
+  | "quality_gate_not_passed"
+  | "execution_transport_not_allowed"
+  | "policy_file_missing";
+
+export interface C2DailyTriggerSetRequest {
+  schema_version: "daily-trigger-set-request.v1";
+  producer: "human-review-client";
+  consumer: "daily-trigger-api";
+  request_id: string;
+  policy_version: string;
+  enabled: boolean;
+  reason: string | null;
+  // `true`로 고정하지 않는다. `false`는 서비스가 invalid_request로 거부한다.
+  explicit_confirmation: boolean;
+}
+
+export interface C2DailyTriggerSwitchView {
+  enabled: boolean;
+  reason: string | null;
+  set_by: string;
+  set_at: string;
+}
+
+export interface C2DailyTriggerStateResponse {
+  schema_version: "daily-trigger-state-response.v1";
+  producer: "daily-trigger-api";
+  consumer: "human-review-client";
+  effective_enabled: boolean;
+  policy_version: string | null;
+  policy_sha256: string | null;
+  switch: C2DailyTriggerSwitchView | null;
+  reasons: C2DailyTriggerReason[];
+}
+
+export interface C2DailyTriggerSetResponse {
+  schema_version: "daily-trigger-set-response.v1";
+  producer: "daily-trigger-api";
+  consumer: "human-review-client";
+  request_id: string;
+  policy_version: string;
+  policy_sha256: string;
+  enabled: boolean;
+  reason: string | null;
+  set_by: string;
+  set_at: string;
+  audit_event_id: string;
+  effective_enabled: boolean;
+  reasons: C2DailyTriggerReason[];
+}
+
+// -- order_plan_quality_gates.py ----------------------------------------------
+
+export type C2QualityGateResultStatus = "통과" | "미달" | "미측정" | "보류";
+export type C2QualityGateEvaluationBasis = "product_rerun" | "reference_artifact_rescore";
+
+export interface C2QualityGatePassMetrics {
+  recall_pct: number | null;
+  precision_pct: number | null;
+  important_missed: number | null;
+  review_load: number | null;
+}
+
+export interface C2QualityGateCreateRequest {
+  schema_version: "order-plan-quality-gate-create-request.v1";
+  producer: "human-review-client";
+  consumer: "quality-gate-api";
+  request_id: string;
+  policy_version: string;
+  policy_sha256: string;
+  binding_sha256: string;
+  gold_manifest_sha256: string;
+  gold_artifact_sha256: string;
+  gold_status: string;
+  scoring_input_sha256: string;
+  evaluation_basis: C2QualityGateEvaluationBasis;
+  measurement_run_ids: string[];
+  // 네 key 모두 필수이고 값은 null을 허용한다(null = 사람 결정 전).
+  threshold_recall_pct: number | null;
+  threshold_precision_pct: number | null;
+  threshold_important_missed_max: number | null;
+  threshold_review_load_max: number | null;
+}
+
+export interface C2QualityGatePassExecutionIds {
+  pass_1: string[];
+  pass_2: string[] | null;
+}
+
+export interface C2QualityGatePassMetricsSet {
+  pass_1: C2QualityGatePassMetrics;
+  pass_2: C2QualityGatePassMetrics | null;
+}
+
+export interface C2QualityEvaluationCreateRequest {
+  schema_version: "order-plan-quality-evaluation-create-request.v1";
+  producer: "human-review-client";
+  consumer: "quality-gate-api";
+  request_id: string;
+  artifact_sha256: string;
+  pass_execution_ids: C2QualityGatePassExecutionIds;
+  pass_metrics: C2QualityGatePassMetricsSet;
+  agreement_pct: number | null;
+  reference_full_window: C2QualityGatePassMetrics | null;
+  reasons: string[];
+}
+
+export interface C2QualityGateThresholds {
+  recall_pct: number | null;
+  precision_pct: number | null;
+  important_missed_max: number | null;
+  review_load_max: number | null;
+}
+
+export interface C2QualityGateEvaluationMetrics {
+  pass_1: C2QualityGatePassMetrics;
+  pass_2: C2QualityGatePassMetrics | null;
+  agreement_pct: number | null;
+  reference_full_window: C2QualityGatePassMetrics | null;
+}
+
+export interface C2QualityGateEvaluationView {
+  evaluation_id: string;
+  gate_id: string;
+  revision: number;
+  result_status: C2QualityGateResultStatus;
+  pass_execution_ids: C2QualityGatePassExecutionIds;
+  measured_recall_pct: number | null;
+  measured_precision_pct: number | null;
+  measured_important_missed: number | null;
+  measured_review_load: number | null;
+  metrics: C2QualityGateEvaluationMetrics;
+  reasons: string[];
+  artifact_sha256: string;
+  evaluated_by: string;
+  evaluated_at: string;
+}
+
+export interface C2QualityGateView {
+  gate_id: string;
+  policy_version: string;
+  policy_sha256: string;
+  binding_sha256: string;
+  gold_manifest_sha256: string;
+  gold_artifact_sha256: string;
+  gold_status: string;
+  scoring_input_sha256: string;
+  evaluation_basis: C2QualityGateEvaluationBasis;
+  scoring_unit: "per_published_day";
+  measurement_run_ids: string[];
+  required_pass_count: 2;
+  thresholds: C2QualityGateThresholds;
+  created_by: string;
+  created_at: string;
+  latest_evaluation: C2QualityGateEvaluationView | null;
+}
+
+/** `status`는 C-2 실행 상태와 같은 enum이다 (`OrderPlanScreeningStatus`). */
+export interface C2QualityGateMeasurementExecution {
+  execution_id: string;
+  source_run_id: string;
+  status: OrderPlanScreeningStatus;
+  queued_at: string;
+  finished_at: string | null;
+}
+
+export interface C2QualityGateListItem extends C2QualityGateView {
+  measurement_executions: C2QualityGateMeasurementExecution[];
+}
+
+export interface C2QualityGateCreateResponse extends C2QualityGateView {
+  schema_version: "order-plan-quality-gate-response.v1";
+  producer: "quality-gate-api";
+  consumer: "human-review-client";
+  request_id: string;
+}
+
+export interface C2QualityGateListResponse {
+  schema_version: "order-plan-quality-gate-list-response.v1";
+  producer: "quality-gate-api";
+  consumer: "human-review-client";
+  policy_version: string;
+  items: C2QualityGateListItem[];
+}
+
+export interface C2QualityEvaluationCreateResponse extends C2QualityGateEvaluationView {
+  schema_version: "order-plan-quality-evaluation-response.v1";
+  producer: "quality-gate-api";
+  consumer: "human-review-client";
+  request_id: string;
+}
+
+// -- order_plan_audit_sample.py -----------------------------------------------
+
+export type C2AuditSampleStratum = "classification_proximity" | "performance_similarity_proximity" | "uniform_hash";
+export type C2AuditSampleStatus = "preview" | "drawn" | "pending_human_approval" | "not_applicable";
+
+export interface C2AuditSampleDrawRequest {
+  schema_version: "audit-sample-draw-request.v1";
+  producer: "human-review-client";
+  consumer: "audit-sample-api";
+  request_id: string;
+}
+
+export interface C2AuditSampleItem {
+  order_plan_pk: number;
+  order_plan_unty_no: string;
+  title: string | null;
+  stratum: C2AuditSampleStratum;
+  selection_rank: number;
+  plan_id_sha256: string;
+  stage1_rank: number;
+  stage1_score: number;
+  nearest_capability: string | null;
+}
+
+/** 미리보기와 기록 응답의 공통 field. */
+export interface C2AuditSampleView {
+  producer: "screening-api";
+  consumer: "human-review-client";
+  execution_id: string;
+  status: C2AuditSampleStatus;
+  reason: string | null;
+  pending_decision: string | null;
+  policy_version: string;
+  policy_sha256: string;
+  population_count: number;
+  filtered_out_count: number;
+  max_per_execution: number | null;
+  review_cadence: string | null;
+  sample: C2AuditSampleItem[] | null;
+  drawn_by: string | null;
+  drawn_at: string | null;
+}
+
+export interface C2AuditSamplePreviewResponse extends C2AuditSampleView {
+  schema_version: "audit-sample-preview-response.v1";
+}
+
+export interface C2AuditSampleDrawResponse extends C2AuditSampleView {
+  schema_version: "audit-sample-draw-response.v1";
+  request_id: string;
+  audit_event_id: string | null;
 }
