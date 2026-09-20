@@ -30,6 +30,8 @@ from ..schemas.opportunities import (
     OpportunityTrackingStatus,
     RecheckAcknowledgementRequest,
     TrackingStatusUpdateRequest,
+    OrderPlanBulkEndRequest,
+    OrderPlanBulkEndResponse,
     OrderPlanBulkPreviewRequest,
     OrderPlanBulkPreviewResponse,
     OrderPlanBulkStartRequest,
@@ -284,6 +286,44 @@ def start_order_plan_tracking(
         # ``result.snapshot`` is either the exact JSON committed in the
         # IdempotencyRecord or the identical JSON that was just committed.
         # Returning it directly avoids a replay-time DTO dump/recalculation.
+        return JSONResponse(
+            status_code=result.response_status,
+            content=result.snapshot,
+        )
+    except (
+        order_plan_bulk_tracking.OrderPlanBulkTrackingError,
+        BundleServiceError,
+    ) as error:
+        session.rollback()
+        return _error_response(error)
+    except Exception:  # pragma: no cover - defensive API boundary
+        session.rollback()
+        return _unexpected()
+
+
+@router.post(
+    "/order-plan-tracking/bulk-end",
+    response_model=OrderPlanBulkEndResponse,
+)
+def end_order_plan_tracking(
+    payload: OrderPlanBulkEndRequest,
+    actor: Annotated[str | None, Header(alias="X-BidOps-Actor-Name")] = None,
+    actor_format: Annotated[str | None, Header(alias="X-BidOps-Actor-Name-Format")] = None,
+    session: Session = Depends(get_db),
+) -> JSONResponse:
+    """End tracking for selected plans and return their durable receipt."""
+
+    try:
+        actor_name = validate_actor(actor, actor_format)
+        result = order_plan_bulk_tracking.end_order_plan_tracking(
+            session,
+            payload.order_plan_ids,
+            request_id=payload.request_id,
+            reason=payload.reason,
+            selected_by=actor_name,
+        )
+        # As in bulk start, the committed JSON is returned verbatim so a
+        # replay cannot differ from the receipt by a single byte.
         return JSONResponse(
             status_code=result.response_status,
             content=result.snapshot,
