@@ -87,15 +87,20 @@ export function OrderPlanListRow({
               같은 크기·보통 굵기로 읽힌다. */}
           <span className="c2l-row-agency">{textOrUnknown(item.agency_name)}</span>
           <span className="c2l-row-meta" title={`예산 ${budgetValue(item.budget_amount)}`}>
-            <span>{budgetLabel(item.budget_amount)}</span>
-            <span aria-hidden="true">·</span>
-            {/* 누적 목록에서는 행마다 판정한 시점이 다르다. 어느 policy가 판정했는지와 판정
-                기준 시점인 첫 관측일을 행에 싣는다(spec §7). 결과가 없으면 `판정 없음`이다.
-                두 항목으로 나눠 항목 사이에서만 줄바꿈되게 한다(B2). */}
-            <span className="c2l-row-verdict">
-              <span className="c2l-row-meta-item">{policyClauseLabel(item)}</span>
-              <span className="c2l-row-meta-item">
-                <span aria-hidden="true"> · </span>{observedClauseLabel(item)}
+            <span className="c2l-row-meta-item">{budgetLabel(item.budget_amount)}</span>
+            {/* 구분점은 전부 뒤 항목 앞에 붙인다(B2 후속, 0920 검수) — 줄이 바뀌어도
+                구분점이 앞 항목 끝에 홀로 남지 않는다. 이 구분점은 `.c2l-row-verdict`
+                밖에 있어 그 요소의 텍스트(판정 policy … · 첫 관측 …)는 그대로다. */}
+            <span className="c2l-row-meta-group">
+              <span aria-hidden="true">· </span>
+              {/* 누적 목록에서는 행마다 판정한 시점이 다르다. 어느 policy가 판정했는지와 판정
+                  기준 시점인 첫 관측일을 행에 싣는다(spec §7). 결과가 없으면 `판정 없음`이다.
+                  두 항목으로 나눠 항목 사이에서만 줄바꿈되게 한다(B2). */}
+              <span className="c2l-row-verdict">
+                <span className="c2l-row-meta-item">{policyClauseLabel(item)}</span>
+                <span className="c2l-row-meta-item">
+                  <span aria-hidden="true"> · </span>{observedClauseLabel(item)}
+                </span>
               </span>
             </span>
           </span>
