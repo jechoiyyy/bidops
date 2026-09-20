@@ -15,25 +15,29 @@ import { TextInput } from "@astryxdesign/core/TextInput";
 import { ToggleButton, ToggleButtonGroup } from "@astryxdesign/core/ToggleButton";
 import { Text } from "@astryxdesign/core/Text";
 import { ConfirmDecisionDialog, trackingEndConfirmContent } from "../components/common/ConfirmDecisionDialog";
+import { EmptyState } from "../components/common/EmptyState";
 import { PageHeaderActions } from "../components/common/PageHeaderActions";
 import { useRowKeyboardNavigation } from "../components/common/useRowKeyboardNavigation";
 import { useUnsavedGuard } from "../components/common/useUnsavedGuard";
 import { useListSelection } from "../components/common/useListSelection";
 import {
   DenseList,
+  ListColumns,
+  ListPager,
   ReviewDecisionAction,
   ReviewFilterSelector,
   ReviewFilterTextInput,
   ReviewRevisionHistory,
-  ReviewState,
   ReviewStatus,
   ReviewValue,
+  SelectionToolbar,
   SplitWorkspace,
 } from "../components/common/ReviewPrimitives";
 import {
   WorkspaceAdvancedToggle,
   WorkspaceFilterAdvanced,
   WorkspaceFilterBar,
+  WorkspaceFilterContext,
   WorkspaceFilterEnd,
   WorkspaceFilterLine,
   WorkspaceFrame,
@@ -80,35 +84,8 @@ import type {
 import "../styles/order-plans.css";
 
 const PAGE_SIZE = 500;
-const MIN_LIST_WIDTH = 300;
-const MAX_LIST_WIDTH = 640;
-/**
- * 시안의 목록 폭은 작업 영역의 **38%**다(IMPLEMENTATION-CONTRACT §고정할 기준).
- * 고정 px 로 비율을 근사하지 않는다 — 폭이 바뀌면 근사값은 어긋나고, 같은 셸을 쓰는
- * 다른 화면과 기본값이 달라진다. 사람이 손으로 끌면 그때부터 px 로 고정된다.
- */
-const DEFAULT_LIST_WIDTH = "38%";
-const LIST_WIDTH_STEP = 24;
-const LIST_WIDTH_STORAGE_KEY = "bidops.order-plans.listWidth";
 const SAVED_VIEWS_STORAGE_KEY = "bidops.order-plans.views";
 
-/**
- * 마우스 좌표는 화면에 그려진 좌표이고 목록 폭은 CSS layout px 이다.
- * offsetWidth와 bounding rect는 모두 목록 테두리를 포함하므로, 두 값을 나누면
- * 브라우저가 계산한 실제 렌더링 배율을 선언값 없이 얻을 수 있다.
- */
-function renderedHorizontalScale(element: HTMLElement): number {
-  const layoutWidth = element.offsetWidth;
-  const renderedWidth = element.getBoundingClientRect().width;
-  if (layoutWidth > 0 && renderedWidth > 0) {
-    const scale = renderedWidth / layoutWidth;
-    if (Number.isFinite(scale) && scale > 0) return scale;
-  }
-
-  // Native compact CSS does not add a document-level scale. Keep the neutral
-  // fallback for the pre-layout event rather than guessing from a stale style.
-  return 1;
-}
 /**
  * 두 값만 **탭 세션** 동안 기억한다(localStorage가 아니다).
  *
@@ -367,26 +344,6 @@ function parseOrderPlanPk(value: string | null): number | null {
 
 function setEqualsArray<T>(set: Set<T>, values: readonly T[]): boolean {
   return set.size === values.length && values.every((value) => set.has(value));
-}
-
-/** 저장된 폭이 없으면 `null`이다. `null`은 "아직 비율 기본값"이라는 뜻이다. */
-function loadListWidth(): number | null {
-  try {
-    const raw = window.localStorage.getItem(LIST_WIDTH_STORAGE_KEY);
-    const parsed = raw ? Number(raw) : NaN;
-    if (!Number.isFinite(parsed)) return null;
-    return Math.min(MAX_LIST_WIDTH, Math.max(MIN_LIST_WIDTH, parsed));
-  } catch {
-    return null;
-  }
-}
-
-function saveListWidth(width: number): void {
-  try {
-    window.localStorage.setItem(LIST_WIDTH_STORAGE_KEY, String(width));
-  } catch {
-    /* localStorage 접근 불가는 화면 동작을 막지 않는다 */
-  }
 }
 
 function loadSavedViews(): SavedView[] {
@@ -693,12 +650,8 @@ export function OrderPlansPage() {
   const [bulkPending, setBulkPending] = useState(false);
   const [bulkRecoveryAvailable, setBulkRecoveryAvailable] = useState(() => hasPendingOrderPlanBulkTrackingRequest());
   const [advancedOpen, setAdvancedOpen] = useState(false);
-  // `null`이면 시안의 38% 비율을 그대로 쓴다. 사람이 끌거나 화살표를 누르면 px 로 고정된다.
-  const [listWidth, setListWidth] = useState<number | null>(() => loadListWidth());
-  const [measuredListWidth, setMeasuredListWidth] = useState<number | null>(null);
-  const listPaneRef = useRef<HTMLElement | null>(null);
-  // ↑↓ 이동은 목록 `<ul>`에 리스너를 단다(window 전역이 아니다) — 상세 pane 입력과
-  // 리사이즈 손잡이의 방향키가 같은 화면에서 서로 경쟁하지 않는다.
+  // ↑↓ 이동은 목록 `<ul>`에 리스너를 단다(window 전역이 아니다) — 상세 pane 입력의
+  // 방향키가 같은 화면에서 서로 경쟁하지 않는다.
   const listRef = useRef<HTMLUListElement | null>(null);
   const trackingSectionRef = useRef<HTMLElement | null>(null);
   const [savedViews, setSavedViews] = useState<SavedView[]>(() => loadSavedViews());
@@ -734,7 +687,6 @@ export function OrderPlansPage() {
   // 저장 기준점. 저장에 성공하면 그때의 값이 새 기준이 되어 "저장되지 않은 입력"이
   // 풀린다. 값 자체는 그대로 두므로 사람은 방금 저장한 내용을 계속 볼 수 있다.
   const [feedbackBaseline, setFeedbackBaseline] = useState<FeedbackDraft>(EMPTY_FEEDBACK_DRAFT);
-  const dragStateRef = useRef<{ startX: number; startWidth: number; renderedScale: number } | null>(null);
 
   const feedbackDirty = relevance !== feedbackBaseline.relevance
     || priority !== feedbackBaseline.priority
@@ -1507,45 +1459,6 @@ export function OrderPlansPage() {
     trackingSectionRef.current?.querySelector<HTMLElement>('[role="combobox"]')?.focus();
   }
 
-  /** 비율 기본값일 때의 실제 px. 화살표 조작과 aria 값이 읽을 현재 폭이다. */
-  const effectiveListWidth = listWidth ?? measuredListWidth;
-
-  function updateListWidth(next: number) {
-    const clamped = Math.min(MAX_LIST_WIDTH, Math.max(MIN_LIST_WIDTH, Math.round(next)));
-    setListWidth(clamped);
-    saveListWidth(clamped);
-  }
-
-  // 비율 기본값에서도 aria-valuenow 가 실제 폭을 말해야 한다. 창 크기가 바뀌면 같이 바뀐다.
-  useEffect(() => {
-    const pane = listPaneRef.current;
-    if (!pane || typeof ResizeObserver === "undefined") return;
-    const observer = new ResizeObserver(([entry]) => {
-      setMeasuredListWidth(Math.round(entry.contentRect.width));
-    });
-    observer.observe(pane);
-    return () => observer.disconnect();
-  }, [Boolean(sourceRunId), listQuery.isPending, listQuery.isError]);
-
-  useEffect(() => {
-    function onMove(event: MouseEvent) {
-      const dragState = dragStateRef.current;
-      if (!dragState) return;
-      const delta = (event.clientX - dragState.startX) / dragState.renderedScale;
-      updateListWidth(dragState.startWidth + delta);
-    }
-    function onUp() {
-      dragStateRef.current = null;
-    }
-    window.addEventListener("mousemove", onMove);
-    window.addEventListener("mouseup", onUp);
-    return () => {
-      window.removeEventListener("mousemove", onMove);
-      window.removeEventListener("mouseup", onUp);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   // 오류 문구는 화면마다 따로 만들지 않는다. 서버 raw message를 그대로 싣지
   // 않고 `describeApiError`가 옮긴 문장만 쓴다.
   const listError = describeApiError(listQuery.error, "발주계획 목록을 확인할 수 없습니다.").title;
@@ -1585,11 +1498,8 @@ export function OrderPlansPage() {
           없다. 상단바의 액션 슬롯으로 보낸다(`PageHeaderActions`). */}
       <PageHeaderActions>
         <div className="c2l-header-actions">
-          {/* 기본은 누적이다. 회차는 감사용으로만 고른다(spec §7). */}
-          <ReviewFilterSelector className="c2l-run-selector" isDisabled={bulkPending} label="발주계획 수집 회차" clearable={false}
-            options={runOptions} value={sourceRunId ?? ""} onChange={changeSourceRun}
-            placeholder="누적 · 회차 선택 안 함" />
-          {/* 실행 상태는 낱말 하나로만 둔다. execution_id·시각·집계는 대화상자가 진다. */}
+          {/* 실행 상태는 낱말 하나로만 둔다. execution_id·시각·집계는 대화상자가 진다.
+              회차 선택은 필터 아래 줄로 내려갔고(ADR-0062) 실행 상태 표시만 여기 남는다. */}
           <ExecutionStatusChip latest={latestExecution} executions={scopedExecutions} />
           <Button
             label="실행 상태"
@@ -1690,6 +1600,20 @@ export function OrderPlansPage() {
               />
             </WorkspaceFilterEnd>
           </WorkspaceFilterLine>
+
+          {/* 회차는 **감사용 보조 선택**이므로 필터가 아니라 "지금 무엇을 보고 있는가"
+              줄에 둔다 — 사전규격과 같은 자리·같은 라벨이다(ADR-0062). */}
+          <WorkspaceFilterContext className="c2l-filter-context">
+            <div className="c2l-filter-context-range">
+              {/* 보이는 라벨은 사전규격과 같은 문구다. 접근 가능한 이름은 Selector가
+                  숨긴 라벨로 이미 갖고 있으므로 이 글자는 보조 기술에 두 번 읽히지 않게 한다. */}
+              <Text aria-hidden="true" type="label" color="secondary" as="span">수집 회차</Text>
+              {/* 기본은 누적이다. 회차는 감사용으로만 고른다(spec §7). */}
+              <ReviewFilterSelector className="c2l-run-selector" isDisabled={bulkPending} label="수집 회차" clearable={false}
+                options={runOptions} value={sourceRunId ?? ""} onChange={changeSourceRun}
+                placeholder="누적 · 회차 선택 안 함" />
+            </div>
+          </WorkspaceFilterContext>
 
           {advancedOpen ? (
             <WorkspaceFilterAdvanced columns={4} id="c2l-advanced-filters" onReset={resetFilters}>
@@ -1808,97 +1732,97 @@ export function OrderPlansPage() {
         <SplitWorkspace
             aria-label="발주계획 목록과 상세"
             className="c2l-workspace"
-            style={{ "--c2l-list-width": listWidth === null ? DEFAULT_LIST_WIDTH : `${listWidth}px` } as React.CSSProperties}
           >
-            <aside className="c2l-list-pane" ref={listPaneRef}>
-              <header className="c2l-list-head">
-                <div className="c2l-list-head-row">
-                  {/* 목록을 못 읽었으면 건수는 0이 아니라 확인 불가다. 실패를 0건으로 적지 않는다. */}
-                  <Text type="label" color="primary" as="p">
-                    검토 목록 · {listQuery.isError
-                      ? "현재 필터 결과 확인 불가"
-                      : listQuery.isPending
-                        ? "불러오는 중"
-                        : `현재 필터 결과 ${total.toLocaleString("ko-KR")}건`}
-                  </Text>
-                  {listQuery.isPending || listQuery.isError ? null : (
-                    <Text type="supporting" color="secondary" as="p">{visibleItems.length ? offset + 1 : 0}–{Math.min(offset + visibleItems.length, total)} / {total.toLocaleString("ko-KR")}</Text>
-                  )}
-                </div>
-                <div className="c2l-selection-toolbar" data-testid="order-plan-selection-toolbar">
-                  <Text type="supporting" color="secondary" as="span" aria-live="polite">
-                    선택 {orderPlanSelection.selectedIds.length.toLocaleString("ko-KR")}건
-                  </Text>
-                  <span className="visually-hidden" id="c2l-selection-action-reason">
-                    {bulkPending
-                      ? "일괄 추적 요청을 처리하는 동안 선택을 바꿀 수 없습니다."
-                      : mutation.isPending || trackingMutation.isPending
-                        ? "기존 저장 요청이 끝날 때까지 일괄 추적을 시작할 수 없습니다."
-                      : !orderPlanSelection.hydrated
-                        ? "목록 선택 상태를 준비하는 중입니다."
-                        : !orderPlanSelection.storageAvailable || orderPlanSelection.storageError
-                          ? "선택 저장소를 확인하지 못해 단건 추적 경로를 사용하십시오."
-                          : orderPlanSelection.selectedIds.length === 0
-                            ? "하나 이상의 발주계획을 선택하십시오."
-                            : "선택한 발주계획을 일괄 추적하기 전에 대상과 공통 입력을 확인하십시오."}
-                  </span>
-                  <Button
-                    aria-describedby="c2l-selection-action-reason"
-                    label="선택 항목 검토"
-                    size="sm"
-                    variant="primary"
-                    isDisabled={bulkPending || mutation.isPending || trackingMutation.isPending || !orderPlanSelection.hydrated || !orderPlanSelection.storageAvailable || Boolean(orderPlanSelection.storageError) || orderPlanSelection.selectedIds.length === 0}
-                    onClick={() => setBulkDialogOpen(true)}
-                  />
-                  <Button
-                    aria-describedby="c2l-selection-action-reason"
-                    label="선택 전체 해제"
-                    size="sm"
-                    variant="ghost"
-                    isDisabled={bulkPending || orderPlanSelection.selectedIds.length === 0 || !orderPlanSelection.hydrated}
-                    onClick={() => orderPlanSelection.clear()}
-                  />
-                </div>
-                {(!orderPlanSelection.storageAvailable || orderPlanSelection.storageError) && orderPlanSelection.hydrated ? (
-                  <p className="c2l-selection-storage-warning" role="alert">
-                    이 탭의 선택 저장소를 사용할 수 없어 일괄 추적을 사용할 수 없습니다. 단건 추적 경로를 사용하십시오.
-                  </p>
-                ) : null}
-                {/* 어느 범위(누적·회차)를 보고 있는지 먼저 밝힌다. 범위를 모르면 적지 않는다. */}
-                {listScope !== undefined ? (
-                  <p className="c2l-list-scope" data-testid="order-plan-list-scope" title={scopeLabel(listScope)}>
-                    <Text type="supporting" color="secondary" as="span">{scopeLabel(listScope)}</Text>
-                  </p>
-                ) : null}
+            <aside className="review-split-list c2l-list-pane">
+              {/* 머리는 한 줄이다: 왼쪽은 제목과 건수, 오른쪽은 지금 보고 있는 기본 보기
+                  설명(ADR-0062). 범위·policy·정렬 설명은 목록 바닥 안내 줄로 내렸다. */}
+              <header className="review-list-head c2l-list-head">
+                {/* 목록을 못 읽었으면 건수는 0이 아니라 확인 불가다. 실패를 0건으로 적지 않는다. */}
+                <Text type="label" color="primary" as="p">
+                  검토 목록 · {listQuery.isError
+                    ? "현재 필터 결과 확인 불가"
+                    : listQuery.isPending
+                      ? "불러오는 중"
+                      : `현재 필터 결과 ${total.toLocaleString("ko-KR")}건`}
+                </Text>
                 {/* 무엇을 보고 있는지는 한 줄로 남긴다. 축 안은 OR, 축끼리는 AND다. */}
                 <p className="c2l-list-scope" title={filterMeaning}>
                   <Text type="supporting" color="secondary" as="span">{filterMeaning}</Text>
                 </p>
-                <p className="c2l-list-scope c2l-list-sort" title="관련 → 판단 보류 → 비관련 → 값 없음">
-                  <Text type="supporting" color="secondary" as="span">정렬 · 관련 → 판단 보류 → 비관련 → 값 없음</Text>
-                </p>
               </header>
+              <SelectionToolbar
+                className="c2l-selection-toolbar"
+                count={orderPlanSelection.selectedIds.length}
+                data-testid="order-plan-selection-toolbar"
+                label="발주계획 선택 작업"
+                reasonId="c2l-selection-action-reason"
+                reason={bulkPending
+                  ? "일괄 추적 요청을 처리하는 동안 선택을 바꿀 수 없습니다."
+                  : mutation.isPending || trackingMutation.isPending
+                    ? "기존 저장 요청이 끝날 때까지 일괄 추적을 시작할 수 없습니다."
+                  : !orderPlanSelection.hydrated
+                    ? "목록 선택 상태를 준비하는 중입니다."
+                    : !orderPlanSelection.storageAvailable || orderPlanSelection.storageError
+                      ? "선택 저장소를 확인하지 못해 단건 추적 경로를 사용하십시오."
+                      : orderPlanSelection.selectedIds.length === 0
+                        ? "하나 이상의 발주계획을 선택하십시오."
+                        : "선택한 발주계획을 일괄 추적하기 전에 대상과 공통 입력을 확인하십시오."}
+                actions={(
+                  <>
+                    {/* 단추 구성은 이번 변경에서 그대로다 — 추적 시작·종료로 나누는 것은
+                        ADR-0063의 작업이다. `전체 선택`은 업무 규칙상 두지 않는다. */}
+                    <button
+                      aria-describedby="c2l-selection-action-reason"
+                      className="interaction-control interaction-control-primary"
+                      type="button"
+                      disabled={bulkPending || mutation.isPending || trackingMutation.isPending || !orderPlanSelection.hydrated || !orderPlanSelection.storageAvailable || Boolean(orderPlanSelection.storageError) || orderPlanSelection.selectedIds.length === 0}
+                      onClick={() => setBulkDialogOpen(true)}
+                    >
+                      선택 항목 검토
+                    </button>
+                    <button
+                      aria-describedby="c2l-selection-action-reason"
+                      className="interaction-control"
+                      type="button"
+                      disabled={bulkPending || orderPlanSelection.selectedIds.length === 0 || !orderPlanSelection.hydrated}
+                      onClick={() => orderPlanSelection.clear()}
+                    >
+                      선택 전체 해제
+                    </button>
+                  </>
+                )}
+              />
+              {(!orderPlanSelection.storageAvailable || orderPlanSelection.storageError) && orderPlanSelection.hydrated ? (
+                <p className="c2l-selection-storage-warning" role="alert">
+                  이 탭의 선택 저장소를 사용할 수 없어 일괄 추적을 사용할 수 없습니다. 단건 추적 경로를 사용하십시오.
+                </p>
+              ) : null}
+              <ListColumns className="c2l-list-columns">
+                <span>사업명 / 발주기관</span>
+                <span>발주 예정</span>
+              </ListColumns>
               {listQuery.isPending ? (
                 <div className="c2l-list-empty" role="status">
                   <Text type="body" color="secondary" as="p">발주계획을 불러오는 중…</Text>
                 </div>
               ) : listQuery.isError ? (
                 <div className="c2l-list-empty">
-                  <ReviewState
-                    kind="failure"
+                  <EmptyState
+                    compact
+                    tone="error"
                     title="발주계획 목록을 불러오지 못했습니다."
                     description={listError}
-                    action={<Button label="다시 시도" size="sm" onClick={() => void listQuery.refetch()} />}
+                    action={{ label: "다시 시도", onClick: () => { void listQuery.refetch(); } }}
                   />
                 </div>
               ) : visibleItems.length === 0 ? (
                 /* 시안의 빈 상태 패턴. 값이 없다는 사실과 되돌리는 방법을 함께 준다. */
                 <div className="c2l-list-empty">
-                  <ReviewState
-                    kind="empty"
+                  <EmptyState
+                    compact
                     title="조건에 맞는 계획이 없습니다"
                     description="검색어나 필터를 바꿔보세요. 표시되지 않은 값이나 실행 실패를 다른 relevance 상태로 바꾸지 않습니다."
-                    action={<Button label="필터 초기화" size="sm" onClick={resetFilters} />}
+                    action={{ label: "필터 초기화", onClick: resetFilters }}
                   />
                 </div>
               ) : (
@@ -1924,51 +1848,41 @@ export function OrderPlansPage() {
                   ))}
                 </DenseList>
               )}
-              {/* 기본 보기가 숨기는 것을 목록 바닥에 밝힌다. 숨김을 부재로 표시하지
-                  않는다(PRD §3.2). */}
-              {isDefaultView && !listQuery.isPending && !listQuery.isError ? (
-                <p className="c2l-list-foot">
-                  <Text type="supporting" color="secondary" as="span">
-                    필터 외 BM25 선정 제외·비관련·실패 건과 추적을 이미 정한 건은 기본 보기에서 숨김. 없는 것이 아니라 보이지 않는 것입니다.
-                  </Text>
+              {/* 바닥 안내 줄 — 지금 보는 범위·정렬과, 기본 보기가 숨기는 것을 함께 적는다.
+                  숨김을 부재로 표시하지 않는다(PRD §3.2). */}
+              <div className="c2l-list-foot">
+                {listQuery.isPending || listQuery.isError ? null : (
+                  <p className="c2l-list-range">
+                    <Text type="supporting" color="secondary" as="span">
+                      {visibleItems.length ? offset + 1 : 0}–{Math.min(offset + visibleItems.length, total)} / {total.toLocaleString("ko-KR")}
+                    </Text>
+                  </p>
+                )}
+                {/* 어느 범위(누적·회차)를 보고 있는지 밝힌다. 범위를 모르면 적지 않는다. */}
+                {listScope !== undefined ? (
+                  <p className="c2l-list-scope" data-testid="order-plan-list-scope" title={scopeLabel(listScope)}>
+                    <Text type="supporting" color="secondary" as="span">{scopeLabel(listScope)}</Text>
+                  </p>
+                ) : null}
+                <p className="c2l-list-scope c2l-list-sort" title="관련 → 판단 보류 → 비관련 → 값 없음">
+                  <Text type="supporting" color="secondary" as="span">정렬 · 관련 → 판단 보류 → 비관련 → 값 없음</Text>
                 </p>
-              ) : null}
+                {isDefaultView && !listQuery.isPending && !listQuery.isError ? (
+                  <p className="c2l-list-foot-note">
+                    <Text type="supporting" color="secondary" as="span">
+                      필터 외 BM25 선정 제외·비관련·실패 건과 추적을 이미 정한 건은 기본 보기에서 숨김. 없는 것이 아니라 보이지 않는 것입니다.
+                    </Text>
+                  </p>
+                ) : null}
+              </div>
               {hasPrevious || hasNext ? (
-                <nav className="c2l-pager" aria-label="발주계획 목록 페이지">
+                <ListPager className="c2l-pager" label="발주계획 목록 페이지">
                   <Button label="이전" size="sm" variant="secondary" isDisabled={!hasPrevious} onClick={() => changeOffset(Math.max(0, offset - PAGE_SIZE))} />
                   <Text type="supporting" color="secondary">{(offset + 1).toLocaleString("ko-KR")}–{Math.min(offset + visibleItems.length, total).toLocaleString("ko-KR")} / {total.toLocaleString("ko-KR")}</Text>
                   <Button label="다음" size="sm" variant="secondary" isDisabled={!hasNext} onClick={() => changeOffset(offset + PAGE_SIZE)} />
-                </nav>
+                </ListPager>
               ) : null}
             </aside>
-
-            <div
-              className="c2l-resizer"
-              role="separator"
-              aria-orientation="vertical"
-              aria-label="목록 폭 조절"
-              aria-valuemin={MIN_LIST_WIDTH}
-              aria-valuemax={MAX_LIST_WIDTH}
-              aria-valuenow={effectiveListWidth ?? undefined}
-              tabIndex={0}
-              onMouseDown={(event) => {
-                if (effectiveListWidth === null) return;
-                const pane = listPaneRef.current;
-                dragStateRef.current = {
-                  startX: event.clientX,
-                  startWidth: effectiveListWidth,
-                  renderedScale: pane ? renderedHorizontalScale(pane) : 1,
-                };
-              }}
-              onKeyDown={(event) => {
-                const current = effectiveListWidth;
-                if (current === null) return;
-                if (event.key === "ArrowLeft") { updateListWidth(current - LIST_WIDTH_STEP); event.preventDefault(); }
-                else if (event.key === "ArrowRight") { updateListWidth(current + LIST_WIDTH_STEP); event.preventDefault(); }
-                else if (event.key === "Home") { updateListWidth(MIN_LIST_WIDTH); event.preventDefault(); }
-                else if (event.key === "End") { updateListWidth(MAX_LIST_WIDTH); event.preventDefault(); }
-              }}
-            />
 
             <OrderPlanDetailPane
               listPending={listQuery.isPending}

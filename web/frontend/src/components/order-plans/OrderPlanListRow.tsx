@@ -1,6 +1,5 @@
 import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 import { Badge } from "@astryxdesign/core/Badge";
-import { Text } from "@astryxdesign/core/Text";
 import { DenseListRow } from "../common/ReviewPrimitives";
 import type { RowKeyboardNavigationRowProps } from "../common/useRowKeyboardNavigation";
 import { formatCompactPrice } from "../../lib/deadline";
@@ -73,42 +72,40 @@ export function OrderPlanListRow({
       aria-label={textOrUnknown(item.title)}
       className={`c2l-row-wrap c2l-row${isSelected ? " is-selected" : ""}`.trim()}
       description={
-        <span className="c2l-row-desc">
-          {/* 시안의 차례 그대로다: 사업명 아래 상태 배지, 그 아래 metadata 줄. 발주기관은
-              자리를 옮기지 않고 metadata 줄의 첫 항목이며, 굵기를 주지 않는다. 목록에서
-              먼저 읽혀야 하는 것은 사업명이다(사용자 정정).
-              그릴 배지가 하나도 없으면 줄 자체를 만들지 않는다 — 빈 줄이 행마다 다른
-              높이를 만들면 밀집 목록이 흔들린다. */}
-          {stage1Badge || feedbackBadge ? (
-            <span className="c2l-row-badges">
-              {stage1Badge}
-              {feedbackBadge}
-            </span>
-          ) : null}
+        <>
+          {/* 사전규격 행과 같은 차례다(ADR-0062): 사업명 → 발주기관 → metadata 줄 →
+              상태 칩 줄. 발주 예정은 오른쪽 열이 갖는다. 발주기관은 사업명 다음 줄에서
+              같은 크기·보통 굵기로 읽힌다. */}
+          <span className="c2l-row-agency">{textOrUnknown(item.agency_name)}</span>
           <span className="c2l-row-meta" title={`예산 ${budgetValue(item.budget_amount)}`}>
-            <Text className="c2l-row-agency" type="body" color="primary" as="span">
-              {textOrUnknown(item.agency_name)}
-            </Text>
-            <Text type="supporting" color="secondary" as="span">
-              · {budgetLabel(item.budget_amount)} · {plannedTiming(item.planned_order_year, item.planned_order_month)}
-            </Text>
+            <span>{budgetLabel(item.budget_amount)}</span>
+            <span aria-hidden="true">·</span>
+            {/* 누적 목록에서는 행마다 판정한 시점이 다르다. 어느 policy가 판정했는지와 판정
+                기준 시점인 첫 관측일을 행에 싣는다(spec §7). 결과가 없으면 `판정 없음`이다. */}
+            <span className="c2l-row-verdict">{verdictLabel(item)}</span>
           </span>
-          {/* 누적 목록에서는 행마다 판정한 시점이 다르다. 어느 policy가 판정했는지와 판정 기준
-              시점인 첫 관측일을 행에 싣는다(spec §7). 결과가 없는 행은 `판정 없음`이다. */}
-          <Text className="c2l-row-verdict" type="supporting" color="secondary" as="span">
-            {verdictLabel(item)}
-          </Text>
+          <span className="c2l-row-state">
+            {/* 모델 판단은 이 목록을 훑는 이유이므로 행마다 같은 자리에서 읽힌다. */}
+            <Badge className="c2l-row-model" variant={qwenBadgeVariant(item)} label={qwenRowLabel(item)} />
+            {/* 그릴 배지가 하나도 없으면 줄 자체를 만들지 않는다 — 빈 묶음이 행마다 다른
+                높이를 만들면 밀집 목록이 흔들린다. */}
+            {stage1Badge || feedbackBadge ? (
+              <span className="c2l-row-badges">
+                {stage1Badge}
+                {feedbackBadge}
+              </span>
+            ) : null}
+          </span>
+        </>
+      }
+      endContent={
+        <span className="c2l-row-end">
+          <span className="c2l-row-planned">{plannedTiming(item.planned_order_year, item.planned_order_month)}</span>
         </span>
       }
       label={
-        <span className="c2l-row-line c2l-row-head">
-          {/* 긴 한글 제목은 한 줄에 담기지 않는다. 두 줄까지 보이고 그 뒤를 말줄임한다.
-              크기와 굵기는 `.c2l-row-title`이 본문보다 한 단 위로 올린다. */}
-          <Text className="c2l-row-title" type="body" color="primary" weight="semibold" maxLines={2}>{textOrUnknown(item.title)}</Text>
-          {/* 모델 판단은 이 목록을 훑는 이유이므로 행마다 같은 자리(우상단)에서 읽힌다.
-              baseline 정렬이라 제목이 두 줄로 잘려도 배지는 첫 줄에 붙어 있다. */}
-          <Badge className="c2l-row-model" variant={qwenBadgeVariant(item)} label={qwenRowLabel(item)} />
-        </span>
+        /* 긴 한글 제목은 한 줄에 담기지 않는다. 두 줄까지 보이고 그 뒤를 말줄임한다. */
+        <span className="c2l-row-title">{textOrUnknown(item.title)}</span>
       }
       onKeyDown={onKeyDown}
       onSelect={onSelect}

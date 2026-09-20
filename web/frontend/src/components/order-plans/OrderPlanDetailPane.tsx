@@ -6,12 +6,13 @@ import { Selector } from "@astryxdesign/core/Selector";
 import { Text } from "@astryxdesign/core/Text";
 import { TextInput } from "@astryxdesign/core/TextInput";
 import {
+  AgencyFeature,
   ReviewDecisionAction,
   ReviewDecisionBar,
-  ReviewState,
   ReviewValue,
   StickyDecisionHeader,
 } from "../common/ReviewPrimitives";
+import { EmptyState } from "../common/EmptyState";
 import { describeApiError } from "../../lib/apiErrors";
 import type { OpportunityTrackingStatus, OrderPlanListItem } from "../../lib/types";
 import {
@@ -220,7 +221,7 @@ export function OrderPlanDetailPane({
   onResetFilters,
 }: OrderPlanDetailPaneProps) {
   return (
-    <section className="c2l-detail-pane">
+    <section className="review-split-detail c2l-detail-pane">
       {listPending || listError ? (
         <div className="c2l-detail-empty">
           <Text type="body" color="secondary" as="p">
@@ -229,8 +230,9 @@ export function OrderPlanDetailPane({
         </div>
       ) : isExplicitDeepLink && deepLinkFailed ? (
         <div className="c2l-detail-empty">
-          <ReviewState
-            kind="failure"
+          <EmptyState
+            compact
+            tone="error"
             title={invalidSelectedParam
               ? "발주계획 식별자가 올바르지 않습니다."
               : isCumulative ? "요청한 발주계획을 누적 목록에서 찾을 수 없습니다." : "요청한 발주계획을 이 회차에서 찾을 수 없습니다."}
@@ -245,11 +247,14 @@ export function OrderPlanDetailPane({
         <>
           {/* 시안 §4: 발주기관을 라벨과 함께 강조 블록으로 먼저 읽히고, 사업명은
               그다음이다. 식별자와 추적 상태는 한 줄로 붙인다. */}
-          <StickyDecisionHeader className="c2l-detail-head" label="발주계획 상세 헤더">
-            <div className="c2l-agency-feature">
-              <Text type="supporting" color="secondary" as="p" className="c2l-agency-label">발주기관</Text>
-              <Text type="body" color="primary" weight="semibold" as="p" className="c2l-agency-name">{textOrUnknown(selectedItem.agency_name)}</Text>
-            </div>
+          <StickyDecisionHeader className="review-detail-head c2l-detail-head" label="발주계획 상세 헤더">
+            <AgencyFeature
+              className="c2l-agency-feature"
+              fallback="미확인"
+              labelClassName="c2l-agency-label"
+              name={selectedItem.agency_name}
+              nameClassName="c2l-agency-name"
+            />
             <Heading level={4}>{textOrUnknown(selectedItem.title)}</Heading>
             <div className="c2l-detail-identity">
               <Text type="supporting" color="secondary" as="p">발주계획 {selectedItem.order_plan_unty_no} · 계획 ID {selectedItem.order_plan_pk}</Text>
@@ -414,11 +419,11 @@ export function OrderPlanDetailPane({
         </>
       ) : (
         <div className="c2l-detail-empty">
-          <ReviewState
-            kind="empty"
+          <EmptyState
+            compact
             title="조건에 맞는 계획이 없습니다"
             description="검색어나 필터를 바꿔보세요. 선택한 회차의 원본은 그대로 남아 있습니다."
-            action={<Button label="필터 초기화" size="sm" onClick={onResetFilters} />}
+            action={{ label: "필터 초기화", onClick: onResetFilters }}
           />
         </div>
       )}
