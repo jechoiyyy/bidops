@@ -134,7 +134,9 @@ test("기본 목록은 밀집 행이고 판정에 필요한 값만 담으며, �
 
   // 화면 제목은 상단바의 h1 하나다. 페이지는 같은 이름을 다시 그리지 않는다(제목 모드).
   await expect(page.locator("header.topbar h1")).toHaveText("발주계획");
-  await expect(page.locator("header.topbar").getByRole("combobox", { name: "발주계획 수집 회차" })).toBeVisible();
+  // ADR-0062 ⓓ — 회차 선택은 상단바가 아니라 필터 아래 줄(사전규격과 같은 자리)이다.
+  await expect(page.locator("header.topbar").getByRole("combobox", { name: "수집 회차" })).toHaveCount(0);
+  await expect(page.locator(".c2l-filter-context").getByRole("combobox", { name: "수집 회차" })).toBeVisible();
   // 페이지에 남는 것은 문서 구조와 `aria-labelledby`를 위한 숨긴 제목 하나뿐이다.
   await expect(page.locator("section.c2l-page > h2.visually-hidden")).toHaveText("발주계획");
   await expect(page.locator("section.c2l-page .c2l-page-header")).toHaveCount(0);
@@ -154,7 +156,7 @@ test("기본 목록은 밀집 행이고 판정에 필요한 값만 담으며, �
   // 크기의 보통 굵기다(사용자 정정).
   const firstRow = page.locator(".c2l-row").first();
   await expect(firstRow.locator(".c2l-row-title")).toContainText("공공데이터 통합");
-  await expect(firstRow.locator(".c2l-row-meta")).toContainText("서울특별시 디지털정책관");
+  await expect(firstRow.locator(".c2l-row-agency")).toHaveText("서울특별시 디지털정책관");
   const geometry = await firstRow.evaluate((row) => {
     const title = row.querySelector<HTMLElement>(".c2l-row-title");
     const agency = row.querySelector<HTMLElement>(".c2l-row-agency");
@@ -169,9 +171,11 @@ test("기본 목록은 밀집 행이고 판정에 필요한 값만 담으며, �
     };
   });
   expect(geometry.titleTop).toBeLessThan(geometry.agencyTop);
-  expect(geometry.titleFontSize).toBeCloseTo(geometry.agencyFontSize + 0.9, 1);
+  // ADR-0062 ⓒ — 목록 글자는 사전규격과 같다: 사업명과 발주기관이 같은 크기
+  // (본문 +2px)이고 굵기만 다르다.
+  expect(geometry.titleFontSize).toBeCloseTo(geometry.agencyFontSize, 1);
   expect(geometry.titleWeight).toBeGreaterThanOrEqual(600);
-  expect(geometry.agencyFontSize).toBeGreaterThanOrEqual(12.6);
+  expect(geometry.agencyFontSize).toBeGreaterThan(12.6);
   expect(geometry.agencyWeight).toBeLessThan(600);
 
   // 상세 pane은 행을 고른 뒤에 채워진다.
@@ -208,8 +212,10 @@ test("발주계획의 기존 머리글 액션은 상단바 슬롯에 한 번씩�
   await expect(page.locator(".c2l-page > .c2l-header-actions")).toHaveCount(0);
   await expect(actions.locator(".c2l-header-actions")).toHaveCount(1);
 
-  // 기존 머리글이 제공하던 네 가지 동선을 모두 같은 portal 아래에서 확인한다.
-  await expect(actions.getByRole("combobox", { name: "발주계획 수집 회차" })).toBeVisible();
+  // 기존 머리글이 제공하던 동선. 회차 선택만 필터 아래 줄로 내려갔고(ADR-0062 ⓓ)
+  // 실행 상태 표시·실행 상세 링크는 그대로 상단바 슬롯에 남는다.
+  await expect(actions.getByRole("combobox", { name: "수집 회차" })).toHaveCount(0);
+  await expect(page.locator(".c2l-filter-context").getByRole("combobox", { name: "수집 회차" })).toHaveCount(1);
   await expect(actions.locator(".c2l-status-chip")).toHaveCount(1);
   await expect(actions.getByRole("button", { name: "실행 상태", exact: true })).toHaveCount(1);
   await expect(actions.getByRole("link", { name: "실행 상세 →", exact: true })).toHaveCount(1);
@@ -785,62 +791,23 @@ test("실패·결과 없음·중지/비허용 상태를 성공 결과로 바꾸�
   await expect(page.locator("#c2l-panel-telemetry")).toContainText("정책·모델 연결 비허용");
 });
 
-test("크기 조절 가능한 상세 영역: 드래그와 화살표 키로 폭을 조절하고 localStorage에 남긴다", async ({ page }) => {
+// ADR-0062 ⓐ — 목록 폭 드래그 리사이저는 제거했다(38% 고정, 사전규격과 같은 값).
+// 폭을 기억하던 localStorage 키도 더 쓰지 않는다.
+test("목록 폭은 두 지원 폭에서 38% 고정이고 폭 조절 손잡이가 없다", async ({ page }) => {
   await mockOrderPlans(page);
   await page.goto("/order-plans");
 
-  const separator = page.getByRole("separator", { name: "목록 폭 조절" });
-  await expect(separator).toBeVisible();
-  await separator.focus();
-  const before = await separator.getAttribute("aria-valuenow");
-  await page.keyboard.press("ArrowRight");
-  await page.keyboard.press("ArrowRight");
-  const after = await separator.getAttribute("aria-valuenow");
-  expect(Number(after)).toBeGreaterThan(Number(before));
+  await expect(page.getByRole("separator", { name: "목록 폭 조절" })).toHaveCount(0);
 
-  const stored = await page.evaluate(() => window.localStorage.getItem("bidops.order-plans.listWidth"));
-  expect(Number(stored)).toBe(Number(after));
-
-  await page.reload();
-  const separatorAfterReload = page.getByRole("separator", { name: "목록 폭 조절" });
-  await expect(separatorAfterReload).toHaveAttribute("aria-valuenow", String(after));
-
-  // `clientX`, aria 값, localStorage가 모두 native CSS px를 사용한다.
   for (const width of [1280, 1440]) {
     await page.setViewportSize({ width, height: 900 });
-    await page.evaluate(() => window.localStorage.removeItem("bidops.order-plans.listWidth"));
     await page.reload();
-
-    const scaledSeparator = page.getByRole("separator", { name: "목록 폭 조절" });
-    const listPane = page.locator(".c2l-list-pane");
-    await expect(scaledSeparator).toBeVisible();
-    const before = Number(await scaledSeparator.getAttribute("aria-valuenow"));
-    const geometry = await Promise.all([
-      scaledSeparator.evaluate((element) => {
-        const rect = element.getBoundingClientRect();
-        return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2, left: rect.left };
-      }),
-      listPane.evaluate((element) => {
-        const renderedWidth = element.getBoundingClientRect().width;
-        const layoutWidth = element.offsetWidth;
-        return { renderedWidth, layoutWidth, scale: renderedWidth / layoutWidth };
-      }),
-    ]);
-    const [pointer, pane] = geometry;
-    expect(pane.scale).toBeGreaterThan(0);
-    const dragDistance = 36;
-
-    await page.mouse.move(pointer.x, pointer.y);
-    await page.mouse.down();
-    await page.mouse.move(pointer.x + dragDistance, pointer.y);
-    await page.mouse.up();
-
-    const expected = Math.round(before + dragDistance / pane.scale);
-    await expect.poll(async () => Number(await scaledSeparator.getAttribute("aria-valuenow"))).toBe(expected);
-    const afterLeft = await scaledSeparator.evaluate((element) => element.getBoundingClientRect().left);
-    // Layout rounding can move the edge by a fraction of a physical pixel after
-    // converting the logical width back through the rendered scale.
-    expect(Math.abs(afterLeft - pointer.left - dragDistance)).toBeLessThanOrEqual(2);
+    const ratio = await page.locator(".c2l-workspace").evaluate((workspace) => {
+      const listPane = workspace.querySelector<HTMLElement>(".c2l-list-pane")!;
+      return listPane.getBoundingClientRect().width / workspace.getBoundingClientRect().width;
+    });
+    expect(ratio, `${width}px 목록 pane 비율`).toBeCloseTo(0.38, 2);
+    expect(await page.evaluate(() => window.localStorage.getItem("bidops.order-plans.listWidth"))).toBeNull();
   }
 });
 
@@ -1182,38 +1149,50 @@ test("저장하지 않은 사유가 있으면 ↓ 이동도 확인을 거치고 
 
 // BM25 `선정`은 거의 모든 행에 붙는 기본값이라 배지로 그리면 아무것도 구분하지 못한다.
 // 숨기는 것은 그 하나뿐이고 탈락·실패·거부·null은 그대로 보인다.
-test("행 배지는 모델 판단을 우상단에 두고 BM25 선정만 감춘다", async ({ page }) => {
+test("행 배지는 모델 판단을 상태 칩 줄에 두고 BM25 선정만 감춘다", async ({ page }) => {
   await mockOrderPlans(page);
   await page.goto("/order-plans");
 
   const first = page.locator(".c2l-row").first();
-  await expect(first.locator(".c2l-row-head .astryx-badge")).toHaveText("모델 관련");
+  // ADR-0062 — 모델 판단 배지는 사전규격 행과 같이 상태 칩 줄에 있다.
+  await expect(first.locator(".c2l-row-state .c2l-row-model")).toHaveText("모델 관련");
   await expect(first.locator(".c2l-row-badges")).not.toContainText("BM25");
   // 사람 피드백이 있는 행은 그 사실만 배지 줄에 남는다.
   await expect(first.locator(".c2l-row-badges")).toHaveText("피드백 수정본 1");
   // 그릴 배지가 하나도 없으면 줄 자체를 만들지 않는다(빈 줄이 행 높이를 흔든다).
   await expect(page.locator(".c2l-row").nth(1).locator(".c2l-row-badges")).toHaveCount(0);
 
-  // 모델 배지는 제목의 **첫 줄**에 붙는다. 제목이 두 줄로 잘려도 아래로 밀리지 않는다.
+  // ADR-0062 — 행의 차례는 사업명 → 발주기관 → metadata → 상태 칩이고, 발주 예정은
+  // 오른쪽 열이다(사전규격 행과 같다).
   const geometry = await first.evaluate((row) => {
-    const title = row.querySelector<HTMLElement>(".c2l-row-title");
-    const badge = row.querySelector<HTMLElement>(".c2l-row-head .astryx-badge");
-    if (!title || !badge) throw new Error("행의 제목·모델 배지를 찾을 수 없습니다.");
-    const titleRect = title.getBoundingClientRect();
-    const badgeRect = badge.getBoundingClientRect();
+    const box = (selector: string) => {
+      const element = row.querySelector<HTMLElement>(selector);
+      if (!element) throw new Error(`${selector} 를 찾을 수 없습니다.`);
+      return element.getBoundingClientRect();
+    };
+    const title = box(".c2l-row-title");
+    const agency = box(".c2l-row-agency");
+    const meta = box(".c2l-row-meta");
+    const badge = box(".c2l-row-state .c2l-row-model");
+    const planned = box(".c2l-row-planned");
     return {
-      titleTop: titleRect.top,
-      titleLines: titleRect.height,
-      badgeTop: badgeRect.top,
-      badgeRight: badgeRect.right,
-      titleRight: titleRect.right,
+      titleTop: title.top,
+      agencyTop: agency.top,
+      metaTop: meta.top,
+      badgeTop: badge.top,
+      badgeLeft: badge.left,
+      titleLeft: title.left,
+      plannedLeft: planned.left,
+      titleRight: title.right,
     };
   });
-  // 첫 줄 안이다: 두 줄짜리 제목의 둘째 줄로 내려가면 이 차이가 줄 높이만큼 벌어진다.
-  expect(geometry.badgeTop - geometry.titleTop).toBeLessThan(geometry.titleLines / 2);
-  expect(geometry.badgeTop - geometry.titleTop).toBeGreaterThan(-12);
-  // 배지는 행 오른쪽 끝, 제목은 그 왼쪽이다.
-  expect(geometry.badgeRight).toBeGreaterThan(geometry.titleRight);
+  expect(geometry.titleTop).toBeLessThan(geometry.agencyTop);
+  expect(geometry.agencyTop).toBeLessThan(geometry.metaTop);
+  expect(geometry.metaTop).toBeLessThan(geometry.badgeTop);
+  // 상태 칩 줄은 왼쪽 열 안에서 시작한다(제목과 같은 왼쪽 정렬).
+  expect(Math.abs(geometry.badgeLeft - geometry.titleLeft)).toBeLessThanOrEqual(2);
+  // 발주 예정은 오른쪽 열이다.
+  expect(geometry.plannedLeft).toBeGreaterThan(geometry.titleRight);
 
   // 예외(탈락)는 그대로 배지로 남는다.
   await clickPreset(page, "BM25 탈락");
@@ -2075,7 +2054,7 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900
       expect(listRequests.length).toBeGreaterThan(0);
       expect(listRequests.every((params) => !params.has("source_run_id"))).toBe(true);
       expect(new URL(page.url()).searchParams.has("source_run_id")).toBe(false);
-      const runSelector = page.locator("header.topbar").getByRole("combobox", { name: "발주계획 수집 회차" });
+      const runSelector = page.locator(".c2l-filter-context").getByRole("combobox", { name: "수집 회차" });
       await expect(runSelector).toContainText("누적 · 회차 선택 안 함");
 
       // 기본 보기 = 추적을 정하지 않은 관련 건. 조합 문장과 행의 판정 표식을 함께 밝힌다.

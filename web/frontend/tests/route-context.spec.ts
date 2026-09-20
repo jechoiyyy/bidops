@@ -462,7 +462,10 @@ test("PN-06 빠른 A→B 전환에서 늦은 A 응답이 B record를 덮지 않�
   await navigation.getByRole("button", { name: "다음 선택 사전규격" }).click();
   await expect.poll(() => new URL(page.url()).pathname).toBe("/pre-specs/992");
   await expect(page.getByRole("heading", { name: "두 번째 사전규격 상세" })).toBeVisible();
-  await expect(page.getByText("두 번째 발주기관")).toBeVisible();
+  // ADR-0062 ⓑ — 전체 상세는 머리 최상단의 강조 블록과 식별 줄에서 기관명을 두 번
+  // 보인다(사용자가 중복 표시를 확인하고 승인). 어느 자리인지 밝혀 센다.
+  await expect(page.locator(".ps-record-agency-feature .review-agency-name")).toHaveText("두 번째 발주기관");
+  await expect(page.locator(".ps-record-agency")).toHaveText("두 번째 발주기관");
   await expect(page.getByText("PRE-992")).toBeVisible();
 
   // The old request is resolved only after the new record is mounted. Its
