@@ -265,6 +265,8 @@ body {
 }
 
 .app-shell[data-astryx-theme="bidops"] .sidebar-nav {
+  display: flex;
+  flex-direction: column;
   flex: 1;
   padding: var(--spacing-1) var(--spacing-3) var(--spacing-3);
 }
@@ -310,6 +312,10 @@ body {
 .app-shell[data-astryx-theme="bidops"] .sidebar-item:hover {
   color: var(--color-text-secondary);
   background: var(--color-background-muted);
+}
+
+.app-shell[data-astryx-theme="bidops"] .sidebar-external-link {
+  margin-top: auto;
 }
 
 /* 활성 항목만 흰 카드로 떠오른다(spec §2.1). 좌측 띠는 두지 않되, 키보드

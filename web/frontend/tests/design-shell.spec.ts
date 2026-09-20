@@ -77,6 +77,36 @@ test("셸에 좁은 폭 서랍이 없고 사이드바가 항상 보인다", asyn
   await expect(page.locator("aside.sidebar")).toBeVisible();
 });
 
+test("나라장터 바로가기가 주 메뉴 하단에서 새 탭 링크로 제공된다", async ({ page }) => {
+  await page.goto("/", { waitUntil: "domcontentloaded" });
+  const link = page.getByRole("link", { name: "나라장터 바로가기 (새 탭에서 열림)" });
+  await expect(link).toBeVisible();
+  await expect(link).toHaveAttribute("href", "https://www.g2b.go.kr/");
+  await expect(link).toHaveAttribute("target", "_blank");
+  await expect(link).toHaveAttribute("rel", "noopener noreferrer");
+  await expect(link).not.toHaveAttribute("aria-current", "page");
+  await link.focus();
+  await expect(link).toBeFocused();
+
+  const positions = await page.locator("aside.sidebar").evaluate((sidebar) => {
+    const lastGroup = sidebar.querySelector(".sidebar-group:last-of-type");
+    const link = sidebar.querySelector(".sidebar-external-link");
+    const nav = sidebar.querySelector(".sidebar-nav");
+    const footer = sidebar.querySelector(".sidebar-footer");
+    if (!lastGroup || !link || !nav || !footer) throw new Error("sidebar layout element missing");
+    return {
+      groupBottom: lastGroup.getBoundingClientRect().bottom,
+      linkTop: link.getBoundingClientRect().top,
+      linkBottom: link.getBoundingClientRect().bottom,
+      navBottom: nav.getBoundingClientRect().bottom,
+      footerTop: footer.getBoundingClientRect().top,
+    };
+  });
+  expect(positions.linkTop).toBeGreaterThan(positions.groupBottom);
+  expect(positions.navBottom - positions.linkBottom).toBeLessThan(30);
+  expect(positions.linkBottom).toBeLessThan(positions.footerTop);
+});
+
 // 폭 하나에서만 도는 검사의 조건은 `layout-desktop`이다. 이 파일은 layout project
 // 두 개(`layout-laptop`·`layout-desktop`)에서만 돌므로 옛 이름(`desktop`)으로 비교하면
 // 두 폭 모두에서 skip되어 검사가 조용히 죽는다.

@@ -153,6 +153,15 @@ export function Sidebar({ activeNavPath, runSearch }: { activeNavPath: string | 
             </div>
           </div>
         ))}
+        <a
+          aria-label="나라장터 바로가기 (새 탭에서 열림)"
+          className="sidebar-item sidebar-external-link"
+          href="https://www.g2b.go.kr/"
+          rel="noopener noreferrer"
+          target="_blank"
+        >
+          나라장터 바로가기
+        </a>
       </nav>
       <div className="sidebar-footer">
         <span>기획부 · 사업기획</span>
