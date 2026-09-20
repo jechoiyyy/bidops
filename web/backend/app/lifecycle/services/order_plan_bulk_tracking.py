@@ -1,4 +1,6 @@
-"""Atomic bulk tracking-start state machine for selected order plans.
+"""Atomic bulk tracking state machine for selected order plans.
+
+Two operations share it: bulk start (``계속 추적``) and bulk end (``종료``).
 
 The browser's selection is only a set of plan primary keys.  This service is
 therefore the sole place that resolves authoritative ownership, checks the
@@ -27,6 +29,7 @@ from ...core.models import AuditEvent, IdempotencyRecord
 from ..extensions import extension_registry
 from ..models import Opportunity, OpportunityLink, OrderPlan
 from ..schemas.opportunities import (
+    OrderPlanBulkEndResponse,
     OrderPlanBulkFailureCode,
     OrderPlanBulkPreviewItem,
     OrderPlanBulkPreviewResponse,
@@ -50,8 +53,15 @@ logger = logging.getLogger(__name__)
 
 ORDER_PLAN_BULK_PREVIEW_SCHEMA_VERSION = "order-plan-bulk-preview-response.v1"
 ORDER_PLAN_BULK_START_SCHEMA_VERSION = "order-plan-bulk-start-response.v1"
+ORDER_PLAN_BULK_END_SCHEMA_VERSION = "order-plan-bulk-end-response.v1"
+ORDER_PLAN_BULK_START_REQUEST_SCHEMA_VERSION = "order-plan-bulk-start-request.v1"
+ORDER_PLAN_BULK_END_REQUEST_SCHEMA_VERSION = "order-plan-bulk-end-request.v1"
 ORDER_PLAN_BULK_START_OPERATION = "order_plan_tracking_bulk_start"
+ORDER_PLAN_BULK_END_OPERATION = "order_plan_tracking_bulk_end"
 ORDER_PLAN_BULK_AGGREGATE_TYPE = "order_plan_bulk_tracking"
+#: 로그 이벤트 접두사.  두 작업은 같은 필드 allowlist를 쓰되 이름으로 구분한다.
+ORDER_PLAN_BULK_START_EVENT_PREFIX = "order_plan.bulk_tracking"
+ORDER_PLAN_BULK_END_EVENT_PREFIX = "order_plan.bulk_tracking_end"
 # A fixed namespace makes the request UUID the one deterministic identity
 # fence, independent of actor or selected owner.  The payload hash below then
 # rejects reuse of that UUID for a different request.
@@ -163,11 +173,19 @@ def _validate_reason(value: str | None, request_id: UUID | None = None) -> str:
 
 
 def _canonical_hash(
-    *, schema_version: str, request_id: UUID, plan_ids: list[int], reason: str, actor: str
+    *,
+    schema_version: str,
+    request_id: UUID,
+    plan_ids: list[int],
+    reason: str,
+    actor: str,
+    operation: str = ORDER_PLAN_BULK_START_OPERATION,
 ) -> str:
+    # ``operation`` keeps its start default so the committed v1 start hashes
+    # stay byte-identical.
     payload = {
         "schema_version": schema_version,
-        "operation": ORDER_PLAN_BULK_START_OPERATION,
+        "operation": operation,
         "request_id": str(request_id),
         "order_plan_ids": plan_ids,
         "reason": reason,
@@ -183,8 +201,15 @@ def _canonical_hash(
     return sha256(encoded).hexdigest()
 
 
-def deterministic_receipt_id(request_id: UUID) -> UUID:
-    """Return the deterministic UUIDv5 fence for one bulk request UUID."""
+def deterministic_receipt_id(
+    request_id: UUID, operation: str = ORDER_PLAN_BULK_START_OPERATION
+) -> UUID:
+    """Return the deterministic UUIDv5 fence for one bulk request UUID.
+
+    The operation is part of the name, so the same browser request UUID sent
+    to start and to end fences two independent receipts.  The default keeps
+    every previously committed start receipt ID unchanged.
+    """
 
     if not isinstance(request_id, UUID):
         raise OrderPlanBulkTrackingError(
@@ -192,7 +217,7 @@ def deterministic_receipt_id(request_id: UUID) -> UUID:
         )
     return uuid5(
         ORDER_PLAN_BULK_RECEIPT_NAMESPACE,
-        f"{ORDER_PLAN_BULK_START_OPERATION}:{request_id}",
+        f"{operation}:{request_id}",
     )
 
 
@@ -220,10 +245,11 @@ def _record_identity(
     *,
     receipt_id: UUID,
     request_id: UUID,
+    operation: str = ORDER_PLAN_BULK_START_OPERATION,
 ) -> bool:
     return (
         record.id == receipt_id
-        and record.operation == ORDER_PLAN_BULK_START_OPERATION
+        and record.operation == operation
         and record.aggregate_type == ORDER_PLAN_BULK_AGGREGATE_TYPE
         and record.aggregate_id == str(request_id)
         and record.request_id == request_id
@@ -236,8 +262,14 @@ def _replay_record(
     request_id: UUID,
     receipt_id: UUID,
     request_hash: str,
+    operation: str = ORDER_PLAN_BULK_START_OPERATION,
+    response_model: type[OrderPlanBulkStartResponse | OrderPlanBulkEndResponse] = (
+        OrderPlanBulkStartResponse
+    ),
 ) -> BulkStartResult:
-    if not _record_identity(record, receipt_id=receipt_id, request_id=request_id):
+    if not _record_identity(
+        record, receipt_id=receipt_id, request_id=request_id, operation=operation
+    ):
         raise _receipt_error(request_id)
     if record.request_sha256 != request_hash:
         raise OrderPlanBulkTrackingError(
@@ -268,7 +300,7 @@ def _replay_record(
         if audit_id is not None and not isinstance(audit_id, str):
             raise _receipt_error(request_id)
     try:
-        response = OrderPlanBulkStartResponse.model_validate(snapshot)
+        response = response_model.model_validate(snapshot)
     except Exception as error:
         raise _receipt_error(request_id) from error
     if response.request_id != request_id:
@@ -289,6 +321,10 @@ def _existing_receipt(
     request_id: UUID,
     receipt_id: UUID,
     request_hash: str,
+    operation: str = ORDER_PLAN_BULK_START_OPERATION,
+    response_model: type[OrderPlanBulkStartResponse | OrderPlanBulkEndResponse] = (
+        OrderPlanBulkStartResponse
+    ),
 ) -> BulkStartResult | None:
     record = session.get(IdempotencyRecord, receipt_id)
     if record is None:
@@ -298,6 +334,8 @@ def _existing_receipt(
         request_id=request_id,
         receipt_id=receipt_id,
         request_hash=request_hash,
+        operation=operation,
+        response_model=response_model,
     )
 
 
@@ -583,19 +621,30 @@ def _post_commit_hooks(session: Session, owner_ids: list[int]) -> None:
                 hook_session.close()
 
 
-def start_order_plan_tracking(
+def _apply_bulk_transition(
     session: Session,
     order_plan_ids: list[int] | tuple[int, ...],
     *,
     request_id: UUID,
     reason: str,
     selected_by: str,
+    target_status: str,
+    operation: str,
+    request_schema: str,
+    response_schema: str,
+    response_model: type[OrderPlanBulkStartResponse | OrderPlanBulkEndResponse],
+    event_prefix: str,
 ) -> BulkStartResult:
-    """Atomically start tracking for each currently-unselected owner.
+    """Atomically move each currently-unselected owner to ``target_status``.
 
     Owner writes share one final transaction, while each owner is protected by
     a nested savepoint.  The deterministic receipt row is inserted in that
     same transaction; only after its commit are extension hooks invoked.
+
+    Only the target status, the wire versions and the receipt ``operation``
+    differ between bulk start and bulk end.  Everything else — ownership
+    resolution, lock order, exclusion by current status, fan-out, receipt
+    fence and the post-commit hook — is deliberately one code path.
     """
 
     started = perf_counter()
@@ -607,13 +656,14 @@ def start_order_plan_tracking(
     actor = _validate_actor(selected_by, request_id)
     clean_reason = _validate_reason(reason, request_id)
     request_hash = _canonical_hash(
-        schema_version="order-plan-bulk-start-request.v1",
+        schema_version=request_schema,
         request_id=request_id,
         plan_ids=plan_ids,
         reason=clean_reason,
         actor=actor,
+        operation=operation,
     )
-    receipt_id = deterministic_receipt_id(request_id)
+    receipt_id = deterministic_receipt_id(request_id, operation)
 
     try:
         existing = _existing_receipt(
@@ -621,11 +671,13 @@ def start_order_plan_tracking(
             request_id=request_id,
             receipt_id=receipt_id,
             request_hash=request_hash,
+            operation=operation,
+            response_model=response_model,
         )
     except OrderPlanBulkTrackingError as error:
         if error.code == "idempotency_conflict":
             _log_receipt_event(
-                "order_plan.bulk_tracking.conflict",
+                f"{event_prefix}.conflict",
                 request_id=request_id,
                 duration_ms=round((perf_counter() - started) * 1000, 3),
             )
@@ -640,7 +692,7 @@ def start_order_plan_tracking(
         ) from error
     if existing is not None:
         _log_receipt_event(
-            "order_plan.bulk_tracking.replayed",
+            f"{event_prefix}.replayed",
             request_id=request_id,
             snapshot=existing.snapshot,
             duration_ms=round((perf_counter() - started) * 1000, 3),
@@ -727,7 +779,7 @@ def start_order_plan_tracking(
                         set_tracking_status(
                             session,
                             owner_id,
-                            status="계속 추적",
+                            status=target_status,
                             reason=clean_reason,
                             selected_by=actor,
                             selected_at=selected_at,
@@ -750,7 +802,7 @@ def start_order_plan_tracking(
                             plan_ids=plans_for_owner,
                             owner_id=owner_id,
                             outcome="succeeded",
-                            status="계속 추적",
+                            status=target_status,
                             audit_event_id=audit.id,
                         )
                 items_by_plan.update(owner_result)
@@ -798,13 +850,13 @@ def start_order_plan_tracking(
         )
         try:
             final_result = {
-                "schema_version": ORDER_PLAN_BULK_START_SCHEMA_VERSION,
+                "schema_version": response_schema,
                 "request_id": request_id,
                 "completed_at": datetime.now(UTC),
                 "items": items,
                 "summary": summary,
             }
-            response = OrderPlanBulkStartResponse.model_validate(final_result)
+            response = response_model.model_validate(final_result)
             snapshot = response.model_dump(mode="json")
             if not _json_primitives(snapshot):
                 raise ValueError("receipt contains a non-JSON value")
@@ -815,7 +867,7 @@ def start_order_plan_tracking(
         session.add(
             IdempotencyRecord(
                 id=receipt_id,
-                operation=ORDER_PLAN_BULK_START_OPERATION,
+                operation=operation,
                 aggregate_type=ORDER_PLAN_BULK_AGGREGATE_TYPE,
                 aggregate_id=str(request_id),
                 claimed_name=actor,
@@ -849,17 +901,19 @@ def start_order_plan_tracking(
                     request_id=request_id,
                     receipt_id=receipt_id,
                     request_hash=request_hash,
+                    operation=operation,
+                    response_model=response_model,
                 )
             except OrderPlanBulkTrackingError as replay_error:
                 if replay_error.code == "idempotency_conflict":
                     _log_receipt_event(
-                        "order_plan.bulk_tracking.conflict",
+                        f"{event_prefix}.conflict",
                         request_id=request_id,
                         duration_ms=round((perf_counter() - started) * 1000, 3),
                     )
                 raise
             _log_receipt_event(
-                "order_plan.bulk_tracking.replayed",
+                f"{event_prefix}.replayed",
                 request_id=request_id,
                 snapshot=replay.snapshot,
                 duration_ms=round((perf_counter() - started) * 1000, 3),
@@ -894,24 +948,90 @@ def start_order_plan_tracking(
 
     result = BulkStartResult(response=response, snapshot=snapshot)
     _log_receipt_event(
-        "order_plan.bulk_tracking.succeeded",
+        f"{event_prefix}.succeeded",
         request_id=request_id,
         snapshot=snapshot,
         duration_ms=round((perf_counter() - started) * 1000, 3),
     )
+    # ``tracking_decision_changed`` is the only post-commit hook here and it is
+    # status-independent: a provider re-reads the decision itself.  The single
+    # PATCH's record backfill is not part of this path, and ``종료`` is outside
+    # ``BACKFILL_TRACKING_STATUSES`` in any case.
     _post_commit_hooks(session, succeeded_owner_ids)
     return result
+
+
+def start_order_plan_tracking(
+    session: Session,
+    order_plan_ids: list[int] | tuple[int, ...],
+    *,
+    request_id: UUID,
+    reason: str,
+    selected_by: str,
+) -> BulkStartResult:
+    """Atomically start tracking (``계속 추적``) for unselected owners."""
+
+    return _apply_bulk_transition(
+        session,
+        order_plan_ids,
+        request_id=request_id,
+        reason=reason,
+        selected_by=selected_by,
+        target_status="계속 추적",
+        operation=ORDER_PLAN_BULK_START_OPERATION,
+        request_schema=ORDER_PLAN_BULK_START_REQUEST_SCHEMA_VERSION,
+        response_schema=ORDER_PLAN_BULK_START_SCHEMA_VERSION,
+        response_model=OrderPlanBulkStartResponse,
+        event_prefix=ORDER_PLAN_BULK_START_EVENT_PREFIX,
+    )
+
+
+def end_order_plan_tracking(
+    session: Session,
+    order_plan_ids: list[int] | tuple[int, ...],
+    *,
+    request_id: UUID,
+    reason: str,
+    selected_by: str,
+) -> BulkStartResult:
+    """Atomically end tracking (``종료``) for currently-unselected owners.
+
+    Owners already in ``계속 추적``·``보류``·``종료`` are returned as excluded
+    with their current status untouched, exactly as bulk start does.  A plan
+    without one authoritative active owner never creates an opportunity.
+    """
+
+    return _apply_bulk_transition(
+        session,
+        order_plan_ids,
+        request_id=request_id,
+        reason=reason,
+        selected_by=selected_by,
+        target_status="종료",
+        operation=ORDER_PLAN_BULK_END_OPERATION,
+        request_schema=ORDER_PLAN_BULK_END_REQUEST_SCHEMA_VERSION,
+        response_schema=ORDER_PLAN_BULK_END_SCHEMA_VERSION,
+        response_model=OrderPlanBulkEndResponse,
+        event_prefix=ORDER_PLAN_BULK_END_EVENT_PREFIX,
+    )
 
 
 __all__ = [
     "BulkStartResult",
     "ORDER_PLAN_BULK_AGGREGATE_TYPE",
+    "ORDER_PLAN_BULK_END_EVENT_PREFIX",
+    "ORDER_PLAN_BULK_END_OPERATION",
+    "ORDER_PLAN_BULK_END_REQUEST_SCHEMA_VERSION",
+    "ORDER_PLAN_BULK_END_SCHEMA_VERSION",
     "ORDER_PLAN_BULK_PREVIEW_SCHEMA_VERSION",
     "ORDER_PLAN_BULK_RECEIPT_NAMESPACE",
+    "ORDER_PLAN_BULK_START_EVENT_PREFIX",
     "ORDER_PLAN_BULK_START_OPERATION",
+    "ORDER_PLAN_BULK_START_REQUEST_SCHEMA_VERSION",
     "ORDER_PLAN_BULK_START_SCHEMA_VERSION",
     "OrderPlanBulkTrackingError",
     "deterministic_receipt_id",
+    "end_order_plan_tracking",
     "preview_order_plan_tracking",
     "start_order_plan_tracking",
 ]

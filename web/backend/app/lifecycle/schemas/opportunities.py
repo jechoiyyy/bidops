@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import AliasChoices, Field, StrictInt, field_validator, model_validator
@@ -228,6 +228,11 @@ OrderPlanBulkFailureCode = Literal[
 ]
 
 
+#: 일괄 종료 한 요청이 받는 발주계획 수 상한.  PoC 값이며 되돌리기가 단건뿐인
+#: 작업의 오조작 폭을 제한한다.  v1 계약인 bulk-start에는 상한을 더하지 않는다.
+ORDER_PLAN_BULK_END_MAX_SELECTION = 200
+
+
 def _positive_plan_ids(value: list[int]) -> list[int]:
     """Require a JSON array of positive integers, but retain duplicates.
 
@@ -253,6 +258,13 @@ class OrderPlanBulkPreviewRequest(RuntimeContractModel):
     _validate_plan_ids = field_validator("order_plan_ids")(_positive_plan_ids)
 
 
+def _nonblank_reason(value: str) -> str:
+    clean = value.strip()
+    if not clean:
+        raise ValueError("reason must not be blank")
+    return clean
+
+
 class OrderPlanBulkStartRequest(RuntimeContractModel):
     """A versioned, deterministic bulk tracking-start request."""
 
@@ -262,14 +274,26 @@ class OrderPlanBulkStartRequest(RuntimeContractModel):
     reason: str = Field(min_length=1)
 
     _validate_plan_ids = field_validator("order_plan_ids")(_positive_plan_ids)
+    _trim_reason = field_validator("reason")(_nonblank_reason)
 
-    @field_validator("reason")
-    @classmethod
-    def _trim_reason(cls, value: str) -> str:
-        clean = value.strip()
-        if not clean:
-            raise ValueError("reason must not be blank")
-        return clean
+
+class OrderPlanBulkEndRequest(RuntimeContractModel):
+    """A versioned, deterministic bulk tracking-end request.
+
+    The wire has no status field: the target is the fixed ``종료``.  Unlike the
+    v1 start contract this request caps its selection, because a bulk end has
+    no bulk undo.
+    """
+
+    schema_version: Literal["order-plan-bulk-end-request.v1"]
+    request_id: UUID
+    order_plan_ids: list[StrictInt] = Field(
+        min_length=1, max_length=ORDER_PLAN_BULK_END_MAX_SELECTION
+    )
+    reason: str = Field(min_length=1)
+
+    _validate_plan_ids = field_validator("order_plan_ids")(_positive_plan_ids)
+    _trim_reason = field_validator("reason")(_nonblank_reason)
 
 
 class OrderPlanBulkStatusCount(RuntimeContractModel):
@@ -371,6 +395,103 @@ class OrderPlanBulkSummary(RuntimeContractModel):
     failed_plan_count: StrictInt = Field(ge=0)
 
 
+def _validate_bulk_receipt(model: Any, *, succeeded_status: str) -> Any:
+    """Check one bulk receipt against its own summary and target status.
+
+    Start and end share every field name, failure code and fan-out rule; only
+    the status a successful owner ends up in differs.  Keeping one checker
+    means a new operation cannot quietly lose a receipt invariant.
+    """
+
+    summary = model.summary
+    items = model.items
+    if set(summary.excluded_by_status) != {"계속 추적", "보류", "종료"}:
+        raise ValueError("excluded_by_status must contain all excluded statuses")
+    if len(items) != summary.selected_plan_count:
+        raise ValueError("selected_plan_count must match items")
+    if len({item.order_plan_id for item in items}) != summary.selected_plan_count:
+        raise ValueError("receipt items must contain unique order plans")
+
+    by_outcome = {
+        outcome: [item for item in items if item.outcome == outcome]
+        for outcome in ("succeeded", "excluded", "failed")
+    }
+    if len(by_outcome["succeeded"]) != summary.succeeded_plan_count:
+        raise ValueError("succeeded_plan_count must match items")
+    if len(by_outcome["excluded"]) != summary.excluded_plan_count:
+        raise ValueError("excluded_plan_count must match items")
+    if len(by_outcome["failed"]) != summary.failed_plan_count:
+        raise ValueError("failed_plan_count must match items")
+    if summary.selected_plan_count != (
+        summary.succeeded_plan_count
+        + summary.excluded_plan_count
+        + summary.failed_plan_count
+    ):
+        raise ValueError("receipt outcome counts must add up")
+    if summary.unique_owner_count != len(
+        {item.opportunity_id for item in items if item.opportunity_id is not None}
+    ):
+        raise ValueError("unique_owner_count must match items")
+    if summary.succeeded_owner_count != len(
+        {
+            item.opportunity_id
+            for item in by_outcome["succeeded"]
+            if item.opportunity_id is not None
+        }
+    ):
+        raise ValueError("succeeded_owner_count must match items")
+
+    # A shared owner is fanned out to each selected plan.  Every fan-out
+    # row must carry the same result and audit ID, never a second decision.
+    owner_results: dict[int, tuple[str, str | None, str | None, UUID | None]] = {}
+    for item in items:
+        if item.opportunity_id is None:
+            continue
+        value = (
+            item.outcome,
+            item.status_at_decision,
+            item.code,
+            item.audit_event_id,
+        )
+        previous = owner_results.setdefault(item.opportunity_id, value)
+        if previous != value:
+            raise ValueError("all plans for one owner must share one result")
+
+    for item in by_outcome["succeeded"]:
+        if (
+            item.opportunity_id is None
+            or item.status_at_decision != succeeded_status
+            or item.code is not None
+            or item.audit_event_id is None
+        ):
+            raise ValueError("succeeded items must carry their tracking audit")
+    for item in by_outcome["excluded"]:
+        if (
+            item.opportunity_id is None
+            or item.status_at_decision not in {"계속 추적", "보류", "종료"}
+            or item.code is not None
+            or item.audit_event_id is not None
+        ):
+            raise ValueError("excluded items must preserve their status")
+    for item in by_outcome["failed"]:
+        if item.code is None or item.audit_event_id is not None:
+            raise ValueError("failed items must expose a safe code without an audit")
+
+    for status, count in summary.excluded_by_status.items():
+        matching = [
+            item
+            for item in by_outcome["excluded"]
+            if item.status_at_decision == status
+        ]
+        if count.plan_count != len(matching):
+            raise ValueError("excluded plan count must match items")
+        if count.owner_count != len(
+            {item.opportunity_id for item in matching if item.opportunity_id is not None}
+        ):
+            raise ValueError("excluded owner count must match items")
+    return model
+
+
 class OrderPlanBulkStartResponse(RuntimeContractModel):
     """Final durable receipt returned by bulk start and exact replay."""
 
@@ -382,92 +503,25 @@ class OrderPlanBulkStartResponse(RuntimeContractModel):
 
     @model_validator(mode="after")
     def _validate_receipt(self) -> "OrderPlanBulkStartResponse":
-        summary = self.summary
-        if set(summary.excluded_by_status) != {"계속 추적", "보류", "종료"}:
-            raise ValueError("excluded_by_status must contain all excluded statuses")
-        if len(self.items) != summary.selected_plan_count:
-            raise ValueError("selected_plan_count must match items")
-        if len({item.order_plan_id for item in self.items}) != summary.selected_plan_count:
-            raise ValueError("receipt items must contain unique order plans")
+        return _validate_bulk_receipt(self, succeeded_status="계속 추적")
 
-        by_outcome = {
-            outcome: [item for item in self.items if item.outcome == outcome]
-            for outcome in ("succeeded", "excluded", "failed")
-        }
-        if len(by_outcome["succeeded"]) != summary.succeeded_plan_count:
-            raise ValueError("succeeded_plan_count must match items")
-        if len(by_outcome["excluded"]) != summary.excluded_plan_count:
-            raise ValueError("excluded_plan_count must match items")
-        if len(by_outcome["failed"]) != summary.failed_plan_count:
-            raise ValueError("failed_plan_count must match items")
-        if summary.selected_plan_count != (
-            summary.succeeded_plan_count
-            + summary.excluded_plan_count
-            + summary.failed_plan_count
-        ):
-            raise ValueError("receipt outcome counts must add up")
-        if summary.unique_owner_count != len(
-            {item.opportunity_id for item in self.items if item.opportunity_id is not None}
-        ):
-            raise ValueError("unique_owner_count must match items")
-        if summary.succeeded_owner_count != len(
-            {
-                item.opportunity_id
-                for item in by_outcome["succeeded"]
-                if item.opportunity_id is not None
-            }
-        ):
-            raise ValueError("succeeded_owner_count must match items")
 
-        # A shared owner is fanned out to each selected plan.  Every fan-out
-        # row must carry the same result and audit ID, never a second decision.
-        owner_results: dict[int, tuple[str, str | None, str | None, UUID | None]] = {}
-        for item in self.items:
-            if item.opportunity_id is None:
-                continue
-            value = (
-                item.outcome,
-                item.status_at_decision,
-                item.code,
-                item.audit_event_id,
-            )
-            previous = owner_results.setdefault(item.opportunity_id, value)
-            if previous != value:
-                raise ValueError("all plans for one owner must share one result")
+class OrderPlanBulkEndResponse(RuntimeContractModel):
+    """Final durable receipt returned by bulk end and exact replay.
 
-        for item in by_outcome["succeeded"]:
-            if (
-                item.opportunity_id is None
-                or item.status_at_decision != "계속 추적"
-                or item.code is not None
-                or item.audit_event_id is None
-            ):
-                raise ValueError("succeeded items must carry their tracking audit")
-        for item in by_outcome["excluded"]:
-            if (
-                item.opportunity_id is None
-                or item.status_at_decision not in {"계속 추적", "보류", "종료"}
-                or item.code is not None
-                or item.audit_event_id is not None
-            ):
-                raise ValueError("excluded items must preserve their status")
-        for item in by_outcome["failed"]:
-            if item.code is None or item.audit_event_id is not None:
-                raise ValueError("failed items must expose a safe code without an audit")
+    Field names, failure codes and the fan-out rule are the bulk-start ones;
+    a succeeded owner is in ``종료`` instead of ``계속 추적``.
+    """
 
-        for status, count in summary.excluded_by_status.items():
-            matching = [
-                item
-                for item in by_outcome["excluded"]
-                if item.status_at_decision == status
-            ]
-            if count.plan_count != len(matching):
-                raise ValueError("excluded plan count must match items")
-            if count.owner_count != len(
-                {item.opportunity_id for item in matching if item.opportunity_id is not None}
-            ):
-                raise ValueError("excluded owner count must match items")
-        return self
+    schema_version: Literal["order-plan-bulk-end-response.v1"]
+    request_id: UUID
+    completed_at: AwareDateTime
+    items: list[OrderPlanBulkStartItem] = Field(min_length=1)
+    summary: OrderPlanBulkSummary
+
+    @model_validator(mode="after")
+    def _validate_receipt(self) -> "OrderPlanBulkEndResponse":
+        return _validate_bulk_receipt(self, succeeded_status="종료")
 
 
 __all__ = [
@@ -494,6 +548,9 @@ __all__ = [
     "OpportunityTrackingDecisionsResponse",
     "OpportunityStateView",
     "OpportunityTrackingStatus",
+    "ORDER_PLAN_BULK_END_MAX_SELECTION",
+    "OrderPlanBulkEndRequest",
+    "OrderPlanBulkEndResponse",
     "OrderPlanBulkExcludedStatus",
     "OrderPlanBulkEligibility",
     "OrderPlanBulkFailureCode",

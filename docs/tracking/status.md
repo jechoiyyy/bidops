@@ -6,6 +6,40 @@
 
 `구현됨`은 코드와 계약이 존재한다는 뜻이고, `검증됨`은 기록된 명령이 해당 범위에서 통과했다는 뜻이다. Mock 결과, 과거 브랜치 결과, 현재 worktree 결과, 외부 운영 승인을 서로 대신하지 않는다.
 
+## 탐색 화면 구조 통일·발주계획 일괄 추적 종료 (2026-09-20, 미병합·미배포)
+
+결정은 [ADR-0062](decisions/0062-explore-workspace-structure-unification.md)·[ADR-0063](decisions/0063-order-plan-bulk-tracking-end.md),
+승인 시안은 `docs/0915_ui-redesign/mockups/0920_explore-unify/`다. 브랜치 둘이며 main에 병합하지 않았고 운영에 배포하지 않았다.
+
+| 브랜치 | 내용 | 상태 |
+|---|---|---|
+| `feat/order-plan-bulk-end-backend` | `POST /api/opportunities/order-plan-tracking/bulk-end`(서비스·스키마·router·테스트), ADR 2건, business-rules·contracts·findings·이 문서 | 구현됨·검증됨(TestClient/서비스 수준) |
+| `feat/explore-unify-frontend` | 발주계획 행·상세 pane 파일 분리, 공용 primitive(`AgencyFeature`·`SelectionToolbar`·`ListColumns`·`ListPager`), 두 화면 구조 통일, 일괄 종료 창·툴바·종료 뒤 목록, 승인 시안 원본, `web/frontend/AGENTS.md`·`decisions.md` | 구현됨·검증됨(mock 화면 수준) |
+
+검증(리더 실행):
+
+- 백엔드: 일회용 `postgres:17.11` + `BIDOPS_TEST_POSTGRES_URL`로 `tests/lifecycle/test_order_plan_bulk_end.py`·
+  `test_order_plan_bulk_tracking.py`·`tests/app/test_api_order_plan_bulk_tracking.py`·`test_module_boundaries.py` →
+  **138 passed · skip 0**. 기존 bulk-start 단언은 고치지 않았고 start의 canonical hash·receipt id가 변경 전후로 같음을
+  고정값으로 단언한다. migration 없음(Alembic head 0029 그대로).
+- 프런트 최종 트리(`45aef25`): `npm run build` + `test:screens`(app·layout-laptop·layout-desktop) 1회 →
+  **640 passed · 4 failed · 6 skipped**. 실패 4건은 모두 이 변경의 회귀가 아니다 —
+  `admin-workspace-consistency.spec.ts:23` 2건과 `common-interactions.spec.ts:266` 1건은 수정 없는 main에서도 똑같이
+  실패하고(findings), `draft.spec.ts:63` 1건은 단독 재실행에서 3 passed인 부하 flake다.
+- 접근성 실측(1280×800, 화면 축소 0.9 뒤): 선택 툴바 단추 높이 25.19px, 사전규격 sticky 상세 머리와 본문 컨트롤 겹침
+  0%(머리가 스크롤 컨테이너의 형제), 새·이동 단추 포커스 링 2px. 행 체크박스는 14.39px로 24px에 못 미친다(findings, 결정 대기).
+
+검증되지 않은 것:
+
+- **실제 스택을 가로지르는 경로**(화면 → 운영 compose의 web → PostgreSQL)는 돌리지 않았다. 프런트 mock은 백엔드
+  테스트가 실제로 받은 200·422 응답에서 파생했지만, 생성→receipt→목록 갱신이 실제 서비스에서 이어지는 것은 배포 뒤
+  1회 확인하기 전까지 "검증됨"이 아니다.
+- **픽셀 기준선은 교체하지 않았다.** `test:pixel`은 8장 중 7장이 다르지만 수정 없는 main에서도 같은 7장이 다르다 —
+  `acdf0d9`(사이드바 나라장터 바로가기)가 기준선을 갱신하지 않았기 때문이다. `order-plans-list`·`pre-specs-list` 두 장은
+  그 사이드바 차이와 이번 구조 변경이 한 장에 겹쳐 있어, 교체 범위와 승인 기록을 사람이 정한 뒤 갈아 끼운다.
+
+시안과 달라진 곳은 `docs/0915_ui-redesign/decisions.md`의 같은 날짜 항목에 있다.
+
 ## 일일 운영 고도화 (2026-09-18, 2026-09-19 main 병합·운영 배포)
 
 [일일 운영 고도화 계획](../0918_daily-operation/plan.md)의 웨이브 1~5를 구현했다. 통합 브랜치는

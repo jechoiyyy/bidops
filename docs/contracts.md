@@ -248,6 +248,7 @@ revision-history의 404·409·500은 공통 안전 envelope를 사용하며 `det
 | `GET /api/bid-delta/decision-queue` | `status=pending\|all`(기본 `pending`), `limit` 1..500(기본 50), `offset` 0 이상 | 200 `{items, total, limit, offset}` | 422 query; 500 안전 오류 |
 | `POST /api/opportunities/order-plan-tracking/preview` | body `{"schema_version":"order-plan-bulk-preview-request.v1","order_plan_ids":[1,2]}` (ID는 positive integer[]); 빈 목록·bool·0·음수·unknown field 거부 | 200 `order-plan-bulk-preview-response.v1` (아래 wire) | 422 body 또는 `invalid_request`; 503 `temporarily_unavailable` |
 | `POST /api/opportunities/order-plan-tracking/bulk-start` | actor headers; body `{"schema_version":"order-plan-bulk-start-request.v1","request_id":"UUID","order_plan_ids":[1,2],"reason":"nonblank"}` (ID는 positive integer[]) | 200 `order-plan-bulk-start-response.v1` 최종 receipt (아래 wire) | 400 actor; 409 `idempotency_conflict`; 422 body/`invalid_request`·`tracking_reason_required`; 500 `processing_failed`; 503 `temporarily_unavailable` |
+| `POST /api/opportunities/order-plan-tracking/bulk-end` | actor headers; body `{"schema_version":"order-plan-bulk-end-request.v1","request_id":"UUID","order_plan_ids":[1,2],"reason":"nonblank"}` (ID는 positive integer[] 1..200건) | 200 `order-plan-bulk-end-response.v1` 최종 receipt (아래 wire) | 400 actor; 409 `idempotency_conflict`; 422 body(201건 이상은 FastAPI `too_long`)/`invalid_request`·`tracking_reason_required`; 500 `processing_failed`; 503 `temporarily_unavailable` |
 | `PATCH /api/opportunities/{opportunity_id}/tracking-status` | actor headers; body `{tracking_status, reason}` | 200 `OpportunityDetailResponse` | 400 `actor_name_required|actor_name_invalid`; 404 `opportunity_not_found`; 422 `tracking_status_invalid|tracking_reason_required` |
 | `PATCH /api/opportunities/links/{link_id}/decision` | actor headers; body `{decision=accepted|rejected, reason}` | 200 `OpportunityLinkView`; 동일 actor·판정·이유 replay는 같은 reviewed_at | 400 `actor_name_required|actor_name_invalid`; 404 `opportunity_link_not_found`; 409 `candidate_link_required|candidate_decision_conflict|candidate_state_conflict|candidate_target_required|candidate_target_already_authoritative|candidate_merge_state_conflict|opportunity_merge_state_conflict`; 422 body·link ID·blank reason |
 
@@ -286,6 +287,16 @@ revision-history의 404·409·500은 공통 안전 envelope를 사용하며 `det
 추적·감사·receipt·모델 실행을 만들지 않는다. 미리보기 뒤 상태가 바뀔 수 있으므로 bulk-start가
 잠금 뒤 다시 확인한 결과가 최종이다.
 bulk-start body에는 임의 status나 owner ID가 없고 목표 상태는 고정 `계속 추적`이다.
+
+bulk-end([ADR-0063](tracking/decisions/0063-order-plan-bulk-tracking-end.md))는 bulk-start와 같은 상태 기계를 목표 상태만 바꿔 쓴다.
+body에 status가 없고 목표는 고정 `종료`다. 요청은 `order-plan-bulk-end-request.v1`, receipt는 정확히
+`{schema_version:"order-plan-bulk-end-response.v1", request_id, completed_at, items, summary}`이며 item·summary의 field와
+실패 code 목록은 bulk-start와 같다. 성공 item은 `status_at_decision=종료`·audit UUID, 제외 item은 기존
+`계속 추적|보류|종료` 상태다. `preview`는 두 작업이 공유한다(`eligible`=현재 `미선택`). `order_plan_ids`는 bulk-end에서만
+200건 상한이 있고 초과는 FastAPI 기본 422(`type=too_long`, 보낸 배열을 `input`으로 되돌림)다 — bulk-start v1에는 상한이 없다.
+receipt의 operation은 `order_plan_tracking_bulk_end`이고 결정적 receipt UUID와 canonical hash에 operation이 들어가므로,
+같은 `request_id`를 start와 end에 보내도 서로 replay·conflict를 일으키지 않는다. 로그 이벤트는
+`order_plan.bulk_tracking_end.{succeeded,replayed,conflict}`다. 아래 원자성·잠금·hook 규칙은 두 작업에 똑같이 적용한다.
 
 preview 응답은 정확히 `schema_version`, `selected_plan_count`, `unique_owner_count`,
 `eligible_plan_count`, `eligible_owner_count`, `excluded_by_status`, `failure_plan_count`,
@@ -1103,7 +1114,7 @@ policy rejection은 retry하지 않는다. 재시도 후에도 결과가 없으�
 | `POST /api/order-plan-screening/daily-trigger` | actor header, `daily-trigger-set-request.v1` | `201`: `daily-trigger-set-response.v1` | `actor_name_*`(400), `invalid_request`(422), `idempotency_conflict`(409) |
 
 발주계획의 사람 추적 시작은 C-2 relevance와 별도인
-`POST /api/opportunities/order-plan-tracking/preview`·`bulk-start` 계약을 사용한다
+`POST /api/opportunities/order-plan-tracking/preview`·`bulk-start`·`bulk-end` 계약을 사용한다
 (상세 wire·원자성·receipt 규칙은 [사업기회와 추적](#사업기회와-추적)의
 `발주계획 일괄 추적 v1 wire·원자성`에 있다). 기존 C-2 screening execution을 만들거나
 `GET/POST /api/order-plans/{order_plan_pk}/tracking-decisions`를 호출하지 않는다.
