@@ -44,7 +44,7 @@ import {
   WorkspaceSearch,
   WorkspaceViewTabs,
 } from "../components/common/WorkspaceFilters";
-import { api } from "../lib/api";
+import { ORDER_PLAN_BULK_END_MAX_SELECTION, api } from "../lib/api";
 import { describeApiError } from "../lib/apiErrors";
 import { generateRequestId } from "../lib/requestId";
 import {
@@ -52,6 +52,7 @@ import {
   orderPlansFilterFingerprint,
 } from "../lib/listSelection";
 import {
+  getPendingOrderPlanBulkTrackingAction,
   hasPendingOrderPlanBulkTrackingRequest,
   OrderPlanBulkTrackingDialog,
 } from "../components/order-plans/OrderPlanBulkTrackingDialog";
@@ -646,8 +647,11 @@ export function OrderPlansPage() {
   const [searchText, setSearchText] = useState(searchParams.get("q") ?? "");
   const [signalTab, setSignalTab] = useState<SignalTab>("signals");
   const [dialog, setDialog] = useState<SecondaryDialog | null>(null);
-  const [bulkDialogOpen, setBulkDialogOpen] = useState(false);
+  // A3: 시작·종료 두 단추가 같은 다이얼로그를 다른 mode로 연다. null이면 닫힘이다.
+  const [bulkDialogMode, setBulkDialogMode] = useState<"start" | "end" | null>(null);
   const [bulkPending, setBulkPending] = useState(false);
+  // A4: 일괄 추적 종료 직후 안내 한 줄. 다음 필터 변경·선택 변경 전까지 보인다.
+  const [bulkEndNotice, setBulkEndNotice] = useState<number | null>(null);
   const [bulkRecoveryAvailable, setBulkRecoveryAvailable] = useState(() => hasPendingOrderPlanBulkTrackingRequest());
   const [advancedOpen, setAdvancedOpen] = useState(false);
   // ↑↓ 이동은 목록 `<ul>`에 리스너를 단다(window 전역이 아니다) — 상세 pane 입력의
@@ -910,6 +914,9 @@ export function OrderPlansPage() {
   // (`changeAxes`, `applyPreset`, `applySavedViewSearch`, `resetFilters`, 페이지 이동)가
   // 한 번만 건다. 원본끼리 겹쳐 부르면 같은 질문이 두 번 뜬다.
   function applyAxes(next: { qwen?: Set<RelevanceToken>; stage1?: Set<Stage1Token>; feedback?: Set<FeedbackToken>; tracking?: Set<TrackingToken>; issue?: boolean; q?: string }) {
+    // A4: 필터가 바뀌면 일괄 종료 안내를 지운다. 이 함수는 축을 바꾸는 모든 경로의
+    // 공용 원본이라 여기 한 곳에 둔다.
+    setBulkEndNotice(null);
     const params = new URLSearchParams(searchParams);
     if (next.qwen) params.set("qwen", serializeTokens(next.qwen));
     if (next.stage1) params.set("stage1", serializeTokens(next.stage1));
@@ -963,6 +970,21 @@ export function OrderPlansPage() {
       for (const key of AXIS_KEYS) params.delete(key);
       params.delete("offset");
       setSearchParams(params, { replace: true });
+      setSearchText("");
+    });
+  }
+
+  /** A4: 기본 보기가 빈 상태일 때 "종료한 건 보기" 동작. 추적 축만 `종료`로 바꾼다. */
+  function viewEndedTracking() {
+    withRowGuard(() => {
+      applyAxes({
+        qwen: new Set(),
+        stage1: new Set(),
+        feedback: new Set(),
+        tracking: new Set(["종료"]),
+        issue: false,
+        q: "",
+      });
       setSearchText("");
     });
   }
@@ -1073,7 +1095,11 @@ export function OrderPlansPage() {
 
   function toggleChecked(pk: number, checked: boolean) {
     const currentlyChecked = orderPlanSelection.selectedIdSet.has(pk);
-    if (checked !== currentlyChecked) orderPlanSelection.toggle(pk);
+    if (checked !== currentlyChecked) {
+      orderPlanSelection.toggle(pk);
+      // A4: 선택이 바뀌면 일괄 종료 안내를 지운다.
+      setBulkEndNotice(null);
+    }
   }
 
   const handleBulkPendingChange = useCallback((pending: boolean) => {
@@ -1507,12 +1533,12 @@ export function OrderPlansPage() {
             variant="ghost"
             onClick={() => setDialog("runtime")}
           />
-          {bulkRecoveryAvailable && !bulkDialogOpen ? (
+          {bulkRecoveryAvailable && !bulkDialogMode ? (
             <Button
               label="저장된 일괄 요청 확인"
               size="sm"
               variant="secondary"
-              onClick={() => setBulkDialogOpen(true)}
+              onClick={() => setBulkDialogMode(getPendingOrderPlanBulkTrackingAction() ?? "start")}
             />
           ) : null}
           {/* 누적 모드에는 고른 회차가 없으므로 실행 화면 자체로 간다. */}
@@ -1750,6 +1776,13 @@ export function OrderPlansPage() {
                   <Text type="supporting" color="secondary" as="span">{filterMeaning}</Text>
                 </p>
               </header>
+              {/* A4: 일괄 종료 직후 안내. N=0이면 표시하지 않고, 다음 필터·선택 변경까지
+                  남는다(`applyAxes`·`toggleChecked`·`선택 전체 해제`가 지운다). */}
+              {bulkEndNotice !== null ? (
+                <p className="c2l-bulk-end-notice" role="status">
+                  {bulkEndNotice.toLocaleString("ko-KR")}건을 추적 종료했습니다 · 추적 필터 &apos;종료&apos;에서 볼 수 있습니다
+                </p>
+              ) : null}
               <SelectionToolbar
                 className="c2l-selection-toolbar"
                 count={orderPlanSelection.selectedIds.length}
@@ -1765,27 +1798,42 @@ export function OrderPlansPage() {
                     : !orderPlanSelection.storageAvailable || orderPlanSelection.storageError
                       ? "선택 저장소를 확인하지 못해 단건 추적 경로를 사용하십시오."
                       : orderPlanSelection.selectedIds.length === 0
-                        ? "하나 이상의 발주계획을 선택하십시오."
-                        : "선택한 발주계획을 일괄 추적하기 전에 대상과 공통 입력을 확인하십시오."}
+                        ? "계획을 선택하면 일괄 추적 시작·종료를 쓸 수 있습니다."
+                        : orderPlanSelection.selectedIds.length > ORDER_PLAN_BULK_END_MAX_SELECTION
+                          ? "한 번에 200건까지 종료할 수 있습니다. 선택을 줄이십시오."
+                          : "추적을 아직 정하지 않은 계획만 저장됩니다. 나머지는 미리보기에서 제외됩니다."}
                 actions={(
                   <>
-                    {/* 단추 구성은 이번 변경에서 그대로다 — 추적 시작·종료로 나누는 것은
-                        ADR-0063의 작업이다. `전체 선택`은 업무 규칙상 두지 않는다. */}
+                    {/* A3(ADR-0063): 일괄 검토 단추를 시작·종료로 나눈다. 종료는 200건
+                        상한을 넘으면 비활성이고 시작은 그대로 쓸 수 있다. `전체 선택`은
+                        업무 규칙상 두지 않는다. */}
                     <button
                       aria-describedby="c2l-selection-action-reason"
                       className="interaction-control interaction-control-primary"
                       type="button"
                       disabled={bulkPending || mutation.isPending || trackingMutation.isPending || !orderPlanSelection.hydrated || !orderPlanSelection.storageAvailable || Boolean(orderPlanSelection.storageError) || orderPlanSelection.selectedIds.length === 0}
-                      onClick={() => setBulkDialogOpen(true)}
+                      onClick={() => setBulkDialogMode("start")}
                     >
-                      선택 항목 검토
+                      선택 항목 추적 시작
+                    </button>
+                    <button
+                      aria-describedby="c2l-selection-action-reason"
+                      className="interaction-control"
+                      type="button"
+                      disabled={bulkPending || mutation.isPending || trackingMutation.isPending || !orderPlanSelection.hydrated || !orderPlanSelection.storageAvailable || Boolean(orderPlanSelection.storageError) || orderPlanSelection.selectedIds.length === 0 || orderPlanSelection.selectedIds.length > ORDER_PLAN_BULK_END_MAX_SELECTION}
+                      onClick={() => setBulkDialogMode("end")}
+                    >
+                      선택 항목 추적 종료
                     </button>
                     <button
                       aria-describedby="c2l-selection-action-reason"
                       className="interaction-control"
                       type="button"
                       disabled={bulkPending || orderPlanSelection.selectedIds.length === 0 || !orderPlanSelection.hydrated}
-                      onClick={() => orderPlanSelection.clear()}
+                      onClick={() => {
+                        orderPlanSelection.clear();
+                        setBulkEndNotice(null);
+                      }}
                     >
                       선택 전체 해제
                     </button>
@@ -1813,6 +1861,18 @@ export function OrderPlansPage() {
                     title="발주계획 목록을 불러오지 못했습니다."
                     description={listError}
                     action={{ label: "다시 시도", onClick: () => { void listQuery.refetch(); } }}
+                  />
+                </div>
+              ) : visibleItems.length === 0 && isDefaultView && total === 0 ? (
+                /* A4: 기본 보기(검토 대상)가 0건이면 "다 처리했다"는 사실과 종료한 건·
+                   전체 보기로 가는 길을 함께 준다. 다른 preset·검색 0건은 그대로 둔다. */
+                <div className="c2l-list-empty">
+                  <EmptyState
+                    compact
+                    title="검토할 발주계획이 없습니다"
+                    description="추적을 정하지 않은 관련 건을 모두 처리했습니다."
+                    action={{ label: "종료한 건 보기", onClick: viewEndedTracking }}
+                    secondaryAction={{ label: "전체 보기로 전환", onClick: () => applyPreset("all") }}
                   />
                 </div>
               ) : visibleItems.length === 0 ? (
@@ -1849,15 +1909,10 @@ export function OrderPlansPage() {
                 </DenseList>
               )}
               {/* 바닥 안내 줄 — 지금 보는 범위·정렬과, 기본 보기가 숨기는 것을 함께 적는다.
-                  숨김을 부재로 표시하지 않는다(PRD §3.2). */}
+                  숨김을 부재로 표시하지 않는다(PRD §3.2). B3(0920 검수): 범위는 더 이상
+                  여기서 따로 적지 않는다 — 페이저 줄이 그 값을 갖는다(중복 제거). 안내를
+                  먼저 두고 페이저를 마지막 줄로 내린다. */}
               <div className="c2l-list-foot">
-                {listQuery.isPending || listQuery.isError ? null : (
-                  <p className="c2l-list-range">
-                    <Text type="supporting" color="secondary" as="span">
-                      {visibleItems.length ? offset + 1 : 0}–{Math.min(offset + visibleItems.length, total)} / {total.toLocaleString("ko-KR")}
-                    </Text>
-                  </p>
-                )}
                 {/* 어느 범위(누적·회차)를 보고 있는지 밝힌다. 범위를 모르면 적지 않는다. */}
                 {listScope !== undefined ? (
                   <p className="c2l-list-scope" data-testid="order-plan-list-scope" title={scopeLabel(listScope)}>
@@ -1875,13 +1930,22 @@ export function OrderPlansPage() {
                   </p>
                 ) : null}
               </div>
-              {hasPrevious || hasNext ? (
+              {/* 페이저 줄은 안내 아래 마지막 줄이다. 사전규격과 같은 형식으로 왼쪽에
+                  전체 건수, 오른쪽에 범위와 이전/다음 단추를 둔다(B3). */}
+              {listQuery.isPending || listQuery.isError ? null : (
                 <ListPager className="c2l-pager" label="발주계획 목록 페이지">
-                  <Button label="이전" size="sm" variant="secondary" isDisabled={!hasPrevious} onClick={() => changeOffset(Math.max(0, offset - PAGE_SIZE))} />
-                  <Text type="supporting" color="secondary">{(offset + 1).toLocaleString("ko-KR")}–{Math.min(offset + visibleItems.length, total).toLocaleString("ko-KR")} / {total.toLocaleString("ko-KR")}</Text>
-                  <Button label="다음" size="sm" variant="secondary" isDisabled={!hasNext} onClick={() => changeOffset(offset + PAGE_SIZE)} />
+                  <Text type="supporting" color="secondary">전체 {total.toLocaleString("ko-KR")}건</Text>
+                  <div className="c2l-pager-range">
+                    <Button label="이전" size="sm" variant="secondary" isDisabled={!hasPrevious} onClick={() => changeOffset(Math.max(0, offset - PAGE_SIZE))} />
+                    <Text type="supporting" color="secondary">
+                      {visibleItems.length
+                        ? `${(offset + 1).toLocaleString("ko-KR")}–${Math.min(offset + visibleItems.length, total).toLocaleString("ko-KR")} / ${total.toLocaleString("ko-KR")}`
+                        : "–"}
+                    </Text>
+                    <Button label="다음" size="sm" variant="secondary" isDisabled={!hasNext} onClick={() => changeOffset(offset + PAGE_SIZE)} />
+                  </div>
                 </ListPager>
-              ) : null}
+              )}
             </aside>
 
             <OrderPlanDetailPane
@@ -2087,16 +2151,23 @@ export function OrderPlansPage() {
         title={endConfirm?.title ?? "추적을 종료합니다"}
       />
       <OrderPlanBulkTrackingDialog
-        open={bulkDialogOpen}
+        open={bulkDialogMode !== null}
+        mode={bulkDialogMode ?? "start"}
         selectedIds={orderPlanSelection.selectedIds}
         selectionGeneration={orderPlanSelection.state.selectionGeneration}
         filterFingerprint={selectionFingerprint}
         actorName={trackingActor}
         onClose={() => {
-          setBulkDialogOpen(false);
+          setBulkDialogMode(null);
           setBulkRecoveryAvailable(hasPendingOrderPlanBulkTrackingRequest());
         }}
-        onApplied={(resolvedIds, generation) => orderPlanSelection.applyResult(resolvedIds, generation)}
+        onApplied={(resolvedIds, generation, summary) => {
+          orderPlanSelection.applyResult(resolvedIds, generation);
+          // A4: 종료가 실제로 성공한 건이 있을 때만 안내를 켠다. 0이면 표시하지 않는다.
+          if (bulkDialogMode === "end" && summary.succeeded_plan_count > 0) {
+            setBulkEndNotice(summary.succeeded_plan_count);
+          }
+        }}
         onInvalidate={invalidateBulkQueries}
         onPersistSelection={orderPlanSelection.persist}
         onPendingChange={handleBulkPendingChange}
