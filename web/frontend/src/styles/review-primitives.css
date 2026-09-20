@@ -59,6 +59,9 @@
   --review-quiet-surface: color-mix(in srgb, var(--color-background-body) 50%, var(--color-background-surface));
 
   display: flex;
+  flex: 1 1 0;
+  flex-direction: row;
+  align-items: stretch;
   min-width: 0;
   min-height: 0;
   border: 0;
@@ -70,6 +73,8 @@
 
 .review-split-list,
 .review-split-detail {
+  display: flex;
+  flex-direction: column;
   min-width: 0;
   min-height: 0;
 }
@@ -77,10 +82,183 @@
 .review-split-list {
   flex: 0 0 38%;
   border-right: var(--border-width) solid var(--review-split-line);
+  /* 탐색 두 화면이 같은 목록 글자 크기를 쓴다(ADR-0062 "목록 글자"). 사업명·발주기관은
+     본문보다 2px 큰 primary, 예산·상태·마감은 본문 크기인 secondary다. 페이지가 아니라
+     목록 pane이 소유하는 토큰이며 `:root`와 테마는 그대로다. */
+  --review-list-primary: calc(var(--bo-type-body) + var(--spacing-0-5));
+  --review-list-secondary: var(--bo-type-body);
 }
 
 .review-split-detail {
   flex: 1 1 auto;
+}
+
+/* --- 목록 머리·열 이름·도구줄·페이저·상세 머리 (ADR-0062) ---
+ *
+ * 발주계획과 사전규격이 같은 규칙을 두 벌로 갖고 있던 자리다. 공통 선언은 여기로
+ * 올리고 화면 클래스에는 차이만 남긴다 — 화면 클래스 이름 자체는 검사 selector로
+ * 계속 붙인다. */
+.review-list-head {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-4);
+  border-bottom: var(--border-width) solid var(--review-split-line);
+}
+
+/* 한 줄이 계약이다. 어느 쪽도 줄을 바꾸지 않고, 좁으면 말줄임한다(전문은 `title`). */
+.review-list-head > * {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.review-list-head > :first-child {
+  flex: 0 1 auto;
+}
+
+.review-list-head > :last-child {
+  flex: 1 1 0;
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+  text-align: right;
+}
+
+.review-list-columns {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-2);
+  padding: var(--spacing-1) var(--spacing-4);
+  border-bottom: var(--border-width) solid var(--review-split-line);
+  color: var(--color-text-secondary);
+  background: var(--review-quiet-surface);
+  font-size: var(--review-list-secondary, var(--bo-type-caption));
+}
+
+/* 도구줄은 한 줄이다: 선택 건수 · 조작 단추들 · (보조 캡션). 비활성 사유는 글자가
+   길어 같은 줄에 두면 단추가 세로로 쪼개지므로 아래 줄 전체를 쓰며, **비어 있어도
+   높이를 유지한다** — 사유가 나타났다 사라질 때 목록이 위아래로 밀리지 않는다. */
+.review-selection-toolbar {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-1) var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-4);
+  border-bottom: var(--border-width) solid var(--review-split-line);
+  background: var(--color-background-surface);
+}
+
+/* 도구줄 단추는 시안의 28px 칩이다(spec §2.3). 공용 `.interaction-control`은 42px·
+   14px 굵은 글자라 목록 머리보다 커 보였다 — 이 줄에서만 크기를 맞춘다. */
+.review-selection-toolbar .interaction-control {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  min-height: var(--size-element-sm);
+  padding: 0 var(--spacing-3);
+  border: 0;
+  border-radius: var(--radius-element);
+  color: var(--color-text-primary);
+  background: var(--color-background-surface);
+  box-shadow: inset 0 0 0 var(--border-width) var(--color-border);
+  font-size: var(--bo-type-caption);
+  font-weight: var(--font-weight-medium);
+}
+
+.review-selection-toolbar .interaction-control-primary {
+  color: var(--color-on-accent);
+  background: var(--color-accent);
+  box-shadow: none;
+}
+
+.review-selection-toolbar .interaction-control:hover:not(:disabled) {
+  background: var(--color-accent-muted);
+}
+
+.review-selection-toolbar .interaction-control-primary:hover:not(:disabled) {
+  background: var(--color-text-accent);
+}
+
+.review-selection-toolbar .interaction-control:disabled {
+  color: var(--color-text-disabled);
+  background: var(--color-background-muted);
+  box-shadow: none;
+}
+
+/* 건수는 0→10→100 으로 바뀌어도 단추를 밀지 않도록 자리 폭을 잡아 둔다. */
+.review-selection-count {
+  flex: 0 0 auto;
+  min-width: 7ch;
+  color: var(--color-text-primary);
+  font-size: var(--bo-type-body);
+  font-weight: var(--font-weight-semibold);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.review-selection-reason {
+  order: 1;
+  flex: 1 0 100%;
+  min-width: 0;
+  min-height: calc(var(--bo-type-caption) * var(--bo-type-caption-leading));
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+  line-height: var(--bo-type-caption-leading);
+  overflow-wrap: anywhere;
+}
+
+.review-list-pager {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-3);
+  padding: var(--spacing-2) var(--spacing-4);
+  border-top: var(--border-width) solid var(--review-split-line);
+  color: var(--color-text-secondary);
+  background: var(--review-quiet-surface);
+  font-size: var(--bo-type-caption);
+}
+
+.review-detail-head {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  gap: var(--spacing-1-5);
+  padding: var(--spacing-3) var(--spacing-4);
+  border-bottom: var(--border-width) solid var(--review-split-line);
+  background: var(--color-background-surface);
+}
+
+/* 발주기관 강조 블록. 값은 발주계획 상세가 쓰던 것 그대로이며 새 색이 없다. */
+.review-agency-feature {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--spacing-1) var(--spacing-3);
+  min-width: 0;
+  padding: var(--spacing-3) var(--spacing-4);
+  border-radius: var(--radius-inner);
+  background: var(--color-accent-muted);
+}
+
+.review-agency-label {
+  flex: 0 0 auto;
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+}
+
+.review-agency-name {
+  min-width: 0;
+  color: var(--color-text-primary);
+  font-size: var(--bo-type-body);
+  font-weight: var(--font-weight-semibold);
+  overflow-wrap: anywhere;
 }
 
 /* --- 칩 ---
