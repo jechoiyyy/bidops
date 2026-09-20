@@ -6,6 +6,56 @@
 
 `구현됨`은 코드와 계약이 존재한다는 뜻이고, `검증됨`은 기록된 명령이 해당 범위에서 통과했다는 뜻이다. Mock 결과, 과거 브랜치 결과, 현재 worktree 결과, 외부 운영 승인을 서로 대신하지 않는다.
 
+## 사전규격 검토 제외·복원 (2026-09-21, 구현·격리 검증·운영 배포 완료)
+
+단건·선택 묶음 제외, 전체 이력 단건 복원, 팀 공통 상태·변경 정보·원자적 감사 저장을 구현했다.
+검토할 항목·최근 수집에서 제외하고 추적 중·전체 이력·상세에는 표식을 둔다. 추적·등급·리뷰·
+자동 처리 자격·대시보드 집계는 유지한다. 200건 한도, 실패 입력/선택 보존, 명시적 재시도,
+선택 해제·다음/이전 행 초점·빈 마지막 페이지 보정·미저장 추적 입력 보호를 연결했다.
+계약은 [contracts.md](../contracts.md), 적용 순서는 [operations.md](../operations.md)에 있다.
+
+검증 범위(같은 소스의 통과 결과를 재사용하며 수정 후 영향 사례만 재실행):
+
+- `tests/app/test_pre_spec_review_exclusions.py`: 50개 사례(SQLite/PostgreSQL 포함) 통과.
+  필수값·중복·다른 대상·1~200건·trim 한도, 미변경 보존, 감사 실패 전체 롤백, 재관측 유지,
+  추적 예외/사람 확인/심층 대기 제외·건수·페이지, 동시 역순 요청을 검사했다.
+  일회용 `postgres:17.11` + `BIDOPS_TEST_POSTGRES_URL` 사용. 신규 DB와 실제 0029 열 형태의
+  기존 DB → `0030_prespec_review_exclusion`, app 역할 실제 변경·감사 쓰기도 통과했다.
+- 기존 `test_api_pre_specs.py`·`test_api_pre_specs_workspaces.py`·`test_api_pre_specs_projection.py`,
+  `test_alembic_autogenerate.py`, 단일 head·runtime head·migration 감사 표식 검사 통과.
+  projection의 2개 초기 실패는 로컬 `.env`의 개요 자동 실행 설정 유입이었다. 변경 전 코드에서도
+  enabled=true일 때 같은 실패를 재현했고 `BIDOPS_PRESPEC_OVERVIEW_ENABLED=false`로 전제를
+  고정해 projection 15개가 통과했다. 제품의 자동 분석 자격은 수정하지 않았다.
+- `test_module_boundaries.py`와 영향 권한 정적 검사 통과. 운영 DB·모델 호출 없음.
+- `npm run build` 통과. Playwright `pre-specs.spec.ts`·`prespec-list-work.spec.ts`·
+  `prespec-exclusions.spec.ts`의 관련 의미 검사 77개 통과(mock API).
+  `overflow.spec.ts`의 사전규격 목록·상세·추적 폼·제외 창 8개 통과(1280×800, 1440×900).
+  마지막 변경은 페이지 이동 처리이며 영향 사례만 재검사했다. 두 확인 창 캡처를 직접 확인했다.
+
+운영 적용(2026-09-21 07:39 KST): 사용자가 migration 진행과 재배포를 모두 명시적으로 승인했다.
+일일 수집 두 트랙 완료를 확인하고 공용 daily lock을 보유한 채 웹·첨부 워커를 중지했다.
+분석 워커에는 SIGTERM을 보내 진행 중 개요 1건이 completed가 된 뒤 exit 0으로 종료되는 것을
+확인했다. 기존 Git 및 서비스별 이미지 롤백 태그는 `before-prespec-review-exclusion-20260921`이다.
+
+- DB 백업: `backups/postgres/full/bidops-20260920T223643Z.dump`(26,076,838 bytes),
+  SHA-256 `39191099eb3b065ca0b3e7b28c19f2c75e82eb954c88d46b3ecf6ecaec73a1a7`.
+  `pg_restore --list` 성공. 같은 이름의 `.manifest.json`에 이미지·revision·객체 manifest hash를 기록했다.
+- 객체 백업: `backups/objects/prespec-review-exclusion-20260921/`의 852개 버전(약 593 MiB).
+  기존 `backup-objects.sh`로 버전별 복사와 원본/백업 SHA-256 대조를 완료했다. ops 이미지의
+  pinned mc 다운로드가 거절되어 운영 MinIO의 동일 버전 `RELEASE.2025-08-13T08-35-41Z` 바이너리를
+  임시 백업 컨테이너에 마운트했다. 이번 백업은 로컬 보존이며 외부 위치 복사·실제 복원 시험은 하지 않았다.
+- 운영 Compose 5개 파일·env 4개·prespec profile로 `run --rm --no-deps migrate` 성공.
+  head `0030_prespec_review_exclusion`, 기존 notice 840건 included/변경 정보 null 확인.
+  새 네 열의 UPDATE는 app=true·worker=false임을 확인했다.
+- 새 이미지 `77ba2061f537`로 web·analysis-worker·prespec-attachment-worker를 교체했다.
+  웹 기동 때 WSL/Tailscale의 18787 포트 충돌이 있어 해당 전달만 해제→기동→원상 복원했다.
+  web healthy, 두 worker running, 기존 자동 실행·개요·GPU 600/300 설정 유지 확인.
+- 운영 읽기 검사: health=ok, `/pre-specs`=200, 전체 이력 total=145와 새 네 필드,
+  actionable+excluded total=0, 빈 제외 요청 422를 확인했다. daily-trigger는 기존 v4의
+  effective_enabled=true를 유지한다. 실제 공고의 제외/복원 저장은 운영 데이터에 실행하지 않았다.
+
+배포는 현재 미커밋 소스로 빌드했으며 commit·push는 하지 않았다. 배포 뒤 daily lock을 해제했다.
+
 ## 탐색 화면 구조 통일·발주계획 일괄 추적 종료 (2026-09-20, main 병합·운영 web 배포)
 
 결정은 [ADR-0062](decisions/0062-explore-workspace-structure-unification.md)·[ADR-0063](decisions/0063-order-plan-bulk-tracking-end.md),
@@ -208,10 +258,18 @@ precision 36.7%, 중요 누락 0, 하루 최대 검토량 79, 일치율 100%; �
 약 1분, 이어진 첨부 취득은 07:00~07:17에 `완료` 108·`차단` 12(형식·안전성 사유)로 끝났다. 적재 경고 155건은
 `opportunity_link_target_missing` 154(입찰공고가 가리키는 발주계획이 DB에 없음 — 발주계획 누적이 이틀치뿐이라
 예상된 것)와 `screening_results_missing` 1(C-1은 운영에 쓰지 않는다, 결정 27)이다. C-1 등급이 없으므로 문서 묶음·
-개요 run은 새로 생기지 않았고 **공고 트랙은 모델을 부르지 않았다** — 우려했던 자동 연쇄 규모 문제는 C-1 자동화
-전까지 생기지 않는다. 발주계획 트랙 `lifecycle-20260919-plans`는 lock 대기 없이 07:30에 시작해 토요일분 16건을
+개요 run은 그날 새로 생기지 않았다(**다음 날 관측으로 정정** — 연쇄는 하루 늦게 온다, 아래 09-21 단락). 발주계획 트랙 `lifecycle-20260919-plans`는 lock 대기 없이 07:30에 시작해 토요일분 16건을
 경고 0으로 적재하고 운영 실행 `f181030b-7776-4301-8917-3ee5203eb428`이 28초 만에 `성공`(16건 전부 비관련, 사람
 검토 0)했다. 데이터가 있는 평일분 무인 실행은 2026-09-22(화) 아침이 처음이다.
+
+둘째 날(2026-09-21 월, 기준일 09-20): 두 트랙 모두 `complete`. 공고 4일 창 1,551건(사전규격 71 선별, 경고 101 —
+전날과 같은 구성), 발주계획 일요일분 8건·경고 0·실행 `0603b811-2224-4bf7-8529-91b2f1f54dc3` 16초 `성공`(전부 비관련).
+**전날 "공고 트랙은 모델을 부르지 않는다"는 관측은 하루짜리 착시였다** — 09-20에 취득한 첨부 108건이 09-21 아침에
+문서 묶음 61건(ready 53)이 되면서 개요 run 51건이 enqueue됐고, 07:02~08:49에 모델 호출 97회로 처리됐다(완료 48,
+`pdf_preparation_failed:conversion_required` 2, `claims_empty` 1). **연쇄는 하루 지연으로 온다.** 개요 건당 평균
+102초(최대 146초), 분석 워커 단일 슬롯 점유는 약 1시간 45분이지만 C-2는 그 사이에 끼어들어 07:32에 대기 없이
+끝났다 — 단일 슬롯 직렬이 발주계획 판정을 밀어내지는 않는다. 평일분(발주계획 약 300건·GPU 8~10분)이 개요 큐와
+겹치는 것은 2026-09-22(화) 아침이 처음이다.
 
 ## 사업 추적 연결·선별 적재·Go/No-Go 분리 (2026-09-17, main 병합 7249ae9·2026-09-19 운영 배포)
 
