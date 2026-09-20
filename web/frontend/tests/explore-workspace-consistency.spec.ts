@@ -26,6 +26,12 @@ interface ScreenSpec {
   listPane: string;
   listHead: string;
   detailHead: string;
+  /**
+   * 탐색 두 화면(발주계획·사전규격)은 ADR-0062로 목록 pane 안쪽 구성까지 같게 맞췄다.
+   * 사업 추적·최종 Go/No-Go는 그 결정의 범위 밖이라 여기를 비워 둔다 — 비교 항목을
+   * 줄인 것이 아니라 아직 통일하지 않은 화면이라는 뜻이다.
+   */
+  unifiedListParts?: boolean;
   /** 화면별 추가 mock. `mockApi` 뒤에 걸어 같은 경로만 덮어쓴다. */
   mock?: (page: Page) => Promise<unknown>;
 }
@@ -43,6 +49,7 @@ const screens: ScreenSpec[] = [
     listPane: ".c2l-list-pane",
     listHead: ".c2l-list-head",
     detailHead: ".c2l-detail-head",
+    unifiedListParts: true,
   },
   {
     path: "/pre-specs",
@@ -51,6 +58,7 @@ const screens: ScreenSpec[] = [
     listPane: ".pre-specs-list-pane",
     listHead: ".pre-specs-list-head",
     detailHead: ".pre-specs-detail-header",
+    unifiedListParts: true,
   },
   {
     path: "/opportunities",
@@ -123,6 +131,50 @@ function measure(selectors: Selectors) {
     listHeadPadding: padding(listHead),
     detailHeadPadding: padding(detailHead),
 
+    /* ADR-0062 — 목록 pane 안쪽 구성. 열 이름 줄·선택 도구줄은 목록 pane 안에 있고,
+       페이저는 (있을 때) **목록 pane 안쪽 바닥**이다. */
+    listColumnCount: listPane.querySelectorAll('[data-review-primitive="list-columns"] > *').length,
+    listColumnsPadding: (() => {
+      const columns = listPane.querySelector('[data-review-primitive="list-columns"]');
+      return columns ? padding(columns) : null;
+    })(),
+    toolbarCount: listPane.querySelectorAll('[data-review-primitive="selection-toolbar"]').length,
+    /** WCAG 2.2 AA 2.5.8 — 화면 축소(`--bo-ui-scale`) 뒤의 실제 클릭 대상 높이. */
+    toolbarButtonMinHeight: Math.min(
+      ...[...listPane.querySelectorAll<HTMLElement>('[data-review-primitive="selection-toolbar"] button')]
+        .map((button) => button.getBoundingClientRect().height),
+    ),
+    /** 사유 줄은 비어 있어도 높이를 지킨다(선택이 바뀔 때 목록이 밀리지 않게). */
+    toolbarReasonHeight: (() => {
+      const reason = listPane.querySelector<HTMLElement>(".review-selection-reason");
+      return reason ? reason.getBoundingClientRect().height : null;
+    })(),
+    /** 페이저가 목록 pane 밖(workspace 형제)에 있으면 이 값이 0이 된다. */
+    pagerInsideListPane: listPane.querySelectorAll('[data-review-primitive="list-pager"]').length,
+    pagerOutsideListPane: document.querySelectorAll('[data-review-primitive="list-pager"]').length
+      - listPane.querySelectorAll('[data-review-primitive="list-pager"]').length,
+    /** 상세 머리의 발주기관 강조 블록. 두 화면이 같은 primitive를 쓴다. */
+    agencyFeatureBackground: (() => {
+      const agency = detailHead.querySelector('[data-review-primitive="agency-feature"]');
+      return agency ? getComputedStyle(agency).backgroundColor : null;
+    })(),
+    agencyFeaturePadding: (() => {
+      const agency = detailHead.querySelector('[data-review-primitive="agency-feature"]');
+      return agency ? padding(agency) : null;
+    })(),
+    /** 목록 행의 사업명·발주기관 글자 크기(두 화면이 같은 토큰을 읽는다). */
+    rowType: (() => {
+      const pane = listPane;
+      const styleOf = (selector: string) => {
+        const element = pane.querySelector<HTMLElement>(selector);
+        return element ? getComputedStyle(element).fontSize : null;
+      };
+      return {
+        title: styleOf(".c2l-row-title, .pre-specs-row-title"),
+        agency: styleOf(".c2l-row-agency, .pre-specs-row-agency"),
+      };
+    })(),
+
     rootOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
   };
 }
@@ -130,6 +182,7 @@ function measure(selectors: Selectors) {
 test("탐색과 추적 목록 4화면은 두 지원 폭에서 같은 상단바·필터·프레임을 쓴다", async ({ page }) => {
   await mockApi(page);
   let background: string | undefined;
+  let agencyBackground: string | null | undefined;
 
   for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900 }]) {
     await page.setViewportSize(viewport);
@@ -175,6 +228,24 @@ test("탐색과 추적 목록 4화면은 두 지원 폭에서 같은 상단바·
       expect(metrics.listRatio, `${where} 목록 pane 비율`).toBeCloseTo(0.38, 2);
       expect(metrics.listHeadPadding, `${where} 목록 머리 여백`).toBe("7.2px 14.4px 7.2px 14.4px");
       expect(metrics.detailHeadPadding, `${where} 상세 머리 여백`).toBe("10.8px 14.4px 10.8px 14.4px");
+
+      // 목록 pane 안쪽 — 탐색 두 화면만(ADR-0062). 열 이름 두 칸, 선택 도구줄 하나,
+      // 페이저는 목록 pane 안에만 있고, 상세 머리의 발주기관 블록은 같은 값을 쓴다.
+      if (screen.unifiedListParts) {
+        expect(metrics.listColumnCount, `${where} 열 이름 칸`).toBe(2);
+        expect(metrics.listColumnsPadding, `${where} 열 이름 줄 여백`).toBe("3.6px 14.4px 3.6px 14.4px");
+        expect(metrics.toolbarCount, `${where} 선택 도구줄`).toBe(1);
+        // 축소 배율을 적용한 뒤에도 도구줄 단추의 클릭 대상이 24 CSS px 이상이다.
+        expect(metrics.toolbarButtonMinHeight, `${where} 도구줄 단추 클릭 대상 높이`)
+          .toBeGreaterThanOrEqual(24);
+        expect(metrics.toolbarReasonHeight, `${where} 비활성 사유 줄 높이`).toBeGreaterThan(0);
+        expect(metrics.pagerOutsideListPane, `${where} 페이저는 목록 pane 밖에 없다`).toBe(0);
+        agencyBackground ??= metrics.agencyFeatureBackground;
+        expect(metrics.agencyFeatureBackground, `${where} 발주기관 블록 배경`).toBe(agencyBackground);
+        expect(metrics.agencyFeaturePadding, `${where} 발주기관 블록 여백`).toBe("10.8px 14.4px 10.8px 14.4px");
+        expect(metrics.rowType.title, `${where} 목록 사업명 크기`).toBe("14.4px");
+        expect(metrics.rowType.agency, `${where} 목록 발주기관 크기`).toBe("14.4px");
+      }
 
       // 지원 폭 두 곳 모두에서 가로로 넘치지 않는다(ADR-0047).
       expect(metrics.rootOverflow, `${where} 가로 넘침`).toBeLessThanOrEqual(1);

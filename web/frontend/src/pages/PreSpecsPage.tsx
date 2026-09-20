@@ -10,7 +10,7 @@ import { EmptyState } from "../components/common/EmptyState";
 import { PageHeaderActions } from "../components/common/PageHeaderActions";
 import { useUnsavedGuard } from "../components/common/useUnsavedGuard";
 import { useRowKeyboardNavigation } from "../components/common/useRowKeyboardNavigation";
-import { DenseList, SplitWorkspace } from "../components/common/ReviewPrimitives";
+import { DenseList, ListColumns, ListPager, SelectionToolbar, SplitWorkspace } from "../components/common/ReviewPrimitives";
 import {
   WorkspaceAdvancedToggle,
   WorkspaceFilterAdvanced,
@@ -757,80 +757,77 @@ export function PreSpecsPage() {
           ) : null}
         </WorkspaceFilterBar>
 
-        {result.isPending ? (
-          <div className="pre-specs-loading" role="status" aria-live="polite">사전규격 목록을 불러오는 중입니다.</div>
-        ) : null}
-        {result.isError ? (
-          <EmptyState
-            tone="error"
-            title="사전규격 목록을 불러오지 못했습니다."
-            description="사전규격 API 응답을 확인할 수 없습니다."
-            action={{ label: "다시 시도", onClick: () => { void result.refetch(); } }}
-          />
-        ) : null}
-
-        {result.isSuccess ? (
-          <SplitWorkspace className="pre-specs-split-workspace">
+        {/* 조회 중이거나 실패해도 좌우 분할 골격은 그대로 두고 상태를 목록 pane 안에
+            그린다(ADR-0062: 발주계획 방식). 화면이 통째로 접혔다 펴지면 사람이 보던
+            자리를 잃는다. */}
+        <SplitWorkspace className="pre-specs-split-workspace">
             <section className="review-split-list pre-specs-list-pane" aria-label="사전규격 목록">
-              <header className="pre-specs-list-head">
+              <header className="review-list-head pre-specs-list-head">
                 <strong>
                   사전규격 목록 <span className="mono tabular-nums">{total}</span>건
                 </strong>
                 <span>{activeWorkspace.description} · {SORT_OPTIONS.find((option) => option.value === sort)?.label}</span>
               </header>
-              <div className="pre-specs-selection-toolbar" aria-label="사전규격 선택 작업">
-                <span className="pre-specs-selection-count" aria-live="polite">
-                  선택 {selection.selectedIds.length}건
-                </span>
-                <button
-                  className="interaction-control"
-                  type="button"
-                  onClick={selectCurrentPage}
-                  disabled={items.length === 0 || pageFullySelected}
-                  aria-label="현재 페이지 전체 선택"
-                >
-                  전체 선택
-                </button>
-                <button
-                  className="interaction-control"
-                  type="button"
-                  onClick={() => selection.clear()}
-                  disabled={selection.selectedIds.length === 0}
-                  aria-label="선택 전체 해제"
-                  aria-describedby={selection.selectedIds.length === 0 ? "pre-specs-selection-disabled" : undefined}
-                >
-                  전체 해제
-                </button>
-                <button
-                  className="interaction-control interaction-control-primary"
-                  type="button"
-                  onClick={reviewSelected}
-                  disabled={!selection.hydrationReady || !selection.storageAvailable || selection.selectedIds.length === 0 || !selectedReviewIds}
-                  aria-label="선택 항목 검토"
-                  aria-describedby="pre-specs-selection-disabled"
-                >
-                  선택 항목 검토
-                </button>
-                <span id="pre-specs-selection-disabled" className="pre-specs-selection-disabled-reason">
-                  {!selection.hydrationReady
-                    ? "선택 저장소를 준비하는 중입니다."
-                    : !selection.storageAvailable
-                      ? "이 탭의 선택 저장소를 사용할 수 없어 검토 순서를 저장할 수 없습니다."
-                    : selection.selectedIds.length === 0
-                      ? "선택한 항목이 없습니다."
-                      : !selectedReviewIds
-                        ? "선택 항목의 정렬 시각을 확인할 수 없습니다."
-                        : ""}
-                </span>
-                {/* `전체 선택`의 범위를 글자로 밝힌다 — 이 단추는 검색 결과 전체가
-                    아니라 지금 보이는 페이지만 더한다(spec §3.4). */}
-                <span className="pre-specs-selection-page-note">이 페이지만 추가</span>
-              </div>
+              <SelectionToolbar
+                className="pre-specs-selection-toolbar"
+                count={selection.selectedIds.length}
+                countClassName="pre-specs-selection-count"
+                label="사전규격 선택 작업"
+                reasonClassName="pre-specs-selection-disabled-reason"
+                reasonId="pre-specs-selection-disabled"
+                reason={!selection.hydrationReady
+                  ? "선택 저장소를 준비하는 중입니다."
+                  : !selection.storageAvailable
+                    ? "이 탭의 선택 저장소를 사용할 수 없어 검토 순서를 저장할 수 없습니다."
+                  : selection.selectedIds.length === 0
+                    ? "선택한 항목이 없습니다."
+                    : !selectedReviewIds
+                      ? "선택 항목의 정렬 시각을 확인할 수 없습니다."
+                      : ""}
+                end={(
+                  /* `전체 선택`의 범위를 글자로 밝힌다 — 이 단추는 검색 결과 전체가
+                     아니라 지금 보이는 페이지만 더한다(spec §3.4). */
+                  <span className="pre-specs-selection-page-note">이 페이지만 추가</span>
+                )}
+                actions={(
+                  <>
+                    <button
+                      className="interaction-control"
+                      type="button"
+                      onClick={selectCurrentPage}
+                      disabled={items.length === 0 || pageFullySelected}
+                      aria-label="현재 페이지 전체 선택"
+                    >
+                      전체 선택
+                    </button>
+                    <button
+                      className="interaction-control"
+                      type="button"
+                      onClick={() => selection.clear()}
+                      disabled={selection.selectedIds.length === 0}
+                      aria-label="선택 전체 해제"
+                      aria-describedby={selection.selectedIds.length === 0 ? "pre-specs-selection-disabled" : undefined}
+                    >
+                      전체 해제
+                    </button>
+                    <button
+                      className="interaction-control interaction-control-primary"
+                      type="button"
+                      onClick={reviewSelected}
+                      disabled={!selection.hydrationReady || !selection.storageAvailable || selection.selectedIds.length === 0 || !selectedReviewIds}
+                      aria-label="선택 항목 검토"
+                      aria-describedby="pre-specs-selection-disabled"
+                    >
+                      선택 항목 검토
+                    </button>
+                  </>
+                )}
+              />
               {selectionMessage ? <p className="pre-specs-selection-message" role="alert">{selectionMessage}</p> : null}
-              <div className="pre-specs-list-columns" aria-hidden="true">
+              <ListColumns className="pre-specs-list-columns">
                 <span>사업명 / 발주기관</span>
                 <span>의견 마감</span>
-              </div>
+              </ListColumns>
               <div
                 className="pre-specs-list-scroll"
                 ref={listRef}
@@ -838,7 +835,17 @@ export function PreSpecsPage() {
                 onKeyDown={rowKeyboard.onKeyDown}
                 onPointerDownCapture={rowKeyboard.onPointerDownCapture}
               >
-                {items.length === 0 ? (
+                {result.isPending ? (
+                  <div className="pre-specs-loading" role="status" aria-live="polite">사전규격 목록을 불러오는 중입니다.</div>
+                ) : result.isError ? (
+                  <EmptyState
+                    compact
+                    tone="error"
+                    title="사전규격 목록을 불러오지 못했습니다."
+                    description="사전규격 API 응답을 확인할 수 없습니다."
+                    action={{ label: "다시 시도", onClick: () => { void result.refetch(); } }}
+                  />
+                ) : items.length === 0 ? (
                   <EmptyState
                     compact
                     title="조건에 맞는 사전규격이 없습니다."
@@ -880,6 +887,35 @@ export function PreSpecsPage() {
               <footer className="pre-specs-list-foot">
                 <span>{pageCountLabel}</span>
               </footer>
+              {/* 페이저는 목록 pane 안쪽 바닥이다(ADR-0062: 발주계획 방식). 클래스와
+                  접근 가능한 이름, 단추 이름은 그대로 둔다. */}
+              {result.isSuccess && total > PAGE_SIZE ? (
+                <ListPager className="pre-specs-pager" label="사전규격 목록 페이지">
+                  <button
+                    className="interaction-control interaction-control-primary"
+                    type="button"
+                    disabled={offset === 0}
+                    onClick={() => {
+                      updateSearchParams({
+                        offset: offset - PAGE_SIZE > 0 ? String(offset - PAGE_SIZE) : null,
+                      });
+                    }}
+                  >
+                    이전
+                  </button>
+                  <span>{offset + 1}–{rangeEnd} / {total}</span>
+                  <button
+                    className="interaction-control interaction-control-primary"
+                    type="button"
+                    disabled={offset + PAGE_SIZE >= total}
+                    onClick={() => {
+                      updateSearchParams({ offset: String(offset + PAGE_SIZE) });
+                    }}
+                  >
+                    다음
+                  </button>
+                </ListPager>
+              ) : null}
             </section>
 
             <section className="review-split-detail pre-specs-detail-pane" aria-label="선택한 사전규격">
@@ -917,36 +953,7 @@ export function PreSpecsPage() {
                 </div>
               )}
             </section>
-          </SplitWorkspace>
-        ) : null}
-
-        {result.isSuccess && total > PAGE_SIZE ? (
-          <nav className="pre-specs-pager" aria-label="사전규격 목록 페이지">
-            <button
-              className="interaction-control interaction-control-primary"
-              type="button"
-              disabled={offset === 0}
-              onClick={() => {
-                updateSearchParams({
-                  offset: offset - PAGE_SIZE > 0 ? String(offset - PAGE_SIZE) : null,
-                });
-              }}
-            >
-              이전
-            </button>
-            <span>{offset + 1}–{rangeEnd} / {total}</span>
-            <button
-              className="interaction-control interaction-control-primary"
-              type="button"
-              disabled={offset + PAGE_SIZE >= total}
-              onClick={() => {
-                updateSearchParams({ offset: String(offset + PAGE_SIZE) });
-              }}
-            >
-              다음
-            </button>
-          </nav>
-        ) : null}
+        </SplitWorkspace>
       </WorkspaceFrame>
 
       <Dialog isOpen={scopeDialogOpen} onOpenChange={(open) => { if (!open) setScopeDialogOpen(false); }} purpose="info" width={620}>

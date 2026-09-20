@@ -11,7 +11,7 @@ import { getDeepReview, getDocumentBundles, getReport } from "../components/deep
 import type { ReportSection } from "../components/deep-review/types";
 import { EmptyState } from "../components/common/EmptyState";
 import { Panel } from "../components/common/Panel";
-import { ReviewHistoryLinkRail } from "../components/common/ReviewPrimitives";
+import { AgencyFeature, ReviewHistoryLinkRail } from "../components/common/ReviewPrimitives";
 import { SkeletonPanel } from "../components/common/Skeleton";
 import { PreSpecDocumentSummary, TrackingDecisionControl, updateTrackingProjection } from "../components/pre-specs/TrackingDecisionControl";
 import { PreSpecBriefingSection } from "../components/pre-specs/PreSpecBriefingSection";
@@ -537,6 +537,10 @@ function PreSpecRecordBody({ noticeId, listSearch }: { noticeId: number | null; 
         <div className="ps-record-header-body">
           <div className="ps-record-header-top">
             <div className="ps-record-header-main">
+              {/* 발주기관은 머리 최상단에서 목록 상세와 같은 강조 블록으로 먼저 읽힌다
+                  (ADR-0062 ⓑ). 아래 식별 줄의 기관명은 그대로 둔다 — 사용자가 중복
+                  표시를 확인하고 승인했다. */}
+              <AgencyFeature className="ps-record-agency-feature" name={notice.agency} fallback="발주기관 미확인" />
               <div className="ps-record-chips">
                 <span className="ps-chip ps-chip-neutral">사전규격 · {preSpecItem?.origin ?? "미확인"}</span>
                 <span className={`ps-chip ps-chip-${deadlineChipVariant(deadline.urgency)}`}>{deadline.label}</span>

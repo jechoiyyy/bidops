@@ -134,7 +134,9 @@ test("기본 목록은 밀집 행이고 판정에 필요한 값만 담으며, �
 
   // 화면 제목은 상단바의 h1 하나다. 페이지는 같은 이름을 다시 그리지 않는다(제목 모드).
   await expect(page.locator("header.topbar h1")).toHaveText("발주계획");
-  await expect(page.locator("header.topbar").getByRole("combobox", { name: "발주계획 수집 회차" })).toBeVisible();
+  // ADR-0062 ⓓ — 회차 선택은 상단바가 아니라 필터 아래 줄(사전규격과 같은 자리)이다.
+  await expect(page.locator("header.topbar").getByRole("combobox", { name: "수집 회차" })).toHaveCount(0);
+  await expect(page.locator(".c2l-filter-context").getByRole("combobox", { name: "수집 회차" })).toBeVisible();
   // 페이지에 남는 것은 문서 구조와 `aria-labelledby`를 위한 숨긴 제목 하나뿐이다.
   await expect(page.locator("section.c2l-page > h2.visually-hidden")).toHaveText("발주계획");
   await expect(page.locator("section.c2l-page .c2l-page-header")).toHaveCount(0);
@@ -154,7 +156,7 @@ test("기본 목록은 밀집 행이고 판정에 필요한 값만 담으며, �
   // 크기의 보통 굵기다(사용자 정정).
   const firstRow = page.locator(".c2l-row").first();
   await expect(firstRow.locator(".c2l-row-title")).toContainText("공공데이터 통합");
-  await expect(firstRow.locator(".c2l-row-meta")).toContainText("서울특별시 디지털정책관");
+  await expect(firstRow.locator(".c2l-row-agency")).toHaveText("서울특별시 디지털정책관");
   const geometry = await firstRow.evaluate((row) => {
     const title = row.querySelector<HTMLElement>(".c2l-row-title");
     const agency = row.querySelector<HTMLElement>(".c2l-row-agency");
@@ -169,9 +171,11 @@ test("기본 목록은 밀집 행이고 판정에 필요한 값만 담으며, �
     };
   });
   expect(geometry.titleTop).toBeLessThan(geometry.agencyTop);
-  expect(geometry.titleFontSize).toBeCloseTo(geometry.agencyFontSize + 0.9, 1);
+  // ADR-0062 ⓒ — 목록 글자는 사전규격과 같다: 사업명과 발주기관이 같은 크기
+  // (본문 +2px)이고 굵기만 다르다.
+  expect(geometry.titleFontSize).toBeCloseTo(geometry.agencyFontSize, 1);
   expect(geometry.titleWeight).toBeGreaterThanOrEqual(600);
-  expect(geometry.agencyFontSize).toBeGreaterThanOrEqual(12.6);
+  expect(geometry.agencyFontSize).toBeGreaterThan(12.6);
   expect(geometry.agencyWeight).toBeLessThan(600);
 
   // 상세 pane은 행을 고른 뒤에 채워진다.
@@ -208,8 +212,10 @@ test("발주계획의 기존 머리글 액션은 상단바 슬롯에 한 번씩�
   await expect(page.locator(".c2l-page > .c2l-header-actions")).toHaveCount(0);
   await expect(actions.locator(".c2l-header-actions")).toHaveCount(1);
 
-  // 기존 머리글이 제공하던 네 가지 동선을 모두 같은 portal 아래에서 확인한다.
-  await expect(actions.getByRole("combobox", { name: "발주계획 수집 회차" })).toBeVisible();
+  // 기존 머리글이 제공하던 동선. 회차 선택만 필터 아래 줄로 내려갔고(ADR-0062 ⓓ)
+  // 실행 상태 표시·실행 상세 링크는 그대로 상단바 슬롯에 남는다.
+  await expect(actions.getByRole("combobox", { name: "수집 회차" })).toHaveCount(0);
+  await expect(page.locator(".c2l-filter-context").getByRole("combobox", { name: "수집 회차" })).toHaveCount(1);
   await expect(actions.locator(".c2l-status-chip")).toHaveCount(1);
   await expect(actions.getByRole("button", { name: "실행 상태", exact: true })).toHaveCount(1);
   await expect(actions.getByRole("link", { name: "실행 상세 →", exact: true })).toHaveCount(1);
@@ -388,7 +394,12 @@ test("1200건 결과에서 기본 review 필터·실패·거부 필터와 페이
   await clickPreset(page, "실패·거부");
   await expect(page.locator(".c2l-row")).toHaveCount(300);
   await expect(page.locator(".c2l-row").first()).toContainText("대규모 페이지네이션 회귀 발주계획 901");
-  await expect(page.locator(".c2l-pager")).toHaveCount(0);
+  // B3(0920 검수): 페이저 줄은 한 페이지뿐이어도 "전체 N건"과 범위를 보이며,
+  // 이전/다음만 비활성이다(더 이상 여러 페이지일 때만 나타나지 않는다).
+  await expect(page.locator(".c2l-pager")).toContainText("전체 300건");
+  await expect(page.locator(".c2l-pager")).toContainText("1–300 / 300");
+  await expect(page.getByRole("button", { name: "이전", exact: true })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "다음", exact: true })).toBeDisabled();
 });
 
 test("검토 목록은 고정 높이 안에서 스크롤되고 상세와 같은 높이로 저장 액션을 노출한다", async ({ page }) => {
@@ -785,62 +796,23 @@ test("실패·결과 없음·중지/비허용 상태를 성공 결과로 바꾸�
   await expect(page.locator("#c2l-panel-telemetry")).toContainText("정책·모델 연결 비허용");
 });
 
-test("크기 조절 가능한 상세 영역: 드래그와 화살표 키로 폭을 조절하고 localStorage에 남긴다", async ({ page }) => {
+// ADR-0062 ⓐ — 목록 폭 드래그 리사이저는 제거했다(38% 고정, 사전규격과 같은 값).
+// 폭을 기억하던 localStorage 키도 더 쓰지 않는다.
+test("목록 폭은 두 지원 폭에서 38% 고정이고 폭 조절 손잡이가 없다", async ({ page }) => {
   await mockOrderPlans(page);
   await page.goto("/order-plans");
 
-  const separator = page.getByRole("separator", { name: "목록 폭 조절" });
-  await expect(separator).toBeVisible();
-  await separator.focus();
-  const before = await separator.getAttribute("aria-valuenow");
-  await page.keyboard.press("ArrowRight");
-  await page.keyboard.press("ArrowRight");
-  const after = await separator.getAttribute("aria-valuenow");
-  expect(Number(after)).toBeGreaterThan(Number(before));
+  await expect(page.getByRole("separator", { name: "목록 폭 조절" })).toHaveCount(0);
 
-  const stored = await page.evaluate(() => window.localStorage.getItem("bidops.order-plans.listWidth"));
-  expect(Number(stored)).toBe(Number(after));
-
-  await page.reload();
-  const separatorAfterReload = page.getByRole("separator", { name: "목록 폭 조절" });
-  await expect(separatorAfterReload).toHaveAttribute("aria-valuenow", String(after));
-
-  // `clientX`, aria 값, localStorage가 모두 native CSS px를 사용한다.
   for (const width of [1280, 1440]) {
     await page.setViewportSize({ width, height: 900 });
-    await page.evaluate(() => window.localStorage.removeItem("bidops.order-plans.listWidth"));
     await page.reload();
-
-    const scaledSeparator = page.getByRole("separator", { name: "목록 폭 조절" });
-    const listPane = page.locator(".c2l-list-pane");
-    await expect(scaledSeparator).toBeVisible();
-    const before = Number(await scaledSeparator.getAttribute("aria-valuenow"));
-    const geometry = await Promise.all([
-      scaledSeparator.evaluate((element) => {
-        const rect = element.getBoundingClientRect();
-        return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2, left: rect.left };
-      }),
-      listPane.evaluate((element) => {
-        const renderedWidth = element.getBoundingClientRect().width;
-        const layoutWidth = element.offsetWidth;
-        return { renderedWidth, layoutWidth, scale: renderedWidth / layoutWidth };
-      }),
-    ]);
-    const [pointer, pane] = geometry;
-    expect(pane.scale).toBeGreaterThan(0);
-    const dragDistance = 36;
-
-    await page.mouse.move(pointer.x, pointer.y);
-    await page.mouse.down();
-    await page.mouse.move(pointer.x + dragDistance, pointer.y);
-    await page.mouse.up();
-
-    const expected = Math.round(before + dragDistance / pane.scale);
-    await expect.poll(async () => Number(await scaledSeparator.getAttribute("aria-valuenow"))).toBe(expected);
-    const afterLeft = await scaledSeparator.evaluate((element) => element.getBoundingClientRect().left);
-    // Layout rounding can move the edge by a fraction of a physical pixel after
-    // converting the logical width back through the rendered scale.
-    expect(Math.abs(afterLeft - pointer.left - dragDistance)).toBeLessThanOrEqual(2);
+    const ratio = await page.locator(".c2l-workspace").evaluate((workspace) => {
+      const listPane = workspace.querySelector<HTMLElement>(".c2l-list-pane")!;
+      return listPane.getBoundingClientRect().width / workspace.getBoundingClientRect().width;
+    });
+    expect(ratio, `${width}px 목록 pane 비율`).toBeCloseTo(0.38, 2);
+    expect(await page.evaluate(() => window.localStorage.getItem("bidops.order-plans.listWidth"))).toBeNull();
   }
 });
 
@@ -1182,38 +1154,50 @@ test("저장하지 않은 사유가 있으면 ↓ 이동도 확인을 거치고 
 
 // BM25 `선정`은 거의 모든 행에 붙는 기본값이라 배지로 그리면 아무것도 구분하지 못한다.
 // 숨기는 것은 그 하나뿐이고 탈락·실패·거부·null은 그대로 보인다.
-test("행 배지는 모델 판단을 우상단에 두고 BM25 선정만 감춘다", async ({ page }) => {
+test("행 배지는 모델 판단을 상태 칩 줄에 두고 BM25 선정만 감춘다", async ({ page }) => {
   await mockOrderPlans(page);
   await page.goto("/order-plans");
 
   const first = page.locator(".c2l-row").first();
-  await expect(first.locator(".c2l-row-head .astryx-badge")).toHaveText("모델 관련");
+  // ADR-0062 — 모델 판단 배지는 사전규격 행과 같이 상태 칩 줄에 있다.
+  await expect(first.locator(".c2l-row-state .c2l-row-model")).toHaveText("모델 관련");
   await expect(first.locator(".c2l-row-badges")).not.toContainText("BM25");
   // 사람 피드백이 있는 행은 그 사실만 배지 줄에 남는다.
   await expect(first.locator(".c2l-row-badges")).toHaveText("피드백 수정본 1");
   // 그릴 배지가 하나도 없으면 줄 자체를 만들지 않는다(빈 줄이 행 높이를 흔든다).
   await expect(page.locator(".c2l-row").nth(1).locator(".c2l-row-badges")).toHaveCount(0);
 
-  // 모델 배지는 제목의 **첫 줄**에 붙는다. 제목이 두 줄로 잘려도 아래로 밀리지 않는다.
+  // ADR-0062 — 행의 차례는 사업명 → 발주기관 → metadata → 상태 칩이고, 발주 예정은
+  // 오른쪽 열이다(사전규격 행과 같다).
   const geometry = await first.evaluate((row) => {
-    const title = row.querySelector<HTMLElement>(".c2l-row-title");
-    const badge = row.querySelector<HTMLElement>(".c2l-row-head .astryx-badge");
-    if (!title || !badge) throw new Error("행의 제목·모델 배지를 찾을 수 없습니다.");
-    const titleRect = title.getBoundingClientRect();
-    const badgeRect = badge.getBoundingClientRect();
+    const box = (selector: string) => {
+      const element = row.querySelector<HTMLElement>(selector);
+      if (!element) throw new Error(`${selector} 를 찾을 수 없습니다.`);
+      return element.getBoundingClientRect();
+    };
+    const title = box(".c2l-row-title");
+    const agency = box(".c2l-row-agency");
+    const meta = box(".c2l-row-meta");
+    const badge = box(".c2l-row-state .c2l-row-model");
+    const planned = box(".c2l-row-planned");
     return {
-      titleTop: titleRect.top,
-      titleLines: titleRect.height,
-      badgeTop: badgeRect.top,
-      badgeRight: badgeRect.right,
-      titleRight: titleRect.right,
+      titleTop: title.top,
+      agencyTop: agency.top,
+      metaTop: meta.top,
+      badgeTop: badge.top,
+      badgeLeft: badge.left,
+      titleLeft: title.left,
+      plannedLeft: planned.left,
+      titleRight: title.right,
     };
   });
-  // 첫 줄 안이다: 두 줄짜리 제목의 둘째 줄로 내려가면 이 차이가 줄 높이만큼 벌어진다.
-  expect(geometry.badgeTop - geometry.titleTop).toBeLessThan(geometry.titleLines / 2);
-  expect(geometry.badgeTop - geometry.titleTop).toBeGreaterThan(-12);
-  // 배지는 행 오른쪽 끝, 제목은 그 왼쪽이다.
-  expect(geometry.badgeRight).toBeGreaterThan(geometry.titleRight);
+  expect(geometry.titleTop).toBeLessThan(geometry.agencyTop);
+  expect(geometry.agencyTop).toBeLessThan(geometry.metaTop);
+  expect(geometry.metaTop).toBeLessThan(geometry.badgeTop);
+  // 상태 칩 줄은 왼쪽 열 안에서 시작한다(제목과 같은 왼쪽 정렬).
+  expect(Math.abs(geometry.badgeLeft - geometry.titleLeft)).toBeLessThanOrEqual(2);
+  // 발주 예정은 오른쪽 열이다.
+  expect(geometry.plannedLeft).toBeGreaterThan(geometry.titleRight);
 
   // 예외(탈락)는 그대로 배지로 남는다.
   await clickPreset(page, "BM25 탈락");
@@ -1660,7 +1644,7 @@ test("BT-confirmation-shows-owner-and-status-exclusions-and-does-not-run-single-
   await selectReason(page, "후속 사전규격·공고 확인");
   await page.getByLabel("담당자 이름 · 감사 표식").fill("일괄 담당자");
 
-  await page.getByRole("button", { name: "선택 항목 검토", exact: true }).click();
+  await page.getByRole("button", { name: "선택 항목 추적 시작", exact: true }).click();
   const dialog = page.getByTestId("order-plan-bulk-tracking-dialog");
   await dialog.getByRole("button", { name: "선택 대상 미리보기", exact: true }).click();
   await expect(dialog).toContainText("중복 제거한 소유 사업기회");
@@ -1700,7 +1684,7 @@ test("BT-lost-response-keeps-identical-request-through-reload-and-manual-recover
   });
   await page.goto("/order-plans");
   await page.locator(".c2l-row").first().locator('input[type="checkbox"]').check();
-  await page.getByRole("button", { name: "선택 항목 검토", exact: true }).click();
+  await page.getByRole("button", { name: "선택 항목 추적 시작", exact: true }).click();
   const dialog = page.getByTestId("order-plan-bulk-tracking-dialog");
   await dialog.getByRole("button", { name: "선택 대상 미리보기", exact: true }).click();
   await dialog.getByRole("textbox", { name: "공통 담당자 이름 · 감사 표식" }).fill("응답 복구 담당자");
@@ -1709,7 +1693,7 @@ test("BT-lost-response-keeps-identical-request-through-reload-and-manual-recover
   await expect(dialog).toContainText("결과를 확인할 수 없습니다");
   await page.reload();
   await expect(page.getByTestId("order-plan-selection-toolbar")).toContainText("선택 1건");
-  await page.getByRole("button", { name: "선택 항목 검토", exact: true }).click();
+  await page.getByRole("button", { name: "선택 항목 추적 시작", exact: true }).click();
   const recovered = page.getByTestId("order-plan-bulk-tracking-dialog");
   await expect(recovered).toContainText("저장된 요청 결과");
   await recovered.getByRole("button", { name: "저장된 요청 결과 확인", exact: true }).click();
@@ -1725,7 +1709,7 @@ test("BT-malformed-receipt-is-unconfirmed-and-preserves-selection", async ({ pag
   await mockOrderPlanBulkTracking(page, "malformed-start");
   await page.goto("/order-plans");
   await page.locator(".c2l-row").first().locator('input[type="checkbox"]').check();
-  await page.getByRole("button", { name: "선택 항목 검토", exact: true }).click();
+  await page.getByRole("button", { name: "선택 항목 추적 시작", exact: true }).click();
   const dialog = page.getByTestId("order-plan-bulk-tracking-dialog");
   await dialog.getByRole("button", { name: "선택 대상 미리보기", exact: true }).click();
   await dialog.getByRole("textbox", { name: "공통 담당자 이름 · 감사 표식" }).fill("검증 담당자");
@@ -1746,7 +1730,7 @@ test("BT-gateway-error-preserves-unknown-request-identity", async ({ page }) => 
   });
   await page.goto("/order-plans");
   await page.locator(".c2l-row").first().getByRole("checkbox").check();
-  await page.getByRole("button", { name: "선택 항목 검토", exact: true }).click();
+  await page.getByRole("button", { name: "선택 항목 추적 시작", exact: true }).click();
   const dialog = page.getByTestId("order-plan-bulk-tracking-dialog");
   await dialog.getByRole("button", { name: "선택 대상 미리보기", exact: true }).click();
   await dialog.getByRole("textbox", { name: "공통 담당자 이름 · 감사 표식" }).fill("검증 담당자");
@@ -1787,7 +1771,7 @@ test("BT-failed-only-retry-mints-a-new-key-only-after-human-confirmation", async
   });
   await page.goto("/order-plans");
   await page.locator(".c2l-row").first().locator('input[type="checkbox"]').check();
-  await page.getByRole("button", { name: "선택 항목 검토", exact: true }).click();
+  await page.getByRole("button", { name: "선택 항목 추적 시작", exact: true }).click();
   const dialog = page.getByTestId("order-plan-bulk-tracking-dialog");
   await dialog.getByRole("button", { name: "선택 대상 미리보기", exact: true }).click();
   await dialog.getByRole("textbox", { name: "공통 담당자 이름 · 감사 표식" }).fill("실패 재시도 담당자");
@@ -1799,7 +1783,7 @@ test("BT-failed-only-retry-mints-a-new-key-only-after-human-confirmation", async
   await dialog.getByRole("button", { name: "선택 대상 미리보기", exact: true }).click();
   await dialog.getByRole("button", { name: "확인하고 일괄 추적 시작", exact: true }).click();
   await expect(dialog).toContainText("실패 1건");
-  const starts = await page.locator("body").evaluate(() => window.sessionStorage.getItem("bidops.order-plans.bulk-tracking.pending.v1"));
+  const starts = await page.locator("body").evaluate(() => window.sessionStorage.getItem("bidops.order-plans.bulk-tracking.pending.v2"));
   expect(starts).toBeNull();
   expect(requestIds).toHaveLength(2);
   expect(requestIds[0]).not.toBe(requestIds[1]);
@@ -1809,7 +1793,7 @@ test("BT-storage-quota-refusal-does-not-send-bulk-request", async ({ page }) => 
   await page.addInitScript(() => {
     const original = Storage.prototype.setItem;
     Storage.prototype.setItem = function setItem(key: string, value: string) {
-      if (key === "bidops.order-plans.bulk-tracking.pending.v1") {
+      if (key === "bidops.order-plans.bulk-tracking.pending.v2") {
         throw new DOMException("quota", "QuotaExceededError");
       }
       original.call(this, key, value);
@@ -1819,7 +1803,7 @@ test("BT-storage-quota-refusal-does-not-send-bulk-request", async ({ page }) => 
   const trace = await mockOrderPlanBulkTracking(page, "all-eligible");
   await page.goto("/order-plans");
   await page.locator(".c2l-row").first().locator('input[type="checkbox"]').check();
-  await page.getByRole("button", { name: "선택 항목 검토", exact: true }).click();
+  await page.getByRole("button", { name: "선택 항목 추적 시작", exact: true }).click();
   const dialog = page.getByTestId("order-plan-bulk-tracking-dialog");
   await dialog.getByRole("button", { name: "선택 대상 미리보기", exact: true }).click();
   await dialog.getByRole("textbox", { name: "공통 담당자 이름 · 감사 표식" }).fill("저장 실패 담당자");
@@ -1835,7 +1819,7 @@ test("BT-confirmation-invalid-actor-or-reason-is-disabled-without-start-request"
   const trace = await mockOrderPlanBulkTracking(page, "all-eligible");
   await page.goto("/order-plans");
   await page.locator(".c2l-row").first().locator('input[type="checkbox"]').check();
-  await page.getByRole("button", { name: "선택 항목 검토", exact: true }).click();
+  await page.getByRole("button", { name: "선택 항목 추적 시작", exact: true }).click();
   const dialog = page.getByTestId("order-plan-bulk-tracking-dialog");
   // Preview intentionally remains available without attribution fields.
   await dialog.getByRole("button", { name: "선택 대상 미리보기", exact: true }).click();
@@ -1870,7 +1854,7 @@ test("BT-same-frame-double-confirm-keeps-one-persisted-request-identity", async 
   });
   await page.goto("/order-plans");
   await page.locator(".c2l-row").first().locator('input[type="checkbox"]').check();
-  await page.getByRole("button", { name: "선택 항목 검토", exact: true }).click();
+  await page.getByRole("button", { name: "선택 항목 추적 시작", exact: true }).click();
   const dialog = page.getByTestId("order-plan-bulk-tracking-dialog");
   await dialog.getByRole("button", { name: "선택 대상 미리보기", exact: true }).click();
   await dialog.getByRole("textbox", { name: "공통 담당자 이름 · 감사 표식" }).fill("중복 확인 담당자");
@@ -1881,7 +1865,7 @@ test("BT-same-frame-double-confirm-keeps-one-persisted-request-identity", async 
     button.dispatchEvent(new MouseEvent("click", { bubbles: true }));
   });
   await expect(dialog).toContainText("일괄 추적 저장 중");
-  const pendingRaw = await page.evaluate(() => window.sessionStorage.getItem("bidops.order-plans.bulk-tracking.pending.v1"));
+  const pendingRaw = await page.evaluate(() => window.sessionStorage.getItem("bidops.order-plans.bulk-tracking.pending.v2"));
   expect(pendingRaw).not.toBeNull();
   const pending = JSON.parse(pendingRaw as string) as { request_id: string };
   expect(pending.request_id).toMatch(/^[0-9a-f-]{36}$/i);
@@ -1904,7 +1888,7 @@ test("BT-unknown-request-recovery-remains-reachable-after-filter-generation-clea
   });
   await page.goto("/order-plans");
   await page.locator(".c2l-row").first().locator('input[type="checkbox"]').check();
-  await page.getByRole("button", { name: "선택 항목 검토", exact: true }).click();
+  await page.getByRole("button", { name: "선택 항목 추적 시작", exact: true }).click();
   const dialog = page.getByTestId("order-plan-bulk-tracking-dialog");
   await dialog.getByRole("button", { name: "선택 대상 미리보기", exact: true }).click();
   await dialog.getByRole("textbox", { name: "공통 담당자 이름 · 감사 표식" }).fill("복구 담당자");
@@ -1935,14 +1919,14 @@ test("BT-late-preview-from-closed-dialog-cannot-overwrite-reopened-binding", asy
   await page.goto("/order-plans");
   const rows = page.locator(".c2l-row");
   await rows.nth(0).locator('input[type="checkbox"]').check();
-  await page.getByRole("button", { name: "선택 항목 검토", exact: true }).click();
+  await page.getByRole("button", { name: "선택 항목 추적 시작", exact: true }).click();
   let dialog = page.getByTestId("order-plan-bulk-tracking-dialog");
   await dialog.getByRole("button", { name: "선택 대상 미리보기", exact: true }).click();
   await expect(dialog).toContainText("선택 대상의 최신 상태");
   await dialog.getByRole("button", { name: "닫기", exact: true }).click();
   await rows.nth(0).locator('input[type="checkbox"]').uncheck();
   await rows.nth(1).locator('input[type="checkbox"]').check();
-  await page.getByRole("button", { name: "선택 항목 검토", exact: true }).click();
+  await page.getByRole("button", { name: "선택 항목 추적 시작", exact: true }).click();
   dialog = page.getByTestId("order-plan-bulk-tracking-dialog");
   await dialog.getByRole("button", { name: "선택 대상 미리보기", exact: true }).click();
   await expect(dialog.locator('[data-testid="order-plan-bulk-preview"]')).toContainText("102");
@@ -1956,7 +1940,7 @@ test("BT-preview-binding-refuses-confirm-after-browser-filter-generation-change"
   const trace = await mockOrderPlanBulkTracking(page, "all-eligible");
   await page.goto("/order-plans");
   await page.locator(".c2l-row").first().locator('input[type="checkbox"]').check();
-  await page.getByRole("button", { name: "선택 항목 검토", exact: true }).click();
+  await page.getByRole("button", { name: "선택 항목 추적 시작", exact: true }).click();
   const dialog = page.getByTestId("order-plan-bulk-tracking-dialog");
   await dialog.getByRole("button", { name: "선택 대상 미리보기", exact: true }).click();
   await expect(dialog.locator('[data-testid="order-plan-bulk-preview"]')).toBeVisible();
@@ -1978,7 +1962,7 @@ test("BT-bulk-actor-and-reason-drafts-do-not-mutate-single-drafts", async ({ pag
   await selectReason(page, "후속 사전규격·공고 확인");
   await page.getByLabel("담당자 이름 · 감사 표식").fill("단건 담당자");
   await page.locator(".c2l-row").first().locator('input[type="checkbox"]').check();
-  await page.getByRole("button", { name: "선택 항목 검토", exact: true }).click();
+  await page.getByRole("button", { name: "선택 항목 추적 시작", exact: true }).click();
   const dialog = page.getByTestId("order-plan-bulk-tracking-dialog");
   await dialog.getByRole("textbox", { name: "공통 담당자 이름 · 감사 표식" }).fill("일괄 담당자");
   await dialog.getByRole("textbox", { name: "공통 추적 사유" }).fill("일괄 전용 사유");
@@ -2009,7 +1993,7 @@ test("BT-valid-receipt-stays-definitive-when-post-result-invalidation-fails", as
   });
   await page.goto("/order-plans");
   await page.locator(".c2l-row").first().locator('input[type="checkbox"]').check();
-  await page.getByRole("button", { name: "선택 항목 검토", exact: true }).click();
+  await page.getByRole("button", { name: "선택 항목 추적 시작", exact: true }).click();
   const dialog = page.getByTestId("order-plan-bulk-tracking-dialog");
   await dialog.getByRole("button", { name: "선택 대상 미리보기", exact: true }).click();
   await dialog.getByRole("textbox", { name: "공통 담당자 이름 · 감사 표식" }).fill("결과 담당자");
@@ -2017,6 +2001,186 @@ test("BT-valid-receipt-stays-definitive-when-post-result-invalidation-fails", as
   await dialog.getByRole("button", { name: "확인하고 일괄 추적 시작", exact: true }).click();
   await expect(dialog).toContainText("일괄 추적 결과를 확인했습니다");
   await expect(dialog).not.toContainText("일괄 추적 결과를 확인할 수 없습니다");
+});
+
+// ---- 일괄 추적 종료 (ADR-0063 / S4 A) ----
+
+test("BE-select-three-end-tracking-confirm-and-result-hides-ended-plans-from-default-view", async ({ page }) => {
+  await mockOrderPlans(page);
+  const trace = await mockOrderPlanBulkTracking(page, "all-eligible");
+  await page.goto("/order-plans");
+  await clickPreset(page, "전체");
+  const rows = page.locator(".c2l-row");
+  await rows.filter({ hasText: "인공지능 기반 공공데이터" }).locator('input[type="checkbox"]').check();
+  await rows.filter({ hasText: "지방공기업 업무혁신" }).locator('input[type="checkbox"]').check();
+  await rows.filter({ hasText: "청사 시설관리" }).locator('input[type="checkbox"]').check();
+  await expect(page.getByTestId("order-plan-selection-toolbar")).toContainText("선택 3건");
+
+  await page.getByRole("button", { name: "선택 항목 추적 종료", exact: true }).click();
+  const dialog = page.getByTestId("order-plan-bulk-tracking-dialog");
+  await expect(dialog).toContainText("발주계획 일괄 추적 종료");
+  await expect(dialog).toContainText("추적을 아직 정하지 않은 계획만 추적 종료로 저장합니다");
+  await dialog.getByRole("button", { name: "선택 대상 미리보기", exact: true }).click();
+  await dialog.getByRole("textbox", { name: "공통 담당자 이름 · 감사 표식" }).fill("종료 담당자");
+  await dialog.getByRole("textbox", { name: "공통 종료 사유" }).fill("현재 범위와 맞지 않아 능동 추적을 종료함");
+  await expect(dialog).toContainText("종료한 계획은 기본 보기(검토 대상)에서 사라집니다");
+  await dialog.getByRole("button", { name: "확인하고 일괄 추적 종료", exact: true }).click();
+  await expect(dialog).toContainText("일괄 추적 종료 결과를 확인했습니다");
+  await expect(dialog).toContainText("추적 필터 '종료'와 사업 추적의 '추적 종료' 구역에서 볼 수 있습니다");
+
+  expect(trace.endPosts).toHaveLength(1);
+  const { body, headers } = trace.endPosts[0];
+  expect(body).toMatchObject({
+    schema_version: "order-plan-bulk-end-request.v1",
+    order_plan_ids: [101, 102, 103],
+    reason: "현재 범위와 맞지 않아 능동 추적을 종료함",
+  });
+  // 비ASCII 담당자 이름은 `UTF-8''<percent-encoded>` 형식으로 나간다(docs/contracts.md).
+  expect(decodeURIComponent(headers["x-bidops-actor-name"].replace(/^UTF-8''/, ""))).toBe("종료 담당자");
+
+  await dialog.getByRole("button", { name: "닫기", exact: true }).click();
+  await expect(page.getByRole("status").filter({ hasText: "건을 추적 종료했습니다" }))
+    .toContainText("3건을 추적 종료했습니다 · 추적 필터 '종료'에서 볼 수 있습니다");
+
+  // 기본 보기(검토 대상)는 관련·불확실 AND 미선택만 보인다. 101·102는 이제 종료라 빠진다.
+  // `검토 대상` 탭은 축 값을 URL에 그대로 적어 `isDefaultView`를 벗어나므로, 축이
+  // 전혀 없는 진짜 기본 진입(빈 URL)으로 다시 들어가 확인한다.
+  await page.goto("/order-plans");
+  await expect(page.locator(".c2l-list-head")).toContainText("현재 필터 결과 0건");
+  await expect(page.locator(".c2l-list-pane").getByText("검토할 발주계획이 없습니다")).toBeVisible();
+  await expect(page.locator(".c2l-list-pane").getByText("추적을 정하지 않은 관련 건을 모두 처리했습니다.")).toBeVisible();
+});
+
+test("BE-blank-reason-blocks-confirm-and-sends-no-request", async ({ page }) => {
+  await mockOrderPlans(page);
+  const trace = await mockOrderPlanBulkTracking(page, "all-eligible");
+  await page.goto("/order-plans");
+  await page.locator(".c2l-row").first().locator('input[type="checkbox"]').check();
+  await page.getByRole("button", { name: "선택 항목 추적 종료", exact: true }).click();
+  const dialog = page.getByTestId("order-plan-bulk-tracking-dialog");
+  await dialog.getByRole("button", { name: "선택 대상 미리보기", exact: true }).click();
+  await dialog.getByRole("textbox", { name: "공통 담당자 이름 · 감사 표식" }).fill("종료 담당자");
+  const confirm = dialog.getByRole("button", { name: "확인하고 일괄 추적 종료", exact: true });
+  await expect(confirm).toBeDisabled();
+  await expect(dialog).toContainText("공통 종료 사유를 입력하십시오.");
+  expect(trace.endPosts).toHaveLength(0);
+  expect(trace.startPosts).toHaveLength(0);
+});
+
+test("BE-mixed-selection-preview-shows-eligible-and-status-exclusions", async ({ page }) => {
+  await mockOrderPlans(page);
+  await mockOrderPlanBulkTracking(page, "mixed");
+  await page.goto("/order-plans");
+  await clickPreset(page, "전체");
+  const rows = page.locator(".c2l-row");
+  await rows.filter({ hasText: "인공지능 기반 공공데이터" }).locator('input[type="checkbox"]').check();
+  await rows.filter({ hasText: "청사 시설관리" }).locator('input[type="checkbox"]').check();
+  await rows.filter({ hasText: "복지서비스 운영" }).locator('input[type="checkbox"]').check();
+  await page.getByRole("button", { name: "선택 항목 추적 종료", exact: true }).click();
+  const dialog = page.getByTestId("order-plan-bulk-tracking-dialog");
+  await dialog.getByRole("button", { name: "선택 대상 미리보기", exact: true }).click();
+  await expect(dialog).toContainText("미선택 · 종료 가능");
+  await expect(dialog).toContainText("보류로 제외");
+  await expect(dialog).toContainText("종료로 제외");
+});
+
+test("BE-over-200-selection-disables-end-but-keeps-start-enabled", async ({ page }) => {
+  await mockOrderPlans(page);
+  await mockOrderPlanBulkTracking(page, "all-eligible");
+  await page.goto("/order-plans");
+  // 목록 선택 hook이 수화(hydrate)해 빈 상태를 쓸 때까지 기다린다 — 그 전에 읽으면
+  // sessionStorage 키가 아직 없다.
+  await expect(page.getByTestId("order-plan-selection-toolbar")).toContainText("선택 0건");
+  const fingerprint = await page.evaluate(() => {
+    const raw = window.sessionStorage.getItem("bidops.order-plans.selection.v1");
+    return raw ? (JSON.parse(raw) as { filterFingerprint: string }).filterFingerprint : null;
+  });
+  expect(fingerprint).not.toBeNull();
+  await page.evaluate((filterFingerprint) => {
+    window.sessionStorage.setItem("bidops.order-plans.selection.v1", JSON.stringify({
+      version: 1,
+      filterFingerprint,
+      selectionGeneration: 0,
+      selectedIds: Array.from({ length: 201 }, (_, index) => 9000 + index),
+      selectedSortMetadata: {},
+      listSearch: "",
+      activeId: null,
+      listScrollTop: 0,
+    }));
+  }, fingerprint);
+  await page.reload();
+  await expect(page.getByTestId("order-plan-selection-toolbar")).toContainText("선택 201건");
+  await expect(page.getByRole("button", { name: "선택 항목 추적 종료", exact: true })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "선택 항목 추적 시작", exact: true })).toBeEnabled();
+  await expect(page.locator("#c2l-selection-action-reason"))
+    .toContainText("한 번에 200건까지 종료할 수 있습니다. 선택을 줄이십시오.");
+});
+
+test("BE-legacy-v1-pending-request-migrates-and-recovers-through-start-endpoint-only", async ({ page }) => {
+  await mockOrderPlans(page);
+  const trace = await mockOrderPlanBulkTracking(page, "all-eligible");
+  await page.goto("/order-plans");
+  await page.evaluate(() => {
+    window.sessionStorage.setItem("bidops.order-plans.bulk-tracking.pending.v1", JSON.stringify({
+      request_id: "11111111-1111-4111-8111-111111111111",
+      order_plan_ids: [101],
+      actor: "레거시 담당자",
+      reason: "레거시 사유",
+      selection_generation: 0,
+      filter_fingerprint: "order-plans:{}",
+    }));
+  });
+  await page.reload();
+  // A2 마이그레이션: 열기 전에 이미 v2로 옮겨지고 action은 start로 채워진다.
+  await expect.poll(() => page.evaluate(() => window.sessionStorage.getItem("bidops.order-plans.bulk-tracking.pending.v1")))
+    .toBeNull();
+  const migratedRaw = await page.evaluate(() => window.sessionStorage.getItem("bidops.order-plans.bulk-tracking.pending.v2"));
+  expect(migratedRaw).not.toBeNull();
+  expect(JSON.parse(migratedRaw as string)).toMatchObject({ action: "start", order_plan_ids: [101] });
+
+  await expect(page.getByRole("button", { name: "저장된 일괄 요청 확인", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "저장된 일괄 요청 확인", exact: true }).click();
+  const dialog = page.getByTestId("order-plan-bulk-tracking-dialog");
+  await expect(dialog).toContainText("발주계획 일괄 추적");
+  await expect(dialog).not.toContainText("발주계획 일괄 추적 종료");
+  await dialog.getByRole("button", { name: "저장된 요청 결과 확인", exact: true }).click();
+  await expect(dialog).toContainText("일괄 추적 결과를 확인했습니다");
+  expect(trace.startPosts).toHaveLength(1);
+  expect(trace.endPosts).toHaveLength(0);
+});
+
+test("BE-pending-end-request-recovers-through-end-endpoint-even-when-start-dialog-opens", async ({ page }) => {
+  await mockOrderPlans(page);
+  const trace = await mockOrderPlanBulkTracking(page, "all-eligible");
+  let attempts = 0;
+  await page.route("**/api/opportunities/order-plan-tracking/bulk-end", async (route) => {
+    attempts += 1;
+    if (attempts === 1) {
+      await route.abort("failed");
+      return;
+    }
+    await route.fallback();
+  });
+  await page.goto("/order-plans");
+  await page.locator(".c2l-row").first().locator('input[type="checkbox"]').check();
+  await page.getByRole("button", { name: "선택 항목 추적 종료", exact: true }).click();
+  const endDialog = page.getByTestId("order-plan-bulk-tracking-dialog");
+  await endDialog.getByRole("button", { name: "선택 대상 미리보기", exact: true }).click();
+  await endDialog.getByRole("textbox", { name: "공통 담당자 이름 · 감사 표식" }).fill("종료 유실 담당자");
+  await endDialog.getByRole("textbox", { name: "공통 종료 사유" }).fill("응답 유실 확인");
+  await endDialog.getByRole("button", { name: "확인하고 일괄 추적 종료", exact: true }).click();
+  await expect(endDialog).toContainText("일괄 추적 종료 결과를 확인할 수 없습니다");
+  await endDialog.getByRole("button", { name: "닫기", exact: true }).click();
+
+  // 같은 선택 상태에서 시작 단추를 눌러도, 저장된 요청의 action(종료)이 이긴다.
+  await page.getByRole("button", { name: "선택 항목 추적 시작", exact: true }).click();
+  const startDialog = page.getByTestId("order-plan-bulk-tracking-dialog");
+  await expect(startDialog).toContainText("발주계획 일괄 추적 종료");
+  await expect(startDialog).toContainText("저장된 요청 결과를 아직 확인하지 않았습니다");
+  await startDialog.getByRole("button", { name: "저장된 요청 결과 확인", exact: true }).click();
+  await expect(startDialog).toContainText("일괄 추적 종료 결과를 확인했습니다");
+  expect(trace.endPosts).toHaveLength(1);
+  expect(trace.startPosts).toHaveLength(0);
 });
 
 // ---- 일일 운영: 누적 기본·회차 모드·판정 표식·행의 실행으로 저장·자동 실행 배너 (spec §7·§3.4·§11) ----
@@ -2075,7 +2239,7 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900
       expect(listRequests.length).toBeGreaterThan(0);
       expect(listRequests.every((params) => !params.has("source_run_id"))).toBe(true);
       expect(new URL(page.url()).searchParams.has("source_run_id")).toBe(false);
-      const runSelector = page.locator("header.topbar").getByRole("combobox", { name: "발주계획 수집 회차" });
+      const runSelector = page.locator(".c2l-filter-context").getByRole("combobox", { name: "수집 회차" });
       await expect(runSelector).toContainText("누적 · 회차 선택 안 함");
 
       // 기본 보기 = 추적을 정하지 않은 관련 건. 조합 문장과 행의 판정 표식을 함께 밝힌다.

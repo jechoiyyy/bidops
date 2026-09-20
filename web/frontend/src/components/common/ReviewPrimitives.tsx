@@ -220,6 +220,137 @@ export function SplitWorkspace({
   );
 }
 
+export interface AgencyFeatureProps {
+  className?: string;
+  /** 값이 없을 때 적을 말. 기관명을 지어내지 않고 "미확인"으로 남긴다. */
+  fallback?: string;
+  label?: string;
+  labelClassName?: string;
+  name?: string | null;
+  nameClassName?: string;
+}
+
+/**
+ * 발주기관 강조 블록 — 탐색 두 화면의 상세 머리가 공유한다(ADR-0062).
+ *
+ * 값·배경·여백은 발주계획 상세가 쓰던 것을 그대로 옮긴 것이며 새 색을 만들지
+ * 않는다. 화면별 클래스(`c2l-agency-*`·`pre-specs-detail-agency`)는 검사 selector로
+ * 같은 요소에 병기한다.
+ */
+export function AgencyFeature({
+  className,
+  fallback = "발주기관 미확인",
+  label = "발주기관",
+  labelClassName,
+  name,
+  nameClassName,
+}: AgencyFeatureProps) {
+  const value = typeof name === "string" && name.trim() ? name : fallback;
+  return (
+    <div
+      className={joinClassNames("review-agency-feature", className)}
+      data-review-primitive="agency-feature"
+    >
+      <span className={joinClassNames("review-agency-label", labelClassName)}>{label}</span>
+      <span className={joinClassNames("review-agency-name", nameClassName)}>{value}</span>
+    </div>
+  );
+}
+
+export interface SelectionToolbarProps extends Omit<HTMLAttributes<HTMLDivElement>, "children"> {
+  /** 선택 건수 뒤에 오는 조작들. 화면이 자기 단추를 그대로 넣는다. */
+  actions: ReactNode;
+  className?: string;
+  count: number;
+  countClassName?: string;
+  /** 오른쪽 끝의 보조 캡션(예: `이 페이지만 추가`). */
+  end?: ReactNode;
+  label: string;
+  /** 지금 조작할 수 없는 이유. 비어 있어도 줄 높이는 유지한다. */
+  reason?: ReactNode;
+  reasonClassName?: string;
+  reasonId?: string;
+}
+
+/**
+ * 목록의 checked 묶음을 다루는 도구줄 — 두 탐색 화면이 공유한다(ADR-0062).
+ *
+ * 건수 자리는 폭을 고정하고 사유 줄은 비어 있어도 높이를 지켜, 선택이 늘거나
+ * 줄 때 아래 목록이 위아래로 밀리지 않는다.
+ */
+export function SelectionToolbar({
+  actions,
+  className,
+  count,
+  countClassName,
+  end,
+  label,
+  reason,
+  reasonClassName,
+  reasonId,
+  ...props
+}: SelectionToolbarProps) {
+  return (
+    <div
+      {...props}
+      aria-label={label}
+      className={joinClassNames("review-selection-toolbar", className)}
+      data-review-primitive="selection-toolbar"
+    >
+      <span aria-live="polite" className={joinClassNames("review-selection-count", countClassName)}>
+        선택 {count.toLocaleString("ko-KR")}건
+      </span>
+      {actions}
+      {end}
+      <span className={joinClassNames("review-selection-reason", reasonClassName)} id={reasonId}>
+        {reason}
+      </span>
+    </div>
+  );
+}
+
+export interface ListColumnsProps extends Omit<HTMLAttributes<HTMLDivElement>, "children"> {
+  children: ReactNode;
+}
+
+/** 목록 행의 두 열이 무엇인지 적는 줄. 값이 아니라 이름이므로 보조 기술에는 숨긴다. */
+export function ListColumns({ children, className, ...props }: ListColumnsProps) {
+  return (
+    <div
+      {...props}
+      aria-hidden="true"
+      className={joinClassNames("review-list-columns", className)}
+      data-review-primitive="list-columns"
+    >
+      {children}
+    </div>
+  );
+}
+
+export interface ListPagerProps extends Omit<HTMLAttributes<HTMLElement>, "children"> {
+  children: ReactNode;
+  label: string;
+}
+
+/**
+ * 페이지 이동 줄 — **목록 pane 안쪽 바닥**이다(ADR-0062: 발주계획 방식).
+ *
+ * 단추 자체는 화면이 갖는다(접근 가능한 이름과 조작 계약이 화면마다 이미 검사에
+ * 걸려 있다). 이 primitive는 자리와 줄 배치만 소유한다.
+ */
+export function ListPager({ children, className, label, ...props }: ListPagerProps) {
+  return (
+    <nav
+      {...props}
+      aria-label={label}
+      className={joinClassNames("review-list-pager", className)}
+      data-review-primitive="list-pager"
+    >
+      {children}
+    </nav>
+  );
+}
+
 export interface ReviewFilterBarProps extends Omit<HTMLAttributes<HTMLDivElement>, "children"> {
   activeFilterCount?: number;
   children: ReactNode;

@@ -5,6 +5,7 @@ import { Heading } from "@astryxdesign/core/Heading";
 import { InternationalizationProvider } from "@astryxdesign/core/i18n";
 import koKR from "@astryxdesign/core/locales/ko-KR.json";
 import { Token } from "@astryxdesign/core/Token";
+import { AgencyFeature, StickyDecisionHeader } from "../common/ReviewPrimitives";
 import {
   isInheritedTracking,
   TrackingDecisionControl,
@@ -19,7 +20,6 @@ import { readPreSpecLifecycle } from "../../lib/noticeLifecycle";
 import { formatPreSpecCaution, preSpecCautions } from "../../lib/preSpecCautions";
 import { preSpecDetailUrl } from "../../lib/preSpecSelectionReview";
 import {
-  agencyOf,
   exactBudget,
   nextActionLabel,
   originLabel,
@@ -204,26 +204,23 @@ export function PreSpecDetail({
     <div className="pre-specs-detail">
       {/* ① 머리 — 기관·구분 칩·사업명·식별 줄. 머리는 스크롤 밖에 있어 어떤
           사업을 보고 있는지가 늘 보인다(spec §3.1 1행). */}
-      <header className="pre-specs-detail-header">
-        <div className="pre-specs-detail-identity">
-          <span className="pre-specs-detail-agency">
-            <span>발주기관</span>
-            <strong>{agencyOf(item)}</strong>
-          </span>
-          <span className="pre-specs-detail-chips">
-            <Token size="sm" label={originLabel(item.origin)} color="default" />
-            <Token size="sm" label={item.business_division?.trim() || "업무구분 미확인"} color="default" />
-            <Token
-              size="sm"
-              label={item.sw_business_status === null ? "SW 미확인" : `SW사업대상 ${item.sw_business_status}`}
-              color="default"
-            />
-            <Token size="sm" label={`추적 결정 · ${trackingText}`} color="default" />
-          </span>
-        </div>
+      <StickyDecisionHeader className="review-detail-head pre-specs-detail-header" label="사전규격 상세 헤더">
+        {/* A안(승인 시안) — 기관 블록이 전체 폭을 쓰고, 사업명 → 칩 → 식별 줄이
+            이어진다. 강조 블록은 발주계획 상세와 같은 공용 primitive다(ADR-0062). */}
+        <AgencyFeature className="pre-specs-detail-agency" name={item.agency} fallback="발주기관 미확인" />
         <div className="pre-specs-detail-title">
           <Heading level={3}>{titleOf(item)}</Heading>
         </div>
+        <span className="pre-specs-detail-chips">
+          <Token size="sm" label={originLabel(item.origin)} color="default" />
+          <Token size="sm" label={item.business_division?.trim() || "업무구분 미확인"} color="default" />
+          <Token
+            size="sm"
+            label={item.sw_business_status === null ? "SW 미확인" : `SW사업대상 ${item.sw_business_status}`}
+            color="default"
+          />
+          <Token size="sm" label={`추적 결정 · ${trackingText}`} color="default" />
+        </span>
         <p className="pre-specs-detail-facts">
           <span>
             사전규격 {item.pre_spec_no ? <code className="mono">{item.pre_spec_no}</code> : "번호 미확인"}
@@ -235,7 +232,7 @@ export function PreSpecDetail({
             적합성 등급 <strong>{gradeLabel(item.grade)}</strong> ({gradeSourceLabel(item.grade_source)})
           </span>
         </p>
-      </header>
+      </StickyDecisionHeader>
 
       <div className="pre-specs-detail-scroll">
         {/* ② 사업 설명 — 검증 라벨을 캡션에 붙여, 검증되지 않은 문장을 판정처럼
