@@ -59,7 +59,7 @@ test("LS-BT 발주계획 선택과 확인 대화상자가 지원 폭 안에 보�
   await expect(page.getByTestId("order-plan-selection-toolbar")).toContainText("선택 1건");
   await expectNoHorizontalOverflow(page);
   await page.screenshot({ path: testInfo.outputPath("order-plan-selection.png") });
-  await page.getByRole("button", { name: "선택 항목 검토", exact: true }).click();
+  await page.getByRole("button", { name: "선택 항목 추적 시작", exact: true }).click();
   const dialog = page.getByTestId("order-plan-bulk-tracking-dialog");
   await dialog.getByRole("button", { name: "선택 대상 미리보기", exact: true }).click();
   await expect(dialog.getByTestId("order-plan-bulk-preview")).toBeVisible();
