@@ -6,10 +6,23 @@
 
 `구현됨`은 코드와 계약이 존재한다는 뜻이고, `검증됨`은 기록된 명령이 해당 범위에서 통과했다는 뜻이다. Mock 결과, 과거 브랜치 결과, 현재 worktree 결과, 외부 운영 승인을 서로 대신하지 않는다.
 
-## 탐색 화면 구조 통일·발주계획 일괄 추적 종료 (2026-09-20, 미병합·미배포)
+## 탐색 화면 구조 통일·발주계획 일괄 추적 종료 (2026-09-20, main 병합·운영 web 배포)
 
 결정은 [ADR-0062](decisions/0062-explore-workspace-structure-unification.md)·[ADR-0063](decisions/0063-order-plan-bulk-tracking-end.md),
-승인 시안은 `docs/0915_ui-redesign/mockups/0920_explore-unify/`다. 브랜치 둘이며 main에 병합하지 않았고 운영에 배포하지 않았다.
+승인 시안은 `docs/0915_ui-redesign/mockups/0920_explore-unify/`다. 브랜치 둘을 2026-09-20에 main으로 병합했고(`af4ca2c`) 같은 날
+운영 web만 새 이미지로 교체했다.
+
+배포 기록(2026-09-20 22:38 KST, 사용자 요청): 롤백 태그 `before-explore-unify-bulk-end-20260920`, 전체 백업
+`backups/postgres/full/bidops-20260920T133747Z.dump`(25.7MB), migration 없음(head `0029_c2_quality_gate` 그대로), compose 파일 5개 +
+env 파일 4개 + `--profile prespec`로 `build web` → `up -d --no-deps --no-build --force-recreate web`. 교체 뒤 healthy·포트
+`127.0.0.1:18787`·플래그 5개(`BIDOPS_C2_EXECUTION_ALLOWED`·`C2_DAILY_TRIGGER_ENABLED`·`PRESPEC_OVERVIEW_ENABLED`=true,
+GPU 600/300)가 그대로 렌더된 것과 `GET /api/order-plan-screening/daily-trigger`의 `effective_enabled=true`(v4)를 확인했다.
+worker 컨테이너는 건드리지 않았다.
+
+실제 스택 확인(운영 데이터를 바꾸지 않는 범위): `POST …/bulk-end`에 빈 body → 422(route 존재, 쓰기 없음), `bulk-start` 동일 422,
+실제 `미선택` 계획 3건으로 읽기 전용 `preview` → `eligible_plan_count=3`, 운영 화면 1280×800에서 `선택 항목 추적 시작`·
+`선택 항목 추적 종료` 단추·필터 아래 줄 `수집 회차`·리사이저 없음·두 화면의 발주기관 블록·목록 안쪽 페이저를 DOM으로 확인.
+**일괄 종료의 실제 저장(생성→receipt→목록 갱신)은 사람이 화면에서 1회 실행하기 전까지 검증되지 않았다.**
 
 | 브랜치 | 내용 | 상태 |
 |---|---|---|
@@ -34,9 +47,10 @@
 - **실제 스택을 가로지르는 경로**(화면 → 운영 compose의 web → PostgreSQL)는 돌리지 않았다. 프런트 mock은 백엔드
   테스트가 실제로 받은 200·422 응답에서 파생했지만, 생성→receipt→목록 갱신이 실제 서비스에서 이어지는 것은 배포 뒤
   1회 확인하기 전까지 "검증됨"이 아니다.
-- **픽셀 기준선은 교체하지 않았다.** `test:pixel`은 8장 중 7장이 다르지만 수정 없는 main에서도 같은 7장이 다르다 —
-  `acdf0d9`(사이드바 나라장터 바로가기)가 기준선을 갱신하지 않았기 때문이다. `order-plans-list`·`pre-specs-list` 두 장은
-  그 사이드바 차이와 이번 구조 변경이 한 장에 겹쳐 있어, 교체 범위와 승인 기록을 사람이 정한 뒤 갈아 끼운다.
+- 픽셀 기준선 7장은 2026-09-20 사용자 승인으로 교체했다(`dd5da1d`). 5장(dashboard·criteria·opportunities-list·
+  deep-review-complete·bid-delta-changed)의 사유는 `acdf0d9`(사이드바 나라장터 바로가기)가 기준선을 갱신하지 않은 것이고 —
+  수정 없는 main에서도 같은 7장이 달랐다 — `order-plans-list`·`pre-specs-list` 2장의 사유는 ADR-0062와 그 사이드바 링크다.
+  같은 커밋에서 `common-interactions.spec.ts`의 "사이드바는 7항목"을 주 메뉴 항목만 세도록 고쳤다.
 
 시안과 달라진 곳은 `docs/0915_ui-redesign/decisions.md`의 같은 날짜 항목에 있다.
 
