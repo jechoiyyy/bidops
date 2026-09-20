@@ -269,7 +269,10 @@ test("사이드바는 7항목이고 1차 분류가 오늘의 업무 · 탐색과
   await page.goto("/");
 
   const sidebar = page.locator("aside.sidebar");
-  await expect(sidebar.locator(".sidebar-item")).toHaveCount(SIDEBAR_ITEMS.length);
+  // 주 메뉴 항목만 센다. 하단의 나라장터 바로가기는 그룹 밖 외부 링크이고
+  // `design-shell.spec.ts`가 따로 검사한다.
+  await expect(sidebar.locator(".sidebar-item:not(.sidebar-external-link)")).toHaveCount(SIDEBAR_ITEMS.length);
+  await expect(sidebar.locator(".sidebar-external-link")).toHaveCount(1);
   await expect(sidebar.locator(".sidebar-group-label")).toHaveText(["오늘의 업무", "탐색과 추적", "기준과 운영"]);
 
   for (const item of SIDEBAR_ITEMS) {
