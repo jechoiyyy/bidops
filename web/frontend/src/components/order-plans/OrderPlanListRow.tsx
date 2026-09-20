@@ -92,7 +92,9 @@ export function OrderPlanListRow({
                 구분점이 앞 항목 끝에 홀로 남지 않는다. 이 구분점은 `.c2l-row-verdict`
                 밖에 있어 그 요소의 텍스트(판정 policy … · 첫 관측 …)는 그대로다. */}
             <span className="c2l-row-meta-group">
-              <span aria-hidden="true">· </span>
+              {/* inline-flex 항목의 양끝 공백은 잘려 나가므로 줄바꿈 없는 공백으로 둔다 —
+                  아래 `첫 관측` 앞 구분점(" · ")과 같은 간격으로 읽힌다. */}
+              <span aria-hidden="true">{" · "}</span>
               {/* 누적 목록에서는 행마다 판정한 시점이 다르다. 어느 policy가 판정했는지와 판정
                   기준 시점인 첫 관측일을 행에 싣는다(spec §7). 결과가 없으면 `판정 없음`이다.
                   두 항목으로 나눠 항목 사이에서만 줄바꿈되게 한다(B2). */}
