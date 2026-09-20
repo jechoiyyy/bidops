@@ -26,10 +26,19 @@ function formatObservedDate(value: string | null | undefined): string {
   return Number.isNaN(parsed.getTime()) ? value : KST_DATE.format(parsed);
 }
 
-/** 행의 판정 표식. 결과가 없는 행은 policy를 지어내지 않고 `판정 없음`이다. */
-function verdictLabel(item: Pick<OrderPlanListItem, "policy_version" | "first_observed_at">): string {
-  const verdict = item.policy_version ? `판정 policy ${item.policy_version}` : "판정 없음";
-  return `${verdict} · 첫 관측 ${formatObservedDate(item.first_observed_at)}`;
+/**
+ * 행의 판정 표식. 결과가 없는 행은 policy를 지어내지 않고 `판정 없음`이다.
+ *
+ * 절을 두 항목(policy·첫 관측)으로 나눠 반환한다(B2, 0920 검수). 항목 하나를
+ * 통짜 문자열로 두면 `overflow-wrap: anywhere`가 날짜 숫자 중간을 끊는다 — 항목
+ * 안은 줄바꿈하지 않고 항목 사이에서만 줄바꿈되게 하려면 항목 경계 자체가 있어야 한다.
+ */
+function policyClauseLabel(item: Pick<OrderPlanListItem, "policy_version">): string {
+  return item.policy_version ? `판정 policy ${item.policy_version}` : "판정 없음";
+}
+
+function observedClauseLabel(item: Pick<OrderPlanListItem, "first_observed_at">): string {
+  return `첫 관측 ${formatObservedDate(item.first_observed_at)}`;
 }
 
 function budgetLabel(value: number | null): string {
@@ -81,8 +90,14 @@ export function OrderPlanListRow({
             <span>{budgetLabel(item.budget_amount)}</span>
             <span aria-hidden="true">·</span>
             {/* 누적 목록에서는 행마다 판정한 시점이 다르다. 어느 policy가 판정했는지와 판정
-                기준 시점인 첫 관측일을 행에 싣는다(spec §7). 결과가 없으면 `판정 없음`이다. */}
-            <span className="c2l-row-verdict">{verdictLabel(item)}</span>
+                기준 시점인 첫 관측일을 행에 싣는다(spec §7). 결과가 없으면 `판정 없음`이다.
+                두 항목으로 나눠 항목 사이에서만 줄바꿈되게 한다(B2). */}
+            <span className="c2l-row-verdict">
+              <span className="c2l-row-meta-item">{policyClauseLabel(item)}</span>
+              <span className="c2l-row-meta-item">
+                <span aria-hidden="true"> · </span>{observedClauseLabel(item)}
+              </span>
+            </span>
           </span>
           <span className="c2l-row-state">
             {/* 모델 판단은 이 목록을 훑는 이유이므로 행마다 같은 자리에서 읽힌다. */}

@@ -997,6 +997,27 @@
   white-space: nowrap;
 }
 
+/* B1(0920 검수): 목록 머리 오른쪽의 기본 보기 설명은 좁은 폭에서 말줄임 대신
+   다음 줄로 줄바꿈한다. `.review-list-head`의 공용 한 줄 규칙을 머리(`.c2l-list-head`)
+   에서만 재정의하며, 목록 바닥의 범위·정렬 줄과 사전규격 머리는 공용 규칙 그대로
+   한 줄·말줄임을 유지한다. */
+header.c2l-list-head .c2l-list-scope {
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+}
+
+/* A4(0920 검수): 일괄 추적 종료 직후 안내 한 줄. 다음 필터·선택 변경 전까지 남는다. */
+.c2l-bulk-end-notice {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: var(--spacing-1-5) var(--spacing-4);
+  background: var(--color-accent-muted);
+  color: var(--color-text-accent);
+  font-size: var(--bo-type-caption);
+  overflow-wrap: anywhere;
+}
+
 /* 회차 선택은 필터 아래 줄이다(사전규격과 같은 자리). 라벨과 선택기를 한 줄에 둔다. */
 .c2l-filter-context {
   display: flex;
@@ -1125,10 +1146,19 @@
   font-size: var(--review-list-secondary);
 }
 
-/* 누적 목록의 행별 판정 표식(policy 버전·첫 관측일). */
+/* 누적 목록의 행별 판정 표식(policy 버전·첫 관측일). B2(0920 검수): 항목 두 개를
+   자체 flex-wrap 컨테이너로 두어 항목 사이에서만 줄바꿈되게 한다. `overflow-wrap:
+   anywhere`를 통짜 문자열에 걸면 날짜 숫자 중간이 끊긴다 — 그 대신 항목 경계를
+   준다. 구분점은 뒤 항목에 붙여 줄 끝에 혼자 남지 않는다. */
 .c2l-row-verdict {
+  display: flex;
   min-width: 0;
-  overflow-wrap: anywhere;
+  flex-wrap: wrap;
+  align-items: baseline;
+}
+
+.c2l-row-verdict .c2l-row-meta-item {
+  white-space: nowrap;
 }
 
 /* 오른쪽 열은 발주 예정 하나다(사전규격의 의견 마감 자리와 같다). */
@@ -1547,7 +1577,13 @@
   overflow-wrap: anywhere;
 }
 
-.c2l-list-range {
+/* B3(0920 검수): 페이저 줄의 오른쪽 묶음(이전·범위·다음). 왼쪽 `전체 N건`은
+   `.review-list-pager`의 `justify-content: space-between`이 그대로 오른쪽 끝으로
+   보낸다. */
+.c2l-pager-range {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
   font-variant-numeric: tabular-nums;
 }
 
@@ -1775,6 +1811,17 @@
   border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-sm);
   background: var(--color-background-muted);
+}
+
+/* 일괄 추적 종료 확인 단계의 경고 문단(ADR-0063). 되돌리는 방법이 단건뿐임을 강조한다. */
+.c2l-bulk-warning {
+  margin: 0;
+  padding: var(--spacing-1-5) var(--spacing-2);
+  border: var(--border-width) solid var(--color-warning-edge);
+  border-radius: var(--radius-sm);
+  color: var(--color-warning);
+  background: var(--color-warning-bg);
+  overflow-wrap: anywhere;
 }
 
 .c2l-bulk-failures {
