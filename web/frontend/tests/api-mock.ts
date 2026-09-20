@@ -6,7 +6,7 @@ import type {
   BidDeltaDecisionQueueItem, OpportunityListItem, OpportunitySectionCounts,
   OpportunityRecheckEventView, OpportunityTrackingDecisionItem, OpportunityTrackingStatus,
   OrderPlanListItem, OrderPlanListScope, OrderPlanScreeningExecutionSummary, OrderPlanScreeningErrorCode,
-  OrderPlanTracking, OrderPlanBulkPreviewResponse, OrderPlanBulkStartResponse,
+  OrderPlanTracking, OrderPlanBulkPreviewResponse, OrderPlanBulkStartResponse, OrderPlanBulkEndResponse,
   OverviewEnvelope, OverviewRun, PreSpecListItem, PreSpecOrderPlanCandidatesResponse,
   RunSummary, WorkloadKey, WorkloadResponse,
 } from "../src/lib/types";
@@ -14,6 +14,33 @@ import { clickReadyUnlinkedPreSpec, decisionQueueItems, opportunityDeepReviews, 
 
 const opportunityFixtures = new WeakMap<Page, OpportunityListItem[]>();
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * 발주계획 일괄 추적(시작·종료) mock이 성공 항목에 남기는 `tracking_status` 재정의다.
+ * `mockOrderPlans`의 GET 목록은 이 페이지 범위 저장소를 먼저 본다 — 두 mock 함수가
+ * 서로 다른 클로저에 있어도 같은 `page`에 걸면 종료 뒤 목록이 실제로 갱신된 것처럼
+ * 보인다. bulk 계약이 반환한 `status_at_decision`만 그대로 옮기며 값을 지어내지 않는다.
+ */
+const bulkTrackingOverrides = new WeakMap<Page, Map<number, { tracking_status: string; opportunity_id: number }>>();
+function bulkOverrideStore(page: Page): Map<number, { tracking_status: string; opportunity_id: number }> {
+  let store = bulkTrackingOverrides.get(page);
+  if (!store) { store = new Map(); bulkTrackingOverrides.set(page, store); }
+  return store;
+}
+/** bulk-start·bulk-end 응답의 성공 항목을 위 저장소에 반영한다. */
+function applyBulkTrackingOverrides(page: Page, response: unknown): void {
+  if (!response || typeof response !== "object" || !("items" in response)) return;
+  const items = (response as { items: unknown }).items;
+  if (!Array.isArray(items)) return;
+  const store = bulkOverrideStore(page);
+  for (const raw of items) {
+    if (!raw || typeof raw !== "object") continue;
+    const item = raw as { order_plan_id?: unknown; opportunity_id?: unknown; outcome?: unknown; status_at_decision?: unknown };
+    if (item.outcome !== "succeeded" || typeof item.order_plan_id !== "number"
+      || typeof item.opportunity_id !== "number" || typeof item.status_at_decision !== "string") continue;
+    store.set(item.order_plan_id, { tracking_status: item.status_at_decision, opportunity_id: item.opportunity_id });
+  }
+}
 const workloadProviders = new WeakMap<Page, Map<WorkloadKey, () => { count: number | null; unavailable_reason: string | null }>>();
 function workloadProvider(page: Page, key: WorkloadKey, provider: () => { count: number | null; unavailable_reason: string | null }) {
   let providers = workloadProviders.get(page);
@@ -2617,6 +2644,14 @@ export async function mockOrderPlans(page: Page, scenario: OrderPlanMockScenario
   }
   function trackingProjection(orderPlanPk: number): OrderPlanTracking | null {
     if (scenario === "no-owning-opportunity") return null;
+    const bulkOverride = bulkOverrideStore(page).get(orderPlanPk);
+    if (bulkOverride) {
+      return {
+        opportunity_id: bulkOverride.opportunity_id,
+        tracking_status: bulkOverride.tracking_status as OpportunityTrackingStatus,
+        tracking_reason: null, tracking_selected_by: null, tracking_selected_at: null,
+      };
+    }
     return trackingState.get(orderPlanPk) ?? { opportunity_id: 5000 + orderPlanPk, tracking_status: "미선택", tracking_reason: null, tracking_selected_by: null, tracking_selected_at: null };
   }
   const sharedOpportunities = opportunityFixtures.get(page);
@@ -2820,12 +2855,16 @@ export type OrderPlanBulkMockScenario =
 export interface OrderPlanBulkMockOptions {
   previewResponse?: unknown;
   startResponse?: unknown;
+  /** bulk-end 최종 receipt를 대신한다. 미지정이면 `bulkMockEnd`가 만든다. */
+  endResponse?: unknown;
   errorStatus?: number;
 }
 
 export interface OrderPlanBulkMockTrace {
   previewPosts: Array<{ body: unknown }>;
   startPosts: Array<{ body: unknown; headers: Record<string, string> }>;
+  /** ADR-0063 bulk-end로 간 요청. start와 별도 idempotency 저장소를 쓴다(실제 계약과 같다). */
+  endPosts: Array<{ body: unknown; headers: Record<string, string> }>;
 }
 
 const BULK_MOCK_AUDIT_ID = "f2f4d7c1-0a61-4f07-8d2e-000000000001";
@@ -2959,6 +2998,82 @@ function bulkMockStart(
   return response;
 }
 
+/**
+ * bulk-end 최종 receipt(ADR-0063). `bulkMockStart`와 같은 eligibility 판정을 재사용하고
+ * 성공 항목의 목표 상태만 `종료`로 바꾼다 — 실제 서버가 두 endpoint에 같은 상태
+ * 기계를 쓰는 것과 같은 모양이다.
+ */
+function bulkMockEnd(
+  requestId: string,
+  ids: readonly number[],
+  scenario: OrderPlanBulkMockScenario,
+): unknown {
+  const preview = bulkMockPreview(ids, scenario === "all-eligible");
+  const items = preview.items.map((item) => item.eligibility === "eligible"
+    ? {
+      order_plan_id: item.order_plan_id, opportunity_id: item.opportunity_id,
+      outcome: "succeeded" as const, status_at_decision: "종료" as const,
+      code: null, audit_event_id: BULK_MOCK_AUDIT_ID,
+    }
+    : item.eligibility === "excluded"
+      ? {
+        order_plan_id: item.order_plan_id, opportunity_id: item.opportunity_id,
+        outcome: "excluded" as const, status_at_decision: item.tracking_status!,
+        code: null, audit_event_id: null,
+      }
+      : {
+        order_plan_id: item.order_plan_id, opportunity_id: item.opportunity_id,
+        outcome: "failed" as const, status_at_decision: item.tracking_status,
+        code: item.code!, audit_event_id: null,
+      });
+  const excluded = items.filter((item) => item.outcome === "excluded");
+  const response: OrderPlanBulkEndResponse = {
+    schema_version: "order-plan-bulk-end-response.v1",
+    request_id: requestId,
+    completed_at: "2026-09-20T07:55:51.560908Z",
+    items,
+    summary: {
+      selected_plan_count: ids.length,
+      unique_owner_count: new Set(items.flatMap((item) => item.opportunity_id === null ? [] : [item.opportunity_id])).size,
+      succeeded_plan_count: items.filter((item) => item.outcome === "succeeded").length,
+      succeeded_owner_count: new Set(items.filter((item) => item.outcome === "succeeded").flatMap((item) => item.opportunity_id === null ? [] : [item.opportunity_id])).size,
+      excluded_plan_count: excluded.length,
+      excluded_by_status: {
+        "계속 추적": {
+          plan_count: excluded.filter((item) => item.status_at_decision === "계속 추적").length,
+          owner_count: new Set(excluded.filter((item) => item.status_at_decision === "계속 추적").map((item) => item.opportunity_id)).size,
+        },
+        "보류": {
+          plan_count: excluded.filter((item) => item.status_at_decision === "보류").length,
+          owner_count: new Set(excluded.filter((item) => item.status_at_decision === "보류").map((item) => item.opportunity_id)).size,
+        },
+        "종료": {
+          plan_count: excluded.filter((item) => item.status_at_decision === "종료").length,
+          owner_count: new Set(excluded.filter((item) => item.status_at_decision === "종료").map((item) => item.opportunity_id)).size,
+        },
+      },
+      failed_plan_count: items.filter((item) => item.outcome === "failed").length,
+    },
+  };
+  if (scenario === "malformed-start") {
+    return withBulkMockExtraField(response);
+  }
+  return response;
+}
+
+/** 실제 422(bulk-end 201건)의 FastAPI 기본 형식. `input`은 보낸 배열 전체를 되돌린다. */
+function bulkEndTooLongError(ids: unknown[]): unknown {
+  return {
+    detail: [{
+      type: "too_long",
+      loc: ["body", "order_plan_ids"],
+      msg: `List should have at most 200 items after validation, not ${ids.length}`,
+      input: ids,
+      ctx: { field_type: "List", max_length: 200, actual_length: ids.length },
+    }],
+  };
+}
+
 function withBulkMockExtraField(value: unknown): unknown {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     return { private_debug: "must-not-leak" };
@@ -2972,8 +3087,11 @@ export async function mockOrderPlanBulkTracking(
   scenario: OrderPlanBulkMockScenario = "mixed",
   options: OrderPlanBulkMockOptions = {},
 ): Promise<OrderPlanBulkMockTrace> {
-  const trace: OrderPlanBulkMockTrace = { previewPosts: [], startPosts: [] };
+  const trace: OrderPlanBulkMockTrace = { previewPosts: [], startPosts: [], endPosts: [] };
   const receipts = new Map<string, { fingerprint: string; response: unknown }>();
+  // ADR-0063: bulk-end는 자기 request_id 공간을 쓴다 — start와 같은 request_id를
+  // 보내도 서로 replay·conflict를 일으키지 않는다(별도 Map으로 그 계약을 반영한다).
+  const endReceipts = new Map<string, { fingerprint: string; response: unknown }>();
   await page.route("**/api/**", async (route) => {
     const request = route.request();
     const pathname = new URL(request.url()).pathname;
@@ -3063,6 +3181,68 @@ export async function mockOrderPlanBulkTracking(
       }
       const response = options.startResponse ?? bulkMockStart(requestId, ids, scenario);
       receipts.set(requestId, { fingerprint, response });
+      applyBulkTrackingOverrides(page, response);
+      await fulfillJson(route, response);
+      return;
+    }
+    if (pathname === "/api/opportunities/order-plan-tracking/bulk-end" && method === "POST") {
+      const body = fixtureRecord(request.postDataJSON()) ?? {};
+      const headers = request.headers();
+      trace.endPosts.push({ body, headers });
+      const requestId = typeof body.request_id === "string" ? body.request_id : null;
+      if (scenario === "server-error") {
+        await fulfillJson(route, {
+          error: { code: "processing_failed", message: "합성 안정 오류", details: null },
+          request_id: requestId,
+        }, options.errorStatus ?? 500);
+        return;
+      }
+      if (!fixtureActor(headers)) {
+        await fulfillJson(route, {
+          error: { code: "actor_name_required", message: "합성 안정 오류", details: null },
+          request_id: requestId,
+        }, 400);
+        return;
+      }
+      // 실제 계약: 201건 이상은 FastAPI 기본 422(`too_long`)이고, 그 밖의 형식 오류보다
+      // 앞서 검사한다(실제 서버가 pydantic 필드 검증을 먼저 거치는 것과 같은 순서).
+      const rawIds = Array.isArray(body.order_plan_ids) ? body.order_plan_ids : [];
+      if (rawIds.length > 200) {
+        await fulfillJson(route, bulkEndTooLongError(rawIds), 422);
+        return;
+      }
+      if (
+        scenario === "validation-error"
+        || !hasBulkKeys(body, ["schema_version", "request_id", "order_plan_ids", "reason"])
+        || body.schema_version !== "order-plan-bulk-end-request.v1"
+        || !requestId
+        || !uuidPattern.test(requestId)
+        || !validBulkIdList(body.order_plan_ids)
+        || typeof body.reason !== "string"
+        || !body.reason.trim()
+      ) {
+        await fulfillJson(route, {
+          detail: [{ type: "uuid_parsing", loc: ["body", "request_id"], msg: "invalid", input: requestId }],
+        }, 422);
+        return;
+      }
+      const ids = bulkMockIds(body.order_plan_ids);
+      const fingerprint = JSON.stringify({ body, actor: fixtureActor(headers) });
+      const previous = endReceipts.get(requestId);
+      if (previous) {
+        if (previous.fingerprint !== fingerprint) {
+          await fulfillJson(route, {
+            error: { code: "idempotency_conflict", message: "합성 안정 오류", details: null },
+            request_id: requestId,
+          }, 409);
+          return;
+        }
+        await fulfillJson(route, previous.response);
+        return;
+      }
+      const response = options.endResponse ?? bulkMockEnd(requestId, ids, scenario);
+      endReceipts.set(requestId, { fingerprint, response });
+      applyBulkTrackingOverrides(page, response);
       await fulfillJson(route, response);
       return;
     }

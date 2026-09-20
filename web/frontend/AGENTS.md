@@ -38,7 +38,11 @@
   timestamp는 timezone offset과 microsecond를 보존하고 null/PK tie-break를 적용한다.
 - 일괄 추적은 기존 단건 PATCH를 반복 호출하지 않는다. preview 후 공통 actor/reason을
   확인하고, 서버가 잠금 뒤 미선택 owner만 계속 추적으로 전환한다. 계속 추적·보류·종료는
-  상태별 제외이며, bulk에는 hold/close/select-all을 추가하지 않는다. 최종 receipt가
+  상태별 제외다. 일괄 추적 종료(ADR-0063)는 같은 흐름·같은 다이얼로그(`mode="end"`)로 미선택
+  owner만 종료로 전환하고 한 요청은 200건까지다(`ORDER_PLAN_BULK_END_MAX_SELECTION`, 화면이
+  먼저 막는다). 저장한 대기 요청에는 작업 종류(`action`)를 함께 묶어 같은 request ID가 다른
+  endpoint로 가지 않게 하며, 열린 창의 mode보다 저장된 action이 이긴다. bulk에는
+  hold/select-all을 추가하지 않는다. 최종 receipt가
   확인되지 않으면 같은 request ID로 확인하고, 사람이 실패 항목을 확인한 뒤 실패 plan만
   새 request ID로 재시도한다. 성공 receipt가 단건 초안이나 active 이동을 바꾸지 않는다.
 - 상세 순회는 opaque `selection_review` token으로 고정하고 route notice ID를 기준으로

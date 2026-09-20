@@ -282,14 +282,19 @@ const BULK_RESULT_UNCONFIRMED_DESCRIPTION: ApiErrorDescription = {
  * Bulk mutations have a stricter recovery rule than ordinary mutations:
  * response loss or parsing failure retries the same request, and an
  * idempotency conflict never asks the caller to mint a new request key.
+ *
+ * `unconfirmedTitle` lets a caller with more than one bulk operation (ADR-0063:
+ * 시작·종료) say which one lost its response — the generic title below is the
+ * shared default when the caller has only one meaning of "일괄 추적".
  */
 export function describeOrderPlanBulkTrackingError(
   error: unknown,
   fallback = "일괄 추적 작업을 완료하지 못했습니다.",
+  unconfirmedTitle: string = BULK_RESULT_UNCONFIRMED_DESCRIPTION.title,
 ): ApiErrorDescription {
   const parsed = parseOrderPlanBulkTrackingError(error);
   if (!parsed) return describeApiError(error, fallback);
-  if (parsed.kind === "result_unconfirmed") return BULK_RESULT_UNCONFIRMED_DESCRIPTION;
+  if (parsed.kind === "result_unconfirmed") return { ...BULK_RESULT_UNCONFIRMED_DESCRIPTION, title: unconfirmedTitle };
   if (parsed.code === "idempotency_conflict") {
     return {
       title: "같은 요청 식별자가 다른 요청에 이미 쓰였습니다.",
