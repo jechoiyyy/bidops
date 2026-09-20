@@ -2,6 +2,31 @@
 
 기준일: 2026-09-03
 
+## 발주계획 일괄 추적 시작에는 record backfill도 선택 상한도 없다 (2026-09-20, 미해결)
+
+- 재현: 단건 `PATCH /api/opportunities/{id}/tracking-status`는 `계속 추적`·`보류`로 바뀔 때 router에서
+  `_backfill_tracked_records`를 부른다(`app/lifecycle/routers/opportunities.py`). 일괄
+  `POST …/order-plan-tracking/bulk-start`의 서비스(`order_plan_bulk_tracking.py`)는 commit 뒤
+  `tracking_decision_changed` hook만 부르고 backfill은 부르지 않는다. 같은 요청 스키마의 `order_plan_ids`는
+  `min_length=1`뿐이고 상한이 없다.
+- 영향: 같은 `계속 추적` 결정이 단건이냐 일괄이냐에 따라 선별 적재로 빠져 있던 연결 레코드의 backfill 여부가
+  갈릴 수 있다(의도인지 미확인). 상한이 없으므로 한 요청이 수천 owner를 한 transaction에서 잠글 수 있다.
+- 지금 해결하지 않은 이유: 일괄 추적 종료(ADR-0063) 작업 중 코드를 읽다 확인했다. 종료는 backfill 대상
+  상태가 아니라 이 차이의 영향을 받지 않고, bulk-start v1은 계약 불변으로 두기로 했다. bulk-end에만 200건
+  상한을 뒀다.
+- 후속: backfill 누락이 의도인지 0917 사업 추적 계획의 선별 적재 규칙과 대조한다. 상한은 v2 요청 스키마를
+  발행할 때 함께 정한다.
+
+## 목록 행 체크박스의 클릭 대상이 24px에 못 미친다 (2026-09-20, 결정 대기)
+
+- 재현: 1280×800, `/order-plans`·`/pre-specs` 목록 행 체크박스의 `getBoundingClientRect()`가 14.39×14.39 CSS px다
+  (`--bo-ui-scale: 0.9` 적용 뒤). 선택 툴바 단추는 25.19px로 기준을 넘는다.
+- 영향: WCAG 2.2 AA "Target Size (Minimum)"의 24 CSS px에 못 미친다. 주변 간격으로 충족하는 예외에 해당할
+  여지는 있으나 행 자체도 클릭 대상이라 단정하지 않는다. 탐색 화면 통일(ADR-0062) 이전에도 같은 값이었다.
+- 지금 해결하지 않은 이유: `box-sizing: border-box`와 명시 width/height 때문에 padding으로는 대상이 커지지
+  않는다. `--size-element-sm`(약 25px)로 올리면 승인 시안의 체크박스 모양과 픽셀 기준선이 함께 바뀐다.
+- 후속: 사람이 유지/확대를 정한다. 확대한다면 시안을 먼저 확인한다.
+
 ## 일일 발주계획 트랙이 C-2 단계에서 매일 409로 죽었다 (B-1)
 
 - 확인: 2026-09-19 (독립 검증)
@@ -1574,6 +1599,14 @@ runner 소비자가 없어 보류했다. 운영 DB/MinIO 쓰기·migration 적�
 - 지금 해결하지 않은 이유: 원인을 확인하지 않았다. 날짜에 의존하는 mock 데이터(관측 기간·마감 기준)나
   공유 mock의 회차 목록이 후보다. 이번 범위는 개요 검토 재설계라 확장하지 않았다.
 - 후속: `10cb5be`를 격리 워크트리로 체크아웃해 같은 spec을 돌려 날짜 의존인지 코드 의존인지 먼저 가른다.
+- 2026-09-20 재확인(main `acdf0d9`, 같은 명령): `order-plans.spec.ts`·`explore-workspace-consistency.spec.ts`·
+  `review-primitives.spec.ts`·`pre-specs.spec.ts`·`prespec-list-work.spec.ts`는 **156 passed · 0 failed**다.
+  발주계획 목록이 비던 50건은 더 재현되지 않는다(그 사이 무엇이 고쳤는지는 가르지 않았다). **남은 것은
+  `admin-workspace-consistency.spec.ts:23`의 2건(1280·1440)**으로, 수정 없는 main에서 실행 상태 화면의
+  `.rs-detail-foot`이 보이지 않아 똑같이 실패한다. 이 항목은 그 2건으로 좁혀 유지한다.
+- 2026-09-20 함께 확인된 기존 실패 1건: `common-interactions.spec.ts:266` "사이드바는 7항목…"이 main에서 8개를
+  본다. `acdf0d9`(나라장터 바로가기 추가)가 8번째 `.sidebar-item`을 넣고 `design-shell.spec.ts`만 갱신했다.
+  바로가기를 `SIDEBAR_ITEMS`에 넣을지 카운트에서 뺄지는 그 변경의 의도에 달려 있어 고치지 않았다.
 
 ## 비교 근거 최종 결정 경로가 runtime `app` 역할에서 실행되지 않는다 (2026-09-17, 수용됨)
 
