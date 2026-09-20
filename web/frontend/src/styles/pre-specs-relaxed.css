@@ -219,68 +219,8 @@
  * 필터 줄 아래 8px 띄워 놓인 **카드 하나**이고 남은 높이를 전부 채운다(spec §2.3).
  * 테두리 대신 그림자로 뜨고 네 귀가 모두 둥글다. 시안과 발주계획 검토 화면이 같은
  * 비율(목록 38% / 상세 62%)을 쓴다. */
-.pre-specs-split-workspace {
-  display: flex;
-  flex: 1 1 0;
-  align-items: stretch;
-  min-height: 0;
-  border: 0;
-  border-radius: var(--radius-container);
-  background: var(--color-background-surface);
-  box-shadow: var(--shadow-low);
-  overflow: hidden;
-}
-
-.pre-specs-split-workspace > .pre-specs-list-pane {
-  display: flex;
-  flex: 0 0 38%;
-  flex-direction: column;
-  min-width: 0;
-  min-height: 0;
-  border-right: var(--border-width) solid var(--review-split-line);
-  /* 시안이 요구한 큰 목록 글자. 페이지가 소유한 토큰이며 root·테마는 그대로다.
-     기관·사업명 16px(= body 14px + 2px), 예산·마감·상태 14px. */
-  --ps-list-primary: calc(var(--bo-type-body) + var(--spacing-0-5));
-  --ps-list-secondary: var(--bo-type-body);
-}
-
-.pre-specs-split-workspace > .pre-specs-detail-pane {
-  display: flex;
-  flex: 1 1 auto;
-  flex-direction: column;
-  min-width: 0;
-  min-height: 0;
-}
-
-.pre-specs-list-head {
-  display: flex;
-  flex: 0 0 auto;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--spacing-2);
-  padding: var(--spacing-2) var(--spacing-4);
-  border-bottom: var(--border-width) solid var(--review-split-line);
-}
-
-.pre-specs-list-head > span {
-  color: var(--color-text-secondary);
-  font-size: var(--bo-type-caption);
-  text-align: right;
-}
-
-.pre-specs-list-columns {
-  display: flex;
-  flex: 0 0 auto;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--spacing-2);
-  padding: var(--spacing-1) var(--spacing-4);
-  border-bottom: var(--border-width) solid var(--review-split-line);
-  color: var(--color-text-secondary);
-  background: var(--review-quiet-surface);
-  font-size: var(--ps-list-secondary);
-}
-
+/* 카드 골격·목록 폭·머리 여백·열 이름 줄은 공용 primitive가 갖는다(ADR-0062).
+   여기에는 이 화면만의 차이가 남는다. */
 .pre-specs-list-scroll {
   flex: 1 1 auto;
   min-height: 0;
@@ -303,78 +243,10 @@
   color: var(--color-text-accent);
 }
 
-/* 도구줄은 시안과 같이 한 줄이다: 선택 건수 · 전체 선택 · 전체 해제 · 선택 항목
-   검토 · `이 페이지만 추가`(spec §3.4). 비활성 사유는 글자가 길어 같은 줄에
-   두면 단추가 세로로 쪼개지므로 아래 줄 전체를 쓰고, 빈 문자열이면 자리를
-   차지하지 않는다. */
-.pre-specs-selection-toolbar {
-  display: flex;
-  flex: 0 0 auto;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--spacing-1) var(--spacing-2);
-  padding: var(--spacing-2) var(--spacing-4);
-  border-bottom: var(--border-width) solid var(--review-split-line);
-  background: var(--color-background-surface);
-}
+/* 도구줄 배치·단추 표현은 `.review-selection-toolbar`가 갖는다(ADR-0062). 사유 줄은
+   비어 있어도 높이를 유지하므로 선택이 바뀔 때 목록이 밀리지 않는다.
 
-/* 도구줄 단추는 시안의 28px 칩이다(spec §2.3). 공용 `.interaction-control`은 42px·
-   14px 굵은 글자라 목록 머리보다 커 보였다 — 이 줄에서만 크기를 맞춘다. */
-.pre-specs-selection-toolbar .interaction-control {
-  flex: 0 0 auto;
-  white-space: nowrap;
-  min-height: var(--size-element-sm);
-  padding: 0 var(--spacing-3);
-  border: 0;
-  border-radius: var(--radius-element);
-  color: var(--color-text-primary);
-  background: var(--color-background-surface);
-  box-shadow: inset 0 0 0 var(--border-width) var(--color-border);
-  font-size: var(--bo-type-caption);
-  font-weight: var(--font-weight-medium);
-}
-
-.pre-specs-selection-toolbar .interaction-control-primary {
-  color: var(--color-on-accent);
-  background: var(--color-accent);
-  box-shadow: none;
-}
-
-.pre-specs-selection-toolbar .interaction-control:hover:not(:disabled) {
-  background: var(--color-accent-muted);
-}
-
-.pre-specs-selection-toolbar .interaction-control-primary:hover:not(:disabled) {
-  background: var(--color-text-accent);
-}
-
-.pre-specs-selection-toolbar .interaction-control:disabled {
-  color: var(--color-text-disabled);
-  background: var(--color-background-muted);
-  box-shadow: none;
-}
-
-.pre-specs-selection-count {
-  flex: 0 0 auto;
-  color: var(--color-text-primary);
-  font-size: var(--bo-type-body);
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-.pre-specs-selection-disabled-reason {
-  order: 1;
-  flex: 1 0 100%;
-  min-width: 0;
-  color: var(--color-text-secondary);
-  font-size: var(--bo-type-caption);
-}
-
-.pre-specs-selection-disabled-reason:empty {
-  display: none;
-}
-
-/* `전체 선택`의 범위를 밝히는 캡션은 도구줄 오른쪽 끝에 붙는다(spec §3.4). */
+   `전체 선택`의 범위를 밝히는 캡션은 도구줄 오른쪽 끝에 붙는다(spec §3.4). */
 .pre-specs-selection-page-note {
   flex: 0 0 auto;
   margin-left: auto;
@@ -439,7 +311,7 @@
   display: block;
   min-width: 0;
   color: var(--color-text-primary);
-  font-size: var(--ps-list-primary);
+  font-size: var(--review-list-primary);
   font-weight: 600;
   line-height: 1.4;
 }
@@ -449,7 +321,7 @@
   min-width: 0;
   margin-top: var(--spacing-0-5);
   color: var(--color-text-primary);
-  font-size: var(--ps-list-primary);
+  font-size: var(--review-list-primary);
   line-height: 1.45;
 }
 
@@ -462,20 +334,20 @@
   gap: var(--spacing-1);
   margin-top: var(--spacing-1);
   color: var(--color-text-secondary);
-  font-size: var(--ps-list-secondary);
+  font-size: var(--review-list-secondary);
 }
 
 /* 상태 token은 시안과 같은 크기·무게로 둔다. 실패·사람 확인만 의미색을 갖고
    나머지는 무채색이며, 색과 무관하게 라벨이 늘 함께 있다. */
 .pre-specs-row-state .astryx-token {
-  font-size: var(--ps-list-secondary);
+  font-size: var(--review-list-secondary);
 }
 
 .pre-specs-row-tracking,
 .pre-specs-row-attention,
 .pre-specs-row-next-action {
   color: var(--color-text-secondary);
-  font-size: var(--ps-list-secondary);
+  font-size: var(--review-list-secondary);
 }
 
 .pre-specs-row-next-action {
@@ -488,7 +360,7 @@
 
 .pre-specs-row-unknown {
   color: var(--color-text-secondary);
-  font-size: var(--ps-list-secondary);
+  font-size: var(--review-list-secondary);
   font-weight: 600;
 }
 
@@ -502,12 +374,12 @@
 }
 
 .pre-specs-row-end .pre-specs-deadline {
-  font-size: var(--ps-list-secondary);
+  font-size: var(--review-list-secondary);
 }
 
 .pre-specs-row-deadline-at {
   color: var(--color-text-secondary);
-  font-size: var(--ps-list-secondary);
+  font-size: var(--review-list-secondary);
   white-space: nowrap;
 }
 
@@ -518,7 +390,7 @@
   border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-inner);
   color: var(--color-text-accent);
-  font-size: var(--ps-list-secondary, var(--bo-type-caption));
+  font-size: var(--review-list-secondary, var(--bo-type-caption));
   font-weight: 600;
 }
 
@@ -547,43 +419,8 @@
   padding: var(--spacing-6);
 }
 
-.pre-specs-detail-header {
-  display: flex;
-  flex: 0 0 auto;
-  flex-direction: column;
-  gap: var(--spacing-1-5);
-  padding: var(--spacing-3) var(--spacing-4);
-}
-
-.pre-specs-detail-identity {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--spacing-2);
-  min-width: 0;
-}
-
-.pre-specs-detail-agency {
-  display: flex;
-  align-items: baseline;
-  gap: var(--spacing-2);
-  min-width: 0;
-}
-
-.pre-specs-detail-agency > span {
-  flex: 0 0 auto;
-  color: var(--color-text-secondary);
-  font-size: var(--bo-type-caption);
-}
-
-.pre-specs-detail-agency > strong {
-  min-width: 0;
-  color: var(--color-text-primary);
-  font-size: var(--bo-type-section-title);
-  font-weight: 600;
-}
-
+/* 상세 머리 여백·선·sticky 는 `.review-detail-head`가, 발주기관 강조 블록은
+   `.review-agency-feature`가 갖는다(ADR-0062 — A안 순서: 기관 → 사업명 → 칩 → 식별). */
 .pre-specs-detail-chips {
   display: flex;
   flex-wrap: wrap;
@@ -1064,22 +901,11 @@
   font-weight: 500;
 }
 
+/* 조회 중 상태는 목록 pane 안에 그려진다(ADR-0062). 바깥 카드를 다시 그리지 않는다. */
 .pre-specs-loading {
-  padding: 28px;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  color: var(--color-muted);
-  background: var(--surface-card);
+  padding: var(--spacing-5);
+  color: var(--color-text-secondary);
   text-align: center;
-}
-
-.pre-specs-pager {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 14px;
-  color: var(--color-muted);
-  font-size: var(--bo-type-caption);
 }
 
 .pre-specs-pager button {
