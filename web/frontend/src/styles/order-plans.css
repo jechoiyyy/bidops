@@ -977,51 +977,17 @@
  * 툴바 바로 아래에 이어 붙는 한 덩어리이고, 남은 높이를 전부 채운다. 스크롤은 목록과
  * 상세 본문 안에서만 일어나므로 바닥의 결정 블록은 늘 보인다. */
 /* spec §2.3 — 필터 줄과 이어 붙던 상자가 아니라 그림자로 뜬 카드 하나다. */
+/* 카드 골격(`.review-split-workspace`)과 목록·상세 pane의 폭·방향은 공용
+   primitive가 갖는다(ADR-0062). 여기에는 이 화면만의 차이가 남는다. */
 .c2l-workspace {
-  display: flex;
-  flex: 1 1 0;
   flex-direction: row;
-  align-items: stretch;
-  min-height: 0;
-  border: 0;
-  border-radius: var(--radius-container);
-  background: var(--color-background-surface);
-  box-shadow: var(--shadow-low);
-  overflow: hidden;
 }
 
-.c2l-list-pane {
-  display: flex;
-  flex-direction: column;
-  /* 시안 기준 38% : 62%. 사람이 끌면 그때 px 값이 들어온다. */
-  flex: 0 0 var(--c2l-list-width, 38%);
-  width: var(--c2l-list-width, 38%);
-  min-width: 0;
-  border-right: var(--border-width) solid var(--review-split-line);
-  min-height: 0;
-}
-
-.c2l-list-head {
-  display: flex;
-  flex: 0 0 auto;
-  flex-direction: column;
-  gap: var(--spacing-0-5);
-  padding: var(--spacing-2) var(--spacing-4);
-  border-bottom: var(--border-width) solid var(--review-split-line);
-}
-
-.c2l-list-head p {
+.c2l-list-head p,
+.c2l-list-foot p {
   margin: 0;
   min-width: 0;
   overflow-wrap: anywhere;
-}
-
-.c2l-list-head-row {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--spacing-2);
-  min-width: 0;
 }
 
 /* 조합이 길어지면 한 줄로 줄이고 전체 문장은 title 로 남긴다. */
@@ -1029,6 +995,29 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* 회차 선택은 필터 아래 줄이다(사전규격과 같은 자리). 라벨과 선택기를 한 줄에 둔다. */
+.c2l-filter-context {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-2) var(--spacing-3);
+  padding-top: 0;
+  padding-bottom: var(--spacing-2);
+  border-top: 0;
+}
+
+.c2l-filter-context-range {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-2);
+  min-width: 0;
+}
+
+.c2l-filter-context-range .c2l-run-selector {
+  min-width: 14rem;
 }
 
 .c2l-list-scroll {
@@ -1059,21 +1048,26 @@
  * `.c2l-row-wrap`과 `.c2l-row`는 같은 요소에 함께 붙는 클래스다. 두 벌로
  * 나누어 두면 뒤에 오는 `border: 0`이 앞의 구분선을 지우므로 한 벌로 둔다. */
 .c2l-row-wrap {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  justify-content: flex-start;
-  gap: var(--spacing-1);
-  width: 100%;
+  align-items: flex-start;
   min-width: 0;
   padding: var(--spacing-2) var(--spacing-4);
-  border: 0;
   border-bottom: var(--border-width) solid var(--review-split-line);
-  background: transparent;
   text-align: left;
   cursor: pointer;
-  font: inherit;
-  color: inherit;
+}
+
+.c2l-row-wrap[data-selection-mode="multiple"] [type="checkbox"] {
+  width: var(--spacing-4);
+  height: var(--spacing-4);
+  flex: 0 0 auto;
+  margin: var(--spacing-0-5) var(--spacing-2) 0 0;
+  /* spec §2.3 — 체크됨은 포인트 초록 채움 + 흰 체크. 라벨이 늘 함께 있다. */
+  accent-color: var(--bo-brand);
+}
+
+.c2l-row-wrap[data-selection-mode="multiple"] [type="checkbox"]:focus-visible {
+  outline: var(--focus-outline-width) solid var(--color-accent);
+  outline-offset: var(--spacing-0-5);
 }
 
 /* spec §2.3 — 선택 행은 `--color-accent-muted` 배경 하나로만 말한다(좌측 바 없음). */
@@ -1090,77 +1084,66 @@
   outline-offset: calc(-1 * var(--focus-outline-width));
 }
 
-/* 행의 차례는 사업명 → 상태 배지 → metadata(발주기관 · 예산 · 시기)다. 사업명이 행의
- * 제목이므로 본문보다 한 단 큰 15px 굵은 글자로 읽히고, 발주기관은 자리를 옮기지 않고
- * 본문 14px 보통 굵기로 둔다(사용자 정정). 긴 한글 제목은 두 줄까지 보이고 그 뒤를
- * 말줄임한다. */
-.c2l-row-line {
-  display: block;
-  min-width: 0;
-}
-
-/* 첫 줄은 사업명과 모델 판단 배지가 나눠 쓴다. baseline 정렬이라 제목이 두 줄로 잘려도
- * 배지는 첫 줄에 붙어 있고, 배지는 줄어들지 않는다(라벨이 잘리면 뜻이 사라진다). */
-.c2l-row-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--spacing-2);
-  min-width: 0;
-}
-
-.c2l-row-head .c2l-row-title {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
-.c2l-row-head .c2l-row-model {
-  flex: 0 0 auto;
-  padding-inline: var(--spacing-2);
-}
-
-/* 위 `:where(dd, li, p, span)` 규칙이 본문 14px를 주므로 `.c2l-page`로 특정도를 올려
- * 목록 첫 줄만 한 단 키운다(판정 기준 화면의 `--crit-type-list`와 같은 계산). */
+/* 행의 차례는 사전규격 행과 같다(ADR-0062): 사업명 → 발주기관 → metadata(예산 ·
+ * 판정 policy · 첫 관측) → 상태 칩. 사업명과 발주기관은 같은 크기(`--review-list-primary`)
+ * 이고 굵기만 다르며, metadata·칩 줄은 `--review-list-secondary`다. 긴 한글 제목은
+ * 두 줄까지 보이고 그 뒤를 말줄임한다. */
 .c2l-page .c2l-row-title {
-  font-size: calc(var(--bo-type-body) + 0.9px);
-  font-weight: var(--font-weight-semibold);
-  line-height: var(--bo-type-body-leading);
-}
-
-.c2l-row-title {
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
   line-clamp: 2;
+  min-width: 0;
   overflow: hidden;
   overflow-wrap: anywhere;
+  color: var(--color-text-primary);
+  font-size: var(--review-list-primary);
+  font-weight: var(--font-weight-semibold);
+  line-height: 1.4;
 }
 
-/* 시안의 행 내부 간격: 사업명 / 상태 배지 / metadata 세 줄이 같은 간격으로 쌓인다. */
-.c2l-row-desc {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-1);
+.c2l-page .c2l-row-agency {
+  display: block;
   min-width: 0;
-}
-
-.c2l-row-meta {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 0 var(--spacing-2);
-  min-width: 0;
-}
-
-.c2l-row-agency {
-  min-width: 0;
+  margin-top: var(--spacing-0-5);
+  color: var(--color-text-primary);
+  font-size: var(--review-list-primary);
+  font-weight: var(--font-weight-regular);
+  line-height: 1.45;
   overflow-wrap: anywhere;
 }
 
-/* 누적 목록의 행별 판정 표식(policy 버전·첫 관측일). 제목·metadata 아래 한 줄이다. */
+.c2l-page .c2l-row-meta,
+.c2l-page .c2l-row-state {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-1);
+  min-width: 0;
+  margin-top: var(--spacing-1);
+  color: var(--color-text-secondary);
+  font-size: var(--review-list-secondary);
+}
+
+/* 누적 목록의 행별 판정 표식(policy 버전·첫 관측일). */
 .c2l-row-verdict {
   min-width: 0;
   overflow-wrap: anywhere;
+}
+
+/* 오른쪽 열은 발주 예정 하나다(사전규격의 의견 마감 자리와 같다). */
+.c2l-row-end {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  min-width: 0;
+  text-align: right;
+}
+
+.c2l-page .c2l-row-planned {
+  color: var(--color-text-secondary);
+  font-size: var(--review-list-secondary);
+  white-space: nowrap;
 }
 
 /* 자동 실행이 꺼진 사유 목록(배너 본문). preflight 가 목록 표식을 지우므로 되살린다. */
@@ -1197,81 +1180,10 @@
   text-decoration: underline;
 }
 
-.c2l-pager {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--spacing-3);
-  padding: var(--spacing-3);
-  border-top: var(--border-width) solid var(--review-split-line);
-  background: var(--review-quiet-surface);
-}
-
-/* --- 크기 조절 separator --- */
-.c2l-resizer {
-  flex: 0 0 6px;
-  width: 6px;
-  min-height: 0;
-  cursor: col-resize;
-  background: var(--review-split-line);
-  border: 0;
-}
-
-.c2l-resizer:hover,
-.c2l-resizer:focus-visible {
-  background: var(--color-accent);
-}
-
-.c2l-resizer:focus-visible {
-  outline: var(--focus-outline-width) var(--focus-outline-style) var(--focus-outline-color);
-  outline-offset: 1px;
-}
-
-/* --- 상세 pane --- */
-.c2l-detail-pane {
-  display: flex;
-  flex-direction: column;
-  flex: 1 1 auto;
-  min-width: 0;
-  min-height: 0;
-}
-
-.c2l-detail-head {
-  display: flex;
-  flex: 0 0 auto;
-  flex-direction: column;
-  gap: var(--spacing-1-5);
-  padding: var(--spacing-3) var(--spacing-4);
-  border-bottom: var(--border-width) solid var(--review-split-line);
-}
-
+/* --- 상세 pane ---
+   방향·폭은 `.review-split-detail`이, 머리 여백·선은 `.review-detail-head`가 갖는다. */
 .c2l-detail-head h4 {
   margin: 0;
-  overflow-wrap: anywhere;
-}
-
-/* 발주기관은 사업명보다 먼저 읽힌다. 라벨과 기관명을 강조 영역으로 분리한다(시안 §4). */
-.c2l-agency-feature {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--spacing-1) var(--spacing-3);
-  min-width: 0;
-  padding: var(--spacing-3) var(--spacing-4);
-  border-radius: var(--radius-inner);
-  background: var(--color-accent-muted);
-}
-
-.c2l-agency-feature p {
-  margin: 0;
-}
-
-.c2l-agency-label {
-  flex: 0 0 auto;
-}
-
-.c2l-agency-name {
-  min-width: 0;
   overflow-wrap: anywhere;
 }
 
@@ -1620,14 +1532,23 @@
   text-underline-offset: var(--spacing-0-5);
 }
 
-/* 목록 바닥은 읽을 것이 아니라 지금 보는 범위를 적는 줄이다(spec §2.3). */
+/* 목록 바닥은 읽을 것이 아니라 지금 보는 범위를 적는 줄이다(spec §2.3). 머리에서
+   내려온 범위·policy·정렬 설명이 기존 안내 문단과 여기서 한 덩어리가 된다(ADR-0062). */
 .c2l-list-foot {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  gap: var(--spacing-0-5);
   min-width: 0;
   margin: 0;
   padding: var(--spacing-2) var(--spacing-4);
   border-top: var(--border-width) solid var(--review-split-line);
   background: var(--review-quiet-surface);
   overflow-wrap: anywhere;
+}
+
+.c2l-list-range {
+  font-variant-numeric: tabular-nums;
 }
 
 /* 상세 pane 바닥의 결정 블록. 시안처럼 상태·사유·담당자·버튼이 한 덩어리로 늘 보이며
@@ -1761,21 +1682,9 @@
   margin-left: auto;
 }
 
-/* 목록의 활성 행과 독립적인 checked 묶음. */
-.c2l-selection-toolbar {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-2);
-  min-width: 0;
-  flex-wrap: wrap;
-}
-
-.c2l-selection-toolbar > span {
-  margin-right: auto;
-  font-weight: 700;
-}
-
+/* 목록의 활성 행과 독립적인 checked 묶음. 배치는 `.review-selection-toolbar`가 갖는다. */
 .c2l-selection-storage-warning {
+  flex: 0 0 auto;
   margin: 0;
   padding: var(--spacing-1-5) var(--spacing-2);
   border: var(--border-width) solid var(--color-warning-edge);
