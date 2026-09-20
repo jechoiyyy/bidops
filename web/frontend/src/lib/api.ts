@@ -64,6 +64,8 @@ import type {
   OpportunitySearchResponse,
   OpportunityTrackingStatus,
   RecheckAcknowledgementRequest,
+  OrderPlanBulkEndRequest,
+  OrderPlanBulkEndResponse,
   OrderPlanBulkExcludedStatus,
   OrderPlanBulkFailureCode,
   OrderPlanBulkPreviewItem,
@@ -160,6 +162,9 @@ export class OrderPlanBulkTrackingResultUnconfirmedError extends ApiError {
     this.name = "OrderPlanBulkTrackingResultUnconfirmedError";
   }
 }
+
+/** ADR-0063: 일괄 추적 종료 한 요청의 상한(PoC 값). 서버는 초과를 422 `too_long`으로 거부한다. */
+export const ORDER_PLAN_BULK_END_MAX_SELECTION = 200;
 
 const BULK_EXCLUDED_STATUSES = ["계속 추적", "보류", "종료"] as const;
 const BULK_TRACKING_STATUSES = ["미선택", ...BULK_EXCLUDED_STATUSES] as const;
@@ -399,7 +404,14 @@ function parsePreviewResponse(
   };
 }
 
-function parseStartItem(value: unknown): OrderPlanBulkStartItem | null {
+/**
+ * bulk-start·bulk-end 항목 공통 파서. 둘은 목표 상태(`succeededStatus`)만 다르고
+ * 나머지 wire 모양·검증 규칙은 같다(ADR-0063).
+ */
+function parseBulkTargetItem(
+  value: unknown,
+  succeededStatus: OpportunityTrackingStatus,
+): OrderPlanBulkStartItem | null {
   const record = exactRecord(value, START_ITEM_KEYS);
   if (!record || !positiveId(record.order_plan_id)) return null;
   const opportunityId = nullablePositiveId(record.opportunity_id);
@@ -419,7 +431,7 @@ function parseStartItem(value: unknown): OrderPlanBulkStartItem | null {
   if (!outcome) return null;
   if (
     outcome === "succeeded"
-    && (opportunityId === null || status !== "계속 추적" || code !== null || auditEventId === null)
+    && (opportunityId === null || status !== succeededStatus || code !== null || auditEventId === null)
   ) return null;
   if (
     outcome === "excluded"
@@ -438,6 +450,14 @@ function parseStartItem(value: unknown): OrderPlanBulkStartItem | null {
     code,
     audit_event_id: auditEventId,
   };
+}
+
+function parseStartItem(value: unknown): OrderPlanBulkStartItem | null {
+  return parseBulkTargetItem(value, "계속 추적");
+}
+
+function parseEndItem(value: unknown): OrderPlanBulkStartItem | null {
+  return parseBulkTargetItem(value, "종료");
 }
 
 function parseSummary(value: unknown): OrderPlanBulkSummary | null {
@@ -480,16 +500,22 @@ export function parseOrderPlanBulkPreviewResponse(
  * Parse a v1 final receipt.  The expected request ID is optional for callers
  * that only have a stored receipt; the API client always supplies it.
  */
-export function parseOrderPlanBulkStartResponse(
+/**
+ * bulk-start·bulk-end 최종 receipt 공통 검증. 스키마 버전 리터럴과 항목 파서만
+ * 호출자가 주고, 나머지 원자성·집계 대조는 두 작업이 완전히 같다(ADR-0063).
+ */
+function parseBulkTargetResponse<S extends string>(
   value: unknown,
   requestedIds: readonly number[],
+  expectedSchemaVersion: S,
+  itemParser: (item: unknown) => OrderPlanBulkStartItem | null,
   expectedRequestId?: string,
-): OrderPlanBulkStartResponse {
+): { schema_version: S; request_id: string; completed_at: string; items: OrderPlanBulkStartItem[]; summary: OrderPlanBulkSummary } {
   const expectedIds = normalizedPlanIds(requestedIds);
   const record = exactRecord(value, START_RESPONSE_KEYS);
   if (
     !record
-    || record.schema_version !== "order-plan-bulk-start-response.v1"
+    || record.schema_version !== expectedSchemaVersion
     || !isUuid(record.request_id)
     || (expectedRequestId !== undefined && record.request_id.toLowerCase() !== expectedRequestId.toLowerCase())
     || !isAwareTimestamp(record.completed_at)
@@ -500,7 +526,7 @@ export function parseOrderPlanBulkStartResponse(
   if (!summary) throw new OrderPlanBulkTrackingResultUnconfirmedError();
   const items: OrderPlanBulkStartItem[] = [];
   for (let index = 0; index < record.items.length; index += 1) {
-    const item = parseStartItem(record.items[index]);
+    const item = itemParser(record.items[index]);
     if (!item || item.order_plan_id !== expectedIds[index]) {
       throw new OrderPlanBulkTrackingResultUnconfirmedError();
     }
@@ -550,12 +576,35 @@ export function parseOrderPlanBulkStartResponse(
     ) throw new OrderPlanBulkTrackingResultUnconfirmedError();
   }
   return {
-    schema_version: "order-plan-bulk-start-response.v1",
+    schema_version: expectedSchemaVersion,
     request_id: record.request_id,
     completed_at: record.completed_at,
     items,
     summary,
   };
+}
+
+export function parseOrderPlanBulkStartResponse(
+  value: unknown,
+  requestedIds: readonly number[],
+  expectedRequestId?: string,
+): OrderPlanBulkStartResponse {
+  return parseBulkTargetResponse(
+    value, requestedIds, "order-plan-bulk-start-response.v1", parseStartItem, expectedRequestId,
+  );
+}
+
+/**
+ * bulk-end 최종 receipt 파서(ADR-0063). 성공 항목의 목표 상태는 `종료`로 고정된다.
+ */
+export function parseOrderPlanBulkEndResponse(
+  value: unknown,
+  requestedIds: readonly number[],
+  expectedRequestId?: string,
+): OrderPlanBulkEndResponse {
+  return parseBulkTargetResponse(
+    value, requestedIds, "order-plan-bulk-end-response.v1", parseEndItem, expectedRequestId,
+  );
 }
 
 async function requestBulkResponse<T>(
@@ -1432,6 +1481,21 @@ export const api = {
         body: JSON.stringify(payload),
       },
       (body) => parseOrderPlanBulkStartResponse(body, payload.order_plan_ids, payload.request_id),
+    ),
+
+  /**
+   * 일괄 추적을 종료하고 서버의 durable·replayable receipt를 돌려준다(ADR-0063).
+   * 한 요청 상한은 `ORDER_PLAN_BULK_END_MAX_SELECTION`이며 초과는 서버가 422로 거부한다.
+   */
+  endOrderPlanTracking: (payload: OrderPlanBulkEndRequest, actorName: string) =>
+    requestBulkResponse(
+      "/opportunities/order-plan-tracking/bulk-end",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...actorHeaders(actorName) },
+        body: JSON.stringify(payload),
+      },
+      (body) => parseOrderPlanBulkEndResponse(body, payload.order_plan_ids, payload.request_id),
     ),
 
   /** 후보 연결 하나에 사람 판정을 남긴다. 응답은 갱신된 연결 하나다. */

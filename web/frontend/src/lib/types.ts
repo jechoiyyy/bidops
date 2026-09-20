@@ -1685,6 +1685,28 @@ export interface OrderPlanBulkStartResponse {
 }
 
 /**
+ * 발주계획 일괄 추적 종료 v1 (ADR-0063). 목표 상태가 `종료`로 고정된다는 점만
+ * bulk-start와 다르고 나머지 wire 모양은 같다.
+ */
+export interface OrderPlanBulkEndRequest {
+  schema_version: "order-plan-bulk-end-request.v1";
+  request_id: string;
+  order_plan_ids: number[];
+  reason: string;
+}
+
+export interface OrderPlanBulkEndResponse {
+  schema_version: "order-plan-bulk-end-response.v1";
+  request_id: string;
+  completed_at: string;
+  items: OrderPlanBulkStartItem[];
+  summary: OrderPlanBulkSummary;
+}
+
+/** 화면이 두 작업의 최종 receipt를 같은 모양으로 다루는 자리에 쓰는 union. */
+export type OrderPlanBulkReceipt = OrderPlanBulkStartResponse | OrderPlanBulkEndResponse;
+
+/**
  * 후보 연결 하나에 대한 사람 판정 (`PATCH /opportunities/links/{id}/decision`).
  *
  * 서버는 이 계약을 이미 갖고 있었지만 화면에 진입점이 없어 `후보 확인 대기`
