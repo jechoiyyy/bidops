@@ -72,6 +72,19 @@ for (const width of [1280, 1440]) {
     await expect(conditions.locator('#ps-conditions-list-title')).toBeVisible();
     await expect(conditions.getByText('심층 검토에서 확인')).toHaveCount(2);
     await expect(conditions.locator('.ps-risks')).toHaveCount(0);
+
+    // 주장 ID는 ⑤ 근거 목록에서 빠지고 ⑥ 접힌 `기술 정보`에서 전문으로 읽힌다
+    // (docs/0921_practitioner-screens/spec.md §3.2).
+    await expect(page.locator('#ps-evidence .ps-loc')).toHaveCount(0);
+    await expect(page.locator('#ps-evidence code')).toHaveCount(0);
+    await expect(page.locator('.ps-collapsed dl[aria-label="현재 개요 결과 식별 정보"]'))
+      .toContainText('c1, c2, c3');
+    // 같은 취지의 경계 문장은 ② 추적 결정 카드 한 곳만 갖는다(M4 승인 2026-09-21).
+    await expect(page.getByText('적합성 등급 · 추적 결정 · 최종 Go/No-Go는 서로 대신하지 않습니다. 입찰 참여 여부는 최종 Go/No-Go에서 정합니다.')).toHaveCount(1);
+    await expect(page.getByText('추적 승인과 최종 입찰 결정은 사람이')).toHaveCount(0);
+    await expect(page.getByText('서로 대신하지 않음')).toHaveCount(0);
+    await expect(page.getByText('추적 선택과 최종 입찰 Go/No-Go는 사람이 결정합니다.')).toHaveCount(0);
+
     expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(false);
     await page.goto('/pre-specs/991');
     await expect(page.getByRole('region', { name: 'PDF 기반 개요 검토' })).toBeVisible();
@@ -116,9 +129,9 @@ test('current result is selected by result_id and terminal state refreshes relat
   });
 
   await page.goto('/pre-specs/991');
-  await expect(page.getByRole('region', { name: '현재 v4 개요 실행' })).toContainText('개요 검토 대기');
+  await expect(page.getByRole('region', { name: '현재 개요 검토' })).toContainText('개요 검토 대기');
   await expect.poll(() => overviewCalls, { timeout: 12_000 }).toBeGreaterThan(1);
-  await expect(page.getByRole('region', { name: '현재 v4 개요 실행' })).toContainText('개요 검토 완료');
+  await expect(page.getByRole('region', { name: '현재 개요 검토' })).toContainText('개요 검토 완료');
   const currentRegion = page.getByRole('region', { name: 'PDF 기반 개요 검토' });
   await expect(currentRegion).toContainText(currentFactText);
   await expect(currentRegion).not.toContainText('과거 성공 결과의 본문이다.');
@@ -127,14 +140,18 @@ test('current result is selected by result_id and terminal state refreshes relat
     'href',
     new RegExp(`${overviewCompletedRunFixture.id}/pdf#page=3$`),
   );
-  await expect(page.getByText('이전 개요 결과 1건', { exact: true })).toBeVisible();
-  await page.getByText('이전 개요 결과 1건', { exact: true }).click();
-  await expect(page.getByText(new RegExp(`결과 ID · ${historicalRun.id}`))).toBeVisible();
+  // 이전 결과 줄에는 실행 시각과 품질 표식만 남는다. 결과 ID는 ⑥ 접힌 기술 정보가 갖는다.
+  const historySummary = page.locator('.page-overview-history > summary');
+  await expect(historySummary).toHaveText('이전 개요 결과 1건');
+  await historySummary.click();
+  await expect(page.locator('.page-overview-history-item summary').first()).not.toContainText(historicalRun.id);
+  await expect(page.locator(`.ps-collapsed dl[aria-label="이전 개요 결과 ${historicalRun.id} 식별 정보"]`))
+    .toContainText(historicalRun.id);
   await expect.poll(() => requests.filter(path => path === '/api/pre-specs').length, { timeout: 5_000 }).toBeGreaterThan(1);
   await expect.poll(() => requests.filter(path => path === '/api/pre-specs/991/company-fit').length, { timeout: 5_000 }).toBeGreaterThan(1);
 
   await page.goto('/pre-specs/991');
-  await expect(page.getByRole('region', { name: '현재 v4 개요 실행' })).toContainText('개요 검토 완료');
+  await expect(page.getByRole('region', { name: '현재 개요 검토' })).toContainText('개요 검토 완료');
   await expect(page.getByRole('region', { name: 'PDF 기반 개요 검토' })).toContainText(currentFactText);
 });
 
@@ -166,12 +183,18 @@ test('current claim verification remains visible when a previous successful resu
   }));
   await page.goto('/pre-specs/991');
 
-  const currentRegion = page.getByRole('region', { name: '현재 v4 개요 실행' });
+  const currentRegion = page.getByRole('region', { name: '현재 개요 검토' });
   await expect(currentRegion).toContainText('주장과 검증된 근거를 사람이 확인해야 합니다. 입력 범위 확인 대기와는 별도 상태입니다.');
-  await currentRegion.getByText('실행 정보', { exact: true }).click();
-  await expect(currentRegion).toContainText('claim_verification_required');
+  // 시도 ID·처리 사유 코드는 ⑥ 접힌 `기술 정보`가 갖는다. 사람 확인 필요 상태라
+  // 접힌 곳은 기본으로 열린 채 들어온다(0915 spec §4 ⑥).
+  await expect(currentRegion).not.toContainText('claim_verification_required');
+  const technical = page.locator('.ps-collapsed');
+  await expect(technical.locator('.astryx-collapsible-content')).toBeVisible();
+  await expect(technical.locator('dl[aria-label="현재 개요 실행 정보"]')).toContainText('claim_verification_required');
+  await expect(technical.locator('dl[aria-label="현재 개요 실행 정보"]')).toContainText(needsReviewRun.id);
   await expect(page.getByRole('region', { name: 'PDF 기반 개요 검토' })).toHaveCount(0);
   const verification = page.getByRole('region', { name: '현재 주장 검증 진단' });
+  await expect(verification).toContainText('주장 ID · budgetClaim');
   await expect(verification).toContainText('근거 확인 필요');
   await expect(verification).toContainText('전체 사유 코드 · required_fact_missing');
   await expect(verification).toContainText('사업 예산은 6억원이다.');
@@ -183,13 +206,17 @@ test('current claim verification remains visible when a previous successful resu
     `/api/pre-specs/991/overview/runs/${needsReviewRun.id}/pdf#page=7`,
   );
   await expect(verification).not.toContainText('모델 원문 인용');
-  await expect(page.getByText('이전 개요 결과 1건', { exact: true })).toBeVisible();
-  await page.getByText('이전 개요 결과 1건', { exact: true }).click();
   const history = page.locator('.page-overview-history');
-  await expect(history.getByText(new RegExp(`결과 ID · ${historicalRun.id}`))).toBeVisible();
+  await history.locator('> summary').click();
+  // 이전 결과 줄은 실행 시각과 품질 표식만 말한다(경고 ①). 식별자·검증 기준은 접힌 곳.
+  const historyItem = history.locator('.page-overview-history-item > details > summary');
+  await expect(historyItem).toContainText('참조 실행 · 품질 미측정');
+  await expect(historyItem).not.toContainText(historicalRun.id);
+  await expect(historyItem).not.toContainText('주장 검증 v4');
+  await expect(technical.locator(`dl[aria-label="이전 개요 결과 ${historicalRun.id} 식별 정보"]`))
+    .toContainText('주장 검증 v4');
   await expect(page.getByText('과거 성공 결과의 본문이다.', { exact: true })).toBeHidden();
-  await history.getByText(new RegExp(`결과 ID · ${historicalRun.id}`)).click();
-  await expect(history).toContainText('주장 검증 v4');
+  await historyItem.click();
   await expect(page.getByText('과거 성공 결과의 본문이다.', { exact: true })).toBeVisible();
 });
 
@@ -209,7 +236,7 @@ for (const state of [
       json: envelope(terminalRun, [terminalRun, historicalRun]),
     }));
     await page.goto('/pre-specs/991');
-    await expect(page.getByRole('region', { name: '현재 v4 개요 실행' })).toContainText(state.label);
+    await expect(page.getByRole('region', { name: '현재 개요 검토' })).toContainText(state.label);
     await expect(page.getByRole('region', { name: 'PDF 기반 개요 검토' })).toHaveCount(0);
     await expect(page.getByText('이전 개요 결과 1건', { exact: true })).toBeVisible();
   });
@@ -228,7 +255,7 @@ for (const width of [1280, 1440]) {
     await page.route(OVERVIEW_PATH, route => route.fulfill({ json: envelope(failedRun, [failedRun]) }));
 
     await page.goto('/pre-specs/991');
-    const current = page.getByRole('region', { name: '현재 v4 개요 실행' });
+    const current = page.getByRole('region', { name: '현재 개요 검토' });
     await expect(current).toContainText('입력 용량 초과로 미실행');
     await expect(current).toContainText('선택 범위와 요청 예산을 확인해 주세요.');
     await expect(current).toContainText('안전 한도를 확인할 수 없어');
@@ -282,7 +309,7 @@ test('an envelope that does not match the contract fails closed', async ({ page 
   await page.goto('/pre-specs/991');
   await expect(page.getByText('개요 응답의 공고 또는 구조가 일치하지 않아 표시하지 않습니다.')).toBeVisible();
   await expect(page.getByRole('region', { name: 'PDF 기반 개요 검토' })).toHaveCount(0);
-  await expect(page.getByRole('region', { name: '현재 v4 개요 실행' })).toHaveCount(0);
+  await expect(page.getByRole('region', { name: '현재 개요 검토' })).toHaveCount(0);
 });
 
 /** 범위 확인: 결정적 선택기가 범위를 못 정하면 사람이 시작·끝을 확정한다. */
@@ -497,7 +524,7 @@ test('ready automatic range with failed capacity keeps PDF and separates prepara
       'href',
       '/api/pre-specs/991/overview/snapshot/pdf',
     );
-    const current = page.getByRole('region', { name: '현재 v4 개요 실행' });
+    const current = page.getByRole('region', { name: '현재 개요 검토' });
     await expect(current).toContainText('입력 용량 초과로 미실행');
     await expect(current).toContainText('단계별 payload 상한은 정책이 정하며');
     await expect(current).toContainText('모델 컨텍스트 한도는 실제 요청 전체');
@@ -574,6 +601,6 @@ test('completed overview alongside the latest range target does not claim conten
   const range = page.getByRole('region', { name: '개요 범위 확인' });
   await expect(range).toContainText('내용 검증 상태는 개요 상태에서 확인');
   await expect(range).not.toContainText('내용 미검증');
-  await expect(page.getByRole('region', { name: '현재 v4 개요 실행' })).toContainText('개요 검토 완료');
+  await expect(page.getByRole('region', { name: '현재 개요 검토' })).toContainText('개요 검토 완료');
   await expect(page.getByRole('region', { name: 'PDF 기반 개요 검토' })).toContainText(currentFactText);
 });
