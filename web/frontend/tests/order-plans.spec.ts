@@ -136,7 +136,7 @@ test("기본 목록은 밀집 행이고 판정에 필요한 값만 담으며, �
   await expect(page.locator("header.topbar h1")).toHaveText("발주계획");
   // ADR-0062 ⓓ — 회차 선택은 상단바가 아니라 필터 아래 줄(사전규격과 같은 자리)이다.
   await expect(page.locator("header.topbar").getByRole("combobox", { name: "수집 회차" })).toHaveCount(0);
-  await expect(page.locator(".c2l-filter-context").getByRole("combobox", { name: "수집 회차" })).toBeVisible();
+  await expect(page.locator(".c2l-filter-tools").getByRole("combobox", { name: "수집 회차" })).toBeVisible();
   // 페이지에 남는 것은 문서 구조와 `aria-labelledby`를 위한 숨긴 제목 하나뿐이다.
   await expect(page.locator("section.c2l-page > h2.visually-hidden")).toHaveText("발주계획");
   await expect(page.locator("section.c2l-page .c2l-page-header")).toHaveCount(0);
@@ -215,7 +215,7 @@ test("발주계획의 기존 머리글 액션은 상단바 슬롯에 한 번씩�
   // 기존 머리글이 제공하던 동선. 회차 선택만 필터 아래 줄로 내려갔고(ADR-0062 ⓓ)
   // 실행 상태 표시·실행 상세 링크는 그대로 상단바 슬롯에 남는다.
   await expect(actions.getByRole("combobox", { name: "수집 회차" })).toHaveCount(0);
-  await expect(page.locator(".c2l-filter-context").getByRole("combobox", { name: "수집 회차" })).toHaveCount(1);
+  await expect(page.locator(".c2l-filter-tools").getByRole("combobox", { name: "수집 회차" })).toHaveCount(1);
   await expect(actions.locator(".c2l-status-chip")).toHaveCount(1);
   await expect(actions.getByRole("button", { name: "실행 상태", exact: true })).toHaveCount(1);
   await expect(actions.getByRole("link", { name: "실행 상세 →", exact: true })).toHaveCount(1);
@@ -2239,7 +2239,7 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900
       expect(listRequests.length).toBeGreaterThan(0);
       expect(listRequests.every((params) => !params.has("source_run_id"))).toBe(true);
       expect(new URL(page.url()).searchParams.has("source_run_id")).toBe(false);
-      const runSelector = page.locator(".c2l-filter-context").getByRole("combobox", { name: "수집 회차" });
+      const runSelector = page.locator(".c2l-filter-tools").getByRole("combobox", { name: "수집 회차" });
       await expect(runSelector).toContainText("누적 · 회차 선택 안 함");
 
       // 기본 보기 = 추적을 정하지 않은 관련 건. 조합 문장과 행의 판정 표식을 함께 밝힌다.

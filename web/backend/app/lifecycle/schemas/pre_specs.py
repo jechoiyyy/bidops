@@ -7,10 +7,10 @@
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import ConfigDict, Field
+from pydantic import ConfigDict, Field, StringConstraints, field_validator
 
 from ...core.constants import (
     PreSpecAutoPreparationStatus,
@@ -52,7 +52,39 @@ class PreSpecDocumentSummary(RuntimeContractModel):
     failed: int = Field(default=0, ge=0, alias="실패")
 
 
+PreSpecReviewExclusionStatus = Literal["included", "excluded"]
+PreSpecReviewExclusionFilter = Literal["all", "included", "excluded"]
+
+
+class PreSpecReviewExclusionRequest(RuntimeContractModel):
+    notice_ids: list[Annotated[int, Field(strict=True, ge=1, le=2147483647)]] = Field(min_length=1, max_length=200)
+    status: PreSpecReviewExclusionStatus
+    actor_name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=128)]
+    reason: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=2000)]
+
+    @field_validator("notice_ids")
+    @classmethod
+    def unique_ids(cls, values: list[int]) -> list[int]:
+        if len(set(values)) != len(values):
+            raise ValueError("duplicate notice_ids")
+        return values
+
+
+class PreSpecReviewExclusionResult(RuntimeContractModel):
+    notice_id: int
+    outcome: Literal["changed", "unchanged"]
+    status: PreSpecReviewExclusionStatus
+
+
+class PreSpecReviewExclusionResponse(RuntimeContractModel):
+    items: list[PreSpecReviewExclusionResult]
+
+
 class PreSpecListItem(RuntimeContractModel):
+    review_exclusion_status: PreSpecReviewExclusionStatus = "included"
+    review_exclusion_actor_name: str | None = None
+    review_exclusion_reason: str | None = None
+    review_exclusion_changed_at: AwareDateTime | None = None
     notice_pk: int = Field(ge=1)
     pre_spec_no: str | None = None
     title: str | None = None

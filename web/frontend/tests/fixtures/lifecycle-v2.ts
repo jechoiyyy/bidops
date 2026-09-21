@@ -8,6 +8,10 @@ import type {
 
 /** Synthetic wire projections. Production screens must not reconstruct these decisions. */
 export const clickReadyUnlinkedPreSpec: PreSpecListItem = {
+  review_exclusion_status: "included",
+  review_exclusion_actor_name: null,
+  review_exclusion_reason: null,
+  review_exclusion_changed_at: null,
   notice_pk: 993, pre_spec_no: "PRE-993", title: "독립 수집된 심층 검토 클릭 대기 사전규격",
   agency: "합성 발주기관", published_at: "2026-09-01T00:00:00Z", deadline_at: null,
   budget: null, sw_business_status: "N", business_division: "일반용역",

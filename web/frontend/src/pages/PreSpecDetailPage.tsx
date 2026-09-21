@@ -2,6 +2,7 @@ import { Button } from "@astryxdesign/core/Button";
 import { InternationalizationProvider } from "@astryxdesign/core/i18n";
 import koKR from "@astryxdesign/core/locales/ko-KR.json";
 import { Collapsible } from "@astryxdesign/core/Collapsible";
+import { Token } from "@astryxdesign/core/Token";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Fragment, useRef, useState, type ReactNode } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
@@ -566,6 +567,7 @@ function PreSpecRecordBody({ noticeId, listSearch }: { noticeId: number | null; 
             <div className="ps-record-header-actions">
               {/* 현재 추적 상태 글자는 화면에 한 번만 둔다(spec §4). 이 칩은 결정의
                   현재 값을 읽는 자리고, 상태 이름을 다시 말하는 블록은 ② 카드가 갖는다. */}
+              {preSpecItem?.review_exclusion_status === "excluded" ? <Token size="sm" label="검토 제외" color="default" /> : null}
               <span className="ps-chip ps-chip-neutral">추적 결정 · {trackingStatusLabel}</span>
               <Link className="ps-ref ps-ref-plain ps-record-list-link" to={listUrl}>목록으로 돌아가기</Link>
             </div>

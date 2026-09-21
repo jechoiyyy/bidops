@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@astryxdesign/core/Button";
@@ -24,9 +24,9 @@ import { SkeletonPanel } from "../components/common/Skeleton";
 import {
   WorkspaceFilterBar,
   WorkspaceFilterContext,
-  WorkspaceFilterEnd,
   WorkspaceFilterLine,
   WorkspaceFrame,
+  WorkspaceFilterTools,
   WorkspaceSearch,
   WorkspaceViewTabs,
 } from "../components/common/WorkspaceFilters";
@@ -51,6 +51,7 @@ import type {
   BidDeltaWorkspaceView,
 } from "../components/bid-delta/types";
 import { api } from "../lib/api";
+import { searchKey, searchMatches } from "../lib/search";
 import { apiErrorRecoveryAction, describeApiError } from "../lib/apiErrors";
 import type { BidDeltaDecisionQueueItem } from "../lib/types";
 import "../styles/go-no-go.css";
@@ -205,6 +206,8 @@ export function GoNoGoPage() {
   const view = readView(searchParams.get("show"));
   const offset = readOffset(searchParams.get("offset"));
   const query = searchParams.get("q") ?? "";
+  const [draft, setDraft] = useState(query);
+  useEffect(() => setDraft(query), [query]);
   const selectedParam = Number(searchParams.get("selected"));
   const [tab, setTab] = useState<DetailTab>("summary");
   const [dialog, setDialog] = useState<"data" | "evidence" | null>(null);
@@ -225,9 +228,9 @@ export function GoNoGoPage() {
 
   const rows: DecisionRow[] = queueItems.map((item) => ({ id: item.opportunity_id, item }));
 
-  const trimmedQuery = query.trim();
+  const trimmedQuery = searchKey(query);
   const scope = trimmedQuery
-    ? rows.filter((row) => `${opportunityTitle(row.item)} ${opportunityAgency(row.item)}`.includes(trimmedQuery))
+    ? rows.filter((row) => searchMatches(query, row.item.title, row.item.agency))
     : rows;
   const visibleRows = scope.filter((row) => matchesView(row, view));
 
@@ -277,6 +280,13 @@ export function GoNoGoPage() {
       else params.set(key, value);
     }
     setSearchParams(params, { replace: true });
+  }
+
+  function applySearch(value: string) {
+    const next = searchKey(value) ? value : "";
+    const changed = searchKey(next) !== searchKey(query);
+    patchParams({ q: next || null, ...(changed ? { offset: null, selected: null, comparison: null } : {}) });
+    setDraft(next);
   }
 
   function setView(next: DecisionView) {
@@ -418,8 +428,8 @@ export function GoNoGoPage() {
           <WorkspaceFrame>
             {/* 필터 골격은 4화면 공용(`components/common/WorkspaceFilters.tsx`)이다.
                 필터 집합·URL 파라미터·검색 적용 시점은 그대로 이 화면이 정한다:
-                대기열은 이미 받아 둔 목록이므로 검색은 Enter가 아니라 입력 즉시
-                좁히고, 상세 필터로 접을 축이 없어 토글을 두지 않는다(계획서 §2). */}
+                대기열은 이미 받아 둔 목록이지만 검색은 Enter로 적용하고, 상세 필터로
+                접을 축이 없어 토글을 두지 않는다(계획서 §2). */}
             <WorkspaceFilterBar aria-label="결정 검토 목록 필터">
               <WorkspaceFilterLine>
                 <WorkspaceViewTabs
@@ -433,14 +443,17 @@ export function GoNoGoPage() {
                   }))}
                   value={view}
                 />
-                <WorkspaceFilterEnd>
-                  <WorkspaceSearch
-                    label="사업명·발주기관 검색"
-                    onChange={(value) => patchParams({ q: value, selected: null, comparison: null })}
-                    value={query}
-                  />
-                </WorkspaceFilterEnd>
               </WorkspaceFilterLine>
+              <WorkspaceFilterTools className="gng-filter-tools">
+                <WorkspaceSearch
+                  appliedValue={query}
+                  label="사업명·발주기관 검색"
+                  onChange={setDraft}
+                  onClear={() => applySearch("")}
+                  onEnter={() => applySearch(draft)}
+                  value={draft}
+                />
+              </WorkspaceFilterTools>
               <WorkspaceFilterContext className="gng-filter-context">
                 <Text className="gng-caption" type="supporting" color="secondary" as="p">
                   계속 추적 중인 사업 · 미결정·재검토 포함 · 입찰공고 미연결은 전체 보기에만
@@ -476,11 +489,15 @@ export function GoNoGoPage() {
                       <Search aria-hidden="true" />
                       <Heading level={3}>조건에 맞는 사업이 없습니다</Heading>
                       <Text className="gng-caption" type="supporting" color="secondary" as="p">
-                        {receivedAll
-                          ? "계속 추적 중인 사업 전체에서 찾았습니다. 보기나 검색어를 바꿔 보십시오."
-                          : "받은 범위 안에 없을 뿐, 전체에 없다는 뜻은 아닙니다."}
+                        {trimmedQuery
+                          ? receivedAll
+                            ? `적용된 검색어 "${query}"와 다른 활성 보기 조건에 맞는 사업이 없습니다. 계속 추적 중인 사업 전체에서 찾았습니다.`
+                            : `적용된 검색어 "${query}"와 다른 활성 보기 조건에 맞는 사업이 받은 범위에 없습니다. 전체에 없다는 뜻은 아닙니다.`
+                          : receivedAll
+                            ? "계속 추적 중인 사업 전체에서 찾았습니다. 보기를 바꿔 보십시오."
+                            : "받은 범위 안에 없을 뿐, 전체에 없다는 뜻은 아닙니다."}
                       </Text>
-                      <Button label="필터 초기화" size="sm" onClick={resetFilters} />
+                      <Button label={trimmedQuery ? "검색어만 지우기" : "필터 초기화"} size="sm" onClick={trimmedQuery ? () => applySearch("") : resetFilters} />
                     </div>
                   )}
                 </div>

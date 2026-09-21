@@ -125,7 +125,9 @@ def capture_scenarios(session, refs) -> dict[str, dict]:
 def _legacy_shape(payload: dict) -> dict:
     """Drop additive cumulative-workspace fields for the frozen old fixture."""
 
-    item_fields = {"first_observed_at", "last_observed_at", "next_action"}
+    item_fields = {"first_observed_at", "last_observed_at", "next_action",
+                   "review_exclusion_status", "review_exclusion_actor_name",
+                   "review_exclusion_reason", "review_exclusion_changed_at"}
     normalized: dict = {}
     for scenario, response in payload.items():
         response_copy = dict(response)

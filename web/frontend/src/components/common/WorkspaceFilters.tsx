@@ -1,4 +1,4 @@
-import type { CSSProperties, HTMLAttributes, ReactNode } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type HTMLAttributes, type ReactNode } from "react";
 import { Button } from "@astryxdesign/core/Button";
 import { TextInput } from "@astryxdesign/core/TextInput";
 import { ListFilter, Search } from "lucide-react";
@@ -9,10 +9,10 @@ import { ListFilter, Search } from "lucide-react";
  * 기준 UI는 사업 추적 화면이고 프레임 값(배경·테두리·radius·padding)은 발주계획이다
  * (계획서 §2·§3). 단일 props 컴포넌트가 아니라 **조합형**인 이유는 세 화면의 요구가
  * 서로 겹치지 않기 때문이다 — 발주계획은 4축 토글과 저장된 뷰를, 사전규격은 둘째 줄
- * 스위치·안내 노트를, Go/No-Go는 상세 필터 없이 즉시 검색만 필요로 한다.
+ * 스위치·안내 노트를, Go/No-Go는 상세 필터 없이 검색만 필요로 한다.
  *
  * 이 파일은 **골격과 접근성 계약만** 소유한다. 필터 축의 집합, URL 파라미터 이름,
- * AND/OR 의미, 검색을 즉시 적용할지 Enter로 적용할지는 전부 화면이 정한다
+ * AND/OR 의미와 검색 적용 조건은 전부 화면이 정한다
  * (화면이 서버 응답을 다시 판정하지 않는다는 규칙과 같은 이유).
  *
  * 모든 컴포넌트는 `className`을 받아 화면 접두 클래스를 덧붙일 수 있다. 기존 spec이
@@ -89,8 +89,8 @@ export interface WorkspaceFilterLineProps extends Omit<HTMLAttributes<HTMLDivEle
 }
 
 /**
- * 필터 바의 첫 줄. 왼쪽은 보기 탭({@link WorkspaceViewTabs}), 오른쪽은 검색과 상세
- * 필터 토글({@link WorkspaceFilterEnd})이다(space-between).
+ * 필터 바의 첫 줄. 보기 탭과 현재 범위 스위치를 두고, 검색·상세 필터는 바로 아래
+ * {@link WorkspaceFilterTools}에 둔다.
  */
 export function WorkspaceFilterLine({ children, className, ...props }: WorkspaceFilterLineProps) {
   return (
@@ -169,7 +169,7 @@ export interface WorkspaceFilterEndProps extends Omit<HTMLAttributes<HTMLDivElem
   children: ReactNode;
 }
 
-/** 첫 줄의 오른쪽 끝 — 검색과 상세 필터 토글이 사는 자리. */
+/** 한 줄 안에서 함께 움직이는 조회 도구 묶음. */
 export function WorkspaceFilterEnd({ children, className, ...props }: WorkspaceFilterEndProps) {
   return (
     <div {...props} className={joinClassNames("workspace-filter-end", className)}>
@@ -178,16 +178,35 @@ export function WorkspaceFilterEnd({ children, className, ...props }: WorkspaceF
   );
 }
 
+export interface WorkspaceFilterToolsProps extends Omit<HTMLAttributes<HTMLDivElement>, "children"> {
+  children: ReactNode;
+}
+
+/** 보기 탭 아래에 놓이는 조회 도구 행. DOM 순서가 곧 기본 탭 순서가 된다. */
+export function WorkspaceFilterTools({ children, className, role, "aria-label": ariaLabel, ...props }: WorkspaceFilterToolsProps) {
+  return (
+    <div
+      {...props}
+      aria-label={ariaLabel ?? "조회 도구"}
+      className={joinClassNames("workspace-filter-tools", className)}
+      role={role ?? "group"}
+    >
+      {children}
+    </div>
+  );
+}
+
 export interface WorkspaceSearchProps {
+  /** 현재 URL/API에 적용된 raw query. draft와 다르면 적용 전 안내를 표시한다. */
+  appliedValue?: string;
   className?: string;
+  /** 사업 추적처럼 화면이 소유한 입력 오류를 field status로 노출한다. */
+  errorMessage?: string | null;
   isDisabled?: boolean;
   /** 접근 이름. 라벨은 시각적으로 숨기고 placeholder가 같은 문구를 보여 준다. */
   label: string;
   onChange: (value: string) => void;
-  /**
-   * Enter로 적용하는 화면만 넘긴다. 클라이언트 목록을 좁히는 화면은 `onChange`만으로
-   * 즉시 반영하고 이 값을 비운다 — 적용 시점은 데이터 원천이 정한다.
-   */
+  onClear?: () => void;
   onEnter?: () => void;
   placeholder?: string;
   value: string;
@@ -201,29 +220,62 @@ export interface WorkspaceSearchProps {
  * 위반이 된다).
  */
 export function WorkspaceSearch({
+  appliedValue,
   className,
+  errorMessage,
   isDisabled = false,
   label,
   onChange,
+  onClear,
   onEnter,
   placeholder,
   value,
 }: WorkspaceSearchProps) {
+  const composing = useRef(false);
+  const previousError = useRef(Boolean(errorMessage));
+  const [clearAnnouncement, setClearAnnouncement] = useState("");
+  const isPending = appliedValue !== undefined && value !== appliedValue;
+  const guidance = isPending ? "Enter로 적용 · 띄어쓰기 무시" : "Enter로 검색 · 띄어쓰기 무시";
+
+  useEffect(() => {
+    const hasError = Boolean(errorMessage);
+    if (previousError.current && !hasError) setClearAnnouncement("검색어 오류가 해제되었습니다.");
+    else if (hasError) setClearAnnouncement("");
+    previousError.current = hasError;
+  }, [errorMessage]);
+
   return (
-    <TextInput
-      className={joinClassNames("workspace-search", className)}
-      data-review-primitive="text-input"
-      hasClear
-      isDisabled={isDisabled}
-      isLabelHidden
-      label={label}
-      onChange={onChange}
-      onEnter={onEnter}
-      placeholder={placeholder ?? label}
-      size="sm"
-      startIcon={Search}
-      value={value}
-    />
+    <div className="workspace-search-field">
+      <TextInput
+        className={joinClassNames("workspace-search", className)}
+        data-review-primitive="text-input"
+        description={guidance}
+        hasClear
+        isDisabled={isDisabled}
+        isLabelHidden
+        label={label}
+        onChange={(next, event) => {
+          if (event === null && next === "") {
+            if (onClear) onClear();
+            else onChange(next);
+          }
+          else onChange(next);
+        }}
+        onCompositionStart={() => { composing.current = true; }}
+        onCompositionEnd={() => { composing.current = false; }}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" && !event.nativeEvent.isComposing && event.keyCode !== 229 && !composing.current) onEnter?.();
+        }}
+        placeholder={placeholder ?? label}
+        size="sm"
+        startIcon={Search}
+        status={errorMessage ? { type: "error", message: errorMessage } : undefined}
+        statusVariant="detached"
+        value={value}
+      />
+      <p aria-hidden="true" className="workspace-search-help">{guidance}</p>
+      <span aria-live="polite" className="visually-hidden" role="status">{clearAnnouncement}</span>
+    </div>
   );
 }
 

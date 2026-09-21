@@ -15,10 +15,9 @@ import {
   WorkspaceAdvancedToggle,
   WorkspaceFilterAdvanced,
   WorkspaceFilterBar,
-  WorkspaceFilterContext,
-  WorkspaceFilterEnd,
   WorkspaceFilterLine,
   WorkspaceFrame,
+  WorkspaceFilterTools,
   WorkspaceSearch,
   WorkspaceViewTabs,
 } from "../components/common/WorkspaceFilters";
@@ -32,6 +31,7 @@ import {
   validWorkspace, workspaceOf, type WorkspaceKey,
 } from "../lib/preSpecViews";
 import { PRE_SPEC_AUTO_PREPARATION_STATUS_LABEL } from "../lib/preSpecAutoPreparation";
+import { ReviewExclusionDialog } from "../components/pre-specs/ReviewExclusionDialog";
 import { PreSpecDetail } from "../components/pre-specs/PreSpecListDetailPane";
 import { PreSpecRow } from "../components/pre-specs/PreSpecListRow";
 import { useListSelection } from "../components/common/useListSelection";
@@ -47,7 +47,10 @@ import {
   preSpecDetailUrl,
 } from "../lib/preSpecSelectionReview";
 import { formatRunRange } from "../lib/format";
+import { searchKey } from "../lib/search";
 import type {
+  PreSpecReviewExclusionStatus,
+  PreSpecReviewExclusionResponse,
   PreSpecListResponse,
   PreSpecOrigin,
   PreSpecSort,
@@ -163,6 +166,8 @@ export function PreSpecsPage() {
   const workspace: WorkspaceKey = hasLegacyView || hasLegacyDashboardFilter
     ? "all"
     : validWorkspace(searchParams.get("workspace"));
+  const rawExclusion = searchParams.get("review_exclusion");
+  const reviewExclusion = workspace === "all" && (rawExclusion === "included" || rawExclusion === "excluded") ? rawExclusion : "all";
   const overviewView = validOverviewView(hasLegacyView ? searchParams.get("view") : searchParams.get("overview_view"));
   const sourceRunId = searchParams.get("source_run_id")?.trim() ?? "";
   const rawObservedFrom = validObservedDate(searchParams.get("observed_from"));
@@ -179,6 +184,7 @@ export function PreSpecsPage() {
   const offset = readOffset(searchParams.get("offset"));
   const listSearch = searchParams.toString();
   const selectionFingerprint = preSpecsFilterFingerprint({
+    reviewExclusion,
     swOnly,
     businessDivision,
     origin,
@@ -195,6 +201,8 @@ export function PreSpecsPage() {
     q: queryText,
   });
 
+  const [exclusionTarget, setExclusionTarget] = useState<{ ids: number[]; status: PreSpecReviewExclusionStatus; generation: number } | null>(null);
+  const exclusionLanding = useRef<{ active: number | null; index: number; order: number[]; offset: number } | null>(null);
   const [searchText, setSearchText] = useState(queryText);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [scopeDialogOpen, setScopeDialogOpen] = useState(false);
@@ -206,6 +214,7 @@ export function PreSpecsPage() {
   // 상세 pane 바닥의 인라인 추적 폼이 `onDirtyChange`로 알려 주는 미저장 입력
   // (사유·담당자). route 이동은 컨트롤이 스스로 막으므로 여기서는 행 전환·필터
   // 변경·상세 이동·페이지 이동만 확인한다(docs/0915_ui-redesign/spec.md §3.3).
+  const [trackingFormVersion, setTrackingFormVersion] = useState(0);
   const [trackingDirty, setTrackingDirty] = useState(false);
   const trackingGuard = useUnsavedGuard(trackingDirty, {
     scope: "pathname",
@@ -268,6 +277,7 @@ export function PreSpecsPage() {
 
   const listQuery = useMemo(
     () => ({
+      review_exclusion: reviewExclusion as "all" | PreSpecReviewExclusionStatus,
       sw_only: swOnly,
       business_division: businessDivision || null,
       origin: origin || null,
@@ -289,10 +299,10 @@ export function PreSpecsPage() {
       limit: PAGE_SIZE,
       offset,
     }),
-    [autoPreparationStatus, businessDivision, deadlineStatus, gradeFilter, offset, origin, overviewView, queryText, rawObservedFrom, rawObservedTo, sort, sourceRunId, swOnly, trackingDecision, trackingStatus, workspace],
+    [reviewExclusion, autoPreparationStatus, businessDivision, deadlineStatus, gradeFilter, offset, origin, overviewView, queryText, rawObservedFrom, rawObservedTo, sort, sourceRunId, swOnly, trackingDecision, trackingStatus, workspace],
   );
   const result = useQuery({
-    queryKey: ["pre-specs", listQuery],
+    queryKey: ["pre-specs", { ...listQuery, q: searchKey(queryText) }],
     queryFn: ({ signal }) => api.getPreSpecs(listQuery, { signal }),
     // 기본값으로 돌아왔을 때도 sw_only=true 요청을 다시 보내 ADR-0031의 서버 기본
     // projection과 화면 상태가 같은지 확인한다.
@@ -358,6 +368,30 @@ export function PreSpecsPage() {
   // 상세 pane 바닥의 인라인 폼에 있고, 그 확인은 아래 `selectPk`가 맡는다.
   useEffect(() => {
     if (!selection.hydrated) return;
+    if (exclusionLanding.current && result.isFetching) return;
+    if (exclusionLanding.current && result.isSuccess) {
+      if (items.length === 0 && offset > 0) {
+        const nextOffset = Math.max(0, Math.floor((total - 1) / PAGE_SIZE) * PAGE_SIZE);
+        const nextParams = new URLSearchParams(searchParams);
+        if (nextOffset) nextParams.set("offset", String(nextOffset));
+        else nextParams.delete("offset");
+        setSearchParams(nextParams, { replace: true });
+        return;
+      }
+      const landing = exclusionLanding.current;
+      const visible = new Set(items.map((item) => item.notice_pk));
+      const next = landing.active !== null && visible.has(landing.active) ? landing.active
+        : offset < landing.offset ? items[items.length - 1]?.notice_pk ?? null
+        : landing.order.slice(landing.index + 1).find((id) => visible.has(id))
+          ?? items.find((item) => !landing.order.includes(item.notice_pk))?.notice_pk
+          ?? landing.order.slice(0, landing.index).reverse().find((id) => visible.has(id))
+          ?? items[Math.min(Math.max(landing.index, 0), items.length - 1)]?.notice_pk ?? null;
+      exclusionLanding.current = null;
+      setSelectedPk(next);
+      selection.setActiveId(next);
+      requestAnimationFrame(() => listRef.current?.querySelector<HTMLElement>(`[data-row-key="${next}"]`)?.focus());
+      return;
+    }
     if (items.length === 0) {
       if (selectedPk !== null) setSelectedPk(null);
       return;
@@ -376,7 +410,7 @@ export function PreSpecsPage() {
       setSelectedPk(next);
       selection.setActiveId(next);
     }
-  }, [items, offset, selectedPk, selection.activeId, selection.hydrated, selection.setActiveId]);
+  }, [result.isFetching, result.isSuccess, total, searchParams, setSearchParams, items, offset, selectedPk, selection.activeId, selection.hydrated, selection.setActiveId]);
 
   const selectPk = useCallback((next: number) => {
     trackingGuard.confirmDiscard(() => {
@@ -473,9 +507,31 @@ export function PreSpecsPage() {
     },
   });
 
+  function openExclusion(ids: readonly number[], status: PreSpecReviewExclusionStatus) {
+    if (ids.length === 0 || ids.length > 200) return;
+    trackingGuard.confirmDiscard(() => {
+      setExclusionTarget({ ids: [...ids], status, generation: selection.state.selectionGeneration });
+    });
+  }
+
+  async function exclusionSaved(response: PreSpecReviewExclusionResponse) {
+    const ids = response.items.map((item) => item.notice_id);
+    exclusionLanding.current = { offset, active: selectedPk, index: items.findIndex((item) => item.notice_pk === selectedPk), order: itemKeys };
+    selection.applyResult(ids, exclusionTarget?.generation);
+    setTrackingDirty(false);
+    // Remove the discarded tracking draft even when the active row remains visible.
+    setTrackingFormVersion((version) => version + 1);
+    setExclusionTarget(null);
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["pre-specs"] }),
+      ...ids.map((id) => queryClient.invalidateQueries({ queryKey: ["pre-spec-detail", id] })),
+    ]);
+  }
+
   function updateSearchParamsUnsafe(changes: Record<string, string | null>) {
     boundaryLandingRef.current = null;
     const next = new URLSearchParams(searchParams);
+    if (Object.prototype.hasOwnProperty.call(changes, "workspace")) next.delete("review_exclusion");
     const hadExplicitScope = searchParams.has("workspace") || hasLegacyView || hasLegacyDashboardFilter;
     for (const [key, value] of Object.entries(changes)) {
       if (value === null || value === "") next.delete(key);
@@ -503,6 +559,23 @@ export function PreSpecsPage() {
       updateSearchParamsUnsafe(changes);
       after?.();
     });
+  }
+
+  function applySearch(value: string) {
+    const next = searchKey(value) ? value : null;
+    const changed = searchKey(next) !== searchKey(queryText);
+    const run = () => {
+      if (changed) updateSearchParamsUnsafe({ q: next });
+      else {
+        const params = new URLSearchParams(searchParams);
+        if (next) params.set("q", next);
+        else params.delete("q");
+        setSearchParams(params, { replace: true });
+      }
+      setSearchText(next ?? "");
+    };
+    if (changed) trackingGuard.confirmDiscard(run);
+    else run();
   }
 
   function restoreDefaults() {
@@ -546,6 +619,7 @@ export function PreSpecsPage() {
   }
 
   function emptyDescription(): string {
+    if (searchKey(queryText)) return `적용된 검색어 "${queryText}"와 다른 활성 필터에 맞는 사전규격이 없습니다.`;
     if (isDefaultView) return "SW 중심 기본 보기에 맞는 항목이 없습니다. 전체 보기는 SW사업대상과 무관한 사전규격까지 명시적으로 요청합니다.";
     if (overviewView !== "all") return `현재 개요 상태 보기와 필터에 맞는 사전규격이 없습니다. 보기를 바꾸거나 조건을 넓혀 보십시오.`;
     if (swOnly) return "SW 중심 기본 보기와 추가 필터가 함께 적용되어 있습니다. 기본값으로 돌아가거나 조건을 조정해 보십시오.";
@@ -589,7 +663,7 @@ export function PreSpecsPage() {
               value={workspace}
             />
             {/* 범위 스위치는 필터가 아니라 "지금 무엇을 보고 있는가"다. 보기 탭 바로
-                옆에 두어 탭 선택과 한눈에 읽히게 한다(검색 칸은 오른쪽 끝에 남는다). */}
+                옆에 두어 탭 선택과 한눈에 읽히게 한다. 검색은 아래 도구 행에 둔다. */}
             <div className="pre-specs-filter-context-start">
               <label className="pre-specs-switch">
                 <input
@@ -605,24 +679,24 @@ export function PreSpecsPage() {
                   : "SW사업대상과 무관한 사전규격까지 조회"}
               </span>
             </div>
-            <WorkspaceFilterEnd>
-              {/* `q`는 서버 질의 인자다. 글자를 칠 때마다 목록을 다시 부르지 않고
-                  Enter로 적용한다(적용 시점은 데이터 원천이 정한다). */}
-              <WorkspaceSearch
-                label="사업명·기관명 검색"
-                onChange={setSearchText}
-                onEnter={() => updateSearchParams({ q: searchText.trim() || null })}
-                value={searchText}
-              />
-              <WorkspaceAdvancedToggle
-                controlsId="pre-specs-advanced-filters"
-                isOpen={advancedOpen}
-                onToggle={() => setAdvancedOpen((open) => !open)}
-              />
-            </WorkspaceFilterEnd>
           </WorkspaceFilterLine>
 
-          <WorkspaceFilterContext className="pre-specs-filter-context">
+          <WorkspaceFilterTools className="pre-specs-filter-tools">
+            <WorkspaceAdvancedToggle
+              controlsId="pre-specs-advanced-filters"
+              isOpen={advancedOpen}
+              onToggle={() => setAdvancedOpen((open) => !open)}
+            />
+            {/* `q`는 서버 질의 인자다. 글자를 칠 때마다 목록을 다시 부르지 않고
+                Enter로 적용한다(적용 시점은 데이터 원천이 정한다). */}
+            <WorkspaceSearch
+              appliedValue={queryText}
+              label="사업명·기관명 검색"
+              onChange={setSearchText}
+              onClear={() => applySearch("")}
+              onEnter={() => applySearch(searchText)}
+              value={searchText}
+            />
             <div className="pre-specs-filter-context-range">
               <Selector
                 className="pre-specs-source-run"
@@ -656,7 +730,10 @@ export function PreSpecsPage() {
                 </div>
               ) : null}
             </div>
-          </WorkspaceFilterContext>
+            {workspace === "all" ? <Selector label="검토 포함 여부" size="sm"
+              options={[{ value: "all", label: "전체" }, { value: "included", label: "검토 포함" }, { value: "excluded", label: "검토 제외" }]}
+              value={reviewExclusion} onChange={(value) => updateSearchParams({ review_exclusion: value === "all" ? null : value })} /> : null}
+          </WorkspaceFilterTools>
 
           {advancedOpen ? (
             <WorkspaceFilterAdvanced
@@ -810,6 +887,9 @@ export function PreSpecsPage() {
                     >
                       전체 해제
                     </button>
+                    <Button size="sm" variant="secondary" label="선택 항목 제외"
+                      isDisabled={!selection.hydrationReady || !selection.storageAvailable || selection.selectedIds.length === 0 || selection.selectedIds.length > 200}
+                      onClick={() => openExclusion(selection.selectedIds, "excluded")} />
                     <button
                       className="interaction-control interaction-control-primary"
                       type="button"
@@ -823,6 +903,7 @@ export function PreSpecsPage() {
                   </>
                 )}
               />
+              {selection.selectedIds.length > 200 ? <p role="alert">한 번에 200건까지 제외할 수 있습니다. 선택을 줄여 주세요.</p> : null}
               {selectionMessage ? <p className="pre-specs-selection-message" role="alert">{selectionMessage}</p> : null}
               <ListColumns className="pre-specs-list-columns">
                 <span>사업명 / 발주기관</span>
@@ -850,7 +931,9 @@ export function PreSpecsPage() {
                     compact
                     title="조건에 맞는 사전규격이 없습니다."
                     description={emptyDescription()}
-                    action={isDefaultView
+                    action={searchKey(queryText)
+                      ? { label: "검색어만 지우기", onClick: () => applySearch("") }
+                      : isDefaultView
                       ? { label: "전체 사전규격 보기", onClick: showAllPreSpecs }
                       : { label: "기본값으로", onClick: restoreDefaults }}
                   />
@@ -921,7 +1004,10 @@ export function PreSpecsPage() {
             <section className="review-split-detail pre-specs-detail-pane" aria-label="선택한 사전규격">
               {selectedItem ? (
                 <PreSpecDetail
-                  key={selectedItem.notice_pk}
+                  key={`${selectedItem.notice_pk}-${trackingFormVersion}`}
+                  onReviewExclusion={selectedItem.review_exclusion_status !== "excluded" || workspace === "all"
+                    ? () => openExclusion([selectedItem.notice_pk], selectedItem.review_exclusion_status === "excluded" ? "included" : "excluded")
+                    : undefined}
                   item={selectedItem}
                   listSearch={listSearch}
                   onOpenDetail={() => openDetail(selectedItem.notice_pk)}
@@ -956,6 +1042,8 @@ export function PreSpecsPage() {
         </SplitWorkspace>
       </WorkspaceFrame>
 
+      {exclusionTarget ? <ReviewExclusionDialog ids={exclusionTarget.ids} status={exclusionTarget.status}
+        onClose={() => setExclusionTarget(null)} onSaved={exclusionSaved} /> : null}
       <Dialog isOpen={scopeDialogOpen} onOpenChange={(open) => { if (!open) setScopeDialogOpen(false); }} purpose="info" width={620}>
         <DialogHeader title="표시 범위" onOpenChange={() => setScopeDialogOpen(false)} />
         <div className="pre-specs-dialog-body">
