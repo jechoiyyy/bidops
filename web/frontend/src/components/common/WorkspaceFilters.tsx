@@ -275,7 +275,9 @@ export function WorkspaceSearch({
         statusVariant="detached"
         value={value}
       />
-      <p aria-hidden="true" className="workspace-search-help">{guidance}</p>
+      {/* 안내·적용 대기 문구는 화면에 그리지 않는다(2026-09-21 사용자 결정). 같은
+          문구가 위 `description`으로 입력칸의 접근 설명이 되므로 보조기술에는 그대로
+          읽힌다 — `isLabelHidden`이라 Astryx가 설명을 시각적으로만 숨긴다. */}
       <span aria-live="polite" className="visually-hidden" role="status">{clearAnnouncement}</span>
     </div>
   );

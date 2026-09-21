@@ -107,7 +107,8 @@ test("집계와 검색 범위를 밝히고 대기열이 넘치면 받은 범위 
   const input = page.getByPlaceholder("사업명·발주기관 검색");
   await input.fill("교통정보");
   await expect(rows(page)).toHaveCount(9);
-  await expect(page.locator(".workspace-search-help")).toHaveText("Enter로 적용 · 띄어쓰기 무시");
+  // 적용 대기 안내는 화면에 그리지 않고 입력칸의 접근 설명으로만 남긴다.
+  await expect(input).toHaveAccessibleDescription("Enter로 적용 · 띄어쓰기 무시");
   await input.press("Enter");
   await expect(rows(page)).toHaveCount(1);
   await expect(page.locator(".gng-filter-context")).not.toContainText("받은 범위 안에서만");

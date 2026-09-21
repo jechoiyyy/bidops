@@ -44,13 +44,16 @@ test("[search-ux] 발주계획 검색은 Enter 전 draft를 보존하고 raw q�
   await input.fill("  공공 데이터  ");
 
   await expect.poll(() => new URL(page.url()).searchParams.get("q")).toBeNull();
-  await expect(page.locator(".workspace-search-help")).toHaveText("Enter로 적용 · 띄어쓰기 무시");
+  // 안내·적용 대기 문구는 화면에 그리지 않는다(2026-09-21 사용자 결정). 같은 문구는
+  // 입력칸의 접근 설명으로 남아 보조기술에는 그대로 읽힌다.
+  await expect(page.locator(".workspace-search-help")).toHaveCount(0);
+  await expect(input).toHaveAccessibleDescription("Enter로 적용 · 띄어쓰기 무시");
   await expect(page.locator(".c2l-row")).toHaveCount(initialRows);
 
   await input.press("Enter");
   await expect.poll(() => new URL(page.url()).searchParams.get("q")).toBe("  공공 데이터  ");
   await expect(page.locator(".c2l-row").filter({ hasText: "공공데이터" })).toHaveCount(1);
-  await expect(page.locator(".workspace-search-help")).toHaveText("Enter로 검색 · 띄어쓰기 무시");
+  await expect(input).toHaveAccessibleDescription("Enter로 검색 · 띄어쓰기 무시");
 });
 
 test("[search-ux] 사전규격은 서버 검색 뒤 첫 검색 페이지에서 결과와 raw q를 설명한다", async ({ page }) => {

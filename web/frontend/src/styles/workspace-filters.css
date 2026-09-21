@@ -147,14 +147,6 @@
   min-width: 0;
 }
 
-.workspace-search-help {
-  margin: 0;
-  padding-inline: var(--spacing-2);
-  color: var(--color-text-secondary);
-  font-size: var(--bo-type-caption);
-  line-height: var(--bo-type-caption-leading);
-}
-
 /* spec §2.2 — 264x32, 반지름 8.75, 테두리 `--color-border-emphasized`.
    Astryx 는 테두리·반지름을 이미 그 값으로 주므로 폭과 높이만 못 박는다. */
 .workspace-filters .workspace-search {
