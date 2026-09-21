@@ -182,7 +182,14 @@ export function PreSpecsPage() {
     : null;
   const observedFrom = rawObservedFrom || recentDefaults?.from || "";
   const observedTo = rawObservedTo || recentDefaults?.to || "";
-  const deadlineStatus = validDeadlineStatus(searchParams.get("deadline_status"));
+  // 검토할 항목에서는 마감 축을 구간 전환이 소유하고 상세 필터의 `마감 상태`는
+  // 숨는다. URL에 남은 값을 그대로 적용하면 **보이지 않는 필터**가 되어
+  // `구간=마감 전 + 상태=마감 경과`가 조용히 0건을 만든다. 그래서 여기서 무시한다
+  // (`review_exclusion`을 전체 이력 밖에서 무시하는 것과 같은 규칙). 값은 지우지
+  // 않는다 — 다른 보기로 돌아가면 그대로 다시 걸린다.
+  const deadlineStatus = workspace === "actionable"
+    ? ""
+    : validDeadlineStatus(searchParams.get("deadline_status"));
   const queryText = searchParams.get("q") ?? "";
   const requestedSort = validSort(searchParams.get("sort"));
   const sort = requestedSort || sortForWorkspace(workspace);

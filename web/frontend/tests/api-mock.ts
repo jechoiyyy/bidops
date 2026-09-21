@@ -1362,22 +1362,29 @@ function isPendingTracking(item: PreSpecListItem): boolean {
 }
 
 /**
- * 마감 구간 판정의 기준 시각. **실제 시계가 아니라 고정 시계다.**
+ * 마감 판정의 기준 시각. **실제 시계가 아니라 고정 시계다.**
  *
  * 화면 검사는 `page.clock.setFixedTime`으로 브라우저 시계를 2026-08-25·08-31에
  * 고정해 두고, 이 파일의 사전규격 표본 마감(`2026-09-02`·`09-07`·`09-10`)은 그
  * 고정 시각 기준으로 "마감 전"이 되도록 쓰인 값이다. 여기서 `Date.now()`를 쓰면
  * 벽시계가 흐르는 것만으로 같은 표본이 어느 날부터 "마감 경과"가 되어 기본 보기가
  * 비고, 결함이 아닌 실패가 난다. 두 고정 시계보다 뒤이면서 표본 마감보다 앞인
- * 값 하나를 쓴다(기존 `matchesDeadlineStatus`의 실제 시계 동작은 건드리지 않는다 —
- * 그 인자를 쓰는 화면 검사가 없다).
+ * 값 하나를 쓴다.
+ *
+ * `deadline_scope`와 `deadline_status`가 **같은 값**을 쓴다. 한 가짜 안에서 두
+ * 술어가 서로 다른 시계를 보면 같은 표본이 구간과 상태에서 다르게 분류되고,
+ * 그 불일치가 실제 결함을 가린다(가짜는 실제 계약에서 파생한다 — CLAUDE.md).
+ * 실제 서버는 요청 시각을 쓰므로 이 고정 시계는 표본 노후화를 막기 위한
+ * 가짜 전용 장치다. 근본 해법은 표본 마감을 `sampleNow + N일` 상대값으로 쓰는
+ * 것이며(`tests/screen-fixtures.ts:197`이 이미 그 방식이다) fixture 전반 손질이라
+ * 이번 범위 밖이다.
  */
-const DEADLINE_SCOPE_FIXTURE_NOW = Date.parse("2026-09-01T00:00:00Z");
+const DEADLINE_FIXTURE_NOW = Date.parse("2026-09-01T00:00:00Z");
 
 /** 서버 `deadline_scope` 술어. `deadline_at`이 null이면 `current`에 남는다. */
 function matchesDeadlineScope(item: PreSpecListItem, scope: string | null): boolean {
   if (!scope || scope === "all") return true;
-  const passed = item.deadline_at !== null && Date.parse(item.deadline_at) < DEADLINE_SCOPE_FIXTURE_NOW;
+  const passed = item.deadline_at !== null && Date.parse(item.deadline_at) < DEADLINE_FIXTURE_NOW;
   return scope === "passed" ? passed : !passed;
 }
 
@@ -1404,7 +1411,8 @@ function matchesWorkspace(
 function matchesDeadlineStatus(item: PreSpecListItem, status: string | null): boolean {
   if (!status) return true;
   if (item.deadline_at === null) return status === "unknown";
-  const passed = Date.parse(item.deadline_at) < Date.now();
+  // 구간과 같은 고정 시계를 쓴다 — 위 `DEADLINE_FIXTURE_NOW` 주석 참조.
+  const passed = Date.parse(item.deadline_at) < DEADLINE_FIXTURE_NOW;
   return status === "passed" ? passed : status === "open" ? !passed : false;
 }
 
@@ -1482,8 +1490,10 @@ function compareFixtureItems(left: PreSpecListItem, right: PreSpecListItem, sort
   if (leftValue !== null && rightValue === null) return -1;
   if (leftValue !== null && rightValue !== null && leftValue !== rightValue) {
     if (sort === "deadline") {
-      const leftPassed = Date.parse(leftValue) < Date.now();
-      const rightPassed = Date.parse(rightValue) < Date.now();
+      // 마감 3버킷 정렬도 구간·상태와 같은 고정 시계를 쓴다. 셋이 다른 시계를
+      // 보면 같은 표본의 분류와 순서가 어긋난다(`DEADLINE_FIXTURE_NOW` 참조).
+      const leftPassed = Date.parse(leftValue) < DEADLINE_FIXTURE_NOW;
+      const rightPassed = Date.parse(rightValue) < DEADLINE_FIXTURE_NOW;
       if (leftPassed !== rightPassed) return leftPassed ? 1 : -1;
       if (leftPassed) return leftValue < rightValue ? 1 : -1;
       return leftValue < rightValue ? -1 : 1;

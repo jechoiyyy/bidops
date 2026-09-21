@@ -36,6 +36,8 @@ async function setup(page: Page, count = 3, failFirst = false) {
     const offset = Number(params.get("offset") ?? 0), limit = Number(params.get("limit") ?? 200);
     await route.fulfill({ json: { items: visible.slice(offset, offset+limit), total: visible.length, offset, limit,
       workspace_counts: { all: candidates.length, actionable: included.length, recent: included.length, tracking: 0 },
+      // 계약상 항상 있는 집계다. 이 표본에는 마감 경과 건이 없으므로 전부 `current`다.
+      deadline_scope_counts: { current: included.length, passed: 0 },
       overview_status_counts: [{ status: "needs_human_review", count: visible.length }],
     }});
   });
