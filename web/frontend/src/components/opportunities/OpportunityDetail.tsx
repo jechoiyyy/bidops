@@ -4,9 +4,10 @@ import { Link } from "react-router-dom";
 import { Button } from "@astryxdesign/core/Button";
 import { Tab, TabList } from "@astryxdesign/core/TabList";
 import { Token } from "@astryxdesign/core/Token";
-import { ArrowUpRight, Building2, Check, ChevronRight, CircleHelp, FileText } from "lucide-react";
+import { ArrowUpRight, Check, ChevronRight, CircleHelp, FileText } from "lucide-react";
 import { Badge, type BadgeVariant } from "../common/Badge";
 import { EmptyState } from "../common/EmptyState";
+import { AgencyFeature, StickyDecisionHeader } from "../common/ReviewPrimitives";
 import { MutationFeedback } from "../common/MutationFeedback";
 import { api } from "../../lib/api";
 import {
@@ -288,12 +289,16 @@ export function OpportunityDetail({ intent = null, onDirtyChange, onSaved, oppor
 
   return (
     <div className="opportunity-detail">
-      <header className="opportunity-detail-head">
-        <div className="opportunity-agency">
-          <Building2 aria-hidden="true" />
-          <span className="opportunity-caption">발주기관</span>
-          <span className="opportunity-agency-name">{primaryAgency(item)}</span>
-        </div>
+      {/* 상세 머리는 발주계획·사전규격과 같은 공용 부품이다(ADR-0062, 시안 M1c A안).
+          본문을 스크롤해도 어느 발주기관의 어느 사업을 보고 있는지 남는다. 기관 강조
+          블록은 `AgencyFeature`가 소유하므로 장식 아이콘은 두지 않는다. */}
+      <StickyDecisionHeader className="review-detail-head opportunity-detail-head" label="사업 추적 상세 헤더">
+        <AgencyFeature
+          className="opportunity-agency"
+          labelClassName="opportunity-caption"
+          name={primaryAgency(item)}
+          nameClassName="opportunity-agency-name"
+        />
         <h3 className="opportunity-detail-title">{title}</h3>
         <div className="opportunity-row opportunity-spread">
           <p className="opportunity-caption">
@@ -301,7 +306,7 @@ export function OpportunityDetail({ intent = null, onDirtyChange, onSaved, oppor
           </p>
           <Token label={item.tracking_status} size="sm" />
         </div>
-      </header>
+      </StickyDecisionHeader>
 
       <TabList
         className="opportunity-detail-tabs"
