@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type CSSProperties, type HTMLAttributes, t
 import { Button } from "@astryxdesign/core/Button";
 import { TextInput } from "@astryxdesign/core/TextInput";
 import { ListFilter, Search } from "lucide-react";
+import { formatCount } from "../../lib/format";
 
 /**
  * 탐색과 추적 4화면(발주계획·사전규격·사업 추적·최종 Go/No-Go)이 공유하는 필터 바.
@@ -24,12 +25,11 @@ function joinClassNames(...names: Array<string | undefined | false>): string {
   return names.filter(Boolean).join(" ");
 }
 
-/** 보기 탭·목록 건수의 숫자 표기. 세 자리 구분은 한국어 로캘 하나만 쓴다.
+/** 보기 탭·목록 건수의 숫자 표기. `lib/format.ts`가 정본이고(U3, 중복 통합) 이 자리는
+ * 기존 import(`from "../common/WorkspaceFilters"`)가 깨지지 않도록 re-export만 한다.
  * 같은 필터 바 안에서 건수를 적는 화면 컨트롤(사전규격 마감 구간 칩)이 같은
  * 표기를 쓰도록 export한다 — 두 곳이 다른 로캘을 고르면 같은 수가 달라 보인다. */
-export function formatCount(count: number): string {
-  return count.toLocaleString("ko-KR");
-}
+export { formatCount };
 
 export interface WorkspaceFrameProps extends Omit<HTMLAttributes<HTMLDivElement>, "children"> {
   children: ReactNode;
@@ -163,19 +163,6 @@ export function WorkspaceViewTabs<K extends string>({
           </Button>
         );
       })}
-    </div>
-  );
-}
-
-export interface WorkspaceFilterEndProps extends Omit<HTMLAttributes<HTMLDivElement>, "children"> {
-  children: ReactNode;
-}
-
-/** 한 줄 안에서 함께 움직이는 조회 도구 묶음. */
-export function WorkspaceFilterEnd({ children, className, ...props }: WorkspaceFilterEndProps) {
-  return (
-    <div {...props} className={joinClassNames("workspace-filter-end", className)}>
-      {children}
     </div>
   );
 }

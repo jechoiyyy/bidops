@@ -1201,7 +1201,7 @@ test('사전규격 ERP 상세: 빈 결과와 실제 0건을 구분한다', async
   await mockPreSpecs(page);
   await page.route('**/api/notices/993', route => route.fulfill({ json: { ...notice991, id: 993, budget: null, attachment_count: 0 } }));
   await page.goto('/pre-specs/993');
-  await expect(page.locator('.ps-record-facts')).toContainText('예산 미확인');
+  await expect(page.locator('.ps-record-facts')).toContainText('예산 미제공');
   await expect(page.locator('.ps-record-secondary-facts')).toContainText('0건');
   await captureRecord(page, 'empty-1440');
 });
@@ -1455,7 +1455,7 @@ test("발주계획 후보는 요약·대조 방식·기관 일치를 보여 주�
 
   // null 예정 시기·예산은 0이나 없음으로 접지 않는다.
   const second = section.getByRole("listitem").filter({ hasText: "행정 서비스 고도화 사업" });
-  await expect(second).toContainText("다른 발주기관 · 발주 예정 미확인 · 예산 값 없음");
+  await expect(second).toContainText("다른 발주기관 · 발주 예정 미확인 · 예산 미제공");
   await expect(second).toContainText("대조 방식 · 가장 긴 조각 일치");
   await expect(second).toContainText("기관 불일치");
   await expect(second).toContainText("후보 사업기회 추적 · 계속 추적");

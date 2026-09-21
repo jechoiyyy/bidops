@@ -112,13 +112,6 @@
   color: var(--color-text-accent);
 }
 
-.workspace-filter-end {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-2);
-  min-width: 0;
-}
-
 /* 보기 탭 아래의 기본 도구 순서. 자식 DOM 순서가 키보드 순서와 시각 순서를 함께
    결정하므로 화면별 요구(필터 → 검색 → 회차)를 CSS order로 뒤집지 않는다. */
 .workspace-filter-tools {

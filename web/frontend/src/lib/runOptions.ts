@@ -1,13 +1,14 @@
 import type { RunSummary } from "./types";
-import { formatDateTime, formatRunRange } from "./format";
+import { formatDateTime, formatMomentShort, formatRunRangeShort } from "./format";
 
 /**
  * 수집 회차 선택기의 옵션 조립 — **순수 함수만** 둔다(명세 §2.1).
  *
  * 실무 화면(발주계획·사전규격)과 운영 화면(`/runs`·상단바)이 같은 회차를 서로 다른
  * 말로 부르던 것을 한곳에서 만든다. 날짜 포맷터는 새로 만들지 않고 `lib/format.ts`의
- * `formatRunRange`·`formatDateTime`을 그대로 재사용한다 — 같은 회차가 화면마다
- * 다른 모양으로 보이지 않게 하는 것이 이 파일의 목적이기 때문이다.
+ * `formatRunRangeShort`·`formatMomentShort`·`formatDateTime`을 그대로 재사용한다 —
+ * 같은 회차가 화면마다 다른 모양으로 보이지 않게 하는 것이 이 파일의 목적이기
+ * 때문이다. 회차 짧은 표기(U3, 시안 M1 승인)로 라벨·설명 모두 `MM-DD` 꼴을 쓴다.
  */
 
 export interface SourceRunOption {
@@ -41,10 +42,10 @@ export interface BuildSourceRunOptionsInput {
   audience?: SourceRunAudience;
 }
 
-/** `2026-09-19 ~ 2026-09-20 수집`. 수집 기간이 없으면 생성 시각으로 적는다. */
+/** `09-19~09-20 수집`(같은 해면 짧게, 다르면 연도까지). 수집 기간이 없으면 생성 시각으로 적는다. */
 export function runOptionLabel(run: RunSummary): string {
   if (run.window_from && run.window_to) {
-    return `${formatRunRange(run.run_id, run.window_from, run.window_to)} 수집`;
+    return `${formatRunRangeShort(run)} 수집`;
   }
   return `${formatDateTime(run.generated_at)} 수집분`;
 }
@@ -82,7 +83,7 @@ export function buildSourceRunOptions({
       return {
         value: runId,
         label: runOptionLabel(run),
-        description: audience === "ops" ? runId : `${formatDateTime(run.generated_at)} 생성`,
+        description: audience === "ops" ? runId : `${formatMomentShort(run.generated_at)} 생성`,
       };
     }
     // 고른 회차가 목록에 없다. **다른 회차로 바꾸지 않고** 왜 이름을 모르는지만 적는다.

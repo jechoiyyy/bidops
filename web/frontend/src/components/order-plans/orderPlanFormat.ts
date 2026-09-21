@@ -4,30 +4,37 @@ import type {
   OrderPlanStage1Status,
   OrderPlanStage2Status,
 } from "../../lib/types";
+import { formatMoment as formatMomentBase } from "../../lib/format";
 
+/** `lib/format.ts`가 정본이다(U3, 중복 통합). 이 화면의 null 문구(`미확인`)만 고정한다. */
 export function formatMoment(value: string | null | undefined): string {
-  if (!value) return "미확인";
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleString("ko-KR");
+  return formatMomentBase(value, "미확인");
 }
 
 export function textOrUnknown(value: string | null | undefined): string {
   return value && value.trim() ? value : "미확인";
 }
 
+/**
+ * 발주 예정 시기. 실제 수집 값은 월만("09") 또는 연월("2026-09")이다. 같은 연도를
+ * 두 번 표시하지 않고, 빠진 쪽은 다른 값에서 추정하지 않으며 영문 `null` 토큰은
+ * 표시에서 뺀다(U3, spec §1.1 — `OrderPlanCandidatesSection.plannedOrderLabel`과
+ * 같은 규칙).
+ */
 export function plannedTiming(year: string | null, month: string | null): string {
-  if (year === null && month === null) return "null (계획 시기 미제공)";
-  // 실제 수집 값은 월만("09") 또는 연월("2026-09")이다. 같은 연도를
-  // 두 번 표시하지 않으며, 서로 다른 연도나 누락값은 추정해 고치지 않는다.
+  if (year === null && month === null) return "발주 시기 미제공";
   const monthOnly = year && month && /^\d{4}-\d{2}$/.test(month) && month.startsWith(`${year}-`)
     ? month.slice(5)
     : month;
-  return `${year ?? "null"}년 ${monthOnly ?? "null"}월`;
+  if (year === null) return `연도 미확인 · ${monthOnly}월`;
+  if (monthOnly === null) return `${year}년 · 월 미제공`;
+  return `${year}년 ${monthOnly}월`;
 }
 
-/** 상세의 사실 표는 라벨이 따로 있으므로 값만 쓴다. null은 그대로 밝힌다. */
+/** 상세의 사실 표는 라벨이 따로 있으므로 값만 쓴다. null은 서버가 값을 주지 않은
+ * 것이므로 `미제공`이다(U3, spec §1.1). */
 export function budgetValue(value: number | null): string {
-  return value === null ? "null (미제공)" : `${value.toLocaleString("ko-KR")}원`;
+  return value === null ? "예산 미제공" : `${value.toLocaleString("ko-KR")}원`;
 }
 
 export function stage1RowLabel(value: OrderPlanStage1Status | null): string {

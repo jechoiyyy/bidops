@@ -22,6 +22,7 @@ import {
 import { PolicyConfirmDialog, type PolicyConfirmSnapshot } from "../components/policies/PolicyConfirmDialog";
 import { PolicyCreateDialog } from "../components/policies/PolicyCreateDialog";
 import { ApiError, api } from "../lib/api";
+import { formatMoment as formatMomentBase } from "../lib/format";
 import type { PolicyActivationResponse, PolicyStatus, PolicyVersionResponse, QualityGateResponse, RuntimeJsonObject } from "../lib/types";
 
 /**
@@ -75,10 +76,9 @@ function bodyObject(policy: PolicyVersionResponse, field: string): RuntimeJsonOb
   return typeof value === "object" && value !== null && !Array.isArray(value) ? value as RuntimeJsonObject : null;
 }
 
+/** `lib/format.ts`가 정본이다(U3, 중복 통합). 이 화면의 null 문구(`기록 없음`)만 고정한다. */
 function moment(value: string | null): string {
-  if (!value) return "기록 없음";
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleString("ko-KR");
+  return formatMomentBase(value, "기록 없음");
 }
 
 /** 이 정책이 왜 아직 운영 활성이 아닌가. 상태를 화면이 다시 해석하지 않는다. */

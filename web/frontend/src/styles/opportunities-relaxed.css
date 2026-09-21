@@ -303,7 +303,7 @@
 }
 
 /* 사유 칩은 누르는 것이 아니다. 옆 열의 주 행동 단추와 같은 회색 면으로 보이지 않게
-   윤곽 칩(`review-chip-outline`과 같은 값)으로 그린다. */
+   윤곽 칩(흰 바탕 + inset 1px 테두리)으로 그린다. */
 .opportunity-row-reasons .astryx-token {
   color: var(--color-text-secondary);
   background: var(--color-background-surface);
