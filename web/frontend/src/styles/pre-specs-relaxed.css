@@ -167,6 +167,24 @@
   white-space: nowrap;
 }
 
+/* 마감 구간 전환(ADR-0064) — 조회 도구 행의 네 번째 칸이다. 전체 이력의
+   「검토 포함 여부」와 같은 자리를 나눠 쓰므로 그 칸과 같은 가로 배치를 쓴다
+   (캡션 → 컨트롤). 컨트롤 자체의 폭은 Astryx `layout="hug"`가 정한다 — 여기서
+   `width`를 건드리면 StyleX와 특이도 싸움이 된다. */
+.pre-specs-deadline-scope {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  min-width: 0;
+}
+
+.pre-specs-deadline-scope-caption {
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+  line-height: var(--bo-type-caption-leading);
+  white-space: nowrap;
+}
+
 .pre-specs-filter-context-range {
   display: flex;
   flex-wrap: wrap;

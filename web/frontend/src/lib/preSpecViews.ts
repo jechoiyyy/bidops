@@ -96,6 +96,18 @@ export const DEADLINE_STATUS_OPTIONS: readonly { value: PreSpecDeadlineStatus; l
   { value: "unknown", label: "마감 미확인" },
 ];
 
+/** 검토할 항목의 마감 구간 전환(ADR-0064). 화면은 `current`·`passed` 둘만 쓰고
+ * 서버 기본값 `all`은 고르지 않는다 — 검토할 항목의 기본 시야는 `마감 전·미확인`이다.
+ * `마감 미확인`(`deadline_at`이 null)은 `current` 쪽에 남으며 경과로 접지 않는다. */
+export const DEADLINE_SCOPE_OPTIONS = [
+  { value: "current", label: "마감 전·미확인" },
+  { value: "passed", label: "마감 경과" },
+] as const;
+
+export function validDeadlineScope(value: string | null): "current" | "passed" {
+  return value === "passed" ? "passed" : "current";
+}
+
 export const TRACKING_STATUS_OPTIONS = ["계속 추적", "보류", "종료", "미선택"] as const;
 
 export const PRE_SPEC_NEXT_ACTION_LABEL: Record<PreSpecNextAction, string> = {
