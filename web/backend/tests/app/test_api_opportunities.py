@@ -169,15 +169,17 @@ def test_opportunity_list_query_params_and_reason_fields(opportunity_api, monkey
     assert ids(sort="hold_review_due_at")[0] == held.id
     assert ids(section="신규 입찰공고") == [newcomer.id]
     assert ids(q="사업기회 발주계획") == [plan_opportunity.id]
+    assert ids(q="사업 기회발주 계획") == [plan_opportunity.id]
     assert ids(q="테스트  기관") == [ended.id]
     for params, code in (
         ({"section": "미결정"}, None), ({"reason": "unknown"}, None), ({"hold_review": "later"}, None),
-        ({"sort": "due"}, None), ({"q": "a"}, None), ({"q": "x" * 101}, None), ({"q": "   "}, "invalid_request"),
+        ({"sort": "due"}, None), ({"q": "a"}, "invalid_request"), ({"q": "x" * 101}, "invalid_request"),
     ):
         response = client.get("/api/opportunities", params=params)
         assert response.status_code == 422, params
         if code is not None:
             assert response.json()["error"]["code"] == code
+    assert len(ids(q=" \u00a0\ufeff ")) == len(ids())
 
 
 def test_opportunity_detail_keeps_search_unconfirmed_link_and_recheck_evidence(opportunity_api):
@@ -962,4 +964,3 @@ def test_search_endpoint_errors_are_safe_and_write_nothing(opportunity_api, empt
         and link["search_target_kind"] == "bid_notice"
         for link in detail["links"]
     )
-

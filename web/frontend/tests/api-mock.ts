@@ -10,6 +10,7 @@ import type {
   OverviewEnvelope, OverviewRun, PreSpecListItem, PreSpecOrderPlanCandidatesResponse,
   RunSummary, WorkloadKey, WorkloadResponse,
 } from "../src/lib/types";
+import { searchKey, searchMatches } from "../src/lib/search";
 import { clickReadyUnlinkedPreSpec, decisionQueueItems, opportunityDeepReviews, opportunityTrackingHistory } from "./fixtures/lifecycle-v2";
 
 const opportunityFixtures = new WeakMap<Page, OpportunityListItem[]>();
@@ -1037,9 +1038,11 @@ export async function mockOpportunity(page: Page): Promise<void> {
       }
       if (search.get("reason")) filtered = filtered.filter((item) => item.action_reasons.includes(search.get("reason") as never));
       if (search.get("section")) filtered = filtered.filter((item) => item.section === search.get("section"));
-      if (search.get("q")) {
-        const needle = String(search.get("q")).trim().toLowerCase();
-        filtered = filtered.filter((item) => item.links.some((link) => (link.title ?? "").toLowerCase().includes(needle) || (link.agency ?? "").toLowerCase().includes(needle)));
+      const query = search.get("q");
+      if (query && searchKey(query)) {
+        filtered = filtered.filter((item) => item.links.some((link) => (
+          (link.link_type === "official" && link.status === "확정") || link.status === "사람 확인 완료"
+        ) && searchMatches(query, link.title, link.agency)));
       }
       if (search.get("sort") === "tracking_status") filtered.sort((a, b) => a.tracking_status.localeCompare(b.tracking_status));
       if (search.get("sort") === "first_registered_stage") filtered.sort((a, b) => a.first_registered_stage.localeCompare(b.first_registered_stage));
@@ -1179,6 +1182,10 @@ export const visualPreSpecNotice = {
 
 const visualPreSpecItems: PreSpecListItem[] = [
   {
+    review_exclusion_status: "included",
+    review_exclusion_actor_name: null,
+    review_exclusion_reason: null,
+    review_exclusion_changed_at: null,
     notice_pk: 991,
     pre_spec_no: "PRE-991",
     title: "안전한 문서 준비 사전규격",
@@ -1204,6 +1211,10 @@ const visualPreSpecItems: PreSpecListItem[] = [
     next_action: "confirm_overview",
   },
   {
+    review_exclusion_status: "included",
+    review_exclusion_actor_name: null,
+    review_exclusion_reason: null,
+    review_exclusion_changed_at: null,
     notice_pk: 992,
     pre_spec_no: "PRE-992",
     title: "신규 지능형 행정 지원 사전규격",
@@ -1357,6 +1368,7 @@ function matchesWorkspace(
   to: string | null,
   sourceRunId: string | null = null,
 ): boolean {
+  if (item.review_exclusion_status === "excluded" && (workspace === "actionable" || workspace === "recent")) return false;
   if (!workspace || workspace === "all") return true;
   if (workspace === "tracking") return item.tracking_status === "계속 추적" || item.tracking_status === "보류";
   if (workspace === "recent") return matchesObservation(item, sourceRunId, from, to);
@@ -1373,6 +1385,8 @@ function matchesDeadlineStatus(item: PreSpecListItem, status: string | null): bo
 }
 
 function preSpecMatches(item: PreSpecListItem, search: URLSearchParams, includeWorkspace = true): boolean {
+  const exclusion = search.get("review_exclusion");
+  if (exclusion && exclusion !== "all" && item.review_exclusion_status !== exclusion) return false;
   const observedFrom = search.get("observed_from");
   const observedTo = search.get("observed_to");
   const workspace = search.get("workspace");
@@ -1396,6 +1410,8 @@ function preSpecMatches(item: PreSpecListItem, search: URLSearchParams, includeW
   if (observedFrom || observedTo) {
     if (!matchesObservation(item, null, observedFrom, observedTo)) return false;
   }
+  const query = search.get("q");
+  if (query && searchKey(query) && !searchMatches(query, item.title, item.agency)) return false;
   if (!matchesDeadlineStatus(item, search.get("deadline_status"))) return false;
   return true;
 }
@@ -1766,7 +1782,10 @@ export async function mockPreSpecs(page: Page): Promise<void> {
         .filter((item) => !url.searchParams.get("auto_preparation_status") || item.auto_preparation_status === url.searchParams.get("auto_preparation_status"))
         .filter((item) => !url.searchParams.get("business_division") || item.business_division === url.searchParams.get("business_division"))
         .filter((item) => !url.searchParams.get("origin") || item.origin === url.searchParams.get("origin"))
-        .filter((item) => !url.searchParams.get("q") || `${item.title} ${item.agency} ${item.pre_spec_no}`.includes(url.searchParams.get("q")!))
+        .filter((item) => {
+          const query = url.searchParams.get("q");
+          return !query || !searchKey(query) || searchMatches(query, item.title, item.agency);
+        })
       const allItems = candidateItems.filter((item) => preSpecMatches(item, url.searchParams));
       const unscoped = candidateItems.filter((item) => preSpecMatches(item, url.searchParams, false));
       const sort = url.searchParams.get("sort") ?? (url.searchParams.get("workspace") === "actionable" ? "deadline" : url.searchParams.get("workspace") === "recent" ? "observed" : "published");
@@ -1862,6 +1881,10 @@ const AUTO_PREPARATION_MATRIX = [
 ] as const;
 
 const preSpecMatrixItems = AUTO_PREPARATION_MATRIX.map((entry, index) => ({
+  review_exclusion_status: "included",
+  review_exclusion_actor_name: null,
+  review_exclusion_reason: null,
+  review_exclusion_changed_at: null,
   notice_pk: 8001 + index,
   pre_spec_no: `PRE-${8001 + index}`,
   title: `자동 준비 표본 ${index + 1}`,
@@ -2695,7 +2718,7 @@ export async function mockOrderPlans(page: Page, scenario: OrderPlanMockScenario
       && matchesValues(item.human_feedback?.relevance ?? null, search.get("human_relevance"))
       && (!search.get("tracking_status") || (item.tracking !== null && matchesValues(item.tracking.tracking_status, search.get("tracking_status"))))
       && (search.get("issue") !== "true" || ["failed", "rejected"].includes(item.stage1_status ?? "") || ["failed", "rejected"].includes(item.stage2_status ?? ""))
-      && (!search.get("q") || `${item.title} ${item.agency_name} ${item.order_plan_unty_no}`.toLocaleLowerCase("ko-KR").includes(search.get("q")!.toLocaleLowerCase("ko-KR"))));
+      && (!search.get("q") || !searchKey(search.get("q")!) || searchMatches(search.get("q")!, item.title, item.agency_name, item.order_plan_unty_no)));
   }
   workloadProvider(page, "order_plan_pending", () => latestCompletedExecution(null)
     ? { count: listItems(new URLSearchParams({ stage1_status: "selected", qwen_relevance: "relevant,uncertain", tracking_status: "미선택" })).length, unavailable_reason: null }

@@ -104,14 +104,20 @@ test("집계와 검색 범위를 밝히고 대기열이 넘치면 받은 범위 
   await expect(page.locator(".gng-summary")).toContainText(`전체 ${SCENARIOS.length}건 기준`);
   await expect(page.locator(".gng-summary")).not.toContainText("일부");
 
-  await page.getByPlaceholder("사업명·발주기관 검색").fill("교통");
+  const input = page.getByPlaceholder("사업명·발주기관 검색");
+  await input.fill("교통정보");
+  await expect(rows(page)).toHaveCount(9);
+  await expect(page.locator(".workspace-search-help")).toHaveText("Enter로 적용 · 띄어쓰기 무시");
+  await input.press("Enter");
   await expect(rows(page)).toHaveCount(1);
   await expect(page.locator(".gng-filter-context")).not.toContainText("받은 범위 안에서만");
 
-  await page.getByPlaceholder("사업명·발주기관 검색").fill("없는사업");
+  await input.fill("없는사업");
+  await expect(rows(page)).toHaveCount(1);
+  await input.press("Enter");
   await expect(page.getByRole("heading", { name: "조건에 맞는 사업이 없습니다" })).toBeVisible();
-  await expect(page.getByText("계속 추적 중인 사업 전체에서 찾았습니다.", { exact: false })).toBeVisible();
-  await page.getByRole("button", { name: "필터 초기화", exact: true }).click();
+  await expect(page.locator(".gng-list-empty")).toContainText('적용된 검색어 "없는사업"와 다른 활성 보기 조건에 맞는 사업이 없습니다.');
+  await page.getByRole("button", { name: "검색어만 지우기", exact: true }).click();
   await expect(rows(page)).toHaveCount(9);
 
   // 서버 상한(500건)을 넘는 대기열은 받은 범위만 센다고 직접 밝히고 페이저를 둔다.
@@ -119,7 +125,7 @@ test("집계와 검색 범위를 밝히고 대기열이 넘치면 받은 범위 
     const items = SCENARIOS.map((_, index) => queueItemFor(index));
     await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ items, total: 600, limit: 500, offset: 0 }) });
   });
-  await page.goto("/go-no-go?show=all&q=교통");
+  await page.goto("/go-no-go?show=all&q=교통정보");
   await expect(rows(page)).toHaveCount(1);
   await expect(page.locator(".gng-summary")).toContainText(`받은 ${SCENARIOS.length}건 기준`);
   await expect(page.locator(".gng-summary")).toContainText("전체 600건 중 일부입니다");

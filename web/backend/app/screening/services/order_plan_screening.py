@@ -34,7 +34,6 @@ from ..models import (
     OrderPlanScreeningResult,
 )
 from ...core.api_errors import BundleServiceError, validate_actor
-from .order_plan_search import casefold_column
 
 
 INPUT_SCHEMA = "bidops.order-plan-screening-input.v1"
@@ -1226,11 +1225,14 @@ class OrderPlanScreeningService:
                 result.stage1_status.in_({"failed", "rejected"}),
                 result.stage2_status.in_({"failed", "rejected"}),
             ))
-        query = q.casefold().strip() if q else None
+        from ...core.search import search_key, search_sql_match
+
+        query = search_key(q)
         if query:
             statement = statement.where(or_(
-                casefold_column(session, OrderPlan.title).contains(query, autoescape=True),
-                casefold_column(session, OrderPlan.order_plan_unty_no).contains(query, autoescape=True),
+                search_sql_match(OrderPlan.title, q),
+                search_sql_match(OrderPlan.agency_name, q),
+                search_sql_match(OrderPlan.order_plan_unty_no, q),
             ))
         total = int(session.scalar(select(func.count()).select_from(statement.subquery())) or 0)
         rows = session.execute(statement.order_by(OrderPlan.id.asc()).limit(limit).offset(offset)).all()

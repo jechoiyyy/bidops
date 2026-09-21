@@ -6,6 +6,16 @@
 
 `구현됨`은 코드와 계약이 존재한다는 뜻이고, `검증됨`은 기록된 명령이 해당 범위에서 통과했다는 뜻이다. Mock 결과, 과거 브랜치 결과, 현재 worktree 결과, 외부 운영 승인을 서로 대신하지 않는다.
 
+## 목록 조회 도구·검색 UX 통일 (2026-09-21, 로컬 구현·관련 검증 완료, 운영 배포 전)
+
+[의도·명세·계획](../0921_search-ux/plan.md)에 따라 발주계획·사전규격·사업 추적·최종 Go/No-Go의 검색 도구를 보기 탭 아래 왼쪽에 배치하고 Enter 적용, raw `q` 보존, Unicode 공백 제거·ASCII 대소문자 비교, 검색만 지우기, 동등 query의 선택·페이지 보존을 연결했다. 사전규격·사업 추적·독립 발주계획 API는 페이지 분할 전 서버 검색을 하며 Go/No-Go는 받은 행만 검색한다. DB migration은 없다. 다른 미커밋 작업은 보존했고 commit·push·운영 재배포는 실행하지 않았다.
+
+- Backend: 일회용 PostgreSQL 17과 SQLite로 `test_search.py` 및 관련 사전규격·사업 추적·발주계획 API 영향 사례를 실행했다. 최초 60건 중 59건 통과, 1건은 새 발주계획 검사 fixture의 기관명이 두 행에 같아서 기대 건수가 틀렸다. fixture만 고친 뒤 해당 사례 1건을 재실행해 통과했다. PostgreSQL SQL 검색과 Python 비교값의 공백·ASCII·literal parity 사례가 포함됐다. 운영 DB·모델 호출은 사용하지 않았다.
+- Frontend: `npm run build` 통과. Playwright `--project=app`의 `search-ux.spec.ts`, `order-plans.spec.ts`, `pre-specs.spec.ts`, `opportunities.spec.ts`, `go-no-go.spec.ts` 관련 190건 중 최초 188건 통과, 2건은 새 비교 규칙에 따른 기대값과 strict locator 오류였다. 이 2건의 기대값·locator 수정 후 둘 다 통과했다. 추가한 동등 검색·IME/키보드 삭제·직접 invalid URL 2건과 TypeScript 비교값 계약 1건도 각각 통과했다. Mock API는 미처리 요청을 404로 막으며 실제 운영 API로 보내지 않았다.
+- 구조: Playwright `overflow.spec.ts --grep '\[search-ux\]'`에서 1280×800·1440×900의 네 화면 8건 통과. 데이터가 표시된 각 화면의 전체 캡처를 직접 확인했다. `design-shell.spec.ts`의 관련 셸·제목·폭 검사 4건 통과, 폭 조건이 다른 2건은 의도된 skip이다. 캡처는 해당 Playwright 실행의 `web/frontend/test-results/`에 생성되는 일시 산출물이다.
+
+검증 한계: 프런트 화면 검사는 계약 기반 mock 환경이며 운영 스택·실제 데이터에서의 검색 조회와 배포 후 health 확인은 수행하지 않았다. 배포는 별도 실행 직전 사람 확인과 백업 절차가 필요하다.
+
 ## 사전규격 검토 제외·복원 (2026-09-21, 구현·격리 검증·운영 배포 완료)
 
 단건·선택 묶음 제외, 전체 이력 단건 복원, 팀 공통 상태·변경 정보·원자적 감사 저장을 구현했다.

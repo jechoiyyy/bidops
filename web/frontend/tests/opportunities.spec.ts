@@ -359,17 +359,19 @@ test("구역·정렬·최초 발견 단계·검색이 주소에 남고 단독 �
   expect(listUrl.searchParams.get("q")).toBe("학사행정");
 });
 
-test("검색은 입력이 멈춘 뒤 서버 q로 적용하고 첫 페이지로 돌아가며 주소에 남는다", async ({ page }) => {
+test("검색은 Enter로 서버 q에 적용하고 첫 페이지로 돌아가며 주소에 남는다", async ({ page }) => {
   const trace = await mockOpportunities(page);
   await page.goto("/opportunities?offset=100");
   await expect.poll(() => trace.listQueries.at(-1)?.get("offset")).toBe("100");
   const input = page.getByRole("textbox", { name: "사업명·발주기관 검색" });
 
-  // 두 글자 미만은 보내지 않고, 그 사실을 말한다.
+  // 두 글자 미만 draft는 적용 전까지 주소·서버 결과를 바꾸지 않는다.
   await input.fill("도");
-  await expect(page.locator(".opportunity-list-foot")).toContainText("검색어는 2~100자일 때만 적용합니다");
-  // 이어 치는 동안(300ms 안)은 보내지 않고 멈춘 뒤 마지막 값 하나만 보낸다.
-  await input.pressSequentially("담도시", { delay: 40 });
+  await expect.poll(() => new URL(page.url()).searchParams.get("q")).toBeNull();
+  await expect(page.locator(".opportunity-table-scroll tbody tr")).toHaveCount(0);
+  await input.fill("도담도시");
+  await expect.poll(() => new URL(page.url()).searchParams.get("q")).toBeNull();
+  await input.press("Enter");
   await expect.poll(() => new URL(page.url()).searchParams.get("q")).toBe("도담도시");
   await expect.poll(() => trace.listQueries.filter((params) => params.has("q")).length).toBe(1);
   const searched = trace.listQueries.filter((params) => params.has("q"));
@@ -390,9 +392,11 @@ test("검색은 입력이 멈춘 뒤 서버 q로 적용하고 첫 페이지로 �
   expect(trace.listQueries.at(-1)?.get("q")).toBe("도담도시");
 
   await input.fill("없는사업검색");
+  await expect(page.locator(".opportunity-row-title")).toHaveText(["시설관리 업무시스템 구축"]);
+  await input.press("Enter");
   await expect(page.getByRole("heading", { name: "조건에 맞는 사업이 없습니다" })).toBeVisible();
-  await expect(page.getByText("사업이 없다는 뜻은 아닙니다")).toBeVisible();
-  await page.getByRole("button", { name: "필터 초기화" }).click();
+  await expect(page.getByText('적용된 검색어 "없는사업검색"', { exact: false })).toBeVisible();
+  await page.getByRole("button", { name: "검색어만 지우기" }).click();
   await expect(page.locator(".opportunity-table-scroll tbody tr")).toHaveCount(5);
   await expect(input).toHaveValue("");
   expect(new URL(page.url()).searchParams.has("q")).toBe(false);

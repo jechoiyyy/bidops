@@ -220,11 +220,7 @@ def list_opportunities(
     section: OpportunitySection | None = Query(default=None),
     reason: OpportunityActionReason | None = Query(default=None),
     hold_review: OpportunityHoldReview | None = Query(default=None),
-    q: str | None = Query(
-        default=None,
-        min_length=opportunity_queries.SEARCH_QUERY_MIN_LENGTH,
-        max_length=opportunity_queries.SEARCH_QUERY_MAX_LENGTH,
-    ),
+    q: str | None = Query(default=None),
     sort: OpportunitySort = Query(default="created_at"),
     limit: int = Query(default=50, ge=1, le=500),
     offset: int = Query(default=0, ge=0),

@@ -198,7 +198,9 @@ GRANT UPDATE (
     sample_stratum, collection_bucket, procurement_class_json,
     region_limit_json, lifecycle_json, qualification_flags_json,
     focus_matches_json, performance_matches_json, performance_top_score,
-    candidate_sources_json, unknown_fields_json, raw_source
+    candidate_sources_json, unknown_fields_json, raw_source,
+    review_exclusion_status, review_exclusion_actor_name,
+    review_exclusion_reason, review_exclusion_changed_at
 ) ON bidops.notice TO app;
 GRANT UPDATE (
     title, agency_code, agency_name, supervising_agency_name,

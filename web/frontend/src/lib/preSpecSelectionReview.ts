@@ -4,7 +4,7 @@ const REVIEW_KEY_PREFIX = "bidops.pre-specs.review.v1.";
 const TOKEN_PARAM = "selection_review";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const LIST_PARAMS = new Set([
-  "sw_only", "business_division", "origin", "grade", "auto_preparation_status",
+  "review_exclusion", "sw_only", "business_division", "origin", "grade", "auto_preparation_status",
   "tracking_decision", "tracking_status", "workspace", "overview_view", "source_run_id",
   "observed_from", "observed_to", "deadline_status", "view", "q", "sort", "offset", "selected",
 ]);

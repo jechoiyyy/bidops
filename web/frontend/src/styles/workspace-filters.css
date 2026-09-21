@@ -42,13 +42,13 @@
   background: transparent;
 }
 
-/* 첫 줄 — 왼쪽은 보기 탭, 오른쪽은 검색과 상세 필터 토글이다. 화면은 그 사이에 자기
-   블록을 끼울 수 있고(사전규격의 SW 중심 스위치), 그때는 화면 CSS가 자기 접두 클래스로
-   정렬을 덧쓴다(`pre-specs-relaxed.css`). 여기 값은 네 화면 공용이라 바꾸지 않는다. */
+/* 첫 줄 — 보기 탭과 지금 보고 있는 범위 스위치만 둔다. 검색·상세 필터 같은 조회
+   도구는 바로 아래 `.workspace-filter-tools`로 내려서 네 화면의 DOM·탭 순서를 맞춘다. */
 .workspace-filter-line {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
+  flex-wrap: wrap;
   gap: var(--spacing-3);
   min-width: 0;
 }
@@ -119,10 +119,46 @@
   min-width: 0;
 }
 
+/* 보기 탭 아래의 기본 도구 순서. 자식 DOM 순서가 키보드 순서와 시각 순서를 함께
+   결정하므로 화면별 요구(필터 → 검색 → 회차)를 CSS order로 뒤집지 않는다. */
+.workspace-filter-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: var(--spacing-3);
+  min-width: 0;
+}
+
+.workspace-filter-tools > * {
+  min-width: 0;
+}
+
+.workspace-search-field {
+  display: flex;
+  flex: 0 1 calc(var(--spacing-12) * 5.5);
+  flex-direction: column;
+  gap: var(--spacing-1);
+  min-width: 0;
+}
+
+.workspace-search-field > .astryx-field {
+  width: 100%;
+  min-width: 0;
+}
+
+.workspace-search-help {
+  margin: 0;
+  padding-inline: var(--spacing-2);
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+  line-height: var(--bo-type-caption-leading);
+}
+
 /* spec §2.2 — 264x32, 반지름 8.75, 테두리 `--color-border-emphasized`.
    Astryx 는 테두리·반지름을 이미 그 값으로 주므로 폭과 높이만 못 박는다. */
 .workspace-filters .workspace-search {
-  width: calc(var(--spacing-12) * 5.5);
+  width: 100%;
   max-width: 100%;
   height: var(--size-element-md);
   padding: 0 var(--spacing-3);

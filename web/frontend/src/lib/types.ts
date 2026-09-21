@@ -238,7 +238,22 @@ export interface PreSpecDocumentSummary {
   "실패": number;
 }
 
+export type PreSpecReviewExclusionStatus = "included" | "excluded";
+export interface PreSpecReviewExclusionRequest {
+  notice_ids: number[];
+  status: PreSpecReviewExclusionStatus;
+  actor_name: string;
+  reason: string;
+}
+export interface PreSpecReviewExclusionResponse {
+  items: { notice_id: number; status: PreSpecReviewExclusionStatus; outcome: "changed" | "unchanged" }[];
+}
+
 export interface PreSpecListItem {
+  review_exclusion_status: PreSpecReviewExclusionStatus;
+  review_exclusion_actor_name: string | null;
+  review_exclusion_reason: string | null;
+  review_exclusion_changed_at: string | null;
   notice_pk: number;
   pre_spec_no: string | null;
   title: string | null;
@@ -294,6 +309,7 @@ export interface PreSpecListResponse {
 }
 
 export interface PreSpecListQuery {
+  review_exclusion?: "all" | PreSpecReviewExclusionStatus;
   notice_pk?: number | null;
   sw_only?: boolean | null;
   auto_preparation_status?: PreSpecAutoPreparationStatus | null;

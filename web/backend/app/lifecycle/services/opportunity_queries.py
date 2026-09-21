@@ -16,6 +16,7 @@ from sqlalchemy.sql.elements import ColumnElement
 from sqlalchemy.sql.selectable import Subquery
 
 from ...core.models import AuditEvent
+from ...core.search import search_key, search_sql_match, validation_value
 from ..extensions import extension_registry
 from ..models import Notice, Opportunity, OpportunityLink, OrderPlan
 from ..schemas.opportunities import (
@@ -66,7 +67,6 @@ _SECTION_KEYS = ("조치 필요", "추적 중", "보류", "추적 종료", "신�
 _OPEN_TRACKING_STATUSES = ("계속 추적", "보류")
 _LINK_REASONS = ("new_link", "candidate_pending", "merge_confirmation")
 #: ``q`` 비교에서 지우는 공백 문자. DB 쪽은 이 문자만 지우고 질의는 Python 공백 전체를 지운다.
-_SEARCH_WHITESPACE = (" ", "\t", "\n", "\r", "\u00a0", "\u3000")
 
 
 def _strategy_values(value: Any) -> list[str]:
@@ -282,21 +282,16 @@ def hold_review_predicate(
 
 
 def normalize_search_query(q: str) -> str:
-    """Collapse whitespace; the result must be 2–100 characters."""
+    """Validate the raw query without changing what is sent or displayed."""
 
-    collapsed = " ".join(q.split()) if isinstance(q, str) else ""
+    collapsed = validation_value(q) if isinstance(q, str) else ""
+    if not search_key(q):
+        return q
     if not SEARCH_QUERY_MIN_LENGTH <= len(collapsed) <= SEARCH_QUERY_MAX_LENGTH:
         raise OpportunityTrackingError(
             "invalid_request", "검색어는 공백을 정리한 뒤 2~100자여야 합니다"
         )
-    return collapsed
-
-
-def _compact_text(expression: Any) -> Any:
-    value = func.lower(expression)
-    for character in _SEARCH_WHITESPACE:
-        value = func.replace(value, character, "")
-    return value
+    return q
 
 
 def _search_predicate(q: str) -> ColumnElement[bool]:
@@ -307,7 +302,7 @@ def _search_predicate(q: str) -> ColumnElement[bool]:
     PostgreSQL identical without dialect regular expressions.
     """
 
-    needle = "".join(normalize_search_query(q).split()).lower()
+    normalize_search_query(q)
     link = aliased(OpportunityLink, name="searched_link")
     plan = aliased(OrderPlan, name="searched_order_plan")
     notice = aliased(Notice, name="searched_notice")
@@ -319,7 +314,7 @@ def _search_predicate(q: str) -> ColumnElement[bool]:
         .where(
             link.opportunity_id == Opportunity.id,
             authoritative_link_predicate(link),
-            or_(*(_compact_text(column).contains(needle, autoescape=True) for column in columns)),
+            or_(*(search_sql_match(column, q) for column in columns)),
         )
         .correlate(Opportunity)
         .exists()
@@ -489,7 +484,7 @@ def list_opportunities(
         conditions.append(Opportunity.first_registered_stage == first_registered_stage)
     if hold_review is not None:
         conditions.append(hold_review_predicate(hold_review, reference))
-    if q is not None:
+    if q is not None and search_key(q):
         conditions.append(_search_predicate(q))
     classified = _classified(session, now=reference, conditions=conditions)
     reason_values = _reason_values(classified)

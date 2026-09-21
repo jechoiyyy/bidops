@@ -1,6 +1,7 @@
 import type { MouseEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router-dom";
+import { Button } from "@astryxdesign/core/Button";
 import { Heading } from "@astryxdesign/core/Heading";
 import { InternationalizationProvider } from "@astryxdesign/core/i18n";
 import koKR from "@astryxdesign/core/locales/ko-KR.json";
@@ -109,8 +110,10 @@ export function PreSpecDetail({
   onSaved,
   onOpenDetail,
   onOpenDetailAfterSaved,
+  onReviewExclusion,
 }: {
   item: PreSpecListItem;
+  onReviewExclusion?: () => void;
   listSearch: string;
   onDirtyChange: (dirty: boolean) => void;
   onSaved: (saved: Parameters<typeof updateTrackingProjection>[2]) => void;
@@ -212,6 +215,7 @@ export function PreSpecDetail({
           <Heading level={3}>{titleOf(item)}</Heading>
         </div>
         <span className="pre-specs-detail-chips">
+          {item.review_exclusion_status === "excluded" ? <Token size="sm" label="검토 제외" color="default" /> : null}
           <Token size="sm" label={originLabel(item.origin)} color="default" />
           <Token size="sm" label={item.business_division?.trim() || "업무구분 미확인"} color="default" />
           <Token
@@ -367,6 +371,9 @@ export function PreSpecDetail({
             <span aria-hidden="true">·</span>
             <span>입찰 참여 여부는 최종 Go/No-Go에서 결정</span>
           </div>
+          {onReviewExclusion ? <Button size="sm" variant="secondary"
+            label={item.review_exclusion_status === "excluded" ? "검토 목록으로 복원" : "검토 제외"}
+            onClick={onReviewExclusion} /> : null}
           <Link
             className="interaction-control interaction-control-primary pre-specs-detail-open"
             to={detailUrl}

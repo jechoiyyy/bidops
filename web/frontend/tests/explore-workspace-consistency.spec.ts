@@ -119,10 +119,14 @@ function measure(selectors: Selectors) {
 
     filtersBackground: filtersStyle.backgroundColor,
     filtersBorderBottom: filtersStyle.borderBottomWidth,
-    // 사전규격만 보기 탭과 검색 칸 사이에 범위 스위치를 하나 더 둔다. 그래서 인접
-    // 형제(`+`)가 아니라 일반 형제(`~`)로 센다 — 계약은 여전히 "보기 탭 다음에
-    // 검색·상세 필터 칸이 하나"다.
-    filterEndCount: filters.querySelectorAll(":scope > .workspace-filter-line > [role='group'] ~ .workspace-filter-end").length,
+    // 검색·상세 필터·회차는 탭 아래 도구 행 하나에 있고, 도구 행의 DOM 순서가
+    // 키보드 순서와 같다. 사전규격의 추가 조건은 이 행에서 필요할 때만 줄바꿈한다.
+    filterToolsCount: filters.querySelectorAll(":scope > .workspace-filter-tools").length,
+    filterToolsBelowLine: (() => {
+      const line = filters.querySelector<HTMLElement>(":scope > .workspace-filter-line");
+      const tools = filters.querySelector<HTMLElement>(":scope > .workspace-filter-tools");
+      return Boolean(line && tools && tools.getBoundingClientRect().top >= line.getBoundingClientRect().bottom - 1);
+    })(),
 
     filtersBottom: filters.getBoundingClientRect().bottom,
     workspaceTop: workspace.getBoundingClientRect().top,
@@ -216,11 +220,12 @@ test("탐색과 추적 목록 4화면은 두 지원 폭에서 같은 상단바·
         .toBeLessThanOrEqual(metrics.topbarPaddingRight + 1);
 
       // 필터 바 — 배경이 네 화면에서 같고, 아래 workspace와 선을 두 번 그리지 않으며,
-      // 첫 줄은 보기 탭 묶음 + 검색·상세 필터 칸 두 칸이다.
+      // 첫 줄은 보기 탭이고 조회 도구는 그 아래 한 행이다.
       background ??= metrics.filtersBackground;
       expect(metrics.filtersBackground, `${where} 필터 바 배경`).toBe(background);
       expect(metrics.filtersBorderBottom, `${where} 필터 바와 workspace 사이 선은 하나다`).toBe("0px");
-      expect(metrics.filterEndCount, `${where} 보기 탭 다음의 검색·상세 필터 칸`).toBe(1);
+      expect(metrics.filterToolsCount, `${where} 보기 탭 아래 조회 도구 행`).toBe(1);
+      expect(metrics.filterToolsBelowLine, `${where} 조회 도구 행이 보기 탭 아래에 놓인다`).toBe(true);
 
       // 프레임 — 필터 바 아래 8px에서 workspace가 시작하고 목록은 38%다.
       expect(metrics.workspaceTop - metrics.filtersBottom, `${where} 필터 바와 workspace 사이 틈`)
