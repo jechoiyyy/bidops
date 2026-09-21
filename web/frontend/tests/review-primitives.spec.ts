@@ -48,7 +48,10 @@ test("발주계획 C-2는 공통 필터·목록·상세·상태·결정 action�
   await expect(page.locator('[data-review-primitive="dense-list-row"]')).toHaveCount(2);
   await expect(page.locator('[data-review-primitive="split-workspace"]')).toBeVisible();
   await expect(page.locator('[data-review-primitive="sticky-decision-header"]')).toBeVisible();
-  await expect(page.locator('[data-review-primitive="status"]')).not.toHaveCount(0);
+  // R2(0921 명세 §3.1): 이 화면의 공용 `status` 부품은 실행 상태 표시 하나였고, 그것은
+  // 최근 실행에 문제가 있을 때만 서는 칩으로 바뀌었다. 평상시 화면에는 상태 부품이 없다 —
+  // 추적 상태는 badge가, 실행 상태는 운영 화면이 진다.
+  await expect(page.locator('[data-review-primitive="status"]')).toHaveCount(0);
   await expect(page.locator('[data-review-primitive="value"]')).not.toHaveCount(0);
   // pane 바닥의 결정은 추적 결정 넷이다(ADR-0046 결정 4). 사람 판단 수정의 저장은
   // 접힌 보조 입력 영역이 소유하므로 이 바에 없다.

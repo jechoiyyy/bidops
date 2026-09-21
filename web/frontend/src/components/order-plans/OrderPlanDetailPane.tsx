@@ -1,4 +1,5 @@
 import type { Ref } from "react";
+import { Link } from "react-router-dom";
 import { Badge } from "@astryxdesign/core/Badge";
 import { Button } from "@astryxdesign/core/Button";
 import { Heading } from "@astryxdesign/core/Heading";
@@ -14,7 +15,11 @@ import {
 } from "../common/ReviewPrimitives";
 import { EmptyState } from "../common/EmptyState";
 import { describeApiError } from "../../lib/apiErrors";
-import type { OpportunityTrackingStatus, OrderPlanListItem } from "../../lib/types";
+import type {
+  OpportunityTrackingStatus,
+  OrderPlanListItem,
+  OrderPlanScreeningExecutionSummary,
+} from "../../lib/types";
 import {
   OTHER_REASON,
   TRACKING_REASONS,
@@ -23,8 +28,8 @@ import {
   plannedTiming,
   qwenBadgeVariant,
   qwenRowLabel,
+  stage1BadgeLabel,
   stage1BadgeVariant,
-  stage1RowLabel,
   textOrUnknown,
   trackingAvailability,
 } from "./orderPlanFormat";
@@ -35,10 +40,18 @@ const TRACKING_REASON_OPTIONS = [
   { label: "기타 · 직접 입력", value: OTHER_REASON },
 ];
 
+/**
+ * 추적 결정 상태의 실무 말(0921 명세 §3.1).
+ *
+ * `계약 미구현`은 "서버 API 계약이 아직 없다"는 뜻이었는데, 이 화면에서 `계약`은
+ * 조달 계약(계약방법)을 가리키는 낱말이라 뜻이 겹친다. 사실은 그대로 두고
+ * **이 화면에서 추적을 기록할 수 없다**는 실무 결과를 말한다. `사업기회 미연결`은
+ * 소유 사업기회를 확인하지 못한 것이며 둘은 서로 다른 상태다(뭉개지 않는다).
+ */
 function trackingStatusLabel(item: OrderPlanListItem | null): string {
   switch (trackingAvailability(item)) {
     case "contract_missing":
-      return "계약 미구현";
+      return "추적 기록 미지원";
     case "opportunity_missing":
       return "사업기회 미연결";
     default:
@@ -149,6 +162,32 @@ function TrackingDecisionFields({
   );
 }
 
+/**
+ * 판정을 낸 실행의 경고 한 줄. 부분 산출물이 있거나 실행이 실패·부분 성공일 때만 그린다
+ * (0921 명세 §3.1, 경고 ③·④). 평상시에는 아무것도 그리지 않는다.
+ *
+ * 실행 요약이 없으면(목록에 그 실행이 없으면) 줄을 그리지 않는다 — 문구를 만들려고
+ * 실행을 추가로 조회하지 않고, 없는 사실을 "문제 없음"으로 적지도 않는다.
+ */
+function ExecutionWarningLine({ execution }: { execution: OrderPlanScreeningExecutionSummary | null }) {
+  if (!execution) return null;
+  const failed = execution.status === "실패" || execution.status === "부분 성공";
+  if (!execution.partial_artifact && !failed) return null;
+  const fact = execution.partial_artifact
+    ? "이 판정의 실행에 부분 산출물이 있습니다"
+    : `이 판정의 실행이 ${execution.status}입니다`;
+  return (
+    <p className="c2l-detail-warn" role="note">
+      <Link
+        className="c2l-scope-link"
+        to={`/runs?run=${encodeURIComponent(execution.source_run_id)}&execution=${encodeURIComponent(execution.execution_id)}`}
+      >
+        {fact} · 운영 화면에서 확인 →
+      </Link>
+    </p>
+  );
+}
+
 export interface OrderPlanDetailPaneProps {
   listPending: boolean;
   listError: boolean;
@@ -161,9 +200,13 @@ export interface OrderPlanDetailPaneProps {
   trackingAvailabilityState: TrackingAvailability;
   selectedSourceUrl: string | null;
   feedbackSummaryLabel: string;
+  /**
+   * 이 행의 결과를 낸 실행 요약. 이미 받아 둔 실행 목록에서 찾은 것이며, 목록에 없으면
+   * `null`이다 — 경고 한 줄을 그리려고 실행을 따로 조회하지 않는다.
+   */
+  rowExecution: OrderPlanScreeningExecutionSummary | null;
   bulkPending: boolean;
   onOpenFeedback: () => void;
-  onOpenSignals: () => void;
   trackingIsError: boolean;
   trackingError: unknown;
   trackingMessage: { pk: number; text: string } | null;
@@ -197,9 +240,9 @@ export function OrderPlanDetailPane({
   trackingAvailabilityState,
   selectedSourceUrl,
   feedbackSummaryLabel,
+  rowExecution,
   bulkPending,
   onOpenFeedback,
-  onOpenSignals,
   trackingIsError,
   trackingError,
   trackingMessage,
@@ -257,7 +300,9 @@ export function OrderPlanDetailPane({
             />
             <Heading level={4}>{textOrUnknown(selectedItem.title)}</Heading>
             <div className="c2l-detail-identity">
-              <Text type="supporting" color="secondary" as="p">발주계획 {selectedItem.order_plan_unty_no} · 계획 ID {selectedItem.order_plan_pk}</Text>
+              {/* 외부 계획번호 하나만 둔다. 내부 계획 ID는 실무 판단에 쓰이지 않으며
+                  주소(`?selected=`)와 운영 화면이 그대로 들고 있다(0921 명세 §3.1). */}
+              <Text type="supporting" color="secondary" as="p">계획번호 {selectedItem.order_plan_unty_no}</Text>
               <Badge
                 variant={trackingAvailabilityState === "available" ? "neutral" : "warning"}
                 label={trackingStatusLabel(selectedItem)}
@@ -277,13 +322,27 @@ export function OrderPlanDetailPane({
               <div className="c2l-evidence-head">
                 <Heading level={5} id={`c2l-evidence-${selectedItem.order_plan_pk}`}>관련 근거</Heading>
                 <span className="c2l-row-badges">
-                  <Badge variant={stage1BadgeVariant(selectedItem.stage1_status)} label={stage1RowLabel(selectedItem.stage1_status)} />
+                  {stage1BadgeLabel(selectedItem.stage1_status) ? (
+                    <Badge variant={stage1BadgeVariant(selectedItem.stage1_status)} label={stage1BadgeLabel(selectedItem.stage1_status) as string} />
+                  ) : null}
                   <Badge variant={qwenBadgeVariant(selectedItem)} label={qwenRowLabel(selectedItem)} />
                 </span>
               </div>
-              <p className="c2l-evidence-body">
-                <ReviewValue value={selectedItem.qwen_reason} nullLabel="null (모델 근거 미제공)" />
-              </p>
+              {/* 없앤 `선별 신호 · 실행 기록` 다이얼로그에서 판단에 쓰는 두 값만 본문으로
+                  올렸다(시안 M3 결정 3 승인). 나머지 신호(순위·점수·실행 기록)는 운영
+                  화면의 `발주계획 선별` 탭이 진다. */}
+              <div className="c2l-evidence-item">
+                <Text type="supporting" color="secondary" as="p">모델 판단 근거</Text>
+                <p className="c2l-evidence-body">
+                  <ReviewValue value={selectedItem.qwen_reason} nullLabel="모델 근거 미제공" />
+                </p>
+              </div>
+              <div className="c2l-evidence-item">
+                <Text type="supporting" color="secondary" as="p">가까운 회사 역량</Text>
+                <p className="c2l-evidence-capability">
+                  <ReviewValue value={selectedItem.nearest_capability} nullLabel="미제공" />
+                </p>
+              </div>
               {/* 출처는 서버가 준 값 하나뿐이다. 원문 인용이나 문서 위치를 만들지
                   않고, 어느 알려진 필드를 읽었는지만 이름으로 적는다. */}
               <dl className="c2l-evidence-source">
@@ -297,18 +356,22 @@ export function OrderPlanDetailPane({
               </p>
             </section>
 
+            {/* 이 판정을 낸 실행에 문제가 있을 때만 한 줄로 알린다(경고 ③·④). 값 자체는
+                운영 화면이 진다 — 여기서는 "이 판정을 그대로 믿어도 되는가"만 말한다. */}
+            <ExecutionWarningLine execution={rowExecution} />
+
             {/* 이 건에 이미 기록된 추적 선택이 있으면 한 줄로 남긴다. 값이 없으면
                 줄 자체를 만들지 않는다. */}
             {selectedItem.tracking?.tracking_selected_by ? (
               <p className="c2l-detail-note">
                 <Text type="supporting" color="secondary" as="span">
-                  최근 추적 선택 · {selectedItem.tracking.tracking_selected_by} · {formatMoment(selectedItem.tracking.tracking_selected_at)} · 사유 <ReviewValue value={selectedItem.tracking.tracking_reason} nullLabel="null (사유 없음)" />
+                  최근 추적 선택 · {selectedItem.tracking.tracking_selected_by} · {formatMoment(selectedItem.tracking.tracking_selected_at)} · 사유 <ReviewValue value={selectedItem.tracking.tracking_reason} nullLabel="사유 미제공" />
                 </Text>
               </p>
             ) : null}
 
             {/* 보조 정보는 기본 동선에서 빼되 지우지 않는다. 같은 자리에서 연다. */}
-            <nav className="c2l-supplementary" aria-label="추가 검토 정보 및 공고 원문">
+            <nav className="c2l-supplementary" aria-label="공고 원문과 사람 판단 수정">
               {selectedSourceUrl ? (
                 <Button
                   label="공고 바로가기"
@@ -331,13 +394,6 @@ export function OrderPlanDetailPane({
                 variant="ghost"
                 isDisabled={bulkPending}
                 onClick={onOpenFeedback}
-              />
-              <Button
-                aria-label="선별 신호와 실행 기록 열기"
-                label="선별 신호 · 실행 기록"
-                size="sm"
-                variant="ghost"
-                onClick={onOpenSignals}
               />
             </nav>
           </div>
