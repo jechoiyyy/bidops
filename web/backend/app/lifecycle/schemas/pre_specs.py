@@ -93,6 +93,11 @@ class PreSpecListItem(RuntimeContractModel):
     pre_spec_no: str | None = None
     title: str | None = None
     agency: str | None = None
+    # Additive projection (0921_practitioner-screens spec §5): 사전규격 원문
+    # ``rlDminsttNm``(수요기관). 발주기관 ``agency``와 다를 수 있고 값이 없으면
+    # ``None``이다. 입찰공고에는 투영하지 않는다 — 입찰공고 ``agency``가 이미
+    # 수요기관 우선값이라 입찰공고의 ``demand_agency``는 항상 비어 있다.
+    demand_agency: str | None = None
     published_at: AwareDateTime | None = None
     deadline_at: AwareDateTime | None = None
     budget: float | None = None

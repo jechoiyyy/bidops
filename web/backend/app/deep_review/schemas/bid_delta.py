@@ -232,6 +232,15 @@ class BidDecisionQueueItem(BidDeltaModel):
     comparison_count: int
     latest_final_decision: BidDecisionQueueLatestDecision | None
     decision_currentness: Currentness
+    # Additive projection (0921_practitioner-screens spec §5): the selected bid
+    # notice's own deadline/amount columns, for the queue's default sort and
+    # display. When no bid notice is selected for the opportunity, all three
+    # stay ``None`` — they are never inferred from the order plan or pre-spec.
+    # Amounts stay Decimal strings (same convention as ``BidConditionValues``)
+    # so exact values are never lost to float rounding.
+    deadline_at: datetime | None
+    budget: str | None
+    estimated_price: str | None
 
 
 class BidDecisionQueueResponse(BidDeltaModel):

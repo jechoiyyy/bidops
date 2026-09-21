@@ -76,6 +76,17 @@ class OpportunityLinkView(RuntimeContractModel):
     title: str | None = None
     agency: str | None = None
     external_id: str | None = None
+    # Additive projection (0921_practitioner-screens spec §5): link-unit
+    # amount/deadline. When the link points at a notice, ``budget``·
+    # ``deadline_at`` project the notice's own columns; when it points at an
+    # order plan, ``budget`` projects ``budget_amount`` and
+    # ``planned_order_year``/``planned_order_month`` project the plan's
+    # timing. The server never picks an opportunity-level "representative"
+    # deadline — fields not applicable to the link's target stay ``None``.
+    budget: float | None = None
+    deadline_at: AwareDateTime | None = None
+    planned_order_year: str | None = None
+    planned_order_month: str | None = None
     record_external_id: str | None = None
 
 
