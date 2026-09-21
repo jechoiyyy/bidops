@@ -2,6 +2,79 @@
 
 기준일: 2026-09-03
 
+## 판정 입력에 참여 판단용 날짜·비율 항목이 없고 늘리려면 검증기 여섯 곳을 함께 열어야 한다 (2026-09-21, 미해결)
+
+- 재현 조건: 실무자가 참여 여부를 정할 때 보는 자격등록 마감, 공동수급협정 마감, 설명회 일시, 입찰 개시,
+  낙찰하한율, 사전규격 납품기한은 어느 화면·어느 API에도 없다. 수집기 정규화 결과에 그 항목이 없기 때문이며
+  화면·투영만으로는 채울 수 없다.
+- 영향: 항목 하나를 더하려면 판정 입력 계약의 **닫힌 검증기 전체**를 한 변경으로 열어야 한다 — 수집기
+  (`skills/bidops-collect/scripts/collect_notices.py`) → `web/backend/app/lifecycle/ingest/contracts.py` →
+  `loader.py:669-725`(null 생략 선택 키 집합, 옛 회차의 digest 보존) →
+  `web/backend/app/screening/orchestrator.py:1278,1341`(선택 lifecycle 키와 `opening_at` aware 검사) →
+  `skills/bidops-screen/scripts/build_screening_results.py:583`(선택 projection 목록) →
+  `loader.py:2934-2946,3052-3082`(`_SCREENING_*_KEYS` 허용 키 집합). 한 곳만 열면 기존 회차 적재가 깨지거나 새
+  필드가 조용히 버려진다. 과거 회차는 소급하지 않으므로 채워지지 않는 칸이 반드시 생긴다.
+- 지금 해결하지 않은 이유: 2026-09-21 사용자 결정 7(`docs/0921_practitioner-screens/intent.md` §3·§4)로 실무
+  화면 고도화 범위 밖으로 분리했다. **미수집 / 원문 빈 값 / 해석 실패 / 정상**의 4상태 계약을 먼저 설계해야
+  한다. 그 계약 없이 필드만 더하면 빈 값이 "그런 조건이 없음"으로 읽혀
+  [ADR-0065](decisions/0065-practitioner-ops-information-boundary.md) 결정 4(뜻이 다른 빈 값을 합치지 않는다)를
+  바로 깬다.
+- 후속: 4상태 계약 확정 → 위 여섯 지점을 한 변경으로 확장(`schema_version` 올림과 이전 소비자 처리 포함) →
+  과거 회차는 `미수집`으로 표시 → `docs/contracts.md`에 등록. 착수 시점은 사람이 정한다.
+
+## 발주 예정월·사전규격 등록 후 경과를 알리는 재확인 신호가 없다 (2026-09-21, 미해결)
+
+- 재현 조건: 발주 예정월이 지나도, 사전규격이 등록된 지 오래돼도 화면이 아무 말을 하지 않는다. 후보 임계값은
+  발주 예정월 + 2개월, 사전규격 등록 후 45일이다.
+- 영향: 임계값의 경험적 근거가 없다. 근거 없이 "지연"이라고 적으면 확인되지 않은 사실을 단정하는 표시가 되므로
+  이름은 "재확인 알림"이 맞다. 효과는 두 선택지 중 하나다. ⓐ **배지 전용** — 행·상세에 표식만 그리고 구역·
+  집계는 건드리지 않는다. ⓑ **`action_reasons`에 사유 코드 추가** — 이 경우 분류식
+  (`web/backend/app/lifecycle/services/opportunity_queries.py:375-381`)에 의해 열린 추적 상태의 건이 자동으로
+  `조치 필요` 구역으로 올라가고, 행의 주 행동 우선순위와 칩 순서
+  (`web/frontend/src/components/opportunities/trackingFlow.ts:157-171`)에도 자리를 잡아야 한다. 같은 모양의
+  선례가 `hold_overdue`다(`opportunity_queries.py:355`의 술어 → 같은 분류식 → `trackingFlow.ts`의 라벨·우선순위).
+  ⓑ는 대시보드 건수와 사업 추적 구역 건수를 함께 움직이므로 되돌리기 어렵다.
+- 지금 해결하지 않은 이유: 2026-09-21 사용자 결정 7로 실무 화면 고도화 범위 밖으로 분리했다. 임계값 근거,
+  해제 조건(후속 단계가 연결되면 알림을 끄는가), 월 경계 정의(발주 예정은 월 단위라 "+2개월"의 기준일이
+  모호하다)가 모두 미정이다.
+- 후속: 실제 데이터로 임계값 근거를 관측한 뒤 ⓐ/ⓑ를 정한다. ⓑ면 `OpportunityActionReason` union·라벨·
+  우선순위·필터·대시보드 집계를 한 변경으로 바꾸고 `docs/contracts.md`에 등록한다.
+
+## 발주처 담당자 연락처가 정규화 스키마 밖에 남아 있다 (2026-09-21, 결정 보류)
+
+- 재현 조건: 발주계획 원문 응답에는 담당자 정보가 들어 있으나 `OrderPlan` 정규화 컬럼에는 없다.
+  `web/backend/app/lifecycle/models.py:266-273`의 docstring이 그 경계를 적는다 — "The columns below are the
+  fields selected by the measured order-plan normalizer.  Contact fields and the remaining response payload stay
+  in ``raw_source``/``unknown_fields_json`` rather than becoming guessed schema." 따라서 값은 보존되지만 명명된
+  projection이 없어 API·화면에 나올 수 없다.
+- 영향: 발주처에 확인할 것이 생겼을 때 실무자가 화면 밖(원문 포털)으로 나가야 한다. `docs/PRD.md` §5.4는
+  "발주기관 연락·협상·알림 발송"을 명시적 제외로 두고 있는데, 그것은 **시스템이 대신 연락하는 기능**의 제외이지
+  사람이 볼 연락처를 화면에 두는 것을 금지한 문장이 아니다. 두 가지를 같은 것으로 읽으면 결정이 근거 없이 닫힌다 —
+  이 항목은 PRD가 이미 금지한 것이 아니라 **아직 결정하지 않은 것**이다.
+- 지금 해결하지 않은 이유: 2026-09-21 사용자 결정 8(`docs/0921_practitioner-screens/intent.md` §3)로 이번 범위에서
+  빼고 후속 결정으로만 기록하기로 했다. 측정된 정규화 스키마를 넓히는 것은 기존 레코드의 저장 identity에 영향을 줄
+  수 있고(`docs/engineering-notes.md` "선택 필드를 계약 모델에 더하면 기존 레코드의 저장 identity가 바뀐다"),
+  개인 연락처를 API 응답·로그·감사에 어디까지 실을지가 먼저 정해져야 한다.
+- 후속: 표시 여부와 범위(이름 / 부서 / 전화 / 이메일)를 사람이 정한다. 표시하기로 하면 `raw_source`에서 명명된
+  projection으로 올리고, 로그·감사·오류 응답에 넣지 않는 규칙을 `docs/contracts.md`와 함께 적는다. 연락 기능
+  자체는 PRD §5.4대로 계속 비목표다.
+
+## 입찰공고 `budget`이 세 원문 필드의 fallback이라 무엇을 본 값인지 알 수 없다 (2026-09-21, 미해결)
+
+- 재현 조건: `skills/bidops-collect/scripts/collect_notices.py:612`가
+  `"budget": first(record, "asignBdgtAmt", "presmptPrce", "bsisAmount")`로 배정예산 → 추정가격 → 기초금액을 순서대로
+  고른다. 바로 다음 줄(`:613`)의 `estimated_price`는 `presmptPrce` 하나다. 저장된 `budget` 값만 보면 셋 중 어느
+  원문 필드에서 왔는지 알 수 없고, 두 번째 후보로 떨어진 공고는 `budget`과 `estimated_price`가 같은 값이 된다.
+- 영향: 화면이 이 값을 '배정예산'이라 부르면 사실이 아닌 라벨이 된다. 그래서 실무 화면 고도화는 `예산(원문 제공
+  금액)`과 `추정가격`을 따로 보이고 값이 같아도 합치지 않는 선에서 멈췄다(`docs/0921_practitioner-screens/spec.md`
+  §6.3, [ADR-0065](decisions/0065-practitioner-ops-information-boundary.md) 결정 4). 두 값이 같을 때 그것이 "실제로
+  같은 금액"인지 "fallback으로 같아진 것"인지는 여전히 화면에서 구분되지 않는다.
+- 지금 해결하지 않은 이유: 출처를 남기려면 수집기 정규화 출력에 `budget_source` 같은 필드를 더해야 하고, 그러면 위
+  "판정 입력에 참여 판단용 날짜·비율 항목이 없고…" 항목과 같은 닫힌 검증기 사슬과 과거 회차 소급 문제가 그대로
+  따라온다. 2026-09-21 사용자 결정으로 이번 범위 밖이다(intent §4).
+- 후속: 위 항목의 4상태 계약과 함께 `budget_source`(또는 세 금액을 각각 보존하는 형태)를 정한다. 과거 회차는
+  소급하지 않고 `미수집`으로 남는다. 그때까지 화면·문서는 이 값을 '배정예산'이라 부르지 않는다.
+
 ## 발주계획 일괄 추적 시작에는 record backfill도 선택 상한도 없다 (2026-09-20, 미해결)
 
 - 재현: 단건 `PATCH /api/opportunities/{id}/tracking-status`는 `계속 추적`·`보류`로 바뀔 때 router에서
