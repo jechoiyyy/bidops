@@ -634,8 +634,12 @@ test("최종 Go/No-Go 목록은 결정 대기열 한 번으로 그리고 행마�
   // 첫 행이 선택되고 그 사업 하나만 상세를 받는다.
   expect([...new Set(trace.workspaceIds)]).toEqual([600]);
   await expect(page.locator(".gng-summary")).toHaveText("전체 30건 기준 · 30건 표시");
-  // 서버 상한(500건) 안이므로 받은 범위 페이저를 두지 않는다.
-  await expect(page.getByRole("navigation", { name: "결정 대기열 페이지" })).toHaveCount(0);
+  // 공용 페이저는 한 쪽뿐이어도 항상 보이고 단추만 비활성이다(U3, 명세 §2.2).
+  const pager = page.getByRole("navigation", { name: "결정 대기열 페이지" });
+  await expect(pager).toBeVisible();
+  await expect(pager).toContainText("1–30 / 30");
+  await expect(pager.getByRole("button", { name: "이전" })).toBeDisabled();
+  await expect(pager.getByRole("button", { name: "다음" })).toBeDisabled();
 
   // 다른 행을 골라도 대기열은 다시 받지 않고 그 행 하나만 조회한다.
   await page.locator(".gng-row").filter({ hasText: "결정 대기 사업 12" }).click();

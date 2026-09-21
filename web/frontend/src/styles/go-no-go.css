@@ -167,12 +167,6 @@
   background: var(--color-background-body);
 }
 
-.gng-pager {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-2);
-}
-
 /* 받은 목록에서 센 값이라는 사실을 요약이 직접 말한다. 전체 총계가 아니다. */
 .gng-summary {
   margin: 0;
