@@ -53,8 +53,10 @@ def counted(session):
         event.remove(session.bind, "before_cursor_execute", record)
 
 
-def add_bid(session, owner, *, published=NOW, kind="official", status="확정", human=None):
-    notice = Notice(notice_key=f"queue:{uuid4()}", source_type="bid_notice", published_at=published)
+def add_bid(session, owner, *, published=NOW, kind="official", status="확정", human=None,
+            deadline_at=None, budget=None, estimated_price=None):
+    notice = Notice(notice_key=f"queue:{uuid4()}", source_type="bid_notice", published_at=published,
+        deadline_at=deadline_at, budget=budget, estimated_price=estimated_price)
     session.add(notice)
     session.flush()
     link = OpportunityLink(opportunity_id=owner.id, notice_id=notice.id, stage="notice", link_type=kind,
@@ -353,7 +355,34 @@ def test_queue_all_preserves_unlinked_order_plan_display_and_nulls(queue_session
     assert result["items"][0]["bid_notice_external_id"] is None
     assert result["items"][0]["comparison_count"] == 0
     assert result["items"][0]["latest_final_decision"] is None
+    # No bid notice is selected for this opportunity; the three bid-notice
+    # projections stay null rather than falling back to the order plan.
+    assert result["items"][0]["deadline_at"] is None
+    assert result["items"][0]["budget"] is None
+    assert result["items"][0]["estimated_price"] is None
     assert BidDeltaService().decision_queue(session)["total"] == 0
+
+
+def test_queue_projects_selected_bid_amounts_and_sorts_by_nearest_deadline(queue_session):
+    session = queue_session
+    near = opportunity(session, created_at=NOW)
+    add_bid(session, near, deadline_at=NOW + timedelta(days=1), budget="1500000.00",
+        estimated_price="1400000.50")
+    unknown_deadline = opportunity(session, created_at=NOW + timedelta(days=1))
+    add_bid(session, unknown_deadline, deadline_at=None)
+    far = opportunity(session, created_at=NOW)
+    add_bid(session, far, deadline_at=NOW + timedelta(days=5))
+    session.commit()
+    result = BidDeltaService().decision_queue(session, status="all")
+    # Ascending deadline first; unknown deadlines sort after every known one,
+    # not first and not excluded.
+    assert [item["opportunity_id"] for item in result["items"]] == [near.id, far.id, unknown_deadline.id]
+    near_item = next(item for item in result["items"] if item["opportunity_id"] == near.id)
+    assert near_item["deadline_at"] is not None
+    # Exact Decimal magnitude, not a float-rounded amount.
+    assert near_item["budget"] == "1500000"
+    assert near_item["estimated_price"] == "1400000.5"
+    assert result["items"][-1]["deadline_at"] is None
 
 
 def test_workload_empty_counts_are_integer_zero(queue_session):

@@ -76,6 +76,10 @@ def _strategy_values(value: Any) -> list[str]:
     return [item for item in value if isinstance(item, str) and item in allowed]
 
 
+def _decimal_float(value: Any) -> float | None:
+    return float(value) if value is not None else None
+
+
 def link_view(link: OpportunityLink) -> OpportunityLinkView:
     """Project a link without exposing raw records or storage metadata."""
 
@@ -87,6 +91,10 @@ def link_view(link: OpportunityLink) -> OpportunityLinkView:
     title: str | None = None
     agency: str | None = None
     record_external_id: str | None = None
+    budget: float | None = None
+    deadline_at: datetime | None = None
+    planned_order_year: str | None = None
+    planned_order_month: str | None = None
 
     if link.notice is not None:
         record_type = link.notice.source_type or "notice"
@@ -96,6 +104,8 @@ def link_view(link: OpportunityLink) -> OpportunityLinkView:
         title = link.notice.title
         agency = link.notice.agency
         record_external_id = link.notice.notice_key
+        budget = _decimal_float(link.notice.budget)
+        deadline_at = link.notice.deadline_at
     elif link.order_plan is not None:
         record_type = "order_plan"
         record_id = link.order_plan.id
@@ -103,6 +113,9 @@ def link_view(link: OpportunityLink) -> OpportunityLinkView:
         title = link.order_plan.title
         agency = link.order_plan.agency_name or link.order_plan.supervising_agency_name
         record_external_id = link.order_plan.order_plan_unty_no
+        budget = _decimal_float(link.order_plan.budget_amount)
+        planned_order_year = link.order_plan.planned_order_year
+        planned_order_month = link.order_plan.planned_order_month
     elif link.stage == "order_plan":
         # A targetless official link retains the upstream number while the
         # corresponding record is outside the current collection window.
@@ -136,6 +149,10 @@ def link_view(link: OpportunityLink) -> OpportunityLinkView:
         agency=agency,
         external_id=external_id,
         record_external_id=record_external_id,
+        budget=budget,
+        deadline_at=deadline_at,
+        planned_order_year=planned_order_year,
+        planned_order_month=planned_order_month,
     )
 
 
