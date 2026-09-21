@@ -11,7 +11,7 @@
 | 화면 | 탭 다음 조회 도구의 순서 | 검색 대상과 실행 위치 | 기존 보조 요소 |
 |---|---|---|---|
 | 발주계획 `/order-plans` | 상세 필터 토글 → 검색 → 수집 회차 | 이미 불러온 누적 또는 선택 회차의 각 행 `title`, `agency_name`, `order_plan_unty_no`를 클라이언트에서 검색 | 수집 회차는 감사용 범위 선택이며 상세 필터 축·저장된 보기는 유지 |
-| 사전규격 `/pre-specs` | 상세 필터 토글 → 검색 → 수집 회차 → 추가 조회 조건 | `GET /api/pre-specs`의 `Notice.title`, `Notice.agency`를 서버에서 검색 | SW 중심 스위치는 보기 탭 옆. 추가 조회 조건은 검토 포함 여부와 관측 날짜. 기존 나머지 조건은 상세 필터에 유지 |
+| 사전규격 `/pre-specs` | 상세 필터 토글 → 검색 → 수집 회차 → 추가 조회 조건 | `GET /api/pre-specs`의 `Notice.title`, `Notice.agency`를 서버에서 검색 | SW 중심 스위치는 보기 탭 옆. 추가 조회 조건은 검토 포함 여부(전체 이력 전용)·마감 구간(검토할 항목 전용, 2026-09-21 [ADR-0064](../tracking/decisions/0064-prespec-actionable-deadline-scope.md))과 관측 날짜. 앞의 둘은 서로 배타적이라 같은 칸을 나눠 쓰며 동시에 보이는 보기는 없다. 기존 나머지 조건은 상세 필터에 유지 |
 | 사업 추적 `/opportunities` | 상세 필터 토글 → 검색 | `GET /api/opportunities`에서 해당 사업기회의 **authoritative 소유 링크** 대상인 `OrderPlan.title`, `agency_name`, `Notice.title`, `agency`, `demand_agency`를 서버에서 검색 | 조치 사유 칩은 도구 아래에 유지 |
 | 최종 Go/No-Go `/go-no-go` | 검색 | `GET /api/bid-delta/decision-queue?status=all`에서 현재 페이지로 **받은 행만** 클라이언트에서 검색. 행의 실제 `title`, `agency`가 대상 | 범위 안내는 도구 아래에 유지. 받은 범위만 검색한다는 문구와 전체/받은 건수 구분 유지 |
 

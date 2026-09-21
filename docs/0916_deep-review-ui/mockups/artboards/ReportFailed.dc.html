@@ -1,0 +1,152 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&amp;display=swap">
+  <style>
+    :root { --bg:#ffffff; --surface:#ffffff; --muted-surface:#f6f7f4; --border:#e2e5df; --border-strong:#c9cfc3;
+      --text:#1b211d; --text-2:#4c5650; --text-3:#79837c; --disabled:#9aa39c;
+      --accent:#75a03b; --accent-strong:#587a2b; --accent-deep:#3f5a1c; --accent-soft:#f1f6e8; --accent-edge:#cfdfb5; --accent-row:#f4f8ee;
+      --red-bg:#facecb; --red-text:#89001a; --orange-bg:#fad0b5; --orange-text:#6e3500; --yellow-bg:#f8da9d; --yellow-text:#584400;
+      --gray-bg:#eef0ec; --gray-text:#3c4640; }
+    body { margin:0; background:#ffffff; color:#1b211d; font-family:"Pretendard","Noto Sans KR",system-ui,sans-serif; font-size:14px; line-height:1.5; font-variant-numeric:tabular-nums; -webkit-font-smoothing:antialiased; }
+    a { color:#587a2b; text-decoration:none; } a:hover { color:#3f5a1c; text-decoration:underline; }
+    h1,h2,h3,h4,p,dl,dd,dt,ul,ol { margin:0; }
+    ul,ol { padding:0; list-style:none; }
+    svg { display:block; flex-shrink:0; }
+    .nav-item { display:flex; align-items:center; gap:12px; min-height:36px; padding:8px 12px; border-radius:5.25px; font-size:14.25px; }
+    .btn { display:inline-flex; align-items:center; justify-content:center; gap:8px; height:28px; padding:0 12px; border-radius:8.75px; font-size:12px; font-weight:500; line-height:1.45; white-space:nowrap; border:0; }
+    .btn-primary { background:#587a2b; color:#ffffff; }
+    .btn-secondary { background:#f1f6e8; color:#3f5a1c; }
+    .btn-ghost { background:transparent; color:#1b211d; }
+    .btn-outline { background:#ffffff; color:#1b211d; box-shadow:inset 0 0 0 1px #e2e5df; }
+    .btn-disabled { background:#eef0ec; color:#9aa39c; }
+    .tok { display:inline-flex; align-items:center; height:20px; padding:0 8px; border-radius:5.25px; font-size:12px; font-weight:500; line-height:1; white-space:nowrap; background:#eef0ec; color:#3c4640; }
+    .tok-accent { background:#f1f6e8; color:#3f5a1c; }
+    .tok-red { background:#facecb; color:#89001a; }
+    .tok-orange { background:#fad0b5; color:#6e3500; }
+    .tok-yellow { background:#f8da9d; color:#584400; }
+    .tok-outline { background:#ffffff; color:#4c5650; box-shadow:inset 0 0 0 1px #e2e5df; }
+    .cap { font-size:12px; line-height:1.45; color:#79837c; }
+    .cap2 { font-size:12px; line-height:1.45; color:#4c5650; }
+    .sec-title { font-size:14px; line-height:1.4; font-weight:600; color:#1b211d; }
+    .card { background:#ffffff; border:1px solid #e2e5df; border-radius:10.5px; }
+    .dday { font-size:12px; font-weight:600; color:#587a2b; }
+    .dday-passed { color:#89001a; }
+    .field { display:flex; align-items:center; height:32px; padding:0 12px; border-radius:8.75px; border:1px solid #c9cfc3; background:#ffffff; font-size:14px; color:#79837c; }
+    .check { width:16px; height:16px; border-radius:4px; border:1px solid #c9cfc3; background:#ffffff; flex-shrink:0; }
+    .check-on { background:#75a03b; border-color:#75a03b; }
+
+    .card { background:#ffffff; border:1px solid transparent; border-radius:14px; box-shadow:0 1px 2px rgba(27,33,29,0.05), 0 6px 18px rgba(27,33,29,0.07); }
+    .utab { display:flex; align-items:center; gap:6px; height:32px; padding:0 4px; margin-right:12px; font-size:12px; font-weight:500; color:#79837c; }
+    .utab-on { color:#1b211d; font-weight:600; box-shadow: inset 0 -2px 0 #75a03b; }
+    .split-l { display:flex; flex:0 0 38%; min-width:0; flex-direction:column; border-right:1px solid #eef0ec; background:#ffffff; }
+    .split-r { display:flex; flex:1 1 auto; min-width:0; flex-direction:column; background:#ffffff; }
+    .lh { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:8px 16px; border-bottom:1px solid #eef0ec; }
+    .lf { display:flex; align-items:center; justify-content:space-between; padding:8px 16px; border-top:1px solid #eef0ec; background:#fbfcf9; font-size:12px; color:#4c5650; }
+    .row { display:flex; align-items:flex-start; gap:8px; padding:8px 16px; border-bottom:1px solid #eef0ec; }
+    .row-on { background:#f1f6e8; }
+    .th { text-align:left; padding:0 12px 6px 0; border-bottom:1px solid #e2e5df; font-size:12px; font-weight:500; color:#4c5650; }
+    .td { padding:10px 12px 10px 0; border-bottom:1px solid #eef0ec; font-size:14px; vertical-align:top; }
+    .kv { display:flex; flex-direction:column; gap:2px; }
+
+  
+    .tok-gray { background:#eef0ec; color:#3c4640; }
+    .tok-strong { background:#3f5a1c; color:#ffffff; }
+    .sev { display:inline-flex; align-items:center; height:20px; padding:0 8px; border-radius:5.25px; font-size:12px; font-weight:600; white-space:nowrap; }
+    .sev-block { background:#facecb; color:#89001a; }
+    .sev-major { background:#fad0b5; color:#6e3500; }
+    .sev-normal { background:#f8da9d; color:#584400; }
+    .sev-low { background:#eef0ec; color:#3c4640; }
+    .bar { position:relative; height:6px; border-radius:999px; background:#eef0ec; overflow:hidden; }
+    .bar > span { position:absolute; left:0; top:0; bottom:0; border-radius:999px; background:#75a03b; }
+    .hdr { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:14px 22px; border-bottom:1px solid #eef0ec; }
+    .body { display:flex; flex-direction:column; gap:14px; padding:16px 22px 20px; }
+    .mono { font-family:ui-monospace,Menlo,monospace; font-size:12px; color:#79837c; }
+    .skel { height:12px; border-radius:6px; background:#eef0ec; }
+    .tile { display:flex; flex-direction:column; gap:4px; padding:12px 14px; border-radius:10.5px; background:#f6f7f4; }
+    .li { display:flex; justify-content:space-between; gap:12px; padding:8px 0; border-bottom:1px solid #eef0ec; font-size:14px; line-height:1.45; }
+    .hl { background:#f1f6e8; box-shadow:inset 0 -2px 0 #75a03b; color:#1b211d; }
+  </style>
+</helmet>
+<div style="display:flex; width:1422px; min-height:1520px; box-sizing:border-box; background:#f6f7f4; overflow:hidden; align-items:stretch;">
+<aside style="display:flex; flex-direction:column; flex:0 0 248px; width:248px; height:auto; align-self:stretch; box-sizing:border-box; background:#f6f7f4; border-right:1px solid transparent;">
+  <div style="display:flex; align-items:center; gap:12px; padding:16px 16px 12px; border-bottom:1px solid transparent;">
+    <div style="display:flex; align-items:center; justify-content:center; width:40px; height:40px; border-radius:8.75px; background:#75a03b;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 19c0-7 4-13 14-14 0 10-5 14-12 14"></path><path d="M5 19c3-4 6-7 10-9"></path></svg></div>
+    <div style="display:flex; flex-direction:column; gap:2px;">
+      <div style="font-size:14.88px; font-weight:600; line-height:1.3; color:#1b211d;">BidOps</div>
+      <div style="font-size:12px; line-height:1.3; color:#79837c;">ROOTLAB · 사업기회 모니터링</div>
+    </div>
+  </div>
+  <nav style="display:flex; flex-direction:column; padding:4px 12px 24px; flex:1 1 auto;">
+    <div style="display:flex; flex-direction:column; padding-top:12px;">
+        <div style="padding:0 12px 8px; font-size:12px; font-weight:500; letter-spacing:.08em; color:#79837c;">오늘의 업무</div>
+        <div style="display:flex; flex-direction:column; gap:2px;"><a class="nav-item" href="#" style="color:#4c5650;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="9" rx="1"></rect><rect x="14" y="3" width="7" height="5" rx="1"></rect><rect x="14" y="12" width="7" height="9" rx="1"></rect><rect x="3" y="16" width="7" height="5" rx="1"></rect></svg><span>대시보드</span></a></div></div>
+    <div style="display:flex; flex-direction:column; padding-top:12px;">
+        <div style="padding:0 12px 8px; font-size:12px; font-weight:500; letter-spacing:.08em; color:#79837c;">탐색과 추적</div>
+        <div style="display:flex; flex-direction:column; gap:2px;"><a class="nav-item" href="#" style="color:#4c5650;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4h14v16H5z"></path><path d="M8 8h8M8 12h8M8 16h5"></path><path d="M8 4V2M16 4V2"></path></svg><span>발주계획</span></a><a class="nav-item" href="#" style="background:#ffffff; color:#3f5a1c; font-weight:600; box-shadow:0 1px 2px rgba(27,33,29,0.05), 0 6px 18px rgba(27,33,29,0.07);"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h9l4 4v14H6z"></path><path d="M14 3v5h5M9 13h7M9 17h5"></path></svg><span>사전규격</span></a><a class="nav-item" href="#" style="color:#4c5650;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h9"></path></svg><span>사업 추적</span></a><a class="nav-item" href="#" style="color:#4c5650;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h9l4 4v14H6z"></path><path d="M14 3v5h5M9 13h7M9 17h5"></path></svg><span>최종 Go/No-Go</span></a></div></div>
+    <div style="display:flex; flex-direction:column; padding-top:12px;">
+        <div style="padding:0 12px 8px; font-size:12px; font-weight:500; letter-spacing:.08em; color:#79837c;">기준과 운영</div>
+        <div style="display:flex; flex-direction:column; gap:2px;"><a class="nav-item" href="#" style="color:#4c5650;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h9l4 4v14H6z"></path><path d="M14 3v5h5M9 13h7M9 17h5"></path></svg><span>판정 기준</span></a><a class="nav-item" href="#" style="color:#4c5650;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 17h3l2-10 4 14 2-8h5"></path></svg><span>실행 상태</span></a></div></div>
+  </nav>
+  <div style="display:flex; flex-direction:column; gap:4px; padding:16px 20px 20px; border-top:1px solid transparent; font-size:12px; color:#79837c;">
+    <span>기획부 · 사업기획</span><span>관리자 화면</span>
+  </div>
+</aside>
+<div style="display:flex; flex:1 1 auto; min-width:0; flex-direction:column;">
+  <header style="display:flex; align-items:center; justify-content:space-between; gap:16px; height:76px; box-sizing:border-box; padding:12px 18px; background:#f6f7f4;">
+    <div style="display:flex; align-items:center; gap:6px; font-size:12px;"><span style="color:#4c5650;">탐색과 추적</span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#9aa39c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"></path></svg><span style="color:#4c5650;">사전규격</span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#9aa39c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"></path></svg><span style="color:#4c5650;">R26BD00273769</span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#9aa39c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"></path></svg><span style="color:#1b211d; font-weight:600;">심층 검토 보고서</span></div>
+    <div style="display:flex; align-items:center; gap:12px;"><div class="btn btn-outline">보고서 이력</div></div>
+  </header>
+  <main style="display:flex; flex:1 1 auto; min-height:0; flex-direction:column; gap:12px; padding:12px 18px 40px; background:#f6f7f4;">
+    <div style="display:flex; width:100%; flex-direction:column; align-items:center;"><div style="display:flex; width:100%; max-width:1120px; flex-direction:column; gap:16px; padding-top:8px;">
+      <section class="card" style="display:flex; flex-direction:column;">
+        <div class="kv" style="gap:10px; padding:20px 24px 16px;">
+          <div style="display:flex; align-items:center; justify-content:space-between; gap:12px;"><div style="display:flex; align-items:center; gap:6px;"><span class="tok tok-accent">심층 검토 · 완료</span><span class="tok tok-red">검증 실패 · 사람 확인 필요</span><span class="tok tok-outline">참조 실행 · 품질 미측정</span></div><div style="display:flex; align-items:center; gap:10px;"><span class="cap2">보고서 수정본 1</span><a href="#" class="cap2">사전규격 상세로 돌아가기</a></div></div>
+          <h1 style="font-size:22px; font-weight:600; line-height:1.35;">심층 검토 보고서</h1>
+          <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;" class="cap2"><span style="font-size:14px; color:#1b211d;">예술인 공제사업 통합관리시스템 중장기 ISMP 수립</span><span style="color:#c9cfc3;">·</span><span>한국예술인복지재단</span><span style="color:#c9cfc3;">·</span><span>R26BD00273769</span></div>
+          <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;" class="cap"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#79837c" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"></rect><path d="M8 11V8a4 4 0 0 1 8 0v3"></path></svg><span>고정 입력 · 문서 묶음 수정본 1(제안요청서·과업지시서 80쪽) · 회사 프로필 v3 · 분석 정책 lean-v1 · qwen3.8-27B · 2026-09-16 13:02~13:13</span></div>
+        </div>
+        <div style="display:grid; grid-template-columns: repeat(4, minmax(0,1fr)); border-top:1px solid #eef0ec;"><div style="display:flex; flex-direction:column; gap:2px; padding:12px 16px; border-right:1px solid #eef0ec;"><span class="cap">분석 단계</span><span style="font-size:17px; font-weight:600; line-height:1.3; color:#1b211d;">4 / 4 완료</span><span class="cap">실행은 끝남</span></div><div style="display:flex; flex-direction:column; gap:2px; padding:12px 16px; border-right:1px solid #eef0ec;"><span class="cap">모델 호출</span><span style="font-size:17px; font-weight:600; line-height:1.3; color:#1b211d;">21회</span><span class="cap">재시도 없음</span></div><div style="display:flex; flex-direction:column; gap:2px; padding:12px 16px; border-right:1px solid #eef0ec;"><span class="cap">토큰 (입력 / 출력)</span><span style="font-size:17px; font-weight:600; line-height:1.3; color:#1b211d;">171k / 28k</span><span class="cap">provider usage 기준</span></div><div style="display:flex; flex-direction:column; gap:2px; padding:12px 16px;"><span class="cap">검증</span><span style="font-size:17px; font-weight:600; line-height:1.3; color:#89001a;">실패</span><span class="cap">중대 2 · 경고 1</span></div></div>
+      </section>
+<div style="display:grid; grid-template-columns: minmax(0,1fr) 300px; gap:16px; align-items:start;"><div class="kv" style="gap:16px;">      <section class="card" style="display:flex; flex-direction:column; box-shadow:0 1px 2px rgba(27,33,29,0.05), 0 6px 18px rgba(27,33,29,0.07), inset 0 0 0 1px #e6bab8;">
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; padding:14px 22px; border-bottom:1px solid #f1d6d4; background:#fdf3f2; border-radius:14px 14px 0 0;"><div style="display:flex; align-items:center; gap:10px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#89001a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4 2.5 20h19z"></path><path d="M12 10v4M12 17.5v.5"></path></svg><h2 class="sec-title" style="font-size:15px; color:#89001a;">검증 실패 · 이 보고서의 권고를 판단 근거로 쓰지 마세요</h2></div><span class="cap">실패 결과는 자동으로 고치지 않습니다</span></div>
+        <div class="body">
+          <table style="width:100%; border-collapse:collapse; table-layout:auto;"><thead><tr><th class="th">검사</th><th class="th">결과</th><th class="th">내용</th><th class="th">확인</th></tr></thead><tbody><tr><td class="td"><span class="mono">requirement_inventory</span></td><td class="td"><span class="sev sev-block">실패 · 중대</span></td><td class="td">문서의 요구사항 ID 18건 중 7건을 보고서가 다루지 않음<div class="cap">누락 · CSR-012 · CSR-013 · CSR-014 · CSR-015 · CSR-016 · CSR-017 · CSR-018</div></td><td class="td"><a href="#" style="font-size:12px;">원문에서 확인</a></td></tr><tr><td class="td"><span class="mono">claim_support</span></td><td class="td"><span class="sev sev-block">실패 · 중대</span></td><td class="td">원문에 대응하지 않는 주장 2건<div class="cap">경제성 · 투입 인월 산정 / 위험 · 하자보수 기간 12개월</div></td><td class="td"><a href="#" style="font-size:12px;">근거 보기</a></td></tr><tr><td class="td"><span class="mono">segment_coverage</span></td><td class="td"><span class="sev sev-normal">경고 · 보통</span></td><td class="td">요구사항 절 간극 3곳 (p.16·p.18·p.21 표 머리)</td><td class="td"><span class="cap">차단 안 함</span></td></tr></tbody></table>
+          <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; padding-top:10px; border-top:1px solid #eef0ec;"><span class="cap">재시도는 같은 고정 입력으로 새 분석 회차를 만들고 이 보고서는 이력으로 남깁니다.</span><div style="display:flex; gap:10px;"><div class="btn btn-outline">원문에서 확인</div><div class="btn btn-primary" style="gap:6px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.4-5.7"></path><path d="M4 4v5h5"></path></svg>새 분석 회차로 재시도</div></div></div>
+        </div>
+      </section>
+      <section class="card" style="display:flex; flex-direction:column;">
+        <div class="hdr"><h2 class="sec-title" style="font-size:15px;">의사결정 카드</h2><span class="cap">시스템 권고는 최종 Go/No-Go가 아닙니다</span></div>
+        <div class="body"><div style="display:flex; align-items:center; gap:14px;"><span class="cap2" style="font-weight:600; color:#1b211d;">시스템 권고</span><span class="tok" style="height:28px; font-size:14px; padding:0 12px; color:#79837c; text-decoration:line-through;">보류</span><span class="tok tok-red">검증 실패로 사용 안 함</span></div><p style="font-size:13px; line-height:1.55; color:#79837c;">모델이 낸 권고는 이력으로만 보존합니다. 검증을 통과한 재시도 결과가 나오기 전까지 추진 판단에 쓰지 않습니다.</p></div>
+      </section>
+      <section class="card" style="display:flex; flex-direction:column;">
+        <div class="hdr"><h2 class="sec-title" style="font-size:15px;">요구사항 대응 matrix</h2><div style="display:flex; align-items:center; gap:10px;"><span class="tok tok-red">누락 7건</span></div></div>
+        <div class="body">
+          <table style="width:100%; border-collapse:collapse; table-layout:auto;"><thead><tr><th class="th">ID</th><th class="th">요구사항 (원문)</th><th class="th">보고서</th><th class="th">근거</th></tr></thead><tbody><tr><td class="td"><span class="mono">CSR-011</span></td><td class="td">통합 데이터 모델 설계</td><td class="td"><span class="tok tok-accent">대응 가능</span></td><td class="td"><a href="#" style="font-size:12px; white-space:nowrap;">p.16</a></td></tr><tr><td class="td"><span class="mono" style="color:#89001a;">CSR-012</span></td><td class="td">공제금 지급 이력 데이터 정비 방안</td><td class="td"><span class="tok tok-red">보고서에 없음</span></td><td class="td"><a href="#" style="font-size:12px; white-space:nowrap;">p.16</a></td></tr><tr><td class="td"><span class="mono" style="color:#89001a;">CSR-013</span></td><td class="td">정보보호 관리체계 인증 준비 지원</td><td class="td"><span class="tok tok-red">보고서에 없음</span></td><td class="td"><a href="#" style="font-size:12px; white-space:nowrap;">p.17</a></td></tr><tr><td class="td"><span class="mono" style="color:#89001a;">CSR-014</span></td><td class="td">개인정보 영향평가 대응 방안</td><td class="td"><span class="tok tok-red">보고서에 없음</span></td><td class="td"><a href="#" style="font-size:12px; white-space:nowrap;">p.18</a></td></tr></tbody></table>
+          <div style="display:flex; justify-content:space-between;" class="cap"><span>누락 행은 원문 요구사항 inventory에서 가져온 것이며 대응 상태를 추정하지 않습니다.</span><a href="#" style="font-size:12px;">나머지 누락 4건 펼치기</a></div></div>
+      </section>
+      <section class="card" style="display:flex; flex-direction:column;">
+        <div class="hdr"><h2 class="sec-title" style="font-size:15px;">사전규격 심층검토 의견</h2><div style="display:flex; align-items:center; gap:10px;"><span class="cap">검증 실패 상태에서도 의견은 남길 수 있습니다</span></div></div>
+        <div class="body">
+          <div style="display:grid; grid-template-columns: minmax(0,1fr) 220px; gap:12px; align-items:start;">
+            <div class="kv" style="gap:6px;"><span class="cap2" style="font-weight:600; color:#1b211d;">의견 사유 <span class="cap">· 필수</span></span><div class="field" style="height:72px; align-items:flex-start; padding-top:8px; color:#1b211d;"><span>요구사항 7건 누락으로 재시도 요청. 재시도 결과 확인 전 추적 보류.</span></div></div>
+            <div class="kv" style="gap:6px;"><span class="cap2" style="font-weight:600; color:#1b211d;">담당자 이름 (필수)</span><div class="field" style="height:36px; color:#1b211d;"><span>김지원</span></div><div class="btn btn-disabled" style="height:36px;">의견 저장</div></div>
+          </div>
+          <div style="display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:10.5px; background:#fdf3f2; border:1px solid #f1d6d4;"><span class="check"></span><span style="font-size:13px; font-weight:600; color:#89001a;">검증 실패를 확인했으며 실패 표시를 그대로 둡니다</span><span class="cap" style="margin-left:auto;">확인해야 저장할 수 있습니다</span></div></div>
+      </section>
+</div><div class="kv" style="gap:16px;"><div class="card kv" style="gap:2px; padding:12px 10px;"><span class="cap" style="padding:0 10px 6px;">보고서 절</span><a href="#" style="display:flex; justify-content:space-between; align-items:center; padding:6px 10px; border-radius:5.25px; font-size:13px; color:#4c5650;"><span>의사결정 카드</span><span class="tok tok-red" style="height:18px; font-size:11px;">사용 안 함</span></a><a href="#" style="display:flex; justify-content:space-between; align-items:center; padding:6px 10px; border-radius:5.25px; font-size:13px; color:#4c5650;"><span>회사 적합성</span></a><a href="#" style="display:flex; justify-content:space-between; align-items:center; padding:6px 10px; border-radius:5.25px; font-size:13px; color:#4c5650;"><span>참가 자격</span></a><a href="#" style="display:flex; justify-content:space-between; align-items:center; padding:6px 10px; border-radius:5.25px; font-size:13px; background:#f1f6e8; color:#3f5a1c; font-weight:600;"><span>요구사항 대응</span><span class="tok tok-red" style="height:18px; font-size:11px;">누락 7</span></a><a href="#" style="display:flex; justify-content:space-between; align-items:center; padding:6px 10px; border-radius:5.25px; font-size:13px; color:#4c5650;"><span>평가·배점과 제안 전략</span></a><a href="#" style="display:flex; justify-content:space-between; align-items:center; padding:6px 10px; border-radius:5.25px; font-size:13px; color:#4c5650;"><span>위험</span><span class="tok tok-red" style="height:18px; font-size:11px;">근거 없음</span></a><a href="#" style="display:flex; justify-content:space-between; align-items:center; padding:6px 10px; border-radius:5.25px; font-size:13px; color:#4c5650;"><span>경제성</span><span class="tok tok-red" style="height:18px; font-size:11px;">근거 없음</span></a><a href="#" style="display:flex; justify-content:space-between; align-items:center; padding:6px 10px; border-radius:5.25px; font-size:13px; color:#4c5650;"><span>질문·내부 조치</span></a><a href="#" style="display:flex; justify-content:space-between; align-items:center; padding:6px 10px; border-radius:5.25px; font-size:13px; color:#4c5650;"><span>문서 묶음·한계</span><span class="tok tok-yellow" style="height:18px; font-size:11px;">경고</span></a><a href="#" style="display:flex; justify-content:space-between; align-items:center; padding:6px 10px; border-radius:5.25px; font-size:13px; color:#4c5650;"><span>심층검토 의견</span></a></div><div class="card kv" style="gap:8px; padding:14px 16px;"><span class="sec-title">분석 회차</span>
+      <div class="li" style="font-size:13px;"><span>회차 1 · 13:02 · 검증 실패</span><span class="tok tok-red" style="height:18px; font-size:11px;">현재</span></div>
+      <span class="cap">재시도하면 회차 2가 추가되고 회차 1은 그대로 남습니다.</span></div></div></div>
+    </div></div>
+  </main>
+</div>
+</div>
+</x-dc>
+</body>
+</html>

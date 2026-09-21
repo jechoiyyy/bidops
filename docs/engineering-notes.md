@@ -502,3 +502,22 @@
   import 순서만 보증할 뿐 등록 여부를 보증하지 않는다. 등록 없이 성공으로 끝나는 경로가
   생기지 않도록 등록 실패는 fail closed로 만들고, "제공자가 없는 배포"는 설정
   (`BIDOPS_MODULES`)으로만 표현한다.
+
+## 저장소 트리에서 백엔드 테스트를 돌리면 운영 `.env`가 주입된다
+
+- 증상: `tests/app/test_api_pre_specs_projection.py`의
+  `test_pre_specs_list_matches_captured_baseline`과
+  `test_..._are_null_without_a_judgment` 2건이 저장소에서만 실패한다.
+  `auto_preparation_status`가 `not_applicable` 대신 `waiting_attachments`,
+  `auto_preparation_reason`이 `grade_not_priority` 대신 `awaiting_fetch`로 나온다.
+  같은 커밋을 `/tmp`의 git worktree에서 돌리면 전부 통과한다.
+- 원인: `app/core/config.py`의 `env_file=DEFAULT_BIDOPS_ROOT / ".env"`이고
+  `DEFAULT_BIDOPS_ROOT`는 저장소 루트다. 운영용 `.env`(gitignore)에
+  `BIDOPS_PRESPEC_OVERVIEW_ENABLED=true`가 들어 있어, 저장소 안에서 pytest를 돌리면
+  자동 문서 준비 자격이 "우선 검토"에서 "우선 검토 또는 SW=Y"로 넓어진다.
+  worktree에는 `.env`가 없어 기본값 `false`로 돌아간다. 코드 회귀가 아니다.
+- 대응: 백엔드 테스트는 `BIDOPS_PRESPEC_OVERVIEW_ENABLED=false`를 명시해 돌린다.
+  환경 변수가 `env_file`보다 우선한다. 깨끗한 worktree 결과와 저장소 결과가 다르면
+  코드 차이를 찾기 전에 루트 `.env`부터 대조한다.
+- 검증: 2026-09-21 사전규격 7개 파일 · 일회용 `postgres:17.11` 기준
+  플래그 없이 123 passed / 2 failed, `BIDOPS_PRESPEC_OVERVIEW_ENABLED=false`로 125 passed.

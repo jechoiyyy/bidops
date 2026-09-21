@@ -526,6 +526,7 @@ snapshot을 만들지 않는 fail-closed 계약을 검증하도록 분리했으�
 - 영향: 2026-09-03 3단계는 이 항목의 건수를 `null`(확인 불가)로 두고 이동 경로만 제공하는 선에서 멈췄다. 구현 위임 초안은 `limit=50` 한 페이지를 세어 숫자를 표시했는데, 누적 데이터에서는 거의 항상 "만료된 사전규격 수"를 "마감 3일 이내"로 보여주는 값이라 검수에서 되돌렸다.
 - 지금 해결할 수 없는 이유: 해결에는 목록 계약에 마감 구간 필터(`deadline_from`·`deadline_to`)나 임박 집계를 추가해야 하며, 이는 백엔드 라우터·스키마 변경이라 이번 대시보드 작업 범위를 벗어난다.
 - 접근 방법: `GET /api/pre-specs`에 `deadline_within_days` 또는 `deadline_from`·`deadline_to`를 추가하고 `docs/contracts.md`의 `PreSpecList` 항목에 등록한다. 그 뒤 대시보드의 `null` 표시를 실제 건수로 바꾸고, `criticalDeadlineCount`의 하한 없음이 회차 산출물 전용 전제임을 호출부에서 다시 확인한다.
+- 부분 해소 (2026-09-21, [ADR-0064](decisions/0064-prespec-actionable-deadline-scope.md)): 위 `증상`의 인자 목록은 이미 낡았다 — 2026-09-16에 `deadline_status=open|passed|unknown`이, 2026-09-21에 `deadline_scope=current|passed|all`과 응답 집계 `deadline_scope_counts{current,passed}`가 들어왔다. `sort=deadline`도 3버킷(마감 전 오름 → 경과 최근 → null)이라 "첫 페이지가 지난 마감으로 채워진다"는 현상은 사라졌고, 검토할 항목의 기본 구간에는 경과 건이 아예 오지 않는다. **남은 것**: 새 구간은 `마감 전·미확인 / 마감 경과` 2분할이지 D-n 임박 **창**이 아니다. `deadline_within_days`류의 창 인자와 그 집계는 여전히 없으므로 대시보드 "사전규격 의견등록 마감 임박" 건수는 계속 `null`(확인 불가)로 남는다. `criticalDeadlineCount`의 하한 없음 주의도 그대로 유효하다.
 
 ## C-1과 C-2가 모델 호출 경계를 서로 반대로 잡는다
 

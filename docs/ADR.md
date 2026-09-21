@@ -5,7 +5,7 @@
 | 문서 상태 | 현재 결정 기준선·통합 색인 |
 | 기준일 | 2026-09-09 |
 | 범위 | 수집, 선별, 사전규격 검토, 심층 검토, 입찰공고 추적, 운영·보안 |
-| 상세 결정 정본 | [`docs/tracking/decisions/`](tracking/decisions/)의 ADR-0001~0038·0042~0045·0049~0051·0053~0054·0056~0063, ADR-0039~0041·0046~0048·0055(구 `docs/design/ADR.md`, git 이력에서 확인) |
+| 상세 결정 정본 | [`docs/tracking/decisions/`](tracking/decisions/)의 ADR-0001~0038·0042~0045·0049~0051·0053~0054·0056~0064, ADR-0039~0041·0046~0048·0055(구 `docs/design/ADR.md`, git 이력에서 확인) |
 | 함께 읽을 문서 | [`PRD.md`](PRD.md), [`ARCHITECTURE.md`](ARCHITECTURE.md), [`contracts.md`](contracts.md) |
 
 이 문서는 여러 시점에 작성된 결정 기록을 현재 관점에서 읽기 위한 통합 ADR이다. 각 결정의
@@ -144,6 +144,7 @@ R-xx/A-xx 작업 지시, 과거 API 경로는 현재 실행 진입점이 아니�
 | [0061](tracking/decisions/0061-daily-collection-window.md) | 발주계획은 전일 하루, 공고는 기준일 포함 4일 창으로 수집 | 채택 | [0027](tracking/decisions/0027-order-plan-requery-window.md) 폐기·[0059](tracking/decisions/0059-full-collection-selective-ingest-and-index-search.md) 결정 1 개정; 한 발주계획 = 한 회차 = 한 운영 실행; 공고 4일 창은 사전규격 공개 지연(`rgstDt` 조회·`rcptDt` 공개, 늦은 색인 측정 4일 창 누락 0) 때문; 트랙 분리·적재 순서 고정 해제(테스트로 확인할 추론); 대가는 추적 중 발주계획 변경 미관측, 공고 회차 창과 scheduler 1일 창의 불일치(C-1 자동화 선행조건) |
 | [0062](tracking/decisions/0062-explore-workspace-structure-unification.md) | 발주계획·사전규격 탐색 화면의 구조를 하나로 맞춤 | 채택 | 사전규격 기준, 페이저 위치·로딩 골격 유지·sticky 상세 머리 셋은 발주계획 방식을 공용으로; 발주기관 강조 블록 공용화; 수집 회차 선택을 필터 아래 줄로; 목록 폭 리사이저 제거(기능 손실 승인); 데이터 계층 불변; 재설계 C spec §2.4를 넘는 결정; UI 변경은 시안 승인 뒤 구현 |
 | [0063](tracking/decisions/0063-order-plan-bulk-tracking-end.md) | 발주계획 일괄 추적 종료를 연다 | 채택 | 숨김 기준은 추적 종료로 통일(새 "확인함" 필드 없음); `bulk-end` 신설·`bulk-start` v1 불변·`preview` 공유; 미선택 owner만, 소유 사업기회 없으면 만들지 않음; 한 요청 200건(PoC 값); 일괄 보류는 계속 비목표; migration 없음 |
+| [0064](tracking/decisions/0064-prespec-actionable-deadline-scope.md) | 사전규격 검토할 항목의 기본 시야를 마감 구간으로 나눈다 | 채택 | 마감 경과는 제외·소멸하지 않고 기본 시야만 `마감 전+미확인`으로 한정, `마감 경과`는 건수와 함께 1클릭 전환; 마감 미확인은 항상 기본 구간(unknown 보존); 새 인자 `deadline_scope`와 `deadline_scope_counts`, 기존 `deadline_status`는 불변; 구간은 actionable 술어 한 곳에만(검토 제외 가드가 먼저); migration 없음 |
 
 ## 4. 주제별 결정 요약
 

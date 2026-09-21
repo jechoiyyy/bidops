@@ -109,6 +109,16 @@ run 행이 아직 없으면 `null`이다(개요 검토 미시작). `overview_sta
   한국 시간 오늘 포함 최근 7일을 적용한다. `actionable`은 개요 사람 확인 필요,
   심층 검토 클릭 대기, 개요 완료이면서 기존 신규·미선택/null 추적 결정 대기의 합집합이다.
   `tracking`은 계속 추적·보류다. 마감이 지났다는 이유로 업무 대상에서 제외하지 않는다.
+  2026-09-21 확장([ADR-0064](tracking/decisions/0064-prespec-actionable-deadline-scope.md)):
+  `deadline_scope=current|passed|all`(기본 `all`)을 추가한다. `current`는 `deadline_at`이
+  요청 시각 이상이거나 `null`인 건, `passed`는 `deadline_at`이 요청 시각 미만인 건이다.
+  두 값은 서로소이고 합집합이 전체다. `deadline_scope`는 actionable workspace 술어의
+  일부다. 따라서 `workspace_counts`의 `actionable` 칸에는 활성 workspace와 무관하게
+  적용되고, `items`·`total`·`overview_status_counts`에는 `workspace=actionable`일 때만
+  영향을 준다. `recent`·`tracking`·`all` 칸과 그 workspace의 `items`·`total`은 영향받지
+  않는다. `current`는 `마감 미확인`(null)을 포함한다 — 마감 경과로 접지 않는다.
+  검토 제외 숨김은 구간 술어보다 먼저 적용하므로 제외 건은 어느 구간에도 들어가지 않는다.
+  잘못된 값은 422 `deadline_scope is invalid`다. 구간 건수는 아래 집계 문단이 정의한다.
   item에는 nullable `first_observed_at`, `last_observed_at`,
   `next_action=confirm_overview|open_deep_review|decide_tracking|null`이 추가된다.
   다음 행동은 나열된 순서로 첫 일치를 쓰며 새로운 업무 상태가 아니다.
@@ -116,6 +126,14 @@ run 행이 아직 없으면 `null`이다(개요 검토 미시작). `overview_sta
   제외한 필터를 적용한다(recent의 기본 7일 조건은 recent 건수에만 적용).
   `overview_status_counts`는 활성 workspace와 나머지 필터를 적용하고 `overview_view`만
   제외한다. `total`·`items`는 모든 필터를 적용한다. 집계는 limit/offset과 무관하다.
+  비 null `deadline_scope_counts{current,passed}`(2026-09-21 추가)는 구간을 적용하기 **전**
+  actionable 집합을 두 구간으로 나눈 건수이며, 활성 workspace·활성 `deadline_scope`와
+  무관하게 언제나 같은 값이고 언제나 존재한다. 나머지 필터(`q`·`deadline_status`·`grade`
+  등)는 모두 반영하고 기준 집합은 `workspace_counts`와 같다. 두 칸의 합은 구간 미적용
+  actionable 건수이고, `deadline_scope=current`이면
+  `workspace_counts["actionable"] == deadline_scope_counts.current`이며
+  `workspace=actionable`을 함께 주면 `total == deadline_scope_counts.current`다. 합계 키
+  (`all`)는 두지 않는다 — 필요하면 소비자가 두 칸을 더한다.
   마감 정렬은 마감 전 가까운 순, 마감 경과 최근순, 미확인 순이며 ID로 동률을 해소한다.
   별도의 사전규격 **상세** endpoint는 없다. 상세 화면도 이 목록 endpoint를 쓴다.
 - `NoticeListItem`: `id`, `notice_key`, `run_id`, `title?`, `agency?`, `published_at?`, `deadline_at?`, `estimated_price?`, `sample_role?`, `sample_stratum?`, `collection_bucket?`, `grade?`, `readiness?`, `focus?`, `attachment_count`, `attachment_status=none|g2b|manual`이다.
