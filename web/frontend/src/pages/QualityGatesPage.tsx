@@ -23,6 +23,7 @@ import { QualityGateMetrics } from "../components/quality/QualityGateMetrics";
 import { QualityGateReviewDialog } from "../components/quality/QualityGateReviewDialog";
 import { QualityGateRuns } from "../components/quality/QualityGateRuns";
 import { ApiError, api } from "../lib/api";
+import { formatMoment as formatMomentBase } from "../lib/format";
 import type { QualityGateDetailResponse, QualityGateListResponse, QualityGateResponse } from "../lib/types";
 
 /**
@@ -135,10 +136,9 @@ function purposeLabel(purpose: QualityGateResponse["purpose"]): string {
   return purpose === "model_comparison" ? "모델 비교" : "운영 승인";
 }
 
+/** `lib/format.ts`가 정본이다(U3, 중복 통합). 이 화면의 null 문구(`기록 없음`)만 고정한다. */
 function moment(value: string | null): string {
-  if (!value) return "기록 없음";
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleString("ko-KR");
+  return formatMomentBase(value, "기록 없음");
 }
 
 /** 평가가 없거나 수치가 누락된 상태는 실제 0건과 구분한다. */

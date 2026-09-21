@@ -42,7 +42,7 @@ function observedClauseLabel(item: Pick<OrderPlanListItem, "first_observed_at">)
 }
 
 function budgetLabel(value: number | null): string {
-  return value === null ? "예산 null (미제공)" : formatCompactPrice(value);
+  return value === null ? "예산 미제공" : formatCompactPrice(value);
 }
 
 export function OrderPlanListRow({
@@ -86,7 +86,9 @@ export function OrderPlanListRow({
               상태 칩 줄. 발주 예정은 오른쪽 열이 갖는다. 발주기관은 사업명 다음 줄에서
               같은 크기·보통 굵기로 읽힌다. */}
           <span className="c2l-row-agency">{textOrUnknown(item.agency_name)}</span>
-          <span className="c2l-row-meta" title={`예산 ${budgetValue(item.budget_amount)}`}>
+          {/* budgetValue의 null 문구는 이미 `예산`을 포함한다(U3) — 중복을 피해
+              null이 아닐 때만 "예산 " 접두를 붙인다. */}
+          <span className="c2l-row-meta" title={item.budget_amount === null ? budgetValue(item.budget_amount) : `예산 ${budgetValue(item.budget_amount)}`}>
             <span className="c2l-row-meta-item">{budgetLabel(item.budget_amount)}</span>
             {/* 구분점은 전부 뒤 항목 앞에 붙인다(B2 후속, 0920 검수) — 줄이 바뀌어도
                 구분점이 앞 항목 끝에 홀로 남지 않는다. 이 구분점은 `.c2l-row-verdict`

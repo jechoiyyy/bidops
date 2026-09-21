@@ -140,7 +140,7 @@ test("최근 workspace는 KST 관측 범위 기본값과 수집 회차를 API에
 
   await page.getByRole("button", { name: "상세 필터", exact: true }).click();
   await page.locator("#pre-specs-advanced-filters").getByRole("button", { name: "수집 회차" }).click();
-  const sourceRun = page.getByRole("option", { name: /2026-09-14 ~ 2026-09-15 수집/ });
+  const sourceRun = page.getByRole("option", { name: /09-14~09-15 수집/ });
   await expect(sourceRun).toBeVisible();
   await sourceRun.click();
   await expect.poll(() => queries.at(-1)?.get("source_run_id")).toBe("pre-spec-run-b");
@@ -149,7 +149,7 @@ test("최근 workspace는 KST 관측 범위 기본값과 수집 회차를 API에
   await expect(page.getByRole("button", { name: "상세 필터", exact: true })).toHaveAttribute("aria-expanded", "false");
   const runLine = page.locator(".pre-specs-filters .source-run-context");
   await expect(runLine).toContainText("회차 보기");
-  await expect(runLine).toContainText("2026-09-14 ~ 2026-09-15 수집");
+  await expect(runLine).toContainText("09-14~09-15 수집");
   await expect(page.locator(".pre-specs-filters .workspace-filter-count")).toHaveText("1");
 
   // `모든 회차로`가 회차만 지우고 다른 조건은 남긴다.
@@ -194,7 +194,7 @@ test("사전규격의 회차는 기존 조건에 더해지고 기본값 복원�
   expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth))
     .toBeLessThanOrEqual(1);
   await page.locator("#pre-specs-advanced-filters").getByRole("button", { name: "수집 회차" }).click();
-  await page.getByRole("option", { name: /2026-09-14 ~ 2026-09-15 수집/ }).click();
+  await page.getByRole("option", { name: /09-14~09-15 수집/ }).click();
   await expect.poll(() => queries.at(-1)?.get("source_run_id")).toBe("pre-spec-run-b");
 
   // 다른 축이 그대로 남는다. 상세 필터 단추의 수는 등급 + 회차 둘이다.
