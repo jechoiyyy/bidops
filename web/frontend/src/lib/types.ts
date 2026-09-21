@@ -1813,6 +1813,10 @@ export interface OrderPlanListItem {
   budget_amount: number | null;
   planned_order_year: string | null;
   planned_order_month: string | null;
+  /** 계약방법(`cntrctMthdNm`) 원문. 값이 없으면 `null`이다. */
+  contract_method: string | null;
+  /** 공고 게시 여부(`ntceNticeYn`) 원문 `Y`/`N`. bool이 아니며 `null`은 `N`이 아니라 미제공이다. */
+  notice_posted: string | null;
   source_run_id: string | null;
   observed_at: string | null;
   stage1_status: OrderPlanStage1Status | null;
@@ -1831,7 +1835,7 @@ export interface OrderPlanListItem {
 }
 
 export interface OrderPlanListResponse {
-  schema_version: "order-plan-list-response.v4";
+  schema_version: "order-plan-list-response.v5";
   scope: OrderPlanListScope | null;
   producer: "order-plan-review-api";
   consumer: "order-plan-review-client";
@@ -1910,10 +1914,19 @@ export interface OrderPlanScreeningHistoryItem {
   qwen_score: number | null;
   qwen_reason: string | null;
   feedback_revision_count: number;
+  /**
+   * 그 실행 행의 목적. `gate_measurement`는 품질 게이트 측정 전용이라 운영 판정이 아니다.
+   * 참조 실행은 여기서 `operational`로 보인다 — 목적으로 가리지 말고 `policy_version`이
+   * 누적 scope의 `activated_policy_versions`에 있는지로 가린다(기존 계약).
+   */
+  execution_purpose: OrderPlanScreeningExecutionPurpose;
+  /** 실행 행의 두 시각 그대로. 서버가 대표 시각을 고르지 않으므로 둘 다 `null`일 수 있다. */
+  execution_started_at: string | null;
+  execution_finished_at: string | null;
 }
 
 export interface OrderPlanDetailResponse {
-  schema_version: "order-plan-detail-response.v3";
+  schema_version: "order-plan-detail-response.v4";
   producer: "screening-api";
   consumer: "order-plan-review-client";
   order_plan_pk: number;
@@ -1927,14 +1940,27 @@ export interface OrderPlanDetailResponse {
   budget_amount: number | null;
   planned_order_year: string | null;
   planned_order_month: string | null;
+  supervising_agency_name: string | null;
+  /** 조달방법(`prcrmntMethd`) 원문. */
+  procurement_method: string | null;
+  contract_method: string | null;
+  notice_posted: string | null;
+  /** 수집 원문 문자열 그대로. 공고번호가 여럿이면 한 문자열에 이어져 있고 서버가 쪼개지 않는다. */
+  bid_ntice_no_list: string | null;
+  published_at: string | null;
   observations: OrderPlanObservationView[];
   screening_history: OrderPlanScreeningHistoryItem[];
   latest_human_feedback: OrderPlanHumanFeedbackSummary | null;
   tracking: OrderPlanTracking | null;
 }
 
+/**
+ * `screening-history`는 상세와 같은 `order-plan-detail-response` family 이름을 쓰면서 번호만
+ * 따로 올려 왔다(v1). 번호는 family 안에서 한 번만 쓰므로(v2·v3은 옛 상세, v4는 지금 상세)
+ * 항목 모델이 바뀐 이번 회차에 v5로 간다.
+ */
 export interface OrderPlanScreeningHistoryResponse {
-  schema_version: "order-plan-detail-response.v1";
+  schema_version: "order-plan-detail-response.v5";
   producer: "screening-api";
   consumer: "order-plan-review-client";
   order_plan_pk: number;
