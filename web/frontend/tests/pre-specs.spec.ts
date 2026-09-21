@@ -1171,8 +1171,8 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900
     await decision.getByRole('textbox', { name: '담당자 이름 (필수)' }).fill('검토 담당자');
     await expect(decision.getByRole('button', { name: '추적 시작', exact: true })).toBeEnabled();
     await captureRecord(page, `documents-${viewport.width}`);
-    // 처리 이력과 실행 정보는 접힌 상태로 있다가 펼칠 수 있다.
-    await page.getByRole('button', { name: '현재 주장 검증 진단 · 고정 입력과 식별 해시' }).click();
+    // 처리 이력과 실행 정보는 접힌 `기술 정보` 하나에 모여 있다가 펼칠 수 있다.
+    await page.getByRole('button', { name: '기술 정보 · 주장 검증 진단, 고정 입력과 식별 해시, 회사 적합성 실행 정보' }).click();
     await captureRecord(page, `history-${viewport.width}`);
     await expect(decision.getByRole('textbox', { name: '선택 사유 직접 입력 (필수)' })).toHaveValue('세부 과업과 연계 범위를 확인하고 계속 추적');
     expect(trace.trackingPatches).toEqual([]);

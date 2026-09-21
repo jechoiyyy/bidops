@@ -1113,9 +1113,12 @@ export function PreSpecsPage() {
             {loadedItems.length > 0 ? ` 지금 화면에는 ${formatCount(loadedItems.length)}건이 보입니다.` : ""}
           </p>
           <ul>
-            <li>상단 업무 화면 건수는 현재 조건에서 workspace만 바꿔 서버가 센 값(<code className="mono">workspace_counts</code>)이며 페이지 범위와 무관합니다.</li>
+            {/* 응답 필드 이름(`workspace_counts`·`projection`)은 실무 화면의 말이
+                아니다(ADR-0065 결정 1 `한글화`). 뜻은 그대로 두고 표기만 바꾼다 —
+                `projection`은 용어 사전이 정한 `요약 정보`를 쓴다(`lib/glossary.ts`). */}
+            <li>상단 업무 화면 건수는 현재 조건에서 업무 화면만 바꿔 서버가 센 값이며 페이지 범위와 무관합니다.</li>
             <li>개요 상태·등급·추적 결정·추적 상태·관측일·마감 상태·자동 준비 상태는 모두 서버가 페이지 전에 적용합니다.</li>
-            <li>최근 수집의 날짜 범위와 수집 회차는 관측 기록에만 적용하고, 응답 행은 해당 회차의 과거 값이 아닌 현재 projection입니다.</li>
+            <li>최근 수집의 날짜 범위와 수집 회차는 관측 기록에만 적용하고, 응답 행은 해당 회차의 과거 값이 아닌 현재 요약 정보입니다.</li>
             <li>SW 중심 기본 보기는 SW사업대상=Y와 추적 중인 발주계획에 연결된 예외를 함께 남깁니다. 목록의 <strong>추적 예외</strong>는 SW사업대상이 Y가 아니지만 추적 중인 발주계획에 연결된 건이고, 값이 없는 SW사업대상은 <strong>SW 미확인</strong>으로 적습니다.</li>
             <li>추적 상태는 사업기회 연결이 없으면 <strong>사업기회 미연결</strong>, 연결은 있는데 서버 값이 없으면 <strong>미확인</strong>입니다. 사람이 고른 <strong>미선택</strong>과 다릅니다.</li>
             <li>품질 표식 · 참조 실행과 mock 참조는 운영 완료가 아니고, 표식 없음을 미측정으로 바꾸지 않습니다. 선택한 건의 현재 표식은 개요 검토 결과 머리줄에 있습니다.</li>
