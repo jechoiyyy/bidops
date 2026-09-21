@@ -1,0 +1,248 @@
+<title>BidOps M1c 추적 화면 골격 시안</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --ground:#F6F7F4; --surface:#FFFFFF; --ink:#1B211D; --ink2:#4C5650; --line:#E2E5DF;
+  --accent:#587A2B; --accent-soft:#F1F6E8; --accent-deep:#3F5A1C; --pin:#3F5A1C; --pin-ink:#FFFFFF;
+  --warn-soft:#f8da9d; --warn-ink:#745b00;
+  --sans:"Noto Sans KR","Pretendard","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ground:#17181F; --surface:#232634; --ink:#E8E4E2; --ink2:#A9A6A4; --line:#3A3D4B;
+    --accent:#CFDFB5; --accent-soft:#2C3326; --accent-deep:#CFDFB5; --pin:#CFDFB5; --pin-ink:#1B211D;
+    --warn-soft:#4A3F1E; --warn-ink:#fdcf4f;
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#17181F; --surface:#232634; --ink:#E8E4E2; --ink2:#A9A6A4; --line:#3A3D4B;
+  --accent:#CFDFB5; --accent-soft:#2C3326; --accent-deep:#CFDFB5; --pin:#CFDFB5; --pin-ink:#1B211D;
+  --warn-soft:#4A3F1E; --warn-ink:#fdcf4f;
+}
+*{box-sizing:border-box}
+body{background:var(--ground);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.6;padding-inline:20px;padding-block:28px 72px}
+.page{max-width:1500px;margin-inline:auto;display:flex;flex-direction:column;gap:44px}
+h1{font-size:26px;line-height:1.3;font-weight:700;margin:0;text-wrap:balance}
+h2{font-size:19px;line-height:1.35;font-weight:700;margin:0;text-wrap:balance}
+h3{font-size:14px;font-weight:600;margin:0}
+p{margin:0}
+.lede{max-width:68ch;color:var(--ink2)}
+.eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.06em;color:var(--accent-deep)}
+.intro{display:flex;flex-direction:column;gap:12px}
+.facts{display:flex;flex-wrap:wrap;gap:8px 20px;font-size:13px;color:var(--ink2)}
+.facts b{color:var(--ink);font-weight:600}
+.bar{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--ground);border-bottom:1px solid var(--line);padding-block:10px;display:flex;flex-wrap:wrap;gap:10px 20px;align-items:center}
+.seg{display:inline-flex;flex-wrap:wrap;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--surface)}
+.seg button{font:inherit;font-size:13px;padding:6px 12px;border:0;background:transparent;color:var(--ink2);cursor:pointer}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button[aria-pressed="true"]{background:var(--accent-soft);color:var(--accent-deep);font-weight:600}
+.seg button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.ctl{display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-size:13px;color:var(--ink2)}
+section.mock{display:flex;flex-direction:column;gap:16px}
+.head{display:flex;flex-direction:column;gap:6px}
+.ctls{display:flex;flex-wrap:wrap;gap:10px 20px;align-items:center}
+.decide{border:1px solid var(--line);border-left:4px solid var(--warn-ink);background:var(--surface);border-radius:6px;padding:12px 16px;display:flex;flex-direction:column;gap:4px;max-width:96ch}
+.decide strong{font-weight:700}
+.decide span{color:var(--ink2);font-size:14px}
+.cap{font-size:13px;color:var(--ink2);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.tag{display:inline-block;font-size:12px;padding:1px 8px;border-radius:999px;background:var(--accent-soft);color:var(--accent-deep);white-space:nowrap;font-weight:600}
+.tag.now{background:var(--line);color:var(--ink2)}
+.tag.todo{background:var(--warn-soft);color:var(--warn-ink)}
+.stack{display:flex;flex-direction:column;gap:8px}
+.frame{border:1px solid var(--line);border-radius:10px;background:var(--surface);overflow:hidden}
+.fit{position:relative;overflow:hidden}
+.fit>.ab{transform-origin:top left;display:block}
+ol.changes{margin:0;padding:0;list-style:none;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr));gap:8px 28px;font-size:14px}
+ol.changes li{display:grid;grid-template-columns:24px 1fr;gap:8px;align-items:start}
+.n{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;background:var(--pin);color:var(--pin-ink);font:600 11px/1 var(--mono);margin-top:3px}
+ol.changes em{font-style:normal;color:var(--ink2)}
+.scroll{overflow-x:auto}
+table.chk{border-collapse:collapse;font-size:14px;min-width:720px;width:100%}
+table.chk th,table.chk td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+table.chk th{font-weight:600;color:var(--ink2);font-size:12px;letter-spacing:.04em}
+table.chk code{font-family:var(--mono);font-size:12.5px;background:var(--accent-soft);color:var(--accent-deep);padding:0 5px;border-radius:4px}
+table.chk s{color:var(--ink2)}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,430px),1fr));gap:20px;align-items:start}
+
+/* ── 제품 아트보드: bidops 테마 light 값 고정(제품은 light 전용) ── */
+.ab{
+  --p-canvas:#F6F7F4;--p-surface:#FFFFFF;--p-ink:#1B211D;--p-ink2:#4C5650;--p-line:#E2E5DF;
+  --p-accent:#587A2B;--p-accent-muted:#F1F6E8;--p-text-accent:#3F5A1C;--p-brand:#75a03b;--p-brand-edge:#cfdfb5;
+  --p-warn-muted:#f8da9d;--p-warn:#745b00;--p-err-muted:#F8CDB4;--p-err:#8a2a12;
+  background:var(--p-canvas);color:var(--p-ink);font-family:var(--sans);font-size:12.5px;line-height:1.45;color-scheme:light;padding:0 16px 14px;
+}
+.ab *{box-sizing:border-box}
+.top{height:60px;display:flex;align-items:center;justify-content:space-between;gap:16px}
+.top h4{margin:0;font-size:18px;font-weight:600}
+.top .r{display:flex;gap:10px;align-items:center;font-size:11.5px;color:var(--p-ink2)}
+.frow{display:flex;align-items:center;gap:14px;min-height:42px;font-size:12px;color:var(--p-ink2);flex-wrap:nowrap}
+.frow+.frow{border-top:1px solid var(--p-line)}
+.tab{padding:4px 2px;display:inline-flex;gap:6px;white-space:nowrap}
+.tab.on{color:var(--p-ink);font-weight:600;box-shadow:0 2px 0 var(--p-brand)}
+.icb{height:28px;border:1px solid var(--p-line);border-radius:8px;background:var(--p-surface);display:inline-flex;align-items:center;gap:6px;padding:0 10px;color:var(--p-ink);white-space:nowrap}
+.icb.on{border-color:var(--p-text-accent);background:var(--p-accent-muted);color:var(--p-text-accent);font-weight:600}
+.cntb{display:inline-grid;place-items:center;min-width:16px;height:16px;border-radius:999px;background:var(--p-text-accent);color:#fff;font-size:10px;font-weight:700;padding:0 4px}
+.srch{border:1px solid var(--p-line);background:var(--p-surface);border-radius:8px;padding:5px 12px;width:250px;color:var(--p-ink2);white-space:nowrap;overflow:hidden}
+.sel{border:1px solid var(--p-line);background:var(--p-surface);border-radius:8px;padding:5px 10px;min-width:210px;display:inline-flex;justify-content:space-between;gap:12px;font-size:12px;color:var(--p-ink);white-space:nowrap}
+.sel::after{content:"⌄";color:var(--p-ink2)}
+.sel.native{border-radius:4px;min-width:150px}
+.lbl{font-size:11.5px;color:var(--p-ink2);white-space:nowrap}
+.fld{display:flex;flex-direction:column;gap:4px}
+.fld .lbl{font-weight:600;color:var(--p-ink)}
+.adv{background:var(--p-surface);border:1px solid var(--p-line);border-radius:10px;padding:12px 14px;display:grid;grid-template-columns:repeat(4,1fr);gap:12px 16px;margin-block:6px}
+.tg{display:inline-flex;border:1px solid var(--p-line);border-radius:8px;overflow:hidden}
+.tg span{padding:4px 9px;font-size:11.5px;border-left:1px solid var(--p-line);white-space:nowrap}
+.tg span:first-child{border-left:0}
+.tg span.on{background:var(--p-accent-muted);color:var(--p-text-accent);font-weight:600}
+.runline{display:flex;align-items:center;gap:10px;min-height:34px;font-size:12px;color:var(--p-ink);border-top:1px solid var(--p-line)}
+.runline b{font-weight:600}
+.chip{display:inline-block;background:#E9ECE6;border-radius:999px;padding:0 8px;font-size:11px;font-weight:600;line-height:18px;white-space:nowrap}
+.chip.w{background:var(--p-warn-muted);color:var(--p-warn)}
+.lnk{color:var(--p-text-accent);font-weight:600;text-decoration:underline;text-underline-offset:2px}
+.banner{background:var(--p-err-muted);color:var(--p-err);border-radius:8px;padding:8px 12px;font-size:12px;display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.pane{background:var(--p-surface);border-radius:14px;box-shadow:0 1px 2px #1b211d12;overflow:hidden;margin-top:8px}
+.lh{padding:11px 16px;display:flex;justify-content:space-between;gap:12px;align-items:baseline;border-bottom:1px solid var(--p-line)}
+.lh b{font-size:12.5px}.lh span{font-size:11px;color:var(--p-ink2)}
+.row{display:grid;grid-template-columns:1fr auto;gap:2px 12px;padding:10px 16px;border-bottom:1px solid var(--p-line);font-size:13px}
+.row .t{font-weight:600}.row .m{color:var(--p-ink2);font-size:12px}.row .rc{font-family:var(--mono);font-size:11.5px;text-align:right;white-space:nowrap}
+.note{padding:8px 16px;font-size:11px;color:var(--p-ink2);border-top:1px solid var(--p-line)}
+.pager{padding:9px 16px;border-top:1px solid var(--p-line);display:flex;justify-content:space-between;align-items:center;font-size:11.5px;color:var(--p-ink2);gap:12px}
+.pager .g{display:flex;gap:6px;align-items:center}
+.btn{font:inherit;font-size:11.5px;border:1px solid var(--p-line);background:var(--p-surface);color:var(--p-ink);border-radius:8px;padding:4px 12px;min-height:26px;white-space:nowrap}
+.btn.raw{border-radius:4px;border-color:#9aa39c}
+.btn.pri{background:var(--p-accent);border-color:var(--p-accent);color:#fff;font-weight:600;border-radius:4px}
+.btn[data-off]{opacity:.45}
+.empty{padding:34px 16px;display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center}
+.empty .ic{width:30px;height:30px;border-radius:50%;border:2px solid var(--p-ink2);opacity:.5}
+.empty b{font-size:14px}.empty span{font-size:12px;color:var(--p-ink2);max-width:46ch}
+.empty .g{display:flex;gap:8px;margin-top:4px}
+.sk{display:flex;flex-direction:column;gap:10px;padding:16px}
+.sk i{display:block;height:12px;border-radius:6px;background:linear-gradient(90deg,#ECEFE9,#F6F7F4,#ECEFE9)}
+.mini{display:flex;flex-direction:column;gap:6px}
+.ab[data-w="1280"]{width:1057px}.ab[data-w="1440"]{width:1217px}
+.ab.small{width:auto;padding:12px}
+[data-show]{display:none}
+.ab[data-state="closed"] [data-show~="closed"],.ab[data-state="open"] [data-show~="open"],.ab[data-state="run"] [data-show~="run"]{display:revert}
+.ab[data-state="open"] .adv[data-show]{display:grid}
+.ab[data-state="closed"] .icb[data-show~="closed"],.ab[data-state="open"] .icb[data-show~="open"],.ab[data-state="run"] .icb[data-show~="run"]{display:inline-flex}
+.ab[data-state="run"] .runline[data-show],.ab[data-state="open"] .runline.always{display:flex}
+.ab[data-screen="op"] [data-only="ps"],.ab[data-screen="ps"] [data-only="op"]{display:none!important}
+.ab[data-meas="A"] [data-meas-only="B"],.ab[data-meas="B"] [data-meas-only="A"]{display:none!important}
+
+.split{display:flex;background:var(--p-surface);border-radius:14px;overflow:hidden;box-shadow:0 1px 2px #1b211d12;margin-top:8px;min-height:330px}
+.lp{flex:0 0 38%;display:flex;flex-direction:column;min-width:0;border-right:1px solid var(--p-line)}
+.dp{flex:1;min-width:0;display:flex;flex-direction:column}
+.cols{display:flex;justify-content:space-between;padding:7px 16px;font-size:11.5px;color:var(--p-ink2);border-bottom:1px solid var(--p-line)}
+.th{display:grid;grid-template-columns:1fr 120px;padding:8px 16px;font-size:11.5px;color:var(--p-ink2);border-bottom:1px solid var(--p-line);background:#F6F7F4;font-weight:600}
+.tr{display:grid;grid-template-columns:1fr 120px;gap:8px;padding:10px 16px;border-bottom:1px solid var(--p-line);font-size:12.6px;align-items:start}
+.tr.on,.rowx.on{background:var(--p-accent-muted)}
+.tr .t{font-weight:600;font-size:13.5px}.tr .m{color:var(--p-ink2);font-size:12px}
+.rowx{display:grid;grid-template-columns:1fr auto;gap:3px 10px;padding:11px 16px;border-bottom:1px solid var(--p-line);font-size:13px}
+.rowx .t{font-weight:600;font-size:14px;line-height:1.4}.rowx .a{color:var(--p-ink)}.rowx .m{color:var(--p-ink2);font-size:12px}
+.rowx .rc{font-family:var(--mono);font-size:11.5px;text-align:right;white-space:nowrap}
+.chips{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.bd{display:inline-block;border-radius:999px;padding:0 8px;font-size:11px;font-weight:600;line-height:18px;white-space:nowrap;background:#E9ECE6;color:var(--p-ink)}
+.bd.ok{background:#DCEBC6;color:#2f4a12}.bd.wn{background:var(--p-warn-muted);color:var(--p-warn)}
+.dh{padding:12px 16px;display:flex;flex-direction:column;gap:7px;border-bottom:1px solid var(--p-line)}
+.dh.sticky{box-shadow:0 2px 0 var(--p-brand-edge)}
+.agency{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px;padding:9px 14px;border-radius:6px;background:var(--p-accent-muted)}
+.agency small{font-size:10.5px;color:var(--p-ink2)}.agency b{font-size:12.5px;font-weight:600}
+.dh h5{margin:0;font-size:16px;font-weight:600;line-height:1.35}
+.db{padding:12px 16px;display:flex;flex-direction:column;gap:8px;font-size:12.5px;color:var(--p-ink2)}
+.tabsx{display:flex;gap:16px;border-bottom:1px solid var(--p-line);padding:0 16px;font-size:12.5px;color:var(--p-ink2)}
+.tabsx span{padding:9px 2px}.tabsx span.on{color:var(--p-ink);font-weight:600;box-shadow:0 -2px 0 var(--p-brand) inset}
+.ab[data-row="A"] [data-row-only="B"],.ab[data-row="B"] [data-row-only="A"]{display:none!important}
+</style>
+
+<div class="page">
+  <header class="intro">
+    <span class="eyebrow">BIDOPS · 실무 화면 고도화 · 시안 M1c</span>
+    <h1>사업 추적·최종 Go/No-Go를 발주계획·사전규격과 같은 골격으로</h1>
+    <p class="lede">두 화면은 이미 목록 38% · 상세 62% 비율이지만, 발주계획·사전규격이 쓰는 공용 분할 골격(<code>SplitWorkspace</code>) 대신 화면마다 따로 만든 틀과 CSS를 씁니다. 그래서 목록 머리·열 머리·상세 머리의 동작이 조금씩 다릅니다. 골격을 공용으로 바꾸고, 목록 행의 모양을 어디까지 맞출지 정합니다. 표시 데이터는 테스트 fixture 값입니다.</p>
+    <div class="facts"><span><b>대상 패키지</b> C1 · C2</span><span><b>정본</b> docs/0921_practitioner-screens/spec.md §2.4</span><span><b>이미 맞춘 것</b> 페이저 · 빈 상태 · 조회 중 · 단추 이름 · 목록 머리 문구(U2·U3)</span></div>
+  </header>
+  <div class="bar" role="toolbar" aria-label="시안 보기 설정">
+    <div class="ctl"><span>화면 폭</span><div class="seg" data-group="w"><button type="button" id="w1280" aria-pressed="true" data-v="1280">laptop 1280</button><button type="button" id="w1440" aria-pressed="false" data-v="1440">desktop 1440</button></div></div>
+    <div class="ctl"><span>목록 행</span><div class="seg" data-group="row"><button type="button" id="rowA" aria-pressed="true" data-v="A">A안 · 표 유지 (권장)</button><button type="button" id="rowB" aria-pressed="false" data-v="B">B안 · 발주계획과 같은 행</button></div></div>
+  </div>
+  <section class="mock">
+    <div class="head"><span class="eyebrow">① 사업 추적</span><h2>골격은 공용으로, 행은 두 안</h2></div>
+    
+      <div class="frame"><div class="fit"><div class="ab" data-w="1280" data-row="A" id="opp">
+        <div class="top"><h4>사업 추적</h4><div class="r"><span class="btn">목록 기준</span></div></div>
+        <div class="frow"><span class="tab on">조치 필요 <b>3</b></span><span class="tab">추적 중 <b>12</b></span><span class="tab">보류 <b>2</b></span><span class="tab">추적 종료</span><span class="tab">전체</span></div>
+        <div class="frow"><span class="icb">☰ 상세 필터</span><span class="srch">사업명·발주기관 검색</span></div>
+        <div class="split">
+          <div class="lp">
+            <div class="lh"><b>사업 추적 목록 · 7건</b><span></span></div>
+            <div data-row-only="A"><div class="th"><span>사업명 / 발주기관</span><span>다음 확인</span></div><div class="tr on"><span><span class="t">지방공기업 업무혁신 및 데이터 연계 체계 고도화</span><br><span class="m">인천광역시 · 사전규격 · 계속 추적</span><br><span class="chips"><span class="bd wn">새 공고</span><span class="bd">후보 확인</span></span></span><span><span class="btn">새 공고 확인</span></span></div>
+<div class="tr"><span><span class="t">공공기관 업무시스템 개선 검토</span><br><span class="m">강원특별자치도 · 발주계획 · 보류</span><br><span class="chips"><span class="bd wn">보류 기한 지남</span></span></span><span><span class="btn">보류 재검토</span></span></div></div>
+            <div data-row-only="B"><div class="cols"><span>사업명 / 발주기관</span><span>다음 확인</span></div><div class="rowx on"><span class="t">지방공기업 업무혁신 및 데이터 연계 체계 고도화</span><span class="rc"><span class="btn">새 공고 확인</span></span><span class="a">인천광역시</span><span></span><span class="m">사전규격 · 계속 추적</span><span></span><span class="chips"><span class="bd wn">새 공고</span><span class="bd">후보 확인</span></span><span></span></div>
+<div class="rowx"><span class="t">공공기관 업무시스템 개선 검토</span><span class="rc"><span class="btn">보류 재검토</span></span><span class="a">강원특별자치도</span><span></span><span class="m">발주계획 · 보류</span><span></span><span class="chips"><span class="bd wn">보류 기한 지남</span></span><span></span></div></div>
+            <div style="flex:1"></div>
+            <div class="pager"><span>전체 7건</span><span class="g"><span>1–7 / 7</span><span class="btn" data-off>이전</span><span class="btn" data-off>다음</span></span></div>
+          </div>
+          <div class="dp">
+            <div class="dh sticky"><div class="agency"><small>발주기관</small><b>인천광역시</b></div><h5>지방공기업 업무혁신 및 데이터 연계 체계 고도화</h5></div>
+            <div class="tabsx"><span class="on">추적 흐름</span><span>확인 사항</span><span>추적 이력</span><span>심층 검토</span></div>
+            <div class="db"><span>상세 본문은 지금과 같습니다. 머리(발주기관 강조·사업명)만 스크롤해도 위에 붙어 있게 됩니다.</span></div>
+          </div>
+        </div>
+      </div></div></div>
+  </section>
+  <section class="mock">
+    <div class="head"><span class="eyebrow">② 최종 Go/No-Go</span><h2>같은 골격, 같은 선택</h2></div>
+    
+      <div class="frame"><div class="fit"><div class="ab" data-w="1280" data-row="A" id="gng">
+        <div class="top"><h4>최종 Go/No-Go</h4><div class="r"><span class="btn">목록 기준</span></div></div>
+        <div class="frow"><span class="tab on">검토 대상 <b>4</b></span><span class="tab">재검토</span><span class="tab">결정 기록</span><span class="tab">전체</span></div>
+        <div class="frow"><span class="icb">☰ 상세 필터</span><span class="srch">사업명·발주기관 검색</span></div>
+        <div class="split">
+          <div class="lp">
+            <div class="lh"><b>최종 결정 목록 · 7건</b><span></span></div>
+            <div data-row-only="A"><div class="th"><span>사업명 / 발주기관</span><span>사람 결정</span></div><div class="tr on"><span><span class="t">종료된 지능형 업무 시스템 본공고</span><br><span class="m">경상남도 · 비교 0건</span></span><span><span class="bd">결정 없음</span></span></div>
+<div class="tr"><span><span class="t">노후 전산망 재해복구체계 구축 사전 검토</span><br><span class="m">대전광역시 · 비교 1건</span></span><span><span class="bd ok">Go · 최신</span></span></div></div>
+            <div data-row-only="B"><div class="cols"><span>사업명 / 발주기관</span><span>사람 결정</span></div><div class="rowx on"><span class="t">종료된 지능형 업무 시스템 본공고</span><span class="rc"><span class="bd">결정 없음</span></span><span class="a">경상남도</span><span></span><span class="m">비교 0건</span><span></span></div>
+<div class="rowx"><span class="t">노후 전산망 재해복구체계 구축 사전 검토</span><span class="rc"><span class="bd ok">Go · 최신</span></span><span class="a">대전광역시</span><span></span><span class="m">비교 1건</span><span></span></div></div>
+            <div style="flex:1"></div>
+            <div class="pager"><span>전체 7건</span><span class="g"><span>1–7 / 7</span><span class="btn" data-off>이전</span><span class="btn" data-off>다음</span></span></div>
+          </div>
+          <div class="dp">
+            <div class="dh sticky"><div class="agency"><small>발주기관</small><b>경상남도</b></div><h5>종료된 지능형 업무 시스템 본공고</h5></div>
+            <div class="tabsx"><span class="on">검토 요약</span><span>비교 문서</span><span>결정 기록</span></div>
+            <div class="db"><span>상세 본문은 지금과 같습니다. 머리(발주기관 강조·사업명)만 스크롤해도 위에 붙어 있게 됩니다.</span></div>
+          </div>
+        </div>
+      </div></div></div>
+  </section>
+  <section class="mock">
+    <div class="head"><span class="eyebrow">③ 바뀌는 것과 고를 것</span><h2>두 안 모두에서 바뀌는 것</h2></div>
+    <ol class="changes">
+      <li><span class="n">1</span><span><b>분할 틀을 공용 `SplitWorkspace`로.</b> <em>화면별 틀과 복제 CSS를 지웁니다. 비율(38%)은 그대로라 눈에 보이는 차이는 작습니다.</em></span></li>
+      <li><span class="n">2</span><span><b>상세 머리가 스크롤해도 위에 붙습니다.</b> <em>발주계획·사전규격과 같은 `StickyDecisionHeader`. 긴 상세에서도 어느 사업인지 놓치지 않습니다.</em></span></li>
+      <li><span class="n">3</span><span><b>발주기관 강조 블록을 같은 부품으로.</b> <em>`AgencyFeature` — 네 화면의 상세 머리가 같은 모양.</em></span></li>
+      <li><span class="n">4</span><span><b>네 화면 교차 검사의 빈칸을 채웁니다.</b> <em>`explore-workspace-consistency.spec`이 두 화면을 "아직 통일하지 않은 화면"으로 비워 두었습니다.</em></span></li>
+    </ol>
+    <div class="decide"><strong>결정 — 목록 행 (위 `목록 행` 단추로 비교)</strong>
+      <span><b>A안 · 표 유지(권장).</b> 지금처럼 열 머리가 있는 표(Astryx `Table`)를 두고 글자 크기·행 간격만 공용 값에 맞춥니다. 사업 추적은 행마다 `다음 확인` 단추가 있고 Go/No-Go는 `사람 결정` 열이 있어 열 구조가 뜻을 가집니다. 바뀌는 코드가 적어 회귀 위험이 작습니다.</span>
+      <span><b>B안 · 발주계획과 같은 행.</b> 사업명 → 발주기관 → 상태 줄 → 칩 줄의 네 줄 리듬으로 네 목록이 완전히 같은 모양이 됩니다. 대신 두 화면의 행 컴포넌트를 새로 써야 하고 키보드 이동(↑↓)·선택 표시를 다시 맞춰야 합니다. 뒤 작업(예산·마감 열 추가, 시안 M5)에서 열이 늘어날 예정이라 표 쪽이 받기 쉽습니다.</span>
+    </div>
+  </section>
+</div>
+
+<script>
+(function(){
+  var abs=function(){return Array.prototype.slice.call(document.querySelectorAll('.ab[data-w]'))};
+  function fit(){abs().forEach(function(ab){var box=ab.parentElement;var w=parseInt(ab.getAttribute('data-w'),10)===1440?1217:1057;ab.style.transform='none';box.parentElement.style.maxWidth='none';var avail=box.clientWidth;var k=Math.min(1,avail/w);ab.style.transform='scale('+k+')';box.style.height=(ab.offsetHeight*k)+'px';box.parentElement.style.maxWidth=Math.ceil(w*k+2)+'px';});}
+  Array.prototype.forEach.call(document.querySelectorAll('.seg[data-group]'),function(group){
+    group.addEventListener('click',function(e){var b=e.target.closest('button');if(!b)return;Array.prototype.forEach.call(group.querySelectorAll('button'),function(x){x.setAttribute('aria-pressed',x===b?'true':'false')});var g=group.getAttribute('data-group'),v=b.getAttribute('data-v');
+      if(g==='w'){abs().forEach(function(ab){ab.setAttribute('data-w',v)});}
+      else if(g==='row'){abs().forEach(function(ab){ab.setAttribute('data-row',v)});}
+      fit();});
+  });
+  window.addEventListener('resize',fit);
+  if(document.fonts&&document.fonts.ready){document.fonts.ready.then(fit);}
+  fit();
+})();
+</script>

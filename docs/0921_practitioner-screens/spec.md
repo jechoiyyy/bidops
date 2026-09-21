@@ -82,7 +82,7 @@
 
 ### 2.4 사업 추적·Go/No-Go 골격
 
-- `opportunity-workspace`·`gng-workspace`를 `SplitWorkspace`로, 목록 머리·sticky 상세 머리·목록 폭을 발주계획·사전규격과 맞춘다. 기본안은 Astryx `Table` 유지, `DenseList` 전환은 시안 M1c의 비교안.
+- `opportunity-workspace`·`gng-workspace`를 `SplitWorkspace`로, 목록 머리·sticky 상세 머리·목록 폭을 발주계획·사전규격과 맞춘다. **M1c 승인(2026-09-21): A안** — 목록은 Astryx `Table`을 유지하고 글자 크기·행 간격만 공용 값에 맞춘다. 상세 머리는 `StickyDecisionHeader` + `AgencyFeature`.
 - `tests/explore-workspace-consistency.spec.ts:29-34`의 공란을 채운다.
 
 ## 3. 운영 정보 처분표
