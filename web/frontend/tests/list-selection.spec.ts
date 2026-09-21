@@ -112,7 +112,11 @@ test("LS-S1 canonical fingerprints normalize set order and exclude paging contex
   });
   expect(first).toBe(reordered);
   expect(first).not.toContain("offset");
-  expect(orderPlansFilterFingerprint({ ...reorderedInput(), q: "접근성" })).not.toBe(first);
+  // 지문은 raw `q`가 아니라 `searchKey(q)`를 담는다(docs/0921_search-ux/spec.md §3).
+  // 공백만 다른 검색어는 같은 적용값이므로 **같은** 지문이어야 하고, 선택을 비우는
+  // 것은 적용값이 실제로 달라질 때뿐이다.
+  expect(orderPlansFilterFingerprint({ ...reorderedInput(), q: "접근성" })).toBe(first);
+  expect(orderPlansFilterFingerprint({ ...reorderedInput(), q: "보안" })).not.toBe(first);
   expect(preSpecsFilterFingerprint({
     swOnly: true,
     businessDivision: "",
@@ -155,6 +159,23 @@ test("LS-S1 canonical fingerprints normalize set order and exclude paging contex
     overviewView: "all",
     q: "",
   }));
+  // 마감 구간은 의미 필터다(ADR-0064 결정 6) — 기본값을 생략한 지문과 `current`를
+  // 준 지문은 같고, `passed`는 다른 지문이라 선택이 비워진다.
+  const scopeBase = {
+    swOnly: true,
+    businessDivision: "",
+    origin: "신규",
+    grade: "",
+    autoPreparationStatus: "",
+    trackingDecision: "",
+    workspace: "actionable",
+    overviewView: "all",
+    q: "",
+  };
+  expect(preSpecsFilterFingerprint({ ...scopeBase, deadlineScope: "current" }))
+    .toBe(preSpecsFilterFingerprint(scopeBase));
+  expect(preSpecsFilterFingerprint({ ...scopeBase, deadlineScope: "passed" }))
+    .not.toBe(preSpecsFilterFingerprint(scopeBase));
 });
 
 function reorderedInput() {

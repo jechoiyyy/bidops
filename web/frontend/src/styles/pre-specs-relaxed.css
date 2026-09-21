@@ -74,21 +74,15 @@
 }
 
 /* --- 압축 필터 ---
- * 골격(바·첫 줄·보기 탭·검색·상세 필터)은 공용 `styles/workspace-filters.css`가
- * 소유한다. 이 화면이 더 갖는 것은 첫 줄의 SW 중심 스위치와 범위 안내,
- * 둘째 줄의 수집 회차·관측 날짜 입력이다. */
+ * 골격(바·첫 줄·보기 탭·조회 도구·상세 필터)은 공용 `styles/workspace-filters.css`가
+ * 소유한다. 이 화면이 더 갖는 것은 첫 줄의 SW 중심 스위치와, 조회 도구 행의
+ * 수집 회차·관측 날짜·검토 포함 조건이다. */
 
-/* 첫 줄 — 이 화면만 보기 탭과 검색 칸 사이에 범위 스위치를 하나 더 둔다. 공용
-   규칙은 `space-between`이라 자식이 셋이 되면 스위치가 가운데로 떠 버리므로, 시작
-   정렬로 바꾸고 검색 칸만 `margin-left: auto`로 오른쪽 끝에 밀어 붙인다.
-   `flex-wrap`은 1280px에서 넘칠 때 가로 스크롤 대신 줄을 내리게 한다. */
+/* 첫 줄 — 이 화면만 보기 탭과 함께 범위 스위치를 둔다. 검색·상세 필터는 두 번째
+   도구 행으로 내려 시선·탭 순서를 고정한다. */
 .pre-specs-filters > .workspace-filter-line {
   flex-wrap: wrap;
   justify-content: flex-start;
-}
-
-.pre-specs-filters > .workspace-filter-line > .workspace-filter-end {
-  margin-left: auto;
 }
 
 /* 필터 줄이 canvas 위의 면 없는 줄이 되면서 줄 사이 구분선도 사라진다(spec §2.2). */
@@ -158,8 +152,39 @@
   font-size: var(--bo-type-caption);
 }
 
-/* 둘째 줄 — 스위치가 첫 줄로 가면서 이 블록이 줄의 시작 자리를 쓴다. 수집 회차
-   다음에 관측 날짜 범위가 이어 붙는다. */
+/* 조회 도구 행 — 검색 뒤에 수집 회차, 관측 날짜와 검토 포함 조건이 이어진다. */
+.pre-specs-filter-tools {
+  align-items: flex-start;
+}
+
+.pre-specs-filter-tools > .astryx-field {
+  flex-direction: row;
+  align-items: center;
+  gap: var(--spacing-2);
+}
+
+.pre-specs-filter-tools > .astryx-field > .astryx-field-label {
+  white-space: nowrap;
+}
+
+/* 마감 구간 전환(ADR-0064) — 조회 도구 행의 네 번째 칸이다. 전체 이력의
+   「검토 포함 여부」와 같은 자리를 나눠 쓰므로 그 칸과 같은 가로 배치를 쓴다
+   (캡션 → 컨트롤). 컨트롤 자체의 폭은 Astryx `layout="hug"`가 정한다 — 여기서
+   `width`를 건드리면 StyleX와 특이도 싸움이 된다. */
+.pre-specs-deadline-scope {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  min-width: 0;
+}
+
+.pre-specs-deadline-scope-caption {
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+  line-height: var(--bo-type-caption-leading);
+  white-space: nowrap;
+}
+
 .pre-specs-filter-context-range {
   display: flex;
   flex-wrap: wrap;

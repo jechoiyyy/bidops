@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router-dom";
+import { searchKey, searchMatches } from "../lib/search";
 import { Badge } from "@astryxdesign/core/Badge";
 import { Banner } from "@astryxdesign/core/Banner";
 import { Button } from "@astryxdesign/core/Button";
@@ -37,10 +38,9 @@ import {
   WorkspaceAdvancedToggle,
   WorkspaceFilterAdvanced,
   WorkspaceFilterBar,
-  WorkspaceFilterContext,
-  WorkspaceFilterEnd,
   WorkspaceFilterLine,
   WorkspaceFrame,
+  WorkspaceFilterTools,
   WorkspaceSearch,
   WorkspaceViewTabs,
 } from "../components/common/WorkspaceFilters";
@@ -752,7 +752,7 @@ export function OrderPlansPage() {
     });
   }
 
-  useEffect(() => setSearchText(searchParams.get("q") ?? ""), [searchParams]);
+  useEffect(() => setSearchText(searchParams.get("q") ?? ""), [searchParams.get("q")]);
 
   const selectedParam = searchParams.get("selected");
   const selectedPk = parseOrderPlanPk(selectedParam);
@@ -934,6 +934,22 @@ export function OrderPlansPage() {
     withRowGuard(() => applyAxes(next));
   }
 
+  function applySearch(next: string) {
+    const raw = searchKey(next) ? next : "";
+    const changed = searchKey(raw) !== searchKey(qText);
+    const run = () => {
+      const params = new URLSearchParams(searchParams);
+      if (raw) params.set("q", raw);
+      else params.delete("q");
+      if (changed) params.delete("offset");
+      setSearchParams(params, { replace: true });
+      orderPlanSelection.setListSearch(raw);
+      setSearchText(raw);
+    };
+    if (changed) withRowGuard(run);
+    else run();
+  }
+
   function applyPreset(presetKey: string) {
     const preset = PRESETS.find((item) => item.key === presetKey);
     if (!preset) return;
@@ -1036,11 +1052,7 @@ export function OrderPlansPage() {
 
   function matchesFilters(item: OrderPlanListItem): boolean {
     if (!matchesAxes(item, { qwenSet, stage1Set, feedbackSet, trackingSet, issueOn })) return false;
-    if (qText) {
-      // 시안의 검색은 사업명과 발주기관을 함께 본다. 계획번호는 기존 능력이므로 남긴다.
-      const haystack = `${item.title ?? ""} ${item.agency_name ?? ""} ${item.order_plan_unty_no}`.toLocaleLowerCase("ko-KR");
-      if (!haystack.includes(qText.toLocaleLowerCase("ko-KR"))) return false;
-    }
+    if (searchKey(qText) && !searchMatches(qText, item.title, item.agency_name, item.order_plan_unty_no)) return false;
     return true;
   }
 
@@ -1609,27 +1621,26 @@ export function OrderPlansPage() {
               }))}
               value={activePreset ?? ""}
             />
-            <WorkspaceFilterEnd>
-              <WorkspaceSearch
-                isDisabled={bulkPending}
-                label="사업명·발주기관·계획번호 검색"
-                onChange={setSearchText}
-                onEnter={() => changeAxes({ q: searchText })}
-                placeholder="사업명·발주기관 검색"
-                value={searchText}
-              />
-              <WorkspaceAdvancedToggle
-                activeCount={activeFilterCount}
-                controlsId="c2l-advanced-filters"
-                isOpen={advancedOpen}
-                onToggle={() => setAdvancedOpen((open) => !open)}
-              />
-            </WorkspaceFilterEnd>
           </WorkspaceFilterLine>
 
-          {/* 회차는 **감사용 보조 선택**이므로 필터가 아니라 "지금 무엇을 보고 있는가"
-              줄에 둔다 — 사전규격과 같은 자리·같은 라벨이다(ADR-0062). */}
-          <WorkspaceFilterContext className="c2l-filter-context">
+          <WorkspaceFilterTools className="c2l-filter-tools">
+            <WorkspaceAdvancedToggle
+              activeCount={activeFilterCount}
+              controlsId="c2l-advanced-filters"
+              isOpen={advancedOpen}
+              onToggle={() => setAdvancedOpen((open) => !open)}
+            />
+            <WorkspaceSearch
+              appliedValue={qText}
+              isDisabled={bulkPending}
+              label="사업명·발주기관·계획번호 검색"
+              onChange={setSearchText}
+              onClear={() => applySearch("")}
+              onEnter={() => applySearch(searchText)}
+              placeholder="사업명·발주기관 검색"
+              value={searchText}
+            />
+            {/* 회차는 감사용 범위 선택이며 검색 뒤에 둔다. */}
             <div className="c2l-filter-context-range">
               {/* 보이는 라벨은 사전규격과 같은 문구다. 접근 가능한 이름은 Selector가
                   숨긴 라벨로 이미 갖고 있으므로 이 글자는 보조 기술에 두 번 읽히지 않게 한다. */}
@@ -1639,7 +1650,7 @@ export function OrderPlansPage() {
                 options={runOptions} value={sourceRunId ?? ""} onChange={changeSourceRun}
                 placeholder="누적 · 회차 선택 안 함" />
             </div>
-          </WorkspaceFilterContext>
+          </WorkspaceFilterTools>
 
           {advancedOpen ? (
             <WorkspaceFilterAdvanced columns={4} id="c2l-advanced-filters" onReset={resetFilters}>
@@ -1881,8 +1892,12 @@ export function OrderPlansPage() {
                   <EmptyState
                     compact
                     title="조건에 맞는 계획이 없습니다"
-                    description="검색어나 필터를 바꿔보세요. 표시되지 않은 값이나 실행 실패를 다른 relevance 상태로 바꾸지 않습니다."
-                    action={{ label: "필터 초기화", onClick: resetFilters }}
+                    description={searchKey(qText)
+                      ? `적용된 검색어 "${qText}"와 다른 활성 필터에 맞는 계획이 없습니다.`
+                      : "필터를 바꿔보세요. 표시되지 않은 값이나 실행 실패를 다른 relevance 상태로 바꾸지 않습니다."}
+                    action={searchKey(qText)
+                      ? { label: "검색어만 지우기", onClick: () => applySearch("") }
+                      : { label: "필터 초기화", onClick: resetFilters }}
                   />
                 </div>
               ) : (

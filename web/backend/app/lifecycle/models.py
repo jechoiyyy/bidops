@@ -104,6 +104,15 @@ class Notice(Base):
         # (``0027_collection_index_and_linkage``).
         Index("ix_notice_bid_no", "bid_no"),
         UniqueConstraint("notice_key", name="uq_notice_key"),
+        CheckConstraint("review_exclusion_status IN ('included','excluded')", name="ck_notice_review_exclusion_status"),
+        CheckConstraint(
+            "(review_exclusion_status = 'included' AND review_exclusion_actor_name IS NULL "
+            "AND review_exclusion_reason IS NULL AND review_exclusion_changed_at IS NULL) OR "
+            "(review_exclusion_actor_name IS NOT NULL AND length(trim(review_exclusion_actor_name)) BETWEEN 1 AND 128 "
+            "AND review_exclusion_reason IS NOT NULL AND length(trim(review_exclusion_reason)) BETWEEN 1 AND 2000 "
+            "AND review_exclusion_changed_at IS NOT NULL AND source_type = 'pre_spec')",
+            name="ck_notice_review_exclusion_metadata",
+        ),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -136,6 +145,11 @@ class Notice(Base):
     candidate_sources_json: Mapped[Any] = mapped_column(JSONB_COMPAT, nullable=True)
     unknown_fields_json: Mapped[Any] = mapped_column(JSONB_COMPAT, nullable=True)
     raw_source: Mapped[Any] = mapped_column(JSONB_COMPAT, nullable=True)
+
+    review_exclusion_status: Mapped[str] = mapped_column(String(16), default="included", server_default="included", nullable=False)
+    review_exclusion_actor_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    review_exclusion_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    review_exclusion_changed_at: Mapped[datetime | None] = mapped_column(AwareDateTime(), nullable=True)
 
     observations: Mapped[list["NoticeObservation"]] = relationship(
         back_populates="notice", cascade="all, delete-orphan", overlaps="runs,notices"
