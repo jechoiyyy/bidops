@@ -239,6 +239,11 @@ class OrderPlanListItem(_Strict):
     budget_amount: float | None
     planned_order_year: str | None
     planned_order_month: str | None
+    # 계약방법(`cntrctMthdNm`)과 공고 게시 여부(`ntceNticeYn`, 원문 `Y`/`N`)는 수집 원본 값을 그대로
+    # 낸다. `notice_posted`를 bool로 좁히지 않는 것은 값이 없는 것(`null`)과 `N`이 다른 사실이기
+    # 때문이다. 목록은 500행을 한 번에 받으므로 상세용 필드는 여기에 넣지 않는다.
+    contract_method: str | None
+    notice_posted: str | None
     source_run_id: str | None
     observed_at: datetime | None
     stage1_status: Literal["selected", "filtered_out", "failed", "rejected"] | None
@@ -257,7 +262,7 @@ class OrderPlanListItem(_Strict):
 
 
 class OrderPlanListResponse(_Strict):
-    schema_version: Literal["order-plan-list-response.v4"]
+    schema_version: Literal["order-plan-list-response.v5"]
     producer: Literal["order-plan-review-api"]
     consumer: Literal["order-plan-review-client"]
     scope: Annotated[OrderPlanCumulativeScope | OrderPlanRunScope, Field(discriminator="mode")] | None
@@ -291,10 +296,21 @@ class ScreeningHistoryItem(_Strict):
     qwen_score: float | None
     qwen_reason: str | None
     feedback_revision_count: int
+    # 그 실행이 무엇이었는지 화면이 구분할 수 있게 실행 행의 값을 그대로 낸다.
+    # `execution_purpose`는 `order_plan_screening_execution.purpose`(INSERT 때 고정, trigger가
+    # 이후 변경을 거부)이며 화면이 `gate_measurement`를 운영 판정으로 읽지 않게 한다.
+    # 시각은 대표값을 서버가 고르지 않는다 — `started_at`·`finished_at`을 나란히 내고 둘 다
+    # 실행 상태에 따라 `null`일 수 있다(대기는 둘 다 null, 실행 중은 finished만 null).
+    # 참조 실행(한 번도 활성화된 적 없는 policy의 실행)은 이 행에 표식이 없다. C-2에는
+    # `quality_status` 열이 없고, 화면은 목록 누적 scope의 `activated_policy_versions`와
+    # 이 항목의 `policy_version`을 대조해 가른다(기존 계약, 새 필드를 만들지 않는다).
+    execution_purpose: Literal["operational", "gate_measurement"]
+    execution_started_at: datetime | None
+    execution_finished_at: datetime | None
 
 
 class OrderPlanDetailResponse(_Strict):
-    schema_version: Literal["order-plan-detail-response.v3"]
+    schema_version: Literal["order-plan-detail-response.v4"]
     producer: Literal["screening-api"]
     consumer: Literal["order-plan-review-client"]
     order_plan_pk: int
@@ -308,6 +324,15 @@ class OrderPlanDetailResponse(_Strict):
     budget_amount: float | None
     planned_order_year: str | None
     planned_order_month: str | None
+    # 누적 발주계획 행(`order_plan`)이 이미 가진 열의 투영이다. 새 migration은 없고 값은
+    # 수집 원본 그대로다 — `bid_ntice_no_list`는 `bidNtceNoList` 원문 문자열(공고번호가 여럿이면
+    # 구분자로 이어진 한 문자열)이므로 서버가 쪼개지 않는다.
+    supervising_agency_name: str | None
+    procurement_method: str | None
+    contract_method: str | None
+    notice_posted: str | None
+    bid_ntice_no_list: str | None
+    published_at: datetime | None
     observations: list[OrderPlanObservationView]
     screening_history: list[ScreeningHistoryItem]
     latest_human_feedback: HumanFeedbackSummary | None
@@ -315,7 +340,11 @@ class OrderPlanDetailResponse(_Strict):
 
 
 class ScreeningHistoryResponse(_Strict):
-    schema_version: Literal["order-plan-detail-response.v1"]
+    # `GET /api/order-plans/{id}/screening-history`는 상세와 같은 `order-plan-detail-response`
+    # family 이름을 쓰면서 번호만 따로 올려 왔다(v1). 번호는 family 안에서 한 번만 쓰므로
+    # (v2·v3은 상세가 이미 썼고 v4는 이번에 상세가 쓴다) 이 응답은 v5로 간다. 같은 문자열이
+    # 서로 다른 모양을 뜻하게 두지 않는 것이 규칙이다.
+    schema_version: Literal["order-plan-detail-response.v5"]
     producer: Literal["screening-api"]
     consumer: Literal["order-plan-review-client"]
     order_plan_pk: int

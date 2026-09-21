@@ -2399,6 +2399,8 @@ const c2Items: C2OrderPlanFixtureItem[] = [
     budget_amount: 125000000,
     planned_order_year: "2026",
     planned_order_month: "2026-11",
+    contract_method: "일반경쟁",
+    notice_posted: "N",
     source_run_id: "91d8c2e4-3f09-4e6a-9bd9-0c2e4e6d0101",
     observed_at: "2026-09-01T01:00:00Z",
     stage1_status: "selected",
@@ -2428,6 +2430,8 @@ const c2Items: C2OrderPlanFixtureItem[] = [
     budget_amount: null,
     planned_order_year: "2027",
     planned_order_month: "03",
+    contract_method: null,
+    notice_posted: null,
     source_run_id: "91d8c2e4-3f09-4e6a-9bd9-0c2e4e6d0101",
     observed_at: "2026-09-01T01:01:00Z",
     stage1_status: "selected",
@@ -2450,6 +2454,8 @@ const c2Items: C2OrderPlanFixtureItem[] = [
     budget_amount: 75000000,
     planned_order_year: "2026",
     planned_order_month: "12",
+    contract_method: "수의계약",
+    notice_posted: "Y",
     source_run_id: "91d8c2e4-3f09-4e6a-9bd9-0c2e4e6d0101",
     observed_at: "2026-09-01T01:02:00Z",
     stage1_status: "selected",
@@ -2472,6 +2478,8 @@ const c2Items: C2OrderPlanFixtureItem[] = [
     budget_amount: null,
     planned_order_year: null,
     planned_order_month: null,
+    contract_method: null,
+    notice_posted: "N",
     source_run_id: "91d8c2e4-3f09-4e6a-9bd9-0c2e4e6d0101",
     observed_at: "2026-09-01T01:03:00Z",
     stage1_status: "filtered_out",
@@ -2494,6 +2502,8 @@ const c2Items: C2OrderPlanFixtureItem[] = [
     budget_amount: 88000000,
     planned_order_year: "2027",
     planned_order_month: null,
+    contract_method: "일반경쟁",
+    notice_posted: null,
     source_run_id: "91d8c2e4-3f09-4e6a-9bd9-0c2e4e6d0101",
     observed_at: "2026-09-01T01:04:00Z",
     stage1_status: "selected",
@@ -2516,6 +2526,8 @@ const c2Items: C2OrderPlanFixtureItem[] = [
     budget_amount: null,
     planned_order_year: null,
     planned_order_month: null,
+    contract_method: null,
+    notice_posted: null,
     source_run_id: "91d8c2e4-3f09-4e6a-9bd9-0c2e4e6d0101",
     observed_at: "2026-09-01T01:05:00Z",
     stage1_status: "failed",
@@ -2538,6 +2550,8 @@ const c2Items: C2OrderPlanFixtureItem[] = [
     budget_amount: 61000000,
     planned_order_year: "2027",
     planned_order_month: "04",
+    contract_method: "제한경쟁",
+    notice_posted: "N",
     source_run_id: "91d8c2e4-3f09-4e6a-9bd9-0c2e4e6d0101",
     observed_at: "2026-09-01T01:06:00Z",
     stage1_status: "selected",
@@ -2560,6 +2574,8 @@ const c2Items: C2OrderPlanFixtureItem[] = [
     budget_amount: 210000000,
     planned_order_year: "2026",
     planned_order_month: "10",
+    contract_method: "일반경쟁",
+    notice_posted: "Y",
     source_run_id: "91d8c2e4-3f09-4e6a-9bd9-0c2e4e6d0101",
     observed_at: "2026-09-01T01:07:00Z",
     stage1_status: "selected",
@@ -2621,7 +2637,7 @@ function c2DetailArtifacts(executionId: string) {
 }
 
 const c2Detail = {
-  schema_version: "order-plan-detail-response.v3",
+  schema_version: "order-plan-detail-response.v4",
   producer: "screening-api",
   consumer: "order-plan-review-client",
   order_plan_pk: 101,
@@ -2635,6 +2651,14 @@ const c2Detail = {
   budget_amount: 125000000,
   planned_order_year: "2026",
   planned_order_month: "11",
+  // v4: 누적 발주계획 행의 계약·공고 열. `notice_posted`는 원문 `Y`/`N` 문자열이고
+  // `bid_ntice_no_list`는 쪼개지 않은 수집 원문이다.
+  supervising_agency_name: "조달청",
+  procurement_method: "자체조달",
+  contract_method: c2Items[0].contract_method,
+  notice_posted: c2Items[0].notice_posted,
+  bid_ntice_no_list: null,
+  published_at: "2026-09-01T00:00:00Z",
   observations: [
     { source_run_id: "91d8c2e4-3f09-4e6a-9bd9-0c2e4e6d0101", observed_at: "2026-09-01T01:00:00Z", source_sha256: c2Digest("m") },
     { source_run_id: "91d8c2e4-3f09-4e6a-9bd9-0c2e4e6d0831", observed_at: "2026-08-31T01:00:00Z", source_sha256: null },
@@ -2642,9 +2666,11 @@ const c2Detail = {
   screening_history: [
     {
       execution_id: "a2f4d7c1-0a61-4a07-8d2e-7f1d1d010101", source_run_id: "91d8c2e4-3f09-4e6a-9bd9-0c2e4e6d0101", policy_version: "c2-policy.v1", policy_sha256: c2Digest("a"), binding_sha256: c2Digest("b"), execution_status: "부분 성공", stage1_status: "selected", stage1_rank: 1, stage1_score: 0.92, nearest_capability: "데이터 플랫폼 구축·운영", batch_id: "batch-20260901-01", attempt_no: 2, stage2_status: "success", qwen_relevance: "relevant", qwen_score: 0.96, qwen_reason: "데이터 플랫폼 구축과 운영 범위가 확인됩니다.", feedback_revision_count: 1,
+      execution_purpose: "operational", execution_started_at: "2026-09-01T02:00:04Z", execution_finished_at: "2026-09-01T02:05:00Z",
     },
     {
       execution_id: "a2f4d7c1-0a61-4a07-8d2e-7f1d1d083101", source_run_id: "91d8c2e4-3f09-4e6a-9bd9-0c2e4e6d0831", policy_version: "c2-policy.v1", policy_sha256: c2Digest("e"), binding_sha256: c2Digest("f"), execution_status: "성공", stage1_status: "selected", stage1_rank: 4, stage1_score: 0.88, nearest_capability: "데이터 플랫폼 구축", batch_id: "batch-20260831-01", attempt_no: 1, stage2_status: "success", qwen_relevance: "uncertain", qwen_score: 0.62, qwen_reason: "이전 실행에서는 범위 확인이 필요했습니다.", feedback_revision_count: 0,
+      execution_purpose: "operational", execution_started_at: "2026-08-31T02:00:02Z", execution_finished_at: "2026-08-31T02:04:00Z",
     },
   ],
   latest_human_feedback: c2Items[0].human_feedback,
@@ -2927,7 +2953,7 @@ export async function mockOrderPlans(page: Page, scenario: OrderPlanMockScenario
     }
     if (pathname === "/api/order-plans" && method === "GET") {
       const items = listItems(search), limit = Number(search.get("limit") ?? 100), offset = Number(search.get("offset") ?? 0);
-      await fulfillJson(route, { schema_version: "order-plan-list-response.v4", producer: "order-plan-review-api", consumer: "order-plan-review-client", scope: scopeFor(search.get("source_run_id")), items: items.slice(offset, offset + limit).map((item) => {
+      await fulfillJson(route, { schema_version: "order-plan-list-response.v5", producer: "order-plan-review-api", consumer: "order-plan-review-client", scope: scopeFor(search.get("source_run_id")), items: items.slice(offset, offset + limit).map((item) => {
         if (!options.omitTracking) return item;
         const { tracking: _tracking, ...legacy } = item;
         return legacy;
@@ -2939,9 +2965,9 @@ export async function mockOrderPlans(page: Page, scenario: OrderPlanMockScenario
       if (!plan) { await error(route, "not_found", null, 404); return; }
       const history = latestCompletedExecution(null) && orderPlanPk === 101 ? c2Detail.screening_history : [];
       if (method === "GET" && !planMatch[2]) {
-        await fulfillJson(route, { ...c2Detail, order_plan_pk: orderPlanPk, order_plan_unty_no: plan.order_plan_unty_no, source_url: plan.source_url, title: plan.title, agency_name: plan.agency_name, budget_amount: plan.budget_amount, business_division: plan.business_division, planned_order_year: plan.planned_order_year, planned_order_month: plan.planned_order_month, screening_history: history, latest_human_feedback: plan.human_feedback, tracking: plan.tracking }); return;
+        await fulfillJson(route, { ...c2Detail, order_plan_pk: orderPlanPk, order_plan_unty_no: plan.order_plan_unty_no, source_url: plan.source_url, title: plan.title, agency_name: plan.agency_name, budget_amount: plan.budget_amount, business_division: plan.business_division, planned_order_year: plan.planned_order_year, planned_order_month: plan.planned_order_month, contract_method: plan.contract_method, notice_posted: plan.notice_posted, screening_history: history, latest_human_feedback: plan.human_feedback, tracking: plan.tracking }); return;
       }
-      if (method === "GET" && planMatch[2] === "screening-history") { await fulfillJson(route, { schema_version: "order-plan-detail-response.v1", producer: "screening-api", consumer: "order-plan-review-client", order_plan_pk: orderPlanPk, items: history }); return; }
+      if (method === "GET" && planMatch[2] === "screening-history") { await fulfillJson(route, { schema_version: "order-plan-detail-response.v5", producer: "screening-api", consumer: "order-plan-review-client", order_plan_pk: orderPlanPk, items: history }); return; }
       if (method === "GET" && planMatch[2] === "screening-feedback") { await fulfillJson(route, { schema_version: "feedback-list-response.v1", producer: "screening-api", consumer: "order-plan-review-client", items: feedbackItems.filter((item) => item.order_plan_pk === orderPlanPk && (!search.get("execution_id") || item.execution_id === search.get("execution_id"))).slice().reverse() }); return; }
       if (method === "POST" && planMatch[2] === "screening-feedback") {
         const body = fixtureRecord(request.postDataJSON()) ?? {};
