@@ -519,6 +519,8 @@ export function preSpecsFilterFingerprint(filters: {
   observedFrom?: string;
   observedTo?: string;
   deadlineStatus?: string;
+  /** 검토할 항목의 마감 구간(ADR-0064). 의미 필터이므로 전환하면 선택을 비운다. */
+  deadlineScope?: string;
   q: string;
 }): string {
   const normalized = {
@@ -536,6 +538,7 @@ export function preSpecsFilterFingerprint(filters: {
     observedFrom: filters.observedFrom ?? "",
     observedTo: filters.observedTo ?? "",
     deadlineStatus: filters.deadlineStatus ?? "",
+    deadlineScope: filters.deadlineScope ?? "current",
     q: searchKey(filters.q),
   };
   return `pre-specs:${canonicalizeFilterValue(normalized)}`;

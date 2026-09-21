@@ -24,8 +24,10 @@ function joinClassNames(...names: Array<string | undefined | false>): string {
   return names.filter(Boolean).join(" ");
 }
 
-/** 보기 탭·목록 건수의 숫자 표기. 세 자리 구분은 한국어 로캘 하나만 쓴다. */
-function formatCount(count: number): string {
+/** 보기 탭·목록 건수의 숫자 표기. 세 자리 구분은 한국어 로캘 하나만 쓴다.
+ * 같은 필터 바 안에서 건수를 적는 화면 컨트롤(사전규격 마감 구간 칩)이 같은
+ * 표기를 쓰도록 export한다 — 두 곳이 다른 로캘을 고르면 같은 수가 달라 보인다. */
+export function formatCount(count: number): string {
   return count.toLocaleString("ko-KR");
 }
 

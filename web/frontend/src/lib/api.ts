@@ -1302,6 +1302,7 @@ export const api = {
       `/pre-specs${query({
         notice_pk: params.notice_pk,
         review_exclusion: params.review_exclusion,
+        deadline_scope: params.deadline_scope,
         sw_only: params.sw_only === null || params.sw_only === undefined ? undefined : String(params.sw_only),
         business_division: params.business_division,
         auto_preparation_status: params.auto_preparation_status,
