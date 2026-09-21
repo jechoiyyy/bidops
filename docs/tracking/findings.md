@@ -2,6 +2,21 @@
 
 기준일: 2026-09-03
 
+## 심층 검토 화면에 8자 축약 식별자 두 곳이 남아 있다 (2026-09-21, 미해결)
+
+- 재현 조건: `/deep-reviews/:id` 상단 머리의 `보고서 식별자 · {reviewId 앞 8자}`(`DeepReviewPage.tsx`)와 주장 표의 근거 칩
+  `근거 · {evidence id 앞 8자}`(`EvidenceButton`).
+- 영향: ADR-0065 결정 2("식별자·해시는 줄이지 않는다")와 어긋난다. 전문은 같은 화면의 접힌 `기술 정보`에서 읽을 수 있어 대조 자체는 가능하다.
+- 지금 해결하지 않는 이유: 표 안 칩을 전문으로 바꾸면 1280px에서 넘치고, 칩의 역할(근거로 이동)을 다른 표기(순번 등)로 바꾸는 것은 시안 M4의 승인 범위 밖이다.
+- 후속 방향: 칩을 `근거 1`·`근거 2` 같은 화면 내 순번으로 바꾸고 식별자는 접힌 곳에만 두는 안을 다음 심층 검토 화면 시안에서 다룬다.
+
+## 프런트 fixture의 심층 검토 오류 코드가 백엔드 계약에 없는 값이다 (2026-09-21, 미해결)
+
+- 재현 조건: `web/frontend/tests/api-mock.ts`의 분석 회차 fixture가 `last_error_code: "model_timeout"`을 쓴다. 백엔드가 내는 값은 `timeout`이다
+  (`web/backend/app/core/model_client.py`의 오류 분류, `app/deep_review/services/deep_reviews.py`의 `_fail_claim`).
+- 영향: 가짜가 실제 계약과 다른 값을 품고 있어, 이 값에 기대는 화면 문장(`components/deep-review/attemptErrors.ts`)이 운영에서 오지 않는 코드까지 매핑하고 있다.
+- 후속 방향: 실무 화면 고도화 패키지 F0에서 fixture를 `timeout`으로 맞추고 사전에서 `model_timeout` 줄을 지운다(사전에 없는 코드는 문장 안에 그대로 보이므로 화면은 깨지지 않는다).
+
 ## `test_order_plan_list_v2.py` 6건이 clean main에서 실패한다 (2026-09-21, 미해결)
 
 - 재현 조건: main 92c7f32, `web/backend`에서 일회용 `postgres:17.11` + `BIDOPS_TEST_POSTGRES_URL` +
