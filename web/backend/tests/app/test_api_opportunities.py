@@ -45,11 +45,16 @@ def opportunity_api():
         source_type="bid_notice",
         title="사업기회 입찰공고",
         agency="테스트 기관",
+        budget="222000000.00",
+        deadline_at=datetime(2026, 9, 25, 1, tzinfo=timezone.utc),
     )
     plan = OrderPlan(
         order_plan_unty_no="R26API0000001",
         title="사업기회 발주계획",
         agency_name="계획 기관",
+        budget_amount="333000000.00",
+        planned_order_year="2026",
+        planned_order_month="2026-11",
     )
     session.add_all([notice, plan])
     session.flush()
@@ -197,6 +202,32 @@ def test_opportunity_detail_keeps_search_unconfirmed_link_and_recheck_evidence(o
     assert links_by_id[signal_link_id]["status"] == "확정"
     assert any(link["status"] == "검색 미확인" for link in payload["links"])
     assert any(link["title"] == "사업기회 입찰공고" for link in payload["links"])
+
+
+def test_opportunity_links_project_budget_and_deadline_per_target(opportunity_api):
+    client, _session, ended, plan_opportunity = opportunity_api
+
+    ended_detail = client.get(f"/api/opportunities/{ended.id}").json()
+    links_by_id = {link["id"]: link for link in ended_detail["links"]}
+    notice_link = next(link for link in links_by_id.values() if link["notice_id"] is not None)
+    assert notice_link["budget"] == 222000000.0
+    assert notice_link["deadline_at"] is not None
+    # Notice-linked rows never project order-plan-only fields.
+    assert notice_link["planned_order_year"] is None
+    assert notice_link["planned_order_month"] is None
+    # The candidate link has no resolved target; every new field stays null,
+    # never inferred from the opportunity's other links.
+    search_unconfirmed_link = next(link for link in links_by_id.values() if link["status"] == "검색 미확인")
+    assert search_unconfirmed_link["budget"] is None
+    assert search_unconfirmed_link["deadline_at"] is None
+
+    plan_detail = client.get(f"/api/opportunities/{plan_opportunity.id}").json()
+    plan_link = plan_detail["links"][0]
+    assert plan_link["budget"] == 333000000.0
+    assert plan_link["planned_order_year"] == "2026"
+    assert plan_link["planned_order_month"] == "2026-11"
+    # Order-plan-linked rows never project the notice-only deadline field.
+    assert plan_link["deadline_at"] is None
 
 
 def test_tracking_status_change_uses_service_audit_and_header_actor(opportunity_api):

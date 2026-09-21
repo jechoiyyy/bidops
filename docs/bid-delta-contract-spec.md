@@ -565,7 +565,25 @@ actor·사유·결정 값·supersession·idempotency·감사·sequence·잠금 �
 - 422 `final_decision_value_invalid`
 - 503 `bid_delta_currentness_unavailable`
 
-## 4. 다중 공고·정정 선택 규칙
+### 3.10 결정 대기열 투영(추가형, PoC)
+
+```text
+GET /api/bid-delta/decision-queue
+```
+
+`BidDecisionQueueItem`에 `deadline_at`·`budget`·`estimated_price`를 추가한다(0921_practitioner-screens
+spec §5). 값의 출처는 그 사업기회에서 이미 고른 대표 입찰공고(§3.8과 같은 "표시용 메타데이터"
+선택, 비교·현재성 판정을 좌우하지 않음)의 `notice.deadline_at`·`notice.budget`·
+`notice.estimated_price`뿐이다. 발주계획이나 사전규격 값으로 대신 채우지 않으며, 그 사업기회에
+선택된 입찰공고가 없으면 셋 다 `null`이다. `budget`·`estimated_price`는 §3.8의 `BidConditionValues`와
+같은 규약으로 Decimal 원문 그대로의 문자열이다(부동소수점 반올림 없음). `deadline_at`은 저장된
+timestamp 그대로다.
+
+정렬은 **입찰 마감(`deadline_at`) 오름차순이 1차 키이고, `deadline_at`이 `null`인 행은 맨 뒤**다.
+기존 규칙(결정 없는 사업기회가 먼저, 그다음은 등록 최신순)은 2차 키로 그대로 남는다 — 같은
+마감(또는 같은 "마감 없음") 안에서만 기존 순서가 적용된다.
+
+
 
 ### 4.1 후보 포함
 
