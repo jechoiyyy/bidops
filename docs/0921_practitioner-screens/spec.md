@@ -95,6 +95,7 @@
 | 행 `첫 관측 …` | 한글화 → `첫 수집 09-19`. 해가 다르면 연도를 붙인다 |
 | 배지 `BM25 선정·탈락` | 삭제. `실패·거부`만 `선별 실패`로 조건부(경고 ④) |
 | 배지 `Qwen 미시도/실패/거부/unknown`(`orderPlanFormat.ts:56-63`) | 한글화 → `모델 미판정`·`모델 판정 실패`·`모델 응답 거부`·`모델 상태 미확인` |
+| 모델 판단 배지·보기 탭(M3 승인 2026-09-21) | 배지는 `모델 ·` 머리말을 둔다(`모델 · 관련`·`모델 · 판단 보류`·`모델 · 비관련`) — 사람 판정으로 읽히지 않게. 보기 탭 `BM25 탈락` → `1차 선별 제외`, `실패·거부` → `선별 실패` |
 | `예산 null (미제공)`, `null (계획 시기 미제공)` | 한글화 → `예산 미제공`, `발주 시기 미제공` |
 | `피드백 수정본 n` | 조건부(n≥1), `사람 판단 수정 n회` |
 | 상단 실행 상태 칩 | **조건을 먼저 고친다.** `latestCompletedExecution`(:418)은 성공·부분 성공만 고르므로 "과거 성공 + 이후 실패 + 진행 중 없음"을 문제없음으로 본다. "목록의 판정 기준 실행"과 "최근 실행의 건강 상태(실패·중단·조회 실패 포함)"를 분리하고 후자에 문제가 있을 때만 칩을 그린다. 칩이 운영 화면 링크를 겸한다 |
@@ -106,7 +107,7 @@
 | 바닥 범위 줄의 `실행 8자 · status · policy` | 삭제. `· 측정 전용 실행`은 유지(§2.1) |
 | 상세 필터 축·값(:1655-1725), `filterMeaning`(:1506-1516) | 한글화. 축 `모델 판단`·`1차 선별`·`모델 처리 상태`·`사람 판단`, 값 `관련`/`판단 보류`/`비관련`/`값 없음` 등. URL 값은 그대로. 용어는 `lib/glossary.ts`에 `ORDER_PLAN_*_LABEL`로 둔다 |
 | `실행 상태와 표시 규칙` 다이얼로그(:2003-2023) | 표시 규칙은 한글화해 유지, 실행 상태·run_id 전문은 이동(§4) |
-| `SignalPanel`(:483-515) | 판단 근거·가까운 회사 역량은 상세 본문으로(§6.1), rank·score·source run·관측 시각은 이동(§4) |
+| `SignalPanel`(:483-515) | **M3 승인: `선별 신호 · 실행 기록` 다이얼로그를 없앤다.** 판단 근거·가까운 회사 역량은 상세 본문으로(R2가 한다), rank·score·source run·관측 시각은 이동(§4) |
 | `TelemetryPanel`(:517-623) | 이동(§4). `부분 산출물 있음`·실패는 실무 화면에 한 줄 조건부 유지(경고 ③) |
 | `사람 판단 수정` 다이얼로그(:2065-2126, :703-707) | 한글화(`관련성`·`우선순위`·`메모`), `execution` 전문은 이동 |
 | 상세 머리의 내부 `계획 ID`(`OrderPlanDetailPane.tsx:260`) | 접힌 기술 정보로. 외부 계획번호는 유지 |
@@ -165,6 +166,7 @@
 | 투영 | 위치 | 계약 |
 |---|---|---|
 | 발주계획 목록 `contract_method`·`notice_posted` | `app/screening/services/order_plan_screening.py:1060-1094` `_order_plan_item`, `schemas/order_plans.py:232` | `order-plan-list-response.v5`. 목록은 500행씩 전부 받으므로 두 필드만 |
+| 판정 이력 응답(`…/screening-history`) | 같은 파일 `ScreeningHistoryResponse` | 항목 모델을 상세와 공유하므로 함께 올린다. 같은 family의 v2~v4를 상세가 써 왔으므로 충돌을 피해 **v5**(B1 결정, 2026-09-21) |
 | 발주계획 상세 `contract_method`·`notice_posted`·`procurement_method`·`supervising_agency_name`·`bid_ntice_no_list`·`published_at` | 같은 파일 `:1342` 부근, 스키마 `:296` | `order-plan-detail-response.v4` |
 | `ScreeningHistoryItem`에 실행 `purpose`·실행 시각 | `_history_items:1284`, 스키마 `:276` | 상세 v4에 포함. 운영·측정·참조 실행을 화면이 구분한다 |
 | 사전규격 목록 `demand_agency` + 검색 `q`에 수요기관 포함 | `app/lifecycle/routers/pre_specs.py:688-693`, `:420` | 추가형(버전 유지, `schemas/pre_specs.py:106` 선례) |
