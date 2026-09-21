@@ -24,6 +24,7 @@ import {
 } from "../components/opportunities/trackingFlow";
 import { EmptyState } from "../components/common/EmptyState";
 import { PageHeaderActions } from "../components/common/PageHeaderActions";
+import { ListPagerControls } from "../components/common/ReviewPrimitives";
 import { SkeletonPanel } from "../components/common/Skeleton";
 import {
   WorkspaceAdvancedToggle,
@@ -35,6 +36,7 @@ import {
   WorkspaceFilterTools,
   WorkspaceSearch,
   WorkspaceViewTabs,
+  formatCount,
 } from "../components/common/WorkspaceFilters";
 import { Toast } from "../components/common/Toast";
 import { useToast } from "../components/common/useToast";
@@ -83,10 +85,6 @@ const SEARCH_MAX = 100;
 
 /** Astryx `Table`은 행 type이 index signature를 갖기를 요구한다. 값은 그대로다. */
 type OpportunityRow = OpportunityListItem & Record<string, unknown>;
-
-function countLabel(value: number): string {
-  return value.toLocaleString("ko-KR");
-}
 
 export function OpportunitiesPage() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -416,7 +414,7 @@ export function OpportunitiesPage() {
               <div aria-label="조치 사유" className="opportunity-reason-chips" role="group">
                 {ACTION_REASON_ORDER.map((code) => {
                   const count = reasonCounts ? reasonCounts[code] ?? null : undefined;
-                  const countText = count === undefined ? null : count === null ? "–" : countLabel(count);
+                  const countText = count === undefined ? null : count === null ? "–" : formatCount(count);
                   return (
                     <Button
                       aria-pressed={reason === code}
@@ -464,10 +462,10 @@ export function OpportunitiesPage() {
         <div aria-label="사업 추적 목록과 상세" className="opportunity-workspace">
           <section aria-label="사업 추적 목록" className="opportunity-list-pane">
             <header className="opportunity-list-head">
-              <p className="opportunity-list-title">사업 추적 목록 · {countLabel(rows.length)}건</p>
+              <p className="opportunity-list-title">사업 추적 목록 · {formatCount(rows.length)}건</p>
               <p className="opportunity-caption">
                 {list.isSuccess
-                  ? `${view}${reason ? ` · ${actionReasonLabel(reason)}` : ""}${search ? ` · 검색 "${search}"` : ""} 전체 ${countLabel(total)}건`
+                  ? `${view}${reason ? ` · ${actionReasonLabel(reason)}` : ""}${search ? ` · 검색 "${search}"` : ""} 전체 ${formatCount(total)}건`
                   : "사업 단위"}
               </p>
             </header>
@@ -516,7 +514,7 @@ export function OpportunitiesPage() {
               <p className="opportunity-caption">
                 {invalidUrlSearch
                   ? "검색어 오류로 목록을 조회하지 않았습니다."
-                  : `서버 ${countLabel(total)}건 중 ${countLabel(rows.length)}건 표시${search ? ` · 검색어 "${search}"는 서버가 페이지를 나누기 전에 적용합니다` : ""}`}
+                  : `서버 ${formatCount(total)}건 중 ${formatCount(rows.length)}건 표시${search ? ` · 검색어 "${search}"는 서버가 페이지를 나누기 전에 적용합니다` : ""}`}
               </p>
               {invalidUrlSearch || searchError ? (
                 <p className="opportunity-caption">
@@ -525,32 +523,23 @@ export function OpportunitiesPage() {
               ) : null}
               {undecided > 0 ? (
                 <p className="opportunity-caption">
-                  구역이 정해지지 않은 미결정 {countLabel(undecided)}건은 전체에서만 보입니다.
+                  구역이 정해지지 않은 미결정 {formatCount(undecided)}건은 전체에서만 보입니다.
                 </p>
               ) : null}
-              {total > offset + rows.length ? (
-                <p className="opportunity-caption">
-                  뒤에 {countLabel(total - offset - rows.length)}건이 더 있습니다.
-                </p>
-              ) : null}
-              {total > PAGE_SIZE ? (
-                <nav aria-label="목록 페이지" className="opportunity-check-actions">
-                  <Button
-                    isDisabled={offset === 0}
-                    label="이전"
-                    onClick={() => changeOffset(Math.max(0, offset - PAGE_SIZE))}
-                    size="sm"
-                  />
-                  <span className="opportunity-caption">
-                    {offset + 1}–{Math.min(offset + rows.length, total)} / {countLabel(total)}
-                  </span>
-                  <Button
-                    isDisabled={offset + PAGE_SIZE >= total}
-                    label="다음"
-                    onClick={() => changeOffset(offset + PAGE_SIZE)}
-                    size="sm"
-                  />
-                </nav>
+              {/* 페이저는 목록 pane 안쪽 바닥이고 발주계획·사전규격과 같은 공용 부품을
+                  쓴다(명세 §2.2, U3). 한 쪽뿐이어도 줄은 남기고 단추만 끈다 — 그래서
+                  "뒤에 N건이 더 있습니다" 문단은 없앴다. 페이저의 `1–100 / 1,234`가
+                  같은 사실을 말한다. */}
+              {list.isSuccess ? (
+                <ListPagerControls
+                  className="opportunity-pager"
+                  label="사업 추적 목록 페이지"
+                  offset={offset}
+                  onNext={() => changeOffset(offset + PAGE_SIZE)}
+                  onPrevious={() => changeOffset(Math.max(0, offset - PAGE_SIZE))}
+                  total={total}
+                  visibleCount={rows.length}
+                />
               ) : null}
             </footer>
           </section>
@@ -591,7 +580,7 @@ export function OpportunitiesPage() {
           <p>
             구역 건수는 서버가 센 수이며 <strong>구역 조건만 빼고</strong> 검색어·최초 발견 단계·사유 필터를 반영합니다.
             사유 칩 건수는 사유 필터만 빼고 센 수이고, 한 사업이 여러 사유에 들어갈 수 있어 합이 구역 건수와 같지
-            않습니다. 목록은 한 번에 최대 {countLabel(PAGE_SIZE)}건을 받으며, 검색어는 서버가 페이지를 나누기 전에
+            않습니다. 목록은 한 번에 최대 {formatCount(PAGE_SIZE)}건을 받으며, 검색어는 서버가 페이지를 나누기 전에
             적용합니다.
           </p>
           <p>
@@ -604,9 +593,9 @@ export function OpportunitiesPage() {
             비교 결과가 없으면 계산 대기이며, 화면이 결과를 만들어 내지 않습니다.
           </p>
           <p className="opportunity-caption">
-            현재 구역 {view} · 서버 {countLabel(total)}건 중 {countLabel(rows.length)}건을 받았습니다.
+            현재 구역 {view} · 서버 {formatCount(total)}건 중 {formatCount(rows.length)}건을 받았습니다.
             {counts
-              ? ` 구역 건수 — ${SECTIONS.map((key) => `${key} ${countLabel(counts[key])}`).join(" · ")} · 미결정 ${countLabel(undecided)}`
+              ? ` 구역 건수 — ${SECTIONS.map((key) => `${key} ${formatCount(counts[key])}`).join(" · ")} · 미결정 ${formatCount(undecided)}`
               : " 구역 건수를 아직 받지 못했습니다."}
           </p>
           <div className="opportunity-dialog-actions">

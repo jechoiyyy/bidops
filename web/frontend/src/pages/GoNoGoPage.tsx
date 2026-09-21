@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { EmptyState } from "../components/common/EmptyState";
 import { PageHeaderActions } from "../components/common/PageHeaderActions";
+import { ListPagerControls } from "../components/common/ReviewPrimitives";
 import { SkeletonPanel } from "../components/common/Skeleton";
 import {
   WorkspaceFilterBar,
@@ -28,6 +29,7 @@ import {
   WorkspaceFilterTools,
   WorkspaceSearch,
   WorkspaceViewTabs,
+  formatCount,
 } from "../components/common/WorkspaceFilters";
 import { getBidDelta, getBidDeltaComparison } from "../components/bid-delta/api";
 import {
@@ -460,8 +462,8 @@ export function GoNoGoPage() {
                 </Text>
                 <Text className="gng-caption" type="supporting" color="secondary" as="p">
                   {receivedAll
-                    ? `전체 ${total.toLocaleString("ko-KR")}건 기준`
-                    : `받은 ${rows.length.toLocaleString("ko-KR")}건 기준 · 전체 ${total.toLocaleString("ko-KR")}건`}
+                    ? `전체 ${formatCount(total)}건 기준`
+                    : `받은 ${formatCount(rows.length)}건 기준 · 전체 ${formatCount(total)}건`}
                 </Text>
               </WorkspaceFilterContext>
             </WorkspaceFilterBar>
@@ -469,7 +471,7 @@ export function GoNoGoPage() {
             <div className="gng-workspace">
               <section className="gng-list-pane" aria-label="최종 결정 검토 목록">
                 <header className="gng-list-head">
-                  <Text className="gng-list-title" as="p">최종 결정 목록 · {visibleRows.length.toLocaleString("ko-KR")}건</Text>
+                  <Text className="gng-list-title" as="p">최종 결정 목록 · {formatCount(visibleRows.length)}건</Text>
                   <Text className="gng-caption" type="supporting" color="secondary" as="p">사람 결정 기준</Text>
                 </header>
                 <div className="gng-table-scroll">
@@ -508,35 +510,24 @@ export function GoNoGoPage() {
                       넘쳐서 나눠 받았으면 그 사실을 여기서 밝힌다. */}
                   <p className="gng-summary">
                     {receivedAll
-                      ? `전체 ${total.toLocaleString("ko-KR")}건 기준 · ${visibleRows.length.toLocaleString("ko-KR")}건 표시`
-                      : `받은 ${rows.length.toLocaleString("ko-KR")}건 기준 · ${visibleRows.length.toLocaleString("ko-KR")}건 표시 · 전체 ${total.toLocaleString("ko-KR")}건 중 일부입니다`}
+                      ? `전체 ${formatCount(total)}건 기준 · ${formatCount(visibleRows.length)}건 표시`
+                      : `받은 ${formatCount(rows.length)}건 기준 · ${formatCount(visibleRows.length)}건 표시 · 전체 ${formatCount(total)}건 중 일부입니다`}
                   </p>
                   {/* 페이저는 이 범위의 모든 행이 보기 조건에 걸러졌을 때도 남는다.
                       다음 범위로 갈 길까지 사라지면 "없다"와 "이 범위에 없다"가
-                      같아진다. */}
-                  {total > PAGE_SIZE ? (
-                    <nav aria-label="결정 대기열 페이지" className="gng-pager">
-                      <button
-                        className="interaction-control"
-                        type="button"
-                        disabled={offset === 0}
-                        onClick={() => goToOffset(Math.max(0, offset - PAGE_SIZE))}
-                      >
-                        이전
-                      </button>
-                      <Text className="gng-caption" type="supporting" color="secondary" as="span">
-                        {offset + 1}–{Math.min(offset + queueItems.length, total)} / {total}
-                      </Text>
-                      <button
-                        className="interaction-control"
-                        type="button"
-                        disabled={offset + PAGE_SIZE >= total}
-                        onClick={() => goToOffset(offset + PAGE_SIZE)}
-                      >
-                        다음
-                      </button>
-                    </nav>
-                  ) : null}
+                      같아진다(발주계획·사전규격과 같은 공용 부품, 명세 §2.2, U3).
+                      `total`·`offset`은 서버 페이지 기준이고 `queueItems.length`는
+                      받은 페이지의 원본 건수다(view로 좁힌 `visibleRows.length`가
+                      아니다) — 대기열 페이지 이동은 view와 무관하기 때문이다. */}
+                  <ListPagerControls
+                    className="gng-pager"
+                    label="결정 대기열 페이지"
+                    offset={offset}
+                    onNext={() => goToOffset(offset + PAGE_SIZE)}
+                    onPrevious={() => goToOffset(Math.max(0, offset - PAGE_SIZE))}
+                    total={total}
+                    visibleCount={queueItems.length}
+                  />
                 </footer>
               </section>
 

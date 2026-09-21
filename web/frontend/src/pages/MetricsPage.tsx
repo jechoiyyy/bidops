@@ -22,6 +22,7 @@ import {
 } from "../components/criteria/CriteriaPrimitives";
 import { ApiError, api } from "../lib/api";
 import { formatNumber, formatRunRange, runStatusLabel } from "../lib/format";
+import { runOptionLabel } from "../lib/runOptions";
 import type { RunSummary, ValidationMetric, ValidationMetricsResponse } from "../lib/types";
 
 /**
@@ -304,9 +305,12 @@ export function MetricsPage() {
           label="대상 회차"
           onChange={(value) => { updateParams({ run: value, metric: null }); setRunPickerOpen(false); }}
           options={runs.map((run) => ({
+            // 라벨은 공용 회차 표기(U3)를 쓴다. 회차 식별자 원문은 줄이지 않고
+            // 설명으로 내린다(`buildSourceRunOptions({ audience: "ops" })`와 같은 방식) —
+            // 이 화면은 상태·판정 건수도 함께 골라야 하므로 그 값은 설명에 남긴다.
             value: run.run_id,
-            label: run.run_id,
-            description: `${runLabel(run)} · ${runStatusLabel(run.status)} · 판정 ${formatNumber(run.counts.judgments)}건`,
+            label: runOptionLabel(run),
+            description: `${run.run_id} · ${runStatusLabel(run.status)} · 판정 ${formatNumber(run.counts.judgments)}건`,
           }))}
           placeholder="회차를 선택하십시오"
           value={selectedRun.run_id}

@@ -653,9 +653,10 @@ export function PreSpecsPage() {
 
   const activeWorkspace = workspaceOf(workspace);
   /**
-   * 접힌 상세 필터에 걸려 있는 조건 수(명세 §2.1). 상세 필터 안의 축 가운데 기본값이
-   * 아닌 것을 센다 — `필터 초기화`(`기본값으로`)가 되돌리는 것과 같은 집합이다. 보기 탭·
-   * 검색·SW 스위치·마감 구간은 늘 보이는 컨트롤이라 세지 않는다.
+   * 접힌 상세 필터에 걸려 있는 조건 수(명세 §2.1, U3). 상세 필터 안의 축 가운데
+   * 기본값이 아닌 것을 센다 — `필터 초기화`(`기본값으로`)가 되돌리는 것과 같은
+   * 집합이다. 보기 탭·검색·SW 스위치·마감 구간은 늘 보이는 컨트롤이라 세지 않는다.
+   * 표시 순서(`sort`)도 세지 않는다 — 정렬은 결과 집합을 바꾸지 않는 필터가 아니다.
    */
   const activeFilterCount = [
     overviewView !== "all",
@@ -666,7 +667,6 @@ export function PreSpecsPage() {
     Boolean(deadlineStatus),
     Boolean(autoPreparationStatus),
     Boolean(trackingDecision),
-    sort !== sortForWorkspace(workspace),
     Boolean(sourceRunId),
   ].filter(Boolean).length;
 
@@ -1109,8 +1109,8 @@ export function PreSpecsPage() {
         <DialogHeader title="이 목록의 기준" onOpenChange={() => setScopeDialogOpen(false)} />
         <div className="pre-specs-dialog-body">
           <p>
-            현재 조건의 서버 전체 건수는 <strong>{total}건</strong>이고, 한 번에 최대 {PAGE_SIZE}건을 불러옵니다.
-            {loadedItems.length > 0 ? ` 지금 화면에는 ${loadedItems.length}건이 보입니다.` : ""}
+            현재 조건의 서버 전체 건수는 <strong>{formatCount(total)}건</strong>이고, 한 번에 최대 {formatCount(PAGE_SIZE)}건을 불러옵니다.
+            {loadedItems.length > 0 ? ` 지금 화면에는 ${formatCount(loadedItems.length)}건이 보입니다.` : ""}
           </p>
           <ul>
             <li>상단 업무 화면 건수는 현재 조건에서 workspace만 바꿔 서버가 센 값(<code className="mono">workspace_counts</code>)이며 페이지 범위와 무관합니다.</li>

@@ -24,6 +24,7 @@ import {
 } from "../components/criteria/CriteriaPrimitives";
 import { ApiError, api } from "../lib/api";
 import { describeApiError } from "../lib/apiErrors";
+import { formatMoment as formatMomentBase } from "../lib/format";
 import { generateRequestId } from "../lib/requestId";
 import type {
   C2DailyTriggerReason,
@@ -146,10 +147,9 @@ function evaluationReasonText(reason: string): string {
   return reason;
 }
 
+/** `lib/format.ts`가 정본이다(U3, 중복 통합). 이 화면의 null 문구(`기록 없음`)만 고정한다. */
 function moment(value: string | null | undefined): string {
-  if (!value) return "기록 없음";
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleString("ko-KR");
+  return formatMomentBase(value, "기록 없음");
 }
 
 function shortDigest(value: string | null | undefined): string {

@@ -5,7 +5,7 @@ import { Button } from "@astryxdesign/core/Button";
 import { Selector } from "@astryxdesign/core/Selector";
 import { Text } from "@astryxdesign/core/Text";
 import { api } from "../../lib/api";
-import { formatRunRange } from "../../lib/format";
+import { runOptionLabel } from "../../lib/runOptions";
 import type { RunSummary } from "../../lib/types";
 import { Caption } from "./RunStatusPrimitives";
 
@@ -84,8 +84,12 @@ export function RunPickerField({
         label={label}
         size="sm"
         options={runs.map((run) => ({
+          // 라벨은 공용 회차 표기(U3)를 쓰고, 회차 식별자 원문은 설명으로 내린다
+          // (운영 화면이라 `buildSourceRunOptions({ audience: "ops" })`와 같은 방식으로
+          // 원문을 그대로 보인다 — 줄이지 않는다).
           value: run.run_id,
-          label: `${formatRunRange(run.run_id, run.window_from, run.window_to)} · ${run.run_id}`,
+          label: runOptionLabel(run),
+          description: run.run_id,
         }))}
         value={selectedRunId ?? undefined}
         onChange={onSelect}

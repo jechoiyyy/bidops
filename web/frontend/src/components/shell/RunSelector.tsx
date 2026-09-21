@@ -1,5 +1,6 @@
 import type { RunSummary } from "../../lib/types";
-import { formatRunRangeCompact, runStatusLabel } from "../../lib/format";
+import { runStatusLabel } from "../../lib/format";
+import { runOptionLabel } from "../../lib/runOptions";
 
 interface RunSelectorProps {
   runs: RunSummary[];
@@ -21,7 +22,9 @@ export function RunSelector({ runs, selectedRunId, onChange, disabled = false }:
         {runs.length === 0 ? <option value="">회차 없음</option> : null}
         {runs.map((run) => (
           <option key={run.run_id} value={run.run_id}>
-            {`${formatRunRangeCompact(run.run_id, run.window_from, run.window_to)} · ${runStatusLabel(run.status)}`}
+            {/* native `<select>`라 설명 줄이 없다 — `<라벨> · <상태>` 형식만 유지한다
+                (U3, 라벨은 공용 `runOptionLabel`). */}
+            {`${runOptionLabel(run)} · ${runStatusLabel(run.status)}`}
           </option>
         ))}
       </select>
