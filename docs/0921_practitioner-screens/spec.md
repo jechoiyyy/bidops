@@ -154,6 +154,7 @@
 - 현재 `/runs`는 공고 판정 실행만 읽는다(`RunsPage.tsx:119,207`). C-2 실행 상세는 `OrderPlansPage.tsx:1146`에서만 읽는다.
 - `components/runs/OrderPlanScreeningPanel.tsx`(신규): 발주계획 회차일 때 `RunsPage.tsx` 회차 상세에 탭으로 넣는다. 기존 `api.getOrderPlanScreeningExecutions({source_run_id})` + 실행 상세를 쓴다(백엔드 변경 없음). `RunStatusPrimitives`의 `Facts`·`Section`·`DataTable`·`StatusToken`을 재사용한다.
 - 담는 것: 실행 ID·policy 버전·policy/binding 해시·집계 12칸·배치별 attempt·모델/revision·토큰·`duration_ms`·부분 산출물·오류 코드·artifact 요약(sha256 전문). 그리고 **계획별 신호**(rank·score·source run·관측 시각) — 실행 단위가 아니라 계획 단위 값이므로 실행을 고른 뒤 계획 목록으로 읽는 경로를 둔다.
+- **O1 구현에서 확인된 사실(2026-09-21)**: 계획별 신호는 실행 단위가 아니라 **회차 단위 투영**이다 — `/api/order-plans`는 `source_run_id`만 받고 서버가 그 회차의 최신 완료 실행 하나를 투영한다(`scope.execution_id`). 고른 실행이 그 기준 실행과 다르면 경고 한 줄을 그리고 고른 실행의 결과처럼 보이지 않게 한다. 실행별 계획 신호가 필요해지면 백엔드 투영이 따로 있어야 한다. `부분 산출물`·`오류 코드`는 attempt가 아니라 실행 요약의 값이라 배치 표의 열이 아닌 실행 단위 사실로 둔다(시안 M2와 다른 점). 회차 상세의 탭 상태는 기존대로 지역 상태이고 주소에는 `execution=`만 남는다. `전체` 보기의 주소 표현은 `qwen=`(빈 값 sentinel)이다.
 - 식별자·해시는 자르지 않는다. dt 라벨은 glossary 용어.
 - 회차 상세 바닥 링크: `이 회차의 발주계획 보기`(`/order-plans?source_run_id=`), `이 회차의 사전규격 보기`(`/pre-specs?workspace=all&sw_only=false&source_run_id=` — `workspace=all`이 아니면 기본 보기에 걸러져 0건처럼 보인다). 실무 화면에서 운영 화면으로 오는 링크는 회차뿐 아니라 execution을 특정한다(회차 하나에 실행이 여럿일 수 있다).
 - `RunStatusPage.tsx:152-155` 안내문을 사실에 맞게 고친다.
