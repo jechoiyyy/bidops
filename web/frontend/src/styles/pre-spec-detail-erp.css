@@ -527,24 +527,7 @@
   background: transparent;
 }
 .ps-record .ps-ev > li:last-child { border-bottom: 0; }
-.ps-record .ps-loc {
-  display: block;
-  margin-top: var(--spacing-0-5);
-  color: var(--color-text-disabled);
-  font-size: var(--bo-type-caption);
-  line-height: var(--bo-type-caption-leading);
-  overflow-wrap: anywhere;
-}
-.ps-record .ps-loc code {
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  color: var(--color-text-disabled);
-  font-family: var(--font-family-code);
-  font-size: calc(var(--bo-type-caption) - var(--border-width));
-  overflow-wrap: anywhere;
-}
+/* `.ps-loc`(주장 ID)은 ⑥ 접힌 `기술 정보`로 옮겨 이 목록에서 사라졌다(ADR-0065). */
 
 /* 자동 준비 단계 */
 /* ⑥ 네 단계 카드 (spec §4 ⑥). 완료한 단계만 포인트 테두리와 번호 강조를 받는다. */
@@ -1083,6 +1066,21 @@
 }
 .ps-record .ps-collapsed .astryx-collapsible-content { min-width: 0; }
 .ps-record .ps-collapsed .astryx-collapsible-content > * + * { margin-top: var(--spacing-3); }
+/* ⑥ 접힌 `기술 정보` 안의 세 덩어리. 소제목은 절 제목보다 작고 값은 전문이
+   그대로 흐른다 — 식별자·해시를 잘라 보이게 하지 않는다(ADR-0065 결정 2). */
+.ps-record .ps-collapsed h3 { margin: 0; font-size: calc(var(--bo-type-caption) + var(--border-width)); font-weight: 600; }
+.ps-record .ps-collapsed h4 { margin: 0; font-size: var(--bo-type-caption); font-weight: 600; }
+.ps-record .ps-collapsed .page-overview-execution-meta,
+.ps-record .ps-collapsed .company-fit-execution-facts {
+  display: grid;
+  grid-template-columns: minmax(0, max-content) minmax(0, 1fr);
+  gap: var(--spacing-1) var(--spacing-3);
+  margin: 0;
+}
+.ps-record .ps-collapsed :is(.page-overview-execution-meta, .company-fit-execution-facts) > div { display: contents; }
+.ps-record .ps-collapsed :is(.page-overview-execution-meta, .company-fit-execution-facts) dt { font-weight: 500; white-space: nowrap; }
+.ps-record .ps-collapsed :is(.page-overview-execution-meta, .company-fit-execution-facts) dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.ps-record .ps-collapsed :is(.company-fit-execution, .company-fit-execution-section, .page-overview-history-facts, .page-overview-section) { display: grid; gap: var(--spacing-2); min-width: 0; }
 .ps-record .detail-skeleton-rail { display: grid; gap: var(--spacing-3); }
 .ps-record .detail-skeleton-rail-panel { padding: var(--spacing-4); border: var(--border-width) solid var(--color-border); border-radius: var(--ps-radius-control); background: var(--color-background-surface); }
 .ps-record .detail-skeleton-rail-title { font-size: calc(var(--bo-type-caption) + var(--border-width)); }
