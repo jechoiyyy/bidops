@@ -32,6 +32,7 @@ def _add_notice(
     business_division: str | None,
     published_at: datetime,
     deadline_at: datetime,
+    demand_agency: str | None = None,
 ) -> Notice:
     flags: dict[str, str] = {}
     if sw_status is not None:
@@ -43,6 +44,7 @@ def _add_notice(
         source_type="pre_spec",
         title=title,
         agency=agency,
+        demand_agency=demand_agency,
         published_at=published_at,
         deadline_at=deadline_at,
         budget="1234567.00",
@@ -131,6 +133,7 @@ def pre_specs_api():
         business_division="일반용역",
         published_at=base_time + timedelta(days=3),
         deadline_at=base_time + timedelta(days=8),
+        demand_agency="카타파하 수요기관",
     )
     sw_no = _add_notice(
         session,
@@ -527,6 +530,18 @@ def test_pre_specs_origin_uses_first_registered_stage_projection(pre_specs_api):
     assert items[refs["tracked_no"].id]["origin"] == "추적"
     assert items[refs["new_origin"].id]["origin"] == "신규"
     assert items[refs["sw_yes"].id]["origin"] is None
+
+
+def test_pre_specs_demand_agency_projected_and_searchable(pre_specs_api):
+    session, _engine, refs = pre_specs_api
+
+    items = _items_by_id(_payload(session, sw_only=False))
+    assert items[refs["sw_yes"].id]["demand_agency"] == "카타파하 수요기관"
+    # Most fixture notices never set the field; null stays null, never "".
+    assert items[refs["sw_no"].id]["demand_agency"] is None
+
+    searched = _payload(session, sw_only=False, q="카타파하")
+    assert [item["notice_pk"] for item in searched["items"]] == [refs["sw_yes"].id]
 
 
 def test_pre_specs_business_division_q_sort_and_pagination(pre_specs_api):

@@ -418,7 +418,13 @@ def list_pre_specs(
             raise HTTPException(status_code=422, detail="tracking_status is invalid")
         conditions.append(selected_opportunity.tracking_status == tracking_status_value)
     if q and search_key(q):
-        conditions.append(or_(search_sql_match(Notice.title, q), search_sql_match(Notice.agency, q)))
+        conditions.append(
+            or_(
+                search_sql_match(Notice.title, q),
+                search_sql_match(Notice.agency, q),
+                search_sql_match(Notice.demand_agency, q),
+            )
+        )
     if source_run_value is not None or observed_from_value is not None or observed_to_value is not None:
         conditions.append(
             _observation_membership_predicate(
@@ -691,6 +697,7 @@ def list_pre_specs(
                 pre_spec_no=_pre_spec_number(notice),
                 title=notice.title,
                 agency=notice.agency,
+                demand_agency=notice.demand_agency,
                 published_at=notice.published_at,
                 deadline_at=notice.deadline_at,
                 budget=decimal_float(notice.budget),
