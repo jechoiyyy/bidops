@@ -2,6 +2,19 @@
 
 기준일: 2026-09-03
 
+## `test_order_plan_list_v2.py` 6건이 clean main에서 실패한다 (2026-09-21, 미해결)
+
+- 재현 조건: main 92c7f32, `web/backend`에서 일회용 `postgres:17.11` + `BIDOPS_TEST_POSTGRES_URL` +
+  `BIDOPS_PRESPEC_OVERVIEW_ENABLED=false`로 `pytest tests/screening/test_order_plan_list_v2.py -q` → 6 failed, 20 passed.
+  `test_search_preserves_unicode_casefold_with_sql_total_and_page` 5개 parameter(SQLite에서도 실패, `limit=1&offset=1`이 `[]`)와
+  `test_postgres_list_filters_pagination_and_tracking_projection`(PostgreSQL 전용, `assert 0 == 2`).
+- 영향: 발주계획 목록의 검색·페이지 경계 회귀를 이 파일이 더는 막지 못한다. 실무 화면 고도화의 B1(목록 v5·상세 v4 투영) 검수에서
+  발견했고 B1 변경과 무관하다(B1 적용 전후·main 트리 모두 같은 6건).
+- 지금 해결하지 않는 이유: 원인을 가리지 않았다. 누적 투영 v4(dcce827) 이후 목록이 활성화 이력이 있는 policy의 운영 완료 실행만
+  투영하는데 테스트 fixture가 그 조건을 갖추지 않아 0건이 되는 것인지(테스트 결함), 검색·페이지 SQL의 제품 결함인지 먼저 구분해야 한다.
+- 후속 방향: 실패 1건을 단독으로 돌려 SQL과 fixture를 대조한다. 제품 결함이면 발주계획 검색 회귀로 올리고, fixture 결함이면
+  누적 투영 조건을 갖추도록 고친다. 그 전에는 이 파일의 나머지 20건만 회귀 근거로 쓴다.
+
 ## 판정 입력에 참여 판단용 날짜·비율 항목이 없고 늘리려면 검증기 여섯 곳을 함께 열어야 한다 (2026-09-21, 미해결)
 
 - 재현 조건: 실무자가 참여 여부를 정할 때 보는 자격등록 마감, 공동수급협정 마감, 설명회 일시, 입찰 개시,
