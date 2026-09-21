@@ -387,6 +387,12 @@ export async function mockPreSpecCautionSample(page: Page): Promise<void> {
             count: shown.filter((item) => item.overview_review_status === status).length,
           })),
           workspace_counts: { actionable: shown.filter((item) => item.next_action !== null).length, recent: shown.filter((item) => item.last_observed_at !== null).length, tracking: 0, all: shown.length },
+          // 계약상 항상 있는 집계다. 이 표본의 마감은 `sampleNow + 2.5일`(미래)과
+          // `null`(미확인) 둘뿐이라 구간 적용 전 actionable이 전부 `current`다.
+          deadline_scope_counts: {
+            current: shown.filter((item) => item.next_action !== null).length,
+            passed: 0,
+          },
         },
       });
       return;
