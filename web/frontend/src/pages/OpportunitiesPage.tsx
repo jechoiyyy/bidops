@@ -24,7 +24,7 @@ import {
 } from "../components/opportunities/trackingFlow";
 import { EmptyState } from "../components/common/EmptyState";
 import { PageHeaderActions } from "../components/common/PageHeaderActions";
-import { ListPagerControls } from "../components/common/ReviewPrimitives";
+import { ListPagerControls, SplitWorkspace } from "../components/common/ReviewPrimitives";
 import { SkeletonPanel } from "../components/common/Skeleton";
 import {
   WorkspaceAdvancedToggle,
@@ -459,9 +459,13 @@ export function OpportunitiesPage() {
           ) : null}
         </WorkspaceFilterBar>
 
-        <div aria-label="사업 추적 목록과 상세" className="opportunity-workspace">
-          <section aria-label="사업 추적 목록" className="opportunity-list-pane">
-            <header className="opportunity-list-head">
+        {/* 조회 중이거나 실패해도 좌우 분할 골격은 그대로 두고 상태를 목록 pane 안에
+            그린다(ADR-0062: 발주계획 방식). 틀·폭·머리 여백은 공용 `SplitWorkspace`가
+            소유하고 화면 클래스는 검사 selector로만 병기한다. 목록 본문은 시안 M1c
+            A안대로 Astryx `Table`을 그대로 쓴다. */}
+        <SplitWorkspace aria-label="사업 추적 목록과 상세" className="opportunity-workspace">
+          <section aria-label="사업 추적 목록" className="review-split-list opportunity-list-pane">
+            <header className="review-list-head opportunity-list-head">
               <p className="opportunity-list-title">사업 추적 목록 · {formatCount(rows.length)}건</p>
               <p className="opportunity-caption">
                 {list.isSuccess
@@ -544,7 +548,7 @@ export function OpportunitiesPage() {
             </footer>
           </section>
 
-          <section aria-label="선택한 사업" className="opportunity-detail-pane">
+          <section aria-label="선택한 사업" className="review-split-detail opportunity-detail-pane">
             {list.isPending ? (
               <div className="opportunity-empty">
                 <p>목록을 불러온 뒤 사업 상세를 표시합니다.</p>
@@ -564,7 +568,7 @@ export function OpportunitiesPage() {
               />
             )}
           </section>
-        </div>
+        </SplitWorkspace>
       </WorkspaceFrame>
 
       <Dialog

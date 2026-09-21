@@ -52,12 +52,12 @@ test("목록 workspace는 page canvas의 남은 높이를 채운다", async ({ p
   for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900 }]) {
     await page.setViewportSize(viewport);
     await page.goto("/opportunities");
-    await expect(page.locator(".opportunity-workspace")).toBeVisible();
+    await expect(page.locator(".review-split-workspace")).toBeVisible();
 
     const metrics = await page.evaluate(() => {
       const canvas = document.querySelector(".page-canvas") as HTMLElement;
       const pageRoot = document.querySelector(".opportunities-page") as HTMLElement;
-      const workspace = document.querySelector(".opportunity-workspace") as HTMLElement;
+      const workspace = document.querySelector(".review-split-workspace") as HTMLElement;
       const canvasBox = canvas.getBoundingClientRect();
       const pageBox = pageRoot.getBoundingClientRect();
       const workspaceBox = workspace.getBoundingClientRect();
@@ -286,7 +286,7 @@ test("사업명·기관·행 어디를 눌러도 목록을 떠나지 않고 오�
   await page.locator("tbody tr", { hasText: "시설관리 업무시스템 구축" }).locator(".opportunity-row-agency").click();
   await expect(page.locator(".opportunity-detail-title")).toHaveText("시설관리 업무시스템 구축");
   await expect(page).toHaveURL(/\/opportunities\?/);
-  await expect(page.locator(".opportunity-list-pane tbody tr")).toHaveCount(5);
+  await expect(page.locator(".review-split-list tbody tr")).toHaveCount(5);
 
   // 행의 빈 자리(다음 확인 칸의 글자)를 눌러도 선택된다. 주 행동 단추는 자기 동작을 한다.
   await page.locator("tbody tr", { hasText: "환경측정 데이터 품질관리 용역" }).locator(".opportunity-next-label").click();
@@ -408,7 +408,7 @@ test("목록 로딩 실패는 다시 시도로 복구한다", async ({ page }) =
 
   await expect(page.getByText("사업 목록을 불러오지 못했습니다.")).toBeVisible();
   await expect(page.getByRole("button", { name: "다시 시도" })).toBeVisible();
-  await expect(page.locator(".opportunity-detail-pane")).toContainText("선택할 사업이 없습니다");
+  await expect(page.locator(".review-split-detail")).toContainText("선택할 사업이 없습니다");
 });
 
 // ---------------------------------------------------------------------------
@@ -1055,7 +1055,7 @@ test("두 지원 폭에서 가로로 넘치지 않고 상세 바닥 액션이 �
     await expect(page.locator(".opportunity-action-footer")).toBeVisible();
     const metrics = await page.evaluate(() => {
       const footer = document.querySelector(".opportunity-action-footer") as HTMLElement;
-      const pane = document.querySelector(".opportunity-list-pane") as HTMLElement;
+      const pane = document.querySelector(".review-split-list") as HTMLElement;
       const parent = pane.parentElement as HTMLElement;
       return {
         overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
@@ -1069,6 +1069,39 @@ test("두 지원 폭에서 가로로 넘치지 않고 상세 바닥 액션이 �
   }
 });
 
+// 상세 머리는 공용 `StickyDecisionHeader`다(ADR-0062, 시안 M1c A안). 본문이 길어도
+// 어느 발주기관의 어느 사업을 보고 있는지 화면에서 사라지지 않는다.
+test("상세 본문을 끝까지 스크롤해도 상세 머리가 뷰포트 안에 남는다", async ({ page }) => {
+  await mockOpportunities(page);
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto("/opportunities");
+
+  const head = page.locator(".review-split-detail .review-detail-head");
+  await expect(head).toBeVisible();
+  await expect(head).toHaveAttribute("data-review-primitive", "sticky-decision-header");
+  await expect(head).toContainText("발주기관");
+
+  // 머리는 스크롤 통에 들어 있지 않다 — 본문이 움직여도 같은 자리에 남는다.
+  const insideScroll = await head.evaluate((node) => Boolean(node.closest(".opportunity-detail-scroll")));
+  expect(insideScroll, "상세 머리가 본문 스크롤 통 밖에 있다").toBe(false);
+
+  const before = (await head.boundingBox())!;
+  const scroller = page.locator(".opportunity-detail-scroll");
+  const scrolled = await scroller.evaluate((node) => {
+    node.scrollTop = node.scrollHeight;
+    return node.scrollTop;
+  });
+  expect(scrolled, "상세 본문이 실제로 스크롤된다").toBeGreaterThan(0);
+
+  const after = (await head.boundingBox())!;
+  expect(after.y, "머리의 세로 위치가 스크롤로 바뀌지 않는다").toBeCloseTo(before.y, 0);
+  expect(after.y, "머리가 뷰포트 위로 밀려나지 않는다").toBeGreaterThanOrEqual(0);
+  expect(after.y + after.height, "머리가 뷰포트 안에 있다").toBeLessThanOrEqual(800);
+});
+
+// 목록 첫 줄은 13.5px 단이다. 탐색 두 화면의 공용 목록 값(`--review-list-primary`,
+// 14.4px)과는 다르며, 시안 M1c A안의 표 행(`.tr .t`)도 13.5px를 그렸다. 어느 값이
+// 네 화면의 정본인지는 아직 결정되지 않았으므로 지금 지키는 값을 그대로 고정한다.
 test("목록의 글자 크기가 기존 물리 크기의 13.5px·12.6px 단을 지킨다", async ({ page }) => {
   await mockOpportunities(page);
   await page.setViewportSize({ width: 1440, height: 900 });
