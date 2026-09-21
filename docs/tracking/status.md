@@ -16,7 +16,11 @@
 
 - 픽셀 기준선 교체(게이트 아님): `opportunities-list`·`order-plans-list`·`pre-specs-list` 3장. **사유** — 조회 도구·검색 UX 통일이 세 화면의 필터 영역을 보기 탭 줄 + 조회 도구 줄 2행으로 재편했고, 사전규격은 그 도구 줄에 마감 구간 컨트롤이 하나 더 들어왔다. 나머지 5장은 변경 없이 통과했다. **승인자** jechoi, **승인 시각** 2026-09-21. 교체 전 `pre-specs-list`의 새 이미지를 직접 확인했다(도구 줄이 1440에서 한 줄을 유지하고 구간 칩이 마지막 칸에 온다).
 
-검증 한계: 프런트 검사는 계약 기반 mock 환경이다. **운영 스택에서 `GET /api/pre-specs?workspace=actionable&deadline_scope=current`가 실측 55/44를 재현하는지는 배포 뒤에 확인한다** — 재배포는 직전 사람 확인과 백업이 필요한 운영 변경이다.
+- 운영 배포(2026-09-21, 사람 확인 뒤 실행): main `61e492e`를 web 이미지에 담아 `web`만 재생성했다. 이 배포에는 검토 제외 PoC·조회 도구/검색 UX 통일·마감 구간 세 변경이 함께 실렸다(세 기능이 같은 화면·같은 파일을 공유해 배포를 한 번으로 묶었다). 전체 백업 `backups/postgres/full/bidops-before-prespec-deadline-scope-20260921T050531Z.dump`, 롤백 태그 `before-prespec-deadline-scope-20260921`(병합 직전 `7115281`). **migration 없음** — 운영 DB `alembic_version`은 배포 전후 모두 `0030_prespec_review_exclusion`이다. compose 5개 + env 4개(`--profile prespec`)로 렌더한 포트 18787과 `BIDOPS_PRESPEC_OVERVIEW_ENABLED=true`·`BIDOPS_C2_DAILY_TRIGGER_ENABLED=true`를 재생성 뒤 컨테이너 env로 다시 확인했다.
+- 배포 후 확인: `/api/health` 200. `GET /api/pre-specs?workspace=actionable`이 total 99와 `deadline_scope_counts {current:54, passed:45}`를, `deadline_scope=current`가 total 54, `=passed`가 total 45를 돌려준다 — 두 칸의 합이 구간 미적용 actionable과 같고, 세 호출에서 집계가 동일하며, `workspace_counts.actionable`이 활성 구간을 따른다. 같은 시점에 `deadline_status=open|passed|unknown`은 54/45/0으로 **구간과 정확히 일치**한다. 실제 화면은 1280×800·1440×900에서 조회 도구 줄의 직계 자식 4개가 같은 `top`을 가져 한 줄을 유지하고 가로 넘침이 0이며, 칩이 `마감 전·미확인 54`·`마감 경과 45`, 검토할 항목 탭이 54로 서로 맞는다.
+- 수치 주석: 같은 날 오전(배포 전, 옛 코드) 같은 조회는 55/44였다. 두 방식이 배포 뒤 같은 시점에 정확히 일치하므로 술어 불일치가 아니라 그 사이 actionable 구성이 1건 움직인 것이다. `auto_preparation_status`는 첨부·문서 묶음 상태에서 조회 시점에 파생되는 값이라 워커가 도는 동안 바뀔 수 있다. 어느 공고가 움직였는지는 특정하지 못했고(마감을 넘긴 검토할 항목 0건, 그 사이 생성된 개요 run 0건) 계약 검증이 통과해 더 추적하지 않았다.
+
+검증 한계: 이번 배포에 함께 실린 조회 도구·검색 UX 통일은 운영 데이터에서 네 화면의 검색을 실제로 돌려 보지 않았다. 사전규격 화면은 위와 같이 확인했으나 발주계획·사업 추적·최종 Go/No-Go의 검색은 배포 후 확인이 남아 있다.
 
 ## 목록 조회 도구·검색 UX 통일 (2026-09-21, 로컬 구현·관련 검증 완료, 운영 배포 전)
 
