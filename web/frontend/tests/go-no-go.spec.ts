@@ -32,7 +32,7 @@ test("기본 검토 대상은 미결정·오래된 결정·효력 미확인을 �
   await openList(page);
 
   // 입찰공고가 연결된 미결정 7건 + stale Go 1건 + 효력 미확인 No-Go 1건 = 9건.
-  await expect(page.locator(".gng-list-head")).toContainText("결정 검토 목록 · 9건");
+  await expect(page.locator(".gng-list-head")).toContainText("최종 결정 목록 · 9건");
   await expect(rows(page)).toHaveCount(9);
 
   // 오래된 Go 결정이 목록에서 사라지지 않는다. 미결정만 남기면 놓친다.
@@ -116,7 +116,7 @@ test("집계와 검색 범위를 밝히고 대기열이 넘치면 받은 범위 
   await input.fill("없는사업");
   await expect(rows(page)).toHaveCount(1);
   await input.press("Enter");
-  await expect(page.getByRole("heading", { name: "조건에 맞는 사업이 없습니다" })).toBeVisible();
+  await expect(page.getByText("조건에 맞는 사업이 없습니다", { exact: true })).toBeVisible();
   await expect(page.locator(".gng-list-empty")).toContainText('적용된 검색어 "없는사업"와 다른 활성 보기 조건에 맞는 사업이 없습니다.');
   await page.getByRole("button", { name: "검색어만 지우기", exact: true }).click();
   await expect(rows(page)).toHaveCount(9);
@@ -288,8 +288,8 @@ test("화면 제목과 페이지 액션은 상단바에 있고 경로·편집 �
   // 페이지에 남는 제목은 landmark 이름과 h1 → h2 위계를 위한 숨긴 제목 하나다.
   await expect(page.locator("#go-no-go-title")).toHaveClass(/visually-hidden/);
 
-  // `데이터 현황`은 상단바 슬롯으로 올라가지만 대화상자는 여전히 이 화면이 연다.
-  const dataAction = topbar.getByRole("button", { name: "데이터 현황", exact: true });
+  // `목록 기준`은 상단바 슬롯으로 올라가지만 대화상자는 여전히 이 화면이 연다.
+  const dataAction = topbar.getByRole("button", { name: "목록 기준", exact: true });
   await expect(dataAction).toBeVisible();
   await dataAction.click();
   await expect(page.getByRole("dialog")).toContainText("‘계속 추적’인 사업기회만 최종 Go/No-Go 대상입니다");
@@ -298,7 +298,7 @@ test("화면 제목과 페이지 액션은 상단바에 있고 경로·편집 �
 test("중복 페이지 머리말 없이 workspace가 화면의 남은 높이를 채운다", async ({ page }) => {
   await openList(page);
 
-  // 제목·데이터 현황은 상단바 하나에만 남고, 예전 페이지 머리말은 다시 생기지 않는다.
+  // 제목·목록 기준은 상단바 하나에만 남고, 예전 페이지 머리말은 다시 생기지 않는다.
   await expect(page.locator("header.topbar[data-topbar-mode='title'] h1")).toHaveCount(1);
   await expect(page.locator(".gng-page-header")).toHaveCount(0);
   await expect(page.locator("#go-no-go-title")).toHaveClass(/visually-hidden/);
@@ -321,9 +321,9 @@ test("중복 페이지 머리말 없이 workspace가 화면의 남은 높이를 
   expect(geometry.workspaceHeight).toBeGreaterThan(0);
 });
 
-test("데이터 현황은 API 경계와 집계 범위를 기본 화면 밖에서 설명한다", async ({ page }) => {
+test("목록 기준은 API 경계와 집계 범위를 기본 화면 밖에서 설명한다", async ({ page }) => {
   await openList(page);
-  await page.getByRole("button", { name: "데이터 현황", exact: true }).click();
+  await page.getByRole("button", { name: "목록 기준", exact: true }).click();
   const dialog = page.getByRole("dialog");
   await expect(dialog).toContainText("‘계속 추적’인 사업기회만 최종 Go/No-Go 대상입니다");
   await expect(dialog).toContainText("최종 결정 대기열을 한 번 받아 그립니다");
