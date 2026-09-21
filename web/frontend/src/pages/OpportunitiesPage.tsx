@@ -6,7 +6,7 @@ import { Dialog, DialogHeader } from "@astryxdesign/core/Dialog";
 import { Selector } from "@astryxdesign/core/Selector";
 import { Table, pixel, proportional, type TableColumn } from "@astryxdesign/core/Table";
 import { Token } from "@astryxdesign/core/Token";
-import { Activity, Search } from "lucide-react";
+import { Activity } from "lucide-react";
 import { opportunitySearchValid, searchKey } from "../lib/search";
 import { OpportunityDetail } from "../components/opportunities/OpportunityDetail";
 import {
@@ -22,7 +22,9 @@ import {
   rowPrimaryAction,
   type OpportunityDetailIntent,
 } from "../components/opportunities/trackingFlow";
+import { EmptyState } from "../components/common/EmptyState";
 import { PageHeaderActions } from "../components/common/PageHeaderActions";
+import { SkeletonPanel } from "../components/common/Skeleton";
 import {
   WorkspaceAdvancedToggle,
   WorkspaceFilterAdvanced,
@@ -362,7 +364,7 @@ export function OpportunitiesPage() {
         <div className="opportunity-header-actions">
           <Button
             icon={<Activity />}
-            label="데이터 현황"
+            label="목록 기준"
             onClick={() => setDataDialog(true)}
             size="sm"
             variant="ghost"
@@ -475,23 +477,28 @@ export function OpportunitiesPage() {
                   <p role="alert">주소의 검색어는 공백을 정리한 뒤 2~100자여야 합니다. 검색어를 고치거나 지우십시오.</p>
                 </div>
               ) : list.isPending ? (
-                <div className="opportunity-empty">
-                  <p role="status">사업 목록을 불러오는 중…</p>
-                </div>
+                <SkeletonPanel label="사업 목록을 불러오는 중" lines={5} />
               ) : list.isError ? (
                 <div className="opportunity-empty">
-                  <p role="alert">사업 목록을 불러오지 못했습니다.</p>
-                  <Button label="다시 불러오기" onClick={() => void list.refetch()} />
+                  <EmptyState
+                    compact
+                    tone="error"
+                    title="사업 목록을 불러오지 못했습니다."
+                    action={{ label: "다시 시도", onClick: () => void list.refetch() }}
+                  />
                 </div>
               ) : rows.length === 0 ? (
                 <div className="opportunity-empty">
-                  <Search aria-hidden="true" />
-                  <h3>조건에 맞는 사업이 없습니다</h3>
-                  <p className="opportunity-caption">
-                    {search ? `적용된 검색어 "${search}"와 다른 활성 필터에 맞는 사업이 없습니다.`
+                  <EmptyState
+                    compact
+                    title="조건에 맞는 사업이 없습니다"
+                    description={search ? `적용된 검색어 "${search}"와 다른 활성 필터에 맞는 사업이 없습니다.`
                       : "다른 구역이나 다음 페이지에 있을 수 있으며, 사업이 없다는 뜻은 아닙니다."}
-                  </p>
-                  <Button label={search ? "검색어만 지우기" : "필터 초기화"} onClick={search ? () => applySearch("") : resetFilters} />
+                    action={{
+                      label: search ? "검색어만 지우기" : "필터 초기화",
+                      onClick: search ? () => applySearch("") : resetFilters,
+                    }}
+                  />
                 </div>
               ) : (
                 <Table
@@ -580,7 +587,7 @@ export function OpportunitiesPage() {
         width="calc(var(--spacing-12) * 13)"
       >
         <div className="opportunity-dialog-body">
-          <DialogHeader title="데이터 현황" onOpenChange={(next) => setDataDialog(next)} />
+          <DialogHeader title="이 목록의 기준" onOpenChange={(next) => setDataDialog(next)} />
           <p>
             구역 건수는 서버가 센 수이며 <strong>구역 조건만 빼고</strong> 검색어·최초 발견 단계·사유 필터를 반영합니다.
             사유 칩 건수는 사유 필터만 빼고 센 수이고, 한 사업이 여러 사유에 들어갈 수 있어 합이 구역 건수와 같지

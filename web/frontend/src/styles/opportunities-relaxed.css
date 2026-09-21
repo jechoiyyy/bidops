@@ -898,12 +898,6 @@
   text-align: center;
 }
 
-.opportunity-empty > svg {
-  width: var(--spacing-5);
-  height: var(--spacing-5);
-  color: var(--color-text-secondary);
-}
-
 .opportunity-detail-status {
   margin: 0;
   padding: var(--spacing-5);
