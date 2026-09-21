@@ -1,5 +1,15 @@
 import { expect, test, type Page } from "@playwright/test";
-import { DERIVED_RUN_ID, RUN_ID, installRunStatusMock, LONG_TITLE } from "./run-status-fixtures";
+import {
+  C2_ARTIFACT_SHA256,
+  C2_MEASUREMENT_EXECUTION_ID,
+  C2_MODEL_DIGEST,
+  C2_OPERATIONAL_EXECUTION_ID,
+  DERIVED_RUN_ID,
+  ORDER_PLAN_RUN_ID,
+  RUN_ID,
+  installRunStatusMock,
+  LONG_TITLE,
+} from "./run-status-fixtures";
 
 /**
  * 실행 상태 화면(수집 실행 · 첨부 확보 · 상시 운영 · 산출물 감사 로그).
@@ -17,6 +27,20 @@ const DESKTOP = { width: 1440, height: 900 };
 async function gotoRuns(page: Page, search = ""): Promise<void> {
   await page.goto(`/runs${search}`);
   await expect(page.getByRole("tab", { name: "수집 실행", exact: true })).toHaveAttribute("aria-selected", "true");
+}
+
+/** 회차 상세 안의 한 구역. 같은 값이 여러 구역에 나오므로 이름으로 좁힌다. */
+function section(page: Page, name: string | RegExp) {
+  return page.locator(".rs-section").filter({ has: page.getByRole("heading", { name }) });
+}
+
+/** 발주계획 회차를 열고 `발주계획 선별` 탭으로 들어간다. */
+async function gotoOrderPlanScreeningTab(page: Page, search = ""): Promise<void> {
+  await gotoRuns(page, `?run=${encodeURIComponent(ORDER_PLAN_RUN_ID)}${search}`);
+  const tab = page.getByRole("button", { name: "발주계획 선별", exact: true });
+  await expect(tab).toBeVisible();
+  await tab.click();
+  await expect(page.getByRole("heading", { name: /이 회차의 선별 실행/ })).toBeVisible();
 }
 
 test.describe("실행 상태", () => {
@@ -580,5 +604,154 @@ test.describe("실행 상태", () => {
     await gotoRuns(page);
     await page.getByRole("button", { name: "파생 회차로 이동" }).click();
     await expect.poll(() => new URL(page.url()).searchParams.get("run")).toBe(DERIVED_RUN_ID);
+  });
+
+  // ── 발주계획 선별 탭 (spec §4) ──────────────────────────────────────────
+  test("발주계획 회차에만 다섯째 탭이 생기고 공고 회차는 네 탭 그대로다", async ({ page }) => {
+    await installRunStatusMock(page);
+    await gotoRuns(page);
+    const tabs = page.getByRole("navigation", { name: "선택한 회차 상세 보기" });
+    await expect(tabs.getByRole("button")).toHaveCount(4);
+    await expect(tabs.getByRole("button", { name: "발주계획 선별", exact: true })).toHaveCount(0);
+
+    await gotoRuns(page, `?run=${encodeURIComponent(ORDER_PLAN_RUN_ID)}`);
+    await expect(tabs.getByRole("button")).toHaveCount(5);
+    await expect(tabs.getByRole("button", { name: "발주계획 선별", exact: true })).toBeVisible();
+  });
+
+  test("회차의 선별 실행 둘 중 고른 실행이 상세와 주소에 남는다", async ({ page }) => {
+    await installRunStatusMock(page);
+    await gotoOrderPlanScreeningTab(page);
+
+    // 기본은 가장 최근 실행 — 여기서는 측정 전용 실행이다. 운영 판정처럼 보이지 않는다.
+    const executions = section(page, /이 회차의 선별 실행/);
+    await expect(executions.getByRole("button", { name: C2_MEASUREMENT_EXECUTION_ID }))
+      .toHaveAttribute("aria-pressed", "true");
+    await expect(executions).toContainText("측정 전용");
+    const basis = section(page, "실행 기준");
+    await expect(basis).toContainText(C2_MEASUREMENT_EXECUTION_ID);
+    await expect(basis).toContainText("c2-order-plan-screening-v4");
+
+    await executions.getByRole("button", { name: C2_OPERATIONAL_EXECUTION_ID }).click();
+    await expect.poll(() => new URL(page.url()).searchParams.get("execution"))
+      .toBe(C2_OPERATIONAL_EXECUTION_ID);
+    await expect(basis).toContainText(C2_OPERATIONAL_EXECUTION_ID);
+    await expect(basis).not.toContainText(C2_MEASUREMENT_EXECUTION_ID);
+    // 계획별 신호는 회차의 최신 완료 실행 기준이다. 고른 실행과 다르면 그 사실을 적는다.
+    await expect(section(page, "계획별 신호"))
+      .toContainText("고른 실행과 계획별 신호의 기준 실행이 다릅니다");
+
+    // 새로고침해도 고른 실행이 복원된다.
+    await page.reload();
+    await page.getByRole("button", { name: "발주계획 선별", exact: true }).click();
+    await expect(section(page, "실행 기준")).toContainText(C2_OPERATIONAL_EXECUTION_ID);
+  });
+
+  test("배치별 기록이 토큰·소요·부분 산출물·오류 코드와 해시 전문을 보인다", async ({ page }) => {
+    await installRunStatusMock(page);
+    await gotoOrderPlanScreeningTab(page);
+
+    const batches = section(page, "배치별 기록");
+    await expect(batches).toContainText("47,100 / 9,800 / 3,010 / 59,910");
+    // 실패한 시도의 출력 토큰은 0이 아니라 미측정이다.
+    await expect(batches).toContainText("47,880 / 0 / 미측정 / 미측정");
+    await expect(batches).toContainText("120,000");
+    await expect(batches).toContainText("model_timeout");
+    await expect(batches).toContainText("timeout");
+    // 식별 해시는 줄이지 않는다(ADR-0065 결정 2).
+    await expect(batches).toContainText(C2_MODEL_DIGEST);
+    // 부분 산출물·오류 코드는 실행 단위 값이며 성공으로 승격하지 않는다.
+    await expect(batches).toContainText("부분 산출물");
+    await expect(batches).toContainText("있음");
+    await expect(batches).toContainText("batch_schema_violation");
+
+    const artifacts = section(page, "산출물 요약");
+    await expect(artifacts).toContainText("screening_input");
+    await expect(artifacts).toContainText(C2_ARTIFACT_SHA256);
+    await expect(artifacts).toContainText("본문·원문 경로·다운로드 URL은 이 화면에서 노출하지 않습니다.");
+  });
+
+  test("상세 조회가 실패해도 실행 목록은 남고 상세 자리에만 오류를 말한다", async ({ page }) => {
+    await installRunStatusMock(page, { orderPlanScreeningDetailError: true });
+    await gotoOrderPlanScreeningTab(page);
+
+    const executions = section(page, /이 회차의 선별 실행/);
+    await expect(executions.getByRole("button", { name: C2_OPERATIONAL_EXECUTION_ID })).toBeVisible();
+    await expect(executions.getByRole("button", { name: C2_MEASUREMENT_EXECUTION_ID })).toBeVisible();
+
+    const alert = page.getByRole("alert").filter({ hasText: "선택한 실행의 상세를 불러오지 못했습니다" });
+    await expect(alert).toBeVisible();
+    await expect(alert).toContainText("미확인이며 없음이 아닙니다");
+    // 목록 응답이 준 실행 기준은 그대로 남는다.
+    await expect(section(page, "실행 기준")).toContainText(C2_MEASUREMENT_EXECUTION_ID);
+  });
+
+  test("선별 실행이 없는 회차는 없음과 미확인을 구분해 말한다", async ({ page }) => {
+    await installRunStatusMock(page, { orderPlanScreeningEmpty: true });
+    await gotoOrderPlanScreeningTab(page);
+    await expect(section(page, /이 회차의 선별 실행/))
+      .toContainText("조회 범위 안에 이 회차의 발주계획 선별 실행이 없습니다");
+
+    await installRunStatusMock(page, { orderPlanScreeningListError: true });
+    await gotoOrderPlanScreeningTab(page);
+    await expect(page.getByRole("alert").filter({ hasText: "선별 실행 목록을 불러오지 못했습니다" }))
+      .toContainText("조회 실패는 실행 0건이 아닙니다");
+  });
+
+  test("계획별 신호가 순위·점수와 실무 화면 링크를 보인다", async ({ page }) => {
+    await installRunStatusMock(page);
+    await gotoOrderPlanScreeningTab(page);
+
+    const signals = section(page, "계획별 신호");
+    await expect(signals).toContainText("행정정보 공동이용 확대 사업 발주계획");
+    await expect(signals).toContainText("selected");
+    await expect(signals).toContainText("18.42");
+    await expect(signals).toContainText("relevant");
+    await expect(signals).toContainText("0.91");
+    await expect(signals).toContainText("데이터 연계·공동이용");
+    // 판정 없음은 비관련이 아니다.
+    await expect(signals).toContainText("판정 없음");
+    await expect(signals).toContainText("1–3 / 3");
+
+    const link = signals.getByRole("link", { name: "행정정보 공동이용 확대 사업 발주계획 실무 화면에서 보기" });
+    await expect(link).toHaveAttribute(
+      "href",
+      `/order-plans?qwen=&source_run_id=${encodeURIComponent(ORDER_PLAN_RUN_ID)}&selected=201`,
+    );
+  });
+
+  test("회차 상세 바닥 링크가 실무 화면을 전체 보기로 연다", async ({ page }) => {
+    await installRunStatusMock(page);
+
+    await gotoRuns(page, `?run=${encodeURIComponent(ORDER_PLAN_RUN_ID)}`);
+    const planLink = page.getByRole("link", { name: "이 회차의 발주계획 보기 →" });
+    await expect(planLink).toHaveAttribute(
+      "href",
+      `/order-plans?qwen=&source_run_id=${encodeURIComponent(ORDER_PLAN_RUN_ID)}`,
+    );
+    // 발주계획 회차에는 사전규격 링크가 없다.
+    await expect(page.getByRole("link", { name: "이 회차의 사전규격 보기 →" })).toHaveCount(0);
+
+    await gotoRuns(page, `?run=${encodeURIComponent(RUN_ID)}`);
+    await expect(page.getByRole("link", { name: "이 회차의 사전규격 보기 →" })).toHaveAttribute(
+      "href",
+      `/pre-specs?workspace=all&sw_only=false&source_run_id=${encodeURIComponent(RUN_ID)}`,
+    );
+    await expect(page.getByRole("link", { name: "이 회차의 발주계획 보기 →" })).toHaveCount(0);
+  });
+
+  test("발주계획 선별 탭이 두 지원 폭에서 가로로 넘치지 않는다", async ({ page }) => {
+    await installRunStatusMock(page);
+    for (const viewport of [LAPTOP, DESKTOP]) {
+      await page.setViewportSize(viewport);
+      await gotoOrderPlanScreeningTab(page);
+      await expect(section(page, "계획별 신호")).toContainText("행정정보 공동이용 확대 사업 발주계획");
+      const overflow = await page.evaluate(() => ({
+        document: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        body: document.body.scrollWidth - document.body.clientWidth,
+      }));
+      expect(overflow.document).toBeLessThanOrEqual(1);
+      expect(overflow.body).toBeLessThanOrEqual(1);
+    }
   });
 });

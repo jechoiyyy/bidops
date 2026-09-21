@@ -1009,3 +1009,45 @@
   color: var(--color-text-disabled);
   background: var(--color-background-muted);
 }
+
+/* --- 회차 상세 바닥 링크와 발주계획 선별 탭 -------------------------------
+ * 운영 화면에서 실무 화면으로 나가는 자리(spec §4)와 C-2 실행 기록 표의
+ * 조각들. 색은 테마 토큰만 읽는다. */
+
+.rs-detail-links {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--spacing-3);
+  padding: var(--spacing-2) var(--spacing-5);
+  border-top: var(--border-width) solid var(--color-background-muted);
+  min-width: 0;
+}
+
+.rs-inline-link {
+  color: var(--color-text-accent);
+  text-decoration: underline;
+  text-underline-offset: var(--spacing-0-5);
+  overflow-wrap: anywhere;
+}
+
+/* 실행 ID 전문이 그대로 단추 이름이다. 줄이지 않고 줄바꿈으로 보인다. */
+.rs-exec-pick {
+  justify-content: flex-start;
+  padding-inline: var(--spacing-2);
+  text-align: left;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.rs-exec-pick[aria-pressed="true"] {
+  background: var(--color-accent-muted);
+}
+
+/* 값과 보조 줄(`rs-row-sub`)을 함께 담는 표 칸. 다른 표의 칸은 건드리지 않는다. */
+.rs-table td > .rs-cell {
+  display: inline-block;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}

@@ -151,7 +151,8 @@ function ConditionsDialog({ open, onClose }: { open: boolean; onClose: () => voi
         <div className="rs-dialog-scroll">
           <Note title="운영 텔레메트리는 삭제하지 않았습니다">
             model_digest · token 입력/캐시/출력 · duration_ms · 오류 코드는 판정 화면의 기본 표시에서
-            뺐을 뿐입니다. 수집 실행 탭에서 실행을 고르고 실행 기록·실행 기준 탭에서 확인합니다.
+            뺐을 뿐입니다. 공고 판정은 수집 실행 탭에서 실행을 고르고 실행 기록·실행 기준 탭에서,
+            발주계획 선별은 발주계획 회차의 발주계획 선별 탭에서 확인합니다.
           </Note>
           {alwaysOnQuery.isError ? (
             <Note title="상시 운영 상태를 불러오지 못했습니다" tone="error">
