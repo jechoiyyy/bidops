@@ -42,14 +42,14 @@
 ### 2.1 수집 회차 선택 — `SourceRunFilter`
 
 - `lib/runOptions.ts`(순수 함수)
-  - `runOptionLabel(run)`: `09-19~09-20 수집`. 수집 기간이 없으면 생성 시각 기준 `09-20 06:10 수집분`. `lib/format.ts`의 `formatRunRange`를 재사용한다.
+  - `runOptionLabel(run)`: `09-19~09-20 수집`(U1은 기존 `formatRunRange`의 긴 표기로 구현했고, U3이 `lib/format.ts`에 연도를 생략하는 짧은 회차 표기를 만들어 맞춘다 — 해가 올해와 다르면 연도를 남긴다. 설명은 `09-20 06:10 생성`). 수집 기간이 없으면 생성 시각 기준 `09-20 06:10 수집분`. `lib/format.ts`의 `formatRunRange`를 재사용한다.
   - `buildSourceRunOptions({ runs, extraRunIds, selectedRunId, isError, audience })`: `audience: "practitioner"`는 description에 생성 시각(같은 기간 재실행을 구분), `"ops"`는 run_id. 목록에 없는 URL 값은 `선택한 회차 (목록에 없음)` + 사유(`회차 목록 조회 실패`/`목록에서 확인할 수 없음`)이며 **조용히 다른 회차로 바꾸지 않는다.** 발주계획에서 실행에만 있는 회차는 `수집 정보 없는 회차`이고 날짜를 지어내지 않는다.
 - `components/common/SourceRunFilter.tsx`(Astryx `Selector` 기반): 보이는 라벨 `수집 회차`, `hasSearch`, 누적 옵션 **`모든 수집 회차`** 하나, 로딩 placeholder `회차 목록 조회 중`, 오류는 컴포넌트 안 `role="alert"` 한 줄 + `다시 시도`. props: `runs`, `extraRunIds?`, `value`, `onChange`, `isPending`, `isError`, `onRetry`, `isDisabled?`, `allRunsDescription`.
 - 기반으로 쓰지 않는 것: `ReviewFilterSelector`(라벨 숨김 고정, 검색·오류 개념 없음), `RunPickerField`(회차 필수·첫 회차 자동 선택·`?run=` 강제).
 - 위치: 발주계획·사전규격 모두 `WorkspaceFilterAdvanced` 안. 사전규격의 관측 날짜 범위는 도구 줄에 남는다. CSS는 `workspace-filters.css` 한 벌이며 `order-plans.css`·`pre-specs-relaxed.css`의 회차 규칙은 지운다.
 - **공용 컴포넌트는 표시만 맡고 URL 정책은 페이지가 소유한다.** 지금 발주계획은 회차를 바꾸면 다른 필터·검색을 지우고(`OrderPlansPage.tsx:824`) 사전규격은 기존 조건에 더한다(`PreSpecsPage.tsx:746`). **M1 승인(2026-09-21): 두 화면 모두 회차를 기존 조건에 더한다.** `/runs`의 `이 회차 보기` 링크는 `전체` 보기로 연다.
 - 접힌 상태에서 회차가 걸렸음을 알리는 두 장치
-  1. `WorkspaceAdvancedToggle`의 `activeCount`에 회차를 포함한다. 사전규격은 `activeFilterCount`를 새로 만든다. 초기화는 회차도 지운다.
+  1. `WorkspaceAdvancedToggle`의 `activeCount`에 회차를 포함한다. 정렬(`표시 순서`)은 필터가 아니므로 세지 않는다. 사전규격은 `activeFilterCount`를 새로 만든다. 초기화는 회차도 지운다.
   2. `source_run_id`가 있으면 `WorkspaceFilterContext`에 `회차 보기 · <라벨> [· 측정 전용 실행] [모든 회차로]`를 접힘과 무관하게 그린다. 회차 목록 오류도 이 줄에서 알린다.
 - `· 측정 전용 실행`은 **M1 승인(2026-09-21) A안**: 회차 줄에 단일화하고 목록 바닥 줄의 회차 모드 문구는 없앤다(바닥 줄은 `판정 없음` 계열에만 남는다). 조건식은 그대로다. ADR-0062의 09-21 개정(바닥 줄)을 이 결정으로 다시 개정한다.
 - 운영 쪽(`shell/RunSelector`, `runs/RunPicker`, Metrics 모달)은 컴포넌트를 두고 옵션 라벨만 `runOptionLabel`로 맞춘다. 대시보드 선택기는 §7에서 패널째 빠진다.
