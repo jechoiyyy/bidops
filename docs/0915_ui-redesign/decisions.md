@@ -179,3 +179,8 @@
 
 - 원본 `mockups/0921_practitioner-m4/`. 사용자 승인(권장안).
 - 식별자·해시·실행 정보는 같은 화면의 접힌 `기술 정보`로 모은다. 경계 문장은 ② 추적 결정 카드에 한 번, 상단 `… 저장 가능` 칩은 없앤다, 폼 오류 코드는 접는다.
+
+### 시안 M1c 승인 (2026-09-21)
+
+- 원본 `mockups/0921_practitioner-m1c/`. 사용자 승인 A안.
+- 사업 추적·최종 Go/No-Go를 공용 `SplitWorkspace`·`StickyDecisionHeader`·`AgencyFeature`로 옮기고 목록은 Astryx `Table`을 유지한다.
