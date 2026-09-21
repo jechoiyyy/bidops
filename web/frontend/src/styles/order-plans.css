@@ -1579,8 +1579,8 @@ header.c2l-list-head .c2l-list-scope {
   text-underline-offset: var(--spacing-0-5);
 }
 
-/* 목록 바닥은 읽을 것이 아니라 지금 보는 범위를 적는 줄이다(spec §2.3). 머리에서
-   내려온 범위·policy·정렬 설명이 기존 안내 문단과 여기서 한 덩어리가 된다(ADR-0062). */
+/* 목록 바닥은 실무자가 알아야 할 범위 경고가 있을 때만 그려진다 — 판정 없음, 활성
+   policy 판정 없음, 측정 전용일 수 있는 회차 모드(2026-09-21). 평상시 누적에는 없다. */
 .c2l-list-foot {
   display: flex;
   flex: 0 0 auto;
