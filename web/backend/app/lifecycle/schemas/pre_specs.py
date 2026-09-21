@@ -35,6 +35,10 @@ PreSpecOverviewView = Literal[
 ]
 PreSpecTrackingDecision = Literal["pending"]
 PreSpecDeadlineStatus = Literal["open", "passed", "unknown"]
+#: 검토할 항목(actionable)의 기본 시야를 나누는 구간 (ADR-0064).
+#: `current`는 `마감 전`과 `마감 미확인`(deadline_at is null)을 함께 담는다 —
+#: 미확인을 마감 경과로 접지 않는다(CLAUDE.md unknown/null 보존 게이트).
+PreSpecDeadlineScope = Literal["current", "passed", "all"]
 PreSpecGradeFilter = Literal["우선 검토", "검토 권장", "관찰 대상", "제외", "판정 없음"]
 PreSpecNextAction = Literal["confirm_overview", "open_deep_review", "decide_tracking"]
 
@@ -136,6 +140,18 @@ class PreSpecOverviewStatusCount(RuntimeContractModel):
     count: int = Field(ge=0)
 
 
+class PreSpecDeadlineScopeCounts(RuntimeContractModel):
+    """구간 적용 **전** actionable 집합을 두 구간으로 나눈 건수 (ADR-0064 결정 5).
+
+    `current` + `passed`는 언제나 구간 미적용 actionable 건수와 같다. 두 칸만 갖는
+    명명된 모델인 이유는 `all` 키가 생기면 "분할"인지 "합계"인지가 모호해지기
+    때문이다 — 합계가 필요하면 소비자가 두 칸을 더한다.
+    """
+
+    current: int = Field(ge=0)
+    passed: int = Field(ge=0)
+
+
 class PreSpecListResponse(RuntimeContractModel):
     items: list[PreSpecListItem] = Field(default_factory=list)
     total: int = Field(ge=0)
@@ -149,6 +165,9 @@ class PreSpecListResponse(RuntimeContractModel):
     # existing pagination meaning (docs/design/PLAN.md 3단계 결정 (a)/(b)).
     overview_status_counts: list[PreSpecOverviewStatusCount] = Field(default_factory=list)
     workspace_counts: dict[PreSpecWorkspace, int] = Field(default_factory=dict)
+    # 활성 workspace·활성 `deadline_scope`와 무관하게 항상 같은 값이고 항상 존재한다.
+    # 나머지 필터(`q`·`deadline_status`·`grade` 등)는 모두 반영한다.
+    deadline_scope_counts: PreSpecDeadlineScopeCounts
 
 
 class PreSpecCandidateOrderPlan(RuntimeContractModel):
@@ -183,6 +202,8 @@ class PreSpecOrderPlanCandidatesResponse(RuntimeContractModel):
 
 __all__ = [
     "PreSpecCandidateOrderPlan",
+    "PreSpecDeadlineScope",
+    "PreSpecDeadlineScopeCounts",
     "PreSpecDocumentSummary",
     "PreSpecOrderPlanCandidate",
     "PreSpecOrderPlanCandidatesResponse",

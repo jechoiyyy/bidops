@@ -13,6 +13,7 @@ from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 import pytest
+from fastapi import HTTPException
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
@@ -414,3 +415,156 @@ def test_deadline_and_observed_sorts_and_deadline_buckets(db_session, registry, 
     assert [item["notice_pk"] for item in _list(db_session, deadline_status="unknown")["items"]] == [
         unknown.id
     ]
+
+
+def _scope_fixture(db_session, registry):
+    """ADR-0064 구간 분할용 고정 표본.
+
+    actionable 3건(미래 마감·과거 마감·마감 미확인)과, 구간 분할의 분모에 들어가서는
+    안 되는 검토 제외 actionable 1건, actionable이 아닌 과거 마감 1건이다.
+    """
+
+    projection = _Projection()
+    registry.register_overview_document_projection(projection, owner="test")
+    future = _notice(
+        db_session, "SCOPE-FUTURE", deadline_at=SEOUL_RECENT_NOW + timedelta(days=1)
+    )
+    past = _notice(db_session, "SCOPE-PAST", deadline_at=SEOUL_RECENT_NOW - timedelta(days=1))
+    unknown = _notice(db_session, "SCOPE-UNKNOWN", deadline_at=None)
+    excluded = _notice(
+        db_session, "SCOPE-EXCLUDED", deadline_at=SEOUL_RECENT_NOW - timedelta(days=2)
+    )
+    # 제외 행은 `ck_notice_review_exclusion_metadata`가 요구하는 담당자·사유·시각을
+    # 함께 채워야 한다. 담당자 이름은 감사 표식이지 인증이 아니다.
+    excluded.review_exclusion_status = "excluded"
+    excluded.review_exclusion_actor_name = "테스트 담당자"
+    excluded.review_exclusion_reason = "구간 분할 분모 제외 확인"
+    excluded.review_exclusion_changed_at = SEOUL_RECENT_NOW
+    inactive = _notice(
+        db_session, "SCOPE-INACTIVE", deadline_at=SEOUL_RECENT_NOW - timedelta(days=3)
+    )
+    for notice in (future, past, unknown, excluded):
+        projection.statuses[notice.id] = "needs_human_review"
+        projection.fields[notice.id] = {"auto_preparation_status": "bundle_ready"}
+    projection.statuses[inactive.id] = "queued"
+    projection.fields[inactive.id] = {"auto_preparation_status": "not_applicable"}
+    db_session.commit()
+    return projection, future, past, unknown, excluded, inactive
+
+
+def test_deadline_scope_splits_actionable_only_and_keeps_unknown(
+    db_session, registry, monkeypatch
+):
+    monkeypatch.setattr(pre_specs_router, "_now_utc", lambda: SEOUL_RECENT_NOW)
+    _projection, future, past, unknown, excluded, inactive = _scope_fixture(db_session, registry)
+
+    current = _list(db_session, workspace="actionable", deadline_scope="current")
+    passed = _list(db_session, workspace="actionable", deadline_scope="passed")
+    # 인자를 생략하면 기본 `all`이고 구간 이전의 actionable 전체가 남는다.
+    default = _list(db_session, workspace="actionable")
+
+    assert {item["notice_pk"] for item in current["items"]} == {future.id, unknown.id}
+    assert current["total"] == 2
+    assert [item["notice_pk"] for item in passed["items"]] == [past.id]
+    assert passed["total"] == 1
+    assert {item["notice_pk"] for item in default["items"]} == {future.id, past.id, unknown.id}
+    assert default["total"] == 3
+
+    # deadline_scope_counts는 구간 적용 **전** actionable을 둘로 나눈 값이라
+    # 활성 구간이 무엇이든 세 호출에서 같다.
+    for payload in (current, passed, default):
+        assert payload["deadline_scope_counts"] == {"current": 2, "passed": 1}
+        # 계약 항등식: 두 칸의 합 == 구간 미적용 actionable 건수.
+        assert (
+            payload["deadline_scope_counts"]["current"]
+            + payload["deadline_scope_counts"]["passed"]
+            == default["total"]
+        )
+
+    # actionable 칸만 구간을 따라 움직이고 나머지 세 칸은 구조적으로 불변이다.
+    assert current["workspace_counts"]["actionable"] == 2
+    assert passed["workspace_counts"]["actionable"] == 1
+    assert default["workspace_counts"]["actionable"] == 3
+    assert current["workspace_counts"]["actionable"] == current["deadline_scope_counts"]["current"]
+    for key in ("recent", "tracking", "all"):
+        assert (
+            current["workspace_counts"][key]
+            == passed["workspace_counts"][key]
+            == default["workspace_counts"][key]
+        )
+
+    # 다른 workspace의 items·total은 구간에 영향받지 않지만 actionable 칸은 적용된다.
+    all_default = _list(db_session, workspace="all")
+    all_current = _list(db_session, workspace="all", deadline_scope="current")
+    assert [item["notice_pk"] for item in all_current["items"]] == [
+        item["notice_pk"] for item in all_default["items"]
+    ]
+    assert all_current["total"] == all_default["total"] == 5
+    assert all_current["workspace_counts"]["actionable"] == 2
+
+    # 검토 제외 건은 어느 구간에도, deadline_scope_counts 어느 칸에도 없다.
+    excluded_ids = {excluded.id}
+    for payload in (current, passed, default):
+        assert excluded_ids.isdisjoint({item["notice_pk"] for item in payload["items"]})
+    assert inactive.id not in {item["notice_pk"] for item in default["items"]}
+    assert all_current["deadline_scope_counts"] == {"current": 2, "passed": 1}
+
+    for payload in (current, passed, default):
+        assert sum(entry["count"] for entry in payload["overview_status_counts"]) == payload["total"]
+
+
+def test_deadline_scope_pages_and_sorts_before_pagination(db_session, registry, monkeypatch):
+    monkeypatch.setattr(pre_specs_router, "_now_utc", lambda: SEOUL_RECENT_NOW)
+    projection, future, past, unknown, _excluded, _inactive = _scope_fixture(db_session, registry)
+    # 마감 경과 구간의 정렬(최근 경과순)을 실제로 증명하려면 경과 actionable이 둘 필요하다.
+    older_past = _notice(
+        db_session, "SCOPE-PAST-OLD", deadline_at=SEOUL_RECENT_NOW - timedelta(days=5)
+    )
+    projection.statuses[older_past.id] = "needs_human_review"
+    projection.fields[older_past.id] = {"auto_preparation_status": "bundle_ready"}
+    db_session.commit()
+
+    second_page = _list(
+        db_session,
+        workspace="actionable",
+        deadline_scope="current",
+        sort="deadline",
+        limit=1,
+        offset=1,
+    )
+    # 구간은 페이지 분할 전에 적용된다 — total은 구간 건수 그대로이고 두 번째 행이 나온다.
+    assert second_page["total"] == 2
+    assert [item["notice_pk"] for item in second_page["items"]] == [unknown.id]
+    assert second_page["deadline_scope_counts"] == {"current": 2, "passed": 2}
+
+    first_page = _list(
+        db_session,
+        workspace="actionable",
+        deadline_scope="current",
+        sort="deadline",
+        limit=1,
+        offset=0,
+    )
+    assert [item["notice_pk"] for item in first_page["items"]] == [future.id]
+
+    # 마감 경과 구간은 기존 정렬 규칙대로 최근 경과순이다.
+    passed_sorted = _list(
+        db_session, workspace="actionable", deadline_scope="passed", sort="deadline"
+    )
+    assert [item["notice_pk"] for item in passed_sorted["items"]] == [past.id, older_past.id]
+
+    # deadline_status는 여전히 모든 집계에 걸리는 전역 필터다. 구간과 모순되면 0건이지만
+    # deadline_scope_counts는 그 전역 필터를 반영한 채로 분할을 유지한다.
+    contradiction = _list(
+        db_session,
+        workspace="actionable",
+        deadline_status="passed",
+        deadline_scope="current",
+    )
+    assert contradiction["total"] == 0
+    assert contradiction["deadline_scope_counts"] == {"current": 0, "passed": 2}
+
+    with pytest.raises(HTTPException) as invalid:
+        _list(db_session, deadline_scope="bogus")
+    assert invalid.value.status_code == 422
+    assert invalid.value.detail == "deadline_scope is invalid"

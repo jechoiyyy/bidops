@@ -132,6 +132,7 @@ def _legacy_shape(payload: dict) -> dict:
     for scenario, response in payload.items():
         response_copy = dict(response)
         response_copy.pop("workspace_counts", None)
+        response_copy.pop("deadline_scope_counts", None)
         response_copy["items"] = [
             {key: value for key, value in item.items() if key not in item_fields}
             for item in response["items"]
