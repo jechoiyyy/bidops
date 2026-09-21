@@ -134,9 +134,13 @@ test("기본 목록은 밀집 행이고 판정에 필요한 값만 담으며, �
 
   // 화면 제목은 상단바의 h1 하나다. 페이지는 같은 이름을 다시 그리지 않는다(제목 모드).
   await expect(page.locator("header.topbar h1")).toHaveText("발주계획");
-  // ADR-0062 ⓓ — 회차 선택은 상단바가 아니라 필터 아래 줄(사전규격과 같은 자리)이다.
-  await expect(page.locator("header.topbar").getByRole("combobox", { name: "수집 회차" })).toHaveCount(0);
-  await expect(page.locator(".c2l-filter-tools").getByRole("combobox", { name: "수집 회차" })).toBeVisible();
+  // ADR-0062 ⓓ + 2026-09-21 재개정 — 회차 선택은 상단바도 도구 줄도 아니고 `상세 필터`
+  // 안이다(사전규격과 같은 자리·같은 공용 컴포넌트).
+  await expect(page.locator("header.topbar").getByRole("button", { name: "수집 회차" })).toHaveCount(0);
+  await expect(page.locator(".c2l-filter-tools").getByRole("button", { name: "수집 회차" })).toHaveCount(0);
+  await page.getByRole("button", { name: "상세 필터" }).click();
+  await expect(page.locator("#c2l-advanced-filters").getByRole("button", { name: "수집 회차" })).toBeVisible();
+  await page.getByRole("button", { name: "상세 필터" }).click();
   // 페이지에 남는 것은 문서 구조와 `aria-labelledby`를 위한 숨긴 제목 하나뿐이다.
   await expect(page.locator("section.c2l-page > h2.visually-hidden")).toHaveText("발주계획");
   await expect(page.locator("section.c2l-page .c2l-page-header")).toHaveCount(0);
@@ -212,12 +216,14 @@ test("발주계획의 기존 머리글 액션은 상단바 슬롯에 한 번씩�
   await expect(page.locator(".c2l-page > .c2l-header-actions")).toHaveCount(0);
   await expect(actions.locator(".c2l-header-actions")).toHaveCount(1);
 
-  // 기존 머리글이 제공하던 동선. 회차 선택만 필터 아래 줄로 내려갔고(ADR-0062 ⓓ)
-  // 실행 상태 표시·실행 상세 링크는 그대로 상단바 슬롯에 남는다.
-  await expect(actions.getByRole("combobox", { name: "수집 회차" })).toHaveCount(0);
-  await expect(page.locator(".c2l-filter-tools").getByRole("combobox", { name: "수집 회차" })).toHaveCount(1);
+  // 기존 머리글이 제공하던 동선. 회차 선택은 `상세 필터` 안으로 내려갔고(ADR-0062 ⓓ·
+  // 2026-09-21 재개정) 실행 상태 표시·실행 상세 링크는 그대로 상단바 슬롯에 남는다.
+  // 목록 범위를 설명하는 단추는 네 화면 공용 이름(`목록 기준`)이다(시안 M1 결정 3).
+  await expect(actions.getByRole("button", { name: "수집 회차" })).toHaveCount(0);
+  await expect(page.locator(".c2l-filter-tools").getByRole("button", { name: "수집 회차" })).toHaveCount(0);
   await expect(actions.locator(".c2l-status-chip")).toHaveCount(1);
-  await expect(actions.getByRole("button", { name: "실행 상태", exact: true })).toHaveCount(1);
+  await expect(actions.getByRole("button", { name: "목록 기준", exact: true })).toHaveCount(1);
+  await expect(actions.getByRole("button", { name: "실행 상태", exact: true })).toHaveCount(0);
   await expect(actions.getByRole("link", { name: "실행 상세 →", exact: true })).toHaveCount(1);
 });
 
@@ -354,7 +360,7 @@ test("relevance 정렬은 500건 페이지를 자르기 전에 적용되고 페�
   await page.goto("/order-plans");
   await clickPreset(page, "전체");
 
-  await expect(page.locator(".c2l-list-head")).toContainText("현재 필터 결과 600건");
+  await expect(page.locator(".c2l-list-head")).toContainText("발주계획 목록 · 600건");
   await expect(page.locator(".c2l-pager")).toContainText("1–500 / 600");
   const rows = page.locator(".c2l-row");
   await expect(rows).toHaveCount(500);
@@ -382,12 +388,12 @@ test("1200건 결과에서 기본 review 필터·실패·거부 필터와 페이
   // relevant를 계산한다: index<900은 relevant, 나머지 300은 Qwen 단계 실패라 900건만 남는다.
   // 페이지 하나만 세는 회귀였다면 이 900이라는 숫자가 나오지 않는다.
   await expect(page.locator(".c2l-row")).toHaveCount(500);
-  await expect(page.locator(".c2l-list-head")).toContainText("현재 필터 결과 900건");
+  await expect(page.locator(".c2l-list-head")).toContainText("발주계획 목록 · 900건");
   await expect(page.locator(".c2l-pager")).toContainText("1–500 / 900");
 
   await clickPreset(page, "전체");
   await expect(page.locator(".c2l-row")).toHaveCount(500);
-  await expect(page.locator(".c2l-list-head")).toContainText("현재 필터 결과 1,200건");
+  await expect(page.locator(".c2l-list-head")).toContainText("발주계획 목록 · 1,200건");
   await expect(page.locator(".c2l-pager")).toContainText("1–500 / 1,200");
   await page.getByRole("button", { name: "다음", exact: true }).click();
   await expect(page.locator(".c2l-row")).toHaveCount(500);
@@ -1028,15 +1034,15 @@ test("목록의 마지막 건을 저장하면 사유를 비우고 이동하지 �
   await expect.poll(() => new URL(page.url()).pathname).toBe("/run-status");
 });
 
-// 결정 줄에서 뺀 상태 설명은 사라지지 않고 `실행 상태` 대화상자가 진다.
-test("실행 상태 대화상자가 미선택·filtered_out·not_relevant의 뜻을 그대로 보존한다", async ({ page }) => {
+// 결정 줄에서 뺀 상태 설명은 사라지지 않고 `목록 기준` 대화상자가 진다.
+test("`목록 기준` 대화상자가 미선택·filtered_out·not_relevant의 뜻을 그대로 보존한다", async ({ page }) => {
   await mockOrderPlans(page);
   await page.goto("/order-plans");
 
   // 기본 화면의 결정 줄에는 긴 설명 문단이 없다.
   await expect(page.locator(".c2l-tracking")).not.toContainText("미선택은 추적 종료가 아닙니다");
 
-  await page.getByRole("button", { name: "실행 상태", exact: true }).click();
+  await page.getByRole("button", { name: "목록 기준", exact: true }).click();
   const dialog = page.getByRole("dialog");
   await expect(dialog).toContainText("미선택은 추적 종료가 아닙니다.");
   await expect(dialog).toContainText("모델 판단·적합성 등급·참여 준비 상태·최종 Go/No-Go를 바꾸지 않습니다.");
@@ -1117,7 +1123,7 @@ test("페이지 끝에서 ↓를 누르면 다음 페이지 첫 행으로 이어
   await page.goto("/order-plans");
   await clickPreset(page, "전체");
   // 보기 전환이 URL에 반영된 뒤에 행을 고른다. 두 조작이 겹치면 나중 것이 앞의 선택을 덮는다.
-  await expect(page.locator(".c2l-list-head")).toContainText("현재 필터 결과 1,200건");
+  await expect(page.locator(".c2l-list-head")).toContainText("발주계획 목록 · 1,200건");
 
   const rows = page.locator(".c2l-row");
   await expect(rows).toHaveCount(500);
@@ -2048,7 +2054,7 @@ test("BE-select-three-end-tracking-confirm-and-result-hides-ended-plans-from-def
   // `검토 대상` 탭은 축 값을 URL에 그대로 적어 `isDefaultView`를 벗어나므로, 축이
   // 전혀 없는 진짜 기본 진입(빈 URL)으로 다시 들어가 확인한다.
   await page.goto("/order-plans");
-  await expect(page.locator(".c2l-list-head")).toContainText("현재 필터 결과 0건");
+  await expect(page.locator(".c2l-list-head")).toContainText("발주계획 목록 · 0건");
   await expect(page.locator(".c2l-list-pane").getByText("검토할 발주계획이 없습니다")).toBeVisible();
   await expect(page.locator(".c2l-list-pane").getByText("추적을 정하지 않은 관련 건을 모두 처리했습니다.")).toBeVisible();
 });
@@ -2237,14 +2243,15 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900
       // 누적: source_run_id 없이 부르고 URL에도 회차를 박지 않는다. 평상시 누적(활성
       // policy 판정 있음)의 범위 줄은 운영자용 감사 정보라 그리지 않는다(2026-09-21).
       const scope = page.getByTestId("order-plan-list-scope");
+      const runLine = page.locator(".c2l-filters .source-run-context");
+      const activeCount = page.locator(".c2l-filters .workspace-filter-count");
       await expect(page.locator(".c2l-row")).toHaveCount(2);
       await expect(scope).toHaveCount(0);
-      await expect(page.locator(".c2l-row")).toHaveCount(2);
+      await expect(runLine).toHaveCount(0);
+      await expect(activeCount).toHaveCount(0);
       expect(listRequests.length).toBeGreaterThan(0);
       expect(listRequests.every((params) => !params.has("source_run_id"))).toBe(true);
       expect(new URL(page.url()).searchParams.has("source_run_id")).toBe(false);
-      const runSelector = page.locator(".c2l-filter-tools").getByRole("combobox", { name: "수집 회차" });
-      await expect(runSelector).toContainText("누적 · 회차 선택 안 함");
 
       // 기본 보기 = 추적을 정하지 않은 관련 건. 조합 문장과 행의 판정 표식을 함께 밝힌다.
       await expect(page.locator(".c2l-list-scope").filter({ hasText: "기본 보기" }))
@@ -2254,21 +2261,40 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900
       await expect(page.locator(".c2l-row").first().locator(".c2l-row-verdict")).toHaveText("판정 policy c2-policy.v1 · 첫 관측 2026-09-01");
       expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(0);
 
-      // 회차를 고르면 그 회차의 실행으로 좁힌다(감사용). 회차 모드의 범위를 말한다.
+      // 회차 선택기는 `상세 필터` 안이다(ADR-0062 2026-09-21 재개정). 누적 옵션 하나만 있고
+      // 옵션 설명은 생성 시각이다 — 회차 식별자 원문은 옵션에 적지 않는다(시안 M1 승인).
+      await openAdvancedFilters(page);
+      const runSelector = page.locator("#c2l-advanced-filters").getByRole("button", { name: "수집 회차" });
+      await expect(runSelector).toContainText("모든 수집 회차");
+
+      // 회차를 고르면 그 회차의 실행으로 좁힌다(감사용). 회차 줄이 범위를 말한다.
       await runSelector.click();
-      await page.getByRole("option", { name: /2026-08-31~2026-08-31 수집/ }).click();
+      await page.getByRole("option", { name: /2026-08-31 ~ 2026-08-31 수집/ }).click();
       await expect.poll(() => new URL(page.url()).searchParams.get("source_run_id")).toBe(TEST_ORDER_PLAN_SOURCE_RUN_ID);
-      await expect(scope).toHaveText("회차 · 실행 a2f4d7c1 · 부분 성공 · 판정 policy c2-policy.v1");
+      await expect(runLine).toContainText("회차 보기");
+      await expect(runLine).toContainText("2026-08-31 ~ 2026-08-31 수집");
+      await expect(activeCount).toHaveText("1");
+      // 회차 모드는 목록 바닥 줄을 더는 쓰지 않는다(시안 M1 승인 A안).
+      await expect(scope).toHaveCount(0);
       expect(listRequests.at(-1)?.get("source_run_id")).toBe(TEST_ORDER_PLAN_SOURCE_RUN_ID);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(0);
+
+      // 상세 필터를 접어도 회차 줄과 걸린 조건 수는 그대로다.
+      const advancedToggle = page.getByRole("button", { name: "상세 필터", exact: true });
+      await advancedToggle.click();
+      await expect(advancedToggle).toHaveAttribute("aria-expanded", "false");
+      await expect(runLine).toContainText("2026-08-31 ~ 2026-08-31 수집");
+      await expect(activeCount).toHaveText("1");
 
       // 비우면 누적 기본 보기로 돌아간다. 이미 읽은 누적 목록은 캐시에서 다시 쓸 수 있으므로
       // 새 요청이 없을 수도 있다 — 있다면 회차 없이 나가야 한다.
       const requestsBeforeClear = listRequests.length;
-      await runSelector.click();
-      await page.getByRole("option", { name: /누적 · 회차 선택 안 함/ }).click();
+      await runLine.getByRole("button", { name: "모든 회차로", exact: true }).click();
       await expect.poll(() => new URL(page.url()).searchParams.has("source_run_id")).toBe(false);
       await expect(page.locator(".c2l-row")).toHaveCount(2);
-      // 회차 모드에서 보이던 범위 줄은 평상시 누적으로 돌아오면 다시 사라진다.
+      // 회차 줄도 범위 줄도 평상시 누적으로 돌아오면 사라진다.
+      await expect(runLine).toHaveCount(0);
+      await expect(activeCount).toHaveCount(0);
       await expect(scope).toHaveCount(0);
       expect(listRequests.slice(requestsBeforeClear).every((params) => !params.has("source_run_id"))).toBe(true);
     });
@@ -2306,6 +2332,211 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900
     });
   });
 }
+
+// ---- 수집 회차 선택기(명세 §2.1 검증 표) ----
+//
+// 회차는 상세 필터의 한 축이다. 이 묶음은 표의 9행을 대표 통합 사례로 고정한다:
+// 선택·접기·해제·초기화·복원·목록에 없는 회차·조회 실패·측정 전용 표식·미저장 확인.
+
+/** 공용 mock에 회차 목록 하나를 얹는다. 회차 이름은 `window_from ~ window_to 수집`이다. */
+async function mockOrderPlanRuns(page: import("@playwright/test").Page) {
+  await page.route("**/api/runs", (route) => route.fulfill({ json: { items: [ORDER_PLAN_RUN], total: 1 } }));
+}
+
+/** 상세 필터 안의 회차 선택기. `hasSearch`라 트리거는 button 역할이다. */
+function runSelectorTrigger(page: import("@playwright/test").Page) {
+  return page.locator("#c2l-advanced-filters").getByRole("button", { name: "수집 회차" });
+}
+
+function runContextLine(page: import("@playwright/test").Page) {
+  return page.locator(".c2l-filters .source-run-context");
+}
+
+/**
+ * 회차 모드 목록을 직접 그리는 mock. `purpose`를 바꿔 측정 전용 실행 회차를 만든다
+ * (공용 fixture의 실행은 모두 운영 실행이다).
+ */
+async function mockRunScopeList(
+  page: import("@playwright/test").Page,
+  purpose: "operational" | "gate_measurement",
+) {
+  await mockOrderPlans(page);
+  await mockOrderPlanRuns(page);
+  await page.route("**/api/order-plans**", async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    if (request.method() !== "GET" || url.pathname !== "/api/order-plans") {
+      await route.fallback();
+      return;
+    }
+    const runId = url.searchParams.get("source_run_id");
+    const items = [testOrderPlanItem(201, "relevant", "회차 모드 확인용 사업")];
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        schema_version: "order-plan-list-response.v4",
+        producer: "order-plan-review-api",
+        consumer: "order-plan-review-client",
+        scope: runId
+          ? {
+              mode: "run",
+              execution_id: TEST_LATEST_EXECUTION_ID,
+              source_run_id: runId,
+              status: "성공",
+              finished_at: "2026-09-01T02:00:00Z",
+              policy_version: "c2-policy.v1",
+              purpose,
+            }
+          : { mode: "cumulative", policy_versions: ["c2-policy.v1"], activated_policy_versions: ["c2-policy.v1"] },
+        items,
+        total: items.length,
+        limit: 500,
+        offset: 0,
+      }),
+    });
+  });
+}
+
+test("회차를 고르면 기존 검색·필터를 지우지 않고 더하며 선택 집합만 새로 시작한다", async ({ page }) => {
+  await mockOrderPlans(page);
+  await mockOrderPlanRuns(page);
+  await page.goto("/order-plans?qwen=relevant%C2%B7uncertain&q=%EA%B3%B5%EA%B3%B5");
+  await expect(page.locator(".c2l-row").first()).toBeVisible();
+  const rowsBefore = await page.locator(".c2l-row").count();
+  await page.locator(".c2l-row").first().locator('input[type="checkbox"]').check();
+  await expect(page.getByTestId("order-plan-selection-toolbar")).toContainText("선택 1건");
+
+  await openAdvancedFilters(page);
+  await runSelectorTrigger(page).click();
+  await page.getByRole("option", { name: /2026-08-31 ~ 2026-08-31 수집/ }).click();
+
+  // M1 승인 결정 2 — 회차는 기존 조건에 **더한다.** 검색어와 축이 그대로 남는다.
+  await expect.poll(() => new URL(page.url()).searchParams.get("source_run_id")).toBe(TEST_ORDER_PLAN_SOURCE_RUN_ID);
+  const params = new URL(page.url()).searchParams;
+  expect(params.get("q")).toBe("공공");
+  expect(params.get("qwen")).toBe("relevant·uncertain");
+  await expect(page.getByRole("textbox", { name: "사업명·발주기관·계획번호 검색" })).toHaveValue("공공");
+  // 같은 조건이 그대로 걸려 있으므로 이 회차의 목록도 같은 행 수를 낸다(mock은 회차가
+  // 달라도 같은 집합을 준다). 회차가 다른 필터를 지웠다면 행 수가 늘었을 것이다.
+  await expect(page.locator(".c2l-row")).toHaveCount(rowsBefore);
+  // 범위가 바뀌었으므로 선택 집합은 새로 시작한다.
+  await expect(page.getByTestId("order-plan-selection-toolbar")).toContainText("선택 0건");
+});
+
+test("필터 초기화는 회차도 지우고, 새로고침·뒤로가기는 회차 URL을 그대로 복원한다", async ({ page }) => {
+  await mockOrderPlans(page);
+  await mockOrderPlanRuns(page);
+  await page.goto("/order-plans");
+  await openAdvancedFilters(page);
+  await runSelectorTrigger(page).click();
+  await page.getByRole("option", { name: /2026-08-31 ~ 2026-08-31 수집/ }).click();
+  await expect.poll(() => new URL(page.url()).searchParams.get("source_run_id")).toBe(TEST_ORDER_PLAN_SOURCE_RUN_ID);
+
+  // 새로고침해도 URL 상태가 그대로 복원된다.
+  await page.reload();
+  await expect(page.locator(".c2l-row").first()).toBeVisible();
+  expect(new URL(page.url()).searchParams.get("source_run_id")).toBe(TEST_ORDER_PLAN_SOURCE_RUN_ID);
+  await expect(runContextLine(page)).toContainText("2026-08-31 ~ 2026-08-31 수집");
+
+  // 회차 선택은 히스토리에 남는다(다른 필터와 달리 push다). 뒤로가면 누적으로,
+  // 앞으로 가면 다시 그 회차로 돌아온다.
+  await page.goBack();
+  await expect.poll(() => new URL(page.url()).searchParams.has("source_run_id")).toBe(false);
+  await expect(runContextLine(page)).toHaveCount(0);
+  await page.goForward();
+  await expect.poll(() => new URL(page.url()).searchParams.get("source_run_id")).toBe(TEST_ORDER_PLAN_SOURCE_RUN_ID);
+  await expect(runContextLine(page)).toContainText("2026-08-31 ~ 2026-08-31 수집");
+
+  // 초기화는 회차도 함께 지운다.
+  await resetFilters(page);
+  await expect.poll(() => new URL(page.url()).searchParams.has("source_run_id")).toBe(false);
+  await expect(runContextLine(page)).toHaveCount(0);
+});
+
+test("목록에 없는 회차로 들어와도 다른 회차로 바뀌지 않고 사유만 밝힌다", async ({ page }) => {
+  await mockOrderPlans(page);
+  // 회차 목록은 비어 있지만 조회에는 성공한 상태다.
+  await page.route("**/api/runs", (route) => route.fulfill({ json: { items: [], total: 0 } }));
+  await page.goto(`/order-plans?source_run_id=${TEST_ORDER_PLAN_SOURCE_RUN_ID}`);
+  await expect(page.locator(".c2l-row").first()).toBeVisible();
+
+  expect(new URL(page.url()).searchParams.get("source_run_id")).toBe(TEST_ORDER_PLAN_SOURCE_RUN_ID);
+  await expect(runContextLine(page)).toContainText("선택한 회차 (목록에 없음)");
+  await openAdvancedFilters(page);
+  await runSelectorTrigger(page).click();
+  await expect(page.getByRole("option", { name: /선택한 회차 \(목록에 없음\)/ })).toContainText("목록에서 확인할 수 없음");
+});
+
+test("회차 목록 조회 실패는 선택기 안과 회차 줄에서만 알리고 목록을 막지 않는다", async ({ page }) => {
+  await mockOrderPlans(page);
+  await page.route("**/api/runs", (route) => route.fulfill({ status: 500, json: { detail: "runs unavailable" } }));
+  await page.goto(`/order-plans?source_run_id=${TEST_ORDER_PLAN_SOURCE_RUN_ID}`);
+
+  // 목록은 그대로 온다. 화면 맨 위 배너는 더 이상 없다(시안 M1 승인) — 상세 필터를
+  // 펴기 전에는 조회 실패 문장이 화면 어디에도 없고, 걸린 회차의 사유만 회차 줄에 있다.
+  await expect(page.locator(".c2l-row").first()).toBeVisible();
+  await expect(page.getByText("수집 회차 목록을 불러오지 못했습니다.")).toHaveCount(0);
+  await expect(runContextLine(page)).toContainText("선택한 회차 (목록에 없음)");
+  await expect(runContextLine(page)).toContainText("회차 목록 조회 실패");
+
+  // 알림과 다시 시도 단추는 선택기 안에 있다.
+  await openAdvancedFilters(page);
+  const alert = page.locator(".source-run-filter-error");
+  await expect(alert).toHaveAttribute("role", "alert");
+  await expect(alert).toContainText("수집 회차 목록을 불러오지 못했습니다.");
+  await expect(alert.getByRole("button", { name: "다시 시도", exact: true })).toBeVisible();
+});
+
+// 강제 게이트: 측정 전용 실행의 목록을 운영 판정으로 읽게 두지 않는다. 표식은 상세
+// 필터를 접든 펴든, 어느 경로에서 들어오든 보여야 한다.
+test("측정 전용 실행 회차는 상세 필터를 접어도 회차 줄에 표식을 남긴다", async ({ page }) => {
+  await mockRunScopeList(page, "gate_measurement");
+  await page.goto(`/order-plans?source_run_id=${TEST_ORDER_PLAN_SOURCE_RUN_ID}`);
+  await expect(page.locator(".c2l-row")).toHaveCount(1);
+
+  // 접힌 기본 상태에서 이미 보인다.
+  const runLine = runContextLine(page);
+  await expect(page.getByRole("button", { name: "상세 필터", exact: true })).toHaveAttribute("aria-expanded", "false");
+  await expect(runLine).toContainText("측정 전용 실행");
+
+  // 펼쳐도 그대로다.
+  await openAdvancedFilters(page);
+  await expect(runLine).toContainText("측정 전용 실행");
+
+  // 운영 실행 회차에는 붙지 않는다.
+  await mockRunScopeList(page, "operational");
+  await page.goto(`/order-plans?source_run_id=${TEST_ORDER_PLAN_SOURCE_RUN_ID}`);
+  await expect(page.locator(".c2l-row")).toHaveCount(1);
+  await expect(runContextLine(page)).toContainText("회차 보기");
+  await expect(runContextLine(page)).not.toContainText("측정 전용 실행");
+});
+
+test("회차를 바꾸기 전에도 저장하지 않은 사람 판단 입력을 확인한다", async ({ page }) => {
+  await mockOrderPlans(page);
+  await mockOrderPlanRuns(page);
+  await page.goto("/order-plans");
+  await page.locator(".c2l-row").first().click();
+  await page.getByRole("button", { name: "사람 판단 수정 열기" }).click();
+  await page.getByLabel("memo").fill("회차 확인용 미저장 입력");
+  await page.keyboard.press("Escape");
+
+  await openAdvancedFilters(page);
+  await runSelectorTrigger(page).click();
+  await page.getByRole("option", { name: /2026-08-31 ~ 2026-08-31 수집/ }).click();
+  const dialog = page.getByRole("alertdialog");
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole("button", { name: "계속 편집", exact: true }).click();
+  expect(new URL(page.url()).searchParams.has("source_run_id")).toBe(false);
+  await page.getByRole("button", { name: "사람 판단 수정 열기" }).click();
+  await expect(page.getByLabel("memo")).toHaveValue("회차 확인용 미저장 입력");
+  await page.keyboard.press("Escape");
+
+  await runSelectorTrigger(page).click();
+  await page.getByRole("option", { name: /2026-08-31 ~ 2026-08-31 수집/ }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "저장하지 않고 이동", exact: true }).click();
+  await expect.poll(() => new URL(page.url()).searchParams.get("source_run_id")).toBe(TEST_ORDER_PLAN_SOURCE_RUN_ID);
+});
 
 test("자동 실행 배너는 active policy가 없거나 자동 실행이 켜져 있으면 두지 않는다", async ({ page }) => {
   // 공용 mock 기본값: active policy 없음(no_active_policy). 활성화 전에는 꺼져 있는 것이 정상이다.

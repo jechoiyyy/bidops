@@ -22,7 +22,7 @@ import { useListSelection } from "../components/common/useListSelection";
 import {
   DenseList,
   ListColumns,
-  ListPager,
+  ListPagerControls,
   ReviewDecisionAction,
   ReviewFilterSelector,
   ReviewFilterTextInput,
@@ -31,16 +31,20 @@ import {
   SelectionToolbar,
   SplitWorkspace,
 } from "../components/common/ReviewPrimitives";
+import { SourceRunContextLine, SourceRunFilter } from "../components/common/SourceRunFilter";
 import {
+  formatCount,
   WorkspaceAdvancedToggle,
   WorkspaceFilterAdvanced,
   WorkspaceFilterBar,
+  WorkspaceFilterContext,
   WorkspaceFilterLine,
   WorkspaceFrame,
   WorkspaceFilterTools,
   WorkspaceSearch,
   WorkspaceViewTabs,
 } from "../components/common/WorkspaceFilters";
+import { buildSourceRunOptions } from "../lib/runOptions";
 import { ORDER_PLAN_BULK_END_MAX_SELECTION, api } from "../lib/api";
 import { describeApiError } from "../lib/apiErrors";
 import { generateRequestId } from "../lib/requestId";
@@ -580,42 +584,36 @@ export function OrderPlansPage() {
     staleTime: 15_000,
   });
 
-  const runOptions = [
-    // 빈 값이 누적 모드다. 대시보드의 `회차 선택 안 함`과 같은 방식으로 되돌린다.
-    { label: "누적 · 회차 선택 안 함", description: "활성화된 적 있는 policy의 운영 판정 누적", value: "" },
-    ...Array.from(new Set([
-    ...collectionRuns.map((run) => run.run_id),
-    ...executions.map((execution) => execution.source_run_id),
-    ...(sourceRunId ? [sourceRunId] : []),
-  ])).map((runId) => {
-    const run = collectionRuns.find((item) => item.run_id === runId);
-    // 회차 이름은 서버가 준 metadata에서만 만든다. metadata가 없으면 날짜를 지어내지
-    // 않고 회차 식별자를 줄여 보이고 전체 값은 description으로 남긴다.
-    return {
-      label: run
-        ? (run.window_from && run.window_to
-          ? `${run.window_from}~${run.window_to} 수집`
-          : `${formatMoment(run.generated_at)} 수집`)
-        : `회차 ${runId.slice(0, 8)}…`,
-      description: runId,
-      value: runId,
-    };
-  })];
+  /**
+   * 회차 옵션은 공용 조립기가 만든다(`lib/runOptions.ts`). 회차 목록에 없고 실행에만
+   * 있는 회차는 날짜를 지어내지 않고 `수집 정보 없는 회차`로 남으며, URL에 걸린 회차가
+   * 목록에 없어도 조용히 다른 회차로 바뀌지 않는다.
+   */
+  const runOptionSourceIds = executions.map((execution) => execution.source_run_id);
+  const runOptions = buildSourceRunOptions({
+    runs: collectionRuns,
+    extraRunIds: runOptionSourceIds,
+    selectedRunId: sourceRunId,
+    isError: runsQuery.isError,
+  });
+  const selectedRunLabel = sourceRunId
+    ? runOptions.find((option) => option.value === sourceRunId)?.label ?? "선택한 회차 (목록에 없음)"
+    : null;
 
   /**
-   * 회차를 고르면 그 회차 전체(감사용)를, 비우면 누적 기본 보기로 돌아간다. 회차를 바꾸면
-   * 선택 행과 필터가 그 범위의 것이 아니므로 새로 시작한다.
+   * **회차는 기존 조건에 더한다**(시안 M1 승인 2026-09-21). 회차가 상세 필터의 한 축이
+   * 되었으므로 다른 축과 같은 방식(교집합)으로 동작한다 — 회차를 고른다고 검색어·보기·
+   * 다른 필터를 조용히 지우지 않는다. 범위가 바뀌므로 페이지만 처음으로 돌리고, 선택
+   * 집합은 `selectionFingerprint`에 회차가 들어 있어 저절로 새로 시작한다.
    */
   function changeSourceRun(runId: string | null) {
     const next = runId?.trim() || null;
     if (next === sourceRunId) return;
     withRowGuard(() => {
-      const params = new URLSearchParams();
-      if (next) {
-        params.set("source_run_id", next);
-        params.set("qwen", "");
-      }
-      setSearchText("");
+      const params = new URLSearchParams(searchParams);
+      if (next) params.set("source_run_id", next);
+      else params.delete("source_run_id");
+      params.delete("offset");
       setSearchParams(params);
     });
   }
@@ -769,6 +767,8 @@ export function OrderPlansPage() {
     withRowGuard(() => {
       const params = new URLSearchParams(searchParams);
       for (const key of AXIS_KEYS) params.delete(key);
+      // 회차도 상세 필터의 한 축이므로 초기화가 함께 지운다(명세 §2.1).
+      params.delete("source_run_id");
       params.delete("offset");
       setSearchParams(params, { replace: true });
       setSearchText("");
@@ -859,8 +859,6 @@ export function OrderPlansPage() {
   const filteredItems = sortByRelevance(allItems.filter((item) => matchesFilters(item) || item.order_plan_pk === retainedPk));
   const total = filteredItems.length;
   const visibleItems = filteredItems.slice(offset, offset + PAGE_SIZE);
-  const hasPrevious = offset > 0;
-  const hasNext = offset + visibleItems.length < total;
 
   const explicitTargetItem = selectedPk !== null
     ? allItems.find((item) => item.order_plan_pk === selectedPk) ?? null
@@ -1300,9 +1298,12 @@ export function OrderPlansPage() {
     return parts.length ? parts.join(" AND ") : "전체";
   })();
 
-  const activeFilterCount = isDefaultView
+  // 접힌 상세 필터에 걸린 조건 수. 회차도 한 축이므로 함께 센다(명세 §2.1) — 접어 두어도
+  // 회차가 걸려 있다는 사실이 토글 옆 수와 아래 회차 줄 둘로 드러난다.
+  const activeFilterCount = (isDefaultView
     ? 0
-    : qwenSet.size + stage1Set.size + feedbackSet.size + trackingSet.size + (issueOn ? 1 : 0) + (qText.trim() ? 1 : 0);
+    : qwenSet.size + stage1Set.size + feedbackSet.size + trackingSet.size + (issueOn ? 1 : 0) + (qText.trim() ? 1 : 0))
+    + (sourceRunId ? 1 : 0);
 
   const selectedIndex = selectedItem
     ? filteredItems.findIndex((item) => item.order_plan_pk === selectedItem.order_plan_pk) + 1
@@ -1324,8 +1325,10 @@ export function OrderPlansPage() {
           {/* 실행 상태는 낱말 하나로만 둔다. execution_id·시각·집계는 대화상자가 진다.
               회차 선택은 필터 아래 줄로 내려갔고(ADR-0062) 실행 상태 표시만 여기 남는다. */}
           <ExecutionStatusChip latest={latestExecution} executions={scopedExecutions} />
+          {/* 목록 범위를 설명하는 단추는 네 화면이 같은 이름을 쓴다(시안 M1 승인 결정 3).
+              본문 정리(실행 상태·run_id 전문의 운영 화면 이동)는 뒤 패키지가 맡는다. */}
           <Button
-            label="실행 상태"
+            label="목록 기준"
             size="sm"
             variant="ghost"
             onClick={() => setDialog("runtime")}
@@ -1360,10 +1363,9 @@ export function OrderPlansPage() {
           endContent={<Button label="다시 시도" size="sm" onClick={() => void executionsQuery.refetch()} />} />
       ) : null}
 
-      {runsQuery.isError ? <Banner status="error" title="수집 회차 목록을 불러오지 못했습니다."
-        description={describeApiError(runsQuery.error, "수집 회차를 확인할 수 없습니다.").title}
-        collapsible={false} endContent={<Button label="회차 다시 조회" onClick={() => void runsQuery.refetch()} />} /> : null}
-      {runsQuery.isPending ? <Text as="p" role="status">수집 회차를 불러오는 중…</Text> : null}
+      {/* 수집 회차 목록 조회 실패는 화면 맨 위 배너가 아니다(시안 M1 승인) — 회차를
+          고르지 않은 실무자에게는 업무 장애가 아니므로 선택기 안에서 알리고, 회차가
+          걸려 있을 때만 아래 회차 줄에서도 알린다. */}
       {/* 판정이 없는 범위는 원본 발주계획을 그대로 보이고 모델 판단을 값 없음으로 둔다.
           판정 없음을 비관련·실패로 바꾸지 않는다. */}
       {listQuery.isSuccess && listScope === null ? (
@@ -1422,19 +1424,9 @@ export function OrderPlansPage() {
               onChange={setSearchText}
               onClear={() => applySearch("")}
               onEnter={() => applySearch(searchText)}
-              placeholder="사업명·발주기관 검색"
+              placeholder="사업명·발주기관·계획번호 검색"
               value={searchText}
             />
-            {/* 회차는 감사용 범위 선택이며 검색 뒤에 둔다. */}
-            <div className="c2l-filter-context-range">
-              {/* 보이는 라벨은 사전규격과 같은 문구다. 접근 가능한 이름은 Selector가
-                  숨긴 라벨로 이미 갖고 있으므로 이 글자는 보조 기술에 두 번 읽히지 않게 한다. */}
-              <Text aria-hidden="true" type="label" color="secondary" as="span">수집 회차</Text>
-              {/* 기본은 누적이다. 회차는 감사용으로만 고른다(spec §7). */}
-              <ReviewFilterSelector className="c2l-run-selector" isDisabled={bulkPending} label="수집 회차" clearable={false}
-                options={runOptions} value={sourceRunId ?? ""} onChange={changeSourceRun}
-                placeholder="누적 · 회차 선택 안 함" />
-            </div>
           </WorkspaceFilterTools>
 
           {advancedOpen ? (
@@ -1509,6 +1501,21 @@ export function OrderPlansPage() {
                 />
               </div>
 
+              {/* 회차는 감사용 범위 선택이며 상세 필터의 한 축이다(ADR-0062 2026-09-21
+                  재개정). 기본은 누적이다. */}
+              <SourceRunFilter
+                allRunsDescription="활성화된 적 있는 policy의 운영 판정 누적"
+                className="c2l-filter-axis"
+                extraRunIds={runOptionSourceIds}
+                isDisabled={bulkPending}
+                isError={runsQuery.isError}
+                isPending={runsQuery.isPending}
+                onChange={changeSourceRun}
+                onRetry={() => { void runsQuery.refetch(); }}
+                runs={collectionRuns}
+                value={sourceRunId}
+              />
+
               <div className="c2l-filter-axis c2l-saved-views">
                 <Text type="label" color="secondary" as="p">저장된 뷰</Text>
                 <div className="c2l-saved-views-row">
@@ -1547,6 +1554,22 @@ export function OrderPlansPage() {
               </div>
             </WorkspaceFilterAdvanced>
           ) : null}
+
+          {/* 회차 줄 — 상세 필터를 접었는지와 무관하게 그린다(명세 §2.1). 측정 전용
+              실행 표식이 여기 하나로 모인다(시안 M1 승인 A안): 지금 보는 목록이 운영
+              판정이 아니라는 사실을 알리는 자리이므로 어느 경로에서도 사라지면 안 된다. */}
+          {sourceRunId && selectedRunLabel ? (
+            <WorkspaceFilterContext className="c2l-filter-context">
+              <SourceRunContextLine
+                badge={listScope?.mode === "run" && listScope.purpose === "gate_measurement"
+                  ? <Badge variant="warning" label="측정 전용 실행" />
+                  : null}
+                label={selectedRunLabel}
+                onClearRun={() => changeSourceRun(null)}
+                reason={runsQuery.isError ? "회차 목록 조회 실패" : null}
+              />
+            </WorkspaceFilterContext>
+          ) : null}
         </WorkspaceFilterBar>
 
         {/* 목록을 불러오는 중이거나 실패해도 두 pane 골격은 그대로 둔다. 화면이 통째로
@@ -1561,11 +1584,11 @@ export function OrderPlansPage() {
               <header className="review-list-head c2l-list-head">
                 {/* 목록을 못 읽었으면 건수는 0이 아니라 확인 불가다. 실패를 0건으로 적지 않는다. */}
                 <Text type="label" color="primary" as="p">
-                  검토 목록 · {listQuery.isError
-                    ? "현재 필터 결과 확인 불가"
+                  발주계획 목록 · {listQuery.isError
+                    ? "건수 확인 불가"
                     : listQuery.isPending
                       ? "불러오는 중"
-                      : `현재 필터 결과 ${total.toLocaleString("ko-KR")}건`}
+                      : `${formatCount(total)}건`}
                 </Text>
                 {/* 무엇을 보고 있는지는 한 줄로 남긴다. 축 안은 OR, 축끼리는 AND다. */}
                 <p className="c2l-list-scope" title={filterMeaning}>
@@ -1713,35 +1736,30 @@ export function OrderPlansPage() {
                   - 정렬 설명은 지웠다: 행마다 관련도 표식이 있어 순서가 자명하다.
                   - 기본 보기 숨김 안내는 지웠다: `전체` 탭과 그 건수가 "더 있다"를 이미 구조로
                     보여 주고, 문구가 `BM25 선정 제외` 같은 파이프라인 용어라 읽고 행동할 수 없다.
-                  - 범위 줄은 남긴다. 단 누적·정상일 때의 `판정 policy …`는 운영자용 감사 정보라
-                    숨기고, 아래 셋일 때만 보인다. 특히 회차 모드의 ` · 측정 전용 실행`은 이
-                    목록이 운영 판정이 아님을 알리는 **유일한 곳**이다 — 측정·참조 결과를 운영
-                    판정으로 오인시키지 않는 것은 저장소의 강제 게이트다(CLAUDE.md).
-                    ① 판정 없음(`null`) ② 누적인데 활성화된 적 있는 policy 판정이 없음
-                    ③ 특정 회차를 고른 회차 모드. 범위를 모르면(`undefined`) 적지 않는다. */}
+                  - 회차 모드도 더는 여기 적지 않는다(시안 M1 승인 A안). 회차와 ` · 측정 전용
+                    실행` 표식은 필터 둘째 줄의 회차 줄 하나로 모았다 — 같은 경고를 두 곳에
+                    두지 않되, 표식 자체는 접힘과 무관하게 늘 보인다.
+                  - 남는 것은 `판정 없음` 계열뿐이다: ① 판정 없음(`null`) ② 누적인데 활성화된
+                    적 있는 policy 판정이 없음. 범위를 모르면(`undefined`) 적지 않는다. */}
               {listScope === null
-                || (listScope !== undefined && (listScope.mode !== "cumulative" || listScope.policy_versions.length === 0)) ? (
+                || (listScope?.mode === "cumulative" && listScope.policy_versions.length === 0) ? (
                 <div className="c2l-list-foot">
                   <p className="c2l-list-scope" data-testid="order-plan-list-scope" title={scopeLabel(listScope)}>
                     <Text type="supporting" color="secondary" as="span">{scopeLabel(listScope)}</Text>
                   </p>
                 </div>
               ) : null}
-              {/* 페이저 줄은 안내 아래 마지막 줄이다. 사전규격과 같은 형식으로 왼쪽에
-                  전체 건수, 오른쪽에 범위와 이전/다음 단추를 둔다(B3). */}
+              {/* 페이저 줄은 안내 아래 마지막 줄이다. 네 화면이 같은 공용 부품을 쓴다. */}
               {listQuery.isPending || listQuery.isError ? null : (
-                <ListPager className="c2l-pager" label="발주계획 목록 페이지">
-                  <Text type="supporting" color="secondary">전체 {total.toLocaleString("ko-KR")}건</Text>
-                  <div className="c2l-pager-range">
-                    <Button label="이전" size="sm" variant="secondary" isDisabled={!hasPrevious} onClick={() => changeOffset(Math.max(0, offset - PAGE_SIZE))} />
-                    <Text type="supporting" color="secondary">
-                      {visibleItems.length
-                        ? `${(offset + 1).toLocaleString("ko-KR")}–${Math.min(offset + visibleItems.length, total).toLocaleString("ko-KR")} / ${total.toLocaleString("ko-KR")}`
-                        : "–"}
-                    </Text>
-                    <Button label="다음" size="sm" variant="secondary" isDisabled={!hasNext} onClick={() => changeOffset(offset + PAGE_SIZE)} />
-                  </div>
-                </ListPager>
+                <ListPagerControls
+                  className="c2l-pager"
+                  label="발주계획 목록 페이지"
+                  offset={offset}
+                  onNext={() => changeOffset(offset + PAGE_SIZE)}
+                  onPrevious={() => changeOffset(Math.max(0, offset - PAGE_SIZE))}
+                  total={total}
+                  visibleCount={visibleItems.length}
+                />
               )}
             </aside>
 
@@ -1783,9 +1801,9 @@ export function OrderPlansPage() {
         </SplitWorkspace>
       </WorkspaceFrame>
 
-      {/* 실행 상태와 표시 규칙. 기본 화면에서 큰 설명 영역을 없앤 대신 여기서 읽는다. */}
+      {/* 이 목록의 기준(옛 `실행 상태와 표시 규칙`). 기본 화면에서 큰 설명 영역을 없앤 대신 여기서 읽는다. */}
       <Dialog isOpen={dialog === "runtime"} onOpenChange={(open) => { if (!open) setDialog(null); }} purpose="info" width={640}>
-        <DialogHeader title="실행 상태와 표시 규칙" onOpenChange={() => setDialog(null)} />
+        <DialogHeader title="이 목록의 기준" onOpenChange={() => setDialog(null)} />
         <OrderPlanScopeDialogBody
           latestExecution={latestExecution}
           scopedExecutions={scopedExecutions}

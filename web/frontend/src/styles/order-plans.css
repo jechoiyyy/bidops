@@ -765,15 +765,6 @@
   min-width: 0;
 }
 
-/* 회차 이름은 길다. 1280px에서 제목·상태 칩·버튼·링크와 자리를 다투지 않도록 폭을
- * 묶고, 좁아지면 이 컨트롤이 먼저 줄어들게 한다(`flex: 0 1 auto`). */
-.c2l-header-actions .c2l-run-selector {
-  width: calc(var(--spacing-12) * 5);
-  flex: 0 1 auto;
-  min-width: calc(var(--spacing-12) * 3);
-  max-width: 100%;
-}
-
 .c2l-header-actions .astryx-selector {
   display: flex;
   align-items: center;
@@ -1022,7 +1013,8 @@ header.c2l-list-head .c2l-list-scope {
   overflow-wrap: anywhere;
 }
 
-/* 회차 선택은 필터 아래 줄이다(사전규격과 같은 자리). 라벨과 선택기를 한 줄에 둔다. */
+/* 필터 둘째 줄 — 지금 어느 회차를 보고 있는지 적는 자리다(회차 선택기 자체는 상세
+   필터 안으로 갔다). 줄의 내용은 공용 `.source-run-context`가 소유한다. */
 .c2l-filter-context {
   display: flex;
   flex-wrap: wrap;
@@ -1031,18 +1023,6 @@ header.c2l-list-head .c2l-list-scope {
   padding-top: 0;
   padding-bottom: var(--spacing-2);
   border-top: 0;
-}
-
-.c2l-filter-context-range {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--spacing-2);
-  min-width: 0;
-}
-
-.c2l-filter-context-range .c2l-run-selector {
-  min-width: 14rem;
 }
 
 .c2l-list-scroll {
@@ -1592,16 +1572,6 @@ header.c2l-list-head .c2l-list-scope {
   border-top: var(--border-width) solid var(--review-split-line);
   background: var(--review-quiet-surface);
   overflow-wrap: anywhere;
-}
-
-/* B3(0920 검수): 페이저 줄의 오른쪽 묶음(이전·범위·다음). 왼쪽 `전체 N건`은
-   `.review-list-pager`의 `justify-content: space-between`이 그대로 오른쪽 끝으로
-   보낸다. */
-.c2l-pager-range {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-2);
-  font-variant-numeric: tabular-nums;
 }
 
 /* 상세 pane 바닥의 결정 블록. 시안처럼 상태·사유·담당자·버튼이 한 덩어리로 늘 보이며
