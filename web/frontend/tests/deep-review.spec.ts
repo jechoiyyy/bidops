@@ -351,23 +351,32 @@ test("사람 확인 segment는 대응된 PDF 페이지만 링크하고 미확인
   const items = page.locator(".deep-review-segment-list > li");
   await expect(items).toHaveCount(3, { timeout: 10_000 });
 
+  // 구간은 계약 순번(`segment 2`)이 아니라 사람 말 머리로 구분한다. 계약
+  // 순번·블록 키·요구사항 ID 나열은 접힌 `기술 정보` 안에 그대로 남는다.
   // mapped · 단일 페이지 — 링크는 그 구조의 native snapshot PDF를 가리킨다.
-  const mapped = items.filter({ hasText: "segment 2" });
-  const mappedLink = mapped.getByRole("link", { name: "segment 2 · PDF 3페이지 열기" });
+  const mapped = page.locator('.deep-review-segment-list > li[data-segment-ordinal="2"]');
+  const mappedLink = mapped.getByRole("link", { name: "2번째 구간 · PDF 3페이지 열기" });
   await expect(mappedLink).toHaveAttribute("href", `/api/document-structures/${FIXTURE_STRUCTURE_ID}/pdf#page=3`);
   await expect(mappedLink).toHaveText("PDF 3페이지 ↗");
   await expect(mapped).not.toContainText("일부 블록만 대응");
 
   // partial · 페이지 범위 — 링크는 첫 페이지로 가고 부분 대응을 밝힌다.
-  const partial = items.filter({ hasText: "segment 3" });
-  const partialLink = partial.getByRole("link", { name: "segment 3 · PDF 5~7페이지 열기" });
+  const partial = page.locator('.deep-review-segment-list > li[data-segment-ordinal="3"]');
+  const partialLink = partial.getByRole("link", { name: "3번째 구간 · PDF 5~7페이지 열기" });
   await expect(partialLink).toHaveAttribute("href", `/api/document-structures/${FIXTURE_STRUCTURE_ID}/pdf#page=5`);
   await expect(partial).toContainText("일부 블록만 대응");
 
   // unavailable · 링크 없음. 페이지를 만들어 내지 않는다.
-  const unavailable = items.filter({ hasText: "segment 4" });
+  const unavailable = page.locator('.deep-review-segment-list > li[data-segment-ordinal="4"]');
   await expect(unavailable).toContainText("페이지 미확인");
   await expect(unavailable.getByRole("link")).toHaveCount(0);
+
+  // 접은 곳을 펴면 계약 순번·블록 키·요구사항 ID가 그대로 있다.
+  await expect(partial.getByText("fixture-block-partial")).toBeHidden();
+  await partial.getByText("기술 정보 · 3번째 구간").click();
+  await expect(partial.getByText("fixture-block-partial")).toBeVisible();
+  await expect(partial.getByText("segment 3", { exact: true })).toBeVisible();
+  await expect(partial.getByText("SFR-5", { exact: true })).toBeVisible();
 });
 
 // 심층검토 의견은 append-only라 저장 뒤 지울 수 없다. 클릭 한 번에 나가지 않고
@@ -400,4 +409,152 @@ test("심층검토 의견은 확인 없이는 요청이 나가지 않고 취소�
   await page.getByRole("alertdialog").getByRole("button", { name: "심층검토 의견 저장 · 보류", exact: true }).click();
   await expect(page.getByText("사전규격 심층검토 의견을 추가했습니다. 이전 기록은 그대로 남습니다.")).toBeVisible();
   expect(trace.opinionPosts).toHaveLength(1);
+});
+
+// ── 패키지 R5 · 기술 정보 접기(ADR-0065, spec §3.2) ────────────────────────
+
+// 실패는 사람 말 한 문장이 먼저 말한다. 서버가 정한 코드는 사라지지 않고 같은
+// 자리의 접힌 `기술 정보` 안에 전문으로 남는다.
+test("실패한 분석은 사람 말 문장을 먼저 보이고 오류 코드는 접힌 기술 정보에 남는다", async ({ page }) => {
+  await mockApi(page);
+  await mockDeepReviewLifecycle(page, "failed");
+  await page.goto("/deep-reviews/fixture-review");
+
+  const preparation = page.locator(".deep-review-preparation");
+  await expect(preparation).toContainText("모델 응답이 제한 시간 안에 오지 않아 분석을 마치지 못했습니다.", { timeout: 10_000 });
+  // 옛 표기는 화면에서 사라졌다.
+  await expect(page.getByText("안전한 오류 코드")).toHaveCount(0);
+
+  const codes = preparation.locator(".deep-review-technical-body");
+  await expect(codes).toHaveCount(1);
+  await expect(codes).toBeHidden();
+  await preparation.getByText("기술 정보 · 오류 코드").click();
+  await expect(codes).toBeVisible();
+  await expect(codes).toContainText("분석 회차 오류 코드");
+  await expect(codes).toContainText("model_timeout");
+  await expect(codes).toContainText("요구사항·평가 단계 오류 코드");
+
+  // 회차 이력도 같은 규칙이다 — 문장이 먼저, 코드는 접힌 곳에.
+  const history = page.locator(".deep-review-attempt-history");
+  await expect(history).toContainText("모델 응답이 제한 시간 안에 오지 않아 분석을 마치지 못했습니다.");
+  const historyCodes = history.locator(".deep-review-technical-body");
+  await expect(historyCodes).toBeHidden();
+  await history.getByText("기술 정보 · 1회차 오류 코드").click();
+  await expect(historyCodes).toBeVisible();
+  await expect(historyCodes).toContainText("model_timeout");
+});
+
+// 화면이 모르는 코드는 다른 사유로 바꾸거나 숨기지 않는다(ADR-0065 결정 3).
+test("사전에 없는 오류 코드는 문장 안에 그대로 보인다", async ({ page }) => {
+  await mockApi(page);
+  await mockDeepReviewLifecycle(page, "failed");
+  // 이 테스트에서만 회차 응답의 코드를 사전에 없는 값으로 바꾼다. 나중에 건
+  // route가 이긴다.
+  const unmappedAttempt = {
+    id: "fixture-attempt-1",
+    sequence: 1,
+    status: "failed",
+    started_at: "2026-08-26T00:00:01Z",
+    completed_at: "2026-08-26T00:00:11Z",
+    last_error_code: "fixture_unmapped_reason",
+    stages: [
+      { stage: "requirements_and_evaluation", sequence: 1, status: "failed", started_at: "2026-08-26T00:00:01Z", completed_at: "2026-08-26T00:00:11Z", last_error_code: "fixture_unmapped_reason" },
+      { stage: "delivery_risk_economics", sequence: 2, status: "queued", started_at: null, completed_at: null, last_error_code: null },
+      { stage: "synthesis_and_validation", sequence: 3, status: "queued", started_at: null, completed_at: null, last_error_code: null },
+    ],
+  };
+  await page.route("**/api/deep-reviews/fixture-review", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        id: "fixture-review", notice_id: 1, bundle_id: "fixture-bundle", status: "failed",
+        current_attempt: unmappedAttempt, attempts: [unmappedAttempt],
+        created_at: "2026-08-26T00:00:00Z", completed_at: null, quality_status: "unmeasured_reference",
+      }),
+    });
+  });
+  await page.goto("/deep-reviews/fixture-review");
+
+  const preparation = page.locator(".deep-review-preparation");
+  await expect(preparation).toContainText("분석을 마치지 못했습니다 · 코드 fixture_unmapped_reason", { timeout: 10_000 });
+  // 실패가 성공·완료로 읽히는 문구로 바뀌지 않는다.
+  await expect(preparation).toContainText("실패");
+});
+
+// 근거 인용문·쪽·신뢰도는 판단에 쓰는 값이라 밖에 남고, 식별자와 해시는 접힌
+// 곳에 전문 그대로 있다 — 8자 축약이나 말줄임을 만들지 않는다.
+test("근거 카드는 인용문·쪽·신뢰도를 바로 보이고 SHA-256 전문은 접힌 곳에 둔다", async ({ page }) => {
+  await mockApi(page);
+  await mockDeepReviewLifecycle(page, "completed");
+  await page.goto("/deep-reviews/fixture-review");
+
+  const card = page.locator(".evidence-source-card");
+  await expect(card).toBeVisible({ timeout: 10_000 });
+  await expect(card.locator("blockquote")).toContainText("synthetic fixture evidence");
+  await expect(card).toContainText("1쪽");
+  await expect(card).toContainText("근거 신뢰도");
+  await expect(card).toContainText("0.990");
+
+  const expectedSha = "a".repeat(64);
+  const hash = card.getByText(expectedSha, { exact: true });
+  await expect(hash).toHaveCount(1);
+  await expect(hash).toBeHidden();
+  await card.getByText("기술 정보 · 근거 식별자와 해시").click();
+  await expect(hash).toBeVisible();
+  // 잘리지 않은 전문이다.
+  expect(await hash.textContent()).toBe(expectedSha);
+  expect((await hash.textContent())?.length).toBe(64);
+  await expect(card.getByText("fixture-evidence-1", { exact: true })).toBeVisible();
+  await expect(card.getByText("fixture-document", { exact: true })).toBeVisible();
+
+  // 우측 `보고서 범위`도 같다 — 사람 말 요약은 밖, 버전과 식별자는 접힌 곳에.
+  const scope = page.locator(".deep-review-scope-panel");
+  await expect(scope).toContainText("공고 1건 · 문서 묶음 1개");
+  const policy = scope.getByText("fixture-policy", { exact: true });
+  await expect(policy).toBeHidden();
+  await scope.getByText("기술 정보 · 정책·회사 프로필 버전").click();
+  await expect(policy).toBeVisible();
+  await expect(scope.getByText("2026-08-26T00:00:00Z", { exact: true })).toBeVisible();
+});
+
+// 지우면 안 되는 경고는 접힘과 무관하게 늘 보인다(ADR-0065 결정 5).
+test("품질 표식·범위 주석·검증 요약은 접힘 밖에 그대로 남는다", async ({ page }) => {
+  await mockApi(page);
+  await mockDeepReviewLifecycle(page, "completed");
+  await page.goto("/deep-reviews/fixture-review");
+
+  await expect(page.locator(".deep-review-quality-card")).toContainText("참조 실행 · 품질 미측정", { timeout: 10_000 });
+  await expect(page.locator(".deep-review-opinion-quality")).toContainText("참조 실행 · 품질 미측정");
+  await expect(page.locator(".deep-review-scope-panel")).toContainText(
+    "이 범위 밖의 문서는 보고서에 들어가지 않았습니다. 범위가 좁다는 것을 사실이 없다는 뜻으로 읽지 마십시오.",
+  );
+  await expect(page.locator(".deep-review-validation-panel")).toContainText("상태: 통과");
+  await expect(page.locator(".deep-review-validation-panel")).toContainText("실패 0");
+  await expect(page.locator(".deep-review-validation-panel")).toContainText("경고 0");
+  const revisionCard = page.locator(".deep-review-summary-card").nth(3);
+  await expect(revisionCard).toContainText("1차");
+  await expect(revisionCard).toContainText("추가만 기록 · 덮어쓰기 없음");
+  await expect(page.locator(".detail-skeleton-rail-history")).toContainText("수정본 1");
+});
+
+// 접은 곳을 모두 펴도 지원 폭 두 곳에서 가로로 넘치지 않는다. 전문 해시는
+// 잘리지 않고 줄바꿈으로 흐른다.
+test("기술 정보를 모두 펴도 1280·1440에서 가로로 넘치지 않는다", async ({ page }) => {
+  await mockApi(page);
+  await mockDeepReviewLifecycle(page, "completed");
+  await page.goto("/deep-reviews/fixture-review");
+  await expect(page.locator(".evidence-source-card")).toBeVisible({ timeout: 10_000 });
+
+  await page.evaluate(() => {
+    document.querySelectorAll("details.deep-review-technical").forEach((item) => {
+      (item as HTMLDetailsElement).open = true;
+    });
+  });
+
+  for (const width of [1280, 1440]) {
+    await page.setViewportSize({ width, height: 800 });
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    expect(overflow, `${width}px에서 가로 넘침`).toBeLessThanOrEqual(1);
+  }
 });
