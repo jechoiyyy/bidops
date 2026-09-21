@@ -272,12 +272,6 @@
   text-align: center;
 }
 
-.gng-list-empty > svg {
-  width: var(--spacing-5);
-  height: var(--spacing-5);
-  color: var(--color-text-secondary);
-}
-
 /* --- 상세 --- */
 
 .gng-detail-pane {
