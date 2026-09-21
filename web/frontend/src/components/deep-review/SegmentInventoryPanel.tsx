@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { DeepReviewApiError, getDocumentSegments, getDocumentStructurePage } from "./api";
+import { TechnicalFacts, TechnicalInfo, type TechnicalFact } from "./TechnicalInfo";
 import type { DocumentSegmentView, SegmentPageRange, TaxonomyLabel } from "./types";
 
 // 심층 보고서 화면 우측 열의 문서별 inventory 요약과 `needs_human_review`
@@ -40,6 +41,18 @@ function pageRangeText(range: SegmentPageRange): string {
   return range.first === range.last ? `${range.first}` : `${range.first}~${range.last}`;
 }
 
+/** 접힌 곳이 싣는 구간 식별자. 계약이 준 값을 줄이지 않고 그대로 옮긴다. */
+function segmentTechnicalFacts(segment: DocumentSegmentView): TechnicalFact[] {
+  return [
+    { label: "구간 순번", value: `segment ${segment.ordinal}` },
+    { label: "시작 블록 키", value: segment.start_locator.block_key },
+    {
+      label: "요구사항 ID",
+      value: segment.requirement_ids.length > 0 ? segment.requirement_ids.join(", ") : "값 없음",
+    },
+  ];
+}
+
 function taxonomyText(segment: DocumentSegmentView): string {
   if (segment.taxonomy_labels.length === 0) return "분류 없음";
   return segment.taxonomy_labels.map((label) => TAXONOMY_LABEL[label] ?? label).join(" · ");
@@ -51,9 +64,11 @@ export interface SegmentInventoryPanelProps {
   structureId: string | null;
   /** 이 구조가 어떤 근거에서 왔는지 사람에게 알리는 문장. */
   sourceNote: string;
+  /** 같은 근거가 가리키는 저장 문서 버전. 접힌 `기술 정보`에 전문으로 싣는다. */
+  documentVersionId?: string | null;
 }
 
-export function SegmentInventoryPanel({ structureId, sourceNote }: SegmentInventoryPanelProps) {
+export function SegmentInventoryPanel({ documentVersionId = null, structureId, sourceNote }: SegmentInventoryPanelProps) {
   const [openPage, setOpenPage] = useState<number | null>(null);
   const segmentsQuery = useQuery({
     queryKey: ["document-segments", structureId],
@@ -123,11 +138,20 @@ export function SegmentInventoryPanel({ structureId, sourceNote }: SegmentInvent
             </div>
           </dl>
 
-          {view.inventory_summary.duplicate_ids.length > 0 ? (
-            <p className="deep-review-segment-note">
-              중복 ID · <span className="mono">{view.inventory_summary.duplicate_ids.join(", ")}</span>
-            </p>
-          ) : null}
+          {/* 문서 식별자와 중복 ID 나열은 눈으로 대조할 때만 필요하므로
+              접어 둔다. 건수(위 요약)와 이유 문장은 밖에 남는다(ADR-0065). */}
+          <TechnicalInfo summary="기술 정보 · 문서 식별자와 중복 ID">
+            <TechnicalFacts
+              label="문서 식별자와 중복 요구사항 ID"
+              facts={[
+                { label: "문서 버전", value: documentVersionId ?? "값 없음" },
+                { label: "문서 구조 ID", value: structureId ?? "값 없음" },
+                ...(view.inventory_summary.duplicate_ids.length > 0
+                  ? [{ label: "중복 ID", value: view.inventory_summary.duplicate_ids.join(", ") }]
+                  : []),
+              ]}
+            />
+          </TechnicalInfo>
           {view.inventory_summary.ambiguous_items.length > 0 ? (
             <ul className="deep-review-segment-ambiguous" aria-label="모호한 요구사항 항목">
               {view.inventory_summary.ambiguous_items.map((item) => (
@@ -156,17 +180,13 @@ export function SegmentInventoryPanel({ structureId, sourceNote }: SegmentInvent
           ) : (
             <ul className="deep-review-segment-list" aria-label="사람 확인 필요 segment">
               {needsReview.map((segment) => (
-                <li key={segment.segment_id}>
+                <li key={segment.segment_id} data-segment-ordinal={segment.ordinal}>
                   <div className="deep-review-segment-heading">
-                    <span className="mono tabular-nums">segment {segment.ordinal}</span>
+                    <span className="tabular-nums">{segment.ordinal}번째 구간</span>
                     <span>{taxonomyText(segment)}</span>
                   </div>
                   <div className="deep-review-segment-meta">
-                    <span className="mono">{segment.start_locator.block_key}</span>
                     <span>요구사항 ID {segment.requirement_ids.length}개</span>
-                    {segment.requirement_ids.length > 0 ? (
-                      <span className="mono">{segment.requirement_ids.join(", ")}</span>
-                    ) : null}
                     {segment.page_range === null ? (
                       <span>페이지 미확인</span>
                     ) : (
@@ -175,7 +195,7 @@ export function SegmentInventoryPanel({ structureId, sourceNote }: SegmentInvent
                           href={`/api/document-structures/${structureId as string}/pdf#page=${segment.page_range.first}`}
                           target="_blank"
                           rel="noreferrer"
-                          aria-label={`segment ${segment.ordinal} · PDF ${pageRangeText(segment.page_range)}페이지 열기`}
+                          aria-label={`${segment.ordinal}번째 구간 · PDF ${pageRangeText(segment.page_range)}페이지 열기`}
                         >
                           PDF {pageRangeText(segment.page_range)}페이지 ↗
                         </a>
@@ -192,6 +212,14 @@ export function SegmentInventoryPanel({ structureId, sourceNote }: SegmentInvent
                   >
                     {segment.start_locator.page}쪽 원문 열기
                   </button>
+                  {/* 계약 순번·블록 키·요구사항 ID 나열은 접어 둔다. 건수와
+                      분류, 원문으로 가는 길은 밖에 남는다(ADR-0065). */}
+                  <TechnicalInfo summary={`기술 정보 · ${segment.ordinal}번째 구간`}>
+                    <TechnicalFacts
+                      label={`${segment.ordinal}번째 구간의 식별자`}
+                      facts={segmentTechnicalFacts(segment)}
+                    />
+                  </TechnicalInfo>
                 </li>
               ))}
             </ul>
