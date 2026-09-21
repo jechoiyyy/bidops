@@ -26,7 +26,7 @@
 | C1 | 사업 추적 `SplitWorkspace` 골격 | **opus** | 4 | U2·U3, M1c 승인 | M1c | `pages/OpportunitiesPage.tsx`, `opportunities/*`, 해당 css·spec, `explore-workspace-consistency.spec.ts`(사업 추적 행) |
 | C2 | Go/No-Go `SplitWorkspace` 골격 | **opus** | 4 | U2·U3, M1c 승인 | M1c | `pages/GoNoGoPage.tsx`, 해당 css·spec, `explore-workspace-consistency.spec.ts`(Go/No-Go 행 — C1 뒤 순차) |
 | R6 | Go/No-Go·입찰 변경·판정 이력·셸(spec §3.3) | **sonnet** | 5 | C1·C2, M4 승인 | M4 | `pages/GoNoGoPage.tsx`, `pages/BidDeltaDecisionPage.tsx`, `opportunities/NoticeCorrectionDialog.tsx`, `shell/BasisPopover.tsx`·`route-meta.ts`·`Sidebar.tsx`, `notice/RetrievalSignals.tsx`, `pages/ReviewWorkspacePage.tsx`, `common/MutationFeedback.tsx` |
-| F0 | P6 공용: B2 필드의 프런트 타입·mock·fixture | **sonnet** | 6 | B1·B2 병합 | — | `lib/types.ts`, `tests/api-mock.ts`, fixtures |
+| F0 | P6 공용: B2 필드의 프런트 타입·mock·fixture + 심층 검토 fixture 오류 코드 `model_timeout` → `timeout`(사전에서 해당 줄 삭제) + `tests/fixtures/api.json`의 stale `order-plan-list-response.v1` 정리 | **sonnet** | 6 | B1·B2 병합 | — | `lib/types.ts`, `tests/api-mock.ts`, fixtures |
 | F1 | 발주계획 상세 API 연결·판정 변화·행 표식(spec §6.1) | **opus** | 7 | F0·R2, M5 승인 | M5 | `order-plans/OrderPlanDetailPane.tsx`·`OrderPlanListRow.tsx`, `pages/OrderPlansPage.tsx` |
 | F2 | 사전규격 제외 기록·수요기관, 입찰공고 금액 라벨·개찰일시·실적 매칭(spec §6.2·6.3) | **opus** | 7 | F0·R4, M5 승인 | M5 | `pre-specs/*`, `notice/NoticeFacts.tsx`, `pages/NoticeDetailPage.tsx` |
 | F3 | Go/No-Go 마감·예산 열·정렬, 사업 추적 행 예산·마감 | **sonnet** | 7 | F0·R6, M5 승인 | M5 | `pages/GoNoGoPage.tsx`, `pages/OpportunitiesPage.tsx` |
