@@ -7,9 +7,7 @@ import { Badge } from "@astryxdesign/core/Badge";
 import { Banner } from "@astryxdesign/core/Banner";
 import { Button } from "@astryxdesign/core/Button";
 import { Dialog, DialogHeader } from "@astryxdesign/core/Dialog";
-import { Heading } from "@astryxdesign/core/Heading";
 import { SegmentedControl, SegmentedControlItem } from "@astryxdesign/core/SegmentedControl";
-import { Stack } from "@astryxdesign/core/Stack";
 import { Tab, TabList } from "@astryxdesign/core/TabList";
 import { TextArea } from "@astryxdesign/core/TextArea";
 import { TextInput } from "@astryxdesign/core/TextInput";
@@ -30,7 +28,6 @@ import {
   ReviewFilterTextInput,
   ReviewRevisionHistory,
   ReviewStatus,
-  ReviewValue,
   SelectionToolbar,
   SplitWorkspace,
 } from "../components/common/ReviewPrimitives";
@@ -58,12 +55,14 @@ import {
 } from "../components/order-plans/OrderPlanBulkTrackingDialog";
 import { OrderPlanDetailPane } from "../components/order-plans/OrderPlanDetailPane";
 import { OrderPlanListRow } from "../components/order-plans/OrderPlanListRow";
+import { OrderPlanScopeDialogBody } from "../components/order-plans/OrderPlanScopeDialogBody";
+import { OrderPlanSignalPanel } from "../components/order-plans/OrderPlanSignalPanel";
+import { OrderPlanTelemetryPanel } from "../components/order-plans/OrderPlanTelemetryPanel";
+import { scopeLabel, statusDotVariant } from "../components/order-plans/orderPlanDialogShared";
 import {
   OTHER_REASON,
   TRACKING_REASONS,
   formatMoment,
-  stage1RowLabel,
-  stage2Label,
   textOrUnknown,
   trackingAvailability,
 } from "../components/order-plans/orderPlanFormat";
@@ -75,7 +74,6 @@ import type {
   OrderPlanListResponse,
   OrderPlanListScope,
   OrderPlanRelevance,
-  OrderPlanScreeningExecutionDetailResponse,
   OrderPlanScreeningExecutionListResponse,
   OrderPlanScreeningExecutionSummary,
   OrderPlanStage1Status,
@@ -154,28 +152,6 @@ interface SavedView {
   createdAt: string;
 }
 
-function formatNumber(value: number | null | undefined): string {
-  return value === null || value === undefined ? "null (미측정)" : value.toLocaleString("ko-KR");
-}
-
-/**
- * 목록 응답의 `scope`를 한 줄로 말한다. 누적과 회차는 뜻이 다르므로 같은 문장으로 접지 않는다.
- * - 누적: 활성화된 적 있는 policy의 운영 판정을 발주계획마다 최신 1건씩 모은 범위다.
- *   `policy_versions`는 그 범위에 실행이 실제로 있는 버전만이고, 없으면 빈 목록이다.
- * - 회차: 그 회차의 최신 완료 실행 하나(감사용). policy·purpose를 묻지 않으므로 측정 전용 실행이면 밝힌다.
- * - `null`: 회차에 완료 실행이 없다 — 판정 없음이며 비관련이 아니다.
- */
-function scopeLabel(scope: OrderPlanListScope | null): string {
-  if (scope === null) return "판정 없음 · 이 회차에 완료된 선별 실행이 없습니다";
-  if (scope.mode === "cumulative") {
-    return scope.policy_versions.length
-      ? `누적 · 판정 policy ${scope.policy_versions.join(", ")}`
-      : "누적 · 판정 policy 없음 (활성화된 적 있는 policy의 운영 판정이 아직 없습니다)";
-  }
-  const purpose = scope.purpose === "gate_measurement" ? " · 측정 전용 실행" : "";
-  return `회차 · 실행 ${scope.execution_id.slice(0, 8)} · ${scope.status} · 판정 policy ${scope.policy_version}${purpose}`;
-}
-
 /**
  * 일일 자동 실행이 꺼진 사유를 사람 말로 옮긴다(spec §3.4·§11). 모르는 code는 바꾸거나
  * 숨기지 않고 그대로 보인다. `no_active_policy`일 때는 배너 자체를 두지 않는다.
@@ -213,14 +189,6 @@ function DailyTriggerOffBanner({ state }: { state: C2DailyTriggerStateResponse }
       </ul>
     </Banner>
   );
-}
-
-function formatNullableMoment(value: string | null): string {
-  return value === null ? "null" : formatMoment(value);
-}
-
-function formatScore(value: number | null): string {
-  return value === null ? "null (값 없음/미측정)" : value.toLocaleString("ko-KR", { maximumFractionDigits: 4 });
 }
 
 /** Only a collected absolute HTTP(S) URL can become an external navigation link. */
@@ -307,20 +275,6 @@ function presetSelection(preset: Preset): AxisSelection {
     trackingSet: new Set(preset.axes.tracking),
     issueOn: preset.axes.issue,
   };
-}
-
-function statusTone(status: string | null | undefined): "success" | "warning" | "error" | "info" | "neutral" {
-  if (status === "성공" || status === "relevant" || status === "selected") return "success";
-  if (status === "부분 성공" || status === "uncertain" || status === "실행 중" || status === "중지 요청") return "warning";
-  if (status === "실패" || status === "failed" || status === "rejected" || status === "not_relevant") return "error";
-  if (status === "대기" || status === "unknown" || status === "not_attempted") return "info";
-  return "neutral";
-}
-
-/** StatusDot은 success/warning/error/accent/neutral만 지원한다(Badge와 다름). */
-function statusDotVariant(status: string | null | undefined): "success" | "warning" | "error" | "accent" | "neutral" {
-  const tone = statusTone(status);
-  return tone === "info" ? "accent" : tone;
 }
 
 function parseTokenSet<T extends string>(raw: string | null, allowed: readonly T[]): Set<T> {
@@ -450,175 +404,6 @@ function ExecutionStatusChip({ latest, executions }: { latest: OrderPlanScreenin
       {latest && !latest.execution_allowed ? <Badge variant="error" label="모델 연결 비허용" /> : null}
       {active.length ? <Badge variant="warning" label={`진행 중 ${active.length}`} /> : null}
     </span>
-  );
-}
-
-function ExecutionSummaryLine({ latest, executions }: { latest: OrderPlanScreeningExecutionSummary | null; executions: OrderPlanScreeningExecutionSummary[] }) {
-  const active = executions.filter((item) => item.status === "대기" || item.status === "실행 중" || item.status === "중지 요청");
-  if (!latest) {
-    return (
-      <Stack direction="horizontal" gap={2} align="center">
-        <ReviewStatus
-          label="실행 없음"
-          variant="neutral"
-          detail="표시할 성공/부분 성공 실행이 없습니다."
-        />
-      </Stack>
-    );
-  }
-  return (
-    <Stack direction="horizontal" gap={2} align="center" wrap="wrap">
-      <ReviewStatus
-        label={latest.status}
-        variant={statusDotVariant(latest.status)}
-        detail={`· ${latest.execution_id.slice(0, 8)} · ${formatMoment(latest.finished_at ?? latest.queued_at)}`}
-      />
-      {!latest.execution_allowed ? <Badge variant="error" label="정책·모델 연결 비허용" /> : null}
-      {active.length ? <Badge variant="warning" label={`진행 중 실행 ${active.length}건`} /> : null}
-    </Stack>
-  );
-}
-
-/** BM25 rank/score/nearest capability와 Qwen score/reason. 목록 행에서 뺀 신호 세부다. */
-function SignalPanel({ item }: { item: OrderPlanListItem }) {
-  return (
-    <div className="c2l-verdict">
-      {/* source run·관측 시각은 기본 상세에서 뺐지만(시안) 삭제하지 않고 여기 남긴다(F3). */}
-      <dl className="c2l-signal-facts">
-        <div><dt>source run</dt><dd className="c2l-digest"><ReviewValue value={item.source_run_id} nullLabel="null (미제공)" /></dd></div>
-        <div><dt>관측 시각</dt><dd>{formatMoment(item.observed_at)}</dd></div>
-      </dl>
-      <div className="c2l-signal-grid">
-        <section className="c2l-signal" aria-labelledby={`c2l-bm25-${item.order_plan_pk}`}>
-          <Heading level={5} id={`c2l-bm25-${item.order_plan_pk}`}>BM25 후보 신호</Heading>
-          <dl className="c2l-signal-facts">
-            <div><dt>status</dt><dd>{stage1RowLabel(item.stage1_status)}</dd></div>
-            <div><dt>rank</dt><dd>{item.stage1_rank === null ? "null (값 없음/미측정)" : item.stage1_rank}</dd></div>
-            <div><dt>score</dt><dd>{formatScore(item.stage1_score)}</dd></div>
-            <div><dt>nearest capability</dt><dd><ReviewValue value={item.nearest_capability} nullLabel="null (미제공)" /></dd></div>
-          </dl>
-        </section>
-        <section className="c2l-signal" aria-labelledby={`c2l-qwen-${item.order_plan_pk}`}>
-          <Heading level={5} id={`c2l-qwen-${item.order_plan_pk}`}>Qwen relevance 신호</Heading>
-          <dl className="c2l-signal-facts">
-            {/* status(stage2_status)는 relevance와 별도 축이다: not_attempted·failed·rejected·unknown을
-                relevance null 하나로 뭉개지 않는다(F1). */}
-            <div><dt>status</dt><dd>{stage2Label(item.stage2_status)}</dd></div>
-            <div><dt>relevance</dt><dd>{item.qwen_relevance ?? "null (값 없음/미적용)"}</dd></div>
-            <div><dt>score</dt><dd>{formatScore(item.qwen_score)}</dd></div>
-            <div><dt>reason</dt><dd><ReviewValue value={item.qwen_reason} nullLabel="null (근거 미제공)" /></dd></div>
-          </dl>
-        </section>
-      </div>
-    </div>
-  );
-}
-
-/** model_digest·token 수·duration_ms·binding sha256·artifact 요약. 삭제하지 않고 이 탭으로 옮겼다. */
-function TelemetryPanel({
-  execution,
-  detail,
-  detailPending,
-  detailError,
-}: {
-  execution: OrderPlanScreeningExecutionSummary;
-  detail: OrderPlanScreeningExecutionDetailResponse | undefined;
-  detailPending: boolean;
-  detailError: unknown;
-}) {
-  const counts = execution.counts;
-  return (
-    <div className="c2l-telemetry">
-      <div className="c2l-telemetry-heading">
-        <div>
-          <Text type="supporting" color="secondary" as="p">source run</Text>
-          <Text type="body" color="primary" as="p">{execution.source_run_id}</Text>
-          <Text type="supporting" color="secondary" as="p">{formatMoment(execution.finished_at ?? execution.queued_at)}</Text>
-        </div>
-        <Stack direction="horizontal" gap={2} align="center">
-          <Badge variant={statusTone(execution.status) === "error" ? "error" : statusTone(execution.status) === "warning" ? "warning" : "neutral"} label={execution.status} />
-          <Text type="body" color="secondary">{execution.execution_allowed ? "정책·모델 연결 허용" : "정책·모델 연결 비허용"}</Text>
-        </Stack>
-      </div>
-
-      <dl className="c2l-fact-grid">
-        <div><dt>execution_id</dt><dd className="c2l-digest">{execution.execution_id}</dd></div>
-        <div><dt>요청자</dt><dd>{textOrUnknown(execution.requested_by)}</dd></div>
-        <div><dt>policy version</dt><dd>{execution.policy_version}</dd></div>
-        <div><dt>population</dt><dd>{formatNumber(execution.population_count)}건</dd></div>
-        <div><dt>대상 hash</dt><dd className="c2l-digest">{execution.population_sha256}</dd></div>
-        <div><dt>정책 해시</dt><dd className="c2l-digest">{execution.policy_sha256}</dd></div>
-        <div><dt>모델 연결 상태</dt><dd>{execution.execution_allowed ? "허용됨" : "허용됨이 아님"}</dd></div>
-        <div><dt>모델 연결 해시</dt><dd className="c2l-digest">{execution.binding_sha256}</dd></div>
-      </dl>
-
-      <dl className="c2l-fact-grid" aria-label="단계별 모델 연결">
-        <div><dt>BM25 모델 연결</dt><dd>{execution.stage1_binding_version} · <span className="c2l-digest">{execution.stage1_binding_sha256}</span></dd></div>
-        <div><dt>Qwen 모델 연결</dt><dd>{execution.stage2_binding_version} · <span className="c2l-digest">{execution.stage2_binding_sha256}</span></dd></div>
-      </dl>
-
-      <dl className="c2l-count-grid" aria-label="실행 집계">
-        <div><dt>후보</dt><dd>{counts.candidate_count}</dd></div>
-        <div><dt>완료</dt><dd>{counts.completed_count}</dd></div>
-        <div><dt>실패</dt><dd>{counts.failure_count}</dd></div>
-        <div><dt>BM25 선정</dt><dd>{counts.stage1_selected_count}</dd></div>
-        <div><dt>BM25 탈락</dt><dd>{counts.stage1_filtered_out_count}</dd></div>
-        <div><dt>BM25 실패</dt><dd>{counts.stage1_failed_count}</dd></div>
-        <div><dt>Qwen relevant</dt><dd>{counts.stage2_relevant_count}</dd></div>
-        <div><dt>Qwen not relevant</dt><dd>{counts.stage2_not_relevant_count}</dd></div>
-        <div><dt>Qwen uncertain</dt><dd>{counts.stage2_uncertain_count}</dd></div>
-        <div><dt>Qwen 실패</dt><dd>{counts.stage2_failed_count}</dd></div>
-        <div><dt>Qwen 거부</dt><dd>{counts.stage2_rejected_count}</dd></div>
-        <div><dt>사람 검토</dt><dd>{counts.human_review_count}</dd></div>
-      </dl>
-
-      <div className="c2l-telemetry-attempts">
-        <Heading level={5}>실행 모델 · 수정본 · 프롬프트 · 프로필 · 분석 회차</Heading>
-        {detailPending ? <Text type="body" color="secondary" as="p">실행 artifact 요약을 불러오는 중…</Text> : null}
-        {detailError ? <Text type="body" color="secondary" as="p" data-role="alert">실행 상세를 불러오지 못해 산출물·분석 회차 요약을 확인할 수 없습니다.</Text> : null}
-        {detail?.attempts.length ? (
-          <ol className="c2l-attempt-list">
-            {detail.attempts.map((attempt) => (
-              <li key={attempt.attempt_id}>
-                <Text type="body" color="primary" weight="semibold" as="p">batch {attempt.batch_id} · attempt {attempt.attempt_no}</Text>
-                <dl className="c2l-attempt-grid">
-                  <div><dt>model / revision</dt><dd>{attempt.model_name} · <span className="c2l-digest">{attempt.model_digest}</span></dd></div>
-                  <div><dt>prompt</dt><dd>{attempt.prompt_version} · <span className="c2l-digest">{attempt.prompt_sha256}</span></dd></div>
-                  <div><dt>profile</dt><dd>{attempt.company_profile_version} · <span className="c2l-digest">{attempt.company_profile_sha256}</span></dd></div>
-                  <div><dt>generation config</dt><dd className="c2l-digest">{attempt.generation_config_sha256}</dd></div>
-                  <div><dt>status</dt><dd><Badge variant={attempt.attempt_status === "success" ? "success" : attempt.attempt_status === "running" ? "warning" : "error"} label={attempt.attempt_status} /></dd></div>
-                  <div><dt>failure</dt><dd>{attempt.failure_type ?? "null"} · {attempt.failure_code ?? "null"}</dd></div>
-                  <div><dt>tokens (input / cached / output / total)</dt><dd>{formatNumber(attempt.input_tokens)} / {formatNumber(attempt.cached_input_tokens)} / {formatNumber(attempt.output_tokens)} / {formatNumber(attempt.total_tokens)}</dd></div>
-                  <div><dt>duration_ms</dt><dd>{formatNumber(attempt.duration_ms)}</dd></div>
-                  <div><dt>시각</dt><dd>{formatNullableMoment(attempt.started_at)} → {formatNullableMoment(attempt.finished_at)}</dd></div>
-                </dl>
-              </li>
-            ))}
-          </ol>
-        ) : detail ? <Text type="body" color="secondary" as="p">분석 회차 기록 없음 (서버 응답)</Text> : null}
-        <dl className="c2l-fact-grid">
-          <div><dt>partial artifact</dt><dd>{execution.partial_artifact ? "있음" : "없음"}</dd></div>
-          <div><dt>error code</dt><dd>{execution.error_code === null ? "null (서버 미제공)" : execution.error_code}</dd></div>
-        </dl>
-      </div>
-
-      {detail?.artifacts.length ? (
-        <div className="c2l-artifact-summary">
-          <Heading level={5}>안전한 artifact 요약</Heading>
-          <ul>
-            {detail.artifacts.map((artifact) => (
-              <li key={`${artifact.kind}-${artifact.sha256}`}>
-                <span>{artifact.kind}</span>
-                <Badge variant={artifact.validation_status === "valid" ? "success" : artifact.validation_status === "invalid" ? "error" : "warning"} label={artifact.validation_status} />
-                <span>{artifact.byte_count.toLocaleString("ko-KR")} bytes</span>
-                <span className="c2l-digest">{artifact.sha256}</span>
-              </li>
-            ))}
-          </ul>
-          <Text type="supporting" color="secondary" as="p">본문·원문 경로·다운로드 URL은 이 화면에서 노출하지 않습니다.</Text>
-        </div>
-      ) : null}
-    </div>
   );
 }
 
@@ -2001,27 +1786,13 @@ export function OrderPlansPage() {
       {/* 실행 상태와 표시 규칙. 기본 화면에서 큰 설명 영역을 없앤 대신 여기서 읽는다. */}
       <Dialog isOpen={dialog === "runtime"} onOpenChange={(open) => { if (!open) setDialog(null); }} purpose="info" width={640}>
         <DialogHeader title="실행 상태와 표시 규칙" onOpenChange={() => setDialog(null)} />
-        <div className="c2l-dialog-body">
-          <ExecutionSummaryLine latest={latestExecution} executions={scopedExecutions} />
-          <Text type="body" color="secondary" as="p">
-            {isCumulative
-              ? "BM25 후보 신호와 Qwen relevance 신호를 분리해, 활성화된 적 있는 policy의 운영 실행 결과를 발주계획마다 최신 1건씩 누적해 검토합니다."
-              : "BM25 후보 신호와 Qwen relevance 신호를 분리해 선택한 회차의 성공/부분 성공 실행을 검토합니다."} 이 relevance는 tracking state, fitness grade, readiness, 최종 Go/No-Go가 아닙니다.
-          </Text>
-          <Text type="supporting" color="secondary" as="p">
-            <code>filtered_out</code>는 BM25 탈락, <code>not_relevant</code>는 Qwen relevance, <code>unknown</code>은 정보 부족, <code>null</code>은 값 없음/미적용이며 서로 바꾸지 않습니다.
-          </Text>
-          {/* 기본 화면의 결정 줄에서 뺀 문장. 뜻은 그대로 남기고 자리만 옮겼다. */}
-          <Text type="supporting" color="secondary" as="p">
-            미선택은 추적 종료가 아닙니다. 추적 선택은 추적 상태만 기록하며 모델 판단·적합성 등급·참여 준비 상태·최종 Go/No-Go를 바꾸지 않습니다.
-          </Text>
-          {listScope !== undefined ? (
-            <Text type="supporting" color="secondary" as="p">목록 범위 · {scopeLabel(listScope)}</Text>
-          ) : null}
-          {sourceRunId ? (
-            <Text type="supporting" color="secondary" as="p">수집 회차 <span className="c2l-digest">{sourceRunId}</span></Text>
-          ) : null}
-        </div>
+        <OrderPlanScopeDialogBody
+          latestExecution={latestExecution}
+          scopedExecutions={scopedExecutions}
+          isCumulative={isCumulative}
+          listScope={listScope}
+          sourceRunId={sourceRunId}
+        />
       </Dialog>
 
       {/* 신호 세부와 실행 기록. 목록 행과 기본 상세에서 뺀 값이 그대로 남아 있다. */}
@@ -2033,11 +1804,11 @@ export function OrderPlansPage() {
             <Tab value="telemetry" label="실행 기록" panelId="c2l-panel-telemetry" />
           </TabList>
           <div id="c2l-panel-signals" role="tabpanel" aria-label="신호 세부" hidden={signalTab !== "signals"}>
-            {selectedItem ? <SignalPanel item={selectedItem} /> : null}
+            {selectedItem ? <OrderPlanSignalPanel item={selectedItem} /> : null}
           </div>
           <div id="c2l-panel-telemetry" role="tabpanel" aria-label="실행 기록" hidden={signalTab !== "telemetry"}>
             {/* 이 행의 결과를 낸 실행이다. 누적 목록에서는 행마다 실행이 다를 수 있다. */}
-            {rowExecution ? <TelemetryPanel
+            {rowExecution ? <OrderPlanTelemetryPanel
               execution={rowExecution}
               detail={executionDetailQuery.data}
               detailPending={executionDetailQuery.isPending}
