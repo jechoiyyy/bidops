@@ -581,7 +581,7 @@ function PreSpecRecordBody({ noticeId, listSearch }: { noticeId: number | null; 
         </div>
 
         <dl className="ps-facts ps-record-facts">
-          <div className="ps-fact"><dt className="ps-k">사업 예산</dt><dd className="ps-v">{notice.budget === null ? "예산 미확인" : `${formatNumber(notice.budget)}원`}</dd><span className="ps-s" /></div>
+          <div className="ps-fact"><dt className="ps-k">사업 예산</dt><dd className="ps-v">{notice.budget === null ? "예산 미제공" : `${formatNumber(notice.budget)}원`}</dd><span className="ps-s" /></div>
           <div className="ps-fact"><dt className="ps-k">의견등록 마감</dt><dd className="ps-v">{recordDateTime(notice.deadline_at)}</dd><span className="ps-s" /></div>
           <div className="ps-fact"><dt className="ps-k">게시</dt><dd className="ps-v">{recordDateTime(notice.published_at)}</dd><span className="ps-s" /></div>
           <div className="ps-fact">

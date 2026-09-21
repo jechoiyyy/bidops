@@ -2272,10 +2272,10 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900
 
       // 회차를 고르면 그 회차의 실행으로 좁힌다(감사용). 회차 줄이 범위를 말한다.
       await runSelector.click();
-      await page.getByRole("option", { name: /2026-08-31 ~ 2026-08-31 수집/ }).click();
+      await page.getByRole("option", { name: /08-31 수집/ }).click();
       await expect.poll(() => new URL(page.url()).searchParams.get("source_run_id")).toBe(TEST_ORDER_PLAN_SOURCE_RUN_ID);
       await expect(runLine).toContainText("회차 보기");
-      await expect(runLine).toContainText("2026-08-31 ~ 2026-08-31 수집");
+      await expect(runLine).toContainText("08-31 수집");
       await expect(activeCount).toHaveText("1");
       // 회차 모드는 목록 바닥 줄을 더는 쓰지 않는다(시안 M1 승인 A안).
       await expect(scope).toHaveCount(0);
@@ -2286,7 +2286,7 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900
       const advancedToggle = page.getByRole("button", { name: "상세 필터", exact: true });
       await advancedToggle.click();
       await expect(advancedToggle).toHaveAttribute("aria-expanded", "false");
-      await expect(runLine).toContainText("2026-08-31 ~ 2026-08-31 수집");
+      await expect(runLine).toContainText("08-31 수집");
       await expect(activeCount).toHaveText("1");
 
       // 비우면 누적 기본 보기로 돌아간다. 이미 읽은 누적 목록은 캐시에서 다시 쓸 수 있으므로
@@ -2412,7 +2412,7 @@ test("회차를 고르면 기존 검색·필터를 지우지 않고 더하며 �
 
   await openAdvancedFilters(page);
   await runSelectorTrigger(page).click();
-  await page.getByRole("option", { name: /2026-08-31 ~ 2026-08-31 수집/ }).click();
+  await page.getByRole("option", { name: /08-31 수집/ }).click();
 
   // M1 승인 결정 2 — 회차는 기존 조건에 **더한다.** 검색어와 축이 그대로 남는다.
   await expect.poll(() => new URL(page.url()).searchParams.get("source_run_id")).toBe(TEST_ORDER_PLAN_SOURCE_RUN_ID);
@@ -2433,14 +2433,14 @@ test("필터 초기화는 회차도 지우고, 새로고침·뒤로가기는 회
   await page.goto("/order-plans");
   await openAdvancedFilters(page);
   await runSelectorTrigger(page).click();
-  await page.getByRole("option", { name: /2026-08-31 ~ 2026-08-31 수집/ }).click();
+  await page.getByRole("option", { name: /08-31 수집/ }).click();
   await expect.poll(() => new URL(page.url()).searchParams.get("source_run_id")).toBe(TEST_ORDER_PLAN_SOURCE_RUN_ID);
 
   // 새로고침해도 URL 상태가 그대로 복원된다.
   await page.reload();
   await expect(page.locator(".c2l-row").first()).toBeVisible();
   expect(new URL(page.url()).searchParams.get("source_run_id")).toBe(TEST_ORDER_PLAN_SOURCE_RUN_ID);
-  await expect(runContextLine(page)).toContainText("2026-08-31 ~ 2026-08-31 수집");
+  await expect(runContextLine(page)).toContainText("08-31 수집");
 
   // 회차 선택은 히스토리에 남는다(다른 필터와 달리 push다). 뒤로가면 누적으로,
   // 앞으로 가면 다시 그 회차로 돌아온다.
@@ -2449,7 +2449,7 @@ test("필터 초기화는 회차도 지우고, 새로고침·뒤로가기는 회
   await expect(runContextLine(page)).toHaveCount(0);
   await page.goForward();
   await expect.poll(() => new URL(page.url()).searchParams.get("source_run_id")).toBe(TEST_ORDER_PLAN_SOURCE_RUN_ID);
-  await expect(runContextLine(page)).toContainText("2026-08-31 ~ 2026-08-31 수집");
+  await expect(runContextLine(page)).toContainText("08-31 수집");
 
   // 초기화는 회차도 함께 지운다.
   await resetFilters(page);
@@ -2526,7 +2526,7 @@ test("회차를 바꾸기 전에도 저장하지 않은 사람 판단 입력을 
 
   await openAdvancedFilters(page);
   await runSelectorTrigger(page).click();
-  await page.getByRole("option", { name: /2026-08-31 ~ 2026-08-31 수집/ }).click();
+  await page.getByRole("option", { name: /08-31 수집/ }).click();
   const dialog = page.getByRole("alertdialog");
   await expect(dialog).toBeVisible();
   await dialog.getByRole("button", { name: "계속 편집", exact: true }).click();
@@ -2536,7 +2536,7 @@ test("회차를 바꾸기 전에도 저장하지 않은 사람 판단 입력을 
   await page.keyboard.press("Escape");
 
   await runSelectorTrigger(page).click();
-  await page.getByRole("option", { name: /2026-08-31 ~ 2026-08-31 수집/ }).click();
+  await page.getByRole("option", { name: /08-31 수집/ }).click();
   await page.getByRole("alertdialog").getByRole("button", { name: "저장하지 않고 이동", exact: true }).click();
   await expect.poll(() => new URL(page.url()).searchParams.get("source_run_id")).toBe(TEST_ORDER_PLAN_SOURCE_RUN_ID);
 });

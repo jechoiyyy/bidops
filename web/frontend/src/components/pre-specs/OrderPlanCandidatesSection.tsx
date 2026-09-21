@@ -53,9 +53,11 @@ function plannedOrderLabel(year: string | null, month: string | null): string {
   return `${plannedYear}년 ${monthOnly}월`;
 }
 
-/** 예산이 `null`이면 `값 없음`이다. 실제 0은 `0원`으로 남는다. */
+/** 예산이 `null`이면 서버가 값을 주지 않은 것이므로 `예산 미제공`이다(U3, spec §1.1).
+ * 실제 0은 `0원`으로 남는다. 값을 항상 자기서술로 두는 이유는 호출부의 `· ` 구분자와
+ * 겹쳐도 `예산`이 두 번 나오지 않게 하기 위해서다. */
 function budgetLabel(value: number | null): string {
-  return value === null ? "값 없음" : `${formatNumber(value)}원`;
+  return value === null ? "예산 미제공" : `예산 ${formatNumber(value)}원`;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -97,7 +99,7 @@ function CandidateRow({
             <p className="ps-plan-candidate-meta">
               {present(plan.agency_name, "기관 미확인")}
               {" · 발주 예정 "}{plannedOrderLabel(plan.planned_order_year, plan.planned_order_month)}
-              {" · 예산 "}{budgetLabel(plan.budget_amount)}
+              {" · "}{budgetLabel(plan.budget_amount)}
               {" · 통합번호 "}{present(plan.order_plan_unty_no, "미확인")}
             </p>
           </div>
