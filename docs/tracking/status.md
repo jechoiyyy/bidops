@@ -6,6 +6,16 @@
 
 `구현됨`은 코드와 계약이 존재한다는 뜻이고, `검증됨`은 기록된 명령이 해당 범위에서 통과했다는 뜻이다. Mock 결과, 과거 브랜치 결과, 현재 worktree 결과, 외부 운영 승인을 서로 대신하지 않는다.
 
+## 사전규격 검토할 항목의 마감 구간 (2026-09-21, 로컬 구현·관련 검증 완료, 운영 배포 전)
+
+[ADR-0064](decisions/0064-prespec-actionable-deadline-scope.md)에 따라 검토할 항목의 기본 시야를 `마감 전 + 마감 미확인`으로 좁히고, `마감 경과`를 건수와 함께 조회 도구 줄 네 번째 칸에서 1클릭으로 전환하게 했다. 마감 경과를 제외·소멸시키지 않으며 마감 미확인은 항상 기본 구간에 남는다. 질의 인자 `deadline_scope=current|passed|all`(기본 `all`)과 응답 집계 `deadline_scope_counts{current,passed}`를 더했다. 구간은 actionable workspace 술어의 일부라 `workspace_counts.actionable`에만 반영되고 나머지 세 보기의 행·건수는 바뀌지 않는다. 시간 비교는 전부 SQL이 하고 시계는 요청당 1회 고정한 값 하나다. **migration은 없다**(Alembic head `0030_prespec_review_exclusion` 그대로). 커밋·push·운영 재배포는 실행하지 않았다.
+
+- Backend: 일회용 `postgres:17.11`과 `BIDOPS_PRESPEC_OVERVIEW_ENABLED=false`로 사전규격·검색·사업 추적·발주계획 7개 파일을 실행해 **127 passed / 0 failed**. 변경 전 같은 범위의 기준선은 125 passed / 0 failed이므로 새 사례 2건이 늘고 회귀는 0이다. 새 사례는 마감 미확인 보존, 구간별 분할, 다른 세 탭 건수 불변, 검토 제외와의 결합, 페이지 경계, `deadline_status`와의 AND, 422를 고정한다.
+- Frontend: `npx tsc -b && npm run build` 통과. `npm run test:screens` **667 passed / 3 failed / 6 skipped**. 변경 전 기준선은 665 / 3 / 6이며 회귀는 0이다 — 실패 3건 중 `admin-workspace-consistency.spec.ts:23`의 1280·1440 2건은 `/runs`의 `.rs-detail-foot`이 없어 나는 기존 실패이고(그 테스트만 `installRunStatusMock`을 설치하지 않는다, main과 코드 동일), `bid-delta.spec.ts`의 1건은 단독 재실행에서 41 passed로 통과한 부하 flake다(직전 실행에서는 같은 파일의 다른 사례가 실패해 실패 지점이 옮겨 다닌다). 기준선에서 실패하던 `list-selection.spec.ts` LS-S1은 검색 키 정규화 계약에 맞게 기대값을 고쳐 회복했다.
+- 폭: 1280×800·1440×900에서 조회 도구 줄의 직계 자식 4개가 같은 `top`을 가져 한 줄을 유지하고 가로 넘침이 0인 것을 측정으로 확인했다.
+
+검증 한계: 프런트 검사는 계약 기반 mock 환경이다. **운영 스택에서 `GET /api/pre-specs?workspace=actionable&deadline_scope=current`가 실측 55/44를 재현하는지는 아직 확인하지 않았다** — 새 백엔드를 운영 web에 올려야 하고, 재배포는 직전 사람 확인과 백업이 필요한 운영 변경이다. 픽셀 기준선(`pre-specs-list`)도 교체하지 않았다(게이트 아님).
+
 ## 목록 조회 도구·검색 UX 통일 (2026-09-21, 로컬 구현·관련 검증 완료, 운영 배포 전)
 
 [의도·명세·계획](../0921_search-ux/plan.md)에 따라 발주계획·사전규격·사업 추적·최종 Go/No-Go의 검색 도구를 보기 탭 아래 왼쪽에 배치하고 Enter 적용, raw `q` 보존, Unicode 공백 제거·ASCII 대소문자 비교, 검색만 지우기, 동등 query의 선택·페이지 보존을 연결했다. 사전규격·사업 추적·독립 발주계획 API는 페이지 분할 전 서버 검색을 하며 Go/No-Go는 받은 행만 검색한다. DB migration은 없다. 다른 미커밋 작업은 보존했고 commit·push·운영 재배포는 실행하지 않았다.
