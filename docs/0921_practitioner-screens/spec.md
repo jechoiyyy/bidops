@@ -123,7 +123,7 @@
 | `CompanyFitSection.tsx:75-85` `판정 기준과 실행 정보` | ⑥ Collapsible로 병합(`0915_ui-redesign/spec.md:234` 준수). `:31` 표식·`:33` 안내는 제자리 |
 | `PageOverviewSection.tsx:149-155` 모델·프롬프트, `:281-288` 실행 정보 | ⑥으로 이동. `:164` 표식 유지 |
 | 제목 `현재 v4 개요 실행` | 한글화 → `현재 개요 검토` |
-| 경계 문장 4회(`PreSpecDetailPage.tsx:291-294, 649-651, 806, 930`) | 1회만 유지 |
+| 경계 문장(`PreSpecDetailPage.tsx:291-294, 649-651, 806, 930`) | **M4 승인: ② 추적 결정 카드에 한 번만** — "적합성 등급 · 추적 결정 · 최종 Go/No-Go는 서로 대신하지 않습니다. 입찰 참여 여부는 최종 Go/No-Go에서 정합니다." 나머지는 삭제. 접힌 곳의 이름은 `기술 정보 · 주장 검증 진단, 고정 입력과 식별 해시, 회사 적합성 실행 정보` |
 | `DeepReviewPage.tsx` `안전한 오류 코드`(:389-443) | 조건부. 실패 시 사람 말 한 문장, 코드는 접힌 `기술 정보` |
 | 근거 uuid·SHA-256 전문·block_key·bbox(:655-691), 정책·프로필 버전(:762-781) | 같은 화면의 접힌 `기술 정보`로 이동. 시각은 `formatMoment`. 범위 주석(:770) 유지 |
 | `SegmentInventoryPanel.tsx:128-183` | 이유 문장 유지, block_key·ID 나열은 접힘 |
@@ -141,8 +141,8 @@
 | 상단바 `RunSelector`(queue·judgments) | 유지(이 화면의 업무 축). 라벨만 공용 포맷 |
 | `BasisPopover.tsx:47-66` | run_id 삭제, 회차 라벨·생성 시각만 |
 | `ReviewWorkspacePage.tsx:109-111`, `RetrievalSignals.tsx:32` `focus_matches`, `API 직접 제공값` 부제 | 한글화 / 삭제 |
-| TopBar 편집 범위 칩(`route-meta.ts:134-191`) | 시안 M4에서 개별 심사. 경고 ⑦ 문장은 담당자 입력 옆에 유지 |
-| `MutationFeedback.tsx:53` `· 오류 코드` | 접힘·접근 설명으로 이동 |
+| TopBar 편집 범위 칩(`route-meta.ts:134-191`) | **M4 승인: 삭제**(`… 저장 가능`). 읽기 전용 표식과 경고 ⑦ 문장(담당자 입력 옆)은 유지 |
+| `MutationFeedback.tsx:53` `· 오류 코드` | **M4 승인**: 문장 옆 접힌 `기술 정보`로, 보조기술에는 설명으로 계속 읽힌다 |
 | 사이드바 `관리자 화면` | 삭제 |
 
 ### 3.4 우선 수정 — 지역 제한 표시 결함
