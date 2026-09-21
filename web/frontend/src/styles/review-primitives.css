@@ -225,6 +225,15 @@
   font-size: var(--bo-type-caption);
 }
 
+/* 페이저 줄의 오른쪽 묶음(이전·범위·다음). 왼쪽 `전체 N건`은 위 규칙의
+   `justify-content: space-between`이 그대로 오른쪽 끝으로 보낸다(명세 §2.2). */
+.review-list-pager-range {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  font-variant-numeric: tabular-nums;
+}
+
 .review-detail-head {
   display: flex;
   flex: 0 0 auto;
