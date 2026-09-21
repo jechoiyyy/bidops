@@ -349,6 +349,9 @@ async function mockPreSpecs(page: Page, options: PreSpecMockOptions = {}): Promi
           offset,
           overview_status_counts: overviewStatusCounts(statusItems),
           workspace_counts: workspaceCounts,
+          // 계약상 항상 있는 집계다. 이 표본의 마감은 고정 브라우저 시계 기준으로
+          // 전부 미래이거나 미확인이라 구간 적용 전 actionable이 전부 `current`다.
+          deadline_scope_counts: { current: workspaceCounts.actionable, passed: 0 },
         }),
       });
       return;

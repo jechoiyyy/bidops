@@ -1,3 +1,5 @@
+import { searchKey } from "./search";
+
 /**
  * Pure state, persistence, and ordering helpers for the list review surfaces.
  *
@@ -496,13 +498,14 @@ export function orderPlansFilterFingerprint(filters: {
     feedback: canonicalFilterTokens(filters.feedback),
     tracking: canonicalFilterTokens(filters.tracking),
     issue: filters.issue,
-    q: filters.q,
+    q: searchKey(filters.q),
   };
   return `order-plans:${canonicalizeFilterValue(normalized)}`;
 }
 
 /** Filter fingerprint for the pre-spec list's applied semantic axes. */
 export function preSpecsFilterFingerprint(filters: {
+  reviewExclusion?: string;
   swOnly: boolean;
   businessDivision: string;
   origin: string;
@@ -516,9 +519,12 @@ export function preSpecsFilterFingerprint(filters: {
   observedFrom?: string;
   observedTo?: string;
   deadlineStatus?: string;
+  /** 검토할 항목의 마감 구간(ADR-0064). 의미 필터이므로 전환하면 선택을 비운다. */
+  deadlineScope?: string;
   q: string;
 }): string {
   const normalized = {
+    reviewExclusion: filters.reviewExclusion ?? "all",
     swOnly: filters.swOnly,
     businessDivision: filters.businessDivision,
     origin: filters.origin,
@@ -532,7 +538,8 @@ export function preSpecsFilterFingerprint(filters: {
     observedFrom: filters.observedFrom ?? "",
     observedTo: filters.observedTo ?? "",
     deadlineStatus: filters.deadlineStatus ?? "",
-    q: filters.q,
+    deadlineScope: filters.deadlineScope ?? "current",
+    q: searchKey(filters.q),
   };
   return `pre-specs:${canonicalizeFilterValue(normalized)}`;
 }

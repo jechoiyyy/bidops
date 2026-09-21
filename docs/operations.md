@@ -224,6 +224,21 @@ curl --fail "http://127.0.0.1:${BIDOPS_WEB_PORT:-18787}/api/health"
 
 `migrate` service는 Alembic 성공 뒤 `scripts/runtime-privileges.sql`을 적용한다. 이 단계는 이전 blanket grant를 먼저 회수하고 현재 head의 table·operation allowlist를 다시 부여한다. 새 table은 `app`·`worker` 기본 DML을 받지 않으므로 migration에 runtime write path가 추가되면 같은 변경에서 allowlist와 역할 smoke test를 갱신해야 한다. `ro_backup`만 현재·향후 table의 `SELECT` 기본 권한을 유지한다.
 
+사전규격 검토 제외·복원 배포의 기대 head는 `0030_prespec_review_exclusion`이다.
+`notice`에 현재 제외 상태와 마지막 담당자·사유·시각 네 열을 추가하고 기존 건은
+included/null로 읽는다. `scripts/runtime-privileges.sql`의 app 열 한정 UPDATE 네 열을
+migration과 함께 적용해야 한다. worker 권한과 모델 설정은 바꾸지 않는다.
+
+적용 순서는 전체 백업(`backups/postgres/full/`, 객체 manifest 포함)과
+`before-prespec-review-exclusion-<날짜>` 롤백 태그 확보 → 실행 직전 사람 확인 →
+서비스 중지·기존 migration 명령으로 head/권한 적용 → 재배포 직전 별도 사람 확인 →
+기존 운영 Compose 조합으로 서비스 교체다. migration 승인만으로 재배포하지 않는다.
+적용 뒤 `/api/health`, `/api/pre-specs?workspace=all&limit=1`의 새 네 필드,
+`/api/pre-specs?workspace=actionable&review_exclusion=excluded`의 total=0을 조회한다.
+운영 검증을 위해 실제 공고를 임의로 제외하거나 SQL로 상태를 보정하지 않는다.
+이 revision은 사람 변경 정보 보존 때문에 downgrade를 제공하지 않으며 복구는 검증한
+배포 전 백업을 별도 DB에 복원하는 기존 절차를 따른다. 코드 검증은 운영 적용 증거가 아니다.
+
 첨부 worker의 자동 준비 경로가 필요로 하는 묶음·큐 INSERT를 worker에 부여한다. 사전규격 첨부 취득이 종결되면 `prespec-attachment-worker`가 같은 프로세스에서 문서 묶음을 만들고 확정한 뒤 개요 run을 큐에 넣으므로, worker 역할은 `document_bundle`·`document_bundle_item`·`idempotency_record`·`work_job` INSERT와 확정에 쓰는 열만 여는 `document_bundle`·`document_bundle_item` 열 한정 UPDATE, 잠금용 `document_structure (id)` UPDATE를 갖는다. 확정은 문서 집합·순서가 그대로면 기존 draft 항목을 지우지 않고 제자리로 갱신하므로 이 권한만으로 끝난다. 이 권한이 없으면 자동 준비가 SQLSTATE `42501`로 막히고 운영자가 app 역할의 보정 명령을 대신 실행해야 한다. worker는 어느 table에도 DELETE를 갖지 않으며, 권한을 바꿀 때는 `scripts/runtime-privileges.sql`과 역할 smoke test를 같은 변경에서 갱신하고 migration 단계로 다시 적용한다.
 
 사설 vLLM 없이 웹과 문서 준비만 확인할 때는 model-egress overlay를 빼고 기동할 수 있다. 이 경우 분석 worker가 모델 단계에서 실패하는 것은 정상이며 성공으로 보정하지 않는다.

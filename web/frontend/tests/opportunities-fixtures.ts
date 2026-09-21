@@ -1,4 +1,5 @@
 import type { Page } from "@playwright/test";
+import { searchKey, searchMatches } from "../src/lib/search";
 
 /**
  * 사업 추적 화면 회귀.
@@ -546,13 +547,13 @@ export async function mockOpportunities(page: Page, options: MockOptions = {}): 
         return;
       }
       const stage = url.searchParams.get("first_registered_stage");
-      const needle = url.searchParams.get("q")?.trim().toLowerCase() ?? "";
+      const query = url.searchParams.get("q");
       // 서버 facet 규칙(opportunity_queries.list_opportunities): 구역 건수는 `section`만,
       // 사유 건수는 `reason`만 빼고 센다. 검색은 확정 연결의 제목·기관만 본다.
       const scoped = [...details.values()].filter((item) => (!stage || item.first_registered_stage === stage)
-        && (!needle || (item.links as Array<Record<string, unknown>>).some((link) => (
+        && (!query || !searchKey(query) || (item.links as Array<Record<string, unknown>>).some((link) => (
           (link.link_type === "official" && link.status === "확정") || link.status === "사람 확인 완료"
-        ) && `${link.title ?? ""} ${link.agency ?? ""}`.toLowerCase().includes(needle))));
+        ) && searchMatches(query, String(link.title ?? ""), String(link.agency ?? "")))));
       const requested = url.searchParams.get("section");
       const reason = url.searchParams.get("reason");
       const reasonsOf = (item: Fixture) => (item.action_reasons as string[] | undefined) ?? [];

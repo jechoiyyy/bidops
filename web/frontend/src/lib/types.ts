@@ -209,6 +209,10 @@ export type PreSpecOverviewView =
   | "cancelled"
   | "not_started";
 export type PreSpecDeadlineStatus = "open" | "passed" | "unknown";
+/** 검토할 항목(actionable)의 기본 시야를 나누는 구간(ADR-0064). `current`는
+ * `마감 전`과 `마감 미확인`(`deadline_at`이 null)을 함께 담는다 — 미확인을 마감
+ * 경과로 접지 않는다. 기존 `deadline_status`와 달리 actionable 술어의 일부다. */
+export type PreSpecDeadlineScope = "current" | "passed" | "all";
 export type PreSpecNextAction = "confirm_overview" | "open_deep_review" | "decide_tracking";
 export type PreSpecSort = "published" | "deadline" | "observed";
 
@@ -238,7 +242,22 @@ export interface PreSpecDocumentSummary {
   "실패": number;
 }
 
+export type PreSpecReviewExclusionStatus = "included" | "excluded";
+export interface PreSpecReviewExclusionRequest {
+  notice_ids: number[];
+  status: PreSpecReviewExclusionStatus;
+  actor_name: string;
+  reason: string;
+}
+export interface PreSpecReviewExclusionResponse {
+  items: { notice_id: number; status: PreSpecReviewExclusionStatus; outcome: "changed" | "unchanged" }[];
+}
+
 export interface PreSpecListItem {
+  review_exclusion_status: PreSpecReviewExclusionStatus;
+  review_exclusion_actor_name: string | null;
+  review_exclusion_reason: string | null;
+  review_exclusion_changed_at: string | null;
   notice_pk: number;
   pre_spec_no: string | null;
   title: string | null;
@@ -283,6 +302,13 @@ export interface PreSpecOverviewStatusCount {
   count: number;
 }
 
+/** 구간을 적용하기 **전** actionable 집합을 두 구간으로 나눈 건수(ADR-0064 결정 5).
+ * 활성 workspace·활성 `deadline_scope`와 무관하게 언제나 같은 값이고 언제나 있다. */
+export interface PreSpecDeadlineScopeCounts {
+  current: number;
+  passed: number;
+}
+
 export interface PreSpecListResponse {
   items: PreSpecListItem[];
   total: number;
@@ -291,9 +317,12 @@ export interface PreSpecListResponse {
   overview_status_counts: PreSpecOverviewStatusCount[];
   /** 활성 workspace를 제외한 나머지 필터 기준의 누적 건수. */
   workspace_counts: Record<PreSpecWorkspace, number>;
+  deadline_scope_counts: PreSpecDeadlineScopeCounts;
 }
 
 export interface PreSpecListQuery {
+  review_exclusion?: "all" | PreSpecReviewExclusionStatus;
+  deadline_scope?: PreSpecDeadlineScope;
   notice_pk?: number | null;
   sw_only?: boolean | null;
   auto_preparation_status?: PreSpecAutoPreparationStatus | null;

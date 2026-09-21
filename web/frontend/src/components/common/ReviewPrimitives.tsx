@@ -474,6 +474,13 @@ export interface ReviewFilterSegmentedControlProps {
   disabledMessage?: string;
   isDisabled?: boolean;
   label: string;
+  /**
+   * Astryx `SegmentedControl`의 폭 정책을 그대로 넘긴다. `fill`은 `width: 100%`라
+   * 컨테이너를 통째로 차지하므로 필터 바 같은 flex 도구 줄에서는 혼자 한 줄을
+   * 먹는다. 그 줄에 놓는 컨트롤은 `hug`를 준다. 기본값은 기존 동작(`fill`)이다.
+   * @default "fill"
+   */
+  layout?: "hug" | "fill";
   onChange: (value: string) => void;
   options: ReviewFilterSegmentedOption[];
   value: string;
@@ -485,6 +492,7 @@ export function ReviewFilterSegmentedControl({
   disabledMessage,
   isDisabled = false,
   label,
+  layout = "fill",
   onChange,
   options,
   value,
@@ -496,7 +504,7 @@ export function ReviewFilterSegmentedControl({
       disabledMessage={disabledMessage}
       isDisabled={isDisabled}
       label={label}
-      layout="fill"
+      layout={layout}
       onChange={onChange}
       size="sm"
       value={value}

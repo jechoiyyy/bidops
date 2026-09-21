@@ -90,6 +90,7 @@ export function PreSpecRow({
             {/* 등급은 글자 토큰 하나다(ADR-0055 결정 2). 색으로 뜻을 전하지 않고,
                 판정 없음을 특정 등급으로 접지 않는다. 출처는 상세가 갖는다. */}
             <span aria-hidden="true">·</span>
+            {item.review_exclusion_status === "excluded" ? <Token size="sm" label="검토 제외" color="default" /> : null}
             <span className="pre-specs-row-grade">{gradeLabel(item.grade)}</span>
             {item.kept_by_tracking ? (
               <>

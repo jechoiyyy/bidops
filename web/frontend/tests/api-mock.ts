@@ -10,6 +10,7 @@ import type {
   OverviewEnvelope, OverviewRun, PreSpecListItem, PreSpecOrderPlanCandidatesResponse,
   RunSummary, WorkloadKey, WorkloadResponse,
 } from "../src/lib/types";
+import { searchKey, searchMatches } from "../src/lib/search";
 import { clickReadyUnlinkedPreSpec, decisionQueueItems, opportunityDeepReviews, opportunityTrackingHistory } from "./fixtures/lifecycle-v2";
 
 const opportunityFixtures = new WeakMap<Page, OpportunityListItem[]>();
@@ -1037,9 +1038,11 @@ export async function mockOpportunity(page: Page): Promise<void> {
       }
       if (search.get("reason")) filtered = filtered.filter((item) => item.action_reasons.includes(search.get("reason") as never));
       if (search.get("section")) filtered = filtered.filter((item) => item.section === search.get("section"));
-      if (search.get("q")) {
-        const needle = String(search.get("q")).trim().toLowerCase();
-        filtered = filtered.filter((item) => item.links.some((link) => (link.title ?? "").toLowerCase().includes(needle) || (link.agency ?? "").toLowerCase().includes(needle)));
+      const query = search.get("q");
+      if (query && searchKey(query)) {
+        filtered = filtered.filter((item) => item.links.some((link) => (
+          (link.link_type === "official" && link.status === "확정") || link.status === "사람 확인 완료"
+        ) && searchMatches(query, link.title, link.agency)));
       }
       if (search.get("sort") === "tracking_status") filtered.sort((a, b) => a.tracking_status.localeCompare(b.tracking_status));
       if (search.get("sort") === "first_registered_stage") filtered.sort((a, b) => a.first_registered_stage.localeCompare(b.first_registered_stage));
@@ -1179,6 +1182,10 @@ export const visualPreSpecNotice = {
 
 const visualPreSpecItems: PreSpecListItem[] = [
   {
+    review_exclusion_status: "included",
+    review_exclusion_actor_name: null,
+    review_exclusion_reason: null,
+    review_exclusion_changed_at: null,
     notice_pk: 991,
     pre_spec_no: "PRE-991",
     title: "안전한 문서 준비 사전규격",
@@ -1204,6 +1211,10 @@ const visualPreSpecItems: PreSpecListItem[] = [
     next_action: "confirm_overview",
   },
   {
+    review_exclusion_status: "included",
+    review_exclusion_actor_name: null,
+    review_exclusion_reason: null,
+    review_exclusion_changed_at: null,
     notice_pk: 992,
     pre_spec_no: "PRE-992",
     title: "신규 지능형 행정 지원 사전규격",
@@ -1350,16 +1361,48 @@ function isPendingTracking(item: PreSpecListItem): boolean {
   return item.origin === "신규" && (item.tracking_status === null || item.tracking_status === "미선택");
 }
 
+/**
+ * 마감 판정의 기준 시각. **실제 시계가 아니라 고정 시계다.**
+ *
+ * 화면 검사는 `page.clock.setFixedTime`으로 브라우저 시계를 2026-08-25·08-31에
+ * 고정해 두고, 이 파일의 사전규격 표본 마감(`2026-09-02`·`09-07`·`09-10`)은 그
+ * 고정 시각 기준으로 "마감 전"이 되도록 쓰인 값이다. 여기서 `Date.now()`를 쓰면
+ * 벽시계가 흐르는 것만으로 같은 표본이 어느 날부터 "마감 경과"가 되어 기본 보기가
+ * 비고, 결함이 아닌 실패가 난다. 두 고정 시계보다 뒤이면서 표본 마감보다 앞인
+ * 값 하나를 쓴다.
+ *
+ * `deadline_scope`와 `deadline_status`가 **같은 값**을 쓴다. 한 가짜 안에서 두
+ * 술어가 서로 다른 시계를 보면 같은 표본이 구간과 상태에서 다르게 분류되고,
+ * 그 불일치가 실제 결함을 가린다(가짜는 실제 계약에서 파생한다 — CLAUDE.md).
+ * 실제 서버는 요청 시각을 쓰므로 이 고정 시계는 표본 노후화를 막기 위한
+ * 가짜 전용 장치다. 근본 해법은 표본 마감을 `sampleNow + N일` 상대값으로 쓰는
+ * 것이며(`tests/screen-fixtures.ts:197`이 이미 그 방식이다) fixture 전반 손질이라
+ * 이번 범위 밖이다.
+ */
+const DEADLINE_FIXTURE_NOW = Date.parse("2026-09-01T00:00:00Z");
+
+/** 서버 `deadline_scope` 술어. `deadline_at`이 null이면 `current`에 남는다. */
+function matchesDeadlineScope(item: PreSpecListItem, scope: string | null): boolean {
+  if (!scope || scope === "all") return true;
+  const passed = item.deadline_at !== null && Date.parse(item.deadline_at) < DEADLINE_FIXTURE_NOW;
+  return scope === "passed" ? passed : !passed;
+}
+
 function matchesWorkspace(
   item: PreSpecListItem,
   workspace: string | null,
   from: string | null,
   to: string | null,
   sourceRunId: string | null = null,
+  deadlineScope: string | null = null,
 ): boolean {
+  if (item.review_exclusion_status === "excluded" && (workspace === "actionable" || workspace === "recent")) return false;
   if (!workspace || workspace === "all") return true;
   if (workspace === "tracking") return item.tracking_status === "계속 추적" || item.tracking_status === "보류";
   if (workspace === "recent") return matchesObservation(item, sourceRunId, from, to);
+  // 구간은 actionable 술어의 일부다(ADR-0064 결정 4). 위 세 분기는 구간을 읽지
+  // 않으므로 `recent`·`tracking`·`all` 칸은 구간에 대해 불변이다.
+  if (!matchesDeadlineScope(item, deadlineScope)) return false;
   return item.overview_review_status === "needs_human_review"
     || item.auto_preparation_status === "deep_review_ready_for_click"
     || (item.overview_review_status === "completed" && isPendingTracking(item));
@@ -1368,11 +1411,14 @@ function matchesWorkspace(
 function matchesDeadlineStatus(item: PreSpecListItem, status: string | null): boolean {
   if (!status) return true;
   if (item.deadline_at === null) return status === "unknown";
-  const passed = Date.parse(item.deadline_at) < Date.now();
+  // 구간과 같은 고정 시계를 쓴다 — 위 `DEADLINE_FIXTURE_NOW` 주석 참조.
+  const passed = Date.parse(item.deadline_at) < DEADLINE_FIXTURE_NOW;
   return status === "passed" ? passed : status === "open" ? !passed : false;
 }
 
 function preSpecMatches(item: PreSpecListItem, search: URLSearchParams, includeWorkspace = true): boolean {
+  const exclusion = search.get("review_exclusion");
+  if (exclusion && exclusion !== "all" && item.review_exclusion_status !== exclusion) return false;
   const observedFrom = search.get("observed_from");
   const observedTo = search.get("observed_to");
   const workspace = search.get("workspace");
@@ -1386,6 +1432,7 @@ function preSpecMatches(item: PreSpecListItem, search: URLSearchParams, includeW
     workspace === "recent" ? recentFrom : null,
     workspace === "recent" ? recentTo : null,
     workspace === "recent" ? sourceRunId : null,
+    search.get("deadline_scope"),
   )) return false;
   if (!matchesOverviewView(item, search.get("overview_view"))) return false;
   const grade = search.get("grade");
@@ -1396,6 +1443,8 @@ function preSpecMatches(item: PreSpecListItem, search: URLSearchParams, includeW
   if (observedFrom || observedTo) {
     if (!matchesObservation(item, null, observedFrom, observedTo)) return false;
   }
+  const query = search.get("q");
+  if (query && searchKey(query) && !searchMatches(query, item.title, item.agency)) return false;
   if (!matchesDeadlineStatus(item, search.get("deadline_status"))) return false;
   return true;
 }
@@ -1415,9 +1464,23 @@ function workspaceCounts(items: readonly PreSpecListItem[], search: URLSearchPar
       workspace === "recent" ? from : null,
       workspace === "recent" ? to : null,
       workspace === "recent" ? sourceRunId : null,
+      // 구간은 `matchesWorkspace`의 actionable 분기에서만 걸린다. 그래서 활성
+      // workspace와 무관하게 넘겨도 actionable 칸만 바뀐다.
+      search.get("deadline_scope"),
     )).length;
   }
   return counts;
+}
+
+/**
+ * 구간 적용 **전** actionable 집합을 두 구간으로 나눈 건수(ADR-0064 결정 5).
+ * 활성 workspace·활성 구간과 무관하게 언제나 같은 값이라 `deadline_scope`를
+ * 넘기지 않고 센다. 기준 집합은 `workspaceCounts`와 같은 unscoped 목록이다.
+ */
+function deadlineScopeCounts(items: readonly PreSpecListItem[]): { current: number; passed: number } {
+  const actionable = items.filter((item) => matchesWorkspace(item, "actionable", null, null, null, "all"));
+  const passed = actionable.filter((item) => !matchesDeadlineScope(item, "current")).length;
+  return { current: actionable.length - passed, passed };
 }
 
 function compareFixtureItems(left: PreSpecListItem, right: PreSpecListItem, sort: string | null): number {
@@ -1427,8 +1490,10 @@ function compareFixtureItems(left: PreSpecListItem, right: PreSpecListItem, sort
   if (leftValue !== null && rightValue === null) return -1;
   if (leftValue !== null && rightValue !== null && leftValue !== rightValue) {
     if (sort === "deadline") {
-      const leftPassed = Date.parse(leftValue) < Date.now();
-      const rightPassed = Date.parse(rightValue) < Date.now();
+      // 마감 3버킷 정렬도 구간·상태와 같은 고정 시계를 쓴다. 셋이 다른 시계를
+      // 보면 같은 표본의 분류와 순서가 어긋난다(`DEADLINE_FIXTURE_NOW` 참조).
+      const leftPassed = Date.parse(leftValue) < DEADLINE_FIXTURE_NOW;
+      const rightPassed = Date.parse(rightValue) < DEADLINE_FIXTURE_NOW;
       if (leftPassed !== rightPassed) return leftPassed ? 1 : -1;
       if (leftPassed) return leftValue < rightValue ? 1 : -1;
       return leftValue < rightValue ? -1 : 1;
@@ -1766,7 +1831,10 @@ export async function mockPreSpecs(page: Page): Promise<void> {
         .filter((item) => !url.searchParams.get("auto_preparation_status") || item.auto_preparation_status === url.searchParams.get("auto_preparation_status"))
         .filter((item) => !url.searchParams.get("business_division") || item.business_division === url.searchParams.get("business_division"))
         .filter((item) => !url.searchParams.get("origin") || item.origin === url.searchParams.get("origin"))
-        .filter((item) => !url.searchParams.get("q") || `${item.title} ${item.agency} ${item.pre_spec_no}`.includes(url.searchParams.get("q")!))
+        .filter((item) => {
+          const query = url.searchParams.get("q");
+          return !query || !searchKey(query) || searchMatches(query, item.title, item.agency);
+        })
       const allItems = candidateItems.filter((item) => preSpecMatches(item, url.searchParams));
       const unscoped = candidateItems.filter((item) => preSpecMatches(item, url.searchParams, false));
       const sort = url.searchParams.get("sort") ?? (url.searchParams.get("workspace") === "actionable" ? "deadline" : url.searchParams.get("workspace") === "recent" ? "observed" : "published");
@@ -1785,6 +1853,7 @@ export async function mockPreSpecs(page: Page): Promise<void> {
           offset,
           overview_status_counts: overviewStatusCounts(statusItems),
           workspace_counts: workspaceCounts(unscoped, url.searchParams),
+          deadline_scope_counts: deadlineScopeCounts(unscoped),
         }),
       });
       return;
@@ -1862,6 +1931,10 @@ const AUTO_PREPARATION_MATRIX = [
 ] as const;
 
 const preSpecMatrixItems = AUTO_PREPARATION_MATRIX.map((entry, index) => ({
+  review_exclusion_status: "included",
+  review_exclusion_actor_name: null,
+  review_exclusion_reason: null,
+  review_exclusion_changed_at: null,
   notice_pk: 8001 + index,
   pre_spec_no: `PRE-${8001 + index}`,
   title: `자동 준비 표본 ${index + 1}`,
@@ -1913,6 +1986,80 @@ export async function mockPreSpecMatrix(page: Page): Promise<void> {
         offset,
         overview_status_counts: overviewStatusCounts(statusItems),
         workspace_counts: workspaceCounts(unscoped as PreSpecListItem[], url.searchParams),
+        deadline_scope_counts: deadlineScopeCounts(unscoped as PreSpecListItem[]),
+      }),
+    });
+  });
+}
+
+/**
+ * 마감 구간 전환(ADR-0064)의 표본. `검토할 항목`에 **마감 전 1 · 마감 미확인 1 ·
+ * 마감 경과 2**를 둬서 구간이 목록과 건수를 실제로 가르는지 볼 수 있게 한다.
+ *
+ * 기존 `visualPreSpecItems`에 마감 경과 건을 더하지 않은 이유: 그 표본의 행 수와
+ * 건수 문구에 기대는 spec이 여럿이라 한 행만 늘려도 이 작업과 무관한 검사가
+ * 깨진다. 마감 날짜는 {@link DEADLINE_SCOPE_FIXTURE_NOW}와 실제 시계 어느 쪽으로
+ * 읽어도 같은 구간이 되도록 멀찍이 잡는다.
+ */
+const preSpecDeadlineScopeItems: PreSpecListItem[] = ([
+  { notice_pk: 8201, title: "마감 전 사전규격 표본", deadline_at: "2026-12-01T00:00:00Z" },
+  { notice_pk: 8202, title: "마감 미확인 사전규격 표본", deadline_at: null },
+  { notice_pk: 8203, title: "마감 경과 사전규격 표본 가", deadline_at: "2026-08-20T00:00:00Z" },
+  { notice_pk: 8204, title: "마감 경과 사전규격 표본 나", deadline_at: "2026-08-18T00:00:00Z" },
+] as const).map((entry) => ({
+  review_exclusion_status: "included",
+  review_exclusion_actor_name: null,
+  review_exclusion_reason: null,
+  review_exclusion_changed_at: null,
+  notice_pk: entry.notice_pk,
+  pre_spec_no: `PRE-${entry.notice_pk}`,
+  title: entry.title,
+  agency: "표본 발주기관",
+  published_at: "2026-08-10T00:00:00Z",
+  deadline_at: entry.deadline_at,
+  budget: 100_000_000,
+  sw_business_status: "Y",
+  business_division: "일반용역",
+  origin: "신규",
+  opportunity_id: null,
+  tracking_status: null,
+  kept_by_tracking: false,
+  document: { attachments: 1, "완료": 1, "대기": 0, "진행": 0, "차단": 0, "실패": 0 },
+  // 네 건 모두 `사람 확인 필요`라 구간을 빼면 actionable 넷이다.
+  overview_review_status: "needs_human_review",
+  grade: "우선 검토",
+  grade_source: "screening_judgment",
+  auto_preparation_status: "not_applicable",
+  auto_preparation_reason: null,
+  latest_deep_review_id: null,
+  first_observed_at: "2026-09-16T00:00:00Z",
+  last_observed_at: "2026-09-16T00:00:00Z",
+  next_action: "confirm_overview",
+} as PreSpecListItem));
+
+export async function mockPreSpecDeadlineScope(page: Page): Promise<void> {
+  await page.route("**/api/pre-specs**", async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    if (url.pathname !== "/api/pre-specs" || request.method() !== "GET") {
+      await route.fallback();
+      return;
+    }
+    const items = preSpecDeadlineScopeItems.filter((item) => preSpecMatches(item, url.searchParams));
+    const unscoped = preSpecDeadlineScopeItems.filter((item) => preSpecMatches(item, url.searchParams, false));
+    const limit = Number(url.searchParams.get("limit") ?? 200);
+    const offset = Number(url.searchParams.get("offset") ?? 0);
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        items: items.slice(offset, offset + limit),
+        total: items.length,
+        limit,
+        offset,
+        overview_status_counts: overviewStatusCounts(items),
+        workspace_counts: workspaceCounts(unscoped, url.searchParams),
+        deadline_scope_counts: deadlineScopeCounts(unscoped),
       }),
     });
   });
@@ -1945,7 +2092,7 @@ export async function mockPreSpecAutoDetail(page: Page, state: PreSpecAutoDetail
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({ items: [item], total: 1, limit: 50, offset: 0, overview_status_counts: overviewStatusCounts([item]), workspace_counts: { actionable: 1, recent: 1, tracking: 1, all: 1 } }),
+        body: JSON.stringify({ items: [item], total: 1, limit: 50, offset: 0, overview_status_counts: overviewStatusCounts([item]), workspace_counts: { actionable: 1, recent: 1, tracking: 1, all: 1 }, deadline_scope_counts: deadlineScopeCounts([item as PreSpecListItem]) }),
       });
       return;
     }
@@ -2053,7 +2200,7 @@ export async function mockDocumentPreparationVisual(page: Page, state: DocumentP
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({ items, total: items.length, limit: 50, offset: 0, overview_status_counts: overviewStatusCounts(items), workspace_counts: { actionable: items.length, recent: items.length, tracking: items.length, all: items.length } }),
+        body: JSON.stringify({ items, total: items.length, limit: 50, offset: 0, overview_status_counts: overviewStatusCounts(items), workspace_counts: { actionable: items.length, recent: items.length, tracking: items.length, all: items.length }, deadline_scope_counts: deadlineScopeCounts(items) }),
       });
       return;
     }
@@ -2695,7 +2842,7 @@ export async function mockOrderPlans(page: Page, scenario: OrderPlanMockScenario
       && matchesValues(item.human_feedback?.relevance ?? null, search.get("human_relevance"))
       && (!search.get("tracking_status") || (item.tracking !== null && matchesValues(item.tracking.tracking_status, search.get("tracking_status"))))
       && (search.get("issue") !== "true" || ["failed", "rejected"].includes(item.stage1_status ?? "") || ["failed", "rejected"].includes(item.stage2_status ?? ""))
-      && (!search.get("q") || `${item.title} ${item.agency_name} ${item.order_plan_unty_no}`.toLocaleLowerCase("ko-KR").includes(search.get("q")!.toLocaleLowerCase("ko-KR"))));
+      && (!search.get("q") || !searchKey(search.get("q")!) || searchMatches(search.get("q")!, item.title, item.agency_name, item.order_plan_unty_no)));
   }
   workloadProvider(page, "order_plan_pending", () => latestCompletedExecution(null)
     ? { count: listItems(new URLSearchParams({ stage1_status: "selected", qwen_relevance: "relevant,uncertain", tracking_status: "미선택" })).length, unavailable_reason: null }

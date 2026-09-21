@@ -45,6 +45,14 @@ C-1 `candidate_selection`의 기존 `collect-candidate.v2 / candidate_pool_all /
 - 새 API와 Lean API 응답은 내부 filesystem path, 객체 저장소 key의 자격증명, prompt, 모델 원응답, 회사 프로필 전문을 포함하지 않는다. `AttachmentResponse`에도 서버 내부 `stored_path`를 포함하지 않는다.
 - Lean mutation과 actor·감사 경계에 편입된 legacy mutation은 `X-BidOps-Actor-Name`을 요구한다. 대상은 문서·심층 검토·리포트·사업기회·첨부·기관 포털·정책 mutation이다. 이 값은 감사 표식이지 인증 정보가 아니다. 비ASCII 이름은 `X-BidOps-Actor-Name-Format: utf-8-percent-v1`과 canonical UTF-8 percent encoding을 함께 사용한다. 형식이 없으면 printable ASCII를 그대로 보존하며 malformed·제어문자 입력은 `actor_name_invalid`로 거부한다.
 
+### 목록 검색 `q`
+
+발주계획·사전규격·사업 추적의 raw `q`는 URL/API에서 보존한다. 비교 시 Unicode White_Space 25자(`U+0009`–`000D`, `0020`, `0085`, `00A0`, `1680`, `2000`–`200A`, `2028`, `2029`, `202F`, `205F`, `3000`)와 `U+FEFF`를 제거하고 ASCII `A`–`Z`만 소문자로 바꾼다. 각 필드의 연속 부분 문자열을 독립적으로 비교한다. `%`, `_`, 역슬래시는 literal이며 공백/BOM만 있는 `q`는 검색 해제다. 서버 검색은 다른 필터와 AND이고 `total`·집계·페이지 분할 전에 적용한다.
+
+- 사전규격은 `Notice.title|agency`, 사업 추적은 authoritative 소유 링크 대상의 `OrderPlan.title|agency_name`·`Notice.title|agency|demand_agency`, 발주계획은 `OrderPlan.title|agency_name|order_plan_unty_no`를 검색한다.
+- 사업 추적의 2~100자 한계는 위 공백의 연속 구간을 ASCII SPACE 한 칸으로 줄여 양끝을 제거한 값의 Unicode 코드포인트 수로 검사한다. 유효한 raw `q`는 바꾸지 않는다.
+- Go/No-Go의 `q`는 API 인자가 아니다. 받은 decision queue 행의 실제 `title|agency`만 클라이언트에서 검색하며 서버 `total`은 유지한다. 상세 동작은 [검색 UX 명세](0921_search-ux/spec.md)를 따른다.
+
 ## 상태와 식별자
 
 - 수집·판정·심층 검토 실행은 서로 다른 불변 execution ID를 사용한다. 재시도는 기존 실행을 덮지 않고 새 attempt 또는 새 execution으로 남긴다.
@@ -67,6 +75,28 @@ run 행이 아직 없으면 `null`이다(개요 검토 미시작). `overview_sta
 `{status, count}[]`로, 10개 계약값과 `status=null`(run 행 없음) 총 11개 항목이 이 목록 조회의
 필터(`sw_only`·`business_division`·`origin`·`q`)는 전부 반영하되 `limit`/`offset`과 무관하게 **필터에 일치하는 전체 건수**를 담아 항상 존재한다(건수 0인 항목도 포함). 클라이언트는 반환된 `items`(현재 페이지)만 그룹에 채우고 그룹 헤더 건수는 `overview_status_counts`를 표시해 페이지네이션과 그룹 건수 표시를 분리한다. 응답에는 object key·로컬 경로·URL을 넣지 않는다.
   item에는 등급과 자동 문서 준비 필드 다섯이 더 있다([ADR-0049](tracking/decisions/0049-prespec-auto-preparation-and-auto-deep-review.md)). nullable `grade`, nullable `grade_source=screening_judgment|human_review`, 비 null `auto_preparation_status`(기본 `not_applicable`), nullable `auto_preparation_reason`, nullable `latest_deep_review_id`다. `grade`가 `null`이면 판정도 사람 정정도 없다는 뜻이고 그때 `grade_source`도 `null`이다 — 둘 중 하나만 채우거나 "없음"을 특정 등급으로 접지 않는다. `auto_preparation_status`는 `not_applicable|waiting_attachments|bundle_draft|bundle_ready|overview_running|deep_review_started|deep_review_ready_for_click|blocked` 여덟 값이며 `not_applicable`은 "대상이 아님"이지 "알 수 없음"이 아니다. `auto_preparation_reason`은 안전 코드이며 어휘는 `grade_not_priority`, `awaiting_fetch`, `no_ready_document`, `attachments_failed`(취득 행이 모두 `차단`·`실패`로 끝났고 준비된 문서가 없어 `blocked`가 된 경우), `bundle_has_blocking_issues`, `bundle_unchanged`, `human_bundle_draft`, `processing_failed`, `not_sw_business`, `bundle_not_auto_ready`, `overview_not_completed`, `deep_review_exists`, `service_unavailable`과 문서 묶음 service가 내는 안전 코드다. 이 다섯 값은 저장된 열이 아니라 조회 시점의 파생값이며 공고 수와 무관한 상수 회 조회로 계산한다. 등급과 상태 필터는 아래 누적 탐색 계약에 따라 서버에서 적용한다.
+  사전규격 검토 제외 확장(PoC, additive): item에
+  `review_exclusion_status=included|excluded`(비 null), `review_exclusion_actor_name`,
+  `review_exclusion_reason`, `review_exclusion_changed_at`(timezone 포함 시각)을 추가한다.
+  최초 상태는 included이며 변경 정보 세 필드는 null이다.
+  `review_exclusion=all|included|excluded` 필터의 기본값은 all이다. 다른 명시적 필터와 AND로
+  결합한다. actionable·recent는 excluded를 항상 제외하며 tracking·all은 그대로 표시한다.
+  total·페이지·workspace_counts·overview_status_counts도 같은 규칙을 쓴다. 명시적 excluded와
+  actionable/recent를 결합하면 0건이다. 전체 이력 UI만 포함 여부 필터를 제공하며 URL과 선택
+  fingerprint에 포함하고 다른 보기 이동 시 초기화한다. 상세 왕복 URL도 이를 보존한다.
+
+  `POST /api/pre-specs/review-exclusions` 요청은
+  `{notice_ids: int[], status: "included"|"excluded", actor_name: str, reason: str}`다.
+  ID는 양의 DB integer(최대 2147483647) 1~200개로 중복을 허용하지 않는다. ID 없음·다른
+  source_type·잘못된 ID가 섞이면 전체 422(`invalid_pre_spec_notice_ids`는 대상 조회 실패)다.
+  actor_name·reason은 양끝 공백 제거 후 필수이며 각 128·2000자 한도다. 응답은 200
+  `{items: [{notice_id, status, outcome: "changed"|"unchanged"}]}`이며 요청 순서다.
+  공고를 ID 오름차순으로 잠그고 상태·마지막 변경 정보·`pre_spec.review_exclusion_changed`
+  audit_event를 원자적으로 저장한다. 감사 aggregate는 notice/ID이며 safe_metadata에
+  previous_status·status·actor_name·reason·changed_at을 남긴다. unchanged는 쓰기를 하지 않는다.
+  별도 요청 재생 저장소는 없고 같은 목표 상태의 재요청은 unchanged로 처리한다.
+  이 API는 추적·등급·리뷰·분석 자격·원본 관측을 변경하지 않는다.
+
   2026-09-16 누적 탐색 확장:
   `grade`(기존 등급 및 `판정 없음`), `overview_view=all|attention|pending|completed|failed|cancelled|not_started`,
   `tracking_decision=pending`, `tracking_status=계속 추적|보류|종료|미선택`, `source_run_id`,
@@ -79,6 +109,16 @@ run 행이 아직 없으면 `null`이다(개요 검토 미시작). `overview_sta
   한국 시간 오늘 포함 최근 7일을 적용한다. `actionable`은 개요 사람 확인 필요,
   심층 검토 클릭 대기, 개요 완료이면서 기존 신규·미선택/null 추적 결정 대기의 합집합이다.
   `tracking`은 계속 추적·보류다. 마감이 지났다는 이유로 업무 대상에서 제외하지 않는다.
+  2026-09-21 확장([ADR-0064](tracking/decisions/0064-prespec-actionable-deadline-scope.md)):
+  `deadline_scope=current|passed|all`(기본 `all`)을 추가한다. `current`는 `deadline_at`이
+  요청 시각 이상이거나 `null`인 건, `passed`는 `deadline_at`이 요청 시각 미만인 건이다.
+  두 값은 서로소이고 합집합이 전체다. `deadline_scope`는 actionable workspace 술어의
+  일부다. 따라서 `workspace_counts`의 `actionable` 칸에는 활성 workspace와 무관하게
+  적용되고, `items`·`total`·`overview_status_counts`에는 `workspace=actionable`일 때만
+  영향을 준다. `recent`·`tracking`·`all` 칸과 그 workspace의 `items`·`total`은 영향받지
+  않는다. `current`는 `마감 미확인`(null)을 포함한다 — 마감 경과로 접지 않는다.
+  검토 제외 숨김은 구간 술어보다 먼저 적용하므로 제외 건은 어느 구간에도 들어가지 않는다.
+  잘못된 값은 422 `deadline_scope is invalid`다. 구간 건수는 아래 집계 문단이 정의한다.
   item에는 nullable `first_observed_at`, `last_observed_at`,
   `next_action=confirm_overview|open_deep_review|decide_tracking|null`이 추가된다.
   다음 행동은 나열된 순서로 첫 일치를 쓰며 새로운 업무 상태가 아니다.
@@ -86,6 +126,14 @@ run 행이 아직 없으면 `null`이다(개요 검토 미시작). `overview_sta
   제외한 필터를 적용한다(recent의 기본 7일 조건은 recent 건수에만 적용).
   `overview_status_counts`는 활성 workspace와 나머지 필터를 적용하고 `overview_view`만
   제외한다. `total`·`items`는 모든 필터를 적용한다. 집계는 limit/offset과 무관하다.
+  비 null `deadline_scope_counts{current,passed}`(2026-09-21 추가)는 구간을 적용하기 **전**
+  actionable 집합을 두 구간으로 나눈 건수이며, 활성 workspace·활성 `deadline_scope`와
+  무관하게 언제나 같은 값이고 언제나 존재한다. 나머지 필터(`q`·`deadline_status`·`grade`
+  등)는 모두 반영하고 기준 집합은 `workspace_counts`와 같다. 두 칸의 합은 구간 미적용
+  actionable 건수이고, `deadline_scope=current`이면
+  `workspace_counts["actionable"] == deadline_scope_counts.current`이며
+  `workspace=actionable`을 함께 주면 `total == deadline_scope_counts.current`다. 합계 키
+  (`all`)는 두지 않는다 — 필요하면 소비자가 두 칸을 더한다.
   마감 정렬은 마감 전 가까운 순, 마감 경과 최근순, 미확인 순이며 ID로 동률을 해소한다.
   별도의 사전규격 **상세** endpoint는 없다. 상세 화면도 이 목록 endpoint를 쓴다.
 - `NoticeListItem`: `id`, `notice_key`, `run_id`, `title?`, `agency?`, `published_at?`, `deadline_at?`, `estimated_price?`, `sample_role?`, `sample_stratum?`, `collection_bucket?`, `grade?`, `readiness?`, `focus?`, `attachment_count`, `attachment_status=none|g2b|manual`이다.

@@ -13,13 +13,19 @@ from sqlalchemy.orm import Session, aliased
 
 from ...core.constants import PreSpecAutoPreparationStatus
 from ...core.db import get_db
+from ...core.search import search_key, search_sql_match
 from .. import PreSpecDocumentCounts, extension_registry
 from ..models import Attachment, Notice, NoticeObservation, Opportunity, OpportunityLink
 from ..schemas.pre_specs import (
+    PreSpecReviewExclusionFilter,
+    PreSpecReviewExclusionRequest,
+    PreSpecReviewExclusionResponse,
     PreSpecDocumentSummary,
     PreSpecOrderPlanCandidatesResponse,
     PreSpecListItem,
     PreSpecListResponse,
+    PreSpecDeadlineScope,
+    PreSpecDeadlineScopeCounts,
     PreSpecDeadlineStatus,
     PreSpecGradeFilter,
     PreSpecOverviewView,
@@ -31,6 +37,7 @@ from ..schemas.pre_specs import (
     PreSpecWorkspace,
 )
 from ..schemas.opportunities import OpportunityTrackingStatus
+from ..services.pre_spec_review_exclusions import change_review_exclusions
 from ..services.opportunity_candidates import pre_spec_order_plan_candidates
 from ..services.opportunity_connections import tracked_order_plan_connection_predicate
 from ..services.opportunity_integrity import (
@@ -256,6 +263,24 @@ def _deadline_condition(status: PreSpecDeadlineStatus, now: datetime):
     return Notice.deadline_at.is_(None)
 
 
+def _deadline_passed_expression(now: datetime):
+    """SQL로 평가하는 "의견등록 마감이 지났다" 술어.
+
+    비교는 SQL이 한다 — 파이썬에서 naive/aware datetime을 섞어 비교하지 않는다
+    (ADR-0064 결과). `deadline_at`이 null이면 false이므로 미확인은 `current`에 남는다.
+    """
+
+    return and_(Notice.deadline_at.is_not(None), Notice.deadline_at < now)
+
+
+def _deadline_scope_matches(scope: PreSpecDeadlineScope, passed: bool) -> bool:
+    if scope == "all":
+        return True
+    if scope == "passed":
+        return passed
+    return not passed
+
+
 def _deadline_sort_expression(now: datetime):
     """Future deadlines first ascending, passed deadlines descending, null last."""
 
@@ -281,6 +306,8 @@ def list_pre_specs(
     # isolated lifecycle tests from receiving a ``Query`` sentinel when the
     # optional argument is omitted.
     workspace: PreSpecWorkspace = "all",
+    review_exclusion: PreSpecReviewExclusionFilter = "all",
+    deadline_scope: PreSpecDeadlineScope = "all",
     overview_view: PreSpecOverviewView = "all",
     grade: PreSpecGradeFilter | None = None,
     tracking_decision: PreSpecTrackingDecision | None = None,
@@ -327,6 +354,9 @@ def list_pre_specs(
         raise HTTPException(status_code=422, detail="tracking_decision is invalid")
     if deadline_status is not None and deadline_status not in get_args(PreSpecDeadlineStatus):
         raise HTTPException(status_code=422, detail="deadline_status is invalid")
+    deadline_scope_value: PreSpecDeadlineScope = deadline_scope or "all"
+    if deadline_scope_value not in get_args(PreSpecDeadlineScope):
+        raise HTTPException(status_code=422, detail="deadline_scope is invalid")
     source_run_value = source_run_id.strip() if isinstance(source_run_id, str) else None
     if not source_run_value:
         source_run_value = None
@@ -357,6 +387,10 @@ def list_pre_specs(
     kept_by_tracking = and_(or_(sw_status.is_(None), sw_status != "Y"), tracked_exception)
 
     conditions: list[Any] = [Notice.source_type == "pre_spec"]
+    if review_exclusion not in get_args(PreSpecReviewExclusionFilter):
+        raise HTTPException(status_code=422, detail="review_exclusion is invalid")
+    if review_exclusion != "all":
+        conditions.append(Notice.review_exclusion_status == review_exclusion)
     if notice_pk is not None:
         conditions.append(Notice.id == notice_pk)
     if sw_only and notice_pk is None:
@@ -383,9 +417,8 @@ def list_pre_specs(
         if tracking_status_value not in {"계속 추적", "보류", "종료", "미선택"}:
             raise HTTPException(status_code=422, detail="tracking_status is invalid")
         conditions.append(selected_opportunity.tracking_status == tracking_status_value)
-    if q and q.strip():
-        needle = f"%{q.strip()}%"
-        conditions.append(or_(Notice.title.ilike(needle), Notice.agency.ilike(needle)))
+    if q and search_key(q):
+        conditions.append(or_(search_sql_match(Notice.title, q), search_sql_match(Notice.agency, q)))
     if source_run_value is not None or observed_from_value is not None or observed_to_value is not None:
         conditions.append(
             _observation_membership_predicate(
@@ -440,27 +473,34 @@ def list_pre_specs(
     base_id_rows = session.execute(
         query.with_only_columns(
             Notice.id.label("notice_id"),
+            Notice.review_exclusion_status,
             selected_opportunity.first_registered_stage.label("first_stage"),
             selected_opportunity.tracking_status.label("selected_tracking_status"),
             recent_expression.label("recent_membership"),
+            _deadline_passed_expression(now).label("deadline_passed"),
             maintain_column_froms=True,
         )
         .distinct()
         .order_by(None)
     ).all()
+    included_ids: set[int] = set()
     base_ids: list[int] = []
     seen_ids: set[int] = set()
     first_stage_by_id: dict[int, Any] = {}
     tracking_status_by_id: dict[int, Any] = {}
+    deadline_passed_by_id: dict[int, bool] = {}
     for row in base_id_rows:
         mapping = row._mapping
         notice_id = int(mapping["notice_id"])
+        if mapping["review_exclusion_status"] == "included":
+            included_ids.add(notice_id)
         if notice_id not in seen_ids:
             seen_ids.add(notice_id)
             base_ids.append(notice_id)
         first_stage_by_id[notice_id] = mapping["first_stage"]
         tracking_status_by_id[notice_id] = mapping["selected_tracking_status"]
         recent_membership[notice_id] = bool(mapping["recent_membership"])
+        deadline_passed_by_id[notice_id] = bool(mapping["deadline_passed"])
 
     registry_statuses = projection.overview_status(session, base_ids)
     overview_status = _normalise_projection_statuses(registry_statuses)
@@ -502,24 +542,31 @@ def list_pre_specs(
         for notice_id in projection_filtered_ids
         if recent_membership.get(notice_id, False)
     }
-    recent_filtered_ids = {
-        notice_id
-        for notice_id in overview_filtered_ids
-        if recent_membership.get(notice_id, False)
-    }
     if observed_from_value is not None or observed_to_value is not None:
         # Explicit observation bounds are already in the base SQL membership
         # predicate, so every base row belongs to the recent workspace count.
         recent_workspace_ids = set(projection_filtered_ids)
-        recent_filtered_ids = set(overview_filtered_ids)
 
-    def workspace_matches(notice_id: int, selected_workspace: PreSpecWorkspace) -> bool:
+    def workspace_matches(
+        notice_id: int,
+        selected_workspace: PreSpecWorkspace,
+        scope: PreSpecDeadlineScope,
+    ) -> bool:
+        # 검토 제외 숨김 가드가 구간 술어보다 **먼저** 온다 — 제외 건이 구간 분할의
+        # 분모에 들어가면 탭 건수와 집계가 어긋난다(ADR-0064 결정 4).
+        if selected_workspace in {"actionable", "recent"} and notice_id not in included_ids:
+            return False
         if selected_workspace == "all":
             return True
         if selected_workspace == "recent":
             return notice_id in recent_workspace_ids
         if selected_workspace == "tracking":
             return tracking_status_by_id.get(notice_id) in _TRACKING_ACTIVE_STATUSES
+        # 구간은 actionable 분기 한 곳에만 산다. 위 세 분기는 ``scope``를 읽지 않으므로
+        # ``workspace_counts``의 ``recent``·``tracking``·``all`` 칸과 그 workspace의
+        # ``items``·``total``은 구간에 대해 구조적으로 불변이다.
+        if not _deadline_scope_matches(scope, deadline_passed_by_id.get(notice_id, False)):
+            return False
         return _workspace_actionable(
             notice_id,
             overview_status=overview_status,
@@ -533,34 +580,42 @@ def list_pre_specs(
     active_ids = [
         notice_id
         for notice_id in projection_filtered_ids
-        if workspace_matches(notice_id, workspace_value)
+        if workspace_matches(notice_id, workspace_value, deadline_scope_value)
     ]
     filtered_ids = [
         notice_id
         for notice_id in overview_filtered_ids
-        if workspace_matches(notice_id, workspace_value)
+        if workspace_matches(notice_id, workspace_value, deadline_scope_value)
     ]
 
     # workspace_counts intentionally applies every other filter, including
     # overview_view, but not the selected workspace predicate. Its recent bucket
     # gets the implicit seven-day window when no explicit observation range exists.
     workspace_counts: dict[PreSpecWorkspace, int] = {
-        "actionable": sum(
-            _workspace_actionable(
-                notice_id,
-                overview_status=overview_status,
-                status_fields=status_fields,
-                tracking_pending=tracking_pending_by_id,
-            )
+        name: sum(
+            workspace_matches(notice_id, name, deadline_scope_value)
             for notice_id in overview_filtered_ids
-        ),
-        "recent": len(recent_filtered_ids),
-        "tracking": sum(
-            tracking_status_by_id.get(notice_id) in _TRACKING_ACTIVE_STATUSES
-            for notice_id in overview_filtered_ids
-        ),
-        "all": len(overview_filtered_ids),
+        )
+        for name in get_args(PreSpecWorkspace)
     }
+
+    # 구간을 적용하기 **전** actionable 집합을 두 구간으로 나눈 건수다. 활성
+    # workspace·활성 구간과 무관하게 언제나 같은 값이고 언제나 응답에 있다. 기준
+    # 집합은 ``workspace_counts``와 같은 ``overview_filtered_ids``이므로 다른 필터는
+    # 모두 반영된다. 두 칸의 합 == 구간 미적용 actionable 건수다.
+    deadline_scope_current = 0
+    deadline_scope_passed = 0
+    for notice_id in overview_filtered_ids:
+        if not workspace_matches(notice_id, "actionable", "all"):
+            continue
+        if deadline_passed_by_id.get(notice_id, False):
+            deadline_scope_passed += 1
+        else:
+            deadline_scope_current += 1
+    deadline_scope_counts = PreSpecDeadlineScopeCounts(
+        current=deadline_scope_current,
+        passed=deadline_scope_passed,
+    )
 
     # Status grouping deliberately omits `overview_view`: it describes the
     # active workspace as a whole, retaining the historical ten persisted
@@ -629,6 +684,10 @@ def list_pre_specs(
         items.append(
             PreSpecListItem(
                 notice_pk=notice.id,
+                review_exclusion_status=notice.review_exclusion_status,
+                review_exclusion_actor_name=notice.review_exclusion_actor_name,
+                review_exclusion_reason=notice.review_exclusion_reason,
+                review_exclusion_changed_at=notice.review_exclusion_changed_at,
                 pre_spec_no=_pre_spec_number(notice),
                 title=notice.title,
                 agency=notice.agency,
@@ -669,7 +728,22 @@ def list_pre_specs(
         offset=offset,
         overview_status_counts=overview_status_counts,
         workspace_counts=workspace_counts,
+        deadline_scope_counts=deadline_scope_counts,
     )
+
+
+@router.post("/review-exclusions", response_model=PreSpecReviewExclusionResponse)
+def update_review_exclusions(
+    request: PreSpecReviewExclusionRequest,
+    session: Session = Depends(get_db),
+) -> PreSpecReviewExclusionResponse:
+    try:
+        result = change_review_exclusions(session, request)
+        session.commit()
+        return result
+    except Exception:
+        session.rollback()
+        raise
 
 
 @router.get(

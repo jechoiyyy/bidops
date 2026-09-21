@@ -22,6 +22,7 @@ from tests.screening.test_order_plan_screening_service import _fixture
 def test_manual_execution_and_review_api_contract(tmp_path, monkeypatch) -> None:
     settings, session, policy_version, _, plans = _fixture(tmp_path)
     plans[0].budget_amount = Decimal("123456789.00")
+    plans[0].agency_name = "고유 기관"
     plans[0].planned_order_year = "2027"
     plans[0].planned_order_month = "09"
     session.commit()
@@ -165,6 +166,13 @@ def test_manual_execution_and_review_api_contract(tmp_path, monkeypatch) -> None
             assert plan_list.json()["items"][0]["planned_order_year"] == "2027"
             assert plan_list.json()["items"][0]["planned_order_month"] == "09"
             assert plan_list.json()["items"][0]["nearest_capability"] == "cap"
+            agency = plans[0].agency_name
+            assert agency
+            searched = client.get("/api/order-plans", params={
+                "source_run_id": "run-c2", "q": agency[:1] + "\u00a0" + agency[1:],
+            })
+            assert searched.status_code == 200
+            assert searched.json()["total"] == 1
             feedback = {
                 "schema_version": "feedback-create-request.v1",
                 "producer": "human-review-client",

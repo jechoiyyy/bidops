@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import {
   mockApi,
+  mockPreSpecDeadlineScope,
   mockPreSpecMatrix,
   mockPreSpecs,
   overviewCompletedRunFixture,
@@ -61,6 +62,7 @@ async function mockPagedPreSpecs(page: Page, total = 220): Promise<void> {
         offset,
         overview_status_counts: [{ status: "completed", count: total }],
         workspace_counts: { actionable: total, recent: total, tracking: 0, all: total },
+        deadline_scope_counts: { current: total, passed: 0 },
       },
     });
   });
@@ -157,6 +159,89 @@ test("최근 workspace는 KST 관측 범위 기본값과 수집 회차를 API에
   expect(resetParams.has("sort")).toBe(false);
 });
 
+// ADR-0064 — 검토할 항목의 기본 시야는 `마감 전 + 마감 미확인`이고, 마감 경과는
+// 사라지지 않고 1클릭 거리에 건수와 함께 남는다. 구간은 actionable 술어의 일부라
+// 다른 보기로 옮기면 URL에서 지워진다.
+test("검토할 항목 기본 구간은 마감 전·미확인이고 마감 경과는 1클릭 전환이다", async ({ page }) => {
+  const queries: URLSearchParams[] = [];
+  page.on("request", (request) => {
+    const url = new URL(request.url());
+    if (url.pathname === "/api/pre-specs") queries.push(url.searchParams);
+  });
+  await mockApi(page);
+  await mockPreSpecDeadlineScope(page);
+  await page.goto("/pre-specs");
+
+  // (1) 기본값은 URL에 없지만 질의에는 실린다 — 깨끗한 `/pre-specs`가 곧
+  //     `검토할 항목 + 마감 전·미확인`이다.
+  await expect.poll(() => queries.at(-1)?.get("deadline_scope")).toBe("current");
+  expect(new URL(page.url()).searchParams.has("deadline_scope")).toBe(false);
+
+  // (2) 탭 건수는 현재 구간 기준이고, 두 구간은 각자의 건수와 함께 보인다.
+  //     건수는 서버가 준 `deadline_scope_counts`이며 화면이 다시 세지 않는다.
+  const rows = page.locator(".pre-specs-row");
+  await expect(rows).toHaveCount(2);
+  await expect(page.getByRole("button", { name: /^검토할 항목/ })).toHaveAccessibleName(/검토할 항목\s+2$/);
+  const scope = page.getByRole("radiogroup", { name: "마감 구간" });
+  await expect(page.locator(".pre-specs-deadline-scope-caption")).toHaveText("마감 구간");
+  await expect(scope.getByRole("radio", { name: "마감 전·미확인 2" })).toBeChecked();
+  await expect(scope.getByRole("radio", { name: "마감 경과 2" })).not.toBeChecked();
+  await expect(rows.filter({ hasText: "마감 미확인 사전규격 표본" })).toHaveCount(1);
+
+  // (3) 한 번 눌러 경과 구간으로 간다. 구간은 의미 필터라 페이지를 처음으로
+  //     돌리고 목록이 바뀐다.
+  // 페이지를 넘긴 상태에서 전환해야 `offset`이 정말 지워지는지 보인다.
+  await page.goto("/pre-specs?offset=2&deadline_scope=current");
+  await scope.getByRole("radio", { name: "마감 경과 2" }).click();
+  await expect.poll(() => new URL(page.url()).searchParams.get("deadline_scope")).toBe("passed");
+  expect(new URL(page.url()).searchParams.has("offset")).toBe(false);
+  await expect.poll(() => queries.at(-1)?.get("deadline_scope")).toBe("passed");
+  await expect(rows).toHaveCount(2);
+  await expect(rows.filter({ hasText: "마감 경과 사전규격 표본 가" })).toHaveCount(1);
+  await expect(rows.filter({ hasText: "마감 미확인 사전규격 표본" })).toHaveCount(0);
+  // 경과 구간에서도 두 칸의 건수는 그대로다(구간 적용 전 분할이므로).
+  await expect(scope.getByRole("radio", { name: "마감 전·미확인 2" })).toBeVisible();
+
+  // (4) 다른 보기로 옮기면 구간은 따라가지 않는다.
+  await page.getByRole("button", { name: /^최근 수집/ }).click();
+  await expect.poll(() => new URL(page.url()).searchParams.get("workspace")).toBe("recent");
+  expect(new URL(page.url()).searchParams.has("deadline_scope")).toBe(false);
+  await expect(page.getByRole("radiogroup", { name: "마감 구간" })).toHaveCount(0);
+
+  // (5) 같은 축의 컨트롤을 둘 두지 않는다 — 검토할 항목에는 상세 필터의
+  //     `마감 상태`가 없고 전체 이력에는 있다.
+  await page.goto("/pre-specs");
+  await page.getByRole("button", { name: "상세 필터", exact: true }).click();
+  await expect(page.getByRole("combobox", { name: "마감 상태" })).toHaveCount(0);
+  await page.goto("/pre-specs?workspace=all");
+  await page.getByRole("button", { name: "상세 필터", exact: true }).click();
+  await expect(page.getByRole("combobox", { name: "마감 상태" })).toBeVisible();
+  await expect(page.getByRole("radiogroup", { name: "마감 구간" })).toHaveCount(0);
+});
+
+// 구간 컨트롤은 조회 도구 줄의 **네 번째 칸**이고 그 줄은 한 줄로 남아야 한다.
+// Astryx `SegmentedControl`의 `fill`은 `width:100%`라 혼자 한 줄을 차지하므로,
+// `hug`가 풀리면 이 검사가 잡는다.
+test("마감 구간 컨트롤은 조회 도구 줄의 네 번째 칸이고 줄을 늘리지 않는다", async ({ page }) => {
+  await mockApi(page);
+  await mockPreSpecDeadlineScope(page);
+  await page.goto("/pre-specs");
+  await expect(page.locator(".pre-specs-row").first()).toBeVisible();
+
+  const metrics = await page.locator(".workspace-filter-tools").evaluate((tools) => {
+    const children = [...tools.children] as HTMLElement[];
+    const tops = children.map((child) => Math.round(child.getBoundingClientRect().top));
+    return {
+      classNames: children.map((child) => child.className),
+      distinctTops: [...new Set(tops)].length,
+    };
+  });
+  expect(metrics.classNames).toHaveLength(4);
+  expect(metrics.classNames[3]).toContain("pre-specs-deadline-scope");
+  // 네 칸의 위쪽 좌표가 같으면 도구 줄은 한 줄이다.
+  expect(metrics.distinctTops).toBe(1);
+});
+
 test("기존 view URL은 전체 workspace의 overview_view로 정규화된다", async ({ page }) => {
   const queries: URLSearchParams[] = [];
   page.on("request", (request) => {
@@ -220,7 +305,7 @@ test("경계에서 방향키가 페이지를 넘기고 필터 변경은 첫 페�
       latest_deep_review_id: null,
       first_observed_at: null, last_observed_at: null, next_action: null,
     }));
-    await route.fulfill({ json: { items, total, limit, offset, overview_status_counts: [{ status: "completed", count: total }], workspace_counts: { actionable: total, recent: total, tracking: 0, all: total } } });
+    await route.fulfill({ json: { items, total, limit, offset, overview_status_counts: [{ status: "completed", count: total }], workspace_counts: { actionable: total, recent: total, tracking: 0, all: total }, deadline_scope_counts: { current: total, passed: 0 } } });
   });
 
   await page.goto("/pre-specs?sw_only=false");
@@ -288,7 +373,7 @@ test("LS-04 선택은 두 페이지·새로고침·정렬에 남고 실제 필�
         next_action: null,
       };
     });
-    await route.fulfill({ json: { items, total, limit, offset, overview_status_counts: [{ status: "completed", count: total }], workspace_counts: { actionable: total, recent: total, tracking: 0, all: total } } });
+    await route.fulfill({ json: { items, total, limit, offset, overview_status_counts: [{ status: "completed", count: total }], workspace_counts: { actionable: total, recent: total, tracking: 0, all: total }, deadline_scope_counts: { current: total, passed: 0 } } });
   });
 
   await page.goto("/pre-specs?sw_only=false");
@@ -318,6 +403,12 @@ test("LS-04 선택은 두 페이지·새로고침·정렬에 남고 실제 필�
   await page.getByRole("combobox", { name: "표시 순서" }).click();
   await page.getByRole("option", { name: "마감 임박순", exact: true }).click();
   await expect(page.getByText("선택 2건", { exact: true })).toBeVisible();
+  // 마감 구간은 정렬이 아니라 의미 필터다(ADR-0064 결정 6) — 전환하면 선택을 비운다.
+  await page.getByRole("radiogroup", { name: "마감 구간" }).getByRole("radio", { name: /^마감 경과/ }).click();
+  await expect.poll(() => new URL(page.url()).searchParams.get("deadline_scope")).toBe("passed");
+  await expect(page.getByText("선택 0건", { exact: true })).toBeVisible();
+  await page.locator(".pre-specs-row").first().getByRole("checkbox").check();
+  await expect(page.getByText("선택 1건", { exact: true })).toBeVisible();
   await page.getByRole("combobox", { name: "발견 구분" }).click();
   await page.getByRole("option", { name: "발주계획 연계", exact: true }).click();
   await expect(page.getByText("선택 0건", { exact: true })).toBeVisible();
@@ -388,7 +479,7 @@ for (const sort of ["published", "deadline"] as const) {
           published_at: "2026-09-01T00:00:00Z", deadline_at: "2026-10-01T00:00:00Z",
         }),
       }));
-      await route.fulfill({ json: { items, total: 204, limit, offset, overview_status_counts: [{ status: "completed", count: 204 }], workspace_counts: { actionable: 204, recent: 204, tracking: 0, all: 204 } } });
+      await route.fulfill({ json: { items, total: 204, limit, offset, overview_status_counts: [{ status: "completed", count: 204 }], workspace_counts: { actionable: 204, recent: 204, tracking: 0, all: 204 }, deadline_scope_counts: { current: 204, passed: 0 } } });
     });
     await page.goto(`/pre-specs?sw_only=false&sort=${sort}`);
     const checkbox = (id: number) => page.getByRole("checkbox", { name: `사전규격 선택 · 순서 표본 ${id}`, exact: true });

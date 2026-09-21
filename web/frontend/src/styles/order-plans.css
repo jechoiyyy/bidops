@@ -798,6 +798,10 @@
  * Astryx 기본 chrome과 시안의 차이를 메우는 칩 스타일.
  *
  * 접혀 있어도 URL 동기화와 축의 AND/OR 의미는 그대로다. */
+.c2l-filter-tools {
+  align-items: flex-start;
+}
+
 .c2l-filter-axis {
   display: flex;
   flex-direction: column;

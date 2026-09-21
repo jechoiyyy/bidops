@@ -542,6 +542,8 @@ def test_pre_specs_business_division_q_sort_and_pagination(pre_specs_api):
 
     searched = _payload(session, sw_only=False, q="다라마")
     assert [item["notice_pk"] for item in searched["items"]] == [refs["tracked_no"].id]
+    spaced = _payload(session, sw_only=False, q="다 라\u00a0마\ufeff")
+    assert [item["notice_pk"] for item in spaced["items"]] == [refs["tracked_no"].id]
 
     deadline = _payload(session, sw_only=False, sort="deadline")
     # The fixture is entirely past the fixed current date; passed deadlines are

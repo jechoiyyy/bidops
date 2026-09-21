@@ -7,6 +7,7 @@ import { Selector } from "@astryxdesign/core/Selector";
 import { Table, pixel, proportional, type TableColumn } from "@astryxdesign/core/Table";
 import { Token } from "@astryxdesign/core/Token";
 import { Activity, Search } from "lucide-react";
+import { opportunitySearchValid, searchKey } from "../lib/search";
 import { OpportunityDetail } from "../components/opportunities/OpportunityDetail";
 import {
   ACTION_REASON_ORDER,
@@ -27,9 +28,9 @@ import {
   WorkspaceFilterAdvanced,
   WorkspaceFilterBar,
   WorkspaceFilterContext,
-  WorkspaceFilterEnd,
   WorkspaceFilterLine,
   WorkspaceFrame,
+  WorkspaceFilterTools,
   WorkspaceSearch,
   WorkspaceViewTabs,
 } from "../components/common/WorkspaceFilters";
@@ -77,13 +78,6 @@ const PAGE_SIZE = 100;
 /** 서버 검색 `q`의 허용 길이(spec §7.4). 밖이면 보내지 않는다. */
 const SEARCH_MIN = 2;
 const SEARCH_MAX = 100;
-const SEARCH_DEBOUNCE_MS = 300;
-
-/** 입력을 서버에 보낼 검색어로 바꾼다. 길이 밖이면 `null`이며 목록을 좁히지 않는다. */
-function appliedSearch(value: string): string | null {
-  const trimmed = value.trim();
-  return trimmed.length >= SEARCH_MIN && trimmed.length <= SEARCH_MAX ? trimmed : null;
-}
 
 /** Astryx `Table`은 행 type이 index signature를 갖기를 요구한다. 값은 그대로다. */
 type OpportunityRow = OpportunityListItem & Record<string, unknown>;
@@ -126,12 +120,14 @@ export function OpportunitiesPage() {
   const reason: OpportunityActionReason | null = view === ACTION_VIEW && ACTION_REASON_ORDER.includes(requestedReason as OpportunityActionReason)
     ? (requestedReason as OpportunityActionReason)
     : null;
-  const rawSearch = (searchParams.get("q") ?? "").trim();
-  const search = appliedSearch(rawSearch);
+  const rawSearch = searchParams.get("q") ?? "";
+  const search = searchKey(rawSearch) ? rawSearch : null;
+  const invalidUrlSearch = search !== null && !opportunitySearchValid(search);
   const [searchText, setSearchText] = useState(rawSearch);
+  const [searchError, setSearchError] = useState(false);
 
   const list = useQuery({
-    queryKey: ["opportunities", view, stage, sort, reason, search, offset],
+    queryKey: ["opportunities", view, stage, sort, reason, searchKey(search), offset],
     queryFn: ({ signal }) =>
       api.getOpportunities(
         {
@@ -145,6 +141,7 @@ export function OpportunitiesPage() {
         },
         { signal },
       ),
+    enabled: !invalidUrlSearch,
   });
 
   const rows = useMemo(() => list.data?.items ?? [], [list.data]);
@@ -184,35 +181,32 @@ export function OpportunitiesPage() {
     });
   const changeFilter = (key: string, value: string | null) => changeFilters({ [key]: value });
 
-  // 서버 검색(spec §7.5). 입력이 300ms 멈추면 적용하고, 적용하면 첫 페이지로 간다.
-  // 주소의 `q`는 적용된 값이다. 입력이 만든 주소 변경은 입력칸을 다시 덮지 않고,
-  // 뒤로 가기·초기화처럼 밖에서 바뀐 주소만 입력칸으로 옮긴다.
-  const applySearchRef = useRef<(next: string | null) => void>(() => undefined);
-  const inputAppliedRef = useRef(false);
-  applySearchRef.current = (next) => {
+  function applySearch(nextDraft: string) {
+    const next = searchKey(nextDraft) ? nextDraft : null;
+    if (next && !opportunitySearchValid(next)) {
+      setSearchError(true);
+      return;
+    }
+    setSearchError(false);
+    if (searchKey(next) === searchKey(rawSearch)) {
+      const params = new URLSearchParams(searchParams);
+      if (next) params.set("q", next);
+      else params.delete("q");
+      setSearchParams(params, { replace: true });
+      setSearchText(next ?? "");
+      return;
+    }
     applyParams({ q: next }, {
       title: "목록을 바꿉니다",
       message: "검색어를 적용하면 열려 있던 사업기회가 닫히고 저장하지 않은 입력이 사라집니다.",
       confirmLabel: "저장하지 않고 검색",
-    }, () => {
-      inputAppliedRef.current = true;
-    });
-  };
-  useEffect(() => {
-    const next = appliedSearch(searchText);
-    if (next === search) return undefined;
-    const timer = window.setTimeout(() => applySearchRef.current(next), SEARCH_DEBOUNCE_MS);
-    return () => window.clearTimeout(timer);
-  }, [searchText, search]);
-  const searchTextRef = useRef(searchText);
-  searchTextRef.current = searchText;
-  useEffect(() => {
-    if (inputAppliedRef.current) {
-      inputAppliedRef.current = false;
-      return;
-    }
-    if (appliedSearch(searchTextRef.current) !== search) setSearchText(rawSearch);
-  }, [rawSearch, search]);
+    }, () => setSearchText(next ?? ""));
+  }
+  useEffect(() => { setSearchText(rawSearch); setSearchError(false); }, [rawSearch]);
+  // URL로 들어온 invalid q는 그 값을 그대로 보여 주되, 사용자가 draft를 고치기
+  // 시작하면 이전 URL 오류를 계속 붙잡지 않는다. Enter로 다시 invalid를 적용한 경우는
+  // `searchError`가 현재 draft의 오류를 소유한다.
+  const showSearchError = (invalidUrlSearch && searchKey(searchText) === searchKey(rawSearch)) || searchError;
 
   const resetFilters = () => {
     applyParams({ section: null, first_registered_stage: null, sort: null, q: null, reason: null }, {
@@ -392,26 +386,27 @@ export function OpportunitiesPage() {
               }))}
               value={view}
             />
-            <WorkspaceFilterEnd>
-              {/* `q`는 서버 질의 인자다(spec §7.5). 입력이 멈추면 적용하고, Enter는 기다리지
-                  않고 바로 적용한다. 두 글자 미만은 보내지 않는다. */}
-              <WorkspaceSearch
-                className="opportunity-search"
-                label="사업명·발주기관 검색"
-                onChange={setSearchText}
-                onEnter={() => {
-                  const next = appliedSearch(searchText);
-                  if (next !== search) applySearchRef.current(next);
-                }}
-                value={searchText}
-              />
-              <WorkspaceAdvancedToggle
-                controlsId="opportunity-filter-advanced"
-                isOpen={advanced}
-                onToggle={() => setAdvanced(!advanced)}
-              />
-            </WorkspaceFilterEnd>
           </WorkspaceFilterLine>
+          <WorkspaceFilterTools className="opportunity-filter-tools">
+            <WorkspaceAdvancedToggle
+              controlsId="opportunity-filter-advanced"
+              isOpen={advanced}
+              onToggle={() => setAdvanced(!advanced)}
+            />
+            {/* `q`는 서버 질의 인자다. Enter 또는 지우기 버튼으로 적용한다. */}
+            <WorkspaceSearch
+              appliedValue={rawSearch}
+              className="opportunity-search"
+              errorMessage={showSearchError
+                ? "검색어는 공백을 정리한 뒤 2~100자여야 합니다."
+                : null}
+              label="사업명·발주기관 검색"
+              onChange={(value) => { setSearchText(value); setSearchError(false); }}
+              onClear={() => applySearch("")}
+              onEnter={() => applySearch(searchText)}
+              value={searchText}
+            />
+          </WorkspaceFilterTools>
           {view === ACTION_VIEW ? (
             <WorkspaceFilterContext className="opportunity-reason-filters">
               {/* 건수는 서버가 사유 필터만 빼고 센 값이다(`action_reason_counts`). 한 사업은
@@ -475,7 +470,11 @@ export function OpportunitiesPage() {
               </p>
             </header>
             <div className="opportunity-table-scroll" onClick={selectFromRow} role="presentation">
-              {list.isPending ? (
+              {invalidUrlSearch ? (
+                <div className="opportunity-empty">
+                  <p role="alert">주소의 검색어는 공백을 정리한 뒤 2~100자여야 합니다. 검색어를 고치거나 지우십시오.</p>
+                </div>
+              ) : list.isPending ? (
                 <div className="opportunity-empty">
                   <p role="status">사업 목록을 불러오는 중…</p>
                 </div>
@@ -489,9 +488,10 @@ export function OpportunitiesPage() {
                   <Search aria-hidden="true" />
                   <h3>조건에 맞는 사업이 없습니다</h3>
                   <p className="opportunity-caption">
-                    다른 구역이나 다음 페이지에 있을 수 있으며, 사업이 없다는 뜻은 아닙니다.
+                    {search ? `적용된 검색어 "${search}"와 다른 활성 필터에 맞는 사업이 없습니다.`
+                      : "다른 구역이나 다음 페이지에 있을 수 있으며, 사업이 없다는 뜻은 아닙니다."}
                   </p>
-                  <Button label="필터 초기화" onClick={resetFilters} />
+                  <Button label={search ? "검색어만 지우기" : "필터 초기화"} onClick={search ? () => applySearch("") : resetFilters} />
                 </div>
               ) : (
                 <Table
@@ -507,12 +507,13 @@ export function OpportunitiesPage() {
             </div>
             <footer className="opportunity-list-foot">
               <p className="opportunity-caption">
-                서버 {countLabel(total)}건 중 {countLabel(rows.length)}건 표시
-                {search ? ` · 검색어 "${search}"는 서버가 페이지를 나누기 전에 적용합니다` : ""}
+                {invalidUrlSearch
+                  ? "검색어 오류로 목록을 조회하지 않았습니다."
+                  : `서버 ${countLabel(total)}건 중 ${countLabel(rows.length)}건 표시${search ? ` · 검색어 "${search}"는 서버가 페이지를 나누기 전에 적용합니다` : ""}`}
               </p>
-              {searchText.trim() && appliedSearch(searchText) === null ? (
+              {invalidUrlSearch || searchError ? (
                 <p className="opportunity-caption">
-                  검색어는 {SEARCH_MIN}~{SEARCH_MAX}자일 때만 적용합니다. 지금 목록은 검색어 없이 받은 것입니다.
+                  검색어는 공백을 정리한 뒤 {SEARCH_MIN}~{SEARCH_MAX}자여야 합니다. {search && !invalidUrlSearch ? `현재 목록은 검색어 "${search}" 결과입니다.` : "검색어를 고치거나 지우십시오."}
                 </p>
               ) : null}
               {undecided > 0 ? (
