@@ -47,11 +47,11 @@
 - `components/common/SourceRunFilter.tsx`(Astryx `Selector` 기반): 보이는 라벨 `수집 회차`, `hasSearch`, 누적 옵션 **`모든 수집 회차`** 하나, 로딩 placeholder `회차 목록 조회 중`, 오류는 컴포넌트 안 `role="alert"` 한 줄 + `다시 시도`. props: `runs`, `extraRunIds?`, `value`, `onChange`, `isPending`, `isError`, `onRetry`, `isDisabled?`, `allRunsDescription`.
 - 기반으로 쓰지 않는 것: `ReviewFilterSelector`(라벨 숨김 고정, 검색·오류 개념 없음), `RunPickerField`(회차 필수·첫 회차 자동 선택·`?run=` 강제).
 - 위치: 발주계획·사전규격 모두 `WorkspaceFilterAdvanced` 안. 사전규격의 관측 날짜 범위는 도구 줄에 남는다. CSS는 `workspace-filters.css` 한 벌이며 `order-plans.css`·`pre-specs-relaxed.css`의 회차 규칙은 지운다.
-- **공용 컴포넌트는 표시만 맡고 URL 정책은 페이지가 소유한다.** 지금 발주계획은 회차를 바꾸면 다른 필터·검색을 지우고(`OrderPlansPage.tsx:824`) 사전규격은 기존 조건에 더한다(`PreSpecsPage.tsx:746`). 어느 쪽으로 맞출지는 시안 M1에서 정한다.
+- **공용 컴포넌트는 표시만 맡고 URL 정책은 페이지가 소유한다.** 지금 발주계획은 회차를 바꾸면 다른 필터·검색을 지우고(`OrderPlansPage.tsx:824`) 사전규격은 기존 조건에 더한다(`PreSpecsPage.tsx:746`). **M1 승인(2026-09-21): 두 화면 모두 회차를 기존 조건에 더한다.** `/runs`의 `이 회차 보기` 링크는 `전체` 보기로 연다.
 - 접힌 상태에서 회차가 걸렸음을 알리는 두 장치
   1. `WorkspaceAdvancedToggle`의 `activeCount`에 회차를 포함한다. 사전규격은 `activeFilterCount`를 새로 만든다. 초기화는 회차도 지운다.
   2. `source_run_id`가 있으면 `WorkspaceFilterContext`에 `회차 보기 · <라벨> [· 측정 전용 실행] [모든 회차로]`를 접힘과 무관하게 그린다. 회차 목록 오류도 이 줄에서 알린다.
-- `· 측정 전용 실행`의 위치는 M1에서 A안(회차 줄로 단일화)·B안(바닥 줄 유지)을 보이고 고른다. 조건식은 그대로다.
+- `· 측정 전용 실행`은 **M1 승인(2026-09-21) A안**: 회차 줄에 단일화하고 목록 바닥 줄의 회차 모드 문구는 없앤다(바닥 줄은 `판정 없음` 계열에만 남는다). 조건식은 그대로다. ADR-0062의 09-21 개정(바닥 줄)을 이 결정으로 다시 개정한다.
 - 운영 쪽(`shell/RunSelector`, `runs/RunPicker`, Metrics 모달)은 컴포넌트를 두고 옵션 라벨만 `runOptionLabel`로 맞춘다. 대시보드 선택기는 §7에서 패널째 빠진다.
 
 검증 표(같은 패키지에서 spec으로 고정한다. 기존 검사는 펼치지 않은 선택기·native combobox를 전제한다 — `order-plans.spec.ts:139`, `prespec-list-work.spec.ts:135`):
@@ -76,7 +76,7 @@
 ### 2.3 포맷과 이름
 
 - `lib/format.ts`에 `formatMoment`·`formatCount`(`WorkspaceFilters.tsx:30`에서 옮기고 re-export)·`formatAmount`·`missingLabel(kind)`를 두고 중복을 교체한다: `orderPlanFormat.ts:8`, `bid-delta/labels.ts:100`, `opportunities/trackingFlow.ts:475`, `PoliciesPage.tsx:78`, `OrderPlanPolicyPage.tsx:149`, `QualityGatesPage.tsx:138`, `OrderPlansPage.tsx:218`, 그리고 `toLocaleString` 직접 호출.
-- 목록 범위 설명 단추·다이얼로그 제목 1종, 목록 건수 캡션 1종(문구는 M1에서 확정). 검색 placeholder와 접근 이름을 일치시킨다(`OrderPlansPage.tsx:1633-1642`).
+- 목록 범위 설명 단추는 `목록 기준`, 다이얼로그 제목은 `이 목록의 기준`, 목록 머리는 `{화면 이름} 목록 · N건`(M1 승인). 빈 값 문구는 `예산 미제공`·`추정가격 미제공`·`발주 시기 미제공`(연도만 있으면 `2026년 · 월 미제공`). 검색 placeholder와 접근 이름을 일치시킨다(`OrderPlansPage.tsx:1633-1642`).
 - 삭제: `common/DataTable.tsx`, `ReviewState`, `ReviewStateGroup`, `ReviewSecondaryInput`, `ReviewOutlineChip`, `WorkspaceFilterEnd`(삭제 전 `src`·`tests` 참조 0 확인).
 - 통일하지 않는 것: 사전규격 목록의 무채색 등급(ADR-0055 결정 2).
 
