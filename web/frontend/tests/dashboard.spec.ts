@@ -262,7 +262,9 @@ for (const [width,height] of [[1280,800],[1440,900]]) {
     await entry.click();
     await expect.poll(()=>new URL(page.url()).pathname).toBe('/order-plans');
     expect(new URL(page.url()).searchParams.has('source_run_id')).toBe(false);
-    await expect(page.getByTestId('order-plan-list-scope')).toHaveText('누적 · 판정 policy c2-policy.v1');
+    // 누적으로 열렸다는 것은 위의 URL(source_run_id 없음)이 말한다. 평상시 누적의
+    // 범위 줄은 운영자용 감사 정보라 그리지 않는다(2026-09-21).
+    await expect(page.getByTestId('order-plan-list-scope')).toHaveCount(0);
     await expect(page.locator('.c2l-list-head')).toContainText('현재 필터 결과 2건');
     await expect(page.locator('.c2l-row')).toHaveCount(2);
   });

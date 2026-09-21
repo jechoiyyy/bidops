@@ -1923,28 +1923,25 @@ export function OrderPlansPage() {
                   ))}
                 </DenseList>
               )}
-              {/* 바닥 안내 줄 — 지금 보는 범위·정렬과, 기본 보기가 숨기는 것을 함께 적는다.
-                  숨김을 부재로 표시하지 않는다(PRD §3.2). B3(0920 검수): 범위는 더 이상
-                  여기서 따로 적지 않는다 — 페이저 줄이 그 값을 갖는다(중복 제거). 안내를
-                  먼저 두고 페이저를 마지막 줄로 내린다. */}
-              <div className="c2l-list-foot">
-                {/* 어느 범위(누적·회차)를 보고 있는지 밝힌다. 범위를 모르면 적지 않는다. */}
-                {listScope !== undefined ? (
+              {/* 바닥 안내 줄 — 실무자가 알아야 할 **경고가 있을 때만** 보인다(2026-09-21
+                  사용자 결정). 평상시(누적 · 활성 policy 판정 있음)에는 그리지 않는다.
+                  - 정렬 설명은 지웠다: 행마다 관련도 표식이 있어 순서가 자명하다.
+                  - 기본 보기 숨김 안내는 지웠다: `전체` 탭과 그 건수가 "더 있다"를 이미 구조로
+                    보여 주고, 문구가 `BM25 선정 제외` 같은 파이프라인 용어라 읽고 행동할 수 없다.
+                  - 범위 줄은 남긴다. 단 누적·정상일 때의 `판정 policy …`는 운영자용 감사 정보라
+                    숨기고, 아래 셋일 때만 보인다. 특히 회차 모드의 ` · 측정 전용 실행`은 이
+                    목록이 운영 판정이 아님을 알리는 **유일한 곳**이다 — 측정·참조 결과를 운영
+                    판정으로 오인시키지 않는 것은 저장소의 강제 게이트다(CLAUDE.md).
+                    ① 판정 없음(`null`) ② 누적인데 활성화된 적 있는 policy 판정이 없음
+                    ③ 특정 회차를 고른 회차 모드. 범위를 모르면(`undefined`) 적지 않는다. */}
+              {listScope === null
+                || (listScope !== undefined && (listScope.mode !== "cumulative" || listScope.policy_versions.length === 0)) ? (
+                <div className="c2l-list-foot">
                   <p className="c2l-list-scope" data-testid="order-plan-list-scope" title={scopeLabel(listScope)}>
                     <Text type="supporting" color="secondary" as="span">{scopeLabel(listScope)}</Text>
                   </p>
-                ) : null}
-                <p className="c2l-list-scope c2l-list-sort" title="관련 → 판단 보류 → 비관련 → 값 없음">
-                  <Text type="supporting" color="secondary" as="span">정렬 · 관련 → 판단 보류 → 비관련 → 값 없음</Text>
-                </p>
-                {isDefaultView && !listQuery.isPending && !listQuery.isError ? (
-                  <p className="c2l-list-foot-note">
-                    <Text type="supporting" color="secondary" as="span">
-                      필터 외 BM25 선정 제외·비관련·실패 건과 추적을 이미 정한 건은 기본 보기에서 숨김. 없는 것이 아니라 보이지 않는 것입니다.
-                    </Text>
-                  </p>
-                ) : null}
-              </div>
+                </div>
+              ) : null}
               {/* 페이저 줄은 안내 아래 마지막 줄이다. 사전규격과 같은 형식으로 왼쪽에
                   전체 건수, 오른쪽에 범위와 이전/다음 단추를 둔다(B3). */}
               {listQuery.isPending || listQuery.isError ? null : (

@@ -309,7 +309,9 @@ test("검토 목록은 relevance 우선순위로 정렬하고 선택 순서와 �
   await mockReorderedOrderPlanList(page, items);
   await page.goto("/order-plans");
 
-  await expect(page.locator(".c2l-list-sort")).toHaveText("정렬 · 관련 → 판단 보류 → 비관련 → 값 없음");
+  // 정렬 설명 줄은 지웠다 — 행마다 관련도 표식이 있어 순서가 자명하다(2026-09-21).
+  // 실제 순서는 아래에서 행으로 검증한다.
+  await expect(page.locator(".c2l-list-sort")).toHaveCount(0);
   await clickPreset(page, "전체");
 
   const rows = page.locator(".c2l-row");
@@ -2232,9 +2234,11 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900
       const listRequests = recordListRequests(page);
       await page.goto("/order-plans");
 
-      // 누적: source_run_id 없이 부르고 URL에도 회차를 박지 않는다.
+      // 누적: source_run_id 없이 부르고 URL에도 회차를 박지 않는다. 평상시 누적(활성
+      // policy 판정 있음)의 범위 줄은 운영자용 감사 정보라 그리지 않는다(2026-09-21).
       const scope = page.getByTestId("order-plan-list-scope");
-      await expect(scope).toHaveText("누적 · 판정 policy c2-policy.v1");
+      await expect(page.locator(".c2l-row")).toHaveCount(2);
+      await expect(scope).toHaveCount(0);
       await expect(page.locator(".c2l-row")).toHaveCount(2);
       expect(listRequests.length).toBeGreaterThan(0);
       expect(listRequests.every((params) => !params.has("source_run_id"))).toBe(true);
@@ -2263,8 +2267,9 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900
       await runSelector.click();
       await page.getByRole("option", { name: /누적 · 회차 선택 안 함/ }).click();
       await expect.poll(() => new URL(page.url()).searchParams.has("source_run_id")).toBe(false);
-      await expect(scope).toHaveText("누적 · 판정 policy c2-policy.v1");
       await expect(page.locator(".c2l-row")).toHaveCount(2);
+      // 회차 모드에서 보이던 범위 줄은 평상시 누적으로 돌아오면 다시 사라진다.
+      await expect(scope).toHaveCount(0);
       expect(listRequests.slice(requestsBeforeClear).every((params) => !params.has("source_run_id"))).toBe(true);
     });
 
