@@ -14,7 +14,9 @@
 - Frontend: `npx tsc -b && npm run build` 통과. `npm run test:screens` **667 passed / 3 failed / 6 skipped**. 변경 전 기준선은 665 / 3 / 6이며 회귀는 0이다 — 실패 3건 중 `admin-workspace-consistency.spec.ts:23`의 1280·1440 2건은 `/runs`의 `.rs-detail-foot`이 없어 나는 기존 실패이고(그 테스트만 `installRunStatusMock`을 설치하지 않는다, main과 코드 동일), `bid-delta.spec.ts`의 1건은 단독 재실행에서 41 passed로 통과한 부하 flake다(직전 실행에서는 같은 파일의 다른 사례가 실패해 실패 지점이 옮겨 다닌다). 기준선에서 실패하던 `list-selection.spec.ts` LS-S1은 검색 키 정규화 계약에 맞게 기대값을 고쳐 회복했다.
 - 폭: 1280×800·1440×900에서 조회 도구 줄의 직계 자식 4개가 같은 `top`을 가져 한 줄을 유지하고 가로 넘침이 0인 것을 측정으로 확인했다.
 
-검증 한계: 프런트 검사는 계약 기반 mock 환경이다. **운영 스택에서 `GET /api/pre-specs?workspace=actionable&deadline_scope=current`가 실측 55/44를 재현하는지는 아직 확인하지 않았다** — 새 백엔드를 운영 web에 올려야 하고, 재배포는 직전 사람 확인과 백업이 필요한 운영 변경이다. 픽셀 기준선(`pre-specs-list`)도 교체하지 않았다(게이트 아님).
+- 픽셀 기준선 교체(게이트 아님): `opportunities-list`·`order-plans-list`·`pre-specs-list` 3장. **사유** — 조회 도구·검색 UX 통일이 세 화면의 필터 영역을 보기 탭 줄 + 조회 도구 줄 2행으로 재편했고, 사전규격은 그 도구 줄에 마감 구간 컨트롤이 하나 더 들어왔다. 나머지 5장은 변경 없이 통과했다. **승인자** jechoi, **승인 시각** 2026-09-21. 교체 전 `pre-specs-list`의 새 이미지를 직접 확인했다(도구 줄이 1440에서 한 줄을 유지하고 구간 칩이 마지막 칸에 온다).
+
+검증 한계: 프런트 검사는 계약 기반 mock 환경이다. **운영 스택에서 `GET /api/pre-specs?workspace=actionable&deadline_scope=current`가 실측 55/44를 재현하는지는 배포 뒤에 확인한다** — 재배포는 직전 사람 확인과 백업이 필요한 운영 변경이다.
 
 ## 목록 조회 도구·검색 UX 통일 (2026-09-21, 로컬 구현·관련 검증 완료, 운영 배포 전)
 
