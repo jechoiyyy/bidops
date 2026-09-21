@@ -27,7 +27,7 @@ test("추적을 선택했지만 사유·기록자가 없으면 미선택으로 �
 // 탐색과 추적 목록 4화면은 상단바가 제목과 화면 액션을 갖고 페이지는 제목 줄을 두지
 // 않는다(사용자 결정 2026-09-08). 액션은 페이지 상태(대화상자 열림)를 쓰므로 셸로
 // 올리지 않고 `#page-header-actions` portal로 간다.
-test("목록은 상단바 제목 모드로 열리고 데이터 현황이 상단바 안에 있다", async ({ page }) => {
+test("목록은 상단바 제목 모드로 열리고 목록 기준이 상단바 안에 있다", async ({ page }) => {
   await mockOpportunities(page);
   await page.goto("/opportunities");
 
@@ -40,7 +40,7 @@ test("목록은 상단바 제목 모드로 열리고 데이터 현황이 상단�
   await expect(page.locator(".topbar-crumb")).toHaveCount(0);
   await expect(page.locator(".topbar-status")).toHaveCount(0);
 
-  const dataStatus = topbar.getByRole("button", { name: "데이터 현황" });
+  const dataStatus = topbar.getByRole("button", { name: "목록 기준" });
   await expect(dataStatus).toBeVisible();
   await dataStatus.click();
   await expect(page.getByRole("dialog")).toContainText("구역 건수는 서버가 센");
@@ -89,7 +89,7 @@ test("단독 상세는 목록으로 돌아갈 경로 표시를 그대로 갖는�
     "사업 추적",
     "#501",
   ]);
-  await expect(topbar.getByRole("button", { name: "데이터 현황" })).toHaveCount(0);
+  await expect(topbar.getByRole("button", { name: "목록 기준" })).toHaveCount(0);
 });
 
 test("구역 탭은 신규 입찰공고까지 여섯이고 건수는 서버가 센 값이며 표시 수와 구분된다", async ({ page }) => {
@@ -394,7 +394,7 @@ test("검색은 Enter로 서버 q에 적용하고 첫 페이지로 돌아가며 
   await input.fill("없는사업검색");
   await expect(page.locator(".opportunity-row-title")).toHaveText(["시설관리 업무시스템 구축"]);
   await input.press("Enter");
-  await expect(page.getByRole("heading", { name: "조건에 맞는 사업이 없습니다" })).toBeVisible();
+  await expect(page.getByText("조건에 맞는 사업이 없습니다")).toBeVisible();
   await expect(page.getByText('적용된 검색어 "없는사업검색"', { exact: false })).toBeVisible();
   await page.getByRole("button", { name: "검색어만 지우기" }).click();
   await expect(page.locator(".opportunity-table-scroll tbody tr")).toHaveCount(5);
@@ -402,12 +402,12 @@ test("검색은 Enter로 서버 q에 적용하고 첫 페이지로 돌아가며 
   expect(new URL(page.url()).searchParams.has("q")).toBe(false);
 });
 
-test("목록 로딩 실패는 다시 불러오기로 복구한다", async ({ page }) => {
+test("목록 로딩 실패는 다시 시도로 복구한다", async ({ page }) => {
   await mockOpportunities(page, { listStatus: 503 });
   await page.goto("/opportunities");
 
   await expect(page.getByText("사업 목록을 불러오지 못했습니다.")).toBeVisible();
-  await expect(page.getByRole("button", { name: "다시 불러오기" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "다시 시도" })).toBeVisible();
   await expect(page.locator(".opportunity-detail-pane")).toContainText("선택할 사업이 없습니다");
 });
 

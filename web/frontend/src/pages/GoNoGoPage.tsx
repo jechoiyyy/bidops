@@ -16,7 +16,6 @@ import {
   ChevronRight,
   Clock,
   RefreshCw,
-  Search,
 } from "lucide-react";
 import { EmptyState } from "../components/common/EmptyState";
 import { PageHeaderActions } from "../components/common/PageHeaderActions";
@@ -402,7 +401,7 @@ export function GoNoGoPage() {
       <h2 className="visually-hidden" id="go-no-go-title">최종 Go/No-Go</h2>
       <PageHeaderActions>
         <div className="gng-header-actions">
-          <Button label="데이터 현황" variant="ghost" size="sm" icon={<Activity aria-hidden="true" />} onClick={() => setDialog("data")} />
+          <Button label="목록 기준" variant="ghost" size="sm" icon={<Activity aria-hidden="true" />} onClick={() => setDialog("data")} />
         </div>
       </PageHeaderActions>
 
@@ -470,7 +469,7 @@ export function GoNoGoPage() {
             <div className="gng-workspace">
               <section className="gng-list-pane" aria-label="최종 결정 검토 목록">
                 <header className="gng-list-head">
-                  <Text className="gng-list-title" as="p">결정 검토 목록 · {visibleRows.length.toLocaleString("ko-KR")}건</Text>
+                  <Text className="gng-list-title" as="p">최종 결정 목록 · {visibleRows.length.toLocaleString("ko-KR")}건</Text>
                   <Text className="gng-caption" type="supporting" color="secondary" as="p">사람 결정 기준</Text>
                 </header>
                 <div className="gng-table-scroll">
@@ -486,18 +485,21 @@ export function GoNoGoPage() {
                     />
                   ) : (
                     <div className="gng-list-empty">
-                      <Search aria-hidden="true" />
-                      <Heading level={3}>조건에 맞는 사업이 없습니다</Heading>
-                      <Text className="gng-caption" type="supporting" color="secondary" as="p">
-                        {trimmedQuery
+                      <EmptyState
+                        compact
+                        title="조건에 맞는 사업이 없습니다"
+                        description={trimmedQuery
                           ? receivedAll
                             ? `적용된 검색어 "${query}"와 다른 활성 보기 조건에 맞는 사업이 없습니다. 계속 추적 중인 사업 전체에서 찾았습니다.`
                             : `적용된 검색어 "${query}"와 다른 활성 보기 조건에 맞는 사업이 받은 범위에 없습니다. 전체에 없다는 뜻은 아닙니다.`
                           : receivedAll
                             ? "계속 추적 중인 사업 전체에서 찾았습니다. 보기를 바꿔 보십시오."
                             : "받은 범위 안에 없을 뿐, 전체에 없다는 뜻은 아닙니다."}
-                      </Text>
-                      <Button label={trimmedQuery ? "검색어만 지우기" : "필터 초기화"} size="sm" onClick={trimmedQuery ? () => applySearch("") : resetFilters} />
+                        action={{
+                          label: trimmedQuery ? "검색어만 지우기" : "필터 초기화",
+                          onClick: trimmedQuery ? () => applySearch("") : resetFilters,
+                        }}
+                      />
                     </div>
                   )}
                 </div>
@@ -852,7 +854,7 @@ export function GoNoGoPage() {
       ) : null}
 
       <Dialog isOpen={dialog === "data"} onOpenChange={(open) => { if (!open) setDialog(null); }} purpose="info" width={640}>
-        <DialogHeader title="이 목록이 무엇을 세는가" onOpenChange={() => setDialog(null)} />
+        <DialogHeader title="이 목록의 기준" onOpenChange={() => setDialog(null)} />
         <div className="gng-dialog-body" data-astryx-theme="bidops">
           <Text as="p">
             추적 상태가 ‘계속 추적’인 사업기회만 최종 Go/No-Go 대상입니다. 보류·종료·미선택은 이 목록에 올리지 않습니다.
