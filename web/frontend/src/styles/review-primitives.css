@@ -270,15 +270,6 @@
   overflow-wrap: anywhere;
 }
 
-/* --- 칩 ---
- * outline 칩은 Astryx `Token`이 변형을 늘릴 수 없어(닫힌 union) 프로젝트 클래스로
- * 둔다(spec §2.3). 흰 바탕 + inset 1px 테두리이므로 높이를 먹지 않는다. */
-.review-chip-outline {
-  color: var(--color-text-secondary);
-  background: var(--color-background-surface);
-  box-shadow: inset 0 0 0 var(--border-width) var(--color-border);
-}
-
 .review-filter-bar {
   display: flex;
   min-width: 0;
@@ -503,35 +494,6 @@
   text-underline-offset: var(--spacing-0-5);
 }
 
-.review-state {
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-
-.review-state-group {
-  min-width: 0;
-  border-block-end: var(--border-width) solid var(--color-border);
-}
-
-.review-state-group-trigger {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  gap: var(--spacing-2);
-  overflow-wrap: anywhere;
-}
-
-.review-state-group-label {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
-.review-state-group-content {
-  min-width: 0;
-  padding: var(--spacing-2) 0 var(--spacing-3);
-}
-
-.review-state-group-disabled-reason,
 .review-decision-action-reason {
   margin: var(--spacing-1) 0 0;
   color: var(--color-text-secondary);
@@ -596,78 +558,6 @@
 .review-decision-bar .review-decision-action-reason {
   max-width: 40ch;
   text-align: right;
-}
-
-/* --- 접힌 보조 입력 영역 --- */
-.review-secondary-input {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: var(--spacing-2);
-  padding: var(--spacing-3) var(--spacing-4);
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-element);
-  background: var(--color-background-muted);
-}
-
-.review-secondary-input-head {
-  display: flex;
-  min-width: 0;
-  align-items: flex-start;
-  gap: var(--spacing-3);
-}
-
-.review-secondary-input-heading {
-  display: flex;
-  flex: 1 1 auto;
-  min-width: 0;
-  flex-direction: column;
-  gap: var(--spacing-1);
-}
-
-.review-secondary-input-title {
-  color: var(--color-text-primary);
-  font-size: var(--bo-type-caption);
-  font-weight: var(--font-weight-semibold);
-  overflow-wrap: anywhere;
-}
-
-.review-secondary-input-description {
-  color: var(--color-text-secondary);
-  font-size: var(--bo-type-caption);
-  overflow-wrap: anywhere;
-}
-
-.review-secondary-input-summary {
-  display: flex;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: var(--spacing-1);
-}
-
-/* 이 버튼은 결정으로 들어가는 유일한 문이다. Astryx `sm` 버튼의 28px는 이
- * 저장소가 키보드 조작 대상에 요구하는 높이에 못 미쳐, 접힌 영역을 여는 조작만
- * 다른 결정 액션보다 작아진다. 다른 화면의 `sm` 버튼 치수를 건드리지 않도록
- * 크기 토큰 대신 최소 높이만 다른 조작부와 같은 --control-height로 올린다. */
-.review-secondary-input-toggle {
-  flex: 0 0 auto;
-  min-height: var(--control-height);
-}
-
-.review-secondary-input-reason {
-  margin: 0;
-  color: var(--color-text-secondary);
-  font-size: var(--bo-type-caption);
-  overflow-wrap: anywhere;
-}
-
-.review-secondary-input-region {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: var(--spacing-4);
-  padding-top: var(--spacing-2);
-  border-top: var(--border-width) solid var(--color-border);
 }
 
 /* --- append-only revision 이력 --- */

@@ -155,10 +155,10 @@ async function expectSearchToolsBelowTabs(
   await page.screenshot({ path: testInfo.outputPath("search-tools.png") });
 }
 
-test("[search-ux] 발주계획 도구가 탭 아래 필터·검색·회차 순으로 놓인다", async ({ page }, testInfo) => {
+test("[search-ux] 발주계획 도구가 탭 아래 필터·검색 순으로 놓인다", async ({ page }, testInfo) => {
   await mockOrderPlans(page);
   await page.goto("/order-plans");
-  await expectSearchToolsBelowTabs(page, testInfo, ".c2l-row", ["workspace-advanced-toggle", "workspace-search-field", "c2l-filter-context-range"]);
+  await expectSearchToolsBelowTabs(page, testInfo, ".c2l-row", ["workspace-advanced-toggle", "workspace-search-field"]);
 });
 
 test("[search-ux] 사전규격 도구가 탭 아래 필터·검색·회차·추가 조건 순으로 놓인다", async ({ page }, testInfo) => {
