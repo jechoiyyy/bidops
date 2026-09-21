@@ -219,6 +219,33 @@ export type PreSpecSort = "published" | "deadline" | "observed";
 /** 사전규격 응답의 `grade`가 어디서 왔는가. 사람 정정이 있으면 `human_review`,
  * 판정만 있으면 `screening_judgment`, 둘 다 없으면 `null`(등급도 `null`)이다. */
 export type PreSpecGradeSource = "screening_judgment" | "human_review";
+export type PreSpecDisplayAssessmentStatus = "graded" | "held" | "none";
+export type PreSpecDisplayAssessmentSource =
+  | "human_review"
+  | "preliminary_assessment"
+  | "screening_judgment"
+  | "none";
+export interface PreSpecDisplayAssessmentAxis {
+  axis: "ai_data" | "blockchain_did" | "public_si_integration";
+  relation: "direct" | "partial" | "indirect" | "unrelated" | "unknown";
+  reason: string;
+  claim_refs: string[];
+  company_refs: string[];
+}
+export interface PreSpecDisplayAssessment {
+  grade: "우선 검토" | "검토 권장" | "관찰 대상" | "제외" | null;
+  status: PreSpecDisplayAssessmentStatus;
+  source: PreSpecDisplayAssessmentSource;
+  basis_run_id: string | null;
+  assessed_at: string | null;
+  quality_status: "unmeasured_reference" | "mock_reference" | null;
+  reason_codes: string[];
+  axes: PreSpecDisplayAssessmentAxis[];
+  verification_items: string[];
+  semantic_status: "not_run" | "passed" | "failed" | null;
+  semantic_scope: string[];
+  latest_run_status: PreSpecOverviewReviewStatus | null;
+}
 
 /** 자동 문서 준비가 어디까지 갔는가. `not_applicable`은 "대상이 아니다"이며
  * "알 수 없다"가 아니다 — 제공자가 없는 배포에서도 같은 값이다. 8값 전부
@@ -280,6 +307,8 @@ export interface PreSpecListItem {
    * 화면은 `판정 없음`으로 보이며 다섯 번째 등급으로 접지 않는다. */
   grade: string | null;
   grade_source: PreSpecGradeSource | null;
+  /** 목록·상세·필터가 함께 쓰는 화면 대표 판정. 자동 준비용 grade와 분리한다. */
+  display_assessment: PreSpecDisplayAssessment;
   /** 서버가 정한 자동 준비 단계. 응답에서 `null`이 되지 않는다. */
   auto_preparation_status: PreSpecAutoPreparationStatus;
   /** 왜 다음 단계로 가지 않는가. 안전한 코드이며 없으면 `null`이다.
@@ -331,6 +360,7 @@ export interface PreSpecListQuery {
   workspace?: PreSpecWorkspace | null;
   overview_view?: PreSpecOverviewView | null;
   grade?: string | null;
+  display_grade?: string | null;
   tracking_decision?: "pending" | null;
   tracking_status?: OpportunityTrackingStatus | null;
   source_run_id?: string | null;
@@ -489,12 +519,38 @@ export interface OverviewRun {
   validation_errors: string[];
   evidence_check_status: "passed" | "failed";
   evidence_check_errors: string[];
+  contract_version?: "overview-v1" | "overview-assessment-v1";
+  assessment?: {
+    result: {
+      primary_task_claim_ids: string[];
+      delivery_role: string;
+      axes: PreSpecDisplayAssessmentAxis[];
+      verification_items: string[];
+      uncertainty_codes: string[];
+    } | null;
+    checks: Record<string, unknown> | null;
+    grade: "우선 검토" | "검토 권장" | "관찰 대상" | "제외" | null;
+    status: PreSpecDisplayAssessmentStatus;
+    semantic_status: "not_run" | "passed" | "failed";
+    semantic_scope: string[];
+  } | null;
+  input_binding?: {
+    policy_digest: string;
+    prompt_version: string | null;
+    validator_version: string | null;
+    profile_version_id: string | null;
+    profile_digest: string | null;
+    profile_status: "not_configured" | "ready" | "invalid";
+    generation_config_digest: string | null;
+    input_binding_sha256: string | null;
+    reused_from_run_id: string | null;
+  };
 }
 
 /** 공고 하나의 개요 검토 전체. `current`는 `created_at` 최신 run이고 run이 없으면
  * `null`이다. `history`는 그 공고의 모든 run이다. */
 export interface OverviewEnvelope {
-  schema: string;
+  schema: "bidops.prespec-overview.v1" | "bidops.prespec-overview.v2";
   notice_id: number;
   current: OverviewRun | null;
   history: OverviewRun[];

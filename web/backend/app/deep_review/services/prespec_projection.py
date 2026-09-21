@@ -18,6 +18,7 @@ from ...lifecycle import PreSpecDocumentCounts, WorkloadCount
 from ..models import AttachmentFetch
 from ...lifecycle.models import Attachment, Notice
 from .auto_preparation import auto_preparation_fields
+from .display_assessment import display_assessments
 from .overview_runs import current_runs, overview_status_for
 
 # attachment_fetch.status 값 → PreSpecDocumentCounts 필드. 응답 별칭(완료·대기·
@@ -96,7 +97,12 @@ class PreSpecOverviewDocumentProjection:
         ids = _distinct_ids(notice_ids)
         if not ids:
             return {}
-        return auto_preparation_fields(session, ids)
+        fields = {notice_id: dict(value) for notice_id, value in auto_preparation_fields(session, ids).items()}
+        runs = current_runs(session, ids)
+        assessments = display_assessments(session, ids, latest_runs=runs)
+        for notice_id in ids:
+            fields.setdefault(notice_id, {})["display_assessment"] = assessments[notice_id]
+        return fields
 
     def notice_ids_for_auto_preparation_status(
         self, session: Any, notice_ids: Sequence[int], status: str

@@ -16,7 +16,7 @@ import {
   trackingLabel,
 } from "../../lib/preSpecViews";
 import type { KeyboardEventHandler } from "react";
-import { gradeLabel } from "../../lib/grade";
+import { displayAssessmentLabel } from "../../lib/grade";
 import type { PreSpecListItem } from "../../lib/types";
 import type { RowKeyboardNavigationRowProps } from "../common/useRowKeyboardNavigation";
 
@@ -91,7 +91,7 @@ export function PreSpecRow({
                 판정 없음을 특정 등급으로 접지 않는다. 출처는 상세가 갖는다. */}
             <span aria-hidden="true">·</span>
             {item.review_exclusion_status === "excluded" ? <Token size="sm" label="검토 제외" color="default" /> : null}
-            <span className="pre-specs-row-grade">{gradeLabel(item.grade)}</span>
+            <span className="pre-specs-row-grade">{displayAssessmentLabel(item.display_assessment)}</span>
             {item.kept_by_tracking ? (
               <>
                 <span aria-hidden="true">·</span>
@@ -133,4 +133,3 @@ export function PreSpecRow({
     />
   );
 }
-

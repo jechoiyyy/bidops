@@ -27,6 +27,7 @@ from ..schemas.pre_specs import (
     PreSpecDeadlineScope,
     PreSpecDeadlineScopeCounts,
     PreSpecDeadlineStatus,
+    PreSpecDisplayGradeFilter,
     PreSpecGradeFilter,
     PreSpecOverviewView,
     PreSpecOverviewStatusCount,
@@ -310,6 +311,7 @@ def list_pre_specs(
     deadline_scope: PreSpecDeadlineScope = "all",
     overview_view: PreSpecOverviewView = "all",
     grade: PreSpecGradeFilter | None = None,
+    display_grade: PreSpecDisplayGradeFilter | None = None,
     tracking_decision: PreSpecTrackingDecision | None = None,
     tracking_status: OpportunityTrackingStatus | None = None,
     source_run_id: str | None = None,
@@ -523,6 +525,16 @@ def list_pre_specs(
             )
         )
         and (
+            display_grade is None
+            or (
+                status_fields.get(notice_id, {}).get("display_assessment", {}).get("status") == "held"
+                if display_grade == "판단 보류"
+                else status_fields.get(notice_id, {}).get("display_assessment", {}).get("status") == "none"
+                if display_grade == "판정 없음"
+                else status_fields.get(notice_id, {}).get("display_assessment", {}).get("grade") == display_grade
+            )
+        )
+        and (
             auto_preparation_status is None
             or (
                 projection_available
@@ -703,6 +715,7 @@ def list_pre_specs(
                 overview_review_status=overview_status.get(notice.id),
                 grade=status.get("grade"),
                 grade_source=status.get("grade_source"),
+                display_assessment=status.get("display_assessment", {}),
                 auto_preparation_status=status.get(
                     "auto_preparation_status", "not_applicable"
                 ),

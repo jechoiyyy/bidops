@@ -90,6 +90,7 @@ def seed_overview_run(session):
         status="completed", range_source="auto", range_reason_codes=[], policy_digest="0" * 64,
         model_name="test-overview", warnings_json=[], reason_codes=[], call_count=1,
         raw_response_refs=[], result_json=deepcopy(OVERVIEW_RESULT),
+        checks_json={"overall": "passed"},
         completed_at=datetime.now(UTC),
     )
     session.add(run)
@@ -374,6 +375,7 @@ def test_the_latest_run_is_the_current_overview_even_with_older_history(context)
 
     assert fit.overview_inputs(session, [inputs["notice_id"]]) == {}
     newer.status, newer.result_json = "completed", deepcopy(OVERVIEW_RESULT)
+    newer.checks_json = {"overall": "passed"}
     session.commit()
     assert fit.overview_inputs(session, [inputs["notice_id"]])[inputs["notice_id"]].id == newer.id
 

@@ -3,9 +3,9 @@
 | 항목 | 내용 |
 |---|---|
 | 문서 상태 | 현재 결정 기준선·통합 색인 |
-| 기준일 | 2026-09-09 |
+| 기준일 | 2026-09-21 |
 | 범위 | 수집, 선별, 사전규격 검토, 심층 검토, 입찰공고 추적, 운영·보안 |
-| 상세 결정 정본 | [`docs/tracking/decisions/`](tracking/decisions/)의 ADR-0001~0038·0042~0045·0049~0051·0053~0054·0056~0064, ADR-0039~0041·0046~0048·0055(구 `docs/design/ADR.md`, git 이력에서 확인) |
+| 상세 결정 정본 | [`docs/tracking/decisions/`](tracking/decisions/)의 ADR-0001~0038·0042~0045·0049~0051·0053~0054·0056~0065, ADR-0039~0041·0046~0048·0055(구 `docs/design/ADR.md`, git 이력에서 확인) |
 | 함께 읽을 문서 | [`PRD.md`](PRD.md), [`ARCHITECTURE.md`](ARCHITECTURE.md), [`contracts.md`](contracts.md) |
 
 이 문서는 여러 시점에 작성된 결정 기록을 현재 관점에서 읽기 위한 통합 ADR이다. 각 결정의
@@ -145,6 +145,7 @@ R-xx/A-xx 작업 지시, 과거 API 경로는 현재 실행 진입점이 아니�
 | [0062](tracking/decisions/0062-explore-workspace-structure-unification.md) | 발주계획·사전규격 탐색 화면의 구조를 하나로 맞춤 | 채택 | 사전규격 기준, 페이저 위치·로딩 골격 유지·sticky 상세 머리 셋은 발주계획 방식을 공용으로; 발주기관 강조 블록 공용화; 수집 회차 선택을 필터 아래 줄로; 목록 폭 리사이저 제거(기능 손실 승인); 데이터 계층 불변; 재설계 C spec §2.4를 넘는 결정; UI 변경은 시안 승인 뒤 구현 |
 | [0063](tracking/decisions/0063-order-plan-bulk-tracking-end.md) | 발주계획 일괄 추적 종료를 연다 | 채택 | 숨김 기준은 추적 종료로 통일(새 "확인함" 필드 없음); `bulk-end` 신설·`bulk-start` v1 불변·`preview` 공유; 미선택 owner만, 소유 사업기회 없으면 만들지 않음; 한 요청 200건(PoC 값); 일괄 보류는 계속 비목표; migration 없음 |
 | [0064](tracking/decisions/0064-prespec-actionable-deadline-scope.md) | 사전규격 검토할 항목의 기본 시야를 마감 구간으로 나눈다 | 채택 | 마감 경과는 제외·소멸하지 않고 기본 시야만 `마감 전+미확인`으로 한정, `마감 경과`는 건수와 함께 1클릭 전환; 마감 미확인은 항상 기본 구간(unknown 보존); 새 인자 `deadline_scope`와 `deadline_scope_counts`, 기존 `deadline_status`는 불변; 구간은 actionable 술어 한 곳에만(검토 제외 가드가 먼저); migration 없음 |
+| [0065](tracking/decisions/0065-prespec-overview-preliminary-assessment.md) | 사전규격 개요와 예비 적합성 판단을 한 실행에서 생성 | 채택 — 제품 구현, 운영 비활성 | 정상 1회·위험 시 의미검증 1회·형식 재시도 포함 최대 3회; 서버 등급 계산과 보류; `display_assessment`는 사람 정정 우선; 기존 effective grade·자동화 검증 경계 유지; migration 0031과 v8 정책은 품질 비교·별도 승인 전 활성화하지 않음 |
 
 ## 4. 주제별 결정 요약
 
@@ -282,7 +283,7 @@ ADR-0021은 “운영 제품 전에 동일 모집단과 사람 정답으로 비�
 | C-2 Phase 0 | 계약 고정, `valid_but_blocked` | 제품 adapter·DB·API·worker 구현 후 별도 승인 |
 | C-2 품질 gold | 실험별 corpus가 다름 | C-2 625건 manifest의 사람 adjudication·감사 표본·threshold 확정 |
 | C-2 외부 transport | `execution_allowed=false` | binding 튜플(policy·binding·model digest·allowlist) 단위 private vLLM 전송 승인([0060](tracking/decisions/0060-c2-policy-db-row-authority.md)), payload·binding digest 일치 |
-| 개요 검토 model worker | 2026-09-11 MVP 재작성([0054](tracking/decisions/0054-prespec-overview-mvp-rewrite.md)) 진행 중. `prespec_overview_run`·REST·화면·실행기는 P1~P3에서 순차 구현 | 승인된 사설 vLLM artifact와 사람 gold로 측정한 품질. 참조 실행 결과는 활성화 근거가 아니다 |
+| 개요 검토 model worker | v7 운영 기준선 유지. v8 예비 판단 제품 구현·격리 검증 완료([0065](tracking/decisions/0065-prespec-overview-preliminary-assessment.md)); migration 0031·배포·정책 활성화 전 | 고정 원문과 사람 gold로 현행/v8 품질 비교, migration·동일 image/mount·백업/rollback 확인, 단계별 운영 승인. 참조·mock·미측정 결과는 활성화 근거가 아니다 |
 | 입찰 delta | schema·REST·화면 계약과 migration 존재, 계산 worker 미완료 | exact pair 기반 계산·근거 검증·Go/No-Go 연속 E2E |
 | 심층 품질 | Mock E2E, 단일 live 기록, 참조 실행 모드 결과는 모두 품질 승인이 아님 | immutable model artifact, 대표 HWP/PDF, 사람 gold로 gate 측정 |
 | deep-review-v2 역할별 분석 | 결정적 segment·요구사항 inventory만 구현([ADR-0051](tracking/decisions/0051-deep-review-v2-deterministic-subset.md)) | 외부 전송 1회성 예외 승인과 역할별 출력 계약 확정 |

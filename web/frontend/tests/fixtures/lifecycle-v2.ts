@@ -18,6 +18,11 @@ export const clickReadyUnlinkedPreSpec: PreSpecListItem = {
   origin: null, opportunity_id: null, tracking_status: null, kept_by_tracking: false,
   document: { attachments: 1, 완료: 1, 대기: 0, 진행: 0, 차단: 0, 실패: 0 },
   overview_review_status: "completed", grade: "우선 검토", grade_source: "screening_judgment",
+  display_assessment: {
+    grade: "우선 검토", status: "graded", source: "screening_judgment",
+    basis_run_id: null, assessed_at: null, quality_status: null, reason_codes: [],
+    axes: [], verification_items: [], semantic_status: null, semantic_scope: [], latest_run_status: "completed",
+  },
   auto_preparation_status: "deep_review_ready_for_click", auto_preparation_reason: "not_sw_business",
   latest_deep_review_id: null, first_observed_at: "2026-09-16T00:00:00Z", last_observed_at: "2026-09-16T00:00:00Z",
   next_action: "open_deep_review",
