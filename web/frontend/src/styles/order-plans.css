@@ -710,7 +710,7 @@
 }
 
 :is(.c2l-page, .c2l-dialog-body, .c2l-header-actions) :where(.astryx-text.supporting, .astryx-badge, .astryx-button, .astryx-toggle-button, .astryx-field-label, .astryx-tab),
-:is(.c2l-page, .c2l-dialog-body, .c2l-header-actions) :where(dt, code, .c2l-digest) {
+:is(.c2l-page, .c2l-dialog-body, .c2l-header-actions) :where(dt, code) {
   font-size: var(--bo-type-caption);
   line-height: var(--bo-type-caption-leading);
 }
@@ -757,12 +757,26 @@
   flex-wrap: nowrap;
 }
 
+/* 실행 표시는 **문제가 있을 때만** 선다(0921 명세 §3.1). 평상시에는 요소 자체가 없다. */
 .c2l-status-chip {
   display: inline-flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--spacing-2);
   min-width: 0;
+}
+
+/* 경고 색은 문장·링크와 함께 쓴다 — 색만으로 뜻을 전달하지 않는다(ADR-0004). */
+.c2l-status-chip.is-problem {
+  padding: var(--spacing-0-5) var(--spacing-2);
+  border: var(--border-width) solid var(--color-error-edge);
+  border-radius: var(--radius-sm);
+  color: var(--color-error);
+  white-space: nowrap;
+}
+
+.c2l-status-chip.is-problem .c2l-scope-link {
+  color: inherit;
 }
 
 .c2l-header-actions .astryx-selector {
@@ -1173,16 +1187,6 @@ header.c2l-list-head .c2l-list-scope {
   white-space: nowrap;
 }
 
-/* 자동 실행이 꺼진 사유 목록(배너 본문). preflight 가 목록 표식을 지우므로 되살린다. */
-.c2l-daily-trigger-reasons {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-1);
-  margin: 0;
-  padding-inline-start: var(--spacing-4);
-  list-style: disc;
-}
-
 .c2l-row-badges {
   display: flex;
   flex-wrap: wrap;
@@ -1324,6 +1328,44 @@ header.c2l-list-head .c2l-list-scope {
   overflow-wrap: anywhere;
 }
 
+/* 근거 한 덩어리: 라벨 한 줄과 값 한 줄. 없앤 신호 다이얼로그에서 올라온 두 값
+   (모델 판단 근거·가까운 회사 역량)이 같은 모양으로 읽힌다. */
+.c2l-evidence-item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  min-width: 0;
+}
+
+.c2l-evidence-item > p:first-child {
+  margin: 0;
+}
+
+.c2l-evidence-capability {
+  margin: 0;
+  min-width: 0;
+  padding: var(--spacing-2) var(--spacing-3);
+  border-left: var(--spacing-1) solid transparent;
+  border-radius: 0 var(--radius-inner) var(--radius-inner) 0;
+  background: var(--color-background-body);
+  overflow-wrap: anywhere;
+}
+
+/* 판정을 낸 실행에 문제가 있을 때만 서는 한 줄(경고 ③·④). */
+.c2l-detail-warn {
+  margin: 0;
+  min-width: 0;
+  padding: var(--spacing-1-5) var(--spacing-2);
+  border: var(--border-width) solid var(--color-warning-edge);
+  border-radius: var(--radius-sm);
+  color: var(--color-warning);
+  overflow-wrap: anywhere;
+}
+
+.c2l-detail-warn .c2l-scope-link {
+  color: inherit;
+}
+
 .c2l-detail-note {
   margin: 0;
   min-width: 0;
@@ -1362,13 +1404,6 @@ header.c2l-list-head .c2l-list-scope {
   align-self: flex-start;
 }
 
-/* --- 판정 탭 --- */
-.c2l-verdict {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-4);
-}
-
 .c2l-facts {
   list-style: none;
   margin: 0;
@@ -1401,153 +1436,6 @@ header.c2l-list-head .c2l-list-scope {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-1);
-}
-
-/* --- 신호 세부 탭 --- */
-.c2l-signal-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: var(--spacing-4);
-}
-
-.c2l-signal {
-  padding: var(--spacing-3);
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-element);
-}
-
-.c2l-signal-facts {
-  margin: var(--spacing-2) 0 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-1);
-}
-
-.c2l-signal-facts div {
-  display: flex;
-  justify-content: space-between;
-  gap: var(--spacing-2);
-}
-
-.c2l-signal-facts dt {
-  color: var(--color-text-secondary);
-  font-size: var(--bo-type-caption);
-}
-
-.c2l-signal-facts dd {
-  margin: 0;
-  text-align: right;
-  min-width: 0;
-}
-
-/* --- 운영 텔레메트리 탭 --- */
-.c2l-telemetry {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-4);
-}
-
-.c2l-telemetry-heading {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--spacing-3);
-  flex-wrap: wrap;
-}
-
-.c2l-fact-grid,
-.c2l-count-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: var(--spacing-2) var(--spacing-4);
-  margin: 0;
-  padding: var(--spacing-3);
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-element);
-}
-
-.c2l-fact-grid div,
-.c2l-count-grid div {
-  display: flex;
-  justify-content: space-between;
-  gap: var(--spacing-2);
-}
-
-.c2l-fact-grid dt,
-.c2l-count-grid dt {
-  color: var(--color-text-secondary);
-  font-size: var(--bo-type-caption);
-}
-
-.c2l-fact-grid dd,
-.c2l-count-grid dd {
-  margin: 0;
-  text-align: right;
-  min-width: 0;
-}
-
-.c2l-attempt-list {
-  list-style: none;
-  margin: var(--spacing-2) 0 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-3);
-}
-
-.c2l-attempt-list > li {
-  padding: var(--spacing-3);
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-element);
-}
-
-.c2l-attempt-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: var(--spacing-1) var(--spacing-4);
-  margin: var(--spacing-2) 0 0;
-  padding: 0;
-}
-
-.c2l-attempt-grid div {
-  display: flex;
-  justify-content: space-between;
-  gap: var(--spacing-2);
-}
-
-.c2l-attempt-grid dt {
-  color: var(--color-text-secondary);
-  font-size: var(--bo-type-caption);
-}
-
-.c2l-attempt-grid dd {
-  margin: 0;
-  text-align: right;
-  min-width: 0;
-}
-
-.c2l-artifact-summary ul {
-  list-style: none;
-  margin: var(--spacing-2) 0 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-1);
-}
-
-.c2l-artifact-summary li {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-2);
-  padding: var(--spacing-1) 0;
-}
-
-.c2l-digest {
-  font-family: var(--font-family-code);
-  font-size: var(--bo-type-caption);
-  color: var(--color-text-secondary);
-  word-break: break-all;
 }
 
 /* ===== 발주계획 추적 결정 ===== */
