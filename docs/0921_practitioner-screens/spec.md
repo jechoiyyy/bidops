@@ -83,6 +83,8 @@
 ### 2.4 사업 추적·Go/No-Go 골격
 
 - `opportunity-workspace`·`gng-workspace`를 `SplitWorkspace`로, 목록 머리·sticky 상세 머리·목록 폭을 발주계획·사전규격과 맞춘다. **M1c 승인(2026-09-21): A안** — 목록은 Astryx `Table`을 유지하고 글자 크기·행 간격만 공용 값에 맞춘다. 상세 머리는 `StickyDecisionHeader` + `AgencyFeature`.
+- **목록 첫 줄 글자 단의 정본은 공용 `--review-list-primary`(14.4px)다.** 발주계획·사전규격 목록은 2026-09-20에 사용자 승인으로 +2px 올린 값이고, 네 목록이 같은 크기를 쓴다. 사업 추적의 `--opportunity-row-primary`(13.5px)와 그 값을 고정한 단언(`opportunities.spec.ts`의 "13.5px·12.6px 단")은 이 결정으로 14.4px·12.6px로 개정한다(시안 M1c의 표 행이 13.5px로 그려진 것은 시안 CSS의 잔재이며 README의 "공용 값에 맞춘다"가 승인 문안이다). Go/No-Go는 C2에서 이미 14.4px다.
+- 교차 검사는 세 축으로 나뉜다(C1): `unifiedFrame`(공용 분할 틀·sticky 상세 머리·페이저 위치·발주기관 블록) 네 화면 모두, `unifiedListParts`(열 이름 줄·선택 도구줄) 탐색 두 화면만, `rowType`(행 첫 줄 크기) 화면별 selector.
 - `tests/explore-workspace-consistency.spec.ts:29-34`의 공란을 채운다.
 
 ## 3. 운영 정보 처분표
