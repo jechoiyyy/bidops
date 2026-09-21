@@ -17,11 +17,6 @@
  */
 
 .gng-page {
-  /* 목록 첫 줄(사업명·발주기관)은 본문보다 한 단 크다. 사용자가 16px에서 15px로
-     낮춘 최신 시안 값이며 시안 CSS와 같은 방식으로 본문 토큰에서 계산한다
-     (`--gng-row-primary: calc(var(--bo-type-body) + var(--bo-line))`). */
-  --gng-row-primary: calc(var(--bo-type-body) + 0.9px);
-
   display: flex;
   flex-direction: column;
   gap: var(--spacing-3);
@@ -109,40 +104,10 @@
 }
 
 /* --- 목록 38% : 상세 62% ---
- * 발주계획·사전규격·사업 추적 화면과 같은 기본 비율이다. 고정 px로 근사하지 않는다. */
-
-.gng-workspace {
-  display: flex;
-  flex: 1 1 0;
-  flex-direction: row;
-  align-items: stretch;
-  min-height: 0;
-  border: 0;
-  border-radius: 0 0 var(--radius-container) var(--radius-container);
-  box-shadow: var(--shadow-low);
-  background: var(--color-background-card);
-  overflow: hidden;
-}
-
-.gng-list-pane {
-  display: flex;
-  flex: 0 0 38%;
-  flex-direction: column;
-  width: 38%;
-  min-width: 0;
-  min-height: 0;
-  border-right: var(--border-width) solid var(--color-background-muted);
-}
-
-.gng-list-head {
-  display: flex;
-  flex: 0 0 auto;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--spacing-2);
-  padding: var(--spacing-2) var(--spacing-4);
-  border-bottom: var(--border-width) solid var(--color-background-muted);
-}
+ * 틀(`.gng-workspace`·`.gng-list-pane`·`.gng-detail-pane`)과 목록 머리는 이제
+ * 공용 골격이 그린다(`SplitWorkspace`·`.review-split-*`·`.review-list-head`,
+ * ADR-0062·시안 M1c A안). 화면 클래스는 검사 selector로만 함께 붙이고 규칙은
+ * `review-primitives.css` 한 곳에 둔다. 여기 남는 것은 이 화면만의 차이다. */
 
 .gng-list-title {
   margin: 0;
@@ -180,6 +145,9 @@
  * 시안 §목록: 사업명(15px) → 발주기관(15px) → 비교 상태·식별(14px), 오른쪽 열은
  * 사람 결정 하나다. 행마다 전체 날짜·UUID를 늘어놓지 않는다. */
 
+/* 행의 세로 여백(`--spacing-2`)과 좌우 가장자리(`--spacing-4`)는 탐색 두 화면의
+   목록 행(`.c2l-row-wrap`)과 같은 값이다. 가장자리만 맞추고 열 사이 간격은
+   `--spacing-3`으로 두어, 사람 결정 열(112px)이 좁아지지 않게 한다. */
 .gng-page .astryx-table-cell {
   padding: var(--spacing-2) var(--spacing-3);
   vertical-align: top;
@@ -192,6 +160,14 @@
   padding: var(--spacing-2) var(--spacing-3);
   background: var(--color-background-body);
   font-size: var(--bo-type-caption);
+}
+
+.gng-page :is(.astryx-table-cell, .astryx-table-header-cell):first-child {
+  padding-left: var(--spacing-4);
+}
+
+.gng-page :is(.astryx-table-cell, .astryx-table-header-cell):last-child {
+  padding-right: var(--spacing-4);
 }
 
 .gng-page .astryx-table-row:has([aria-pressed="true"]) {
@@ -212,9 +188,12 @@
   cursor: pointer;
 }
 
+/* 사업명·발주기관은 탐색 두 화면의 목록 행과 같은 토큰을 읽는다(시안 M1c A안 —
+   표는 그대로 두고 글자 크기만 공용 값에 맞춘다). 토큰은 목록 pane
+   (`.review-split-list`)이 소유한다. */
 .gng-row .gng-row-title,
 .gng-row .gng-row-agency {
-  font-size: var(--gng-row-primary);
+  font-size: var(--review-list-primary);
   line-height: 1.5;
   white-space: normal;
   overflow-wrap: anywhere;
@@ -238,10 +217,11 @@
   outline-offset: var(--spacing-0-5);
 }
 
-/* 목록 보조줄은 12px가 아니라 본문 14px다(시안 `.queue .business>.small`). */
+/* 목록 보조줄은 12px가 아니라 본문 14px다(시안 `.queue .business>.small`). 공용
+   목록의 보조 크기(`--review-list-secondary`)와 같은 값이다. */
 .gng-row > .gng-caption {
   padding-top: var(--spacing-1);
-  font-size: var(--bo-type-body);
+  font-size: var(--review-list-secondary);
   line-height: var(--bo-type-body-leading);
 }
 
@@ -266,47 +246,11 @@
   text-align: center;
 }
 
-/* --- 상세 --- */
-
-.gng-detail-pane {
-  display: flex;
-  flex: 1 1 auto;
-  flex-direction: column;
-  min-width: 0;
-  min-height: 0;
-}
-
-.gng-detail-head {
-  display: grid;
-  flex: 0 0 auto;
-  gap: var(--spacing-1);
-  padding: var(--spacing-3) var(--spacing-4);
-}
-
-.gng-agency {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-3);
-  min-width: 0;
-  padding: var(--spacing-2) var(--spacing-3);
-  border-radius: var(--radius-inner);
-  background: var(--color-accent-muted);
-}
-
-.gng-agency > svg {
-  width: var(--spacing-5);
-  height: var(--spacing-5);
-  flex-shrink: 0;
-  color: var(--color-text-accent);
-}
-
-.gng-agency-name {
-  /* 시안 `.detail-header .agency .astryx-text:last-child` = 본문 + 2px. */
-  font-size: calc(var(--bo-type-body) + var(--spacing-0-5));
-  font-weight: 600;
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
+/* --- 상세 ---
+ * 상세 pane(`.review-split-detail`)과 상세 머리(`.review-detail-head`, sticky),
+ * 발주기관 강조 블록(`.review-agency-feature`)은 공용 골격이 그린다. 이 화면이
+ * 따로 갖고 있던 `.gng-detail-pane`·`.gng-detail-head`·`.gng-agency*` 규칙은
+ * 그 공용 규칙과 같은 말을 두 벌로 적던 것이라 지웠다(시안 M1c). */
 
 .gng-detail-head .astryx-heading.level-2 {
   margin: 0;
@@ -316,12 +260,13 @@
   overflow-wrap: anywhere;
 }
 
+/* 위 선은 공용 상세 머리(`.review-detail-head`)의 `border-bottom`이 이미 긋는다.
+   여기서 다시 그으면 같은 자리에 선이 두 줄 생긴다. */
 .gng-detail-tabs {
   display: flex;
   flex: 0 0 auto;
   gap: var(--spacing-3);
   padding: 0 var(--spacing-4);
-  border-top: var(--border-width) solid var(--color-background-muted);
   border-bottom: var(--border-width) solid var(--color-background-muted);
 }
 
