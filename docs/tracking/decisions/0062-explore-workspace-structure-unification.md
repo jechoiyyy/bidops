@@ -2,7 +2,7 @@
 
 - 상태: 채택 (2026-09-20 사용자 결정, 시안 승인)
 - 일자: 2026-09-20
-- 관련 결정: `docs/0915_ui-redesign/spec.md` §2.4("발주계획의 구성·문구·상태 규칙은 현재 화면 그대로")를 넘는 결정, ADR-0040(레이아웃은 프로젝트 소유)·ADR-0047(데스크톱 전용)·ADR-0048(`bidops` 테마가 색 정본), [ADR-0063](0063-order-plan-bulk-tracking-end.md)(같은 작업의 일괄 종료)
+- 관련 결정: `docs/0915_ui-redesign/spec.md` §2.4("발주계획의 구성·문구·상태 규칙은 현재 화면 그대로")를 넘는 결정, ADR-0040(레이아웃은 프로젝트 소유)·ADR-0047(데스크톱 전용)·ADR-0048(`bidops` 테마가 색 정본), [ADR-0063](0063-order-plan-bulk-tracking-end.md)(같은 작업의 일괄 종료), [ADR-0065](0065-practitioner-ops-information-boundary.md)(아래 결정 표의 `수집 회차 선택` 행을 2026-09-21에 개정)
 - 근거 요청: 사용자 요청 2026-09-20 — "`/order-plans`와 `/pre-specs`의 UI 구조가 다를 필요가 없음, `/pre-specs` 기준으로", "발주기관을 따로 감싼 것은 가시성이 좋음, `/pre-specs`에도 적용", "회차 선택도 pre-specs와 동일하게"
 - 승인 시안: `docs/0915_ui-redesign/mockups/0920_explore-unify/` (Artifact https://claude.ai/artifact/46DZkNcXT2nFmjZiWRkFCH Version 2)
 
@@ -23,7 +23,7 @@
 | 항목 | 결정 |
 |---|---|
 | 필터 줄 추가물 | 화면별 유지. 발주계획의 저장된 뷰는 상세 필터 안에 남긴다 |
-| 수집 회차 선택 | 발주계획도 필터 아래 줄(`WorkspaceFilterContext`)에 `수집 회차` 라벨로 둔다. 실행 상태 표시는 상단 바에 남긴다 |
+| 수집 회차 선택 | 발주계획도 필터 아래 줄(`WorkspaceFilterContext`)에 `수집 회차` 라벨로 둔다. 실행 상태 표시는 상단 바에 남긴다. **2026-09-21 개정([ADR-0065](0065-practitioner-ops-information-boundary.md))**: 이 결정은 위치만 맞췄고 구현은 두 화면 모두 도구 줄(검색 옆 `WorkspaceFilterTools`)에 있으며 선택기 구현이 서로 다르다(`OrderPlansPage.tsx:1626-1653`은 `ReviewFilterSelector`, `PreSpecsPage.tsx:721-798`은 Astryx `Selector` 직접). 공용 컴포넌트 `SourceRunFilter` 하나로 통일해 `상세 필터`(`WorkspaceFilterAdvanced`) 안으로 옮기고, 옵션 설명에서 run_id 원문을 뺀다(실무자용 설명은 생성 시각이며 같은 기간 재실행을 구분한다. 운영 화면 쪽 옵션은 run_id를 계속 쓴다). `/runs` 회차 상세의 `이 회차 보기` 링크(`?source_run_id=`)로도 진입한다. 회차가 걸리면 상세 필터를 접었는지와 무관하게 필터 둘째 줄에 회차 줄(`회차 보기 · <라벨> [모든 회차로]`)을 **항상** 보인다. 실행 상태 표시는 상단 바에 남기되 **최근 실행에 문제가 있을 때만** 그린다 — 지금 조건(`latestCompletedExecution`, `OrderPlansPage.tsx:418`)은 성공·부분 성공만 고르므로 "과거 성공 + 이후 실패"를 문제없음으로 본다. `· 측정 전용 실행` 표식의 위치(회차 줄로 단일화 vs 목록 바닥 줄 유지)는 시안 M1에서 정하며 여기서 미리 단정하지 않는다. 조건식 자체는 바뀌지 않는다(`scope.purpose === "gate_measurement"`) |
 | 목록 폭 | 38% 고정. 발주계획의 드래그 리사이저를 **제거**한다(기능 손실을 사용자가 확인하고 승인) |
 | 목록 머리 | 한 줄(제목+건수, 기본 보기 설명). 발주계획의 범위·policy 설명은 목록 바닥 안내 줄로 내린다. **2026-09-21 개정(사용자 결정)**: 바닥 줄은 실무자에게 경고가 필요할 때만 그린다 — 판정 없음, 활성 policy 판정 없음, 측정 전용일 수 있는 회차 모드. 평상시 누적의 `판정 policy …`, 정렬 설명, 기본 보기 숨김 안내(`BM25 선정 제외…`)는 지운다. 숨긴 건이 있다는 사실은 `전체` 탭과 그 건수가 보여 준다 |
 | 열 머리 | 공용. 발주계획은 `사업명 / 발주기관` · `발주 예정` |
