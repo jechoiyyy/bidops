@@ -10,12 +10,14 @@ import { EmptyState } from "../components/common/EmptyState";
 import { PageHeaderActions } from "../components/common/PageHeaderActions";
 import { useUnsavedGuard } from "../components/common/useUnsavedGuard";
 import { useRowKeyboardNavigation } from "../components/common/useRowKeyboardNavigation";
-import { DenseList, ListColumns, ListPager, ReviewFilterSegmentedControl, SelectionToolbar, SplitWorkspace } from "../components/common/ReviewPrimitives";
+import { DenseList, ListColumns, ListPagerControls, ReviewFilterSegmentedControl, SelectionToolbar, SplitWorkspace } from "../components/common/ReviewPrimitives";
+import { SourceRunContextLine, SourceRunFilter } from "../components/common/SourceRunFilter";
 import {
   formatCount,
   WorkspaceAdvancedToggle,
   WorkspaceFilterAdvanced,
   WorkspaceFilterBar,
+  WorkspaceFilterContext,
   WorkspaceFilterLine,
   WorkspaceFrame,
   WorkspaceFilterTools,
@@ -47,7 +49,7 @@ import {
   createPreSpecSelectionReview,
   preSpecDetailUrl,
 } from "../lib/preSpecSelectionReview";
-import { formatRunRange } from "../lib/format";
+import { buildSourceRunOptions } from "../lib/runOptions";
 import { searchKey } from "../lib/search";
 import type {
   PreSpecReviewExclusionStatus,
@@ -55,7 +57,6 @@ import type {
   PreSpecListResponse,
   PreSpecOrigin,
   PreSpecSort,
-  RunSummary,
 } from "../lib/types";
 import "../styles/pre-specs-relaxed.css";
 
@@ -136,16 +137,6 @@ function sortForWorkspace(workspace: WorkspaceKey): PreSpecSort {
 
 function dateInputValue(value: string): ISODateString | undefined {
   return value ? value as ISODateString : undefined;
-}
-
-function runOptionLabel(run: RunSummary): string {
-  return run.window_from && run.window_to
-    ? `${formatRunRange(run.run_id, run.window_from, run.window_to)} 수집`
-    : `기간 미확인 · 회차 ${run.run_id.slice(0, 8)}…`;
-}
-
-function runOptionDescription(run: RunSummary): string {
-  return `${run.kind} · ${run.run_id}`;
 }
 
 export function PreSpecsPage() {
@@ -269,23 +260,16 @@ export function PreSpecsPage() {
       .sort((left, right) => right.generated_at.localeCompare(left.generated_at)),
     [runsQuery.data],
   );
-  const sourceRunOptions = useMemo(() => {
-    const selectedRun = sourceRuns.find((run) => run.run_id === sourceRunId);
-    return [
-      { value: "", label: "모든 수집 회차", description: "관측 이력 전체" },
-      ...sourceRuns.map((run) => ({
-        value: run.run_id,
-        label: runOptionLabel(run),
-        description: runOptionDescription(run),
-      })),
-      ...(sourceRunId && !selectedRun
-        ? [{
-            value: sourceRunId,
-            label: `선택 회차 · ${sourceRunId.slice(0, 8)}…`,
-            description: runsQuery.isError ? "회차 목록 조회 실패" : "목록에서 회차를 확인할 수 없음",
-          }]
-        : []),
-    ];
+  // 옵션 문구는 공용 조립기가 만든다(`lib/runOptions.ts`). 목록에 없는 URL 값은 조용히
+  // 다른 회차로 바뀌지 않고 사유만 붙는다.
+  const selectedRunLabel = useMemo(() => {
+    if (!sourceRunId) return null;
+    const options = buildSourceRunOptions({
+      runs: sourceRuns,
+      selectedRunId: sourceRunId,
+      isError: runsQuery.isError,
+    });
+    return options.find((option) => option.value === sourceRunId)?.label ?? "선택한 회차 (목록에 없음)";
   }, [runsQuery.isError, sourceRunId, sourceRuns]);
 
   const listQuery = useMemo(
@@ -667,11 +651,24 @@ export function PreSpecsPage() {
     return "누적 수집된 사전규격 데이터가 아직 없습니다.";
   }
 
-  const rangeEnd = Math.min(offset + loadedItems.length, total);
   const activeWorkspace = workspaceOf(workspace);
-  const pageCountLabel = (total > loadedItems.length || offset > 0) && loadedItems.length > 0
-    ? `전체 ${total}건 중 ${offset + 1}–${rangeEnd}건`
-    : `전체 ${total}건`;
+  /**
+   * 접힌 상세 필터에 걸려 있는 조건 수(명세 §2.1). 상세 필터 안의 축 가운데 기본값이
+   * 아닌 것을 센다 — `필터 초기화`(`기본값으로`)가 되돌리는 것과 같은 집합이다. 보기 탭·
+   * 검색·SW 스위치·마감 구간은 늘 보이는 컨트롤이라 세지 않는다.
+   */
+  const activeFilterCount = [
+    overviewView !== "all",
+    Boolean(businessDivision),
+    Boolean(origin),
+    Boolean(gradeFilter),
+    Boolean(trackingStatus),
+    Boolean(deadlineStatus),
+    Boolean(autoPreparationStatus),
+    Boolean(trackingDecision),
+    sort !== sortForWorkspace(workspace),
+    Boolean(sourceRunId),
+  ].filter(Boolean).length;
 
   return (
     <section className="pre-specs-page" data-astryx-theme="bidops" aria-labelledby="page-title">
@@ -681,12 +678,13 @@ export function PreSpecsPage() {
       <h2 className="visually-hidden" id="page-title">사전규격</h2>
       <PageHeaderActions>
         <div className="pre-specs-header-actions">
-          <Button label="표시 범위" size="sm" variant="ghost" onClick={() => setScopeDialogOpen(true)} />
+          {/* 목록 범위를 설명하는 단추는 네 화면이 같은 이름을 쓴다(시안 M1 승인 결정 3). */}
+          <Button label="목록 기준" size="sm" variant="ghost" onClick={() => setScopeDialogOpen(true)} />
         </div>
       </PageHeaderActions>
 
       <WorkspaceFrame>
-        <WorkspaceFilterBar aria-label="사전규격 필터" className="pre-specs-filters">
+        <WorkspaceFilterBar activeFilterCount={activeFilterCount} aria-label="사전규격 필터" className="pre-specs-filters">
           <WorkspaceFilterLine>
             <WorkspaceViewTabs
               className="pre-specs-views"
@@ -720,6 +718,7 @@ export function PreSpecsPage() {
 
           <WorkspaceFilterTools className="pre-specs-filter-tools">
             <WorkspaceAdvancedToggle
+              activeCount={activeFilterCount}
               controlsId="pre-specs-advanced-filters"
               isOpen={advancedOpen}
               onToggle={() => setAdvancedOpen((open) => !open)}
@@ -734,19 +733,9 @@ export function PreSpecsPage() {
               onEnter={() => applySearch(searchText)}
               value={searchText}
             />
+            {/* 수집 회차는 상세 필터 안으로 옮겼다(ADR-0062 2026-09-21 재개정). 관측 날짜
+                범위는 `최근 수집` 보기의 시야라 도구 줄에 남는다. */}
             <div className="pre-specs-filter-context-range">
-              <Selector
-                className="pre-specs-source-run"
-                label="수집 회차"
-                size="sm"
-                hasSearch
-                searchPlaceholder="회차 검색"
-                emptySearchText="일치하는 수집 회차가 없습니다"
-                options={sourceRunOptions}
-                onChange={(value) => updateSearchParams({ source_run_id: value || null })}
-                placeholder={runsQuery.isPending ? "회차 목록 조회 중" : "모든 수집 회차"}
-                value={sourceRunId}
-              />
               {workspace === "recent" || rawObservedFrom || rawObservedTo ? (
                 <div className="pre-specs-observation-range" aria-label="관측 날짜 범위">
                   <DateInput
@@ -897,7 +886,28 @@ export function PreSpecsPage() {
                 value={sort}
                 onChange={(value) => updateSearchParams({ sort: value === sortForWorkspace(workspace) ? null : value })}
               />
+              {/* 회차는 다른 축과 같은 방식으로 **기존 조건에 더한다**(시안 M1 승인 결정 2). */}
+              <SourceRunFilter
+                allRunsDescription="관측 이력 전체"
+                isError={runsQuery.isError}
+                isPending={runsQuery.isPending}
+                onChange={(runId) => updateSearchParams({ source_run_id: runId })}
+                onRetry={() => { void runsQuery.refetch(); }}
+                runs={sourceRuns}
+                value={sourceRunId || null}
+              />
             </WorkspaceFilterAdvanced>
+          ) : null}
+
+          {/* 회차 줄 — 상세 필터를 접었는지와 무관하게 그린다(명세 §2.1). */}
+          {sourceRunId && selectedRunLabel ? (
+            <WorkspaceFilterContext className="pre-specs-filter-context">
+              <SourceRunContextLine
+                label={selectedRunLabel}
+                onClearRun={() => updateSearchParams({ source_run_id: null })}
+                reason={runsQuery.isError ? "회차 목록 조회 실패" : null}
+              />
+            </WorkspaceFilterContext>
           ) : null}
         </WorkspaceFilterBar>
 
@@ -908,7 +918,7 @@ export function PreSpecsPage() {
             <section className="review-split-list pre-specs-list-pane" aria-label="사전규격 목록">
               <header className="review-list-head pre-specs-list-head">
                 <strong>
-                  사전규격 목록 <span className="mono tabular-nums">{total}</span>건
+                  사전규격 목록 · <span className="mono tabular-nums">{formatCount(total)}</span>건
                 </strong>
                 <span>{activeWorkspace.description} · {SORT_OPTIONS.find((option) => option.value === sort)?.label}</span>
               </header>
@@ -1034,37 +1044,21 @@ export function PreSpecsPage() {
                   </DenseList>
                 )}
               </div>
-              <footer className="pre-specs-list-foot">
-                <span>{pageCountLabel}</span>
-              </footer>
-              {/* 페이저는 목록 pane 안쪽 바닥이다(ADR-0062: 발주계획 방식). 클래스와
-                  접근 가능한 이름, 단추 이름은 그대로 둔다. */}
-              {result.isSuccess && total > PAGE_SIZE ? (
-                <ListPager className="pre-specs-pager" label="사전규격 목록 페이지">
-                  <button
-                    className="interaction-control interaction-control-primary"
-                    type="button"
-                    disabled={offset === 0}
-                    onClick={() => {
-                      updateSearchParams({
-                        offset: offset - PAGE_SIZE > 0 ? String(offset - PAGE_SIZE) : null,
-                      });
-                    }}
-                  >
-                    이전
-                  </button>
-                  <span>{offset + 1}–{rangeEnd} / {total}</span>
-                  <button
-                    className="interaction-control interaction-control-primary"
-                    type="button"
-                    disabled={offset + PAGE_SIZE >= total}
-                    onClick={() => {
-                      updateSearchParams({ offset: String(offset + PAGE_SIZE) });
-                    }}
-                  >
-                    다음
-                  </button>
-                </ListPager>
+              {/* 페이저는 목록 pane 안쪽 바닥이고 네 화면이 같은 공용 부품을 쓴다
+                  (명세 §2.2). 한 쪽에 다 들어오는 목록에서도 줄을 남기고 단추만 끈다 —
+                  그래서 전체 건수를 적던 별도 바닥 줄(`pre-specs-list-foot`)은 없앴다. */}
+              {result.isSuccess ? (
+                <ListPagerControls
+                  className="pre-specs-pager"
+                  label="사전규격 목록 페이지"
+                  offset={offset}
+                  onNext={() => updateSearchParams({ offset: String(offset + PAGE_SIZE) })}
+                  onPrevious={() => updateSearchParams({
+                    offset: offset - PAGE_SIZE > 0 ? String(offset - PAGE_SIZE) : null,
+                  })}
+                  total={total}
+                  visibleCount={loadedItems.length}
+                />
               ) : null}
             </section>
 
@@ -1112,7 +1106,7 @@ export function PreSpecsPage() {
       {exclusionTarget ? <ReviewExclusionDialog ids={exclusionTarget.ids} status={exclusionTarget.status}
         onClose={() => setExclusionTarget(null)} onSaved={exclusionSaved} /> : null}
       <Dialog isOpen={scopeDialogOpen} onOpenChange={(open) => { if (!open) setScopeDialogOpen(false); }} purpose="info" width={620}>
-        <DialogHeader title="표시 범위" onOpenChange={() => setScopeDialogOpen(false)} />
+        <DialogHeader title="이 목록의 기준" onOpenChange={() => setScopeDialogOpen(false)} />
         <div className="pre-specs-dialog-body">
           <p>
             현재 조건의 서버 전체 건수는 <strong>{total}건</strong>이고, 한 번에 최대 {PAGE_SIZE}건을 불러옵니다.
