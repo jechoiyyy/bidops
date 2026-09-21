@@ -15,6 +15,7 @@ import { List, ListItem, type ListItemProps } from "@astryxdesign/core/List";
 import { Selector, type SelectorOptionData } from "@astryxdesign/core/Selector";
 import { SegmentedControl, SegmentedControlItem } from "@astryxdesign/core/SegmentedControl";
 import { StatusDot, type StatusDotVariant } from "@astryxdesign/core/StatusDot";
+import { Text as AstryxText } from "@astryxdesign/core/Text";
 import { TextInput } from "@astryxdesign/core/TextInput";
 import { Token as AstryxToken, type TokenProps } from "@astryxdesign/core/Token";
 
@@ -348,6 +349,74 @@ export function ListPager({ children, className, label, ...props }: ListPagerPro
     >
       {children}
     </nav>
+  );
+}
+
+/** 천 단위 구분은 한국어 로캘 하나만 쓴다(`WorkspaceFilters.formatCount`와 같은 규칙). */
+function formatPagerCount(value: number): string {
+  return value.toLocaleString("ko-KR");
+}
+
+export interface ListPagerControlsProps {
+  className?: string;
+  /** 페이저 `<nav>`의 접근 이름. 화면 이름을 담는다. */
+  label: string;
+  /** 현재 조건의 전체 건수. */
+  total: number;
+  /** 지금 페이지의 첫 행 index(0부터). */
+  offset: number;
+  /** 지금 그려진 행 수. 마지막 페이지는 한 쪽 크기보다 작을 수 있다. */
+  visibleCount: number;
+  onPrevious: () => void;
+  onNext: () => void;
+  /** 일괄 작업처럼 목록 전체를 잠글 때. 양끝 비활성과 별개다. */
+  isDisabled?: boolean;
+}
+
+/**
+ * 목록 페이지 이동 줄의 **내용물** — 네 화면이 같은 모양을 쓴다(명세 §2.2, 시안 M1 승인).
+ *
+ * 왼쪽에 `전체 N건`, 오른쪽에 `1–50 / 1,234`와 이전·다음. 한 쪽에 다 들어오는 목록에서도
+ * 줄을 지우지 않고 단추만 비활성한다 — 건수가 어디에 있는지 화면마다 찾지 않게 한다.
+ * 자리와 줄 배치는 {@link ListPager}가 소유하므로 이 컴포넌트가 그것을 감싼다.
+ */
+export function ListPagerControls({
+  className,
+  label,
+  total,
+  offset,
+  visibleCount,
+  onPrevious,
+  onNext,
+  isDisabled = false,
+}: ListPagerControlsProps) {
+  const hasPrevious = offset > 0;
+  const hasNext = offset + visibleCount < total;
+  return (
+    <ListPager className={className} label={label}>
+      <AstryxText type="supporting" color="secondary">전체 {formatPagerCount(total)}건</AstryxText>
+      <div className="review-list-pager-range">
+        <AstryxButton
+          isDisabled={isDisabled || !hasPrevious}
+          label="이전"
+          onClick={onPrevious}
+          size="sm"
+          variant="secondary"
+        />
+        <AstryxText type="supporting" color="secondary">
+          {visibleCount
+            ? `${formatPagerCount(offset + 1)}–${formatPagerCount(Math.min(offset + visibleCount, total))} / ${formatPagerCount(total)}`
+            : "–"}
+        </AstryxText>
+        <AstryxButton
+          isDisabled={isDisabled || !hasNext}
+          label="다음"
+          onClick={onNext}
+          size="sm"
+          variant="secondary"
+        />
+      </div>
+    </ListPager>
   );
 }
 

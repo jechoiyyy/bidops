@@ -132,15 +132,31 @@ test("최근 workspace는 KST 관측 범위 기본값과 수집 회차를 API에
   // bounds let the server apply that default only to the recent bucket.
   expect(query?.has("observed_from")).toBe(false);
   expect(query?.has("observed_to")).toBe(false);
-  await expect(page.getByRole("button", { name: "수집 회차" })).toBeVisible();
+  // 회차 선택기는 `상세 필터` 안으로 옮겼고(ADR-0062 2026-09-21 재개정) 관측 날짜
+  // 범위는 `최근 수집` 보기의 시야라 도구 줄에 남는다.
+  await expect(page.locator(".pre-specs-filter-tools").getByRole("button", { name: "수집 회차" })).toHaveCount(0);
   await expect(page.getByRole("combobox", { name: "관측 시작일" })).toBeVisible();
   await expect(page.getByRole("combobox", { name: "관측 종료일" })).toBeVisible();
 
-  await page.getByRole("button", { name: "수집 회차" }).click();
+  await page.getByRole("button", { name: "상세 필터", exact: true }).click();
+  await page.locator("#pre-specs-advanced-filters").getByRole("button", { name: "수집 회차" }).click();
   const sourceRun = page.getByRole("option", { name: /2026-09-14 ~ 2026-09-15 수집/ });
   await expect(sourceRun).toBeVisible();
   await sourceRun.click();
   await expect.poll(() => queries.at(-1)?.get("source_run_id")).toBe("pre-spec-run-b");
+  // 회차가 걸리면 상세 필터를 접어도 회차 줄과 걸린 조건 수가 남는다(명세 §2.1).
+  await page.getByRole("button", { name: "상세 필터", exact: true }).click();
+  await expect(page.getByRole("button", { name: "상세 필터", exact: true })).toHaveAttribute("aria-expanded", "false");
+  const runLine = page.locator(".pre-specs-filters .source-run-context");
+  await expect(runLine).toContainText("회차 보기");
+  await expect(runLine).toContainText("2026-09-14 ~ 2026-09-15 수집");
+  await expect(page.locator(".pre-specs-filters .workspace-filter-count")).toHaveText("1");
+
+  // `모든 회차로`가 회차만 지우고 다른 조건은 남긴다.
+  await runLine.getByRole("button", { name: "모든 회차로", exact: true }).click();
+  await expect.poll(() => new URL(page.url()).searchParams.has("source_run_id")).toBe(false);
+  await expect(page.locator(".pre-specs-filters .source-run-context")).toHaveCount(0);
+  expect(new URL(page.url()).searchParams.get("workspace")).toBe("recent");
 
   await page.getByRole("button", { name: /^전체 이력/ }).click();
   await expect.poll(() => new URL(page.url()).searchParams.get("workspace")).toBe("all");
@@ -157,6 +173,66 @@ test("최근 workspace는 KST 관측 범위 기본값과 수집 회차를 API에
   expect(resetParams.has("observed_from")).toBe(false);
   expect(resetParams.has("observed_to")).toBe(false);
   expect(resetParams.has("sort")).toBe(false);
+});
+
+// 명세 §2.1 검증 표 — 사전규격 쪽 몫. 회차는 기존 조건에 더하고, 초기화가 함께 지우며,
+// 목록에 없는 회차·조회 실패는 이름을 지어내지 않고 사유만 밝힌다.
+test("사전규격의 회차는 기존 조건에 더해지고 기본값 복원이 함께 지운다", async ({ page }) => {
+  const queries: URLSearchParams[] = [];
+  page.on("request", (request) => {
+    const url = new URL(request.url());
+    if (url.pathname === "/api/pre-specs") queries.push(url.searchParams);
+  });
+  await mockApi(page);
+  await mockPreSpecs(page);
+  // 상세 필터 격자에 회차 칸이 하나 늘었다. 최소 지원 폭에서도 넘치지 않아야 한다(ADR-0047).
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto("/pre-specs?workspace=all&sw_only=false&grade=우선%20검토");
+
+  await page.getByRole("button", { name: "상세 필터", exact: true }).click();
+  await expect(page.locator("#pre-specs-advanced-filters")).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth))
+    .toBeLessThanOrEqual(1);
+  await page.locator("#pre-specs-advanced-filters").getByRole("button", { name: "수집 회차" }).click();
+  await page.getByRole("option", { name: /2026-09-14 ~ 2026-09-15 수집/ }).click();
+  await expect.poll(() => queries.at(-1)?.get("source_run_id")).toBe("pre-spec-run-b");
+
+  // 다른 축이 그대로 남는다. 상세 필터 단추의 수는 등급 + 회차 둘이다.
+  expect(new URL(page.url()).searchParams.get("grade")).toBe("우선 검토");
+  await expect(page.locator(".pre-specs-filters .workspace-filter-count")).toHaveText("2");
+
+  // 회차 줄까지 그려진 상태에서도 넘치지 않는다(1280·1440 두 폭).
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth))
+    .toBeLessThanOrEqual(1);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await expect(page.locator(".pre-specs-filters .source-run-context")).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth))
+    .toBeLessThanOrEqual(1);
+
+  // `기본값으로`는 회차도 함께 지운다.
+  await page.locator(".pre-specs-filters").getByRole("button", { name: "기본값으로", exact: true }).click();
+  await expect.poll(() => new URL(page.url()).searchParams.has("source_run_id")).toBe(false);
+  expect(new URL(page.url()).searchParams.has("grade")).toBe(false);
+  await expect(page.locator(".pre-specs-filters .source-run-context")).toHaveCount(0);
+});
+
+test("사전규격도 목록에 없는 회차를 바꾸지 않고, 회차 목록 조회 실패는 선택기 안에서 알린다", async ({ page }) => {
+  await mockApi(page);
+  await mockPreSpecs(page);
+  await page.route("**/api/runs", (route) => route.fulfill({ status: 500, json: { detail: "runs unavailable" } }));
+  await page.goto("/pre-specs?workspace=all&sw_only=false&source_run_id=pre-spec-run-b");
+
+  // 회차 목록을 못 읽어도 목록 자체는 막지 않는다.
+  await expect(page.locator(".pre-specs-row").first()).toBeVisible();
+  expect(new URL(page.url()).searchParams.get("source_run_id")).toBe("pre-spec-run-b");
+  const runLine = page.locator(".pre-specs-filters .source-run-context");
+  await expect(runLine).toContainText("선택한 회차 (목록에 없음)");
+  await expect(runLine).toContainText("회차 목록 조회 실패");
+
+  await page.getByRole("button", { name: "상세 필터", exact: true }).click();
+  const alert = page.locator(".source-run-filter-error");
+  await expect(alert).toHaveAttribute("role", "alert");
+  await expect(alert.getByRole("button", { name: "다시 시도", exact: true })).toBeVisible();
 });
 
 // ADR-0064 — 검토할 항목의 기본 시야는 `마감 전 + 마감 미확인`이고, 마감 경과는

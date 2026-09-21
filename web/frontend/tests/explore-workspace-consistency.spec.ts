@@ -245,6 +245,8 @@ test("탐색과 추적 목록 4화면은 두 지원 폭에서 같은 상단바·
           .toBeGreaterThanOrEqual(24);
         expect(metrics.toolbarReasonHeight, `${where} 비활성 사유 줄 높이`).toBeGreaterThan(0);
         expect(metrics.pagerOutsideListPane, `${where} 페이저는 목록 pane 밖에 없다`).toBe(0);
+        // 명세 §2.2 — 한 쪽에 다 들어오는 목록에서도 페이저 줄은 남는다(공용 `ListPagerControls`).
+        expect(metrics.pagerInsideListPane, `${where} 페이저 줄은 늘 목록 pane 안에 있다`).toBe(1);
         agencyBackground ??= metrics.agencyFeatureBackground;
         expect(metrics.agencyFeatureBackground, `${where} 발주기관 블록 배경`).toBe(agencyBackground);
         expect(metrics.agencyFeaturePadding, `${where} 발주기관 블록 여백`).toBe("10.8px 14.4px 10.8px 14.4px");
