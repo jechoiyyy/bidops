@@ -67,6 +67,9 @@ function testOrderPlanItem(orderPlanPk: number, relevance: "relevant" | "uncerta
     budget_amount: null,
     planned_order_year: null,
     planned_order_month: null,
+    // v5: 계약방법·공고 게시 여부. 값 없음은 `null`로 두고 빈 문자열로 바꾸지 않는다.
+    contract_method: null as string | null,
+    notice_posted: null as string | null,
     source_run_id: TEST_ORDER_PLAN_SOURCE_RUN_ID,
     observed_at: "2026-09-01T01:00:00Z",
     stage1_status: "selected",
@@ -111,7 +114,7 @@ async function mockReorderedOrderPlanList(
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
-        schema_version: "order-plan-list-response.v4",
+        schema_version: "order-plan-list-response.v5",
         producer: "order-plan-review-api",
         consumer: "order-plan-review-client",
         scope: { mode: "cumulative", policy_versions: ["c2-policy.v1"], activated_policy_versions: ["c2-policy.v1"] },

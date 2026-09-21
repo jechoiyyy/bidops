@@ -287,6 +287,12 @@ def test_read_projections_include_plan_fields_history_and_safe_attempts(tmp_path
     plans[0].budget_amount = Decimal("123.45")
     plans[0].planned_order_year = "2027"
     plans[0].planned_order_month = "09"
+    plans[0].contract_method = "일반경쟁"
+    plans[0].notice_posted = "Y"
+    plans[0].procurement_method = "자체조달"
+    plans[0].supervising_agency_name = "조달청"
+    plans[0].bid_ntice_no_list = "R26BK01696186000,R26BK01696187000"
+    plans[0].published_at = datetime(2026, 9, 1, tzinfo=UTC)
     session.commit()
     service = OrderPlanScreeningService(settings)
     response, _ = _create(service, session, policy_version)
@@ -326,11 +332,25 @@ def test_read_projections_include_plan_fields_history_and_safe_attempts(tmp_path
     assert item["planned_order_year"] == "2027"
     assert item["planned_order_month"] == "09"
     assert item["nearest_capability"] == "데이터 연계"
+    assert (item["contract_method"], item["notice_posted"]) == ("일반경쟁", "Y")
+
+    plan_detail = service.order_plan_detail(session, plans[0].id)
+    assert plan_detail["supervising_agency_name"] == "조달청"
+    assert plan_detail["procurement_method"] == "자체조달"
+    assert plan_detail["contract_method"] == "일반경쟁"
+    assert plan_detail["notice_posted"] == "Y"
+    # 공고번호가 여럿이면 수집 원문이 한 문자열이다. 서버는 쪼개지 않고 그대로 낸다.
+    assert plan_detail["bid_ntice_no_list"] == "R26BK01696186000,R26BK01696187000"
+    assert plan_detail["published_at"] == datetime(2026, 9, 1, tzinfo=UTC)
 
     history = service.screening_history(session, plans[0].id)["items"][0]
     assert history["nearest_capability"] == "데이터 연계"
     assert history["batch_id"] == "batch-read-01"
     assert history["attempt_no"] == 1
+    # 이미 읽은 실행 행에서 그대로 꺼낸 값이다(추가 조회 없음).
+    assert history["execution_purpose"] == execution.purpose == "operational"
+    assert history["execution_started_at"] == execution.started_at
+    assert history["execution_finished_at"] == execution.finished_at
 
     detail = service.execution_detail(session, execution_id)
     attempt = detail["attempts"][0]

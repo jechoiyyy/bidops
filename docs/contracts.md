@@ -1139,9 +1139,9 @@ policy rejection은 retry하지 않는다. 재시도 후에도 결과가 없으�
 
 | method / path | 요청 | 성공 응답의 필수 field | 안정 오류 |
 |---|---|---|---|
-| `GET /api/order-plans` | `source_run_id?`, `stage1_status?`, `stage2_status?`, `qwen_relevance?`, `human_relevance?`, `q?`, `limit=1..500`, `offset>=0` | `items`, `total`, `limit`, `offset`; item은 `order_plan_pk`, `order_plan_unty_no`, nullable 공개 `source_url`, title, agency, nullable `budget_amount`·`planned_order_year`·`planned_order_month`, source run/observation, BM25 stage status/rank/score/`nearest_capability`, Qwen stage status/score/label/reason, latest human feedback summary, 결과를 낸 `execution_id`·`policy_version`, `first_observed_at`; `source_run_id`가 없으면 누적 모드(`order-plan-list-response.v4`, "발주계획 목록 누적 모드") | `invalid_request(422)` |
-| `GET /api/order-plans/{order_plan_pk}` | path PK | 누적 plan metadata(`budget_amount`, planned year/month, nullable 공개 `source_url` 포함)와 `screening_history`, latest result/feedback; 내부 source path·object key는 반환하지 않음 | `not_found(404)` |
-| `GET /api/order-plans/{order_plan_pk}/screening-history` | path PK | `order_plan_pk`, `items[]`; item은 execution/binding digest, status, BM25 `nearest_capability`, result `batch_id`·`attempt_no`, stage result, feedback revision count | `not_found(404)` |
+| `GET /api/order-plans` | `source_run_id?`, `stage1_status?`, `stage2_status?`, `qwen_relevance?`, `human_relevance?`, `q?`, `limit=1..500`, `offset>=0` | `items`, `total`, `limit`, `offset`; item은 `order_plan_pk`, `order_plan_unty_no`, nullable 공개 `source_url`, title, agency, nullable `budget_amount`·`planned_order_year`·`planned_order_month`, source run/observation, BM25 stage status/rank/score/`nearest_capability`, Qwen stage status/score/label/reason, latest human feedback summary, 결과를 낸 `execution_id`·`policy_version`, `first_observed_at`, nullable `contract_method`·`notice_posted`(수집 원문 `Y`/`N`); `source_run_id`가 없으면 누적 모드(`order-plan-list-response.v5`, "발주계획 목록 누적 모드") | `invalid_request(422)` |
+| `GET /api/order-plans/{order_plan_pk}` | path PK | 누적 plan metadata(`budget_amount`, planned year/month, nullable 공개 `source_url`, nullable `supervising_agency_name`·`procurement_method`·`contract_method`·`notice_posted`·`bid_ntice_no_list`·`published_at` 포함)와 `screening_history`, latest result/feedback; 내부 source path·object key는 반환하지 않음 | `not_found(404)` |
+| `GET /api/order-plans/{order_plan_pk}/screening-history` | path PK | `order_plan_pk`, `items[]`; item은 execution/binding digest, status, BM25 `nearest_capability`, result `batch_id`·`attempt_no`, stage result, feedback revision count, 실행 행의 `execution_purpose=operational\|gate_measurement`와 nullable `execution_started_at`·`execution_finished_at` | `not_found(404)` |
 | `POST /api/order-plan-screening/executions` | actor header 필수, optional `X-BidOps-Trigger: daily_script\|manual_resume\|gate_measurement`(없음 = 사람 수동 운영 실행), `execution-create-request.v1`의 `{schema_version, producer, consumer, request_id, source_run_id, policy_version}`(본문 불변) | first request `202`: `execution-create-response.v1`의 provenance와 `execution_id`, `request_id`, `source_run_id`, `policy_version`, `status=대기`, binding digest, `execution_allowed`; 같은 request ID와 같은 payload는 원래 `202` body를 replay(헤더는 hash에 들어가지 않는다) | `actor_name_required`·`actor_name_invalid`(400), `invalid_request`(422, 알 수 없는 트리거 값·측정 회차가 아닌 `gate_measurement` 포함), `source_run_incomplete`, `policy_not_active`, `binding_mismatch`, `daily_trigger_off`, `idempotency_conflict`, `active_execution_exists` (`409`), transport unavailable (`503`) — "실행 트리거 헤더와 게이트" |
 | `GET /api/order-plan-screening/executions` | `source_run_id?`, `status?`, pagination | `execution-list-response.v2`: `items`, `total`, `limit`, `offset`; item에 `purpose=operational\|gate_measurement`; 내부 object key·prompt·profile 본문 없음 | `invalid_request(422)` |
 | `GET /api/order-plan-screening/executions/{execution_id}` | path ID | `execution-detail-response.v2`: `purpose`, execution status, counts, binding digests, timestamps, safe artifact summaries, `attempts[]`의 batch/attempt·model/prompt/profile binding, status/failure, nullable token·duration·시각; `response_object_ref`·`plan_ids_jsonb`·artifact 본문/경로는 반환하지 않음 | `not_found(404)` |
@@ -1181,8 +1181,9 @@ schema version을 만들며, 기존 C-2 v1 consumer는 알 수 없는 version을
 
 | wire schema | producer → consumer | endpoint | 필수 key / status enum | 호환·불변 경계 |
 |---|---|---|---|---|
-| `order-plan-list-response.v4` | `order-plan-review-api` → `order-plan-review-client` | `GET /api/order-plans` | provenance, `scope`(`mode=cumulative\|run`), `items`, `total`, `limit`, `offset`; item의 nullable 공개 `source_url`, 예산·계획 시기·BM25 `nearest_capability`와 stage status/label/score, nullable `execution_id`·`policy_version`·`first_observed_at` | response projection only; 내부 경로·본문 금지. v3은 2026-09-18 누적 모드와 함께 폐기("발주계획 목록 누적 모드") |
-| `order-plan-detail-response.v3` | API → client | `GET /api/order-plans/{id}` | provenance, plan metadata의 nullable 공개 `source_url`, `budget_amount`·계획 시기, `screening_history`; history의 `nearest_capability`·`batch_id`·`attempt_no` | read-only projection; 기존 notice response와 혼용 금지 |
+| `order-plan-list-response.v5` | `order-plan-review-api` → `order-plan-review-client` | `GET /api/order-plans` | provenance, `scope`(`mode=cumulative\|run`), `items`, `total`, `limit`, `offset`; item의 nullable 공개 `source_url`, 예산·계획 시기·BM25 `nearest_capability`와 stage status/label/score, nullable `execution_id`·`policy_version`·`first_observed_at`·`contract_method`·`notice_posted` | response projection only; 내부 경로·본문 금지. v3은 2026-09-18 누적 모드와 함께, v4는 2026-09-21 계약·공고 두 field와 함께 폐기("발주계획 목록·상세 실무 field") |
+| `order-plan-detail-response.v4` | API → client | `GET /api/order-plans/{id}` | provenance, plan metadata의 nullable 공개 `source_url`, `budget_amount`·계획 시기·`supervising_agency_name`·`procurement_method`·`contract_method`·`notice_posted`·`bid_ntice_no_list`·`published_at`, `screening_history`; history의 `nearest_capability`·`batch_id`·`attempt_no`·`execution_purpose`·실행 시각 | read-only projection; 기존 notice response와 혼용 금지. v3은 2026-09-21 폐기("발주계획 목록·상세 실무 field") |
+| `order-plan-detail-response.v5` | API → client | `GET /api/order-plans/{id}/screening-history` | provenance, `order_plan_pk`, `items[]`(상세의 `screening_history`와 같은 항목 모델) | 상세와 **같은 family 이름**을 쓰고 번호만 따로 올려 왔다(옛 v1). 번호는 family 안에서 한 번만 쓰므로 v5다 — 같은 문자열이 두 모양을 뜻하지 않는다 |
 | `execution-create-request.v1` / `execution-create-response.v1` | `human-review-client` → `screening-api` → client | execution POST | request provenance, `request_id`, source/policy; response provenance, `execution_id`, `status=대기` | exact replay만 허용; request payload·binding snapshot immutable |
 | `execution-list-response.v2` / `execution-detail-response.v2` | `screening-api` → client | execution GET | provenance, `items`/execution, `purpose=operational\|gate_measurement`, counts, timestamps, safe artifact summaries; detail `attempts[]`에는 binding(model/prompt/profile 및 digest), status/failure, nullable token·duration·시각만 projection; status `대기|실행 중|중지 요청|성공|부분 성공|실패|중단됨` | status meaning fixed(v1과 같음); v2는 `purpose` 추가; `response_object_ref`·`plan_ids_jsonb`·prompt/profile/model response body 없음 |
 | `execution-stop-request.v1` / `execution-stop-response.v1` | `human-review-client` → `screening-api` → client | stop POST | request provenance, `request_id`, `reason`; response provenance, execution ID, `status=중지 요청` | terminal transition and idempotency rules fixed |
@@ -1467,7 +1468,8 @@ active 버전의 최신 스위치 행 `enabled=true` ∧ `BIDOPS_C2_EXECUTION_AL
 
 #### 발주계획 목록 누적 모드
 
-`GET /api/order-plans`의 query는 바뀌지 않는다. 응답은 `order-plan-list-response.v4`다.
+`GET /api/order-plans`의 query는 바뀌지 않는다. 응답은 `order-plan-list-response.v5`다(누적 모드를 넣은
+2026-09-18에 v4였고 2026-09-21에 v5로 올랐다 — 아래 "발주계획 목록·상세 실무 field").
 
 - **버전을 올리는 이유**: 이 절의 wire 규칙("field 추가나 의미 변경은 새 wire schema version")과 v1→v3 선례
   (`source_url` 추가)를 따른다. item에 field가 늘고 `scope`의 모양과 뜻이 바뀐다.
@@ -1497,7 +1499,36 @@ active 버전의 최신 스위치 행 `enabled=true` ∧ `BIDOPS_C2_EXECUTION_AL
   (ADR-0061) 화면은 `first_observed_at`을 판정 기준 시점으로 보인다.
 - 필터(`stage1_status`·`stage2_status`·`qwen_relevance`·`human_relevance`·`tracking_status`·`issue`·`q`)는 두 모드 모두
   투영된 결과·feedback에 적용한다. 기본 보기("추적을 정하지 않은 관련 건")는 화면이 기존 필터로 조합한다.
-- `order-plan-detail-response.v3`와 screening-history는 바뀌지 않는다.
+- 2026-09-18 누적 모드 회차에서는 상세(`order-plan-detail-response.v3`)와 screening-history를 바꾸지 않았다.
+  둘은 2026-09-21에 바뀐다 — 아래 절.
+
+#### 발주계획 목록·상세 실무 field (2026-09-21)
+
+실무 화면이 계약방법·공고 게시 여부·지난 실행의 성격을 화면에서 묻지 않아도 되게 하는 **투영만의 확장**이다.
+새 migration·새 업무 규칙·새 enum은 없고 값은 `order_plan`·`order_plan_screening_execution` 행의 열 그대로다
+(동작 서술은 `docs/0921_practitioner-screens/spec.md` §5).
+
+- **목록 `order-plan-list-response.v4` → `.v5`**: item에 nullable `contract_method`(`cntrctMthdNm` 원문)와
+  nullable `notice_posted`(`ntceNticeYn` 원문 `Y`/`N`)가 는다. 화면이 500행을 한 번에 받으므로 목록에는 이
+  둘만 넣는다. `notice_posted`는 bool로 좁히지 않는다 — `null`은 `N`이 아니라 미제공이다.
+- **상세 `order-plan-detail-response.v3` → `.v4`**: plan metadata에 nullable `supervising_agency_name`,
+  `procurement_method`(`prcrmntMethd` 원문), `contract_method`, `notice_posted`, `bid_ntice_no_list`,
+  `published_at`이 는다. `bid_ntice_no_list`는 **수집 원문 문자열 그대로**이고 공고번호가 여럿이어도 서버가
+  쪼개지 않는다(적재기도 같은 한 문자열을 `split_tokens`로 읽는다).
+- **`ScreeningHistoryItem`에 실행 성격**: `execution_purpose`(`operational|gate_measurement`, 실행 행의
+  `purpose` 그대로)와 nullable `execution_started_at`·`execution_finished_at`이 는다. 서버가 대표 시각
+  하나를 고르지 않고 두 값을 그대로 낸다(대기는 둘 다 `null`, 실행 중은 `finished`만 `null`).
+  - **참조 실행은 새 field로 말하지 않는다.** C-2 실행에는 `quality_status` 열이 없고 참조 실행의 `purpose`도
+    `operational`이다. 화면은 지금까지처럼 그 항목의 `policy_version`이 누적 `scope.activated_policy_versions`에
+    없으면 참조 실행으로 읽는다. 목적만으로 가리면 참조 실행이 운영 판정으로 보인다.
+  - 같은 항목 모델을 쓰는 `GET /api/order-plans/{id}/screening-history`도 함께 올린다. 이 응답은 상세와 같은
+    `order-plan-detail-response` family 이름을 쓰면서 번호만 따로 올려 왔고(옛 v1), 번호는 family 안에서 한
+    번만 쓰므로 **v5**로 간다.
+- **증분 쿼리 0**: 세 투영 모두 이미 읽는 행(`OrderPlan`, `_history_items`가 결과마다 `session.get`으로 읽는
+  실행 행)에서 값을 꺼낸다. `_history_items`의 기존 실행 조회·feedback count N+1은 이 회차에서 고치지 않는다.
+- **이전 버전 소비자**: C-2 wire 규칙대로 옛 version consumer는 알 수 없는 version을 거부한다. 이 저장소의
+  유일한 소비자는 관리 화면이고 런타임 `schema_version` 검사가 없으므로, 타입 리터럴과 mock을 같은 회차에
+  올려 계약을 한 묶음으로 닫는다(`web/frontend/src/lib/types.ts`, `tests/api-mock.ts`).
 
 ### C-2 DB·migration 경계 (Phase 2 구현 입력)
 
