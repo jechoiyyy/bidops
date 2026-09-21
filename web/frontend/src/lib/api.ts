@@ -725,7 +725,7 @@ function query(params: Record<string, string | number | boolean | readonly strin
 
 /* ── 개요 검토 envelope → 화면 view 어댑터 ────────────────────────────────
  *
- * 서버 계약은 `bidops.prespec-overview.v1` 하나다(docs/contracts.md). 개요 화면은
+ * 서버 계약은 구버전 `v1`과 예비 판단을 더한 `v2`다(docs/contracts.md). 개요 화면은
  * run 하나를 "현재 실행 · 결과 본문 · 범위 확인 · 주장 검증" 네 자리로 나눠 읽으므로
  * 그 모양으로 옮긴다. **여기서 하는 일은 자리 옮김뿐이다** — 없는 값을 채우거나
  * 상태를 다시 판정하지 않는다. */
@@ -744,7 +744,7 @@ const INVALID_PAGE_OVERVIEW: PageOverviewResponse = {
 function isOverviewEnvelope(envelope: OverviewEnvelope | null | undefined): envelope is OverviewEnvelope {
   return Boolean(envelope)
     && typeof envelope?.notice_id === "number"
-    && envelope.schema === "bidops.prespec-overview.v1"
+    && (envelope.schema === "bidops.prespec-overview.v1" || envelope.schema === "bidops.prespec-overview.v2")
     && envelope.current !== undefined
     && Array.isArray(envelope.history)
     && envelope.range_review !== undefined
@@ -1310,6 +1310,7 @@ export const api = {
         workspace: params.workspace,
         overview_view: params.overview_view,
         grade: params.grade,
+        display_grade: params.display_grade,
         tracking_decision: params.tracking_decision,
         tracking_status: params.tracking_status,
         source_run_id: params.source_run_id,

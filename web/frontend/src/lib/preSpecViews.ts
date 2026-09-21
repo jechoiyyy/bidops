@@ -21,6 +21,12 @@ import type {
 // 상태를 재계산하지 않고, 서버가 준 등급을 그대로 표시한다.
 export const GRADE_FILTER_VALUES = [...GRADE_ORDER, GRADE_NONE_LABEL] as const;
 type GradeFilter = (typeof GRADE_FILTER_VALUES)[number] | "";
+export const DISPLAY_GRADE_FILTER_VALUES = [
+  ...GRADE_ORDER,
+  "판단 보류",
+  GRADE_NONE_LABEL,
+] as const;
+export type DisplayGradeFilter = (typeof DISPLAY_GRADE_FILTER_VALUES)[number] | "";
 
 export type WorkspaceKey = PreSpecWorkspace;
 export type ViewKey = PreSpecOverviewView;
@@ -146,6 +152,12 @@ export function validObservedDate(value: string | null): string | "" {
 
 export function validGrade(value: string | null): GradeFilter {
   return value && (GRADE_FILTER_VALUES as readonly string[]).includes(value) ? (value as GradeFilter) : "";
+}
+
+export function validDisplayGrade(value: string | null): DisplayGradeFilter {
+  return value && (DISPLAY_GRADE_FILTER_VALUES as readonly string[]).includes(value)
+    ? value as DisplayGradeFilter
+    : "";
 }
 
 export function matchesGradeFilter(item: PreSpecListItem, grade: GradeFilter): boolean {

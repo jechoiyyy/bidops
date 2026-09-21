@@ -423,6 +423,7 @@ def _auto_start_context(
             policy_digest="0" * 64, model_name="test-model", warnings_json=[],
             reason_codes=[], call_count=0, raw_response_refs=[],
             result_json={"schema_version": "test"} if overview_status == "completed" else None,
+            checks_json={"overall": "passed"} if overview_status == "completed" else None,
             created_at=WHEN,
             completed_at=WHEN if overview_status == "completed" else None,
         ))

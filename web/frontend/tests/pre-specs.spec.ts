@@ -12,11 +12,33 @@ import { nextActionOf } from "../src/lib/preSpecNextAction";
 import type {
   OpportunityDetailResponse,
   OpportunityLinkView,
+  PreSpecDisplayAssessment,
   PreSpecListItem,
   PreSpecOrderPlanCandidatesResponse,
 } from "../src/lib/types";
 
 const FIXED_TIME = new Date("2026-08-31T09:00:00+09:00");
+
+function displayAssessment(
+  grade: PreSpecDisplayAssessment["grade"],
+  source: PreSpecDisplayAssessment["source"],
+  latestRunStatus: PreSpecDisplayAssessment["latest_run_status"],
+): PreSpecDisplayAssessment {
+  return {
+    grade,
+    status: grade === null ? "none" : "graded",
+    source,
+    basis_run_id: null,
+    assessed_at: null,
+    quality_status: null,
+    reason_codes: [],
+    axes: [],
+    verification_items: [],
+    semantic_status: null,
+    semantic_scope: [],
+    latest_run_status: latestRunStatus,
+  };
+}
 
 async function captureRecord(page: Page, name: string) {
   const directory = process.env.PS_RECORD_CAPTURE_DIR;
@@ -57,6 +79,26 @@ const trackingException = {
   overview_review_status: "needs_human_review",
   grade: "우선 검토",
   grade_source: "screening_judgment",
+  display_assessment: {
+    grade: "우선 검토",
+    status: "graded",
+    source: "preliminary_assessment",
+    basis_run_id: "overview-assessment-run-991",
+    assessed_at: "2026-08-30T01:00:00Z",
+    quality_status: "unmeasured_reference",
+    reason_codes: [],
+    axes: [{
+      axis: "public_si_integration",
+      relation: "direct",
+      reason: "통합관리 시스템 구축이 계약의 핵심 과업입니다.",
+      claim_refs: ["claim-1"],
+      company_refs: [],
+    }],
+    verification_items: ["사업 범위의 운영 이관 조건 확인"],
+    semantic_status: "not_run",
+    semantic_scope: [],
+    latest_run_status: "completed",
+  } satisfies PreSpecDisplayAssessment,
   auto_preparation_status: "waiting_attachments",
   auto_preparation_reason: "awaiting_fetch",
   latest_deep_review_id: null,
@@ -114,6 +156,7 @@ const newPreSpec = {
   overview_review_status: "failed",
   grade: "검토 권장",
   grade_source: "human_review",
+  display_assessment: displayAssessment("검토 권장", "human_review", "failed"),
   auto_preparation_status: "blocked",
   auto_preparation_reason: "processing_failed",
   latest_deep_review_id: null,
@@ -143,6 +186,7 @@ const allOnlyPreSpec = {
   // 판정도 사람 정정도 없다. `판정 없음`이며 다섯 번째 등급이 아니다.
   grade: null,
   grade_source: null,
+  display_assessment: displayAssessment(null, "none", null),
   auto_preparation_status: "not_applicable",
   auto_preparation_reason: null,
   latest_deep_review_id: null,
@@ -164,6 +208,7 @@ const unknownTrackingPreSpec = {
   overview_review_status: "completed",
   grade: null,
   grade_source: null,
+  display_assessment: displayAssessment(null, "none", "completed"),
   budget: 0,
 };
 
@@ -212,8 +257,14 @@ function localPreSpecMatches(
 ): boolean {
   if (includeWorkspace && !localPreSpecWorkspace(item, search.get("workspace"))) return false;
   if (!localPreSpecView(item, search.get("overview_view"))) return false;
-  const grade = search.get("grade");
-  if (grade && (grade === "판정 없음" ? item.grade !== null : item.grade !== grade)) return false;
+  const grade = search.get("display_grade");
+  if (grade && (
+    grade === "판단 보류"
+      ? item.display_assessment.status !== "held"
+      : grade === "판정 없음"
+        ? item.display_assessment.status !== "none"
+        : item.display_assessment.grade !== grade
+  )) return false;
   if (search.get("tracking_decision") === "pending" && !(item.origin === "신규" && (item.tracking_status === null || item.tracking_status === "미선택"))) return false;
   if (search.get("tracking_status") && item.tracking_status !== search.get("tracking_status")) return false;
   if (search.get("deadline_status")) {
@@ -767,18 +818,28 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900
   });
 }
 
-test("등급 필터는 서버 페이지 전에 적용되고 전체 건수와 일치한다", async ({ page }) => {
+test("예비 등급 필터는 서버 페이지 전에 적용되고 전체 건수와 일치한다", async ({ page }) => {
   await mockPreSpecs(page);
   await page.goto("/pre-specs?workspace=all&sw_only=false");
 
   await page.getByRole("button", { name: "상세 필터", exact: true }).click();
-  await page.getByRole("combobox", { name: "적합성 등급" }).click();
+  await page.getByRole("combobox", { name: "예비 적합성 등급" }).click();
   await page.getByRole("option", { name: "검토 권장", exact: true }).click();
 
-  await expect.poll(() => new URL(page.url()).searchParams.get("grade")).toBe("검토 권장");
+  await expect.poll(() => new URL(page.url()).searchParams.get("display_grade")).toBe("검토 권장");
   await expect(preSpecRow(page, newPreSpec.title)).toBeVisible();
   await expect(preSpecRow(page, trackingException.title)).toHaveCount(0);
   await expect(page.locator(".pre-specs-list-head")).toContainText("1건");
+});
+
+test("구버전 grade URL은 표시 등급 필터로 정규화한다", async ({ page }) => {
+  await mockPreSpecs(page);
+  await page.goto("/pre-specs?workspace=all&sw_only=false&grade=검토%20권장");
+
+  await expect.poll(() => new URL(page.url()).searchParams.get("grade")).toBeNull();
+  await expect.poll(() => new URL(page.url()).searchParams.get("display_grade")).toBe("검토 권장");
+  await expect(preSpecRow(page, newPreSpec.title)).toBeVisible();
+  await expect(preSpecRow(page, trackingException.title)).toHaveCount(0);
 });
 
 // 시안의 목록은 행을 고르면 오른쪽 상세만 바뀐다. 사업명을 눌러도 목록을 떠나지
@@ -1013,6 +1074,11 @@ test("사전규격 상세는 notice_pk projection의 현재 추적 상태와 첨
   await expect(page.getByRole("heading", { name: "첨부 원문 취득 집계", exact: true })).toBeVisible();
   await expect(page.getByText("완료", { exact: true })).toBeVisible();
   await expect(page.getByText("차단", { exact: true })).toBeVisible();
+  const assessment = page.getByLabel("예비 적합성 판단 근거");
+  await expect(assessment).toContainText("공공 SI/통합관리 직접");
+  await expect(assessment).toContainText("선택 의미검증 미실행");
+  await expect(assessment.getByRole("link", { name: "원문 근거로 이동" })).toHaveAttribute("href", "#ps-evidence");
+  await expect(page.locator(".ps-record-facts")).toContainText("개요 기준 · 개요 예비 판단");
   expect(trace.listQueries.at(-1)?.get("notice_pk")).toBe("991");
   expect(trace.listQueries.at(-1)?.has("sw_only")).toBe(false);
 });

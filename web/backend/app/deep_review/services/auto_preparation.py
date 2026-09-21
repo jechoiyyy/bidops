@@ -500,14 +500,14 @@ def _auto_start_scope(
         bundle is not None and bundle.confirmed_by_name == AUTO_ACTOR_NAME
     )
     from .company_fit import gate_reasons
-    from .overview_runs import current_runs, overview_status_for
+    from .overview_runs import automation_overview_status, current_runs
 
     run_map = (
         dict(runs)
         if runs is not None
         else (current_runs(session, [notice_id]) if ready_bundle_auto_confirmed else {notice_id: None})
     )
-    overview_status = overview_status_for(run_map.get(notice_id))
+    overview_status = automation_overview_status(run_map.get(notice_id))
     fit_reason = (
         gate_reasons(session, [notice_id], runs=run_map)[notice_id]
         if require_company_fit
@@ -976,7 +976,7 @@ def auto_preparation_fields(
 
     fields: dict[int, Mapping[str, Any]] = {}
     from .company_fit import gate_reasons
-    from .overview_runs import current_runs, overview_status_for
+    from .overview_runs import automation_overview_status, current_runs
 
     # 공고 수와 무관하게 한 번 읽는 현재 개요 run batch. 목록 전체가 같은
     # 투영을 쓰므로 gate가 다시 읽지 않게 그대로 넘긴다 (명세 §8의 N+1 금지).
@@ -987,7 +987,7 @@ def auto_preparation_fields(
         deep_review_id = deep_review_by_notice.get(notice_id)
         ready_bundle = ready_bundle_by_notice.get(notice_id)
         auto_start_reason_code = None
-        overview_status = overview_status_for(runs.get(notice_id))
+        overview_status = automation_overview_status(runs.get(notice_id))
         if kinds.get(notice_id) == "pre_spec" and deep_review_id is None and ready_bundle is not None:
             auto_start_reason_code = auto_start_reason(
                 is_sw_business=sw_business.get(notice_id, False),

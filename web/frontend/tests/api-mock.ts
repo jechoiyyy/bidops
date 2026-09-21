@@ -1203,6 +1203,11 @@ const visualPreSpecItems: PreSpecListItem[] = [
     overview_review_status: "needs_human_review",
     grade: "우선 검토",
     grade_source: "screening_judgment",
+    display_assessment: {
+      grade: "우선 검토", status: "graded", source: "screening_judgment",
+      basis_run_id: null, assessed_at: null, quality_status: null,
+      reason_codes: [], axes: [], verification_items: [], semantic_status: null, semantic_scope: [], latest_run_status: "needs_human_review",
+    },
     auto_preparation_status: "blocked",
     auto_preparation_reason: "bundle_has_blocking_issues",
     latest_deep_review_id: null,
@@ -1232,6 +1237,11 @@ const visualPreSpecItems: PreSpecListItem[] = [
     overview_review_status: "failed",
     grade: null,
     grade_source: null,
+    display_assessment: {
+      grade: null, status: "none", source: "none", basis_run_id: null,
+      assessed_at: null, quality_status: null, reason_codes: [], axes: [],
+      verification_items: [], semantic_status: null, semantic_scope: [], latest_run_status: "failed",
+    },
     auto_preparation_status: "not_applicable",
     auto_preparation_reason: null,
     latest_deep_review_id: null,

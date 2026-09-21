@@ -45,7 +45,7 @@ import { PageHeaderActions } from "../components/common/PageHeaderActions";
 import { apiErrorRecoveryAction, describeApiError } from "../lib/apiErrors";
 import { describeDeadline } from "../lib/deadline";
 import { formatNumber, present } from "../lib/format";
-import { gradeLabel, gradeSourceLabel, gradeVariant } from "../lib/grade";
+import { displayAssessmentLabel, displayAssessmentSemanticLabel, displayAssessmentSourceLabel, gradeVariant } from "../lib/grade";
 import { preSpecCautions } from "../lib/preSpecCautions";
 import { qualityStatusLabel, qualityStatusVariant } from "../lib/qualityStatus";
 import {
@@ -88,6 +88,20 @@ function deadlineChipVariant(urgency: ReturnType<typeof describeDeadline>["urgen
 function OverviewPdfReference({ review }: { review: PageOverviewView }) {
   return <a className="ps-ref" href={pageOverviewPdfUrl(review)} target="_blank" rel="noreferrer">전체 근거 PDF 열기 ↗</a>;
 }
+
+const ASSESSMENT_AXIS_LABEL = {
+  ai_data: "AI/데이터",
+  blockchain_did: "블록체인/DID",
+  public_si_integration: "공공 SI/통합관리",
+} as const;
+
+const ASSESSMENT_RELATION_LABEL = {
+  direct: "직접",
+  partial: "부분",
+  indirect: "간접",
+  unrelated: "무관",
+  unknown: "미확인",
+} as const;
 
 /**
  * ④ `참여 조건` 열이 심층 검토 보고서의 `eligibility_matrix` 절에서 읽는 항목.
@@ -578,6 +592,30 @@ function PreSpecRecordBody({ noticeId, listSearch }: { noticeId: number | null; 
               <p><PageOverviewFactLine fact={shown.payload.business_overview[0]} review={shown} /></p>
             </div>
           ) : null}
+          {preSpecItem?.display_assessment.source === "preliminary_assessment" ? (
+            <div className="ps-record-summary" aria-label="예비 적합성 판단 근거">
+              <span className="ps-chip ps-chip-neutral">예비 판단 근거</span>
+              <p>
+                {preSpecItem.display_assessment.axes.length > 0
+                  ? preSpecItem.display_assessment.axes.map((axis) => (
+                    `${ASSESSMENT_AXIS_LABEL[axis.axis]} ${ASSESSMENT_RELATION_LABEL[axis.relation]} · ${axis.reason}`
+                  )).join(" / ")
+                  : preSpecItem.display_assessment.reason_codes.length > 0
+                    ? `판단 보류 · ${preSpecItem.display_assessment.reason_codes.join(", ")}`
+                    : "판단 근거가 게시되지 않았습니다."}
+                {preSpecItem.display_assessment.verification_items.length > 0
+                  ? ` 확인 항목 · ${preSpecItem.display_assessment.verification_items.join(", ")}`
+                  : ""}
+                {preSpecItem.display_assessment.quality_status
+                  ? ` 품질 · ${qualityStatusLabel(preSpecItem.display_assessment.quality_status)}`
+                  : ""}
+                {displayAssessmentSemanticLabel(preSpecItem.display_assessment)
+                  ? ` · ${displayAssessmentSemanticLabel(preSpecItem.display_assessment)}`
+                  : ""}
+                {" "}<a className="ps-ref" href="#ps-evidence">원문 근거로 이동</a>
+              </p>
+            </div>
+          ) : null}
         </div>
 
         <dl className="ps-facts ps-record-facts">
@@ -590,7 +628,7 @@ function PreSpecRecordBody({ noticeId, listSearch }: { noticeId: number | null; 
             <span className="ps-s">SW사업대상 {preSpecItem?.sw_business_status ?? "미확인"}</span>
           </div>
           <div className="ps-fact">
-            <dt className="ps-k">적합성 등급</dt>
+            <dt className="ps-k">예비 적합성 등급</dt>
             <dd className="pre-spec-detail-grade-row">
               <span className="ps-v">
                 {preSpecProjectionQuery.isPending ? (
@@ -598,10 +636,10 @@ function PreSpecRecordBody({ noticeId, listSearch }: { noticeId: number | null; 
                 ) : !preSpecItem || preSpecProjectionQuery.isError ? (
                   <span className="pre-spec-detail-grade-source">등급 미확인</span>
                 ) : (
-                  <Badge label={gradeLabel(preSpecItem.grade)} variant={gradeVariant(preSpecItem.grade)} />
+                  <Badge label={displayAssessmentLabel(preSpecItem.display_assessment)} variant={gradeVariant(preSpecItem.display_assessment.grade)} />
                 )}
               </span>
-              {preSpecItem && !preSpecProjectionQuery.isError ? <span className="ps-s">등급 출처 · {gradeSourceLabel(preSpecItem.grade_source)}</span> : null}
+              {preSpecItem && !preSpecProjectionQuery.isError ? <span className="ps-s">개요 기준 · {displayAssessmentSourceLabel(preSpecItem.display_assessment)}{preSpecItem.display_assessment.assessed_at ? ` · ${recordDateTime(preSpecItem.display_assessment.assessed_at)}` : ""}</span> : null}
             </dd>
           </div>
           <div className="ps-fact"><dt className="ps-k">첨부 원문</dt><dd className="ps-v ps-record-secondary-facts">{notice.attachment_count}건</dd><span className="ps-s" /></div>

@@ -25,10 +25,10 @@ import {
 import { updateTrackingProjection } from "../components/pre-specs/TrackingDecisionControl";
 import { api } from "../lib/api";
 import {
-  AUTO_PREPARATION_FILTER_VALUES, DEADLINE_SCOPE_OPTIONS, DEADLINE_STATUS_OPTIONS, GRADE_FILTER_VALUES,
+  AUTO_PREPARATION_FILTER_VALUES, DEADLINE_SCOPE_OPTIONS, DEADLINE_STATUS_OPTIONS, DISPLAY_GRADE_FILTER_VALUES,
   SORT_OPTIONS, TRACKING_STATUS_OPTIONS, VIEWS, WORKSPACES,
   originLabel, titleOf, validAutoPreparationStatus, validDeadlineScope, validDeadlineStatus,
-  validGrade, validObservedDate, validOverviewView, validTrackingDecision, validTrackingStatus,
+  validDisplayGrade, validObservedDate, validOverviewView, validTrackingDecision, validTrackingStatus,
   validWorkspace, workspaceOf, type WorkspaceKey,
 } from "../lib/preSpecViews";
 import { PRE_SPEC_AUTO_PREPARATION_STATUS_LABEL } from "../lib/preSpecAutoPreparation";
@@ -155,7 +155,7 @@ export function PreSpecsPage() {
   const swOnly = searchParams.get("sw_only") !== "false";
   const businessDivision = validDivision(searchParams.get("business_division"));
   const origin = validOrigin(searchParams.get("origin"));
-  const gradeFilter = validGrade(searchParams.get("grade"));
+  const gradeFilter = validDisplayGrade(searchParams.get("display_grade") ?? searchParams.get("grade"));
   const autoPreparationStatus = validAutoPreparationStatus(searchParams.get("auto_preparation_status"));
   const trackingDecision = validTrackingDecision(searchParams.get("tracking_decision"));
   const trackingStatus = validTrackingStatus(searchParams.get("tracking_status"));
@@ -245,6 +245,14 @@ export function PreSpecsPage() {
 
   useEffect(() => setSearchText(queryText), [queryText]);
   useEffect(() => {
+    if (!searchParams.has("grade")) return;
+    const next = new URLSearchParams(searchParams);
+    const legacyGrade = validDisplayGrade(next.get("grade"));
+    next.delete("grade");
+    if (!next.has("display_grade") && legacyGrade) next.set("display_grade", legacyGrade);
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams]);
+  useEffect(() => {
     if (!hasLegacyView && !hasLegacyDashboardFilter) return;
     const next = new URLSearchParams(searchParams);
     if (hasLegacyView) {
@@ -300,7 +308,7 @@ export function PreSpecsPage() {
       auto_preparation_status: autoPreparationStatus || null,
       workspace,
       overview_view: overviewView,
-      grade: gradeFilter || null,
+      display_grade: gradeFilter || null,
       tracking_decision: trackingDecision || null,
       tracking_status: trackingStatus || null,
       source_run_id: sourceRunId || null,
@@ -612,6 +620,7 @@ export function PreSpecsPage() {
       business_division: null,
       origin: null,
       grade: null,
+      display_grade: null,
       auto_preparation_status: null,
       tracking_decision: null,
       tracking_status: null,
@@ -832,14 +841,14 @@ export function PreSpecsPage() {
                 onChange={(value) => updateSearchParams({ origin: value === ALL_OPTION ? null : value })}
               />
               <Selector
-                label="적합성 등급"
+                label="예비 적합성 등급"
                 size="sm"
                 options={[
                   { value: ALL_OPTION, label: "전체" },
-                  ...GRADE_FILTER_VALUES.map((value) => ({ value, label: value })),
+                  ...DISPLAY_GRADE_FILTER_VALUES.map((value) => ({ value, label: value })),
                 ]}
                 value={gradeFilter || ALL_OPTION}
-                onChange={(value) => updateSearchParams({ grade: value === ALL_OPTION ? null : value })}
+                onChange={(value) => updateSearchParams({ display_grade: value === ALL_OPTION ? null : value, grade: null })}
               />
               <Selector
                 label="추적 상태"
