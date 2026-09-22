@@ -2,6 +2,18 @@
 
 기준일: 2026-09-03
 
+## `test_auto_deep_review_start.py` 11건이 `bda1288` 이후 실패한다 (2026-09-22, 미해결)
+
+- 재현 조건: `web/backend`에서 `BIDOPS_PRESPEC_OVERVIEW_ENABLED=false pytest tests/app/test_auto_deep_review_start.py -q` → 11 failed / 3 passed.
+  `92c7f32`(09-21 배포 코드)에서는 14 passed. `bda1288`(사전규격 개요·예비 적합성 통합)에서 처음 깨진다.
+- 증상: `AutoDeepReviewOutcome(created=False, reason='overview_not_completed')` — 개요 run이 완료로 간주되는 조건이 예비 판단
+  통합으로 바뀌었는데(`display_assessment`·`assessment_status` 등) 자동 심층 검토 시작 테스트의 fixture가 그 조건을 갖추지 않는다.
+- 영향: 자동 심층 검토 시작 경로의 회귀를 이 파일이 더는 막지 못한다. 실무 화면 고도화 묶음 ③·④ 게이트(백엔드 전체 2454 passed)에서
+  발견했고 그 변경과 무관하다(clean `bda1288`에서 재현).
+- 지금 해결하지 않는 이유: `bda1288`의 작업(다른 세션, `docs/0921_prespec-preliminary-assessment/`) 몫이다. 제품 결함(예비 판단이 없으면
+  자동 시작이 막히는 것이 의도인지)인지 fixture 결함인지 그 작업이 가려야 한다.
+- 후속 방향: 그 작업에서 개요 완료 판정의 새 조건을 명세로 못 박고 fixture를 맞추거나, 자동 시작이 예비 판단과 무관해야 하면 게이트를 되돌린다.
+
 ## 심층 검토 화면에 8자 축약 식별자 두 곳이 남아 있다 (2026-09-21, 미해결)
 
 - 재현 조건: `/deep-reviews/:id` 상단 머리의 `보고서 식별자 · {reviewId 앞 8자}`(`DeepReviewPage.tsx`)와 주장 표의 근거 칩
