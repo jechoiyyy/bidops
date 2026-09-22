@@ -352,7 +352,6 @@ class DeepReviewAgent:
             bundle_id,
             self._actor(typed),
             typed.request_id,  # type: ignore[arg-type]
-            **({"source_verification_enabled": False} if not typed.payload.source_verification_enabled else {}),
         )
         domain = result if isinstance(result, DeepReviewView) else DeepReviewView.model_validate(result)
         run = self._project(current_session, domain.id)
@@ -370,7 +369,6 @@ class DeepReviewAgent:
             review_id,
             self._actor(typed),
             typed.request_id,  # type: ignore[arg-type]
-            **({"source_verification_enabled": False} if not typed.payload.source_verification_enabled else {}),
         )
         domain = result if isinstance(result, AttemptView) else AttemptView.model_validate(result)
         run = self._project(session, review_id, attempt_id=domain.id)

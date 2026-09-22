@@ -19,9 +19,7 @@ SCHEMA_FILES = {
     "document-structure": "bidops.document-structure.v1.json",
     "document-bundle": "bidops.document-bundle.v1.json",
     "deep-review-stage": "bidops.deep-review-stage.v1.json",
-    "deep-review-stage-v2": "bidops.deep-review-stage.v2.json",
     "deep-review-report": "bidops.deep-review-report.v1.json",
-    "deep-review-report-v2": "bidops.deep-review-report.v2.json",
     "deep-review-validation": "bidops.deep-review-validation.v1.json",
     "document-segments": "bidops.document-segments.v1.json",
 }

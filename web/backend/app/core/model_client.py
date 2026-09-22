@@ -462,7 +462,7 @@ def build_prompt(
                 continue
             selected_prior.append({"claims": prior.get("claims", []), "evidence": prior.get("evidence", [])})
         payload["prior_verified_claims"] = sanitize_for_prompt(selected_prior)
-    if stage == "synthesis_and_validation" and not payload["output_contract"].get("recommendation_rule"):
+    if stage == "synthesis_and_validation":
         payload["output_contract"]["recommendation_rule"] = (
             "Emit exactly one claim whose category is system_recommendation and whose body is exactly one of: "
             "추진 검토, 조건부 추진 검토, 보류, 검토 종료. The recommendation must be supported by prior verified claims."

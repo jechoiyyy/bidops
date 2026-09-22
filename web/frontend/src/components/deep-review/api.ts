@@ -198,11 +198,10 @@ export function getDocumentSegments(structureId: string): Promise<DocumentSegmen
   return request<DocumentSegmentsView>(`/document-structures/${encodeURIComponent(structureId)}/segments`);
 }
 
-export function createDeepReview(noticeId: number, bundleId: string, actorName: string, sourceVerificationEnabled = true): Promise<DeepReviewView> {
+export function createDeepReview(noticeId: number, bundleId: string, actorName: string): Promise<DeepReviewView> {
   const payload: CreateDeepReviewPayload = {
     request_id: generateRequestId(),
     bundle_id: bundleId,
-    source_verification_enabled: sourceVerificationEnabled,
   };
   return request<DeepReviewView>(`/notices/${encodeURIComponent(noticeId)}/deep-reviews`, {
     method: "POST",
@@ -215,9 +214,8 @@ export function createDeepReviewAttempt(
   deepReviewId: string,
   actorName: string,
   requestId: string = generateRequestId(),
-  sourceVerificationEnabled = true,
 ): Promise<AttemptView> {
-  const payload: CreateDeepReviewAttemptPayload = { request_id: requestId, source_verification_enabled: sourceVerificationEnabled };
+  const payload: CreateDeepReviewAttemptPayload = { request_id: requestId };
   return request<AttemptView>(`/deep-reviews/${encodeURIComponent(deepReviewId)}/attempts`, {
     method: "POST",
     headers: jsonMutationHeaders(actorName),

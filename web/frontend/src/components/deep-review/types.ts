@@ -58,13 +58,11 @@ export interface ConfirmDocumentBundlePayload {
 }
 
 export interface CreateDeepReviewPayload {
-  source_verification_enabled?: boolean;
   request_id: string;
   bundle_id: string;
 }
 
 export interface CreateDeepReviewAttemptPayload {
-  source_verification_enabled?: boolean;
   request_id: string;
 }
 
@@ -117,7 +115,6 @@ export interface StageView {
 }
 
 export interface AttemptView {
-  source_verification_enabled?: boolean;
   id: string;
   sequence: number;
   status: "queued" | "running" | "completed" | "failed" | "superseded";
@@ -180,7 +177,7 @@ export interface ValidationSummary {
   passed: number;
 }
 
-export interface LegacyDeepReviewReport {
+export interface DeepReviewReport {
   schema: "bidops.deep-review-report.v1";
   deep_review_id: string;
   notice_id: number;
@@ -196,33 +193,6 @@ export interface LegacyDeepReviewReport {
   /** 이 필드가 없던 옛 revision은 `null`이다. `null`을 미측정으로 읽지 않는다. */
   quality_status: QualityStatus | null;
 }
-
-export type NarrativeSectionKey = "assessment" | "scope" | "company_fit" | "delivery" | "evaluation" | "contract_economics" | "actions" | "decision_conditions";
-export type NarrativeRole = "source" | "company_basis" | "impact" | "action" | "decision_condition" | "synthesis" | "recommendation";
-export interface NarrativeClaim extends ReportClaim {
-  report_section: NarrativeSectionKey;
-  narrative_role: NarrativeRole;
-  topic_key: string;
-  source_unit_ids: string[];
-  requirement_ids: string[];
-  related_claim_ids: string[];
-  is_key_point: boolean;
-}
-export interface NarrativeBlock extends ReportBlock {
-  type: "paragraph";
-  narrative_role: NarrativeRole;
-  topic_key: string;
-  is_key_point: boolean;
-}
-export interface NarrativeReport extends Omit<LegacyDeepReviewReport, "schema" | "sections" | "claims"> {
-  schema: "bidops.deep-review-report.v2";
-  generator_version: "narrative-v2";
-  sections: { section_key: NarrativeSectionKey; title: string; status: "available" | "not_analyzed"; blocks: NarrativeBlock[] }[];
-  claims: NarrativeClaim[];
-  analysis_limitations: string[];
-  coverage: { source_unit_id: string; status: "reviewed" | "needs_review"; claim_ids: string[]; reason: string | null }[];
-}
-export type DeepReviewReport = LegacyDeepReviewReport | NarrativeReport;
 
 export interface ValidationCheck {
   check_type: string;
@@ -272,7 +242,6 @@ export interface ReportView {
 }
 
 export interface EvidenceView {
-  source_verification_enabled?: boolean;
   evidence_id: string;
   source_kind: "document" | "profile";
   document_version_id: string | null;
