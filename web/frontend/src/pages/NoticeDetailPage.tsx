@@ -9,6 +9,7 @@ import { JudgmentHistory } from "../components/notice/JudgmentHistory";
 import { JudgmentBanner } from "../components/notice/JudgmentBanner";
 import { LifecycleTimeline } from "../components/notice/LifecycleTimeline";
 import { NoticeFacts } from "../components/notice/NoticeFacts";
+import { PerformanceMatches } from "../components/notice/PerformanceMatches";
 import { PerspectiveTable } from "../components/notice/PerspectiveTable";
 import { QualificationFlags } from "../components/notice/QualificationFlags";
 import { RelatedNotices } from "../components/notice/RelatedNotices";
@@ -275,6 +276,13 @@ export function NoticeDetailPage() {
                   <span>후보 편입 근거</span>
                 </div>
                 <RetrievalSignals matches={detail.focus_matches} />
+                {/* 회사 실적과 대조된 것 — 수집 탐색 신호와 판정 검토 결과는
+                    구조가 다르므로 표를 나눈다(spec §6.3). */}
+                <PerformanceMatches
+                  matchedPerformances={detail.judgment?.matched_performances ?? []}
+                  performanceMatches={detail.performance_matches}
+                  performanceTopScore={detail.performance_top_score}
+                />
               </section>
             </div>
           )}

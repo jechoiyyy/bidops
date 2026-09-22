@@ -7,6 +7,8 @@ import type {
   OpportunitySearchStrategy,
   OpportunitySearchTarget,
 } from "../../lib/types";
+import { describeDeadline, shortDateLabel } from "../../lib/deadline";
+import { formatNumber } from "../../lib/format";
 
 /**
  * 사업 추적 화면이 읽는 생애주기 사실.
@@ -460,6 +462,64 @@ export function primaryTitle(item: OpportunityListItem | OpportunityDetailRespon
 export function primaryAgency(item: OpportunityListItem | OpportunityDetailResponse): string {
   const named = orderedLinks(item).find((link) => link.agency && link.agency.trim());
   return named?.agency?.trim() || "기관 미확인";
+}
+
+/**
+ * `primaryTitle`·`primaryAgency`가 고르는 것과 같은 대표 링크(F3, spec §6.3).
+ * 사업기회 하나에 발주계획·사전규격·입찰공고가 함께 있어도 서버는 "대표 마감"을
+ * 고르지 않으므로(계약 §3.2), 화면도 새 선택 규칙을 만들지 않고 제목을 고른
+ * 링크를 그대로 예산·마감·발주 예정의 출처로 쓴다.
+ */
+export function primaryLink(item: OpportunityListItem | OpportunityDetailResponse): OpportunityLinkView | null {
+  return orderedLinks(item).find((link) => link.title && link.title.trim()) ?? null;
+}
+
+/** 대표 링크의 금액 한 마디. `null`은 서버가 값을 안 준 것이므로(spec §1.1) `예산
+ *  미제공`이다 — `formatPrice`의 `추정가격 미제공`은 이 필드의 이름과 다르다. */
+function amountSegment(value: number | null): string {
+  return value === null ? "예산 미제공" : `${formatNumber(value)}원`;
+}
+
+/** 대표 링크가 발주계획일 때의 발주 예정 한 마디. `year`가 없으면 전체를 비운다
+ *  (발주 시기를 말할 것이 없다). `month`만 없으면 `월 미제공`으로 연도만 남긴다. */
+function orderPlanSegment(year: string | null, month: string | null): string | null {
+  if (year === null) return null;
+  return month === null ? `발주 예정 ${year}년 · 월 미제공` : `발주 예정 ${year}년 ${month}월`;
+}
+
+/** 대표 링크가 사전규격·입찰공고일 때의 마감 한 마디. `describeDeadline`
+ *  (`lib/deadline.ts`)이 이미 계산하는 지남·긴급도 판정을 그대로 쓴다. 지나지
+ *  않은 마감의 D-day 자체는 그 계산과 같은 식으로 여기서 마저 구한다 —
+ *  `describeDeadline`은 7일을 넘으면 목록 두 줄 표시용으로 D-n 없이 날짜만
+ *  주지만, 이 한 줄 표기는 항상 종류(`의견 마감`|`입찰 마감`)와 D-n을 함께
+ *  적는다. `null`은 서버가 값을 안 준 것이므로(spec §1.1) `마감 미제공`이다. */
+function deadlineSegment(kind: "의견 마감" | "입찰 마감", value: string | null): string {
+  const deadline = describeDeadline(value);
+  if (!value || deadline.urgency === "none") return "마감 미제공";
+  if (deadline.urgency === "passed") return `${kind} 지남 · ${shortDateLabel(value)}`;
+  const days = Math.ceil((new Date(value).getTime() - Date.now()) / 86_400_000);
+  return `${kind} D-${days}`;
+}
+
+/**
+ * 사업 추적 행의 "사업명 / 발주기관" 줄 끝에 붙는 대표 링크 요약(F3, spec §6.3).
+ * 대표 링크가 없으면 붙일 것이 없으므로 `null`이다. 발주계획 링크는 예산·발주
+ * 예정을, 사전규격·입찰공고 링크는 예산·마감(의견 마감|입찰 마감)을 적는다.
+ * 단계를 알 수 없는 링크(`stageOfLink`가 `null`)는 화면이 지어내지 않고 생략한다.
+ */
+export function primaryLinkSummary(item: OpportunityListItem | OpportunityDetailResponse): string | null {
+  const link = primaryLink(item);
+  if (!link) return null;
+  const stage = stageOfLink(link);
+  if (stage === "발주계획") {
+    const parts = [amountSegment(link.budget), orderPlanSegment(link.planned_order_year, link.planned_order_month)];
+    return parts.filter((part): part is string => part !== null).join(" · ");
+  }
+  if (stage === "사전규격" || stage === "입찰공고") {
+    const kind = stage === "사전규격" ? "의견 마감" : "입찰 마감";
+    return `${amountSegment(link.budget)} · ${deadlineSegment(kind, link.deadline_at)}`;
+  }
+  return null;
 }
 
 /**

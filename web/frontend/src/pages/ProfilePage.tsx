@@ -22,6 +22,7 @@ import {
   StatusToken,
   shortIdentifier,
 } from "../components/criteria/CriteriaPrimitives";
+import { VerificationRequestsPanel } from "../components/criteria/VerificationRequestsPanel";
 import { api } from "../lib/api";
 import { formatNumber } from "../lib/format";
 import type {
@@ -357,24 +358,30 @@ export function ProfilePage() {
 
   if (sectionsQuery.isPending || unknownsQuery.isPending) {
     return (
-      <div className="crit-workspace" id="criteria-panel-profile" role="tabpanel">
-        <StateView
-          description="확인되지 않은 항목 수와 상태는 조회가 끝난 뒤 표시합니다."
-          kind="loading"
-          title="회사 프로필을 읽는 중입니다"
-        />
+      <div className="crit-profile-page" id="criteria-panel-profile" role="tabpanel">
+        <VerificationRequestsPanel />
+        <div className="crit-workspace">
+          <StateView
+            description="확인되지 않은 항목 수와 상태는 조회가 끝난 뒤 표시합니다."
+            kind="loading"
+            title="회사 프로필을 읽는 중입니다"
+          />
+        </div>
       </div>
     );
   }
   if (sectionsQuery.error || unknownsQuery.error) {
     return (
-      <div className="crit-workspace" id="criteria-panel-profile" role="tabpanel">
-        <StateView
-          action={<Button label="다시 조회" onClick={() => { void sectionsQuery.refetch(); void unknownsQuery.refetch(); }} />}
-          description="승인된 프로필 사본과 구조화 상태를 확인할 수 없습니다. 조회 실패를 0건이나 정상 상태로 표시하지 않습니다."
-          kind="error"
-          title="회사 프로필을 불러오지 못했습니다."
-        />
+      <div className="crit-profile-page" id="criteria-panel-profile" role="tabpanel">
+        <VerificationRequestsPanel />
+        <div className="crit-workspace">
+          <StateView
+            action={<Button label="다시 조회" onClick={() => { void sectionsQuery.refetch(); void unknownsQuery.refetch(); }} />}
+            description="승인된 프로필 사본과 구조화 상태를 확인할 수 없습니다. 조회 실패를 0건이나 정상 상태로 표시하지 않습니다."
+            kind="error"
+            title="회사 프로필을 불러오지 못했습니다."
+          />
+        </div>
       </div>
     );
   }
@@ -397,7 +404,9 @@ export function ProfilePage() {
   const selectedCounts = selected ? countSection(selected) : null;
 
   return (
-    <div className="crit-workspace" id="criteria-panel-profile" role="tabpanel">
+    <div className="crit-profile-page" id="criteria-panel-profile" role="tabpanel">
+      <VerificationRequestsPanel />
+      <div className="crit-workspace">
       <Queue
         count={!readFailure && sectionsPayloadAvailable ? visibleSections.length : null}
         emptyText={readFailure ? "프로필 응답을 확인할 수 없습니다." : sections.length === 0 ? "표시할 프로필 절이 없습니다." : "검색·필터 조건에 맞는 절이 없습니다."}
@@ -515,6 +524,7 @@ export function ProfilePage() {
           />
         )}
       </section>
+      </div>
       <CriteriaDialog onClose={() => setSnapshotOpen(false)} open={snapshotOpen} title="승인 사본 정보">
         <Facts items={[
           ["프로필 버전", <span className="crit-mono" key="v">{profileVersion ?? "사본 미확인"}</span>],

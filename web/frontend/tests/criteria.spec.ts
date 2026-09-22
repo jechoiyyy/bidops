@@ -63,13 +63,17 @@ test("보이지 않는 탭의 조회는 함께 나가지 않는다", async ({ pa
   await open(page, "/profile");
   await expect(workspace(page)).toBeVisible();
   await expect(page.getByText("사업·기술 역량").first()).toBeVisible();
+  // `확인 요청 · 프로필 절 기준` 절은 이 탭에서만 회차 목록·통계를 조회한다
+  // (H3, ADR-0066 결정 7·2). 조회가 끝날 때까지 기다린 뒤 요청 목록을 본다.
+  await expect(page.locator(".crit-verification-requests")).toContainText("run-0906-a");
 
-  // 요약 줄이 쓰는 둘만 다른 탭과 겹친다. 무거운 조회는 각 탭에서만 나간다.
+  // 요약 줄이 쓰는 둘과 확인 요청 절이 쓰는 회차 조회만 이 탭에서 나간다. 다른
+  // 탭 전용의 무거운 조회는 나가지 않는다.
   expect(requested).toContain("/api/profile/sections");
   expect(requested).toContain("/api/policies");
+  expect(requested).toContain("/api/runs");
   expect(requested.filter((path) => path.startsWith("/api/quality-gates"))).toHaveLength(0);
   expect(requested.filter((path) => path.startsWith("/api/metrics"))).toHaveLength(0);
-  expect(requested).not.toContain("/api/runs");
 });
 
 test("경계 안내는 이 화면이 정하지 않는 네 판단을 모든 탭에 남긴다", async ({ page }) => {
@@ -203,6 +207,30 @@ test("판정 참조 횟수는 집계 불가와 실제 0회를 구분한다", asy
   const detail = page.locator(".crit-detail-scroll");
   await expect(detail).toContainText("집계 불가 · 판정 원문을 읽지 못했습니다");
   await expect(detail).toContainText("2회");
+});
+
+// ── 확인 요청 · 프로필 절 기준(H3, ADR-0066 결정 7·2) ──────────────────
+
+test("확인 요청 · 프로필 절 기준 절은 프로필 절이 식별된 항목만 보이고 회차 기준을 밝힌다", async ({ page }) => {
+  await open(page, "/profile");
+  const panel = page.locator(".crit-verification-requests");
+  await expect(panel).toContainText("실적 증빙 확인");
+  await expect(panel).toContainText("2.1 보유 도구");
+  await expect(panel).toContainText("자격 서류 확인");
+  await expect(panel).toContainText("3 실적");
+  // 프로필 절이 식별되지 않은 항목(공고별로만 걸리는 것)은 이 절에 없다 —
+  // 대시보드 `사람 확인 필요` 패널이 맡는다.
+  await expect(panel).not.toContainText("공고별 확인 항목");
+  await expect(panel).toContainText("run-0906-a");
+});
+
+test("확인 요청 절의 회차 선택은 run 파라미터를 바꾼다", async ({ page }) => {
+  await open(page, "/profile");
+  const panel = page.locator(".crit-verification-requests");
+  await panel.getByRole("button", { name: "회차 선택" }).click();
+  await page.getByRole("dialog").getByLabel("대상 회차").click();
+  await page.getByRole("option", { name: /run-0904-a/ }).click();
+  await expect.poll(() => new URL(page.url()).searchParams.get("run")).toBe("run-0904-a");
 });
 
 // ── 판정 정책 ─────────────────────────────────────────────────────────

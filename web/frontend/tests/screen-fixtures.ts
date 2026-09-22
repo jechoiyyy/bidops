@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import {
+  displayAssessmentFor,
   mockApi,
   mockBidDelta,
   mockDeepReviewLifecycle,
@@ -41,6 +42,10 @@ export const pages = [
   { name: "criteria", path: "/criteria" },
   { name: "run-status", path: "/run-status" },
   { name: "go-no-go", path: "/go-no-go" },
+  // T1 후속: 공고 상세는 목록과 다른 골격(navigation shell·notice facts·문서
+  // 준비 패널)이라 overflow 대상에 없었다. 주소는 route-context·lifecycle-safety
+  // spec이 쓰는 것과 같다(notice_pk=29, 같은 회차 RUN_ID).
+  { name: "judgment-detail", path: "/judgments/29?run=20260817-20260823--20260824T090927.138116Z" },
 ];
 
 /** 세 층이 공유하는 고정 입력. 각 spec의 `beforeEach`가 이것만 부른다. */
@@ -193,6 +198,7 @@ const cautionSampleItem = {
   pre_spec_no: "R26BD00273769",
   title: "예술인 공제사업 통합관리시스템 중장기 ISMP 수립",
   agency: "한국예술인복지재단",
+  demand_agency: null,
   published_at: new Date(sampleNow - 3 * SAMPLE_DAY_MS).toISOString(),
   deadline_at: new Date(sampleNow + 2.5 * SAMPLE_DAY_MS).toISOString(),
   budget: 49_844_864,
@@ -208,6 +214,7 @@ const cautionSampleItem = {
   overview_review_status: "completed",
   grade: "검토 권장",
   grade_source: "screening_judgment",
+  display_assessment: displayAssessmentFor("검토 권장", "screening_judgment", "completed"),
   auto_preparation_status: "bundle_ready",
   auto_preparation_reason: null,
   latest_deep_review_id: null,
@@ -222,6 +229,7 @@ const emptySampleItem = {
   pre_spec_no: null,
   title: null,
   agency: null,
+  demand_agency: null,
   published_at: null,
   deadline_at: null,
   budget: null,
@@ -235,6 +243,7 @@ const emptySampleItem = {
   overview_review_status: null,
   grade: null,
   grade_source: null,
+  display_assessment: displayAssessmentFor(null, "none", null),
   auto_preparation_status: "not_applicable",
   auto_preparation_reason: null,
   latest_deep_review_id: null,

@@ -7,7 +7,7 @@ import type {
   OpportunityRecheckEventView, OpportunityTrackingDecisionItem, OpportunityTrackingStatus,
   OrderPlanListItem, OrderPlanListScope, OrderPlanScreeningExecutionSummary, OrderPlanScreeningErrorCode,
   OrderPlanTracking, OrderPlanBulkPreviewResponse, OrderPlanBulkStartResponse, OrderPlanBulkEndResponse,
-  OverviewEnvelope, OverviewRun, PreSpecListItem, PreSpecOrderPlanCandidatesResponse,
+  OverviewEnvelope, OverviewRun, PreSpecDisplayAssessment, PreSpecListItem, PreSpecOrderPlanCandidatesResponse,
   RunSummary, WorkloadKey, WorkloadResponse,
 } from "../src/lib/types";
 import { searchKey, searchMatches } from "../src/lib/search";
@@ -48,9 +48,25 @@ function workloadProvider(page: Page, key: WorkloadKey, provider: () => { count:
   if (!providers) { providers = new Map(); workloadProviders.set(page, providers); }
   providers.set(key, provider);
 }
+/** `app/lifecycle/schemas/workload.py`의 `WorkloadKey`와 같은 고정 순서(ADR-0067). */
+const WORKLOAD_KEYS: WorkloadKey[] = [
+  "order_plan_pending", "pre_spec_deep_review_ready", "tracking_action_required",
+  "tracking_hold_review_due", "bid_final_decision_pending", "tracking_deadline_imminent",
+  "human_check_required", "overview_human_review", "blocking_items_open", "order_plan_new_priority",
+];
 function workloadResponse(page: Page): WorkloadResponse {
-  const keys: WorkloadKey[] = ["order_plan_pending", "pre_spec_deep_review_ready", "tracking_action_required", "tracking_hold_review_due", "bid_final_decision_pending"];
-  return { generated_at: "2026-09-01T09:00:00Z", items: keys.map((key) => ({ key, ...(workloadProviders.get(page)?.get(key)?.() ?? { count: null, unavailable_reason: "provider_absent" }) })) };
+  const providers = workloadProviders.get(page);
+  const resolve = (key: WorkloadKey) => providers?.get(key)?.() ?? { count: null, unavailable_reason: "provider_absent" };
+  const resolved = new Map(WORKLOAD_KEYS.map((key) => [key, resolve(key)] as const));
+  // 합계는 서버가 만든다(ADR-0067 결정 5). 하위 둘 중 하나라도 null이면 합계도 null이다.
+  if (!providers?.has("human_check_required")) {
+    const overview = resolved.get("overview_human_review")!.count;
+    const blocking = resolved.get("blocking_items_open")!.count;
+    resolved.set("human_check_required", overview === null || blocking === null
+      ? { count: null, unavailable_reason: "sub_count_unavailable" }
+      : { count: overview + blocking, unavailable_reason: null });
+  }
+  return { generated_at: "2026-09-01T09:00:00Z", items: WORKLOAD_KEYS.map((key) => ({ key, ...resolved.get(key)! })) };
 }
 function fixtureActor(headers: Record<string, string>): string {
   const actor = headers["x-bidops-actor-name"] ?? "";
@@ -392,7 +408,7 @@ export interface DeepReviewMockTrace {
  */
 export async function mockDeepReviewLifecycle(page: Page, scenario: DeepReviewFixtureScenario): Promise<DeepReviewMockTrace> {
   const trace: DeepReviewMockTrace = { reviewGets: 0, reportGets: 0, attemptPosts: [], opinionPosts: [], events: [] };
-  const failedAttempt = syntheticAttempt(1, "failed", "model_timeout");
+  const failedAttempt = syntheticAttempt(1, "failed", "timeout");
   const queuedRetryAttempt = syntheticAttempt(2, "queued");
   let retryCreated = false;
   let lastServedStatus = scenario === "completed" ? "completed" : scenario === "failed" ? "failed" : "queued";
@@ -547,7 +563,7 @@ function deltaAttempt(status: BidDeltaCalculationFixture, sequence: number) {
     status: attemptStatus,
     started_at: status === "pending" ? null : "2026-08-31T09:01:00Z",
     completed_at: terminal ? "2026-08-31T09:02:00Z" : null,
-    last_error_code: status === "failed" ? "model_timeout" : null,
+    last_error_code: status === "failed" ? "timeout" : null,
   };
 }
 
@@ -649,7 +665,7 @@ export async function mockBidDelta(page: Page, options: BidDeltaMockOptions = {}
       items: deltaItems(currentResult),
       attempts: Array.from({ length: attemptSequence }, (_, index) => index + 1 === attemptSequence ? currentAttempt : deltaAttempt("failed", index + 1)),
       result_sha256: currentResult && currentResult !== "failed" ? "e".repeat(64) : null,
-      last_error_code: calculationStatus === "failed" ? "model_timeout" : null,
+      last_error_code: calculationStatus === "failed" ? "timeout" : null,
       created_at: "2026-08-31T09:00:00Z",
       started_at: calculationStatus === "pending" ? null : "2026-08-31T09:01:00Z",
       completed_at: calculationStatus === "pending" || calculationStatus === "running" ? null : "2026-08-31T09:02:00Z",
@@ -819,6 +835,12 @@ const visualOpportunityLinksBase = {
   reviewer_name: null,
   reviewed_at: null,
   review_reason: null,
+  // 추가형 투영(0921_practitioner-screens spec §5). 대상이 없거나 해당하지
+  // 않으면 null — 아래 개별 link literal이 값을 주는 곳만 덮어쓴다.
+  budget: null,
+  deadline_at: null,
+  planned_order_year: null,
+  planned_order_month: null,
 };
 
 const visualOpportunities: OpportunityListItem[] = [
@@ -848,6 +870,9 @@ const visualOpportunities: OpportunityListItem[] = [
       title: "미선택 공공 데이터 플랫폼 구축",
       agency: "테스트 기관",
       external_id: "PLAN-101",
+      budget: 780_000_000,
+      planned_order_year: "2026",
+      planned_order_month: "10",
       record_external_id: "PLAN-101",
     }],
   },
@@ -892,6 +917,8 @@ const visualOpportunities: OpportunityListItem[] = [
       title: "종료된 지능형 업무 시스템 본공고",
       agency: "테스트 기관",
       external_id: "BID-202",
+      budget: 430_000_000,
+      deadline_at: "2026-09-18T00:00:00Z",
       record_external_id: "BID-202",
     }],
   },
@@ -971,6 +998,56 @@ function mockHoldReviewMatches(item: OpportunityListItem, kind: "overdue" | "due
   return overdue || dueSoon;
 }
 
+const MOCK_OPEN_TRACKING_STATUSES = ["계속 추적", "보류"];
+/** 권위 있는 연결(`official·확정` 또는 `사람 확인 완료·accepted`)의 마감만 읽는다. */
+function mockAuthoritativeDeadlines(item: OpportunityListItem): number[] {
+  return item.links
+    .filter((link) => (link.link_type === "official" && link.status === "확정")
+      || (link.status === "사람 확인 완료" && link.human_decision === "accepted"))
+    .map((link) => (link.deadline_at === null ? Number.NaN : Date.parse(link.deadline_at)))
+    .filter((value) => Number.isFinite(value));
+}
+/** 서버 `deadline_window_end`: 요청 시각 KST 일자 + N일의 끝(= +N+1일 00:00 KST, 열린 상한). */
+function mockDeadlineWindowEnd(days: number, now: number): number {
+  const kstOffset = 9 * 60 * 60 * 1000;
+  const lastDay = Math.floor((now + kstOffset) / MOCK_DAY_MS) + days;
+  return (lastDay + 1) * MOCK_DAY_MS - kstOffset;
+}
+/**
+ * Mock-server-only `deadline_within_days`(ADR-0067 결정 3·6). `hold_review`처럼
+ * 추적 대상(`계속 추적`·`보류`)을 함께 좁히고, 창은 **링크 단위**로 판정한다.
+ */
+function mockDeadlineImminent(item: OpportunityListItem, days: number, now = Date.now()): boolean {
+  if (!MOCK_OPEN_TRACKING_STATUSES.includes(item.tracking_status)) return false;
+  const upper = mockDeadlineWindowEnd(days, now);
+  return mockAuthoritativeDeadlines(item).some((value) => value >= now && value < upper);
+}
+/** `sort=deadline`의 키: 아직 남은 권위 연결 마감 중 가장 이른 것. 없으면 `null`(맨 뒤). */
+function mockNextDeadline(item: OpportunityListItem, now = Date.now()): number | null {
+  const remaining = mockAuthoritativeDeadlines(item).filter((value) => value >= now);
+  return remaining.length ? Math.min(...remaining) : null;
+}
+function compareNextDeadline(left: OpportunityListItem, right: OpportunityListItem): number {
+  const l = mockNextDeadline(left), r = mockNextDeadline(right);
+  if (l === null || r === null) return l === r ? right.id - left.id : l === null ? 1 : -1;
+  return l - r || right.id - left.id;
+}
+
+const MOCK_KST_DATE = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Seoul", year: "numeric", month: "2-digit", day: "2-digit" });
+/** 화면이 `first_observed_from`에 보내는 값과 같은 규칙: 요청 시각 KST 일자 −1일. */
+function mockPreviousKstDate(now: number): string {
+  const [year, month, day] = MOCK_KST_DATE.format(new Date(now)).split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, day) - MOCK_DAY_MS).toISOString().slice(0, 10);
+}
+/** `first_observed_from=YYYY-MM-DD`: 그 KST 일자 00:00 이후에 처음 관측됐는가. */
+function mockFirstObservedFrom(firstObservedAt: string | null, from: string | null): boolean {
+  if (!from) return true;
+  if (firstObservedAt === null) return false;
+  const observed = Date.parse(firstObservedAt);
+  const lower = Date.parse(`${from}T00:00:00+09:00`);
+  return Number.isFinite(observed) && Number.isFinite(lower) && observed >= lower;
+}
+
 /** `sort=hold_review_due_at`: 기한 오름차순, 기한 없는 행은 마지막(서버와 같은 nulls last). */
 function compareHoldReviewDue(left: OpportunityListItem, right: OpportunityListItem): number {
   const l = left.hold_review_due_at === null ? null : Date.parse(left.hold_review_due_at);
@@ -1016,6 +1093,9 @@ export async function mockOpportunity(page: Page): Promise<void> {
   const recheckEvents = new Map<number, OpportunityRecheckEventView[]>([[202, structuredClone(opportunityTrackingHistory.recheck_events)]]);
   workloadProvider(page, "tracking_action_required", () => ({ count: items.filter((item) => item.section === "조치 필요").length, unavailable_reason: null }));
   workloadProvider(page, "tracking_hold_review_due", () => ({ count: items.filter((item) => item.action_reasons.includes("hold_overdue")).length, unavailable_reason: null }));
+  // 건수는 짝지은 목록 호출과 같은 술어로 센다(ADR-0067 결정 1).
+  workloadProvider(page, "tracking_deadline_imminent", () => ({ count: items.filter((item) => mockDeadlineImminent(item, 7)).length, unavailable_reason: null }));
+  workloadProvider(page, "blocking_items_open", () => ({ count: items.filter((item) => item.action_reasons.includes("blocking_item")).length, unavailable_reason: null }));
   await page.route("**/api/opportunities**", async (route) => {
     const request = route.request();
     const url = new URL(request.url());
@@ -1026,10 +1106,17 @@ export async function mockOpportunity(page: Page): Promise<void> {
         await fulfillJson(route, { detail: "hold_review 값이 올바르지 않습니다" }, 422);
         return;
       }
-      // 서버처럼 hold_review는 목록·집계 모두에 걸리는 기본 조건이다.
+      const withinDaysRaw = search.get("deadline_within_days");
+      const withinDays = withinDaysRaw === null ? null : Number(withinDaysRaw);
+      if (withinDays !== null && (!Number.isInteger(withinDays) || withinDays < 1 || withinDays > 365)) {
+        await fulfillJson(route, { detail: "deadline_within_days 값이 올바르지 않습니다" }, 422);
+        return;
+      }
+      // 서버처럼 hold_review·deadline_within_days는 목록·집계 모두에 걸리는 기본 조건이다.
       let filtered = items.filter((item) => (!search.get("tracking_status") || item.tracking_status === search.get("tracking_status"))
         && (!search.get("first_registered_stage") || item.first_registered_stage === search.get("first_registered_stage"))
-        && (holdReview === null || mockHoldReviewMatches(item, holdReview)));
+        && (holdReview === null || mockHoldReviewMatches(item, holdReview))
+        && (withinDays === null || mockDeadlineImminent(item, withinDays)));
       const section_counts: OpportunitySectionCounts = { "조치 필요": 0, "추적 중": 0, "보류": 0, "추적 종료": 0, "신규 입찰공고": 0, "미결정": 0 };
       const action_reason_counts: Record<string, number> = { new_link: 0, candidate_pending: 0, merge_confirmation: 0, blocking_item: 0, hold_overdue: 0 };
       for (const item of filtered) {
@@ -1047,6 +1134,7 @@ export async function mockOpportunity(page: Page): Promise<void> {
       if (search.get("sort") === "tracking_status") filtered.sort((a, b) => a.tracking_status.localeCompare(b.tracking_status));
       if (search.get("sort") === "first_registered_stage") filtered.sort((a, b) => a.first_registered_stage.localeCompare(b.first_registered_stage));
       if (search.get("sort") === "hold_review_due_at") filtered.sort(compareHoldReviewDue);
+      if (search.get("sort") === "deadline") filtered.sort(compareNextDeadline);
       const limit = Number(search.get("limit") ?? 50), offset = Number(search.get("offset") ?? 0);
       await fulfillJson(route, { items: filtered.slice(offset, offset + limit), total: filtered.length, limit, offset, section_counts, action_reason_counts });
       return;
@@ -1190,6 +1278,9 @@ const visualPreSpecItems: PreSpecListItem[] = [
     pre_spec_no: "PRE-991",
     title: "안전한 문서 준비 사전규격",
     agency: "테스트 조달기관",
+    // 대행 표본(spec §5): 공고기관(`agency`)이 수요기관을 대행해 공고한 건.
+    // 나머지 사전규격 fixture는 demand_agency가 null이다.
+    demand_agency: "한국예술인복지재단",
     published_at: "2026-08-30T00:00:00Z",
     deadline_at: "2026-09-02T00:00:00Z",
     budget: 510_000_000,
@@ -1224,6 +1315,7 @@ const visualPreSpecItems: PreSpecListItem[] = [
     pre_spec_no: "PRE-992",
     title: "신규 지능형 행정 지원 사전규격",
     agency: "신규 발주기관",
+    demand_agency: null,
     published_at: "2026-08-31T00:00:00Z",
     deadline_at: "2026-09-07T00:00:00Z",
     budget: null,
@@ -1447,6 +1539,17 @@ function preSpecMatches(item: PreSpecListItem, search: URLSearchParams, includeW
   if (!matchesOverviewView(item, search.get("overview_view"))) return false;
   const grade = search.get("grade");
   if (grade && (grade === "판정 없음" ? item.grade !== null : item.grade !== grade)) return false;
+  // bda1288: 화면은 `grade`가 아니라 `display_grade`를 보낸다(다섯 값 + 판정 없음).
+  // `판단 보류`는 `display_assessment.status === "held"`고, `판정 없음`은
+  // `"none"`이다 — 둘 다 `grade`만으로는 구분되지 않는다(docs/contracts.md).
+  const displayGrade = search.get("display_grade");
+  if (displayGrade) {
+    const assessment = item.display_assessment;
+    const matches = displayGrade === "판정 없음" ? assessment.status === "none"
+      : displayGrade === "판단 보류" ? assessment.status === "held"
+      : assessment.grade === displayGrade;
+    if (!matches) return false;
+  }
   if (search.get("tracking_decision") === "pending" && !isPendingTracking(item)) return false;
   if (search.get("tracking_status") && item.tracking_status !== search.get("tracking_status")) return false;
   if (sourceRunId && !matchesObservation(item, sourceRunId, observedFrom, observedTo)) return false;
@@ -1829,6 +1932,11 @@ export async function mockPreSpecs(page: Page): Promise<void> {
     await fulfillJson(route, inheritedPreSpecOpportunity);
   });
   workloadProvider(page, "pre_spec_deep_review_ready", () => ({ count: visualPreSpecItems.filter((item) => item.auto_preparation_status === "deep_review_ready_for_click").length, unavailable_reason: null }));
+  // 개요 두 상태는 서로 배타적이므로 두 목록 호출의 `total` 합이 곧 이 키다(ADR-0067 결정 5).
+  workloadProvider(page, "overview_human_review", () => ({
+    count: visualPreSpecItems.filter((item) => item.overview_review_status === "failed" || item.overview_review_status === "needs_human_review").length,
+    unavailable_reason: null,
+  }));
   await page.route("**/api/pre-specs**", async (route) => {
     const request = route.request();
     const url = new URL(request.url());
@@ -1927,6 +2035,29 @@ export async function mockPreSpecs(page: Page): Promise<void> {
   });
 }
 
+/** 목록·상세가 함께 읽는 화면 대표 판정(bda1288). `grade`가 없으면 `status:
+ * "none"`, 있으면 `"graded"`다(spec §6.2 — `판정 없음`은 다섯 번째 등급이 아니다). */
+export function displayAssessmentFor(
+  grade: PreSpecDisplayAssessment["grade"],
+  source: PreSpecDisplayAssessment["source"],
+  latestRunStatus: PreSpecDisplayAssessment["latest_run_status"] = null,
+): PreSpecDisplayAssessment {
+  return {
+    grade,
+    status: grade === null ? "none" : "graded",
+    source: grade === null ? "none" : source,
+    basis_run_id: null,
+    assessed_at: null,
+    quality_status: null,
+    reason_codes: [],
+    axes: [],
+    verification_items: [],
+    semantic_status: null,
+    semantic_scope: [],
+    latest_run_status: latestRunStatus,
+  };
+}
+
 // 명세 §6.8 게이트: 자동 준비 8값과 등급 4값 + `판정 없음`이 화면에 **문자로**
 // 나타나는지 의미 층이 확인할 수 있게, 한 응답 안에 여덟 행을 모두 담는다.
 const AUTO_PREPARATION_MATRIX = [
@@ -1949,6 +2080,7 @@ const preSpecMatrixItems = AUTO_PREPARATION_MATRIX.map((entry, index) => ({
   pre_spec_no: `PRE-${8001 + index}`,
   title: `자동 준비 표본 ${index + 1}`,
   agency: "표본 발주기관",
+  demand_agency: null,
   published_at: "2026-08-30T00:00:00Z",
   deadline_at: "2026-09-10T00:00:00Z",
   budget: 100_000_000,
@@ -1962,6 +2094,7 @@ const preSpecMatrixItems = AUTO_PREPARATION_MATRIX.map((entry, index) => ({
   overview_review_status: "needs_human_review",
   grade: entry.grade,
   grade_source: entry.grade === null ? null : "screening_judgment",
+  display_assessment: displayAssessmentFor(entry.grade, "screening_judgment", "needs_human_review"),
   auto_preparation_status: entry.status,
   auto_preparation_reason: entry.reason,
   latest_deep_review_id: entry.deepReviewId,
@@ -2025,6 +2158,7 @@ const preSpecDeadlineScopeItems: PreSpecListItem[] = ([
   pre_spec_no: `PRE-${entry.notice_pk}`,
   title: entry.title,
   agency: "표본 발주기관",
+  demand_agency: null,
   published_at: "2026-08-10T00:00:00Z",
   deadline_at: entry.deadline_at,
   budget: 100_000_000,
@@ -2039,6 +2173,7 @@ const preSpecDeadlineScopeItems: PreSpecListItem[] = ([
   overview_review_status: "needs_human_review",
   grade: "우선 검토",
   grade_source: "screening_judgment",
+  display_assessment: displayAssessmentFor("우선 검토", "screening_judgment", "needs_human_review"),
   auto_preparation_status: "not_applicable",
   auto_preparation_reason: null,
   latest_deep_review_id: null,
@@ -2081,16 +2216,21 @@ export type PreSpecAutoDetailState = "started" | "ready_for_click" | "corrected"
 
 /** 사전규격 상세의 자동 준비 단계 표시와 두 갈래 동선(보고서 링크 · 실행 버튼). */
 export async function mockPreSpecAutoDetail(page: Page, state: PreSpecAutoDetailState): Promise<void> {
+  // notice(`visualPreSpecNotice`)의 판정 등급은 `우선 검토`다. `corrected`는
+  // 사람이 `관찰 대상`으로 정정한 상태이며 화면은 정정된 현재 등급만 보여야
+  // 한다 — 판정 등급을 라벨 없이 함께 두지 않는다.
+  const grade = state === "corrected" ? "관찰 대상" : "우선 검토";
+  const gradeSource: "screening_judgment" | "human_review" = state === "started" ? "screening_judgment" : "human_review";
   const item = {
     ...visualPreSpecItems[0],
     tracking_status: "계속 추적",
     document: { attachments: 3, "완료": 2, "대기": 1, "진행": 0, "차단": 0, "실패": 0 },
     overview_review_status: "completed",
-    // notice(`visualPreSpecNotice`)의 판정 등급은 `우선 검토`다. `corrected`는
-    // 사람이 `관찰 대상`으로 정정한 상태이며 화면은 정정된 현재 등급만 보여야
-    // 한다 — 판정 등급을 라벨 없이 함께 두지 않는다.
-    grade: state === "corrected" ? "관찰 대상" : "우선 검토",
-    grade_source: state === "started" ? "screening_judgment" : "human_review",
+    grade,
+    grade_source: gradeSource,
+    // display_assessment도 state에 맞춰 다시 준다 — 위 grade/grade_source만
+    // 바꾸면 화면이 읽는 대표 판정(bda1288)은 991의 고정값에 머문다.
+    display_assessment: displayAssessmentFor(grade, gradeSource, "completed"),
     auto_preparation_status: state === "started" ? "deep_review_started" : "deep_review_ready_for_click",
     auto_preparation_reason: state === "started" ? null : "bundle_not_auto_ready",
     latest_deep_review_id: state === "started" ? "fixture-review" : null,
@@ -2878,10 +3018,17 @@ export async function mockOrderPlans(page: Page, scenario: OrderPlanMockScenario
       && matchesValues(item.human_feedback?.relevance ?? null, search.get("human_relevance"))
       && (!search.get("tracking_status") || (item.tracking !== null && matchesValues(item.tracking.tracking_status, search.get("tracking_status"))))
       && (search.get("issue") !== "true" || ["failed", "rejected"].includes(item.stage1_status ?? "") || ["failed", "rejected"].includes(item.stage2_status ?? ""))
+      // `first_observed_from`은 그 KST 일자 00:00 이후에 처음 관측된 계획만 남긴다(상한 없음).
+      && mockFirstObservedFrom(item.first_observed_at, search.get("first_observed_from"))
       && (!search.get("q") || !searchKey(search.get("q")!) || searchMatches(search.get("q")!, item.title, item.agency_name, item.order_plan_unty_no)));
   }
   workloadProvider(page, "order_plan_pending", () => latestCompletedExecution(null)
     ? { count: listItems(new URLSearchParams({ stage1_status: "selected", qwen_relevance: "relevant,uncertain", tracking_status: "미선택" })).length, unavailable_reason: null }
+    : { count: null, unavailable_reason: "no_completed_execution" });
+  // 제공자가 짝지은 목록 호출과 같은 인자를 쓴다(ADR-0067 결정 1). 날짜는 화면이 보내는 값과
+  // 같은 규칙(요청 시각 KST 일자 −1일)으로 만든다.
+  workloadProvider(page, "order_plan_new_priority", () => latestCompletedExecution(null)
+    ? { count: listItems(new URLSearchParams({ qwen_relevance: "relevant", tracking_status: "미선택", first_observed_from: mockPreviousKstDate(Date.now()) })).length, unavailable_reason: null }
     : { count: null, unavailable_reason: "no_completed_execution" });
 
   const createdRequests = new Map<string, { payload: string; response: unknown }>();

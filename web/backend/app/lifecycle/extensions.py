@@ -131,7 +131,19 @@ class WorkloadCount:
 
 @runtime_checkable
 class WorkloadProjection(Protocol):
-    """등록자가 소유한 업무 키들의 건수. 다른 등록자의 키를 덮지 않는다."""
+    """등록자가 소유한 업무 키들의 건수. 다른 등록자의 키를 덮지 않는다.
+
+    어휘는 `schemas/workload.WorkloadKey`가 정본이다. 현재 제공자 소유는
+    screening의 `order_plan_pending`·`order_plan_new_priority`와 deep_review의
+    `pre_spec_deep_review_ready`·`bid_final_decision_pending`·`overview_human_review`
+    다섯이고, 나머지 넷(`tracking_action_required`·`tracking_hold_review_due`·
+    `tracking_deadline_imminent`·`blocking_items_open`과 그 합계
+    `human_check_required`)은 lifecycle이 자기 테이블에서 직접 센다
+    ([ADR-0053](../../../docs/tracking/decisions/0053-decision-workload-read-contracts.md)
+    결정 4, [ADR-0067](../../../docs/tracking/decisions/0067-dashboard-workload-keys-and-panel-contracts.md)
+    결정 9). lifecycle이 `prespec_overview_run`이나 `order_plan_screening_result`를
+    세는 방향은 만들지 않는다.
+    """
 
     def workload_counts(self, session: Any) -> Mapping[str, WorkloadCount]:
         """누적 업무 건수. 업무 판단과 집계는 각 제공자가 소유한다."""

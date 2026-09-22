@@ -289,6 +289,10 @@ export interface PreSpecListItem {
   pre_spec_no: string | null;
   title: string | null;
   agency: string | null;
+  /** 사전규격 원문 `rlDminsttNm`(수요기관). 발주기관 `agency`와 다를 수 있고
+   * 값이 없으면 `null`이다. 입찰공고는 `agency`가 이미 수요기관 우선값이라
+   * 투영하지 않는다(spec §5). */
+  demand_agency: string | null;
   published_at: string | null;
   deadline_at: string | null;
   budget: number | null;
@@ -1572,6 +1576,15 @@ export interface OpportunityLinkView {
   title: string | null;
   agency: string | null;
   external_id: string | null;
+  /** 추가형 투영(spec §5). link 단위 값 — `notice`를 가리키면 `budget`·
+   * `deadline_at`을, `order_plan`을 가리키면 `budget`(=`budget_amount`)·
+   * `planned_order_year`·`planned_order_month`를 싣는다. 대상이 없거나
+   * 해당하지 않으면 `null`이다. 서버는 사업기회 단위의 "대표 마감"을 고르지
+   * 않는다. */
+  budget: number | null;
+  deadline_at: string | null;
+  planned_order_year: string | null;
+  planned_order_month: string | null;
   record_external_id: string | null;
 }
 
@@ -1636,9 +1649,14 @@ export interface OpportunityListQuery {
   first_registered_stage?: OpportunityFirstRegisteredStage | null;
   reason?: OpportunityActionReason | null;
   hold_review?: OpportunityHoldReview | null;
+  /** 마감 임박 창(일, 1~365). `hold_review`처럼 추적 대상(`계속 추적`·`보류`)을 함께
+   *  좁힌다(ADR-0067 결정 3). 상한은 요청 시각 KST 일자 + N일의 끝이다. */
+  deadline_within_days?: number | null;
   /** 서버 검색(공백 정규화·소문자 부분일치), 2~100자(spec §7.5). */
   q?: string | null;
-  sort?: "created_at" | "tracking_status" | "first_registered_stage" | "hold_review_due_at" | null;
+  /** `deadline`은 아직 남은 권위 연결 마감 중 가장 이른 것 오름차순이고, 그런 마감이
+   *  없는 사업은 맨 뒤다. 정렬 키일 뿐 응답에 대표 마감 필드는 없다(ADR-0067 결정 4). */
+  sort?: "created_at" | "tracking_status" | "first_registered_stage" | "hold_review_due_at" | "deadline" | null;
   limit?: number | null;
   offset?: number | null;
 }
@@ -1941,6 +1959,9 @@ export interface OrderPlanListQuery {
   human_relevance?: MultiValueFilter<OrderPlanRelevanceFilter> | null;
   tracking_status?: MultiValueFilter<OpportunityTrackingStatus> | null;
   issue?: boolean | null;
+  /** `YYYY-MM-DD`(KST 일자). 그 일자 00:00 KST 이후에 **처음 관측된** 발주계획만
+   *  남긴다. 상한은 없다(ADR-0067 결정 6, spec §7.3). */
+  first_observed_from?: string | null;
   q?: string | null;
   limit?: number | null;
   offset?: number | null;
@@ -2212,7 +2233,27 @@ export interface OpportunityDeepReviewsResponse {
 
 // 키 순서 고정(ADR-0053 §1·§4): order_plan_pending, pre_spec_deep_review_ready,
 // tracking_action_required, tracking_hold_review_due, bid_final_decision_pending.
-export type WorkloadKey = "order_plan_pending" | "pre_spec_deep_review_ready" | "tracking_action_required" | "tracking_hold_review_due" | "bid_final_decision_pending";
+/**
+ * `GET /api/workload` 항목의 고정 순서이자 전체 어휘
+ * (`app/lifecycle/schemas/workload.py`의 `WorkloadKey`와 같은 순서).
+ *
+ * 앞 다섯은 ADR-0053, 뒤 다섯은 실무자 대시보드 패널 계약(ADR-0067)이 더했다 —
+ * 세는 키 넷과 그중 둘의 합계 하나다. `human_check_required`가 그 합계이며
+ * `overview_human_review` + `blocking_items_open`이고, 하나라도 `null`이면 합계도
+ * `null`(`unavailable_reason="sub_count_unavailable"`)이다. **화면은 합계를 직접
+ * 더하지 않는다.**
+ */
+export type WorkloadKey =
+  | "order_plan_pending"
+  | "pre_spec_deep_review_ready"
+  | "tracking_action_required"
+  | "tracking_hold_review_due"
+  | "bid_final_decision_pending"
+  | "tracking_deadline_imminent"
+  | "human_check_required"
+  | "overview_human_review"
+  | "blocking_items_open"
+  | "order_plan_new_priority";
 export interface WorkloadItem {
   key: WorkloadKey;
   count: number | null;
@@ -2239,6 +2280,13 @@ export interface BidDeltaDecisionQueueItem {
   comparison_count: number;
   latest_final_decision: { decision: "go" | "no_go"; decided_at: string; claimed_name: string } | null;
   decision_currentness: "current" | "stale" | "unknown";
+  /** 추가형 투영(spec §5). 선택된 입찰공고가 없으면 셋 다 `null`이며 발주계획·
+   * 사전규격에서 추정하지 않는다. `budget`·`estimated_price`는 Decimal
+   * 문자열이라 부동소수 반올림으로 값을 잃지 않는다(`BidConditionValues`와
+   * 같은 관례). */
+  deadline_at: string | null;
+  budget: string | null;
+  estimated_price: string | null;
 }
 export interface BidDeltaDecisionQueueResponse {
   items: BidDeltaDecisionQueueItem[];

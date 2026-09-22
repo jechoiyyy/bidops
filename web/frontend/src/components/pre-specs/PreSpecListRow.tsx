@@ -1,9 +1,9 @@
 import { Token } from "@astryxdesign/core/Token";
 import { DenseListRow, type DenseListRowSelection } from "../common/ReviewPrimitives";
+import { preSpecExclusionRecord, PreSpecRowAgency } from "./PreSpecAgency";
 import { describeDeadline, shortDateLabel } from "../../lib/deadline";
 import { formatDateTime } from "../../lib/format";
 import {
-  agencyOf,
   attachmentAttention,
   budgetLabel,
   exactBudget,
@@ -76,7 +76,9 @@ export function PreSpecRow({
       label={<span className="pre-specs-row-title">{title}</span>}
       description={(
         <>
-          <span className="pre-specs-row-agency">{agencyOf(item)}</span>
+          {/* 수요기관이 있으면 실제 발주처를 앞에 두고 대행 공고기관을 작은
+              글자로 뒤에 붙인다(M5 승인). 없으면 지금처럼 `agency` 하나다. */}
+          <span className="pre-specs-row-agency"><PreSpecRowAgency item={item} /></span>
           <span className="pre-specs-row-meta">
             <span title={exactBudget(item.budget)}>{budgetLabel(item.budget)}</span>
             <span aria-hidden="true">·</span>
@@ -90,7 +92,14 @@ export function PreSpecRow({
             {/* 등급은 글자 토큰 하나다(ADR-0055 결정 2). 색으로 뜻을 전하지 않고,
                 판정 없음을 특정 등급으로 접지 않는다. 출처는 상세가 갖는다. */}
             <span aria-hidden="true">·</span>
-            {item.review_exclusion_status === "excluded" ? <Token size="sm" label="검토 제외" color="default" /> : null}
+            {/* 제외된 건은 누가·언제·왜 뺐는지 함께 읽어야 복원을 판단할 수 있다
+                (spec §6.2). 제외 건은 전체 이력 보기에만 나온다. */}
+            {item.review_exclusion_status === "excluded" ? (
+              <>
+                <Token size="sm" label="검토 제외" color="default" />
+                <span className="pre-specs-row-exclusion">{preSpecExclusionRecord(item)}</span>
+              </>
+            ) : null}
             <span className="pre-specs-row-grade">{displayAssessmentLabel(item.display_assessment)}</span>
             {item.kept_by_tracking ? (
               <>

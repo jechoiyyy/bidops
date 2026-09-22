@@ -184,7 +184,12 @@ def test_workload_registration_counts_unlinked_non_sw_prespecs(queue_session, mo
     registry = register_lifecycle_extensions(ExtensionRegistry())
     register_lifecycle_extensions(registry)
     counts = registry.workload_counts(session)
-    assert counts == {"pre_spec_deep_review_ready": WorkloadCount(1), "bid_final_decision_pending": WorkloadCount(1)}
+    # 이 사전규격의 개요 run이 `failed`라 `사람 확인 필요`의 개요 하위 건수에도 든다.
+    assert counts == {
+        "pre_spec_deep_review_ready": WorkloadCount(1),
+        "bid_final_decision_pending": WorkloadCount(1),
+        "overview_human_review": WorkloadCount(1),
+    }
     assert registry.notice_ids_for_auto_preparation_status(session, [ready.id], "not_applicable") == []
 
 
@@ -387,7 +392,12 @@ def test_queue_projects_selected_bid_amounts_and_sorts_by_nearest_deadline(queue
 
 def test_workload_empty_counts_are_integer_zero(queue_session):
     counts = register_lifecycle_extensions(ExtensionRegistry()).workload_counts(queue_session)
-    assert counts == {"pre_spec_deep_review_ready": WorkloadCount(0), "bid_final_decision_pending": WorkloadCount(0)}
+    # deep_review가 소유한 세 키다. 대상이 없으면 실제 0이며 제공자 부재(`null`)가 아니다.
+    assert counts == {
+        "pre_spec_deep_review_ready": WorkloadCount(0),
+        "bid_final_decision_pending": WorkloadCount(0),
+        "overview_human_review": WorkloadCount(0),
+    }
 
 
 def test_currentness_detects_new_bundle_version_without_new_revision(queue_session):

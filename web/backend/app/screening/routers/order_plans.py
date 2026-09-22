@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import date
 import logging
 from typing import Annotated, Literal
 from uuid import UUID
@@ -95,8 +96,12 @@ def list_order_plans(
     stage1_status: str | None = None,
     stage2_status: str | None = None,
     qwen_relevance: str | None = None,
+    # `missing`은 "그 축의 행 자체가 없음"을 뜻하는 검색 전용 값이다. 저장 상태를
+    # 새로 만들지 않으며 `human_relevance=missing`은 사람 피드백 미기록을 고른다.
     human_relevance: str | None = None,
     tracking_status: str | None = None,
+    # 처음 관측된 KST 일자의 하한(포함). 대시보드 `새 우선 검토 발주계획`이 쓴다.
+    first_observed_from: date | None = None,
     issue: bool = False,
     q: str | None = None,
     limit: int = Query(default=100, ge=1, le=500),
@@ -112,6 +117,7 @@ def list_order_plans(
             qwen_relevance=qwen_relevance,
             human_relevance=human_relevance,
             tracking_status=tracking_status,
+            first_observed_from=first_observed_from,
             issue=issue,
             q=q,
             limit=limit,

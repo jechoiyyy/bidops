@@ -203,10 +203,58 @@
 
 ## 7. 실무자 대시보드
 
-- **계약 선행**: `WorkloadProjection`(`extensions.py:133`)은 건수·불가 사유만 준다. 패널은 목록이 필요하므로 패널별로 목록의 출처(기존 목록 API + 정렬·상한으로 충분한지, 새 endpoint가 필요한지), 건수와 같은 모집단, 정렬, 공통 기준 시각, 제공자 부재 처리(`count=null` → `건수 미확인`)를 이 절의 개정으로 먼저 닫는다.
-- `WorkloadKey`(`app/lifecycle/schemas/workload.py:8-14`) 누적 키: `tracking_deadline_imminent`(lifecycle), `human_check_required`(deep_review 제공자의 개요 failed/needs_human_review + lifecycle의 열린 blocking 확인 항목 — 두 출처를 합치지 않고 하위 건수로 구분), `order_plan_new_priority`(screening 제공자). 다른 모듈의 테이블은 확장점으로만 받는다.
-- 함께 닫는 findings: 사전규격 `deadline_within_days`(findings 522-530), 발주계획 `human_relevance=missing`(findings 514-521).
-- 화면에서 빼는 것과 행선지
+### 7.1 계약 (H0에서 닫음, 2026-09-22 — [ADR-0067](../tracking/decisions/0067-dashboard-workload-keys-and-panel-contracts.md))
+
+`WorkloadProjection`(`extensions.py:133`)은 건수·불가 사유만 준다. 패널은 목록도 필요하므로
+**패널마다 건수 키 하나와 목록 호출 하나를 짝지었다.** 원칙 넷:
+
+1. **새 endpoint를 만들지 않는다.** 목록은 이미 있는 목록 API 넷이 낸다. 더한 것은 query 인자
+   셋(`/api/opportunities`의 `deadline_within_days`, `/api/pre-specs`의 `deadline_within_days`,
+   `/api/order-plans`의 `first_observed_from`)과 정렬 값 하나(`/api/opportunities`의
+   `sort=deadline`)뿐이다.
+2. **건수와 목록은 같은 모집단이다.** 건수는 짝지은 목록 호출의 `total`과 같은 술어·같은
+   구현에서 나온다. 화면이 페이지를 받아 다시 세지 않는다(ADR-0053 결정 2·4).
+3. **기준 시각은 요청 시각이고 창은 KST 일자로 끊는다.** `7일 이내`의 상한은 "요청 시각의 KST
+   일자 + 7일"의 끝(= +8일 00:00 KST, 열린 경계)이고 하한은 요청 시각이다(지난 마감은 임박이
+   아니다). 건수와 목록은 서로 다른 요청이라 몇 초 차이가 날 수 있다 — 화면은 건수를 목록
+   길이로 덮지 않고, 목록이 비었다고 건수를 0으로 고치지 않는다.
+4. **제공자가 없으면 `count=null`·`unavailable_reason`이다.** 화면은 `건수 미확인`으로 적고
+   0으로 쓰지 않는다.
+
+| 패널 | 목록 호출(전부 기존 API) | 건수 키 | 모집단이 같은 근거 | 정렬 | 기준 시각 |
+|---|---|---|---|---|---|
+| 마감 임박 추적 건 | `GET /api/opportunities?deadline_within_days=7&sort=deadline&limit=5` | `tracking_deadline_imminent` (lifecycle 직접) | 건수가 같은 `list_opportunities(deadline_within_days=7)`의 `total`을 같은 술어로 센다 | 아직 남은 권위 연결 마감 중 가장 이른 것 오름 → 그런 마감 없음은 맨 뒤 → `created_at` 내림 → `id` 내림 | 요청 시각(UTC aware), 상한은 KST 일자 |
+| 최종 결정 대기 | `GET /api/bid-delta/decision-queue?status=pending&limit=5` | `bid_final_decision_pending` (기존, deep_review) | 제공자가 같은 `decision_queue(status="pending")`의 `total`을 부른다 | 입찰공고 마감 오름·마감 미제공 맨 뒤 → 미결정 먼저(B2에서 구현) | 요청 시각 |
+| 사람 확인 필요 — 개요 | `GET /api/pre-specs?sw_only=false&overview_view=failed&sort=deadline` + 같은 호출의 `overview_view=attention` | `overview_human_review` (deep_review 제공자) | 두 개요 상태(`failed`·`needs_human_review`)는 서로 배타적이라 두 `total`의 합이 곧 키 값이다. 둘 다 `sw_only=false`·`workspace=all`·`deadline_scope=all`·`review_exclusion=all`(기본값)로 받아야 제공자와 같은 모집단이다 | 마감 3버킷(ADR-0064) | 요청 시각 |
+| 사람 확인 필요 — 공고 확인 항목 | `GET /api/opportunities?reason=blocking_item&limit=5` | `blocking_items_open` (lifecycle 직접) | 목록의 `action_reason_counts["blocking_item"]`·`total`과 같은 첫 일치 분류(`_classified`)를 쓴다 | 기본(`created_at` 내림) | 요청 시각 |
+| (위 두 하위의 합계) | — | `human_check_required` | 두 하위 건수의 합. **하나라도 `null`이면 합계도 `null`**(`sub_count_unavailable`) | — | — |
+| 보류 재검토 | `GET /api/opportunities?hold_review=attention&sort=hold_review_due_at&limit=5` | `tracking_hold_review_due` (기존, lifecycle 직접) | 기존 계약 그대로 | 보류 기한 오름 | 요청 시각 |
+| 새 우선 검토 발주계획 | `GET /api/order-plans?qwen_relevance=relevant&tracking_status=미선택&first_observed_from=<전일 KST 날짜>&limit=5` | `order_plan_new_priority` (screening 제공자) | 제공자가 같은 인자로 `list_order_plans(..., limit=1)`을 불러 `total`을 쓴다(`order_plan_pending`과 같은 방식) | 목록 API의 고정 순서 `order_plan_pk` 오름 — 패널은 `N건 중 상위 5건`으로 적는다 | 요청 시각의 KST 일자 −1일 00:00 |
+
+- **서버는 대표 마감을 고르지 않는다**(§5 유지). `deadline_within_days`는 **링크 단위**로
+  판정하고 돌려주는 것은 **사업**이다. 화면이 `links[]`의 `deadline_at`·`source_type`으로 어느
+  마감이 임박했는지 골라 종류(`입찰 마감`/`의견등록 마감`)를 적는다. `sort=deadline`은 정렬
+  키이며 응답에 대표 마감 필드를 만들지 않는다.
+- **창에 드는 링크는 권위 있는 연결뿐이다**(`authoritative_link_predicate` — `official·확정`
+  또는 `candidate·사람 확인 완료·accepted`). 확인 대기 후보의 마감이 사업을 할 일로 올리지
+  않는다.
+- **`deadline_within_days`는 추적 대상(`계속 추적`·`보류`)으로 함께 좁힌다.** `hold_review`가
+  "보류 + 기한"을 한 인자로 묶은 선례와 같다(ADR-0067 결정 3). 패널 바닥 문구
+  "추적 중·보류 사업 중 7일 이내"가 이 모집단이다.
+- `WorkloadKey`(`app/lifecycle/schemas/workload.py`)의 고정 순서는 기존 다섯 뒤에
+  `tracking_deadline_imminent`, `human_check_required`, `overview_human_review`,
+  `blocking_items_open`, `order_plan_new_priority`로 **열**이다. 다른 모듈의 테이블은
+  확장점으로만 받는다 — lifecycle이 `prespec_overview_run`·`order_plan_screening_result`를
+  세지 않는다.
+- 함께 닫는 findings: 사전규격 `deadline_within_days`(ADR-0064 부분 해소의 "남은 것")는 이
+  패키지가 인자를 더해 닫는다. **M6가 `사전규격 의견등록 마감 임박` 패널 자체를 뺐으므로 이
+  인자를 쓰는 workload 키는 없다** — 닫히는 것은 "창 인자와 그 집계가 없다"이고, 사전규격
+  마감은 이제 `마감 임박 추적 건` 패널이 사업기회 단위로(의견등록 마감 링크를 포함해) 말한다.
+  발주계획 `human_relevance=missing`은 **이미 구현돼 있었다**
+  (`order_plan_screening.py`의 `_filter_values`와 `missing` NULL 투영) — findings 문장이 낡았고,
+  이 패키지는 계약 문서에 적고 진입점 회귀를 붙이는 것으로 닫는다.
+
+### 7.2 화면에서 빼는 것과 행선지
 
 | 패널 | 행선지 |
 |---|---|
@@ -215,7 +263,11 @@
 | `담당자 확인 요청` | 회사 역량 미확인(프로필 절 기준) → `판정 기준 › 회사 프로필`. 공고별 blocking 확인 항목(`notice_pks`, `projection.py:677`) → 대시보드 `사람 확인 필요`에서 사업 추적 상세 `확인 사항` 탭으로 |
 | 회차 기준 `마감 공고` | 누적 `마감 임박 추적 건`으로 대체 |
 
-- 패널: 마감 임박 추적 건(**7일 이내**, 3일 이내는 빨간 D-day, 의견등록 마감과 입찰 마감을 종류를 적어 한 패널에), 최종 결정 대기(마감순), 사람 확인 필요, 보류 재검토(`HoldReviewPanel` 유지), 새 우선 검토 발주계획(**전일 수집 회차에서 처음 관측 + 모델 판단 관련**, `first_observed_at` 기준 — M6 승인 2026-09-22). 발주계획 타일에 `· 새로 N`.
+### 7.3 패널
+
+- 마감 임박 추적 건(**7일 이내**, 3일 이내는 빨간 D-day, 의견등록 마감과 입찰 마감을 종류를 적어 한 패널에), 최종 결정 대기(마감순), 사람 확인 필요(하위 건수 둘을 바닥에 따로), 보류 재검토(`HoldReviewPanel` 유지), 새 우선 검토 발주계획(**전일 수집 회차에서 처음 관측 + 모델 판단 관련**, `first_observed_at` 기준 — M6 승인 2026-09-22; H1 구현은 `first_observed_from=<전일 KST 00:00>` 하한만 두고 상한을 두지 않는다 — 당일 07:00 cron 도착분도 '새로'에 든다. 리더 채택 2026-09-22). 발주계획 타일에 `· 새로 N`.
+- `새로`의 창은 `first_observed_from=<요청 시각 KST 일자 −1일>`이다. 즉 **전일 00:00 KST 이후에 처음 관측된 것**이라 전일 회차와 당일 회차 도착분을 함께 담는다. 일일 수집 cron이 아침 07:00에 도는데(`env/c2.env`) 창을 전일 하루로 닫으면 실무자가 보러 온 오늘 아침 도착분이 빠진다 — "새로 들어온 것"을 보여 주는 패널의 뜻과 어긋나므로 하한만 두고 상한은 두지 않는다.
+- `모델 판단 관련`은 `qwen_relevance=relevant` 한 값이다(M6 문안 그대로). `order_plan_pending`이 쓰는 `relevant,uncertain`보다 좁으므로 두 건수는 다른 값이며 서로 대신하지 않는다.
 
 ## 8. 문서 개정 목록
 
@@ -229,5 +281,5 @@
 | `docs/0915_ui-redesign/decisions.md`, `docs/ADR.md` | 항목 추가 |
 | `docs/tracking/findings.md` | 분리한 후속 작업 인계(수집 확장, 단계 지연, 담당자 연락처, `budget` 출처) |
 | `docs/contracts.md`, `docs/bid-delta-contract-spec.md` | §5, §7 |
-| ADR-0066(신규, §7 착수 때) | 대시보드 누적 workload 키 |
+| ADR-0067(신규, H0) | 대시보드 누적 workload 키와 패널 계약 — §7 |
 | `docs/tracking/status.md` | 패키지·배포 기록 |

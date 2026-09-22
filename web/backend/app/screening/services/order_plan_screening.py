@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 import hashlib
 import json
 from pathlib import Path
 import shutil
 from typing import Any, Mapping
 from uuid import UUID, uuid4
+from zoneinfo import ZoneInfo
 
 from pydantic import ValidationError
 from sqlalchemy import and_, func, or_, select
@@ -36,6 +37,9 @@ from ..models import (
 from ...core.api_errors import BundleServiceError, validate_actor
 
 
+#: `first_observed_from`이 받는 날짜의 계약 시간대. 사전규격 목록의
+#: `observed_from`·`observed_to`와 같은 규칙으로 KST 일자 00:00을 하한으로 쓴다.
+_SEOUL = ZoneInfo("Asia/Seoul")
 INPUT_SCHEMA = "bidops.order-plan-screening-input.v1"
 INPUT_ROW_SCHEMA = "bidops.order-plan-screening-execution-row.v1"
 ARTIFACT_KINDS = {
@@ -1114,6 +1118,23 @@ class OrderPlanScreeningService:
         return session.scalar(statement.limit(1)) is not None
 
     @staticmethod
+    def _seoul_day_start(value: date | str) -> datetime:
+        """KST 일자 00:00을 DB 비교용 UTC 시각으로 바꾼다."""
+
+        if isinstance(value, datetime):
+            raise OrderPlanScreeningError(
+                "invalid_request", "first_observed_from은 날짜여야 합니다", status_code=422
+            )
+        if isinstance(value, str):
+            try:
+                value = date.fromisoformat(value.strip())
+            except ValueError as error:
+                raise OrderPlanScreeningError(
+                    "invalid_request", "first_observed_from이 올바르지 않습니다", status_code=422
+                ) from error
+        return datetime.combine(value, time.min, tzinfo=_SEOUL).astimezone(UTC)
+
+    @staticmethod
     def _filter_values(value: str | None, allowed: set[str]) -> set[str] | None:
         if value is None:
             return None
@@ -1132,6 +1153,7 @@ class OrderPlanScreeningService:
         qwen_relevance: str | None = None,
         human_relevance: str | None = None,
         tracking_status: str | None = None,
+        first_observed_from: date | str | None = None,
         issue: bool = False,
         q: str | None = None,
         limit: int = 100,
@@ -1224,6 +1246,12 @@ class OrderPlanScreeningService:
                 missing_column = feedback.feedback_id if name == "human_relevance" else column
                 predicate = or_(predicate, missing_column.is_(None))
             statement = statement.where(predicate)
+        if first_observed_from is not None:
+            # "처음 관측"은 회차와 무관한 관측 행의 최소 시각이다. 회차 모드에서도
+            # 같은 값을 쓴다 — `first_observations`는 회차로 좁히지 않는다.
+            statement = statement.where(
+                first_observations.c.first_observed_at >= self._seoul_day_start(first_observed_from)
+            )
         if issue:
             statement = statement.where(or_(
                 result.stage1_status.in_({"failed", "rejected"}),
