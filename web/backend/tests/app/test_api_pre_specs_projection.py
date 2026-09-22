@@ -80,6 +80,7 @@ def _overview_run(session, notice, status: str, *, document=None) -> PrespecOver
         model_name="test-model", warnings_json=[], reason_codes=[], call_count=0,
         raw_response_refs=[],
         result_json={"schema_version": "test"} if status == "completed" else None,
+        checks_json={"overall": "passed"} if status == "completed" else None,
         created_at=datetime(2026, 8, 25, tzinfo=UTC),
     )
     session.add(run)
@@ -128,7 +129,7 @@ def _legacy_shape(payload: dict) -> dict:
     item_fields = {"first_observed_at", "last_observed_at", "next_action",
                    "review_exclusion_status", "review_exclusion_actor_name",
                    "review_exclusion_reason", "review_exclusion_changed_at",
-                   "demand_agency"}
+                   "demand_agency", "display_assessment"}
     normalized: dict = {}
     for scenario, response in payload.items():
         response_copy = dict(response)
@@ -198,6 +199,11 @@ def test_pre_specs_list_uses_the_latest_run_status_for_item_and_counts(
 
     session, _engine, refs = pre_specs_api
     completed = _overview_run(session, refs["sw_yes"], "completed")
+    completed.contract_version = "overview-assessment-v1"
+    completed.assessment_status = "graded"
+    completed.assessment_grade = "검토 권장"
+    completed.assessment_json = {"axes": [], "verification_items": []}
+    completed.assessment_checks_json = {"reason_codes": []}
     later = _overview_run(session, refs["sw_yes"], status, document=None)
     later.created_at = datetime(2026, 8, 27, tzinfo=UTC)
     assert completed.created_at < later.created_at
@@ -208,6 +214,8 @@ def test_pre_specs_list_uses_the_latest_run_status_for_item_and_counts(
     counts = {row["status"]: row["count"] for row in payload["overview_status_counts"]}
 
     assert items[refs["sw_yes"].id]["overview_review_status"] == status
+    assert items[refs["sw_yes"].id]["display_assessment"]["grade"] == "검토 권장"
+    assert items[refs["sw_yes"].id]["display_assessment"]["latest_run_status"] == status
     assert counts[status] == 1
     assert counts["completed"] == 0
 
@@ -340,6 +348,56 @@ def test_pre_specs_grade_comes_from_the_screening_seam(pre_specs_api):
     assert item["grade"] == "우선 검토"
     assert item["grade_source"] == "human_review"
     assert item["auto_preparation_status"] == "waiting_attachments"
+
+
+def test_display_assessment_prefers_new_result_then_human_correction(pre_specs_api):
+    session, _engine, refs = pre_specs_api
+    notice = refs["sw_yes"]
+    session.add(Judgment(notice_id=notice.id, grade="관찰 대상", readiness="확인 완료"))
+    run = _overview_run(session, notice, "completed")
+    run.contract_version = "overview-assessment-v1"
+    run.assessment_status = "graded"
+    run.assessment_grade = "검토 권장"
+    run.assessment_json = {
+        "axes": [{
+            "axis": "public_si_integration", "relation": "partial",
+            "reason": "통합 과업이 있다.", "claim_refs": ["c2"], "company_refs": [],
+        }],
+        "verification_items": ["운영 범위 확인"],
+    }
+    run.assessment_checks_json = {"reason_codes": []}
+    session.commit()
+
+    item = _items_by_id(_payload(session, sw_only=False))[notice.id]
+    assert item["grade"] == "관찰 대상"  # 자동화 의미는 그대로다.
+    assert item["display_assessment"]["grade"] == "검토 권장"
+    assert item["display_assessment"]["source"] == "preliminary_assessment"
+    assert item["display_assessment"]["quality_status"] == "unmeasured_reference"
+
+    session.add(
+        Review(notice_id=notice.id, corrected_grade="우선 검토", reviewer_snapshot="검토자")
+    )
+    session.commit()
+    item = _items_by_id(_payload(session, sw_only=False))[notice.id]
+    assert item["display_assessment"]["grade"] == "우선 검토"
+    assert item["display_assessment"]["source"] == "human_review"
+
+
+def test_display_grade_filter_distinguishes_held_from_no_assessment(pre_specs_api):
+    session, _engine, refs = pre_specs_api
+    run = _overview_run(session, refs["sw_yes"], "completed")
+    run.contract_version = "overview-assessment-v1"
+    run.assessment_status = "held"
+    run.assessment_checks_json = {"reason_codes": ["delivery_role_unclear"]}
+    session.commit()
+
+    held = _payload(session, sw_only=False, display_grade="판단 보류")
+    assert [item["notice_pk"] for item in held["items"]] == [refs["sw_yes"].id]
+    assert held["items"][0]["display_assessment"]["grade"] is None
+    assert held["items"][0]["display_assessment"]["status"] == "held"
+
+    none = _payload(session, sw_only=False, display_grade="판정 없음")
+    assert refs["sw_yes"].id not in {item["notice_pk"] for item in none["items"]}
 
 
 def test_pre_specs_report_blocked_when_every_fetch_ended_in_failure(pre_specs_api):

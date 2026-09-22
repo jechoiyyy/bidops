@@ -203,7 +203,7 @@ test("근거 대화상자는 양쪽 원문과 검증 상태를 그대로 보여 
   await expect(dialog).toContainText("기준 사전규격");
   await expect(dialog).toContainText("대상 입찰공고");
   await expect(dialog).toContainText("연계 대상 시스템 3개 (기준 원문 1)");
-  // 영문 enum 병기(`verified ·`)는 뺐다(ADR-0065 §3.3 한글화). 서버 값은 그대로다.
+  // 영문 enum 병기(`verified ·`)는 뺐다(ADR-0066 §3.3 한글화). 서버 값은 그대로다.
   await expect(dialog).toContainText("근거 검증 · 검증됨");
   await expect(dialog).not.toContainText("verified");
   // 문서 원문 해시는 지우지 않고 접힌 `기술 정보`에 **전문**으로 남는다(결정 2).

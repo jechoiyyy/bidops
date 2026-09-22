@@ -503,11 +503,12 @@ disabled 이전/다음 버튼을 제공한다.
 | `POST /api/deep-reviews/{deep_review_id}/final-opinions` | actor header; `FinalOpinionRequest` | 201 `FinalOpinionView` | 400 `actor_name_required|actor_name_invalid|final_opinion_reason_required`; 404 `not_found`; 409 `idempotency_conflict|validation_failed|version_conflict`; 422 path·body; 500 `processing_failed` |
 | `GET /api/evidence/{evidence_id}` | UUID evidence ID | 200 `EvidenceView` | 403 `evidence_out_of_scope|unsafe_document`; 404 `not_found`; 422 path; 500 `processing_failed` |
 
-## 사전규격 개요 검토 (MVP, 2026-09-11)
+## 사전규격 개요 검토와 예비 적합성 판단 (MVP, 2026-09-21)
 
 v3 권고형 개요, legacy v4 단일 호출 개요, v5 주장 검증 스택(activation v2·call
 ledger·verification)은 폐기했다([ADR-0054](tracking/decisions/0054-prespec-overview-mvp-rewrite.md)).
-`prespec_overview_run` 단일 테이블과 `bidops.prespec-overview.v1` 계약으로 다시 쓴다. 첨부
+`prespec_overview_run` 단일 테이블과 `bidops.prespec-overview.v1|v2` 계약으로 처리한다. v1은
+기존 개요 run, v2는 사실 개요와 예비 판단을 분리해 담는 새 run이다([ADR-0066](tracking/decisions/0065-prespec-overview-preliminary-assessment.md)). 첨부
 취득·묶음·자동 준비·document_mcp 변환·PDF/쪽 텍스트 스냅샷(`prespec_v4_pdf_snapshot`,
 migration 0021/0023/0024)과 주장 결정적 검증 함수는 그대로 유지한다.
 
@@ -521,7 +522,31 @@ migration 0021/0023/0024)과 주장 결정적 검증 함수는 그대로 유지�
   플래그가 `false`면 완화 없이 기존 등급 규칙만 적용한다.
 - `BIDOPS_PRESPEC_OVERVIEW_POLICY_PATH`(기본 `app/deep_review/policies/prespec-overview-policy-v7.json`).
   v7은 개요를 **앞부분 요약 세 절**로 좁힌다([ADR-0057](tracking/decisions/0057-overview-scope-and-company-fit-in-deep-review.md)).
-  v6 파일은 그 정책으로 만든 기존 run의 기록으로 남기지만 현재 loader는 v7만 읽는다.
+  loader는 v7과 불변 `prespec-overview-policy-v8.json`을 명시적으로 읽는다. v8은 같은 세 절과
+  예비 판단을 통합 생성하지만 기본 경로가 아니며 품질 비교·migration·배포·정책 변경 승인 전에는
+  운영 활성 정책으로 보지 않는다. v6 파일은 기존 run 기록으로만 남는다.
+
+### v8 생성·판정 계약
+
+- 통합 초안 `bidops.prespec-overview-assessment-draft.v1`은 기존 사실 claim 객체와
+  `bidops.prespec-preliminary-assessment.v1`을 자식으로 갖는다. 안전한 최상위 JSON을 확인한 뒤
+  두 자식을 독립 파싱한다. 판단 자식만 틀리면 개요를 보존하고 `held`로 기록한다.
+- 판단은 세 축 `ai_data|blockchain_did|public_si_integration`, 관계
+  `direct|partial|indirect|unrelated|unknown`, 실제 수행 역할, 핵심 과업 claim ID, 선택한 회사
+  fact ID, 확인 항목을 담는다. 모델은 한국어 등급 라벨을 출력하지 않는다.
+- 서버 등급은 가장 강한 유효 관계로 계산한다. 핵심 과업·원문 claim·회사 fact 참조가 유효하지
+  않거나 profile이 손상됐거나 역할/관계가 미확인이면 `assessment_status=held`,
+  `assessment_grade=null`이다. 세 축이 모두 무관한 `제외`는 선택 의미검증 통과가 필수다.
+- 선택 의미검증은 `bidops.prespec-overview-assessment-semantic.v1`이며 claim과 세 axis를 함께
+  검사한다. 제외 후보, `quantity_relation_ambiguous`, `delivery_role=unclear`, 모델 uncertainty,
+  검증 인용과 생성 문장의 부정·조건 표식 차이가 trigger다. 상태는 `not_run|passed|failed`, 범위는
+  `overview_full`, `assessment_axes`, `claim:<id>`, `axis:<id>`로 저장한다. 미실행을 통과로 바꾸지 않는다.
+- 호출 상한은 정상 1, 선택 의미검증 포함 2, 형식 재시도 포함 3회다. 사실 오류 재생성, 의미검증
+  재시도, 다른 provider fallback은 없다. 선택 의미검증의 기술 실패는 유효한 개요를 유지하고
+  등급만 보류한다.
+- 선택 프로필은 `BIDOPS_ACTIVE_PROFILE_VERSION_ID`만 독립 해석한다. 미설정은
+  `not_configured`, 누락·hash/lineage 손상은 `invalid`이며 손상된 fact는 모델에 보내지 않는다.
+  `ready`에서도 `confirmed` fact의 최소 `ref|value|quote`만 동결한다.
 
 ### 상태 의미
 
@@ -547,7 +572,7 @@ migration 0021/0023/0024)과 주장 결정적 검증 함수는 그대로 유지�
 overview_not_completed → service_unavailable → 회사 핏 사유`다. `overview_recommendation_closed`·
 `overview_bundle_mismatch`는 삭제됐다.
 
-### REST (`bidops.prespec-overview.v1`)
+### REST (`bidops.prespec-overview.v1|v2`)
 
 | 경로 | 응답 |
 |---|---|
@@ -569,6 +594,24 @@ failed_claims(`completed`·`needs_human_review` 모두:
 [{claim_id,section,text,reason_codes,evidence}]), model_name, model_revision,
 call_count, actor_name, created_at, started_at, completed_at`. 모델 원문·`raw_response_refs`·
 내부 경로는 반환하지 않는다.
+
+v2 Run은 여기에 `contract_version=overview-assessment-v1`, `assessment{result,checks,grade,
+status,semantic_status,semantic_scope}`와 `input_binding{policy_digest,prompt_version,
+validator_version,profile_version_id,profile_digest,profile_status,generation_config_digest,
+input_binding_sha256,reused_from_run_id}`를 더한다. profile fact 본문과 원응답 참조는 공개하지 않는다. v1·v2 이력이
+섞이면 각 run의 저장 버전으로 읽고, envelope `schema`는 v2 run이 하나라도 있으면
+`bidops.prespec-overview.v2`다.
+
+`GET /api/pre-specs`는 기존 `grade`·`grade_source`를 유지하면서 `display_assessment`를 추가한다.
+`display_assessment`는 `{grade?,status=graded|held|none,source=human_review|preliminary_assessment|
+screening_judgment|none,basis_run_id?,assessed_at?,quality_status?,reason_codes[],axes[],
+verification_items[],semantic_status?,semantic_scope[],latest_run_status?}`다. 대표값은 사람 정정 →
+현재·safe 문서의 최신 v2 graded/held → 기존 선별 등급 → 없음 순이다. 최신 기술 실패·취소·대기는
+이전 유효 대표값을 지우지 않고 `latest_run_status`에만 나타난다.
+
+목록 query `display_grade`는 `우선 검토|검토 권장|관찰 대상|제외|판단 보류|판정 없음`이고 기존
+`grade` 필터와 독립이다. 서버가 페이지 분할 전에 적용해 `items`, `total`, 건수가 같은 집합을
+읽는다. 구버전 화면 URL의 `grade`는 프런트가 `display_grade`로 한 번 정규화한다.
 
 Run의 파생 필드(저장 값을 옮긴 것이며 새 판정이 아니다):
 
@@ -688,12 +731,19 @@ offset을 두 장 이상에서 같은 값으로 확정하지 못함)·`toc_targe
 개요 입력 PDF의 원본 위치가 여러 공고에 공유되면(같은 첨부 bytes) `source` 위치가 둘 이상이다.
 원본의 정체는 hash이므로 가장 오래된 검증 위치 하나를 고정해 고른다.
 
-### DB: `prespec_overview_run` (migration 0026)
+### DB: `prespec_overview_run` (migration 0026, 0031 확장)
 
 `id, notice_id, document_version_id, snapshot_id?, work_job_id, status, range_source,
 page_start?, page_end?, range_reason_codes, input_sha256?, policy_digest, model_name,
 model_revision?, draft_json?, checks_json?, result_json?, warnings_json, reason_codes,
 call_count, raw_response_refs, actor_name?, created_at, started_at, completed_at`.
+0031은 `contract_version, prompt_version?, validator_version?, profile_version_id?, reused_from_run_id?, profile_digest?,
+profile_status, profile_facts_json, generation_config_json?, generation_config_digest?,
+input_binding_sha256?, assessment_json?, assessment_checks_json?, assessment_grade?, assessment_status,
+semantic_status, semantic_scope_json`을 추가한다. 기존 행은 `contract_version=overview-v1`,
+`profile_status=not_configured`, `assessment_status=none`, `semantic_status=not_run`, 빈 scope/facts로
+보존한다. `profile_version_id`는 `profile_version(id)`를 `RESTRICT`로 참조하고 hash는 lowercase
+hex64, status·grade 조합은 CHECK로 강제한다. downgrade는 결과 이력 보존을 위해 백업 복구만 허용한다.
 `raw_response_refs`의 각 항목은 `{stage, sha256, prompt_tokens, output_tokens, latency_ms}`이며 세 계측값은 provider가 낸 사실이고 실패 호출에서는 `null`이다.
 인덱스 `ix_prespec_overview_run_notice_created(notice_id, created_at desc)`, 부분 유니크
 `uq_prespec_overview_run_active(notice_id) where status in ('queued','running')`. app role은

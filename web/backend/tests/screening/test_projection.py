@@ -199,7 +199,11 @@ def test_current_judgment_and_batch_share_one_shape(session):
     ids = [notice.id for notice in session.query(Notice).order_by(Notice.id)]
 
     single = current_judgment(session, ids[0])
-    assert single == JudgmentSummary(notice_id=ids[0], run_id="proj-run", grade="우선 검토", readiness="부분 확인 필요", focus="AI/데이터")
+    assert single is not None
+    assert (single.run_id, single.grade, single.readiness, single.focus) == (
+        "proj-run", "우선 검토", "부분 확인 필요", "AI/데이터",
+    )
+    assert single.assessed_at is not None
     assert current_judgment(session, ids[3]) is None
 
     statements, stop = _count_statements(session)
@@ -220,7 +224,11 @@ def test_latest_corrected_grade_follows_the_newest_review_with_a_correction(sess
 
     corrected = latest_corrected_grade(session, ids[1])
     review_id = session.query(Review.id).filter(Review.notice_id == ids[1]).scalar()
-    assert corrected == CorrectedGrade(grade="관찰 대상", run_id="proj-run", review_id=review_id)
+    assert corrected is not None
+    assert (corrected.grade, corrected.run_id, corrected.review_id) == (
+        "관찰 대상", "proj-run", review_id,
+    )
+    assert corrected.assessed_at is not None
     # 정정 등급이 없는 리뷰는 세지 않는다.
     assert latest_corrected_grade(session, ids[0]) is None
     assert latest_corrected_grade(session, ids[3]) is None

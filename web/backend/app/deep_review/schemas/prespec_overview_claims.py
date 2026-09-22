@@ -16,6 +16,10 @@ CLAIMS_SCHEMA = "bidops.prespec-overview-claims.v1"
 RESULT_SCHEMA = "bidops.prespec-overview-claims.v2"
 CHECKS_SCHEMA = "bidops.prespec-overview-claim-checks.v1"
 SEMANTIC_SCHEMA = "bidops.prespec-overview-semantic.v1"
+COMBINED_SCHEMA = "bidops.prespec-overview-assessment-draft.v1"
+ASSESSMENT_SCHEMA = "bidops.prespec-preliminary-assessment.v1"
+ASSESSMENT_SEMANTIC_SCHEMA = "bidops.prespec-overview-assessment-semantic.v1"
+ASSESSMENT_VALIDATOR_VERSION = "prespec-preliminary-assessment.v1"
 VALIDATOR_VERSION = "prespec-claim-evidence.v2"
 #: 개요가 읽는 절. 참여 조건·검토 의견·미확인은 심층 검토의 일이다 (ADR-0057).
 FACT_SECTIONS = ("business_overview", "main_tasks", "budget_and_period")
@@ -26,6 +30,7 @@ MAX_EVIDENCE = 2
 MAX_QUANTITIES = 4
 
 Identifier = Annotated[str, Field(pattern=r"^[A-Za-z][A-Za-z0-9_-]{0,31}$")]
+CompanyReference = Annotated[str, Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9_.\[\]-]{0,254}$")]
 BoundedText = Annotated[str, Field(min_length=1, max_length=MAX_TEXT_CHARS)]
 PageNumber = Annotated[int, Field(strict=True, ge=1)]
 Section = Literal["business_overview", "main_tasks", "budget_and_period"]
@@ -80,6 +85,72 @@ class OverviewClaimsDraft(StrictClaimModel):
 
     schema_version: Literal["bidops.prespec-overview-claims.v1"]
     claims: Annotated[list[OverviewClaim], Field(max_length=MAX_CLAIMS)]
+
+
+AssessmentAxis = Literal["ai_data", "blockchain_did", "public_si_integration"]
+AssessmentRelation = Literal["direct", "partial", "indirect", "unrelated", "unknown"]
+DeliveryRole = Literal["supplier", "advisor", "supervisor", "operator", "mixed", "unclear"]
+AssessmentUncertainty = Literal[
+    "role_unclear", "context_uncertain", "numeric_ambiguity", "negation_or_condition"
+]
+
+
+class PreliminaryAxisAssessment(StrictClaimModel):
+    axis: AssessmentAxis
+    relation: AssessmentRelation
+    reason: BoundedText
+    claim_refs: Annotated[list[Identifier], Field(max_length=MAX_CLAIMS)]
+    company_refs: Annotated[list[CompanyReference], Field(max_length=8)]
+
+
+class PreliminaryAssessmentDraft(StrictClaimModel):
+    """모델 해석 객체. 최종 등급 라벨은 서버만 계산한다."""
+
+    schema_version: Literal["bidops.prespec-preliminary-assessment.v1"]
+    primary_task_claim_ids: Annotated[list[Identifier], Field(min_length=1, max_length=6)]
+    delivery_role: DeliveryRole
+    axes: Annotated[list[PreliminaryAxisAssessment], Field(min_length=3, max_length=3)]
+    verification_items: Annotated[list[BoundedText], Field(max_length=8)]
+    uncertainty_codes: Annotated[list[AssessmentUncertainty], Field(max_length=4)]
+
+    @model_validator(mode="after")
+    def exact_axis_coverage(self):
+        if {row.axis for row in self.axes} != {
+            "ai_data", "blockchain_did", "public_si_integration"
+        }:
+            raise ValueError("assessment_axis_coverage_invalid")
+        if len({row.axis for row in self.axes}) != len(self.axes):
+            raise ValueError("assessment_axis_duplicate")
+        if len(set(self.primary_task_claim_ids)) != len(self.primary_task_claim_ids):
+            raise ValueError("assessment_primary_task_duplicate")
+        return self
+
+
+class CombinedOverviewAssessmentDraft(StrictClaimModel):
+    schema_version: Literal["bidops.prespec-overview-assessment-draft.v1"]
+    overview: OverviewClaimsDraft
+    assessment: PreliminaryAssessmentDraft
+
+
+AssessmentSemanticReason = Literal[
+    "role_mismatch", "business_nature_mismatch", "negation_mismatch",
+    "condition_mismatch", "unsupported_relation", "insufficient_evidence",
+    "company_capability_unverified", "prompt_injection",
+]
+
+
+class SemanticAxisCheck(StrictClaimModel):
+    axis: AssessmentAxis
+    status: Literal["supported", "contradicted", "insufficient"]
+    reason_codes: list[AssessmentSemanticReason]
+
+    @model_validator(mode="after")
+    def check_status(self):
+        if self.status == "supported" and self.reason_codes:
+            raise ValueError("assessment_semantic_status_invalid")
+        if self.status != "supported" and not self.reason_codes:
+            raise ValueError("assessment_semantic_reason_required")
+        return self
 
 
 class VerifiedEvidence(StrictClaimModel):
@@ -144,6 +215,20 @@ class SemanticClaimCheck(SemanticCheck):
 class OverviewSemanticResponse(StrictClaimModel):
     schema_version: Literal["bidops.prespec-overview-semantic.v1"]
     checks: Annotated[list[SemanticClaimCheck], Field(max_length=MAX_CLAIMS)]
+
+
+class OverviewAssessmentSemanticResponse(StrictClaimModel):
+    schema_version: Literal["bidops.prespec-overview-assessment-semantic.v1"]
+    claim_checks: Annotated[list[SemanticClaimCheck], Field(max_length=MAX_CLAIMS)]
+    assessment_checks: Annotated[list[SemanticAxisCheck], Field(min_length=3, max_length=3)]
+
+    @model_validator(mode="after")
+    def exact_axis_coverage(self):
+        if {row.axis for row in self.assessment_checks} != {
+            "ai_data", "blockchain_did", "public_si_integration"
+        } or len({row.axis for row in self.assessment_checks}) != 3:
+            raise ValueError("assessment_semantic_axis_coverage_invalid")
+        return self
 
 
 class OverviewClaimChecks(StrictClaimModel):

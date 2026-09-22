@@ -1,5 +1,5 @@
 import type { BadgeVariant } from "../components/common/Badge";
-import type { PreSpecGradeSource } from "./types";
+import type { PreSpecDisplayAssessment, PreSpecGradeSource } from "./types";
 
 // 등급 문자열은 `skills/references/workflow-contract.md` 가 정의한 네 값이다.
 // 배지 변형과의 대응을 한곳에 두어, 계약이 바뀔 때 고칠 자리를 하나로 만든다.
@@ -57,4 +57,23 @@ export function gradeSourceLabel(source: PreSpecGradeSource | null): string {
   if (source === "screening_judgment") return "판정";
   if (source === "human_review") return "정정";
   return "없음";
+}
+
+export function displayAssessmentLabel(value: PreSpecDisplayAssessment): string {
+  if (value.status === "held") return "판단 보류";
+  return gradeLabel(value.grade);
+}
+
+export function displayAssessmentSourceLabel(value: PreSpecDisplayAssessment): string {
+  if (value.source === "human_review") return "사람 정정";
+  if (value.source === "preliminary_assessment") return "개요 예비 판단";
+  if (value.source === "screening_judgment") return "기존 선별 판정";
+  return "판정 없음";
+}
+
+export function displayAssessmentSemanticLabel(value: PreSpecDisplayAssessment): string | null {
+  if (value.semantic_status === "passed") return "선택 의미검증 통과";
+  if (value.semantic_status === "failed") return "선택 의미검증 실패";
+  if (value.semantic_status === "not_run") return "선택 의미검증 미실행";
+  return null;
 }

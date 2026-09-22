@@ -180,7 +180,7 @@ function DailyTriggerOffBanner({ state }: { state: C2DailyTriggerStateResponse }
 }
 
 /**
- * 필터 축 값의 화면 라벨(ADR-0065 결정 3). `null` 토큰은 "서버가 값을 주지 않음"이고
+ * 필터 축 값의 화면 라벨(ADR-0066 결정 3). `null` 토큰은 "서버가 값을 주지 않음"이고
  * 표에 없는 값(서버가 새 enum을 준 경우)은 바꾸거나 숨기지 않고 원문 그대로 보인다.
  */
 function axisValueLabel(labels: Readonly<Record<string, string>>): (token: string) => string {
@@ -1446,7 +1446,7 @@ export function OrderPlansPage() {
           {advancedOpen ? (
             <WorkspaceFilterAdvanced columns={4} id="c2l-advanced-filters" onReset={resetFilters}>
               {/* 축 이름과 값은 한글 라벨이고 **URL·서버 값은 `value`에 그대로 남는다**
-                  (ADR-0065 결정 3). `값 없음`은 서버가 값을 주지 않았다는 뜻이며
+                  (ADR-0066 결정 3). `값 없음`은 서버가 값을 주지 않았다는 뜻이며
                   `미확인`·`계산 불가`와 다르다. */}
               <div className="c2l-filter-axis">
                 <Text type="label" color="secondary" as="p">모델 판단</Text>

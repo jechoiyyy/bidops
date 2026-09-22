@@ -719,7 +719,7 @@ test("확인 항목 예외는 회차를 그대로 쓰고 등급·처리 값을 �
 
   await item.getByRole("button", { name: "확인 항목 답변 남기기" }).click();
   const dialog = page.getByRole("dialog");
-  // 회차 식별자 원문은 접힌 `기술 정보`로 내려갔고(ADR-0065 §3.3, 시안 M4) 본문은
+  // 회차 식별자 원문은 접힌 `기술 정보`로 내려갔고(ADR-0066 §3.3, 시안 M4) 본문은
   // 어느 회차에 저장하는지를 사람 말로 적는다. 값은 줄이지 않고 전문 그대로다.
   await expect(dialog).toContainText("이 공고가 속한 수집 회차에 저장합니다");
   const runTechnical = dialog.locator("details.deep-review-technical");

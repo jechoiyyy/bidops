@@ -10,7 +10,7 @@
 
 | ID | 내용 | 모델 | 웨이브 | 선행 | 시안 | 파일 소유(요약) |
 |---|---|---|---|---|---|---|
-| D0 | 결정 기록: ADR-0065, ADR-0062·0064 개정, 0918 spec §7 개정, decisions.md, ADR.md, findings 인계 | **opus** | 1 | — | — | `docs/tracking/decisions/**`, `docs/ADR.md`, `docs/0918_daily-operation/spec.md`, `docs/0915_ui-redesign/decisions.md`, `docs/tracking/findings.md` |
+| D0 | 결정 기록: ADR-0066, ADR-0062·0064 개정, 0918 spec §7 개정, decisions.md, ADR.md, findings 인계 | **opus** | 1 | — | — | `docs/tracking/decisions/**`, `docs/ADR.md`, `docs/0918_daily-operation/spec.md`, `docs/0915_ui-redesign/decisions.md`, `docs/tracking/findings.md` |
 | B1 | 발주계획 목록 v5·상세 v4 투영 + 이력 `purpose`·시각 + 프런트 타입·mock·spec 리터럴 | **opus** | 1 | — | — | `app/screening/schemas/order_plans.py`, `app/screening/services/order_plan_screening.py`, 해당 pytest, `web/frontend/src/lib/types.ts`, `tests/api-mock.ts`, `tests/order-plans.spec.ts`(리터럴만), `docs/contracts.md`(발주계획 절) |
 | B2 | 사전규격 `demand_agency`·검색, Go/No-Go 대기열 마감·예산·정렬, 사업기회 링크 예산·마감 | **sonnet** | 1 | — | — | `app/lifecycle/routers/pre_specs.py`, `schemas/pre_specs.py`, `app/deep_review/services/decision_queue.py`, `schemas/bid_delta.py`, `app/lifecycle/services/opportunity_queries.py`, `schemas/opportunities.py`, 해당 pytest, `docs/contracts.md`(해당 절), `docs/bid-delta-contract-spec.md` |
 | R3 | 지역 제한 `없음` → `미확인` 결함 수정(spec §3.4) | **sonnet** | 1 | — | — | `components/notice/NoticeFacts.tsx`, 해당 spec 단언 |

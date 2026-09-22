@@ -419,7 +419,7 @@ export function DeepReviewPage() {
           ))}
         </div>
         {/* 실패는 사람 말 한 문장이 먼저 말하고, 서버가 정한 코드는 그 아래
-            접힌 `기술 정보`에 전문으로 남는다(ADR-0065). 사전에 없는 코드는
+            접힌 `기술 정보`에 전문으로 남는다(ADR-0066). 사전에 없는 코드는
             문장 안에 그대로 실려 다른 사유로 바뀌거나 숨지 않는다. */}
         {attempt && (attemptErrorCode(attempt) || attempt.status === "failed") ? (
           <div className="deep-review-failure">
@@ -721,7 +721,7 @@ export function DeepReviewPage() {
                   <blockquote>{evidenceQuery.data.quote}</blockquote>
                 </div>
                 {/* 식별자와 해시는 지우지 않고 접는다. 눈으로 대조하는 값이므로
-                    전문을 줄바꿈해 싣는다(ADR-0065 결정 2). */}
+                    전문을 줄바꿈해 싣는다(ADR-0066 결정 2). */}
                 <TechnicalInfo className="evidence-technical" summary="기술 정보 · 근거 식별자와 해시">
                   <TechnicalFacts
                     label="선택한 근거의 식별자와 해시"

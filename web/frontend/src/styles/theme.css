@@ -5422,7 +5422,7 @@ pre {
   line-height: var(--bo-type-body-leading);
 }
 
-/* 접힌 `기술 정보` 안의 오류 코드 한 줄(ADR-0065 결정 1 `이동`, 시안 M4 결정 3). */
+/* 접힌 `기술 정보` 안의 오류 코드 한 줄(ADR-0066 결정 1 `이동`, 시안 M4 결정 3). */
 .mutation-feedback-code {
   margin: 0;
   font-family: var(--font-mono);

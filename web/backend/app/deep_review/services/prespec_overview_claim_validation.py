@@ -641,6 +641,37 @@ def compose_page_overview(
     )
 
 
+def compose_deterministic_page_overview(
+    draft: OverviewClaimsDraft, checks: OverviewClaimChecks, *, verification_id: UUID,
+    input_limitations: list[str],
+) -> OverviewResultPayload:
+    """Compose a v8 screen result without claiming semantic verification passed."""
+
+    _verify_draft_binding(draft, checks)
+    checks = OverviewClaimChecks.model_validate(checks.model_dump(mode="python"))
+    if (
+        checks.reason_codes
+        or not checks.checks
+        or any(row.deterministic.status != "passed" for row in checks.checks)
+    ):
+        raise ValueError("deterministic_verification_not_passed")
+    by_id = {row.claim_id: row for row in checks.checks}
+    result: dict[str, Any] = {section: [] for section in FACT_SECTIONS}
+    for claim in draft.claims:
+        result[claim.section].append({
+            "claim_id": claim.id,
+            "text": claim.text,
+            "evidence": by_id[claim.id].deterministic.verified_evidence,
+        })
+    return OverviewResultPayload(
+        schema_version=RESULT_SCHEMA,
+        **result,
+        input_limitations=input_limitations,
+        verification_id=verification_id,
+        verification_sha256=canonical_sha256(checks),
+    )
+
+
 def empty_sections(payload: OverviewResultPayload) -> list[str]:
     """비어 있는 절의 경고 코드. 예산·기간이 선택 범위에 없으면 남는다."""
 

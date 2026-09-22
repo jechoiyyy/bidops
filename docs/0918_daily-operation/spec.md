@@ -62,7 +62,7 @@
 사람
   발주계획 화면은 회차를 고르지 않아도 누적으로 열린다. 기본 보기 = 추적을 정하지 않은 관련 건(§7).
   어제 판정한 건이 오늘도 그대로 보이고 행마다 판정한 policy 버전과 첫 관측일이 보인다.
-  2026-09-21 개정(사용자 결정, ADR-0065): 행에는 첫 수집일만 실무 말로 보인다(`첫 수집 09-19`).
+  2026-09-21 개정(사용자 결정, ADR-0066): 행에는 첫 수집일만 실무 말로 보인다(`첫 수집 09-19`).
   판정 policy 버전은 운영 화면(`/runs` 회차 상세의 `발주계획 선별` 탭)에서 본다. `판정 없음`은 유지한다(§7).
   누적 후보 검토는 월요일·목요일이다(`docs/business-rules.md:55`) — 관련 여부 라벨, 추적 여부, 감사 표본 라벨.
   추적 승인과 최종 Go/No-Go는 사람이 정한다.
@@ -432,7 +432,7 @@ gold의 게시일별 파생 회차는 원본과 같은 발주계획을 다시 �
 | feedback 조인 | `feedback.execution_id == execution_id` (`:1017`) | 사업 단위 최신 1건 — `row_number() over (partition_by order_plan_id, order_by created_at desc, revision desc)`. 실행과 무관 |
 | 관측 조인 | 이미 같은 방식 (`:1000-1008`) | 그대로 |
 | 누적 범위 | — | **활성화된 적 있는 policy(`activated_at IS NOT NULL`)의 운영 목적(`purpose='operational'`) 완료 실행 전부**(결정 11). 현재 active인지는 묻지 않는다 — policy를 교체해도 과거 판정이 남는다. 참조 실행(policy v2, 한 번도 active가 아님)과 측정 전용 실행은 자연히 제외된다. C-2 실행 행에는 `quality_status` 표식이 없다(deep_review 전용) |
-| 행 표시 | — | 행마다 판정한 `policy_version`과 발주계획의 **첫 관측일**을 싣는다(결정 16 — 발주계획은 첫 관측 그대로 고정된다). **2026-09-21 개정(사용자 결정, [ADR-0065](../tracking/decisions/0065-practitioner-ops-information-boundary.md))**: 행에는 **첫 수집일만** 싣고 실무 말로 쓴다(`첫 수집 09-19`, 해가 다르면 연도를 붙인다). 판정 `policy_version`은 행에서 빼고 운영 화면(`/runs` 회차 상세의 `발주계획 선별` 탭)에서 본다 — 실무자가 행을 보고 정하는 것은 추적 여부이지 어느 정책이 판정했는가가 아니다. policy가 없을 때의 `판정 없음`은 그대로 유지한다(판정 없음≠비관련, ADR-0065 결정 5의 경고 ⑤). 누적 범위·`scope` 응답·워크로드 규칙은 바뀌지 않는다 |
+| 행 표시 | — | 행마다 판정한 `policy_version`과 발주계획의 **첫 관측일**을 싣는다(결정 16 — 발주계획은 첫 관측 그대로 고정된다). **2026-09-21 개정(사용자 결정, [ADR-0066](../tracking/decisions/0066-practitioner-ops-information-boundary.md))**: 행에는 **첫 수집일만** 싣고 실무 말로 쓴다(`첫 수집 09-19`, 해가 다르면 연도를 붙인다). 판정 `policy_version`은 행에서 빼고 운영 화면(`/runs` 회차 상세의 `발주계획 선별` 탭)에서 본다 — 실무자가 행을 보고 정하는 것은 추적 여부이지 어느 정책이 판정했는가가 아니다. policy가 없을 때의 `판정 없음`은 그대로 유지한다(판정 없음≠비관련, ADR-0066 결정 5의 경고 ⑤). 누적 범위·`scope` 응답·워크로드 규칙은 바뀌지 않는다 |
 | `source_run_id` | 화면이 항상 보냄 | 주면 그 회차의 실행으로 좁히고(감사용, policy·purpose 무관), 안 주면 누적. **API 계약은 이미 둘 다 지원한다** |
 | `scope` 응답 | 단일 실행 서술 | 누적 모드에서는 `{"mode":"cumulative","policy_versions":[…],"activated_policy_versions":[…]}`. `policy_versions`는 **위 누적 범위에 실행이 실제로 있는** 버전만이며 활성화 이력만 있고 범위 실행이 0건이면 빈 목록이다(워크로드 `null`과 함께 간다). `activated_policy_versions`는 **활성화된 적 있는 버전 전부**(완료 여부를 묻지 않는다)이고 `policy_versions ⊆ activated_policy_versions`다 — 화면은 앞쪽으로 판정 유무를, 뒤쪽으로 실행 상태 표시 범위를 정한다. 회차 모드에서는 기존 서술. 화면이 둘을 구분해 표시한다 |
 | 워크로드 | `no_completed_execution`이면 건수가 사라짐 (`projection.py:744-747`) | 누적 기준. 실행이 없는 날에도 0으로 죽지 않는다 |

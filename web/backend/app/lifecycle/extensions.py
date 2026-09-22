@@ -177,7 +177,7 @@ class OverviewDocumentProjection(Protocol):
     ) -> Mapping[int, Mapping[str, Any]]:
         """등급과 자동 준비 상태 (명세 §8).
 
-        키는 `grade`·`grade_source`·`auto_preparation_status`·
+        키는 `grade`·`grade_source`·`display_assessment`·`auto_preparation_status`·
         `auto_preparation_reason`·`latest_deep_review_id`다. 등급은 판정도 정정도
         없으면 `None`이고 그때 `grade_source`도 `None`이다 — 둘을 특정 값으로
         접지 않는다.

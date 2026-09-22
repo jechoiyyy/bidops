@@ -673,7 +673,7 @@ test.describe("실행 상태", () => {
     await expect(batches).toContainText("120,000");
     await expect(batches).toContainText("model_timeout");
     await expect(batches).toContainText("timeout");
-    // 식별 해시는 줄이지 않는다(ADR-0065 결정 2).
+    // 식별 해시는 줄이지 않는다(ADR-0066 결정 2).
     await expect(batches).toContainText(C2_MODEL_DIGEST);
     // 부분 산출물·오류 코드는 실행 단위 값이며 성공으로 승격하지 않는다.
     await expect(batches).toContainText("부분 산출물");

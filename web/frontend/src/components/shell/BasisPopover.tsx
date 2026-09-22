@@ -54,7 +54,7 @@ export function BasisPopover({ run }: BasisPopoverProps) {
               <dd>{present(run?.screening_basis, "판정 기준 미기록")}</dd>
             </div>
             {/* 회차는 실무자가 아는 이름(`09-16~09-20 수집`)으로 부른다. 회차 식별자
-                원문은 상단바에서 뺐고(ADR-0065 §3.3, 시안 M4) 주소와 운영 화면
+                원문은 상단바에서 뺐고(ADR-0066 §3.3, 시안 M4) 주소와 운영 화면
                 (`실행 상태 › 수집 실행`)에서 전문 그대로 읽는다 — 줄여서 적지 않는다.
                 상태는 그대로 남긴다(대체된 회차를 현재 회차로 읽지 않게). */}
             <div className="fact-row">

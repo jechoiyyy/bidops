@@ -28,7 +28,7 @@ for (const width of [1280, 1440]) {
     for (const path of ["/pre-specs/991"]) {
       await page.goto(path);
       // 상세 ④의 `회사 적합성` 열은 판정·사유·근거만 갖는다. 실행 정보는 ⑥의
-      // 접힌 `기술 정보` 하나로 옮겼다(docs/0915_ui-redesign/spec.md:234, ADR-0065).
+      // 접힌 `기술 정보` 하나로 옮겼다(docs/0915_ui-redesign/spec.md:234, ADR-0066).
       const section = page.getByRole("region", { name: "회사 업무 부합 여부" });
       await expect(section.getByText("불일치", { exact: true })).toBeVisible();
       await expect(section.getByText("실제 과업과 회사 업무 범위가 다릅니다.")).toBeVisible();
@@ -49,7 +49,7 @@ for (const width of [1280, 1440]) {
       await expect(facts).toContainText("test-fit");
       await expect(facts).toContainText("prespec-company-fit-v1");
       await expect(facts).toContainText("overview-1");
-      // 식별자·해시는 8자로 줄이지 않는다(ADR-0065 결정 2).
+      // 식별자·해시는 8자로 줄이지 않는다(ADR-0066 결정 2).
       await expect(facts).toContainText("a".repeat(64));
       await expect(facts).toContainText("b".repeat(64));
       await expect(facts).toContainText("c".repeat(64));
@@ -105,7 +105,7 @@ test("unknown, stale, no result and failed states stay distinct", async ({ page 
 
 // 0915 spec §4 ⑥: 접힌 `기술 정보`는 실패·사람 확인 상태면 기본으로 열린다.
 // 회사 적합성 실행 정보가 이 접힌 곳으로 들어왔으므로 회사 적합성의 실패·검증
-// 실패도 같은 규칙을 그대로 따른다(ADR-0065 결정 5).
+// 실패도 같은 규칙을 그대로 따른다(ADR-0066 결정 5).
 for (const status of ["failed", "needs_human_review"] as const) {
   test(`회사 적합성 ${status}이면 ⑥ 기술 정보가 기본으로 열린다`, async ({ page }) => {
     await mockApi(page);

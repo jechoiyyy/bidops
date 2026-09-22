@@ -87,7 +87,7 @@
 .ps-record .page-overview-current .page-overview-validation { display: grid; gap: var(--spacing-1); padding: 0; background: transparent; }
 .ps-record .page-overview-current .page-overview-validation strong,
 .ps-record .page-overview-current .page-overview-validation p { font-size: var(--bo-type-caption); line-height: var(--bo-type-caption-leading); }
-/* `현재 개요 검토` 카드 안의 `실행 정보` 접힘은 ⑥ 접힌 `기술 정보`로 옮겼다(ADR-0065). */
+/* `현재 개요 검토` 카드 안의 `실행 정보` 접힘은 ⑥ 접힌 `기술 정보`로 옮겼다(ADR-0066). */
 .ps-record .page-overview-history { padding: 0; }
 
 /* R7 개요 입력 범위 확인. 새 색 값을 만들지 않고 기존 토큰만 읽는다. */

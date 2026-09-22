@@ -2,7 +2,7 @@
  * 실패한 분석 회차·단계에 붙는 안전 코드의 사람 말 문장.
  *
  * 서버가 정한 안전 코드를 화면이 코드 그대로 내보이던 자리(`안전한 오류 코드:
- * model_timeout`)를 사람 말 한 문장으로 바꾼다(ADR-0065 결정 1 `조건부`,
+ * model_timeout`)를 사람 말 한 문장으로 바꾼다(ADR-0066 결정 1 `조건부`,
  * `docs/0921_practitioner-screens/spec.md` §3.2). **코드는 사라지지 않고** 같은
  * 자리의 접힌 `기술 정보`에 전문 그대로 남는다.
  *
@@ -12,7 +12,7 @@
  * (`web/backend/app/deep_review/services/deep_reviews.py:1355` `_fail_claim`,
  * 호출부 `:1619`·`:1622`·`:1625`)와 그 코드를 만드는 모델 client
  * (`web/backend/app/core/model_client.py`)다. 모르는 코드는 바꾸거나 숨기지
- * 않고 문장 안에 그대로 보인다(`web/frontend/AGENTS.md`, ADR-0065 결정 3).
+ * 않고 문장 안에 그대로 보인다(`web/frontend/AGENTS.md`, ADR-0066 결정 3).
  *
  * 문장은 어느 것도 실패를 성공·완료·변경 없음으로 읽히게 하지 않는다.
  */

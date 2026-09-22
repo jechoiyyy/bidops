@@ -16,6 +16,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any
 
 from sqlalchemy import select
@@ -52,6 +53,7 @@ class EffectiveGrade:
     source: str | None
     run_id: str | None = None
     review_id: int | None = None
+    assessed_at: datetime | None = None
 
     @property
     def is_priority(self) -> bool:
@@ -86,6 +88,7 @@ def effective_grades(
                 source=SOURCE_HUMAN_REVIEW,
                 run_id=correction.run_id,
                 review_id=correction.review_id,
+                assessed_at=correction.assessed_at,
             )
             continue
         judgment = judgments.get(notice_id)
@@ -95,6 +98,7 @@ def effective_grades(
                 grade=judgment.grade,
                 source=SOURCE_SCREENING_JUDGMENT,
                 run_id=judgment.run_id,
+                assessed_at=judgment.assessed_at,
             )
     return resolved
 

@@ -23,7 +23,7 @@ function signalSource(fieldKind: unknown): string {
   return "출처 미확인";
 }
 
-// 부제에서 응답 필드 이름(`focus_matches`)을 뺀다(ADR-0065 §3.3 한글화). 실무자가
+// 부제에서 응답 필드 이름(`focus_matches`)을 뺀다(ADR-0066 §3.3 한글화). 실무자가
 // 읽을 것은 "이 공고가 왜 후보로 올라왔는가"이고, 신호의 출처는 아래 각 줄이 말한다.
 export function RetrievalSignals({ matches }: RetrievalSignalsProps) {
   const classificationCount = matches.filter((match) => record(match).field_kind === "classification").length;
