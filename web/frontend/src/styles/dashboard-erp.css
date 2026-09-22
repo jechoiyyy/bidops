@@ -63,7 +63,7 @@
 .dash-journey-item:focus-visible { outline-offset: calc(0 - var(--focus-outline-width)); }
 /* 누적 업무 패널 격자(시안 M6). 두 열이고 마지막 패널만 전폭이다. 회차 선택기와
  * 회차 의존 패널 넷이 빠졌으므로 `.dash-run-context`·`.dash-dashboard-grid` 규칙도
- * 함께 없앴다(패널 컴포넌트 자체는 H3가 옮길 때까지 남아 있다). */
+ * 함께 없앴다(패널 컴포넌트는 H3가 `/runs`·`/profile`로 옮겼고 T2가 `DashboardPanels.tsx`를 지웠다). */
 .dash-work-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -128,9 +128,6 @@
 .dash-request-row .dash-row { flex-shrink: 0; }
 .dash-request-count { font-variant-numeric: tabular-nums; }
 .dash-request-row svg { color: var(--color-text-secondary); }
-.dash-pipeline-counts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); padding: var(--spacing-2) var(--spacing-4); gap: var(--spacing-3); }
-.dash-pipeline-item { display: grid; gap: var(--spacing-1); }
-.dash-pipeline-item + .dash-pipeline-item { border-left: var(--bo-line) solid var(--color-background-muted); padding-left: var(--spacing-4); }
 .dash-page .dash-kpi-value { display: flex; align-items: baseline; gap: var(--spacing-1); font-size: var(--bo-type-page-title); line-height: 1.35; font-variant-numeric: tabular-nums; }
 .dash-page .dash-kpi-value.dash-unknown-value { font-size: var(--bo-type-list); }
 .dash-grade-section { border-top: var(--bo-line) solid var(--color-background-muted); padding: var(--spacing-3) var(--spacing-4); display: flex; align-items: center; gap: var(--spacing-3); }
@@ -148,12 +145,6 @@
   background: var(--color-accent-muted);
   box-shadow: inset 0 0 0 1px var(--bo-brand-edge);
 }
-.dash-validation-list { padding: 0 var(--spacing-4); }
-.dash-validation-row { display: flex; align-items: center; justify-content: space-between; gap: var(--spacing-2); padding: var(--spacing-2) 0; }
-.dash-validation-row + .dash-validation-row { border-top: var(--bo-line) solid var(--color-background-muted); }
-.dash-validation-error { display: grid; gap: var(--spacing-2); padding: var(--spacing-3) var(--spacing-4); }
-.dash-validation-error .dash-row { align-items: start; }
-.dash-validation-error svg { color: var(--color-error); }
 .dash-dashboard-foot { flex-shrink: 0; line-height: 1; }
 .dash-empty-inline { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--spacing-2); text-align: center; min-height: calc(var(--spacing-12) * 3); padding: var(--spacing-5); }
 .dash-run-state { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--spacing-3); border: 0; border-radius: var(--radius-container); box-shadow: var(--shadow-low); background: var(--color-background-surface); padding: var(--spacing-6); text-align: center; }
@@ -163,8 +154,6 @@
 .dash-page .dash-grade-legend { flex-wrap: wrap; }
 .dash-page .dash-grade-item { text-decoration: none; }
 .dash-page .dash-grade-item:hover { text-decoration: underline; }
-.dash-page .dash-validation-row { align-items: start; }
-.dash-page .dash-validation-row > .dash-cell-stack:first-child { flex: 1; overflow-wrap: anywhere; }
 .dash-page .dash-panel-foot > .dash-small { min-width: 0; }
 
 /* 누적 업무 패널의 행. 목록은 상위 5건이고 오른쪽 칸은 D-day 또는 표식 하나다. */
