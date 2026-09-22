@@ -272,6 +272,8 @@ export function RunsPage({ panelId = "run-status-panel-runs" }: { panelId?: stri
   const publishedRunNavigationInFlight = useRef(false);
   const publishedRunNavigationOperation = useRef(0);
   const mountedRef = useRef(true);
+  /** `발주계획 선별` 탭을 주소의 `execution`으로 한 번 열어 준 회차. */
+  const orderPlanTabOpenedFor = useRef<string | null>(null);
   const selectedScreeningRunRef = useRef<string | null>(selectedRunId);
   const selectedScreeningExecutionRef = useRef<string | null>(screeningExecutionId);
   const screeningRunGeneration = useRef(0);
@@ -383,6 +385,25 @@ export function RunsPage({ panelId = "run-status-panel-runs" }: { panelId?: stri
     setStopTarget(null);
     setDetailTab("summary");
   }, [selectedRunId]);
+
+  /**
+   * 실무 화면에서 실행 하나를 가리켜 들어온 진입(`/runs?run=…&execution=…`,
+   * 명세 §4)은 `발주계획 선별` 탭에서 시작한다. 발주계획 화면의 문제 칩이 보내는
+   * 주소이고, `진행 현황`에서 시작하면 사람이 탭을 한 번 더 찾아야 한다.
+   *
+   * 회차 종류는 회차 상세를 받은 뒤에야 알 수 있으므로 초기 상태가 아니라 효과에서
+   * 한 번만 옮긴다. 회차마다 한 번이며(`orderPlanTabOpenedFor`), 사람이 다른 탭으로
+   * 옮긴 뒤에는 다시 끌어오지 않는다. 회차를 바꾸면 주소의 `execution`도 지워진다
+   * (`selectRun`).
+   */
+  useEffect(() => {
+    if (!orderPlanExecutionId || !selectedRunId) return;
+    const kind = detailQuery.data?.kind;
+    if (!kind || !hasOrderPlans(kind)) return;
+    if (orderPlanTabOpenedFor.current === selectedRunId) return;
+    orderPlanTabOpenedFor.current = selectedRunId;
+    setDetailTab("order_plan_screening");
+  }, [detailQuery.data, orderPlanExecutionId, selectedRunId]);
 
   useEffect(() => {
     const execution = logsQuery.data?.executions.find((item) => item.execution_id === activeExecutionId);
