@@ -24,8 +24,6 @@ export const ATTEMPT_ERROR_SENTENCES: Record<string, string> = {
   service_unavailable: "분석에 필요한 서비스를 사용할 수 없어 분석을 마치지 못했습니다.",
   // 모델 호출이 분류한 실패(`model_client.py:1187-1199`).
   timeout: "모델 응답이 제한 시간 안에 오지 않아 분석을 마치지 못했습니다.",
-  // 같은 뜻으로 저장된 값이 응답에 실려 온다(`tests/api-mock.ts`의 회차 fixture).
-  model_timeout: "모델 응답이 제한 시간 안에 오지 않아 분석을 마치지 못했습니다.",
   response_too_large: "모델 응답이 허용 크기를 넘어 분석을 마치지 못했습니다.",
   provider_http_error: "모델 서버가 오류를 돌려주어 분석을 마치지 못했습니다.",
   provider_unavailable: "모델 서버에 연결하지 못해 분석을 마치지 못했습니다.",
