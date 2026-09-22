@@ -133,7 +133,8 @@ P6에서 두 문서를 이 규칙으로 갱신한다. 코드 위치는 `main` 33
 |---|---|
 | 0 | 기존 규칙: 가장 오래된 사업기회를 유지하고 나머지를 병합 |
 | 1 | H의 사업기회를 유지하고 나머지를 병합. 유지 쪽의 추적 상태·사유·선택자는 바꾸지 않는다 |
-| ≥2 | 병합하지 않는다. 도착 레코드는 자기 사업기회(없으면 새로 생성)에 두고, H의 각 사업기회에 도착 레코드를 target으로 하는 `candidate`·`후보 확인 대기`·`search_strategy='merge_confirmation'` 링크를 만든다. owner+target이 같은 대기·기각 행이 있으면 만들지 않는다 |
+| ≥2, H의 `tracking_status`가 전부 같고 H 전부 `recheck_signal_at IS NULL` | **2026-09-22 개정([ADR-0068](../tracking/decisions/0068-same-state-merge-and-tracking-reset.md))**: 병합한다. 유지 쪽은 H 중 가장 오래된 사업기회(`created_at`, 동률이면 `id`)이며 그 추적 상태·사유·선택자·시각은 바꾸지 않는다. `apply_merge_rule`은 병합된 H의 결정을 `MergeOutcome.merged_human_states`로 돌려주고, 사람 수락 병합은 그것을 `opportunity.merged.human_confirmed` 감사 `merged_human_states[]`에 적는다. 자동 병합도 같은 함수를 타므로 같은 개정을 받는다 |
+| ≥2, 그 밖 | 병합하지 않는다. 도착 레코드는 자기 사업기회(없으면 새로 생성)에 두고, H의 각 사업기회에 도착 레코드를 target으로 하는 `candidate`·`후보 확인 대기`·`search_strategy='merge_confirmation'` 링크를 만든다. owner+target이 같은 대기·기각 행이 있으면 만들지 않는다 |
 
 - 병합은 기존처럼 secondary를 삭제하지 않고 `merged_into_*` lineage를 남기며 링크를
   primary로 옮긴다(`merge_opportunities`에 `retain` 인자 추가).
@@ -154,9 +155,12 @@ P6에서 두 문서를 이 규칙으로 갱신한다. 코드 위치는 `main` 33
 2. 다른 active 사업기회가 소유하면 {owner, 대상 소유 사업기회}에 §3.2 규칙을 적용한다.
    - |H|≤1: 병합하고 후보 행을 **`사람 확인 병합`**(비소유 상태, human_decision `accepted`)으로
      바꾼다. 소유권은 옮겨진 공식 링크가 갖는다(authoritative unique index와 충돌 없음).
-   - |H|≥2: 409 `candidate_merge_state_conflict`, details `{opportunities: [{id, tracking_status,
-     tracking_selected_by, tracking_selected_at, recheck_signal}]}`. 화면은 한쪽을 먼저
-     정리하라고 안내한다.
+   - |H|≥2이고 상태가 전부 같으며 신호가 없으면: 위 개정대로 병합하고 후보 행을
+     `사람 확인 병합`으로 바꾼다(2026-09-22).
+   - 그 밖의 |H|≥2: 409 `candidate_merge_state_conflict`, details `{opportunities: [{id, tracking_status,
+     tracking_selected_by, tracking_selected_at, recheck_signal, recheck_signal_at}]}`
+     (`recheck_signal_at`은 2026-09-22 추가, 추가형). 화면은 상태가 다르거나 신호가 있어
+     막혔다고 말하고 한쪽을 `미선택`으로 되돌리는 단추를 준다.
 3. 감사: 기존 `opportunity_link.candidate_decision.recorded` + 병합 시
    `opportunity.merged.human_confirmed`(retained·secondary id, link id).
 4. 병합 뒤 추적 결정 확장점 hook을 호출해 첨부 취득 자격을 다시 계산한다. 사람 병합은 신호를

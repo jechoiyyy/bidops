@@ -15,6 +15,7 @@ from app.lifecycle.ingest.loader import _merge_opportunities, _target_opportunit
 from app.lifecycle.models import IngestWarning, Notice, Opportunity, OpportunityLink, OrderPlan, Run
 from app.lifecycle.services.opportunity_integrity import (
     OpportunityIntegrityError,
+    apply_merge_rule,
     authoritative_link_predicate,
     decide_candidate_link,
     record_candidate_decision,
@@ -262,6 +263,127 @@ def test_two_human_states_refuse_merge_without_writing():
         engine.dispose()
 
 
+def test_same_tracking_state_merges_into_the_oldest_and_reports_the_other_decision():
+    """ADR-0068: identical decisions lose nothing, so the merge proceeds."""
+
+    engine = _engine()
+    try:
+        with Session(engine) as session:
+            older = _tracked("order_plan", "계속 추적", created_hour=1, name="계획 담당자")
+            newer = _tracked("pre_spec", "계속 추적", created_hour=5, name="규격 담당자")
+            newer.tracking_reason = "사전규격을 보고 계속 추적"
+            session.add_all([older, newer])
+            session.commit()
+            older_state = (
+                older.tracking_status,
+                older.tracking_reason,
+                older.tracking_selected_by,
+                older.tracking_selected_at,
+            )
+
+            outcome = apply_merge_rule(session, [newer, older])
+            session.commit()
+
+            assert not outcome.refused
+            assert outcome.primary is not None and outcome.primary.id == older.id
+            assert [item.id for item in outcome.secondaries] == [newer.id]
+            # 유지 쪽은 그대로다. 병합된 쪽의 결정은 감사용으로 보고되고,
+            # 행 자체에도 `merged_into_*` 뒤에 그대로 남는다.
+            retained = session.get(Opportunity, older.id)
+            assert (
+                retained.tracking_status,
+                retained.tracking_reason,
+                retained.tracking_selected_by,
+                retained.tracking_selected_at,
+            ) == older_state
+            assert retained.first_registered_stage == "order_plan"
+            assert outcome.merged_human_states == (
+                {
+                    "id": newer.id,
+                    "tracking_status": "계속 추적",
+                    "tracking_reason": "사전규격을 보고 계속 추적",
+                    "tracking_selected_by": "규격 담당자",
+                    "tracking_selected_at": "2026-08-30T05:00:00+00:00",
+                },
+            )
+            stored_secondary = session.get(Opportunity, newer.id)
+            assert stored_secondary.merged_into_opportunity_id == older.id
+            assert stored_secondary.tracking_selected_by == "규격 담당자"
+    finally:
+        engine.dispose()
+
+
+def test_same_tracking_state_with_a_recheck_signal_still_refuses_merge():
+    engine = _engine()
+    try:
+        with Session(engine) as session:
+            notice = Notice(notice_key="bid:SIGNALED-SAME", source_type="bid_notice")
+            quiet = _tracked("order_plan", "계속 추적", created_hour=1)
+            signaled = _tracked("pre_spec", "계속 추적", created_hour=2, name="다른 담당자")
+            session.add_all([notice, quiet, signaled])
+            session.flush()
+            link = _official(signaled, notice=notice, evidence="SIGNALED-SAME")
+            session.add(link)
+            session.flush()
+            signaled.recheck_signal_at = datetime(2026, 8, 31, tzinfo=timezone.utc)
+            signaled.recheck_signal_link_id = link.id
+            session.commit()
+
+            # 신호는 그 행에 남은 질문이다. 상태가 같아도 조용히 병합하지 않는다.
+            outcome = apply_merge_rule(session, [quiet, signaled])
+
+            assert outcome.refused and outcome.primary is None
+            assert {item.id for item in outcome.held} == {quiet.id, signaled.id}
+            assert outcome.merged_human_states == ()
+            assert not session.dirty and not session.new
+            assert session.get(Opportunity, quiet.id).merged_into_opportunity_id is None
+            assert session.get(Opportunity, signaled.id).merged_into_opportunity_id is None
+    finally:
+        engine.dispose()
+
+
+def test_three_opportunities_follow_the_same_state_rule():
+    engine = _engine()
+    try:
+        with Session(engine) as session:
+            oldest = _tracked("order_plan", "보류", created_hour=1, name="첫 담당자")
+            middle = _tracked("pre_spec", "보류", created_hour=2, name="둘째 담당자")
+            newest = _tracked("bid_notice", "보류", created_hour=3, name="셋째 담당자")
+            untouched = Opportunity(
+                first_registered_stage="pre_spec",
+                created_at=datetime(2026, 8, 1, tzinfo=timezone.utc),
+            )
+            session.add_all([oldest, middle, newest, untouched])
+            session.commit()
+
+            outcome = apply_merge_rule(session, [newest, untouched, middle, oldest])
+            session.commit()
+
+            # 사람 상태가 없는 더 오래된 행이 있어도 유지 쪽은 H 중 가장 오래된 것이다.
+            assert outcome.primary is not None and outcome.primary.id == oldest.id
+            assert {item.id for item in outcome.secondaries} == {
+                middle.id,
+                newest.id,
+                untouched.id,
+            }
+            assert [state["id"] for state in outcome.merged_human_states] == [
+                middle.id,
+                newest.id,
+            ]
+            assert session.get(Opportunity, oldest.id).tracking_selected_by == "첫 담당자"
+
+            diverging = _tracked("order_plan", "종료", created_hour=4, name="넷째 담당자")
+            another = _tracked("pre_spec", "보류", created_hour=5, name="다섯째 담당자")
+            session.add_all([diverging, another])
+            session.commit()
+
+            refused = apply_merge_rule(session, [diverging, another])
+
+            assert refused.refused and refused.primary is None
+    finally:
+        engine.dispose()
+
+
 def test_ingest_merge_retains_the_tracked_plan_and_signals_the_arriving_bid():
     """Tracked plan + untouched pre-spec + a bid naming both official keys."""
 
@@ -462,14 +584,83 @@ def test_ingest_between_two_human_selected_opportunities_asks_for_merge_confirma
         engine.dispose()
 
 
-def _candidate_merge_fixture(session: Session, *, candidate_owner_status: str | None):
+def test_ingest_between_two_same_human_states_merges_them_and_signals_the_retained():
+    """자동 병합(공식 키 도착)도 같은 `apply_merge_rule`을 탄다(ADR-0068)."""
+
+    engine = _engine()
+    try:
+        with Session(engine) as session:
+            run = Run(
+                id="integrity-same-state-run",
+                generated_at=datetime(2026, 8, 31, tzinfo=timezone.utc),
+            )
+            plan = OrderPlan(order_plan_unty_no="R26DD20799999")
+            pre_spec = Notice(
+                notice_key="pre:R26BD00299998",
+                source_type="pre_spec",
+                lifecycle_json={"pre_spec_no": "R26BD00299998"},
+            )
+            plan_owner = _tracked("order_plan", "계속 추적", created_hour=1, name="계획 담당자")
+            pre_spec_owner = _tracked("pre_spec", "계속 추적", created_hour=2, name="규격 담당자")
+            session.add_all([run, plan, pre_spec, plan_owner, pre_spec_owner])
+            session.flush()
+            session.add_all(
+                [
+                    _official(plan_owner, order_plan=plan, evidence=plan.order_plan_unty_no),
+                    _official(pre_spec_owner, notice=pre_spec, evidence="R26BD00299998"),
+                ]
+            )
+            session.commit()
+
+            bid = _upsert_notice(
+                session,
+                run.id,
+                NoticeContract(
+                    notice_id="bid:R26BK01699999:000",
+                    source_type="bid_notice",
+                    lifecycle={
+                        "order_plan_no": plan.order_plan_unty_no,
+                        "pre_spec_no": "R26BD00299998",
+                    },
+                ),
+                {},
+                "Asia/Seoul",
+            )
+            session.commit()
+
+            assert bid is not None
+            retained = session.get(Opportunity, plan_owner.id)
+            assert retained.merged_into_opportunity_id is None
+            assert retained.tracking_selected_by == "계획 담당자"
+            assert session.get(Opportunity, pre_spec_owner.id).merged_into_opportunity_id == plan_owner.id
+            assert _owner_of(session, bid).id == plan_owner.id
+            assert _owner_of(session, pre_spec).id == plan_owner.id
+            # 병합 확인 후보도 경고도 만들지 않는다. 새 공식 링크가 들어왔으므로
+            # 유지 쪽에는 재검토 신호가 켜진다(spec §6.1).
+            assert session.scalar(
+                select(func.count())
+                .select_from(OpportunityLink)
+                .where(OpportunityLink.search_strategy == "merge_confirmation")
+            ) == 0
+            assert session.scalar(select(func.count()).select_from(IngestWarning)) == 0
+            assert retained.recheck_signal_at is not None
+    finally:
+        engine.dispose()
+
+
+def _candidate_merge_fixture(
+    session: Session,
+    *,
+    candidate_owner_status: str | None,
+    target_owner_status: str = "보류",
+):
     target = Notice(notice_key="pre:R26BD00299999", source_type="pre_spec")
     candidate_owner = (
         _tracked("order_plan", candidate_owner_status, created_hour=3, name="후보 담당자")
         if candidate_owner_status is not None
         else Opportunity(first_registered_stage="order_plan")
     )
-    target_owner = _tracked("pre_spec", "보류", created_hour=1, name="규격 담당자")
+    target_owner = _tracked("pre_spec", target_owner_status, created_hour=1, name="규격 담당자")
     session.add_all([target, candidate_owner, target_owner])
     session.flush()
     official = _official(target_owner, notice=target, evidence="R26BD00299999")
@@ -553,6 +744,64 @@ def test_accepting_candidate_owned_elsewhere_merges_by_the_rule_without_signal()
         engine.dispose()
 
 
+def test_accepting_candidate_between_two_same_states_merges_and_audits_the_merged_one():
+    """ADR-0068: 두 결정이 같으면 사람 수락이 병합으로 끝난다."""
+
+    engine = _engine()
+    try:
+        with Session(engine) as session:
+            target, candidate_owner, target_owner, official, candidate = _candidate_merge_fixture(
+                session, candidate_owner_status="보류", target_owner_status="보류"
+            )
+            reviewed_at = datetime(2026, 9, 1, 2, 3, 4, 567890, tzinfo=timezone.utc)
+
+            outcome = record_candidate_decision(
+                session,
+                candidate.id,
+                decision="accepted",
+                reason="같은 사업으로 확인",
+                reviewer_name="검토자",
+                reviewed_at=reviewed_at,
+            )
+            session.commit()
+
+            # 유지 쪽은 H 중 가장 오래된 사업기회(규격 담당자의 것)다.
+            assert outcome.merged
+            assert outcome.retained_opportunity_id == target_owner.id
+            assert outcome.secondary_opportunity_id == candidate_owner.id
+            retained = session.get(Opportunity, target_owner.id)
+            assert retained.tracking_status == "보류"
+            assert retained.tracking_selected_by == "규격 담당자"
+            assert retained.tracking_reason == "사람이 고른 추적 상태"
+            assert retained.recheck_signal_at is None
+            assert session.get(OpportunityLink, candidate.id).status == "사람 확인 병합"
+            assert session.get(OpportunityLink, official.id).opportunity_id == target_owner.id
+            assert _owner_of(session, target).id == target_owner.id
+            merged_audit = session.scalars(
+                select(AuditEvent).where(AuditEvent.action == "opportunity.merged.human_confirmed")
+            ).one()
+            assert merged_audit.safe_metadata == {
+                "retained_opportunity_id": target_owner.id,
+                "secondary_opportunity_id": candidate_owner.id,
+                "opportunity_link_id": candidate.id,
+                "merged_human_states": [
+                    {
+                        "id": candidate_owner.id,
+                        "tracking_status": "보류",
+                        "tracking_reason": "사람이 고른 추적 상태",
+                        "tracking_selected_by": "후보 담당자",
+                        "tracking_selected_at": "2026-08-30T03:00:00+00:00",
+                    }
+                ],
+            }
+            # 사람이 수락한 병합은 재검토 신호를 켜지 않는다.
+            assert session.scalar(
+                select(AuditEvent).where(AuditEvent.action == "opportunity.recheck_signal.created")
+            ) is None
+    finally:
+        engine.dispose()
+
+
 def test_accepting_candidate_between_two_human_states_is_refused_with_both_states():
     engine = _engine()
     try:
@@ -572,6 +821,8 @@ def test_accepting_candidate_between_two_human_states_is_refused_with_both_state
             session.rollback()
 
             assert caught.value.code == "candidate_merge_state_conflict"
+            # 상태가 다르므로 개정(ADR-0068) 뒤에도 거부다. `recheck_signal_at`은
+            # 화면이 되돌리기를 안내할 때 쓰는 추가 필드다.
             assert caught.value.details == {
                 "opportunities": [
                     {
@@ -580,6 +831,7 @@ def test_accepting_candidate_between_two_human_states_is_refused_with_both_state
                         "tracking_selected_by": "후보 담당자",
                         "tracking_selected_at": "2026-08-30T03:00:00+00:00",
                         "recheck_signal": False,
+                        "recheck_signal_at": None,
                     },
                     {
                         "id": target_owner.id,
@@ -587,6 +839,7 @@ def test_accepting_candidate_between_two_human_states_is_refused_with_both_state
                         "tracking_selected_by": "규격 담당자",
                         "tracking_selected_at": "2026-08-30T01:00:00+00:00",
                         "recheck_signal": False,
+                        "recheck_signal_at": None,
                     },
                 ]
             }

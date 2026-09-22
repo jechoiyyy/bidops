@@ -9,6 +9,13 @@ It is also the single definition of the merge rule (spec §3.2) shared by
 automatic official-key merges and human candidate acceptance: among the
 locked opportunities, the ones with human state (a tracking choice other than
 ``미선택`` or a recheck signal) decide which row is retained.
+
+2026-09-22 (ADR-0068): two or more rows with human state no longer refuse the
+merge unconditionally.  When every one of them carries the *same* tracking
+status and none carries a recheck signal, nothing a person decided is lost by
+merging, so the oldest of them is retained and the others are merged into it.
+The states that were merged away are reported to the caller for its audit
+event.  A differing status or any recheck signal still refuses.
 """
 
 from __future__ import annotations
@@ -119,18 +126,40 @@ def has_human_state(opportunity: Opportunity) -> bool:
     )
 
 
+def same_human_state(opportunities: Sequence[Opportunity]) -> bool:
+    """Is every one of these rows the *same* human decision (ADR-0068)?
+
+    Only then does merging lose nothing a person decided: the tracking status
+    is identical everywhere and no row carries an unanswered recheck signal.
+    A recheck signal is a question addressed to that row, so it never merges
+    silently even when the statuses agree.
+    """
+
+    if not opportunities:
+        return False
+    statuses = {item.tracking_status for item in opportunities}
+    return len(statuses) == 1 and all(
+        item.recheck_signal_at is None for item in opportunities
+    )
+
+
 @dataclass(frozen=True)
 class MergeOutcome:
     """The result of applying the merge rule to one locked opportunity set.
 
     ``held`` lists every locked row with human state.  When two or more rows
-    hold human state nothing is merged: ``primary`` is ``None`` and no row was
-    changed, so the caller decides how to ask a person (spec §3.2 ``|H|≥2``).
+    hold human state and they do not agree (different tracking statuses, or a
+    recheck signal anywhere) nothing is merged: ``primary`` is ``None`` and no
+    row was changed, so the caller decides how to ask a person (spec §3.2
+    ``|H|≥2``).  When they do agree the merge proceeds and
+    ``merged_human_states`` carries the decisions that were merged away, for
+    the caller's audit event; the rows themselves keep those columns.
     """
 
     primary: Opportunity | None
     secondaries: tuple[Opportunity, ...] = ()
     held: tuple[Opportunity, ...] = ()
+    merged_human_states: tuple[dict[str, Any], ...] = ()
 
     @property
     def refused(self) -> bool:
@@ -142,6 +171,15 @@ def _stage_rank(stage: str | None) -> int:
         return FIRST_REGISTERED_STAGE_ORDER.index(stage)  # type: ignore[arg-type]
     except ValueError:
         return len(FIRST_REGISTERED_STAGE_ORDER)
+
+
+def _age_key(opportunity: Opportunity) -> tuple[datetime, int]:
+    """Oldest first, by creation time then by the stable identifier."""
+
+    return (
+        opportunity.created_at or datetime.max.replace(tzinfo=UTC),
+        opportunity.id,
+    )
 
 
 def apply_merge_rule(
@@ -158,7 +196,10 @@ def apply_merge_rule(
     - ``|H| = 0``: the oldest row is retained;
     - ``|H| = 1``: that row is retained and its human tracking and recheck
       columns are left exactly as they were;
-    - ``|H| ≥ 2``: nothing is merged and nothing is written.
+    - ``|H| ≥ 2`` and every row in H holds the same tracking status with no
+      recheck signal (ADR-0068): the oldest row of H is retained, unchanged,
+      and the other decisions are reported in ``merged_human_states``;
+    - ``|H| ≥ 2`` otherwise: nothing is merged and nothing is written.
 
     Merging never deletes a row.  Each secondary keeps its own columns and
     points at the retained primary through ``merged_into_*``; every link row,
@@ -195,15 +236,15 @@ def apply_merge_rule(
     held = tuple(item for item in locked if has_human_state(item))
     if len(locked) == 1:
         return MergeOutcome(primary=locked[0], held=held)
-    if len(held) >= 2:
+    if len(held) >= 2 and not same_human_state(held):
         return MergeOutcome(primary=None, held=held)
 
-    primary = held[0] if held else min(
-        locked,
-        key=lambda item: (
-            item.created_at or datetime.max.replace(tzinfo=UTC),
-            item.id,
-        ),
+    # The retain policy is the same in all three merging cases: the oldest
+    # row of the deciding set.  With human state that set is H, so a person's
+    # decision is never replaced by an untouched row.
+    primary = min(held or locked, key=_age_key)
+    merged_human_states = tuple(
+        _merged_human_state(item) for item in held if item is not primary
     )
     event_at = _aware_utc(merged_at)
     clean_reason = _merge_reason(reason)
@@ -223,7 +264,12 @@ def apply_merge_rule(
         secondary.merge_reason = clean_reason
         secondaries.append(secondary)
     session.flush()
-    return MergeOutcome(primary=primary, secondaries=tuple(secondaries), held=held)
+    return MergeOutcome(
+        primary=primary,
+        secondaries=tuple(secondaries),
+        held=held,
+        merged_human_states=merged_human_states,
+    )
 
 
 def merge_opportunities(
@@ -235,8 +281,9 @@ def merge_opportunities(
 ) -> Opportunity | None:
     """Merge by :func:`apply_merge_rule` and fail closed when it refuses.
 
-    Returns the retained primary.  When two or more rows hold human state the
-    rule refuses; this entry point raises ``opportunity_merge_state_conflict``
+    Returns the retained primary.  When two or more rows hold human state and
+    those states do not agree (ADR-0068) the rule refuses; this entry point
+    raises ``opportunity_merge_state_conflict``
     without writing anything.  Callers that turn a refusal into a person's
     decision (ingest, candidate acceptance) use :func:`apply_merge_rule`.
     """
@@ -290,16 +337,42 @@ def _candidate_target_owner(
     return session.scalar(statement)
 
 
+def _isoformat(value: datetime | None) -> str | None:
+    return value.astimezone(UTC).isoformat() if value is not None else None
+
+
 def _merge_conflict_state(opportunity: Opportunity) -> dict[str, Any]:
-    selected_at = opportunity.tracking_selected_at
+    """The refused merge's safe state for one opportunity.
+
+    ``recheck_signal_at`` was added on 2026-09-22 next to the existing boolean
+    (additive): a screen that offers the ``미선택`` reset must be able to say
+    *when* the unanswered signal arrived, and the boolean alone cannot.
+    """
+
     return {
         "id": opportunity.id,
         "tracking_status": opportunity.tracking_status,
         "tracking_selected_by": opportunity.tracking_selected_by,
-        "tracking_selected_at": (
-            selected_at.astimezone(UTC).isoformat() if selected_at is not None else None
-        ),
+        "tracking_selected_at": _isoformat(opportunity.tracking_selected_at),
         "recheck_signal": opportunity.recheck_signal_at is not None,
+        "recheck_signal_at": _isoformat(opportunity.recheck_signal_at),
+    }
+
+
+def _merged_human_state(opportunity: Opportunity) -> dict[str, Any]:
+    """One human decision that a same-state merge moved off the retained row.
+
+    Nothing is erased — the row itself keeps these columns behind
+    ``merged_into_*`` — but the merge audit event repeats them so the history
+    shows which decisions the retained one now stands for (ADR-0068).
+    """
+
+    return {
+        "id": opportunity.id,
+        "tracking_status": opportunity.tracking_status,
+        "tracking_reason": opportunity.tracking_reason,
+        "tracking_selected_by": opportunity.tracking_selected_by,
+        "tracking_selected_at": _isoformat(opportunity.tracking_selected_at),
     }
 
 
@@ -336,9 +409,10 @@ def record_candidate_decision(
     candidate row the owner (``사람 확인 완료``).  Accepting one whose target
     another active opportunity owns applies the §3.2 rule to the candidate
     owner and the target owner (spec §3.3): with at most one of them holding
-    human state they are merged and the candidate becomes ``사람 확인 병합``,
-    a non-owning row, because ownership is carried by the moved official
-    link; with both holding human state nothing changes and
+    human state — or with both holding the *same* tracking status and no
+    recheck signal (ADR-0068) — they are merged and the candidate becomes
+    ``사람 확인 병합``, a non-owning row, because ownership is carried by the
+    moved official link; with two differing human states nothing changes and
     ``candidate_merge_state_conflict`` names both states.  Accepting a stale
     candidate whose target the candidate owner already owns records the
     acceptance as ``사람 확인 병합`` without merging.  A human-confirmed merge
@@ -464,6 +538,13 @@ def record_candidate_decision(
                 "retained_opportunity_id": primary.id,
                 "secondary_opportunity_id": secondary.id,
                 "opportunity_link_id": target.id,
+                # Only a same-state merge (ADR-0068) carries these; with at
+                # most one human state there is nothing to report.
+                **(
+                    {"merged_human_states": list(merge.merged_human_states)}
+                    if merge.merged_human_states
+                    else {}
+                ),
             },
             request_id=None,
             created_at=event_at,
@@ -517,4 +598,5 @@ __all__ = [
     "is_authoritative_link",
     "merge_opportunities",
     "record_candidate_decision",
+    "same_human_state",
 ]
