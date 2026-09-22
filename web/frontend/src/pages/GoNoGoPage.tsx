@@ -25,6 +25,7 @@ import {
   StickyDecisionHeader,
 } from "../components/common/ReviewPrimitives";
 import { SkeletonPanel } from "../components/common/Skeleton";
+import { TechnicalFacts, TechnicalInfo } from "../components/common/TechnicalInfo";
 import {
   WorkspaceFilterBar,
   WorkspaceFilterContext,
@@ -46,7 +47,6 @@ import {
   itemKindLabel,
   evidenceLocationLabel,
   formatMoment,
-  shortHash,
 } from "../components/bid-delta/labels";
 import type {
   BidDeltaComparisonSummary,
@@ -179,6 +179,14 @@ function comparisonCountLabel(item: BidDeltaDecisionQueueItem): string {
   return item.comparison_count === 0 ? "변경 비교 결과 없음" : `변경 비교 ${item.comparison_count}건`;
 }
 
+/** 근거 검증 상태 한 낱말. 서버 enum 원문(`verified`·`missing`·`mismatch`)은
+ *  화면에 적지 않는다(ADR-0065 §3.3 한글화) — 값과 URL은 그대로다. */
+function verificationLabel(status: BidDeltaEvidenceView["verification_status"]): string {
+  if (status === "verified") return "검증됨";
+  if (status === "missing") return "근거 없음";
+  return "불일치";
+}
+
 function EvidenceSide({
   side,
   evidence,
@@ -195,10 +203,7 @@ function EvidenceSide({
       <Text as="p">{evidence?.quote ?? "원문 근거 미확인"}</Text>
       {evidence ? (
         <Text className="gng-caption" type="supporting" color="secondary" as="p">
-          근거 검증 {evidence.verification_status === "verified"
-            ? "verified · 검증됨"
-            : evidence.verification_status === "missing" ? "missing · 근거 없음" : "mismatch · 불일치"}
-          {" · 문서 원문 해시 "}{shortHash(evidence.source_sha256)}
+          근거 검증 · {verificationLabel(evidence.verification_status)}
         </Text>
       ) : null}
     </div>
@@ -369,11 +374,15 @@ export function GoNoGoPage() {
               : comparisonQuery.isError ? "비교 상세를 불러오지 못했습니다"
                 : "비교 상세를 불러오는 중입니다"}
       </Heading>
+      {/* 비교가 만들어지지 않는 **이유**(계산 프로그램 미구현)는 `목록 기준`
+          다이얼로그 한 곳에서만 말한다(ADR-0065 §3.3). 여기 남는 것은 상태 표식과
+          "비교 없음 ≠ 변경 없음"이라는 경고 ④다. */}
+      {workspaceLoaded && !activeComparison ? <Token size="sm" label="비교 불가" /> : null}
       <Text as="p">
         {!workspaceLoaded
           ? "조회가 끝나기 전에는 변경 없음으로 표시하지 않습니다. 사람 결정은 목록의 대기열 값 그대로입니다."
           : !activeComparison
-            ? "변경 비교를 계산하는 프로그램이 아직 없어 비교를 만들지 않습니다. 비교가 없다는 것은 변경이 없다는 뜻이 아닙니다."
+            ? "비교가 없다는 것은 변경이 없다는 뜻이 아닙니다."
             : comparisonQuery.isError
               ? "조회 실패를 변경 없음으로 해석하지 않습니다."
               : "결과가 나올 때까지 중요 변경과 확인 필요 건수는 미확인으로 남습니다."}
@@ -689,19 +698,22 @@ export function GoNoGoPage() {
                               ? "변경 비교 계산이 실패했습니다"
                               : "변경 비교 계산을 기다리고 있습니다"}
                           </Heading>
+                          {/* 경고 ④는 운영 코드와 한 요소에 두지 않는다 — 코드가
+                              접히면서 문장까지 따라 접히면 실패가 조용해진다. */}
                           <Text as="p">
                             {comparisonView.calculation_status === "failed"
                               ? "실패를 변경 없음으로 처리하지 않습니다."
                               : "비교 결과가 나올 때까지 중요 변경과 확인 필요 건수는 미확인으로 남습니다."}
                           </Text>
+                          <Token size="sm" label="비교 불가" />
                           {comparisonView.last_error_code ? (
-                            <Text className="gng-caption" type="supporting" color="secondary" as="p">
-                              안전한 오류 코드 {comparisonView.last_error_code}
-                            </Text>
+                            <TechnicalInfo summary="기술 정보 · 오류 코드">
+                              <TechnicalFacts
+                                facts={[{ label: "오류 코드", value: comparisonView.last_error_code }]}
+                                label="변경 비교 오류 코드"
+                              />
+                            </TechnicalInfo>
                           ) : null}
-                          <Text className="gng-caption" type="supporting" color="secondary" as="p">
-                            변경 비교를 계산하는 프로그램은 아직 운영에 없습니다. 최종 결정은 결정 화면에서 공고 조건을 근거로 기록할 수 있습니다.
-                          </Text>
                         </div>
                       ) : availability}
                     </>
@@ -728,7 +740,7 @@ export function GoNoGoPage() {
                             onChange={(value) => patchParams({ comparison: value })}
                           />
                           <Text className="gng-caption" type="supporting" color="secondary" as="p">
-                            기본값은 요청 순서가 가장 늦은 비교입니다. 비교 계산 프로그램이 없어 새 비교는 만들지 않습니다.
+                            기본값은 요청 순서가 가장 늦은 비교입니다.
                           </Text>
                         </div>
                       ) : null}
@@ -742,7 +754,7 @@ export function GoNoGoPage() {
                                 문서 버전 {comparisonView.baseline.document_version_version} · 문서 역할 {comparisonView.baseline.document_role || "값 없음"}
                               </Text>
                               <Text className="gng-caption" type="supporting" color="secondary" as="p">
-                                원문 해시 {shortHash(comparisonView.baseline.source_sha256)} · 공개 {formatMoment(comparisonView.baseline.published_at)}
+                                공개 {formatMoment(comparisonView.baseline.published_at)}
                               </Text>
                             </div>
                             <ArrowRight aria-hidden="true" />
@@ -753,10 +765,24 @@ export function GoNoGoPage() {
                                 문서 버전 {comparisonView.comparison.document_version_version} · 차수 {comparisonView.comparison.bid_ordinal ?? "값 없음"}
                               </Text>
                               <Text className="gng-caption" type="supporting" color="secondary" as="p">
-                                원문 해시 {shortHash(comparisonView.comparison.source_sha256)} · 공개 {formatMoment(comparisonView.comparison.published_at)}
+                                공개 {formatMoment(comparisonView.comparison.published_at)}
                               </Text>
                             </div>
                           </div>
+                          {/* 문서 버전·공개 일시·문서 역할은 밖에, 해시는 접힌 곳에
+                              **전문**으로 둔다(ADR-0065 결정 2, 시안 M4 ③). 같은 문서인지
+                              눈으로 대조할 때 펴서 읽는다. */}
+                          <TechnicalInfo summary="기술 정보 · 비교 문서 식별자와 해시">
+                            <TechnicalFacts
+                              facts={[
+                                { label: "기준 문서 버전 ID", value: comparisonView.baseline.document_version_id },
+                                { label: "기준 원문 해시 SHA-256", value: comparisonView.baseline.source_sha256 },
+                                { label: "대상 문서 버전 ID", value: comparisonView.comparison.document_version_id },
+                                { label: "대상 원문 해시 SHA-256", value: comparisonView.comparison.source_sha256 },
+                              ]}
+                              label="비교 문서 식별자와 해시"
+                            />
+                          </TechnicalInfo>
                           <Text className="gng-caption" type="supporting" color="secondary" as="p">
                             비교 결과 기준 결정은 여기 있는 양쪽 문서 버전과 비교 결과에 연결됩니다. 문서 쌍은 화면이 고르지 않습니다.
                           </Text>
@@ -764,8 +790,9 @@ export function GoNoGoPage() {
                       ) : (
                         <div className="gng-quiet">
                           <Text as="p">아직 선택된 비교 문서가 없습니다.</Text>
+                          <Token size="sm" label="비교 불가" />
                           <Text className="gng-caption" type="supporting" color="secondary" as="p">
-                            문서가 없다는 뜻은 아닙니다. 비교 계산 프로그램이 없어 문서 쌍 비교를 만들지 않았습니다.
+                            문서가 없다는 뜻은 아닙니다.
                           </Text>
                         </div>
                       )}
@@ -789,7 +816,7 @@ export function GoNoGoPage() {
                             </div>
                             <Text as="p">{latestDecision.reason}</Text>
                             <Text className="gng-caption" type="supporting" color="secondary" as="p">
-                              {latestDecision.claimed_name} · {formatMoment(latestDecision.created_at)} · 결정 기록 {latestDecision.sequence}
+                              {latestDecision.claimed_name} · {formatMoment(latestDecision.created_at)} · {latestDecision.sequence}번째 결정
                             </Text>
                             <Text className="gng-caption gng-decision-basis" type="supporting" color="secondary" as="p">
                               {BASIS_LABELS[latestDecision.basis_kind]} · {decisionBasisDetail(latestDecision)}
@@ -906,11 +933,29 @@ export function GoNoGoPage() {
                   나머지 쌍과 기술 식별자는 결정 화면의 범주별 분석에 있습니다.
                 </Text>
               ) : null}
-              {evidenceItem.error_code ? (
-                <Text className="gng-caption" type="supporting" color="secondary" as="p">
-                  안전한 오류 코드 {evidenceItem.error_code}
-                </Text>
-              ) : null}
+              {/* 해시와 오류 코드는 지우지 않고 접힌 곳으로 모은다(ADR-0065 결정 2).
+                  값은 **전문**이며 8자 축약을 만들지 않는다. 모르는 오류 코드도 그대로
+                  통과시킨다(결정 3). */}
+              <TechnicalInfo
+                summary={`기술 정보 · 근거 문서 해시${evidenceItem.error_code ? "와 오류 코드" : ""}`}
+              >
+                <TechnicalFacts
+                  facts={[
+                    {
+                      label: "기준 사전규격 원문 해시",
+                      value: evidenceItem.baseline_evidence[0]?.source_sha256 ?? "값 없음",
+                    },
+                    {
+                      label: "대상 입찰공고 원문 해시",
+                      value: evidenceItem.comparison_evidence[0]?.source_sha256 ?? "값 없음",
+                    },
+                    ...(evidenceItem.error_code
+                      ? [{ label: "오류 코드", value: evidenceItem.error_code }]
+                      : []),
+                  ]}
+                  label="근거 문서 해시와 오류 코드"
+                />
+              </TechnicalInfo>
               <Text as="p">
                 {evidenceItem.baseline_evidence.length > 0 && evidenceItem.comparison_evidence.length > 0
                   ? "양쪽 문서의 검증된 위치를 그대로 표시합니다."
