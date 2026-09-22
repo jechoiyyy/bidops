@@ -42,7 +42,7 @@ export function NoticeFacts({ notice }: NoticeFactsProps) {
     .join(" · ");
 
   return (
-    <Panel className="notice-facts-panel" title="공고 정보" action={<span className="panel-note">나라장터 API</span>}>
+    <Panel className="notice-facts-panel" title="공고 정보" action={<span className="panel-note">나라장터 제공 값</span>}>
       <dl className="notice-facts">
         <dt>입찰공고번호</dt>
         <dd className="mono tabular-nums">{present(bidIdentifier, "식별자 미확인")}</dd>

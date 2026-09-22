@@ -8,46 +8,45 @@ type RouteContextCase = {
   path: string;
   title: string;
   dataScope: "run" | "cumulative";
-  editScope: string | null;
   runSelectorVisible: boolean;
 };
 
 const routeContexts: RouteContextCase[] = [
-  { name: "dashboard", path: `/?run=${RUN_ID}`, title: "대시보드", dataScope: "cumulative", editScope: null, runSelectorVisible: false },
+  { name: "dashboard", path: `/?run=${RUN_ID}`, title: "대시보드", dataScope: "cumulative", runSelectorVisible: false },
   // `/queue`와 `/reviews`는 현재 공고 판정 이력 route metadata를 공유한다.
   // ADR-0046 결정 3의 읽기 전용·회차 선택기·편집 범위 없음 계약을 함께 검증한다.
-  { name: "queue list", path: `/queue?run=${RUN_ID}`, title: "공고 판정 이력", dataScope: "run", editScope: null, runSelectorVisible: true },
-  { name: "queue detail", path: `/queue/29?run=${RUN_ID}`, title: "공고 판정 이력", dataScope: "run", editScope: null, runSelectorVisible: true },
-  // 사업 추적·최종 Go/No-Go 목록은 제목 모드다. 편집 범위 칩을 그리지 않으므로
-  // 저장 권한은 목록 안의 결정 UI가 말한다(사용자 결정 2026-09-08). 같은 metadata를
-  // 쓰는 상세(`/opportunities/501`)는 경로 모드라 칩이 그대로 있다.
-  { name: "opportunities", path: `/opportunities?run=${RUN_ID}`, title: "사업 추적", dataScope: "cumulative", editScope: null, runSelectorVisible: false },
-  { name: "opportunity detail", path: `/opportunities/501?run=${RUN_ID}`, title: "사업 추적", dataScope: "cumulative", editScope: "추적 상태·예외 작업 저장 가능", runSelectorVisible: false },
-  { name: "bid delta", path: `/opportunities/501/bid-delta?run=${RUN_ID}`, title: "입찰 변경 비교", dataScope: "cumulative", editScope: "최종 Go/No-Go 저장 가능", runSelectorVisible: false },
-  { name: "pre-specs", path: `/pre-specs?run=${RUN_ID}`, title: "사전규격", dataScope: "cumulative", editScope: null, runSelectorVisible: false },
-  { name: "pre-spec detail", path: `/pre-specs/991?run=${RUN_ID}`, title: "사전규격", dataScope: "cumulative", editScope: null, runSelectorVisible: false },
+  { name: "queue list", path: `/queue?run=${RUN_ID}`, title: "공고 판정 이력", dataScope: "run", runSelectorVisible: true },
+  { name: "queue detail", path: `/queue/29?run=${RUN_ID}`, title: "공고 판정 이력", dataScope: "run", runSelectorVisible: true },
+  // 사업 추적·최종 Go/No-Go 목록은 제목 모드다. 무엇을 저장할 수 있는지는 목록 안의
+  // 결정 UI가 말한다(사용자 결정 2026-09-08). 같은 metadata를 쓰는 상세
+  // (`/opportunities/501`)는 경로 모드지만 상단바에 칩을 두지 않는 것은 같다.
+  { name: "opportunities", path: `/opportunities?run=${RUN_ID}`, title: "사업 추적", dataScope: "cumulative", runSelectorVisible: false },
+  { name: "opportunity detail", path: `/opportunities/501?run=${RUN_ID}`, title: "사업 추적", dataScope: "cumulative", runSelectorVisible: false },
+  { name: "bid delta", path: `/opportunities/501/bid-delta?run=${RUN_ID}`, title: "입찰 변경 비교", dataScope: "cumulative", runSelectorVisible: false },
+  { name: "pre-specs", path: `/pre-specs?run=${RUN_ID}`, title: "사전규격", dataScope: "cumulative", runSelectorVisible: false },
+  { name: "pre-spec detail", path: `/pre-specs/991?run=${RUN_ID}`, title: "사전규격", dataScope: "cumulative", runSelectorVisible: false },
   // 공고 판정 이력·담당자 리뷰 기록은 검토 대기열의 탭으로 흡수됐다(ADR-0041 결정 2).
   // 옛 경로가 리다이렉트가 아니라 각 탭의 정식 주소로 남아 있고, 두 회차 종속
   // 탭은 공고 판정 이력 route metadata를 공유한다.
-  { name: "judgments list", path: `/judgments?run=${RUN_ID}`, title: "공고 판정 이력", dataScope: "run", editScope: null, runSelectorVisible: true },
-  { name: "judgments detail", path: `/judgments/29?run=${RUN_ID}`, title: "공고 판정 이력", dataScope: "run", editScope: null, runSelectorVisible: true },
-  { name: "reviews", path: `/reviews?run=${RUN_ID}`, title: "공고 판정 이력", dataScope: "run", editScope: null, runSelectorVisible: true },
+  { name: "judgments list", path: `/judgments?run=${RUN_ID}`, title: "공고 판정 이력", dataScope: "run", runSelectorVisible: true },
+  { name: "judgments detail", path: `/judgments/29?run=${RUN_ID}`, title: "공고 판정 이력", dataScope: "run", runSelectorVisible: true },
+  { name: "reviews", path: `/reviews?run=${RUN_ID}`, title: "공고 판정 이력", dataScope: "run", runSelectorVisible: true },
   // 최종 Go/No-Go는 사이드바 최상위 항목이 됐다(ADR-0041 결정 3).
-  { name: "go-no-go", path: `/go-no-go?run=${RUN_ID}`, title: "최종 Go/No-Go", dataScope: "cumulative", editScope: null, runSelectorVisible: false },
+  { name: "go-no-go", path: `/go-no-go?run=${RUN_ID}`, title: "최종 Go/No-Go", dataScope: "cumulative", runSelectorVisible: false },
   // 기준 4화면은 판정 기준 한 화면의 탭이다. 넷 다 누적 자료이므로 회차 선택기가
   // 보이지 않고, 그 사실이 1차 분류(기준과 운영)만 보고 예측된다(PRD §2.1).
-  { name: "criteria", path: `/criteria?run=${RUN_ID}`, title: "판정 기준", dataScope: "cumulative", editScope: null, runSelectorVisible: false },
-  { name: "profile", path: `/profile?run=${RUN_ID}`, title: "판정 기준", dataScope: "cumulative", editScope: null, runSelectorVisible: false },
-  { name: "metrics", path: `/metrics?run=${RUN_ID}`, title: "판정 기준", dataScope: "cumulative", editScope: null, runSelectorVisible: false },
-  { name: "quality gates", path: `/quality-gates?run=${RUN_ID}`, title: "판정 기준", dataScope: "cumulative", editScope: null, runSelectorVisible: false },
-  { name: "policies", path: `/policies?run=${RUN_ID}`, title: "판정 기준", dataScope: "cumulative", editScope: null, runSelectorVisible: false },
+  { name: "criteria", path: `/criteria?run=${RUN_ID}`, title: "판정 기준", dataScope: "cumulative", runSelectorVisible: false },
+  { name: "profile", path: `/profile?run=${RUN_ID}`, title: "판정 기준", dataScope: "cumulative", runSelectorVisible: false },
+  { name: "metrics", path: `/metrics?run=${RUN_ID}`, title: "판정 기준", dataScope: "cumulative", runSelectorVisible: false },
+  { name: "quality gates", path: `/quality-gates?run=${RUN_ID}`, title: "판정 기준", dataScope: "cumulative", runSelectorVisible: false },
+  { name: "policies", path: `/policies?run=${RUN_ID}`, title: "판정 기준", dataScope: "cumulative", runSelectorVisible: false },
   // 운영 3화면과 산출물 감사 로그는 실행 상태 한 화면의 탭이다.
-  { name: "run-status", path: `/run-status?run=${RUN_ID}`, title: "실행 상태", dataScope: "cumulative", editScope: null, runSelectorVisible: false },
-  { name: "runs", path: `/runs?run=${RUN_ID}`, title: "실행 상태", dataScope: "cumulative", editScope: null, runSelectorVisible: false },
-  { name: "attachments", path: `/attachments?run=${RUN_ID}`, title: "실행 상태", dataScope: "cumulative", editScope: null, runSelectorVisible: false },
-  { name: "operations", path: `/operations?run=${RUN_ID}`, title: "실행 상태", dataScope: "cumulative", editScope: null, runSelectorVisible: false },
-  { name: "audit", path: `/audit?run=${RUN_ID}`, title: "실행 상태", dataScope: "cumulative", editScope: null, runSelectorVisible: false },
-  { name: "deep review", path: `/deep-reviews/fixture-review?run=${RUN_ID}`, title: "심층 검토 보고서", dataScope: "cumulative", editScope: null, runSelectorVisible: false },
+  { name: "run-status", path: `/run-status?run=${RUN_ID}`, title: "실행 상태", dataScope: "cumulative", runSelectorVisible: false },
+  { name: "runs", path: `/runs?run=${RUN_ID}`, title: "실행 상태", dataScope: "cumulative", runSelectorVisible: false },
+  { name: "attachments", path: `/attachments?run=${RUN_ID}`, title: "실행 상태", dataScope: "cumulative", runSelectorVisible: false },
+  { name: "operations", path: `/operations?run=${RUN_ID}`, title: "실행 상태", dataScope: "cumulative", runSelectorVisible: false },
+  { name: "audit", path: `/audit?run=${RUN_ID}`, title: "실행 상태", dataScope: "cumulative", runSelectorVisible: false },
+  { name: "deep review", path: `/deep-reviews/fixture-review?run=${RUN_ID}`, title: "심층 검토 보고서", dataScope: "cumulative", runSelectorVisible: false },
 ];
 
 test.beforeEach(async ({ page }) => {
@@ -72,27 +71,23 @@ for (const context of routeContexts) {
 
     if (context.name === "dashboard") await expect(page.getByRole("button", { name: "조회할 실행 회차" })).toBeVisible();
 
-    const editScope = topbar.locator(".topbar-status");
-    if (context.editScope) {
-      await expect(editScope).toHaveText(context.editScope);
-      await expect(editScope).toHaveAttribute("aria-label", `페이지별 편집 범위: ${context.editScope}`);
-    } else {
-      await expect(editScope).toHaveCount(0);
-    }
+    // 편집 범위 칩(`… 저장 가능`)은 어느 화면에도 없다(ADR-0065 §3.3, 시안 M4
+    // 결정 2). 로그인·권한이 없어 모든 사용자에게 늘 같은 말을 했고, 무엇을 저장할
+    // 수 있는지는 각 화면의 결정 UI가 말한다. 읽기 전용 표식과 "담당자 이름은
+    // 인증이 아닙니다" 안내는 화면 안에 그대로 있다.
+    await expect(topbar.locator(".topbar-status")).toHaveCount(0);
   });
 }
 
 test("직접 진입한 lazy route가 metadata와 실제 화면을 함께 렌더링한다", async ({ page }) => {
-  // 편집 범위 칩이 있는 쪽은 상세다(목록은 제목 모드라 칩을 그리지 않는다).
-  // 같은 metadata를 route param 하나로 두 모드에 나눠 쓰므로 lazy 진입 검사도
-  // 칩이 남아 있는 상세에서 한다.
+  // 경로 모드 화면(상세)에서 확인한다 — 제목·데이터 축·경로 칸이 모두 있는 쪽이다.
   await page.goto(`/opportunities/501?run=${RUN_ID}`);
 
   const topbar = page.locator("header.topbar");
   await expect(topbar.locator("h1")).toHaveText("사업 추적");
   await expect(topbar).toHaveAttribute("data-route-data-scope", "cumulative");
   await expect(topbar).toHaveAttribute("data-topbar-mode", "breadcrumb");
-  await expect(topbar.locator(".topbar-status")).toHaveText("추적 상태·예외 작업 저장 가능");
+  await expect(topbar.locator(".topbar-status")).toHaveCount(0);
   await expect(page.getByLabel("실행 회차", { exact: true })).toHaveCount(0);
   await expect(page.locator(".opportunities-page")).toBeVisible();
 });

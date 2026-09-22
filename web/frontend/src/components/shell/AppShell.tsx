@@ -77,7 +77,6 @@ export function AppShell() {
         <TopBar
           crumbs={location.crumbs}
           dataScope={activeRouteMetadata.dataScope}
-          editScope={activeRouteMetadata.editScope}
           isLoading={runContextEnabled && (runsQuery.isLoading || detailQuery.isLoading)}
           onRunChange={onRunChange}
           runSearch={runSearch}
