@@ -7,6 +7,7 @@ import {
   mockWorkload,
 } from "./api-mock";
 import { installScreenFixtures } from "./screen-fixtures";
+import fixtures from "./fixtures/api.json" with { type: "json" };
 
 // 의미 층 — 화면이 업무 상태를 어떻게 말하는지 본다. 값 없음·미확인·계산 불가·0의
 // 구분, 감사 누락의 분모를 추정하지 않기, 승인 게이트가 담당자 없이 열리지 않기가
@@ -486,4 +487,87 @@ test("자동 심층 검토가 있어도 사업 추적 화면은 미선택을 그
   await expect(page.getByText("미선택").first()).toBeVisible();
   // 자동 심층 검토를 위한 새 구역을 만들지 않는다.
   await expect(page.getByText("자동 심층 검토", { exact: false })).toHaveCount(0);
+});
+
+// F2 · spec §6.3 — 입찰공고 상세의 금액 두 칸·개찰·유사 실적.
+//
+// 원문 `budget`은 배정예산 → 추정가격 → 기초금액 순으로 채워진 값이므로
+// ('배정예산'이 아니다) `추정가격`과 **값이 같아도 한 칸으로 합치지 않는다**.
+// 개찰일시는 `lifecycle.opening_at`이고 값이 없는 회차에는 키 자체가 없다.
+// 유사 실적은 출처가 둘이며(수집 탐색 신호·판정 검토 결과) 구조가 달라 표를
+// 나눈다 — 비어 있으면 `대조된 실적 없음`이다.
+async function noticeFacts(page: import("@playwright/test").Page): Promise<Record<string, string>> {
+  return page.locator(".notice-facts").evaluate((list) => {
+    const entries: Record<string, string> = {};
+    const nodes = [...list.children];
+    for (let index = 0; index + 1 < nodes.length; index += 2) {
+      entries[(nodes[index].textContent ?? "").trim()] = (nodes[index + 1].textContent ?? "").trim();
+    }
+    return entries;
+  });
+}
+
+test("입찰공고 상세는 예산과 추정가격을 따로 두고 개찰 없음과 대조된 실적 없음을 구분한다", async ({ page }) => {
+  await page.goto(`/judgments/29?run=${encodeURIComponent(RUN_ID)}`);
+  await expect(page.locator(".notice-facts")).toBeVisible({ timeout: 10_000 });
+
+  const facts = await noticeFacts(page);
+  // 서로 다른 두 값이 각자의 칸에 남는다.
+  expect(facts["예산 (원문 제공 금액)"]).toBe("182,050,000원");
+  expect(facts["추정가격"]).toBe("165,500,000원");
+  // 이 회차 snapshot에는 `opening_at` 키가 없다(적재기가 null을 넣지 않는다).
+  expect(facts["개찰"]).toBe("미제공");
+  // R3가 고친 지역 제한 표기는 그대로다.
+  expect(facts["지역·참가제한"]).toContain("지역 제한 미확인");
+
+  const performance = page.locator(".performance-matches-panel");
+  await expect(performance.getByRole("heading", { name: "유사 실적 · 회사 실적과 대조" })).toBeVisible();
+  // 두 출처가 모두 비었으면 한 번만 말한다. 실제 0인 최고 유사도를 값 없음으로 바꾸지 않는다.
+  await expect(performance.getByText("대조된 실적 없음")).toHaveCount(1);
+  await expect(performance.locator(".panel-note")).toHaveText("최고 유사도 0.00");
+  await expect(performance.locator("table")).toHaveCount(0);
+});
+
+test("유사 실적은 수집 탐색 신호와 판정 검토 결과를 따로 두고 예산·추정가격이 같아도 두 칸이다", async ({ page }) => {
+  const source = fixtures["/api/notices/6"] as Record<string, unknown>;
+  await page.route("**/api/notices/6", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      // 같은 값이어도 합치지 않는지, 개찰 키가 있으면 일시를 읽는지 함께 본다.
+      body: JSON.stringify({
+        ...source,
+        budget: source.estimated_price,
+        lifecycle: { ...(source.lifecycle as Record<string, unknown>), opening_at: "2026-10-02T06:00:00+09:00" },
+      }),
+    });
+  });
+  await page.goto(`/judgments/6?run=${encodeURIComponent(RUN_ID)}`);
+  await expect(page.locator(".notice-facts")).toBeVisible({ timeout: 10_000 });
+
+  const facts = await noticeFacts(page);
+  expect(facts["예산 (원문 제공 금액)"]).toBe("409,090,909원");
+  expect(facts["추정가격"]).toBe("409,090,909원");
+  expect(facts["개찰"]).toContain("2026");
+  expect(facts["개찰"]).not.toBe("미제공");
+
+  const performance = page.locator(".performance-matches-panel");
+  await expect(performance.locator(".panel-note")).toHaveText("최고 유사도 0.67");
+  await expect(performance).toContainText("유사도는 수집 단계의 모델 점수이며 판단 보조입니다.");
+  await expect(performance.getByText("대조된 실적 없음")).toHaveCount(0);
+
+  const retrieved = performance.locator(".performance-matches-block").filter({ hasText: "수집 탐색 신호" }).locator("tbody tr");
+  await expect(retrieved).toHaveCount(1);
+  await expect(retrieved.first()).toContainText("블록체인 실증서비스 개발지원사업");
+  // 유사도는 소수 2자리 모델 점수다.
+  await expect(retrieved.first().locator("td").nth(1)).toHaveText("0.67");
+  await expect(retrieved.first()).toContainText("42쪽");
+  // `legal_qualification_status`는 확인 자료가 없어 항상 unknown이고 `미확인`으로 읽는다.
+  await expect(retrieved.first().locator("td").nth(4)).toHaveText("미확인");
+
+  const judged = performance.locator(".performance-matches-block").filter({ hasText: "판정 검토 결과" }).locator("tbody tr");
+  await expect(judged).toHaveCount(1);
+  // 유사도가 설명하지 못하는 차이를 숨기지 않는다.
+  await expect(judged.first()).toContainText("요구 기능이 다르며");
+  await expect(judged.first().locator("td").nth(4)).toHaveText("미확인");
 });
