@@ -319,6 +319,39 @@ const holdOverdue: Fixture = {
   links: [orderPlanLink(9101, "도시계획 정보체계 유지관리", "다온군청", "DEMO-OP-010")],
 };
 
+/**
+ * T1 후속(F3 spec §6.3): 대표 링크가 사전규격이고 마감이 **미래**인 건. 기존 표본은
+ * 대표 링크가 공고면 늘 지난 마감(501)이거나 값 자체가 없어서(3001) `describeDeadline`의
+ * D-n(미래) 가지가 FIXTURES 안에서 재지 않았다. 발주계획 링크를 앞에 두지 않아야
+ * "첫 확정 링크"가 사전규격이 된다 — 링크를 하나만 둔다. 기관·사업명은 새로 짓지 않고
+ * `go-no-go-fixtures.ts`의 `BUSINESSES` 표본 중 이 FIXTURES 배열에 아직 없는 쌍을 쓴다.
+ */
+export const FUTURE_NOTICE_DEADLINE_DAYS = 5;
+export const FUTURE_NOTICE_DEADLINE = new Date(Date.now() + FUTURE_NOTICE_DEADLINE_DAYS * 86_400_000).toISOString();
+
+const futureDeadlineNotice: Fixture = {
+  id: 911,
+  section: "보류",
+  pending_candidate_link_count: 0,
+  open_blocking_item_count: 0,
+  action_reasons: [],
+  hold_review_due_at: "2026-10-15T01:00:00Z",
+  tracking_status: "보류",
+  tracking_reason: "예산 확정 시점까지 대기",
+  tracking_selected_by: "검토 담당자",
+  tracking_selected_at: "2026-10-01T01:00:00Z",
+  recheck_signal: false,
+  recheck_signal_at: null,
+  recheck_signal_link_id: null,
+  first_registered_stage: "pre_spec",
+  links: [
+    noticeLink(9112, "pre_spec", "교통정보 수집·제공 플랫폼 고도화", "한결교통공사", "DEMO-PS-011", {
+      budget: 780_000_000,
+      deadline_at: FUTURE_NOTICE_DEADLINE,
+    }),
+  ],
+};
+
 export const FIXTURES: Fixture[] = [
   candidatePending,
   recheckSignal,
@@ -330,6 +363,7 @@ export const FIXTURES: Fixture[] = [
   undecided,
   mergeConfirmation,
   holdOverdue,
+  futureDeadlineNotice,
 ];
 
 /** 화면이 보류 기한 D±n을 계산하는 기준 시각. 한국 시간 2026-09-17 12:00이다. */
