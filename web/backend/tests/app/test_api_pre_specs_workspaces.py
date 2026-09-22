@@ -344,6 +344,58 @@ def test_actionable_union_next_action_and_compact_overview_views(db_session, reg
     assert [item["notice_pk"] for item in not_started_view["items"]] == [not_started.id]
 
 
+@pytest.mark.parametrize("decided", ("보류", "계속 추적", "종료"))
+@pytest.mark.parametrize(
+    ("overview", "auto_status"),
+    (
+        ("needs_human_review", "bundle_ready"),
+        ("running", "deep_review_ready_for_click"),
+    ),
+    ids=("needs_human_review", "deep_review_ready_for_click"),
+)
+def test_human_tracking_decision_leaves_actionable_whatever_the_reason(
+    db_session, registry, decided, overview, auto_status
+):
+    """2026-09-22 개정(시안 M7 ③): 사람이 결정한 건은 이유 불문 검토할 항목에서 빠진다.
+
+    옛 규칙은 셋째 항(개요 완료+신규+미선택)에서만 추적 상태를 봤기 때문에 `보류`를
+    고른 공고가 개요 `needs_human_review`나 심층 검토 클릭 대기라는 이유로 남았다.
+    """
+
+    projection = _Projection()
+    registry.register_overview_document_projection(projection, owner="test")
+    notice = _notice(db_session, f"DECIDED-{decided}")
+    opportunity = _tracking_link(db_session, notice, tracking_status=decided)
+    projection.statuses[notice.id] = overview
+    projection.fields[notice.id] = {"auto_preparation_status": auto_status}
+    db_session.commit()
+
+    actionable = _list(db_session, workspace="actionable")
+    tracking = _list(db_session, workspace="tracking")
+    everything = _list(db_session, workspace="all")
+
+    assert actionable["items"] == []
+    assert actionable["total"] == 0
+    assert actionable["workspace_counts"]["actionable"] == 0
+    # 구간 분할의 분모도 같은 술어에서 나오므로 함께 0이다.
+    assert actionable["deadline_scope_counts"] == {"current": 0, "passed": 0}
+    # `계속 추적`·`보류`는 추적 중에, 셋 다 전체 이력에 남는다 — 사라지지 않는다.
+    tracked_ids = {item["notice_pk"] for item in tracking["items"]}
+    assert tracked_ids == ({notice.id} if decided in {"보류", "계속 추적"} else set())
+    assert [item["notice_pk"] for item in everything["items"]] == [notice.id]
+
+    # 미선택으로 되돌리면 같은 개요·자동 준비 상태로 다시 들어온다.
+    opportunity.tracking_status = "미선택"
+    opportunity.tracking_reason = None
+    opportunity.tracking_selected_by = None
+    opportunity.tracking_selected_at = None
+    db_session.commit()
+
+    restored = _list(db_session, workspace="actionable")
+    assert [item["notice_pk"] for item in restored["items"]] == [notice.id]
+    assert restored["workspace_counts"]["actionable"] == 1
+
+
 def test_tracking_decision_grade_and_tracking_workspace_filters(db_session, registry):
     projection = _Projection()
     registry.register_overview_document_projection(projection, owner="test")
