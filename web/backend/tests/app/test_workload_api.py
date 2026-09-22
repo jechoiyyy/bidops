@@ -3,6 +3,7 @@ from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from uuid import uuid4
+from zoneinfo import ZoneInfo
 
 from fastapi.testclient import TestClient
 import pytest
@@ -32,8 +33,13 @@ NOW = datetime(2026, 9, 7, tzinfo=UTC)
 ROOT = Path(__file__).resolve().parents[4]
 RUNTIME_POLICY = (ROOT / "scripts/runtime-privileges.sql").read_text(encoding="utf-8")
 KEYS = ("order_plan_pending", "pre_spec_deep_review_ready", "tracking_action_required",
-        "tracking_hold_review_due", "bid_final_decision_pending")
-ORDER_PLAN, DEEP_REVIEW, ACTION, HOLD_DUE, FINAL_DECISION = KEYS
+        "tracking_hold_review_due", "bid_final_decision_pending",
+        "tracking_deadline_imminent", "human_check_required", "overview_human_review",
+        "blocking_items_open", "order_plan_new_priority")
+(ORDER_PLAN, DEEP_REVIEW, ACTION, HOLD_DUE, FINAL_DECISION,
+ IMMINENT, HUMAN_CHECK, OVERVIEW_HUMAN, BLOCKING_OPEN, NEW_PRIORITY) = KEYS
+#: lifecycle이 자기 테이블에서 직접 세는 키. 제공자 값으로 덮이지 않는다.
+LIFECYCLE_OWNED = (ACTION, HOLD_DUE, IMMINENT, BLOCKING_OPEN)
 COMBINATIONS = (("lifecycle",), ("lifecycle", "screening"), ("lifecycle", "screening", "deep_review"))
 pytestmark = requires_postgres
 
@@ -89,12 +95,18 @@ def workload(client):
 def test_workload_empty_module_combinations(workload_session, empty_extensions, modules):
     with client_for(workload_session, modules) as client:
         expected = dict.fromkeys(KEYS, (None, "provider_absent"))
-        expected[ACTION] = expected[HOLD_DUE] = (0, None)
+        for key in LIFECYCLE_OWNED:
+            expected[key] = (0, None)
+        # 개요 하위 건수의 제공자가 없으면 합계도 셀 수 없다 — 0으로 접지 않는다.
+        expected[HUMAN_CHECK] = (None, "sub_count_unavailable")
         if "screening" in modules:
-            expected["order_plan_pending"] = (None, "no_completed_execution")
+            # 누적 범위에 완료된 운영 실행이 없다는 사유는 두 발주계획 키에 같이 붙는다.
+            expected[ORDER_PLAN] = expected[NEW_PRIORITY] = (None, "no_completed_execution")
         if "deep_review" in modules:
-            expected["pre_spec_deep_review_ready"] = (0, None)
-            expected["bid_final_decision_pending"] = (0, None)
+            expected[DEEP_REVIEW] = (0, None)
+            expected[FINAL_DECISION] = (0, None)
+            expected[OVERVIEW_HUMAN] = (0, None)
+            expected[HUMAN_CHECK] = (0, None)
         assert workload(client) == expected
 
 
@@ -113,18 +125,23 @@ def test_workload_calls_each_provider_once_and_preserves_values(workload_session
         # lifecycle이 직접 세는 두 키는 제공자 값으로 덮이지 않는다.
         empty_extensions.register_workload_projection(Provider("second", {
             DEEP_REVIEW: WorkloadCount(0), FINAL_DECISION: WorkloadCount(None, "fixture_pending"),
-            HOLD_DUE: WorkloadCount(99),
+            HOLD_DUE: WorkloadCount(99), BLOCKING_OPEN: WorkloadCount(99),
+            # 합계 키를 제공자가 보내도 lifecycle이 두 하위의 합으로 다시 쓴다.
+            HUMAN_CHECK: WorkloadCount(99), OVERVIEW_HUMAN: WorkloadCount(4),
         }), owner="second")
         for request_number in (1, 2):
             assert workload(client) == {
                 ORDER_PLAN: (provided.count, provided.unavailable_reason), DEEP_REVIEW: (0, None),
                 ACTION: (0, None), HOLD_DUE: (0, None), FINAL_DECISION: (None, "fixture_pending"),
+                IMMINENT: (0, None), BLOCKING_OPEN: (0, None), OVERVIEW_HUMAN: (4, None),
+                HUMAN_CHECK: (4, None), NEW_PRIORITY: (None, "provider_absent"),
             }
             assert calls == ["first", "second"] * request_number
 
 
-def add_notice(session, kind, *, sw=None):
+def add_notice(session, kind, *, sw=None, deadline_at=None):
     row = Notice(notice_key=f"workload:{uuid4()}", source_type=kind, published_at=NOW,
+        deadline_at=deadline_at,
         qualification_flags_json={"sw_business_status": sw} if sw else None)
     session.add(row)
     session.flush()
@@ -239,11 +256,11 @@ def seed_execution(session, *, minute=1, status="성공"):
     return row
 
 
-def add_plan(session, execution, *, tracking="미선택", relevance="relevant", selected=True):
+def add_plan(session, execution, *, tracking="미선택", relevance="relevant", selected=True, observed_at=NOW):
     plan = OrderPlan(order_plan_unty_no=f"fixture:{uuid4()}", title="합성 발주계획")
     session.add(plan)
     session.flush()
-    session.add(OrderPlanObservation(order_plan_id=plan.id, run_id=execution.source_run_id, observed_at=NOW))
+    session.add(OrderPlanObservation(order_plan_id=plan.id, run_id=execution.source_run_id, observed_at=observed_at))
     result(session, execution, plan, relevance=relevance,
         stage1="selected" if selected else "filtered_out", stage2="success" if selected else "not_attempted")
     if tracking is not None:
@@ -299,6 +316,19 @@ def test_workload_matches_real_list_totals_and_tracking_exceptions(
     no_date = add_notice(session, "bid_notice")
     no_date.published_at = None
     link_notice(session, undecided, no_date)
+    # 마감 임박 추적 건: 실제 시계 기준으로 창 안·창 밖·추적 미선택을 각각 세운다.
+    # (workload와 목록이 둘 다 요청 시각을 쓰므로 고정 NOW를 쓸 수 없다.)
+    real_now = datetime.now(UTC)
+    imminent_owner = opportunity(session, tracking="계속 추적")
+    link_notice(session, imminent_owner, add_notice(session, "pre_spec", deadline_at=real_now + timedelta(days=2)))
+    far_owner = opportunity(session, tracking="보류")
+    far_owner.tracking_selected_at = real_now + timedelta(days=1)
+    link_notice(session, far_owner, add_notice(session, "bid_notice", deadline_at=real_now + timedelta(days=30)))
+    unselected_owner = opportunity(session, tracking="미선택")
+    link_notice(session, unselected_owner, add_notice(session, "bid_notice", deadline_at=real_now + timedelta(days=2)))
+    # 새 우선 검토 발주계획: 전일 이후 처음 관측 + 모델 판단 관련 + 추적 미선택.
+    new_plan = add_plan(session, latest, observed_at=real_now)
+    add_plan(session, latest, observed_at=real_now, relevance="uncertain")
     session.flush()
     if runtime_role == "app":
         session.connection().exec_driver_sql("SET LOCAL ROLE app")
@@ -318,13 +348,28 @@ def test_workload_matches_real_list_totals_and_tracking_exceptions(
         due = get_json(client, "/api/opportunities", hold_review="overdue", limit=1)
         assert values[HOLD_DUE] == (due["total"], None) == (1, None)
         assert due["items"][0]["id"] == sections["overdue"]
+        # 마감 임박 추적 건: 창(7일)·추적 대상 좁힘·정렬을 목록과 같은 모집단으로 읽는다.
+        imminent = get_json(client, "/api/opportunities", deadline_within_days=7, sort="deadline")
+        assert values[IMMINENT] == (imminent["total"], None) == (1, None)
+        assert [row["id"] for row in imminent["items"]] == [imminent_owner.id]
+        # 공고별 열린 확인 항목: 목록 `reason=blocking_item`과 같은 분류다. 판정 제공자가
+        # 없으면 공고 집합이 비어 실제 0이 된다(`provider_absent`가 아니다).
+        blocking = get_json(client, "/api/opportunities", reason="blocking_item", limit=1)
+        expected_blocking = 1 if "screening" in modules else 0
+        assert values[BLOCKING_OPEN] == (blocking["total"], None) == (expected_blocking, None)
         if "screening" in modules:
             listing = get_json(client, "/api/order-plans", stage1_status="selected", qwen_relevance="relevant,uncertain", tracking_status="미선택", limit=1)
             assert listing["scope"]["mode"] == "cumulative"
             # 누적 범위: 앞 실행(old)의 판정도 남는다.
-            assert values[ORDER_PLAN] == (listing["total"], None) == (3, None)
+            assert values[ORDER_PLAN] == (listing["total"], None) == (5, None)
+            # 새 우선 검토: `relevant` 하나로 좁히고 전일 이후 처음 관측만 센다.
+            yesterday = (real_now.astimezone(ZoneInfo("Asia/Seoul")).date() - timedelta(days=1)).isoformat()
+            fresh = get_json(client, "/api/order-plans", qwen_relevance="relevant",
+                             tracking_status="미선택", first_observed_from=yesterday)
+            assert values[NEW_PRIORITY] == (fresh["total"], None) == (1, None)
+            assert [row["order_plan_pk"] for row in fresh["items"]] == [new_plan.id]
         else:
-            assert values[ORDER_PLAN] == (None, "provider_absent")
+            assert values[ORDER_PLAN] == values[NEW_PRIORITY] == (None, "provider_absent")
         ready = get_json(client, "/api/pre-specs", auto_preparation_status="deep_review_ready_for_click", sw_only=False)
         if "deep_review" in modules:
             assert values[DEEP_REVIEW] == (ready["total"], None) == (3, None)
@@ -332,12 +377,21 @@ def test_workload_matches_real_list_totals_and_tracking_exceptions(
             assert get_json(client, "/api/pre-specs", auto_preparation_status="deep_review_ready_for_click", sw_only=True)["total"] == 2
             pending = get_json(client, "/api/bid-delta/decision-queue", status="pending", limit=1)
             assert values[FINAL_DECISION] == (pending["total"], None) == (2, None)
+            # 개요 하위 건수는 배타적인 두 상태의 목록 `total` 합과 같다.
+            failed = get_json(client, "/api/pre-specs", overview_view="failed", sw_only=False)
+            attention = get_json(client, "/api/pre-specs", overview_view="attention", sw_only=False)
+            assert values[OVERVIEW_HUMAN] == (failed["total"] + attention["total"], None) == (3, None)
+            # 합계는 두 하위의 합이며 서로 다른 단위(공고·사업기회)를 섞는다는 사실이
+            # 화면 바닥의 하위 건수 표시로 남는다.
+            assert values[HUMAN_CHECK] == (values[OVERVIEW_HUMAN][0] + expected_blocking, None)
         else:
             assert ready["total"] == 0
             assert values[DEEP_REVIEW] == values[FINAL_DECISION] == (None, "provider_absent")
+            assert values[OVERVIEW_HUMAN] == (None, "provider_absent")
+            assert values[HUMAN_CHECK] == (None, "sub_count_unavailable")
         if "screening" in modules:
             seed_execution(session, minute=4)
-            assert workload(client)[ORDER_PLAN] == (3, None)
+            assert workload(client)[ORDER_PLAN] == (5, None)
             assert calls == [name for name in modules if name != "lifecycle"] * 2
 
 
@@ -366,9 +420,17 @@ def test_workload_query_count_is_constant_across_large_population(workload_sessi
             finally:
                 event.remove(session.bind, "before_cursor_execute", record)
             assert values[ACTION] == values[HOLD_DUE] == (total, None)
+            # 마감·확인 항목이 없는 표본이라 두 키는 실제 0이다.
+            assert values[IMMINENT] == values[BLOCKING_OPEN] == (0, None)
             if "screening" in modules:
                 assert values[ORDER_PLAN] == (total, None)
+                # 관측 시각이 2026-09-07이라 "전일 이후 처음 관측"은 없다.
+                assert values[NEW_PRIORITY] == (0, None)
             if "deep_review" in modules:
                 assert values[DEEP_REVIEW] == values[FINAL_DECISION] == (total, None)
+                assert values[OVERVIEW_HUMAN] == (total, None)
+                assert values[HUMAN_CHECK] == (total, None)
+            else:
+                assert values[HUMAN_CHECK] == (None, "sub_count_unavailable")
             counts.append(len(statements))
-    assert 0 < counts[0] == counts[1] <= 30
+    assert 0 < counts[0] == counts[1] <= 40

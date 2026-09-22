@@ -6,7 +6,8 @@ import { Heading } from "@astryxdesign/core/Heading";
 import { InternationalizationProvider } from "@astryxdesign/core/i18n";
 import koKR from "@astryxdesign/core/locales/ko-KR.json";
 import { Token } from "@astryxdesign/core/Token";
-import { AgencyFeature, StickyDecisionHeader } from "../common/ReviewPrimitives";
+import { StickyDecisionHeader } from "../common/ReviewPrimitives";
+import { PreSpecAgencyFeature, PreSpecExclusionRecord } from "./PreSpecAgency";
 import {
   isInheritedTracking,
   TrackingDecisionControl,
@@ -210,7 +211,13 @@ export function PreSpecDetail({
       <StickyDecisionHeader className="review-detail-head pre-specs-detail-header" label="사전규격 상세 헤더">
         {/* A안(승인 시안) — 기관 블록이 전체 폭을 쓰고, 사업명 → 칩 → 식별 줄이
             이어진다. 강조 블록은 발주계획 상세와 같은 공용 primitive다(ADR-0062). */}
-        <AgencyFeature className="pre-specs-detail-agency" name={item.agency} fallback="발주기관 미확인" />
+        {/* 수요기관이 있으면 그 이름을 크게 두고 공고(대행)기관은 아래 부제로
+            내린다(M5 승인 2026-09-22). 없으면 지금과 같은 `발주기관` 한 블록이다. */}
+        <PreSpecAgencyFeature
+          agency={item.agency}
+          className="pre-specs-detail-agency"
+          demandAgency={item.demand_agency}
+        />
         <div className="pre-specs-detail-title">
           <Heading level={3}>{titleOf(item)}</Heading>
         </div>
@@ -225,6 +232,8 @@ export function PreSpecDetail({
           />
           <Token size="sm" label={`추적 결정 · ${trackingText}`} color="default" />
         </span>
+        {/* 제외 기록은 칩이 말한 상태의 근거다 — 누가·언제·왜(spec §6.2). */}
+        <PreSpecExclusionRecord className="pre-specs-detail-exclusion" item={item} />
         <p className="pre-specs-detail-facts">
           <span>
             사전규격 {item.pre_spec_no ? <code className="mono">{item.pre_spec_no}</code> : "번호 미확인"}
@@ -368,8 +377,10 @@ export function PreSpecDetail({
           <div className="pre-specs-next-action">
             <span>다음 작업</span>
             <strong>{serverNextAction ?? "다음 작업 없음"}</strong>
-            <span aria-hidden="true">·</span>
-            <span>입찰 참여 여부는 최종 Go/No-Go에서 결정</span>
+            {/* 경계 문장은 상세 페이지 ② 추적 결정 카드와 같은 문안 하나로
+                통일한다(M4 승인 2026-09-21). 앞의 `다음 작업`과는 다른 사실이라
+                한 줄을 따로 쓴다. */}
+            <span className="pre-specs-detail-decision-note">적합성 등급 · 추적 결정 · 최종 Go/No-Go는 서로 대신하지 않습니다. 입찰 참여 여부는 최종 Go/No-Go에서 정합니다.</span>
           </div>
           {onReviewExclusion ? <Button size="sm" variant="secondary"
             label={item.review_exclusion_status === "excluded" ? "검토 목록으로 복원" : "검토 제외"}

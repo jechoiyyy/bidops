@@ -1,6 +1,8 @@
 import { expect, test, type Page } from "@playwright/test";
 import {
   mockApi,
+  mockPreSpecDeadlineScope,
+  mockPreSpecMatrix,
   mockPreSpecs,
   overviewCompletedRunFixture,
   overviewEnvelopeFixture,
@@ -10,9 +12,7 @@ import {
   PRE_SPEC_CAUTION_SAMPLE_BID_NOTICE_NO,
   PRE_SPEC_CAUTION_SAMPLE_DESCRIPTION,
   PRE_SPEC_CAUTION_SAMPLE_HEADLINE,
-  PRE_SPEC_CAUTION_SAMPLE_PK,
   PRE_SPEC_CAUTION_SAMPLE_TASKS,
-  PRE_SPEC_EMPTY_SAMPLE_PK,
 } from "./screen-fixtures";
 import { formatPreSpecCaution, preSpecCautions } from "../src/lib/preSpecCautions";
 import type { PageOverviewVerification, PreSpecDisplayAssessment, PreSpecListItem } from "../src/lib/types";
@@ -98,270 +98,9 @@ async function mockPagedPreSpecs(page: Page, total = 220): Promise<void> {
   });
 }
 
-// bda1288: 공유 `mockPreSpecMatrix`(api-mock.ts)의 8건은 등급 4값 + `판정 없음`과
-// 자동 준비 8값을 한 응답에 담는 유일한 표본이지만 `display_assessment`가 없다.
-// 같은 8건·같은 등급 배정을 여기서 다시 만들고 `display_grade` 필터만 추가한다
-// (실제 화면은 `display_grade`를 보내지 `grade`를 보내지 않는다 — PreSpecsPage.tsx).
-const AUTO_PREPARATION_MATRIX = [
-  { status: "not_applicable", grade: null, reason: "grade_not_priority", deepReviewId: null },
-  { status: "waiting_attachments", grade: "우선 검토", reason: "awaiting_fetch", deepReviewId: null },
-  { status: "bundle_draft", grade: "우선 검토", reason: "human_bundle_draft", deepReviewId: null },
-  { status: "bundle_ready", grade: "검토 권장", reason: null, deepReviewId: null },
-  { status: "overview_running", grade: "검토 권장", reason: "overview_not_completed", deepReviewId: null },
-  { status: "deep_review_started", grade: "우선 검토", reason: null, deepReviewId: "fixture-review" },
-  { status: "deep_review_ready_for_click", grade: "관찰 대상", reason: "bundle_not_auto_ready", deepReviewId: null },
-  { status: "blocked", grade: "제외", reason: "bundle_has_blocking_issues", deepReviewId: null },
-] as const;
-
-function preSpecMatrixItems(): PreSpecListItem[] {
-  return AUTO_PREPARATION_MATRIX.map((entry, index) => ({
-    review_exclusion_status: "included",
-    review_exclusion_actor_name: null,
-    review_exclusion_reason: null,
-    review_exclusion_changed_at: null,
-    notice_pk: 8001 + index,
-    pre_spec_no: `PRE-${8001 + index}`,
-    title: `자동 준비 표본 ${index + 1}`,
-    agency: "표본 발주기관",
-    published_at: "2026-08-30T00:00:00Z",
-    deadline_at: "2026-09-10T00:00:00Z",
-    budget: 100_000_000,
-    sw_business_status: "Y",
-    business_division: "일반용역",
-    origin: "신규",
-    opportunity_id: null,
-    tracking_status: null,
-    kept_by_tracking: false,
-    document: { attachments: 1, "완료": 1, "대기": 0, "진행": 0, "차단": 0, "실패": 0 },
-    overview_review_status: "needs_human_review",
-    grade: entry.grade,
-    grade_source: entry.grade === null ? null : "screening_judgment",
-    display_assessment: displayAssessmentFor(entry.grade, "screening_judgment", "needs_human_review"),
-    auto_preparation_status: entry.status,
-    auto_preparation_reason: entry.reason,
-    latest_deep_review_id: entry.deepReviewId,
-    first_observed_at: `2026-09-${String(10 + index).padStart(2, "0")}T00:00:00Z`,
-    last_observed_at: `2026-09-${String(10 + index).padStart(2, "0")}T00:00:00Z`,
-    next_action: entry.status === "deep_review_ready_for_click" ? "open_deep_review" : "confirm_overview",
-  } as PreSpecListItem));
-}
-
-async function mockPreSpecMatrixFixed(page: Page): Promise<void> {
-  const items = preSpecMatrixItems();
-  await page.route("**/api/pre-specs**", async (route) => {
-    const url = new URL(route.request().url());
-    if (url.pathname !== "/api/pre-specs" || route.request().method() !== "GET") {
-      await route.fallback();
-      return;
-    }
-    const displayGrade = url.searchParams.get("display_grade");
-    const shown = displayGrade
-      ? items.filter((item) => displayGrade === "판정 없음"
-        ? item.display_assessment.status === "none"
-        : item.display_assessment.grade === displayGrade)
-      : items;
-    await route.fulfill({
-      json: {
-        items: shown,
-        total: shown.length,
-        limit: 200,
-        offset: 0,
-        overview_status_counts: [{ status: "needs_human_review", count: shown.length }],
-        workspace_counts: { actionable: shown.length, recent: shown.length, tracking: 0, all: shown.length },
-        deadline_scope_counts: { current: shown.length, passed: 0 },
-      },
-    });
-  });
-}
-
-// bda1288: 공유 `mockPreSpecDeadlineScope`(api-mock.ts)도 같은 이유로 여기서
-// display_assessment까지 채워 다시 만든다. 네 건의 제목·마감은 원본과 같다
-// (마감 구간 전환 검사가 그 값에 기대므로 그대로 둔다).
-const PRE_SPEC_DEADLINE_SCOPE_ITEMS = ([
-  { notice_pk: 8201, title: "마감 전 사전규격 표본", deadline_at: "2026-12-01T00:00:00Z" },
-  { notice_pk: 8202, title: "마감 미확인 사전규격 표본", deadline_at: null },
-  { notice_pk: 8203, title: "마감 경과 사전규격 표본 가", deadline_at: "2026-08-20T00:00:00Z" },
-  { notice_pk: 8204, title: "마감 경과 사전규격 표본 나", deadline_at: "2026-08-18T00:00:00Z" },
-] as const).map((entry) => ({
-  review_exclusion_status: "included",
-  review_exclusion_actor_name: null,
-  review_exclusion_reason: null,
-  review_exclusion_changed_at: null,
-  notice_pk: entry.notice_pk,
-  pre_spec_no: `PRE-${entry.notice_pk}`,
-  title: entry.title,
-  agency: "표본 발주기관",
-  published_at: "2026-08-10T00:00:00Z",
-  deadline_at: entry.deadline_at,
-  budget: 100_000_000,
-  sw_business_status: "Y",
-  business_division: "일반용역",
-  origin: "신규",
-  opportunity_id: null,
-  tracking_status: null,
-  kept_by_tracking: false,
-  document: { attachments: 1, "완료": 1, "대기": 0, "진행": 0, "차단": 0, "실패": 0 },
-  overview_review_status: "needs_human_review",
-  grade: "우선 검토",
-  grade_source: "screening_judgment",
-  display_assessment: displayAssessmentFor("우선 검토", "screening_judgment", "needs_human_review"),
-  auto_preparation_status: "not_applicable",
-  auto_preparation_reason: null,
-  latest_deep_review_id: null,
-  first_observed_at: "2026-09-16T00:00:00Z",
-  last_observed_at: "2026-09-16T00:00:00Z",
-  next_action: "confirm_overview",
-} as PreSpecListItem));
-
-// 원본 `matchesDeadlineScope`(api-mock.ts)와 같은 술어. `deadline_at`이 없으면
-// 마감 경과로 세지 않는다.
-const DEADLINE_SCOPE_FIXTURE_NOW = Date.parse("2026-09-01T00:00:00Z");
-function matchesDeadlineScopeFixed(item: PreSpecListItem, scope: string | null): boolean {
-  if (!scope || scope === "all") return true;
-  const passed = item.deadline_at !== null && Date.parse(item.deadline_at) < DEADLINE_SCOPE_FIXTURE_NOW;
-  return scope === "passed" ? passed : !passed;
-}
-
-async function mockPreSpecDeadlineScopeFixed(page: Page): Promise<void> {
-  await page.route("**/api/pre-specs**", async (route) => {
-    const url = new URL(route.request().url());
-    if (url.pathname !== "/api/pre-specs" || route.request().method() !== "GET") {
-      await route.fallback();
-      return;
-    }
-    const scope = url.searchParams.get("deadline_scope");
-    const shown = PRE_SPEC_DEADLINE_SCOPE_ITEMS.filter((item) => matchesDeadlineScopeFixed(item, scope));
-    const current = PRE_SPEC_DEADLINE_SCOPE_ITEMS.filter((item) => matchesDeadlineScopeFixed(item, "current")).length;
-    const passed = PRE_SPEC_DEADLINE_SCOPE_ITEMS.length - current;
-    await route.fulfill({
-      json: {
-        items: shown,
-        total: shown.length,
-        limit: 200,
-        offset: 0,
-        overview_status_counts: [{ status: "needs_human_review", count: shown.length }],
-        // 원본 `matchesWorkspace`(api-mock.ts)처럼 구간은 `actionable` 칸에만
-        // 적용된다 — `recent`·`tracking`·`all`은 구간과 무관해 전체 4건이다.
-        workspace_counts: {
-          actionable: shown.length,
-          recent: PRE_SPEC_DEADLINE_SCOPE_ITEMS.length,
-          tracking: 0,
-          all: PRE_SPEC_DEADLINE_SCOPE_ITEMS.length,
-        },
-        deadline_scope_counts: { current, passed },
-      },
-    });
-  });
-}
-
-// bda1288: 공유 `mockPreSpecCautionSample`(screen-fixtures.ts)의 두 표본도
-// `display_assessment`가 없다. overview·notices 경로는 그대로 두고(그 두 표본이
-// 이미 옳다), 목록 응답만 여기서 같은 두 건을 display_assessment까지 채워 다시
-// 준다. 마감·게시는 원본처럼 호출 시각 기준 상대값이다(A3가 실제 D-day를 잰다).
-const SAMPLE_DAY_MS = 86_400_000;
-
-async function mockPreSpecCautionSampleFixed(page: Page): Promise<void> {
-  await mockPreSpecCautionSample(page);
-  const sampleNow = Date.now();
-  const cautionSampleItem: PreSpecListItem = {
-    review_exclusion_status: "included",
-    review_exclusion_actor_name: null,
-    review_exclusion_reason: null,
-    review_exclusion_changed_at: null,
-    notice_pk: PRE_SPEC_CAUTION_SAMPLE_PK,
-    pre_spec_no: "R26BD00273769",
-    title: "예술인 공제사업 통합관리시스템 중장기 ISMP 수립",
-    agency: "한국예술인복지재단",
-    published_at: new Date(sampleNow - 3 * SAMPLE_DAY_MS).toISOString(),
-    deadline_at: new Date(sampleNow + 2.5 * SAMPLE_DAY_MS).toISOString(),
-    budget: 49_844_864,
-    sw_business_status: "Y",
-    business_division: "일반용역",
-    origin: "신규",
-    opportunity_id: 7801,
-    tracking_status: "미선택",
-    kept_by_tracking: false,
-    document: { attachments: 3, "완료": 3, "대기": 0, "진행": 0, "차단": 0, "실패": 0 },
-    overview_review_status: "completed",
-    grade: "검토 권장",
-    grade_source: "screening_judgment",
-    display_assessment: displayAssessmentFor("검토 권장", "screening_judgment", "completed"),
-    auto_preparation_status: "bundle_ready",
-    auto_preparation_reason: null,
-    latest_deep_review_id: null,
-    first_observed_at: new Date(sampleNow - 2 * SAMPLE_DAY_MS).toISOString(),
-    last_observed_at: new Date(sampleNow - SAMPLE_DAY_MS).toISOString(),
-    next_action: "decide_tracking",
-  };
-  const emptySampleItem: PreSpecListItem = {
-    review_exclusion_status: "included",
-    review_exclusion_actor_name: null,
-    review_exclusion_reason: null,
-    review_exclusion_changed_at: null,
-    notice_pk: PRE_SPEC_EMPTY_SAMPLE_PK,
-    pre_spec_no: null,
-    title: null,
-    agency: null,
-    published_at: null,
-    deadline_at: null,
-    budget: null,
-    sw_business_status: null,
-    business_division: null,
-    origin: "신규",
-    opportunity_id: null,
-    tracking_status: null,
-    kept_by_tracking: false,
-    document: { attachments: 0, "완료": 0, "대기": 0, "진행": 0, "차단": 0, "실패": 0 },
-    overview_review_status: null,
-    grade: null,
-    grade_source: null,
-    display_assessment: displayAssessmentFor(null, "none", null),
-    auto_preparation_status: "not_applicable",
-    auto_preparation_reason: null,
-    latest_deep_review_id: null,
-    first_observed_at: null,
-    last_observed_at: null,
-    next_action: null,
-  };
-  const items = [cautionSampleItem, emptySampleItem];
-  await page.route("**/api/pre-specs**", async (route) => {
-    const request = route.request();
-    const url = new URL(request.url());
-    // overview 하위 경로는 공유 handler가 이미 옳게 답한다 — 여기서는 손대지 않는다.
-    if (url.pathname !== "/api/pre-specs" || request.method() !== "GET") {
-      await route.fallback();
-      return;
-    }
-    const requested = url.searchParams.has("notice_pk") ? Number(url.searchParams.get("notice_pk")) : null;
-    const shown = requested === null ? items : items.filter((item) => item.notice_pk === requested);
-    await route.fulfill({
-      json: {
-        items: shown,
-        total: shown.length,
-        limit: 200,
-        offset: 0,
-        overview_status_counts: [
-          { status: "completed", count: shown.filter((item) => item.overview_review_status === "completed").length },
-          { status: null, count: shown.filter((item) => item.overview_review_status === null).length },
-        ],
-        workspace_counts: {
-          actionable: shown.filter((item) => item.next_action !== null).length,
-          recent: shown.filter((item) => item.last_observed_at !== null).length,
-          tracking: 0,
-          all: shown.length,
-        },
-        deadline_scope_counts: {
-          current: shown.filter((item) => item.next_action !== null).length,
-          passed: 0,
-        },
-      },
-    });
-  });
-}
-
 test("행은 색 없는 등급 글자 토큰을 두고 판정 없음을 접지 않는다", async ({ page }) => {
   await mockApi(page);
-  await mockPreSpecMatrixFixed(page);
+  await mockPreSpecMatrix(page);
   await page.goto("/pre-specs");
   const grades = page.locator(".pre-specs-row-grade");
   await expect(grades).toHaveCount(8);
@@ -537,7 +276,7 @@ test("검토할 항목 기본 구간은 마감 전·미확인이고 마감 경�
     if (url.pathname === "/api/pre-specs") queries.push(url.searchParams);
   });
   await mockApi(page);
-  await mockPreSpecDeadlineScopeFixed(page);
+  await mockPreSpecDeadlineScope(page);
   await page.goto("/pre-specs");
 
   // (1) 기본값은 URL에 없지만 질의에는 실린다 — 깨끗한 `/pre-specs`가 곧
@@ -592,7 +331,7 @@ test("검토할 항목 기본 구간은 마감 전·미확인이고 마감 경�
 // `hug`가 풀리면 이 검사가 잡는다.
 test("마감 구간 컨트롤은 조회 도구 줄의 네 번째 칸이고 줄을 늘리지 않는다", async ({ page }) => {
   await mockApi(page);
-  await mockPreSpecDeadlineScopeFixed(page);
+  await mockPreSpecDeadlineScope(page);
   await page.goto("/pre-specs");
   await expect(page.locator(".pre-specs-row").first()).toBeVisible();
 
@@ -1052,7 +791,7 @@ test("우측 정보 영역은 긴 내용을 생략하지 않고 필요하면 본
   // 이 spec은 `app` project(1440×900)로 돌므로 최소 지원 폭을 여기서 만든다.
   await page.setViewportSize({ width: 1280, height: 800 });
   await mockApi(page);
-  await mockPreSpecCautionSampleFixed(page);
+  await mockPreSpecCautionSample(page);
   await page.goto("/pre-specs?sw_only=false");
 
   const detail = page.locator(".pre-specs-detail");
@@ -1144,7 +883,7 @@ test("LS-08 전체 선택은 현재 페이지만 더하고 다른 페이지 선�
 // 발주기관을 사업명 위에 두므로 DOM 순서도 그대로다.
 test("우측 정보 영역은 사업명·기관·설명·과업 3건·예산·마감·게시·본공고·주의 한 줄·추적 폼·상세 링크를 순서대로 둔다", async ({ page }) => {
   await mockApi(page);
-  await mockPreSpecCautionSampleFixed(page);
+  await mockPreSpecCautionSample(page);
   await page.goto("/pre-specs?sw_only=false");
 
   const detail = page.locator(".pre-specs-detail");
@@ -1200,6 +939,52 @@ test("우측 정보 영역은 사업명·기관·설명·과업 3건·예산·�
   await expect(detail.locator(".pre-specs-detail-figures")).toContainText("마감 일시 없음");
   await expect(detail.locator(".pre-specs-detail-figures")).toContainText("미확인");
   await expect(detail.locator(".pre-specs-detail-tasks")).toHaveCount(0);
+});
+
+// F2 · spec §6.2 — 실제 발주처(수요기관)가 먼저 읽히고 대행 공고기관은 뒤에·작게
+// 붙는다(M5 승인 2026-09-22). 수요기관이 없는 건은 직접 공고이므로 지금처럼
+// `발주기관`으로 공고기관만 둔다 — `agency`를 `수요기관`으로 재명명하지 않는다.
+test("수요기관이 있으면 목록 행과 상세 머리가 수요기관을 앞·크게, 공고기관을 뒤·작게 둔다", async ({ page }) => {
+  await mockPreSpecs(page);
+  await page.goto("/pre-specs?workspace=all&sw_only=false");
+
+  const proxyRow = page.locator(".pre-specs-row").filter({ hasText: "안전한 문서 준비 사전규격" });
+  const proxyAgency = proxyRow.locator(".pre-specs-row-agency");
+  await expect(proxyAgency).toHaveText("한국예술인복지재단 · 테스트 조달기관 대행");
+  // 기관 줄 자체의 글자 단은 그대로이고 대행 부분만 작다.
+  const sizes = await proxyAgency.evaluate((element) => ({
+    agency: Number.parseFloat(getComputedStyle(element).fontSize),
+    proxy: Number.parseFloat(getComputedStyle(element.querySelector(".pre-specs-row-agency-proxy")!).fontSize),
+  }));
+  expect(sizes.agency).toBe(14.4);
+  expect(sizes.proxy).toBeLessThan(sizes.agency);
+
+  const head = page.locator(".pre-specs-detail-header");
+  await proxyRow.locator(".pre-specs-row-meta").click();
+  await expect(head.locator(".pre-specs-detail-agency .review-agency-label")).toHaveText("수요기관");
+  await expect(head.locator(".pre-specs-detail-agency .review-agency-name")).toHaveText("한국예술인복지재단");
+  await expect(head.locator(".pre-spec-announcer-agency")).toHaveText("공고기관 테스트 조달기관");
+
+  // 직접 공고 건은 라벨이 `발주기관`으로 돌아가고 부제가 없다.
+  const directRow = page.locator(".pre-specs-row").filter({ hasText: "신규 지능형 행정 지원 사전규격" });
+  await expect(directRow.locator(".pre-specs-row-agency")).toHaveText("신규 발주기관");
+  await expect(directRow.locator(".pre-specs-row-agency-proxy")).toHaveCount(0);
+  await directRow.locator(".pre-specs-row-meta").click();
+  await expect(head.locator(".pre-specs-detail-agency .review-agency-label")).toHaveText("발주기관");
+  await expect(head.locator(".pre-specs-detail-agency .review-agency-name")).toHaveText("신규 발주기관");
+  await expect(head.locator(".pre-spec-announcer-agency")).toHaveCount(0);
+});
+
+// M4 승인(2026-09-21) — 경계 문장은 상세 페이지 ② 추적 결정 카드와 같은 문안
+// 하나이고, 목록 우측 상세도 그것을 쓴다. 옛 문구는 남지 않는다.
+test("목록 우측 상세의 경계 문장은 M4 승인 문안 하나다", async ({ page }) => {
+  await mockPreSpecs(page);
+  await page.goto("/pre-specs?workspace=all&sw_only=false");
+  await expect(page.locator(".pre-specs-detail-header")).toBeVisible();
+
+  await expect(page.getByText("적합성 등급 · 추적 결정 · 최종 Go/No-Go는 서로 대신하지 않습니다. 입찰 참여 여부는 최종 Go/No-Go에서 정합니다."))
+    .toHaveCount(1);
+  await expect(page.getByText("입찰 참여 여부는 최종 Go/No-Go에서 결정", { exact: true })).toHaveCount(0);
 });
 
 // docs/0915_ui-redesign/spec.md §3.2 — 주의사항 한 줄은 결정적 산출이고 모델

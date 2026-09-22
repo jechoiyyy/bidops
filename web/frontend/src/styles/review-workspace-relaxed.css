@@ -331,8 +331,43 @@
   font-size: var(--bo-type-caption);
 }
 
+/* `예산 (원문 제공 금액)`처럼 자격을 함께 적는 라벨이 생겨(F2, spec §6.3) 라벨
+   열을 넓힌다. 값 열은 여전히 `minmax(0, 1fr)`이라 긴 금액도 줄바꿈된다. */
 .notice-facts {
-  grid-template-columns: 104px minmax(0, 1fr);
+  grid-template-columns: 136px minmax(0, 1fr);
+}
+
+/* 유사 실적 — 캡션 한 줄, 두 출처의 표, 표 사이 간격. 표가 폭을 넘으면
+   `.table-wrap`의 지역 가로 스크롤이 받는다(이 화면의 기존 규칙). */
+.performance-matches-note {
+  margin: 0 0 var(--spacing-3);
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+  line-height: var(--bo-type-caption-leading);
+}
+
+.performance-matches-block + .performance-matches-block {
+  margin-top: var(--spacing-4);
+}
+
+.performance-matches-subtitle {
+  margin: 0 0 var(--spacing-2);
+  color: var(--color-text-primary);
+  font-size: var(--bo-type-caption);
+  font-weight: 600;
+}
+
+.performance-matches-table {
+  min-width: 640px;
+}
+
+.performance-matches-table td,
+.performance-matches-table th {
+  padding-right: var(--spacing-4);
+}
+
+.performance-matches-table td {
+  line-height: 1.6;
 }
 
 :where(.queue-page, .judgment-page) .table-wrap,

@@ -30,10 +30,22 @@ const baseLink = {
   title: null,
   agency: null,
   external_id: null,
+  // 추가형 투영(0921_practitioner-screens spec §5). 대상이 없거나 해당하지
+  // 않으면 null — 개별 builder가 대상에 맞는 값만 채운다.
+  budget: null,
+  deadline_at: null,
+  planned_order_year: null,
+  planned_order_month: null,
   record_external_id: null,
 };
 
-function orderPlanLink(id: number, title: string, agency: string, externalId: string) {
+function orderPlanLink(
+  id: number,
+  title: string,
+  agency: string,
+  externalId: string,
+  timing: { budget?: number | null; planned_order_year?: string | null; planned_order_month?: string | null } = {},
+) {
   return {
     ...baseLink,
     id,
@@ -46,6 +58,9 @@ function orderPlanLink(id: number, title: string, agency: string, externalId: st
     title,
     agency,
     external_id: externalId,
+    budget: timing.budget ?? null,
+    planned_order_year: timing.planned_order_year ?? null,
+    planned_order_month: timing.planned_order_month ?? null,
     record_external_id: externalId,
   };
 }
@@ -93,7 +108,9 @@ const candidatePending: Fixture = {
   recheck_signal_link_id: null,
   first_registered_stage: "order_plan",
   links: [
-    orderPlanLink(1001, "공공데이터 통합관리체계 고도화", "해솔시청", "DEMO-OP-001"),
+    orderPlanLink(1001, "공공데이터 통합관리체계 고도화", "해솔시청", "DEMO-OP-001", {
+      budget: 950_000_000, planned_order_year: "2026", planned_order_month: "11",
+    }),
     noticeLink(1002, "pre_spec", "공공데이터 통합관리체계 고도화", "해솔시청", "DEMO-PS-001", {
       link_type: "candidate",
       status: "후보 확인 대기",
@@ -123,7 +140,9 @@ const recheckSignal: Fixture = {
   first_registered_stage: "order_plan",
   links: [
     orderPlanLink(2001, "시설관리 업무시스템 구축", "도담도시공사", "DEMO-OP-002"),
-    noticeLink(2002, "bid_notice", "시설관리 업무시스템 구축", "도담도시공사", "DEMO-BN-002"),
+    noticeLink(2002, "bid_notice", "시설관리 업무시스템 구축", "도담도시공사", "DEMO-BN-002", {
+      budget: 620_000_000, deadline_at: "2026-09-25T00:00:00Z",
+    }),
   ],
 };
 
@@ -300,6 +319,39 @@ const holdOverdue: Fixture = {
   links: [orderPlanLink(9101, "도시계획 정보체계 유지관리", "다온군청", "DEMO-OP-010")],
 };
 
+/**
+ * T1 후속(F3 spec §6.3): 대표 링크가 사전규격이고 마감이 **미래**인 건. 기존 표본은
+ * 대표 링크가 공고면 늘 지난 마감(501)이거나 값 자체가 없어서(3001) `describeDeadline`의
+ * D-n(미래) 가지가 FIXTURES 안에서 재지 않았다. 발주계획 링크를 앞에 두지 않아야
+ * "첫 확정 링크"가 사전규격이 된다 — 링크를 하나만 둔다. 기관·사업명은 새로 짓지 않고
+ * `go-no-go-fixtures.ts`의 `BUSINESSES` 표본 중 이 FIXTURES 배열에 아직 없는 쌍을 쓴다.
+ */
+export const FUTURE_NOTICE_DEADLINE_DAYS = 5;
+export const FUTURE_NOTICE_DEADLINE = new Date(Date.now() + FUTURE_NOTICE_DEADLINE_DAYS * 86_400_000).toISOString();
+
+const futureDeadlineNotice: Fixture = {
+  id: 911,
+  section: "보류",
+  pending_candidate_link_count: 0,
+  open_blocking_item_count: 0,
+  action_reasons: [],
+  hold_review_due_at: "2026-10-15T01:00:00Z",
+  tracking_status: "보류",
+  tracking_reason: "예산 확정 시점까지 대기",
+  tracking_selected_by: "검토 담당자",
+  tracking_selected_at: "2026-10-01T01:00:00Z",
+  recheck_signal: false,
+  recheck_signal_at: null,
+  recheck_signal_link_id: null,
+  first_registered_stage: "pre_spec",
+  links: [
+    noticeLink(9112, "pre_spec", "교통정보 수집·제공 플랫폼 고도화", "한결교통공사", "DEMO-PS-011", {
+      budget: 780_000_000,
+      deadline_at: FUTURE_NOTICE_DEADLINE,
+    }),
+  ],
+};
+
 export const FIXTURES: Fixture[] = [
   candidatePending,
   recheckSignal,
@@ -311,6 +363,7 @@ export const FIXTURES: Fixture[] = [
   undecided,
   mergeConfirmation,
   holdOverdue,
+  futureDeadlineNotice,
 ];
 
 /** 화면이 보류 기한 D±n을 계산하는 기준 시각. 한국 시간 2026-09-17 12:00이다. */

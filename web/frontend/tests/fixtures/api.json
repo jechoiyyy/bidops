@@ -8172,12 +8172,13 @@
   "items": []
  },
  "/api/order-plans": {
-  "schema_version": "order-plan-list-response.v1",
+  "schema_version": "order-plan-list-response.v5",
+  "scope": null,
   "producer": "order-plan-review-api",
   "consumer": "order-plan-review-client",
   "items": [],
-  "total": 2,
-  "limit": 1,
+  "total": 0,
+  "limit": 50,
   "offset": 0
  },
  "/api/pre-specs": {

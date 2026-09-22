@@ -68,7 +68,7 @@ C-1 `candidate_selection`의 기존 `collect-candidate.v2 / candidate_pool_all /
 - `RunSummary`: `run_id`, `window_from?`, `window_to?`, `timezone`, `generated_at`, `screening_basis?`, `status`, `superseded_by?`, `counts`. `counts`는 `notices`, `order_plans`, `judgments`, `reviews`, `collection`이다.
 - `IngestRequest`: body의 optional nullable `run_id`와 query의 optional nullable `run_id` 중 적어도 하나가 필요하다. `IngestResponse`는 `run_id`, `notices`, optional `order_plans`(기본 0), `judgments`, `reviews`, `warnings[]`, `warning_counts`다. 같은 회차 재적재는 지원되는 갱신·멱등 경로이며 중복 자체로 409를 반환하지 않는다.
 - `NoticeList` query: required `run_id`; optional `grade`, `readiness`, `focus`, `sample_role`(default `analysis`), `attachment=any|none|manual`, `q`, `sort=deadline|grade|published`, `limit` 1..500(default 50), `offset` 0 이상. 응답은 `items`, `total`, 실제 적용한 `filters`다.
-- `PreSpecList` query: optional `sw_only`(default `true`), `business_division`, `origin=추적|신규`, `q`, `sort=published|deadline|observed`, `limit` 1..500(default 50), `offset` 0 이상. 기본적으로 누적 `notice.source_type='pre_spec'`를 조회한다. `sw_only=true`는 `sw_business_status='Y'` 또는 추적 중인 발주계획 연결을 포함한다. 이 연결은 같은 opportunity의 notice 링크 status가 `확정`·`사람 확인 완료`·`후보 확인 대기` 중 하나이고 opportunity tracking status가 `계속 추적`·`보류` 중 하나이며, 그 opportunity에 authoritative `order_plan` 링크(`order_plan_id` 존재)가 있는 경우다. 따라서 `검색 미확인`, `미선택`, `종료`, authoritative order-plan 링크가 없는 연결은 예외가 아니다. 응답은 `items`, `total`, `limit`, `offset`, `overview_status_counts`이며 item은 `notice_pk`, `pre_spec_no`, `title`, `agency`, `demand_agency`(추가형, PoC), `published_at`, `deadline_at`, `budget`, 원문 그대로의 `sw_business_status`·`business_division`, `origin`, `opportunity_id`, `tracking_status`, `kept_by_tracking`, `document`, `overview_review_status`를 가진다. `demand_agency`는 사전규격 원문 `rlDminsttNm`(수요기관)이며 값이 없으면 `null`이다. **수요기관은 사전규격에서만 값이 있다** — 입찰공고는 `agency`가 이미 수요기관 우선값이라 입찰공고 상세는 `demand_agency`를 투영하지 않는다. `opportunity_id`·`tracking_status`·`origin`은 pending/rejected/search-unconfirmed link가 아니라 해당 notice의 authoritative active owner만 투영한다. `document`는 `attachments`, `완료`, `대기`, `진행`, `차단`, `실패` 건수이며 큐 행이 없는 첨부는 총계에만 포함한다. `kept_by_tracking`는 `sw_business_status`가 `Y`가 아닌 행이 위 예외로 남을 때만 `true`다. `origin`은 연결된 opportunity의 `first_registered_stage`에서 `order_plan→추적`, `pre_spec|bid_notice→신규`로 투영하고 연결이 없으면 `null`이다. `overview_review_status`(추가, 구 `docs/design/PLAN.md` 3단계, git 이력에서 확인)는 해당 notice의 최신
+- `PreSpecList` query: optional `sw_only`(default `true`), `business_division`, `origin=추적|신규`, `deadline_within_days`(1..365), `q`, `sort=published|deadline|observed`, `limit` 1..500(default 50), `offset` 0 이상. 기본적으로 누적 `notice.source_type='pre_spec'`를 조회한다. `sw_only=true`는 `sw_business_status='Y'` 또는 추적 중인 발주계획 연결을 포함한다. 이 연결은 같은 opportunity의 notice 링크 status가 `확정`·`사람 확인 완료`·`후보 확인 대기` 중 하나이고 opportunity tracking status가 `계속 추적`·`보류` 중 하나이며, 그 opportunity에 authoritative `order_plan` 링크(`order_plan_id` 존재)가 있는 경우다. 따라서 `검색 미확인`, `미선택`, `종료`, authoritative order-plan 링크가 없는 연결은 예외가 아니다. 응답은 `items`, `total`, `limit`, `offset`, `overview_status_counts`이며 item은 `notice_pk`, `pre_spec_no`, `title`, `agency`, `demand_agency`(추가형, PoC), `published_at`, `deadline_at`, `budget`, 원문 그대로의 `sw_business_status`·`business_division`, `origin`, `opportunity_id`, `tracking_status`, `kept_by_tracking`, `document`, `overview_review_status`를 가진다. `demand_agency`는 사전규격 원문 `rlDminsttNm`(수요기관)이며 값이 없으면 `null`이다. **수요기관은 사전규격에서만 값이 있다** — 입찰공고는 `agency`가 이미 수요기관 우선값이라 입찰공고 상세는 `demand_agency`를 투영하지 않는다. `opportunity_id`·`tracking_status`·`origin`은 pending/rejected/search-unconfirmed link가 아니라 해당 notice의 authoritative active owner만 투영한다. `document`는 `attachments`, `완료`, `대기`, `진행`, `차단`, `실패` 건수이며 큐 행이 없는 첨부는 총계에만 포함한다. `kept_by_tracking`는 `sw_business_status`가 `Y`가 아닌 행이 위 예외로 남을 때만 `true`다. `origin`은 연결된 opportunity의 `first_registered_stage`에서 `order_plan→추적`, `pre_spec|bid_notice→신규`로 투영하고 연결이 없으면 `null`이다. `overview_review_status`(추가, 구 `docs/design/PLAN.md` 3단계, git 이력에서 확인)는 해당 notice의 최신
 `prespec_overview_run.status`를 `notice_id`로 LEFT JOIN해 투영한 `PreSpecOverviewReviewStatus`
 10값(`awaiting_document|awaiting_structure|preparing|awaiting_model|queued|running|completed|needs_human_review|failed|cancelled`) 중 하나이며, 그 notice에
 run 행이 아직 없으면 `null`이다(개요 검토 미시작). `overview_status_counts`(추가)는
@@ -135,6 +135,16 @@ run 행이 아직 없으면 `null`이다(개요 검토 미시작). `overview_sta
   `workspace=actionable`을 함께 주면 `total == deadline_scope_counts.current`다. 합계 키
   (`all`)는 두지 않는다 — 필요하면 소비자가 두 칸을 더한다.
   마감 정렬은 마감 전 가까운 순, 마감 경과 최근순, 미확인 순이며 ID로 동률을 해소한다.
+  2026-09-22 확장([ADR-0067](tracking/decisions/0067-dashboard-workload-keys-and-panel-contracts.md)):
+  optional `deadline_within_days`(정수 1..365)는 의견등록 마감이
+  `[요청 시각, 요청 시각 KST 일자 + N일의 끝)`에 드는 건만 남기는 **창** 필터다.
+  상한은 `+(N+1)`일 00:00 KST의 열린 경계이고(D-day 표시가 날짜 단위이므로 창도 날짜로
+  끊는다) 하한이 요청 시각이라 이미 지난 마감은 임박이 아니다. `deadline_at`이 `null`인
+  `마감 미확인`은 창에 **들지 않는다** — 미확인을 임박으로 승격시키지 않는다(이 점이
+  `deadline_scope=current`와 다르다). `deadline_status`와 같은 자리의 서버 필터이므로
+  `items`·`total`과 모든 집계(`workspace_counts`·`overview_status_counts`·
+  `deadline_scope_counts`)가 같은 모집단을 읽는다. 인자를 주지 않으면 창이 없다.
+  범위를 벗어난 값은 422 `deadline_within_days is invalid`다.
   별도의 사전규격 **상세** endpoint는 없다. 상세 화면도 이 목록 endpoint를 쓴다.
 - `NoticeListItem`: `id`, `notice_key`, `run_id`, `title?`, `agency?`, `published_at?`, `deadline_at?`, `estimated_price?`, `sample_role?`, `sample_stratum?`, `collection_bucket?`, `grade?`, `readiness?`, `focus?`, `attachment_count`, `attachment_status=none|g2b|manual`이다.
 - `ReviewUpsertRequest`: required `run_id`; optional nullable `disposition`, `system_judgment_review`, `corrected_grade`, `corrected_readiness`, `weakest_perspective`, `reason`, `reviewer`; optional `verification_answers`(default `[]`), 요소는 optional nullable `item`, `answer`다. `ReviewResponse`는 `id`, `run_id`, `notice_pk`, 같은 nullable review field, `created_at?`, `updated_at?`, `answers[{id,item?,answer?}]`다. 이 legacy schema의 review 문자열은 wire enum으로 강제되지 않으므로 소비자가 임의의 추가 enum을 가정하지 않는다.
@@ -262,7 +272,7 @@ code와 테스트 조합은 상세 명세를 따른다.
 | 호출 | 입력 | 성공 응답 | 주요 실패 |
 |---|---|---|---|
 | `GET /api/health` | 없음 | `{"status":"ok"}` | 프로세스 불가용 |
-| `GET /api/workload` | 없음 | `WorkloadResponse` — 집계 시각과 고정 순서 네 항목 | 제공자 부재는 200의 null·사유 |
+| `GET /api/workload` | 없음 | `WorkloadResponse` — 집계 시각과 고정 순서 열 항목 | 제공자 부재는 200의 null·사유 |
 | `GET /api/runs` | 없음 | `{items: RunSummary[], total}` 전체 회차 | 없음 |
 | `POST /api/runs/ingest` | body 또는 query의 run ID | 적재·재적재 건수와 경고 | 404 run directory, 422 run ID 부재 |
 | `GET /api/runs/{run_id}` | path run ID | `RunDetailResponse` | 404 |
@@ -271,7 +281,7 @@ code와 테스트 조합은 상세 명세를 따른다.
 | `GET /api/runs/{run_id}/pipeline/logs` | path run ID; optional query `execution_id` | `PipelineLogResponse` | 404 |
 | `POST /api/runs/{run_id}/pipeline/{stage}` | `stage=collect|sample|report`; optional query `from_raw=false` 또는 optional body `{from_raw:false}` | 202 `PipelineExecutionResponse` | 400 입력·stage, 404 run, 409 active 충돌, 422 body·query |
 | `GET /api/notices` | `NoticeList` query | `NoticeListResponse` | 404 run, 422 query |
-| `GET /api/pre-specs` | 누적 `PreSpecList` query; 기본 `sw_only=true`; optional `auto_preparation_status` | `PreSpecListResponse` | 422 query |
+| `GET /api/pre-specs` | 누적 `PreSpecList` query; 기본 `sw_only=true`; optional `auto_preparation_status`, `deadline_within_days` | `PreSpecListResponse` | 422 query |
 | `GET /api/notices/{notice_pk}` | path DB integer notice PK | `NoticeDetailResponse` | 404 |
 | `GET /api/notices/{notice_pk}/related` | path DB integer notice PK | `RelatedNoticeListResponse` | 404 |
 | `GET /api/notices/{notice_pk}/history` | path DB integer notice PK | `NoticeHistoryResponse` | 404 |
@@ -286,7 +296,7 @@ revision-history의 404·409·500은 공통 안전 envelope를 사용하며 `det
 
 | 호출 | 입력 | 성공 응답 | 주요 실패 |
 |---|---|---|---|
-| `GET /api/opportunities` | optional `tracking_status`, `first_registered_stage`, `section=조치 필요\|추적 중\|보류\|추적 종료\|신규 입찰공고`, `reason=new_link\|candidate_pending\|merge_confirmation\|blocking_item\|hold_overdue`, `hold_review=overdue\|due_soon\|attention`, `q`(2~100자), `sort=created_at\|tracking_status\|first_registered_stage\|hold_review_due_at`, `limit` 1..500(default 50), `offset` 0 이상 | `OpportunityListResponse`(`section_counts`·`action_reason_counts` 포함); 기본값은 `종료`를 포함한 전체 | 422 query(`section=미결정`은 집계 전용이라 값 자체를 거부) |
+| `GET /api/opportunities` | optional `tracking_status`, `first_registered_stage`, `section=조치 필요\|추적 중\|보류\|추적 종료\|신규 입찰공고`, `reason=new_link\|candidate_pending\|merge_confirmation\|blocking_item\|hold_overdue`, `hold_review=overdue\|due_soon\|attention`, `deadline_within_days`(1..365), `q`(2~100자), `sort=created_at\|tracking_status\|first_registered_stage\|hold_review_due_at\|deadline`, `limit` 1..500(default 50), `offset` 0 이상 | `OpportunityListResponse`(`section_counts`·`action_reason_counts` 포함); 기본값은 `종료`를 포함한 전체 | 422 query(`section=미결정`은 집계 전용이라 값 자체를 거부) |
 | `GET /api/opportunities/{opportunity_id}` | path DB integer opportunity ID | `OpportunityDetailResponse`; `검색 미확인` link를 포함한 전체 link 목록 | 404 `opportunity_not_found` |
 | `GET /api/opportunities/{opportunity_id}/deep-reviews` | path DB integer opportunity ID | 200 `{opportunity_id, items[]}` — 연결 공고 전체의 심층 검토 목록 | 404 `not_found`; 422 path; 500 `processing_failed` |
 | `GET /api/opportunities/{opportunity_id}/tracking-decisions` | path DB integer opportunity ID | 200 `{opportunity_id, items[], recheck_events[]}`; `items`는 append-only 추적 결정 이력, `recheck_events`는 신호 생성·확인·해제를 감사에서 투영한 이력(`kind=created\|acknowledged\|cleared_by_decision`, `link_id?`, `actor_kind`, `claimed_name?`, `created_at`, `note_present`) | 404 `opportunity_not_found` |
@@ -326,6 +336,8 @@ revision-history의 404·409·500은 공통 안전 envelope를 사용하며 `det
 | `hold_overdue` | `tracking_status=보류` AND `tracking_selected_at + 14일 ≤ now` |
 
 보류 재검토 기한은 lifecycle 상수 `HOLD_REVIEW_PERIOD_DAYS=14`로 고정한다. `hold_review_due_at = tracking_selected_at + 14일`은 `보류`일 때만 값이 있고 저장하지 않는 파생값이다. 기준 시각은 요청마다 Python에서 timezone-aware UTC로 한 번 계산해 SQL 파라미터로 넘기므로 SQLite·PostgreSQL이 마이크로초까지 일치한다. `보류`를 다시 저장하면 `tracking_selected_at`이 갱신되어 기한이 새로 시작한다. `GET /api/opportunities`의 `hold_review=due_soon`은 `now < 기한 ≤ now+3일`, `attention`은 `overdue`와 `due_soon`의 합집합이다.
+
+마감 임박 창(`deadline_within_days`, 2026-09-22 추가, [ADR-0067](tracking/decisions/0067-dashboard-workload-keys-and-panel-contracts.md))은 `hold_review`와 같은 모양의 **복합** 인자다. 정수 1..365를 받고 `권위 있는 연결`(`official`·`확정` 또는 `candidate`·`사람 확인 완료`·`accepted`)의 공고 마감이 `[요청 시각, 요청 시각 KST 일자 + N일의 끝)`에 드는 **추적 대상**(`계속 추적`·`보류`) 사업기회만 남긴다. `hold_review=overdue`가 "보류 상태 + 기한 지남"을 한 인자로 묶은 것과 같은 선례이며 `tracking_status`를 다중 값으로 넓히지 않는다. 창은 **링크 단위**로 판정하고 돌려주는 것은 **사업기회**다 — 응답에 "이 사업의 마감"이라는 대표 필드를 만들지 않으므로 소비자가 `links[]`의 `deadline_at`·`source_type`으로 어느 마감이 임박했는지 고른다. 확인 대기 후보 연결의 마감과 `deadline_at`이 `null`인 연결은 사업기회를 창에 넣지 않으며, 이미 지난 마감도 임박이 아니다. 범위를 벗어난 값은 422다. `sort=deadline`(같은 날 추가)은 **정렬 키일 뿐** 창이 아니다 — 아직 남은 권위 연결 마감 중 가장 이른 것 오름차순이고, 그런 마감이 없는 사업기회는 방언과 무관하게 맨 뒤에 둔 다음 `created_at` 내림·`id` 내림으로 동률을 푼다.
 
 #### 발주계획 일괄 추적 v1 wire·원자성
 
@@ -423,11 +435,22 @@ disabled 이전/다음 버튼을 제공한다.
 
 ### 결정 대기 집계와 큐 응답
 
-[ADR-0053](tracking/decisions/0053-decision-workload-read-contracts.md)의 읽기 전용 계약이다. 세 경로 모두 DB 열을 새로 만들지 않고 기존 목록과 **같은 모집단**을 센다.
+[ADR-0053](tracking/decisions/0053-decision-workload-read-contracts.md)의 읽기 전용 계약이며 2026-09-22에 실무자 대시보드 패널 계약([ADR-0067](tracking/decisions/0067-dashboard-workload-keys-and-panel-contracts.md))이 키 다섯(세는 키 넷과 그중 둘의 합계 하나)을 더했다. 모든 경로가 DB 열을 새로 만들지 않고 기존 목록과 **같은 모집단**을 센다.
 
-- `WorkloadResponse`: `generated_at`(UTC aware)과 `items[]`. item은 `key`, nullable `count`(0 이상), nullable `unavailable_reason` 셋뿐이다. `items`의 순서는 고정이며 `order_plan_pending`, `pre_spec_deep_review_ready`, `tracking_action_required`, `tracking_hold_review_due`, `bid_final_decision_pending` 다섯이 언제나 모두 있다(ADR-0053 §1·§4 갱신, spec §8).
+- `WorkloadResponse`: `generated_at`(UTC aware)과 `items[]`. item은 `key`, nullable `count`(0 이상), nullable `unavailable_reason` 셋뿐이다. `items`의 순서는 고정이며 `order_plan_pending`, `pre_spec_deep_review_ready`, `tracking_action_required`, `tracking_hold_review_due`, `bid_final_decision_pending`, `tracking_deadline_imminent`, `human_check_required`, `overview_human_review`, `blocking_items_open`, `order_plan_new_priority` **열**이 언제나 모두 있다(ADR-0053 §1·§4 갱신, ADR-0067 결정 1, spec §7.1·§8). 앞 다섯의 뜻과 소유자는 바뀌지 않았다.
 - **제공자 부재와 실제 0은 다르다.** 소유 모듈이 등록되지 않았으면 `count=null`·`unavailable_reason="provider_absent"`이고, screening이 있어도 누적 범위(아래 "발주계획 목록 누적 모드")에 완료된 C-2 운영 실행이 하나도 없으면 `count=null`·`unavailable_reason="no_completed_execution"`이다. 오늘 실행이 없다는 이유로 `null`이 되지 않는다. 셀 수 있었다면 정수와 `unavailable_reason=null`이다. `null`을 0으로, 0을 `null`로 접지 않는다.
 - 각 건수의 소유자는 모듈이다. `order_plan_pending`은 screening이 `GET /api/order-plans`의 누적 모드(`source_run_id` 없음) 범위와 같은 필터(`stage1_status=selected`, `qwen_relevance=relevant,uncertain`, `tracking_status=미선택`)로, `pre_spec_deep_review_ready`는 deep_review가 `GET /api/pre-specs?auto_preparation_status=deep_review_ready_for_click&sw_only=false`와 같은 집합으로, `bid_final_decision_pending`은 deep_review가 `GET /api/bid-delta/decision-queue?status=pending`의 `total`과 같은 값으로 센다. `tracking_action_required`와 `tracking_hold_review_due`는 lifecycle이 각각 `GET /api/opportunities`의 `조치 필요` 구역, `hold_review=overdue` 건수와 같은 첫 일치 규칙으로 직접 센다.
+- **2026-09-22에 더한 네 키도 짝지은 목록 호출의 `total`과 같은 값이다.** 소비자는 건수를 목록 페이지에서 다시 세지 않는다.
+
+  | 키 | 소유 | 같은 값을 내는 목록 호출 |
+  |---|---|---|
+  | `tracking_deadline_imminent` | lifecycle 직접 | `GET /api/opportunities?deadline_within_days=7` |
+  | `overview_human_review` | deep_review 제공자 | `GET /api/pre-specs?overview_view=failed&sw_only=false`와 `overview_view=attention`(나머지 인자는 기본값) 두 `total`의 합 |
+  | `blocking_items_open` | lifecycle 직접 | `GET /api/opportunities?reason=blocking_item` |
+  | `order_plan_new_priority` | screening 제공자 | `GET /api/order-plans?qwen_relevance=relevant&tracking_status=미선택&first_observed_from=<요청 시각 KST 일자 −1일>` |
+
+- **`human_check_required`는 측정값이 아니라 두 하위 건수(`overview_human_review` + `blocking_items_open`)의 합이다.** 세는 단위가 서로 다르므로(개요는 **사전규격 공고**, 확인 항목은 **사업기회**) 소비자는 합계만 보여 주지 않고 두 하위 건수를 함께 적는다. **하나라도 `null`이면 합계도 `null`**이고 이때 `unavailable_reason="sub_count_unavailable"`이다 — 제공자 부재를 0으로 접어 "확인할 일 없음"으로 말하지 않는다(ADR-0067 결정 5).
+- `tracking_deadline_imminent`의 창은 고정 7일이고 기준 시각은 `generated_at`이다. `order_plan_new_priority`의 "새로"는 관측 행의 최소 시각(`first_observed_at`)이 요청 시각 KST 일자의 **전일** 00:00 이상인 건이며 상한은 없다 — 일일 수집이 아침에 돌므로 당일 도착분도 "새로"에 든다. 건수와 목록은 서로 다른 요청이라 몇 초 차이가 날 수 있으므로, 소비자는 건수를 목록 길이로 덮거나 목록이 비었다고 건수를 0으로 고치지 않는다(ADR-0067 결정 7). `order_plan_new_priority`는 `relevant` 하나로 좁히고 `order_plan_pending`은 `relevant,uncertain`이므로 두 값은 서로 다르며 대신하지 않는다.
 - 심층 검토 목록 item은 `deep_review_id`, `notice_id`, nullable `notice_title`, `status`, nullable `quality_status`, `created_at`, nullable `current_attempt_status`, nullable `latest_final_opinion={value, decided_at}`다. 사업기회에 연결된 공고를 중복 제거해 읽으며 후보 링크도 포함한다 — 이 목록은 안전한 색인이지 소유권 확정이 아니다. 생성 시각 내림차순이고, 사업기회가 있고 실행이 없으면 200 빈 목록, 사업기회가 없으면 404다. `quality_status`의 `null`·참조·mock 의미를 승격하지 않는다.
 - 최종 결정 큐 item은 `opportunity_id`, nullable `title`, nullable `agency`, `tracking_status`, `first_registered_stage`, `recheck_signal`, nullable `bid_notice_external_id`, 정수 `comparison_count`, nullable `latest_final_decision={decision, decided_at, claimed_name}`, `decision_currentness=current|stale|unknown`이다. `pending`은 active·`계속 추적`·권위 있는 입찰공고 연결이면서 최종 결정이 없거나 그 결정이 `stale`인 건이다. 미결정 `unknown`은 포함하고 기결정 `unknown`은 제외한다. `all`은 입찰공고 미연결 건도 포함한다. 전체를 판정한 뒤 페이지를 자르며 미결정 우선·최근 등록순으로 정렬한다.
 - `GET /api/pre-specs`의 `auto_preparation_status`는 응답 필드와 같은 어휘의 optional 필터다. 기존 조건에 AND하며 `total`·`overview_status_counts`·페이지가 **같은 집합**을 읽는다. 제공자(deep_review)가 없으면 빈 집합이고, 그 빈 집합을 "제한하지 않음"으로 바꾸지 않는다. 인자를 주지 않으면 필터가 없다.
@@ -1189,7 +1212,7 @@ policy rejection은 retry하지 않는다. 재시도 후에도 결과가 없으�
 
 | method / path | 요청 | 성공 응답의 필수 field | 안정 오류 |
 |---|---|---|---|
-| `GET /api/order-plans` | `source_run_id?`, `stage1_status?`, `stage2_status?`, `qwen_relevance?`, `human_relevance?`, `q?`, `limit=1..500`, `offset>=0` | `items`, `total`, `limit`, `offset`; item은 `order_plan_pk`, `order_plan_unty_no`, nullable 공개 `source_url`, title, agency, nullable `budget_amount`·`planned_order_year`·`planned_order_month`, source run/observation, BM25 stage status/rank/score/`nearest_capability`, Qwen stage status/score/label/reason, latest human feedback summary, 결과를 낸 `execution_id`·`policy_version`, `first_observed_at`, nullable `contract_method`·`notice_posted`(수집 원문 `Y`/`N`); `source_run_id`가 없으면 누적 모드(`order-plan-list-response.v5`, "발주계획 목록 누적 모드") | `invalid_request(422)` |
+| `GET /api/order-plans` | `source_run_id?`, `stage1_status?`, `stage2_status?`, `qwen_relevance?`, `human_relevance?`(값 `missing`은 "사람 피드백 행 자체가 없음"), `tracking_status?`, `first_observed_from?`(KST 날짜, 포함 하한), `issue?`, `q?`, `limit=1..500`, `offset>=0` | `items`, `total`, `limit`, `offset`; item은 `order_plan_pk`, `order_plan_unty_no`, nullable 공개 `source_url`, title, agency, nullable `budget_amount`·`planned_order_year`·`planned_order_month`, source run/observation, BM25 stage status/rank/score/`nearest_capability`, Qwen stage status/score/label/reason, latest human feedback summary, 결과를 낸 `execution_id`·`policy_version`, `first_observed_at`, nullable `contract_method`·`notice_posted`(수집 원문 `Y`/`N`); `source_run_id`가 없으면 누적 모드(`order-plan-list-response.v5`, "발주계획 목록 누적 모드") | `invalid_request(422)` |
 | `GET /api/order-plans/{order_plan_pk}` | path PK | 누적 plan metadata(`budget_amount`, planned year/month, nullable 공개 `source_url`, nullable `supervising_agency_name`·`procurement_method`·`contract_method`·`notice_posted`·`bid_ntice_no_list`·`published_at` 포함)와 `screening_history`, latest result/feedback; 내부 source path·object key는 반환하지 않음 | `not_found(404)` |
 | `GET /api/order-plans/{order_plan_pk}/screening-history` | path PK | `order_plan_pk`, `items[]`; item은 execution/binding digest, status, BM25 `nearest_capability`, result `batch_id`·`attempt_no`, stage result, feedback revision count, 실행 행의 `execution_purpose=operational\|gate_measurement`와 nullable `execution_started_at`·`execution_finished_at` | `not_found(404)` |
 | `POST /api/order-plan-screening/executions` | actor header 필수, optional `X-BidOps-Trigger: daily_script\|manual_resume\|gate_measurement`(없음 = 사람 수동 운영 실행), `execution-create-request.v1`의 `{schema_version, producer, consumer, request_id, source_run_id, policy_version}`(본문 불변) | first request `202`: `execution-create-response.v1`의 provenance와 `execution_id`, `request_id`, `source_run_id`, `policy_version`, `status=대기`, binding digest, `execution_allowed`; 같은 request ID와 같은 payload는 원래 `202` body를 replay(헤더는 hash에 들어가지 않는다) | `actor_name_required`·`actor_name_invalid`(400), `invalid_request`(422, 알 수 없는 트리거 값·측정 회차가 아닌 `gate_measurement` 포함), `source_run_incomplete`, `policy_not_active`, `binding_mismatch`, `daily_trigger_off`, `idempotency_conflict`, `active_execution_exists` (`409`), transport unavailable (`503`) — "실행 트리거 헤더와 게이트" |

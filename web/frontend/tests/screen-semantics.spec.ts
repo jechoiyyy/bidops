@@ -1,178 +1,19 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 import {
   mockDeepReviewQuality,
   mockOpportunity,
   mockPreSpecAutoDetail,
-  type PreSpecAutoDetailState,
+  mockPreSpecMatrix,
   mockWorkload,
 } from "./api-mock";
 import { installScreenFixtures } from "./screen-fixtures";
-import type { PreSpecDisplayAssessment, PreSpecListItem } from "../src/lib/types";
+import fixtures from "./fixtures/api.json" with { type: "json" };
 
 // 의미 층 — 화면이 업무 상태를 어떻게 말하는지 본다. 값 없음·미확인·계산 불가·0의
 // 구분, 감사 누락의 분모를 추정하지 않기, 승인 게이트가 담당자 없이 열리지 않기가
 // 여기 있다. 폭과 무관하므로 한 폭에서만 돈다.
 //
 // 세 층의 구분과 게이트는 `docs/standards.md`에 있다.
-
-// bda1288(사전규격 개요 예비 적합성 평가): `display_assessment`가 새 필수
-// 필드로 생겼다. 이 파일 소유 밖인 `api-mock.ts`의 공유 fixture
-// (`mockPreSpecMatrix`·`mockPreSpecAutoDetail`)는 이 필드를 주지 않거나
-// (매트릭스) top-level `grade`/`grade_source`만 상태에 맞추고 `display_assessment`는
-// 고정값으로 남겨 둔다(자동 상세). 공유 파일은 고치지 않고 이 파일에 한정해
-// 같은 항목을 display_assessment까지 채워 다시 만든다.
-function displayAssessmentFor(
-  grade: string | null,
-  source: PreSpecDisplayAssessment["source"],
-  latestRunStatus: PreSpecDisplayAssessment["latest_run_status"] = null,
-): PreSpecDisplayAssessment {
-  return {
-    grade: grade as PreSpecDisplayAssessment["grade"],
-    status: grade === null ? "none" : "graded",
-    source: grade === null ? "none" : source,
-    basis_run_id: null,
-    assessed_at: null,
-    quality_status: null,
-    reason_codes: [],
-    axes: [],
-    verification_items: [],
-    semantic_status: null,
-    semantic_scope: [],
-    latest_run_status: latestRunStatus,
-  };
-}
-
-// 등급 4값과 `판정 없음`, 자동 준비 8값을 한 응답에 담는 표본
-// (api-mock.ts `AUTO_PREPARATION_MATRIX`와 같은 배정).
-const AUTO_PREPARATION_MATRIX = [
-  { status: "not_applicable", grade: null, reason: "grade_not_priority", deepReviewId: null },
-  { status: "waiting_attachments", grade: "우선 검토", reason: "awaiting_fetch", deepReviewId: null },
-  { status: "bundle_draft", grade: "우선 검토", reason: "human_bundle_draft", deepReviewId: null },
-  { status: "bundle_ready", grade: "검토 권장", reason: null, deepReviewId: null },
-  { status: "overview_running", grade: "검토 권장", reason: "overview_not_completed", deepReviewId: null },
-  { status: "deep_review_started", grade: "우선 검토", reason: null, deepReviewId: "fixture-review" },
-  { status: "deep_review_ready_for_click", grade: "관찰 대상", reason: "bundle_not_auto_ready", deepReviewId: null },
-  { status: "blocked", grade: "제외", reason: "bundle_has_blocking_issues", deepReviewId: null },
-] as const;
-
-async function mockPreSpecMatrixFixed(page: Page): Promise<void> {
-  const items: PreSpecListItem[] = AUTO_PREPARATION_MATRIX.map((entry, index) => ({
-    review_exclusion_status: "included",
-    review_exclusion_actor_name: null,
-    review_exclusion_reason: null,
-    review_exclusion_changed_at: null,
-    notice_pk: 8001 + index,
-    pre_spec_no: `PRE-${8001 + index}`,
-    title: `자동 준비 표본 ${index + 1}`,
-    agency: "표본 발주기관",
-    published_at: "2026-08-30T00:00:00Z",
-    deadline_at: "2026-09-10T00:00:00Z",
-    budget: 100_000_000,
-    sw_business_status: "Y",
-    business_division: "일반용역",
-    origin: "신규",
-    opportunity_id: null,
-    tracking_status: null,
-    kept_by_tracking: false,
-    document: { attachments: 1, "완료": 1, "대기": 0, "진행": 0, "차단": 0, "실패": 0 },
-    overview_review_status: "needs_human_review",
-    grade: entry.grade,
-    grade_source: entry.grade === null ? null : "screening_judgment",
-    display_assessment: displayAssessmentFor(entry.grade, "screening_judgment", "needs_human_review"),
-    auto_preparation_status: entry.status,
-    auto_preparation_reason: entry.reason,
-    latest_deep_review_id: entry.deepReviewId,
-    first_observed_at: `2026-09-${String(10 + index).padStart(2, "0")}T00:00:00Z`,
-    last_observed_at: `2026-09-${String(10 + index).padStart(2, "0")}T00:00:00Z`,
-    next_action: entry.status === "deep_review_ready_for_click" ? "open_deep_review" : "confirm_overview",
-  } as PreSpecListItem));
-  await page.route("**/api/pre-specs**", async (route) => {
-    const url = new URL(route.request().url());
-    if (url.pathname !== "/api/pre-specs" || route.request().method() !== "GET") {
-      await route.fallback();
-      return;
-    }
-    // 실제 화면은 `display_grade`를 보내지 `grade`를 보내지 않는다(PreSpecsPage.tsx).
-    const displayGrade = url.searchParams.get("display_grade");
-    const shown = displayGrade
-      ? items.filter((item) => displayGrade === "판정 없음"
-        ? item.display_assessment.status === "none"
-        : item.display_assessment.grade === displayGrade)
-      : items;
-    await route.fulfill({
-      json: {
-        items: shown,
-        total: shown.length,
-        limit: 200,
-        offset: 0,
-        overview_status_counts: [{ status: "needs_human_review", count: shown.length }],
-        workspace_counts: { actionable: shown.length, recent: shown.length, tracking: 0, all: shown.length },
-        deadline_scope_counts: { current: shown.length, passed: 0 },
-      },
-    });
-  });
-}
-
-// `mockPreSpecAutoDetail`(api-mock.ts)은 top-level `grade`/`grade_source`만
-// state에 맞춰 바꾸고 `display_assessment`는 base 표본(우선 검토·screening_judgment)
-// 고정값으로 남긴다. 화면은 이제 `display_assessment`를 그리므로(bda1288) 여기서
-// 같은 단일 항목을 state에 맞는 display_assessment로 다시 덮는다.
-async function mockPreSpecAutoDetailFixed(page: Page, state: PreSpecAutoDetailState): Promise<void> {
-  await mockPreSpecAutoDetail(page, state);
-  const grade = state === "corrected" ? "관찰 대상" : "우선 검토";
-  const gradeSource: "screening_judgment" | "human_review" = state === "started" ? "screening_judgment" : "human_review";
-  const item: PreSpecListItem = {
-    review_exclusion_status: "included",
-    review_exclusion_actor_name: null,
-    review_exclusion_reason: null,
-    review_exclusion_changed_at: null,
-    notice_pk: 991,
-    pre_spec_no: "PRE-991",
-    title: "안전한 문서 준비 사전규격",
-    agency: "테스트 조달기관",
-    published_at: "2026-08-30T00:00:00Z",
-    deadline_at: "2026-09-02T00:00:00Z",
-    budget: 510_000_000,
-    sw_business_status: "N",
-    business_division: "일반용역",
-    origin: "추적",
-    opportunity_id: 202,
-    tracking_status: "계속 추적",
-    kept_by_tracking: true,
-    document: { attachments: 3, "완료": 2, "대기": 1, "진행": 0, "차단": 0, "실패": 0 },
-    overview_review_status: "completed",
-    grade,
-    grade_source: gradeSource,
-    display_assessment: displayAssessmentFor(grade, gradeSource, "completed"),
-    auto_preparation_status: state === "started" ? "deep_review_started" : "deep_review_ready_for_click",
-    auto_preparation_reason: state === "started" ? null : "bundle_not_auto_ready",
-    latest_deep_review_id: state === "started" ? "fixture-review" : null,
-    first_observed_at: "2026-09-14T00:00:00Z",
-    last_observed_at: "2026-09-15T00:00:00Z",
-    next_action: "confirm_overview",
-  };
-  await page.route("**/api/pre-specs**", async (route) => {
-    const request = route.request();
-    const url = new URL(request.url());
-    if (url.pathname !== "/api/pre-specs" || request.method() !== "GET") {
-      await route.fallback();
-      return;
-    }
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({
-        items: [item],
-        total: 1,
-        limit: 50,
-        offset: 0,
-        overview_status_counts: [{ status: "completed", count: 1 }],
-        workspace_counts: { actionable: 1, recent: 1, tracking: 1, all: 1 },
-        deadline_scope_counts: { current: 1, passed: 0 },
-      }),
-    });
-  });
-}
 
 const RUN_ID = "20260817-20260823--20260824T090927.138116Z";
 const ACTIVE_POLICY = "screening-policy.v1.20260825";
@@ -208,25 +49,6 @@ test("공통 셸이 로컬 글꼴과 기능 아이콘 접근성을 지킨다", a
   expect(unnamedButtons).toEqual([]);
 });
 
-test("대시보드의 마감 공고 링크가 상세와 회차를 함께 전달한다", async ({ page }) => {
-  await page.goto(`/?run=${encodeURIComponent(RUN_ID)}`);
-  const link = page.locator(".dash-notice-link").first();
-  await expect(link).toBeVisible();
-  const target = new URL(await link.getAttribute("href") ?? "", page.url());
-  expect(target.pathname).toMatch(/^\/judgments\/\d+$/);
-  expect(target.searchParams.get("run")).toBe(RUN_ID);
-  await link.click();
-  await expect.poll(() => new URL(page.url()).pathname).toBe(target.pathname);
-});
-
-test("대시보드 회차 요약이 API 집계와 별도 담당자 리뷰 수를 보여준다", async ({ page }) => {
-  await page.goto(`/?run=${encodeURIComponent(RUN_ID)}`);
-  await expect(page.getByRole("group", { name: "수집", exact: true })).toContainText("2,546건");
-  await expect(page.getByRole("group", { name: "후보 풀", exact: true })).toContainText("327건");
-  await expect(page.getByRole("group", { name: "판정 표본", exact: true })).toContainText("40건");
-  await expect(page.getByRole("group", { name: "담당자 리뷰", exact: true })).toContainText("0건");
-});
-
 test("대시보드는 네 업무를 한 줄에 두고 미확인을 작은 주석으로 표시한다", async ({ page }) => {
   await mockWorkload(page, { generated_at: "2026-09-01T09:00:00Z", items: [
     { key: "order_plan_pending", count: 24, unavailable_reason: null },
@@ -234,6 +56,11 @@ test("대시보드는 네 업무를 한 줄에 두고 미확인을 작은 주석
     { key: "tracking_action_required", count: null, unavailable_reason: "no_completed_execution" },
     { key: "tracking_hold_review_due", count: 2, unavailable_reason: null },
     { key: "bid_final_decision_pending", count: null, unavailable_reason: null },
+    { key: "tracking_deadline_imminent", count: 4, unavailable_reason: null },
+    { key: "human_check_required", count: 5, unavailable_reason: null },
+    { key: "overview_human_review", count: 2, unavailable_reason: null },
+    { key: "blocking_items_open", count: 3, unavailable_reason: null },
+    { key: "order_plan_new_priority", count: 6, unavailable_reason: null },
   ] });
   await page.goto(`/?run=${encodeURIComponent(RUN_ID)}`);
   const decisions = page.locator(".dash-journey-item");
@@ -247,8 +74,6 @@ test("대시보드는 네 업무를 한 줄에 두고 미확인을 작은 주석
   await expect(unavailable).toHaveCount(3);
   const sizes = await unavailable.evaluateAll(values => values.map(value => Number.parseFloat(getComputedStyle(value).fontSize)));
   for (const size of sizes) expect(size).toBe(10.8);
-  const context = page.getByRole("region", { name: "회차 자료 범위" });
-  expect(await context.evaluate(item => item.getBoundingClientRect().top)).toBeGreaterThan(rows[0]);
 });
 
 test("흡수한 마감·감사 경로가 기존 쿼리를 보존한다", async ({ page }) => {
@@ -272,34 +97,6 @@ test("흡수한 마감·감사 경로가 기존 쿼리를 보존한다", async (
   params = new URL(page.url()).searchParams;
   expect(params.get("run")).toBe(RUN_ID);
   expect(params.get("from")).toBe("review");
-});
-
-test("담당자 확인 요청을 펼치고 접을 수 있다", async ({ page }) => {
-  await page.goto(`/?run=${encodeURIComponent(RUN_ID)}`);
-  const list = page.locator("#dashboard-verification-list");
-  const toggle = page.locator("[aria-controls=dashboard-verification-list]");
-  await expect(list.locator("li")).toHaveCount(3);
-  await toggle.click();
-  await expect(toggle).toHaveAttribute("aria-expanded", "true");
-  await expect(toggle).toHaveText("접기");
-  expect(await list.locator("li").count()).toBeGreaterThan(3);
-});
-
-test("담당자 확인 요청 프로필 링크가 선택한 회차를 보존한다", async ({ page }) => {
-  await page.goto(`/?run=${encodeURIComponent(RUN_ID)}`);
-  await page.getByRole("link", { name: "회사 프로필", exact: true }).click();
-  await expect.poll(() => new URL(page.url()).pathname).toBe("/profile");
-  expect(new URL(page.url()).searchParams.get("run")).toBe(RUN_ID);
-});
-
-test("감사 누락 수는 보존하고 확인할 수 없는 분모를 추정하지 않는다", async ({ page }) => {
-  await page.goto(`/?run=${encodeURIComponent(RUN_ID)}`);
-  const candidateKpi = page.getByRole("group", { name: "후보 풀", exact: true });
-  await expect(candidateKpi).toContainText("327");
-  await expect(candidateKpi).not.toContainText("감사 풀");
-  const kpi = page.getByRole("group", { name: "1차 필터 누락" });
-  await expect(kpi).toContainText("5건");
-  await expect(kpi).toContainText("감사 표본 분모 미확인");
 });
 
 test("프로필의 불완전한 응답은 상태와 미확인을 0으로 확정하지 않는다", async ({ page }) => {
@@ -487,7 +284,7 @@ const AUTO_PREPARATION_LABELS = [
 ];
 
 test("사전규격 선택 상세가 등급 4값과 판정 없음, 자동 준비 8값을 문자로 보여준다", async ({ page }) => {
-  await mockPreSpecMatrixFixed(page);
+  await mockPreSpecMatrix(page);
   await page.goto("/pre-specs");
   const rows = page.locator(".pre-specs-row");
   await expect(rows).toHaveCount(8);
@@ -501,7 +298,7 @@ test("사전규격 선택 상세가 등급 4값과 판정 없음, 자동 준비 
 });
 
 test("사전규격 등급 필터는 URL과 동기화되고 서버 전체 건수를 줄인다", async ({ page }) => {
-  await mockPreSpecMatrixFixed(page);
+  await mockPreSpecMatrix(page);
   await page.goto("/pre-specs");
   await expect(page.locator(".pre-specs-list").first()).toBeVisible({ timeout: 10_000 });
 
@@ -528,7 +325,7 @@ test("사전규격 등급 필터는 URL과 동기화되고 서버 전체 건수�
 });
 
 test("사전규격 상세가 등급 출처와 자동 준비 네 단계를 한 줄로 말한다", async ({ page }) => {
-  await mockPreSpecAutoDetailFixed(page, "started");
+  await mockPreSpecAutoDetail(page, "started");
   await page.goto("/pre-specs/991");
 
   const steps = page.locator(".pre-spec-auto-steps");
@@ -549,7 +346,7 @@ test("사전규격 상세가 등급 출처와 자동 준비 네 단계를 한 �
 });
 
 test("클릭 대기 상태는 보고서 링크 대신 기존 심층 검토 실행 동선을 준다", async ({ page }) => {
-  await mockPreSpecAutoDetailFixed(page, "ready_for_click");
+  await mockPreSpecAutoDetail(page, "ready_for_click");
   await page.goto("/pre-specs/991");
 
   const steps = page.locator(".pre-spec-auto-steps");
@@ -567,7 +364,7 @@ test("클릭 대기 상태는 보고서 링크 대신 기존 심층 검토 실�
 // 하나만 보이고, notice의 판정 등급을 라벨 없이 함께 두지 않는다 — 어느 쪽이
 // 현재 값인지 읽는 사람이 알 수 없게 되기 때문이다.
 test("사전규격 상세는 정정된 현재 등급 하나만 보여준다", async ({ page }) => {
-  await mockPreSpecAutoDetailFixed(page, "corrected");
+  await mockPreSpecAutoDetail(page, "corrected");
   await page.goto("/pre-specs/991");
   await expect(page.locator(".pre-spec-detail-grade-row")).toBeVisible({ timeout: 10_000 });
 
@@ -646,4 +443,87 @@ test("자동 심층 검토가 있어도 사업 추적 화면은 미선택을 그
   await expect(page.getByText("미선택").first()).toBeVisible();
   // 자동 심층 검토를 위한 새 구역을 만들지 않는다.
   await expect(page.getByText("자동 심층 검토", { exact: false })).toHaveCount(0);
+});
+
+// F2 · spec §6.3 — 입찰공고 상세의 금액 두 칸·개찰·유사 실적.
+//
+// 원문 `budget`은 배정예산 → 추정가격 → 기초금액 순으로 채워진 값이므로
+// ('배정예산'이 아니다) `추정가격`과 **값이 같아도 한 칸으로 합치지 않는다**.
+// 개찰일시는 `lifecycle.opening_at`이고 값이 없는 회차에는 키 자체가 없다.
+// 유사 실적은 출처가 둘이며(수집 탐색 신호·판정 검토 결과) 구조가 달라 표를
+// 나눈다 — 비어 있으면 `대조된 실적 없음`이다.
+async function noticeFacts(page: import("@playwright/test").Page): Promise<Record<string, string>> {
+  return page.locator(".notice-facts").evaluate((list) => {
+    const entries: Record<string, string> = {};
+    const nodes = [...list.children];
+    for (let index = 0; index + 1 < nodes.length; index += 2) {
+      entries[(nodes[index].textContent ?? "").trim()] = (nodes[index + 1].textContent ?? "").trim();
+    }
+    return entries;
+  });
+}
+
+test("입찰공고 상세는 예산과 추정가격을 따로 두고 개찰 없음과 대조된 실적 없음을 구분한다", async ({ page }) => {
+  await page.goto(`/judgments/29?run=${encodeURIComponent(RUN_ID)}`);
+  await expect(page.locator(".notice-facts")).toBeVisible({ timeout: 10_000 });
+
+  const facts = await noticeFacts(page);
+  // 서로 다른 두 값이 각자의 칸에 남는다.
+  expect(facts["예산 (원문 제공 금액)"]).toBe("182,050,000원");
+  expect(facts["추정가격"]).toBe("165,500,000원");
+  // 이 회차 snapshot에는 `opening_at` 키가 없다(적재기가 null을 넣지 않는다).
+  expect(facts["개찰"]).toBe("미제공");
+  // R3가 고친 지역 제한 표기는 그대로다.
+  expect(facts["지역·참가제한"]).toContain("지역 제한 미확인");
+
+  const performance = page.locator(".performance-matches-panel");
+  await expect(performance.getByRole("heading", { name: "유사 실적 · 회사 실적과 대조" })).toBeVisible();
+  // 두 출처가 모두 비었으면 한 번만 말한다. 실제 0인 최고 유사도를 값 없음으로 바꾸지 않는다.
+  await expect(performance.getByText("대조된 실적 없음")).toHaveCount(1);
+  await expect(performance.locator(".panel-note")).toHaveText("최고 유사도 0.00");
+  await expect(performance.locator("table")).toHaveCount(0);
+});
+
+test("유사 실적은 수집 탐색 신호와 판정 검토 결과를 따로 두고 예산·추정가격이 같아도 두 칸이다", async ({ page }) => {
+  const source = fixtures["/api/notices/6"] as Record<string, unknown>;
+  await page.route("**/api/notices/6", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      // 같은 값이어도 합치지 않는지, 개찰 키가 있으면 일시를 읽는지 함께 본다.
+      body: JSON.stringify({
+        ...source,
+        budget: source.estimated_price,
+        lifecycle: { ...(source.lifecycle as Record<string, unknown>), opening_at: "2026-10-02T06:00:00+09:00" },
+      }),
+    });
+  });
+  await page.goto(`/judgments/6?run=${encodeURIComponent(RUN_ID)}`);
+  await expect(page.locator(".notice-facts")).toBeVisible({ timeout: 10_000 });
+
+  const facts = await noticeFacts(page);
+  expect(facts["예산 (원문 제공 금액)"]).toBe("409,090,909원");
+  expect(facts["추정가격"]).toBe("409,090,909원");
+  expect(facts["개찰"]).toContain("2026");
+  expect(facts["개찰"]).not.toBe("미제공");
+
+  const performance = page.locator(".performance-matches-panel");
+  await expect(performance.locator(".panel-note")).toHaveText("최고 유사도 0.67");
+  await expect(performance).toContainText("유사도는 수집 단계의 모델 점수이며 판단 보조입니다.");
+  await expect(performance.getByText("대조된 실적 없음")).toHaveCount(0);
+
+  const retrieved = performance.locator(".performance-matches-block").filter({ hasText: "수집 탐색 신호" }).locator("tbody tr");
+  await expect(retrieved).toHaveCount(1);
+  await expect(retrieved.first()).toContainText("블록체인 실증서비스 개발지원사업");
+  // 유사도는 소수 2자리 모델 점수다.
+  await expect(retrieved.first().locator("td").nth(1)).toHaveText("0.67");
+  await expect(retrieved.first()).toContainText("42쪽");
+  // `legal_qualification_status`는 확인 자료가 없어 항상 unknown이고 `미확인`으로 읽는다.
+  await expect(retrieved.first().locator("td").nth(4)).toHaveText("미확인");
+
+  const judged = performance.locator(".performance-matches-block").filter({ hasText: "판정 검토 결과" }).locator("tbody tr");
+  await expect(judged).toHaveCount(1);
+  // 유사도가 설명하지 못하는 차이를 숨기지 않는다.
+  await expect(judged.first()).toContainText("요구 기능이 다르며");
+  await expect(judged.first().locator("td").nth(4)).toHaveText("미확인");
 });

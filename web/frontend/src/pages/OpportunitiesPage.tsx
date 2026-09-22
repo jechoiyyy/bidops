@@ -18,6 +18,7 @@ import {
   nextCheckNote,
   nextCheckOf,
   primaryAgency,
+  primaryLinkSummary,
   primaryTitle,
   rowPrimaryAction,
   type OpportunityDetailIntent,
@@ -276,6 +277,7 @@ export function OpportunitiesPage() {
       renderCell: (item) => {
         const present = actionReasonsOf(item);
         const hold = holdReviewText(item, now);
+        const linkSummary = primaryLinkSummary(item);
         const chips = ACTION_REASON_ORDER.filter((code) => present.includes(code));
         // 모르는 사유 코드는 감추지 않고 뒤에 그대로 붙인다.
         const unknown = present.filter((code) => !ACTION_REASON_ORDER.includes(code));
@@ -293,6 +295,12 @@ export function OpportunitiesPage() {
                 <span className="opportunity-caption">{latestConfirmedStage(item.links)}</span>
                 <span className="opportunity-caption">·</span>
                 <span className="opportunity-caption">{item.tracking_status}</span>
+                {linkSummary ? (
+                  <>
+                    <span className="opportunity-caption">·</span>
+                    <span className="opportunity-caption">{linkSummary}</span>
+                  </>
+                ) : null}
               </span>
             </button>
             {chips.length + unknown.length > 0 || hold ? (

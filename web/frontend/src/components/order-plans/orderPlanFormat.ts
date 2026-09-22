@@ -71,6 +71,52 @@ export function budgetValue(value: number | null): string {
 }
 
 /**
+ * 상세 전용 값(상세 응답만 싣는 값)의 세 가지 빈 상태를 구분한다(spec §1.1).
+ *
+ * - `불러오는 중`: 아직 상세 응답이 없다. 값이 없다는 뜻이 아니다.
+ * - `미확인`: 상세 조회가 실패해 **확인하지 못했다**. `미제공`으로 낮추지 않는다.
+ * - `미제공`: 서버가 `null`을 줬다.
+ *
+ * 세 상태를 한 문구로 뭉개지 않는다 — 서버가 값을 주지 않은 것과 화면이 값을 받지
+ * 못한 것은 서로 다른 사실이다.
+ */
+export function detailFactValue(
+  value: string | null | undefined,
+  /** 목록이 이미 준 값(계약방법 등)은 기다릴 것이 없으므로 기본값 그대로 쓴다. */
+  state: { pending: boolean; failed: boolean } = { pending: false, failed: false },
+): string {
+  if (state.pending) return "불러오는 중";
+  if (state.failed) return "미확인";
+  return value && value.trim() ? value : "미제공";
+}
+
+/**
+ * 공고 게시 여부. 수집 원문 `ntceNticeYn`의 `Y`/`N`이며 bool이 아니다(contracts.md
+ * "발주계획 목록·상세 실무 field"). `null`은 `N`이 아니라 미제공이고, `Y`·`N` 밖의
+ * 값은 뜻을 추정하지 않고 원문 그대로 적는다.
+ */
+export function noticePostedLabel(value: string | null | undefined): string {
+  if (value === null || value === undefined) return "미제공";
+  const raw = value.trim();
+  if (raw === "Y") return "게시됨";
+  if (raw === "N") return "아직 없음";
+  return raw ? raw : "미제공";
+}
+
+/**
+ * 행의 추적 결정 칩(M5 ① 승인). 사람이 내린 세 결정(`계속 추적`·`보류`·`종료`)은 값
+ * 그대로 보이고, `미선택`과 계약상 값이 없는 경우는 **결정하지 않았다**는 사실로
+ * 적는다. 결정 없음은 추적 종료가 아니다.
+ *
+ * 값이 없는 이유(계약 없음·소유 사업기회 미확인)의 구분은 상세 pane이 진다
+ * (`trackingStatusLabel`) — 밀집 행은 결정 유무만 말한다.
+ */
+export function trackingChipLabel(item: Pick<OrderPlanListItem, "tracking">): string {
+  const status = item.tracking?.tracking_status ?? null;
+  return status === null || status === "미선택" ? "추적 미선택" : status;
+}
+
+/**
  * 1차 선별 결과의 문구(0921 명세 §3.1). 모델·알고리즘 이름(`BM25`)은 실무 화면에서
  * 쓰지 않고 운영 화면(`/runs`의 `발주계획 선별` 탭)이 진다.
  *

@@ -1,6 +1,25 @@
 import { expect, test, type Page } from "@playwright/test";
 import { mockApi } from "./api-mock";
 import { comparisonFor, mockGoNoGo, mockWorkspaceRecovery, queueItemFor, SCENARIOS } from "./go-no-go-fixtures";
+import { describeDeadline, shortDateLabel } from "../src/lib/deadline";
+import { formatNumber } from "../src/lib/format";
+
+// F3(spec §6.3): 화면의 `deadlineCellLabel`과 같은 계산을 여기서도 `describeDeadline`·
+// `shortDateLabel`(둘 다 화면이 실제로 쓰는 `lib/deadline.ts` export)로 다시 만들어
+// "오늘" 값에 기대 문자열이 흔들리지 않게 한다. `D-n` 숫자를 하드코딩하면 실행 날짜가
+// 지날수록 fixture(`2026-09-${20 + index % 5}`)와 어긋나 깨진다.
+function expectedDeadlineCell(value: string | null): string {
+  const deadline = describeDeadline(value);
+  if (!value || deadline.urgency === "none") return "마감 미제공";
+  if (deadline.urgency === "passed") return deadline.label;
+  const days = Math.ceil((new Date(value).getTime() - Date.now()) / 86_400_000);
+  const shortDate = shortDateLabel(value);
+  return shortDate ? `D-${days} · ${shortDate}` : `D-${days}`;
+}
+
+function expectedEstimatedPrice(value: string | null): string {
+  return value === null ? "미제공" : `${formatNumber(Number(value))}원`;
+}
 
 /**
  * 최종 Go/No-Go 결정 검토 목록.
@@ -470,4 +489,50 @@ test("선택한 사업의 상세 조회 실패는 그 조회를 다시 불러 �
   await expect(page.getByRole("heading", { name: "비교·결정 상세를 불러오지 못했습니다" })).toHaveCount(0);
   await expect(page.locator(".gng-delta-counts")).toBeVisible();
   await expect(page.getByRole("button", { name: "다시 조회", exact: true })).toHaveCount(0);
+});
+
+// M5 ④(spec §6.3): 입찰 마감 열과 발주기관 줄의 추정가격. 서버가 이미 마감순으로
+// 주므로(§3.10) 화면이 다시 정렬하지 않는다는 것은 다른 spec(대기열 order)이 아니라
+// 여기서는 셀 표기만 본다.
+test("입찰 마감 열은 D-n·짧은 날짜를 적고 발주기관 줄에는 추정가격이 붙는다", async ({ page }) => {
+  await openList(page, "?show=all");
+
+  // 입찰공고가 연결된 사업(index 3)은 마감·추정가격 값이 있다.
+  const linked = queueItemFor(3);
+  const linkedRow = rows(page).filter({ hasText: linked.title });
+  await expect(linkedRow.locator(".gng-deadline-cell")).toHaveText(expectedDeadlineCell(linked.deadline_at));
+  await expect(linkedRow.locator(".gng-row-agency")).toContainText(`추정가격 ${expectedEstimatedPrice(linked.estimated_price)}`);
+
+  // 입찰공고가 연결되지 않은 사업(index 10)은 마감·예산·추정가격이 모두 서버가
+  // 값을 안 준 것이므로 `미확인`이 아니라 `미제공`이다(spec §1.1).
+  const unlinked = queueItemFor(10);
+  const unlinkedRow = rows(page).filter({ hasText: unlinked.title });
+  await expect(unlinkedRow.locator(".gng-deadline-cell")).toHaveText("마감 미제공");
+  await expect(unlinkedRow.locator(".gng-row-agency")).toContainText("추정가격 미제공");
+});
+
+// 3일 이내 강조는 fixture의 고정 날짜가 아니라 실행 시각 기준 상대 날짜로 만들어
+// "오늘" 값과 무관하게 항상 검증되게 한다. 7일을 넘는 마감도 `describeDeadline`이
+// 목록 두 줄 표시용으로는 D-n을 주지 않는 구간이라 별도로 확인한다(§6.3 구현 주석).
+test("3일 이내 마감은 색·글자 굵기로 강조하고, 7일을 넘는 마감도 D-n을 그대로 적는다", async ({ page }) => {
+  await mockApi(page);
+  await mockGoNoGo(page, SLOW);
+  const soonDeadline = new Date(Date.now() + 2 * 86_400_000).toISOString();
+  const laterDeadline = new Date(Date.now() + 10 * 86_400_000).toISOString();
+  await page.route("**/api/bid-delta/decision-queue**", async (route) => {
+    const items = [
+      { ...queueItemFor(0), title: "합성 마감 임박 사업", deadline_at: soonDeadline },
+      { ...queueItemFor(1), title: "합성 마감 여유 사업", deadline_at: laterDeadline },
+    ];
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ items, total: items.length, limit: 500, offset: 0 }) });
+  });
+  await page.goto("/go-no-go?show=all");
+
+  const soonCell = rows(page).filter({ hasText: "합성 마감 임박 사업" }).locator(".gng-deadline-cell");
+  await expect(soonCell).toHaveClass(/gng-deadline-critical/);
+  await expect(soonCell).toHaveText(expectedDeadlineCell(soonDeadline));
+
+  const laterCell = rows(page).filter({ hasText: "합성 마감 여유 사업" }).locator(".gng-deadline-cell");
+  await expect(laterCell).not.toHaveClass(/gng-deadline-critical/);
+  await expect(laterCell).toHaveText(expectedDeadlineCell(laterDeadline));
 });

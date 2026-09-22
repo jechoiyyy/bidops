@@ -148,6 +148,39 @@ test.describe("실행 상태", () => {
     await expect(detail).toContainText("처리 완료와 품질 검증은 별도입니다");
   });
 
+  test("회차 상세는 대시보드에서 빠진 등급 분포와 검증 지표를 보여 주고 0으로 접지 않는다", async ({ page }) => {
+    await installRunStatusMock(page);
+    await gotoRuns(page);
+    const gradeSection = section(page, "적합성 등급 분포");
+    await expect(gradeSection).toContainText("우선 검토");
+    await expect(gradeSection).toContainText("6건");
+    await expect(gradeSection).toContainText("제외");
+    const gradeLink = gradeSection.getByRole("link", { name: "6건" });
+    await expect(gradeLink).toHaveAttribute("href", `/queue?run=${encodeURIComponent(RUN_ID)}&grade=${encodeURIComponent("우선 검토")}`);
+
+    const validationSection = section(page, "검증 지표");
+    // 감사 표본 누락은 0건이 아니고, 누락률 자체는 계산하지 않는다는 문구를 지우지 않는다.
+    await expect(validationSection).toContainText("214건");
+    await expect(validationSection).toContainText("감사 표본 분모 미확인 · 누락률 계산 불가");
+    // 계산 불가는 0%·0건으로 바뀌지 않는다.
+    await expect(validationSection).toContainText("계산 불가");
+    await expect(validationSection).toContainText("근거 74/120건");
+    await expect(validationSection.getByRole("link", { name: /검증 지표/ })).toHaveAttribute(
+      "href",
+      `/metrics?run=${encodeURIComponent(RUN_ID)}`,
+    );
+  });
+
+  test("등급 분포·검증 지표 조회 실패는 0건·계산 불가가 아니라 미확인으로 남는다", async ({ page }) => {
+    await installRunStatusMock(page, { runStatsError: true, validationMetricsError: true });
+    await gotoRuns(page);
+    const gradeSection = section(page, "적합성 등급 분포");
+    await expect(gradeSection).toContainText("불러오지 못했습니다");
+    const validationSection = section(page, "검증 지표");
+    await expect(validationSection).toContainText("미확인");
+    await expect(validationSection).toContainText("검증 지표를 불러오지 못했습니다");
+  });
+
   test("원본 회차와 게시된 파생 회차를 구분해 적는다", async ({ page }) => {
     await installRunStatusMock(page);
     await gotoRuns(page);
