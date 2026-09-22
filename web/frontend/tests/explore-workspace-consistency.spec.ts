@@ -29,10 +29,9 @@ interface RowTypeSpec {
   title: string;
   agency: string;
   /**
-   * 그 두 줄의 물리 글자 크기. 탐색 두 화면은 `--review-list-primary`(14.4px)를
-   * 읽고, 사업 추적은 시안 M1c A안이 그린 13.5px 단을 유지한다(`--opportunity-row-primary`).
-   * 두 값 중 어느 쪽이 네 화면의 정본인지는 아직 결정되지 않았다 — 여기서는 각 화면이
-   * 지금 지키기로 한 값을 못 박아 두고, 결정이 나면 한 값으로 모은다.
+   * 그 두 줄의 물리 글자 크기. 네 화면이 모두 공용 `--review-list-primary`(14.4px)를
+   * 읽는다(2026-09-21 M1c 승인, 명세 §2.4). selector는 행 구조가 화면마다 달라
+   * 화면이 주지만 값은 하나다.
    */
   size: string;
 }
@@ -108,20 +107,25 @@ const screens: ScreenSpec[] = [
     unifiedFrame: true,
     // 목록은 Astryx `Table`을 유지하고(M1c A안) 묶음 선택이 없어 열 이름 줄·선택
     // 도구줄 부품이 없다. 행 글자 단은 아래 `rowType`이 따로 본다.
-    rowType: { title: ".opportunity-row-title", agency: ".opportunity-row-agency", size: "13.5px" },
+    rowType: { title: ".opportunity-row-title", agency: ".opportunity-row-agency", size: "14.4px" },
     mock: (page) => mockOpportunities(page),
   },
   {
-    // 최종 Go/No-Go는 아직 자기 틀을 쓴다. 공용 골격으로 옮기면 위 사업 추적 행처럼
-    // selector를 `.review-split-workspace`·`.review-split-list`·`.review-list-head`·
-    // `.review-detail-head`로 바꾸고 `unifiedFrame: true`와 `rowType`을 채운다.
+    // 최종 Go/No-Go도 공용 분할 골격으로 옮겼다(C2). 사업 추적과 같이 selector가
+    // 공용 클래스인 것 자체가 그 사실을 검사한다.
     path: "/go-no-go",
     title: "최종 Go/No-Go",
-    workspace: ".gng-workspace",
-    listPane: ".gng-list-pane",
-    listHead: ".gng-list-head",
-    detailHead: ".gng-detail-head",
+    workspace: ".review-split-workspace",
+    listPane: ".review-split-list",
+    listHead: ".review-list-head",
+    detailHead: ".review-detail-head",
+    unifiedFrame: true,
+    // 목록은 Astryx `Table`을 유지하고(M1c A안) 묶음 선택이 없어 열 이름 줄·선택
+    // 도구줄 부품이 없다 — `unifiedListParts`는 켜지 않는다.
+    rowType: { title: ".gng-row-title", agency: ".gng-row-agency", size: "14.4px" },
     // 조회가 느린 시나리오가 응답을 붙들고 있어도 목록·상세 골격은 그려진다.
+    // `slowMs`는 **선택한 사업의 상세 조회**만 붙들고 대기열은 그대로 오므로
+    // 행(`.gng-row-*`)과 상세 머리는 그려진다.
     mock: (page) => mockGoNoGo(page, { slowMs: 60_000 }),
   },
 ];
