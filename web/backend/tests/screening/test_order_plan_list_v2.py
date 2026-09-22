@@ -518,7 +518,11 @@ def check_cumulative_projection(session):
     }
     assert service.has_cumulative_execution(session) is False
     assert all(item["execution_id"] is None for item in empty["items"])
-    assert workload.workload_counts(session) == {"order_plan_pending": WorkloadCount(None, "no_completed_execution")}
+    # screening이 소유한 두 키가 같은 사유로 `null`이다 — 그 사유를 0으로 접지 않는다.
+    absent = WorkloadCount(None, "no_completed_execution")
+    assert workload.workload_counts(session) == {
+        "order_plan_pending": absent, "order_plan_new_priority": absent,
+    }
 
     yesterday = direct_execution(session, "s8a-v3", runs["day1"].id, NOW + timedelta(hours=1))
     result(session, yesterday, a)
@@ -604,7 +608,10 @@ def check_cumulative_projection(session):
     assert "s8a-ref" not in listing["scope"]["activated_policy_versions"]
 
     # 워크로드는 누적 범위로 센다. 오늘 새 실행이 없어도(마지막 실행이 실패여도) null이 되지 않는다.
-    assert workload.workload_counts(session) == {"order_plan_pending": WorkloadCount(2)}
+    # `order_plan_new_priority`의 창은 요청 시각 KST 일자의 전일부터라 2026-09-02 관측은 실제 0이다.
+    assert workload.workload_counts(session) == {
+        "order_plan_pending": WorkloadCount(2), "order_plan_new_priority": WorkloadCount(0),
+    }
 
 
 def test_cumulative_projection_keeps_retired_policy_results_and_excludes_reference_and_gate(tmp_path):
