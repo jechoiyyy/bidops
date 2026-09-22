@@ -98,6 +98,7 @@ export function PreSpecRow({
                 <span className="pre-specs-row-exclusion">{preSpecExclusionRecord(item)}</span>
               </>
             ) : null}
+            {item.latest_deep_review_status ? <span>심층검토 {{ queued: "대기", running: "분석 중", completed: "완료", failed: "실패" }[item.latest_deep_review_status]}</span> : null}
             <span className="pre-specs-row-grade">{displayAssessmentLabel(item.display_assessment)}</span>
             {item.kept_by_tracking ? (
               <>

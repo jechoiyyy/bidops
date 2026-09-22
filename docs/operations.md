@@ -429,7 +429,7 @@ COMPOSE_PROJECT_NAME=bidops docker compose -f docker-compose.yml stop web analys
 | 개요·심층 모델 | `BIDOPS_VLLM_{BASE_URL,ALLOWED_HOSTS,API_KEY,MODEL_REVISION}`과 `BIDOPS_VLLM_{OVERVIEW,DEEP_REVIEW}_*` override, response encryption key/ref | 승인된 사설 endpoint만, 응답 암호화. 모델명은 설정이 아니라 policy가 정한다 |
 | 모듈 선택 | `BIDOPS_MODULES` | 미지정이면 세 도메인 모듈 전부. 알 수 없는 이름·빈 값은 기동 실패. 꺼진 모듈 경로는 404 |
 | 활성 버전 | active profile version, active analysis policy version | 불변 ID, 빈 값이면 fail closed |
-| 외부 참조 | `BIDOPS_OPENAI_ENABLED`, `BIDOPS_REFERENCE_WORKFLOW_MODE` | 심층 검토 provider는 `BIDOPS_ANALYSIS_PROVIDER`의 `vllm`과 `mock` 둘뿐이며 hosted 외부 deep-review provider(codex-exec)와 그 overlay·설정은 저장소에서 제거됐다. 향후 발주계획 전용 projection에서만 공개 plan metadata+최소 승인 요약을 preview·건별 승인 후 전송 |
+| 외부 참조 | `BIDOPS_OPENAI_ENABLED`, `BIDOPS_REFERENCE_WORKFLOW_MODE` | 기존 `BIDOPS_ANALYSIS_PROVIDER=vllm|mock`는 유지한다. ADR-0069의 사용자 요청 사전규격 Luna만 정책 provider `codex-exec`와 전용 overlay로 별도 실행한다. 향후 발주계획 전용 projection에서만 공개 plan metadata+최소 승인 요약을 preview·건별 승인 후 전송 |
 
 ## 발주계획 선별 실험 운영
 
@@ -1493,3 +1493,48 @@ v7이며 v8 활성화는 별도 품질 비교와 정책 변경 확인을 요구�
 회사 핏의 호출은 재시도 0, timeout 300초, lease 600초다. lease 만료는 실패로 종결하고 자동 재시작하지 않는다. 새 개요·프로필·정책/모델 입력이면 새 실행이 가능하다. `GET /api/pre-specs/{notice_id}/company-fit`에서 사유·현재성·토큰·시간·품질과 실제 심층 검토 생성을 확인한다. 현재는 참조 실행만 지원하며 품질 측정/사람 정답 없이 운영 자동화를 활성화할 수 없다.
 
 비용 비교는 동일한 조건 통과 모집단에서 핏 입력/출력 토큰 및 시간, 불일치·보류 비율, 이후 심층 검토 사용량을 함께 측정한다. `(핏 단계 전체 비용) < (불일치/보류로 실행하지 않은 심층 검토 추정 비용)`인지 비교하며, 실제 심층이 없던 과거 참조 결과를 절감 실적으로 집계하지 않는다.
+
+### 설명형 심층검토 정책의 선택 (2026-09-22, 아직 운영 적용 전)
+
+새 파일은 `app/deep_review/policies/analysis-policy-narrative-v2.json`이다.
+`import-profile-policy --policy <새 파일> --label analysis-policy-narrative-v2`를 명시한 경우에만 이 정책을 등록한다.
+기본값인 lean-v1 파일과 기존 active ID는 그대로다. 등록 뒤에도
+`active_configuration_changed=false`이며 새 policy ID 선택과 재배포는 별도 작업이다.
+
+이 정책은 Qwen 및 `deep_review` 용도 client를 그대로 사용한다. 코드·합성 fixture 검증은
+실제 모델 품질 측정이 아니다. 처음 실제 입력을 확인할 때는 승인된 고정 묶음과 프로필을
+사용하고 품질 인자를 지어내지 않으며 참조 실행 표식을 유지한다. 원문별 누락·예외·회사
+근거 선택의 회수율·잘못된 해석·호출량을 사람이 확인한다.
+
+원문 조각은 6,000자 입력 예산에서 만들어지고 실제 excerpt는 최대 3,000자다. 회사 근거
+선택 예산은 4,000자, 선행 분석 묶음은 8,000자, 마지막 전체 종합 입력은 16,000자다.
+최종 prompt 상한 24,000자를 넘거나 전체 종합이 한 입력에 들어가지 않으면 실패로 닫는다.
+표본 규모에 따른 실제 지연·호출량은 미측정이다. 실패 때 정책 파일이나 기준을 현장에서
+덮어쓰지 말고 새 불변 버전으로 재설계한다.
+
+운영 등록·활성 ID 변경·실제 모델 호출·재배포는 각각 실행 직전에 사람 확인이 필요하다.
+배포는 이 문서의 현행 Compose overlay/env·백업·롤백 절차를 따른다.
+
+원문 인용·숫자 대조 on/off는 웹의 문서 준비→심층 검토 시작, 또는 보고서 상단
+`분석 설정`에서 새 실행에 선택한다. 기본 on이며 기존 실행은 바뀌지 않는다. off는
+`source_verification_enabled=false` 요청과 attempt 감사 행으로 고정되고, 보고서에
+`원문 대조 미실시`가 표시된다. 이 값은 정책 품질 활성화·전송 승인·접근 범위·JSON/참조
+검사를 끄지 않는다. 대조하지 않은 인용과 수치는 실제 원문 페이지에서 직접 확인한다.
+기존 실패 응답을 같은 검증기로 재검사하는 것은 모델 호출 없는 진단이며 새 전체 실행
+성공이나 측정된 모델 품질로 기록하지 않는다.
+
+
+회사 프로필 재등록에서 `service_unavailable`이고 저장소가 `NoSuchVersion`을 반환하면,
+원본 해시와 근거를 바꾸지 않는다. 승인된 같은 Markdown 원문이 있을 때만
+`import-profile-policy --repair-profile-source --actor <담당자> ...`로 저장 위치를 복구한다.
+이 명시적 옵션은 같은 SHA-256·크기의 원문을 저장·재조회하고 기존 프로필의 모든 근거
+인용을 재검증한 뒤 새 `ContentObjectLocation`과 `profile.source_location.repaired`
+감사를 추가한다. 기존 프로필·근거·과거 위치는 보존하며, 변조된 근거는 복구하지 않는다.
+
+## 사용자 요청 Luna 심층검토 운영 (ADR-0069)
+
+[단계별 적용 명령과 롤백](0922_luna-deep-review/apply.md)이 이번 적용 절차다.
+0032 migration, 전용 runner 이미지/secret/egress, 불변 Luna 정책, web/worker 환경을
+묶어 적용한다. 각 운영 단계 직전 확인을 받는다. 구현·가짜 실행기 검증으로 실제
+Luna 인증·모델 접근·실자료 품질이 확인됐다고 쓰지 않는다. 심층 자동 시작 기본값은
+off이며 수집·문서 준비·개요를 끄지 않는다.

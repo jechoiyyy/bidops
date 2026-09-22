@@ -1172,3 +1172,20 @@ def test_v4_snapshot_runtime_privileges():
     for role in ("app", "worker"):
         assert "prespec_v4_pdf_snapshot" not in _table_grants(role, "UPDATE")
         assert "prespec_v4_pdf_snapshot" not in _table_grants(role, "DELETE")
+
+
+@requires_postgres
+def test_luna_consent_runtime_privileges():
+    _ensure_roles()
+    with temporary_database() as url:
+        engine = _apply_policy(url)
+        try:
+            with engine.connect() as connection:
+                for table in ('deep_review_preview', 'deep_review_approval'):
+                    for role in ('app', 'worker'):
+                        assert _table_privilege(connection,role,table,'SELECT')
+                        assert _table_privilege(connection,role,table,'INSERT') == (role == 'app')
+                        assert not _table_privilege(connection,role,table,'UPDATE')
+                        assert not _table_privilege(connection,role,table,'DELETE')
+        finally:
+            engine.dispose()

@@ -142,27 +142,28 @@ def _safe_page_data(page: Any) -> dict[str, Any]:
     }
 
 
-def _resolve_locator_against_page(locator_type: str, locator: Mapping[str, Any], quote: str, page: Mapping[str, Any]) -> None:
+def _resolve_locator_against_page(locator_type: str, locator: Mapping[str, Any], quote: str, page: Mapping[str, Any], *, source_verification_enabled: bool = True) -> None:
     page_number = locator.get("page")
     if page.get("page") != page_number:
         raise EvidenceServiceError("evidence_out_of_scope", "근거 page가 구조 projection과 일치하지 않습니다", status_code=403)
     blocks = [item for item in page.get("blocks", []) if isinstance(item, Mapping)]
     if locator_type == "page":
-        if not any(isinstance(item.get("text"), str) and quote in item["text"] for item in blocks):
+        from .quote_matching import page_texts
+        if source_verification_enabled and not any(quote in text for text in page_texts(blocks)):
             raise EvidenceServiceError("evidence_out_of_scope", "page 근거 quote를 확인할 수 없습니다", status_code=403)
         return
     block = next((item for item in blocks if item.get("block_key") == locator.get("block_key")), None)
     if block is None or block.get("page") != page_number:
         raise EvidenceServiceError("evidence_out_of_scope", "근거 block을 확인할 수 없습니다", status_code=403)
     text = block.get("text")
-    if not isinstance(text, str) or quote not in text:
+    if not isinstance(text, str) or (source_verification_enabled and quote not in text):
         raise EvidenceServiceError("evidence_out_of_scope", "근거 quote를 확인할 수 없습니다", status_code=403)
     attributes = block.get("attributes") if isinstance(block.get("attributes"), Mapping) else {}
     if locator_type == "paragraph":
         if locator.get("paragraph_key") is not None and attributes.get("paragraph_key") != locator.get("paragraph_key"):
             raise EvidenceServiceError("evidence_out_of_scope", "paragraph locator를 확인할 수 없습니다", status_code=403)
         start, end = locator.get("text_start"), locator.get("text_end")
-        if start is not None and end is not None and (end > len(text) or text[start:end] != quote):
+        if start is not None and end is not None and (end > len(text) or (source_verification_enabled and text[start:end] != quote)):
             raise EvidenceServiceError("evidence_out_of_scope", "paragraph offset을 확인할 수 없습니다", status_code=403)
     elif locator_type == "table_cell":
         if any(attributes.get(key) != locator.get(key) for key in ("table_key", "row", "column")):
@@ -254,7 +255,9 @@ class EvidenceService:
             status = 403 if code == "unsafe_document" else 404
             raise EvidenceServiceError(code, "문서 근거를 확인할 수 없습니다", status_code=status) from error
         page_data = _safe_page_data(page)
-        _resolve_locator_against_page(evidence.locator_type, locator, evidence.quote, page_data)
+        from .verification import enabled_for_evidence
+        verification_enabled = enabled_for_evidence(session, evidence.id)
+        _resolve_locator_against_page(evidence.locator_type, locator, evidence.quote, page_data, source_verification_enabled=verification_enabled)
         return {
             "evidence_id": evidence.id,
             "source_kind": "document",
@@ -268,6 +271,7 @@ class EvidenceService:
             "confidence": _safe_confidence(evidence.confidence),
             "source_sha256": evidence.source_sha256,
             "page": page_data,
+            "source_verification_enabled": verification_enabled,
         }
 
     def _profile_view(self, session: Session, review: DeepReview, evidence: EvidenceRef) -> dict[str, Any]:
@@ -283,7 +287,9 @@ class EvidenceService:
             raise EvidenceServiceError("evidence_out_of_scope", "profile fact 근거를 확인할 수 없습니다", status_code=403)
         locator = _safe_locator(evidence.locator_type, evidence.locator)
         profile_locator = _safe_locator(profile_evidence.locator_type, profile_evidence.locator)
-        if locator != profile_locator or locator.get("fact_key") != profile_evidence.fact_key or profile_evidence.source_sha256 != evidence.source_sha256 or profile_evidence.quote != evidence.quote:
+        from .verification import enabled_for_evidence
+        verification_enabled = enabled_for_evidence(session, evidence.id)
+        if locator != profile_locator or locator.get("fact_key") != profile_evidence.fact_key or profile_evidence.source_sha256 != evidence.source_sha256 or (verification_enabled and profile_evidence.quote != evidence.quote):
             raise EvidenceServiceError("evidence_out_of_scope", "profile fact 근거가 고정된 사실과 일치하지 않습니다", status_code=403)
         return {
             "evidence_id": evidence.id,
@@ -298,6 +304,7 @@ class EvidenceService:
             "confidence": _safe_confidence(evidence.confidence),
             "source_sha256": profile_evidence.source_sha256,
             "page": None,
+            "source_verification_enabled": verification_enabled,
         }
 
 

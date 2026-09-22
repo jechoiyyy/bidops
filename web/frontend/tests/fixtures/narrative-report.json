@@ -1,0 +1,647 @@
+{
+  "report": {
+    "deep_review_id": "fda64e78-8b80-4ae9-993d-267c50afc633",
+    "current_revision_id": "a13b5fce-ead5-4475-a269-4e9b1b87534e",
+    "report": {
+      "schema": "bidops.deep-review-report.v2",
+      "deep_review_id": "fda64e78-8b80-4ae9-993d-267c50afc633",
+      "notice_id": 1,
+      "bundle_id": "9477562e-d31c-4086-a339-7b7fcf51ac7a",
+      "profile_version_id": "98634aa4-69cc-446c-9f03-f21a1ff2cfbc",
+      "policy_version_id": "7fa062bb-2894-480a-a3f1-87a3b135c6aa",
+      "sections": [
+        {
+          "section_key": "assessment",
+          "title": "먼저 알아야 할 판단",
+          "status": "available",
+          "blocks": [
+            {
+              "block_id": "claim-73e5df9f-a09b-4b1a-82b8-a2f8432c877b",
+              "type": "paragraph",
+              "title": "먼저 확인할 판단 조건",
+              "body": "요구 과업은 확인되지만 내부망 시험 환경과 검수 기준을 아직 확정할 수 없다. 회사 실적과 자료 제공 조건을 확인한 뒤 일정 및 비용 가정을 갱신하는 순서가 필요하다.",
+              "claim_ids": [
+                "73e5df9f-a09b-4b1a-82b8-a2f8432c877b"
+              ],
+              "rows": [],
+              "narrative_role": "synthesis",
+              "topic_key": "internal-acceptance",
+              "is_key_point": true
+            },
+            {
+              "block_id": "claim-1c34fc3c-7608-4beb-a6bc-d4c259e8e282",
+              "type": "paragraph",
+              "title": "system_recommendation",
+              "body": "조건부 추진 검토",
+              "claim_ids": [
+                "1c34fc3c-7608-4beb-a6bc-d4c259e8e282"
+              ],
+              "rows": [],
+              "narrative_role": "recommendation",
+              "topic_key": "internal-acceptance",
+              "is_key_point": true
+            }
+          ]
+        },
+        {
+          "section_key": "scope",
+          "title": "사업 목적과 과업",
+          "status": "available",
+          "blocks": [
+            {
+              "block_id": "claim-7b657a6a-a3d8-4558-b3cb-6126a402feb5",
+              "type": "paragraph",
+              "title": "과업과 운영 자료의 사용 범위",
+              "body": "제안사는 기관 내부망에서 검색 서비스를 구축하고 시험 결과와 운영 매뉴얼을 제출해야 한다. 실제 운영 자료의 외부 반출은 허용되지 않는다. 검수 방법은 착수 시 협의한다. 평가에는 수행 방법과 운영 지원 방안이 포함된다.",
+              "claim_ids": [
+                "7b657a6a-a3d8-4558-b3cb-6126a402feb5"
+              ],
+              "rows": [],
+              "narrative_role": "source",
+              "topic_key": "internal-acceptance",
+              "is_key_point": false
+            }
+          ]
+        },
+        {
+          "section_key": "company_fit",
+          "title": "회사 근거와 부족한 자료",
+          "status": "available",
+          "blocks": [
+            {
+              "block_id": "claim-08a39e47-c20e-4bdb-b9a1-30808da6c217",
+              "type": "paragraph",
+              "title": "회사 실적 대조의 한계",
+              "body": "이 입력에는 내부망 검수에 활용할 회사 실적 자료가 없다. 역량 미달로 판단할 수 없으며 승인된 실적 근거를 추가 확인해야 한다.",
+              "claim_ids": [
+                "08a39e47-c20e-4bdb-b9a1-30808da6c217"
+              ],
+              "rows": [],
+              "narrative_role": "company_basis",
+              "topic_key": "internal-acceptance",
+              "is_key_point": false
+            }
+          ]
+        },
+        {
+          "section_key": "delivery",
+          "title": "수행에 영향을 주는 조건",
+          "status": "available",
+          "blocks": [
+            {
+              "block_id": "claim-4e11c6bd-beb4-46af-8944-1eca4e8f85f5",
+              "type": "paragraph",
+              "title": "내부망에서의 검수 준비",
+              "body": "운영 자료를 외부로 반출할 수 없으므로 외부 개발 환경에서 검수를 마무리한다고 가정하기 어렵다. 내부망 접근 일정과 반입 가능한 시험 자료를 확보해야 일정의 전제를 세울 수 있다.",
+              "claim_ids": [
+                "4e11c6bd-beb4-46af-8944-1eca4e8f85f5"
+              ],
+              "rows": [],
+              "narrative_role": "impact",
+              "topic_key": "internal-acceptance",
+              "is_key_point": true
+            },
+            {
+              "block_id": "claim-1e0a3690-fe62-4bf2-b2e5-d91cdc969d4d",
+              "type": "paragraph",
+              "title": "검수 협의와 재작업의 관계",
+              "body": "검수 방법은 착수 시 협의하므로 검수 대상과 통과 기준이 아직 확정되었다고 볼 수 없다. 기준이 늦게 정해지면 시험 계획과 재작업 범위가 달라질 수 있다.",
+              "claim_ids": [
+                "1e0a3690-fe62-4bf2-b2e5-d91cdc969d4d"
+              ],
+              "rows": [],
+              "narrative_role": "impact",
+              "topic_key": "internal-acceptance",
+              "is_key_point": false
+            }
+          ]
+        },
+        {
+          "section_key": "evaluation",
+          "title": "평가와 제안 준비",
+          "status": "available",
+          "blocks": [
+            {
+              "block_id": "claim-a0c31248-9d1c-4674-b930-7e6be4575bae",
+              "type": "paragraph",
+              "title": "평가에서 설명해야 하는 내용",
+              "body": "평가에는 수행 방법과 운영 지원 방안이 포함된다.",
+              "claim_ids": [
+                "a0c31248-9d1c-4674-b930-7e6be4575bae"
+              ],
+              "rows": [],
+              "narrative_role": "source",
+              "topic_key": "internal-acceptance",
+              "is_key_point": false
+            }
+          ]
+        },
+        {
+          "section_key": "contract_economics",
+          "title": "계약과 경제성",
+          "status": "available",
+          "blocks": [
+            {
+              "block_id": "claim-2c1378e2-0a02-4520-bd69-2c2904b83b51",
+              "type": "paragraph",
+              "title": "비용 판단에 필요한 가정",
+              "body": "추가 시험과 현장 지원이 얼마나 필요한지 확인되지 않아 현재 자료만으로 이익률을 계산할 수 없다. 현장 투입과 지원 기간을 비용 가정에 명시해야 한다.",
+              "claim_ids": [
+                "2c1378e2-0a02-4520-bd69-2c2904b83b51"
+              ],
+              "rows": [],
+              "narrative_role": "impact",
+              "topic_key": "internal-acceptance",
+              "is_key_point": false
+            }
+          ]
+        },
+        {
+          "section_key": "actions",
+          "title": "확인할 일",
+          "status": "available",
+          "blocks": [
+            {
+              "block_id": "claim-8a879985-8030-4119-9f11-3b7c4c2486ce",
+              "type": "paragraph",
+              "title": "내부망에서의 검수 준비",
+              "body": "기술 담당자는 내부망 접근 절차와 시험용 자료 제공 가능 여부를 확인하고, 사업 담당자는 검수 기준의 확정 시점을 확인한다. 확인 전에는 수행 일정을 확정하지 않는다.",
+              "claim_ids": [
+                "8a879985-8030-4119-9f11-3b7c4c2486ce"
+              ],
+              "rows": [],
+              "narrative_role": "action",
+              "topic_key": "internal-acceptance",
+              "is_key_point": false
+            }
+          ]
+        },
+        {
+          "section_key": "decision_conditions",
+          "title": "판단 갱신 조건",
+          "status": "available",
+          "blocks": [
+            {
+              "block_id": "claim-2d02f737-836f-4ffa-aea7-8918415e32d2",
+              "type": "paragraph",
+              "title": "내부망에서의 검수 준비",
+              "body": "내부망 시험 환경과 검수 기준을 제안 준비 전에 확인할 수 있다면 수행 계획을 구체화한다. 확인이 늦어지면 일정과 비용 가정을 다시 검토한다.",
+              "claim_ids": [
+                "2d02f737-836f-4ffa-aea7-8918415e32d2"
+              ],
+              "rows": [],
+              "narrative_role": "decision_condition",
+              "topic_key": "internal-acceptance",
+              "is_key_point": false
+            }
+          ]
+        }
+      ],
+      "system_recommendation": "조건부 추진 검토",
+      "claims": [
+        {
+          "claim_id": "7b657a6a-a3d8-4558-b3cb-6126a402feb5",
+          "category": "과업과 운영 자료의 사용 범위",
+          "claim_type": "fact",
+          "body": "제안사는 기관 내부망에서 검색 서비스를 구축하고 시험 결과와 운영 매뉴얼을 제출해야 한다. 실제 운영 자료의 외부 반출은 허용되지 않는다. 검수 방법은 착수 시 협의한다. 평가에는 수행 방법과 운영 지원 방안이 포함된다.",
+          "status": "supported",
+          "formula": null,
+          "premise_claim_ids": [],
+          "reason": null,
+          "evidence_ids": [
+            "bb392fe7-0621-448d-bc4a-13ebd100d807"
+          ],
+          "report_section": "scope",
+          "narrative_role": "source",
+          "topic_key": "internal-acceptance",
+          "source_unit_ids": [
+            "req-0000-0001-000000-784dbc652b"
+          ],
+          "requirement_ids": [],
+          "related_claim_ids": [],
+          "is_key_point": false
+        },
+        {
+          "claim_id": "a0c31248-9d1c-4674-b930-7e6be4575bae",
+          "category": "평가에서 설명해야 하는 내용",
+          "claim_type": "fact",
+          "body": "평가에는 수행 방법과 운영 지원 방안이 포함된다.",
+          "status": "supported",
+          "formula": null,
+          "premise_claim_ids": [],
+          "reason": null,
+          "evidence_ids": [
+            "bb392fe7-0621-448d-bc4a-13ebd100d807"
+          ],
+          "report_section": "evaluation",
+          "narrative_role": "source",
+          "topic_key": "internal-acceptance",
+          "source_unit_ids": [
+            "req-0000-0001-000000-784dbc652b"
+          ],
+          "requirement_ids": [],
+          "related_claim_ids": [],
+          "is_key_point": false
+        },
+        {
+          "claim_id": "08a39e47-c20e-4bdb-b9a1-30808da6c217",
+          "category": "회사 실적 대조의 한계",
+          "claim_type": "unknown",
+          "body": "이 입력에는 내부망 검수에 활용할 회사 실적 자료가 없다. 역량 미달로 판단할 수 없으며 승인된 실적 근거를 추가 확인해야 한다.",
+          "status": "unknown",
+          "formula": null,
+          "premise_claim_ids": [],
+          "reason": "내부망 환경과 검수 협의 범위에 따라 준비 내용이 달라집니다.",
+          "evidence_ids": [
+            "bb392fe7-0621-448d-bc4a-13ebd100d807"
+          ],
+          "report_section": "company_fit",
+          "narrative_role": "company_basis",
+          "topic_key": "internal-acceptance",
+          "source_unit_ids": [
+            "req-0000-0001-000000-784dbc652b"
+          ],
+          "requirement_ids": [],
+          "related_claim_ids": [
+            "7b657a6a-a3d8-4558-b3cb-6126a402feb5",
+            "a0c31248-9d1c-4674-b930-7e6be4575bae"
+          ],
+          "is_key_point": false
+        },
+        {
+          "claim_id": "4e11c6bd-beb4-46af-8944-1eca4e8f85f5",
+          "category": "내부망에서의 검수 준비",
+          "claim_type": "inference",
+          "body": "운영 자료를 외부로 반출할 수 없으므로 외부 개발 환경에서 검수를 마무리한다고 가정하기 어렵다. 내부망 접근 일정과 반입 가능한 시험 자료를 확보해야 일정의 전제를 세울 수 있다.",
+          "status": "supported",
+          "formula": null,
+          "premise_claim_ids": [
+            "7b657a6a-a3d8-4558-b3cb-6126a402feb5",
+            "a0c31248-9d1c-4674-b930-7e6be4575bae"
+          ],
+          "reason": "내부망 환경과 검수 협의 범위에 따라 준비 내용이 달라집니다.",
+          "evidence_ids": [
+            "bb392fe7-0621-448d-bc4a-13ebd100d807"
+          ],
+          "report_section": "delivery",
+          "narrative_role": "impact",
+          "topic_key": "internal-acceptance",
+          "source_unit_ids": [
+            "req-0000-0001-000000-784dbc652b"
+          ],
+          "requirement_ids": [],
+          "related_claim_ids": [
+            "7b657a6a-a3d8-4558-b3cb-6126a402feb5",
+            "a0c31248-9d1c-4674-b930-7e6be4575bae"
+          ],
+          "is_key_point": true
+        },
+        {
+          "claim_id": "1e0a3690-fe62-4bf2-b2e5-d91cdc969d4d",
+          "category": "검수 협의와 재작업의 관계",
+          "claim_type": "inference",
+          "body": "검수 방법은 착수 시 협의하므로 검수 대상과 통과 기준이 아직 확정되었다고 볼 수 없다. 기준이 늦게 정해지면 시험 계획과 재작업 범위가 달라질 수 있다.",
+          "status": "supported",
+          "formula": null,
+          "premise_claim_ids": [
+            "7b657a6a-a3d8-4558-b3cb-6126a402feb5",
+            "a0c31248-9d1c-4674-b930-7e6be4575bae"
+          ],
+          "reason": "내부망 환경과 검수 협의 범위에 따라 준비 내용이 달라집니다.",
+          "evidence_ids": [
+            "bb392fe7-0621-448d-bc4a-13ebd100d807"
+          ],
+          "report_section": "delivery",
+          "narrative_role": "impact",
+          "topic_key": "internal-acceptance",
+          "source_unit_ids": [
+            "req-0000-0001-000000-784dbc652b"
+          ],
+          "requirement_ids": [],
+          "related_claim_ids": [
+            "7b657a6a-a3d8-4558-b3cb-6126a402feb5",
+            "a0c31248-9d1c-4674-b930-7e6be4575bae"
+          ],
+          "is_key_point": false
+        },
+        {
+          "claim_id": "2c1378e2-0a02-4520-bd69-2c2904b83b51",
+          "category": "비용 판단에 필요한 가정",
+          "claim_type": "inference",
+          "body": "추가 시험과 현장 지원이 얼마나 필요한지 확인되지 않아 현재 자료만으로 이익률을 계산할 수 없다. 현장 투입과 지원 기간을 비용 가정에 명시해야 한다.",
+          "status": "supported",
+          "formula": null,
+          "premise_claim_ids": [
+            "7b657a6a-a3d8-4558-b3cb-6126a402feb5",
+            "a0c31248-9d1c-4674-b930-7e6be4575bae"
+          ],
+          "reason": "내부망 환경과 검수 협의 범위에 따라 준비 내용이 달라집니다.",
+          "evidence_ids": [
+            "bb392fe7-0621-448d-bc4a-13ebd100d807"
+          ],
+          "report_section": "contract_economics",
+          "narrative_role": "impact",
+          "topic_key": "internal-acceptance",
+          "source_unit_ids": [
+            "req-0000-0001-000000-784dbc652b"
+          ],
+          "requirement_ids": [],
+          "related_claim_ids": [
+            "7b657a6a-a3d8-4558-b3cb-6126a402feb5",
+            "a0c31248-9d1c-4674-b930-7e6be4575bae"
+          ],
+          "is_key_point": false
+        },
+        {
+          "claim_id": "8a879985-8030-4119-9f11-3b7c4c2486ce",
+          "category": "내부망에서의 검수 준비",
+          "claim_type": "opinion",
+          "body": "기술 담당자는 내부망 접근 절차와 시험용 자료 제공 가능 여부를 확인하고, 사업 담당자는 검수 기준의 확정 시점을 확인한다. 확인 전에는 수행 일정을 확정하지 않는다.",
+          "status": "supported",
+          "formula": null,
+          "premise_claim_ids": [],
+          "reason": "내부망 환경과 검수 협의 범위에 따라 준비 내용이 달라집니다.",
+          "evidence_ids": [
+            "bb392fe7-0621-448d-bc4a-13ebd100d807"
+          ],
+          "report_section": "actions",
+          "narrative_role": "action",
+          "topic_key": "internal-acceptance",
+          "source_unit_ids": [
+            "req-0000-0001-000000-784dbc652b"
+          ],
+          "requirement_ids": [],
+          "related_claim_ids": [
+            "7b657a6a-a3d8-4558-b3cb-6126a402feb5",
+            "a0c31248-9d1c-4674-b930-7e6be4575bae"
+          ],
+          "is_key_point": false
+        },
+        {
+          "claim_id": "2d02f737-836f-4ffa-aea7-8918415e32d2",
+          "category": "내부망에서의 검수 준비",
+          "claim_type": "opinion",
+          "body": "내부망 시험 환경과 검수 기준을 제안 준비 전에 확인할 수 있다면 수행 계획을 구체화한다. 확인이 늦어지면 일정과 비용 가정을 다시 검토한다.",
+          "status": "supported",
+          "formula": null,
+          "premise_claim_ids": [],
+          "reason": "내부망 환경과 검수 협의 범위에 따라 준비 내용이 달라집니다.",
+          "evidence_ids": [
+            "bb392fe7-0621-448d-bc4a-13ebd100d807"
+          ],
+          "report_section": "decision_conditions",
+          "narrative_role": "decision_condition",
+          "topic_key": "internal-acceptance",
+          "source_unit_ids": [
+            "req-0000-0001-000000-784dbc652b"
+          ],
+          "requirement_ids": [],
+          "related_claim_ids": [
+            "7b657a6a-a3d8-4558-b3cb-6126a402feb5",
+            "a0c31248-9d1c-4674-b930-7e6be4575bae"
+          ],
+          "is_key_point": false
+        },
+        {
+          "claim_id": "73e5df9f-a09b-4b1a-82b8-a2f8432c877b",
+          "category": "먼저 확인할 판단 조건",
+          "claim_type": "opinion",
+          "body": "요구 과업은 확인되지만 내부망 시험 환경과 검수 기준을 아직 확정할 수 없다. 회사 실적과 자료 제공 조건을 확인한 뒤 일정 및 비용 가정을 갱신하는 순서가 필요하다.",
+          "status": "supported",
+          "formula": null,
+          "premise_claim_ids": [],
+          "reason": "내부망 환경과 검수 협의 범위에 따라 준비 내용이 달라집니다.",
+          "evidence_ids": [
+            "bb392fe7-0621-448d-bc4a-13ebd100d807"
+          ],
+          "report_section": "assessment",
+          "narrative_role": "synthesis",
+          "topic_key": "internal-acceptance",
+          "source_unit_ids": [],
+          "requirement_ids": [],
+          "related_claim_ids": [
+            "7b657a6a-a3d8-4558-b3cb-6126a402feb5",
+            "a0c31248-9d1c-4674-b930-7e6be4575bae",
+            "08a39e47-c20e-4bdb-b9a1-30808da6c217",
+            "4e11c6bd-beb4-46af-8944-1eca4e8f85f5",
+            "1e0a3690-fe62-4bf2-b2e5-d91cdc969d4d",
+            "2c1378e2-0a02-4520-bd69-2c2904b83b51",
+            "8a879985-8030-4119-9f11-3b7c4c2486ce",
+            "2d02f737-836f-4ffa-aea7-8918415e32d2"
+          ],
+          "is_key_point": true
+        },
+        {
+          "claim_id": "1c34fc3c-7608-4beb-a6bc-d4c259e8e282",
+          "category": "system_recommendation",
+          "claim_type": "opinion",
+          "body": "조건부 추진 검토",
+          "status": "supported",
+          "formula": null,
+          "premise_claim_ids": [],
+          "reason": "내부망 환경과 검수 협의 범위에 따라 준비 내용이 달라집니다.",
+          "evidence_ids": [
+            "bb392fe7-0621-448d-bc4a-13ebd100d807"
+          ],
+          "report_section": "assessment",
+          "narrative_role": "recommendation",
+          "topic_key": "internal-acceptance",
+          "source_unit_ids": [],
+          "requirement_ids": [],
+          "related_claim_ids": [
+            "73e5df9f-a09b-4b1a-82b8-a2f8432c877b"
+          ],
+          "is_key_point": true
+        }
+      ],
+      "unknowns": [
+        "회사 실적과 현장 지원 비용은 추가 확인이 필요합니다."
+      ],
+      "validation_summary": {
+        "status": "passed",
+        "failed": 0,
+        "warnings": 1,
+        "passed": 1
+      },
+      "created_at": "2026-09-22T03:15:18.250804Z",
+      "quality_status": "unmeasured_reference",
+      "coverage": [
+        {
+          "source_unit_id": "req-0000-0001-000000-784dbc652b",
+          "status": "reviewed",
+          "claim_ids": [
+            "7b657a6a-a3d8-4558-b3cb-6126a402feb5",
+            "a0c31248-9d1c-4674-b930-7e6be4575bae",
+            "08a39e47-c20e-4bdb-b9a1-30808da6c217",
+            "4e11c6bd-beb4-46af-8944-1eca4e8f85f5",
+            "1e0a3690-fe62-4bf2-b2e5-d91cdc969d4d",
+            "2c1378e2-0a02-4520-bd69-2c2904b83b51",
+            "8a879985-8030-4119-9f11-3b7c4c2486ce",
+            "2d02f737-836f-4ffa-aea7-8918415e32d2"
+          ],
+          "reason": null
+        }
+      ],
+      "analysis_limitations": [
+        "회사 대조는 원문과 관련된 승인 프로필 항목을 선택해 수행했습니다. 선택되지 않은 자료나 없는 근거는 역량 미달을 뜻하지 않습니다."
+      ],
+      "generator_version": "narrative-v2"
+    },
+    "validation": {
+      "schema": "bidops.deep-review-validation.v1",
+      "validation_run_id": "86655ef7-fad0-4d29-9029-b12e38a1f089",
+      "report_revision_id": "a13b5fce-ead5-4475-a269-4e9b1b87534e",
+      "status": "passed",
+      "checks": [
+        {
+          "check_type": "requirement_inventory",
+          "status": "warning",
+          "severity": "보통",
+          "message": "문서에 요구사항 ID 체계가 없어 inventory 대조를 하지 못했습니다",
+          "related_claim_ids": [],
+          "related_evidence_ids": []
+        },
+        {
+          "check_type": "report_contract",
+          "status": "passed",
+          "severity": "낮음",
+          "message": "전체 report contract와 immutable projection을 확인했습니다",
+          "related_claim_ids": [],
+          "related_evidence_ids": []
+        }
+      ],
+      "created_at": "2026-09-22T03:15:18.261589Z"
+    },
+    "history": [
+      {
+        "revision_id": "a13b5fce-ead5-4475-a269-4e9b1b87534e",
+        "sequence": 1,
+        "origin": "machine",
+        "validation_status": "passed",
+        "created_by_name": null,
+        "created_at": "2026-09-22T03:15:18.258682Z"
+      }
+    ],
+    "final_opinion": null
+  },
+  "review": {
+    "id": "fda64e78-8b80-4ae9-993d-267c50afc633",
+    "notice_id": 1,
+    "bundle_id": "9477562e-d31c-4086-a339-7b7fcf51ac7a",
+    "status": "completed",
+    "current_attempt": {
+      "id": "f041afc7-f443-4b9b-a890-7ff58adb4c24",
+      "sequence": 1,
+      "status": "completed",
+      "stages": [
+        {
+          "stage": "requirements_and_evaluation",
+          "sequence": 1,
+          "status": "completed",
+          "started_at": "2026-09-22T03:15:18.171798+00:00",
+          "completed_at": "2026-09-22T03:15:18.182906+00:00",
+          "last_error_code": null
+        },
+        {
+          "stage": "delivery_risk_economics",
+          "sequence": 2,
+          "status": "completed",
+          "started_at": "2026-09-22T03:15:18.193620+00:00",
+          "completed_at": "2026-09-22T03:15:18.203238+00:00",
+          "last_error_code": null
+        },
+        {
+          "stage": "synthesis_and_validation",
+          "sequence": 3,
+          "status": "completed",
+          "started_at": "2026-09-22T03:15:18.208316+00:00",
+          "completed_at": "2026-09-22T03:15:18.218338+00:00",
+          "last_error_code": null
+        }
+      ],
+      "started_at": "2026-09-22T03:15:18.153564+00:00",
+      "completed_at": "2026-09-22T03:15:18.272398+00:00",
+      "last_error_code": null
+    },
+    "attempts": [
+      {
+        "id": "f041afc7-f443-4b9b-a890-7ff58adb4c24",
+        "sequence": 1,
+        "status": "completed",
+        "stages": [
+          {
+            "stage": "requirements_and_evaluation",
+            "sequence": 1,
+            "status": "completed",
+            "started_at": "2026-09-22T03:15:18.171798+00:00",
+            "completed_at": "2026-09-22T03:15:18.182906+00:00",
+            "last_error_code": null
+          },
+          {
+            "stage": "delivery_risk_economics",
+            "sequence": 2,
+            "status": "completed",
+            "started_at": "2026-09-22T03:15:18.193620+00:00",
+            "completed_at": "2026-09-22T03:15:18.203238+00:00",
+            "last_error_code": null
+          },
+          {
+            "stage": "synthesis_and_validation",
+            "sequence": 3,
+            "status": "completed",
+            "started_at": "2026-09-22T03:15:18.208316+00:00",
+            "completed_at": "2026-09-22T03:15:18.218338+00:00",
+            "last_error_code": null
+          }
+        ],
+        "started_at": "2026-09-22T03:15:18.153564+00:00",
+        "completed_at": "2026-09-22T03:15:18.272398+00:00",
+        "last_error_code": null
+      }
+    ],
+    "created_at": "2026-09-22T03:15:18.143471+00:00",
+    "completed_at": "2026-09-22T03:15:18.272398+00:00",
+    "quality_status": "unmeasured_reference"
+  },
+  "evidence": {
+    "evidence_id": "bb392fe7-0621-448d-bc4a-13ebd100d807",
+    "source_kind": "document",
+    "document_version_id": "a7ca614f-2d11-4f14-a12c-e4d22bd4bf42",
+    "structure_id": "33e74055-3083-40b0-b022-fad3b75f0080",
+    "profile_version_id": null,
+    "profile_evidence_id": null,
+    "locator_type": "paragraph",
+    "locator": {
+      "block_key": "source-1",
+      "page": 1,
+      "paragraph_key": null,
+      "text_end": 123,
+      "text_start": 0
+    },
+    "quote": "제안사는 기관 내부망에서 검색 서비스를 구축하고 시험 결과와 운영 매뉴얼을 제출해야 한다. 실제 운영 자료의 외부 반출은 허용되지 않는다. 검수 방법은 착수 시 협의한다. 평가에는 수행 방법과 운영 지원 방안이 포함된다.",
+    "confidence": null,
+    "source_sha256": "1ef0ae7bbe4ce6c99ab744fe8c27582178d69c660538ef6a4b201cf5a944e17a",
+    "page": {
+      "structure_id": "33e74055-3083-40b0-b022-fad3b75f0080",
+      "page": 1,
+      "metadata": {
+        "number": 1,
+        "width": 612.0,
+        "height": 792.0,
+        "image_content_object_id": null
+      },
+      "blocks": [
+        {
+          "block_key": "source-1",
+          "parent_block_key": null,
+          "type": "paragraph",
+          "page": 1,
+          "bbox": null,
+          "text": "제안사는 기관 내부망에서 검색 서비스를 구축하고 시험 결과와 운영 매뉴얼을 제출해야 한다. 실제 운영 자료의 외부 반출은 허용되지 않는다. 검수 방법은 착수 시 협의한다. 평가에는 수행 방법과 운영 지원 방안이 포함된다.",
+          "confidence": null,
+          "attributes": {}
+        }
+      ]
+    }
+  }
+}

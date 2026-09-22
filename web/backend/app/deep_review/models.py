@@ -1820,3 +1820,47 @@ def _immutable_company_fit_input(_mapper: Any, _connection: Any, target: PreSpec
     previous = state.attrs.status.history.deleted
     if (previous[0] if previous else target.status) in {"completed", "failed", "needs_human_review"}:
         raise ValueError("terminal company fit attempts are immutable")
+
+
+class DeepReviewPreview(Base):
+    """Frozen source envelope; never put its body in audit metadata."""
+    __tablename__ = "deep_review_preview"
+    __table_args__ = (
+        ForeignKeyConstraint(["notice_id"], [_table("notice.id")], ondelete="RESTRICT"),
+        ForeignKeyConstraint(["bundle_id"], [_table("document_bundle.id")], ondelete="RESTRICT"),
+        ForeignKeyConstraint(["profile_version_id"], [_table("profile_version.id")], ondelete="RESTRICT"),
+        ForeignKeyConstraint(["policy_version_id"], [_table("analysis_policy_version.id")], ondelete="RESTRICT"),
+        CheckConstraint("length(input_sha256) = 64", name="ck_deep_review_preview_hash"),
+    )
+    id: Mapped[uuid_module.UUID] = _uuid_column(primary_key=True)
+    notice_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    bundle_id: Mapped[uuid_module.UUID] = mapped_column(Uuid, nullable=False)
+    profile_version_id: Mapped[uuid_module.UUID] = mapped_column(Uuid, nullable=False)
+    policy_version_id: Mapped[uuid_module.UUID] = mapped_column(Uuid, nullable=False)
+    input_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    input_snapshot: Mapped[dict[str, Any]] = mapped_column(JSONB_COMPAT, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(AwareDateTime(), default=utc_now, nullable=False)
+
+
+class DeepReviewApproval(Base):
+    __tablename__ = "deep_review_approval"
+    __table_args__ = (
+        ForeignKeyConstraint(["preview_id"], [_table("deep_review_preview.id")], ondelete="RESTRICT"),
+        ForeignKeyConstraint(["attempt_id"], [_table("deep_review_attempt.id")], ondelete="RESTRICT"),
+        UniqueConstraint("preview_id", name="uq_deep_review_approval_preview"),
+        UniqueConstraint("attempt_id", name="uq_deep_review_approval_attempt"),
+    )
+    id: Mapped[uuid_module.UUID] = _uuid_column(primary_key=True)
+    preview_id: Mapped[uuid_module.UUID] = mapped_column(Uuid, nullable=False)
+    attempt_id: Mapped[uuid_module.UUID] = mapped_column(Uuid, nullable=False)
+    claimed_name: Mapped[str] = mapped_column(String(128), nullable=False)
+    request_id: Mapped[uuid_module.UUID] = mapped_column(Uuid, nullable=False)
+    approved_at: Mapped[datetime] = mapped_column(AwareDateTime(), default=utc_now, nullable=False)
+
+
+@event.listens_for(DeepReviewPreview, "before_update")
+@event.listens_for(DeepReviewPreview, "before_delete")
+@event.listens_for(DeepReviewApproval, "before_update")
+@event.listens_for(DeepReviewApproval, "before_delete")
+def _immutable_luna_input(*_args: Any) -> None:
+    raise ValueError("Luna preview and approval are immutable")

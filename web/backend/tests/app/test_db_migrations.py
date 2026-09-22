@@ -20,7 +20,7 @@ from sqlalchemy import select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.core.db import ALEMBIC_HEAD
+from app.core.db import ALEMBIC_HEAD, ensure_database_current
 from app.lifecycle.ingest.contracts import NoticeContract
 from app.lifecycle.ingest.loader import ObservationSnapshotConflictError, _upsert_notice
 from app.core.models import CORE_LEAN_V1_TABLES
@@ -75,6 +75,7 @@ ALL_TABLES = frozenset(
     + DOCUMENT_SEGMENT_TABLES
     + ("prespec_company_fit_attempt",)
     + PRESPEC_V4_TABLES
+    + ("deep_review_preview", "deep_review_approval")
 )
 
 
@@ -101,6 +102,7 @@ def test_clean_database_migrates_to_a_single_head() -> None:
     with migrated_engine() as engine:
         assert _scalar(engine, "SELECT version_num FROM bidops.alembic_version") == ALEMBIC_HEAD
         assert _tables(engine) == ALL_TABLES | {"alembic_version"}
+        ensure_database_current(engine)
 
 
 def test_alembic_reports_exactly_one_head() -> None:

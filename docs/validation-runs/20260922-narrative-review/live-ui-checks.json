@@ -1,0 +1,18 @@
+[
+  {
+    "width": 1280,
+    "height": 800,
+    "state": "failed_without_report",
+    "overflow": false,
+    "page_errors": [],
+    "server_errors": []
+  },
+  {
+    "width": 1440,
+    "height": 900,
+    "state": "failed_without_report",
+    "overflow": false,
+    "page_errors": [],
+    "server_errors": []
+  }
+]

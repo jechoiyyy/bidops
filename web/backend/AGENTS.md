@@ -187,8 +187,8 @@ GPU 휴지는 `app/workers/gpu_rest.py`가 분석 합성 worker와 C-1 worker �
 - 현재 접근 경계는 사내망이며 로그인·role authorization은 없다. 담당자 이름은 mutation 감사 표식이고 인증 성공으로 표현하지 않는다.
 - 담당자 이름, prompt, 모델 응답, 공고·회사자료 원문, upload 파일명, credential, DB URL, 쿼리 문자열을 로그에 남기지 않는다.
 - 로그 field는 allowlist를 사용하고 외부 예외·subprocess stderr는 저장 전에 redaction한다.
-- hosted OpenAI는 운영 기본 비활성이다. 심층 검토 provider는 `vllm`과 `mock`뿐이며 hosted 외부 provider 경로는 제거됐다. 외부 실험은 향후 발주계획 전용 projection에서만 공개 plan metadata와 별도 승인된 최소 회사 역량 요약을 보낼 수 있다. RFP·첨부, profile 전문, evidence, 내부 review·실적은 건별 승인으로도 허용되지 않는다. 허용 projection도 개발 mode, 대상 allowlist, payload preview·승인 중 하나라도 없으면 fail closed한다.
-- 모델 호출은 `app/core/model_client.py` 하나를 쓴다. C-1 공고 판정·사전규격 개요·심층 검토가 `screening`·`overview`·`deep_review` 용도로 각각 묶이며, 용도마다 자기 endpoint·허용 host·자격증명·선언 revision을 갖는다([ADR-0050](../../docs/tracking/decisions/0050-unified-openai-compatible-model-client.md)). C-2 발주계획 어댑터만 별도 transport로 남아 있으므로 "유일한 transport"는 앞의 셋에 한정해 읽는다.
+- hosted OpenAI는 기본 비활성이다. ADR-0069의 사전규격 사용자 요청 Luna 참조 실행만 예외이며, 미리보기·건별 승인·동결 입력·공용 슬롯·전용 runner를 사용한다. 실제 자료 전송은 운영 직전 확인을 받는다. 다른 범위의 RFP·회사자료 전송이나 Qwen 자동 fallback을 허용하지 않는다.
+- 사설 vLLM 모델 호출은 `app/core/model_client.py`를 쓴다. Luna만 `services/luna_client.py`에서 전용 내부 runner를 호출한다. C-1 공고 판정·사전규격 개요·심층 검토가 `screening`·`overview`·`deep_review` 용도로 각각 묶이며, 용도마다 자기 endpoint·허용 host·자격증명·선언 revision을 갖는다([ADR-0050](../../docs/tracking/decisions/0050-unified-openai-compatible-model-client.md)). C-2 발주계획 어댑터만 별도 transport로 남아 있으므로 "유일한 transport"는 앞의 셋에 한정해 읽는다.
 - **허용 host가 비었거나 선언 revision이 64자 hex가 아니면 그 용도는 네트워크 호출 전에 fail closed한다.** client를 만든 뒤 검사하지 않는다. 한 용도의 실패를 다른 용도나 다른 provider 자동 fallback으로 처리하지 않는다.
 - core에는 고정된 모델명이 없다. 무엇을 부를지는 policy(`model_name`)와 용도별 설정(`BIDOPS_VLLM_SCREENING_MODEL`)이 정한다. 새 모델 상수를 core에 넣지 않는다.
 - 응답 schema와 system prompt는 계약을 소유한 도메인 모듈이 `StructuredOutputContract`로 넘긴다. core가 도메인 계약을 알게 만들지 않는다.

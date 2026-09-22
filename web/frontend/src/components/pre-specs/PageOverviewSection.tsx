@@ -227,7 +227,7 @@ export function PageOverviewResult({ review, anchor = true }: { review: PageOver
       <strong>{review.validation_status === "failed" ? "검증 실패 · 사람 확인 필요" : isVerifiedV4 ? "주장 검증 완료 · 운영 승인 아님" : "근거 검사 통과 · 이전 검증 기준"}</strong>
       {/* 경계 문장은 ② 추적 결정 카드 한 곳만 갖는다(M4 승인). 자동 시작 조건은
           경계가 아니라 사실이므로 남긴다. */}
-      <p>사업 설명을 위한 요약입니다. 현재 회사 적합성과 조건을 충족한 경우에만 심층 검토가 자동 시작됩니다.</p>
+      <p>사업 설명을 위한 요약입니다. 심층 검토는 전송 내용을 확인하고 사용자가 요청하면 시작됩니다.</p>
       {review.validation_status === "failed" && review.evidence_check_status === "passed" ? (
         <p>새 페이지 근거 검사는 통과했으나, 원실행의 검증 실패 기록은 유지합니다.</p>
       ) : null}

@@ -129,7 +129,7 @@ def _legacy_shape(payload: dict) -> dict:
     item_fields = {"first_observed_at", "last_observed_at", "next_action",
                    "review_exclusion_status", "review_exclusion_actor_name",
                    "review_exclusion_reason", "review_exclusion_changed_at",
-                   "demand_agency", "display_assessment"}
+                   "demand_agency", "display_assessment", "latest_deep_review_status"}
     normalized: dict = {}
     for scenario, response in payload.items():
         response_copy = dict(response)
@@ -522,6 +522,10 @@ def test_pre_specs_show_why_the_deep_review_was_not_started_automatically(
     session, _engine, refs = pre_specs_api
     monkeypatch.delenv("BIDOPS_ACTIVE_PROFILE_VERSION_ID", raising=False)
     monkeypatch.delenv("BIDOPS_ACTIVE_ANALYSIS_POLICY_VERSION_ID", raising=False)
+    # 자동 시작을 명시적으로 켠 이전 경로의 사유 계약. 기본은 수동 요청이다.
+    monkeypatch.setenv("BIDOPS_DEEP_REVIEW_AUTO_START_ENABLED", "true")
+    from app.core.config import get_settings
+    get_settings.cache_clear()
     # SW=N 사전규격. 앞 조건이 모두 성립해도 사람 클릭이다.
     _auto_start_rows(session, refs["sw_no"])
     # SW=Y이지만 개요가 사람 검토로 끝났다.
@@ -539,6 +543,10 @@ def test_pre_specs_show_the_fail_closed_reason_when_active_versions_are_missing(
     pre_specs_api, monkeypatch
 ):
     """active profile/policy 설정이 없으면 fail closed 사유가 화면에 보인다."""
+
+    monkeypatch.setenv("BIDOPS_DEEP_REVIEW_AUTO_START_ENABLED", "true")
+    from app.core.config import get_settings
+    get_settings.cache_clear()
 
     session, _engine, refs = pre_specs_api
     monkeypatch.delenv("BIDOPS_ACTIVE_PROFILE_VERSION_ID", raising=False)

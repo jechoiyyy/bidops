@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+import time
 import hashlib
 import json
 import os
@@ -58,7 +59,8 @@ from ...core.model_client import (
     ModelIdentityError,
     ModelInvocationError,
 )
-from .deep_review_vllm import DEEP_REVIEW_STAGE_CONTRACT
+from .deep_review_vllm import DEEP_REVIEW_STAGE_CONTRACT, NARRATIVE_STAGE_CONTRACT
+from . import narrative_inputs, document_segments, luna_inputs
 from .mock_analysis_client import MockAnalysisClient
 from ...core.constants import (
     DEEP_REVIEW_CREATION_ACTION_BY_ACTOR_KIND,
@@ -86,7 +88,7 @@ _SAFE_INVOCATION_KEYS = frozenset({
     "slice_index", "input_slice_sha256", "prompt_sha256", "response_sha256",
     "model", "policy_sha256", "prompt_tokens", "output_tokens", "latency_ms",
     "status", "error_code", "retry_index", "fixed_input_hash", "safe",
-    "attempts", "provider",
+    "attempts", "provider", "cli_version", "reasoning_effort",
 })
 
 
@@ -176,14 +178,11 @@ def _resolve_exact_evidence_quotes(
     payload: Mapping[str, Any],
     structures: Mapping[str, Mapping[str, Any]],
 ) -> dict[str, Any]:
-    """Resolve whitespace-normalized document quotes to one exact substring.
+    """Resolve presentation differences within the pinned locator scope.
 
-    PDF layout extractors commonly retain runs of spaces/newlines that a model
-    collapses while copying.  A quote is repaired only when all non-whitespace
-    characters are unchanged and the whitespace-flexible pattern resolves to
-    exactly one source span inside the already-pinned locator scope.  Anything
-    ambiguous or textually different is left untouched for fail-closed
-    validation.
+    V2 page locators may span contiguous blocks on that page. Paragraph/cell
+    locators remain confined to their block. Ambiguous or changed content is
+    left untouched for validation; raw model responses are preserved.
     """
 
     resolved = deepcopy(dict(payload))
@@ -207,6 +206,14 @@ def _resolve_exact_evidence_quotes(
             blocks = [block for block in blocks if block.get("block_key") == locator.get("block_key")]
         texts = [str(block["text"]) for block in blocks]
         if any(quote in text for text in texts):
+            continue
+        if payload.get("schema") == "bidops.deep-review-stage.v2":
+            from .quote_matching import page_texts, source_quote
+            if evidence.get("locator_type") == "page":
+                texts = page_texts(blocks)
+            matched = source_quote(quote, texts)
+            if matched is not None:
+                evidence["quote"] = matched
             continue
         tokens = re.findall(r"\S+", quote)
         if not tokens:
@@ -253,6 +260,8 @@ def _idempotency_hash(operation: str, payload: Mapping[str, Any]) -> str:
 
 def _policy_payload(policy: AnalysisPolicyVersion) -> dict[str, Any]:
     rules = dict(policy.validation_rules) if isinstance(policy.validation_rules, Mapping) else {}
+    if isinstance(rules.get("policy_snapshot"), Mapping):
+        return {**deepcopy(rules["policy_snapshot"]), "policy_sha256": policy.policy_sha256}
     threshold_keys = {key: rules[key] for key in ("max_unsupported_false_positive_rate", "min_human_agreement", "min_required_item_recall") if key in rules}
     return {
         "schema": "bidops.analysis-policy.v1", "model_endpoint_ref": policy.model_endpoint_ref,
@@ -417,6 +426,8 @@ class DeepReviewService:
         확정돼 있으므로 여기서는 그 둘만 읽는다.
         """
 
+        if luna_inputs.is_luna(policy):
+            return "codex-exec", str(policy.model_name)
         if self._client is not None and self._client_matches(str(policy.model_name)):
             return (
                 str(getattr(self._client, "provider_name", "injected-analysis-client")),
@@ -435,7 +446,7 @@ class DeepReviewService:
 
         return self._injected_client or self._bound_model_name == model_name
 
-    def _bind_client(self, model_name: str) -> Any:
+    def _bind_client(self, model_name: str, *, narrative: bool = False) -> Any:
         """용도별 설정으로 심층 검토 client를 만들고 identity를 확인한다 (명세 §6.6).
 
         허용 host나 배포 선언 revision이 없으면 `/models`를 부르기도 전에 fail
@@ -443,7 +454,7 @@ class DeepReviewService:
         어느 실패도 다른 주소·다른 provider로 넘어가지 않는다.
         """
 
-        if self._client is not None and self._client_matches(model_name):
+        if self._client is not None and self._client_matches(model_name) and (self._injected_client or getattr(self, "_bound_narrative", False) == narrative):
             return self._client
         # 모델명이 다르면 이전 client는 버린다. transport를 닫지 않으면 job이
         # 모델을 오갈 때마다 연결이 쌓인다.
@@ -456,7 +467,7 @@ class DeepReviewService:
             self._client = ModelClient.for_purpose(
                 MODEL_PURPOSE,
                 model=model_name,
-                output_contract=DEEP_REVIEW_STAGE_CONTRACT,
+                output_contract=NARRATIVE_STAGE_CONTRACT if narrative else DEEP_REVIEW_STAGE_CONTRACT,
                 settings=self.settings,
             )
         except ModelIdentityError as error:
@@ -464,6 +475,7 @@ class DeepReviewService:
         except (ModelEndpointError, ValueError) as error:
             raise DeepReviewServiceError("service_unavailable", "심층 검토 모델 endpoint 설정이 유효하지 않습니다", status_code=503) from error
         self._bound_model_name = model_name
+        self._bound_narrative = narrative
         return self._client
 
     def _idempotent_response(self, session: Session, *, operation: str, aggregate_type: str, aggregate_id: str, actor: str, request_id: UUID, request_hash: str) -> dict[str, Any] | None:
@@ -485,6 +497,9 @@ class DeepReviewService:
         return session.scalars(select(DeepReviewStage).where(DeepReviewStage.attempt_id == attempt_id).order_by(DeepReviewStage.sequence.asc())).all()
 
     def _attempt_view(self, session: Session, attempt: DeepReviewAttempt) -> dict[str, Any]:
+        from .verification import enabled_for_attempt
+        from ..models import DeepReviewApproval
+        approval = session.scalar(select(DeepReviewApproval).where(DeepReviewApproval.attempt_id == attempt.id))
         stages = self._stages(session, attempt.id)
         last_error = None
         for stage in reversed(stages):
@@ -505,6 +520,11 @@ class DeepReviewService:
             "started_at": attempt.started_at.isoformat() if attempt.started_at else None,
             "completed_at": attempt.completed_at.isoformat() if attempt.completed_at else None,
             "last_error_code": last_error,
+            "source_verification_enabled": enabled_for_attempt(session, attempt.id),
+            "provider": "codex-exec" if approval else None,
+            "model": "gpt-5.6-luna" if approval else None,
+            "reasoning_effort": "xhigh" if approval else None,
+            "preview_id": str(approval.preview_id) if approval else None,
         }
 
     def view(self, session: Session, review_id: UUID) -> dict[str, Any]:
@@ -526,7 +546,7 @@ class DeepReviewService:
 
         return opportunity_reviews(session, opportunity_id)
 
-    def _seed_attempt(self, session: Session, review: DeepReview, *, sequence: int, actor: str) -> DeepReviewAttempt:
+    def _seed_attempt(self, session: Session, review: DeepReview, *, sequence: int, actor: str, source_verification_enabled: bool = True, actor_kind: str = "human") -> DeepReviewAttempt:
         attempt = DeepReviewAttempt(id=uuid4(), deep_review_id=review.id, sequence=sequence, status="queued", lease_fence=0, requested_by_name=actor)
         session.add(attempt)
         session.flush()
@@ -534,6 +554,8 @@ class DeepReviewService:
         session.add(job)
         session.flush()
         attempt.work_job_id = job.id
+        from .verification import record_selection
+        record_selection(session, attempt.id, source_verification_enabled, actor, actor_kind)
         for stage, sequence_number in STAGE_SEQUENCE.items():
             session.add(DeepReviewStage(id=uuid4(), attempt_id=attempt.id, stage=stage, sequence=sequence_number, status="queued", structured_output={}, invocation_metadata={}))
         review.current_attempt_id = attempt.id
@@ -549,6 +571,8 @@ class DeepReviewService:
         request_id: UUID,
         *,
         actor_kind: str = "human",
+        source_verification_enabled: bool = True,
+        preview_id: UUID | None = None,
     ) -> dict[str, Any]:
         """심층 검토와 첫 attempt를 만든다.
 
@@ -560,8 +584,10 @@ class DeepReviewService:
 
         claimed_name = _validate_actor(actor)
         actor_kind = _validate_actor_kind(actor_kind)
+        if actor_kind == "system" and not self.settings.deep_review_auto_start_enabled:
+            raise DeepReviewServiceError("manual_request_required", "사용자 요청이 필요합니다", status_code=409)
         creation_action = CREATION_ACTION_BY_ACTOR_KIND[actor_kind]
-        request_hash = _idempotency_hash("deep_review_create", {"notice_id": notice_id, "bundle_id": str(bundle_id)})
+        request_hash = _idempotency_hash("deep_review_create", {"notice_id": notice_id, "bundle_id": str(bundle_id), **({"source_verification_enabled": False} if not source_verification_enabled else {}), **({"preview_id": str(preview_id)} if preview_id else {})})
         try:
             # Notice is the aggregate root for the immutable grade/bundle /
             # active profile/policy snapshot.  Lock it before replay lookup so
@@ -588,6 +614,11 @@ class DeepReviewService:
                 session,
                 allow_unmeasured_reference=self.reference_workflow_mode,
             )
+            if luna_inputs.is_luna(policy) and actor_kind != "human":
+                raise DeepReviewServiceError("manual_request_required", "Luna는 사람 요청만 지원합니다", status_code=409)
+            preview = luna_inputs.check(self, session, preview_id, notice, bundle_id, profile, policy, source_verification_enabled) if luna_inputs.is_luna(policy) else None
+            if preview is not None and session.scalar(select(DeepReview.id).where(DeepReview.notice_id == notice_id, DeepReview.status.in_(("queued", "running"))).limit(1)):
+                raise DeepReviewServiceError("active_attempt_exists", "이미 대기·실행 중인 검토가 있습니다", status_code=409)
             runtime_provider, runtime_model = self._runtime_identity(policy)
             quality_snapshot = (
                 {"status": "reference_workflow_unmeasured", "deployable": False}
@@ -627,6 +658,8 @@ class DeepReviewService:
                 DeepReview.profile_version_id == profile.id, DeepReview.policy_version_id == policy.id,
             ).limit(1))
             if existing is not None:
+                if preview is not None:
+                    raise DeepReviewServiceError("review_exists", "기존 검토에서 새 분석을 요청하십시오", status_code=409)
                 creation = session.scalar(select(AuditEvent).where(
                     # 사람 경로와 자동 시작(§6.4)이 같은 계보를 남긴다. 한쪽만
                     # 보면 자동 생성된 review의 provider 문맥을 못 읽는다.
@@ -642,6 +675,9 @@ class DeepReviewService:
                         status_code=409,
                         request_id=request_id,
                     )
+                from .verification import enabled_for_attempt
+                if existing.current_attempt_id and enabled_for_attempt(session, existing.current_attempt_id) != source_verification_enabled:
+                    raise DeepReviewServiceError("verification_setting_conflict", "기존 실행의 대조 설정이 다릅니다. 해당 보고서에서 새 분석을 실행하십시오.", status_code=409, request_id=request_id)
                 response = self.view(session, existing.id)
                 session.add(IdempotencyRecord(operation="deep_review_create", aggregate_type="notice", aggregate_id=str(notice_id), claimed_name=claimed_name, request_id=request_id, request_sha256=request_hash, response_status=202, response_snapshot=response))
                 session.commit()
@@ -649,7 +685,9 @@ class DeepReviewService:
             review = DeepReview(id=uuid4(), notice_id=notice_id, bundle_id=bundle_id, profile_version_id=profile.id, policy_version_id=policy.id, effective_grade_at_start=basis.grade or "unknown", status="queued", requested_by_name=claimed_name)
             session.add(review)
             session.flush()
-            self._seed_attempt(session, review, sequence=1, actor=claimed_name)
+            attempt = self._seed_attempt(session, review, sequence=1, actor=claimed_name, source_verification_enabled=source_verification_enabled, actor_kind=actor_kind)
+            if preview is not None:
+                luna_inputs.approve(session, preview, attempt.id, claimed_name, request_id)
             session.flush()
             response = self.view(session, review.id)
             session.add(IdempotencyRecord(operation="deep_review_create", aggregate_type="notice", aggregate_id=str(notice_id), claimed_name=claimed_name, request_id=request_id, request_sha256=request_hash, response_status=202, response_snapshot=response))
@@ -660,7 +698,7 @@ class DeepReviewService:
                 # No approved external analysis provider exists in this
                 # deployment; the remaining providers are vLLM and the local
                 # mock, so this audit flag is always false.
-                "external_provider_approved": False,
+                "external_provider_approved": preview is not None,
                 "policy_quality": quality_snapshot,
                 "reference_workflow_mode": self.reference_workflow_mode,
                 "effective_grade": basis.grade,
@@ -685,10 +723,13 @@ class DeepReviewService:
                 return dict(duplicate)
             raise DeepReviewServiceError("idempotency_conflict", "동시 요청으로 deep review가 이미 생성되었습니다", status_code=409, request_id=request_id) from exc
 
-    def create_attempt(self, session: Session, review_id: UUID, actor: str | None, request_id: UUID) -> dict[str, Any]:
+    def create_attempt(self, session: Session, review_id: UUID, actor: str | None, request_id: UUID, *, source_verification_enabled: bool = True, preview_id: UUID | None = None) -> dict[str, Any]:
         claimed_name = _validate_actor(actor)
-        request_hash = _idempotency_hash("deep_review_attempt", {"review_id": str(review_id)})
+        request_hash = _idempotency_hash("deep_review_attempt", {"review_id": str(review_id), **({"source_verification_enabled": False} if not source_verification_enabled else {}), **({"preview_id": str(preview_id)} if preview_id else {})})
         try:
+            notice_id = session.scalar(select(DeepReview.notice_id).where(DeepReview.id == review_id))
+            if notice_id is not None:
+                lock_notice(session, notice_id)
             # Lock the review aggregate before idempotency replay and active
             # attempt checks.  This makes same-review retries serializable.
             review = session.scalar(select(DeepReview).where(DeepReview.id == review_id).with_for_update())
@@ -725,6 +766,13 @@ class DeepReviewService:
             )
             if correlation_id != bundle_correlation_id:
                 raise DeepReviewServiceError("processing_failed", "deep review 계보를 확인할 수 없습니다", status_code=500, request_id=request_id)
+            profile = session.get(ProfileVersion, review.profile_version_id)
+            policy = session.get(AnalysisPolicyVersion, review.policy_version_id)
+            validate_pinned_policy(policy, allow_unmeasured_reference=self.reference_workflow_mode)
+            notice = lock_notice(session, review.notice_id)
+            preview = luna_inputs.check(self, session, preview_id, notice, review.bundle_id, profile, policy, source_verification_enabled) if luna_inputs.is_luna(policy) else None
+            if preview is not None and session.scalar(select(DeepReview.id).where(DeepReview.notice_id == review.notice_id, DeepReview.status.in_(("queued", "running"))).limit(1)):
+                raise DeepReviewServiceError("active_attempt_exists", "이미 대기·실행 중인 검토가 있습니다", status_code=409)
             max_sequence = session.scalar(select(DeepReviewAttempt.sequence).where(DeepReviewAttempt.deep_review_id == review.id).order_by(DeepReviewAttempt.sequence.desc()).limit(1)) or 0
             # Completed attempts are immutable snapshots.  A retry may move
             # the review pointer to a new attempt, but never rewrites a
@@ -732,7 +780,9 @@ class DeepReviewService:
             # superseded as part of retry bookkeeping.
             if current.status == "failed":
                 current.status = "superseded"
-            attempt = self._seed_attempt(session, review, sequence=int(max_sequence) + 1, actor=claimed_name)
+            attempt = self._seed_attempt(session, review, sequence=int(max_sequence) + 1, actor=claimed_name, source_verification_enabled=source_verification_enabled)
+            if preview is not None:
+                luna_inputs.approve(session, preview, attempt.id, claimed_name, request_id)
             session.flush()
             response = self._attempt_view(session, attempt)
             session.add(IdempotencyRecord(operation="deep_review_attempt", aggregate_type="deep_review", aggregate_id=str(review_id), claimed_name=claimed_name, request_id=request_id, request_sha256=request_hash, response_status=202, response_snapshot=response))
@@ -741,7 +791,7 @@ class DeepReviewService:
                 **({"correlation_id": str(correlation_id)} if correlation_id is not None else {}),
             }))
             session.commit()
-        except DeepReviewServiceError:
+        except (DeepReviewServiceError, InputVersionError):
             session.rollback()
             raise
         except IntegrityError as exc:
@@ -794,6 +844,21 @@ class DeepReviewService:
             session.commit()
             return None
         if job.status == "running":
+            policy = session.get(AnalysisPolicyVersion, review.policy_version_id)
+            if policy is not None and luna_inputs.is_luna(policy):
+                job.status = attempt.status = review.status = "failed"
+                job.last_error_code = "lease_expired"
+                job.lease_fence += 1
+                job.lease_expires_at = None
+                job.completed_at = attempt.completed_at = now
+                for stage in self._stages(session, attempt.id):
+                    if stage.status in {"queued", "running"}:
+                        stage.status = "failed"
+                        stage.completed_at = now
+                        stage.invocation_metadata = [{"error_code": "lease_expired"}]
+                _add_job_audit(session, action="deep_review.job.failed", job_id=job.id, review_id=review.id, attempt_id=attempt.id, fence=job.lease_fence, status="failed")
+                session.commit()
+                return None
             # Reclaim is a deterministic recovery boundary.  Completed
             # stages remain immutable; only the interrupted in-flight stage is
             # returned to the queue so the new owner can make progress.
@@ -869,7 +934,7 @@ class DeepReviewService:
         session.commit()
         return JobClaim(job.id, review.id, attempt.id, worker_id, fence)
 
-    def _renew_lease(self, session: Session, claim: JobClaim) -> None:
+    def _renew_lease(self, session: Session, claim: JobClaim, *, require_live: bool = False) -> None:
         """Renew exactly the current owner/fence before every model call."""
 
         if session.in_transaction():
@@ -881,6 +946,7 @@ class DeepReviewService:
                 WorkJob.lease_owner == claim.worker_id,
                 WorkJob.lease_fence == claim.fence,
                 WorkJob.status == "running",
+                *([WorkJob.lease_expires_at > self.clock()] if require_live else []),
             )
             .values(lease_expires_at=self.clock() + timedelta(seconds=self.lease_seconds))
         ).rowcount
@@ -1075,6 +1141,7 @@ class DeepReviewService:
         structures: Mapping[str, Mapping[str, Any]],
         session: Session | None = None,
         attempt_id: str | None = None,
+        source_verification_enabled: bool = True,
     ) -> tuple[list[Mapping[str, Any]], set[str], set[str]]:
         """Validate and return the immutable completed-stage prefix.
 
@@ -1114,7 +1181,8 @@ class DeepReviewService:
                         expected_deep_review_id=review_id,
                         known_claim_ids=known_claim_ids,
                         known_evidence_ids=known_evidence_ids,
-                        structures=structures,
+                        known_evidence=[row for output in outputs for row in output.get("evidence", [])] if stage.structured_output.get("schema") == "bidops.deep-review-stage.v2" else (),
+                        structures=structures, source_verification_enabled=source_verification_enabled,
                     )
                 except DeepReviewValidationError as exc:
                     raise DeepReviewServiceError("processing_failed", "completed stage output 검증에 실패했습니다", status_code=500) from exc
@@ -1352,8 +1420,15 @@ class DeepReviewService:
             raise StaleFenceError()
         session.commit()
 
-    def _fail_claim(self, session: Session, claim: JobClaim, stage: DeepReviewStage | None, code: str, invocation_metadata: Sequence[Mapping[str, Any]] = ()) -> None:
+    def _fail_claim(self, session: Session, claim: JobClaim, stage: DeepReviewStage | None, code: str, invocation_metadata: Sequence[Mapping[str, Any]] = (), raw_records: Sequence[tuple[InvocationResult, Mapping[str, Any]]] = ()) -> None:
         session.rollback()
+        raw_aggregate = None
+        if raw_records:
+            try:
+                raw_aggregate = self._store_raw_aggregate(raw_records)
+            except DeepReviewServiceError:
+                # Preserve the original rejection even if diagnostic storage is unavailable.
+                raw_aggregate = None
         metadata = [_safe_invocation_metadata(item) for item in invocation_metadata]
         metadata.append({"status": "failed", "error_code": code, "safe": True})
         # Failure follows the same fence protocol as success: verify and lock
@@ -1368,7 +1443,8 @@ class DeepReviewService:
                 session.rollback()
                 raise StaleFenceError()
             if current_stage.status in {"queued", "running"}:
-                stage_count = session.execute(update(DeepReviewStage).where(DeepReviewStage.id == stage.id, DeepReviewStage.attempt_id == claim.attempt_id, DeepReviewStage.status.in_(("queued", "running"))).values(status="failed", invocation_metadata=metadata, completed_at=self.clock())).rowcount
+                raw_content = self._raw_content_row(session, *raw_aggregate) if raw_aggregate is not None else None
+                stage_count = session.execute(update(DeepReviewStage).where(DeepReviewStage.id == stage.id, DeepReviewStage.attempt_id == claim.attempt_id, DeepReviewStage.status.in_(("queued", "running"))).values(status="failed", invocation_metadata=metadata, completed_at=self.clock(), raw_response_content_object_id=raw_content.id if raw_content else None)).rowcount
                 if stage_count != 1:
                     session.rollback()
                     raise StaleFenceError()
@@ -1459,19 +1535,37 @@ class DeepReviewService:
                     approval_check(review.notice_id)
                 except ModelInvocationError as error:
                     raise DeepReviewServiceError(error.code, "외부 분석 provider 사용 승인이 없습니다", status_code=403) from error
-            bundle, structures = bundle_context(session, review.bundle_id, structure_loader=self.structure_loader)
-            profile_payload = profile_context(session, profile)
-            policy_payload = _policy_payload(policy)
+            luna = luna_inputs.is_luna(policy)
+            if not luna:
+                bundle, structures = bundle_context(session, review.bundle_id, structure_loader=self.structure_loader)
+                profile_payload = profile_context(session, profile)
+                policy_payload = _policy_payload(policy)
+            if luna:
+                if not self.settings.luna_deep_review_enabled or self.settings.analysis_provider == "mock":
+                    raise DeepReviewServiceError("service_unavailable", "Luna 실행 비활성", status_code=503)
+                frozen = luna_inputs.approved_input(session, attempt.id, review)
+                bundle, structures, profile_payload, policy_payload = (frozen[k] for k in ("bundle", "structures", "profile", "policy"))
+            narrative = policy_payload.get("pipeline_version") == "narrative-v2"
+            source_units = []
+            if narrative:
+                inventory = frozen["inventory"] if luna else document_segments.inventory_context(session, [UUID(str(row["structure_id_at_confirmation"])) for row in bundle["documents"]])
+                source_units = [row for group in self._requirements(bundle, structures, max_characters=int(policy_payload["chunking"]["source_characters"]), max_requirements=1) for row in group]
+                for unit in source_units:
+                    unit["document_requirement_ids"] = sorted(document_segments.observed_requirement_ids([unit["text"]], inventory.get("prefixes", [])))
+                if {rid for unit in source_units for rid in unit["document_requirement_ids"]} != set(inventory.get("expected_ids", [])):
+                    raise narrative_inputs.NarrativeInputError("source_requirement_inventory_mismatch")
             # Commit plain deep-copied snapshots before any model I/O.  The
             # worker never rereads live projections while a review is running.
             bundle = deepcopy(bundle)
             structures = deepcopy(structures)
+            from .verification import enabled_for_attempt
+            source_verification_enabled = enabled_for_attempt(session, claim.attempt_id)
             profile_payload = deepcopy(profile_payload)
             policy_payload = deepcopy(policy_payload)
             prefix_outputs, prefix_claim_ids, prefix_evidence_ids = self._contiguous_completed_prefix(
                 self._stages(session, claim.attempt_id), bundle=bundle, profile=profile_payload,
                 profile_version_id=str(profile.id), review_id=str(review.id), structures=structures,
-                session=session, attempt_id=str(claim.attempt_id),
+                session=session, attempt_id=str(claim.attempt_id), source_verification_enabled=source_verification_enabled,
             )
             review_id = review.id
             pinned_notice_id = review.notice_id
@@ -1484,6 +1578,7 @@ class DeepReviewService:
             previous_outputs: list[Mapping[str, Any]] = prefix_outputs
             known_claim_ids: set[str] = prefix_claim_ids
             known_evidence_ids: set[str] = prefix_evidence_ids
+            luna_deadline = time.monotonic() + 7200
             for stage_name in STAGES:
                 stage_invocations: list[Mapping[str, Any]] = []
                 stage_row = session.scalar(select(DeepReviewStage).where(DeepReviewStage.attempt_id == claim.attempt_id, DeepReviewStage.stage == stage_name).limit(1))
@@ -1498,9 +1593,14 @@ class DeepReviewService:
                     raise DeepReviewServiceError("processing_failed", "stage 상태 전이가 올바르지 않습니다", status_code=500)
                 # 실제로 모델을 부르기 직전에만 client를 묶는다. 완료된 stage만
                 # 남은 재개 실행은 여기까지 오지 않으므로 `/models`도 부르지 않는다.
-                client = self._bind_client(pinned_model_name)
+                if luna:
+                    from .luna_client import LunaClient
+                    client = self._client if self._injected_client else LunaClient(self.settings.luna_runner_url, lambda: self._renew_lease(session, claim, require_live=True), luna_deadline)
+                else:
+                    client = self._bind_client(pinned_model_name, narrative=True) if narrative else self._bind_client(pinned_model_name)
                 self._mark_running(session, claim, stage_row)
-                slices = self._stage_slices(stage_name, bundle, structures, profile_payload, previous_outputs)
+                slices = narrative_inputs.build_slices(stage_name, source_units, profile_payload, previous_outputs, policy_payload) if narrative else self._stage_slices(stage_name, bundle, structures, profile_payload, previous_outputs)
+                partial_slice_count = len(slices)
                 chunks: list[Mapping[str, Any]] = []
                 invocation_metadata: list[dict[str, Any]] = []
                 raw_records: list[tuple[InvocationResult, Mapping[str, Any]]] = []
@@ -1513,7 +1613,7 @@ class DeepReviewService:
                         "stage": stage_name,
                     }
                     try:
-                        self._renew_lease(session, claim)
+                        self._renew_lease(session, claim, require_live=luna)
                         result = client.invoke(
                             stage_name,
                             invocation_input,
@@ -1521,7 +1621,18 @@ class DeepReviewService:
                             profile={"profile_version_id": pinned_profile_id, "profile_sha256": pinned_profile_sha256} if stage_name == STAGES[1] else None,
                             prior_stages=(),
                         )
-                        chunk_output = _resolve_exact_evidence_quotes(result.structured_output, structures)
+                        if luna:
+                            self._renew_lease(session, claim, require_live=True)
+                            if time.monotonic() >= luna_deadline:
+                                raise DeepReviewServiceError("review_timeout", "검토 제한시간 초과", status_code=503)
+                        raw_records.append((result, {"slice_index": slice_index}))
+                        stage_invocations.extend(_safe_invocation_attempt(item) for item in result.attempts)
+                        chunk_output = _resolve_exact_evidence_quotes(result.structured_output, structures) if source_verification_enabled else deepcopy(result.structured_output)
+                        if narrative:
+                            if chunk_output.get("schema") != "bidops.deep-review-stage.v2":
+                                raise narrative_inputs.NarrativeInputError("narrative_schema_required")
+                            chunk_output = narrative_inputs.bind_local_ids(chunk_output, input_slice)
+                            narrative_inputs.validate_slice_output(chunk_output, input_slice, stage_name, source_verification_enabled=source_verification_enabled)
                         # Validate each untrusted chunk before paying for the
                         # next provider call.  The final merge repeats this
                         # check and adds cross-chunk duplicate/conflict rules.
@@ -1544,30 +1655,38 @@ class DeepReviewService:
                             profile=profile_payload,
                             profile_version_id=pinned_profile_id,
                             expected_deep_review_id=str(review_id),
-                            known_claim_ids=known_claim_ids | chunk_claim_ids,
-                            known_evidence_ids=known_evidence_ids | chunk_evidence_ids,
-                            structures=structures,
+                            known_claim_ids=({row["claim_id"] for row in input_slice.get("verified_claims", [])} if narrative else known_claim_ids) | chunk_claim_ids,
+                            known_evidence_ids=({row["evidence_id"] for row in input_slice.get("prior_evidence", [])} if narrative else known_evidence_ids) | chunk_evidence_ids,
+                            known_evidence=input_slice.get("prior_evidence", []) if narrative else (),
+                            structures=structures, source_verification_enabled=source_verification_enabled,
                         )
-                        # Raw responses are persisted as one stage aggregate
-                        # only after every invocation in this stage succeeds.
-                        raw_records.append((result, {"slice_index": slice_index}))
                         safe_attempts = [_safe_invocation_attempt(item) for item in result.attempts]
                         invocation_metadata.append({
                             "slice_index": slice_index, "input_slice_sha256": _canonical_hash(invocation_input), "prompt_sha256": result.input_sha256,
                             "response_sha256": hashlib.sha256(result.raw_response).hexdigest(),
                             "provider": result.provider or str(getattr(client, "provider_name", "unknown")),
                             "model": result.model or pinned_model_name,
+                            **({"cli_version": "0.155.1", "reasoning_effort": "xhigh"} if luna else {}),
                             "policy_sha256": pinned_policy_sha256, "prompt_tokens": result.prompt_tokens,
                             "output_tokens": result.output_tokens, "latency_ms": result.latency_ms,
                             "status": "succeeded", "attempts": safe_attempts,
+                            **({"profile_selection": deepcopy(input_slice["profile_selection"])} if narrative and "profile_selection" in input_slice else {}),
+                            **({"synthesis_phase": input_slice["synthesis_phase"]} if narrative and "synthesis_phase" in input_slice else {}),
                         })
-                        stage_invocations.extend(safe_attempts)
                         chunks.append(chunk_output)
+                        if narrative and stage_name == STAGES[2] and slice_index + 1 == partial_slice_count:
+                            partial_claims = [row for chunk in chunks for row in chunk["claims"]]
+                            all_evidence = {row["evidence_id"]: row for output in [*previous_outputs, *chunks] for row in output["evidence"]}
+                            slices.extend(narrative_inputs.pack_verified(partial_claims, list(all_evidence.values()), budget=16000, phase="global"))
                     except ModelInvocationError as error:
+                        if error.raw_response:
+                            raw_records.append((InvocationResult({}, error.raw_response, _canonical_hash(invocation_input), hashlib.sha256(error.raw_response).hexdigest(), None, None, 0, (), pinned_provider, pinned_model_name), {"slice_index": slice_index}))
                         safe_attempts = [_safe_invocation_attempt(item) for item in error.attempts]
                         invocation_metadata.extend({"slice_index": slice_index, "input_slice_sha256": _canonical_hash(invocation_input), **item} for item in safe_attempts)
                         stage_invocations.extend({"slice_index": slice_index, "input_slice_sha256": _canonical_hash(invocation_input), **item} for item in safe_attempts)
                         raise DeepReviewServiceError(error.code, "승인된 model invocation이 실패했습니다", status_code=503)
+                if luna and not self._injected_client:
+                    client.close()
                 chunk_orders = {
                     id(chunk): (
                         STAGE_SEQUENCE[stage_name],
@@ -1579,7 +1698,7 @@ class DeepReviewService:
                     )
                     for input_slice, chunk in zip(slices, chunks)
                 }
-                merged = merge_stage_chunks(chunks, bundle=bundle, profile=profile_payload, profile_version_id=pinned_profile_id, expected_deep_review_id=str(review_id), known_claim_ids=known_claim_ids, known_evidence_ids=known_evidence_ids, structures=structures, chunk_order_key=lambda chunk: chunk_orders.get(id(chunk), (STAGE_SEQUENCE[stage_name], 0, 0, 0, "", 0)))
+                merged = merge_stage_chunks(chunks, bundle=bundle, profile=profile_payload, profile_version_id=pinned_profile_id, expected_deep_review_id=str(review_id), known_claim_ids=known_claim_ids, known_evidence_ids=known_evidence_ids, known_evidence=[row for output in previous_outputs for row in output.get("evidence", [])] if narrative else (), structures=structures, source_verification_enabled=source_verification_enabled, chunk_order_key=lambda chunk: chunk_orders.get(id(chunk), (STAGE_SEQUENCE[stage_name], 0, 0, 0, "", 0)))
                 known_claim_ids.update(item["claim_id"] for item in merged.get("claims", []))
                 known_evidence_ids.update(item["evidence_id"] for item in merged.get("evidence", []))
                 invocation_doc = sorted(invocation_metadata, key=lambda item: (item.get("slice_index", 0), item.get("retry_index", 0)))
@@ -1608,6 +1727,12 @@ class DeepReviewService:
         except StaleFenceError:
             session.rollback()
             raise
+        except InputVersionError as error:
+            self._fail_claim(session, claim, stage_row, error.code)
+            raise DeepReviewServiceError(error.code, "동결 입력 검증 실패", status_code=409) from error
+        except narrative_inputs.NarrativeInputError as error:
+            self._fail_claim(session, claim, stage_row, "validation_failed", [{"status": "failed", "error_code": "narrative:" + error.code}], raw_records if "raw_records" in locals() else ())
+            raise DeepReviewServiceError("validation_failed", "설명형 분석의 입력·출력 범위 검증에 실패했습니다", status_code=500) from error
         except DeepReviewValidationError as error:
             # Persist stable validator codes only.  Messages, quotes, locators,
             # and model content remain outside DB/audit failure metadata.
@@ -1616,14 +1741,17 @@ class DeepReviewService:
                 for issue in error.issues[:20]
             )
             observations = tuple(stage_invocations if "stage_invocations" in locals() else ()) + diagnostics
-            self._fail_claim(session, claim, stage_row, "validation_failed", observations)
+            self._fail_claim(session, claim, stage_row, "validation_failed", observations, raw_records if "raw_records" in locals() else ())
             raise DeepReviewServiceError("processing_failed", "model 결과가 권위 schema를 통과하지 못했습니다", status_code=500)
         except DeepReviewServiceError as error:
-            self._fail_claim(session, claim, stage_row, error.code, stage_invocations if "stage_invocations" in locals() else ())
+            self._fail_claim(session, claim, stage_row, error.code, stage_invocations if "stage_invocations" in locals() else (), raw_records if "raw_records" in locals() else ())
             raise
         except Exception as error:
             self._fail_claim(session, claim, stage_row, "processing_failed")
             raise DeepReviewServiceError("processing_failed", "deep review 실행에 실패했습니다", status_code=500) from error
+        finally:
+            if "luna" in locals() and luna and "client" in locals() and not self._injected_client:
+                client.close()
 
 
 __all__ = [

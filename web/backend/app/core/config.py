@@ -195,6 +195,9 @@ class Settings(BaseSettings):
     #: 켜면 묶음이 ready가 될 때 개요 run을 자동 enqueue한다. 끄면 새 run을 넣지
     #: 않고 queued run은 닫는다. 기본은 꺼 둔다 — startup은 아무것도 활성화하지 않는다.
     prespec_overview_enabled: bool = Field(default=False, validation_alias="BIDOPS_PRESPEC_OVERVIEW_ENABLED")
+    deep_review_auto_start_enabled: bool = Field(default=False, validation_alias="BIDOPS_DEEP_REVIEW_AUTO_START_ENABLED")
+    luna_deep_review_enabled: bool = Field(default=False, validation_alias="BIDOPS_LUNA_DEEP_REVIEW_ENABLED")
+    luna_runner_url: str = Field(default="http://codex-runner:8091", validation_alias="BIDOPS_LUNA_RUNNER_URL")
     prespec_company_fit_enabled: bool = Field(default=False, validation_alias="BIDOPS_PRESPEC_COMPANY_FIT_ENABLED")
     prespec_company_fit_model: str | None = Field(default=None, validation_alias="BIDOPS_PRESPEC_COMPANY_FIT_MODEL")
     vllm_deep_review_base_url: str = Field(default="", validation_alias="BIDOPS_VLLM_DEEP_REVIEW_BASE_URL")

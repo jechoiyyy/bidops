@@ -11,3 +11,7 @@ web/frontend/node_modules
 web/frontend/dist
 **/__pycache__
 **/*.pyc
+env
+backups
+web/frontend/test-results
+web/frontend/playwright-report

@@ -33,6 +33,11 @@ class StageView(StrictModel):
 
 
 class AttemptView(StrictModel):
+    provider: str | None = None
+    model: str | None = None
+    reasoning_effort: str | None = None
+    preview_id: UUID | None = None
+    source_verification_enabled: bool = True
     id: UUID
     sequence: int = Field(ge=1)
     status: AttemptStatus
@@ -90,3 +95,14 @@ __all__ = [
     "StageStatus",
     "StageView",
 ]
+
+
+class DeepReviewPreviewView(StrictModel):
+    preview_id: UUID
+    input_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    provider: Literal["codex-exec"]
+    model: Literal["gpt-5.6-luna"]
+    reasoning_effort: Literal["xhigh"]
+    quality_status: Literal["unmeasured_reference"]
+    source_verification_enabled: bool
+    input: dict

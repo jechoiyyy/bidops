@@ -1,0 +1,38 @@
+# Explicit opt-in; only analysis-worker can reach this passive runner.
+services:
+  web:
+    environment:
+      BIDOPS_DEEP_REVIEW_AUTO_START_ENABLED: "false"
+      BIDOPS_LUNA_DEEP_REVIEW_ENABLED: ${BIDOPS_LUNA_DEEP_REVIEW_ENABLED:-false}
+  analysis-worker:
+    environment:
+      BIDOPS_DEEP_REVIEW_AUTO_START_ENABLED: "false"
+      BIDOPS_LUNA_DEEP_REVIEW_ENABLED: ${BIDOPS_LUNA_DEEP_REVIEW_ENABLED:-false}
+      BIDOPS_LUNA_RUNNER_URL: http://codex-runner:8091
+    networks:
+      - luna-internal
+  codex-runner:
+    build:
+      context: .
+      dockerfile: web/codex-runner/Dockerfile
+    profiles: [luna]
+    read_only: true
+    init: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=128m,mode=1777
+    secrets:
+      - codex_auth
+    networks:
+      - luna-internal
+      - luna-egress
+    pids_limit: 128
+    mem_limit: 1g
+secrets:
+  codex_auth:
+    file: ${BIDOPS_CODEX_AUTH_FILE:?dedicated auth.json secret required}
+networks:
+  luna-internal:
+    internal: true
+  luna-egress: {}

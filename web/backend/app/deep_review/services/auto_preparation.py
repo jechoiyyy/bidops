@@ -562,6 +562,8 @@ def maybe_auto_start_deep_review(
     """
 
     notice_id = int(notice_id)
+    if not get_settings().deep_review_auto_start_enabled:
+        return AutoDeepReviewOutcome(notice_id=notice_id, reason="manual_request_required")
     try:
         with _work_session(session) as work:
             from ...lifecycle import lock_notice
@@ -950,12 +952,14 @@ def auto_preparation_fields(
         )
 
     deep_review_by_notice: dict[int, UUID] = {}
-    for notice_id, deep_review_id in session.execute(
-        select(DeepReview.notice_id, DeepReview.id)
+    deep_review_status_by_notice: dict[int, str] = {}
+    for notice_id, deep_review_id, review_status in session.execute(
+        select(DeepReview.notice_id, DeepReview.id, DeepReview.status)
         .where(DeepReview.notice_id.in_(ids))
         .order_by(DeepReview.notice_id.asc(), DeepReview.created_at.desc())
     ).all():
         deep_review_by_notice.setdefault(int(notice_id), deep_review_id)
+        deep_review_status_by_notice.setdefault(int(notice_id), review_status)
 
     # §6.4의 자동 시작을 막은 사유를 **읽는 시점에 다시 계산한다**. 새 열을
     # 만들지 않고, 규칙은 쓰기 경로와 같은 `auto_start_reason`이 판단한다.
@@ -996,6 +1000,9 @@ def auto_preparation_fields(
                 active_versions_available=_active_versions_available(),
                 company_fit_reason=fit_reasons.get(notice_id),
             )
+        if (not get_settings().deep_review_auto_start_enabled and ready_bundle is not None
+                and runs.get(notice_id) is not None and runs[notice_id].status == "completed"):
+            auto_start_reason_code = "manual_request_required"
         status, reason = _status_for(
             is_pre_spec=kinds.get(notice_id) == "pre_spec",
             grade=grade,
@@ -1015,6 +1022,7 @@ def auto_preparation_fields(
             "auto_preparation_status": status,
             "auto_preparation_reason": reason,
             "latest_deep_review_id": deep_review_id,
+            "latest_deep_review_status": deep_review_status_by_notice.get(notice_id),
         }
     return fields
 

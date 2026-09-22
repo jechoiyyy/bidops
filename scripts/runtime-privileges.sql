@@ -458,4 +458,9 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA bidops GRANT SELECT ON TABLES TO ro_backup;
 GRANT SELECT ON ALL SEQUENCES IN SCHEMA bidops TO ro_backup;
 ALTER DEFAULT PRIVILEGES IN SCHEMA bidops GRANT SELECT ON SEQUENCES TO ro_backup;
 
+-- Luna source envelopes and consent are append-only.
+GRANT SELECT ON TABLE bidops.deep_review_preview, bidops.deep_review_approval TO app;
+GRANT INSERT ON TABLE bidops.deep_review_preview, bidops.deep_review_approval TO app;
+GRANT SELECT ON TABLE bidops.deep_review_preview, bidops.deep_review_approval TO worker;
+
 COMMIT;

@@ -27,6 +27,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ...core.model_binding import MODEL_ENDPOINT_REF, MODEL_NAME, canonical_json_bytes
+from ...core.models import AuditEvent
 from ..models import (
     AnalysisPolicyVersion,
     ContentObject,
@@ -239,6 +240,18 @@ def policy_activation_valid(policy: AnalysisPolicyVersion) -> bool:
 
 def _policy_hash_matches(policy: AnalysisPolicyVersion) -> bool:
     rules = policy.validation_rules if isinstance(policy.validation_rules, Mapping) else {}
+    snapshot = rules.get("policy_snapshot")
+    if isinstance(snapshot, Mapping):
+        try:
+            approved, _, digest = load_canonical_policy(CANONICAL_POLICY_FILE.with_name("analysis-policy-luna-v1.json" if policy.model_endpoint_ref == "codex-exec" else "analysis-policy-narrative-v2.json"))
+        except InputVersionError:
+            return False
+        return (snapshot == approved and policy.policy_sha256 == digest
+                and policy.model_name == approved["model_name"]
+                and policy.model_endpoint_ref == approved["model_endpoint_ref"]
+                and policy.prompts == approved["stages"]
+                and rules.get("generation") == approved["generation"]
+                and all(rules.get(key) == value for key, value in approved["validation"].items()))
     validation = {key: rules[key] for key in ("max_unsupported_false_positive_rate", "min_human_agreement", "min_required_item_recall") if key in rules}
     candidate = {
         "chunking": {"max_characters": 24000, "max_requirements": 20, "merge_order": ["stage_sequence", "document_ordinal", "page", "block_order", "requirement_id", "slice_index"], "retries": 2, "timeout_seconds": 300},
@@ -272,6 +285,8 @@ def _validate_model_binding(policy: AnalysisPolicyVersion, *, allow_unmeasured_r
     기록되는 모델명과 실제로 부른 모델이 갈린다.
     """
 
+    if policy.model_endpoint_ref == "codex-exec" and allow_unmeasured_reference and policy.model_name == "gpt-5.6-luna":
+        return
     if policy.model_endpoint_ref != MODEL_ENDPOINT_REF:
         raise InputVersionError("service_unavailable", "허용되지 않은 analysis model입니다")
     if not allow_unmeasured_reference and policy.model_name != MODEL_NAME:
@@ -488,6 +503,7 @@ def import_profile_version(
     *,
     created_by_name: str | None = None,
     label: str = "company-profile",
+    repair_missing_source: bool = False,
 ) -> ProfileVersion:
     """Idempotently import the canonical Markdown profile as an immutable row."""
 
@@ -503,6 +519,8 @@ def import_profile_version(
     source_key, source_size, source_metadata = _store_profile_source(raw, digest)
     existing = session.scalar(select(ProfileVersion).where(ProfileVersion.profile_sha256 == digest).limit(1))
     if existing is not None:
+        if repair_missing_source:
+            _repair_profile_source_location(session, existing, source_key, source_size, source_metadata, created_by_name)
         _validate_profile_snapshot(session, existing, require_verified_source=True)
         return existing
     # A nested transaction is the retry boundary.  In particular, never call
@@ -558,6 +576,34 @@ def import_profile_version(
                 _validate_profile_snapshot(session, existing, require_verified_source=True)
                 return existing
     raise InputVersionError("service_unavailable", "동시 profile version 생성에 실패했습니다")
+
+
+def _repair_profile_source_location(session: Session, profile: ProfileVersion, key: str, size: int, metadata: assets.ObjectMetadata, actor: str | None) -> None:
+    """Explicitly reconnect identical approved bytes; retain all old references."""
+    if actor is None:
+        raise InputVersionError("actor_name_invalid", "프로필 저장 위치 복구에는 담당자가 필요합니다")
+    rows = session.scalars(select(ProfileEvidence).where(ProfileEvidence.profile_version_id == profile.id)).all()
+    if _verified_profile_source(session, rows) is not None:
+        return
+    _validate_profile_snapshot(session, profile)
+    content_ids = {row.content_object_id for row in rows}
+    content = session.get(ContentObject, next(iter(content_ids))) if len(content_ids) == 1 else None
+    if content is None or content.sha256 != profile.profile_sha256 or content.size_bytes != size:
+        raise InputVersionError("service_unavailable", "프로필 원본 계보가 복구 입력과 일치하지 않습니다")
+    with session.begin_nested():
+        location = ContentObjectLocation(
+            id=uuid4(), content_object_id=content.id, namespace_key="source",
+            object_key=key, object_version_id=metadata.object_version_id,
+            status="verified", etag=metadata.etag, verified_at=datetime.now(UTC),
+        )
+        session.add(location)
+        session.flush()
+        _validate_profile_snapshot(session, profile, require_verified_source=True)
+        session.add(AuditEvent(
+            action="profile.source_location.repaired", aggregate_type="profile_version",
+            aggregate_id=str(profile.id), actor_kind="human", claimed_name=actor,
+            safe_metadata={"profile_sha256": profile.profile_sha256, "content_object_id": str(content.id), "location_id": str(location.id)},
+        ))
 
 
 def _verified_profile_source(session: Session, evidence_rows: Sequence[ProfileEvidence]) -> str | None:
@@ -654,14 +700,15 @@ def load_canonical_policy(path: Path | None = None) -> tuple[dict[str, Any], byt
         policy = json.loads(raw.decode("utf-8"))
     except (OSError, UnicodeError, json.JSONDecodeError) as exc:
         raise InputVersionError("invalid_request", "canonical analysis policy를 읽을 수 없습니다") from exc
-    if not isinstance(policy, Mapping) or policy.get("schema") != POLICY_SCHEMA:
+    if not isinstance(policy, Mapping) or policy.get("schema") not in {POLICY_SCHEMA, "bidops.analysis-policy.v2"}:
         raise InputVersionError("invalid_request", "canonical analysis policy schema가 올바르지 않습니다")
     canonical = canonical_json_bytes(policy)
     if raw != canonical:
         raise InputVersionError("invalid_request", "canonical analysis policy bytes가 승인본과 다릅니다")
-    if policy_path.resolve() != CANONICAL_POLICY_FILE.resolve():
+    approved_path = CANONICAL_POLICY_FILE if policy["schema"] == POLICY_SCHEMA else CANONICAL_POLICY_FILE.with_name("analysis-policy-luna-v1.json" if policy.get("model_endpoint_ref") == "codex-exec" else "analysis-policy-narrative-v2.json")
+    if policy_path.resolve() != approved_path.resolve():
         try:
-            approved = json.loads(CANONICAL_POLICY_FILE.read_bytes().decode("utf-8"))
+            approved = json.loads(approved_path.read_bytes().decode("utf-8"))
         except (OSError, UnicodeError, json.JSONDecodeError) as exc:
             raise InputVersionError("invalid_request", "승인된 analysis policy를 읽을 수 없습니다") from exc
         if policy != approved:
@@ -693,6 +740,8 @@ def import_policy_version(
     policy, canonical, digest = load_canonical_policy(policy_path)
     rules = dict(policy["validation"])
     rules["generation"] = dict(policy["generation"])
+    if policy["schema"] == "bidops.analysis-policy.v2":
+        rules["policy_snapshot"] = dict(policy)
     if sample_hash is not None and sample_sha256 is not None and sample_hash != sample_sha256:
         raise InputVersionError("invalid_request", "sample sha alias 값이 서로 다릅니다")
     quality = _normalise_quality_metadata(

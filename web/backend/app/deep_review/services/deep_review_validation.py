@@ -41,6 +41,10 @@ REQUIRED_SECTIONS = (
     "economics_scenarios", "competitive_proposal_strategy",
     "questions_internal_actions", "document_bundle_limitations", "decision_card",
 )
+NARRATIVE_SECTIONS = (
+    "assessment", "scope", "company_fit", "delivery", "evaluation",
+    "contract_economics", "actions", "decision_conditions",
+)
 DOCUMENT_LOCATORS = {"page", "paragraph", "table_cell", "bbox"}
 ALL_LOCATORS = DOCUMENT_LOCATORS | {"profile_fact"}
 CLAIM_TYPES = {"fact", "calculation", "inference", "opinion", "unknown"}
@@ -485,6 +489,8 @@ def _validate_evidence(
     profile: Mapping[str, Any] | None,
     profile_version_id: str | None,
     structures: Mapping[str, Mapping[str, Any]] | None = None,
+    allow_page_span: bool = False,
+    source_verification_enabled: bool = True,
 ) -> list[ValidationIssue]:
     issues: list[ValidationIssue] = []
     path = f"$.evidence[{index}]"
@@ -531,7 +537,7 @@ def _validate_evidence(
                 issues.append(_issue("evidence_source_hash_mismatch", "evidence source hash must exactly match the pinned structure source hash", path, evidence=[evidence_id]))
             if document_id in by_document and by_document[document_id].get("structure_id_at_confirmation") != structure.get("structure_id"):
                 issues.append(_issue("evidence_structure_scope", "pinned structure is not the bundle-confirmed structure", path, evidence=[evidence_id]))
-            _resolve_document_locator(evidence, structure, path=path, issues=issues)
+            _resolve_document_locator(evidence, structure, path=path, issues=issues, allow_page_span=allow_page_span, source_verification_enabled=source_verification_enabled)
     else:
         if any(evidence.get(key) is not None for key in ("document_version_id", "structure_id")) or evidence.get("profile_version_id") is None or evidence.get("profile_evidence_id") is None:
             issues.append(_issue("evidence_source_union", "profile evidence requires profile IDs and null document IDs", path))
@@ -559,7 +565,7 @@ def _validate_evidence(
                 issues.append(_issue("profile_fact_key_mismatch", "profile evidence fact_key does not match the pinned profile evidence", path, evidence=[evidence_id]))
             if not _sha(context_source_hash) or context_source_hash != evidence.get("source_sha256"):
                 issues.append(_issue("evidence_source_hash_mismatch", "profile evidence source hash must exactly match the pinned evidence", path, evidence=[evidence_id]))
-            if not _text(context_quote) or context_quote != evidence.get("quote"):
+            if source_verification_enabled and (not _text(context_quote) or context_quote != evidence.get("quote")):
                 issues.append(_issue("evidence_quote_mismatch", "profile evidence quote must exactly match the pinned evidence quote", path, evidence=[evidence_id]))
     issues.extend(_validate_locator(evidence["locator_type"], evidence["locator"], path=path))
     return issues
@@ -571,6 +577,8 @@ def _resolve_document_locator(
     *,
     path: str,
     issues: list[ValidationIssue],
+    allow_page_span: bool = False,
+    source_verification_enabled: bool = True,
 ) -> None:
     """Resolve every document locator and prove its quote comes from content."""
 
@@ -592,7 +600,9 @@ def _resolve_document_locator(
     page_blocks = [item for item in blocks.values() if item.get("page") == page_number]
     block = None
     if locator_type == "page":
-        if not any(isinstance(item.get("text"), str) and quote in item["text"] for item in page_blocks):
+        from .quote_matching import page_texts
+        texts = page_texts(page_blocks) if allow_page_span else [item["text"] for item in page_blocks if isinstance(item.get("text"), str)]
+        if source_verification_enabled and not any(quote in text for text in texts):
             issues.append(_issue("evidence_quote_mismatch", "page evidence quote is absent from pinned block content", path, evidence=[evidence_id]))
         return
 
@@ -604,12 +614,12 @@ def _resolve_document_locator(
     if block.get("page") != page_number:
         issues.append(_issue("locator_unresolved", "evidence locator page does not match the pinned block page", path, evidence=[evidence_id]))
     text = block.get("text")
-    if not isinstance(text, str) or quote not in text:
+    if source_verification_enabled and (not isinstance(text, str) or quote not in text):
         issues.append(_issue("evidence_quote_mismatch", "evidence quote is absent from pinned block content", path, evidence=[evidence_id]))
     if locator_type == "paragraph":
         start, end = locator.get("text_start"), locator.get("text_end")
         if start is not None and end is not None:
-            if not isinstance(text, str) or end > len(text) or text[start:end] != quote:
+            if not isinstance(text, str) or end > len(text) or (source_verification_enabled and text[start:end] != quote):
                 issues.append(_issue("locator_unresolved", "paragraph offsets do not resolve to the cited quote", path, evidence=[evidence_id]))
         paragraph_key = locator.get("paragraph_key")
         if paragraph_key is not None and block.get("attributes", {}).get("paragraph_key") != paragraph_key:
@@ -632,6 +642,7 @@ def _validate_claims(
     evidence_by_id: Mapping[str, Mapping[str, Any]] | None = None,
     path_prefix: str = "$.claims",
     known_claim_ids: set[str] | None = None,
+    source_verification_enabled: bool = True,
 ) -> list[ValidationIssue]:
     issues: list[ValidationIssue] = []
     claim_ids = [claim.get("claim_id") for claim in claims]
@@ -670,7 +681,8 @@ def _validate_claims(
             if _text(claim.get("formula")):
                 try:
                     replay_calculation(claim["formula"], expected=_calculation_expected(claim["formula"], claim["body"]))
-                    issues.extend(_validate_calculation_inputs(claim, evidence_by_id or {}, path=path))
+                    if source_verification_enabled:
+                        issues.extend(_validate_calculation_inputs(claim, evidence_by_id or {}, path=path))
                 except ValueError as exc:
                     issues.append(_issue("calculation_replay_failed", str(exc), f"{path}.formula", claims=[claim_id], evidence=evidence))
         elif claim_type == "inference":
@@ -740,6 +752,39 @@ def _quote_numbers(quote: Any) -> list[Decimal]:
         except ValueError:
             continue
     return values
+
+
+_WON_AMOUNT = re.compile(r"(?<![\d.,])([+-]?\d[\d,]*(?:\.\d+)?)\s*(억|천만|백만|십만|만|천|백)?\s*원")
+_WON_SCALE = {None: 1, "백": 100, "천": 1000, "만": 10000, "십만": 100000, "백만": 1000000, "천만": 10000000, "억": 100000000}
+_SHORT_YEAR = re.compile(r"[’'‘]\s*(\d{2})(?=\s*(?:년|[.]))")
+
+
+def _fact_numeric_status(body: str, quotes: Sequence[str]) -> tuple[bool, bool]:
+    """Separate value mismatches from exact currency equivalence and short years.
+
+    A two-digit year alone does not prove a century. It produces a report
+    warning, rather than aborting all analysis as a fabricated number.
+    """
+    amounts = {Decimal(m[1].replace(",", "")) * _WON_SCALE[m[2]] for quote in quotes for m in _WON_AMOUNT.finditer(quote)}
+    body_amounts = list(_WON_AMOUNT.finditer(body))
+    if any(Decimal(m[1].replace(",", "")) * _WON_SCALE[m[2]] not in amounts for m in body_amounts):
+        return False, False
+    remainder = _WON_AMOUNT.sub("", body)
+    cited = {n for quote in quotes for n in _quote_numbers(quote)}
+    missing = set(_quote_numbers(remainder)) - cited
+    abbreviated = {int(m[1]) for quote in quotes for m in _SHORT_YEAR.finditer(quote)}
+    years = {n for n in missing if n == int(n) and 1900 <= n <= 2199 and int(n) % 100 in abbreviated and re.search(rf"(?<!\d){int(n)}\s*(?:년|[./-])", body)}
+    return not (missing - years), bool(years)
+
+
+def narrative_numeric_warnings(claims: Sequence[Mapping[str, Any]], evidence: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
+    by_id = {row["evidence_id"]: row for row in evidence}
+    warnings = []
+    for row in claims:
+        quotes = [str(by_id[eid].get("quote", "")) for eid in row.get("evidence_ids", []) if eid in by_id]
+        if row["claim_type"] == "fact" and _fact_numeric_status(row["body"], quotes)[1]:
+            warnings.append({"check_type": "year_notation", "status": "warning", "severity": "낮음", "message": "원문에 축약된 연도를 본문에서 풀어 썼습니다. 해당 연도는 원문과 함께 확인하십시오.", "related_claim_ids": [row["claim_id"]], "related_evidence_ids": row["evidence_ids"]})
+    return warnings
 
 
 def _validate_calculation_inputs(
@@ -898,11 +943,14 @@ def validate_deep_review_stage(
     expected_deep_review_id: str | None = None,
     known_claim_ids: set[str] | None = None,
     known_evidence_ids: set[str] | None = None,
+    known_evidence: Sequence[Mapping[str, Any]] = (),
     structures: Mapping[str, Mapping[str, Any]] | None = None,
+    source_verification_enabled: bool = True,
 ) -> dict[str, Any]:
     """Validate one bounded analysis stage and all local claim/evidence links."""
 
-    issues = _schema_issues(payload, "deep-review-stage")
+    narrative = payload.get("schema") == "bidops.deep-review-stage.v2"
+    issues = _schema_issues(payload, "deep-review-stage-v2" if narrative else "deep-review-stage")
     if issues:
         raise DeepReviewValidationError(issues)
     if expected_deep_review_id and payload["deep_review_id"] != expected_deep_review_id:
@@ -914,11 +962,41 @@ def validate_deep_review_stage(
     if duplicates := _duplicates(evidence_ids):
         issues.append(_issue("duplicate_evidence", f"evidence IDs must be unique: {duplicates}", "$.evidence"))
     for index, item in enumerate(evidence):
-        issues.extend(_validate_evidence(item, index, bundle=bundle, profile=profile, profile_version_id=profile_version_id, structures=structures))
+        issues.extend(_validate_evidence(item, index, bundle=bundle, profile=profile, profile_version_id=profile_version_id, structures=structures, allow_page_span=payload.get("schema") == "bidops.deep-review-stage.v2", source_verification_enabled=source_verification_enabled))
     evidence_set = set(evidence_ids) | (known_evidence_ids or set())
-    evidence_by_id = {item["evidence_id"]: item for item in evidence}
-    issues.extend(_validate_claims(payload["claims"], evidence_set, evidence_by_id=evidence_by_id, known_claim_ids=known_claim_ids))
+    evidence_by_id = {item["evidence_id"]: item for item in known_evidence if item["evidence_id"] in (known_evidence_ids or set())}
+    evidence_by_id.update({item["evidence_id"]: item for item in evidence})
+    issues.extend(_validate_claims(payload["claims"], evidence_set, evidence_by_id=evidence_by_id, known_claim_ids=known_claim_ids, source_verification_enabled=source_verification_enabled))
+    if narrative:
+        issues.extend(_narrative_claim_issues(payload["claims"], known_claim_ids or set(), evidence_by_id, source_verification_enabled=source_verification_enabled))
+        local_ids = {row["claim_id"] for row in payload["claims"]}
+        units = [row["source_unit_id"] for row in payload["coverage"]]
+        if _duplicates(units) or _duplicates(payload["considered_claim_ids"]):
+            issues.append(_issue("duplicate_coverage", "narrative coverage identities must be unique"))
+        for row in payload["coverage"]:
+            if not row["claim_ids"] or not set(row["claim_ids"]) <= local_ids or (row["status"] == "needs_review" and not _text(row["reason"])):
+                issues.append(_issue("invalid_coverage", "coverage requires local claims and an explicit reason when not reviewed"))
     return _strict(payload, "deep-review-stage", issues)
+
+
+def _narrative_claim_issues(claims: Sequence[Mapping[str, Any]], known: set[str], evidence: Mapping[str, Mapping[str, Any]], *, source_verification_enabled: bool = True) -> list[ValidationIssue]:
+    issues = []
+    local = {row["claim_id"] for row in claims}
+    for row in claims:
+        if source_verification_enabled and row["claim_type"] == "fact":
+            quotes = [str(evidence.get(eid, {}).get("quote", "")) for eid in row["evidence_ids"]]
+            if not _fact_numeric_status(row["body"], quotes)[0]:
+                issues.append(_issue("fact_number_not_in_evidence", "fact numbers must be present in the cited source", claims=[row["claim_id"]], evidence=row["evidence_ids"]))
+        related = row["related_claim_ids"]
+        if _duplicates(related) or row["claim_id"] in related or not set(related) <= (known | local):
+            issues.append(_issue("narrative_relation_invalid", "narrative relationship does not resolve", claims=[row["claim_id"]]))
+        if any(_duplicates(row[key]) for key in ("source_unit_ids", "requirement_ids")):
+            issues.append(_issue("narrative_source_duplicate", "source identities must be unique", claims=[row["claim_id"]]))
+        if row["narrative_role"] == "impact" and row["claim_type"] not in {"inference", "unknown"}:
+            issues.append(_issue("impact_type_invalid", "impact must distinguish inference and unknown", claims=[row["claim_id"]]))
+        if row["narrative_role"] == "recommendation" and (row["category"] != "system_recommendation" or row["report_section"] != "assessment" or row["body"] not in {"추진 검토", "조건부 추진 검토", "보류", "검토 종료"}):
+            issues.append(_issue("recommendation_shape_invalid", "recommendation must use the bounded review enum", claims=[row["claim_id"]]))
+    return issues
 
 
 def _report_block_claim_ids(report: Mapping[str, Any]) -> set[str]:
@@ -967,10 +1045,12 @@ def validate_deep_review_report(
     stages: Sequence[Mapping[str, Any]] | None = None,
     expected_deep_review_id: str | None = None,
     structures: Mapping[str, Mapping[str, Any]] | None = None,
+    source_verification_enabled: bool = True,
 ) -> dict[str, Any]:
     """Validate a full report, mandatory sections, and cross-payload scope."""
 
-    issues = _schema_issues(payload, "deep-review-report")
+    narrative = payload.get("schema") == "bidops.deep-review-report.v2"
+    issues = _schema_issues(payload, "deep-review-report-v2" if narrative else "deep-review-report")
     if issues:
         raise DeepReviewValidationError(issues)
     if expected_deep_review_id and payload["deep_review_id"] != expected_deep_review_id:
@@ -979,12 +1059,13 @@ def validate_deep_review_report(
     keys = [section["section_key"] for section in sections]
     if _duplicates(keys):
         issues.append(_issue("duplicate_report_section", "report section keys must be unique", "$.sections"))
-    if set(keys) != set(REQUIRED_SECTIONS) or len(keys) != len(REQUIRED_SECTIONS):
+    required_sections = NARRATIVE_SECTIONS if narrative else REQUIRED_SECTIONS
+    if set(keys) != set(required_sections) or len(keys) != len(required_sections):
         issues.append(_issue("report_sections_incomplete", "report must contain exactly one of every required section", "$.sections"))
     decision_blocks = [block for section in sections if section["section_key"] == "decision_card" for block in section["blocks"] if block["type"] == "decision_card"]
-    if not decision_blocks:
+    if not narrative and not decision_blocks:
         issues.append(_issue("decision_card_missing", "decision_card section must contain a decision_card block", "$.sections"))
-    elif not any(block["claim_ids"] and (_text(block.get("body")) or block["rows"]) for block in decision_blocks):
+    elif not narrative and not any(block["claim_ids"] and (_text(block.get("body")) or block["rows"]) for block in decision_blocks):
         issues.append(_issue("decision_card_unlinked", "decision card must summarize linked core evidence, risks, unknowns, and next actions", "$.sections"))
     issues.extend(_validate_report_block_ids(payload))
     claims = payload["claims"]
@@ -1001,15 +1082,41 @@ def validate_deep_review_report(
         for item in evidence_list
         if isinstance(item, Mapping) and isinstance(item.get("evidence_id"), str)
     }
-    issues.extend(_validate_claims(claims, {value for value in evidence_ids if isinstance(value, str)}, evidence_by_id=evidence_by_id))
+    issues.extend(_validate_claims(claims, {value for value in evidence_ids if isinstance(value, str)}, evidence_by_id=evidence_by_id, source_verification_enabled=source_verification_enabled))
     block_claim_ids = _report_block_claim_ids(payload)
+    if narrative:
+        issues.extend(_narrative_claim_issues(claims, set(), evidence_by_id, source_verification_enabled=source_verification_enabled))
+        by_id = {row["claim_id"]: row for row in claims}
+        displayed = []
+        for section in sections:
+            if section["status"] != ("available" if section["blocks"] else "not_analyzed"):
+                issues.append(_issue("section_status_invalid", "empty sections must remain not analyzed"))
+            for block in section["blocks"]:
+                displayed.extend(block["claim_ids"])
+                claim = by_id.get(block["claim_ids"][0]) if len(block["claim_ids"]) == 1 else None
+                if claim is None:
+                    issues.append(_issue("narrative_block_link_invalid", "each narrative paragraph must resolve to one claim"))
+                    continue
+                if (block["body"] != claim["body"] or section["section_key"] != claim["report_section"] or any(block[key] != claim[key] for key in ("narrative_role", "topic_key", "is_key_point")) or block["rows"]):
+                    issues.append(_issue("narrative_projection_mismatch", "paragraph must preserve its claim and explicit role", claims=[claim["claim_id"]]))
+        if set(displayed) != claim_ids or _duplicates(displayed):
+            issues.append(_issue("narrative_claim_omission", "every claim must appear exactly once in the report"))
+        units = {unit for row in claims for unit in row["source_unit_ids"]}
+        coverage_units = [row["source_unit_id"] for row in payload["coverage"]]
+        if set(coverage_units) != units or _duplicates(coverage_units):
+            issues.append(_issue("report_source_coverage_mismatch", "report coverage must preserve every analyzed source unit"))
+        for row in payload["coverage"]:
+            if (not row["claim_ids"] or _duplicates(row["claim_ids"])
+                    or any(cid not in by_id or row["source_unit_id"] not in by_id[cid]["source_unit_ids"] for cid in row["claim_ids"])
+                    or (row["status"] == "needs_review" and not _text(row["reason"]))):
+                issues.append(_issue("report_source_coverage_invalid", "source coverage must resolve to its claims and retain review limitations"))
     unknown_block_ids = sorted(block_claim_ids - claim_ids)
     if unknown_block_ids:
         issues.append(_issue("dangling_report_claim", f"report block references unknown claim IDs: {unknown_block_ids}", "$.sections"))
     if evidence_list:
         resolved_profile, _ = _context_profile(profile, payload["profile_version_id"])
         for index, item in enumerate(evidence_list):
-            issues.extend(_validate_evidence(item, index, bundle=bundle, profile=profile, profile_version_id=resolved_profile or payload["profile_version_id"], structures=structures))
+            issues.extend(_validate_evidence(item, index, bundle=bundle, profile=profile, profile_version_id=resolved_profile or payload["profile_version_id"], structures=structures, allow_page_span=payload.get("schema") == "bidops.deep-review-report.v2", source_verification_enabled=source_verification_enabled))
     if isinstance(bundle, Mapping):
         if bundle.get("bundle_id") and bundle["bundle_id"] != payload["bundle_id"]:
             issues.append(_issue("bundle_scope", "report bundle_id does not match the ready bundle", "$.bundle_id"))
@@ -1251,9 +1358,11 @@ def merge_stage_chunks(
     expected_deep_review_id: str | None = None,
     known_claim_ids: Iterable[str] = (),
     known_evidence_ids: Iterable[str] = (),
+    known_evidence: Sequence[Mapping[str, Any]] = (),
     structures: Mapping[str, Mapping[str, Any]] | None = None,
     chunk_order_key: Any = None,
     order_key: Any = None,
+    source_verification_enabled: bool = True,
 ) -> dict[str, Any]:
     """Merge bounded stage outputs deterministically and reject conflicts.
 
@@ -1307,16 +1416,17 @@ def merge_stage_chunks(
             expected_deep_review_id=review_id,
             known_claim_ids=prior_claim_ids | {value for value in all_claim_ids if isinstance(value, str)},
             known_evidence_ids=prior_evidence_ids | {value for value in all_evidence_ids if isinstance(value, str)},
-            structures=structures,
+            known_evidence=[*known_evidence, *(row for item in ordered_chunks for row in item.get("evidence", []))],
+            structures=structures, source_verification_enabled=source_verification_enabled,
         )
-        if chunk.get("attempt_id") != first.get("attempt_id") or chunk.get("stage") != first.get("stage"):
+        if chunk.get("schema") != first.get("schema") or chunk.get("attempt_id") != first.get("attempt_id") or chunk.get("stage") != first.get("stage"):
             raise DeepReviewValidationError(_issue("chunk_scope", "all chunks must belong to the same attempt and stage", f"$[{index}]"))
     claims: dict[str, Mapping[str, Any]] = {}
     evidence: dict[str, Mapping[str, Any]] = {}
     unknowns: set[str] = set()
     warnings: set[str] = set()
     for chunk_index, chunk in enumerate(ordered_chunks):
-        for item in sorted(chunk["claims"], key=lambda value: value["claim_id"]):
+        for item in (chunk["claims"] if first["schema"] == "bidops.deep-review-stage.v2" else sorted(chunk["claims"], key=lambda value: value["claim_id"])):
             key = item["claim_id"]
             if key in prior_claim_ids:
                 raise DeepReviewValidationError(_issue("prior_claim_redefinition", f"current stage cannot redefine prior claim ID: {key}", f"$[{chunk_index}].claims", claims=[key]))
@@ -1347,7 +1457,18 @@ def merge_stage_chunks(
     # Dict insertion order is the approved chunk order, and each chunk's
     # source order is retained.  This makes output stable under shuffled
     # invocation completion while keeping the merge key observable.
-    merged = {"schema": "bidops.deep-review-stage.v1", "deep_review_id": first["deep_review_id"], "attempt_id": first["attempt_id"], "stage": first["stage"], "claims": list(claims.values()), "evidence": list(evidence.values()), "unknowns": sorted(unknowns), "warnings": sorted(warnings)}
+    merged = {"schema": first["schema"], "deep_review_id": first["deep_review_id"], "attempt_id": first["attempt_id"], "stage": first["stage"], "claims": list(claims.values()), "evidence": list(evidence.values()), "unknowns": sorted(unknowns), "warnings": sorted(warnings)}
+    if first["schema"] == "bidops.deep-review-stage.v2":
+        coverage = {}
+        for chunk in ordered_chunks:
+            for row in chunk["coverage"]:
+                target = coverage.setdefault(row["source_unit_id"], {**row, "claim_ids": []})
+                target["claim_ids"].extend(row["claim_ids"])
+                if row["status"] == "needs_review":
+                    target["status"] = "needs_review"
+                    target["reason"] = "; ".join(dict.fromkeys(filter(None, [target["reason"], row["reason"]])))
+        merged["coverage"] = list(coverage.values())
+        merged["considered_claim_ids"] = list(dict.fromkeys(cid for chunk in ordered_chunks for cid in chunk["considered_claim_ids"]))
     return validate_deep_review_stage(
         merged,
         bundle=bundle,
@@ -1356,7 +1477,8 @@ def merge_stage_chunks(
         expected_deep_review_id=review_id,
         known_claim_ids=prior_claim_ids,
         known_evidence_ids=prior_evidence_ids,
-        structures=structures,
+        known_evidence=known_evidence,
+        structures=structures, source_verification_enabled=source_verification_enabled,
     )
 
 
@@ -1378,7 +1500,9 @@ def validate_deep_review(payload: Mapping[str, Any], **kwargs: Any) -> dict[str,
         "bidops.document-structure.v1": validate_document_structure,
         "bidops.document-bundle.v1": validate_document_bundle,
         "bidops.deep-review-stage.v1": validate_deep_review_stage,
+        "bidops.deep-review-stage.v2": validate_deep_review_stage,
         "bidops.deep-review-report.v1": validate_deep_review_report,
+        "bidops.deep-review-report.v2": validate_deep_review_report,
         "bidops.deep-review-validation.v1": validate_deep_review_validation,
         "bidops.document-segments.v1": validate_document_segments,
     }

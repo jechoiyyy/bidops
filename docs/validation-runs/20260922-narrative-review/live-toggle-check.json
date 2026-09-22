@@ -1,0 +1,8 @@
+{
+  "review_id": "835e686e-c8c5-42c7-b5b0-3131faf787b8",
+  "attempt_id": "452f52b8-7965-44fc-96dc-3846b005beec",
+  "source_verification_enabled": false,
+  "http_status": 202,
+  "trigger": "actual web checkbox and retry button",
+  "page_errors": []
+}

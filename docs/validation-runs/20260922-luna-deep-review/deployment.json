@@ -1,0 +1,65 @@
+{
+  "db_backup": {
+    "path": "backups/postgres/full/bidops-20260922T220039Z.dump",
+    "bytes": 26583454,
+    "sha256": "fc034f43a7757db2708e80f42e8223b037dde07d128cba2d8a307bf4ecb96008",
+    "restore_list_ok": true
+  },
+  "object_backup": {
+    "path": "backups/objects/luna-20260923",
+    "versions": 1102,
+    "host_hashes_verified": true
+  },
+  "rollback_images": [
+    {
+      "service": "web",
+      "image": "sha256:3a350ba37fcc0c795b4b6c1982b55a093851719058a3f9ed983b776f567f0ede",
+      "rollback_tag": "bidops-web:before-luna-20260923"
+    },
+    {
+      "service": "analysis-worker",
+      "image": "sha256:e42457530cd81cdf249fed32996b7f529f00ef9b2302c7bbce4c2b09a19c5183",
+      "rollback_tag": "bidops-analysis-worker:before-luna-20260923"
+    },
+    {
+      "service": "prespec-attachment-worker",
+      "image": "sha256:77ba2061f537fb930809dc4ab36a5ef423cfc520ef0b19a4962da05a5bf0ea0e",
+      "rollback_tag": "bidops-prespec-attachment-worker:before-luna-20260923"
+    }
+  ],
+  "model_smoke": {
+    "status": "completed",
+    "cli_version": "0.155.1",
+    "input_sha256": "aa3172c09ee42579786cd1d19146e78989efd8b6bd3282aa395d3642ad447da8",
+    "latency_ms": 7850
+  },
+  "policy": {
+    "active_configuration_changed": false,
+    "policy_sha256": "e9fc6b929c80479ef81de48f1936f163bb32d7509d3793ed96f4c4b9c6b069d9",
+    "policy_version_id": "7948d520-b7b0-432b-8ca3-8cee70cea194",
+    "profile_sha256": "3810debb158caf6f45dcd83e5361051c9c8599ed25e1058c0cfea7b1086ac311",
+    "profile_version_id": "d970500a-e30c-46cf-85e0-7e9a9e854f2b"
+  },
+  "migration_head": "0032_luna_deep_review",
+  "rollback_tag": "before-luna-deep-review-20260923",
+  "images": {
+    "web": "sha256:3e846c5a8d8cd70f31ce97ea95689388ae7b7ee3f2db20e731c0f1a422ffc19d",
+    "analysis-worker": "sha256:a9c377f9121b71c34752c7be9baea3a0ed932aa63ecb0ebc847cc73b84618989",
+    "prespec-attachment-worker": "sha256:e2050864fa93e49fd95a3464ce54878f706312c5eee3a0bb951965bf6913b855",
+    "codex-runner": "sha256:a46161813fda64f55414bd7fb92f7032f8a9c0eb7244b04f23652e8c546de6ac"
+  },
+  "live_request_ui": [
+    {
+      "width": 1280,
+      "height": 800,
+      "requestButton": true,
+      "overflow": 0
+    },
+    {
+      "width": 1440,
+      "height": 900,
+      "requestButton": true,
+      "overflow": 0
+    }
+  ]
+}

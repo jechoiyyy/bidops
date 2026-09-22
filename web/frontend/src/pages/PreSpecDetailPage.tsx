@@ -305,7 +305,7 @@ function PageOverviewBriefing({ review }: { review: PageOverviewView }) {
       {/* 경계 문장("추적 승인과 최종 입찰 결정은 사람이 진행하며")은 ② 추적 결정
           카드 한 곳만 갖는다(M4 승인 2026-09-21). 함께 붙어 있던 자동 시작 조건은
           경계가 아니라 이 화면의 사실이므로 이 카드에 남긴다. */}
-      <p>사업 설명을 위한 요약입니다. 현재 회사 적합성과 조건을 충족한 경우에만 심층 검토가 자동 시작됩니다.</p>
+      <p>사업 설명을 위한 요약입니다. 심층 검토는 전송 내용을 확인하고 사용자가 요청하면 시작됩니다.</p>
       {review.validation_status === "failed" && review.evidence_check_status === "passed" ? (
         <p>새 페이지 근거 검사는 통과했으나, 원실행의 검증 실패 기록은 유지합니다.</p>
       ) : null}
@@ -436,6 +436,7 @@ function PreSpecRecordBody({ noticeId, listSearch }: { noticeId: number | null; 
   const autoStatus = preSpecItem?.auto_preparation_status ?? null;
   const autoReasonLabel = preSpecAutoPreparationReasonLabel(preSpecItem?.auto_preparation_reason ?? null);
   const autoDeepReviewId = preSpecItem?.latest_deep_review_id ?? null;
+  const deepReviewStatusText = preSpecItem?.latest_deep_review_status ? ({ queued: "대기", running: "분석 중", completed: "완료", failed: "실패" }[preSpecItem.latest_deep_review_status]) : null;
   const documentCounts = preSpecItem?.document ?? null;
   const overviewStatusForStep = preSpecItem
     ? (preSpecItem.overview_review_status === null
@@ -505,9 +506,9 @@ function PreSpecRecordBody({ noticeId, listSearch }: { noticeId: number | null; 
   const deepReviewReport = deepReviewReportQuery.data?.report ?? null;
   const hasDeepReviewReport = deepReviewReport !== null;
   const deepReviewUnknowns = deepReviewReport?.unknowns ?? [];
-  const eligibilityItems = reportSectionBullets(
-    deepReviewReport?.sections.find((section) => section.section_key === "eligibility_matrix"),
-  );
+  const eligibilityItems = deepReviewReport?.schema === "bidops.deep-review-report.v2"
+    ? deepReviewReport.claims.filter(claim => claim.narrative_role === "decision_condition").map(claim => claim.body)
+    : reportSectionBullets(deepReviewReport?.sections.find((section) => section.section_key === "eligibility_matrix"));
   const risks: PageOverviewRisk[] = deepReviewUnknowns.map((text) => ({
     label: "미확인",
     tone: "neutral",
@@ -850,12 +851,12 @@ function PreSpecRecordBody({ noticeId, listSearch }: { noticeId: number | null; 
           </ol>
           {autoStatus === "deep_review_started" && autoDeepReviewId ? (
             <Link className="pre-spec-auto-preparation-link" to={`/deep-reviews/${autoDeepReviewId}`}>
-              자동 시작된 심층 검토 보고서 열기 →
+              심층 검토 {deepReviewStatusText} · 실행·보고서 열기 →
             </Link>
           ) : null}
           {autoStatus === "deep_review_started" && !autoDeepReviewId ? (
             <p className="pre-spec-auto-preparation-note">
-              심층 검토가 자동으로 시작됐지만 응답에 식별자가 없어 보고서로 갈 수 없습니다. 다른 보고서로 대신 보내지 않습니다.
+              심층 검토가 시작됐지만 응답에 식별자가 없어 보고서로 갈 수 없습니다. 다른 보고서로 대신 보내지 않습니다.
             </p>
           ) : null}
           {autoStatus === "deep_review_ready_for_click" ? (
@@ -866,7 +867,7 @@ function PreSpecRecordBody({ noticeId, listSearch }: { noticeId: number | null; 
           {/* 경계 문장("추적 선택과 최종 입찰 Go/No-Go는 사람이 결정합니다")은 ②
               추적 결정 카드로 모았다. 자동 시작 조건은 이 네 단계의 사실이라 남는다. */}
           <p className="pre-spec-auto-preparation-note">
-            조건을 충족하면 심층 검토까지 자동으로 시작합니다.
+            문서 준비와 개요검토는 자동으로 진행하며, 심층검토는 사용자가 전송 내용을 확인하고 요청합니다.
           </p>
         </div>
 
@@ -1012,7 +1013,7 @@ function PreSpecRecordBody({ noticeId, listSearch }: { noticeId: number | null; 
           <section className="ps-tri-col" aria-labelledby="ps-conditions-list-title">
             <div className="ps-tri-head">
               <h3 id="ps-conditions-list-title" className="ps-h-col">참여 조건</h3>
-              <span className="ps-cap ps-dim">{hasDeepReviewReport ? `${eligibilityItems.length}건` : "심층 검토 대기"}</span>
+              <span className="ps-cap ps-dim">{hasDeepReviewReport && eligibilityItems.length ? `${eligibilityItems.length}건` : "분석 확인 필요"}</span>
             </div>
             {!hasDeepReviewReport ? (
               <p className="ps-cap ps-muted">심층 검토에서 확인</p>
@@ -1025,7 +1026,7 @@ function PreSpecRecordBody({ noticeId, listSearch }: { noticeId: number | null; 
                   </li>
                 ))}
               </ul>
-            ) : <p className="ps-cap ps-muted">이번 입력 범위에는 없음</p>}
+            ) : <p className="ps-cap ps-muted">확인된 조건이 없습니다. 분석 누락 여부를 보고서에서 확인하십시오.</p>}
           </section>
 
           <PreSpecBriefingSection noticeId={noticeId} judgment={judgment} reviews={notice.reviews} />

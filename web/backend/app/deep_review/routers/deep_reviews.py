@@ -7,7 +7,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, Path as ApiPath
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, ConfigDict, ValidationError
+from pydantic import StrictBool, BaseModel, ConfigDict, ValidationError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -36,7 +36,7 @@ from ..models import (
     DocumentBundleItem,
 )
 from ..schemas.company_fit import CompanyFitResponse
-from ..schemas.deep_reviews import AttemptView, DeepReviewView, OpportunityDeepReviewsResponse
+from ..schemas.deep_reviews import DeepReviewPreviewView, AttemptView, DeepReviewView, OpportunityDeepReviewsResponse
 from ..services.company_fit import company_fit_view
 from ..services.deep_reviews import DeepReviewService, DeepReviewServiceError
 from ..services.document_bundles import BundleServiceError, PageOverviewError, validate_actor
@@ -48,11 +48,15 @@ class _Strict(BaseModel):
 
 
 class DeepReviewCreateRequest(_Strict):
+    preview_id: UUID | None = None
+    source_verification_enabled: StrictBool = True
     request_id: UUID
     bundle_id: UUID
 
 
 class DeepReviewAttemptRequest(_Strict):
+    preview_id: UUID | None = None
+    source_verification_enabled: StrictBool = True
     request_id: UUID
 
 
@@ -120,7 +124,7 @@ def _error_response(error: DeepReviewServiceError | InputVersionError, *, reques
     allowed = {
         "invalid_request", "actor_name_required", "actor_name_invalid", "not_found", "effective_grade_ineligible",
         "bundle_not_ready", "idempotency_conflict", "active_attempt_exists", "service_unavailable", "review_not_ready",
-        "processing_failed",
+        "processing_failed", "preview_required", "preview_changed", "preview_used", "review_exists",
     }
     code = error.code if getattr(error, "code", None) in allowed else "processing_failed"
     messages = {
@@ -136,14 +140,14 @@ def _error_response(error: DeepReviewServiceError | InputVersionError, *, reques
         "idempotency_conflict": 409, "active_attempt_exists": 409, "service_unavailable": 503,
         "processing_failed": 500,
     }.get(code, 400)
-    return JSONResponse(status_code=getattr(error, "status_code", None) if getattr(error, "status_code", None) is not None and isinstance(error, DeepReviewServiceError) else default_status, content={"error": {"code": code, "message": messages[code], "details": None}, "request_id": str(request_id or getattr(error, "request_id", None)) if (request_id or getattr(error, "request_id", None)) else None})
+    return JSONResponse(status_code=getattr(error, "status_code", None) if getattr(error, "status_code", None) is not None and isinstance(error, DeepReviewServiceError) else default_status, content={"error": {"code": code, "message": messages.get(code, "전송 미리보기를 다시 확인하십시오"), "details": None}, "request_id": str(request_id or getattr(error, "request_id", None)) if (request_id or getattr(error, "request_id", None)) else None})
 
 
 @router.get("/opportunities/{opportunity_id}/deep-reviews", response_model=OpportunityDeepReviewsResponse)
 def get_opportunity_deep_reviews(opportunity_id: int, session: Session = Depends(get_db)) -> dict[str, object] | JSONResponse:
     try:
         return service.opportunity_reviews(session, opportunity_id)
-    except DeepReviewServiceError as error:
+    except (DeepReviewServiceError, InputVersionError) as error:
         session.rollback()
         return _error_response(error)
     except Exception:
@@ -173,7 +177,7 @@ def create_deep_review(
             correlation_id=None,
             expected_version=None,
             input_refs=[_bundle_ref(session, payload.bundle_id, notice_id=notice_id)],
-            payload=StartReviewPayload(bundle_id=payload.bundle_id),
+            payload=StartReviewPayload(bundle_id=payload.bundle_id, source_verification_enabled=payload.source_verification_enabled, preview_id=payload.preview_id),
         )
         return DeepReviewAgent(service).start(session, command).result
     except (DeepReviewServiceError, InputVersionError) as error:
@@ -187,7 +191,7 @@ def create_deep_review(
 def get_deep_review(deep_review_id: UUID, session: Session = Depends(get_db)) -> dict[str, object] | JSONResponse:
     try:
         return service.view(session, deep_review_id)
-    except DeepReviewServiceError as error:
+    except (DeepReviewServiceError, InputVersionError) as error:
         return _error_response(error)
     except Exception:
         session.rollback()
@@ -216,10 +220,10 @@ def create_deep_review_attempt(
             correlation_id=None,
             expected_version=None,
             input_refs=[_attempt_ref(session, deep_review_id)],
-            payload=RetryAttemptPayload(),
+            payload=RetryAttemptPayload(source_verification_enabled=payload.source_verification_enabled, preview_id=payload.preview_id),
         )
         return DeepReviewAgent(service).retry_attempt(session, command).result
-    except DeepReviewServiceError as error:
+    except (DeepReviewServiceError, InputVersionError) as error:
         return _error_response(error, request_id=payload.request_id)
     except Exception:
         session.rollback()
@@ -259,3 +263,22 @@ __all__ = [
     "router",
     "service",
 ]
+
+
+class DeepReviewPreviewRequest(_Strict):
+    bundle_id: UUID
+    review_id: UUID | None = None
+    source_verification_enabled: StrictBool = True
+
+
+@router.post("/notices/{notice_id}/deep-review-previews", response_model=DeepReviewPreviewView)
+def create_deep_review_preview(notice_id: int, payload: DeepReviewPreviewRequest, session: Session = Depends(get_db)):
+    from ..services.luna_inputs import preview
+    try:
+        return preview(service, session, notice_id, payload.bundle_id, payload.source_verification_enabled, payload.review_id)
+    except (DeepReviewServiceError, InputVersionError) as error:
+        session.rollback()
+        return _error_response(error)
+    except Exception:
+        session.rollback()
+        return _error_response(DeepReviewServiceError("processing_failed", "입력을 확인할 수 없습니다", status_code=500))

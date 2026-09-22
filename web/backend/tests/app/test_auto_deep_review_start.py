@@ -57,6 +57,9 @@ WHEN = datetime(2026, 9, 1, tzinfo=UTC)
 
 @pytest.fixture(autouse=True)
 def company_fit_creation_prerequisite(monkeypatch):
+    monkeypatch.setenv("BIDOPS_DEEP_REVIEW_AUTO_START_ENABLED", "true")
+    from app.core.config import get_settings
+    get_settings.cache_clear()
     # This suite verifies the real shared deep-review service after the fit gate.
     # Fit evidence/current-input decisions and queue-to-create wiring have their
     # own company_fit tests; these historical fixtures contain no overview result.
@@ -202,6 +205,7 @@ def _seed(
         policy_digest="0" * 64, model_name="test-model", warnings_json=[], reason_codes=[],
         call_count=0, raw_response_refs=[],
         result_json={"schema_version": "test"} if overview_status == "completed" else None,
+        checks_json={"overall": "passed"} if overview_status == "completed" else None,
         created_at=WHEN, completed_at=WHEN,
     ))
     session.flush()

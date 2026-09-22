@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+const lunaFixture = JSON.parse(readFileSync(new URL("./fixtures/luna-review.json", import.meta.url), "utf8"));
 import { expect, test, type Page } from "@playwright/test";
 import { mockApi } from "./api-mock";
 
@@ -249,6 +251,10 @@ async function mockDocumentPreparation(page: Page, scenario: Scenario): Promise<
       await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(bundle) });
       return;
     }
+    if (pathname === `/api/notices/${NOTICE_ID}/deep-review-previews`) {
+      await route.fulfill({ json: { ...lunaFixture.preview, source_verification_enabled: request.postDataJSON().source_verification_enabled } });
+      return;
+    }
     if (pathname === `/api/notices/${NOTICE_ID}/deep-reviews` && method === "POST") {
       const record = { body: parseJsonBody(request.postData()), headers: request.headers() };
       trace.deepReviews.push(record);
@@ -319,7 +325,10 @@ test("생성→upload→patch→confirm→deep review가 actor·request ID·vers
   const preparationOverflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(preparationOverflow).toBeLessThanOrEqual(1);
 
-  await page.getByRole("button", { name: "확정된 문서 묶음으로 심층 검토 시작" }).click();
+  await expect(page.getByRole("checkbox", { name: "원문 인용·숫자 대조" })).toBeChecked();
+  await page.getByRole("checkbox", { name: "원문 인용·숫자 대조" }).uncheck();
+  await page.getByRole("button", { name: "전송 내용 미리보기" }).click();
+  await page.getByRole("button", { name: "전송 승인하고 심층검토 요청" }).click();
   await expect(page).toHaveURL(/\/deep-reviews\/40000000-0000-0000-0000-000000000991$/);
 
   expect(trace.creates).toHaveLength(1);
@@ -341,6 +350,7 @@ test("생성→upload→patch→confirm→deep review가 actor·request ID·vers
   expect(trace.confirms[0].body.request_id).toMatch(/^[0-9a-f-]{36}$/);
   expect(trace.deepReviews).toHaveLength(1);
   expect(trace.deepReviews[0].body.bundle_id).toBe(BUNDLE_ID);
+  expect(trace.deepReviews[0].body.source_verification_enabled).toBe(false);
   expect(trace.deepReviews[0].body.request_id).toMatch(/^[0-9a-f-]{36}$/);
   for (const request of [...trace.creates, ...trace.patches, ...trace.confirms, ...trace.deepReviews]) {
     expect(request.headers["x-bidops-actor-name"]).toBe(ACTOR_HEADER);
@@ -396,11 +406,12 @@ test("ready·superseded 이력은 불변이고 503 profile/policy를 fail-closed
   await page.getByRole("button", { name: /수정본 1/ }).click();
   await expect(page.getByText("최신 수정본이 아니므로 과거 이력으로만 표시합니다.")).toBeVisible();
   await expect(page.getByLabel("문서 역할 · 이전-확정본.pdf")).toBeDisabled();
-  await expect(page.getByRole("button", { name: "확정된 문서 묶음으로 심층 검토 시작" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "전송 내용 미리보기" })).toHaveCount(0);
 
   await page.getByRole("button", { name: /수정본 2/ }).click();
   await expect(page.getByLabel("문서 역할 · ready.pdf")).toBeDisabled();
-  await page.getByRole("button", { name: "확정된 문서 묶음으로 심층 검토 시작" }).click();
+  await page.getByRole("button", { name: "전송 내용 미리보기" }).click();
+  await page.getByRole("button", { name: "전송 승인하고 심층검토 요청" }).click();
   // 이 화면의 alert는 하나가 아니다. 심층 검토 요청 결과만 본다.
   const deepReviewFeedback = page.locator(".mutation-feedback");
   await expect(deepReviewFeedback).toContainText("활성 회사 프로필 버전과 분석 정책 버전이 모두 있어야 심층 검토를 시작합니다");

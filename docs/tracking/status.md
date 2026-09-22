@@ -6,6 +6,10 @@
 
 `구현됨`은 코드와 계약이 존재한다는 뜻이고, `검증됨`은 기록된 명령이 해당 범위에서 통과했다는 뜻이다. Mock 결과, 과거 브랜치 결과, 현재 worktree 결과, 외부 운영 승인을 서로 대신하지 않는다.
 
+## 사용자 요청 Luna 심층검토 (2026-09-23, 운영 적용·실자료 인수 대기)
+
+자동 심층 시작 기본 비활성, 건별 미리보기·승인·입력 동결, codex-exec Luna/xhigh, 공용 슬롯 순차 실행, 기존 설명형 보고서·근거 화면을 구현했다. 운영 migration 0032·서비스·Luna 정책을 적용하고 실제 계정의 Luna/xhigh 연결을 확인했다. 합성 실행기·PostgreSQL 17.11·UI 두 폭 검사는 [이번 검증 기록](../validation-runs/20260922-luna-deep-review/README.md)을 따른다. 공고 실자료 보고서와 순차 처리 인수는 대기 중이다. [운영 기록](../validation-runs/20260922-luna-deep-review/live-validation.md). [진행 계획](../0922_luna-deep-review/plan.md)과 [단계별 적용 절차](../0922_luna-deep-review/apply.md)를 따른다.
+
 ## 심층검토 설명형 보고서 PoC (2026-09-22, 운영 적용·참조 검증)
 
 - 사용자 확정 방향: A안 본문 하나, 편집된 문서형, 핵심/상세 구분과 정보 연결. [작업 정본](../0922_deep-review-improvement/plan.md).
