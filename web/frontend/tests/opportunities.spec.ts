@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { mockApi } from "./api-mock";
 import { FIXED_NOW, FIXTURES, mockOpportunities } from "./opportunities-fixtures";
+import { shortDateLabel } from "../src/lib/deadline";
 
 test.beforeEach(async ({ page }) => {
   await mockApi(page);
@@ -189,6 +190,8 @@ test("행은 사업명·기관·단계 줄에 사유 칩과 사유별 주 행동
   await expect(candidate.locator(".opportunity-row-meta")).toContainText("계속 추적");
   await expect(candidate.locator(".opportunity-next-cell")).toContainText("연결 후보 확인");
   await expect(candidate.locator(".opportunity-next-cell")).toContainText("후보 1건");
+  // F3(spec §6.3): 대표 링크(id 1001, 발주계획)의 예산·발주 예정을 그 값 그대로 붙인다.
+  await expect(candidate.locator(".opportunity-row-meta")).toContainText("950,000,000원 · 발주 예정 2026년 11월");
 
   const expected = [
     { title: "공공데이터 통합관리체계 고도화", chips: ["후보 확인"], action: "후보 확인" },
@@ -221,6 +224,23 @@ test("행은 사업명·기관·단계 줄에 사유 칩과 사유별 주 행동
   await expect(unselected.locator(".opportunity-row-meta")).toContainText("미선택");
   await expect(unselected.getByRole("list", { name: "조치 사유" })).toHaveCount(0);
   await expect(unselected.locator(".opportunity-next-cell").getByRole("button")).toHaveCount(0);
+  // F3: 대표 링크(id 3001, 공고)에 예산·마감 값이 없으면 `미확인`이 아니라
+  // `미제공`이다(서버가 null을 준 것, spec §1.1).
+  await expect(unselected.locator(".opportunity-row-meta")).toContainText("예산 미제공 · 마감 미제공");
+});
+
+// F3(spec §6.3): 대표 링크가 공고(bid_notice)이고 예산·마감 값이 있는 경우. 이 공유
+// mock(`api-mock.ts`의 기본 `mockOpportunity`, `mockApi`가 등록)이 주는 사업기회
+// 501("최종 결정 대기 사업")은 단일 링크만 갖고 있어 예산 430,000,000원·
+// 마감 2026-09-18의 공고가 그대로 대표 링크다. 그 날짜는 항상 과거이므로(실행
+// 시각과 무관하게 안정적) `입찰 마감 지남 · MM-DD`을 기대값으로 그대로 쓴다.
+test("대표 링크가 공고면 예산·입찰 마감을 그 값 그대로 보인다", async ({ page }) => {
+  await page.goto("/opportunities");
+  await page.locator(".opportunity-view-tabs").getByRole("button", { name: /^추적 중/ }).click();
+  const row = page.locator(".opportunity-table-scroll tbody tr", { hasText: "최종 결정 대기 사업" });
+  await expect(row.locator(".opportunity-row-meta")).toContainText(
+    `430,000,000원 · 입찰 마감 지남 · ${shortDateLabel("2026-09-18T00:00:00Z")}`,
+  );
 });
 
 test("사유가 여럿이면 칩은 표기 순서로 모두 보이고 주 행동은 우선순위 하나다", async ({ page }) => {

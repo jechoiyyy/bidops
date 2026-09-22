@@ -18,6 +18,7 @@ import {
 import { DisabledReason } from "../components/common/DisabledReason";
 import { EmptyState } from "../components/common/EmptyState";
 import { MutationFeedback } from "../components/common/MutationFeedback";
+import { TechnicalFacts, TechnicalInfo } from "../components/common/TechnicalInfo";
 import { Toast } from "../components/common/Toast";
 import { useUnsavedGuard } from "../components/common/useUnsavedGuard";
 import { useToast } from "../components/common/useToast";
@@ -344,12 +345,22 @@ function DeltaItem({ item, onOpenEvidence }: { item: BidDeltaItemView; onOpenEvi
       </div>
       {item.summary ? <p className="bid-delta-item-summary">{item.summary}</p> : null}
       {/* 사실·품질 경고는 이 단계에서 보인다. 기술 식별자만 근거 대화상자의
-          `기술 식별자 보기` 뒤로 간다. */}
+          `기술 식별자 보기` 뒤로 간다. 오류 코드는 접힌 기술 정보로 옮기고(ADR-0066
+          §3.3 F3), "변경 없음으로 해석하지 않습니다" 경고는 접지 않고 밖에 남긴다. */}
       {item.result_status === "unknown" || item.result_status === "failed" ? (
-        <p className="bid-delta-item-error">
-          <strong>안전한 오류 코드</strong> <code>{item.error_code ?? "값 없음"}</code> · 이 항목은 변경 없음으로 해석하지 않습니다.
-        </p>
-      ) : item.error_code ? <p className="bid-delta-item-error"><strong>안전한 오류 코드</strong> <code>{item.error_code}</code></p> : null}
+        <>
+          <p className="bid-delta-item-error">이 항목은 변경 없음으로 해석하지 않습니다.</p>
+          {item.error_code ? (
+            <TechnicalInfo summary="기술 정보 · 오류 코드">
+              <TechnicalFacts facts={[{ label: "오류 코드", value: item.error_code }]} label="변경 항목 오류 코드" />
+            </TechnicalInfo>
+          ) : null}
+        </>
+      ) : item.error_code ? (
+        <TechnicalInfo summary="기술 정보 · 오류 코드">
+          <TechnicalFacts facts={[{ label: "오류 코드", value: item.error_code }]} label="변경 항목 오류 코드" />
+        </TechnicalInfo>
+      ) : null}
       {unverified ? (
         <p className="bid-delta-item-error">
           근거 검증 {unverified.verification_status === "missing" ? "missing · 근거 없음" : "mismatch · 불일치"} 항목이 있습니다.
@@ -983,7 +994,11 @@ export function BidDeltaDecisionPage() {
                 </div>
                 {comparisonView.result_status === "unknown" ? <p className="bid-delta-interpretation">문서 근거로 의미를 확정할 수 없어 미확인 상태입니다.</p> : null}
                 {comparisonView.result_status === "failed" ? <p className="bid-delta-interpretation">계산 전체가 실패하여 결과를 확정할 수 없습니다.</p> : null}
-                {comparisonView.last_error_code ? <p className="bid-delta-interpretation">안전한 오류 코드 · <code>{comparisonView.last_error_code}</code></p> : null}
+                {comparisonView.last_error_code ? (
+                  <TechnicalInfo summary="기술 정보 · 오류 코드">
+                    <TechnicalFacts facts={[{ label: "오류 코드", value: comparisonView.last_error_code }]} label="비교 계산 오류 코드" />
+                  </TechnicalInfo>
+                ) : null}
                 {comparisonView.calculation_status === "pending" || comparisonView.calculation_status === "running" ? (
                   <div className="bid-delta-worker-note" role="status" aria-live="polite">
                     <strong>{comparisonView.calculation_status === "pending" ? "계산 대기 상태입니다." : "계산 진행 중으로 기록되어 있습니다."}</strong>
