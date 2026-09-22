@@ -1,10 +1,20 @@
 # 구현·검증 현황
 
-기준일: 2026-09-21 (운영 개요 기본은 v7; v8 예비 판단은 제품 구현·격리 검증 완료, 운영 비활성)
+기준일: 2026-09-22 (운영 개요 기본은 v7; v8 예비 판단은 제품 구현·격리 검증 완료, migration 0031은 운영 적용됨, 정책 비활성)
 
 사전규격 v4 페이지 개요·PDF 선행·회사 핏 연속 처리의 진행 계획과 단계별 인수/중단 경계는 [prespec-v4-implementation-plan.md](prespec-v4-implementation-plan.md)에 보존한다. 이 계획은 현재 회사 핏 구현·검증과 v4/PDF 후속 구현을 구분하며, 완료·운영 적용 근거를 대신하지 않는다.
 
 `구현됨`은 코드와 계약이 존재한다는 뜻이고, `검증됨`은 기록된 명령이 해당 범위에서 통과했다는 뜻이다. Mock 결과, 과거 브랜치 결과, 현재 worktree 결과, 외부 운영 승인을 서로 대신하지 않는다.
+
+## 실무 화면 고도화 묶음 ①·② (2026-09-22, 구현·운영 배포 완료)
+
+정본 `docs/0921_practitioner-screens/`, 결정 [ADR-0066](decisions/0066-practitioner-ops-information-boundary.md)(ADR-0062·0064 개정). 같은 기능은 같은 UI로, 실무 화면에는 판단 정보만 남기고 운영 정보는 운영 화면으로.
+
+- 들어간 패키지: D0·B1·B2·R3·R1·U1·U2·U3·O1·R5·R4·R2·C1·C2·R6(시안 M1·M2·M3·M4·M1c 승인, `docs/0915_ui-redesign/mockups/0921_practitioner-*`). 공용 `SourceRunFilter`(상세 필터 안)·`ListPagerControls`·`TechnicalInfo`, 운영 `실행 상태 › 수집 실행`의 `발주계획 선별` 탭, 발주계획 행·상세·필터·폼의 운영 문구 제거와 실행 상태 칩 판단식 수정, 사전규격·심층 검토·Go/No-Go·셸의 기술 정보 접기, 사업 추적·Go/No-Go 공용 골격(표 유지, 14.4px), 지역 제한 `미확인` 결함 수정, 백엔드 투영(발주계획 목록 v5·상세 v4·이력 purpose, 사전규격 `demand_agency`+검색, 결정 대기열 마감·예산·마감순 정렬, 사업기회 링크 예산·마감).
+- 병합: main `d28294f`(통합 브랜치 + `bda1288` 반영, ADR 번호 충돌로 0065→0066). 게이트(병합 트리): `build`·`test:contrast` 통과, `test:screens` 682 passed / 23 failed / 6 skipped — 23건 중 2건은 `admin-workspace-consistency.spec.ts:23` 기존 결함, **20건은 clean main에서도 실패하는 사전규격 계열**(`bda1288`이 `prespec-list-work`·`screen-semantics`·`document-preparation` spec을 갱신하지 않음, 그 작업 몫), 1건은 새 검사의 `grade`→`display_grade` 단언을 고쳐 통과. 픽셀 기준선 7장 교체(`ca4c679`). 백엔드 PostgreSQL 변형 103 passed.
+- 운영 배포(사람 확인 뒤): 배포 전 운영 스택이 2시간 전 Docker 재시작으로 내려가 있어 먼저 복구했다(`minio-init`은 `minio/mc` 이미지 pull 거부로 건너뜀, 버킷은 볼륨에 존재). web 포트 18787을 Windows `tailscale serve`가 선점해 항목을 잠시 끄고 기동했다(재개 필요). 전체 백업 `backups/postgres/full/bidops-before-practitioner-screens-1-20260922T014222Z.dump`, 롤백 태그 `before-practitioner-screens-1-20260922`(`bda1288`), 이미지 `bidops-web:practitioner-screens-1-d28294f`·`bidops-web:rollback-92c7f32-20260922`·`bidops-migrate:before-practitioner-screens-1-20260922`. **migration 0031**(`bda1288`의 사전규격 예비 판단 스키마, 컬럼 17개·FK 2·check 4 추가, 데이터 변경 없음, downgrade 없음)을 사용자 승인 뒤 `migrate`로 적용해 운영 head `0030→0031`. 새 이미지는 head 0031을 요구해 migration 없이는 기동하지 않는다. `web`만 재생성, 컨테이너 env `BIDOPS_PRESPEC_OVERVIEW_ENABLED=true`·`BIDOPS_C2_DAILY_TRIGGER_ENABLED=true` 확인.
+- 배포 후 확인(실제 스택): `/api/health` 200, `/api/order-plans` v5(1,402건, `contract_method`·`notice_posted`), `/api/order-plans/{pk}` v4(`supervising_agency_name`·`procurement_method`·`bid_ntice_no_list`·`published_at`, 이력에 `execution_purpose`·시각), 결정 대기열 16건(`deadline_at`·`budget`·`estimated_price`), 사전규격 145건(`demand_agency`). 1280 화면 5개(발주계획·`/runs`·사업 추적·Go/No-Go·사전규격)에서 `관리자 화면`·`판정 policy`·`BM25`·`저장 가능` 0, `목록 기준` 단추 표시, 발주계획 행 `모델 · 관련`·`첫 수집 09-19`·상세 `가까운 회사 역량` 확인.
+- 남은 것: 묶음 ③(F0·F1·F2·F3 — 새 필드의 화면 소비자)·④(H0~H3 대시보드) 미착수. 분리한 후속(수집 확장·단계 지연)과 R5·R6 잔여는 `findings.md`·plan §1. origin push·워크트리(`~/orca/workspaces/bidops/ps-*`)·브랜치 정리는 요청 대기.
 
 ## 사전규격 개요·예비 적합성 통합 (2026-09-21, 제품 구현·격리 검증 완료, 운영 비활성)
 
