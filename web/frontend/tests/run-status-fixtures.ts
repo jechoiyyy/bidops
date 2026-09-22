@@ -40,6 +40,10 @@ export interface RunStatusMockOptions {
   runsError?: boolean;
   /** 회차 상세 조회를 실패시킨다. */
   runDetailError?: boolean;
+  /** 회차 통계(등급 분포·감사 표본 누락) 조회를 실패시킨다. */
+  runStatsError?: boolean;
+  /** 검증 지표 조회를 실패시킨다. */
+  validationMetricsError?: boolean;
   /** 판정 실행 목록 조회를 실패시킨다. */
   executionsError?: boolean;
   /** 상시 운영 상태 조회를 실패시킨다. */
@@ -143,6 +147,62 @@ function runSummaries(options: RunStatusMockOptions) {
   ];
 }
 
+/**
+ * 회차 상세 `적합성 등급 분포`·`검증 지표` 절이 읽는 회차 통계(H3, ADR-0066
+ * 결정 7). 감사 표본 누락 건수는 0이 아닌 값을 둬 `계산 불가`·미확인을 0으로
+ * 바꾸지 않는지 확인할 수 있게 한다.
+ */
+function runStats(runId: string) {
+  return {
+    run_id: runId,
+    timezone: "Asia/Seoul",
+    generated_at: "2026-08-24T09:09:27.138116Z",
+    collected_count: 2546,
+    candidate_count: 327,
+    sample_count: 40,
+    priority_review_count: 6,
+    audit_missed_count: 214,
+    funnel: [],
+    grade_distribution: [
+      { key: "우선 검토", label: "우선 검토", count: 6 },
+      { key: "검토 권장", label: "검토 권장", count: 14 },
+      { key: "관찰 대상", label: "관찰 대상", count: 15 },
+      { key: "제외", label: "제외", count: 5 },
+    ],
+    readiness_distribution: [],
+    focus_distribution: [],
+    verification_requests: [
+      { item: "실적 증빙 확인", count: 3, notice_pks: [31, 76, 88], profile_sections: ["2.1 보유 도구"] },
+    ],
+    imminent_deadlines: [],
+  };
+}
+
+/** 검증 지표. 통과·미달·계산 불가를 함께 둬 상태 색·문구가 섞이지 않는지 본다. */
+function validationMetrics(runId: string) {
+  return {
+    run_id: runId,
+    metrics: [
+      {
+        key: "evidence_link_rate", label: "근거 연결률", value: 0.983, percentage: 98.3,
+        threshold: 0.95, meets_threshold: true, status: "pass",
+        basis: { numerator: 118, denominator: 120, detail: {} }, reason: null,
+      },
+      {
+        key: "human_agreement_rate", label: "사람 판정 일치율", value: null, percentage: null,
+        threshold: 0.8, meets_threshold: null, status: "not_measurable",
+        basis: { numerator: null, denominator: 12, detail: {} },
+        reason: "담당자 리뷰가 기준 수에 미치지 못해 계산할 수 없습니다.",
+      },
+      {
+        key: "output_format_rate", label: "출력 형식 준수율", value: 0.62, percentage: 62,
+        threshold: 0.9, meets_threshold: false, status: "fail",
+        basis: { numerator: 74, denominator: 120, detail: {} }, reason: null,
+      },
+    ],
+  };
+}
+
 function attachmentQueueItem(id: number, overrides: Record<string, unknown> = {}) {
   return {
     id,
@@ -233,6 +293,22 @@ export async function installRunStatusMock(page: Page, options: RunStatusMockOpt
         ],
         warning_counts: { partial_artifact: 1 },
       });
+      return;
+    }
+
+    // 대시보드 `회차 요약`·`검증 상태`의 이식(H3, ADR-0066 결정 7). 등급 분포와
+    // 감사 표본 누락 건수는 0이 아닌 값을 준다 — `계산 불가`·건수를 0으로
+    // 표시하지 않는지 spec이 확인한다.
+    const statsMatch = pathname.match(/^\/api\/runs\/([^/]+)\/stats$/);
+    if (statsMatch && method === "GET") {
+      if (options.runStatsError) { await fulfillJson(route, { detail: "합성 조회 실패" }, 503); return; }
+      await fulfillJson(route, runStats(decodeURIComponent(statsMatch[1])));
+      return;
+    }
+
+    if (pathname === "/api/metrics/validation" && method === "GET") {
+      if (options.validationMetricsError) { await fulfillJson(route, { detail: "합성 조회 실패" }, 503); return; }
+      await fulfillJson(route, validationMetrics(url.searchParams.get("run_id") ?? ""));
       return;
     }
 

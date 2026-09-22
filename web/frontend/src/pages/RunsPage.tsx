@@ -5,6 +5,7 @@ import { Button } from "@astryxdesign/core/Button";
 import { Text } from "@astryxdesign/core/Text";
 import { TextInput } from "@astryxdesign/core/TextInput";
 import { Pause, Play, Search, SlidersHorizontal } from "lucide-react";
+import { Badge } from "../components/common/Badge";
 import { ExecutionLog } from "../components/runs/ExecutionLog";
 import { FailurePanel, TelemetrySummary } from "../components/runs/FailurePanel";
 import { JudgmentStartDialog, JudgmentStopDialog } from "../components/runs/JudgmentDialogs";
@@ -13,6 +14,7 @@ import { PipelineControlsDialog } from "../components/runs/PipelineControlsDialo
 import { PipelineStageTrack } from "../components/runs/PipelineStages";
 import {
   Caption,
+  DataTable,
   DetailFooter,
   DetailHeader,
   Facts,
@@ -27,9 +29,13 @@ import {
   latestExecutionByRun,
   needsAttention,
   useRecentScreeningExecutions,
+  validationMetricBasisLabel,
+  validationMetricStatusLabel,
+  validationMetricValueLabel,
 } from "../components/runs/runStatusData";
 import { api } from "../lib/api";
 import { formatDateTime, formatNumber, formatRunRange, present, runStatusLabel } from "../lib/format";
+import { gradeVariant } from "../lib/grade";
 import type {
   CompanyProfileSnapshotResponse,
   PolicyVersionResponse,
@@ -196,6 +202,20 @@ export function RunsPage({ panelId = "run-status-panel-runs" }: { panelId?: stri
       if (!data || !("executions" in data)) return false;
       return data.executions.some((execution) => execution.status === "pending" || execution.status === "running") ? 1000 : false;
     },
+  });
+  // 대시보드 `회차 요약`·`검증 상태`의 이식(ADR-0066 결정 7). 두 패널이 읽던
+  // 회차 통계·검증 지표를 이 회차 상세가 직접 조회한다.
+  const runStatsQuery = useQuery({
+    queryKey: ["run-stats", selectedRunId],
+    queryFn: () => api.getRunStats(selectedRunId as string),
+    enabled: Boolean(selectedRunId),
+    staleTime: 30_000,
+  });
+  const validationQuery = useQuery({
+    queryKey: ["validation-metrics", selectedRunId],
+    queryFn: () => api.getValidationMetrics(selectedRunId as string),
+    enabled: Boolean(selectedRunId),
+    staleTime: 30_000,
   });
 
   const [detailTab, setDetailTab] = useState<DetailTab>("summary");
@@ -828,6 +848,100 @@ export function RunsPage({ panelId = "run-status-panel-runs" }: { panelId?: stri
                       수집·정규화 건수와 판정 후보·시도 건수는 다른 값입니다. 두 건수를 합치거나 서로
                       대신하지 않습니다.
                     </Caption>
+                  </Section>
+
+                  {/* 대시보드 `회차 요약`의 등급 분포(ADR-0066 결정 7). 건수 4칸은 위
+                    * `수집 범위`가 이미 보이므로 되풀이하지 않고 분포만 더한다. */}
+                  <Section title="적합성 등급 분포">
+                    {runStatsQuery.isError ? (
+                      <div className="rs-inline-error" role="alert">
+                        <Text as="span">등급 분포를 불러오지 못했습니다.</Text>
+                        <Button label="다시 조회" size="sm" onClick={() => void runStatsQuery.refetch()} />
+                      </div>
+                    ) : runStatsQuery.isPending ? (
+                      <Caption>등급 분포를 불러오는 중입니다.</Caption>
+                    ) : runStatsQuery.data && runStatsQuery.data.grade_distribution.length > 0 ? (
+                      <DataTable
+                        caption="적합성 등급 분포"
+                        headings={["등급", "건수"]}
+                        rows={runStatsQuery.data.grade_distribution.map((item) => ({
+                          id: item.key,
+                          cells: [
+                            <Badge key="grade" variant={gradeVariant(item.key)} label={item.label || item.key} />,
+                            <Link
+                              className="rs-inline-link"
+                              key="count"
+                              to={`/queue?run=${encodeURIComponent(detail.run_id)}&grade=${encodeURIComponent(item.key)}`}
+                            >
+                              {formatNumber(item.count)}건
+                            </Link>,
+                          ],
+                        }))}
+                      />
+                    ) : (
+                      <Caption>판정 분포 없음</Caption>
+                    )}
+                  </Section>
+
+                  {/* 대시보드 `검증 상태`의 이식(ADR-0066 결정 7). `계산 불가`·`미확인`을
+                    * 0으로 바꾸지 않는다(standards.md "데이터 불변성과 상태"). */}
+                  <Section
+                    title="검증 지표"
+                    action={
+                      <Link className="rs-inline-link" to={`/metrics?run=${encodeURIComponent(detail.run_id)}`}>
+                        판정 기준 · 검증 지표 →
+                      </Link>
+                    }
+                  >
+                    <Facts
+                      items={[
+                        [
+                          "1차 필터 누락",
+                          <div className="rs-cell-stack" key="audit-missed">
+                            <Text weight="semibold">
+                              {runStatsQuery.isPending
+                                ? "확인 중"
+                                : runStatsQuery.isError
+                                  ? "미확인"
+                                  : `${formatNumber(runStatsQuery.data?.audit_missed_count)}건`}
+                            </Text>
+                            <Caption>감사 표본 분모 미확인 · 누락률 계산 불가</Caption>
+                          </div>,
+                        ],
+                      ]}
+                    />
+                    {validationQuery.isError ? (
+                      <div className="rs-inline-error" role="alert">
+                        <Text as="span">검증 지표를 불러오지 못했습니다.</Text>
+                        <Button label="검증 지표 다시 조회" size="sm" onClick={() => void validationQuery.refetch()} />
+                      </div>
+                    ) : validationQuery.isPending ? (
+                      <Caption>검증 지표를 불러오는 중입니다.</Caption>
+                    ) : (validationQuery.data?.metrics.length ?? 0) > 0 ? (
+                      <DataTable
+                        caption="검증 지표"
+                        headings={["지표", "결과"]}
+                        rows={(validationQuery.data?.metrics ?? []).map((item) => {
+                          const value = validationMetricValueLabel(item);
+                          const status = validationMetricStatusLabel(item);
+                          return {
+                            id: item.key,
+                            cells: [
+                              <div className="rs-cell-stack" key="label">
+                                <Text weight="semibold">{item.label || item.key}</Text>
+                                <Caption>{validationMetricBasisLabel(item)}</Caption>
+                              </div>,
+                              <div className="rs-cell-stack rs-align-end" key="result">
+                                {value !== status ? <Text weight="semibold">{value}</Text> : null}
+                                <StatusToken label={status} />
+                              </div>,
+                            ],
+                          };
+                        })}
+                      />
+                    ) : (
+                      <Caption>검증 지표 없음</Caption>
+                    )}
                   </Section>
                 </>
               ) : null}
