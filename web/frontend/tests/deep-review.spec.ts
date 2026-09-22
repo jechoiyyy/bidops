@@ -431,7 +431,7 @@ test("실패한 분석은 사람 말 문장을 먼저 보이고 오류 코드는
   await preparation.getByText("기술 정보 · 오류 코드").click();
   await expect(codes).toBeVisible();
   await expect(codes).toContainText("분석 회차 오류 코드");
-  await expect(codes).toContainText("model_timeout");
+  await expect(codes).toContainText("timeout");
   await expect(codes).toContainText("요구사항·평가 단계 오류 코드");
 
   // 회차 이력도 같은 규칙이다 — 문장이 먼저, 코드는 접힌 곳에.
@@ -441,7 +441,7 @@ test("실패한 분석은 사람 말 문장을 먼저 보이고 오류 코드는
   await expect(historyCodes).toBeHidden();
   await history.getByText("기술 정보 · 1회차 오류 코드").click();
   await expect(historyCodes).toBeVisible();
-  await expect(historyCodes).toContainText("model_timeout");
+  await expect(historyCodes).toContainText("timeout");
 });
 
 // 화면이 모르는 코드는 다른 사유로 바꾸거나 숨기지 않는다(ADR-0066 결정 3).

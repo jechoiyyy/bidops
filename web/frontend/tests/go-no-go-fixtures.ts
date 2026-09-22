@@ -346,6 +346,12 @@ export function opportunityFor(index: number, title?: string) {
       title: title ?? business.title,
       agency: business.agency,
       external_id: `BN-2026-${id}`,
+      // 추가형 투영(spec §5). notice 대상 link 값이며 index로 있는 건·없는 건을
+      // 섞는다(§7.3의 사업 추적 행이 이 값을 그대로 쓴다).
+      budget: index % 4 === 1 ? null : String(150_000_000 + index * 10_000_000),
+      deadline_at: `2026-09-${20 + (index % 5)}T01:00:00Z`,
+      planned_order_year: null,
+      planned_order_month: null,
       record_external_id: `BN-2026-${id}`,
     }],
   };
@@ -388,6 +394,13 @@ export function queueItemFor(index: number, title?: string) {
       ? { decision: decision.decision, decided_at: decision.created_at, claimed_name: decision.claimed_name }
       : null,
     decision_currentness: decision ? scenario.currentness : "unknown",
+    // 추가형 투영(0921_practitioner-screens spec §5). 선택된 입찰공고가 없으면
+    // (`bidNotice === false`) 셋 다 null이다. 있는 건 안에서도 마감·예산·추정가격이
+    // 각각 있는 건·없는 건이 섞이도록 index로 나눈다 — 발주계획·사전규격에서
+    // 추정하지 않는다.
+    deadline_at: scenario.bidNotice === false ? null : `2026-09-${20 + (index % 5)}T01:00:00Z`,
+    budget: scenario.bidNotice === false ? null : index % 4 === 1 ? null : String(150_000_000 + index * 10_000_000),
+    estimated_price: scenario.bidNotice === false ? null : index % 3 === 2 ? null : String(140_000_000 + index * 8_000_000),
   };
 }
 
