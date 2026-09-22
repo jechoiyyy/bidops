@@ -225,6 +225,19 @@
   line-height: var(--bo-type-body-leading);
 }
 
+/* 입찰 마감 열(M5 ④, spec §6.3). 값은 `.mono.tabular-nums`(`styles/theme.css`)가
+   맞춘다. 3일 이내만 색과 글자 굵기 둘 다로 강조한다(색만으로 마감을 전달하지
+   않는다 — `web/frontend/AGENTS.md`, spec §7 "3일 이내는 빨간 D-day"). */
+.gng-deadline-cell {
+  display: block;
+  white-space: nowrap;
+}
+
+.gng-deadline-critical {
+  color: var(--color-danger);
+  font-weight: 700;
+}
+
 .gng-decision-cell {
   display: grid;
   gap: var(--spacing-2);
