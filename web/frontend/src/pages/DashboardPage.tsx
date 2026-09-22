@@ -140,7 +140,7 @@ function DashboardWorkspace() {
     </nav>
 
     <div className="dash-work-grid">
-      <DeadlineImminentPanel data={deadlineQuery.data} now={now}
+      <DeadlineImminentPanel data={deadlineQuery.data} now={now} windowDays={DEADLINE_IMMINENT_DAYS}
         state={{ isPending: deadlineQuery.isPending, isError: deadlineQuery.isError, onRetry: () => { void deadlineQuery.refetch(); } }}
         footBasis={`추적 중·보류 사업 중 ${DEADLINE_IMMINENT_DAYS}일 이내 · ${workloadBasis} 기준`}
         footCount={workloadNote("tracking_deadline_imminent", "마감 임박", "")} />
@@ -153,7 +153,7 @@ function DashboardWorkspace() {
         footCount={workloadNote("human_check_required", "사람 확인 필요", "")} />
       <HoldReviewPanel data={holdReviewQuery.data} isPending={holdReviewQuery.isPending} isError={holdReviewQuery.isError}
         onRetry={() => { void holdReviewQuery.refetch(); }} overdueNote={workloadNote("tracking_hold_review_due", "기한 지남", "")} now={now} />
-      <NewPriorityOrderPlanPanel data={newPlanQuery.data}
+      <NewPriorityOrderPlanPanel data={newPlanQuery.data} newSince={newSince}
         state={{ isPending: newPlanQuery.isPending, isError: newPlanQuery.isError, onRetry: () => { void newPlanQuery.refetch(); } }}
         footBasis="전일 수집 이후 처음 관측"
         footCount={workloadNote("order_plan_new_priority", "추적 미선택", ` 중 상위 ${WORK_PANEL_LIMIT}건`)} />

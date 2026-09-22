@@ -65,12 +65,14 @@ test("`새로`를 셀 수 없으면 0이 아니라 미확인으로 적는다", a
 test("누적 패널 다섯이 제목·목적지·기준을 갖는다", async ({ page }) => {
   await mockDashboard(page, { holdReviews: holdReviewList(holdReviewItems.slice(0, 1), 1) });
   await page.goto("/");
+  // 두 링크(S1)는 목적지 화면에 **패널의 목록 호출과 같은 조건**을 넘긴다. 마감 임박은
+  // 기본 구역이 걸리지 않게 `section=전체`를 함께 건다.
   const expectations: [string, string, string][] = [
-    ["마감 임박 추적 건", "사업 추적", "/opportunities"],
+    ["마감 임박 추적 건", "사업 추적", "/opportunities?section=전체&deadline_within_days=7&sort=deadline"],
     ["최종 결정 대기", "최종 Go/No-Go", "/go-no-go"],
     ["사람 확인 필요", "사전규격", "/pre-specs?workspace=all&sw_only=false&overview_view=attention"],
     ["보류 재검토", "사업 추적에서 모두 보기", "/opportunities?section=조치 필요&reason=hold_overdue"],
-    ["새 우선 검토 발주계획", "발주계획", "/order-plans?qwen=relevant&tracking=미선택"],
+    ["새 우선 검토 발주계획", "발주계획", "/order-plans?qwen=relevant&tracking=미선택&first_observed_from=2026-09-16"],
   ];
   for (const [title, linkLabel, href] of expectations) {
     const region = panel(page, title);
@@ -258,25 +260,41 @@ test("새로고침은 모든 패널을 다시 조회한다", async ({ page }) =>
   await expect.poll(() => trace.requests.length).toBeGreaterThanOrEqual(before + 8);
 });
 
-test("보류 재검토는 회차 없이 기한순 5건을 한국 날짜 D+n·D-n으로 보여 준다", async ({ page }) => {
+// S1 — 표를 다른 업무 패널과 같은 `WorkRow`로 옮겼다. 데이터·호출·건수 키·바닥 문구는
+// 그대로이고, 행은 `사업명 / {보류 사유} · {선택자} / 기한` 세 자리다. 기한 지남과
+// 기한 미확인은 서로 다른 말로 남기며 날짜를 지어내지 않는다.
+test("보류 재검토는 회차 없이 기한순 5건을 업무 패널과 같은 행으로 보여 준다", async ({ page }) => {
   const trace = await mockDashboard(page, { holdReviews: holdReviewList(holdReviewItems, 7), workload: workloadWith("tracking_hold_review_due", 2) });
   await page.goto("/");
   const region = panel(page, "보류 재검토");
   await expect(region).toContainText("보류는 선택 후 14일이 지나면 다시 검토합니다.");
   await expect(region.locator(".dash-panel-head")).toContainText("기한 지남 2건");
-  const rows = region.getByRole("row");
-  await expect(rows).toHaveCount(6);
+  // 표가 아니라 행 목록이다(1280 반폭에서 마지막 열이 가로로 밀리던 자리).
+  await expect(region.getByRole("table")).toHaveCount(0);
+  const rows = region.locator(".dash-work-item");
+  await expect(rows).toHaveCount(5);
   const holdRequests = trace.requests.filter(entry => entry.path === "/api/opportunities" && "hold_review" in entry.params);
   expect(holdRequests).toHaveLength(1);
   expect(holdRequests[0].params).toEqual({ hold_review: "attention", sort: "hold_review_due_at", limit: "5" });
-  await expect(rows.nth(1)).toContainText("공공데이터 통합관리체계 고도화");
-  await expect(rows.nth(1)).toContainText("기한 지남 D+3");
-  await expect(rows.nth(2)).toContainText("제목 미확인");
-  await expect(rows.nth(2)).toContainText("기한 지남 D+0");
-  await expect(rows.nth(3)).toContainText("D-1");
-  await expect(rows.nth(3)).toContainText("09.18 00:30");
-  await expect(rows.nth(4)).toContainText("D-2");
-  await expect(rows.nth(5)).toContainText("D-3");
+  await expect(rows.nth(0)).toContainText("공공데이터 통합관리체계 고도화");
+  await expect(rows.nth(0)).toContainText("예산 편성 결과를 확인한 뒤 다시 검토 · 김보류");
+  await expect(rows.nth(0)).toContainText("기한 지남");
+  // 값이 없는 제목·사유·선택자는 서로 다른 말로 남긴다.
+  await expect(rows.nth(1)).toContainText("제목 미확인");
+  await expect(rows.nth(1)).toContainText("사유 미확인 · 선택자 미확인");
+  await expect(rows.nth(1)).toContainText("기한 지남");
+  // 한국 자정 경계(UTC 15:30 → KST 다음 날 00:30)와 마이크로초를 그대로 넘긴다.
+  await expect(rows.nth(2)).toContainText("발주처 사업 범위 확정 대기 · 이담당");
+  await expect(rows.nth(2)).toContainText("기한 09.18");
+  await expect(rows.nth(3)).toContainText("사유 미확인 · 박선택");
+  await expect(rows.nth(3)).toContainText("기한 09.19");
+  await expect(rows.nth(4)).toContainText("공동수급 조건 확인 필요 · 최담당");
+  await expect(rows.nth(4)).toContainText("기한 09.20");
+  await expect(rows.nth(0).getByRole("link")).toHaveAttribute("href", "/opportunities/401");
+  // 기한 지남만 강조한다(색만으로 전달하지 않도록 문구도 다르다).
+  const urgent = await page.evaluate(() => [...document.querySelectorAll(".dash-hold-panel .dash-work-due")]
+    .map(cell => ({ text: cell.textContent, urgent: cell.classList.contains("dash-work-due-urgent") })));
+  expect(urgent.map(cell => cell.urgent)).toEqual([true, true, false, false, false]);
   await expect(region.locator(".dash-panel-foot")).toContainText("기한 지남·임박 7건 중 5건 표시");
 });
 
@@ -286,6 +304,58 @@ test("보류 기한 지남 건수를 받지 못하면 0건으로 채우지 않�
   const head = panel(page, "보류 재검토").locator(".dash-panel-head");
   await expect(head).toContainText("기한 지남 건수 미확인");
   await expect(head).not.toContainText("0건");
+});
+
+// S1 — 패널의 링크가 목적지 화면에서 **같은 집합**을 연다. 여기서는 같은 mock이 패널과
+// 목록 화면에 같은 응답을 주므로, 같은 행이 나오는 것으로 모집단이 같음을 본다.
+test("마감 임박 바로가기는 사업 추적을 같은 조건·같은 집합으로 연다", async ({ page }) => {
+  const trace = await mockDashboard(page);
+  await page.goto("/");
+  const region = panel(page, "마감 임박 추적 건");
+  await expect(region.locator(".dash-work-item")).toHaveCount(3);
+  const titles = await region.locator(".dash-work-title").allTextContents();
+  await region.getByRole("link", { name: "사업 추적", exact: true }).click();
+
+  await expect.poll(() => new URL(page.url()).pathname).toBe("/opportunities");
+  const params = new URL(page.url()).searchParams;
+  expect(params.get("section")).toBe("전체");
+  expect(params.get("deadline_within_days")).toBe("7");
+  expect(params.get("sort")).toBe("deadline");
+  // 목록 화면이 서버에 보낸 조건이 패널이 보낸 것과 같다 — 구역은 `전체`라 보내지 않는다.
+  await expect(page.locator(".opportunity-row-title")).toHaveText(titles);
+  const listRequest = trace.requests.filter(entry => entry.path === "/api/opportunities" && "deadline_within_days" in entry.params).at(-1);
+  expect(listRequest?.params.deadline_within_days).toBe("7");
+  expect(listRequest?.params.sort).toBe("deadline");
+  expect(listRequest?.params.section).toBeUndefined();
+  await expect(page.locator(".opportunity-list-head")).toContainText("전체 · 7일 이내 마감 전체 7건");
+
+  // 걸린 창은 접힘과 무관한 문맥 줄이 말하고 거기서 해제한다.
+  const context = page.locator(".opportunity-deadline-context");
+  await expect(context).toContainText("7일 이내 마감");
+  await context.getByRole("button", { name: "해제", exact: true }).click();
+  await expect.poll(() => new URL(page.url()).searchParams.has("deadline_within_days")).toBe(false);
+  await expect(page.locator(".opportunity-deadline-context")).toHaveCount(0);
+  expect(trace.writes).toEqual([]);
+});
+
+test("새 우선 검토 바로가기는 발주계획을 같은 첫 수집 창·같은 집합으로 연다", async ({ page }) => {
+  await mockApi(page); await mockOrderPlans(page);
+  // 전일(KST)이 공용 fixture의 첫 관측일 `2026-09-01`이 되는 시각으로 맞춘다.
+  await page.clock.setFixedTime(new Date("2026-09-02T03:00:00Z"));
+  await page.goto("/");
+  const region = panel(page, "새 우선 검토 발주계획");
+  await expect(region.locator(".dash-work-item").first()).toBeVisible();
+  const titles = await region.locator(".dash-work-title").allTextContents();
+  expect(titles.length).toBeGreaterThan(0);
+  const link = region.getByRole("link", { name: "발주계획", exact: true });
+  await expect(link).toHaveAttribute("href", "/order-plans?qwen=relevant&tracking=미선택&first_observed_from=2026-09-01");
+  await link.click();
+
+  await expect.poll(() => new URL(page.url()).pathname).toBe("/order-plans");
+  await expect(page.locator(".c2l-observed-context")).toContainText("09-01 이후 첫 수집");
+  // 같은 세 조건(첫 수집 창 · 모델 판단 관련 · 추적 미선택)이 목록 화면에 걸린다.
+  await expect(page.locator(".c2l-list-head")).toContainText("09-01 이후 첫 수집 AND 모델 판단 관련 AND 추적 미선택");
+  await expect(page.locator(".c2l-row-title")).toHaveText(titles);
 });
 
 for (const [width, height] of WIDTHS) {

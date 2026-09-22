@@ -88,6 +88,16 @@ export function queueDeadlineLabel(value: string | null, now: number): { text: s
   return { text: `D-${days}`, urgent: days <= DEADLINE_URGENT_DAYS };
 }
 
+const KST_DAY = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Seoul", month: "2-digit", day: "2-digit" });
+/** 한국 시간 `MM.DD`. 값이 없거나 파싱할 수 없으면 `null`이며 날짜를 지어내지 않는다. */
+function kstDayLabel(value: string | null | undefined): string | null {
+  if (!value || !Number.isFinite(Date.parse(value))) return null;
+  const parts = KST_DAY.formatToParts(new Date(value));
+  const part = (key: string) => parts.find(item => item.type === key)?.value;
+  const month = part("month"), day = part("day");
+  return month && day ? `${month}.${day}` : null;
+}
+
 export type HoldReviewDue = { state: "overdue" | "due_soon" | "unknown"; label: string };
 /**
  * 기한 지남 여부는 서버 사유 `hold_overdue`가 정한다. 화면은 한국 시간 날짜 차이만
@@ -100,4 +110,22 @@ export function holdReviewDue(item: Pick<OpportunityListItem, "hold_review_due_a
   const days = kstDayIndex(due) - kstDayIndex(now);
   if (item.action_reasons.includes("hold_overdue")) return { state: "overdue", label: `기한 지남 D+${Math.max(0, -days)}` };
   return { state: "due_soon", label: `D-${Math.max(0, days)}` };
+}
+
+/**
+ * `보류 재검토` 행 오른쪽 한 마디(S1 — 표를 다른 패널과 같은 행으로 옮기며 생겼다).
+ *
+ * 다른 업무 패널의 `end`와 같이 짧은 한 칸이다. 기한 지남만 강조하며, 기한을 받지
+ * 못한 행은 `기한 미확인`으로 두고 지남이나 0으로 바꾸지 않는다. 지남 판정은 여전히
+ * 서버 사유(`hold_overdue`)가 갖는다.
+ */
+export function holdReviewDueText(
+  item: Pick<OpportunityListItem, "hold_review_due_at" | "action_reasons">,
+  now: number,
+): { text: string; urgent: boolean } {
+  const due = holdReviewDue(item, now);
+  if (due.state === "unknown") return { text: "기한 미확인", urgent: false };
+  if (due.state === "overdue") return { text: "기한 지남", urgent: true };
+  const day = kstDayLabel(item.hold_review_due_at);
+  return day === null ? { text: "기한 미확인", urgent: false } : { text: `기한 ${day}`, urgent: false };
 }

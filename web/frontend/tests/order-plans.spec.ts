@@ -2735,6 +2735,58 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900
       expect(listRequests.slice(requestsBeforeClear).every((params) => !params.has("source_run_id"))).toBe(true);
     });
 
+    // S1 — 대시보드 `새 우선 검토 발주계획`이 넘기는 `first_observed_from`. URL로만
+    // 들어오는 축이고, 회차 줄과 같은 자리에서 알리고 해제한다. 창은 **서버가** 건다.
+    test("URL의 첫 수집 창은 서버로 그대로 나가고 회차 줄과 같은 자리에서 해제된다", async ({ page }) => {
+      await mockOrderPlans(page);
+      const listRequests = recordListRequests(page);
+      await page.goto("/order-plans?qwen=relevant&tracking=미선택&first_observed_from=2026-09-01");
+
+      const line = page.locator(".c2l-filters .c2l-observed-context");
+      const activeCount = page.locator(".c2l-filters .workspace-filter-count");
+      await expect(page.locator(".c2l-row")).toHaveCount(1);
+      await expect(line).toContainText("09-01 이후 첫 수집");
+      // 걸린 조건은 셋이다 — 모델 판단·추적·첫 수집 창.
+      await expect(activeCount).toHaveText("3");
+      await expect(page.locator(".c2l-list-scope"))
+        .toHaveText("09-01 이후 첫 수집 AND 모델 판단 관련 AND 추적 미선택");
+      expect(listRequests.at(-1)?.get("first_observed_from")).toBe("2026-09-01");
+      expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(0);
+
+      // 상세 필터를 접었다 펴도 줄과 건수는 그대로다(회차 줄과 같은 성질).
+      const advancedToggle = page.getByRole("button", { name: "상세 필터", exact: true });
+      await advancedToggle.click();
+      await expect(advancedToggle).toHaveAttribute("aria-expanded", "true");
+      await expect(line).toContainText("09-01 이후 첫 수집");
+      await expect(activeCount).toHaveText("3");
+
+      // 해제는 그 축 하나만 푼다.
+      const before = listRequests.length;
+      await line.getByRole("button", { name: "해제", exact: true }).click();
+      await expect.poll(() => new URL(page.url()).searchParams.has("first_observed_from")).toBe(false);
+      await expect(line).toHaveCount(0);
+      await expect(activeCount).toHaveText("2");
+      await expect(page.locator(".c2l-row")).toHaveCount(1);
+      expect(listRequests.slice(before).every((params) => !params.has("first_observed_from"))).toBe(true);
+    });
+
+    test("첫 수집 창 밖이면 목록이 비고 형식이 아닌 값은 보내지 않는다", async ({ page }) => {
+      await mockOrderPlans(page);
+      const listRequests = recordListRequests(page);
+      // 창이 실제로 서버에서 좁힌다(공용 fixture의 첫 관측일은 2026-09-01이다).
+      await page.goto("/order-plans?first_observed_from=2026-09-20");
+      await expect(page.locator(".c2l-observed-context")).toContainText("09-20 이후 첫 수집");
+      await expect(page.locator(".c2l-row")).toHaveCount(0);
+      expect(listRequests.at(-1)?.get("first_observed_from")).toBe("2026-09-20");
+
+      // 형식이 아닌 값은 보내지 않고 줄도 그리지 않는다 — 422를 받는 대신 창이 없다.
+      const before = listRequests.length;
+      await page.goto("/order-plans?first_observed_from=2026-9-1");
+      await expect(page.locator(".c2l-row")).toHaveCount(2);
+      await expect(page.locator(".c2l-observed-context")).toHaveCount(0);
+      expect(listRequests.slice(before).every((params) => !params.has("first_observed_from"))).toBe(true);
+    });
+
     test("자동 선별이 꺼져 있으면 사실 한 줄과 운영 화면 링크만 보인다", async ({ page }) => {
       await mockOrderPlans(page);
       await mockDailyTrigger(page, dailyTriggerState({

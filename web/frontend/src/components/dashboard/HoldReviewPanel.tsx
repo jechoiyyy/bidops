@@ -1,19 +1,21 @@
 import type { ReactNode } from "react";
-import { Link } from "react-router-dom";
 import { Button } from "@astryxdesign/core/Button";
-import { Table, pixel, proportional } from "@astryxdesign/core/Table";
 import { Text } from "@astryxdesign/core/Text";
 import { ArrowRight, CircleAlert, LoaderCircle, RefreshCw, Search } from "lucide-react";
 import type { OpportunityListResponse } from "../../lib/types";
 import { formatNumber } from "../../lib/format";
 import { primaryTitle } from "../opportunities/trackingFlow";
-import { DashboardPanel, LinkButton, Small, Tag } from "./DashboardPrimitives";
-import { HOLD_REVIEW_LIST_PATH, holdReviewDue, snapshotTime } from "./dashboardData";
+import { DashboardPanel, LinkButton, Small } from "./DashboardPrimitives";
+import { DueText, WorkRow } from "./WorkPanels";
+import { HOLD_REVIEW_LIST_PATH, holdReviewDueText } from "./dashboardData";
 
 /**
  * 보류 재검토 리마인드(spec §8·§11.2). 회차 선택과 무관한 누적 목록이며, 기한 지남과
  * 3일 이내 임박을 서버가 고르고 정렬한 순서대로 보여 준다. 이 패널은 추적 상태를
  * 바꾸지 않는다. 재검토 저장은 사업 추적 상세에서 한다.
+ *
+ * 행 모양은 다른 업무 패널과 같은 `WorkRow`다(S1). 표는 1280 반폭에서 마지막 열이
+ * 가로로 밀려 났기 때문이고, 데이터·호출·건수 키·바닥 문구는 그대로다.
  */
 export function HoldReviewPanel({ data, isPending, isError, onRetry, overdueNote, now }: {
   data: OpportunityListResponse | undefined; isPending: boolean; isError: boolean; onRetry: () => void;
@@ -31,20 +33,14 @@ export function HoldReviewPanel({ data, isPending, isError, onRetry, overdueNote
   } else if (!items.length) {
     body = <HoldReviewState kind="empty" text="재검토가 필요한 보류 사업이 없습니다." />;
   } else {
-    body = <Table data={items.map(item => ({ ...item }))} idKey="id" density="compact" dividers="rows" hasHover columns={[
-      { key: "title", header: "사업명", width: proportional(3), renderCell: item => <Link className="dash-hold-link" to={`/opportunities/${item.id}`}>
-        <Text className="dash-hold-title" weight="semibold">{primaryTitle(item)}</Text>
-      </Link> },
-      { key: "tracking_reason", header: "보류 사유", width: proportional(2), renderCell: item => item.tracking_reason?.trim()
-        ? <Text className="dash-hold-reason">{item.tracking_reason.trim()}</Text> : <Small>사유 미확인</Small> },
-      { key: "hold_review_due_at", header: "재검토 기한", width: pixel(184), renderCell: item => {
-        const due = holdReviewDue(item, now);
-        return <div className="dash-hold-due"><Tag label={due.label} tone={due.state === "overdue" ? "warning" : "neutral"} />
-          {due.state !== "unknown" && <Small>{snapshotTime(item.hold_review_due_at, "Asia/Seoul")}</Small>}</div>;
-      } },
-      { key: "tracking_selected_by", header: "선택자", width: pixel(128), renderCell: item => item.tracking_selected_by?.trim()
-        ? <Text className="dash-hold-reason">{item.tracking_selected_by.trim()}</Text> : <Small>선택자 미확인</Small> },
-    ]} />;
+    // 사유와 선택자는 값이 없을 때 서로 다른 말로 남긴다 — 빈 값을 다른 사람이나
+    // 다른 사유로 바꾸지 않는다.
+    body = <ul className="dash-work-list">{items.map(item => {
+      const due = holdReviewDueText(item, now);
+      return <WorkRow key={item.id} to={`/opportunities/${item.id}`} title={primaryTitle(item)}
+        meta={`${item.tracking_reason?.trim() || "사유 미확인"} · ${item.tracking_selected_by?.trim() || "선택자 미확인"}`}
+        end={<DueText text={due.text} urgent={due.urgent} />} />;
+    })}</ul>;
   }
   return <DashboardPanel title="보류 재검토" caption="보류는 선택 후 14일이 지나면 다시 검토합니다." className="dash-hold-panel"
     action={<Small>{overdueNote}</Small>}

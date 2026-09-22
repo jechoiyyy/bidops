@@ -30,6 +30,9 @@ import { WORK_PANEL_LIMIT, imminentDeadline, queueDeadlineLabel } from "./dashbo
  * - 서버가 주지 않은 값(대표 마감 등)을 지어내지 않는다.
  */
 
+/** 사업 추적 화면의 `전체` 구역 값. 기본 구역(`조치 필요`)이 목록을 더 좁히지 않게 건다. */
+const ALL_SECTION = "전체";
+
 export interface WorkPanelState {
   isPending: boolean;
   isError: boolean;
@@ -70,14 +73,15 @@ export function WorkPanel({
   </DashboardPanel>;
 }
 
-function WorkRow({ to, title, meta, end }: { to: string; title: string; meta: string; end: ReactNode }) {
+/** 업무 패널의 행 하나. 다섯 패널이 모두 이 모양을 쓴다(보류 재검토 포함, S1). */
+export function WorkRow({ to, title, meta, end }: { to: string; title: string; meta: string; end: ReactNode }) {
   return <li className="dash-work-item"><Link className="dash-work-row" to={to}>
     <div className="dash-cell-stack"><Text className="dash-work-title" weight="semibold">{title}</Text><Small>{meta}</Small></div>
     <div className="dash-work-end">{end}</div>
   </Link></li>;
 }
 
-function DueText({ text, urgent }: { text: string; urgent: boolean }) {
+export function DueText({ text, urgent }: { text: string; urgent: boolean }) {
   return <Text className={urgent ? "dash-work-due dash-work-due-urgent" : "dash-work-due"}>{text}</Text>;
 }
 
@@ -85,9 +89,11 @@ function DueText({ text, urgent }: { text: string; urgent: boolean }) {
  * 마감 임박 추적 건. 서버가 대표 마감을 고르지 않으므로 행의 마감 종류·D-day는
  * `links[]`에서 화면이 고른다(`imminentDeadline`).
  */
-export function DeadlineImminentPanel({ data, state, footBasis, footCount, now }: {
+export function DeadlineImminentPanel({ data, state, footBasis, footCount, now, windowDays }: {
   data: OpportunityListResponse | undefined; state: WorkPanelState;
   footBasis: ReactNode; footCount: ReactNode; now: number;
+  /** 목록 호출과 링크가 함께 쓰는 창(일). 둘이 갈라지지 않게 한 값을 받는다. */
+  windowDays: number;
 }) {
   const rows = (data?.items ?? []).slice(0, WORK_PANEL_LIMIT).map((item) => {
     const due = imminentDeadline(item, now);
@@ -95,7 +101,10 @@ export function DeadlineImminentPanel({ data, state, footBasis, footCount, now }
       meta={`${due ? due.kind : "마감 종류 미확인"} · ${item.tracking_status}`}
       end={<DueText text={due ? `D-${due.days}` : "마감 미확인"} urgent={due?.urgent ?? false} />} />;
   });
-  return <WorkPanel title="마감 임박 추적 건" to="/opportunities" linkLabel="사업 추적" state={state} rows={rows}
+  // 링크는 패널의 목록 호출과 **같은 조건**을 사업 추적 화면에 그대로 넘긴다(S1).
+  // 구역은 `전체`로 연다 — 그 화면의 기본 구역(`조치 필요`)이 걸리면 다른 집합이 된다.
+  const to = `/opportunities?section=${ALL_SECTION}&deadline_within_days=${windowDays}&sort=deadline`;
+  return <WorkPanel title="마감 임박 추적 건" to={to} linkLabel="사업 추적" state={state} rows={rows}
     emptyTitle="7일 이내 마감인 추적 건이 없습니다" errorTitle="마감 임박 추적 건을 불러오지 못했습니다"
     footBasis={footBasis} footCount={footCount} />;
 }
@@ -169,15 +178,19 @@ export function HumanCheckPanel({ failed, attention, blocking, state, footBasis,
  * 새 우선 검토 발주계획. `모델 판단 관련`은 `qwen_relevance=relevant` 한 값이라
  * 발주계획 타일의 `검토 후보`(`relevant,uncertain`)와 다른 집합이다(spec §7.3).
  */
-export function NewPriorityOrderPlanPanel({ data, state, footBasis, footCount }: {
+export function NewPriorityOrderPlanPanel({ data, state, footBasis, footCount, newSince }: {
   data: OrderPlanListResponse | undefined; state: WorkPanelState; footBasis: ReactNode; footCount: ReactNode;
+  /** 목록 호출과 링크가 함께 쓰는 `first_observed_from`(`YYYY-MM-DD`). */
+  newSince: string;
 }) {
   const rows = (data?.items ?? []).slice(0, WORK_PANEL_LIMIT).map((item: OrderPlanListItem) => <WorkRow
     key={item.order_plan_pk} to={`/order-plans?selected=${item.order_plan_pk}`}
     title={item.title?.trim() || "사업명 미확인"}
     meta={`${item.agency_name?.trim() || "기관 미확인"} · ${budgetValue(item.budget_amount)} · ${plannedTiming(item.planned_order_year, item.planned_order_month)}`}
     end={<Tag label={qwenRowLabel(item)} />} />);
-  return <WorkPanel title="새 우선 검토 발주계획" to="/order-plans?qwen=relevant&tracking=미선택" linkLabel="발주계획"
+  // 링크에 `first_observed_from`까지 넘겨야 목록 화면이 패널과 같은 창을 연다(S1).
+  const to = `/order-plans?qwen=relevant&tracking=미선택&first_observed_from=${newSince}`;
+  return <WorkPanel title="새 우선 검토 발주계획" to={to} linkLabel="발주계획"
     state={state} rows={rows} className="dash-work-wide"
     emptyTitle="새로 관측된 우선 검토 발주계획이 없습니다" errorTitle="새 우선 검토 발주계획을 불러오지 못했습니다"
     footBasis={footBasis} footCount={footCount} />;
