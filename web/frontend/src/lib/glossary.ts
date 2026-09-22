@@ -12,8 +12,9 @@
  * - 목록·필터는 한글 라벨로 표시한다. 계약 토큰은 상세의 기술 정보에서만 표시한다.
  *   번역은 표시만 바꾸며 서버 값과 unknown·null의 의미는 보존한다.
  * - 식별자와 해시 값 자체(문서 버전 ID, SHA-256, request ID). 사람이 눈으로
- *   대조하는 값이므로 줄이거나 옮기지 않는다. 옮기는 것은 그 값을 가리키는
- *   **이름**뿐이다(`digest` → `식별 해시`).
+ *   대조하는 값이므로 **줄이지 않는다.** 실무 화면에서 운영 화면이나 같은 화면의
+ *   접힌 기술 정보로 **옮길 수는 있다**(ADR-0066 결정 2). 옮길 때도 값을 자르지
+ *   않으며, 그 값을 가리키는 **이름**만 이 표의 낱말로 바꾼다(`digest` → `식별 해시`).
  * - 이미 라벨 맵이 있는 업무 상태(`BUNDLE_STATUS_LABELS`,
  *   `PRE_SPEC_*_LABEL`, `QUALITY_STATUS_LABEL` …). 그 맵이 그 도메인의 정본이다.
  */
@@ -58,10 +59,53 @@ export const TERM = {
 
 export type GlossaryTerm = keyof typeof TERM;
 
+/**
+ * 발주계획 실무 화면의 계약 값 → 한글 라벨(ADR-0066 결정 3, 0921 명세 §3.1).
+ *
+ * **표시만 바꾼다.** URL 질의 값과 서버로 보내는 값은 아래 key 그대로이며,
+ * `unknown`·`null`의 의미도 그대로다. 표에 없는 값(서버가 새 enum을 준 경우)은
+ * 바꾸거나 숨기지 않고 원문을 그대로 통과시킨다(`orderPlanLabel`).
+ */
+export const ORDER_PLAN_RELEVANCE_LABEL = {
+  relevant: "관련",
+  uncertain: "판단 보류",
+  not_relevant: "비관련",
+} as const;
 
-export const RELEVANCE_LABEL = { relevant: "관련", uncertain: "불확실", not_relevant: "비관련" } as const;
-export const STAGE1_LABEL = { selected: "후보", filtered_out: "후보 밖", failed: "실패", rejected: "거부" } as const;
-export const STAGE2_LABEL = { not_attempted: "미시도", success: "완료", failed: "실패", rejected: "거부", unknown: "판단 불가" } as const;
-export const PRIORITY_LABEL = { high: "높음", medium: "보통", low: "낮음" } as const;
-export const NULL_LABEL = "값 없음";
-export const TRACKING_STATUS_LABEL = { 미선택: "추적 결정 없음", "계속 추적": "계속 추적", 보류: "보류", 종료: "종료" } as const;
+/** 1차 선별(`stage1_status`). 배지로 그릴지는 화면이 정한다(선정·제외는 그리지 않는다). */
+export const ORDER_PLAN_STAGE1_LABEL = {
+  selected: "선정",
+  filtered_out: "제외",
+  failed: "실패",
+  rejected: "거부",
+} as const;
+
+/**
+ * 모델 처리 상태(`stage2_status`). 미판정·실패·거부·미확인을 하나로 뭉개지 않는다 —
+ * 모델 판단이 없는 이유가 서로 다르기 때문이다.
+ */
+export const ORDER_PLAN_STAGE2_LABEL = {
+  not_attempted: "모델 미판정",
+  success: "모델 판정 완료",
+  failed: "모델 판정 실패",
+  rejected: "모델 응답 거부",
+  unknown: "모델 상태 미확인",
+} as const;
+
+/** 사람 판단 수정의 우선순위. 값이 없는 것(`null`)은 `미지정`이며 여기 넣지 않는다. */
+export const ORDER_PLAN_PRIORITY_LABEL = {
+  high: "높음",
+  medium: "보통",
+  low: "낮음",
+} as const;
+
+/** 서버가 값을 주지 않은 축(`null` 토큰)의 필터 라벨. `미확인`·`계산 불가`와 다르다. */
+export const ORDER_PLAN_NULL_LABEL = "값 없음";
+
+/** 추적 축의 `none`. 소유 사업기회를 확인하지 못한 행이며 `미선택`이 아니다. */
+export const ORDER_PLAN_TRACKING_NONE_LABEL = "사업기회 미연결";
+
+/** 표에 있는 값만 옮기고 모르는 값은 원문 그대로 보인다(ADR-0066 결정 3). */
+export function orderPlanLabel(labels: Readonly<Record<string, string>>, value: string): string {
+  return labels[value] ?? value;
+}

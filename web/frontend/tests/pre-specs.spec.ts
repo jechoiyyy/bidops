@@ -625,7 +625,8 @@ test("개요 상태 고급 필터는 미시작과 진행·대기를 구분한다
   await expect(page.getByRole("option", { name: "미시작", exact: true })).toBeVisible();
   await page.getByRole("option", { name: "미시작", exact: true }).click();
   await expect.poll(() => new URL(page.url()).searchParams.get("overview_view")).toBe("not_started");
-  await expect(page.locator(".pre-specs-list-foot")).toContainText("전체 1건");
+  // 전체 건수는 공용 페이저 줄이 진다(명세 §2.2) — 한 쪽에 다 들어와도 줄은 남는다.
+  await expect(page.locator(".pre-specs-pager")).toContainText("전체 1건");
 });
 
 // 정렬은 사업 추적과 같은 자리(상세 필터 안 Selector)로 옮겼다. 접히면 보이지
@@ -654,7 +655,7 @@ test("workspace 기본 정렬과 수동 정렬은 URL·목록 머리에 반영�
 
 // 제목은 셸 상단바가 그리고 페이지는 같은 이름을 다시 쓰지 않는다. 페이지 상태를
 // 쓰는 액션은 portal로 상단바 슬롯에 들어간다.
-test("화면 제목과 표시 범위 액션은 상단바에 있고 페이지는 제목 줄을 두지 않는다", async ({ page }) => {
+test("화면 제목과 `목록 기준` 액션은 상단바에 있고 페이지는 제목 줄을 두지 않는다", async ({ page }) => {
   await mockPreSpecs(page);
   await page.goto("/pre-specs");
 
@@ -665,10 +666,11 @@ test("화면 제목과 표시 범위 액션은 상단바에 있고 페이지는 
   await expect(page.locator(".pre-specs-page > h2.visually-hidden#page-title")).toHaveText("사전규격");
   await expect(page.locator(".pre-specs-page-header")).toHaveCount(0);
 
-  const scope = topbar.getByRole("button", { name: "표시 범위" });
+  // 목록 범위를 설명하는 단추는 네 화면이 같은 이름을 쓴다(시안 M1 승인 결정 3).
+  const scope = topbar.getByRole("button", { name: "목록 기준" });
   // 이전 페이지 헤더가 남아 있으면 같은 이름의 버튼이 두 개 보인다. 액션은
   // 상단바 portal에 하나만 있어야 한다.
-  await expect(page.getByRole("button", { name: "표시 범위", exact: true })).toHaveCount(1);
+  await expect(page.getByRole("button", { name: "목록 기준", exact: true })).toHaveCount(1);
   await expect(scope).toBeVisible();
   await scope.click();
   await expect(page.getByRole("dialog")).toContainText("현재 조건의 서버 전체 건수는");
@@ -1235,8 +1237,8 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900
     await decision.getByRole('textbox', { name: '담당자 이름 (필수)' }).fill('검토 담당자');
     await expect(decision.getByRole('button', { name: '추적 시작', exact: true })).toBeEnabled();
     await captureRecord(page, `documents-${viewport.width}`);
-    // 처리 이력과 실행 정보는 접힌 상태로 있다가 펼칠 수 있다.
-    await page.getByRole('button', { name: '현재 주장 검증 진단 · 고정 입력과 식별 해시' }).click();
+    // 처리 이력과 실행 정보는 접힌 `기술 정보` 하나에 모여 있다가 펼칠 수 있다.
+    await page.getByRole('button', { name: '기술 정보 · 주장 검증 진단, 고정 입력과 식별 해시, 회사 적합성 실행 정보' }).click();
     await captureRecord(page, `history-${viewport.width}`);
     await expect(decision.getByRole('textbox', { name: '선택 사유 직접 입력 (필수)' })).toHaveValue('세부 과업과 연계 범위를 확인하고 계속 추적');
     expect(trace.trackingPatches).toEqual([]);
@@ -1265,7 +1267,7 @@ test('사전규격 ERP 상세: 빈 결과와 실제 0건을 구분한다', async
   await mockPreSpecs(page);
   await page.route('**/api/notices/993', route => route.fulfill({ json: { ...notice991, id: 993, budget: null, attachment_count: 0 } }));
   await page.goto('/pre-specs/993');
-  await expect(page.locator('.ps-record-facts')).toContainText('예산 미확인');
+  await expect(page.locator('.ps-record-facts')).toContainText('예산 미제공');
   await expect(page.locator('.ps-record-secondary-facts')).toContainText('0건');
   await captureRecord(page, 'empty-1440');
 });
@@ -1519,7 +1521,7 @@ test("발주계획 후보는 요약·대조 방식·기관 일치를 보여 주�
 
   // null 예정 시기·예산은 0이나 없음으로 접지 않는다.
   const second = section.getByRole("listitem").filter({ hasText: "행정 서비스 고도화 사업" });
-  await expect(second).toContainText("다른 발주기관 · 발주 예정 미확인 · 예산 값 없음");
+  await expect(second).toContainText("다른 발주기관 · 발주 예정 미확인 · 예산 미제공");
   await expect(second).toContainText("대조 방식 · 가장 긴 조각 일치");
   await expect(second).toContainText("기관 불일치");
   await expect(second).toContainText("후보 사업기회 추적 · 계속 추적");

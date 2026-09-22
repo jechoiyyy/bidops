@@ -471,6 +471,10 @@ export function connectionLabel(link: OpportunityLinkView): StageConnection {
   return link.status;
 }
 
+// `lib/format.ts`의 `formatMoment`와 통합하지 않는다(U3): 이 함수는 `.`로 이은 조밀한
+// 표기(`2026.09.20 06:10`, 초 없음)이고, `lib/format.ts` 쪽은 `Date.toLocaleString`
+// 그대로라 초까지 나온다(`2026. 9. 20. 오전 6:10:00`). 출력이 다르므로 값만 옮기고
+// 형식은 각자 유지한다.
 /** 날짜·시각은 시안과 같은 조밀한 표기로 적는다. 값이 없으면 채우지 않는다. */
 export function formatMoment(value: string | null): string {
   if (!value) return "미확인";

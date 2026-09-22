@@ -30,6 +30,12 @@ export interface RunStatusMockTrace {
 export interface RunStatusMockOptions {
   /** 회차 목록을 비운다. */
   emptyRuns?: boolean;
+  /** 발주계획 선별(C-2) 실행 목록 조회를 실패시킨다. */
+  orderPlanScreeningListError?: boolean;
+  /** 발주계획 선별 실행 **상세** 조회만 실패시킨다(목록은 그대로). */
+  orderPlanScreeningDetailError?: boolean;
+  /** 이 회차에 발주계획 선별 실행이 하나도 없는 상태로 둔다. */
+  orderPlanScreeningEmpty?: boolean;
   /** 회차 목록 조회를 실패시킨다. */
   runsError?: boolean;
   /** 회차 상세 조회를 실패시킨다. */
@@ -64,6 +70,15 @@ export interface RunStatusMockOptions {
 
 const ACTIVE_GATE_EVALUATION = "gateeval-11111111111111111111111111111111";
 const POLICY_ACTIVE = "screening-policy.v1.20260825";
+
+/** 회차 목록의 발주계획 회차. `발주계획 선별` 탭은 이 회차에서만 생긴다. */
+export const ORDER_PLAN_RUN_ID = "20260810-20260816--20260817T090000.000000Z";
+/** 운영 실행(성공). 측정 전용 실행보다 먼저 대기했다. */
+export const C2_OPERATIONAL_EXECUTION_ID = "a2f4d7c1-0a61-4a07-8d2e-7f1d1d0a0001";
+/** 품질 게이트 측정 전용 실행(부분 성공). 가장 최근이라 기본 선택이다. */
+export const C2_MEASUREMENT_EXECUTION_ID = "a2f4d7c1-0a61-4a07-8d2e-7f1d1d0a0002";
+export const C2_ARTIFACT_SHA256 = "3".repeat(64);
+export const C2_MODEL_DIGEST = "7".repeat(64);
 
 export const LONG_AGENCY = "광역행정서비스통합운영지원단 공공데이터기반정보화사업추진본부";
 export const LONG_TITLE = "광역 행정서비스 및 공공데이터 통합관리체계 고도화를 위한 정보시스템 연계·운영 기반 구축 및 전환 지원 용역";
@@ -355,6 +370,59 @@ export async function installRunStatusMock(page: Page, options: RunStatusMockOpt
       return;
     }
 
+    // 발주계획 선별(C-2). 이 회차의 요청만 이 fixture가 맡고 나머지는 공용
+    // mock으로 넘긴다 — 같은 mock을 쓰는 다른 spec의 응답을 바꾸지 않는다.
+    if (pathname === "/api/order-plan-screening/executions" && method === "GET") {
+      if (url.searchParams.get("source_run_id") !== ORDER_PLAN_RUN_ID) { await route.fallback(); return; }
+      if (options.orderPlanScreeningListError) { await fulfillJson(route, { detail: "합성 조회 실패" }, 503); return; }
+      const items = c2Executions(options);
+      await fulfillJson(route, {
+        schema_version: "execution-list-response.v2",
+        producer: "screening-api",
+        consumer: "human-review-client",
+        items,
+        total: items.length,
+        limit: Number(url.searchParams.get("limit") ?? 50),
+        offset: Number(url.searchParams.get("offset") ?? 0),
+      });
+      return;
+    }
+
+    const c2DetailMatch = pathname.match(/^\/api\/order-plan-screening\/executions\/([^/]+)$/);
+    if (c2DetailMatch && method === "GET") {
+      const executionId = decodeURIComponent(c2DetailMatch[1]);
+      const execution = c2Executions(options).find((item) => item.execution_id === executionId);
+      if (!execution) { await route.fallback(); return; }
+      if (options.orderPlanScreeningDetailError) { await fulfillJson(route, { detail: "합성 조회 실패" }, 503); return; }
+      await fulfillJson(route, {
+        schema_version: "execution-detail-response.v2",
+        producer: "screening-api",
+        consumer: "human-review-client",
+        ...execution,
+        artifacts: c2Artifacts(executionId),
+        attempts: c2Attempts(executionId),
+      });
+      return;
+    }
+
+    if (pathname === "/api/order-plans" && method === "GET") {
+      if (url.searchParams.get("source_run_id") !== ORDER_PLAN_RUN_ID) { await route.fallback(); return; }
+      const items = c2PlanItems();
+      const limit = Number(url.searchParams.get("limit") ?? 50);
+      const offset = Number(url.searchParams.get("offset") ?? 0);
+      await fulfillJson(route, {
+        schema_version: "order-plan-list-response.v5",
+        producer: "order-plan-review-api",
+        consumer: "order-plan-review-client",
+        scope: c2ListScope(options),
+        items: items.slice(offset, offset + limit),
+        total: items.length,
+        limit,
+        offset,
+      });
+      return;
+    }
+
     if (pathname === "/api/attachments/queue" && method === "GET") {
       if (options.attachmentQueueError) { await fulfillJson(route, { detail: "합성 조회 실패" }, 503); return; }
       if (options.emptyAttachmentQueue) {
@@ -489,6 +557,274 @@ function executionList(options: RunStatusMockOptions) {
     screeningExecution("scr-progress", "실행 중", { completed: 17, failures: 1, queueNo: 45, currentNoticeId: "notice-017", currentStage: "전략 부합" }),
     screeningExecution("scr-partial", "부분 성공", { completed: 37, failures: 3, queueNo: 43, publishedRunId: DERIVED_RUN_ID }),
     screeningExecution("scr-derived", "성공", { completed: 40, failures: 0, queueNo: 41, sourceRunId: DERIVED_RUN_ID, publishedRunId: null }),
+  ];
+}
+
+// ── 발주계획 선별(C-2) ──────────────────────────────────────────────────
+// 실제 계약(`lib/types.ts`의 `OrderPlanScreeningExecution*`·`OrderPlanListItem`)과
+// 공용 mock(`api-mock.ts`의 C-2 fixture)이 내려주는 shape에서 그대로 파생했다.
+// 값만 이 회차에 맞게 합성한다.
+
+const c2Sha = (letter: string): string => (letter.charCodeAt(0) % 16).toString(16).repeat(64);
+
+const C2_POLICY_VERSION = "c2-order-plan-screening-v4";
+
+function c2Counts(overrides: Record<string, number> = {}) {
+  return {
+    candidate_count: 412,
+    completed_count: 410,
+    failure_count: 2,
+    stage1_selected_count: 80,
+    stage1_filtered_out_count: 330,
+    stage1_failed_count: 2,
+    stage2_relevant_count: 29,
+    stage2_not_relevant_count: 38,
+    stage2_uncertain_count: 13,
+    stage2_failed_count: 2,
+    stage2_rejected_count: 0,
+    human_review_count: 4,
+    ...overrides,
+  };
+}
+
+/** 운영 실행 하나와 측정 전용 실행 하나. 회차 하나에 실행이 여럿인 상태다. */
+function c2Executions(options: RunStatusMockOptions) {
+  if (options.orderPlanScreeningEmpty) return [];
+  const base = {
+    source_run_id: ORDER_PLAN_RUN_ID,
+    policy_version: C2_POLICY_VERSION,
+    requested_by: "합성 운영자",
+    execution_allowed: true,
+    population_count: 412,
+    population_sha256: c2Sha("p"),
+    policy_sha256: c2Sha("a"),
+    binding_sha256: c2Sha("b"),
+    stage1_binding_version: "bm25-binding.v3",
+    stage1_binding_sha256: c2Sha("c"),
+    stage2_binding_version: "qwen-binding.v5",
+    stage2_binding_sha256: c2Sha("d"),
+  };
+  return [
+    {
+      ...base,
+      execution_id: C2_OPERATIONAL_EXECUTION_ID,
+      request_id: "b2f4d7c1-0a61-4b07-8d2e-7f1d1d0a0001",
+      status: "성공",
+      purpose: "operational",
+      counts: c2Counts({ failure_count: 0, stage1_failed_count: 0, stage2_failed_count: 0, completed_count: 412 }),
+      partial_artifact: false,
+      error_code: null,
+      queued_at: "2026-08-17T07:00:00Z",
+      started_at: "2026-08-17T07:00:05Z",
+      heartbeat_at: "2026-08-17T07:41:00Z",
+      finished_at: "2026-08-17T07:42:00Z",
+    },
+    {
+      ...base,
+      execution_id: C2_MEASUREMENT_EXECUTION_ID,
+      request_id: "b2f4d7c1-0a61-4b07-8d2e-7f1d1d0a0002",
+      status: "부분 성공",
+      purpose: "gate_measurement",
+      counts: c2Counts(),
+      partial_artifact: true,
+      error_code: "batch_schema_violation",
+      queued_at: "2026-08-17T09:00:00Z",
+      started_at: "2026-08-17T09:00:04Z",
+      heartbeat_at: "2026-08-17T09:14:00Z",
+      finished_at: "2026-08-17T09:15:00Z",
+    },
+  ];
+}
+
+function c2Attempts(executionId: string) {
+  const shared = {
+    model_name: "qwen3.8-27B",
+    model_digest: C2_MODEL_DIGEST,
+    prompt_version: "c2-prompt.v4",
+    prompt_sha256: c2Sha("r"),
+    company_profile_version: "company-profile.v1.20260825",
+    company_profile_sha256: c2Sha("s"),
+    generation_config_sha256: c2Sha("t"),
+  };
+  if (executionId === C2_OPERATIONAL_EXECUTION_ID) {
+    return [{
+      ...shared,
+      attempt_id: "c2f4d7c1-0a61-4e07-8d2e-000000000001",
+      batch_id: "batch-20260817-01",
+      sequence: 1,
+      attempt_no: 1,
+      attempt_status: "success",
+      failure_type: null,
+      failure_code: null,
+      input_tokens: 48210,
+      cached_input_tokens: 12004,
+      output_tokens: 3911,
+      total_tokens: 64125,
+      duration_ms: 81402,
+      started_at: "2026-08-17T07:01:00Z",
+      finished_at: "2026-08-17T07:02:21Z",
+    }];
+  }
+  return [
+    {
+      ...shared,
+      attempt_id: "c2f4d7c1-0a61-4e07-8d2e-000000000002",
+      batch_id: "batch-20260817-02",
+      sequence: 2,
+      attempt_no: 1,
+      attempt_status: "success",
+      failure_type: null,
+      failure_code: null,
+      input_tokens: 47100,
+      cached_input_tokens: 9800,
+      output_tokens: 3010,
+      total_tokens: 59910,
+      duration_ms: 74010,
+      started_at: "2026-08-17T09:01:00Z",
+      finished_at: "2026-08-17T09:02:14Z",
+    },
+    {
+      ...shared,
+      attempt_id: "c2f4d7c1-0a61-4e07-8d2e-000000000003",
+      batch_id: "batch-20260817-03",
+      sequence: 3,
+      attempt_no: 2,
+      attempt_status: "failed",
+      failure_type: "timeout",
+      failure_code: "model_timeout",
+      input_tokens: 47880,
+      cached_input_tokens: 0,
+      // 실패한 시도는 출력 토큰을 남기지 않는다. 0이 아니라 미측정이다.
+      output_tokens: null,
+      total_tokens: null,
+      duration_ms: 120000,
+      started_at: "2026-08-17T09:10:00Z",
+      finished_at: "2026-08-17T09:12:00Z",
+    },
+  ];
+}
+
+function c2Artifacts(executionId: string) {
+  const partial = executionId === C2_MEASUREMENT_EXECUTION_ID;
+  return [
+    {
+      kind: "screening_input",
+      artifact_schema_version: "screening-input.v1",
+      artifact_producer: "screening-api",
+      artifact_consumer: "screening-worker",
+      sha256: C2_ARTIFACT_SHA256,
+      byte_count: 128000,
+      object_version: "v1",
+      validation_status: "valid",
+      created_at: "2026-08-17T07:00:10Z",
+    },
+    {
+      kind: "decisions",
+      artifact_schema_version: "decisions.v1",
+      artifact_producer: "screening-worker",
+      artifact_consumer: "screening-api",
+      sha256: c2Sha("k"),
+      byte_count: 7200,
+      object_version: null,
+      validation_status: partial ? "pending" : "valid",
+      created_at: "2026-08-17T07:41:00Z",
+    },
+  ];
+}
+
+/** 회차의 최신 완료 실행 하나가 계획별 신호의 기준이다(서버와 같은 규칙). */
+function c2ListScope(options: RunStatusMockOptions) {
+  const completed = c2Executions(options)
+    .filter((item) => item.status === "성공" || item.status === "부분 성공")
+    .sort((left, right) => (right.finished_at ?? "").localeCompare(left.finished_at ?? ""));
+  const latest = completed[0];
+  if (!latest) return null;
+  return {
+    mode: "run",
+    execution_id: latest.execution_id,
+    source_run_id: ORDER_PLAN_RUN_ID,
+    status: latest.status,
+    finished_at: latest.finished_at,
+    policy_version: latest.policy_version,
+    purpose: latest.purpose,
+  };
+}
+
+function c2PlanItems() {
+  const base = {
+    source_url: "https://www.g2b.go.kr/link/PRPA015_01/single/?oderPlanNo=OP-2026-00201",
+    business_division: "정보화",
+    contract_method: "일반경쟁",
+    notice_posted: "N",
+    source_run_id: ORDER_PLAN_RUN_ID,
+    human_feedback: null,
+    tracking: null,
+    execution_id: C2_MEASUREMENT_EXECUTION_ID,
+    policy_version: C2_POLICY_VERSION,
+    first_observed_at: "2026-08-17T01:00:00Z",
+  };
+  return [
+    {
+      ...base,
+      order_plan_pk: 201,
+      order_plan_unty_no: "OP-2026-00201",
+      title: "행정정보 공동이용 확대 사업 발주계획",
+      agency_name: "합성 행정기관",
+      budget_amount: 310000000,
+      planned_order_year: "2026",
+      planned_order_month: "2026-11",
+      observed_at: "2026-08-17T01:00:00Z",
+      stage1_status: "selected",
+      stage1_rank: 3,
+      stage1_score: 18.42,
+      nearest_capability: "데이터 연계·공동이용",
+      stage2_status: "success",
+      qwen_relevance: "relevant",
+      qwen_score: 0.91,
+      qwen_reason: "행정정보 공동이용 연계 구축 범위가 확인됩니다.",
+    },
+    {
+      ...base,
+      order_plan_pk: 202,
+      order_plan_unty_no: "OP-2026-00202",
+      title: "청사 시설관리 용역 발주계획",
+      agency_name: "합성 광역시",
+      budget_amount: null,
+      planned_order_year: "2026",
+      planned_order_month: null,
+      contract_method: null,
+      notice_posted: null,
+      observed_at: "2026-08-17T01:02:00Z",
+      stage1_status: "filtered_out",
+      stage1_rank: 214,
+      stage1_score: 1.07,
+      nearest_capability: null,
+      stage2_status: "not_attempted",
+      qwen_relevance: null,
+      qwen_score: null,
+      qwen_reason: null,
+    },
+    {
+      ...base,
+      order_plan_pk: 203,
+      order_plan_unty_no: "OP-2026-00203",
+      title: "아직 선별 관측값이 없는 합성 발주계획",
+      agency_name: "합성 기초자치단체",
+      budget_amount: 42000000,
+      planned_order_year: null,
+      planned_order_month: null,
+      observed_at: "2026-08-17T01:03:00Z",
+      stage1_status: null,
+      stage1_rank: null,
+      stage1_score: null,
+      nearest_capability: null,
+      stage2_status: null,
+      qwen_relevance: null,
+      qwen_score: null,
+      qwen_reason: null,
+      execution_id: null,
+      policy_version: null,
+    },
   ];
 }
 

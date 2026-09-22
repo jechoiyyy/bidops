@@ -48,7 +48,10 @@ test("발주계획 C-2는 공통 필터·목록·상세·상태·결정 action�
   await expect(page.locator('[data-review-primitive="dense-list-row"]')).toHaveCount(2);
   await expect(page.locator('[data-review-primitive="split-workspace"]')).toBeVisible();
   await expect(page.locator('[data-review-primitive="sticky-decision-header"]')).toBeVisible();
-  await expect(page.locator('[data-review-primitive="status"]')).not.toHaveCount(0);
+  // R2(0921 명세 §3.1): 이 화면의 공용 `status` 부품은 실행 상태 표시 하나였고, 그것은
+  // 최근 실행에 문제가 있을 때만 서는 칩으로 바뀌었다. 평상시 화면에는 상태 부품이 없다 —
+  // 추적 상태는 badge가, 실행 상태는 운영 화면이 진다.
+  await expect(page.locator('[data-review-primitive="status"]')).toHaveCount(0);
   await expect(page.locator('[data-review-primitive="value"]')).not.toHaveCount(0);
   // pane 바닥의 결정은 추적 결정 넷이다(ADR-0046 결정 4). 사람 판단 수정의 저장은
   // 접힌 보조 입력 영역이 소유하므로 이 바에 없다.
@@ -64,6 +67,27 @@ test("발주계획 C-2는 공통 필터·목록·상세·상태·결정 action�
 
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBeLessThanOrEqual(1);
+});
+
+// 명세 §2.2 — 페이저는 네 화면이 같은 공용 부품(`ListPagerControls`)을 쓴다. 한 쪽에
+// 다 들어오는 목록에서도 줄을 지우지 않고 단추만 비활성한다: 건수가 어디에 있는지
+// 화면마다 찾지 않게 하려는 것이다.
+test("공용 페이저는 한 쪽뿐인 목록에서도 전체 건수와 범위를 남기고 단추만 끈다", async ({ page }) => {
+  for (const [path, listPane, total] of [
+    ["/order-plans", ".c2l-list-pane", "전체 2건"],
+    ["/pre-specs?workspace=all&sw_only=false", ".pre-specs-list-pane", "전체 3건"],
+  ] as const) {
+    if (path.startsWith("/order-plans")) await mockOrderPlans(page);
+    else await mockPreSpecs(page);
+    await page.goto(path);
+
+    const pager = page.locator(listPane).locator('[data-review-primitive="list-pager"]');
+    await expect(pager).toHaveCount(1);
+    await expect(pager).toContainText(total);
+    await expect(pager.locator(".review-list-pager-range")).toContainText("/");
+    await expect(pager.getByRole("button", { name: "이전", exact: true })).toBeDisabled();
+    await expect(pager.getByRole("button", { name: "다음", exact: true })).toBeDisabled();
+  }
 });
 
 test("사전규격 고급 상태 필터는 0건인 진행·대기도 숨기지 않는다", async ({ page }) => {

@@ -15,7 +15,26 @@ import { mockGoNoGo } from "./go-no-go-fixtures";
  * 폭은 `page.setViewportSize`로 직접 준다. `playwright.config.ts`의 `LAYOUT_SPECS`에
  * 넣으면 project가 폭을 주지만 그 파일은 이 작업의 소유 밖이라, 본보기와 같은 방식으로
  * app project 안에서 두 폭을 돌린다.
+ *
+ * 비교 항목은 화면마다 켜고 끈다. 네 화면이 한 번에 옮겨지지 않기 때문이다 —
+ * selector도 기대값도 화면이 자기 행에서 준다. 어떤 화면이 아직 자기 틀을 쓰고 있으면
+ * 그 행은 공통 항목(상단바·필터 바·목록 비율·머리 여백·가로 넘침)만 갖고, 공용 골격으로
+ * 옮긴 화면이 `unifiedFrame`을, 목록 pane 안쪽까지 같은 부품을 쓰는 화면이
+ * `unifiedListParts`를 더 켠다. 비어 있는 항목은 "비교를 줄였다"가 아니라 "그 화면은
+ * 아직 그 부품을 쓰지 않는다"는 뜻이다.
  */
+
+interface RowTypeSpec {
+  /** 목록 행의 사업명·발주기관 자리. 행의 구조가 화면마다 달라 selector도 화면이 준다. */
+  title: string;
+  agency: string;
+  /**
+   * 그 두 줄의 물리 글자 크기. 네 화면이 모두 공용 `--review-list-primary`(14.4px)를
+   * 읽는다(2026-09-21 M1c 승인, 명세 §2.4). selector는 행 구조가 화면마다 달라
+   * 화면이 주지만 값은 하나다.
+   */
+  size: string;
+}
 
 interface ScreenSpec {
   path: string;
@@ -27,11 +46,22 @@ interface ScreenSpec {
   listHead: string;
   detailHead: string;
   /**
-   * 탐색 두 화면(발주계획·사전규격)은 ADR-0062로 목록 pane 안쪽 구성까지 같게 맞췄다.
-   * 사업 추적·최종 Go/No-Go는 그 결정의 범위 밖이라 여기를 비워 둔다 — 비교 항목을
-   * 줄인 것이 아니라 아직 통일하지 않은 화면이라는 뜻이다.
+   * 공용 분할 골격으로 옮긴 화면 — `SplitWorkspace`·`StickyDecisionHeader`·
+   * `AgencyFeature`·목록 pane 안쪽 바닥의 `ListPagerControls`를 쓴다. 발주계획·
+   * 사전규격(ADR-0062)에 사업 추적이 더해졌고(시안 M1c A안), 최종 Go/No-Go는 같은
+   * 골격으로 옮기는 작업이 따로 있다. 옮기기 전 화면은 이 표에서 자기 selector와
+   * 자기 비교 항목만 갖는다 — 그래서 네 화면이 서로 다른 시점에 옮겨져도 이 검사는
+   * 깨지지 않는다.
+   */
+  unifiedFrame?: boolean;
+  /**
+   * 목록 pane **안쪽 구성**까지 같은 부품을 쓰는 화면 — 열 이름 줄(`ListColumns`)과
+   * 선택 도구줄(`SelectionToolbar`)이 있는 탐색 두 화면이다. 사업 추적은 목록을 표로
+   * 두기로 했고(시안 M1c A안) 묶음 선택 작업이 없어 이 두 부품 자체가 없다.
    */
   unifiedListParts?: boolean;
+  /** 목록 행 글자 단. 행 구조가 화면마다 다르므로 selector와 기대값을 화면이 준다. */
+  rowType?: RowTypeSpec;
   /** 화면별 추가 mock. `mockApi` 뒤에 걸어 같은 경로만 덮어쓴다. */
   mock?: (page: Page) => Promise<unknown>;
 }
@@ -49,7 +79,9 @@ const screens: ScreenSpec[] = [
     listPane: ".c2l-list-pane",
     listHead: ".c2l-list-head",
     detailHead: ".c2l-detail-head",
+    unifiedFrame: true,
     unifiedListParts: true,
+    rowType: { title: ".c2l-row-title", agency: ".c2l-row-agency", size: "14.4px" },
   },
   {
     path: "/pre-specs",
@@ -58,25 +90,42 @@ const screens: ScreenSpec[] = [
     listPane: ".pre-specs-list-pane",
     listHead: ".pre-specs-list-head",
     detailHead: ".pre-specs-detail-header",
+    unifiedFrame: true,
     unifiedListParts: true,
+    rowType: { title: ".pre-specs-row-title", agency: ".pre-specs-row-agency", size: "14.4px" },
   },
   {
+    // 사업 추적도 공용 분할 골격으로 옮겼다(시안 M1c A안). 여기 selector가 공용
+    // 클래스인 것 자체가 그 사실을 검사한다 — 화면 클래스(`.opportunity-*`)는
+    // 화면별 spec이 계속 쓴다.
     path: "/opportunities",
     title: "사업 추적",
-    workspace: ".opportunity-workspace",
-    listPane: ".opportunity-list-pane",
-    listHead: ".opportunity-list-head",
-    detailHead: ".opportunity-detail-head",
+    workspace: ".review-split-workspace",
+    listPane: ".review-split-list",
+    listHead: ".review-list-head",
+    detailHead: ".review-detail-head",
+    unifiedFrame: true,
+    // 목록은 Astryx `Table`을 유지하고(M1c A안) 묶음 선택이 없어 열 이름 줄·선택
+    // 도구줄 부품이 없다. 행 글자 단은 아래 `rowType`이 따로 본다.
+    rowType: { title: ".opportunity-row-title", agency: ".opportunity-row-agency", size: "14.4px" },
     mock: (page) => mockOpportunities(page),
   },
   {
+    // 최종 Go/No-Go도 공용 분할 골격으로 옮겼다(C2). 사업 추적과 같이 selector가
+    // 공용 클래스인 것 자체가 그 사실을 검사한다.
     path: "/go-no-go",
     title: "최종 Go/No-Go",
-    workspace: ".gng-workspace",
-    listPane: ".gng-list-pane",
-    listHead: ".gng-list-head",
-    detailHead: ".gng-detail-head",
+    workspace: ".review-split-workspace",
+    listPane: ".review-split-list",
+    listHead: ".review-list-head",
+    detailHead: ".review-detail-head",
+    unifiedFrame: true,
+    // 목록은 Astryx `Table`을 유지하고(M1c A안) 묶음 선택이 없어 열 이름 줄·선택
+    // 도구줄 부품이 없다 — `unifiedListParts`는 켜지 않는다.
+    rowType: { title: ".gng-row-title", agency: ".gng-row-agency", size: "14.4px" },
     // 조회가 느린 시나리오가 응답을 붙들고 있어도 목록·상세 골격은 그려진다.
+    // `slowMs`는 **선택한 사업의 상세 조회**만 붙들고 대기열은 그대로 오므로
+    // 행(`.gng-row-*`)과 상세 머리는 그려진다.
     mock: (page) => mockGoNoGo(page, { slowMs: 60_000 }),
   },
 ];
@@ -86,6 +135,7 @@ interface Selectors {
   listPane: string;
   listHead: string;
   detailHead: string;
+  rowType: { title: string; agency: string } | null;
 }
 
 /** 한 화면의 골격을 브라우저 안에서 한 번에 잰다. */
@@ -135,6 +185,10 @@ function measure(selectors: Selectors) {
     listHeadPadding: padding(listHead),
     detailHeadPadding: padding(detailHead),
 
+    /* 상세 머리는 공용 `StickyDecisionHeader`다 — 본문을 스크롤해도 위에 붙는다. */
+    detailHeadPrimitive: detailHead.getAttribute("data-review-primitive"),
+    detailHeadPosition: getComputedStyle(detailHead).position,
+
     /* ADR-0062 — 목록 pane 안쪽 구성. 열 이름 줄·선택 도구줄은 목록 pane 안에 있고,
        페이저는 (있을 때) **목록 pane 안쪽 바닥**이다. */
     listColumnCount: listPane.querySelectorAll('[data-review-primitive="list-columns"] > *').length,
@@ -166,16 +220,16 @@ function measure(selectors: Selectors) {
       const agency = detailHead.querySelector('[data-review-primitive="agency-feature"]');
       return agency ? padding(agency) : null;
     })(),
-    /** 목록 행의 사업명·발주기관 글자 크기(두 화면이 같은 토큰을 읽는다). */
+    /** 목록 행의 사업명·발주기관 글자 크기. 자리는 화면이 알려 준다. */
     rowType: (() => {
-      const pane = listPane;
+      if (!selectors.rowType) return null;
       const styleOf = (selector: string) => {
-        const element = pane.querySelector<HTMLElement>(selector);
+        const element = listPane.querySelector<HTMLElement>(selector);
         return element ? getComputedStyle(element).fontSize : null;
       };
       return {
-        title: styleOf(".c2l-row-title, .pre-specs-row-title"),
-        agency: styleOf(".c2l-row-agency, .pre-specs-row-agency"),
+        title: styleOf(selectors.rowType.title),
+        agency: styleOf(selectors.rowType.agency),
       };
     })(),
 
@@ -207,6 +261,7 @@ test("탐색과 추적 목록 4화면은 두 지원 폭에서 같은 상단바·
         listPane: screen.listPane,
         listHead: screen.listHead,
         detailHead: screen.detailHead,
+        rowType: screen.rowType ? { title: screen.rowType.title, agency: screen.rowType.agency } : null,
       });
 
       // 상단바 — 제목 하나가 화면 이름이고 경로·편집 범위 칩은 없다. 화면 액션은
@@ -234,8 +289,22 @@ test("탐색과 추적 목록 4화면은 두 지원 폭에서 같은 상단바·
       expect(metrics.listHeadPadding, `${where} 목록 머리 여백`).toBe("7.2px 14.4px 7.2px 14.4px");
       expect(metrics.detailHeadPadding, `${where} 상세 머리 여백`).toBe("10.8px 14.4px 10.8px 14.4px");
 
-      // 목록 pane 안쪽 — 탐색 두 화면만(ADR-0062). 열 이름 두 칸, 선택 도구줄 하나,
-      // 페이저는 목록 pane 안에만 있고, 상세 머리의 발주기관 블록은 같은 값을 쓴다.
+      // 공용 골격으로 옮긴 화면 — 상세 머리가 sticky 부품이고, 발주기관 강조 블록이
+      // 같은 값을 쓰며, 페이저는 목록 pane 안쪽 바닥에만 있다.
+      if (screen.unifiedFrame) {
+        expect(metrics.detailHeadPrimitive, `${where} 상세 머리는 공용 sticky 부품이다`)
+          .toBe("sticky-decision-header");
+        expect(metrics.detailHeadPosition, `${where} 상세 머리는 본문 스크롤에도 위에 붙는다`)
+          .toBe("sticky");
+        expect(metrics.pagerOutsideListPane, `${where} 페이저는 목록 pane 밖에 없다`).toBe(0);
+        // 명세 §2.2 — 한 쪽에 다 들어오는 목록에서도 페이저 줄은 남는다(공용 `ListPagerControls`).
+        expect(metrics.pagerInsideListPane, `${where} 페이저 줄은 늘 목록 pane 안에 있다`).toBe(1);
+        agencyBackground ??= metrics.agencyFeatureBackground;
+        expect(metrics.agencyFeatureBackground, `${where} 발주기관 블록 배경`).toBe(agencyBackground);
+        expect(metrics.agencyFeaturePadding, `${where} 발주기관 블록 여백`).toBe("10.8px 14.4px 10.8px 14.4px");
+      }
+
+      // 목록 pane 안쪽 구성 — 열 이름 줄·선택 도구줄을 갖는 탐색 두 화면만(ADR-0062).
       if (screen.unifiedListParts) {
         expect(metrics.listColumnCount, `${where} 열 이름 칸`).toBe(2);
         expect(metrics.listColumnsPadding, `${where} 열 이름 줄 여백`).toBe("3.6px 14.4px 3.6px 14.4px");
@@ -244,12 +313,12 @@ test("탐색과 추적 목록 4화면은 두 지원 폭에서 같은 상단바·
         expect(metrics.toolbarButtonMinHeight, `${where} 도구줄 단추 클릭 대상 높이`)
           .toBeGreaterThanOrEqual(24);
         expect(metrics.toolbarReasonHeight, `${where} 비활성 사유 줄 높이`).toBeGreaterThan(0);
-        expect(metrics.pagerOutsideListPane, `${where} 페이저는 목록 pane 밖에 없다`).toBe(0);
-        agencyBackground ??= metrics.agencyFeatureBackground;
-        expect(metrics.agencyFeatureBackground, `${where} 발주기관 블록 배경`).toBe(agencyBackground);
-        expect(metrics.agencyFeaturePadding, `${where} 발주기관 블록 여백`).toBe("10.8px 14.4px 10.8px 14.4px");
-        expect(metrics.rowType.title, `${where} 목록 사업명 크기`).toBe("14.4px");
-        expect(metrics.rowType.agency, `${where} 목록 발주기관 크기`).toBe("14.4px");
+      }
+
+      // 목록 행의 두 줄은 화면이 선언한 글자 단을 지킨다.
+      if (screen.rowType) {
+        expect(metrics.rowType?.title, `${where} 목록 사업명 크기`).toBe(screen.rowType.size);
+        expect(metrics.rowType?.agency, `${where} 목록 발주기관 크기`).toBe(screen.rowType.size);
       }
 
       // 지원 폭 두 곳 모두에서 가로로 넘치지 않는다(ADR-0047).

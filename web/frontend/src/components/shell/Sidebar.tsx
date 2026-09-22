@@ -163,9 +163,11 @@ export function Sidebar({ activeNavPath, runSearch }: { activeNavPath: string | 
           나라장터 바로가기
         </a>
       </nav>
+      {/* `관리자 화면`은 삭제했다(ADR-0066 §3.3, 시안 M4). 이 화면을 쓰는 사람은
+          기획·사업개발 실무자이고, 운영 화면은 `실행 상태`·`판정 기준` 항목이 이미
+          가리킨다. */}
       <div className="sidebar-footer">
         <span>기획부 · 사업기획</span>
-        <span>관리자 화면</span>
       </div>
     </aside>
   );

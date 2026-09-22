@@ -37,3 +37,12 @@
 .ps-record .company-fit-reasons > li { border-bottom-color: color-mix(in srgb, var(--color-background-muted) 45%, var(--color-background-surface)); }
 .ps-record .company-fit :is(p, li, dd, dt) { font-size: var(--bo-type-caption); line-height: var(--bo-type-caption-leading); }
 .ps-record .company-fit .company-fit-assessment { display: grid; gap: var(--spacing-3); min-width: 0; }
+
+/* ⑥ 접힌 `기술 정보` 안의 회사 적합성 실행 정보(ADR-0066 결정 1 `이동`).
+ * ④ 안의 접힘이 아니라 접힌 곳 안의 한 덩어리이므로 자기 여백만 갖는다. */
+.company-fit-execution-section,.company-fit-execution{display:grid;gap:var(--spacing-2);min-width:0}
+.company-fit-execution-section>h3,.company-fit-execution>h4{margin:0}
+.company-fit-execution+.company-fit-execution{padding-top:var(--spacing-2);border-top:var(--border-width) solid var(--color-background-muted)}
+.company-fit-execution-facts{display:grid;gap:var(--spacing-1);margin:0;min-width:0}
+.company-fit-execution-facts dt{font-weight:500}
+.company-fit-execution-facts dd{margin:0;min-width:0;overflow-wrap:anywhere}

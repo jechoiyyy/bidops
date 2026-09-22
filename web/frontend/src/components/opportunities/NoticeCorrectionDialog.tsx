@@ -6,6 +6,7 @@ import { Link } from "react-router-dom";
 import { ActorField } from "../common/ActorField";
 import { DisabledReason } from "../common/DisabledReason";
 import { MutationFeedback } from "../common/MutationFeedback";
+import { TechnicalFacts, TechnicalInfo } from "../common/TechnicalInfo";
 import { api } from "../../lib/api";
 import { describeApiError, type ApiErrorDescription } from "../../lib/apiErrors";
 import type { TrackingException } from "../../lib/opportunity";
@@ -150,12 +151,23 @@ export function NoticeCorrectionDialog({
           </>
         ) : (
           <>
+            {/* 회차 식별자 원문은 접힌 `기술 정보`로 내린다(ADR-0066 §3.3, 시안 M4).
+                이 다이얼로그는 공고 상세가 준 `run_id` 문자열만 갖고 있고 회차의 수집
+                기간·생성 시각은 받지 않으므로, 실무자가 아는 회차 이름(`09-16~09-20
+                수집`)을 여기서 만들 수 없다 — 날짜를 지어내지 않고 사실만 문장으로
+                적는다. 값은 지우지 않고 접힌 곳에 **전문** 그대로 남긴다. */}
             <p className="opportunity-caption">
-              {notice.title?.trim() || "제목 미확인"} · 회차 <span className="mono">{notice.run_id}</span>
+              {notice.title?.trim() || "제목 미확인"}
             </p>
             <p className="opportunity-caption">
-              이 공고가 속한 회차에 저장합니다. 기존 등급·준비 상태·최종 처리 값은 그대로 둡니다.
+              이 공고가 속한 수집 회차에 저장합니다. 기존 등급·준비 상태·최종 처리 값은 그대로 둡니다.
             </p>
+            <TechnicalInfo summary="기술 정보 · 저장 대상 회차">
+              <TechnicalFacts
+                facts={[{ label: "수집 회차 식별자", value: notice.run_id }]}
+                label="저장 대상 회차 식별자"
+              />
+            </TechnicalInfo>
             {exceptions.map((exception) => (
               <label key={exception.title}>
                 <span>{exception.title}</span>

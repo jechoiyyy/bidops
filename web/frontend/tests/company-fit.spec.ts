@@ -27,20 +27,37 @@ for (const width of [1280, 1440]) {
     // 회사 적합성 구역은 상세만 소유한다(docs/0915_ui-redesign/spec.md §3.1·§4 ④).
     for (const path of ["/pre-specs/991"]) {
       await page.goto(path);
-      // 상세 ④의 `회사 적합성` 열이 판정·사유·근거·실행 정보를 한 자리에서 갖는다
-      // (docs/0915_ui-redesign/spec.md §4 ④).
+      // 상세 ④의 `회사 적합성` 열은 판정·사유·근거만 갖는다. 실행 정보는 ⑥의
+      // 접힌 `기술 정보` 하나로 옮겼다(docs/0915_ui-redesign/spec.md:234, ADR-0066).
       const section = page.getByRole("region", { name: "회사 업무 부합 여부" });
       await expect(section.getByText("불일치", { exact: true })).toBeVisible();
       await expect(section.getByText("실제 과업과 회사 업무 범위가 다릅니다.")).toBeVisible();
+      // 품질 표식은 접힘과 무관하게 ④에서 그대로 보인다(지우면 안 되는 경고 ①).
       await expect(section.getByText("참조 실행 · 품질 미측정")).toBeVisible();
       await expect(section.getByText(explanation)).toBeVisible();
       await expect(section.getByText("본 계약의 과업은 정보시스템 감리입니다.")).toBeVisible();
       await expect(section.getByRole("link", { name: "PDF 3페이지 ↗" })).toHaveAttribute("href", /\/overview\/runs\/overview-1\/pdf#page=3$/);
-      const executionInfo = section.getByText("판정 기준과 실행 정보", { exact: true });
-      await executionInfo.focus();
-      await expect(executionInfo).toBeFocused();
-      await executionInfo.press("Enter");
-      await expect(section.getByText("입력 토큰 · 미측정 / 출력 토큰 · 0 / 소요 시간 · 10000ms")).toBeVisible();
+      await expect(section.getByText("판정 기준과 실행 정보")).toHaveCount(0);
+
+      // ⑥ 접힌 곳을 펴면 같은 값이 하나도 빠지지 않고 전문으로 보인다.
+      const technical = page.locator(".ps-collapsed");
+      const trigger = page.getByRole("button", { name: "기술 정보 · 주장 검증 진단, 고정 입력과 식별 해시, 회사 적합성 실행 정보" });
+      await expect(technical.locator(".astryx-collapsible-content")).toBeHidden();
+      await trigger.click();
+      const facts = technical.locator('dl[aria-label="현재 판정 실행 정보"]');
+      await expect(facts).toBeVisible();
+      await expect(facts).toContainText("test-fit");
+      await expect(facts).toContainText("prespec-company-fit-v1");
+      await expect(facts).toContainText("overview-1");
+      // 식별자·해시는 8자로 줄이지 않는다(ADR-0066 결정 2).
+      await expect(facts).toContainText("a".repeat(64));
+      await expect(facts).toContainText("b".repeat(64));
+      await expect(facts).toContainText("c".repeat(64));
+      await expect(facts).toContainText("d".repeat(64));
+      // 미측정·실제 0·소요 시간은 서로 다른 값으로 남는다.
+      await expect(facts.locator("dd").filter({ hasText: /^미측정$/ })).toHaveCount(1);
+      await expect(facts.locator("dd").filter({ hasText: /^0$/ })).toHaveCount(1);
+      await expect(facts).toContainText("10000ms");
       expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(false);
       if (width === 1440 && path === "/pre-specs/991") await section.screenshot({ path: "/tmp/bidops-company-fit-1440.png" });
     }
@@ -85,6 +102,25 @@ test("unknown, stale, no result and failed states stay distinct", async ({ page 
   // 문장은 짧아졌지만 `판정 없음 ≠ 불일치`라는 뜻은 그대로 남는다(ADR-0055 D8).
   await expect(section.getByText("회사 적합성 판정 없음 · 불일치 아님")).toBeVisible();
 });
+
+// 0915 spec §4 ⑥: 접힌 `기술 정보`는 실패·사람 확인 상태면 기본으로 열린다.
+// 회사 적합성 실행 정보가 이 접힌 곳으로 들어왔으므로 회사 적합성의 실패·검증
+// 실패도 같은 규칙을 그대로 따른다(ADR-0066 결정 5).
+for (const status of ["failed", "needs_human_review"] as const) {
+  test(`회사 적합성 ${status}이면 ⑥ 기술 정보가 기본으로 열린다`, async ({ page }) => {
+    await mockApi(page);
+    const data = response();
+    data.attempts[0].status = status;
+    data.attempts[0].result = null;
+    data.attempts[0].error_code = "model_unavailable";
+    await page.route("**/api/pre-specs/991/company-fit", route => route.fulfill({ json: data }));
+    await page.goto("/pre-specs/991");
+    const technical = page.locator(".ps-collapsed");
+    await expect(technical.locator('dl[aria-label="현재 판정 실행 정보"]')).toBeVisible();
+    // 처리 사유 코드는 서버가 정한 안전 코드다. 그대로 보여 준다.
+    await expect(technical).toContainText("model_unavailable");
+  });
+}
 
 test("failed fetch and wrong notice response show safe errors", async ({ page }) => {
   await mockApi(page);

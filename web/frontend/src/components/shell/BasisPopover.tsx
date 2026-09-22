@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { RunSummary } from "../../lib/types";
-import { formatDateTime, present, runStatusLabel } from "../../lib/format";
+import { formatMomentShort, present, runStatusLabel } from "../../lib/format";
+import { runOptionLabel } from "../../lib/runOptions";
 
 interface BasisPopoverProps {
   run: RunSummary | null;
@@ -52,13 +53,17 @@ export function BasisPopover({ run }: BasisPopoverProps) {
               <dt>기준선</dt>
               <dd>{present(run?.screening_basis, "판정 기준 미기록")}</dd>
             </div>
+            {/* 회차는 실무자가 아는 이름(`09-16~09-20 수집`)으로 부른다. 회차 식별자
+                원문은 상단바에서 뺐고(ADR-0066 §3.3, 시안 M4) 주소와 운영 화면
+                (`실행 상태 › 수집 실행`)에서 전문 그대로 읽는다 — 줄여서 적지 않는다.
+                상태는 그대로 남긴다(대체된 회차를 현재 회차로 읽지 않게). */}
             <div className="fact-row">
               <dt>데이터 출처</dt>
-              <dd className="mono">{present(run?.run_id, "회차 미확인")} · {runStatusLabel(run?.status ?? "")}</dd>
+              <dd>{run ? runOptionLabel(run) : "회차 미확인"} · {runStatusLabel(run?.status ?? "")}</dd>
             </div>
             <div className="fact-row">
               <dt>생성 시각</dt>
-              <dd>{formatDateTime(run?.generated_at)}</dd>
+              <dd>{formatMomentShort(run?.generated_at)}</dd>
             </div>
           </dl>
         </div>

@@ -75,10 +75,6 @@
   padding-inline-start: var(--spacing-2);
 }
 
-.deep-review-safe-error {
-  display: block;
-}
-
 .deep-review-system-card {
   border: calc(2 * var(--border-width)) solid var(--color-primary-strong);
   border-radius: var(--radius-element);
@@ -1026,4 +1022,26 @@
 .deep-review-actor-panel .actor-field {
   flex: 0 1 360px;
   min-width: 0;
+}
+
+/* 접힌 `기술 정보`의 규칙(`.deep-review-technical*`)은 `styles/technical-info.css`로
+ * 옮겼다(R6) — 네 화면이 같은 부품을 쓴다. 클래스 이름은 그대로다. */
+
+/* 실패를 먼저 사람 말로 알리는 한 줄. 성공·완료와 섞이지 않게 위험 색을 쓴다. */
+.deep-review-failure {
+  display: grid;
+  gap: var(--spacing-1);
+  margin-top: var(--spacing-3);
+}
+
+.deep-review-failure-note {
+  margin: 0;
+  color: var(--color-danger);
+  font-weight: 600;
+}
+
+.deep-review-scope-summary {
+  margin: 0 0 var(--spacing-2);
+  min-width: 0;
+  overflow-wrap: anywhere;
 }

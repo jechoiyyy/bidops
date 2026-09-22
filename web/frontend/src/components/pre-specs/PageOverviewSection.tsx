@@ -143,16 +143,76 @@ export function PageOverviewFacts({
   );
 }
 
+/**
+ * 검토가 실제로 읽은 범위. 쪽 번호 해석 안내와 검증 사유는 실무자가 본문의 쪽
+ * 링크를 읽는 데 필요한 말이므로 여기 남고(ADR-0066 결정 5), 모델·프롬프트 같은
+ * 실행 정보는 `PageOverviewResultFacts`가 갖는다.
+ */
 export function PageOverviewExecutionInfo({ review }: { review: PageOverviewView }) {
   const payload = review.payload;
   const pdfUrl = pageOverviewPdfUrl(review);
-  return <details className="page-overview-section"><summary>검토 범위와 실행 정보</summary>
+  return <details className="page-overview-section"><summary>검토 범위</summary>
     {payload.input_limitations.map((text, i) => <p key={i}>{text}</p>)}
     <p>표지를 포함한 변환 PDF 순번 기준 · {review.reviewed_pages.join(", ")} / 총 {review.pdf_page_count}페이지. 원본 한컴 쪽 배치와 다를 수 있습니다.</p>
-    <p>{review.model_name} · {review.prompt_version}</p>
     {review.validation_errors.length ? <p>검증 사유: {review.validation_errors.join(", ")}</p> : null}
     <a href={pdfUrl} target="_blank" rel="noreferrer">전체 근거 PDF 열기 ↗</a>
   </details>;
+}
+
+/** 검증 기준 이름. 결과의 스키마 버전을 사람 말로 읽는다. */
+function verificationBasisLabel(review: PageOverviewView): string {
+  return review.payload.schema_version === "bidops.prespec-overview-page-review.v3" ? "이전 검증 기준" : "주장 검증 v4";
+}
+
+/**
+ * ⑥ 접힌 `기술 정보`의 개요 결과 식별 정보(ADR-0066 결정 1 `이동`·결정 2).
+ *
+ * 종전에는 본문의 `검토 범위와 실행 정보` 줄과 ⑤ 근거 목록의 `<code>`가 나눠
+ * 갖던 값이다. 주장 ID는 검증 진단이 없을 때도 읽을 수 있어야 하므로 여기에
+ * 함께 둔다 — 식별자는 줄이지 않고 전문을 적는다.
+ */
+export function PageOverviewResultFacts({ review, claimIds }: { review: PageOverviewView; claimIds: string[] }) {
+  return <dl className="page-overview-execution-meta" aria-label="현재 개요 결과 식별 정보">
+    <div><dt>결과 ID</dt><dd className="mono">{review.id}</dd></div>
+    <div><dt>검증 기준</dt><dd>{verificationBasisLabel(review)} · {review.payload.schema_version}</dd></div>
+    <div><dt>모델</dt><dd>{review.model_name}</dd></div>
+    <div><dt>프롬프트</dt><dd>{review.prompt_version}</dd></div>
+    <div><dt>주장 ID</dt><dd className="mono">{claimIds.length ? claimIds.join(", ") : "이 결과에는 주장 식별자가 없습니다"}</dd></div>
+  </dl>;
+}
+
+/** ⑥ 접힌 `기술 정보`의 현재 실행 정보. 종전 `현재 개요 검토` 카드 안의 접힘이다. */
+export function PageOverviewCurrentFacts({ current }: { current: PageOverviewCurrent }) {
+  return <dl className="page-overview-execution-meta" aria-label="현재 개요 실행 정보">
+    <div><dt>시도 ID</dt><dd className="mono">{current.attempt_id ?? "시도 식별자 없음"}</dd></div>
+    <div><dt>프롬프트</dt><dd>{current.prompt_version ?? "프롬프트 미확인"}</dd></div>
+    <div><dt>실행 시각</dt><dd>{formatDateTime(current.created_at)}</dd></div>
+    <div><dt>결과 ID</dt><dd className="mono">{current.result_id ?? "결과 없음"}</dd></div>
+    <div><dt>주장 검증</dt><dd>{current.verification_status === null ? "검증 기록 없음" : VERIFICATION_STATUS_LABEL[current.verification_status]}</dd></div>
+    {current.reason_code ? <div><dt>처리 사유 코드</dt><dd>{current.reason_code}</dd></div> : null}
+  </dl>;
+}
+
+/**
+ * ⑥ 접힌 `기술 정보`의 이전 개요 결과 식별 정보. 이전 결과 줄에는 품질 표식과
+ * 실행 시각이 남고(경고 ①) 식별자·모델만 여기로 온다.
+ */
+export function PageOverviewHistoryFacts({ reviews }: { reviews: PageOverviewView[] }) {
+  if (reviews.length === 0) return null;
+  return <div className="page-overview-history-facts">
+    {/* 이력 줄(`이전 개요 결과 n건`)과 같은 글자를 쓰지 않는다 — 한 화면에 같은
+        이름이 둘이면 무엇을 가리키는지 흐려진다. */}
+    <h4>이전 개요 결과 식별 정보 {reviews.length}건</h4>
+    {reviews.map((review) => (
+      <dl key={review.id} className="page-overview-execution-meta" aria-label={`이전 개요 결과 ${review.id} 식별 정보`}>
+        <div><dt>실행 시각</dt><dd>{formatDateTime(review.created_at)}</dd></div>
+        <div><dt>결과 ID</dt><dd className="mono">{review.id}</dd></div>
+        <div><dt>검증 기준</dt><dd>{verificationBasisLabel(review)} · {review.payload.schema_version}</dd></div>
+        <div><dt>모델</dt><dd>{review.model_name}</dd></div>
+        <div><dt>프롬프트</dt><dd>{review.prompt_version}</dd></div>
+      </dl>
+    ))}
+  </div>;
 }
 
 export function PageOverviewResult({ review, anchor = true }: { review: PageOverviewView; anchor?: boolean }) {
@@ -165,7 +225,9 @@ export function PageOverviewResult({ review, anchor = true }: { review: PageOver
     </header>
     <div className="page-overview-validation" role="status">
       <strong>{review.validation_status === "failed" ? "검증 실패 · 사람 확인 필요" : isVerifiedV4 ? "주장 검증 완료 · 운영 승인 아님" : "근거 검사 통과 · 이전 검증 기준"}</strong>
-      <p>사업 설명을 위한 요약입니다. 추적 승인과 최종 입찰 결정은 사람이 진행하며, 현재 회사 적합성과 조건을 충족한 경우에만 심층 검토가 자동 시작됩니다.</p>
+      {/* 경계 문장은 ② 추적 결정 카드 한 곳만 갖는다(M4 승인). 자동 시작 조건은
+          경계가 아니라 사실이므로 남긴다. */}
+      <p>사업 설명을 위한 요약입니다. 현재 회사 적합성과 조건을 충족한 경우에만 심층 검토가 자동 시작됩니다.</p>
       {review.validation_status === "failed" && review.evidence_check_status === "passed" ? (
         <p>새 페이지 근거 검사는 통과했으나, 원실행의 검증 실패 기록은 유지합니다.</p>
       ) : null}
@@ -240,6 +302,8 @@ export function PageOverviewVerificationDetails({
     {verification.claims.length ? <ol className="page-overview-verification-claims">
       {verification.claims.map((claim) => <li key={claim.claim_id}>
         <strong>{claim.text}</strong>
+        {/* ⑤ 근거 목록에서 뺀 주장 ID를 주장별 진단 옆에서 읽는다(spec §3.2). */}
+        <p>주장 ID · <span className="mono">{claim.claim_id}</span></p>
         <p>{DETERMINISTIC_STATUS_LABEL[claim.deterministic_status]} · {SEMANTIC_STATUS_LABEL[claim.semantic_status]}</p>
         <p>주장 사유 코드 · {claim.reason_codes.length ? claim.reason_codes.join(", ") : "없음"}</p>
         <VerificationEvidence noticeId={noticeId} attemptId={attemptId} evidence={claim.verified_evidence} />
@@ -259,9 +323,11 @@ export function PageOverviewCurrent({
   const isRangePending = current.status === "needs_human_review" && current.attempt_id === null;
   const isInputCapacityExceeded = current.status === "failed" && current.reason_code === "input_capacity_exceeded";
   return (
-    <section className="page-overview-section page-overview-current" aria-label="현재 v4 개요 실행">
+    /* 제목은 스키마 세대가 아니라 업무 이름으로 부른다(M4 승인). 스키마 버전은
+       ⑥ 접힌 `기술 정보`가 갖는다. */
+    <section className="page-overview-section page-overview-current" aria-label="현재 개요 검토">
       <header className="page-overview-heading">
-        <h3>현재 v4 개요 실행</h3>
+        <h3>현재 개요 검토</h3>
         <Token label={isRangePending ? "입력 범위 확인 필요" : isInputCapacityExceeded ? "입력 용량 초과로 미실행" : CURRENT_STATUS_LABEL[current.status]} size="sm" />
       </header>
       <div className="page-overview-validation" role={current.status === "failed" ? "alert" : "status"}>
@@ -276,17 +342,8 @@ export function PageOverviewCurrent({
         {hasUnusableCompletedResult ? (
           <p>검증 통과한 현재 결과를 확인할 수 없어 본문을 표시하지 않습니다.</p>
         ) : null}
-        <details className="page-overview-execution-details">
-          <summary>실행 정보</summary>
-          <dl className="page-overview-execution-meta">
-            <div><dt>시도 ID</dt><dd>{current.attempt_id ?? "시도 식별자 없음"}</dd></div>
-            <div><dt>프롬프트</dt><dd>{current.prompt_version ?? "프롬프트 미확인"}</dd></div>
-            <div><dt>실행 시각</dt><dd>{formatDateTime(current.created_at)}</dd></div>
-            <div><dt>결과 ID</dt><dd>{current.result_id ?? "결과 없음"}</dd></div>
-            <div><dt>주장 검증</dt><dd>{current.verification_status === null ? "검증 기록 없음" : VERIFICATION_STATUS_LABEL[current.verification_status]}</dd></div>
-            {current.reason_code ? <div><dt>처리 사유 코드</dt><dd>{current.reason_code}</dd></div> : null}
-          </dl>
-        </details>
+        {/* 시도 ID·프롬프트·결과 ID·처리 사유 코드는 ⑥ 접힌 `기술 정보`가 갖는다
+            (`PageOverviewCurrentFacts`). 여기 남는 것은 지금 무슨 상태인지다. */}
       </div>
     </section>
   );
@@ -356,8 +413,10 @@ export function PageOverviewHistory({ reviews }: { reviews: PageOverviewView[] }
           return (
             <li key={review.id} className="page-overview-history-item">
               <details>
+                {/* 품질 표식과 실행 시각은 남는다(경고 ①). 결과 ID·검증 기준은
+                    ⑥ 접힌 `기술 정보`의 `PageOverviewHistoryFacts`가 갖는다. */}
                 <summary>
-                  실행 시각 · {formatDateTime(review.created_at)} · {review.payload.schema_version === "bidops.prespec-overview-page-review.v3" ? "이전 검증 기준" : "주장 검증 v4"} · {qualityStatusLabel(review.quality_status)} · 결과 ID · {review.id}
+                  실행 시각 · {formatDateTime(review.created_at)} · {qualityStatusLabel(review.quality_status)}
                 </summary>
                 {/* 이전 결과는 현재 결과와 같은 claim id를 갖는다. 이 자리까지 anchor를
                     달면 문서 안에 같은 id가 둘이 되고 근거 링크가 엉뚜곳으로 뛰다. */}

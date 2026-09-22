@@ -1076,6 +1076,10 @@ class OrderPlanScreeningService:
             "budget_amount": float(plan.budget_amount) if plan.budget_amount is not None else None,
             "planned_order_year": plan.planned_order_year,
             "planned_order_month": plan.planned_order_month,
+            # 누적 행이 이미 들고 있는 값이라 쿼리가 늘지 않는다. `notice_posted`는 원문 `Y`/`N`
+            # 문자열이며 없음(`null`)을 `N`이나 False로 바꾸지 않는다.
+            "contract_method": plan.contract_method,
+            "notice_posted": plan.notice_posted,
             "source_run_id": result.source_run_id if result is not None else observation.run_id,
             "observed_at": observation.observed_at,
             "stage1_status": result.stage1_status if result is not None else None,
@@ -1271,7 +1275,7 @@ class OrderPlanScreeningService:
         else:
             scope = None
         return {
-            "schema_version": "order-plan-list-response.v4",
+            "schema_version": "order-plan-list-response.v5",
             "producer": "order-plan-review-api",
             "consumer": "order-plan-review-client",
             "scope": scope,
@@ -1316,6 +1320,11 @@ class OrderPlanScreeningService:
                 "qwen_score": float(result.qwen_score) if result.qwen_score is not None else None,
                 "qwen_reason": result.qwen_reason,
                 "feedback_revision_count": feedback_count,
+                # 위에서 이미 읽은 실행 행에서 꺼내므로 쿼리가 더 늘지 않는다. 값은 그대로
+                # 내고 서버가 대표 시각을 고르거나 목적을 다시 해석하지 않는다.
+                "execution_purpose": execution.purpose,
+                "execution_started_at": execution.started_at,
+                "execution_finished_at": execution.finished_at,
             })
         return history
 
@@ -1329,7 +1338,7 @@ class OrderPlanScreeningService:
             owners, owners.c.opportunity_id == Opportunity.id,
         ).where(owners.c.order_plan_id == plan.id))
         return {
-            "schema_version": "order-plan-detail-response.v3",
+            "schema_version": "order-plan-detail-response.v4",
             "producer": "screening-api",
             "consumer": "order-plan-review-client",
             "order_plan_pk": plan.id,
@@ -1343,6 +1352,14 @@ class OrderPlanScreeningService:
             "budget_amount": float(plan.budget_amount) if plan.budget_amount is not None else None,
             "planned_order_year": plan.planned_order_year,
             "planned_order_month": plan.planned_order_month,
+            # 이미 읽은 `plan` 행의 열이라 추가 쿼리가 없다. `bid_ntice_no_list`는 수집 원문
+            # 문자열 그대로이고 서버가 목록으로 쪼개지 않는다.
+            "supervising_agency_name": plan.supervising_agency_name,
+            "procurement_method": plan.procurement_method,
+            "contract_method": plan.contract_method,
+            "notice_posted": plan.notice_posted,
+            "bid_ntice_no_list": plan.bid_ntice_no_list,
+            "published_at": plan.published_at,
             "observations": [
                 {"source_run_id": row.run_id, "observed_at": row.observed_at, "source_sha256": row.source_sha256}
                 for row in observations
@@ -1356,7 +1373,7 @@ class OrderPlanScreeningService:
         if session.get(OrderPlan, order_plan_id) is None:
             raise OrderPlanScreeningError("not_found", "발주계획을 찾을 수 없습니다", status_code=404)
         return {
-            "schema_version": "order-plan-detail-response.v1",
+            "schema_version": "order-plan-detail-response.v5",
             "producer": "screening-api",
             "consumer": "order-plan-review-client",
             "order_plan_pk": order_plan_id,

@@ -185,6 +185,14 @@
   white-space: nowrap;
 }
 
+/* 상세 필터 격자의 마지막 자리는 초기화 버튼이다(공용). 회차 칸이 늘면서 축이 열 수의
+   배수가 되므로, 버튼이 새 줄 왼쪽으로 떨어지지 않게 마지막 열에 못 박는다. */
+.pre-specs-filters .workspace-filter-reset {
+  grid-column: -2 / -1;
+}
+
+/* 관측 날짜 범위가 있을 때만 내용이 있는 자리. 수집 회차는 상세 필터 안으로 갔고
+   (ADR-0062 2026-09-21 재개정) 규칙은 공용 `workspace-filters.css`가 갖는다. */
 .pre-specs-filter-context-range {
   display: flex;
   flex-wrap: wrap;
@@ -192,24 +200,6 @@
   justify-content: flex-start;
   gap: var(--spacing-2) var(--spacing-3);
   min-width: 0;
-}
-
-/* 「수집 회차」는 라벨과 선택기를 한 줄에 둔다. Astryx `Selector`는 `className`을
-   안쪽 트리거(`.astryx-selector`)에만 넘기고 `Field` 루트에는 넘기지 않으므로
-   (`Selector.tsx`가 `<Field>`에 `className`을 주지 않는다) 루트는 자리로 잡는다.
-   관측 날짜의 `DateInput`은 `.pre-specs-observation-range` 안이라 걸리지 않는다. */
-.pre-specs-filter-context-range > .astryx-field {
-  flex-direction: row;
-  align-items: center;
-  gap: var(--spacing-2);
-}
-
-.pre-specs-filter-context-range > .astryx-field > .astryx-field-label {
-  white-space: nowrap;
-}
-
-.pre-specs-source-run {
-  min-width: calc(var(--spacing-12) * 6);
 }
 
 .pre-specs-observation-range {
@@ -250,22 +240,6 @@
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
-}
-
-.pre-specs-list-foot {
-  display: flex;
-  flex: 0 0 auto;
-  flex-direction: column;
-  gap: var(--spacing-1);
-  padding: var(--spacing-2) var(--spacing-4);
-  border-top: var(--border-width) solid var(--review-split-line);
-  color: var(--color-text-secondary);
-  background: var(--review-quiet-surface);
-  font-size: var(--bo-type-caption);
-}
-
-.pre-specs-list-foot-note {
-  color: var(--color-text-accent);
 }
 
 /* 도구줄 배치·단추 표현은 `.review-selection-toolbar`가 갖는다(ADR-0062). 사유 줄은
@@ -931,10 +905,6 @@
   padding: var(--spacing-5);
   color: var(--color-text-secondary);
   text-align: center;
-}
-
-.pre-specs-pager button {
-  min-width: 74px;
 }
 
 .pre-spec-detail-page {

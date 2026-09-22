@@ -72,16 +72,66 @@ export function CompanyFitVerificationItems({ attempt }: { attempt: CompanyFitAt
   return <section><h4>확인할 사항</h4><ul>{result.verification_items.map((item, i) => <li key={i}>{item}</li>)}</ul></section>;
 }
 
-export function CompanyFitExecutionInfo({ attempt }: { attempt: CompanyFitAttempt }) {
-  return <details><summary>판정 기준과 실행 정보</summary>
-      <p>생성 시각 · {new Date(attempt.created_at).toLocaleString("ko-KR")}</p>
-      <p>모델 · {attempt.model_name} / 프롬프트 · {attempt.prompt_version}</p>
-      <p>개요 · {attempt.overview_id} / {attempt.overview_sha256}</p>
-      <p>회사 프로필 · {attempt.profile_version_id} / {attempt.profile_sha256}</p>
-      <p>정책 · {attempt.policy_digest} / 모델 버전 · {attempt.model_revision}</p>
-      <p>입력 토큰 · {attempt.prompt_tokens ?? "미측정"} / 출력 토큰 · {attempt.output_tokens ?? "미측정"} / 소요 시간 · {attempt.latency_ms === null ? "미측정" : `${attempt.latency_ms}ms`}</p>
-      {attempt.error_code && <p>처리 사유 · {attempt.error_code}</p>}
-    </details>
+/**
+ * 한 판정 실행의 고정 입력·식별 해시·소요(ADR-0066 결정 1 `이동`·결정 2).
+ *
+ * 종전 ④ 회사 적합성 구역 안의 `판정 기준과 실행 정보` 접힘이었다. 같은 화면
+ * ⑥의 접힌 `기술 정보` 하나로 모았으므로(docs/0915_ui-redesign/spec.md:234)
+ * 여기서는 다시 접지 않고 값만 그린다. **값은 하나도 줄이지 않는다** — 식별자와
+ * 해시는 전문을 그대로 두고 줄바꿈으로만 흐르게 한다.
+ */
+export function CompanyFitExecutionInfo({ attempt, label }: { attempt: CompanyFitAttempt; label: string }) {
+  return <div className="company-fit-execution">
+    <h4>{label}</h4>
+    <dl className="company-fit-execution-facts" aria-label={`${label} 실행 정보`}>
+      <div><dt>생성 시각</dt><dd>{new Date(attempt.created_at).toLocaleString("ko-KR")}</dd></div>
+      <div><dt>모델</dt><dd>{attempt.model_name}</dd></div>
+      <div><dt>프롬프트</dt><dd>{attempt.prompt_version}</dd></div>
+      <div><dt>개요 ID</dt><dd className="mono">{attempt.overview_id}</dd></div>
+      <div><dt>개요 식별 해시</dt><dd className="mono">{attempt.overview_sha256}</dd></div>
+      <div><dt>회사 프로필 버전</dt><dd className="mono">{attempt.profile_version_id}</dd></div>
+      <div><dt>회사 프로필 식별 해시</dt><dd className="mono">{attempt.profile_sha256}</dd></div>
+      <div><dt>정책 식별 해시</dt><dd className="mono">{attempt.policy_digest}</dd></div>
+      <div><dt>모델 버전</dt><dd className="mono">{attempt.model_revision}</dd></div>
+      <div><dt>입력 토큰</dt><dd>{attempt.prompt_tokens ?? "미측정"}</dd></div>
+      <div><dt>출력 토큰</dt><dd>{attempt.output_tokens ?? "미측정"}</dd></div>
+      <div><dt>소요 시간</dt><dd>{attempt.latency_ms === null ? "미측정" : `${attempt.latency_ms}ms`}</dd></div>
+      {attempt.error_code ? <div><dt>처리 사유</dt><dd>{attempt.error_code}</dd></div> : null}
+    </dl>
+  </div>;
+}
+
+/**
+ * ⑥ 접힌 `기술 정보`의 세 덩어리 중 하나. 현재 판정과 이전 판정의 실행 정보를
+ * 모두 담는다 — ④에서 뺀 값이 어느 것도 화면에서 사라지지 않게 한다.
+ *
+ * 조회 실패·구조 불일치는 "실행 기록 없음"과 다른 상태이므로 문장을 나눈다
+ * (`unknown`·`null`을 확인 완료로 바꾸지 않는다).
+ */
+export function CompanyFitExecutionSection({
+  current,
+  previous,
+  state,
+}: {
+  current: CompanyFitAttempt | null;
+  previous: CompanyFitAttempt[];
+  /** 조회 중·확인 불가·정상은 서로 다른 상태다. 한 문장으로 합치지 않는다. */
+  state: "pending" | "unavailable" | "ready";
+}) {
+  return <section className="company-fit-execution-section" aria-label="회사 적합성 실행 정보">
+    <h3>회사 적합성 실행 정보</h3>
+    {state === "pending"
+      ? <p role="status">회사 적합성 판정을 불러오는 중입니다.</p>
+      : state === "unavailable"
+        ? <p>회사 적합성 판정을 확인할 수 없어 실행 정보를 표시하지 않습니다.</p>
+        : current === null && previous.length === 0
+          ? <p>회사 적합성 판정 실행 기록이 없습니다.</p>
+          : null}
+    {current ? <CompanyFitExecutionInfo attempt={current} label="현재 판정" /> : null}
+    {previous.map((attempt, index) => (
+      <CompanyFitExecutionInfo key={attempt.id} attempt={attempt} label={`이전 판정 ${index + 1}`} />
+    ))}
+  </section>;
 }
 
 function Assessment({ attempt }: { attempt: CompanyFitAttempt }) {
@@ -89,7 +139,6 @@ function Assessment({ attempt }: { attempt: CompanyFitAttempt }) {
     <CompanyFitVerdict attempt={attempt} />
     <CompanyFitReasons attempt={attempt} />
     <CompanyFitVerificationItems attempt={attempt} />
-    <CompanyFitExecutionInfo attempt={attempt} />
   </div>;
 }
 
@@ -138,7 +187,10 @@ export function CompanyFitSection({ noticeId, compact = false }: { noticeId: num
   }
   return <section className="company-fit" aria-label="회사 업무 부합 여부">
     <h3>회사 업무 부합 여부</h3>
-    <p className="company-fit-note">개요의 과업과 회사 정보를 대조한 분석입니다. 추적 승인과 최종 입찰 결정은 사람이 진행합니다.</p>
+    {/* 경계 문장("추적 승인과 최종 입찰 결정은 사람이 진행합니다")은 ② 추적 결정
+        카드 한 곳만 갖는다(M4 승인 2026-09-21). 여기 남는 것은 이 구역이 무엇을
+        대조한 결과인지 말하는 범위 문장이다. */}
+    <p className="company-fit-note">개요의 과업과 회사 정보를 대조한 분석입니다.</p>
     {query.isPending ? <p role="status">회사 적합성 판정을 불러오는 중입니다.</p> : query.isError ? <div role="alert">
       <p>회사 적합성 판정을 불러오지 못했습니다.</p>
       <Button label="회사 적합성 다시 불러오기" size="sm" onClick={() => { void query.refetch(); }} />

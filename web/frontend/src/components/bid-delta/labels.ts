@@ -21,6 +21,7 @@ import type {
   Materiality,
   ResultStatus,
 } from "./types";
+import { formatMoment as formatMomentBase } from "../../lib/format";
 
 /** 최종 결정의 근거 종류(ADR-0058). 목록·결정 화면·이력이 같은 낱말을 쓴다. */
 export const BASIS_LABELS: Record<FinalDecisionBasisKind, string> = {
@@ -97,12 +98,16 @@ export const SHORT_CALCULATION_LABELS: Record<CalculationStatus, string> = {
   failed: "계산 실패",
 };
 
+/** `lib/format.ts`가 정본이다(U3, 중복 통합). 이 화면의 null 문구(`값 없음`)만 고정한다. */
 export function formatMoment(value: string | null): string {
-  if (!value) return "값 없음";
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleString("ko-KR");
+  return formatMomentBase(value, "값 없음");
 }
 
+// `formatDate`는 `lib/format.ts`의 동명 함수와 시간대 처리가 다르므로 통합하지 않는다
+// (U3): 이쪽은 날짜만 있는 값을 로컬 자정으로 해석해(`T00:00:00` 부기) UTC-가 음수인
+// 환경에서도 하루가 밀리지 않는다. `lib/format.ts`의 `formatDate`는 값을 그대로
+// `new Date()`에 넘겨 날짜만 있는 문자열을 UTC 자정으로 해석하므로, 음수 시간대에서는
+// 다른 날짜를 낼 수 있다.
 export function formatDate(value: string | null): string {
   if (!value) return "값 없음";
   const parsed = new Date(`${value}T00:00:00`);

@@ -17,7 +17,6 @@ interface TopBarProps {
   selectedRunId: string | null;
   selectedRun: RunSummary | null;
   onRunChange: (runId: string) => void;
-  editScope: string | null;
   runSelectorVisible: boolean;
   /** 회차 선택을 잃지 않도록 경로 링크에 그대로 넘기는 search 문자열. */
   runSearch: string;
@@ -32,10 +31,15 @@ interface TopBarProps {
  *   경로의 한 칸이다. `<h1>`이 `<nav>` 안에 있는 것은 의도적이다 — 제목을 두 번
  *   쓰지 않으면서 문서에 level 1 제목을 남기려면 경로의 화면 이름 칸이 그 역할을
  *   해야 한다. 상세 화면은 목록으로 돌아갈 링크가 필요하므로 늘 이 모드다.
- * - **제목 모드**(`title`): 탐색과 추적 목록 4화면이다. 경로와 편집 범위 칩을
- *   빼고 화면 이름 하나만 `<h1>`으로 그린다(사용자 결정 2026-09-08). 페이지가
- *   제목 줄을 두지 않으므로 같은 이름이 세로로 두 번 나오지 않는다. 편집 범위는
- *   목록의 각 결정 UI가 이미 말하고 있어 칩을 제거해도 잃는 사실이 없다.
+ * - **제목 모드**(`title`): 탐색과 추적 목록 4화면이다. 경로를 빼고 화면 이름
+ *   하나만 `<h1>`으로 그린다(사용자 결정 2026-09-08). 페이지가 제목 줄을 두지
+ *   않으므로 같은 이름이 세로로 두 번 나오지 않는다.
+ *
+ * 편집 범위 칩(`… 저장 가능`)은 두 모드 모두에서 없앴다(ADR-0066 §3.3, 시안 M4
+ * 결정 2). 로그인·권한이 없어 이 칩은 모든 사용자에게 늘 같은 말을 했고, 무엇을
+ * 저장할 수 있는지는 각 화면의 결정 UI가 이미 말한다. 읽기 전용이라는 사실을
+ * 말해야 하는 화면(대시보드의 `읽기 전용`, 회사 프로필)은 화면 안에서 그대로
+ * 말한다. 담당자 이름이 인증이 아니라는 안내도 이름 입력칸 옆에 그대로 있다.
  *
  * 페이지 액션은 두 모드 모두 `#page-header-actions` portal 슬롯으로 들어온다
  * (`components/common/PageHeaderActions.tsx`).
@@ -49,15 +53,13 @@ export function TopBar({
   selectedRunId,
   selectedRun,
   onRunChange,
-  editScope,
   runSelectorVisible,
   runSearch,
   isLoading = false,
 }: TopBarProps) {
-  // 제목 모드에는 편집 범위 칩이 없다. 회차 선택기는 모드와 무관하게 남는다
-  // (제목 모드 화면 중에는 회차 축을 갖는 화면이 없지만, 규칙은 모드가 아니라
-  // 화면의 데이터 축이 정한다).
-  const contextVisible = runSelectorVisible || (topbarMode === "breadcrumb" && Boolean(editScope));
+  // 상단바 오른쪽 칸에 남은 것은 회차 축뿐이다. 회차 선택기는 모드와 무관하게
+  // 화면의 데이터 축이 회차일 때만 나온다.
+  const contextVisible = runSelectorVisible;
   const lastIndex = crumbs.length - 1;
   const routeLocation = useLocation();
   const matches = useMatches();
@@ -106,11 +108,6 @@ export function TopBar({
               runs={runs}
               selectedRunId={selectedRunId}
             />
-          ) : null}
-          {editScope ? (
-            <span aria-label={`페이지별 편집 범위: ${editScope}`} className="topbar-status">
-              {editScope}
-            </span>
           ) : null}
           {runSelectorVisible ? <BasisPopover run={selectedRun} /> : null}
         </div>

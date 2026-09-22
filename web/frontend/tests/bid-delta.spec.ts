@@ -10,6 +10,18 @@ import {
   RACE_COMPARISON,
 } from "./go-no-go-fixtures";
 
+/**
+ * 폼 오류의 안전 코드가 그대로 남아 있는지 본다.
+ *
+ * 코드는 문장 옆 **접힌 `기술 정보`** 안으로 옮겼고(ADR-0066 §3.3, 시안 M4 결정 3),
+ * 같은 문장이 시각적으로만 감춰진 채 한 번 더 있어 `role="alert"`이 읽을 때 함께
+ * 읽힌다. 그래서 눈에 보이는지가 아니라 **오류 영역 안에 있는지**로 본다. 접힘의
+ * 구조 자체는 아래 전용 검사가 따로 본다.
+ */
+function expectErrorCode(page: Page, code: string) {
+  return expect(page.locator(".mutation-feedback")).toContainText(`오류 코드 ${code}`);
+}
+
 /** 상세 화면은 자체 브레드크럼을 갖지 않는다. 되돌아가는 길은 상단 경로
  *  (`nav[aria-label="현재 위치"]`)와 화면 안의 이동 링크뿐이다. */
 function routeCrumbLink(page: Page, name: string) {
@@ -294,7 +306,7 @@ test("요청 conflict는 typed code를 표시하고 최신 상태를 다시 불�
   await confirmFinalDecision(page, "Go로 최종 결정 저장");
   // 저장에 실패하면 다이얼로그는 닫히고 기존 인라인 오류 표시가 그대로 보인다.
   await expect(page.getByRole("alertdialog")).toHaveCount(0);
-  await expect(page.getByText("오류 코드 bid_delta_comparison_stale", { exact: false })).toBeVisible();
+  await expectErrorCode(page, "bid_delta_comparison_stale");
   await expect(page.getByRole("button", { name: "최신 상태 다시 불러오기", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "최신 상태 다시 불러오기", exact: true }).click();
   await expect(page.getByText("최신 비교·공고 조건과 최신 여부를 다시 불러왔습니다. 입력한 초안은 그대로 두었습니다.", { exact: true })).toBeVisible();
@@ -302,6 +314,32 @@ test("요청 conflict는 typed code를 표시하고 최신 상태를 다시 불�
   await expect(decisionGroup(page).getByRole("radio", { name: "Go", exact: true })).toBeChecked();
   await expect(page.getByLabel("결정 이유", { exact: true })).toHaveValue("최신 상태에서도 검토할 이유");
   expect(trace.workspaceGets).toBeGreaterThanOrEqual(2);
+});
+
+// 폼 오류 한 줄(`components/common/MutationFeedback.tsx`)은 모든 저장 폼이 공유한다.
+// 안전 코드는 지우지 않고 문장 옆 접힌 `기술 정보`로 옮겼다(ADR-0066 §3.3, 시안 M4
+// 결정 3). 코드 값·분기·검열은 그대로이며 바뀐 것은 놓인 자리뿐이다.
+test("폼 오류의 안전 코드는 접힌 기술 정보에 있고 보조기술에는 계속 읽힌다", async ({ page }) => {
+  await mockBidDelta(page, { calculationStatus: "completed", resultStatus: "changed", finalDecisionErrorCode: "bid_delta_comparison_stale" });
+  await page.goto(`/opportunities/501/bid-delta?comparison=${comparisonId}`);
+  await expect(page.getByRole("heading", { name: "공고 조건과 변경 비교", exact: true })).toBeVisible();
+  await fillDecision(page, "Go", "접힌 기술 정보를 확인합니다.");
+  await page.getByRole("button", { name: "결정 확인", exact: true }).click();
+  await confirmFinalDecision(page, "Go로 최종 결정 저장");
+
+  const feedback = page.locator(".mutation-feedback");
+  // 사람 말이 먼저다. 제목·다음 행동은 접히지 않는다.
+  await expect(feedback).toContainText("새 비교 입력이 생겨 이 결정은 최신이 아닙니다.");
+  await expect(feedback).toContainText("최신 상태를 다시 불러온 뒤");
+  // 코드 줄은 접혀 있어 눈에 보이지 않는다.
+  const codeLine = feedback.locator(".mutation-feedback-code");
+  await expect(codeLine).toBeHidden();
+  // 그래도 오류 영역은 `role="alert"`이고, 그 안에 읽히는 설명으로 코드가 남는다.
+  await expect(feedback).toHaveAttribute("role", "alert");
+  await expect(feedback).toContainText("오류 코드 bid_delta_comparison_stale");
+  // 펴면 코드가 **전문** 그대로 보인다. 운영자에게 전할 때 여기서 복사한다.
+  await feedback.locator("details.deep-review-technical > summary").click();
+  await expect(codeLine).toHaveText("오류 코드 bid_delta_comparison_stale");
 });
 
 // 비교 목록 → 비교 상세 → 저장 → 사업 추적 상세로 돌아오는 흐름. 사업 추적
@@ -500,7 +538,7 @@ test("확인 창이 열린 사이 비교가 갱신돼도 사람이 확인한 스
   expect(post.body.supersedes_final_decision_id).not.toBe(RACE_COMPARISON.supersededId);
 
   // 서버가 오래된 fence를 거절한 사실이 그대로 보인다. 화면이 성공을 흉내내지 않는다.
-  await expect(page.getByText("오류 코드 bid_delta_comparison_stale", { exact: false })).toBeVisible();
+  await expectErrorCode(page, "bid_delta_comparison_stale");
   await expect(page.getByLabel("결정 이유", { exact: true })).toHaveValue("축소된 일정과 늘어난 연계 범위를 검토해 불참합니다.");
   await expect(page.getByLabel("최종 결정 담당자 이름")).toHaveValue("검토 담당자");
 });
@@ -516,7 +554,7 @@ test("같은 내용을 다시 확인하면 같은 request_id로, 내용을 고�
   await expect.poll(() => trace.posts.length).toBe(1);
 
   // 저장이 실패했다. 같은 초안을 그대로 다시 확인하면 같은 요청이다.
-  await expect(page.getByText("오류 코드 bid_delta_comparison_stale", { exact: false })).toBeVisible();
+  await expectErrorCode(page, "bid_delta_comparison_stale");
   await page.getByRole("button", { name: "결정 확인", exact: true }).click();
   await confirmFinalDecision(page, "No-Go로 최종 결정 저장");
   await expect.poll(() => trace.posts.length).toBe(2);

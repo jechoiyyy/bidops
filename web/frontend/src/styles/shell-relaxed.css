@@ -474,22 +474,6 @@ body {
   gap: var(--spacing-2);
 }
 
-.app-shell[data-astryx-theme="bidops"] .topbar-status {
-  display: inline-flex;
-  min-height: var(--size-element-lg);
-  max-width: 189px;
-  align-items: center;
-  padding: var(--spacing-1-5) var(--spacing-2);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-inner);
-  color: var(--color-text-secondary);
-  background: var(--color-background-muted);
-  font-size: var(--bo-type-caption);
-  line-height: 1.35;
-  text-align: center;
-  white-space: normal;
-}
-
 .app-shell[data-astryx-theme="bidops"] .basis-popover-trigger {
   height: var(--size-element-lg);
   padding: 0 var(--spacing-3);

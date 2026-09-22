@@ -11,9 +11,6 @@
  */
 
 .opportunities-page {
-  /* 목록 첫 줄(사업명·발주기관)은 본문보다 한 단 크다. 사용자가 16px에서 15px로
-     낮춘 최종 시안의 값이며 시안 CSS와 같은 방식으로 본문 토큰에서 계산한다. */
-  --opportunity-row-primary: calc(var(--bo-type-body) + 0.9px);
   --opportunity-step-size: var(--spacing-7);
 
   display: flex;
@@ -120,47 +117,12 @@
 }
 
 /* --- 목록 38% : 상세 62% ---
- * 발주계획·사전규격 화면과 같은 기본 비율이다. 고정 px로 근사하지 않는다. */
-
-/* spec §2.3 — 필터 줄과 이어 붙던 상자가 아니라 그림자로 뜬 카드 하나다. 안쪽 선은
- * 전부 같은 옅은 값(`--color-background-muted`)을 쓰고, 바닥처럼 범위를 적는 줄만
- * body와 surface의 중간 면을 깐다(spec §2.3이 지정한 `color-mix`).
- * 이 화면은 공용 `SplitWorkspace`를 쓰지 않으므로 두 값을 여기서 정의한다. */
-.opportunity-workspace {
-  --review-split-line: var(--color-background-muted);
-  --review-quiet-surface: color-mix(in srgb, var(--color-background-body) 50%, var(--color-background-surface));
-
-  display: flex;
-  flex: 1 1 0;
-  flex-direction: row;
-  align-items: stretch;
-  min-height: 0;
-  border: 0;
-  border-radius: var(--radius-container);
-  background: var(--color-background-surface);
-  box-shadow: var(--shadow-low);
-  overflow: hidden;
-}
-
-.opportunity-list-pane {
-  display: flex;
-  flex: 0 0 38%;
-  flex-direction: column;
-  width: 38%;
-  min-width: 0;
-  min-height: 0;
-  border-right: var(--border-width) solid var(--review-split-line);
-}
-
-.opportunity-list-head {
-  display: flex;
-  flex: 0 0 auto;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--spacing-2);
-  padding: var(--spacing-2) var(--spacing-4);
-  border-bottom: var(--border-width) solid var(--review-split-line);
-}
+ *
+ * 카드 골격(`.review-split-workspace`)·목록과 상세 pane의 폭·머리 여백·선은 공용
+ * primitive가 갖는다(ADR-0062, 시안 M1c A안). `--review-split-line`과
+ * `--review-quiet-surface`도 거기서 정의되므로 이 화면이 다시 정의하지 않는다.
+ * 화면 클래스(`.opportunity-workspace`·`.opportunity-list-pane`·
+ * `.opportunity-detail-pane`·`.opportunity-list-head`)는 검사 selector로만 남는다. */
 
 .opportunity-list-title {
   margin: 0;
@@ -185,18 +147,21 @@
 
 /* --- 목록 행 --- */
 
+/* 행 여백은 탐색 두 화면의 공용 목록 행과 같은 값이다(`.review-dense-list-row`의
+   실측 `spacing-2 spacing-4`, ADR-0062). 목록은 시안 M1c A안대로 표를 유지하므로
+   행의 구조는 그대로 두고 여백과 글자 단만 공용 값을 읽는다. */
 .opportunities-page .astryx-table-cell {
-  padding: var(--spacing-3);
+  padding: var(--spacing-2) var(--spacing-4);
   border-bottom-color: var(--review-split-line);
   vertical-align: top;
 }
 
-/* 열 이름 줄 — 시안의 카드 안 조용한 면(spec §2.3). */
+/* 열 이름 줄 — 시안의 카드 안 조용한 면(spec §2.3). 좌우 여백은 행과 같은 줄에 맞춘다. */
 .opportunities-page .astryx-table-header-cell {
   position: sticky;
   top: 0;
   z-index: 1;
-  padding: var(--spacing-2) var(--spacing-3);
+  padding: var(--spacing-2) var(--spacing-4);
   border-bottom-color: var(--review-split-line);
   background: var(--review-quiet-surface);
   font-size: var(--bo-type-caption);
@@ -224,9 +189,13 @@
   cursor: pointer;
 }
 
+/* 목록 첫 줄(사업명·발주기관)은 네 목록이 같은 크기를 쓴다 — 목록 pane
+   (`.review-split-list`)이 소유한 공용 `--review-list-primary`(14.4px)다.
+   2026-09-21 M1c 승인: 사업 추적만 갖고 있던 13.5px 단(`--opportunity-row-primary`)을
+   없애고 공용 값에 맞췄다(명세 §2.4). 표 자체는 그대로 둔다(M1c A안). */
 .opportunity-row-business .opportunity-row-title,
 .opportunity-row-business .opportunity-row-agency {
-  font-size: var(--opportunity-row-primary);
+  font-size: var(--review-list-primary);
   line-height: 1.5;
   white-space: normal;
   overflow-wrap: anywhere;
@@ -253,8 +222,10 @@
   min-width: 0;
 }
 
+/* 보조 줄(단계·추적 상태·다음 확인 설명)은 공용 목록의 둘째 단을 그대로 읽는다.
+   `--review-list-secondary`는 `.review-split-list`가 정의한다(ADR-0062). */
 .opportunity-row-meta .opportunity-caption {
-  font-size: var(--bo-type-body);
+  font-size: var(--review-list-secondary, var(--bo-type-body));
 }
 
 .opportunity-next-cell {
@@ -264,7 +235,7 @@
 }
 
 .opportunity-next-cell > .opportunity-next-label {
-  font-size: var(--bo-type-body);
+  font-size: var(--review-list-secondary, var(--bo-type-body));
   line-height: 1.5;
 }
 
@@ -303,7 +274,7 @@
 }
 
 /* 사유 칩은 누르는 것이 아니다. 옆 열의 주 행동 단추와 같은 회색 면으로 보이지 않게
-   윤곽 칩(`review-chip-outline`과 같은 값)으로 그린다. */
+   윤곽 칩(흰 바탕 + inset 1px 테두리)으로 그린다. */
 .opportunity-row-reasons .astryx-token {
   color: var(--color-text-secondary);
   background: var(--color-background-surface);
@@ -359,15 +330,11 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* --- 상세 --- */
-
-.opportunity-detail-pane {
-  display: flex;
-  flex: 1 1 auto;
-  flex-direction: column;
-  min-width: 0;
-  min-height: 0;
-}
+/* --- 상세 ---
+ *
+ * pane 방향·폭은 `.review-split-detail`이, 머리 여백·선·sticky는
+ * `.review-detail-head`와 `.review-sticky-decision-header`가 갖는다(ADR-0062).
+ * `.opportunity-detail-pane`·`.opportunity-detail-head`는 검사 selector로만 남는다. */
 
 .opportunity-detail {
   display: flex;
@@ -377,34 +344,10 @@
   min-height: 0;
 }
 
-.opportunity-detail-head {
-  display: grid;
-  flex: 0 0 auto;
-  gap: var(--spacing-2);
-  padding: var(--spacing-3) var(--spacing-4);
-}
-
-.opportunity-agency {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-3);
-  min-width: 0;
-  margin-bottom: var(--spacing-1);
-  padding: var(--spacing-2) var(--spacing-3);
-  border-radius: var(--radius-inner);
-  background: var(--color-accent-muted);
-}
-
-.opportunity-agency > svg {
-  width: var(--spacing-5);
-  height: var(--spacing-5);
-  flex-shrink: 0;
-  color: var(--color-text-accent);
-}
-
 /* 상세의 발주기관은 목록보다 한 단 더 크다(시안의 `--bo-list-primary` 16px).
-   사용자가 15px로 낮춘 것은 목록의 사업명·기관뿐이다. */
-.opportunity-agency-name {
+   사용자가 15px로 낮춘 것은 목록의 사업명·기관뿐이다. 블록 자체(배경·여백)는
+   공용 `.review-agency-feature`가 소유하므로 글자 단만 여기서 올린다. */
+.opportunities-page .opportunity-agency-name {
   font-size: calc(var(--bo-type-body) + var(--spacing-0-5));
   font-weight: 600;
   overflow-wrap: anywhere;
@@ -896,12 +839,6 @@
   gap: var(--spacing-4);
   padding: var(--spacing-6);
   text-align: center;
-}
-
-.opportunity-empty > svg {
-  width: var(--spacing-5);
-  height: var(--spacing-5);
-  color: var(--color-text-secondary);
 }
 
 .opportunity-detail-status {
