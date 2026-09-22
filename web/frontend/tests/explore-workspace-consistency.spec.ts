@@ -90,7 +90,7 @@ const screens: ScreenSpec[] = [
     rowType: { title: ".c2l-row-title", agency: ".c2l-row-agency", size: "14.4px", titleWeight: "600" },
   },
   {
-    path: "/pre-specs",
+    path: "/pre-specs?sw_only=false", // S3: 기본 보기 fixture는 추적 결정으로 0건
     title: "사전규격",
     workspace: ".pre-specs-split-workspace",
     listPane: ".pre-specs-list-pane",

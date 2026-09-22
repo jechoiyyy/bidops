@@ -80,7 +80,8 @@ test("LS-BT 발주계획 선택과 확인 대화상자가 지원 폭 안에 보�
 
 test("LS-PN 선택 도구와 상세 오류 순회가 지원 폭 안에 보인다", async ({ page }, testInfo) => {
   await mockPreSpecs(page);
-  await page.goto("/pre-specs");
+  // S3(2026-09-22 규칙): 기본 보기의 fixture 행이 추적 결정으로 빠져 0건이라, 검토할 항목이 남는 `sw_only=false`로 연다.
+  await page.goto("/pre-specs?sw_only=false");
   const rows = page.locator('.pre-specs-list-pane [data-review-primitive="dense-list-row"]');
   await rows.first().getByRole("checkbox").check();
   const toolbar = page.locator(".pre-specs-selection-toolbar");
