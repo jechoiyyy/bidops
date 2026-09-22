@@ -16,10 +16,11 @@ from __future__ import annotations
 from collections import Counter, defaultdict
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, date, datetime, timedelta
 from itertools import combinations
 import re
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
@@ -747,10 +748,28 @@ class ScreeningJudgmentProjection:
         }
 
 
+#: `새 우선 검토 발주계획` 창의 하한을 계산하는 계약 시간대.
+_SEOUL = ZoneInfo("Asia/Seoul")
+
+
+def _new_priority_since(now: datetime | None = None) -> date:
+    """"새로"의 하한 KST 일자: 요청 시각 KST 일자의 전일(ADR-0067 §7.3)."""
+
+    reference = (now or datetime.now(UTC)).astimezone(_SEOUL)
+    return reference.date() - timedelta(days=1)
+
+
 class ScreeningWorkloadProjection:
-    """발주계획 검토 대기를 목록 누적 모드의 범위·선별 조건으로 집계한다.
+    """발주계획 업무를 목록 누적 모드의 범위·선별 조건으로 집계한다.
 
     누적 범위에 완료된 운영 실행이 하나도 없을 때만 `null`이다. 오늘 실행이 없다는 이유로 `null`이 되지 않는다.
+
+    `order_plan_new_priority`는 대시보드 `새 우선 검토 발주계획` 패널의 건수로, 같은
+    목록 호출(`qwen_relevance=relevant`·`tracking_status=미선택`·`first_observed_from`)의
+    `total`이다(ADR-0067 §7.1). 창의 하한은 요청 시각 KST 일자의 **전일** 00:00이며
+    상한은 없다 — 일일 수집이 아침에 돌므로 당일 도착분도 "새로"에 든다.
+    `order_plan_pending`은 `relevant,uncertain`을 세므로 두 값은 서로 다르고 대신하지
+    않는다.
     """
 
     def workload_counts(self, session: Session) -> Mapping[str, WorkloadCount]:
@@ -758,15 +777,26 @@ class ScreeningWorkloadProjection:
 
         service = OrderPlanScreeningService()
         if not service.has_cumulative_execution(session):
-            return {"order_plan_pending": WorkloadCount(None, "no_completed_execution")}
-        listing = service.list_order_plans(
+            reason = WorkloadCount(None, "no_completed_execution")
+            return {"order_plan_pending": reason, "order_plan_new_priority": reason}
+        pending = service.list_order_plans(
             session,
             stage1_status="selected",
             qwen_relevance="relevant,uncertain",
             tracking_status="미선택",
             limit=1,
         )
-        return {"order_plan_pending": WorkloadCount(listing["total"])}
+        new_priority = service.list_order_plans(
+            session,
+            qwen_relevance="relevant",
+            tracking_status="미선택",
+            first_observed_from=_new_priority_since(),
+            limit=1,
+        )
+        return {
+            "order_plan_pending": WorkloadCount(pending["total"]),
+            "order_plan_new_priority": WorkloadCount(new_priority["total"]),
+        }
 
 
 __all__ = [

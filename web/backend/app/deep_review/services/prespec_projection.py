@@ -118,6 +118,12 @@ class PreSpecOverviewDocumentProjection:
         ]
 
 
+#: `사람 확인 필요` 패널의 개요 하위 건수가 세는 상태. 두 상태는 서로 배타적이라
+#: 사전규격 목록 `overview_view=failed`·`overview_view=attention`의 `total` 합과 같다
+#: (ADR-0067 §7.1). `pending` 계열과 run 부재(`null`)는 사람을 기다리지 않는다.
+_HUMAN_REVIEW_OVERVIEW_STATUSES = ("failed", "needs_human_review")
+
+
 class DeepReviewWorkloadProjection:
     """deep_review가 소유한 업무 건수. 대상이 없으면 실제 0이다."""
 
@@ -125,12 +131,17 @@ class DeepReviewWorkloadProjection:
         from .decision_queue import decision_queue
 
         notice_ids = session.scalars(select(Notice.id).where(Notice.source_type == "pre_spec")).all()
-        ready = PreSpecOverviewDocumentProjection().notice_ids_for_auto_preparation_status(
+        projection = PreSpecOverviewDocumentProjection()
+        ready = projection.notice_ids_for_auto_preparation_status(
             session, notice_ids, "deep_review_ready_for_click"
         )
+        statuses = projection.overview_status_counts(session, notice_ids)
         return {
             "pre_spec_deep_review_ready": WorkloadCount(len(ready)),
             "bid_final_decision_pending": WorkloadCount(decision_queue(session, limit=1)["total"]),
+            "overview_human_review": WorkloadCount(
+                sum(int(statuses.get(status, 0)) for status in _HUMAN_REVIEW_OVERVIEW_STATUSES)
+            ),
         }
 
 
