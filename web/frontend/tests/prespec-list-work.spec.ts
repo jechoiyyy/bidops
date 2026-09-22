@@ -941,6 +941,52 @@ test("우측 정보 영역은 사업명·기관·설명·과업 3건·예산·�
   await expect(detail.locator(".pre-specs-detail-tasks")).toHaveCount(0);
 });
 
+// F2 · spec §6.2 — 실제 발주처(수요기관)가 먼저 읽히고 대행 공고기관은 뒤에·작게
+// 붙는다(M5 승인 2026-09-22). 수요기관이 없는 건은 직접 공고이므로 지금처럼
+// `발주기관`으로 공고기관만 둔다 — `agency`를 `수요기관`으로 재명명하지 않는다.
+test("수요기관이 있으면 목록 행과 상세 머리가 수요기관을 앞·크게, 공고기관을 뒤·작게 둔다", async ({ page }) => {
+  await mockPreSpecs(page);
+  await page.goto("/pre-specs?workspace=all&sw_only=false");
+
+  const proxyRow = page.locator(".pre-specs-row").filter({ hasText: "안전한 문서 준비 사전규격" });
+  const proxyAgency = proxyRow.locator(".pre-specs-row-agency");
+  await expect(proxyAgency).toHaveText("한국예술인복지재단 · 테스트 조달기관 대행");
+  // 기관 줄 자체의 글자 단은 그대로이고 대행 부분만 작다.
+  const sizes = await proxyAgency.evaluate((element) => ({
+    agency: Number.parseFloat(getComputedStyle(element).fontSize),
+    proxy: Number.parseFloat(getComputedStyle(element.querySelector(".pre-specs-row-agency-proxy")!).fontSize),
+  }));
+  expect(sizes.agency).toBe(14.4);
+  expect(sizes.proxy).toBeLessThan(sizes.agency);
+
+  const head = page.locator(".pre-specs-detail-header");
+  await proxyRow.locator(".pre-specs-row-meta").click();
+  await expect(head.locator(".pre-specs-detail-agency .review-agency-label")).toHaveText("수요기관");
+  await expect(head.locator(".pre-specs-detail-agency .review-agency-name")).toHaveText("한국예술인복지재단");
+  await expect(head.locator(".pre-spec-announcer-agency")).toHaveText("공고기관 테스트 조달기관");
+
+  // 직접 공고 건은 라벨이 `발주기관`으로 돌아가고 부제가 없다.
+  const directRow = page.locator(".pre-specs-row").filter({ hasText: "신규 지능형 행정 지원 사전규격" });
+  await expect(directRow.locator(".pre-specs-row-agency")).toHaveText("신규 발주기관");
+  await expect(directRow.locator(".pre-specs-row-agency-proxy")).toHaveCount(0);
+  await directRow.locator(".pre-specs-row-meta").click();
+  await expect(head.locator(".pre-specs-detail-agency .review-agency-label")).toHaveText("발주기관");
+  await expect(head.locator(".pre-specs-detail-agency .review-agency-name")).toHaveText("신규 발주기관");
+  await expect(head.locator(".pre-spec-announcer-agency")).toHaveCount(0);
+});
+
+// M4 승인(2026-09-21) — 경계 문장은 상세 페이지 ② 추적 결정 카드와 같은 문안
+// 하나이고, 목록 우측 상세도 그것을 쓴다. 옛 문구는 남지 않는다.
+test("목록 우측 상세의 경계 문장은 M4 승인 문안 하나다", async ({ page }) => {
+  await mockPreSpecs(page);
+  await page.goto("/pre-specs?workspace=all&sw_only=false");
+  await expect(page.locator(".pre-specs-detail-header")).toBeVisible();
+
+  await expect(page.getByText("적합성 등급 · 추적 결정 · 최종 Go/No-Go는 서로 대신하지 않습니다. 입찰 참여 여부는 최종 Go/No-Go에서 정합니다."))
+    .toHaveCount(1);
+  await expect(page.getByText("입찰 참여 여부는 최종 Go/No-Go에서 결정", { exact: true })).toHaveCount(0);
+});
+
 // docs/0915_ui-redesign/spec.md §3.2 — 주의사항 한 줄은 결정적 산출이고 모델
 // 호출이 없다. 화면 없이 순수 함수만 부른다(화면 검사는 P2-C가 붙인다).
 test.describe("preSpecCautions (spec §3.2)", () => {
