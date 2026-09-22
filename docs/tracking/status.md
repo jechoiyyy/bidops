@@ -1,10 +1,20 @@
 # 구현·검증 현황
 
-기준일: 2026-09-11 (Qwen 초안4건 실행·모두 사람 검토 필요·최종 개요0건·OFF)
+기준일: 2026-09-21 (운영 개요 기본은 v7; v8 예비 판단은 제품 구현·격리 검증 완료, 운영 비활성)
 
 사전규격 v4 페이지 개요·PDF 선행·회사 핏 연속 처리의 진행 계획과 단계별 인수/중단 경계는 [prespec-v4-implementation-plan.md](prespec-v4-implementation-plan.md)에 보존한다. 이 계획은 현재 회사 핏 구현·검증과 v4/PDF 후속 구현을 구분하며, 완료·운영 적용 근거를 대신하지 않는다.
 
 `구현됨`은 코드와 계약이 존재한다는 뜻이고, `검증됨`은 기록된 명령이 해당 범위에서 통과했다는 뜻이다. Mock 결과, 과거 브랜치 결과, 현재 worktree 결과, 외부 운영 승인을 서로 대신하지 않는다.
+
+## 사전규격 개요·예비 적합성 통합 (2026-09-21, 제품 구현·격리 검증 완료, 운영 비활성)
+
+[ADR-0065](decisions/0065-prespec-overview-preliminary-assessment.md)와 [의도·명세·계획](../0921_prespec-preliminary-assessment/plan.md)에 따라 기존 개요 run에 예비 적합성 판단을 통합했다. 불변 v8 정책은 사실 개요와 세 관심 축의 판단을 정상 호출 1회에서 만들고 서버가 등급을 계산한다. 제외·역할·문맥·수치 위험만 선택 의미검증 1회를 추가하며 형식 재시도를 포함한 상한은 3회다. 판단 또는 의미검증 실패 때 검증된 개요를 보존하고 등급은 `held`로 둔다.
+
+- migration `0031_prespec_preliminary_assessment`는 입력 binding, 최소 프로필 snapshot, 판단·검사·의미검증 상태, 정확히 같은 입력 결과의 최초 재사용 계보를 추가한다. 구버전 행은 v1로 보존하고 downgrade로 이력을 삭제하지 않는다.
+- `display_assessment`는 사람 정정 → 현재 safe 문서의 v8 판정/보류 → 기존 선별 판정 → 없음 순이다. 목록·상세·`display_grade` 필터·건수는 같은 batch projection을 쓰며 기존 effective grade와 자동화 자격은 유지한다.
+- 자동화 소비자는 v8 `completed`만으로 열리지 않는다. 전체 개요 선택 의미검증의 `passed`와 `overview_full` 범위가 있어야 종전 소비 경계를 통과한다. 같은 문서의 종결 결과는 재관측이나 정책·프로필 변경만으로 자동 재실행하지 않고, 사람 재실행은 실제 평가한다.
+- 검증: 영향 backend **185 passed**(후속 runner·순수 판정 **41 passed**, 선택 의미검증 저장 장애 **1 passed**), 일회용 PostgreSQL 17의 Alembic 정합성 **1 passed**, 0030→0031 기존 행·제약·재적용·downgrade 계약 **1 passed**, API shape **25 passed**(최종 projection **17 passed** 재실행), frontend build 통과, 관련 Playwright **3 passed**, 1280×800·1440×900 구조 파일 **82 passed**. 자세한 명령과 범위는 계획의 구현 검증 기록에 있다.
+- 운영 DB migration, 실제 모델 호출·품질 비교, 배포, 정책 활성화는 실행하지 않았다. 기본 정책 경로는 v7이고 v8 품질은 미측정이다.
 
 ## 검색 안내 문구 삭제·발주계획 목록 바닥 줄 정리 (2026-09-21, 구현·운영 배포 완료)
 

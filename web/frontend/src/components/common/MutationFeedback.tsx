@@ -61,7 +61,7 @@ export function MutationFeedback({
                     접힌 `<details>` 안은 접근 트리에서 감춰져 읽히지 않는다. 그래서
                     같은 문장을 시각적으로만 감춰 한 번 더 둔다. 눈으로 보는 사람은
                     접힘을 펴서 코드를 복사한다. 코드 값 자체는 `apiErrors.ts`가 준
-                    안전 코드 그대로이며 줄이거나 번역하지 않는다(ADR-0065 결정 2·3). */}
+                    안전 코드 그대로이며 줄이거나 번역하지 않는다(ADR-0066 결정 2·3). */}
                 <span className="visually-hidden"> 오류 코드 {problem.code}</span>
                 <TechnicalInfo className="technical-info-inline" summary="기술 정보">
                   <p className="mutation-feedback-code">오류 코드 {problem.code}</p>

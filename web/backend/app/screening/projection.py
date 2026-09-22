@@ -16,6 +16,7 @@ from __future__ import annotations
 from collections import Counter, defaultdict
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from datetime import datetime
 from itertools import combinations
 import re
 from typing import Any
@@ -121,6 +122,7 @@ class JudgmentSummary:
     grade: str | None
     readiness: str | None
     focus: str | None
+    assessed_at: datetime | None = None
 
 
 @dataclass(frozen=True)
@@ -130,10 +132,17 @@ class CorrectedGrade:
     grade: str
     run_id: str | None
     review_id: int
+    assessed_at: datetime | None = None
 
 
-def _summary(notice_id: int, grade: str | None, readiness: str | None, focus: str | None, run_id: str | None) -> JudgmentSummary:
-    return JudgmentSummary(notice_id=notice_id, run_id=run_id, grade=grade, readiness=readiness, focus=focus)
+def _summary(
+    notice_id: int, grade: str | None, readiness: str | None, focus: str | None,
+    run_id: str | None, assessed_at: datetime | None,
+) -> JudgmentSummary:
+    return JudgmentSummary(
+        notice_id=notice_id, run_id=run_id, grade=grade,
+        readiness=readiness, focus=focus, assessed_at=assessed_at,
+    )
 
 
 def current_judgments(
@@ -156,18 +165,23 @@ def current_judgments(
     if not rows:
         return {}
     revisions = session.execute(
-        select(JudgmentRevision.notice_id, JudgmentRevision.run_id, JudgmentRevision.sequence).where(
+        select(
+            JudgmentRevision.notice_id, JudgmentRevision.run_id,
+            JudgmentRevision.sequence, JudgmentRevision.captured_at,
+        ).where(
             JudgmentRevision.notice_id.in_([row[0] for row in rows])
         )
     ).all()
-    latest_run: dict[int, tuple[int, str | None]] = {}
-    for notice_id, run_id, sequence in revisions:
+    latest_run: dict[int, tuple[int, str | None, datetime | None]] = {}
+    for notice_id, run_id, sequence, captured_at in revisions:
         current = latest_run.get(notice_id)
         if current is None or sequence > current[0]:
-            latest_run[notice_id] = (sequence, run_id)
+            latest_run[notice_id] = (sequence, run_id, captured_at)
     return {
         notice_id: _summary(
-            notice_id, grade, readiness, focus, latest_run.get(notice_id, (0, None))[1]
+            notice_id, grade, readiness, focus,
+            latest_run.get(notice_id, (0, None, None))[1],
+            latest_run.get(notice_id, (0, None, None))[2],
         )
         for notice_id, grade, readiness, focus in rows
     }
@@ -198,17 +212,22 @@ def latest_corrected_grades(
     if not ids:
         return {}
     rows = session.execute(
-        select(Review.notice_id, Review.corrected_grade, Review.run_id, Review.id)
+        select(
+            Review.notice_id, Review.corrected_grade, Review.run_id,
+            Review.id, Review.updated_at,
+        )
         .where(Review.notice_id.in_(ids), Review.corrected_grade.is_not(None))
         .order_by(Review.updated_at.desc(), Review.id.desc())
     ).all()
     corrected: dict[int, CorrectedGrade] = {}
-    for notice_id, grade, run_id, review_id in rows:
+    for notice_id, grade, run_id, review_id, updated_at in rows:
         if not grade:
             continue
         # 정렬이 최신 우선이므로 공고당 첫 행만 남긴다.
         corrected.setdefault(
-            int(notice_id), CorrectedGrade(grade=grade, run_id=run_id, review_id=review_id)
+            int(notice_id), CorrectedGrade(
+                grade=grade, run_id=run_id, review_id=review_id, assessed_at=updated_at,
+            )
         )
     return corrected
 

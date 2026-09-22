@@ -103,7 +103,7 @@ function candidateKey(ref: BidDeltaInputRef): string {
 }
 
 /**
- * 비교 입력으로 요청에 함께 보내는 고정 값 13줄(ADR-0065 §3.3 `이동`).
+ * 비교 입력으로 요청에 함께 보내는 고정 값 13줄(ADR-0066 §3.3 `이동`).
  *
  * 값은 **하나도 빼지 않는다.** 바뀐 것은 이 목록이 놓인 자리뿐이다 — 후보 카드의
  * 상시 표시에서 접힌 `기술 정보`로 내려갔고, 식별자·해시는 전문 그대로다.
@@ -147,7 +147,7 @@ function CandidateCard({
       <span className="bid-delta-candidate-check">{selected ? "선택됨" : "선택"}</span>
       <strong>{candidate.notice_source_type === "pre_spec" ? "사전규격 기준 후보" : "입찰공고 비교 후보"}</strong>
       {/* 머리에는 사람이 문서를 고를 때 읽는 것만 남긴다. 해시는 지우지 않고 아래
-          접힌 곳에 **전문**으로 둔다(ADR-0065 결정 2, 시안 M4 ③) — 8자·12자 축약을
+          접힌 곳에 **전문**으로 둔다(ADR-0066 결정 2, 시안 M4 ③) — 8자·12자 축약을
           만들지 않는다. */}
       <span className="bid-delta-candidate-line">
         <span className="mono">{candidate.notice_external_id}</span> · 문서 v{candidate.document_version_version}

@@ -1668,8 +1668,29 @@ class PrespecOverviewRun(Base):
             dual(
                 "(input_sha256 IS NULL OR (length(input_sha256) = 64 AND input_sha256 NOT GLOB '*[^0-9a-f]*'))"
                 " AND length(policy_digest) = 64 AND policy_digest NOT GLOB '*[^0-9a-f]*'"
+                " AND (profile_digest IS NULL OR (length(profile_digest) = 64 AND profile_digest NOT GLOB '*[^0-9a-f]*'))"
+                " AND (generation_config_digest IS NULL OR (length(generation_config_digest) = 64 AND generation_config_digest NOT GLOB '*[^0-9a-f]*'))"
+                " AND (input_binding_sha256 IS NULL OR (length(input_binding_sha256) = 64 AND input_binding_sha256 NOT GLOB '*[^0-9a-f]*'))"
             ),
             name="ck_prespec_overview_run_hashes",
+        ),
+        CheckConstraint(
+            "profile_status IN ('not_configured','ready','invalid')",
+            name="ck_prespec_overview_run_profile_status",
+        ),
+        CheckConstraint(
+            "assessment_status IN ('none','graded','held')",
+            name="ck_prespec_overview_run_assessment_status",
+        ),
+        CheckConstraint(
+            "semantic_status IN ('not_run','passed','failed')",
+            name="ck_prespec_overview_run_semantic_status",
+        ),
+        CheckConstraint(
+            "(assessment_status = 'graded' AND assessment_grade IS NOT NULL AND assessment_grade IN "
+            "('우선 검토','검토 권장','관찰 대상','제외')) OR "
+            "(assessment_status <> 'graded' AND assessment_grade IS NULL)",
+            name="ck_prespec_overview_run_assessment_grade",
         ),
     )
 
@@ -1695,9 +1716,42 @@ class PrespecOverviewRun(Base):
     policy_digest: Mapped[str] = mapped_column(String(64), nullable=False)
     model_name: Mapped[str] = mapped_column(Text, nullable=False)
     model_revision: Mapped[str | None] = mapped_column(Text, nullable=True)
+    #: 실행 시점의 계약과 입력 binding. 구버전 행은 ``overview-v1``로 보존한다.
+    contract_version: Mapped[str] = mapped_column(
+        String(64), nullable=False, default="overview-v1", server_default=text("'overview-v1'")
+    )
+    prompt_version: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    validator_version: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    profile_version_id: Mapped[uuid_module.UUID | None] = mapped_column(
+        _fk("profile_version.id", ondelete="RESTRICT"), nullable=True
+    )
+    reused_from_run_id: Mapped[uuid_module.UUID | None] = mapped_column(
+        _fk("prespec_overview_run.id", ondelete="RESTRICT"), nullable=True
+    )
+    profile_digest: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    profile_status: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="not_configured",
+        server_default=text("'not_configured'"),
+    )
+    #: 모델에 허용한 최소 회사 사실의 동결본. 공개 API에는 노출하지 않는다.
+    profile_facts_json: Mapped[Any] = mapped_column(JSONB_COMPAT, nullable=False, default=list)
+    generation_config_json: Mapped[Any] = mapped_column(JSONB_NULL_COMPAT, nullable=True)
+    generation_config_digest: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    input_binding_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
     draft_json: Mapped[Any] = mapped_column(JSONB_NULL_COMPAT, nullable=True)
     checks_json: Mapped[Any] = mapped_column(JSONB_NULL_COMPAT, nullable=True)
     result_json: Mapped[Any] = mapped_column(JSONB_NULL_COMPAT, nullable=True)
+    #: 사실 개요와 분리해 보존하는 예비 적합성 판단과 서버 검사 결과.
+    assessment_json: Mapped[Any] = mapped_column(JSONB_NULL_COMPAT, nullable=True)
+    assessment_checks_json: Mapped[Any] = mapped_column(JSONB_NULL_COMPAT, nullable=True)
+    assessment_grade: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    assessment_status: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="none", server_default=text("'none'")
+    )
+    semantic_status: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="not_run", server_default=text("'not_run'")
+    )
+    semantic_scope_json: Mapped[Any] = mapped_column(JSONB_COMPAT, nullable=False, default=list)
     warnings_json: Mapped[Any] = mapped_column(JSONB_COMPAT, nullable=False, default=list)
     reason_codes: Mapped[Any] = mapped_column(JSONB_COMPAT, nullable=False, default=list)
     call_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

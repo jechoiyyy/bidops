@@ -527,7 +527,7 @@
   background: transparent;
 }
 .ps-record .ps-ev > li:last-child { border-bottom: 0; }
-/* `.ps-loc`(주장 ID)은 ⑥ 접힌 `기술 정보`로 옮겨 이 목록에서 사라졌다(ADR-0065). */
+/* `.ps-loc`(주장 ID)은 ⑥ 접힌 `기술 정보`로 옮겨 이 목록에서 사라졌다(ADR-0066). */
 
 /* 자동 준비 단계 */
 /* ⑥ 네 단계 카드 (spec §4 ⑥). 완료한 단계만 포인트 테두리와 번호 강조를 받는다. */
@@ -1067,7 +1067,7 @@
 .ps-record .ps-collapsed .astryx-collapsible-content { min-width: 0; }
 .ps-record .ps-collapsed .astryx-collapsible-content > * + * { margin-top: var(--spacing-3); }
 /* ⑥ 접힌 `기술 정보` 안의 세 덩어리. 소제목은 절 제목보다 작고 값은 전문이
-   그대로 흐른다 — 식별자·해시를 잘라 보이게 하지 않는다(ADR-0065 결정 2). */
+   그대로 흐른다 — 식별자·해시를 잘라 보이게 하지 않는다(ADR-0066 결정 2). */
 .ps-record .ps-collapsed h3 { margin: 0; font-size: calc(var(--bo-type-caption) + var(--border-width)); font-weight: 600; }
 .ps-record .ps-collapsed h4 { margin: 0; font-size: var(--bo-type-caption); font-weight: 600; }
 .ps-record .ps-collapsed .page-overview-execution-meta,

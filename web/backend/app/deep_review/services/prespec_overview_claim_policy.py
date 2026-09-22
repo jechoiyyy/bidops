@@ -1,4 +1,4 @@
-"""Read-only v7 policy and bounded stage payloads; never calls a model."""
+"""Read-only v7/v8 policies and bounded stage payloads; never calls a model."""
 from dataclasses import dataclass
 from copy import deepcopy
 import hashlib
@@ -8,11 +8,15 @@ from typing import Any
 
 from ...core.model_client import APPROVED_GENERATION, StructuredOutputContract, build_prompt
 from ..schemas.prespec_overview_claims import (
-    OverviewClaimChecks, OverviewClaimsDraft, OverviewSemanticResponse, VALIDATOR_VERSION,
+    ASSESSMENT_VALIDATOR_VERSION, CombinedOverviewAssessmentDraft,
+    OverviewAssessmentSemanticResponse, OverviewClaimChecks, OverviewClaimsDraft,
+    OverviewSemanticResponse, PreliminaryAssessmentDraft, VALIDATOR_VERSION,
 )
 
 CLAIMS_STAGE = "prespec_overview_claims"
 SEMANTIC_STAGE = "prespec_overview_semantic"
+ASSESSMENT_STAGE = "prespec_overview_assessment"
+ASSESSMENT_SEMANTIC_STAGE = "prespec_overview_assessment_semantic"
 POLICY_PATH = Path(__file__).resolve().parents[1] / "policies" / "prespec-overview-policy-v7.json"
 LIMITS = {
     "max_calls": 3, "max_draft_calls": 2, "max_semantic_calls": 1,
@@ -48,6 +52,10 @@ class ClaimsOverviewPolicy:
     document: dict[str, Any]
     digest: str
 
+    @property
+    def is_assessment(self) -> bool:
+        return self.document.get("schema") == "bidops.prespec-overview-policy.v8"
+
     def structured_output_contract(
         self, stage: str, *, expected_check_count: int | None = None,
     ) -> StructuredOutputContract:
@@ -62,12 +70,13 @@ class ClaimsOverviewPolicy:
         policy = self.stage_policy(stage)
         schema = policy["output_schema"]
         if expected_check_count is not None:
-            if stage != SEMANTIC_STAGE:
+            if stage not in {SEMANTIC_STAGE, ASSESSMENT_SEMANTIC_STAGE}:
                 raise ValueError("overview_stage_invalid")
             if not 1 <= expected_check_count <= LIMITS["max_claims"]:
                 raise ValueError("expected_check_count_invalid")
-            schema["properties"]["checks"]["minItems"] = expected_check_count
-            schema["properties"]["checks"]["maxItems"] = expected_check_count
+            key = "claim_checks" if stage == ASSESSMENT_SEMANTIC_STAGE else "checks"
+            schema["properties"][key]["minItems"] = expected_check_count
+            schema["properties"][key]["maxItems"] = expected_check_count
         return StructuredOutputContract(name=stage, schema=schema, system_prompt=policy["system_prompt"])
 
     def stage_policy(self, stage: str) -> dict[str, Any]:
@@ -90,24 +99,33 @@ def load_claims_policy(path: Path | None = None) -> ClaimsOverviewPolicy:
         value = json.loads((path or POLICY_PATH).read_text(encoding="utf-8"))
         if set(value) != {"schema", "model_name", "model_endpoint_ref", "prompt_version", "limits", "verification", "stages"}:
             raise ValueError
-        if (value["schema"], value["model_name"], value["model_endpoint_ref"], value["prompt_version"]) != (
-            "bidops.prespec-overview-policy.v7", "qwen3.8-27B", "vllm-openai-compatible", "prespec-overview-v7",
-        ) or value["limits"] != LIMITS:
+        identity = (value["schema"], value["model_name"], value["model_endpoint_ref"], value["prompt_version"])
+        if identity not in {
+            ("bidops.prespec-overview-policy.v7", "qwen3.8-27B", "vllm-openai-compatible", "prespec-overview-v7"),
+            ("bidops.prespec-overview-policy.v8", "qwen3.8-27B", "vllm-openai-compatible", "prespec-overview-v8"),
+        } or value["limits"] != LIMITS:
             raise ValueError
         # The set order is immaterial to validation but the original file order
         # still participates in the immutable policy digest.
         check = dict(value["verification"])
         check["format_retry_codes"] = sorted(check["format_retry_codes"])
+        validator = ASSESSMENT_VALIDATOR_VERSION if value["schema"].endswith(".v8") else VALIDATOR_VERSION
         if check != {
-            "validator_version": VALIDATOR_VERSION, "format_retry_codes": sorted(FORMAT_RETRY_CODES),
+            "validator_version": validator, "format_retry_codes": sorted(FORMAT_RETRY_CODES),
             "factual_failure_action": "needs_human_review", "semantic_response_failure": "semantic_response_invalid",
             "transport_retries": 0,
         }:
             raise ValueError
         stages = value["stages"]
-        if [r["stage"] for r in stages] != [CLAIMS_STAGE, SEMANTIC_STAGE]:
+        stage_models = (
+            ((ASSESSMENT_STAGE, CombinedOverviewAssessmentDraft),
+             (ASSESSMENT_SEMANTIC_STAGE, OverviewAssessmentSemanticResponse))
+            if value["schema"].endswith(".v8")
+            else ((CLAIMS_STAGE, OverviewClaimsDraft), (SEMANTIC_STAGE, OverviewSemanticResponse))
+        )
+        if [r["stage"] for r in stages] != [name for name, _model in stage_models]:
             raise ValueError
-        for row, model in zip(stages, (OverviewClaimsDraft, OverviewSemanticResponse), strict=True):
+        for row, (_stage_name, model) in zip(stages, stage_models, strict=True):
             if set(row) != {"stage", "generation", "chunking", "system_prompt", "instruction", "prompt_output_contract", "output_schema"}:
                 raise ValueError
             if row["generation"] != APPROVED_GENERATION or row["chunking"] != {"retries": 0, "timeout_seconds": 300}:
@@ -160,6 +178,33 @@ def build_claims_stage_input(
         ]
     elif checks is not None:
         raise ValueError("draft_required")
+    return result
+
+
+def build_assessment_stage_input(
+    pages: dict[int, str], *,
+    profile_status: str,
+    company_facts: list[dict[str, Any]],
+    draft: OverviewClaimsDraft | None = None,
+    assessment: PreliminaryAssessmentDraft | None = None,
+    checks: OverviewClaimChecks | None = None,
+) -> dict[str, Any]:
+    base = build_claims_stage_input(pages, draft=draft, checks=checks)
+    result = {
+        **base,
+        "schema_version": "bidops.prespec-overview-assessment-input.v1",
+        "interest_policy": {
+            "axes": ["ai_data", "blockchain_did", "public_si_integration"],
+            "axis_priority": "equal",
+            "purpose": "follow_up_review_priority",
+        },
+        "profile": {"status": profile_status, "facts": company_facts},
+    }
+    if assessment is not None:
+        if draft is None or checks is None:
+            raise ValueError("draft_required")
+        result["assessment"] = assessment.model_dump(mode="json")
+        result["expected_axis_ids"] = ["ai_data", "blockchain_did", "public_si_integration"]
     return result
 
 

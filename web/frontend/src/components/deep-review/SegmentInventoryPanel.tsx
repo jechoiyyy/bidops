@@ -139,7 +139,7 @@ export function SegmentInventoryPanel({ documentVersionId = null, structureId, s
           </dl>
 
           {/* 문서 식별자와 중복 ID 나열은 눈으로 대조할 때만 필요하므로
-              접어 둔다. 건수(위 요약)와 이유 문장은 밖에 남는다(ADR-0065). */}
+              접어 둔다. 건수(위 요약)와 이유 문장은 밖에 남는다(ADR-0066). */}
           <TechnicalInfo summary="기술 정보 · 문서 식별자와 중복 ID">
             <TechnicalFacts
               label="문서 식별자와 중복 요구사항 ID"
@@ -213,7 +213,7 @@ export function SegmentInventoryPanel({ documentVersionId = null, structureId, s
                     {segment.start_locator.page}쪽 원문 열기
                   </button>
                   {/* 계약 순번·블록 키·요구사항 ID 나열은 접어 둔다. 건수와
-                      분류, 원문으로 가는 길은 밖에 남는다(ADR-0065). */}
+                      분류, 원문으로 가는 길은 밖에 남는다(ADR-0066). */}
                   <TechnicalInfo summary={`기술 정보 · ${segment.ordinal}번째 구간`}>
                     <TechnicalFacts
                       label={`${segment.ordinal}번째 구간의 식별자`}

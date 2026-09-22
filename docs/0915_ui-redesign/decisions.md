@@ -128,7 +128,7 @@
 ## 실무 화면 고도화 (2026-09-21)
 
 - 정본: [`docs/0921_practitioner-screens/`](../0921_practitioner-screens/)의 `intent.md`·`spec.md`·`plan.md`,
-  정보 경계 결정은 [ADR-0065](../tracking/decisions/0065-practitioner-ops-information-boundary.md).
+  정보 경계 결정은 [ADR-0066](../tracking/decisions/0066-practitioner-ops-information-boundary.md).
   이 항목은 확정 결정만 옮겨 적는다.
 - 배경: 조사 3건에서 (a) 같은 기능의 UI가 화면마다 다르고(회차 선택기 6벌, 페이저 3종, "예산 없음"
   5종, 날짜 포맷 중복 7곳), (b) 실무 화면 약 40곳이 운영 정보를 싣고 있으며, (c) 실무자에게 필요한
@@ -151,7 +151,7 @@
 - 대안: 운영 정보를 전부 삭제한다 / 처분을 `실무 유지`·`운영 이동` 2종으로만 나눈다 / 영문 토큰을
   일괄 한글화한다 / 빈 값 문구를 `값 없음` 하나로 합친다 / 실무 화면에서 먼저 빼고 운영 화면은 뒤에
   만든다 / 대시보드는 운영자 화면으로 둔다.
-- 버린 이유: [ADR-0065](../tracking/decisions/0065-practitioner-ops-information-boundary.md) §맥락에 적었다.
+- 버린 이유: [ADR-0066](../tracking/decisions/0066-practitioner-ops-information-boundary.md) §맥락에 적었다.
   요지는 식별자·해시를 지우면 운영자가 대조할 수단을 잃고, 2종 처분으로는 "경고가 필요할 때만"이
   갈 곳이 없으며, 모르는 코드까지 번역하면 서버 값과의 대조가 끊기고, 서로 다른 빈 값 네 종을 합치면
   `unknown` 보존 게이트를 깨며, 옮길 곳 없이 먼저 빼면 C-2 실행 기록을 읽을 경로가 사라지고, 회차를

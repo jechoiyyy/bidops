@@ -13,7 +13,7 @@ import {
 /**
  * 폼 오류의 안전 코드가 그대로 남아 있는지 본다.
  *
- * 코드는 문장 옆 **접힌 `기술 정보`** 안으로 옮겼고(ADR-0065 §3.3, 시안 M4 결정 3),
+ * 코드는 문장 옆 **접힌 `기술 정보`** 안으로 옮겼고(ADR-0066 §3.3, 시안 M4 결정 3),
  * 같은 문장이 시각적으로만 감춰진 채 한 번 더 있어 `role="alert"`이 읽을 때 함께
  * 읽힌다. 그래서 눈에 보이는지가 아니라 **오류 영역 안에 있는지**로 본다. 접힘의
  * 구조 자체는 아래 전용 검사가 따로 본다.
@@ -317,7 +317,7 @@ test("요청 conflict는 typed code를 표시하고 최신 상태를 다시 불�
 });
 
 // 폼 오류 한 줄(`components/common/MutationFeedback.tsx`)은 모든 저장 폼이 공유한다.
-// 안전 코드는 지우지 않고 문장 옆 접힌 `기술 정보`로 옮겼다(ADR-0065 §3.3, 시안 M4
+// 안전 코드는 지우지 않고 문장 옆 접힌 `기술 정보`로 옮겼다(ADR-0066 §3.3, 시안 M4
 // 결정 3). 코드 값·분기·검열은 그대로이며 바뀐 것은 놓인 자리뿐이다.
 test("폼 오류의 안전 코드는 접힌 기술 정보에 있고 보조기술에는 계속 읽힌다", async ({ page }) => {
   await mockBidDelta(page, { calculationStatus: "completed", resultStatus: "changed", finalDecisionErrorCode: "bid_delta_comparison_stale" });

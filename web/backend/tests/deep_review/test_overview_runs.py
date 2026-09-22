@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+from pathlib import Path
+from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
@@ -29,6 +31,7 @@ from app.deep_review.models import (
     DocumentVersion,
     PrespecOverviewRun,
     PrespecV4PdfSnapshot,
+    ProfileVersion,
     WorkJob,
 )
 from app.deep_review.services import overview_runs
@@ -249,6 +252,103 @@ def _run(session, store, transport, **kwargs):
     )
 
 
+class _AssessmentClient:
+    api_dialect = "vllm"
+    model_context_tokens = 393216
+
+    def __init__(self, responses):
+        self.responses = {
+            stage: list(value) if isinstance(value, tuple) else [value]
+            for stage, value in responses.items()
+        }
+        self.stages: list[str] = []
+        self.inputs: list[dict] = []
+
+    def verify_identity(self):
+        return SimpleNamespace(revision="b" * 64)
+
+    def invoke(self, stage, input_slice, stage_policy, **kwargs):
+        self.stages.append(stage)
+        self.inputs.append(dict(input_slice))
+        value = self.responses[stage].pop(0)
+        raw = value if isinstance(value, bytes) else json.dumps(value, ensure_ascii=False).encode()
+        return SimpleNamespace(
+            raw_response=raw, prompt_tokens=100, output_tokens=50, latency_ms=25,
+        )
+
+
+class _NoInvokeAssessmentClient:
+    api_dialect = "vllm"
+    model_context_tokens = 393216
+
+    def verify_identity(self):
+        return SimpleNamespace(revision="b" * 64)
+
+    def invoke(self, *_args, **_kwargs):
+        raise AssertionError("an exact automatic binding must reuse without generation")
+
+
+def _combined_response(*, relation="direct"):
+    return {
+        "schema_version": "bidops.prespec-overview-assessment-draft.v1",
+        "overview": {
+            "schema_version": "bidops.prespec-overview-claims.v1",
+            "claims": [
+                {
+                    "id": "c1", "section": "business_overview",
+                    "text": "합성 통합 표준 시스템을 구축한다.",
+                    "evidence": [{"page": 1, "quote": "합성 통합 표준 시스템을 구축하는 것이다."}],
+                    "quantities": [],
+                },
+                {
+                    "id": "c2", "section": "main_tasks",
+                    "text": "합성 자료 연계와 화면 개발을 수행한다.",
+                    "evidence": [{"page": 1, "quote": "합성 자료 연계와 화면 개발을 수행하는 것이다."}],
+                    "quantities": [],
+                },
+            ],
+        },
+        "assessment": {
+            "schema_version": "bidops.prespec-preliminary-assessment.v1",
+            "primary_task_claim_ids": ["c2"],
+            "delivery_role": "supplier",
+            "axes": [
+                {
+                    "axis": axis, "relation": relation,
+                    "reason": "실제 구축 과업과의 관계", "claim_refs": ["c2"],
+                    "company_refs": [],
+                }
+                for axis in ("ai_data", "blockchain_did", "public_si_integration")
+            ],
+            "verification_items": [],
+            "uncertainty_codes": [],
+        },
+    }
+
+
+def _assessment_semantic():
+    return {
+        "schema_version": "bidops.prespec-overview-assessment-semantic.v1",
+        "claim_checks": [
+            {"claim_id": claim_id, "status": "supported", "reason_codes": []}
+            for claim_id in ("c1", "c2")
+        ],
+        "assessment_checks": [
+            {"axis": axis, "status": "supported", "reason_codes": []}
+            for axis in ("ai_data", "blockchain_did", "public_si_integration")
+        ],
+    }
+
+
+def _v8_settings(monkeypatch):
+    monkeypatch.setenv(
+        "BIDOPS_PRESPEC_OVERVIEW_POLICY_PATH",
+        str(Path(__file__).resolve().parents[2] / "app/deep_review/policies/prespec-overview-policy-v8.json"),
+    )
+    get_settings.cache_clear()
+    return get_settings()
+
+
 # --- enqueue -----------------------------------------------------------------
 
 
@@ -343,6 +443,326 @@ def test_run_once_completes_with_warnings_only_checks(context):
     assert view["warnings"] == ["context_unverified", "quantity_unit_missing"]
     assert row.checks_json["checks"][2]["deterministic"]["status"] == "passed"
     assert session.get(WorkJob, row.work_job_id).status == "completed"
+
+
+def test_v8_normal_path_combines_overview_and_grade_in_one_call(context, monkeypatch):
+    session, store = context
+    settings = _v8_settings(monkeypatch)
+    notice, _document, snapshot = seed(session, store)
+    run = overview_runs.enqueue_overview_run(session, notice.id, settings=settings)
+    assert run is not None
+    run.snapshot_id = snapshot.id
+    session.commit()
+    client = _AssessmentClient({"prespec_overview_assessment": _combined_response()})
+
+    result = overview_runs.run_once(
+        session, "v8-worker", settings=settings,
+        client_factory=lambda _policy: client, store=store,
+    )
+
+    row = session.get(PrespecOverviewRun, run.id)
+    assert (result.status, row.status, row.call_count) == ("completed", "completed", 1)
+    assert row.contract_version == "overview-assessment-v1"
+    assert (row.assessment_status, row.assessment_grade) == ("graded", "우선 검토")
+    assert (row.semantic_status, row.semantic_scope_json) == ("not_run", [])
+    assert client.stages == ["prespec_overview_assessment"]
+    assert row.profile_status == "not_configured" and row.profile_facts_json == []
+    assert row.input_binding_sha256 is not None
+    # 화면용 결과는 게시되지만 옛 자동화 소비 경계는 의미검증 미실행을 통과시키지 않는다.
+    assert overview_runs.completed_result(row) is not None
+    assert overview_runs.automation_completed_result(row) is None
+
+
+def test_v8_exclusion_candidate_uses_one_additional_full_scope_check(context, monkeypatch):
+    session, store = context
+    settings = _v8_settings(monkeypatch)
+    notice, _document, snapshot = seed(session, store)
+    run = overview_runs.enqueue_overview_run(session, notice.id, settings=settings)
+    assert run is not None
+    run.snapshot_id = snapshot.id
+    session.commit()
+    client = _AssessmentClient({
+        "prespec_overview_assessment": _combined_response(relation="unrelated"),
+        "prespec_overview_assessment_semantic": _assessment_semantic(),
+    })
+
+    result = overview_runs.run_once(
+        session, "v8-worker", settings=settings,
+        client_factory=lambda _policy: client, store=store,
+    )
+
+    row = session.get(PrespecOverviewRun, run.id)
+    assert (result.status, row.call_count) == ("completed", 2)
+    assert (row.assessment_status, row.assessment_grade) == ("graded", "제외")
+    assert row.semantic_status == "passed"
+    assert row.semantic_scope_json[:2] == ["overview_full", "assessment_axes"]
+    assert {"claim:c1", "claim:c2"}.issubset(row.semantic_scope_json)
+    assert "axis:public_si_integration" in row.semantic_scope_json
+    assert overview_runs.automation_completed_result(row) is not None
+
+
+def test_v8_invalid_profile_is_not_sent_and_holds_only_the_grade(context, monkeypatch):
+    session, store = context
+    settings = _v8_settings(monkeypatch)
+    monkeypatch.setenv("BIDOPS_ACTIVE_PROFILE_VERSION_ID", str(uuid4()))
+    notice, _document, snapshot = seed(session, store)
+    run = overview_runs.enqueue_overview_run(session, notice.id, settings=settings)
+    assert run is not None
+    run.snapshot_id = snapshot.id
+    session.commit()
+    client = _AssessmentClient({"prespec_overview_assessment": _combined_response()})
+
+    result = overview_runs.run_once(
+        session, "v8-worker", settings=settings,
+        client_factory=lambda _policy: client, store=store,
+    )
+
+    row = session.get(PrespecOverviewRun, run.id)
+    assert result.status == "completed" and row.result_json is not None
+    assert row.profile_status == "invalid" and row.profile_facts_json == []
+    assert client.inputs[0]["profile"] == {"status": "invalid", "facts": []}
+    assert (row.assessment_status, row.assessment_grade) == ("held", None)
+    assert "profile_binding_invalid" in row.assessment_checks_json["reason_codes"]
+
+
+def test_v8_freezes_only_confirmed_profile_facts_without_analysis_policy(context, monkeypatch):
+    session, store = context
+    profile = ProfileVersion(
+        id=uuid4(), version=1, label="assessment-profile",
+        profile_payload={}, profile_sha256="f" * 64, source_kind="fixture",
+    )
+    session.add(profile)
+    session.flush()
+    monkeypatch.setenv("BIDOPS_ACTIVE_PROFILE_VERSION_ID", str(profile.id))
+    monkeypatch.delenv("BIDOPS_ACTIVE_ANALYSIS_POLICY_VERSION_ID", raising=False)
+    from app.deep_review.services import input_versions
+    monkeypatch.setattr(input_versions, "profile_context", lambda _session, _profile: {
+        "facts": [
+            {"fact_key": "capability.confirmed", "value": "확인됨", "quote": "승인된 근거", "status": "confirmed"},
+            {"fact_key": "capability.inferred", "value": "추정", "quote": "추정 근거", "status": "inferred"},
+        ]
+    })
+    settings = _v8_settings(monkeypatch)
+    notice, _document, snapshot = seed(session, store)
+    run = overview_runs.enqueue_overview_run(session, notice.id, settings=settings)
+    assert run is not None
+    run.snapshot_id = snapshot.id
+    session.commit()
+    client = _AssessmentClient({"prespec_overview_assessment": _combined_response()})
+
+    result = overview_runs.run_once(
+        session, "v8-worker", settings=settings,
+        client_factory=lambda _policy: client, store=store,
+    )
+
+    row = session.get(PrespecOverviewRun, run.id)
+    assert result.status == "completed"
+    assert row.profile_version_id == profile.id
+    assert row.profile_status == "ready"
+    assert row.profile_facts_json == [{
+        "ref": "capability.confirmed", "value": "확인됨", "quote": "승인된 근거",
+    }]
+    assert client.inputs[0]["profile"] == {
+        "status": "ready", "facts": row.profile_facts_json,
+    }
+
+
+def test_v8_invalid_assessment_preserves_the_verified_overview(context, monkeypatch):
+    session, store = context
+    settings = _v8_settings(monkeypatch)
+    notice, _document, snapshot = seed(session, store)
+    run = overview_runs.enqueue_overview_run(session, notice.id, settings=settings)
+    assert run is not None
+    run.snapshot_id = snapshot.id
+    session.commit()
+    response = _combined_response()
+    response["assessment"] = {"schema_version": "invalid"}
+    client = _AssessmentClient({"prespec_overview_assessment": response})
+
+    result = overview_runs.run_once(
+        session, "v8-worker", settings=settings,
+        client_factory=lambda _policy: client, store=store,
+    )
+
+    row = session.get(PrespecOverviewRun, run.id)
+    assert (result.status, row.status, row.call_count) == ("completed", "completed", 1)
+    assert row.result_json is not None
+    assert row.assessment_json is None
+    assert (row.assessment_status, row.assessment_grade) == ("held", None)
+    assert row.assessment_checks_json["reason_codes"] == ["assessment_schema_invalid"]
+
+
+def test_v8_format_retry_plus_semantic_review_uses_the_three_call_budget(context, monkeypatch):
+    session, store = context
+    settings = _v8_settings(monkeypatch)
+    notice, _document, snapshot = seed(session, store)
+    run = overview_runs.enqueue_overview_run(session, notice.id, settings=settings)
+    assert run is not None
+    run.snapshot_id = snapshot.id
+    session.commit()
+    client = _AssessmentClient({
+        "prespec_overview_assessment": (
+            b'{"schema_version":',
+            _combined_response(relation="unrelated"),
+        ),
+        "prespec_overview_assessment_semantic": _assessment_semantic(),
+    })
+
+    result = overview_runs.run_once(
+        session, "v8-worker", settings=settings,
+        client_factory=lambda _policy: client, store=store,
+    )
+
+    row = session.get(PrespecOverviewRun, run.id)
+    assert result.status == "completed"
+    assert row.call_count == 3
+    assert client.stages == [
+        "prespec_overview_assessment",
+        "prespec_overview_assessment",
+        "prespec_overview_assessment_semantic",
+    ]
+    assert (row.assessment_status, row.assessment_grade) == ("graded", "제외")
+
+
+def test_v8_semantic_format_failure_keeps_overview_and_holds_grade(context, monkeypatch):
+    session, store = context
+    settings = _v8_settings(monkeypatch)
+    notice, _document, snapshot = seed(session, store)
+    run = overview_runs.enqueue_overview_run(session, notice.id, settings=settings)
+    assert run is not None
+    run.snapshot_id = snapshot.id
+    session.commit()
+    client = _AssessmentClient({
+        "prespec_overview_assessment": _combined_response(relation="unrelated"),
+        "prespec_overview_assessment_semantic": b"{",
+    })
+
+    result = overview_runs.run_once(
+        session, "v8-worker", settings=settings,
+        client_factory=lambda _policy: client, store=store,
+    )
+
+    row = session.get(PrespecOverviewRun, run.id)
+    assert (result.status, row.status, row.call_count) == ("completed", "completed", 2)
+    assert row.result_json is not None
+    assert (row.assessment_status, row.assessment_grade) == ("held", None)
+    assert row.semantic_status == "failed"
+    assert row.semantic_scope_json[:2] == ["overview_full", "assessment_axes"]
+    assert "semantic_schema_invalid" in row.assessment_checks_json["reason_codes"]
+
+
+def test_v8_semantic_response_store_failure_keeps_overview_and_holds_grade(context, monkeypatch):
+    session, store = context
+    settings = _v8_settings(monkeypatch)
+    notice, _document, snapshot = seed(session, store)
+    run = overview_runs.enqueue_overview_run(session, notice.id, settings=settings)
+    assert run is not None
+    run.snapshot_id = snapshot.id
+    session.commit()
+    client = _AssessmentClient({
+        "prespec_overview_assessment": _combined_response(relation="unrelated"),
+        "prespec_overview_assessment_semantic": _assessment_semantic(),
+    })
+    stored = 0
+
+    def fail_on_semantic(*_args, **_kwargs):
+        nonlocal stored
+        stored += 1
+        if stored == 2:
+            raise ValueError("synthetic semantic store failure")
+        return "a" * 64
+
+    monkeypatch.setattr(overview_runs, "store_raw_model_response", fail_on_semantic)
+    result = overview_runs.run_once(
+        session, "v8-worker", settings=settings,
+        client_factory=lambda _policy: client, store=store,
+    )
+
+    row = session.get(PrespecOverviewRun, run.id)
+    assert (result.status, row.status, row.call_count) == ("completed", "completed", 2)
+    assert row.result_json is not None
+    assert (row.assessment_status, row.assessment_grade) == ("held", None)
+    assert row.semantic_status == "failed"
+    assert "response_store_unavailable" in row.assessment_checks_json["reason_codes"]
+    assert overview_runs.automation_completed_result(row) is None
+
+
+def test_v8_exact_automatic_binding_reuses_first_result(context, monkeypatch):
+    session, store = context
+    settings = _v8_settings(monkeypatch)
+    notice, _document, snapshot = seed(session, store)
+    first = overview_runs.enqueue_overview_run(session, notice.id, settings=settings)
+    assert first is not None
+    first.snapshot_id = snapshot.id
+    session.commit()
+    generated = _AssessmentClient({"prespec_overview_assessment": _combined_response()})
+    overview_runs.run_once(
+        session, "v8-worker", settings=settings,
+        client_factory=lambda _policy: generated, store=store,
+    )
+    first = session.get(PrespecOverviewRun, first.id)
+    assert first.status == "completed" and first.input_binding_sha256
+
+    second = overview_runs.enqueue_overview_run(
+        session, notice.id, range_source="human", page_start=1, page_end=1,
+        actor_name="담당자", settings=settings,
+    )
+    assert second is not None
+    # Simulate an automatic run that was admitted before the exact result
+    # committed. Public automatic enqueue normally removes this race earlier.
+    second.range_source = "auto"
+    second.page_start = None
+    second.page_end = None
+    second.snapshot_id = snapshot.id
+    session.commit()
+
+    result = overview_runs.run_once(
+        session, "v8-worker", settings=settings,
+        client_factory=lambda _policy: _NoInvokeAssessmentClient(), store=store,
+    )
+
+    row = session.get(PrespecOverviewRun, second.id)
+    assert (result.status, row.status, row.call_count) == ("completed", "completed", 0)
+    assert row.reused_from_run_id == first.id
+    assert row.result_json == first.result_json
+    assert row.assessment_json == first.assessment_json
+    assert "result_reused" in row.warnings_json
+
+
+def test_v8_human_rerun_evaluates_even_when_binding_matches(context, monkeypatch):
+    session, store = context
+    settings = _v8_settings(monkeypatch)
+    notice, _document, snapshot = seed(session, store)
+    first = overview_runs.enqueue_overview_run(session, notice.id, settings=settings)
+    assert first is not None
+    first.snapshot_id = snapshot.id
+    session.commit()
+    overview_runs.run_once(
+        session, "v8-worker", settings=settings,
+        client_factory=lambda _policy: _AssessmentClient({
+            "prespec_overview_assessment": _combined_response()
+        }),
+        store=store,
+    )
+
+    rerun = overview_runs.enqueue_overview_run(
+        session, notice.id, range_source="human", page_start=1, page_end=1,
+        actor_name="담당자", settings=settings,
+    )
+    assert rerun is not None
+    rerun.snapshot_id = snapshot.id
+    session.commit()
+    client = _AssessmentClient({"prespec_overview_assessment": _combined_response()})
+
+    result = overview_runs.run_once(
+        session, "v8-worker", settings=settings,
+        client_factory=lambda _policy: client, store=store,
+    )
+
+    row = session.get(PrespecOverviewRun, rerun.id)
+    assert result.status == "completed"
+    assert row.call_count == 1 and row.reused_from_run_id is None
+    assert client.stages == ["prespec_overview_assessment"]
 
 
 def _range_of(session, store, pages: list[str]):

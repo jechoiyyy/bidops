@@ -40,6 +40,9 @@ PreSpecDeadlineStatus = Literal["open", "passed", "unknown"]
 #: 미확인을 마감 경과로 접지 않는다(CLAUDE.md unknown/null 보존 게이트).
 PreSpecDeadlineScope = Literal["current", "passed", "all"]
 PreSpecGradeFilter = Literal["우선 검토", "검토 권장", "관찰 대상", "제외", "판정 없음"]
+PreSpecDisplayGradeFilter = Literal[
+    "우선 검토", "검토 권장", "관찰 대상", "제외", "판단 보류", "판정 없음"
+]
 PreSpecNextAction = Literal["confirm_overview", "open_deep_review", "decide_tracking"]
 
 
@@ -84,6 +87,31 @@ class PreSpecReviewExclusionResponse(RuntimeContractModel):
     items: list[PreSpecReviewExclusionResult]
 
 
+class PreSpecDisplayAssessmentAxis(RuntimeContractModel):
+    axis: Literal["ai_data", "blockchain_did", "public_si_integration"]
+    relation: Literal["direct", "partial", "indirect", "unrelated", "unknown"]
+    reason: str
+    claim_refs: list[str] = Field(default_factory=list)
+    company_refs: list[str] = Field(default_factory=list)
+
+
+class PreSpecDisplayAssessment(RuntimeContractModel):
+    grade: Literal["우선 검토", "검토 권장", "관찰 대상", "제외"] | None = None
+    status: Literal["graded", "held", "none"] = "none"
+    source: Literal[
+        "human_review", "preliminary_assessment", "screening_judgment", "none"
+    ] = "none"
+    basis_run_id: str | None = None
+    assessed_at: AwareDateTime | None = None
+    quality_status: Literal["unmeasured_reference", "mock_reference"] | None = None
+    reason_codes: list[str] = Field(default_factory=list)
+    axes: list[PreSpecDisplayAssessmentAxis] = Field(default_factory=list)
+    verification_items: list[str] = Field(default_factory=list)
+    semantic_status: Literal["not_run", "passed", "failed"] | None = None
+    semantic_scope: list[str] = Field(default_factory=list)
+    latest_run_status: PreSpecOverviewReviewStatus | None = None
+
+
 class PreSpecListItem(RuntimeContractModel):
     review_exclusion_status: PreSpecReviewExclusionStatus = "included"
     review_exclusion_actor_name: str | None = None
@@ -122,6 +150,7 @@ class PreSpecListItem(RuntimeContractModel):
     # (CLAUDE.md unknown/null 보존 게이트).
     grade: str | None = None
     grade_source: PreSpecGradeSource | None = None
+    display_assessment: PreSpecDisplayAssessment = Field(default_factory=PreSpecDisplayAssessment)
     # 제공자가 없는 배포에서는 자동 준비가 실제로 일어나지 않으므로
     # `not_applicable`이다. "알 수 없음"이 아니라 "대상이 아님"이다.
     auto_preparation_status: PreSpecAutoPreparationStatus = "not_applicable"
@@ -209,6 +238,8 @@ __all__ = [
     "PreSpecCandidateOrderPlan",
     "PreSpecDeadlineScope",
     "PreSpecDeadlineScopeCounts",
+    "PreSpecDisplayAssessment",
+    "PreSpecDisplayAssessmentAxis",
     "PreSpecDocumentSummary",
     "PreSpecOrderPlanCandidate",
     "PreSpecOrderPlanCandidatesResponse",
@@ -220,6 +251,7 @@ __all__ = [
     "PreSpecTrackingDecision",
     "PreSpecDeadlineStatus",
     "PreSpecGradeFilter",
+    "PreSpecDisplayGradeFilter",
     "PreSpecNextAction",
     "PreSpecOverviewStatusCount",
     "PreSpecSort",

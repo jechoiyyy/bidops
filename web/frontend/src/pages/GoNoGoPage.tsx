@@ -180,7 +180,7 @@ function comparisonCountLabel(item: BidDeltaDecisionQueueItem): string {
 }
 
 /** 근거 검증 상태 한 낱말. 서버 enum 원문(`verified`·`missing`·`mismatch`)은
- *  화면에 적지 않는다(ADR-0065 §3.3 한글화) — 값과 URL은 그대로다. */
+ *  화면에 적지 않는다(ADR-0066 §3.3 한글화) — 값과 URL은 그대로다. */
 function verificationLabel(status: BidDeltaEvidenceView["verification_status"]): string {
   if (status === "verified") return "검증됨";
   if (status === "missing") return "근거 없음";
@@ -375,7 +375,7 @@ export function GoNoGoPage() {
                 : "비교 상세를 불러오는 중입니다"}
       </Heading>
       {/* 비교가 만들어지지 않는 **이유**(계산 프로그램 미구현)는 `목록 기준`
-          다이얼로그 한 곳에서만 말한다(ADR-0065 §3.3). 여기 남는 것은 상태 표식과
+          다이얼로그 한 곳에서만 말한다(ADR-0066 §3.3). 여기 남는 것은 상태 표식과
           "비교 없음 ≠ 변경 없음"이라는 경고 ④다. */}
       {workspaceLoaded && !activeComparison ? <Token size="sm" label="비교 불가" /> : null}
       <Text as="p">
@@ -770,7 +770,7 @@ export function GoNoGoPage() {
                             </div>
                           </div>
                           {/* 문서 버전·공개 일시·문서 역할은 밖에, 해시는 접힌 곳에
-                              **전문**으로 둔다(ADR-0065 결정 2, 시안 M4 ③). 같은 문서인지
+                              **전문**으로 둔다(ADR-0066 결정 2, 시안 M4 ③). 같은 문서인지
                               눈으로 대조할 때 펴서 읽는다. */}
                           <TechnicalInfo summary="기술 정보 · 비교 문서 식별자와 해시">
                             <TechnicalFacts
@@ -933,7 +933,7 @@ export function GoNoGoPage() {
                   나머지 쌍과 기술 식별자는 결정 화면의 범주별 분석에 있습니다.
                 </Text>
               ) : null}
-              {/* 해시와 오류 코드는 지우지 않고 접힌 곳으로 모은다(ADR-0065 결정 2).
+              {/* 해시와 오류 코드는 지우지 않고 접힌 곳으로 모은다(ADR-0066 결정 2).
                   값은 **전문**이며 8자 축약을 만들지 않는다. 모르는 오류 코드도 그대로
                   통과시킨다(결정 3). */}
               <TechnicalInfo

@@ -145,7 +145,7 @@ export function PageOverviewFacts({
 
 /**
  * 검토가 실제로 읽은 범위. 쪽 번호 해석 안내와 검증 사유는 실무자가 본문의 쪽
- * 링크를 읽는 데 필요한 말이므로 여기 남고(ADR-0065 결정 5), 모델·프롬프트 같은
+ * 링크를 읽는 데 필요한 말이므로 여기 남고(ADR-0066 결정 5), 모델·프롬프트 같은
  * 실행 정보는 `PageOverviewResultFacts`가 갖는다.
  */
 export function PageOverviewExecutionInfo({ review }: { review: PageOverviewView }) {
@@ -165,7 +165,7 @@ function verificationBasisLabel(review: PageOverviewView): string {
 }
 
 /**
- * ⑥ 접힌 `기술 정보`의 개요 결과 식별 정보(ADR-0065 결정 1 `이동`·결정 2).
+ * ⑥ 접힌 `기술 정보`의 개요 결과 식별 정보(ADR-0066 결정 1 `이동`·결정 2).
  *
  * 종전에는 본문의 `검토 범위와 실행 정보` 줄과 ⑤ 근거 목록의 `<code>`가 나눠
  * 갖던 값이다. 주장 ID는 검증 진단이 없을 때도 읽을 수 있어야 하므로 여기에

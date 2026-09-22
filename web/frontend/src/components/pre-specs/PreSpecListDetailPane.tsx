@@ -16,7 +16,7 @@ import { useCurrentPageOverview } from "./PageOverviewSection";
 import { DeadlineMark } from "./PreSpecListRow";
 import { api } from "../../lib/api";
 import { formatDateTime } from "../../lib/format";
-import { gradeLabel, gradeSourceLabel } from "../../lib/grade";
+import { displayAssessmentLabel, displayAssessmentSourceLabel } from "../../lib/grade";
 import { readPreSpecLifecycle } from "../../lib/noticeLifecycle";
 import { formatPreSpecCaution, preSpecCautions } from "../../lib/preSpecCautions";
 import { preSpecDetailUrl } from "../../lib/preSpecSelectionReview";
@@ -233,7 +233,7 @@ export function PreSpecDetail({
           <span>게시 {formatDateTime(item.published_at)}</span>
           <span aria-hidden="true">·</span>
           <span>
-            적합성 등급 <strong>{gradeLabel(item.grade)}</strong> ({gradeSourceLabel(item.grade_source)})
+            예비 적합성 등급 <strong>{displayAssessmentLabel(item.display_assessment)}</strong> (개요 기준 · {displayAssessmentSourceLabel(item.display_assessment)})
           </span>
         </p>
       </StickyDecisionHeader>

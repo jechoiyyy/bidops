@@ -458,7 +458,7 @@ test("심층 보고서 우측 열이 문서 inventory와 사람 확인 필요 se
 
   const items = panel.locator(".deep-review-segment-list > li");
   await expect(items).toHaveCount(3);
-  // 계약 순번·블록 키·요구사항 ID 나열은 접힌 `기술 정보` 안이고(ADR-0065),
+  // 계약 순번·블록 키·요구사항 ID 나열은 접힌 `기술 정보` 안이고(ADR-0066),
   // 사람이 읽는 분류·건수·원문 조작은 밖에 남는다.
   const first = items.first();
   await expect(first).toContainText("2번째 구간");

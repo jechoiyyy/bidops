@@ -19,7 +19,9 @@ enqueue를 부르고, 합성 analysis worker의 개요 슬롯이 `run_once`를 �
 from __future__ import annotations
 
 import logging
+import os
 import re
+from copy import deepcopy
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -50,6 +52,7 @@ from ..models import (
     DocumentVersion,
     PrespecOverviewRun,
     PrespecV4PdfSnapshot,
+    ProfileVersion,
     WorkJob,
 )
 from .effective_grade import effective_grades, overview_eligible
@@ -71,11 +74,14 @@ from .pdf_snapshot import (
     snapshot_has_section_candidates,
 )
 from .prespec_overview_claim_policy import (
+    ASSESSMENT_SEMANTIC_STAGE,
+    ASSESSMENT_STAGE,
     CLAIMS_STAGE,
     FORMAT_RETRY_CODES,
     LIMITS,
     SEMANTIC_STAGE,
     build_claims_prompt,
+    build_assessment_stage_input,
     build_claims_stage_input,
     canonical_sha256,
     load_claims_policy,
@@ -85,6 +91,7 @@ from .prespec_overview_claim_validation import (
     SemanticResponseError,
     apply_semantic_review,
     build_input_limitations,
+    compose_deterministic_page_overview,
     compose_page_overview,
     draft_failure_checks,
     drop_failed_claims,
@@ -94,6 +101,53 @@ from .prespec_overview_claim_validation import (
     validate_claims_deterministically,
     verify_composed_page_overview,
 )
+from .preliminary_assessment import (
+    CombinedDraftError,
+    assessment_requires_semantic,
+    assessment_semantic_triggers,
+    calculate_assessment,
+    parse_assessment_semantic,
+    parse_combined_draft,
+)
+
+
+def _freeze_assessment_profile(
+    session: Session,
+) -> tuple[UUID | None, str | None, str, list[dict[str, Any]]]:
+    """Freeze the optional active profile without resolving deep-review policy."""
+
+    raw_id = os.environ.get("BIDOPS_ACTIVE_PROFILE_VERSION_ID")
+    if raw_id is None or not raw_id.strip():
+        return None, None, "not_configured", []
+    try:
+        profile_id = UUID(raw_id)
+    except (TypeError, ValueError):
+        return None, None, "invalid", []
+    profile = session.get(ProfileVersion, profile_id)
+    if profile is None:
+        return None, None, "invalid", []
+    try:
+        from .input_versions import profile_context
+
+        context = profile_context(session, profile)
+        source = context.get("facts") if isinstance(context, Mapping) else None
+        if not isinstance(source, list):
+            raise ValueError("profile_invalid")
+        facts = [
+            {
+                "ref": str(fact["fact_key"]),
+                "value": fact.get("value"),
+                "quote": str(fact["quote"]),
+            }
+            for fact in source
+            if isinstance(fact, Mapping)
+            and fact.get("status") == "confirmed"
+            and isinstance(fact.get("fact_key"), str)
+            and isinstance(fact.get("quote"), str)
+        ]
+    except (AttributeError, KeyError, TypeError, ValueError):
+        return profile.id, profile.profile_sha256, "invalid", []
+    return profile.id, profile.profile_sha256, "ready", facts
 
 #: 사람이 쪽 범위를 확정했을 때 남기는 감사 action.
 RANGE_CONFIRMATION_ACTION = "prespec_overview.range_confirmation"
@@ -254,6 +308,34 @@ def completed_result(run: PrespecOverviewRun | None) -> Mapping[str, Any] | None
         return None
     result = run.result_json
     return result if isinstance(result, Mapping) else None
+
+
+def automation_completed_result(run: PrespecOverviewRun | None) -> Mapping[str, Any] | None:
+    """Overview result allowed into the existing company-fit/auto-start chain.
+
+    A new combined run may finish after deterministic checks only.  That is
+    enough for the screen, but it must not silently weaken the older consumers'
+    whole-overview semantic verification boundary.
+    """
+
+    result = completed_result(run)
+    if result is None or run is None:
+        return None
+    if str(getattr(run, "contract_version", "overview-v1")) == "overview-assessment-v1":
+        scope = run.semantic_scope_json if isinstance(run.semantic_scope_json, list) else []
+        return result if run.semantic_status == "passed" and "overview_full" in scope else None
+    checks = run.checks_json if isinstance(run.checks_json, Mapping) else {}
+    return result if checks.get("overall") == "passed" else None
+
+
+def automation_overview_status(run: PrespecOverviewRun | None) -> str | None:
+    """Status interpreted by old automation consumers, separate from UI state."""
+
+    if run is None:
+        return None
+    if run.status == "completed" and automation_completed_result(run) is None:
+        return "needs_human_review"
+    return str(run.status)
 
 
 def _iso(value: datetime | None) -> str | None:
@@ -471,7 +553,31 @@ def run_view(
         "completed_at": _iso(run.completed_at),
         # --- 화면이 쓰는 파생 값. 저장 값을 옮긴 것이며 새 판정이 아니다. ---
         "result_id": str(run.id) if completed else None,
-        "prompt_version": prompt_version,
+        "prompt_version": run.prompt_version or prompt_version,
+        "contract_version": run.contract_version,
+        "assessment": (
+            {
+                "result": run.assessment_json if isinstance(run.assessment_json, Mapping) else None,
+                "checks": run.assessment_checks_json if isinstance(run.assessment_checks_json, Mapping) else None,
+                "grade": run.assessment_grade,
+                "status": run.assessment_status,
+                "semantic_status": run.semantic_status,
+                "semantic_scope": _string_list(run.semantic_scope_json),
+            }
+            if run.contract_version == "overview-assessment-v1"
+            else None
+        ),
+        "input_binding": {
+            "policy_digest": run.policy_digest,
+            "prompt_version": run.prompt_version,
+            "validator_version": run.validator_version,
+            "profile_version_id": str(run.profile_version_id) if run.profile_version_id else None,
+            "profile_digest": run.profile_digest,
+            "profile_status": run.profile_status,
+            "generation_config_digest": run.generation_config_digest,
+            "input_binding_sha256": run.input_binding_sha256,
+            "reused_from_run_id": str(run.reused_from_run_id) if run.reused_from_run_id else None,
+        },
         "verification_status": _verification_status(run.checks_json),
         "document_version_id": str(run.document_version_id) if run.document_version_id else None,
         "source_sha256": snapshot.source_sha256 if snapshot is not None else None,
@@ -491,6 +597,7 @@ def run_view(
 
 
 OVERVIEW_ENVELOPE_SCHEMA = "bidops.prespec-overview.v1"
+OVERVIEW_ASSESSMENT_ENVELOPE_SCHEMA = "bidops.prespec-overview.v2"
 
 
 #: 후보를 읽지 못했을 때 남기는 안전 코드 (화면이 쪽 입력으로 넘어간다).
@@ -660,7 +767,11 @@ def overview_envelope(session: Session, notice_id: int, *, store: Any | None = N
         for run in history
     ]
     return {
-        "schema": OVERVIEW_ENVELOPE_SCHEMA,
+        "schema": (
+            OVERVIEW_ASSESSMENT_ENVELOPE_SCHEMA
+            if any(run.contract_version == "overview-assessment-v1" for run in history)
+            else OVERVIEW_ENVELOPE_SCHEMA
+        ),
         "notice_id": int(notice_id),
         "current": rows[0] if rows else None,
         "history": rows,
@@ -729,11 +840,12 @@ def enqueue_overview_run(
     사전 조회로 조용히 물러난다.
 
     자동 촉발(`range_source="auto"`)에는 중복 방지가 하나 더 붙는다(결정 28).
-    같은 공고·같은 제안요청서 문서 버전·같은 policy digest로 이미
+    같은 공고·같은 제안요청서 문서 버전으로 이미
     `completed`·`needs_human_review`로 닫힌 run이 있으면 새 run을 만들지 않는다.
     공고 트랙의 4일 창이 같은 사전규격을 여러 번 재관측해도 개요·회사 핏 모델
     호출을 반복하지 않게 하려는 것이다. `failed`·`cancelled`만 있으면 다음
-    촉발이 재시도하고, 문서나 policy가 바뀌면 새 run이 들어간다. 사람이 범위를
+    촉발이 재시도하고, 문서가 바뀌면 새 run이 들어간다. 정책·프로필 변경만으로
+    과거 문서를 자동 재평가하지 않는다. 사람이 범위를
     확정한 `human` 재실행은 이 규칙을 지나지 않는다.
     """
 
@@ -769,7 +881,6 @@ def enqueue_overview_run(
             .where(
                 PrespecOverviewRun.notice_id == int(notice_id),
                 PrespecOverviewRun.document_version_id == document.id,
-                PrespecOverviewRun.policy_digest == policy.digest,
                 PrespecOverviewRun.status.in_(RESULT_STATUSES),
             )
             .limit(1)
@@ -777,6 +888,17 @@ def enqueue_overview_run(
         if already_reviewed is not None:
             return None
     run_id = uuid4()
+    if policy.is_assessment:
+        profile_id, profile_digest, profile_status, profile_facts = _freeze_assessment_profile(session)
+        contract_version = "overview-assessment-v1"
+        validator_version = "prespec-preliminary-assessment.v1"
+        first_stage = "prespec_overview_assessment"
+    else:
+        profile_id, profile_digest, profile_status, profile_facts = None, None, "not_configured", []
+        contract_version = "overview-v1"
+        validator_version = "prespec-claim-evidence.v2"
+        first_stage = CLAIMS_STAGE
+    generation = dict(policy.stage_policy(first_stage)["generation"])
     job = WorkJob(
         id=uuid4(),
         job_type=OVERVIEW_JOB_TYPE,
@@ -800,6 +922,16 @@ def enqueue_overview_run(
         policy_digest=policy.digest,
         model_name=str(policy.document["model_name"]),
         model_revision=None,
+        contract_version=contract_version,
+        prompt_version=str(policy.document["prompt_version"]),
+        validator_version=validator_version,
+        profile_version_id=profile_id,
+        reused_from_run_id=None,
+        profile_digest=profile_digest,
+        profile_status=profile_status,
+        profile_facts_json=profile_facts,
+        generation_config_json=generation,
+        generation_config_digest=canonical_sha256(generation),
         warnings_json=[],
         reason_codes=[],
         call_count=0,
@@ -1221,6 +1353,52 @@ def _binding_digest(run: PrespecOverviewRun, policy: Any) -> str:
     })
 
 
+def _reuse_assessment_result(session: Session, run: PrespecOverviewRun) -> bool:
+    """Reuse an exact v8 binding for automatic work, preserving first origin.
+
+    The public human rerun path uses ``range_source=human`` and always evaluates
+    again.  Automatic enqueue normally prevents this situation before a run is
+    created; this execution fence also covers a run that was already queued
+    when another exact result committed.
+    """
+
+    if (
+        run.range_source == "human"
+        or run.contract_version != "overview-assessment-v1"
+        or not run.input_binding_sha256
+    ):
+        return False
+    source = session.scalars(
+        select(PrespecOverviewRun)
+        .where(
+            PrespecOverviewRun.id != run.id,
+            PrespecOverviewRun.input_binding_sha256 == run.input_binding_sha256,
+            PrespecOverviewRun.contract_version == run.contract_version,
+            PrespecOverviewRun.status == "completed",
+        )
+        .order_by(PrespecOverviewRun.created_at.asc(), PrespecOverviewRun.id.asc())
+        .limit(1)
+    ).first()
+    if (
+        source is None
+        or not isinstance(source.result_json, Mapping)
+        or not isinstance(source.draft_json, Mapping)
+        or not isinstance(source.checks_json, Mapping)
+        or source.assessment_status not in {"graded", "held"}
+        or not isinstance(source.assessment_checks_json, Mapping)
+    ):
+        return False
+    for field in (
+        "draft_json", "checks_json", "result_json", "assessment_json",
+        "assessment_checks_json", "assessment_grade", "assessment_status",
+        "semantic_status", "semantic_scope_json",
+    ):
+        setattr(run, field, deepcopy(getattr(source, field)))
+    run.reused_from_run_id = source.reused_from_run_id or source.id
+    run.warnings_json = sorted({*_string_list(source.warnings_json), "result_reused"})
+    return True
+
+
 class _Caller:
     """호출 상한·원응답 저장·call_count를 한 곳에서 지키는 호출 seam."""
 
@@ -1369,6 +1547,199 @@ def _run_draft(caller: _Caller, stage_input: Mapping[str, Any], run: PrespecOver
     raise _RunFailure("failed", "draft_format_retry_exhausted")
 
 
+def _run_combined_draft(caller: _Caller, stage_input: Mapping[str, Any]) -> Any:
+    """One combined generation and one retry for indivisible format failures."""
+
+    codes: list[str] = []
+    for attempt in range(2):
+        correction = build_correction(codes) if attempt else None
+        seed = VALIDATION_RETRY_SEED if attempt else None
+        try:
+            _response, raw = caller.invoke(
+                ASSESSMENT_STAGE, "combined_draft", stage_input,
+                correction=correction, seed=seed,
+            )
+            parsed = parse_combined_draft(_draft_text(raw))
+        except ModelInvocationError as error:
+            code = str(getattr(error, "code", "") or "provider_error")
+            if code not in _RETRYABLE_INVOCATION_CODES or attempt:
+                raise _RunFailure(
+                    "failed",
+                    "draft_format_retry_exhausted" if code in _RETRYABLE_INVOCATION_CODES else code,
+                ) from error
+            codes = [code]
+            continue
+        except (UnicodeError, CombinedDraftError) as error:
+            code = getattr(error, "code", "json_invalid")
+            if attempt:
+                raise _RunFailure("failed", "draft_format_retry_exhausted") from error
+            codes = [str(code)]
+            continue
+        if parsed.overview is None:
+            raise _RunFailure("needs_human_review", parsed.overview_error or "overview_schema_invalid")
+        return parsed
+    raise _RunFailure("failed", "draft_format_retry_exhausted")
+
+
+def _execute_assessment(
+    run: PrespecOverviewRun,
+    caller: _Caller,
+    policy: Any,
+    pages: dict[int, str],
+    snapshot: PrespecV4PdfSnapshot,
+) -> None:
+    """Execute the v8 combined path while publishing facts and grade separately."""
+
+    try:
+        stage_input = build_assessment_stage_input(
+            pages,
+            profile_status=run.profile_status,
+            company_facts=list(run.profile_facts_json or []),
+        )
+    except ValueError as error:
+        raise _RunFailure("failed", "input_capacity_exceeded") from error
+    parsed = _run_combined_draft(caller, stage_input)
+    draft = parsed.overview
+    run.draft_json = draft.model_dump(mode="json")
+    run.assessment_json = (
+        parsed.assessment.model_dump(mode="json") if parsed.assessment is not None else None
+    )
+
+    try:
+        full_checks = validate_claims_deterministically(
+            draft,
+            pages,
+            attempt_id=run.id,
+            input_sha256=str(run.input_sha256),
+            policy_digest=policy.digest,
+            binding_digest=_binding_digest(run, policy),
+        )
+    except (ClaimDraftError, ValueError) as error:
+        code = "input_capacity_exceeded" if str(error) == "input_limit_exceeded" else "runner_failed"
+        raise _RunFailure("failed", code) from error
+    run.checks_json = full_checks.model_dump(mode="json")
+    run.warnings_json = sorted({*_string_list(run.warnings_json), *full_checks.warnings})
+    if not full_checks.checks:
+        raise _RunFailure("needs_human_review", "claims_empty")
+    if full_checks.reason_codes:
+        raise _RunFailure("needs_human_review", "deterministic_check_failed")
+    subset = drop_failed_claims(draft, full_checks)
+    if not subset.checks.checks or len(subset.checks.checks) * 2 < len(full_checks.checks):
+        raise _RunFailure("needs_human_review", "deterministic_check_failed")
+    draft, checks = subset.draft, subset.checks
+    run.warnings_json = sorted({
+        *_string_list(run.warnings_json),
+        *(["claims_dropped"] if subset.dropped_claim_ids else []),
+    })
+
+    semantic = None
+    semantic_error: str | None = None
+    semantic_triggers: tuple[str, ...] = ()
+    semantic_required = bool(
+        parsed.assessment is not None
+        and assessment_requires_semantic(parsed.assessment, checks)
+    )
+    if semantic_required:
+        semantic_triggers = assessment_semantic_triggers(parsed.assessment, checks)
+        run.semantic_scope_json = [
+            "overview_full",
+            "assessment_axes",
+            *[f"claim:{claim.id}" for claim in draft.claims],
+            *[f"axis:{row.axis}" for row in parsed.assessment.axes],
+        ]
+        try:
+            semantic_input = build_assessment_stage_input(
+                pages,
+                profile_status=run.profile_status,
+                company_facts=list(run.profile_facts_json or []),
+                draft=draft,
+                assessment=parsed.assessment,
+                checks=checks,
+            )
+            _response, raw = caller.invoke(
+                ASSESSMENT_SEMANTIC_STAGE,
+                "assessment_semantic",
+                semantic_input,
+                expected_check_count=len(draft.claims),
+            )
+            semantic = parse_assessment_semantic(_draft_text(raw))
+            reviewed = apply_semantic_review(
+                draft,
+                checks,
+                {
+                    "schema_version": "bidops.prespec-overview-semantic.v1",
+                    "checks": [row.model_dump(mode="json") for row in semantic.claim_checks],
+                },
+            )
+            checks = reviewed
+            stored = merge_semantic_checks(full_checks, reviewed) if subset.dropped_claim_ids else reviewed
+            run.checks_json = stored.model_dump(mode="json")
+            run.warnings_json = sorted({*_string_list(run.warnings_json), *stored.warnings})
+            run.semantic_status = (
+                "passed"
+                if reviewed.overall == "passed"
+                and all(row.status == "supported" for row in semantic.assessment_checks)
+                else "failed"
+            )
+        except ModelInvocationError as error:
+            semantic_error = str(getattr(error, "code", "") or "semantic_response_invalid")
+            run.semantic_status = "failed"
+        except _RunFailure as error:
+            # The combined response and its raw audit object are already
+            # stored.  A technical failure in the optional semantic pass must
+            # not hide that deterministically verified overview; it only
+            # prevents the preliminary grade from being published.
+            semantic_error = error.code
+            run.semantic_status = "failed"
+        except (CombinedDraftError, SemanticResponseError, UnicodeError, ValueError) as error:
+            semantic_error = str(getattr(error, "code", "") or "semantic_response_invalid")
+            run.semantic_status = "failed"
+
+    try:
+        payload = compose_deterministic_page_overview(
+            draft,
+            checks,
+            verification_id=run.id,
+            input_limitations=build_input_limitations(
+                sorted(pages), pdf_page_count=int(snapshot.pdf_page_count),
+            ),
+        )
+    except ValueError as error:
+        raise _RunFailure("needs_human_review", "composition_not_verified") from error
+    run.result_json = payload.model_dump(mode="json")
+    run.warnings_json = sorted({*_string_list(run.warnings_json), *empty_sections(payload)})
+
+    if parsed.assessment is None:
+        decision = {
+            "status": "held", "grade": None, "semantic_required": False,
+            "reason_codes": [parsed.assessment_error or "assessment_schema_invalid"],
+            "validator_version": "prespec-preliminary-assessment.v1",
+        }
+    else:
+        decision = calculate_assessment(
+            parsed.assessment,
+            checks,
+            profile_status=run.profile_status,
+            allowed_company_refs=[
+                str(row.get("ref"))
+                for row in (run.profile_facts_json or [])
+                if isinstance(row, Mapping) and isinstance(row.get("ref"), str)
+            ],
+            semantic=semantic,
+        ).as_dict()
+    if semantic_error is not None:
+        decision["status"] = "held"
+        decision["grade"] = None
+        decision["reason_codes"] = sorted({*decision["reason_codes"], semantic_error})
+    run.assessment_status = str(decision["status"])
+    run.assessment_grade = decision["grade"]
+    run.assessment_checks_json = {
+        **decision,
+        "semantic_trigger_codes": list(semantic_triggers),
+        "semantic": semantic.model_dump(mode="json") if semantic is not None else None,
+    }
+
+
 def _execute(
     session: Session,
     run: PrespecOverviewRun,
@@ -1382,6 +1753,14 @@ def _execute(
     """claim된 run 하나를 끝까지 실행하고 그 상태를 run에 적는다."""
 
     policy = load_claims_policy(settings.prespec_overview_policy_path)
+    if (
+        run.policy_digest != policy.digest
+        or run.prompt_version not in {None, policy.document["prompt_version"]}
+        or run.generation_config_digest not in {None, canonical_sha256(policy.stage_policy(
+            "prespec_overview_assessment" if policy.is_assessment else CLAIMS_STAGE
+        )["generation"])}
+    ):
+        raise _RunFailure("failed", "binding_mismatch")
     document = session.get(DocumentVersion, run.document_version_id)
     if document is None:
         raise _RunFailure("failed", "runner_failed")
@@ -1425,13 +1804,14 @@ def _execute(
         run.range_source = "fallback"
 
     # --- model client ---------------------------------------------------------
+    initial_stage = ASSESSMENT_STAGE if policy.is_assessment else CLAIMS_STAGE
     try:
         client = (
             client_factory(policy) if client_factory is not None
             else ModelClient.for_purpose(
                 "overview",
                 model=str(policy.document["model_name"]),
-                output_contract=policy.structured_output_contract(CLAIMS_STAGE),
+                output_contract=policy.structured_output_contract(initial_stage),
                 settings=settings,
             )
         )
@@ -1441,7 +1821,26 @@ def _execute(
             str(getattr(error, "code", "") or IDENTITY_UNAVAILABLE_REASON), error
         ) from error
     run.model_revision = str(getattr(identity, "revision", "") or "") or None
+    run.input_binding_sha256 = canonical_sha256({
+        "document_version_id": str(run.document_version_id),
+        "input_sha256": run.input_sha256,
+        "policy_digest": run.policy_digest,
+        "prompt_version": run.prompt_version,
+        "validator_version": run.validator_version,
+        "profile_version_id": str(run.profile_version_id) if run.profile_version_id else None,
+        "profile_digest": run.profile_digest,
+        "profile_status": run.profile_status,
+        "model_name": run.model_name,
+        "model_revision": run.model_revision,
+        "generation_config_digest": run.generation_config_digest,
+    })
+    if _reuse_assessment_result(session, run):
+        return
     caller = _Caller(session, run, client, policy, settings=settings, clock=clock)
+
+    if policy.is_assessment:
+        _execute_assessment(run, caller, policy, pages, snapshot)
+        return
 
     # --- draft ---------------------------------------------------------------
     try:
@@ -1848,6 +2247,7 @@ __all__ = [
     "CANDIDATES_INCOMPLETE",
     "CANDIDATES_UNAVAILABLE",
     "OVERVIEW_AGGREGATE_TYPE",
+    "OVERVIEW_ASSESSMENT_ENVELOPE_SCHEMA",
     "OVERVIEW_ENVELOPE_SCHEMA",
     "OVERVIEW_JOB_TYPE",
     "RANGE_CONFIRMATION_ACTION",
@@ -1857,6 +2257,8 @@ __all__ = [
     "OverviewRequestError",
     "OverviewRunResult",
     "active_run",
+    "automation_completed_result",
+    "automation_overview_status",
     "cancel_queued_runs",
     "completed_result",
     "confirm_range",

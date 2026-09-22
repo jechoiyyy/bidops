@@ -73,7 +73,7 @@ export function CompanyFitVerificationItems({ attempt }: { attempt: CompanyFitAt
 }
 
 /**
- * 한 판정 실행의 고정 입력·식별 해시·소요(ADR-0065 결정 1 `이동`·결정 2).
+ * 한 판정 실행의 고정 입력·식별 해시·소요(ADR-0066 결정 1 `이동`·결정 2).
  *
  * 종전 ④ 회사 적합성 구역 안의 `판정 기준과 실행 정보` 접힘이었다. 같은 화면
  * ⑥의 접힌 `기술 정보` 하나로 모았으므로(docs/0915_ui-redesign/spec.md:234)

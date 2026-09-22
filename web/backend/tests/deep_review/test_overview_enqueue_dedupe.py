@@ -1,8 +1,8 @@
 """자동 개요 enqueue의 중복 방지 (결정 28, 2026-09-18).
 
-공고 트랙의 4일 창은 같은 사전규격을 최대 4회 재관측한다. 같은 문서 버전·같은
-policy digest로 이미 결과가 남은 run이 있으면 자동 촉발은 조용히 물러나고,
-재시도 대상 종결·문서나 policy 변경·사람의 명시적 재실행은 새 run을 만든다.
+공고 트랙의 4일 창은 같은 사전규격을 최대 4회 재관측한다. 같은 문서 버전으로
+이미 결과가 남은 run이 있으면 정책 변경과 무관하게 자동 촉발은 조용히 물러난다.
+재시도 대상 종결·문서 변경·사람의 명시적 재실행은 새 run을 만든다.
 """
 
 from __future__ import annotations
@@ -76,14 +76,12 @@ def test_a_new_document_version_gets_a_new_run(context):
     assert run is not None and run.document_version_id == document.id
 
 
-def test_a_changed_policy_digest_gets_a_new_run(context):
+def test_a_changed_policy_digest_does_not_reassess_the_same_document(context):
     session, store = context
     notice, _document, _snapshot = seed(session, store)
     _settle(session, _enqueue(session, notice.id), "completed", policy_digest="e" * 64)
 
-    run = _enqueue(session, notice.id)
-
-    assert run is not None and run.policy_digest != "e" * 64
+    assert _enqueue(session, notice.id) is None
 
 
 def test_a_human_range_ignores_the_dedupe(context):

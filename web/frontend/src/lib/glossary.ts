@@ -13,7 +13,7 @@
  *   번역은 표시만 바꾸며 서버 값과 unknown·null의 의미는 보존한다.
  * - 식별자와 해시 값 자체(문서 버전 ID, SHA-256, request ID). 사람이 눈으로
  *   대조하는 값이므로 **줄이지 않는다.** 실무 화면에서 운영 화면이나 같은 화면의
- *   접힌 기술 정보로 **옮길 수는 있다**(ADR-0065 결정 2). 옮길 때도 값을 자르지
+ *   접힌 기술 정보로 **옮길 수는 있다**(ADR-0066 결정 2). 옮길 때도 값을 자르지
  *   않으며, 그 값을 가리키는 **이름**만 이 표의 낱말로 바꾼다(`digest` → `식별 해시`).
  * - 이미 라벨 맵이 있는 업무 상태(`BUNDLE_STATUS_LABELS`,
  *   `PRE_SPEC_*_LABEL`, `QUALITY_STATUS_LABEL` …). 그 맵이 그 도메인의 정본이다.
@@ -60,7 +60,7 @@ export const TERM = {
 export type GlossaryTerm = keyof typeof TERM;
 
 /**
- * 발주계획 실무 화면의 계약 값 → 한글 라벨(ADR-0065 결정 3, 0921 명세 §3.1).
+ * 발주계획 실무 화면의 계약 값 → 한글 라벨(ADR-0066 결정 3, 0921 명세 §3.1).
  *
  * **표시만 바꾼다.** URL 질의 값과 서버로 보내는 값은 아래 key 그대로이며,
  * `unknown`·`null`의 의미도 그대로다. 표에 없는 값(서버가 새 enum을 준 경우)은
@@ -105,7 +105,7 @@ export const ORDER_PLAN_NULL_LABEL = "값 없음";
 /** 추적 축의 `none`. 소유 사업기회를 확인하지 못한 행이며 `미선택`이 아니다. */
 export const ORDER_PLAN_TRACKING_NONE_LABEL = "사업기회 미연결";
 
-/** 표에 있는 값만 옮기고 모르는 값은 원문 그대로 보인다(ADR-0065 결정 3). */
+/** 표에 있는 값만 옮기고 모르는 값은 원문 그대로 보인다(ADR-0066 결정 3). */
 export function orderPlanLabel(labels: Readonly<Record<string, string>>, value: string): string {
   return labels[value] ?? value;
 }

@@ -57,7 +57,7 @@
    칸이며(목록 조회 도구·검색 UX 통일이 정한 순서), 전체 이력 전용인 `검토 포함 여부`와 검토할 항목 전용인
    마감 구간은 서로 배타적이므로 **같은 칸을 나눠 쓴다** — 두 컨트롤이 동시에 보이는 보기는 없다.
 
-   **2026-09-21 개정([ADR-0065](0065-practitioner-ops-information-boundary.md), ADR-0065 구현 시 적용)**:
+   **2026-09-21 개정([ADR-0066](0066-practitioner-ops-information-boundary.md), ADR-0066 구현 시 적용)**:
    위 순서에서 `수집 회차` 칸이 빠져 `상세 필터 토글 → 검색 → 추가 조회 조건` 세 칸이 된다. 수집 회차
    선택은 공용 컴포넌트 `SourceRunFilter`로 통일해 `상세 필터`(`WorkspaceFilterAdvanced`) 안으로 옮긴다
    ([ADR-0062](0062-explore-workspace-structure-unification.md)의 `수집 회차 선택` 행 개정). 이 결정의 나머지는

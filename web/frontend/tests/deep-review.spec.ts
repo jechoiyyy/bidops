@@ -411,7 +411,7 @@ test("심층검토 의견은 확인 없이는 요청이 나가지 않고 취소�
   expect(trace.opinionPosts).toHaveLength(1);
 });
 
-// ── 패키지 R5 · 기술 정보 접기(ADR-0065, spec §3.2) ────────────────────────
+// ── 패키지 R5 · 기술 정보 접기(ADR-0066, spec §3.2) ────────────────────────
 
 // 실패는 사람 말 한 문장이 먼저 말한다. 서버가 정한 코드는 사라지지 않고 같은
 // 자리의 접힌 `기술 정보` 안에 전문으로 남는다.
@@ -444,7 +444,7 @@ test("실패한 분석은 사람 말 문장을 먼저 보이고 오류 코드는
   await expect(historyCodes).toContainText("model_timeout");
 });
 
-// 화면이 모르는 코드는 다른 사유로 바꾸거나 숨기지 않는다(ADR-0065 결정 3).
+// 화면이 모르는 코드는 다른 사유로 바꾸거나 숨기지 않는다(ADR-0066 결정 3).
 test("사전에 없는 오류 코드는 문장 안에 그대로 보인다", async ({ page }) => {
   await mockApi(page);
   await mockDeepReviewLifecycle(page, "failed");
@@ -518,7 +518,7 @@ test("근거 카드는 인용문·쪽·신뢰도를 바로 보이고 SHA-256 전
   await expect(scope.getByText("2026-08-26T00:00:00Z", { exact: true })).toBeVisible();
 });
 
-// 지우면 안 되는 경고는 접힘과 무관하게 늘 보인다(ADR-0065 결정 5).
+// 지우면 안 되는 경고는 접힘과 무관하게 늘 보인다(ADR-0066 결정 5).
 test("품질 표식·범위 주석·검증 요약은 접힘 밖에 그대로 남는다", async ({ page }) => {
   await mockApi(page);
   await mockDeepReviewLifecycle(page, "completed");

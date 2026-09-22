@@ -55,7 +55,7 @@ export interface RouteMetadata {
   /** 상단바 표시 방식. 없으면 `breadcrumb`이다(대부분의 화면은 손대지 않는다). */
   topbar?: RouteTopbarMode;
   /* 편집 범위(`… 저장 가능`)는 더 이상 route metadata가 아니다 — 상단바 칩을
-     없앴고(ADR-0065 §3.3, 시안 M4 결정 2) 읽는 곳이 남지 않았다. 무엇을 저장할
+     없앴고(ADR-0066 §3.3, 시안 M4 결정 2) 읽는 곳이 남지 않았다. 무엇을 저장할
      수 있는지는 각 화면의 결정 UI가 말한다. */
   runSelectorVisible: boolean;
   /** 사이드바 1차 분류 라벨. 상단 경로의 첫 칸이다. */

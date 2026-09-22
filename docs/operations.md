@@ -1112,11 +1112,18 @@ BIDOPS_VLLM_OVERVIEW_ALLOWED_HOSTS=<approved-ip>
 BIDOPS_VLLM_OVERVIEW_API_KEY=EMPTY
 BIDOPS_VLLM_OVERVIEW_MODEL_REVISION=<64-hex-revision>
 BIDOPS_PRESPEC_OVERVIEW_ENABLED=true
+BIDOPS_PRESPEC_OVERVIEW_POLICY_PATH=/app/app/deep_review/policies/prespec-overview-policy-v7.json
 ```
 
 `BIDOPS_PRESPEC_OVERVIEW_ENABLED`가 `false`(기본값)면 개요 run이 자동으로 만들어지지
 않는다. 이 참조 실행은 C-2를 돌리지 않으므로 `docker-compose.c2-order-plan.yml`을 붙이지
 않으며, 따라서 C-2 입력 파일 host 경로도 필요 없다.
+
+v8 예비 판단 정책 파일은 제품 코드에 있지만 기본값은 v7이다. v8 경로로 바꾸는 것은 실제
+모델 호출과 기존 자동화 소비 경계에 영향을 주는 운영 변경이다. 0031 migration, web과
+analysis-worker의 동일 image·정책 mount, 고정 표본의 사람 품질 비교, 전체 백업·롤백 태그를
+준비한 뒤 **정책 경로 변경 직전에 별도 사람 확인**을 받는다. 참조·mock·미측정 결과만으로
+경로를 바꾸지 않는다.
 
 ```bash
 docker compose --env-file .env --env-file env/model.env \
@@ -1130,8 +1137,9 @@ docker compose --env-file .env --env-file env/model.env \
    (`confirmed_by_name = auto-preparation`).
 2. `BIDOPS_PRESPEC_OVERVIEW_ENABLED=true`이면 확정된 ready 묶음에서 analysis worker의 개요
    slot이 `prespec_overview_run`을 자동 enqueue하고 실행한다.
-3. `SW사업대상=Y`이고 개요 run이 `completed`이면 현재 회사 핏이 `matched`일 때 심층 검토가
-   자동으로 생성된다.
+3. `SW사업대상=Y`이고 기존 자동화가 소비할 수 있는 개요 전체 검증 결과가 있으며 현재 회사
+   핏이 `matched`일 때 심층 검토가 자동으로 생성된다. v8은 `completed`만으로 이 조건을
+   충족하지 않고 `semantic_status=passed`와 `overview_full` 범위가 필요하다.
 
 플래그가 켜져 있는 동안 1의 자격은 "`우선 검토` 또는 `SW사업대상=Y`"다(2026-09-11 MVP 완화).
 이미 적재가 끝나 촉발 지점이 지나간 공고는 `docker compose exec web python -m
@@ -1164,6 +1172,9 @@ curl --fail "http://127.0.0.1:${BIDOPS_WEB_PORT:-18787}/api/deep-reviews/<deep_r
 - **확인**:
   - `current.status`가 `completed`이면 `result`가 채워진다. `needs_human_review`·`failed`도
     정상적인 결과다 — `reason_codes`로 사유를 확인하고 실패를 통과로 바꾸지 않는다.
+  - v8 envelope이면 `current.assessment.status`, `semantic_status`, `semantic_scope`를 따로 본다.
+    `not_run`은 정상 저위험 경로일 수 있지만 의미검증 통과가 아니고, `held`의 grade는 null이어야
+    한다. 화면용 grade가 있어도 자동 심층 시작 자격으로 읽지 않는다.
   - 심층 검토의 `status`가 `completed`이고 report의 `validation.status`를 읽는다.
     `failed`도 정상적인 결과다 — 실패를 통과로 바꾸지 않는다.
   - report의 `quality_status`가 `unmeasured_reference`·`mock_reference`이거나 `null`이다.
@@ -1189,15 +1200,16 @@ curl --fail "http://127.0.0.1:${BIDOPS_WEB_PORT:-18787}/api/deep-reviews/<deep_r
 
 | 화면 | 확인할 것 |
 |---|---|
-| `/pre-specs` | 등급과 `등급 출처 · 판정\|정정\|없음`, 자동 준비 8값 한국어 문구, 등급 필터가 **브라우저 쪽 필터**라는 안내 |
-| `/pre-specs/<notice_pk>` | 개요 카드의 품질 표식(`참조 실행 · 품질 미측정` 또는 `mock 참조`), 근거 locator로 원문 열기 |
+| `/pre-specs` | `예비 적합성 등급`과 `개요 기준` 출처, 판단 보류·판정 없음, 자동 준비 8값, `display_grade` 서버 필터와 건수 일치 |
+| `/pre-specs/<notice_pk>` | 예비 판단의 축별 이유·출처·시각·품질·선택 의미검증 상태, 개요 카드의 근거 locator로 원문 열기 |
 | `/deep-reviews/<id>` | 상단 카드 다섯(`종합 판단`·`검증 결과`·`미확인 사항`·`보고서 revision`·`품질 표식`), 우측 열 네 구역(`보고서 범위` → 문서 inventory → `보고서 수정본 저장` → 이력) |
 | 문서 inventory 패널 | 선택한 근거가 가리키는 **문서 하나**만 보인다는 안내와 segment 제목이 없는 이유 |
 
-등급 필터는 URL `/pre-specs?grade=<값>`으로 열린다. 허용 값은
-`우선 검토|검토 권장|관찰 대상|제외|판정 없음`이고 그 밖의 값은 `전체`로 떨어진다.
-`grade`를 바꾸면 `offset`이 초기화된다. **이 필터는 이미 받은 페이지만 좁히므로 상단의
-개요 상태 집계와 대상 집합이 다르다.** 화면이 그 사실을 적어 두었는지 함께 확인한다.
+화면 등급 필터는 URL `/pre-specs?display_grade=<값>`으로 열린다. 허용 값은
+`우선 검토|검토 권장|관찰 대상|제외|판단 보류|판정 없음`이고 그 밖의 값은 `전체`로 떨어진다.
+필터를 바꾸면 `offset`이 초기화되고 서버가 페이지 분할 전에 적용한다. 구버전
+`grade=<값>` URL은 진입 시 `display_grade`로 정규화한다. API의 기존 `grade` query와
+응답 `grade|grade_source`는 자동화 호환을 위해 그대로다.
 
 증거는 `docs/validation-runs/<날짜>-prespec-deep-review-reference.md`에 남긴다. 아래 틀을
 그대로 쓴다. **실제로 실행한 명령과 요약 줄만 적고 이전 통과 기록을 재사용하지 않는다.**
@@ -1424,8 +1436,9 @@ PostgreSQL 행 잠금에 필요한 권한이며 코드에서 ID를 바꾸지 않
 ready 묶음에서 analysis worker의 개요 slot이 `prespec_overview_run`을 자동 enqueue하고,
 prepare(`prespec_v4_pdf_snapshot` 재사용 또는 신규 변환) → range(자동 선택 또는 fallback,
 사람 확정은 `POST /api/pre-specs/{notice_id}/overview/range-confirmations`) → draft →
-deterministic → semantic → save 순서로 실행한다. 상세 계약은
-[contracts.md](contracts.md#사전규격-개요-검토-mvp-2026-09-11)를 정본으로 한다. 진행·결과
+deterministic → v7 전체 semantic 또는 v8 선택 semantic → save 순서로 실행한다. v8은 사실
+개요와 예비 판단을 정상 1회에 만들고 위험 신호에만 한 번 더 검증한다. 상세 계약은
+[contracts.md](contracts.md#사전규격-개요-검토와-예비-적합성-판단-mvp-2026-09-21)를 정본으로 한다. 진행·결과
 확인은 `GET /api/pre-specs/{notice_id}/overview`다(위 6단계 참조).
 
 플래그를 켜지 않고 한 건만 넣어 보려면 `python -m app.deep_review.cli enqueue-overview
@@ -1458,6 +1471,16 @@ alembic upgrade head
 
 `alembic downgrade`는 이 migration에 제공하지 않는다. 복구가 필요하면 위 dump를 별도
 스키마에 복원해 대조한다.
+
+### 0031 예비 적합성 열 적용 전 확인
+
+`0031_prespec_preliminary_assessment`는 기존 `prespec_overview_run`을 삭제하지 않고 v1 행을
+보존한 채 입력 binding·프로필·판단·의미검증 열을 추가한다. 적용 직전 전체 PostgreSQL/MinIO
+백업과 롤백 태그를 남기고 현재 head가 `0030_prespec_review_exclusion`인지 확인한다. 서비스
+중지·migration·web/analysis-worker 교체는 각각 직전 사람 확인을 받는다. migration 뒤에는
+Alembic head, 기존 행의 `contract_version=overview-v1`, 새 CHECK/FK, app/worker 권한을 확인한다.
+downgrade로 이력을 삭제하지 않고 검증된 전체 백업으로 복구한다. 정책 기본값은 migration 뒤에도
+v7이며 v8 활성화는 별도 품질 비교와 정책 변경 확인을 요구한다.
 
 ### 회사 핏 단계의 배포와 참조 검증
 
