@@ -12,7 +12,7 @@ import {
 } from "../components/deep-review/api";
 import { attemptFailureSentence } from "../components/deep-review/attemptErrors";
 import { SegmentInventoryPanel } from "../components/deep-review/SegmentInventoryPanel";
-import { TechnicalFacts, TechnicalInfo, type TechnicalFact } from "../components/deep-review/TechnicalInfo";
+import { TechnicalFacts, TechnicalInfo, type TechnicalFact } from "../components/common/TechnicalInfo";
 import { ActorField } from "../components/common/ActorField";
 import { Badge } from "../components/common/Badge";
 import {
