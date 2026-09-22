@@ -297,6 +297,26 @@
   justify-content: flex-start;
 }
 
+/* 마감 창 줄(S1) — 발주계획의 회차 줄(`.source-run-context`)과 같은 모양이다. */
+.opportunity-deadline-context {
+  justify-content: flex-start;
+}
+
+.opportunity-filter-context-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-1) var(--spacing-2);
+  min-width: 0;
+}
+
+.opportunity-deadline-context-label {
+  min-width: 0;
+  color: var(--color-text-primary);
+  font-size: var(--bo-type-caption);
+  overflow-wrap: anywhere;
+}
+
 .opportunity-reason-chips {
   display: flex;
   flex-wrap: wrap;

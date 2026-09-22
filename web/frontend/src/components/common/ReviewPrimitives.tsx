@@ -225,6 +225,13 @@ export interface AgencyFeatureProps {
   labelClassName?: string;
   name?: string | null;
   nameClassName?: string;
+  /**
+   * 이름 아래 한 줄로 붙는 부제(총괄기관·공고기관 …). **블록 안**에 들어가므로
+   * 배경·여백이 이름과 한 단위로 읽힌다. 값이 없으면 줄 자체를 만들지 않는다 —
+   * 없는 기관을 `미제공`으로 적지 않는 판단은 부르는 쪽이 갖는다.
+   */
+  sub?: ReactNode;
+  subClassName?: string;
 }
 
 /**
@@ -232,7 +239,8 @@ export interface AgencyFeatureProps {
  *
  * 값·배경·여백은 발주계획 상세가 쓰던 것을 그대로 옮긴 것이며 새 색을 만들지
  * 않는다. 화면별 클래스(`c2l-agency-*`·`pre-specs-detail-agency`)는 검사 selector로
- * 같은 요소에 병기한다.
+ * 같은 요소에 병기한다. 부제(`sub`)는 블록 안쪽 여백을 함께 쓰므로 교차 검사가
+ * 재는 배경·padding은 바뀌지 않는다(`explore-workspace-consistency.spec.ts`).
  */
 export function AgencyFeature({
   className,
@@ -241,6 +249,8 @@ export function AgencyFeature({
   labelClassName,
   name,
   nameClassName,
+  sub,
+  subClassName,
 }: AgencyFeatureProps) {
   const value = typeof name === "string" && name.trim() ? name : fallback;
   return (
@@ -250,6 +260,7 @@ export function AgencyFeature({
     >
       <span className={joinClassNames("review-agency-label", labelClassName)}>{label}</span>
       <span className={joinClassNames("review-agency-name", nameClassName)}>{value}</span>
+      {sub ? <span className={joinClassNames("review-agency-sub", subClassName)}>{sub}</span> : null}
     </div>
   );
 }
