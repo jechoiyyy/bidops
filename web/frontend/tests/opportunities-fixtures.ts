@@ -300,6 +300,37 @@ const mergeConfirmation: Fixture = {
   ],
 };
 
+/**
+ * 병합 막힘 안내가 가리키는 상대편 사업기회(#912, ADR-0068).
+ *
+ * 409 `candidate_merge_state_conflict`의 `details.opportunities[]`가 말하는 그
+ * 행이며 **실제 서버에는 존재한다** — 화면이 `이 사업을 미선택으로 되돌리기`를
+ * 누르면 그 PATCH를 받는 쪽이다. mock이 이 id를 모르면 화면 결함이 아니라 가짜
+ * 서버의 결함으로 검사가 깨진다. 다만 목록·구역 건수를 세는 다른 검사가 바뀌지
+ * 않도록 **병합 충돌 시나리오에서만** 상세 fixture에 넣고, link id는 909와 겹치지
+ * 않게 따로 둔다(링크 id로 소유 사업기회를 찾는 경로가 있다).
+ */
+const mergeConflictCounterpart: Fixture = {
+  id: 912,
+  section: "보류",
+  pending_candidate_link_count: 0,
+  open_blocking_item_count: 0,
+  action_reasons: [],
+  hold_review_due_at: "2026-09-22T02:30:00Z",
+  tracking_status: "보류",
+  tracking_reason: "상담 채널 범위를 다시 확인",
+  tracking_selected_by: "다른 담당자",
+  tracking_selected_at: "2026-09-08T02:30:00Z",
+  recheck_signal: true,
+  recheck_signal_at: "2026-09-09T04:05:00Z",
+  recheck_signal_link_id: 9102,
+  first_registered_stage: "order_plan",
+  links: [
+    orderPlanLink(9101, "스마트 민원 상담 플랫폼 구축", "한울시청", "DEMO-OP-009"),
+    noticeLink(9102, "bid_notice", "스마트 민원 상담 플랫폼 구축", "한울시청", "DEMO-BN-009"),
+  ],
+};
+
 /** 보류 뒤 14일 재검토 기한이 지난 건(§7.3). 기한은 서버 값이다. */
 const holdOverdue: Fixture = {
   id: 910,
@@ -439,8 +470,18 @@ export interface MockOptions {
   listStatus?: number;
   trackingStatus?: number;
   linkDecisionStatus?: number;
-  /** 후보 수락을 409 `candidate_merge_state_conflict`(양쪽 사람 상태)로 거절한다. */
+  /**
+   * 후보 수락을 409 `candidate_merge_state_conflict`로 거절한다. 규칙 개정
+   * (ADR-0068) 뒤 서버가 이렇게 답하는 경우는 두 사업기회의 추적 상태가 다르거나
+   * 한쪽에 재검토 신호가 있을 때뿐이다 — 합성 응답도 그 조합(계속 추적 vs 보류,
+   * 한쪽 신호)으로 만든다.
+   */
   linkDecisionMergeConflict?: boolean;
+  /**
+   * 추적 상태가 같아 서버가 그대로 병합한 수락(ADR-0068). 후보 link는 소유권이
+   * 없는 `사람 확인 병합`으로 돌아온다.
+   */
+  linkDecisionMerged?: boolean;
   /** 확인 완료 직전에 신호 근거가 다른 연결로 바뀐 상태를 만든다(409 `recheck_signal_changed`). */
   recheckChanged?: boolean;
   /** 찾아보기 결과. 기본은 후보 2건이다. */
@@ -457,6 +498,11 @@ export async function mockOpportunities(page: Page, options: MockOptions = {}): 
     listQueries: [], detailGets: [], decisionGets: [], deepReviewGets: [], patches: [], linkDecisions: [], reviewPuts: [], acks: [], searches: [],
   };
   const details = new Map<number, Fixture>(FIXTURES.map((item) => [item.id, structuredClone(item)]));
+  // 병합 막힘 안내가 말하는 상대편은 목록 fixture 밖에 있다. 그 결정을 되돌리는
+  // PATCH가 실제 서버처럼 받아들여지도록 이 시나리오에서만 상세를 둔다.
+  if (options.linkDecisionMergeConflict) {
+    details.set(mergeConflictCounterpart.id, structuredClone(mergeConflictCounterpart));
+  }
   if (options.longTitle) {
     const long = "공공데이터 통합관리체계 및 기관 간 정보연계 플랫폼 고도화와 데이터 품질관리 기반 구축 사업";
     for (const link of details.get(101)!.links as Array<Record<string, unknown>>) link.title = long;
@@ -650,8 +696,8 @@ export async function mockOpportunities(page: Page, options: MockOptions = {}): 
               message: "합성 병합 충돌",
               details: {
                 opportunities: [
-                  { id: 909, tracking_status: "계속 추적", tracking_selected_by: "검토 담당자", tracking_selected_at: "2026-09-05T01:00:00Z", recheck_signal: false },
-                  { id: 912, tracking_status: "보류", tracking_selected_by: "다른 담당자", tracking_selected_at: "2026-09-08T02:30:00Z", recheck_signal: true },
+                  { id: 909, tracking_status: "계속 추적", tracking_selected_by: "검토 담당자", tracking_selected_at: "2026-09-05T01:00:00Z", recheck_signal: false, recheck_signal_at: null },
+                  { id: 912, tracking_status: "보류", tracking_selected_by: "다른 담당자", tracking_selected_at: "2026-09-08T02:30:00Z", recheck_signal: true, recheck_signal_at: "2026-09-09T04:05:00Z" },
                 ],
               },
             },
@@ -671,7 +717,10 @@ export async function mockOpportunities(page: Page, options: MockOptions = {}): 
       const owner = [...details.values()].find((item) => (item.links as Array<{ id: number }>).some((link) => link.id === linkId));
       const link = (owner?.links as Array<Record<string, unknown>> | undefined)?.find((entry) => entry.id === linkId);
       if (link && owner) {
-        link.status = "사람 확인 완료";
+        // 같은 상태 병합으로 끝난 수락은 소유권 없는 `사람 확인 병합`이다.
+        link.status = options.linkDecisionMerged && body.decision === "accepted"
+          ? "사람 확인 병합"
+          : "사람 확인 완료";
         link.human_decision = body.decision;
         link.reviewer_name = "홍길동";
         link.reviewed_at = "2026-09-07T06:00:00Z";
@@ -835,14 +884,21 @@ export async function mockOpportunities(page: Page, options: MockOptions = {}): 
         return;
       }
       const current = details.get(id)!;
+      // `미선택`으로 되돌리면 DB CHECK 때문에 row의 사유·선택자·시각이 비워진다
+      // (contracts.md). 감사 이벤트에만 남으므로 결정 이력에는 계속 쌓인다.
+      const reset = body.tracking_status === "미선택";
       const saved = {
         ...current,
         tracking_status: body.tracking_status,
-        tracking_reason: body.reason,
-        tracking_selected_by: "홍길동",
-        tracking_selected_at: "2026-09-07T06:00:00Z",
+        tracking_reason: reset ? null : body.reason,
+        tracking_selected_by: reset ? null : "홍길동",
+        tracking_selected_at: reset ? null : "2026-09-07T06:00:00Z",
         recheck_signal: false,
-        section: body.tracking_status === "보류" ? "보류" : body.tracking_status === "종료" ? "추적 종료" : "추적 중",
+        hold_review_due_at: reset ? null : current.hold_review_due_at,
+        // 되돌린 건은 사람이 고르지 않은 상태로 돌아간다(구역 없음 = 미결정).
+        section: reset
+          ? null
+          : body.tracking_status === "보류" ? "보류" : body.tracking_status === "종료" ? "추적 종료" : "추적 중",
       };
       details.set(id, saved as Fixture);
       const history = decisions.get(id) ?? [];
