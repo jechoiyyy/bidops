@@ -48,9 +48,25 @@ function workloadProvider(page: Page, key: WorkloadKey, provider: () => { count:
   if (!providers) { providers = new Map(); workloadProviders.set(page, providers); }
   providers.set(key, provider);
 }
+/** `app/lifecycle/schemas/workload.py`의 `WorkloadKey`와 같은 고정 순서(ADR-0067). */
+const WORKLOAD_KEYS: WorkloadKey[] = [
+  "order_plan_pending", "pre_spec_deep_review_ready", "tracking_action_required",
+  "tracking_hold_review_due", "bid_final_decision_pending", "tracking_deadline_imminent",
+  "human_check_required", "overview_human_review", "blocking_items_open", "order_plan_new_priority",
+];
 function workloadResponse(page: Page): WorkloadResponse {
-  const keys: WorkloadKey[] = ["order_plan_pending", "pre_spec_deep_review_ready", "tracking_action_required", "tracking_hold_review_due", "bid_final_decision_pending"];
-  return { generated_at: "2026-09-01T09:00:00Z", items: keys.map((key) => ({ key, ...(workloadProviders.get(page)?.get(key)?.() ?? { count: null, unavailable_reason: "provider_absent" }) })) };
+  const providers = workloadProviders.get(page);
+  const resolve = (key: WorkloadKey) => providers?.get(key)?.() ?? { count: null, unavailable_reason: "provider_absent" };
+  const resolved = new Map(WORKLOAD_KEYS.map((key) => [key, resolve(key)] as const));
+  // 합계는 서버가 만든다(ADR-0067 결정 5). 하위 둘 중 하나라도 null이면 합계도 null이다.
+  if (!providers?.has("human_check_required")) {
+    const overview = resolved.get("overview_human_review")!.count;
+    const blocking = resolved.get("blocking_items_open")!.count;
+    resolved.set("human_check_required", overview === null || blocking === null
+      ? { count: null, unavailable_reason: "sub_count_unavailable" }
+      : { count: overview + blocking, unavailable_reason: null });
+  }
+  return { generated_at: "2026-09-01T09:00:00Z", items: WORKLOAD_KEYS.map((key) => ({ key, ...resolved.get(key)! })) };
 }
 function fixtureActor(headers: Record<string, string>): string {
   const actor = headers["x-bidops-actor-name"] ?? "";
@@ -982,6 +998,56 @@ function mockHoldReviewMatches(item: OpportunityListItem, kind: "overdue" | "due
   return overdue || dueSoon;
 }
 
+const MOCK_OPEN_TRACKING_STATUSES = ["계속 추적", "보류"];
+/** 권위 있는 연결(`official·확정` 또는 `사람 확인 완료·accepted`)의 마감만 읽는다. */
+function mockAuthoritativeDeadlines(item: OpportunityListItem): number[] {
+  return item.links
+    .filter((link) => (link.link_type === "official" && link.status === "확정")
+      || (link.status === "사람 확인 완료" && link.human_decision === "accepted"))
+    .map((link) => (link.deadline_at === null ? Number.NaN : Date.parse(link.deadline_at)))
+    .filter((value) => Number.isFinite(value));
+}
+/** 서버 `deadline_window_end`: 요청 시각 KST 일자 + N일의 끝(= +N+1일 00:00 KST, 열린 상한). */
+function mockDeadlineWindowEnd(days: number, now: number): number {
+  const kstOffset = 9 * 60 * 60 * 1000;
+  const lastDay = Math.floor((now + kstOffset) / MOCK_DAY_MS) + days;
+  return (lastDay + 1) * MOCK_DAY_MS - kstOffset;
+}
+/**
+ * Mock-server-only `deadline_within_days`(ADR-0067 결정 3·6). `hold_review`처럼
+ * 추적 대상(`계속 추적`·`보류`)을 함께 좁히고, 창은 **링크 단위**로 판정한다.
+ */
+function mockDeadlineImminent(item: OpportunityListItem, days: number, now = Date.now()): boolean {
+  if (!MOCK_OPEN_TRACKING_STATUSES.includes(item.tracking_status)) return false;
+  const upper = mockDeadlineWindowEnd(days, now);
+  return mockAuthoritativeDeadlines(item).some((value) => value >= now && value < upper);
+}
+/** `sort=deadline`의 키: 아직 남은 권위 연결 마감 중 가장 이른 것. 없으면 `null`(맨 뒤). */
+function mockNextDeadline(item: OpportunityListItem, now = Date.now()): number | null {
+  const remaining = mockAuthoritativeDeadlines(item).filter((value) => value >= now);
+  return remaining.length ? Math.min(...remaining) : null;
+}
+function compareNextDeadline(left: OpportunityListItem, right: OpportunityListItem): number {
+  const l = mockNextDeadline(left), r = mockNextDeadline(right);
+  if (l === null || r === null) return l === r ? right.id - left.id : l === null ? 1 : -1;
+  return l - r || right.id - left.id;
+}
+
+const MOCK_KST_DATE = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Seoul", year: "numeric", month: "2-digit", day: "2-digit" });
+/** 화면이 `first_observed_from`에 보내는 값과 같은 규칙: 요청 시각 KST 일자 −1일. */
+function mockPreviousKstDate(now: number): string {
+  const [year, month, day] = MOCK_KST_DATE.format(new Date(now)).split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, day) - MOCK_DAY_MS).toISOString().slice(0, 10);
+}
+/** `first_observed_from=YYYY-MM-DD`: 그 KST 일자 00:00 이후에 처음 관측됐는가. */
+function mockFirstObservedFrom(firstObservedAt: string | null, from: string | null): boolean {
+  if (!from) return true;
+  if (firstObservedAt === null) return false;
+  const observed = Date.parse(firstObservedAt);
+  const lower = Date.parse(`${from}T00:00:00+09:00`);
+  return Number.isFinite(observed) && Number.isFinite(lower) && observed >= lower;
+}
+
 /** `sort=hold_review_due_at`: 기한 오름차순, 기한 없는 행은 마지막(서버와 같은 nulls last). */
 function compareHoldReviewDue(left: OpportunityListItem, right: OpportunityListItem): number {
   const l = left.hold_review_due_at === null ? null : Date.parse(left.hold_review_due_at);
@@ -1027,6 +1093,9 @@ export async function mockOpportunity(page: Page): Promise<void> {
   const recheckEvents = new Map<number, OpportunityRecheckEventView[]>([[202, structuredClone(opportunityTrackingHistory.recheck_events)]]);
   workloadProvider(page, "tracking_action_required", () => ({ count: items.filter((item) => item.section === "조치 필요").length, unavailable_reason: null }));
   workloadProvider(page, "tracking_hold_review_due", () => ({ count: items.filter((item) => item.action_reasons.includes("hold_overdue")).length, unavailable_reason: null }));
+  // 건수는 짝지은 목록 호출과 같은 술어로 센다(ADR-0067 결정 1).
+  workloadProvider(page, "tracking_deadline_imminent", () => ({ count: items.filter((item) => mockDeadlineImminent(item, 7)).length, unavailable_reason: null }));
+  workloadProvider(page, "blocking_items_open", () => ({ count: items.filter((item) => item.action_reasons.includes("blocking_item")).length, unavailable_reason: null }));
   await page.route("**/api/opportunities**", async (route) => {
     const request = route.request();
     const url = new URL(request.url());
@@ -1037,10 +1106,17 @@ export async function mockOpportunity(page: Page): Promise<void> {
         await fulfillJson(route, { detail: "hold_review 값이 올바르지 않습니다" }, 422);
         return;
       }
-      // 서버처럼 hold_review는 목록·집계 모두에 걸리는 기본 조건이다.
+      const withinDaysRaw = search.get("deadline_within_days");
+      const withinDays = withinDaysRaw === null ? null : Number(withinDaysRaw);
+      if (withinDays !== null && (!Number.isInteger(withinDays) || withinDays < 1 || withinDays > 365)) {
+        await fulfillJson(route, { detail: "deadline_within_days 값이 올바르지 않습니다" }, 422);
+        return;
+      }
+      // 서버처럼 hold_review·deadline_within_days는 목록·집계 모두에 걸리는 기본 조건이다.
       let filtered = items.filter((item) => (!search.get("tracking_status") || item.tracking_status === search.get("tracking_status"))
         && (!search.get("first_registered_stage") || item.first_registered_stage === search.get("first_registered_stage"))
-        && (holdReview === null || mockHoldReviewMatches(item, holdReview)));
+        && (holdReview === null || mockHoldReviewMatches(item, holdReview))
+        && (withinDays === null || mockDeadlineImminent(item, withinDays)));
       const section_counts: OpportunitySectionCounts = { "조치 필요": 0, "추적 중": 0, "보류": 0, "추적 종료": 0, "신규 입찰공고": 0, "미결정": 0 };
       const action_reason_counts: Record<string, number> = { new_link: 0, candidate_pending: 0, merge_confirmation: 0, blocking_item: 0, hold_overdue: 0 };
       for (const item of filtered) {
@@ -1058,6 +1134,7 @@ export async function mockOpportunity(page: Page): Promise<void> {
       if (search.get("sort") === "tracking_status") filtered.sort((a, b) => a.tracking_status.localeCompare(b.tracking_status));
       if (search.get("sort") === "first_registered_stage") filtered.sort((a, b) => a.first_registered_stage.localeCompare(b.first_registered_stage));
       if (search.get("sort") === "hold_review_due_at") filtered.sort(compareHoldReviewDue);
+      if (search.get("sort") === "deadline") filtered.sort(compareNextDeadline);
       const limit = Number(search.get("limit") ?? 50), offset = Number(search.get("offset") ?? 0);
       await fulfillJson(route, { items: filtered.slice(offset, offset + limit), total: filtered.length, limit, offset, section_counts, action_reason_counts });
       return;
@@ -1855,6 +1932,11 @@ export async function mockPreSpecs(page: Page): Promise<void> {
     await fulfillJson(route, inheritedPreSpecOpportunity);
   });
   workloadProvider(page, "pre_spec_deep_review_ready", () => ({ count: visualPreSpecItems.filter((item) => item.auto_preparation_status === "deep_review_ready_for_click").length, unavailable_reason: null }));
+  // 개요 두 상태는 서로 배타적이므로 두 목록 호출의 `total` 합이 곧 이 키다(ADR-0067 결정 5).
+  workloadProvider(page, "overview_human_review", () => ({
+    count: visualPreSpecItems.filter((item) => item.overview_review_status === "failed" || item.overview_review_status === "needs_human_review").length,
+    unavailable_reason: null,
+  }));
   await page.route("**/api/pre-specs**", async (route) => {
     const request = route.request();
     const url = new URL(request.url());
@@ -2936,10 +3018,17 @@ export async function mockOrderPlans(page: Page, scenario: OrderPlanMockScenario
       && matchesValues(item.human_feedback?.relevance ?? null, search.get("human_relevance"))
       && (!search.get("tracking_status") || (item.tracking !== null && matchesValues(item.tracking.tracking_status, search.get("tracking_status"))))
       && (search.get("issue") !== "true" || ["failed", "rejected"].includes(item.stage1_status ?? "") || ["failed", "rejected"].includes(item.stage2_status ?? ""))
+      // `first_observed_from`은 그 KST 일자 00:00 이후에 처음 관측된 계획만 남긴다(상한 없음).
+      && mockFirstObservedFrom(item.first_observed_at, search.get("first_observed_from"))
       && (!search.get("q") || !searchKey(search.get("q")!) || searchMatches(search.get("q")!, item.title, item.agency_name, item.order_plan_unty_no)));
   }
   workloadProvider(page, "order_plan_pending", () => latestCompletedExecution(null)
     ? { count: listItems(new URLSearchParams({ stage1_status: "selected", qwen_relevance: "relevant,uncertain", tracking_status: "미선택" })).length, unavailable_reason: null }
+    : { count: null, unavailable_reason: "no_completed_execution" });
+  // 제공자가 짝지은 목록 호출과 같은 인자를 쓴다(ADR-0067 결정 1). 날짜는 화면이 보내는 값과
+  // 같은 규칙(요청 시각 KST 일자 −1일)으로 만든다.
+  workloadProvider(page, "order_plan_new_priority", () => latestCompletedExecution(null)
+    ? { count: listItems(new URLSearchParams({ qwen_relevance: "relevant", tracking_status: "미선택", first_observed_from: mockPreviousKstDate(Date.now()) })).length, unavailable_reason: null }
     : { count: null, unavailable_reason: "no_completed_execution" });
 
   const createdRequests = new Map<string, { payload: string; response: unknown }>();
