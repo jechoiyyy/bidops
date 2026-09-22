@@ -956,7 +956,9 @@ test("양쪽에 사람 추적 상태가 있어 병합이 거절되면 두 사업
   await dialog.getByRole("button", { name: "같은 사업으로 연결" }).click();
 
   const conflict = dialog.locator(".opportunity-merge-conflict");
-  await expect(conflict).toContainText("양쪽 모두 사람이 고른 추적 상태가 있어 병합할 수 없습니다. 한쪽의 추적 결정을 먼저 정리하세요.");
+  await expect(conflict).toContainText(
+    "두 사업기회의 추적 상태가 다르거나 한쪽에 재검토 신호가 있어 병합할 수 없습니다. 한쪽을 미선택으로 되돌린 뒤 다시 수락하십시오.",
+  );
   const states = conflict.getByRole("list", { name: "병합 대상 사업기회의 추적 상태" }).getByRole("listitem");
   await expect(states).toHaveCount(2);
   await expect(states.nth(0)).toContainText("사업 #909 · 계속 추적");
@@ -964,12 +966,102 @@ test("양쪽에 사람 추적 상태가 있어 병합이 거절되면 두 사업
   await expect(states.nth(0)).toContainText("재검토 신호 · 없음");
   await expect(states.nth(1)).toContainText("사업 #912 · 보류");
   await expect(states.nth(1)).toContainText("선택자 · 다른 담당자");
-  await expect(states.nth(1)).toContainText("재검토 신호 · 있음");
+  // 신호가 있는 쪽은 언제 온 신호인지까지 말한다(ADR-0068 details 추가 필드).
+  await expect(states.nth(1)).toContainText("재검토 신호 · 있음 · 2026.09.09");
   await expect(conflict).toContainText("연결 상태는 바뀌지 않았습니다");
   await expect(dialog.getByLabel("결정 기록자")).toHaveValue("홍길동");
   expect(trace.linkDecisions).toHaveLength(1);
   expect(trace.linkDecisions[0].linkId).toBe(9002);
   expect(trace.linkDecisions[0].body.decision).toBe("accepted");
+});
+
+test("병합이 막히면 각 사업을 미선택으로 되돌릴 수 있고 수락은 자동으로 다시 시도되지 않는다", async ({ page }) => {
+  const trace = await mockOpportunities(page, { linkDecisionMergeConflict: true });
+  await page.goto("/opportunities/909");
+
+  await page.locator(".opportunity-action-footer").getByRole("button", { name: "후보 연결 확인" }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByRole("combobox", { name: "판단 사유" }).click();
+  await page.getByRole("option", { name: "공식 식별자 관계를 별도로 확인" }).click();
+  await dialog.getByLabel("결정 기록자").fill("홍길동");
+  await dialog.getByRole("button", { name: "같은 사업으로 연결" }).click();
+
+  const conflict = dialog.locator(".opportunity-merge-conflict");
+  const states = conflict.getByRole("list", { name: "병합 대상 사업기회의 추적 상태" }).getByRole("listitem");
+  await expect(states.nth(0).getByRole("button", { name: "사업 #909 미선택으로 되돌리기" })).toBeVisible();
+  await expect(states.nth(1).getByRole("button", { name: "사업 #912 미선택으로 되돌리기" })).toBeVisible();
+
+  await states.nth(1).getByRole("button", { name: "사업 #912 미선택으로 되돌리기" }).click();
+  const reset = states.nth(1).locator(".opportunity-tracking-reset-open");
+  await expect(reset).toContainText("저장된 추적 결정(보류)을 미선택으로 되돌립니다");
+  await expect(reset).toContainText("되돌려도 후보 수락은 자동으로 다시 시도하지 않습니다");
+  // 담당자는 이 대화상자에서 이미 받았으므로 다시 묻지 않는다.
+  await expect(reset).toContainText("결정 기록자 · 홍길동");
+  await expect(reset.getByRole("button", { name: "미선택으로 되돌리기 실행" })).toBeDisabled();
+  await reset.getByLabel("되돌리는 이유").fill("병합을 위해 한쪽 결정을 정리");
+  await reset.getByRole("button", { name: "미선택으로 되돌리기 실행" }).click();
+
+  await expect(conflict).toContainText("미선택으로 되돌렸습니다. 위 상태는 되돌리기 전의 값입니다.");
+  await expect(dialog.locator(".opportunity-merge-reset-notice")).toContainText(
+    "사업 #912의 추적 결정을 미선택으로 되돌렸습니다. 다시 수락하십시오.",
+  );
+  expect(trace.patches).toHaveLength(1);
+  expect(trace.patches[0].id).toBe(912);
+  expect(trace.patches[0].body).toEqual({ tracking_status: "미선택", reason: "병합을 위해 한쪽 결정을 정리" });
+  // 비ASCII 담당자 이름은 RFC 5987 인코딩으로 나간다(`utf-8-percent-v1`).
+  expect(trace.patches[0].headers["x-bidops-actor-name"]).toBe("UTF-8''%ED%99%8D%EA%B8%B8%EB%8F%99");
+  expect(trace.patches[0].headers["x-bidops-actor-name-format"]).toBe("utf-8-percent-v1");
+  // 되돌리기는 수락을 다시 보내지 않는다. 두 번째 결정도 사람이 누른다.
+  expect(trace.linkDecisions).toHaveLength(1);
+  await expect(states.nth(0).getByRole("button", { name: "사업 #909 미선택으로 되돌리기" })).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "같은 사업으로 연결" })).toBeEnabled();
+});
+
+test("추적 상태가 같아 서버가 병합한 수락은 사람 확인 병합으로 끝난다", async ({ page }) => {
+  const trace = await mockOpportunities(page, { linkDecisionMerged: true });
+  await page.goto("/opportunities/909");
+
+  await page.locator(".opportunity-action-footer").getByRole("button", { name: "후보 연결 확인" }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByRole("combobox", { name: "판단 사유" }).click();
+  await page.getByRole("option", { name: "공식 식별자 관계를 별도로 확인" }).click();
+  await dialog.getByLabel("결정 기록자").fill("홍길동");
+  await dialog.getByRole("button", { name: "같은 사업으로 연결" }).click();
+
+  await expect(page.getByText("후보를 수용해 두 사업기회를 병합했습니다(사람 확인 병합).")).toBeVisible();
+  // 같은 상태 병합에는 막힘 안내가 아예 뜨지 않는다.
+  await expect(page.locator(".opportunity-merge-conflict")).toHaveCount(0);
+  expect(trace.linkDecisions).toHaveLength(1);
+  expect(trace.patches).toHaveLength(0);
+});
+
+test("추적 결정 카드에서 결정을 미선택으로 되돌린다", async ({ page }) => {
+  const trace = await mockOpportunities(page);
+  await page.goto("/opportunities/606");
+
+  await page.getByRole("tab", { name: "추적 이력" }).click();
+  const panel = page.locator("#opportunity-panel-decision");
+  await expect(panel).toContainText("참여 조건을 추가 확인한 뒤 다시 검토");
+  await panel.getByRole("button", { name: "미선택으로 되돌리기", exact: true }).click();
+
+  const reset = panel.locator(".opportunity-tracking-reset-open");
+  await expect(reset).toContainText("저장된 추적 결정(보류)을 미선택으로 되돌립니다");
+  await expect(reset).toContainText("검토할 항목·조치 필요로 돌아옵니다");
+  await expect(reset.getByRole("button", { name: "미선택으로 되돌리기 실행" })).toBeDisabled();
+  await reset.getByLabel("되돌리는 이유").fill("상태를 잘못 골라 되돌림");
+  await reset.getByLabel("결정 기록자").fill("홍길동");
+  await reset.getByRole("button", { name: "미선택으로 되돌리기 실행" }).click();
+
+  await expect(page.getByText("추적 결정을 미선택으로 되돌렸습니다.")).toBeVisible();
+  expect(trace.patches).toHaveLength(1);
+  expect(trace.patches[0].id).toBe(606);
+  expect(trace.patches[0].body).toEqual({ tracking_status: "미선택", reason: "상태를 잘못 골라 되돌림" });
+  expect(trace.patches[0].headers["x-bidops-actor-name"]).toBe("UTF-8''%ED%99%8D%EA%B8%B8%EB%8F%99");
+  expect(trace.patches[0].headers["x-bidops-actor-name-format"]).toBe("utf-8-percent-v1");
+  // 되돌린 뒤에는 되돌릴 결정이 없다고 말하고 단추를 잠근다.
+  const disabled = panel.getByRole("button", { name: "미선택으로 되돌리기", exact: true });
+  await expect(disabled).toBeDisabled();
+  await expect(panel).toContainText("이미 미선택입니다. 되돌릴 추적 결정이 없습니다.");
 });
 
 test("확인 사항이 없으면 신호 없음이라고만 말하고 자격 확인으로 읽히지 않게 한다", async ({ page }) => {

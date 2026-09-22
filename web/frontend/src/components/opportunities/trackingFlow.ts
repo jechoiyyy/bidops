@@ -535,6 +535,20 @@ export function connectionLabel(link: OpportunityLinkView): StageConnection {
 // 표기(`2026.09.20 06:10`, 초 없음)이고, `lib/format.ts` 쪽은 `Date.toLocaleString`
 // 그대로라 초까지 나온다(`2026. 9. 20. 오전 6:10:00`). 출력이 다르므로 값만 옮기고
 // 형식은 각자 유지한다.
+/**
+ * 추적 결정을 되돌리는 단추의 문구(ADR-0068).
+ *
+ * 상세의 추적 결정 카드와 병합 막힘 안내가 같은 말을 쓴다. 목록 안에서는 어느
+ * 사업의 결정을 되돌리는지가 단추 이름만으로 드러나야 하므로 사업 번호를 앞에
+ * 붙인다.
+ */
+export const TRACKING_RESET_LABEL = "미선택으로 되돌리기";
+
+export function trackingResetLabel(opportunityId?: number): string {
+  if (opportunityId === undefined) return TRACKING_RESET_LABEL;
+  return `사업 #${String(opportunityId).padStart(3, "0")} ${TRACKING_RESET_LABEL}`;
+}
+
 /** 날짜·시각은 시안과 같은 조밀한 표기로 적는다. 값이 없으면 채우지 않는다. */
 export function formatMoment(value: string | null): string {
   if (!value) return "미확인";

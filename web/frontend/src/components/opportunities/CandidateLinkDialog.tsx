@@ -11,6 +11,7 @@ import { ApiError, api } from "../../lib/api";
 import { describeApiError, type ApiErrorDescription } from "../../lib/apiErrors";
 import { linkRecordLabel } from "../../lib/opportunity";
 import type { OpportunityLinkView, OpportunityMergeConflictState, OpportunityTrackingStatus } from "../../lib/types";
+import { TrackingResetControl } from "./TrackingResetControl";
 import {
   agencyMatchLabel,
   connectionLabel,
@@ -19,6 +20,7 @@ import {
   recordRoute,
   recordRouteLabel,
   searchStrategyLabel,
+  trackingResetLabel,
 } from "./trackingFlow";
 
 /**
@@ -33,10 +35,12 @@ import {
  * 바꾸지 않는다.
  *
  * 대상 레코드를 다른 사업기회가 이미 갖고 있으면 수락은 두 사업기회의 병합이다
- * (spec §3.3). 병합된 후보는 `사람 확인 병합`으로 남고, 양쪽 모두 사람이 고른 추적
- * 상태가 있으면 서버가 409 `candidate_merge_state_conflict`로 거절하며 양쪽 상태를
- * `details.opportunities[]`로 준다. 화면은 그 값을 그대로 보여 주고 한쪽을 먼저
- * 정리하라고 안내한다 — 어느 쪽을 남길지 화면이 고르지 않는다.
+ * (spec §3.3). 병합된 후보는 `사람 확인 병합`으로 남는다. 2026-09-22 규칙 개정
+ * (ADR-0068) 뒤 서버는 **양쪽의 추적 상태가 같고 재검토 신호가 없으면 그대로
+ * 병합**하므로, 409 `candidate_merge_state_conflict`가 오는 경우는 상태가
+ * 다르거나 한쪽에 신호가 있을 때뿐이다. 화면은 서버가 준 양쪽 상태를 그대로
+ * 보여 주고 각 사업을 `미선택`으로 되돌리는 단추를 준다 — 어느 쪽을 남길지
+ * 화면이 고르지 않으며, 되돌린 뒤 수락을 자동으로 다시 시도하지도 않는다.
  */
 
 const REASON_OPTIONS: Record<string, string[]> = {
@@ -73,12 +77,16 @@ function mergeConflictStates(error: unknown): OpportunityMergeConflictState[] | 
       || status === undefined || selectedBy === undefined || selectedAt === undefined
       || typeof record.recheck_signal !== "boolean"
     ) continue;
+    // `recheck_signal_at`은 뒤에 더해진 필드다. 없으면 `null`로 두고 boolean이
+    // 말하는 사실을 시각으로 승격시키지 않는다.
+    const signalAt = nullableText(record.recheck_signal_at);
     states.push({
       id: record.id,
       tracking_status: status,
       tracking_selected_by: selectedBy,
       tracking_selected_at: selectedAt,
       recheck_signal: record.recheck_signal,
+      recheck_signal_at: signalAt === undefined ? null : signalAt,
     });
   }
   return states;
@@ -129,6 +137,10 @@ export function CandidateLinkDialog({
   const [problem, setProblem] = useState<ApiErrorDescription | null>(null);
   const [conflict, setConflict] = useState<OpportunityMergeConflictState[] | null>(null);
   const [discarding, setDiscarding] = useState(false);
+  // 되돌린 사업과 그 안내. 되돌리기는 수락을 자동으로 다시 시도하지 않으므로
+  // 사람이 다시 누를 때까지 이 대화상자는 그대로 열려 있는다(ADR-0068).
+  const [reverted, setReverted] = useState<number[]>([]);
+  const [notice, setNotice] = useState<string | null>(null);
   const mergeCandidate = candidate.search_strategy === "merge_confirmation";
 
   const current = links.filter(isConfirmedLink).at(-1) ?? null;
@@ -150,6 +162,8 @@ export function CandidateLinkDialog({
     setProblem(null);
     setConflict(null);
     setDiscarding(false);
+    setReverted([]);
+    setNotice(null);
   };
 
   const mutation = useMutation({
@@ -306,7 +320,12 @@ export function CandidateLinkDialog({
             {conflict ? (
               <MutationFeedback className="opportunity-merge-conflict" tone="error">
                 <p><strong>병합할 수 없습니다</strong></p>
-                <p>양쪽 모두 사람이 고른 추적 상태가 있어 병합할 수 없습니다. 한쪽의 추적 결정을 먼저 정리하세요.</p>
+                {/* 상태가 같고 신호가 없으면 서버가 병합하므로(ADR-0068) 이 안내가
+                    뜨는 경우는 둘뿐이다. 시안 문구를 그 사실에 맞춰 적는다. */}
+                <p>
+                  두 사업기회의 추적 상태가 다르거나 한쪽에 재검토 신호가 있어 병합할 수 없습니다. 한쪽을
+                  미선택으로 되돌린 뒤 다시 수락하십시오.
+                </p>
                 {conflict.length > 0 ? (
                   <ul aria-label="병합 대상 사업기회의 추적 상태" className="opportunity-dialog-list">
                     {conflict.map((state) => (
@@ -315,7 +334,30 @@ export function CandidateLinkDialog({
                         <p className="opportunity-caption">
                           선택자 · {state.tracking_selected_by?.trim() || "미확인"} · 선택 시각 · {formatMoment(state.tracking_selected_at)}
                         </p>
-                        <p className="opportunity-caption">재검토 신호 · {state.recheck_signal ? "있음" : "없음"}</p>
+                        <p className="opportunity-caption">
+                          재검토 신호 · {state.recheck_signal
+                            ? `있음 · ${state.recheck_signal_at === null ? "시각 미확인" : formatMoment(state.recheck_signal_at)}`
+                            : "없음"}
+                        </p>
+                        {reverted.includes(state.id) ? (
+                          <p className="opportunity-caption">
+                            미선택으로 되돌렸습니다. 위 상태는 되돌리기 전의 값입니다.
+                          </p>
+                        ) : (
+                          <TrackingResetControl
+                            actorName={actorName}
+                            currentStatus={state.tracking_status}
+                            label={trackingResetLabel(state.id)}
+                            note="되돌려도 후보 수락은 자동으로 다시 시도하지 않습니다. 되돌린 뒤 다시 수락하십시오."
+                            onReset={() => {
+                              setReverted((current) => [...current, state.id]);
+                              setNotice(
+                                `사업 #${String(state.id).padStart(3, "0")}의 추적 결정을 미선택으로 되돌렸습니다. 다시 수락하십시오.`,
+                              );
+                            }}
+                            opportunityId={state.id}
+                          />
+                        )}
                       </li>
                     ))}
                   </ul>
@@ -323,6 +365,11 @@ export function CandidateLinkDialog({
                   <p className="opportunity-caption">서버가 양쪽 사업기회의 상태를 주지 않았습니다. 사업 추적 목록에서 두 사업을 직접 확인하세요.</p>
                 )}
                 <p>연결 상태는 바뀌지 않았습니다. 입력한 내용은 그대로 남아 있습니다.</p>
+              </MutationFeedback>
+            ) : null}
+            {notice ? (
+              <MutationFeedback className="opportunity-merge-reset-notice" tone="success">
+                <p>{notice}</p>
               </MutationFeedback>
             ) : null}
             <div className="opportunity-dialog-actions">
