@@ -102,6 +102,12 @@ Astryx의 "레이아웃도 컴포넌트로만, `<div>` 금지" 규칙은 ADR-004
 - 모델 호출은 용도(`screening`·`overview`·`deep_review`)별 설정으로 나간다. MVP 기간에는 허용 host·선언 revision을 비워 둬도 그 용도는 호출한다(ADR-0050 §5 완화); 값이 있으면 허용 host 목록·64자 hex 여부를 그대로 검사해 어긋나면 **호출 전에** fail closed한다.
 - 참조 실행 결과(`quality_status=unmeasured_reference|mock_reference`)를 운영 완료·품질 근거·정책 활성화 근거로 적지 않는다. 표식 없음(`null`)을 미측정이나 측정으로 승격시키지 않는다.
 
+## 사용자 요청 기반 Luna 심층검토 (ADR-0069)
+
+- 심층 자동 시작은 `BIDOPS_DEEP_REVIEW_AUTO_START_ENABLED=false`가 기본이다. 수집·문서 준비·개요 자동화는 유지한다.
+- 사전규격 상세에서 전송 미리보기와 건별 승인 후 기존 공용 슬롯으로 Luna 참조 분석을 요청한다. `BIDOPS_LUNA_DEEP_REVIEW_ENABLED`·참조 모드·새 불변 정책이 필요하다.
+- 실제 적용·자료 전송은 각 단계 직전 사람 확인 대상이며 격리 검증을 실제 모델 품질 근거로 쓰지 않는다. 상세는 `docs/0922_luna-deep-review/plan.md`·`apply.md`.
+
 ## 현재 런타임 사실
 
 - PostgreSQL 17의 `bidops` schema와 versioned MinIO가 운영 정본이다. SQLite는 격리 테스트와 일회성 이전 입력에만 사용한다.
@@ -109,8 +115,8 @@ Astryx의 "레이아웃도 컴포넌트로만, `<div>` 금지" 규칙은 ADR-004
 - 관리 화면은 **데스크톱·노트북 전용**이다. 지원 폭은 1280~1920px이며 모바일·태블릿 레이아웃과 터치 전용 조작을 만들지 않는다. 1280px 미만은 가로 스크롤을 허용하고 별도 레이아웃으로 전환하지 않는다(ADR-0047). 화면 검증 viewport는 laptop 1280x800과 desktop 1440x900 두 폭이다.
 - 현재 애플리케이션에는 로그인·역할 기반 권한이 없다. 사내망 접근 제한이 경계이고 담당자 이름은 감사 표식일 뿐 인증이 아니다.
 - 스케줄러와 always-on은 기본 비활성이다. 앱 startup은 migration, seed, 정책 활성화, 모델 호출을 수행하지 않는다.
-- 사전규격은 등급이 `우선 검토`이면 문서 준비를 자동으로 진행한다. `BIDOPS_PRESPEC_OVERVIEW_ENABLED`가 켜져 있으면 ready 묶음에서 개요 run을 자동 enqueue하고, 개요 run이 `completed`이고 `SW사업대상=Y`이며 현재 회사 핏 `matched`인 게이트를 지나야 심층 검토를 자동 시작한다(ADR-0049·ADR-0054, 2026-09-08 회사 핏 게이트 추가, 2026-09-11 개요 스택 재작성). 회사 핏은 기본 비활성이고 현재는 명시적으로 켠 참조 실행만 지원한다. 자동으로 여는 것은 분석의 시작뿐이며 추적 승인과 최종 Go/No-Go는 사람이 결정한다.
-- C-1 공고 판정·사전규격 개요·심층 검토는 `app/core/model_client.py` 하나를 용도별 설정으로 부른다. C-2 발주계획 어댑터만 별도 transport로 남아 있다.
+- 사전규격은 등급이 `우선 검토`이면 문서 준비를 자동으로 진행한다. `BIDOPS_PRESPEC_OVERVIEW_ENABLED`가 켜져 있으면 ready 묶음에서 개요 run을 자동 enqueue하고, 개요 run이 `completed`이고 `SW사업대상=Y`이며 현재 회사 핏 `matched`인 게이트를 지나야 심층 검토를 자동 시작한다. 이 자동 시작은 `BIDOPS_DEEP_REVIEW_AUTO_START_ENABLED=true`일 때만 허용하며 새 기본값은 false다(ADR-0049·ADR-0054, 2026-09-08 회사 핏 게이트 추가, 2026-09-11 개요 스택 재작성). 회사 핏은 기본 비활성이고 현재는 명시적으로 켠 참조 실행만 지원한다. 자동으로 여는 것은 분석의 시작뿐이며 추적 승인과 최종 Go/No-Go는 사람이 결정한다.
+- C-1 공고 판정·사전규격 개요·심층 검토는 `app/core/model_client.py` 하나를 용도별 설정으로 부른다. C-2 발주계획 어댑터와 사용자 승인 Luna `codex-exec`만 별도 transport다.
 - 일일 수집은 `scripts/run-daily-lifecycle.sh --track notices|order-plans`로 트랙마다 따로 실행하며 기준일은 전일(KST)이 기본이고 공고는 4일 창·발주계획은 1일 창이다. 발주계획 트랙은 C-2 활성화와 일일 자동 실행(환경 cap `BIDOPS_C2_DAILY_TRIGGER_ENABLED` + 활성 policy 버전에 묶인 DB 스위치)이 켜지기 전에는 수집조차 하지 않는다([ADR-0060](docs/tracking/decisions/0060-c2-policy-db-row-authority.md)·[ADR-0061](docs/tracking/decisions/0061-daily-collection-window.md)).
 - C-2 policy 활성 정본은 DB 행이다. 활성화와 일일 자동 실행 스위치는 관리 화면 `/order-plan-policies` 탭에서 다루고, 품질 게이트는 제품 경로를 그대로 타는 측정 전용 실행 2회와 게시일별 채점으로 판정한다. 2026-09-19에 `c2-order-plan-screening-v4`가 gold adjudicated v3 기준 게이트(recall ≥ 0.90·precision ≥ 0.35·중요 누락 ≤ 3·하루 검토량 ≤ 80, 두 pass 모두)를 통과해 활성화됐고 일일 자동 실행 스위치도 켜져 있다. 이 임계값·감사 표본 값(실행당 상한 10건, 월·목 검토)·전송 승인(binding 단위)은 **PoC용 결정**이며 운영 전환 때 다시 정한다(값과 근거는 `docs/0918_daily-operation/plan.md` 결정 표 D-a~D-e). 측정 여유가 작다(precision 36.7%, 하루 최대 검토량 79건)는 점을 품질 근거로 인용할 때 함께 적는다. v3 policy는 generation config revision 불일치로 한 번도 실행되지 못한 채 남은 행이며 되살리지 않는다.
 - GPU 휴지(`BIDOPS_GPU_BUSY_LIMIT_SECONDS`·`BIDOPS_GPU_REST_SECONDS`)는 기본값이 둘 다 0(꺼짐)이며 값을 주지 않으면 기존 워커 동작과 같다. 운영은 `env/c2.env`에서 600초 사용·300초 휴지로 켜 두었고, 휴지는 작업 사이에서만 들어간다.

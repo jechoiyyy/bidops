@@ -1,0 +1,102 @@
+{
+  "review_id": "835e686e-c8c5-42c7-b5b0-3131faf787b8",
+  "notice_id": 1430,
+  "attempts": [
+    {
+      "id": "ceb58cdf-2c8f-4362-98db-a7c86c88a6b8",
+      "sequence": 1,
+      "result": "failed",
+      "error": "processing_failed",
+      "started_at": "2026-09-22T03:57:13.703686Z",
+      "completed_at": "2026-09-22T03:59:02.915727Z"
+    },
+    {
+      "id": "cf300454-8875-4cd3-b0db-5f049917e86d",
+      "sequence": 2,
+      "result": "failed",
+      "error": "narrative:document_evidence_out_of_slice"
+    },
+    {
+      "id": "20e3508d-a88b-4573-95e3-a2b676bd3a91",
+      "sequence": 3,
+      "result": "failed",
+      "error": "narrative:document_evidence_out_of_slice",
+      "started_at": "2026-09-22T04:26:12.810111Z",
+      "completed_at": "2026-09-22T04:32:46.257736Z"
+    },
+    {
+      "id": "452f52b8-7965-44fc-96dc-3846b005beec",
+      "sequence": 4,
+      "result": "failed",
+      "source_verification_enabled": false,
+      "started_at": "2026-09-22T05:01:16.534788Z",
+      "completed_at": "2026-09-22T05:06:52.117174Z",
+      "error": "narrative:unexpected_synthesis_coverage",
+      "stage1_claim_count": 11,
+      "stage1_evidence_count": 11,
+      "stage1_korean_body_count": 11,
+      "stage1_output_tokens": 7751,
+      "stage1_duration_ms": 232266,
+      "stage2_claim_count": 8
+    }
+  ],
+  "quality_status": "unmeasured_reference",
+  "report_count": 0,
+  "stage1_claim_count": 8,
+  "stage1_evidence_count": 8,
+  "exact_evidence_count": 7,
+  "key_point_count": 8,
+  "unknown_count": 0,
+  "validator_codes": [
+    "evidence_quote_mismatch",
+    "fact_number_not_in_evidence",
+    "fact_number_not_in_evidence",
+    "fact_number_not_in_evidence"
+  ],
+  "next_stage_budget_dry_run": "source_analysis_too_large",
+  "encrypted_raw_plaintext_sha256": "97d7800fe5b12b8a12ad75e6158eccea42ef0a82a0ea30137baa44ceca9b6b97",
+  "recorded_response_replays": [
+    {
+      "recorded_failed_response_replay": "passed",
+      "canonical_evidence_quotes": 1,
+      "year_warnings": 3,
+      "stage2_packs": 2,
+      "prompt_characters": [
+        16377,
+        10125
+      ],
+      "live_model_calls": 0
+    },
+    {
+      "attempt_3_recorded_response_replay": "failed",
+      "codes": [
+        "fact_number_not_in_evidence"
+      ]
+    },
+    {
+      "considered_count": 7,
+      "considered_within_input": true,
+      "raw_response_modified": false,
+      "live_model_calls": 0,
+      "slice_validation": "claim_relation_out_of_slice",
+      "stage_validation_codes": [
+        "dangling_premise",
+        "inference_evidence_required",
+        "dangling_premise",
+        "inference_evidence_required",
+        "dangling_premise",
+        "inference_evidence_required",
+        "unknown_shape",
+        "dangling_premise",
+        "inference_evidence_required",
+        "inference_evidence_required",
+        "dangling_premise",
+        "inference_evidence_required",
+        "inference_evidence_required"
+      ],
+      "attempt_id": "452f52b8-7965-44fc-96dc-3846b005beec",
+      "company_evidence_ids_used_as_claim_premises": 3
+    }
+  ],
+  "original_validation_metrics_attempt_id": "cf300454-8875-4cd3-b0db-5f049917e86d"
+}

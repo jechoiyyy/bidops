@@ -320,6 +320,7 @@ export interface PreSpecListItem {
   auto_preparation_reason: string | null;
   /** 자동으로 시작된(또는 마지막) 심층 검토 식별자. 없으면 `null`이다. */
   latest_deep_review_id: string | null;
+  latest_deep_review_status?: "queued" | "running" | "completed" | "failed" | null;
   /** 현재 projection에 포함된 관측 중 가장 이른 시각. 없으면 `null`이다. */
   first_observed_at: string | null;
   /** 현재 projection에 포함된 관측 중 가장 늦은 시각. 없으면 `null`이다. */

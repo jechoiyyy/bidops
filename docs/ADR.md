@@ -314,3 +314,5 @@ ADR-0021은 “운영 제품 전에 동일 모집단과 사람 정답으로 비�
 상세 결정은 이 문서에 장문으로 복제하지 말고 `docs/tracking/decisions/NNNN-*.md`에 추가한
 뒤 이 색인과 관련 정본(`business-rules.md`, `contracts.md`, `operations.md`)의
 링크를 갱신한다.
+
+- [ADR-0069 사용자 요청 기반 Luna 심층검토](tracking/decisions/0069-user-requested-luna-deep-review.md): 건별 미리보기·승인·동결 입력, 공용 슬롯, 참조 표식, 기본 자동 시작 비활성.

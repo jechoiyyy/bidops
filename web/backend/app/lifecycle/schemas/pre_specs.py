@@ -157,6 +157,7 @@ class PreSpecListItem(RuntimeContractModel):
     #: 왜 다음 단계로 가지 않는가. 안전한 코드이며 없으면 `None`이다.
     auto_preparation_reason: str | None = None
     latest_deep_review_id: UUID | None = None
+    latest_deep_review_status: Literal["queued", "running", "completed", "failed"] | None = None
     first_observed_at: AwareDateTime | None = None
     last_observed_at: AwareDateTime | None = None
     next_action: PreSpecNextAction | None = None

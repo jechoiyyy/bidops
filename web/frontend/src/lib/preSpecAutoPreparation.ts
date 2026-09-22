@@ -14,7 +14,7 @@ export const PRE_SPEC_AUTO_PREPARATION_STATUS_LABEL: Record<PreSpecAutoPreparati
   bundle_draft: "묶음 초안",
   bundle_ready: "묶음 확정",
   overview_running: "개요 검토 실행 중",
-  deep_review_started: "심층 검토 자동 시작됨",
+  deep_review_started: "심층 검토 시작됨",
   deep_review_ready_for_click: "심층 검토 클릭 대기",
   blocked: "자동 준비 중단",
 };
@@ -40,6 +40,7 @@ export const COMPANY_FIT_REASON_LABEL: Record<string, string> = {
 
 const REASON_LABEL: Record<string, string> = {
   ...COMPANY_FIT_REASON_LABEL,
+  manual_request_required: "전송 내용을 확인하고 심층검토를 요청하십시오.",
   grade_not_priority: "우선 검토 등급이 아닙니다.",
   awaiting_fetch: "첨부 원문 취득이 끝나지 않았습니다.",
   no_ready_document: "구조화가 끝난 문서가 없습니다.",

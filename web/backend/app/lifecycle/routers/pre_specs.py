@@ -776,6 +776,7 @@ def list_pre_specs(
                 ),
                 auto_preparation_reason=status.get("auto_preparation_reason"),
                 latest_deep_review_id=status.get("latest_deep_review_id"),
+                latest_deep_review_status=status.get("latest_deep_review_status"),
                 first_observed_at=mapping["first_observed_at"],
                 last_observed_at=mapping["last_observed_at"],
                 next_action=next_action,

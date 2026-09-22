@@ -1,0 +1,107 @@
+{
+  "bidops-web-1": {
+    "image": "sha256:e42457530cd81cdf249fed32996b7f529f00ef9b2302c7bbce4c2b09a19c5183",
+    "status": "running",
+    "verified_configuration": {
+      "BIDOPS_ACTIVE_PROFILE_VERSION_ID": "d970500a-e30c-46cf-85e0-7e9a9e854f2b",
+      "BIDOPS_ACTIVE_ANALYSIS_POLICY_VERSION_ID": "8973ae72-9107-4418-9ab8-0bc5eb4822db",
+      "BIDOPS_REFERENCE_WORKFLOW_MODE": "true",
+      "BIDOPS_PRESPEC_COMPANY_FIT_ENABLED": "false",
+      "BIDOPS_PRESPEC_OVERVIEW_ENABLED": "true",
+      "BIDOPS_GPU_BUSY_LIMIT_SECONDS": "600",
+      "BIDOPS_GPU_REST_SECONDS": "300"
+    }
+  },
+  "bidops-analysis-worker-1": {
+    "image": "sha256:e42457530cd81cdf249fed32996b7f529f00ef9b2302c7bbce4c2b09a19c5183",
+    "status": "running",
+    "verified_configuration": {
+      "BIDOPS_ACTIVE_PROFILE_VERSION_ID": "d970500a-e30c-46cf-85e0-7e9a9e854f2b",
+      "BIDOPS_ACTIVE_ANALYSIS_POLICY_VERSION_ID": "8973ae72-9107-4418-9ab8-0bc5eb4822db",
+      "BIDOPS_REFERENCE_WORKFLOW_MODE": "true",
+      "BIDOPS_PRESPEC_COMPANY_FIT_ENABLED": "false",
+      "BIDOPS_PRESPEC_OVERVIEW_ENABLED": "true",
+      "BIDOPS_GPU_BUSY_LIMIT_SECONDS": "600",
+      "BIDOPS_GPU_REST_SECONDS": "300"
+    }
+  },
+  "policy": {
+    "active_configuration_changed": true,
+    "policy_sha256": "d97e5294ded62453c4bd75bb44a3ebbe182e24b04565e36444c8b0eecf69879a",
+    "policy_version_id": "8973ae72-9107-4418-9ab8-0bc5eb4822db",
+    "profile_sha256": "3810debb158caf6f45dcd83e5361051c9c8599ed25e1058c0cfea7b1086ac311",
+    "profile_version_id": "d970500a-e30c-46cf-85e0-7e9a9e854f2b",
+    "scope": "reference PoC selection; quality unmeasured"
+  },
+  "backup": {
+    "dump": "backups/postgres/full/bidops-20260922T051623Z.dump",
+    "dump_bytes": 26351710,
+    "dump_sha256": "ec3c51355b73b9b8353e17dd4c20f82124e8608b6e23290da4e1edc3f8e9234a",
+    "object_manifest": "backups/objects/verification-final-20260922/object-versions.tsv",
+    "object_manifest_sha256": "a78f9d7e26755ccc4d7240c56526da4534ce2e04945c3b00cf257d1793ab1cdb",
+    "object_versions": 1077,
+    "migration_head": "0031_prespec_preliminary_assessment",
+    "images": [
+      {
+        "container": "bidops-web-1",
+        "image": "sha256:64a03e86fbaf506936485304fffdcef2fdb67bb0bd45779d067f2efc1118edee",
+        "rollback_tag": "bidops-web:before-verification-final-20260922"
+      },
+      {
+        "container": "bidops-analysis-worker-1",
+        "image": "sha256:64a03e86fbaf506936485304fffdcef2fdb67bb0bd45779d067f2efc1118edee",
+        "rollback_tag": "bidops-analysis-worker:before-verification-final-20260922"
+      }
+    ],
+    "git_head": "e2252f6c9f178207320893a177431e800e210b4e"
+  },
+  "source_manifest_sha256": "5f0ec1de63777ec955755cb5a8b5c4c429be63014706516a73a7c72036a6a9e6",
+  "source_manifest_scope": "web/backend/app and web/frontend/src at verification-final build; unchanged frontend build cache reused",
+  "initial_backup": {
+    "dump": "backups/postgres/full/bidops-20260922T034937Z.dump",
+    "dump_bytes": 26338078,
+    "dump_sha256": "6530d090edae5ef5fb67382e4e08f9c4dd6b4f36f73c16fec20b78010421bd2c",
+    "object_manifest": "backups/objects/narrative-20260922/object-versions.tsv",
+    "object_manifest_sha256": "4cf4dff68e52fac75c59b3d7bab09d432947bc91e12397d5f9e5d162046cdce7",
+    "object_versions": 1071,
+    "migration_head": "0031_prespec_preliminary_assessment",
+    "images": [
+      {
+        "container": "bidops-web-1",
+        "image": "sha256:927f0a156a5d48d0a0492a273a2a0b9034accb177a9f2eef6ac314fec6e2a457",
+        "rollback_tag": "bidops-web:before-narrative-20260922"
+      },
+      {
+        "container": "bidops-analysis-worker-1",
+        "image": "sha256:77ba2061f537fb930809dc4ab36a5ef423cfc520ef0b19a4962da05a5bf0ea0e",
+        "rollback_tag": "bidops-analysis-worker:before-narrative-20260922"
+      }
+    ],
+    "git_head": "e2252f6c9f178207320893a177431e800e210b4e"
+  },
+  "rollback_tag": "before-source-verification-final-20260922",
+  "toggle_backup": {
+    "dump": "backups/postgres/full/bidops-20260922T045735Z.dump",
+    "dump_bytes": 26344095,
+    "dump_sha256": "9e4f43ec7cfd88b7eaca17270788d6ff14b90c22baa9a9bd54a0198d954561cb",
+    "object_manifest": "backups/objects/verification-toggle-20260922/object-versions.tsv",
+    "object_manifest_sha256": "23640681c56f2439d813c98bdbae3e5937ead3b5cba13572e48847309f81e54a",
+    "object_versions": 1075,
+    "migration_head": "0031_prespec_preliminary_assessment",
+    "images": [
+      {
+        "container": "bidops-web-1",
+        "image": "sha256:70edd650340321ffc63d39622b6d4b1c7349ac97579f7a106661a4bafd57583a",
+        "rollback_tag": "bidops-web:before-verification-toggle-20260922"
+      },
+      {
+        "container": "bidops-analysis-worker-1",
+        "image": "sha256:70edd650340321ffc63d39622b6d4b1c7349ac97579f7a106661a4bafd57583a",
+        "rollback_tag": "bidops-analysis-worker:before-verification-toggle-20260922"
+      }
+    ],
+    "git_head": "e2252f6c9f178207320893a177431e800e210b4e"
+  },
+  "health_http_status": 200,
+  "runtime_image_tag": "verification-final-e2252f6-dirty"
+}

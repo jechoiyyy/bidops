@@ -671,3 +671,13 @@ validator 실패는 결과를 자동 보정하지 않는다. report renderer는 
 - 미해결 findings: docs/tracking/findings.md
 - 공고 판정 런타임: docs/agent/agent-runtime.md, docs/scheduling.md, docs/model-quality-gate.md, docs/e2e-bc-acceptance.md
 - 화면 개선: docs/0915_ui-redesign/(재설계 C 정본), docs/design/mockups/(사전규격 검토 시안 참고자료)
+
+### 사용자 요청 Luna 심층검토 (ADR-0069)
+
+사전규격 UI → 미리보기 REST → append-only 입력/승인 → 기존 DeepReview/WorkJob →
+합성 worker → 내부 codex-runner → 권위 stage/근거 검증 → 암호화 원응답·설명형 보고서다.
+별도 큐 소비자를 만들지 않으며 기존 vLLM transport와 이력은 유지한다.
+심층 자동 시작은 기본 off, Luna 요청도 별도 enabled·reference 설정이 필요하다.
+runner는 DB·MinIO·저장소 없이 전용 인증 secret만 사용한다.
+[계약](contracts.md#사용자-요청-기반-luna-심층검토-adr-0069)과
+[적용 절차](0922_luna-deep-review/apply.md)를 따른다.

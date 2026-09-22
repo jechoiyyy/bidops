@@ -841,3 +841,38 @@ Lean v1 축소안은 기존 P0 무결성 경계를 유지하면서 운영·미�
 `bidops-deep-review-lean-v1-2026-08-25`다. 미결정 설계 항목은 없다. 이 문서를 포함한 승인
 설계 기준선은 commit `d5941c7`에 보존되어 있다. 이후 변경은 문서와 migration 영향을 함께
 검토하는 새 승인 대상으로 취급한다.
+
+### 설명형 보고서 v2의 저장 경계 (2026-09-22)
+
+v2의 문장 역할·절·주제·요구사항·연관 주장·핵심 여부는 완료 stage의
+`structured_output` JSON 정본에 저장한다. 기존 `claim` 행에는 기존 공통 필드만 투영한다.
+보고서 조립 때 공통 필드와 evidence 순서를 DB 행과 대조한 뒤 정본 metadata를 결합한다.
+불일치·누락·단계 간 schema 혼합은 발행하지 않는다. stage 순서와 응답 내 문장 순서를
+보존하며 UUID 정렬을 편집 순서로 사용하지 않는다.
+
+`analysis_policy_version.validation_rules.policy_snapshot`은 v2 정책 전체 canonical
+payload를 보존한다. hash, 등록 파일, model/prompt/generation/validation의 중복 열을
+모두 대조한다. 회사 근거 선택 범위·예산 제외는 `invocation_metadata.profile_selection`,
+종합 범위는 `synthesis_phase=partial|global`에 남긴다. 원문을 일반 로그로 보내지 않는다.
+
+원문 인용·숫자 대조 선택은 attempt별 `deep_review.source_verification_selected`
+감사 행(`aggregate_type=deep_review_attempt`, `safe_metadata.enabled`)에 고정한다.
+없는 과거 행은 true이며 중복/잘못된 선택 행은 거부한다. 끈 실행의 report는 저장된
+validation check `source_verification_skipped`와 분석 한계로 구별한다. 근거 조회도 해당
+근거를 사용한 claim→stage→attempt 선택을 읽으며 현재 attempt의 값을 소급 적용하지 않는다.
+page 인용이 여러 문단에 걸치면 DB block key 정렬 대신 고정 structure payload의 원래
+문단 순서로 대조한다. 출처/해시/페이지 범위는 off에서도 유지한다.
+
+새 테이블·열·migration은 없다. v1 행·revision/hash·의견을 갱신하는 이전 작업도 없다.
+운영 활성화는 별도 사람 확인을 거치며, 코드가 존재한다는 이유로 활성 정책을 바꾸지 않는다.
+
+## 사용자 요청 기반 Luna 입력·승인 (0032)
+
+- `deep_review_preview`: UUID PK, notice/bundle/profile/policy FK(RESTRICT),
+  입력 SHA-256, 동결 JSON, 생성 시각. 구조·profile 본문은 이 입력 저장소에만 둔다.
+- `deep_review_approval`: UUID PK, preview/attempt FK(RESTRICT), 담당자,
+  request UUID, 승인 시각. preview와 attempt 각각 unique다.
+- 두 표는 append-only이며 DB trigger/ORM과 최소 권한이 보호한다. 승인 행이 있으면
+  downgrade할 수 없다. 본문 없이 preview ID·해시·모델만 일반 감사에 기록한다.
+- attempt·stage·보고서·사람 수정 이력은 기존 관계를 사용한다.
+  [ADR-0069](tracking/decisions/0069-user-requested-luna-deep-review.md).

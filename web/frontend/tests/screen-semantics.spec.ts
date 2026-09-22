@@ -278,7 +278,7 @@ const AUTO_PREPARATION_LABELS = [
   "묶음 초안",
   "묶음 확정",
   "개요 검토 실행 중",
-  "심층 검토 자동 시작됨",
+  "심층 검토 시작됨",
   "심층 검토 클릭 대기",
   "자동 준비 중단",
 ];
@@ -339,9 +339,9 @@ test("사전규격 상세가 등급 출처와 자동 준비 네 단계를 한 �
   await expect(steps).toContainText("확정 완료");
   await expect(steps).toContainText("3 · 개요 검토");
   await expect(steps).toContainText("4 · 심층 검토");
-  await expect(steps).toContainText("심층 검토 자동 시작됨");
+  await expect(steps).toContainText("심층 검토 시작됨");
 
-  const link = page.getByRole("link", { name: /자동 시작된 심층 검토 보고서 열기/ });
+  const link = page.getByRole("link", { name: /실행·보고서 열기/ });
   await expect(link).toHaveAttribute("href", "/deep-reviews/fixture-review");
 });
 
@@ -354,7 +354,7 @@ test("클릭 대기 상태는 보고서 링크 대신 기존 심층 검토 실�
   await expect(steps).toContainText("심층 검토 클릭 대기");
   // 사유 코드는 안전한 문구로 보이고, 없으면 아무것도 그리지 않는다.
   await expect(steps).toContainText("자동 확정 조건을 채우지 못한 묶음입니다.");
-  await expect(page.getByRole("link", { name: /자동 시작된 심층 검토 보고서 열기/ })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: /실행·보고서 열기/ })).toHaveCount(0);
   await expect(page.getByRole("link", { name: /심층 검토 실행/ })).toHaveAttribute("href", "#document-preparation");
   // bda1288: "등급 출처 · 정정" → "개요 기준 · 사람 정정"(displayAssessmentSourceLabel).
   await expect(page.locator(".pre-spec-detail-grade-row")).toContainText("개요 기준 · 사람 정정");

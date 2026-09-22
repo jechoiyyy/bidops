@@ -586,3 +586,10 @@ binding·`raw_response_refs`(암호화 원응답 참조 목록)를 한 행에 �
 ### 회사 핏 이력: `prespec_company_fit_attempt`
 
 개요 뒤 회사 업무 부합 여부를 판단한 별도 실행 이력이다. migration `0020_prespec_company_fit`에서 추가한다. 개요 run 하나, 그 문서, 승인 프로필, 활성 심층 정책을 FK로 묶고 핏 정책 전문/모델 바인딩/구조화 입력을 불변 JSON과 digest로 저장한다. 같은 입력은 한 번만 실행한다. queued → running → completed/failed/needs_human_review로 전이하고, queued의 오래된 입력은 failed로 닫을 수 있다. lease 만료 후 자동 재개하지 않는다. 종결 행과 입력은 DB trigger/ORM으로 보호한다. 결과·사유·사용량은 이 테이블이 정본이며 자동 준비 표시 상태는 여전히 조회 시 계산한다.
+
+### Luna 전송 미리보기·승인 (0032)
+
+`deep_review_preview`는 문서/프로필/정책/설정의 동결 원천 입력과 해시를,
+`deep_review_approval`은 하나의 preview와 하나의 attempt 사이의 건별 승인 기록을
+보존한다. 두 표는 append-only이며 기존 review/attempt/report 관계를 바꾸지 않는다.
+본문은 일반 감사에 넣지 않는다. [권위 계약](deep-review-erd.md#사용자-요청-기반-luna-입력승인-0032).

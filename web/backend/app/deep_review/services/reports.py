@@ -40,6 +40,7 @@ from .deep_review_validation import (
     DeepReviewValidationError,
     REQUIRED_SECTIONS,
     build_segment_checks,
+    narrative_numeric_warnings,
     validate_deep_review_report,
     validate_deep_review_validation,
 )
@@ -149,10 +150,6 @@ class ReportService:
         review = session.scalar(select(DeepReview).where(DeepReview.id == review_id))
         if review is None:
             raise _error("not_found", "deep review를 찾을 수 없습니다", status_code=404)
-        attempt, _stages = self._completed_attempt(session, review)
-        machine_revision = self._machine_revision_for_attempt(session, review, attempt.id)
-        if machine_revision is None:
-            raise _error("review_not_ready", "machine report가 아직 준비되지 않았습니다", status_code=409)
         revision = session.scalar(select(ReportRevision).where(
             ReportRevision.deep_review_id == review.id,
         ).order_by(ReportRevision.sequence.desc()).limit(1))
@@ -278,6 +275,16 @@ class ReportService:
             # 에서 사라지지 않는다 (명세 §6.5·§8).
             new_payload["quality_status"] = quality_status_for_review(session, review.id)
             old_payload = current.report_payload if isinstance(current.report_payload, Mapping) else {}
+            if new_payload.get("schema") != old_payload.get("schema"):
+                raise _error("validation_failed", "revision에서 보고서 형식을 변경할 수 없습니다", status_code=409)
+            if new_payload.get("schema") == "bidops.deep-review-report.v2":
+                from .narrative_report import CLAIM_METADATA
+                for key in ("generator_version", "coverage", "analysis_limitations", "validation_summary"):
+                    if new_payload.get(key) != old_payload.get(key):
+                        raise _error("validation_failed", "서버 소유 분석 상태는 수정할 수 없습니다", status_code=409)
+                metadata = lambda value: {row["claim_id"]: {key: row[key] for key in CLAIM_METADATA} for row in value["claims"]}
+                if metadata(new_payload) != metadata(old_payload):
+                    raise _error("validation_failed", "분석 문장의 역할과 연결은 수정할 수 없습니다", status_code=409)
             if new_payload.get("system_recommendation") != old_payload.get("system_recommendation"):
                 raise _error("validation_failed", "system recommendation은 base revision에서 변경할 수 없습니다", status_code=409, request_id=payload.request_id)
             current_validation = session.scalar(select(ValidationRun).where(
@@ -486,8 +493,23 @@ class ReportService:
         segment_failed = any(check["status"] == "failed" for check in segment_checks)
         status = "failed" if failed_claims or segment_failed else "passed"
         recommendation, recommendation_unknown = self._system_recommendation(stage_payloads, status)
-        if recommendation_unknown and recommendation_unknown not in unknowns:
+        narrative = all(row["schema"] == "bidops.deep-review-stage.v2" for row in stage_payloads)
+        if not narrative and recommendation_unknown and recommendation_unknown not in unknowns:
             unknowns.append(recommendation_unknown)
+        if narrative:
+            from .narrative_report import render
+            notation_checks = narrative_numeric_warnings(claim_payloads, evidence_payloads) if contexts.get("source_verification_enabled", True) else []
+            from .verification import NOT_PERFORMED
+            verification_limits = [] if contexts.get("source_verification_enabled", True) else [NOT_PERFORMED]
+            report = render({"deep_review_id": str(review.id), "notice_id": review.notice_id,
+                             "bundle_id": str(review.bundle_id), "profile_version_id": str(review.profile_version_id),
+                             "policy_version_id": str(review.policy_version_id), "created_at": _iso(_now()),
+                             "quality_status": quality_status_for_review(session, review.id)},
+                            claim_payloads, stage_payloads, unknowns=unknowns, recommendation=recommendation,
+                            status=status, limitations=[*verification_limits, *contexts.get("bundle_limitations", ()), *list(dict.fromkeys(row["message"] for row in notation_checks)), *(["종합 권고를 확정할 수 없어 보류로 표시합니다. 원문과 분석 근거를 확인하십시오."] if recommendation_unknown else [])])
+            _, checks, _ = self._validation_result(report, uuid4(), uuid4(), review, stage_payloads, evidence_payloads, contexts, segment_checks=segment_checks)
+            report["validation_summary"].update({key: sum(check["status"] == value for check in checks) for key, value in (("failed", "failed"), ("warnings", "warning"), ("passed", "passed"))})
+            return report, stage_payloads, evidence_payloads, contexts, segment_checks
         report = self._render_report(
             review, claim_payloads, unknowns, status, recommendation,
             quality_status=quality_status_for_review(session, review.id),
@@ -513,7 +535,7 @@ class ReportService:
             if isinstance(claim, Mapping):
                 texts.append(str(claim.get("body", "")))
                 texts.append(str(claim.get("category", "")))
-        observed = document_segments.observed_requirement_ids(texts, inventory.get("prefixes", []) or [])
+        observed = ({rid for row in claims for rid in row["requirement_ids"]} if stage_one and stage_one.get("schema") == "bidops.deep-review-stage.v2" else document_segments.observed_requirement_ids(texts, inventory.get("prefixes", []) or []))
         return build_segment_checks(inventory, observed)
 
     @staticmethod
@@ -562,6 +584,22 @@ class ReportService:
                 "premise_claim_ids": [str(item) for item in (claim.premise_claim_ids if isinstance(claim.premise_claim_ids, list) else [])],
                 "reason": claim.reason, "evidence_ids": [str(item) for item in evidence_ids],
             })
+        if any(isinstance(stage.structured_output, Mapping) and stage.structured_output.get("schema") == "bidops.deep-review-stage.v2" for stage in stages):
+            from .narrative_report import CLAIM_METADATA
+            by_id = {row["claim_id"]: row for row in result}
+            ordered = []
+            for stage in sorted(stages, key=lambda row: STAGE_NAMES.index(row.stage)):
+                raw = stage.structured_output
+                if not isinstance(raw, Mapping) or raw.get("schema") != "bidops.deep-review-stage.v2":
+                    raise _error("validation_failed", "분석 단계의 계약 버전이 혼합되었습니다", status_code=409)
+                for item in raw["claims"]:
+                    base = by_id.get(item["claim_id"])
+                    if base is None or any(base[key] != item[key] for key in base):
+                        raise _error("validation_failed", "저장된 분석 문장이 원본과 일치하지 않습니다", status_code=409)
+                    ordered.append({**base, **{key: item[key] for key in CLAIM_METADATA}})
+            if len(ordered) != len(result):
+                raise _error("validation_failed", "분석 문장이 누락되었습니다", status_code=409)
+            return ordered
         return result
 
     def _evidence(self, session: Session, review_id: UUID, evidence_ids: Iterable[UUID | str] | None = None) -> list[dict[str, Any]]:
@@ -598,13 +636,17 @@ class ReportService:
             stage_claims = [item for item in claims if self._claim_stage(session, item["claim_id"]) == stage.id]
             stage_evidence = [item for item in evidence if any(item["evidence_id"] in claim["evidence_ids"] for claim in stage_claims)]
             stage_payloads.append({
-                "schema": "bidops.deep-review-stage.v1", "deep_review_id": str(review.id),
+                "schema": raw.get("schema", "bidops.deep-review-stage.v1"), "deep_review_id": str(review.id),
                 "attempt_id": str(attempt.id), "stage": stage.stage, "claims": stage_claims,
                 "evidence": stage_evidence,
                 "unknowns": [item for item in raw.get("unknowns", []) if isinstance(item, str)] if isinstance(raw.get("unknowns"), list) else [],
                 "warnings": [item for item in raw.get("warnings", []) if isinstance(item, str)] if isinstance(raw.get("warnings"), list) else [],
+                **({"coverage": raw["coverage"], "considered_claim_ids": raw["considered_claim_ids"]} if raw.get("schema") == "bidops.deep-review-stage.v2" else {}),
             })
-        return stage_payloads, evidence, self._contexts(session, review, evidence_by_id)
+        from .verification import enabled_for_attempt
+        contexts = self._contexts(session, review, evidence_by_id)
+        contexts["source_verification_enabled"] = enabled_for_attempt(session, attempt.id)
+        return stage_payloads, evidence, contexts
 
     def _claim_stage(self, session: Session, claim_id: str) -> UUID | None:
         return session.scalar(select(Claim.stage_id).where(Claim.id == _uuid(claim_id)))
@@ -636,6 +678,13 @@ class ReportService:
                     "bbox": block.bbox, "attributes": block.attributes if isinstance(block.attributes, Mapping) else {},
                 } for block in blocks],
             }
+            page_spans = [ref for ref in evidence_by_id.values() if ref.get("structure_id") == value and ref.get("locator_type") == "page" and "\n" in str(ref.get("quote", ""))]
+            if page_spans:
+                # DB block keys are not reading order. Resolve continuous page
+                # spans against the pinned payload's original block sequence.
+                from .input_versions import _structure_payload
+                item = next(row for row in items if row.structure_id_at_confirmation == structure.id)
+                structures[value] = dict(_structure_payload(session, item, structure))
         profile = session.get(ProfileVersion, review.profile_version_id)
         profile_payload = profile.profile_payload if profile and isinstance(profile.profile_payload, Mapping) else {}
         profile_rows = session.scalars(select(ProfileEvidence).where(ProfileEvidence.profile_version_id == review.profile_version_id).order_by(ProfileEvidence.id.asc())).all()
@@ -744,6 +793,7 @@ class ReportService:
                 payload,
                 bundle=contexts["bundle"], profile=contexts["profile"], evidence=evidence,
                 stages=stages, expected_deep_review_id=str(review.id), structures=contexts["structures"],
+                source_verification_enabled=contexts.get("source_verification_enabled", True),
             )
         except (DeepReviewValidationError, ValueError) as error:
             raise _error("validation_failed", "report validation을 통과하지 못했습니다", status_code=409, request_id=request_id) from error
@@ -794,7 +844,7 @@ class ReportService:
     def _validation_result(self, report: Mapping[str, Any], revision_id: UUID, validation_id: UUID, review: DeepReview, stages: Sequence[Mapping[str, Any]], evidence: Sequence[Mapping[str, Any]], contexts: Mapping[str, Any], *, segment_checks: Sequence[Mapping[str, Any]] | None = None) -> tuple[str, list[dict[str, Any]], dict[str, Any]]:
         failed_ids = [str(claim["claim_id"]) for claim in report.get("claims", []) if claim.get("status") in {"unsupported", "conflicting"}]
         summary = report.get("validation_summary", {})
-        declared_failed = summary.get("status") == "failed" and int(summary.get("failed", 0) or 0) > 0
+        declared_failed = report.get("schema") != "bidops.deep-review-report.v2" and summary.get("status") == "failed" and int(summary.get("failed", 0) or 0) > 0
         status = "failed" if failed_ids or declared_failed else "passed"
         checks: list[dict[str, Any]] = []
         if failed_ids:
@@ -812,6 +862,11 @@ class ReportService:
             if segment_checks is not None
             else self._segment_checks(stages, contexts)
         )
+        if not contexts.get("source_verification_enabled", True):
+            from .verification import skipped_check
+            checks.append(skipped_check())
+        elif report.get("schema") == "bidops.deep-review-report.v2":
+            checks.extend(narrative_numeric_warnings(report.get("claims", []), evidence))
         if any(check["status"] == "failed" for check in checks):
             status = "failed"
         validation_payload = {

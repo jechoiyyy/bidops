@@ -1,3 +1,5 @@
+import { LunaRequest } from "./LunaRequest";
+import { SourceVerificationSetting } from "./SourceVerificationSetting";
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type DragEvent, type KeyboardEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ActorField } from "../common/ActorField";
@@ -357,8 +359,9 @@ export function DocumentPreparationPanel({ noticeId, currentGrade, onDeepReviewC
     },
   });
 
+  const [sourceVerificationEnabled, setSourceVerificationEnabled] = useState(true);
   const deepReviewMutation = useMutation({
-    mutationFn: () => createDeepReview(noticeId, selectedBundle?.id ?? "", actorName),
+    mutationFn: ({ previewId, requestId }: { previewId: string; requestId: string }) => createDeepReview(noticeId, selectedBundle?.id ?? "", actorName, sourceVerificationEnabled, previewId, requestId),
     onSuccess: onDeepReviewCreated,
   });
 
@@ -604,17 +607,12 @@ export function DocumentPreparationPanel({ noticeId, currentGrade, onDeepReviewC
             <div className="document-preparation-start-review">
               <div>
                 <strong>심층 검토 시작</strong>
+                <SourceVerificationSetting value={sourceVerificationEnabled} onChange={setSourceVerificationEnabled} disabled={deepReviewMutation.isPending} />
                 <p>확정된 문서 묶음만 입력으로 씁니다. 사전규격 심층 검토는 최종 입찰 Go/No-Go를 대신하지 않습니다.</p>
               </div>
               <div className="document-preparation-action-control">
-                <button
-                  type="button"
-                  onClick={() => deepReviewMutation.mutate()}
-                  disabled={deepReviewMutation.isPending || !actorName.trim()}
-                  aria-describedby={deepReviewDisabledReason ? "deep-review-start-disabled" : undefined}
-                >
-                  {deepReviewMutation.isPending ? "심층 검토 생성 중" : "확정된 문서 묶음으로 심층 검토 시작"}
-                </button>
+                <LunaRequest key={`${selectedBundle.id}:${sourceVerificationEnabled}:${actorName}`} noticeId={noticeId} bundleId={selectedBundle.id} verification={sourceVerificationEnabled} actor={actorName}
+                  onSubmit={(previewId, requestId) => deepReviewMutation.mutateAsync({ previewId, requestId })} />
                 {deepReviewDisabledReason ? <DisabledReason id="deep-review-start-disabled">{deepReviewDisabledReason}</DisabledReason> : null}
               </div>
             </div>

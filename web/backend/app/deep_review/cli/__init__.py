@@ -48,6 +48,7 @@ _SUBCOMMANDS: dict[str, tuple[str, str]] = {
         ".prepare_overviews",
         "자격을 갖춘 사전규격의 자동 준비를 한 번에 돌린다 (개요 backfill)",
     ),
+    "close-deep-review": (".close_deep_review", "대기 심층검토를 감사와 함께 중단하거나 활성 목록 조회"),
     "close-overview-run": (
         ".close_overview_run",
         "활성 사전규격 개요 run 하나를 닫는다 (queued→cancelled, running→failed)",

@@ -198,10 +198,12 @@ export function getDocumentSegments(structureId: string): Promise<DocumentSegmen
   return request<DocumentSegmentsView>(`/document-structures/${encodeURIComponent(structureId)}/segments`);
 }
 
-export function createDeepReview(noticeId: number, bundleId: string, actorName: string): Promise<DeepReviewView> {
+export function createDeepReview(noticeId: number, bundleId: string, actorName: string, sourceVerificationEnabled = true, previewId?: string, requestId = generateRequestId()): Promise<DeepReviewView> {
   const payload: CreateDeepReviewPayload = {
-    request_id: generateRequestId(),
+    preview_id: previewId,
+    request_id: requestId,
     bundle_id: bundleId,
+    source_verification_enabled: sourceVerificationEnabled,
   };
   return request<DeepReviewView>(`/notices/${encodeURIComponent(noticeId)}/deep-reviews`, {
     method: "POST",
@@ -214,8 +216,10 @@ export function createDeepReviewAttempt(
   deepReviewId: string,
   actorName: string,
   requestId: string = generateRequestId(),
+  sourceVerificationEnabled = true,
+  previewId?: string,
 ): Promise<AttemptView> {
-  const payload: CreateDeepReviewAttemptPayload = { request_id: requestId };
+  const payload: CreateDeepReviewAttemptPayload = { preview_id: previewId, request_id: requestId, source_verification_enabled: sourceVerificationEnabled };
   return request<AttemptView>(`/deep-reviews/${encodeURIComponent(deepReviewId)}/attempts`, {
     method: "POST",
     headers: jsonMutationHeaders(actorName),
@@ -252,5 +256,12 @@ export function saveFinalOpinion(
     method: "POST",
     headers: jsonMutationHeaders(actorName),
     body: JSON.stringify(payload),
+  });
+}
+
+export function previewDeepReview(noticeId: number, bundleId: string, verification: boolean, reviewId?: string) {
+  return request<import("./types").DeepReviewPreview>(`/notices/${noticeId}/deep-review-previews`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ bundle_id: bundleId, source_verification_enabled: verification, review_id: reviewId }),
   });
 }

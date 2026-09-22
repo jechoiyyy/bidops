@@ -1,0 +1,44 @@
+.narrative-report { --narrative-reading-layer: 100; background: var(--color-background-surface); color: var(--color-text-primary); border: var(--border-width) solid var(--color-border); border-radius: var(--radius-element); }
+.narrative-masthead { padding: var(--spacing-8); border-bottom: var(--border-width) solid var(--color-border); }
+.narrative-eyebrow, .narrative-note { color: var(--color-text-secondary); font-size: var(--bo-type-caption); }
+.narrative-masthead h3 { font-size: var(--bo-type-page-title); line-height: 1.4; margin-block: var(--spacing-4); }
+.narrative-tools, .narrative-sources { display: flex; flex-wrap: wrap; gap: var(--spacing-2); margin-block: var(--spacing-3); }
+.narrative-reading { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 4fr); gap: var(--spacing-6); padding: var(--spacing-6); align-items: start; }
+.narrative-reading.has-source { grid-template-columns: minmax(0, 1fr) minmax(0, 3fr) minmax(0, 1.6fr); }
+.narrative-toc { position: sticky; top: var(--spacing-6); font-size: var(--bo-type-caption); }
+.narrative-toc ol { list-style: none; padding: 0; margin-block: var(--spacing-4); }
+.narrative-toc li { margin-block: var(--spacing-3); }
+.narrative-toc a { display: flex; gap: var(--spacing-2); color: var(--color-text-secondary); text-decoration: none; line-height: 1.7; }
+.narrative-toc a:hover, .narrative-connections a { color: var(--color-accent); }
+.narrative-paper { min-width: 0; max-width: calc(var(--spacing-8) * 28); }
+.narrative-section { scroll-margin-top: var(--spacing-8); padding-block: var(--spacing-6); border-bottom: var(--border-width) solid var(--color-border); }
+.narrative-section:first-child { padding-top: 0; }
+.narrative-section > header { display: flex; align-items: baseline; gap: var(--spacing-3); margin-bottom: var(--spacing-5); }
+.narrative-section h4, .narrative-limits h4 { font-size: var(--bo-type-section-title); margin: 0; }
+.narrative-number { color: var(--color-text-secondary); font-size: var(--bo-type-caption); }
+.narrative-passage { scroll-margin-top: var(--spacing-8); margin-block: var(--spacing-5); padding-block: var(--spacing-3); overflow-wrap: anywhere; }
+.narrative-passage.is-key { padding: var(--spacing-5); background: var(--color-background-muted); border-left: var(--spacing-1) solid var(--color-accent); }
+.narrative-passage-label { display: flex; flex-wrap: wrap; gap: var(--spacing-2); justify-content: space-between; font-size: var(--bo-type-caption); color: var(--color-text-secondary); }
+.narrative-passage h5 { font-size: var(--bo-type-body); margin-block: var(--spacing-3); }
+.narrative-body { white-space: pre-wrap; font-size: calc(var(--bo-type-body) * 1.14); line-height: 1.95; margin-block: var(--spacing-3); word-break: keep-all; }
+.narrative-report.is-large .narrative-body { font-size: calc(var(--bo-type-body) * 1.3); }
+.narrative-reason { line-height: 1.8; font-size: var(--bo-type-body); color: var(--color-text-secondary); }
+.narrative-connections { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--spacing-3); padding-top: var(--spacing-3); border-top: var(--border-width) solid var(--color-border); font-size: var(--bo-type-caption); }
+.narrative-source-panel { position: sticky; top: var(--spacing-6); max-height: calc(100vh - var(--spacing-8) * 2); overflow-y: auto; overflow-wrap: anywhere; padding: var(--spacing-4); background: var(--color-background-muted); border: var(--border-width) solid var(--color-border); }
+.narrative-source-panel header { display: flex; align-items: center; justify-content: space-between; gap: var(--spacing-2); }
+.narrative-source-panel blockquote { margin: var(--spacing-4) 0; line-height: 1.9; white-space: pre-wrap; }
+.narrative-source-panel details, .narrative-limits { line-height: 1.9; }
+.narrative-limits { padding-block: var(--spacing-6); }
+.narrative-notice { background: var(--color-background-muted); padding: var(--spacing-4); line-height: 1.8; }
+.narrative-report.is-focused { position: fixed; inset: 0; z-index: var(--narrative-reading-layer); overflow-y: auto; border-radius: 0; }
+.narrative-records { margin-block: var(--spacing-5); }
+.narrative-records > summary { cursor: pointer; padding: var(--spacing-4); font-size: var(--bo-type-section-title); }
+.deep-review-retry-panel.deep-review-analysis-settings { display: block; padding: var(--spacing-5); border: var(--border-width) solid var(--color-border); border-radius: var(--radius-element); background: var(--color-background-surface); }
+.deep-review-analysis-settings > summary { cursor: pointer; font-size: var(--bo-type-section-title); }
+.deep-review-analysis-settings > div { margin-top: var(--spacing-4); }
+/* The document has its own sticky reading rail; a second sticky header would
+   cover the table of contents when following a source or section link. */
+.deep-review-page.is-narrative .deep-review-header { position: static; }
+/* Longer prose needs a larger scale than the surrounding dense admin tables. */
+.narrative-body { font-size: calc(var(--bo-type-body) * 1.25); }
+.narrative-section h4 { font-size: calc(var(--bo-type-section-title) * 1.25); }

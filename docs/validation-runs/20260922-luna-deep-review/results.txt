@@ -1,0 +1,46 @@
+## bidops-luna-final-delta.log
+23 passed, 9 warnings in 20.83s
+
+## bidops-luna-roles-slot.log
+6 passed, 3 warnings in 7.03s
+
+## bidops-luna-backend-2.log
+FAILED web/backend/tests/app/test_luna_deep_review.py::test_failed_output_never_publishes[late]
+1 failed, 59 passed, 9 warnings in 22.25s
+
+## bidops-luna-lease.log
+1 passed, 10 deselected, 9 warnings in 2.37s
+
+## bidops-luna-final-2.log
+FAILED web/backend/tests/app/test_api_pre_specs_projection.py::test_pre_specs_show_why_the_deep_review_was_not_started_automatically
+FAILED web/backend/tests/app/test_api_pre_specs_projection.py::test_pre_specs_show_the_fail_closed_reason_when_active_versions_are_missing
+2 failed, 38 passed, 9 warnings in 24.71s
+
+## bidops-luna-projection-delta.log
+2 passed, 15 deselected, 8 warnings in 3.00s
+
+## bidops-luna-ui-3.log
+  ✓  10 [app] › tests/deep-review.spec.ts:185:3 › 심층 검토 보고서 접근성·반응형 계약 › failed current attempt만 새 request ID로 한 번 재시도하고 이전 이력을 보존한다 (1.1s)
+  31 passed (20.2s)
+
+## bidops-luna-ui-final.log
+  7 passed (5.7s)
+
+## bidops-luna-semantics.log
+  5 passed (4.6s)
+
+## bidops-luna-adapter-2.log
+                raise DeepReviewServiceError(safe_code, "machine report materialization failed", status_code=500) from error
+FAILED web/backend/tests/app/test_luna_deep_review.py::test_worker_rejects_mock_configuration_after_approval
+1 failed, 1 passed, 14 deselected, 9 warnings in 2.90s
+
+## bidops-luna-mock-final.log
+1 passed, 15 deselected, 9 warnings in 2.35s
+
+## bidops-luna-build-final.log
+✓ built in 5.85s
+
+## bidops-luna-runner-build-final.log
+#9 naming to docker.io/library/bidops-luna-runner:verify
+#9 naming to docker.io/library/bidops-luna-runner:verify done
+#9 DONE 0.3s
