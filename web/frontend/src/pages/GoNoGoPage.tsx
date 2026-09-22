@@ -56,6 +56,8 @@ import type {
   BidDeltaWorkspaceView,
 } from "../components/bid-delta/types";
 import { api } from "../lib/api";
+import { describeDeadline, shortDateLabel, type DeadlineUrgency } from "../lib/deadline";
+import { formatPrice } from "../lib/format";
 import { searchKey, searchMatches } from "../lib/search";
 import { apiErrorRecoveryAction, describeApiError } from "../lib/apiErrors";
 import type { BidDeltaDecisionQueueItem } from "../lib/types";
@@ -118,6 +120,32 @@ function opportunityTitle(item: BidDeltaDecisionQueueItem): string {
 
 function opportunityAgency(item: BidDeltaDecisionQueueItem): string {
   return item.agency?.trim() || "발주기관 미확인";
+}
+
+/** 발주기관 줄 끝의 추정가격 한 마디(M5 ④, spec §6.3). 대기열의 `estimated_price`는
+ *  반올림 없는 Decimal 문자열이라 표시 직전에만 숫자로 바꾼다(§3.10).
+ *  `formatPrice`의 null 표기(`추정가격 미제공`)는 이미 "추정가격" 단어를
+ *  포함하므로, 이 줄이 앞에 붙이는 라벨과 겹치지 않게 값이 있을 때만 부른다. */
+function estimatedPriceText(item: BidDeltaDecisionQueueItem): string {
+  return item.estimated_price === null ? "미제공" : formatPrice(Number(item.estimated_price));
+}
+
+/**
+ * 입찰 마감 셀(M5 ④, spec §6.3). `describeDeadline`(`lib/deadline.ts`)이 이미
+ * 계산한 긴급도·지남 판정을 그대로 쓴다. `describeDeadline`은 목록 두 줄 표시용
+ * 이라 7일을 넘으면 D-n 없이 날짜만 주지만, 이 대기열 열은 항상 `D-n · MM-DD`를
+ * 적으므로 그 구간의 n은 같은 계산식으로 여기서 마저 구한다 — 새 마감 판정
+ * 규칙을 만드는 것이 아니라 이미 쓰는 계산을 한 줄 표기에 맞춰 펼치는 것이다.
+ * `null`은 서버가 값을 안 준 것이므로(spec §1.1) `describeDeadline`의
+ * `마감 미확인`이 아니라 `마감 미제공`으로 적는다.
+ */
+function deadlineCellLabel(value: string | null): { text: string; urgency: DeadlineUrgency } {
+  const deadline = describeDeadline(value);
+  if (!value || deadline.urgency === "none") return { text: "마감 미제공", urgency: "none" };
+  if (deadline.urgency === "passed") return { text: deadline.label, urgency: "passed" };
+  const days = Math.ceil((new Date(value).getTime() - Date.now()) / 86_400_000);
+  const shortDate = shortDateLabel(value);
+  return { text: shortDate ? `D-${days} · ${shortDate}` : `D-${days}`, urgency: deadline.urgency };
 }
 
 interface DecisionRow extends Record<string, unknown> {
@@ -344,12 +372,30 @@ export function GoNoGoPage() {
           onClick={() => selectRow(row.id)}
         >
           <Text className="gng-row-title" as="span">{opportunityTitle(row.item)}</Text>
-          <Text className="gng-row-agency" as="span">{opportunityAgency(row.item)}</Text>
+          <Text className="gng-row-agency" as="span">
+            {opportunityAgency(row.item)} · 추정가격 {estimatedPriceText(row.item)}
+          </Text>
           <Text className="gng-caption" type="supporting" color="secondary" as="span">
             {comparisonCountLabel(row.item)} · 사업기회 {row.id}
           </Text>
         </button>
       ),
+    },
+    {
+      key: "deadline",
+      header: "입찰 마감",
+      width: pixel(104),
+      renderCell: (row: DecisionRow) => {
+        const deadline = deadlineCellLabel(row.item.deadline_at);
+        return (
+          <Text
+            className={`gng-deadline-cell mono tabular-nums${deadline.urgency === "critical" ? " gng-deadline-critical" : ""}`}
+            as="span"
+          >
+            {deadline.text}
+          </Text>
+        );
+      },
     },
     {
       key: "decision",
