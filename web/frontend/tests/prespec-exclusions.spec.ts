@@ -163,3 +163,30 @@ test("전체 이력 포함 여부 필터는 URL과 선택 범위를 함께 갱�
   await expect(row(page, 992)).toHaveCount(0);
   await expect(page.locator('.pre-specs-selection-count')).toContainText('0');
 });
+
+// F2 · spec §6.2 — 제외된 건은 **누가·언제·왜** 뺐는지 보여야 복원을 판단할 수
+// 있다. 값이 없는 항목은 빼고 셋 다 없으면 `사유 미기록`이며, 빈 값을 다른
+// 담당자·사유로 바꾸지 않는다. 제외 건은 전체 이력 보기에만 나온다.
+test("제외 기록은 목록 행·우측 상세·상세 페이지에 누가·언제·왜를 남기고 값이 없으면 사유 미기록이다", async ({ page }) => {
+  const state = await setup(page);
+  Object.assign(state.items[0], {
+    review_exclusion_status: "excluded",
+    review_exclusion_actor_name: "검증 담당자",
+    review_exclusion_reason: "타 부서 소관",
+    review_exclusion_changed_at: "2026-09-21T02:30:00+09:00",
+  });
+  // 같은 제외지만 기록이 없는 건. 없음을 다른 사유로 채우지 않는다.
+  state.items[1].review_exclusion_status = "excluded";
+
+  await page.goto("/pre-specs?workspace=all&review_exclusion=excluded");
+  await expect(row(page, 991).locator(".pre-specs-row-exclusion")).toHaveText("검증 담당자 · 09.21 · 타 부서 소관");
+  await expect(row(page, 992).locator(".pre-specs-row-exclusion")).toHaveText("사유 미기록");
+
+  await row(page, 991).locator(".pre-specs-row-meta").click();
+  const detailExclusion = page.locator(".pre-specs-detail-exclusion");
+  await expect(detailExclusion).toContainText("제외 기록");
+  await expect(detailExclusion).toContainText("검증 담당자 · 09.21 · 타 부서 소관");
+
+  await page.getByRole("link", { name: "상세 페이지 열기 →" }).click();
+  await expect(page.locator(".ps-record-exclusion-note")).toContainText("검증 담당자 · 09.21 · 타 부서 소관");
+});
