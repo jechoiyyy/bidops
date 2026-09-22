@@ -1689,6 +1689,10 @@ export interface OpportunityMergeConflictState {
   tracking_selected_by: string | null;
   tracking_selected_at: string | null;
   recheck_signal: boolean;
+  // 신호 시각(2026-09-22 추가, ADR-0068). 상태가 같아도 신호가 있으면 병합이
+  // 막히므로 화면이 "언제 온 신호 때문인지"를 말할 수 있어야 한다. 옛 응답에는
+  // 없을 수 있으므로 없으면 `null`로 둔다.
+  recheck_signal_at: string | null;
 }
 
 export interface CandidateMergeStateConflictDetails {

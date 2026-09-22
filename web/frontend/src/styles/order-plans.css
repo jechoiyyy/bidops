@@ -1039,6 +1039,15 @@ header.c2l-list-head .c2l-list-scope {
   border-top: 0;
 }
 
+/* 첫 수집 창 줄(S1) — 회차 줄(`.source-run-context`)과 같은 모양이다. */
+.c2l-observed-context {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-1) var(--spacing-2);
+  min-width: 0;
+}
+
 .c2l-list-scroll {
   flex: 1 1 auto;
   min-height: 0;
@@ -1245,13 +1254,11 @@ header.c2l-list-head .c2l-list-scope {
   padding: var(--spacing-3) var(--spacing-4) var(--spacing-2);
 }
 
-/* 총괄기관 부제. 발주기관 강조 블록 바로 아래에서 작게 읽힌다(시안 M5 ①).
-   공용 `.review-agency-feature`의 배경·여백은 네 화면이 비교하는 값이라 건드리지
-   않고(교차 검사), 부제는 블록 밖의 한 줄로 둔다. */
+/* 총괄기관 부제. 발주기관 강조 블록 **안쪽** 이름 아래 한 줄이다(시안 M5 ①, S1에서
+   공용 `AgencyFeature`의 `sub` 슬롯으로 옮겼다). 글자 단·줄바꿈은 공용
+   `.review-agency-sub`가 가지므로 여기서 다시 정하지 않는다. */
 .c2l-detail-head .c2l-agency-supervising {
   margin: 0;
-  min-width: 0;
-  overflow-wrap: anywhere;
 }
 
 /* 계약 조건 일곱 칸(M5 ①): 예산·발주 예정·사업 분야·계약방법 / 조달방식·공고 게시·

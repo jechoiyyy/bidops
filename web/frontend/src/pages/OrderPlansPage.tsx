@@ -296,6 +296,22 @@ function serializeTokens(values: Iterable<string>): string {
   return Array.from(values).join(",");
 }
 
+/**
+ * `first_observed_from`은 **URL로만 들어오는 축**이다(S1). 대시보드 `새 우선 검토
+ * 발주계획` 패널이 자기 목록 호출과 같은 창으로 이 화면을 열기 위한 것이고, 상세
+ * 필터에 새 컨트롤을 만들지 않는다. 형식이 아니면 보내지 않는다 — 422를 받는 대신
+ * 창을 걸지 않은 목록이 된다. 날짜의 실재 여부는 서버가 본다.
+ */
+function parseFirstObservedFrom(value: string | null): string | null {
+  const trimmed = value?.trim() ?? "";
+  return /^\d{4}-\d{2}-\d{2}$/.test(trimmed) ? trimmed : null;
+}
+
+/** 첫 수집 창 줄의 표기. 회차 라벨과 같이 연도를 생략한 `MM-DD`다. */
+function firstObservedLabel(value: string): string {
+  return `${value.slice(5)} 이후 첫 수집`;
+}
+
 function parseOrderPlanPk(value: string | null): number | null {
   if (value === null || !/^\d+$/.test(value)) return null;
   const parsed = Number(value);
@@ -360,9 +376,19 @@ async function fetchAllExecutions(signal: AbortSignal): Promise<OrderPlanScreeni
 /**
  * `sourceRunId`가 없으면 누적 모드다(화면 기본). `source_run_id`를 아예 보내지 않는다 —
  * 서버는 활성화된 적 있는 policy의 운영 판정을 발주계획마다 최신 1건씩 투영한다.
+ *
+ * `firstObservedFrom`(`YYYY-MM-DD`)은 **서버가 거는 하한**이다(ADR-0067 결정 6). 이미
+ * 받은 페이지를 브라우저에서 다시 좁히지 않으므로 보기 탭 건수도 같은 창 안에서 센다.
  */
-async function fetchAllOrderPlans(sourceRunId: string | null, signal: AbortSignal): Promise<OrderPlanListResponse> {
-  const scope = sourceRunId ? { source_run_id: sourceRunId } : {};
+async function fetchAllOrderPlans(
+  sourceRunId: string | null,
+  firstObservedFrom: string | null,
+  signal: AbortSignal,
+): Promise<OrderPlanListResponse> {
+  const scope = {
+    ...(sourceRunId ? { source_run_id: sourceRunId } : {}),
+    ...(firstObservedFrom ? { first_observed_from: firstObservedFrom } : {}),
+  };
   const first = await api.getOrderPlans({ ...scope, limit: PAGE_SIZE, offset: 0 }, { signal });
   const items = [...first.items];
   const pageSize = first.limit > 0 ? first.limit : PAGE_SIZE;
@@ -603,6 +629,8 @@ export function OrderPlansPage() {
    * 사업 추적의 링크와 옛 `/order-plans/:pk` 북마크도 누적 목록 안에서 그 행을 고른다.
    */
   const sourceRunId = searchParams.get("source_run_id")?.trim() || null;
+  /** 첫 수집 창. 회차와 같이 상세 필터의 한 축이며 URL이 소유한다(S1). */
+  const firstObservedFrom = parseFirstObservedFrom(searchParams.get("first_observed_from"));
   const dailyTriggerQuery = useQuery({
     queryKey: ["order-plan-c2", "daily-trigger"],
     queryFn: ({ signal }) => api.getC2DailyTrigger({ signal }),
@@ -643,9 +671,20 @@ export function OrderPlansPage() {
     });
   }
 
+  /** 첫 수집 창을 지운다. 회차 줄의 `모든 회차로`와 같이 그 축 하나만 푼다. */
+  function clearFirstObservedFrom() {
+    if (firstObservedFrom === null) return;
+    withRowGuard(() => {
+      const params = new URLSearchParams(searchParams);
+      params.delete("first_observed_from");
+      params.delete("offset");
+      setSearchParams(params);
+    });
+  }
+
   const listQuery = useQuery({
-    queryKey: ["order-plan-c2", "list", sourceRunId ?? "cumulative"],
-    queryFn: ({ signal }) => fetchAllOrderPlans(sourceRunId, signal),
+    queryKey: ["order-plan-c2", "list", sourceRunId ?? "cumulative", firstObservedFrom ?? "all"],
+    queryFn: ({ signal }) => fetchAllOrderPlans(sourceRunId, firstObservedFrom, signal),
     staleTime: 15_000,
   });
   /** 목록 응답의 범위. 불러오기 전에는 `undefined`, 회차에 완료 실행이 없으면 `null`이다. */
@@ -683,7 +722,12 @@ export function OrderPlansPage() {
   const qText = searchParams.get("q") ?? "";
   const offsetRaw = Number(searchParams.get("offset") ?? "0");
   const offset = Number.isFinite(offsetRaw) && offsetRaw >= 0 ? Math.floor(offsetRaw / PAGE_SIZE) * PAGE_SIZE : 0;
-  const selectionFingerprint = orderPlansFilterFingerprint({
+  /**
+   * 첫 수집 창도 의미 필터이므로 바뀌면 선택을 비운다. 공용
+   * `orderPlansFilterFingerprint`에는 아직 이 축이 없어 여기서 덧붙이며, **창이 없으면
+   * 지금까지와 같은 문자열**이라 기존에 기억된 선택은 그대로 복원된다.
+   */
+  const baseFingerprint = orderPlansFilterFingerprint({
     sourceRunId,
     qwen: qwenSet,
     stage1: stage1Set,
@@ -692,6 +736,9 @@ export function OrderPlansPage() {
     issue: issueOn,
     q: qText,
   });
+  const selectionFingerprint = firstObservedFrom
+    ? `${baseFingerprint}|first_observed_from:${firstObservedFrom}`
+    : baseFingerprint;
   // 기본 보기는 목록의 범위(`scope`)를 보고 정해진다. 범위를 알기 전에 선택을 복원하면
   // fingerprint가 바로 바뀌어 복원한 선택을 지운다.
   const selectionHydrationReady = !listQuery.isPending;
@@ -793,8 +840,10 @@ export function OrderPlansPage() {
     withRowGuard(() => {
       const params = new URLSearchParams(searchParams);
       for (const key of AXIS_KEYS) params.delete(key);
-      // 회차도 상세 필터의 한 축이므로 초기화가 함께 지운다(명세 §2.1).
+      // 회차도 상세 필터의 한 축이므로 초기화가 함께 지운다(명세 §2.1). 첫 수집 창도
+      // 같은 자리의 축이라 같이 지운다(S1).
       params.delete("source_run_id");
+      params.delete("first_observed_from");
       params.delete("offset");
       setSearchParams(params, { replace: true });
       setSearchText("");
@@ -921,6 +970,15 @@ export function OrderPlansPage() {
       // A4: 선택이 바뀌면 일괄 종료 안내를 지운다.
       setBulkEndNotice(null);
     }
+  }
+
+  // M7 ② — 사전규격 `selectCurrentPage`(spec §3.4)와 같은 규칙이다: **지금 이 페이지에
+  // 그려진 행만** 기존 선택 뒤에 중복 없이 덧붙인다. 다른 페이지에서 고른 ID는 그대로
+  // 남는다. 발주계획 선택에는 사전규격의 정렬 메타데이터가 없으므로 id만 넘긴다.
+  const pageFullySelected = visibleItems.length > 0
+    && visibleItems.every((item) => orderPlanSelection.selectedIdSet.has(item.order_plan_pk));
+  function selectCurrentPage() {
+    orderPlanSelection.selectMany(visibleItems.map((item) => item.order_plan_pk));
   }
 
   const handleBulkPendingChange = useCallback((pending: boolean) => {
@@ -1307,8 +1365,13 @@ export function OrderPlansPage() {
   // 목록 머리글이 "무엇을 보고 있는가"를 문장으로 밝힌다. 축 안은 OR, 축끼리는 AND다.
   // 축 값은 화면 라벨로 조립한다 — URL·서버 값(`relevant`·`filtered_out` …)은 그대로다.
   const filterMeaning = (() => {
-    if (isDefaultView) return "기본 보기 · 추적을 정하지 않은 관련 건 (모델 판단 관련·판단 보류 AND 추적 미선택)";
+    const window = firstObservedFrom ? firstObservedLabel(firstObservedFrom) : null;
+    if (isDefaultView) {
+      const base = "기본 보기 · 추적을 정하지 않은 관련 건 (모델 판단 관련·판단 보류 AND 추적 미선택)";
+      return window ? `${base} AND ${window}` : base;
+    }
     const parts: string[] = [];
+    if (window) parts.push(window);
     if (stage1Set.size) parts.push(`1차 선별 ${Array.from(stage1Set).map(axisValueLabel(ORDER_PLAN_STAGE1_LABEL)).join("·")}`);
     if (qwenSet.size) parts.push(`모델 판단 ${Array.from(qwenSet).map(axisValueLabel(ORDER_PLAN_RELEVANCE_LABEL)).join("·")}`);
     if (feedbackSet.size) parts.push(`사람 판단 ${Array.from(feedbackSet).map((token) => (token === "has" ? "있음" : "없음")).join("·")}`);
@@ -1318,12 +1381,13 @@ export function OrderPlansPage() {
     return parts.length ? parts.join(" AND ") : "전체";
   })();
 
-  // 접힌 상세 필터에 걸린 조건 수. 회차도 한 축이므로 함께 센다(명세 §2.1) — 접어 두어도
-  // 회차가 걸려 있다는 사실이 토글 옆 수와 아래 회차 줄 둘로 드러난다.
+  // 접힌 상세 필터에 걸린 조건 수. 회차·첫 수집 창도 한 축이므로 함께 센다
+  // (명세 §2.1, S1) — 접어 두어도 걸려 있다는 사실이 토글 옆 수와 아래 문맥 줄로 드러난다.
   const activeFilterCount = (isDefaultView
     ? 0
     : qwenSet.size + stage1Set.size + feedbackSet.size + trackingSet.size + (issueOn ? 1 : 0) + (qText.trim() ? 1 : 0))
-    + (sourceRunId ? 1 : 0);
+    + (sourceRunId ? 1 : 0)
+    + (firstObservedFrom ? 1 : 0);
 
   const selectedIndex = selectedItem
     ? filteredItems.findIndex((item) => item.order_plan_pk === selectedItem.order_plan_pk) + 1
@@ -1589,6 +1653,18 @@ export function OrderPlansPage() {
               />
             </WorkspaceFilterContext>
           ) : null}
+
+          {/* 첫 수집 창 줄 — 회차 줄과 같은 자리·같은 방식이다(S1). 대시보드 `새 우선
+              검토 발주계획`이 이 인자로 화면을 열므로, 창이 조용히 목록을 좁히지 않게
+              접힘과 무관하게 그린다. */}
+          {firstObservedFrom ? (
+            <WorkspaceFilterContext className="c2l-filter-context">
+              <div className="c2l-observed-context">
+                <Text type="label" color="primary" as="span">{firstObservedLabel(firstObservedFrom)}</Text>
+                <Button label="해제" onClick={clearFirstObservedFrom} size="sm" variant="ghost" />
+              </div>
+            </WorkspaceFilterContext>
+          ) : null}
         </WorkspaceFilterBar>
 
         {/* 목록을 불러오는 중이거나 실패해도 두 pane 골격은 그대로 둔다. 화면이 통째로
@@ -1639,12 +1715,47 @@ export function OrderPlansPage() {
                         ? "계획을 선택하면 일괄 추적 시작·종료를 쓸 수 있습니다."
                         : orderPlanSelection.selectedIds.length > ORDER_PLAN_BULK_END_MAX_SELECTION
                           ? "한 번에 200건까지 종료할 수 있습니다. 선택을 줄이십시오."
-                          : "추적을 아직 정하지 않은 계획만 저장됩니다. 나머지는 미리보기에서 제외됩니다."}
+                          : "전체 선택은 현재 페이지의 행만 더합니다. 추적 시작은 사유·담당자 확인 창을 거칩니다."}
                 actions={(
                   <>
-                    {/* A3(ADR-0063): 일괄 검토 단추를 시작·종료로 나눈다. 종료는 200건
-                        상한을 넘으면 비활성이고 시작은 그대로 쓸 수 있다. `전체 선택`은
-                        업무 규칙상 두지 않는다. */}
+                    {/* M7 ②(ADR-0062 결정 표): 선택 도구 4개를 사전규격과 같은 부품·같은
+                        순서로 맞춘다 — `전체 선택`(현재 페이지) · `전체 해제` ·
+                        `선택 항목 제외` · `선택 항목 추적 시작`(primary). */}
+                    <button
+                      className="interaction-control"
+                      type="button"
+                      onClick={selectCurrentPage}
+                      disabled={bulkPending || !orderPlanSelection.hydrated || visibleItems.length === 0 || pageFullySelected}
+                      aria-label="현재 페이지 전체 선택"
+                    >
+                      전체 선택
+                    </button>
+                    <button
+                      aria-describedby="c2l-selection-action-reason"
+                      aria-label="선택 전체 해제"
+                      className="interaction-control"
+                      type="button"
+                      disabled={bulkPending || orderPlanSelection.selectedIds.length === 0 || !orderPlanSelection.hydrated}
+                      onClick={() => {
+                        orderPlanSelection.clear();
+                        setBulkEndNotice(null);
+                      }}
+                    >
+                      전체 해제
+                    </button>
+                    {/* 결정 1(M7) — 발주계획의 `선택 항목 제외`는 기존 일괄 `추적 종료`
+                        (ADR-0063, A3)를 그 이름으로 부른다. onClick·비활성 조건·확인
+                        창(`OrderPlanBulkTrackingDialog` mode="end")은 그대로다. 확인
+                        창 제목·본문은 계속 `추적 종료`라고 말하므로(그대로 둔다), 단추
+                        옆에는 제외 = 추적 종료라는 사실을 알리는 숨은 설명을 붙인다. */}
+                    <Button
+                      aria-describedby="c2l-selection-action-reason c2l-selection-exclude-note"
+                      isDisabled={bulkPending || mutation.isPending || trackingMutation.isPending || !orderPlanSelection.hydrated || !orderPlanSelection.storageAvailable || Boolean(orderPlanSelection.storageError) || orderPlanSelection.selectedIds.length === 0 || orderPlanSelection.selectedIds.length > ORDER_PLAN_BULK_END_MAX_SELECTION}
+                      label="선택 항목 제외"
+                      onClick={() => setBulkDialogMode("end")}
+                      size="sm"
+                      variant="secondary"
+                    />
                     <button
                       aria-describedby="c2l-selection-action-reason"
                       className="interaction-control interaction-control-primary"
@@ -1654,27 +1765,7 @@ export function OrderPlansPage() {
                     >
                       선택 항목 추적 시작
                     </button>
-                    <button
-                      aria-describedby="c2l-selection-action-reason"
-                      className="interaction-control"
-                      type="button"
-                      disabled={bulkPending || mutation.isPending || trackingMutation.isPending || !orderPlanSelection.hydrated || !orderPlanSelection.storageAvailable || Boolean(orderPlanSelection.storageError) || orderPlanSelection.selectedIds.length === 0 || orderPlanSelection.selectedIds.length > ORDER_PLAN_BULK_END_MAX_SELECTION}
-                      onClick={() => setBulkDialogMode("end")}
-                    >
-                      선택 항목 추적 종료
-                    </button>
-                    <button
-                      aria-describedby="c2l-selection-action-reason"
-                      className="interaction-control"
-                      type="button"
-                      disabled={bulkPending || orderPlanSelection.selectedIds.length === 0 || !orderPlanSelection.hydrated}
-                      onClick={() => {
-                        orderPlanSelection.clear();
-                        setBulkEndNotice(null);
-                      }}
-                    >
-                      선택 전체 해제
-                    </button>
+                    <span className="visually-hidden" id="c2l-selection-exclude-note">선택한 계획의 추적을 종료합니다</span>
                   </>
                 )}
               />

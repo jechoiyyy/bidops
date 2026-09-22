@@ -34,6 +34,12 @@ interface RowTypeSpec {
    * 화면이 주지만 값은 하나다.
    */
   size: string;
+  /**
+   * 사업명(title)의 굵기. 발주계획·사전규격 두 화면은 같은 semibold를 읽는다
+   * (2026-09-22 M7 ② 승인 — `--font-weight-semibold`/`600`). 값을 주지 않은 화면은
+   * 아직 비교하지 않는다.
+   */
+  titleWeight?: string;
 }
 
 interface ScreenSpec {
@@ -81,10 +87,10 @@ const screens: ScreenSpec[] = [
     detailHead: ".c2l-detail-head",
     unifiedFrame: true,
     unifiedListParts: true,
-    rowType: { title: ".c2l-row-title", agency: ".c2l-row-agency", size: "14.4px" },
+    rowType: { title: ".c2l-row-title", agency: ".c2l-row-agency", size: "14.4px", titleWeight: "600" },
   },
   {
-    path: "/pre-specs",
+    path: "/pre-specs?sw_only=false", // S3: 기본 보기 fixture는 추적 결정으로 0건
     title: "사전규격",
     workspace: ".pre-specs-split-workspace",
     listPane: ".pre-specs-list-pane",
@@ -92,7 +98,7 @@ const screens: ScreenSpec[] = [
     detailHead: ".pre-specs-detail-header",
     unifiedFrame: true,
     unifiedListParts: true,
-    rowType: { title: ".pre-specs-row-title", agency: ".pre-specs-row-agency", size: "14.4px" },
+    rowType: { title: ".pre-specs-row-title", agency: ".pre-specs-row-agency", size: "14.4px", titleWeight: "600" },
   },
   {
     // 사업 추적도 공용 분할 골격으로 옮겼다(시안 M1c A안). 여기 selector가 공용
@@ -227,9 +233,11 @@ function measure(selectors: Selectors) {
         const element = listPane.querySelector<HTMLElement>(selector);
         return element ? getComputedStyle(element).fontSize : null;
       };
+      const titleElement = listPane.querySelector<HTMLElement>(selectors.rowType.title);
       return {
         title: styleOf(selectors.rowType.title),
         agency: styleOf(selectors.rowType.agency),
+        titleWeight: titleElement ? getComputedStyle(titleElement).fontWeight : null,
       };
     })(),
 
@@ -319,6 +327,9 @@ test("탐색과 추적 목록 4화면은 두 지원 폭에서 같은 상단바·
       if (screen.rowType) {
         expect(metrics.rowType?.title, `${where} 목록 사업명 크기`).toBe(screen.rowType.size);
         expect(metrics.rowType?.agency, `${where} 목록 발주기관 크기`).toBe(screen.rowType.size);
+        if (screen.rowType.titleWeight) {
+          expect(metrics.rowType?.titleWeight, `${where} 목록 사업명 굵기`).toBe(screen.rowType.titleWeight);
+        }
       }
 
       // 지원 폭 두 곳 모두에서 가로로 넘치지 않는다(ADR-0047).

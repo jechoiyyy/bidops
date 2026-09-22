@@ -1565,7 +1565,8 @@ test("발주계획 후보 수용이 병합 충돌이면 대화상자 안에서�
 
   const dialog = await acceptPlanCandidate(page, "신규 행정 서비스 통합 구축");
   const conflict = dialog.locator(".opportunity-merge-conflict");
-  await expect(conflict).toContainText("양쪽 모두 사람이 고른 추적 상태가 있어 병합할 수 없습니다. 한쪽의 추적 결정을 먼저 정리하세요.");
+  // S4(ADR-0068): 같은 상태는 이제 병합되므로 막힘 안내는 상태가 다르거나 신호가 있을 때만 뜬다.
+  await expect(conflict).toContainText("추적 상태가 다르거나 한쪽에 재검토 신호가 있어 병합할 수 없습니다. 한쪽을 미선택으로 되돌린 뒤 다시 수락하십시오.");
   const states = conflict.getByRole("list", { name: "병합 대상 사업기회의 추적 상태" }).getByRole("listitem");
   await expect(states).toHaveCount(2);
   await expect(states.nth(0)).toContainText("사업 #301 · 계속 추적");
@@ -1578,7 +1579,7 @@ test("발주계획 후보 수용이 병합 충돌이면 대화상자 안에서�
   await expect(conflict).toContainText("연결 상태는 바뀌지 않았습니다");
   await expect(dialog.getByLabel("결정 기록자")).toHaveValue("홍길동");
   // 안내는 대화상자 안에 한 번만 있다. 사전규격 구역이 같은 안내를 다시 그리지 않는다.
-  const guidance = page.getByText("양쪽 모두 사람이 고른 추적 상태가 있어 병합할 수 없습니다", { exact: false });
+  const guidance = page.getByText("추적 상태가 다르거나 한쪽에 재검토 신호가 있어 병합할 수 없습니다", { exact: false });
   await expect(guidance).toHaveCount(1);
 
   await dialog.getByRole("button", { name: "취소", exact: true }).click();
