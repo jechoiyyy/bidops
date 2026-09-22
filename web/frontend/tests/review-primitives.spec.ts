@@ -190,7 +190,8 @@ test("LS-06 Ctrl/Cmd+Enter keeps the existing single-record detail meaning", asy
   const first = page.locator(".pre-specs-row").first();
   await first.focus();
   await page.keyboard.press("Control+Enter");
-  await expect(page).toHaveURL(/\/pre-specs\/991\?.*sw_only=false/);
+  // S3(2026-09-22 규칙): 991은 추적 `종료`라 검토할 항목에서 빠졌다. 첫 행은 993이다.
+  await expect(page).toHaveURL(/\/pre-specs\/993\?.*sw_only=false/);
   expect(new URL(page.url()).searchParams.has("selection_review")).toBe(false);
 });
 
