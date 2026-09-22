@@ -1,3 +1,4 @@
+import { SourceVerificationSetting } from "./SourceVerificationSetting";
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type DragEvent, type KeyboardEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ActorField } from "../common/ActorField";
@@ -357,8 +358,9 @@ export function DocumentPreparationPanel({ noticeId, currentGrade, onDeepReviewC
     },
   });
 
+  const [sourceVerificationEnabled, setSourceVerificationEnabled] = useState(true);
   const deepReviewMutation = useMutation({
-    mutationFn: () => createDeepReview(noticeId, selectedBundle?.id ?? "", actorName),
+    mutationFn: () => createDeepReview(noticeId, selectedBundle?.id ?? "", actorName, sourceVerificationEnabled),
     onSuccess: onDeepReviewCreated,
   });
 
@@ -604,6 +606,7 @@ export function DocumentPreparationPanel({ noticeId, currentGrade, onDeepReviewC
             <div className="document-preparation-start-review">
               <div>
                 <strong>심층 검토 시작</strong>
+                <SourceVerificationSetting value={sourceVerificationEnabled} onChange={setSourceVerificationEnabled} disabled={deepReviewMutation.isPending} />
                 <p>확정된 문서 묶음만 입력으로 씁니다. 사전규격 심층 검토는 최종 입찰 Go/No-Go를 대신하지 않습니다.</p>
               </div>
               <div className="document-preparation-action-control">

@@ -7,7 +7,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, Path as ApiPath
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, ConfigDict, ValidationError
+from pydantic import StrictBool, BaseModel, ConfigDict, ValidationError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -48,11 +48,13 @@ class _Strict(BaseModel):
 
 
 class DeepReviewCreateRequest(_Strict):
+    source_verification_enabled: StrictBool = True
     request_id: UUID
     bundle_id: UUID
 
 
 class DeepReviewAttemptRequest(_Strict):
+    source_verification_enabled: StrictBool = True
     request_id: UUID
 
 
@@ -173,7 +175,7 @@ def create_deep_review(
             correlation_id=None,
             expected_version=None,
             input_refs=[_bundle_ref(session, payload.bundle_id, notice_id=notice_id)],
-            payload=StartReviewPayload(bundle_id=payload.bundle_id),
+            payload=StartReviewPayload(bundle_id=payload.bundle_id, source_verification_enabled=payload.source_verification_enabled),
         )
         return DeepReviewAgent(service).start(session, command).result
     except (DeepReviewServiceError, InputVersionError) as error:
@@ -216,7 +218,7 @@ def create_deep_review_attempt(
             correlation_id=None,
             expected_version=None,
             input_refs=[_attempt_ref(session, deep_review_id)],
-            payload=RetryAttemptPayload(),
+            payload=RetryAttemptPayload(source_verification_enabled=payload.source_verification_enabled),
         )
         return DeepReviewAgent(service).retry_attempt(session, command).result
     except DeepReviewServiceError as error:
