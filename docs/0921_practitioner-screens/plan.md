@@ -29,7 +29,7 @@
 | F0 | P6 공용: B2 필드의 프런트 타입·mock·fixture + 심층 검토 fixture 오류 코드 `model_timeout` → `timeout`(사전에서 해당 줄 삭제) + `tests/fixtures/api.json`의 stale `order-plan-list-response.v1` 정리 | **sonnet** | 6 | B1·B2 병합 | — | `lib/types.ts`, `tests/api-mock.ts`, fixtures |
 | F1 | 발주계획 상세 API 연결·판정 변화·행 표식(spec §6.1) + 상세 머리의 `첫 수집 MM-DD`(시안 M3 ④) | **opus** | 7 | F0·R2, M5 승인 | M5 | `order-plans/OrderPlanDetailPane.tsx`·`OrderPlanListRow.tsx`, `pages/OrderPlansPage.tsx` |
 | F2 | 사전규격 제외 기록·수요기관, 입찰공고 금액 라벨·개찰일시·실적 매칭(spec §6.2·6.3) + 목록 우측 상세(`PreSpecListDetailPane`)의 경계 문장을 M4 승인 문안으로 | **opus** | 7 | F0·R4, M5 승인 | M5 | `pre-specs/*`, `notice/NoticeFacts.tsx`, `pages/NoticeDetailPage.tsx` |
-| F3 | Go/No-Go 마감·예산 열·정렬, 사업 추적 행 예산·마감 | **sonnet** | 7 | F0·R6, M5 승인 | M5 | `pages/GoNoGoPage.tsx`, `pages/OpportunitiesPage.tsx` |
+| F3 | Go/No-Go 마감·예산 열·정렬, 사업 추적 행 예산·마감 + `BidDeltaDecisionPage`의 `안전한 오류 코드` 3곳 접기(R6 잔여) | **sonnet** | 7 | F0·R6, M5 승인 | M5 | `pages/GoNoGoPage.tsx`, `pages/OpportunitiesPage.tsx` |
 | H0 | spec §7 계약 닫기(패널별 목록 출처·모집단·정렬) + ADR-0066 | **opus** | 7 | B2 | — | `docs/0921_practitioner-screens/spec.md` §7, `docs/tracking/decisions/0066-*.md`, `docs/contracts.md` workload 절 |
 | H1 | workload 누적 키·제공자·`deadline_within_days`·`human_relevance=missing` | **opus** | 8 | H0 | — | `app/lifecycle/schemas/workload.py`·`services/workload.py`·`extensions.py`, screening·deep_review 제공자, 해당 pytest |
 | H2 | 대시보드 화면 재편 | **opus** | 9 | H1·F3, M6 승인 | M6 | `pages/DashboardPage.tsx`, `components/dashboard/*`, `dashboard.spec.ts` |

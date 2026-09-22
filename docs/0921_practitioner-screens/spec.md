@@ -139,7 +139,8 @@
 | `비교 계산 프로그램이 없어…` 4회(:689, 717, 754, 869) | 1회(다이얼로그). 목록은 상태 칩 `비교 불가` |
 | 결정 기록 `sequence`(:777-779) | 한글화 → `n번째 결정` |
 | `BidDeltaDecisionPage.tsx:105-123` `InputRefFacts`, :143-146 해시 | 접힌 `비교 입력 기술 정보`로 이동. :216 경고 유지 |
-| `NoticeCorrectionDialog.tsx:154` run_id 원문 | 한글화 → 회차 라벨(`runOptionLabel`). 저장 대상 회차라는 사실은 유지 |
+| `NoticeCorrectionDialog.tsx:154` run_id 원문 | 회차 라벨(`runOptionLabel`) — 다만 다이얼로그가 회차 metadata(`RunSummary`) 없이 `run_id` 문자열만 받으므로 날짜를 지어내지 않고 "이 공고가 속한 수집 회차에 저장합니다" + 접힌 `기술 정보 · 저장 대상 회차`(전문)로 둔다(R6 구현). 회차 조회를 붙여 라벨을 만드는 것은 후속 |
+| `BidDeltaDecisionPage.tsx`의 `안전한 오류 코드`(:350·:352·:986) | R6 범위에서 빠졌다 — F3(같은 화면을 고치는 다음 패키지)에서 Go/No-Go와 같은 방식(사람 말 + 접힌 기술 정보)으로 맞춘다 |
 | 상단바 `RunSelector`(queue·judgments) | 유지(이 화면의 업무 축). 라벨만 공용 포맷 |
 | `BasisPopover.tsx:47-66` | run_id 삭제, 회차 라벨·생성 시각만 |
 | `ReviewWorkspacePage.tsx:109-111`, `RetrievalSignals.tsx:32` `focus_matches`, `API 직접 제공값` 부제 | 한글화 / 삭제 |
