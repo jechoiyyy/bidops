@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 
 from app.core.db import get_db
 from app.main import app
+from app.lifecycle.models import OrderPlanObservation
 from app.screening.models import (
     OrderPlanScreeningBatchAttempt,
     OrderPlanScreeningExecution,
@@ -276,5 +277,59 @@ def test_execution_trigger_header_errors(tmp_path, monkeypatch) -> None:
             assert off.json()["error"]["code"] == "daily_trigger_off"
             assert off.json()["error"]["details"] == {"reasons": ["env_cap_off", "switch_off"]}
             assert client.get("/api/order-plan-screening/executions").json()["total"] == 0
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+
+
+def test_order_plan_list_router_accepts_first_observed_from_and_missing_feedback(
+    tmp_path, monkeypatch
+) -> None:
+    """진입점 회귀: 두 필터가 라우터를 지나 서비스 술어까지 닿는지 본다.
+
+    `first_observed_from`은 KST 일자 00:00을 포함 하한으로 쓰고, `human_relevance=missing`은
+    "사람 피드백 행 자체가 없음"을 고른다(findings의 "사람 피드백 미기록 필터가 없다"는
+    이미 서비스에 구현돼 있었고 이 검사가 진입점을 고정한다).
+    """
+
+    from tests.screening.test_order_plan_list_v2 import execution, feedback, result
+
+    settings, session, policy_version, _, plans = _fixture(tmp_path, count=3)
+    row = execution(session, OrderPlanScreeningService(settings), policy_version)
+    for plan in plans:
+        result(session, row, plan)
+    feedback(session, row, plans[0], relevance="not_relevant")
+    # 관측 시각은 `_fixture`가 KST 2026-09-02 09:00으로 심는다. 하한을 그 KST 일자로
+    # 주면 세 건 모두 들고, 다음 날로 주면 아무도 들지 않는다.
+    observed = session.get(OrderPlanObservation, plans[0].observations[0].id)
+    assert observed.observed_at == datetime(2026, 9, 2, tzinfo=UTC)
+    session.commit()
+    monkeypatch.setattr(order_plans_router, "service", OrderPlanScreeningService(settings))
+
+    def override_get_db():
+        yield session
+
+    app.dependency_overrides[get_db] = override_get_db
+    try:
+        with TestClient(app) as client:
+            def listed(**params):
+                response = client.get("/api/order-plans", params=params)
+                assert response.status_code == 200, response.text
+                return response.json()
+
+            assert listed(first_observed_from="2026-09-02")["total"] == 3
+            # KST 09-02 09:00은 09-03 00:00 KST보다 앞이다.
+            assert listed(first_observed_from="2026-09-03")["total"] == 0
+            assert listed(human_relevance="missing")["total"] == 2
+            assert {item["order_plan_pk"] for item in listed(human_relevance="missing")["items"]} == {
+                plans[1].id, plans[2].id
+            }
+            assert listed(human_relevance="not_relevant")["total"] == 1
+            combined = listed(human_relevance="missing", first_observed_from="2026-09-02")
+            assert combined["total"] == 2
+            # 날짜가 아닌 값은 FastAPI가 422로 막는다.
+            assert client.get("/api/order-plans", params={"first_observed_from": "어제"}).status_code == 422
+            assert client.get(
+                "/api/order-plans", params={"human_relevance": "unknown"}
+            ).status_code == 422
     finally:
         app.dependency_overrides.pop(get_db, None)
