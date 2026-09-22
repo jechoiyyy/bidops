@@ -1245,9 +1245,20 @@ header.c2l-list-head .c2l-list-scope {
   padding: var(--spacing-3) var(--spacing-4) var(--spacing-2);
 }
 
+/* 총괄기관 부제. 발주기관 강조 블록 바로 아래에서 작게 읽힌다(시안 M5 ①).
+   공용 `.review-agency-feature`의 배경·여백은 네 화면이 비교하는 값이라 건드리지
+   않고(교차 검사), 부제는 블록 밖의 한 줄로 둔다. */
+.c2l-detail-head .c2l-agency-supervising {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* 계약 조건 일곱 칸(M5 ①): 예산·발주 예정·사업 분야·계약방법 / 조달방식·공고 게시·
+   연결된 사업기회. 네 칸 격자이므로 두 줄의 칸 너비가 서로 맞는다. */
 .c2l-detail-facts {
   display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1.2fr) minmax(0, 1fr);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: var(--spacing-3);
   margin: 0;
   padding-bottom: var(--spacing-3);
@@ -1263,6 +1274,42 @@ header.c2l-list-head .c2l-list-scope {
   margin: var(--spacing-0-5) 0 0;
   min-width: 0;
   font-weight: var(--font-weight-semibold);
+  overflow-wrap: anywhere;
+}
+
+/* 연관 공고번호처럼 같은 칸에 붙는 보조 사실. 수집 원문 문자열 그대로이므로
+   길어도 칸 안에서 접힌다. */
+.c2l-detail-facts-sub {
+  display: block;
+  margin-top: var(--spacing-0-5);
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+  font-weight: var(--font-weight-regular);
+  overflow-wrap: anywhere;
+}
+
+/* 추적을 시작한 건은 사업 추적 상세로 바로 간다(시안 M5 ① — 결정 3). */
+.c2l-detail-opportunity {
+  color: var(--color-text-accent);
+  text-decoration: none;
+}
+
+.c2l-detail-opportunity:hover {
+  text-decoration: underline;
+}
+
+/* 상세 조회 실패. 목록에서 받은 값은 그대로 두고 못 불러온 사실만 알린다. */
+.c2l-detail-error {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-2);
+  margin: 0;
+  min-width: 0;
+  padding: var(--spacing-1-5) var(--spacing-2);
+  border: var(--border-width) solid var(--color-error);
+  border-radius: var(--radius-sm);
+  color: var(--color-error);
   overflow-wrap: anywhere;
 }
 
