@@ -187,7 +187,8 @@ test("사전규격의 회차는 기존 조건에 더해지고 기본값 복원�
   await mockPreSpecs(page);
   // 상세 필터 격자에 회차 칸이 하나 늘었다. 최소 지원 폭에서도 넘치지 않아야 한다(ADR-0047).
   await page.setViewportSize({ width: 1280, height: 800 });
-  await page.goto("/pre-specs?workspace=all&sw_only=false&grade=우선%20검토");
+  // bda1288(사전규격 예비 평가)이 등급 주소 인자를 `grade`→`display_grade`로 바꿨다. 옛 `grade`는 진입 시 재작성된다.
+  await page.goto("/pre-specs?workspace=all&sw_only=false&display_grade=우선%20검토");
 
   await page.getByRole("button", { name: "상세 필터", exact: true }).click();
   await expect(page.locator("#pre-specs-advanced-filters")).toBeVisible();
@@ -198,7 +199,7 @@ test("사전규격의 회차는 기존 조건에 더해지고 기본값 복원�
   await expect.poll(() => queries.at(-1)?.get("source_run_id")).toBe("pre-spec-run-b");
 
   // 다른 축이 그대로 남는다. 상세 필터 단추의 수는 등급 + 회차 둘이다.
-  expect(new URL(page.url()).searchParams.get("grade")).toBe("우선 검토");
+  expect(new URL(page.url()).searchParams.get("display_grade")).toBe("우선 검토");
   await expect(page.locator(".pre-specs-filters .workspace-filter-count")).toHaveText("2");
 
   // 회차 줄까지 그려진 상태에서도 넘치지 않는다(1280·1440 두 폭).
@@ -212,7 +213,7 @@ test("사전규격의 회차는 기존 조건에 더해지고 기본값 복원�
   // `기본값으로`는 회차도 함께 지운다.
   await page.locator(".pre-specs-filters").getByRole("button", { name: "기본값으로", exact: true }).click();
   await expect.poll(() => new URL(page.url()).searchParams.has("source_run_id")).toBe(false);
-  expect(new URL(page.url()).searchParams.has("grade")).toBe(false);
+  expect(new URL(page.url()).searchParams.has("display_grade")).toBe(false);
   await expect(page.locator(".pre-specs-filters .source-run-context")).toHaveCount(0);
 });
 
