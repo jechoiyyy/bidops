@@ -5,7 +5,7 @@
 | 문서 상태 | 현재 결정 기준선·통합 색인 |
 | 기준일 | 2026-09-21 |
 | 범위 | 수집, 선별, 사전규격 검토, 심층 검토, 입찰공고 추적, 운영·보안 |
-| 상세 결정 정본 | [`docs/tracking/decisions/`](tracking/decisions/)의 ADR-0001~0038·0042~0045·0049~0051·0053~0054·0056~0067, ADR-0039~0041·0046~0048·0055(구 `docs/design/ADR.md`, git 이력에서 확인) |
+| 상세 결정 정본 | [`docs/tracking/decisions/`](tracking/decisions/)의 ADR-0001~0038·0042~0045·0049~0051·0053~0054·0056~0068, ADR-0039~0041·0046~0048·0055(구 `docs/design/ADR.md`, git 이력에서 확인) |
 | 함께 읽을 문서 | [`PRD.md`](PRD.md), [`ARCHITECTURE.md`](ARCHITECTURE.md), [`contracts.md`](contracts.md) |
 
 이 문서는 여러 시점에 작성된 결정 기록을 현재 관점에서 읽기 위한 통합 ADR이다. 각 결정의
@@ -148,6 +148,7 @@ R-xx/A-xx 작업 지시, 과거 API 경로는 현재 실행 진입점이 아니�
 | [0064](tracking/decisions/0064-prespec-actionable-deadline-scope.md) | 사전규격 검토할 항목의 기본 시야를 마감 구간으로 나눈다 | 채택 | 마감 경과는 제외·소멸하지 않고 기본 시야만 `마감 전+미확인`으로 한정, `마감 경과`는 건수와 함께 1클릭 전환; 마감 미확인은 항상 기본 구간(unknown 보존); 새 인자 `deadline_scope`와 `deadline_scope_counts`, 기존 `deadline_status`는 불변; 구간은 actionable 술어 한 곳에만(검토 제외 가드가 먼저); migration 없음. 결정 7의 도구 줄 순서는 [0065](tracking/decisions/0066-practitioner-ops-information-boundary.md)가 개정(`수집 회차` 칸이 빠져 `상세 필터 토글 → 검색 → 추가 조회 조건`, ADR-0066 구현 시 적용) |
 | [0066](tracking/decisions/0066-practitioner-ops-information-boundary.md) | 실무 화면과 운영 화면의 정보 경계를 처분 규칙으로 정한다 | 채택 | 문구·값을 삭제/조건부/이동/한글화/유지 5종으로 하나씩 처분; 식별자·해시는 줄이지 않되 운영 화면·접힌 기술 정보로 옮길 수 있음(`glossary.ts:14` 개정); 모르는 코드는 그대로 통과; 뜻이 다른 빈 값(미제공·미확인·계산 불가·0)은 합치지 않음; 지우면 안 되는 경고 7+4종; 운영 수신처(`/runs`의 `발주계획 선별` 탭)를 먼저 만들고 나서 실무 화면에서 뺌; 대시보드는 실무자 화면(회차 선택 없이 완결); [0062](tracking/decisions/0062-explore-workspace-structure-unification.md)·[0064](tracking/decisions/0064-prespec-actionable-deadline-scope.md) 결정 7·`0918_daily-operation/spec.md` §7 '행 표시' 개정; migration 없음 |
 | [0067](tracking/decisions/0067-dashboard-workload-keys-and-panel-contracts.md) | 실무자 대시보드의 누적 업무 키와 패널 계약 | 채택 | 패널마다 건수 키 하나와 목록 호출 하나를 짝지음(건수 = 그 목록의 `total`, 화면이 다시 세지 않음); 새 endpoint 없이 query 인자 셋(`/api/opportunities`·`/api/pre-specs`의 `deadline_within_days`, `/api/order-plans`의 `first_observed_from`)과 정렬 값 하나(`sort=deadline`); `deadline_within_days`는 추적 대상(`계속 추적`·`보류`)을 함께 좁힘(`hold_review` 선례); 서버는 대표 마감을 고르지 않고 링크 단위 판정 + 사업 반환; `사람 확인 필요`의 두 출처를 합치지 않고 합계 키는 하나라도 null이면 null; 창 상한은 KST 일자로 끊음; `WorkloadKey` 다섯 → 열(세는 키 넷과 합계 하나를 더함); migration·새 저장 상태 없음; [0053](tracking/decisions/0053-decision-workload-read-contracts.md) 확장 |
+| [0068](tracking/decisions/0068-same-state-merge-and-tracking-reset.md) | 병합 막힘의 출구 두 갈래 — 같은 상태끼리 병합, 화면에 `미선택으로 되돌리기` | 채택 | `\|H\|≥2`여도 H의 추적 상태가 전부 같고 재검토 신호가 없으면 병합(사람 수락·자동 병합 공통); 유지 쪽은 H 중 가장 오래된 것(`created_at`, 동률이면 `id`)이고 그 상태·사유·선택자·시각은 불변; 병합된 결정은 행에 그대로 남고 사람 병합 감사에 `merged_human_states[]`로도 적음; 신호가 있으면 상태가 같아도 거부; 409 details에 `recheck_signal_at` 추가(추가형); 화면은 막힘 안내와 추적 결정 카드에 `미선택으로 되돌리기`(기존 PATCH, 사유·담당자 필수)를 두고 수락을 자동 재시도하지 않음; 추적 상태 드롭다운은 여전히 `미선택`을 고를 수 없음; migration 없음; [0028](tracking/decisions/0028-bid-first-opportunity-registration.md)·`business-rules.md` 병합 규칙·`0917_opportunity-tracking/spec.md` §3.2·§3.3 개정 |
 
 ## 4. 주제별 결정 요약
 
