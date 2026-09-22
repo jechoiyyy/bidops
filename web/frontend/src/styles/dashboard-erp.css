@@ -61,28 +61,16 @@
 .dash-journey-item .dash-journey-title { font-size: var(--bo-type-list); font-weight: 600; }
 .dash-journey-item .dash-row > svg { color: var(--color-text-secondary); }
 .dash-journey-item:focus-visible { outline-offset: calc(0 - var(--focus-outline-width)); }
-.dash-run-context {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--spacing-3);
-  flex-shrink: 0;
-  min-height: var(--spacing-10);
-}
-.dash-run-context .astryx-selector { width: calc(var(--spacing-12) * 6); }
-.dash-run-context .dash-row { gap: var(--spacing-3); }
-.dash-run-context .dash-context-end { gap: var(--spacing-2); }
-.dash-dashboard-grid {
+/* 누적 업무 패널 격자(시안 M6). 두 열이고 마지막 패널만 전폭이다. 회차 선택기와
+ * 회차 의존 패널 넷이 빠졌으므로 `.dash-run-context`·`.dash-dashboard-grid` 규칙도
+ * 함께 없앴다(패널 컴포넌트 자체는 H3가 옮길 때까지 남아 있다). */
+.dash-work-grid {
   display: grid;
-  grid-template-columns: minmax(0, 67fr) minmax(0, 33fr);
-  grid-template-rows: minmax(0, 1fr) calc(var(--spacing-10) * 4 + var(--border-width) * 2);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--spacing-3);
-  flex: 1;
-  /* 위 행은 기본 세 공고(머리·표 머리·세 행·바닥)가 보이는 높이 아래로 줄지 않는다.
-   * 그 위에 보류 재검토 패널이 더 차면 격자를 누르지 않고 캔버스가 스크롤된다. */
-  min-height: calc(var(--spacing-10) * 7.5 + var(--spacing-3) + var(--spacing-10) * 4 + var(--border-width) * 2);
   min-width: 0;
 }
+.dash-work-grid > .dash-work-wide { grid-column: 1 / -1; }
 .dash-panel {
   display: flex;
   flex-direction: column;
@@ -179,9 +167,32 @@
 .dash-page .dash-validation-row > .dash-cell-stack:first-child { flex: 1; overflow-wrap: anywhere; }
 .dash-page .dash-panel-foot > .dash-small { min-width: 0; }
 
-/* 보류 재검토(spec §8·§11.2). 회차와 무관한 누적 패널이라 여정 스트립 아래 전체 폭에 두고
- * 제 높이를 유지한다. 행은 표 한 줄이며 긴 사업명·사유는 줄바꿈한다. */
-.dash-page .dash-hold-panel { flex-shrink: 0; }
+/* 누적 업무 패널의 행. 목록은 상위 5건이고 오른쪽 칸은 D-day 또는 표식 하나다. */
+.dash-page .dash-work-panel .dash-panel-body { overflow-x: auto; }
+.dash-work-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.dash-work-item + .dash-work-item { border-top: var(--bo-line) solid var(--color-background-muted); }
+.dash-work-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-3);
+  padding: var(--spacing-2) var(--spacing-4);
+  color: inherit;
+  text-decoration: none;
+}
+.dash-work-row:hover { background: var(--color-accent-muted); }
+.dash-work-row:hover .dash-work-title { text-decoration: underline; }
+.dash-page .dash-work-title { font-size: var(--bo-type-list); font-weight: 600; line-height: 1.5; overflow-wrap: anywhere; }
+.dash-work-end { display: flex; align-items: center; gap: var(--spacing-2); flex-shrink: 0; font-variant-numeric: tabular-nums; }
+/* 3일 이내는 굵기와 색을 함께 바꾼다. D-day 숫자 자체가 정보를 실으므로 색만으로
+ * 전달하지 않는다(web/frontend/AGENTS.md). */
+.dash-page .dash-work-due-urgent { color: var(--color-error); font-weight: 600; }
+.dash-work-panel .dash-panel-body > :is(.empty-state, .skeleton-panel) { margin: var(--spacing-3) var(--spacing-4); }
+.dash-work-panel .dash-panel-body > .skeleton-panel { padding: 0; }
+
+/* 보류 재검토(spec §8·§11.2). 회차와 무관한 누적 패널이며 M6부터 업무 패널 격자 안에
+ * 있다. 행은 표 한 줄이며 긴 사업명·사유는 줄바꿈한다. */
+.dash-page .dash-hold-panel .dash-panel-body { overflow-x: auto; }
 .dash-panel-title { display: flex; align-items: baseline; gap: var(--spacing-3); min-width: 0; }
 .dash-hold-link { display: block; color: inherit; text-decoration: none; }
 .dash-hold-link:hover .dash-hold-title { text-decoration: underline; }
