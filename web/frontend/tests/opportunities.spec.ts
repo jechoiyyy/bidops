@@ -159,6 +159,44 @@ test("조치 필요 사유 칩은 서버 reason으로 좁히고 주소에 남으
   await expect(page.getByRole("group", { name: "조치 사유" })).toHaveCount(0);
 });
 
+// S1 — 대시보드 `마감 임박 추적 건`이 넘기는 두 인자(`deadline_within_days`·`sort=deadline`).
+// 상세 필터에 `마감 창` 컨트롤을 새로 만들지 않고 URL로만 받으며, 걸려 있다는 사실은
+// 발주계획의 회차 줄과 같은 자리의 문맥 줄 하나가 말하고 거기서 해제한다.
+test("URL의 마감 창과 마감 임박순을 서버에 그대로 보내고 문맥 줄에서 해제한다", async ({ page }) => {
+  const trace = await mockOpportunities(page);
+  await page.goto("/opportunities?section=전체&deadline_within_days=7&sort=deadline");
+
+  await expect.poll(() => trace.listQueries.at(-1)?.get("deadline_within_days")).toBe("7");
+  expect(trace.listQueries.at(-1)?.get("sort")).toBe("deadline");
+  // 구역 `전체`는 서버 인자를 보내지 않는다 — 기본 구역(`조치 필요`)이 다시 걸리지 않는다.
+  expect(trace.listQueries.at(-1)?.has("section")).toBe(false);
+  await expect(page.locator(".opportunity-view-tabs button").last()).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator(".opportunity-list-head")).toContainText("전체 · 7일 이내 마감");
+
+  // 정렬 값은 상세 필터에서 사람 말로 읽힌다.
+  await page.getByRole("button", { name: "상세 필터", exact: true }).click();
+  await expect(page.locator("#opportunity-filter-advanced")).toContainText("마감 임박순");
+
+  const context = page.locator(".opportunity-deadline-context");
+  await expect(context).toContainText("7일 이내 마감");
+  const before = trace.listQueries.length;
+  await context.getByRole("button", { name: "해제", exact: true }).click();
+  await expect.poll(() => new URL(page.url()).searchParams.has("deadline_within_days")).toBe(false);
+  await expect(page.locator(".opportunity-deadline-context")).toHaveCount(0);
+  await expect.poll(() => trace.listQueries.length).toBeGreaterThan(before);
+  expect(trace.listQueries.slice(before).every((params) => !params.has("deadline_within_days"))).toBe(true);
+  // 창만 푼다 — 정렬은 사람이 고른 값이라 남는다.
+  expect(new URL(page.url()).searchParams.get("sort")).toBe("deadline");
+});
+
+test("허용 범위 밖의 마감 창은 서버에 보내지 않고 줄도 그리지 않는다", async ({ page }) => {
+  const trace = await mockOpportunities(page);
+  await page.goto("/opportunities?deadline_within_days=0");
+  await expect(page.locator(".opportunity-row-title").first()).toBeVisible();
+  expect(trace.listQueries.every((params) => !params.has("deadline_within_days"))).toBe(true);
+  await expect(page.locator(".opportunity-deadline-context")).toHaveCount(0);
+});
+
 test("한 사업기회는 구역을 통틀어 한 행으로만 나타난다", async ({ page }) => {
   await mockOpportunities(page);
   const seen: string[] = [];
