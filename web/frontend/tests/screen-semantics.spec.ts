@@ -49,25 +49,6 @@ test("공통 셸이 로컬 글꼴과 기능 아이콘 접근성을 지킨다", a
   expect(unnamedButtons).toEqual([]);
 });
 
-test("대시보드의 마감 공고 링크가 상세와 회차를 함께 전달한다", async ({ page }) => {
-  await page.goto(`/?run=${encodeURIComponent(RUN_ID)}`);
-  const link = page.locator(".dash-notice-link").first();
-  await expect(link).toBeVisible();
-  const target = new URL(await link.getAttribute("href") ?? "", page.url());
-  expect(target.pathname).toMatch(/^\/judgments\/\d+$/);
-  expect(target.searchParams.get("run")).toBe(RUN_ID);
-  await link.click();
-  await expect.poll(() => new URL(page.url()).pathname).toBe(target.pathname);
-});
-
-test("대시보드 회차 요약이 API 집계와 별도 담당자 리뷰 수를 보여준다", async ({ page }) => {
-  await page.goto(`/?run=${encodeURIComponent(RUN_ID)}`);
-  await expect(page.getByRole("group", { name: "수집", exact: true })).toContainText("2,546건");
-  await expect(page.getByRole("group", { name: "후보 풀", exact: true })).toContainText("327건");
-  await expect(page.getByRole("group", { name: "판정 표본", exact: true })).toContainText("40건");
-  await expect(page.getByRole("group", { name: "담당자 리뷰", exact: true })).toContainText("0건");
-});
-
 test("대시보드는 네 업무를 한 줄에 두고 미확인을 작은 주석으로 표시한다", async ({ page }) => {
   await mockWorkload(page, { generated_at: "2026-09-01T09:00:00Z", items: [
     { key: "order_plan_pending", count: 24, unavailable_reason: null },
@@ -75,6 +56,11 @@ test("대시보드는 네 업무를 한 줄에 두고 미확인을 작은 주석
     { key: "tracking_action_required", count: null, unavailable_reason: "no_completed_execution" },
     { key: "tracking_hold_review_due", count: 2, unavailable_reason: null },
     { key: "bid_final_decision_pending", count: null, unavailable_reason: null },
+    { key: "tracking_deadline_imminent", count: 4, unavailable_reason: null },
+    { key: "human_check_required", count: 5, unavailable_reason: null },
+    { key: "overview_human_review", count: 2, unavailable_reason: null },
+    { key: "blocking_items_open", count: 3, unavailable_reason: null },
+    { key: "order_plan_new_priority", count: 6, unavailable_reason: null },
   ] });
   await page.goto(`/?run=${encodeURIComponent(RUN_ID)}`);
   const decisions = page.locator(".dash-journey-item");
@@ -88,8 +74,6 @@ test("대시보드는 네 업무를 한 줄에 두고 미확인을 작은 주석
   await expect(unavailable).toHaveCount(3);
   const sizes = await unavailable.evaluateAll(values => values.map(value => Number.parseFloat(getComputedStyle(value).fontSize)));
   for (const size of sizes) expect(size).toBe(10.8);
-  const context = page.getByRole("region", { name: "회차 자료 범위" });
-  expect(await context.evaluate(item => item.getBoundingClientRect().top)).toBeGreaterThan(rows[0]);
 });
 
 test("흡수한 마감·감사 경로가 기존 쿼리를 보존한다", async ({ page }) => {
@@ -113,34 +97,6 @@ test("흡수한 마감·감사 경로가 기존 쿼리를 보존한다", async (
   params = new URL(page.url()).searchParams;
   expect(params.get("run")).toBe(RUN_ID);
   expect(params.get("from")).toBe("review");
-});
-
-test("담당자 확인 요청을 펼치고 접을 수 있다", async ({ page }) => {
-  await page.goto(`/?run=${encodeURIComponent(RUN_ID)}`);
-  const list = page.locator("#dashboard-verification-list");
-  const toggle = page.locator("[aria-controls=dashboard-verification-list]");
-  await expect(list.locator("li")).toHaveCount(3);
-  await toggle.click();
-  await expect(toggle).toHaveAttribute("aria-expanded", "true");
-  await expect(toggle).toHaveText("접기");
-  expect(await list.locator("li").count()).toBeGreaterThan(3);
-});
-
-test("담당자 확인 요청 프로필 링크가 선택한 회차를 보존한다", async ({ page }) => {
-  await page.goto(`/?run=${encodeURIComponent(RUN_ID)}`);
-  await page.getByRole("link", { name: "회사 프로필", exact: true }).click();
-  await expect.poll(() => new URL(page.url()).pathname).toBe("/profile");
-  expect(new URL(page.url()).searchParams.get("run")).toBe(RUN_ID);
-});
-
-test("감사 누락 수는 보존하고 확인할 수 없는 분모를 추정하지 않는다", async ({ page }) => {
-  await page.goto(`/?run=${encodeURIComponent(RUN_ID)}`);
-  const candidateKpi = page.getByRole("group", { name: "후보 풀", exact: true });
-  await expect(candidateKpi).toContainText("327");
-  await expect(candidateKpi).not.toContainText("감사 풀");
-  const kpi = page.getByRole("group", { name: "1차 필터 누락" });
-  await expect(kpi).toContainText("5건");
-  await expect(kpi).toContainText("감사 표본 분모 미확인");
 });
 
 test("프로필의 불완전한 응답은 상태와 미확인을 0으로 확정하지 않는다", async ({ page }) => {

@@ -228,7 +228,7 @@
 | 사람 확인 필요 — 개요 | `GET /api/pre-specs?sw_only=false&overview_view=failed&sort=deadline` + 같은 호출의 `overview_view=attention` | `overview_human_review` (deep_review 제공자) | 두 개요 상태(`failed`·`needs_human_review`)는 서로 배타적이라 두 `total`의 합이 곧 키 값이다. 둘 다 `sw_only=false`·`workspace=all`·`deadline_scope=all`·`review_exclusion=all`(기본값)로 받아야 제공자와 같은 모집단이다 | 마감 3버킷(ADR-0064) | 요청 시각 |
 | 사람 확인 필요 — 공고 확인 항목 | `GET /api/opportunities?reason=blocking_item&limit=5` | `blocking_items_open` (lifecycle 직접) | 목록의 `action_reason_counts["blocking_item"]`·`total`과 같은 첫 일치 분류(`_classified`)를 쓴다 | 기본(`created_at` 내림) | 요청 시각 |
 | (위 두 하위의 합계) | — | `human_check_required` | 두 하위 건수의 합. **하나라도 `null`이면 합계도 `null`**(`sub_count_unavailable`) | — | — |
-| 보류 재검토 | `GET /api/opportunities?hold_review=overdue&sort=hold_review_due_at&limit=5` | `tracking_hold_review_due` (기존, lifecycle 직접) | 기존 계약 그대로 | 보류 기한 오름 | 요청 시각 |
+| 보류 재검토 | `GET /api/opportunities?hold_review=attention&sort=hold_review_due_at&limit=5` | `tracking_hold_review_due` (기존, lifecycle 직접) | 기존 계약 그대로 | 보류 기한 오름 | 요청 시각 |
 | 새 우선 검토 발주계획 | `GET /api/order-plans?qwen_relevance=relevant&tracking_status=미선택&first_observed_from=<전일 KST 날짜>&limit=5` | `order_plan_new_priority` (screening 제공자) | 제공자가 같은 인자로 `list_order_plans(..., limit=1)`을 불러 `total`을 쓴다(`order_plan_pending`과 같은 방식) | 목록 API의 고정 순서 `order_plan_pk` 오름 — 패널은 `N건 중 상위 5건`으로 적는다 | 요청 시각의 KST 일자 −1일 00:00 |
 
 - **서버는 대표 마감을 고르지 않는다**(§5 유지). `deadline_within_days`는 **링크 단위**로

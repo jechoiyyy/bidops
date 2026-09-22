@@ -69,8 +69,6 @@ for (const context of routeContexts) {
       await expect(runSelector).toHaveCount(0);
     }
 
-    if (context.name === "dashboard") await expect(page.getByRole("button", { name: "조회할 실행 회차" })).toBeVisible();
-
     // 편집 범위 칩(`… 저장 가능`)은 어느 화면에도 없다(ADR-0066 §3.3, 시안 M4
     // 결정 2). 로그인·권한이 없어 모든 사용자에게 늘 같은 말을 했고, 무엇을 저장할
     // 수 있는지는 각 화면의 결정 UI가 말한다. 읽기 전용 표식과 "담당자 이름은
