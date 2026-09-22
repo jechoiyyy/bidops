@@ -71,14 +71,26 @@ type ViewKey = OpportunitySection | typeof ALL_VIEW;
 const VIEWS: ViewKey[] = [...SECTIONS, ALL_VIEW];
 
 const STAGES: OpportunityFirstRegisteredStage[] = ["order_plan", "pre_spec", "bid_notice"];
-const SORTS = ["created_at", "tracking_status", "first_registered_stage"] as const;
+const SORTS = ["created_at", "tracking_status", "first_registered_stage", "deadline"] as const;
 type OpportunitySort = (typeof SORTS)[number];
 const SORT_LABELS: Record<OpportunitySort, string> = {
   created_at: "최근 등록순",
   tracking_status: "추적 상태순",
   first_registered_stage: "최초 발견 단계순",
+  deadline: "마감 임박순",
 };
 const PAGE_SIZE = 100;
+
+/**
+ * 마감 창(`deadline_within_days`)은 **URL로만 들어오는 축**이다(S1).
+ *
+ * 대시보드 `마감 임박 추적 건` 패널이 자기 목록 호출과 **같은 인자**로 이 화면을 열기
+ * 위한 것이고(ADR-0067 결정 1·3), 상세 필터에 새 컨트롤을 만들지 않는다. 걸려 있다는
+ * 사실은 필터 문맥 줄 하나가 말하고 거기서 해제한다. 서버 계약의 허용 범위 밖이면
+ * 보내지 않는다 — 422를 받는 대신 창을 걸지 않은 목록이 된다.
+ */
+const DEADLINE_WINDOW_MIN = 1;
+const DEADLINE_WINDOW_MAX = 365;
 
 /** 서버 검색 `q`의 허용 길이(spec §7.4). 밖이면 보내지 않는다. */
 const SEARCH_MIN = 2;
@@ -114,6 +126,12 @@ export function OpportunitiesPage() {
   const sort: OpportunitySort = SORTS.includes(requestedSort as OpportunitySort)
     ? (requestedSort as OpportunitySort)
     : "created_at";
+  const requestedWindow = Number(searchParams.get("deadline_within_days") ?? "");
+  const deadlineWithinDays = Number.isInteger(requestedWindow)
+    && requestedWindow >= DEADLINE_WINDOW_MIN
+    && requestedWindow <= DEADLINE_WINDOW_MAX
+    ? requestedWindow
+    : null;
   const requestedOffset = Number(searchParams.get("offset") ?? "0");
   const offset = Number.isInteger(requestedOffset) && requestedOffset >= 0 ? requestedOffset : 0;
   // 사유 칩은 `조치 필요` 구역 안의 필터다. 다른 구역의 주소에 남아 있어도 보내지 않는다.
@@ -128,13 +146,14 @@ export function OpportunitiesPage() {
   const [searchError, setSearchError] = useState(false);
 
   const list = useQuery({
-    queryKey: ["opportunities", view, stage, sort, reason, searchKey(search), offset],
+    queryKey: ["opportunities", view, stage, sort, reason, deadlineWithinDays, searchKey(search), offset],
     queryFn: ({ signal }) =>
       api.getOpportunities(
         {
           section: view === ALL_VIEW ? null : view,
           first_registered_stage: stage,
           reason,
+          deadline_within_days: deadlineWithinDays,
           q: search,
           sort,
           limit: PAGE_SIZE,
@@ -210,7 +229,7 @@ export function OpportunitiesPage() {
   const showSearchError = (invalidUrlSearch && searchKey(searchText) === searchKey(rawSearch)) || searchError;
 
   const resetFilters = () => {
-    applyParams({ section: null, first_registered_stage: null, sort: null, q: null, reason: null }, {
+    applyParams({ section: null, first_registered_stage: null, sort: null, q: null, reason: null, deadline_within_days: null }, {
       title: "필터를 초기화합니다",
       message: "필터를 초기화하면 열려 있던 사업기회가 닫히고 저장하지 않은 입력이 사라집니다.",
       confirmLabel: "저장하지 않고 초기화",
@@ -465,6 +484,24 @@ export function OpportunitiesPage() {
               />
             </WorkspaceFilterAdvanced>
           ) : null}
+
+          {/* 마감 창 줄 — 발주계획의 회차 줄과 같은 자리·같은 방식이다(S1). 상세 필터를
+              폈는지와 무관하게 그려서, URL로 들어온 창이 조용히 목록을 좁히지 않게 한다. */}
+          {deadlineWithinDays === null ? null : (
+            <WorkspaceFilterContext className="opportunity-deadline-context">
+              <div className="opportunity-filter-context-line">
+                <span className="opportunity-deadline-context-label">
+                  {deadlineWithinDays}일 이내 마감
+                </span>
+                <Button
+                  label="해제"
+                  onClick={() => changeFilter("deadline_within_days", null)}
+                  size="sm"
+                  variant="ghost"
+                />
+              </div>
+            </WorkspaceFilterContext>
+          )}
         </WorkspaceFilterBar>
 
         {/* 조회 중이거나 실패해도 좌우 분할 골격은 그대로 두고 상태를 목록 pane 안에
@@ -477,7 +514,7 @@ export function OpportunitiesPage() {
               <p className="opportunity-list-title">사업 추적 목록 · {formatCount(rows.length)}건</p>
               <p className="opportunity-caption">
                 {list.isSuccess
-                  ? `${view}${reason ? ` · ${actionReasonLabel(reason)}` : ""}${search ? ` · 검색 "${search}"` : ""} 전체 ${formatCount(total)}건`
+                  ? `${view}${reason ? ` · ${actionReasonLabel(reason)}` : ""}${deadlineWithinDays === null ? "" : ` · ${deadlineWithinDays}일 이내 마감`}${search ? ` · 검색 "${search}"` : ""} 전체 ${formatCount(total)}건`
                   : "사업 단위"}
               </p>
             </header>

@@ -2046,6 +2046,54 @@ test("LS-cross-page-selection-survives-refresh-and-clears-on-applied-filter-chan
   await expect(page.locator('.c2l-row input[type="checkbox"][data-checked="true"]')).toHaveCount(0);
 });
 
+// M7 ②(ADR-0062 결정 표): `전체 선택`은 검색 결과 전체가 아니라 지금 그려진
+// 페이지만 더한다(사전규격 `selectCurrentPage`와 같은 규칙, spec §3.4). 페이지가
+// 전부 선택되면 그 페이지에서는 다시 누를 일이 없어 비활성이고, 다음 페이지로
+// 넘어가면 그 페이지 몫만큼만 다시 활성화된다.
+test("LS-select-current-page-only-adds-visible-rows-and-disables-once-page-is-fully-selected", async ({ page }) => {
+  await mockOrderPlans(page, "large");
+  await page.goto("/order-plans");
+  await expect(page.locator(".c2l-row")).toHaveCount(500);
+
+  const selectPage = page.getByRole("button", { name: "현재 페이지 전체 선택", exact: true });
+  await selectPage.click();
+  await expect(page.getByTestId("order-plan-selection-toolbar")).toContainText("선택 500건");
+  await expect(page.locator('.c2l-row input[type="checkbox"][data-checked="true"]')).toHaveCount(500);
+  await expect(selectPage).toBeDisabled();
+
+  await page.getByRole("button", { name: "다음", exact: true }).click();
+  await expect(page).toHaveURL(/offset=500/);
+  await expect(page.locator(".c2l-row")).toHaveCount(400);
+  // 이전 페이지 500건은 화면 밖에서도 그대로 선택돼 있고, 새 페이지는 아직
+  // 선택되지 않았으므로 단추가 다시 활성이다.
+  await expect(selectPage).toBeEnabled();
+  await expect(page.locator('.c2l-row input[type="checkbox"][data-checked="true"]')).toHaveCount(0);
+
+  await selectPage.click();
+  await expect(page.getByTestId("order-plan-selection-toolbar")).toContainText("선택 900건");
+  await expect(page.locator('.c2l-row input[type="checkbox"][data-checked="true"]')).toHaveCount(400);
+  await expect(selectPage).toBeDisabled();
+});
+
+// M7 ②: 선택 도구는 사전규격과 같은 이름·순서 4개뿐이다 — 전체 선택 · 전체 해제 ·
+// 선택 항목 제외 · 선택 항목 추적 시작(primary). 아무것도 선택하지 않은 초기
+// 상태에서 해제·제외·시작은 비활성이고 전체 선택만 쓸 수 있다.
+test("LS-selection-toolbar-has-four-tools-in-the-pre-specs-order-and-names", async ({ page }) => {
+  await mockOrderPlans(page);
+  await page.goto("/order-plans");
+  const toolbar = page.getByTestId("order-plan-selection-toolbar");
+  const buttons = toolbar.getByRole("button");
+  await expect(buttons).toHaveCount(4);
+  await expect(buttons.nth(0)).toHaveText("전체 선택");
+  await expect(buttons.nth(1)).toHaveText("전체 해제");
+  await expect(buttons.nth(2)).toHaveText("선택 항목 제외");
+  await expect(buttons.nth(3)).toHaveText("선택 항목 추적 시작");
+  await expect(buttons.nth(0)).toBeEnabled();
+  await expect(buttons.nth(1)).toBeDisabled();
+  await expect(buttons.nth(2)).toBeDisabled();
+  await expect(buttons.nth(3)).toBeDisabled();
+});
+
 test("LS-checkbox-space-and-input-events-remain-independent-from-active-row", async ({ page }) => {
   await mockOrderPlans(page);
   await page.goto("/order-plans");
@@ -2456,7 +2504,9 @@ test("BE-select-three-end-tracking-confirm-and-result-hides-ended-plans-from-def
   await rows.filter({ hasText: "청사 시설관리" }).locator('input[type="checkbox"]').check();
   await expect(page.getByTestId("order-plan-selection-toolbar")).toContainText("선택 3건");
 
-  await page.getByRole("button", { name: "선택 항목 추적 종료", exact: true }).click();
+  // M7 결정 1: 발주계획의 `선택 항목 제외`는 기존 일괄 `추적 종료`(ADR-0063)를 그
+  // 이름으로 부른다. onClick·확인 창은 그대로다.
+  await page.getByRole("button", { name: "선택 항목 제외", exact: true }).click();
   const dialog = page.getByTestId("order-plan-bulk-tracking-dialog");
   await expect(dialog).toContainText("발주계획 일괄 추적 종료");
   await expect(dialog).toContainText("추적을 아직 정하지 않은 계획만 추적 종료로 저장합니다");
@@ -2496,7 +2546,7 @@ test("BE-blank-reason-blocks-confirm-and-sends-no-request", async ({ page }) => 
   const trace = await mockOrderPlanBulkTracking(page, "all-eligible");
   await page.goto("/order-plans");
   await page.locator(".c2l-row").first().locator('input[type="checkbox"]').check();
-  await page.getByRole("button", { name: "선택 항목 추적 종료", exact: true }).click();
+  await page.getByRole("button", { name: "선택 항목 제외", exact: true }).click();
   const dialog = page.getByTestId("order-plan-bulk-tracking-dialog");
   await dialog.getByRole("button", { name: "선택 대상 미리보기", exact: true }).click();
   await dialog.getByRole("textbox", { name: "공통 담당자 이름 · 감사 표식" }).fill("종료 담당자");
@@ -2516,7 +2566,7 @@ test("BE-mixed-selection-preview-shows-eligible-and-status-exclusions", async ({
   await rows.filter({ hasText: "인공지능 기반 공공데이터" }).locator('input[type="checkbox"]').check();
   await rows.filter({ hasText: "청사 시설관리" }).locator('input[type="checkbox"]').check();
   await rows.filter({ hasText: "복지서비스 운영" }).locator('input[type="checkbox"]').check();
-  await page.getByRole("button", { name: "선택 항목 추적 종료", exact: true }).click();
+  await page.getByRole("button", { name: "선택 항목 제외", exact: true }).click();
   const dialog = page.getByTestId("order-plan-bulk-tracking-dialog");
   await dialog.getByRole("button", { name: "선택 대상 미리보기", exact: true }).click();
   await expect(dialog).toContainText("미선택 · 종료 가능");
@@ -2550,7 +2600,7 @@ test("BE-over-200-selection-disables-end-but-keeps-start-enabled", async ({ page
   }, fingerprint);
   await page.reload();
   await expect(page.getByTestId("order-plan-selection-toolbar")).toContainText("선택 201건");
-  await expect(page.getByRole("button", { name: "선택 항목 추적 종료", exact: true })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "선택 항목 제외", exact: true })).toBeDisabled();
   await expect(page.getByRole("button", { name: "선택 항목 추적 시작", exact: true })).toBeEnabled();
   await expect(page.locator("#c2l-selection-action-reason"))
     .toContainText("한 번에 200건까지 종료할 수 있습니다. 선택을 줄이십시오.");
@@ -2603,7 +2653,7 @@ test("BE-pending-end-request-recovers-through-end-endpoint-even-when-start-dialo
   });
   await page.goto("/order-plans");
   await page.locator(".c2l-row").first().locator('input[type="checkbox"]').check();
-  await page.getByRole("button", { name: "선택 항목 추적 종료", exact: true }).click();
+  await page.getByRole("button", { name: "선택 항목 제외", exact: true }).click();
   const endDialog = page.getByTestId("order-plan-bulk-tracking-dialog");
   await endDialog.getByRole("button", { name: "선택 대상 미리보기", exact: true }).click();
   await endDialog.getByRole("textbox", { name: "공통 담당자 이름 · 감사 표식" }).fill("종료 유실 담당자");
@@ -2733,6 +2783,58 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900
       await expect(activeCount).toHaveCount(0);
       await expect(scope).toHaveCount(0);
       expect(listRequests.slice(requestsBeforeClear).every((params) => !params.has("source_run_id"))).toBe(true);
+    });
+
+    // S1 — 대시보드 `새 우선 검토 발주계획`이 넘기는 `first_observed_from`. URL로만
+    // 들어오는 축이고, 회차 줄과 같은 자리에서 알리고 해제한다. 창은 **서버가** 건다.
+    test("URL의 첫 수집 창은 서버로 그대로 나가고 회차 줄과 같은 자리에서 해제된다", async ({ page }) => {
+      await mockOrderPlans(page);
+      const listRequests = recordListRequests(page);
+      await page.goto("/order-plans?qwen=relevant&tracking=미선택&first_observed_from=2026-09-01");
+
+      const line = page.locator(".c2l-filters .c2l-observed-context");
+      const activeCount = page.locator(".c2l-filters .workspace-filter-count");
+      await expect(page.locator(".c2l-row")).toHaveCount(1);
+      await expect(line).toContainText("09-01 이후 첫 수집");
+      // 걸린 조건은 셋이다 — 모델 판단·추적·첫 수집 창.
+      await expect(activeCount).toHaveText("3");
+      await expect(page.locator(".c2l-list-scope"))
+        .toHaveText("09-01 이후 첫 수집 AND 모델 판단 관련 AND 추적 미선택");
+      expect(listRequests.at(-1)?.get("first_observed_from")).toBe("2026-09-01");
+      expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(0);
+
+      // 상세 필터를 접었다 펴도 줄과 건수는 그대로다(회차 줄과 같은 성질).
+      const advancedToggle = page.getByRole("button", { name: "상세 필터", exact: true });
+      await advancedToggle.click();
+      await expect(advancedToggle).toHaveAttribute("aria-expanded", "true");
+      await expect(line).toContainText("09-01 이후 첫 수집");
+      await expect(activeCount).toHaveText("3");
+
+      // 해제는 그 축 하나만 푼다.
+      const before = listRequests.length;
+      await line.getByRole("button", { name: "해제", exact: true }).click();
+      await expect.poll(() => new URL(page.url()).searchParams.has("first_observed_from")).toBe(false);
+      await expect(line).toHaveCount(0);
+      await expect(activeCount).toHaveText("2");
+      await expect(page.locator(".c2l-row")).toHaveCount(1);
+      expect(listRequests.slice(before).every((params) => !params.has("first_observed_from"))).toBe(true);
+    });
+
+    test("첫 수집 창 밖이면 목록이 비고 형식이 아닌 값은 보내지 않는다", async ({ page }) => {
+      await mockOrderPlans(page);
+      const listRequests = recordListRequests(page);
+      // 창이 실제로 서버에서 좁힌다(공용 fixture의 첫 관측일은 2026-09-01이다).
+      await page.goto("/order-plans?first_observed_from=2026-09-20");
+      await expect(page.locator(".c2l-observed-context")).toContainText("09-20 이후 첫 수집");
+      await expect(page.locator(".c2l-row")).toHaveCount(0);
+      expect(listRequests.at(-1)?.get("first_observed_from")).toBe("2026-09-20");
+
+      // 형식이 아닌 값은 보내지 않고 줄도 그리지 않는다 — 422를 받는 대신 창이 없다.
+      const before = listRequests.length;
+      await page.goto("/order-plans?first_observed_from=2026-9-1");
+      await expect(page.locator(".c2l-row")).toHaveCount(2);
+      await expect(page.locator(".c2l-observed-context")).toHaveCount(0);
+      expect(listRequests.slice(before).every((params) => !params.has("first_observed_from"))).toBe(true);
     });
 
     test("자동 선별이 꺼져 있으면 사실 한 줄과 운영 화면 링크만 보인다", async ({ page }) => {

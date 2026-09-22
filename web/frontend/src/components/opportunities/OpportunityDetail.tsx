@@ -28,6 +28,7 @@ import { NoticeCorrectionDialog } from "./NoticeCorrectionDialog";
 import { RecheckAcknowledgement } from "./RecheckAcknowledgement";
 import { RecordSearchPanel } from "./RecordSearchPanel";
 import { TrackingHistory } from "./TrackingHistory";
+import { TrackingResetControl } from "./TrackingResetControl";
 import { TrackingStatusDialog } from "./TrackingStatusDialog";
 import {
   actionReasonsOf,
@@ -631,6 +632,16 @@ export function OpportunityDetail({ intent = null, onDirtyChange, onSaved, oppor
               </div>
             </dl>
             {holdText ? <p className="opportunity-caption">보류 재검토 기한 · {holdText} ({formatMoment(item.hold_review_due_at)})</p> : null}
+            {/* 계속 추적·보류·종료는 `추적 상태 변경`이 고르고, 그 결정을 되돌리는
+                일만 여기서 한다(ADR-0068). 상태 드롭다운에 `미선택`을 넣지 않는
+                이유는 그대로다 — 되돌리기는 상태 선택이 아니라 결정 취소다. */}
+            <div className="opportunity-decision-actions">
+              <TrackingResetControl
+                currentStatus={item.tracking_status}
+                onReset={() => onSaved("추적 결정을 미선택으로 되돌렸습니다.")}
+                opportunityId={item.id}
+              />
+            </div>
             <p className="opportunity-caption">결정 기록자는 감사 표식이며 담당자 지정이나 신원 인증이 아닙니다.</p>
           </section>
 

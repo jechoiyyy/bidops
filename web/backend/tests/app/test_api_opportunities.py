@@ -696,6 +696,7 @@ def test_accepting_a_candidate_between_two_human_states_returns_both_states(oppo
                 "tracking_selected_by": "계획 담당자",
                 "tracking_selected_at": "2026-08-30T03:04:05.678901+00:00",
                 "recheck_signal": False,
+                "recheck_signal_at": None,
             },
             {
                 "id": ended.id,
@@ -703,12 +704,69 @@ def test_accepting_a_candidate_between_two_human_states_returns_both_states(oppo
                 "tracking_selected_by": "기존 담당자",
                 "tracking_selected_at": "2026-08-29T01:00:00+00:00",
                 "recheck_signal": True,
+                "recheck_signal_at": "2026-08-29T02:00:00+00:00",
             },
         ]
     }
     session.expire_all()
     assert session.get(OpportunityLink, candidate.id).status == "후보 확인 대기"
     assert session.get(Opportunity, plan_opportunity.id).merged_into_opportunity_id is None
+
+
+def test_accepting_a_candidate_between_two_same_states_merges_over_rest(opportunity_api):
+    """ADR-0068: 상태가 같고 신호가 없으면 같은 요청이 409 대신 200이다."""
+
+    client, session, ended, plan_opportunity = opportunity_api
+    # 종료 상태를 다시 저장하면 fixture의 재검토 신호가 해소된다(spec §6.2).
+    set_tracking_status(
+        session,
+        ended,
+        status="종료",
+        reason="신호 확인 후 종료 유지",
+        selected_by="기존 담당자",
+        selected_at=datetime(2026, 8, 30, 1, tzinfo=timezone.utc),
+    )
+    set_tracking_status(
+        session,
+        plan_opportunity,
+        status="종료",
+        reason="계획 단계에서 종료",
+        selected_by="계획 담당자",
+        selected_at=datetime(2026, 8, 30, 3, tzinfo=timezone.utc),
+    )
+    target_notice_id = next(link.notice_id for link in ended.links if link.link_type == "official")
+    candidate = OpportunityLink(
+        opportunity=plan_opportunity,
+        notice_id=target_notice_id,
+        stage="notice",
+        link_type="candidate",
+        status="후보 확인 대기",
+        search_strategy="merge_confirmation",
+    )
+    session.add(candidate)
+    session.commit()
+    # fixture는 `ended`를 먼저 만든다 — 더 오래된 쪽(동률이면 작은 id)이 유지된다.
+    retained_id, merged_id = ended.id, plan_opportunity.id
+    assert retained_id < merged_id
+
+    response = client.patch(
+        f"/api/opportunities/links/{candidate.id}/decision",
+        json={"decision": "accepted", "reason": "같은 사업으로 확인"},
+        headers={"X-BidOps-Actor-Name": "merge-reviewer"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "사람 확인 병합"
+    session.expire_all()
+    assert session.get(Opportunity, retained_id).merged_into_opportunity_id is None
+    assert session.get(Opportunity, merged_id).merged_into_opportunity_id == retained_id
+    assert session.get(Opportunity, retained_id).tracking_status == "종료"
+    merged_audit = session.scalars(
+        select(AuditEvent).where(AuditEvent.action == "opportunity.merged.human_confirmed")
+    ).one()
+    states = merged_audit.safe_metadata["merged_human_states"]
+    assert [state["id"] for state in states] == [merged_id]
+    assert states[0]["tracking_selected_by"] in {"기존 담당자", "계획 담당자"}
 
 
 def _write_collection_run(root, name, plan_no, bid_no):

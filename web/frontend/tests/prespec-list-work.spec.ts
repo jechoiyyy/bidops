@@ -369,7 +369,9 @@ test("기존 view URL은 전체 workspace의 overview_view로 정규화된다", 
 test("목록에서 방향키로 행을 옮기고 선택이 화면에 남는다", async ({ page }) => {
   await mockApi(page);
   await mockPreSpecs(page);
-  await page.goto("/pre-specs?sw_only=false");
+  // 2026-09-22 개정(시안 M7 ③) 뒤 표본의 `검토할 항목`은 한 행뿐이다 — 행 이동
+  // 자체는 보기와 무관하므로 두 행 이상인 `전체 이력`에서 본다.
+  await page.goto("/pre-specs?workspace=all&sw_only=false");
   const rows = page.locator(".pre-specs-row");
   await expect(rows.first()).toBeVisible();
   expect(await rows.count()).toBeGreaterThan(1);
@@ -528,7 +530,8 @@ test("LS-04 선택은 두 페이지·새로고침·정렬에 남고 실제 필�
 test("LS-02 native checkbox toggles without changing active row or detail draft", async ({ page }) => {
   await mockApi(page);
   await mockPreSpecs(page);
-  await page.goto("/pre-specs?sw_only=false");
+  // 두 행 이상이 필요하다 — 2026-09-22 개정 뒤 표본의 `검토할 항목`은 한 행이다.
+  await page.goto("/pre-specs?workspace=all&sw_only=false");
   const rows = page.locator(".pre-specs-row");
   await rows.first().click();
   await rows.first().focus();
@@ -770,7 +773,10 @@ test("개요 결과 본문과 첫 주장은 한 번만 렌더된다", async ({ p
   await page.route("**/api/pre-specs/991/overview", (route) => route.fulfill({
     json: overviewEnvelopeFixture(991, overviewCompletedRunFixture, [overviewCompletedRunFixture, previousRun]),
   }));
-  await page.goto("/pre-specs?notice_pk=991&sw_only=false");
+  // 991은 추적 `종료`라 2026-09-22 개정 뒤 `검토할 항목`에 없다 — 전체 이력에서
+  // 그 행을 골라 같은 상세를 연다.
+  await page.goto("/pre-specs?workspace=all&sw_only=false");
+  await page.locator(".pre-specs-row").filter({ hasText: "안전한 문서 준비 사전규격" }).click();
   const detail = page.locator(".pre-specs-detail");
   await expect(detail).toBeVisible();
   // 우측 정보 영역에는 결과 본문 구역이 하나뿐이다(spec §3.1 2행). 첫 주장은

@@ -108,6 +108,12 @@ run 행이 아직 없으면 `null`이다(개요 검토 미시작). `overview_sta
   회차를 지정해도 공고 내용·분석·추적은 현재 상태다. `recent`에 양 날짜가 없으면
   한국 시간 오늘 포함 최근 7일을 적용한다. `actionable`은 개요 사람 확인 필요,
   심층 검토 클릭 대기, 개요 완료이면서 기존 신규·미선택/null 추적 결정 대기의 합집합이다.
+  2026-09-22 개정([ADR-0064](tracking/decisions/0064-prespec-actionable-deadline-scope.md) 결정 4
+  개정, 후속 시안 M7 ③ 승인): 그 합집합에 **추적 상태가 null 또는 `미선택`**이라는 조건을 바깥
+  AND로 건다. 사람이 `계속 추적`·`보류`·`종료` 중 무엇을 골랐든 그 공고는 이유 불문 `actionable`에서
+  빠지고 `tracking`(계속 추적·보류)·`all`에서 보인다. 추적 상태를 `미선택`으로 되돌리면 다시
+  들어온다. 이 조건은 `workspace_counts["actionable"]`과 `deadline_scope_counts`에도 같이 걸린다.
+  `recent`·`tracking`·`all`과 `next_action` 필드는 바뀌지 않는다.
   `tracking`은 계속 추적·보류다. 마감이 지났다는 이유로 업무 대상에서 제외하지 않는다.
   2026-09-21 확장([ADR-0064](tracking/decisions/0064-prespec-actionable-deadline-scope.md)):
   `deadline_scope=current|passed|all`(기본 `all`)을 추가한다. `current`는 `deadline_at`이
@@ -312,7 +318,7 @@ revision-history의 404·409·500은 공통 안전 envelope를 사용하며 `det
 
 추적 상태 변경은 `set_tracking_status()`를 통해 사람 선택과 감사 이벤트를 함께 기록한다. `X-BidOps-Actor-Name`은 인증이 아닌 감사 표식이며, 비ASCII 이름은 `X-BidOps-Actor-Name-Format: utf-8-percent-v1`과 canonical UTF-8 percent encoding을 사용한다. `recheck_signal`은 시스템 신호 여부이고 `recheck_signal_at`·`recheck_signal_link_id`는 그 시각과 근거 link를 가리킨다. 이 값들은 사람의 `tracking_status`·`tracking_reason`·`tracking_selected_by`·`tracking_selected_at`과 별도이며, `FinalOpinion` 또는 최종 입찰 `Go/No-Go`로 변환하지 않는다.
 
-후보 수락(`PATCH …/links/{id}/decision` `accepted`)이 대상을 이미 소유한 다른 active 사업기회로 이끌면 §3.2와 같은 규칙으로 병합한다. 사람 상태 보유(`tracking_status ≠ 미선택` 또는 `recheck_signal_at IS NOT NULL`) 사업기회가 둘 중 1개 이하면 병합하고 후보 link를 `사람 확인 병합`(비소유, `human_decision=accepted`)으로 남긴다 — 소유권은 옮겨진 공식 link가 갖는다. 둘 다 사람 상태를 가지면 409 `candidate_merge_state_conflict`이고 details는 `{opportunities: [{id, tracking_status, tracking_selected_by, tracking_selected_at, recheck_signal}]}`다. 자동 병합(공식 키 재적재)이 같은 조건으로 막히면 경고 `opportunity_merge_confirmation_required`와 함께 `병합 확인` 후보(`search_strategy=merge_confirmation`)를 만들며, 도착 레코드는 고아로 남지 않고 자기 사업기회(없으면 새로 생성)에 붙는다.
+후보 수락(`PATCH …/links/{id}/decision` `accepted`)이 대상을 이미 소유한 다른 active 사업기회로 이끌면 §3.2와 같은 규칙으로 병합한다. 사람 상태 보유(`tracking_status ≠ 미선택` 또는 `recheck_signal_at IS NOT NULL`) 사업기회가 둘 중 1개 이하면 병합하고 후보 link를 `사람 확인 병합`(비소유, `human_decision=accepted`)으로 남긴다 — 소유권은 옮겨진 공식 link가 갖는다. **둘 다 사람 상태를 갖더라도 두 `tracking_status`가 같고 양쪽 모두 `recheck_signal_at IS NULL`이면 병합한다(2026-09-22, [ADR-0068](tracking/decisions/0068-same-state-merge-and-tracking-reset.md)).** 유지 쪽은 둘 중 오래된 사업기회(`created_at`, 동률이면 `id`)이고 그 추적 상태·사유·선택자·시각은 바뀌지 않으며, 병합된 쪽의 결정은 그 행에 남는 것과 별도로 감사 이벤트 `opportunity.merged.human_confirmed`의 `safe_metadata.merged_human_states[] = [{id, tracking_status, tracking_reason, tracking_selected_by, tracking_selected_at}]`에도 적힌다(같은 상태 병합일 때만 있는 키). 상태가 다르거나 한쪽에 신호가 있으면 409 `candidate_merge_state_conflict`이고 details는 `{opportunities: [{id, tracking_status, tracking_selected_by, tracking_selected_at, recheck_signal, recheck_signal_at}]}`다(`recheck_signal_at`은 2026-09-22 추가, 추가형). 화면은 이 응답을 받아 각 사업을 `미선택`으로 되돌리는 단추를 주며(같은 `PATCH …/tracking-status`, 사유·담당자 필수) 되돌린 뒤 수락을 자동 재시도하지 않는다. 자동 병합(공식 키 재적재)이 같은 조건으로 막히면 경고 `opportunity_merge_confirmation_required`와 함께 `병합 확인` 후보(`search_strategy=merge_confirmation`)를 만들며, 도착 레코드는 고아로 남지 않고 자기 사업기회(없으면 새로 생성)에 붙는다.
 
 ### 사업기회 구역·사유·보류 기한
 
@@ -439,7 +445,7 @@ disabled 이전/다음 버튼을 제공한다.
 
 - `WorkloadResponse`: `generated_at`(UTC aware)과 `items[]`. item은 `key`, nullable `count`(0 이상), nullable `unavailable_reason` 셋뿐이다. `items`의 순서는 고정이며 `order_plan_pending`, `pre_spec_deep_review_ready`, `tracking_action_required`, `tracking_hold_review_due`, `bid_final_decision_pending`, `tracking_deadline_imminent`, `human_check_required`, `overview_human_review`, `blocking_items_open`, `order_plan_new_priority` **열**이 언제나 모두 있다(ADR-0053 §1·§4 갱신, ADR-0067 결정 1, spec §7.1·§8). 앞 다섯의 뜻과 소유자는 바뀌지 않았다.
 - **제공자 부재와 실제 0은 다르다.** 소유 모듈이 등록되지 않았으면 `count=null`·`unavailable_reason="provider_absent"`이고, screening이 있어도 누적 범위(아래 "발주계획 목록 누적 모드")에 완료된 C-2 운영 실행이 하나도 없으면 `count=null`·`unavailable_reason="no_completed_execution"`이다. 오늘 실행이 없다는 이유로 `null`이 되지 않는다. 셀 수 있었다면 정수와 `unavailable_reason=null`이다. `null`을 0으로, 0을 `null`로 접지 않는다.
-- 각 건수의 소유자는 모듈이다. `order_plan_pending`은 screening이 `GET /api/order-plans`의 누적 모드(`source_run_id` 없음) 범위와 같은 필터(`stage1_status=selected`, `qwen_relevance=relevant,uncertain`, `tracking_status=미선택`)로, `pre_spec_deep_review_ready`는 deep_review가 `GET /api/pre-specs?auto_preparation_status=deep_review_ready_for_click&sw_only=false`와 같은 집합으로, `bid_final_decision_pending`은 deep_review가 `GET /api/bid-delta/decision-queue?status=pending`의 `total`과 같은 값으로 센다. `tracking_action_required`와 `tracking_hold_review_due`는 lifecycle이 각각 `GET /api/opportunities`의 `조치 필요` 구역, `hold_review=overdue` 건수와 같은 첫 일치 규칙으로 직접 센다.
+- 각 건수의 소유자는 모듈이다. `order_plan_pending`은 screening이 `GET /api/order-plans`의 누적 모드(`source_run_id` 없음) 범위와 같은 필터(`stage1_status=selected`, `qwen_relevance=relevant,uncertain`, `tracking_status=미선택`)로, `pre_spec_deep_review_ready`는 deep_review가 `GET /api/pre-specs?workspace=actionable&auto_preparation_status=deep_review_ready_for_click&sw_only=false`와 같은 집합으로(2026-09-22 개정 — 이 필터를 건 `actionable`은 "심층 검토 클릭 대기 ∧ 추적 상태 null·`미선택`"으로 줄어든다. 사람이 추적 결정을 내린 건은 이유 불문 빠진다. 검토 제외는 종전대로 업무 집계를 바꾸지 않으므로 제외된 채 결정 대기인 건만 두 값이 갈린다), `bid_final_decision_pending`은 deep_review가 `GET /api/bid-delta/decision-queue?status=pending`의 `total`과 같은 값으로 센다. `tracking_action_required`와 `tracking_hold_review_due`는 lifecycle이 각각 `GET /api/opportunities`의 `조치 필요` 구역, `hold_review=overdue` 건수와 같은 첫 일치 규칙으로 직접 센다.
 - **2026-09-22에 더한 네 키도 짝지은 목록 호출의 `total`과 같은 값이다.** 소비자는 건수를 목록 페이지에서 다시 세지 않는다.
 
   | 키 | 소유 | 같은 값을 내는 목록 호출 |

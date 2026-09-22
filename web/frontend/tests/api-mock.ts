@@ -1459,8 +1459,17 @@ function matchesOverviewView(item: PreSpecListItem, view: string | null): boolea
   return item.overview_review_status === view;
 }
 
+/**
+ * 사람이 추적 결정을 내리지 않았다 — 추적 상태가 null이거나 `미선택`이다.
+ * `계속 추적`·`보류`·`종료`는 이유가 달라도 모두 사람이 내린 결정이다
+ * (`app/lifecycle/routers/pre_specs._tracking_decision_absent`).
+ */
+function trackingDecisionAbsent(item: PreSpecListItem): boolean {
+  return item.tracking_status === null || item.tracking_status === "미선택";
+}
+
 function isPendingTracking(item: PreSpecListItem): boolean {
-  return item.origin === "신규" && (item.tracking_status === null || item.tracking_status === "미선택");
+  return item.origin === "신규" && trackingDecisionAbsent(item);
 }
 
 /**
@@ -1505,6 +1514,9 @@ function matchesWorkspace(
   // 구간은 actionable 술어의 일부다(ADR-0064 결정 4). 위 세 분기는 구간을 읽지
   // 않으므로 `recent`·`tracking`·`all` 칸은 구간에 대해 불변이다.
   if (!matchesDeadlineScope(item, deadlineScope)) return false;
+  // 2026-09-22 개정(시안 M7 ③): 사람이 추적 결정을 내린 건은 이유 불문 빠진다 —
+  // 합집합 바깥의 AND다(ADR-0064 결정 4 개정).
+  if (!trackingDecisionAbsent(item)) return false;
   return item.overview_review_status === "needs_human_review"
     || item.auto_preparation_status === "deep_review_ready_for_click"
     || (item.overview_review_status === "completed" && isPendingTracking(item));
@@ -1931,7 +1943,9 @@ export async function mockPreSpecs(page: Page): Promise<void> {
     }
     await fulfillJson(route, inheritedPreSpecOpportunity);
   });
-  workloadProvider(page, "pre_spec_deep_review_ready", () => ({ count: visualPreSpecItems.filter((item) => item.auto_preparation_status === "deep_review_ready_for_click").length, unavailable_reason: null }));
+  // 2026-09-22 개정(시안 M7 ③): 이 건수도 `검토할 항목`과 같은 추적 조건을 쓴다 —
+  // 사람이 추적 결정을 내린 건은 빠진다.
+  workloadProvider(page, "pre_spec_deep_review_ready", () => ({ count: visualPreSpecItems.filter((item) => item.auto_preparation_status === "deep_review_ready_for_click" && trackingDecisionAbsent(item)).length, unavailable_reason: null }));
   // 개요 두 상태는 서로 배타적이므로 두 목록 호출의 `total` 합이 곧 이 키다(ADR-0067 결정 5).
   workloadProvider(page, "overview_human_review", () => ({
     count: visualPreSpecItems.filter((item) => item.overview_review_status === "failed" || item.overview_review_status === "needs_human_review").length,

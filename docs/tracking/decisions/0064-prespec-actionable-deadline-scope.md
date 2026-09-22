@@ -46,6 +46,19 @@
    `workspace_counts`가 모두 그 함수에서 파생되므로 "actionable에만 적용"이라는 규칙이 한 군데에 산다.
    검토 제외 숨김 가드가 구간 술어보다 **먼저** 온다 — 제외 건이 구간 분할의 분모에 들어가면 탭 건수와
    집계가 어긋난다.
+
+   **2026-09-22 개정(후속 시안 M7 ③ 승인, 2026-09-22 jechoi).** actionable 술어 자체가 바뀐다:
+   `검토할 항목` = (개요 `needs_human_review` ∨ 자동 준비 `deep_review_ready_for_click` ∨ (개요
+   `completed` ∧ 발견 경로 `신규` ∧ 추적 미선택)) **∧ 추적 상태가 null 또는 `미선택`**. 사람이
+   `계속 추적`·`보류`·`종료` 중 무엇을 골랐든 그 공고는 이유 불문 검토할 항목에서 빠지고 `추적 중`·
+   `전체 이력`에서 보인다 — 옛 규칙은 셋째 항에서만 추적 상태를 보았기 때문에 `보류`를 고른 건이
+   개요 `needs_human_review`로 되돌아와 목록이 사람 결정으로 줄지 않았다. 새 조건은
+   `_workspace_actionable`의 **바깥 AND**이므로 이 결정 4의 "한 군데" 성질은 그대로이고,
+   `deadline_scope_counts`·`workspace_counts["actionable"]`도 같은 함수에서 자동으로 따라간다.
+   구간 술어와 검토 제외 가드의 순서는 바뀌지 않는다. 대시보드 `02 사전규격` 타일의
+   `pre_spec_deep_review_ready` 건수도 같은 추적 조건을 쓴다(검토 제외는 종전대로 업무 집계를
+   바꾸지 않으므로, 제외된 채 결정 대기인 건만 타일 건수와 `workspace=actionable` 목록이 갈린다).
+   `recent`·`tracking`·`all` 보기와 `next_action` 필드는 바뀌지 않는다. migration 없음.
 5. **응답에 `deadline_scope_counts{current,passed}`를 더한다.** 구간 적용 **전** actionable 집합을 두 구간으로
    나눈 건수이며, 활성 workspace·활성 구간과 무관하게 항상 같은 값이고 항상 존재한다. 다른 모든 필터는
    반영한다. 화면이 건수를 다시 세지 않게 하려는 것이다.

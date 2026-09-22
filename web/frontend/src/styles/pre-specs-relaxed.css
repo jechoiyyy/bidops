@@ -358,14 +358,9 @@
 }
 
 .pre-specs-row-tracking,
-.pre-specs-row-attention,
-.pre-specs-row-next-action {
+.pre-specs-row-attention {
   color: var(--color-text-secondary);
   font-size: var(--review-list-secondary);
-}
-
-.pre-specs-row-next-action {
-  color: var(--color-text-accent);
 }
 
 .pre-specs-row-attention {
@@ -443,18 +438,10 @@
   min-width: 0;
 }
 
-/* 수요기관이 있을 때의 공고(대행)기관 부제 — 강조 블록 바로 아래에 붙어 한
-   단위로 읽히게 안쪽 여백만큼 들여쓴다(M5 승인, F2). */
-.pre-spec-announcer-agency {
-  display: block;
-  min-width: 0;
-  margin-top: calc(var(--spacing-1) * -1);
-  padding-left: var(--spacing-4);
-  color: var(--color-text-secondary);
-  font-size: var(--bo-type-caption);
-  line-height: var(--bo-type-caption-leading);
-  overflow-wrap: anywhere;
-}
+/* 수요기관이 있을 때의 공고(대행)기관 부제 — 강조 블록 **안쪽** 이름 아래 한 줄이다
+   (M5 승인 F2, S1에서 공용 `AgencyFeature`의 `sub` 슬롯으로 옮겼다). 글자 단·줄바꿈·
+   들여쓰기는 공용 `.review-agency-sub`와 블록의 여백이 가지므로 여기서 다시 정하지
+   않는다. */
 
 /* 제외 기록 한 줄 — 상태 칩이 말한 `검토 제외`의 근거다(누가·언제·왜). */
 .pre-specs-detail-exclusion,

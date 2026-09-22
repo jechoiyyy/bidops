@@ -17,7 +17,8 @@ test("발주계획과 사전규격은 두 지원 폭에서 같은 38% 목록 폭
       workspaceWidth: pane.parentElement!.getBoundingClientRect().width,
     }));
 
-    await page.goto("/pre-specs");
+    // S3(2026-09-22 규칙): 기본 보기의 fixture 행이 추적 결정으로 빠져 0건이라, 검토할 항목이 남는 `sw_only=false`로 연다.
+    await page.goto("/pre-specs?sw_only=false");
     await expect(page.locator(".pre-specs-row").first()).toBeVisible();
     const preSpec = await page.locator(".pre-specs-list-pane").evaluate((pane) => ({
       width: pane.getBoundingClientRect().width,
