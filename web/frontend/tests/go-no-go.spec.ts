@@ -32,7 +32,7 @@ test("기본 검토 대상은 미결정·오래된 결정·효력 미확인을 �
   await openList(page);
 
   // 입찰공고가 연결된 미결정 7건 + stale Go 1건 + 효력 미확인 No-Go 1건 = 9건.
-  await expect(page.locator(".gng-list-head")).toContainText("결정 검토 목록 · 9건");
+  await expect(page.locator(".gng-list-head")).toContainText("최종 결정 목록 · 9건");
   await expect(rows(page)).toHaveCount(9);
 
   // 오래된 Go 결정이 목록에서 사라지지 않는다. 미결정만 남기면 놓친다.
@@ -116,7 +116,7 @@ test("집계와 검색 범위를 밝히고 대기열이 넘치면 받은 범위 
   await input.fill("없는사업");
   await expect(rows(page)).toHaveCount(1);
   await input.press("Enter");
-  await expect(page.getByRole("heading", { name: "조건에 맞는 사업이 없습니다" })).toBeVisible();
+  await expect(page.getByText("조건에 맞는 사업이 없습니다", { exact: true })).toBeVisible();
   await expect(page.locator(".gng-list-empty")).toContainText('적용된 검색어 "없는사업"와 다른 활성 보기 조건에 맞는 사업이 없습니다.');
   await page.getByRole("button", { name: "검색어만 지우기", exact: true }).click();
   await expect(rows(page)).toHaveCount(9);
@@ -203,7 +203,16 @@ test("근거 대화상자는 양쪽 원문과 검증 상태를 그대로 보여 
   await expect(dialog).toContainText("기준 사전규격");
   await expect(dialog).toContainText("대상 입찰공고");
   await expect(dialog).toContainText("연계 대상 시스템 3개 (기준 원문 1)");
-  await expect(dialog).toContainText("verified · 검증됨");
+  // 영문 enum 병기(`verified ·`)는 뺐다(ADR-0066 §3.3 한글화). 서버 값은 그대로다.
+  await expect(dialog).toContainText("근거 검증 · 검증됨");
+  await expect(dialog).not.toContainText("verified");
+  // 문서 원문 해시는 지우지 않고 접힌 `기술 정보`에 **전문**으로 남는다(결정 2).
+  const evidenceTechnical = dialog.locator("details.deep-review-technical");
+  await expect(evidenceTechnical.locator(".deep-review-technical-body")).toBeHidden();
+  await evidenceTechnical.locator("summary").click();
+  // 해시는 fixture의 `hex(901, "a")` 그대로 64자다 — 8자·12자 축약을 만들지 않는다.
+  await expect(evidenceTechnical.locator('dl[aria-label="근거 문서 해시와 오류 코드"]'))
+    .toContainText(`${"a".repeat(63)}${(901).toString(16)}`.slice(-64));
   await dialog.getByRole("button", { name: "닫기", exact: true }).click();
 
   // 양쪽 근거가 없는 항목은 변경 없음이나 요건 충족으로 해석하지 않는다.
@@ -288,8 +297,8 @@ test("화면 제목과 페이지 액션은 상단바에 있고 경로·편집 �
   // 페이지에 남는 제목은 landmark 이름과 h1 → h2 위계를 위한 숨긴 제목 하나다.
   await expect(page.locator("#go-no-go-title")).toHaveClass(/visually-hidden/);
 
-  // `데이터 현황`은 상단바 슬롯으로 올라가지만 대화상자는 여전히 이 화면이 연다.
-  const dataAction = topbar.getByRole("button", { name: "데이터 현황", exact: true });
+  // `목록 기준`은 상단바 슬롯으로 올라가지만 대화상자는 여전히 이 화면이 연다.
+  const dataAction = topbar.getByRole("button", { name: "목록 기준", exact: true });
   await expect(dataAction).toBeVisible();
   await dataAction.click();
   await expect(page.getByRole("dialog")).toContainText("‘계속 추적’인 사업기회만 최종 Go/No-Go 대상입니다");
@@ -298,13 +307,14 @@ test("화면 제목과 페이지 액션은 상단바에 있고 경로·편집 �
 test("중복 페이지 머리말 없이 workspace가 화면의 남은 높이를 채운다", async ({ page }) => {
   await openList(page);
 
-  // 제목·데이터 현황은 상단바 하나에만 남고, 예전 페이지 머리말은 다시 생기지 않는다.
+  // 제목·목록 기준은 상단바 하나에만 남고, 예전 페이지 머리말은 다시 생기지 않는다.
   await expect(page.locator("header.topbar[data-topbar-mode='title'] h1")).toHaveCount(1);
   await expect(page.locator(".gng-page-header")).toHaveCount(0);
   await expect(page.locator("#go-no-go-title")).toHaveClass(/visually-hidden/);
 
   const geometry = await page.locator(".gng-page").evaluate((pageRoot) => {
-    const workspace = pageRoot.querySelector<HTMLElement>(".gng-workspace");
+    // 틀은 이제 공용 `SplitWorkspace`다. 화면 전용 틀이 되살아나면 이 selector가 먼저 깨진다.
+    const workspace = pageRoot.querySelector<HTMLElement>('[data-review-primitive="split-workspace"]');
     if (!workspace) throw new Error("missing Go/No-Go workspace");
     const pageRect = pageRoot.getBoundingClientRect();
     const workspaceRect = workspace.getBoundingClientRect();
@@ -321,9 +331,114 @@ test("중복 페이지 머리말 없이 workspace가 화면의 남은 높이를 
   expect(geometry.workspaceHeight).toBeGreaterThan(0);
 });
 
-test("데이터 현황은 API 경계와 집계 범위를 기본 화면 밖에서 설명한다", async ({ page }) => {
+// ADR-0062·시안 M1c — 이 화면의 분할 틀·목록 머리·상세 머리는 발주계획·사전규격과
+// 같은 공용 골격이다. 화면 전용 틀로 되돌아가면 네 화면의 목록 폭·머리 여백이 다시
+// 따로 움직인다(`explore-workspace-consistency.spec.ts`가 그 값을 실측한다).
+test("분할 틀·목록 머리·상세 머리·발주기관 블록이 공용 골격이다", async ({ page }) => {
+  await openList(page, "?show=all&selected=901");
+
+  const workspace = page.locator('[data-review-primitive="split-workspace"]');
+  await expect(workspace).toHaveCount(1);
+  await expect(workspace).toHaveClass(/gng-workspace/);
+
+  // 목록·상세 pane은 공용 골격의 두 면이고 각자 접근 이름을 갖는다.
+  const listPane = page.getByRole("region", { name: "최종 결정 검토 목록" });
+  const detailPane = page.getByRole("region", { name: "선택한 결정 검토 사업" });
+  await expect(listPane).toHaveClass(/review-split-list/);
+  await expect(detailPane).toHaveClass(/review-split-detail/);
+  await expect(listPane.locator(".review-list-head")).toContainText("최종 결정 목록 · ");
+  // 페이저는 목록 pane 안쪽 바닥에만 있다(명세 §2.2).
+  await expect(listPane.locator('[data-review-primitive="list-pager"]')).toHaveCount(1);
+  await expect(page.locator('[data-review-primitive="list-pager"]')).toHaveCount(1);
+
+  // 상세 머리는 공용 sticky 머리이고 발주기관은 공용 강조 블록으로 먼저 읽힌다.
+  const detailHead = detailPane.locator('[data-review-primitive="sticky-decision-header"]');
+  await expect(detailHead).toHaveClass(/gng-detail-head/);
+  await expect(detailHead.locator('[data-review-primitive="agency-feature"]')).toContainText("해솔시청");
+});
+
+test("상세를 스크롤해도 상세 머리는 뷰포트 안에 남는다", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await openList(page, "?show=all&selected=901");
+  await expect(page.locator(".gng-delta-counts")).toBeVisible();
+
+  const head = page.locator(".gng-detail-head");
+  const scroller = page.locator(".gng-detail-scroll");
+  const before = await head.boundingBox();
+  if (!before) throw new Error("missing detail header box");
+
+  // 본문이 실제로 스크롤되는 상태를 먼저 만든다. 스크롤이 없으면 아래 단언은
+  // 머리가 붙어 있다는 것을 증명하지 못한다.
+  const scrollable = await scroller.evaluate((element) => {
+    element.scrollTop = element.scrollHeight;
+    return element.scrollHeight - element.clientHeight;
+  });
+  expect(scrollable).toBeGreaterThan(0);
+  await expect.poll(() => scroller.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+
+  const after = await head.boundingBox();
+  if (!after) throw new Error("missing detail header box after scroll");
+  expect(after.y).toBeCloseTo(before.y, 0);
+  expect(after.y).toBeGreaterThanOrEqual(0);
+  expect(after.y + after.height).toBeLessThanOrEqual(800);
+  // 머리에 있던 사업명·발주기관은 스크롤 뒤에도 그대로 읽힌다.
+  await expect(head).toContainText("공공데이터 통합관리체계 고도화");
+  await expect(head).toContainText("해솔시청");
+});
+
+// 조회 중에 화면이 통째로 접혔다 펴지면 사람이 보던 자리를 잃는다(발주계획·사업
+// 추적과 같은 규칙). 대기열이 아직 안 왔을 때 건수를 0건으로 적지도 않는다.
+test("조회 중에도 분할 골격이 남고 건수를 0건으로 적지 않는다", async ({ page }) => {
+  await mockApi(page);
+  await mockGoNoGo(page, SLOW);
+  let release: () => void = () => {};
+  const held = new Promise<void>((resolve) => { release = resolve; });
+  await page.route("**/api/bid-delta/decision-queue**", async (route) => {
+    await held;
+    await route.fallback();
+  });
+
+  await page.goto("/go-no-go");
+
+  const listPane = page.getByRole("region", { name: "최종 결정 검토 목록" });
+  const detailPane = page.getByRole("region", { name: "선택한 결정 검토 사업" });
+  await expect(listPane).toBeVisible();
+  await expect(detailPane).toBeVisible();
+  await expect(page.locator(".gng-list-head")).toContainText("최종 결정 목록 · 불러오는 중");
+  await expect(listPane.getByRole("status")).toContainText("최종 결정 대기열을 불러오는 중");
+  await expect(detailPane).toContainText("목록을 불러온 뒤 사업 상세를 표시합니다.");
+  // 받지 못한 범위를 요약·페이저로 말하지 않는다.
+  await expect(page.locator(".gng-summary")).toHaveCount(0);
+  await expect(page.getByRole("navigation", { name: "결정 대기열 페이지" })).toHaveCount(0);
+
+  release();
+  await expect(page.locator(".gng-row").first()).toBeVisible();
+  await expect(page.locator(".gng-list-head")).toContainText("최종 결정 목록 · 9건");
+  await expect(page.locator(".gng-summary")).toBeVisible();
+});
+
+test("대기열 조회 실패도 분할 골격 안에서 말하고 건수를 0건으로 적지 않는다", async ({ page }) => {
+  await mockApi(page);
+  await mockGoNoGo(page, SLOW);
+  await page.route("**/api/bid-delta/decision-queue**", async (route) => {
+    await route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ detail: "queue unavailable" }) });
+  });
+
+  await page.goto("/go-no-go");
+
+  const listPane = page.getByRole("region", { name: "최종 결정 검토 목록" });
+  await expect(listPane).toBeVisible();
+  await expect(page.locator(".gng-list-head")).toContainText("최종 결정 목록 · 건수 확인 불가");
+  await expect(page.locator(".gng-list-empty")).toContainText("최종 결정 대기열을 불러오지 못했습니다.");
+  await expect(page.locator(".gng-list-empty")).toContainText("조회 실패를 결정 대기 없음으로 해석하지 않습니다.");
+  await expect(page.getByRole("region", { name: "선택한 결정 검토 사업" }))
+    .toContainText("목록을 불러오지 못해 상세를 표시할 수 없습니다.");
+  await expect(page.locator(".gng-summary")).toHaveCount(0);
+});
+
+test("목록 기준은 API 경계와 집계 범위를 기본 화면 밖에서 설명한다", async ({ page }) => {
   await openList(page);
-  await page.getByRole("button", { name: "데이터 현황", exact: true }).click();
+  await page.getByRole("button", { name: "목록 기준", exact: true }).click();
   const dialog = page.getByRole("dialog");
   await expect(dialog).toContainText("‘계속 추적’인 사업기회만 최종 Go/No-Go 대상입니다");
   await expect(dialog).toContainText("최종 결정 대기열을 한 번 받아 그립니다");

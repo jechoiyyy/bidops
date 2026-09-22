@@ -22,9 +22,13 @@ function flag(record: Record<string, unknown>, key: string, yes: string, no: str
 export function NoticeFacts({ notice }: NoticeFactsProps) {
   const qualification = asRecord(notice.qualification_flags);
   const region = asRecord(notice.region_limit);
+  // `regional_joint_contract_limit`(collect_notices.py의 cmmnSpldmdCorpRgnLmtYn)은
+  // 지역의무공동도급 구성원에 한정된 지역 제한 여부일 뿐, 공고 전체의 지역 제한 유무를
+  // 말하지 않는다. "N"과 빈 값을 같은 뜻으로 볼 근거가 없으므로 둘 다 미확인으로 둔다.
+  // "있음"만 basis 값 또는 "Y"라는 명시 근거가 있을 때 표시한다.
   const regionLabel = region.regional_joint_contract_limit === "Y" || region.basis
     ? present(region.basis, "지역 제한 있음")
-    : "지역 제한 없음";
+    : "지역 제한 미확인";
   const participation = flag(qualification, "participation_limited", "참가 제한 있음", "참가 제한 없음");
   const industry = flag(qualification, "industry_limited", "업종 제한 있음", "업종 제한 없음");
   const restriction = `${regionLabel} · ${participation} · ${industry}`;
@@ -38,7 +42,7 @@ export function NoticeFacts({ notice }: NoticeFactsProps) {
     .join(" · ");
 
   return (
-    <Panel className="notice-facts-panel" title="공고 정보" action={<span className="panel-note">나라장터 API</span>}>
+    <Panel className="notice-facts-panel" title="공고 정보" action={<span className="panel-note">나라장터 제공 값</span>}>
       <dl className="notice-facts">
         <dt>입찰공고번호</dt>
         <dd className="mono tabular-nums">{present(bidIdentifier, "식별자 미확인")}</dd>

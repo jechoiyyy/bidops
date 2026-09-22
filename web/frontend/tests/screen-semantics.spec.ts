@@ -458,10 +458,17 @@ test("심층 보고서 우측 열이 문서 inventory와 사람 확인 필요 se
 
   const items = panel.locator(".deep-review-segment-list > li");
   await expect(items).toHaveCount(3);
-  await expect(items.first()).toContainText("segment 2");
-  await expect(items.first()).toContainText("기술·기능");
-  await expect(items.first()).toContainText("SFR-3");
-  await expect(items.first().getByRole("button", { name: "2쪽 원문 열기" })).toBeVisible();
+  // 계약 순번·블록 키·요구사항 ID 나열은 접힌 `기술 정보` 안이고(ADR-0066),
+  // 사람이 읽는 분류·건수·원문 조작은 밖에 남는다.
+  const first = items.first();
+  await expect(first).toContainText("2번째 구간");
+  await expect(first).toContainText("기술·기능");
+  await expect(first).toContainText("요구사항 ID 1개");
+  await expect(first.getByRole("button", { name: "2쪽 원문 열기" })).toBeVisible();
+  await expect(first.locator(".deep-review-technical-body")).toBeHidden();
+  await first.getByText("기술 정보 · 2번째 구간").click();
+  await expect(first.locator(".deep-review-technical-body")).toContainText("segment 2");
+  await expect(first.locator(".deep-review-technical-body")).toContainText("SFR-3");
 });
 
 test("자동 심층 검토가 있어도 사업 추적 화면은 미선택을 그대로 보여준다", async ({ page }) => {

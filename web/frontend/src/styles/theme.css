@@ -453,12 +453,6 @@ a {
   overflow-wrap: anywhere;
 }
 
-.topbar-status {
-  color: var(--color-muted);
-  font-size: var(--bo-type-caption);
-  white-space: nowrap;
-}
-
 .basis-popover {
   position: relative;
   flex: 0 0 auto;
@@ -5428,10 +5422,13 @@ pre {
   line-height: var(--bo-type-body-leading);
 }
 
+/* 접힌 `기술 정보` 안의 오류 코드 한 줄(ADR-0066 결정 1 `이동`, 시안 M4 결정 3). */
 .mutation-feedback-code {
+  margin: 0;
   font-family: var(--font-mono);
   font-size: var(--bo-type-caption);
   line-height: var(--bo-type-caption-leading);
+  overflow-wrap: anywhere;
 }
 
 .mutation-feedback-title + .mutation-feedback-detail + .interaction-control,

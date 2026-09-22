@@ -25,6 +25,13 @@ def test_manual_execution_and_review_api_contract(tmp_path, monkeypatch) -> None
     plans[0].agency_name = "고유 기관"
     plans[0].planned_order_year = "2027"
     plans[0].planned_order_month = "09"
+    # 목록·상세가 새로 투영하는 누적 행의 열. 값 없음(`None`)은 `plans[1]`이 그대로 지킨다.
+    plans[0].contract_method = "일반경쟁"
+    plans[0].notice_posted = "Y"
+    plans[0].procurement_method = "자체조달"
+    plans[0].supervising_agency_name = "조달청"
+    plans[0].bid_ntice_no_list = "R26BK01696186000"
+    plans[0].published_at = datetime(2026, 9, 1, tzinfo=UTC)
     session.commit()
     monkeypatch.setattr(order_plans_router, "service", OrderPlanScreeningService(settings))
 
@@ -159,13 +166,18 @@ def test_manual_execution_and_review_api_contract(tmp_path, monkeypatch) -> None
             session.commit()
             plan_list = client.get("/api/order-plans?source_run_id=run-c2&limit=10")
             assert plan_list.status_code == 200
-            assert plan_list.json()["schema_version"] == "order-plan-list-response.v4"
+            assert plan_list.json()["schema_version"] == "order-plan-list-response.v5"
             assert plan_list.json()["scope"]["execution_id"] == execution_id
             assert plan_list.json()["scope"]["status"] == "성공"
             assert plan_list.json()["items"][0]["budget_amount"] == 123456789.0
             assert plan_list.json()["items"][0]["planned_order_year"] == "2027"
             assert plan_list.json()["items"][0]["planned_order_month"] == "09"
             assert plan_list.json()["items"][0]["nearest_capability"] == "cap"
+            # v5: 목록은 계약방법과 공고 게시 여부만 더 받는다(상세용 필드는 오지 않는다).
+            assert plan_list.json()["items"][0]["contract_method"] == "일반경쟁"
+            assert plan_list.json()["items"][0]["notice_posted"] == "Y"
+            assert "bid_ntice_no_list" not in plan_list.json()["items"][0]
+            assert "procurement_method" not in plan_list.json()["items"][0]
             agency = plans[0].agency_name
             assert agency
             searched = client.get("/api/order-plans", params={
@@ -190,14 +202,38 @@ def test_manual_execution_and_review_api_contract(tmp_path, monkeypatch) -> None
             assert history.status_code == 200 and len(history.json()["items"]) == 1
             screening_history = client.get(f"/api/order-plans/{plan_pk}/screening-history")
             assert screening_history.status_code == 200
+            # 이력 응답은 상세와 같은 family 이름을 쓰고 번호만 따로 올린다(v1 → v5).
+            assert screening_history.json()["schema_version"] == "order-plan-detail-response.v5"
             assert screening_history.json()["items"][0]["nearest_capability"] == "cap"
             assert screening_history.json()["items"][0]["batch_id"] == "batch-0001"
             assert screening_history.json()["items"][0]["attempt_no"] == 1
+            # 실행 행의 목적·시각을 그대로 낸다. 이 실행은 트리거 헤더 없는 사람 수동 실행이다.
+            assert screening_history.json()["items"][0]["execution_purpose"] == "operational"
+            assert screening_history.json()["items"][0]["execution_started_at"] is not None
+            assert screening_history.json()["items"][0]["execution_finished_at"] is not None
             plan_detail = client.get(f"/api/order-plans/{plan_pk}")
             assert plan_detail.status_code == 200
+            assert plan_detail.json()["schema_version"] == "order-plan-detail-response.v4"
             assert plan_detail.json()["budget_amount"] == 123456789.0
             assert plan_detail.json()["planned_order_year"] == "2027"
             assert plan_detail.json()["planned_order_month"] == "09"
+            # v4: 누적 행의 계약·공고 열. `bid_ntice_no_list`는 수집 원문 문자열 그대로다.
+            assert plan_detail.json()["contract_method"] == "일반경쟁"
+            assert plan_detail.json()["notice_posted"] == "Y"
+            assert plan_detail.json()["procurement_method"] == "자체조달"
+            assert plan_detail.json()["supervising_agency_name"] == "조달청"
+            assert plan_detail.json()["bid_ntice_no_list"] == "R26BK01696186000"
+            assert plan_detail.json()["published_at"] == "2026-09-01T00:00:00Z"
+            assert plan_detail.json()["screening_history"][0]["execution_purpose"] == "operational"
+            # 값이 없는 발주계획은 빈 문자열·False가 아니라 `null`로 남는다.
+            other_detail = client.get(f"/api/order-plans/{plans[1].id}")
+            assert other_detail.status_code == 200
+            assert other_detail.json()["contract_method"] is None
+            assert other_detail.json()["notice_posted"] is None
+            assert other_detail.json()["procurement_method"] is None
+            assert other_detail.json()["supervising_agency_name"] is None
+            assert other_detail.json()["bid_ntice_no_list"] is None
+            assert other_detail.json()["published_at"] is None
     finally:
         app.dependency_overrides.pop(get_db, None)
 

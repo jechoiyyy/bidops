@@ -291,7 +291,7 @@ test("native compact 셸이 드롭다운·대화상자를 viewport 안에 두고
   await expect(selector).toBeFocused();
 
   await page.goto("/order-plans", { waitUntil: "domcontentloaded" });
-  const dialogTrigger = page.getByRole("button", { name: "실행 상태", exact: true });
+  const dialogTrigger = page.getByRole("button", { name: "목록 기준", exact: true });
   await expect(dialogTrigger).toBeVisible();
   await dialogTrigger.focus();
   await dialogTrigger.click();

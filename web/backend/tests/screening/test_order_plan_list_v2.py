@@ -131,6 +131,8 @@ def ids(response):
 def test_cumulative_mode_projects_latest_result_per_plan_and_run_mode_narrows(listing):
     session, service, policy, plans, client = listing
     plans[0].source_url = "https://www.g2b.go.kr/link/PRPA015_01/single/?oderPlanNo=P-0"
+    plans[0].contract_method = "제한경쟁"
+    plans[0].notice_posted = "N"
     session.commit()
     old = execution(session, service, policy)
     result(session, old, plans[0])
@@ -148,7 +150,7 @@ def test_cumulative_mode_projects_latest_result_per_plan_and_run_mode_narrows(li
     feedback(session, stopped, plans[0], relevance="not_relevant", minute=4)
     session.commit()
     body = client.get("/api/order-plans").json()
-    assert body["schema_version"] == "order-plan-list-response.v4"
+    assert body["schema_version"] == "order-plan-list-response.v5"
     assert body["scope"] == {
         "mode": "cumulative", "policy_versions": [policy], "activated_policy_versions": [policy],
     }
@@ -158,6 +160,10 @@ def test_cumulative_mode_projects_latest_result_per_plan_and_run_mode_narrows(li
     assert (first["qwen_relevance"], first["execution_id"], first["policy_version"]) == ("relevant", str(old.execution_id), policy)
     assert first["human_feedback"]["relevance"] == "not_relevant"
     assert first["source_url"] == "https://www.g2b.go.kr/link/PRPA015_01/single/?oderPlanNo=P-0"
+    # v5: 계약방법·공고 게시 여부는 판정 결과가 아니라 발주계획 행의 값이라 실행과 무관하게 실린다.
+    # `notice_posted`의 원문 `N`은 문자열 그대로 오고, 값이 없는 행은 두 필드가 `null`이다.
+    assert (first["contract_method"], first["notice_posted"]) == ("제한경쟁", "N")
+    assert (second["contract_method"], second["notice_posted"]) == (None, None)
     assert (second["qwen_relevance"], second["execution_id"]) == ("uncertain", str(latest.execution_id))
     assert second["source_run_id"] == "other"
     assert second["observed_at"] == "2026-09-03T00:00:00Z"
@@ -263,7 +269,7 @@ def test_tracking_only_projects_active_authoritative_owner(listing):
     for index in range(9):
         detail = client.get(f"/api/order-plans/{plans[index].id}")
         assert detail.status_code == 200
-        assert detail.json()["schema_version"] == "order-plan-detail-response.v3"
+        assert detail.json()["schema_version"] == "order-plan-detail-response.v4"
         assert detail.json()["source_url"] == plans[index].source_url
         assert detail.json()["tracking"] == rows[index]["tracking"]
         assert "inherited_from_order_plan" not in str(detail.json())
@@ -361,7 +367,7 @@ def test_selection_review_order_plan_pk_sort_and_pagination_keep_all_501_source_
         assert first_response.status_code == second_response.status_code == 200
         first = first_response.json()
         second = second_response.json()
-        assert first["schema_version"] == "order-plan-list-response.v4"
+        assert first["schema_version"] == "order-plan-list-response.v5"
         assert first["total"] == second["total"] == 501
         assert first["limit"] == second["limit"] == 500
         assert first["offset"] == 0
@@ -531,7 +537,7 @@ def check_cumulative_projection(session):
     session.commit()
 
     listing = service.list_order_plans(session)
-    assert listing["schema_version"] == "order-plan-list-response.v4"
+    assert listing["schema_version"] == "order-plan-list-response.v5"
     # 두 버전 모두 범위 실행을 가졌다. 순서는 policy `activated_at` 오름차순이고 v4의 실패 실행은 세지 않는다.
     assert listing["scope"] == {
         "mode": "cumulative", "policy_versions": ["s8a-v3", "s8a-v4"], "activated_policy_versions": ["s8a-v3", "s8a-v4"],
@@ -574,6 +580,28 @@ def check_cumulative_projection(session):
     assert day1["scope"]["execution_id"] == yesterday.execution_id
     assert [(item["order_plan_pk"], item["qwen_relevance"]) for item in day1["items"]] == [(a.id, "relevant"), (c.id, "not_relevant")]
     assert day1["items"][0]["first_observed_at"] == NOW
+
+    # 이력은 누적 범위로 좁히지 않는다 — 한 발주계획의 모든 실행이 남는다. 그래서 어느 줄이 운영
+    # 판정이고 어느 줄이 측정 전용·참조 실행인지 화면이 가릴 수 있어야 한다. 서버는 실행 행의
+    # `purpose`와 시각을 그대로 내고, 참조 실행은 새 필드가 아니라 기존 계약(누적 scope의
+    # `activated_policy_versions`에 그 `policy_version`이 없다)으로 가린다.
+    b_history = service.screening_history(session, b.id)
+    assert b_history["schema_version"] == "order-plan-detail-response.v5"
+    b_rows = {row["execution_id"]: row for row in b_history["items"]}
+    assert set(b_rows) == {today.execution_id, gate.execution_id}
+    assert b_rows[today.execution_id]["execution_purpose"] == "operational"
+    assert b_rows[gate.execution_id]["execution_purpose"] == "gate_measurement"
+    # 시각은 실행 행의 두 값을 그대로 낸다. 서버가 대표 시각 하나를 고르지 않는다.
+    assert b_rows[gate.execution_id]["execution_finished_at"] == NOW + 3 * DAY
+    assert b_rows[gate.execution_id]["execution_started_at"] == NOW + 3 * DAY - timedelta(minutes=4)
+    a_detail = service.order_plan_detail(session, a.id)
+    assert a_detail["schema_version"] == "order-plan-detail-response.v4"
+    a_rows = {row["execution_id"]: row for row in a_detail["screening_history"]}
+    # 참조 실행도 `purpose`는 `operational`이다. 목적만으로 참조 실행을 가리면 안 된다 —
+    # 화면은 `policy_version`을 누적 scope의 활성화 목록과 대조한다.
+    assert a_rows[reference.execution_id]["execution_purpose"] == "operational"
+    assert a_rows[reference.execution_id]["policy_version"] == "s8a-ref"
+    assert "s8a-ref" not in listing["scope"]["activated_policy_versions"]
 
     # 워크로드는 누적 범위로 센다. 오늘 새 실행이 없어도(마지막 실행이 실패여도) null이 되지 않는다.
     assert workload.workload_counts(session) == {"order_plan_pending": WorkloadCount(2)}

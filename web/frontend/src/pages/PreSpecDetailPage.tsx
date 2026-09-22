@@ -22,20 +22,19 @@ import { documentPanelDefaultOpen } from "../lib/documentPanelDefaultOpen";
 import { api } from "../lib/api";
 import { PreSpecRecordIdentity } from "../components/pre-specs/PreSpecRecordIdentity";
 import {
-  CompanyFitAutomationNotice,
-  CompanyFitExecutionInfo,
-  CompanyFitReasons,
-  CompanyFitVerdict,
-  NO_CURRENT_ATTEMPT_NOTICE,
+  CompanyFitExecutionSection,
   useCompanyFit,
 } from "../components/pre-specs/CompanyFitSection";
 import {
   PageOverviewCurrent,
+  PageOverviewCurrentFacts,
   PageOverviewExecutionInfo,
   PageOverviewFactLine,
   PageOverviewHistory,
+  PageOverviewHistoryFacts,
   PageOverviewNotices,
   PageOverviewRangeReview,
+  PageOverviewResultFacts,
   PageOverviewVerificationDetails,
   pageOverviewPdfUrl,
   useCurrentPageOverview,
@@ -302,7 +301,10 @@ function PageOverviewBriefing({ review }: { review: PageOverviewView }) {
       <p className="visually-hidden" aria-hidden="true"><PageOverviewFactLine fact={payload.business_overview[0]} review={review} anchor={false} /></p>
     ) : null}
     <div className="page-overview-validation" role="status">
-      <p>사업 설명을 위한 요약입니다. 추적 승인과 최종 입찰 결정은 사람이 진행하며, 현재 회사 적합성과 조건을 충족한 경우에만 심층 검토가 자동 시작됩니다.</p>
+      {/* 경계 문장("추적 승인과 최종 입찰 결정은 사람이 진행하며")은 ② 추적 결정
+          카드 한 곳만 갖는다(M4 승인 2026-09-21). 함께 붙어 있던 자동 시작 조건은
+          경계가 아니라 이 화면의 사실이므로 이 카드에 남긴다. */}
+      <p>사업 설명을 위한 요약입니다. 현재 회사 적합성과 조건을 충족한 경우에만 심층 검토가 자동 시작됩니다.</p>
       {review.validation_status === "failed" && review.evidence_check_status === "passed" ? (
         <p>새 페이지 근거 검사는 통과했으나, 원실행의 검증 실패 기록은 유지합니다.</p>
       ) : null}
@@ -460,7 +462,10 @@ function PreSpecRecordBody({ noticeId, listSearch }: { noticeId: number | null; 
   const pageOverviewUnknowns = shown?.payload.unknowns ?? [];
   const companyFitVerificationItems = currentCompanyFitAttempt?.result?.verification_items ?? [];
   const checkCount = pageOverviewUnknowns.length + companyFitVerificationItems.length;
-  const historyIsOpen = currentPageOverview?.status === "failed"
+  // ⑥ 접힌 `기술 정보`의 기본 열림 규칙(0915 spec §4 ⑥ "실패·사람 확인 상태면
+  // 기본 열림"). 회사 적합성 실행 정보가 이 접힌 곳으로 들어왔지만 조건은 이미
+  // 회사 적합성의 `failed`·`needs_human_review`를 포함하고 있었으므로 그대로 둔다.
+  const technicalIsOpen = currentPageOverview?.status === "failed"
     || currentPageOverview?.status === "needs_human_review"
     || currentPageOverview?.status === "cancelled"
     || currentCompanyFitAttempt?.status === "failed"
@@ -619,7 +624,7 @@ function PreSpecRecordBody({ noticeId, listSearch }: { noticeId: number | null; 
         </div>
 
         <dl className="ps-facts ps-record-facts">
-          <div className="ps-fact"><dt className="ps-k">사업 예산</dt><dd className="ps-v">{notice.budget === null ? "예산 미확인" : `${formatNumber(notice.budget)}원`}</dd><span className="ps-s" /></div>
+          <div className="ps-fact"><dt className="ps-k">사업 예산</dt><dd className="ps-v">{notice.budget === null ? "예산 미제공" : `${formatNumber(notice.budget)}원`}</dd><span className="ps-s" /></div>
           <div className="ps-fact"><dt className="ps-k">의견등록 마감</dt><dd className="ps-v">{recordDateTime(notice.deadline_at)}</dd><span className="ps-s" /></div>
           <div className="ps-fact"><dt className="ps-k">게시</dt><dd className="ps-v">{recordDateTime(notice.published_at)}</dd><span className="ps-s" /></div>
           <div className="ps-fact">
@@ -685,7 +690,9 @@ function PreSpecRecordBody({ noticeId, listSearch }: { noticeId: number | null; 
           </InternationalizationProvider>
           <footer className="ps-record-tracking-footer">
             <p className="ps-record-tracking-help">추적을 시작하면 새 문서·입찰공고·정정공고를 계속 확인합니다.</p>
-            <p className="ps-record-decision-note">입찰 참여 여부는 최종 Go/No-Go에서 결정합니다.</p>
+            {/* 같은 취지의 경계 문장이 ②·③·④·⑥에 흩어져 있던 것을 결정을 실제로
+                내리는 이 카드 한 곳으로 모았다(M4 승인 2026-09-21). */}
+            <p className="ps-record-decision-note">적합성 등급 · 추적 결정 · 최종 Go/No-Go는 서로 대신하지 않습니다. 입찰 참여 여부는 최종 Go/No-Go에서 정합니다.</p>
           </footer>
         </div>
       </aside>
@@ -747,9 +754,10 @@ function PreSpecRecordBody({ noticeId, listSearch }: { noticeId: number | null; 
             </div>
             {evidenceClaims.length === 0 ? <p className="ps-cap ps-muted">이번 입력에서는 확인되지 않았습니다.</p> : (
               <ul className="ps-ev">
+                {/* 주장 ID는 ⑥ 접힌 `기술 정보`가 갖는다(spec §3.2) — 주장별 검증
+                    진단과 결과 식별 정보에서 전문으로 읽힌다. */}
                 {evidenceClaims.map((fact) => (
                   <li key={fact.claim_id}>
-                    <span className="ps-loc"><code>{fact.claim_id}</code></span>
                     <span className="ps-t"><PageOverviewFactLine fact={fact} review={shown} anchor={false} /></span>
                   </li>
                 ))}
@@ -840,8 +848,10 @@ function PreSpecRecordBody({ noticeId, listSearch }: { noticeId: number | null; 
               심층 검토 실행 · 아래 문서 준비에서 시작 →
             </a>
           ) : null}
+          {/* 경계 문장("추적 선택과 최종 입찰 Go/No-Go는 사람이 결정합니다")은 ②
+              추적 결정 카드로 모았다. 자동 시작 조건은 이 네 단계의 사실이라 남는다. */}
           <p className="pre-spec-auto-preparation-note">
-            조건을 충족하면 심층 검토까지 자동으로 시작합니다. 추적 선택과 최종 입찰 Go/No-Go는 사람이 결정합니다.
+            조건을 충족하면 심층 검토까지 자동으로 시작합니다.
           </p>
         </div>
 
@@ -940,11 +950,15 @@ function PreSpecRecordBody({ noticeId, listSearch }: { noticeId: number | null; 
           <PageOverviewHistory reviews={pageOverviewValid ? pageOverviewHistory : []} />
         </div>
 
+        {/* ⑥ 접힌 `기술 정보` 하나(0915 spec §4 ⑥ · ADR-0066 결정 1 `이동`).
+            주장 검증 진단 · 고정 입력과 식별 해시 · 회사 적합성 실행 정보 세
+            덩어리를 소제목으로 나눠 담는다. 기본 열림 규칙은 바꾸지 않는다 —
+            실패·사람 확인 상태(묶음·개요·검증·회사 적합성)면 열린 채로 들어온다. */}
         <div className="ps-record-section ps-collapsed">
           <Collapsible
-            key={`${noticeId}-${historyIsOpen ? "history-open" : "history-closed"}`}
-            trigger="현재 주장 검증 진단 · 고정 입력과 식별 해시"
-            defaultIsOpen={historyIsOpen}
+            key={`${noticeId}-${technicalIsOpen ? "technical-open" : "technical-closed"}`}
+            trigger="기술 정보 · 주장 검증 진단, 고정 입력과 식별 해시, 회사 적합성 실행 정보"
+            defaultIsOpen={technicalIsOpen}
           >
             {currentPageOverviewForView?.attempt_id && pageOverviewVerification ? (
               <PageOverviewVerificationDetails
@@ -953,7 +967,19 @@ function PreSpecRecordBody({ noticeId, listSearch }: { noticeId: number | null; 
                 verification={pageOverviewVerification}
               />
             ) : null}
-            {shown ? <PageOverviewExecutionInfo review={shown} /> : null}
+            <section className="page-overview-section" aria-label="고정 입력과 식별 해시">
+              <h3>고정 입력과 식별 해시</h3>
+              {currentPageOverviewForView ? <PageOverviewCurrentFacts current={currentPageOverviewForView} /> : null}
+              {shown ? <PageOverviewResultFacts review={shown} claimIds={evidenceClaims.map((fact) => fact.claim_id)} /> : null}
+              {shown ? <PageOverviewExecutionInfo review={shown} /> : null}
+              {!currentPageOverviewForView && !shown ? <p>개요 검토 실행 기록이 없습니다.</p> : null}
+              <PageOverviewHistoryFacts reviews={pageOverviewValid ? pageOverviewHistory : []} />
+            </section>
+            <CompanyFitExecutionSection
+              current={currentCompanyFitAttempt}
+              previous={previousCompanyFitAttempts}
+              state={companyFitQuery.isPending ? "pending" : companyFitData === null ? "unavailable" : "ready"}
+            />
           </Collapsible>
         </div>
       </section>
@@ -964,8 +990,8 @@ function PreSpecRecordBody({ noticeId, listSearch }: { noticeId: number | null; 
           회사 적합성(`CompanyFitSection`)은 이 영역에 그대로 둔다. */}
       <section id="ps-conditions" className="ps-card ps-sec ps-record-quad" aria-labelledby="ps-conditions-title">
         <div className="ps-sec-head">
+          {/* 경계 캡션은 ② 추적 결정 카드가 한 번만 갖는다(M4 승인 2026-09-21). */}
           <h2 id="ps-conditions-title" className="ps-h-sec">참여 조건 · 회사 적합성 · 위험 및 미확인 사항</h2>
-          <span className="ps-cap ps-dim">적합성 등급 · 추적 결정 · 최종 Go/No-Go는 서로 대신하지 않음</span>
         </div>
         <div className="ps-tri">
           <section className="ps-tri-col" aria-labelledby="ps-conditions-list-title">

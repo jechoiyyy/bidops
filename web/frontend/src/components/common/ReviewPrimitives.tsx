@@ -5,18 +5,15 @@ import type {
   ReactNode,
   Ref,
 } from "react";
-import { useId, useState } from "react";
+import { useId } from "react";
 import { Badge as AstryxBadge } from "@astryxdesign/core/Badge";
-import { Banner as AstryxBanner } from "@astryxdesign/core/Banner";
 import { Button as AstryxButton, type ButtonProps } from "@astryxdesign/core/Button";
-import { Collapsible as AstryxCollapsible } from "@astryxdesign/core/Collapsible";
-import { EmptyState as AstryxEmptyState } from "@astryxdesign/core/EmptyState";
 import { List, ListItem, type ListItemProps } from "@astryxdesign/core/List";
 import { Selector, type SelectorOptionData } from "@astryxdesign/core/Selector";
 import { SegmentedControl, SegmentedControlItem } from "@astryxdesign/core/SegmentedControl";
 import { StatusDot, type StatusDotVariant } from "@astryxdesign/core/StatusDot";
+import { Text as AstryxText } from "@astryxdesign/core/Text";
 import { TextInput } from "@astryxdesign/core/TextInput";
-import { Token as AstryxToken, type TokenProps } from "@astryxdesign/core/Token";
 
 function joinClassNames(...names: Array<string | undefined | false>): string {
   return names.filter(Boolean).join(" ");
@@ -348,6 +345,74 @@ export function ListPager({ children, className, label, ...props }: ListPagerPro
     >
       {children}
     </nav>
+  );
+}
+
+/** 천 단위 구분은 한국어 로캘 하나만 쓴다(`WorkspaceFilters.formatCount`와 같은 규칙). */
+function formatPagerCount(value: number): string {
+  return value.toLocaleString("ko-KR");
+}
+
+export interface ListPagerControlsProps {
+  className?: string;
+  /** 페이저 `<nav>`의 접근 이름. 화면 이름을 담는다. */
+  label: string;
+  /** 현재 조건의 전체 건수. */
+  total: number;
+  /** 지금 페이지의 첫 행 index(0부터). */
+  offset: number;
+  /** 지금 그려진 행 수. 마지막 페이지는 한 쪽 크기보다 작을 수 있다. */
+  visibleCount: number;
+  onPrevious: () => void;
+  onNext: () => void;
+  /** 일괄 작업처럼 목록 전체를 잠글 때. 양끝 비활성과 별개다. */
+  isDisabled?: boolean;
+}
+
+/**
+ * 목록 페이지 이동 줄의 **내용물** — 네 화면이 같은 모양을 쓴다(명세 §2.2, 시안 M1 승인).
+ *
+ * 왼쪽에 `전체 N건`, 오른쪽에 `1–50 / 1,234`와 이전·다음. 한 쪽에 다 들어오는 목록에서도
+ * 줄을 지우지 않고 단추만 비활성한다 — 건수가 어디에 있는지 화면마다 찾지 않게 한다.
+ * 자리와 줄 배치는 {@link ListPager}가 소유하므로 이 컴포넌트가 그것을 감싼다.
+ */
+export function ListPagerControls({
+  className,
+  label,
+  total,
+  offset,
+  visibleCount,
+  onPrevious,
+  onNext,
+  isDisabled = false,
+}: ListPagerControlsProps) {
+  const hasPrevious = offset > 0;
+  const hasNext = offset + visibleCount < total;
+  return (
+    <ListPager className={className} label={label}>
+      <AstryxText type="supporting" color="secondary">전체 {formatPagerCount(total)}건</AstryxText>
+      <div className="review-list-pager-range">
+        <AstryxButton
+          isDisabled={isDisabled || !hasPrevious}
+          label="이전"
+          onClick={onPrevious}
+          size="sm"
+          variant="secondary"
+        />
+        <AstryxText type="supporting" color="secondary">
+          {visibleCount
+            ? `${formatPagerCount(offset + 1)}–${formatPagerCount(Math.min(offset + visibleCount, total))} / ${formatPagerCount(total)}`
+            : "–"}
+        </AstryxText>
+        <AstryxButton
+          isDisabled={isDisabled || !hasNext}
+          label="다음"
+          onClick={onNext}
+          size="sm"
+          variant="secondary"
+        />
+      </div>
+    </ListPager>
   );
 }
 
@@ -692,97 +757,6 @@ export function ReviewDecisionBar({
   );
 }
 
-export interface ReviewSecondaryInputProps {
-  children: ReactNode;
-  className?: string;
-  closeLabel?: string;
-  defaultIsOpen?: boolean;
-  /** Stays visible while collapsed: says what opening this does and what it does not touch. */
-  description?: ReactNode;
-  disabledMessage?: string;
-  isDisabled?: boolean;
-  /** Controlled open state. Omit to let the primitive own it. */
-  isOpen?: boolean;
-  onOpenChange?: (isOpen: boolean) => void;
-  openLabel?: string;
-  /** The value this input would change, shown while collapsed. */
-  summary?: ReactNode;
-  title: string;
-}
-
-/**
- * Optional secondary input that stays folded until a person asks for it —
- * human-judgment corrections and tracking-status changes.
- *
- * Folding it is the point: the screen's primary decision must not look like
- * it needs this input first. The current value and the "what this does not
- * change" sentence stay visible while collapsed, so folding never hides the
- * state, only the form.
- */
-export function ReviewSecondaryInput({
-  children,
-  className,
-  closeLabel = "닫기",
-  defaultIsOpen = false,
-  description,
-  disabledMessage,
-  isDisabled = false,
-  isOpen: isOpenProp,
-  onOpenChange,
-  openLabel = "열기",
-  summary,
-  title,
-}: ReviewSecondaryInputProps) {
-  const [uncontrolledIsOpen, setUncontrolledIsOpen] = useState(defaultIsOpen);
-  const isOpen = isOpenProp ?? uncontrolledIsOpen;
-  const baseId = `review-secondary-input-${useId().replace(/:/g, "")}`;
-  const regionId = `${baseId}-region`;
-  const titleId = `${baseId}-title`;
-  const reasonId = `${baseId}-reason`;
-  const toggleLabel = isOpen ? closeLabel : openLabel;
-  const hasReason = isDisabled && Boolean(disabledMessage);
-  return (
-    <section
-      aria-labelledby={titleId}
-      className={joinClassNames("review-secondary-input", isOpen && "is-open", className)}
-      data-review-primitive="secondary-input"
-      data-open={isOpen ? "true" : "false"}
-    >
-      <header className="review-secondary-input-head">
-        <span className="review-secondary-input-heading">
-          <span className="review-secondary-input-title" id={titleId}>{title}</span>
-          {description !== undefined && description !== null
-            ? <span className="review-secondary-input-description">{description}</span>
-            : null}
-        </span>
-        {summary !== undefined && summary !== null
-          ? <span className="review-secondary-input-summary">{summary}</span>
-          : null}
-        <AstryxButton
-          aria-controls={regionId}
-          aria-describedby={hasReason ? reasonId : undefined}
-          aria-expanded={isOpen}
-          aria-label={`${title} ${toggleLabel}`}
-          className="review-secondary-input-toggle"
-          isDisabled={isDisabled}
-          label={toggleLabel}
-          onClick={() => {
-            const next = !isOpen;
-            if (isOpenProp === undefined) setUncontrolledIsOpen(next);
-            onOpenChange?.(next);
-          }}
-          size="sm"
-          variant="secondary"
-        />
-      </header>
-      {hasReason ? <p className="review-secondary-input-reason" id={reasonId}>{disabledMessage}</p> : null}
-      <div className="review-secondary-input-region" hidden={!isOpen} id={regionId}>
-        {children}
-      </div>
-    </section>
-  );
-}
-
 export interface ReviewRevisionEntry {
   /** Who claimed the change. An audit marker, never an authenticated identity. */
   actor?: ReactNode;
@@ -1008,91 +982,6 @@ export function ReviewHistoryLinkRail({
   );
 }
 
-export interface ReviewStateProps {
-  action?: ReactNode;
-  children?: ReactNode;
-  className?: string;
-  description: string;
-  kind: "empty" | "partial" | "failure";
-  title: string;
-}
-
-/** Shared empty/partial/failure language; it never turns a failed result into empty data. */
-export function ReviewState({ action, children, className, description, kind, title }: ReviewStateProps) {
-  if (kind === "empty") {
-    return (
-      <AstryxEmptyState
-        actions={action}
-        className={joinClassNames("review-state", "is-empty", className)}
-        data-review-primitive="state"
-        description={description}
-        headingLevel={3}
-        isCompact
-        title={title}
-      />
-    );
-  }
-  return (
-    <AstryxBanner
-      className={joinClassNames("review-state", `is-${kind}`, className)}
-      collapsible={children ? { defaultIsOpen: false } : false}
-      description={description}
-      endContent={action}
-      status={kind === "failure" ? "error" : "warning"}
-      title={title}
-      data-review-primitive="state"
-    >
-      {children}
-    </AstryxBanner>
-  );
-}
-
-export interface ReviewStateGroupProps {
-  children: ReactNode;
-  count: number | null;
-  defaultIsOpen?: boolean;
-  disabledMessage?: string;
-  isDisabled?: boolean;
-  label: ReactNode;
-  status?: { label: string; variant: StatusDotVariant };
-  value: string;
-}
-
-/** Collapsible status group with a count that preserves zero and unknown. */
-export function ReviewStateGroup({
-  children,
-  count,
-  defaultIsOpen = false,
-  disabledMessage,
-  isDisabled = false,
-  label,
-  status,
-  value,
-}: ReviewStateGroupProps) {
-  const countLabel = count === null ? <ReviewValue state="unknown" /> : `${count.toLocaleString("ko-KR")}건`;
-  return (
-    <div className="review-state-group" data-group-value={value}>
-      <AstryxCollapsible
-        data-testid={`review-state-group-${value}`}
-        data-review-primitive="state-group"
-        defaultIsOpen={defaultIsOpen}
-        isDisabled={isDisabled}
-        trigger={
-          <span className="review-state-group-trigger">
-            {status ? <StatusDot label={status.label} variant={status.variant} /> : null}
-            <span className="review-state-group-label">{label}</span>
-            <AstryxBadge label={countLabel} variant="neutral" />
-          </span>
-        }
-        value={value}
-      >
-        <div className="review-state-group-content">{children}</div>
-      </AstryxCollapsible>
-      {isDisabled && disabledMessage ? <p className="review-state-group-disabled-reason">{disabledMessage}</p> : null}
-    </div>
-  );
-}
-
 export interface ReviewDecisionActionProps extends Omit<ButtonProps, "children" | "isDisabled" | "label"> {
   disabledReason?: ReactNode;
   disabledReasonId?: string;
@@ -1133,27 +1022,5 @@ export function ReviewDecisionAction({
       />
       {hasReason ? <span className="review-decision-action-reason" id={reasonId}>{disabledReason}</span> : null}
     </span>
-  );
-}
-
-export type ReviewOutlineChipProps = Omit<TokenProps, "color">;
-
-/**
- * outline 칩 — 흰 바탕 + inset 1px `--color-border`, 글자 secondary
- * (`docs/0915_ui-redesign/spec.md` §2.3). 추적 결정처럼 **아직 아무 뜻도 싣지 않은
- * 상태**를 중립 칩과 구분해 적는 자리에 쓴다(§1.4).
- *
- * 새 컴포넌트가 아니라 Astryx `Token`에 프로젝트 클래스를 얹는 얇은 자리다. Astryx
- * `TokenColor`는 닫힌 union이라 변형을 늘릴 수 없고, 화면마다 같은 className을 손으로
- * 적으면 한 곳만 빠졌을 때 칩이 조용히 다른 모양이 된다.
- */
-export function ReviewOutlineChip({ className, size = "sm", ...props }: ReviewOutlineChipProps) {
-  return (
-    <AstryxToken
-      {...props}
-      className={joinClassNames("review-chip-outline", className)}
-      color="default"
-      size={size}
-    />
   );
 }

@@ -10,7 +10,9 @@ import {
   saveFinalOpinion,
   saveRevision,
 } from "../components/deep-review/api";
+import { attemptFailureSentence } from "../components/deep-review/attemptErrors";
 import { SegmentInventoryPanel } from "../components/deep-review/SegmentInventoryPanel";
+import { TechnicalFacts, TechnicalInfo, type TechnicalFact } from "../components/common/TechnicalInfo";
 import { ActorField } from "../components/common/ActorField";
 import { Badge } from "../components/common/Badge";
 import {
@@ -27,6 +29,7 @@ import { useToast } from "../components/common/useToast";
 import { useUnsavedGuard } from "../components/common/useUnsavedGuard";
 import { ReviewHistoryLinkRail, StickyDecisionHeader } from "../components/common/ReviewPrimitives";
 import { describeApiError } from "../lib/apiErrors";
+import { formatDateTime } from "../lib/format";
 import { TERM } from "../lib/glossary";
 import { qualityStatusLabel, qualityStatusNote, qualityStatusVariant } from "../lib/qualityStatus";
 import { generateRequestId } from "../lib/requestId";
@@ -93,6 +96,27 @@ function attemptTime(attempt: AttemptView): string {
   if (attempt.completed_at) return `완료 ${attempt.completed_at}`;
   if (attempt.started_at) return `시작 ${attempt.started_at}`;
   return "시각 값 없음";
+}
+
+/**
+ * 이 회차가 남긴 오류 코드 하나. 회차 코드가 없으면 실패한 단계의 코드를
+ * 쓴다. 둘 다 없으면 `null`이고, 그때도 실패 사실은 상태가 그대로 말한다.
+ */
+function attemptErrorCode(attempt: AttemptView): string | null {
+  if (attempt.last_error_code) return attempt.last_error_code;
+  return attempt.stages.find((stage) => stage.last_error_code)?.last_error_code ?? null;
+}
+
+/** 접힌 `기술 정보`가 싣는 코드 전부. 회차 하나에서 값이 빠지지 않게 모은다. */
+function attemptErrorFacts(attempt: AttemptView): TechnicalFact[] {
+  const facts: TechnicalFact[] = [];
+  if (attempt.last_error_code) facts.push({ label: "분석 회차 오류 코드", value: attempt.last_error_code });
+  for (const stage of attempt.stages) {
+    if (stage.last_error_code) {
+      facts.push({ label: `${STAGE_LABELS[stage.stage]} 단계 오류 코드`, value: stage.last_error_code });
+    }
+  }
+  return facts;
 }
 
 function updateFirstBlock(report: DeepReviewReport, sectionKey: ReportSectionKey, body: string): DeepReviewReport {
@@ -391,10 +415,26 @@ export function DeepReviewPage() {
           {(attempt?.stages ?? []).map((stage) => (
             <div key={stage.stage} className="deep-review-preparation-stage">
               <strong>{STAGE_LABELS[stage.stage]}</strong><br />{statusLabel(stage.status)}
-              {stage.last_error_code ? <small className="deep-review-safe-error">안전한 오류 코드: {stage.last_error_code}</small> : null}
             </div>
           ))}
         </div>
+        {/* 실패는 사람 말 한 문장이 먼저 말하고, 서버가 정한 코드는 그 아래
+            접힌 `기술 정보`에 전문으로 남는다(ADR-0066). 사전에 없는 코드는
+            문장 안에 그대로 실려 다른 사유로 바뀌거나 숨지 않는다. */}
+        {attempt && (attemptErrorCode(attempt) || attempt.status === "failed") ? (
+          <div className="deep-review-failure">
+            <p className="deep-review-failure-note">
+              {attemptErrorCode(attempt)
+                ? attemptFailureSentence(attemptErrorCode(attempt) as string)
+                : "분석을 마치지 못했습니다. 오류 코드는 기록되지 않았습니다."}
+            </p>
+            {attemptErrorFacts(attempt).length > 0 ? (
+              <TechnicalInfo summary="기술 정보 · 오류 코드">
+                <TechnicalFacts facts={attemptErrorFacts(attempt)} label="현재 분석 회차 오류 코드" />
+              </TechnicalInfo>
+            ) : null}
+          </div>
+        ) : null}
         {isActiveReview(review) ? <p className="deep-review-polling" role="status" aria-live="polite">분석 진행 상태를 제한된 간격으로 자동 갱신하고 있습니다.</p> : null}
         {reviewProblem ? (
           <MutationFeedback
@@ -428,13 +468,24 @@ export function DeepReviewPage() {
                       <div><strong>{historyAttempt.sequence}회차</strong><span>{attemptTime(historyAttempt)}</span></div>
                       <div><StatusBadge className={`deep-review-attempt-status deep-review-attempt-${historyAttempt.status}`} tone={statusTone(historyAttempt.status)} label={statusLabel(historyAttempt.status)} />{current ? <span className="deep-review-current-label">현재 회차</span> : null}</div>
                     </div>
-                    {historyAttempt.last_error_code ? <p className="deep-review-attempt-error">안전한 오류 코드 · <code>{historyAttempt.last_error_code}</code></p> : null}
+                    {attemptErrorCode(historyAttempt) ? (
+                      <>
+                        <p className="deep-review-attempt-error">
+                          {attemptFailureSentence(attemptErrorCode(historyAttempt) as string)}
+                        </p>
+                        <TechnicalInfo summary={`기술 정보 · ${historyAttempt.sequence}회차 오류 코드`}>
+                          <TechnicalFacts
+                            facts={attemptErrorFacts(historyAttempt)}
+                            label={`${historyAttempt.sequence}회차 오류 코드`}
+                          />
+                        </TechnicalInfo>
+                      </>
+                    ) : null}
                     <ol className="deep-review-stage-list">
                       {historyAttempt.stages.map((stage) => (
                         <li key={`${historyAttempt.id}-${stage.stage}`}>
                           <span>{STAGE_LABELS[stage.stage]}</span>
                           <strong>{statusLabel(stage.status)}</strong>
-                          {stage.last_error_code ? <code>{stage.last_error_code}</code> : null}
                         </li>
                       ))}
                     </ol>
@@ -655,26 +706,32 @@ export function DeepReviewPage() {
               <article className="evidence-source-card" aria-label="선택된 근거 정보">
                 <div className="evidence-source-heading">
                   <div>
-                    <span>선택한 근거 식별자</span>
-                    <strong className="mono">{evidenceQuery.data.evidence_id}</strong>
+                    <span>선택한 근거의 {TERM.locator}</span>
+                    <strong>{locatorDetails(evidenceQuery.data.locator_type, evidenceQuery.data.locator)}</strong>
                   </div>
                   <span className="evidence-source-kind">
                     {evidenceQuery.data.source_kind === "document" ? "문서 원문" : "고정된 회사 프로필 사실"}
                   </span>
                 </div>
                 <dl className="evidence-source-facts">
-                  <div><dt>저장 문서 버전</dt><dd className="mono">{evidenceQuery.data.document_version_id ?? "값 없음"}</dd></div>
-                  <div><dt>원문 위치</dt><dd>{locatorDetails(evidenceQuery.data.locator_type, evidenceQuery.data.locator)}</dd></div>
                   <div><dt>근거 신뢰도</dt><dd>{evidenceQuery.data.confidence === null ? "값 없음" : evidenceQuery.data.confidence.toFixed(3)}</dd></div>
                 </dl>
                 <div className="evidence-quote">
                   <span>선택한 근거의 원문 인용</span>
                   <blockquote>{evidenceQuery.data.quote}</blockquote>
                 </div>
-                <div className="evidence-hash">
-                  <span>원문 해시 · SHA-256</span>
-                  <code>{evidenceQuery.data.source_sha256}</code>
-                </div>
+                {/* 식별자와 해시는 지우지 않고 접는다. 눈으로 대조하는 값이므로
+                    전문을 줄바꿈해 싣는다(ADR-0066 결정 2). */}
+                <TechnicalInfo className="evidence-technical" summary="기술 정보 · 근거 식별자와 해시">
+                  <TechnicalFacts
+                    label="선택한 근거의 식별자와 해시"
+                    facts={[
+                      { label: "선택한 근거 식별자", value: evidenceQuery.data.evidence_id },
+                      { label: "저장 문서 버전", value: evidenceQuery.data.document_version_id ?? "값 없음" },
+                      { label: `원문 ${TERM.digest} · SHA-256`, value: evidenceQuery.data.source_sha256 },
+                    ]}
+                  />
+                </TechnicalInfo>
               </article>
               {evidenceQuery.data.page ? (
                 <div className="evidence-page" aria-label="안전하게 투영한 페이지">
@@ -682,11 +739,20 @@ export function DeepReviewPage() {
                     <div><span>안전하게 투영한 페이지 블록</span><strong>{evidenceQuery.data.page.page}쪽</strong></div>
                     <span>블록 {evidenceQuery.data.page.blocks.length}개</span>
                   </header>
-                  {evidenceQuery.data.page.blocks.map((block) => (
+                  {evidenceQuery.data.page.blocks.map((block, index) => (
                     <article key={block.block_key} className="evidence-page-block">
-                      <div><strong className="mono">{block.block_key}</strong><span>{block.type}</span></div>
+                      <div><strong>{index + 1}번째 블록</strong><span>{block.type}</span></div>
                       <p>{block.text || "추출된 본문 없음"}</p>
-                      <small>글자 인식 신뢰도 {block.confidence === null ? "값 없음" : block.confidence.toFixed(3)} · bbox {block.bbox ? `[${block.bbox.join(", ")}]` : "값 없음"}</small>
+                      <TechnicalInfo summary={`기술 정보 · ${index + 1}번째 블록 식별자와 위치`}>
+                        <TechnicalFacts
+                          label={`${index + 1}번째 블록의 식별자와 위치`}
+                          facts={[
+                            { label: "블록 식별자", value: block.block_key },
+                            { label: "글자 인식 신뢰도", value: block.confidence === null ? "값 없음" : block.confidence.toFixed(3) },
+                            { label: "원문 영역 · bbox", value: block.bbox ? `[${block.bbox.join(", ")}]` : "값 없음" },
+                          ]}
+                        />
+                      </TechnicalInfo>
                     </article>
                   ))}
                 </div>
@@ -759,25 +825,38 @@ export function DeepReviewPage() {
           <div className="deep-review-side">
             <section aria-labelledby="report-scope-title" className="deep-review-scope-panel">
               <h3 id="report-scope-title" className="deep-review-section-title">보고서 범위</h3>
+              <p className="deep-review-scope-summary">
+                공고 1건 · {TERM.bundle} 1개 · {formatDateTime(reportView.report.created_at)} 생성
+              </p>
               <dl className="deep-review-scope-facts">
-                <div><dt>공고</dt><dd className="mono">{reportView.report.notice_id}</dd></div>
-                <div><dt>문서 묶음</dt><dd className="mono">{reportView.report.bundle_id}</dd></div>
                 <div><dt>현재 {TERM.attempt}</dt><dd>{attempt ? `${attempt.sequence}회 · ${statusLabel(attempt.status)}` : "없음"}</dd></div>
-                <div><dt>정책 버전</dt><dd className="mono">{reportView.report.policy_version_id}</dd></div>
-                <div><dt>회사 프로필 버전</dt><dd className="mono">{reportView.report.profile_version_id}</dd></div>
-                <div><dt>보고서 생성</dt><dd>{reportView.report.created_at}</dd></div>
               </dl>
               <p className="detail-skeleton-rail-note">이 범위 밖의 문서는 보고서에 들어가지 않았습니다. 범위가 좁다는 것을 사실이 없다는 뜻으로 읽지 마십시오.</p>
+              {/* 식별자와 버전은 운영자가 눈으로 대조하는 값이라 지우지 않고
+                  접는다. 시각은 원문 ISO도 함께 남긴다. */}
+              <TechnicalInfo summary="기술 정보 · 정책·회사 프로필 버전">
+                <TechnicalFacts
+                  label="보고서 범위의 식별자와 버전"
+                  facts={[
+                    { label: "공고 ID", value: String(reportView.report.notice_id) },
+                    { label: TERM.bundle, value: reportView.report.bundle_id },
+                    { label: "정책 버전", value: reportView.report.policy_version_id },
+                    { label: "회사 프로필 버전", value: reportView.report.profile_version_id },
+                    { label: "보고서 생성 시각 원문", value: reportView.report.created_at },
+                  ]}
+                />
+              </TechnicalInfo>
             </section>
             {/* 문서별 inventory와 사람 확인 필요 segment(명세 §6.8). 이 화면의
                 계약에는 bundle → 문서 구조 ID를 주는 자리가 없으므로, 지금
                 선택된 근거가 가리키는 구조 ID를 쓴다. 다른 문서의 값으로
                 대신하지 않고 어느 문서인지 문장으로 밝힌다. */}
             <SegmentInventoryPanel
+              documentVersionId={evidenceQuery.data?.document_version_id ?? null}
               structureId={evidenceQuery.data?.structure_id ?? null}
               sourceNote={evidenceQuery.data?.structure_id
-                ? `현재 선택한 근거가 가리키는 문서의 구간 목록입니다. 문서 버전 ${evidenceQuery.data.document_version_id ?? "값 없음"}.`
-                : "근거를 선택하면 그 근거가 가리키는 문서의 inventory를 표시합니다."}
+                ? "현재 선택한 근거가 가리키는 문서의 구간 목록입니다."
+                : "근거를 선택하면 그 근거가 가리키는 문서의 구간 목록을 표시합니다."}
             />
             <section aria-labelledby="editor-title" className="deep-review-editor-panel">
             <h3 id="editor-title" className="deep-review-section-title">보고서 수정본 편집</h3>

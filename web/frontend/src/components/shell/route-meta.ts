@@ -54,7 +54,9 @@ export interface RouteMetadata {
   dataScope: RouteDataScope;
   /** 상단바 표시 방식. 없으면 `breadcrumb`이다(대부분의 화면은 손대지 않는다). */
   topbar?: RouteTopbarMode;
-  editScope: string | null;
+  /* 편집 범위(`… 저장 가능`)는 더 이상 route metadata가 아니다 — 상단바 칩을
+     없앴고(ADR-0066 §3.3, 시안 M4 결정 2) 읽는 곳이 남지 않았다. 무엇을 저장할
+     수 있는지는 각 화면의 결정 UI가 말한다. */
   runSelectorVisible: boolean;
   /** 사이드바 1차 분류 라벨. 상단 경로의 첫 칸이다. */
   navGroup: string | null;
@@ -77,7 +79,6 @@ export interface RouteMetadataHandle {
 export const fallbackRouteMetadata: RouteMetadata = {
   title: "BidOps Admin",
   dataScope: "cumulative",
-  editScope: null,
   runSelectorVisible: false,
   navGroup: null,
   navPath: null,
@@ -89,7 +90,6 @@ export const routeMetadata = {
   dashboard: {
     title: "대시보드",
     dataScope: "cumulative",
-    editScope: null,
     runSelectorVisible: false,
     navGroup: "오늘의 업무",
     navPath: "/",
@@ -100,7 +100,6 @@ export const routeMetadata = {
   queue: {
     title: "공고 판정 이력",
     dataScope: "run",
-    editScope: null,
     runSelectorVisible: true,
     navGroup: "탐색과 추적",
     navPath: "/opportunities",
@@ -113,7 +112,6 @@ export const routeMetadata = {
   noticeJudgments: {
     title: "공고 판정 이력",
     dataScope: "run",
-    editScope: null,
     runSelectorVisible: true,
     navGroup: "탐색과 추적",
     navPath: "/opportunities",
@@ -131,7 +129,6 @@ export const routeMetadata = {
     // 목록은 제목 모드다. 상세(`/opportunities/:opportunityId`)는 같은 metadata를
     // 쓰지만 record 칸이 생겨 경로 모드로 남는다.
     topbar: "title",
-    editScope: "추적 상태·예외 작업 저장 가능",
     runSelectorVisible: false,
     navGroup: "탐색과 추적",
     navPath: "/opportunities",
@@ -146,7 +143,6 @@ export const routeMetadata = {
     // 목록과 legacy 상세 URL redirect가 공유한다. 언제나 제목 모드다.
     topbar: "title",
     // 이 화면의 결정은 추적 선택이고 사람 판단 수정은 보조 저장이다.
-    editScope: "추적 선택·사람 판단 수정 저장 가능",
     runSelectorVisible: false,
     navGroup: "탐색과 추적",
     navPath: "/order-plans",
@@ -156,7 +152,6 @@ export const routeMetadata = {
   bidDelta: {
     title: "입찰 변경 비교",
     dataScope: "cumulative",
-    editScope: "최종 Go/No-Go 저장 가능",
     runSelectorVisible: false,
     navGroup: "탐색과 추적",
     navPath: "/opportunities",
@@ -176,7 +171,6 @@ export const routeMetadata = {
     dataScope: "cumulative",
     // 목록은 제목 모드, 상세(`/pre-specs/:noticeId`)는 record 칸 덕분에 경로 모드다.
     topbar: "title",
-    editScope: null,
     runSelectorVisible: false,
     navGroup: "탐색과 추적",
     navPath: "/pre-specs",
@@ -188,7 +182,6 @@ export const routeMetadata = {
     title: "최종 Go/No-Go",
     dataScope: "cumulative",
     topbar: "title",
-    editScope: "최종 Go/No-Go 저장 가능",
     runSelectorVisible: false,
     navGroup: "탐색과 추적",
     navPath: "/go-no-go",
@@ -203,7 +196,6 @@ export const routeMetadata = {
   criteria: {
     title: "판정 기준",
     dataScope: "cumulative",
-    editScope: null,
     runSelectorVisible: false,
     navGroup: "기준과 운영",
     navPath: "/criteria",
@@ -217,7 +209,6 @@ export const routeMetadata = {
   runStatus: {
     title: "실행 상태",
     dataScope: "cumulative",
-    editScope: null,
     runSelectorVisible: false,
     navGroup: "기준과 운영",
     navPath: "/run-status",
@@ -231,7 +222,6 @@ export const routeMetadata = {
   deepReview: {
     title: "심층 검토 보고서",
     dataScope: "cumulative",
-    editScope: null,
     runSelectorVisible: false,
     navGroup: "탐색과 추적",
     navPath: "/pre-specs",

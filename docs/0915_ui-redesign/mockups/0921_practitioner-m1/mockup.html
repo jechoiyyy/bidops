@@ -1,0 +1,300 @@
+<title>BidOps M1 공용 UI 시안</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --ground:#F6F7F4; --surface:#FFFFFF; --ink:#1B211D; --ink2:#4C5650; --line:#E2E5DF;
+  --accent:#587A2B; --accent-soft:#F1F6E8; --accent-deep:#3F5A1C; --pin:#3F5A1C; --pin-ink:#FFFFFF;
+  --warn-soft:#f8da9d; --warn-ink:#745b00;
+  --sans:"Noto Sans KR","Pretendard","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ground:#17181F; --surface:#232634; --ink:#E8E4E2; --ink2:#A9A6A4; --line:#3A3D4B;
+    --accent:#CFDFB5; --accent-soft:#2C3326; --accent-deep:#CFDFB5; --pin:#CFDFB5; --pin-ink:#1B211D;
+    --warn-soft:#4A3F1E; --warn-ink:#fdcf4f;
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#17181F; --surface:#232634; --ink:#E8E4E2; --ink2:#A9A6A4; --line:#3A3D4B;
+  --accent:#CFDFB5; --accent-soft:#2C3326; --accent-deep:#CFDFB5; --pin:#CFDFB5; --pin-ink:#1B211D;
+  --warn-soft:#4A3F1E; --warn-ink:#fdcf4f;
+}
+*{box-sizing:border-box}
+body{background:var(--ground);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.6;padding-inline:20px;padding-block:28px 72px}
+.page{max-width:1500px;margin-inline:auto;display:flex;flex-direction:column;gap:44px}
+h1{font-size:26px;line-height:1.3;font-weight:700;margin:0;text-wrap:balance}
+h2{font-size:19px;line-height:1.35;font-weight:700;margin:0;text-wrap:balance}
+h3{font-size:14px;font-weight:600;margin:0}
+p{margin:0}
+.lede{max-width:68ch;color:var(--ink2)}
+.eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.06em;color:var(--accent-deep)}
+.intro{display:flex;flex-direction:column;gap:12px}
+.facts{display:flex;flex-wrap:wrap;gap:8px 20px;font-size:13px;color:var(--ink2)}
+.facts b{color:var(--ink);font-weight:600}
+.bar{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--ground);border-bottom:1px solid var(--line);padding-block:10px;display:flex;flex-wrap:wrap;gap:10px 20px;align-items:center}
+.seg{display:inline-flex;flex-wrap:wrap;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--surface)}
+.seg button{font:inherit;font-size:13px;padding:6px 12px;border:0;background:transparent;color:var(--ink2);cursor:pointer}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button[aria-pressed="true"]{background:var(--accent-soft);color:var(--accent-deep);font-weight:600}
+.seg button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.ctl{display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-size:13px;color:var(--ink2)}
+section.mock{display:flex;flex-direction:column;gap:16px}
+.head{display:flex;flex-direction:column;gap:6px}
+.ctls{display:flex;flex-wrap:wrap;gap:10px 20px;align-items:center}
+.decide{border:1px solid var(--line);border-left:4px solid var(--warn-ink);background:var(--surface);border-radius:6px;padding:12px 16px;display:flex;flex-direction:column;gap:4px;max-width:96ch}
+.decide strong{font-weight:700}
+.decide span{color:var(--ink2);font-size:14px}
+.cap{font-size:13px;color:var(--ink2);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.tag{display:inline-block;font-size:12px;padding:1px 8px;border-radius:999px;background:var(--accent-soft);color:var(--accent-deep);white-space:nowrap;font-weight:600}
+.tag.now{background:var(--line);color:var(--ink2)}
+.tag.todo{background:var(--warn-soft);color:var(--warn-ink)}
+.stack{display:flex;flex-direction:column;gap:8px}
+.frame{border:1px solid var(--line);border-radius:10px;background:var(--surface);overflow:hidden}
+.fit{position:relative;overflow:hidden}
+.fit>.ab{transform-origin:top left;display:block}
+ol.changes{margin:0;padding:0;list-style:none;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr));gap:8px 28px;font-size:14px}
+ol.changes li{display:grid;grid-template-columns:24px 1fr;gap:8px;align-items:start}
+.n{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;background:var(--pin);color:var(--pin-ink);font:600 11px/1 var(--mono);margin-top:3px}
+ol.changes em{font-style:normal;color:var(--ink2)}
+.scroll{overflow-x:auto}
+table.chk{border-collapse:collapse;font-size:14px;min-width:720px;width:100%}
+table.chk th,table.chk td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+table.chk th{font-weight:600;color:var(--ink2);font-size:12px;letter-spacing:.04em}
+table.chk code{font-family:var(--mono);font-size:12.5px;background:var(--accent-soft);color:var(--accent-deep);padding:0 5px;border-radius:4px}
+table.chk s{color:var(--ink2)}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,430px),1fr));gap:20px;align-items:start}
+
+/* ── 제품 아트보드: bidops 테마 light 값 고정(제품은 light 전용) ── */
+.ab{
+  --p-canvas:#F6F7F4;--p-surface:#FFFFFF;--p-ink:#1B211D;--p-ink2:#4C5650;--p-line:#E2E5DF;
+  --p-accent:#587A2B;--p-accent-muted:#F1F6E8;--p-text-accent:#3F5A1C;--p-brand:#75a03b;--p-brand-edge:#cfdfb5;
+  --p-warn-muted:#f8da9d;--p-warn:#745b00;--p-err-muted:#F8CDB4;--p-err:#8a2a12;
+  background:var(--p-canvas);color:var(--p-ink);font-family:var(--sans);font-size:12.5px;line-height:1.45;color-scheme:light;padding:0 16px 14px;
+}
+.ab *{box-sizing:border-box}
+.top{height:60px;display:flex;align-items:center;justify-content:space-between;gap:16px}
+.top h4{margin:0;font-size:18px;font-weight:600}
+.top .r{display:flex;gap:10px;align-items:center;font-size:11.5px;color:var(--p-ink2)}
+.frow{display:flex;align-items:center;gap:14px;min-height:42px;font-size:12px;color:var(--p-ink2);flex-wrap:nowrap}
+.frow+.frow{border-top:1px solid var(--p-line)}
+.tab{padding:4px 2px;display:inline-flex;gap:6px;white-space:nowrap}
+.tab.on{color:var(--p-ink);font-weight:600;box-shadow:0 2px 0 var(--p-brand)}
+.icb{height:28px;border:1px solid var(--p-line);border-radius:8px;background:var(--p-surface);display:inline-flex;align-items:center;gap:6px;padding:0 10px;color:var(--p-ink);white-space:nowrap}
+.icb.on{border-color:var(--p-text-accent);background:var(--p-accent-muted);color:var(--p-text-accent);font-weight:600}
+.cntb{display:inline-grid;place-items:center;min-width:16px;height:16px;border-radius:999px;background:var(--p-text-accent);color:#fff;font-size:10px;font-weight:700;padding:0 4px}
+.srch{border:1px solid var(--p-line);background:var(--p-surface);border-radius:8px;padding:5px 12px;width:250px;color:var(--p-ink2);white-space:nowrap;overflow:hidden}
+.sel{border:1px solid var(--p-line);background:var(--p-surface);border-radius:8px;padding:5px 10px;min-width:210px;display:inline-flex;justify-content:space-between;gap:12px;font-size:12px;color:var(--p-ink);white-space:nowrap}
+.sel::after{content:"⌄";color:var(--p-ink2)}
+.sel.native{border-radius:4px;min-width:150px}
+.lbl{font-size:11.5px;color:var(--p-ink2);white-space:nowrap}
+.fld{display:flex;flex-direction:column;gap:4px}
+.fld .lbl{font-weight:600;color:var(--p-ink)}
+.adv{background:var(--p-surface);border:1px solid var(--p-line);border-radius:10px;padding:12px 14px;display:grid;grid-template-columns:repeat(4,1fr);gap:12px 16px;margin-block:6px}
+.tg{display:inline-flex;border:1px solid var(--p-line);border-radius:8px;overflow:hidden}
+.tg span{padding:4px 9px;font-size:11.5px;border-left:1px solid var(--p-line);white-space:nowrap}
+.tg span:first-child{border-left:0}
+.tg span.on{background:var(--p-accent-muted);color:var(--p-text-accent);font-weight:600}
+.runline{display:flex;align-items:center;gap:10px;min-height:34px;font-size:12px;color:var(--p-ink);border-top:1px solid var(--p-line)}
+.runline b{font-weight:600}
+.chip{display:inline-block;background:#E9ECE6;border-radius:999px;padding:0 8px;font-size:11px;font-weight:600;line-height:18px;white-space:nowrap}
+.chip.w{background:var(--p-warn-muted);color:var(--p-warn)}
+.lnk{color:var(--p-text-accent);font-weight:600;text-decoration:underline;text-underline-offset:2px}
+.banner{background:var(--p-err-muted);color:var(--p-err);border-radius:8px;padding:8px 12px;font-size:12px;display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.pane{background:var(--p-surface);border-radius:14px;box-shadow:0 1px 2px #1b211d12;overflow:hidden;margin-top:8px}
+.lh{padding:11px 16px;display:flex;justify-content:space-between;gap:12px;align-items:baseline;border-bottom:1px solid var(--p-line)}
+.lh b{font-size:12.5px}.lh span{font-size:11px;color:var(--p-ink2)}
+.row{display:grid;grid-template-columns:1fr auto;gap:2px 12px;padding:10px 16px;border-bottom:1px solid var(--p-line);font-size:13px}
+.row .t{font-weight:600}.row .m{color:var(--p-ink2);font-size:12px}.row .rc{font-family:var(--mono);font-size:11.5px;text-align:right;white-space:nowrap}
+.note{padding:8px 16px;font-size:11px;color:var(--p-ink2);border-top:1px solid var(--p-line)}
+.pager{padding:9px 16px;border-top:1px solid var(--p-line);display:flex;justify-content:space-between;align-items:center;font-size:11.5px;color:var(--p-ink2);gap:12px}
+.pager .g{display:flex;gap:6px;align-items:center}
+.btn{font:inherit;font-size:11.5px;border:1px solid var(--p-line);background:var(--p-surface);color:var(--p-ink);border-radius:8px;padding:4px 12px;min-height:26px;white-space:nowrap}
+.btn.raw{border-radius:4px;border-color:#9aa39c}
+.btn.pri{background:var(--p-accent);border-color:var(--p-accent);color:#fff;font-weight:600;border-radius:4px}
+.btn[data-off]{opacity:.45}
+.empty{padding:34px 16px;display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center}
+.empty .ic{width:30px;height:30px;border-radius:50%;border:2px solid var(--p-ink2);opacity:.5}
+.empty b{font-size:14px}.empty span{font-size:12px;color:var(--p-ink2);max-width:46ch}
+.empty .g{display:flex;gap:8px;margin-top:4px}
+.sk{display:flex;flex-direction:column;gap:10px;padding:16px}
+.sk i{display:block;height:12px;border-radius:6px;background:linear-gradient(90deg,#ECEFE9,#F6F7F4,#ECEFE9)}
+.mini{display:flex;flex-direction:column;gap:6px}
+.ab[data-w="1280"]{width:1057px}.ab[data-w="1440"]{width:1217px}
+.ab.small{width:auto;padding:12px}
+[data-show]{display:none}
+.ab[data-state="closed"] [data-show~="closed"],.ab[data-state="open"] [data-show~="open"],.ab[data-state="run"] [data-show~="run"]{display:revert}
+.ab[data-state="open"] .adv[data-show]{display:grid}
+.ab[data-state="closed"] .icb[data-show~="closed"],.ab[data-state="open"] .icb[data-show~="open"],.ab[data-state="run"] .icb[data-show~="run"]{display:inline-flex}
+.ab[data-state="run"] .runline[data-show],.ab[data-state="open"] .runline.always{display:flex}
+.ab[data-screen="op"] [data-only="ps"],.ab[data-screen="ps"] [data-only="op"]{display:none!important}
+.ab[data-meas="A"] [data-meas-only="B"],.ab[data-meas="B"] [data-meas-only="A"]{display:none!important}
+</style>
+
+<div class="page">
+  <header class="intro">
+    <span class="eyebrow">BIDOPS · 실무 화면 고도화 · 시안 M1</span>
+    <h1>같은 기능은 같은 모양으로 — 수집 회차·페이저·빈 상태·문구</h1>
+    <p class="lede">발주계획·사전규격·사업 추적·최종 Go/No-Go 네 화면의 공용 부품을 하나로 맞추는 안입니다. 위는 지금 화면, 아래는 변경안입니다. 결정이 필요한 곳은 노란 띠로 표시했습니다. 표시 데이터는 모두 테스트 fixture 값입니다.</p>
+    <div class="facts"><span><b>대상 패키지</b> U1 · U2 · U3</span><span><b>정본</b> docs/0921_practitioner-screens/spec.md §2</span><span><b>색</b> bidops 테마 토큰 값</span><span><b>글꼴</b> Pretendard 대신 Noto Sans KR로 대체 표시</span></div>
+  </header>
+
+  <div class="bar" role="toolbar" aria-label="시안 보기 설정">
+    <div class="ctl"><span>화면 폭</span>
+      <div class="seg" data-group="w"><button type="button" id="w1280" aria-pressed="true" data-v="1280">laptop 1280</button><button type="button" id="w1440" aria-pressed="false" data-v="1440">desktop 1440</button></div>
+    </div>
+    <span class="ctl">사이드바(223px)를 뺀 본문 영역만 그렸습니다. 좁은 창에서는 비율대로 줄여 보입니다.</span>
+  </div>
+
+  <section class="mock" id="s1">
+    <div class="head"><span class="eyebrow">① 수집 회차 선택</span><h2>두 화면이 서로 다른 선택기를 쓰고 있습니다</h2>
+      <p class="lede">같은 주소 값(<code>source_run_id</code>)과 같은 라벨인데 검색 유무, 누적 옵션 문구, 옵션 표기, 오류 표시가 다릅니다.</p></div>
+
+    <div class="stack">
+      <div class="cap"><span class="tag now">지금</span> 발주계획 — 검색 없는 선택기, 라벨은 글자로 따로, 오류는 화면 맨 위 배너</div>
+      <div class="frame"><div class="fit"><div class="ab" data-w="1280">
+        <div class="banner"><span>수집 회차를 불러오지 못했습니다.</span><span class="btn">회차 다시 조회</span></div>
+        <div class="frow"><span class="tab on">검토 대상 <b>42</b></span><span class="tab">전체 <b>1,234</b></span><span class="tab">BM25 탈락</span><span class="tab">실패·거부</span></div>
+        <div class="frow"><span class="icb">☰ 상세 필터</span><span class="srch">사업명·발주기관 검색</span><span class="lbl">수집 회차</span><span class="sel">누적 · 회차 선택 안 함</span></div>
+      </div></div></div>
+    </div>
+    <div class="stack">
+      <div class="cap"><span class="tag now">지금</span> 사전규격 — 검색 있는 선택기, 옵션 설명에 회차 ID 원문, 오류 표시 없음</div>
+      <div class="frame"><div class="fit"><div class="ab" data-w="1280">
+        <div class="frow"><span class="tab on">검토할 항목 <b>18</b></span><span class="tab">전체 이력 <b>445</b></span><span class="tab">최근 수집</span></div>
+        <div class="frow"><span class="icb">☰ 상세 필터</span><span class="srch">사업명·발주기관 검색</span><span class="fld" style="flex-direction:row;align-items:center;gap:8px"><span class="lbl">수집 회차</span><span class="sel">모든 수집 회차</span></span><span class="tg"><span class="on">마감 전·미확인</span><span>마감 지남</span></span></div>
+      </div></div></div>
+    </div>
+
+    <div class="stack">
+      <div class="cap"><span class="tag">변경안</span> 두 화면 공용 — 상세 필터 안으로, 걸려 있으면 둘째 줄에 항상 표시</div>
+      <div class="ctls">
+        <div class="ctl"><span>화면</span><div class="seg" data-group="screen"><button type="button" id="scOp" aria-pressed="true" data-v="op">발주계획</button><button type="button" id="scPs" aria-pressed="false" data-v="ps">사전규격</button></div></div>
+        <div class="ctl"><span>상태</span><div class="seg" data-group="state"><button type="button" id="stClosed" aria-pressed="true" data-v="closed">기본(접힘)</button><button type="button" id="stOpen" aria-pressed="false" data-v="open">상세 필터 펼침</button><button type="button" id="stRun" aria-pressed="false" data-v="run">회차 선택 뒤 접힘</button></div></div>
+      </div>
+      <div class="frame"><div class="fit"><div class="ab" id="proposal" data-w="1280" data-state="closed" data-screen="op" data-meas="A">
+        <div class="frow" data-only="op"><span class="tab on">검토 대상 <b>42</b></span><span class="tab">전체 <b>1,234</b></span><span class="tab">1차 선별 제외</span><span class="tab">실패·거부</span></div>
+        <div class="frow" data-only="ps"><span class="tab on">검토할 항목 <b>18</b></span><span class="tab">전체 이력 <b>445</b></span><span class="tab">최근 수집</span></div>
+        <div class="frow">
+          <span class="icb" data-show="closed">☰ 상세 필터</span>
+          <span class="icb on" data-show="open">☰ 상세 필터 <span class="cntb">1</span></span>
+          <span class="icb on" data-show="run">☰ 상세 필터 <span class="cntb">1</span></span>
+          <span class="srch">사업명·발주기관 검색</span>
+          <span class="tg" data-only="ps"><span class="on">마감 전·미확인</span><span>마감 지남</span></span>
+        </div>
+        <div class="adv" data-show="open">
+          <div class="fld" data-only="op"><span class="lbl">모델 판단</span><span class="tg"><span class="on">관련</span><span class="on">판단 보류</span><span>비관련</span><span>값 없음</span></span></div>
+          <div class="fld" data-only="op"><span class="lbl">사람 판단</span><span class="tg"><span>기록 있음</span><span>기록 없음</span></span></div>
+          <div class="fld" data-only="op"><span class="lbl">추적 선택</span><span class="tg"><span class="on">미선택</span><span>계속 추적</span><span>종료</span></span></div>
+          <div class="fld" data-only="ps"><span class="lbl">등급</span><span class="sel" style="min-width:0">전체</span></div>
+          <div class="fld" data-only="ps"><span class="lbl">추적 결정</span><span class="sel" style="min-width:0">전체</span></div>
+          <div class="fld" data-only="ps"><span class="lbl">SW사업대상만</span><span class="tg"><span class="on">켬</span><span>끔</span></span></div>
+          <div class="fld"><span class="lbl">수집 회차</span><span class="sel" style="min-width:0">09-19~09-20 수집</span><span class="lbl" style="font-weight:400">09-20 06:10 생성 · 검색 가능</span></div>
+        </div>
+        <div class="runline always" data-show="run">
+          <b>회차 보기</b><span>09-19~09-20 수집</span>
+          <span class="chip w" data-only="op" data-meas-only="A">측정 전용 실행</span>
+          <span class="lnk">모든 회차로</span>
+        </div>
+        <div class="pane">
+          <div class="lh"><b data-only="op">발주계획 목록 · 42건</b><b data-only="ps">사전규격 목록 · 18건</b><span>사업명 / 발주기관</span></div>
+          <div class="row" data-only="op"><span class="t">행정정보 공동이용 확대 사업 발주계획</span><span class="rc">2026년 11월</span><span class="m">경기도청 · 12.4억 · 첫 수집 09-19</span><span></span></div>
+          <div class="row" data-only="op"><span class="t">복지서비스 운영 지원 발주계획</span><span class="rc">2026년 12월</span><span class="m">부산광역시 · 예산 미제공 · 첫 수집 09-19</span><span></span></div>
+          <div class="row" data-only="ps"><span class="t">신규 지능형 행정 지원 사전규격</span><span class="rc">D-4 · 09-25</span><span class="m">서울특별시 디지털정책관 · 8.2억</span><span></span></div>
+          <div class="row" data-only="ps"><span class="t">안전한 문서 준비 사전규격</span><span class="rc">D-9 · 09-30</span><span class="m">대전광역시 · 3.1억</span><span></span></div>
+          <div class="note" data-only="op" data-meas-only="B" data-show="run">회차 · 측정 전용 실행</div>
+          <div class="pager"><span data-only="op">전체 42건</span><span data-only="ps">전체 18건</span><span class="g"><span>1–2 / <b data-only="op">42</b><b data-only="ps">18</b></span><span class="btn" data-off>이전</span><span class="btn">다음</span></span></div>
+        </div>
+      </div></div></div>
+      <ol class="changes">
+        <li><span class="n">1</span><span><b>공용 컴포넌트 하나.</b> <em>라벨 `수집 회차`, 검색 가능, 누적 옵션은 `모든 수집 회차` 한 문구.</em></span></li>
+        <li><span class="n">2</span><span><b>옵션에서 회차 ID 원문을 뺍니다.</b> <em>`09-19~09-20 수집` + 설명 `09-20 06:10 생성`(같은 기간을 다시 수집한 회차를 구분).</em></span></li>
+        <li><span class="n">3</span><span><b>접혀 있어도 알 수 있게.</b> <em>상세 필터 단추에 걸린 조건 수, 그리고 회차가 걸리면 둘째 줄에 `회차 보기 · … [모든 회차로]`.</em></span></li>
+        <li><span class="n">4</span><span><b>회차 목록 조회 실패는 선택기 안에서.</b> <em>회차를 고르지 않은 실무자에게는 업무 장애가 아니므로 화면 맨 위 배너를 없앱니다. 회차가 걸려 있을 때만 둘째 줄에도 알립니다.</em></span></li>
+        <li><span class="n">5</span><span><b>사전규격의 날짜 범위·마감 구간은 도구 줄에 남습니다.</b> <em>회차만 옮깁니다.</em></span></li>
+        <li><span class="n">6</span><span><b>실행 상태 화면에서 들어오는 길.</b> <em>`실행 상태 › 수집 실행`의 `이 회차의 발주계획 보기`로 회차가 걸린 채 들어옵니다(시안 M2).</em></span></li>
+      </ol>
+    </div>
+
+    <div class="decide"><strong>결정 1 — `측정 전용 실행` 표식을 어디에 둘까요 (발주계획 · 상태 "회차 선택 뒤 접힘"에서 비교)</strong>
+      <span>이 표식은 "지금 보는 목록이 운영 판정이 아니다"를 알리는 필수 경고라 지우지 않습니다. A안은 둘째 줄의 회차 옆에 붙여 회차 정보와 한곳에서 읽히게 합니다(권장). B안은 09-21에 정리한 목록 바닥 줄을 그대로 둡니다.</span>
+      <div class="ctl" style="margin-top:6px"><div class="seg" data-group="meas"><button type="button" id="mA" aria-pressed="true" data-v="A">A안 · 회차 줄에 (권장)</button><button type="button" id="mB" aria-pressed="false" data-v="B">B안 · 목록 바닥 줄 유지</button></div></div>
+    </div>
+    <div class="decide"><strong>결정 2 — 회차를 바꾸면 다른 조건을 어떻게 할까요</strong>
+      <span>지금 발주계획은 회차를 고르면 <b>다른 필터·검색을 지우고 그 회차 전체</b>를 보여 주고, 사전규격은 <b>기존 조건에 회차를 더합니다.</b> 권장은 <b>"더한다"로 통일</b>입니다 — 회차가 상세 필터의 한 축이 되므로 다른 축과 같은 방식(교집합)으로 동작하는 편이 예측 가능합니다. 실행 상태 화면의 `이 회차 보기` 링크는 `전체` 보기로 열어 회차 전체가 보이게 합니다.</span>
+    </div>
+  </section>
+
+  <section class="mock" id="s2">
+    <div class="head"><span class="eyebrow">② 페이지 이동</span><h2>네 화면의 페이저가 세 가지입니다</h2></div>
+    <div class="grid2">
+      <div class="stack"><div class="cap"><span class="tag now">지금</span> 발주계획</div><div class="frame"><div class="ab small"><div class="pane" style="margin:0"><div class="pager"><span>전체 1,234건</span><span class="g"><span>1–50 / 1,234</span><span class="btn" data-off>이전</span><span class="btn">다음</span></span></div></div></div></div></div>
+      <div class="stack"><div class="cap"><span class="tag now">지금</span> 사전규격 — 천 단위 구분 없음, 다른 단추, 50건 이하면 숨김</div><div class="frame"><div class="ab small"><div class="pane" style="margin:0"><div class="pager"><span></span><span class="g"><span>1–50 / 1234</span><span class="btn raw" data-off>이전</span><span class="btn pri">다음</span></span></div></div></div></div></div>
+      <div class="stack"><div class="cap"><span class="tag now">지금</span> 사업 추적 — 목록 밖 별도 줄 + 안내 문단</div><div class="frame"><div class="ab small"><div class="mini"><span class="lbl">뒤에 1,134건이 더 있습니다</span><div class="pager" style="border:0;padding:0"><span>1–100 / 1,234</span><span class="g"><span class="btn" data-off>이전</span><span class="btn">다음</span></span></div></div></div></div></div>
+      <div class="stack"><div class="cap"><span class="tag now">지금</span> 최종 Go/No-Go — 또 다른 단추</div><div class="frame"><div class="ab small"><div class="pager" style="border:0;padding:0"><span></span><span class="g"><span class="btn raw" data-off>이전</span><span>1 / 3</span><span class="btn raw">다음</span></span></div></div></div></div>
+    </div>
+    <div class="stack"><div class="cap"><span class="tag">변경안</span> 네 화면 공용 — 목록 안쪽 바닥, 왼쪽 전체 건수, 오른쪽 범위와 단추, 항상 표시</div>
+      <div class="frame"><div class="ab small"><div class="pane" style="margin:0"><div class="pager"><span>전체 1,234건</span><span class="g"><span>1–50 / 1,234</span><span class="btn" data-off>이전</span><span class="btn">다음</span></span></div></div></div></div>
+      <p class="lede" style="font-size:14px">한 쪽에 다 들어오는 목록에서도 줄을 남기고 단추만 끕니다. 건수가 어디에 있는지 화면마다 찾지 않게 하려는 것입니다.</p>
+    </div>
+  </section>
+
+  <section class="mock" id="s3">
+    <div class="head"><span class="eyebrow">③ 빈 상태와 조회 중</span><h2>사업 추적·Go/No-Go만 손으로 만든 빈 상태를 씁니다</h2></div>
+    <div class="grid2">
+      <div class="stack"><div class="cap"><span class="tag now">지금</span> 사업 추적·Go/No-Go — 같은 마크업을 두 번 복제, 조회 중은 글자 한 줄 / 뼈대</div>
+        <div class="frame"><div class="ab small"><div class="pane" style="margin:0"><div class="empty"><span class="ic"></span><b>조건에 맞는 사업이 없습니다</b><span>검색어나 필터를 바꿔 보십시오.</span><div class="g"><span class="btn">검색어만 지우기</span><span class="btn">필터 초기화</span></div></div></div><div class="pane"><div style="padding:14px 16px;font-size:12px;color:var(--p-ink2)">사업 추적 목록을 불러오는 중…</div></div></div></div></div>
+      <div class="stack"><div class="cap"><span class="tag">변경안</span> 네 화면 공용 `EmptyState` + 뼈대 로딩</div>
+        <div class="frame"><div class="ab small"><div class="pane" style="margin:0"><div class="empty"><span class="ic"></span><b>조건에 맞는 사업이 없습니다</b><span>검색어나 필터를 바꿔 보십시오.</span><div class="g"><span class="btn">검색어만 지우기</span><span class="btn">필터 초기화</span></div></div></div><div class="pane"><div class="sk"><i style="width:62%"></i><i style="width:88%"></i><i style="width:45%"></i></div></div></div></div>
+        <p class="lede" style="font-size:14px">눈에 보이는 모양은 거의 같습니다. 바뀌는 것은 문구·단추 순서·접근 속성이 한 컴포넌트에서 나온다는 점과, 조회 중 표시가 네 화면 모두 뼈대로 같아진다는 점입니다.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="mock" id="s4">
+    <div class="head"><span class="eyebrow">④ 문구</span><h2>같은 뜻은 한 가지 말로</h2>
+      <p class="lede">뜻이 다른 빈 값(서버가 안 줌 / 확인 안 됨 / 계산 못 함 / 실제 0)은 계속 구분합니다. 같은 뜻을 다르게 쓴 것만 합치고, 영문 <code>null</code>은 표시에서 뺍니다.</p></div>
+    <div class="frame scroll"><table class="chk">
+      <thead><tr><th>대상</th><th>지금</th><th>변경안</th><th>비고</th></tr></thead>
+      <tbody>
+        <tr><td>예산 값이 없을 때</td><td><s>null (미제공)</s> · <s>예산 null (미제공)</s> · <s>값 없음</s> · <s>예산 미확인</s> · <s>추정가격 미확인</s></td><td><code>예산 미제공</code> / <code>추정가격 미제공</code></td><td>서버가 값을 주지 않은 경우. "미확인"은 사람이 확인해야 하는 상태에만 씁니다</td></tr>
+        <tr><td>발주 시기가 없을 때</td><td><s>null (계획 시기 미제공)</s> · <s>2026년 null월</s></td><td><code>발주 시기 미제공</code> / <code>2026년 · 월 미제공</code></td><td></td></tr>
+        <tr><td>건수 표기</td><td>1,234 와 1234 혼용</td><td><code>1,234</code></td><td>공용 <code>formatCount</code></td></tr>
+        <tr><td>목록 범위를 설명하는 단추</td><td><s>실행 상태</s> · <s>표시 범위</s> · <s>데이터 현황</s>(2곳)</td><td><code>목록 기준</code></td><td>다이얼로그 제목도 <code>이 목록의 기준</code> 하나. 발주계획의 실행 상태는 문제 있을 때만 뜨는 칩으로 분리(시안 M3)</td></tr>
+        <tr><td>목록 머리 건수</td><td><s>검토 목록 · 현재 필터 결과 N건</s> · <s>사전규격 목록 N건</s> · <s>사업 추적 목록 · N건</s> · <s>결정 검토 목록 · N건</s></td><td><code>{화면 이름} 목록 · N건</code></td><td>발주계획 목록 · 42건 / 최종 결정 목록 · 7건</td></tr>
+        <tr><td>발주계획 검색칸</td><td>보이는 말 "사업명·발주기관 검색", 읽히는 이름 "사업명·발주기관·계획번호 검색"</td><td>둘 다 <code>사업명·발주기관·계획번호 검색</code></td><td>실제로 계획번호도 검색됩니다</td></tr>
+        <tr><td>회차 선택(운영 화면)</td><td>실행 회차 / 대상 회차 / 첨부 확보 대상 회차 / 감사 대상 회차 — 옵션 표기 제각각</td><td>라벨은 화면 목적대로 유지, <b>옵션 표기만</b> <code>09-19~09-20 수집</code> + 설명에 회차 ID</td><td>운영 화면은 회차 ID가 필요하므로 설명 줄에 남깁니다</td></tr>
+      </tbody>
+    </table></div>
+    <div class="decide"><strong>결정 3 — 단추 이름 `목록 기준`</strong><span>대안: `표시 범위`(사전규격의 지금 이름), `이 목록은`. 네 화면이 같은 이름을 쓰기만 하면 되므로 다른 말을 원하시면 알려 주십시오.</span></div>
+  </section>
+
+  <section class="mock" id="s5">
+    <div class="head"><span class="eyebrow">⑤ 이번 시안에 없는 것</span><h2>다음 시안으로 넘긴 항목</h2></div>
+    <div class="frame scroll"><table class="chk"><thead><tr><th>항목</th><th>시안</th></tr></thead><tbody>
+      <tr><td>실행 상태 화면의 `발주계획 선별` 탭과 `이 회차 보기` 링크</td><td><span class="tag todo">M2</span></td></tr>
+      <tr><td>발주계획 행·배지·상세 필터 문구 한글화, 보기 탭 `BM25 탈락` 이름, 실행 상태 칩, 다이얼로그 정리</td><td><span class="tag todo">M3</span></td></tr>
+      <tr><td>사전규격 상세·심층 검토·Go/No-Go·셸의 기술 정보 접기</td><td><span class="tag todo">M4</span></td></tr>
+      <tr><td>사업 추적·Go/No-Go 분할 골격</td><td><span class="tag todo">M1c</span></td></tr>
+    </tbody></table></div>
+  </section>
+</div>
+
+<script>
+(function(){
+  var abs=function(){return Array.prototype.slice.call(document.querySelectorAll('.ab[data-w]'))};
+  function fit(){abs().forEach(function(ab){var box=ab.parentElement;var w=parseInt(ab.getAttribute('data-w'),10)===1440?1217:1057;ab.style.transform='none';box.parentElement.style.maxWidth='none';var avail=box.clientWidth;var k=Math.min(1,avail/w);ab.style.transform='scale('+k+')';box.style.height=(ab.offsetHeight*k)+'px';box.parentElement.style.maxWidth=Math.ceil(w*k+2)+'px';});}
+  function press(group,btn){Array.prototype.forEach.call(group.querySelectorAll('button'),function(b){b.setAttribute('aria-pressed',b===btn?'true':'false')});}
+  Array.prototype.forEach.call(document.querySelectorAll('.seg[data-group]'),function(group){
+    group.addEventListener('click',function(e){var b=e.target.closest('button');if(!b)return;press(group,b);var g=group.getAttribute('data-group'),v=b.getAttribute('data-v');var p=document.getElementById('proposal');
+      if(g==='w'){abs().forEach(function(ab){ab.setAttribute('data-w',v)});}
+      else if(g==='screen'){p.setAttribute('data-screen',v);}
+      else if(g==='state'){p.setAttribute('data-state',v);}
+      else if(g==='meas'){p.setAttribute('data-meas',v);p.setAttribute('data-state','run');p.setAttribute('data-screen','op');press(document.querySelector('[data-group="state"]'),document.getElementById('stRun'));press(document.querySelector('[data-group="screen"]'),document.getElementById('scOp'));}
+      fit();});
+  });
+  window.addEventListener('resize',fit);
+  if(document.fonts&&document.fonts.ready){document.fonts.ready.then(fit);}
+  fit();
+})();
+</script>

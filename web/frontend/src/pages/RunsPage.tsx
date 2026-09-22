@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { Button } from "@astryxdesign/core/Button";
 import { Text } from "@astryxdesign/core/Text";
 import { TextInput } from "@astryxdesign/core/TextInput";
@@ -8,6 +8,7 @@ import { Pause, Play, Search, SlidersHorizontal } from "lucide-react";
 import { ExecutionLog } from "../components/runs/ExecutionLog";
 import { FailurePanel, TelemetrySummary } from "../components/runs/FailurePanel";
 import { JudgmentStartDialog, JudgmentStopDialog } from "../components/runs/JudgmentDialogs";
+import { OrderPlanScreeningPanel } from "../components/runs/OrderPlanScreeningPanel";
 import { PipelineControlsDialog } from "../components/runs/PipelineControlsDialog";
 import { PipelineStageTrack } from "../components/runs/PipelineStages";
 import {
@@ -43,7 +44,7 @@ import type {
 // 파이프라인 조작은 없애지 않고 바닥 액션의 대화상자로 옮겼다.
 
 type RunnableStage = "collect" | "sample" | "report";
-type DetailTab = "summary" | "failures" | "logs" | "binding";
+type DetailTab = "summary" | "failures" | "logs" | "binding" | "order_plan_screening";
 type ListFilter = "all" | "running" | "issue";
 
 const DETAIL_TABS: Array<{ key: DetailTab; label: string }> = [
@@ -52,6 +53,25 @@ const DETAIL_TABS: Array<{ key: DetailTab; label: string }> = [
   { key: "logs", label: "실행 기록" },
   { key: "binding", label: "실행 기준" },
 ];
+
+/**
+ * 발주계획 선별(C-2) 실행 기록의 운영 수신처(spec §4). 발주계획·혼합 회차에만
+ * 붙는 다섯째 탭이며 공고 회차에서는 지금까지와 같은 네 탭이다.
+ */
+const ORDER_PLAN_SCREENING_TAB: { key: DetailTab; label: string } = {
+  key: "order_plan_screening",
+  label: "발주계획 선별",
+};
+
+/** 발주계획이 들어 있는 회차. 혼합 회차도 발주계획 선별 실행을 가질 수 있다. */
+function hasOrderPlans(kind: string): boolean {
+  return kind === "order_plans" || kind === "mixed";
+}
+
+/** 사전규격은 공고 수집에서 나온다. 혼합 회차는 둘 다 가리킬 수 있다. */
+function hasNotices(kind: string): boolean {
+  return kind === "notices" || kind === "mixed";
+}
 
 const RUN_KIND_LABELS: Record<string, string> = {
   order_plans: "발주계획 회차",
@@ -153,6 +173,12 @@ export function RunsPage({ panelId = "run-status-panel-runs" }: { panelId?: stri
   const runs = useMemo(() => runsQuery.data?.items ?? [], [runsQuery.data]);
   const queryRunId = searchParams.get("run");
   const selectedRunId = runs.some((run) => run.run_id === queryRunId) ? queryRunId : runs[0]?.run_id ?? null;
+  /**
+   * `발주계획 선별` 탭이 고른 C-2 실행. 회차 하나에 실행이 여럿일 수 있으므로
+   * 선택을 주소에 남긴다. 이 회차의 실행이 아니면 패널이 무시하고 가장 최근
+   * 실행을 고른다 — 조용히 다른 회차의 실행을 보여주지 않는다.
+   */
+  const orderPlanExecutionId = searchParams.get("execution")?.trim() || null;
 
   const detailQuery = useQuery({
     queryKey: ["run", selectedRunId],
@@ -246,6 +272,8 @@ export function RunsPage({ panelId = "run-status-panel-runs" }: { panelId?: stri
   const publishedRunNavigationInFlight = useRef(false);
   const publishedRunNavigationOperation = useRef(0);
   const mountedRef = useRef(true);
+  /** `발주계획 선별` 탭을 주소의 `execution`으로 한 번 열어 준 회차. */
+  const orderPlanTabOpenedFor = useRef<string | null>(null);
   const selectedScreeningRunRef = useRef<string | null>(selectedRunId);
   const selectedScreeningExecutionRef = useRef<string | null>(screeningExecutionId);
   const screeningRunGeneration = useRef(0);
@@ -358,6 +386,25 @@ export function RunsPage({ panelId = "run-status-panel-runs" }: { panelId?: stri
     setDetailTab("summary");
   }, [selectedRunId]);
 
+  /**
+   * 실무 화면에서 실행 하나를 가리켜 들어온 진입(`/runs?run=…&execution=…`,
+   * 명세 §4)은 `발주계획 선별` 탭에서 시작한다. 발주계획 화면의 문제 칩이 보내는
+   * 주소이고, `진행 현황`에서 시작하면 사람이 탭을 한 번 더 찾아야 한다.
+   *
+   * 회차 종류는 회차 상세를 받은 뒤에야 알 수 있으므로 초기 상태가 아니라 효과에서
+   * 한 번만 옮긴다. 회차마다 한 번이며(`orderPlanTabOpenedFor`), 사람이 다른 탭으로
+   * 옮긴 뒤에는 다시 끌어오지 않는다. 회차를 바꾸면 주소의 `execution`도 지워진다
+   * (`selectRun`).
+   */
+  useEffect(() => {
+    if (!orderPlanExecutionId || !selectedRunId) return;
+    const kind = detailQuery.data?.kind;
+    if (!kind || !hasOrderPlans(kind)) return;
+    if (orderPlanTabOpenedFor.current === selectedRunId) return;
+    orderPlanTabOpenedFor.current = selectedRunId;
+    setDetailTab("order_plan_screening");
+  }, [detailQuery.data, orderPlanExecutionId, selectedRunId]);
+
   useEffect(() => {
     const execution = logsQuery.data?.executions.find((item) => item.execution_id === activeExecutionId);
     if (!execution || execution.status !== "success") return;
@@ -376,6 +423,16 @@ export function RunsPage({ panelId = "run-status-panel-runs" }: { panelId?: stri
     setSearchParams((current) => {
       const next = new URLSearchParams(current);
       next.set("run", runId);
+      // 고른 C-2 실행은 회차에 묶인다. 회차를 바꾸면 주소에서도 지운다.
+      next.delete("execution");
+      return next;
+    }, { replace: true });
+  };
+
+  const selectOrderPlanExecution = (executionId: string) => {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      next.set("execution", executionId);
       return next;
     }, { replace: true });
   };
@@ -565,6 +622,9 @@ export function RunsPage({ panelId = "run-status-panel-runs" }: { panelId?: stri
 
   const detail = detailQuery.data ?? null;
   const selectedSummary = runs.find((run) => run.run_id === selectedRunId) ?? detail;
+  const detailTabs = detail && hasOrderPlans(detail.kind)
+    ? [...DETAIL_TABS, ORDER_PLAN_SCREENING_TAB]
+    : DETAIL_TABS;
   const currentStatus = currentScreeningExecution?.status;
   const executionBusy = manualFullRunExecutions.some((item) => !isScreeningTerminal(item.status));
   const screeningListReady = screeningExecutionsQuery.data !== undefined && !screeningExecutionsQuery.isLoading && !screeningExecutionsQuery.error;
@@ -711,7 +771,7 @@ export function RunsPage({ panelId = "run-status-panel-runs" }: { panelId?: stri
             </DetailHeader>
 
             <nav className="rs-detail-tabs" aria-label="선택한 회차 상세 보기">
-              {DETAIL_TABS.map((item) => (
+              {detailTabs.map((item) => (
                 <Button
                   key={item.key}
                   label={item.key === "failures"
@@ -844,7 +904,41 @@ export function RunsPage({ panelId = "run-status-panel-runs" }: { panelId?: stri
                   </Note>
                 </>
               ) : null}
+
+              {detailTab === "order_plan_screening" && hasOrderPlans(detail.kind) ? (
+                <OrderPlanScreeningPanel
+                  runId={detail.run_id}
+                  selectedExecutionId={orderPlanExecutionId}
+                  onSelectExecution={selectOrderPlanExecution}
+                />
+              ) : null}
             </div>
+
+            {/* 회차 상세 바닥 링크. 이 회차가 실무 화면 어디에 걸리는지로 이어 준다.
+              * 발주계획은 `전체` 보기로 연다(시안 M1 승인) — 기본 보기는 검토 대상만
+              * 남기므로 회차 전체가 0건처럼 보인다. 사전규격도 같은 이유로
+              * `workspace=all&sw_only=false`로 연다. */}
+            {hasOrderPlans(detail.kind) || hasNotices(detail.kind) ? (
+              <div className="rs-detail-links">
+                {hasOrderPlans(detail.kind) ? (
+                  <Link
+                    className="rs-inline-link"
+                    to={`/order-plans?qwen=&source_run_id=${encodeURIComponent(detail.run_id)}`}
+                  >
+                    이 회차의 발주계획 보기 →
+                  </Link>
+                ) : null}
+                {hasNotices(detail.kind) ? (
+                  <Link
+                    className="rs-inline-link"
+                    to={`/pre-specs?workspace=all&sw_only=false&source_run_id=${encodeURIComponent(detail.run_id)}`}
+                  >
+                    이 회차의 사전규격 보기 →
+                  </Link>
+                ) : null}
+                <Caption as="span">실무 화면이 `전체` 보기로 이 회차에 걸린 채 열립니다.</Caption>
+              </div>
+            ) : null}
 
             <DetailFooter
               /* 바닥 한 줄은 짧게 둔다. 실행 상태는 상세 머리와 진행 현황이,

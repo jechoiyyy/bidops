@@ -1,6 +1,7 @@
 """Cumulative final-decision queue and its workload count share one population."""
 from collections import defaultdict
-from datetime import UTC
+from datetime import UTC, datetime
+from decimal import Decimal
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -9,6 +10,24 @@ from ...lifecycle import active_opportunity_predicate, authoritative_link_predic
 from ...lifecycle.models import Notice, Opportunity, OpportunityLink, OrderPlan
 from ..models import BidDeltaComparison, BidFinalDecision
 from .bid_delta_currentness import decision_currentness
+
+
+def _amount(value: Decimal | None) -> str | None:
+    """Keep the exact stored magnitude; never a float-rounded amount."""
+
+    if value is None:
+        return None
+    return format(value.normalize(), "f")
+
+
+def _deadline_sort_key(value: datetime | None) -> tuple[int, datetime]:
+    """Ascending deadline, unknown deadlines last (spec §5)."""
+
+    if value is None:
+        return (1, datetime.max.replace(tzinfo=UTC))
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=UTC)
+    return (0, value)
 
 
 def decision_queue(session: Session, *, status: str = "pending", limit: int = 50, offset: int = 0) -> dict:
@@ -71,7 +90,19 @@ def decision_queue(session: Session, *, status: str = "pending", limit: int = 50
             "comparison_count": int(comparison_counts.get(opportunity.id, 0)),
             "latest_final_decision": {"decision": decision.decision, "decided_at": decision.created_at,
                 "claimed_name": decision.claimed_name} if decision is not None else None,
-            "decision_currentness": state})
-    # Stable sort preserves recent registration order within each decision group.
-    items.sort(key=lambda row: row["latest_final_decision"] is not None)
+            "decision_currentness": state,
+            # Selected bid notice's own columns only (spec §5); no order plan
+            # or pre-spec fallback, and no value when no bid notice is chosen.
+            "deadline_at": bid.deadline_at if bid is not None else None,
+            "budget": _amount(bid.budget) if bid is not None else None,
+            "estimated_price": _amount(bid.estimated_price) if bid is not None else None})
+    # Primary key: nearest bid-notice deadline first, unknown deadlines last.
+    # Secondary key: the prior rule (undecided opportunities first), which also
+    # preserves recent registration order within each deadline+decision group
+    # because Python's sort is stable and opportunities were queried in that
+    # order.
+    items.sort(key=lambda row: (
+        _deadline_sort_key(row["deadline_at"]),
+        row["latest_final_decision"] is not None,
+    ))
     return {"items": items[offset:offset + limit], "total": len(items), "limit": limit, "offset": offset}

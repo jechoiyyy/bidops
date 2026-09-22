@@ -1,0 +1,274 @@
+<title>BidOps M4 기술 정보 접기 시안</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --ground:#F6F7F4; --surface:#FFFFFF; --ink:#1B211D; --ink2:#4C5650; --line:#E2E5DF;
+  --accent:#587A2B; --accent-soft:#F1F6E8; --accent-deep:#3F5A1C; --pin:#3F5A1C; --pin-ink:#FFFFFF;
+  --warn-soft:#f8da9d; --warn-ink:#745b00;
+  --sans:"Noto Sans KR","Pretendard","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ground:#17181F; --surface:#232634; --ink:#E8E4E2; --ink2:#A9A6A4; --line:#3A3D4B;
+    --accent:#CFDFB5; --accent-soft:#2C3326; --accent-deep:#CFDFB5; --pin:#CFDFB5; --pin-ink:#1B211D;
+    --warn-soft:#4A3F1E; --warn-ink:#fdcf4f;
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#17181F; --surface:#232634; --ink:#E8E4E2; --ink2:#A9A6A4; --line:#3A3D4B;
+  --accent:#CFDFB5; --accent-soft:#2C3326; --accent-deep:#CFDFB5; --pin:#CFDFB5; --pin-ink:#1B211D;
+  --warn-soft:#4A3F1E; --warn-ink:#fdcf4f;
+}
+*{box-sizing:border-box}
+body{background:var(--ground);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.6;padding-inline:20px;padding-block:28px 72px}
+.page{max-width:1500px;margin-inline:auto;display:flex;flex-direction:column;gap:44px}
+h1{font-size:26px;line-height:1.3;font-weight:700;margin:0;text-wrap:balance}
+h2{font-size:19px;line-height:1.35;font-weight:700;margin:0;text-wrap:balance}
+h3{font-size:14px;font-weight:600;margin:0}
+p{margin:0}
+.lede{max-width:68ch;color:var(--ink2)}
+.eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.06em;color:var(--accent-deep)}
+.intro{display:flex;flex-direction:column;gap:12px}
+.facts{display:flex;flex-wrap:wrap;gap:8px 20px;font-size:13px;color:var(--ink2)}
+.facts b{color:var(--ink);font-weight:600}
+.bar{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--ground);border-bottom:1px solid var(--line);padding-block:10px;display:flex;flex-wrap:wrap;gap:10px 20px;align-items:center}
+.seg{display:inline-flex;flex-wrap:wrap;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--surface)}
+.seg button{font:inherit;font-size:13px;padding:6px 12px;border:0;background:transparent;color:var(--ink2);cursor:pointer}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button[aria-pressed="true"]{background:var(--accent-soft);color:var(--accent-deep);font-weight:600}
+.seg button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.ctl{display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-size:13px;color:var(--ink2)}
+section.mock{display:flex;flex-direction:column;gap:16px}
+.head{display:flex;flex-direction:column;gap:6px}
+.ctls{display:flex;flex-wrap:wrap;gap:10px 20px;align-items:center}
+.decide{border:1px solid var(--line);border-left:4px solid var(--warn-ink);background:var(--surface);border-radius:6px;padding:12px 16px;display:flex;flex-direction:column;gap:4px;max-width:96ch}
+.decide strong{font-weight:700}
+.decide span{color:var(--ink2);font-size:14px}
+.cap{font-size:13px;color:var(--ink2);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.tag{display:inline-block;font-size:12px;padding:1px 8px;border-radius:999px;background:var(--accent-soft);color:var(--accent-deep);white-space:nowrap;font-weight:600}
+.tag.now{background:var(--line);color:var(--ink2)}
+.tag.todo{background:var(--warn-soft);color:var(--warn-ink)}
+.stack{display:flex;flex-direction:column;gap:8px}
+.frame{border:1px solid var(--line);border-radius:10px;background:var(--surface);overflow:hidden}
+.fit{position:relative;overflow:hidden}
+.fit>.ab{transform-origin:top left;display:block}
+ol.changes{margin:0;padding:0;list-style:none;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr));gap:8px 28px;font-size:14px}
+ol.changes li{display:grid;grid-template-columns:24px 1fr;gap:8px;align-items:start}
+.n{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;background:var(--pin);color:var(--pin-ink);font:600 11px/1 var(--mono);margin-top:3px}
+ol.changes em{font-style:normal;color:var(--ink2)}
+.scroll{overflow-x:auto}
+table.chk{border-collapse:collapse;font-size:14px;min-width:720px;width:100%}
+table.chk th,table.chk td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+table.chk th{font-weight:600;color:var(--ink2);font-size:12px;letter-spacing:.04em}
+table.chk code{font-family:var(--mono);font-size:12.5px;background:var(--accent-soft);color:var(--accent-deep);padding:0 5px;border-radius:4px}
+table.chk s{color:var(--ink2)}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,430px),1fr));gap:20px;align-items:start}
+
+/* ── 제품 아트보드: bidops 테마 light 값 고정(제품은 light 전용) ── */
+.ab{
+  --p-canvas:#F6F7F4;--p-surface:#FFFFFF;--p-ink:#1B211D;--p-ink2:#4C5650;--p-line:#E2E5DF;
+  --p-accent:#587A2B;--p-accent-muted:#F1F6E8;--p-text-accent:#3F5A1C;--p-brand:#75a03b;--p-brand-edge:#cfdfb5;
+  --p-warn-muted:#f8da9d;--p-warn:#745b00;--p-err-muted:#F8CDB4;--p-err:#8a2a12;
+  background:var(--p-canvas);color:var(--p-ink);font-family:var(--sans);font-size:12.5px;line-height:1.45;color-scheme:light;padding:0 16px 14px;
+}
+.ab *{box-sizing:border-box}
+.top{height:60px;display:flex;align-items:center;justify-content:space-between;gap:16px}
+.top h4{margin:0;font-size:18px;font-weight:600}
+.top .r{display:flex;gap:10px;align-items:center;font-size:11.5px;color:var(--p-ink2)}
+.frow{display:flex;align-items:center;gap:14px;min-height:42px;font-size:12px;color:var(--p-ink2);flex-wrap:nowrap}
+.frow+.frow{border-top:1px solid var(--p-line)}
+.tab{padding:4px 2px;display:inline-flex;gap:6px;white-space:nowrap}
+.tab.on{color:var(--p-ink);font-weight:600;box-shadow:0 2px 0 var(--p-brand)}
+.icb{height:28px;border:1px solid var(--p-line);border-radius:8px;background:var(--p-surface);display:inline-flex;align-items:center;gap:6px;padding:0 10px;color:var(--p-ink);white-space:nowrap}
+.icb.on{border-color:var(--p-text-accent);background:var(--p-accent-muted);color:var(--p-text-accent);font-weight:600}
+.cntb{display:inline-grid;place-items:center;min-width:16px;height:16px;border-radius:999px;background:var(--p-text-accent);color:#fff;font-size:10px;font-weight:700;padding:0 4px}
+.srch{border:1px solid var(--p-line);background:var(--p-surface);border-radius:8px;padding:5px 12px;width:250px;color:var(--p-ink2);white-space:nowrap;overflow:hidden}
+.sel{border:1px solid var(--p-line);background:var(--p-surface);border-radius:8px;padding:5px 10px;min-width:210px;display:inline-flex;justify-content:space-between;gap:12px;font-size:12px;color:var(--p-ink);white-space:nowrap}
+.sel::after{content:"⌄";color:var(--p-ink2)}
+.sel.native{border-radius:4px;min-width:150px}
+.lbl{font-size:11.5px;color:var(--p-ink2);white-space:nowrap}
+.fld{display:flex;flex-direction:column;gap:4px}
+.fld .lbl{font-weight:600;color:var(--p-ink)}
+.adv{background:var(--p-surface);border:1px solid var(--p-line);border-radius:10px;padding:12px 14px;display:grid;grid-template-columns:repeat(4,1fr);gap:12px 16px;margin-block:6px}
+.tg{display:inline-flex;border:1px solid var(--p-line);border-radius:8px;overflow:hidden}
+.tg span{padding:4px 9px;font-size:11.5px;border-left:1px solid var(--p-line);white-space:nowrap}
+.tg span:first-child{border-left:0}
+.tg span.on{background:var(--p-accent-muted);color:var(--p-text-accent);font-weight:600}
+.runline{display:flex;align-items:center;gap:10px;min-height:34px;font-size:12px;color:var(--p-ink);border-top:1px solid var(--p-line)}
+.runline b{font-weight:600}
+.chip{display:inline-block;background:#E9ECE6;border-radius:999px;padding:0 8px;font-size:11px;font-weight:600;line-height:18px;white-space:nowrap}
+.chip.w{background:var(--p-warn-muted);color:var(--p-warn)}
+.lnk{color:var(--p-text-accent);font-weight:600;text-decoration:underline;text-underline-offset:2px}
+.banner{background:var(--p-err-muted);color:var(--p-err);border-radius:8px;padding:8px 12px;font-size:12px;display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.pane{background:var(--p-surface);border-radius:14px;box-shadow:0 1px 2px #1b211d12;overflow:hidden;margin-top:8px}
+.lh{padding:11px 16px;display:flex;justify-content:space-between;gap:12px;align-items:baseline;border-bottom:1px solid var(--p-line)}
+.lh b{font-size:12.5px}.lh span{font-size:11px;color:var(--p-ink2)}
+.row{display:grid;grid-template-columns:1fr auto;gap:2px 12px;padding:10px 16px;border-bottom:1px solid var(--p-line);font-size:13px}
+.row .t{font-weight:600}.row .m{color:var(--p-ink2);font-size:12px}.row .rc{font-family:var(--mono);font-size:11.5px;text-align:right;white-space:nowrap}
+.note{padding:8px 16px;font-size:11px;color:var(--p-ink2);border-top:1px solid var(--p-line)}
+.pager{padding:9px 16px;border-top:1px solid var(--p-line);display:flex;justify-content:space-between;align-items:center;font-size:11.5px;color:var(--p-ink2);gap:12px}
+.pager .g{display:flex;gap:6px;align-items:center}
+.btn{font:inherit;font-size:11.5px;border:1px solid var(--p-line);background:var(--p-surface);color:var(--p-ink);border-radius:8px;padding:4px 12px;min-height:26px;white-space:nowrap}
+.btn.raw{border-radius:4px;border-color:#9aa39c}
+.btn.pri{background:var(--p-accent);border-color:var(--p-accent);color:#fff;font-weight:600;border-radius:4px}
+.btn[data-off]{opacity:.45}
+.empty{padding:34px 16px;display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center}
+.empty .ic{width:30px;height:30px;border-radius:50%;border:2px solid var(--p-ink2);opacity:.5}
+.empty b{font-size:14px}.empty span{font-size:12px;color:var(--p-ink2);max-width:46ch}
+.empty .g{display:flex;gap:8px;margin-top:4px}
+.sk{display:flex;flex-direction:column;gap:10px;padding:16px}
+.sk i{display:block;height:12px;border-radius:6px;background:linear-gradient(90deg,#ECEFE9,#F6F7F4,#ECEFE9)}
+.mini{display:flex;flex-direction:column;gap:6px}
+.ab[data-w="1280"]{width:1057px}.ab[data-w="1440"]{width:1217px}
+.ab.small{width:auto;padding:12px}
+[data-show]{display:none}
+.ab[data-state="closed"] [data-show~="closed"],.ab[data-state="open"] [data-show~="open"],.ab[data-state="run"] [data-show~="run"]{display:revert}
+.ab[data-state="open"] .adv[data-show]{display:grid}
+.ab[data-state="closed"] .icb[data-show~="closed"],.ab[data-state="open"] .icb[data-show~="open"],.ab[data-state="run"] .icb[data-show~="run"]{display:inline-flex}
+.ab[data-state="run"] .runline[data-show],.ab[data-state="open"] .runline.always{display:flex}
+.ab[data-screen="op"] [data-only="ps"],.ab[data-screen="ps"] [data-only="op"]{display:none!important}
+.ab[data-meas="A"] [data-meas-only="B"],.ab[data-meas="B"] [data-meas-only="A"]{display:none!important}
+
+.card{background:var(--p-surface);border-radius:12px;box-shadow:0 1px 2px #1b211d12;padding:14px 16px;display:flex;flex-direction:column;gap:8px;font-size:12.5px}
+.card h5{margin:0;font-size:14px;font-weight:600;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.card h6{margin:0;font-size:12.5px;font-weight:600}
+.card p{margin:0}
+.dim{color:var(--p-ink2);font-size:11.5px}
+.bd{display:inline-block;border-radius:999px;padding:0 8px;font-size:11px;font-weight:600;line-height:18px;white-space:nowrap;background:#E9ECE6;color:var(--p-ink)}
+.bd.ok{background:#DCEBC6;color:#2f4a12}.bd.wn{background:var(--p-warn-muted);color:var(--p-warn)}.bd.er{background:var(--p-err-muted);color:var(--p-err)}
+.fold{border:1px solid var(--p-line);border-radius:8px;padding:7px 12px;font-size:12px;color:var(--p-ink)}
+.fold>b{font-weight:600}.fold>b::before{content:"▸ ";color:var(--p-ink2)}
+.fold.open>b::before{content:"▾ "}
+.fold .in{margin-top:6px;display:flex;flex-direction:column;gap:3px;color:var(--p-ink2)}
+.mono{font-family:var(--mono);font-size:11px;overflow-wrap:anywhere}
+.gone{outline:2px dashed var(--p-err);outline-offset:2px;border-radius:4px}
+.moved{outline:2px dashed var(--p-text-accent);outline-offset:2px;border-radius:4px}
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-size:13px;color:var(--ink2)}
+.legend i{display:inline-block;width:22px;height:12px;border-radius:3px;vertical-align:-1px;margin-right:6px}
+.legend .lg{outline:2px dashed #8a2a12}.legend .lm{outline:2px dashed #3F5A1C}
+.sidebar{width:223px;background:var(--p-canvas);padding:14px 10px;display:flex;flex-direction:column;gap:4px;font-size:13px;border-radius:10px;border:1px solid var(--p-line)}
+.sidebar .nav{padding:8px 12px;border-radius:9px;color:var(--p-ink2)}
+.sidebar .nav.on{background:var(--p-surface);color:var(--p-ink);font-weight:600}
+.sidebar .grp{font-size:11.5px;color:var(--p-ink2);padding:8px 12px 2px}
+.sidebar .ft{margin-top:10px;padding:0 10px;font-size:11px;color:var(--p-ink2);line-height:1.8}
+.topbar{display:flex;justify-content:space-between;align-items:center;gap:12px;background:var(--p-surface);border-radius:10px;padding:10px 14px;font-size:12px}
+.topbar h4{margin:0;font-size:16px}
+.err{font-size:12px;color:var(--p-err);background:var(--p-err-muted);border-radius:6px;padding:6px 10px}
+</style>
+
+<div class="page">
+  <header class="intro">
+    <span class="eyebrow">BIDOPS · 실무 화면 고도화 · 시안 M4</span>
+    <h1>사전규격 상세·심층 검토·Go/No-Go·셸에서 기술 정보를 접는다</h1>
+    <p class="lede">이 화면들의 식별자·해시·실행 정보는 운영 화면에 받을 자리가 없고(근거 한 건, 비교 한 건에 딸린 값), 사람이 원문과 대조할 때는 필요합니다. 그래서 지우지 않고 <b>같은 화면의 접힌 `기술 정보`</b>로 모읍니다. 문구가 계약 토큰인 곳은 사람 말로 바꿉니다. 표시 데이터·식별자·해시는 모두 가짜 fixture 값입니다.</p>
+    <div class="facts"><span><b>대상 패키지</b> R4 · R5 · R6</span><span><b>정본</b> docs/0921_practitioner-screens/spec.md §3.2 · §3.3</span></div>
+    <div class="legend"><span><i class="lg"></i>빨간 점선 = 이 자리에서 빠짐</span><span><i class="lm"></i>초록 점선 = 새로 옮겨 온 자리</span></div>
+  </header>
+
+  <section class="mock">
+    <div class="head"><span class="eyebrow">① 사전규격 상세</span><h2>회사 적합성의 실행 정보를 맨 아래 접힌 진단으로 합칩니다</h2>
+      <p class="lede">재설계 명세(0915 spec)는 "주장 검증 진단 · 고정 입력과 식별 해시 · 회사 적합성 실행 정보"를 맨 아래 접힌 곳 하나에 모으라고 정했는데, 회사 적합성 실행 정보만 ④ 안에 따로 남아 있습니다.</p></div>
+    <div class="grid2">
+      <div class="stack"><div class="cap"><span class="tag now">지금</span></div>
+        <div class="frame"><div class="ab small" style="display:flex;flex-direction:column;gap:10px">
+          <div class="card"><h5>③ 주요 과업 <span class="bd wn">참조 실행 · 품질 미측정</span></h5><p class="gone" style="font-weight:600">현재 v4 개요 실행</p><p>행정 데이터 연계 플랫폼을 구축하고 12개월간 운영을 지원한다. <span class="mono gone">claim-0007</span> <span class="lnk">7쪽</span></p><p class="dim gone">사업 설명을 위한 요약입니다. 추적 승인과 최종 입찰 결정은 사람이 진행하며…</p></div>
+          <div class="card"><h5>④ 회사 적합성 <span class="bd wn">참조 실행 · 품질 미측정</span></h5><p>데이터 연계 플랫폼 구축 실적과 과업 범위가 겹칩니다.</p>
+            <div class="fold open gone"><b>판정 기준과 실행 정보</b><div class="in"><span>모델 · qwen3.8-27B / 프롬프트 · company-fit-v3</span><span class="mono">개요 · 5f0c…/ e2a41c9d07b6f358…</span><span class="mono">정책 · 91d3a7…  / 모델 버전 · 4f2a90…</span><span>입력 토큰 · 8,204 / 출력 토큰 · 611 / 소요 시간 · 9120ms</span></div></div>
+            <p class="dim gone">적합성 등급 · 추적 결정 · 최종 Go/No-Go는 서로 대신하지 않음</p></div>
+          <div class="card"><h5>⑥ 문서와 기록</h5><div class="fold"><b>현재 주장 검증 진단 · 고정 입력과 식별 해시</b></div></div>
+        </div></div>
+      </div>
+      <div class="stack"><div class="cap"><span class="tag">변경안</span></div>
+        <div class="frame"><div class="ab small" style="display:flex;flex-direction:column;gap:10px">
+          <div class="card"><h5>② 추적 결정</h5><p>계속 추적 · 보류 · 종료</p><p class="dim moved">적합성 등급 · 추적 결정 · 최종 Go/No-Go는 서로 대신하지 않습니다. 입찰 참여 여부는 최종 Go/No-Go에서 정합니다.</p></div>
+          <div class="card"><h5>③ 주요 과업 <span class="bd wn">참조 실행 · 품질 미측정</span></h5><p style="font-weight:600">현재 개요 검토</p><p>행정 데이터 연계 플랫폼을 구축하고 12개월간 운영을 지원한다. <span class="lnk">7쪽</span></p></div>
+          <div class="card"><h5>④ 회사 적합성 <span class="bd wn">참조 실행 · 품질 미측정</span></h5><p>데이터 연계 플랫폼 구축 실적과 과업 범위가 겹칩니다.</p></div>
+          <div class="card"><h5>⑥ 문서와 기록</h5><div class="fold open moved"><b>기술 정보 · 주장 검증 진단, 고정 입력과 식별 해시, 회사 적합성 실행 정보</b><div class="in"><span>주장 ID · <span class="mono">claim-0007</span> … </span><span>개요 검토 · qwen3.8-27B / page-overview-v4 / 결과 ID <span class="mono">5f0c…전문</span></span><span>회사 적합성 · qwen3.8-27B / company-fit-v3 / 입력 8,204 · 출력 611 토큰 · 9,120ms</span><span class="mono">정책 식별 해시 91d3a7…전문 · 모델 버전 4f2a90…전문</span></div></div><p class="dim">검증 실패·사람 확인 필요 상태면 지금처럼 기본으로 펼쳐집니다.</p></div>
+        </div></div>
+      </div>
+    </div>
+    <ol class="changes">
+      <li><span class="n">1</span><span><b>품질 표식과 "이전 입력 기준의 판정입니다" 안내는 제자리.</b> <em>지우면 안 되는 경고입니다.</em></span></li>
+      <li><span class="n">2</span><span><b>제목 `현재 v4 개요 실행` → `현재 개요 검토`.</b> <em>스키마 버전은 기술 정보에.</em></span></li>
+      <li><span class="n">3</span><span><b>목록의 `표시 범위` 다이얼로그.</b> <em>`workspace_counts`·`projection` 같은 응답 필드 이름을 사람 말로. 품질 표식 문장은 그대로.</em></span></li>
+    </ol>
+    <div class="decide"><strong>결정 1 — 같은 취지의 경계 문장이 한 화면에 세 번 나옵니다. 한 번만 남깁니다</strong><span>지금: ③ 개요 카드("추적 승인과 최종 입찰 결정은 사람이…"), ② 추적 카드("입찰 참여 여부는 최종 Go/No-Go에서…"), ④ 캡션("…서로 대신하지 않음"). 권장: <b>결정을 실제로 내리는 ② 추적 결정 카드에 한 번</b>(위 변경안). 등급·추적·Go/No-Go를 서로 대신하지 않는다는 것은 강제 규칙이라 문장 자체는 남깁니다.</span></div>
+  </section>
+
+  <section class="mock">
+    <div class="head"><span class="eyebrow">② 심층 검토 보고서</span><h2>실패는 사람 말로, 식별자·해시는 접힌 기술 정보로</h2></div>
+    <div class="grid2">
+      <div class="stack"><div class="cap"><span class="tag now">지금</span></div>
+        <div class="frame"><div class="ab small" style="display:flex;flex-direction:column;gap:10px">
+          <div class="card"><h5>문서 준비 및 분석 진행</h5><p>현재 분석 회차 2회 · 실패</p><p class="gone">안전한 오류 코드: <span class="mono">model_timeout</span></p></div>
+          <div class="card"><h5>근거 비교</h5><p>"제안사는 최근 3년 이내 유사 실적을 제출한다." · 12쪽</p><p class="gone">선택한 근거 식별자 <span class="mono">b7e1c0d2-…</span> · 저장 문서 버전 <span class="mono">0a93f1…</span></p><p class="gone">원문 해시 · SHA-256 <span class="mono">5b0e2f7a91c4d3e86a17f0b2c9d45e38…</span></p><p class="gone dim">블록 3개 · <span class="mono">p12-b04</span> · 글자 인식 신뢰도 0.93 · bbox [72, 410, 523, 458]</p></div>
+          <div class="card"><h5>보고서 범위</h5><p class="gone">정책 버전 <span class="mono">deep-review-policy-v2</span> · 회사 프로필 버전 <span class="mono">profile-2026-08</span> · 보고서 생성 2026-09-20T07:42:11.204Z</p><p class="dim">이 범위 밖의 문서는 보고서에 들어가지 않았습니다. 범위가 좁다는 것을 사실이 없다는 뜻으로 읽지 마십시오.</p></div>
+        </div></div>
+      </div>
+      <div class="stack"><div class="cap"><span class="tag">변경안</span></div>
+        <div class="frame"><div class="ab small" style="display:flex;flex-direction:column;gap:10px">
+          <div class="card"><h5>문서 준비 및 분석 진행</h5><p>2번째 분석 · 실패</p><p class="err">모델 응답이 제한 시간 안에 오지 않아 분석을 마치지 못했습니다. 결과는 만들어지지 않았습니다.</p><div class="fold moved"><b>기술 정보</b></div></div>
+          <div class="card"><h5>근거 비교</h5><p>"제안사는 최근 3년 이내 유사 실적을 제출한다." · 12쪽 · 근거 신뢰도 0.84</p><div class="fold open moved"><b>기술 정보</b><div class="in"><span>근거 ID <span class="mono">b7e1c0d2-…전문</span> · 문서 버전 <span class="mono">0a93f1…전문</span></span><span>원문 식별 해시 <span class="mono">5b0e2f7a91c4d3e86a17f0b2c9d45e38…전문</span></span><span>블록 <span class="mono">p12-b04</span> · 글자 인식 신뢰도 0.93 · 위치 [72, 410, 523, 458]</span></div></div></div>
+          <div class="card"><h5>보고서 범위</h5><p>공고 1건 · 문서 묶음 1개 · 2026-09-20 16:42 생성</p><p class="dim">이 범위 밖의 문서는 보고서에 들어가지 않았습니다. 범위가 좁다는 것을 사실이 없다는 뜻으로 읽지 마십시오.</p><div class="fold moved"><b>기술 정보 · 정책·회사 프로필 버전</b></div></div>
+        </div></div>
+      </div>
+    </div>
+    <ol class="changes">
+      <li><span class="n">1</span><span><b>모르는 오류 코드는 그대로 보입니다.</b> <em>사람 말이 준비된 코드만 문장으로 바꾸고, 나머지는 "분석을 마치지 못했습니다 · 코드 xyz"로 둡니다(저장소 규칙).</em></span></li>
+      <li><span class="n">2</span><span><b>품질 표식(두 곳)·범위 주석·검증 요약(`통과 · 실패 0 · 경고 2`)은 그대로.</b></span></li>
+      <li><span class="n">3</span><span><b>근거 신뢰도는 판단 보조라 밖에 남깁니다.</b></span></li>
+    </ol>
+  </section>
+
+  <section class="mock">
+    <div class="head"><span class="eyebrow">③ 최종 Go/No-Go · 입찰 변경 비교</span><h2>영문 병기를 빼고 같은 안내를 한 번만</h2></div>
+    <div class="grid2">
+      <div class="stack"><div class="cap"><span class="tag now">지금</span></div>
+        <div class="frame"><div class="ab small" style="display:flex;flex-direction:column;gap:10px">
+          <div class="card"><h5>근거 비교</h5><p>근거 검증 <span class="gone">verified ·</span> 검증됨 · 문서 원문 해시 <span class="mono">5b0e2f7a</span></p><p class="gone dim">변경 비교를 계산하는 프로그램은 아직 운영에 없습니다 (같은 문장이 목록·다이얼로그·문서 탭·이력에 4번)</p><p>jechoi · 09-20 17:02 · <span class="gone">결정 기록 3</span></p></div>
+          <div class="card"><h5>입찰 변경 비교 · 후보</h5><div class="fold open gone"><b>고정 입력 값 보기</b><div class="in"><span>공고 외부 식별자 · 공고 출처 유형 · 차수 · 공개일 · 문서 역할</span><span>문서 묶음 수정본/버전 · 문서 버전 ID · 사업기회 연결/공고 ID · 문서 구조 ID</span><span class="mono">원문 해시 SHA-256 … · 문서 구조 SHA-256 …</span></div></div></div>
+        </div></div>
+      </div>
+      <div class="stack"><div class="cap"><span class="tag">변경안</span></div>
+        <div class="frame"><div class="ab small" style="display:flex;flex-direction:column;gap:10px">
+          <div class="card"><h5>근거 비교</h5><p>근거 검증 · 검증됨</p><p><span class="bd">비교 불가</span> <span class="dim">— 사유는 `목록 기준` 다이얼로그에 한 번</span></p><p>jechoi · 09-20 17:02 · 3번째 결정</p><p class="dim">비교에 실패했습니다. 실패를 변경 없음으로 처리하지 않습니다.</p></div>
+          <div class="card"><h5>입찰 변경 비교 · 후보</h5><p>본공고 2차 · 2026-09-18 공개 · 제안요청서 v2</p><div class="fold moved"><b>기술 정보 · 비교 입력 식별자와 해시</b></div></div>
+        </div></div>
+      </div>
+    </div>
+    <ol class="changes">
+      <li><span class="n">1</span><span><b>"실패를 변경 없음으로 처리하지 않습니다", "후보가 없는 것을 변경 없음으로 해석하지 않습니다"는 그대로.</b></span></li>
+      <li><span class="n">2</span><span><b>문서 버전·공개일은 밖에, 해시는 기술 정보에.</b> <em>같은 문서인지 대조할 때는 기술 정보를 폅니다.</em></span></li>
+      <li><span class="n">3</span><span><b>공고 정정 다이얼로그의 `회차 lifecycle-2026…` 원문 → `09-16~09-20 수집 회차에 저장`.</b></span></li>
+    </ol>
+  </section>
+
+  <section class="mock">
+    <div class="head"><span class="eyebrow">④ 공통 셸</span><h2>모든 화면에 따라다니는 세 가지</h2></div>
+    <div class="grid2">
+      <div class="stack"><div class="cap"><span class="tag now">지금</span></div>
+        <div class="frame"><div class="ab small" style="display:flex;gap:12px;flex-wrap:wrap">
+          <div class="sidebar"><span class="grp">탐색과 추적</span><span class="nav on">발주계획</span><span class="nav">사전규격</span><div class="ft"><span>기획부 · 사업기획</span><br><span class="gone">관리자 화면</span></div></div>
+          <div style="flex:1;min-width:260px;display:flex;flex-direction:column;gap:10px">
+            <div class="topbar"><h4>발주계획</h4><span class="bd gone">추적 선택·사람 판단 수정 저장 가능</span></div>
+            <div class="topbar"><h4>공고 판정 이력</h4><span class="gone">판정 기준 ▾ · 데이터 출처 <span class="mono">run-20260920-…</span> · 생성 시각</span></div>
+            <div class="err">저장하지 못했습니다. 입력을 확인하십시오. <span class="gone">· 오류 코드 <span class="mono">stale_revision</span></span></div>
+          </div>
+        </div></div>
+      </div>
+      <div class="stack"><div class="cap"><span class="tag">변경안</span></div>
+        <div class="frame"><div class="ab small" style="display:flex;gap:12px;flex-wrap:wrap">
+          <div class="sidebar"><span class="grp">탐색과 추적</span><span class="nav on">발주계획</span><span class="nav">사전규격</span><div class="ft"><span>기획부 · 사업기획</span></div></div>
+          <div style="flex:1;min-width:260px;display:flex;flex-direction:column;gap:10px">
+            <div class="topbar"><h4>발주계획</h4><span class="dim">칩 없음</span></div>
+            <div class="topbar"><h4>공고 판정 이력</h4><span>판정 기준 ▾ · 09-16~09-20 수집 · 09-20 06:30 생성</span></div>
+            <div class="err">다른 사람이 먼저 저장했습니다. 새로 고친 뒤 다시 시도하십시오. <span class="fold moved" style="display:inline-block;padding:0 8px;border-color:currentColor"><b>기술 정보</b></span></div>
+          </div>
+        </div></div>
+      </div>
+    </div>
+    <div class="decide"><strong>결정 2 — 상단의 `… 저장 가능` 칩을 없앨까요</strong><span>권장: <b>없앱니다.</b> 로그인·권한이 없어 이 칩은 모든 사용자에게 늘 같은 말을 합니다. 읽기 전용 화면(대시보드의 `읽기 전용`)만 남깁니다. "담당자 이름은 감사 표식이며 인증이 아닙니다" 안내는 이름 입력칸 옆에 그대로 둡니다.</span></div>
+    <div class="decide"><strong>결정 3 — 폼 오류의 `· 오류 코드 xyz`</strong><span>권장: 문장 옆 작은 `기술 정보`로 접고, 보조기술에는 설명으로 계속 읽히게 합니다. 운영자에게 코드를 전해야 할 때 펼쳐 복사합니다. 대안: 지금처럼 문장 끝에 그대로 둔다.</span></div>
+  </section>
+</div>
