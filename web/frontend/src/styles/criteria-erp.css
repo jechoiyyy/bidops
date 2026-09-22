@@ -154,6 +154,33 @@
   margin-left: auto;
 }
 
+/* --- 회사 프로필의 확인 요청 절 + 목록/상세 두 단 ---
+ * H3(ADR-0066 결정 7·2): 대시보드 `담당자 확인 요청` 중 회사 역량 미확인
+ * 항목을 이 화면 위에 얹는다. `.crit-workspace`(38:62 목록/상세)는 그대로
+ * 아래에 남기고, 확인 요청 절만 그 카드 밖에 고정 높이로 둔다. */
+
+.crit-profile-page {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  gap: var(--spacing-3);
+  min-width: 0;
+  min-height: 0;
+}
+
+.crit-profile-page > .crit-workspace {
+  flex: 1 1 0;
+}
+
+.crit-verification-requests {
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: var(--radius-container);
+  box-shadow: var(--shadow-low);
+  background: var(--color-background-surface);
+  padding: var(--spacing-4);
+}
+
 /* --- 목록 38% : 상세 62% ---
  * 발주계획·사전규격·최종 Go/No-Go 화면과 같은 기본 비율이다. 고정 px로 근사하지
  * 않는다. */
