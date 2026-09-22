@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../../lib/api";
-import type { ScreeningExecutionResponse, ScreeningStatus } from "../../lib/types";
+import type { ScreeningExecutionResponse, ScreeningStatus, ValidationMetric } from "../../lib/types";
 
 /**
  * 실행 상태 화면이 공유하는 조회와 표시 규칙.
@@ -105,4 +105,30 @@ export function remainingCount(execution: ScreeningExecutionResponse | null | un
 /** 서버 오류 본문을 화면에 옮기지 않는다(docs/security.md). */
 export function safeMessage(fallback: string): string {
   return fallback;
+}
+
+/**
+ * 검증 지표 표시 규칙(H3, 대시보드 `검증 상태` 패널의 이식). `계산 불가`는
+ * 0이 아니고, 측정값이 없으면 `미확인`이지 0이 아니다.
+ */
+export function validationMetricStatusLabel(metric: ValidationMetric): string {
+  if (metric.status === "pass") return "통과";
+  if (metric.status === "fail") return "미달";
+  if (metric.status === "measured") return "측정";
+  return "계산 불가";
+}
+
+export function validationMetricValueLabel(metric: ValidationMetric): string {
+  if (metric.status === "not_measurable") return "계산 불가";
+  if (metric.percentage !== null) return `${Number(metric.percentage.toFixed(1))}%`;
+  return metric.value === null ? "미확인" : metric.value.toLocaleString("ko-KR");
+}
+
+/** `근거 {분자}/{분모}건`. 계산 불가 사유가 있으면 사유를 그대로 보인다. */
+export function validationMetricBasisLabel(metric: ValidationMetric): string {
+  if (metric.reason) return metric.reason;
+  const { numerator, denominator } = metric.basis;
+  const numeratorLabel = typeof numerator === "number" ? numerator.toLocaleString("ko-KR") : "미확인";
+  const denominatorLabel = typeof denominator === "number" ? denominator.toLocaleString("ko-KR") : "미확인";
+  return `근거 ${numeratorLabel}/${denominatorLabel}건`;
 }

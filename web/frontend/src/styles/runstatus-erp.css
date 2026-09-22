@@ -672,6 +672,11 @@
   min-width: 0;
 }
 
+.rs-align-end {
+  justify-items: end;
+  text-align: right;
+}
+
 .rs-disclosure {
   border-top: var(--border-width) solid var(--color-background-muted);
   padding-top: var(--spacing-3);

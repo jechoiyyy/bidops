@@ -351,6 +351,39 @@ function metric(key: string, label: string, percentage: number | null, status: s
   };
 }
 
+/**
+ * H3(ADR-0066 결정 7): 회사 프로필의 `확인 요청 · 프로필 절 기준` 절이 읽는
+ * 회차 통계. `verification_requests`에 프로필 절이 식별된 항목과 그렇지 않은
+ * 항목(공고별로만 걸리는 것)을 함께 둬 화면의 필터링을 확인할 수 있게 한다.
+ */
+function runStats(runId: string) {
+  return {
+    run_id: runId,
+    timezone: "Asia/Seoul",
+    generated_at: "2026-09-06T09:00:00+09:00",
+    collected_count: 2546,
+    candidate_count: 327,
+    sample_count: 40,
+    priority_review_count: 6,
+    audit_missed_count: 227,
+    funnel: [],
+    grade_distribution: [
+      { key: "우선 검토", label: "우선 검토", count: 6 },
+      { key: "검토 권장", label: "검토 권장", count: 14 },
+      { key: "관찰 대상", label: "관찰 대상", count: 15 },
+      { key: "제외", label: "제외", count: 5 },
+    ],
+    readiness_distribution: [],
+    focus_distribution: [],
+    verification_requests: [
+      { item: "실적 증빙 확인", count: 3, notice_pks: [31, 76, 88], profile_sections: ["2.1 보유 도구"] },
+      { item: "자격 서류 확인", count: 1, notice_pks: [31], profile_sections: ["3 실적"] },
+      { item: "공고별 확인 항목", count: 2, notice_pks: [12, 45], profile_sections: [] },
+    ],
+    imminent_deadlines: [],
+  };
+}
+
 function validationMetrics(runId: string, degraded: boolean) {
   return {
     run_id: runId,
@@ -500,6 +533,8 @@ export async function mockCriteria(page: Page, options: CriteriaMockOptions = {}
       return;
     }
     if (path === "/api/runs") { await json(route, runs()); return; }
+    const statsMatch = path.match(/^\/api\/runs\/([^/]+)\/stats$/);
+    if (statsMatch && method === "GET") { await json(route, runStats(decodeURIComponent(statsMatch[1]))); return; }
     if (path === "/api/metrics/validation") {
       const runId = url.searchParams.get("run_id") ?? "";
       if ((options.metricsFailures ?? []).includes(runId)) { await json(route, { detail: "합성 지표 조회 실패" }, 500); return; }
