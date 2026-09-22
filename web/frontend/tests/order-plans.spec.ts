@@ -115,6 +115,78 @@ async function mockExecutionList(page: import("@playwright/test").Page, items: R
     });
   });
 }
+/** 발주계획 상세(`GET /api/order-plans/{pk}`) 요청만 골라 세는 경로 패턴. */
+const DETAIL_PATH = /^\/api\/order-plans\/\d+$/;
+
+/**
+ * 상세 조회 요청을 순서대로 모은다(F1 — 선택 행마다 1회, 선택이 바뀔 때만 다시).
+ * `page.route`를 덮지 않으므로 공용 mock의 응답은 그대로다.
+ */
+function traceDetailRequests(page: import("@playwright/test").Page): string[] {
+  const paths: string[] = [];
+  page.on("request", (request) => {
+    const { pathname } = new URL(request.url());
+    if (request.method() === "GET" && DETAIL_PATH.test(pathname)) paths.push(pathname);
+  });
+  return paths;
+}
+
+/**
+ * 상세 응답 하나만 갈아 끼운다(목록·추적은 공용 mock 그대로).
+ *
+ * 공용 fixture의 상세는 총괄기관·조달방식·용역 구분에 값이 있으므로, 그 셋이 `null`인
+ * 빈 상태는 이 helper로 만든다. `tracking`은 화면이 목록 항목에서 읽으므로 여기서는
+ * 상세 전용 값만 고정한다.
+ */
+async function mockOrderPlanDetail(
+  page: import("@playwright/test").Page,
+  orderPlanPk: number,
+  overrides: Record<string, unknown> = {},
+) {
+  await page.route(`**/api/order-plans/${orderPlanPk}`, async (route) => {
+    if (route.request().method() !== "GET") {
+      await route.fallback();
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        schema_version: "order-plan-detail-response.v4",
+        producer: "screening-api",
+        consumer: "order-plan-review-client",
+        order_plan_pk: orderPlanPk,
+        order_plan_unty_no: `OP-2026-00${orderPlanPk}`,
+        source_url: null,
+        title: null,
+        agency_name: null,
+        business_division: null,
+        business_division_code: null,
+        service_type: null,
+        budget_amount: null,
+        planned_order_year: null,
+        planned_order_month: null,
+        supervising_agency_name: null,
+        procurement_method: null,
+        contract_method: null,
+        notice_posted: null,
+        bid_ntice_no_list: null,
+        published_at: null,
+        observations: [],
+        screening_history: [],
+        latest_human_feedback: null,
+        tracking: null,
+        ...overrides,
+      }),
+    });
+  });
+}
+
+/** 상세의 사실 칸 하나. 라벨(`dt`)로 찾고 같은 묶음의 값(`dd`)을 돌려준다. */
+function detailFact(page: import("@playwright/test").Page, label: string) {
+  return page.locator(".c2l-detail-facts > div").filter({ has: page.getByText(label, { exact: true }) }).locator("dd");
+}
+
 /** 공용 mock의 최신 완료 운영 실행(부분 성공)과 그보다 앞선 성공 실행. */
 const TEST_LATEST_EXECUTION_ID = "a2f4d7c1-0a61-4a07-8d2e-7f1d1d010101";
 const TEST_OLDER_EXECUTION_ID = "a2f4d7c1-0a61-4a07-8d2e-7f1d1d083101";
@@ -391,6 +463,181 @@ test("기본 상세는 실제 모델 근거와 알려진 출처 필드만 보여
   expect(type.agency.fontSize).toBe(12.6);
   expect(type.agency.weight).toBeGreaterThanOrEqual(600);
   expect(type.body.fontSize).toBe(12.6);
+});
+
+// F1(spec §6.1) — 상세 응답은 **선택 행마다 1회**이고 선택이 바뀔 때만 다시 나간다.
+// 같은 행을 다시 골라도 (staleTime 안에서는) 요청이 늘지 않는다. 이력이 많은 계획의
+// 상세는 실행 조회·feedback count를 하므로 선택마다 여러 번 부르면 비용이 배가 된다.
+test("상세 API는 선택한 행마다 한 번만 나가고 선택이 바뀔 때만 다시 조회한다", async ({ page }) => {
+  await mockOrderPlans(page);
+  const detailRequests = traceDetailRequests(page);
+  await page.goto("/order-plans");
+
+  const identity = page.locator(".c2l-detail-identity p");
+  // 첫 행은 화면이 자동으로 고른다. 그 한 건의 상세만 조회한다.
+  await expect(identity).toContainText("계획번호 OP-2026-00101");
+  expect(detailRequests).toEqual(["/api/order-plans/101"]);
+
+  // 다른 행을 고르면 그 행의 상세를 조회한다.
+  await page.locator(".c2l-row").nth(1).click();
+  await expect(identity).toContainText("계획번호 OP-2026-00102");
+  expect(detailRequests).toEqual(["/api/order-plans/101", "/api/order-plans/102"]);
+
+  // 이미 고른 행을 다시 눌러도 다시 조회하지 않는다.
+  await page.locator(".c2l-row").nth(1).click();
+  await expect(identity).toContainText("계획번호 OP-2026-00102");
+  expect(detailRequests).toEqual(["/api/order-plans/101", "/api/order-plans/102"]);
+
+  // 앞 행으로 돌아가도 방금 받은 응답을 그대로 쓴다.
+  await page.locator(".c2l-row").first().click();
+  await expect(identity).toContainText("계획번호 OP-2026-00101");
+  expect(detailRequests).toEqual(["/api/order-plans/101", "/api/order-plans/102"]);
+});
+
+// F1 시안 M5 ① — 참여 판단을 좌우하는 계약 조건이 상세에 있다: 수의계약인지, 이미
+// 공고가 났는지, 추적을 시작한 사업기회가 있는지. 값이 없으면 `미제공`이고 총괄기관·
+// 신규/계속 절은 만들지 않는다(뜻이 다른 빈 값을 합치지 않는다, spec §1.1).
+test("상세는 계약 조건과 총괄기관·첫 수집·신규/계속을 보이고 값이 없으면 미제공이거나 절을 만들지 않는다", async ({ page }) => {
+  await mockOrderPlans(page);
+  await page.goto("/order-plans");
+
+  const head = page.locator(".c2l-detail-head");
+  // 총괄기관은 발주기관 블록 바로 아래의 부제다. 발주기관 자체는 그대로 있다.
+  await expect(head.locator(".c2l-agency-name")).toHaveText("서울특별시 디지털정책관");
+  await expect(head.locator(".c2l-agency-supervising")).toHaveText("총괄기관 조달청");
+  // 식별 줄: 계획번호 · 첫 수집(한국 날짜, 올해라 연도 생략) · 용역 구분.
+  await expect(head.locator(".c2l-detail-identity p")).toHaveText("계획번호 OP-2026-00101 · 첫 수집 09-01 · 구축·운영");
+
+  await expect(detailFact(page, "계약방법")).toHaveText("일반경쟁");
+  await expect(detailFact(page, "조달방식")).toHaveText("자체조달");
+  // 목록이 이미 준 세 값은 상세 응답과 무관하게 그대로 남는다.
+  await expect(detailFact(page, "발주계획 예산")).toHaveText("125,000,000원");
+  await expect(detailFact(page, "발주 예정")).toHaveText("2026년 11월");
+  await expect(detailFact(page, "사업 분야")).toHaveText("정보화");
+  // `ntceNticeYn` 원문 `N`은 "아직 없음"이고 `null`은 미제공이다(bool로 좁히지 않는다).
+  await expect(detailFact(page, "공고 게시")).toHaveText("아직 없음");
+  // 추적을 시작한 건은 사업 추적 상세로 바로 간다.
+  const opportunityLink = detailFact(page, "연결된 사업기회").getByRole("link", { name: "사업 추적에서 보기 →" });
+  await expect(opportunityLink).toHaveAttribute("href", "/opportunities/5101");
+
+  // 상세 전용 값 셋이 모두 `null`인 행: 조달방식은 `미제공`, 총괄기관 부제와
+  // 신규/계속 절은 아예 그리지 않는다. 목록이 준 계약방법·공고 게시도 `null`이다.
+  await mockOrderPlanDetail(page, 102);
+  await page.locator(".c2l-row").nth(1).click();
+  await expect(head.locator(".c2l-detail-identity p")).toHaveText("계획번호 OP-2026-00102 · 첫 수집 09-01");
+  await expect(head.locator(".c2l-agency-supervising")).toHaveCount(0);
+  await expect(detailFact(page, "계약방법")).toHaveText("미제공");
+  await expect(detailFact(page, "조달방식")).toHaveText("미제공");
+  await expect(detailFact(page, "공고 게시")).toHaveText("미제공");
+  await expect(page.locator(".c2l-detail-facts")).not.toContainText("null");
+});
+
+// 공고가 이미 났으면 그 사실과 연관 공고번호를 함께 읽는다. 공고번호는 수집 원문
+// 문자열 그대로이며 서버가 쪼개지 않으므로 화면도 쪼개지 않는다(contracts.md).
+test("공고가 게시된 발주계획은 게시 사실과 수집 원문 공고번호를 함께 보인다", async ({ page }) => {
+  await mockOrderPlans(page);
+  await mockOrderPlanDetail(page, 103, { bid_ntice_no_list: "20261100123,20261100124" });
+  await page.goto("/order-plans");
+
+  await clickPreset(page, "전체");
+  await page.locator(".c2l-row").filter({ hasText: "청사 시설관리 용역 발주계획" }).click();
+  await expect(page.locator(".c2l-detail-identity p")).toContainText("계획번호 OP-2026-00103");
+
+  const posted = detailFact(page, "공고 게시");
+  await expect(posted).toContainText("게시됨");
+  await expect(posted).toContainText("공고번호 20261100123,20261100124");
+  // 계약방법은 목록 값(`수의계약`)이 그대로 읽힌다.
+  await expect(detailFact(page, "계약방법")).toHaveText("수의계약");
+});
+
+// 상세 조회가 실패하면 목록에서 받은 값은 그대로 두고 못 불러온 사실만 알린다.
+// 실패를 `미제공`으로 낮추지 않는다(경고 ④ — 실패는 값 없음이 아니다).
+test("상세 조회가 실패하면 목록 값은 남고 오류와 다시 시도만 더해진다", async ({ page }) => {
+  await mockOrderPlans(page);
+  const detailRequests = traceDetailRequests(page);
+  await page.route("**/api/order-plans/101", async (route) => {
+    if (route.request().method() !== "GET") {
+      await route.fallback();
+      return;
+    }
+    await route.fulfill({
+      status: 500,
+      contentType: "application/json",
+      body: JSON.stringify({ error: { code: "internal_error", message: "합성 안정 오류", details: null } }),
+    });
+  });
+  await page.goto("/order-plans");
+
+  const detail = page.locator(".c2l-detail-pane");
+  const alert = detail.getByRole("alert");
+  await expect(alert).toContainText("상세 정보를 불러오지 못했습니다");
+
+  // 목록이 준 값은 그대로 보인다.
+  await expect(detail.locator(".c2l-agency-name")).toHaveText("서울특별시 디지털정책관");
+  await expect(detail.locator(".c2l-detail-identity p")).toHaveText("계획번호 OP-2026-00101 · 첫 수집 09-01");
+  await expect(detailFact(page, "발주계획 예산")).toHaveText("125,000,000원");
+  await expect(detailFact(page, "계약방법")).toHaveText("일반경쟁");
+  await expect(detailFact(page, "공고 게시")).toHaveText("아직 없음");
+  // 확인하지 못한 값은 `미확인`이며 서버가 주지 않은 `미제공`과 구분한다.
+  await expect(detailFact(page, "조달방식")).toHaveText("미확인");
+  await expect(detail.locator(".c2l-agency-supervising")).toHaveCount(0);
+
+  // 같은 자리에서 다시 시도한다. 실패가 이어지면 안내도 그대로 남는다.
+  const before = detailRequests.length;
+  await alert.getByRole("button", { name: "다시 시도", exact: true }).click();
+  await expect.poll(() => detailRequests.length).toBeGreaterThan(before);
+  await expect(alert).toContainText("상세 정보를 불러오지 못했습니다");
+});
+
+// F1 시안 M5 ① — 행에 추적 상태 칩을 둔다. **판단 근거 한 줄은 행에 싣지 않는다**
+// (M5 승인 — 근거는 상세에서만). 판정 변화 표도 만들지 않는다.
+test("행의 추적 상태 칩은 모델 판단 옆에 있고 판단 근거는 상세에만 남는다", async ({ page }) => {
+  const decided = testOrderPlanItem(103, "relevant", "이미 계속 추적 중인 관련 사업");
+  decided.tracking.tracking_status = "계속 추적";
+  const held = testOrderPlanItem(104, "relevant", "보류로 정한 관련 사업");
+  held.tracking.tracking_status = "보류";
+  await mockReorderedOrderPlanList(page, [
+    testOrderPlanItem(101, "relevant", "추적을 정하지 않은 관련 사업"),
+    decided,
+    held,
+  ]);
+  await page.goto("/order-plans");
+  await clickPreset(page, "전체");
+
+  const rows = page.locator(".c2l-row");
+  const untracked = rows.filter({ hasText: "추적을 정하지 않은 관련 사업" });
+  // `미선택`과 계약상 값 없음은 행에서 "결정하지 않았다"는 한 사실이다. 종료가 아니다.
+  await expect(untracked.locator(".c2l-row-tracking")).toHaveText("추적 미선택");
+  await expect(rows.filter({ hasText: "이미 계속 추적 중인 관련 사업" }).locator(".c2l-row-tracking")).toHaveText("계속 추적");
+  await expect(rows.filter({ hasText: "보류로 정한 관련 사업" }).locator(".c2l-row-tracking")).toHaveText("보류");
+
+  // 칩은 상태 칩 줄 안에서 모델 판단 바로 옆이고, 1차 선별·사람 판단 배지 묶음
+  // (`.c2l-row-badges`)에는 들어가지 않는다 — 그 묶음은 비면 줄 자체가 없어야 한다.
+  const geometry = await untracked.evaluate((row) => {
+    const box = (selector: string) => {
+      const element = row.querySelector<HTMLElement>(selector);
+      if (!element) throw new Error(`${selector} 를 찾을 수 없습니다.`);
+      return element.getBoundingClientRect();
+    };
+    const model = box(".c2l-row-state .c2l-row-model");
+    const tracking = box(".c2l-row-state .c2l-row-tracking");
+    return {
+      modelRight: model.right,
+      trackingLeft: tracking.left,
+      sameLine: Math.abs(model.top - tracking.top) <= 1,
+      insideBadgeGroup: row.querySelectorAll(".c2l-row-badges .c2l-row-tracking").length,
+    };
+  });
+  expect(geometry.trackingLeft).toBeGreaterThanOrEqual(geometry.modelRight);
+  expect(geometry.sameLine).toBe(true);
+  expect(geometry.insideBadgeGroup).toBe(0);
+
+  // 행에는 판단 근거가 없다. 근거는 상세 본문에만 있다.
+  await untracked.click();
+  await expect(untracked).not.toContainText("모델 판단 근거");
+  await expect(page.locator(".c2l-evidence")).toContainText("모델 판단 근거");
+  // 판정 변화 표는 만들지 않는다(M5 승인 — 발주계획 판정은 수집 당일 1회뿐이다).
+  await expect(page.locator(".c2l-detail-pane")).not.toContainText("판정 변화");
 });
 
 test("토큰 필터는 축끼리 AND, 축 안에서는 OR로 조합되고 프리셋은 이름 붙은 지름길일 뿐이다", async ({ page }) => {
