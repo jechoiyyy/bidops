@@ -30,10 +30,22 @@ const baseLink = {
   title: null,
   agency: null,
   external_id: null,
+  // 추가형 투영(0921_practitioner-screens spec §5). 대상이 없거나 해당하지
+  // 않으면 null — 개별 builder가 대상에 맞는 값만 채운다.
+  budget: null,
+  deadline_at: null,
+  planned_order_year: null,
+  planned_order_month: null,
   record_external_id: null,
 };
 
-function orderPlanLink(id: number, title: string, agency: string, externalId: string) {
+function orderPlanLink(
+  id: number,
+  title: string,
+  agency: string,
+  externalId: string,
+  timing: { budget?: number | null; planned_order_year?: string | null; planned_order_month?: string | null } = {},
+) {
   return {
     ...baseLink,
     id,
@@ -46,6 +58,9 @@ function orderPlanLink(id: number, title: string, agency: string, externalId: st
     title,
     agency,
     external_id: externalId,
+    budget: timing.budget ?? null,
+    planned_order_year: timing.planned_order_year ?? null,
+    planned_order_month: timing.planned_order_month ?? null,
     record_external_id: externalId,
   };
 }
@@ -93,7 +108,9 @@ const candidatePending: Fixture = {
   recheck_signal_link_id: null,
   first_registered_stage: "order_plan",
   links: [
-    orderPlanLink(1001, "공공데이터 통합관리체계 고도화", "해솔시청", "DEMO-OP-001"),
+    orderPlanLink(1001, "공공데이터 통합관리체계 고도화", "해솔시청", "DEMO-OP-001", {
+      budget: 950_000_000, planned_order_year: "2026", planned_order_month: "11",
+    }),
     noticeLink(1002, "pre_spec", "공공데이터 통합관리체계 고도화", "해솔시청", "DEMO-PS-001", {
       link_type: "candidate",
       status: "후보 확인 대기",
@@ -123,7 +140,9 @@ const recheckSignal: Fixture = {
   first_registered_stage: "order_plan",
   links: [
     orderPlanLink(2001, "시설관리 업무시스템 구축", "도담도시공사", "DEMO-OP-002"),
-    noticeLink(2002, "bid_notice", "시설관리 업무시스템 구축", "도담도시공사", "DEMO-BN-002"),
+    noticeLink(2002, "bid_notice", "시설관리 업무시스템 구축", "도담도시공사", "DEMO-BN-002", {
+      budget: 620_000_000, deadline_at: "2026-09-25T00:00:00Z",
+    }),
   ],
 };
 

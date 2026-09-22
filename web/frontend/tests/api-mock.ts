@@ -7,7 +7,7 @@ import type {
   OpportunityRecheckEventView, OpportunityTrackingDecisionItem, OpportunityTrackingStatus,
   OrderPlanListItem, OrderPlanListScope, OrderPlanScreeningExecutionSummary, OrderPlanScreeningErrorCode,
   OrderPlanTracking, OrderPlanBulkPreviewResponse, OrderPlanBulkStartResponse, OrderPlanBulkEndResponse,
-  OverviewEnvelope, OverviewRun, PreSpecListItem, PreSpecOrderPlanCandidatesResponse,
+  OverviewEnvelope, OverviewRun, PreSpecDisplayAssessment, PreSpecListItem, PreSpecOrderPlanCandidatesResponse,
   RunSummary, WorkloadKey, WorkloadResponse,
 } from "../src/lib/types";
 import { searchKey, searchMatches } from "../src/lib/search";
@@ -392,7 +392,7 @@ export interface DeepReviewMockTrace {
  */
 export async function mockDeepReviewLifecycle(page: Page, scenario: DeepReviewFixtureScenario): Promise<DeepReviewMockTrace> {
   const trace: DeepReviewMockTrace = { reviewGets: 0, reportGets: 0, attemptPosts: [], opinionPosts: [], events: [] };
-  const failedAttempt = syntheticAttempt(1, "failed", "model_timeout");
+  const failedAttempt = syntheticAttempt(1, "failed", "timeout");
   const queuedRetryAttempt = syntheticAttempt(2, "queued");
   let retryCreated = false;
   let lastServedStatus = scenario === "completed" ? "completed" : scenario === "failed" ? "failed" : "queued";
@@ -547,7 +547,7 @@ function deltaAttempt(status: BidDeltaCalculationFixture, sequence: number) {
     status: attemptStatus,
     started_at: status === "pending" ? null : "2026-08-31T09:01:00Z",
     completed_at: terminal ? "2026-08-31T09:02:00Z" : null,
-    last_error_code: status === "failed" ? "model_timeout" : null,
+    last_error_code: status === "failed" ? "timeout" : null,
   };
 }
 
@@ -649,7 +649,7 @@ export async function mockBidDelta(page: Page, options: BidDeltaMockOptions = {}
       items: deltaItems(currentResult),
       attempts: Array.from({ length: attemptSequence }, (_, index) => index + 1 === attemptSequence ? currentAttempt : deltaAttempt("failed", index + 1)),
       result_sha256: currentResult && currentResult !== "failed" ? "e".repeat(64) : null,
-      last_error_code: calculationStatus === "failed" ? "model_timeout" : null,
+      last_error_code: calculationStatus === "failed" ? "timeout" : null,
       created_at: "2026-08-31T09:00:00Z",
       started_at: calculationStatus === "pending" ? null : "2026-08-31T09:01:00Z",
       completed_at: calculationStatus === "pending" || calculationStatus === "running" ? null : "2026-08-31T09:02:00Z",
@@ -819,6 +819,12 @@ const visualOpportunityLinksBase = {
   reviewer_name: null,
   reviewed_at: null,
   review_reason: null,
+  // 추가형 투영(0921_practitioner-screens spec §5). 대상이 없거나 해당하지
+  // 않으면 null — 아래 개별 link literal이 값을 주는 곳만 덮어쓴다.
+  budget: null,
+  deadline_at: null,
+  planned_order_year: null,
+  planned_order_month: null,
 };
 
 const visualOpportunities: OpportunityListItem[] = [
@@ -848,6 +854,9 @@ const visualOpportunities: OpportunityListItem[] = [
       title: "미선택 공공 데이터 플랫폼 구축",
       agency: "테스트 기관",
       external_id: "PLAN-101",
+      budget: 780_000_000,
+      planned_order_year: "2026",
+      planned_order_month: "10",
       record_external_id: "PLAN-101",
     }],
   },
@@ -892,6 +901,8 @@ const visualOpportunities: OpportunityListItem[] = [
       title: "종료된 지능형 업무 시스템 본공고",
       agency: "테스트 기관",
       external_id: "BID-202",
+      budget: 430_000_000,
+      deadline_at: "2026-09-18T00:00:00Z",
       record_external_id: "BID-202",
     }],
   },
@@ -1190,6 +1201,9 @@ const visualPreSpecItems: PreSpecListItem[] = [
     pre_spec_no: "PRE-991",
     title: "안전한 문서 준비 사전규격",
     agency: "테스트 조달기관",
+    // 대행 표본(spec §5): 공고기관(`agency`)이 수요기관을 대행해 공고한 건.
+    // 나머지 사전규격 fixture는 demand_agency가 null이다.
+    demand_agency: "한국예술인복지재단",
     published_at: "2026-08-30T00:00:00Z",
     deadline_at: "2026-09-02T00:00:00Z",
     budget: 510_000_000,
@@ -1224,6 +1238,7 @@ const visualPreSpecItems: PreSpecListItem[] = [
     pre_spec_no: "PRE-992",
     title: "신규 지능형 행정 지원 사전규격",
     agency: "신규 발주기관",
+    demand_agency: null,
     published_at: "2026-08-31T00:00:00Z",
     deadline_at: "2026-09-07T00:00:00Z",
     budget: null,
@@ -1447,6 +1462,17 @@ function preSpecMatches(item: PreSpecListItem, search: URLSearchParams, includeW
   if (!matchesOverviewView(item, search.get("overview_view"))) return false;
   const grade = search.get("grade");
   if (grade && (grade === "판정 없음" ? item.grade !== null : item.grade !== grade)) return false;
+  // bda1288: 화면은 `grade`가 아니라 `display_grade`를 보낸다(다섯 값 + 판정 없음).
+  // `판단 보류`는 `display_assessment.status === "held"`고, `판정 없음`은
+  // `"none"`이다 — 둘 다 `grade`만으로는 구분되지 않는다(docs/contracts.md).
+  const displayGrade = search.get("display_grade");
+  if (displayGrade) {
+    const assessment = item.display_assessment;
+    const matches = displayGrade === "판정 없음" ? assessment.status === "none"
+      : displayGrade === "판단 보류" ? assessment.status === "held"
+      : assessment.grade === displayGrade;
+    if (!matches) return false;
+  }
   if (search.get("tracking_decision") === "pending" && !isPendingTracking(item)) return false;
   if (search.get("tracking_status") && item.tracking_status !== search.get("tracking_status")) return false;
   if (sourceRunId && !matchesObservation(item, sourceRunId, observedFrom, observedTo)) return false;
@@ -1927,6 +1953,29 @@ export async function mockPreSpecs(page: Page): Promise<void> {
   });
 }
 
+/** 목록·상세가 함께 읽는 화면 대표 판정(bda1288). `grade`가 없으면 `status:
+ * "none"`, 있으면 `"graded"`다(spec §6.2 — `판정 없음`은 다섯 번째 등급이 아니다). */
+export function displayAssessmentFor(
+  grade: PreSpecDisplayAssessment["grade"],
+  source: PreSpecDisplayAssessment["source"],
+  latestRunStatus: PreSpecDisplayAssessment["latest_run_status"] = null,
+): PreSpecDisplayAssessment {
+  return {
+    grade,
+    status: grade === null ? "none" : "graded",
+    source: grade === null ? "none" : source,
+    basis_run_id: null,
+    assessed_at: null,
+    quality_status: null,
+    reason_codes: [],
+    axes: [],
+    verification_items: [],
+    semantic_status: null,
+    semantic_scope: [],
+    latest_run_status: latestRunStatus,
+  };
+}
+
 // 명세 §6.8 게이트: 자동 준비 8값과 등급 4값 + `판정 없음`이 화면에 **문자로**
 // 나타나는지 의미 층이 확인할 수 있게, 한 응답 안에 여덟 행을 모두 담는다.
 const AUTO_PREPARATION_MATRIX = [
@@ -1949,6 +1998,7 @@ const preSpecMatrixItems = AUTO_PREPARATION_MATRIX.map((entry, index) => ({
   pre_spec_no: `PRE-${8001 + index}`,
   title: `자동 준비 표본 ${index + 1}`,
   agency: "표본 발주기관",
+  demand_agency: null,
   published_at: "2026-08-30T00:00:00Z",
   deadline_at: "2026-09-10T00:00:00Z",
   budget: 100_000_000,
@@ -1962,6 +2012,7 @@ const preSpecMatrixItems = AUTO_PREPARATION_MATRIX.map((entry, index) => ({
   overview_review_status: "needs_human_review",
   grade: entry.grade,
   grade_source: entry.grade === null ? null : "screening_judgment",
+  display_assessment: displayAssessmentFor(entry.grade, "screening_judgment", "needs_human_review"),
   auto_preparation_status: entry.status,
   auto_preparation_reason: entry.reason,
   latest_deep_review_id: entry.deepReviewId,
@@ -2025,6 +2076,7 @@ const preSpecDeadlineScopeItems: PreSpecListItem[] = ([
   pre_spec_no: `PRE-${entry.notice_pk}`,
   title: entry.title,
   agency: "표본 발주기관",
+  demand_agency: null,
   published_at: "2026-08-10T00:00:00Z",
   deadline_at: entry.deadline_at,
   budget: 100_000_000,
@@ -2039,6 +2091,7 @@ const preSpecDeadlineScopeItems: PreSpecListItem[] = ([
   overview_review_status: "needs_human_review",
   grade: "우선 검토",
   grade_source: "screening_judgment",
+  display_assessment: displayAssessmentFor("우선 검토", "screening_judgment", "needs_human_review"),
   auto_preparation_status: "not_applicable",
   auto_preparation_reason: null,
   latest_deep_review_id: null,
@@ -2081,16 +2134,21 @@ export type PreSpecAutoDetailState = "started" | "ready_for_click" | "corrected"
 
 /** 사전규격 상세의 자동 준비 단계 표시와 두 갈래 동선(보고서 링크 · 실행 버튼). */
 export async function mockPreSpecAutoDetail(page: Page, state: PreSpecAutoDetailState): Promise<void> {
+  // notice(`visualPreSpecNotice`)의 판정 등급은 `우선 검토`다. `corrected`는
+  // 사람이 `관찰 대상`으로 정정한 상태이며 화면은 정정된 현재 등급만 보여야
+  // 한다 — 판정 등급을 라벨 없이 함께 두지 않는다.
+  const grade = state === "corrected" ? "관찰 대상" : "우선 검토";
+  const gradeSource: "screening_judgment" | "human_review" = state === "started" ? "screening_judgment" : "human_review";
   const item = {
     ...visualPreSpecItems[0],
     tracking_status: "계속 추적",
     document: { attachments: 3, "완료": 2, "대기": 1, "진행": 0, "차단": 0, "실패": 0 },
     overview_review_status: "completed",
-    // notice(`visualPreSpecNotice`)의 판정 등급은 `우선 검토`다. `corrected`는
-    // 사람이 `관찰 대상`으로 정정한 상태이며 화면은 정정된 현재 등급만 보여야
-    // 한다 — 판정 등급을 라벨 없이 함께 두지 않는다.
-    grade: state === "corrected" ? "관찰 대상" : "우선 검토",
-    grade_source: state === "started" ? "screening_judgment" : "human_review",
+    grade,
+    grade_source: gradeSource,
+    // display_assessment도 state에 맞춰 다시 준다 — 위 grade/grade_source만
+    // 바꾸면 화면이 읽는 대표 판정(bda1288)은 991의 고정값에 머문다.
+    display_assessment: displayAssessmentFor(grade, gradeSource, "completed"),
     auto_preparation_status: state === "started" ? "deep_review_started" : "deep_review_ready_for_click",
     auto_preparation_reason: state === "started" ? null : "bundle_not_auto_ready",
     latest_deep_review_id: state === "started" ? "fixture-review" : null,
