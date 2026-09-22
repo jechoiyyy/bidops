@@ -11,13 +11,6 @@
  */
 
 .opportunities-page {
-  /* 목록 첫 줄(사업명·발주기관)은 본문보다 한 단 크다. 사용자가 16px에서 15px로
-     낮춘 최종 시안의 값이며 시안 CSS와 같은 방식으로 본문 토큰에서 계산한다.
-     탐색 두 화면의 `--review-list-primary`(본문 +`--spacing-0-5` = 14.4px)와는 값이
-     다르다. 시안 M1c A안의 `.tr .t`도 13.5px를 그렸고 기존 검사가 이 값을 고정하고
-     있어(`tests/opportunities.spec.ts`) 여기서는 13.5px를 유지한다. 둘 중 어느 값이
-     탐색·추적 네 화면의 정본인지는 리더가 정한다. */
-  --opportunity-row-primary: calc(var(--bo-type-body) + 0.9px);
   --opportunity-step-size: var(--spacing-7);
 
   display: flex;
@@ -196,9 +189,13 @@
   cursor: pointer;
 }
 
+/* 목록 첫 줄(사업명·발주기관)은 네 목록이 같은 크기를 쓴다 — 목록 pane
+   (`.review-split-list`)이 소유한 공용 `--review-list-primary`(14.4px)다.
+   2026-09-21 M1c 승인: 사업 추적만 갖고 있던 13.5px 단(`--opportunity-row-primary`)을
+   없애고 공용 값에 맞췄다(명세 §2.4). 표 자체는 그대로 둔다(M1c A안). */
 .opportunity-row-business .opportunity-row-title,
 .opportunity-row-business .opportunity-row-agency {
-  font-size: var(--opportunity-row-primary);
+  font-size: var(--review-list-primary);
   line-height: 1.5;
   white-space: normal;
   overflow-wrap: anywhere;

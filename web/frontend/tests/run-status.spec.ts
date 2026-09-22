@@ -647,6 +647,21 @@ test.describe("실행 상태", () => {
     await expect(section(page, "실행 기준")).toContainText(C2_OPERATIONAL_EXECUTION_ID);
   });
 
+  // 실무 화면의 문제 칩은 실행 하나를 가리켜 `/runs?run=…&execution=…`로 보낸다
+  // (명세 §4, R6). 그 주소로 들어오면 `발주계획 선별` 탭이 처음부터 열려 있어야
+  // 사람이 탭을 한 번 더 찾지 않는다. 공고 회차에는 이 탭이 없으므로 조건은
+  // 회차 종류까지 본다.
+  test("실행을 가리켜 들어온 발주계획 회차는 발주계획 선별 탭에서 시작한다", async ({ page }) => {
+    await installRunStatusMock(page);
+    await gotoRuns(page, `?run=${encodeURIComponent(ORDER_PLAN_RUN_ID)}&execution=${C2_OPERATIONAL_EXECUTION_ID}`);
+
+    const tabs = page.getByRole("navigation", { name: "선택한 회차 상세 보기" });
+    await expect(tabs.getByRole("button", { name: "발주계획 선별", exact: true }))
+      .toHaveAttribute("aria-pressed", "true");
+    // 가리킨 실행이 그대로 열린다 — 탭만 바꾸고 다른 실행을 보여 주지 않는다.
+    await expect(section(page, "실행 기준")).toContainText(C2_OPERATIONAL_EXECUTION_ID);
+  });
+
   test("배치별 기록이 토큰·소요·부분 산출물·오류 코드와 해시 전문을 보인다", async ({ page }) => {
     await installRunStatusMock(page);
     await gotoOrderPlanScreeningTab(page);
