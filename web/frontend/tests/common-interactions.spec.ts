@@ -310,18 +310,17 @@ test("사이드바 7항목이 모두 실제 화면으로 연결되고 최종 Go/
   await expect(page.locator(".gng-page")).toBeVisible();
 });
 
-// ADR-0046 결정 7: 회차 축은 대시보드와 공고 판정 이력 두 화면뿐이다. 공고 판정
-// 이력은 사이드바 항목이 아니므로, 사이드바만 보면 회차 선택기가 보이는 자리는
-// 대시보드 하나로 예측된다.
-test("회차 선택기는 사이드바에서 대시보드에만 나타난다", async ({ page }) => {
+// ADR-0046 결정 7·H2(spec §7): 회차 축은 공고 판정 이력 한 화면뿐이다. 대시보드는
+// 회차 선택기와 회차 의존 패널이 모두 빠진 누적 화면이라, 사이드바만 보면 회차
+// 선택기가 보이는 자리가 없다.
+test("회차 축은 공고 판정 이력 한 화면뿐이다", async ({ page }) => {
   await mockApi(page);
   await page.setViewportSize({ width: 1440, height: 900 });
 
   for (const item of SIDEBAR_ITEMS) {
     await page.goto(item.path);
     const runSelector = page.getByLabel("실행 회차", { exact: true });
-    if (item.path === "/") await expect(page.getByRole("button", { name: "조회할 실행 회차" })).toBeVisible();
-    else await expect(runSelector).toHaveCount(0);
+    await expect(runSelector).toHaveCount(0);
   }
 });
 
@@ -459,14 +458,11 @@ test("회차가 없어도 누적 업무와 공고 판정 이력으로 이동할 
   await mockApi(page);
   await page.route("**/api/runs", route => route.fulfill({ json: { items: [] } }));
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "확인할 회차를 선택해 주세요" })).toBeVisible();
   const strip = page.locator(".dash-journey-strip");
   for (const target of DECISION_STRIP_TARGETS) await expect(strip.getByRole("link", { name: target.title })).toBeVisible();
-  await page.getByRole("link", { name: "공고 판정 이력", exact: true }).click();
-  await expect.poll(() => new URL(page.url()).pathname).toBe("/queue");
 });
 
-test("누적 집계 미확인과 회차 자료 읽기 전용을 별도로 표시한다", async ({ page }) => {
+test("누적 집계 미확인을 0으로 접지 않는다", async ({ page }) => {
   await mockApi(page);
   // 서버가 건수를 낼 수 없다고 답한 세 칸은 0으로 접히지 않고 미확인으로 남아야 한다.
   await mockWorkload(page, { generated_at: "2026-09-01T09:00:00Z", items: [
@@ -475,12 +471,16 @@ test("누적 집계 미확인과 회차 자료 읽기 전용을 별도로 표시
     { key: "tracking_action_required", count: null, unavailable_reason: "provider_absent" },
     { key: "tracking_hold_review_due", count: 2, unavailable_reason: null },
     { key: "bid_final_decision_pending", count: null, unavailable_reason: null },
+    { key: "tracking_deadline_imminent", count: 4, unavailable_reason: null },
+    { key: "human_check_required", count: null, unavailable_reason: "sub_count_unavailable" },
+    { key: "overview_human_review", count: null, unavailable_reason: null },
+    { key: "blocking_items_open", count: 3, unavailable_reason: null },
+    { key: "order_plan_new_priority", count: 6, unavailable_reason: null },
   ] });
   await page.goto("/");
   const unmeasured = page.locator(".dash-journey-item").filter({ hasText: "미확인" });
   await expect(unmeasured).toHaveCount(3);
   for (const item of await unmeasured.all()) await expect(item).not.toContainText("0건");
-  await expect(page.getByRole("region", { name: "회차 자료 범위" })).toContainText("읽기 전용");
 });
 
 test("판정 기준은 모든 탭에 별도 판단과 소급 변경의 경계를 남긴다", async ({ page }) => {
