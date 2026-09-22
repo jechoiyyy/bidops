@@ -18,6 +18,12 @@
 - 실제 off 실행은 문서 분석을 완료했지만 회사 대조의 근거/주장 ID 혼용·근거 연결 누락으로 실패했다. 정상적인 선행 주장 목록을 금지하던 제약은 완화했으며, 존재하지 않는 주장 참조와 결과 형식 오류는 계속 차단한다. 실제 완성 보고서는 아직 없다.
 - 두 번째 실패 응답은 새 기준으로 통과했다. 실제 새 Qwen 전체 실행의 결과와 미검증 범위는 [실제 검증 기록](../validation-runs/20260922-narrative-review/live-validation.md)에 남긴다. `unmeasured_reference`를 유지하며 사람 품질 승인을 뜻하지 않는다.
 
+## 사업 추적·최종 Go/No-Go 목록 ↑↓ 행 이동 (2026-09-22, 구현·운영 배포 완료)
+
+- 발주계획·사전규격의 `useRowKeyboardNavigation`을 수정 없이 재사용해 두 화면(Astryx `Table` 유지, M1c A안)의 표 첫 열 버튼에 `rowProps`를, 표 스크롤 영역에 리스너를 달았다. 경계에서 페이지를 넘기고(↓ 다음 페이지 첫 행·↑ 이전 페이지 마지막 행), 사업 추적은 저장하지 않은 입력이 있으면 기존 이탈 확인이 먼저다. `Ctrl/Cmd+Enter`는 두 화면의 주 행동이 달라 넣지 않았다. 새 migration 없음(head 0031).
+- 커밋 `6bfb7fc`(main, origin push 완료 — 대기 중이던 S1~S4 등 15개 커밋 포함). 검사: `tsc -b` 통과, `opportunities.spec`·`go-no-go.spec` 79 passed(새 spec 4건 포함), fixture `large` 옵션 추가로 `--project=app` 전체 643 passed / 2 failed(기존 `admin-workspace-consistency.spec.ts:23`) / 3 skipped. Go/No-Go의 경계 넘김은 페이지 크기 500이라 검사 없이 같은 코드 경로로만 둔다.
+- 운영 배포(사용자 "커밋, 푸쉬, 운영 재배포" 지시): 백업 `backups/postgres/full/bidops-before-20260922-kbnav.dump`, 롤백 태그 `before-keyboard-nav-20260922`(`61313a4`), 이미지 `bidops-web:keyboard-nav-6bfb7fc`·직전 `bidops-web:before-keyboard-nav-20260922`. compose 5개 + env 4개로 `web`만 재생성, healthy 8초, `/api/health` 200, env 플래그 2개 `true`, 운영 head `0031` 불변. 배포 후 실제 스택(읽기 전용)에서 `/go-no-go?show=all` 20행·`/opportunities?section=전체` 100행 모두 첫 행 초점 → ↓ → 둘째 행 `aria-pressed`·초점·URL `selected` 이동 확인(기본 구역 `조치 필요`는 운영 행 0건).
+
 ## 실무 화면 고도화 소형 후속 S1~S4 (2026-09-22, 구현·운영 배포 완료)
 
 묶음 ③·④가 남긴 후속과 사용자가 실제 화면에서 찾은 문제 넷. 시안 M7 승인(`docs/0915_ui-redesign/mockups/0922_practitioner-m7/`), 결정 [ADR-0068](decisions/0068-same-state-merge-and-tracking-reset.md)(ADR-0064 결정 개정, `business-rules.md` 검토할 항목 규칙 개정).
