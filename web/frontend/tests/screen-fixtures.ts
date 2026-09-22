@@ -42,6 +42,10 @@ export const pages = [
   { name: "criteria", path: "/criteria" },
   { name: "run-status", path: "/run-status" },
   { name: "go-no-go", path: "/go-no-go" },
+  // T1 후속: 공고 상세는 목록과 다른 골격(navigation shell·notice facts·문서
+  // 준비 패널)이라 overflow 대상에 없었다. 주소는 route-context·lifecycle-safety
+  // spec이 쓰는 것과 같다(notice_pk=29, 같은 회차 RUN_ID).
+  { name: "judgment-detail", path: "/judgments/29?run=20260817-20260823--20260824T090927.138116Z" },
 ];
 
 /** 세 층이 공유하는 고정 입력. 각 spec의 `beforeEach`가 이것만 부른다. */
