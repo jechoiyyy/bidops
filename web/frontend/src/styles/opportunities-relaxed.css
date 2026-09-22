@@ -214,6 +214,13 @@
   text-decoration: underline;
 }
 
+/* ↑↓로 옮겨 온 초점이 보여야 한다. 값은 최종 Go/No-Go 목록(`.gng-row:focus-visible`)과
+   같다 — 네 목록이 같은 초점 표시를 쓴다. 선택 행 배경은 `aria-pressed` 규칙이 따로 갖는다. */
+.opportunity-row-business:focus-visible {
+  outline: var(--focus-outline-width) var(--focus-outline-style) var(--focus-outline-color);
+  outline-offset: var(--spacing-0-5);
+}
+
 .opportunity-row-meta {
   display: flex;
   align-items: center;

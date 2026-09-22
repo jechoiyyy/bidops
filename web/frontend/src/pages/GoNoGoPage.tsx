@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@astryxdesign/core/Button";
@@ -26,6 +26,7 @@ import {
 } from "../components/common/ReviewPrimitives";
 import { SkeletonPanel } from "../components/common/Skeleton";
 import { TechnicalFacts, TechnicalInfo } from "../components/common/TechnicalInfo";
+import { useRowKeyboardNavigation } from "../components/common/useRowKeyboardNavigation";
 import {
   WorkspaceFilterBar,
   WorkspaceFilterContext,
@@ -250,6 +251,9 @@ export function GoNoGoPage() {
   const [tab, setTab] = useState<DetailTab>("summary");
   const [dialog, setDialog] = useState<"data" | "evidence" | null>(null);
   const [evidenceItem, setEvidenceItem] = useState<BidDeltaItemView | null>(null);
+  /** ↑↓ 키 리스너와 행 탐색의 범위. 표의 스크롤 영역이 모든 행을 담는다. */
+  const listRef = useRef<HTMLDivElement>(null);
+  const boundaryLandingRef = useRef<{ offset: number; direction: "next" | "previous" } | null>(null);
 
   // 최종 Go/No-Go까지 가는 것은 계속 추적하기로 한 사업기회다. 서버의 결정 대기열
   // `status=all`이 그 모집단(계속 추적)을 준다. 보기 탭은 받은 행의 결정 필드로 나눈다.
@@ -312,6 +316,8 @@ export function GoNoGoPage() {
   );
 
   function patchParams(patch: Record<string, string | null>) {
+    // 사람이 요청한 적 없는 경계 착지는 다른 이동이 끼어드는 순간 유효하지 않다.
+    boundaryLandingRef.current = null;
     const params = new URLSearchParams(searchParams);
     for (const [key, value] of Object.entries(patch)) {
       if (value === null || value === "") params.delete(key);
@@ -343,9 +349,48 @@ export function GoNoGoPage() {
     setTab("summary");
   }
 
-  function goToOffset(next: number) {
+  function goToOffset(next: number, onApplied?: () => void) {
     patchParams({ offset: next > 0 ? String(next) : null, selected: null, comparison: null });
+    onApplied?.();
   }
+
+  /**
+   * ↑↓ 목록 이동. 리스너는 표의 스크롤 영역이 지고 `rowProps`는 첫 열 버튼이 받는다
+   * (발주계획·사전규격·사업 추적과 같은 hook).
+   *
+   * 이 화면은 저장하는 자리가 없어 이탈 확인이 없다. 경계에서는 대기열 페이지를 넘기고,
+   * 페이지를 옮기면 `selected`가 지워져 새 페이지의 첫 행이 선택되므로 `next`는 hook의
+   * effect가 초점을 옮긴다. `previous`는 마지막 행에 서야 하므로 아래 effect가 맡는다.
+   */
+  const rowNavigation = useRowKeyboardNavigation<number>({
+    containerRef: listRef,
+    keys: visibleRows.map((row) => row.id),
+    onBoundary: (direction) => {
+      if (direction === "next" && offset + PAGE_SIZE >= total) return;
+      if (direction === "previous" && offset === 0) return;
+      const targetOffset = direction === "next" ? offset + PAGE_SIZE : Math.max(0, offset - PAGE_SIZE);
+      goToOffset(targetOffset, () => {
+        boundaryLandingRef.current = { offset: targetOffset, direction };
+      });
+    },
+    onSelect: selectRow,
+    selectedKey: selectedRow?.id ?? null,
+  });
+
+  // 착지 여부는 ref 하나로 판단하므로 매 렌더 확인한다(`visibleRows`는 렌더마다 새 배열이라
+  // 의존성 목록을 적어도 같은 횟수로 돈다). 착지가 없으면 곧바로 빠져나온다.
+  useEffect(() => {
+    const landing = boundaryLandingRef.current;
+    if (!landing || landing.offset !== offset || queueQuery.isPending) return;
+    boundaryLandingRef.current = null;
+    // 다음 범위에 보기 조건을 지나는 행이 없으면 넘긴 자리에 그대로 둔다.
+    if (landing.direction !== "previous" || visibleRows.length === 0) return;
+    const lastId = visibleRows[visibleRows.length - 1].id;
+    patchParams({ selected: String(lastId), comparison: null });
+    requestAnimationFrame(() => {
+      listRef.current?.querySelector<HTMLElement>(`[data-row-key="${lastId}"]`)?.focus();
+    });
+  });
 
   function openReview() {
     if (!selectedRow) return;
@@ -370,6 +415,7 @@ export function GoNoGoPage() {
           className="gng-row"
           aria-pressed={selectedRow?.id === row.id}
           onClick={() => selectRow(row.id)}
+          {...rowNavigation.rowProps(row.id)}
         >
           <Text className="gng-row-title" as="span">{opportunityTitle(row.item)}</Text>
           <Text className="gng-row-agency" as="span">
@@ -525,7 +571,12 @@ export function GoNoGoPage() {
                   : `${formatCount(visibleRows.length)}건`}</Text>
               <Text className="gng-caption" type="supporting" color="secondary" as="p">사람 결정 기준</Text>
             </header>
-            <div className="gng-table-scroll">
+            <div
+              className="gng-table-scroll"
+              onKeyDown={rowNavigation.onKeyDown}
+              onPointerDownCapture={rowNavigation.onPointerDownCapture}
+              ref={listRef}
+            >
               {queueQuery.isPending ? (
                 <SkeletonPanel label="최종 결정 대기열을 불러오는 중" lines={5} />
               ) : queueQuery.isError ? (

@@ -25,6 +25,7 @@ import {
 } from "../components/opportunities/trackingFlow";
 import { EmptyState } from "../components/common/EmptyState";
 import { PageHeaderActions } from "../components/common/PageHeaderActions";
+import { useRowKeyboardNavigation } from "../components/common/useRowKeyboardNavigation";
 import { ListPagerControls, SplitWorkspace } from "../components/common/ReviewPrimitives";
 import { SkeletonPanel } from "../components/common/Skeleton";
 import {
@@ -106,6 +107,10 @@ export function OpportunitiesPage() {
   const [advanced, setAdvanced] = useState(false);
   const [dataDialog, setDataDialog] = useState(false);
   const handleDirtyChange = useCallback((next: boolean) => setDirty(next), []);
+  /** ↑↓ 키 리스너와 행 탐색의 범위. 표의 스크롤 영역이 모든 행을 담는다. */
+  const listRef = useRef<HTMLDivElement>(null);
+  /** ↑↓가 페이지 경계를 넘길 때 새 페이지에서 설 자리. `applyParams`·`changeOffset`이 비운다. */
+  const boundaryLandingRef = useRef<{ offset: number; direction: "next" | "previous" } | null>(null);
 
   // 목록은 구역·필터·정렬·선택을 검색 인자로 옮긴다. 그 이동은 route를 떠나는 것이
   // 아니므로 blocker 범위를 `pathname`으로 두고 아래에서 각자의 문구로 확인한다.
@@ -181,6 +186,8 @@ export function OpportunitiesPage() {
     onApplied?: () => void,
   ) {
     guard.confirmDiscard(() => {
+      // 필터·검색·구역이 바뀌면 사람이 요청한 적 없는 경계 착지는 더 이상 유효하지 않다.
+      boundaryLandingRef.current = null;
       const next = new URLSearchParams(searchParams);
       for (const [key, value] of Object.entries(changes)) {
         if (value) next.set(key, value);
@@ -236,12 +243,14 @@ export function OpportunitiesPage() {
     }, () => setSearchText(""));
   };
 
-  function changeOffset(nextOffset: number) {
+  function changeOffset(nextOffset: number, onApplied?: () => void) {
     guard.confirmDiscard(() => {
+      boundaryLandingRef.current = null;
       const next = new URLSearchParams(searchParams);
       next.set("offset", String(nextOffset));
       next.delete("selected");
       setSearchParams(next, { replace: true });
+      onApplied?.();
     }, {
       title: "목록 페이지를 옮깁니다",
       message: "페이지를 옮기면 열려 있던 사업기회가 닫히고 저장하지 않은 입력이 사라집니다.",
@@ -287,6 +296,47 @@ export function OpportunitiesPage() {
     });
   }
 
+  /**
+   * ↑↓ 목록 이동. 리스너는 목록 표의 스크롤 영역이 지고 `rowProps`는 첫 열 버튼이 받는다
+   * (발주계획·사전규격과 같은 hook, `useRowKeyboardNavigation`).
+   *
+   * 경계(현재 페이지의 처음·끝)는 hook이 모르므로 화면이 맡는다. 두 방향 모두 `changeOffset`을
+   * 거치므로 저장하지 않은 입력이 있으면 이탈 확인이 먼저고, 사람이 취소하면 페이지도 선택도
+   * 그대로다. 페이지를 옮기면 `selected`가 지워져 새 페이지의 첫 행이 선택되므로 `next`는
+   * hook의 effect가 초점을 옮긴다. `previous`는 마지막 행에 서야 하므로 아래 effect가 데이터가
+   * 온 뒤에 선택과 초점을 옮긴다.
+   */
+  const rowNavigation = useRowKeyboardNavigation<number>({
+    containerRef: listRef,
+    keys: rows.map((item) => item.id),
+    onBoundary: (direction) => {
+      if (direction === "next" && offset + PAGE_SIZE >= total) return;
+      if (direction === "previous" && offset === 0) return;
+      const targetOffset = direction === "next" ? offset + PAGE_SIZE : Math.max(0, offset - PAGE_SIZE);
+      changeOffset(targetOffset, () => {
+        boundaryLandingRef.current = { offset: targetOffset, direction };
+      });
+    },
+    onSelect: selectRow,
+    selectedKey: selectedId,
+  });
+
+  useEffect(() => {
+    const landing = boundaryLandingRef.current;
+    if (!landing || landing.offset !== offset || list.isPending) return;
+    boundaryLandingRef.current = null;
+    if (landing.direction !== "previous" || rows.length === 0) return;
+    // hook의 effect가 이미 새 페이지의 첫 행에 초점을 줬다. ↑로 넘어온 사람이 서야 하는
+    // 자리는 마지막 행이므로 선택과 초점을 모두 명시적으로 옮긴다.
+    const lastId = rows[rows.length - 1].id;
+    const next = new URLSearchParams(searchParams);
+    next.set("selected", String(lastId));
+    setSearchParams(next, { replace: true });
+    requestAnimationFrame(() => {
+      listRef.current?.querySelector<HTMLElement>(`[data-row-key="${lastId}"]`)?.focus();
+    });
+  }, [list.isPending, offset, rows, searchParams, setSearchParams]);
+
   const now = new Date();
   const columns: TableColumn<OpportunityRow>[] = [
     {
@@ -307,6 +357,7 @@ export function OpportunitiesPage() {
               className="opportunity-row-business"
               onClick={() => selectRow(item.id)}
               type="button"
+              {...rowNavigation.rowProps(item.id)}
             >
               <span className="opportunity-row-title">{primaryTitle(item)}</span>
               <span className="opportunity-row-agency">{primaryAgency(item)}</span>
@@ -518,7 +569,14 @@ export function OpportunitiesPage() {
                   : "사업 단위"}
               </p>
             </header>
-            <div className="opportunity-table-scroll" onClick={selectFromRow} role="presentation">
+            <div
+              className="opportunity-table-scroll"
+              onClick={selectFromRow}
+              onKeyDown={rowNavigation.onKeyDown}
+              onPointerDownCapture={rowNavigation.onPointerDownCapture}
+              ref={listRef}
+              role="presentation"
+            >
               {invalidUrlSearch ? (
                 <div className="opportunity-empty">
                   <p role="alert">주소의 검색어는 공백을 정리한 뒤 2~100자여야 합니다. 검색어를 고치거나 지우십시오.</p>

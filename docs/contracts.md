@@ -419,7 +419,8 @@ bulk 오류만 위의 안전 envelope와 code를 사용한다.
 #### 목록 선택과 사전규격 상세 순회
 
 발주계획·사전규격 목록은 활성 행과 체크 묶음을 분리한다. 행 클릭·Enter·↑↓는 active만
-옮기고, native checkbox 또는 활성 행의 plain Space만 checked membership을 한 번 토글한다.
+옮기고(체크 묶음이 없는 사업 추적·최종 Go/No-Go 목록도 같은 ↑↓·클릭 규칙을 쓰며 경계에서
+페이지를 넘긴다), native checkbox 또는 활성 행의 plain Space만 checked membership을 한 번 토글한다.
 선택은 각 화면의 별도 `sessionStorage` key에서 같은 탭의 page 이동·refresh·상세 왕복 동안
 유지하며 탭·계정 간 동기화나 장기 저장은 하지 않는다. 적용된 의미 필터가 달라지면 세대를
 올려 선택을 비우고, offset·정렬 변경·refetch는 선택을 유지한다. 정렬 변경 뒤 사전규격
