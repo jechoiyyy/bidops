@@ -995,3 +995,70 @@ def test_search_endpoint_errors_are_safe_and_write_nothing(opportunity_api, empt
         and link["search_target_kind"] == "bid_notice"
         for link in detail["links"]
     )
+
+
+def test_deadline_within_days_window_and_deadline_sort(opportunity_api, monkeypatch):
+    """마감 임박 추적 건의 창·모집단·정렬 (ADR-0067 결정 3·4·6).
+
+    창은 링크 단위로 판정하고 사업을 돌려준다. 하한은 요청 시각, 상한은 요청 시각 KST
+    일자 + N일의 끝(열린 경계)이다. 추적 대상(`계속 추적`·`보류`)만 들고, 확인 대기
+    후보 연결의 마감은 사업을 올리지 않는다. `sort=deadline`은 창과 무관한 정렬 키다.
+    """
+
+    client, session, ended, plan_opportunity = opportunity_api
+    now = datetime(2026, 9, 20, 3, 0, tzinfo=timezone.utc)  # KST 09-20 12:00
+    monkeypatch.setattr(opportunities_router, "_request_now", lambda: now)
+
+    def linked(label, *, tracking, deadline, link_type="official", status="확정"):
+        selected = tracking != "미선택"
+        opportunity = Opportunity(
+            first_registered_stage="pre_spec", tracking_status=tracking,
+            tracking_reason="사람 선택" if selected else None,
+            tracking_selected_by="담당자" if selected else None,
+            tracking_selected_at=now if selected else None,
+        )
+        notice = Notice(
+            notice_key=f"pre:WINDOW-{label}", source_type="pre_spec",
+            title=f"{label} 사전규격", agency="테스트 기관", deadline_at=deadline,
+        )
+        session.add_all([opportunity, notice])
+        session.flush()
+        session.add(OpportunityLink(
+            opportunity=opportunity, notice=notice, stage="notice",
+            link_type=link_type, status=status,
+            evidence_external_no=f"PRE-{label}" if link_type == "official" else None,
+        ))
+        session.flush()
+        return opportunity
+
+    # KST 09-27 23:59:59 — 정확히 7일 뒤 날짜의 끝이라 창 안이다.
+    tracked = linked("LAST-DAY", tracking="계속 추적", deadline=datetime(2026, 9, 27, 14, 59, 59, tzinfo=timezone.utc))
+    at_now = linked("AT-NOW", tracking="보류", deadline=now)
+    # KST 09-28 00:00 — 열린 상한이라 밖이다.
+    after = linked("AFTER", tracking="계속 추적", deadline=datetime(2026, 9, 27, 15, 0, tzinfo=timezone.utc))
+    passed = linked("PASSED", tracking="계속 추적", deadline=now - timedelta(microseconds=1))
+    candidate = linked("CANDIDATE", tracking="계속 추적", deadline=now + timedelta(days=1),
+                       link_type="candidate", status="후보 확인 대기")
+    unselected = linked("UNSELECTED", tracking="미선택", deadline=datetime(2026, 9, 26, 12, 0, tzinfo=timezone.utc))
+    session.commit()
+
+    def ids(**params):
+        response = client.get("/api/opportunities", params=params)
+        assert response.status_code == 200, response.text
+        return response.json()
+
+    window = ids(deadline_within_days=7, sort="deadline")
+    assert [row["id"] for row in window["items"]] == [at_now.id, tracked.id]
+    assert window["total"] == 2
+    # 건수와 목록이 같은 분류를 읽는다: `보류`는 보류 구역, 후보 대기가 없는 계속 추적은 추적 중.
+    assert window["section_counts"]["보류"] == 1 and window["section_counts"]["추적 중"] == 1
+    assert ids(deadline_within_days=1)["total"] == 1
+    # 창은 정렬과 독립이다. 정렬 키는 아직 남은 권위 연결 마감 중 가장 이른 것이고,
+    # 그런 마감이 없는 사업(후보 연결만·마감 경과·발주계획)은 맨 뒤다.
+    ordered = [row["id"] for row in ids(sort="deadline", limit=500)["items"]]
+    assert ordered[:5] == [at_now.id, ended.id, unselected.id, tracked.id, after.id]
+    assert set(ordered[5:]) == {passed.id, candidate.id, plan_opportunity.id}
+    # 인자가 없으면 창이 없다.
+    assert ids()["total"] == len(ordered)
+    for invalid in (0, -1, 366):
+        assert client.get("/api/opportunities", params={"deadline_within_days": invalid}).status_code == 422

@@ -105,6 +105,7 @@ def _list(session: Session, **params: Any) -> dict[str, Any]:
         "observed_from": None,
         "observed_to": None,
         "deadline_status": None,
+        "deadline_within_days": None,
         "q": None,
         "sort": "published",
         "limit": 50,
@@ -568,3 +569,52 @@ def test_deadline_scope_pages_and_sorts_before_pagination(db_session, registry, 
         _list(db_session, deadline_scope="bogus")
     assert invalid.value.status_code == 422
     assert invalid.value.detail == "deadline_scope is invalid"
+
+
+def test_deadline_within_days_window_is_cut_by_seoul_day_and_excludes_unknown(
+    db_session, registry, monkeypatch
+):
+    """`deadline_within_days`의 경계 (ADR-0067 결정 6).
+
+    하한은 요청 시각이고 상한은 요청 시각 KST 일자 + N일의 끝(열린 경계)이다. 기준
+    시각은 KST 09-16 12:00이라 `days=7`의 창은 `[09-16 12:00, 09-24 00:00)` KST다.
+    마감 미확인(`null`)은 창에 들지 않는다 — 미확인을 임박으로 승격시키지 않는다.
+    """
+
+    monkeypatch.setattr(pre_specs_router, "_now_utc", lambda: SEOUL_RECENT_NOW)
+    at_now = _notice(db_session, "WINDOW-NOW", deadline_at=SEOUL_RECENT_NOW)
+    last_day = _notice(
+        db_session,
+        "WINDOW-LAST-DAY",
+        # KST 09-23 23:59:59 — 정확히 7일 뒤 날짜의 끝이라 창 안이다.
+        deadline_at=datetime(2026, 9, 23, 14, 59, 59, tzinfo=UTC),
+    )
+    after_window = _notice(
+        db_session,
+        "WINDOW-AFTER",
+        # KST 09-24 00:00 — 열린 상한이라 밖이다.
+        deadline_at=datetime(2026, 9, 23, 15, 0, tzinfo=UTC),
+    )
+    passed = _notice(
+        db_session, "WINDOW-PASSED", deadline_at=SEOUL_RECENT_NOW - timedelta(microseconds=1)
+    )
+    unknown = _notice(db_session, "WINDOW-UNKNOWN", deadline_at=None)
+    db_session.commit()
+
+    window = _list(db_session, deadline_within_days=7, sort="deadline")
+    assert [item["notice_pk"] for item in window["items"]] == [at_now.id, last_day.id]
+    assert window["total"] == 2
+    # 집계도 같은 모집단을 읽는다 — 창 밖의 마감 경과 건이 구간 건수에 남지 않는다.
+    assert window["deadline_scope_counts"] == {"current": 0, "passed": 0}
+    assert {item["notice_pk"] for item in _list(db_session, deadline_within_days=1)["items"]} == {
+        at_now.id
+    }
+    # 인자가 없으면 창이 없다.
+    assert {item["notice_pk"] for item in _list(db_session)["items"]} == {
+        at_now.id, last_day.id, after_window.id, passed.id, unknown.id,
+    }
+    for invalid in (0, -1, 366):
+        with pytest.raises(HTTPException) as error:
+            _list(db_session, deadline_within_days=invalid)
+        assert error.value.status_code == 422
+        assert error.value.detail == "deadline_within_days is invalid"
