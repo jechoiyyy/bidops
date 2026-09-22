@@ -324,6 +324,21 @@
   line-height: 1.45;
 }
 
+/* 대행 공고기관은 수요기관보다 작게 뒤에 붙는다(M5 승인). 기관 줄 자체의
+   글자 단(`--review-list-primary`)은 그대로 둔다. */
+.pre-specs-row-agency-proxy {
+  color: var(--color-text-secondary);
+  font-size: var(--review-list-secondary);
+}
+
+/* 제외 기록은 `검토 제외` token 바로 뒤의 작은 글자다. */
+.pre-specs-row-exclusion {
+  min-width: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--review-list-secondary);
+  overflow-wrap: anywhere;
+}
+
 .pre-specs-row-meta,
 .pre-specs-row-state {
   display: flex;
@@ -426,6 +441,47 @@
   align-items: center;
   gap: var(--spacing-1-5);
   min-width: 0;
+}
+
+/* 수요기관이 있을 때의 공고(대행)기관 부제 — 강조 블록 바로 아래에 붙어 한
+   단위로 읽히게 안쪽 여백만큼 들여쓴다(M5 승인, F2). */
+.pre-spec-announcer-agency {
+  display: block;
+  min-width: 0;
+  margin-top: calc(var(--spacing-1) * -1);
+  padding-left: var(--spacing-4);
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+  line-height: var(--bo-type-caption-leading);
+  overflow-wrap: anywhere;
+}
+
+/* 제외 기록 한 줄 — 상태 칩이 말한 `검토 제외`의 근거다(누가·언제·왜). */
+.pre-specs-detail-exclusion,
+.ps-record-exclusion-note {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--spacing-1);
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+  line-height: var(--bo-type-caption-leading);
+}
+
+.pre-spec-exclusion-label {
+  flex: 0 0 auto;
+  font-weight: 600;
+}
+
+.pre-spec-exclusion-value {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.ps-record-exclusion-note {
+  justify-content: flex-end;
+  text-align: right;
 }
 
 /* 사업명은 최대 두 줄이다. 셋째 줄부터는 아래 구역을 밀어내고 A3가 깨진다. */
@@ -748,6 +804,12 @@
 
 .pre-specs-next-action > [aria-hidden="true"] {
   color: var(--color-border-emphasized);
+}
+
+/* 경계 문장은 `다음 작업`과 같은 줄을 다투지 않고 제 줄을 쓴다(M4 승인 문안). */
+.pre-specs-detail-decision-note {
+  flex: 1 1 100%;
+  min-width: 0;
 }
 
 .pre-specs-tracking-elsewhere {
