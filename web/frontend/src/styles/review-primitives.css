@@ -270,6 +270,17 @@
   overflow-wrap: anywhere;
 }
 
+/* 부제(총괄기관·공고기관). 이름 아래 한 줄을 차지하며 블록의 안쪽 여백을 함께 쓴다 —
+   블록 자체의 배경·padding은 그대로라 네 화면 교차 검사의 값이 바뀌지 않는다. */
+.review-agency-sub {
+  flex: 0 0 100%;
+  min-width: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+  line-height: var(--bo-type-caption-leading);
+  overflow-wrap: anywhere;
+}
+
 .review-filter-bar {
   display: flex;
   min-width: 0;
