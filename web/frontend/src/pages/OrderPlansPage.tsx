@@ -972,6 +972,15 @@ export function OrderPlansPage() {
     }
   }
 
+  // M7 ② — 사전규격 `selectCurrentPage`(spec §3.4)와 같은 규칙이다: **지금 이 페이지에
+  // 그려진 행만** 기존 선택 뒤에 중복 없이 덧붙인다. 다른 페이지에서 고른 ID는 그대로
+  // 남는다. 발주계획 선택에는 사전규격의 정렬 메타데이터가 없으므로 id만 넘긴다.
+  const pageFullySelected = visibleItems.length > 0
+    && visibleItems.every((item) => orderPlanSelection.selectedIdSet.has(item.order_plan_pk));
+  function selectCurrentPage() {
+    orderPlanSelection.selectMany(visibleItems.map((item) => item.order_plan_pk));
+  }
+
   const handleBulkPendingChange = useCallback((pending: boolean) => {
     setBulkPending(pending);
     if (!pending) setBulkRecoveryAvailable(hasPendingOrderPlanBulkTrackingRequest());
@@ -1706,12 +1715,47 @@ export function OrderPlansPage() {
                         ? "계획을 선택하면 일괄 추적 시작·종료를 쓸 수 있습니다."
                         : orderPlanSelection.selectedIds.length > ORDER_PLAN_BULK_END_MAX_SELECTION
                           ? "한 번에 200건까지 종료할 수 있습니다. 선택을 줄이십시오."
-                          : "추적을 아직 정하지 않은 계획만 저장됩니다. 나머지는 미리보기에서 제외됩니다."}
+                          : "전체 선택은 현재 페이지의 행만 더합니다. 추적 시작은 사유·담당자 확인 창을 거칩니다."}
                 actions={(
                   <>
-                    {/* A3(ADR-0063): 일괄 검토 단추를 시작·종료로 나눈다. 종료는 200건
-                        상한을 넘으면 비활성이고 시작은 그대로 쓸 수 있다. `전체 선택`은
-                        업무 규칙상 두지 않는다. */}
+                    {/* M7 ②(ADR-0062 결정 표): 선택 도구 4개를 사전규격과 같은 부품·같은
+                        순서로 맞춘다 — `전체 선택`(현재 페이지) · `전체 해제` ·
+                        `선택 항목 제외` · `선택 항목 추적 시작`(primary). */}
+                    <button
+                      className="interaction-control"
+                      type="button"
+                      onClick={selectCurrentPage}
+                      disabled={bulkPending || !orderPlanSelection.hydrated || visibleItems.length === 0 || pageFullySelected}
+                      aria-label="현재 페이지 전체 선택"
+                    >
+                      전체 선택
+                    </button>
+                    <button
+                      aria-describedby="c2l-selection-action-reason"
+                      aria-label="선택 전체 해제"
+                      className="interaction-control"
+                      type="button"
+                      disabled={bulkPending || orderPlanSelection.selectedIds.length === 0 || !orderPlanSelection.hydrated}
+                      onClick={() => {
+                        orderPlanSelection.clear();
+                        setBulkEndNotice(null);
+                      }}
+                    >
+                      전체 해제
+                    </button>
+                    {/* 결정 1(M7) — 발주계획의 `선택 항목 제외`는 기존 일괄 `추적 종료`
+                        (ADR-0063, A3)를 그 이름으로 부른다. onClick·비활성 조건·확인
+                        창(`OrderPlanBulkTrackingDialog` mode="end")은 그대로다. 확인
+                        창 제목·본문은 계속 `추적 종료`라고 말하므로(그대로 둔다), 단추
+                        옆에는 제외 = 추적 종료라는 사실을 알리는 숨은 설명을 붙인다. */}
+                    <Button
+                      aria-describedby="c2l-selection-action-reason c2l-selection-exclude-note"
+                      isDisabled={bulkPending || mutation.isPending || trackingMutation.isPending || !orderPlanSelection.hydrated || !orderPlanSelection.storageAvailable || Boolean(orderPlanSelection.storageError) || orderPlanSelection.selectedIds.length === 0 || orderPlanSelection.selectedIds.length > ORDER_PLAN_BULK_END_MAX_SELECTION}
+                      label="선택 항목 제외"
+                      onClick={() => setBulkDialogMode("end")}
+                      size="sm"
+                      variant="secondary"
+                    />
                     <button
                       aria-describedby="c2l-selection-action-reason"
                       className="interaction-control interaction-control-primary"
@@ -1721,27 +1765,7 @@ export function OrderPlansPage() {
                     >
                       선택 항목 추적 시작
                     </button>
-                    <button
-                      aria-describedby="c2l-selection-action-reason"
-                      className="interaction-control"
-                      type="button"
-                      disabled={bulkPending || mutation.isPending || trackingMutation.isPending || !orderPlanSelection.hydrated || !orderPlanSelection.storageAvailable || Boolean(orderPlanSelection.storageError) || orderPlanSelection.selectedIds.length === 0 || orderPlanSelection.selectedIds.length > ORDER_PLAN_BULK_END_MAX_SELECTION}
-                      onClick={() => setBulkDialogMode("end")}
-                    >
-                      선택 항목 추적 종료
-                    </button>
-                    <button
-                      aria-describedby="c2l-selection-action-reason"
-                      className="interaction-control"
-                      type="button"
-                      disabled={bulkPending || orderPlanSelection.selectedIds.length === 0 || !orderPlanSelection.hydrated}
-                      onClick={() => {
-                        orderPlanSelection.clear();
-                        setBulkEndNotice(null);
-                      }}
-                    >
-                      선택 전체 해제
-                    </button>
+                    <span className="visually-hidden" id="c2l-selection-exclude-note">선택한 계획의 추적을 종료합니다</span>
                   </>
                 )}
               />
