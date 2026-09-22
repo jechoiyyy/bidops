@@ -323,20 +323,18 @@ export function OrderPlanDetailPane({
           {/* 시안 §4: 발주기관을 라벨과 함께 강조 블록으로 먼저 읽히고, 사업명은
               그다음이다. 식별자와 추적 상태는 한 줄로 붙인다. */}
           <StickyDecisionHeader className="review-detail-head c2l-detail-head" label="발주계획 상세 헤더">
+            {/* 총괄기관은 발주기관 바로 아래에서 작게 읽힌다(시안 M5 ①). 공용 블록의
+                부제 슬롯이라 배경·여백을 발주기관과 함께 쓴다. 값이 없으면 줄 자체를
+                만들지 않는다 — 없는 기관을 `미제공`으로 적지 않는다. */}
             <AgencyFeature
               className="c2l-agency-feature"
               fallback="미확인"
               labelClassName="c2l-agency-label"
               name={selectedItem.agency_name}
               nameClassName="c2l-agency-name"
+              sub={supervisingAgency ? `총괄기관 ${supervisingAgency}` : null}
+              subClassName="c2l-agency-supervising"
             />
-            {/* 총괄기관은 발주기관 바로 아래에서 작게 읽힌다(시안 M5 ①). 값이 없으면
-                줄 자체를 만들지 않는다 — 없는 기관을 `미제공`으로 적지 않는다. */}
-            {supervisingAgency ? (
-              <Text type="supporting" color="secondary" as="p" className="c2l-agency-supervising">
-                총괄기관 {supervisingAgency}
-              </Text>
-            ) : null}
             <Heading level={4}>{textOrUnknown(selectedItem.title)}</Heading>
             <div className="c2l-detail-identity">
               {/* 외부 계획번호 하나만 둔다. 내부 계획 ID는 실무 판단에 쓰이지 않으며

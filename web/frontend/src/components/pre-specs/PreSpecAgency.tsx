@@ -1,4 +1,3 @@
-import { Fragment } from "react";
 import { AgencyFeature } from "../common/ReviewPrimitives";
 import { shortDateLabel } from "../../lib/deadline";
 import { agencyOf } from "../../lib/preSpecViews";
@@ -25,8 +24,9 @@ function trimmed(value: string | null | undefined): string | null {
 
 /**
  * 상세 머리의 기관 블록 — **수요기관을 크게, 공고(대행)기관을 작게**
- * (M5 승인 2026-09-22). 공용 강조 블록(`AgencyFeature`)은 그대로 쓰고 부제만
- * 형제 줄로 덧붙인다. 수요기관이 없으면 블록 하나로 되돌아간다.
+ * (M5 승인 2026-09-22). 공용 강조 블록(`AgencyFeature`)의 부제 슬롯(`sub`)에
+ * 공고기관을 넣어 한 블록으로 읽히게 한다(S1). 수요기관이 없으면 부제 없이
+ * 블록 하나로 되돌아간다.
  */
 export function PreSpecAgencyFeature({
   agency,
@@ -42,11 +42,15 @@ export function PreSpecAgencyFeature({
     return <AgencyFeature className={className} name={agency} fallback="발주기관 미확인" />;
   }
   return (
-    <Fragment>
-      <AgencyFeature className={className} label="수요기관" name={demand} fallback="수요기관 미확인" />
-      {/* 공고기관은 부제다. 이름을 지어내지 않고 없으면 `미확인`으로 남긴다. */}
-      <span className="pre-spec-announcer-agency">공고기관 {trimmed(agency) ?? "미확인"}</span>
-    </Fragment>
+    <AgencyFeature
+      className={className}
+      label="수요기관"
+      name={demand}
+      fallback="수요기관 미확인"
+      /* 공고기관은 부제다. 이름을 지어내지 않고 없으면 `미확인`으로 남긴다. */
+      sub={`공고기관 ${trimmed(agency) ?? "미확인"}`}
+      subClassName="pre-spec-announcer-agency"
+    />
   );
 }
 
