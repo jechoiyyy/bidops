@@ -358,14 +358,9 @@
 }
 
 .pre-specs-row-tracking,
-.pre-specs-row-attention,
-.pre-specs-row-next-action {
+.pre-specs-row-attention {
   color: var(--color-text-secondary);
   font-size: var(--review-list-secondary);
-}
-
-.pre-specs-row-next-action {
-  color: var(--color-text-accent);
 }
 
 .pre-specs-row-attention {

@@ -2046,6 +2046,54 @@ test("LS-cross-page-selection-survives-refresh-and-clears-on-applied-filter-chan
   await expect(page.locator('.c2l-row input[type="checkbox"][data-checked="true"]')).toHaveCount(0);
 });
 
+// M7 ②(ADR-0062 결정 표): `전체 선택`은 검색 결과 전체가 아니라 지금 그려진
+// 페이지만 더한다(사전규격 `selectCurrentPage`와 같은 규칙, spec §3.4). 페이지가
+// 전부 선택되면 그 페이지에서는 다시 누를 일이 없어 비활성이고, 다음 페이지로
+// 넘어가면 그 페이지 몫만큼만 다시 활성화된다.
+test("LS-select-current-page-only-adds-visible-rows-and-disables-once-page-is-fully-selected", async ({ page }) => {
+  await mockOrderPlans(page, "large");
+  await page.goto("/order-plans");
+  await expect(page.locator(".c2l-row")).toHaveCount(500);
+
+  const selectPage = page.getByRole("button", { name: "현재 페이지 전체 선택", exact: true });
+  await selectPage.click();
+  await expect(page.getByTestId("order-plan-selection-toolbar")).toContainText("선택 500건");
+  await expect(page.locator('.c2l-row input[type="checkbox"][data-checked="true"]')).toHaveCount(500);
+  await expect(selectPage).toBeDisabled();
+
+  await page.getByRole("button", { name: "다음", exact: true }).click();
+  await expect(page).toHaveURL(/offset=500/);
+  await expect(page.locator(".c2l-row")).toHaveCount(400);
+  // 이전 페이지 500건은 화면 밖에서도 그대로 선택돼 있고, 새 페이지는 아직
+  // 선택되지 않았으므로 단추가 다시 활성이다.
+  await expect(selectPage).toBeEnabled();
+  await expect(page.locator('.c2l-row input[type="checkbox"][data-checked="true"]')).toHaveCount(0);
+
+  await selectPage.click();
+  await expect(page.getByTestId("order-plan-selection-toolbar")).toContainText("선택 900건");
+  await expect(page.locator('.c2l-row input[type="checkbox"][data-checked="true"]')).toHaveCount(400);
+  await expect(selectPage).toBeDisabled();
+});
+
+// M7 ②: 선택 도구는 사전규격과 같은 이름·순서 4개뿐이다 — 전체 선택 · 전체 해제 ·
+// 선택 항목 제외 · 선택 항목 추적 시작(primary). 아무것도 선택하지 않은 초기
+// 상태에서 해제·제외·시작은 비활성이고 전체 선택만 쓸 수 있다.
+test("LS-selection-toolbar-has-four-tools-in-the-pre-specs-order-and-names", async ({ page }) => {
+  await mockOrderPlans(page);
+  await page.goto("/order-plans");
+  const toolbar = page.getByTestId("order-plan-selection-toolbar");
+  const buttons = toolbar.getByRole("button");
+  await expect(buttons).toHaveCount(4);
+  await expect(buttons.nth(0)).toHaveText("전체 선택");
+  await expect(buttons.nth(1)).toHaveText("전체 해제");
+  await expect(buttons.nth(2)).toHaveText("선택 항목 제외");
+  await expect(buttons.nth(3)).toHaveText("선택 항목 추적 시작");
+  await expect(buttons.nth(0)).toBeEnabled();
+  await expect(buttons.nth(1)).toBeDisabled();
+  await expect(buttons.nth(2)).toBeDisabled();
+  await expect(buttons.nth(3)).toBeDisabled();
+});
+
 test("LS-checkbox-space-and-input-events-remain-independent-from-active-row", async ({ page }) => {
   await mockOrderPlans(page);
   await page.goto("/order-plans");
@@ -2456,7 +2504,9 @@ test("BE-select-three-end-tracking-confirm-and-result-hides-ended-plans-from-def
   await rows.filter({ hasText: "청사 시설관리" }).locator('input[type="checkbox"]').check();
   await expect(page.getByTestId("order-plan-selection-toolbar")).toContainText("선택 3건");
 
-  await page.getByRole("button", { name: "선택 항목 추적 종료", exact: true }).click();
+  // M7 결정 1: 발주계획의 `선택 항목 제외`는 기존 일괄 `추적 종료`(ADR-0063)를 그
+  // 이름으로 부른다. onClick·확인 창은 그대로다.
+  await page.getByRole("button", { name: "선택 항목 제외", exact: true }).click();
   const dialog = page.getByTestId("order-plan-bulk-tracking-dialog");
   await expect(dialog).toContainText("발주계획 일괄 추적 종료");
   await expect(dialog).toContainText("추적을 아직 정하지 않은 계획만 추적 종료로 저장합니다");
@@ -2496,7 +2546,7 @@ test("BE-blank-reason-blocks-confirm-and-sends-no-request", async ({ page }) => 
   const trace = await mockOrderPlanBulkTracking(page, "all-eligible");
   await page.goto("/order-plans");
   await page.locator(".c2l-row").first().locator('input[type="checkbox"]').check();
-  await page.getByRole("button", { name: "선택 항목 추적 종료", exact: true }).click();
+  await page.getByRole("button", { name: "선택 항목 제외", exact: true }).click();
   const dialog = page.getByTestId("order-plan-bulk-tracking-dialog");
   await dialog.getByRole("button", { name: "선택 대상 미리보기", exact: true }).click();
   await dialog.getByRole("textbox", { name: "공통 담당자 이름 · 감사 표식" }).fill("종료 담당자");
@@ -2516,7 +2566,7 @@ test("BE-mixed-selection-preview-shows-eligible-and-status-exclusions", async ({
   await rows.filter({ hasText: "인공지능 기반 공공데이터" }).locator('input[type="checkbox"]').check();
   await rows.filter({ hasText: "청사 시설관리" }).locator('input[type="checkbox"]').check();
   await rows.filter({ hasText: "복지서비스 운영" }).locator('input[type="checkbox"]').check();
-  await page.getByRole("button", { name: "선택 항목 추적 종료", exact: true }).click();
+  await page.getByRole("button", { name: "선택 항목 제외", exact: true }).click();
   const dialog = page.getByTestId("order-plan-bulk-tracking-dialog");
   await dialog.getByRole("button", { name: "선택 대상 미리보기", exact: true }).click();
   await expect(dialog).toContainText("미선택 · 종료 가능");
@@ -2550,7 +2600,7 @@ test("BE-over-200-selection-disables-end-but-keeps-start-enabled", async ({ page
   }, fingerprint);
   await page.reload();
   await expect(page.getByTestId("order-plan-selection-toolbar")).toContainText("선택 201건");
-  await expect(page.getByRole("button", { name: "선택 항목 추적 종료", exact: true })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "선택 항목 제외", exact: true })).toBeDisabled();
   await expect(page.getByRole("button", { name: "선택 항목 추적 시작", exact: true })).toBeEnabled();
   await expect(page.locator("#c2l-selection-action-reason"))
     .toContainText("한 번에 200건까지 종료할 수 있습니다. 선택을 줄이십시오.");
@@ -2603,7 +2653,7 @@ test("BE-pending-end-request-recovers-through-end-endpoint-even-when-start-dialo
   });
   await page.goto("/order-plans");
   await page.locator(".c2l-row").first().locator('input[type="checkbox"]').check();
-  await page.getByRole("button", { name: "선택 항목 추적 종료", exact: true }).click();
+  await page.getByRole("button", { name: "선택 항목 제외", exact: true }).click();
   const endDialog = page.getByTestId("order-plan-bulk-tracking-dialog");
   await endDialog.getByRole("button", { name: "선택 대상 미리보기", exact: true }).click();
   await endDialog.getByRole("textbox", { name: "공통 담당자 이름 · 감사 표식" }).fill("종료 유실 담당자");

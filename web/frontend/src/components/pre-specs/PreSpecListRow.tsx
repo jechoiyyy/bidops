@@ -7,7 +7,6 @@ import {
   attachmentAttention,
   budgetLabel,
   exactBudget,
-  nextActionLabel,
   originLabel,
   overviewStatusLabel,
   overviewTokenColor,
@@ -59,7 +58,6 @@ export function PreSpecRow({
   const title = titleOf(item);
   const swNote = swRowNote(item.sw_business_status);
   const attention = attachmentAttention(item);
-  const nextAction = nextActionLabel(item.next_action);
   const shortDeadline = shortDateLabel(item.deadline_at);
   return (
     <DenseListRow
@@ -122,7 +120,9 @@ export function PreSpecRow({
               color={overviewTokenColor(item.overview_review_status)}
             />
             <span className="pre-specs-row-tracking">{trackingLabel(item)}</span>
-            {nextAction ? <span className="pre-specs-row-next-action">다음: {nextAction}</span> : null}
+            {/* M7 ④(2026-09-22 승인): "다음: …"은 개요 상태 칩·추적 상태와 같은 말의
+                반복이라 행에서 뺐다. `next_action` 값은 우측 상세의 다음 행동 안내
+                (`PreSpecListDetailPane`)에만 남는다. 응답 필드는 그대로다. */}
             {/* 0건은 실제 0이므로 아무것도 적지 않는다. 1건 이상일 때만 남긴다. */}
             {attention ? <span className="pre-specs-row-attention">{attention}</span> : null}
           </span>
