@@ -12,7 +12,8 @@ import { getDeepReview, getDocumentBundles, getReport } from "../components/deep
 import type { ReportSection } from "../components/deep-review/types";
 import { EmptyState } from "../components/common/EmptyState";
 import { Panel } from "../components/common/Panel";
-import { AgencyFeature, ReviewHistoryLinkRail } from "../components/common/ReviewPrimitives";
+import { ReviewHistoryLinkRail } from "../components/common/ReviewPrimitives";
+import { PreSpecAgencyFeature, PreSpecExclusionRecord } from "../components/pre-specs/PreSpecAgency";
 import { SkeletonPanel } from "../components/common/Skeleton";
 import { PreSpecDocumentSummary, TrackingDecisionControl, updateTrackingProjection } from "../components/pre-specs/TrackingDecisionControl";
 import { PreSpecBriefingSection } from "../components/pre-specs/PreSpecBriefingSection";
@@ -560,7 +561,15 @@ function PreSpecRecordBody({ noticeId, listSearch }: { noticeId: number | null; 
               {/* 발주기관은 머리 최상단에서 목록 상세와 같은 강조 블록으로 먼저 읽힌다
                   (ADR-0062 ⓑ). 아래 식별 줄의 기관명은 그대로 둔다 — 사용자가 중복
                   표시를 확인하고 승인했다. */}
-              <AgencyFeature className="ps-record-agency-feature" name={notice.agency} fallback="발주기관 미확인" />
+              {/* 수요기관(`demand_agency`)이 있으면 그 이름을 크게 두고
+                  공고(대행)기관은 부제로 내린다(M5 승인 2026-09-22). 수요기관은
+                  사전규격 목록 투영에만 있으므로 그 응답이 없으면 지금 그대로
+                  `발주기관` 한 블록이다. */}
+              <PreSpecAgencyFeature
+                agency={notice.agency}
+                className="ps-record-agency-feature"
+                demandAgency={preSpecItem?.demand_agency ?? null}
+              />
               <div className="ps-record-chips">
                 <span className="ps-chip ps-chip-neutral">사전규격 · {preSpecItem?.origin ?? "미확인"}</span>
                 <span className={`ps-chip ps-chip-${deadlineChipVariant(deadline.urgency)}`}>{deadline.label}</span>
@@ -586,7 +595,13 @@ function PreSpecRecordBody({ noticeId, listSearch }: { noticeId: number | null; 
             <div className="ps-record-header-actions">
               {/* 현재 추적 상태 글자는 화면에 한 번만 둔다(spec §4). 이 칩은 결정의
                   현재 값을 읽는 자리고, 상태 이름을 다시 말하는 블록은 ② 카드가 갖는다. */}
-              {preSpecItem?.review_exclusion_status === "excluded" ? <Token size="sm" label="검토 제외" color="default" /> : null}
+              {/* 제외된 건은 상태 칩 옆에 누가·언제·왜를 함께 남긴다(spec §6.2). */}
+              {preSpecItem?.review_exclusion_status === "excluded" ? (
+                <>
+                  <Token size="sm" label="검토 제외" color="default" />
+                  <PreSpecExclusionRecord className="ps-record-exclusion-note" item={preSpecItem} />
+                </>
+              ) : null}
               <span className="ps-chip ps-chip-neutral">추적 결정 · {trackingStatusLabel}</span>
               <Link className="ps-ref ps-ref-plain ps-record-list-link" to={listUrl}>목록으로 돌아가기</Link>
             </div>
