@@ -219,8 +219,10 @@ class OpportunitySearchResponse(RuntimeContractModel):
     search_unconfirmed: bool
 
 
+#: ``deadline``은 아직 남은 권위 연결 마감 중 가장 이른 것 오름차순이고 그런 마감이
+#: 없는 사업은 맨 뒤다. 정렬 키일 뿐이며 응답에 대표 마감 필드는 없다(ADR-0067 결정 4).
 OpportunitySort = Literal[
-    "created_at", "tracking_status", "first_registered_stage", "hold_review_due_at"
+    "created_at", "tracking_status", "first_registered_stage", "hold_review_due_at", "deadline"
 ]
 
 # The bulk wire contracts deliberately have their own versioned vocabulary.

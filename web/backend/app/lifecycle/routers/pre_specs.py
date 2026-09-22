@@ -264,6 +264,22 @@ def _deadline_condition(status: PreSpecDeadlineStatus, now: datetime):
     return Notice.deadline_at.is_(None)
 
 
+def _deadline_window_condition(days: int, now: datetime):
+    """의견등록 마감이 ``[요청 시각, KST 오늘+days일의 끝)``에 드는 조건.
+
+    D-day 표시가 날짜 단위이므로 창도 날짜로 끊는다(ADR-0067 결정 6). 하한이 요청
+    시각이라 이미 지난 마감은 임박이 아니고, `deadline_at`이 null인 미확인 건도 창에
+    들지 않는다 — 미확인을 임박으로 승격시키지 않는다.
+    """
+
+    last_day = _today_seoul(now) + timedelta(days=days)
+    return and_(
+        Notice.deadline_at.is_not(None),
+        Notice.deadline_at >= now,
+        Notice.deadline_at < _seoul_day_end_exclusive(last_day),
+    )
+
+
 def _deadline_passed_expression(now: datetime):
     """SQL로 평가하는 "의견등록 마감이 지났다" 술어.
 
@@ -318,6 +334,7 @@ def list_pre_specs(
     observed_from: date | None = None,
     observed_to: date | None = None,
     deadline_status: PreSpecDeadlineStatus | None = None,
+    deadline_within_days: int | None = None,
     q: str | None = Query(default=None),
     sort: PreSpecSort = Query(default="published"),
     limit: int = Query(default=50, ge=1, le=500),
@@ -359,6 +376,8 @@ def list_pre_specs(
     deadline_scope_value: PreSpecDeadlineScope = deadline_scope or "all"
     if deadline_scope_value not in get_args(PreSpecDeadlineScope):
         raise HTTPException(status_code=422, detail="deadline_scope is invalid")
+    if deadline_within_days is not None and not 1 <= int(deadline_within_days) <= 365:
+        raise HTTPException(status_code=422, detail="deadline_within_days is invalid")
     source_run_value = source_run_id.strip() if isinstance(source_run_id, str) else None
     if not source_run_value:
         source_run_value = None
@@ -442,6 +461,11 @@ def list_pre_specs(
             conditions.append(and_(*deadline_parts))
         else:
             conditions.append(deadline_parts)
+    if deadline_within_days is not None:
+        # `deadline_status`와 같은 자리의 서버 필터다 — `items`·`total`과 모든 집계
+        # (`workspace_counts`·`overview_status_counts`·`deadline_scope_counts`)가 같은
+        # 모집단을 읽는다.
+        conditions.append(_deadline_window_condition(int(deadline_within_days), now))
 
     query = (
         select(
