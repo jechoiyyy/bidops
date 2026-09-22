@@ -1,5 +1,6 @@
 import type { Ref } from "react";
 import { Link } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { Badge } from "@astryxdesign/core/Badge";
 import { Button } from "@astryxdesign/core/Button";
 import { Heading } from "@astryxdesign/core/Heading";
@@ -14,6 +15,7 @@ import {
   StickyDecisionHeader,
 } from "../common/ReviewPrimitives";
 import { EmptyState } from "../common/EmptyState";
+import { api } from "../../lib/api";
 import { describeApiError } from "../../lib/apiErrors";
 import type {
   OpportunityTrackingStatus,
@@ -24,7 +26,10 @@ import {
   OTHER_REASON,
   TRACKING_REASONS,
   budgetValue,
+  detailFactValue,
+  formatKstDateShort,
   formatMoment,
+  noticePostedLabel,
   plannedTiming,
   qwenBadgeVariant,
   qwenRowLabel,
@@ -263,6 +268,33 @@ export function OrderPlanDetailPane({
   onSkipCurrent,
   onResetFilters,
 }: OrderPlanDetailPaneProps) {
+  const selectedPk = selectedItem?.order_plan_pk ?? null;
+  /**
+   * 선택한 행의 상세 응답(`order-plan-detail-response.v4`, spec §6.1).
+   *
+   * 행마다 **1회**이고 선택이 바뀔 때만 다시 조회한다 — 키가 발주계획 PK 하나이므로
+   * 같은 행을 다시 골라도 `staleTime` 안에서는 요청이 나가지 않는다. 목록이 이미 준
+   * 값(제목·기관·예산·발주 예정·분야·근거·추적 결정)은 이 응답을 기다리지 않으며,
+   * 상세 응답만 싣는 값(총괄기관·조달방식·용역 구분·연관 공고번호)만 응답 뒤에 채운다.
+   */
+  const detailQuery = useQuery({
+    queryKey: ["order-plan-c2", "detail", selectedPk],
+    queryFn: ({ signal }) => api.getOrderPlan(selectedPk as number, { signal }),
+    enabled: selectedPk !== null,
+    staleTime: 15_000,
+  });
+  /** 지금 선택한 행의 상세만 쓴다. 이전 선택의 응답을 다른 행의 값으로 그리지 않는다. */
+  const detail = selectedPk !== null && detailQuery.data?.order_plan_pk === selectedPk
+    ? detailQuery.data
+    : null;
+  const detailState = {
+    pending: selectedPk !== null && detail === null && !detailQuery.isError,
+    failed: selectedPk !== null && detailQuery.isError,
+  };
+  /** 총괄기관은 값이 있을 때만 그린다(시안 M5 ①) — 없는 기관을 `미제공`으로 적지 않는다. */
+  const supervisingAgency = detail?.supervising_agency_name?.trim() ? detail.supervising_agency_name : null;
+  /** 신규·계속 구분(`service_type`). 값이 없거나 아직 받지 못했으면 절 자체를 만들지 않는다. */
+  const serviceType = detail?.service_type?.trim() ? detail.service_type : null;
   return (
     <section className="review-split-detail c2l-detail-pane">
       {listPending || listError ? (
@@ -298,11 +330,24 @@ export function OrderPlanDetailPane({
               name={selectedItem.agency_name}
               nameClassName="c2l-agency-name"
             />
+            {/* 총괄기관은 발주기관 바로 아래에서 작게 읽힌다(시안 M5 ①). 값이 없으면
+                줄 자체를 만들지 않는다 — 없는 기관을 `미제공`으로 적지 않는다. */}
+            {supervisingAgency ? (
+              <Text type="supporting" color="secondary" as="p" className="c2l-agency-supervising">
+                총괄기관 {supervisingAgency}
+              </Text>
+            ) : null}
             <Heading level={4}>{textOrUnknown(selectedItem.title)}</Heading>
             <div className="c2l-detail-identity">
               {/* 외부 계획번호 하나만 둔다. 내부 계획 ID는 실무 판단에 쓰이지 않으며
-                  주소(`?selected=`)와 운영 화면이 그대로 들고 있다(0921 명세 §3.1). */}
-              <Text type="supporting" color="secondary" as="p">계획번호 {selectedItem.order_plan_unty_no}</Text>
+                  주소(`?selected=`)와 운영 화면이 그대로 들고 있다(0921 명세 §3.1).
+                  첫 수집일은 목록이 이미 준 값이라 상세 응답을 기다리지 않는다.
+                  신규·계속 구분은 상세 전용이므로 값이 온 뒤에만 절이 붙는다. */}
+              <Text type="supporting" color="secondary" as="p">
+                계획번호 {selectedItem.order_plan_unty_no}
+                {` · 첫 수집 ${formatKstDateShort(selectedItem.first_observed_at)}`}
+                {serviceType ? ` · ${serviceType}` : ""}
+              </Text>
               <Badge
                 variant={trackingAvailabilityState === "available" ? "neutral" : "warning"}
                 label={trackingStatusLabel(selectedItem)}
@@ -310,10 +355,55 @@ export function OrderPlanDetailPane({
             </div>
           </StickyDecisionHeader>
           <div className="c2l-detail-scroll">
+            {/* 상세 조회가 실패하면 목록에서 받은 값은 그대로 두고 **못 불러왔다는 사실**만
+                알린다. 실패를 `미제공`으로 낮추지 않으며(경고 ④) 같은 자리에서 다시 시도한다. */}
+            {detailState.failed ? (
+              <p className="c2l-detail-error" role="alert">
+                <span>상세 정보를 불러오지 못했습니다 · 목록에서 받은 값만 보입니다</span>
+                <Button
+                  label="다시 시도"
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => { void detailQuery.refetch(); }}
+                />
+              </p>
+            ) : null}
+            {/* 계약 조건은 참여 판단을 좌우한다(시안 M5 ①): 수의계약인지, 이미 공고가
+                났는지, 추적을 시작한 사업기회가 있는지. 예산·발주 예정·사업 분야는
+                목록이 이미 준 값이라 상세 응답을 기다리지 않는다. */}
             <dl className="c2l-detail-facts">
               <div><dt>발주계획 예산</dt><dd>{budgetValue(selectedItem.budget_amount)}</dd></div>
               <div><dt>발주 예정</dt><dd>{plannedTiming(selectedItem.planned_order_year, selectedItem.planned_order_month)}</dd></div>
               <div><dt>사업 분야</dt><dd>{textOrUnknown(selectedItem.business_division)}</dd></div>
+              {/* 계약방법은 목록 응답(v5)에도 있는 같은 열이므로 즉시 보인다. */}
+              <div><dt>계약방법</dt><dd>{detailFactValue(selectedItem.contract_method)}</dd></div>
+              <div><dt>조달방식</dt><dd>{detailFactValue(detail?.procurement_method ?? null, detailState)}</dd></div>
+              <div>
+                <dt>공고 게시</dt>
+                <dd>
+                  {noticePostedLabel(selectedItem.notice_posted)}
+                  {/* 연관 공고번호는 수집 원문 문자열 그대로다 — 서버가 쪼개지 않으므로
+                      화면도 쪼개지 않는다(contracts.md). */}
+                  {detail?.bid_ntice_no_list ? (
+                    <span className="c2l-detail-facts-sub">공고번호 {detail.bid_ntice_no_list}</span>
+                  ) : null}
+                </dd>
+              </div>
+              <div>
+                <dt>연결된 사업기회</dt>
+                <dd>
+                  {selectedItem.tracking
+                    ? (
+                      <Link className="c2l-detail-opportunity" to={`/opportunities/${selectedItem.tracking.opportunity_id}`}>
+                        사업 추적에서 보기 →
+                      </Link>
+                    )
+                    /* 소유 사업기회를 확인하지 못한 것과 추적을 고르지 않은 것은 다른
+                       상태다(`OrderPlanTracking` 계약 — `null`은 `미선택`이 아니다).
+                       머리 badge와 같은 문구를 써서 둘을 뭉개지 않는다. */
+                    : trackingStatusLabel(selectedItem)}
+                </dd>
+              </div>
             </dl>
 
             {/* 기본 상세는 실제로 있는 근거만 싣는다. 제안요청서 본문·확인할 점은
