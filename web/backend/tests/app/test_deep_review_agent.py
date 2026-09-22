@@ -194,7 +194,10 @@ def test_strict_commands_close_action_scope_and_payload() -> None:
 
     attempt_ref = {"artifact_type": "deep_review_attempt", "artifact_id": str(ids["attempt"]), "version": 1, "sha256": None}
     retry = _retry_command(ids, attempt_ref)
-    assert retry.payload.model_dump() == {}
+    assert retry.payload.model_dump() == {"source_verification_enabled": True}
+    assert StartReviewCommand.model_validate({**command.model_dump(), "payload": {"bundle_id": ids["bundle"], "source_verification_enabled": False}}).payload.source_verification_enabled is False
+    with pytest.raises(ValidationError):
+        StartReviewCommand.model_validate({**command.model_dump(), "payload": {"bundle_id": ids["bundle"], "source_verification_enabled": "false"}})
     with pytest.raises(ValidationError):
         RetryAttemptCommand.model_validate({**retry.model_dump(), "aggregate": {"aggregate_type": "notice", "aggregate_id": "7"}})
     with pytest.raises(ValidationError):

@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { SourceVerificationSetting } from "../components/deep-review/SourceVerificationSetting";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams } from "react-router-dom";
 import {
@@ -11,6 +12,7 @@ import {
   saveRevision,
 } from "../components/deep-review/api";
 import { attemptFailureSentence } from "../components/deep-review/attemptErrors";
+import { NarrativeReportReader } from "../components/deep-review/NarrativeReportReader";
 import { SegmentInventoryPanel } from "../components/deep-review/SegmentInventoryPanel";
 import { TechnicalFacts, TechnicalInfo, type TechnicalFact } from "../components/common/TechnicalInfo";
 import { ActorField } from "../components/common/ActorField";
@@ -38,7 +40,6 @@ import type {
   DeepReviewReport,
   DeepReviewView,
   FinalOpinionValue,
-  ReportSectionKey,
   StageName,
 } from "../components/deep-review/types";
 import "../styles/deep-review-evidence.css";
@@ -119,13 +120,15 @@ function attemptErrorFacts(attempt: AttemptView): TechnicalFact[] {
   return facts;
 }
 
-function updateFirstBlock(report: DeepReviewReport, sectionKey: ReportSectionKey, body: string): DeepReviewReport {
-  return {
-    ...report,
-    sections: report.sections.map((section) => section.section_key !== sectionKey
-      ? section
-      : { ...section, blocks: section.blocks.map((block, index) => index === 0 ? { ...block, body } : block) }),
-  };
+function updateFirstBlock(report: DeepReviewReport, sectionKey: string, body: string, blockId: string): DeepReviewReport {
+  if (report.schema === "bidops.deep-review-report.v2") {
+    const selected = report.sections.find(section => section.section_key === sectionKey)?.blocks.find(block => block.block_id === blockId);
+    if (!selected) return report;
+    return { ...report, claims: report.claims.map(claim => selected.claim_ids.includes(claim.claim_id) ? { ...claim, body } : claim),
+      sections: report.sections.map(section => ({ ...section, blocks: section.blocks.map(block => block.block_id === blockId ? { ...block, body } : block) })) };
+  }
+  return { ...report, sections: report.sections.map(section => section.section_key !== sectionKey ? section
+    : { ...section, blocks: section.blocks.map((block, index) => index === 0 ? { ...block, body } : block) }) };
 }
 
 function locatorDetails(locatorType: string, locator: Record<string, string | number | number[] | null>): string {
@@ -185,19 +188,24 @@ export function DeepReviewPage() {
   const reportQuery = useQuery({
     queryKey: ["deep-review-report", reviewId],
     queryFn: () => getReport(reviewId),
-    enabled: Boolean(reviewId) && reviewQuery.data?.status === "completed",
+    enabled: Boolean(reviewId) && Boolean(reviewQuery.data),
     staleTime: 10_000,
-    retry: (failureCount, error) => isReportNotReady(error) && failureCount < REPORT_NOT_READY_MAX_RETRIES,
+    retry: (failureCount, error) => reviewQuery.data?.status === "completed" && isReportNotReady(error) && failureCount < REPORT_NOT_READY_MAX_RETRIES,
     retryDelay: 500,
   });
   const reportView = reportQuery.data;
+  const isNarrative = reportView?.report.schema === "bidops.deep-review-report.v2";
+  const records = useRef<HTMLDetailsElement | null>(null);
+  const [draftBase, setDraftBase] = useState<string | null>(null);
+  const [editBlock, setEditBlock] = useState("");
+  useEffect(() => { if (reviewQuery.data?.status === "completed") void queryClient.invalidateQueries({ queryKey: ["deep-review-report", reviewId] }); }, [reviewQuery.data?.status, reviewId, queryClient]);
   const [draft, setDraft] = useState<DeepReviewReport | null>(null);
   const [reportDraftDirty, setReportDraftDirty] = useState(false);
   const [actorName, setActorName] = useState("");
   const [revisionReason, setRevisionReason] = useState("");
   const [factualEvidenceText, setFactualEvidenceText] = useState("");
-  const [editSection, setEditSection] = useState<ReportSectionKey>("project_overview");
-  const [opinionValue, setOpinionValue] = useState<FinalOpinionValue>("보류");
+  const [editSection, setEditSection] = useState<string>("project_overview");
+  const [opinionValue, setOpinionValue] = useState<FinalOpinionValue | "">("");
   const [opinionReason, setOpinionReason] = useState("");
   const [acknowledged, setAcknowledged] = useState(false);
   const [selectedEvidenceId, setSelectedEvidenceId] = useState<string | null>(null);
@@ -208,21 +216,23 @@ export function DeepReviewPage() {
   // 무엇을 남기는지 확인시킨다. 저장에 성공하면 입력이 비워지므로 요약은 열 때의
   // 값을 얼려 둔다.
   const [opinionConfirm, setOpinionConfirm] = useState<
-    { summary: ConfirmDecisionSummaryItem[]; confirmLabel: string } | null
+    { summary: ConfirmDecisionSummaryItem[]; confirmLabel: string; actor: string; payload: Parameters<typeof saveFinalOpinion>[2] } | null
   >(null);
 
   useEffect(() => {
-    if (reportView?.report) {
+    if (reportView?.report && !reportDraftDirty) {
       setDraft(reportView.report);
-      setReportDraftDirty(false);
+      setDraftBase(reportView.current_revision_id);
+      setEditSection(reportView.report.sections[0]?.section_key ?? "project_overview");
+      setEditBlock(reportView.report.sections[0]?.blocks[0]?.block_id ?? "");
     }
-  }, [reportView]);
+  }, [reportView, reportDraftDirty]);
 
   const hasUnsavedDraft = reportDraftDirty
     || Boolean(revisionReason.trim())
     || Boolean(factualEvidenceText.trim())
     || Boolean(opinionReason.trim())
-    || opinionValue !== "보류"
+    || opinionValue !== ""
     || acknowledged;
 
   useUnsavedGuard(hasUnsavedDraft, {
@@ -246,8 +256,9 @@ export function DeepReviewPage() {
     if (!selectedEvidenceId && evidenceIds.length > 0) setSelectedEvidenceId(evidenceIds[0]);
   }, [evidenceIds, selectedEvidenceId]);
 
+  const [sourceVerificationEnabled, setSourceVerificationEnabled] = useState(true);
   const retryMutation = useMutation({
-    mutationFn: () => createDeepReviewAttempt(reviewId, actorName),
+    mutationFn: () => createDeepReviewAttempt(reviewId, actorName, undefined, sourceVerificationEnabled),
     onSuccess: async (newAttempt) => {
       showToast(`분석 회차 ${newAttempt.sequence}회를 새로 시작했습니다. 기존 실패 이력은 그대로 남습니다.`);
       await Promise.all([
@@ -262,7 +273,7 @@ export function DeepReviewPage() {
       if (!draft || !reportView) throw new Error("수정할 보고서가 없습니다.");
       const ids = factualEvidenceText.split(",").map((value) => value.trim()).filter(Boolean);
       return saveRevision(reviewId, actorName, {
-        request_id: generateRequestId(), base_revision_id: reportView.current_revision_id, report: draft,
+        request_id: generateRequestId(), base_revision_id: draftBase ?? reportView.current_revision_id, report: draft,
         reason: revisionReason, factual_change_evidence_ids: ids,
       });
     },
@@ -275,15 +286,11 @@ export function DeepReviewPage() {
   });
   const opinionMutation = useMutation({
     mutationFn: () => {
-      if (!reportView) throw new Error("현재 보고서가 없습니다.");
-      return saveFinalOpinion(reviewId, actorName, {
-        request_id: generateRequestId(), report_revision_id: reportView.current_revision_id,
-        validation_run_id: reportView.validation.validation_run_id, value: opinionValue,
-        reason: opinionReason, acknowledged_validation_failure: acknowledged,
-      });
+      if (!opinionConfirm) throw new Error("확인한 의견이 없습니다.");
+      return saveFinalOpinion(reviewId, opinionConfirm.actor, opinionConfirm.payload);
     },
     onSuccess: async () => {
-      setOpinionReason(""); setAcknowledged(false); setOpinionValue("보류");
+      setOpinionReason(""); setAcknowledged(false); setOpinionValue("");
       showToast("사전규격 심층검토 의견을 추가했습니다. 이전 기록은 그대로 남습니다.");
       await queryClient.invalidateQueries({ queryKey: ["deep-review-report", reviewId] });
     },
@@ -293,7 +300,9 @@ export function DeepReviewPage() {
     : !actorName.trim()
       ? "새 분석 회차를 시작하려면 담당자 이름을 입력하십시오."
       : null;
-  const revisionDisabledReason = revisionMutation.isPending
+  const staleDraft = draftBase !== null && draftBase !== reportView?.current_revision_id;
+  const editingBlocked = reviewQuery.data?.status !== "completed";
+  const revisionDisabledReason = editingBlocked ? "현재 분석이 완료된 뒤 수정할 수 있습니다." : staleDraft ? "새 보고서가 도착했습니다. 현재 초안을 별도로 보관한 뒤 최신 보고서를 다시 불러오십시오." : revisionMutation.isPending
     ? "보고서 수정본 저장 요청을 처리하고 있습니다."
     : !actorName.trim()
       ? "보고서 수정본을 저장하려면 담당자 이름을 입력하십시오."
@@ -319,7 +328,7 @@ export function DeepReviewPage() {
   const firstFailedEvidenceId = reportView?.validation.checks
     .filter((check) => check.status === "failed")
     .flatMap((check) => check.related_evidence_ids)[0] ?? null;
-  const opinionDisabledReason = opinionMutation.isPending
+  const opinionDisabledReason = editingBlocked ? "현재 분석이 완료된 뒤 의견을 기록할 수 있습니다." : !opinionValue ? "심층검토 의견을 선택하십시오." : opinionMutation.isPending
     ? "심층검토 의견 저장 요청을 처리하고 있습니다."
     : !actorName.trim()
       ? "심층검토 의견을 저장하려면 담당자 이름을 입력하십시오."
@@ -332,14 +341,14 @@ export function DeepReviewPage() {
   const decisionBlocks = decisionCard?.blocks ?? [];
 
   return (
-    <section aria-labelledby="deep-review-title" className="deep-review-page detail-skeleton" data-astryx-theme="bidops">
+    <section aria-labelledby="deep-review-title" className={`deep-review-page detail-skeleton${isNarrative ? " is-narrative" : ""}`} data-astryx-theme="bidops">
       <StickyDecisionHeader className="deep-review-header detail-skeleton-head" label="심층 검토 보고서 상태 헤더">
         <div className="detail-skeleton-head-top">
           <div>
-            <p className="deep-review-kicker">보고서 식별자 · {reviewId.slice(0, 8)}</p>
+            <p className="deep-review-kicker">{isNarrative ? "사전규격 · 문서 검토" : `보고서 식별자 · ${reviewId.slice(0, 8)}`}</p>
             <h2 id="deep-review-title">심층 검토 보고서</h2>
           </div>
-          <div aria-label="보고서 범위" className="deep-review-scope">공고 {review?.notice_id ?? "확인 중"} · 문서 묶음 {review?.bundle_id.slice(0, 8) ?? "확인 중"}</div>
+          <div aria-label="보고서 범위" className="deep-review-scope">공고 {review?.notice_id ?? "확인 중"}{isNarrative ? " · 확정 문서 기준" : ` · 문서 묶음 ${review?.bundle_id.slice(0, 8) ?? "확인 중"}`}</div>
         </div>
         <div className="detail-skeleton-status-row">
           <StatusBadge label={review ? `상태 · ${statusLabel(review.status)}` : "상태 · 확인 중"} tone={review ? statusTone(review.status) : "neutral"} />
@@ -347,6 +356,11 @@ export function DeepReviewPage() {
         </div>
       </StickyDecisionHeader>
 
+      {reportView?.report.schema === "bidops.deep-review-report.v2" ? <NarrativeReportReader report={reportView.report} checks={reportView.validation.checks} revision={reportView.history.find(item => item.revision_id === reportView.current_revision_id)?.sequence} executionStatus={review?.status ?? "running"} onAnalysisSettings={() => { if (records.current) records.current.open = true; const panel = document.getElementById("deep-review-analysis-settings"); panel?.setAttribute("open", ""); panel?.scrollIntoView({ block: "start" }); panel?.querySelector("input")?.focus(); }} onRefresh={() => { void reportQuery.refetch(); void reviewQuery.refetch(); }} onRecords={() => { if (records.current) { records.current.open = true; records.current.scrollIntoView({ block: "start" }); } }} /> : null}
+      <details ref={records} className="narrative-records" open={!isNarrative}>
+        <summary>{isNarrative ? "검증·분석 진행·수정·의견 기록" : "보고서와 검토 기록"}</summary>
+      {reportView && !isNarrative && reportView.validation.checks.some(check => check.check_type === "source_verification_skipped") ? <p className="narrative-notice">원문 대조 미실시 · 본문의 인용과 수치는 원문을 직접 확인하십시오.</p> : null}
+      {reportView && !isNarrative ? <p className="narrative-notice">이전 형식의 저장된 보고서입니다. 자동 분류한 요약과 차단 위험 항목은 원문을 함께 확인하십시오. 분석 근거의 부족은 사업 자체의 위험 확정과 다릅니다.</p> : null}
       {/* 담당자 이름은 이 화면에서 한 번만 받는다. 재시도·수정본 저장·의견
           저장이 모두 같은 값을 쓰는데도 패널마다 입력을 되풀이해서 물었고,
           비활성 사유는 "아래 보고서 수정본 저장의 담당자 이름"처럼 다른 자리를
@@ -374,7 +388,7 @@ export function DeepReviewPage() {
           </article>
           <article className="deep-review-summary-card">
             <span>검증 결과</span>
-            <strong>{reportView.validation.status === "passed" ? "통과" : "실패"}</strong>
+            <strong>{reportView.validation.checks.some(check => check.check_type === "source_verification_skipped") ? "원문 대조 미실시" : reportView.validation.status === "passed" ? "통과" : "실패"}</strong>
             <small>실패 {reportView.report.validation_summary.failed}건 · 경고 {reportView.report.validation_summary.warnings}건</small>
           </article>
           <article className="deep-review-summary-card">
@@ -384,7 +398,7 @@ export function DeepReviewPage() {
           </article>
           <article className="deep-review-summary-card">
             <span>보고서 수정본</span>
-            <strong>{reportView.history.length > 0 ? `${reportView.history[0].sequence}차` : "확인 불가"}</strong>
+            <strong>{reportView.history.length > 0 ? `${reportView.history.find(item => item.revision_id === reportView.current_revision_id)?.sequence}차` : "확인 불가"}</strong>
             <small>추가만 기록 · 덮어쓰기 없음</small>
           </article>
           {/* 품질 표식(명세 §6.5·§8). 참조 실행과 mock 참조를 운영 완료로 보이게
@@ -497,12 +511,14 @@ export function DeepReviewPage() {
         </section>
       ) : null}
 
-      {attempt?.status === "failed" ? (
-        <section aria-labelledby="retry-title" className="deep-review-retry-panel">
+      {attempt && ["failed", "completed"].includes(attempt.status) ? (
+        <details id="deep-review-analysis-settings" open={attempt.status === "failed"} className="deep-review-retry-panel deep-review-analysis-settings">
+          <summary>분석 설정 · 새 분석 실행</summary>
           <div>
-            <p className="deep-review-panel-kicker">현재 분석 회차 실패</p>
+            <p className="deep-review-panel-kicker">현재 회차 · 원문 대조 {attempt.source_verification_enabled === false ? "미실시" : "사용"}</p>
             <h3 id="retry-title">새 분석 회차로 재시도</h3>
-            <p>실패한 분석을 새 회차로 다시 실행합니다. 실패한 이력은 그대로 남으며, 심층검토 의견이나 최종 입찰 Go/No-Go를 대신하지 않습니다.</p>
+            <p>선택한 설정으로 새 분석을 시작합니다. 기존 보고서와 실행 이력은 보존됩니다.</p>
+            <SourceVerificationSetting value={sourceVerificationEnabled} onChange={setSourceVerificationEnabled} disabled={retryMutation.isPending} />
           </div>
           <div className="deep-review-retry-controls">
             <button
@@ -524,10 +540,10 @@ export function DeepReviewPage() {
               tone="error"
             />
           ) : null}
-        </section>
+        </details>
       ) : null}
 
-      {reportProblem && !reportView ? (
+      {reportProblem && !reportView && !(reportNotReady && isActiveReview(review)) ? (
         <MutationFeedback
           onRecover={() => { void reportQuery.refetch(); }}
           problem={reportProblem}
@@ -551,7 +567,7 @@ export function DeepReviewPage() {
               {/* 시안 `DeepReview`의 결정 카드 요약은 항목·내용·근거·검증 네 열
                   표다(PLAN 단계 F 작업 5). 검증 열은 서버가 준 validation check를
                   그 행의 claim으로 이어 읽을 뿐, 화면이 다시 판정하지 않는다. */}
-              <div className="deep-review-decision-table-wrap" tabIndex={0} aria-label="결정 카드 요약 표를 좌우로 이동할 수 있습니다">
+              {!isNarrative ? <div className="deep-review-decision-table-wrap" tabIndex={0} aria-label="결정 카드 요약 표를 좌우로 이동할 수 있습니다">
                 <table aria-label="결정 카드 요약" className="deep-review-decision-table">
                   <thead>
                     <tr>
@@ -595,18 +611,18 @@ export function DeepReviewPage() {
                     })}
                   </tbody>
                 </table>
-              </div>
+              </div> : null}
             </div>
             <div className="deep-review-opinion-card">
               <h3 className="deep-review-section-title">사전규격 심층검토 의견</h3>
               {reportView.final_opinion ? <p><strong>{reportView.final_opinion.value}</strong> · {reportView.final_opinion.reason}</p> : <p>아직 기록되지 않았습니다.</p>}
-              <p className="deep-review-section-copy">현재 검증 결과 <strong>{reportView.validation.status === "passed" ? "통과" : "실패"}</strong>. 최종 입찰 Go/No-Go와 별도이며, 검증이 실패하면 확인 표시를 해야 저장됩니다.</p>
+              <p className="deep-review-section-copy">현재 검증 결과 <strong>{reportView.validation.checks.some(check => check.check_type === "source_verification_skipped") ? "원문 대조 미실시" : reportView.validation.status === "passed" ? "통과" : "실패"}</strong>. 최종 입찰 Go/No-Go와 별도이며, 검증이 실패하면 확인 표시를 해야 저장됩니다.</p>
             </div>
           </section>
 
           <section aria-labelledby="validation-title" className={`deep-review-validation-panel${validationFailed ? " is-failed" : ""}`}>
             <h3 id="validation-title" className="deep-review-section-title">검증 결과와 미확인 사항</h3>
-            <p>상태: <strong>{reportView.validation.status === "passed" ? "통과" : "실패"}</strong> · 실패 {reportView.report.validation_summary.failed} · 경고 {reportView.report.validation_summary.warnings}</p>
+            <p>상태: <strong>{reportView.validation.checks.some(check => check.check_type === "source_verification_skipped") ? "원문 대조 미실시" : reportView.validation.status === "passed" ? "통과" : "실패"}</strong> · 실패 {reportView.validation.checks.filter(check => check.status === "failed").length} · 경고 {reportView.validation.checks.filter(check => check.status === "warning").length}</p>
             {/* 시안의 Validation 실패 블록은 두 조작을 함께 갖는다(PLAN 단계 F 작업 5).
                 실패를 자동 보정하지 않으므로, 사람이 갈 수 있는 길은 원문 확인과
                 새 attempt 두 가지뿐이다. */}
@@ -633,11 +649,9 @@ export function DeepReviewPage() {
                   <button
                     className="interaction-control"
                     type="button"
-                    onClick={() => { void retryMutation.mutateAsync().catch(() => undefined); }}
-                    disabled={retryMutation.isPending || !actorName.trim()}
-                    aria-describedby={!actorName.trim() ? "deep-review-validation-retry-disabled" : undefined}
+                    onClick={() => { const panel = document.getElementById("deep-review-analysis-settings"); panel?.setAttribute("open", ""); panel?.scrollIntoView({ block: "start" }); panel?.querySelector("input")?.focus(); }}
                   >
-                    {retryMutation.isPending ? "새 분석 회차 시작 중" : "새 분석 회차로 재시도"}
+                    분석 설정으로 이동
                   </button>
                   {!actorName.trim() ? (
                     <DisabledReason id="deep-review-validation-retry-disabled">
@@ -651,7 +665,7 @@ export function DeepReviewPage() {
             <ul>{reportView.validation.checks.map((check) => <li key={`${check.check_type}-${check.message}`}>{checkStatusLabel(check.status)} · {check.message}</li>)}</ul>
           </section>
 
-          <div className="deep-review-report-sections">
+          {!isNarrative ? <><div className="deep-review-report-sections">
             {reportView.report.sections.map((section) => (
               <section key={section.section_key} aria-labelledby={`section-${section.section_key}`} className="deep-review-report-section">
                 <h3 id={`section-${section.section_key}`} className="deep-review-section-title">{section.title}</h3>
@@ -717,8 +731,9 @@ export function DeepReviewPage() {
                   <div><dt>근거 신뢰도</dt><dd>{evidenceQuery.data.confidence === null ? "값 없음" : evidenceQuery.data.confidence.toFixed(3)}</dd></div>
                 </dl>
                 <div className="evidence-quote">
-                  <span>선택한 근거의 원문 인용</span>
+                  <span>{evidenceQuery.data.source_verification_enabled === false && evidenceQuery.data.source_kind === "document" ? "모델이 인용한 내용 · 원문 대조 미실시" : "선택한 근거의 원문 인용"}</span>
                   <blockquote>{evidenceQuery.data.quote}</blockquote>
+                  {evidenceQuery.data.source_verification_enabled === false ? <p>원문 대조 미실시 · 아래 원문과 직접 비교하십시오.</p> : null}
                 </div>
                 {/* 식별자와 해시는 지우지 않고 접는다. 눈으로 대조하는 값이므로
                     전문을 줄바꿈해 싣는다(ADR-0066 결정 2). */}
@@ -760,6 +775,7 @@ export function DeepReviewPage() {
             </div> : null}
           </section>
 
+          </> : null}
           <section aria-labelledby="opinion-title" className="deep-review-opinion-panel">
             <h3 id="opinion-title" className="deep-review-section-title">사전규격 심층검토 의견 추가</h3>
             {/* 상단 카드와 같은 문구를 저장 form 위에도 둔다(명세 §6.5). 표식이
@@ -775,7 +791,7 @@ export function DeepReviewPage() {
             </p>
             <p>현재 보고서 수정본에 사람의 의견을 남깁니다. 추가만 기록되어 지울 수 없으며, 최종 입찰 Go/No-Go가 아닙니다.</p>
             <div className="deep-review-opinion-form">
-              <label>심층검토 의견<select className="interaction-control deep-review-section-select" value={opinionValue} onChange={(event) => setOpinionValue(event.target.value as FinalOpinionValue)}>{FINAL_VALUES.map((value) => <option key={value}>{value}</option>)}</select></label>
+              <label>심층검토 의견<select aria-label="심층검토 의견" className="interaction-control deep-review-section-select" value={opinionValue} onChange={(event) => setOpinionValue(event.target.value as FinalOpinionValue)}><option value="">의견 선택</option>{FINAL_VALUES.map((value) => <option key={value}>{value}</option>)}</select></label>
               <label>심층검토 의견 사유<textarea className="deep-review-form-textarea" aria-label="심층검토 의견 사유" rows={3} value={opinionReason} onChange={(event) => setOpinionReason(event.target.value)} /></label>
               {validationFailed ? <label className="interaction-check"><input type="checkbox" checked={acknowledged} onChange={(event) => setAcknowledged(event.target.checked)} /> 검증 실패를 확인했으며 실패 표시를 그대로 둡니다.</label> : null}
               <button
@@ -784,7 +800,10 @@ export function DeepReviewPage() {
                 onClick={() => {
                   // 전제조건(담당자·사유·validation acknowledge)은 그대로 버튼의
                   // disabled가 소유한다. 여기서는 확인 단계만 연다.
+                  if (!opinionValue) return;
                   setOpinionConfirm({
+                    actor: actorName,
+                    payload: { request_id: generateRequestId(), report_revision_id: reportView.current_revision_id, validation_run_id: reportView.validation.validation_run_id, value: opinionValue, reason: opinionReason, acknowledged_validation_failure: acknowledged },
                     confirmLabel: `심층검토 의견 저장 · ${opinionValue}`,
                     summary: [
                       { label: "심층검토 의견", value: opinionValue },
@@ -800,7 +819,7 @@ export function DeepReviewPage() {
                     ],
                   });
                 }}
-                disabled={opinionMutation.isPending || !actorName.trim() || !opinionReason.trim() || (validationFailed && !acknowledged)}
+                disabled={opinionDisabledReason !== null}
                 aria-describedby={opinionDisabledReason ? "deep-review-opinion-disabled" : undefined}
               >
                 심층검토 의견 추가
@@ -862,11 +881,12 @@ export function DeepReviewPage() {
             <h3 id="editor-title" className="deep-review-section-title">보고서 수정본 편집</h3>
             <p>보고서 본문을 고쳐 새 수정본으로 남깁니다. 이전 수정본을 덮어쓰지 않으며, 담당자 이름은 이 화면 위쪽에서 한 번 입력하는 감사 표식이고 인증이 아닙니다.</p>
             <div className="deep-review-editor-form">
-              <label>수정할 절<select className="interaction-control deep-review-section-select" aria-label="수정 절 선택" value={editSection} onChange={(event) => setEditSection(event.target.value as ReportSectionKey)}>{(currentReport?.sections ?? []).map((section) => <option key={section.section_key} value={section.section_key}>{section.title}</option>)}</select></label>
-              <label>절 내용<textarea className="deep-review-form-textarea" aria-label="절 내용" rows={5} value={currentSection?.blocks[0]?.body ?? ""} onChange={(event) => { setReportDraftDirty(true); setDraft((value) => value ? updateFirstBlock(value, editSection, event.target.value) : value); }} /></label>
+              <label>수정할 절<select className="interaction-control deep-review-section-select" aria-label="수정 절 선택" value={editSection} onChange={(event) => { setEditSection(event.target.value); setEditBlock(currentReport?.sections.find(section => section.section_key === event.target.value)?.blocks[0]?.block_id ?? ""); }}>{(currentReport?.sections ?? []).map((section) => <option key={section.section_key} value={section.section_key}>{section.title}</option>)}</select></label>
+              {isNarrative ? <label>수정할 문장<select className="interaction-control" aria-label="수정 문장 선택" value={editBlock} onChange={event => setEditBlock(event.target.value)}>{currentSection?.blocks.map((block, index) => <option key={block.block_id} value={block.block_id}>{index + 1}. {block.title}</option>)}</select></label> : null}
+              <label>절 내용<textarea className="deep-review-form-textarea" aria-label="절 내용" rows={5} value={(isNarrative ? currentSection?.blocks.find(block => block.block_id === editBlock)?.body : currentSection?.blocks[0]?.body) ?? ""} onChange={(event) => { setReportDraftDirty(true); setDraft((value) => value ? updateFirstBlock(value, editSection, event.target.value, editBlock) : value); }} /></label>
               <label>수정 사유<textarea className="deep-review-form-textarea" aria-label="수정 사유" rows={3} value={revisionReason} onChange={(event) => setRevisionReason(event.target.value)} /></label>
-              <label>사실을 바꾼 근거 식별자 (쉼표 구분)<input className="interaction-control deep-review-evidence-input" value={factualEvidenceText} onChange={(event) => setFactualEvidenceText(event.target.value)} /></label>
-              <button className="interaction-control deep-review-form-action" type="button" onClick={() => revisionMutation.mutate()} disabled={revisionMutation.isPending || !actorName.trim() || !revisionReason.trim()} aria-describedby={revisionDisabledReason ? "deep-review-revision-disabled" : undefined}>새 보고서 수정본 저장</button>
+              <fieldset><legend>수정에 사용한 근거</legend>{evidenceIds.map((id, index) => <label key={id} className="interaction-check"><input type="checkbox" checked={factualEvidenceText.split(",").includes(id)} onChange={event => setFactualEvidenceText((current) => { const ids = current.split(",").filter(Boolean).filter(value => value !== id); return (event.target.checked ? [...ids, id] : ids).join(","); })} />근거 {index + 1} · {currentReport?.claims.find(claim => claim.evidence_ids.includes(id))?.category}</label>)}</fieldset>
+              <button className="interaction-control deep-review-form-action" type="button" onClick={() => revisionMutation.mutate()} disabled={revisionDisabledReason !== null} aria-describedby={revisionDisabledReason ? "deep-review-revision-disabled" : undefined}>새 보고서 수정본 저장</button>
               {revisionDisabledReason ? <DisabledReason id="deep-review-revision-disabled">{revisionDisabledReason}</DisabledReason> : null}
               {revisionMutation.error ? (
                 <MutationFeedback
@@ -901,6 +921,8 @@ export function DeepReviewPage() {
           </div>
         </div>
       ) : null}
+      </details>
+      {staleDraft ? <div><p role="alert">새 보고서가 도착했습니다. 작성 중인 초안은 보존했으며 이전 보고서를 기준으로 한 저장은 차단했습니다.</p><button className="interaction-control" type="button" onClick={() => { setReportDraftDirty(false); setRevisionReason(""); setFactualEvidenceText(""); }}>초안을 버리고 최신본으로 편집</button></div> : null}
       {hasUnsavedDraft ? <p className="deep-review-unsaved" role="status">저장되지 않은 심층검토 초안이 있습니다. 화면을 벗어나기 전에 저장하십시오.</p> : null}
       {/* 확인 단계. 취소하면 초안은 그대로 남고 요청은 나가지 않는다. 저장에
           실패하면 다이얼로그는 닫히고 기존 인라인 오류 표시가 그대로 보인다. */}

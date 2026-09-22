@@ -319,6 +319,8 @@ test("생성→upload→patch→confirm→deep review가 actor·request ID·vers
   const preparationOverflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(preparationOverflow).toBeLessThanOrEqual(1);
 
+  await expect(page.getByRole("checkbox", { name: "원문 인용·숫자 대조" })).toBeChecked();
+  await page.getByRole("checkbox", { name: "원문 인용·숫자 대조" }).uncheck();
   await page.getByRole("button", { name: "확정된 문서 묶음으로 심층 검토 시작" }).click();
   await expect(page).toHaveURL(/\/deep-reviews\/40000000-0000-0000-0000-000000000991$/);
 
@@ -341,6 +343,7 @@ test("생성→upload→patch→confirm→deep review가 actor·request ID·vers
   expect(trace.confirms[0].body.request_id).toMatch(/^[0-9a-f-]{36}$/);
   expect(trace.deepReviews).toHaveLength(1);
   expect(trace.deepReviews[0].body.bundle_id).toBe(BUNDLE_ID);
+  expect(trace.deepReviews[0].body.source_verification_enabled).toBe(false);
   expect(trace.deepReviews[0].body.request_id).toMatch(/^[0-9a-f-]{36}$/);
   for (const request of [...trace.creates, ...trace.patches, ...trace.confirms, ...trace.deepReviews]) {
     expect(request.headers["x-bidops-actor-name"]).toBe(ACTOR_HEADER);

@@ -6,6 +6,28 @@
 
 `구현됨`은 코드와 계약이 존재한다는 뜻이고, `검증됨`은 기록된 명령이 해당 범위에서 통과했다는 뜻이다. Mock 결과, 과거 브랜치 결과, 현재 worktree 결과, 외부 운영 승인을 서로 대신하지 않는다.
 
+## 심층검토 설명형 보고서 PoC (2026-09-22, 운영 적용·참조 검증)
+
+- 사용자 확정 방향: A안 본문 하나, 편집된 문서형, 핵심/상세 구분과 정보 연결. [작업 정본](../0922_deep-review-improvement/plan.md).
+- 새 `analysis-policy-narrative-v2`·stage/report v2는 Qwen의 입력·회사 근거 선택·부분/전체 종합·보고서 조립·REST·제품 화면을 함께 연결한다. 모든 분석 문장, 원문 연결, 미분석 상태와 실제 검증 건수를 보존한다.
+- 문장별 수정·근거 선택, 명시적 의견 선택·확인 snapshot, 이전 보고서 조회와 dirty 초안 보호를 적용했다. 기존 lean-v1·저장 보고서/hash·의견은 변환하지 않는다. 새 DB migration은 없다.
+- 합성 모델/문서의 worker→DB→REST 및 PostgreSQL 17.11 변형과 1280/1440 제품 화면을 확인했다. 실제 모델 품질·처리량·회사 근거 회수율 및 실무자 인수는 미측정이다.
+- 사용자 적용·품질 검증 요청으로 새 정책과 승인 프로필을 PoC 참조 실행에 선택하고 web·analysis-worker를 같은 이미지로 배포했다. 회사 핏 자동 실행 false·기존 개요/C-2 설정·migration 0031을 유지했다. 전체 백업과 이전 이미지 태그를 보존했다.
+- 실제 작은 문서에서 공백·축약 연도의 과도한 차단을 확인해 사용자 요청으로 완화했다. 인용 표기 차이는 고정 원문에 연결하고 같은 금액의 단위를 환산한다. 연도 확장은 문장 옆 확인 사항이다. 다른 값·조건·출처는 계속 차단한다. 회사 대조의 긴 선행 분석 분할과 호출별 로컬 UUID 결속도 반영했다.
+- 실행별 원문 대조 on/off를 웹 시작/재실행에 추가하고 운영 적용했다. 기본 on, off 결과는 대조 미실시로 표시하며 출처/형식 검사는 유지한다. 실제 웹에서 off 선택→202→서버 attempt false를 확인했다.
+- 실제 off 실행은 문서 분석을 완료했지만 회사 대조의 근거/주장 ID 혼용·근거 연결 누락으로 실패했다. 정상적인 선행 주장 목록을 금지하던 제약은 완화했으며, 존재하지 않는 주장 참조와 결과 형식 오류는 계속 차단한다. 실제 완성 보고서는 아직 없다.
+- 두 번째 실패 응답은 새 기준으로 통과했다. 실제 새 Qwen 전체 실행의 결과와 미검증 범위는 [실제 검증 기록](../validation-runs/20260922-narrative-review/live-validation.md)에 남긴다. `unmeasured_reference`를 유지하며 사람 품질 승인을 뜻하지 않는다.
+
+## 실무 화면 고도화 묶음 ③·④ (2026-09-22, 구현·운영 배포 완료)
+
+정본 `docs/0921_practitioner-screens/`, 결정 [ADR-0067](decisions/0067-dashboard-workload-keys-and-panel-contracts.md). 시안 M5·M6 승인(`docs/0915_ui-redesign/mockups/0921_practitioner-m5-m6/`, 발주계획 판정 변화 표·행 판단 근거는 제외 — 발주계획 판정은 수집 당일 1회).
+
+- 들어간 패키지: F0(프런트 타입·mock·fixture, 사전규격 공유 mock `display_assessment`)·F1(발주계획 상세 API 연결 — 계약방법·조달방식·총괄기관·공고 게시·연결 공고번호·첫 수집·신규/계속, 행 추적 상태 칩)·F2(사전규격 수요기관 우선 표기·제외 기록, 공고 상세 `예산`/`추정가격` 분리·개찰·유사 실적 두 표)·F3(Go/No-Go 입찰 마감 열·추정가격, 사업 추적 행 예산·마감, 입찰 변경 오류 코드 접기)·H0(패널 5개 계약 표)·H1(workload 키 5→10, `deadline_within_days`·`sort=deadline`·`first_observed_from`·`human_relevance=missing`, 새 endpoint 없음)·H2(대시보드 회차 축 제거·누적 패널 5개)·H3(등급 분포·검증 지표를 `/runs` 회차 상세로, 회사 역량 확인 요청을 `/profile`로)·T1·T2(테스트 대상·fixture·옛 단언 정리). 새 migration 없음(head 0031).
+- 병합: main `3c3101e`(통합 브랜치 `integration/practitioner-screens-3`, 다른 세션의 미커밋 심층 검토 narrative 작업은 stash로 보관했다 되돌려 작업 트리 그대로). 게이트(통합 트리): `build`·`test:contrast` 통과, `test:screens` 716 passed / 3 failed(기존 admin 2 + `draft.spec:63` 부하 flake 단독 통과) / 6 skipped, 백엔드 전체 PostgreSQL 2,454 passed / 17 failed(기존 `test_order_plan_list_v2` 6 + **`bda1288` 이후 `test_auto_deep_review_start` 11 — findings 기록, clean `bda1288`에서 재현**) / 5 skipped, H1 변형 45 passed. 픽셀 5장 교체(`aa4b677`).
+- 운영 배포(사람 확인 뒤): 백업 `backups/postgres/full/bidops-before-practitioner-screens-2-20260922T083226Z.dump`, 롤백 태그 `before-practitioner-screens-2-20260922`(`e2252f6`), 이미지 `bidops-web:practitioner-screens-2-3c3101e`·직전 `bidops-web:before-practitioner-screens-2-20260922`. `web`만 재생성, env 플래그 2개 `true` 확인.
+- 배포 후 확인(실제 스택): `/api/workload` 10키 전부 정수(null 없음 — `tracking_deadline_imminent` 6, `human_check_required` 7 = `overview_human_review` 7 + `blocking_items_open` 0, `order_plan_new_priority` 0). 목록 total과 건수 일치(임박 6, 개요 확인 필요 5+2). 대시보드 1280 캡처: 회차 선택기 없음, 마감 임박 5건 D-1·D-2 강조, 사람 확인 필요 7건. 발주계획 상세에 `계약방법` 표시.
+- 남은 것(후속, `plan.md`·findings): `마감 임박` 패널 링크가 사업 추적 화면에 `deadline_within_days`를 못 넘김(그 화면이 인자 미수용), `/order-plans` 링크에 "새로" 창 없음, `보류 재검토` 표의 마지막 열이 1280 반폭에서 가로 스크롤, `AgencyFeature` 부제 슬롯(F1·F2가 형제 줄로 우회), `VerificationRequest` 타입 죽은 코드, `test_workload_api.py` 대량 표본 느림. 다른 세션 몫: `test_auto_deep_review_start` 11건, narrative 작업 커밋.
+
 ## 실무 화면 고도화 묶음 ①·② (2026-09-22, 구현·운영 배포 완료)
 
 정본 `docs/0921_practitioner-screens/`, 결정 [ADR-0066](decisions/0066-practitioner-ops-information-boundary.md)(ADR-0062·0064 개정). 같은 기능은 같은 UI로, 실무 화면에는 판단 정보만 남기고 운영 정보는 운영 화면으로.

@@ -505,9 +505,9 @@ function PreSpecRecordBody({ noticeId, listSearch }: { noticeId: number | null; 
   const deepReviewReport = deepReviewReportQuery.data?.report ?? null;
   const hasDeepReviewReport = deepReviewReport !== null;
   const deepReviewUnknowns = deepReviewReport?.unknowns ?? [];
-  const eligibilityItems = reportSectionBullets(
-    deepReviewReport?.sections.find((section) => section.section_key === "eligibility_matrix"),
-  );
+  const eligibilityItems = deepReviewReport?.schema === "bidops.deep-review-report.v2"
+    ? deepReviewReport.claims.filter(claim => claim.narrative_role === "decision_condition").map(claim => claim.body)
+    : reportSectionBullets(deepReviewReport?.sections.find((section) => section.section_key === "eligibility_matrix"));
   const risks: PageOverviewRisk[] = deepReviewUnknowns.map((text) => ({
     label: "미확인",
     tone: "neutral",
@@ -1012,7 +1012,7 @@ function PreSpecRecordBody({ noticeId, listSearch }: { noticeId: number | null; 
           <section className="ps-tri-col" aria-labelledby="ps-conditions-list-title">
             <div className="ps-tri-head">
               <h3 id="ps-conditions-list-title" className="ps-h-col">참여 조건</h3>
-              <span className="ps-cap ps-dim">{hasDeepReviewReport ? `${eligibilityItems.length}건` : "심층 검토 대기"}</span>
+              <span className="ps-cap ps-dim">{hasDeepReviewReport && eligibilityItems.length ? `${eligibilityItems.length}건` : "분석 확인 필요"}</span>
             </div>
             {!hasDeepReviewReport ? (
               <p className="ps-cap ps-muted">심층 검토에서 확인</p>
@@ -1025,7 +1025,7 @@ function PreSpecRecordBody({ noticeId, listSearch }: { noticeId: number | null; 
                   </li>
                 ))}
               </ul>
-            ) : <p className="ps-cap ps-muted">이번 입력 범위에는 없음</p>}
+            ) : <p className="ps-cap ps-muted">확인된 조건이 없습니다. 분석 누락 여부를 보고서에서 확인하십시오.</p>}
           </section>
 
           <PreSpecBriefingSection noticeId={noticeId} judgment={judgment} reviews={notice.reviews} />

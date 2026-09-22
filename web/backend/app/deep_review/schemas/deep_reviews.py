@@ -33,6 +33,7 @@ class StageView(StrictModel):
 
 
 class AttemptView(StrictModel):
+    source_verification_enabled: bool = True
     id: UUID
     sequence: int = Field(ge=1)
     status: AttemptStatus

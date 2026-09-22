@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -84,6 +84,53 @@ class DeepReviewReport(StrictModel):
     quality_status: QualityStatus | None = None
 
 
+NarrativeSectionKey = Literal["assessment", "scope", "company_fit", "delivery", "evaluation", "contract_economics", "actions", "decision_conditions"]
+NarrativeRole = Literal["source", "company_basis", "impact", "action", "decision_condition", "synthesis", "recommendation"]
+
+
+class NarrativeClaim(ReportClaim):
+    report_section: NarrativeSectionKey
+    narrative_role: NarrativeRole
+    topic_key: str = Field(min_length=1, max_length=128)
+    source_unit_ids: list[str]
+    requirement_ids: list[str]
+    related_claim_ids: list[UUID]
+    is_key_point: bool
+
+
+class NarrativeBlock(ReportBlock):
+    type: Literal["paragraph"]
+    narrative_role: NarrativeRole
+    topic_key: str = Field(min_length=1, max_length=128)
+    is_key_point: bool
+
+
+class NarrativeSection(StrictModel):
+    section_key: NarrativeSectionKey
+    title: str = Field(min_length=1)
+    status: Literal["available", "not_analyzed"]
+    blocks: list[NarrativeBlock]
+
+
+class SourceCoverage(StrictModel):
+    source_unit_id: str
+    status: Literal["reviewed", "needs_review"]
+    claim_ids: list[UUID]
+    reason: str | None
+
+
+class NarrativeReport(DeepReviewReport):
+    schema: Literal["bidops.deep-review-report.v2"]
+    sections: list[NarrativeSection]
+    claims: list[NarrativeClaim]
+    coverage: list[SourceCoverage]
+    analysis_limitations: list[str]
+    generator_version: Literal["narrative-v2"]
+
+
+ReportPayload = Annotated[DeepReviewReport | NarrativeReport, Field(discriminator="schema")]
+
+
 class ValidationCheck(StrictModel):
     check_type: str = Field(min_length=1)
     status: Literal["passed", "failed", "warning"]
@@ -125,7 +172,7 @@ class FinalOpinionView(StrictModel):
 class ReportView(StrictModel):
     deep_review_id: UUID
     current_revision_id: UUID
-    report: DeepReviewReport
+    report: ReportPayload
     validation: DeepReviewValidation
     history: list[RevisionHistoryItem]
     final_opinion: FinalOpinionView | None
@@ -134,7 +181,7 @@ class ReportView(StrictModel):
 class ReportRevisionRequest(StrictModel):
     request_id: UUID
     base_revision_id: UUID
-    report: DeepReviewReport
+    report: ReportPayload
     reason: str
     factual_change_evidence_ids: list[UUID]
 
@@ -156,6 +203,7 @@ class FinalOpinionRequest(StrictModel):
 
 
 class EvidenceView(StrictModel):
+    source_verification_enabled: bool = True
     evidence_id: UUID
     source_kind: Literal["document", "profile"]
     document_version_id: UUID | None
