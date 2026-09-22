@@ -13,7 +13,7 @@ export const clickReadyUnlinkedPreSpec: PreSpecListItem = {
   review_exclusion_reason: null,
   review_exclusion_changed_at: null,
   notice_pk: 993, pre_spec_no: "PRE-993", title: "독립 수집된 심층 검토 클릭 대기 사전규격",
-  agency: "합성 발주기관", published_at: "2026-09-01T00:00:00Z", deadline_at: null,
+  agency: "합성 발주기관", demand_agency: null, published_at: "2026-09-01T00:00:00Z", deadline_at: null,
   budget: null, sw_business_status: "N", business_division: "일반용역",
   origin: null, opportunity_id: null, tracking_status: null, kept_by_tracking: false,
   document: { attachments: 1, 완료: 1, 대기: 0, 진행: 0, 차단: 0, 실패: 0 },
@@ -32,12 +32,15 @@ const queueBase = {
   agency: "합성 발주기관", tracking_status: "계속 추적", first_registered_stage: "pre_spec",
   recheck_signal: false, comparison_count: 0,
 };
+// 추가형 투영(0921_practitioner-screens spec §5): 선택된 입찰공고가 없으면
+// (505) 셋 다 null이다. 있는 건 안에서도 마감·예산·추정가격이 있는 건·없는
+// 건을 섞는다(502는 예산 미확인, 503은 추정가격 미확인).
 export const decisionQueueItems: BidDeltaDecisionQueueItem[] = [
-  { ...queueBase, opportunity_id: 501, title: "최종 결정 대기 사업", bid_notice_external_id: "BID-501", latest_final_decision: null, decision_currentness: "unknown" },
-  { ...queueBase, opportunity_id: 502, title: "새 공고 이후 재결정 대기 사업", bid_notice_external_id: "BID-502", comparison_count: 2, latest_final_decision: { decision: "go", decided_at: "2026-08-30T00:00:00Z", claimed_name: "합성 담당자" }, decision_currentness: "stale" },
-  { ...queueBase, opportunity_id: 503, title: "현재 최종 결정 사업", bid_notice_external_id: "BID-503", comparison_count: 1, latest_final_decision: { decision: "no_go", decided_at: "2026-08-31T00:00:00Z", claimed_name: "합성 담당자" }, decision_currentness: "current" },
-  { ...queueBase, opportunity_id: 504, title: "기결정 최신 여부 확인 대기 사업", bid_notice_external_id: "BID-504", comparison_count: 1, latest_final_decision: { decision: "go", decided_at: "2026-08-29T00:00:00Z", claimed_name: "합성 담당자" }, decision_currentness: "unknown" },
-  { ...queueBase, opportunity_id: 505, title: "입찰공고 미연결 추적 사업", bid_notice_external_id: null, latest_final_decision: null, decision_currentness: "unknown" },
+  { ...queueBase, opportunity_id: 501, title: "최종 결정 대기 사업", bid_notice_external_id: "BID-501", latest_final_decision: null, decision_currentness: "unknown", deadline_at: "2026-09-20T01:00:00Z", budget: "150000000", estimated_price: "148000000" },
+  { ...queueBase, opportunity_id: 502, title: "새 공고 이후 재결정 대기 사업", bid_notice_external_id: "BID-502", comparison_count: 2, latest_final_decision: { decision: "go", decided_at: "2026-08-30T00:00:00Z", claimed_name: "합성 담당자" }, decision_currentness: "stale", deadline_at: "2026-09-22T01:00:00Z", budget: null, estimated_price: "210000000" },
+  { ...queueBase, opportunity_id: 503, title: "현재 최종 결정 사업", bid_notice_external_id: "BID-503", comparison_count: 1, latest_final_decision: { decision: "no_go", decided_at: "2026-08-31T00:00:00Z", claimed_name: "합성 담당자" }, decision_currentness: "current", deadline_at: "2026-09-19T01:00:00Z", budget: "320000000", estimated_price: null },
+  { ...queueBase, opportunity_id: 504, title: "기결정 최신 여부 확인 대기 사업", bid_notice_external_id: "BID-504", comparison_count: 1, latest_final_decision: { decision: "go", decided_at: "2026-08-29T00:00:00Z", claimed_name: "합성 담당자" }, decision_currentness: "unknown", deadline_at: null, budget: "410000000", estimated_price: "405000000" },
+  { ...queueBase, opportunity_id: 505, title: "입찰공고 미연결 추적 사업", bid_notice_external_id: null, latest_final_decision: null, decision_currentness: "unknown", deadline_at: null, budget: null, estimated_price: null },
 ];
 
 export const opportunityTrackingHistory: OpportunityTrackingDecisionsResponse = {

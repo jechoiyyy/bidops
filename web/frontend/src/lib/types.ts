@@ -289,6 +289,10 @@ export interface PreSpecListItem {
   pre_spec_no: string | null;
   title: string | null;
   agency: string | null;
+  /** 사전규격 원문 `rlDminsttNm`(수요기관). 발주기관 `agency`와 다를 수 있고
+   * 값이 없으면 `null`이다. 입찰공고는 `agency`가 이미 수요기관 우선값이라
+   * 투영하지 않는다(spec §5). */
+  demand_agency: string | null;
   published_at: string | null;
   deadline_at: string | null;
   budget: number | null;
@@ -1572,6 +1576,15 @@ export interface OpportunityLinkView {
   title: string | null;
   agency: string | null;
   external_id: string | null;
+  /** 추가형 투영(spec §5). link 단위 값 — `notice`를 가리키면 `budget`·
+   * `deadline_at`을, `order_plan`을 가리키면 `budget`(=`budget_amount`)·
+   * `planned_order_year`·`planned_order_month`를 싣는다. 대상이 없거나
+   * 해당하지 않으면 `null`이다. 서버는 사업기회 단위의 "대표 마감"을 고르지
+   * 않는다. */
+  budget: number | null;
+  deadline_at: string | null;
+  planned_order_year: string | null;
+  planned_order_month: string | null;
   record_external_id: string | null;
 }
 
@@ -2239,6 +2252,13 @@ export interface BidDeltaDecisionQueueItem {
   comparison_count: number;
   latest_final_decision: { decision: "go" | "no_go"; decided_at: string; claimed_name: string } | null;
   decision_currentness: "current" | "stale" | "unknown";
+  /** 추가형 투영(spec §5). 선택된 입찰공고가 없으면 셋 다 `null`이며 발주계획·
+   * 사전규격에서 추정하지 않는다. `budget`·`estimated_price`는 Decimal
+   * 문자열이라 부동소수 반올림으로 값을 잃지 않는다(`BidConditionValues`와
+   * 같은 관례). */
+  deadline_at: string | null;
+  budget: string | null;
+  estimated_price: string | null;
 }
 export interface BidDeltaDecisionQueueResponse {
   items: BidDeltaDecisionQueueItem[];
