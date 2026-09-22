@@ -782,6 +782,60 @@
   overflow-wrap: anywhere;
 }
 
+/* 추적 결정을 되돌리는 자리(ADR-0068). 같은 부품을 상세의 추적 결정 카드와 후보
+   대화상자의 병합 막힘 안내가 함께 쓰므로 자기 여백만 갖고 배경은 부모가 정한다. */
+.opportunity-decision-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-2);
+  padding-block: var(--spacing-2);
+}
+
+.opportunity-tracking-reset {
+  display: grid;
+  justify-items: start;
+  gap: var(--spacing-2);
+  min-width: 0;
+}
+
+.opportunity-tracking-reset-open {
+  justify-items: stretch;
+  padding: var(--spacing-3);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-inner);
+}
+
+.opportunity-tracking-reset-open > label {
+  display: grid;
+  gap: var(--spacing-1);
+  min-width: 0;
+}
+
+.opportunity-tracking-reset-open > label > span {
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+}
+
+/* 같은 화면의 `ActorField` 입력과 같은 모양을 쓴다(theme.css `.actor-field input`). */
+.opportunity-tracking-reset input {
+  width: 100%;
+  min-width: 0;
+  min-height: var(--control-height);
+  padding: var(--spacing-2) var(--spacing-3);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-inner);
+  background: var(--color-background-body);
+  color: var(--color-text-primary);
+  font: inherit;
+  font-size: var(--bo-type-body);
+}
+
+.opportunity-tracking-reset-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-2);
+}
+
 /* 결정 revision과 재검토 신호 이벤트를 한 줄기로 읽는 이력(spec §6.3). 종류는 색이
    아니라 앞 칸의 문자로 말한다. */
 .opportunity-history-section {
