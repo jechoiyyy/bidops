@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { DeepReviewApiError, getDocumentSegments, getDocumentStructurePage } from "./api";
-import { TechnicalFacts, TechnicalInfo, type TechnicalFact } from "./TechnicalInfo";
+import { TechnicalFacts, TechnicalInfo, type TechnicalFact } from "../common/TechnicalInfo";
 import type { DocumentSegmentView, SegmentPageRange, TaxonomyLabel } from "./types";
 
 // 심층 보고서 화면 우측 열의 문서별 inventory 요약과 `needs_human_review`

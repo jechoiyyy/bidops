@@ -106,8 +106,10 @@ export function ReviewWorkspacePage() {
         </TabList>
       </div>
       {tab === "queue" ? (
+        /* 회차를 바꿀 자리를 알려 주는 실무 안내다. 이 탭에는 회차 선택기가 없고,
+           어디서 바꾸는지 모르면 다른 회차의 대기열을 볼 길이 없다. */
         <p className="ws-run-note">
-          회차 선택기는 <strong>공고 판정 이력</strong> 탭에 있습니다. 회차를 바꾸면 이 탭도 같은 회차를 봅니다.
+          다른 회차를 보려면 <strong>공고 판정 이력</strong> 탭에서 회차를 고릅니다. 거기서 고른 회차를 이 탭도 함께 봅니다.
         </p>
       ) : null}
       <div className="ws-body">

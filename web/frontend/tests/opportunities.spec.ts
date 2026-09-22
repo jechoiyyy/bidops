@@ -719,7 +719,14 @@ test("확인 항목 예외는 회차를 그대로 쓰고 등급·처리 값을 �
 
   await item.getByRole("button", { name: "확인 항목 답변 남기기" }).click();
   const dialog = page.getByRole("dialog");
-  await expect(dialog).toContainText("20260817-20260823--20260824T090927.138116Z");
+  // 회차 식별자 원문은 접힌 `기술 정보`로 내려갔고(ADR-0065 §3.3, 시안 M4) 본문은
+  // 어느 회차에 저장하는지를 사람 말로 적는다. 값은 줄이지 않고 전문 그대로다.
+  await expect(dialog).toContainText("이 공고가 속한 수집 회차에 저장합니다");
+  const runTechnical = dialog.locator("details.deep-review-technical");
+  await expect(runTechnical.locator(".deep-review-technical-body")).toBeHidden();
+  await runTechnical.locator("summary").click();
+  await expect(runTechnical.locator(".deep-review-technical-body"))
+    .toContainText("20260817-20260823--20260824T090927.138116Z");
   await dialog.getByLabel("SW사업자 신고 여부").fill("공고 원문 3쪽에서 SW사업자 신고 대상임을 확인했습니다.");
   await dialog.getByLabel("수정 이유").fill("근거 위치를 확인해 blocking 항목을 해소함");
   await dialog.getByLabel("결정 기록자").fill("홍길동");
@@ -1099,10 +1106,11 @@ test("상세 본문을 끝까지 스크롤해도 상세 머리가 뷰포트 안�
   expect(after.y + after.height, "머리가 뷰포트 안에 있다").toBeLessThanOrEqual(800);
 });
 
-// 목록 첫 줄은 13.5px 단이다. 탐색 두 화면의 공용 목록 값(`--review-list-primary`,
-// 14.4px)과는 다르며, 시안 M1c A안의 표 행(`.tr .t`)도 13.5px를 그렸다. 어느 값이
-// 네 화면의 정본인지는 아직 결정되지 않았으므로 지금 지키는 값을 그대로 고정한다.
-test("목록의 글자 크기가 기존 물리 크기의 13.5px·12.6px 단을 지킨다", async ({ page }) => {
+// 목록 첫 줄은 공용 `--review-list-primary`(14.4px)를 읽는다 — 2026-09-21 M1c 승인:
+// 네 목록의 첫 줄은 공용 값이다(명세 §2.4). 사업 추적만 갖고 있던 13.5px 단
+// (`--opportunity-row-primary`)은 없앴고, 표 자체는 그대로 둔다(M1c A안). 둘째 줄
+// (12.6px)은 바뀌지 않는다.
+test("목록의 글자 크기가 물리 크기의 14.4px·12.6px 단을 지킨다", async ({ page }) => {
   await mockOpportunities(page);
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/opportunities");
@@ -1120,8 +1128,8 @@ test("목록의 글자 크기가 기존 물리 크기의 13.5px·12.6px 단을 �
       detailAgency: size(".opportunity-agency-name"),
     };
   });
-  expect(sizes.title).toBe("13.5px");
-  expect(sizes.agency).toBe("13.5px");
+  expect(sizes.title).toBe("14.4px");
+  expect(sizes.agency).toBe("14.4px");
   expect(sizes.meta).toBe("12.6px");
   expect(sizes.next).toBe("12.6px");
   expect(sizes.detailTitle).toBe("18px");

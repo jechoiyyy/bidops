@@ -32,10 +32,13 @@ const fields: Array<[string, string]> = [
   ["successful_bid_method", "낙찰자 결정"],
 ];
 
+// 부제는 값의 출처를 말한다. `API 직접 제공값`은 어느 API인지도, 판정이 아니라는
+// 것도 말하지 않는다 — 나라장터가 준 값 그대로라는 뜻만 실무 말로 남긴다
+// (ADR-0065 §3.3 한글화). 빈 값은 `값 없음`으로 남고 미확인과 섞지 않는다.
 export function QualificationFlags({ notice }: QualificationFlagsProps) {
   const values = record(notice.qualification_flags);
   return (
-    <Panel className="qualification-flags-panel" title="자격·제약 플래그" action={<span className="panel-note">API 직접 제공값</span>}>
+    <Panel className="qualification-flags-panel" title="자격·제약 플래그" action={<span className="panel-note">나라장터 제공 값</span>}>
       <dl className="qualification-flags-list">
         {fields.map(([key, label]) => {
           const value = flagValue(values[key]);
