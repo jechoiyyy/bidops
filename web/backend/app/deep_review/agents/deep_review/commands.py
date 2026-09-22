@@ -11,7 +11,7 @@ from __future__ import annotations
 from typing import TypeAlias
 from uuid import UUID
 
-from pydantic import StrictBool, BaseModel, ConfigDict, model_validator
+from pydantic import BaseModel, ConfigDict, model_validator
 
 from ..common import (
     AgentAction,
@@ -32,12 +32,10 @@ class _StrictPayload(BaseModel):
 
 
 class StartReviewPayload(_StrictPayload):
-    source_verification_enabled: StrictBool = True
     bundle_id: UUID
 
 
 class RetryAttemptPayload(_StrictPayload):
-    source_verification_enabled: StrictBool = True
     """The retry action has no mutable payload beyond its current ref."""
 
 

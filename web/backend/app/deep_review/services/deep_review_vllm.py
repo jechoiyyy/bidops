@@ -19,7 +19,7 @@ STAGE_SYSTEM_PROMPT = (
 )
 
 
-def _provider_stage_schema(name: str = DEEP_REVIEW_STAGE_SCHEMA) -> dict[str, Any]:
+def _provider_stage_schema() -> dict[str, Any]:
     """Flatten the evidence ``allOf`` for vLLM's structured decoder.
 
     The authoritative validator still applies the complete ``allOf``/``oneOf``
@@ -27,7 +27,7 @@ def _provider_stage_schema(name: str = DEEP_REVIEW_STAGE_SCHEMA) -> dict[str, An
     decoding aid and must require every common evidence field explicitly.
     """
 
-    schema = deepcopy(load_schema(name))
+    schema = deepcopy(load_schema(DEEP_REVIEW_STAGE_SCHEMA))
     evidence_base = schema["$defs"]["evidence_base"]
     schema["$defs"]["evidence"] = {
         "type": "object",
@@ -43,12 +43,6 @@ STAGE_RESPONSE_SCHEMA = _provider_stage_schema()
 DEEP_REVIEW_STAGE_CONTRACT = StructuredOutputContract(
     name="bidops_deep_review_stage_v1",
     schema=STAGE_RESPONSE_SCHEMA,
-    system_prompt=STAGE_SYSTEM_PROMPT,
-)
-
-NARRATIVE_STAGE_CONTRACT = StructuredOutputContract(
-    name="bidops_deep_review_stage_v2",
-    schema=_provider_stage_schema("deep-review-stage-v2"),
     system_prompt=STAGE_SYSTEM_PROMPT,
 )
 

@@ -40,7 +40,6 @@ def import_profile_policy(
     required_item_recall: float | None = None,
     human_agreement: float | None = None,
     unsupported_false_positive_rate: float | None = None,
-    repair_profile_source: bool = False,
 ) -> dict[str, Any]:
     quality_values = (
         sample_hash,
@@ -57,7 +56,7 @@ def import_profile_policy(
         _policy_payload, _canonical_bytes, actual_policy_sha256 = load_canonical_policy(policy_source)
         if actual_policy_sha256 != expected_policy_sha256:
             raise InputVersionError("policy_hash_mismatch", "측정한 policy와 import 대상 policy hash가 다릅니다")
-    profile = import_profile_version(session, profile_source, created_by_name=actor, label="company-profile", repair_missing_source=repair_profile_source)
+    profile = import_profile_version(session, profile_source, created_by_name=actor, label="company-profile")
     policy = import_policy_version(
         session, policy_source, created_by_name=actor, label=label,
         sample_hash=sample_hash, required_item_recall=required_item_recall,
@@ -84,7 +83,6 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--actor", required=True, help="operator name")
     parser.add_argument("--label", default="analysis-policy-lean-v1")
     parser.add_argument("--expected-policy-sha256")
-    parser.add_argument("--repair-profile-source", action="store_true", help="reconnect identical approved profile bytes when a historical object version is unavailable; append an audited location")
     parser.add_argument("--sample-hash")
     parser.add_argument("--required-item-recall", type=float)
     parser.add_argument("--human-agreement", type=float)
@@ -103,7 +101,6 @@ def main(argv: list[str] | None = None) -> int:
                 sample_hash=args.sample_hash,
                 required_item_recall=args.required_item_recall, human_agreement=args.human_agreement,
                 unsupported_false_positive_rate=args.unsupported_false_positive_rate,
-                repair_profile_source=args.repair_profile_source,
             )
             import json
             print(json.dumps(result, ensure_ascii=False, sort_keys=True))

@@ -562,7 +562,7 @@ def test_reports_router_contract_is_exactly_four_routes_and_error_shape(report_c
         assert evidence_success.status_code == 200
         assert set(evidence_success.json()) == {
             "evidence_id", "source_kind", "document_version_id", "structure_id", "profile_version_id",
-            "profile_evidence_id", "locator_type", "locator", "quote", "confidence", "source_sha256", "page", "source_verification_enabled",
+            "profile_evidence_id", "locator_type", "locator", "quote", "confidence", "source_sha256", "page",
         }
         stale_error = client.post(
             f"/api/deep-reviews/{report_context['review_id']}/report-revisions",

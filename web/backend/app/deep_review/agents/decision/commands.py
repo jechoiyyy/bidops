@@ -15,7 +15,7 @@ from ..common import (
     AgentCommand,
     AgentName,
 )
-from ...schemas.reports import ReportPayload
+from ...schemas.reports import DeepReviewReport
 
 
 class _StrictPayload(BaseModel):
@@ -30,7 +30,7 @@ class FullRevisionPayload(_StrictPayload):
     """The full immutable report snapshot carried by a revision action."""
 
     base_revision_id: UUID
-    report: ReportPayload
+    report: DeepReviewReport
     reason: str
     factual_change_evidence_ids: list[UUID]
 

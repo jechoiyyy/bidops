@@ -265,47 +265,6 @@ def test_profile_context_validates_snapshot_without_private_source_credentials(e
         assert len(context["evidence"]) > 0
 
 
-@pytest.mark.parametrize("tampered", [False, True])
-def test_explicit_profile_source_repair_preserves_snapshot_and_old_location(engine, monkeypatch, tampered):
-    from app.deep_review.services import assets
-    from copy import deepcopy
-    profile_path = Path(__file__).parents[4] / "docs" / "reference" / "company-profile.md"
-    with Session(engine) as session:
-        profile = import_profile_version(session, profile_path, created_by_name="운영자")
-        session.commit()
-        original = deepcopy(profile.profile_payload)
-        evidence = session.scalars(select(ProfileEvidence).where(ProfileEvidence.profile_version_id == profile.id)).all()
-        old = session.scalar(select(ContentObjectLocation).where(ContentObjectLocation.content_object_id == evidence[0].content_object_id))
-        old.object_version_id = "historical-missing-version"
-        session.commit()
-        read = assets.read_object
-        def missing_version(namespace, key, *, version_id=None):
-            if version_id == "historical-missing-version":
-                raise assets.AssetError("service_unavailable", "unavailable")
-            return read(namespace, key, version_id=version_id)
-        monkeypatch.setattr(assets, "read_object", missing_version)
-        with pytest.raises(InputVersionError):
-            import_profile_version(session, profile_path, created_by_name="운영자")
-        if tampered:
-            evidence[0].quote = "tampered"
-            session.commit()
-            with pytest.raises(InputVersionError):
-                import_profile_version(session, profile_path, created_by_name="운영자", repair_missing_source=True)
-            assert session.query(ContentObjectLocation).count() == 1
-            assert session.query(AuditEvent).count() == 0
-        else:
-            repaired = import_profile_version(session, profile_path, created_by_name="운영자", repair_missing_source=True)
-            session.commit()
-            assert repaired.id == profile.id and repaired.profile_payload == original
-            assert old.object_version_id == "historical-missing-version"
-            assert session.query(ContentObjectLocation).count() == 2
-            assert session.query(ProfileVersion).count() == 1
-            assert session.query(ProfileEvidence).count() == len(evidence)
-            assert session.scalar(select(AuditEvent)).action == "profile.source_location.repaired"
-            import_profile_version(session, profile_path, created_by_name="운영자", repair_missing_source=True)
-            assert session.query(ContentObjectLocation).count() == 2
-
-
 @pytest.mark.parametrize(
     "kwargs",
     [
@@ -877,15 +836,7 @@ def _seed_review_context(engine, monkeypatch, *, measured: bool = True):
         document = DocumentVersion(id=uuid4(), notice_id=notice.id, content_object_id=content_id, version=1, source_kind="manual", original_filename="fixture.pdf", role="기타", is_current=True, safety_status="safe")
         structure = DocumentStructure(id=uuid4(), document_version_id=document.id, source_sha256=content_hash, media_type="application/pdf", extractor_name="fixture", extractor_version="1", payload_content_object_id=content_id, payload_sha256=structure_hash, page_count=1, block_count=0, validation_status="ready")
         item = DocumentBundleItem(bundle_id=bundle.id, document_version_id=document.id, ordinal=0, document_version_version=1, content_object_id=content_id, content_sha256=content_hash, detected_mime="application/pdf", size_bytes=0, original_filename="fixture.pdf", source_kind="manual", role_at_confirmation="기타", is_current_at_confirmation=True, safety_status_at_confirmation="safe", structure_id_at_confirmation=structure.id, structure_payload_sha256=structure_hash)
-        # These objects have scalar FK values, not ORM relationships. Insert
-        # their parents first so this fixture also exercises PostgreSQL FKs.
-        session.add_all([bundle, profile, policy, content])
-        session.flush()
-        session.add(document)
-        session.flush()
-        session.add(structure)
-        session.flush()
-        session.add(item)
+        session.add_all([bundle, profile, policy, content, document, structure, item])
         session.commit()
         monkeypatch.setenv("BIDOPS_ACTIVE_PROFILE_VERSION_ID", str(profile.id))
         monkeypatch.setenv("BIDOPS_ACTIVE_ANALYSIS_POLICY_VERSION_ID", str(policy.id))

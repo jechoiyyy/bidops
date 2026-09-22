@@ -17,7 +17,7 @@ test.describe("심층 검토 보고서 접근성·반응형 계약", () => {
     await expect(page.locator("table").first()).toBeVisible();
   });
 
-  test("진행 중 이전 보고서를 조회하고 완료 뒤 최신 보고서를 조회한다", async ({ page }) => {
+  test("queued→running→complete 동안만 polling하고 완료 뒤 report를 요청한다", async ({ page }) => {
     const trace = await mockDeepReviewLifecycle(page, "polling");
     await page.goto("/deep-reviews/fixture-review");
 
@@ -27,16 +27,14 @@ test.describe("심층 검토 보고서 접근성·반응형 계약", () => {
     // 실제 시간이 늘었으므로 대기 예산도 그만큼 준다.
     await expect(page.getByRole("heading", { name: "시스템 권고" })).toBeVisible({ timeout: 15_000 });
 
-    await expect.poll(() => trace.events, { timeout: 15_000 }).toContain("review:completed");
-    await expect.poll(() => trace.events).toContain("report:completed");
     expect(trace.reviewGets).toBeGreaterThanOrEqual(3);
-    expect(trace.reportGets).toBeGreaterThanOrEqual(2);
+    expect(trace.reportGets).toBe(1);
     expect(trace.events).toContain("review:queued");
     expect(trace.events).toContain("review:running");
     expect(trace.events).toContain("review:completed");
     expect(trace.events).toContain("report:completed");
-    expect(trace.events).toContain("report:queued");
-    // 진행 단계마다 보고서를 재요청하지는 않는다. 완료 시 갱신한다.
+    expect(trace.events).not.toContain("report:queued");
+    expect(trace.events).not.toContain("report:running");
 
     const terminalReadCount = trace.reviewGets;
     // 가장 빠른 폴링 간격(2초)보다 길게 기다려야 "멈췄다"가 증명된다.
@@ -231,7 +229,6 @@ test.describe("심층 검토 보고서 접근성·반응형 계약", () => {
     await expect(page.getByRole("heading", { name: "사전규격 심층검토 의견 추가" })).toBeVisible();
 
     await page.getByLabel("담당자 이름").fill("검토 담당자");
-    await page.getByLabel("심층검토 의견", { exact: true }).selectOption("보류");
     await page.getByLabel("심층검토 의견 사유").fill("근거 확인 뒤 계속 검토합니다.");
     await expect(page.getByText(/저장되지 않은 심층검토 초안/)).toBeVisible();
     const blocked = await page.evaluate(() => {
@@ -257,7 +254,7 @@ test.describe("심층 검토 보고서 접근성·반응형 계약", () => {
 
     await page.getByLabel("절 내용").fill("저장되지 않은 보고서 수정본");
     await page.getByLabel("수정 사유").fill("수정본 이탈 보호 확인");
-    await page.getByRole("group", { name: "수정에 사용한 근거" }).getByRole("checkbox").check();
+    await page.getByLabel("사실을 바꾼 근거 식별자 (쉼표 구분)").fill("fixture-evidence-1");
     await page.getByLabel("심층검토 의견 사유").fill("저장되지 않은 의견");
 
     // 이탈 확인은 브라우저 `window.confirm`이 아니라 화면의 확인 다이얼로그다
@@ -277,7 +274,7 @@ test.describe("심층 검토 보고서 접근성·반응형 계약", () => {
 
     await expect(page).toHaveURL(/\/deep-reviews\/fixture-review$/);
     await expect(page.getByLabel("절 내용")).toHaveValue("저장되지 않은 보고서 수정본");
-    await expect(page.getByRole("group", { name: "수정에 사용한 근거" }).getByRole("checkbox")).toBeChecked();
+    await expect(page.getByLabel("사실을 바꾼 근거 식별자 (쉼표 구분)")).toHaveValue("fixture-evidence-1");
     await expect(page.getByLabel("심층검토 의견 사유")).toHaveValue("저장되지 않은 의견");
 
     await openDashboard();
@@ -391,7 +388,6 @@ test("심층검토 의견은 확인 없이는 요청이 나가지 않고 취소�
   await expect(page.getByRole("heading", { name: "사전규격 심층검토 의견 추가" })).toBeVisible();
 
   await page.getByLabel("담당자 이름").fill("검토 담당자");
-  await page.getByLabel("심층검토 의견", { exact: true }).selectOption("보류");
   await page.getByLabel("심층검토 의견 사유").fill("근거를 다시 확인한 뒤 보류합니다.");
   await page.getByRole("button", { name: "심층검토 의견 추가" }).click();
 
