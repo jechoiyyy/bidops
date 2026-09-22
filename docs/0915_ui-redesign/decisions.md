@@ -184,3 +184,8 @@
 
 - 원본 `mockups/0921_practitioner-m1c/`. 사용자 승인 A안.
 - 사업 추적·최종 Go/No-Go를 공용 `SplitWorkspace`·`StickyDecisionHeader`·`AgencyFeature`로 옮기고 목록은 Astryx `Table`을 유지한다.
+
+### 시안 M5·M6 승인 (2026-09-22)
+
+- 원본 `mockups/0921_practitioner-m5-m6/`. 초안에서 발주계획 목록의 판단 근거 한 줄과 상세의 판정 변화 표를 제외하고 승인.
+- 발주계획 판정은 수집 당일 1회이며 재판정하지 않는다(사용자 확정). 수요기관 크게·대행기관 작게, 마감 임박 7일, "새로"는 전일 회차 첫 관측 + 모델 관련.
