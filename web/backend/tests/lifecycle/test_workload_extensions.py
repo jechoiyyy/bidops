@@ -66,3 +66,30 @@ def test_registry_delegates_new_capabilities_and_restores_workload_owners(empty_
     finally:
         restore_extension_registry(registry)
     assert extension_registry().workload_counts(None) == {'fixture': WorkloadCount(2, None)}
+
+
+def test_human_check_required_sums_sub_counts_and_propagates_null():
+    """합계 키는 두 하위 건수의 합이고 하나라도 셀 수 없으면 셀 수 없다(ADR-0067 결정 5).
+
+    제공자 부재(`null`)를 0으로 접으면 "확인할 일 없음"으로 읽힌다.
+    """
+
+    from app.lifecycle import WorkloadCount
+    from app.lifecycle.services.workload import _sum_parts
+
+    assert _sum_parts({}) == WorkloadCount(None, 'sub_count_unavailable')
+    assert _sum_parts({'overview_human_review': WorkloadCount(2)}) == WorkloadCount(
+        None, 'sub_count_unavailable'
+    )
+    assert _sum_parts({
+        'overview_human_review': WorkloadCount(None, 'provider_absent'),
+        'blocking_items_open': WorkloadCount(3),
+    }) == WorkloadCount(None, 'sub_count_unavailable')
+    assert _sum_parts({
+        'overview_human_review': WorkloadCount(0),
+        'blocking_items_open': WorkloadCount(0),
+    }) == WorkloadCount(0, None)
+    assert _sum_parts({
+        'overview_human_review': WorkloadCount(2),
+        'blocking_items_open': WorkloadCount(3),
+    }) == WorkloadCount(5, None)

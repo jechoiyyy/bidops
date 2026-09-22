@@ -220,6 +220,9 @@ def list_opportunities(
     section: OpportunitySection | None = Query(default=None),
     reason: OpportunityActionReason | None = Query(default=None),
     hold_review: OpportunityHoldReview | None = Query(default=None),
+    # 마감 임박 창(일). `hold_review`처럼 추적 대상(`계속 추적`·`보류`)을 함께 좁힌다
+    # (ADR-0067 결정 3). 상한은 요청 시각 KST 일자 + N일의 끝이다.
+    deadline_within_days: int | None = Query(default=None, ge=1, le=365),
     q: str | None = Query(default=None),
     sort: OpportunitySort = Query(default="created_at"),
     limit: int = Query(default=50, ge=1, le=500),
@@ -229,7 +232,8 @@ def list_opportunities(
     try:
         return opportunity_queries.list_opportunities(
             session, tracking_status=tracking_status, first_registered_stage=first_registered_stage,
-            section=section, reason=reason, hold_review=hold_review, q=q, sort=sort,
+            section=section, reason=reason, hold_review=hold_review,
+            deadline_within_days=deadline_within_days, q=q, sort=sort,
             limit=limit, offset=offset, now=_request_now(),
         )
     except opportunity_tracking.OpportunityTrackingError as error:

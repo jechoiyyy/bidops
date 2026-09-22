@@ -1,5 +1,6 @@
-"""미답변 blocking 항목과 발주계획 검토 대기의 실제 screening 제공자."""
-from datetime import UTC, datetime
+"""미답변 blocking 항목과 발주계획 업무 건수의 실제 screening 제공자."""
+from datetime import UTC, datetime, time, timedelta
+from zoneinfo import ZoneInfo
 
 import pytest
 from sqlalchemy import create_engine, event
@@ -11,7 +12,10 @@ from app.lifecycle import ExtensionRegistry, WorkloadCount, WorkloadProjection
 from app.lifecycle.models import Notice, Run
 from app.screening import ScreeningJudgmentProjection, register_lifecycle_extensions
 from app.screening.models import Judgment, Review, VerificationAnswer, VerificationItem
-from app.screening.services.order_plan_screening import OrderPlanScreeningService
+from app.screening.services.order_plan_screening import (
+    OrderPlanScreeningError,
+    OrderPlanScreeningService,
+)
 from tests.postgres import migrated_engine, requires_postgres
 from tests.screening.test_order_plan_list_v2 import execution, feedback, owner, result
 from tests.screening.test_order_plan_screening_service import _fixture
@@ -126,7 +130,12 @@ def test_registration_adds_only_screening_workload_and_preserves_missing_scope(t
     register_lifecycle_extensions(registry)
     register_lifecycle_extensions(registry)
     try:
-        assert registry.workload_counts(session) == {"order_plan_pending": WorkloadCount(None, "no_completed_execution")}
+        # 완료된 누적 실행이 없으면 screening이 소유한 두 키가 같은 사유로 `null`이다.
+        # 그 사유를 0으로 접지 않는다.
+        absent = WorkloadCount(None, "no_completed_execution")
+        assert registry.workload_counts(session) == {
+            "order_plan_pending": absent, "order_plan_new_priority": absent,
+        }
         from app.screening import ScreeningWorkloadProjection
         assert isinstance(ScreeningWorkloadProjection(), WorkloadProjection)
     finally:
@@ -158,7 +167,10 @@ def test_order_plan_pending_reuses_the_cumulative_scope_and_tracking_filters(tmp
     feedback(session, first, plans[0], relevance="not_relevant")
     session.commit()
     try:
-        assert registry.workload_counts(session) == {"order_plan_pending": WorkloadCount(2)}
+        # 관측 시각이 2026-09-02이라 "전일 이후 처음 관측"에는 아무도 들지 않는다.
+        assert registry.workload_counts(session) == {
+            "order_plan_pending": WorkloadCount(2), "order_plan_new_priority": WorkloadCount(0),
+        }
         execution(session, service, policy, status="실패", minute=2)
         assert registry.workload_counts(session)["order_plan_pending"] == WorkloadCount(2)
         latest = execution(session, service, policy, status="부분 성공", minute=3)
@@ -173,6 +185,69 @@ def test_order_plan_pending_reuses_the_cumulative_scope_and_tracking_filters(tmp
         assert listing["items"][0]["order_plan_pk"] == plans[1].id
         execution(session, service, policy, minute=4)
         assert registry.workload_counts(session)["order_plan_pending"] == WorkloadCount(2)
+    finally:
+        session.close()
+        session.bind.dispose()
+
+
+def test_new_priority_window_starts_at_yesterday_in_seoul_and_narrows_to_relevant(tmp_path):
+    """`order_plan_new_priority`와 `first_observed_from`의 경계·모집단.
+
+    창의 하한은 요청 시각 KST 일자의 전일 00:00이고 상한은 없다. 그래서 전일 도착분과
+    당일 도착분이 함께 들고, 1마이크로초 앞선 관측은 빠진다. 관련성 축은
+    `relevant` 하나라 `order_plan_pending`(`relevant,uncertain`)과 다른 값이다.
+    """
+
+    settings, session, policy, _, plans = _fixture(tmp_path, count=5)
+    service = OrderPlanScreeningService(settings)
+    registry = register_lifecycle_extensions(ExtensionRegistry())
+    first = execution(session, service, policy)
+    seoul = ZoneInfo("Asia/Seoul")
+    yesterday = datetime.now(UTC).astimezone(seoul).date() - timedelta(days=1)
+    boundary = datetime.combine(yesterday, time.min, tzinfo=seoul).astimezone(UTC)
+    moments = (
+        boundary,                                # 정확히 하한 — 든다
+        boundary - timedelta(microseconds=1),    # 1마이크로초 앞 — 빠진다
+        boundary + timedelta(hours=30),          # 당일 도착분 — 든다
+        boundary,                                # 추적 선택됨 — 빠진다
+        boundary,                                # uncertain — 빠진다
+    )
+    for plan, observed in zip(plans, moments):
+        for observation in plan.observations:
+            observation.observed_at = observed
+    for index, plan in enumerate(plans):
+        result(session, first, plan, relevance="uncertain" if index == 4 else "relevant")
+        owner(session, plan, tracking="계속 추적" if index == 3 else "미선택")
+    session.commit()
+    try:
+        counts = registry.workload_counts(session)
+        assert counts["order_plan_new_priority"] == WorkloadCount(2)
+        # 같은 인자의 목록과 모집단이 같다.
+        listing = service.list_order_plans(
+            session, qwen_relevance="relevant", tracking_status="미선택",
+            first_observed_from=yesterday, limit=100,
+        )
+        assert listing["total"] == 2
+        assert [item["order_plan_pk"] for item in listing["items"]] == [plans[0].id, plans[2].id]
+        # 넓은 키와 좁은 키는 서로 대신하지 않는다.
+        assert counts["order_plan_pending"] == WorkloadCount(4)
+        # 인자를 주지 않으면 창이 없다.
+        assert service.list_order_plans(
+            session, qwen_relevance="relevant", tracking_status="미선택", limit=1,
+        )["total"] == 3
+        # 회차 모드에서도 "처음 관측"은 회차와 무관한 최소 시각이다.
+        assert service.list_order_plans(
+            session, source_run_id="run-c2", qwen_relevance="relevant",
+            tracking_status="미선택", first_observed_from=yesterday, limit=1,
+        )["total"] == 2
+        # 문자열 날짜를 받고, 날짜가 아닌 값은 422다.
+        assert service.list_order_plans(
+            session, first_observed_from=yesterday.isoformat(), limit=1,
+        )["total"] == 4
+        for invalid in ("not-a-date", datetime.now(UTC)):
+            with pytest.raises(OrderPlanScreeningError) as error:
+                service.list_order_plans(session, first_observed_from=invalid, limit=1)
+            assert error.value.status_code == 422
     finally:
         session.close()
         session.bind.dispose()
