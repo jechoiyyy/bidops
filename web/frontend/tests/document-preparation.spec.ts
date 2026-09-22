@@ -119,6 +119,15 @@ const preSpecItem = {
   overview_review_status: null,
   grade: "우선 검토",
   grade_source: "screening_judgment",
+  // bda1288(사전규격 개요 예비 적합성 평가): `display_assessment`가 새 필수
+  // 필드로 생겼다. 없으면 상세 화면이 렌더 중 `display_assessment.source`
+  // 접근에서 죽어 "문서 준비 담당자 이름" 입력조차 나타나지 않는다.
+  display_assessment: {
+    grade: "우선 검토", status: "graded", source: "screening_judgment",
+    basis_run_id: null, assessed_at: null, quality_status: null,
+    reason_codes: [], axes: [], verification_items: [], semantic_status: null,
+    semantic_scope: [], latest_run_status: null,
+  },
   auto_preparation_status: "not_applicable",
   auto_preparation_reason: null,
   latest_deep_review_id: null,
