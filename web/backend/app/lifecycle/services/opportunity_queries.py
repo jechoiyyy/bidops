@@ -7,8 +7,9 @@ dialect별 날짜 산술 없이 마이크로초까지 같은 결과를 낸다.
 """
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, time, timedelta
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy.orm import Session, aliased, selectinload
@@ -50,6 +51,10 @@ from .opportunity_tracking import (
 HOLD_REVIEW_PERIOD_DAYS = 14
 #: ``hold_review=due_soon``의 창(일): ``now < 기한 ≤ now + 3일``.
 HOLD_REVIEW_DUE_SOON_DAYS = 3
+#: 대시보드 `마감 임박 추적 건` 패널의 창(일). M6 승인 2026-09-22, ADR-0067 결정 6.
+DEADLINE_IMMINENT_WINDOW_DAYS = 7
+#: 창의 상한을 끊는 계약 시간대. D-day 표시가 날짜 단위이므로 창도 날짜로 끊는다.
+_SEOUL = ZoneInfo("Asia/Seoul")
 #: §7.1 표 순서. ``action_reasons``와 ``action_reason_counts``가 이 순서를 따른다.
 ACTION_REASON_CODES: tuple[OpportunityActionReason, ...] = (
     "new_link",
@@ -298,6 +303,71 @@ def hold_review_predicate(
     raise ValueError(f"unknown hold review filter: {kind}")
 
 
+def deadline_window_end(days: int, now: datetime) -> datetime:
+    """``deadline_within_days``의 열린 상한: 요청 시각 KST 일자 + ``days``의 끝.
+
+    D-day 표시가 날짜 단위이므로 창도 날짜로 끊는다 — ``days=7``이면 KST 기준
+    오늘부터 7일 뒤까지가 창이고 8일 뒤 00:00(KST)은 밖이다(ADR-0067 결정 6).
+    """
+
+    if days < 1:
+        raise ValueError("deadline window must be at least one day")
+    last_day = reference_time(now).astimezone(_SEOUL).date() + timedelta(days=days)
+    return datetime.combine(last_day + timedelta(days=1), time.min, tzinfo=_SEOUL).astimezone(UTC)
+
+
+def _imminent_link_conditions(link: Any, *, lower: datetime, upper: datetime | None):
+    """권위 있는 연결의 공고 마감이 ``[lower, upper)``에 드는 조건."""
+
+    conditions = [
+        link.opportunity_id == Opportunity.id,
+        authoritative_link_predicate(link),
+        Notice.deadline_at.is_not(None),
+        Notice.deadline_at >= lower,
+    ]
+    if upper is not None:
+        conditions.append(Notice.deadline_at < upper)
+    return conditions
+
+
+def deadline_imminent_predicate(days: int, now: datetime) -> ColumnElement[bool]:
+    """마감 임박 추적 건. ``hold_review``처럼 추적 상태를 함께 좁힌다.
+
+    패널이 묻는 것은 "마감 임박 **추적 건**"이므로 ``계속 추적``·``보류``만 해당한다
+    (ADR-0067 결정 3). 창은 **링크 단위**로 판정하고 돌려주는 것은 사업이다 — 서버는
+    대표 마감을 고르지 않는다(결정 4). 확인 대기 후보의 마감은 사업을 올리지 않는다.
+    """
+
+    reference = reference_time(now)
+    link = aliased(OpportunityLink, name="imminent_deadline_link")
+    imminent = (
+        select(link.id)
+        .select_from(link)
+        .join(Notice, Notice.id == link.notice_id)
+        .where(*_imminent_link_conditions(link, lower=reference, upper=deadline_window_end(days, reference)))
+        .correlate(Opportunity)
+        .exists()
+    )
+    return and_(Opportunity.tracking_status.in_(_OPEN_TRACKING_STATUSES), imminent)
+
+
+def _next_deadline_expression(now: datetime):
+    """``sort=deadline``의 키: 아직 남은 권위 연결 마감 중 가장 이른 것.
+
+    정렬 키일 뿐이며 응답에 대표 마감 필드를 만들지 않는다(§5·ADR-0067 결정 4).
+    """
+
+    link = aliased(OpportunityLink, name="next_deadline_link")
+    return (
+        select(func.min(Notice.deadline_at))
+        .select_from(link)
+        .join(Notice, Notice.id == link.notice_id)
+        .where(*_imminent_link_conditions(link, lower=reference_time(now), upper=None))
+        .correlate(Opportunity)
+        .scalar_subquery()
+    )
+
+
 def normalize_search_query(q: str) -> str:
     """Validate the raw query without changing what is sent or displayed."""
 
@@ -442,6 +512,50 @@ def count_opportunity_section(
     )
 
 
+def count_opportunity_action_reason(
+    session: Session,
+    reason: OpportunityActionReason,
+    *,
+    now: datetime | None = None,
+) -> int:
+    """목록 ``reason`` 필터와 같은 분류로 활성 사업기회를 센다.
+
+    ``list_opportunities(reason=...)``의 ``total``·``action_reason_counts[reason]``와
+    같은 모집단이다(구역 필터는 걸지 않는다).
+    """
+
+    classified = _classified(
+        session,
+        now=reference_time(now),
+        conditions=[active_opportunity_predicate(Opportunity)],
+    )
+    return int(
+        session.scalar(
+            select(func.count())
+            .select_from(classified)
+            .where(classified.c[_reason_column(reason)] == 1)
+        )
+    )
+
+
+def count_deadline_imminent(
+    session: Session,
+    *,
+    days: int = DEADLINE_IMMINENT_WINDOW_DAYS,
+    now: datetime | None = None,
+) -> int:
+    """목록 ``deadline_within_days`` 필터와 같은 술어로 활성 사업기회를 센다."""
+
+    return int(
+        session.scalar(
+            select(func.count(Opportunity.id)).where(
+                active_opportunity_predicate(Opportunity),
+                deadline_imminent_predicate(days, reference_time(now)),
+            )
+        )
+    )
+
+
 def count_hold_review(
     session: Session,
     kind: OpportunityHoldReview,
@@ -480,6 +594,7 @@ def list_opportunities(
     section: OpportunitySection | None = None,
     reason: OpportunityActionReason | None = None,
     hold_review: OpportunityHoldReview | None = None,
+    deadline_within_days: int | None = None,
     q: str | None = None,
     sort: OpportunitySort = "created_at",
     limit: int = 50,
@@ -501,6 +616,8 @@ def list_opportunities(
         conditions.append(Opportunity.first_registered_stage == first_registered_stage)
     if hold_review is not None:
         conditions.append(hold_review_predicate(hold_review, reference))
+    if deadline_within_days is not None:
+        conditions.append(deadline_imminent_predicate(deadline_within_days, reference))
     if q is not None and search_key(q):
         conditions.append(_search_predicate(q))
     classified = _classified(session, now=reference, conditions=conditions)
@@ -552,6 +669,16 @@ def list_opportunities(
             else_=len(_FIRST_STAGE_ORDER),
         )
         query = query.order_by(rank.asc(), Opportunity.created_at.desc(), Opportunity.id.desc())
+    elif sort == 'deadline':
+        # 아직 남은 권위 연결 마감 중 가장 이른 것. 그런 마감이 없는 사업은 방언과
+        # 무관하게 맨 뒤에 둔다(마감 미제공을 임박으로 접지 않는다).
+        next_deadline = _next_deadline_expression(reference)
+        query = query.order_by(
+            case((next_deadline.is_(None), 1), else_=0).asc(),
+            next_deadline.asc(),
+            Opportunity.created_at.desc(),
+            Opportunity.id.desc(),
+        )
     elif sort == 'hold_review_due_at':
         # 기한은 선택 시각 + 상수라 선택 시각 순서가 곧 기한 순서다. null은 방언과
         # 무관하게 마지막에 둔다.
