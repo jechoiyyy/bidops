@@ -1893,3 +1893,68 @@ runner 소비자가 없어 보류했다. 운영 DB/MinIO 쓰기·migration 적�
   그대로 부른다(`tests/app/test_ingest_cli_extensions.py`, 새 인터프리터로 적재 → 같은 DB에서 검사).
 - 남은 것: 적재 경고 자체는 계속 C-2를 막는다(부분 적재 회차를 통과시키지 않기 위해 의도한 것이다).
   등록이 되는데도 경고가 남는 회차는 진짜 부분 적재이므로 경고 code로 원인을 본다.
+
+## 개요 완료→심층검토의 실행 상태와 실무자 동선 불일치 (2026-09-22, 미해결)
+
+현재 작업 트리(기존 narrative-v2 미커밋 변경 포함)와 실행 중인 서버의 읽기 전용 REST를
+점검했다. 새 모델 호출·재시도·설정 변경·배포는 수행하지 않았다. 운영 관측은 조회 시점의
+사전규격 기본 목록 145건이며, 전체 DB나 모든 과거 실행의 성공률을 뜻하지 않는다.
+
+- **자동 실행은 현재 꺼진 회사 핏 게이트에서 멈춘다.** web·analysis-worker 모두
+  `BIDOPS_PRESPEC_COMPANY_FIT_ENABLED=false`, 개요 enabled와 reference mode는 true다.
+  목록 52건은 `company_fit_disabled`로 클릭 대기다. 이는 설정에 따른 정상 차단이며
+  자동 종단 흐름을 실증했다는 근거가 아니다. PoC에서 자동 실행을 시험할 범위와 기존
+  회사 핏 게이트의 역할을 결정해야 하므로 이번 점검에서 켜지 않았다.
+- **개요 완료와 자동화용 검증 완료의 안내가 충돌한다.** 목록 6건은 개요 `completed`와
+  `overview_not_completed`를 동시에 반환한다(예: notice 1485).
+  `overview_runs.automation_completed_result`는 legacy `checks.overall=passed` 또는
+  새 계약의 전체 개요 의미 검증 통과를 추가로 요구한다. 화면의
+  `preSpecAutoPreparation.ts`는 이를 “개요 run이 completed가 아닙니다”로 번역한다.
+  실제 미완료와 검증 조건 부족을 구별하고 수동 실행 가능 여부를 함께 안내해야 한다.
+- **심층검토가 존재하기만 하면 자동 시작됨으로 보인다.**
+  `auto_preparation._status_for`는 생성 주체·현재 attempt 상태·현재 묶음과의 일치 여부를
+  보지 않고 review ID만 있으면 `deep_review_started`를 반환한다.
+  `PreSpecDetailPage`는 이를 완료 단계 표시와 “자동 시작된 … 보고서 열기”에 사용한다.
+  실제 조회된 notice 1443·1430·1428의 최신 심층검토는 모두 `failed`인데 이 상태였다.
+  1430·1428은 `validation_failed`, 1443은 current attempt 오류 코드가 null이다.
+  생성 주체, 실행 상태, 입력 현재성을 분리하고 실패 복구를 상세에서 바로 안내해야 한다.
+- **수동 진입 버튼이 접힌 패널을 열지 않는다.** 상세의 클릭 대기 링크는
+  `href="#document-preparation"`뿐이고 대상은 `documentPanelOpen`일 때만 mount된다.
+  패널을 닫은 뒤 링크를 누르면 시작 폼으로 갈 수 없다. 또한 문서 준비 패널은
+  “우선 검토가 아니면 거부”라고 안내하지만 서버는 개요 플래그가 켜진 사전규격의
+  `SW사업대상=Y`도 허용한다. 시작 동선과 자격 안내를 서버 계약에 맞춰야 한다.
+- **개요 범위 조정이 항상 필수 작업처럼 노출된다.** 상세는 `range_review`가 있으면
+  패널 밖에 항상 폼을 표시한다. 자동 선택 ready도 사람 confirmation이 없으면
+  `RangeReviewPending`이며, 서버 `can_confirm`은 활성 개요 run 부재와 snapshot 안전성을
+  본다. 개요 완료는 편집을 막지 않고 확정은 새 개요 run을 enqueue한다.
+  정상 완료는 읽기 요약과 선택적 “범위 변경 후 개요 다시 실행”, 범위 미확정은 펼친
+  필수 조치로 나누는 것이 필요하다. 실행 중에는 실제 입력/확정이 잠기므로 항상
+  제출 가능한 버튼이라는 뜻은 아니다.
+- **개요에서 심층검토로 전달되는 데이터의 설명이 필요하다.** 개요 결과는 회사 핏과
+  자동 시작 판단에 쓰이며, 심층 실행 `DeepReviewService.run_claim`은 고정 묶음의 원문
+  구조·프로필·정책을 읽는다. 개요 결과나 overview run ID를 분석 입력으로 넘기지 않는다.
+  수동 `create_review`는 개요 완료·회사 핏을 요구하지 않는다. 원문 전체를 독립 분석하는
+  설계 자체는 타당하지만, 개요 요약을 이어받는 것으로 설명해서는 안 된다.
+  `business-rules.md`의 “구조화 결과가 심층 검토 입력의 참고 자료” 문장과 구현의
+  관계 및 개요/심층 문서 버전 연결 계약은 후속 정리가 필요하다.
+
+이번 요청은 점검이므로 위 제품 동작·계약은 수정하지 않았다. PoC 개선 우선순위는
+실행 상태·다음 행동의 정확한 표시 → 수동 시작 동선 → 범위 재실행의 선택적 노출 →
+자동 실행 실증 조건과 개요/심층 입력 연결 계약 확정이다.
+
+검증:
+
+- backend에서 `BIDOPS_PRESPEC_OVERVIEW_ENABLED=false BIDOPS_DATABASE_URL=sqlite:///:memory:
+  .venv/bin/pytest -q tests/app/test_auto_deep_review_start.py tests/app/test_deep_reviews.py
+  tests/deep_review/test_company_fit.py tests/deep_review/test_overview_runs.py
+  tests/app/test_narrative_review.py`: **165 passed, 11 failed, 7 skipped**.
+  실패 11건은 자동 시작 fixture가 완료 run에 `checks_json`을 넣지 않아 새 자동화 검증에서
+  `overview_not_completed`로 막힌다. 테스트와 제품 계약 불일치이며 자동 경로 정상 증거로
+  처리하지 않았다. 회사 핏 검사 일부는 생성 service를 fake로 바꾸므로 이 공백을 대신하지
+  못한다. PostgreSQL 7건은 격리 PostgreSQL URL 미지정으로 skip했다.
+- frontend production build 통과. 분리 preview(4197, `/tmp/bidops-flow-audit-dist`)에서
+  `playwright test --project=app page-overview.spec.ts document-preparation.spec.ts
+  deep-review.spec.ts narrative-report.spec.ts --workers=4`: **52 passed**.
+  API mock이며 관련 1280/1440 사례, 수동 요청, 범위 확정, 오류·재시도·초안 보호를 포함한다.
+  생성된 1280 보고서 캡처도 확인했다. 실제 모델→보고서 종단 성공이나 운영 데이터의
+  의미 정확도를 증명하지 않는다. 테스트가 현재 동작을 기대하므로 위 UX 문제는 남는다.
