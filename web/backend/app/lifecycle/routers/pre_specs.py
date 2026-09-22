@@ -230,12 +230,20 @@ def _normalise_projection_fields(value: Mapping[Any, Any]) -> dict[int, Mapping[
     }
 
 
+def _tracking_decision_absent(status: Any) -> bool:
+    """사람이 추적 결정을 내리지 않았다 — 추적 상태가 null이거나 `미선택`이다.
+
+    `계속 추적`·`보류`·`종료`는 모두 **사람이 내린 결정**이다. 셋을 구분하지
+    않는 것이 이 술어의 요점이다(2026-09-22 시안 M7 ③ 승인).
+    """
+
+    return status is None or status in _TRACKING_PENDING_STATUSES
+
+
 def _tracking_pending(first_stage: Any, status: Any) -> bool:
     """The existing 신규 + null/미선택 tracking-decision rule."""
 
-    return first_stage in {"pre_spec", "bid_notice"} and (
-        status is None or status in _TRACKING_PENDING_STATUSES
-    )
+    return first_stage in {"pre_spec", "bid_notice"} and _tracking_decision_absent(status)
 
 
 def _workspace_actionable(
@@ -244,7 +252,18 @@ def _workspace_actionable(
     overview_status: Mapping[int, str],
     status_fields: Mapping[int, Mapping[str, Any]],
     tracking_pending: Mapping[int, bool],
+    tracking_decision_absent: Mapping[int, bool],
 ) -> bool:
+    """`검토할 항목` 술어 (2026-09-22 개정, 시안 M7 ③ 승인).
+
+    바깥 AND가 먼저다 — 사람이 추적 결정을 내린 공고는 개요 상태·자동 준비
+    상태와 무관하게 빠진다. 셋째 항만 추적 상태를 보던 옛 규칙에서는 `보류`를
+    고른 건이 개요 `needs_human_review`라는 이유로 남았다. 결정한 건은
+    `추적 중`(계속 추적·보류)과 `전체 이력`에서 계속 보인다.
+    """
+
+    if not tracking_decision_absent.get(notice_id, True):
+        return False
     auto_status = status_fields.get(notice_id, {}).get("auto_preparation_status")
     return (
         overview_status.get(notice_id) == "needs_human_review"
@@ -542,6 +561,10 @@ def list_pre_specs(
         notice_id: _tracking_pending(first_stage_by_id.get(notice_id), tracking_status_by_id.get(notice_id))
         for notice_id in base_ids
     }
+    tracking_decision_absent_by_id = {
+        notice_id: _tracking_decision_absent(tracking_status_by_id.get(notice_id))
+        for notice_id in base_ids
+    }
 
     projection_ids = [
         notice_id
@@ -614,6 +637,7 @@ def list_pre_specs(
             overview_status=overview_status,
             status_fields=status_fields,
             tracking_pending=tracking_pending_by_id,
+            tracking_decision_absent=tracking_decision_absent_by_id,
         )
 
     # ``overview_status_counts`` intentionally ignores ``overview_view`` while

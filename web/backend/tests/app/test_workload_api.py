@@ -371,9 +371,15 @@ def test_workload_matches_real_list_totals_and_tracking_exceptions(
         else:
             assert values[ORDER_PLAN] == values[NEW_PRIORITY] == (None, "provider_absent")
         ready = get_json(client, "/api/pre-specs", auto_preparation_status="deep_review_ready_for_click", sw_only=False)
+        # 2026-09-22 개정(시안 M7 ③): 타일 건수의 모집단은 `검토할 항목`이다 — 사람이
+        # 추적 결정을 내린 건(`종료`·`계속 추적`)은 누적 목록에는 남고 건수에서만 빠진다.
+        actionable_ready = get_json(client, "/api/pre-specs", workspace="actionable",
+                                    auto_preparation_status="deep_review_ready_for_click", sw_only=False)
         if "deep_review" in modules:
-            assert values[DEEP_REVIEW] == (ready["total"], None) == (3, None)
             assert {row["notice_pk"] for row in ready["items"]} == {non_sw.id, sw.id, tracked_non_sw.id}
+            assert ready["total"] == 3
+            assert values[DEEP_REVIEW] == (actionable_ready["total"], None) == (1, None)
+            assert {row["notice_pk"] for row in actionable_ready["items"]} == {non_sw.id}
             assert get_json(client, "/api/pre-specs", auto_preparation_status="deep_review_ready_for_click", sw_only=True)["total"] == 2
             pending = get_json(client, "/api/bid-delta/decision-queue", status="pending", limit=1)
             assert values[FINAL_DECISION] == (pending["total"], None) == (2, None)
@@ -385,7 +391,7 @@ def test_workload_matches_real_list_totals_and_tracking_exceptions(
             # 화면 바닥의 하위 건수 표시로 남는다.
             assert values[HUMAN_CHECK] == (values[OVERVIEW_HUMAN][0] + expected_blocking, None)
         else:
-            assert ready["total"] == 0
+            assert ready["total"] == actionable_ready["total"] == 0
             assert values[DEEP_REVIEW] == values[FINAL_DECISION] == (None, "provider_absent")
             assert values[OVERVIEW_HUMAN] == (None, "provider_absent")
             assert values[HUMAN_CHECK] == (None, "sub_count_unavailable")
