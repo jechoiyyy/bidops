@@ -1,18 +1,178 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import {
   mockDeepReviewQuality,
   mockOpportunity,
   mockPreSpecAutoDetail,
-  mockPreSpecMatrix,
+  type PreSpecAutoDetailState,
   mockWorkload,
 } from "./api-mock";
 import { installScreenFixtures } from "./screen-fixtures";
+import type { PreSpecDisplayAssessment, PreSpecListItem } from "../src/lib/types";
 
 // 의미 층 — 화면이 업무 상태를 어떻게 말하는지 본다. 값 없음·미확인·계산 불가·0의
 // 구분, 감사 누락의 분모를 추정하지 않기, 승인 게이트가 담당자 없이 열리지 않기가
 // 여기 있다. 폭과 무관하므로 한 폭에서만 돈다.
 //
 // 세 층의 구분과 게이트는 `docs/standards.md`에 있다.
+
+// bda1288(사전규격 개요 예비 적합성 평가): `display_assessment`가 새 필수
+// 필드로 생겼다. 이 파일 소유 밖인 `api-mock.ts`의 공유 fixture
+// (`mockPreSpecMatrix`·`mockPreSpecAutoDetail`)는 이 필드를 주지 않거나
+// (매트릭스) top-level `grade`/`grade_source`만 상태에 맞추고 `display_assessment`는
+// 고정값으로 남겨 둔다(자동 상세). 공유 파일은 고치지 않고 이 파일에 한정해
+// 같은 항목을 display_assessment까지 채워 다시 만든다.
+function displayAssessmentFor(
+  grade: string | null,
+  source: PreSpecDisplayAssessment["source"],
+  latestRunStatus: PreSpecDisplayAssessment["latest_run_status"] = null,
+): PreSpecDisplayAssessment {
+  return {
+    grade: grade as PreSpecDisplayAssessment["grade"],
+    status: grade === null ? "none" : "graded",
+    source: grade === null ? "none" : source,
+    basis_run_id: null,
+    assessed_at: null,
+    quality_status: null,
+    reason_codes: [],
+    axes: [],
+    verification_items: [],
+    semantic_status: null,
+    semantic_scope: [],
+    latest_run_status: latestRunStatus,
+  };
+}
+
+// 등급 4값과 `판정 없음`, 자동 준비 8값을 한 응답에 담는 표본
+// (api-mock.ts `AUTO_PREPARATION_MATRIX`와 같은 배정).
+const AUTO_PREPARATION_MATRIX = [
+  { status: "not_applicable", grade: null, reason: "grade_not_priority", deepReviewId: null },
+  { status: "waiting_attachments", grade: "우선 검토", reason: "awaiting_fetch", deepReviewId: null },
+  { status: "bundle_draft", grade: "우선 검토", reason: "human_bundle_draft", deepReviewId: null },
+  { status: "bundle_ready", grade: "검토 권장", reason: null, deepReviewId: null },
+  { status: "overview_running", grade: "검토 권장", reason: "overview_not_completed", deepReviewId: null },
+  { status: "deep_review_started", grade: "우선 검토", reason: null, deepReviewId: "fixture-review" },
+  { status: "deep_review_ready_for_click", grade: "관찰 대상", reason: "bundle_not_auto_ready", deepReviewId: null },
+  { status: "blocked", grade: "제외", reason: "bundle_has_blocking_issues", deepReviewId: null },
+] as const;
+
+async function mockPreSpecMatrixFixed(page: Page): Promise<void> {
+  const items: PreSpecListItem[] = AUTO_PREPARATION_MATRIX.map((entry, index) => ({
+    review_exclusion_status: "included",
+    review_exclusion_actor_name: null,
+    review_exclusion_reason: null,
+    review_exclusion_changed_at: null,
+    notice_pk: 8001 + index,
+    pre_spec_no: `PRE-${8001 + index}`,
+    title: `자동 준비 표본 ${index + 1}`,
+    agency: "표본 발주기관",
+    published_at: "2026-08-30T00:00:00Z",
+    deadline_at: "2026-09-10T00:00:00Z",
+    budget: 100_000_000,
+    sw_business_status: "Y",
+    business_division: "일반용역",
+    origin: "신규",
+    opportunity_id: null,
+    tracking_status: null,
+    kept_by_tracking: false,
+    document: { attachments: 1, "완료": 1, "대기": 0, "진행": 0, "차단": 0, "실패": 0 },
+    overview_review_status: "needs_human_review",
+    grade: entry.grade,
+    grade_source: entry.grade === null ? null : "screening_judgment",
+    display_assessment: displayAssessmentFor(entry.grade, "screening_judgment", "needs_human_review"),
+    auto_preparation_status: entry.status,
+    auto_preparation_reason: entry.reason,
+    latest_deep_review_id: entry.deepReviewId,
+    first_observed_at: `2026-09-${String(10 + index).padStart(2, "0")}T00:00:00Z`,
+    last_observed_at: `2026-09-${String(10 + index).padStart(2, "0")}T00:00:00Z`,
+    next_action: entry.status === "deep_review_ready_for_click" ? "open_deep_review" : "confirm_overview",
+  } as PreSpecListItem));
+  await page.route("**/api/pre-specs**", async (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname !== "/api/pre-specs" || route.request().method() !== "GET") {
+      await route.fallback();
+      return;
+    }
+    // 실제 화면은 `display_grade`를 보내지 `grade`를 보내지 않는다(PreSpecsPage.tsx).
+    const displayGrade = url.searchParams.get("display_grade");
+    const shown = displayGrade
+      ? items.filter((item) => displayGrade === "판정 없음"
+        ? item.display_assessment.status === "none"
+        : item.display_assessment.grade === displayGrade)
+      : items;
+    await route.fulfill({
+      json: {
+        items: shown,
+        total: shown.length,
+        limit: 200,
+        offset: 0,
+        overview_status_counts: [{ status: "needs_human_review", count: shown.length }],
+        workspace_counts: { actionable: shown.length, recent: shown.length, tracking: 0, all: shown.length },
+        deadline_scope_counts: { current: shown.length, passed: 0 },
+      },
+    });
+  });
+}
+
+// `mockPreSpecAutoDetail`(api-mock.ts)은 top-level `grade`/`grade_source`만
+// state에 맞춰 바꾸고 `display_assessment`는 base 표본(우선 검토·screening_judgment)
+// 고정값으로 남긴다. 화면은 이제 `display_assessment`를 그리므로(bda1288) 여기서
+// 같은 단일 항목을 state에 맞는 display_assessment로 다시 덮는다.
+async function mockPreSpecAutoDetailFixed(page: Page, state: PreSpecAutoDetailState): Promise<void> {
+  await mockPreSpecAutoDetail(page, state);
+  const grade = state === "corrected" ? "관찰 대상" : "우선 검토";
+  const gradeSource: "screening_judgment" | "human_review" = state === "started" ? "screening_judgment" : "human_review";
+  const item: PreSpecListItem = {
+    review_exclusion_status: "included",
+    review_exclusion_actor_name: null,
+    review_exclusion_reason: null,
+    review_exclusion_changed_at: null,
+    notice_pk: 991,
+    pre_spec_no: "PRE-991",
+    title: "안전한 문서 준비 사전규격",
+    agency: "테스트 조달기관",
+    published_at: "2026-08-30T00:00:00Z",
+    deadline_at: "2026-09-02T00:00:00Z",
+    budget: 510_000_000,
+    sw_business_status: "N",
+    business_division: "일반용역",
+    origin: "추적",
+    opportunity_id: 202,
+    tracking_status: "계속 추적",
+    kept_by_tracking: true,
+    document: { attachments: 3, "완료": 2, "대기": 1, "진행": 0, "차단": 0, "실패": 0 },
+    overview_review_status: "completed",
+    grade,
+    grade_source: gradeSource,
+    display_assessment: displayAssessmentFor(grade, gradeSource, "completed"),
+    auto_preparation_status: state === "started" ? "deep_review_started" : "deep_review_ready_for_click",
+    auto_preparation_reason: state === "started" ? null : "bundle_not_auto_ready",
+    latest_deep_review_id: state === "started" ? "fixture-review" : null,
+    first_observed_at: "2026-09-14T00:00:00Z",
+    last_observed_at: "2026-09-15T00:00:00Z",
+    next_action: "confirm_overview",
+  };
+  await page.route("**/api/pre-specs**", async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    if (url.pathname !== "/api/pre-specs" || request.method() !== "GET") {
+      await route.fallback();
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        items: [item],
+        total: 1,
+        limit: 50,
+        offset: 0,
+        overview_status_counts: [{ status: "completed", count: 1 }],
+        workspace_counts: { actionable: 1, recent: 1, tracking: 1, all: 1 },
+        deadline_scope_counts: { current: 1, passed: 0 },
+      }),
+    });
+  });
+}
 
 const RUN_ID = "20260817-20260823--20260824T090927.138116Z";
 const ACTIVE_POLICY = "screening-policy.v1.20260825";
@@ -327,7 +487,7 @@ const AUTO_PREPARATION_LABELS = [
 ];
 
 test("사전규격 선택 상세가 등급 4값과 판정 없음, 자동 준비 8값을 문자로 보여준다", async ({ page }) => {
-  await mockPreSpecMatrix(page);
+  await mockPreSpecMatrixFixed(page);
   await page.goto("/pre-specs");
   const rows = page.locator(".pre-specs-row");
   await expect(rows).toHaveCount(8);
@@ -341,14 +501,16 @@ test("사전규격 선택 상세가 등급 4값과 판정 없음, 자동 준비 
 });
 
 test("사전규격 등급 필터는 URL과 동기화되고 서버 전체 건수를 줄인다", async ({ page }) => {
-  await mockPreSpecMatrix(page);
+  await mockPreSpecMatrixFixed(page);
   await page.goto("/pre-specs");
   await expect(page.locator(".pre-specs-list").first()).toBeVisible({ timeout: 10_000 });
 
   await page.getByRole("button", { name: "상세 필터", exact: true }).click();
   await page.getByRole("combobox", { name: /적합성 등급/ }).click();
   await page.getByRole("option", { name: "제외", exact: true }).click();
-  await expect.poll(() => new URL(page.url()).searchParams.get("grade")).toBe("제외");
+  // bda1288: 화면이 등급 필터 URL 인자를 `grade`에서 `display_grade`로 옮겼다
+  // (구버전 `grade` URL은 별도로 정규화된다 — pre-specs.spec.ts).
+  await expect.poll(() => new URL(page.url()).searchParams.get("display_grade")).toBe("제외");
   await expect(page.locator(".pre-specs-grade-filter-note")).toHaveCount(0);
   const rows = page.locator('.pre-specs-list [data-review-primitive="dense-list-row"]');
   await expect(rows).toHaveCount(1);
@@ -358,20 +520,22 @@ test("사전규격 등급 필터는 URL과 동기화되고 서버 전체 건수�
   // `판정 없음`은 다섯 번째 등급이 아니라 등급이 null인 건이다.
   await page.getByRole("combobox", { name: /적합성 등급/ }).click();
   await page.getByRole("option", { name: "판정 없음", exact: true }).click();
-  await expect.poll(() => new URL(page.url()).searchParams.get("grade")).toBe("판정 없음");
+  await expect.poll(() => new URL(page.url()).searchParams.get("display_grade")).toBe("판정 없음");
   await expect(rows).toHaveCount(1);
 
   await page.getByRole("button", { name: "기본값으로" }).click();
-  await expect.poll(() => new URL(page.url()).searchParams.get("grade")).toBeNull();
+  await expect.poll(() => new URL(page.url()).searchParams.get("display_grade")).toBeNull();
 });
 
 test("사전규격 상세가 등급 출처와 자동 준비 네 단계를 한 줄로 말한다", async ({ page }) => {
-  await mockPreSpecAutoDetail(page, "started");
+  await mockPreSpecAutoDetailFixed(page, "started");
   await page.goto("/pre-specs/991");
 
   const steps = page.locator(".pre-spec-auto-steps");
   await expect(steps).toBeVisible({ timeout: 10_000 });
-  await expect(page.locator(".pre-spec-detail-grade-row")).toContainText("등급 출처 · 판정");
+  // bda1288: PreSpecDetailPage가 "등급 출처 · {gradeSourceLabel}" 대신
+  // "개요 기준 · {displayAssessmentSourceLabel}"을 그린다.
+  await expect(page.locator(".pre-spec-detail-grade-row")).toContainText("개요 기준 · 기존 선별 판정");
   await expect(steps).toContainText("1 · 첨부 취득");
   await expect(steps).toContainText("완료 2 · 대기 1 · 진행 0 · 차단 0 · 실패 0");
   await expect(steps).toContainText("2 · 문서 묶음");
@@ -385,7 +549,7 @@ test("사전규격 상세가 등급 출처와 자동 준비 네 단계를 한 �
 });
 
 test("클릭 대기 상태는 보고서 링크 대신 기존 심층 검토 실행 동선을 준다", async ({ page }) => {
-  await mockPreSpecAutoDetail(page, "ready_for_click");
+  await mockPreSpecAutoDetailFixed(page, "ready_for_click");
   await page.goto("/pre-specs/991");
 
   const steps = page.locator(".pre-spec-auto-steps");
@@ -395,14 +559,15 @@ test("클릭 대기 상태는 보고서 링크 대신 기존 심층 검토 실�
   await expect(steps).toContainText("자동 확정 조건을 채우지 못한 묶음입니다.");
   await expect(page.getByRole("link", { name: /자동 시작된 심층 검토 보고서 열기/ })).toHaveCount(0);
   await expect(page.getByRole("link", { name: /심층 검토 실행/ })).toHaveAttribute("href", "#document-preparation");
-  await expect(page.locator(".pre-spec-detail-grade-row")).toContainText("등급 출처 · 정정");
+  // bda1288: "등급 출처 · 정정" → "개요 기준 · 사람 정정"(displayAssessmentSourceLabel).
+  await expect(page.locator(".pre-spec-detail-grade-row")).toContainText("개요 기준 · 사람 정정");
 });
 
 // 명세 §6.2: 화면은 **현재 등급만** 보여 준다. 사람 정정이 있으면 정정된 값
 // 하나만 보이고, notice의 판정 등급을 라벨 없이 함께 두지 않는다 — 어느 쪽이
 // 현재 값인지 읽는 사람이 알 수 없게 되기 때문이다.
 test("사전규격 상세는 정정된 현재 등급 하나만 보여준다", async ({ page }) => {
-  await mockPreSpecAutoDetail(page, "corrected");
+  await mockPreSpecAutoDetailFixed(page, "corrected");
   await page.goto("/pre-specs/991");
   await expect(page.locator(".pre-spec-detail-grade-row")).toBeVisible({ timeout: 10_000 });
 
@@ -418,7 +583,8 @@ test("사전규격 상세는 정정된 현재 등급 하나만 보여준다", as
   });
   // 정정된 값 하나뿐이다. notice의 판정 등급(`우선 검토`)은 화면에 없다.
   expect(gradeTexts).toEqual(["관찰 대상"]);
-  await expect(page.locator(".pre-spec-detail-grade-row")).toContainText("등급 출처 · 정정");
+  // bda1288: "등급 출처 · 정정" → "개요 기준 · 사람 정정"(displayAssessmentSourceLabel).
+  await expect(page.locator(".pre-spec-detail-grade-row")).toContainText("개요 기준 · 사람 정정");
   await expect(page.getByText("화면 참고 등급", { exact: false })).toHaveCount(0);
 
   // 현재 등급이 우선 검토가 아니므로 서버가 다시 본다는 안내는 남는다.
