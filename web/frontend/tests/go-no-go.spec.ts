@@ -153,6 +153,39 @@ test("집계와 검색 범위를 밝히고 대기열이 넘치면 받은 범위 
   await expect(page.getByRole("navigation", { name: "결정 대기열 페이지" })).toContainText(`1–${SCENARIOS.length} / 600`);
 });
 
+// 목록은 한 손으로 훑는 자리다. 발주계획·사전규격·사업 추적과 같은 ↑↓ 이동을 쓰며
+// (`useRowKeyboardNavigation`), 선택·초점·URL·상세가 함께 움직이지 않으면 사람이 매번
+// 마우스로 돌아가야 한다. 이 화면은 저장하는 자리가 없어 이탈 확인이 없다.
+test("목록에서 ↑↓로 행을 옮기면 선택·초점·URL·상세가 함께 따라간다", async ({ page }) => {
+  await openList(page, "?show=all");
+
+  const buttons = page.locator(".gng-row");
+  await expect(buttons).toHaveCount(SCENARIOS.length);
+  const firstId = await buttons.first().getAttribute("data-row-key");
+  const firstTitle = ((await buttons.first().locator(".gng-row-title").textContent()) ?? "").trim();
+  const secondId = await buttons.nth(1).getAttribute("data-row-key");
+  const secondTitle = ((await buttons.nth(1).locator(".gng-row-title").textContent()) ?? "").trim();
+  expect(secondTitle).not.toBe(firstTitle);
+  await expect(page.locator(".gng-detail-head")).toContainText(firstTitle);
+
+  await buttons.first().focus();
+  await page.keyboard.press("ArrowDown");
+  // 선택은 hook이 아니라 URL이 소유하므로 선택 이동을 먼저 확인한다.
+  await expect(buttons.nth(1)).toHaveAttribute("aria-pressed", "true");
+  await expect.poll(() => new URL(page.url()).searchParams.get("selected")).toBe(secondId);
+  await expect(buttons.nth(1)).toBeFocused();
+  await expect(page.locator(".gng-detail-head")).toContainText(secondTitle);
+  // 행을 옮기면 상세는 검토 요약부터 본다(기존 동작).
+  await expect(page.locator(".gng-detail-tabs button").first()).toHaveAttribute("aria-pressed", "true");
+
+  await page.keyboard.press("ArrowUp");
+  await expect(buttons.first()).toHaveAttribute("aria-pressed", "true");
+  await expect.poll(() => new URL(page.url()).searchParams.get("selected")).toBe(firstId);
+  await expect(buttons.first()).toBeFocused();
+  await expect(page.locator(".gng-detail-head")).toContainText(firstTitle);
+  await expect(page.locator(".gng-detail-tabs button").first()).toHaveAttribute("aria-pressed", "true");
+});
+
 test("상세 조회 중·조회 실패·비교 없음·계산 대기를 미결정이나 변경 없음으로 접지 않는다", async ({ page }) => {
   await openList(page, "?show=all");
 

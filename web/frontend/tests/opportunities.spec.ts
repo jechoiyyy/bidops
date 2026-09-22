@@ -484,6 +484,99 @@ test("목록 로딩 실패는 다시 시도로 복구한다", async ({ page }) =
 });
 
 // ---------------------------------------------------------------------------
+// 목록 키보드 이동 (발주계획·사전규격과 같은 `useRowKeyboardNavigation`)
+
+// 목록은 한 손으로 훑는 자리다. ↑↓가 선택·초점·URL·상세를 함께 옮기지 않으면 사람이
+// 매번 마우스로 돌아가야 한다. 리스너는 목록 컨테이너에만 있어 상세 pane의 입력에서
+// 누른 방향키는 목록을 움직이지 않는다.
+test("목록에서 ↑↓로 행을 옮기면 선택·초점·URL이 함께 따라간다", async ({ page }) => {
+  await mockOpportunities(page);
+  await page.goto("/opportunities");
+
+  const buttons = page.locator(".opportunity-row-business");
+  await expect(buttons).toHaveCount(5);
+  await expect(page.locator(".opportunity-detail-title")).toHaveText("공공데이터 통합관리체계 고도화");
+
+  await buttons.first().focus();
+  await page.keyboard.press("ArrowDown");
+  // 선택은 hook이 아니라 URL이 소유하므로 선택 이동을 먼저 확인한다.
+  await expect(buttons.nth(1)).toHaveAttribute("aria-pressed", "true");
+  await expect.poll(() => new URL(page.url()).searchParams.get("selected")).toBe("202");
+  await expect(buttons.nth(1)).toBeFocused();
+  await expect(page.locator(".opportunity-detail-title")).toHaveText("시설관리 업무시스템 구축");
+
+  await page.keyboard.press("ArrowUp");
+  await expect(buttons.first()).toHaveAttribute("aria-pressed", "true");
+  await expect.poll(() => new URL(page.url()).searchParams.get("selected")).toBe("101");
+  await expect(buttons.first()).toBeFocused();
+  await expect(page.locator(".opportunity-detail-title")).toHaveText("공공데이터 통합관리체계 고도화");
+
+  // 상세 pane 안에서 누른 방향키는 목록을 움직이지 않는다.
+  await page.locator(".opportunity-row-business", { hasText: "시설관리 업무시스템 구축" }).click();
+  await page.getByRole("tab", { name: /확인 사항/ }).click();
+  await page.locator(".opportunity-recheck-item").getByLabel("결정 기록자").focus();
+  await page.keyboard.press("ArrowDown");
+  await expect(buttons.nth(1)).toHaveAttribute("aria-pressed", "true");
+  expect(new URL(page.url()).searchParams.get("selected")).toBe("202");
+});
+
+// 페이지 경계는 hook이 모른다(화면만 offset을 안다). ↓가 페이지 끝에서 멈추면 100건마다
+// 사람이 `다음` 버튼을 찾아 마우스로 돌아가야 한다.
+test("페이지 경계에서 ↑↓는 앞뒤 페이지의 첫 행·마지막 행으로 이어진다", async ({ page }) => {
+  await mockOpportunities(page, { large: true });
+  await page.goto("/opportunities");
+
+  const buttons = page.locator(".opportunity-row-business");
+  await expect(buttons).toHaveCount(100);
+  const lastOfFirstPage = await buttons.nth(99).getAttribute("data-row-key");
+
+  await buttons.nth(99).click();
+  await expect(buttons.nth(99)).toHaveAttribute("aria-pressed", "true");
+  await buttons.nth(99).focus();
+  await page.keyboard.press("ArrowDown");
+
+  await expect.poll(() => new URL(page.url()).searchParams.get("offset")).toBe("100");
+  await expect(page.locator(".opportunity-pager")).toContainText("101–125 / 125");
+  await expect(buttons).toHaveCount(25);
+  await expect(buttons.first()).toHaveAttribute("aria-pressed", "true");
+  await expect(buttons.first()).toBeFocused();
+
+  await page.keyboard.press("ArrowUp");
+  // 첫 페이지의 offset은 페이저와 같은 방식으로 `0`을 그대로 적는다.
+  await expect.poll(() => new URL(page.url()).searchParams.get("offset")).toBe("0");
+  await expect(buttons).toHaveCount(100);
+  // ↑로 넘어온 사람이 서야 하는 자리는 앞 페이지의 마지막 행이다.
+  await expect(buttons.nth(99)).toHaveAttribute("aria-pressed", "true");
+  await expect(buttons.nth(99)).toBeFocused();
+  await expect.poll(() => new URL(page.url()).searchParams.get("selected")).toBe(lastOfFirstPage);
+});
+
+// ↑↓도 행을 바꾸는 조작이다. 마우스 클릭과 다른 문을 열어 두면 저장하지 않은 입력이
+// 키보드로만 조용히 사라진다.
+test("저장하지 않은 입력이 있으면 ↓ 이동도 확인을 거치고 취소하면 선택이 남는다", async ({ page }) => {
+  await mockOpportunities(page);
+  await page.goto("/opportunities?selected=202");
+
+  const buttons = page.locator(".opportunity-row-business");
+  await expect(buttons.nth(1)).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("tab", { name: /확인 사항/ }).click();
+  const card = page.locator(".opportunity-recheck-item");
+  await card.getByLabel(/확인 메모/).fill("정정 내용과 기존 검토를 비교함");
+
+  await buttons.nth(1).focus();
+  await page.keyboard.press("ArrowDown");
+  const dialog = page.getByRole("alertdialog");
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toContainText("다른 사업기회를 엽니다");
+
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("alertdialog")).toHaveCount(0);
+  await expect(buttons.nth(1)).toHaveAttribute("aria-pressed", "true");
+  expect(new URL(page.url()).searchParams.get("selected")).toBe("202");
+  await expect(card.getByLabel(/확인 메모/)).toHaveValue("정정 내용과 기존 검토를 비교함");
+});
+
+// ---------------------------------------------------------------------------
 // 상세 · 사업 흐름
 
 test("3단계 연결 현황은 확정·후보·검색 미확인·연결 미확인을 구분한다", async ({ page }) => {

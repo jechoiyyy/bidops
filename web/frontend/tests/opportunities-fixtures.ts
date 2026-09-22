@@ -383,6 +383,36 @@ const futureDeadlineNotice: Fixture = {
   ],
 };
 
+/**
+ * 페이지 경계(↑↓로 한 페이지를 넘는 이동)를 볼 수 있을 만큼만 목록을 불린 표본.
+ *
+ * `조치 필요` 구역에 넣어 기본 진입으로 바로 보이게 하되, **`large` 옵션을 켠
+ * 시나리오에서만** 만든다 — 다른 검사의 구역 건수·행 순서가 바뀌면 안 된다. id와
+ * link id는 기존 표본(101~912 · 1001~9112)과 겹치지 않는 대역을 쓴다.
+ */
+export const BULK_COUNT = 120;
+
+function bulkActionItem(index: number): Fixture {
+  const id = 20001 + index;
+  return {
+    id,
+    section: "조치 필요",
+    pending_candidate_link_count: 0,
+    open_blocking_item_count: 1,
+    action_reasons: ["blocking_item"],
+    hold_review_due_at: null,
+    tracking_status: "계속 추적",
+    tracking_reason: "참여 조건 확인 후 재검토",
+    tracking_selected_by: "검토 담당자",
+    tracking_selected_at: "2026-09-03T01:00:00Z",
+    recheck_signal: false,
+    recheck_signal_at: null,
+    recheck_signal_link_id: null,
+    first_registered_stage: "order_plan",
+    links: [orderPlanLink(21001 + index, `페이지 표본 ${index + 1}`, "표본 발주기관", `DEMO-OP-B${index + 1}`)],
+  };
+}
+
 export const FIXTURES: Fixture[] = [
   candidatePending,
   recheckSignal,
@@ -491,6 +521,8 @@ export interface MockOptions {
   emptyDecisions?: boolean;
   /** 긴 한글 제목 상태를 만든다. 캡처·회귀 확인용이다. */
   longTitle?: boolean;
+  /** 한 페이지(100건)를 넘는 `조치 필요` 목록을 만든다. 경계 이동 검사 전용이다. */
+  large?: boolean;
 }
 
 export async function mockOpportunities(page: Page, options: MockOptions = {}): Promise<Trace> {
@@ -502,6 +534,12 @@ export async function mockOpportunities(page: Page, options: MockOptions = {}): 
   // PATCH가 실제 서버처럼 받아들여지도록 이 시나리오에서만 상세를 둔다.
   if (options.linkDecisionMergeConflict) {
     details.set(mergeConflictCounterpart.id, structuredClone(mergeConflictCounterpart));
+  }
+  if (options.large) {
+    for (let index = 0; index < BULK_COUNT; index += 1) {
+      const item = bulkActionItem(index);
+      details.set(item.id, item);
+    }
   }
   if (options.longTitle) {
     const long = "공공데이터 통합관리체계 및 기관 간 정보연계 플랫폼 고도화와 데이터 품질관리 기반 구축 사업";
