@@ -14,9 +14,14 @@ from typing import Any
 
 from sqlalchemy import func, select
 
-from ...lifecycle import PreSpecDocumentCounts, WorkloadCount
+from ...lifecycle import (
+    PreSpecDocumentCounts,
+    WorkloadCount,
+    active_opportunity_predicate,
+    authoritative_link_predicate,
+)
 from ..models import AttachmentFetch
-from ...lifecycle.models import Attachment, Notice
+from ...lifecycle.models import Attachment, Notice, Opportunity, OpportunityLink
 from .auto_preparation import auto_preparation_fields
 from .display_assessment import display_assessments
 from .overview_runs import current_runs, overview_status_for
@@ -123,6 +128,37 @@ class PreSpecOverviewDocumentProjection:
 #: (ADR-0067 §7.1). `pending` 계열과 run 부재(`null`)는 사람을 기다리지 않는다.
 _HUMAN_REVIEW_OVERVIEW_STATUSES = ("failed", "needs_human_review")
 
+#: 사람이 추적 결정을 내리지 않은 상태. lifecycle 목록의 `검토할 항목`
+#: 술어(`routers/pre_specs._tracking_decision_absent`)와 같은 값이다.
+_TRACKING_DECISION_ABSENT = ("미선택",)
+
+
+def _tracking_decided_notice_ids(session: Any, notice_ids: Sequence[int]) -> set[int]:
+    """사람이 추적 결정(`계속 추적`·`보류`·`종료`)을 내린 공고 id. batch 한 번이다.
+
+    소유 사업기회를 고르는 규칙은 lifecycle이 공개한 두 술어 그대로이며
+    (`GET /api/pre-specs`가 쓰는 것과 같다) 여기서 새로 정의하지 않는다.
+    """
+
+    ids = _distinct_ids(notice_ids)
+    if not ids:
+        return set()
+    rows = session.execute(
+        select(OpportunityLink.notice_id, Opportunity.tracking_status)
+        .join(Opportunity, Opportunity.id == OpportunityLink.opportunity_id)
+        .where(
+            OpportunityLink.notice_id.in_(ids),
+            OpportunityLink.stage == "notice",
+            authoritative_link_predicate(),
+            active_opportunity_predicate(),
+        )
+    ).all()
+    return {
+        int(notice_id)
+        for notice_id, status in rows
+        if status is not None and status not in _TRACKING_DECISION_ABSENT
+    }
+
 
 class DeepReviewWorkloadProjection:
     """deep_review가 소유한 업무 건수. 대상이 없으면 실제 0이다."""
@@ -135,9 +171,16 @@ class DeepReviewWorkloadProjection:
         ready = projection.notice_ids_for_auto_preparation_status(
             session, notice_ids, "deep_review_ready_for_click"
         )
+        # 2026-09-22 개정(시안 M7 ③): 사람이 추적 결정을 내린 공고는 이유 불문
+        # `검토할 항목`에서 빠지므로 이 건수에서도 빠진다 — 타일 건수와 목록의
+        # 모집단을 같게 유지한다(ADR-0067). 검토 제외(`review_exclusion`)는
+        # 예전처럼 업무 집계를 바꾸지 않는다.
+        decided = _tracking_decided_notice_ids(session, ready)
         statuses = projection.overview_status_counts(session, notice_ids)
         return {
-            "pre_spec_deep_review_ready": WorkloadCount(len(ready)),
+            "pre_spec_deep_review_ready": WorkloadCount(
+                sum(1 for notice_id in ready if int(notice_id) not in decided)
+            ),
             "bid_final_decision_pending": WorkloadCount(decision_queue(session, limit=1)["total"]),
             "overview_human_review": WorkloadCount(
                 sum(int(statuses.get(status, 0)) for status in _HUMAN_REVIEW_OVERVIEW_STATUSES)
