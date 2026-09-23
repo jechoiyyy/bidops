@@ -12,11 +12,13 @@ async function setup(page: Page, count = 3, failFirst = false) {
     overview_review_status: "needs_human_review", auto_preparation_status: "not_applicable",
   }));
   const requests: PreSpecReviewExclusionRequest[] = [];
+  const contentTypes: Array<string | undefined> = [];
   await page.route("**/api/pre-specs**", async (route) => {
     const url = new URL(route.request().url());
     if (url.pathname === "/api/pre-specs/review-exclusions") {
       const body = route.request().postDataJSON() as PreSpecReviewExclusionRequest;
       requests.push(body);
+      contentTypes.push(route.request().headers()["content-type"]);
       if (failFirst && requests.length === 1) { await route.fulfill({ status: 503, json: { detail: "test_unavailable" } }); return; }
       const results = body.notice_ids.map((id) => {
         const item = items.find((item) => item.notice_pk === id)!;
@@ -41,16 +43,22 @@ async function setup(page: Page, count = 3, failFirst = false) {
       overview_status_counts: [{ status: "needs_human_review", count: visible.length }],
     }});
   });
-  return { items, requests };
+  return { items, requests, contentTypes };
 }
 const row = (page: Page, id: number) => page.locator(`[data-row-key="${id}"]`);
+const EXCLUDE_DIALOG = "선택한 사전규격 검토 제외";
+const RESTORE_DIALOG = "선택한 사전규격 검토 목록으로 복원";
+/** 일괄 창 공용 구조(2026-09-23 시안 ②): 사유 선택지 + 담당자, 바닥 단추 `N건 검토 제외`. */
 async function fillDialog(page: Page) {
-  const dialog = page.getByRole("dialog", { name: "검토 제외", exact: true });
+  const dialog = page.getByRole("dialog", { name: EXCLUDE_DIALOG, exact: true });
   await expect(dialog).toBeVisible();
   await dialog.getByRole("textbox", { name: /^담당자/ }).fill("검증 담당자");
-  await dialog.getByRole("textbox", { name: /^사유/ }).fill("검토 범위 밖");
+  await dialog.getByRole("combobox", { name: "제외 사유 (필수)" }).click();
+  await page.getByRole("option", { name: "현재 검토 범위와 맞지 않음", exact: true }).click();
   return dialog;
 }
+const saveExclusion = (dialog: import("@playwright/test").Locator) =>
+  dialog.getByRole("button", { name: /^\d+건 검토 제외$/ });
 
 test("단건 제외 실패 후 입력·선택 유지, 명시적 재시도, 다음/이전 행 초점", async ({ page }) => {
   const { requests } = await setup(page, 3, true);
@@ -59,11 +67,15 @@ test("단건 제외 실패 후 입력·선택 유지, 명시적 재시도, 다�
   await row(page, 992).getByRole("checkbox").check();
   await page.getByRole("button", { name: "검토 제외", exact: true }).click();
   const dialog = await fillDialog(page);
-  await dialog.getByRole("button", { name: "검토 제외", exact: true }).click();
-  await expect(dialog.getByRole("alert")).toBeVisible();
-  await expect(dialog.getByRole("textbox", { name: /^사유/ })).toHaveValue("검토 범위 밖");
+  await expect(dialog).toContainText("제외 1건");
+  await expect(dialog).toContainText("팀 전체의 일상 목록에서 숨깁니다. 추적 상태와 자동 분석은 그대로입니다.");
+  await saveExclusion(dialog).click();
+  // 서버 응답을 오류 종류로 옮겨 보인다(503 → 서버 오류). 입력과 선택은 그대로다.
+  await expect(dialog.getByRole("alert")).toContainText("서버 오류가 발생했습니다.");
+  await expect(dialog.getByRole("combobox", { name: "제외 사유 (필수)" })).toContainText("현재 검토 범위와 맞지 않음");
+  await expect(dialog.getByRole("textbox", { name: /^담당자/ })).toHaveValue("검증 담당자");
   expect(requests).toHaveLength(1);
-  await dialog.getByRole("button", { name: "다시 시도", exact: true }).click();
+  await saveExclusion(dialog).click();
   await expect(dialog).not.toBeVisible();
   await expect(row(page, 992)).toHaveCount(0);
   await expect(row(page, 993)).toBeFocused();
@@ -71,8 +83,30 @@ test("단건 제외 실패 후 입력·선택 유지, 명시적 재시도, 다�
   expect(requests).toHaveLength(2);
   await page.getByRole("button", { name: "검토 제외", exact: true }).click();
   const second = await fillDialog(page);
-  await second.getByRole("button", { name: "검토 제외", exact: true }).click();
+  await saveExclusion(second).click();
   await expect(row(page, 991)).toBeFocused();
+});
+
+// 2026-09-23 운영 결함: 헤더 없이 보내면 FastAPI가 본문을 JSON으로 읽지 않아 422가 났다.
+test("검토 제외 요청은 JSON 형식 헤더와 고른 사유 문장·기억한 담당자로 보낸다", async ({ page }) => {
+  const { requests, contentTypes } = await setup(page);
+  await page.goto("/pre-specs");
+  await row(page, 991).getByRole("checkbox").check();
+  // 창만의 기억값 채우기를 본다. 목록의 추적 결정 줄이 이미 그려진 뒤에 기억값을 넣어
+  // 그 줄의 미저장 판정(다른 작업 범위)이 이 검사에 섞이지 않게 한다.
+  await page.evaluate(() => window.localStorage.setItem("bidops.actorName", "기억된 담당자"));
+  await page.getByRole("button", { name: "선택 항목 제외", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: EXCLUDE_DIALOG, exact: true });
+  await expect(dialog.getByRole("textbox", { name: /^담당자/ })).toHaveValue("기억된 담당자");
+  await expect(saveExclusion(dialog)).toBeDisabled();
+  await expect(dialog).toContainText("제외 사유를 선택하십시오.");
+  await dialog.getByRole("combobox", { name: "제외 사유 (필수)" }).click();
+  await page.getByRole("option", { name: "기타 · 직접 입력", exact: true }).click();
+  await dialog.getByRole("textbox", { name: "사유 직접 입력" }).fill("  타 부서 소관  ");
+  await saveExclusion(dialog).click();
+  await expect(dialog).not.toBeVisible();
+  expect(contentTypes).toEqual(["application/json"]);
+  expect(requests[0]).toEqual({ notice_ids: [991], status: "excluded", actor_name: "기억된 담당자", reason: "타 부서 소관" });
 });
 
 test("페이지를 넘는 선택 제외와 마지막 빈 페이지 보정", async ({ page }) => {
@@ -83,8 +117,9 @@ test("페이지를 넘는 선택 제외와 마지막 빈 페이지 보정", asyn
   await row(page, 1191).getByRole('checkbox').check();
   await page.getByRole('button', { name: '선택 항목 제외', exact: true }).click();
   const dialog = await fillDialog(page);
-  await expect(dialog).toContainText('대상 2건');
-  await dialog.getByRole('button', { name: '검토 제외', exact: true }).click();
+  await expect(dialog).toContainText('제외 2건');
+  await expect(saveExclusion(dialog)).toHaveText('2건 검토 제외');
+  await saveExclusion(dialog).click();
   await expect(page).not.toHaveURL(/offset=/);
   await expect(row(page, 1190)).toBeFocused();
   expect(requests[0].notice_ids).toEqual([991, 1191]);
@@ -113,10 +148,12 @@ test("전체 이력 제외 필터·단건 복원·URL 초기화·상세 표식",
   await page.goBack();
   await expect(page).toHaveURL(/review_exclusion=excluded/);
   await page.getByRole('button', { name: '검토 목록으로 복원', exact: true }).click();
-  const dialog = page.getByRole('dialog', { name: '검토 목록으로 복원' });
+  const dialog = page.getByRole('dialog', { name: RESTORE_DIALOG, exact: true });
   await dialog.getByRole('textbox', { name: /^담당자/ }).fill('검증 담당자');
-  await dialog.getByRole('textbox', { name: /^사유/ }).fill('다시 검토');
-  await dialog.getByRole('button', { name: '검토 목록으로 복원', exact: true }).click();
+  // 복원은 제외 선택지가 맞지 않아 자유 입력만 받는다.
+  await expect(dialog.getByRole('combobox')).toHaveCount(0);
+  await dialog.getByRole('textbox', { name: '복원 사유 (필수)' }).fill('다시 검토');
+  await dialog.getByRole('button', { name: '1건 검토 목록으로 복원', exact: true }).click();
   await expect(row(page, 991)).toHaveCount(0);
   expect(state.requests[0].status).toBe('included');
   await page.getByRole('button', { name: /검토할 항목/ }).click();
@@ -136,7 +173,7 @@ test("미저장 추적 입력의 취소는 제외 창과 요청을 열지 않는
   expect(requests).toHaveLength(0);
   await page.getByRole('button', { name: '검토 제외', exact: true }).click();
   await guard.getByRole('button', { name: '저장하지 않고 옮기기' }).click();
-  await expect(page.getByRole('dialog', { name: '검토 제외', exact: true })).toBeVisible();
+  await expect(page.getByRole('dialog', { name: EXCLUDE_DIALOG, exact: true })).toBeVisible();
 });
 
 
@@ -146,7 +183,7 @@ test("페이지 마지막 활성 행 제외 시 다음 페이지에서 채워진
   await row(page, 1190).click();
   await page.getByRole('button', { name: '검토 제외', exact: true }).click();
   const dialog = await fillDialog(page);
-  await dialog.getByRole('button', { name: '검토 제외', exact: true }).click();
+  await saveExclusion(dialog).click();
   await expect(row(page, 1191)).toBeFocused();
 });
 

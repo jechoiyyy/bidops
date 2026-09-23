@@ -1658,18 +1658,8 @@ header.c2l-list-head .c2l-list-scope {
   overflow-wrap: anywhere;
 }
 
-.c2l-bulk-dialog {
-  min-width: 0;
-}
-
-.c2l-bulk-dialog .c2l-dialog-body {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: var(--spacing-3);
-}
-
-.c2l-bulk-selection-summary,
+/* 일괄 창의 배치(요약 줄·두 칸·바닥 단추)는 사전규격 검토 제외 창과 함께
+ * `styles/bulk-dialog.css`가 갖는다. 여기는 결과·복구·오류 블록만 남는다. */
 .c2l-bulk-actions,
 .c2l-bulk-pending,
 .c2l-bulk-error,
@@ -1680,10 +1670,6 @@ header.c2l-list-head .c2l-list-scope {
   flex-wrap: wrap;
   align-items: center;
   gap: var(--spacing-2);
-}
-
-.c2l-bulk-selection-summary > span:last-child {
-  overflow-wrap: anywhere;
 }
 
 .c2l-bulk-actions {
@@ -1740,17 +1726,6 @@ header.c2l-list-head .c2l-list-scope {
   border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-sm);
   background: var(--color-background-muted);
-}
-
-/* 일괄 추적 종료 확인 단계의 경고 문단(ADR-0063). 되돌리는 방법이 단건뿐임을 강조한다. */
-.c2l-bulk-warning {
-  margin: 0;
-  padding: var(--spacing-1-5) var(--spacing-2);
-  border: var(--border-width) solid var(--color-warning-edge);
-  border-radius: var(--radius-sm);
-  color: var(--color-warning);
-  background: var(--color-warning-bg);
-  overflow-wrap: anywhere;
 }
 
 .c2l-bulk-failures {
