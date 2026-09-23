@@ -6,6 +6,14 @@
 
 `구현됨`은 코드와 계약이 존재한다는 뜻이고, `검증됨`은 기록된 명령이 해당 범위에서 통과했다는 뜻이다. Mock 결과, 과거 브랜치 결과, 현재 worktree 결과, 외부 운영 승인을 서로 대신하지 않는다.
 
+## 선택 항목 제외·일괄 추적 창 한 번 확인 통일 (2026-09-23, 구현·운영 배포 완료)
+
+- 승인 시안 `docs/0915_ui-redesign/mockups/0923_bulk-end-unify/`(결정은 `docs/0915_ui-redesign/decisions.md` 마지막 절). 발주계획 일괄 추적 시작·종료 창은 열 때 자동 미리보기·입력 한 번·저장 단추 한 번(8줄 집계는 `세부` 접힘), 사전규격 `선택 항목 제외` 창은 같은 구조(저장 의미 = 검토 제외 불변). 사유는 선택지 + `기타 · 직접 입력`(공용 `BulkReasonField`), 추적 사유 Selector에 `hasClear`, 사전규격 추적 결정의 미저장 판정은 사유만(담당자 이름만으로는 이동 확인 없음). REST·migration 변경 없음(head 0032).
+- 결함: 사전규격 검토 제외 호출에 `Content-Type: application/json`이 없어 운영에서 422였다(2026-09-21 배포 이후 제외 성공 0건). 헤더를 넣고 spec으로 고정했다.
+- 커밋: main `974cfbc`(브랜치 `feat/bulk-dialog-unify`·`feat/reason-clear-guard`·통합 `integ/bulk-unify-0923`, 미push). 검사: `tsc -b` 통과, 통합 트리 `--project=app` `prespec-exclusions`·`pre-specs`·`order-plans` 156 passed + 규칙 변경으로 고친 1건 단독 통과, B 패키지 5파일 219 passed. 픽셀 미실행.
+- 운영 배포(사용자 지시): 백업 `backups/postgres/full/bidops-before-bulk-unify-20260923T011139Z.dump`, 롤백 태그 `before-bulk-unify-20260923`(`f001e98`), 이미지 `bidops-web:bulk-unify-974cfbc`·직전 `bidops-web:before-bulk-unify-20260923`. compose 6개(+`docker-compose.luna.yml`) + env 5개(+`env/luna.env`)로 `web`만 재생성, healthy, `/api/health` 200, 플래그 4개 불변. 직전 운영 이미지가 main 트리의 미커밋 Luna 백엔드 변경 5파일을 이미 담고 있어(컨테이너 파일 = 작업 트리 파일 확인) 같은 트리에서 빌드했다 — 깨끗한 HEAD 빌드는 그 운영 코드를 되돌린다. 배포 약 1분 뒤 web이 같은 이미지·같은 조합으로 한 번 더 재생성됐다(다른 세션의 compose 호출로 추정, 상태 이상 없음).
+- 배포 후 실제 스택 확인(저장 없음): 사전규격 제외 창 새 구조, 저장 요청이 `application/json`으로 나가는 것을 브라우저에서 가로채 확인(서버 미전송). 발주계획 `전체` 보기 1건 선택 → 창 열림과 동시에 preview 1회("종료 1건 중 0건 · 이미 계속 추적 1건"), 취소.
+
 ## 사용자 요청 Luna 심층검토 (2026-09-23, 운영 적용·실자료 검증 실패)
 
 자동 심층 시작 기본 비활성, 건별 미리보기·승인·입력 동결, codex-exec Luna/xhigh, 공용 슬롯 순차 실행, 기존 설명형 보고서·근거 화면을 구현했다. 운영 migration 0032·서비스·Luna 정책을 적용하고 실제 계정의 Luna/xhigh 연결을 확인했다. 합성 실행기·PostgreSQL 17.11·UI 두 폭 검사는 [이번 검증 기록](../validation-runs/20260922-luna-deep-review/README.md)을 따른다. 1489번 실제 Luna 응답은 주장 참조 자리에 근거 ID를 써서 차단됐다. 큐 순차 시작은 확인했고, 완성 보고서는 없다. [운영 기록](../validation-runs/20260922-luna-deep-review/live-validation.md). [진행 계획](../0922_luna-deep-review/plan.md)과 [단계별 적용 절차](../0922_luna-deep-review/apply.md)를 따른다.
