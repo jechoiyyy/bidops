@@ -1,0 +1,403 @@
+<title>BidOps 일괄 제외 창 통일 시안</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --ground:#F6F7F4; --surface:#FFFFFF; --ink:#1B211D; --ink2:#4C5650; --line:#E2E5DF;
+  --accent:#587A2B; --accent-soft:#F1F6E8; --accent-deep:#3F5A1C; --pin:#3F5A1C; --pin-ink:#FFFFFF;
+  --warn-soft:#f8da9d; --warn-ink:#745b00;
+  --sans:"Noto Sans KR","Pretendard","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --ground:#17181F; --surface:#232634; --ink:#E8E4E2; --ink2:#A9A6A4; --line:#3A3D4B;
+    --accent:#CFDFB5; --accent-soft:#2C3326; --accent-deep:#CFDFB5; --pin:#CFDFB5; --pin-ink:#1B211D;
+    --warn-soft:#4A3F1E; --warn-ink:#fdcf4f;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --ground:#17181F; --surface:#232634; --ink:#E8E4E2; --ink2:#A9A6A4; --line:#3A3D4B;
+  --accent:#CFDFB5; --accent-soft:#2C3326; --accent-deep:#CFDFB5; --pin:#CFDFB5; --pin-ink:#1B211D;
+  --warn-soft:#4A3F1E; --warn-ink:#fdcf4f;
+}
+*{box-sizing:border-box}
+body{background:var(--ground);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.6;padding-inline:20px;padding-block:28px 72px}
+.page{max-width:1500px;margin-inline:auto;display:flex;flex-direction:column;gap:44px}
+h1{font-size:26px;line-height:1.3;font-weight:700;margin:0;text-wrap:balance}
+h2{font-size:19px;line-height:1.35;font-weight:700;margin:0;text-wrap:balance}
+h3{font-size:14px;font-weight:600;margin:0}
+p{margin:0}
+.lede{max-width:72ch;color:var(--ink2)}
+.eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.06em;color:var(--accent-deep)}
+.intro{display:flex;flex-direction:column;gap:12px}
+section.mock{display:flex;flex-direction:column;gap:16px}
+.head{display:flex;flex-direction:column;gap:6px}
+.bar{display:flex;flex-wrap:wrap;gap:10px 20px;align-items:center;font-size:13px;color:var(--ink2)}
+.seg{display:inline-flex;flex-wrap:wrap;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--surface)}
+.seg button{font:inherit;font-size:13px;padding:6px 12px;border:0;background:transparent;color:var(--ink2);cursor:pointer}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button[aria-pressed="true"]{background:var(--accent-soft);color:var(--accent-deep);font-weight:600}
+.seg button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.cap{font-size:13px;color:var(--ink2);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.tag{display:inline-block;font-size:12px;padding:1px 8px;border-radius:999px;background:var(--accent-soft);color:var(--accent-deep);white-space:nowrap;font-weight:600}
+.tag.now{background:var(--line);color:var(--ink2)}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,560px),1fr));gap:24px;align-items:start}
+.stack{display:flex;flex-direction:column;gap:8px}
+.frame{border:1px solid var(--line);border-radius:10px;background:var(--surface);overflow:hidden}
+.fit{position:relative;overflow:hidden}
+.fit>.ab{transform-origin:top left;display:block}
+ol.changes{margin:0;padding:0;list-style:none;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr));gap:10px 28px;font-size:14px}
+ol.changes li{display:grid;grid-template-columns:24px 1fr;gap:8px;align-items:start}
+.n{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;background:var(--pin);color:var(--pin-ink);font:600 11px/1 var(--mono);margin-top:3px}
+ol.changes em{font-style:normal;color:var(--ink2)}
+.scroll{overflow-x:auto}
+table.chk{border-collapse:collapse;font-size:14px;min-width:760px;width:100%}
+table.chk th,table.chk td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+table.chk th{font-weight:600;color:var(--ink2);font-size:12px;letter-spacing:.04em}
+table.chk code{font-family:var(--mono);font-size:12.5px;background:var(--accent-soft);color:var(--accent-deep);padding:0 5px;border-radius:4px;white-space:nowrap}
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-size:13px;color:var(--ink2)}
+.legend i{display:inline-block;width:22px;height:12px;border-radius:3px;vertical-align:-1px;margin-right:6px}
+.legend .lg{outline:2px dashed #8a2a12}.legend .lm{outline:2px dashed #3F5A1C}
+
+/* ── 제품 아트보드: bidops 테마 light 값 고정(제품은 light 전용) ── */
+.ab{
+  --p-canvas:#F6F7F4;--p-surface:#FFFFFF;--p-ink:#1B211D;--p-ink2:#4C5650;--p-line:#E2E5DF;
+  --p-accent:#587A2B;--p-accent-muted:#F1F6E8;--p-text-accent:#3F5A1C;--p-brand:#75a03b;
+  --p-warn-muted:#f8da9d;--p-warn:#745b00;--p-err-muted:#F8CDB4;--p-err:#8a2a12;
+  background:var(--p-canvas);color:var(--p-ink);font-family:var(--sans);font-size:12.5px;line-height:1.45;color-scheme:light;padding:0 16px 14px;position:relative;
+}
+.ab *{box-sizing:border-box}
+.ab[data-w="1280"]{width:1057px}.ab[data-w="1440"]{width:1217px}
+.ab.small{width:auto;padding:14px;background:var(--p-canvas)}
+.top{height:56px;display:flex;align-items:center;justify-content:space-between;gap:16px}
+.top h4{margin:0;font-size:18px;font-weight:600}
+.split{display:flex;background:var(--p-surface);border-radius:14px;overflow:hidden;box-shadow:0 1px 2px #1b211d12;min-height:520px}
+.lp{flex:0 0 38%;display:flex;flex-direction:column;min-width:0;border-right:1px solid var(--p-line)}
+.dp{flex:1;min-width:0;display:flex;flex-direction:column}
+.tb{padding:10px 16px 8px;display:flex;flex-direction:column;gap:6px;border-bottom:1px solid var(--p-line)}
+.tbr{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.cnt{font-weight:600;min-width:52px}
+.btn{font:inherit;font-size:11.5px;border:1px solid var(--p-line);background:var(--p-surface);color:var(--p-ink);border-radius:8px;padding:4px 12px;min-height:26px;white-space:nowrap}
+.btn.raw{border-radius:4px;border-color:#9aa39c}
+.btn.pri{background:var(--p-accent);border-color:var(--p-accent);color:#fff;font-weight:600;border-radius:999px}
+.btn.ghost{border-color:transparent;background:transparent;color:var(--p-text-accent);font-weight:600}
+.btn[data-off]{opacity:.45}
+.rowx{display:grid;grid-template-columns:16px 1fr auto;gap:3px 10px;padding:11px 16px;border-bottom:1px solid var(--p-line);font-size:13px}
+.rowx.on{background:var(--p-accent-muted)}
+.rowx .cb{width:13px;height:13px;border:1.4px solid var(--p-ink2);border-radius:3px;margin-top:3px;background:var(--p-surface)}
+.rowx .cb.ck{background:var(--p-accent);border-color:var(--p-accent)}
+.rowx .t{font-weight:600;font-size:14.4px;line-height:1.4}
+.rowx .m{color:var(--p-ink2);font-size:12.6px}
+.rowx .rc{font-family:var(--mono);font-size:11.5px;text-align:right;white-space:nowrap}
+.rowx .c2{grid-column:2}
+.bd{display:inline-block;border-radius:999px;padding:0 8px;font-size:11px;font-weight:600;line-height:18px;white-space:nowrap;background:#E9ECE6;color:var(--p-ink)}
+.bd.wn{background:var(--p-warn-muted);color:var(--p-warn)}
+.dh{padding:12px 16px;display:flex;flex-direction:column;gap:7px;border-bottom:1px solid var(--p-line)}
+.dh h5{margin:0;font-size:16px;font-weight:600;line-height:1.35}
+.agency{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px;padding:9px 14px;border-radius:6px;background:var(--p-accent-muted)}
+.agency small{font-size:10.5px;color:var(--p-ink2)}.agency b{font-size:12.5px;font-weight:600}
+.db{padding:12px 16px;display:flex;flex-direction:column;gap:12px;flex:1}
+.ev{background:#F1F3EF;border-radius:4px;padding:8px 14px;border-left:3px solid var(--p-text-accent);font-size:12.5px}
+.ev small{display:block;font-size:10.5px;color:var(--p-ink2);margin-bottom:2px}
+.decbar{border-top:1px solid var(--p-line);padding:10px 16px;display:flex;flex-direction:column;gap:8px;background:var(--p-surface)}
+.decrow{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap}
+.lbl{font-size:11px;color:var(--p-ink2);white-space:nowrap}
+.fld{display:flex;flex-direction:column;gap:4px}
+.fld .lbl{font-weight:600;color:var(--p-ink)}
+.sel{border:1px solid var(--p-line);background:var(--p-surface);border-radius:8px;padding:5px 10px;min-width:230px;display:inline-flex;align-items:center;gap:10px;font-size:12px;color:var(--p-ink);white-space:nowrap;min-height:30px}
+.sel .v{flex:1}
+.sel .v.ph{color:var(--p-ink2)}
+.sel .x{display:inline-grid;place-items:center;width:18px;height:18px;border-radius:50%;background:#E9ECE6;color:var(--p-ink);font-size:11px;font-weight:700}
+.sel::after{content:"⌄";color:var(--p-ink2)}
+.inp{border:1px solid var(--p-line);background:var(--p-surface);border-radius:8px;padding:5px 10px;min-width:170px;min-height:30px;font-size:12px;display:flex;align-items:center}
+.inp.ph{color:var(--p-ink2)}
+.ta{border:1px solid var(--p-line);background:var(--p-surface);border-radius:8px;padding:7px 10px;min-height:58px;font-size:12px;color:var(--p-ink2)}
+.hint{font-size:11px;color:var(--p-ink2)}
+.warnline{font-size:12px;color:var(--p-warn);background:var(--p-warn-muted);border-radius:6px;padding:7px 10px}
+.errline{font-size:12px;color:var(--p-err);background:var(--p-err-muted);border-radius:6px;padding:7px 10px}
+/* dialog */
+.scrim{position:absolute;inset:0;background:#1b211d66;display:flex;justify-content:center;align-items:flex-start;padding-top:70px}
+.dlg{background:var(--p-surface);border-radius:12px;box-shadow:0 12px 32px #1b211d33;width:680px;display:flex;flex-direction:column;font-size:12.5px}
+.dlg.inline{box-shadow:0 1px 3px #1b211d22;border:1px solid var(--p-line);width:100%}
+.dlg header{padding:16px 18px 10px;display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
+.dlg header h5{margin:0;font-size:16px;font-weight:600}
+.dlg header .cl{font-size:16px;color:var(--p-ink2)}
+.dlg .bodyx{padding:0 18px 12px;display:flex;flex-direction:column;gap:12px}
+.dlg footer{border-top:1px solid var(--p-line);padding:12px 18px;display:flex;justify-content:flex-end;gap:8px;align-items:center}
+.dlg footer .why{margin-right:auto;font-size:11px;color:var(--p-ink2);max-width:46ch}
+.dlg .btn.go{background:var(--p-accent);border-color:var(--p-accent);color:#fff;font-weight:600;border-radius:4px;padding:6px 16px;font-size:12.5px}
+.dlg .btn.sec{border-radius:4px;padding:6px 14px;font-size:12.5px}
+.sumline{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;padding:10px 12px;border-radius:8px;background:#F1F3EF}
+.sumline b{font-size:13.5px;font-variant-numeric:tabular-nums}
+.sumline .sep{color:var(--p-ink2)}
+.sumline .d{font-size:11.5px;color:var(--p-ink2)}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.facts8{display:grid;grid-template-columns:1fr 1fr;gap:6px 16px;margin:0;padding:10px 12px;border:1px solid var(--p-line);border-radius:8px}
+.facts8 div{display:flex;justify-content:space-between;gap:8px;font-size:11.5px}
+.facts8 span{color:var(--p-ink2)}
+.step{font-family:var(--mono);font-size:10.5px;color:var(--p-ink2)}
+.gone{outline:2px dashed var(--p-err);outline-offset:2px;border-radius:4px}
+.new{outline:2px dashed var(--p-text-accent);outline-offset:2px;border-radius:4px}
+.menu{border:1px solid var(--p-line);border-radius:8px;background:var(--p-surface);box-shadow:0 6px 16px #1b211d1f;padding:4px;display:flex;flex-direction:column;width:280px;font-size:12px}
+.menu span{padding:6px 10px;border-radius:5px}
+.menu span.on{background:var(--p-accent-muted);color:var(--p-text-accent);font-weight:600}
+.menu span.oth{border-top:1px solid var(--p-line);margin-top:2px}
+.flow{display:flex;gap:10px;align-items:stretch;flex-wrap:wrap}
+.flow .st{flex:1;min-width:150px;border:1px solid var(--p-line);border-radius:8px;background:var(--p-surface);padding:8px 10px;font-size:11.5px;display:flex;flex-direction:column;gap:3px}
+.flow .st b{font-size:12px}
+.flow .ar{align-self:center;color:var(--p-ink2)}
+.flow .st.hl{border-color:var(--p-text-accent);background:var(--p-accent-muted)}
+</style>
+
+<main class="page">
+  <header class="intro">
+    <span class="eyebrow">BIDOPS · 2026-09-23 · 시안 (fixture 데이터)</span>
+    <h1>선택 항목 제외·일괄 추적 창을 한 번 확인으로 통일</h1>
+    <p class="lede">발주계획과 사전규격의 목록 선택 도구 <b>선택 항목 제외</b>가 같은 창 구조를 쓰게 하고, 발주계획의 두 번 입력·두 번 확인을 한 번으로 줄입니다. 저장 의미는 그대로입니다 — 발주계획은 <b>추적 종료</b>, 사전규격은 <b>검토 제외</b>(목록에서 숨김·복원 가능). 추적 결정 줄의 사유 지우기와 이동 경고 조건도 함께 고칩니다.</p>
+    <ol class="changes">
+      <li><span class="n">1</span><span><b>발주계획 일괄 창 한 번 확인</b><br><em>창을 열면 대상 건수를 자동으로 확인하고, 담당자·사유를 한 번만 입력한 뒤 단추 하나로 저장합니다. 일괄 추적 시작도 같습니다.</em></span></li>
+      <li><span class="n">2</span><span><b>사전규격 제외 창을 같은 구조로</b><br><em>제목·요약 줄·사유·담당자·안내·단추 배치를 발주계획과 같게. 문구만 “검토 제외”.</em></span></li>
+      <li><span class="n">3</span><span><b>사전규격 제외 오류 수정</b><br><em>API 호출에 JSON 형식 헤더가 빠져 서버가 422로 거부하던 결함. 화면 변화 없음.</em></span></li>
+      <li><span class="n">4</span><span><b>사유는 선택지 + 기타 직접 입력</b><br><em>추적 시작 결정과 같은 드롭다운. <code>기타 · 직접 입력</code>일 때만 입력칸이 열립니다.</em></span></li>
+      <li><span class="n">5</span><span><b>담당자 이름만 있으면 이동 경고 없음</b><br><em>사전규격 목록에서 다음 공고로 넘어갈 때, 사유를 골랐을 때만 기존 안내가 뜹니다.</em></span></li>
+      <li><span class="n">6</span><span><b>고른 사유를 다시 비우기</b><br><em>사유 드롭다운에 × 지우기 단추. 누르면 빈 상태(placeholder)로 돌아갑니다.</em></span></li>
+    </ol>
+    <div class="legend"><span><i class="lg"></i>없어지는 것</span><span><i class="lm"></i>새로 생기거나 바뀌는 것</span></div>
+  </header>
+
+  <!-- ① 발주계획 현재 vs 변경 -->
+  <section class="mock">
+    <div class="head">
+      <span class="eyebrow">① 발주계획 · 선택 항목 제외 (추적 종료)</span>
+      <h2>두 단계 → 한 단계</h2>
+      <p class="lede">현재는 담당자·사유 입력 → <code>선택 대상 미리보기</code> → 같은 담당자·사유 칸이 다시 나오고 → <code>확인하고 일괄 추적 종료</code>. 변경안은 창이 열리자마자 대상을 확인해 한 줄 요약으로 보여 주고, 입력은 한 번, 저장 단추도 하나입니다. 저장 순간에 서버가 최신 상태를 다시 확인하는 것은 그대로입니다.</p>
+    </div>
+    <div class="grid2">
+      <div class="stack">
+        <div class="cap"><span class="tag now">현재</span> 1단계(입력) → 2단계(미리보기 확인)</div>
+        <div class="ab small">
+          <div class="flow" style="margin-bottom:10px">
+            <div class="st"><b>1. 입력</b>담당자 · 공통 종료 사유(자유 입력) · <u>선택 대상 미리보기</u></div><span class="ar">→</span>
+            <div class="st"><b>2. 확인</b>8줄 집계 · 담당자·사유 다시 · <u>확인하고 일괄 추적 종료</u></div>
+          </div>
+          <div class="dlg inline">
+            <header><div><span class="step">2 / 2 단계</span><h5>추적 종료 내용을 확인하십시오</h5></div><span class="cl">✕</span></header>
+            <div class="bodyx">
+              <p class="hint">추적을 아직 정하지 않은 계획만 추적 종료로 저장합니다</p>
+              <dl class="facts8 gone">
+                <div><span>선택 계획</span><b>12건</b></div><div><span>선택 계획 ID</span><b>101, 104, 108 …</b></div>
+                <div><span>중복 제거한 소유 사업기회</span><b>11건</b></div><div><span>미선택 · 종료 가능</span><b>9건 · 소유자 9건</b></div>
+                <div><span>소유권·조회 실패</span><b>0건</b></div><div><span>계속 추적으로 이미 결정됨</span><b>2건</b></div>
+                <div><span>보류로 제외</span><b>0건</b></div><div><span>종료로 제외</span><b>1건</b></div>
+              </dl>
+              <p class="hint">미리보기 뒤 저장 시점에 서버가 최신 소유권·추적 상태를 다시 확인합니다. 최종 건수는 달라질 수 있습니다.</p>
+              <div class="warnline">종료한 계획은 기본 보기(검토 대상)에서 사라집니다. 추적 필터 '종료'에서 한 건씩 되돌릴 수 있고, 한꺼번에 되돌리는 기능은 없습니다.</div>
+              <div class="fld gone"><span class="lbl">공통 담당자 이름 · 감사 표식</span><span class="inp">김담당</span></div>
+              <div class="fld gone"><span class="lbl">공통 종료 사유</span><span class="ta">범위 밖 사업이라 종료</span></div>
+            </div>
+            <footer><span class="btn sec">미리보기로 돌아가기</span><span class="btn go">확인하고 일괄 추적 종료</span><span class="btn sec">닫기</span></footer>
+          </div>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="cap"><span class="tag">변경</span> 한 창 · 입력 한 번 · 단추 한 번</div>
+        <div class="ab small">
+          <div class="dlg inline">
+            <header><h5>선택한 발주계획 추적 종료</h5><span class="cl">✕</span></header>
+            <div class="bodyx">
+              <div class="sumline new"><b>종료 12건 중 9건</b><span class="sep">·</span><span class="d">이미 계속 추적 2 · 이미 종료 1은 바꾸지 않음</span><span class="btn ghost" style="margin-left:auto">세부 ▾</span></div>
+              <div class="two">
+                <div class="fld new"><span class="lbl">종료 사유 (필수)</span><span class="sel"><span class="v">현재 검토 범위와 맞지 않음</span><span class="x">×</span></span></div>
+                <div class="fld"><span class="lbl">담당자 이름 · 감사 표식 (필수)</span><span class="inp">김담당</span></div>
+              </div>
+              <div class="warnline">종료한 계획은 기본 보기(검토 대상)에서 사라집니다. 추적 필터 ‘종료’에서 한 건씩 되돌릴 수 있습니다.</div>
+            </div>
+            <footer><span class="why">저장 순간 서버가 최신 상태를 다시 확인하므로 건수가 달라질 수 있습니다.</span><span class="btn sec">취소</span><span class="btn go new">9건 추적 종료</span></footer>
+          </div>
+          <p class="hint" style="margin-top:8px">대상 확인 중에는 요약 줄이 “대상 확인 중…”, 저장 단추는 비활성. <b>세부 ▾</b>를 펼치면 현재의 8줄 집계와 실패 ID가 그대로 나옵니다(정보 손실 없음). 저장 뒤 결과·실패 재시도·결과 미확인 복구 화면은 지금과 같습니다.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ② 사유 드롭다운 -->
+  <section class="mock">
+    <div class="head">
+      <span class="eyebrow">④·⑥ 사유 입력</span>
+      <h2>선택지 + 기타 직접 입력, × 로 비우기</h2>
+      <p class="lede">일괄 창 세 곳(발주계획 종료·발주계획 추적 시작·사전규격 제외)과 기존 추적 결정 줄(발주계획 상세·사전규격 목록·사전규격 상세)이 모두 같은 드롭다운을 씁니다. 고른 뒤에는 × 로 빈 상태로 돌아갈 수 있습니다.</p>
+    </div>
+    <div class="grid2">
+      <div class="ab small">
+        <div class="flow">
+          <div class="fld"><span class="lbl">종료·제외 사유 선택지 (새로 정함)</span>
+            <div class="menu">
+              <span class="on">현재 검토 범위와 맞지 않음</span>
+              <span>중복·오탐으로 확인</span>
+              <span>참여 자격·실적 요건 미충족</span>
+              <span>사업 규모·시기가 맞지 않음</span>
+              <span class="oth">기타 · 직접 입력</span>
+            </div>
+          </div>
+          <div class="fld"><span class="lbl">일괄 추적 시작 선택지 (발주계획 단건과 같음)</span>
+            <div class="menu">
+              <span>후속 사전규격·공고 확인</span>
+              <span>사업 방향이 관심 분야와 맞음</span>
+              <span>예산·시기 추가 확인 필요</span>
+              <span>세부 과업 확인 후 판단</span>
+              <span>현재 검토 범위와 맞지 않음</span>
+              <span>중복·오탐으로 확인</span>
+              <span class="oth">기타 · 직접 입력</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="ab small">
+        <div class="stack" style="gap:14px">
+          <div class="fld"><span class="lbl">기타 선택 시</span>
+            <span class="sel"><span class="v">기타 · 직접 입력</span><span class="x">×</span></span>
+            <span class="ta new">사유를 직접 적어 주세요 (최대 2,000자)</span>
+          </div>
+          <div class="fld"><span class="lbl">× 를 누른 뒤</span>
+            <span class="sel"><span class="v ph">사유를 선택하세요</span></span>
+            <span class="hint">저장 단추 비활성 · “사유를 선택하십시오.” 입력한 기타 문장도 함께 지워집니다.</span>
+          </div>
+          <div class="fld"><span class="lbl">현재 (비교)</span>
+            <span class="sel gone"><span class="v">현재 검토 범위와 맞지 않음</span></span>
+            <span class="hint">한 번 고르면 빈 상태로 돌아갈 방법이 없음.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ③ 사전규격 -->
+  <section class="mock">
+    <div class="head">
+      <span class="eyebrow">② 사전규격 · 선택 항목 제외 (검토 제외)</span>
+      <h2>같은 창 구조, 다른 저장 의미</h2>
+      <div class="bar"><span>폭</span><div class="seg" role="group" aria-label="사전규격 아트보드 폭"><button type="button" data-set="ps" data-w="1280" aria-pressed="true">1280 × 800</button><button type="button" data-set="ps" data-w="1440" aria-pressed="false">1440 × 900</button></div></div>
+    </div>
+    <div class="frame"><div class="fit" data-fit="ps">
+      <div class="ab" data-w="1280" data-board="ps" style="height:800px">
+        <div class="top"><h4>사전규격</h4><span class="lbl">검토할 항목 22건</span></div>
+        <div class="split">
+          <div class="lp">
+            <div class="tb"><div class="tbr"><span class="cnt">선택 3건</span><span class="btn raw">전체 선택</span><span class="btn raw">전체 해제</span><span class="btn">선택 항목 제외</span><span class="btn pri">선택 항목 검토</span></div></div>
+            <div class="rowx on"><span class="cb ck"></span><span class="t">OO시 통합 데이터 플랫폼 구축</span><span class="rc">D-5</span><span class="m c2">예시기관 A · 사전규격</span></div>
+            <div class="rowx"><span class="cb ck"></span><span class="t">OO공단 민원 챗봇 고도화</span><span class="rc">D-7</span><span class="m c2">예시기관 B · 사전규격</span></div>
+            <div class="rowx"><span class="cb ck"></span><span class="t">OO원 청사 CCTV 교체</span><span class="rc">D-9</span><span class="m c2">예시기관 C · 사전규격</span></div>
+            <div class="rowx"><span class="cb"></span><span class="t">OO도 블록체인 증명서 발급</span><span class="rc">D-12</span><span class="m c2">예시기관 D · 사전규격</span></div>
+          </div>
+          <div class="dp">
+            <div class="dh"><div class="agency"><small>발주기관</small><b>예시기관 A</b></div><h5>OO시 통합 데이터 플랫폼 구축</h5></div>
+            <div class="db"><div class="ev"><small>개요 요약</small>데이터 수집·표준화·대시보드 구축. 사람 확인 전 참고 요약입니다.</div></div>
+          </div>
+        </div>
+        <div class="scrim">
+          <div class="dlg">
+            <header><h5>선택한 사전규격 검토 제외</h5><span class="cl">✕</span></header>
+            <div class="bodyx">
+              <div class="sumline new"><b>제외 3건</b><span class="sep">·</span><span class="d">팀 전체의 일상 목록에서 숨깁니다. 추적 상태와 자동 분석은 그대로입니다.</span></div>
+              <div class="two">
+                <div class="fld new"><span class="lbl">제외 사유 (필수)</span><span class="sel"><span class="v">중복·오탐으로 확인</span><span class="x">×</span></span></div>
+                <div class="fld new"><span class="lbl">담당자 이름 · 감사 표식 (필수)</span><span class="inp">김담당</span></div>
+              </div>
+              <div class="warnline">제외한 건은 ‘전체 이력’ 보기에서 검토 제외 필터로 찾아 한 건씩 복원할 수 있습니다.</div>
+            </div>
+            <footer><span class="why">담당자 이름은 이 브라우저에 기억한 값으로 미리 채웁니다.</span><span class="btn sec">취소</span><span class="btn go new">3건 검토 제외</span></footer>
+          </div>
+        </div>
+      </div>
+    </div></div>
+    <p class="cap">현재 사전규격 창: 제목 “검토 제외”, 담당자·사유 자유 입력, 단추가 폼 아래 세로로 쌓임, 저장 시 422 오류. 변경안은 발주계획 창과 같은 부품(요약 줄·사유 드롭다운·담당자·안내 줄·바닥 단추)을 씁니다. 사전규격은 서버 미리보기가 없으므로 요약 줄은 선택 건수만 말합니다.</p>
+  </section>
+
+  <!-- ④ 이동 경고 -->
+  <section class="mock">
+    <div class="head">
+      <span class="eyebrow">⑤ 사전규격 목록 · 다음 공고로 이동</span>
+      <h2>이동 경고는 사유를 골랐을 때만</h2>
+      <div class="bar"><span>폭</span><div class="seg" role="group" aria-label="이동 경고 아트보드 폭"><button type="button" data-set="gd" data-w="1280" aria-pressed="true">1280 × 800</button><button type="button" data-set="gd" data-w="1440" aria-pressed="false">1440 × 900</button></div></div>
+    </div>
+    <div class="frame"><div class="fit" data-fit="gd">
+      <div class="ab" data-w="1280" data-board="gd" style="height:800px">
+        <div class="top"><h4>사전규격</h4><span class="lbl">검토할 항목 22건</span></div>
+        <div class="split">
+          <div class="lp">
+            <div class="tb"><div class="tbr"><span class="cnt">선택 0건</span><span class="btn raw">전체 선택</span><span class="btn raw" data-off>전체 해제</span><span class="btn" data-off>선택 항목 제외</span><span class="btn pri" data-off>선택 항목 검토</span></div></div>
+            <div class="rowx on"><span class="cb"></span><span class="t">OO시 통합 데이터 플랫폼 구축</span><span class="rc">D-5</span><span class="m c2">예시기관 A · 사전규격</span></div>
+            <div class="rowx"><span class="cb"></span><span class="t">OO공단 민원 챗봇 고도화</span><span class="rc">D-7</span><span class="m c2">예시기관 B · 사전규격</span></div>
+            <div class="rowx"><span class="cb"></span><span class="t">OO원 청사 CCTV 교체</span><span class="rc">D-9</span><span class="m c2">예시기관 C · 사전규격</span></div>
+          </div>
+          <div class="dp">
+            <div class="dh"><div class="agency"><small>발주기관</small><b>예시기관 A</b></div><h5>OO시 통합 데이터 플랫폼 구축</h5></div>
+            <div class="db"><div class="ev"><small>개요 요약</small>데이터 수집·표준화·대시보드 구축.</div>
+              <table class="chk" style="min-width:0;font-size:12px">
+                <thead><tr><th>입력 상태</th><th>다음 공고(↓·클릭)</th></tr></thead>
+                <tbody>
+                  <tr><td>담당자 “김담당”만 입력</td><td><b>바로 이동</b> · 담당자 이름은 유지(이 브라우저 기억값)</td></tr>
+                  <tr><td>사유 선택(또는 기타 문장 입력)</td><td>기존 안내 “추적 결정 입력을 저장하지 않고 옮깁니다”</td></tr>
+                  <tr><td>사유를 × 로 비움</td><td>바로 이동</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="decbar">
+              <div class="decrow">
+                <div class="fld"><span class="lbl">선택 사유</span><span class="sel"><span class="v ph">추적을 시작하는 사유를 선택하세요</span></span></div>
+                <div class="fld"><span class="lbl">담당자 이름</span><span class="inp new">김담당</span></div>
+                <span class="btn pri" data-off>추적 시작</span>
+              </div>
+              <span class="hint">사유를 고르지 않았으므로 다른 공고로 옮겨도 확인 창이 뜨지 않습니다.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div></div>
+    <p class="cap">발주계획 목록은 이미 사유만 보고 경고합니다(변경 없음). 사전규격 상세 페이지 이탈 경고도 같은 규칙(사유만)으로 맞춥니다.</p>
+  </section>
+
+  <!-- ⑤ 확인 표 -->
+  <section class="mock">
+    <div class="head"><span class="eyebrow">구현 범위 · 검사</span><h2>바뀌는 것과 바뀌지 않는 것</h2></div>
+    <div class="scroll">
+      <table class="chk">
+        <thead><tr><th>항목</th><th>바뀌는 것</th><th>그대로</th></tr></thead>
+        <tbody>
+          <tr><td>발주계획 일괄 창</td><td>열 때 자동 미리보기 · 입력 한 번 · 단추 한 번 · 사유 드롭다운 · 8줄 집계는 <code>세부 ▾</code> 안으로</td><td>REST(<code>preview</code>·<code>bulk-start</code>·<code>bulk-end</code>)·요청 ID·sessionStorage 복구·결과/실패 재시도·선택 세대 검사·200건 상한</td></tr>
+          <tr><td>사전규격 제외 창</td><td>같은 창 구조·사유 드롭다운·담당자 기억값 · <code>Content-Type</code> 헤더 수정</td><td><code>POST /pre-specs/review-exclusions</code> 계약·검토 제외 의미·복원 경로</td></tr>
+          <tr><td>추적 결정 줄</td><td>사유 Selector <code>hasClear</code> · 사전규격 dirty = 사유만</td><td>저장 규칙(사유·담당자 필수)·발주계획 dirty 규칙</td></tr>
+          <tr><td>검사</td><td colspan="2">api 헤더 단위 검사 1개 · 영향 spec만(발주계획 일괄·사전규격 제외·추적 결정 줄) · 1280/1440 캡처 · 백엔드 변경 없음, migration 없음</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</main>
+
+<script>
+(function(){
+  function fit(){
+    document.querySelectorAll('.fit').forEach(function(box){
+      var ab=box.querySelector('.ab'); if(!ab) return;
+      ab.style.transform='none';
+      var w=ab.offsetWidth, h=ab.offsetHeight, s=Math.min(1, box.clientWidth / w);
+      ab.style.transform='scale('+s+')';
+      box.style.height=(h*s)+'px';
+    });
+  }
+  document.querySelectorAll('.seg button[data-set]').forEach(function(b){
+    b.addEventListener('click',function(){
+      var set=b.getAttribute('data-set'), w=b.getAttribute('data-w');
+      document.querySelectorAll('.seg button[data-set="'+set+'"]').forEach(function(x){x.setAttribute('aria-pressed', x===b?'true':'false');});
+      var ab=document.querySelector('.ab[data-board="'+set+'"]');
+      ab.setAttribute('data-w',w); ab.style.height=(w==='1440'?900:800)+'px';
+      fit();
+    });
+  });
+  window.addEventListener('resize',fit);
+  if(document.fonts&&document.fonts.ready){document.fonts.ready.then(fit);}
+  fit();
+})();
+</script>
