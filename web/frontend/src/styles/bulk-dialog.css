@@ -1,0 +1,166 @@
+/* 일괄 창 공용 배치 — 발주계획 일괄 추적 시작·종료와 사전규격 검토 제외(2026-09-23 시안).
+ *
+ * 두 창은 같은 부품을 같은 순서로 놓는다: 요약 줄 → (세부) → 사유·담당자 두 칸 →
+ * 안내 줄 → 바닥 단추. 색은 테마 토큰만 읽고 `--color-*`를 재정의하지 않는다.
+ * 대화상자는 portal이라 페이지 root의 글자 규칙이 닿지 않으므로 프로젝트 4단
+ * (`styles/typography.css`)을 이 body에 다시 준다. 최소 12px. */
+
+.bulk-dialog {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.bulk-dialog-body {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--spacing-3);
+  padding: var(--spacing-1) var(--spacing-4) var(--spacing-4);
+  overflow: auto;
+}
+
+.bulk-dialog-body p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+:is(.bulk-dialog-body, .bulk-dialog-footer) :where(.astryx-text.body, .astryx-text.label),
+:is(.bulk-dialog-body, .bulk-dialog-footer) :where(input, textarea),
+:is(.bulk-dialog-body, .bulk-dialog-footer) :where(dd, li, p, span, strong) {
+  font-size: var(--bo-type-body);
+  line-height: var(--bo-type-body-leading);
+}
+
+:is(.bulk-dialog-body, .bulk-dialog-footer) :where(.astryx-text.supporting, .astryx-badge, .astryx-button, .astryx-field-label),
+:is(.bulk-dialog-body, .bulk-dialog-footer) :where(dt, code) {
+  font-size: var(--bo-type-caption);
+  line-height: var(--bo-type-caption-leading);
+}
+
+/* Selector·TextInput 의 값 영역은 컴포넌트 내부 span 이라 위 규칙만으로는 닿지 않는다. */
+.bulk-dialog-body :where(.astryx-selector, .astryx-text-input),
+.bulk-dialog-body :where(.astryx-selector, .astryx-text-input) :where(span, input) {
+  font-size: var(--bo-type-body);
+}
+
+/* 요약 줄: 몇 건 중 몇 건이 바뀌는지와 바꾸지 않는 건수를 한 줄로. */
+.bulk-dialog-summary {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-1) var(--spacing-3);
+  padding: var(--spacing-2) var(--spacing-3);
+  border-radius: var(--radius-sm);
+  background: var(--color-background-muted);
+}
+
+.bulk-dialog-summary > strong {
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--font-weight-semibold);
+}
+
+.bulk-dialog-summary .bulk-dialog-summary-detail {
+  min-width: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+  line-height: var(--bo-type-caption-leading);
+  overflow-wrap: anywhere;
+}
+
+.bulk-dialog-summary-toggle {
+  margin-left: auto;
+}
+
+/* 세부(접힘) 안의 규칙 문장. */
+.bulk-dialog-details {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+.bulk-dialog-details[hidden] {
+  display: none;
+}
+
+/* 사유·담당자 두 칸. 기타 입력칸이 열리면 사유 칸만 아래로 늘어난다. */
+.bulk-dialog-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: var(--spacing-3);
+}
+
+.bulk-reason-field {
+  display: grid;
+  min-width: 0;
+  gap: var(--spacing-2);
+}
+
+.bulk-reason-field > * {
+  min-width: 0;
+}
+
+/* 담당자 칸(`ActorField`)의 라벨을 옆 칸 Astryx 필드 라벨과 같은 무게·색으로 맞춘다. */
+.bulk-dialog-fields .actor-field label {
+  color: var(--color-text-secondary);
+  font-weight: var(--font-weight-medium);
+}
+
+.bulk-dialog-fields .actor-field input {
+  min-height: var(--control-height);
+}
+
+.bulk-dialog-warning {
+  margin: 0;
+  padding: var(--spacing-1-5) var(--spacing-2);
+  border: var(--border-width) solid var(--color-warning-edge);
+  border-radius: var(--radius-sm);
+  color: var(--color-warning);
+  background: var(--color-warning-bg);
+  overflow-wrap: anywhere;
+}
+
+/* 저장 실패 알림. 서버 응답을 제목·설명으로 옮긴 문장을 담는다. */
+.bulk-dialog-error {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  padding: var(--spacing-2);
+  border: var(--border-width) solid var(--color-error-edge);
+  border-radius: var(--radius-sm);
+  background: var(--color-error-bg);
+  color: var(--color-error);
+  overflow-wrap: anywhere;
+}
+
+/* 저장을 막는 이유 한 줄. 막히지 않았으면 그리지 않는다. */
+.bulk-dialog-body .bulk-dialog-blocker {
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+  line-height: var(--bo-type-caption-leading);
+}
+
+.bulk-dialog-footer {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--spacing-2);
+  padding: var(--spacing-3) var(--spacing-4);
+  border-top: var(--border-width) solid var(--color-border);
+}
+
+.bulk-dialog-footer .bulk-dialog-footer-note {
+  min-width: 0;
+  max-width: 46ch;
+  margin: 0 auto 0 0;
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+  line-height: var(--bo-type-caption-leading);
+  overflow-wrap: anywhere;
+}
