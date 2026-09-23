@@ -953,16 +953,31 @@ test("사유 예시를 고르면 그 문장이 그대로 저장 사유가 된다
   }]);
 });
 
-// 인라인 폼의 사유·담당자는 저장 전까지 화면에만 있다. 행을 옮기면 사라지므로
-// 확인 없이 버리지 않는다(spec §3.3의 `onDirtyChange` → 목록 guard 경로).
-test("추적 결정 입력이 있는 채로 행을 옮기면 확인 없이 버리지 않는다", async ({ page }) => {
+// 인라인 폼의 사유는 저장 전까지 화면에만 있다. 행을 옮기면 사라지므로 사유가
+// 있으면 확인 없이 버리지 않는다(spec §3.3의 `onDirtyChange` → 목록 guard 경로).
+// 담당자 이름만 있고 사유가 비어 있으면 저장할 수 없는 입력이라 잃을 것이 없으므로
+// 확인 창 없이 바로 옮긴다(0923 패키지 B, 미저장 판정은 사유만 본다).
+test("담당자 이름만 입력하고 행을 옮기면 확인 없이 이동한다", async ({ page }) => {
   const trace = await mockPreSpecs(page);
   await page.goto("/pre-specs?workspace=all");
 
   await selectPreSpecRow(page, newPreSpec.title);
   const decision = page.locator(".pre-specs-detail-actions");
-  const actor = decision.getByRole("textbox", { name: "담당자 이름 (필수)" });
-  await actor.fill("아직 저장하지 않은 담당자");
+  await decision.getByRole("textbox", { name: "담당자 이름 (필수)" }).fill("아직 저장하지 않은 담당자");
+
+  await selectPreSpecRow(page, trackingException.title);
+  await expect(page.getByRole("alertdialog")).toHaveCount(0);
+  await expect(page.locator(".pre-specs-detail-title")).toContainText(trackingException.title);
+  expect(trace.trackingPatches).toEqual([]);
+});
+
+test("사유를 고르고 행을 옮기면 확인 없이 버리지 않는다", async ({ page }) => {
+  const trace = await mockPreSpecs(page);
+  await page.goto("/pre-specs?workspace=all");
+
+  await selectPreSpecRow(page, newPreSpec.title);
+  const decision = page.locator(".pre-specs-detail-actions");
+  await fillRecordReason(page, "아직 저장하지 않은 사유");
 
   // 취소하면 선택 행도 입력도 그대로다.
   await selectPreSpecRow(page, trackingException.title);
@@ -971,13 +986,31 @@ test("추적 결정 입력이 있는 채로 행을 옮기면 확인 없이 버�
   await expect(guard).toContainText("저장하지 않은 추적 결정 사유와 담당자 이름이 있습니다.");
   await guard.getByRole("button", { name: "계속 편집", exact: true }).click();
   await expect(guard).toHaveCount(0);
-  await expect(decision.getByRole("textbox", { name: "담당자 이름 (필수)" })).toHaveValue("아직 저장하지 않은 담당자");
+  await expect(decision.getByRole("textbox", { name: "선택 사유 직접 입력 (필수)" })).toHaveValue("아직 저장하지 않은 사유");
 
   // 확인하면 행이 바뀌고 저장 요청은 나가지 않는다.
   await selectPreSpecRow(page, trackingException.title);
   await page.getByRole("alertdialog").getByRole("button", { name: "저장하지 않고 옮기기", exact: true }).click();
   await expect(page.locator(".pre-specs-detail-title")).toContainText(trackingException.title);
   expect(trace.trackingPatches).toEqual([]);
+});
+
+// Selector `hasClear`: 고른 사유를 다시 비울 수 있고, 비우면 저장이 막힌다.
+test("사유를 고른 뒤 지우기 단추를 누르면 빈 상태로 돌아가고 저장이 비활성화된다", async ({ page }) => {
+  await mockPreSpecs(page);
+  await page.goto("/pre-specs?workspace=all");
+
+  await selectPreSpecRow(page, newPreSpec.title);
+  const decision = page.locator(".pre-specs-detail-actions");
+  await decision.getByRole("combobox", { name: "선택 사유" }).click();
+  await page.getByRole("option", { name: "후속 입찰공고 확인" }).click();
+  await decision.getByRole("textbox", { name: "담당자 이름 (필수)" }).fill("홍길동");
+  const save = decision.getByRole("button", { name: "추적 시작", exact: true });
+  await expect(save).toBeEnabled();
+
+  await decision.getByRole("button", { name: "선택 사유 지우기" }).click();
+  await expect(decision.getByRole("combobox", { name: "선택 사유" })).toContainText("사유를 선택하세요");
+  await expect(save).toBeDisabled();
 });
 
 // 선택한 건의 개요 본문은 목록 응답이 아니라 개요 endpoint의 run envelope에서 온다.
