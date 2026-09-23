@@ -2119,6 +2119,42 @@ test("LS-checkbox-space-and-input-events-remain-independent-from-active-row", as
   await expect(firstCheckbox).not.toBeChecked();
 });
 
+// ---- 일괄 창 한 창 흐름(2026-09-23 시안 ①·④) ----
+// 창이 열리면 대상 확인(preview)이 자동으로 돈다. 입력은 사유 Selector(또는 `기타 · 직접 입력`)와
+// 담당자 한 번, 저장은 `M건 추적 시작|종료` 단추 하나다.
+
+type BulkDialog = import("@playwright/test").Locator;
+
+/** 자동 대상 확인이 끝나 요약 줄이 `… N건 중 M건`이 될 때까지 기다린다. */
+async function waitBulkTargets(dialog: BulkDialog) {
+  await expect(dialog.getByTestId("order-plan-bulk-summary")).toContainText(/\d+건 중 \d+건/);
+}
+
+/** 사유 선택지 하나를 고른다. */
+async function pickBulkReason(page: import("@playwright/test").Page, dialog: BulkDialog, label: string, option: string) {
+  await dialog.getByRole("combobox", { name: label }).click();
+  await page.getByRole("option", { name: option, exact: true }).click();
+}
+
+/** `기타 · 직접 입력`을 고르고 사유 문장을 적는다. */
+async function writeBulkReason(page: import("@playwright/test").Page, dialog: BulkDialog, label: string, text: string) {
+  await pickBulkReason(page, dialog, label, "기타 · 직접 입력");
+  await dialog.getByRole("textbox", { name: "사유 직접 입력" }).fill(text);
+}
+
+function bulkActorInput(dialog: BulkDialog) {
+  return dialog.getByRole("textbox", { name: "담당자 이름 · 감사 표식 (필수)" });
+}
+
+function bulkSaveButton(dialog: BulkDialog, mode: "start" | "end") {
+  return dialog.getByRole("button", { name: mode === "start" ? /^\d+건 추적 시작$/ : /^\d+건 추적 종료$/ });
+}
+
+/** 결과·복구 화면의 바닥 `닫기`. 머리의 × 도 한국어로 `닫기`라 바닥으로 좁힌다. */
+function bulkFooterClose(dialog: BulkDialog) {
+  return dialog.locator(".bulk-dialog-footer").getByRole("button", { name: "닫기", exact: true });
+}
+
 test("BT-confirmation-shows-owner-and-status-exclusions-and-does-not-run-single-patch", async ({ page }) => {
   const singleTrace = await mockOrderPlans(page);
   await mockOrderPlanBulkTracking(page, "mixed");
@@ -2134,15 +2170,33 @@ test("BT-confirmation-shows-owner-and-status-exclusions-and-does-not-run-single-
 
   await page.getByRole("button", { name: "선택 항목 추적 시작", exact: true }).click();
   const dialog = page.getByTestId("order-plan-bulk-tracking-dialog");
-  await dialog.getByRole("button", { name: "선택 대상 미리보기", exact: true }).click();
-  await expect(dialog).toContainText("중복 제거한 소유 사업기회");
-  await expect(dialog).toContainText("보류로 제외");
-  await expect(dialog).toContainText("종료로 제외");
-  await dialog.getByRole("textbox", { name: "공통 담당자 이름 · 감사 표식" }).fill("일괄 담당자");
-  await dialog.getByRole("textbox", { name: "공통 추적 사유" }).fill("공통 검토 사유");
-  await expect(dialog).toContainText("최종 건수는 달라질 수 있습니다");
+  // 열자마자 대상을 확인하고 한 줄로 요약한다. 두 단계 입력·미리보기 단추는 없다.
+  await waitBulkTargets(dialog);
+  const summary = dialog.getByTestId("order-plan-bulk-summary");
+  await expect(summary).toContainText("추적 시작 3건 중 1건");
+  await expect(summary).toContainText("이미 보류 1건 · 이미 종료 1건은 바꾸지 않습니다.");
+  await expect(dialog.getByRole("button", { name: "선택 대상 미리보기" })).toHaveCount(0);
+  // 8줄 집계는 `세부` 접힘 안에 그대로 있다.
+  const facts = dialog.getByTestId("order-plan-bulk-preview");
+  await expect(facts).toBeHidden();
+  const details = dialog.getByRole("button", { name: "세부", exact: true });
+  await expect(details).toHaveAttribute("aria-expanded", "false");
+  await details.click();
+  await expect(facts).toBeVisible();
+  await expect(facts).toContainText("중복 제거한 소유 사업기회");
+  await expect(facts).toContainText("보류로 제외");
+  await expect(facts).toContainText("종료로 제외");
+  // 담당자는 목록의 기억값(이 탭)으로 미리 채워지고 입력칸은 한 번만 있다.
+  await expect(bulkActorInput(dialog)).toHaveCount(1);
+  await expect(bulkActorInput(dialog)).toHaveValue("일괄 담당자");
+  const save = bulkSaveButton(dialog, "start");
+  await expect(save).toHaveText("1건 추적 시작");
+  await expect(save).toBeDisabled();
+  await expect(dialog).toContainText("추적 사유를 선택하십시오.");
+  await pickBulkReason(page, dialog, "추적 사유 (필수)", "사업 방향이 관심 분야와 맞음");
+  await expect(dialog).toContainText("건수가 달라질 수 있습니다");
 
-  const confirm = dialog.getByRole("button", { name: "확인하고 일괄 추적 시작", exact: true });
+  const confirm = bulkSaveButton(dialog, "start");
   await confirm.evaluate((button) => {
     button.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     button.dispatchEvent(new MouseEvent("click", { bubbles: true }));
@@ -2174,10 +2228,10 @@ test("BT-lost-response-keeps-identical-request-through-reload-and-manual-recover
   await page.locator(".c2l-row").first().locator('input[type="checkbox"]').check();
   await page.getByRole("button", { name: "선택 항목 추적 시작", exact: true }).click();
   const dialog = page.getByTestId("order-plan-bulk-tracking-dialog");
-  await dialog.getByRole("button", { name: "선택 대상 미리보기", exact: true }).click();
-  await dialog.getByRole("textbox", { name: "공통 담당자 이름 · 감사 표식" }).fill("응답 복구 담당자");
-  await dialog.getByRole("textbox", { name: "공통 추적 사유" }).fill("응답 유실 확인");
-  await dialog.getByRole("button", { name: "확인하고 일괄 추적 시작", exact: true }).click();
+  await waitBulkTargets(dialog);
+  await bulkActorInput(dialog).fill("응답 복구 담당자");
+  await writeBulkReason(page, dialog, "추적 사유 (필수)", "응답 유실 확인");
+  await bulkSaveButton(dialog, "start").click();
   await expect(dialog).toContainText("결과를 확인할 수 없습니다");
   await page.reload();
   await expect(page.getByTestId("order-plan-selection-toolbar")).toContainText("선택 1건");
@@ -2199,10 +2253,10 @@ test("BT-malformed-receipt-is-unconfirmed-and-preserves-selection", async ({ pag
   await page.locator(".c2l-row").first().locator('input[type="checkbox"]').check();
   await page.getByRole("button", { name: "선택 항목 추적 시작", exact: true }).click();
   const dialog = page.getByTestId("order-plan-bulk-tracking-dialog");
-  await dialog.getByRole("button", { name: "선택 대상 미리보기", exact: true }).click();
-  await dialog.getByRole("textbox", { name: "공통 담당자 이름 · 감사 표식" }).fill("검증 담당자");
-  await dialog.getByRole("textbox", { name: "공통 추적 사유" }).fill("receipt 형식 확인");
-  await dialog.getByRole("button", { name: "확인하고 일괄 추적 시작", exact: true }).click();
+  await waitBulkTargets(dialog);
+  await bulkActorInput(dialog).fill("검증 담당자");
+  await writeBulkReason(page, dialog, "추적 사유 (필수)", "receipt 형식 확인");
+  await bulkSaveButton(dialog, "start").click();
   await expect(dialog).toContainText("일괄 추적 결과를 확인할 수 없습니다");
   await expect(page.getByTestId("order-plan-selection-toolbar")).toContainText("선택 1건");
   await expect(dialog.getByRole("button", { name: "같은 요청 결과 확인", exact: true })).toBeVisible();
@@ -2220,10 +2274,10 @@ test("BT-gateway-error-preserves-unknown-request-identity", async ({ page }) => 
   await page.locator(".c2l-row").first().getByRole("checkbox").check();
   await page.getByRole("button", { name: "선택 항목 추적 시작", exact: true }).click();
   const dialog = page.getByTestId("order-plan-bulk-tracking-dialog");
-  await dialog.getByRole("button", { name: "선택 대상 미리보기", exact: true }).click();
-  await dialog.getByRole("textbox", { name: "공통 담당자 이름 · 감사 표식" }).fill("검증 담당자");
-  await dialog.getByRole("textbox", { name: "공통 추적 사유" }).fill("응답 유실 확인");
-  await dialog.getByRole("button", { name: "확인하고 일괄 추적 시작", exact: true }).click();
+  await waitBulkTargets(dialog);
+  await bulkActorInput(dialog).fill("검증 담당자");
+  await writeBulkReason(page, dialog, "추적 사유 (필수)", "응답 유실 확인");
+  await bulkSaveButton(dialog, "start").click();
   const retry = dialog.getByRole("button", { name: "같은 요청 결과 확인", exact: true });
   await expect(retry).toBeVisible();
   await retry.click();
@@ -2261,15 +2315,15 @@ test("BT-failed-only-retry-mints-a-new-key-only-after-human-confirmation", async
   await page.locator(".c2l-row").first().locator('input[type="checkbox"]').check();
   await page.getByRole("button", { name: "선택 항목 추적 시작", exact: true }).click();
   const dialog = page.getByTestId("order-plan-bulk-tracking-dialog");
-  await dialog.getByRole("button", { name: "선택 대상 미리보기", exact: true }).click();
-  await dialog.getByRole("textbox", { name: "공통 담당자 이름 · 감사 표식" }).fill("실패 재시도 담당자");
-  await dialog.getByRole("textbox", { name: "공통 추적 사유" }).fill("실패 건을 다시 확인");
-  await dialog.getByRole("button", { name: "확인하고 일괄 추적 시작", exact: true }).click();
+  await waitBulkTargets(dialog);
+  await bulkActorInput(dialog).fill("실패 재시도 담당자");
+  await writeBulkReason(page, dialog, "추적 사유 (필수)", "실패 건을 다시 확인");
+  await bulkSaveButton(dialog, "start").click();
   await expect(dialog).toContainText("실패 1건");
   await expect(page.getByTestId("order-plan-selection-toolbar")).toContainText("선택 1건");
   await dialog.getByRole("button", { name: "실패 건 재시도 준비", exact: true }).click();
-  await dialog.getByRole("button", { name: "선택 대상 미리보기", exact: true }).click();
-  await dialog.getByRole("button", { name: "확인하고 일괄 추적 시작", exact: true }).click();
+  await waitBulkTargets(dialog);
+  await bulkSaveButton(dialog, "start").click();
   await expect(dialog).toContainText("실패 1건");
   const starts = await page.locator("body").evaluate(() => window.sessionStorage.getItem("bidops.order-plans.bulk-tracking.pending.v2"));
   expect(starts).toBeNull();
@@ -2293,10 +2347,10 @@ test("BT-storage-quota-refusal-does-not-send-bulk-request", async ({ page }) => 
   await page.locator(".c2l-row").first().locator('input[type="checkbox"]').check();
   await page.getByRole("button", { name: "선택 항목 추적 시작", exact: true }).click();
   const dialog = page.getByTestId("order-plan-bulk-tracking-dialog");
-  await dialog.getByRole("button", { name: "선택 대상 미리보기", exact: true }).click();
-  await dialog.getByRole("textbox", { name: "공통 담당자 이름 · 감사 표식" }).fill("저장 실패 담당자");
-  await dialog.getByRole("textbox", { name: "공통 추적 사유" }).fill("저장소 제한 확인");
-  await dialog.getByRole("button", { name: "확인하고 일괄 추적 시작", exact: true }).click();
+  await waitBulkTargets(dialog);
+  await bulkActorInput(dialog).fill("저장 실패 담당자");
+  await writeBulkReason(page, dialog, "추적 사유 (필수)", "저장소 제한 확인");
+  await bulkSaveButton(dialog, "start").click();
   await expect(dialog).toContainText("일괄 요청을 저장하지 못했습니다");
   await expect(dialog).toContainText("단건 추적 경로를 사용하십시오");
   expect(trace.startPosts).toHaveLength(0);
@@ -2309,17 +2363,27 @@ test("BT-confirmation-invalid-actor-or-reason-is-disabled-without-start-request"
   await page.locator(".c2l-row").first().locator('input[type="checkbox"]').check();
   await page.getByRole("button", { name: "선택 항목 추적 시작", exact: true }).click();
   const dialog = page.getByTestId("order-plan-bulk-tracking-dialog");
-  // Preview intentionally remains available without attribution fields.
-  await dialog.getByRole("button", { name: "선택 대상 미리보기", exact: true }).click();
-  const confirm = dialog.getByRole("button", { name: "확인하고 일괄 추적 시작", exact: true });
-  await dialog.getByRole("textbox", { name: "공통 담당자 이름 · 감사 표식" }).fill("system");
-  await dialog.getByRole("textbox", { name: "공통 추적 사유" }).fill("유효한 사유");
+  // 대상 확인은 담당자·사유 없이도 창이 열리자마자 한 번 돈다.
+  await waitBulkTargets(dialog);
+  const confirm = bulkSaveButton(dialog, "start");
+  await bulkActorInput(dialog).fill("system");
+  await writeBulkReason(page, dialog, "추적 사유 (필수)", "유효한 사유");
   await expect(confirm).toBeDisabled();
   await expect(dialog).toContainText("system을 사용할 수 없습니다");
-  await dialog.getByRole("textbox", { name: "공통 담당자 이름 · 감사 표식" }).fill("정상 담당자");
-  await dialog.getByRole("textbox", { name: "공통 추적 사유" }).fill("   ");
+  await bulkActorInput(dialog).fill("정상 담당자");
+  await expect(confirm).toBeEnabled();
+  await writeBulkReason(page, dialog, "추적 사유 (필수)", "   ");
   await expect(confirm).toBeDisabled();
-  await expect(dialog).toContainText("공통 추적 사유를 입력하십시오");
+  await expect(dialog).toContainText("사유를 직접 입력하십시오.");
+  // × 는 고른 값과 적어 둔 기타 문장을 함께 비운다(시안 ⑥).
+  await dialog.getByRole("textbox", { name: "사유 직접 입력" }).fill("지울 문장");
+  await expect(confirm).toBeEnabled();
+  await dialog.getByRole("button", { name: "추적 사유 (필수) 지우기" }).click();
+  await expect(dialog.getByRole("textbox", { name: "사유 직접 입력" })).toHaveCount(0);
+  await expect(confirm).toBeDisabled();
+  await expect(dialog).toContainText("추적 사유를 선택하십시오.");
+  await pickBulkReason(page, dialog, "추적 사유 (필수)", "기타 · 직접 입력");
+  await expect(dialog.getByRole("textbox", { name: "사유 직접 입력" })).toHaveValue("");
   expect(trace.previewPosts).toHaveLength(1);
   expect(trace.startPosts).toHaveLength(0);
 });
@@ -2344,10 +2408,10 @@ test("BT-same-frame-double-confirm-keeps-one-persisted-request-identity", async 
   await page.locator(".c2l-row").first().locator('input[type="checkbox"]').check();
   await page.getByRole("button", { name: "선택 항목 추적 시작", exact: true }).click();
   const dialog = page.getByTestId("order-plan-bulk-tracking-dialog");
-  await dialog.getByRole("button", { name: "선택 대상 미리보기", exact: true }).click();
-  await dialog.getByRole("textbox", { name: "공통 담당자 이름 · 감사 표식" }).fill("중복 확인 담당자");
-  await dialog.getByRole("textbox", { name: "공통 추적 사유" }).fill("같은 프레임 중복 확인");
-  const confirm = dialog.getByRole("button", { name: "확인하고 일괄 추적 시작", exact: true });
+  await waitBulkTargets(dialog);
+  await bulkActorInput(dialog).fill("중복 확인 담당자");
+  await writeBulkReason(page, dialog, "추적 사유 (필수)", "같은 프레임 중복 확인");
+  const confirm = bulkSaveButton(dialog, "start");
   await confirm.evaluate((button) => {
     button.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     button.dispatchEvent(new MouseEvent("click", { bubbles: true }));
@@ -2378,12 +2442,12 @@ test("BT-unknown-request-recovery-remains-reachable-after-filter-generation-clea
   await page.locator(".c2l-row").first().locator('input[type="checkbox"]').check();
   await page.getByRole("button", { name: "선택 항목 추적 시작", exact: true }).click();
   const dialog = page.getByTestId("order-plan-bulk-tracking-dialog");
-  await dialog.getByRole("button", { name: "선택 대상 미리보기", exact: true }).click();
-  await dialog.getByRole("textbox", { name: "공통 담당자 이름 · 감사 표식" }).fill("복구 담당자");
-  await dialog.getByRole("textbox", { name: "공통 추적 사유" }).fill("필터 전환 뒤 결과 확인");
-  await dialog.getByRole("button", { name: "확인하고 일괄 추적 시작", exact: true }).click();
+  await waitBulkTargets(dialog);
+  await bulkActorInput(dialog).fill("복구 담당자");
+  await writeBulkReason(page, dialog, "추적 사유 (필수)", "필터 전환 뒤 결과 확인");
+  await bulkSaveButton(dialog, "start").click();
   await expect(dialog).toContainText("결과를 확인할 수 없습니다");
-  await dialog.getByRole("button", { name: "닫기", exact: true }).click();
+  await bulkFooterClose(dialog).click();
   await clickPreset(page, "전체");
   await expect(page.getByTestId("order-plan-selection-toolbar")).toContainText("선택 0건");
   await expect(page.getByRole("button", { name: "저장된 일괄 요청 확인", exact: true })).toBeVisible();
@@ -2409,14 +2473,17 @@ test("BT-late-preview-from-closed-dialog-cannot-overwrite-reopened-binding", asy
   await rows.nth(0).locator('input[type="checkbox"]').check();
   await page.getByRole("button", { name: "선택 항목 추적 시작", exact: true }).click();
   let dialog = page.getByTestId("order-plan-bulk-tracking-dialog");
-  await dialog.getByRole("button", { name: "선택 대상 미리보기", exact: true }).click();
-  await expect(dialog).toContainText("선택 대상의 최신 상태");
-  await dialog.getByRole("button", { name: "닫기", exact: true }).click();
+  // 창을 열자마자 대상 확인이 시작되고, 첫 응답은 붙잡혀 있다.
+  await expect(dialog.getByTestId("order-plan-bulk-summary")).toContainText("대상 확인 중…");
+  await expect(bulkSaveButton(dialog, "start")).toHaveCount(0);
+  await expect(dialog.getByRole("button", { name: "추적 시작", exact: true })).toBeDisabled();
+  await dialog.getByRole("button", { name: "취소", exact: true }).click();
   await rows.nth(0).locator('input[type="checkbox"]').uncheck();
   await rows.nth(1).locator('input[type="checkbox"]').check();
   await page.getByRole("button", { name: "선택 항목 추적 시작", exact: true }).click();
   dialog = page.getByTestId("order-plan-bulk-tracking-dialog");
-  await dialog.getByRole("button", { name: "선택 대상 미리보기", exact: true }).click();
+  await waitBulkTargets(dialog);
+  await dialog.getByRole("button", { name: "세부", exact: true }).click();
   await expect(dialog.locator('[data-testid="order-plan-bulk-preview"]')).toContainText("102");
   releaseFirst?.();
   await expect(dialog.locator('[data-testid="order-plan-bulk-preview"]')).toContainText("102");
@@ -2430,15 +2497,15 @@ test("BT-preview-binding-refuses-confirm-after-browser-filter-generation-change"
   await page.locator(".c2l-row").first().locator('input[type="checkbox"]').check();
   await page.getByRole("button", { name: "선택 항목 추적 시작", exact: true }).click();
   const dialog = page.getByTestId("order-plan-bulk-tracking-dialog");
-  await dialog.getByRole("button", { name: "선택 대상 미리보기", exact: true }).click();
-  await expect(dialog.locator('[data-testid="order-plan-bulk-preview"]')).toBeVisible();
+  await waitBulkTargets(dialog);
   await page.evaluate(() => {
     window.history.pushState({}, "", "/order-plans?q=브라우저-뒤로앞으로");
     window.dispatchEvent(new PopStateEvent("popstate"));
   });
-  const confirm = dialog.getByRole("button", { name: "확인하고 일괄 추적 시작", exact: true });
+  const confirm = bulkSaveButton(dialog, "start");
   await expect(confirm).toBeDisabled();
-  await expect(dialog).toContainText("현재 선택과 미리보기의 기준이 다릅니다");
+  await expect(dialog).toContainText("현재 선택과 확인한 대상의 기준이 다릅니다");
+  await expect(dialog.getByRole("button", { name: "현재 선택으로 다시 확인", exact: true })).toBeVisible();
   expect(trace.startPosts).toHaveLength(0);
 });
 
@@ -2452,9 +2519,9 @@ test("BT-bulk-actor-and-reason-drafts-do-not-mutate-single-drafts", async ({ pag
   await page.locator(".c2l-row").first().locator('input[type="checkbox"]').check();
   await page.getByRole("button", { name: "선택 항목 추적 시작", exact: true }).click();
   const dialog = page.getByTestId("order-plan-bulk-tracking-dialog");
-  await dialog.getByRole("textbox", { name: "공통 담당자 이름 · 감사 표식" }).fill("일괄 담당자");
-  await dialog.getByRole("textbox", { name: "공통 추적 사유" }).fill("일괄 전용 사유");
-  await dialog.getByRole("button", { name: "닫기", exact: true }).click();
+  await bulkActorInput(dialog).fill("일괄 담당자");
+  await writeBulkReason(page, dialog, "추적 사유 (필수)", "일괄 전용 사유");
+  await dialog.getByRole("button", { name: "취소", exact: true }).click();
   await expect(page.locator(".c2l-tracking").getByLabel("담당자 이름 · 감사 표식")).toHaveValue("단건 담당자");
   await expect(page.getByRole("combobox", { name: "선택 사유" })).toContainText("후속 사전규격·공고 확인");
 });
@@ -2483,10 +2550,10 @@ test("BT-valid-receipt-stays-definitive-when-post-result-invalidation-fails", as
   await page.locator(".c2l-row").first().locator('input[type="checkbox"]').check();
   await page.getByRole("button", { name: "선택 항목 추적 시작", exact: true }).click();
   const dialog = page.getByTestId("order-plan-bulk-tracking-dialog");
-  await dialog.getByRole("button", { name: "선택 대상 미리보기", exact: true }).click();
-  await dialog.getByRole("textbox", { name: "공통 담당자 이름 · 감사 표식" }).fill("결과 담당자");
-  await dialog.getByRole("textbox", { name: "공통 추적 사유" }).fill("결과 확정 후 목록 갱신");
-  await dialog.getByRole("button", { name: "확인하고 일괄 추적 시작", exact: true }).click();
+  await waitBulkTargets(dialog);
+  await bulkActorInput(dialog).fill("결과 담당자");
+  await writeBulkReason(page, dialog, "추적 사유 (필수)", "결과 확정 후 목록 갱신");
+  await bulkSaveButton(dialog, "start").click();
   await expect(dialog).toContainText("일괄 추적 결과를 확인했습니다");
   await expect(dialog).not.toContainText("일괄 추적 결과를 확인할 수 없습니다");
 });
@@ -2508,13 +2575,25 @@ test("BE-select-three-end-tracking-confirm-and-result-hides-ended-plans-from-def
   // 이름으로 부른다. onClick·확인 창은 그대로다.
   await page.getByRole("button", { name: "선택 항목 제외", exact: true }).click();
   const dialog = page.getByTestId("order-plan-bulk-tracking-dialog");
-  await expect(dialog).toContainText("발주계획 일괄 추적 종료");
+  await expect(dialog.getByRole("heading", { name: "선택한 발주계획 추적 종료" })).toBeVisible();
+  await waitBulkTargets(dialog);
+  await expect(dialog.getByTestId("order-plan-bulk-summary")).toContainText("종료 3건 중 3건");
+  await dialog.getByRole("button", { name: "세부", exact: true }).click();
   await expect(dialog).toContainText("추적을 아직 정하지 않은 계획만 추적 종료로 저장합니다");
-  await dialog.getByRole("button", { name: "선택 대상 미리보기", exact: true }).click();
-  await dialog.getByRole("textbox", { name: "공통 담당자 이름 · 감사 표식" }).fill("종료 담당자");
-  await dialog.getByRole("textbox", { name: "공통 종료 사유" }).fill("현재 범위와 맞지 않아 능동 추적을 종료함");
+  await bulkActorInput(dialog).fill("종료 담당자");
+  // 종료 사유 선택지는 승인 시안의 네 문장과 기타다.
+  await dialog.getByRole("combobox", { name: "종료 사유 (필수)" }).click();
+  await expect(page.getByRole("option")).toHaveText([
+    "현재 검토 범위와 맞지 않음",
+    "중복·오탐으로 확인",
+    "참여 자격·실적 요건 미충족",
+    "사업 규모·시기가 맞지 않음",
+    "기타 · 직접 입력",
+  ]);
+  await page.getByRole("option", { name: "현재 검토 범위와 맞지 않음", exact: true }).click();
   await expect(dialog).toContainText("종료한 계획은 기본 보기(검토 대상)에서 사라집니다");
-  await dialog.getByRole("button", { name: "확인하고 일괄 추적 종료", exact: true }).click();
+  await expect(bulkSaveButton(dialog, "end")).toHaveText("3건 추적 종료");
+  await bulkSaveButton(dialog, "end").click();
   await expect(dialog).toContainText("일괄 추적 종료 결과를 확인했습니다");
   await expect(dialog).toContainText("추적 필터 '종료'와 사업 추적의 '추적 종료' 구역에서 볼 수 있습니다");
 
@@ -2523,12 +2602,12 @@ test("BE-select-three-end-tracking-confirm-and-result-hides-ended-plans-from-def
   expect(body).toMatchObject({
     schema_version: "order-plan-bulk-end-request.v1",
     order_plan_ids: [101, 102, 103],
-    reason: "현재 범위와 맞지 않아 능동 추적을 종료함",
+    reason: "현재 검토 범위와 맞지 않음",
   });
   // 비ASCII 담당자 이름은 `UTF-8''<percent-encoded>` 형식으로 나간다(docs/contracts.md).
   expect(decodeURIComponent(headers["x-bidops-actor-name"].replace(/^UTF-8''/, ""))).toBe("종료 담당자");
 
-  await dialog.getByRole("button", { name: "닫기", exact: true }).click();
+  await bulkFooterClose(dialog).click();
   await expect(page.getByRole("status").filter({ hasText: "건을 추적 종료했습니다" }))
     .toContainText("3건을 추적 종료했습니다 · 추적 필터 '종료'에서 볼 수 있습니다");
 
@@ -2548,11 +2627,11 @@ test("BE-blank-reason-blocks-confirm-and-sends-no-request", async ({ page }) => 
   await page.locator(".c2l-row").first().locator('input[type="checkbox"]').check();
   await page.getByRole("button", { name: "선택 항목 제외", exact: true }).click();
   const dialog = page.getByTestId("order-plan-bulk-tracking-dialog");
-  await dialog.getByRole("button", { name: "선택 대상 미리보기", exact: true }).click();
-  await dialog.getByRole("textbox", { name: "공통 담당자 이름 · 감사 표식" }).fill("종료 담당자");
-  const confirm = dialog.getByRole("button", { name: "확인하고 일괄 추적 종료", exact: true });
+  await waitBulkTargets(dialog);
+  await bulkActorInput(dialog).fill("종료 담당자");
+  const confirm = bulkSaveButton(dialog, "end");
   await expect(confirm).toBeDisabled();
-  await expect(dialog).toContainText("공통 종료 사유를 입력하십시오.");
+  await expect(dialog).toContainText("종료 사유를 선택하십시오.");
   expect(trace.endPosts).toHaveLength(0);
   expect(trace.startPosts).toHaveLength(0);
 });
@@ -2568,10 +2647,15 @@ test("BE-mixed-selection-preview-shows-eligible-and-status-exclusions", async ({
   await rows.filter({ hasText: "복지서비스 운영" }).locator('input[type="checkbox"]').check();
   await page.getByRole("button", { name: "선택 항목 제외", exact: true }).click();
   const dialog = page.getByTestId("order-plan-bulk-tracking-dialog");
-  await dialog.getByRole("button", { name: "선택 대상 미리보기", exact: true }).click();
-  await expect(dialog).toContainText("미선택 · 종료 가능");
-  await expect(dialog).toContainText("보류로 제외");
-  await expect(dialog).toContainText("종료로 제외");
+  await waitBulkTargets(dialog);
+  await expect(dialog.getByTestId("order-plan-bulk-summary")).toContainText("종료 3건 중 1건");
+  await expect(dialog.getByTestId("order-plan-bulk-summary")).toContainText("이미 보류 1건 · 이미 종료 1건은 바꾸지 않습니다.");
+  await expect(bulkSaveButton(dialog, "end")).toHaveText("1건 추적 종료");
+  await dialog.getByRole("button", { name: "세부", exact: true }).click();
+  const facts = dialog.getByTestId("order-plan-bulk-preview");
+  await expect(facts).toContainText("미선택 · 종료 가능");
+  await expect(facts).toContainText("보류로 제외");
+  await expect(facts).toContainText("종료로 제외");
 });
 
 test("BE-over-200-selection-disables-end-but-keeps-start-enabled", async ({ page }) => {
@@ -2631,8 +2715,9 @@ test("BE-legacy-v1-pending-request-migrates-and-recovers-through-start-endpoint-
   await expect(page.getByRole("button", { name: "저장된 일괄 요청 확인", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "저장된 일괄 요청 확인", exact: true }).click();
   const dialog = page.getByTestId("order-plan-bulk-tracking-dialog");
-  await expect(dialog).toContainText("발주계획 일괄 추적");
-  await expect(dialog).not.toContainText("발주계획 일괄 추적 종료");
+  await expect(dialog.getByRole("heading", { name: "선택한 발주계획 추적 시작" })).toBeVisible();
+  // 복구 화면은 새 대상 확인을 돌리지 않고 저장된 사유를 그대로 보인다.
+  await expect(dialog.getByTestId("order-plan-bulk-summary")).toHaveCount(0);
   await dialog.getByRole("button", { name: "저장된 요청 결과 확인", exact: true }).click();
   await expect(dialog).toContainText("일괄 추적 결과를 확인했습니다");
   expect(trace.startPosts).toHaveLength(1);
@@ -2655,17 +2740,17 @@ test("BE-pending-end-request-recovers-through-end-endpoint-even-when-start-dialo
   await page.locator(".c2l-row").first().locator('input[type="checkbox"]').check();
   await page.getByRole("button", { name: "선택 항목 제외", exact: true }).click();
   const endDialog = page.getByTestId("order-plan-bulk-tracking-dialog");
-  await endDialog.getByRole("button", { name: "선택 대상 미리보기", exact: true }).click();
-  await endDialog.getByRole("textbox", { name: "공통 담당자 이름 · 감사 표식" }).fill("종료 유실 담당자");
-  await endDialog.getByRole("textbox", { name: "공통 종료 사유" }).fill("응답 유실 확인");
-  await endDialog.getByRole("button", { name: "확인하고 일괄 추적 종료", exact: true }).click();
+  await waitBulkTargets(endDialog);
+  await bulkActorInput(endDialog).fill("종료 유실 담당자");
+  await writeBulkReason(page, endDialog, "종료 사유 (필수)", "응답 유실 확인");
+  await bulkSaveButton(endDialog, "end").click();
   await expect(endDialog).toContainText("일괄 추적 종료 결과를 확인할 수 없습니다");
-  await endDialog.getByRole("button", { name: "닫기", exact: true }).click();
+  await bulkFooterClose(endDialog).click();
 
   // 같은 선택 상태에서 시작 단추를 눌러도, 저장된 요청의 action(종료)이 이긴다.
   await page.getByRole("button", { name: "선택 항목 추적 시작", exact: true }).click();
   const startDialog = page.getByTestId("order-plan-bulk-tracking-dialog");
-  await expect(startDialog).toContainText("발주계획 일괄 추적 종료");
+  await expect(startDialog.getByRole("heading", { name: "선택한 발주계획 추적 종료" })).toBeVisible();
   await expect(startDialog).toContainText("저장된 요청 결과를 아직 확인하지 않았습니다");
   await startDialog.getByRole("button", { name: "저장된 요청 결과 확인", exact: true }).click();
   await expect(startDialog).toContainText("일괄 추적 종료 결과를 확인했습니다");

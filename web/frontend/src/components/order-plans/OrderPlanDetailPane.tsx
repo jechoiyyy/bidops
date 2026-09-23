@@ -121,11 +121,12 @@ function TrackingDecisionFields({
         <div className="c2l-reason-field">
           <Selector
             label="선택 사유"
+            hasClear
             onChange={(value) => onReasonChoiceChange(value ?? "")}
             options={TRACKING_REASON_OPTIONS}
             placeholder="사유를 선택하세요"
             size="sm"
-            value={reasonChoice || undefined}
+            value={reasonChoice || null}
             isDisabled={isDisabled}
           />
           {/* 드롭다운을 미리 채우지 않는다(PRD §3.3). 직전 사유는 **사람이 누를 때에만**
