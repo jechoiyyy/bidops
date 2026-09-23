@@ -164,12 +164,14 @@ test("전체 이력 제외 필터·단건 복원·URL 초기화·상세 표식",
 test("미저장 추적 입력의 취소는 제외 창과 요청을 열지 않는다", async ({ page }) => {
   const { requests } = await setup(page);
   await page.goto('/pre-specs');
-  await page.getByRole('textbox', { name: '담당자 이름 (필수)' }).fill('미저장 이름');
+  // 미저장 판정은 사유만 본다(2026-09-23). 담당자 이름만으로는 확인 창이 뜨지 않는다.
+  await page.getByRole('combobox', { name: '선택 사유' }).click();
+  await page.getByRole('option', { name: '후속 입찰공고 확인' }).click();
   await page.getByRole('button', { name: '검토 제외', exact: true }).click();
   const guard = page.getByRole('alertdialog', { name: '추적 결정 입력을 저장하지 않고 옮깁니다' });
   await expect(guard).toBeVisible();
   await guard.getByRole('button', { name: '계속 편집' }).click();
-  await expect(page.getByRole('textbox', { name: '담당자 이름 (필수)' })).toHaveValue('미저장 이름');
+  await expect(page.getByRole('combobox', { name: '선택 사유' })).toContainText('후속 입찰공고 확인');
   expect(requests).toHaveLength(0);
   await page.getByRole('button', { name: '검토 제외', exact: true }).click();
   await guard.getByRole('button', { name: '저장하지 않고 옮기기' }).click();
