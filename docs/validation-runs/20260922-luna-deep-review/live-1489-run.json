@@ -1,0 +1,56 @@
+{
+  "notice_id": 1489,
+  "review_id": "e283d380-5486-457e-b013-8cb104390205",
+  "attempt_id": "499eccac-d12e-4373-bae6-2774f63cce5b",
+  "http_status": 202,
+  "initial_status": "queued",
+  "preview_id": "aa02744d-e76d-4f0a-842d-3048875461d6",
+  "input_sha256": "75861a014c3615a55a1aae7e3ce00bba2acad93386fa859388cc85aef1ac3187",
+  "model": "gpt-5.6-luna",
+  "provider": "codex-exec",
+  "reasoning_effort": "xhigh",
+  "quality_status": "unmeasured_reference",
+  "source_verification_enabled": true,
+  "document_count": 1,
+  "profile_version_id": "d970500a-e30c-46cf-85e0-7e9a9e854f2b",
+  "created_at": "2026-09-23T00:01:14.479811Z",
+  "preceding_notice_id": 1481,
+  "preceding_review_id": "9266b914-319e-4b33-b5e8-5ea0db353f36",
+  "final_status": "failed",
+  "started_at": "2026-09-23T00:06:14.223957Z",
+  "completed_at": "2026-09-23T00:12:40.397096Z",
+  "error_code": "validation_failed",
+  "validator_code": "narrative:claim_relation_out_of_slice",
+  "diagnostic": {
+    "encrypted_raw_preserved": true,
+    "plaintext_hash_verified": true,
+    "responses": [
+      {
+        "slice_index": 0,
+        "claims": 20,
+        "evidence": 21,
+        "invalid_relation_ids": 1,
+        "invalid_ids_matching_evidence": 1,
+        "invalid_ids_unresolved": 0,
+        "affected_claims": 1,
+        "considered_claim_ids": 0
+      }
+    ]
+  },
+  "report_http_status": 409,
+  "report_count": 0,
+  "live_ui": [
+    {
+      "width": 1280,
+      "height": 800,
+      "status": "failed",
+      "overflow": 0
+    },
+    {
+      "width": 1440,
+      "height": 900,
+      "status": "failed",
+      "overflow": 0
+    }
+  ]
+}
