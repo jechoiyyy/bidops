@@ -1294,7 +1294,10 @@ export const api = {
 
   changePreSpecReviewExclusions: (body: PreSpecReviewExclusionRequest) =>
     request<PreSpecReviewExclusionResponse>("/pre-specs/review-exclusions", {
-      method: "POST", body: JSON.stringify(body),
+      method: "POST",
+      // 이 헤더가 없으면 FastAPI가 본문을 JSON으로 읽지 않아 422로 거부한다(2026-09-23 운영 결함).
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
     }),
 
   getPreSpecs: (params: PreSpecListQuery = {}, options?: ReadRequestOptions) =>

@@ -63,11 +63,15 @@ test("LS-BT 발주계획 선택과 확인 대화상자가 지원 폭 안에 보�
   await page.screenshot({ path: testInfo.outputPath("order-plan-selection.png") });
   await page.getByRole("button", { name: "선택 항목 추적 시작", exact: true }).click();
   const dialog = page.getByTestId("order-plan-bulk-tracking-dialog");
-  await dialog.getByRole("button", { name: "선택 대상 미리보기", exact: true }).click();
+  // 한 창 흐름: 열리면 대상 확인이 끝나 요약 줄이 채워진다. 세부를 펼친 가장 긴 상태를 잰다.
+  await expect(dialog.getByTestId("order-plan-bulk-summary")).toContainText("추적 시작 1건 중 1건");
+  await dialog.getByRole("button", { name: "세부", exact: true }).click();
   await expect(dialog.getByTestId("order-plan-bulk-preview")).toBeVisible();
-  await dialog.getByRole("textbox", { name: "공통 담당자 이름 · 감사 표식" }).fill("화면 검증 담당자");
-  await dialog.getByRole("textbox", { name: "공통 추적 사유" }).fill("합성 입력의 확인 화면 검증");
-  await expect(dialog.getByRole("button", { name: "확인하고 일괄 추적 시작", exact: true })).toBeEnabled();
+  await dialog.getByRole("textbox", { name: "담당자 이름 · 감사 표식 (필수)" }).fill("화면 검증 담당자");
+  await dialog.getByRole("combobox", { name: "추적 사유 (필수)" }).click();
+  await page.getByRole("option", { name: "기타 · 직접 입력", exact: true }).click();
+  await dialog.getByRole("textbox", { name: "사유 직접 입력" }).fill("합성 입력의 확인 화면 검증");
+  await expect(dialog.getByRole("button", { name: "1건 추적 시작", exact: true })).toBeEnabled();
   const bounds = await dialog.boundingBox();
   expect(bounds).not.toBeNull();
   expect(bounds!.x).toBeGreaterThanOrEqual(0);
@@ -117,11 +121,13 @@ test("pre-specs 제외 확인 창과 전체 이력 필터가 지원 폭 안에 �
   await page.goto('/pre-specs?workspace=all');
   await expect(page.getByRole('combobox', { name: '검토 포함 여부', exact: true })).toBeVisible();
   await page.getByRole('button', { name: '검토 제외', exact: true }).click();
-  const dialog = page.getByRole('dialog', { name: '검토 제외', exact: true });
+  const dialog = page.getByRole('dialog', { name: '선택한 사전규격 검토 제외', exact: true });
   await expect(dialog).toBeVisible();
-  await dialog.getByRole('textbox', { name: /^담당자/ }).fill('화면 검증 담당자');
-  await dialog.getByRole('textbox', { name: /^사유/ }).fill('긴 사전규격 제목과 검토 범위를 확인하고 목록에서 제외합니다.');
-  await expect(dialog.getByRole('button', { name: '검토 제외', exact: true })).toBeEnabled();
+  await dialog.getByRole('textbox', { name: '담당자 이름 · 감사 표식 (필수)' }).fill('화면 검증 담당자');
+  await dialog.getByRole('combobox', { name: '제외 사유 (필수)' }).click();
+  await page.getByRole('option', { name: '기타 · 직접 입력', exact: true }).click();
+  await dialog.getByRole('textbox', { name: '사유 직접 입력' }).fill('긴 사전규격 제목과 검토 범위를 확인하고 목록에서 제외합니다.');
+  await expect(dialog.getByRole('button', { name: '1건 검토 제외', exact: true })).toBeEnabled();
   await expectNoHorizontalOverflow(page);
   const bounds = await dialog.boundingBox();
   expect(bounds).not.toBeNull();

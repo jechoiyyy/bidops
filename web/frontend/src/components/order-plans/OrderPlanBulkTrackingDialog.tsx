@@ -1,10 +1,19 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Badge } from "@astryxdesign/core/Badge";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { InternationalizationProvider } from "@astryxdesign/core/i18n";
+import koKR from "@astryxdesign/core/locales/ko-KR.json";
 import { Button } from "@astryxdesign/core/Button";
 import { Dialog, DialogHeader } from "@astryxdesign/core/Dialog";
 import { Text } from "@astryxdesign/core/Text";
-import { TextArea } from "@astryxdesign/core/TextArea";
-import { TextInput } from "@astryxdesign/core/TextInput";
+import { ActorField } from "../common/ActorField";
+import {
+  BULK_EXCLUSION_REASONS,
+  BulkReasonField,
+  bulkReasonDraftFromText,
+  bulkReasonError,
+  bulkReasonText,
+  emptyBulkReason,
+  type BulkReasonDraft,
+} from "../common/BulkReasonField";
 import { ApiError, ORDER_PLAN_BULK_END_MAX_SELECTION, api, OrderPlanBulkTrackingResultUnconfirmedError } from "../../lib/api";
 import { describeOrderPlanBulkTrackingError } from "../../lib/apiErrors";
 import { generateRequestId } from "../../lib/requestId";
@@ -13,7 +22,9 @@ import type {
   OrderPlanBulkReceipt,
   OrderPlanBulkSummary,
 } from "../../lib/types";
+import { TRACKING_REASONS } from "./orderPlanFormat";
 import "../../styles/order-plans.css";
+import "../../styles/bulk-dialog.css";
 
 /** 일괄 추적 시작과 종료(ADR-0063)는 같은 상태 기계를 목표 상태만 바꿔 쓴다. */
 export type OrderPlanBulkTrackingMode = "start" | "end";
@@ -38,7 +49,12 @@ export interface OrderPlanBulkTrackingDialogProps {
 }
 
 type StorageLike = Pick<Storage, "getItem" | "setItem" | "removeItem">;
-type BulkPhase = "edit" | "previewing" | "confirming" | "pending" | "result" | "unknown" | "error";
+/**
+ * 한 창 흐름(2026-09-23 시안): 열리면 곧바로 대상을 확인(`previewing`)하고, 확인되면
+ * 입력과 저장이 한 화면(`ready`)에 있다. `idle`은 확인한 대상이 없는 상태다(선택 없음,
+ * 저장소 차단, 확인 실패, 선택·필터 세대 변경으로 버린 확인, 실패 건 재시도 준비 직후).
+ */
+type BulkPhase = "idle" | "previewing" | "ready" | "pending" | "result" | "unknown" | "error";
 
 interface PendingBulkRequest {
   request_id: string;
@@ -59,13 +75,16 @@ interface PreviewBinding {
 
 interface BulkDialogCopy {
   dialogTitle: string;
-  subtitle: string;
-  confirmHeading: string;
+  /** 어떤 계획만 바꾸는지의 규칙 문장. `세부` 안에 둔다. */
+  rule: string;
+  /** 요약 줄 머리말: `종료 N건 중 M건`, `추적 시작 N건 중 M건`. */
+  summaryVerb: string;
+  /** 저장 단추: `M건 추적 종료`, `M건 추적 시작`. */
+  saveVerb: string;
   reasonLabel: string;
-  reasonPlaceholder: string;
+  reasonOptions: readonly string[];
   reasonRequiredError: string;
   eligibleLabel: string;
-  confirmButtonLabel: string;
   cannotStartMessage: string;
   storageUnavailableTitle: string;
   writeErrorSuffix: string;
@@ -76,21 +95,20 @@ interface BulkDialogCopy {
   failuresAriaLabel: string;
   errorFallbackDescription: string;
   endWarning: string | null;
-  confirmDisabledFallback: string;
   overSelectionMessage: string;
 }
 
 /** 문구는 여기 한 곳에 모은다. 단계 흐름·검증·복구 로직은 모드와 무관하게 공유한다. */
 const COPY: Record<OrderPlanBulkTrackingMode, BulkDialogCopy> = {
   start: {
-    dialogTitle: "발주계획 일괄 추적",
-    subtitle: "미선택 상태인 계획만 계속 추적으로 저장합니다. 이미 결정된 상태와 소유권을 확인할 수 없는 항목은 바꾸지 않습니다.",
-    confirmHeading: "",
-    reasonLabel: "공통 추적 사유",
-    reasonPlaceholder: "선택한 계획을 함께 추적하는 이유",
-    reasonRequiredError: "공통 추적 사유를 입력하십시오.",
+    dialogTitle: "선택한 발주계획 추적 시작",
+    rule: "미선택 상태인 계획만 계속 추적으로 저장합니다. 이미 결정된 상태와 소유권을 확인할 수 없는 항목은 바꾸지 않습니다.",
+    summaryVerb: "추적 시작",
+    saveVerb: "추적 시작",
+    reasonLabel: "추적 사유 (필수)",
+    reasonOptions: TRACKING_REASONS,
+    reasonRequiredError: "추적 사유를 선택하십시오.",
     eligibleLabel: "미선택 · 실행 가능",
-    confirmButtonLabel: "확인하고 일괄 추적 시작",
     cannotStartMessage: "일괄 추적을 시작할 수 없습니다. 선택 저장소를 사용할 수 없어 단건 추적 경로를 사용하십시오.",
     storageUnavailableTitle: "일괄 추적을 사용할 수 없습니다.",
     writeErrorSuffix: "일괄 추적을 보내지 않았습니다. 단건 추적 경로를 사용하십시오.",
@@ -101,18 +119,17 @@ const COPY: Record<OrderPlanBulkTrackingMode, BulkDialogCopy> = {
     failuresAriaLabel: "일괄 추적 실패 항목",
     errorFallbackDescription: "일괄 추적 작업을 완료하지 못했습니다.",
     endWarning: null,
-    confirmDisabledFallback: "담당자 이름과 공통 추적 사유를 입력해야 저장할 수 있습니다.",
     overSelectionMessage: "",
   },
   end: {
-    dialogTitle: "발주계획 일괄 추적 종료",
-    subtitle: "추적을 아직 정하지 않은 계획만 추적 종료로 저장합니다",
-    confirmHeading: "추적 종료 내용을 확인하십시오",
-    reasonLabel: "공통 종료 사유",
-    reasonPlaceholder: "선택한 계획의 추적을 끝내는 이유",
-    reasonRequiredError: "공통 종료 사유를 입력하십시오.",
+    dialogTitle: "선택한 발주계획 추적 종료",
+    rule: "추적을 아직 정하지 않은 계획만 추적 종료로 저장합니다. 이미 결정된 상태와 소유권을 확인할 수 없는 항목은 바꾸지 않습니다.",
+    summaryVerb: "종료",
+    saveVerb: "추적 종료",
+    reasonLabel: "종료 사유 (필수)",
+    reasonOptions: BULK_EXCLUSION_REASONS,
+    reasonRequiredError: "종료 사유를 선택하십시오.",
     eligibleLabel: "미선택 · 종료 가능",
-    confirmButtonLabel: "확인하고 일괄 추적 종료",
     cannotStartMessage: "일괄 추적 종료를 시작할 수 없습니다. 선택 저장소를 사용할 수 없어 단건 추적 경로를 사용하십시오.",
     storageUnavailableTitle: "일괄 추적 종료를 사용할 수 없습니다.",
     writeErrorSuffix: "일괄 추적 종료를 보내지 않았습니다. 단건 추적 경로를 사용하십시오.",
@@ -122,8 +139,7 @@ const COPY: Record<OrderPlanBulkTrackingMode, BulkDialogCopy> = {
     resultExtraNote: "종료한 건은 추적 필터 '종료'와 사업 추적의 '추적 종료' 구역에서 볼 수 있습니다.",
     failuresAriaLabel: "일괄 추적 종료 실패 항목",
     errorFallbackDescription: "일괄 추적 종료 작업을 완료하지 못했습니다.",
-    endWarning: "종료한 계획은 기본 보기(검토 대상)에서 사라집니다. 추적 필터 '종료'에서 한 건씩 되돌릴 수 있고, 한꺼번에 되돌리는 기능은 없습니다.",
-    confirmDisabledFallback: "담당자 이름과 공통 종료 사유를 입력해야 저장할 수 있습니다.",
+    endWarning: "종료한 계획은 기본 보기(검토 대상)에서 사라집니다. 추적 필터 '종료'에서 한 건씩 되돌릴 수 있습니다.",
     overSelectionMessage: `한 번에 ${ORDER_PLAN_BULK_END_MAX_SELECTION}건까지 종료할 수 있습니다. 선택을 줄이십시오.`,
   },
 };
@@ -136,16 +152,12 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
 /** Backend human-name validation mirrored only for preflight UX. */
 function validateActor(value: string): string | null {
   const clean = value.trim();
-  if (!clean) return "공통 담당자 이름을 입력하십시오.";
+  if (!clean) return "담당자 이름을 입력하십시오.";
   if ([...clean].length > 128) return "담당자 이름은 128자 이하여야 합니다.";
   // C0, DEL, and C1 controls are rejected by the tracking service.
   if (/[\u0000-\u001f\u007f-\u009f]/u.test(clean)) return "담당자 이름에 제어 문자를 넣을 수 없습니다.";
   if (/^system$/iu.test(clean)) return "담당자 이름으로 system을 사용할 수 없습니다.";
   return null;
-}
-
-function validateReason(value: string, requiredError: string): string | null {
-  return value.trim() ? null : requiredError;
 }
 
 function getStorage(): StorageLike | null {
@@ -364,6 +376,21 @@ function PreviewFacts({ preview, eligibleLabel }: { preview: OrderPlanBulkPrevie
   );
 }
 
+/** 요약 줄에서 바꾸지 않는 건수. 0이 아닌 것만 적는다. */
+function unchangedParts(preview: OrderPlanBulkPreviewResponse): string[] {
+  const parts: string[] = [];
+  const byStatus = preview.excluded_by_status;
+  if (byStatus["계속 추적"].plan_count > 0) parts.push(`이미 계속 추적 ${byStatus["계속 추적"].plan_count.toLocaleString("ko-KR")}건`);
+  if (byStatus["보류"].plan_count > 0) parts.push(`이미 보류 ${byStatus["보류"].plan_count.toLocaleString("ko-KR")}건`);
+  if (byStatus["종료"].plan_count > 0) parts.push(`이미 종료 ${byStatus["종료"].plan_count.toLocaleString("ko-KR")}건`);
+  // 조회 실패는 상태 제외가 아니지만 요약의 두 수 차이를 설명해야 하므로 함께 적는다.
+  if (preview.failure_plan_count > 0) parts.push(`소유권·조회 실패 ${preview.failure_plan_count.toLocaleString("ko-KR")}건`);
+  return parts;
+}
+
+const ACTOR_DESCRIPTION = "감사 표식이며 로그인·신원 인증이 아닙니다.";
+const SERVER_RECHECK_NOTE = "저장 순간 서버가 최신 상태를 다시 확인하므로 건수가 달라질 수 있습니다.";
+
 export function OrderPlanBulkTrackingDialog({
   open,
   mode,
@@ -379,9 +406,10 @@ export function OrderPlanBulkTrackingDialog({
   storageAvailable,
   storageError = null,
 }: OrderPlanBulkTrackingDialogProps) {
-  const [phase, setPhase] = useState<BulkPhase>("edit");
-  const [reason, setReason] = useState("");
+  const [phase, setPhase] = useState<BulkPhase>("idle");
+  const [reasonDraft, setReasonDraft] = useState<BulkReasonDraft>(() => emptyBulkReason(COPY[mode].reasonOptions));
   const [bulkActor, setBulkActor] = useState(actorName);
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const [preview, setPreview] = useState<OrderPlanBulkPreviewResponse | null>(null);
   const [result, setResult] = useState<OrderPlanBulkReceipt | null>(null);
   const [error, setError] = useState<unknown>(null);
@@ -395,6 +423,8 @@ export function OrderPlanBulkTrackingDialog({
   const [cleanupError, setCleanupError] = useState<string | null>(null);
   const [postResultError, setPostResultError] = useState<string | null>(null);
   const currentIds = useMemo(() => normalizeIds(selectedIds), [selectedIds]);
+  const detailsId = useId();
+  const blockerId = useId();
   const inFlightRef = useRef(false);
   const openRef = useRef(false);
   const mountedRef = useRef(false);
@@ -422,30 +452,35 @@ export function OrderPlanBulkTrackingDialog({
   const failedIds = result?.items.filter((item) => item.outcome === "failed").map((item) => item.order_plan_id) ?? [];
   const storageBlocked = !storageAvailable || Boolean(storageError) || Boolean(storageMessage) || Boolean(pendingStorageError) || Boolean(cleanupError);
   const retryBlocked = Boolean(pendingStorageError);
-  const readyToPreview = !storageBlocked && currentIds.length > 0;
   const actor = bulkActor.trim();
-  const trimmedReason = reason.trim();
+  const trimmedReason = bulkReasonText(reasonDraft);
   const actorError = validateActor(bulkActor);
-  const reasonError = validateReason(reason, copy.reasonRequiredError);
+  const reasonError = bulkReasonError(reasonDraft, copy.reasonRequiredError);
   const previewContextMatches = previewBinding !== null
     && previewBinding.selection_generation === selectionGeneration
     && previewBinding.filter_fingerprint === filterFingerprint
     && previewBinding.ids.length === currentIds.length
     && previewBinding.ids.every((id, index) => id === currentIds[index]);
-  const previewContextChanged = phase === "confirming" && !previewContextMatches;
+  const previewContextChanged = phase === "ready" && !previewContextMatches;
   const overSelectionLimit = effectiveMode === "end" && previewIds.length > ORDER_PLAN_BULK_END_MAX_SELECTION;
-  const confirmDisabledReason = previewContextChanged
-    ? "현재 선택으로 다시 미리보기한 뒤 확인하십시오."
-    : overSelectionLimit
-      ? copy.overSelectionMessage
-      : actorError ?? reasonError
-        ?? (!actor || !trimmedReason ? copy.confirmDisabledFallback : null)
-        ?? (storageBlocked ? "일괄 요청 저장소를 확인할 수 없어 새 요청을 만들 수 없습니다." : "확인하면 현재 미리보기의 계획을 저장합니다.");
+  const formPhase = phase === "idle" || phase === "previewing" || phase === "ready";
+  /** 저장을 막는 이유. 막히지 않았으면 `null`이고 그 줄을 그리지 않는다. */
+  const saveBlocker = phase === "previewing"
+    ? "대상을 확인한 뒤 저장할 수 있습니다."
+    : phase !== "ready" || !preview
+      ? (currentIds.length ? "대상을 확인해야 저장할 수 있습니다." : "선택한 발주계획이 없습니다.")
+      : previewContextChanged
+        ? "현재 선택으로 다시 확인한 뒤 저장하십시오."
+        : overSelectionLimit
+          ? copy.overSelectionMessage
+          : reasonError ?? actorError
+            ?? (storageBlocked ? "일괄 요청 저장소를 확인할 수 없어 새 요청을 만들 수 없습니다." : null);
   const retryContextMatches = request === null
     || (request.selection_generation === selectionGeneration && request.filter_fingerprint === filterFingerprint);
-  const canConfirm = phase === "confirming" && Boolean(actor) && Boolean(trimmedReason)
+  const canConfirm = phase === "ready" && saveBlocker === null && Boolean(actor) && Boolean(trimmedReason)
     && !actorError && !reasonError && Boolean(preview?.selected_plan_count) && !inFlightRef.current
     && !storageBlocked && !previewContextChanged && !overSelectionLimit;
+  const canRecheck = !storageBlocked && currentIds.length > 0 && phase !== "previewing";
 
   useEffect(() => {
     mountedRef.current = true;
@@ -464,16 +499,18 @@ export function OrderPlanBulkTrackingDialog({
     setCleanupError(null);
     setPostResultError(null);
     setPreviewContextError(null);
+    setDetailsOpen(false);
     const stored = readPending();
     if (stored.error) {
       setStorageMessage(stored.error);
       setPendingStorageError(stored.error);
       setRecovery(null);
+      setPhase("idle");
     } else if (stored.value) {
       setRecovery(stored.value);
       setRequest(stored.value);
       requestRef.current = stored.value;
-      setReason(stored.value.reason);
+      setReasonDraft(bulkReasonDraftFromText(stored.value.reason, COPY[stored.value.action].reasonOptions));
       setBulkActor(stored.value.actor);
       setPhase("unknown");
     } else {
@@ -485,10 +522,14 @@ export function OrderPlanBulkTrackingDialog({
       setPreviewIds(currentIds);
       setPreviewBinding(null);
       setPreviewContextError(null);
-      setReason("");
+      setReasonDraft(emptyBulkReason(COPY[mode].reasonOptions));
       setBulkActor(actorRef.current);
-      setPhase("edit");
+      setPhase("idle");
+      // 한 창 흐름: 복구할 요청이 없고 선택이 있으면 열자마자 대상을 확인한다.
+      if (storageAvailable && !storageError && currentIds.length > 0) void previewSelection(currentIds);
     }
+  // previewSelection·mode·storage 값은 창이 열린 그 렌더의 값을 쓴다.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentIds, open]);
 
   useEffect(() => {
@@ -503,7 +544,7 @@ export function OrderPlanBulkTrackingDialog({
     if (open) return;
     openRef.current = false;
     if (phase !== "pending") {
-      setPhase("edit");
+      setPhase("idle");
       setError(null);
     }
   }, [open, phase]);
@@ -535,6 +576,7 @@ export function OrderPlanBulkTrackingDialog({
     previewAbortRef.current?.abort();
     const controller = new AbortController();
     previewAbortRef.current = controller;
+    setPreview(null);
     setPreviewIds(normalized);
     setPreviewBinding({
       ids: normalized,
@@ -556,13 +598,13 @@ export function OrderPlanBulkTrackingDialog({
           setPreview(null);
           setPreviewBinding(null);
           setPreviewIds(context.ids);
-          setPreviewContextError("목록 조건·선택이 바뀌어 이전 미리보기를 버렸습니다. 현재 선택을 다시 미리보십시오.");
-          setPhase("edit");
+          setPreviewContextError("목록 조건·선택이 바뀌어 확인한 대상을 버렸습니다. 현재 선택으로 다시 확인하십시오.");
+          setPhase("idle");
         }
         return;
       }
       setPreview(response);
-      setPhase("confirming");
+      setPhase("ready");
     } catch (caught) {
       if (controller.signal.aborted || sequence !== previewSequenceRef.current || !mountedRef.current || !openRef.current) return;
       const context = currentContextRef.current;
@@ -574,12 +616,12 @@ export function OrderPlanBulkTrackingDialog({
         setPreview(null);
         setPreviewBinding(null);
         setPreviewIds(context.ids);
-        setPreviewContextError("목록 조건·선택이 바뀌어 이전 미리보기 오류를 버렸습니다. 현재 선택을 다시 미리보십시오.");
-        setPhase("edit");
+        setPreviewContextError("목록 조건·선택이 바뀌어 이전 대상 확인 오류를 버렸습니다. 현재 선택으로 다시 확인하십시오.");
+        setPhase("idle");
         return;
       }
       setError(caught);
-      setPhase("edit");
+      setPhase("idle");
     } finally {
       if (previewAbortRef.current === controller) previewAbortRef.current = null;
     }
@@ -651,7 +693,7 @@ export function OrderPlanBulkTrackingDialog({
     if (inFlightRef.current) return;
     if (!canConfirm || !preview) return;
     if (!previewContextMatches) {
-      setPreviewContextError("목록 조건·선택이 바뀌어 미리보기와 현재 대상이 다릅니다. 현재 선택을 다시 미리보십시오.");
+      setPreviewContextError("목록 조건·선택이 바뀌어 확인한 대상과 현재 선택이 다릅니다. 현재 선택으로 다시 확인하십시오.");
       return;
     }
     const ids = normalizeIds(previewIds);
@@ -673,7 +715,7 @@ export function OrderPlanBulkTrackingDialog({
     const writeError = savePending(savedRequest);
     if (writeError) {
       setStorageMessage(`${writeError} ${copy.writeErrorSuffix}`);
-      setPhase("confirming");
+      setPhase("ready");
       return;
     }
     void send(savedRequest);
@@ -687,7 +729,7 @@ export function OrderPlanBulkTrackingDialog({
   function retryFailed() {
     if (!failedIds.length) return;
     if (!retryContextMatches) {
-      setPreviewContextError("목록 조건·선택 세대가 바뀌어 이전 실패 건을 바로 재시도할 수 없습니다. 현재 선택을 다시 미리보십시오.");
+      setPreviewContextError("목록 조건·선택 세대가 바뀌어 이전 실패 건을 바로 재시도할 수 없습니다. 현재 선택으로 다시 확인하십시오.");
       return;
     }
     setRequest(null);
@@ -696,7 +738,10 @@ export function OrderPlanBulkTrackingDialog({
     setError(null);
     setRecovery(null);
     setPreviewIds(failedIds);
-    setPhase("edit");
+    setDetailsOpen(false);
+    setPhase("idle");
+    // 실패 건만 남은 현재 선택을 다시 확인한다. 새 요청은 사람이 저장을 눌러야 만든다.
+    void previewSelection(currentIds);
   }
 
   const description = error
@@ -720,154 +765,193 @@ export function OrderPlanBulkTrackingDialog({
   // tree. Hidden bulk fields would collide with the single-row actor input.
   if (!open) return null;
 
+  const showPreview = phase === "ready" && preview !== null;
+  const unchanged = showPreview ? unchangedParts(preview) : [];
+  const saveLabel = showPreview
+    ? `${preview.eligible_plan_count.toLocaleString("ko-KR")}건 ${copy.saveVerb}`
+    : copy.saveVerb;
+
+  // 사유 Selector의 지우기 단추 이름을 한국어로 읽히게 한다(사전규격 제외 창과 같은 방식).
   return (
-    <Dialog
-      isOpen={open}
-      maxHeight="90dvh"
-      onOpenChange={(next) => { if (!next) close(); }}
-      purpose="form"
-      width={680}
-    >
-      <div className="c2l-bulk-dialog" data-testid="order-plan-bulk-tracking-dialog">
-        <DialogHeader
-          title={effectiveMode === "end" && phase === "confirming" ? copy.confirmHeading : copy.dialogTitle}
-          onOpenChange={() => close()}
-        />
-        <div className="c2l-dialog-body">
-          <Text type="supporting" color="secondary" as="p">
-            {copy.subtitle}
-          </Text>
-          {!storageAvailable || storageError || storageMessage ? (
-            <div className="c2l-bulk-error" role="alert">
-              <strong>{copy.storageUnavailableTitle}</strong>
-              <span>{storageMessage ?? storageError ?? "선택 저장소를 사용할 수 없습니다."} 단건 추적 경로를 사용하십시오.</span>
-            </div>
-          ) : null}
-          {recovery && phase === "unknown" && !error ? (
-            <div className="c2l-bulk-recovery" role="status">
-              저장된 요청 결과를 아직 확인하지 않았습니다. 새 요청을 만들지 않고 같은 요청으로 확인하십시오.
-              <Button label="저장된 요청 결과 확인" variant="primary" isDisabled={retryBlocked || !request || inFlightRef.current} onClick={retrySameRequest} />
-            </div>
-          ) : null}
-          {previewContextError && phase !== "confirming" ? (
-            <div className="c2l-bulk-error" role="alert">
-              <strong>미리보기를 다시 확인하십시오.</strong>
-              <span>{previewContextError}</span>
-            </div>
-          ) : null}
-          {phase === "edit" ? (
-            <>
-              <div className="c2l-bulk-selection-summary">
-                <Badge variant="neutral" label={`선택 ${currentIds.length}건`} />
-                <Text type="supporting" color="secondary" as="span">여러 페이지에서 고른 ID를 함께 확인합니다.</Text>
+    <InternationalizationProvider locale="ko-KR" messages={{ "ko-KR": koKR }}>
+      <Dialog
+        isOpen={open}
+        maxHeight="90dvh"
+        onOpenChange={(next) => { if (!next) close(); }}
+        purpose="form"
+        width={680}
+      >
+        <div className="bulk-dialog" data-testid="order-plan-bulk-tracking-dialog">
+          <DialogHeader title={copy.dialogTitle} onOpenChange={() => close()} />
+          <div className="bulk-dialog-body">
+            {!storageAvailable || storageError || storageMessage ? (
+              <div className="c2l-bulk-error" role="alert">
+                <strong>{copy.storageUnavailableTitle}</strong>
+                <span>{storageMessage ?? storageError ?? "선택 저장소를 사용할 수 없습니다."} 단건 추적 경로를 사용하십시오.</span>
               </div>
-              <TextInput
-                label="공통 담당자 이름 · 감사 표식"
-                value={bulkActor}
-                onChange={setBulkActor}
-                placeholder="이름 입력"
-              />
-              <TextArea
-                label={copy.reasonLabel}
-                value={reason}
-                onChange={setReason}
-                rows={3}
-                placeholder={copy.reasonPlaceholder}
-              />
-              <div className="c2l-bulk-actions">
-                <Button
-                  label="선택 대상 미리보기"
-                  variant="primary"
-                  isDisabled={!readyToPreview}
-                  onClick={() => void previewSelection(currentIds)}
-                />
+            ) : null}
+            {recovery && phase === "unknown" && !error ? (
+              <div className="c2l-bulk-recovery" role="status">
+                저장된 요청 결과를 아직 확인하지 않았습니다. 새 요청을 만들지 않고 같은 요청으로 확인하십시오.
+                <Button label="저장된 요청 결과 확인" variant="primary" isDisabled={retryBlocked || !request || inFlightRef.current} onClick={retrySameRequest} />
               </div>
-            </>
-          ) : null}
-          {phase === "previewing" ? <Text type="body" color="secondary" as="p" role="status">선택 대상의 최신 상태를 미리 확인하는 중…</Text> : null}
-          {phase === "confirming" && preview ? (
-            <>
-              <PreviewFacts preview={preview} eligibleLabel={copy.eligibleLabel} />
-              {previewContextChanged ? (
-                <div className="c2l-bulk-error" role="alert">
-                  <strong>현재 선택과 미리보기의 기준이 다릅니다.</strong>
-                  <span>{previewContextError ?? "브라우저 뒤로·앞으로 또는 필터 변경으로 선택 세대가 바뀌었습니다. 새 요청을 만들기 전에 현재 선택을 다시 미리보십시오."}</span>
-                  <Button label="현재 선택으로 다시 미리보기" variant="secondary" isDisabled={storageBlocked || currentIds.length === 0} onClick={() => void previewSelection(currentIds)} />
+            ) : null}
+            {previewContextError && phase !== "ready" ? (
+              <div className="c2l-bulk-error" role="alert">
+                <strong>대상을 다시 확인하십시오.</strong>
+                <span>{previewContextError}</span>
+              </div>
+            ) : null}
+            {formPhase ? (
+              <>
+                <div className="bulk-dialog-summary" data-testid="order-plan-bulk-summary">
+                  {phase === "previewing" ? (
+                    <strong role="status">대상 확인 중…</strong>
+                  ) : showPreview ? (
+                    <>
+                      <strong role="status">
+                        {copy.summaryVerb} {preview.selected_plan_count.toLocaleString("ko-KR")}건 중 {preview.eligible_plan_count.toLocaleString("ko-KR")}건
+                      </strong>
+                      {unchanged.length ? (
+                        <span className="bulk-dialog-summary-detail">{unchanged.join(" · ")}은 바꾸지 않습니다.</span>
+                      ) : null}
+                      <span className="bulk-dialog-summary-toggle">
+                        <Button
+                          aria-controls={detailsId}
+                          aria-expanded={detailsOpen}
+                          label={detailsOpen ? "세부 닫기" : "세부"}
+                          onClick={() => setDetailsOpen((value) => !value)}
+                          size="sm"
+                          variant="ghost"
+                        />
+                      </span>
+                    </>
+                  ) : currentIds.length ? (
+                    <>
+                      <strong role="status">선택 {currentIds.length.toLocaleString("ko-KR")}건</strong>
+                      <span className="bulk-dialog-summary-detail">대상을 아직 확인하지 않았습니다.</span>
+                      <span className="bulk-dialog-summary-toggle">
+                        <Button
+                          label="현재 선택으로 다시 확인"
+                          onClick={() => void previewSelection(currentIds)}
+                          isDisabled={!canRecheck}
+                          size="sm"
+                          variant="secondary"
+                        />
+                      </span>
+                    </>
+                  ) : (
+                    <strong role="status">선택한 발주계획이 없습니다.</strong>
+                  )}
                 </div>
-              ) : null}
-              <Text type="supporting" color="secondary" as="p">
-                미리보기 뒤 저장 시점에 서버가 최신 소유권·추적 상태를 다시 확인합니다. 최종 건수는 달라질 수 있습니다.
-              </Text>
-              {copy.endWarning ? (
-                <p className="c2l-bulk-warning">{copy.endWarning}</p>
-              ) : null}
-              <TextInput label="공통 담당자 이름 · 감사 표식" value={bulkActor} onChange={setBulkActor} placeholder="이름 입력" />
-              <TextArea label={copy.reasonLabel} value={reason} onChange={setReason} rows={3} placeholder={copy.reasonPlaceholder} />
-              <div className="c2l-bulk-actions">
-                <Button label="미리보기로 돌아가기" variant="ghost" isDisabled={inFlightRef.current} onClick={() => setPhase("edit")} />
-                <Button aria-describedby="c2l-bulk-confirm-reason" label={copy.confirmButtonLabel} variant="primary" isDisabled={!canConfirm} onClick={confirm} />
+                {showPreview ? (
+                  <div className="bulk-dialog-details" id={detailsId} hidden={!detailsOpen}>
+                    <Text type="supporting" color="secondary" as="p">{copy.rule}</Text>
+                    <PreviewFacts preview={preview} eligibleLabel={copy.eligibleLabel} />
+                  </div>
+                ) : null}
+                {previewContextChanged ? (
+                  <div className="c2l-bulk-error" role="alert">
+                    <strong>현재 선택과 확인한 대상의 기준이 다릅니다.</strong>
+                    <span>{previewContextError ?? "브라우저 뒤로·앞으로 또는 필터 변경으로 선택 세대가 바뀌었습니다. 새 요청을 만들기 전에 현재 선택으로 다시 확인하십시오."}</span>
+                    <Button label="현재 선택으로 다시 확인" variant="secondary" isDisabled={!canRecheck} onClick={() => void previewSelection(currentIds)} />
+                  </div>
+                ) : null}
+              </>
+            ) : null}
+            {error && phase !== "unknown" ? (
+              <div className="c2l-bulk-error" role="alert">
+                <strong>{description?.title ?? "일괄 추적 대상을 확인할 수 없습니다."}</strong>
+                <span>{description?.detail ?? "선택을 바꾸지 않고 다시 시도하십시오."}</span>
+                {phase === "error" ? <span>서버가 요청을 거부했습니다. 같은 요청을 자동으로 다시 보내지 않았습니다.</span> : null}
               </div>
-              <Text id="c2l-bulk-confirm-reason" type="supporting" color="secondary" as="p" role="status">
-                {confirmDisabledReason}
-              </Text>
-            </>
-          ) : null}
-          {phase === "pending" ? (
-            <div className="c2l-bulk-pending" role="status" aria-live="polite">
-              <strong>{copy.pendingHeading}</strong>
-              <span>{pendingIds.length}건 · 입력과 선택은 잠겨 있습니다. 응답을 기다리는 동안 이탈할 수 없습니다.</span>
-            </div>
-          ) : null}
-          {phase === "unknown" && error ? (
-            <div className="c2l-bulk-error" role="alert">
-              <strong>{description?.title ?? copy.unknownFallbackTitle}</strong>
-              <span>{description?.detail ?? "같은 요청 결과 확인을 눌러 저장된 결과를 확인하십시오."}</span>
-              {request ? <span>요청 식별자 <code>{request.request_id}</code> · 새 요청을 자동으로 만들지 않았습니다.</span> : null}
-              <div className="c2l-bulk-actions">
-                <Button label="같은 요청 결과 확인" variant="primary" isDisabled={retryBlocked || !request || inFlightRef.current} onClick={retrySameRequest} />
+            ) : null}
+            {formPhase ? (
+              <>
+                <div className="bulk-dialog-fields">
+                  <BulkReasonField
+                    label={copy.reasonLabel}
+                    options={copy.reasonOptions}
+                    value={reasonDraft}
+                    onChange={setReasonDraft}
+                  />
+                  <ActorField
+                    label="담당자 이름 · 감사 표식 (필수)"
+                    description={ACTOR_DESCRIPTION}
+                    remember={false}
+                    value={bulkActor}
+                    onChange={setBulkActor}
+                    placeholder="이름 입력"
+                  />
+                </div>
+                {copy.endWarning ? <p className="bulk-dialog-warning">{copy.endWarning}</p> : null}
+                {saveBlocker ? (
+                  <p id={blockerId} className="bulk-dialog-blocker" role="status">{saveBlocker}</p>
+                ) : null}
+              </>
+            ) : null}
+            {phase === "pending" ? (
+              <div className="c2l-bulk-pending" role="status" aria-live="polite">
+                <strong>{copy.pendingHeading}</strong>
+                <span>{pendingIds.length}건 · 입력과 선택은 잠겨 있습니다. 응답을 기다리는 동안 이탈할 수 없습니다.</span>
               </div>
-            </div>
-          ) : null}
-          {phase === "result" && result ? (
-            <div className="c2l-bulk-result" role="status" data-testid="order-plan-bulk-result">
-              <strong>{copy.resultHeading}</strong>
-              {postResultError ? <span role="alert">{postResultError}</span> : null}
-              {cleanupError ? <span role="alert">{cleanupError} 새 요청은 저장소 확인 후에만 만들 수 있습니다.</span> : null}
-              <Text type="body" color="secondary" as="p">
-                성공 {result.summary.succeeded_plan_count}건 · 상태 제외 {result.summary.excluded_plan_count}건 · 실패 {result.summary.failed_plan_count}건
-              </Text>
-              {copy.resultExtraNote ? (
-                <Text type="supporting" color="secondary" as="p">{copy.resultExtraNote}</Text>
-              ) : null}
-              {failedIds.length ? (
+            ) : null}
+            {phase === "unknown" && error ? (
+              <div className="c2l-bulk-error" role="alert">
+                <strong>{description?.title ?? copy.unknownFallbackTitle}</strong>
+                <span>{description?.detail ?? "같은 요청 결과 확인을 눌러 저장된 결과를 확인하십시오."}</span>
+                {request ? <span>요청 식별자 <code>{request.request_id}</code> · 새 요청을 자동으로 만들지 않았습니다.</span> : null}
+                <div className="c2l-bulk-actions">
+                  <Button label="같은 요청 결과 확인" variant="primary" isDisabled={retryBlocked || !request || inFlightRef.current} onClick={retrySameRequest} />
+                </div>
+              </div>
+            ) : null}
+            {phase === "result" && result ? (
+              <div className="c2l-bulk-result" role="status" data-testid="order-plan-bulk-result">
+                <strong>{copy.resultHeading}</strong>
+                {postResultError ? <span role="alert">{postResultError}</span> : null}
+                {cleanupError ? <span role="alert">{cleanupError} 새 요청은 저장소 확인 후에만 만들 수 있습니다.</span> : null}
+                <Text type="body" color="secondary" as="p">
+                  성공 {result.summary.succeeded_plan_count}건 · 상태 제외 {result.summary.excluded_plan_count}건 · 실패 {result.summary.failed_plan_count}건
+                </Text>
+                {copy.resultExtraNote ? (
+                  <Text type="supporting" color="secondary" as="p">{copy.resultExtraNote}</Text>
+                ) : null}
+                {failedIds.length ? (
+                  <>
+                    <Text type="supporting" color="secondary" as="p">실패 항목은 선택에 남아 있습니다. 원인을 확인한 뒤 실패 건만 새 요청으로 재시도할 수 있습니다.</Text>
+                    <ul className="c2l-bulk-failures" aria-label={copy.failuresAriaLabel}>
+                      {result.items.filter((item) => item.outcome === "failed").map((item) => (
+                        <li key={item.order_plan_id}>계획 ID {item.order_plan_id} · {failureLabel(item.code)}</li>
+                      ))}
+                    </ul>
+                    <Button label="실패 건 재시도 준비" variant="secondary" isDisabled={storageBlocked || !retryContextMatches} onClick={retryFailed} />
+                  </>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+          {phase !== "pending" ? (
+            <div className="bulk-dialog-footer">
+              {formPhase ? (
                 <>
-                  <Text type="supporting" color="secondary" as="p">실패 항목은 선택에 남아 있습니다. 원인을 확인한 뒤 실패 건만 새 요청으로 재시도할 수 있습니다.</Text>
-                  <ul className="c2l-bulk-failures" aria-label={copy.failuresAriaLabel}>
-                    {result.items.filter((item) => item.outcome === "failed").map((item) => (
-                      <li key={item.order_plan_id}>계획 ID {item.order_plan_id} · {failureLabel(item.code)}</li>
-                    ))}
-                  </ul>
-                  <Button label="실패 건 재시도 준비" variant="secondary" isDisabled={storageBlocked || !retryContextMatches} onClick={retryFailed} />
+                  <p className="bulk-dialog-footer-note">{SERVER_RECHECK_NOTE}</p>
+                  <Button label="취소" variant="secondary" onClick={close} />
+                  <Button
+                    aria-describedby={saveBlocker ? blockerId : undefined}
+                    label={saveLabel}
+                    variant="primary"
+                    isDisabled={!canConfirm}
+                    onClick={confirm}
+                  />
                 </>
-              ) : null}
-              <Button label="닫기" variant="ghost" onClick={onClose} />
+              ) : (
+                <Button label="닫기" variant="secondary" onClick={close} />
+              )}
             </div>
           ) : null}
-          {error && phase !== "unknown" ? (
-            <div className="c2l-bulk-error" role="alert">
-              <strong>{description?.title ?? "일괄 추적 미리보기를 확인할 수 없습니다."}</strong>
-              <span>{description?.detail ?? "선택을 바꾸지 않고 다시 시도하십시오."}</span>
-              {phase === "error" ? <span>서버가 요청을 거부했습니다. 같은 요청을 자동으로 다시 보내지 않았습니다.</span> : null}
-            </div>
-          ) : null}
-          {phase !== "pending" && phase !== "result" ? (
-            <div className="c2l-bulk-actions">
-              <Button label="닫기" variant="ghost" onClick={close} />
-            </div>
-          ) : null}
-          {phase === "edit" && !currentIds.length ? <Text type="supporting" color="secondary" as="p">선택한 발주계획이 없습니다.</Text> : null}
         </div>
-      </div>
-    </Dialog>
+      </Dialog>
+    </InternationalizationProvider>
   );
 }

@@ -209,14 +209,19 @@ export function TrackingDecisionControl({
     setStatus(item.tracking_status && item.tracking_status !== "미선택" ? item.tracking_status : TRACKING_DECISION_STATUSES[0]);
   }, [item?.notice_pk]);
 
-  // 사유와 담당자는 저장 전까지 이 컴포넌트에만 있다. 화면을 떠나면 사라지므로
-  // 여기서 직접 route 이동을 막는다. 부르는 화면(PreSpecsPage·PreSpecDetailPage)이
-  // 같은 규칙을 다시 구현하지 않게 하려는 것이며, 목록의 행 전환은 목록이
-  // `onDirtyChange`로 받아 자기 자리에서 확인해야 한다.
+  // 사유는 저장 전까지 이 컴포넌트에만 있다. 화면을 떠나면 사라지므로 여기서 직접
+  // route 이동을 막는다. 부르는 화면(PreSpecsPage·PreSpecDetailPage)이 같은 규칙을
+  // 다시 구현하지 않게 하려는 것이며, 목록의 행 전환은 목록이 `onDirtyChange`로
+  // 받아 자기 자리에서 확인해야 한다.
+  //
+  // dirty는 사유(프리셋 선택 또는 자유 입력)만 본다. 담당자 이름만 채우고 사유가
+  // 비어 있으면 저장할 수 없는 입력이라 잃을 것이 없으므로, 그 상태에서 다른 공고로
+  // 옮기거나 상세를 떠나도 확인 창을 띄우지 않는다. 사유가 있으면 담당자 이름도
+  // 함께 잃으므로 guard summary는 계속 둘 다 보여 준다.
   //
   // 범위가 `pathname`인 이유: 두 화면 모두 선택·필터를 검색 인자로 옮기므로
   // `any`로 두면 사유를 적는 중에 목록 조작마다 이탈 확인이 뜬다.
-  const dirty = reason.trim().length > 0 || actorName.trim().length > 0;
+  const dirty = presetChoice !== "" || reason.trim().length > 0;
   const guard = useUnsavedGuard(dirty, {
     blockSpaNavigation: true,
     scope: "pathname",
@@ -449,11 +454,12 @@ export function TrackingDecisionControl({
                   placeholder={record ? "추적을 시작하는 사유를 선택하세요" : "사유를 선택하세요"}
                   isRequired={record}
                   isDisabled={mutation.isPending}
+                  hasClear
                   options={[
                     ...(reasonPresets ?? []).map((preset) => ({ value: preset, label: preset })),
                     { value: OTHER_REASON_PRESET, label: "기타 · 직접 입력" },
                   ]}
-                  value={presetChoice || undefined}
+                  value={presetChoice || null}
                   onChange={(next) => {
                     const chosen = next ?? "";
                     setPresetChoice(chosen);
