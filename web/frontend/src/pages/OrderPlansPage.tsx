@@ -1327,6 +1327,13 @@ export function OrderPlansPage() {
     saveSessionValue(TRACKING_ACTOR_STORAGE_KEY, value);
   }
 
+  /** Selector의 지우기 단추(`hasClear`)로 선택이 비면 `기타` 자유 입력도 함께 비운다.
+   * 비워 둔 채 다른 사유를 고르면 그 값이 그대로 실리므로 별도 처리가 필요 없다. */
+  function changeReasonChoice(value: string) {
+    setReasonChoice(value);
+    if (value === "") setCustomReason("");
+  }
+
   /** 직전 사유를 지금 건에 다시 쓴다. preset에 없는 문장은 `기타`의 자유 입력으로 들어간다. */
   function reuseLastReason() {
     if (!lastReason) return;
@@ -1897,7 +1904,7 @@ export function OrderPlansPage() {
               customReason={customReason}
               onCustomReasonChange={setCustomReason}
               reasonChoice={reasonChoice}
-              onReasonChoiceChange={setReasonChoice}
+              onReasonChoiceChange={changeReasonChoice}
               lastReason={lastReason}
               onReuseLastReason={reuseLastReason}
               selectedIndex={selectedIndex}
