@@ -1864,3 +1864,53 @@ class DeepReviewApproval(Base):
 @event.listens_for(DeepReviewApproval, "before_delete")
 def _immutable_luna_input(*_args: Any) -> None:
     raise ValueError("Luna preview and approval are immutable")
+
+
+class AssumptionInputVersion(Base):
+    __tablename__ = "assumption_input_version"
+    id: Mapped[uuid_module.UUID] = _uuid_column(primary_key=True)
+    notice_id: Mapped[int] = mapped_column(_fk("notice.id", ondelete="RESTRICT"), nullable=False)
+    bundle_id: Mapped[uuid_module.UUID] = mapped_column(_fk("document_bundle.id", ondelete="RESTRICT"), nullable=False)
+    profile_version_id: Mapped[uuid_module.UUID] = mapped_column(_fk("profile_version.id", ondelete="RESTRICT"), nullable=False)
+    input_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    input_snapshot: Mapped[dict[str, Any]] = mapped_column(JSONB_COMPAT, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(AwareDateTime(), default=utc_now, nullable=False)
+    __table_args__ = (CheckConstraint("length(input_sha256) = 64", name="ck_assumption_input_hash"),)
+
+
+class AssumptionRun(Base):
+    __tablename__ = "assumption_run"
+    id: Mapped[uuid_module.UUID] = _uuid_column(primary_key=True)
+    notice_id: Mapped[int] = mapped_column(_fk("notice.id", ondelete="RESTRICT"), nullable=False)
+    input_version_id: Mapped[uuid_module.UUID] = mapped_column(_fk("assumption_input_version.id", ondelete="RESTRICT"), nullable=False, unique=True)
+    work_job_id: Mapped[uuid_module.UUID] = mapped_column(_fk("work_job.id", ondelete="RESTRICT"), nullable=False, unique=True)
+    request_id: Mapped[uuid_module.UUID] = mapped_column(Uuid, nullable=False, unique=True)
+    claimed_name: Mapped[str] = mapped_column(String(128), nullable=False)
+    approved_at: Mapped[datetime] = mapped_column(AwareDateTime(), default=utc_now, nullable=False)
+
+
+class AssumptionStage(Base):
+    """One immutable invocation result; progress lives in the existing WorkJob."""
+    __tablename__ = "assumption_stage"
+    id: Mapped[uuid_module.UUID] = _uuid_column(primary_key=True)
+    run_id: Mapped[uuid_module.UUID] = mapped_column(_fk("assumption_run.id", ondelete="RESTRICT"), nullable=False)
+    stage: Mapped[str] = mapped_column(String(16), nullable=False)
+    part: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    started_at: Mapped[datetime] = mapped_column(AwareDateTime(), nullable=False)
+    completed_at: Mapped[datetime] = mapped_column(AwareDateTime(), nullable=False)
+    latency_ms: Mapped[int] = mapped_column(Integer, nullable=False)
+    error_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    result: Mapped[dict[str, Any] | None] = mapped_column(JSONB_NULL_COMPAT, nullable=True)
+    raw_content_object_id: Mapped[uuid_module.UUID | None] = mapped_column(_fk("content_object.id", ondelete="RESTRICT"), nullable=True)
+    __table_args__ = (
+        UniqueConstraint("run_id", "stage", "part", name="uq_assumption_stage_part"),
+        CheckConstraint("stage IN ('business','company','decision')", name="ck_assumption_stage_name"),
+        CheckConstraint("status IN ('completed','failed')", name="ck_assumption_stage_status"),
+        CheckConstraint("part >= 0 AND latency_ms >= 0", name="ck_assumption_stage_numbers"),
+    )
+
+
+for _assumption_model in (AssumptionInputVersion, AssumptionRun, AssumptionStage):
+    event.listen(_assumption_model, "before_update", _immutable_luna_input)
+    event.listen(_assumption_model, "before_delete", _immutable_luna_input)

@@ -420,6 +420,10 @@ COMPOSE_PROJECT_NAME=bidops \
 
 ## 백업과 복구
 
+서버 이전용으로 현재 이미지·DB·MinIO·미커밋 소스를 한 폴더에 보존하고 로컬에서 열려면
+[서버 이전용 전체 폴더](docs/operations.md#서버-이전용-전체-폴더)의 `scripts/transfer.py`를 사용한다.
+생성 폴더는 평문 운영 설정과 회사자료를 포함하므로 Git에서 제외한다.
+
 ```bash
 # PostgreSQL: timestamp custom-format dump를 ./backups/postgres에 만든다 (기존 백업을 지우지 않는다)
 COMPOSE_PROJECT_NAME=bidops docker compose \

@@ -1,0 +1,33 @@
+/* A안의 목차·설명형 본문·원문 패널을 제품 셸 안에 배치한다. */
+.assumption-page{height:100%;display:flex;flex-direction:column;min-height:0;font-size:var(--bo-type-body)}
+.assumption-page>header{padding:var(--spacing-3) var(--spacing-5);border-bottom:var(--border-width) solid var(--color-border)}
+.assumption-reader{display:flex;flex-direction:column;min-height:0;flex:1;color:var(--color-text-primary);font-size:var(--bo-type-body)}
+.assumption-toolbar,.assumption-footer{display:flex;align-items:center;justify-content:space-between;gap:var(--spacing-4);padding:var(--spacing-3) var(--spacing-5);background:var(--color-background-surface)}
+.assumption-toolbar>div{display:flex;gap:var(--spacing-2)}
+.assumption-scroll{overflow:auto;min-height:0;flex:1;background:var(--color-background-body)}
+.assumption-grid{display:grid;grid-template-columns:calc(var(--spacing-12)*4) minmax(0,1fr);gap:var(--spacing-5);padding:var(--spacing-6)}
+.assumption-toc{position:sticky;top:var(--spacing-4);align-self:start;display:flex;flex-direction:column;gap:var(--spacing-3);font-size:var(--bo-type-caption)}
+.assumption-toc a{padding:var(--spacing-2);border-radius:var(--radius-element);text-decoration:none;color:var(--color-text-secondary)}
+.assumption-toc a[aria-current]{background:var(--color-accent-muted);color:var(--color-text-accent);font-weight:var(--font-weight-semibold)}
+.assumption-prose{background:var(--color-background-surface);padding:var(--spacing-8);min-width:0;border-top:var(--spacing-1) solid var(--color-accent);line-height:1.95;overflow-wrap:anywhere}
+.assumption-prose h1{font-size:var(--bo-type-page-title)}
+.assumption-prose h2{font-size:var(--bo-type-page-title);margin-block:var(--spacing-3)}
+.assumption-prose p{margin-block:var(--spacing-4);white-space:pre-wrap}
+.assumption-section{padding-block:var(--spacing-8);border-bottom:var(--border-width) solid var(--color-border);scroll-margin-top:var(--spacing-4)}
+.assumption-section>header{margin-bottom:var(--spacing-6)}
+.assumption-section small{font-size:var(--bo-type-caption);color:var(--color-text-secondary)}
+.assumption-section>div{margin-block:var(--spacing-5)}
+.assumption-takeaway{padding:var(--spacing-5);background:var(--color-accent-muted);border-left:var(--spacing-1) solid var(--color-accent)}
+.assumption-citation{font-size:var(--bo-type-caption);color:var(--color-text-accent);background:var(--color-accent-muted);border:var(--border-width) solid var(--color-border);border-radius:var(--radius-element);padding:var(--spacing-1) var(--spacing-3);cursor:pointer}
+.assumption-warning{color:var(--color-text-secondary);font-size:var(--bo-type-caption)}
+.assumption-table{overflow-x:auto;max-width:100%}
+.assumption-evidence{position:sticky;top:var(--spacing-4);align-self:start;max-height:calc(100vh - var(--spacing-12)*5);overflow:auto;background:var(--color-background-surface);border:var(--border-width) solid var(--color-border);padding:var(--spacing-4);min-width:0;font-size:var(--bo-type-body)}
+.assumption-evidence header{display:flex;justify-content:space-between;align-items:center;gap:var(--spacing-2)}
+.assumption-evidence h2,.assumption-evidence h3{font-size:var(--bo-type-section-title)}
+.assumption-evidence p,.assumption-evidence pre{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.8;margin-block:var(--spacing-3)}
+.assumption-evidence section{padding-block:var(--spacing-4);border-top:var(--border-width) solid var(--color-border)}
+.assumption-reader.has-evidence .assumption-grid{grid-template-columns:minmax(0,1fr) calc(var(--spacing-12)*7)}
+.assumption-reader.has-evidence .assumption-toc,.assumption-reader.is-focused .assumption-toc{display:none}
+.assumption-reader.is-focused:not(.has-evidence) .assumption-grid{grid-template-columns:minmax(0,1fr);max-width:calc(var(--spacing-12)*20);margin-inline:auto}
+.assumption-reader.is-large .assumption-prose p{font-size:var(--bo-type-page-title)}
+.assumption-footer{font-size:var(--bo-type-caption);border-top:var(--border-width) solid var(--color-border)}

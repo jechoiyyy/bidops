@@ -19,6 +19,7 @@ export function NarrativeReportReader({ report, checks, revision, executionStatu
   const article = useRef<HTMLElement | null>(null);
   const focusTrigger = useRef<HTMLElement | null>(null);
   const evidence = useQuery({ queryKey: ["deep-review-evidence", selected], queryFn: () => getEvidence(selected!), enabled: selected !== null });
+  const resultValidationSkipped = checks.some(check => check.check_type === "result_validation_skipped");
   const sourceVerificationSkipped = checks.some(check => check.check_type === "source_verification_skipped");
   const byId = new Map(report.claims.map(row => [row.claim_id, row]));
   const sourceIds = [...new Set(report.claims.flatMap(row => row.evidence_ids))];
@@ -52,7 +53,7 @@ export function NarrativeReportReader({ report, checks, revision, executionStatu
         {["completed", "failed"].includes(executionStatus) ? <Button label="분석 설정" variant="ghost" size="sm" onClick={() => { setFocused(false); onAnalysisSettings(); }} /> : null}
         <Button label="검토 의견·수정 기록" size="sm" onClick={() => { setFocused(false); onRecords(); }} />
       </div>
-      <p className="narrative-note">{qualityStatusLabel(report.quality_status)} · {sourceVerificationSkipped ? "원문 대조 미실시" : "근거 검증"} {sourceVerificationSkipped ? "· 인용과 수치는 직접 확인하십시오" : report.validation_summary.status === "passed" ? (report.validation_summary.warnings ? `확인 필요 ${report.validation_summary.warnings}건` : "통과") : "실패 · 원문 재확인 필요"}. 최종 입찰 Go/No-Go는 별도 판단입니다.</p>
+      <p className="narrative-note">{qualityStatusLabel(report.quality_status)} · {resultValidationSkipped ? "검증 미실시 · 내용·참조·누락을 직접 확인하십시오" : sourceVerificationSkipped ? "원문 대조 미실시" : "근거 검증"} {resultValidationSkipped ? "" : sourceVerificationSkipped ? "· 인용과 수치는 직접 확인하십시오" : report.validation_summary.status === "passed" ? (report.validation_summary.warnings ? `확인 필요 ${report.validation_summary.warnings}건` : "통과") : "실패 · 원문 재확인 필요"}. 최종 입찰 Go/No-Go는 별도 판단입니다.</p>
       {executionStatus !== "completed" ? <p role="status" className="narrative-notice">이전 완성 보고서를 표시합니다. 현재 분석은 {executionStatus === "failed" ? "실패했습니다" : "진행 중입니다"}. 새 분석이 완료되기 전에는 이 보고서를 수정하거나 의견을 저장할 수 없습니다.</p> : null}
     </header>
     <div className={`narrative-reading${selected ? " has-source" : ""}`}>

@@ -1,0 +1,55 @@
+{
+  "schema_version": "bidops.collection-provenance.v1",
+  "generated_at": "2026-09-26T22:00:09.432635+00:00",
+  "source_raw": null,
+  "source_window": {
+    "from": "2026-09-23",
+    "to": "2026-09-26",
+    "timezone": "Asia/Seoul"
+  },
+  "options": {
+    "rows": 500,
+    "timeout": 300,
+    "skip_bids": false,
+    "skip_prespecs": false,
+    "tag_bid_sw_industry": true
+  },
+  "sources": [
+    {
+      "source": "bid",
+      "endpoint": "https://apis.data.go.kr/1230000/ad/BidPublicInfoService/getBidPblancListInfoServc"
+    },
+    {
+      "source": "prespec",
+      "endpoint": "https://apis.data.go.kr/1230000/ao/HrcspSsstndrdInfoService/getPublicPrcureThngInfoServcPPSSrch"
+    },
+    {
+      "source": "industry1468",
+      "endpoint": "https://apis.data.go.kr/1230000/ad/BidPublicInfoService/getBidPblancListInfoServcPPSSrch"
+    }
+  ],
+  "complete": true,
+  "warnings": [],
+  "raw_pages": [
+    {
+      "path": "raw/bid-page-001.json",
+      "source_path": null,
+      "sha256": "96efe5aca9142b8bd8c298079a4bd88fda7368b450fccd2e651b2e29b906bf79"
+    },
+    {
+      "path": "raw/bid-page-002.json",
+      "source_path": null,
+      "sha256": "e88128762f8aabcbd0e60e74e7e9f461e0a0a7b9e7bbd99eb7be53c08327b883"
+    },
+    {
+      "path": "raw/industry1468-page-001.json",
+      "source_path": null,
+      "sha256": "6030ce3ca49e54b542f10c1ea2bac5a0334aab14db632664bc5e24e6c8ffda1b"
+    },
+    {
+      "path": "raw/prespec-page-001.json",
+      "source_path": null,
+      "sha256": "d9e2eab9d77cbcc01fd2ab509880dcb27b477ccadcc54c600891161209c1fb35"
+    }
+  ]
+}

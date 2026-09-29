@@ -250,3 +250,7 @@ python -m app.workers.analysis
 ```
 
 CLI 세 진입점은 §8 그대로다.
+
+2026-09-23 소유표 보완: `deep_review_preview`, `deep_review_approval`(0032)과
+`assumption_input_version`, `assumption_run`, `assumption_stage`(0033)는 deep_review가
+소유한다. 합성 worker 조립은 공개 `run_assumption_analysis_once`만 호출한다.

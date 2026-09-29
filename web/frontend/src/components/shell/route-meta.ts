@@ -219,6 +219,15 @@ export const routeMetadata = {
   // 여는 화면이고, 자동으로 시작된 심층 검토의 진입점도 거기다(ADR-0049).
   // 사업 추적 상세에서도 보고서 ID로 열 수 있으므로, 주소에 `from=opportunities`
   // 가 있으면 그쪽을 상위로 본다.
+  assumptionAnalysis: {
+    title: "가정 분석 보고서",
+    dataScope: "cumulative",
+    runSelectorVisible: false,
+    navGroup: "탐색과 추적",
+    navPath: "/pre-specs",
+    ancestors: [{ label: "사전규격", path: "/pre-specs" }],
+    listPath: null,
+  },
   deepReview: {
     title: "심층 검토 보고서",
     dataScope: "cumulative",

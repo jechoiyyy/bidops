@@ -106,3 +106,30 @@ def test_strict_locator_schema_keeps_authority_shapes():
 def test_schema_error_is_not_classified_from_prompt_words():
     assert runner.error_code('Authentication smoke test. ERROR: Invalid schema for response_format') == 'schema_invalid'
     assert runner.error_code('authentication diagnostic') == 'runner_failed'
+
+
+def test_assumption_contract_uses_fixed_schema_and_same_model(monkeypatch):
+    import hashlib
+    from uuid import uuid4
+    schema_path = RUNNER.parents[1] / 'backend/app/deep_review/contracts/bidops.assumption-stage.v1.json'
+    authority = json.loads(schema_path.read_text())
+    assert runner.output_schema(authority) == runner.cli_schema(authority)
+    prompt = 'synthetic-only'
+    call_id = str(uuid4())
+    seen = []
+    def transport(request):
+        if request.method == 'POST':
+            seen.append(json.loads(request.content))
+            return httpx.Response(202, json={'call_id': call_id})
+        if request.method == 'DELETE':
+            return httpx.Response(200, json={})
+        return httpx.Response(200, json={'status':'completed','raw_response':'{"sections":[]}',
+            'cli_version':'0.155.1','input_sha256':hashlib.sha256(prompt.encode()).hexdigest(),'latency_ms':1})
+    client=LunaClient('http://codex-runner:8091',lambda:None,time.monotonic()+60,transport=httpx.MockTransport(transport))
+    try:
+        result=client.invoke_prompt(prompt,contract='assumption-stage-v1')
+        assert seen == [{'prompt':prompt,'contract':'assumption-stage-v1'}]
+        assert result.model == 'gpt-5.6-luna'
+        assert result.structured_output == {'sections':[]}
+    finally:
+        client.close()

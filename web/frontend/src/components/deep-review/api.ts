@@ -265,3 +265,10 @@ export function previewDeepReview(noticeId: number, bundleId: string, verificati
     body: JSON.stringify({ bundle_id: bundleId, source_verification_enabled: verification, review_id: reviewId }),
   });
 }
+
+export const assumptionApi = {
+  preview: (noticeId: number, bundleId: string) => request<import('../assumption-analysis/types').Preview>(`/notices/${noticeId}/assumption-analysis-previews`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({bundle_id: bundleId}) }),
+  create: (noticeId: number, previewId: string, requestId: string, actor: string) => request<{id: string}>(`/notices/${noticeId}/assumption-analyses`, { method: 'POST', headers: jsonMutationHeaders(actor), body: JSON.stringify({preview_id: previewId, request_id: requestId}) }),
+  list: (noticeId: number) => request<{items: {id: string; status: string; approved_at: string; error_code: string | null}[]}>(`/notices/${noticeId}/assumption-analyses`),
+  get: (id: string) => request<import('../assumption-analysis/types').Analysis>(`/assumption-analyses/${id}`),
+};

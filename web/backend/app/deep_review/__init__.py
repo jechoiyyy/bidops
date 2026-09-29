@@ -34,6 +34,8 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "attachments_router": (".routers.attachments", "router"),
     "bid_decision_queue_router": (".routers.bid_delta", "decision_queue_router"),
     "bid_delta_router": (".routers.bid_delta", "router"),
+    "assumption_analysis_router": (".routers.assumption_analysis", "router"),
+    "run_assumption_analysis_once": (".services.assumption_analysis", "run_once"),
     "deep_reviews_router": (".routers.deep_reviews", "router"),
     "document_bundles_router": (".routers.document_bundles", "router"),
     "pre_spec_overview_router": (".routers.deep_reviews", "pre_spec_overview_router"),

@@ -243,7 +243,7 @@ def _policy_hash_matches(policy: AnalysisPolicyVersion) -> bool:
     snapshot = rules.get("policy_snapshot")
     if isinstance(snapshot, Mapping):
         try:
-            approved, _, digest = load_canonical_policy(CANONICAL_POLICY_FILE.with_name("analysis-policy-luna-v1.json" if policy.model_endpoint_ref == "codex-exec" else "analysis-policy-narrative-v2.json"))
+            approved, _, digest = load_canonical_policy(_approved_policy_path(snapshot))
         except InputVersionError:
             return False
         return (snapshot == approved and policy.policy_sha256 == digest
@@ -693,6 +693,15 @@ def _validate_profile_snapshot(
             raise InputVersionError("service_unavailable", "profile evidence locator가 fact와 일치하지 않습니다")
 
 
+def _approved_policy_path(policy: Mapping[str, Any]) -> Path:
+    if policy.get("schema") == POLICY_SCHEMA:
+        return CANONICAL_POLICY_FILE
+    if policy.get("model_endpoint_ref") == "codex-exec":
+        version = "v3" if policy.get("validation", {}).get("result_checks") == "disabled_reference_v1" else "v2" if policy.get("validation", {}).get("related_claim_policy") == "omit_invalid_with_warning_v1" else "v1"
+        return CANONICAL_POLICY_FILE.with_name(f"analysis-policy-luna-{version}.json")
+    return CANONICAL_POLICY_FILE.with_name("analysis-policy-narrative-v2.json")
+
+
 def load_canonical_policy(path: Path | None = None) -> tuple[dict[str, Any], bytes, str]:
     policy_path = Path(path or CANONICAL_POLICY_FILE)
     try:
@@ -705,7 +714,7 @@ def load_canonical_policy(path: Path | None = None) -> tuple[dict[str, Any], byt
     canonical = canonical_json_bytes(policy)
     if raw != canonical:
         raise InputVersionError("invalid_request", "canonical analysis policy bytes가 승인본과 다릅니다")
-    approved_path = CANONICAL_POLICY_FILE if policy["schema"] == POLICY_SCHEMA else CANONICAL_POLICY_FILE.with_name("analysis-policy-luna-v1.json" if policy.get("model_endpoint_ref") == "codex-exec" else "analysis-policy-narrative-v2.json")
+    approved_path = _approved_policy_path(policy)
     if policy_path.resolve() != approved_path.resolve():
         try:
             approved = json.loads(approved_path.read_bytes().decode("utf-8"))

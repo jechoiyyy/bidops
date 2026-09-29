@@ -681,3 +681,11 @@ validator 실패는 결과를 자동 보정하지 않는다. report renderer는 
 runner는 DB·MinIO·저장소 없이 전용 인증 secret만 사용한다.
 [계약](contracts.md#사용자-요청-기반-luna-심층검토-adr-0069)과
 [적용 절차](0922_luna-deep-review/apply.md)를 따른다.
+
+### 별도 가정 분석 경로 (2026-09-23, 운영 적용 전)
+
+1489번의 확정 문서·회사 프로필에 사용자 가정을 분리한 불변 입력을 승인한 후,
+합성 worker가 C-2 → 심층검토 → 가정 분석 → 회사 핏 → 개요 순서로 한 작업만 실행한다.
+가정 분석은 기존 Codex runner에 허용 목록 계약 `assumption-stage-v1`을 선택해
+세 요청을 보내며 기존 심층검토 계약은 그대로다. 완성/부분 결과와 근거 레지스트리는
+별도 REST를 통해 A안 React reader가 읽는다. [작업 정본](0923_assumption-analysis/intent.md).

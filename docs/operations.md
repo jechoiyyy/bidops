@@ -1538,3 +1538,65 @@ v7이며 v8 활성화는 별도 품질 비교와 정책 변경 확인을 요구�
 묶어 적용한다. 각 운영 단계 직전 확인을 받는다. 구현·가짜 실행기 검증으로 실제
 Luna 인증·모델 접근·실자료 품질이 확인됐다고 쓰지 않는다. 심층 자동 시작 기본값은
 off이며 수집·문서 준비·개요를 끄지 않는다.
+
+### 1489 가정 분석 배포 준비 (2026-09-23)
+
+0033 입력/승인/단계 표, runner의 별도 schema, web/analysis/첨부 worker 이미지가 필요하다.
+기존 회사 프로필·Luna v3 활성 정책은 유지하며 새 가정 분석 입력에 별도 계약/코드 hash를
+동결한다. 운영 migration·서비스 교체·실제 전송은 각각 직전 확인한다. 준비·복구·검증
+내역은 [가정 분석 계획](0923_assumption-analysis/plan.md#운영-적용-준비와-직전-확인)을 따른다.
+
+## 서버 이전용 전체 폴더
+
+`scripts/transfer.py`는 현재 실행 이미지, PostgreSQL 논리 dump·역할, 중지 상태의 MinIO
+전체 볼륨, 앱 데이터 볼륨, 미커밋 소스와 호스트 입력을 한 폴더로 보존한다. 기존 버전별
+객체 복구와 달리 MinIO 물리 볼륨을 같은 이미지로 복원하므로 객체 version ID가 유지된다.
+사용자가 선택한 **평문 보관** 방식이며 환경 파일·회사자료·인증 파일·복호화 키를 포함한다.
+생성 위치는 Git에서 제외된 `backups/transfer/`로 제한한다. 과거 백업 묶음은 포함하지 않는다.
+
+```bash
+# 준비: 서비스 변경 없이 현재 이미지 8종 등의 실제 구성을 보존한다.
+python3 scripts/transfer.py prepare --project bidops \
+  --bundle "$PWD/backups/transfer/<UTC시각>"
+
+# 사람의 중단 승인 후 실행. 설치된 모든 일일 cron의 flock 파일을 지정한다.
+python3 scripts/transfer.py capture --bundle "$PWD/backups/transfer/<UTC시각>" \
+  --lock-file "$HOME/.local/state/bidops/daily.lock" --confirmed-stop
+
+python3 scripts/transfer.py verify --bundle "$PWD/backups/transfer/<UTC시각>"
+```
+
+`prepare` 뒤 실행 컨테이너·이미지·running 상태가 바뀌면 새 폴더로 준비한다. capture는
+공용 lock 획득과 실행 중 DB 작업 검사를 통과한 뒤 web·worker를 중지한다. DB dump와 객체
+기준 검사를 수행하고 MinIO를 중지해 볼륨을 복사한다. 원래 실행 중이던 컨테이너만 재시작한다.
+이미 중지된 analysis-worker는 켜지 않으며 crontab도 설치·수정하지 않는다. 실패나 SIGTERM 때도
+재시작을 시도한다. SIGKILL·호스트 장애 때는 `manifest/resume-containers.json`의 ID를 확인해
+MinIO부터 역순으로 재시작하고 health를 확인한다. 미완료 폴더 위 재실행은 하지 않는다.
+
+완료 표식은 `manifest/snapshot.json`의 `state=captured`와 `manifest/files.json`이다.
+후자는 정확한 파일 집합·크기·SHA-256을 검증한다. source의 Git bundle은 기존 이력을,
+source 파일 사본과 변경 목록은 미커밋 작업을 보존한다. 호스트 입력은 `inputs/host/`,
+실제 bind mount 입력은 `inputs/binds/`에 있으며 Docker 앱 데이터 볼륨과 자동 병합하지 않는다.
+
+새 Linux 서버는 Python 3.12+, Docker Engine·Compose v2와 동일 CPU 아키텍처가 필요하다.
+이전 폴더 안의 도구를 사용하며 새 대상 프로젝트·디렉터리·볼륨만 허용한다.
+
+```bash
+python3 /path/to/transfer/transfer.py restore --bundle /path/to/transfer \
+  --project bidops-restored --target /path/to/new-restore --port 18789
+```
+
+이 명령은 저장된 이미지와 역할로 빈 DB에 dump를 복원하고 MinIO·앱 볼륨을 복원한다.
+migration·minio-init은 실행하지 않는다. DB 전체 행 수·Alembic revision과 전체 객체 버전·해시,
+active 참조 및 모델 응답 복호화 결과를 원본 기준과 비교한다. 원본의 누락 객체는
+`manifest/objects.json`의 `issues`로 보존하며 복원 성공으로 고쳐 쓰지 않는다.
+
+열람 모드는 localhost에만 열고 별도 worker를 기동하지 않는다. `transfer-preview.py`는 기존
+앱의 DB revision·MinIO 기동 검사를 유지하며 runtime.start를 호출하지 않아 내장 판정 워커의
+stale 복구와 자동 실행을 막는다. HTTP 변경 요청은 405이고 DB transaction도 read-only다.
+policy 상태와 데이터는 변경하지 않는다. 이 모드는 운영 수집·분석 재개나 공개 서비스가 아니다.
+모델 egress·실제 전송·일정 재설치는 별도 운영 전환 절차를 따른다.
+
+검증은 `python3 -m unittest discover -s tests -p test_transfer.py -v`와 격리 실제 복원으로 한다.
+파일 해시 통과만으로 복원 검증을 대신하지 않는다. 복원 대상의 `validation.json` 이후에도
+대표 목록·첨부·개요·심층 보고서·프로필 API와 화면 열람을 확인해 증거를 보존한다.

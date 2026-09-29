@@ -6,11 +6,14 @@ import { LazyRouteBoundary } from "./components/common/LazyRouteBoundary";
 import { AppShell } from "./components/shell/AppShell";
 import { routeHandle, routeMetadata } from "./components/shell/route-meta";
 
+const MockReviewPage = import.meta.env.BIDOPS_REVIEW_MOCK ? lazy(() => import("./mock-review/MockReviewPage")) : null;
+
 const DashboardPage = lazy(() => import("./pages/DashboardPage").then(({ DashboardPage }) => ({ default: DashboardPage })));
 const OpportunitiesPage = lazy(() => import("./pages/OpportunitiesPage").then(({ OpportunitiesPage }) => ({ default: OpportunitiesPage })));
 const OpportunityDetailPage = lazy(() => import("./pages/OpportunitiesPage").then(({ OpportunityDetailPage }) => ({ default: OpportunityDetailPage })));
 const PreSpecsPage = lazy(() => import("./pages/PreSpecsPage").then(({ PreSpecsPage }) => ({ default: PreSpecsPage })));
 const PreSpecDetailPage = lazy(() => import("./pages/PreSpecDetailPage").then(({ PreSpecDetailPage }) => ({ default: PreSpecDetailPage })));
+const AssumptionAnalysisPage = lazy(() => import("./pages/AssumptionAnalysisPage").then(({ AssumptionAnalysisPage }) => ({ default: AssumptionAnalysisPage })));
 const DeepReviewPage = lazy(() => import("./pages/DeepReviewPage").then(({ DeepReviewPage }) => ({ default: DeepReviewPage })));
 const BidDeltaDecisionPage = lazy(() => import("./pages/BidDeltaDecisionPage").then(({ BidDeltaDecisionPage }) => ({ default: BidDeltaDecisionPage })));
 const OrderPlansPage = lazy(() => import("./pages/OrderPlansPage").then(({ OrderPlansPage }) => ({ default: OrderPlansPage })));
@@ -76,6 +79,7 @@ export const routes: RouteObject[] = [
           { path: "order-plans", element: <OrderPlansPage />, handle: routeHandle(routeMetadata.orderPlans) },
           { path: "order-plans/:orderPlanPk", element: <LegacyOrderPlanRedirect />, handle: routeHandle(routeMetadata.orderPlans) },
           { path: "pre-specs", element: <PreSpecsPage />, handle: routeHandle(routeMetadata.preSpecs) },
+          ...(MockReviewPage ? [{ path: "pre-specs/mock-review", element: <MockReviewPage />, handle: routeHandle(routeMetadata.preSpecs) }] : []),
           { path: "pre-specs/:noticeId", element: <PreSpecDetailPage />, handle: routeHandle(routeMetadata.preSpecs) },
           // 기준 4화면은 판정 기준 한 화면의 탭이다. 옛 경로가 각 탭의 주소다.
           { path: "criteria", element: criteriaView, handle: routeHandle(routeMetadata.criteria) },
@@ -90,6 +94,7 @@ export const routes: RouteObject[] = [
           { path: "attachments", element: runStatusView, handle: routeHandle(routeMetadata.runStatus) },
           { path: "operations", element: runStatusView, handle: routeHandle(routeMetadata.runStatus) },
           { path: "audit", element: runStatusView, handle: routeHandle(routeMetadata.runStatus) },
+          { path: "assumption-analyses/:runId", element: <AssumptionAnalysisPage />, handle: routeHandle(routeMetadata.assumptionAnalysis) },
           { path: "deep-reviews/:deepReviewId", element: <DeepReviewPage />, handle: routeHandle(routeMetadata.deepReview) },
         ],
       },

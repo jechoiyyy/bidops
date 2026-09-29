@@ -464,3 +464,8 @@ GRANT INSERT ON TABLE bidops.deep_review_preview, bidops.deep_review_approval TO
 GRANT SELECT ON TABLE bidops.deep_review_preview, bidops.deep_review_approval TO worker;
 
 COMMIT;
+
+-- Assumption analyses reuse the queue but preserve independent immutable consent/results.
+GRANT SELECT ON TABLE bidops.assumption_input_version, bidops.assumption_run, bidops.assumption_stage TO app, worker;
+GRANT INSERT ON TABLE bidops.assumption_input_version, bidops.assumption_run TO app;
+GRANT INSERT ON TABLE bidops.assumption_stage TO worker;

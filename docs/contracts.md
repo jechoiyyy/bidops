@@ -1844,3 +1844,50 @@ migration `0032_luna_deep_review`는 `deep_review_preview`와 `deep_review_appro
 응답은 worker 암호화 저장소로만 보낸다. 실패는 authentication_failed, model_access_denied,
 model_timeout, review_timeout, output_truncated, schema_invalid, lease_lost/lease_expired,
 validation_failed 등 안전 코드로 남는다. 일부 성공 보고서는 발행하지 않는다.
+
+### Luna v2 보조 연결 경고 (2026-09-23)
+
+사용자 승인 후 새 불변 `analysis-policy-luna-v2.json`에만
+`validation.related_claim_policy=omit_invalid_with_warning_v1`을 적용한다.
+범위 밖 `related_claim_ids`는 파생 결과에서 제외하며 주장 본문·근거·전제를 고치지 않는다.
+암호화 원응답은 보존하고 stage `invocation_metadata.related_claim_diagnostics`에
+대상 claim ID·제외 ID·고정 사유를 기록한다. 실제 검증은 제외 후 동일하게 수행한다.
+`related_claim_out_of_scope_omitted` validation warning을 해당 문장 및 분석 한계에 표시한다.
+`premise_claim_ids`, `evidence_ids`, considered/coverage, 원문·수치·해시 검사는 완화하지 않는다.
+종합은 여전히 모든 선행 주장 연결을 요구한다. 중복·자기 참조도 기존처럼 거부한다.
+기존 Luna v1/Qwen 정책은 엄격한 동작을 유지하며 과거 실패·보고서를 다시 쓰지 않는다.
+새 테이블·migration·응답 schema 변경은 없으며 참조 표식은 유지한다.
+
+## 2026-09-23 검증 off 참조 정책
+
+사용자 요청에 따라 새 Luna v3 정책의 `validation.result_checks=disabled_reference_v1`에서
+내용·참조 의미·coverage/considered/요구사항 누락 검증을 수행하지 않는다.
+원문 인용·숫자 대조도 끄며 일반 실행의 검증 통과로 표시하지 않는다.
+미리보기·보고서에 검증 미실시를 표시하고 `result_validation_skipped` warning을 저장한다.
+인증/건별 승인/동결 입력 hash/정책 불변성/lease/JSON schema/DB 식별자 중복·근거 FK/
+문서·프로필 소속과 hash/보고서 본문 보존 검사는 유지한다.
+이름이 같아도 v1/v2의 정책·결과에는 소급 적용하지 않는다. 실제 모델 품질은 미측정이다.
+
+검사: 저장된 v2 실패 응답의 후보 코드 replay, 기존 회귀+새 off/해시/근거 FK 차단,
+PostgreSQL 17.11 저장·REST, 두 폭 경고와 승인 미리보기. 운영 적용/새 호출은 검사 후 진행.
+
+## 1489번 가정 분석 v1 (2026-09-23, 운영 적용 전)
+
+기존 심층검토와 별도 계약이다. [작업 명세](0923_assumption-analysis/spec.md)를 따른다.
+
+- `POST /api/notices/{notice_id}/assumption-analysis-previews` (`bundle_id`)는 동결 입력,
+  hash, 이전 가정 분석/심층검토 미리보기와 달라진 필드를 반환한다. 전송은 하지 않는다.
+- `POST /api/notices/{notice_id}/assumption-analyses` (`preview_id`, `request_id`, 기존
+  담당자 헤더)는 승인·입력 재확인 뒤 202 `{id, notice_id}`를 반환한다. 동일 요청의
+  replay도 같은 응답이다. 이 가정 버전의 대상은 1489번뿐이다.
+- `GET /api/notices/{notice_id}/assumption-analyses`는 실행 목록,
+  `GET /api/assumption-analyses/{id}`는 상태·호출 수·현재 호출·단계 부분 결과·근거
+  레지스트리·계산표와 완성 보고서(`report`, 미완료는 null)를 반환한다.
+- schema는 `bidops.assumption-analysis.v1`. 완료는 세 단계와 8절 설명 본문이 있을 때만
+  게시한다. 모델 품질은 `unmeasured_reference`; 사실 주장을 검증된 사실로 승격하지 않는다.
+- `preview_changed`, `preview_used`, `active_run_exists`, `idempotency_conflict`는 409.
+  기존 Luna readiness/접근 게이트는 유지한다. 미연결 근거는 FK로 만들지 않고 문자열 ID와
+  `unlinked`를 보존한다. 원문 인용 불일치·숫자 근거 미확인은 문단 경고다.
+- migration `0033_assumption_analysis`: 입력 버전·승인 실행·호출 결과는 append-only.
+  공용 `work_job`의 `assumption_analysis` job을 합성 worker 한 슬롯에서 처리한다.
+  기존 심층검토 정책/회사 프로필/결과는 수정하지 않는다.

@@ -876,3 +876,18 @@ page 인용이 여러 문단에 걸치면 DB block key 정렬 대신 고정 stru
   downgrade할 수 없다. 본문 없이 preview ID·해시·모델만 일반 감사에 기록한다.
 - attempt·stage·보고서·사람 수정 이력은 기존 관계를 사용한다.
   [ADR-0069](tracking/decisions/0069-user-requested-luna-deep-review.md).
+
+Luna v2 보조 연결 제외 기록은 완료 stage의 기존 invocation metadata에 저장한다.
+모델 원본은 암호화 객체에 보존하고 파생 claim metadata만 제외된 연결을 반영한다.
+validation check의 관련 ID에는 유효한 대상 claim만 넣으며 제외한 ID는 넣지 않는다.
+보고서 수정본도 같은 stage의 경고를 이어받는다. [계약](contracts.md#luna-v2-보조-연결-경고-2026-09-23).
+
+## 가정 분석 별도 이력 (0033, 운영 적용 전)
+
+`assumption_input_version`은 notice/bundle/profile FK와 동결 JSON/hash,
+`assumption_run`은 고유 input version·request·work job 및 담당자/승인 시각,
+`assumption_stage`는 run·stage·part 고유 호출 결과와 시작/종료·소요 시간·오류·암호화
+content object FK를 가진다. 세 표는 DB trigger와 ORM에서 UPDATE/DELETE를 거부한다.
+app은 입력/실행 INSERT와 세 표 SELECT, worker는 결과 INSERT와 세 표 SELECT만 받는다.
+실행 상태/lease는 기존 work_job, 호출 시작은 원문 없는 audit_event로 기록한다.
+[REST 및 결과 계약](0923_assumption-analysis/spec.md).

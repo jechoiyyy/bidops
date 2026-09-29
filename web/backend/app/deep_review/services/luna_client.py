@@ -30,13 +30,21 @@ class LunaClient:
 
     def invoke(self, stage, input_slice, policy, *, profile=None, prior_stages=()):
         prompt = build_prompt(stage, input_slice, policy, profile=profile, prior_stages=prior_stages, max_chars=100000)
+        return self.invoke_prompt(prompt)
+
+    def invoke_prompt(self, prompt, *, contract="deep-review-stage-v2"):
+        if contract not in {"deep-review-stage-v2", "assumption-stage-v1"} or len(prompt) > (160000 if contract == "assumption-stage-v1" else 100000):
+            raise ModelInvocationError("prompt_rejected", ())
         digest = hashlib.sha256(prompt.encode()).hexdigest()
         call_id = None
         try:
             self.heartbeat()
             if time.monotonic() >= self.deadline:
                 raise ModelInvocationError('review_timeout', ())
-            response = self.http.post('/calls', json={'prompt': prompt})
+            payload = {'prompt': prompt}
+            if contract == 'assumption-stage-v1':
+                payload['contract'] = contract
+            response = self.http.post('/calls', json=payload)
             response.raise_for_status()
             from uuid import UUID
             call_id = str(UUID(response.json()['call_id']))
@@ -57,7 +65,9 @@ class LunaClient:
                 raise ModelInvocationError('runner_identity_mismatch', ())
             raw = data['raw_response'].encode()
             try:
-                output = validate_payload(json.loads(raw), "deep-review-stage-v2")
+                output = json.loads(raw)
+                if contract == "deep-review-stage-v2":
+                    output = validate_payload(output, contract)
             except (ValueError, SchemaValidationError) as error:
                 raise ModelInvocationError("schema_invalid", (), raw) from error
             # CLI strict schema emits nullable optional keys. They are valid in

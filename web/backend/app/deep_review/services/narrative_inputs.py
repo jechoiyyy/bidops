@@ -144,6 +144,33 @@ def bind_local_ids(output: Mapping[str, Any], input_slice: Mapping[str, Any]) ->
     return result
 
 
+def project_related_claims(output: Mapping[str, Any], input_slice: Mapping[str, Any], policy: Mapping[str, Any]) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    """Drop only out-of-scope optional links under the explicit new policy.
+
+    Call after ID binding and before all ordinary validators. Never repair
+    premises, evidence, duplicates, self-links or synthesis coverage. Raw output
+    remains separate; diagnostics contain IDs only, never model text.
+    """
+    result = deepcopy(dict(output))
+    diagnostics = []
+    if policy.get("validation", {}).get("related_claim_policy") != "omit_invalid_with_warning_v1":
+        return result, diagnostics
+    allowed = {row["claim_id"] for row in result["claims"]} | {row["claim_id"] for row in input_slice.get("verified_claims", [])}
+    for row in result["claims"]:
+        removed = [value for value in row["related_claim_ids"] if value not in allowed]
+        if removed:
+            row["related_claim_ids"] = [value for value in row["related_claim_ids"] if value in allowed]
+            diagnostics.append({"code": "related_claim_out_of_scope_omitted", "claim_id": row["claim_id"], "removed_related_claim_ids": removed})
+    return result, diagnostics
+
+
+def related_claim_checks(diagnostics: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
+    return [{"check_type": "related_claim_out_of_scope_omitted", "status": "warning", "severity": "낮음",
+             "message": f"관련 주장 연결 {len(row['removed_related_claim_ids'])}개를 확인할 수 없어 제외했습니다.",
+             "related_claim_ids": [row["claim_id"]], "related_evidence_ids": []}
+            for row in diagnostics]
+
+
 def validate_slice_output(output: Mapping[str, Any], input_slice: Mapping[str, Any], stage: str, *, source_verification_enabled: bool = True) -> None:
     """Check actual input membership, in addition to the stage schema/graph."""
     claims = output["claims"]

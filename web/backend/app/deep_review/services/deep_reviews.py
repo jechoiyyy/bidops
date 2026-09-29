@@ -1142,6 +1142,7 @@ class DeepReviewService:
         session: Session | None = None,
         attempt_id: str | None = None,
         source_verification_enabled: bool = True,
+        result_checks_enabled: bool = True,
     ) -> tuple[list[Mapping[str, Any]], set[str], set[str]]:
         """Validate and return the immutable completed-stage prefix.
 
@@ -1182,7 +1183,7 @@ class DeepReviewService:
                         known_claim_ids=known_claim_ids,
                         known_evidence_ids=known_evidence_ids,
                         known_evidence=[row for output in outputs for row in output.get("evidence", [])] if stage.structured_output.get("schema") == "bidops.deep-review-stage.v2" else (),
-                        structures=structures, source_verification_enabled=source_verification_enabled,
+                        structures=structures, source_verification_enabled=source_verification_enabled, result_checks_enabled=result_checks_enabled,
                     )
                 except DeepReviewValidationError as exc:
                     raise DeepReviewServiceError("processing_failed", "completed stage output 검증에 실패했습니다", status_code=500) from exc
@@ -1545,6 +1546,8 @@ class DeepReviewService:
                     raise DeepReviewServiceError("service_unavailable", "Luna 실행 비활성", status_code=503)
                 frozen = luna_inputs.approved_input(session, attempt.id, review)
                 bundle, structures, profile_payload, policy_payload = (frozen[k] for k in ("bundle", "structures", "profile", "policy"))
+            from .verification import result_checks_enabled as checks_enabled
+            result_checks_enabled = checks_enabled(policy_payload)
             narrative = policy_payload.get("pipeline_version") == "narrative-v2"
             source_units = []
             if narrative:
@@ -1565,7 +1568,7 @@ class DeepReviewService:
             prefix_outputs, prefix_claim_ids, prefix_evidence_ids = self._contiguous_completed_prefix(
                 self._stages(session, claim.attempt_id), bundle=bundle, profile=profile_payload,
                 profile_version_id=str(profile.id), review_id=str(review.id), structures=structures,
-                session=session, attempt_id=str(claim.attempt_id), source_verification_enabled=source_verification_enabled,
+                session=session, attempt_id=str(claim.attempt_id), source_verification_enabled=source_verification_enabled, result_checks_enabled=result_checks_enabled,
             )
             review_id = review.id
             pinned_notice_id = review.notice_id
@@ -1628,11 +1631,14 @@ class DeepReviewService:
                         raw_records.append((result, {"slice_index": slice_index}))
                         stage_invocations.extend(_safe_invocation_attempt(item) for item in result.attempts)
                         chunk_output = _resolve_exact_evidence_quotes(result.structured_output, structures) if source_verification_enabled else deepcopy(result.structured_output)
+                        relation_diagnostics = []
                         if narrative:
                             if chunk_output.get("schema") != "bidops.deep-review-stage.v2":
                                 raise narrative_inputs.NarrativeInputError("narrative_schema_required")
                             chunk_output = narrative_inputs.bind_local_ids(chunk_output, input_slice)
-                            narrative_inputs.validate_slice_output(chunk_output, input_slice, stage_name, source_verification_enabled=source_verification_enabled)
+                            chunk_output, relation_diagnostics = narrative_inputs.project_related_claims(chunk_output, input_slice, policy_payload)
+                            if result_checks_enabled:
+                                narrative_inputs.validate_slice_output(chunk_output, input_slice, stage_name, source_verification_enabled=source_verification_enabled)
                         # Validate each untrusted chunk before paying for the
                         # next provider call.  The final merge repeats this
                         # check and adds cross-chunk duplicate/conflict rules.
@@ -1658,7 +1664,7 @@ class DeepReviewService:
                             known_claim_ids=({row["claim_id"] for row in input_slice.get("verified_claims", [])} if narrative else known_claim_ids) | chunk_claim_ids,
                             known_evidence_ids=({row["evidence_id"] for row in input_slice.get("prior_evidence", [])} if narrative else known_evidence_ids) | chunk_evidence_ids,
                             known_evidence=input_slice.get("prior_evidence", []) if narrative else (),
-                            structures=structures, source_verification_enabled=source_verification_enabled,
+                            structures=structures, source_verification_enabled=source_verification_enabled, result_checks_enabled=result_checks_enabled,
                         )
                         safe_attempts = [_safe_invocation_attempt(item) for item in result.attempts]
                         invocation_metadata.append({
@@ -1670,6 +1676,7 @@ class DeepReviewService:
                             "policy_sha256": pinned_policy_sha256, "prompt_tokens": result.prompt_tokens,
                             "output_tokens": result.output_tokens, "latency_ms": result.latency_ms,
                             "status": "succeeded", "attempts": safe_attempts,
+                            **({"related_claim_diagnostics": relation_diagnostics} if relation_diagnostics else {}),
                             **({"profile_selection": deepcopy(input_slice["profile_selection"])} if narrative and "profile_selection" in input_slice else {}),
                             **({"synthesis_phase": input_slice["synthesis_phase"]} if narrative and "synthesis_phase" in input_slice else {}),
                         })
@@ -1698,7 +1705,7 @@ class DeepReviewService:
                     )
                     for input_slice, chunk in zip(slices, chunks)
                 }
-                merged = merge_stage_chunks(chunks, bundle=bundle, profile=profile_payload, profile_version_id=pinned_profile_id, expected_deep_review_id=str(review_id), known_claim_ids=known_claim_ids, known_evidence_ids=known_evidence_ids, known_evidence=[row for output in previous_outputs for row in output.get("evidence", [])] if narrative else (), structures=structures, source_verification_enabled=source_verification_enabled, chunk_order_key=lambda chunk: chunk_orders.get(id(chunk), (STAGE_SEQUENCE[stage_name], 0, 0, 0, "", 0)))
+                merged = merge_stage_chunks(chunks, bundle=bundle, profile=profile_payload, profile_version_id=pinned_profile_id, expected_deep_review_id=str(review_id), known_claim_ids=known_claim_ids, known_evidence_ids=known_evidence_ids, known_evidence=[row for output in previous_outputs for row in output.get("evidence", [])] if narrative else (), structures=structures, source_verification_enabled=source_verification_enabled, result_checks_enabled=result_checks_enabled, chunk_order_key=lambda chunk: chunk_orders.get(id(chunk), (STAGE_SEQUENCE[stage_name], 0, 0, 0, "", 0)))
                 known_claim_ids.update(item["claim_id"] for item in merged.get("claims", []))
                 known_evidence_ids.update(item["evidence_id"] for item in merged.get("evidence", []))
                 invocation_doc = sorted(invocation_metadata, key=lambda item: (item.get("slice_index", 0), item.get("retry_index", 0)))

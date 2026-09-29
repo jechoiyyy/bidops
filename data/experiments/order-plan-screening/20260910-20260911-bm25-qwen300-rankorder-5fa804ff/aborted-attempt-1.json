@@ -1,0 +1,16 @@
+{
+  "schema_version": "bidops.order-plan-qwen-aborted-attempt.v1",
+  "run_id": "20260910-20260911-bm25-qwen300-rankorder-5fa804ff",
+  "attempt": 1,
+  "started_at_approx": "2026-09-15T09:10:35+09:00",
+  "started_at_source": "process elapsed time observed at 09:11:26 KST (51s)",
+  "stopped_at": "2026-09-15T09:11:52+09:00",
+  "stop_reason": "user_request",
+  "stop_method": "SIGTERM to the runner process (exit 143); the packaging subagent was also stopped",
+  "batches_sent": [
+    {"sequence": 1, "status": "success", "response_retained": false},
+    {"sequence": 2, "status": "unknown", "note": "an HTTP connection to the model server was open at stop time; the request may have been in flight", "response_retained": false}
+  ],
+  "results_written": false,
+  "note": "No judgment from this attempt was stored or used. Attempt 2 reruns all 12 batches from batch 1 in the same rank order."
+}

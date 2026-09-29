@@ -501,12 +501,15 @@ class ReportService:
             notation_checks = narrative_numeric_warnings(claim_payloads, evidence_payloads) if contexts.get("source_verification_enabled", True) else []
             from .verification import NOT_PERFORMED
             verification_limits = [] if contexts.get("source_verification_enabled", True) else [NOT_PERFORMED]
+            if not contexts.get("result_checks_enabled", True):
+                from .verification import RESULT_NOT_PERFORMED
+                verification_limits = [RESULT_NOT_PERFORMED]
             report = render({"deep_review_id": str(review.id), "notice_id": review.notice_id,
                              "bundle_id": str(review.bundle_id), "profile_version_id": str(review.profile_version_id),
                              "policy_version_id": str(review.policy_version_id), "created_at": _iso(_now()),
                              "quality_status": quality_status_for_review(session, review.id)},
                             claim_payloads, stage_payloads, unknowns=unknowns, recommendation=recommendation,
-                            status=status, limitations=[*verification_limits, *contexts.get("bundle_limitations", ()), *list(dict.fromkeys(row["message"] for row in notation_checks)), *(["종합 권고를 확정할 수 없어 보류로 표시합니다. 원문과 분석 근거를 확인하십시오."] if recommendation_unknown else [])])
+                            status=status, limitations=[*verification_limits, *contexts.get("bundle_limitations", ()), *list(dict.fromkeys(row["message"] for row in [*notation_checks, *contexts.get("related_claim_checks", [])])), *(["종합 권고를 확정할 수 없어 보류로 표시합니다. 원문과 분석 근거를 확인하십시오."] if recommendation_unknown else [])])
             _, checks, _ = self._validation_result(report, uuid4(), uuid4(), review, stage_payloads, evidence_payloads, contexts, segment_checks=segment_checks)
             report["validation_summary"].update({key: sum(check["status"] == value for check in checks) for key, value in (("failed", "failed"), ("warnings", "warning"), ("passed", "passed"))})
             return report, stage_payloads, evidence_payloads, contexts, segment_checks
@@ -526,6 +529,8 @@ class ReportService:
         prefix는 요구사항 ID로 만들지 않는다.
         """
 
+        if not contexts.get("result_checks_enabled", True):
+            return []
         inventory = contexts.get("segments")
         inventory = inventory if isinstance(inventory, Mapping) else {}
         stage_one = next((row for row in stages if row.get("stage") == STAGE_NAMES[0]), None)
@@ -643,9 +648,16 @@ class ReportService:
                 "warnings": [item for item in raw.get("warnings", []) if isinstance(item, str)] if isinstance(raw.get("warnings"), list) else [],
                 **({"coverage": raw["coverage"], "considered_claim_ids": raw["considered_claim_ids"]} if raw.get("schema") == "bidops.deep-review-stage.v2" else {}),
             })
-        from .verification import enabled_for_attempt
+        from .verification import enabled_for_attempt, result_checks_for_attempt
         contexts = self._contexts(session, review, evidence_by_id)
         contexts["source_verification_enabled"] = enabled_for_attempt(session, attempt.id)
+        contexts["result_checks_enabled"] = result_checks_for_attempt(session, attempt.id)
+        from .narrative_inputs import related_claim_checks
+        contexts["related_claim_checks"] = related_claim_checks([
+            diagnostic for stage in stages
+            for invocation in (stage.invocation_metadata if isinstance(stage.invocation_metadata, list) else [])
+            for diagnostic in invocation.get("related_claim_diagnostics", [])
+        ])
         return stage_payloads, evidence, contexts
 
     def _claim_stage(self, session: Session, claim_id: str) -> UUID | None:
@@ -794,6 +806,7 @@ class ReportService:
                 bundle=contexts["bundle"], profile=contexts["profile"], evidence=evidence,
                 stages=stages, expected_deep_review_id=str(review.id), structures=contexts["structures"],
                 source_verification_enabled=contexts.get("source_verification_enabled", True),
+                result_checks_enabled=contexts.get("result_checks_enabled", True),
             )
         except (DeepReviewValidationError, ValueError) as error:
             raise _error("validation_failed", "report validation을 통과하지 못했습니다", status_code=409, request_id=request_id) from error
@@ -852,7 +865,7 @@ class ReportService:
         elif declared_failed:
             checks.append({"check_type": "declared_validation", "status": "failed", "severity": "중대", "message": "report가 validation failed 상태를 보존합니다", "related_claim_ids": [], "related_evidence_ids": []})
         else:
-            checks.append({"check_type": "report_contract", "status": "passed", "severity": "낮음", "message": "전체 report contract와 immutable projection을 확인했습니다", "related_claim_ids": [], "related_evidence_ids": []})
+            checks.append({"check_type": "report_contract", "status": "passed", "severity": "낮음", "message": "보고서 형식·저장 무결성을 확인했습니다" if not contexts.get("result_checks_enabled", True) else "전체 report contract와 immutable projection을 확인했습니다", "related_claim_ids": [], "related_evidence_ids": []})
         # 요구사항 inventory와 segment coverage. inventory가 비어 있으면 경고이고
         # coverage는 어떤 경우에도 차단하지 않는다.
         # 호출자가 이미 계산했으면 그것을 쓴다. 같은 입력에서 같은 값이 나오는
@@ -862,11 +875,15 @@ class ReportService:
             if segment_checks is not None
             else self._segment_checks(stages, contexts)
         )
+        if not contexts.get("result_checks_enabled", True):
+            from .verification import result_skipped_check
+            checks.append(result_skipped_check())
         if not contexts.get("source_verification_enabled", True):
             from .verification import skipped_check
             checks.append(skipped_check())
         elif report.get("schema") == "bidops.deep-review-report.v2":
             checks.extend(narrative_numeric_warnings(report.get("claims", []), evidence))
+        checks.extend(contexts.get("related_claim_checks", []))
         if any(check["status"] == "failed" for check in checks):
             status = "failed"
         validation_payload = {

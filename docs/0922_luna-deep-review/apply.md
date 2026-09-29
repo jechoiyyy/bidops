@@ -146,3 +146,32 @@ Qwen 정책 행을 수정하지 않는다. 환경 적용을 위한 서비스 교
 append-only 입력·승인·완료 보고서는 남긴다. 이미 승인된 행이 있으면 migration
 다운그레이드하지 않는다. DB 자체 복구가 필요하면 객체→DB 순서의 기존 복구 절차와
 전체 백업을 사용하며 다른 사람의 이후 변경을 잃는 복구는 별도 승인 없이는 하지 않는다.
+
+## 2026-09-23 보조 연결 수정 적용
+
+새 정책은 `analysis-policy-luna-v2.json`, SHA-256
+`d9477dba24459f6154607539ba423aa503cac1104aa375a42c9fba9fe0449ac1`이다.
+기존 v1 정책·실패 이력은 보존하며 migration은 없다(0032 유지).
+
+1. web·analysis-worker 후보 이미지 빌드와 격리 검사, DB/객체 백업·기존 이미지/환경 보존.
+2. **재배포 직전 확인** 후 활성 작업이 없을 때 위 Compose 조합으로
+   `up -d --no-deps --no-build --force-recreate web analysis-worker`.
+3. **정책 적용 직전 확인** 후 import CLI에 새 파일/위 hash/label `analysis-policy-luna-v2`를 전달.
+   반환 UUID로 `env/luna.env`의 active policy만 변경. 프로필·v1 행은 보존.
+4. **설정 반영 재배포 직전 확인** 후 web·analysis-worker 교체, health/정책 hash/자동 시작 false 확인.
+5. **전송·호출 직전 확인** 후 1489 상세에서 새 미리보기로 새 검토 생성(v1 검토에 새 정책을 덮지 않음).
+   승인 입력은 기존 확정 묶음·회사 프로필과 새 정책이며 원문 대조 on. 실패 시 자동 반복하지 않는다.
+6. 실제 단계·오류·경고·보고서/근거 화면 확인. 참조 결과를 품질 측정으로 기록하지 않는다.
+
+롤백은 보존한 이미지 ID를 서비스 태그로 되돌리고 이전 env를 복원한 뒤 별도 재배포 확인을 받는다.
+DB의 append-only 정책/실행/승인 기록은 삭제·수정하지 않는다.
+
+## 검증 off v3 정책 적용
+
+후속 사용자 요청에 대한 준비본: policy `analysis-policy-luna-v3.json`, SHA-256
+`e522978f43abba93f81c1b0195c08bfce0d6a9a337203dcf26dcb10d4623fc14`.
+새 migration 없음. 기존 적용 절차와 동일하게 각 단계 직전 확인 후 web·analysis-worker
+코드 교체 → import-profile-policy(새 파일/hash/label analysis-policy-luna-v3) → 반환된
+policy UUID를 env/luna.env에 반영·서비스 재생성 → 1489 새 미리보기·전송 승인 순서다.
+승인 화면에 검증 미실시가 보이는 것을 확인하고 새 검토로 생성한다. 이전 실패는 보존한다.
+검증 결과/남은 범위: [검증 기록](../validation-runs/20260923-luna-validation-off/README.md).
