@@ -25,8 +25,8 @@ class _Session:
         pass
 
 
-def _install(monkeypatch: pytest.MonkeyPatch, *, c2_result: Any, deep_claimed: bool, fit_claimed: bool = False) -> dict[str, int]:
-    calls = {"c2": 0, "deep": 0, "fit": 0, "overview": 0}
+def _install(monkeypatch: pytest.MonkeyPatch, *, c2_result: Any, deep_claimed: bool, fit_claimed: bool = False, assumption_claimed: bool = False) -> dict[str, int]:
+    calls = {"c2": 0, "deep": 0, "fit": 0, "overview": 0, "assumption": 0}
 
     class _C2Worker:
         def __init__(self, *, settings: Any) -> None:
@@ -67,6 +67,10 @@ def _install(monkeypatch: pytest.MonkeyPatch, *, c2_result: Any, deep_claimed: b
     monkeypatch.setattr(analysis, "SessionLocal", _Session)
     monkeypatch.setattr(analysis, "C2ScreeningWorker", _C2Worker)
     monkeypatch.setattr(analysis, "PreSpecCompanyFitRunner", _FitRunner)
+    def _assumption(_session, _worker_id):
+        calls["assumption"] += 1
+        return assumption_claimed
+    monkeypatch.setattr(analysis, "run_assumption_analysis_once", _assumption)
     monkeypatch.setattr(analysis, "run_deep_review_once", _deep)
     monkeypatch.setattr(analysis, "run_prespec_overview_once", _overview)
     monkeypatch.setattr("sys.argv", ["analysis", "--once"])
@@ -76,7 +80,7 @@ def _install(monkeypatch: pytest.MonkeyPatch, *, c2_result: Any, deep_claimed: b
 def test_a_c2_claim_wins_the_poll(monkeypatch: pytest.MonkeyPatch) -> None:
     calls = _install(monkeypatch, c2_result=object(), deep_claimed=False)
     analysis.main()
-    assert calls == {"c2": 1, "deep": 0, "fit": 0, "overview": 0}
+    assert calls == {"c2": 1, "deep": 0, "fit": 0, "overview": 0, "assumption": 0}
 
 
 def test_a_deep_review_claim_keeps_the_overview_slot_closed(
@@ -84,7 +88,7 @@ def test_a_deep_review_claim_keeps_the_overview_slot_closed(
 ) -> None:
     calls = _install(monkeypatch, c2_result=None, deep_claimed=True)
     analysis.main()
-    assert calls == {"c2": 1, "deep": 1, "fit": 0, "overview": 0}
+    assert calls == {"c2": 1, "deep": 1, "fit": 0, "overview": 0, "assumption": 0}
 
 
 def test_the_overview_slot_runs_only_when_both_queues_are_idle(
@@ -92,13 +96,13 @@ def test_the_overview_slot_runs_only_when_both_queues_are_idle(
 ) -> None:
     calls = _install(monkeypatch, c2_result=None, deep_claimed=False)
     analysis.main()
-    assert calls == {"c2": 1, "deep": 1, "fit": 1, "overview": 1}
+    assert calls == {"c2": 1, "deep": 1, "fit": 1, "overview": 1, "assumption": 1}
 
 
 def test_company_fit_claim_keeps_overview_slot_closed(monkeypatch):
     calls = _install(monkeypatch, c2_result=None, deep_claimed=False, fit_claimed=True)
     analysis.main()
-    assert calls == {"c2": 1, "deep": 1, "fit": 1, "overview": 0}
+    assert calls == {"c2": 1, "deep": 1, "fit": 1, "overview": 0, "assumption": 1}
 
 
 def test_the_worker_has_no_standalone_overview_entry_point() -> None:
@@ -110,3 +114,9 @@ def test_the_worker_has_no_standalone_overview_entry_point() -> None:
     source = module.read_text(encoding="utf-8")
     assert "__main__" not in source
     assert "argparse" not in source
+
+
+def test_assumption_claim_occupies_shared_slot(monkeypatch):
+    calls = _install(monkeypatch, c2_result=None, deep_claimed=False, assumption_claimed=True)
+    analysis.main()
+    assert calls == {"c2": 1, "deep": 1, "assumption": 1, "fit": 0, "overview": 0}

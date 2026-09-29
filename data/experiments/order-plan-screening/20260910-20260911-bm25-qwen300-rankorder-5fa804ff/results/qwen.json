@@ -1,0 +1,5441 @@
+{
+  "schema_version": "bidops.order-plan-method-result.v3",
+  "run_id": "20260910-20260911-bm25-qwen300-rankorder-5fa804ff",
+  "created_at": "2026-09-15T10:19:33.043761+09:00",
+  "input_sha256": "e5d2bbdc50b76eaca9f249be8aef14dbb2f1506a9e45abd05a4cae4bc3e2bfc5",
+  "method": "qwen",
+  "method_version": "vllm-qwen-order-plan-batch-nonthinking-v4",
+  "top_k": 50,
+  "config_sha256": "35476846d349f302ebd9a4fd049315cf44ae2d19d8e5645bceb0c60075b34e01",
+  "model": {
+    "name": "qwen3.8-27B",
+    "revision": "5fa804ff0ecc0de9167f8b63127c42e1d421a9451662922ace8622d0b01b824e"
+  },
+  "prompt": {
+    "id": "order-plan-batch-relevance-v3",
+    "sha256": "639f7332e1120a41b2e8d8306126f121ae1ed37068a81b1687aff9ce66ab9d12"
+  },
+  "batching": {
+    "mode": "fixed",
+    "batch_size": 25,
+    "batch_count": 12
+  },
+  "status": "success",
+  "metrics": {
+    "population_count": 300,
+    "success_count": 300,
+    "failure_count": 0,
+    "selected_count": 50,
+    "elapsed_ms": 609400,
+    "total_latency_ms": 609361,
+    "average_latency_ms": 2031.203,
+    "input_tokens": 24129,
+    "cached_input_tokens": null,
+    "output_tokens": 20817,
+    "cost_usd": null,
+    "device": null
+  },
+  "external_approval": null,
+  "items": [
+    {
+      "plan_id": "R26DD20869154",
+      "status": "success",
+      "score": 0.45,
+      "rank": 72,
+      "selected": false,
+      "reason": "로봇 통합 서비스 플랫폼 구축은 공공 SI 역량과 관련 있으나, SDR 및 로봇 도메인 특화 기술의 구체적 관련성은 title만으로 확인 불가.",
+      "relevance": "uncertain",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2212,
+      "error_code": null,
+      "input_tokens": 77,
+      "cached_input_tokens": null,
+      "output_tokens": 76,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868051",
+      "status": "success",
+      "score": 0.4,
+      "rank": 81,
+      "selected": false,
+      "reason": "민관협업 플랫폼 구축은 공공 SI 및 데이터 플랫폼 역량과 관련 있으나, 전략환경 대응이라는 목적의 구체적 기술 범위가 불분명함.",
+      "relevance": "uncertain",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2212,
+      "error_code": null,
+      "input_tokens": 77,
+      "cached_input_tokens": null,
+      "output_tokens": 76,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868920",
+      "status": "success",
+      "score": 0.7,
+      "rank": 14,
+      "selected": true,
+      "reason": "통합관리시스템 중장기 ISMP 수립은 공공 정보화 ISP·BPR 및 시스템 구축·운영 역량(public-si-lifecycle)과 직접적으로 관련됨.",
+      "relevance": "relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2212,
+      "error_code": null,
+      "input_tokens": 77,
+      "cached_input_tokens": null,
+      "output_tokens": 76,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867629",
+      "status": "success",
+      "score": 0.65,
+      "rank": 21,
+      "selected": true,
+      "reason": "다면평가 시스템 구축은 신규 시스템 구축 및 기능 고도화 역량(public-si-lifecycle)과 직접적으로 관련됨.",
+      "relevance": "relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2212,
+      "error_code": null,
+      "input_tokens": 77,
+      "cached_input_tokens": null,
+      "output_tokens": 76,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20869071",
+      "status": "success",
+      "score": 0.65,
+      "rank": 24,
+      "selected": true,
+      "reason": "통합관리시스템 기능 개발은 공공 시스템 기능 고도화 및 구축 역량(public-si-lifecycle)과 직접적으로 관련됨.",
+      "relevance": "relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2212,
+      "error_code": null,
+      "input_tokens": 77,
+      "cached_input_tokens": null,
+      "output_tokens": 76,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868963",
+      "status": "success",
+      "score": 0.45,
+      "rank": 65,
+      "selected": false,
+      "reason": "데이터 개방체계 구축은 데이터 플랫폼 역량과 관련 있으나, 위탁감리 업무의 구체적 수행 범위와 기술적 관련성이 title만으로 불분명함.",
+      "relevance": "uncertain",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2212,
+      "error_code": null,
+      "input_tokens": 77,
+      "cached_input_tokens": null,
+      "output_tokens": 76,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867397",
+      "status": "success",
+      "score": 0.85,
+      "rank": 1,
+      "selected": true,
+      "reason": "RAG 기반 AI 시스템 구축 및 연동은 생성형 AI·LLM 기반 정보 분석 및 AI 연계 검색 역량(ai-data-analytics)과 직접적으로 관련됨.",
+      "relevance": "relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2212,
+      "error_code": null,
+      "input_tokens": 77,
+      "cached_input_tokens": null,
+      "output_tokens": 76,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868405",
+      "status": "success",
+      "score": 0.35,
+      "rank": 102,
+      "selected": false,
+      "reason": "개인정보영향평가는 데이터 플랫폼 구축 과정의 일부일 수 있으나, title만으로는 데이터 표준화·품질관리 역량과의 직접적 기술적 관련성을 확인하기 어려움.",
+      "relevance": "uncertain",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2212,
+      "error_code": null,
+      "input_tokens": 77,
+      "cached_input_tokens": null,
+      "output_tokens": 76,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868813",
+      "status": "success",
+      "score": 0.4,
+      "rank": 89,
+      "selected": false,
+      "reason": "도시데이터플랫폼 구축은 데이터 플랫폼 역량과 관련 있으나, 개인정보 영향평가라는 업무 성격상 기술적 구축 역량과의 직접적 관련성이 불분명함.",
+      "relevance": "uncertain",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2212,
+      "error_code": null,
+      "input_tokens": 77,
+      "cached_input_tokens": null,
+      "output_tokens": 76,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868438",
+      "status": "success",
+      "score": 0.45,
+      "rank": 56,
+      "selected": false,
+      "reason": "AI 기반 시스템 개발은 AI 역량과 관련 있으나, 발파 설계라는 특정 산업 도메인 특화 기술의 구체적 관련성은 title만으로 확인 불가.",
+      "relevance": "uncertain",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2212,
+      "error_code": null,
+      "input_tokens": 77,
+      "cached_input_tokens": null,
+      "output_tokens": 75,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868008",
+      "status": "success",
+      "score": 0.45,
+      "rank": 52,
+      "selected": false,
+      "reason": "AI학습용데이터 통합제공시스템 구축은 데이터 플랫폼 및 AI 역량과 관련 있으나, 위탁감리 업무의 구체적 수행 범위와 기술적 관련성이 title만으로 불분명함.",
+      "relevance": "uncertain",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2212,
+      "error_code": null,
+      "input_tokens": 77,
+      "cached_input_tokens": null,
+      "output_tokens": 75,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20869173",
+      "status": "success",
+      "score": 0.65,
+      "rank": 25,
+      "selected": true,
+      "reason": "홈페이지 운영 및 유지관리는 CMS·홈페이지·포털 수행 및 운영·유지관리 역량(public-si-lifecycle)과 직접적으로 관련됨.",
+      "relevance": "relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2212,
+      "error_code": null,
+      "input_tokens": 77,
+      "cached_input_tokens": null,
+      "output_tokens": 75,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20869166",
+      "status": "success",
+      "score": 0.7,
+      "rank": 19,
+      "selected": true,
+      "reason": "정보시스템 통합 유지관리는 공공 시스템 운영·유지관리 및 통합관리 역량(public-si-lifecycle)과 직접적으로 관련됨.",
+      "relevance": "relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2212,
+      "error_code": null,
+      "input_tokens": 77,
+      "cached_input_tokens": null,
+      "output_tokens": 75,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868945",
+      "status": "success",
+      "score": 0.65,
+      "rank": 23,
+      "selected": true,
+      "reason": "통합의료정보시스템 고도화는 공공 시스템 기능 고도화 및 구축 역량(public-si-lifecycle)과 직접적으로 관련됨.",
+      "relevance": "relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2212,
+      "error_code": null,
+      "input_tokens": 77,
+      "cached_input_tokens": null,
+      "output_tokens": 75,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868899",
+      "status": "success",
+      "score": 0.4,
+      "rank": 93,
+      "selected": false,
+      "reason": "AI 기반 법률서비스 환경 구축은 AI 역량과 관련 있으나, 해외 사업 PMC 용역의 구체적 수행 범위와 기술적 관련성이 title만으로 불분명함.",
+      "relevance": "uncertain",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2212,
+      "error_code": null,
+      "input_tokens": 77,
+      "cached_input_tokens": null,
+      "output_tokens": 75,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20869092",
+      "status": "success",
+      "score": 0.7,
+      "rank": 16,
+      "selected": true,
+      "reason": "정보시스템 유지관리 및 운영지원은 공공 시스템 운영·유지관리 역량(public-si-lifecycle)과 직접적으로 관련됨.",
+      "relevance": "relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2211,
+      "error_code": null,
+      "input_tokens": 77,
+      "cached_input_tokens": null,
+      "output_tokens": 75,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867945",
+      "status": "success",
+      "score": 0.45,
+      "rank": 50,
+      "selected": true,
+      "reason": "ERP 전환 및 통합시스템 구축은 공공 SI 역량과 관련 있으나, 차세대 ERP라는 특정 기업용 시스템의 구체적 기술 관련성은 title만으로 확인 불가.",
+      "relevance": "uncertain",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2211,
+      "error_code": null,
+      "input_tokens": 77,
+      "cached_input_tokens": null,
+      "output_tokens": 75,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868057",
+      "status": "success",
+      "score": 0.7,
+      "rank": 13,
+      "selected": true,
+      "reason": "통합정보시스템 유지관리는 공공 시스템 운영·유지관리 역량(public-si-lifecycle)과 직접적으로 관련됨.",
+      "relevance": "relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2211,
+      "error_code": null,
+      "input_tokens": 77,
+      "cached_input_tokens": null,
+      "output_tokens": 75,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868935",
+      "status": "success",
+      "score": 0.8,
+      "rank": 4,
+      "selected": true,
+      "reason": "AI 기반 개인 맞춤형 학습지원 시스템 구축은 AI 연계 검색·추천 및 AI 학습모델 개발 역량(ai-data-analytics)과 직접적으로 관련됨.",
+      "relevance": "relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2211,
+      "error_code": null,
+      "input_tokens": 77,
+      "cached_input_tokens": null,
+      "output_tokens": 75,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20869062",
+      "status": "success",
+      "score": 0.7,
+      "rank": 15,
+      "selected": true,
+      "reason": "전파관리정보시스템 유지관리는 공공 시스템 운영·유지관리 역량(public-si-lifecycle)과 직접적으로 관련됨.",
+      "relevance": "relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2211,
+      "error_code": null,
+      "input_tokens": 77,
+      "cached_input_tokens": null,
+      "output_tokens": 75,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867620",
+      "status": "success",
+      "score": 0.4,
+      "rank": 77,
+      "selected": false,
+      "reason": "AI 반도체 기반 온디바이스 AI 생태계 조성 및 마스터플랜 수립은 AI 역량과 관련 있으나, 하드웨어 생태계 조성 및 전략 수립의 구체적 기술 관련성이 title만으로 불분명함.",
+      "relevance": "uncertain",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2211,
+      "error_code": null,
+      "input_tokens": 77,
+      "cached_input_tokens": null,
+      "output_tokens": 75,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867657",
+      "status": "success",
+      "score": 0.7,
+      "rank": 11,
+      "selected": true,
+      "reason": "홈페이지 유지관리는 CMS·홈페이지·포털 수행 및 운영·유지관리 역량(public-si-lifecycle)과 직접적으로 관련됨.",
+      "relevance": "relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2211,
+      "error_code": null,
+      "input_tokens": 77,
+      "cached_input_tokens": null,
+      "output_tokens": 75,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868262",
+      "status": "success",
+      "score": 0.75,
+      "rank": 7,
+      "selected": true,
+      "reason": "통합 업무정보관리 시스템(ECM) 구축은 신규 시스템 구축 및 통합관리 역량(public-si-lifecycle)과 직접적으로 관련됨.",
+      "relevance": "relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2211,
+      "error_code": null,
+      "input_tokens": 77,
+      "cached_input_tokens": null,
+      "output_tokens": 75,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868205",
+      "status": "success",
+      "score": 0.65,
+      "rank": 22,
+      "selected": true,
+      "reason": "데이터 개인정보 재검증 및 비식별은 데이터 표준화·품질관리 및 데이터 플랫폼 구축 역량(data-platform-integration)과 직접적으로 관련됨.",
+      "relevance": "relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2211,
+      "error_code": null,
+      "input_tokens": 76,
+      "cached_input_tokens": null,
+      "output_tokens": 75,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868348",
+      "status": "success",
+      "score": 0.45,
+      "rank": 54,
+      "selected": false,
+      "reason": "K-스마트팜 직업교육 통합관리 플랫폼 고도화는 공공 SI 및 데이터 플랫폼 역량과 관련 있으나, 스마트팜 도메인 특화 기술의 구체적 관련성은 title만으로 확인 불가.",
+      "relevance": "uncertain",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2211,
+      "error_code": null,
+      "input_tokens": 76,
+      "cached_input_tokens": null,
+      "output_tokens": 75,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20869137",
+      "status": "success",
+      "score": 0.45,
+      "rank": 70,
+      "selected": false,
+      "reason": "AI 상담 서비스와 관련 있으나 개인정보 영향평가라는 업무 성격이 title만으로 명확하지 않아 근거가 부족함.",
+      "relevance": "uncertain",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2207,
+      "error_code": null,
+      "input_tokens": 81,
+      "cached_input_tokens": null,
+      "output_tokens": 77,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868095",
+      "status": "success",
+      "score": 0.55,
+      "rank": 32,
+      "selected": true,
+      "reason": "기능 고도화 용역은 역량과 유사하나 부동산거래관리시스템이라는 특정 도메인과 감리 업무의 적합성이 title만으로 불확실함.",
+      "relevance": "uncertain",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2207,
+      "error_code": null,
+      "input_tokens": 81,
+      "cached_input_tokens": null,
+      "output_tokens": 77,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868437",
+      "status": "success",
+      "score": 0.5,
+      "rank": 43,
+      "selected": true,
+      "reason": "AI 기반 분석 및 시스템 연계는 역량과 일치하나 파쇄암 입도 분포라는 특수한 산업 도메인의 구체적 수행 근거가 title에 부재함.",
+      "relevance": "uncertain",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2207,
+      "error_code": null,
+      "input_tokens": 81,
+      "cached_input_tokens": null,
+      "output_tokens": 76,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868042",
+      "status": "success",
+      "score": 0.45,
+      "rank": 53,
+      "selected": false,
+      "reason": "AI 서비스와 관련 있으나 개인정보 영향평가라는 보안·법무 중심 업무가 title만으로 명확히 연결되지 않음.",
+      "relevance": "uncertain",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2207,
+      "error_code": null,
+      "input_tokens": 81,
+      "cached_input_tokens": null,
+      "output_tokens": 76,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20869097",
+      "status": "success",
+      "score": 0.7,
+      "rank": 17,
+      "selected": true,
+      "reason": "인사시스템 고도화 용역은 public-si-lifecycle의 신규 시스템 구축 및 기능 고도화 역량과 직접적으로 관련됨.",
+      "relevance": "relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2207,
+      "error_code": null,
+      "input_tokens": 81,
+      "cached_input_tokens": null,
+      "output_tokens": 76,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867663",
+      "status": "success",
+      "score": 0.55,
+      "rank": 29,
+      "selected": true,
+      "reason": "AI 기반 예측 프로그램 개발은 ai-data-analytics와 관련 있으나 낙상예측이라는 특정 의료·안전 도메인의 구체성이 title만으로 부족함.",
+      "relevance": "uncertain",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2207,
+      "error_code": null,
+      "input_tokens": 81,
+      "cached_input_tokens": null,
+      "output_tokens": 76,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868090",
+      "status": "success",
+      "score": 0.5,
+      "rank": 39,
+      "selected": true,
+      "reason": "데이터 수집 인프라 및 ERP/SCADA 구축은 data-platform-integration과 유사하나 염색공정이라는 제조 현장 특화 시스템의 적합성이 불확실함.",
+      "relevance": "uncertain",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2207,
+      "error_code": null,
+      "input_tokens": 81,
+      "cached_input_tokens": null,
+      "output_tokens": 76,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867879",
+      "status": "success",
+      "score": 0.15,
+      "rank": 107,
+      "selected": false,
+      "reason": "지식재산 교육 수요 조사 및 기반 연구는 회사의 AI, 데이터 플랫폼, 시스템 구축 역량과 title상 명확히 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2207,
+      "error_code": null,
+      "input_tokens": 81,
+      "cached_input_tokens": null,
+      "output_tokens": 76,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867823",
+      "status": "success",
+      "score": 0.1,
+      "rank": 142,
+      "selected": false,
+      "reason": "OTT 플랫폼 연계 제작지원 및 VFX 용역은 영상 콘텐츠 제작 분야로 회사의 IT 시스템 및 AI 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2207,
+      "error_code": null,
+      "input_tokens": 81,
+      "cached_input_tokens": null,
+      "output_tokens": 76,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868685",
+      "status": "success",
+      "score": 0.4,
+      "rank": 87,
+      "selected": false,
+      "reason": "스마트팜 플랫폼 도입은 saas-cloud나 data-platform-integration과 관련 가능하나 농업 특화 플랫폼의 구체적 수행 근거가 title에 부족함.",
+      "relevance": "uncertain",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2207,
+      "error_code": null,
+      "input_tokens": 81,
+      "cached_input_tokens": null,
+      "output_tokens": 76,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868852",
+      "status": "success",
+      "score": 0.4,
+      "rank": 91,
+      "selected": false,
+      "reason": "스마트팜 플랫폼 도입은 saas-cloud나 data-platform-integration과 관련 가능하나 농업 특화 플랫폼의 구체적 수행 근거가 title에 부족함.",
+      "relevance": "uncertain",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2207,
+      "error_code": null,
+      "input_tokens": 81,
+      "cached_input_tokens": null,
+      "output_tokens": 76,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867963",
+      "status": "success",
+      "score": 0.45,
+      "rank": 51,
+      "selected": false,
+      "reason": "진료접수 Kiosk 임대 및 유지관리는 public-si-lifecycle의 운영·유지관리와 유사하나 의료 특화 하드웨어 임대 성격이 title만으로 불확실함.",
+      "relevance": "uncertain",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2207,
+      "error_code": null,
+      "input_tokens": 81,
+      "cached_input_tokens": null,
+      "output_tokens": 76,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868282",
+      "status": "success",
+      "score": 0.75,
+      "rank": 8,
+      "selected": true,
+      "reason": "기관 웹서비스 통합유지관리 사업은 public-si-lifecycle의 CMS·홈페이지·포털 수행 및 운영·유지관리 역량과 직접적으로 일치함.",
+      "relevance": "relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2207,
+      "error_code": null,
+      "input_tokens": 81,
+      "cached_input_tokens": null,
+      "output_tokens": 76,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868523",
+      "status": "success",
+      "score": 0.1,
+      "rank": 159,
+      "selected": false,
+      "reason": "단일세포 전사체 데이터 및 세포성 면역반응 분석은 생명과학·바이오 연구 분야로 회사의 IT 및 AI 시스템 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2207,
+      "error_code": null,
+      "input_tokens": 81,
+      "cached_input_tokens": null,
+      "output_tokens": 76,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867568",
+      "status": "success",
+      "score": 0.7,
+      "rank": 10,
+      "selected": true,
+      "reason": "동반성장평가 관리시스템 유지보수 및 기능개선은 public-si-lifecycle의 시스템 구축, 고도화 및 유지관리 역량과 직접적으로 관련됨.",
+      "relevance": "relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2207,
+      "error_code": null,
+      "input_tokens": 81,
+      "cached_input_tokens": null,
+      "output_tokens": 76,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868565",
+      "status": "success",
+      "score": 0.1,
+      "rank": 162,
+      "selected": false,
+      "reason": "축제 주무대 시스템 설치 및 운영은 행사 하드웨어 및 무대 기술 분야로 회사의 IT 시스템 및 AI 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2207,
+      "error_code": null,
+      "input_tokens": 81,
+      "cached_input_tokens": null,
+      "output_tokens": 76,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868439",
+      "status": "success",
+      "score": 0.75,
+      "rank": 9,
+      "selected": true,
+      "reason": "행정시스템 개선 및 고도화 용역은 public-si-lifecycle의 공공 정보화 시스템 구축 및 기능 고도화 역량과 직접적으로 일치함.",
+      "relevance": "relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2207,
+      "error_code": null,
+      "input_tokens": 81,
+      "cached_input_tokens": null,
+      "output_tokens": 76,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868474",
+      "status": "success",
+      "score": 0.4,
+      "rank": 85,
+      "selected": false,
+      "reason": "상시계측시스템 유지관리는 public-si-lifecycle의 유지관리와 유사하나 도로 계측이라는 특수한 인프라 모니터링의 적합성이 title만으로 불확실함.",
+      "relevance": "uncertain",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2207,
+      "error_code": null,
+      "input_tokens": 80,
+      "cached_input_tokens": null,
+      "output_tokens": 76,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867648",
+      "status": "success",
+      "score": 0.45,
+      "rank": 48,
+      "selected": true,
+      "reason": "AI 인재 혁신대학 조성 및 확산 전략 연구는 ai-data-analytics와 관련 있으나 교육 정책 및 전략 연구라는 업무 성격이 title만으로 명확하지 않음.",
+      "relevance": "uncertain",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2207,
+      "error_code": null,
+      "input_tokens": 80,
+      "cached_input_tokens": null,
+      "output_tokens": 76,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20869139",
+      "status": "success",
+      "score": 0.45,
+      "rank": 71,
+      "selected": false,
+      "reason": "주민케어 AI 서비스와 관련 있으나 개인정보 영향평가라는 업무가 title만으로 회사의 AI 역량과 명확히 연결되지 않음.",
+      "relevance": "uncertain",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2207,
+      "error_code": null,
+      "input_tokens": 80,
+      "cached_input_tokens": null,
+      "output_tokens": 76,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867394",
+      "status": "success",
+      "score": 0.55,
+      "rank": 26,
+      "selected": true,
+      "reason": "AI 적용환경 구축 및 시스템 연동은 ai-data-analytics와 관련 있으나 철도 안전훈련이라는 특수 도메인의 구체적 수행 근거가 title에 부족함.",
+      "relevance": "uncertain",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2207,
+      "error_code": null,
+      "input_tokens": 80,
+      "cached_input_tokens": null,
+      "output_tokens": 76,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868966",
+      "status": "success",
+      "score": 0.4,
+      "rank": 94,
+      "selected": false,
+      "reason": "제조로봇 정보보호 매뉴얼 개발 연구는 보안 정책 및 매뉴얼 작성 중심 업무로 회사의 시스템 구축 및 AI 역량과의 연결이 title만으로 불확실함.",
+      "relevance": "uncertain",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2206,
+      "error_code": null,
+      "input_tokens": 80,
+      "cached_input_tokens": null,
+      "output_tokens": 76,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868363",
+      "status": "success",
+      "score": 0.5,
+      "rank": 42,
+      "selected": true,
+      "reason": "지상이동시간 예측 정확도 개선 및 효과 분석은 ai-data-analytics의 예측 분석과 관련 있으나 항공 운영 특화 연구의 구체성이 title만으로 부족함.",
+      "relevance": "uncertain",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2206,
+      "error_code": null,
+      "input_tokens": 80,
+      "cached_input_tokens": null,
+      "output_tokens": 76,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867808",
+      "status": "success",
+      "score": 0.55,
+      "rank": 31,
+      "selected": true,
+      "reason": "플랫폼 고도화 및 유지보수는 public-si-lifecycle과 관련 있으나 SUPREME 2.0이라는 특정 의료 플랫폼의 도메인 적합성이 title만으로 불확실함.",
+      "relevance": "uncertain",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2206,
+      "error_code": null,
+      "input_tokens": 80,
+      "cached_input_tokens": null,
+      "output_tokens": 76,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868196",
+      "status": "success",
+      "score": 0.15,
+      "rank": 109,
+      "selected": false,
+      "reason": "매치업 사업 고도화 및 성과체제 재구조화 방안 연구는 정책·경영 컨설팅 분야로 회사의 IT 시스템 및 AI 기술 역량과 title상 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2206,
+      "error_code": null,
+      "input_tokens": 80,
+      "cached_input_tokens": null,
+      "output_tokens": 76,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867654",
+      "status": "success",
+      "score": 0.55,
+      "rank": 28,
+      "selected": true,
+      "reason": "물류기술 통합정보시스템 개발 및 운영은 공공 SI 및 데이터 플랫폼 역량과 관련 가능성이 있으나, 물류 도메인 구체성이 부족하다.",
+      "relevance": "uncertain",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2204,
+      "error_code": null,
+      "input_tokens": 81,
+      "cached_input_tokens": null,
+      "output_tokens": 76,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868855",
+      "status": "success",
+      "score": 0.45,
+      "rank": 62,
+      "selected": false,
+      "reason": "군 특화 AI 교육 시나리오 개발은 AI 역량과 관련 있으나, 교육 콘텐츠 개발이 핵심인지 기술 개발인지 title로 명확하지 않다.",
+      "relevance": "uncertain",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2204,
+      "error_code": null,
+      "input_tokens": 81,
+      "cached_input_tokens": null,
+      "output_tokens": 76,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868687",
+      "status": "success",
+      "score": 0.1,
+      "rank": 164,
+      "selected": false,
+      "reason": "선박용 액화수소 벙커링 시스템 안전관리계획 수립은 하드웨어 및 안전 공학 분야로, 회사의 IT·AI·데이터 역량과 무관하다.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2204,
+      "error_code": null,
+      "input_tokens": 81,
+      "cached_input_tokens": null,
+      "output_tokens": 76,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868423",
+      "status": "success",
+      "score": 0.4,
+      "rank": 84,
+      "selected": false,
+      "reason": "RCMS 통합감리 및 개인정보 영향평가는 시스템 운영 및 데이터 관리와 관련 있으나, 감리 및 평가 업무의 구체적 범위가 불분명하다.",
+      "relevance": "uncertain",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2204,
+      "error_code": null,
+      "input_tokens": 81,
+      "cached_input_tokens": null,
+      "output_tokens": 76,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867352",
+      "status": "success",
+      "score": 0.75,
+      "rank": 5,
+      "selected": true,
+      "reason": "안전교육시스템(LMS) 재구축 ISMP 수립은 공공 정보화 ISP 및 시스템 구축 역량과 직접적으로 관련된다.",
+      "relevance": "relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2204,
+      "error_code": null,
+      "input_tokens": 81,
+      "cached_input_tokens": null,
+      "output_tokens": 76,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868131",
+      "status": "success",
+      "score": 0.5,
+      "rank": 40,
+      "selected": true,
+      "reason": "스마트관광지도 구축은 데이터 플랫폼 및 GIS 연계 가능성이 있으나, title에서 기술적 범위가 명확하지 않다.",
+      "relevance": "uncertain",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2204,
+      "error_code": null,
+      "input_tokens": 81,
+      "cached_input_tokens": null,
+      "output_tokens": 76,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868522",
+      "status": "success",
+      "score": 0.55,
+      "rank": 34,
+      "selected": true,
+      "reason": "코호트 자료정제 표준화 및 고도화는 데이터 표준화 및 품질관리 역량과 관련 있으나, 의료 데이터 도메인 특화 여부가 불분명하다.",
+      "relevance": "uncertain",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2204,
+      "error_code": null,
+      "input_tokens": 81,
+      "cached_input_tokens": null,
+      "output_tokens": 76,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20869101",
+      "status": "success",
+      "score": 0.7,
+      "rank": 18,
+      "selected": true,
+      "reason": "통합환경허가시스템(IEPS) 유지관리는 공공 시스템 운영·유지관리 및 기능 고도화 역량과 직접적으로 관련된다.",
+      "relevance": "relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2204,
+      "error_code": null,
+      "input_tokens": 81,
+      "cached_input_tokens": null,
+      "output_tokens": 76,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867798",
+      "status": "success",
+      "score": 0.15,
+      "rank": 106,
+      "selected": false,
+      "reason": "군집 드론 운용 및 라이트쇼 프로젝트는 하드웨어 운용 및 이벤트 기획 분야로, 회사의 IT·AI·데이터 역량과 무관하다.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2204,
+      "error_code": null,
+      "input_tokens": 80,
+      "cached_input_tokens": null,
+      "output_tokens": 76,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867444",
+      "status": "success",
+      "score": 0.1,
+      "rank": 122,
+      "selected": false,
+      "reason": "AI 디지털 기반 수업혁신 교원 해외연수 위탁용역은 교육 연수 운영 분야로, IT 시스템 개발 및 데이터 분석 역량과 무관하다.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2204,
+      "error_code": null,
+      "input_tokens": 80,
+      "cached_input_tokens": null,
+      "output_tokens": 76,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867999",
+      "status": "success",
+      "score": 0.1,
+      "rank": 146,
+      "selected": false,
+      "reason": "상권조합 역량강화 및 옴부즈맨 운영은 행정·경영 컨설팅 분야로, IT·AI·데이터 기술 역량과 무관하다.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2204,
+      "error_code": null,
+      "input_tokens": 80,
+      "cached_input_tokens": null,
+      "output_tokens": 76,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20869127",
+      "status": "success",
+      "score": 0.4,
+      "rank": 99,
+      "selected": false,
+      "reason": "AI 기반 한국어·문화 이해증진 프로젝트 PMC 용역은 AI 기술 활용 가능성이 있으나, PMC(프로젝트 관리) 중심인지 기술 개발 중심인지 불분명하다.",
+      "relevance": "uncertain",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2204,
+      "error_code": null,
+      "input_tokens": 80,
+      "cached_input_tokens": null,
+      "output_tokens": 76,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868769",
+      "status": "success",
+      "score": 0.45,
+      "rank": 60,
+      "selected": false,
+      "reason": "제한차량 단속시스템 유지관리는 시스템 운영 및 데이터 처리와 관련 있으나, CCTV 영상 분석 등 구체적 기술 범위가 title에 명시되지 않았다.",
+      "relevance": "uncertain",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2204,
+      "error_code": null,
+      "input_tokens": 80,
+      "cached_input_tokens": null,
+      "output_tokens": 76,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868772",
+      "status": "success",
+      "score": 0.45,
+      "rank": 61,
+      "selected": false,
+      "reason": "제한차량 단속시스템 유지관리는 시스템 운영 및 데이터 처리와 관련 있으나, CCTV 영상 분석 등 구체적 기술 범위가 title에 명시되지 않았다.",
+      "relevance": "uncertain",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2204,
+      "error_code": null,
+      "input_tokens": 80,
+      "cached_input_tokens": null,
+      "output_tokens": 76,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868524",
+      "status": "success",
+      "score": 0.1,
+      "rank": 160,
+      "selected": false,
+      "reason": "혈청학 기반 코로나19 백신 면역분석 시험법 확립은 바이오·의료 연구 분야로, IT·AI·데이터 기술 역량과 무관하다.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2204,
+      "error_code": null,
+      "input_tokens": 80,
+      "cached_input_tokens": null,
+      "output_tokens": 76,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867683",
+      "status": "success",
+      "score": 0.1,
+      "rank": 134,
+      "selected": false,
+      "reason": "성장산업 정책 분석 및 신규 사업 발굴 연구는 정책 컨설팅 분야로, IT 시스템 개발 및 데이터 플랫폼 구축 역량과 무관하다.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2204,
+      "error_code": null,
+      "input_tokens": 80,
+      "cached_input_tokens": null,
+      "output_tokens": 76,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868177",
+      "status": "success",
+      "score": 0.1,
+      "rank": 148,
+      "selected": false,
+      "reason": "전기어선 실증기반 구축 수용성 분석 및 타당성 검토는 해양·에너지 인프라 분야로, IT·AI·데이터 기술 역량과 무관하다.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2204,
+      "error_code": null,
+      "input_tokens": 80,
+      "cached_input_tokens": null,
+      "output_tokens": 75,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868730",
+      "status": "success",
+      "score": 0.1,
+      "rank": 170,
+      "selected": false,
+      "reason": "APEC 디지털 교육정책 연수사업 성과평가 및 관리체계 고도화 연구는 교육 정책 평가 분야로, IT 시스템 개발 역량과 무관하다.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2204,
+      "error_code": null,
+      "input_tokens": 80,
+      "cached_input_tokens": null,
+      "output_tokens": 75,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867649",
+      "status": "success",
+      "score": 0.1,
+      "rank": 131,
+      "selected": false,
+      "reason": "KEIT R&D사업 성과 개선을 위한 전략체계 고도화는 R&D 정책 관리 분야로, IT 시스템 개발 및 데이터 분석 역량과 무관하다.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2204,
+      "error_code": null,
+      "input_tokens": 80,
+      "cached_input_tokens": null,
+      "output_tokens": 75,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868317",
+      "status": "success",
+      "score": 0.4,
+      "rank": 82,
+      "selected": false,
+      "reason": "재현 가능한 연구성과 콘텐츠 구축·확산은 데이터 관리 및 플랫폼 연계 가능성이 있으나, 콘텐츠 제작 중심인지 기술 인프라 구축인지 불분명하다.",
+      "relevance": "uncertain",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2204,
+      "error_code": null,
+      "input_tokens": 80,
+      "cached_input_tokens": null,
+      "output_tokens": 75,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867432",
+      "status": "success",
+      "score": 0.05,
+      "rank": 197,
+      "selected": false,
+      "reason": "모바일 스마트기기(태블릿PC) 임차는 하드웨어 임대 분야로, IT 시스템 개발 및 데이터 분석 역량과 무관하다.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2204,
+      "error_code": null,
+      "input_tokens": 80,
+      "cached_input_tokens": null,
+      "output_tokens": 75,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20869125",
+      "status": "success",
+      "score": 0.4,
+      "rank": 97,
+      "selected": false,
+      "reason": "AI 기반 한국어 및 한국문화 프로젝트 PMC 용역은 AI 기술 활용 가능성이 있으나, PMC(프로젝트 관리) 중심인지 기술 개발 중심인지 불분명하다.",
+      "relevance": "uncertain",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2204,
+      "error_code": null,
+      "input_tokens": 80,
+      "cached_input_tokens": null,
+      "output_tokens": 75,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867448",
+      "status": "success",
+      "score": 0.1,
+      "rank": 124,
+      "selected": false,
+      "reason": "국회예산정책처 핵심성과지표 개발은 공공 정책 평가 분야로, IT 시스템 개발 및 데이터 플랫폼 구축 역량과 무관하다.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2204,
+      "error_code": null,
+      "input_tokens": 80,
+      "cached_input_tokens": null,
+      "output_tokens": 75,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867796",
+      "status": "success",
+      "score": 0.1,
+      "rank": 141,
+      "selected": false,
+      "reason": "매입임대주택 관리서비스 및 입주자 실태조사는 부동산 관리 및 사회조사 분야로, IT·AI·데이터 기술 역량과 무관하다.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2204,
+      "error_code": null,
+      "input_tokens": 80,
+      "cached_input_tokens": null,
+      "output_tokens": 75,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867746",
+      "status": "success",
+      "score": 0.1,
+      "rank": 137,
+      "selected": false,
+      "reason": "저궤도위성 위성망 분석 및 보호 연구는 우주·통신 인프라 분야로, 회사의 공공 IT·AI·데이터 플랫폼 역량과 무관하다.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2203,
+      "error_code": null,
+      "input_tokens": 80,
+      "cached_input_tokens": null,
+      "output_tokens": 75,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868904",
+      "status": "success",
+      "score": 0.1,
+      "rank": 177,
+      "selected": false,
+      "reason": "해외 초청연수생 교육 및 체류 시설 임대용역으로, 회사의 IT·AI·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1919,
+      "error_code": null,
+      "input_tokens": 78,
+      "cached_input_tokens": null,
+      "output_tokens": 66,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20869083",
+      "status": "success",
+      "score": 0.15,
+      "rank": 113,
+      "selected": false,
+      "reason": "교수혁신법 가이드북 개발 및 교과목 적용 지원으로, 기술적 시스템 구축이나 데이터 분석이 아님.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1919,
+      "error_code": null,
+      "input_tokens": 78,
+      "cached_input_tokens": null,
+      "output_tokens": 66,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20869165",
+      "status": "success",
+      "score": 0.2,
+      "rank": 105,
+      "selected": false,
+      "reason": "산업단지 특화전략 및 분양활성화 방안 수립으로, 정책·전략 컨설팅 성격이 강함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1919,
+      "error_code": null,
+      "input_tokens": 78,
+      "cached_input_tokens": null,
+      "output_tokens": 66,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868822",
+      "status": "success",
+      "score": 0.4,
+      "rank": 90,
+      "selected": false,
+      "reason": "원격교육 콘텐츠 개발은 AI 기반 생성형 AI 활용 가능성이 있으나, title만으로 기술적 구체성이 부족함.",
+      "relevance": "uncertain",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1919,
+      "error_code": null,
+      "input_tokens": 78,
+      "cached_input_tokens": null,
+      "output_tokens": 66,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868858",
+      "status": "success",
+      "score": 0.4,
+      "rank": 92,
+      "selected": false,
+      "reason": "원격교육 콘텐츠 개발은 AI 기반 생성형 AI 활용 가능성이 있으나, title만으로 기술적 구체성이 부족함.",
+      "relevance": "uncertain",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1919,
+      "error_code": null,
+      "input_tokens": 78,
+      "cached_input_tokens": null,
+      "output_tokens": 66,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867981",
+      "status": "success",
+      "score": 0.05,
+      "rank": 227,
+      "selected": false,
+      "reason": "생물학적 Single-cell RNA Sequencing 분석으로, IT·AI·데이터 플랫폼 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1919,
+      "error_code": null,
+      "input_tokens": 78,
+      "cached_input_tokens": null,
+      "output_tokens": 66,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868444",
+      "status": "success",
+      "score": 0.45,
+      "rank": 57,
+      "selected": false,
+      "reason": "BIT 융합 교육과정 및 콘텐츠 개발은 AI·데이터 교육과 관련될 수 있으나, 구체적 기술 범위가 불명확함.",
+      "relevance": "uncertain",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1919,
+      "error_code": null,
+      "input_tokens": 78,
+      "cached_input_tokens": null,
+      "output_tokens": 66,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868691",
+      "status": "success",
+      "score": 0.1,
+      "rank": 165,
+      "selected": false,
+      "reason": "테스트베드 신축 폐기물 처리용역으로, 건설·환경 분야 업무임.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1919,
+      "error_code": null,
+      "input_tokens": 78,
+      "cached_input_tokens": null,
+      "output_tokens": 66,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868315",
+      "status": "success",
+      "score": 0.1,
+      "rank": 152,
+      "selected": false,
+      "reason": "하수관로 기술진단 및 정비공사 안전점검으로, 인프라 유지보수 분야임.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1919,
+      "error_code": null,
+      "input_tokens": 78,
+      "cached_input_tokens": null,
+      "output_tokens": 66,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868481",
+      "status": "success",
+      "score": 0.1,
+      "rank": 156,
+      "selected": false,
+      "reason": "식품 트레이 시제품 제작으로, 제조·식품 분야 업무임.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1919,
+      "error_code": null,
+      "input_tokens": 78,
+      "cached_input_tokens": null,
+      "output_tokens": 66,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868453",
+      "status": "success",
+      "score": 0.5,
+      "rank": 44,
+      "selected": true,
+      "reason": "AI 부트캠프 운영은 AI 교육과 관련되나, 시스템 구축보다는 교육 운영에 초점이 있을 수 있음.",
+      "relevance": "uncertain",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1919,
+      "error_code": null,
+      "input_tokens": 78,
+      "cached_input_tokens": null,
+      "output_tokens": 66,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867662",
+      "status": "success",
+      "score": 0.1,
+      "rank": 132,
+      "selected": false,
+      "reason": "전시관 설치·운영 용역으로, 이벤트·전시 분야 업무임.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1919,
+      "error_code": null,
+      "input_tokens": 78,
+      "cached_input_tokens": null,
+      "output_tokens": 66,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867502",
+      "status": "success",
+      "score": 0.75,
+      "rank": 6,
+      "selected": true,
+      "reason": "데이터 기반 대학 그룹웨어 고도화는 공공 SI 라이프사이클 및 데이터 플랫폼 역량과 직접적으로 관련됨.",
+      "relevance": "relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1919,
+      "error_code": null,
+      "input_tokens": 78,
+      "cached_input_tokens": null,
+      "output_tokens": 66,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20869194",
+      "status": "success",
+      "score": 0.7,
+      "rank": 20,
+      "selected": true,
+      "reason": "행정정보망 운영 장비 통합 유지보수는 공공 SI 라이프사이클의 운영·유지관리 역량과 관련됨.",
+      "relevance": "relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1919,
+      "error_code": null,
+      "input_tokens": 78,
+      "cached_input_tokens": null,
+      "output_tokens": 65,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20869082",
+      "status": "success",
+      "score": 0.55,
+      "rank": 36,
+      "selected": true,
+      "reason": "GIS DB 구축은 데이터 플랫폼 역량과 관련되나, GIS 특화 기술이 company_capabilities에 명시되지 않아 불확실함.",
+      "relevance": "uncertain",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1919,
+      "error_code": null,
+      "input_tokens": 78,
+      "cached_input_tokens": null,
+      "output_tokens": 65,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868894",
+      "status": "success",
+      "score": 0.15,
+      "rank": 112,
+      "selected": false,
+      "reason": "국가사무 지방위임 수행체계 연구로, 행정·정책 연구 분야임.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1919,
+      "error_code": null,
+      "input_tokens": 78,
+      "cached_input_tokens": null,
+      "output_tokens": 65,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868793",
+      "status": "success",
+      "score": 0.1,
+      "rank": 174,
+      "selected": false,
+      "reason": "예술 캠페인 공간조성 및 운영으로, 문화·공간 디자인 분야임.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1919,
+      "error_code": null,
+      "input_tokens": 78,
+      "cached_input_tokens": null,
+      "output_tokens": 65,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868109",
+      "status": "success",
+      "score": 0.1,
+      "rank": 147,
+      "selected": false,
+      "reason": "휴양소 설치·운영 사업으로, 시설 관리·운영 분야임.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1919,
+      "error_code": null,
+      "input_tokens": 78,
+      "cached_input_tokens": null,
+      "output_tokens": 65,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868667",
+      "status": "success",
+      "score": 0.4,
+      "rank": 86,
+      "selected": false,
+      "reason": "백업시스템 교체는 IT 인프라와 관련되나, 하드웨어 교체 중심인지 소프트웨어 고도화인지 title로 판단 불가.",
+      "relevance": "uncertain",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1918,
+      "error_code": null,
+      "input_tokens": 78,
+      "cached_input_tokens": null,
+      "output_tokens": 65,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868934",
+      "status": "success",
+      "score": 0.1,
+      "rank": 182,
+      "selected": false,
+      "reason": "해외 현장체험학습 위탁 용역으로, 교육 여행·운영 분야임.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1918,
+      "error_code": null,
+      "input_tokens": 78,
+      "cached_input_tokens": null,
+      "output_tokens": 65,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867728",
+      "status": "success",
+      "score": 0.2,
+      "rank": 103,
+      "selected": false,
+      "reason": "위성 지상시스템 운용 및 점검으로, 우주·통신 인프라 분야로 판단됨.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1918,
+      "error_code": null,
+      "input_tokens": 78,
+      "cached_input_tokens": null,
+      "output_tokens": 65,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867742",
+      "status": "success",
+      "score": 0.2,
+      "rank": 104,
+      "selected": false,
+      "reason": "위성 사용자지원시스템 운용 및 점검으로, 우주·통신 인프라 분야로 판단됨.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1918,
+      "error_code": null,
+      "input_tokens": 78,
+      "cached_input_tokens": null,
+      "output_tokens": 65,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867617",
+      "status": "success",
+      "score": 0.45,
+      "rank": 47,
+      "selected": true,
+      "reason": "커리큘럼 개발 및 강좌 제작은 AI 기반 콘텐츠 생성과 관련될 수 있으나, 교육 콘텐츠 제작에 초점이 있을 수 있음.",
+      "relevance": "uncertain",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1918,
+      "error_code": null,
+      "input_tokens": 78,
+      "cached_input_tokens": null,
+      "output_tokens": 65,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867471",
+      "status": "success",
+      "score": 0.5,
+      "rank": 37,
+      "selected": true,
+      "reason": "콘텐츠산업 현황분석 및 지원체계 구축은 데이터 분석 및 플랫폼 구축과 관련될 수 있으나, 정책 연구 성격이 강함.",
+      "relevance": "uncertain",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1918,
+      "error_code": null,
+      "input_tokens": 78,
+      "cached_input_tokens": null,
+      "output_tokens": 65,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867668",
+      "status": "success",
+      "score": 0.7,
+      "rank": 12,
+      "selected": true,
+      "reason": "이미지 채점시스템 문제 유형 확대는 AI 영상 분석 및 시스템 고도화 역량과 직접적으로 관련됨.",
+      "relevance": "relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1918,
+      "error_code": null,
+      "input_tokens": 78,
+      "cached_input_tokens": null,
+      "output_tokens": 65,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867738",
+      "status": "success",
+      "score": 0.1,
+      "rank": 136,
+      "selected": false,
+      "reason": "위성 안테나 하드웨어 운용 및 점검은 소프트웨어 및 데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1869,
+      "error_code": null,
+      "input_tokens": 82,
+      "cached_input_tokens": null,
+      "output_tokens": 64,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868940",
+      "status": "success",
+      "score": 0.1,
+      "rank": 183,
+      "selected": false,
+      "reason": "선박 무인자동화 하드웨어 시제품 제작은 정보화 및 데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1869,
+      "error_code": null,
+      "input_tokens": 82,
+      "cached_input_tokens": null,
+      "output_tokens": 64,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868510",
+      "status": "success",
+      "score": 0.45,
+      "rank": 58,
+      "selected": false,
+      "reason": "GIS DB 구축은 데이터 플랫폼 역량과 관련 있으나 GIS 전문성 확인 불가.",
+      "relevance": "uncertain",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1869,
+      "error_code": null,
+      "input_tokens": 82,
+      "cached_input_tokens": null,
+      "output_tokens": 64,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867567",
+      "status": "success",
+      "score": 0.05,
+      "rank": 208,
+      "selected": false,
+      "reason": "폐기물 처리 용역은 정보화 및 데이터 역량과 명확히 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1869,
+      "error_code": null,
+      "input_tokens": 82,
+      "cached_input_tokens": null,
+      "output_tokens": 64,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868492",
+      "status": "success",
+      "score": 0.1,
+      "rank": 157,
+      "selected": false,
+      "reason": "홍보관 조성 및 운영은 물리적 공간 구축 및 행사 운영에 해당함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1869,
+      "error_code": null,
+      "input_tokens": 82,
+      "cached_input_tokens": null,
+      "output_tokens": 64,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868947",
+      "status": "success",
+      "score": 0.05,
+      "rank": 282,
+      "selected": false,
+      "reason": "소방공사 감리는 건설 분야 감리 업무로 정보화 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1869,
+      "error_code": null,
+      "input_tokens": 82,
+      "cached_input_tokens": null,
+      "output_tokens": 64,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867763",
+      "status": "success",
+      "score": 0.05,
+      "rank": 214,
+      "selected": false,
+      "reason": "건설재해예방 기술지도는 건설 안전 분야로 정보화 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1869,
+      "error_code": null,
+      "input_tokens": 82,
+      "cached_input_tokens": null,
+      "output_tokens": 64,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867385",
+      "status": "success",
+      "score": 0.1,
+      "rank": 117,
+      "selected": false,
+      "reason": "도시관리계획시설 결정 변경은 행정 절차 용역으로 정보화 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1869,
+      "error_code": null,
+      "input_tokens": 82,
+      "cached_input_tokens": null,
+      "output_tokens": 64,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868800",
+      "status": "success",
+      "score": 0.4,
+      "rank": 88,
+      "selected": false,
+      "reason": "통신망 제공은 네트워크 인프라 구축에 해당하며 시스템 연계 역량과 관련 가능성 있음.",
+      "relevance": "uncertain",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1869,
+      "error_code": null,
+      "input_tokens": 82,
+      "cached_input_tokens": null,
+      "output_tokens": 64,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868007",
+      "status": "success",
+      "score": 0.4,
+      "rank": 80,
+      "selected": false,
+      "reason": "RFID 물품관리 시스템 유지보수는 시스템 운영 역량과 관련 있으나 RFID 전문성 확인 불가.",
+      "relevance": "uncertain",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1868,
+      "error_code": null,
+      "input_tokens": 82,
+      "cached_input_tokens": null,
+      "output_tokens": 64,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868752",
+      "status": "success",
+      "score": 0.1,
+      "rank": 171,
+      "selected": false,
+      "reason": "반도체 프로젝트 및 해외 박람회 참가 지원은 정보화 시스템 구축과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1868,
+      "error_code": null,
+      "input_tokens": 82,
+      "cached_input_tokens": null,
+      "output_tokens": 64,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868875",
+      "status": "success",
+      "score": 0.45,
+      "rank": 63,
+      "selected": false,
+      "reason": "평가시스템 물품 임차는 SaaS 서비스 제공과 관련 있으나 물품 임차 방식의 구체성 부족.",
+      "relevance": "uncertain",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1868,
+      "error_code": null,
+      "input_tokens": 82,
+      "cached_input_tokens": null,
+      "output_tokens": 64,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867376",
+      "status": "success",
+      "score": 0.1,
+      "rank": 116,
+      "selected": false,
+      "reason": "ODA 사업 타당성 조사는 정책 연구 및 컨설팅으로 정보화 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1868,
+      "error_code": null,
+      "input_tokens": 82,
+      "cached_input_tokens": null,
+      "output_tokens": 64,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868217",
+      "status": "success",
+      "score": 0.05,
+      "rank": 235,
+      "selected": false,
+      "reason": "건설재해예방 기술지도는 건설 안전 분야로 정보화 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1868,
+      "error_code": null,
+      "input_tokens": 82,
+      "cached_input_tokens": null,
+      "output_tokens": 64,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868058",
+      "status": "success",
+      "score": 0.85,
+      "rank": 3,
+      "selected": true,
+      "reason": "Ontology 및 EKG 구축은 ontology-knowledge-graph 역량과 직접적으로 일치함.",
+      "relevance": "relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1868,
+      "error_code": null,
+      "input_tokens": 82,
+      "cached_input_tokens": null,
+      "output_tokens": 64,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868910",
+      "status": "success",
+      "score": 0.1,
+      "rank": 180,
+      "selected": false,
+      "reason": "생태하천복원 손실보상 지원은 행정 및 보상 절차로 정보화 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1868,
+      "error_code": null,
+      "input_tokens": 82,
+      "cached_input_tokens": null,
+      "output_tokens": 64,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868326",
+      "status": "success",
+      "score": 0.4,
+      "rank": 83,
+      "selected": false,
+      "reason": "의료영상 원격판독은 영상 분석 역량과 관련 있으나 의료 전문성 및 판독 업무 특성 확인 불가.",
+      "relevance": "uncertain",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1868,
+      "error_code": null,
+      "input_tokens": 82,
+      "cached_input_tokens": null,
+      "output_tokens": 64,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867365",
+      "status": "success",
+      "score": 0.1,
+      "rank": 115,
+      "selected": false,
+      "reason": "문항 및 라이선스 구입은 콘텐츠 구매로 시스템 구축 및 개발 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1868,
+      "error_code": null,
+      "input_tokens": 81,
+      "cached_input_tokens": null,
+      "output_tokens": 64,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868913",
+      "status": "success",
+      "score": 0.1,
+      "rank": 181,
+      "selected": false,
+      "reason": "원격수업 콘텐츠 개발은 교육 콘텐츠 제작으로 정보화 시스템 구축 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1868,
+      "error_code": null,
+      "input_tokens": 81,
+      "cached_input_tokens": null,
+      "output_tokens": 64,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867430",
+      "status": "success",
+      "score": 0.1,
+      "rank": 121,
+      "selected": false,
+      "reason": "달 착륙선 지상비행시험모델 개발은 우주항공 하드웨어 개발로 정보화 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1868,
+      "error_code": null,
+      "input_tokens": 81,
+      "cached_input_tokens": null,
+      "output_tokens": 63,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867423",
+      "status": "success",
+      "score": 0.1,
+      "rank": 119,
+      "selected": false,
+      "reason": "개방형 혁신 홍보 지원은 마케팅 및 홍보 업무로 정보화 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1868,
+      "error_code": null,
+      "input_tokens": 81,
+      "cached_input_tokens": null,
+      "output_tokens": 63,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867862",
+      "status": "success",
+      "score": 0.1,
+      "rank": 143,
+      "selected": false,
+      "reason": "해외협력 프로그램 총괄 운영지원은 교육 행정 및 운영 지원으로 정보화 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1868,
+      "error_code": null,
+      "input_tokens": 81,
+      "cached_input_tokens": null,
+      "output_tokens": 63,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867919",
+      "status": "success",
+      "score": 0.1,
+      "rank": 144,
+      "selected": false,
+      "reason": "해외협력 프로그램 총괄 운영지원은 교육 행정 및 운영 지원으로 정보화 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1868,
+      "error_code": null,
+      "input_tokens": 81,
+      "cached_input_tokens": null,
+      "output_tokens": 63,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868316",
+      "status": "success",
+      "score": 0.1,
+      "rank": 153,
+      "selected": false,
+      "reason": "공연중 캠페인 홍보 기획 및 운영은 마케팅 및 홍보 업무로 정보화 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1868,
+      "error_code": null,
+      "input_tokens": 81,
+      "cached_input_tokens": null,
+      "output_tokens": 63,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868965",
+      "status": "success",
+      "score": 0.1,
+      "rank": 185,
+      "selected": false,
+      "reason": "신규직원 채용 대행은 인사 행정 업무로 정보화 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1868,
+      "error_code": null,
+      "input_tokens": 81,
+      "cached_input_tokens": null,
+      "output_tokens": 63,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868402",
+      "status": "success",
+      "score": 0.45,
+      "rank": 55,
+      "selected": false,
+      "reason": "교육 만족도 및 역량 진단 조사는 데이터 분석 역량과 관련 가능성이 있으나, title에서 AI·빅데이터 활용 여부가 불분명하다.",
+      "relevance": "uncertain",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2133,
+      "error_code": null,
+      "input_tokens": 82,
+      "cached_input_tokens": null,
+      "output_tokens": 73,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868704",
+      "status": "success",
+      "score": 0.55,
+      "rank": 35,
+      "selected": true,
+      "reason": "AI 생태계 기업 설문은 AI·데이터 분석 역량과 관련 있으나, 단순 설문 수행인지 분석·가공 포함인지 title로 확인 불가하다.",
+      "relevance": "uncertain",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2132,
+      "error_code": null,
+      "input_tokens": 82,
+      "cached_input_tokens": null,
+      "output_tokens": 73,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20869126",
+      "status": "success",
+      "score": 0.4,
+      "rank": 98,
+      "selected": false,
+      "reason": "IT 역량강화 PMC 용역은 공공 SI·데이터 플랫폼 역량과 관련 가능성이 있으나, 구체적 IT 과업 범위가 title에 명시되지 않았다.",
+      "relevance": "uncertain",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2132,
+      "error_code": null,
+      "input_tokens": 82,
+      "cached_input_tokens": null,
+      "output_tokens": 73,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868184",
+      "status": "success",
+      "score": 0.1,
+      "rank": 149,
+      "selected": false,
+      "reason": "해군 교전급 분석모델 체계개발 감리는 군사·방산 분야로, 회사 역량과 명확히 무관하다.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2132,
+      "error_code": null,
+      "input_tokens": 82,
+      "cached_input_tokens": null,
+      "output_tokens": 73,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868521",
+      "status": "success",
+      "score": 0.05,
+      "rank": 256,
+      "selected": false,
+      "reason": "아파트 건설공사 감독권한대행 및 건설사업관리는 건설 분야로, IT·데이터 역량과 무관하다.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2132,
+      "error_code": null,
+      "input_tokens": 82,
+      "cached_input_tokens": null,
+      "output_tokens": 73,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868660",
+      "status": "success",
+      "score": 0.15,
+      "rank": 110,
+      "selected": false,
+      "reason": "연구기관 역할체계 수립 및 구조 개편 지원은 조직·정책 연구로, 기술적 IT·데이터 역량과 무관하다.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2132,
+      "error_code": null,
+      "input_tokens": 82,
+      "cached_input_tokens": null,
+      "output_tokens": 73,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868235",
+      "status": "success",
+      "score": 0.05,
+      "rank": 236,
+      "selected": false,
+      "reason": "주택건설공사 감리자(건축, 전기, 소방) 모집은 건설 감리 분야로, 회사 역량과 무관하다.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2132,
+      "error_code": null,
+      "input_tokens": 82,
+      "cached_input_tokens": null,
+      "output_tokens": 73,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867769",
+      "status": "success",
+      "score": 0.1,
+      "rank": 139,
+      "selected": false,
+      "reason": "지하철 전자설비 수선정비 용역은 시설 유지보수 분야로, IT·데이터 개발 역량과 무관하다.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2132,
+      "error_code": null,
+      "input_tokens": 82,
+      "cached_input_tokens": null,
+      "output_tokens": 73,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868049",
+      "status": "success",
+      "score": 0.15,
+      "rank": 108,
+      "selected": false,
+      "reason": "그린리모델링 사업계획 수립 연구는 환경·건축 정책 연구로, IT·데이터 역량과 무관하다.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2132,
+      "error_code": null,
+      "input_tokens": 82,
+      "cached_input_tokens": null,
+      "output_tokens": 73,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868683",
+      "status": "success",
+      "score": 0.15,
+      "rank": 111,
+      "selected": false,
+      "reason": "전공의 수련정책 방향 연구는 의료 정책 연구로, IT·데이터 개발 역량과 무관하다.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2132,
+      "error_code": null,
+      "input_tokens": 82,
+      "cached_input_tokens": null,
+      "output_tokens": 73,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868347",
+      "status": "success",
+      "score": 0.1,
+      "rank": 154,
+      "selected": false,
+      "reason": "R&D 지원센터 홍보 대행 용역은 마케팅·홍보 분야로, IT·데이터 개발 역량과 무관하다.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2132,
+      "error_code": null,
+      "input_tokens": 82,
+      "cached_input_tokens": null,
+      "output_tokens": 73,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868983",
+      "status": "success",
+      "score": 0.1,
+      "rank": 186,
+      "selected": false,
+      "reason": "글로벌 기술교육 벤치마킹 연수 용역은 교육·연수 운영 분야로, IT·데이터 개발 역량과 무관하다.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2132,
+      "error_code": null,
+      "input_tokens": 82,
+      "cached_input_tokens": null,
+      "output_tokens": 73,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867723",
+      "status": "success",
+      "score": 0.05,
+      "rank": 211,
+      "selected": false,
+      "reason": "놀이터 오픈식 행사 진행 용역은 행사 운영 분야로, IT·데이터 개발 역량과 무관하다.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2132,
+      "error_code": null,
+      "input_tokens": 81,
+      "cached_input_tokens": null,
+      "output_tokens": 73,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867445",
+      "status": "success",
+      "score": 0.1,
+      "rank": 123,
+      "selected": false,
+      "reason": "CES 통합한국관 조성운영 위탁용역은 전시·행사 운영 분야로, IT·데이터 개발 역량과 무관하다.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2132,
+      "error_code": null,
+      "input_tokens": 81,
+      "cached_input_tokens": null,
+      "output_tokens": 73,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867670",
+      "status": "success",
+      "score": 0.1,
+      "rank": 133,
+      "selected": false,
+      "reason": "CES 통합한국관 조성운영 위탁용역은 전시·행사 운영 분야로, IT·데이터 개발 역량과 무관하다.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2132,
+      "error_code": null,
+      "input_tokens": 81,
+      "cached_input_tokens": null,
+      "output_tokens": 73,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868512",
+      "status": "success",
+      "score": 0.45,
+      "rank": 59,
+      "selected": false,
+      "reason": "하수관로 라이다 측량 및 DB 구축은 데이터 플랫폼 역량과 관련 있으나, GIS 전문성 및 AI 활용 여부가 title로 확인 불가하다.",
+      "relevance": "uncertain",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2132,
+      "error_code": null,
+      "input_tokens": 81,
+      "cached_input_tokens": null,
+      "output_tokens": 73,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868534",
+      "status": "success",
+      "score": 0.05,
+      "rank": 258,
+      "selected": false,
+      "reason": "도심공공주택 건설공사 감독권한대행 및 건설사업관리는 건설 분야로, IT·데이터 역량과 무관하다.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2132,
+      "error_code": null,
+      "input_tokens": 81,
+      "cached_input_tokens": null,
+      "output_tokens": 73,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20869121",
+      "status": "success",
+      "score": 0.4,
+      "rank": 96,
+      "selected": false,
+      "reason": "베트남 T/B구축 및 기자재 구매 설치에서 T/B가 IT 인프라인지 불분명하여, 공공 SI 역량과의 관련성을 단정할 수 없다.",
+      "relevance": "uncertain",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2132,
+      "error_code": null,
+      "input_tokens": 81,
+      "cached_input_tokens": null,
+      "output_tokens": 73,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20869141",
+      "status": "success",
+      "score": 0.1,
+      "rank": 192,
+      "selected": false,
+      "reason": "우수직원 역량강화 국외연수 위탁용역은 교육·연수 운영 분야로, IT·데이터 개발 역량과 무관하다.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2132,
+      "error_code": null,
+      "input_tokens": 81,
+      "cached_input_tokens": null,
+      "output_tokens": 73,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868499",
+      "status": "success",
+      "score": 0.05,
+      "rank": 254,
+      "selected": false,
+      "reason": "달력 및 업무용 수첩 제작은 인쇄·물품 제작 분야로, IT·데이터 개발 역량과 무관하다.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2132,
+      "error_code": null,
+      "input_tokens": 81,
+      "cached_input_tokens": null,
+      "output_tokens": 73,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20869064",
+      "status": "success",
+      "score": 0.45,
+      "rank": 66,
+      "selected": false,
+      "reason": "어린이 과일간식 지원사업 성과평가는 데이터 분석 역량과 관련 가능성이 있으나, 평가 방법론이 title로 확인 불가하다.",
+      "relevance": "uncertain",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2132,
+      "error_code": null,
+      "input_tokens": 81,
+      "cached_input_tokens": null,
+      "output_tokens": 72,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867802",
+      "status": "success",
+      "score": 0.05,
+      "rank": 219,
+      "selected": false,
+      "reason": "건축공사 안전점검 수행기관 지정은 건설 안전 분야로, IT·데이터 개발 역량과 무관하다.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2132,
+      "error_code": null,
+      "input_tokens": 81,
+      "cached_input_tokens": null,
+      "output_tokens": 72,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868468",
+      "status": "success",
+      "score": 0.5,
+      "rank": 45,
+      "selected": true,
+      "reason": "자동집하시설 이송관로 GIS DB 구축은 데이터 플랫폼 역량과 관련 있으나, GIS 전문성 및 AI 활용 여부가 title로 확인 불가하다.",
+      "relevance": "uncertain",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2132,
+      "error_code": null,
+      "input_tokens": 81,
+      "cached_input_tokens": null,
+      "output_tokens": 72,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867726",
+      "status": "success",
+      "score": 0.85,
+      "rank": 2,
+      "selected": true,
+      "reason": "AX에이전트 원천기술 연구 및 자율대응 실증사업은 AI Agent 업무자동화·의사결정 지원 역량과 직접적으로 관련된다.",
+      "relevance": "relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2132,
+      "error_code": null,
+      "input_tokens": 81,
+      "cached_input_tokens": null,
+      "output_tokens": 72,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20869128",
+      "status": "success",
+      "score": 0.4,
+      "rank": 100,
+      "selected": false,
+      "reason": "중등교육 ICT 선진 모델 학교 구축 PMC 용역은 공공 SI 역량과 관련 가능성이 있으나, 구체적 ICT 과업 범위가 title에 명시되지 않았다.",
+      "relevance": "uncertain",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2132,
+      "error_code": null,
+      "input_tokens": 81,
+      "cached_input_tokens": null,
+      "output_tokens": 72,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868791",
+      "status": "success",
+      "score": 0.05,
+      "rank": 272,
+      "selected": false,
+      "reason": "생물학적 비임상시험으로 IT·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1745,
+      "error_code": null,
+      "input_tokens": 85,
+      "cached_input_tokens": null,
+      "output_tokens": 60,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20869081",
+      "status": "success",
+      "score": 0.05,
+      "rank": 292,
+      "selected": false,
+      "reason": "오프라인 행사 운영 대행으로 IT·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1745,
+      "error_code": null,
+      "input_tokens": 85,
+      "cached_input_tokens": null,
+      "output_tokens": 60,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20869119",
+      "status": "success",
+      "score": 0.45,
+      "rank": 68,
+      "selected": false,
+      "reason": "원격감시체계 관리대행으로 데이터 연계 가능성 있으나 구체성 부족.",
+      "relevance": "uncertain",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1745,
+      "error_code": null,
+      "input_tokens": 85,
+      "cached_input_tokens": null,
+      "output_tokens": 60,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868884",
+      "status": "success",
+      "score": 0.05,
+      "rank": 277,
+      "selected": false,
+      "reason": "건설사업관리 용역으로 IT·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1745,
+      "error_code": null,
+      "input_tokens": 85,
+      "cached_input_tokens": null,
+      "output_tokens": 60,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868335",
+      "status": "success",
+      "score": 0.05,
+      "rank": 242,
+      "selected": false,
+      "reason": "오프라인 행사 용역으로 IT·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1745,
+      "error_code": null,
+      "input_tokens": 85,
+      "cached_input_tokens": null,
+      "output_tokens": 60,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868450",
+      "status": "success",
+      "score": 0.05,
+      "rank": 249,
+      "selected": false,
+      "reason": "건설 안전점검으로 IT·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1745,
+      "error_code": null,
+      "input_tokens": 85,
+      "cached_input_tokens": null,
+      "output_tokens": 60,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867490",
+      "status": "success",
+      "score": 0.05,
+      "rank": 201,
+      "selected": false,
+      "reason": "폐기물 처리 용역으로 IT·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1745,
+      "error_code": null,
+      "input_tokens": 85,
+      "cached_input_tokens": null,
+      "output_tokens": 60,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867761",
+      "status": "success",
+      "score": 0.05,
+      "rank": 213,
+      "selected": false,
+      "reason": "통신·소방 공사 감리로 IT·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1745,
+      "error_code": null,
+      "input_tokens": 85,
+      "cached_input_tokens": null,
+      "output_tokens": 60,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867869",
+      "status": "success",
+      "score": 0.05,
+      "rank": 222,
+      "selected": false,
+      "reason": "토양 분석 용역으로 IT·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1745,
+      "error_code": null,
+      "input_tokens": 85,
+      "cached_input_tokens": null,
+      "output_tokens": 60,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867406",
+      "status": "success",
+      "score": 0.05,
+      "rank": 194,
+      "selected": false,
+      "reason": "전기공사 설계 용역으로 IT·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1745,
+      "error_code": null,
+      "input_tokens": 85,
+      "cached_input_tokens": null,
+      "output_tokens": 59,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868053",
+      "status": "success",
+      "score": 0.05,
+      "rank": 231,
+      "selected": false,
+      "reason": "교육 프로그램 운영으로 IT·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1745,
+      "error_code": null,
+      "input_tokens": 85,
+      "cached_input_tokens": null,
+      "output_tokens": 59,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868253",
+      "status": "success",
+      "score": 0.05,
+      "rank": 238,
+      "selected": false,
+      "reason": "건설 안전점검으로 IT·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1745,
+      "error_code": null,
+      "input_tokens": 85,
+      "cached_input_tokens": null,
+      "output_tokens": 59,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868880",
+      "status": "success",
+      "score": 0.05,
+      "rank": 275,
+      "selected": false,
+      "reason": "차량 임차 용역으로 IT·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1745,
+      "error_code": null,
+      "input_tokens": 85,
+      "cached_input_tokens": null,
+      "output_tokens": 59,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868470",
+      "status": "success",
+      "score": 0.55,
+      "rank": 33,
+      "selected": true,
+      "reason": "스마트 무인통신소 실험으로 통신·데이터 연계 가능성 있으나 구체성 부족.",
+      "relevance": "uncertain",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1745,
+      "error_code": null,
+      "input_tokens": 85,
+      "cached_input_tokens": null,
+      "output_tokens": 59,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867765",
+      "status": "success",
+      "score": 0.05,
+      "rank": 215,
+      "selected": false,
+      "reason": "출판 발행 용역으로 IT·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1745,
+      "error_code": null,
+      "input_tokens": 84,
+      "cached_input_tokens": null,
+      "output_tokens": 59,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868132",
+      "status": "success",
+      "score": 0.05,
+      "rank": 232,
+      "selected": false,
+      "reason": "야외 시설 설치·운영으로 IT·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1745,
+      "error_code": null,
+      "input_tokens": 84,
+      "cached_input_tokens": null,
+      "output_tokens": 59,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868931",
+      "status": "success",
+      "score": 0.05,
+      "rank": 281,
+      "selected": false,
+      "reason": "해외 탐방 운영 용역으로 IT·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1745,
+      "error_code": null,
+      "input_tokens": 84,
+      "cached_input_tokens": null,
+      "output_tokens": 59,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868514",
+      "status": "success",
+      "score": 0.05,
+      "rank": 255,
+      "selected": false,
+      "reason": "기념 행사 운영으로 IT·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1745,
+      "error_code": null,
+      "input_tokens": 84,
+      "cached_input_tokens": null,
+      "output_tokens": 59,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867526",
+      "status": "success",
+      "score": 0.05,
+      "rank": 206,
+      "selected": false,
+      "reason": "서적 제작 용역으로 IT·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1745,
+      "error_code": null,
+      "input_tokens": 84,
+      "cached_input_tokens": null,
+      "output_tokens": 59,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868731",
+      "status": "success",
+      "score": 0.05,
+      "rank": 269,
+      "selected": false,
+      "reason": "구조물 안전진단으로 IT·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1744,
+      "error_code": null,
+      "input_tokens": 84,
+      "cached_input_tokens": null,
+      "output_tokens": 59,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868950",
+      "status": "success",
+      "score": 0.05,
+      "rank": 283,
+      "selected": false,
+      "reason": "숙식 용역으로 IT·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1744,
+      "error_code": null,
+      "input_tokens": 84,
+      "cached_input_tokens": null,
+      "output_tokens": 59,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868967",
+      "status": "success",
+      "score": 0.05,
+      "rank": 284,
+      "selected": false,
+      "reason": "건설사업관리 용역으로 IT·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1744,
+      "error_code": null,
+      "input_tokens": 84,
+      "cached_input_tokens": null,
+      "output_tokens": 59,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868728",
+      "status": "success",
+      "score": 0.05,
+      "rank": 267,
+      "selected": false,
+      "reason": "구조물 안전진단으로 IT·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1744,
+      "error_code": null,
+      "input_tokens": 84,
+      "cached_input_tokens": null,
+      "output_tokens": 59,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868729",
+      "status": "success",
+      "score": 0.05,
+      "rank": 268,
+      "selected": false,
+      "reason": "구조물 안전진단으로 IT·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1744,
+      "error_code": null,
+      "input_tokens": 84,
+      "cached_input_tokens": null,
+      "output_tokens": 59,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867962",
+      "status": "success",
+      "score": 0.05,
+      "rank": 226,
+      "selected": false,
+      "reason": "시설물 안전점검으로 IT·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1744,
+      "error_code": null,
+      "input_tokens": 84,
+      "cached_input_tokens": null,
+      "output_tokens": 59,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868908",
+      "status": "success",
+      "score": 0.1,
+      "rank": 178,
+      "selected": false,
+      "reason": "하천정비사업의 안전점검 수행기관 지정으로, IT·AI·데이터 역량과 무관한 건설 안전 분야 업무임.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2185,
+      "error_code": null,
+      "input_tokens": 80,
+      "cached_input_tokens": null,
+      "output_tokens": 75,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868790",
+      "status": "success",
+      "score": 0.1,
+      "rank": 173,
+      "selected": false,
+      "reason": "건축재료의 물리·화학적 구성성분 분석으로, 소프트웨어 및 데이터 플랫폼 역량과 무관한 실험 분석 업무임.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2185,
+      "error_code": null,
+      "input_tokens": 80,
+      "cached_input_tokens": null,
+      "output_tokens": 75,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867531",
+      "status": "success",
+      "score": 0.4,
+      "rank": 73,
+      "selected": false,
+      "reason": "타당성 검토 연구 용역으로, 데이터 분석이나 AI 기반 의사결정 지원이 포함될 수 있으나 title만으로는 구체적 수행 방식이 불명확함.",
+      "relevance": "uncertain",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2185,
+      "error_code": null,
+      "input_tokens": 80,
+      "cached_input_tokens": null,
+      "output_tokens": 75,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868957",
+      "status": "success",
+      "score": 0.5,
+      "rank": 46,
+      "selected": true,
+      "reason": "AI 교육 프로그램 운영으로 AI 역량과 관련 있으나, 교육 콘텐츠 개발 및 운영 중심인지 AI 시스템 구축인지 title로 구분 불가함.",
+      "relevance": "uncertain",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2185,
+      "error_code": null,
+      "input_tokens": 80,
+      "cached_input_tokens": null,
+      "output_tokens": 75,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868960",
+      "status": "success",
+      "score": 0.45,
+      "rank": 64,
+      "selected": false,
+      "reason": "인식 조사 용역으로 빅데이터 분석 역량과 연결 가능하나, 설문조사 및 통계 분석 중심인지 AI 활용 여부가 title에서 확인되지 않음.",
+      "relevance": "uncertain",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2185,
+      "error_code": null,
+      "input_tokens": 80,
+      "cached_input_tokens": null,
+      "output_tokens": 75,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867390",
+      "status": "success",
+      "score": 0.1,
+      "rank": 118,
+      "selected": false,
+      "reason": "산림사업 시범운영 감리용역으로, 건설·산림 분야 현장 감리 업무로 IT·AI 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2185,
+      "error_code": null,
+      "input_tokens": 80,
+      "cached_input_tokens": null,
+      "output_tokens": 75,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867788",
+      "status": "success",
+      "score": 0.55,
+      "rank": 30,
+      "selected": true,
+      "reason": "기록물 분류체계 구축으로 데이터 표준화 및 이기종 데이터 모델링 역량과 관련 있으나, 단순 행정 분류인지 시스템 구축인지 불명확함.",
+      "relevance": "uncertain",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2185,
+      "error_code": null,
+      "input_tokens": 80,
+      "cached_input_tokens": null,
+      "output_tokens": 75,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868421",
+      "status": "success",
+      "score": 0.1,
+      "rank": 155,
+      "selected": false,
+      "reason": "인문학 행사 기획 및 운영 용역으로, 문화·교육 행사 운영 업무로 IT·AI·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2185,
+      "error_code": null,
+      "input_tokens": 80,
+      "cached_input_tokens": null,
+      "output_tokens": 75,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868718",
+      "status": "success",
+      "score": 0.1,
+      "rank": 167,
+      "selected": false,
+      "reason": "교량 내진성능평가 및 정밀안전진단 용역으로, 구조물 안전 평가 업무로 IT·AI·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2185,
+      "error_code": null,
+      "input_tokens": 80,
+      "cached_input_tokens": null,
+      "output_tokens": 75,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868723",
+      "status": "success",
+      "score": 0.1,
+      "rank": 169,
+      "selected": false,
+      "reason": "교량 내진성능평가 및 정밀안전진단 용역으로, 구조물 안전 평가 업무로 IT·AI·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2185,
+      "error_code": null,
+      "input_tokens": 80,
+      "cached_input_tokens": null,
+      "output_tokens": 75,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867454",
+      "status": "success",
+      "score": 0.1,
+      "rank": 125,
+      "selected": false,
+      "reason": "IR 투자 로드쇼 프로그램 운영 용역으로, 투자 유치 행사 운영 업무로 IT·AI·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2185,
+      "error_code": null,
+      "input_tokens": 80,
+      "cached_input_tokens": null,
+      "output_tokens": 75,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867780",
+      "status": "success",
+      "score": 0.1,
+      "rank": 140,
+      "selected": false,
+      "reason": "학교 리모델링 공사 폐기물 처리 용역으로, 건설 폐기물 처리 업무로 IT·AI·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2185,
+      "error_code": null,
+      "input_tokens": 80,
+      "cached_input_tokens": null,
+      "output_tokens": 74,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867694",
+      "status": "success",
+      "score": 0.1,
+      "rank": 135,
+      "selected": false,
+      "reason": "하천 정비사업 건설사업관리용역으로, 건설 프로젝트 관리 업무로 IT·AI·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2185,
+      "error_code": null,
+      "input_tokens": 80,
+      "cached_input_tokens": null,
+      "output_tokens": 74,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867672",
+      "status": "success",
+      "score": 0.4,
+      "rank": 78,
+      "selected": false,
+      "reason": "RSU 기술 실용화 컨설팅 및 사업화 전략 수립으로, 기술 분석이 포함될 수 있으나 title만으로는 AI·데이터 활용 여부가 불명확함.",
+      "relevance": "uncertain",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2185,
+      "error_code": null,
+      "input_tokens": 80,
+      "cached_input_tokens": null,
+      "output_tokens": 74,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20869060",
+      "status": "success",
+      "score": 0.4,
+      "rank": 95,
+      "selected": false,
+      "reason": "문화사업가 시장분석 및 컨설팅으로, 데이터 분석이 포함될 수 있으나 title만으로는 AI·빅데이터 활용 여부가 불명확함.",
+      "relevance": "uncertain",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2185,
+      "error_code": null,
+      "input_tokens": 80,
+      "cached_input_tokens": null,
+      "output_tokens": 74,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867539",
+      "status": "success",
+      "score": 0.1,
+      "rank": 127,
+      "selected": false,
+      "reason": "진로 종합 포트폴리오 공모전 프로그램 운영 용역으로, 교육·경진대회 운영 업무로 IT·AI·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2185,
+      "error_code": null,
+      "input_tokens": 80,
+      "cached_input_tokens": null,
+      "output_tokens": 74,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868241",
+      "status": "success",
+      "score": 0.1,
+      "rank": 151,
+      "selected": false,
+      "reason": "발사체 추진제포집장치 기초설계 및 시험 용역으로, 항공우주 공학 및 실험 업무로 IT·AI·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2185,
+      "error_code": null,
+      "input_tokens": 80,
+      "cached_input_tokens": null,
+      "output_tokens": 74,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867758",
+      "status": "success",
+      "score": 0.1,
+      "rank": 138,
+      "selected": false,
+      "reason": "학교 증축 및 리모델링 전기공사 감리용역으로, 건설 전기 감리 업무로 IT·AI·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2185,
+      "error_code": null,
+      "input_tokens": 80,
+      "cached_input_tokens": null,
+      "output_tokens": 74,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867426",
+      "status": "success",
+      "score": 0.1,
+      "rank": 120,
+      "selected": false,
+      "reason": "학교급식 위탁운영 입찰로, 급식 서비스 운영 업무로 IT·AI·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2185,
+      "error_code": null,
+      "input_tokens": 80,
+      "cached_input_tokens": null,
+      "output_tokens": 74,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868909",
+      "status": "success",
+      "score": 0.1,
+      "rank": 179,
+      "selected": false,
+      "reason": "한·일본 조선해양 공동체 운영 대행용역으로, 국제 교류 행사 운영 업무로 IT·AI·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2184,
+      "error_code": null,
+      "input_tokens": 80,
+      "cached_input_tokens": null,
+      "output_tokens": 74,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868991",
+      "status": "success",
+      "score": 0.1,
+      "rank": 187,
+      "selected": false,
+      "reason": "공사관리 관정 지하수영향조사 용역으로, 지질·수문 조사 업무로 IT·AI·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2184,
+      "error_code": null,
+      "input_tokens": 80,
+      "cached_input_tokens": null,
+      "output_tokens": 74,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868994",
+      "status": "success",
+      "score": 0.1,
+      "rank": 188,
+      "selected": false,
+      "reason": "공사관리 관정 지하수영향조사 용역으로, 지질·수문 조사 업무로 IT·AI·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2184,
+      "error_code": null,
+      "input_tokens": 80,
+      "cached_input_tokens": null,
+      "output_tokens": 74,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868996",
+      "status": "success",
+      "score": 0.1,
+      "rank": 189,
+      "selected": false,
+      "reason": "공사관리 관정 지하수영향조사 용역으로, 지질·수문 조사 업무로 IT·AI·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2184,
+      "error_code": null,
+      "input_tokens": 79,
+      "cached_input_tokens": null,
+      "output_tokens": 74,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868719",
+      "status": "success",
+      "score": 0.1,
+      "rank": 168,
+      "selected": false,
+      "reason": "연구비 위탁정산 용역으로, 회계·재무 정산 업무로 IT·AI·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2184,
+      "error_code": null,
+      "input_tokens": 79,
+      "cached_input_tokens": null,
+      "output_tokens": 74,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867350",
+      "status": "success",
+      "score": 0.1,
+      "rank": 114,
+      "selected": false,
+      "reason": "달 착륙선 구조 해석 용역으로, 항공우주 구조 공학 업무로 IT·AI·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2184,
+      "error_code": null,
+      "input_tokens": 79,
+      "cached_input_tokens": null,
+      "output_tokens": 74,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20869196",
+      "status": "success",
+      "score": 0.05,
+      "rank": 299,
+      "selected": false,
+      "reason": "폐기물 처리 용역으로 IT·AI·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1889,
+      "error_code": null,
+      "input_tokens": 80,
+      "cached_input_tokens": null,
+      "output_tokens": 65,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868447",
+      "status": "success",
+      "score": 0.05,
+      "rank": 248,
+      "selected": false,
+      "reason": "해외 연수 위탁 용역으로 IT·AI·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1889,
+      "error_code": null,
+      "input_tokens": 80,
+      "cached_input_tokens": null,
+      "output_tokens": 65,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20869129",
+      "status": "success",
+      "score": 0.45,
+      "rank": 69,
+      "selected": false,
+      "reason": "AI 활용 프로젝트이지만 PMC 용역의 구체적 과업 범위가 불명확함.",
+      "relevance": "uncertain",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1889,
+      "error_code": null,
+      "input_tokens": 80,
+      "cached_input_tokens": null,
+      "output_tokens": 65,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20869124",
+      "status": "success",
+      "score": 0.05,
+      "rank": 294,
+      "selected": false,
+      "reason": "평화·역사 교육 및 문화 회복 프로젝트로 IT·AI 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1889,
+      "error_code": null,
+      "input_tokens": 80,
+      "cached_input_tokens": null,
+      "output_tokens": 65,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867349",
+      "status": "success",
+      "score": 0.05,
+      "rank": 193,
+      "selected": false,
+      "reason": "하천 재해복구 실시설계 건설 엔지니어링으로 IT·AI 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1889,
+      "error_code": null,
+      "input_tokens": 80,
+      "cached_input_tokens": null,
+      "output_tokens": 65,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867586",
+      "status": "success",
+      "score": 0.55,
+      "rank": 27,
+      "selected": true,
+      "reason": "AI 취업 캠프로 AI 역량 관련성 있으나 교육 프로그램 운영 범위가 불명확함.",
+      "relevance": "uncertain",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1889,
+      "error_code": null,
+      "input_tokens": 80,
+      "cached_input_tokens": null,
+      "output_tokens": 65,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20869147",
+      "status": "success",
+      "score": 0.05,
+      "rank": 295,
+      "selected": false,
+      "reason": "축제 교통관리 운영 용역으로 IT·AI·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1889,
+      "error_code": null,
+      "input_tokens": 80,
+      "cached_input_tokens": null,
+      "output_tokens": 65,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867675",
+      "status": "success",
+      "score": 0.05,
+      "rank": 209,
+      "selected": false,
+      "reason": "상권 축제 개발 및 운영 용역으로 IT·AI·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1889,
+      "error_code": null,
+      "input_tokens": 80,
+      "cached_input_tokens": null,
+      "output_tokens": 64,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867812",
+      "status": "success",
+      "score": 0.05,
+      "rank": 220,
+      "selected": false,
+      "reason": "해양 복합 거점 공간 디자인 및 기획으로 IT·AI·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1889,
+      "error_code": null,
+      "input_tokens": 80,
+      "cached_input_tokens": null,
+      "output_tokens": 64,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867713",
+      "status": "success",
+      "score": 0.05,
+      "rank": 210,
+      "selected": false,
+      "reason": "축산 리더 아카데미 성과 대회로 IT·AI·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1889,
+      "error_code": null,
+      "input_tokens": 80,
+      "cached_input_tokens": null,
+      "output_tokens": 64,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868044",
+      "status": "success",
+      "score": 0.05,
+      "rank": 230,
+      "selected": false,
+      "reason": "농촌 용수 개발 전략 환경 영향 평가로 IT·AI·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1889,
+      "error_code": null,
+      "input_tokens": 80,
+      "cached_input_tokens": null,
+      "output_tokens": 64,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867935",
+      "status": "success",
+      "score": 0.05,
+      "rank": 225,
+      "selected": false,
+      "reason": "하천 제초 용역으로 IT·AI·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1889,
+      "error_code": null,
+      "input_tokens": 80,
+      "cached_input_tokens": null,
+      "output_tokens": 64,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867409",
+      "status": "success",
+      "score": 0.05,
+      "rank": 195,
+      "selected": false,
+      "reason": "하수 처리 시설 관리 대행 용역으로 IT·AI·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1889,
+      "error_code": null,
+      "input_tokens": 80,
+      "cached_input_tokens": null,
+      "output_tokens": 64,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868999",
+      "status": "success",
+      "score": 0.05,
+      "rank": 288,
+      "selected": false,
+      "reason": "재해 예방 기술 지도 용역으로 IT·AI·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1889,
+      "error_code": null,
+      "input_tokens": 80,
+      "cached_input_tokens": null,
+      "output_tokens": 64,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868578",
+      "status": "success",
+      "score": 0.05,
+      "rank": 260,
+      "selected": false,
+      "reason": "도시 가로 녹지 환경 개선 기본 계획 수립으로 IT·AI·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1889,
+      "error_code": null,
+      "input_tokens": 80,
+      "cached_input_tokens": null,
+      "output_tokens": 64,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868692",
+      "status": "success",
+      "score": 0.05,
+      "rank": 264,
+      "selected": false,
+      "reason": "물 수요 관리 시행 계획 수립 용역으로 IT·AI·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1888,
+      "error_code": null,
+      "input_tokens": 80,
+      "cached_input_tokens": null,
+      "output_tokens": 64,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20869187",
+      "status": "success",
+      "score": 0.05,
+      "rank": 297,
+      "selected": false,
+      "reason": "기계 설비 공사 건설 재해 예방 기술 지도 용역으로 IT·AI·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1888,
+      "error_code": null,
+      "input_tokens": 80,
+      "cached_input_tokens": null,
+      "output_tokens": 64,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868456",
+      "status": "success",
+      "score": 0.05,
+      "rank": 250,
+      "selected": false,
+      "reason": "마을 만들기 주민 역량 강화 용역으로 IT·AI·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1888,
+      "error_code": null,
+      "input_tokens": 80,
+      "cached_input_tokens": null,
+      "output_tokens": 64,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868362",
+      "status": "success",
+      "score": 0.05,
+      "rank": 244,
+      "selected": false,
+      "reason": "버스 운송 임차 용역으로 IT·AI·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1888,
+      "error_code": null,
+      "input_tokens": 80,
+      "cached_input_tokens": null,
+      "output_tokens": 64,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868248",
+      "status": "success",
+      "score": 0.05,
+      "rank": 237,
+      "selected": false,
+      "reason": "토목 실시설계 용역으로 IT·AI·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1888,
+      "error_code": null,
+      "input_tokens": 80,
+      "cached_input_tokens": null,
+      "output_tokens": 64,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868916",
+      "status": "success",
+      "score": 0.05,
+      "rank": 280,
+      "selected": false,
+      "reason": "관광 콘텐츠 체험 프로그램 운영 용역으로 IT·AI·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1888,
+      "error_code": null,
+      "input_tokens": 80,
+      "cached_input_tokens": null,
+      "output_tokens": 64,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867420",
+      "status": "success",
+      "score": 0.05,
+      "rank": 196,
+      "selected": false,
+      "reason": "학교 증개축 건설 사업 관리 용역으로 IT·AI·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1888,
+      "error_code": null,
+      "input_tokens": 80,
+      "cached_input_tokens": null,
+      "output_tokens": 64,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20869058",
+      "status": "success",
+      "score": 0.05,
+      "rank": 290,
+      "selected": false,
+      "reason": "차량 탑재 모듈 성능 평가 연구 센터 설계 용역으로 IT·AI·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1888,
+      "error_code": null,
+      "input_tokens": 80,
+      "cached_input_tokens": null,
+      "output_tokens": 64,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867519",
+      "status": "success",
+      "score": 0.05,
+      "rank": 204,
+      "selected": false,
+      "reason": "수위계 구매 설치 감리 용역으로 IT·AI·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1888,
+      "error_code": null,
+      "input_tokens": 80,
+      "cached_input_tokens": null,
+      "output_tokens": 64,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868879",
+      "status": "success",
+      "score": 0.05,
+      "rank": 274,
+      "selected": false,
+      "reason": "편입학 전형 문제 출제 장소 선정 및 운영 지원 용역으로 IT·AI·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1888,
+      "error_code": null,
+      "input_tokens": 79,
+      "cached_input_tokens": null,
+      "output_tokens": 64,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867986",
+      "status": "success",
+      "score": 0.1,
+      "rank": 145,
+      "selected": false,
+      "reason": "웹툰 콘서트 운영 용역은 IT·AI·데이터 역량과 무관한 문화 행사 대행 사업이다.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1950,
+      "error_code": null,
+      "input_tokens": 82,
+      "cached_input_tokens": null,
+      "output_tokens": 67,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20869145",
+      "status": "success",
+      "score": 0.4,
+      "rank": 101,
+      "selected": false,
+      "reason": "글로벌 프로그램 운영의 구체적 기술 범위가 불분명하여 IT 관련성 판단이 어렵다.",
+      "relevance": "uncertain",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1950,
+      "error_code": null,
+      "input_tokens": 82,
+      "cached_input_tokens": null,
+      "output_tokens": 67,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868765",
+      "status": "success",
+      "score": 0.1,
+      "rank": 172,
+      "selected": false,
+      "reason": "해외 연수 대행 용역은 교육·여행 서비스로 IT·데이터 역량과 무관하다.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1950,
+      "error_code": null,
+      "input_tokens": 82,
+      "cached_input_tokens": null,
+      "output_tokens": 67,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868213",
+      "status": "success",
+      "score": 0.1,
+      "rank": 150,
+      "selected": false,
+      "reason": "병원 기념행사 및 결과보고회 대행은 IT 시스템 구축·운영과 무관한 행사 용역이다.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1950,
+      "error_code": null,
+      "input_tokens": 82,
+      "cached_input_tokens": null,
+      "output_tokens": 67,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20869080",
+      "status": "success",
+      "score": 0.45,
+      "rank": 67,
+      "selected": false,
+      "reason": "글로벌 실증 운영의 기술적 세부 내용이 불분명하여 관련성 확인이 어렵다.",
+      "relevance": "uncertain",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1950,
+      "error_code": null,
+      "input_tokens": 82,
+      "cached_input_tokens": null,
+      "output_tokens": 67,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867603",
+      "status": "success",
+      "score": 0.5,
+      "rank": 38,
+      "selected": true,
+      "reason": "온라인교육 위탁 운영이 플랫폼 구축·운영인지 단순 콘텐츠 제공인지 명확하지 않다.",
+      "relevance": "uncertain",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1950,
+      "error_code": null,
+      "input_tokens": 82,
+      "cached_input_tokens": null,
+      "output_tokens": 67,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20869110",
+      "status": "success",
+      "score": 0.1,
+      "rank": 190,
+      "selected": false,
+      "reason": "해외 바이어 발굴 및 비즈니스 상담회 운영은 IT·데이터 역량과 무관한 무역 지원 사업이다.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1950,
+      "error_code": null,
+      "input_tokens": 82,
+      "cached_input_tokens": null,
+      "output_tokens": 67,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20869084",
+      "status": "success",
+      "score": 0.05,
+      "rank": 293,
+      "selected": false,
+      "reason": "노후관 교체공사 실시설계는 토목·건축 분야로 IT·데이터 역량과 무관하다.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1950,
+      "error_code": null,
+      "input_tokens": 82,
+      "cached_input_tokens": null,
+      "output_tokens": 67,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868661",
+      "status": "success",
+      "score": 0.05,
+      "rank": 262,
+      "selected": false,
+      "reason": "학생 식당 대청소 용역은 시설 관리·청소 서비스로 IT·데이터 역량과 무관하다.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1950,
+      "error_code": null,
+      "input_tokens": 82,
+      "cached_input_tokens": null,
+      "output_tokens": 67,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868463",
+      "status": "success",
+      "score": 0.05,
+      "rank": 252,
+      "selected": false,
+      "reason": "자연재해위험개선지구 정비사업 VE 용역은 토목·환경 분야로 IT·데이터 역량과 무관하다.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1950,
+      "error_code": null,
+      "input_tokens": 81,
+      "cached_input_tokens": null,
+      "output_tokens": 67,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868717",
+      "status": "success",
+      "score": 0.1,
+      "rank": 166,
+      "selected": false,
+      "reason": "테니스 스포츠클럽 리그 및 페스티벌은 스포츠 행사 운영으로 IT·데이터 역량과 무관하다.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1950,
+      "error_code": null,
+      "input_tokens": 81,
+      "cached_input_tokens": null,
+      "output_tokens": 67,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20869188",
+      "status": "success",
+      "score": 0.05,
+      "rank": 298,
+      "selected": false,
+      "reason": "생물안전작업대 HEPA 필터 교체는 시설 유지보수 용역으로 IT·데이터 역량과 무관하다.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1950,
+      "error_code": null,
+      "input_tokens": 81,
+      "cached_input_tokens": null,
+      "output_tokens": 67,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868333",
+      "status": "success",
+      "score": 0.05,
+      "rank": 241,
+      "selected": false,
+      "reason": "도시재생활성화계획 및 지구단위계획 수립은 도시계획 분야로 IT·데이터 역량과 무관하다.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1950,
+      "error_code": null,
+      "input_tokens": 81,
+      "cached_input_tokens": null,
+      "output_tokens": 67,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868802",
+      "status": "success",
+      "score": 0.1,
+      "rank": 175,
+      "selected": false,
+      "reason": "벤처기업 주간 행사는 비즈니스 행사 운영으로 IT·데이터 역량과 직접적인 관련이 없다.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1949,
+      "error_code": null,
+      "input_tokens": 81,
+      "cached_input_tokens": null,
+      "output_tokens": 67,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867834",
+      "status": "success",
+      "score": 0.05,
+      "rank": 221,
+      "selected": false,
+      "reason": "개발제한구역 관리계획 변경 용역은 도시계획·행정 분야로 IT·데이터 역량과 무관하다.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1949,
+      "error_code": null,
+      "input_tokens": 81,
+      "cached_input_tokens": null,
+      "output_tokens": 66,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867598",
+      "status": "success",
+      "score": 0.4,
+      "rank": 76,
+      "selected": false,
+      "reason": "복지카드 운영의 기술적 범위(플랫폼 구축 vs 단순 카드 발급)가 불분명하다.",
+      "relevance": "uncertain",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1949,
+      "error_code": null,
+      "input_tokens": 81,
+      "cached_input_tokens": null,
+      "output_tokens": 66,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867498",
+      "status": "success",
+      "score": 0.0,
+      "rank": 300,
+      "selected": false,
+      "reason": "공무용차량 자동차보험 가입은 금융·보험 서비스로 IT·데이터 역량과 무관하다.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1949,
+      "error_code": null,
+      "input_tokens": 81,
+      "cached_input_tokens": null,
+      "output_tokens": 66,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868807",
+      "status": "success",
+      "score": 0.1,
+      "rank": 176,
+      "selected": false,
+      "reason": "수학여행 위탁용역은 교육·여행 서비스로 IT·데이터 역량과 무관하다.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1949,
+      "error_code": null,
+      "input_tokens": 81,
+      "cached_input_tokens": null,
+      "output_tokens": 66,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867640",
+      "status": "success",
+      "score": 0.1,
+      "rank": 130,
+      "selected": false,
+      "reason": "비즈니스 한국어 강좌 운영은 교육 서비스로 IT·데이터 역량과 무관하다.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1949,
+      "error_code": null,
+      "input_tokens": 81,
+      "cached_input_tokens": null,
+      "output_tokens": 66,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868588",
+      "status": "success",
+      "score": 0.1,
+      "rank": 163,
+      "selected": false,
+      "reason": "청춘공감캠프 운영은 교육·문화 행사로 IT·데이터 역량과 무관하다.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1949,
+      "error_code": null,
+      "input_tokens": 81,
+      "cached_input_tokens": null,
+      "output_tokens": 66,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20869123",
+      "status": "success",
+      "score": 0.1,
+      "rank": 191,
+      "selected": false,
+      "reason": "아동 건강 및 문화교육 지원 PMC 용역은 NGO·개발협력 분야로 IT·데이터 역량과 무관하다.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1949,
+      "error_code": null,
+      "input_tokens": 81,
+      "cached_input_tokens": null,
+      "output_tokens": 66,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868727",
+      "status": "success",
+      "score": 0.05,
+      "rank": 266,
+      "selected": false,
+      "reason": "전기용량 증설 전기공사 설계용역은 전기·건축 분야로 IT·데이터 역량과 무관하다.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1949,
+      "error_code": null,
+      "input_tokens": 81,
+      "cached_input_tokens": null,
+      "output_tokens": 66,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867521",
+      "status": "success",
+      "score": 0.05,
+      "rank": 205,
+      "selected": false,
+      "reason": "수질개선사업 기본설계용역은 환경·토목 분야로 IT·데이터 역량과 무관하다.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1949,
+      "error_code": null,
+      "input_tokens": 81,
+      "cached_input_tokens": null,
+      "output_tokens": 66,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868955",
+      "status": "success",
+      "score": 0.1,
+      "rank": 184,
+      "selected": false,
+      "reason": "공사 전환 타당성 연구는 행정·조직 운영 분야로 IT·데이터 역량과 무관하다.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1949,
+      "error_code": null,
+      "input_tokens": 81,
+      "cached_input_tokens": null,
+      "output_tokens": 66,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867546",
+      "status": "success",
+      "score": 0.1,
+      "rank": 128,
+      "selected": false,
+      "reason": "식당 위탁운영 용역은 외식 서비스로 IT·데이터 역량과 무관하다.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 1949,
+      "error_code": null,
+      "input_tokens": 81,
+      "cached_input_tokens": null,
+      "output_tokens": 66,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868881",
+      "status": "success",
+      "score": 0.05,
+      "rank": 276,
+      "selected": false,
+      "reason": "TV 공동제작 및 촬영 지원은 영상 분석 개발 역량과 성격이 다르고, 콘텐츠 제작 역량이 명시되지 않아 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2061,
+      "error_code": null,
+      "input_tokens": 81,
+      "cached_input_tokens": null,
+      "output_tokens": 71,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868554",
+      "status": "success",
+      "score": 0.1,
+      "rank": 161,
+      "selected": false,
+      "reason": "원격수업 콘텐츠 개발은 교육 콘텐츠 제작 영역이며, 회사의 AI·데이터·SI 역량과 직접적인 관련성이 부족함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2061,
+      "error_code": null,
+      "input_tokens": 81,
+      "cached_input_tokens": null,
+      "output_tokens": 71,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868688",
+      "status": "success",
+      "score": 0.05,
+      "rank": 263,
+      "selected": false,
+      "reason": "포럼 개최는 행사 운영 성격이며, 회사의 기술적 수행 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2061,
+      "error_code": null,
+      "input_tokens": 81,
+      "cached_input_tokens": null,
+      "output_tokens": 71,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867773",
+      "status": "success",
+      "score": 0.05,
+      "rank": 216,
+      "selected": false,
+      "reason": "상수도 현대화 전기감리용역은 건설 감리 분야로, 정보화·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2061,
+      "error_code": null,
+      "input_tokens": 81,
+      "cached_input_tokens": null,
+      "output_tokens": 71,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868465",
+      "status": "success",
+      "score": 0.05,
+      "rank": 253,
+      "selected": false,
+      "reason": "야생동물 분변 미세플라스틱 검사는 환경 분석 연구로, 회사의 IT·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2061,
+      "error_code": null,
+      "input_tokens": 81,
+      "cached_input_tokens": null,
+      "output_tokens": 71,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868984",
+      "status": "success",
+      "score": 0.05,
+      "rank": 285,
+      "selected": false,
+      "reason": "도로 확포장공사 환경영향평가는 환경 용역으로, 정보화·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2061,
+      "error_code": null,
+      "input_tokens": 81,
+      "cached_input_tokens": null,
+      "output_tokens": 71,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868987",
+      "status": "success",
+      "score": 0.05,
+      "rank": 286,
+      "selected": false,
+      "reason": "도로 확포장공사 환경영향평가는 환경 용역으로, 정보화·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2061,
+      "error_code": null,
+      "input_tokens": 81,
+      "cached_input_tokens": null,
+      "output_tokens": 71,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868989",
+      "status": "success",
+      "score": 0.05,
+      "rank": 287,
+      "selected": false,
+      "reason": "도로 확포장공사 환경영향평가는 환경 용역으로, 정보화·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2061,
+      "error_code": null,
+      "input_tokens": 81,
+      "cached_input_tokens": null,
+      "output_tokens": 71,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868209",
+      "status": "success",
+      "score": 0.05,
+      "rank": 233,
+      "selected": false,
+      "reason": "자연재해위험개선지구 건설사업관리용역은 건설 CM 분야로, IT·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2061,
+      "error_code": null,
+      "input_tokens": 81,
+      "cached_input_tokens": null,
+      "output_tokens": 70,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867784",
+      "status": "success",
+      "score": 0.05,
+      "rank": 217,
+      "selected": false,
+      "reason": "버스 운행 용역은 교통 서비스 제공으로, 정보화·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2061,
+      "error_code": null,
+      "input_tokens": 81,
+      "cached_input_tokens": null,
+      "output_tokens": 70,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868035",
+      "status": "success",
+      "score": 0.05,
+      "rank": 229,
+      "selected": false,
+      "reason": "정수장 GPR탐사 용역은 지질·토목 조사로, IT·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2061,
+      "error_code": null,
+      "input_tokens": 81,
+      "cached_input_tokens": null,
+      "output_tokens": 70,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867478",
+      "status": "success",
+      "score": 0.05,
+      "rank": 200,
+      "selected": false,
+      "reason": "상징물 제작·설치는 공간 디자인·시공 분야로, IT·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2061,
+      "error_code": null,
+      "input_tokens": 81,
+      "cached_input_tokens": null,
+      "output_tokens": 70,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868383",
+      "status": "success",
+      "score": 0.05,
+      "rank": 246,
+      "selected": false,
+      "reason": "국가하천 수문 성능평가는 수리·토목 용역으로, IT·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2060,
+      "error_code": null,
+      "input_tokens": 81,
+      "cached_input_tokens": null,
+      "output_tokens": 70,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867887",
+      "status": "success",
+      "score": 0.05,
+      "rank": 223,
+      "selected": false,
+      "reason": "냉방기 수리는 시설 유지보수 분야로, IT·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2060,
+      "error_code": null,
+      "input_tokens": 81,
+      "cached_input_tokens": null,
+      "output_tokens": 70,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867885",
+      "status": "success",
+      "score": 0.4,
+      "rank": 79,
+      "selected": false,
+      "reason": "제도 개선 연구는 정책 분석 성격이 강하나, AI 기반 의사결정 지원 역량과의 구체적 연계가 title로 확인되지 않음.",
+      "relevance": "uncertain",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2060,
+      "error_code": null,
+      "input_tokens": 81,
+      "cached_input_tokens": null,
+      "output_tokens": 70,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867686",
+      "status": "success",
+      "score": 0.45,
+      "rank": 49,
+      "selected": true,
+      "reason": "온라인 콘텐츠 제작은 AI 기반 보고서 생성·영상 분석 역량과 일부 관련될 수 있으나, 부트캠프 특화 교육 콘텐츠인지 title로 불명확함.",
+      "relevance": "uncertain",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2060,
+      "error_code": null,
+      "input_tokens": 81,
+      "cached_input_tokens": null,
+      "output_tokens": 70,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868866",
+      "status": "success",
+      "score": 0.05,
+      "rank": 273,
+      "selected": false,
+      "reason": "도로시설물 정기안전점검은 토목·구조 점검 용역으로, IT·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2060,
+      "error_code": null,
+      "input_tokens": 81,
+      "cached_input_tokens": null,
+      "output_tokens": 70,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868273",
+      "status": "success",
+      "score": 0.05,
+      "rank": 239,
+      "selected": false,
+      "reason": "아파트 건설공사 건설사업관리용역은 건설 CM 분야로, IT·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2060,
+      "error_code": null,
+      "input_tokens": 81,
+      "cached_input_tokens": null,
+      "output_tokens": 70,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867527",
+      "status": "success",
+      "score": 0.05,
+      "rank": 207,
+      "selected": false,
+      "reason": "산불예방 숲가꾸기 감리용역은 산림·환경 분야로, IT·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2060,
+      "error_code": null,
+      "input_tokens": 81,
+      "cached_input_tokens": null,
+      "output_tokens": 70,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868530",
+      "status": "success",
+      "score": 0.05,
+      "rank": 257,
+      "selected": false,
+      "reason": "꽃밭 조성사업 기본·실시설계용역은 조경·토목 설계 분야로, IT·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2060,
+      "error_code": null,
+      "input_tokens": 80,
+      "cached_input_tokens": null,
+      "output_tokens": 70,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20869074",
+      "status": "success",
+      "score": 0.05,
+      "rank": 291,
+      "selected": false,
+      "reason": "해양폐기물 정화사업 감리는 환경·해상 시공 분야로, IT·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2060,
+      "error_code": null,
+      "input_tokens": 80,
+      "cached_input_tokens": null,
+      "output_tokens": 70,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868759",
+      "status": "success",
+      "score": 0.05,
+      "rank": 270,
+      "selected": false,
+      "reason": "시설물 보수공사 폐기물처리용역은 환경·폐기물 처리 분야로, IT·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2060,
+      "error_code": null,
+      "input_tokens": 80,
+      "cached_input_tokens": null,
+      "output_tokens": 70,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868181",
+      "status": "success",
+      "score": 0.5,
+      "rank": 41,
+      "selected": true,
+      "reason": "원격 인증서 갱신 프로그램 도입은 DID·전자증명 역량과 관련 가능성이 있으나, 단순 SW 도입인지 구축인지 title로 불명확함.",
+      "relevance": "uncertain",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2060,
+      "error_code": null,
+      "input_tokens": 80,
+      "cached_input_tokens": null,
+      "output_tokens": 70,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867562",
+      "status": "success",
+      "score": 0.4,
+      "rank": 75,
+      "selected": false,
+      "reason": "지산학 혁신대전 용역은 플랫폼 구축 가능성 있으나, 행사 운영인지 시스템 개발인지 title로 구체성이 부족함.",
+      "relevance": "uncertain",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2060,
+      "error_code": null,
+      "input_tokens": 80,
+      "cached_input_tokens": null,
+      "output_tokens": 70,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20869186",
+      "status": "success",
+      "score": 0.05,
+      "rank": 296,
+      "selected": false,
+      "reason": "비정규직 근로자 파견대행 용역은 인력 공급 서비스로, IT·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2060,
+      "error_code": null,
+      "input_tokens": 80,
+      "cached_input_tokens": null,
+      "output_tokens": 70,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868017",
+      "status": "success",
+      "score": 0.05,
+      "rank": 228,
+      "selected": false,
+      "reason": "전기모터보트 신뢰성 시험은 IT·데이터·블록체인 역량과 무관한 기계·전기 시험 용역임.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2005,
+      "error_code": null,
+      "input_tokens": 80,
+      "cached_input_tokens": null,
+      "output_tokens": 69,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867800",
+      "status": "success",
+      "score": 0.05,
+      "rank": 218,
+      "selected": false,
+      "reason": "학교 공간재구조화 공사 감리는 건설 감리 업무로 IT·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2005,
+      "error_code": null,
+      "input_tokens": 80,
+      "cached_input_tokens": null,
+      "output_tokens": 69,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868716",
+      "status": "success",
+      "score": 0.05,
+      "rank": 265,
+      "selected": false,
+      "reason": "병원 개선사업 환경사회영향 평가는 ESG·환경 평가 분야로 IT·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2005,
+      "error_code": null,
+      "input_tokens": 80,
+      "cached_input_tokens": null,
+      "output_tokens": 69,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867510",
+      "status": "success",
+      "score": 0.05,
+      "rank": 203,
+      "selected": false,
+      "reason": "태양광설비 전기공사 감리는 전기·건설 감리 업무로 IT·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2005,
+      "error_code": null,
+      "input_tokens": 80,
+      "cached_input_tokens": null,
+      "output_tokens": 69,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868496",
+      "status": "success",
+      "score": 0.1,
+      "rank": 158,
+      "selected": false,
+      "reason": "산업단지 입주기업 유치 지원은 행정·경제 지원 업무로 IT·데이터 역량과 직접 관련이 없음.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2005,
+      "error_code": null,
+      "input_tokens": 80,
+      "cached_input_tokens": null,
+      "output_tokens": 69,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867559",
+      "status": "success",
+      "score": 0.1,
+      "rank": 129,
+      "selected": false,
+      "reason": "도시재생 활성화계획 수립은 도시계획·행정 용역으로 IT·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2005,
+      "error_code": null,
+      "input_tokens": 80,
+      "cached_input_tokens": null,
+      "output_tokens": 69,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867435",
+      "status": "success",
+      "score": 0.05,
+      "rank": 198,
+      "selected": false,
+      "reason": "주차빌딩 건립 건설사업관리(CM)는 건설 관리 업무로 IT·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2005,
+      "error_code": null,
+      "input_tokens": 80,
+      "cached_input_tokens": null,
+      "output_tokens": 69,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867750",
+      "status": "success",
+      "score": 0.05,
+      "rank": 212,
+      "selected": false,
+      "reason": "초등학교 스키캠프 위탁은 교육·여가 프로그램 운영으로 IT·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2005,
+      "error_code": null,
+      "input_tokens": 80,
+      "cached_input_tokens": null,
+      "output_tokens": 69,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868886",
+      "status": "success",
+      "score": 0.05,
+      "rank": 278,
+      "selected": false,
+      "reason": "추모공원 관리사무소 신축 폐기물 처리는 건설·환경 관리 업무로 IT·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2005,
+      "error_code": null,
+      "input_tokens": 80,
+      "cached_input_tokens": null,
+      "output_tokens": 69,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867505",
+      "status": "success",
+      "score": 0.05,
+      "rank": 202,
+      "selected": false,
+      "reason": "군청사 신관 건립 일반 설계공모는 건축 설계 업무로 IT·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2005,
+      "error_code": null,
+      "input_tokens": 80,
+      "cached_input_tokens": null,
+      "output_tokens": 69,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20869031",
+      "status": "success",
+      "score": 0.05,
+      "rank": 289,
+      "selected": false,
+      "reason": "중학교 수학여행 위탁은 교육·여행 프로그램 운영으로 IT·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2005,
+      "error_code": null,
+      "input_tokens": 80,
+      "cached_input_tokens": null,
+      "output_tokens": 69,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868292",
+      "status": "success",
+      "score": 0.05,
+      "rank": 240,
+      "selected": false,
+      "reason": "학교 소방공사 감리는 건설·소방 감리 업무로 IT·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2005,
+      "error_code": null,
+      "input_tokens": 80,
+      "cached_input_tokens": null,
+      "output_tokens": 69,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868344",
+      "status": "success",
+      "score": 0.05,
+      "rank": 243,
+      "selected": false,
+      "reason": "축구대회 선수단 수송 버스 임차는 교통·물류 서비스로 IT·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2005,
+      "error_code": null,
+      "input_tokens": 80,
+      "cached_input_tokens": null,
+      "output_tokens": 69,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868364",
+      "status": "success",
+      "score": 0.05,
+      "rank": 245,
+      "selected": false,
+      "reason": "교수동 환경미화 위탁은 청소·환경 관리 업무로 IT·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2005,
+      "error_code": null,
+      "input_tokens": 80,
+      "cached_input_tokens": null,
+      "output_tokens": 69,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868575",
+      "status": "success",
+      "score": 0.05,
+      "rank": 259,
+      "selected": false,
+      "reason": "산업단지 공영주차장 조성 폐기물 처리는 건설·환경 관리 업무로 IT·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2005,
+      "error_code": null,
+      "input_tokens": 79,
+      "cached_input_tokens": null,
+      "output_tokens": 68,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867462",
+      "status": "success",
+      "score": 0.05,
+      "rank": 199,
+      "selected": false,
+      "reason": "복합청사 신축공사 건축 감리는 건설 감리 업무로 IT·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2005,
+      "error_code": null,
+      "input_tokens": 79,
+      "cached_input_tokens": null,
+      "output_tokens": 68,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868761",
+      "status": "success",
+      "score": 0.05,
+      "rank": 271,
+      "selected": false,
+      "reason": "중학교 해외 문화유산 체험학습 위탁은 교육·여행 프로그램 운영으로 IT·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2005,
+      "error_code": null,
+      "input_tokens": 79,
+      "cached_input_tokens": null,
+      "output_tokens": 68,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868461",
+      "status": "success",
+      "score": 0.05,
+      "rank": 251,
+      "selected": false,
+      "reason": "백신 최소면역원성 평가는 바이오·의약 연구로 IT·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2005,
+      "error_code": null,
+      "input_tokens": 79,
+      "cached_input_tokens": null,
+      "output_tokens": 68,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867515",
+      "status": "success",
+      "score": 0.1,
+      "rank": 126,
+      "selected": false,
+      "reason": "지역상권 페스타 개최는 문화·상권 활성화 행사로 IT·데이터 역량과 직접 관련이 없음.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2005,
+      "error_code": null,
+      "input_tokens": 79,
+      "cached_input_tokens": null,
+      "output_tokens": 68,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868214",
+      "status": "success",
+      "score": 0.05,
+      "rank": 234,
+      "selected": false,
+      "reason": "학교 신축공사 건설폐기물 처리는 건설·환경 관리 업무로 IT·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2005,
+      "error_code": null,
+      "input_tokens": 79,
+      "cached_input_tokens": null,
+      "output_tokens": 68,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868585",
+      "status": "success",
+      "score": 0.05,
+      "rank": 261,
+      "selected": false,
+      "reason": "학교 신축공사 건설폐기물 처리는 건설·환경 관리 업무로 IT·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2004,
+      "error_code": null,
+      "input_tokens": 79,
+      "cached_input_tokens": null,
+      "output_tokens": 68,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868906",
+      "status": "success",
+      "score": 0.05,
+      "rank": 279,
+      "selected": false,
+      "reason": "가로주택정비사업 주택건설공사 감리는 건설 감리 업무로 IT·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2004,
+      "error_code": null,
+      "input_tokens": 79,
+      "cached_input_tokens": null,
+      "output_tokens": 68,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20868418",
+      "status": "success",
+      "score": 0.05,
+      "rank": 247,
+      "selected": false,
+      "reason": "업무용 차량 임차(리스)는 자산·물류 서비스로 IT·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2004,
+      "error_code": null,
+      "input_tokens": 79,
+      "cached_input_tokens": null,
+      "output_tokens": 68,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867921",
+      "status": "success",
+      "score": 0.05,
+      "rank": 224,
+      "selected": false,
+      "reason": "초등학교 국제청소년 홈스테이 프로그램 위탁은 교육·문화 교류 운영으로 IT·데이터 역량과 무관함.",
+      "relevance": "not_relevant",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2004,
+      "error_code": null,
+      "input_tokens": 79,
+      "cached_input_tokens": null,
+      "output_tokens": 68,
+      "device": null
+    },
+    {
+      "plan_id": "R26DD20867555",
+      "status": "success",
+      "score": 0.4,
+      "rank": 74,
+      "selected": false,
+      "reason": "지수 개선 연구의 구체적 방법론이 불분명하여 데이터 분석 역량과의 관련성을 title만으로 확정할 수 없음.",
+      "relevance": "uncertain",
+      "evidence_fields": [
+        "title"
+      ],
+      "latency_ms": 2004,
+      "error_code": null,
+      "input_tokens": 79,
+      "cached_input_tokens": null,
+      "output_tokens": 68,
+      "device": null
+    }
+  ]
+}

@@ -1,3 +1,4 @@
+import { AssumptionRequest } from "../assumption-analysis/Request";
 import { LunaRequest } from "./LunaRequest";
 import { SourceVerificationSetting } from "./SourceVerificationSetting";
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type DragEvent, type KeyboardEvent } from "react";
@@ -617,6 +618,7 @@ export function DocumentPreparationPanel({ noticeId, currentGrade, onDeepReviewC
               </div>
             </div>
           ) : null}
+          {noticeId === 1489 && selectedBundle.status === "ready" && <AssumptionRequest key={`assumption:${selectedBundle.id}:${actorName}`} noticeId={noticeId} bundleId={selectedBundle.id} actor={actorName}/>}
           {deepReviewProblem ? (
         <MutationFeedback tone="error" problem={deepReviewProblem}>
           {/* fail-closed 사실은 서버 message가 아니라 이 화면의 규칙이다. */}

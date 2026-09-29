@@ -1,0 +1,31 @@
+{
+  "deployed_at": "2026-09-23T00:54:01.664168+00:00",
+  "approval": "사용자: 운영 재배포 진행해",
+  "services": [
+    {
+      "Name": "/bidops-web-1",
+      "Image": "sha256:73ed8036a06a346592861f29a672070c083d383294974beb342819160b3aa11a"
+    },
+    {
+      "Name": "/bidops-analysis-worker-1",
+      "Image": "sha256:08af41544f94c8769df436bdc732458eaf1b48b11f1442daf29163b99778a342"
+    }
+  ],
+  "health": "ok",
+  "migration_head": "0032_luna_deep_review",
+  "active_policy": "c0f37202-3a19-447f-a13c-3b5b8a83133a",
+  "new_policy_applied": true,
+  "model_called": true,
+  "checks": [
+    {
+      "path": "/pre-specs/1489",
+      "status": 200
+    },
+    {
+      "path": "/api/deep-reviews/e283d380-5486-457e-b013-8cb104390205",
+      "status": 200,
+      "review_status": "failed"
+    }
+  ],
+  "activation_verified_at": "2026-09-23T01:16:57.575541+00:00"
+}

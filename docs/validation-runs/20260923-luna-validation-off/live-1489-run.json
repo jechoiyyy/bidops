@@ -1,0 +1,51 @@
+{
+  "preview_id": "26b6c988-b628-4a52-bdd2-66686fe70787",
+  "input_sha256": "512395e46387ab03686afcf3bf02400e437c6285fe9c42ee3433204030327cb3",
+  "notice_id": 1489,
+  "model": "gpt-5.6-luna",
+  "documents": 1,
+  "source_verification_enabled": false,
+  "result_checks": "disabled_reference_v1",
+  "checked_at": "2026-09-23T02:17:50.798113+00:00",
+  "review_id": "aec000e4-782a-46ba-acc3-5aa1b9067bde",
+  "attempt_id": "eb3bf273-4e04-4f28-b245-b7a5ebbf9a8d",
+  "http_status": 202,
+  "status": "failed",
+  "policy_version_id": "8db9e566-9fd1-4589-a9c0-d96365231221",
+  "policy_sha256": "e522978f43abba93f81c1b0195c08bfce0d6a9a337203dcf26dcb10d4623fc14",
+  "quality_status": "unmeasured_reference",
+  "provider": "codex-exec",
+  "reasoning_effort": "xhigh",
+  "stages": [
+    {
+      "stage": "requirements_and_evaluation",
+      "sequence": 1,
+      "status": "failed",
+      "started_at": "2026-09-23T02:16:46.595094Z",
+      "completed_at": "2026-09-23T03:10:27.267491Z",
+      "last_error_code": "validation_failed"
+    },
+    {
+      "stage": "delivery_risk_economics",
+      "sequence": 2,
+      "status": "queued",
+      "started_at": null,
+      "completed_at": null,
+      "last_error_code": null
+    },
+    {
+      "stage": "synthesis_and_validation",
+      "sequence": 3,
+      "status": "queued",
+      "started_at": null,
+      "completed_at": null,
+      "last_error_code": null
+    }
+  ],
+  "detail_code": "validation:dangling_evidence",
+  "source_units": 19,
+  "returned_responses": 10,
+  "completed_slices_before_rejection": 9,
+  "rejected_slice_index": 9,
+  "report_available": false
+}

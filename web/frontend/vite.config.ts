@@ -1,4 +1,5 @@
 import path from "node:path";
+import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
@@ -23,6 +24,17 @@ function mockApiPlugin(): Plugin {
       // configureServer에서 바로 등록하면 Vite 내부 proxy보다 먼저 실행된다.
       // /api 요청이 프록시로 나가지 않고 여기서 끝난다.
       server.middlewares.use(async (req, res, next) => {
+        if (req.url === "/__mock-review/approved") {
+          try {
+            const html = await readFile(path.resolve(configDirectory, "../../docs/0922_deep-review-improvement/prototype/index.html"), "utf8");
+            res.setHeader("content-type", "text/html; charset=utf-8");
+            res.end(html);
+          } catch {
+            res.statusCode = 503;
+            res.end("Approved prototype unavailable");
+          }
+          return;
+        }
         if (!req.url?.startsWith("/api/")) return next();
         const { resolveMockApi } = await server.ssrLoadModule("/scripts/mock-api.ts") as typeof import("./scripts/mock-api");
         const chunks: Buffer[] = [];
@@ -55,7 +67,8 @@ function mockApiPlugin(): Plugin {
   };
 }
 
-export default defineConfig({
+export default defineConfig(({ command }) => ({
+  define: { "import.meta.env.BIDOPS_REVIEW_MOCK": JSON.stringify(command === "serve" && Boolean(process.env.BIDOPS_MOCK_API)) },
   plugins: [react(), tailwindcss(), mockApiPlugin()],
   resolve: {
     alias: {
@@ -71,4 +84,4 @@ export default defineConfig({
       },
     },
   },
-});
+}));

@@ -1,0 +1,50 @@
+npm notice run bidops-admin-frontend@0.1.0 npx
+npm notice run 'playwright' test tests/mock-review-prototype.spec.ts --project=app
+
+Running 4 tests using 3 workers
+
+(node:3037135) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:3037133) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:3037143) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  2 [app] › tests/mock-review-prototype.spec.ts:6:1 › 가상 근거와 요청 묶음은 여덟 질문을 누락 없이 연결한다 (80ms)
+  ✘  4 [app] › tests/mock-review-prototype.spec.ts:40:1 › 두 번째 묶음 실패와 재시작, 미처리 API 차단 (7.5s)
+  ✓  3 [app] › tests/mock-review-prototype.spec.ts:13:3 › 요청에서 보고서·근거까지 1440 (10.1s)
+  ✓  1 [app] › tests/mock-review-prototype.spec.ts:13:3 › 요청에서 보고서·근거까지 1280 (10.1s)
+
+
+  1) [app] › tests/mock-review-prototype.spec.ts:40:1 › 두 번째 묶음 실패와 재시작, 미처리 API 차단 ────────────────
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 1
+
+      Object {
+    -   "detail": "고정 응답 없음 (mock)",
+    +   "detail": "고정 응답 없음",
+      }
+
+      54 |   const response=await request.get('/api/mock-review-unhandled');
+      55 |   expect(response.status()).toBe(404);
+    > 56 |   expect(await response.json()).toEqual({detail:"고정 응답 없음 (mock)"});
+         |                                 ^
+      57 | });
+      58 |
+        at /home/jechoi/projects/bidops/web/frontend/tests/mock-review-prototype.spec.ts:56:33
+
+    Error Context: test-results/mock-review-prototype-두-번째-묶음-실패와-재시작-미처리-API-차단-app/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/mock-review-prototype-두-번째-묶음-실패와-재시작-미처리-API-차단-app/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/mock-review-prototype-두-번째-묶음-실패와-재시작-미처리-API-차단-app/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    [app] › tests/mock-review-prototype.spec.ts:40:1 › 두 번째 묶음 실패와 재시작, 미처리 API 차단 ─────────────────
+  3 passed (11.3s)

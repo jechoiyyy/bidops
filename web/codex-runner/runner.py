@@ -45,6 +45,8 @@ def output_schema(authority):
     # Free-form locator objects cannot be decoded by strict structured output.
     # Keep the exact authority locator shapes; domain validation still checks
     # that locator_type/source_kind select the correct shape.
+    if "evidence_base" not in schema.get("$defs", {}):
+        return cli_schema(schema)
     schema["$defs"]["evidence_base"]["properties"]["locator"] = {
         "anyOf": [{"$ref": "#/$defs/" + name} for name in (
             "page_locator", "paragraph_locator", "table_cell_locator", "bbox_locator", "profile_fact_locator")]
@@ -137,7 +139,7 @@ class Slot:
         self.cancelled = False
         self.running = False
 
-    def start(self, prompt):
+    def start(self, prompt, contract="deep-review-stage-v2"):
         with self.lock:
             if self.running:
                 return None
@@ -148,7 +150,8 @@ class Slot:
             self.running = True
             def run():
                 try:
-                    result = execute(prompt, lambda: not self.cancelled and time.monotonic()-self.heartbeat < HEARTBEAT_TIMEOUT)
+                    result = execute(prompt, lambda: not self.cancelled and time.monotonic()-self.heartbeat < HEARTBEAT_TIMEOUT,
+                                     schema_path=Path("/app/assumption.json" if contract == "assumption-stage-v1" else "/app/stage.json"))
                 except Exception:
                     result = {"status": "failed", "error_code": "runner_unavailable"}
                 with self.lock:
@@ -184,9 +187,9 @@ class Handler(BaseHTTPRequestHandler):
             if self.path != '/calls' or not 0 < length <= MAX_BYTES:
                 return self.reply(400, {})
             data = json.loads(self.rfile.read(length))
-            if set(data) != {'prompt'} or not isinstance(data['prompt'], str):
+            if set(data) not in ({'prompt'}, {'prompt', 'contract'}) or not isinstance(data['prompt'], str) or data.get('contract', 'deep-review-stage-v2') not in {'deep-review-stage-v2', 'assumption-stage-v1'}:
                 return self.reply(400, {})
-            call_id = slot.start(data['prompt'])
+            call_id = slot.start(data['prompt'], data.get('contract', 'deep-review-stage-v2'))
             self.reply(202 if call_id else 409, {'call_id': call_id})
         except Exception:
             self.reply(400, {})

@@ -71,3 +71,29 @@ test('Luna 설정 변경 시 미리보기 해제와 재시도 request ID 보존'
   await expect(page.getByText('원문 대조 사용 안 함 · 품질 미측정')).toBeVisible();
   expect(previews).toBe(2);
 });
+
+for (const width of [1280,1440]) {
+  test(`Luna 검증 미실시 승인·보고서 ${width}`, async ({page},info) => {
+    const off=JSON.parse(readFileSync(new URL('./fixtures/luna-validation-off.json',import.meta.url),'utf8'));
+    await page.setViewportSize({width,height:width===1280?800:900});
+    await mockApi(page); await mockDocumentPreparationVisual(page,'ready');
+    await page.route('**/api/notices/991/deep-review-previews',route=>route.fulfill({json:off.preview}));
+    await page.route('**/api/notices/991/deep-reviews',route=>route.fulfill({status:202,json:off.review}));
+    await page.route(`**/api/deep-reviews/${off.review.id}`,route=>route.fulfill({json:off.review}));
+    await page.route(`**/api/deep-reviews/${off.review.id}/report`,route=>route.fulfill({json:off.report}));
+    await page.goto('/pre-specs/991');
+    await page.getByLabel('문서 준비 담당자 이름').fill('검증 off 담당자');
+    await page.getByRole('button',{name:'전송 내용 미리보기'}).click();
+    const approval=page.getByRole('region',{name:'외부 전송 승인'});
+    await expect(approval).toContainText('내용·참조·누락 검증 미실시');
+    await page.screenshot({path:info.outputPath('validation-off-preview.png')});
+    await page.getByRole('button',{name:'전송 승인하고 심층검토 요청'}).click();
+    const reader=page.getByRole('article',{name:'심층검토 보고서 본문'});
+    await expect(reader).toBeVisible();
+    await expect(reader.locator('.narrative-note')).toContainText('검증 미실시');
+    await expect(reader.locator('.narrative-note')).not.toContainText('검증 통과');
+    await expect(reader).toContainText('123456789원');
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth-document.documentElement.clientWidth)).toBeLessThanOrEqual(1);
+    await page.screenshot({path:info.outputPath('validation-off-report.png')});
+  });
+}

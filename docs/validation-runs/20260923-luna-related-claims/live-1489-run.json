@@ -1,0 +1,51 @@
+{
+  "requested_at": "2026-09-23T01:14:59.543966+00:00",
+  "notice_id": 1489,
+  "review_id": "db0e9220-a6df-45c0-aef6-08dc57b6bccf",
+  "attempt_id": "3241e8c5-73cb-4aa9-b9d7-336e00c1072d",
+  "preview_id": "a620f5a1-3c16-4d7a-96d1-2dd0a0184ffc",
+  "input_sha256": "22deac8bb17d61315e09bf9731982b605c175e12a3b68361b73ce94fb74fcffe",
+  "policy_version_id": "c0f37202-3a19-447f-a13c-3b5b8a83133a",
+  "policy_sha256": "d9477dba24459f6154607539ba423aa503cac1104aa375a42c9fba9fe0449ac1",
+  "source_verification_enabled": true,
+  "http_status": 202,
+  "quality_status": null,
+  "model": "gpt-5.6-luna",
+  "reasoning_effort": "xhigh",
+  "status": "failed",
+  "stages": [
+    {
+      "stage": "requirements_and_evaluation",
+      "sequence": 1,
+      "status": "failed",
+      "started_at": "2026-09-23T01:14:06.529390Z",
+      "completed_at": "2026-09-23T01:20:21.509161Z",
+      "last_error_code": "validation_failed"
+    },
+    {
+      "stage": "delivery_risk_economics",
+      "sequence": 2,
+      "status": "queued",
+      "started_at": null,
+      "completed_at": null,
+      "last_error_code": null
+    },
+    {
+      "stage": "synthesis_and_validation",
+      "sequence": 3,
+      "status": "queued",
+      "started_at": null,
+      "completed_at": null,
+      "last_error_code": null
+    }
+  ],
+  "error_code": "validation_failed",
+  "detail_code": "narrative:considered_claim_out_of_slice",
+  "report_http_status": 409,
+  "claims": 30,
+  "evidence": 23,
+  "supplied_prior_claims": 0,
+  "returned_considered_claims": 30,
+  "considered_matches_local_claims": 30,
+  "optional_relation_omissions": 0
+}

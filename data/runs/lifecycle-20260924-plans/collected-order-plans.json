@@ -1,0 +1,135 @@
+{
+  "schema_version": "bidops.collected-order-plans.v1",
+  "generated_at": "2026-09-25T07:30:31.662146+09:00",
+  "source_window": {
+    "from": "2026-09-24",
+    "to": "2026-09-25",
+    "timezone": "Asia/Seoul"
+  },
+  "metadata": {
+    "endpoint_id": "g2b_order_plan_service_pps_search_v1",
+    "endpoint": "https://apis.data.go.kr/1230000/ao/OrderPlanSttusService/getOrderPlanSttusListServcPPSSrch",
+    "scope": "bsnsDivNm allowlist; SW사업대상 여부로 선필터하지 않음",
+    "business_division_field": "bsnsDivNm",
+    "business_divisions": [
+      "기술용역",
+      "일반용역"
+    ],
+    "order_month_scope": {
+      "from": "200412",
+      "to": "999912"
+    },
+    "collection": {
+      "page_count": 1,
+      "request_count": 1,
+      "complete": true
+    }
+  },
+  "counts": {
+    "total": 3,
+    "order_plans": 3,
+    "in_scope": 3,
+    "source_total": 3,
+    "source_records": 3,
+    "excluded_out_of_scope": 0,
+    "excluded_business_divisions": 0,
+    "page_count": 1,
+    "request_count": 1
+  },
+  "warnings": [],
+  "order_plans": [
+    {
+      "order_plan_unty_no": "R26DD20880286",
+      "title": "2027~2028년 학교 홈페이지 웹호스팅 유지관리 사업",
+      "agency_code": "7011321",
+      "agency_name": "서울특별시교육청 서울특별시교육청교육연구정보원",
+      "supervising_agency_name": "서울특별시교육청",
+      "business_division": "일반용역",
+      "business_division_code": "03",
+      "service_type": "장기",
+      "service_type_code": "신120002",
+      "budget_amount": 978746000,
+      "contract_amount": 0,
+      "planned_order_year": "2026",
+      "planned_order_month": "2026-09",
+      "procurement_method": "중앙조달",
+      "contract_method": "제한경쟁",
+      "sw_business_status": null,
+      "published_at": "2026-09-24T11:17:17+09:00",
+      "changed_at": null,
+      "bid_ntice_no_list": null,
+      "notice_posted": "N",
+      "rcrit_rgst_no": null,
+      "source_url": "https://www.g2b.go.kr/link/PRPA015_01/single/?oderPlanNo=R26DD20880286",
+      "first_discovered_at": "2026-09-25T07:30:31.662146+09:00",
+      "last_discovered_at": "2026-09-25T07:30:31.662146+09:00",
+      "source_sha256": "87784daeb7b0456d2a6ce11c20731e2a6886d49dcca0aaf87b964759abd71da5",
+      "unknown_fields": [
+        "sw_business_status"
+      ],
+      "raw_source": "raw/page-00001.json"
+    },
+    {
+      "order_plan_unty_no": "R26DD20880289",
+      "title": "청도군하수도정비중점관리사업폐기물처리용역",
+      "agency_code": "5190000",
+      "agency_name": "경상북도 청도군",
+      "supervising_agency_name": "경상북도",
+      "business_division": "일반용역",
+      "business_division_code": "03",
+      "service_type": "신규(단기)",
+      "service_type_code": "신120001",
+      "budget_amount": 825770000,
+      "contract_amount": 0,
+      "planned_order_year": "2026",
+      "planned_order_month": "2026-09",
+      "procurement_method": "자체조달",
+      "contract_method": "일반경쟁",
+      "sw_business_status": null,
+      "published_at": "2026-09-24T15:35:21+09:00",
+      "changed_at": null,
+      "bid_ntice_no_list": null,
+      "notice_posted": "N",
+      "rcrit_rgst_no": null,
+      "source_url": "https://www.g2b.go.kr/link/PRPA015_01/single/?oderPlanNo=R26DD20880289",
+      "first_discovered_at": "2026-09-25T07:30:31.662146+09:00",
+      "last_discovered_at": "2026-09-25T07:30:31.662146+09:00",
+      "source_sha256": "20c576c6ba70e0020dfd436aa10f923387abdc5097b8c4d2a5ed3ae5f1aa4ae7",
+      "unknown_fields": [
+        "sw_business_status"
+      ],
+      "raw_source": "raw/page-00001.json"
+    },
+    {
+      "order_plan_unty_no": "R26DD20880293",
+      "title": "정지궤도 항법위성용 중앙실린더 구조물 검증모델 국산화 제작",
+      "agency_code": "Z004843",
+      "agency_name": "한국항공우주연구원",
+      "supervising_agency_name": "한국항공우주연구원",
+      "business_division": "일반용역",
+      "business_division_code": "03",
+      "service_type": "신규(단기)",
+      "service_type_code": "신120001",
+      "budget_amount": 5565653669,
+      "contract_amount": 0,
+      "planned_order_year": "2026",
+      "planned_order_month": "2026-10",
+      "procurement_method": "자체조달",
+      "contract_method": "제한경쟁",
+      "sw_business_status": null,
+      "published_at": "2026-09-24T17:09:55+09:00",
+      "changed_at": null,
+      "bid_ntice_no_list": null,
+      "notice_posted": "N",
+      "rcrit_rgst_no": null,
+      "source_url": "https://www.g2b.go.kr/link/PRPA015_01/single/?oderPlanNo=R26DD20880293",
+      "first_discovered_at": "2026-09-25T07:30:31.662146+09:00",
+      "last_discovered_at": "2026-09-25T07:30:31.662146+09:00",
+      "source_sha256": "d287f50d5b4ad13ba96b99648181d929c18268327a9c6a5d0e07d52300f64736",
+      "unknown_fields": [
+        "sw_business_status"
+      ],
+      "raw_source": "raw/page-00001.json"
+    }
+  ]
+}

@@ -688,6 +688,7 @@ export function PreSpecsPage() {
       <PageHeaderActions>
         <div className="pre-specs-header-actions">
           {/* 목록 범위를 설명하는 단추는 네 화면이 같은 이름을 쓴다(시안 M1 승인 결정 3). */}
+          {import.meta.env.BIDOPS_REVIEW_MOCK && <Button label="가상 사업 심층검토" size="sm" onClick={() => navigate("/pre-specs/mock-review")} />}
           <Button label="목록 기준" size="sm" variant="ghost" onClick={() => setScopeDialogOpen(true)} />
         </div>
       </PageHeaderActions>

@@ -1189,3 +1189,20 @@ def test_luna_consent_runtime_privileges():
                         assert not _table_privilege(connection,role,table,'DELETE')
         finally:
             engine.dispose()
+
+
+@requires_postgres
+def test_assumption_analysis_runtime_privileges():
+    _ensure_roles()
+    with temporary_database() as url:
+        engine = _apply_policy(url)
+        try:
+            with engine.connect() as connection:
+                for table in ('assumption_input_version', 'assumption_run', 'assumption_stage'):
+                    for role in ('app', 'worker'):
+                        assert _table_privilege(connection, role, table, 'SELECT')
+                        assert _table_privilege(connection, role, table, 'INSERT') == ((role == 'worker') == (table == 'assumption_stage'))
+                        assert not _table_privilege(connection, role, table, 'UPDATE')
+                        assert not _table_privilege(connection, role, table, 'DELETE')
+        finally:
+            engine.dispose()

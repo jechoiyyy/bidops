@@ -1,0 +1,37 @@
+{
+  "schema_version": "bidops.collection-provenance.v1",
+  "generated_at": "2026-09-18T07:59:13.400805+00:00",
+  "source_raw": null,
+  "source_window": {
+    "from": "2026-09-10",
+    "to": "2026-09-14",
+    "timezone": "Asia/Seoul"
+  },
+  "options": {
+    "rows": 500,
+    "timeout": 300,
+    "skip_bids": true,
+    "skip_prespecs": false,
+    "tag_bid_sw_industry": false
+  },
+  "sources": [
+    {
+      "source": "prespec",
+      "endpoint": "https://apis.data.go.kr/1230000/ao/HrcspSsstndrdInfoService/getPublicPrcureThngInfoServcPPSSrch"
+    }
+  ],
+  "complete": true,
+  "warnings": [],
+  "raw_pages": [
+    {
+      "path": "raw/prespec-page-001.json",
+      "source_path": null,
+      "sha256": "e821959c4038cc9bdfd13d4b6b686975082d5e1593a87db3a9350d644ce7febf"
+    },
+    {
+      "path": "raw/prespec-page-002.json",
+      "source_path": null,
+      "sha256": "53e070ae3264d2118301e33ded4be08656a6d38f2bd74a24816e7c7c0f463fa1"
+    }
+  ]
+}

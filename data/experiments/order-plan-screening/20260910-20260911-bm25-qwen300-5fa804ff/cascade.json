@@ -1,0 +1,3208 @@
+{
+  "schema_version": "bidops.order-plan-qwen-cascade.v1",
+  "created_at": "2026-09-15T07:41:49.631000+09:00",
+  "run_id": "20260910-20260911-bm25-qwen300-5fa804ff",
+  "source_run_id": "20260910-20260911-source-v1",
+  "source_population_sha256": "b8332584b88741e9a7ed826902ff9c42edbedd80e22d3e5fe104a92b4fe8f6bc",
+  "prefilter": "bm25",
+  "prefilter_top_k": 300,
+  "rrf_k": null,
+  "bm25_config_sha256": "e026b2bdd2f99ddc09ae17bc83b1cd9cc40ef413f3b72372a35db32918d696da",
+  "dense_result_sha256": null,
+  "selected_ids": [
+    "R26DD20869154",
+    "R26DD20868051",
+    "R26DD20868920",
+    "R26DD20867629",
+    "R26DD20869071",
+    "R26DD20868963",
+    "R26DD20867397",
+    "R26DD20868405",
+    "R26DD20868813",
+    "R26DD20868438",
+    "R26DD20868008",
+    "R26DD20869173",
+    "R26DD20869166",
+    "R26DD20868945",
+    "R26DD20868899",
+    "R26DD20869092",
+    "R26DD20867945",
+    "R26DD20868057",
+    "R26DD20868935",
+    "R26DD20869062",
+    "R26DD20867620",
+    "R26DD20867657",
+    "R26DD20868262",
+    "R26DD20868205",
+    "R26DD20868348",
+    "R26DD20869137",
+    "R26DD20868095",
+    "R26DD20868437",
+    "R26DD20868042",
+    "R26DD20869097",
+    "R26DD20867663",
+    "R26DD20868090",
+    "R26DD20867879",
+    "R26DD20867823",
+    "R26DD20868685",
+    "R26DD20868852",
+    "R26DD20867963",
+    "R26DD20868282",
+    "R26DD20868523",
+    "R26DD20867568",
+    "R26DD20868565",
+    "R26DD20868439",
+    "R26DD20868474",
+    "R26DD20867648",
+    "R26DD20869139",
+    "R26DD20867394",
+    "R26DD20868966",
+    "R26DD20868363",
+    "R26DD20867808",
+    "R26DD20868196",
+    "R26DD20867654",
+    "R26DD20868855",
+    "R26DD20868687",
+    "R26DD20868423",
+    "R26DD20867352",
+    "R26DD20868131",
+    "R26DD20868522",
+    "R26DD20869101",
+    "R26DD20867798",
+    "R26DD20867444",
+    "R26DD20867999",
+    "R26DD20869127",
+    "R26DD20868769",
+    "R26DD20868772",
+    "R26DD20868524",
+    "R26DD20867683",
+    "R26DD20868177",
+    "R26DD20868730",
+    "R26DD20867649",
+    "R26DD20868317",
+    "R26DD20867432",
+    "R26DD20869125",
+    "R26DD20867448",
+    "R26DD20867796",
+    "R26DD20867746",
+    "R26DD20868904",
+    "R26DD20869083",
+    "R26DD20869165",
+    "R26DD20868822",
+    "R26DD20868858",
+    "R26DD20867981",
+    "R26DD20868444",
+    "R26DD20868691",
+    "R26DD20868315",
+    "R26DD20868481",
+    "R26DD20868453",
+    "R26DD20867662",
+    "R26DD20867502",
+    "R26DD20869194",
+    "R26DD20869082",
+    "R26DD20868894",
+    "R26DD20868793",
+    "R26DD20868109",
+    "R26DD20868667",
+    "R26DD20868934",
+    "R26DD20867728",
+    "R26DD20867742",
+    "R26DD20867617",
+    "R26DD20867471",
+    "R26DD20867668",
+    "R26DD20867738",
+    "R26DD20868940",
+    "R26DD20868510",
+    "R26DD20867567",
+    "R26DD20868492",
+    "R26DD20868947",
+    "R26DD20867763",
+    "R26DD20867385",
+    "R26DD20868800",
+    "R26DD20868007",
+    "R26DD20868752",
+    "R26DD20868875",
+    "R26DD20867376",
+    "R26DD20868217",
+    "R26DD20868058",
+    "R26DD20868910",
+    "R26DD20868326",
+    "R26DD20867365",
+    "R26DD20868913",
+    "R26DD20867430",
+    "R26DD20867423",
+    "R26DD20867862",
+    "R26DD20867919",
+    "R26DD20868316",
+    "R26DD20868965",
+    "R26DD20868402",
+    "R26DD20868704",
+    "R26DD20869126",
+    "R26DD20868184",
+    "R26DD20868521",
+    "R26DD20868660",
+    "R26DD20868235",
+    "R26DD20867769",
+    "R26DD20868049",
+    "R26DD20868683",
+    "R26DD20868347",
+    "R26DD20868983",
+    "R26DD20867723",
+    "R26DD20867445",
+    "R26DD20867670",
+    "R26DD20868512",
+    "R26DD20868534",
+    "R26DD20869121",
+    "R26DD20869141",
+    "R26DD20868499",
+    "R26DD20869064",
+    "R26DD20867802",
+    "R26DD20868468",
+    "R26DD20867726",
+    "R26DD20869128",
+    "R26DD20868791",
+    "R26DD20869081",
+    "R26DD20869119",
+    "R26DD20868884",
+    "R26DD20868335",
+    "R26DD20868450",
+    "R26DD20867490",
+    "R26DD20867761",
+    "R26DD20867869",
+    "R26DD20867406",
+    "R26DD20868053",
+    "R26DD20868253",
+    "R26DD20868880",
+    "R26DD20868470",
+    "R26DD20867765",
+    "R26DD20868132",
+    "R26DD20868931",
+    "R26DD20868514",
+    "R26DD20867526",
+    "R26DD20868731",
+    "R26DD20868950",
+    "R26DD20868967",
+    "R26DD20868728",
+    "R26DD20868729",
+    "R26DD20867962",
+    "R26DD20868908",
+    "R26DD20868790",
+    "R26DD20867531",
+    "R26DD20868957",
+    "R26DD20868960",
+    "R26DD20867390",
+    "R26DD20867788",
+    "R26DD20868421",
+    "R26DD20868718",
+    "R26DD20868723",
+    "R26DD20867454",
+    "R26DD20867780",
+    "R26DD20867694",
+    "R26DD20867672",
+    "R26DD20869060",
+    "R26DD20867539",
+    "R26DD20868241",
+    "R26DD20867758",
+    "R26DD20867426",
+    "R26DD20868909",
+    "R26DD20868991",
+    "R26DD20868994",
+    "R26DD20868996",
+    "R26DD20868719",
+    "R26DD20867350",
+    "R26DD20869196",
+    "R26DD20868447",
+    "R26DD20869129",
+    "R26DD20869124",
+    "R26DD20867349",
+    "R26DD20867586",
+    "R26DD20869147",
+    "R26DD20867675",
+    "R26DD20867812",
+    "R26DD20867713",
+    "R26DD20868044",
+    "R26DD20867935",
+    "R26DD20867409",
+    "R26DD20868999",
+    "R26DD20868578",
+    "R26DD20868692",
+    "R26DD20869187",
+    "R26DD20868456",
+    "R26DD20868362",
+    "R26DD20868248",
+    "R26DD20868916",
+    "R26DD20867420",
+    "R26DD20869058",
+    "R26DD20867519",
+    "R26DD20868879",
+    "R26DD20867986",
+    "R26DD20869145",
+    "R26DD20868765",
+    "R26DD20868213",
+    "R26DD20869080",
+    "R26DD20867603",
+    "R26DD20869110",
+    "R26DD20869084",
+    "R26DD20868661",
+    "R26DD20868463",
+    "R26DD20868717",
+    "R26DD20869188",
+    "R26DD20868333",
+    "R26DD20868802",
+    "R26DD20867834",
+    "R26DD20867598",
+    "R26DD20867498",
+    "R26DD20868807",
+    "R26DD20867640",
+    "R26DD20868588",
+    "R26DD20869123",
+    "R26DD20868727",
+    "R26DD20867521",
+    "R26DD20868955",
+    "R26DD20867546",
+    "R26DD20868881",
+    "R26DD20868554",
+    "R26DD20868688",
+    "R26DD20867773",
+    "R26DD20868465",
+    "R26DD20868984",
+    "R26DD20868987",
+    "R26DD20868989",
+    "R26DD20868209",
+    "R26DD20867784",
+    "R26DD20868035",
+    "R26DD20867478",
+    "R26DD20868383",
+    "R26DD20867887",
+    "R26DD20867885",
+    "R26DD20867686",
+    "R26DD20868866",
+    "R26DD20868273",
+    "R26DD20867527",
+    "R26DD20868530",
+    "R26DD20869074",
+    "R26DD20868759",
+    "R26DD20868181",
+    "R26DD20867562",
+    "R26DD20869186",
+    "R26DD20868017",
+    "R26DD20867800",
+    "R26DD20868716",
+    "R26DD20867510",
+    "R26DD20868496",
+    "R26DD20867559",
+    "R26DD20867435",
+    "R26DD20867750",
+    "R26DD20868886",
+    "R26DD20867505",
+    "R26DD20869031",
+    "R26DD20868292",
+    "R26DD20868344",
+    "R26DD20868364",
+    "R26DD20868575",
+    "R26DD20867462",
+    "R26DD20868761",
+    "R26DD20868461",
+    "R26DD20867515",
+    "R26DD20868214",
+    "R26DD20868585",
+    "R26DD20868906",
+    "R26DD20868418",
+    "R26DD20867921",
+    "R26DD20867555"
+  ],
+  "ranking": [
+    {
+      "plan_id": "R26DD20869154",
+      "rank": 1,
+      "score": 111.31139744429143,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868051",
+      "rank": 2,
+      "score": 84.31630439753042,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868920",
+      "rank": 3,
+      "score": 77.33126462418525,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867629",
+      "rank": 4,
+      "score": 75.14923412291576,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20869071",
+      "rank": 5,
+      "score": 73.10246965734038,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868963",
+      "rank": 6,
+      "score": 72.59610465778061,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867397",
+      "rank": 7,
+      "score": 71.53309589077439,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868405",
+      "rank": 8,
+      "score": 68.48833837583378,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868813",
+      "rank": 9,
+      "score": 67.5121836013716,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868438",
+      "rank": 10,
+      "score": 65.11210836646005,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868008",
+      "rank": 11,
+      "score": 65.05061041920389,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20869173",
+      "rank": 12,
+      "score": 64.44565686790558,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20869166",
+      "rank": 13,
+      "score": 64.08142411852414,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868945",
+      "rank": 14,
+      "score": 59.940748781639236,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868899",
+      "rank": 15,
+      "score": 58.23131426858764,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20869092",
+      "rank": 16,
+      "score": 57.488115299154614,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867945",
+      "rank": 17,
+      "score": 57.42135835287416,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868057",
+      "rank": 18,
+      "score": 56.996429519690786,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868935",
+      "rank": 19,
+      "score": 51.34860203034047,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20869062",
+      "rank": 20,
+      "score": 50.11306871413997,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867620",
+      "rank": 21,
+      "score": 49.759710446394166,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867657",
+      "rank": 22,
+      "score": 49.34548670948331,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868262",
+      "rank": 23,
+      "score": 49.292042620147086,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868205",
+      "rank": 24,
+      "score": 49.07073455939303,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868348",
+      "rank": 25,
+      "score": 47.256266552000824,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20869137",
+      "rank": 26,
+      "score": 46.84685631069246,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868095",
+      "rank": 27,
+      "score": 46.81654910405724,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868437",
+      "rank": 28,
+      "score": 46.61875721173559,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868042",
+      "rank": 29,
+      "score": 45.27126412652771,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20869097",
+      "rank": 30,
+      "score": 44.693362355297914,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867663",
+      "rank": 31,
+      "score": 43.9676593617587,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868090",
+      "rank": 32,
+      "score": 40.89026758133964,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867879",
+      "rank": 33,
+      "score": 39.91190652903625,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867823",
+      "rank": 34,
+      "score": 39.90608947373503,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868685",
+      "rank": 35,
+      "score": 39.751436480108254,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868852",
+      "rank": 36,
+      "score": 39.751436480108254,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867963",
+      "rank": 37,
+      "score": 39.45593249480752,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868282",
+      "rank": 38,
+      "score": 38.89088497273876,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868523",
+      "rank": 39,
+      "score": 38.418160787276186,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867568",
+      "rank": 40,
+      "score": 38.39091420155755,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868565",
+      "rank": 41,
+      "score": 37.554346063847426,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868439",
+      "rank": 42,
+      "score": 37.214896371472705,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868474",
+      "rank": 43,
+      "score": 36.58753648620723,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867648",
+      "rank": 44,
+      "score": 36.4893609476234,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20869139",
+      "rank": 45,
+      "score": 36.39665082513621,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867394",
+      "rank": 46,
+      "score": 36.231838927432115,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868966",
+      "rank": 47,
+      "score": 35.37905721179638,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868363",
+      "rank": 48,
+      "score": 35.298123889757946,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867808",
+      "rank": 49,
+      "score": 35.13455712366165,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868196",
+      "rank": 50,
+      "score": 34.85795329590909,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867654",
+      "rank": 51,
+      "score": 34.799014999363756,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868855",
+      "rank": 52,
+      "score": 34.64168047212704,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868687",
+      "rank": 53,
+      "score": 34.233180915083445,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868423",
+      "rank": 54,
+      "score": 34.13468369760003,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867352",
+      "rank": 55,
+      "score": 33.72304792687569,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868131",
+      "rank": 56,
+      "score": 33.42694123280801,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868522",
+      "rank": 57,
+      "score": 33.07546491935214,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20869101",
+      "rank": 58,
+      "score": 31.750094586760106,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867798",
+      "rank": 59,
+      "score": 31.419896992755703,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867444",
+      "rank": 60,
+      "score": 30.383456149967543,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867999",
+      "rank": 61,
+      "score": 30.311141979707457,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20869127",
+      "rank": 62,
+      "score": 29.78532960381647,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868769",
+      "rank": 63,
+      "score": 29.55721535914932,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868772",
+      "rank": 64,
+      "score": 29.55721535914932,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868524",
+      "rank": 65,
+      "score": 29.229615569219135,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867683",
+      "rank": 66,
+      "score": 28.90571762962164,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868177",
+      "rank": 67,
+      "score": 28.74706318619706,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868730",
+      "rank": 68,
+      "score": 28.119252708806023,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867649",
+      "rank": 69,
+      "score": 27.811218825486623,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868317",
+      "rank": 70,
+      "score": 27.58444916979451,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867432",
+      "rank": 71,
+      "score": 27.517835064901714,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20869125",
+      "rank": 72,
+      "score": 27.320971498471238,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867448",
+      "rank": 73,
+      "score": 27.161306826767365,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867796",
+      "rank": 74,
+      "score": 26.83373606149282,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867746",
+      "rank": 75,
+      "score": 26.722017780471628,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868904",
+      "rank": 76,
+      "score": 26.401273700396445,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20869083",
+      "rank": 77,
+      "score": 26.225846354394907,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20869165",
+      "rank": 78,
+      "score": 25.982714721247717,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868822",
+      "rank": 79,
+      "score": 25.953382287108795,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868858",
+      "rank": 80,
+      "score": 25.953382287108795,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867981",
+      "rank": 81,
+      "score": 25.9027300148888,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868444",
+      "rank": 82,
+      "score": 25.69005434598533,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868691",
+      "rank": 83,
+      "score": 25.27920860435501,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868315",
+      "rank": 84,
+      "score": 25.257098581936823,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868481",
+      "rank": 85,
+      "score": 24.583868210470925,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868453",
+      "rank": 86,
+      "score": 24.47862866328486,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867662",
+      "rank": 87,
+      "score": 23.16208256592041,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867502",
+      "rank": 88,
+      "score": 23.074831638328952,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20869194",
+      "rank": 89,
+      "score": 23.027315939976884,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20869082",
+      "rank": 90,
+      "score": 22.728071524716317,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868894",
+      "rank": 91,
+      "score": 22.52774950814087,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868793",
+      "rank": 92,
+      "score": 22.439674858452772,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868109",
+      "rank": 93,
+      "score": 22.16784442583325,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868667",
+      "rank": 94,
+      "score": 21.855701471900197,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868934",
+      "rank": 95,
+      "score": 21.842339818138594,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867728",
+      "rank": 96,
+      "score": 21.833478101166413,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867742",
+      "rank": 97,
+      "score": 21.833478101166413,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867617",
+      "rank": 98,
+      "score": 21.733236247957652,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867471",
+      "rank": 99,
+      "score": 21.57264694162113,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867668",
+      "rank": 100,
+      "score": 21.516199186448706,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867738",
+      "rank": 101,
+      "score": 21.467706507516635,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868940",
+      "rank": 102,
+      "score": 21.421771990918565,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868510",
+      "rank": 103,
+      "score": 21.311019140004703,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867567",
+      "rank": 104,
+      "score": 21.217123811922047,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868492",
+      "rank": 105,
+      "score": 20.921265559241867,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868947",
+      "rank": 106,
+      "score": 20.382345485935783,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867763",
+      "rank": 107,
+      "score": 20.002126294050157,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867385",
+      "rank": 108,
+      "score": 19.99022277874039,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868800",
+      "rank": 109,
+      "score": 19.714814850779,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868007",
+      "rank": 110,
+      "score": 19.705692311224315,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868752",
+      "rank": 111,
+      "score": 19.676969189614077,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868875",
+      "rank": 112,
+      "score": 19.481655347918505,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867376",
+      "rank": 113,
+      "score": 19.437122045864143,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868217",
+      "rank": 114,
+      "score": 19.433702253261025,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868058",
+      "rank": 115,
+      "score": 19.36600668250219,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868910",
+      "rank": 116,
+      "score": 18.728820888149855,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868326",
+      "rank": 117,
+      "score": 18.487124201306553,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867365",
+      "rank": 118,
+      "score": 18.423533908765727,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868913",
+      "rank": 119,
+      "score": 18.395530303478274,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867430",
+      "rank": 120,
+      "score": 18.263734565801435,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867423",
+      "rank": 121,
+      "score": 18.1750174050236,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867862",
+      "rank": 122,
+      "score": 18.1725458827698,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867919",
+      "rank": 123,
+      "score": 18.1725458827698,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868316",
+      "rank": 124,
+      "score": 18.05975707374555,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868965",
+      "rank": 125,
+      "score": 17.747053076459625,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868402",
+      "rank": 126,
+      "score": 17.719578312028403,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868704",
+      "rank": 127,
+      "score": 17.70318519238286,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20869126",
+      "rank": 128,
+      "score": 17.587822051440607,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868184",
+      "rank": 129,
+      "score": 17.5385280231031,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868521",
+      "rank": 130,
+      "score": 17.414803722689463,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868660",
+      "rank": 131,
+      "score": 17.152841682032882,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868235",
+      "rank": 132,
+      "score": 17.011163780370204,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867769",
+      "rank": 133,
+      "score": 16.857806012293057,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868049",
+      "rank": 134,
+      "score": 16.68031378888842,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868683",
+      "rank": 135,
+      "score": 16.510799753995116,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868347",
+      "rank": 136,
+      "score": 15.78171959940714,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868983",
+      "rank": 137,
+      "score": 15.77686447489442,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867723",
+      "rank": 138,
+      "score": 15.552715259661364,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867445",
+      "rank": 139,
+      "score": 15.183823634623314,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867670",
+      "rank": 140,
+      "score": 15.183823634623314,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868512",
+      "rank": 141,
+      "score": 15.175071803974001,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868534",
+      "rank": 142,
+      "score": 15.083107847983737,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20869121",
+      "rank": 143,
+      "score": 14.879281933152548,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20869141",
+      "rank": 144,
+      "score": 14.66797074874227,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868499",
+      "rank": 145,
+      "score": 14.534040505081396,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20869064",
+      "rank": 146,
+      "score": 14.269580333127799,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867802",
+      "rank": 147,
+      "score": 14.224095506463124,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868468",
+      "rank": 148,
+      "score": 14.201353489668136,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867726",
+      "rank": 149,
+      "score": 14.197898900141363,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20869128",
+      "rank": 150,
+      "score": 14.148475498602544,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868791",
+      "rank": 151,
+      "score": 14.008252072134589,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20869081",
+      "rank": 152,
+      "score": 13.987958146646015,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20869119",
+      "rank": 153,
+      "score": 13.916053272689078,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868884",
+      "rank": 154,
+      "score": 13.89218477136407,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868335",
+      "rank": 155,
+      "score": 13.871791719477077,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868450",
+      "rank": 156,
+      "score": 13.754309149349034,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867490",
+      "rank": 157,
+      "score": 13.695882220996642,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867761",
+      "rank": 158,
+      "score": 13.486307879226432,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867869",
+      "rank": 159,
+      "score": 13.225624130275403,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867406",
+      "rank": 160,
+      "score": 13.224102843354814,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868053",
+      "rank": 161,
+      "score": 13.075798421653143,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868253",
+      "rank": 162,
+      "score": 12.926447702652727,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868880",
+      "rank": 163,
+      "score": 12.877441057237263,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868470",
+      "rank": 164,
+      "score": 12.876237582420243,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867765",
+      "rank": 165,
+      "score": 12.844103612464217,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868132",
+      "rank": 166,
+      "score": 12.437017072067132,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868931",
+      "rank": 167,
+      "score": 12.426985697830899,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868514",
+      "rank": 168,
+      "score": 12.369772267373282,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867526",
+      "rank": 169,
+      "score": 12.3554159058674,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868731",
+      "rank": 170,
+      "score": 12.344948725045,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868950",
+      "rank": 171,
+      "score": 12.245498000455118,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868967",
+      "rank": 172,
+      "score": 12.181201185848652,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868728",
+      "rank": 173,
+      "score": 12.159843620556895,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868729",
+      "rank": 174,
+      "score": 12.159843620556895,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867962",
+      "rank": 175,
+      "score": 11.972752519400718,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868908",
+      "rank": 176,
+      "score": 11.902252520583598,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868790",
+      "rank": 177,
+      "score": 11.900954238833847,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867531",
+      "rank": 178,
+      "score": 11.772470282764745,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868957",
+      "rank": 179,
+      "score": 11.745166710649904,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868960",
+      "rank": 180,
+      "score": 11.738423197116335,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867390",
+      "rank": 181,
+      "score": 11.625360206738659,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867788",
+      "rank": 182,
+      "score": 11.574162195568151,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868421",
+      "rank": 183,
+      "score": 11.334523061348833,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868718",
+      "rank": 184,
+      "score": 11.311777047363886,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868723",
+      "rank": 185,
+      "score": 11.311777047363886,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867454",
+      "rank": 186,
+      "score": 11.25100982490344,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867780",
+      "rank": 187,
+      "score": 11.235410490346796,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867694",
+      "rank": 188,
+      "score": 11.225475890540375,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867672",
+      "rank": 189,
+      "score": 10.93441613206319,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20869060",
+      "rank": 190,
+      "score": 10.876700359596807,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867539",
+      "rank": 191,
+      "score": 10.82369103248234,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868241",
+      "rank": 192,
+      "score": 10.761169686737947,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867758",
+      "rank": 193,
+      "score": 10.678454591510956,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867426",
+      "rank": 194,
+      "score": 10.503896642646223,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868909",
+      "rank": 195,
+      "score": 10.503896642646223,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868991",
+      "rank": 196,
+      "score": 10.440895081875063,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868994",
+      "rank": 197,
+      "score": 10.440895081875063,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868996",
+      "rank": 198,
+      "score": 10.440895081875063,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868719",
+      "rank": 199,
+      "score": 10.422674097565046,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867350",
+      "rank": 200,
+      "score": 10.398541203751646,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20869196",
+      "rank": 201,
+      "score": 10.350881538776232,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868447",
+      "rank": 202,
+      "score": 10.326212940342803,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20869129",
+      "rank": 203,
+      "score": 10.227696370882052,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20869124",
+      "rank": 204,
+      "score": 10.126855276035506,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867349",
+      "rank": 205,
+      "score": 10.095847270499515,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867586",
+      "rank": 206,
+      "score": 10.05214192233921,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20869147",
+      "rank": 207,
+      "score": 9.96277625604184,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867675",
+      "rank": 208,
+      "score": 9.931329825788556,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867812",
+      "rank": 209,
+      "score": 9.635181763896096,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867713",
+      "rank": 210,
+      "score": 9.63273927984747,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868044",
+      "rank": 211,
+      "score": 9.599532071150339,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867935",
+      "rank": 212,
+      "score": 9.593212144101868,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867409",
+      "rank": 213,
+      "score": 9.557258692524899,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868999",
+      "rank": 214,
+      "score": 9.494752456783857,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868578",
+      "rank": 215,
+      "score": 9.441793734536382,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868692",
+      "rank": 216,
+      "score": 9.406013950890296,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20869187",
+      "rank": 217,
+      "score": 9.212399498754014,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868456",
+      "rank": 218,
+      "score": 9.163673711290613,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868362",
+      "rank": 219,
+      "score": 9.110695921922133,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868248",
+      "rank": 220,
+      "score": 8.952848070857133,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868916",
+      "rank": 221,
+      "score": 8.91205155292452,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867420",
+      "rank": 222,
+      "score": 8.911838268281354,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20869058",
+      "rank": 223,
+      "score": 8.859321127017623,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867519",
+      "rank": 224,
+      "score": 8.787629406302155,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868879",
+      "rank": 225,
+      "score": 8.779390230383548,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867986",
+      "rank": 226,
+      "score": 8.769894440610077,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20869145",
+      "rank": 227,
+      "score": 8.635609188420503,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868765",
+      "rank": 228,
+      "score": 8.580584617371883,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868213",
+      "rank": 229,
+      "score": 8.567498987005475,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20869080",
+      "rank": 230,
+      "score": 8.49786163859859,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867603",
+      "rank": 231,
+      "score": 8.36939120781329,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20869110",
+      "rank": 232,
+      "score": 8.312258615033677,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20869084",
+      "rank": 233,
+      "score": 8.271076926591512,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868661",
+      "rank": 234,
+      "score": 8.139649021935643,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868463",
+      "rank": 235,
+      "score": 8.107439128930565,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868717",
+      "rank": 236,
+      "score": 8.082237713698635,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20869188",
+      "rank": 237,
+      "score": 8.072918842965446,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868333",
+      "rank": 238,
+      "score": 8.070215615096918,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868802",
+      "rank": 239,
+      "score": 8.047373818496078,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867834",
+      "rank": 240,
+      "score": 8.009847271944672,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867598",
+      "rank": 241,
+      "score": 8.003870719537137,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867498",
+      "rank": 242,
+      "score": 7.9930309185083495,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868807",
+      "rank": 243,
+      "score": 7.989556465431613,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867640",
+      "rank": 244,
+      "score": 7.889023665133712,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868588",
+      "rank": 245,
+      "score": 7.889023665133712,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20869123",
+      "rank": 246,
+      "score": 7.8324189648874665,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868727",
+      "rank": 247,
+      "score": 7.832074342801711,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867521",
+      "rank": 248,
+      "score": 7.82157686277543,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868955",
+      "rank": 249,
+      "score": 7.6719682400808775,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867546",
+      "rank": 250,
+      "score": 7.668941319527953,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868881",
+      "rank": 251,
+      "score": 7.604645750088846,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868554",
+      "rank": 252,
+      "score": 7.602695756662499,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868688",
+      "rank": 253,
+      "score": 7.561224197526558,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867773",
+      "rank": 254,
+      "score": 7.551166854766606,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868465",
+      "rank": 255,
+      "score": 7.431856516570503,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868984",
+      "rank": 256,
+      "score": 7.407977752737565,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868987",
+      "rank": 257,
+      "score": 7.407977752737565,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868989",
+      "rank": 258,
+      "score": 7.407977752737565,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868209",
+      "rank": 259,
+      "score": 7.349602768113663,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867784",
+      "rank": 260,
+      "score": 7.315792855592278,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868035",
+      "rank": 261,
+      "score": 7.280563749241415,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867478",
+      "rank": 262,
+      "score": 7.247283120370573,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868383",
+      "rank": 263,
+      "score": 7.2289430082297965,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867887",
+      "rank": 264,
+      "score": 7.186767982450892,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867885",
+      "rank": 265,
+      "score": 7.186122160264426,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867686",
+      "rank": 266,
+      "score": 7.141053180723837,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868866",
+      "rank": 267,
+      "score": 7.141053180723837,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868273",
+      "rank": 268,
+      "score": 7.119894806000277,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867527",
+      "rank": 269,
+      "score": 6.857476077300213,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868530",
+      "rank": 270,
+      "score": 6.855948368260908,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20869074",
+      "rank": 271,
+      "score": 6.805963165394305,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868759",
+      "rank": 272,
+      "score": 6.6665630277612165,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868181",
+      "rank": 273,
+      "score": 6.629484806771915,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867562",
+      "rank": 274,
+      "score": 6.582071277357441,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20869186",
+      "rank": 275,
+      "score": 6.57679200537526,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868017",
+      "rank": 276,
+      "score": 6.575463279870831,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867800",
+      "rank": 277,
+      "score": 6.521082287871373,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868716",
+      "rank": 278,
+      "score": 6.470959346637792,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867510",
+      "rank": 279,
+      "score": 6.351884187890839,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868496",
+      "rank": 280,
+      "score": 6.27410105209554,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867559",
+      "rank": 281,
+      "score": 6.265660056387775,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867435",
+      "rank": 282,
+      "score": 6.191589598560901,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867750",
+      "rank": 283,
+      "score": 6.183910762584929,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868886",
+      "rank": 284,
+      "score": 6.183910762584929,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867505",
+      "rank": 285,
+      "score": 6.155814690906297,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20869031",
+      "rank": 286,
+      "score": 6.139266355253593,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868292",
+      "rank": 287,
+      "score": 6.027439740446768,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868344",
+      "rank": 288,
+      "score": 6.019335998663438,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868364",
+      "rank": 289,
+      "score": 6.016796929154509,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868575",
+      "rank": 290,
+      "score": 5.978630888644741,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867462",
+      "rank": 291,
+      "score": 5.9389246155765125,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868761",
+      "rank": 292,
+      "score": 5.885897211396657,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868461",
+      "rank": 293,
+      "score": 5.807721766760423,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867515",
+      "rank": 294,
+      "score": 5.786845922662856,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868214",
+      "rank": 295,
+      "score": 5.763046388252168,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868585",
+      "rank": 296,
+      "score": 5.763046388252168,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868906",
+      "rank": 297,
+      "score": 5.744596768438474,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20868418",
+      "rank": 298,
+      "score": 5.737657741112196,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867921",
+      "rank": 299,
+      "score": 5.7267092040542025,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20867555",
+      "rank": 300,
+      "score": 5.687275085085547,
+      "selected": true
+    },
+    {
+      "plan_id": "R26DD20869156",
+      "rank": 301,
+      "score": 5.596080092264871,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20867387",
+      "rank": 302,
+      "score": 5.585233541490205,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20867436",
+      "rank": 303,
+      "score": 5.578906612360459,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868788",
+      "rank": 304,
+      "score": 5.52932910108375,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20867985",
+      "rank": 305,
+      "score": 5.520140868429825,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20867940",
+      "rank": 306,
+      "score": 5.471353963836325,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868992",
+      "rank": 307,
+      "score": 5.377123981860496,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868995",
+      "rank": 308,
+      "score": 5.377123981860496,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868997",
+      "rank": 309,
+      "score": 5.377123981860496,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868739",
+      "rank": 310,
+      "score": 5.340013934733726,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20867884",
+      "rank": 311,
+      "score": 5.337362142046909,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20867901",
+      "rank": 312,
+      "score": 5.302351968497819,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868993",
+      "rank": 313,
+      "score": 5.246201296153074,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868819",
+      "rank": 314,
+      "score": 5.2290864293243215,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868888",
+      "rank": 315,
+      "score": 5.204884715838853,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868937",
+      "rank": 316,
+      "score": 5.15796136981397,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20867874",
+      "rank": 317,
+      "score": 5.121609555993686,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868944",
+      "rank": 318,
+      "score": 5.100120558943811,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868469",
+      "rank": 319,
+      "score": 5.009654081803038,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20869203",
+      "rank": 320,
+      "score": 5.0030617001608775,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868750",
+      "rank": 321,
+      "score": 4.998380324995109,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868814",
+      "rank": 322,
+      "score": 4.98866820639304,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868300",
+      "rank": 323,
+      "score": 4.980834138200654,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868895",
+      "rank": 324,
+      "score": 4.93218390015989,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868272",
+      "rank": 325,
+      "score": 4.929590295213041,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868034",
+      "rank": 326,
+      "score": 4.907803531074739,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868005",
+      "rank": 327,
+      "score": 4.900083433957462,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868883",
+      "rank": 328,
+      "score": 4.8746380275452585,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868204",
+      "rank": 329,
+      "score": 4.873140160729427,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20867650",
+      "rank": 330,
+      "score": 4.83500073258611,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20867744",
+      "rank": 331,
+      "score": 4.829702185352906,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868301",
+      "rank": 332,
+      "score": 4.829702185352906,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868659",
+      "rank": 333,
+      "score": 4.807896645003947,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20867793",
+      "rank": 334,
+      "score": 4.775273797882569,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868861",
+      "rank": 335,
+      "score": 4.753691956318847,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20867896",
+      "rank": 336,
+      "score": 4.67023515690051,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868200",
+      "rank": 337,
+      "score": 4.662130063936258,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20867627",
+      "rank": 338,
+      "score": 4.65719844878127,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20867487",
+      "rank": 339,
+      "score": 4.614250296760378,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868216",
+      "rank": 340,
+      "score": 4.612446719758513,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20867886",
+      "rank": 341,
+      "score": 4.599141778261936,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868856",
+      "rank": 342,
+      "score": 4.5873542235765115,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868898",
+      "rank": 343,
+      "score": 4.5720890301085895,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20867695",
+      "rank": 344,
+      "score": 4.520187613889308,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20869069",
+      "rank": 345,
+      "score": 4.489013371546966,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868805",
+      "rank": 346,
+      "score": 4.4884684628058915,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868962",
+      "rank": 347,
+      "score": 4.474530362088948,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20867747",
+      "rank": 348,
+      "score": 4.46854322593326,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868817",
+      "rank": 349,
+      "score": 4.457137131670606,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20869066",
+      "rank": 350,
+      "score": 4.445928915627917,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868919",
+      "rank": 351,
+      "score": 4.424376220925655,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868942",
+      "rank": 352,
+      "score": 4.424376220925655,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868925",
+      "rank": 353,
+      "score": 4.414662634098799,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20867464",
+      "rank": 354,
+      "score": 4.41389556697791,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868710",
+      "rank": 355,
+      "score": 4.409303741622157,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868115",
+      "rank": 356,
+      "score": 4.393364685683853,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868121",
+      "rank": 357,
+      "score": 4.347266296848639,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20867949",
+      "rank": 358,
+      "score": 4.3243121492575956,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868873",
+      "rank": 359,
+      "score": 4.290759862120964,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20867533",
+      "rank": 360,
+      "score": 4.2257323785802745,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868820",
+      "rank": 361,
+      "score": 4.214231064351874,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868020",
+      "rank": 362,
+      "score": 4.165133588867619,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868269",
+      "rank": 363,
+      "score": 4.113831247686728,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868737",
+      "rank": 364,
+      "score": 4.099007731779762,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20869130",
+      "rank": 365,
+      "score": 4.064010158671831,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868892",
+      "rank": 366,
+      "score": 3.9290207598365186,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20867677",
+      "rank": 367,
+      "score": 3.903272644377503,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20867850",
+      "rank": 368,
+      "score": 3.8809228164262137,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868336",
+      "rank": 369,
+      "score": 3.8424421063823964,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868198",
+      "rank": 370,
+      "score": 3.8180566353085084,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868513",
+      "rank": 371,
+      "score": 3.808619495366854,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868396",
+      "rank": 372,
+      "score": 3.7759638503965838,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20869159",
+      "rank": 373,
+      "score": 3.771922814840118,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20869059",
+      "rank": 374,
+      "score": 3.7612603548070043,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20867547",
+      "rank": 375,
+      "score": 3.757805774609623,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868579",
+      "rank": 376,
+      "score": 3.7441933280519484,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868346",
+      "rank": 377,
+      "score": 3.721717550235978,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868033",
+      "rank": 378,
+      "score": 3.6701363673643272,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20867797",
+      "rank": 379,
+      "score": 3.6555022229052225,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20869161",
+      "rank": 380,
+      "score": 3.6196671842223447,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20867947",
+      "rank": 381,
+      "score": 3.6132332240229186,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868218",
+      "rank": 382,
+      "score": 3.611620919341372,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20867696",
+      "rank": 383,
+      "score": 3.5748351956430438,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868038",
+      "rank": 384,
+      "score": 3.564528113024033,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20867957",
+      "rank": 385,
+      "score": 3.5618704325003927,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20867871",
+      "rank": 386,
+      "score": 3.4603623968875334,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868948",
+      "rank": 387,
+      "score": 3.4603623968875334,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868266",
+      "rank": 388,
+      "score": 3.4505727723289454,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20869007",
+      "rank": 389,
+      "score": 3.4362539664731453,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868228",
+      "rank": 390,
+      "score": 3.43034095511666,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20867807",
+      "rank": 391,
+      "score": 3.4022022418551017,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868189",
+      "rank": 392,
+      "score": 3.3827119709253055,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868902",
+      "rank": 393,
+      "score": 3.325796091906475,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20867638",
+      "rank": 394,
+      "score": 3.274125864005098,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20867868",
+      "rank": 395,
+      "score": 3.263853471683172,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20867893",
+      "rank": 396,
+      "score": 3.246401735555995,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868868",
+      "rank": 397,
+      "score": 3.246401735555995,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868837",
+      "rank": 398,
+      "score": 3.21111928116455,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868473",
+      "rank": 399,
+      "score": 3.1964457549123595,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868742",
+      "rank": 400,
+      "score": 3.1098424098688437,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868792",
+      "rank": 401,
+      "score": 3.1025255302389603,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868460",
+      "rank": 402,
+      "score": 3.086297325325898,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868781",
+      "rank": 403,
+      "score": 3.0813929075865834,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20869073",
+      "rank": 404,
+      "score": 3.0619512711275134,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868657",
+      "rank": 405,
+      "score": 3.061148404405026,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868449",
+      "rank": 406,
+      "score": 3.037556709675363,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20869095",
+      "rank": 407,
+      "score": 3.017375909315634,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20867739",
+      "rank": 408,
+      "score": 2.9891924059625907,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868255",
+      "rank": 409,
+      "score": 2.979304303522986,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20867391",
+      "rank": 410,
+      "score": 2.9756852625615338,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868972",
+      "rank": 411,
+      "score": 2.9708609269306394,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20867762",
+      "rank": 412,
+      "score": 2.956835339580365,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868371",
+      "rank": 413,
+      "score": 2.9357816325803245,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20867396",
+      "rank": 414,
+      "score": 2.9318894117809267,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868117",
+      "rank": 415,
+      "score": 2.9274503804945877,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868133",
+      "rank": 416,
+      "score": 2.8911110134518867,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868556",
+      "rank": 417,
+      "score": 2.8911110134518867,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868443",
+      "rank": 418,
+      "score": 2.795294707613049,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20867691",
+      "rank": 419,
+      "score": 2.7746131014239377,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868295",
+      "rank": 420,
+      "score": 2.7650866664554616,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20867401",
+      "rank": 421,
+      "score": 2.751406717133251,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868663",
+      "rank": 422,
+      "score": 2.7470181970273004,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20867529",
+      "rank": 423,
+      "score": 2.7250233978531813,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868483",
+      "rank": 424,
+      "score": 2.6986419206551124,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868525",
+      "rank": 425,
+      "score": 2.66020294083969,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868466",
+      "rank": 426,
+      "score": 2.6569264047773724,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20867535",
+      "rank": 427,
+      "score": 2.6460584849891724,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20867724",
+      "rank": 428,
+      "score": 2.6321642793798885,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20869021",
+      "rank": 429,
+      "score": 2.63184087272023,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20869076",
+      "rank": 430,
+      "score": 2.6276396349344453,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20867658",
+      "rank": 431,
+      "score": 2.6259289326063597,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20869005",
+      "rank": 432,
+      "score": 2.5880681936002543,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868959",
+      "rank": 433,
+      "score": 2.551134180035218,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868946",
+      "rank": 434,
+      "score": 2.545425228605428,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20867902",
+      "rank": 435,
+      "score": 2.514528110768037,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20869106",
+      "rank": 436,
+      "score": 2.5048300220492856,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20867852",
+      "rank": 437,
+      "score": 2.504164720561536,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20867811",
+      "rank": 438,
+      "score": 2.466306027432617,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868351",
+      "rank": 439,
+      "score": 2.41075287155166,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20867455",
+      "rank": 440,
+      "score": 2.387364921222186,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868294",
+      "rank": 441,
+      "score": 2.378038775451286,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20867636",
+      "rank": 442,
+      "score": 2.3679015904891854,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868075",
+      "rank": 443,
+      "score": 2.3645209263309086,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868746",
+      "rank": 444,
+      "score": 2.3009091095686736,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868197",
+      "rank": 445,
+      "score": 2.2556039222600464,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868318",
+      "rank": 446,
+      "score": 2.2556039222600464,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868586",
+      "rank": 447,
+      "score": 2.2376030251551655,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868261",
+      "rank": 448,
+      "score": 2.226940062524503,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20867622",
+      "rank": 449,
+      "score": 2.1833705468927986,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20867544",
+      "rank": 450,
+      "score": 2.147978826483779,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868227",
+      "rank": 451,
+      "score": 2.1364607893307634,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868705",
+      "rank": 452,
+      "score": 2.1137161805069056,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20867656",
+      "rank": 453,
+      "score": 2.078113136408833,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20867631",
+      "rank": 454,
+      "score": 2.0410549766571484,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868356",
+      "rank": 455,
+      "score": 2.040991485266445,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868268",
+      "rank": 456,
+      "score": 2.006070951008167,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20867412",
+      "rank": 457,
+      "score": 1.9069103335802564,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868662",
+      "rank": 458,
+      "score": 1.9069103335802564,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868921",
+      "rank": 459,
+      "score": 1.8759999425487446,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868558",
+      "rank": 460,
+      "score": 1.8597748838931762,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20867550",
+      "rank": 461,
+      "score": 1.7890025108505443,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868014",
+      "rank": 462,
+      "score": 1.7617691428045403,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868359",
+      "rank": 463,
+      "score": 1.684826543119798,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868557",
+      "rank": 464,
+      "score": 1.6371595663764753,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20867383",
+      "rank": 465,
+      "score": 0.0,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20867450",
+      "rank": 466,
+      "score": 0.0,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20867463",
+      "rank": 467,
+      "score": 0.0,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20867485",
+      "rank": 468,
+      "score": 0.0,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20867489",
+      "rank": 469,
+      "score": 0.0,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20867523",
+      "rank": 470,
+      "score": 0.0,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20867626",
+      "rank": 471,
+      "score": 0.0,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20867698",
+      "rank": 472,
+      "score": 0.0,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20867821",
+      "rank": 473,
+      "score": 0.0,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20867888",
+      "rank": 474,
+      "score": 0.0,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868055",
+      "rank": 475,
+      "score": 0.0,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868517",
+      "rank": 476,
+      "score": 0.0,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868744",
+      "rank": 477,
+      "score": 0.0,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868768",
+      "rank": 478,
+      "score": 0.0,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868893",
+      "rank": 479,
+      "score": 0.0,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20868988",
+      "rank": 480,
+      "score": 0.0,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20869032",
+      "rank": 481,
+      "score": 0.0,
+      "selected": false
+    },
+    {
+      "plan_id": "R26DD20869034",
+      "rank": 482,
+      "score": 0.0,
+      "selected": false
+    }
+  ]
+}

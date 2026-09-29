@@ -444,3 +444,33 @@ def test_fact_number_missing_from_cited_quote_is_rejected():
         validate_deep_review_stage(payload, bundle=bundle(), structures=structures())
     payload['claims'][0]['body'] = '원문 수치 100'
     assert validate_deep_review_stage(payload, bundle=bundle(), structures=structures()) == payload
+
+
+@pytest.mark.parametrize('change,error', [
+    ('related', None), ('premise', 'claim_relation_out_of_slice'),
+    ('evidence', 'evidence_out_of_slice'), ('quote', 'document_evidence_out_of_slice'),
+    ('coverage', 'source_coverage_mismatch'), ('synthesis', 'synthesis_claim_omission'),
+])
+def test_optional_relation_projection_preserves_required_guards(change, error):
+    from app.deep_review.services.narrative_inputs import project_related_claims
+    unit = {'requirement_id':'unit', 'document_requirement_ids':[], 'document_version_id':'doc', 'structure_id':'structure', 'text':SOURCE}
+    incoming = {'requirements':[unit]}
+    output = {'claims':[{'claim_id':'c', 'source_unit_ids':['unit'], 'requirement_ids':[], 'related_claim_ids':['e'], 'premise_claim_ids':[], 'evidence_ids':['e'], 'claim_type':'fact', 'body':SOURCE}], 'coverage':[{'source_unit_id':'unit','status':'reviewed','claim_ids':['c'],'reason':None}], 'considered_claim_ids':[], 'evidence':[{'evidence_id':'e','source_kind':'document','document_version_id':'doc','structure_id':'structure','quote':SOURCE}]}
+    stage = 'requirements_and_evaluation'
+    if change == 'premise': output['claims'][0]['premise_claim_ids'] = ['e']
+    if change == 'evidence': output['claims'][0]['evidence_ids'] = ['missing']
+    if change == 'quote': output['evidence'][0]['quote'] = '원문에 없는 내용'
+    if change == 'coverage': output['coverage'] = []
+    if change == 'synthesis':
+        stage = 'synthesis_and_validation'
+        incoming['verified_claims'] = [{'claim_id':'prior', 'source_unit_ids':['unit'], 'requirement_ids':[]}]
+        output['considered_claim_ids'] = ['prior']; output['coverage'] = []
+    before = deepcopy(output)
+    projected, warnings = project_related_claims(output, incoming, {'validation':{'related_claim_policy':'omit_invalid_with_warning_v1'}})
+    assert output == before
+    assert warnings == [{'code':'related_claim_out_of_scope_omitted', 'claim_id':'c', 'removed_related_claim_ids':['e']}]
+    if error:
+        with pytest.raises(ValueError, match=error): validate_slice_output(projected, incoming, stage)
+    else:
+        validate_slice_output(projected, incoming, stage)
+        assert projected['claims'][0]['evidence_ids'] == ['e']

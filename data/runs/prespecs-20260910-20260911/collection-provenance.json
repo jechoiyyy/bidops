@@ -1,0 +1,31 @@
+{
+  "schema_version": "bidops.collection-provenance.v1",
+  "generated_at": "2026-09-11T05:13:29.071329+00:00",
+  "source_raw": null,
+  "source_window": {
+    "from": "2026-09-10",
+    "to": "2026-09-11",
+    "timezone": "Asia/Seoul"
+  },
+  "options": {
+    "rows": 500,
+    "timeout": 300,
+    "skip_bids": true,
+    "skip_prespecs": false
+  },
+  "sources": [
+    {
+      "source": "prespec",
+      "endpoint": "https://apis.data.go.kr/1230000/ao/HrcspSsstndrdInfoService/getPublicPrcureThngInfoServcPPSSrch"
+    }
+  ],
+  "complete": true,
+  "warnings": [],
+  "raw_pages": [
+    {
+      "path": "raw/prespec-page-001.json",
+      "source_path": null,
+      "sha256": "2ad683bbe650ca7c90e1c2d91dfa46848d8314e57e339857b384cd7d4c6e7c9b"
+    }
+  ]
+}

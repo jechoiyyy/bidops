@@ -2348,19 +2348,19 @@ function visualBundle(state: DocumentPreparationVisualState) {
 }
 
 /** Stable bundle response for visual draft/processing/blocked/ready snapshots. */
-export async function mockDocumentPreparationVisual(page: Page, state: DocumentPreparationVisualState): Promise<void> {
+export async function mockDocumentPreparationVisual(page: Page, state: DocumentPreparationVisualState, noticeId = 991): Promise<void> {
   const bundle = visualBundle(state);
   await page.route("**/api/**", async (route) => {
     const request = route.request();
     const pathname = new URL(request.url()).pathname;
-    if (pathname === "/api/notices/991" && request.method() === "GET") {
-      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(visualPreSpecNotice) });
+    if (pathname === `/api/notices/${noticeId}` && request.method() === "GET") {
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({...visualPreSpecNotice, id: noticeId}) });
       return;
     }
     if (pathname === "/api/pre-specs" && request.method() === "GET") {
       const search = new URL(request.url()).searchParams;
       const requestedNoticePk = search.has("notice_pk") ? Number(search.get("notice_pk")) : null;
-      const items = visualPreSpecItems.filter((item) => requestedNoticePk === null || item.notice_pk === requestedNoticePk);
+      const items = visualPreSpecItems.map(item => ({...item, notice_pk: noticeId})).filter((item) => requestedNoticePk === null || item.notice_pk === requestedNoticePk);
       await route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -2368,7 +2368,7 @@ export async function mockDocumentPreparationVisual(page: Page, state: DocumentP
       });
       return;
     }
-    if (pathname === "/api/notices/991/document-bundles" && request.method() === "GET") {
+    if (pathname === `/api/notices/${noticeId}/document-bundles` && request.method() === "GET") {
       await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ items: [bundle] }) });
       return;
     }

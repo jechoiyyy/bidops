@@ -643,6 +643,7 @@ def _validate_claims(
     path_prefix: str = "$.claims",
     known_claim_ids: set[str] | None = None,
     source_verification_enabled: bool = True,
+    result_checks_enabled: bool = True,
 ) -> list[ValidationIssue]:
     issues: list[ValidationIssue] = []
     claim_ids = [claim.get("claim_id") for claim in claims]
@@ -662,6 +663,8 @@ def _validate_claims(
         for evidence_id in evidence:
             if evidence_id not in evidence_ids:
                 issues.append(_issue("dangling_evidence", f"claim references unknown evidence: {evidence_id}", f"{path}.evidence_ids", claims=[claim_id], evidence=[evidence_id]))
+        if not result_checks_enabled:
+            continue
         for premise in premises:
             if premise not in allowed_premises:
                 issues.append(_issue("dangling_premise", f"claim premise does not resolve: {premise}", f"{path}.premise_claim_ids", claims=[claim_id, premise]))
@@ -704,7 +707,8 @@ def _validate_claims(
                 issues.append(_issue("unknown_reason_required", "unknown claims must explain the missing or conflicting evidence", path, claims=[claim_id]))
             if claim["formula"] is not None or premises:
                 issues.append(_issue("unknown_shape", "unknown claims cannot have formula or premise claims", path, claims=[claim_id]))
-    issues.extend(_claim_cycle_issues(claims, path=path_prefix))
+    if result_checks_enabled:
+        issues.extend(_claim_cycle_issues(claims, path=path_prefix))
     return issues
 
 
@@ -946,6 +950,7 @@ def validate_deep_review_stage(
     known_evidence: Sequence[Mapping[str, Any]] = (),
     structures: Mapping[str, Mapping[str, Any]] | None = None,
     source_verification_enabled: bool = True,
+    result_checks_enabled: bool = True,
 ) -> dict[str, Any]:
     """Validate one bounded analysis stage and all local claim/evidence links."""
 
@@ -966,8 +971,8 @@ def validate_deep_review_stage(
     evidence_set = set(evidence_ids) | (known_evidence_ids or set())
     evidence_by_id = {item["evidence_id"]: item for item in known_evidence if item["evidence_id"] in (known_evidence_ids or set())}
     evidence_by_id.update({item["evidence_id"]: item for item in evidence})
-    issues.extend(_validate_claims(payload["claims"], evidence_set, evidence_by_id=evidence_by_id, known_claim_ids=known_claim_ids, source_verification_enabled=source_verification_enabled))
-    if narrative:
+    issues.extend(_validate_claims(payload["claims"], evidence_set, evidence_by_id=evidence_by_id, known_claim_ids=known_claim_ids, source_verification_enabled=source_verification_enabled, result_checks_enabled=result_checks_enabled))
+    if narrative and result_checks_enabled:
         issues.extend(_narrative_claim_issues(payload["claims"], known_claim_ids or set(), evidence_by_id, source_verification_enabled=source_verification_enabled))
         local_ids = {row["claim_id"] for row in payload["claims"]}
         units = [row["source_unit_id"] for row in payload["coverage"]]
@@ -1046,6 +1051,7 @@ def validate_deep_review_report(
     expected_deep_review_id: str | None = None,
     structures: Mapping[str, Mapping[str, Any]] | None = None,
     source_verification_enabled: bool = True,
+    result_checks_enabled: bool = True,
 ) -> dict[str, Any]:
     """Validate a full report, mandatory sections, and cross-payload scope."""
 
@@ -1082,10 +1088,11 @@ def validate_deep_review_report(
         for item in evidence_list
         if isinstance(item, Mapping) and isinstance(item.get("evidence_id"), str)
     }
-    issues.extend(_validate_claims(claims, {value for value in evidence_ids if isinstance(value, str)}, evidence_by_id=evidence_by_id, source_verification_enabled=source_verification_enabled))
+    issues.extend(_validate_claims(claims, {value for value in evidence_ids if isinstance(value, str)}, evidence_by_id=evidence_by_id, source_verification_enabled=source_verification_enabled, result_checks_enabled=result_checks_enabled))
     block_claim_ids = _report_block_claim_ids(payload)
     if narrative:
-        issues.extend(_narrative_claim_issues(claims, set(), evidence_by_id, source_verification_enabled=source_verification_enabled))
+        if result_checks_enabled:
+            issues.extend(_narrative_claim_issues(claims, set(), evidence_by_id, source_verification_enabled=source_verification_enabled))
         by_id = {row["claim_id"]: row for row in claims}
         displayed = []
         for section in sections:
@@ -1101,15 +1108,16 @@ def validate_deep_review_report(
                     issues.append(_issue("narrative_projection_mismatch", "paragraph must preserve its claim and explicit role", claims=[claim["claim_id"]]))
         if set(displayed) != claim_ids or _duplicates(displayed):
             issues.append(_issue("narrative_claim_omission", "every claim must appear exactly once in the report"))
-        units = {unit for row in claims for unit in row["source_unit_ids"]}
-        coverage_units = [row["source_unit_id"] for row in payload["coverage"]]
-        if set(coverage_units) != units or _duplicates(coverage_units):
-            issues.append(_issue("report_source_coverage_mismatch", "report coverage must preserve every analyzed source unit"))
-        for row in payload["coverage"]:
-            if (not row["claim_ids"] or _duplicates(row["claim_ids"])
-                    or any(cid not in by_id or row["source_unit_id"] not in by_id[cid]["source_unit_ids"] for cid in row["claim_ids"])
-                    or (row["status"] == "needs_review" and not _text(row["reason"]))):
-                issues.append(_issue("report_source_coverage_invalid", "source coverage must resolve to its claims and retain review limitations"))
+        if result_checks_enabled:
+            units = {unit for row in claims for unit in row["source_unit_ids"]}
+            coverage_units = [row["source_unit_id"] for row in payload["coverage"]]
+            if set(coverage_units) != units or _duplicates(coverage_units):
+                issues.append(_issue("report_source_coverage_mismatch", "report coverage must preserve every analyzed source unit"))
+            for row in payload["coverage"]:
+                if (not row["claim_ids"] or _duplicates(row["claim_ids"])
+                        or any(cid not in by_id or row["source_unit_id"] not in by_id[cid]["source_unit_ids"] for cid in row["claim_ids"])
+                        or (row["status"] == "needs_review" and not _text(row["reason"]))):
+                    issues.append(_issue("report_source_coverage_invalid", "source coverage must resolve to its claims and retain review limitations"))
     unknown_block_ids = sorted(block_claim_ids - claim_ids)
     if unknown_block_ids:
         issues.append(_issue("dangling_report_claim", f"report block references unknown claim IDs: {unknown_block_ids}", "$.sections"))
@@ -1363,6 +1371,7 @@ def merge_stage_chunks(
     chunk_order_key: Any = None,
     order_key: Any = None,
     source_verification_enabled: bool = True,
+    result_checks_enabled: bool = True,
 ) -> dict[str, Any]:
     """Merge bounded stage outputs deterministically and reject conflicts.
 
@@ -1417,7 +1426,7 @@ def merge_stage_chunks(
             known_claim_ids=prior_claim_ids | {value for value in all_claim_ids if isinstance(value, str)},
             known_evidence_ids=prior_evidence_ids | {value for value in all_evidence_ids if isinstance(value, str)},
             known_evidence=[*known_evidence, *(row for item in ordered_chunks for row in item.get("evidence", []))],
-            structures=structures, source_verification_enabled=source_verification_enabled,
+            structures=structures, source_verification_enabled=source_verification_enabled, result_checks_enabled=result_checks_enabled,
         )
         if chunk.get("schema") != first.get("schema") or chunk.get("attempt_id") != first.get("attempt_id") or chunk.get("stage") != first.get("stage"):
             raise DeepReviewValidationError(_issue("chunk_scope", "all chunks must belong to the same attempt and stage", f"$[{index}]"))
@@ -1478,7 +1487,7 @@ def merge_stage_chunks(
         known_claim_ids=prior_claim_ids,
         known_evidence_ids=prior_evidence_ids,
         known_evidence=known_evidence,
-        structures=structures, source_verification_enabled=source_verification_enabled,
+        structures=structures, source_verification_enabled=source_verification_enabled, result_checks_enabled=result_checks_enabled,
     )
 
 

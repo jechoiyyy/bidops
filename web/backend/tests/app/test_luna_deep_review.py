@@ -21,11 +21,11 @@ from app.deep_review.services.luna_inputs import preview
 from app.deep_review.services.reports import ReportService
 
 
-def setup(engine, monkeypatch):
+def setup(engine, monkeypatch, *, policy_name='analysis-policy-luna-v1.json'):
     notice, bundle, _, _ = _seed_review_context(engine, monkeypatch, measured=False)
     with Session(engine) as session:
         session.get(Notice, notice).source_type = 'pre_spec'
-        policy = import_policy_version(session, CANONICAL_POLICY_FILE.with_name('analysis-policy-luna-v1.json'))
+        policy = import_policy_version(session, CANONICAL_POLICY_FILE.with_name(policy_name))
         structure = session.scalar(select(DocumentStructure))
         content = session.get(ContentObject, structure.payload_content_object_id)
         payload = ContentObject(sha256=structure.payload_sha256, size_bytes=1, detected_mime='application/json', retention_class='fixture')
@@ -147,6 +147,7 @@ def test_failed_output_never_publishes(engine, monkeypatch, kind):
     from app.deep_review.services.deep_reviews import StaleFenceError
     notice, bundle, service = setup(engine, monkeypatch)
     original = service.client.invoke
+    originals = []
     def invoke(*args, **kwargs):
         if kind in {'timeout','auth'}:
             raise ModelInvocationError('model_timeout' if kind=='timeout' else 'authentication_failed', ())
@@ -283,3 +284,120 @@ def test_worker_through_luna_http_adapter(engine, monkeypatch):
         service.run_claim(session, claim)
         assert service.view(session, claim.deep_review_id)['status'] == 'completed'
         assert len(fake.calls) == 4
+
+
+def exercise_optional_relation(engine, monkeypatch, *, strict=False):
+    from copy import deepcopy
+    from dataclasses import replace
+    from app.deep_review.services.input_versions import _policy_hash_matches
+    notice, bundle, service = setup(engine, monkeypatch, policy_name=f"analysis-policy-luna-{'v1' if strict else 'v2'}.json")
+    original = service.client.invoke
+    originals = []
+    def invoke(*args, **kwargs):
+        result = original(*args, **kwargs)
+        if args[0] == 'requirements_and_evaluation':
+            output = deepcopy(result.structured_output)
+            output['claims'][0]['related_claim_ids'] = [output['evidence'][0]['evidence_id']]
+            originals.append(output)
+            return replace(result, structured_output=output, raw_response=json.dumps(output).encode())
+        return result
+    service.client.invoke = invoke
+    with Session(engine) as session:
+        assert all(_policy_hash_matches(p) for p in session.scalars(select(AnalysisPolicyVersion)).all())
+        pre = preview(service, session, notice, bundle, True)
+        created = service.create_review(session, notice, bundle, 'tester', uuid4(), preview_id=UUID(pre['preview_id']))
+        job = service.claim_next_job(session, 'relation-test')
+        if strict:
+            with pytest.raises(DeepReviewServiceError, match='범위 검증'):
+                service.run_claim(session, job)
+            assert service.view(session, job.deep_review_id)['status'] == 'failed'
+            return
+        service.run_claim(session, job)
+        report = ReportService().get_report(session, job.deep_review_id)
+        assert service.view(session, job.deep_review_id)['status'] == 'completed'
+        first = report['report']['claims'][0]
+        assert first['related_claim_ids'] == []
+        assert len(first['evidence_ids']) == 1
+        checks = [c for c in report['validation']['checks'] if c['check_type'] == 'related_claim_out_of_scope_omitted']
+        assert len(checks) == 1 and checks[0]['related_claim_ids'] == [first['claim_id']]
+        assert checks[0]['status'] == 'warning'
+        assert checks[0]['message'] in report['report']['analysis_limitations']
+        assert report['report']['quality_status'] == 'unmeasured_reference'
+        stage = session.scalar(select(DeepReviewStage).where(DeepReviewStage.attempt_id == job.attempt_id, DeepReviewStage.sequence == 1))
+        assert stage.raw_response_content_object_id is not None
+        diagnostic = stage.invocation_metadata[0]['related_claim_diagnostics'][0]
+        assert diagnostic['claim_id'] == first['claim_id']
+        assert len(diagnostic['removed_related_claim_ids']) == 1
+        from app.deep_review.schemas.reports import ReportRevisionRequest
+        revised = ReportService().create_revision(session, job.deep_review_id, 'tester', ReportRevisionRequest.model_validate({
+            'request_id': str(uuid4()), 'base_revision_id': report['current_revision_id'],
+            'report': report['report'], 'reason': '경고 보존 확인', 'factual_change_evidence_ids': [],
+        }))
+        assert [c for c in revised['validation']['checks'] if c['check_type'] == 'related_claim_out_of_scope_omitted'] == checks
+        # Original response retains the offending evidence ID; projection alone changes.
+        assert originals[0]['claims'][0]['related_claim_ids'] == [originals[0]['evidence'][0]['evidence_id']]
+        assert diagnostic['removed_related_claim_ids'] == originals[0]['claims'][0]['related_claim_ids']
+        if os.environ.get('BIDOPS_RELATION_FIXTURE'):
+            Path(os.environ['BIDOPS_RELATION_FIXTURE']).write_text(json.dumps({'review': service.view(session, job.deep_review_id), 'report': report}, ensure_ascii=False))
+
+
+@pytest.mark.parametrize('strict', [False, True])
+def test_optional_relation_policy_worker_report(engine, monkeypatch, strict):
+    exercise_optional_relation(engine, monkeypatch, strict=strict)
+
+
+@pytest.mark.requires_postgres
+def test_optional_relation_policy_worker_report_postgres(monkeypatch):
+    with migrated_engine() as engine:
+        exercise_optional_relation(engine, monkeypatch)
+
+
+def exercise_validation_off(engine, monkeypatch, *, corruption=None):
+    from copy import deepcopy
+    from dataclasses import replace
+    from app.deep_review.services.verification import enabled_for_attempt
+    notice, bundle, service = setup(engine, monkeypatch, policy_name='analysis-policy-luna-v3.json')
+    original = service.client.invoke
+    def invoke(*args, **kwargs):
+        result = original(*args, **kwargs)
+        value = deepcopy(result.structured_output)
+        if args[0] == 'requirements_and_evaluation':
+            value['considered_claim_ids'] = [row['claim_id'] for row in value['claims']]
+            value['coverage'] = []
+            value['claims'][0]['body'] = '사업비는 123456789원이며 이 문장은 검증하지 않은 모델의 출력이다.'
+            value['evidence'][0]['quote'] = '원문에 없는 모델 인용'
+            if corruption == 'hash': value['evidence'][0]['source_sha256'] = 'f'*64
+            if corruption == 'dangling': value['claims'][0]['evidence_ids'] = [str(uuid4())]
+        return replace(result, structured_output=value, raw_response=json.dumps(value).encode())
+    service.client.invoke = invoke
+    with Session(engine) as session:
+        pre = preview(service, session, notice, bundle, True)
+        assert pre['input']['policy']['validation']['result_checks'] == 'disabled_reference_v1'
+        service.create_review(session, notice, bundle, 'tester', uuid4(), preview_id=UUID(pre['preview_id']))
+        job = service.claim_next_job(session, 'validation-off-test')
+        assert enabled_for_attempt(session, job.attempt_id) is False
+        if corruption:
+            with pytest.raises(DeepReviewServiceError): service.run_claim(session, job)
+            assert service.view(session, job.deep_review_id)['status'] == 'failed'
+            return
+        service.run_claim(session, job)
+        result = ReportService().get_report(session, job.deep_review_id)
+        assert service.view(session, job.deep_review_id)['status'] == 'completed'
+        assert result['report']['claims'][0]['body'].startswith('사업비는 123456789원')
+        checks = result['validation']['checks']
+        assert any(c['check_type'] == 'result_validation_skipped' and c['status'] == 'warning' for c in checks)
+        assert any('검증을 끈 참조 실행' in value for value in result['report']['analysis_limitations'])
+        assert result['report']['quality_status'] == 'unmeasured_reference'
+        if os.environ.get('BIDOPS_VALIDATION_OFF_FIXTURE'):
+            Path(os.environ['BIDOPS_VALIDATION_OFF_FIXTURE']).write_text(json.dumps({'review':service.view(session, job.deep_review_id),'report':result,'preview':pre},ensure_ascii=False))
+
+
+@pytest.mark.parametrize('corruption', [None, 'hash', 'dangling'])
+def test_validation_off_keeps_storage_scope(engine, monkeypatch, corruption):
+    exercise_validation_off(engine, monkeypatch, corruption=corruption)
+
+
+@pytest.mark.requires_postgres
+def test_validation_off_postgres(monkeypatch):
+    with migrated_engine() as engine:
+        exercise_validation_off(engine, monkeypatch)

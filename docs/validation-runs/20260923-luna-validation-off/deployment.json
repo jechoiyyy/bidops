@@ -1,0 +1,21 @@
+{
+  "deployed_at": "2026-09-23T02:12:51.736941+00:00",
+  "approval": "사용자: 승인할게 (검증 off 코드 운영 재배포)",
+  "services": [
+    {
+      "Name": "/bidops-web-1",
+      "Image": "sha256:bf95b49899fca80112873b8c3e1c35c53d60cdf9e29ee14df4a35042fbe6c5e4"
+    },
+    {
+      "Name": "/bidops-analysis-worker-1",
+      "Image": "sha256:9e92832225efd5b1b138e05b065f264b8d008af8948c1f1943d3f3b4c5b79d7c"
+    }
+  ],
+  "health": "ok",
+  "migration_head": "0032_luna_deep_review",
+  "active_policy": "8db9e566-9fd1-4589-a9c0-d96365231221",
+  "v3_policy_applied": true,
+  "new_model_called": true,
+  "previous_review_status": "failed",
+  "activation_verified_at": "2026-09-23T02:16:15.077775+00:00"
+}
