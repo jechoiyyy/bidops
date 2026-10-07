@@ -1,0 +1,130 @@
+{
+  "schema_version": 2,
+  "feature": "DEMO-00-luna-preflight",
+  "phase": "review",
+  "steps": [
+    {
+      "id": "STEP-001",
+      "title": "이전 실패 원인 분류",
+      "model": "complex",
+      "fingerprint": "59acb1c817837b00b5cef18af392a56ebe4c9477e0b95b4e10b0c9a61e191a3a",
+      "status": "pending",
+      "updated_at": null
+    },
+    {
+      "id": "STEP-002",
+      "title": "v4 정책과 회귀 테스트",
+      "model": "complex",
+      "fingerprint": "0641ee772df6cc8c695edf9594ab3e6b4ee759008c7de73379bdc8f56b01a630",
+      "status": "stale",
+      "updated_at": null,
+      "history": [
+        {
+          "id": "STEP-002",
+          "title": "v4 정책과 회귀 테스트",
+          "model": "complex",
+          "fingerprint": "ba70ad1d8739daa927072831697a45b9a35588a2d2e1a28c3a93716218918af8",
+          "status": "pending",
+          "updated_at": null
+        },
+        {
+          "id": "STEP-002",
+          "title": "v4 정책과 회귀 테스트",
+          "model": "complex",
+          "fingerprint": "bbc28d6d9c1f53739acf06d4b5a438cce9ac53c3844b654b36ae855e26c986cd",
+          "status": "stale",
+          "updated_at": null,
+          "history": [
+            {
+              "id": "STEP-002",
+              "title": "v4 정책과 회귀 테스트",
+              "model": "complex",
+              "fingerprint": "ba70ad1d8739daa927072831697a45b9a35588a2d2e1a28c3a93716218918af8",
+              "status": "pending",
+              "updated_at": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "STEP-003",
+      "title": "운영 적용",
+      "model": "complex",
+      "fingerprint": "8c0daacdeefcfe366d080203bd2b15b792b7c3f7aa30c0acbbffad75d3caddd2",
+      "status": "stale",
+      "updated_at": null,
+      "history": [
+        {
+          "id": "STEP-003",
+          "title": "운영 적용",
+          "model": "complex",
+          "fingerprint": "37f1e90520409b8cc1ac79978306573306a015c11ed68d20c097889de3b6261e",
+          "status": "pending",
+          "updated_at": null
+        }
+      ]
+    },
+    {
+      "id": "STEP-004",
+      "title": "실제 1489 1건과 판정",
+      "model": "standard",
+      "fingerprint": "3ecee6164740d1178b3cb4baaab0bd21193d989796335fcf4db42231be0d6234",
+      "status": "stale",
+      "updated_at": null,
+      "history": [
+        {
+          "id": "STEP-004",
+          "title": "실제 1489 1건과 판정",
+          "model": "standard",
+          "fingerprint": "79d7858ca9102282cf2f87f2f53f96a848ccd0455dc33faa5f6f7a26eec3f093",
+          "status": "pending",
+          "updated_at": null
+        }
+      ]
+    }
+  ],
+  "proof": {
+    "docs": {
+      "result": "pending"
+    },
+    "tests": {
+      "result": "pending"
+    },
+    "postgres": {
+      "result": "pending"
+    },
+    "frontend": {
+      "result": "pending"
+    },
+    "api_guard": {
+      "result": "pending"
+    },
+    "real_data_run": {
+      "result": "pending"
+    }
+  },
+  "notes": [
+    {
+      "at": "2026-10-06T18:16:31+09:00",
+      "text": "생성 (drafting)"
+    },
+    {
+      "at": "2026-10-06T18:17:56+09:00",
+      "text": "plan 작업 ID 동기화"
+    },
+    {
+      "at": "2026-10-06T18:32:34+09:00",
+      "text": "plan 작업 ID 동기화"
+    },
+    {
+      "at": "2026-10-06T18:34:12+09:00",
+      "text": "단계 → review: 2026-10-06 재계획 독립 검토 통과(차단 0). docs/work/reviews/2026-10-06-replan.md; 제품 구현 미착수"
+    },
+    {
+      "at": "2026-10-07T23:46:34+09:00",
+      "text": "plan 작업 ID 동기화"
+    }
+  ],
+  "updated_at": "2026-10-07T23:46:34+09:00"
+}

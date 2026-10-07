@@ -15,3 +15,6 @@ env
 backups
 web/frontend/test-results
 web/frontend/playwright-report
+
+# Local SDLC workspaces are not runtime build inputs.
+.sdlc

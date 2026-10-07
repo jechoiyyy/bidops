@@ -39,3 +39,5 @@ backups/
 # Claude Code 개인 설정 (커밋하지 않는다)
 .claude/settings.local.json
 .gjc/
+# /sdlc:loop 기능별 worktree
+.sdlc/worktrees/

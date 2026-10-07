@@ -1,0 +1,182 @@
+{
+  "schema_version": 2,
+  "feature": "DEMO-03-grounded-analysis",
+  "phase": "review",
+  "steps": [
+    {
+      "id": "STEP-001",
+      "title": "그래프 검색과 coverage",
+      "model": "complex",
+      "fingerprint": "4008abc587549ef07faded580128787200fdaf5cc28e90b948419d9b20b95d4f",
+      "status": "pending",
+      "updated_at": null
+    },
+    {
+      "id": "STEP-002",
+      "title": "회사 핏 요청과 실행",
+      "model": "complex",
+      "fingerprint": "5eba419e6bce6d35200b0296e878964fdb0f0e9298537b168a1d204a64017e27",
+      "status": "stale",
+      "updated_at": null,
+      "history": [
+        {
+          "id": "STEP-002",
+          "title": "회사 핏 요청과 실행",
+          "model": "complex",
+          "fingerprint": "cdd4eb97e915126b28212338e664443097f952e38ef363e8522e255f997e2e52",
+          "status": "pending",
+          "updated_at": null
+        },
+        {
+          "id": "STEP-002",
+          "title": "회사 핏 요청과 실행",
+          "model": "complex",
+          "fingerprint": "bf5c8c9a814e668e75df448a25f23da86cbb521bc23e8fdc079bf1a5c10dc3d8",
+          "status": "stale",
+          "updated_at": null,
+          "history": [
+            {
+              "id": "STEP-002",
+              "title": "회사 핏 요청과 실행",
+              "model": "complex",
+              "fingerprint": "cdd4eb97e915126b28212338e664443097f952e38ef363e8522e255f997e2e52",
+              "status": "pending",
+              "updated_at": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "STEP-003",
+      "title": "Luna 승인과 회사 binding",
+      "model": "complex",
+      "fingerprint": "155c5c91f9726e08f76012a09e770568736cbae69eb2582b93ac2f1043feb068",
+      "status": "stale",
+      "updated_at": null,
+      "history": [
+        {
+          "id": "STEP-003",
+          "title": "Luna 승인과 회사 binding",
+          "model": "complex",
+          "fingerprint": "95fb5f0ab5e81953341025265713f3e0bcd4aad6359b213aa762b6700e9da8d9",
+          "status": "pending",
+          "updated_at": null
+        }
+      ]
+    },
+    {
+      "id": "STEP-004",
+      "title": "새 Luna 정책과 근거 참조",
+      "model": "complex",
+      "fingerprint": "a9fb7b5f4cfee45f939edd6dab76ecdb59695da7308e8de44ccb841da520ac0b",
+      "status": "stale",
+      "updated_at": null,
+      "history": [
+        {
+          "id": "STEP-004",
+          "title": "새 Luna 정책과 근거 참조",
+          "model": "complex",
+          "fingerprint": "5085397b3e67b81596fef55afc4aa09636b2a83ed7ce21debafd4c3885c9cd2e",
+          "status": "pending",
+          "updated_at": null
+        }
+      ]
+    },
+    {
+      "id": "STEP-005",
+      "title": "회사별 읽기와 비교",
+      "model": "complex",
+      "fingerprint": "d294812aa1f1fde04f2b859e05b4a51ccdf05d5f72541fff545df254496fef44",
+      "status": "pending",
+      "updated_at": "2026-10-06T08:30:17+09:00",
+      "history": [
+        {
+          "id": "STEP-005",
+          "title": "회사별 읽기와 비교",
+          "model": "complex",
+          "fingerprint": "e733d6a282b0d0a600dc582d8e4044500bf66736e91f7fe89f62ddeb4359d739",
+          "status": "pending",
+          "updated_at": null
+        }
+      ],
+      "note": "문서 수정 검토 완료; 제품 구현 미착수"
+    },
+    {
+      "id": "STEP-006",
+      "title": "교차 경로 통합",
+      "model": "complex",
+      "fingerprint": "87c0e76215e0a3f924ddd656e6af09974c38a0f20453c114399bb05237ea3009",
+      "status": "pending",
+      "updated_at": null
+    }
+  ],
+  "proof": {
+    "docs": {
+      "result": "pending"
+    },
+    "tests": {
+      "result": "pending"
+    },
+    "postgres": {
+      "result": "pending"
+    },
+    "frontend": {
+      "result": "pending"
+    },
+    "api_guard": {
+      "result": "pending"
+    },
+    "real_data_run": {
+      "result": "pending"
+    }
+  },
+  "notes": [
+    {
+      "at": "2026-10-06T07:59:57+09:00",
+      "text": "생성 (drafting)"
+    },
+    {
+      "at": "2026-10-06T08:07:06+09:00",
+      "text": "plan 작업 ID 동기화"
+    },
+    {
+      "at": "2026-10-06T08:25:33+09:00",
+      "text": "단계 → blocked: 독립 재검토 잔여 지적 수정 반영; 추가 독립 검사 여부 사용자 결정 대기. docs/work/reviews/2026-10-06.md"
+    },
+    {
+      "at": "2026-10-06T08:30:17+09:00",
+      "text": "plan 작업 ID 동기화"
+    },
+    {
+      "at": "2026-10-06T08:30:17+09:00",
+      "text": "단계 STEP-005 pending: 문서 수정 검토 완료; 제품 구현 미착수"
+    },
+    {
+      "at": "2026-10-06T08:30:17+09:00",
+      "text": "단계 → drafting: 추가 검토 완료로 문서 작업 재개"
+    },
+    {
+      "at": "2026-10-06T08:30:17+09:00",
+      "text": "단계 → review: 사용자 요청 추가 독립 검사 통과. docs/work/reviews/2026-10-06-additional.md; 제품 구현 미착수"
+    },
+    {
+      "at": "2026-10-06T18:22:47+09:00",
+      "text": "plan 작업 ID 동기화"
+    },
+    {
+      "at": "2026-10-06T18:22:47+09:00",
+      "text": "단계 → drafting: 2026-10-06 재계획 반영(ADR-0070 개정·공통 계약 v1.1). 문서 재검토 대기; 제품 구현 미착수"
+    },
+    {
+      "at": "2026-10-06T18:33:59+09:00",
+      "text": "plan 작업 ID 동기화"
+    },
+    {
+      "at": "2026-10-06T18:34:12+09:00",
+      "text": "단계 → review: 2026-10-06 재계획 독립 검토 통과(차단 0). docs/work/reviews/2026-10-06-replan.md; 제품 구현 미착수"
+    }
+  ],
+  "updated_at": "2026-10-06T18:34:12+09:00",
+  "resume_phase": "drafting"
+}

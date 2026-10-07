@@ -689,3 +689,9 @@ runner는 DB·MinIO·저장소 없이 전용 인증 secret만 사용한다.
 가정 분석은 기존 Codex runner에 허용 목록 계약 `assumption-stage-v1`을 선택해
 세 요청을 보내며 기존 심층검토 계약은 그대로다. 완성/부분 결과와 근거 레지스트리는
 별도 REST를 통해 A안 React reader가 읽는다. [작업 정본](0923_assumption-analysis/intent.md).
+
+
+## 가상 SI 3사 데모 목표 계약 (2026-10-06, 구현 전)
+
+회사 identity·추적은 lifecycle, 버전 프로필·지식그래프·회사별 분석은 deep_review가 소유한다. 원문과 v7 개요는 공유하고 결과는 회사 문맥으로 분리한다.
+[ADR-0070](tracking/decisions/0070-multi-company-knowledge-demo.md) · [공통 계약](work/demo-contract.md) · [기능 로드맵](work/constitution/roadmap.md).

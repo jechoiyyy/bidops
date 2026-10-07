@@ -1,0 +1,96 @@
+{
+  "files": [
+    {
+      "path": "docs/work/demo-contract.md",
+      "sha256": "a46824cec518aa1d91baf4c17acdbd11902622be6b1d4cd5e79b649b164a6c75"
+    },
+    {
+      "path": "docs/work/groups/DEMO/features/DEMO-00-luna-preflight/intent.md",
+      "sha256": "b734a3ad2c9a9930d65ae77ba15d8974473ce955fb07a086765a471a06edb607"
+    },
+    {
+      "path": "docs/work/groups/DEMO/features/DEMO-00-luna-preflight/plan.md",
+      "sha256": "b0449605e32c05aec100f01eddef847f9c3d5dbbb66486f48edabda7fdbf61a1"
+    },
+    {
+      "path": "docs/work/groups/DEMO/features/DEMO-00-luna-preflight/spec.md",
+      "sha256": "dd54cf23e263ba8dfb982a85e74fd6ca907e8755b71323bb7a0466deac6a3f23"
+    },
+    {
+      "path": "docs/work/groups/DEMO/features/DEMO-01-company-context/intent.md",
+      "sha256": "4efc2b205d326a0ce611d2742a75925a7b4d05723b3bd5c4f060cce52f98cbb4"
+    },
+    {
+      "path": "docs/work/groups/DEMO/features/DEMO-01-company-context/plan.md",
+      "sha256": "1e9cf6093c3868d0bde778f4cf9c74ebb19f3abfac99eec20078b1f1a2990530"
+    },
+    {
+      "path": "docs/work/groups/DEMO/features/DEMO-01-company-context/spec.md",
+      "sha256": "cd78d97f5c91bb0041a84f4cacaab183e9ad209d91b10280e518346220ae15ed"
+    },
+    {
+      "path": "docs/work/groups/DEMO/features/DEMO-02-company-knowledge/intent.md",
+      "sha256": "68d99ad4666f6cb92c9ff0e604e820e2c83b29246ed70d434a440d87d17f4ca2"
+    },
+    {
+      "path": "docs/work/groups/DEMO/features/DEMO-02-company-knowledge/plan.md",
+      "sha256": "1aaaf8fae7d6a14034bd2b1ee05ac07d0d6f52ea84a8e0e705652f4f238e9788"
+    },
+    {
+      "path": "docs/work/groups/DEMO/features/DEMO-02-company-knowledge/spec.md",
+      "sha256": "abb4ea0de18e03aec8007556d6ef176ed50fdd8e1967d627d3875594a6e6a13f"
+    },
+    {
+      "path": "docs/work/groups/DEMO/features/DEMO-03-grounded-analysis/intent.md",
+      "sha256": "e0f287b47e5d2fffc26f6c6e53431f00afdf4f23792ddbcfc955670c680cff81"
+    },
+    {
+      "path": "docs/work/groups/DEMO/features/DEMO-03-grounded-analysis/plan.md",
+      "sha256": "bdff94c50587797c24c5a74be16921473a013511feb2471e112fdaff016ed6e3"
+    },
+    {
+      "path": "docs/work/groups/DEMO/features/DEMO-03-grounded-analysis/spec.md",
+      "sha256": "a5b7ca52c941ab9a6b4d2e10859564131be85e44c7f141b331c2c03c3f6ee592"
+    },
+    {
+      "path": "docs/work/groups/DEMO/features/DEMO-04-review-workspace/intent.md",
+      "sha256": "44b0551c50869833005a560a5d724f6347a9a5a18ace45ccfed46b86e4709e43"
+    },
+    {
+      "path": "docs/work/groups/DEMO/features/DEMO-04-review-workspace/plan.md",
+      "sha256": "37ac00172577bc6761a884e072f8d687d2ee574652ca9576e709b83a52320f52"
+    },
+    {
+      "path": "docs/work/groups/DEMO/features/DEMO-04-review-workspace/spec.md",
+      "sha256": "6bc46c0491f7b269fefd01d44df0086ab01ba858c38b2300c33f4df7816b7f52"
+    },
+    {
+      "path": "docs/work/groups/DEMO/features/DEMO-05-demo-acceptance/intent.md",
+      "sha256": "88f87db91c4bfc36fa683f583065004cc38a92043664b06bc0efb97ee72ebe04"
+    },
+    {
+      "path": "docs/work/groups/DEMO/features/DEMO-05-demo-acceptance/plan.md",
+      "sha256": "b828f04868c1eab6f3771630ea3e6e8fa3c2a3070fac4b970b07012987017198"
+    },
+    {
+      "path": "docs/work/groups/DEMO/features/DEMO-05-demo-acceptance/spec.md",
+      "sha256": "e81819e03a60b05367799aee85b2f3de9d4243abc7423fe50540510d21887488"
+    },
+    {
+      "path": "docs/tracking/decisions/0070-multi-company-knowledge-demo.md",
+      "sha256": "30dd6177943979c46394a06dd299262163261f1de918a998acc9d8e3114fa518"
+    },
+    {
+      "path": "docs/work/constitution/mission.md",
+      "sha256": "c5c071704ea27fcc357d9f1737bc08d169d96a9dd0a5a5c6083a37ceae8be77c"
+    },
+    {
+      "path": "docs/work/constitution/roadmap.md",
+      "sha256": "35a1478d25086f87c271a54a80ee2561c82d0332e0648d477d33d889423bf585"
+    },
+    {
+      "path": "docs/work/constitution/tech-stack.md",
+      "sha256": "e6f2fd1523b3f8d94f40f816bc1f99abf4571fb7c07061c977209cecd6aef3f0"
+    }
+  ]
+}

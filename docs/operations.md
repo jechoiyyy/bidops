@@ -1600,3 +1600,9 @@ policy 상태와 데이터는 변경하지 않는다. 이 모드는 운영 수�
 검증은 `python3 -m unittest discover -s tests -p test_transfer.py -v`와 격리 실제 복원으로 한다.
 파일 해시 통과만으로 복원 검증을 대신하지 않는다. 복원 대상의 `validation.json` 이후에도
 대표 목록·첨부·개요·심층 보고서·프로필 API와 화면 열람을 확인해 증거를 보존한다.
+
+
+## 가상 SI 3사 데모 목표 계약 (2026-10-06, 구현 전)
+
+별도 Compose 프로젝트·PostgreSQL·MinIO 자원에서 수동으로 초기화한다. 운영 secret/볼륨을 공유하지 않는다. 새 모델 호출은 실행 직전 승인하며 자동 일정은 비활성이다.
+[ADR-0070](tracking/decisions/0070-multi-company-knowledge-demo.md) · [공통 계약](work/demo-contract.md) · [기능 로드맵](work/constitution/roadmap.md).

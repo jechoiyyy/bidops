@@ -1,0 +1,80 @@
+{
+  "id": "demo-20261006",
+  "mode": "adopt",
+  "state": "completed",
+  "base_sha": "58aa0f6433a74947c0ba1a54ffe613d3585ffd54",
+  "source_root": "/Users/temp/orca/bidops",
+  "workspace": "/Users/temp/orca/bidops/.sdlc/worktrees/adopt-demo-20261006",
+  "branch": "sdlc/adopt-demo-20261006",
+  "sources": [
+    {
+      "path": "AGENTS.md",
+      "kind": "current_contract"
+    },
+    {
+      "path": "docs/standards.md",
+      "kind": "current_contract"
+    },
+    {
+      "path": "docs/business-rules.md",
+      "kind": "current_contract"
+    },
+    {
+      "path": "docs/contracts.md",
+      "kind": "current_contract"
+    },
+    {
+      "path": "docs/operations.md",
+      "kind": "current_contract"
+    },
+    {
+      "path": "web/backend/AGENTS.md",
+      "kind": "current_contract"
+    },
+    {
+      "path": "web/frontend/AGENTS.md",
+      "kind": "current_contract"
+    },
+    {
+      "path": "docs/work/constitution/mission.md",
+      "kind": "current_contract"
+    },
+    {
+      "path": "docs/work/constitution/tech-stack.md",
+      "kind": "current_contract"
+    },
+    {
+      "path": "docs/work/constitution/roadmap.md",
+      "kind": "current_contract"
+    },
+    {
+      "path": "docs/ARCHITECTURE.md",
+      "kind": "current_contract"
+    },
+    {
+      "path": "docs/PRD.md",
+      "kind": "current_contract"
+    },
+    {
+      "path": "docs/deep-review-erd.md",
+      "kind": "current_contract"
+    },
+    {
+      "path": "docs/work/demo-contract.md",
+      "kind": "agreed_requirement"
+    },
+    {
+      "path": "docs/tracking/decisions/0070-multi-company-knowledge-demo.md",
+      "kind": "current_contract"
+    }
+  ],
+  "decisions": [
+    "2026-10-06 사용자 확정 5개 기능 문서화·사내격리·6/18/9 실제 인수",
+    "기존 정본 보존, 신규 목표 계약 ADR-0070",
+    "commit/merge manual·외부 모델 호출은 이번 문서 작업 범위 밖"
+  ],
+  "questions": [],
+  "at": "2026-10-06T07:55:47+09:00",
+  "next": "5개 기능 독립 검토·큐 등록 완료. sdlc-loop로 제품 구현; commit/merge는 수동",
+  "integration": "원래 작업 폴더에 미커밋 문서/도구 반영; Git commit/merge/push 없음"
+}

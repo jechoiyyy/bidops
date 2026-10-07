@@ -1,0 +1,68 @@
+{
+  "files": [
+    {
+      "path": "docs/work/demo-contract.md",
+      "sha256": "e784d3fc79b69cee7e5aa96fa200c8a0589391a6d902c10a95a33b60b639f809"
+    },
+    {
+      "path": "docs/work/groups/DEMO/features/DEMO-01-company-context/intent.md",
+      "sha256": "dcb85abe756609dc1a7ee5382c402e8d96c2a7455b8c1fd6db6ee330aa283a58"
+    },
+    {
+      "path": "docs/work/groups/DEMO/features/DEMO-01-company-context/plan.md",
+      "sha256": "5a655574fd2264bf811f6ab4518b73bacb8e2773a31135903db42c83fefc82e7"
+    },
+    {
+      "path": "docs/work/groups/DEMO/features/DEMO-01-company-context/spec.md",
+      "sha256": "ec181d727b18a8c1ee0068d30e2ee7f686bd3345c017e44b07d1b042245b7356"
+    },
+    {
+      "path": "docs/work/groups/DEMO/features/DEMO-02-company-knowledge/intent.md",
+      "sha256": "3c842dd5057929465d5d21860f990825c683f57288110d4204ed7333e925b171"
+    },
+    {
+      "path": "docs/work/groups/DEMO/features/DEMO-02-company-knowledge/plan.md",
+      "sha256": "3c1258e614923cffbea4b24fcce2461b0d121a903ca53038274b29a391657da5"
+    },
+    {
+      "path": "docs/work/groups/DEMO/features/DEMO-02-company-knowledge/spec.md",
+      "sha256": "196e0b4a94c6cf6379ed96962c55e5727a563ed59cea95a21998c0d51fce71e3"
+    },
+    {
+      "path": "docs/work/groups/DEMO/features/DEMO-03-grounded-analysis/intent.md",
+      "sha256": "15dc999f8534014b4014507a36bd1070c74c8c55c2db5bca52bd03af6f1aac5a"
+    },
+    {
+      "path": "docs/work/groups/DEMO/features/DEMO-03-grounded-analysis/plan.md",
+      "sha256": "6ba146f4ad99bb960d4ee7864b8381120f24625729953e20ecb1d70eee71a1ca"
+    },
+    {
+      "path": "docs/work/groups/DEMO/features/DEMO-03-grounded-analysis/spec.md",
+      "sha256": "38d4f9b375a46515c6bb108523a964785d53fed2b843b541169e308a336911f4"
+    },
+    {
+      "path": "docs/work/groups/DEMO/features/DEMO-04-review-workspace/intent.md",
+      "sha256": "ed04b5ea2dd6e490bd3153e5b81535d85770504f14e8321da063c366c36c9fa9"
+    },
+    {
+      "path": "docs/work/groups/DEMO/features/DEMO-04-review-workspace/plan.md",
+      "sha256": "74fb483e386fc5832c77640dcc724bf6ce347f1eb7909904daf19182793c630e"
+    },
+    {
+      "path": "docs/work/groups/DEMO/features/DEMO-04-review-workspace/spec.md",
+      "sha256": "7b8e17537b6d9be159bc4b142275ad5cb8efe1d9b902826e2f3b8b711ae99407"
+    },
+    {
+      "path": "docs/work/groups/DEMO/features/DEMO-05-demo-acceptance/intent.md",
+      "sha256": "ebb615c72338769aa8e6879ec3dadbc7ae087782c52880712dfb191fa913d0b4"
+    },
+    {
+      "path": "docs/work/groups/DEMO/features/DEMO-05-demo-acceptance/plan.md",
+      "sha256": "5dd24b6da0c46dc6aba87ad325a679314b2ecf78a7094a7865863b9552a97049"
+    },
+    {
+      "path": "docs/work/groups/DEMO/features/DEMO-05-demo-acceptance/spec.md",
+      "sha256": "6239854c7d667278713d56ec313ada4c41bdd07421998a9f8cff32f388e9e955"
+    }
+  ]
+}

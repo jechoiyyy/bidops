@@ -1,0 +1,135 @@
+{
+  "schema_version": 2,
+  "feature": "DEMO-05-demo-acceptance",
+  "phase": "review",
+  "steps": [
+    {
+      "id": "STEP-001",
+      "title": "격리 환경과 도구",
+      "model": "complex",
+      "fingerprint": "bf896ff3e4f610683092ec179c48ac571c31072d08703e57a8b3fe363ba70977",
+      "status": "stale",
+      "updated_at": null,
+      "history": [
+        {
+          "id": "STEP-001",
+          "title": "격리 환경과 도구",
+          "model": "complex",
+          "fingerprint": "a282354553bfa55f6564ed0bb35e5b3119953caeeba006d3349c5af55225840e",
+          "status": "pending",
+          "updated_at": null
+        }
+      ]
+    },
+    {
+      "id": "STEP-002",
+      "title": "표본과 회사 입력 동결",
+      "model": "standard",
+      "fingerprint": "801bf4e4b952a7abc1f3a84a63d9db993136590c26e490851ebcee719e9843e8",
+      "status": "stale",
+      "updated_at": null,
+      "history": [
+        {
+          "id": "STEP-002",
+          "title": "표본과 회사 입력 동결",
+          "model": "standard",
+          "fingerprint": "2924455a7a15578dcc6e58fc37de4634f613b7b46ac9c190a62fd2f056488b68",
+          "status": "pending",
+          "updated_at": null
+        }
+      ]
+    },
+    {
+      "id": "STEP-003",
+      "title": "실제 모델 결과 인수",
+      "model": "complex",
+      "fingerprint": "7b2d999e043078e87c3a074904ab89faadaa3e26a72569355cf0020aaac87a81",
+      "status": "stale",
+      "updated_at": null,
+      "history": [
+        {
+          "id": "STEP-003",
+          "title": "실제 모델 결과 인수",
+          "model": "complex",
+          "fingerprint": "ce571fec2bade85ee6426e8d0714e94330c811ba6b86d15dc212d7357c32b255",
+          "status": "pending",
+          "updated_at": null
+        }
+      ]
+    },
+    {
+      "id": "STEP-004",
+      "title": "담당자 인수·운영 절차",
+      "model": "standard",
+      "fingerprint": "2719c7648b0c3078abc220bcba8375f2c7d9cdae8b3f109878647f290bdef7d6",
+      "status": "stale",
+      "updated_at": null,
+      "history": [
+        {
+          "id": "STEP-004",
+          "title": "담당자 인수·운영 절차",
+          "model": "standard",
+          "fingerprint": "089c279e9d1277e4f933c7abc426c72fcf62d44c6d2578df30332842e26f2cb9",
+          "status": "pending",
+          "updated_at": null
+        }
+      ]
+    }
+  ],
+  "proof": {
+    "docs": {
+      "result": "pending"
+    },
+    "tests": {
+      "result": "pending"
+    },
+    "postgres": {
+      "result": "pending"
+    },
+    "frontend": {
+      "result": "pending"
+    },
+    "api_guard": {
+      "result": "pending"
+    },
+    "real_data_run": {
+      "result": "pending"
+    }
+  },
+  "notes": [
+    {
+      "at": "2026-10-06T07:59:57+09:00",
+      "text": "생성 (drafting)"
+    },
+    {
+      "at": "2026-10-06T08:07:06+09:00",
+      "text": "plan 작업 ID 동기화"
+    },
+    {
+      "at": "2026-10-06T08:25:33+09:00",
+      "text": "단계 → blocked: 독립 재검토 잔여 지적 수정 반영; 추가 독립 검사 여부 사용자 결정 대기. docs/work/reviews/2026-10-06.md"
+    },
+    {
+      "at": "2026-10-06T08:30:17+09:00",
+      "text": "단계 → drafting: 추가 검토 완료로 문서 작업 재개"
+    },
+    {
+      "at": "2026-10-06T08:30:17+09:00",
+      "text": "단계 → review: 사용자 요청 추가 독립 검사 통과. docs/work/reviews/2026-10-06-additional.md; 제품 구현 미착수"
+    },
+    {
+      "at": "2026-10-06T18:22:47+09:00",
+      "text": "plan 작업 ID 동기화"
+    },
+    {
+      "at": "2026-10-06T18:22:47+09:00",
+      "text": "단계 → drafting: 2026-10-06 재계획 반영(ADR-0070 개정·공통 계약 v1.1). 문서 재검토 대기; 제품 구현 미착수"
+    },
+    {
+      "at": "2026-10-06T18:34:12+09:00",
+      "text": "단계 → review: 2026-10-06 재계획 독립 검토 통과(차단 0). docs/work/reviews/2026-10-06-replan.md; 제품 구현 미착수"
+    }
+  ],
+  "updated_at": "2026-10-06T18:34:12+09:00",
+  "resume_phase": "drafting"
+}
