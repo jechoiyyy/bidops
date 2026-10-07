@@ -1891,3 +1891,9 @@ PostgreSQL 17.11 저장·REST, 두 폭 경고와 승인 미리보기. 운영 적
 - migration `0033_assumption_analysis`: 입력 버전·승인 실행·호출 결과는 append-only.
   공용 `work_job`의 `assumption_analysis` job을 합성 worker 한 슬롯에서 처리한다.
   기존 심층검토 정책/회사 프로필/결과는 수정하지 않는다.
+
+
+## 가상 SI 3사 데모 목표 계약 (2026-10-06, 구현 전)
+
+새 회사 namespace·그래프·입력·비교 DTO는 아래 공통 계약에 고정한다. 기존 API의 wire 의미와 NULL 회사 계보를 유지한다.
+[ADR-0070](tracking/decisions/0070-multi-company-knowledge-demo.md) · [공통 계약](work/demo-contract.md) · [기능 로드맵](work/constitution/roadmap.md).

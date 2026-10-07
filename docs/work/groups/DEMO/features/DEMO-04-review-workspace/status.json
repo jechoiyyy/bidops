@@ -1,0 +1,133 @@
+{
+  "schema_version": 2,
+  "feature": "DEMO-04-review-workspace",
+  "phase": "review",
+  "steps": [
+    {
+      "id": "STEP-001",
+      "title": "회사 경로와 상태",
+      "model": "complex",
+      "fingerprint": "351e242cdbcca057e6e2925bec86977bad2193ad1a01eda160a13f6e0247a231",
+      "status": "pending",
+      "updated_at": null
+    },
+    {
+      "id": "STEP-002",
+      "title": "프로필과 graph 탐색",
+      "model": "complex",
+      "fingerprint": "f5e72f8e289c7018e57be11a9e7e317105bd331263a0499e66eed326b18b7ce7",
+      "status": "stale",
+      "updated_at": null,
+      "history": [
+        {
+          "id": "STEP-002",
+          "title": "프로필과 graph 탐색",
+          "model": "complex",
+          "fingerprint": "d20937e11d4218f8d47a3c2c8a9d1f881646b3db3fe4dd48b45ded4f7636f6ff",
+          "status": "pending",
+          "updated_at": null
+        }
+      ]
+    },
+    {
+      "id": "STEP-003",
+      "title": "사전규격과 비교",
+      "model": "standard",
+      "fingerprint": "d1997f077c8c4f1b65b76a292260106dd8e6bf34c5d7077ea491615b57f6857d",
+      "status": "pending",
+      "updated_at": null
+    },
+    {
+      "id": "STEP-004",
+      "title": "승인·보고서·결정 연결",
+      "model": "complex",
+      "fingerprint": "351987505f9d2744daebee4a4cf146c383502e297a53bb5dab39e0df95505cc8",
+      "status": "stale",
+      "updated_at": null,
+      "history": [
+        {
+          "id": "STEP-004",
+          "title": "승인·보고서·결정 연결",
+          "model": "complex",
+          "fingerprint": "dbc2460ae2782602ae76e602f21de777d321de718ecb02ba23a378fe433059dc",
+          "status": "pending",
+          "updated_at": null
+        }
+      ]
+    },
+    {
+      "id": "STEP-005",
+      "title": "영향 화면 인수",
+      "model": "standard",
+      "fingerprint": "c2c6bda8dc76425e64fc1b29f033a0a7e8ab14aad236e4edac40f2f45ec428f5",
+      "status": "stale",
+      "updated_at": null,
+      "history": [
+        {
+          "id": "STEP-005",
+          "title": "영향 화면 인수",
+          "model": "standard",
+          "fingerprint": "9aad7587a568fa49f051445657ef1321101f19e730926e9378206b9348c4784e",
+          "status": "pending",
+          "updated_at": null
+        }
+      ]
+    }
+  ],
+  "proof": {
+    "docs": {
+      "result": "pending"
+    },
+    "tests": {
+      "result": "pending"
+    },
+    "postgres": {
+      "result": "pending"
+    },
+    "frontend": {
+      "result": "pending"
+    },
+    "api_guard": {
+      "result": "pending"
+    },
+    "real_data_run": {
+      "result": "pending"
+    }
+  },
+  "notes": [
+    {
+      "at": "2026-10-06T07:59:57+09:00",
+      "text": "생성 (drafting)"
+    },
+    {
+      "at": "2026-10-06T08:07:06+09:00",
+      "text": "plan 작업 ID 동기화"
+    },
+    {
+      "at": "2026-10-06T08:25:33+09:00",
+      "text": "단계 → blocked: 독립 재검토 잔여 지적 수정 반영; 추가 독립 검사 여부 사용자 결정 대기. docs/work/reviews/2026-10-06.md"
+    },
+    {
+      "at": "2026-10-06T08:30:17+09:00",
+      "text": "단계 → drafting: 추가 검토 완료로 문서 작업 재개"
+    },
+    {
+      "at": "2026-10-06T08:30:17+09:00",
+      "text": "단계 → review: 사용자 요청 추가 독립 검사 통과. docs/work/reviews/2026-10-06-additional.md; 제품 구현 미착수"
+    },
+    {
+      "at": "2026-10-06T18:22:47+09:00",
+      "text": "plan 작업 ID 동기화"
+    },
+    {
+      "at": "2026-10-06T18:22:47+09:00",
+      "text": "단계 → drafting: 2026-10-06 재계획 반영(ADR-0070 개정·공통 계약 v1.1). 문서 재검토 대기; 제품 구현 미착수"
+    },
+    {
+      "at": "2026-10-06T18:34:12+09:00",
+      "text": "단계 → review: 2026-10-06 재계획 독립 검토 통과(차단 0). docs/work/reviews/2026-10-06-replan.md; 제품 구현 미착수"
+    }
+  ],
+  "updated_at": "2026-10-06T18:34:12+09:00",
+  "resume_phase": "drafting"
+}

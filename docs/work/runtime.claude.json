@@ -1,0 +1,14 @@
+{
+  "engine": "claude",
+  "agents": {
+    "standard": "sdlc:implementer-sonnet",
+    "complex": "sdlc:implementer-opus",
+    "sonnet": "sdlc:implementer-sonnet",
+    "opus": "sdlc:implementer-opus"
+  },
+  "default_model": "standard",
+  "review": {
+    "agent": "general-purpose",
+    "independent_required": true
+  }
+}

@@ -584,3 +584,9 @@ scheduler 설계는 이 착수점에 포함하지 않는다.
 2026-09-18 개정: 위 표는 2026-09-02 시점 기록이다. policy 등록·활성화, quality gate 저장 자리, 감사 표본 선정기는
 [일일 운영 고도화 계획](0918_daily-operation/plan.md)이 구현 순서와 담당 패키지를 정했다(다음 migration은 `0029`).
 현재 구현·검증 상태는 [`tracking/status.md`](tracking/status.md)가 정본이다.
+
+
+## 가상 SI 3사 데모 목표 계약 (2026-10-06, 구현 전)
+
+DEMO 신규 작업은 아래 로드맵과 기능 큐로 관리한다. 기존 C-2 단계의 완료·대기 사실을 새 데모 상태로 덮지 않는다.
+[ADR-0070](tracking/decisions/0070-multi-company-knowledge-demo.md) · [공통 계약](work/demo-contract.md) · [기능 로드맵](work/constitution/roadmap.md).

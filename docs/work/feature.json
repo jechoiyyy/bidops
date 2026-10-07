@@ -1,0 +1,124 @@
+{
+  "work_dir": "docs/work",
+  "language": "ko",
+  "id_pattern": "^[A-Za-z0-9]+-\\d{2}-[a-z0-9]+(-[a-z0-9]+)*$",
+  "id_example": "M2-03-fixed-chunking",
+  "id_rule": "<마일스톤 또는 영역>-<두 자리 순번>-<영문 slug>",
+  "big_picture_docs": [
+    "docs/work/constitution/mission.md",
+    "docs/work/constitution/tech-stack.md",
+    "docs/work/constitution/roadmap.md",
+    "docs/ARCHITECTURE.md",
+    "docs/PRD.md",
+    "docs/business-rules.md",
+    "docs/contracts.md",
+    "docs/operations.md",
+    "docs/deep-review-erd.md"
+  ],
+  "milestone_table": "docs/work/constitution/roadmap.md",
+  "decision_log": "docs/ADR.md",
+  "conventions_doc": "docs/standards.md",
+  "experiments_dir": "docs/experiments",
+  "guidance_doc": "AGENTS.md",
+  "constraints": [
+    "원문·프로필·정책·모델 입력과 결과·사람 리뷰는 불변/append-only로 보존한다.",
+    "unknown/null·적합성·참여 준비·추적·Go/No-Go를 서로 대신하지 않는다.",
+    "외부 모델은 승인 payload만 건별 전송하며 전역 fallback과 자동 추적 결정을 금지한다.",
+    "PostgreSQL 17·versioned MinIO·합성 analysis worker의 슬롯 1개와 모듈 의존 방향을 유지한다.",
+    "문서 변경은 diff/문서 검사만, 제품 변경은 직접 영향 검사만 실행하고 성공 후 반복하지 않는다.",
+    "운영 변경·실제 모델 호출은 직전 확인 대상이며 문서화 승인을 실행 승인으로 사용하지 않는다.",
+    "DEMO-01~05는 데모 브랜치 전용이며 운영에 배포하지 않는다. main·운영 배포 대상은 DEMO-00 Luna v4뿐이다(ADR-0070 개정).",
+    "새 DB 테이블·열 권한은 scripts/runtime-privileges.sql에 등록하고 migration에 GRANT를 쓰지 않는다.",
+    "사용자 요청 없이 commit·merge·push·브랜치 삭제하지 않는다."
+  ],
+  "steps_heading": "## 작업 순서",
+  "proof": {
+    "docs": {
+      "description": "정본·기능 문서·계약·독립 검토 및 diff 일치",
+      "required": true,
+      "method": "review",
+      "applies_when": "항상",
+      "dependency_gate": true
+    },
+    "tests": {
+      "description": "기능 plan에 연결한 단위·통합 검사와 실행 로그",
+      "required": true,
+      "method": "command",
+      "applies_when": "제품 코드 또는 실행 도구 변경",
+      "dependency_gate": true
+    },
+    "postgres": {
+      "description": "일회용 PostgreSQL 17.11에서 migration·제약·API 변형",
+      "required": true,
+      "method": "command",
+      "applies_when": "DB·적재·응답 shape 변경",
+      "dependency_gate": true
+    },
+    "frontend": {
+      "description": "production build 및 영향 화면 의미·구조 검사",
+      "required": true,
+      "method": "command",
+      "applies_when": "frontend 변경",
+      "dependency_gate": true
+    },
+    "api_guard": {
+      "description": "승인·입력 hash·회사 소속·외부 전송 차단 검사",
+      "required": true,
+      "method": "command",
+      "applies_when": "외부 호출 또는 회사별 자원 접근 변경",
+      "dependency_gate": true
+    },
+    "real_data_run": {
+      "description": "실제 6건/18건/9건과 담당자 인수 증거",
+      "required": true,
+      "method": "manual",
+      "applies_when": "DEMO-05-demo-acceptance",
+      "dependency_gate": true
+    }
+  },
+  "commands": {
+    "docs": "python3 scripts/feature_status.py doctor _",
+    "tests": "",
+    "postgres": "",
+    "frontend": "",
+    "api_guard": "",
+    "real_data_run": ""
+  },
+  "agents": {
+    "sonnet": "sdlc:implementer-sonnet",
+    "opus": "sdlc:implementer-opus",
+    "standard": "sdlc:implementer-sonnet",
+    "complex": "sdlc:implementer-opus"
+  },
+  "default_model": "standard",
+  "loop": {
+    "auto_commit": false,
+    "manual_proof": "defer",
+    "final_review": true,
+    "max_retries": 1,
+    "git": {
+      "isolation": "worktree",
+      "merge": "no-ff",
+      "copy_untracked": []
+    },
+    "commit_policy": "manual",
+    "merge_policy": "manual"
+  },
+  "commit_message_example": "docs: 가상 SI 3사 데모 기능 명세와 SDLC 실행 큐 추가",
+  "status_command": "python3 scripts/feature_status.py",
+  "schema_version": 2,
+  "tool_version": "0.6.0",
+  "template_version": "0.6.0",
+  "constitution_dir": "docs/work/constitution",
+  "constraint_sources": [
+    "AGENTS.md",
+    "docs/standards.md",
+    "docs/business-rules.md",
+    "docs/contracts.md",
+    "docs/operations.md",
+    "web/backend/AGENTS.md",
+    "web/frontend/AGENTS.md"
+  ],
+  "default_group": "DEMO",
+  "worktree_dir": ".sdlc/worktrees"
+}

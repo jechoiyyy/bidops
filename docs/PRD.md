@@ -399,3 +399,9 @@ Phase 6 이후에도 정책 활성화와 scheduler 활성화는 서로 다른 �
 
 이 문서는 제품 의도와 수용 기준의 정본이고, 구현 세부는 [`ARCHITECTURE.md`](ARCHITECTURE.md),
 결정 근거는 [`ADR.md`](ADR.md), wire/DB 형태는 [`contracts.md`](contracts.md)에 둔다.
+
+
+## 가상 SI 3사 데모 목표 계약 (2026-10-06, 구현 전)
+
+새 착수 목표는 가상 SI 3사의 사전규격 탐색·지식그래프 근거·심층검토·추적 결정 데모다. 기존 생애주기 장기 목표와 C-2 운영 계약은 유지한다.
+[ADR-0070](tracking/decisions/0070-multi-company-knowledge-demo.md) · [공통 계약](work/demo-contract.md) · [기능 로드맵](work/constitution/roadmap.md).

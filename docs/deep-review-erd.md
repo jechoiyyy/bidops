@@ -891,3 +891,9 @@ content object FK를 가진다. 세 표는 DB trigger와 ORM에서 UPDATE/DELETE
 app은 입력/실행 INSERT와 세 표 SELECT, worker는 결과 INSERT와 세 표 SELECT만 받는다.
 실행 상태/lease는 기존 work_job, 호출 시작은 원문 없는 audit_event로 기록한다.
 [REST 및 결과 계약](0923_assumption-analysis/spec.md).
+
+
+## 가상 SI 3사 데모 목표 계약 (2026-10-06, 구현 전)
+
+회사별 nullable identity·그래프 버전·승인 binding을 추가하는 목표다. 기존 불변 입력·근거 FK와 슬롯 1개를 유지한다. 현재 migration에는 아직 반영하지 않았다.
+[ADR-0070](tracking/decisions/0070-multi-company-knowledge-demo.md) · [공통 계약](work/demo-contract.md) · [기능 로드맵](work/constitution/roadmap.md).

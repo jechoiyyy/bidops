@@ -1,0 +1,27 @@
+{
+  "engine": "codex",
+  "delegation": "per_step",
+  "independent_review_required": true,
+  "profiles": {
+    "standard": {
+      "model": "gpt-6-luna",
+      "effort": "max"
+    },
+    "complex": {
+      "model": "gpt-5.6-sol",
+      "effort": "high"
+    },
+    "sonnet": {
+      "model": "gpt-6-luna",
+      "effort": "max"
+    },
+    "opus": {
+      "model": "gpt-5.6-sol",
+      "effort": "high"
+    },
+    "review": {
+      "model": "gpt-5.6-sol",
+      "effort": "high"
+    }
+  }
+}

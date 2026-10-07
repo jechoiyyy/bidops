@@ -1,0 +1,187 @@
+{
+  "schema_version": 2,
+  "feature": "DEMO-01-company-context",
+  "phase": "review",
+  "steps": [
+    {
+      "id": "STEP-001",
+      "title": "회사 식별과 migration",
+      "model": "complex",
+      "fingerprint": "cfa3e454fd637b0eafab326a5b228ee3f6de3e05efc181ef9bce693ba11ff2ab",
+      "status": "stale",
+      "updated_at": null,
+      "history": [
+        {
+          "id": "STEP-001",
+          "title": "회사 식별과 migration",
+          "model": "complex",
+          "fingerprint": "eed53512696745ec6a3ccb15657217f8f6a784a750e134dc14a53d98ee54a7c8",
+          "status": "pending",
+          "updated_at": null
+        }
+      ]
+    },
+    {
+      "id": "STEP-002",
+      "title": "회사 API와 기존 조회 경계",
+      "model": "complex",
+      "fingerprint": "e60b999f3c2de996b47e404a44ed0ba448fdcad9863bab5cf5ac4f595e943622",
+      "status": "stale",
+      "updated_at": "2026-10-06T08:29:55+09:00",
+      "history": [
+        {
+          "id": "STEP-002",
+          "title": "회사 API와 기존 조회 경계",
+          "model": "complex",
+          "fingerprint": "b4bfcab2b331034b4edb35b76cb7387447af12b5bd3c2a9dce3a0c8c50f8d522",
+          "status": "pending",
+          "updated_at": null
+        },
+        {
+          "id": "STEP-002",
+          "title": "회사 API와 기존 조회 경계",
+          "model": "complex",
+          "fingerprint": "7b42e0ba52e53e40bf655fec313135a4490200e7722397d225c033612d1bddb5",
+          "status": "pending",
+          "updated_at": "2026-10-06T08:29:55+09:00",
+          "history": [
+            {
+              "id": "STEP-002",
+              "title": "회사 API와 기존 조회 경계",
+              "model": "complex",
+              "fingerprint": "b4bfcab2b331034b4edb35b76cb7387447af12b5bd3c2a9dce3a0c8c50f8d522",
+              "status": "pending",
+              "updated_at": null
+            }
+          ],
+          "note": "문서 수정 검토 완료; 제품 구현은 미착수"
+        }
+      ],
+      "note": "문서 수정 검토 완료; 제품 구현은 미착수"
+    },
+    {
+      "id": "STEP-003",
+      "title": "회사별 추적 transaction",
+      "model": "complex",
+      "fingerprint": "5cdcf04ca814ca24c1b0e73b387a7a89bbbd3501cb4222fb9f1db5120b084239",
+      "status": "stale",
+      "updated_at": null,
+      "history": [
+        {
+          "id": "STEP-003",
+          "title": "회사별 추적 transaction",
+          "model": "complex",
+          "fingerprint": "51a6755f626a4d4c6cfbcd183185c0655d597a8bfed74290cabea24c4e0a0e4f",
+          "status": "pending",
+          "updated_at": null
+        }
+      ]
+    },
+    {
+      "id": "STEP-004",
+      "title": "교차 회사·호환 인수",
+      "model": "complex",
+      "fingerprint": "e2e18675e14c86b2f2c8bc390fc442c7f3500ac61f3c97eb7d30bc1b257c5707",
+      "status": "stale",
+      "updated_at": "2026-10-06T08:29:55+09:00",
+      "history": [
+        {
+          "id": "STEP-004",
+          "title": "교차 회사·호환 인수",
+          "model": "complex",
+          "fingerprint": "3de284f6e57ed5aae821c6c846a554eb4e4a3f099311a77f5027298a08c08374",
+          "status": "pending",
+          "updated_at": null
+        },
+        {
+          "id": "STEP-004",
+          "title": "교차 회사·호환 인수",
+          "model": "complex",
+          "fingerprint": "6ad8be9e089ddeb33263f3ae85fa5cfc1cf5367ec820b68a8d7f8da988398d77",
+          "status": "pending",
+          "updated_at": "2026-10-06T08:29:55+09:00",
+          "history": [
+            {
+              "id": "STEP-004",
+              "title": "교차 회사·호환 인수",
+              "model": "complex",
+              "fingerprint": "3de284f6e57ed5aae821c6c846a554eb4e4a3f099311a77f5027298a08c08374",
+              "status": "pending",
+              "updated_at": null
+            }
+          ],
+          "note": "문서 수정 검토 완료; 제품 구현은 미착수"
+        }
+      ],
+      "note": "문서 수정 검토 완료; 제품 구현은 미착수"
+    }
+  ],
+  "proof": {
+    "docs": {
+      "result": "pending"
+    },
+    "tests": {
+      "result": "pending"
+    },
+    "postgres": {
+      "result": "pending"
+    },
+    "frontend": {
+      "result": "pending"
+    },
+    "api_guard": {
+      "result": "pending"
+    },
+    "real_data_run": {
+      "result": "pending"
+    }
+  },
+  "notes": [
+    {
+      "at": "2026-10-06T07:59:57+09:00",
+      "text": "생성 (drafting)"
+    },
+    {
+      "at": "2026-10-06T08:07:06+09:00",
+      "text": "plan 작업 ID 동기화"
+    },
+    {
+      "at": "2026-10-06T08:25:33+09:00",
+      "text": "plan 작업 ID 동기화"
+    },
+    {
+      "at": "2026-10-06T08:25:33+09:00",
+      "text": "단계 → blocked: 독립 재검토 잔여 지적 수정 반영; 추가 독립 검사 여부 사용자 결정 대기. docs/work/reviews/2026-10-06.md"
+    },
+    {
+      "at": "2026-10-06T08:29:55+09:00",
+      "text": "단계 STEP-002 pending: 문서 수정 검토 완료; 제품 구현은 미착수"
+    },
+    {
+      "at": "2026-10-06T08:29:55+09:00",
+      "text": "단계 STEP-004 pending: 문서 수정 검토 완료; 제품 구현은 미착수"
+    },
+    {
+      "at": "2026-10-06T08:30:17+09:00",
+      "text": "단계 → drafting: 추가 검토 완료로 문서 작업 재개"
+    },
+    {
+      "at": "2026-10-06T08:30:17+09:00",
+      "text": "단계 → review: 사용자 요청 추가 독립 검사 통과. docs/work/reviews/2026-10-06-additional.md; 제품 구현 미착수"
+    },
+    {
+      "at": "2026-10-06T18:22:47+09:00",
+      "text": "plan 작업 ID 동기화"
+    },
+    {
+      "at": "2026-10-06T18:22:47+09:00",
+      "text": "단계 → drafting: 2026-10-06 재계획 반영(ADR-0070 개정·공통 계약 v1.1). 문서 재검토 대기; 제품 구현 미착수"
+    },
+    {
+      "at": "2026-10-06T18:34:12+09:00",
+      "text": "단계 → review: 2026-10-06 재계획 독립 검토 통과(차단 0). docs/work/reviews/2026-10-06-replan.md; 제품 구현 미착수"
+    }
+  ],
+  "updated_at": "2026-10-06T18:34:12+09:00",
+  "resume_phase": "drafting"
+}
