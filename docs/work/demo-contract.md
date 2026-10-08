@@ -212,7 +212,8 @@ graph_nodes/edges에는 경로 해석에 필요한 type/label/value/status/origi
 새 demo 정책은 DEMO-00이 운영 1489번으로 검증한 `analysis-policy-luna-v4`에 회사·그래프 입력 설명만 더한다.
 v4와 demo 정책은 모두 기존 v2의 정상 검증 계약을 기반으로 하며 v3 검증 off를 상속하지 않는다.
 승인 정책은 이미지에 포함된 파일과 `_approved_policy_path` 매핑으로만 인정되므로 새 파일마다 매핑과 테스트를 함께 추가한다.
-매핑은 정책 내용(검증 flag)으로 v1~v3를 고르므로 v4·demo 정책은 고유 식별 필드를 두고 그 필드를 먼저 검사한다(필드 이름은 DEMO-00 STEP-002가 정한다).
+매핑은 정책 내용(검증 flag)으로 v1~v3를 고르므로 v4·demo 정책은 고유 식별 필드 `policy_identity`를 두고 그 필드를 먼저 검사한다.
+v4 값은 `analysis-policy-luna-v4`이며 모르는 값은 내용 기반 v1~v3 판별로 낮추지 않고 거부한다. demo 정책 값과 승인 파일 매핑은 DEMO-03이 추가한다.
 demo 정책은 v4의 정책 마감(`execution.review_timeout_seconds`, 18000)과 slice 1회 교정 재요청(`execution.validation_repair_attempts`=1)을 그대로 상속한다.
 출력 ID와 입력 considered ID의 역할을 프롬프트에 분리하고 필수 근거 FK/인용/숫자/coverage 검사를 유지한다.
 기존 선택적 related_claim 경고 규칙은 그대로 가능하나 필수 evidence/전제 실패를 경고로 낮추지 않는다.

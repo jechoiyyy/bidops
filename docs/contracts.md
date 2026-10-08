@@ -1871,6 +1871,20 @@ validation_failed 등 안전 코드로 남는다. 일부 성공 보고서는 발
 검사: 저장된 v2 실패 응답의 후보 코드 replay, 기존 회귀+새 off/해시/근거 FK 차단,
 PostgreSQL 17.11 저장·REST, 두 폭 경고와 승인 미리보기. 운영 적용/새 호출은 검사 후 진행.
 
+### Luna v4 정책·slice 교정 계약 (2026-10-08, 로컬 구현)
+
+새 불변 `analysis-policy-luna-v4.json`은 `policy_identity=analysis-policy-luna-v4`로 승인 파일을
+명시하며, 매핑은 이 값을 v1~v3 내용 기반 판별보다 먼저 확인한다. 모르는 identity는 거부한다.
+정책 `execution.review_timeout_seconds=18000`이 검토 전체 Luna deadline이고,
+`execution.validation_repair_attempts=1`은 1·2단계의 각 slice에만 적용된다. 최초 응답이
+형식·근거 FK·필수 결정 검사를 통과하지 못하면 승인된 같은 동결 입력에 안전한 오류 code와
+필드 위치만 더해 완전한 대체 응답을 최대 한 번 요청한다. 3단계 종합과 v1~v3는 자동 교정하지 않는다.
+두 원응답은 기존 model-response aggregate 모양을 유지해 암호화 보존하고, 호출 metadata와
+보고서 `validation_repair_applied` warning에 교정 사실을 남긴다. 교정 응답도 같은 인용·숫자·
+coverage·considered·전제·근거 검사를 모두 통과해야 하며 검사를 끄거나 warning으로 낮추지 않는다.
+이 절은 [DEMO-00 STEP-002](work/groups/DEMO/features/DEMO-00-luna-preflight/spec.md)의 로컬 구현
+계약이며 운영 배포·정책 import·실제 Luna 호출 또는 품질 검증 완료를 뜻하지 않는다.
+
 ## 1489번 가정 분석 v1 (2026-09-23, 운영 적용 전)
 
 기존 심층검토와 별도 계약이다. [작업 명세](0923_assumption-analysis/spec.md)를 따른다.

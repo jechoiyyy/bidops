@@ -1,0 +1,18 @@
+{
+  "command": [
+    "/tmp/bidops-demo00-verify-venv/bin/python",
+    "-m",
+    "pytest",
+    "tests/app/test_luna_deep_review.py",
+    "-q"
+  ],
+  "exit_code": 0,
+  "source_sha256": {
+    "web/backend/app/deep_review/services/deep_reviews.py": "7fda861e0680553ddb7a8fdcf0e8fe943cc1b83a9cd4c212340bfe1c3f9c75b9",
+    "web/backend/app/deep_review/services/input_versions.py": "8c2af6e1b408743a5fa0235c6dc44323f0a1f47f2cd3dc71f635e3e6a42ff90f",
+    "web/backend/app/deep_review/services/reports.py": "7dd4ba668b039c3f783cd8bffd9ff1af7d5a09967e7d062dccdc7db30ea36812",
+    "web/backend/app/deep_review/policies/analysis-policy-luna-v4.json": "51b1723051e92299ef53e650f9faf851c8e6777fe75c59b814639d38be887877",
+    "web/backend/tests/app/test_luna_deep_review.py": "a60f0259217f684a630ad625848c9cc3b1660be4584a04f7ee98f68524c1e83d",
+    "web/backend/tests/app/test_narrative_review.py": "c5ca90d181ab1d8316f1b2a33c580027813afeceb728ad0f5a45220bfa757632"
+  }
+}

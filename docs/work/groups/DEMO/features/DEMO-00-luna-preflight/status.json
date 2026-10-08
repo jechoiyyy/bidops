@@ -1,23 +1,24 @@
 {
   "schema_version": 2,
   "feature": "DEMO-00-luna-preflight",
-  "phase": "review",
+  "phase": "blocked",
   "steps": [
     {
       "id": "STEP-001",
       "title": "이전 실패 원인 분류",
       "model": "complex",
       "fingerprint": "59acb1c817837b00b5cef18af392a56ebe4c9477e0b95b4e10b0c9a61e191a3a",
-      "status": "pending",
-      "updated_at": null
+      "status": "done",
+      "updated_at": "2026-10-07T23:48:17+09:00",
+      "note": "기록: docs/validation-runs/20261007-luna-v4-preflight/README.md. 운영 원응답 재검사는 운영 스택이 작업 장비에 없어 미수행(한계 명시)"
     },
     {
       "id": "STEP-002",
       "title": "v4 정책과 회귀 테스트",
       "model": "complex",
       "fingerprint": "0641ee772df6cc8c695edf9594ab3e6b4ee759008c7de73379bdc8f56b01a630",
-      "status": "stale",
-      "updated_at": null,
+      "status": "done",
+      "updated_at": "2026-10-08T17:14:40+09:00",
       "history": [
         {
           "id": "STEP-002",
@@ -45,15 +46,16 @@
             }
           ]
         }
-      ]
+      ],
+      "note": "v4·마감·교정 구현. PostgreSQL 포함 관련 검사 및 review-02 PASS; docs/work/_runs/demo00-20261007/DEMO-00-luna-preflight.md"
     },
     {
       "id": "STEP-003",
       "title": "운영 적용",
       "model": "complex",
       "fingerprint": "8c0daacdeefcfe366d080203bd2b15b792b7c3f7aa30c0acbbffad75d3caddd2",
-      "status": "stale",
-      "updated_at": null,
+      "status": "blocked",
+      "updated_at": "2026-10-08T17:14:40+09:00",
       "history": [
         {
           "id": "STEP-003",
@@ -63,15 +65,16 @@
           "status": "pending",
           "updated_at": null
         }
-      ]
+      ],
+      "note": "runbook 준비·독립 리뷰 완료. 수동 commit/merge 및 운영 호스트에서 단계별 사람 확인/실행 증거 대기"
     },
     {
       "id": "STEP-004",
       "title": "실제 1489 1건과 판정",
       "model": "standard",
       "fingerprint": "3ecee6164740d1178b3cb4baaab0bd21193d989796335fcf4db42231be0d6234",
-      "status": "stale",
-      "updated_at": null,
+      "status": "pending",
+      "updated_at": "2026-10-08T17:14:40+09:00",
       "history": [
         {
           "id": "STEP-004",
@@ -81,7 +84,8 @@
           "status": "pending",
           "updated_at": null
         }
-      ]
+      ],
+      "note": "STEP-003 실제 운영 적용 후 1489 건별 전송 승인·실행·사용자 판정 필요. 실제 호출 없음"
     }
   ],
   "proof": {
@@ -89,13 +93,43 @@
       "result": "pending"
     },
     "tests": {
-      "result": "pending"
+      "result": "pass",
+      "method": "command",
+      "note": "최종 Luna 32 passed 및 소스 불변 추가10 passed; narrative 관련 이전 검사 재사용",
+      "evidence": "docs/work/_runs/demo00-20261007/DEMO-00-luna-preflight.md",
+      "exit_code": 0,
+      "actor": "orchestrator",
+      "command": "",
+      "at": "2026-10-08T17:14:40+09:00",
+      "head": "d12df664b27f28efab1825281567d9bf1b6f9981",
+      "source_hash": "b10b1f2c81f286e2b0564edec8c0b3f543494f87a6e61a582c6c162ca05b29b1",
+      "spec_hash": "6a6c2b91a760244b809a48f20501e84362a90520afaf7f82ae75f717c78fbd4e"
     },
     "postgres": {
-      "result": "pending"
+      "result": "pass",
+      "method": "command",
+      "note": "일회용 PostgreSQL 17.11 관련 두 파일 변형 포함, skip 없음",
+      "evidence": "docs/work/_runs/demo00-20261007/DEMO-00-luna-preflight.md",
+      "exit_code": 0,
+      "actor": "orchestrator",
+      "command": "",
+      "at": "2026-10-08T17:14:40+09:00",
+      "head": "d12df664b27f28efab1825281567d9bf1b6f9981",
+      "source_hash": "b10b1f2c81f286e2b0564edec8c0b3f543494f87a6e61a582c6c162ca05b29b1",
+      "spec_hash": "6a6c2b91a760244b809a48f20501e84362a90520afaf7f82ae75f717c78fbd4e"
     },
     "frontend": {
-      "result": "pending"
+      "result": "not_applicable",
+      "method": "command",
+      "note": "프론트엔드 코드 변경 없음",
+      "evidence": "docs/work/_runs/demo00-20261007/DEMO-00-luna-preflight.md",
+      "exit_code": null,
+      "actor": "orchestrator",
+      "command": "",
+      "at": "2026-10-08T17:14:41+09:00",
+      "head": "d12df664b27f28efab1825281567d9bf1b6f9981",
+      "source_hash": "b10b1f2c81f286e2b0564edec8c0b3f543494f87a6e61a582c6c162ca05b29b1",
+      "spec_hash": "6a6c2b91a760244b809a48f20501e84362a90520afaf7f82ae75f717c78fbd4e"
     },
     "api_guard": {
       "result": "pending"
@@ -124,7 +158,60 @@
     {
       "at": "2026-10-07T23:46:34+09:00",
       "text": "plan 작업 ID 동기화"
+    },
+    {
+      "at": "2026-10-07T23:47:34+09:00",
+      "text": "단계 → implementing: run demo00-20261007, 기능 worktree .sdlc/worktrees/demo00-20261007-DEMO-00-luna-preflight"
+    },
+    {
+      "at": "2026-10-07T23:47:47+09:00",
+      "text": "단계 STEP-001 in_progress: "
+    },
+    {
+      "at": "2026-10-07T23:48:17+09:00",
+      "text": "단계 STEP-001 done: 기록: docs/validation-runs/20261007-luna-v4-preflight/README.md. 운영 원응답 재검사는 운영 스택이 작업 장비에 없어 미수행(한계 명시)"
+    },
+    {
+      "at": "2026-10-07T23:48:17+09:00",
+      "text": "단계 STEP-002 in_progress: "
+    },
+    {
+      "at": "2026-10-08T17:14:40+09:00",
+      "text": "단계 STEP-002 done: v4·마감·교정 구현. PostgreSQL 포함 관련 검사 및 review-02 PASS; docs/work/_runs/demo00-20261007/DEMO-00-luna-preflight.md"
+    },
+    {
+      "at": "2026-10-08T17:14:40+09:00",
+      "text": "단계 STEP-003 blocked: runbook 준비·독립 리뷰 완료. 수동 commit/merge 및 운영 호스트에서 단계별 사람 확인/실행 증거 대기"
+    },
+    {
+      "at": "2026-10-08T17:14:40+09:00",
+      "text": "단계 STEP-004 pending: STEP-003 실제 운영 적용 후 1489 건별 전송 승인·실행·사용자 판정 필요. 실제 호출 없음"
+    },
+    {
+      "at": "2026-10-08T17:14:40+09:00",
+      "text": "단계 → blocked: 로컬 STEP-002 완료. STEP-003 운영 호스트 사용자 실행/확인 대기; commit·merge 수동"
     }
   ],
-  "updated_at": "2026-10-07T23:46:34+09:00"
+  "updated_at": "2026-10-08T17:14:41+09:00",
+  "resume_phase": "implementing",
+  "proof_history": [
+    {
+      "key": "tests",
+      "previous": {
+        "result": "pending"
+      }
+    },
+    {
+      "key": "postgres",
+      "previous": {
+        "result": "pending"
+      }
+    },
+    {
+      "key": "frontend",
+      "previous": {
+        "result": "pending"
+      }
+    }
+  ]
 }

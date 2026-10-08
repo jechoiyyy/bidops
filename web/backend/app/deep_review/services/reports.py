@@ -509,7 +509,7 @@ class ReportService:
                              "policy_version_id": str(review.policy_version_id), "created_at": _iso(_now()),
                              "quality_status": quality_status_for_review(session, review.id)},
                             claim_payloads, stage_payloads, unknowns=unknowns, recommendation=recommendation,
-                            status=status, limitations=[*verification_limits, *contexts.get("bundle_limitations", ()), *list(dict.fromkeys(row["message"] for row in [*notation_checks, *contexts.get("related_claim_checks", [])])), *(["종합 권고를 확정할 수 없어 보류로 표시합니다. 원문과 분석 근거를 확인하십시오."] if recommendation_unknown else [])])
+                            status=status, limitations=[*verification_limits, *contexts.get("bundle_limitations", ()), *list(dict.fromkeys(row["message"] for row in [*notation_checks, *contexts.get("related_claim_checks", []), *contexts.get("validation_repair_checks", [])])), *(["종합 권고를 확정할 수 없어 보류로 표시합니다. 원문과 분석 근거를 확인하십시오."] if recommendation_unknown else [])])
             _, checks, _ = self._validation_result(report, uuid4(), uuid4(), review, stage_payloads, evidence_payloads, contexts, segment_checks=segment_checks)
             report["validation_summary"].update({key: sum(check["status"] == value for check in checks) for key, value in (("failed", "failed"), ("warnings", "warning"), ("passed", "passed"))})
             return report, stage_payloads, evidence_payloads, contexts, segment_checks
@@ -658,6 +658,23 @@ class ReportService:
             for invocation in (stage.invocation_metadata if isinstance(stage.invocation_metadata, list) else [])
             for diagnostic in invocation.get("related_claim_diagnostics", [])
         ])
+        repaired_slices = sorted({
+            (stage.stage, int(invocation.get("slice_index", 0)))
+            for stage in stages
+            for invocation in (stage.invocation_metadata if isinstance(stage.invocation_metadata, list) else [])
+            if isinstance(invocation, Mapping)
+            and invocation.get("status") == "succeeded"
+            and type(invocation.get("validation_repair_attempt")) is int
+            and invocation["validation_repair_attempt"] > 0
+        })
+        contexts["validation_repair_checks"] = [{
+            "check_type": "validation_repair_applied",
+            "status": "warning",
+            "severity": "보통",
+            "message": f"{stage_name} 단계 {slice_index}번 slice는 결정적 검증 실패 뒤 같은 동결 입력으로 1회 교정 재요청했습니다.",
+            "related_claim_ids": [],
+            "related_evidence_ids": [],
+        } for stage_name, slice_index in repaired_slices]
         return stage_payloads, evidence, contexts
 
     def _claim_stage(self, session: Session, claim_id: str) -> UUID | None:
@@ -884,6 +901,7 @@ class ReportService:
         elif report.get("schema") == "bidops.deep-review-report.v2":
             checks.extend(narrative_numeric_warnings(report.get("claims", []), evidence))
         checks.extend(contexts.get("related_claim_checks", []))
+        checks.extend(contexts.get("validation_repair_checks", []))
         if any(check["status"] == "failed" for check in checks):
             status = "failed"
         validation_payload = {

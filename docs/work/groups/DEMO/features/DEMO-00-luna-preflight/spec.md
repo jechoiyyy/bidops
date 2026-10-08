@@ -21,8 +21,8 @@
 - 필수 근거 FK·인용·숫자·coverage 검사를 경고로 낮추거나 끄지 않는다. 선택적 related_claim 경고 규칙(v2)은 유지할 수 있다.
 - 승인 경로 매핑 `_approved_policy_path`는 지금 정책 내용(`validation.result_checks`·`related_claim_policy`)으로 v1~v3를 고르므로,
   v2 검증을 유지하는 v4는 그대로면 v2 파일로 매핑돼 "승인되지 않은 analysis policy"로 거부된다.
-  v4에는 v1~v3에 없는 고유 식별 필드(예: `policy_label`)를 두고 매핑이 그 필드를 v1~v3 판별보다 먼저 검사한다.
-  필드 이름은 STEP-002에서 정해 이 spec과 공통 계약 §5에 적고 T1로 고정한다. 기존 v1~v3 파일·매핑·DB 행은 바꾸지 않는다.
+  v4에는 v1~v3에 없는 고유 식별 필드 `policy_identity:"analysis-policy-luna-v4"`를 두고 매핑이 이 필드를 v1~v3 판별보다 먼저 검사한다.
+  모르는 `policy_identity`는 내용 기반 판별로 낮추지 않고 거부한다. 기존 v1~v3 파일·매핑·DB 행은 바꾸지 않는다.
 - 검토 마감(2026-10-07 결정): 코드가 정책 `execution.review_timeout_seconds`를 읽어 검토 전체 마감으로 쓴다(지금은 `deep_reviews.py:1584`에 7200 고정).
   v1~v3 정책은 값이 7200이라 동작이 바뀌지 않는다. v4는 18000(5시간)이다. 1489는 원문 단위 19개라 최소 39회 호출(약 3.5시간)이다.
 - 교정 재요청(2026-10-07 결정): 1·2단계 slice 응답이 결정적 검증(형식·근거 FK·필수 검사)에서 실패하면 같은 slice에 한해 1회,

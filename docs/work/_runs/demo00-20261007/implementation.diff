@@ -1,0 +1,1797 @@
+diff --git a/docs/0922_luna-deep-review/apply.md b/docs/0922_luna-deep-review/apply.md
+index 2025e32..d4faba2 100644
+--- a/docs/0922_luna-deep-review/apply.md
++++ b/docs/0922_luna-deep-review/apply.md
+@@ -175,3 +175,11 @@ DB의 append-only 정책/실행/승인 기록은 삭제·수정하지 않는다.
+ policy UUID를 env/luna.env에 반영·서비스 재생성 → 1489 새 미리보기·전송 승인 순서다.
+ 승인 화면에 검증 미실시가 보이는 것을 확인하고 새 검토로 생성한다. 이전 실패는 보존한다.
+ 검증 결과/남은 범위: [검증 기록](../validation-runs/20260923-luna-validation-off/README.md).
++
++## Luna v4 로컬 구현 상태 (2026-10-08)
++
++`analysis-policy-luna-v4`와 정책 identity·5시간 마감·1·2단계 slice당 1회 교정 계약은
++[DEMO-00 STEP-002 명세](../work/groups/DEMO/features/DEMO-00-luna-preflight/spec.md)에 따라 로컬
++후보로 구현됐다. 원인 분류와 미검증 한계는 [선검증 기록](../validation-runs/20261007-luna-v4-preflight/README.md)을 따른다.
++아직 운영 이미지 배포, 정책 import·활성 env 반영, 1489 미리보기·승인·실제 Luna 호출은 수행하지 않았다.
++위 역사적 v1~v3 결과와 적용 기록은 그대로이며, v4 운영 적용은 DEMO-00 STEP-003에서 각 단계 직전 확인 후 진행한다.
+diff --git a/docs/contracts.md b/docs/contracts.md
+index 1940399..6bacbb0 100644
+--- a/docs/contracts.md
++++ b/docs/contracts.md
+@@ -1871,6 +1871,20 @@ validation_failed 등 안전 코드로 남는다. 일부 성공 보고서는 발
+ 검사: 저장된 v2 실패 응답의 후보 코드 replay, 기존 회귀+새 off/해시/근거 FK 차단,
+ PostgreSQL 17.11 저장·REST, 두 폭 경고와 승인 미리보기. 운영 적용/새 호출은 검사 후 진행.
+ 
++### Luna v4 정책·slice 교정 계약 (2026-10-08, 로컬 구현)
++
++새 불변 `analysis-policy-luna-v4.json`은 `policy_identity=analysis-policy-luna-v4`로 승인 파일을
++명시하며, 매핑은 이 값을 v1~v3 내용 기반 판별보다 먼저 확인한다. 모르는 identity는 거부한다.
++정책 `execution.review_timeout_seconds=18000`이 검토 전체 Luna deadline이고,
++`execution.validation_repair_attempts=1`은 1·2단계의 각 slice에만 적용된다. 최초 응답이
++형식·근거 FK·필수 결정 검사를 통과하지 못하면 승인된 같은 동결 입력에 안전한 오류 code와
++필드 위치만 더해 완전한 대체 응답을 최대 한 번 요청한다. 3단계 종합과 v1~v3는 자동 교정하지 않는다.
++두 원응답은 기존 model-response aggregate 모양을 유지해 암호화 보존하고, 호출 metadata와
++보고서 `validation_repair_applied` warning에 교정 사실을 남긴다. 교정 응답도 같은 인용·숫자·
++coverage·considered·전제·근거 검사를 모두 통과해야 하며 검사를 끄거나 warning으로 낮추지 않는다.
++이 절은 [DEMO-00 STEP-002](work/groups/DEMO/features/DEMO-00-luna-preflight/spec.md)의 로컬 구현
++계약이며 운영 배포·정책 import·실제 Luna 호출 또는 품질 검증 완료를 뜻하지 않는다.
++
+ ## 1489번 가정 분석 v1 (2026-09-23, 운영 적용 전)
+ 
+ 기존 심층검토와 별도 계약이다. [작업 명세](0923_assumption-analysis/spec.md)를 따른다.
+diff --git a/docs/work/demo-contract.md b/docs/work/demo-contract.md
+index 9db0072..0af689c 100644
+--- a/docs/work/demo-contract.md
++++ b/docs/work/demo-contract.md
+@@ -212,7 +212,8 @@ graph_nodes/edges에는 경로 해석에 필요한 type/label/value/status/origi
+ 새 demo 정책은 DEMO-00이 운영 1489번으로 검증한 `analysis-policy-luna-v4`에 회사·그래프 입력 설명만 더한다.
+ v4와 demo 정책은 모두 기존 v2의 정상 검증 계약을 기반으로 하며 v3 검증 off를 상속하지 않는다.
+ 승인 정책은 이미지에 포함된 파일과 `_approved_policy_path` 매핑으로만 인정되므로 새 파일마다 매핑과 테스트를 함께 추가한다.
+-매핑은 정책 내용(검증 flag)으로 v1~v3를 고르므로 v4·demo 정책은 고유 식별 필드를 두고 그 필드를 먼저 검사한다(필드 이름은 DEMO-00 STEP-002가 정한다).
++매핑은 정책 내용(검증 flag)으로 v1~v3를 고르므로 v4·demo 정책은 고유 식별 필드 `policy_identity`를 두고 그 필드를 먼저 검사한다.
++v4 값은 `analysis-policy-luna-v4`이며 모르는 값은 내용 기반 v1~v3 판별로 낮추지 않고 거부한다. demo 정책 값과 승인 파일 매핑은 DEMO-03이 추가한다.
+ demo 정책은 v4의 정책 마감(`execution.review_timeout_seconds`, 18000)과 slice 1회 교정 재요청(`execution.validation_repair_attempts`=1)을 그대로 상속한다.
+ 출력 ID와 입력 considered ID의 역할을 프롬프트에 분리하고 필수 근거 FK/인용/숫자/coverage 검사를 유지한다.
+ 기존 선택적 related_claim 경고 규칙은 그대로 가능하나 필수 evidence/전제 실패를 경고로 낮추지 않는다.
+diff --git a/docs/work/groups/DEMO/features/DEMO-00-luna-preflight/plan.md b/docs/work/groups/DEMO/features/DEMO-00-luna-preflight/plan.md
+index cab73f2..91c4da6 100644
+--- a/docs/work/groups/DEMO/features/DEMO-00-luna-preflight/plan.md
++++ b/docs/work/groups/DEMO/features/DEMO-00-luna-preflight/plan.md
+@@ -80,4 +80,15 @@ BIDOPS_PRESPEC_OVERVIEW_ENABLED=false python3 -m pytest tests/app/test_luna_deep
+ 
+ ## 결과
+ 
+-미구현. 실행 후 원인 분류, v4 차이, 실제 결과, 사용자 결정, 커밋 여부를 기록한다.
++2026-10-08 기존 run `demo00-20261007`을 Codex로 재개했다. STEP-001의 원응답 미재검사 한계는 유지한다.
++STEP-002는 v4 정책(`policy_identity=analysis-policy-luna-v4`), 정책 마감, 1·2단계 slice 1회 교정 재요청,
++암호화 원응답 보존과 보고서 경고를 구현했다. 기존 v1~v3 정책 파일은 변경하지 않았다.
++관련 두 테스트 파일의 첫 검사는 일회용 PostgreSQL 17.11 포함 68 passed, 0 skipped다.
++검사 중 마지막 metadata 호환성 수정이 들어가 최종 Luna 영향 검사를 다시 수행해 32 passed, 0 skipped를 확인했다.
++독립 리뷰의 검사 누락 보완 뒤 추가/변경 사례만 10 passed, 29 deselected, 0 skipped이며 제품 코드 hash는 그대로다.
++gpt-5.6-sol/high 독립 리뷰는 runbook 고정 SHA 지적 수정 후 로컬 범위 PASS다.
++최종 검사·독립 리뷰 근거는 `docs/work/_runs/demo00-20261007/`에 기록했다.
++
++STEP-003의 [운영 runbook](../../../../../validation-runs/20261007-luna-v4-preflight/runbook.md)은 준비했다.
++운영 배포·정책 import·활성 ID/토글 변경과 STEP-004 실제 1489 전송·사용자 판정은 미수행이다.
++commit·merge·push는 수행하지 않았고 기능/배치 worktree를 보존한다. 실제 운영 결과 전에는 DEMO-01로 진행하지 않는다.
+diff --git a/docs/work/groups/DEMO/features/DEMO-00-luna-preflight/spec.md b/docs/work/groups/DEMO/features/DEMO-00-luna-preflight/spec.md
+index 5fd0b68..660d824 100644
+--- a/docs/work/groups/DEMO/features/DEMO-00-luna-preflight/spec.md
++++ b/docs/work/groups/DEMO/features/DEMO-00-luna-preflight/spec.md
+@@ -21,8 +21,8 @@
+ - 필수 근거 FK·인용·숫자·coverage 검사를 경고로 낮추거나 끄지 않는다. 선택적 related_claim 경고 규칙(v2)은 유지할 수 있다.
+ - 승인 경로 매핑 `_approved_policy_path`는 지금 정책 내용(`validation.result_checks`·`related_claim_policy`)으로 v1~v3를 고르므로,
+   v2 검증을 유지하는 v4는 그대로면 v2 파일로 매핑돼 "승인되지 않은 analysis policy"로 거부된다.
+-  v4에는 v1~v3에 없는 고유 식별 필드(예: `policy_label`)를 두고 매핑이 그 필드를 v1~v3 판별보다 먼저 검사한다.
+-  필드 이름은 STEP-002에서 정해 이 spec과 공통 계약 §5에 적고 T1로 고정한다. 기존 v1~v3 파일·매핑·DB 행은 바꾸지 않는다.
++  v4에는 v1~v3에 없는 고유 식별 필드 `policy_identity:"analysis-policy-luna-v4"`를 두고 매핑이 이 필드를 v1~v3 판별보다 먼저 검사한다.
++  모르는 `policy_identity`는 내용 기반 판별로 낮추지 않고 거부한다. 기존 v1~v3 파일·매핑·DB 행은 바꾸지 않는다.
+ - 검토 마감(2026-10-07 결정): 코드가 정책 `execution.review_timeout_seconds`를 읽어 검토 전체 마감으로 쓴다(지금은 `deep_reviews.py:1584`에 7200 고정).
+   v1~v3 정책은 값이 7200이라 동작이 바뀌지 않는다. v4는 18000(5시간)이다. 1489는 원문 단위 19개라 최소 39회 호출(약 3.5시간)이다.
+ - 교정 재요청(2026-10-07 결정): 1·2단계 slice 응답이 결정적 검증(형식·근거 FK·필수 검사)에서 실패하면 같은 slice에 한해 1회,
+diff --git a/docs/work/groups/DEMO/features/DEMO-00-luna-preflight/status.json b/docs/work/groups/DEMO/features/DEMO-00-luna-preflight/status.json
+index 741075b..647543e 100644
+--- a/docs/work/groups/DEMO/features/DEMO-00-luna-preflight/status.json
++++ b/docs/work/groups/DEMO/features/DEMO-00-luna-preflight/status.json
+@@ -1,23 +1,24 @@
+ {
+   "schema_version": 2,
+   "feature": "DEMO-00-luna-preflight",
+-  "phase": "review",
++  "phase": "blocked",
+   "steps": [
+     {
+       "id": "STEP-001",
+       "title": "이전 실패 원인 분류",
+       "model": "complex",
+       "fingerprint": "59acb1c817837b00b5cef18af392a56ebe4c9477e0b95b4e10b0c9a61e191a3a",
+-      "status": "pending",
+-      "updated_at": null
++      "status": "done",
++      "updated_at": "2026-10-07T23:48:17+09:00",
++      "note": "기록: docs/validation-runs/20261007-luna-v4-preflight/README.md. 운영 원응답 재검사는 운영 스택이 작업 장비에 없어 미수행(한계 명시)"
+     },
+     {
+       "id": "STEP-002",
+       "title": "v4 정책과 회귀 테스트",
+       "model": "complex",
+       "fingerprint": "0641ee772df6cc8c695edf9594ab3e6b4ee759008c7de73379bdc8f56b01a630",
+-      "status": "stale",
+-      "updated_at": null,
++      "status": "done",
++      "updated_at": "2026-10-08T17:14:40+09:00",
+       "history": [
+         {
+           "id": "STEP-002",
+@@ -45,15 +46,16 @@
+             }
+           ]
+         }
+-      ]
++      ],
++      "note": "v4·마감·교정 구현. PostgreSQL 포함 관련 검사 및 review-02 PASS; docs/work/_runs/demo00-20261007/DEMO-00-luna-preflight.md"
+     },
+     {
+       "id": "STEP-003",
+       "title": "운영 적용",
+       "model": "complex",
+       "fingerprint": "8c0daacdeefcfe366d080203bd2b15b792b7c3f7aa30c0acbbffad75d3caddd2",
+-      "status": "stale",
+-      "updated_at": null,
++      "status": "blocked",
++      "updated_at": "2026-10-08T17:14:40+09:00",
+       "history": [
+         {
+           "id": "STEP-003",
+@@ -63,15 +65,16 @@
+           "status": "pending",
+           "updated_at": null
+         }
+-      ]
++      ],
++      "note": "runbook 준비·독립 리뷰 완료. 수동 commit/merge 및 운영 호스트에서 단계별 사람 확인/실행 증거 대기"
+     },
+     {
+       "id": "STEP-004",
+       "title": "실제 1489 1건과 판정",
+       "model": "standard",
+       "fingerprint": "3ecee6164740d1178b3cb4baaab0bd21193d989796335fcf4db42231be0d6234",
+-      "status": "stale",
+-      "updated_at": null,
++      "status": "pending",
++      "updated_at": "2026-10-08T17:14:40+09:00",
+       "history": [
+         {
+           "id": "STEP-004",
+@@ -81,7 +84,8 @@
+           "status": "pending",
+           "updated_at": null
+         }
+-      ]
++      ],
++      "note": "STEP-003 실제 운영 적용 후 1489 건별 전송 승인·실행·사용자 판정 필요. 실제 호출 없음"
+     }
+   ],
+   "proof": {
+@@ -89,13 +93,43 @@
+       "result": "pending"
+     },
+     "tests": {
+-      "result": "pending"
++      "result": "pass",
++      "method": "command",
++      "note": "최종 Luna 32 passed 및 소스 불변 추가10 passed; narrative 관련 이전 검사 재사용",
++      "evidence": "docs/work/_runs/demo00-20261007/DEMO-00-luna-preflight.md",
++      "exit_code": 0,
++      "actor": "orchestrator",
++      "command": "",
++      "at": "2026-10-08T17:14:40+09:00",
++      "head": "d12df664b27f28efab1825281567d9bf1b6f9981",
++      "source_hash": "b10b1f2c81f286e2b0564edec8c0b3f543494f87a6e61a582c6c162ca05b29b1",
++      "spec_hash": "6a6c2b91a760244b809a48f20501e84362a90520afaf7f82ae75f717c78fbd4e"
+     },
+     "postgres": {
+-      "result": "pending"
++      "result": "pass",
++      "method": "command",
++      "note": "일회용 PostgreSQL 17.11 관련 두 파일 변형 포함, skip 없음",
++      "evidence": "docs/work/_runs/demo00-20261007/DEMO-00-luna-preflight.md",
++      "exit_code": 0,
++      "actor": "orchestrator",
++      "command": "",
++      "at": "2026-10-08T17:14:40+09:00",
++      "head": "d12df664b27f28efab1825281567d9bf1b6f9981",
++      "source_hash": "b10b1f2c81f286e2b0564edec8c0b3f543494f87a6e61a582c6c162ca05b29b1",
++      "spec_hash": "6a6c2b91a760244b809a48f20501e84362a90520afaf7f82ae75f717c78fbd4e"
+     },
+     "frontend": {
+-      "result": "pending"
++      "result": "not_applicable",
++      "method": "command",
++      "note": "프론트엔드 코드 변경 없음",
++      "evidence": "docs/work/_runs/demo00-20261007/DEMO-00-luna-preflight.md",
++      "exit_code": null,
++      "actor": "orchestrator",
++      "command": "",
++      "at": "2026-10-08T17:14:41+09:00",
++      "head": "d12df664b27f28efab1825281567d9bf1b6f9981",
++      "source_hash": "b10b1f2c81f286e2b0564edec8c0b3f543494f87a6e61a582c6c162ca05b29b1",
++      "spec_hash": "6a6c2b91a760244b809a48f20501e84362a90520afaf7f82ae75f717c78fbd4e"
+     },
+     "api_guard": {
+       "result": "pending"
+@@ -124,7 +158,60 @@
+     {
+       "at": "2026-10-07T23:46:34+09:00",
+       "text": "plan 작업 ID 동기화"
++    },
++    {
++      "at": "2026-10-07T23:47:34+09:00",
++      "text": "단계 → implementing: run demo00-20261007, 기능 worktree .sdlc/worktrees/demo00-20261007-DEMO-00-luna-preflight"
++    },
++    {
++      "at": "2026-10-07T23:47:47+09:00",
++      "text": "단계 STEP-001 in_progress: "
++    },
++    {
++      "at": "2026-10-07T23:48:17+09:00",
++      "text": "단계 STEP-001 done: 기록: docs/validation-runs/20261007-luna-v4-preflight/README.md. 운영 원응답 재검사는 운영 스택이 작업 장비에 없어 미수행(한계 명시)"
++    },
++    {
++      "at": "2026-10-07T23:48:17+09:00",
++      "text": "단계 STEP-002 in_progress: "
++    },
++    {
++      "at": "2026-10-08T17:14:40+09:00",
++      "text": "단계 STEP-002 done: v4·마감·교정 구현. PostgreSQL 포함 관련 검사 및 review-02 PASS; docs/work/_runs/demo00-20261007/DEMO-00-luna-preflight.md"
++    },
++    {
++      "at": "2026-10-08T17:14:40+09:00",
++      "text": "단계 STEP-003 blocked: runbook 준비·독립 리뷰 완료. 수동 commit/merge 및 운영 호스트에서 단계별 사람 확인/실행 증거 대기"
++    },
++    {
++      "at": "2026-10-08T17:14:40+09:00",
++      "text": "단계 STEP-004 pending: STEP-003 실제 운영 적용 후 1489 건별 전송 승인·실행·사용자 판정 필요. 실제 호출 없음"
++    },
++    {
++      "at": "2026-10-08T17:14:40+09:00",
++      "text": "단계 → blocked: 로컬 STEP-002 완료. STEP-003 운영 호스트 사용자 실행/확인 대기; commit·merge 수동"
+     }
+   ],
+-  "updated_at": "2026-10-07T23:46:34+09:00"
++  "updated_at": "2026-10-08T17:14:41+09:00",
++  "resume_phase": "implementing",
++  "proof_history": [
++    {
++      "key": "tests",
++      "previous": {
++        "result": "pending"
++      }
++    },
++    {
++      "key": "postgres",
++      "previous": {
++        "result": "pending"
++      }
++    },
++    {
++      "key": "frontend",
++      "previous": {
++        "result": "pending"
++      }
++    }
++  ]
+ }
+diff --git a/web/backend/app/deep_review/services/deep_reviews.py b/web/backend/app/deep_review/services/deep_reviews.py
+index 0698424..d474049 100644
+--- a/web/backend/app/deep_review/services/deep_reviews.py
++++ b/web/backend/app/deep_review/services/deep_reviews.py
+@@ -89,8 +89,29 @@ _SAFE_INVOCATION_KEYS = frozenset({
+     "model", "policy_sha256", "prompt_tokens", "output_tokens", "latency_ms",
+     "status", "error_code", "retry_index", "fixed_input_hash", "safe",
+     "attempts", "provider", "cli_version", "reasoning_effort",
++    "validation_repair_attempt", "validation_repair_issues",
+ })
+ 
++_NARRATIVE_ERROR_PATHS = {
++    "narrative_schema_required": "$.schema",
++    "considered_claim_out_of_slice": "$.considered_claim_ids",
++    "source_coverage_mismatch": "$.coverage",
++    "requirement_coverage_mismatch": "$.claims[*].requirement_ids",
++    "claim_source_out_of_slice": "$.claims[*].source_unit_ids",
++    "coverage_claim_missing": "$.coverage[*].claim_ids",
++    "coverage_without_analysis": "$.coverage[*].claim_ids",
++    "synthesis_source_out_of_slice": "$.claims[*].source_unit_ids",
++    "synthesis_coverage_mismatch": "$.considered_claim_ids",
++    "synthesis_claim_omission": "$.claims[*].related_claim_ids",
++    "recommendation_scope_mismatch": "$.claims[*].narrative_role",
++    "claim_relation_out_of_slice": "$.claims[*].related_claim_ids|premise_claim_ids",
++    "evidence_out_of_slice": "$.claims[*].evidence_ids",
++    "document_evidence_out_of_slice": "$.evidence[*]",
++    "profile_evidence_out_of_slice": "$.evidence[*].profile_evidence_id",
++    "local_identifier_redefinition": "$.claims[*].claim_id|evidence[*].evidence_id",
++    "local_identifier_invalid": "$.claims[*].claim_id|evidence[*].evidence_id",
++}
++
+ 
+ class DeepReviewServiceError(RuntimeError):
+     def __init__(self, code: str, message: str, *, status_code: int = 400, request_id: UUID | None = None) -> None:
+@@ -174,6 +195,57 @@ def _safe_invocation_metadata(value: Mapping[str, Any] | Any) -> dict[str, Any]:
+     return output
+ 
+ 
++def _policy_execution_limit(
++    policy: Mapping[str, Any],
++    key: str,
++    *,
++    default: int,
++    minimum: int,
++    maximum: int,
++) -> int:
++    execution = policy.get("execution", {})
++    if not isinstance(execution, Mapping):
++        raise DeepReviewServiceError("service_unavailable", "analysis policy execution 설정이 올바르지 않습니다", status_code=503)
++    value = execution.get(key, default)
++    if type(value) is not int or not minimum <= value <= maximum:
++        raise DeepReviewServiceError("service_unavailable", f"analysis policy {key} 설정이 올바르지 않습니다", status_code=503)
++    return value
++
++
++def _safe_issue_path(path: Any) -> str:
++    """Return a bounded field-only JSON path for repair feedback."""
++
++    if not isinstance(path, str) or not path.startswith("$"):
++        return "$"
++    clean = re.sub(r"\[\d+\]", "[*]", path)
++    if len(clean) > 160 or not re.fullmatch(r"\$(?:\.[A-Za-z_][A-Za-z0-9_]*|\[\*\])*", clean):
++        return "$"
++    return clean
++
++
++def _validation_repair_issues(error: Exception) -> list[dict[str, str]]:
++    """Project validator failures to code + field location only.
++
++    Model text, quotes, validator messages, and identifiers never enter the
++    correction prompt or persisted diagnostics.
++    """
++
++    if isinstance(error, narrative_inputs.NarrativeInputError):
++        code = error.code if re.fullmatch(r"[a-z0-9_]{1,80}", error.code) else "narrative_invalid"
++        return [{"code": f"narrative:{code}", "path": _NARRATIVE_ERROR_PATHS.get(code, "$")}]
++    if isinstance(error, DeepReviewValidationError):
++        result: list[dict[str, str]] = []
++        for issue in error.issues[:20]:
++            code = issue.code if re.fullmatch(r"[a-z0-9_]{1,80}", issue.code) else "contract_invalid"
++            row = {"code": f"validation:{code}", "path": _safe_issue_path(issue.path)}
++            if row not in result:
++                result.append(row)
++        return result or [{"code": "validation:contract_invalid", "path": "$"}]
++    if isinstance(error, ModelInvocationError) and error.code == "schema_invalid":
++        return [{"code": "schema_invalid", "path": "$"}]
++    return []
++
++
+ def _resolve_exact_evidence_quotes(
+     payload: Mapping[str, Any],
+     structures: Mapping[str, Mapping[str, Any]],
+@@ -1237,7 +1309,11 @@ class DeepReviewService:
+         responses: list[dict[str, Any]] = []
+         ordered_records = sorted(
+             enumerate(raw_records),
+-            key=lambda item: (item[1][1].get("slice_index", item[0]) if isinstance(item[1][1], Mapping) else item[0], item[0]),
++            key=lambda item: (
++                item[1][1].get("slice_index", item[0]) if isinstance(item[1][1], Mapping) else item[0],
++                item[1][1].get("validation_repair_attempt", 0) if isinstance(item[1][1], Mapping) else 0,
++                item[0],
++            ),
+         )
+         for fallback_index, (_source_index, (result, metadata)) in enumerate(ordered_records):
+             try:
+@@ -1245,7 +1321,11 @@ class DeepReviewService:
+             except (AttributeError, UnicodeDecodeError) as exc:
+                 raise DeepReviewServiceError("processing_failed", "model raw response가 UTF-8 JSON이 아닙니다", status_code=500) from exc
+             slice_index = metadata.get("slice_index", fallback_index) if isinstance(metadata, Mapping) else fallback_index
+-            responses.append({"slice_index": slice_index, "response_sha256": hashlib.sha256(result.raw_response).hexdigest(), "raw_response": raw_text})
++            responses.append({
++                "slice_index": slice_index,
++                "response_sha256": hashlib.sha256(result.raw_response).hexdigest(),
++                "raw_response": raw_text,
++            })
+         return json.dumps({"schema": "bidops.model-response-aggregate.v1", "responses": responses}, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+ 
+     @staticmethod
+@@ -1581,7 +1661,13 @@ class DeepReviewService:
+             previous_outputs: list[Mapping[str, Any]] = prefix_outputs
+             known_claim_ids: set[str] = prefix_claim_ids
+             known_evidence_ids: set[str] = prefix_evidence_ids
+-            luna_deadline = time.monotonic() + 7200
++            review_timeout_seconds = _policy_execution_limit(
++                policy_payload, "review_timeout_seconds", default=7200, minimum=1, maximum=86400,
++            )
++            validation_repair_attempts = _policy_execution_limit(
++                policy_payload, "validation_repair_attempts", default=0, minimum=0, maximum=1,
++            )
++            luna_deadline = time.monotonic() + review_timeout_seconds
+             for stage_name in STAGES:
+                 stage_invocations: list[Mapping[str, Any]] = []
+                 stage_row = session.scalar(select(DeepReviewStage).where(DeepReviewStage.attempt_id == claim.attempt_id, DeepReviewStage.stage == stage_name).limit(1))
+@@ -1608,67 +1694,130 @@ class DeepReviewService:
+                 invocation_metadata: list[dict[str, Any]] = []
+                 raw_records: list[tuple[InvocationResult, Mapping[str, Any]]] = []
+                 for slice_index, input_slice in enumerate(slices):
+-                    invocation_input = {
++                    base_invocation_input = {
+                         **input_slice,
+                         "notice_id": pinned_notice_id,
+                         "deep_review_id": str(review_id),
+                         "attempt_id": str(attempt_id),
+                         "stage": stage_name,
+                     }
+-                    try:
+-                        self._renew_lease(session, claim, require_live=luna)
+-                        result = client.invoke(
+-                            stage_name,
+-                            invocation_input,
+-                            policy_payload,
+-                            profile={"profile_version_id": pinned_profile_id, "profile_sha256": pinned_profile_sha256} if stage_name == STAGES[1] else None,
+-                            prior_stages=(),
+-                        )
++                    frozen_slice_sha256 = _canonical_hash(base_invocation_input)
++                    repair_feedback: list[dict[str, str]] = []
++                    for repair_attempt in range(validation_repair_attempts + 1):
++                        invocation_input = deepcopy(base_invocation_input)
++                        if repair_attempt:
++                            invocation_input["validation_repair"] = {
++                                "attempt": repair_attempt,
++                                "instruction": "Return a complete replacement response. Correct only the listed validation failures; all frozen source inputs and identifiers remain authoritative.",
++                                "issues": deepcopy(repair_feedback),
++                            }
++                        try:
++                            self._renew_lease(session, claim, require_live=luna)
++                            result = client.invoke(
++                                stage_name,
++                                invocation_input,
++                                policy_payload,
++                                profile={"profile_version_id": pinned_profile_id, "profile_sha256": pinned_profile_sha256} if stage_name == STAGES[1] else None,
++                                prior_stages=(),
++                            )
++                        except ModelInvocationError as error:
++                            if error.raw_response:
++                                raw_records.append((
++                                    InvocationResult({}, error.raw_response, _canonical_hash(invocation_input), hashlib.sha256(error.raw_response).hexdigest(), None, None, 0, (), pinned_provider, pinned_model_name),
++                                    {"slice_index": slice_index, "validation_repair_attempt": repair_attempt},
++                                ))
++                            safe_attempts = [_safe_invocation_attempt(item) for item in error.attempts]
++                            issues = _validation_repair_issues(error)
++                            failure_observation = {
++                                "slice_index": slice_index,
++                                "input_slice_sha256": frozen_slice_sha256,
++                                "status": "validation_failed" if issues else "failed",
++                                "error_code": error.code,
++                                **({"validation_repair_attempt": repair_attempt} if validation_repair_attempts else {}),
++                                **({"response_sha256": hashlib.sha256(error.raw_response).hexdigest()} if error.raw_response else {}),
++                                **({"validation_repair_issues": issues} if issues else {}),
++                                "attempts": safe_attempts,
++                            }
++                            invocation_metadata.append(failure_observation)
++                            stage_invocations.append(failure_observation)
++                            if (
++                                issues
++                                and error.raw_response
++                                and narrative
++                                and stage_name in STAGES[:2]
++                                and repair_attempt < validation_repair_attempts
++                            ):
++                                repair_feedback = issues
++                                continue
++                            raise DeepReviewServiceError(error.code, "승인된 model invocation이 실패했습니다", status_code=503)
+                         if luna:
+                             self._renew_lease(session, claim, require_live=True)
+                             if time.monotonic() >= luna_deadline:
+                                 raise DeepReviewServiceError("review_timeout", "검토 제한시간 초과", status_code=503)
+-                        raw_records.append((result, {"slice_index": slice_index}))
++                        raw_records.append((result, {"slice_index": slice_index, "validation_repair_attempt": repair_attempt}))
+                         stage_invocations.extend(_safe_invocation_attempt(item) for item in result.attempts)
+-                        chunk_output = _resolve_exact_evidence_quotes(result.structured_output, structures) if source_verification_enabled else deepcopy(result.structured_output)
+-                        relation_diagnostics = []
+-                        if narrative:
+-                            if chunk_output.get("schema") != "bidops.deep-review-stage.v2":
+-                                raise narrative_inputs.NarrativeInputError("narrative_schema_required")
+-                            chunk_output = narrative_inputs.bind_local_ids(chunk_output, input_slice)
+-                            chunk_output, relation_diagnostics = narrative_inputs.project_related_claims(chunk_output, input_slice, policy_payload)
+-                            if result_checks_enabled:
+-                                narrative_inputs.validate_slice_output(chunk_output, input_slice, stage_name, source_verification_enabled=source_verification_enabled)
+-                        # Validate each untrusted chunk before paying for the
+-                        # next provider call.  The final merge repeats this
+-                        # check and adds cross-chunk duplicate/conflict rules.
+-                        # Same-chunk premise/evidence IDs are in scope; future
+-                        # chunks are deliberately not, so output cannot depend
+-                        # on model results that do not exist yet.
+-                        chunk_claim_ids = {
+-                            str(item.get("claim_id"))
+-                            for item in chunk_output.get("claims", [])
+-                            if isinstance(item, Mapping) and item.get("claim_id")
+-                        }
+-                        chunk_evidence_ids = {
+-                            str(item.get("evidence_id"))
+-                            for item in chunk_output.get("evidence", [])
+-                            if isinstance(item, Mapping) and item.get("evidence_id")
+-                        }
+-                        validate_deep_review_stage(
+-                            chunk_output,
+-                            bundle=bundle,
+-                            profile=profile_payload,
+-                            profile_version_id=pinned_profile_id,
+-                            expected_deep_review_id=str(review_id),
+-                            known_claim_ids=({row["claim_id"] for row in input_slice.get("verified_claims", [])} if narrative else known_claim_ids) | chunk_claim_ids,
+-                            known_evidence_ids=({row["evidence_id"] for row in input_slice.get("prior_evidence", [])} if narrative else known_evidence_ids) | chunk_evidence_ids,
+-                            known_evidence=input_slice.get("prior_evidence", []) if narrative else (),
+-                            structures=structures, source_verification_enabled=source_verification_enabled, result_checks_enabled=result_checks_enabled,
+-                        )
++                        try:
++                            chunk_output = _resolve_exact_evidence_quotes(result.structured_output, structures) if source_verification_enabled else deepcopy(result.structured_output)
++                            relation_diagnostics = []
++                            if narrative:
++                                if chunk_output.get("schema") != "bidops.deep-review-stage.v2":
++                                    raise narrative_inputs.NarrativeInputError("narrative_schema_required")
++                                chunk_output = narrative_inputs.bind_local_ids(chunk_output, input_slice)
++                                chunk_output, relation_diagnostics = narrative_inputs.project_related_claims(chunk_output, input_slice, policy_payload)
++                                if result_checks_enabled:
++                                    narrative_inputs.validate_slice_output(chunk_output, input_slice, stage_name, source_verification_enabled=source_verification_enabled)
++                            # Validate each untrusted chunk before paying for the
++                            # next provider call. The final merge repeats this
++                            # check and adds cross-chunk duplicate/conflict rules.
++                            chunk_claim_ids = {
++                                str(item.get("claim_id"))
++                                for item in chunk_output.get("claims", [])
++                                if isinstance(item, Mapping) and item.get("claim_id")
++                            }
++                            chunk_evidence_ids = {
++                                str(item.get("evidence_id"))
++                                for item in chunk_output.get("evidence", [])
++                                if isinstance(item, Mapping) and item.get("evidence_id")
++                            }
++                            validate_deep_review_stage(
++                                chunk_output,
++                                bundle=bundle,
++                                profile=profile_payload,
++                                profile_version_id=pinned_profile_id,
++                                expected_deep_review_id=str(review_id),
++                                known_claim_ids=({row["claim_id"] for row in input_slice.get("verified_claims", [])} if narrative else known_claim_ids) | chunk_claim_ids,
++                                known_evidence_ids=({row["evidence_id"] for row in input_slice.get("prior_evidence", [])} if narrative else known_evidence_ids) | chunk_evidence_ids,
++                                known_evidence=input_slice.get("prior_evidence", []) if narrative else (),
++                                structures=structures, source_verification_enabled=source_verification_enabled, result_checks_enabled=result_checks_enabled,
++                            )
++                        except (narrative_inputs.NarrativeInputError, DeepReviewValidationError) as error:
++                            issues = _validation_repair_issues(error)
++                            failure_observation = {
++                                "slice_index": slice_index,
++                                "input_slice_sha256": frozen_slice_sha256,
++                                "prompt_sha256": result.input_sha256,
++                                "response_sha256": hashlib.sha256(result.raw_response).hexdigest(),
++                                "provider": result.provider or str(getattr(client, "provider_name", "unknown")),
++                                "model": result.model or pinned_model_name,
++                                "policy_sha256": pinned_policy_sha256,
++                                "prompt_tokens": result.prompt_tokens,
++                                "output_tokens": result.output_tokens,
++                                "latency_ms": result.latency_ms,
++                                "status": "validation_failed",
++                                "error_code": issues[0]["code"],
++                                **({"validation_repair_attempt": repair_attempt} if validation_repair_attempts else {}),
++                                "validation_repair_issues": issues,
++                                "attempts": [_safe_invocation_attempt(item) for item in result.attempts],
++                            }
++                            invocation_metadata.append(failure_observation)
++                            stage_invocations.append(failure_observation)
++                            if narrative and stage_name in STAGES[:2] and repair_attempt < validation_repair_attempts:
++                                repair_feedback = issues
++                                continue
++                            raise
+                         safe_attempts = [_safe_invocation_attempt(item) for item in result.attempts]
+                         invocation_metadata.append({
+-                            "slice_index": slice_index, "input_slice_sha256": _canonical_hash(invocation_input), "prompt_sha256": result.input_sha256,
++                            "slice_index": slice_index, "input_slice_sha256": frozen_slice_sha256, "prompt_sha256": result.input_sha256,
+                             "response_sha256": hashlib.sha256(result.raw_response).hexdigest(),
+                             "provider": result.provider or str(getattr(client, "provider_name", "unknown")),
+                             "model": result.model or pinned_model_name,
+@@ -1676,6 +1825,8 @@ class DeepReviewService:
+                             "policy_sha256": pinned_policy_sha256, "prompt_tokens": result.prompt_tokens,
+                             "output_tokens": result.output_tokens, "latency_ms": result.latency_ms,
+                             "status": "succeeded", "attempts": safe_attempts,
++                            **({"validation_repair_attempt": repair_attempt} if validation_repair_attempts else {}),
++                            **({"validation_repair_issues": repair_feedback} if repair_attempt else {}),
+                             **({"related_claim_diagnostics": relation_diagnostics} if relation_diagnostics else {}),
+                             **({"profile_selection": deepcopy(input_slice["profile_selection"])} if narrative and "profile_selection" in input_slice else {}),
+                             **({"synthesis_phase": input_slice["synthesis_phase"]} if narrative and "synthesis_phase" in input_slice else {}),
+@@ -1685,13 +1836,7 @@ class DeepReviewService:
+                             partial_claims = [row for chunk in chunks for row in chunk["claims"]]
+                             all_evidence = {row["evidence_id"]: row for output in [*previous_outputs, *chunks] for row in output["evidence"]}
+                             slices.extend(narrative_inputs.pack_verified(partial_claims, list(all_evidence.values()), budget=16000, phase="global"))
+-                    except ModelInvocationError as error:
+-                        if error.raw_response:
+-                            raw_records.append((InvocationResult({}, error.raw_response, _canonical_hash(invocation_input), hashlib.sha256(error.raw_response).hexdigest(), None, None, 0, (), pinned_provider, pinned_model_name), {"slice_index": slice_index}))
+-                        safe_attempts = [_safe_invocation_attempt(item) for item in error.attempts]
+-                        invocation_metadata.extend({"slice_index": slice_index, "input_slice_sha256": _canonical_hash(invocation_input), **item} for item in safe_attempts)
+-                        stage_invocations.extend({"slice_index": slice_index, "input_slice_sha256": _canonical_hash(invocation_input), **item} for item in safe_attempts)
+-                        raise DeepReviewServiceError(error.code, "승인된 model invocation이 실패했습니다", status_code=503)
++                        break
+                 if luna and not self._injected_client:
+                     client.close()
+                 chunk_orders = {
+@@ -1708,7 +1853,14 @@ class DeepReviewService:
+                 merged = merge_stage_chunks(chunks, bundle=bundle, profile=profile_payload, profile_version_id=pinned_profile_id, expected_deep_review_id=str(review_id), known_claim_ids=known_claim_ids, known_evidence_ids=known_evidence_ids, known_evidence=[row for output in previous_outputs for row in output.get("evidence", [])] if narrative else (), structures=structures, source_verification_enabled=source_verification_enabled, result_checks_enabled=result_checks_enabled, chunk_order_key=lambda chunk: chunk_orders.get(id(chunk), (STAGE_SEQUENCE[stage_name], 0, 0, 0, "", 0)))
+                 known_claim_ids.update(item["claim_id"] for item in merged.get("claims", []))
+                 known_evidence_ids.update(item["evidence_id"] for item in merged.get("evidence", []))
+-                invocation_doc = sorted(invocation_metadata, key=lambda item: (item.get("slice_index", 0), item.get("retry_index", 0)))
++                invocation_doc = sorted(
++                    invocation_metadata,
++                    key=lambda item: (
++                        item.get("slice_index", 0),
++                        item.get("validation_repair_attempt", 0),
++                        item.get("retry_index", 0),
++                    ),
++                )
+                 if invocation_doc:
+                     invocation_doc[0] = {
+                         **invocation_doc[0],
+@@ -1738,7 +1890,10 @@ class DeepReviewService:
+             self._fail_claim(session, claim, stage_row, error.code)
+             raise DeepReviewServiceError(error.code, "동결 입력 검증 실패", status_code=409) from error
+         except narrative_inputs.NarrativeInputError as error:
+-            self._fail_claim(session, claim, stage_row, "validation_failed", [{"status": "failed", "error_code": "narrative:" + error.code}], raw_records if "raw_records" in locals() else ())
++            observations = tuple(invocation_metadata if "invocation_metadata" in locals() else ()) + (
++                {"status": "failed", "error_code": "narrative:" + error.code},
++            )
++            self._fail_claim(session, claim, stage_row, "validation_failed", observations, raw_records if "raw_records" in locals() else ())
+             raise DeepReviewServiceError("validation_failed", "설명형 분석의 입력·출력 범위 검증에 실패했습니다", status_code=500) from error
+         except DeepReviewValidationError as error:
+             # Persist stable validator codes only.  Messages, quotes, locators,
+@@ -1747,11 +1902,12 @@ class DeepReviewService:
+                 {"status": "failed", "error_code": f"validation:{issue.code}"}
+                 for issue in error.issues[:20]
+             )
+-            observations = tuple(stage_invocations if "stage_invocations" in locals() else ()) + diagnostics
++            observations = tuple(invocation_metadata if "invocation_metadata" in locals() else ()) + diagnostics
+             self._fail_claim(session, claim, stage_row, "validation_failed", observations, raw_records if "raw_records" in locals() else ())
+             raise DeepReviewServiceError("processing_failed", "model 결과가 권위 schema를 통과하지 못했습니다", status_code=500)
+         except DeepReviewServiceError as error:
+-            self._fail_claim(session, claim, stage_row, error.code, stage_invocations if "stage_invocations" in locals() else (), raw_records if "raw_records" in locals() else ())
++            observations = invocation_metadata if "invocation_metadata" in locals() else stage_invocations if "stage_invocations" in locals() else ()
++            self._fail_claim(session, claim, stage_row, error.code, observations, raw_records if "raw_records" in locals() else ())
+             raise
+         except Exception as error:
+             self._fail_claim(session, claim, stage_row, "processing_failed")
+diff --git a/web/backend/app/deep_review/services/input_versions.py b/web/backend/app/deep_review/services/input_versions.py
+index e4abe86..87a11b9 100644
+--- a/web/backend/app/deep_review/services/input_versions.py
++++ b/web/backend/app/deep_review/services/input_versions.py
+@@ -697,6 +697,11 @@ def _approved_policy_path(policy: Mapping[str, Any]) -> Path:
+     if policy.get("schema") == POLICY_SCHEMA:
+         return CANONICAL_POLICY_FILE
+     if policy.get("model_endpoint_ref") == "codex-exec":
++        policy_identity = policy.get("policy_identity")
++        if policy_identity is not None:
++            if policy_identity == "analysis-policy-luna-v4":
++                return CANONICAL_POLICY_FILE.with_name("analysis-policy-luna-v4.json")
++            raise InputVersionError("invalid_request", "승인되지 않은 analysis policy identity입니다")
+         version = "v3" if policy.get("validation", {}).get("result_checks") == "disabled_reference_v1" else "v2" if policy.get("validation", {}).get("related_claim_policy") == "omit_invalid_with_warning_v1" else "v1"
+         return CANONICAL_POLICY_FILE.with_name(f"analysis-policy-luna-{version}.json")
+     return CANONICAL_POLICY_FILE.with_name("analysis-policy-narrative-v2.json")
+diff --git a/web/backend/app/deep_review/services/reports.py b/web/backend/app/deep_review/services/reports.py
+index 3b50be3..a0904ad 100644
+--- a/web/backend/app/deep_review/services/reports.py
++++ b/web/backend/app/deep_review/services/reports.py
+@@ -509,7 +509,7 @@ class ReportService:
+                              "policy_version_id": str(review.policy_version_id), "created_at": _iso(_now()),
+                              "quality_status": quality_status_for_review(session, review.id)},
+                             claim_payloads, stage_payloads, unknowns=unknowns, recommendation=recommendation,
+-                            status=status, limitations=[*verification_limits, *contexts.get("bundle_limitations", ()), *list(dict.fromkeys(row["message"] for row in [*notation_checks, *contexts.get("related_claim_checks", [])])), *(["종합 권고를 확정할 수 없어 보류로 표시합니다. 원문과 분석 근거를 확인하십시오."] if recommendation_unknown else [])])
++                            status=status, limitations=[*verification_limits, *contexts.get("bundle_limitations", ()), *list(dict.fromkeys(row["message"] for row in [*notation_checks, *contexts.get("related_claim_checks", []), *contexts.get("validation_repair_checks", [])])), *(["종합 권고를 확정할 수 없어 보류로 표시합니다. 원문과 분석 근거를 확인하십시오."] if recommendation_unknown else [])])
+             _, checks, _ = self._validation_result(report, uuid4(), uuid4(), review, stage_payloads, evidence_payloads, contexts, segment_checks=segment_checks)
+             report["validation_summary"].update({key: sum(check["status"] == value for check in checks) for key, value in (("failed", "failed"), ("warnings", "warning"), ("passed", "passed"))})
+             return report, stage_payloads, evidence_payloads, contexts, segment_checks
+@@ -658,6 +658,23 @@ class ReportService:
+             for invocation in (stage.invocation_metadata if isinstance(stage.invocation_metadata, list) else [])
+             for diagnostic in invocation.get("related_claim_diagnostics", [])
+         ])
++        repaired_slices = sorted({
++            (stage.stage, int(invocation.get("slice_index", 0)))
++            for stage in stages
++            for invocation in (stage.invocation_metadata if isinstance(stage.invocation_metadata, list) else [])
++            if isinstance(invocation, Mapping)
++            and invocation.get("status") == "succeeded"
++            and type(invocation.get("validation_repair_attempt")) is int
++            and invocation["validation_repair_attempt"] > 0
++        })
++        contexts["validation_repair_checks"] = [{
++            "check_type": "validation_repair_applied",
++            "status": "warning",
++            "severity": "보통",
++            "message": f"{stage_name} 단계 {slice_index}번 slice는 결정적 검증 실패 뒤 같은 동결 입력으로 1회 교정 재요청했습니다.",
++            "related_claim_ids": [],
++            "related_evidence_ids": [],
++        } for stage_name, slice_index in repaired_slices]
+         return stage_payloads, evidence, contexts
+ 
+     def _claim_stage(self, session: Session, claim_id: str) -> UUID | None:
+@@ -884,6 +901,7 @@ class ReportService:
+         elif report.get("schema") == "bidops.deep-review-report.v2":
+             checks.extend(narrative_numeric_warnings(report.get("claims", []), evidence))
+         checks.extend(contexts.get("related_claim_checks", []))
++        checks.extend(contexts.get("validation_repair_checks", []))
+         if any(check["status"] == "failed" for check in checks):
+             status = "failed"
+         validation_payload = {
+diff --git a/web/backend/tests/app/test_luna_deep_review.py b/web/backend/tests/app/test_luna_deep_review.py
+index c522106..a7c04ed 100644
+--- a/web/backend/tests/app/test_luna_deep_review.py
++++ b/web/backend/tests/app/test_luna_deep_review.py
+@@ -21,7 +21,7 @@ from app.deep_review.services.luna_inputs import preview
+ from app.deep_review.services.reports import ReportService
+ 
+ 
+-def setup(engine, monkeypatch, *, policy_name='analysis-policy-luna-v1.json'):
++def setup(engine, monkeypatch, *, policy_name='analysis-policy-luna-v1.json', raw_response_store=None):
+     notice, bundle, _, _ = _seed_review_context(engine, monkeypatch, measured=False)
+     with Session(engine) as session:
+         session.get(Notice, notice).source_type = 'pre_spec'
+@@ -44,7 +44,28 @@ def setup(engine, monkeypatch, *, policy_name='analysis-policy-luna-v1.json'):
+     monkeypatch.setenv('BIDOPS_REFERENCE_WORKFLOW_MODE', 'true')
+     monkeypatch.setenv('BIDOPS_LUNA_DEEP_REVIEW_ENABLED', 'true')
+     get_settings.cache_clear()
+-    return notice, bundle, DeepReviewService(client=NarrativeClient(), structure_loader=structure_loader, raw_response_store=_FixtureStore())
++    return notice, bundle, DeepReviewService(client=NarrativeClient(), structure_loader=structure_loader, raw_response_store=raw_response_store or _FixtureStore())
++
++
++class _CapturingEncryptedStore:
++    def __init__(self):
++        self.payloads = []
++
++    def put_encrypted(self, data, *, retention_days, content_type):
++        import hashlib
++        self.payloads.append(data)
++        digest = hashlib.sha256(data).hexdigest()
++        return {
++            'object_key': f'model-response/{digest}', 'encryption_key_ref': 'fixture-encryption-key',
++            'encrypted': True, 'plaintext_sha256': digest, 'plaintext_size_bytes': len(data),
++        }
++
++
++def _create_approved_job(session, service, notice, bundle, *, worker='luna-v4-test'):
++    frozen = preview(service, session, notice, bundle, True)
++    created = service.create_review(session, notice, bundle, 'tester', uuid4(), preview_id=UUID(frozen['preview_id']))
++    job = service.claim_next_job(session, worker)
++    return frozen, created, job
+ 
+ 
+ def exercise(engine, monkeypatch):
+@@ -401,3 +422,340 @@ def test_validation_off_keeps_storage_scope(engine, monkeypatch, corruption):
+ def test_validation_off_postgres(monkeypatch):
+     with migrated_engine() as engine:
+         exercise_validation_off(engine, monkeypatch)
++
++
++def test_luna_v4_policy_identity_is_canonical_and_preserves_legacy_mapping(engine, tmp_path):
++    import hashlib
++    from app.core.model_binding import canonical_json_bytes
++    from app.deep_review.services.input_versions import InputVersionError, load_canonical_policy
++
++    paths = [CANONICAL_POLICY_FILE.with_name(f'analysis-policy-luna-v{version}.json') for version in range(1, 5)]
++    payloads = []
++    for path in paths:
++        payload, canonical, digest = load_canonical_policy(path)
++        assert path.read_bytes() == canonical_json_bytes(payload) == canonical
++        assert digest == hashlib.sha256(path.read_bytes()).hexdigest()
++        payloads.append(payload)
++    assert hashlib.sha256(paths[-1].read_bytes()).hexdigest() == '51b1723051e92299ef53e650f9faf851c8e6777fe75c59b814639d38be887877'
++    assert payloads[-1]['policy_identity'] == 'analysis-policy-luna-v4'
++    assert payloads[-1]['execution'] | {} == {
++        'automatic_retry': False, 'cli_version': '0.155.1', 'review_timeout_seconds': 18000,
++        'timeout_seconds': 900, 'validation_repair_attempts': 1,
++    }
++    assert payloads[-1]['validation'].get('result_checks') is None
++    assert all('policy_identity' not in payload for payload in payloads[:3])
++    assert all('validation_repair_attempts' not in payload['execution'] for payload in payloads[:3])
++
++    mutated_v2 = json.loads(json.dumps(payloads[1]))
++    mutated_v2['prompt_output_contract']['coverage_rule'] += ' changed'
++    candidate = tmp_path / 'candidate.json'
++    candidate.write_bytes(canonical_json_bytes(mutated_v2))
++    with pytest.raises(InputVersionError, match='승인되지 않은'):
++        load_canonical_policy(candidate)
++    unknown = json.loads(json.dumps(payloads[-1]))
++    unknown['policy_identity'] = 'analysis-policy-luna-future'
++    candidate.write_bytes(canonical_json_bytes(unknown))
++    with pytest.raises(InputVersionError, match='identity'):
++        load_canonical_policy(candidate)
++
++    with Session(engine) as session:
++        rows = [import_policy_version(session, path) for path in paths]
++        assert len({row.id for row in rows}) == 4
++        assert [row.policy_sha256 for row in rows] == [hashlib.sha256(path.read_bytes()).hexdigest() for path in paths]
++
++
++@pytest.mark.parametrize(('target_stage', 'failure_kind', 'expected_issue'), [
++    ('requirements_and_evaluation', 'considered', {'code': 'narrative:considered_claim_out_of_slice', 'path': '$.considered_claim_ids'}),
++    ('requirements_and_evaluation', 'evidence', {'code': 'narrative:evidence_out_of_slice', 'path': '$.claims[*].evidence_ids'}),
++    ('delivery_risk_economics', 'evidence', {'code': 'narrative:evidence_out_of_slice', 'path': '$.claims[*].evidence_ids'}),
++])
++def test_luna_v4_repairs_one_invalid_slice_with_same_approval_and_encrypted_originals(
++    engine, monkeypatch, target_stage, failure_kind, expected_issue,
++):
++    from copy import deepcopy
++    from dataclasses import replace
++
++    store = _CapturingEncryptedStore()
++    notice, bundle, service = setup(engine, monkeypatch, policy_name='analysis-policy-luna-v4.json', raw_response_store=store)
++    original = service.client.invoke
++    target_call_count = 0
++
++    def invoke(*args, **kwargs):
++        nonlocal target_call_count
++        result = original(*args, **kwargs)
++        if args[0] == target_stage:
++            target_call_count += 1
++            if target_call_count == 1:
++                output = deepcopy(result.structured_output)
++                if failure_kind == 'considered':
++                    output['considered_claim_ids'] = [output['claims'][0]['claim_id']]
++                else:
++                    output['claims'][0]['evidence_ids'] = [str(uuid4())]
++                return replace(result, structured_output=output, raw_response=json.dumps(output).encode())
++        return result
++
++    service.client.invoke = invoke
++    with Session(engine) as session:
++        frozen, created, job = _create_approved_job(session, service, notice, bundle)
++        service.run_claim(session, job)
++        assert service.view(session, job.deep_review_id)['status'] == 'completed'
++        assert target_call_count == 2
++        calls = [call for call in service.client.calls if call['stage'] == target_stage]
++        assert len(calls) == 2
++        repair = deepcopy(calls[1])
++        feedback = repair.pop('validation_repair')
++        assert repair == calls[0]
++        assert feedback['attempt'] == 1
++        assert feedback['issues'] == [expected_issue]
++        assert set(feedback['issues'][0]) == {'code', 'path'}
++
++        approval = session.scalar(select(DeepReviewApproval).where(DeepReviewApproval.attempt_id == job.attempt_id))
++        approved_preview = session.get(DeepReviewPreview, approval.preview_id)
++        assert str(approval.preview_id) == frozen['preview_id']
++        assert approved_preview.input_sha256 == frozen['input_sha256']
++        assert len(session.scalars(select(DeepReviewApproval)).all()) == 1
++
++        stage = session.scalar(select(DeepReviewStage).where(
++            DeepReviewStage.attempt_id == job.attempt_id, DeepReviewStage.stage == target_stage,
++        ))
++        repair_rows = [row for row in stage.invocation_metadata if row.get('slice_index') == 0]
++        assert [row['validation_repair_attempt'] for row in repair_rows] == [0, 1]
++        assert [row['status'] for row in repair_rows] == ['validation_failed', 'succeeded']
++        assert len({row['input_slice_sha256'] for row in repair_rows}) == 1
++        assert all(set(issue) == {'code', 'path'} for row in repair_rows for issue in row['validation_repair_issues'])
++        location = session.scalar(select(ContentObjectLocation).where(ContentObjectLocation.content_object_id == stage.raw_response_content_object_id))
++        assert location.namespace_key == 'model-response'
++        assert location.encryption_key_ref == 'fixture-encryption-key'
++        content = session.get(ContentObject, stage.raw_response_content_object_id)
++        aggregate = json.loads(next(data for data in store.payloads if __import__('hashlib').sha256(data).hexdigest() == content.sha256))
++        assert len(aggregate['responses']) == 2
++        assert all(set(row) == {'slice_index', 'response_sha256', 'raw_response'} for row in aggregate['responses'])
++        assert aggregate['responses'][0]['response_sha256'] != aggregate['responses'][1]['response_sha256']
++
++        report = ReportService().get_report(session, UUID(created['id']))
++        warnings = [row for row in report['validation']['checks'] if row['check_type'] == 'validation_repair_applied']
++        assert len(warnings) == 1 and warnings[0]['status'] == 'warning'
++        assert warnings[0]['message'] in report['report']['analysis_limitations']
++
++
++def test_luna_v4_projects_optional_related_claim_warning_without_repair(engine, monkeypatch):
++    from copy import deepcopy
++    from dataclasses import replace
++
++    notice, bundle, service = setup(engine, monkeypatch, policy_name='analysis-policy-luna-v4.json')
++    original = service.client.invoke
++    target_calls = 0
++
++    def invoke(*args, **kwargs):
++        nonlocal target_calls
++        result = original(*args, **kwargs)
++        if args[0] == 'requirements_and_evaluation':
++            target_calls += 1
++            output = deepcopy(result.structured_output)
++            output['claims'][0]['related_claim_ids'] = [output['evidence'][0]['evidence_id']]
++            return replace(result, structured_output=output, raw_response=json.dumps(output).encode())
++        return result
++
++    service.client.invoke = invoke
++    with Session(engine) as session:
++        _frozen, created, job = _create_approved_job(session, service, notice, bundle)
++        service.run_claim(session, job)
++        assert target_calls == 1
++        assert all('validation_repair' not in call for call in service.client.calls)
++        report = ReportService().get_report(session, UUID(created['id']))
++        relation = [row for row in report['validation']['checks'] if row['check_type'] == 'related_claim_out_of_scope_omitted']
++        assert len(relation) == 1 and relation[0]['status'] == 'warning'
++        assert not any(row['check_type'] == 'validation_repair_applied' for row in report['validation']['checks'])
++        assert report['report']['claims'][0]['related_claim_ids'] == []
++
++
++def test_luna_v4_stops_after_one_failed_repair_and_preserves_both_responses(engine, monkeypatch):
++    from copy import deepcopy
++    from dataclasses import replace
++
++    store = _CapturingEncryptedStore()
++    notice, bundle, service = setup(engine, monkeypatch, policy_name='analysis-policy-luna-v4.json', raw_response_store=store)
++    original = service.client.invoke
++    target_calls = 0
++
++    def invoke(*args, **kwargs):
++        nonlocal target_calls
++        result = original(*args, **kwargs)
++        if args[0] == 'requirements_and_evaluation':
++            target_calls += 1
++            output = deepcopy(result.structured_output)
++            output['claims'][0]['evidence_ids'] = [str(uuid4())]
++            return replace(result, structured_output=output, raw_response=json.dumps(output).encode())
++        return result
++
++    service.client.invoke = invoke
++    with Session(engine) as session:
++        _frozen, _created, job = _create_approved_job(session, service, notice, bundle)
++        with pytest.raises(DeepReviewServiceError, match='범위 검증'):
++            service.run_claim(session, job)
++        assert target_calls == 2
++        stage = session.scalar(select(DeepReviewStage).where(DeepReviewStage.attempt_id == job.attempt_id, DeepReviewStage.sequence == 1))
++        assert [row.get('validation_repair_attempt') for row in stage.invocation_metadata if row.get('status') == 'validation_failed'] == [0, 1]
++        content = session.get(ContentObject, stage.raw_response_content_object_id)
++        aggregate = json.loads(next(data for data in store.payloads if __import__('hashlib').sha256(data).hexdigest() == content.sha256))
++        assert len(aggregate['responses']) == 2
++        assert session.scalar(select(ReportRevision)) is None
++
++
++@pytest.mark.parametrize('eventual_success', [True, False])
++def test_luna_v4_schema_invalid_repairs_once_and_preserves_encrypted_originals(engine, monkeypatch, eventual_success):
++    import hashlib
++    from app.core.model_client import ModelInvocationError
++
++    store = _CapturingEncryptedStore()
++    notice, bundle, service = setup(engine, monkeypatch, policy_name='analysis-policy-luna-v4.json', raw_response_store=store)
++    original = service.client.invoke
++    target_calls = 0
++    invalid_raw = b'{"schema":"invalid"}'
++
++    def invoke(*args, **kwargs):
++        nonlocal target_calls
++        result = original(*args, **kwargs)
++        if args[0] == 'requirements_and_evaluation':
++            target_calls += 1
++            if target_calls == 1 or not eventual_success:
++                raise ModelInvocationError(
++                    'schema_invalid',
++                    ({'retry_index': 0, 'status': 'failed', 'error_code': 'schema_invalid', 'latency_ms': 7},),
++                    invalid_raw,
++                )
++        return result
++
++    service.client.invoke = invoke
++    with Session(engine) as session:
++        _frozen, created, job = _create_approved_job(session, service, notice, bundle)
++        if eventual_success:
++            service.run_claim(session, job)
++            assert service.view(session, job.deep_review_id)['status'] == 'completed'
++        else:
++            with pytest.raises(DeepReviewServiceError) as error:
++                service.run_claim(session, job)
++            assert error.value.code == 'schema_invalid'
++            assert service.view(session, job.deep_review_id)['status'] == 'failed'
++        assert target_calls == 2
++
++        calls = [call for call in service.client.calls if call['stage'] == 'requirements_and_evaluation']
++        repaired_input = dict(calls[1])
++        feedback = repaired_input.pop('validation_repair')
++        assert repaired_input == calls[0]
++        assert feedback['issues'] == [{'code': 'schema_invalid', 'path': '$'}]
++
++        stage = session.scalar(select(DeepReviewStage).where(DeepReviewStage.attempt_id == job.attempt_id, DeepReviewStage.sequence == 1))
++        repair_rows = [row for row in stage.invocation_metadata if row.get('validation_repair_attempt') in {0, 1}]
++        assert [row['validation_repair_attempt'] for row in repair_rows] == [0, 1]
++        assert [row['status'] for row in repair_rows] == (
++            ['validation_failed', 'succeeded'] if eventual_success else ['validation_failed', 'validation_failed']
++        )
++        location = session.scalar(select(ContentObjectLocation).where(ContentObjectLocation.content_object_id == stage.raw_response_content_object_id))
++        assert location.encryption_key_ref == 'fixture-encryption-key'
++        content = session.get(ContentObject, stage.raw_response_content_object_id)
++        aggregate = json.loads(next(data for data in store.payloads if hashlib.sha256(data).hexdigest() == content.sha256))
++        assert len(aggregate['responses']) == 2
++        assert aggregate['responses'][0]['raw_response'] == invalid_raw.decode()
++        if eventual_success:
++            assert aggregate['responses'][1]['raw_response'] != invalid_raw.decode()
++        else:
++            assert aggregate['responses'][1]['raw_response'] == invalid_raw.decode()
++        if eventual_success:
++            report = ReportService().get_report(session, UUID(created['id']))
++            warning = [row for row in report['validation']['checks'] if row['check_type'] == 'validation_repair_applied']
++            assert len(warning) == 1 and warning[0]['message'] in report['report']['analysis_limitations']
++        else:
++            assert session.scalar(select(ReportRevision)) is None
++
++
++@pytest.mark.parametrize('policy_name', [
++    'analysis-policy-luna-v1.json', 'analysis-policy-luna-v2.json', 'analysis-policy-luna-v3.json',
++])
++def test_legacy_luna_policies_do_not_validation_repair(engine, monkeypatch, policy_name):
++    from copy import deepcopy
++    from dataclasses import replace
++
++    notice, bundle, service = setup(engine, monkeypatch, policy_name=policy_name)
++    original = service.client.invoke
++    target_calls = 0
++
++    def invoke(*args, **kwargs):
++        nonlocal target_calls
++        result = original(*args, **kwargs)
++        if args[0] == 'requirements_and_evaluation':
++            target_calls += 1
++            output = deepcopy(result.structured_output)
++            output['claims'][0]['evidence_ids'] = [str(uuid4())]
++            return replace(result, structured_output=output, raw_response=json.dumps(output).encode())
++        return result
++
++    service.client.invoke = invoke
++    with Session(engine) as session:
++        _frozen, _created, job = _create_approved_job(session, service, notice, bundle)
++        with pytest.raises(DeepReviewServiceError):
++            service.run_claim(session, job)
++        assert target_calls == 1
++        assert all('validation_repair' not in call for call in service.client.calls)
++
++
++def test_luna_v4_never_repairs_synthesis_slice(engine, monkeypatch):
++    from copy import deepcopy
++    from dataclasses import replace
++
++    notice, bundle, service = setup(engine, monkeypatch, policy_name='analysis-policy-luna-v4.json')
++    original = service.client.invoke
++    synthesis_calls = 0
++
++    def invoke(*args, **kwargs):
++        nonlocal synthesis_calls
++        result = original(*args, **kwargs)
++        if args[0] == 'synthesis_and_validation':
++            synthesis_calls += 1
++            output = deepcopy(result.structured_output)
++            output['considered_claim_ids'] = []
++            return replace(result, structured_output=output, raw_response=json.dumps(output).encode())
++        return result
++
++    service.client.invoke = invoke
++    with Session(engine) as session:
++        _frozen, _created, job = _create_approved_job(session, service, notice, bundle)
++        with pytest.raises(DeepReviewServiceError):
++            service.run_claim(session, job)
++        assert synthesis_calls == 1
++        assert not any('validation_repair' in call for call in service.client.calls if call['stage'] == 'synthesis_and_validation')
++
++
++@pytest.mark.parametrize(('policy_name', 'timeout_seconds'), [
++    ('analysis-policy-luna-v1.json', 7200),
++    ('analysis-policy-luna-v2.json', 7200),
++    ('analysis-policy-luna-v3.json', 7200),
++    ('analysis-policy-luna-v4.json', 18000),
++])
++def test_luna_policy_review_deadline_is_passed_to_each_luna_client(engine, monkeypatch, policy_name, timeout_seconds):
++    from app.deep_review.services import deep_reviews as module
++
++    notice, bundle, service = setup(engine, monkeypatch, policy_name=policy_name)
++    deadlines = []
++
++    class DeadlineClient:
++        provider_name = 'codex-exec'
++
++        def __init__(self, endpoint, heartbeat, deadline):
++            deadlines.append(deadline)
++            self.delegate = NarrativeClient()
++
++        def invoke(self, *args, **kwargs):
++            return self.delegate.invoke(*args, **kwargs)
++
++        def close(self):
++            pass
++
++    service._client = None
++    service._injected_client = False
++    monkeypatch.setattr(module.time, 'monotonic', lambda: 100.0)
++    monkeypatch.setattr('app.deep_review.services.luna_client.LunaClient', DeadlineClient)
++    with Session(engine) as session:
++        _frozen, _created, job = _create_approved_job(session, service, notice, bundle)
++        service.run_claim(session, job)
++    assert deadlines and set(deadlines) == {100.0 + timeout_seconds}
+--- /dev/null
++++ b/docs/validation-runs/20261007-luna-v4-preflight/README.md
+@@ -0,0 +1,46 @@
++# Luna v4 선검증 — STEP-001 이전 실패 원인 분류 (2026-10-06)
++
++- 기능: `DEMO-00-luna-preflight` STEP-001. 읽기 전용 분석이며 모델 호출·운영 변경 없음.
++- 근거: [v1 기록](../20260922-luna-deep-review/live-validation.md), [v2 기록](../20260923-luna-related-claims/README.md),
++  [v3 기록](../20260923-luna-validation-off/README.md), 정책 파일 v2/v3, `services/deep_reviews.py`, `services/narrative_inputs.py`.
++- 한계: 운영 스택이 이 작업 장비에 없어(컨테이너·볼륨 없음) 저장된 원응답을 엄격 검증으로 재검사하지 못했다. 아래 분류는 기록과 코드에 근거한다.
++
++## 실패별 분류
++
++| 실행 | 결과 | 직접 원인 | 분류 | 현재 상태 |
++|---|---|---|---|---|
++| v1 (09-23 09:06, 6분 26초) | 1번째 slice `narrative:claim_relation_out_of_slice` | 주장 1개(20개 중)가 선택 필드 `related_claim_ids`에 근거 ID를 넣음 | 출력 계약의 ID 역할 모호(선택 필드) | v2가 범위 밖 related_claim만 제외·경고(`omit_invalid_with_warning_v1`). 해소 |
++| v2 (10:14, 6분 15초) | 1번째 slice `narrative:considered_claim_out_of_slice` | 입력 verified_claims 0개인데 `considered_claim_ids`에 응답 자체의 로컬 주장 ID 30개 반환 | 프롬프트 의미 모호 | v3가 `coverage_rule`에 설명 문장 추가. 단 v3는 검사 off라 효과 **미확인** |
++| v3 검증 off (11:16, 53분 41초) | 10번째 slice `validation:dangling_evidence` | 주장 1개의 `evidence_ids`에 응답에 없는 ID 1개 | 모델 출력 무결성 오류(우연적) | 검증기는 정상. 미해결 |
++
++## 새로 확인한 구조 원인 — 시간 예산
++
++1489는 원문 단위가 19개다. 1단계는 단위마다 1회(19회), 2단계도 단위마다 최소 1회(19회, verified claim이 예산을 넘으면 더),
++3단계 종합이 1회 이상이라 **한 보고서에 최소 39회** Luna/xhigh를 순차 호출한다(`narrative_inputs.build_slices`).
++기록된 호출당 시간은 약 5분 15초~6분 26초(v3 평균 5분 22초)이므로 최소 약 3시간 30분이다.
++검토 전체 마감은 코드에 7200초로 고정돼 있고(`deep_reviews.py:1584`, 정책의 `review_timeout_seconds`는 읽지 않음) 세 단계 전체에 한 번 적용된다.
++따라서 **검증 오류가 하나도 없어도 1489는 마감 안에 끝날 수 없다.** 이전 세 실행은 이 지점 전에 실패해 드러나지 않았다.
++같은 구조면 DEMO 보고서 9건은 공고 크기에 따라 건당 수 시간이며, 단일 슬롯에서 순차 실행된다.
++
++## v4 설계에 주는 제약
++
++1. considered_claim: 프롬프트 설명만으로는 효과가 확인되지 않았다. verified_claims가 없는 slice에서는 필드를 요구하지 않거나 `[]`로 고정하는
++   결정적 출력 계약(단계별 schema)이 더 확실하다. 이것은 검증 완화가 아니다.
++2. dangling_evidence: 필수 근거 FK 검사이므로 끌 수 없다. 프롬프트 자기 점검 지시는 확률만 낮춘다.
++   한 실행에 39회 이상 호출하므로 slice당 오류율이 낮아도 보고서 전체 성공 확률은 크게 떨어진다(관측 1/10 slice는 표본이 너무 작아 추정치로 쓰지 않는다).
++3. 시간: 마감 상향, 호출 수 축소(slice당 단위 수 확대·`max_requirements=1` 하드코딩 해제), 추론 강도 하향, 작은 공고 선택 중 하나 이상이 필요하다.
++
++## 사용자 결정이 필요한 항목
++
++| 항목 | 선택지 |
++|---|---|
++| 시간 예산 | 마감 상향(정책 값을 코드가 읽게) / slice 확대로 호출 축소 / effort xhigh→high / 원문 단위가 적은 공고로 선검증·표본 선정 |
++| dangling evidence | 프롬프트 자기 점검만 / 같은 slice 1회 교정 재요청(새 자동 재호출 규칙) / 위험 수용 |
++| 운영 단계 실행 위치 | 운영 호스트에서 사용자가 실행 / 운영 호스트에 접근 가능한 세션에서 실행 |
++
++## 판정
++
++STEP-001 분류 완료. v4 정책만으로는 1489 완성을 기대할 수 없다.
++
++2026-10-07 사용자 결정(ADR-0070 개정 표): 검토 마감을 정책 값으로 읽고 v4는 5시간, 원문 단위가 적은 공고 우선(표본 기준),
++같은 slice 1회 교정 재요청, 운영 단계는 운영 호스트에서 사용자가 실행. STEP-002는 이 결정으로 진행한다.
+--- /dev/null
++++ b/docs/validation-runs/20261007-luna-v4-preflight/runbook.md
+@@ -0,0 +1,633 @@
++# Luna v4 운영 선검증 runbook — 준비본
++
++이 문서는 `DEMO-00-luna-preflight` STEP-003/004를 운영 호스트에서 사람이 한 단계씩 실행하기 위한 준비본이다. 이 문서를 작성하면서 배포, 백업, 정책 import, 환경 변경, 모델 호출은 수행하지 않았다.
++
++현재 실행 차단 조건은 STEP-002의 T1·T2·T3·T6·T7 검증과 리더 리뷰가 끝나고 그 변경이 운영 호스트의 배포 대상 소스에 반영되는 것이다. 그 전에는 아래 읽기 전용 사전 확인까지만 한다. v4 파일이나 코드가 있다는 사실만으로 이 차단 조건이 해소되지는 않는다.
++
++운영 변경은 아래 번호별로 바로 직전에 사용자 확인을 새로 받는다. 앞 단계 확인을 다음 단계에 재사용하거나 전체 절차를 한 스크립트로 묶어 실행하지 않는다. `migration`은 없으며 `migrate` 서비스를 실행하지 않는다. 기존 Luna v1·v2·v3 정책 행, 실패 실행, 승인 기록은 수정하거나 삭제하지 않는다.
++
++## 0. 읽기 전용 사전 확인
++
++운영 checkout 루트의 Bash에서 시작한다. 실제 비밀값, 전체 환경 파일, 전체 Compose config, prompt·응답·회사자료는 화면이나 실행 기록에 출력하지 않는다.
++
++```bash
++set -euo pipefail
++export COMPOSE_PROJECT_NAME=bidops
++
++policy_host_path=web/backend/app/deep_review/policies/analysis-policy-luna-v4.json
++policy_container_path=/app/web/backend/app/deep_review/policies/analysis-policy-luna-v4.json
++test -f "$policy_host_path" && test -r "$policy_host_path"
++test -f .env && test -f env/model.env && test -f env/prespec-attachment.env
++test -f env/c2.env && test -f env/luna.env
++
++luna_compose=(docker compose
++  --env-file .env
++  --env-file env/model.env
++  --env-file env/prespec-attachment.env
++  --env-file env/c2.env
++  --env-file env/luna.env
++  -f docker-compose.yml
++  -f docker-compose.edge.yml
++  -f docker-compose.model-egress.yml
++  -f docker-compose.prespec-attachment.yml
++  -f docker-compose.c2-order-plan.yml
++  -f docker-compose.luna.yml
++  --profile prespec
++  --profile luna)
++
++"${luna_compose[@]}" config --quiet
++"${luna_compose[@]}" ps web analysis-worker codex-runner
++curl --fail --silent --show-error \
++  "http://127.0.0.1:${BIDOPS_WEB_PORT:-18787}/api/health" >/dev/null
++"${luna_compose[@]}" exec -T web \
++  python -m app.deep_review.cli close-deep-review --list-active
++```
++
++`close-deep-review --list-active`가 빈 배열이 아니면 중단한다. `running`은 끝날 때까지 기다리고, `queued`도 이 절차에서 자동으로 닫지 않는다. 큐 중단은 별도 사람 판단과 감사 명령이 필요한 변경이다.
++
++정책 파일은 canonical JSON이어야 한다. T1과 독립 리뷰가 승인한 불변 digest는
++`51b1723051e92299ef53e650f9faf851c8e6777fe75c59b814639d38be887877`이다. 다음 명령은
++운영 호스트 파일의 hash를 동적으로 계산한 뒤 이 승인값과 일치시킨다. checkout 자체에서 계산한
++값만으로 승인본 여부를 판단하지 않는다.
++
++```bash
++approved_policy_sha256=51b1723051e92299ef53e650f9faf851c8e6777fe75c59b814639d38be887877
++policy_sha256="$(POLICY_PATH="$policy_host_path" python3 - <<'PY'
++import hashlib
++import json
++import os
++from pathlib import Path
++
++path = Path(os.environ["POLICY_PATH"])
++raw = path.read_bytes()
++value = json.loads(raw.decode("utf-8"))
++canonical = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
++if raw != canonical:
++    raise SystemExit("v4 policy is not canonical JSON; stop before build")
++print(hashlib.sha256(raw).hexdigest())
++PY
++)"
++[[ "$policy_sha256" =~ ^[0-9a-f]{64}$ ]]
++test "$policy_sha256" = "$approved_policy_sha256"
++printf 'approved v4 policy sha256=%s\n' "$approved_policy_sha256"
++```
++
++STEP-002 검증 결과와 리더 리뷰가 아직 없거나 배포 대상 소스에 반영되지 않았다면 여기서 멈춘다.
++
++## 1. 전체 백업과 롤백 기준점
++
++**실행 직전 확인 1:** 사용자에게 지금 DB 전체 백업, 객체 전 version 백업, 현재 환경·이미지 보존, `before-luna-v4-<날짜>` 태그 생성을 진행해도 되는지 확인한다. 확인 전에는 아래 명령을 실행하지 않는다.
++
++태그는 `HEAD`만 보존한다. `git status --short`가 비어 있지 않으면 태그가 배포 대상을 재현하지 못하므로 중단하고 배포 소스 범위를 다시 정한다.
++
++```bash
++git status --short
++test -z "$(git status --short)"
++
++release_stamp="$(date -u +%Y%m%dT%H%M%SZ)"
++release_date="$(date +%Y%m%d)"
++rollback_tag="before-luna-v4-${release_date}"
++ops_dir="backups/operations/luna-v4-${release_stamp}"
++object_backup_dir="backups/objects/luna-v4-${release_stamp}"
++install -d -m 700 "$ops_dir" "$object_backup_dir"
++git rev-parse HEAD >"$ops_dir/source-head.txt"
++git rev-parse -q --verify "refs/tags/$rollback_tag" >/dev/null && {
++  printf 'rollback tag already exists: %s\n' "$rollback_tag" >&2
++  false
++}
++
++web_cid="$("${luna_compose[@]}" ps -q web)"
++analysis_cid="$("${luna_compose[@]}" ps -q analysis-worker)"
++test -n "$web_cid" && test -n "$analysis_cid"
++web_image_id_before="$(docker inspect --format '{{.Image}}' "$web_cid")"
++analysis_image_id_before="$(docker inspect --format '{{.Image}}' "$analysis_cid")"
++web_image_ref_before="$(docker inspect --format '{{.Config.Image}}' "$web_cid")"
++analysis_image_ref_before="$(docker inspect --format '{{.Config.Image}}' "$analysis_cid")"
++printf '%s\t%s\n' "$web_image_ref_before" "$web_image_id_before" >"$ops_dir/images.before.tsv"
++printf '%s\t%s\n' "$analysis_image_ref_before" "$analysis_image_id_before" >>"$ops_dir/images.before.tsv"
++docker image tag "$web_image_id_before" "bidops-rollback/web:luna-v4-${release_stamp}"
++docker image tag "$analysis_image_id_before" "bidops-rollback/analysis-worker:luna-v4-${release_stamp}"
++install -m 600 env/luna.env "$ops_dir/luna.env.before"
++
++backup_marker="$ops_dir/postgres-backup.started"
++touch "$backup_marker"
++"${luna_compose[@]}" --profile backup run --rm ro-backup
++mapfile -t new_dumps < <(find backups/postgres/full -type f -name '*.dump' -newer "$backup_marker" -print)
++test "${#new_dumps[@]}" -eq 1
++test -s "${new_dumps[0]}"
++pg_restore --list "${new_dumps[0]}" >/dev/null
++sha256sum "${new_dumps[0]}" >"$ops_dir/postgres-dump.sha256"
++
++MINIO_ALIAS="${MINIO_ALIAS:?approved MinIO alias required}" \
++OBJECT_BACKUP_DIR="$object_backup_dir" \
++  ./scripts/backup-objects.sh
++test -s "$object_backup_dir/object-versions.tsv"
++sha256sum "$object_backup_dir/object-versions.tsv" >"$ops_dir/object-manifest.sha256"
++
++git tag "$rollback_tag" HEAD
++git show-ref --verify "refs/tags/$rollback_tag"
++```
++
++DB dump exit, 비어 있지 않은 dump, `pg_restore --list`, 객체 manifest, 두 SHA 파일, 보호된 이전 `luna.env`, 이전 image ID가 모두 확인되지 않으면 다음 단계로 가지 않는다. 이 검사는 실제 빈 대상 복구 훈련을 대신하지 않는다.
++
++## 2. 후보 이미지 빌드
++
++**실행 직전 확인 2:** 사용자에게 검토된 배포 대상 소스로 `web`과 `analysis-worker` 이미지를 빌드해도 되는지 확인한다. 빌드는 실행 컨테이너를 교체하지 않지만 서비스 image tag를 갱신하므로 백업 단계 뒤에만 한다.
++
++```bash
++"${luna_compose[@]}" build web analysis-worker
++
++image_policy_sha256="$("${luna_compose[@]}" run --rm --no-deps web \
++  sha256sum "$policy_container_path" | awk '{print $1}')"
++test "$image_policy_sha256" = "$approved_policy_sha256"
++printf 'candidate image policy sha256=%s\n' "$image_policy_sha256"
++```
++
++hash가 다르거나 image 안에 v4 파일이 없으면 중단한다. `codex-runner` 계약은 STEP-002에서 바뀌지 않으므로 이 단계에서 재빌드하거나 교체하지 않는다.
++
++## 3. 코드 배포 — Luna 요청 차단 상태 유지
++
++**실행 직전 확인 3:** 사용자에게 Luna 신규 요청을 계속 차단한 상태로 `web`·`analysis-worker`만 교체해도 되는지 확인한다.
++
++먼저 `env/luna.env`에 `BIDOPS_LUNA_DEEP_REVIEW_ENABLED=false`가 설정돼 있는지 편집기로 확인한다. 전체 파일을 출력하지 않는다. Compose가 렌더한 안전한 세 값만 검사한다.
++
++```bash
++"${luna_compose[@]}" config --format json | EXPECTED_LUNA=false python3 -c '
++import json, os, sys
++cfg = json.load(sys.stdin)
++for name in ("web", "analysis-worker"):
++    env = cfg["services"][name].get("environment", {})
++    shown = {key: env.get(key) for key in (
++        "BIDOPS_LUNA_DEEP_REVIEW_ENABLED",
++        "BIDOPS_DEEP_REVIEW_AUTO_START_ENABLED",
++        "BIDOPS_ACTIVE_ANALYSIS_POLICY_VERSION_ID",
++    )}
++    if str(shown["BIDOPS_LUNA_DEEP_REVIEW_ENABLED"]).lower() != os.environ["EXPECTED_LUNA"]:
++        raise SystemExit(f"{name}: Luna flag mismatch")
++    if str(shown["BIDOPS_DEEP_REVIEW_AUTO_START_ENABLED"]).lower() != "false":
++        raise SystemExit(f"{name}: auto-start must stay false")
++    print(name, json.dumps(shown, ensure_ascii=False, sort_keys=True))
++'
++
++"${luna_compose[@]}" up -d --no-deps --no-build --force-recreate \
++  web analysis-worker
++curl --fail --silent --show-error \
++  "http://127.0.0.1:${BIDOPS_WEB_PORT:-18787}/api/health" >/dev/null
++"${luna_compose[@]}" ps web analysis-worker codex-runner
++```
++
++실행 컨테이너에서도 안전한 네 값만 확인한다. 다음 함수는 Docker inspect 전체를 pipe로 읽지만 출력은 선택한 flag뿐이다. expected policy/reference 인자를 주면 값까지 일치시킨다.
++
++```bash
++verify_running_flags() {
++  local expected_luna="$1" expected_policy_id="${2:-}" expected_reference="${3:-}"
++  local service cid
++  for service in web analysis-worker; do
++    cid="$("${luna_compose[@]}" ps -q "$service")"
++    test -n "$cid"
++    docker inspect "$cid" | SERVICE="$service" EXPECTED_LUNA="$expected_luna" \
++      EXPECTED_POLICY_ID="$expected_policy_id" EXPECTED_REFERENCE="$expected_reference" \
++      python3 -c '
++import json, os, sys
++row = json.load(sys.stdin)[0]
++env = dict(item.split("=", 1) for item in row["Config"]["Env"] if "=" in item)
++service = os.environ["SERVICE"]
++shown = {key: env.get(key) for key in (
++    "BIDOPS_LUNA_DEEP_REVIEW_ENABLED",
++    "BIDOPS_DEEP_REVIEW_AUTO_START_ENABLED",
++    "BIDOPS_ACTIVE_ANALYSIS_POLICY_VERSION_ID",
++    "BIDOPS_REFERENCE_WORKFLOW_MODE",
++)}
++if str(shown["BIDOPS_LUNA_DEEP_REVIEW_ENABLED"]).lower() != os.environ["EXPECTED_LUNA"]:
++    raise SystemExit(f"{service}: Luna flag mismatch")
++if str(shown["BIDOPS_DEEP_REVIEW_AUTO_START_ENABLED"]).lower() != "false":
++    raise SystemExit(f"{service}: auto-start must stay false")
++if os.environ["EXPECTED_POLICY_ID"] and shown["BIDOPS_ACTIVE_ANALYSIS_POLICY_VERSION_ID"] != os.environ["EXPECTED_POLICY_ID"]:
++    raise SystemExit(f"{service}: active policy mismatch")
++if os.environ["EXPECTED_REFERENCE"] and str(shown["BIDOPS_REFERENCE_WORKFLOW_MODE"]).lower() != os.environ["EXPECTED_REFERENCE"]:
++    raise SystemExit(f"{service}: reference mode mismatch")
++print(service, json.dumps(shown, ensure_ascii=False, sort_keys=True))
++'
++  done
++}
++
++verify_running_flags false
++```
++
++health 실패, worker 미기동, 자동 시작 `true`, Luna `true`이면 중단하고 롤백 절을 따른다.
++
++## 4. v4 불변 정책 import
++
++**실행 직전 확인 4:** 사용자에게 host·image hash가 독립 승인 digest와 일치한 v4 정책을 append-only DB 행으로 import해도 되는지 확인한다. 이 단계는 active ID를 바꾸지 않는다.
++
++먼저 v1·v2·v3의 안전한 식별 정보만 저장한다.
++
++```bash
++"${luna_compose[@]}" exec -T web python -c '
++import json
++from sqlalchemy import select
++from app.core.db import SessionLocal
++from app.deep_review.models import AnalysisPolicyVersion
++labels = ("analysis-policy-luna-v1", "analysis-policy-luna-v2", "analysis-policy-luna-v3")
++with SessionLocal() as session:
++    rows = session.scalars(select(AnalysisPolicyVersion).where(AnalysisPolicyVersion.label.in_(labels)).order_by(AnalysisPolicyVersion.version, AnalysisPolicyVersion.id)).all()
++    if not set(labels).issubset({row.label for row in rows}):
++        raise SystemExit("one or more v1-v3 policy rows are missing")
++    print(json.dumps([{"id": str(r.id), "version": r.version, "label": r.label, "policy_sha256": r.policy_sha256} for r in rows], sort_keys=True))
++' >"$ops_dir/policies-v1-v3.before.json"
++
++active_profile_id="$("${luna_compose[@]}" config --format json | python3 -c '
++import json, sys
++value = json.load(sys.stdin)["services"]["web"].get("environment", {}).get("BIDOPS_ACTIVE_PROFILE_VERSION_ID", "")
++if not value:
++    raise SystemExit("active profile ID is empty")
++print(value)
++')"
++
++read -r -p '감사 기록에 남길 담당자 이름: ' operator_name
++test -n "${operator_name//[[:space:]]/}"
++import_json="$("${luna_compose[@]}" run --rm --no-deps web \
++  python -m app.deep_review.cli import-profile-policy \
++  --actor "$operator_name" \
++  --label analysis-policy-luna-v4 \
++  --policy "$policy_container_path" \
++  --expected-policy-sha256 "$approved_policy_sha256")"
++printf '%s\n' "$import_json" >"$ops_dir/v4-import.json"
++
++policy_version_id="$(IMPORT_JSON="$import_json" EXPECTED_SHA="$approved_policy_sha256" EXPECTED_PROFILE_ID="$active_profile_id" python3 -c '
++import json, os, re
++row = json.loads(os.environ["IMPORT_JSON"])
++if row.get("active_configuration_changed") is not False:
++    raise SystemExit("import unexpectedly changed active configuration")
++if row.get("policy_sha256") != os.environ["EXPECTED_SHA"]:
++    raise SystemExit("imported policy hash mismatch")
++if row.get("profile_version_id") != os.environ["EXPECTED_PROFILE_ID"]:
++    raise SystemExit("import selected a different profile version; stop")
++value = row.get("policy_version_id", "")
++if not re.fullmatch(r"[0-9a-fA-F-]{36}", value):
++    raise SystemExit("invalid policy UUID")
++print(value)
++')"
++printf 'policy_version_id=%s\npolicy_sha256=%s\n' "$policy_version_id" "$approved_policy_sha256"
++
++"${luna_compose[@]}" exec -T web python -c '
++import json
++from sqlalchemy import select
++from app.core.db import SessionLocal
++from app.deep_review.models import AnalysisPolicyVersion
++labels = ("analysis-policy-luna-v1", "analysis-policy-luna-v2", "analysis-policy-luna-v3")
++with SessionLocal() as session:
++    rows = session.scalars(select(AnalysisPolicyVersion).where(AnalysisPolicyVersion.label.in_(labels)).order_by(AnalysisPolicyVersion.version, AnalysisPolicyVersion.id)).all()
++    if not set(labels).issubset({row.label for row in rows}):
++        raise SystemExit("one or more v1-v3 policy rows are missing")
++    print(json.dumps([{"id": str(r.id), "version": r.version, "label": r.label, "policy_sha256": r.policy_sha256} for r in rows], sort_keys=True))
++' >"$ops_dir/policies-v1-v3.after.json"
++cmp "$ops_dir/policies-v1-v3.before.json" "$ops_dir/policies-v1-v3.after.json"
++
++"${luna_compose[@]}" exec -T web python - "$policy_version_id" "$approved_policy_sha256" <<'PY'
++import sys
++from uuid import UUID
++from app.core.db import SessionLocal
++from app.deep_review.models import AnalysisPolicyVersion
++
++with SessionLocal() as session:
++    row = session.get(AnalysisPolicyVersion, UUID(sys.argv[1]))
++    if row is None or row.label != "analysis-policy-luna-v4" or row.policy_sha256 != sys.argv[2]:
++        raise SystemExit("persisted v4 policy identity mismatch")
++    print(f"v4 policy row verified: version={row.version} id={row.id} sha256={row.policy_sha256}")
++PY
++```
++
++CLI가 `import failed:*`로 끝나거나 반환 hash가 다르거나 `active_configuration_changed`가 `false`가 아니거나 v1–v3 snapshot이 달라졌으면 중단한다. SQL로 보정하거나 기존 행을 수정하지 않는다.
++
++## 5. v4 active ID 반영 — Luna 요청은 계속 차단
++
++다음 함수는 허용한 비밀 아닌 키 하나만 `env/luna.env`에서 바꾸며 파일 내용을 출력하지 않는다. 같은 키가 중복되면 fail closed한다.
++
++```bash
++set_luna_env() {
++  local key="$1" value="$2"
++  KEY="$key" VALUE="$value" python3 - <<'PY'
++import os
++import re
++import stat
++import tempfile
++from pathlib import Path
++
++path = Path("env/luna.env")
++key = os.environ["KEY"]
++value = os.environ["VALUE"]
++allowed = {
++    "BIDOPS_ACTIVE_ANALYSIS_POLICY_VERSION_ID",
++    "BIDOPS_LUNA_DEEP_REVIEW_ENABLED",
++    "BIDOPS_DEEP_REVIEW_AUTO_START_ENABLED",
++    "BIDOPS_REFERENCE_WORKFLOW_MODE",
++}
++if key not in allowed or "\n" in value or "\r" in value:
++    raise SystemExit("refusing unsafe env update")
++lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
++pattern = re.compile(rf"^{re.escape(key)}=")
++matches = [index for index, line in enumerate(lines) if pattern.match(line)]
++if len(matches) > 1:
++    raise SystemExit(f"duplicate env key: {key}")
++replacement = f"{key}={value}\n"
++if matches:
++    lines[matches[0]] = replacement
++else:
++    if lines and not lines[-1].endswith(("\n", "\r")):
++        lines[-1] += "\n"
++    lines.append(replacement)
++mode = stat.S_IMODE(path.stat().st_mode)
++fd, temporary = tempfile.mkstemp(prefix=".luna.env.", dir=path.parent)
++try:
++    with os.fdopen(fd, "w", encoding="utf-8", newline="") as stream:
++        stream.writelines(lines)
++    os.chmod(temporary, mode)
++    os.replace(temporary, path)
++except BaseException:
++    try:
++        os.unlink(temporary)
++    except FileNotFoundError:
++        pass
++    raise
++PY
++}
++```
++
++**실행 직전 확인 5:** 사용자에게 active analysis policy를 반환된 v4 UUID로 바꾸고, 참조 workflow를 켜되 Luna 요청과 자동 시작은 끈 상태로 `web`·`analysis-worker`를 다시 생성해도 되는지 확인한다.
++
++```bash
++set_luna_env BIDOPS_ACTIVE_ANALYSIS_POLICY_VERSION_ID "$policy_version_id"
++set_luna_env BIDOPS_REFERENCE_WORKFLOW_MODE true
++set_luna_env BIDOPS_LUNA_DEEP_REVIEW_ENABLED false
++set_luna_env BIDOPS_DEEP_REVIEW_AUTO_START_ENABLED false
++
++"${luna_compose[@]}" config --format json | EXPECTED_POLICY_ID="$policy_version_id" EXPECTED_LUNA=false python3 -c '
++import json, os, sys
++cfg = json.load(sys.stdin)
++expected = {
++    "BIDOPS_ACTIVE_ANALYSIS_POLICY_VERSION_ID": os.environ["EXPECTED_POLICY_ID"],
++    "BIDOPS_REFERENCE_WORKFLOW_MODE": "true",
++    "BIDOPS_LUNA_DEEP_REVIEW_ENABLED": os.environ["EXPECTED_LUNA"],
++    "BIDOPS_DEEP_REVIEW_AUTO_START_ENABLED": "false",
++}
++for name in ("web", "analysis-worker"):
++    env = cfg["services"][name].get("environment", {})
++    shown = {key: str(env.get(key, "")).lower() if key != "BIDOPS_ACTIVE_ANALYSIS_POLICY_VERSION_ID" else env.get(key) for key in expected}
++    if shown != expected:
++        raise SystemExit(f"{name}: safe flag mismatch: {shown}")
++    print(name, json.dumps(shown, ensure_ascii=False, sort_keys=True))
++'
++
++"${luna_compose[@]}" up -d --no-deps --no-build --force-recreate \
++  web analysis-worker
++curl --fail --silent --show-error \
++  "http://127.0.0.1:${BIDOPS_WEB_PORT:-18787}/api/health" >/dev/null
++"${luna_compose[@]}" ps web analysis-worker codex-runner
++```
++
++```bash
++verify_running_flags false "$policy_version_id" true
++```
++
++두 서비스의 active ID가 `$policy_version_id`, reference mode가 `true`, Luna와 auto-start가 `false`인지 확인한다. 확인 전에는 다음 단계로 가지 않는다.
++
++## 6. 단일 요청 창 열기
++
++**실행 직전 확인 6:** 사용자에게 1489번 미리보기 한 건만 만들기 위해 Luna 신규 요청 토글을 켜고 `web`·`analysis-worker`를 재생성해도 되는지 확인한다. 이 확인은 실제 payload 전송 승인이 아니다.
++
++```bash
++"${luna_compose[@]}" exec -T web \
++  python -m app.deep_review.cli close-deep-review --list-active
++# 반드시 []인지 사람이 확인한다.
++
++set_luna_env BIDOPS_LUNA_DEEP_REVIEW_ENABLED true
++
++"${luna_compose[@]}" config --format json | EXPECTED_POLICY_ID="$policy_version_id" EXPECTED_LUNA=true python3 -c '
++import json, os, sys
++cfg = json.load(sys.stdin)
++expected = {
++    "BIDOPS_ACTIVE_ANALYSIS_POLICY_VERSION_ID": os.environ["EXPECTED_POLICY_ID"],
++    "BIDOPS_REFERENCE_WORKFLOW_MODE": "true",
++    "BIDOPS_LUNA_DEEP_REVIEW_ENABLED": os.environ["EXPECTED_LUNA"],
++    "BIDOPS_DEEP_REVIEW_AUTO_START_ENABLED": "false",
++}
++for name in ("web", "analysis-worker"):
++    env = cfg["services"][name].get("environment", {})
++    shown = {key: str(env.get(key, "")).lower() if key != "BIDOPS_ACTIVE_ANALYSIS_POLICY_VERSION_ID" else env.get(key) for key in expected}
++    if shown != expected:
++        raise SystemExit(f"{name}: safe flag mismatch: {shown}")
++    print(name, json.dumps(shown, ensure_ascii=False, sort_keys=True))
++'
++
++"${luna_compose[@]}" up -d --no-deps --no-build --force-recreate \
++  web analysis-worker
++curl --fail --silent --show-error \
++  "http://127.0.0.1:${BIDOPS_WEB_PORT:-18787}/api/health" >/dev/null
++"${luna_compose[@]}" ps web analysis-worker codex-runner
++```
++
++```bash
++verify_running_flags true "$policy_version_id" true
++```
++
++active ID, reference mode, Luna `true`, auto-start `false`가 두 서비스에서 정확히 일치하지 않으면 요청 창을 열지 않는다.
++
++## 7. 1489 미리보기와 건별 사용자 승인
++
++**실행 직전 확인 7:** 운영 화면에서 사용자가 payload 전체를 직접 읽은 뒤, 해당 preview/input hash의 외부 전송과 Luna 호출을 승인하는지 다시 확인한다. 토글을 켰다는 사실은 이 승인을 대신하지 않는다.
++
++1. 운영 화면 `/pre-specs/1489`를 연다. 기존 v1–v3 실패 검토의 재시도 버튼을 사용하지 않는다.
++2. 담당자 이름을 입력하고 확정된 기존 문서 묶음을 선택한다. `원문 대조 사용`을 유지한다.
++3. `전송 내용 미리보기`를 누른다. 이 동작은 preview를 저장하지만 아직 모델을 호출하지 않는다.
++4. 화면에서 provider/model/effort가 `codex-exec` / `gpt-5.6-luna` / `xhigh`, 품질이 `미측정`, 원문 대조가 `사용`인지 확인한다.
++5. 펼친 전송 입력에서 notice 1489, 선택 문서, 회사자료, 정책의 `policy_identity=analysis-policy-luna-v4`, `execution.review_timeout_seconds=18000`, `execution.validation_repair_attempts=1`을 확인하고 `validation.result_checks`가 `disabled_reference_v1`이 아님을 직접 확인한다. preview 본문은 일반 로그나 Git 문서로 복사하지 않는다.
++6. 화면의 `preview_id`와 `input_sha256`을 보호된 운영 기록에 적는다.
++7. 이 시점에 **실제 전송·호출 직전 사용자 확인**을 받는다. 확인을 받은 뒤에만 `전송 승인하고 심층검토 요청`을 한 번 누른다. 중복 클릭하거나 API로 반복 제출하지 않는다.
++8. 생성 응답의 새 `review_id`, 새 `attempt_id`, `preview_id`, `input_sha256`, 시작 시각을 적는다. 기존 검토나 기존 attempt를 덮어쓰지 않는다.
++
++정책이 허용하는 자동 동작은 1·2단계 각 slice의 결정적 검증 실패에 대한 같은 동결 입력 1회 교정 재요청뿐이다. operator 재요청, 새 preview 자동 생성, 전체 review 자동 재시작, Qwen/hosted OpenAI fallback은 없다.
++
++## 8. 관측과 결과 요약
++
++`review_id`를 실제 생성 응답의 UUID로 입력한다. 장시간 실행은 이미 분리된 `analysis-worker`가 수행하므로 별도 foreground 호출을 만들지 않는다. 아래 읽기 전용 snapshot을 필요할 때 한 번씩 실행하며, 조용한 로그를 성공으로 해석하지 않는다.
++
++```bash
++read -r -p '새 review UUID: ' review_id
++[[ "$review_id" =~ ^[0-9a-fA-F-]{36}$ ]]
++
++curl --fail --silent --show-error \
++  "http://127.0.0.1:${BIDOPS_WEB_PORT:-18787}/api/deep-reviews/${review_id}" |
++  python3 -c '
++import json, sys
++row = json.load(sys.stdin)
++attempt = row.get("current_attempt") or {}
++print(json.dumps({
++    "review_id": row.get("id"),
++    "notice_id": row.get("notice_id"),
++    "status": row.get("status"),
++    "quality_status": row.get("quality_status"),
++    "attempt_id": attempt.get("id"),
++    "attempt_status": attempt.get("status"),
++    "preview_id": attempt.get("preview_id"),
++    "started_at": attempt.get("started_at"),
++    "completed_at": attempt.get("completed_at"),
++    "stages": [{
++        "stage": stage.get("stage"),
++        "status": stage.get("status"),
++        "started_at": stage.get("started_at"),
++        "completed_at": stage.get("completed_at"),
++        "last_error_code": stage.get("last_error_code"),
++    } for stage in attempt.get("stages", [])],
++}, ensure_ascii=False, sort_keys=True, indent=2))
++'
++```
++
++종료 뒤 slice별 안전한 호출 메타데이터를 DB에서 읽는다. 이 명령은 prompt·응답·회사자료·object key를 출력하지 않는다.
++
++```bash
++"${luna_compose[@]}" exec -T web python - "$review_id" <<'PY'
++import json
++import sys
++from uuid import UUID
++from sqlalchemy import select
++from app.core.db import SessionLocal
++from app.deep_review.models import AnalysisPolicyVersion, DeepReview, DeepReviewAttempt, DeepReviewStage
++
++review_id = UUID(sys.argv[1])
++with SessionLocal() as session:
++    review = session.get(DeepReview, review_id)
++    if review is None:
++        raise SystemExit("review not found")
++    attempt = session.get(DeepReviewAttempt, review.current_attempt_id)
++    policy = session.get(AnalysisPolicyVersion, review.policy_version_id)
++    stages = session.scalars(
++        select(DeepReviewStage)
++        .where(DeepReviewStage.attempt_id == attempt.id)
++        .order_by(DeepReviewStage.sequence)
++    ).all()
++    stage_rows = []
++    for stage in stages:
++        invocations = stage.invocation_metadata if isinstance(stage.invocation_metadata, list) else []
++        safe_invocations = []
++        for item in invocations:
++            if not isinstance(item, dict):
++                continue
++            safe_invocations.append({key: item.get(key) for key in (
++                "slice_index", "validation_repair_attempt", "status",
++                "error_code", "latency_ms",
++            )})
++        stage_rows.append({
++            "stage": stage.stage,
++            "status": stage.status,
++            "started_at": stage.started_at.isoformat() if stage.started_at else None,
++            "completed_at": stage.completed_at.isoformat() if stage.completed_at else None,
++            "invocations": safe_invocations,
++        })
++    total_seconds = None
++    if attempt.started_at and attempt.completed_at:
++        total_seconds = (attempt.completed_at - attempt.started_at).total_seconds()
++    print(json.dumps({
++        "review_id": str(review.id),
++        "notice_id": review.notice_id,
++        "review_status": review.status,
++        "attempt_id": str(attempt.id),
++        "attempt_status": attempt.status,
++        "policy_version_id": str(policy.id),
++        "policy_sha256": policy.policy_sha256,
++        "started_at": attempt.started_at.isoformat() if attempt.started_at else None,
++        "completed_at": attempt.completed_at.isoformat() if attempt.completed_at else None,
++        "total_seconds": total_seconds,
++        "stages": stage_rows,
++    }, ensure_ascii=False, sort_keys=True, indent=2))
++PY
++```
++
++`completed`이면 보고서 API에서 본문을 출력하지 않고 검증 요약만 확인한다.
++
++```bash
++curl --fail --silent --show-error \
++  "http://127.0.0.1:${BIDOPS_WEB_PORT:-18787}/api/deep-reviews/${review_id}/report" |
++  python3 -c '
++import json, sys
++row = json.load(sys.stdin)
++report = row["report"]
++validation = row["validation"]
++print(json.dumps({
++    "deep_review_id": row["deep_review_id"],
++    "report_revision_id": row["current_revision_id"],
++    "quality_status": report.get("quality_status"),
++    "report_validation_summary": report.get("validation_summary"),
++    "validation_run_id": validation.get("validation_run_id"),
++    "validation_status": validation.get("status"),
++    "failed_checks": sum(check.get("status") == "failed" for check in validation.get("checks", [])),
++    "warning_checks": sum(check.get("status") == "warning" for check in validation.get("checks", [])),
++}, ensure_ascii=False, sort_keys=True, indent=2))
++'
++```
++
++`failed`이면 report GET 성공을 기대하지 않는다. review/attempt/stage의 종료 상태, 최초 실패 code, 처리된 slice 수, 교정 재요청 횟수, 총 소요 시간을 기록하고 원응답은 암호화 객체 저장소에 그대로 둔다. `completed`여도 `quality_status=unmeasured_reference`는 운영 완료·모델 품질·DEMO 정책 활성화 근거가 아니다. 같은 정책 재실행이나 DEMO-01 진행은 사용자가 별도로 결정한다.
++
++## 9. 결과 확인 뒤 요청 토글 끄기
++
++review와 attempt가 `completed` 또는 `failed`로 종결되기 전에는 worker를 재생성하지 않는다. 장시간 `queued`/`running`에 머물러도 강제 중지나 토글 변경으로 해결하지 않고 상태와 lease를 별도로 판단한다.
++
++**실행 직전 확인 8:** 종결 결과를 사용자에게 보여 준 뒤, 신규 Luna 요청 토글을 `false`로 돌리고 `web`·`analysis-worker`를 재생성해도 되는지 확인한다.
++
++```bash
++set_luna_env BIDOPS_LUNA_DEEP_REVIEW_ENABLED false
++
++"${luna_compose[@]}" config --format json | EXPECTED_POLICY_ID="$policy_version_id" EXPECTED_LUNA=false python3 -c '
++import json, os, sys
++cfg = json.load(sys.stdin)
++expected = {
++    "BIDOPS_ACTIVE_ANALYSIS_POLICY_VERSION_ID": os.environ["EXPECTED_POLICY_ID"],
++    "BIDOPS_REFERENCE_WORKFLOW_MODE": "true",
++    "BIDOPS_LUNA_DEEP_REVIEW_ENABLED": os.environ["EXPECTED_LUNA"],
++    "BIDOPS_DEEP_REVIEW_AUTO_START_ENABLED": "false",
++}
++for name in ("web", "analysis-worker"):
++    env = cfg["services"][name].get("environment", {})
++    shown = {key: str(env.get(key, "")).lower() if key != "BIDOPS_ACTIVE_ANALYSIS_POLICY_VERSION_ID" else env.get(key) for key in expected}
++    if shown != expected:
++        raise SystemExit(f"{name}: safe flag mismatch: {shown}")
++    print(name, json.dumps(shown, ensure_ascii=False, sort_keys=True))
++'
++
++"${luna_compose[@]}" up -d --no-deps --no-build --force-recreate \
++  web analysis-worker
++curl --fail --silent --show-error \
++  "http://127.0.0.1:${BIDOPS_WEB_PORT:-18787}/api/health" >/dev/null
++"${luna_compose[@]}" ps web analysis-worker codex-runner
++```
++
++```bash
++verify_running_flags false "$policy_version_id" true
++```
++
++두 서비스의 Luna `false`, auto-start `false`를 확인한다. v4 active ID를 유지할지 이전 ID로 돌릴지는 실행 결과를 본 사용자의 별도 결정이다. 이 단계에서 임의로 v3를 재활성화하지 않는다.
++
++## 차단과 롤백
++
++- 정책 import 뒤 문제가 나도 v4 행을 삭제하거나 v1–v3 행을 수정하지 않는다. import·preview·approval·attempt 감사 이력은 append-only로 보존한다.
++- 실제 요청 전 배포 문제가 있으면 먼저 Luna가 `false`인지 확인한다. 이전 환경과 이미지를 되돌리는 재배포도 별도 직전 사용자 확인 대상이다.
++- rollback 확인을 받은 뒤, 보호한 `luna.env.before`를 복원하고 보존한 image ID를 원래 Compose image ref로 다시 tag한 다음 `web`·`analysis-worker`만 `--no-deps --no-build --force-recreate`한다. 전체 DB 복구는 다른 사람의 이후 변경을 잃을 수 있으므로 이 runbook에서 자동 수행하지 않는다.
++- 실제 attempt가 `running`이면 image rollback이나 worker 재생성을 하지 않는다. 종결을 기다리거나 별도 장애 판단을 받는다.
++- `docker compose down -v`, volume 삭제, schema downgrade, SQL UPDATE/DELETE, 원응답 삭제, hosted OpenAI fallback은 사용하지 않는다.
++
++롤백 명령의 대상은 1단계에서 저장한 값으로만 정한다.
++
++```bash
++# 별도 롤백 확인을 받은 뒤에만 실행
++install -m 600 "$ops_dir/luna.env.before" env/luna.env
++docker image tag "bidops-rollback/web:luna-v4-${release_stamp}" "$web_image_ref_before"
++docker image tag "bidops-rollback/analysis-worker:luna-v4-${release_stamp}" "$analysis_image_ref_before"
++"${luna_compose[@]}" config --quiet
++"${luna_compose[@]}" up -d --no-deps --no-build --force-recreate \
++  web analysis-worker
++curl --fail --silent --show-error \
++  "http://127.0.0.1:${BIDOPS_WEB_PORT:-18787}/api/health" >/dev/null
++"${luna_compose[@]}" ps web analysis-worker codex-runner
++```
++
++롤백 뒤에도 안전한 flag 네 개만 Compose와 컨테이너에서 확인하며 전체 env/config를 출력하지 않는다.
+--- /dev/null
++++ b/web/backend/app/deep_review/policies/analysis-policy-luna-v4.json
+@@ -0,0 +1 @@
++{"chunking":{"max_characters":24000,"max_requirements":1,"merge_order":["stage_sequence","document_ordinal","page","block_order","requirement_id","slice_index"],"prior_characters":8000,"profile_characters":4000,"retries":0,"source_characters":6000,"timeout_seconds":900},"execution":{"automatic_retry":false,"cli_version":"0.155.1","review_timeout_seconds":18000,"timeout_seconds":900,"validation_repair_attempts":1},"generation":{"reasoning_effort":"xhigh"},"model_endpoint_ref":"codex-exec","model_name":"gpt-5.6-luna","pipeline_version":"narrative-v2","policy_identity":"analysis-policy-luna-v4","prompt_output_contract":{"bounded_output_rule":"Analyze every input unit and its material obligations and exceptions. Aim for no more than 40 claims per call; never silently omit scope to satisfy an output target. If evidence is insufficient, create explicit unknowns. No eight-item summary cap.","claim_rule":"Every claim has report_section, narrative_role, topic_key, source_unit_ids, requirement_ids, related_claim_ids and is_key_point. Use the same topic_key for a condition, its impact, action and decision condition. Connect claims with related_claim_ids; inferences also require premise_claim_ids and reason. Distinguish fact, inference, opinion and unknown. Keep exceptions, scope and assumptions in body. Do not reduce the body to labels. related_claim_ids must contain only claim_id values declared in this response or supplied verified_claims. Never use evidence_id, profile_evidence_id or source unit IDs there. If an optional connection is uncertain, use an empty related_claim_ids array. premise_claim_ids remain mandatory for inferences and calculations; never omit required premises. Synthesis must still connect every supplied claim.","coverage_rule":"For requirements_and_evaluation and delivery_risk_economics return coverage for every supplied source unit (its requirement_id is the unit ID, not a real document requirement ID). Link each row to substantive local claims which explain the content, or mark needs_review with a reason. Copy only supplied document requirement_ids into claims and account for every supplied requirement ID; mentioning IDs alone is not analysis. In synthesis coverage is empty; considered_claim_ids must include every supplied verified_claims ID and each must be related to a new synthesis claim. considered_claim_ids refers only to claim_id values in supplied input_slice.verified_claims, never local claim_id values created in this response. Return [] when no verified_claims are supplied.","evidence_rule":"Every fact, calculation and inference must carry exact source evidence. New evidence quotes must be exact substrings of a single supplied block. Copy locator, version and sha256 from the source. Reuse earlier evidence by ID only when supplied in this call. No invented company capabilities or numbers.","identity_rule":"Copy deep_review_id, attempt_id and stage exactly. Create new lowercase UUIDs; never redefine earlier claims or evidence.","profile_rule":"Company facts are a selected subset with selection limits. Not selected or missing is not proof of absence or noncompliance. Use only supplied evidence for company claims. Include positive evidence and the limits of transfer to this project.","recommendation_rule":"Only input_slice.synthesis_phase=global may emit exactly one category=system_recommendation claim with narrative_role=recommendation, report_section=assessment and body exactly one of 추진 검토, 조건부 추진 검토, 보류, 검토 종료. Other phases must not emit a recommendation. Global must reconcile all supplied synthesis conclusions and retain conflicting conditions as unknowns; no final bid decision.","roles":["source","company_basis","impact","action","decision_condition","synthesis","recommendation"],"schema":"bidops.deep-review-stage.v2","sections":["assessment","scope","company_fit","delivery","evaluation","contract_economics","actions","decision_conditions"],"validation_repair_rule":"When input_slice.validation_repair is present, return one complete replacement response for the same frozen slice. Correct every listed code at its field path without inventing or dropping source content, changing supplied identifiers, or weakening evidence, premise, coverage, quotation, numeric, or required-field rules."},"quality_status":"unmeasured_reference","report_schema":"bidops.deep-review-report.v2","schema":"bidops.analysis-policy.v2","stage_schema":"bidops.deep-review-stage.v2","stages":[{"instruction":"원문 각 조각의 목적·과업·산출물·자격·평가·검수·계약·비용 조건과 예외를 충분한 문장으로 추출한다. source 역할의 사실을 각 보고서 절에 배치하고 실제 요구사항 ID와 근거를 연결한다. 읽지 못한 내용은 needs_review로 남긴다.","stage":"requirements_and_evaluation"},{"instruction":"원문 조건과 제공된 회사 근거를 대조한다. 조건이 인력·일정·기술·검수·계약·비용에 미치는 영향과 이유·가정을 설명하고 확인할 일과 확인 결과에 따른 판단 조건까지 연결한다. company_basis, impact, action, decision_condition을 같은 topic_key와 related_claim_ids로 묶는다. 사실·해석·미확인을 구분하며 비용 자료가 없으면 계산하지 않는다.","stage":"delivery_risk_economics"},{"instruction":"앞 단계 검증 결과의 쟁점과 조건 간 관계를 충분한 문장으로 종합한다. 모든 입력 주장을 검토하고 핵심 판단 조건·긍정 근거·해결되지 않은 한계를 유지한다. partial에서는 종합 문장과 판단 갱신 조건을 만들고 global에서만 전체 종합 권고를 만든다. 상세 설명은 이미 보고서에 보존되므로 권고를 내기 위해 없는 사실을 추가하지 않는다.","stage":"synthesis_and_validation"}],"validation":{"max_unsupported_false_positive_rate":0.1,"min_human_agreement":0.7,"min_required_item_recall":0.8,"related_claim_policy":"omit_invalid_with_warning_v1"}}
