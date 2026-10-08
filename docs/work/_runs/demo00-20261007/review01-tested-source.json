@@ -1,0 +1,14 @@
+{
+  "command": [
+    "/tmp/bidops-demo00-verify-venv/bin/python",
+    "-m",
+    "pytest",
+    "tests/app/test_luna_deep_review.py",
+    "-k",
+    "repairs_one_invalid_slice or projects_optional_related_claim or schema_invalid_repairs_once or policy_review_deadline",
+    "-q"
+  ],
+  "exit_code": 0,
+  "test_sha256": "2ebcf38c68d6a20db4492af39a31802c1c295f2fb833c83549018356a68ce5c7",
+  "product_hashes_unchanged_from": "tested-source.json"
+}

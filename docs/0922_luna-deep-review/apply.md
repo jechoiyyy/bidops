@@ -175,3 +175,11 @@ DB의 append-only 정책/실행/승인 기록은 삭제·수정하지 않는다.
 policy UUID를 env/luna.env에 반영·서비스 재생성 → 1489 새 미리보기·전송 승인 순서다.
 승인 화면에 검증 미실시가 보이는 것을 확인하고 새 검토로 생성한다. 이전 실패는 보존한다.
 검증 결과/남은 범위: [검증 기록](../validation-runs/20260923-luna-validation-off/README.md).
+
+## Luna v4 로컬 구현 상태 (2026-10-08)
+
+`analysis-policy-luna-v4`와 정책 identity·5시간 마감·1·2단계 slice당 1회 교정 계약은
+[DEMO-00 STEP-002 명세](../work/groups/DEMO/features/DEMO-00-luna-preflight/spec.md)에 따라 로컬
+후보로 구현됐다. 원인 분류와 미검증 한계는 [선검증 기록](../validation-runs/20261007-luna-v4-preflight/README.md)을 따른다.
+아직 운영 이미지 배포, 정책 import·활성 env 반영, 1489 미리보기·승인·실제 Luna 호출은 수행하지 않았다.
+위 역사적 v1~v3 결과와 적용 기록은 그대로이며, v4 운영 적용은 DEMO-00 STEP-003에서 각 단계 직전 확인 후 진행한다.

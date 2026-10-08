@@ -21,7 +21,7 @@ from app.deep_review.services.luna_inputs import preview
 from app.deep_review.services.reports import ReportService
 
 
-def setup(engine, monkeypatch, *, policy_name='analysis-policy-luna-v1.json'):
+def setup(engine, monkeypatch, *, policy_name='analysis-policy-luna-v1.json', raw_response_store=None):
     notice, bundle, _, _ = _seed_review_context(engine, monkeypatch, measured=False)
     with Session(engine) as session:
         session.get(Notice, notice).source_type = 'pre_spec'
@@ -44,7 +44,28 @@ def setup(engine, monkeypatch, *, policy_name='analysis-policy-luna-v1.json'):
     monkeypatch.setenv('BIDOPS_REFERENCE_WORKFLOW_MODE', 'true')
     monkeypatch.setenv('BIDOPS_LUNA_DEEP_REVIEW_ENABLED', 'true')
     get_settings.cache_clear()
-    return notice, bundle, DeepReviewService(client=NarrativeClient(), structure_loader=structure_loader, raw_response_store=_FixtureStore())
+    return notice, bundle, DeepReviewService(client=NarrativeClient(), structure_loader=structure_loader, raw_response_store=raw_response_store or _FixtureStore())
+
+
+class _CapturingEncryptedStore:
+    def __init__(self):
+        self.payloads = []
+
+    def put_encrypted(self, data, *, retention_days, content_type):
+        import hashlib
+        self.payloads.append(data)
+        digest = hashlib.sha256(data).hexdigest()
+        return {
+            'object_key': f'model-response/{digest}', 'encryption_key_ref': 'fixture-encryption-key',
+            'encrypted': True, 'plaintext_sha256': digest, 'plaintext_size_bytes': len(data),
+        }
+
+
+def _create_approved_job(session, service, notice, bundle, *, worker='luna-v4-test'):
+    frozen = preview(service, session, notice, bundle, True)
+    created = service.create_review(session, notice, bundle, 'tester', uuid4(), preview_id=UUID(frozen['preview_id']))
+    job = service.claim_next_job(session, worker)
+    return frozen, created, job
 
 
 def exercise(engine, monkeypatch):
@@ -401,3 +422,340 @@ def test_validation_off_keeps_storage_scope(engine, monkeypatch, corruption):
 def test_validation_off_postgres(monkeypatch):
     with migrated_engine() as engine:
         exercise_validation_off(engine, monkeypatch)
+
+
+def test_luna_v4_policy_identity_is_canonical_and_preserves_legacy_mapping(engine, tmp_path):
+    import hashlib
+    from app.core.model_binding import canonical_json_bytes
+    from app.deep_review.services.input_versions import InputVersionError, load_canonical_policy
+
+    paths = [CANONICAL_POLICY_FILE.with_name(f'analysis-policy-luna-v{version}.json') for version in range(1, 5)]
+    payloads = []
+    for path in paths:
+        payload, canonical, digest = load_canonical_policy(path)
+        assert path.read_bytes() == canonical_json_bytes(payload) == canonical
+        assert digest == hashlib.sha256(path.read_bytes()).hexdigest()
+        payloads.append(payload)
+    assert hashlib.sha256(paths[-1].read_bytes()).hexdigest() == '51b1723051e92299ef53e650f9faf851c8e6777fe75c59b814639d38be887877'
+    assert payloads[-1]['policy_identity'] == 'analysis-policy-luna-v4'
+    assert payloads[-1]['execution'] | {} == {
+        'automatic_retry': False, 'cli_version': '0.155.1', 'review_timeout_seconds': 18000,
+        'timeout_seconds': 900, 'validation_repair_attempts': 1,
+    }
+    assert payloads[-1]['validation'].get('result_checks') is None
+    assert all('policy_identity' not in payload for payload in payloads[:3])
+    assert all('validation_repair_attempts' not in payload['execution'] for payload in payloads[:3])
+
+    mutated_v2 = json.loads(json.dumps(payloads[1]))
+    mutated_v2['prompt_output_contract']['coverage_rule'] += ' changed'
+    candidate = tmp_path / 'candidate.json'
+    candidate.write_bytes(canonical_json_bytes(mutated_v2))
+    with pytest.raises(InputVersionError, match='승인되지 않은'):
+        load_canonical_policy(candidate)
+    unknown = json.loads(json.dumps(payloads[-1]))
+    unknown['policy_identity'] = 'analysis-policy-luna-future'
+    candidate.write_bytes(canonical_json_bytes(unknown))
+    with pytest.raises(InputVersionError, match='identity'):
+        load_canonical_policy(candidate)
+
+    with Session(engine) as session:
+        rows = [import_policy_version(session, path) for path in paths]
+        assert len({row.id for row in rows}) == 4
+        assert [row.policy_sha256 for row in rows] == [hashlib.sha256(path.read_bytes()).hexdigest() for path in paths]
+
+
+@pytest.mark.parametrize(('target_stage', 'failure_kind', 'expected_issue'), [
+    ('requirements_and_evaluation', 'considered', {'code': 'narrative:considered_claim_out_of_slice', 'path': '$.considered_claim_ids'}),
+    ('requirements_and_evaluation', 'evidence', {'code': 'narrative:evidence_out_of_slice', 'path': '$.claims[*].evidence_ids'}),
+    ('delivery_risk_economics', 'evidence', {'code': 'narrative:evidence_out_of_slice', 'path': '$.claims[*].evidence_ids'}),
+])
+def test_luna_v4_repairs_one_invalid_slice_with_same_approval_and_encrypted_originals(
+    engine, monkeypatch, target_stage, failure_kind, expected_issue,
+):
+    from copy import deepcopy
+    from dataclasses import replace
+
+    store = _CapturingEncryptedStore()
+    notice, bundle, service = setup(engine, monkeypatch, policy_name='analysis-policy-luna-v4.json', raw_response_store=store)
+    original = service.client.invoke
+    target_call_count = 0
+
+    def invoke(*args, **kwargs):
+        nonlocal target_call_count
+        result = original(*args, **kwargs)
+        if args[0] == target_stage:
+            target_call_count += 1
+            if target_call_count == 1:
+                output = deepcopy(result.structured_output)
+                if failure_kind == 'considered':
+                    output['considered_claim_ids'] = [output['claims'][0]['claim_id']]
+                else:
+                    output['claims'][0]['evidence_ids'] = [str(uuid4())]
+                return replace(result, structured_output=output, raw_response=json.dumps(output).encode())
+        return result
+
+    service.client.invoke = invoke
+    with Session(engine) as session:
+        frozen, created, job = _create_approved_job(session, service, notice, bundle)
+        service.run_claim(session, job)
+        assert service.view(session, job.deep_review_id)['status'] == 'completed'
+        assert target_call_count == 2
+        calls = [call for call in service.client.calls if call['stage'] == target_stage]
+        assert len(calls) == 2
+        repair = deepcopy(calls[1])
+        feedback = repair.pop('validation_repair')
+        assert repair == calls[0]
+        assert feedback['attempt'] == 1
+        assert feedback['issues'] == [expected_issue]
+        assert set(feedback['issues'][0]) == {'code', 'path'}
+
+        approval = session.scalar(select(DeepReviewApproval).where(DeepReviewApproval.attempt_id == job.attempt_id))
+        approved_preview = session.get(DeepReviewPreview, approval.preview_id)
+        assert str(approval.preview_id) == frozen['preview_id']
+        assert approved_preview.input_sha256 == frozen['input_sha256']
+        assert len(session.scalars(select(DeepReviewApproval)).all()) == 1
+
+        stage = session.scalar(select(DeepReviewStage).where(
+            DeepReviewStage.attempt_id == job.attempt_id, DeepReviewStage.stage == target_stage,
+        ))
+        repair_rows = [row for row in stage.invocation_metadata if row.get('slice_index') == 0]
+        assert [row['validation_repair_attempt'] for row in repair_rows] == [0, 1]
+        assert [row['status'] for row in repair_rows] == ['validation_failed', 'succeeded']
+        assert len({row['input_slice_sha256'] for row in repair_rows}) == 1
+        assert all(set(issue) == {'code', 'path'} for row in repair_rows for issue in row['validation_repair_issues'])
+        location = session.scalar(select(ContentObjectLocation).where(ContentObjectLocation.content_object_id == stage.raw_response_content_object_id))
+        assert location.namespace_key == 'model-response'
+        assert location.encryption_key_ref == 'fixture-encryption-key'
+        content = session.get(ContentObject, stage.raw_response_content_object_id)
+        aggregate = json.loads(next(data for data in store.payloads if __import__('hashlib').sha256(data).hexdigest() == content.sha256))
+        assert len(aggregate['responses']) == 2
+        assert all(set(row) == {'slice_index', 'response_sha256', 'raw_response'} for row in aggregate['responses'])
+        assert aggregate['responses'][0]['response_sha256'] != aggregate['responses'][1]['response_sha256']
+
+        report = ReportService().get_report(session, UUID(created['id']))
+        warnings = [row for row in report['validation']['checks'] if row['check_type'] == 'validation_repair_applied']
+        assert len(warnings) == 1 and warnings[0]['status'] == 'warning'
+        assert warnings[0]['message'] in report['report']['analysis_limitations']
+
+
+def test_luna_v4_projects_optional_related_claim_warning_without_repair(engine, monkeypatch):
+    from copy import deepcopy
+    from dataclasses import replace
+
+    notice, bundle, service = setup(engine, monkeypatch, policy_name='analysis-policy-luna-v4.json')
+    original = service.client.invoke
+    target_calls = 0
+
+    def invoke(*args, **kwargs):
+        nonlocal target_calls
+        result = original(*args, **kwargs)
+        if args[0] == 'requirements_and_evaluation':
+            target_calls += 1
+            output = deepcopy(result.structured_output)
+            output['claims'][0]['related_claim_ids'] = [output['evidence'][0]['evidence_id']]
+            return replace(result, structured_output=output, raw_response=json.dumps(output).encode())
+        return result
+
+    service.client.invoke = invoke
+    with Session(engine) as session:
+        _frozen, created, job = _create_approved_job(session, service, notice, bundle)
+        service.run_claim(session, job)
+        assert target_calls == 1
+        assert all('validation_repair' not in call for call in service.client.calls)
+        report = ReportService().get_report(session, UUID(created['id']))
+        relation = [row for row in report['validation']['checks'] if row['check_type'] == 'related_claim_out_of_scope_omitted']
+        assert len(relation) == 1 and relation[0]['status'] == 'warning'
+        assert not any(row['check_type'] == 'validation_repair_applied' for row in report['validation']['checks'])
+        assert report['report']['claims'][0]['related_claim_ids'] == []
+
+
+def test_luna_v4_stops_after_one_failed_repair_and_preserves_both_responses(engine, monkeypatch):
+    from copy import deepcopy
+    from dataclasses import replace
+
+    store = _CapturingEncryptedStore()
+    notice, bundle, service = setup(engine, monkeypatch, policy_name='analysis-policy-luna-v4.json', raw_response_store=store)
+    original = service.client.invoke
+    target_calls = 0
+
+    def invoke(*args, **kwargs):
+        nonlocal target_calls
+        result = original(*args, **kwargs)
+        if args[0] == 'requirements_and_evaluation':
+            target_calls += 1
+            output = deepcopy(result.structured_output)
+            output['claims'][0]['evidence_ids'] = [str(uuid4())]
+            return replace(result, structured_output=output, raw_response=json.dumps(output).encode())
+        return result
+
+    service.client.invoke = invoke
+    with Session(engine) as session:
+        _frozen, _created, job = _create_approved_job(session, service, notice, bundle)
+        with pytest.raises(DeepReviewServiceError, match='범위 검증'):
+            service.run_claim(session, job)
+        assert target_calls == 2
+        stage = session.scalar(select(DeepReviewStage).where(DeepReviewStage.attempt_id == job.attempt_id, DeepReviewStage.sequence == 1))
+        assert [row.get('validation_repair_attempt') for row in stage.invocation_metadata if row.get('status') == 'validation_failed'] == [0, 1]
+        content = session.get(ContentObject, stage.raw_response_content_object_id)
+        aggregate = json.loads(next(data for data in store.payloads if __import__('hashlib').sha256(data).hexdigest() == content.sha256))
+        assert len(aggregate['responses']) == 2
+        assert session.scalar(select(ReportRevision)) is None
+
+
+@pytest.mark.parametrize('eventual_success', [True, False])
+def test_luna_v4_schema_invalid_repairs_once_and_preserves_encrypted_originals(engine, monkeypatch, eventual_success):
+    import hashlib
+    from app.core.model_client import ModelInvocationError
+
+    store = _CapturingEncryptedStore()
+    notice, bundle, service = setup(engine, monkeypatch, policy_name='analysis-policy-luna-v4.json', raw_response_store=store)
+    original = service.client.invoke
+    target_calls = 0
+    invalid_raw = b'{"schema":"invalid"}'
+
+    def invoke(*args, **kwargs):
+        nonlocal target_calls
+        result = original(*args, **kwargs)
+        if args[0] == 'requirements_and_evaluation':
+            target_calls += 1
+            if target_calls == 1 or not eventual_success:
+                raise ModelInvocationError(
+                    'schema_invalid',
+                    ({'retry_index': 0, 'status': 'failed', 'error_code': 'schema_invalid', 'latency_ms': 7},),
+                    invalid_raw,
+                )
+        return result
+
+    service.client.invoke = invoke
+    with Session(engine) as session:
+        _frozen, created, job = _create_approved_job(session, service, notice, bundle)
+        if eventual_success:
+            service.run_claim(session, job)
+            assert service.view(session, job.deep_review_id)['status'] == 'completed'
+        else:
+            with pytest.raises(DeepReviewServiceError) as error:
+                service.run_claim(session, job)
+            assert error.value.code == 'schema_invalid'
+            assert service.view(session, job.deep_review_id)['status'] == 'failed'
+        assert target_calls == 2
+
+        calls = [call for call in service.client.calls if call['stage'] == 'requirements_and_evaluation']
+        repaired_input = dict(calls[1])
+        feedback = repaired_input.pop('validation_repair')
+        assert repaired_input == calls[0]
+        assert feedback['issues'] == [{'code': 'schema_invalid', 'path': '$'}]
+
+        stage = session.scalar(select(DeepReviewStage).where(DeepReviewStage.attempt_id == job.attempt_id, DeepReviewStage.sequence == 1))
+        repair_rows = [row for row in stage.invocation_metadata if row.get('validation_repair_attempt') in {0, 1}]
+        assert [row['validation_repair_attempt'] for row in repair_rows] == [0, 1]
+        assert [row['status'] for row in repair_rows] == (
+            ['validation_failed', 'succeeded'] if eventual_success else ['validation_failed', 'validation_failed']
+        )
+        location = session.scalar(select(ContentObjectLocation).where(ContentObjectLocation.content_object_id == stage.raw_response_content_object_id))
+        assert location.encryption_key_ref == 'fixture-encryption-key'
+        content = session.get(ContentObject, stage.raw_response_content_object_id)
+        aggregate = json.loads(next(data for data in store.payloads if hashlib.sha256(data).hexdigest() == content.sha256))
+        assert len(aggregate['responses']) == 2
+        assert aggregate['responses'][0]['raw_response'] == invalid_raw.decode()
+        if eventual_success:
+            assert aggregate['responses'][1]['raw_response'] != invalid_raw.decode()
+        else:
+            assert aggregate['responses'][1]['raw_response'] == invalid_raw.decode()
+        if eventual_success:
+            report = ReportService().get_report(session, UUID(created['id']))
+            warning = [row for row in report['validation']['checks'] if row['check_type'] == 'validation_repair_applied']
+            assert len(warning) == 1 and warning[0]['message'] in report['report']['analysis_limitations']
+        else:
+            assert session.scalar(select(ReportRevision)) is None
+
+
+@pytest.mark.parametrize('policy_name', [
+    'analysis-policy-luna-v1.json', 'analysis-policy-luna-v2.json', 'analysis-policy-luna-v3.json',
+])
+def test_legacy_luna_policies_do_not_validation_repair(engine, monkeypatch, policy_name):
+    from copy import deepcopy
+    from dataclasses import replace
+
+    notice, bundle, service = setup(engine, monkeypatch, policy_name=policy_name)
+    original = service.client.invoke
+    target_calls = 0
+
+    def invoke(*args, **kwargs):
+        nonlocal target_calls
+        result = original(*args, **kwargs)
+        if args[0] == 'requirements_and_evaluation':
+            target_calls += 1
+            output = deepcopy(result.structured_output)
+            output['claims'][0]['evidence_ids'] = [str(uuid4())]
+            return replace(result, structured_output=output, raw_response=json.dumps(output).encode())
+        return result
+
+    service.client.invoke = invoke
+    with Session(engine) as session:
+        _frozen, _created, job = _create_approved_job(session, service, notice, bundle)
+        with pytest.raises(DeepReviewServiceError):
+            service.run_claim(session, job)
+        assert target_calls == 1
+        assert all('validation_repair' not in call for call in service.client.calls)
+
+
+def test_luna_v4_never_repairs_synthesis_slice(engine, monkeypatch):
+    from copy import deepcopy
+    from dataclasses import replace
+
+    notice, bundle, service = setup(engine, monkeypatch, policy_name='analysis-policy-luna-v4.json')
+    original = service.client.invoke
+    synthesis_calls = 0
+
+    def invoke(*args, **kwargs):
+        nonlocal synthesis_calls
+        result = original(*args, **kwargs)
+        if args[0] == 'synthesis_and_validation':
+            synthesis_calls += 1
+            output = deepcopy(result.structured_output)
+            output['considered_claim_ids'] = []
+            return replace(result, structured_output=output, raw_response=json.dumps(output).encode())
+        return result
+
+    service.client.invoke = invoke
+    with Session(engine) as session:
+        _frozen, _created, job = _create_approved_job(session, service, notice, bundle)
+        with pytest.raises(DeepReviewServiceError):
+            service.run_claim(session, job)
+        assert synthesis_calls == 1
+        assert not any('validation_repair' in call for call in service.client.calls if call['stage'] == 'synthesis_and_validation')
+
+
+@pytest.mark.parametrize(('policy_name', 'timeout_seconds'), [
+    ('analysis-policy-luna-v1.json', 7200),
+    ('analysis-policy-luna-v2.json', 7200),
+    ('analysis-policy-luna-v3.json', 7200),
+    ('analysis-policy-luna-v4.json', 18000),
+])
+def test_luna_policy_review_deadline_is_passed_to_each_luna_client(engine, monkeypatch, policy_name, timeout_seconds):
+    from app.deep_review.services import deep_reviews as module
+
+    notice, bundle, service = setup(engine, monkeypatch, policy_name=policy_name)
+    deadlines = []
+
+    class DeadlineClient:
+        provider_name = 'codex-exec'
+
+        def __init__(self, endpoint, heartbeat, deadline):
+            deadlines.append(deadline)
+            self.delegate = NarrativeClient()
+
+        def invoke(self, *args, **kwargs):
+            return self.delegate.invoke(*args, **kwargs)
+
+        def close(self):
+            pass
+
+    service._client = None
+    service._injected_client = False
+    monkeypatch.setattr(module.time, 'monotonic', lambda: 100.0)
+    monkeypatch.setattr('app.deep_review.services.luna_client.LunaClient', DeadlineClient)
+    with Session(engine) as session:
+        _frozen, _created, job = _create_approved_job(session, service, notice, bundle)
+        service.run_claim(session, job)
+    assert deadlines and set(deadlines) == {100.0 + timeout_seconds}

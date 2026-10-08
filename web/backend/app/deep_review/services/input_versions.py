@@ -697,6 +697,11 @@ def _approved_policy_path(policy: Mapping[str, Any]) -> Path:
     if policy.get("schema") == POLICY_SCHEMA:
         return CANONICAL_POLICY_FILE
     if policy.get("model_endpoint_ref") == "codex-exec":
+        policy_identity = policy.get("policy_identity")
+        if policy_identity is not None:
+            if policy_identity == "analysis-policy-luna-v4":
+                return CANONICAL_POLICY_FILE.with_name("analysis-policy-luna-v4.json")
+            raise InputVersionError("invalid_request", "승인되지 않은 analysis policy identity입니다")
         version = "v3" if policy.get("validation", {}).get("result_checks") == "disabled_reference_v1" else "v2" if policy.get("validation", {}).get("related_claim_policy") == "omit_invalid_with_warning_v1" else "v1"
         return CANONICAL_POLICY_FILE.with_name(f"analysis-policy-luna-{version}.json")
     return CANONICAL_POLICY_FILE.with_name("analysis-policy-narrative-v2.json")

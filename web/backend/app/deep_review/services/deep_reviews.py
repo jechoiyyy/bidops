@@ -89,7 +89,28 @@ _SAFE_INVOCATION_KEYS = frozenset({
     "model", "policy_sha256", "prompt_tokens", "output_tokens", "latency_ms",
     "status", "error_code", "retry_index", "fixed_input_hash", "safe",
     "attempts", "provider", "cli_version", "reasoning_effort",
+    "validation_repair_attempt", "validation_repair_issues",
 })
+
+_NARRATIVE_ERROR_PATHS = {
+    "narrative_schema_required": "$.schema",
+    "considered_claim_out_of_slice": "$.considered_claim_ids",
+    "source_coverage_mismatch": "$.coverage",
+    "requirement_coverage_mismatch": "$.claims[*].requirement_ids",
+    "claim_source_out_of_slice": "$.claims[*].source_unit_ids",
+    "coverage_claim_missing": "$.coverage[*].claim_ids",
+    "coverage_without_analysis": "$.coverage[*].claim_ids",
+    "synthesis_source_out_of_slice": "$.claims[*].source_unit_ids",
+    "synthesis_coverage_mismatch": "$.considered_claim_ids",
+    "synthesis_claim_omission": "$.claims[*].related_claim_ids",
+    "recommendation_scope_mismatch": "$.claims[*].narrative_role",
+    "claim_relation_out_of_slice": "$.claims[*].related_claim_ids|premise_claim_ids",
+    "evidence_out_of_slice": "$.claims[*].evidence_ids",
+    "document_evidence_out_of_slice": "$.evidence[*]",
+    "profile_evidence_out_of_slice": "$.evidence[*].profile_evidence_id",
+    "local_identifier_redefinition": "$.claims[*].claim_id|evidence[*].evidence_id",
+    "local_identifier_invalid": "$.claims[*].claim_id|evidence[*].evidence_id",
+}
 
 
 class DeepReviewServiceError(RuntimeError):
@@ -172,6 +193,57 @@ def _safe_invocation_metadata(value: Mapping[str, Any] | Any) -> dict[str, Any]:
     if isinstance(attempts, Sequence) and not isinstance(attempts, (str, bytes, bytearray)):
         output["attempts"] = [_safe_invocation_attempt(item) for item in attempts]
     return output
+
+
+def _policy_execution_limit(
+    policy: Mapping[str, Any],
+    key: str,
+    *,
+    default: int,
+    minimum: int,
+    maximum: int,
+) -> int:
+    execution = policy.get("execution", {})
+    if not isinstance(execution, Mapping):
+        raise DeepReviewServiceError("service_unavailable", "analysis policy execution 설정이 올바르지 않습니다", status_code=503)
+    value = execution.get(key, default)
+    if type(value) is not int or not minimum <= value <= maximum:
+        raise DeepReviewServiceError("service_unavailable", f"analysis policy {key} 설정이 올바르지 않습니다", status_code=503)
+    return value
+
+
+def _safe_issue_path(path: Any) -> str:
+    """Return a bounded field-only JSON path for repair feedback."""
+
+    if not isinstance(path, str) or not path.startswith("$"):
+        return "$"
+    clean = re.sub(r"\[\d+\]", "[*]", path)
+    if len(clean) > 160 or not re.fullmatch(r"\$(?:\.[A-Za-z_][A-Za-z0-9_]*|\[\*\])*", clean):
+        return "$"
+    return clean
+
+
+def _validation_repair_issues(error: Exception) -> list[dict[str, str]]:
+    """Project validator failures to code + field location only.
+
+    Model text, quotes, validator messages, and identifiers never enter the
+    correction prompt or persisted diagnostics.
+    """
+
+    if isinstance(error, narrative_inputs.NarrativeInputError):
+        code = error.code if re.fullmatch(r"[a-z0-9_]{1,80}", error.code) else "narrative_invalid"
+        return [{"code": f"narrative:{code}", "path": _NARRATIVE_ERROR_PATHS.get(code, "$")}]
+    if isinstance(error, DeepReviewValidationError):
+        result: list[dict[str, str]] = []
+        for issue in error.issues[:20]:
+            code = issue.code if re.fullmatch(r"[a-z0-9_]{1,80}", issue.code) else "contract_invalid"
+            row = {"code": f"validation:{code}", "path": _safe_issue_path(issue.path)}
+            if row not in result:
+                result.append(row)
+        return result or [{"code": "validation:contract_invalid", "path": "$"}]
+    if isinstance(error, ModelInvocationError) and error.code == "schema_invalid":
+        return [{"code": "schema_invalid", "path": "$"}]
+    return []
 
 
 def _resolve_exact_evidence_quotes(
@@ -1237,7 +1309,11 @@ class DeepReviewService:
         responses: list[dict[str, Any]] = []
         ordered_records = sorted(
             enumerate(raw_records),
-            key=lambda item: (item[1][1].get("slice_index", item[0]) if isinstance(item[1][1], Mapping) else item[0], item[0]),
+            key=lambda item: (
+                item[1][1].get("slice_index", item[0]) if isinstance(item[1][1], Mapping) else item[0],
+                item[1][1].get("validation_repair_attempt", 0) if isinstance(item[1][1], Mapping) else 0,
+                item[0],
+            ),
         )
         for fallback_index, (_source_index, (result, metadata)) in enumerate(ordered_records):
             try:
@@ -1245,7 +1321,11 @@ class DeepReviewService:
             except (AttributeError, UnicodeDecodeError) as exc:
                 raise DeepReviewServiceError("processing_failed", "model raw response가 UTF-8 JSON이 아닙니다", status_code=500) from exc
             slice_index = metadata.get("slice_index", fallback_index) if isinstance(metadata, Mapping) else fallback_index
-            responses.append({"slice_index": slice_index, "response_sha256": hashlib.sha256(result.raw_response).hexdigest(), "raw_response": raw_text})
+            responses.append({
+                "slice_index": slice_index,
+                "response_sha256": hashlib.sha256(result.raw_response).hexdigest(),
+                "raw_response": raw_text,
+            })
         return json.dumps({"schema": "bidops.model-response-aggregate.v1", "responses": responses}, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
 
     @staticmethod
@@ -1581,7 +1661,13 @@ class DeepReviewService:
             previous_outputs: list[Mapping[str, Any]] = prefix_outputs
             known_claim_ids: set[str] = prefix_claim_ids
             known_evidence_ids: set[str] = prefix_evidence_ids
-            luna_deadline = time.monotonic() + 7200
+            review_timeout_seconds = _policy_execution_limit(
+                policy_payload, "review_timeout_seconds", default=7200, minimum=1, maximum=86400,
+            )
+            validation_repair_attempts = _policy_execution_limit(
+                policy_payload, "validation_repair_attempts", default=0, minimum=0, maximum=1,
+            )
+            luna_deadline = time.monotonic() + review_timeout_seconds
             for stage_name in STAGES:
                 stage_invocations: list[Mapping[str, Any]] = []
                 stage_row = session.scalar(select(DeepReviewStage).where(DeepReviewStage.attempt_id == claim.attempt_id, DeepReviewStage.stage == stage_name).limit(1))
@@ -1608,67 +1694,130 @@ class DeepReviewService:
                 invocation_metadata: list[dict[str, Any]] = []
                 raw_records: list[tuple[InvocationResult, Mapping[str, Any]]] = []
                 for slice_index, input_slice in enumerate(slices):
-                    invocation_input = {
+                    base_invocation_input = {
                         **input_slice,
                         "notice_id": pinned_notice_id,
                         "deep_review_id": str(review_id),
                         "attempt_id": str(attempt_id),
                         "stage": stage_name,
                     }
-                    try:
-                        self._renew_lease(session, claim, require_live=luna)
-                        result = client.invoke(
-                            stage_name,
-                            invocation_input,
-                            policy_payload,
-                            profile={"profile_version_id": pinned_profile_id, "profile_sha256": pinned_profile_sha256} if stage_name == STAGES[1] else None,
-                            prior_stages=(),
-                        )
+                    frozen_slice_sha256 = _canonical_hash(base_invocation_input)
+                    repair_feedback: list[dict[str, str]] = []
+                    for repair_attempt in range(validation_repair_attempts + 1):
+                        invocation_input = deepcopy(base_invocation_input)
+                        if repair_attempt:
+                            invocation_input["validation_repair"] = {
+                                "attempt": repair_attempt,
+                                "instruction": "Return a complete replacement response. Correct only the listed validation failures; all frozen source inputs and identifiers remain authoritative.",
+                                "issues": deepcopy(repair_feedback),
+                            }
+                        try:
+                            self._renew_lease(session, claim, require_live=luna)
+                            result = client.invoke(
+                                stage_name,
+                                invocation_input,
+                                policy_payload,
+                                profile={"profile_version_id": pinned_profile_id, "profile_sha256": pinned_profile_sha256} if stage_name == STAGES[1] else None,
+                                prior_stages=(),
+                            )
+                        except ModelInvocationError as error:
+                            if error.raw_response:
+                                raw_records.append((
+                                    InvocationResult({}, error.raw_response, _canonical_hash(invocation_input), hashlib.sha256(error.raw_response).hexdigest(), None, None, 0, (), pinned_provider, pinned_model_name),
+                                    {"slice_index": slice_index, "validation_repair_attempt": repair_attempt},
+                                ))
+                            safe_attempts = [_safe_invocation_attempt(item) for item in error.attempts]
+                            issues = _validation_repair_issues(error)
+                            failure_observation = {
+                                "slice_index": slice_index,
+                                "input_slice_sha256": frozen_slice_sha256,
+                                "status": "validation_failed" if issues else "failed",
+                                "error_code": error.code,
+                                **({"validation_repair_attempt": repair_attempt} if validation_repair_attempts else {}),
+                                **({"response_sha256": hashlib.sha256(error.raw_response).hexdigest()} if error.raw_response else {}),
+                                **({"validation_repair_issues": issues} if issues else {}),
+                                "attempts": safe_attempts,
+                            }
+                            invocation_metadata.append(failure_observation)
+                            stage_invocations.append(failure_observation)
+                            if (
+                                issues
+                                and error.raw_response
+                                and narrative
+                                and stage_name in STAGES[:2]
+                                and repair_attempt < validation_repair_attempts
+                            ):
+                                repair_feedback = issues
+                                continue
+                            raise DeepReviewServiceError(error.code, "승인된 model invocation이 실패했습니다", status_code=503)
                         if luna:
                             self._renew_lease(session, claim, require_live=True)
                             if time.monotonic() >= luna_deadline:
                                 raise DeepReviewServiceError("review_timeout", "검토 제한시간 초과", status_code=503)
-                        raw_records.append((result, {"slice_index": slice_index}))
+                        raw_records.append((result, {"slice_index": slice_index, "validation_repair_attempt": repair_attempt}))
                         stage_invocations.extend(_safe_invocation_attempt(item) for item in result.attempts)
-                        chunk_output = _resolve_exact_evidence_quotes(result.structured_output, structures) if source_verification_enabled else deepcopy(result.structured_output)
-                        relation_diagnostics = []
-                        if narrative:
-                            if chunk_output.get("schema") != "bidops.deep-review-stage.v2":
-                                raise narrative_inputs.NarrativeInputError("narrative_schema_required")
-                            chunk_output = narrative_inputs.bind_local_ids(chunk_output, input_slice)
-                            chunk_output, relation_diagnostics = narrative_inputs.project_related_claims(chunk_output, input_slice, policy_payload)
-                            if result_checks_enabled:
-                                narrative_inputs.validate_slice_output(chunk_output, input_slice, stage_name, source_verification_enabled=source_verification_enabled)
-                        # Validate each untrusted chunk before paying for the
-                        # next provider call.  The final merge repeats this
-                        # check and adds cross-chunk duplicate/conflict rules.
-                        # Same-chunk premise/evidence IDs are in scope; future
-                        # chunks are deliberately not, so output cannot depend
-                        # on model results that do not exist yet.
-                        chunk_claim_ids = {
-                            str(item.get("claim_id"))
-                            for item in chunk_output.get("claims", [])
-                            if isinstance(item, Mapping) and item.get("claim_id")
-                        }
-                        chunk_evidence_ids = {
-                            str(item.get("evidence_id"))
-                            for item in chunk_output.get("evidence", [])
-                            if isinstance(item, Mapping) and item.get("evidence_id")
-                        }
-                        validate_deep_review_stage(
-                            chunk_output,
-                            bundle=bundle,
-                            profile=profile_payload,
-                            profile_version_id=pinned_profile_id,
-                            expected_deep_review_id=str(review_id),
-                            known_claim_ids=({row["claim_id"] for row in input_slice.get("verified_claims", [])} if narrative else known_claim_ids) | chunk_claim_ids,
-                            known_evidence_ids=({row["evidence_id"] for row in input_slice.get("prior_evidence", [])} if narrative else known_evidence_ids) | chunk_evidence_ids,
-                            known_evidence=input_slice.get("prior_evidence", []) if narrative else (),
-                            structures=structures, source_verification_enabled=source_verification_enabled, result_checks_enabled=result_checks_enabled,
-                        )
+                        try:
+                            chunk_output = _resolve_exact_evidence_quotes(result.structured_output, structures) if source_verification_enabled else deepcopy(result.structured_output)
+                            relation_diagnostics = []
+                            if narrative:
+                                if chunk_output.get("schema") != "bidops.deep-review-stage.v2":
+                                    raise narrative_inputs.NarrativeInputError("narrative_schema_required")
+                                chunk_output = narrative_inputs.bind_local_ids(chunk_output, input_slice)
+                                chunk_output, relation_diagnostics = narrative_inputs.project_related_claims(chunk_output, input_slice, policy_payload)
+                                if result_checks_enabled:
+                                    narrative_inputs.validate_slice_output(chunk_output, input_slice, stage_name, source_verification_enabled=source_verification_enabled)
+                            # Validate each untrusted chunk before paying for the
+                            # next provider call. The final merge repeats this
+                            # check and adds cross-chunk duplicate/conflict rules.
+                            chunk_claim_ids = {
+                                str(item.get("claim_id"))
+                                for item in chunk_output.get("claims", [])
+                                if isinstance(item, Mapping) and item.get("claim_id")
+                            }
+                            chunk_evidence_ids = {
+                                str(item.get("evidence_id"))
+                                for item in chunk_output.get("evidence", [])
+                                if isinstance(item, Mapping) and item.get("evidence_id")
+                            }
+                            validate_deep_review_stage(
+                                chunk_output,
+                                bundle=bundle,
+                                profile=profile_payload,
+                                profile_version_id=pinned_profile_id,
+                                expected_deep_review_id=str(review_id),
+                                known_claim_ids=({row["claim_id"] for row in input_slice.get("verified_claims", [])} if narrative else known_claim_ids) | chunk_claim_ids,
+                                known_evidence_ids=({row["evidence_id"] for row in input_slice.get("prior_evidence", [])} if narrative else known_evidence_ids) | chunk_evidence_ids,
+                                known_evidence=input_slice.get("prior_evidence", []) if narrative else (),
+                                structures=structures, source_verification_enabled=source_verification_enabled, result_checks_enabled=result_checks_enabled,
+                            )
+                        except (narrative_inputs.NarrativeInputError, DeepReviewValidationError) as error:
+                            issues = _validation_repair_issues(error)
+                            failure_observation = {
+                                "slice_index": slice_index,
+                                "input_slice_sha256": frozen_slice_sha256,
+                                "prompt_sha256": result.input_sha256,
+                                "response_sha256": hashlib.sha256(result.raw_response).hexdigest(),
+                                "provider": result.provider or str(getattr(client, "provider_name", "unknown")),
+                                "model": result.model or pinned_model_name,
+                                "policy_sha256": pinned_policy_sha256,
+                                "prompt_tokens": result.prompt_tokens,
+                                "output_tokens": result.output_tokens,
+                                "latency_ms": result.latency_ms,
+                                "status": "validation_failed",
+                                "error_code": issues[0]["code"],
+                                **({"validation_repair_attempt": repair_attempt} if validation_repair_attempts else {}),
+                                "validation_repair_issues": issues,
+                                "attempts": [_safe_invocation_attempt(item) for item in result.attempts],
+                            }
+                            invocation_metadata.append(failure_observation)
+                            stage_invocations.append(failure_observation)
+                            if narrative and stage_name in STAGES[:2] and repair_attempt < validation_repair_attempts:
+                                repair_feedback = issues
+                                continue
+                            raise
                         safe_attempts = [_safe_invocation_attempt(item) for item in result.attempts]
                         invocation_metadata.append({
-                            "slice_index": slice_index, "input_slice_sha256": _canonical_hash(invocation_input), "prompt_sha256": result.input_sha256,
+                            "slice_index": slice_index, "input_slice_sha256": frozen_slice_sha256, "prompt_sha256": result.input_sha256,
                             "response_sha256": hashlib.sha256(result.raw_response).hexdigest(),
                             "provider": result.provider or str(getattr(client, "provider_name", "unknown")),
                             "model": result.model or pinned_model_name,
@@ -1676,6 +1825,8 @@ class DeepReviewService:
                             "policy_sha256": pinned_policy_sha256, "prompt_tokens": result.prompt_tokens,
                             "output_tokens": result.output_tokens, "latency_ms": result.latency_ms,
                             "status": "succeeded", "attempts": safe_attempts,
+                            **({"validation_repair_attempt": repair_attempt} if validation_repair_attempts else {}),
+                            **({"validation_repair_issues": repair_feedback} if repair_attempt else {}),
                             **({"related_claim_diagnostics": relation_diagnostics} if relation_diagnostics else {}),
                             **({"profile_selection": deepcopy(input_slice["profile_selection"])} if narrative and "profile_selection" in input_slice else {}),
                             **({"synthesis_phase": input_slice["synthesis_phase"]} if narrative and "synthesis_phase" in input_slice else {}),
@@ -1685,13 +1836,7 @@ class DeepReviewService:
                             partial_claims = [row for chunk in chunks for row in chunk["claims"]]
                             all_evidence = {row["evidence_id"]: row for output in [*previous_outputs, *chunks] for row in output["evidence"]}
                             slices.extend(narrative_inputs.pack_verified(partial_claims, list(all_evidence.values()), budget=16000, phase="global"))
-                    except ModelInvocationError as error:
-                        if error.raw_response:
-                            raw_records.append((InvocationResult({}, error.raw_response, _canonical_hash(invocation_input), hashlib.sha256(error.raw_response).hexdigest(), None, None, 0, (), pinned_provider, pinned_model_name), {"slice_index": slice_index}))
-                        safe_attempts = [_safe_invocation_attempt(item) for item in error.attempts]
-                        invocation_metadata.extend({"slice_index": slice_index, "input_slice_sha256": _canonical_hash(invocation_input), **item} for item in safe_attempts)
-                        stage_invocations.extend({"slice_index": slice_index, "input_slice_sha256": _canonical_hash(invocation_input), **item} for item in safe_attempts)
-                        raise DeepReviewServiceError(error.code, "승인된 model invocation이 실패했습니다", status_code=503)
+                        break
                 if luna and not self._injected_client:
                     client.close()
                 chunk_orders = {
@@ -1708,7 +1853,14 @@ class DeepReviewService:
                 merged = merge_stage_chunks(chunks, bundle=bundle, profile=profile_payload, profile_version_id=pinned_profile_id, expected_deep_review_id=str(review_id), known_claim_ids=known_claim_ids, known_evidence_ids=known_evidence_ids, known_evidence=[row for output in previous_outputs for row in output.get("evidence", [])] if narrative else (), structures=structures, source_verification_enabled=source_verification_enabled, result_checks_enabled=result_checks_enabled, chunk_order_key=lambda chunk: chunk_orders.get(id(chunk), (STAGE_SEQUENCE[stage_name], 0, 0, 0, "", 0)))
                 known_claim_ids.update(item["claim_id"] for item in merged.get("claims", []))
                 known_evidence_ids.update(item["evidence_id"] for item in merged.get("evidence", []))
-                invocation_doc = sorted(invocation_metadata, key=lambda item: (item.get("slice_index", 0), item.get("retry_index", 0)))
+                invocation_doc = sorted(
+                    invocation_metadata,
+                    key=lambda item: (
+                        item.get("slice_index", 0),
+                        item.get("validation_repair_attempt", 0),
+                        item.get("retry_index", 0),
+                    ),
+                )
                 if invocation_doc:
                     invocation_doc[0] = {
                         **invocation_doc[0],
@@ -1738,7 +1890,10 @@ class DeepReviewService:
             self._fail_claim(session, claim, stage_row, error.code)
             raise DeepReviewServiceError(error.code, "동결 입력 검증 실패", status_code=409) from error
         except narrative_inputs.NarrativeInputError as error:
-            self._fail_claim(session, claim, stage_row, "validation_failed", [{"status": "failed", "error_code": "narrative:" + error.code}], raw_records if "raw_records" in locals() else ())
+            observations = tuple(invocation_metadata if "invocation_metadata" in locals() else ()) + (
+                {"status": "failed", "error_code": "narrative:" + error.code},
+            )
+            self._fail_claim(session, claim, stage_row, "validation_failed", observations, raw_records if "raw_records" in locals() else ())
             raise DeepReviewServiceError("validation_failed", "설명형 분석의 입력·출력 범위 검증에 실패했습니다", status_code=500) from error
         except DeepReviewValidationError as error:
             # Persist stable validator codes only.  Messages, quotes, locators,
@@ -1747,11 +1902,12 @@ class DeepReviewService:
                 {"status": "failed", "error_code": f"validation:{issue.code}"}
                 for issue in error.issues[:20]
             )
-            observations = tuple(stage_invocations if "stage_invocations" in locals() else ()) + diagnostics
+            observations = tuple(invocation_metadata if "invocation_metadata" in locals() else ()) + diagnostics
             self._fail_claim(session, claim, stage_row, "validation_failed", observations, raw_records if "raw_records" in locals() else ())
             raise DeepReviewServiceError("processing_failed", "model 결과가 권위 schema를 통과하지 못했습니다", status_code=500)
         except DeepReviewServiceError as error:
-            self._fail_claim(session, claim, stage_row, error.code, stage_invocations if "stage_invocations" in locals() else (), raw_records if "raw_records" in locals() else ())
+            observations = invocation_metadata if "invocation_metadata" in locals() else stage_invocations if "stage_invocations" in locals() else ()
+            self._fail_claim(session, claim, stage_row, error.code, observations, raw_records if "raw_records" in locals() else ())
             raise
         except Exception as error:
             self._fail_claim(session, claim, stage_row, "processing_failed")

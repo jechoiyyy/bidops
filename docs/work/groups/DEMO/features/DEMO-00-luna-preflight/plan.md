@@ -80,4 +80,15 @@ BIDOPS_PRESPEC_OVERVIEW_ENABLED=false python3 -m pytest tests/app/test_luna_deep
 
 ## 결과
 
-미구현. 실행 후 원인 분류, v4 차이, 실제 결과, 사용자 결정, 커밋 여부를 기록한다.
+2026-10-08 기존 run `demo00-20261007`을 Codex로 재개했다. STEP-001의 원응답 미재검사 한계는 유지한다.
+STEP-002는 v4 정책(`policy_identity=analysis-policy-luna-v4`), 정책 마감, 1·2단계 slice 1회 교정 재요청,
+암호화 원응답 보존과 보고서 경고를 구현했다. 기존 v1~v3 정책 파일은 변경하지 않았다.
+관련 두 테스트 파일의 첫 검사는 일회용 PostgreSQL 17.11 포함 68 passed, 0 skipped다.
+검사 중 마지막 metadata 호환성 수정이 들어가 최종 Luna 영향 검사를 다시 수행해 32 passed, 0 skipped를 확인했다.
+독립 리뷰의 검사 누락 보완 뒤 추가/변경 사례만 10 passed, 29 deselected, 0 skipped이며 제품 코드 hash는 그대로다.
+gpt-5.6-sol/high 독립 리뷰는 runbook 고정 SHA 지적 수정 후 로컬 범위 PASS다.
+최종 검사·독립 리뷰 근거는 `docs/work/_runs/demo00-20261007/`에 기록했다.
+
+STEP-003의 [운영 runbook](../../../../../validation-runs/20261007-luna-v4-preflight/runbook.md)은 준비했다.
+운영 배포·정책 import·활성 ID/토글 변경과 STEP-004 실제 1489 전송·사용자 판정은 미수행이다.
+commit·merge·push는 수행하지 않았고 기능/배치 worktree를 보존한다. 실제 운영 결과 전에는 DEMO-01로 진행하지 않는다.
