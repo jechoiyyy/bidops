@@ -124,7 +124,7 @@ def _freeze_assessment_profile(
     except (TypeError, ValueError):
         return None, None, "invalid", []
     profile = session.get(ProfileVersion, profile_id)
-    if profile is None:
+    if profile is None or profile.company_id is not None:
         return None, None, "invalid", []
     try:
         from .input_versions import profile_context

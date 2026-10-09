@@ -340,7 +340,14 @@ def test_model_has_exact_closed_table_set():
     assert len(LEGACY_TABLES) == 13
     assert len(NEW_TABLES) == 25
     assert "actor" not in LEGACY_TABLES + NEW_TABLES
-    assert len(Base.metadata.tables) == 81
+    post_lean_deep_review_tables = (
+        "deep_review_preview",
+        "deep_review_approval",
+        "assumption_input_version",
+        "assumption_run",
+        "assumption_stage",
+    )
+    assert len(Base.metadata.tables) == 89
     assert set(Base.metadata.tables) == set(
         LEGACY_TABLES + NEW_TABLES + SCREENING_RUNTIME_TABLES + IDENTITY_TABLES
         + ATTACHMENT_FETCH_TABLES + REVISION_TABLES
@@ -348,6 +355,7 @@ def test_model_has_exact_closed_table_set():
         + DOCUMENT_SEGMENT_TABLES
         + ("prespec_company_fit_attempt",)
         + PRESPEC_V4_TABLES
+        + post_lean_deep_review_tables
     )
     assert isinstance(Base.metadata.tables["run"].c.screening_basis.type, Text)
     assert "fk_evidence_document_bundle_scope" in {
@@ -430,6 +438,34 @@ def test_alembic_downgrade_fails_closed_without_disposable_opt_in(monkeypatch):
     with pytest.raises(RuntimeError, match="downgrade is disabled"):
         migration.downgrade()
     assert bind_called is False
+
+
+def test_lean_v1_migration_snapshot_excludes_company_context():
+    migration_path = (
+        Path(__file__).parents[2]
+        / "alembic"
+        / "versions"
+        / "0001_lean_v1_postgresql.py"
+    )
+    module_spec = importlib.util.spec_from_file_location(
+        "t1_alembic_snapshot_revision", migration_path
+    )
+    assert module_spec is not None and module_spec.loader is not None
+    migration = importlib.util.module_from_spec(module_spec)
+    module_spec.loader.exec_module(migration)
+
+    metadata = migration._lean_v1_metadata()
+    profile_version = metadata.tables["bidops.profile_version"]
+    deep_review = metadata.tables["bidops.deep_review"]
+    assert "company_id" not in profile_version.c
+    assert "company_id" not in deep_review.c
+    assert {
+        "uq_deep_review_legacy_inputs",
+        "uq_deep_review_company_inputs",
+    }.isdisjoint(index.name for index in deep_review.indexes)
+    assert "uq_deep_review_inputs" in {
+        constraint.name for constraint in deep_review.constraints
+    }
 
 
 def test_dry_run_reconciliation_failure_writes_nothing(tmp_path: Path, target_engine, monkeypatch):

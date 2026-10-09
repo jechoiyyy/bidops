@@ -46,6 +46,7 @@ _MODULE_PACKAGES = {
 _ROUTER_REGISTRATION: tuple[tuple[str, str], ...] = (
     ("screening", "screening_run_router"),
     ("lifecycle", "runs_router"),
+    ("lifecycle", "companies_router"),
     ("lifecycle", "notices_router"),
     ("lifecycle", "pre_specs_router"),
     ("lifecycle", "opportunities_router"),
@@ -194,6 +195,24 @@ class SPAStaticFiles(StaticFiles):
 FRONTEND_DIST = get_settings().bidops_root / "web" / "frontend" / "dist"
 
 
+def _is_demo_only_path(path: str) -> bool:
+    """Paths hidden as absent unless the isolated demo is enabled."""
+
+    if path in {"/companies", "/api/companies"}:
+        return True
+    if path.startswith(("/companies/", "/api/companies/")):
+        return True
+    parts = path.strip("/").split("/")
+    if parts and parts[0] == "api":
+        parts = parts[1:]
+    return (
+        len(parts) == 3
+        and parts[0] == "pre-specs"
+        and bool(parts[1])
+        and parts[2] == "company-comparison"
+    )
+
+
 def install_frontend(application: FastAPI, directory: Path = FRONTEND_DIST) -> None:
     """Attach the built frontend without making a missing build fatal."""
 
@@ -248,7 +267,12 @@ def create_app(modules=None, *, mount_frontend: bool = True) -> FastAPI:
 
     @application.middleware("http")
     async def security_headers(request, call_next):  # type: ignore[no-untyped-def]
-        response = await call_next(request)
+        if not get_settings().demo_enabled and _is_demo_only_path(request.url.path):
+            # Behave exactly like an unregistered route. In particular this
+            # runs before UUID conversion and before the SPA fallback.
+            response = JSONResponse(status_code=404, content={"detail": "Not Found"})
+        else:
+            response = await call_next(request)
         response.headers.setdefault(
             "Content-Security-Policy",
             "default-src 'self'; connect-src 'self'; img-src 'self' data:; "
@@ -263,6 +287,13 @@ def create_app(modules=None, *, mount_frontend: bool = True) -> FastAPI:
 
     # `/api/health`는 어느 도메인 모듈에도 속하지 않으므로 core가 제공한다(§7).
     application.include_router(health_router)
+
+    @application.get("/api/demo-config", include_in_schema=False)
+    def demo_config() -> dict[str, bool]:
+        # This endpoint is always present and intentionally returns one bit.
+        # Reading it does not seed, migrate, activate, or enqueue anything.
+        return {"enabled": bool(get_settings().demo_enabled)}
+
     for owner, router_name in _ROUTER_REGISTRATION:
         if owner in modules:
             application.include_router(getattr(_MODULE_PACKAGES[owner], router_name))

@@ -14,6 +14,7 @@ from app.deep_review.models import AssumptionInputVersion, AssumptionRun, Assump
 from app.deep_review.services.assumption_analysis import AssumptionAnalysisService
 from app.deep_review.services.assumption_report import SECTIONS
 from app.deep_review.services.deep_reviews import DeepReviewServiceError
+from app.core.db import ALEMBIC_HEAD
 from app.core.model_client import InvocationResult, ModelInvocationError
 
 
@@ -230,5 +231,5 @@ def test_upgrade_from_0032_preserves_existing_audit():
         assert result.returncode == 0, result.stderr
         with db.connect() as connection:
             assert connection.scalar(text('SELECT count(*) FROM bidops.audit_event WHERE id=:id'), {'id':marker}) == 1
-            assert connection.scalar(text('SELECT version_num FROM bidops.alembic_version')) == '0033_assumption_analysis'
+            assert connection.scalar(text('SELECT version_num FROM bidops.alembic_version')) == ALEMBIC_HEAD
         db.dispose()

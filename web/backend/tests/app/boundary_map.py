@@ -250,7 +250,7 @@ TABLE_OWNER: dict[str, str] = {
     # core (2)
     "audit_event": CORE,
     "idempotency_record": CORE,
-    # lifecycle (12)
+    # lifecycle (15)
     "run": LIFECYCLE,
     "notice": LIFECYCLE,
     "notice_observation": LIFECYCLE,
@@ -258,6 +258,9 @@ TABLE_OWNER: dict[str, str] = {
     "order_plan_observation": LIFECYCLE,
     "opportunity": LIFECYCLE,
     "opportunity_link": LIFECYCLE,
+    "company": LIFECYCLE,
+    "company_opportunity_tracking": LIFECYCLE,
+    "company_tracking_event": LIFECYCLE,
     "attachment": LIFECYCLE,
     "agency_portal": LIFECYCLE,
     "ingest_warning": LIFECYCLE,

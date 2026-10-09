@@ -210,8 +210,11 @@ graph_nodes/edges에는 경로 해석에 필요한 type/label/value/status/origi
 누락 항목은 coverage에 남기며 요구사항 자체를 잘라 성공시키지 않는다.
 
 모델은 제공된 ref만 인용한다. 후보 연결/해석은 결과로만 보존하고 회사 graph로 승격하지 않는다.
-핏 생성은 사설 overview 설정, 심층은 codex-exec Luna/xhigh와 새 불변 demo 정책을 사용한다.
-새 demo 정책은 DEMO-00이 운영 1489번으로 검증한 `analysis-policy-luna-v4`에 회사·그래프 입력 설명만 더한다.
+핏 생성은 `overview` 용도의 OpenAI 호환 LiteLLM 설정과 확인된 별칭 `local-agent-main`,
+심층은 codex-exec Luna/xhigh와 새 불변 demo 정책을 사용한다. 두 transport의 설정·정책·증거를 섞지 않는다.
+새 demo 정책은 DEMO-00이 로컬에서 구현·회귀 검사한 `analysis-policy-luna-v4`에 회사·그래프 입력 설명만 더한다.
+운영 1489번 적용·실행과 완성 보고서 검증은 수행되지 않았으며, 실제 Luna 성공은
+DEMO-03 STEP-007의 대표 1건 후속 게이트에서 확인한다.
 v4와 demo 정책은 모두 기존 v2의 정상 검증 계약을 기반으로 하며 v3 검증 off를 상속하지 않는다.
 승인 정책은 이미지에 포함된 파일과 `_approved_policy_path` 매핑으로만 인정되므로 새 파일마다 매핑과 테스트를 함께 추가한다.
 매핑은 정책 내용(검증 flag)으로 v1~v3를 고르므로 v4·demo 정책은 고유 식별 필드 `policy_identity`를 두고 그 필드를 먼저 검사한다.
@@ -220,8 +223,11 @@ demo 정책은 v4의 정책 마감(`execution.review_timeout_seconds`, 18000)과
 출력 ID와 입력 considered ID의 역할을 프롬프트에 분리하고 필수 근거 FK/인용/숫자/coverage 검사를 유지한다.
 기존 선택적 related_claim 경고 규칙은 그대로 가능하나 필수 evidence/전제 실패를 경고로 낮추지 않는다.
 
-모든 모델 호출은 동결 입력에 연결한다. 핏은 승인된 사설 vLLM만 쓰므로(기존 핏도 건별 승인 없음) 건별 미리보기·승인 없이
-§9의 CLI `enqueue-company-fit`으로 회사·공고별 attempt를 등록하고, 입력은 enqueue transaction에서 동결한다.
+모든 모델 호출은 동결 입력에 연결한다. 핏은 §9의 `overview` 용도 LiteLLM transport만 쓰며
+기존 핏과 같이 제품 내 건별 미리보기·승인 DTO를 추가하지 않는다. CLI `enqueue-company-fit`으로
+회사·공고별 attempt를 등록하고 입력을 enqueue transaction에서 동결한다.
+이 실행 계약은 실제 모델 전송을 자동 승인하지 않으며, 실제 호출 직전 사람 확인과 승인된
+endpoint·별칭·정책·동결 hash 검사 조건을 그대로 유지한다.
 외부 전송인 심층은 기존 Luna preview/approve(DeepReviewPreview·DeepReviewApproval)에 company_id를 더해 재사용한다.
 공용 슬롯 밖의 worker는 만들지 않는다. GET은 모델 호출을 만들지 않는다.
 실패 재요청은 핏은 새 enqueue, 심층은 새 preview/승인/attempt이며 자동 재호출·fallback하지 않는다.

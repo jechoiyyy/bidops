@@ -76,6 +76,7 @@ ALL_TABLES = frozenset(
     + ("prespec_company_fit_attempt",)
     + PRESPEC_V4_TABLES
     + ("deep_review_preview", "deep_review_approval")
+    + ("assumption_input_version", "assumption_run", "assumption_stage")
 )
 
 
