@@ -1,0 +1,397 @@
+......................FFFFFFFFFFFF.F..............................F..... [ 93%]
+.....                                                                    [100%]
+=================================== FAILURES ===================================
+______ test_sw_y_with_a_positive_overview_starts_exactly_one_deep_review _______
+
+db_session = <sqlalchemy.orm.session.Session object at 0x116728f20>
+active_versions = (UUID('2f4dc1c4-9e8b-4e5b-81fa-4e0e54762a19'), UUID('298e28fd-37c5-4fd4-96b8-0ef6bd5abe1d'))
+matched_company_fit_gate = None
+
+    def test_sw_y_with_a_positive_overview_starts_exactly_one_deep_review(
+        db_session: Session, active_versions, matched_company_fit_gate
+    ):
+        """§6.4의 모든 조건이 성립하면 시스템 actor로 한 건만 만든다."""
+    
+        notice, bundle = _auto_start_context(db_session)
+        service = _RecordingDeepReviewService()
+    
+        outcome = maybe_auto_start_deep_review(db_session, notice.id, service=service)
+    
+>       assert outcome.created is True
+E       AssertionError: assert False is True
+E        +  where False = AutoDeepReviewOutcome(notice_id=1, bundle_id=None, deep_review_id=None, created=False, reason='manual_request_required').created
+
+tests/deep_review/test_auto_preparation.py:456: AssertionError
+__________________ test_sw_n_is_always_left_to_a_human_click ___________________
+
+db_session = <sqlalchemy.orm.session.Session object at 0x116729910>
+active_versions = (UUID('2f4dc1c4-9e8b-4e5b-81fa-4e0e54762a19'), UUID('298e28fd-37c5-4fd4-96b8-0ef6bd5abe1d'))
+
+    def test_sw_n_is_always_left_to_a_human_click(db_session: Session, active_versions):
+        notice, _bundle = _auto_start_context(db_session, sw_business_status="N")
+        service = _RecordingDeepReviewService()
+    
+        outcome = maybe_auto_start_deep_review(db_session, notice.id, service=service)
+    
+>       assert (outcome.created, outcome.reason) == (False, REASON_NOT_SW_BUSINESS)
+E       AssertionError: assert (False, 'manu...est_required') == (False, 'not_sw_business')
+E         
+E         At index 1 diff: 'manual_request_required' != 'not_sw_business'
+E         Use -v to get more diff
+
+tests/deep_review/test_auto_preparation.py:478: AssertionError
+_ test_an_unsettled_or_failed_overview_is_left_to_a_human_click[needs_human_review] _
+
+db_session = <sqlalchemy.orm.session.Session object at 0x1160d6720>
+active_versions = (UUID('2f4dc1c4-9e8b-4e5b-81fa-4e0e54762a19'), UUID('298e28fd-37c5-4fd4-96b8-0ef6bd5abe1d'))
+status = 'needs_human_review'
+
+    @pytest.mark.parametrize("status", ["needs_human_review", "failed", "cancelled", "queued", None])
+    def test_an_unsettled_or_failed_overview_is_left_to_a_human_click(
+        db_session: Session, active_versions, status: str
+    ):
+        notice, _bundle = _auto_start_context(db_session, overview_status=status)
+        service = _RecordingDeepReviewService()
+    
+        outcome = maybe_auto_start_deep_review(db_session, notice.id, service=service)
+    
+>       assert (outcome.created, outcome.reason) == (False, REASON_OVERVIEW_NOT_COMPLETED)
+E       AssertionError: assert (False, 'manu...est_required') == (False, 'over...ot_completed')
+E         
+E         At index 1 diff: 'manual_request_required' != 'overview_not_completed'
+E         Use -v to get more diff
+
+tests/deep_review/test_auto_preparation.py:491: AssertionError
+____ test_an_unsettled_or_failed_overview_is_left_to_a_human_click[failed] _____
+
+db_session = <sqlalchemy.orm.session.Session object at 0x11678b620>
+active_versions = (UUID('2f4dc1c4-9e8b-4e5b-81fa-4e0e54762a19'), UUID('298e28fd-37c5-4fd4-96b8-0ef6bd5abe1d'))
+status = 'failed'
+
+    @pytest.mark.parametrize("status", ["needs_human_review", "failed", "cancelled", "queued", None])
+    def test_an_unsettled_or_failed_overview_is_left_to_a_human_click(
+        db_session: Session, active_versions, status: str
+    ):
+        notice, _bundle = _auto_start_context(db_session, overview_status=status)
+        service = _RecordingDeepReviewService()
+    
+        outcome = maybe_auto_start_deep_review(db_session, notice.id, service=service)
+    
+>       assert (outcome.created, outcome.reason) == (False, REASON_OVERVIEW_NOT_COMPLETED)
+E       AssertionError: assert (False, 'manu...est_required') == (False, 'over...ot_completed')
+E         
+E         At index 1 diff: 'manual_request_required' != 'overview_not_completed'
+E         Use -v to get more diff
+
+tests/deep_review/test_auto_preparation.py:491: AssertionError
+___ test_an_unsettled_or_failed_overview_is_left_to_a_human_click[cancelled] ___
+
+db_session = <sqlalchemy.orm.session.Session object at 0x1160d6720>
+active_versions = (UUID('2f4dc1c4-9e8b-4e5b-81fa-4e0e54762a19'), UUID('298e28fd-37c5-4fd4-96b8-0ef6bd5abe1d'))
+status = 'cancelled'
+
+    @pytest.mark.parametrize("status", ["needs_human_review", "failed", "cancelled", "queued", None])
+    def test_an_unsettled_or_failed_overview_is_left_to_a_human_click(
+        db_session: Session, active_versions, status: str
+    ):
+        notice, _bundle = _auto_start_context(db_session, overview_status=status)
+        service = _RecordingDeepReviewService()
+    
+        outcome = maybe_auto_start_deep_review(db_session, notice.id, service=service)
+    
+>       assert (outcome.created, outcome.reason) == (False, REASON_OVERVIEW_NOT_COMPLETED)
+E       AssertionError: assert (False, 'manu...est_required') == (False, 'over...ot_completed')
+E         
+E         At index 1 diff: 'manual_request_required' != 'overview_not_completed'
+E         Use -v to get more diff
+
+tests/deep_review/test_auto_preparation.py:491: AssertionError
+____ test_an_unsettled_or_failed_overview_is_left_to_a_human_click[queued] _____
+
+db_session = <sqlalchemy.orm.session.Session object at 0x1168fc1a0>
+active_versions = (UUID('2f4dc1c4-9e8b-4e5b-81fa-4e0e54762a19'), UUID('298e28fd-37c5-4fd4-96b8-0ef6bd5abe1d'))
+status = 'queued'
+
+    @pytest.mark.parametrize("status", ["needs_human_review", "failed", "cancelled", "queued", None])
+    def test_an_unsettled_or_failed_overview_is_left_to_a_human_click(
+        db_session: Session, active_versions, status: str
+    ):
+        notice, _bundle = _auto_start_context(db_session, overview_status=status)
+        service = _RecordingDeepReviewService()
+    
+        outcome = maybe_auto_start_deep_review(db_session, notice.id, service=service)
+    
+>       assert (outcome.created, outcome.reason) == (False, REASON_OVERVIEW_NOT_COMPLETED)
+E       AssertionError: assert (False, 'manu...est_required') == (False, 'over...ot_completed')
+E         
+E         At index 1 diff: 'manual_request_required' != 'overview_not_completed'
+E         Use -v to get more diff
+
+tests/deep_review/test_auto_preparation.py:491: AssertionError
+_____ test_an_unsettled_or_failed_overview_is_left_to_a_human_click[None] ______
+
+db_session = <sqlalchemy.orm.session.Session object at 0x116924050>
+active_versions = (UUID('2f4dc1c4-9e8b-4e5b-81fa-4e0e54762a19'), UUID('298e28fd-37c5-4fd4-96b8-0ef6bd5abe1d'))
+status = None
+
+    @pytest.mark.parametrize("status", ["needs_human_review", "failed", "cancelled", "queued", None])
+    def test_an_unsettled_or_failed_overview_is_left_to_a_human_click(
+        db_session: Session, active_versions, status: str
+    ):
+        notice, _bundle = _auto_start_context(db_session, overview_status=status)
+        service = _RecordingDeepReviewService()
+    
+        outcome = maybe_auto_start_deep_review(db_session, notice.id, service=service)
+    
+>       assert (outcome.created, outcome.reason) == (False, REASON_OVERVIEW_NOT_COMPLETED)
+E       AssertionError: assert (False, 'manu...est_required') == (False, 'over...ot_completed')
+E         
+E         At index 1 diff: 'manual_request_required' != 'overview_not_completed'
+E         Use -v to get more diff
+
+tests/deep_review/test_auto_preparation.py:491: AssertionError
+____________ test_a_human_confirmed_bundle_is_left_to_a_human_click ____________
+
+db_session = <sqlalchemy.orm.session.Session object at 0x116702ae0>
+active_versions = (UUID('2f4dc1c4-9e8b-4e5b-81fa-4e0e54762a19'), UUID('298e28fd-37c5-4fd4-96b8-0ef6bd5abe1d'))
+
+    def test_a_human_confirmed_bundle_is_left_to_a_human_click(
+        db_session: Session, active_versions
+    ):
+        notice, _bundle = _auto_start_context(db_session, confirmed_by="담당자")
+        service = _RecordingDeepReviewService()
+    
+        outcome = maybe_auto_start_deep_review(db_session, notice.id, service=service)
+    
+>       assert (outcome.created, outcome.reason) == (False, REASON_BUNDLE_NOT_AUTO_READY)
+E       AssertionError: assert (False, 'manu...est_required') == (False, 'bund...t_auto_ready')
+E         
+E         At index 1 diff: 'manual_request_required' != 'bundle_not_auto_ready'
+E         Use -v to get more diff
+
+tests/deep_review/test_auto_preparation.py:503: AssertionError
+___________ test_a_draft_bundle_is_not_ready_for_an_automatic_start ____________
+
+db_session = <sqlalchemy.orm.session.Session object at 0x1169878c0>
+active_versions = (UUID('2f4dc1c4-9e8b-4e5b-81fa-4e0e54762a19'), UUID('298e28fd-37c5-4fd4-96b8-0ef6bd5abe1d'))
+
+    def test_a_draft_bundle_is_not_ready_for_an_automatic_start(
+        db_session: Session, active_versions
+    ):
+        notice, _bundle = _auto_start_context(
+            db_session, bundle_status="draft", confirmed_by=None
+        )
+        service = _RecordingDeepReviewService()
+    
+        outcome = maybe_auto_start_deep_review(db_session, notice.id, service=service)
+    
+>       assert (outcome.created, outcome.reason) == (False, REASON_BUNDLE_NOT_AUTO_READY)
+E       AssertionError: assert (False, 'manu...est_required') == (False, 'bund...t_auto_ready')
+E         
+E         At index 1 diff: 'manual_request_required' != 'bundle_not_auto_ready'
+E         Use -v to get more diff
+
+tests/deep_review/test_auto_preparation.py:517: AssertionError
+________ test_missing_active_version_ids_fail_closed_with_a_safe_reason ________
+
+db_session = <sqlalchemy.orm.session.Session object at 0x11678b320>
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x116a3df40>
+
+    def test_missing_active_version_ids_fail_closed_with_a_safe_reason(
+        db_session: Session, monkeypatch: pytest.MonkeyPatch
+    ):
+        """active profile/policy 환경변수가 없으면 만들지 않고 안전 코드만 남긴다."""
+    
+        monkeypatch.delenv("BIDOPS_ACTIVE_PROFILE_VERSION_ID", raising=False)
+        monkeypatch.delenv("BIDOPS_ACTIVE_ANALYSIS_POLICY_VERSION_ID", raising=False)
+        notice, _bundle = _auto_start_context(db_session)
+    
+        outcome = maybe_auto_start_deep_review(db_session, notice.id)
+    
+>       assert (outcome.created, outcome.reason) == (False, "service_unavailable")
+E       AssertionError: assert (False, 'manu...est_required') == (False, 'service_unavailable')
+E         
+E         At index 1 diff: 'manual_request_required' != 'service_unavailable'
+E         Use -v to get more diff
+
+tests/deep_review/test_auto_preparation.py:532: AssertionError
+____________ test_a_service_failure_leaves_only_a_stable_safe_code _____________
+
+db_session = <sqlalchemy.orm.session.Session object at 0x1169d9010>
+active_versions = (UUID('2f4dc1c4-9e8b-4e5b-81fa-4e0e54762a19'), UUID('298e28fd-37c5-4fd4-96b8-0ef6bd5abe1d'))
+matched_company_fit_gate = None
+
+    def test_a_service_failure_leaves_only_a_stable_safe_code(
+        db_session: Session, active_versions, matched_company_fit_gate
+    ):
+        """예외 본문·경로·비밀값은 사유에 넣지 않는다. 안정 code만 남는다."""
+    
+        from app.deep_review.services.deep_reviews import DeepReviewServiceError
+    
+        notice, _bundle = _auto_start_context(db_session)
+        service = _RecordingDeepReviewService(
+            error=DeepReviewServiceError(
+                "service_unavailable", "/srv/secret/path 에서 실패", status_code=503
+            )
+        )
+    
+        outcome = maybe_auto_start_deep_review(db_session, notice.id, service=service)
+    
+>       assert (outcome.created, outcome.reason) == (False, "service_unavailable")
+E       AssertionError: assert (False, 'manu...est_required') == (False, 'service_unavailable')
+E         
+E         At index 1 diff: 'manual_request_required' != 'service_unavailable'
+E         Use -v to get more diff
+
+tests/deep_review/test_auto_preparation.py:552: AssertionError
+__________ test_the_automatic_start_never_touches_the_tracking_status __________
+
+db_session = <sqlalchemy.orm.session.Session object at 0x116ad5d90>
+active_versions = (UUID('2f4dc1c4-9e8b-4e5b-81fa-4e0e54762a19'), UUID('298e28fd-37c5-4fd4-96b8-0ef6bd5abe1d'))
+matched_company_fit_gate = None
+
+    def test_the_automatic_start_never_touches_the_tracking_status(
+        db_session: Session, active_versions, matched_company_fit_gate
+    ):
+        """자동 시작은 사업기회 추적 상태를 바꾸지 않는다 (§6.4)."""
+    
+        notice, _bundle = _auto_start_context(db_session)
+        opportunity = Opportunity(first_registered_stage="pre_spec")
+        db_session.add(opportunity)
+        db_session.flush()
+        db_session.add(
+            OpportunityLink(
+                opportunity_id=opportunity.id,
+                stage="notice",
+                notice_id=notice.id,
+                link_type="candidate",
+                status="사람 확인 완료",
+                human_decision="accepted",
+                reviewer_name="담당자",
+                reviewed_at=WHEN,
+                review_reason="같은 사업으로 확인",
+            )
+        )
+        db_session.commit()
+    
+        outcome = maybe_auto_start_deep_review(
+            db_session, notice.id, service=_RecordingDeepReviewService()
+        )
+    
+>       assert outcome.created is True
+E       AssertionError: assert False is True
+E        +  where False = AutoDeepReviewOutcome(notice_id=1, bundle_id=None, deep_review_id=None, created=False, reason='manual_request_required').created
+
+tests/deep_review/test_auto_preparation.py:584: AssertionError
+_______ test_the_flag_opens_preparation_for_sw_business_without_a_grade ________
+
+db_session = <sqlalchemy.orm.session.Session object at 0x116a3daf0>
+overview_flag = <function overview_flag.<locals>._set at 0x116aa0fe0>
+
+    def test_the_flag_opens_preparation_for_sw_business_without_a_grade(
+        db_session: Session, overview_flag
+    ):
+        overview_flag(True)
+        notice, _document = _sw_business_prespec(db_session)
+        service = _RecordingBundleService()
+    
+        outcome = maybe_auto_prepare(db_session, [notice.id], service=service)[0]
+    
+>       assert service.created == [notice.id]
+E       assert [] == [1]
+E         
+E         Right contains one more item: 1
+E         Use -v to get more diff
+
+tests/deep_review/test_auto_preparation.py:665: AssertionError
+____________ test_automatic_queue_and_shared_creation_gate[matched] ____________
+
+context = (<sqlalchemy.orm.session.Session object at 0x117d6cef0>, {'company_facts': [{'fact_key': 'scope', 'ref': 'company:0', ...ring'}, ...}, 'required': ['schema_version', 'decision', 'summary', 'reasons', 'verification_items'], ...}, ...}, ...})
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x117d6e660>
+decision = 'matched'
+
+    @pytest.mark.parametrize("decision", ["matched", "mismatch", "unknown"])
+    def test_automatic_queue_and_shared_creation_gate(context, monkeypatch, decision):
+        session, inputs = context
+        bundle = ready_bundle(session, inputs)
+        from app.deep_review.services.auto_preparation import maybe_auto_start_deep_review
+        class Service:
+            def create_review(self, session, notice_id, bundle_id, actor, request_id, *, actor_kind):
+                assert actor_kind == "system"
+                review = DeepReview(id=uuid4(), notice_id=notice_id, bundle_id=bundle_id,
+                    profile_version_id=UUID(inputs["profile_version_id"]), policy_version_id=UUID(inputs["deep_policy_version_id"]),
+                    effective_grade_at_start="우선 검토", status="queued", requested_by_name=actor)
+                session.add(review); session.commit()
+                return {"id": str(review.id)}
+        monkeypatch.setattr(worker, "maybe_auto_start_deep_review", lambda s, n: maybe_auto_start_deep_review(s, n, service=Service()))
+        client = Client(output(decision))
+        runner = worker.PreSpecCompanyFitRunner(client=client, raw_response_store=_FakeStore())
+        assert runner.run_once(session, "worker")
+        assert session.scalar(select(func.count()).select_from(PreSpecCompanyFitAttempt)) == 1
+        row = session.scalar(select(PreSpecCompanyFitAttempt))
+        assert row.status == "completed"
+>       assert session.scalar(select(func.count()).select_from(DeepReview)) == (1 if decision == "matched" else 0)
+E       assert 0 == 1
+E        +  where 0 = scalar(<sqlalchemy.sql.selectable.Select object at 0x1179d75f0>)
+E        +    where scalar = <sqlalchemy.orm.session.Session object at 0x117d6cef0>.scalar
+E        +    and   <sqlalchemy.sql.selectable.Select object at 0x1179d75f0> = select_from(DeepReview)
+E        +      where select_from = <sqlalchemy.sql.selectable.Select object at 0x1179d76b0>.select_from
+E        +        where <sqlalchemy.sql.selectable.Select object at 0x1179d76b0> = select(<sqlalchemy.sql.functions.count at 0x1179f9910; count>)
+E        +          where <sqlalchemy.sql.functions.count at 0x1179f9910; count> = <sqlalchemy.sql.functions._FunctionGenerator object at 0x117a52b10>()
+E        +            where <sqlalchemy.sql.functions._FunctionGenerator object at 0x117a52b10> = func.count
+
+tests/deep_review/test_company_fit.py:492: AssertionError
+=============================== warnings summary ===============================
+app/deep_review/schemas/document_bundles.py:115
+  /Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo01-20261009-DEMO-01-company-context/web/backend/app/deep_review/schemas/document_bundles.py:115: UserWarning: Field name "schema" in "DocumentStructure" shadows an attribute in parent "StrictModel"
+    class DocumentStructure(StrictModel):
+
+app/deep_review/schemas/document_bundles.py:224
+  /Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo01-20261009-DEMO-01-company-context/web/backend/app/deep_review/schemas/document_bundles.py:224: UserWarning: Field name "schema" in "SegmentExtractorBinding" shadows an attribute in parent "StrictModel"
+    class SegmentExtractorBinding(StrictModel):
+
+app/deep_review/schemas/document_bundles.py:232
+  /Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo01-20261009-DEMO-01-company-context/web/backend/app/deep_review/schemas/document_bundles.py:232: UserWarning: Field name "schema" in "DocumentSegmentsView" shadows an attribute in parent "StrictModel"
+    class DocumentSegmentsView(StrictModel):
+
+../../../../../../../../../../../../tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/fastapi/testclient.py:1
+  /tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+app/deep_review/agents/common/contracts.py:391
+  /Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo01-20261009-DEMO-01-company-context/web/backend/app/deep_review/agents/common/contracts.py:391: UserWarning: Field name "schema" in "AgentRunView" shadows an attribute in parent "_StrictModel"
+    class AgentRunView(_StrictModel):
+
+app/deep_review/agents/common/contracts.py:462
+  /Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo01-20261009-DEMO-01-company-context/web/backend/app/deep_review/agents/common/contracts.py:462: UserWarning: Field name "schema" in "AgentCommand" shadows an attribute in parent "_StrictModel"
+    class AgentCommand(_StrictModel, Generic[TAction]):
+
+app/deep_review/schemas/reports.py:69
+  /Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo01-20261009-DEMO-01-company-context/web/backend/app/deep_review/schemas/reports.py:69: UserWarning: Field name "schema" in "DeepReviewReport" shadows an attribute in parent "StrictModel"
+    class DeepReviewReport(StrictModel):
+
+app/deep_review/schemas/reports.py:122
+  /Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo01-20261009-DEMO-01-company-context/web/backend/app/deep_review/schemas/reports.py:122: UserWarning: Field name "schema" in "NarrativeReport" shadows an attribute in parent "DeepReviewReport"
+    class NarrativeReport(DeepReviewReport):
+
+app/deep_review/schemas/reports.py:143
+  /Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo01-20261009-DEMO-01-company-context/web/backend/app/deep_review/schemas/reports.py:143: UserWarning: Field name "schema" in "DeepReviewValidation" shadows an attribute in parent "StrictModel"
+    class DeepReviewValidation(StrictModel):
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/deep_review/test_auto_preparation.py::test_sw_y_with_a_positive_overview_starts_exactly_one_deep_review
+FAILED tests/deep_review/test_auto_preparation.py::test_sw_n_is_always_left_to_a_human_click
+FAILED tests/deep_review/test_auto_preparation.py::test_an_unsettled_or_failed_overview_is_left_to_a_human_click[needs_human_review]
+FAILED tests/deep_review/test_auto_preparation.py::test_an_unsettled_or_failed_overview_is_left_to_a_human_click[failed]
+FAILED tests/deep_review/test_auto_preparation.py::test_an_unsettled_or_failed_overview_is_left_to_a_human_click[cancelled]
+FAILED tests/deep_review/test_auto_preparation.py::test_an_unsettled_or_failed_overview_is_left_to_a_human_click[queued]
+FAILED tests/deep_review/test_auto_preparation.py::test_an_unsettled_or_failed_overview_is_left_to_a_human_click[None]
+FAILED tests/deep_review/test_auto_preparation.py::test_a_human_confirmed_bundle_is_left_to_a_human_click
+FAILED tests/deep_review/test_auto_preparation.py::test_a_draft_bundle_is_not_ready_for_an_automatic_start
+FAILED tests/deep_review/test_auto_preparation.py::test_missing_active_version_ids_fail_closed_with_a_safe_reason
+FAILED tests/deep_review/test_auto_preparation.py::test_a_service_failure_leaves_only_a_stable_safe_code
+FAILED tests/deep_review/test_auto_preparation.py::test_the_automatic_start_never_touches_the_tracking_status
+FAILED tests/deep_review/test_auto_preparation.py::test_the_flag_opens_preparation_for_sw_business_without_a_grade
+FAILED tests/deep_review/test_company_fit.py::test_automatic_queue_and_shared_creation_gate[matched]
+14 failed, 63 passed, 9 warnings in 4.90s

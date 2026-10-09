@@ -1,0 +1,102 @@
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 0001_lean_v1_postgresql, Create the closed Lean v1 PostgreSQL model.
+Traceback (most recent call last):
+  File "/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 1969, in _exec_single_context
+    self.dialect.do_execute(
+  File "/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/default.py", line 952, in do_execute
+    cursor.execute(statement, parameters)
+  File "/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/psycopg/cursor.py", line 117, in execute
+    raise ex.with_traceback(None)
+psycopg.errors.UndefinedColumn: column "company_id" does not exist
+LINE 1: ..._id, profile_version_id, policy_version_id) WHERE company_id...
+                                                             ^
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/alembic/__main__.py", line 4, in <module>
+    main(prog="alembic")
+  File "/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/alembic/config.py", line 1039, in main
+    CommandLine(prog=prog).main(argv=argv)
+  File "/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/alembic/config.py", line 1029, in main
+    self.run_cmd(cfg, options)
+  File "/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/alembic/config.py", line 963, in run_cmd
+    fn(
+  File "/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/alembic/command.py", line 487, in upgrade
+    script.run_env()
+  File "/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/alembic/script/base.py", line 550, in run_env
+    util.load_python_file(self.dir, "env.py")
+  File "/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/alembic/util/pyfiles.py", line 114, in load_python_file
+    module = load_module_py(module_id, path)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/alembic/util/pyfiles.py", line 132, in load_module_py
+    spec.loader.exec_module(module)  # type: ignore
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<frozen importlib._bootstrap_external>", line 999, in exec_module
+  File "<frozen importlib._bootstrap>", line 488, in _call_with_frames_removed
+  File "/Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo01-20261009-DEMO-01-company-context/web/backend/alembic/env.py", line 151, in <module>
+    run_migrations_online()
+  File "/Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo01-20261009-DEMO-01-company-context/web/backend/alembic/env.py", line 145, in run_migrations_online
+    do_run_migrations(connection)
+  File "/Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo01-20261009-DEMO-01-company-context/web/backend/alembic/env.py", line 133, in do_run_migrations
+    context.run_migrations()
+  File "<string>", line 8, in run_migrations
+  File "/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/alembic/runtime/environment.py", line 967, in run_migrations
+    self.get_context().run_migrations(**kw)
+  File "/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/alembic/runtime/migration.py", line 621, in run_migrations
+    step.migration_fn(**kw)
+  File "/Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo01-20261009-DEMO-01-company-context/web/backend/alembic/versions/0001_lean_v1_postgresql.py", line 108, in upgrade
+    metadata.create_all(bind=connection, tables=_lean_v1_tables(metadata), checkfirst=False)
+  File "/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/sql/schema.py", line 5929, in create_all
+    bind._run_ddl_visitor(
+  File "/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 2469, in _run_ddl_visitor
+    ).traverse_single(element)
+      ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/sql/visitors.py", line 661, in traverse_single
+    return meth(obj, **kw)
+           ^^^^^^^^^^^^^^^
+  File "/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/sql/ddl.py", line 985, in visit_metadata
+    self.traverse_single(
+  File "/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/sql/visitors.py", line 661, in traverse_single
+    return meth(obj, **kw)
+           ^^^^^^^^^^^^^^^
+  File "/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/sql/ddl.py", line 1027, in visit_table
+    self.traverse_single(index, create_ok=True)
+  File "/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/sql/visitors.py", line 661, in traverse_single
+    return meth(obj, **kw)
+           ^^^^^^^^^^^^^^^
+  File "/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/sql/ddl.py", line 1064, in visit_index
+    CreateIndex(index)._invoke_with(self.connection)
+  File "/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/sql/ddl.py", line 322, in _invoke_with
+    return bind.execute(self)
+           ^^^^^^^^^^^^^^^^^^
+  File "/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 1421, in execute
+    return meth(
+           ^^^^^
+  File "/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/sql/ddl.py", line 188, in _execute_on_connection
+    return connection._execute_ddl(
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 1532, in _execute_ddl
+    ret = self._execute_context(
+          ^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 1848, in _execute_context
+    return self._exec_single_context(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 1988, in _exec_single_context
+    self._handle_dbapi_exception(
+  File "/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 2365, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 1969, in _exec_single_context
+    self.dialect.do_execute(
+  File "/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/default.py", line 952, in do_execute
+    cursor.execute(statement, parameters)
+  File "/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/psycopg/cursor.py", line 117, in execute
+    raise ex.with_traceback(None)
+sqlalchemy.exc.ProgrammingError: (psycopg.errors.UndefinedColumn) column "company_id" does not exist
+LINE 1: ..._id, profile_version_id, policy_version_id) WHERE company_id...
+                                                             ^
+[SQL: CREATE UNIQUE INDEX uq_deep_review_legacy_inputs ON bidops.deep_review (notice_id, bundle_id, profile_version_id, policy_version_id) WHERE company_id IS NULL]
+(Background on this error at: https://sqlalche.me/e/20/f405)

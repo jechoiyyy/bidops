@@ -78,8 +78,15 @@ class PreSpecCompanyFitRunner:
         candidate_ids = [i for i in ids if i in priority]
         runs = current_runs(session, candidate_ids)
         sources = overview_inputs(session, candidate_ids, runs=runs)
-        existing_inputs = set(session.scalars(select(PreSpecCompanyFitAttempt.input_sha256)))
+        existing_inputs = set(
+            session.scalars(
+                select(PreSpecCompanyFitAttempt.input_sha256).where(
+                    PreSpecCompanyFitAttempt.company_id.is_(None)
+                )
+            )
+        )
         existing_deep = set(session.scalars(select(DeepReview.bundle_id).where(
+            DeepReview.company_id.is_(None),
             DeepReview.profile_version_id == profile.id, DeepReview.policy_version_id == policy.id)))
         for notice_id in ids:
             source = sources.get(notice_id)
@@ -99,9 +106,14 @@ class PreSpecCompanyFitRunner:
             if input_hash in existing_inputs:
                 continue
             lock_notice(session, notice_id)
-            if session.scalar(select(PreSpecCompanyFitAttempt.id).where(PreSpecCompanyFitAttempt.input_sha256 == input_hash)):
+            if session.scalar(
+                select(PreSpecCompanyFitAttempt.id).where(
+                    PreSpecCompanyFitAttempt.input_sha256 == input_hash,
+                    PreSpecCompanyFitAttempt.company_id.is_(None),
+                )
+            ):
                 continue
-            row = PreSpecCompanyFitAttempt(id=uuid4(), notice_id=notice_id, document_version_id=source.document_id,
+            row = PreSpecCompanyFitAttempt(id=uuid4(), company_id=None, notice_id=notice_id, document_version_id=source.document_id,
                 overview_run_id=source.id,
                 profile_version_id=profile.id, deep_policy_version_id=policy.id,
                 input_jsonb=inputs, input_sha256=input_hash, policy_digest=inputs["policy_digest"],
@@ -121,6 +133,7 @@ class PreSpecCompanyFitRunner:
             return False
         now = self.clock()
         for row in session.scalars(select(PreSpecCompanyFitAttempt).where(
+            PreSpecCompanyFitAttempt.company_id.is_(None),
             PreSpecCompanyFitAttempt.status == "running", PreSpecCompanyFitAttempt.lease_expires_at <= now
         ).with_for_update(skip_locked=True)):
             self._finish(session, row, "failed", "lease_expired")
@@ -130,7 +143,9 @@ class PreSpecCompanyFitRunner:
         except Exception:
             session.rollback()
             return False
-        row = session.scalar(select(PreSpecCompanyFitAttempt).where(PreSpecCompanyFitAttempt.status == "queued")
+        row = session.scalar(select(PreSpecCompanyFitAttempt).where(
+                                 PreSpecCompanyFitAttempt.company_id.is_(None),
+                                 PreSpecCompanyFitAttempt.status == "queued")
                              .order_by(PreSpecCompanyFitAttempt.created_at, PreSpecCompanyFitAttempt.id)
                              .with_for_update(skip_locked=True).limit(1))
         if row is None:

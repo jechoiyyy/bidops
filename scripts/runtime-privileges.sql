@@ -26,6 +26,9 @@ GRANT SELECT ON TABLE
     bidops.order_plan_observation,
     bidops.opportunity,
     bidops.opportunity_link,
+    bidops.company,
+    bidops.company_opportunity_tracking,
+    bidops.company_tracking_event,
     bidops.judgment,
     bidops.judgment_revision,
     bidops.perspective,
@@ -115,6 +118,9 @@ GRANT INSERT ON TABLE
     bidops.order_plan_observation,
     bidops.opportunity,
     bidops.opportunity_link,
+    bidops.company,
+    bidops.company_opportunity_tracking,
+    bidops.company_tracking_event,
     bidops.judgment,
     bidops.judgment_revision,
     bidops.perspective,
@@ -222,6 +228,12 @@ GRANT UPDATE (
 GRANT UPDATE (
     selection_reason, ingested_notice_id, ingested_order_plan_id
 ) ON bidops.collected_record_index TO app;
+-- Company identity and decision history are immutable. Only the current
+-- company-scoped tracking projection can advance; its composite key and
+-- company/opportunity ownership remain closed.
+GRANT UPDATE (
+    tracking_status, reason, selected_by, selected_at, revision
+) ON bidops.company_opportunity_tracking TO app;
 GRANT UPDATE (
     version, role, effective_date, replaces_document_version_id, is_current,
     safety_status, needs_human_review
@@ -354,6 +366,7 @@ GRANT SELECT ON TABLE
     bidops.requirement_inventory_item,
     bidops.order_plan,
     bidops.order_plan_observation,
+    bidops.company,
     bidops.order_plan_screening_policy,
     bidops.order_plan_screening_execution,
     bidops.order_plan_screening_batch_attempt,

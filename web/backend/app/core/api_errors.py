@@ -16,7 +16,8 @@ _CONTROL = re.compile(r"[\x00-\x1f\x7f-\x9f]")
 API_ERROR_CODES = {
     "invalid_request", "actor_name_required", "actor_name_invalid", "not_found", "effective_grade_ineligible",
     "bundle_not_ready", "bundle_has_blocking_issues", "unsafe_document", "structure_unavailable",
-    "version_conflict", "idempotency_conflict", "service_unavailable", "processing_failed",
+    "version_conflict", "idempotency_conflict", "company_identity_conflict",
+    "service_unavailable", "processing_failed",
 }
 UTF8_ACTOR_PREFIX = "UTF-8''"
 UTF8_ACTOR_FORMAT = "utf-8-percent-v1"
@@ -43,6 +44,7 @@ _SAFE_API_MESSAGES = {
     "structure_unavailable": "문서 구조를 확인할 수 없습니다",
     "version_conflict": "문서가 변경되어 다시 시도해야 합니다",
     "idempotency_conflict": "동일 요청이 충돌했습니다",
+    "company_identity_conflict": "같은 회사 식별자에 다른 정보가 등록되어 있습니다",
     "service_unavailable": "문서 작업을 일시적으로 사용할 수 없습니다",
     "processing_failed": "문서 작업을 완료할 수 없습니다",
 }

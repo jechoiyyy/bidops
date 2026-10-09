@@ -1,0 +1,211 @@
+..F..FF................................................................. [ 56%]
+........................................................                 [100%]
+=================================== FAILURES ===================================
+_____ test_register_company_is_flush_only_idempotent_and_identity_checked ______
+
+engine = Engine(sqlite://)
+
+    def test_register_company_is_flush_only_idempotent_and_identity_checked(engine) -> None:
+        assert lifecycle.register_company is register_company
+        with Session(engine) as session:
+            created = register_company(
+                session,
+                slug="alpha-si",
+                name=" 알파 SI ",
+                is_fictional=True,
+                actor="등록 담당자",
+            )
+            replay = register_company(
+                session,
+                slug="alpha-si",
+                name="알파 SI",
+                is_fictional=True,
+                actor="등록 담당자",
+            )
+            assert created.created is True
+            assert replay == type(replay)(company_id=created.company_id, created=False)
+            with pytest.raises(BundleServiceError) as conflict:
+                register_company(
+                    session,
+                    slug="alpha-si",
+                    name="다른 회사",
+                    is_fictional=True,
+                    actor="등록 담당자",
+                )
+            assert conflict.value.code == "company_identity_conflict"
+            session.rollback()
+    
+        with Session(engine) as session:
+>           assert session.scalar(select(func.count()).select_from(Company)) == 0
+E           assert 1 == 0
+E            +  where 1 = scalar(<sqlalchemy.sql.selectable.Select object at 0x116d33800>)
+E            +    where scalar = <sqlalchemy.orm.session.Session object at 0x116dba510>.scalar
+E            +    and   <sqlalchemy.sql.selectable.Select object at 0x116d33800> = select_from(Company)
+E            +      where select_from = <sqlalchemy.sql.selectable.Select object at 0x116defd10>.select_from
+E            +        where <sqlalchemy.sql.selectable.Select object at 0x116defd10> = select(<sqlalchemy.sql.functions.count at 0x116cceb10; count>)
+E            +          where <sqlalchemy.sql.functions.count at 0x116cceb10; count> = <sqlalchemy.sql.functions._FunctionGenerator object at 0x116dad730>()
+E            +            where <sqlalchemy.sql.functions._FunctionGenerator object at 0x116dad730> = func.count
+
+tests/app/test_company_context.py:209: AssertionError
+______ test_legacy_lists_projections_and_worker_claim_ignore_company_rows ______
+
+engine = Engine(sqlite://)
+
+    def test_legacy_lists_projections_and_worker_claim_ignore_company_rows(engine) -> None:
+        with Session(engine, expire_on_commit=False) as session:
+>           seeded = _seed_legacy_and_company_analysis(session)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/app/test_company_context.py:336: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+session = <sqlalchemy.orm.session.Session object at 0x107cc7320>
+
+    def _seed_legacy_and_company_analysis(session: Session):
+        notice = Notice(notice_key=f"company-context-{uuid4()}", source_type="pre_spec", title="회사 경계")
+        opportunity = Opportunity(first_registered_stage="pre_spec")
+        company = Company(id=uuid4(), slug="alpha-si", name="알파 SI", is_fictional=True)
+        session.add_all([notice, opportunity, company])
+        session.flush()
+        session.add(
+            OpportunityLink(
+                opportunity_id=opportunity.id,
+                notice_id=notice.id,
+                stage="notice",
+                link_type="official",
+                status="확정",
+                evidence_external_no="fixture-prespec",
+            )
+        )
+        bundle = DocumentBundle(
+            id=uuid4(), notice_id=notice.id, revision=1, version=1,
+            status="draft", issues_snapshot=[],
+        )
+        legacy_profile = _profile(version=1, company_id=None, digest="1" * 64)
+        company_profile = _profile(version=2, company_id=company.id, digest="2" * 64)
+        policy = _policy()
+        session.add_all([bundle, legacy_profile, company_profile, policy])
+        session.flush()
+        company_review = DeepReview(
+            id=uuid4(), company_id=company.id, notice_id=notice.id, bundle_id=bundle.id,
+            profile_version_id=company_profile.id, policy_version_id=policy.id,
+            effective_grade_at_start="unknown", status="queued",
+            created_at=datetime(2026, 10, 2, tzinfo=UTC),
+        )
+        legacy_review = DeepReview(
+            id=uuid4(), company_id=None, notice_id=notice.id, bundle_id=bundle.id,
+            profile_version_id=legacy_profile.id, policy_version_id=policy.id,
+            effective_grade_at_start="unknown", status="queued",
+            created_at=datetime(2026, 10, 1, tzinfo=UTC),
+        )
+        session.add_all([company_review, legacy_review])
+        session.flush()
+>       service = DeepReviewService(reference_workflow_mode=True)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: DeepReviewService.__init__() got an unexpected keyword argument 'reference_workflow_mode'
+
+tests/app/test_company_context.py:313: TypeError
+_____ test_company_fit_projection_claim_and_recovery_use_only_null_lineage _____
+
+engine = Engine(sqlite://)
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x116ce8050>
+
+    def test_company_fit_projection_claim_and_recovery_use_only_null_lineage(
+        engine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        with Session(engine) as session:
+>           seeded = _seed_legacy_and_company_analysis(session)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/app/test_company_context.py:357: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+session = <sqlalchemy.orm.session.Session object at 0x116cebd10>
+
+    def _seed_legacy_and_company_analysis(session: Session):
+        notice = Notice(notice_key=f"company-context-{uuid4()}", source_type="pre_spec", title="회사 경계")
+        opportunity = Opportunity(first_registered_stage="pre_spec")
+        company = Company(id=uuid4(), slug="alpha-si", name="알파 SI", is_fictional=True)
+        session.add_all([notice, opportunity, company])
+        session.flush()
+        session.add(
+            OpportunityLink(
+                opportunity_id=opportunity.id,
+                notice_id=notice.id,
+                stage="notice",
+                link_type="official",
+                status="확정",
+                evidence_external_no="fixture-prespec",
+            )
+        )
+        bundle = DocumentBundle(
+            id=uuid4(), notice_id=notice.id, revision=1, version=1,
+            status="draft", issues_snapshot=[],
+        )
+        legacy_profile = _profile(version=1, company_id=None, digest="1" * 64)
+        company_profile = _profile(version=2, company_id=company.id, digest="2" * 64)
+        policy = _policy()
+        session.add_all([bundle, legacy_profile, company_profile, policy])
+        session.flush()
+        company_review = DeepReview(
+            id=uuid4(), company_id=company.id, notice_id=notice.id, bundle_id=bundle.id,
+            profile_version_id=company_profile.id, policy_version_id=policy.id,
+            effective_grade_at_start="unknown", status="queued",
+            created_at=datetime(2026, 10, 2, tzinfo=UTC),
+        )
+        legacy_review = DeepReview(
+            id=uuid4(), company_id=None, notice_id=notice.id, bundle_id=bundle.id,
+            profile_version_id=legacy_profile.id, policy_version_id=policy.id,
+            effective_grade_at_start="unknown", status="queued",
+            created_at=datetime(2026, 10, 1, tzinfo=UTC),
+        )
+        session.add_all([company_review, legacy_review])
+        session.flush()
+>       service = DeepReviewService(reference_workflow_mode=True)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: DeepReviewService.__init__() got an unexpected keyword argument 'reference_workflow_mode'
+
+tests/app/test_company_context.py:313: TypeError
+=============================== warnings summary ===============================
+../../../../../../../../../../../../tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/fastapi/testclient.py:1
+  /tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+app/deep_review/schemas/document_bundles.py:115
+  /Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo01-20261009-DEMO-01-company-context/web/backend/app/deep_review/schemas/document_bundles.py:115: UserWarning: Field name "schema" in "DocumentStructure" shadows an attribute in parent "StrictModel"
+    class DocumentStructure(StrictModel):
+
+app/deep_review/schemas/document_bundles.py:224
+  /Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo01-20261009-DEMO-01-company-context/web/backend/app/deep_review/schemas/document_bundles.py:224: UserWarning: Field name "schema" in "SegmentExtractorBinding" shadows an attribute in parent "StrictModel"
+    class SegmentExtractorBinding(StrictModel):
+
+app/deep_review/schemas/document_bundles.py:232
+  /Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo01-20261009-DEMO-01-company-context/web/backend/app/deep_review/schemas/document_bundles.py:232: UserWarning: Field name "schema" in "DocumentSegmentsView" shadows an attribute in parent "StrictModel"
+    class DocumentSegmentsView(StrictModel):
+
+app/deep_review/agents/common/contracts.py:391
+  /Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo01-20261009-DEMO-01-company-context/web/backend/app/deep_review/agents/common/contracts.py:391: UserWarning: Field name "schema" in "AgentRunView" shadows an attribute in parent "_StrictModel"
+    class AgentRunView(_StrictModel):
+
+app/deep_review/agents/common/contracts.py:462
+  /Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo01-20261009-DEMO-01-company-context/web/backend/app/deep_review/agents/common/contracts.py:462: UserWarning: Field name "schema" in "AgentCommand" shadows an attribute in parent "_StrictModel"
+    class AgentCommand(_StrictModel, Generic[TAction]):
+
+app/deep_review/schemas/reports.py:69
+  /Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo01-20261009-DEMO-01-company-context/web/backend/app/deep_review/schemas/reports.py:69: UserWarning: Field name "schema" in "DeepReviewReport" shadows an attribute in parent "StrictModel"
+    class DeepReviewReport(StrictModel):
+
+app/deep_review/schemas/reports.py:122
+  /Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo01-20261009-DEMO-01-company-context/web/backend/app/deep_review/schemas/reports.py:122: UserWarning: Field name "schema" in "NarrativeReport" shadows an attribute in parent "DeepReviewReport"
+    class NarrativeReport(DeepReviewReport):
+
+app/deep_review/schemas/reports.py:143
+  /Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo01-20261009-DEMO-01-company-context/web/backend/app/deep_review/schemas/reports.py:143: UserWarning: Field name "schema" in "DeepReviewValidation" shadows an attribute in parent "StrictModel"
+    class DeepReviewValidation(StrictModel):
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/app/test_company_context.py::test_register_company_is_flush_only_idempotent_and_identity_checked
+FAILED tests/app/test_company_context.py::test_legacy_lists_projections_and_worker_claim_ignore_company_rows
+FAILED tests/app/test_company_context.py::test_company_fit_projection_claim_and_recovery_use_only_null_lineage
+3 failed, 125 passed, 9 warnings in 9.82s

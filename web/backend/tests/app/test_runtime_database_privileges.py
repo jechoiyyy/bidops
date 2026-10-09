@@ -95,6 +95,29 @@ def test_bid_delta_runtime_grants_let_the_app_append_only_final_decisions() -> N
 
 
 COLLECTION_INDEX_TABLES = {"collected_record_index", "collected_record_token"}
+COMPANY_CONTEXT_TABLES = {
+    "company",
+    "company_opportunity_tracking",
+    "company_tracking_event",
+}
+
+
+def test_company_context_grants_match_registration_tracking_and_worker_reads() -> None:
+    assert COMPANY_CONTEXT_TABLES <= _table_grants("app", "SELECT")
+    assert COMPANY_CONTEXT_TABLES <= _table_grants("app", "INSERT")
+    assert not COMPANY_CONTEXT_TABLES & _table_grants("app", "UPDATE")
+    assert not COMPANY_CONTEXT_TABLES & _table_grants("app", "DELETE")
+    assert _column_update_grant("app", "company_opportunity_tracking") == {
+        "tracking_status",
+        "reason",
+        "selected_by",
+        "selected_at",
+        "revision",
+    }
+    assert _table_grants("worker", "SELECT") & COMPANY_CONTEXT_TABLES == {"company"}
+    for privilege in ("INSERT", "UPDATE", "DELETE"):
+        assert not COMPANY_CONTEXT_TABLES & _table_grants("worker", privilege)
+
 
 
 def test_collection_index_grants_match_the_ingest_paths() -> None:
@@ -477,6 +500,48 @@ def test_effective_app_bid_delta_grants_and_worker_denial() -> None:
                         connection.exec_driver_sql("SET LOCAL ROLE app")
                         connection.exec_driver_sql(statement)
                 assert error.value.orig.sqlstate == "42501", statement
+        finally:
+            engine.dispose()
+
+
+@requires_postgres
+def test_effective_company_context_grants_are_minimal() -> None:
+    _ensure_roles()
+    with temporary_database() as database_url:
+        engine = _apply_policy(database_url)
+        try:
+            with engine.begin() as connection:
+                for table in sorted(COMPANY_CONTEXT_TABLES):
+                    assert _table_privilege(connection, "app", table, "SELECT")
+                    assert _table_privilege(connection, "app", table, "INSERT")
+                    assert _table_privilege(connection, "ro_backup", table, "SELECT")
+                    assert not _table_privilege(connection, "app", table, "DELETE")
+                    assert not _table_privilege(connection, "worker", table, "INSERT")
+                    assert not _table_privilege(connection, "worker", table, "UPDATE")
+                    assert not _table_privilege(connection, "worker", table, "DELETE")
+                assert _table_privilege(connection, "worker", "company", "SELECT")
+                assert not _table_privilege(
+                    connection, "worker", "company_opportunity_tracking", "SELECT"
+                )
+                assert not _table_privilege(
+                    connection, "worker", "company_tracking_event", "SELECT"
+                )
+                for column in (
+                    "tracking_status",
+                    "reason",
+                    "selected_by",
+                    "selected_at",
+                    "revision",
+                ):
+                    assert _column_privilege(
+                        connection,
+                        "app",
+                        "company_opportunity_tracking",
+                        column,
+                        "UPDATE",
+                    )
+                for table in ("company", "company_tracking_event"):
+                    assert not _table_privilege(connection, "app", table, "UPDATE")
         finally:
             engine.dispose()
 

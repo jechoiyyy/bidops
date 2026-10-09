@@ -80,6 +80,11 @@ const KNOWN_CODE_DESCRIPTION: Record<string, CodeDescription> = {
     detail: "같은 저장을 두 번 보내지 않도록 화면을 다시 불러온 뒤 처음부터 입력하십시오.",
     action: "reload",
   },
+  company_identity_conflict: {
+    title: "같은 회사 식별자에 다른 정보가 등록되어 있습니다.",
+    detail: "등록된 회사 이름과 가상회사 표식을 확인한 뒤 다시 시도하십시오.",
+    action: null,
+  },
   bundle_not_ready: {
     title: "확정된 문서 묶음이 필요합니다.",
     detail: "문서 준비에서 문서 묶음을 확정한 뒤 다시 시도하십시오.",
