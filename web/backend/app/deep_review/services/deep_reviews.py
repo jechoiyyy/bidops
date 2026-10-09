@@ -689,7 +689,11 @@ class DeepReviewService:
             if luna_inputs.is_luna(policy) and actor_kind != "human":
                 raise DeepReviewServiceError("manual_request_required", "Luna는 사람 요청만 지원합니다", status_code=409)
             preview = luna_inputs.check(self, session, preview_id, notice, bundle_id, profile, policy, source_verification_enabled) if luna_inputs.is_luna(policy) else None
-            if preview is not None and session.scalar(select(DeepReview.id).where(DeepReview.notice_id == notice_id, DeepReview.status.in_(("queued", "running"))).limit(1)):
+            if preview is not None and session.scalar(select(DeepReview.id).where(
+                DeepReview.company_id.is_(None),
+                DeepReview.notice_id == notice_id,
+                DeepReview.status.in_(("queued", "running")),
+            ).limit(1)):
                 raise DeepReviewServiceError("active_attempt_exists", "이미 대기·실행 중인 검토가 있습니다", status_code=409)
             runtime_provider, runtime_model = self._runtime_identity(policy)
             quality_snapshot = (
@@ -726,6 +730,7 @@ class DeepReviewService:
             # The unique input tuple is authoritative; existing review rows are
             # returned only when they are the same immutable input set.
             existing = session.scalar(select(DeepReview).where(
+                DeepReview.company_id.is_(None),
                 DeepReview.notice_id == notice_id, DeepReview.bundle_id == bundle_id,
                 DeepReview.profile_version_id == profile.id, DeepReview.policy_version_id == policy.id,
             ).limit(1))
@@ -754,7 +759,7 @@ class DeepReviewService:
                 session.add(IdempotencyRecord(operation="deep_review_create", aggregate_type="notice", aggregate_id=str(notice_id), claimed_name=claimed_name, request_id=request_id, request_sha256=request_hash, response_status=202, response_snapshot=response))
                 session.commit()
                 return response
-            review = DeepReview(id=uuid4(), notice_id=notice_id, bundle_id=bundle_id, profile_version_id=profile.id, policy_version_id=policy.id, effective_grade_at_start=basis.grade or "unknown", status="queued", requested_by_name=claimed_name)
+            review = DeepReview(id=uuid4(), company_id=None, notice_id=notice_id, bundle_id=bundle_id, profile_version_id=profile.id, policy_version_id=policy.id, effective_grade_at_start=basis.grade or "unknown", status="queued", requested_by_name=claimed_name)
             session.add(review)
             session.flush()
             attempt = self._seed_attempt(session, review, sequence=1, actor=claimed_name, source_verification_enabled=source_verification_enabled, actor_kind=actor_kind)
@@ -883,6 +888,14 @@ class DeepReviewService:
             select(WorkJob)
             .where(
                 WorkJob.job_type == "deep_review",
+                # The legacy worker must leave company-scoped jobs untouched
+                # for the explicit company analysis path. Orphan jobs still
+                # pass this predicate and retain the existing fail-closed
+                # review_scope_missing handling below.
+                ~exists().where(
+                    DeepReview.id == WorkJob.aggregate_id,
+                    DeepReview.company_id.is_not(None),
+                ),
                 or_(WorkJob.status == "queued", and_(WorkJob.status == "running", WorkJob.lease_expires_at < now)),
             )
             .order_by(WorkJob.priority.desc(), WorkJob.scheduled_at.asc(), WorkJob.id.asc())

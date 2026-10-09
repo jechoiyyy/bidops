@@ -1,0 +1,20 @@
+{
+  "web/backend/app/core/api_errors.py": "e641f505617c3ac140263a64bf1c9f75058a0bdc9da8ee3239bb9a26977c3470",
+  "web/backend/app/core/config.py": "d73c005c8f0d86393ceb53cfc1c9bf579e4b331d9d93ecdb5a4c59119c9bdfbb",
+  "web/backend/app/core/db.py": "61fa75d3254020cb66e5e4e727974cc4f328d8da678aa7d258a737cf0392cb97",
+  "web/backend/app/deep_review/models.py": "d431cb88a6632a32462324f37dbcc60a29dd76e951a9a4c91f0359f56bb2d409",
+  "web/backend/app/deep_review/services/auto_preparation.py": "cf93801f22c087921bfd6adf420bb4235e79b1a9d1b41bd9ef902483e1243f27",
+  "web/backend/app/deep_review/services/company_fit.py": "4602125db4b4da24eb6e144c41ba2592d4cb4d8fd3bf8d11c5c2c210eac68d28",
+  "web/backend/app/deep_review/services/company_fit_runner.py": "3ddfaec5d8ba3e7d25b4c2b96ddb3a9ea3916e29ae59f14f1de9176dcc3a26ff",
+  "web/backend/app/deep_review/services/deep_reviews.py": "94c3c4be6f081f56beda2c4efba0a9a5d98d346c6fb2a1ecd0897cda3dd0471b",
+  "web/backend/app/deep_review/services/input_versions.py": "779fd3f35530f384460e6cc338e88ce21d0eb149a6956f028ee6132e21d1cb4e",
+  "web/backend/app/deep_review/services/opportunity_reviews.py": "8fbb2983d682b585e633f7b0e620027f99f82a75e6312c6579f9d33acfa54042",
+  "web/backend/app/deep_review/services/overview_runs.py": "b1e0cb9a6d37d57a729144cd6c4043c4e933b56bd26a881c2356945c8fe963b7",
+  "web/backend/app/lifecycle/__init__.py": "5e072c73556d889f72bddb9648e265aa46a7d62ebdc1178f6a845c3a5f1d99d7",
+  "web/backend/app/lifecycle/models.py": "bd24e9cbef1f083973bd6398f167e6999a3d12630a4a36bdc6dcf4fec7ada0f5",
+  "web/backend/app/lifecycle/routers/companies.py": "65a27172dd005ceb49b2c9df9dd77cd5c7bf214a27a01079ab75ce94e3738a38",
+  "web/backend/app/lifecycle/schemas/companies.py": "45872e98e2799796d8414fbc11e74b9c9685fc835065a25c8a94a2dc9088ee59",
+  "web/backend/app/lifecycle/services/company_context.py": "a7517fc4c81f72764495a13ecbd2c35ca26892862950ba62c03494d9bb428d28",
+  "web/backend/app/main.py": "4cad8933b21cda72f14627fb529b0fe4d702646d71e112a4738757e607267a60",
+  "web/frontend/src/lib/apiErrors.ts": "9a5e96fab3b6de0f43df90bb0f43efd75b1dc2f7b1ebef160dcfad9ec8fb9fe8"
+}

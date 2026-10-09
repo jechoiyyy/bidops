@@ -1,0 +1,6 @@
+{
+  "web/backend/app/lifecycle/schemas/companies.py": "258ae902c4b9d2b772daaad0493dbb47dde0fed7c1388c4b99d504d5fd5bd07e",
+  "web/backend/app/lifecycle/routers/companies.py": "a9fca2e6590ad60ea5845e5e684d2768149207735471758d1dfa9f9aa7dad4f6",
+  "web/backend/app/lifecycle/services/opportunity_tracking.py": "e5e722f2d9a4dea9bc0fb672a51970884926b924811617341e92adf14da8f02c",
+  "web/backend/tests/app/test_company_context.py": "03117a8aa7d3352dc878fae59a81d24b2d4fa8dbdd6e213e19cd5bc32f701154"
+}

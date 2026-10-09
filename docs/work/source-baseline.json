@@ -13,11 +13,11 @@
     },
     {
       "path": "docs/business-rules.md",
-      "sha256": "503c7747b409fe9b9205541aacbb0778f02469a46a9871d0d2ab7b556502209d"
+      "sha256": "e6fee3a8af40254ffd479e900ef2b152b16182f00b0ad5c7581d62f4e046f8f6"
     },
     {
       "path": "docs/contracts.md",
-      "sha256": "39b47670f3b3e8c809f66c923e7c8212e20bb809ca11f253d61588be71312dee"
+      "sha256": "d777712ee8b865996e22e799d585131637c99bcaba63e17785637867643d92bd"
     },
     {
       "path": "docs/operations.md",
@@ -45,7 +45,7 @@
     },
     {
       "path": "docs/ARCHITECTURE.md",
-      "sha256": "dcf52a38020ef8f8d12d9f62ea8cee4d43b7182b8e84edc4ecf66bae4e26364e"
+      "sha256": "1a0993c04c3e21c48d662d6c2dc8670b34736445f87c295c36421757a2d13556"
     },
     {
       "path": "docs/PRD.md",
@@ -53,11 +53,11 @@
     },
     {
       "path": "docs/deep-review-erd.md",
-      "sha256": "c130547e918302ce759f67889db1d19c4f8a47e69aff8454f358a549beb99a9b"
+      "sha256": "1cfd87cb59a2630cb1f18d0f70c495e65480725d612784c48d0a52f7bd1bd3bf"
     },
     {
       "path": "docs/work/demo-contract.md",
-      "sha256": "347dcae404cd620cfdc2530cbb82c20fb831b0d88e268560c6363e5535566bf4"
+      "sha256": "7c126012a783c3f242fa51e01c5d1ca3d6e38b697cd09b98db2fcabc0b15fb5d"
     },
     {
       "path": "docs/tracking/decisions/0070-multi-company-knowledge-demo.md",

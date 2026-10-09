@@ -893,7 +893,10 @@ app은 입력/실행 INSERT와 세 표 SELECT, worker는 결과 INSERT와 세 �
 [REST 및 결과 계약](0923_assumption-analysis/spec.md).
 
 
-## 가상 SI 3사 데모 목표 계약 (2026-10-06, 구현 전)
+## 가상 SI 3사 데모 계약 (2026-10-09, DEMO-01 데모 브랜치 구현)
 
-회사별 nullable identity·그래프 버전·승인 binding을 추가하는 목표다. 기존 불변 입력·근거 FK와 슬롯 1개를 유지한다. 현재 migration에는 아직 반영하지 않았다.
+DEMO-01은 별도 데모 브랜치의 migration에 `ProfileVersion`·`DeepReview`·
+`PreSpecCompanyFitAttempt`의 nullable `company_id`와 회사/profile 소속 제약을 추가했다.
+기존 행은 NULL 계보로 보존하고 main·운영에는 미반영이다. 그래프 버전·승인 binding·회사 분석 입력과
+실행 저장은 DEMO-02·03의 미구현 후속 범위며 기존 불변 입력·근거 FK·슬롯 1개 계약을 유지한다.
 [ADR-0070](tracking/decisions/0070-multi-company-knowledge-demo.md) · [공통 계약](work/demo-contract.md) · [기능 로드맵](work/constitution/roadmap.md).
