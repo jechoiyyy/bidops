@@ -6,6 +6,7 @@ from datetime import UTC, datetime, timedelta
 import hashlib
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from sqlalchemy import create_engine, event, func, select
@@ -58,6 +59,7 @@ from app.deep_review.services.prespec_attachments import (
     refresh_fetch_eligibility,
 )
 from app.deep_review.services.deep_review_hooks import PreSpecAttachmentEligibilityHook
+from app.deep_review.workers import prespec_attachment as prespec_attachment_worker
 from app.deep_review.workers.prespec_attachment import run_once
 
 
@@ -428,16 +430,201 @@ def test_re_evaluation_is_idempotent_and_does_not_revive_terminal_rows(db_sessio
 
 def test_claim_orders_due_rows_and_increments_fence(db_session: Session):
     _, _, first = queue_one(db_session, sw_status="Y")
+    _, _, second = queue_one(db_session, sw_status="Y")
+    current_time = datetime.now(UTC)
+    first.next_attempt_at = current_time - timedelta(minutes=2)
+    second.next_attempt_at = current_time - timedelta(minutes=1)
+    db_session.commit()
     claim = claim_next(
         db_session,
         worker_id="prespec-worker",
         lease_seconds=120,
-        now=datetime.now(UTC),
+        now=current_time,
     )
     assert claim is not None
     assert claim.id == first.id
     row = db_session.get(AttachmentFetch, first.id)
     assert row is not None and row.status == "진행" and row.lease_fence == 1
+    assert db_session.get(AttachmentFetch, second.id).status == "대기"
+
+
+def test_targeted_run_skips_an_earlier_foreign_queue_row(
+    db_session: Session,
+    tmp_path: Path,
+):
+    _, _, foreign = queue_one(db_session, sw_status="Y")
+    target_notice, _, target = queue_one(db_session, sw_status="Y")
+    current_time = datetime.now(UTC)
+    foreign.next_attempt_at = current_time - timedelta(minutes=2)
+    target.next_attempt_at = current_time - timedelta(minutes=1)
+    db_session.commit()
+
+    assert run_once(
+        db_session,
+        "worker-targeted",
+        notice_id=target_notice.id,
+        connectors={
+            "g2b": StubConnector(
+                assets.ProviderResponse(SAFE_PDF.read_bytes(), G2B_URL, "target.pdf")
+            )
+        },
+        processor=DocumentProcessor(clamav_checker=lambda _content: True),
+        root=tmp_path,
+    )
+
+    assert db_session.get(AttachmentFetch, foreign.id).status == "대기"
+    assert db_session.get(AttachmentFetch, foreign.id).lease_fence == 0
+    assert db_session.get(AttachmentFetch, target.id).status == "완료"
+
+
+def test_targeted_claim_reclaims_an_expired_lease(db_session: Session):
+    target_notice, _, target = queue_one(db_session, sw_status="Y")
+    current_time = datetime.now(UTC)
+    target.status = "진행"
+    target.lease_owner = "worker-expired"
+    target.lease_expires_at = current_time - timedelta(seconds=1)
+    target.lease_fence = 4
+    db_session.commit()
+
+    claim = claim_next(
+        db_session,
+        worker_id="worker-recovery",
+        lease_seconds=120,
+        now=current_time,
+        notice_id=target_notice.id,
+    )
+
+    assert claim is not None
+    assert claim.id == target.id
+    assert claim.lease_fence == 5
+    refreshed = db_session.get(AttachmentFetch, target.id)
+    assert refreshed is not None
+    assert refreshed.status == "진행"
+    assert refreshed.lease_owner == "worker-recovery"
+
+
+def test_target_with_no_eligible_row_does_not_claim_other_notice(
+    db_session: Session,
+):
+    target_notice, _, failed = queue_one(db_session, sw_status="Y")
+    failed.status = "실패"
+    failed.last_error_code = "service_unavailable"
+    _, _, foreign = queue_one(db_session, sw_status="Y")
+    db_session.commit()
+
+    assert claim_next(
+        db_session,
+        worker_id="worker-targeted",
+        lease_seconds=120,
+        notice_id=target_notice.id,
+    ) is None
+    assert db_session.get(AttachmentFetch, failed.id).status == "실패"
+    assert db_session.get(AttachmentFetch, failed.id).lease_fence == 0
+    assert db_session.get(AttachmentFetch, foreign.id).status == "대기"
+
+
+@pytest.mark.parametrize("invalid_notice_id", [0, -1, True, "1"])
+def test_claim_rejects_invalid_notice_id_before_database_access(invalid_notice_id):
+    class NoDatabaseAccess:
+        def in_transaction(self):
+            raise AssertionError("database access must not occur")
+
+    with pytest.raises(ValueError, match="notice_id must be a positive integer"):
+        claim_next(
+            NoDatabaseAccess(),
+            worker_id="worker-targeted",
+            lease_seconds=120,
+            notice_id=invalid_notice_id,
+        )
+
+
+def test_run_once_rejects_invalid_notice_id_before_connector_setup(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    def fail_connector_setup(_settings):
+        raise AssertionError("connector setup must not occur")
+
+    monkeypatch.setattr(
+        prespec_attachment_worker.assets,
+        "g2b_attachment_connectors",
+        fail_connector_setup,
+    )
+    with pytest.raises(ValueError, match="notice_id must be a positive integer"):
+        run_once(object(), "worker-targeted", notice_id=0)
+
+
+def test_cli_rejects_invalid_notice_id_before_runtime_setup(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setattr(
+        prespec_attachment_worker,
+        "get_settings",
+        lambda: (_ for _ in ()).throw(AssertionError("runtime setup must not occur")),
+    )
+    with pytest.raises(SystemExit) as error:
+        prespec_attachment_worker.main(["--once", "--notice-id", "0"])
+    assert error.value.code == 2
+
+
+def test_cli_passes_notice_id_to_one_shot_worker(monkeypatch: pytest.MonkeyPatch):
+    calls: list[tuple[object, str, dict[str, object]]] = []
+    session = object()
+
+    class SessionContext:
+        def __enter__(self):
+            return session
+
+        def __exit__(self, *_exc):
+            return False
+
+    class Scanner:
+        def __init__(self, **_kwargs):
+            pass
+
+        def scan(self, _content):
+            return True
+
+    settings = SimpleNamespace(
+        prespec_attachment_worker_concurrency=1,
+        clamav_host="clamav",
+        clamav_port=3310,
+        clamav_timeout_seconds=30.0,
+        worker_id="worker-targeted",
+        prespec_attachment_lease_seconds=120.0,
+    )
+    connectors = {"g2b": object()}
+
+    monkeypatch.setattr(prespec_attachment_worker, "get_settings", lambda: settings)
+    monkeypatch.setattr(prespec_attachment_worker, "configure", lambda _settings: None)
+    monkeypatch.setattr(
+        prespec_attachment_worker.assets,
+        "g2b_attachment_connectors",
+        lambda _settings: connectors,
+    )
+    monkeypatch.setattr(
+        prespec_attachment_worker,
+        "assert_object_store_runtime",
+        lambda **_kwargs: None,
+    )
+    monkeypatch.setattr(prespec_attachment_worker, "ClamAVScanner", Scanner)
+    monkeypatch.setattr(prespec_attachment_worker, "SessionLocal", SessionContext)
+    monkeypatch.setattr(prespec_attachment_worker.signal, "signal", lambda *_args: None)
+    monkeypatch.setattr(
+        prespec_attachment_worker,
+        "run_once",
+        lambda actual_session, worker_id, **kwargs: calls.append(
+            (actual_session, worker_id, kwargs)
+        ),
+    )
+
+    prespec_attachment_worker.main(["--once", "--notice-id", "179"])
+
+    assert len(calls) == 1
+    actual_session, worker_id, kwargs = calls[0]
+    assert actual_session is session
+    assert worker_id == "worker-targeted"
+    assert kwargs["notice_id"] == 179
+    assert kwargs["connectors"] is connectors
 
 
 @pytest.mark.parametrize(

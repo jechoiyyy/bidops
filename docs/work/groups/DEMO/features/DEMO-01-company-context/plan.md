@@ -8,7 +8,7 @@
 
 경로는 저장소 루트 기준. `<next>` migration은 구현 시 실제 단일 head의 후속 번호로 생성한다.
 번호를 선점하지 않으며 core/db.py의 runtime head와 `scripts/runtime-privileges.sql` 권한을 함께 갱신한다(migration에 GRANT를 쓰지 않는다).
-기준 브랜치는 데모 브랜치다(DEMO-00 반영 뒤 main에서 분기). 운영에 배포하지 않는다.
+기준은 DEMO-00이 통합된 main에서 분기한 별도 데모 브랜치와 `bidops-local` 격리 자원이다. 새 기능 run으로 시작하며 main이나 운영에 반영하지 않는다.
 
 | 경로 | 신규/수정 | 내용 |
 |---|---|---|

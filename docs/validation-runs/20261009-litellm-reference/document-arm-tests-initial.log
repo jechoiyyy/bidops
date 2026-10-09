@@ -1,0 +1,43 @@
+..................................................................F..... [ 46%]
+........................................................................ [ 92%]
+...........                                                              [100%]
+=================================== FAILURES ===================================
+_________ test_vendored_sha256_manifest_is_deterministic_and_complete __________
+
+    def test_vendored_sha256_manifest_is_deterministic_and_complete() -> None:
+        vendor = Path(__file__).parents[2] / "app" / "deep_review" / "document_mcp" / "vendor"
+        manifest = vendor / "SHA256SUMS"
+        contents = manifest.read_text(encoding="utf-8")
+        assert "hwpx-skill.git" in contents
+        assert "96a2633f23a08f707679d7e212ebdc59948260e6" in contents
+        assert "edwardkim/rhwp" in contents
+        entries = [line.split(maxsplit=1) for line in contents.splitlines() if line and not line.startswith("#")]
+        assert entries == sorted(entries, key=lambda item: item[1])
+        assert all(len(digest) == 64 and path != "SHA256SUMS" for digest, path in entries)
+        for digest, relative_path in entries:
+            path = vendor / relative_path
+            assert path.is_file(), relative_path
+>           assert hashlib.sha256(path.read_bytes()).hexdigest() == digest
+E           AssertionError: assert 'c32c7cb2aca2...e6ace34ca507f' == 'c82684971756...6574a0084fc8c'
+E             
+E             - c82684971756d58ba7391cd08c38c93bb4280ab9ebf0e21c0936574a0084fc8c
+E             + c32c7cb2aca204e6b8359cd28b3b1c9a17538374ce5abc5ff43e6ace34ca507f
+
+tests/deep_review/test_document_mcp.py:1123: AssertionError
+=============================== warnings summary ===============================
+app/deep_review/schemas/document_bundles.py:115
+  /app/web/backend/app/deep_review/schemas/document_bundles.py:115: UserWarning: Field name "schema" in "DocumentStructure" shadows an attribute in parent "StrictModel"
+    class DocumentStructure(StrictModel):
+
+app/deep_review/schemas/document_bundles.py:224
+  /app/web/backend/app/deep_review/schemas/document_bundles.py:224: UserWarning: Field name "schema" in "SegmentExtractorBinding" shadows an attribute in parent "StrictModel"
+    class SegmentExtractorBinding(StrictModel):
+
+app/deep_review/schemas/document_bundles.py:232
+  /app/web/backend/app/deep_review/schemas/document_bundles.py:232: UserWarning: Field name "schema" in "DocumentSegmentsView" shadows an attribute in parent "StrictModel"
+    class DocumentSegmentsView(StrictModel):
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/deep_review/test_document_mcp.py::test_vendored_sha256_manifest_is_deterministic_and_complete
+1 failed, 154 passed, 3 warnings in 3.42s

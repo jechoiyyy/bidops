@@ -1,0 +1,68 @@
+{
+  "claim_quote_offsets_checked": 8,
+  "viewports": [
+    {
+      "viewport": [
+        1280,
+        800
+      ],
+      "live_backend": true,
+      "completed_visible": true,
+      "reference_marker_visible": true,
+      "budget_and_period_visible": true,
+      "page4_links": [
+        "/api/pre-specs/179/overview/runs/ff144ffa-7495-4672-99ae-7a2e27a67c1d/pdf#page=4",
+        "/api/pre-specs/179/overview/runs/ff144ffa-7495-4672-99ae-7a2e27a67c1d/pdf#page=4",
+        "/api/pre-specs/179/overview/runs/ff144ffa-7495-4672-99ae-7a2e27a67c1d/pdf#page=4",
+        "/api/pre-specs/179/overview/runs/ff144ffa-7495-4672-99ae-7a2e27a67c1d/pdf#page=4",
+        "/api/pre-specs/179/overview/runs/ff144ffa-7495-4672-99ae-7a2e27a67c1d/pdf#page=4",
+        "/api/pre-specs/179/overview/runs/ff144ffa-7495-4672-99ae-7a2e27a67c1d/pdf#page=4",
+        "/api/pre-specs/179/overview/runs/ff144ffa-7495-4672-99ae-7a2e27a67c1d/pdf#page=4",
+        "/api/pre-specs/179/overview/runs/ff144ffa-7495-4672-99ae-7a2e27a67c1d/pdf#page=4",
+        "/api/pre-specs/179/overview/runs/ff144ffa-7495-4672-99ae-7a2e27a67c1d/pdf#page=4",
+        "/api/pre-specs/179/overview/runs/ff144ffa-7495-4672-99ae-7a2e27a67c1d/pdf#page=4",
+        "/api/pre-specs/179/overview/runs/ff144ffa-7495-4672-99ae-7a2e27a67c1d/pdf#page=4",
+        "/api/pre-specs/179/overview/runs/ff144ffa-7495-4672-99ae-7a2e27a67c1d/pdf#page=4",
+        "/api/pre-specs/179/overview/runs/ff144ffa-7495-4672-99ae-7a2e27a67c1d/pdf#page=4",
+        "/api/pre-specs/179/overview/runs/ff144ffa-7495-4672-99ae-7a2e27a67c1d/pdf#page=4",
+        "/api/pre-specs/179/overview/runs/ff144ffa-7495-4672-99ae-7a2e27a67c1d/pdf#page=4",
+        "/api/pre-specs/179/overview/runs/ff144ffa-7495-4672-99ae-7a2e27a67c1d/pdf#page=4"
+      ],
+      "page_errors": [],
+      "http_errors": [],
+      "screenshot": "overview-laptop.png"
+    },
+    {
+      "viewport": [
+        1440,
+        900
+      ],
+      "live_backend": true,
+      "completed_visible": true,
+      "reference_marker_visible": true,
+      "budget_and_period_visible": true,
+      "page4_links": [
+        "/api/pre-specs/179/overview/runs/ff144ffa-7495-4672-99ae-7a2e27a67c1d/pdf#page=4",
+        "/api/pre-specs/179/overview/runs/ff144ffa-7495-4672-99ae-7a2e27a67c1d/pdf#page=4",
+        "/api/pre-specs/179/overview/runs/ff144ffa-7495-4672-99ae-7a2e27a67c1d/pdf#page=4",
+        "/api/pre-specs/179/overview/runs/ff144ffa-7495-4672-99ae-7a2e27a67c1d/pdf#page=4",
+        "/api/pre-specs/179/overview/runs/ff144ffa-7495-4672-99ae-7a2e27a67c1d/pdf#page=4",
+        "/api/pre-specs/179/overview/runs/ff144ffa-7495-4672-99ae-7a2e27a67c1d/pdf#page=4",
+        "/api/pre-specs/179/overview/runs/ff144ffa-7495-4672-99ae-7a2e27a67c1d/pdf#page=4",
+        "/api/pre-specs/179/overview/runs/ff144ffa-7495-4672-99ae-7a2e27a67c1d/pdf#page=4",
+        "/api/pre-specs/179/overview/runs/ff144ffa-7495-4672-99ae-7a2e27a67c1d/pdf#page=4",
+        "/api/pre-specs/179/overview/runs/ff144ffa-7495-4672-99ae-7a2e27a67c1d/pdf#page=4",
+        "/api/pre-specs/179/overview/runs/ff144ffa-7495-4672-99ae-7a2e27a67c1d/pdf#page=4",
+        "/api/pre-specs/179/overview/runs/ff144ffa-7495-4672-99ae-7a2e27a67c1d/pdf#page=4",
+        "/api/pre-specs/179/overview/runs/ff144ffa-7495-4672-99ae-7a2e27a67c1d/pdf#page=4",
+        "/api/pre-specs/179/overview/runs/ff144ffa-7495-4672-99ae-7a2e27a67c1d/pdf#page=4",
+        "/api/pre-specs/179/overview/runs/ff144ffa-7495-4672-99ae-7a2e27a67c1d/pdf#page=4",
+        "/api/pre-specs/179/overview/runs/ff144ffa-7495-4672-99ae-7a2e27a67c1d/pdf#page=4"
+      ],
+      "page_errors": [],
+      "http_errors": [],
+      "screenshot": "overview-desktop.png"
+    }
+  ],
+  "initial_assertion_correction": "Removed assumed duplicate text node count=2; body text assertions verify displayed facts without prescribing DOM duplication."
+}

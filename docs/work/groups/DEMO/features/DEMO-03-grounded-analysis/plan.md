@@ -8,7 +8,7 @@
 
 경로는 저장소 루트 기준. `<next>` migration은 구현 시 실제 단일 head의 후속 번호로 생성한다.
 번호를 선점하지 않으며 core/db.py의 runtime head와 `scripts/runtime-privileges.sql` 권한을 함께 갱신한다(migration에 GRANT를 쓰지 않는다).
-기준 브랜치는 데모 브랜치다. 운영에 배포하지 않는다.
+기준은 별도 데모 브랜치와 `bidops-local` 격리 자원이다. main이나 운영에 반영하지 않는다.
 
 | 경로 | 신규/수정 | 내용 |
 |---|---|---|
@@ -69,6 +69,10 @@
    - 목표: 교차 경로 통합의 수용 조건을 충족한다.
    - 작업 대상: fake E2E·공용 슬롯·legacy 분리.
    - 검증: spec T2~T8; 아래 명령과 해당 단계 증거.
+7. STEP-007 실제 Luna 대표 인수 [complex]
+   - 목표: 구현된 회사·graph 입력 경로로 대표 공고 1건의 실제 Luna 심층 보고서를 완성하고 원문 근거를 확인한다.
+   - 작업 대상: 동결 provenance·preview·건별 승인·Luna `codex-exec`·3단계 보고서·결정적 검증. LiteLLM 개요·핏 transport와 분리한다.
+   - 검증: spec T9; `docs/validation-runs/<actual-date>-company-demo/DEMO-03-grounded-analysis/`의 승인·attempt·검증 증거.
 
 ## 위임
 
@@ -80,6 +84,7 @@
 | STEP-004 | M | 높음 | complex | 불변식·상태·외부 실행 경계 |
 | STEP-005 | M | 높음 | complex | 불변식·상태·외부 실행 경계 |
 | STEP-006 | M | 높음 | complex | 불변식·상태·외부 실행 경계 |
+| STEP-007 | M | 높음 | complex | 실제 외부 전송·완성 보고서 품질 게이트 |
 
 ## 검사 명령과 증거
 
@@ -112,7 +117,7 @@ overview=true가 필요한 사례만 fixture에서 설정한다.
 - postgres: DB/API shape 변경 시 임시 PG 검사+head/권한; 아니면 N/A 이유 기록.
 - frontend: UI 변경 시 build+두 폭 의미/구조; 아니면 N/A 이유 기록.
 - api_guard: 회사 소속/모델 경계 변경 시 승인·hash·호출 0 검사; 아니면 N/A 이유 기록.
-- real_data_run: DEMO-05에서 실제 18/9건·담당자 인수; 다른 기능은 N/A(소유 DEMO-05).
+- real_data_run: 대표 1건 실제 Luna 심층은 STEP-007에서 확인한다. 전체 18/9건·담당자 인수는 DEMO-05가 소유한다.
 
 ## 결과
 

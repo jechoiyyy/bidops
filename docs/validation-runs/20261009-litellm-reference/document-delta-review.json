@@ -1,0 +1,17 @@
+{
+  "model": "gpt-5.6-sol",
+  "effort": "high",
+  "independent": true,
+  "reviewer": "/root/litellm_review",
+  "result": "pass",
+  "scope": [
+    "LiteLLM previous review reused unchanged",
+    "targeted attachment queue filter",
+    "native ARM build provenance/source and dependency hashes",
+    "full runtime closure",
+    "rendered credential-free worker isolation",
+    "image-only vendor manifest derivation",
+    "Rosetta product changes removed"
+  ],
+  "final_image": "sha256:38bdf3907df13b527beb51b63cd4eb69e359a4df4b4944bb2bd2861dcb3e9291"
+}

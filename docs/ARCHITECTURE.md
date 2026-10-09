@@ -328,7 +328,7 @@ flowchart LR
 
 ### 5.4 개요·회사 핏·심층 검토
 
-개요 run은 v7의 앞부분 사실 요약과 v8의 사실 요약+예비 판단을 같은 `prespec_overview_run`·analysis-worker slot에서 처리한다([ADR-0065](tracking/decisions/0065-prespec-overview-preliminary-assessment.md)). v8의 정상 경로는 `원문 범위 + 동등한 관심 축 + 승인된 최소 프로필 → 통합 생성 1회 → 결정적 근거 검사 → 서버 등급 계산`이다. 제외·역할/문맥·수치 위험이 있을 때만 개요 전체와 판단을 의미검증 1회 더 한다. 사실 결과와 판단 결과를 분리해 판단 실패가 유효한 개요를 숨기지 않는다.
+개요 run은 v7의 앞부분 사실 요약과 v8의 사실 요약+예비 판단을 같은 `prespec_overview_run`·analysis-worker slot에서 처리한다([ADR-0065](tracking/decisions/0065-prespec-overview-preliminary-assessment.md)). 로컬 LiteLLM 참조 실행은 v7의 schema·generation·검증·한도를 그대로 둔 별도 불변 정책을 경로로 명시 선택하며 기본 v7을 바꾸지 않는다. v8의 정상 경로는 `원문 범위 + 동등한 관심 축 + 승인된 최소 프로필 → 통합 생성 1회 → 결정적 근거 검사 → 서버 등급 계산`이다. 제외·역할/문맥·수치 위험이 있을 때만 개요 전체와 판단을 의미검증 1회 더 한다. 사실 결과와 판단 결과를 분리해 판단 실패가 유효한 개요를 숨기지 않는다.
 
 읽기 경계도 둘이다. 화면은 lifecycle의 batch `display_assessment` projection으로 사람 정정, 현재 문서의 새 판정/보류, 기존 선별 등급을 우선순위대로 보여 준다. 회사 핏과 자동 시작은 effective grade와 `automation_completed_result`를 계속 사용하며, v8 run은 개요 전체 의미검증 범위가 통과한 경우에만 이 경계로 들어간다. 프런트는 등급을 다시 계산하지 않는다. 기본 정책 경로는 v7이며 v8 정책·migration이 코드에 있다는 사실은 운영 활성화를 뜻하지 않는다.
 
@@ -536,7 +536,7 @@ React는 FastAPI REST API의 consumer다. DB·MinIO·worker·모델 endpoint에 
 
 외부 모델에는 execution별로 승인된 최소 payload만 보낸다. payload와 binding은 목적·모델·prompt·profile hash와 감사 추적 가능해야 한다. API key, 회사 원문자료, 전체 raw attachment, 내부 경로, 불필요한 profile 데이터와 응답 본문을 로그·Git·API 응답에 남기지 않는다.
 
-승인된 사설 OpenAI 호환 vLLM은 용도(`screening`·`overview`·`deep_review`)별 endpoint·자격증명·선언 revision을 가진다([ADR-0050](tracking/decisions/0050-unified-openai-compatible-model-client.md)). 허용 host가 비었거나 선언 revision이 64자 hex가 아니면 그 용도는 **네트워크 호출 전에** fail closed하며, 한 용도의 fail closed가 다른 용도로 새지 않는다. 모델 장애가 발생해도 hosted OpenAI로 자동 전환하지 않는다. 원격 overlay와 egress는 필요한 서비스에만 명시적으로 연다.
+승인된 사설 OpenAI 호환 모델 연결은 용도(`screening`·`overview`·`deep_review`)별 endpoint·자격증명·선언 revision을 가진다([ADR-0050](tracking/decisions/0050-unified-openai-compatible-model-client.md)). 기본 vLLM 외의 LiteLLM은 dialect와 불변 정책을 해당 용도에서 명시 선택하고, 승인된 별칭과 metadata의 양의 문맥 한도를 본문 전송 전에 확인한다. MVP 완화 기간에는 허용 host와 선언 revision을 비워 둘 수 있고, 값이 있으면 허용 host 일치와 64자 hex revision 및 metadata 일치를 **모델 본문 전송 전에** 검사한다. 한 용도의 실패는 다른 용도로 새지 않으며 모델 장애가 발생해도 hosted OpenAI로 자동 전환하지 않는다. 원격 overlay와 egress는 필요한 서비스에만 명시적으로 연다.
 
 ### 9.3 접근과 보존
 

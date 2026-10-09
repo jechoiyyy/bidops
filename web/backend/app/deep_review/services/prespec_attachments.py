@@ -277,6 +277,16 @@ def _validate_worker_id(worker_id: str) -> str:
     return clean
 
 
+def validate_notice_id(notice_id: int | None) -> int | None:
+    """Validate the optional worker-only queue scope before database access."""
+
+    if notice_id is None:
+        return None
+    if isinstance(notice_id, bool) or not isinstance(notice_id, int) or notice_id <= 0:
+        raise ValueError("notice_id must be a positive integer")
+    return notice_id
+
+
 def _aware(value: datetime | None) -> datetime:
     if value is None:
         return datetime.now(UTC)
@@ -291,26 +301,34 @@ def claim_next(
     worker_id: str,
     lease_seconds: float,
     now: datetime | None = None,
+    notice_id: int | None = None,
 ) -> AttachmentFetchClaim | None:
     """Claim one due or expired row with a PostgreSQL row lock."""
 
+    notice_id = validate_notice_id(notice_id)
     worker_id = _validate_worker_id(worker_id)
     if lease_seconds <= 0:
         raise ValueError("lease_seconds must be positive")
     current_time = _aware(now)
     if session.in_transaction():
         session.commit()
-    row = session.scalar(
-        select(AttachmentFetch)
-        .where(
-            or_(
-                (AttachmentFetch.status == "대기")
-                & (AttachmentFetch.next_attempt_at <= current_time),
-                (AttachmentFetch.status == "진행")
-                & AttachmentFetch.lease_expires_at.is_not(None)
-                & (AttachmentFetch.lease_expires_at <= current_time),
+    candidate = select(AttachmentFetch).where(
+        or_(
+            (AttachmentFetch.status == "대기")
+            & (AttachmentFetch.next_attempt_at <= current_time),
+            (AttachmentFetch.status == "진행")
+            & AttachmentFetch.lease_expires_at.is_not(None)
+            & (AttachmentFetch.lease_expires_at <= current_time),
+        )
+    )
+    if notice_id is not None:
+        candidate = candidate.where(
+            AttachmentFetch.attachment_id.in_(
+                select(Attachment.id).where(Attachment.notice_id == notice_id)
             )
         )
+    row = session.scalar(
+        candidate
         .order_by(AttachmentFetch.next_attempt_at.asc(), AttachmentFetch.id.asc())
         .with_for_update(skip_locked=True)
         .limit(1)
@@ -907,4 +925,5 @@ __all__ = [
     "claim_next",
     "fetch_claimed",
     "refresh_fetch_eligibility",
+    "validate_notice_id",
 ]

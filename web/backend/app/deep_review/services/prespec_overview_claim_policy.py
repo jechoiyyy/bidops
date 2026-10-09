@@ -1,4 +1,4 @@
-"""Read-only v7/v8 policies and bounded stage payloads; never calls a model."""
+"""Read-only allowlisted overview policies and bounded stage payloads; never calls a model."""
 from dataclasses import dataclass
 from copy import deepcopy
 import hashlib
@@ -102,6 +102,7 @@ def load_claims_policy(path: Path | None = None) -> ClaimsOverviewPolicy:
         identity = (value["schema"], value["model_name"], value["model_endpoint_ref"], value["prompt_version"])
         if identity not in {
             ("bidops.prespec-overview-policy.v7", "qwen3.8-27B", "vllm-openai-compatible", "prespec-overview-v7"),
+            ("bidops.prespec-overview-policy.v7", "local-agent-main", "litellm-openai-compatible", "prespec-overview-v7-litellm-v1"),
             ("bidops.prespec-overview-policy.v8", "qwen3.8-27B", "vllm-openai-compatible", "prespec-overview-v8"),
         } or value["limits"] != LIMITS:
             raise ValueError

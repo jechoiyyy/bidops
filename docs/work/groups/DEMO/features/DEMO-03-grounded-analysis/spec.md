@@ -3,7 +3,7 @@
 - 기능 ID: `DEMO-03-grounded-analysis`
 - 작성일: 2026-10-06 (같은 날 재계획 개정)
 - 근거: [intent](intent.md), [공통 계약](../../../../demo-contract.md) §5·6·9 및 §10의 “조회용 동결 계보”
-- 상태: 구현 목표. 현재 제품 계약과 구별한다. 데모 브랜치 전용이며 운영에 배포하지 않는다.
+- 상태: 구현 목표. 현재 제품 계약과 구별한다. 별도 데모 브랜치와 `bidops-local` 격리 구현이며 main 병합·운영 전환은 별도다.
 
 ## 큰 틀 문서와의 관계
 
@@ -19,7 +19,7 @@ graph path뿐 아니라 원문 requirements·profile facts·원본 evidence를 �
 공통 §5의 용어 정규화·한글 부분 문자열/영문 경계 일치·concept/alias 매핑·3 hop·필수 정보 보존·분할/coverage를 그대로 구현한다.
 원문 단위는 기존 분할기 `DeepReviewService._requirements`의 출력과 requirement_id 형식을 그대로 쓰고, 필드가 빠진 fallback unit은 company_input_invalid로 실패한다.
 
-회사 핏은 승인 흐름 없이 `enqueue-company-fit` CLI(공통 §9)로 attempt를 만든다. CLI는 worker DB 역할로 실행하며
+회사 핏은 승인 흐름 없이 `enqueue-company-fit` CLI(공통 §9)로 attempt를 만든다. 모델 transport는 LiteLLM이고 별칭은 `local-agent-main`이다. CLI는 worker DB 역할로 실행하며
 기존 worker-only attempt INSERT 권한을 app 역할에 열지 않는다. 입력은 enqueue transaction에서 동결해 attempt에 저장한다.
 기존 runner는 company_id 유무로 입력 구성기를 분기해 claim하고, 기존 자동 enqueue는 NULL 행만 만든다(DEMO-01 경계 유지).
 심층은 기존 DeepReviewPreview·DeepReviewApproval에 company_id를 더해 재사용한다. 새 preview/request/approval/receipt 테이블은 만들지 않는다.
@@ -38,7 +38,8 @@ considered_claim_ids는 입력 verified claims이고 출력 로컬 ID와 다름�
 회사별 목록·비교·상세 projection은 lifecycle 공개 확장점으로 제공해 역방향 import를 만들지 않는다.
 deep_review가 lifecycle의 새 공개 파일(`schemas/companies.py` 등)을 import하면 `tests/app/boundary_map.py` 공개 표면을 갱신한다.
 새 테이블·열 권한은 `scripts/runtime-privileges.sql`, 새 오류 code는 응답 router 허용 목록에 등록한다.
-DEMO-03은 fake 모델을 쓴 제품 경로 통합까지 인수한다. 실제 18/9건은 DEMO-05가 소유한다.
+DEMO-03은 fake 모델을 쓴 제품 경로 통합 뒤 대표 1건의 실제 Luna 심층 보고서까지 인수한다. 실제 18개 핏과 대표 1건×3사·목표 9건은 DEMO-05가 소유한다.
+2026-10-09 notice 179의 LiteLLM 개요는 overview transport의 `unmeasured_reference` 증거이며 이 Luna 게이트를 충족하지 않는다.
 
 ## 인터페이스·상태·실패
 
@@ -54,6 +55,7 @@ unknown/null·준비 전·stale·실패·참조 표식을 성공/부적합으로
 | BIDOPS_DEEP_REVIEW_AUTO_START_ENABLED | false | 기존 bool | 사람 요청 분석 |
 | BIDOPS_DEMO_COMPANY_FIT_POLICY_VERSION_ID / BIDOPS_DEMO_DEEP_REVIEW_POLICY_VERSION_ID | null | UUID; 목적별 필수, 전역 fallback 없음 | 공통 §9 |
 | BIDOPS_PRESPEC_COMPANY_FIT_ENABLED | false | 기존 bool; enqueue CLI·worker gate | 기존 핏 |
+| BIDOPS_VLLM_OVERVIEW_API_DIALECT | litellm | 회사 핏의 기존 `ModelClient.for_purpose("overview")`에서 `local-agent-main`; Luna 심층에는 사용하지 않음 | transport 분리 |
 | chunking.path_limit_per_requirement | 32 | 양의 정수, tunable; demo 정책 loader가 직접 검사 | 공통 §9 |
 
 ## 결정과 이유
@@ -79,6 +81,7 @@ unknown/null·준비 전·stale·실패·참조 표식을 성공/부적합으로
 | T6 | 현재성/재시도/버전 | 옛 결과 stale·같은 review 새 attempt·새 graph 새 review·current_attempt별 동결 provenance | API |
 | T7 | 목록/비교/provider 부재 | 회사 혼합 없음·missing/null/다른 입력·N+1 없음·queued/completed GET의 provenance/hash가 동결 snapshot 및 최상위 identity와 일치 | 통합 |
 | T8 | 슬롯/승인 없는 외부 전송 | 심층 무승인·hash 불일치 호출 0·동시 슬롯 1·안전 로그·legacy runner가 회사 행을 NULL 입력으로 처리하지 않음 | 통합 |
+| T9 | 대표 1건 실제 Luna 심층 | 별도 미리보기·건별 승인 뒤 completed 3단계·필수 검증·원문 근거 확인; LiteLLM 개요 결과를 합산하지 않음 | 실제 모델/수동 |
 
 ## 컨벤션 반영 항목
 

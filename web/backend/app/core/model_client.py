@@ -32,6 +32,8 @@ from pydantic import SecretStr
 from .model_binding import MODEL_ENDPOINT_REF
 
 
+LITELLM_MODEL_ENDPOINT_REF: Final[str] = "litellm-openai-compatible"
+
 _SENSITIVE_KEY_NAMES = {
     "path", "file", "url", "uri", "source_file", "file_path", "source_url",
     "object_key", "encryption", "encryption_key", "encryption_key_ref",
@@ -332,6 +334,7 @@ def resolve_model_endpoint(purpose: str, *, settings: Any | None = None) -> Mode
     allowed_raw = _endpoint_value(settings, purpose, "allowed_hosts")
     api_key = _endpoint_value(settings, purpose, "api_key")
     revision = str(_endpoint_value(settings, purpose, "model_revision") or "")
+    api_dialect = getattr(settings, f"vllm_{purpose}_api_dialect", "vllm")
     entries = allowed_raw.split(",") if isinstance(allowed_raw, str) else list(allowed_raw or ())
     allowed_hosts = tuple(entry.strip() for entry in entries if entry.strip())
     # 목록이 비면 host 제한이 없다. 값이 있으면 그 목록만 허용한다.
@@ -341,11 +344,15 @@ def resolve_model_endpoint(purpose: str, *, settings: Any | None = None) -> Mode
         api_key = SecretStr(str(api_key or "EMPTY"))
     return ModelEndpoint(
         purpose=purpose,
-        base_url=_validated_base_url(base_url, allowed_hosts),
+        base_url=_validated_base_url(
+            base_url,
+            allowed_hosts,
+            allow_path_prefix=api_dialect == "litellm",
+        ),
         allowed_hosts=allowed_hosts,
         api_key=api_key,
         model_revision=revision,
-        api_dialect=getattr(settings, f"vllm_{purpose}_api_dialect", "vllm"),
+        api_dialect=api_dialect,
     )
 
 
@@ -483,7 +490,12 @@ def _is_documentation_address(hostname: str) -> bool:
     return any(address in network for network in _DOCUMENTATION_NETWORKS)
 
 
-def _validated_base_url(base_url: str, allowed_hosts: Sequence[str]) -> str:
+def _validated_base_url(
+    base_url: str,
+    allowed_hosts: Sequence[str],
+    *,
+    allow_path_prefix: bool = False,
+) -> str:
     """base URL의 모양을 검증한다.
 
     MVP 기간에는 scheme을 http·https 둘 다 받고 host 종류(이름·IP)와 명시 포트를
@@ -517,7 +529,18 @@ def _validated_base_url(base_url: str, allowed_hosts: Sequence[str]) -> str:
         raise ValueError("vLLM base URL port is invalid") from exc
     if port is not None and not 1 <= port <= 65535:
         raise ValueError("vLLM base URL port is invalid")
-    if parsed.path.rstrip("/") != "/v1":
+    normalized_path = parsed.path.rstrip("/")
+    valid_path = (
+        normalized_path.endswith("/v1")
+        if allow_path_prefix
+        else normalized_path == "/v1"
+    )
+    prefix_parts = normalized_path.split("/")[1:-1]
+    if (
+        not valid_path
+        or any(part in {"", ".", ".."} for part in prefix_parts)
+        or "\\" in normalized_path
+    ):
         raise ValueError("vLLM base URL must end with the /v1 path")
     return base_url.rstrip("/")
 
@@ -649,6 +672,16 @@ def _structured_request_kwargs(
     }
 
 
+def _model_endpoint_ref_for_dialect(api_dialect: str) -> str:
+    """Return the policy transport identity owned by a wire dialect."""
+
+    return (
+        LITELLM_MODEL_ENDPOINT_REF
+        if api_dialect == "litellm"
+        else MODEL_ENDPOINT_REF
+    )
+
+
 def structured_request_capacity(
     *,
     model: str,
@@ -737,9 +770,10 @@ class ModelClient:
         allowed_hosts: str | Sequence[str] | None = None,
         completion_create: Callable[..., Any] | None = None,
         models_list: Callable[[], Mapping[str, Any]] | None = None,
+        model_info_list: Callable[[], Mapping[str, Any]] | None = None,
         model: str,
         model_revision: str = "",
-        endpoint_ref: str = MODEL_ENDPOINT_REF,
+        endpoint_ref: str | None = None,
         purpose: str | None = None,
         output_contract: StructuredOutputContract,
         api_dialect: str = "vllm",
@@ -747,28 +781,41 @@ class ModelClient:
         # transport 식별자만 확인한다. 모델명은 여기서 판정하지 않는다 —
         # 어떤 모델이 승인됐는지는 policy와 배포 설정이 정하고, identity는
         # `verify_identity`가 서버의 served id로 확인한다.
-        if endpoint_ref != MODEL_ENDPOINT_REF:
+        if api_dialect not in {"vllm", "ollama", "litellm"}:
+            raise ModelEndpointError("unsupported model API dialect")
+        expected_endpoint_ref = _model_endpoint_ref_for_dialect(api_dialect)
+        if endpoint_ref is None:
+            endpoint_ref = expected_endpoint_ref
+        if endpoint_ref != expected_endpoint_ref:
             raise ValueError("only the OpenAI-compatible transport is permitted")
         if not isinstance(model, str) or not model.strip() or any(character.isspace() for character in model):
             raise ValueError("model name must be a non-empty token")
         self.output_contract = output_contract
-        if api_dialect not in {"vllm", "ollama"}:
-            raise ModelEndpointError("unsupported model API dialect")
         self.api_dialect = api_dialect
+        self.endpoint_ref = endpoint_ref
         if allowed_hosts is None:
             allowed_hosts = os.getenv("BIDOPS_VLLM_ALLOWED_HOSTS", "").split(",")
         elif isinstance(allowed_hosts, str):
             allowed_hosts = allowed_hosts.split(",")
-        self.base_url = _validated_base_url(base_url, allowed_hosts)
+        self.base_url = _validated_base_url(
+            base_url,
+            allowed_hosts,
+            allow_path_prefix=api_dialect == "litellm",
+        )
         self.model = model
         self.model_revision = model_revision
         self.model_context_tokens: int | None = None
         self.purpose = purpose
-        self.provider_name = "ollama-openai-compatible" if api_dialect == "ollama" else "vllm-openai-compatible"
+        self.provider_name = {
+            "litellm": LITELLM_MODEL_ENDPOINT_REF,
+            "ollama": "ollama-openai-compatible",
+            "vllm": MODEL_ENDPOINT_REF,
+        }[api_dialect]
         self._http_client: httpx.Client | None = None
         self._sdk: OpenAI | None = None
         self._api_key = api_key
         self._models_list = models_list
+        self._model_info_list = model_info_list
         if completion_create is not None:
             self._completion_create = completion_create
         else:
@@ -825,6 +872,7 @@ class ModelClient:
         settings: Any | None = None,
         completion_create: Callable[..., Any] | None = None,
         models_list: Callable[[], Mapping[str, Any]] | None = None,
+        model_info_list: Callable[[], Mapping[str, Any]] | None = None,
         verify_identity: bool = True,
     ) -> "ModelClient":
         """용도별 설정으로 client를 만들고 identity를 확인한다 (명세 §6.6).
@@ -841,8 +889,10 @@ class ModelClient:
             allowed_hosts=endpoint.allowed_hosts,
             completion_create=completion_create,
             models_list=models_list,
+            model_info_list=model_info_list,
             model=model,
             model_revision=endpoint.model_revision,
+            endpoint_ref=_model_endpoint_ref_for_dialect(endpoint.api_dialect),
             purpose=endpoint.purpose,
             output_contract=output_contract,
             api_dialect=endpoint.api_dialect,
@@ -887,6 +937,91 @@ class ModelClient:
             raise ModelIdentityError("identity_unavailable")
         return document
 
+    def _litellm_model_info(self) -> Mapping[str, Any]:
+        """Read LiteLLM deployment metadata through the approved transport.
+
+        LiteLLM exposes OpenAI-compatible requests below ``/v1`` while its
+        deployment metadata is adjacent to that terminal prefix.  Removing
+        only the final ``/v1`` preserves an approved gateway path such as
+        ``/gateway/v1``.  The response may contain upstream credentials and
+        URLs; this client reads only the alias, structural containers,
+        revision, and context limit and never returns or logs the document.
+        """
+
+        if self._model_info_list is not None:
+            document = self._model_info_list()
+            if not isinstance(document, Mapping):
+                raise ModelIdentityError("identity_unavailable")
+            return document
+        if self._http_client is None:
+            raise ModelIdentityError("identity_unavailable")
+        headers = {"Accept": "application/json"}
+        if self._api_key and self._api_key != "EMPTY":
+            headers["Authorization"] = f"Bearer {self._api_key}"
+        metadata_base = self.base_url.removesuffix("/v1")
+        try:
+            response = self._http_client.get(
+                f"{metadata_base}/model/info",
+                headers=headers,
+                timeout=float(APPROVED_TIMEOUT_SECONDS),
+            )
+            if response.is_redirect:
+                raise ModelIdentityError("identity_unavailable", retryable=False)
+            if response.status_code >= 500:
+                raise ModelIdentityError("identity_unavailable", retryable=True)
+            if response.status_code >= 400:
+                raise ModelIdentityError("identity_unavailable", retryable=False)
+            if len(response.content) > MAX_RESPONSE_BYTES:
+                raise ModelIdentityError("identity_unavailable")
+            document = response.json()
+        except ModelIdentityError:
+            raise
+        except (httpx.HTTPError, ValueError, OSError, ResponseTooLargeError):
+            raise ModelIdentityError("identity_unavailable") from None
+        if not isinstance(document, Mapping):
+            raise ModelIdentityError("identity_unavailable")
+        return document
+
+    def _verify_litellm_metadata(self) -> tuple[int, set[str]]:
+        """Return the conservative context cap for every alias deployment."""
+
+        document = self._litellm_model_info()
+        rows = document.get("data")
+        if not isinstance(rows, list):
+            raise ModelIdentityError("identity_unavailable")
+        deployments = [
+            row
+            for row in rows
+            if isinstance(row, Mapping) and row.get("model_name") == self.model
+        ]
+        if not deployments:
+            raise ModelIdentityError("model_not_served")
+
+        limits: list[int] = []
+        revisions: set[str] = set()
+        for deployment in deployments:
+            # Require the actual LiteLLM deployment envelope, but deliberately
+            # do not inspect or retain upstream model URLs, keys, or names.
+            if not isinstance(deployment.get("litellm_params"), Mapping):
+                raise ModelIdentityError("identity_unavailable")
+            model_info = deployment.get("model_info")
+            if not isinstance(model_info, Mapping):
+                raise ModelIdentityError("identity_unavailable")
+            limit = model_info.get("max_input_tokens")
+            if type(limit) is not int or limit <= 0:
+                raise ModelIdentityError("identity_unavailable")
+            limits.append(limit)
+            reported = model_info.get(
+                "model_revision", model_info.get("revision")
+            )
+            if reported is not None:
+                if not isinstance(reported, str) or not reported:
+                    raise ModelIdentityError("identity_unavailable")
+                revisions.add(reported)
+                if self.model_revision and reported != self.model_revision:
+                    raise ModelIdentityError("model_revision_invalid")
+        return min(limits), revisions
+
     def verify_identity(self) -> ModelIdentity:
         """served id에 설정·policy 모델명이 있는지 확인한다 (명세 §6.6).
 
@@ -921,14 +1056,23 @@ class ModelClient:
                 context_confirmed = False
         if self.api_dialect == "ollama":
             self._verify_ollama_parameters()
-        # Context metadata is not part of the existing identity contract for
-        # screening/legacy callers. Preserve their model/revision verification;
-        # capacity-gated overview calls treat missing/ambiguous context as an
-        # unconfirmed budget and fail before dispatch.
-        max_model_len = (
-            next(iter(max_model_lengths))
-            if context_confirmed and len(max_model_lengths) == 1 else None
-        )
+        if self.api_dialect == "litellm":
+            max_model_len, metadata_revisions = self._verify_litellm_metadata()
+            if max_model_lengths:
+                # `/model/info` is the required LiteLLM authority.  When the
+                # OpenAI-compatible listing also supplies a valid cap, retain
+                # the smaller bound rather than silently expanding capacity.
+                max_model_len = min(max_model_len, *max_model_lengths)
+            reported_revisions.update(metadata_revisions)
+        # Context metadata is not part of the existing vLLM/Ollama identity
+        # contract. Those dialects preserve the legacy unverified marker;
+        # LiteLLM has already required every matching deployment to publish a
+        # usable limit above.
+        if self.api_dialect != "litellm":
+            max_model_len = (
+                next(iter(max_model_lengths))
+                if context_confirmed and len(max_model_lengths) == 1 else None
+            )
         self.model_context_tokens = max_model_len
         revision = self.model_revision
         if not revision and len(reported_revisions) == 1:
@@ -1068,7 +1212,7 @@ class ModelClient:
 
         # policy가 모델을 지정했으면 이 client가 묶인 모델과 같아야 한다.
         # 승인 목록을 코드가 아니라 policy가 갖는다는 뜻이다.
-        if policy.get("model_endpoint_ref", MODEL_ENDPOINT_REF) != MODEL_ENDPOINT_REF or policy.get("model_name", self.model) != self.model:
+        if policy.get("model_endpoint_ref", self.endpoint_ref) != self.endpoint_ref or policy.get("model_name", self.model) != self.model:
             raise ModelInvocationError("model_not_allowed", ())
         chunking = policy.get("chunking") if isinstance(policy.get("chunking"), Mapping) else {}
         try:
@@ -1222,6 +1366,7 @@ __all__ = [
     "MAX_COMPLETION_TOKENS",
     "MAX_CORRECTION_CHARS",
     "MAX_RESPONSE_BYTES",
+    "LITELLM_MODEL_ENDPOINT_REF",
     "MODEL_PURPOSES",
     "IDENTITY_BACKOFF_SECONDS",
     "RUNTIME_IDENTITY_ERROR_CODES",

@@ -185,12 +185,12 @@ class Settings(BaseSettings):
     vllm_screening_allowed_hosts: str = Field(default="", validation_alias="BIDOPS_VLLM_SCREENING_ALLOWED_HOSTS")
     vllm_screening_api_key: SecretStr = Field(default_factory=lambda: SecretStr(""), validation_alias="BIDOPS_VLLM_SCREENING_API_KEY")
     vllm_screening_model_revision: str = Field(default="", validation_alias="BIDOPS_VLLM_SCREENING_MODEL_REVISION")
-    vllm_screening_api_dialect: Literal["vllm", "ollama"] = Field(default="vllm", validation_alias="BIDOPS_VLLM_SCREENING_API_DIALECT")
+    vllm_screening_api_dialect: Literal["vllm", "ollama", "litellm"] = Field(default="vllm", validation_alias="BIDOPS_VLLM_SCREENING_API_DIALECT")
     vllm_overview_base_url: str = Field(default="", validation_alias="BIDOPS_VLLM_OVERVIEW_BASE_URL")
     vllm_overview_allowed_hosts: str = Field(default="", validation_alias="BIDOPS_VLLM_OVERVIEW_ALLOWED_HOSTS")
     vllm_overview_api_key: SecretStr = Field(default_factory=lambda: SecretStr(""), validation_alias="BIDOPS_VLLM_OVERVIEW_API_KEY")
     vllm_overview_model_revision: str = Field(default="", validation_alias="BIDOPS_VLLM_OVERVIEW_MODEL_REVISION")
-    vllm_overview_api_dialect: Literal["vllm", "ollama"] = Field(default="vllm", validation_alias="BIDOPS_VLLM_OVERVIEW_API_DIALECT")
+    vllm_overview_api_dialect: Literal["vllm", "ollama", "litellm"] = Field(default="vllm", validation_alias="BIDOPS_VLLM_OVERVIEW_API_DIALECT")
     prespec_overview_policy_path: Path = Field(default=DEFAULT_PRESPEC_OVERVIEW_POLICY_PATH, validation_alias="BIDOPS_PRESPEC_OVERVIEW_POLICY_PATH")
     #: 켜면 묶음이 ready가 될 때 개요 run을 자동 enqueue한다. 끄면 새 run을 넣지
     #: 않고 queued run은 닫는다. 기본은 꺼 둔다 — startup은 아무것도 활성화하지 않는다.
@@ -204,7 +204,7 @@ class Settings(BaseSettings):
     vllm_deep_review_allowed_hosts: str = Field(default="", validation_alias="BIDOPS_VLLM_DEEP_REVIEW_ALLOWED_HOSTS")
     vllm_deep_review_api_key: SecretStr = Field(default_factory=lambda: SecretStr(""), validation_alias="BIDOPS_VLLM_DEEP_REVIEW_API_KEY")
     vllm_deep_review_model_revision: str = Field(default="", validation_alias="BIDOPS_VLLM_DEEP_REVIEW_MODEL_REVISION")
-    vllm_deep_review_api_dialect: Literal["vllm", "ollama"] = Field(default="vllm", validation_alias="BIDOPS_VLLM_DEEP_REVIEW_API_DIALECT")
+    vllm_deep_review_api_dialect: Literal["vllm", "ollama", "litellm"] = Field(default="vllm", validation_alias="BIDOPS_VLLM_DEEP_REVIEW_API_DIALECT")
     # C-1 공고 판정이 부르는 모델명. 개요·심층 검토는 policy의 `model_name`을
     # 쓰므로 설정 항목이 없다.
     vllm_screening_model: str = Field(default="qwen3.8-27B", validation_alias="BIDOPS_VLLM_SCREENING_MODEL")

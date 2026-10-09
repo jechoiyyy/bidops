@@ -1,0 +1,20 @@
+{
+  "approved_calls": 1,
+  "completion_attempts": 1,
+  "max_tokens": 64,
+  "prompt_sha256": "3398f34cd1f48fcf17b104fd8f2af2983c719ae772b4beda683b8923a3372167",
+  "synthetic": true,
+  "overview_quality_measured": false,
+  "model": "local-agent-main",
+  "context_tokens": 32768,
+  "capacity_upper_bound": 1669,
+  "response_model": "local-agent-main",
+  "finish_reason": "stop",
+  "json_schema_passed": true,
+  "model_identity_passed": true,
+  "elapsed_seconds": 4.497,
+  "status": "passed",
+  "finished_at": "2026-10-09T02:58:30.362129+00:00",
+  "raw_response_encrypted": true,
+  "raw_response_sha256": "12d6a5c9b81581f26af7dff06ba93cdb252aa7e90432a73721d5709b3ea289f4"
+}

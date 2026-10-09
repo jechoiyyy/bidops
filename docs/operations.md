@@ -275,6 +275,8 @@ worker를 직접 실행할 때는 migration·MinIO·ClamAV가 준비된 backend 
 ```bash
 python -m app.deep_review.workers.prespec_attachment
 python -m app.deep_review.workers.prespec_attachment --once
+# 특정 공고의 대기·lease 만료 첨부 중 FIFO 한 건만 취득한다.
+python -m app.deep_review.workers.prespec_attachment --once --notice-id 179
 ```
 
 첨부 URL의 수명은 아직 측정하지 않았으므로 `unknown`으로 유지한다. URL·object key·로컬
@@ -345,6 +347,13 @@ python -m app.workers.analysis                        # 모델을 쓰는 합성 
 `--once`를 주면 한 건만 처리하고 종료한다. Compose의 `document-worker`는
 `python -m app.deep_review.workers.document`를, `analysis-worker`는
 `python -m app.workers.analysis`를 실행한다.
+
+2026-10-09 로컬 ARM 검증은 gitignore 경로
+`.sdlc/local-runtime/rhwp-arm`의 `linux/arm64` document-worker 이미지와 rhwp upstream
+commit `cac9b4f7cc743535cd7c00fe4f286abd67e7145b`를 사용했다. 이 경로는 child
+`RLIMIT_DATA` 512 MiB, `RLIMIT_AS` 32 GiB 등 기존 기본 제한을 바꾸지 않은 상태에서 선택한
+실제 HWPX의 PDF 준비가 성공했음을 확인한 로컬 증거다. 전체 Compose·운영 환경의 ARM 지원 근거로
+확대하지 않으며, 제품 Compose나 vendored AMD64 binary를 바꾸지 않는다.
 
 CLI 진입점은 모듈별로 하나씩이며 웹 없이 실행한다. migration·MinIO가 준비된 backend 환경에서
 쓴다.
@@ -1384,6 +1393,43 @@ host에 `mc`·`pg_restore`·`psql`이 없으면 동일한 변수를 주입한 �
 `BIDOPS_DATABASE_PASSWORD`를 사용한다. `RESTORE_MINIO_ALIAS`는 네 개 target bucket에
 접근할 수 있는 `mc` alias여야 한다. 복구 중 source object, 기존 백업 파일, DB row를
 삭제하지 않으며, target이 비어 있지 않거나 versioning이 꺼져 있으면 검증 실패로 끝난다.
+
+## 승인된 LiteLLM을 사전규격 개요에 쓰는 경우
+
+LiteLLM은 전역 fallback이 아니다. 로컬 참조 실행에서 overview 용도에만 dialect와 불변 정책을
+함께 명시하며 기본 v7 정책과 screening·deep_review·C-2 설정은 그대로 둔다. `env/model.env`의
+실제 값은 secret 배포 입력으로 관리하고 `GATEWAY_URL`·`GATEWAY_KEY`를 애플리케이션의 공유
+`BIDOPS_VLLM_*` fallback으로 연결하지 않는다.
+
+```text
+BIDOPS_VLLM_OVERVIEW_API_DIALECT=litellm
+BIDOPS_VLLM_OVERVIEW_BASE_URL=<approved-litellm-base>/v1
+BIDOPS_VLLM_OVERVIEW_ALLOWED_HOSTS=<exact-approved-host>
+BIDOPS_VLLM_OVERVIEW_API_KEY=<injected-secret>
+BIDOPS_VLLM_OVERVIEW_MODEL_REVISION=<declared-revision-if-used>
+BIDOPS_PRESPEC_OVERVIEW_POLICY_PATH=/app/web/backend/app/deep_review/policies/prespec-overview-policy-v7-litellm-v1.json
+```
+
+정책의 요청 별칭은 `local-agent-main`이다. client는 승인 base의 `/models`에 이 별칭이 있는지
+확인하고, 같은 origin과 base prefix의 `/model/info`에서 같은 별칭의 deployment만 읽는다.
+base의 끝 `/v1`만 metadata 경로를 만들 때 제거한다. 일치하는 모든 deployment에는 bool이 아닌
+양의 정수 `model_info.max_input_tokens`가 있어야 하며 값이 다르면 최솟값을 전체 요청 상한으로
+쓴다. 누락·잘못된 shape·미등록 별칭·선언 revision 불일치는 모델 본문을 보내기 전에 실패한다.
+metadata가 돌려주는 upstream URL·key는 사용하거나 로그에 남기지 않고 redirect도 따르지 않는다.
+
+web과 analysis-worker에 같은 dialect·endpoint·정책 경로를 렌더링했는지 확인한다. 정책 경로를
+설정하는 것만으로 실행을 만들거나 자동화를 켜지 않는다. 준비·metadata 확인·합성 입력 검증
+동안에는 `BIDOPS_PRESPEC_OVERVIEW_ENABLED=false`,
+`BIDOPS_DEEP_REVIEW_AUTO_START_ENABLED=false`, `BIDOPS_PRESPEC_COMPANY_FIT_ENABLED=false`와
+scheduler/always-on 비활성을 유지한다. 선택 공고, 선택 쪽, 전송 정보 미리보기를 확인한 뒤 실제
+설정 적용과 모델 호출 직전에 각각 사람 확인을 받는다.
+
+승인된 queued overview 한 건을 실제 실행할 때만 큐에 그 승인 run 하나가 있고 C-2·심층·회사 핏
+claim 대상이 없음을 먼저 확인한다. 그 다음 합성 analysis worker의 목적별 one-shot 프로세스에만
+`BIDOPS_PRESPEC_OVERVIEW_ENABLED=true`를 주고 한 번 실행하며 always-on worker는 띄우지 않는다.
+종료 뒤 다시 `false`로 둔다. 이 플래그가 `false`이면 worker가 queued overview를 취소하므로 실제
+호출 단계까지 계속 `false`로 두어서는 안 된다. 실패 결과를 재시도나 다른 provider fallback으로
+성공 처리하지 않는다.
 
 ## 승인된 Ollama를 쓰는 경우
 

@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
   "feature": "DEMO-00-luna-preflight",
-  "phase": "blocked",
+  "phase": "validating",
   "steps": [
     {
       "id": "STEP-001",
@@ -51,11 +51,11 @@
     },
     {
       "id": "STEP-003",
-      "title": "운영 적용",
+      "title": "로컬 개발 준비 증거 판정",
       "model": "complex",
-      "fingerprint": "8c0daacdeefcfe366d080203bd2b15b792b7c3f7aa30c0acbbffad75d3caddd2",
-      "status": "blocked",
-      "updated_at": "2026-10-08T17:14:40+09:00",
+      "fingerprint": "43bb4449678e7b0fb58055bdc48aa4f0092237c6c85697f448846dad9520c5c2",
+      "status": "done",
+      "updated_at": "2026-10-09T13:23:54+09:00",
       "history": [
         {
           "id": "STEP-003",
@@ -64,17 +64,74 @@
           "fingerprint": "37f1e90520409b8cc1ac79978306573306a015c11ed68d20c097889de3b6261e",
           "status": "pending",
           "updated_at": null
+        },
+        {
+          "id": "STEP-003",
+          "title": "운영 적용",
+          "model": "complex",
+          "fingerprint": "8c0daacdeefcfe366d080203bd2b15b792b7c3f7aa30c0acbbffad75d3caddd2",
+          "status": "blocked",
+          "updated_at": "2026-10-08T17:14:40+09:00",
+          "history": [
+            {
+              "id": "STEP-003",
+              "title": "운영 적용",
+              "model": "complex",
+              "fingerprint": "37f1e90520409b8cc1ac79978306573306a015c11ed68d20c097889de3b6261e",
+              "status": "pending",
+              "updated_at": null
+            }
+          ],
+          "note": "runbook 준비·독립 리뷰 완료. 수동 commit/merge 및 운영 호스트에서 단계별 사람 확인/실행 증거 대기"
+        },
+        {
+          "id": "STEP-003",
+          "title": "로컬 개발 준비 증거 판정 [complex] — 2026-10-09에 기존 `운영 적용` 단계의 의미를 변경",
+          "model": "standard",
+          "fingerprint": "d1a4e6c029ebc1f5c056b06600cf93d174affb5d4e14f87de07929d8b573d89b",
+          "status": "stale",
+          "updated_at": "2026-10-08T17:14:40+09:00",
+          "history": [
+            {
+              "id": "STEP-003",
+              "title": "운영 적용",
+              "model": "complex",
+              "fingerprint": "37f1e90520409b8cc1ac79978306573306a015c11ed68d20c097889de3b6261e",
+              "status": "pending",
+              "updated_at": null
+            },
+            {
+              "id": "STEP-003",
+              "title": "운영 적용",
+              "model": "complex",
+              "fingerprint": "8c0daacdeefcfe366d080203bd2b15b792b7c3f7aa30c0acbbffad75d3caddd2",
+              "status": "blocked",
+              "updated_at": "2026-10-08T17:14:40+09:00",
+              "history": [
+                {
+                  "id": "STEP-003",
+                  "title": "운영 적용",
+                  "model": "complex",
+                  "fingerprint": "37f1e90520409b8cc1ac79978306573306a015c11ed68d20c097889de3b6261e",
+                  "status": "pending",
+                  "updated_at": null
+                }
+              ],
+              "note": "runbook 준비·독립 리뷰 완료. 수동 commit/merge 및 운영 호스트에서 단계별 사람 확인/실행 증거 대기"
+            }
+          ],
+          "note": "runbook 준비·독립 리뷰 완료. 수동 commit/merge 및 운영 호스트에서 단계별 사람 확인/실행 증거 대기"
         }
       ],
-      "note": "runbook 준비·독립 리뷰 완료. 수동 commit/merge 및 운영 호스트에서 단계별 사람 확인/실행 증거 대기"
+      "note": "로컬 준비 증거 및 8개 제품 source hash 일치 확인; 231+155 기존 검사 재사용, 실제 overview2calls/8claims/reference 및 PDF5쪽 한계 보존. local-readiness-evidence.md"
     },
     {
       "id": "STEP-004",
-      "title": "실제 1489 1건과 판정",
+      "title": "후속 Luna 게이트 이관과 진행 판정",
       "model": "standard",
-      "fingerprint": "3ecee6164740d1178b3cb4baaab0bd21193d989796335fcf4db42231be0d6234",
-      "status": "pending",
-      "updated_at": "2026-10-08T17:14:40+09:00",
+      "fingerprint": "b98c98db810d6536c906a4c40e330200b8c9abe01a3f3828f8ea3c914d8e26bd",
+      "status": "done",
+      "updated_at": "2026-10-09T13:25:00+09:00",
       "history": [
         {
           "id": "STEP-004",
@@ -83,59 +140,146 @@
           "fingerprint": "79d7858ca9102282cf2f87f2f53f96a848ccd0455dc33faa5f6f7a26eec3f093",
           "status": "pending",
           "updated_at": null
+        },
+        {
+          "id": "STEP-004",
+          "title": "실제 1489 1건과 판정",
+          "model": "standard",
+          "fingerprint": "3ecee6164740d1178b3cb4baaab0bd21193d989796335fcf4db42231be0d6234",
+          "status": "pending",
+          "updated_at": "2026-10-08T17:14:40+09:00",
+          "history": [
+            {
+              "id": "STEP-004",
+              "title": "실제 1489 1건과 판정",
+              "model": "standard",
+              "fingerprint": "79d7858ca9102282cf2f87f2f53f96a848ccd0455dc33faa5f6f7a26eec3f093",
+              "status": "pending",
+              "updated_at": null
+            }
+          ],
+          "note": "STEP-003 실제 운영 적용 후 1489 건별 전송 승인·실행·사용자 판정 필요. 실제 호출 없음"
+        },
+        {
+          "id": "STEP-004",
+          "title": "후속 Luna 게이트 이관과 진행 판정 [standard] — 2026-10-09에 기존 `실제 1489 1건과 판정` 단계의 의미를 변경",
+          "model": "standard",
+          "fingerprint": "8ed7acbb469eee0ef5fe157021079cad5e4413d2908e5413daeed53dfa47ccd5",
+          "status": "stale",
+          "updated_at": "2026-10-08T17:14:40+09:00",
+          "history": [
+            {
+              "id": "STEP-004",
+              "title": "실제 1489 1건과 판정",
+              "model": "standard",
+              "fingerprint": "79d7858ca9102282cf2f87f2f53f96a848ccd0455dc33faa5f6f7a26eec3f093",
+              "status": "pending",
+              "updated_at": null
+            },
+            {
+              "id": "STEP-004",
+              "title": "실제 1489 1건과 판정",
+              "model": "standard",
+              "fingerprint": "3ecee6164740d1178b3cb4baaab0bd21193d989796335fcf4db42231be0d6234",
+              "status": "pending",
+              "updated_at": "2026-10-08T17:14:40+09:00",
+              "history": [
+                {
+                  "id": "STEP-004",
+                  "title": "실제 1489 1건과 판정",
+                  "model": "standard",
+                  "fingerprint": "79d7858ca9102282cf2f87f2f53f96a848ccd0455dc33faa5f6f7a26eec3f093",
+                  "status": "pending",
+                  "updated_at": null
+                }
+              ],
+              "note": "STEP-003 실제 운영 적용 후 1489 건별 전송 승인·실행·사용자 판정 필요. 실제 호출 없음"
+            }
+          ],
+          "note": "STEP-003 실제 운영 적용 후 1489 건별 전송 승인·실행·사용자 판정 필요. 실제 호출 없음"
         }
       ],
-      "note": "STEP-003 실제 운영 적용 후 1489 건별 전송 승인·실행·사용자 판정 필요. 실제 호출 없음"
+      "note": "standard 프로필 local_gate_handoff 문서 대조 완료; DEMO03 STEP007 T9 실제 Luna 및 DEMO05 18/3/9 인수 보존, 운영1489 미실행 유지. local-gate-handoff.md"
     }
   ],
   "proof": {
     "docs": {
-      "result": "pending"
+      "result": "pass",
+      "method": "review",
+      "note": "독립 재계획/제품 연결 리뷰 PASS 차단0; source hash 일치 및 기존검사 재사용 한계 명시",
+      "evidence": "docs/work/_runs/demo00-20261007/review-local-replan.md",
+      "exit_code": null,
+      "actor": "gpt-5.6-sol high independent review",
+      "command": "python3 scripts/feature_status.py doctor _",
+      "at": "2026-10-09T13:26:23+09:00",
+      "head": "d75499594977555b1fecd44870e6c14a22796823",
+      "source_hash": "eeb7dbdf770d6b095fd3fdd50f7dcbf3ebcba575059e99acfa6636967b15beca",
+      "spec_hash": "324203a69dd8616fcbccf0384bd050a1a2ef8e416203137e2bdd590dd9786e2d"
     },
     "tests": {
       "result": "pass",
       "method": "command",
-      "note": "최종 Luna 32 passed 및 소스 불변 추가10 passed; narrative 관련 이전 검사 재사용",
-      "evidence": "docs/work/_runs/demo00-20261007/DEMO-00-luna-preflight.md",
+      "note": "기존 Luna 및 LiteLLM231/문서155 검사 증거를 변경 없는 소스에 한해 재사용; 새 재실행 아님",
+      "evidence": "docs/work/_runs/demo00-20261007/local-readiness-evidence.md",
       "exit_code": 0,
-      "actor": "orchestrator",
+      "actor": "Codex leader",
       "command": "",
-      "at": "2026-10-08T17:14:40+09:00",
-      "head": "d12df664b27f28efab1825281567d9bf1b6f9981",
-      "source_hash": "b10b1f2c81f286e2b0564edec8c0b3f543494f87a6e61a582c6c162ca05b29b1",
-      "spec_hash": "6a6c2b91a760244b809a48f20501e84362a90520afaf7f82ae75f717c78fbd4e"
+      "at": "2026-10-09T13:25:11+09:00",
+      "head": "d75499594977555b1fecd44870e6c14a22796823",
+      "source_hash": "eeb7dbdf770d6b095fd3fdd50f7dcbf3ebcba575059e99acfa6636967b15beca",
+      "spec_hash": "324203a69dd8616fcbccf0384bd050a1a2ef8e416203137e2bdd590dd9786e2d"
     },
     "postgres": {
-      "result": "pass",
+      "result": "not_applicable",
       "method": "command",
-      "note": "일회용 PostgreSQL 17.11 관련 두 파일 변형 포함, skip 없음",
-      "evidence": "docs/work/_runs/demo00-20261007/DEMO-00-luna-preflight.md",
-      "exit_code": 0,
-      "actor": "orchestrator",
+      "note": "현재 통합 차이는 DB schema/REST 응답 shape를 바꾸지 않음. 기존 Luna PG 증거와 실제 로컬 PostgreSQL 경로는 별도 보존",
+      "evidence": "docs/work/_runs/demo00-20261007/local-readiness-evidence.md",
+      "exit_code": null,
+      "actor": "Codex leader",
       "command": "",
-      "at": "2026-10-08T17:14:40+09:00",
-      "head": "d12df664b27f28efab1825281567d9bf1b6f9981",
-      "source_hash": "b10b1f2c81f286e2b0564edec8c0b3f543494f87a6e61a582c6c162ca05b29b1",
-      "spec_hash": "6a6c2b91a760244b809a48f20501e84362a90520afaf7f82ae75f717c78fbd4e"
+      "at": "2026-10-09T13:25:12+09:00",
+      "head": "d75499594977555b1fecd44870e6c14a22796823",
+      "source_hash": "eeb7dbdf770d6b095fd3fdd50f7dcbf3ebcba575059e99acfa6636967b15beca",
+      "spec_hash": "324203a69dd8616fcbccf0384bd050a1a2ef8e416203137e2bdd590dd9786e2d"
     },
     "frontend": {
       "result": "not_applicable",
       "method": "command",
-      "note": "프론트엔드 코드 변경 없음",
-      "evidence": "docs/work/_runs/demo00-20261007/DEMO-00-luna-preflight.md",
+      "note": "frontend 코드 변경 없음; 실제 로컬 두 viewport 표시 증거는 보존",
+      "evidence": "docs/work/_runs/demo00-20261007/local-readiness-evidence.md",
       "exit_code": null,
-      "actor": "orchestrator",
+      "actor": "Codex leader",
       "command": "",
-      "at": "2026-10-08T17:14:41+09:00",
-      "head": "d12df664b27f28efab1825281567d9bf1b6f9981",
-      "source_hash": "b10b1f2c81f286e2b0564edec8c0b3f543494f87a6e61a582c6c162ca05b29b1",
-      "spec_hash": "6a6c2b91a760244b809a48f20501e84362a90520afaf7f82ae75f717c78fbd4e"
+      "at": "2026-10-09T13:25:12+09:00",
+      "head": "d75499594977555b1fecd44870e6c14a22796823",
+      "source_hash": "eeb7dbdf770d6b095fd3fdd50f7dcbf3ebcba575059e99acfa6636967b15beca",
+      "spec_hash": "324203a69dd8616fcbccf0384bd050a1a2ef8e416203137e2bdd590dd9786e2d"
     },
     "api_guard": {
-      "result": "pending"
+      "result": "pass",
+      "method": "command",
+      "note": "승인된 물리4쪽/hash/2calls/단일job 및 자동화false 확인; metadata/정책 경계 기존 테스트·리뷰와 source hash 일치",
+      "evidence": "docs/work/_runs/demo00-20261007/local-readiness-evidence.md",
+      "exit_code": 0,
+      "actor": "Codex leader",
+      "command": "",
+      "at": "2026-10-09T13:25:12+09:00",
+      "head": "d75499594977555b1fecd44870e6c14a22796823",
+      "source_hash": "eeb7dbdf770d6b095fd3fdd50f7dcbf3ebcba575059e99acfa6636967b15beca",
+      "spec_hash": "324203a69dd8616fcbccf0384bd050a1a2ef8e416203137e2bdd590dd9786e2d"
     },
     "real_data_run": {
-      "result": "pending"
+      "result": "not_applicable",
+      "method": "manual",
+      "note": "실제 Luna 품질 인수는 DEMO03 STEP007 T9 및 DEMO05 소유. DEMO00 실제 개요는 준비 증거이며 심층 성공으로 대체하지 않음",
+      "evidence": "docs/work/_runs/demo00-20261007/local-readiness-evidence.md",
+      "exit_code": null,
+      "actor": "Codex leader",
+      "command": "",
+      "at": "2026-10-09T13:25:12+09:00",
+      "head": "d75499594977555b1fecd44870e6c14a22796823",
+      "source_hash": "eeb7dbdf770d6b095fd3fdd50f7dcbf3ebcba575059e99acfa6636967b15beca",
+      "spec_hash": "324203a69dd8616fcbccf0384bd050a1a2ef8e416203137e2bdd590dd9786e2d"
     }
   },
   "notes": [
@@ -190,9 +334,45 @@
     {
       "at": "2026-10-08T17:14:40+09:00",
       "text": "단계 → blocked: 로컬 STEP-002 완료. STEP-003 운영 호스트 사용자 실행/확인 대기; commit·merge 수동"
+    },
+    {
+      "at": "2026-10-09T13:22:55+09:00",
+      "text": "plan 작업 ID 동기화"
+    },
+    {
+      "at": "2026-10-09T13:22:55+09:00",
+      "text": "재검증: 2026-10-09 사용자 요청에 따른 로컬 실제 자료/LiteLLM 재계획; 기존 증거는 변경 범위와 source hash 대조 후 재사용, 실제 Luna는 DEMO-03/05 필수 게이트 유지"
+    },
+    {
+      "at": "2026-10-09T13:23:25+09:00",
+      "text": "plan 작업 ID 동기화"
+    },
+    {
+      "at": "2026-10-09T13:23:25+09:00",
+      "text": "단계 → implementing: 운영1489 선행조건을 승인된 로컬 준비로 재계획; 실제 Luna 검증은 DEMO03/05에 보존"
+    },
+    {
+      "at": "2026-10-09T13:23:25+09:00",
+      "text": "단계 STEP-003 in_progress: 로컬 준비 증거·동일 소스 hash·수량 경고·미측정 한계 대조"
+    },
+    {
+      "at": "2026-10-09T13:23:25+09:00",
+      "text": "단계 STEP-004 in_progress: 후속 필수 Luna 게이트 문서 정합성 검토"
+    },
+    {
+      "at": "2026-10-09T13:23:54+09:00",
+      "text": "단계 STEP-003 done: 로컬 준비 증거 및 8개 제품 source hash 일치 확인; 231+155 기존 검사 재사용, 실제 overview2calls/8claims/reference 및 PDF5쪽 한계 보존. local-readiness-evidence.md"
+    },
+    {
+      "at": "2026-10-09T13:25:00+09:00",
+      "text": "단계 STEP-004 done: standard 프로필 local_gate_handoff 문서 대조 완료; DEMO03 STEP007 T9 실제 Luna 및 DEMO05 18/3/9 인수 보존, 운영1489 미실행 유지. local-gate-handoff.md"
+    },
+    {
+      "at": "2026-10-09T13:25:00+09:00",
+      "text": "단계 → validating: 로컬 준비4/4 완료, 재계획 독립 리뷰·통합 단계"
     }
   ],
-  "updated_at": "2026-10-08T17:14:41+09:00",
+  "updated_at": "2026-10-09T13:26:23+09:00",
   "resume_phase": "implementing",
   "proof_history": [
     {
@@ -209,6 +389,75 @@
     },
     {
       "key": "frontend",
+      "previous": {
+        "result": "pending"
+      }
+    },
+    {
+      "key": "tests",
+      "previous": {
+        "result": "stale",
+        "method": "command",
+        "note": "최종 Luna 32 passed 및 소스 불변 추가10 passed; narrative 관련 이전 검사 재사용",
+        "evidence": "docs/work/_runs/demo00-20261007/DEMO-00-luna-preflight.md",
+        "exit_code": 0,
+        "actor": "orchestrator",
+        "command": "",
+        "at": "2026-10-08T17:14:40+09:00",
+        "head": "d12df664b27f28efab1825281567d9bf1b6f9981",
+        "source_hash": "b10b1f2c81f286e2b0564edec8c0b3f543494f87a6e61a582c6c162ca05b29b1",
+        "spec_hash": "6a6c2b91a760244b809a48f20501e84362a90520afaf7f82ae75f717c78fbd4e",
+        "reason": "작업 계약 변경"
+      }
+    },
+    {
+      "key": "postgres",
+      "previous": {
+        "result": "stale",
+        "method": "command",
+        "note": "일회용 PostgreSQL 17.11 관련 두 파일 변형 포함, skip 없음",
+        "evidence": "docs/work/_runs/demo00-20261007/DEMO-00-luna-preflight.md",
+        "exit_code": 0,
+        "actor": "orchestrator",
+        "command": "",
+        "at": "2026-10-08T17:14:40+09:00",
+        "head": "d12df664b27f28efab1825281567d9bf1b6f9981",
+        "source_hash": "b10b1f2c81f286e2b0564edec8c0b3f543494f87a6e61a582c6c162ca05b29b1",
+        "spec_hash": "6a6c2b91a760244b809a48f20501e84362a90520afaf7f82ae75f717c78fbd4e",
+        "reason": "작업 계약 변경"
+      }
+    },
+    {
+      "key": "frontend",
+      "previous": {
+        "result": "stale",
+        "method": "command",
+        "note": "프론트엔드 코드 변경 없음",
+        "evidence": "docs/work/_runs/demo00-20261007/DEMO-00-luna-preflight.md",
+        "exit_code": null,
+        "actor": "orchestrator",
+        "command": "",
+        "at": "2026-10-08T17:14:41+09:00",
+        "head": "d12df664b27f28efab1825281567d9bf1b6f9981",
+        "source_hash": "b10b1f2c81f286e2b0564edec8c0b3f543494f87a6e61a582c6c162ca05b29b1",
+        "spec_hash": "6a6c2b91a760244b809a48f20501e84362a90520afaf7f82ae75f717c78fbd4e",
+        "reason": "작업 계약 변경"
+      }
+    },
+    {
+      "key": "api_guard",
+      "previous": {
+        "result": "pending"
+      }
+    },
+    {
+      "key": "real_data_run",
+      "previous": {
+        "result": "pending"
+      }
+    },
+    {
+      "key": "docs",
       "previous": {
         "result": "pending"
       }

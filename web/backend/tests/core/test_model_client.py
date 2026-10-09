@@ -20,6 +20,7 @@ import httpx
 
 from app.core.config import Settings
 from app.core.model_client import (
+    LITELLM_MODEL_ENDPOINT_REF,
     MAX_CORRECTION_CHARS,
     MAX_RESPONSE_BYTES,
     MODEL_PURPOSES,
@@ -88,6 +89,28 @@ def _completion(model: str, payload: Mapping[str, Any], **extra: Any) -> dict[st
     }
     document.update(extra)
     return document
+
+
+def _litellm_info(
+    *limits: object,
+    model_name: str = "local-agent-main",
+    revision: object | None = None,
+) -> dict[str, Any]:
+    rows: list[dict[str, Any]] = []
+    for index, limit in enumerate(limits):
+        model_info: dict[str, Any] = {"max_input_tokens": limit}
+        if revision is not None:
+            model_info["model_revision"] = revision
+        rows.append({
+            "model_name": model_name,
+            "litellm_params": {
+                "model": f"openai/upstream-{index}",
+                "api_base": "https://upstream.invalid/v1",
+                "api_key": "synthetic-upstream-secret",
+            },
+            "model_info": model_info,
+        })
+    return {"data": rows}
 
 
 @pytest.mark.parametrize("top_k,digest,error", [(20, REVISION, None), (40, REVISION, "generation_config_mismatch"), (20, OTHER_REVISION, "model_revision_invalid")])
@@ -236,6 +259,27 @@ def test_screening_model_is_configurable() -> None:
 
     assert Settings().vllm_screening_model == "qwen3.8-27B"
     assert Settings(vllm_screening_model="합성-모델-b").vllm_screening_model == "합성-모델-b"
+
+
+@pytest.mark.parametrize("purpose", MODEL_PURPOSES)
+def test_every_purpose_accepts_the_explicit_litellm_dialect(purpose: str) -> None:
+    endpoint = resolve_model_endpoint(
+        purpose,
+        settings=_settings(**{f"vllm_{purpose}_api_dialect": "litellm"}),
+    )
+    assert endpoint.api_dialect == "litellm"
+
+
+def test_litellm_endpoint_preserves_an_approved_base_path_prefix() -> None:
+    endpoint = resolve_model_endpoint(
+        "overview",
+        settings=_settings(
+            vllm_overview_base_url="https://gateway.internal/gateway/v1",
+            vllm_overview_allowed_hosts="gateway.internal",
+            vllm_overview_api_dialect="litellm",
+        ),
+    )
+    assert endpoint.base_url == "https://gateway.internal/gateway/v1"
 
 
 # --- transport 경계 --------------------------------------------------------
@@ -500,6 +544,255 @@ def test_identity_preserves_reported_context_capacity() -> None:
         model="합성-모델-a", revision=REVISION, max_model_len=262_144
     )
     assert client.model_context_tokens == 262_144
+
+
+def test_litellm_verifies_the_served_alias_and_uses_the_smallest_deployment_limit() -> None:
+    """요청 별칭의 모든 LiteLLM 배포 중 가장 작은 입력 상한을 사용한다."""
+
+    client = ModelClient(
+        model="local-agent-main",
+        output_contract=CONTRACT,
+        api_dialect="litellm",
+        completion_create=lambda **_kwargs: _completion(
+            "local-agent-main", {"verdict": "ok"}
+        ),
+        models_list=lambda: {
+            "data": [{"id": "local-agent-main", "max_model_len": 30_000}]
+        },
+        model_info_list=lambda: _litellm_info(65_536, 32_768),
+    )
+
+    assert client.verify_identity() == ModelIdentity(
+        model="local-agent-main", revision="", max_model_len=30_000
+    )
+    assert client.model_context_tokens == 30_000
+    assert client.endpoint_ref == LITELLM_MODEL_ENDPOINT_REF
+    assert client.provider_name == LITELLM_MODEL_ENDPOINT_REF
+
+
+def test_litellm_rejects_an_unserved_alias_before_reading_deployment_metadata() -> None:
+    metadata_calls: list[str] = []
+    client = ModelClient(
+        model="local-agent-main",
+        output_contract=CONTRACT,
+        api_dialect="litellm",
+        completion_create=lambda **_kwargs: pytest.fail(
+            "unserved alias must not invoke the model"
+        ),
+        models_list=lambda: {"data": [{"id": "another-alias"}]},
+        model_info_list=lambda: metadata_calls.append("model-info") or _litellm_info(32_768),
+    )
+    with pytest.raises(ModelIdentityError) as error:
+        client.verify_identity()
+    assert error.value.code == "model_not_served"
+    assert metadata_calls == []
+
+
+def test_litellm_duplicate_deployments_bound_the_whole_structured_request() -> None:
+    """작은 배포 상한이 schema·UTF-8·출력 예약을 포함한 요청 전체를 막는다."""
+
+    prompt = "가" * 1000
+    roomy = structured_request_capacity(
+        model="local-agent-main",
+        prompt=prompt,
+        contract=CONTRACT,
+        api_dialect="litellm",
+        max_model_len=1_000_000,
+        policy_context_ceiling=1_000_000,
+    )
+    conservative_limit = roomy.total_token_upper_bound - 1
+    client = ModelClient(
+        model="local-agent-main",
+        output_contract=CONTRACT,
+        api_dialect="litellm",
+        completion_create=lambda **_kwargs: pytest.fail(
+            "capacity failure must not invoke the model"
+        ),
+        models_list=lambda: {"data": [{"id": "local-agent-main"}]},
+        model_info_list=lambda: _litellm_info(
+            roomy.total_token_upper_bound + 4096, conservative_limit
+        ),
+    )
+    client.verify_identity()
+    assert client.model_context_tokens == conservative_limit
+    with pytest.raises(ModelInvocationError) as error:
+        structured_request_capacity(
+            model=client.model,
+            prompt=prompt,
+            contract=CONTRACT,
+            api_dialect=client.api_dialect,
+            max_model_len=client.model_context_tokens,
+            policy_context_ceiling=1_000_000,
+        )
+    assert error.value.code == "input_capacity_exceeded"
+
+
+@pytest.mark.parametrize(
+    "document,code",
+    [
+        ({}, "identity_unavailable"),
+        ({"data": {}}, "identity_unavailable"),
+        ({"data": []}, "model_not_served"),
+        (_litellm_info(32_768, model_name="another-alias"), "model_not_served"),
+        ({"data": [{"model_name": "local-agent-main", "model_info": {"max_input_tokens": 32_768}}]}, "identity_unavailable"),
+        ({"data": [{"model_name": "local-agent-main", "litellm_params": {}, "model_info": None}]}, "identity_unavailable"),
+        (_litellm_info(None), "identity_unavailable"),
+        (_litellm_info(True), "identity_unavailable"),
+        (_litellm_info(0), "identity_unavailable"),
+        (_litellm_info(-1), "identity_unavailable"),
+        (_litellm_info("32768"), "identity_unavailable"),
+        ({"data": [*_litellm_info(32_768)["data"], *_litellm_info(None)["data"]]}, "identity_unavailable"),
+    ],
+)
+def test_litellm_fails_closed_on_missing_or_malformed_deployment_metadata(
+    document: Mapping[str, Any], code: str
+) -> None:
+    client = ModelClient(
+        model="local-agent-main",
+        output_contract=CONTRACT,
+        api_dialect="litellm",
+        completion_create=lambda **_kwargs: pytest.fail(
+            "invalid identity must not invoke the model"
+        ),
+        models_list=lambda: {"data": [{"id": "local-agent-main"}]},
+        model_info_list=lambda: document,
+    )
+    with pytest.raises(ModelIdentityError) as error:
+        client.verify_identity()
+    assert error.value.code == code
+
+
+def test_litellm_rejects_a_declared_revision_mismatch_from_model_info() -> None:
+    client = ModelClient(
+        model="local-agent-main",
+        output_contract=CONTRACT,
+        api_dialect="litellm",
+        model_revision=REVISION,
+        completion_create=lambda **_kwargs: pytest.fail(
+            "revision mismatch must not invoke the model"
+        ),
+        models_list=lambda: {"data": [{"id": "local-agent-main"}]},
+        model_info_list=lambda: _litellm_info(32_768, revision=OTHER_REVISION),
+    )
+    with pytest.raises(ModelIdentityError) as error:
+        client.verify_identity()
+    assert error.value.code == "model_revision_invalid"
+
+
+def test_litellm_policy_identity_is_dialect_specific() -> None:
+    calls: list[dict[str, Any]] = []
+    client = ModelClient(
+        model="local-agent-main",
+        output_contract=CONTRACT,
+        api_dialect="litellm",
+        completion_create=lambda **kwargs: calls.append(kwargs) or _completion(
+            "local-agent-main", {"verdict": "ok"}
+        ),
+    )
+    policy = {
+        **POLICY,
+        "model_name": "local-agent-main",
+        "model_endpoint_ref": LITELLM_MODEL_ENDPOINT_REF,
+    }
+    assert client.invoke("s1", {"item": "합성"}, policy).structured_output == {
+        "verdict": "ok"
+    }
+    assert calls[0]["temperature"] == 0.7
+    assert calls[0]["top_p"] == 0.8
+    assert calls[0]["max_tokens"] == 16_384
+    assert calls[0]["extra_body"] == {
+        "top_k": 20,
+        "chat_template_kwargs": {"enable_thinking": False},
+    }
+    assert calls[0]["response_format"] == {
+        "type": "json_schema",
+        "json_schema": {
+            "name": "test_contract",
+            "strict": True,
+            "schema": CONTRACT.schema,
+        },
+    }
+    with pytest.raises(ModelInvocationError) as error:
+        client.invoke(
+            "s1",
+            {"item": "합성"},
+            {**policy, "model_endpoint_ref": "vllm-openai-compatible"},
+        )
+    assert error.value.code == "model_not_allowed"
+    assert len(calls) == 1
+
+
+def test_litellm_metadata_uses_same_auth_and_preserves_the_base_prefix() -> None:
+    seen: list[tuple[str, str | None]] = []
+
+    def transport(request: httpx.Request) -> httpx.Response:
+        seen.append((request.url.path, request.headers.get("authorization")))
+        if request.url.path == "/gateway/v1/models":
+            return httpx.Response(200, json={"data": [{"id": "local-agent-main"}]})
+        assert request.url.path == "/gateway/model/info"
+        return httpx.Response(200, json=_litellm_info(32_768))
+
+    client = ModelClient(
+        base_url="https://gateway.internal/gateway/v1",
+        api_key="synthetic-gateway-key",
+        allowed_hosts="gateway.internal",
+        model="local-agent-main",
+        output_contract=CONTRACT,
+        api_dialect="litellm",
+        completion_create=lambda **_kwargs: {},
+    )
+    client._http_client = httpx.Client(
+        transport=httpx.MockTransport(transport),
+        trust_env=False,
+        follow_redirects=False,
+    )
+    try:
+        assert client.verify_identity().max_model_len == 32_768
+    finally:
+        client.close()
+    assert seen == [
+        ("/gateway/v1/models", "Bearer synthetic-gateway-key"),
+        ("/gateway/model/info", "Bearer synthetic-gateway-key"),
+    ]
+
+
+@pytest.mark.parametrize("failure", ["redirect", "oversized"])
+def test_litellm_metadata_rejects_redirects_and_oversized_responses(
+    failure: str,
+) -> None:
+    def transport(request: httpx.Request) -> httpx.Response:
+        if failure == "redirect":
+            return httpx.Response(
+                307,
+                headers={"location": "https://another.invalid/model/info"},
+                request=request,
+            )
+        return httpx.Response(
+            200,
+            content=b"x" * (MAX_RESPONSE_BYTES + 1),
+            request=request,
+        )
+
+    client = ModelClient(
+        model="local-agent-main",
+        output_contract=CONTRACT,
+        api_dialect="litellm",
+        completion_create=lambda **_kwargs: {},
+        models_list=lambda: {"data": [{"id": "local-agent-main"}]},
+    )
+    client._http_client = httpx.Client(
+        transport=httpx.MockTransport(transport),
+        trust_env=False,
+        follow_redirects=False,
+    )
+    try:
+        with pytest.raises(ModelIdentityError) as error:
+            client.verify_identity()
+    finally:
+        client.close()
+    assert error.value.code == "identity_unavailable"
+    expected_retryable = failure != "redirect"
+    assert error.value.retryable is expected_retryable
 
 
 @pytest.mark.parametrize("reported_contexts", [[0], [True], ["262144"], [262144, None], [262144, 131072]])

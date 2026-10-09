@@ -1,11 +1,13 @@
-# DEMO 공통 계약 v1.1
+# DEMO 공통 계약 v1.2
 
-- 상태: **2026-10-06 사용자 계획에 따른 구현 목표. 아직 API·DB·모델 실행에 적용하지 않음.**
-- 근거: [ADR-0070](../tracking/decisions/0070-multi-company-knowledge-demo.md)과 같은 날 재계획 개정.
+- 상태: **2026-10-09 사용자 재계획에 따른 구현 목표. 회사 API·DB 계약은 아직 제품에 적용하지 않음.**
+- 근거: [ADR-0070](../tracking/decisions/0070-multi-company-knowledge-demo.md)의 2026-10-09 개정.
 - v1.1(2026-10-06 재계획): 2주 일정에 맞춰 핏 승인 흐름·새 분석 승인/receipt 테이블·X-Request-ID·그래프 SVG를 제거하고,
   기존 관례(body `request_id`+`IdempotencyRecord`, 기존 Luna preview/approval)를 재사용한다. 결정과 이유는 ADR-0070 개정 절이 정본이다.
-- 이 문서는 DEMO-01~05가 함께 쓰는 새 계약의 정본이다. DEMO-00 Luna 선검증은 기존 단일회사 계약만 쓴다. 기존 계약은 [contracts](../contracts.md)를 따른다.
-- 코드 범위: DEMO-01~05는 데모 브랜치 전용이며 운영에 배포하지 않는다. main·운영 배포 대상은 DEMO-00뿐이다.
+- v1.2(2026-10-09 재계획): `bidops-local`과 2026-10-06~08 실제 수집 자료를 구현 기준으로 삼고,
+  LiteLLM `local-agent-main` 개요·핏과 Luna `codex-exec` 심층검토의 transport·정책·승인·증거를 분리한다.
+- 이 문서는 DEMO-01~05가 함께 쓰는 새 계약의 정본이다. DEMO-00의 기존 Luna v4 구현과 로컬 준비 증거는 기존 계약을 따른다.
+- 코드 범위: DEMO-00은 현재 run을 수동으로 main에 통합하고, DEMO-01~05는 그 main에서 분기한 데모 브랜치와 `bidops-local`에서 구현·격리 검증한다. 운영 배포·정책 활성화는 별도 승인 작업이다.
 - 모든 아래 객체는 명시한 key를 필수로 가진다. `?`는 key 생략이 아니라 nullable이다.
   별도로 optional이라고 쓴 요청만 생략 가능하다. 객체에 알 수 없는 key는 거부한다.
   UUID는 canonical UUID 문자열, hash는 lowercase hex64, 시각은 timezone 포함 RFC3339다.
@@ -28,7 +30,7 @@ NULL은 기존 단일회사 계보다. 기존 행을 가상회사로 backfill하
 company_id IS NULL만 읽는다. 원문 Notice/Opportunity는 공유하며 그 자체에 company_id를 붙이지 않는다.
 데모 브랜치에서 강제·검사하는 기존 경로는 자동 worker·hook(company_fit_runner enqueue/claim, auto_preparation,
 deep_review_hooks, analysis worker)과 unscoped 최신 결과·목록·집계 조회다. 기존 deep-review/report/evidence의
-ID 직접 조회·수정·재시도 경로 전수 점검은 main 병합 전 별도 기능으로 미루며, 그 전에는 데모 브랜치를 운영에 배포하지 않는다.
+ID 직접 조회·수정·재시도 경로 전수 점검은 main 병합 전 별도 기능으로 미루며, 그 전에는 데모 브랜치를 main이나 운영에 반영하지 않는다.
 회사 경로의 ID가 다른 회사 소유 또는 NULL이면 404다.
 단순 화면 필터나 클라이언트 전역 값으로 이 경계를 구현하지 않는다.
 
@@ -421,12 +423,14 @@ web과 analysis-worker에 같은 값을 명시 주입한다. 기존 전역 activ
 기존 fit_policy/model/revision/generation을 고정한 bidops.company-fit-policy.v2를 저장한다.
 이 payload 전체는 {schema_version,model_name,model_revision,prompt_version,generation,stages,system_prompt,
 prompt_output_contract,chunking}이다. schema_version은 bidops.company-fit-policy.v2다. model_revision은 기존 코드 함수
-`fit_policy(model)`(company_fit.py)에 없는 새 키이며(기존에는 동결 입력에만 있음) 운영과 같은 qwen3.8-27B 선언 revision을 고정한다.
+`fit_policy(model)`(company_fit.py)에 없는 새 키이며(기존에는 동결 입력에만 있음) LiteLLM 별칭 `local-agent-main`과 확인 가능한 선언 revision을 고정한다.
+revision이 metadata에 없으면 null로 보존하고 upstream 모델명이나 revision을 추정하지 않는다.
 나머지 키는 기존 fit_policy의 구조와 타입을 따른다.
 심층은 기존 AnalysisPolicyVersion에 analysis-policy-luna-demo-v1(DEMO-00 v4 기반)을 import하고 demo 설정 ID로 선택한다.
 CLI `import-company-fit-policy --policy <file> --actor <name>`는 {policy_version_id:UUID?,sha256:hash?,created:bool,errors:string[]}를 반환한다.
 같은 canonical hash 재등록은 기존 ID, 새 hash는 새 row. exit0/2/1·stdout 규칙은 §8과 같고 import는 활성화하지 않는다.
 모든 새 policy는 reference 전용이며 기존 운영 policy 활성화/gate를 변경하지 않는다.
+회사 핏은 OpenAI 호환 LiteLLM transport를 쓰고 심층은 Luna `codex-exec`를 쓴다. 한 purpose의 endpoint/key/policy를 다른 purpose의 fallback으로 쓰지 않는다.
 CompanyAnalysisInput.policy_version_id/sha256는 purpose별 해당 테이블의 identity다. DB는 purpose에 따라 정확한 FK 열을 사용한다.
 model_revision은 Luna처럼 선언 revision이 없으면 null이며 추정하지 않는다.
 
@@ -495,23 +499,24 @@ ID가 타회사 소속이면 404 not_found다. 핏 gate 오류는 REST가 아니
 
 Compose 명령의 파일 순서는 docker-compose.yml → docker-compose.edge.yml → docker-compose.model-egress.yml
 → docker-compose.prespec-attachment.yml → docker-compose.luna.yml → docker-compose.demo.yml이다.
-COMPOSE_PROJECT_NAME=bidops-demo, --profile prespec --profile luna, --env-file env/demo.env를 사용한다.
-BIDOPS_WEB_BIND_HOST=127.0.0.1, BIDOPS_WEB_PORT=28787(default, tunable)이며 점유돼 있으면 실패하고 운영 포트를 재사용하지 않는다.
+COMPOSE_PROJECT_NAME=bidops-local을 사용한다. 현재 로컬 env와 자원은 재사용하되 운영 DB·MinIO·volume·host publish와 공유하지 않는다.
+BIDOPS_WEB_BIND_HOST=127.0.0.1, BIDOPS_WEB_PORT=18787(현재 `bidops-local` 값, tunable)이며 점유돼 있으면 실패한다.
 DB/MinIO는 host publish하지 않고 프로젝트별 volume을 사용한다. 운영 경로 bind mount를 demo overlay에서 제거/교체한다.
 교체는 Compose v2.24+ `!override`로 web·analysis-worker의 volumes를 다시 선언한다(설치 버전 v5.1.2, 저장소는 `!reset` 사용 전례가 있다).
 전체 렌더 config에서 기존 회사 프로필 read-only mount와 운영 pipeline mount도 남아 있지 않음을 검사한다.
 가상회사·온톨로지 원본은 이미지에 넣지 않고(Dockerfile은 docs를 복사하지 않는다) 일회성 CLI 컨테이너에
 `docs/demo-fixtures`를 `/run/demo-fixtures`로 read-only 마운트해 넘긴다. 상주 서비스에는 마운트하지 않는다.
-env/demo.env는 Git 밖에서 사람이 제공한다. BIDOPS_CODEX_AUTH_FILE은 운영과 같은 계정의 인증 파일을 지정한다(2026-10-06 사용자 결정).
-같은 인증을 쓰므로 데모 Luna 실행은 운영 Luna 실행과 겹치지 않게 순차로 하고, 데모 실행 시각과 review ID를 증거에 남긴다.
+현재 로컬 `.env`·`env/model.env`·`env/prespec-attachment.env`를 재사용하고, `env/demo.env`는 새 demo flag·policy ID·Codex 경로만 Git 밖에서 보탠다. 운영 env를 복사하지 않는다.
+BIDOPS_CODEX_AUTH_FILE은 사용자가 승인한 계정의 인증 파일을 지정한다.
+같은 인증을 쓰는 다른 Luna 실행과 겹치지 않게 순차로 하고, 데모 실행 시각과 review ID를 증거에 남긴다.
 codex-runner만 secret mount를 받는다. MinIO/DB secret은 데모용이며 값은 문서/로그에 넣지 않는다.
-사설 모델은 운영과 같은 qwen3.8-27B이고 엔드포인트는 사용자가 따로 제공한다. 엔드포인트가 env/demo.env에 들어오기 전에는
-preflight가 model_endpoint_missing으로 blocked를 보고하며 개요·핏을 실행하지 않는다. 선언 revision은 운영 값과 같아야 한다.
+사설 모델은 2026-10-09 확인한 LiteLLM 별칭 `local-agent-main`을 쓴다. `/models`와 동일 origin/base prefix의 `/model/info`에서
+별칭과 양의 `max_input_tokens`를 확인하고, 확인 가능한 선언 revision만 대조한다. upstream 모델명·revision은 추정하지 않는다.
 BIDOPS_DEMO_ENABLED=true, REFERENCE_WORKFLOW_MODE=true, 두 purpose의 demo policy IDs를 별도 명시하고
 DEEP_REVIEW_AUTO_START_ENABLED=false·scheduler/always-on/C-2 daily trigger=false를 실제 컨테이너 설정으로 확인한다.
-문서 준비 자동화가 manifest 6건에 걸리도록 BIDOPS_PRESPEC_OVERVIEW_ENABLED=true(SW사업대상=Y 자동 준비·개요 자동 enqueue의 전제),
-BIDOPS_G2B_ATTACHMENT_ENABLED=true와 G2B 허용 host를 둔다. 적재가 6건뿐이므로 자동 첨부 취득·개요 호출도 6건(재시도 별도)에만 걸린다.
-Luna/회사 핏 enable과 policy ID 주입은 별도의 명시적 단계다. prepare가 이를 활성화하지 않는다.
+2026-10-06~08 실제 수집 범위를 source hash와 정규 run ID로 동결하고 그 안에서 6건을 선택한다.
+첨부 취득·문서 준비·개요는 target을 명시한 one-shot 작업으로 수행하며 자동 개요·회사 핏·심층 시작과 scheduler는 false를 유지한다.
+Luna/회사 핏 enable과 policy ID 주입은 별도의 명시적 단계다. prepare가 이를 활성화하거나 모델을 호출하지 않는다.
 실제 원문·manifest·인수 기록이 들어가는 `data/demo/`는 `.gitignore`에 추가한다. Git 대상은 schema와 순수 합성 원본(`docs/demo-fixtures`)뿐이다.
 
 `./scripts/prepare-company-demo.sh --stage preflight|storage|migrate|companies|notices --env-file env/demo.env [--apply]`
@@ -522,9 +527,9 @@ Luna/회사 핏 enable과 policy ID 주입은 별도의 명시적 단계다. pre
 - companies: 사용자 승인 기록이 있는 3개 고정 합성회사 import만 한다. 활성화·정책 등록·공고 적재·모델 실행은 하지 않는다.
 - notices: manifest 후보 6건만 담은 데모 전용 회차 디렉터리를 원 수집 회차에서 파생해 데모 volume에 만들고 기존 ingest CLI로 적재한다.
   원 회차 디렉터리는 수정하지 않는다. 적재 뒤 `GET /api/runs/<회차>/warnings`가 0건이어야 completed이며, 경고가 있으면 blocked다.
-  적재가 첨부 취득·문서 준비·개요를 자동으로 시작하므로 엔드포인트가 없으면 preflight와 같은 이유로 blocked다.
+  적재는 첨부 취득·문서 준비·개요를 자동으로 시작하지 않는다. target별 one-shot 작업은 적재 완료와 경고 0건을 확인한 뒤 별도로 실행한다.
 - 각 --apply는 그 stage 하나만 수행한다. 기존 도구의 멱등성을 유지하며 사용자 소유 자원을 삭제하지 않는다.
-stdout={schema_version:"bidops.demo-prepare.v1",stage:enum,mode:dry_run|apply,project:"bidops-demo",
+stdout={schema_version:"bidops.demo-prepare.v1",stage:enum,mode:dry_run|apply,project:"bidops-local",
 status:ready|completed|blocked|failed,checks:[{code:string,passed:bool}],errors:string[]}.
 exit0=ready/completed, exit2=입력/준비 차단, exit1=실행 실패. stderr는 안전 code만, argparse 문법 오류는 exit2.
 새 stack 시작/교체는 별도 승인된 compose up, 정책 import/ID 설정, 회사 activate, 공개 원본 적재도 기존 명시 CLI 단계다.

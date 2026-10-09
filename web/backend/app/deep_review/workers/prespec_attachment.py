@@ -6,7 +6,7 @@ import argparse
 import logging
 import signal
 import time
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -16,7 +16,12 @@ from ...core.logging_setup import configure
 from ..services import assets
 from ...core.clamav import ClamAVScanner
 from ...core.object_store import ObjectStoreError, assert_object_store_runtime
-from ..services.prespec_attachments import AttachmentFetchClaim, claim_next, fetch_claimed
+from ..services.prespec_attachments import (
+    AttachmentFetchClaim,
+    claim_next,
+    fetch_claimed,
+    validate_notice_id,
+)
 from ..services.document_converter import ScratchDocumentProcessor
 
 
@@ -32,9 +37,11 @@ def run_once(
     processor: Any = None,
     clamav_checker: Any = None,
     root: Path | None = None,
+    notice_id: int | None = None,
 ) -> bool:
     """Process at most one row; return whether a row was claimed."""
 
+    notice_id = validate_notice_id(notice_id)
     if connectors is None:
         connectors = assets.g2b_attachment_connectors(get_settings())
     # Disabled is the normal default.  Do not even open a database transaction
@@ -47,6 +54,7 @@ def run_once(
         session,
         worker_id=worker_id,
         lease_seconds=lease_seconds,
+        notice_id=notice_id,
     )
     if claim is None:
         return False
@@ -61,10 +69,30 @@ def run_once(
     return True
 
 
-def main() -> None:
+def _positive_notice_id(value: str) -> int:
+    try:
+        notice_id = int(value)
+    except (TypeError, ValueError) as error:
+        raise argparse.ArgumentTypeError("notice id must be a positive integer") from error
+    try:
+        validated = validate_notice_id(notice_id)
+    except ValueError as error:
+        raise argparse.ArgumentTypeError(str(error)) from error
+    assert validated is not None
+    return validated
+
+
+def main(argv: Sequence[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="pre-specification attachment worker")
     parser.add_argument("--once", action="store_true", help="claim at most one row and exit")
-    args = parser.parse_args()
+    parser.add_argument(
+        "--notice-id",
+        type=_positive_notice_id,
+        help="with --once, claim only an attachment owned by this notice",
+    )
+    args = parser.parse_args(argv)
+    if args.notice_id is not None and not args.once:
+        parser.error("--notice-id requires --once")
 
     settings = get_settings()
     configure(settings)
@@ -104,6 +132,7 @@ def main() -> None:
                             connectors=connectors,
                             lease_seconds=settings.prespec_attachment_lease_seconds,
                             clamav_checker=scanner.scan,
+                            notice_id=args.notice_id,
                         )
                     except Exception:
                         session.rollback()

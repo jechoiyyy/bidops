@@ -1,0 +1,47 @@
+{
+  "notice_id": 179,
+  "title": "2027년 한부모가족 혼인정보 연계시스템 운영 및 유지관리",
+  "attachment_id": 264,
+  "filename": "제안요청서_2027년 한부모가족 혼인정보 연계시스템 운영 및 유지관리(수정).hwpx",
+  "source_sha256": "d62ee1f0bee0039ab4e741f099f76680bb2d607a791f9389dece287aa2aa439c",
+  "source_bytes": 388356,
+  "document_version_id": "0ba69e7a-6769-4151-83e3-0dc2b5b0f640",
+  "fetch_status": "완료",
+  "queue_before": 264,
+  "queue_after": 264,
+  "changed_rows": 1,
+  "untouched_other_rows": 263,
+  "failed_rows_preserved": true,
+  "snapshot_status": "prepared",
+  "model_calls": 2,
+  "global_automation_enabled": false,
+  "snapshot": {
+    "status": "prepared",
+    "notice_id": 179,
+    "document_version_id": "0ba69e7a-6769-4151-83e3-0dc2b5b0f640",
+    "filename": "제안요청서_2027년 한부모가족 혼인정보 연계시스템 운영 및 유지관리(수정).hwpx",
+    "role": "제안요청서",
+    "snapshot_id": "caa6ed5e-e316-4fbd-8cf4-93dd0634f61f",
+    "pdf_page_count": 80,
+    "source_sha256": "d62ee1f0bee0039ab4e741f099f76680bb2d607a791f9389dece287aa2aa439c",
+    "pdf_sha256": "eb394a414704b70de1e23d264df4a61a50b38c0aea3c3fdc3232a7a7c5896bcb",
+    "page_text_sha256": "be0166fa3c6b8276be334e7c6e3a706d86e5aa8d259f35f6af619ac51257bf6c",
+    "binding_sha256": "b2f24ded4635e598da0fa150ea8e9c8bbb298a667cacf925cd6099ee412e12a3",
+    "model_calls": 0
+  },
+  "approved_pages": [
+    4
+  ],
+  "proposed_pages": [
+    4
+  ],
+  "proposal_reason": "page4 visual match; page5 visual rendering and text-layer discrepancy excluded",
+  "native_arm_image": "sha256:38bdf3907df13b527beb51b63cd4eb69e359a4df4b4944bb2bd2861dcb3e9291",
+  "prior_rosetta_snapshot_failure": {
+    "snapshot_error": "pdf_preparation_failed:conversion_required",
+    "native_export_exit": -6,
+    "native_export_failure_class": "memory allocation failure",
+    "failed_allocation_bytes": 524288
+  },
+  "overview_run_id": "ff144ffa-7495-4672-99ae-7a2e27a67c1d"
+}

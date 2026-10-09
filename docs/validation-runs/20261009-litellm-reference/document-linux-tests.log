@@ -1,0 +1,80 @@
+................................................................F....... [ 39%]
+........................................................................ [ 78%]
+....F..................................                                  [100%]
+=================================== FAILURES ===================================
+____________ test_font_manifest_changes_when_same_path_bytes_change ____________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7ffff9911f70>
+tmp_path = PosixPath('/tmp/pytest-of-bidops/pytest-0/test_font_manifest_changes_whe0')
+
+>   ???
+
+/Users/temp/orca/bidops/.sdlc/worktrees/batch-demo00-20261007/web/backend/tests/deep_review/test_document_mcp.py:1000: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+options = ProcessorOptions(timeout_seconds=30.0, max_output_bytes=20971520, max_archive_files=512, max_archive_depth=2, max_arch...12, max_pdf_objects=4096, max_blocks=100000, render_pages=False, prepare_pdf=False, renderer='rhwp-svg-pdf', ocr=False)
+deadline = None
+
+    def _font_manifest_sha256(options: ProcessorOptions, deadline: float | None) -> str:
+        """Fingerprint installed font *bytes*, rather than fc-list labels/paths."""
+    
+        executable = shutil.which("fc-list")
+        if not executable:
+            raise DocumentProcessingError("converter_unavailable", "PDF 글꼴 manifest를 확인할 수 없습니다", source_preserved=True)
+        try:
+            timeout = float(options.timeout_seconds)
+            if deadline is not None:
+                timeout = min(timeout, deadline - time.monotonic())
+            if timeout <= 0:
+                raise DocumentProcessingError("timeout", "PDF 글꼴 확인 시간이 제한을 초과했습니다", source_preserved=True)
+            returncode, stdout, _stderr = _run_limited_subprocess(
+                [executable, ":", "family", "file"],
+                cwd=str(Path(executable).parent),
+                env=_child_environment(executable),
+                timeout=timeout,
+                output_limit=256 * 1024,
+                preexec_fn=_resource_limiter(options.max_output_bytes),
+            )
+        except _ChildTimeout as exc:
+            raise DocumentProcessingError("timeout", "PDF 글꼴 확인 시간이 제한을 초과했습니다", source_preserved=True) from exc
+        except _ChildOutputLimit as exc:
+            raise DocumentProcessingError("output_size_limit", "PDF 글꼴 manifest 크기 제한을 초과했습니다", source_preserved=True) from exc
+        except (OSError, subprocess.SubprocessError) as exc:
+            raise DocumentProcessingError("converter_unavailable", "PDF 글꼴 manifest를 확인할 수 없습니다", source_preserved=True) from exc
+        if returncode != 0 or not stdout:
+>           raise DocumentProcessingError("converter_unavailable", "PDF 글꼴 manifest를 확인할 수 없습니다", source_preserved=True)
+E           app.deep_review.document_mcp.errors.DocumentProcessingError: PDF 글꼴 manifest를 확인할 수 없습니다
+
+app/deep_review/document_mcp/processor.py:160: DocumentProcessingError
+___ test_fetch_fixture_completes_with_provider_filename[header.hwp-fixture1] ___
+
+db_session = <sqlalchemy.orm.session.Session object at 0x7ffff84774a0>
+tmp_path = PosixPath('/tmp/pytest-of-bidops/pytest-0/test_fetch_fixture_completes_w1')
+filename = 'header.hwp'
+fixture = PosixPath('/app/web/backend/tests/fixtures/documents/labor_template.hwp')
+
+>   ???
+E   AssertionError: assert (<app.deep_review.models.AttachmentFetch object at 0x7ffff878bdd0> is not None and '차단' == '완료'
+E     
+E     - 완료
+E     + 차단)
+
+/Users/temp/orca/bidops/.sdlc/worktrees/batch-demo00-20261007/web/backend/tests/app/test_prespec_attachment_fetch.py:651: AssertionError
+=============================== warnings summary ===============================
+app/deep_review/schemas/document_bundles.py:115
+  /app/web/backend/app/deep_review/schemas/document_bundles.py:115: UserWarning: Field name "schema" in "DocumentStructure" shadows an attribute in parent "StrictModel"
+    class DocumentStructure(StrictModel):
+
+app/deep_review/schemas/document_bundles.py:224
+  /app/web/backend/app/deep_review/schemas/document_bundles.py:224: UserWarning: Field name "schema" in "SegmentExtractorBinding" shadows an attribute in parent "StrictModel"
+    class SegmentExtractorBinding(StrictModel):
+
+app/deep_review/schemas/document_bundles.py:232
+  /app/web/backend/app/deep_review/schemas/document_bundles.py:232: UserWarning: Field name "schema" in "DocumentSegmentsView" shadows an attribute in parent "StrictModel"
+    class DocumentSegmentsView(StrictModel):
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/deep_review/test_document_mcp.py::test_font_manifest_changes_when_same_path_bytes_change
+FAILED tests/app/test_prespec_attachment_fetch.py::test_fetch_fixture_completes_with_provider_filename[header.hwp-fixture1]
+2 failed, 181 passed, 3 warnings in 6.25s
