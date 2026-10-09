@@ -1,0 +1,19 @@
+{
+  "approved": true,
+  "approval_source": "user reply call_34eb92ba91814df88ecf725f1de45d2b",
+  "recorded_at": "2026-10-09T03:51:58.622374+00:00",
+  "notice_id": 179,
+  "snapshot_id": "caa6ed5e-e316-4fbd-8cf4-93dd0634f61f",
+  "pages": [
+    4
+  ],
+  "characters": 779,
+  "model": "local-agent-main",
+  "max_runs": 1,
+  "max_calls": 3,
+  "max_output_tokens_per_call": 16384,
+  "timeout_seconds_per_call": 300,
+  "company_material_included": false,
+  "preview_sha256": "254f749f5dd3ac705ea51bf8b3bdd1582921aa6e62e60404ac376bec52717471",
+  "policy_sha256": "a12f8ad142fbc8c84be80b1261520296fbb6aa0f595a25b0e444c89a61220501"
+}

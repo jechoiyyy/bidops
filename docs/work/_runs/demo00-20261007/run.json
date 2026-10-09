@@ -1,11 +1,11 @@
 {
   "id": "demo00-20261007",
-  "state": "implementing",
+  "state": "awaiting_merge",
   "features": [
     "DEMO-00-luna-preflight"
   ],
   "target": "main",
-  "base_sha": "d12df664b27f28efab1825281567d9bf1b6f9981",
+  "base_sha": "d75499594977555b1fecd44870e6c14a22796823",
   "base_root": "/Users/temp/orca/bidops",
   "branch": "sdlc/batch-demo00-20261007",
   "workspace": "/Users/temp/orca/bidops/.sdlc/worktrees/batch-demo00-20261007",
@@ -26,27 +26,45 @@
     "merge_policy": "manual"
   },
   "specs": {
-    "DEMO-00-luna-preflight": "6a6c2b91a760244b809a48f20501e84362a90520afaf7f82ae75f717c78fbd4e"
+    "DEMO-00-luna-preflight": "324203a69dd8616fcbccf0384bd050a1a2ef8e416203137e2bdd590dd9786e2d"
   },
-  "ready": {},
+  "ready": {
+    "DEMO-00-luna-preflight": {
+      "inputs": {
+        "source_hash": "eeb7dbdf770d6b095fd3fdd50f7dcbf3ebcba575059e99acfa6636967b15beca",
+        "spec_hash": "324203a69dd8616fcbccf0384bd050a1a2ef8e416203137e2bdd590dd9786e2d"
+      },
+      "at": "2026-10-09T13:26:24+09:00"
+    }
+  },
   "decisions": [
     {
       "feature": "DEMO-00-luna-preflight",
       "note": "승인 spec이 STEP-002에 위임한 고유 식별 필드를 policy_identity로 확정. 기존 승인 범위 불변, independent review-02 로컬 PASS",
       "at": "2026-10-08T17:14:40+09:00"
+    },
+    {
+      "feature": "DEMO-00-luna-preflight",
+      "note": "사용자 지금 상황에 맞게 수정해서 진행 요청. 운영1489 선행을 로컬 준비 증거로 변경하고 실제 Luna 인수를 DEMO03 STEP007/DEMO05로 보존. 이전 커밋/main 반영 요청에 따라 수동 통합, DEMO01 이후는 별도 데모 브랜치.",
+      "at": "2026-10-09T13:22:56+09:00"
+    },
+    {
+      "feature": "DEMO-00-luna-preflight",
+      "note": "모델 태그 파서 형식 수정; 승인된 2026-10-09 로컬 재계획 범위 불변",
+      "at": "2026-10-09T13:23:25+09:00"
     }
   ],
   "review": {
     "result": "pass",
-    "evidence": "docs/work/_runs/demo00-20261007/review-02.md",
+    "evidence": "docs/work/_runs/demo00-20261007/review-local-replan.md",
     "model": "gpt-5.6-sol",
     "effort": "high",
     "independent": true,
-    "at": "2026-10-08T18:52:13+09:00",
+    "at": "2026-10-09T13:26:23+09:00",
     "inputs": {
       "DEMO-00-luna-preflight": {
-        "source_hash": "b10b1f2c81f286e2b0564edec8c0b3f543494f87a6e61a582c6c162ca05b29b1",
-        "spec_hash": "6a6c2b91a760244b809a48f20501e84362a90520afaf7f82ae75f717c78fbd4e"
+        "source_hash": "eeb7dbdf770d6b095fd3fdd50f7dcbf3ebcba575059e99acfa6636967b15beca",
+        "spec_hash": "324203a69dd8616fcbccf0384bd050a1a2ef8e416203137e2bdd590dd9786e2d"
       }
     }
   }

@@ -1,7 +1,7 @@
 {
-  "captured_at": "2026-10-06",
+  "captured_at": "2026-10-09",
   "source_kind": "working_tree",
-  "base_commit": "58aa0f6433a74947c0ba1a54ffe613d3585ffd54",
+  "base_commit": "d75499594977555b1fecd44870e6c14a22796823",
   "files": [
     {
       "path": "AGENTS.md",
@@ -17,11 +17,11 @@
     },
     {
       "path": "docs/contracts.md",
-      "sha256": "88df291148bd844ae343f325d499915ac51a548e6a29b60fdb0c38cde9daee26"
+      "sha256": "39b47670f3b3e8c809f66c923e7c8212e20bb809ca11f253d61588be71312dee"
     },
     {
       "path": "docs/operations.md",
-      "sha256": "52193b0f43ebdceef45afc46710b21c7d88cb7341795db852d5cb74fefe590dc"
+      "sha256": "6898822c63ddf2f756fe4983c4486ab80cb5ca1b1bf04b6324b334d53f509501"
     },
     {
       "path": "web/backend/AGENTS.md",
@@ -33,19 +33,19 @@
     },
     {
       "path": "docs/work/constitution/mission.md",
-      "sha256": "c5c071704ea27fcc357d9f1737bc08d169d96a9dd0a5a5c6083a37ceae8be77c"
+      "sha256": "5dba2721c7b52be5c261b1863e17da87f9d5e1a6abaf5bc3ffa6f65aa300afd9"
     },
     {
       "path": "docs/work/constitution/tech-stack.md",
-      "sha256": "e6f2fd1523b3f8d94f40f816bc1f99abf4571fb7c07061c977209cecd6aef3f0"
+      "sha256": "e314a607fb52d540178be44598de1faaa2240e3fae89aa6894cd5973f0f027a6"
     },
     {
       "path": "docs/work/constitution/roadmap.md",
-      "sha256": "c6b3b79cffd468b839781b94a4754ecf9c9625d013070aaf8dc8c8a3485dc359"
+      "sha256": "fe2495610af90cf71659d27b569c9269b275338b725a820ebfff2d89e9364d3f"
     },
     {
       "path": "docs/ARCHITECTURE.md",
-      "sha256": "7a429badccce48bff7a04e4257c1815076e94cb40e52cb4d81396795fcd2c80e"
+      "sha256": "dcf52a38020ef8f8d12d9f62ea8cee4d43b7182b8e84edc4ecf66bae4e26364e"
     },
     {
       "path": "docs/PRD.md",
@@ -57,14 +57,14 @@
     },
     {
       "path": "docs/work/demo-contract.md",
-      "sha256": "63856cbd293412460b46925cc81af542ffe2a3ef9926bf19ca60dba6bcc43646"
+      "sha256": "347dcae404cd620cfdc2530cbb82c20fb831b0d88e268560c6363e5535566bf4"
     },
     {
       "path": "docs/tracking/decisions/0070-multi-company-knowledge-demo.md",
-      "sha256": "028d2a9165029c207a2af799aa5820a30bccd839f801f9b9d7f141293d156ac4"
+      "sha256": "cebb542a440726d60f05775bf056da92d9481df46cd3d42677b855320fd138da"
     }
   ],
   "notes": [
-    "2026-10-06 재계획 개정 후 재측정: docs/work/constitution/mission.md, docs/work/constitution/tech-stack.md, docs/work/constitution/roadmap.md, docs/work/demo-contract.md, docs/tracking/decisions/0070-multi-company-knowledge-demo.md"
+    "2026-10-09 로컬 구현 재계획 후 재측정: 공통 3문서, DEMO 계약, ADR-0070, 현재 LiteLLM 관련 ARCHITECTURE/contracts/operations 변경을 포함한다."
   ]
 }

@@ -1,0 +1,22 @@
+{
+  "tests": [
+    {
+      "file": "tests/core/test_model_client.py",
+      "passed": 102,
+      "skipped": 0
+    },
+    {
+      "file": "tests/deep_review/test_prespec_overview_claim_validation.py",
+      "passed": 96,
+      "skipped": 0
+    },
+    {
+      "file": "tests/deep_review/test_overview_runs.py",
+      "passed": 33,
+      "skipped": 0
+    }
+  ],
+  "postgres": "not_applicable: no DB or REST response shape changed",
+  "frontend": "not_applicable: no frontend change",
+  "live_inference": "passed: one approved synthetic JSON call, max64 tokens, no retries; not overview quality evidence"
+}

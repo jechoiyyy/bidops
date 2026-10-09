@@ -5,7 +5,8 @@
 Python/FastAPI/SQLAlchemy/Alembic, PostgreSQL 17, versioned MinIO, ClamAV,
 React/TypeScript/TanStack Query, Astryx 0.5.2와 프로젝트 bidops 테마를 유지한다.
 문서 변환기는 기존 격리 worker, 분석은 기존 합성 worker의 슬롯 1개를 사용한다.
-개요·회사 핏은 승인 사설 vLLM, 심층은 승인된 Luna codex-exec 참조 경로다.
+로컬 개요·회사 핏은 OpenAI 호환 LiteLLM의 승인 별칭 `local-agent-main`, 심층은 승인된 Luna `codex-exec` 참조 경로다.
+두 transport와 용도별 설정·정책·승인 경계를 합치지 않는다.
 
 ## DEMO 목표 설계
 회사 식별·추적은 lifecycle, 프로필·그래프·회사별 분석은 deep_review가 소유한다.
@@ -15,8 +16,9 @@ PostgreSQL 노드·관계·버전과 기존 근거 저장소를 연결한다. �
 새 API namespace는 /api/companies이며 기존 경로의 wire 의미는 유지한다.
 2026-10-06 재계획: 멱등성은 body request_id+core IdempotencyRecord, 심층 승인은 기존 DeepReviewPreview/Approval, 핏은 worker 역할 CLI enqueue다.
 DB 권한은 migration이 아니라 scripts/runtime-privileges.sql이 정본이다. Luna 승인 정책은 이미지 파일과 `_approved_policy_path` 매핑으로만 인정된다.
-DEMO-00만 main·운영 배포 대상이고 DEMO-01~05는 데모 브랜치 전용이다. 격리 데모의 로컬 LLM은 운영과 같은 qwen3.8-27B를 사용자가 제공하는 엔드포인트로 쓰고,
-Codex 인증은 운영과 같은 계정 파일을 운영 Luna와 겹치지 않게 순차로 쓴다.
+DEMO-00은 현재 run을 수동으로 main에 통합하고, DEMO-01~05는 그 main에서 분기한 데모 브랜치와 `COMPOSE_PROJECT_NAME=bidops-local` 격리 자원에서 진행한다. 운영 배포는 하지 않는다.
+2026-10-09 확인한 LiteLLM 별칭은 `local-agent-main`, 선언 입력 상한은 32,768 tokens다. 별칭 뒤 upstream 모델이나 revision은 metadata로 확인되지 않으면 추정하지 않는다.
+Codex 인증은 Luna 심층 요청 단계에서만 기존 승인 경로로 사용하고 다른 Luna 실행과 겹치지 않게 순차로 쓴다. 운영 반영은 이 로컬 구현·인수와 분리한다.
 
 ## 강제 기준과 실행용 복사
 feature.json constraints는 AGENTS.md, standards, business-rules, contracts, operations,
@@ -36,4 +38,4 @@ UI는 production build와 해당 화면의 1280×800·1440×900 의미/구조 �
 ## SDLC
 설정/큐/상태는 docs/work, CLI는 python3 scripts/feature_status.py <command> <ID> 순서다.
 standard=gpt-6-luna/max, complex 및 독립 review=gpt-5.6-sol/high.
-commit/merge는 manual, push/브랜치 삭제는 요청 때만 한다. 구현 배치는 별도 loop에서 시작한다.
+commit/merge는 manual, push/브랜치 삭제는 요청 때만 한다. 현재 DEMO-00 run의 변경 명세를 수용하고 수동 commit·merge한 뒤 후속 기능 run을 시작한다.

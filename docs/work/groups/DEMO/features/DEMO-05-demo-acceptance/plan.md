@@ -6,11 +6,11 @@
 
 ## 변경 파일
 
-경로는 저장소 루트 기준. 이 기능은 migration을 만들지 않는다. 기준 브랜치는 데모 브랜치이며 운영에 배포하지 않는다.
+경로는 저장소 루트 기준. 이 기능은 migration을 만들지 않는다. 기준은 별도 데모 브랜치와 `bidops-local`이며 main이나 운영에 반영하지 않는다.
 
 | 경로 | 신규/수정 | 내용 |
 |---|---|---|
-| docker-compose.demo.yml | 신규 | 데모 flag·전용 자원·`!override` volumes·fixture 일회성 마운트 |
+| docker-compose.demo.yml | 신규 | 데모 flag·`bidops-local` 전용 자원·`!override` volumes·fixture 일회성 마운트 |
 | .gitignore | 수정 | `data/demo/` 추가 |
 | scripts/prepare-company-demo.sh | 신규 | preflight/dry-run·storage/migrate/companies/notices 명시 단계 |
 | scripts/verify-company-demo.py | 신규 | read-only API/manifest 인수 검사 |
@@ -26,15 +26,15 @@
 
 1. STEP-001 격리 환경과 도구 [complex]
    - 목표: 격리 환경과 도구의 수용 조건을 충족한다.
-   - 작업 대상: Compose/secret/volume/dry-run·fake 계약·엔드포인트 미제공 blocked·data/demo gitignore.
+   - 작업 대상: 기존 `bidops-local` Compose/secret/volume/dry-run·fake 계약·LiteLLM 별칭/용량 preflight·data/demo gitignore.
    - 검증: spec T1,T2,T7; 아래 명령과 해당 단계 증거.
 2. STEP-002 표본과 회사 입력 동결 [standard]
    - 목표: 표본과 회사 입력 동결의 수용 조건을 충족한다.
-   - 작업 대상: 최근 사전규격 후보·G2B 첨부 재취득 확인·6건 데모 회차 적재·별칭 1회 보강과 3사 재등록·활성화·manifest(first_deep_review_notice_id).
+   - 작업 대상: 2026-10-06~08 실제 corpus의 정규 run ID·source hash 동결, 그 안의 6건 선택·G2B 첨부 확인·별칭 1회 보강과 3사 재등록·활성화·manifest(first_deep_review_notice_id).
    - 검증: spec T3; 아래 명령과 해당 단계 증거.
 3. STEP-003 실제 모델 결과 인수 [complex]
    - 목표: 실제 모델 결과 인수의 수용 조건을 충족한다.
-   - 작업 대상: 핏 18 enqueue·심층 건별 승인·첫3(demo_ready)→9·read-only verify·운영 Luna와 순차 사용.
+   - 작업 대상: LiteLLM `local-agent-main` 핏 18 enqueue·Luna 심층 건별 승인·첫3(demo_ready)→9·read-only verify·다른 Luna 실행과 순차 사용.
    - 검증: spec T4,T5,T7; 아래 명령과 해당 단계 증거.
 4. STEP-004 담당자 인수·운영 절차 [standard]
    - 목표: 담당자 인수·운영 절차의 수용 조건을 충족한다.
@@ -76,9 +76,9 @@ overview=true가 필요한 사례만 fixture에서 설정한다.
 | 위험 | 징후 | 대응 |
 |---|---|---|
 | 연결만 성공·보고서 미완료 | 9개 보고서 부족/검증 미실시/근거 오류 | 실패 보존·선행 기능 수정·승인된 재실행; mock 대체 금지. 최소 기준(demo_ready)과 목표를 구분해 보고 |
-| 로컬 LLM 엔드포인트 지연 | preflight model_endpoint_missing | 개요·핏 단계 대기, 일정 영향을 바로 보고 |
-| 같은 Codex 인증 동시 사용 | 운영·데모 Luna가 겹침 | 순차 실행, 실행 시각 기록 |
-| 마감 7200초·단일 슬롯 | 보고서당 최대 2시간 | 첫 3건을 먼저 돌려 demo_ready를 확보한 뒤 나머지 |
+| LiteLLM metadata/별칭 불일치 | preflight model_binding_invalid | 호출 전에 중지하고 별칭·입력 상한·확인 가능한 revision을 다시 대조 |
+| 같은 Codex 인증 동시 사용 | 다른 Luna 실행과 겹침 | 순차 실행, 실행 시각 기록 |
+| 마감 18000초·단일 슬롯 | 보고서당 장시간 실행 | 첫 3건을 먼저 돌려 demo_ready를 확보한 뒤 나머지 |
 | 범위 확장 | 후속 구현/운영 호출을 현재 완료로 표시 | 기능별 수용 조건과 실제 증거를 분리 |
 
 ## 증명

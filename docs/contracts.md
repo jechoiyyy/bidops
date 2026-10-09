@@ -552,7 +552,11 @@ migration 0021/0023/0024)과 주장 결정적 검증 함수는 그대로 유지�
   플래그가 `false`면 완화 없이 기존 등급 규칙만 적용한다.
 - `BIDOPS_PRESPEC_OVERVIEW_POLICY_PATH`(기본 `app/deep_review/policies/prespec-overview-policy-v7.json`).
   v7은 개요를 **앞부분 요약 세 절**로 좁힌다([ADR-0057](tracking/decisions/0057-overview-scope-and-company-fit-in-deep-review.md)).
-  loader는 v7과 불변 `prespec-overview-policy-v8.json`을 명시적으로 읽는다. v8은 같은 세 절과
+  loader는 v7, 불변 `prespec-overview-policy-v8.json`, 로컬 LiteLLM 참조용
+  `prespec-overview-policy-v7-litellm-v1.json`의 exact identity만 읽는다. LiteLLM 정책은 v7에서
+  `model_name=local-agent-main`, `model_endpoint_ref=litellm-openai-compatible`,
+  `prompt_version=prespec-overview-v7-litellm-v1`만 다르고 schema·generation·검증·한도는 같다.
+  기본 경로나 전역 모델 설정을 바꾸지 않으며 로컬 참조 실행에서 경로로 명시 선택한다. v8은 같은 세 절과
   예비 판단을 통합 생성하지만 기본 경로가 아니며 품질 비교·migration·배포·정책 변경 승인 전에는
   운영 활성 정책으로 보지 않는다. v6 파일은 기존 run 기록으로만 남는다.
 

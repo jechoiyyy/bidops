@@ -2,6 +2,7 @@
 from copy import deepcopy
 import hashlib
 import json
+from pathlib import Path
 from uuid import uuid4
 
 import pytest
@@ -565,6 +566,42 @@ def test_policy_has_stage_contracts_and_does_not_enlarge_existing_context():
         assert stage_policy["chunking"] == {"retries": 0, "timeout_seconds": 300}
         assert stage_policy["generation"]["max_completion_tokens"] == 16384
         assert policy.structured_output_contract(stage).schema == stage_policy["output_schema"]
+
+
+def test_litellm_policy_is_an_exact_v7_copy_with_an_allowlisted_identity(tmp_path):
+    policy_dir = Path(__file__).resolve().parents[2] / "app/deep_review/policies"
+    v7_path = policy_dir / "prespec-overview-policy-v7.json"
+    v8_path = policy_dir / "prespec-overview-policy-v8.json"
+    litellm_path = policy_dir / "prespec-overview-policy-v7-litellm-v1.json"
+    v7 = v7_path.read_text(encoding="utf-8")
+    expected = v7.replace('"model_name": "qwen3.8-27B"', '"model_name": "local-agent-main"')
+    expected = expected.replace('"model_endpoint_ref": "vllm-openai-compatible"', '"model_endpoint_ref": "litellm-openai-compatible"')
+    expected = expected.replace('"prompt_version": "prespec-overview-v7"', '"prompt_version": "prespec-overview-v7-litellm-v1"')
+
+    assert litellm_path.read_text(encoding="utf-8") == expected
+    assert hashlib.sha256(v7_path.read_bytes()).hexdigest() == "bb5a17884752ddc9b413974da2775c990ce8b3b74d5da38f322edbd9d208a9da"
+    assert hashlib.sha256(v8_path.read_bytes()).hexdigest() == "2b3e8667c88991cf0814ddcfe54b4964335a0b8076afc52b74e36590e1f8012c"
+
+    policy = load_claims_policy(litellm_path)
+    assert (
+        policy.document["schema"],
+        policy.document["model_name"],
+        policy.document["model_endpoint_ref"],
+        policy.document["prompt_version"],
+    ) == (
+        "bidops.prespec-overview-policy.v7",
+        "local-agent-main",
+        "litellm-openai-compatible",
+        "prespec-overview-v7-litellm-v1",
+    )
+    assert policy.document["limits"] == LIMITS
+
+    unapproved = deepcopy(policy.document)
+    unapproved["model_name"] = "another-litellm-alias"
+    unapproved_path = tmp_path / "unapproved-policy.json"
+    unapproved_path.write_text(json.dumps(unapproved), encoding="utf-8")
+    with pytest.raises(ValueError, match="overview_policy_invalid"):
+        load_claims_policy(unapproved_path)
 
 
 def test_semantic_contract_pins_checks_to_this_runs_claim_count():

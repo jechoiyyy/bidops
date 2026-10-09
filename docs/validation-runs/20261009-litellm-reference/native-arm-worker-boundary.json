@@ -1,0 +1,40 @@
+[
+  {
+    "name": "/bidops-local-document-worker-1",
+    "image_id": "sha256:38bdf3907df13b527beb51b63cd4eb69e359a4df4b4944bb2bd2861dcb3e9291",
+    "running": true,
+    "user": "bidops:bidops",
+    "network": "none",
+    "memory": 1073741824,
+    "pids": 128,
+    "cap_drop": [
+      "ALL"
+    ],
+    "security_opt": [
+      "no-new-privileges:true"
+    ],
+    "application_credential_env_names": [],
+    "public_base_image_metadata_names": [
+      "GPG_KEY"
+    ]
+  },
+  {
+    "name": "/bidops-local-document-worker-2",
+    "image_id": "sha256:38bdf3907df13b527beb51b63cd4eb69e359a4df4b4944bb2bd2861dcb3e9291",
+    "running": true,
+    "user": "bidops:bidops",
+    "network": "none",
+    "memory": 1073741824,
+    "pids": 128,
+    "cap_drop": [
+      "ALL"
+    ],
+    "security_opt": [
+      "no-new-privileges:true"
+    ],
+    "application_credential_env_names": [],
+    "public_base_image_metadata_names": [
+      "GPG_KEY"
+    ]
+  }
+]

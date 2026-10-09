@@ -46,7 +46,8 @@
 - 문서 변경은 diff/문서 검사만, 제품 변경은 직접 영향 검사만 실행하고 성공 후 반복하지 않는다.
 - 운영 변경·실제 모델 호출은 직전 확인 대상이며 문서화 승인을 실행 승인으로 사용하지 않는다.
 - 사용자 요청 없이 commit·merge·push·브랜치 삭제하지 않는다.
-- DEMO-01~05는 데모 브랜치 전용이며 운영에 배포하지 않는다. main·운영 배포 대상은 DEMO-00 Luna v4뿐이다(ADR-0070 개정).
+- DEMO-01~05는 DEMO-00이 통합된 main에서 분기한 데모 브랜치와 `bidops-local`에서만 구현·검증한다. main 병합·운영 전환은 별도다(ADR-0070 2026-10-09 개정).
+- LiteLLM 개요·핏과 Luna 심층검토의 transport·정책·승인·품질 증거를 분리한다.
 - 새 DB 테이블·열 권한은 scripts/runtime-privileges.sql에 등록하고 migration에 GRANT를 쓰지 않는다.
 
 - 기준 출처/hash: [source-baseline](../../../../source-baseline.json).

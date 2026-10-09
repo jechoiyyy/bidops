@@ -7,7 +7,7 @@
       "id": "STEP-001",
       "title": "격리 환경과 도구",
       "model": "complex",
-      "fingerprint": "bf896ff3e4f610683092ec179c48ac571c31072d08703e57a8b3fe363ba70977",
+      "fingerprint": "4ae7b3e3c3b005430aef043660b6913a706a233841fd2b12dbccab387611ee83",
       "status": "stale",
       "updated_at": null,
       "history": [
@@ -18,6 +18,24 @@
           "fingerprint": "a282354553bfa55f6564ed0bb35e5b3119953caeeba006d3349c5af55225840e",
           "status": "pending",
           "updated_at": null
+        },
+        {
+          "id": "STEP-001",
+          "title": "격리 환경과 도구",
+          "model": "complex",
+          "fingerprint": "bf896ff3e4f610683092ec179c48ac571c31072d08703e57a8b3fe363ba70977",
+          "status": "stale",
+          "updated_at": null,
+          "history": [
+            {
+              "id": "STEP-001",
+              "title": "격리 환경과 도구",
+              "model": "complex",
+              "fingerprint": "a282354553bfa55f6564ed0bb35e5b3119953caeeba006d3349c5af55225840e",
+              "status": "pending",
+              "updated_at": null
+            }
+          ]
         }
       ]
     },
@@ -25,7 +43,7 @@
       "id": "STEP-002",
       "title": "표본과 회사 입력 동결",
       "model": "standard",
-      "fingerprint": "801bf4e4b952a7abc1f3a84a63d9db993136590c26e490851ebcee719e9843e8",
+      "fingerprint": "959862f358cad26ff92f6612466550efb4ee0d753727a0128318c482f0c02a52",
       "status": "stale",
       "updated_at": null,
       "history": [
@@ -36,6 +54,24 @@
           "fingerprint": "2924455a7a15578dcc6e58fc37de4634f613b7b46ac9c190a62fd2f056488b68",
           "status": "pending",
           "updated_at": null
+        },
+        {
+          "id": "STEP-002",
+          "title": "표본과 회사 입력 동결",
+          "model": "standard",
+          "fingerprint": "801bf4e4b952a7abc1f3a84a63d9db993136590c26e490851ebcee719e9843e8",
+          "status": "stale",
+          "updated_at": null,
+          "history": [
+            {
+              "id": "STEP-002",
+              "title": "표본과 회사 입력 동결",
+              "model": "standard",
+              "fingerprint": "2924455a7a15578dcc6e58fc37de4634f613b7b46ac9c190a62fd2f056488b68",
+              "status": "pending",
+              "updated_at": null
+            }
+          ]
         }
       ]
     },
@@ -43,7 +79,7 @@
       "id": "STEP-003",
       "title": "실제 모델 결과 인수",
       "model": "complex",
-      "fingerprint": "7b2d999e043078e87c3a074904ab89faadaa3e26a72569355cf0020aaac87a81",
+      "fingerprint": "1434b3d6157f2e1e7dad2360046a82795508785a33bfc4905c160c74e84d91ed",
       "status": "stale",
       "updated_at": null,
       "history": [
@@ -54,6 +90,24 @@
           "fingerprint": "ce571fec2bade85ee6426e8d0714e94330c811ba6b86d15dc212d7357c32b255",
           "status": "pending",
           "updated_at": null
+        },
+        {
+          "id": "STEP-003",
+          "title": "실제 모델 결과 인수",
+          "model": "complex",
+          "fingerprint": "7b2d999e043078e87c3a074904ab89faadaa3e26a72569355cf0020aaac87a81",
+          "status": "stale",
+          "updated_at": null,
+          "history": [
+            {
+              "id": "STEP-003",
+              "title": "실제 모델 결과 인수",
+              "model": "complex",
+              "fingerprint": "ce571fec2bade85ee6426e8d0714e94330c811ba6b86d15dc212d7357c32b255",
+              "status": "pending",
+              "updated_at": null
+            }
+          ]
         }
       ]
     },
@@ -128,8 +182,16 @@
     {
       "at": "2026-10-06T18:34:12+09:00",
       "text": "단계 → review: 2026-10-06 재계획 독립 검토 통과(차단 0). docs/work/reviews/2026-10-06-replan.md; 제품 구현 미착수"
+    },
+    {
+      "at": "2026-10-09T13:22:56+09:00",
+      "text": "plan 작업 ID 동기화"
+    },
+    {
+      "at": "2026-10-09T13:22:56+09:00",
+      "text": "재검증: 2026-10-09 사용자 요청에 따른 로컬 실제 자료/LiteLLM 재계획; 기존 증거는 변경 범위와 source hash 대조 후 재사용, 실제 Luna는 DEMO-03/05 필수 게이트 유지"
     }
   ],
-  "updated_at": "2026-10-06T18:34:12+09:00",
+  "updated_at": "2026-10-09T13:22:56+09:00",
   "resume_phase": "drafting"
 }

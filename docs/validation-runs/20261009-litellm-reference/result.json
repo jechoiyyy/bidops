@@ -1,0 +1,68 @@
+{
+  "implementation": "complete",
+  "test_counts": {
+    "passed": 231,
+    "skipped": 0
+  },
+  "independent_review": "pass",
+  "real_metadata": {
+    "model": "local-agent-main",
+    "provider": "litellm-openai-compatible",
+    "context_tokens": 32768
+  },
+  "real_synthetic_call": "passed_one_approved_attempt_max64_tokens",
+  "full_document_overview": "not_performed_approved_physical_page4_only",
+  "db_schema_changed": false,
+  "rest_shape_changed": false,
+  "automatic_workers_enabled": false,
+  "commit_merge_push": "not_performed",
+  "local_apply": "complete",
+  "rollback_tag": "before-litellm-local-20261009",
+  "local_health_http_status": 200,
+  "local_prespec_count": 182,
+  "local_runtime_flags": {
+    "overview_dialect": "litellm",
+    "automatic_overview": false,
+    "automatic_deep_review": false
+  },
+  "actual_attachment_preparation": "notice179_ready_immutable80pagePDF_snapshot",
+  "document_delta_tests": {
+    "passed": 155,
+    "failed": 0,
+    "skipped": 0,
+    "execution": "154 unchanged cases passed in initial native ARM run; image-only vendor manifest fix verified by targeted1pass"
+  },
+  "rosetta_product_changes": "removed",
+  "actual_overview_run_id": "ff144ffa-7495-4672-99ae-7a2e27a67c1d",
+  "actual_overview": {
+    "status": "completed",
+    "run_id": "ff144ffa-7495-4672-99ae-7a2e27a67c1d",
+    "physical_pages": [
+      4
+    ],
+    "call_count": 2,
+    "claims": 8,
+    "verification_status": "passed",
+    "quality_status": "unmeasured_reference",
+    "warnings": [
+      "quantity_metadata_mismatch",
+      "quantity_mismatch",
+      "quantity_relation_ambiguous",
+      "quantity_unit_missing"
+    ],
+    "started_at": "2026-10-09T03:53:09.060476+00:00",
+    "completed_at": "2026-10-09T03:56:41.931835+00:00",
+    "quote_offsets_independently_checked": 8,
+    "browser_viewports": [
+      [
+        1280,
+        800
+      ],
+      [
+        1440,
+        900
+      ]
+    ],
+    "browser_errors": 0
+  }
+}

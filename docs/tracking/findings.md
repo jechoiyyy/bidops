@@ -2128,3 +2128,22 @@ runner 소비자가 없어 보류했다. 운영 DB/MinIO 쓰기·migration 적�
   API mock이며 관련 1280/1440 사례, 수동 요청, 범위 확정, 오류·재시도·초안 보호를 포함한다.
   생성된 1280 보고서 캡처도 확인했다. 실제 모델→보고서 종단 성공이나 운영 데이터의
   의미 정확도를 증명하지 않는다. 테스트가 현재 동작을 기대하므로 위 UX 문제는 남는다.
+
+## 2026-10-09 로컬 ARM Mac의 Rosetta 문서 변환 실패
+
+- 실제 3일 공고 회차 `dev-notices-20261006-20261008`에서 notice 40 / attachment 57의 HWP 취득이 `conversion_required`로 차단됐다. 격리 원문 SHA-256은 `ea8c18e7075044249cf267c1d8ebabe2c190843a9f9b021c8de97ea32e4f5d07`이다.
+- 같은 로컬 `linux/amd64` document-worker에서 pinned rhwp 0.8.6 `export-hwpx --verify --verify-pages --json` 직접 진단은 exit 0이다. 제품 `_child_environment`와 `_resource_limiter`를 적용한 같은 명령은 exit -5이고 stderr의 안전 분류는 Rosetta/mmap 오류(57 bytes)다. 문서 손상으로 확정할 근거는 없다. 개별 rlimit 중 원인까지는 분리하지 않았다.
+- 영향: 이 Mac의 x86 에뮬레이션 환경에서는 HWP 변환과 이후 실제 개요 실행을 완료했다고 할 수 없다. 직접 변환된 진단 산출물을 제품에 수동 적재하거나 자원 제한을 해제해 우회하지 않는다. native x86 실행 환경 또는 동일 격리·검증을 갖춘 native ARM 변환기 검증이 후속 방향이다. LiteLLM 연결 수정 범위에서 renderer/보안 경계는 변경하지 않는다.
+- 별도 upstream 자료 문제: notice 27 / attachment 36은 파일명 `.hwp`, 실제 MIME `application/hwp+zip`(116,322 bytes)라서 `mime_mismatch`로 차단됐다. 두 실패의 원문과 행은 보존했고 자동 재시작하지 않았다. 실행 증거는 로컬 `.sdlc/local-runtime/overview-preflight-result.json`이다.
+
+### 같은 날 후속 진단·로컬 복구 진행
+
+- 개별 제한 진단으로 HWP→HWPX 실패를 DATA 상한 512 MiB(Rosetta mmap)로 분리했다. 네트워크 없음·1 GiB cgroup·pids 128·권한 0·NoNewPrivs 조건을 모두 검사하는 로컬 `rosetta` opt-in을 추가했고, native rhwp에만 DATA 768 MiB를 허용한다. 보조 도구는 512 MiB를 유지한다. 기본 설정은 변하지 않았다.
+- 공고 179 / 첨부 264(한부모가족 혼인정보 연계시스템 운영·유지관리)의 실제 HWPX 388,356 bytes는 정규 수집·ClamAV·구조화 경로로 완료됐다. 지정 공고 one-shot 실행 전후 264개 큐 행 중 이 행만 바뀌었으며 기존 차단 2건을 포함한 263개 행은 그대로다. 원문 SHA-256은 `d62ee1f0bee0039ab4e741f099f76680bb2d607a791f9389dece287aa2aa439c`다.
+- 같은 원문의 개요용 PDF export는 768 MiB 환경에서도 메모리 할당 실패(exit -6, 524,288 bytes 할당 실패)로 중단됐다. 구조화 성공을 PDF/개요 완료로 표시하지 않는다. 실제 모델 전송은 0회다. 같은 upstream commit을 사용한 native ARM 격리 워커 빌드를 진행하며, 기본 제한을 추가로 높이지 않는다. 상세는 `docs/validation-runs/20261009-litellm-reference/target179-document.json`과 `plan.md`다.
+
+### Native ARM 후속 결과와 남은 PDF 표시 문제
+
+- 동일 upstream commit의 native ARM worker에서 기본 DATA512MiB를 그대로 사용해 공고179의 정규 PDF snapshot 준비가 성공했다(80쪽). Rosetta 완화 코드는 최종 변경에서 제거했다. 적용된 로컬 이미지와 바인딩은 `docs/validation-runs/20261009-litellm-reference/target179-document.json`에 기록했다.
+- 물리5쪽에서 export-text와 Poppler 텍스트층에는 웹사이트 현황·도메인이 있지만, 직접 렌더링한 화면에는 그 일부가 보이지 않는다. PDF 렌더링/텍스트 표시 불일치이며 모델 문제가 아니다. 전체80쪽의 시각적 정확도를 승인한 것으로 취급하지 않는다. 이 작업은 해당5쪽을 모델 전송에서 제외하고, 시각적으로 대조된4쪽만 개요 검증 후보로 고정했다.
+- 재현: 위 sourceSHA의 snapshotPDF `eb394a414704b70de1e23d264df4a61a50b38c0aea3c3fdc3232a7a7c5896bcb`를 `pdftoppm -f5 -l5 -png`로 렌더하고 `pdftotext -f5 -l5 -layout` 및 동결page-text와 대조한다. 로컬 증거는 `.sdlc/local-runtime/target179/page-05.png`, `page05-poppler.txt`, `snapshot-pages.json`이다. 원본HWPX와 snapshot은 보존했다. 렌더러 레이아웃/가림 분석은 별도 후속 범위이며 텍스트나 PDF를 수동 보정하지 않는다.
