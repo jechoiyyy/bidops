@@ -1,6 +1,6 @@
 {
   "id": "demo01-20261009",
-  "state": "awaiting_merge",
+  "state": "done",
   "features": [
     "DEMO-01-company-context"
   ],
@@ -67,5 +67,13 @@
         "spec_hash": "7b020fc77e4b03eca36abdccf7f3540c1697313fa85eec765c23ed0d69389cd5"
       }
     }
-  }
+  },
+  "merged_sha": "7a0d13b4ce2eb9100a251e82af948dfe459023df",
+  "merged_inputs": {
+    "DEMO-01-company-context": {
+      "source_hash": "88c40813619c686126ed38947bcecf89a5d145defc2e88b608cb622aadbe1809",
+      "spec_hash": "7b020fc77e4b03eca36abdccf7f3540c1697313fa85eec765c23ed0d69389cd5"
+    }
+  },
+  "completed_at": "2026-10-09T14:06:08+09:00"
 }
