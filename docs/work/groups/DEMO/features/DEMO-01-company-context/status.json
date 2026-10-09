@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
   "feature": "DEMO-01-company-context",
-  "phase": "validating",
+  "phase": "done",
   "steps": [
     {
       "id": "STEP-001",
@@ -290,9 +290,13 @@
     {
       "at": "2026-10-09T14:04:26+09:00",
       "text": "단계 → validating: 4/4 구현·인수 완료; 독립 최종 리뷰와 데모 기준 브랜치 통합 기록 중"
+    },
+    {
+      "at": "2026-10-09T14:06:08+09:00",
+      "text": "단계 → done: 배치 검증 및 통합 완료"
     }
   ],
-  "updated_at": "2026-10-09T14:05:28+09:00",
+  "updated_at": "2026-10-09T14:06:08+09:00",
   "resume_phase": "drafting",
   "proof_history": [
     {
@@ -331,5 +335,11 @@
         "result": "pending"
       }
     }
-  ]
+  ],
+  "integration": {
+    "run": "demo01-20261009",
+    "revision": "7a0d13b4ce2eb9100a251e82af948dfe459023df",
+    "source_hash": "88c40813619c686126ed38947bcecf89a5d145defc2e88b608cb622aadbe1809",
+    "spec_hash": "7b020fc77e4b03eca36abdccf7f3540c1697313fa85eec765c23ed0d69389cd5"
+  }
 }
