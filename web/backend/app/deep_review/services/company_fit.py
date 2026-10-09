@@ -205,7 +205,9 @@ def validate_result(output: Any, inputs: dict[str, Any]) -> CompanyFitPayload:
 def latest_attempts(session: Session, notice_ids: Sequence[int]) -> dict[int, PreSpecCompanyFitAttempt]:
     result = {}
     if notice_ids:
-        for row in session.scalars(select(PreSpecCompanyFitAttempt).where(PreSpecCompanyFitAttempt.notice_id.in_(notice_ids))
+        for row in session.scalars(select(PreSpecCompanyFitAttempt).where(
+                                      PreSpecCompanyFitAttempt.notice_id.in_(notice_ids),
+                                      PreSpecCompanyFitAttempt.company_id.is_(None))
                                   .order_by(PreSpecCompanyFitAttempt.created_at.desc(), PreSpecCompanyFitAttempt.id.desc())):
             result.setdefault(row.notice_id, row)
     return result
@@ -287,7 +289,9 @@ def company_fit_view(session: Session, notice_id: int) -> CompanyFitResponse:
     notice = session.get(Notice, notice_id)
     if notice is None or notice.source_type != "pre_spec":
         raise LookupError("not_found")
-    rows = session.scalars(select(PreSpecCompanyFitAttempt).where(PreSpecCompanyFitAttempt.notice_id == notice_id)
+    rows = session.scalars(select(PreSpecCompanyFitAttempt).where(
+                               PreSpecCompanyFitAttempt.notice_id == notice_id,
+                               PreSpecCompanyFitAttempt.company_id.is_(None))
                            .order_by(PreSpecCompanyFitAttempt.created_at.desc(), PreSpecCompanyFitAttempt.id.desc()).limit(20)).all()
     flags = current_flags(session, rows) if rows else {}
     views = []
@@ -312,7 +316,12 @@ def company_fit_view(session: Session, notice_id: int) -> CompanyFitResponse:
             created_at=row.created_at, completed_at=row.completed_at, prompt_tokens=row.prompt_tokens,
             output_tokens=row.output_tokens, latency_ms=row.latency_ms))
     fields = auto_preparation_fields(session, [notice_id]).get(notice_id, {})
-    deep_id = session.scalar(select(DeepReview.id).where(DeepReview.notice_id == notice_id).order_by(DeepReview.created_at.desc()).limit(1))
+    deep_id = session.scalar(
+        select(DeepReview.id)
+        .where(DeepReview.notice_id == notice_id, DeepReview.company_id.is_(None))
+        .order_by(DeepReview.created_at.desc())
+        .limit(1)
+    )
     return CompanyFitResponse(notice_id=notice_id, attempts=views,
         automation_enabled=get_settings().prespec_company_fit_enabled and get_settings().reference_workflow_mode,
         auto_deep_review_reason=fields.get("auto_preparation_reason"), deep_review_id=deep_id)

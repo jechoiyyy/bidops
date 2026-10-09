@@ -100,7 +100,7 @@ SessionLocal = sessionmaker(
 # unsurprising for code that expects a session factory named ``Session``.
 SessionFactory = SessionLocal
 
-ALEMBIC_HEAD = "0033_assumption_analysis"
+ALEMBIC_HEAD = "0034_company_context"
 # Alembic hard-codes ``version_num VARCHAR(32)`` when it creates its version
 # table, and revision identifiers in this lineage are longer than that.  The
 # table is created at this width by ``alembic/env.py`` instead; the guard in

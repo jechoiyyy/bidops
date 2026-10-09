@@ -16,7 +16,10 @@ def opportunity_reviews(session: Session, opportunity_id: int) -> dict:
     rows = session.execute(select(DeepReview, Notice.title, DeepReviewAttempt.status)
         .join(Notice, Notice.id == DeepReview.notice_id)
         .outerjoin(DeepReviewAttempt, DeepReviewAttempt.id == DeepReview.current_attempt_id)
-        .where(DeepReview.notice_id.in_(linked_notices))
+        .where(
+            DeepReview.notice_id.in_(linked_notices),
+            DeepReview.company_id.is_(None),
+        )
         .order_by(DeepReview.created_at.desc(), DeepReview.id.desc())).all()
     ids = [review.id for review, _title, _status in rows]
     quality = quality_status_for_reviews(session, ids)

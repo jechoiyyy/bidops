@@ -1911,7 +1911,10 @@ coverage·considered·전제·근거 검사를 모두 통과해야 하며 검사
   기존 심층검토 정책/회사 프로필/결과는 수정하지 않는다.
 
 
-## 가상 SI 3사 데모 목표 계약 (2026-10-06, 구현 전)
+## 가상 SI 3사 데모 계약 (2026-10-09, DEMO-01 데모 브랜치 구현)
 
 새 회사 namespace·그래프·입력·비교 DTO는 아래 공통 계약에 고정한다. 기존 API의 wire 의미와 NULL 회사 계보를 유지한다.
+DEMO-01은 별도 데모 브랜치에 `GET /api/demo-config`, strict 회사 목록·상세,
+회사별 opportunity tracking GET/PATCH, nullable 분석 계보와 legacy NULL 조회·worker 경계를 구현했다.
+main·운영에는 미반영이며, 그래프·회사별 분석·비교 DTO와 실제 인수는 DEMO-02~05에서 구현한다.
 [ADR-0070](tracking/decisions/0070-multi-company-knowledge-demo.md) · [공통 계약](work/demo-contract.md) · [기능 로드맵](work/constitution/roadmap.md).

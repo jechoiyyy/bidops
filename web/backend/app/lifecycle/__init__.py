@@ -47,12 +47,16 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "record_ingest_warning": (".api", "record_ingest_warning"),
     "register_attachment": (".api", "register_attachment"),
     "register_manual_attachment": (".api", "register_manual_attachment"),
+    # DEMO-01 company identity seam. deep_review's company-knowledge importer
+    # registers lifecycle-owned rows through this flush-only service.
+    "register_company": (".services.company_context", "register_company"),
     # === 조립이 쓴다 — router 인스턴스 (routers/*.py) ======================
     # `app/main.py`가 `getattr(<모듈>, <router 이름>)`로 가져간다. 정적 import가
     # 없어도 조립에 반드시 필요하다. 이름은 "무엇의 router인가"로 짓는다 —
     # 조립 계층은 이 이름만 보고 등록 순서를 정하며 router 파일 경로를 알지
     # 못한다(§4).
     "metrics_router": (".routers.metrics", "router"),
+    "companies_router": (".routers.companies", "router"),
     "notices_router": (".routers.notices", "router"),
     "opportunities_router": (".routers.opportunities", "router"),
     "portals_router": (".routers.portals", "router"),
@@ -155,6 +159,7 @@ if TYPE_CHECKING:  # pragma: no cover - 정적 분석용 이름 노출
         register_manual_attachment,
     )
     from .runtime import build_runtime
+    from .services.company_context import register_company
     from .extensions import (
         EffectiveGradeChangedHook,
         ExtensionRegistry,

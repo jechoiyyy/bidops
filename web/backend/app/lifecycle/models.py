@@ -1,7 +1,7 @@
-"""lifecycle이 소유하는 선언적 모델 (명세 §5.1의 10개 테이블 + 수집 색인 2개).
+"""lifecycle이 소유하는 선언적 모델.
 
-회차, 공고, 발주계획, 관측, 기회와 기회 연결, 첨부 메타, 기관 포털, 적재
-경고가 여기 있다. lifecycle 모델은 다른 모듈의 모델로 향하는 ``relationship``을
+회차, 공고, 발주계획, 관측, 기회와 기회 연결, 회사별 추적, 첨부 메타,
+기관 포털, 적재 경고가 여기 있다. lifecycle 모델은 다른 모듈의 모델로 향하는 ``relationship``을
 갖지 않는다. 관계는 소유 모듈이 자기 모델에서 단방향으로 선언하므로,
 screening·deep_review를 import하지 않아도 mapper 구성이 성공한다 (명세 §4).
 
@@ -12,6 +12,7 @@ screening·deep_review를 import하지 않아도 mapper 구성이 성공한다 (
 
 from __future__ import annotations
 
+import uuid as uuid_module
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
@@ -28,6 +29,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    Uuid,
     column,
     event,
     select,
@@ -36,7 +38,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, Session as OrmSession, mapped_column, relationship, synonym
 
 from ..core.db import Base
-from ..core.models import AwareDateTime, JSONB_COMPAT, _fk, utc_now
+from ..core.models import AwareDateTime, JSONB_COMPAT, _fk, _uuid_column, utc_now
 from ..core.sql_dialect import dual
 
 
@@ -485,6 +487,127 @@ class Opportunity(Base):
     )
 
 
+class Company(Base):
+    """A company namespace for isolated demo decisions and analysis inputs."""
+
+    __tablename__ = "company"
+    __table_args__ = (
+        UniqueConstraint("slug", name="uq_company_slug"),
+        CheckConstraint(
+            "slug ~ '^[a-z][a-z0-9-]{1,63}$'",
+            name="ck_company_slug",
+        ).ddl_if(dialect="postgresql"),
+        CheckConstraint(
+            "length(slug) BETWEEN 2 AND 64",
+            name="ck_company_slug_length",
+        ),
+        CheckConstraint(
+            "length(trim(name)) BETWEEN 1 AND 128",
+            name="ck_company_name",
+        ),
+    )
+
+    id: Mapped[uuid_module.UUID] = _uuid_column(primary_key=True)
+    slug: Mapped[str] = mapped_column(String(64), nullable=False)
+    name: Mapped[str] = mapped_column(String(128), nullable=False)
+    is_fictional: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        AwareDateTime(), default=utc_now, server_default=text("CURRENT_TIMESTAMP"), nullable=False
+    )
+
+
+class CompanyOpportunityTracking(Base):
+    """Current human tracking decision, independently scoped per company."""
+
+    __tablename__ = "company_opportunity_tracking"
+    __table_args__ = (
+        CheckConstraint(
+            "tracking_status IN ('미선택', '계속 추적', '보류', '종료')",
+            name="ck_company_opportunity_tracking_status",
+        ),
+        CheckConstraint(
+            "revision >= 1",
+            name="ck_company_opportunity_tracking_revision",
+        ),
+        CheckConstraint(
+            "((tracking_status = '미선택' AND reason IS NULL "
+            "AND selected_by IS NULL AND selected_at IS NULL) OR "
+            "(tracking_status <> '미선택' AND reason IS NOT NULL "
+            "AND length(trim(reason)) BETWEEN 1 AND 2000 "
+            "AND selected_by IS NOT NULL "
+            "AND length(trim(selected_by)) BETWEEN 1 AND 128 "
+            "AND selected_at IS NOT NULL))",
+            name="ck_company_opportunity_tracking_metadata",
+        ),
+    )
+
+    company_id: Mapped[uuid_module.UUID] = mapped_column(
+        _fk("company.id", ondelete="RESTRICT"), primary_key=True
+    )
+    opportunity_id: Mapped[int] = mapped_column(
+        _fk("opportunity.id", ondelete="RESTRICT"), primary_key=True
+    )
+    tracking_status: Mapped[str] = mapped_column(String(32), nullable=False)
+    reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    selected_by: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    selected_at: Mapped[datetime | None] = mapped_column(AwareDateTime(), nullable=True)
+    revision: Mapped[int] = mapped_column(Integer, nullable=False)
+
+
+class CompanyTrackingEvent(Base):
+    """Append-only audit event for a company-scoped tracking decision."""
+
+    __tablename__ = "company_tracking_event"
+    __table_args__ = (
+        UniqueConstraint(
+            "company_id",
+            "opportunity_id",
+            "revision",
+            name="uq_company_tracking_event_revision",
+        ),
+        CheckConstraint(
+            "revision >= 1",
+            name="ck_company_tracking_event_revision",
+        ),
+        CheckConstraint(
+            "previous_status IN ('미선택', '계속 추적', '보류', '종료') "
+            "AND new_status IN ('미선택', '계속 추적', '보류', '종료')",
+            name="ck_company_tracking_event_statuses",
+        ),
+        CheckConstraint(
+            "length(trim(reason)) BETWEEN 1 AND 2000",
+            name="ck_company_tracking_event_reason",
+        ),
+        CheckConstraint(
+            "length(trim(actor)) BETWEEN 1 AND 128",
+            name="ck_company_tracking_event_actor",
+        ),
+    )
+
+    id: Mapped[uuid_module.UUID] = _uuid_column(primary_key=True)
+    company_id: Mapped[uuid_module.UUID] = mapped_column(
+        _fk("company.id", ondelete="RESTRICT"), nullable=False
+    )
+    opportunity_id: Mapped[int] = mapped_column(
+        _fk("opportunity.id", ondelete="RESTRICT"), nullable=False
+    )
+    revision: Mapped[int] = mapped_column(Integer, nullable=False)
+    previous_status: Mapped[str] = mapped_column(String(32), nullable=False)
+    new_status: Mapped[str] = mapped_column(String(32), nullable=False)
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    actor: Mapped[str] = mapped_column(String(128), nullable=False)
+    request_id: Mapped[uuid_module.UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        AwareDateTime(), default=utc_now, server_default=text("CURRENT_TIMESTAMP"), nullable=False
+    )
+
+
+@event.listens_for(CompanyTrackingEvent, "before_update")
+@event.listens_for(CompanyTrackingEvent, "before_delete")
+def _immutable_company_tracking_event(*_args: Any) -> None:
+    raise ValueError("company tracking events are append-only")
+
+
 class OpportunityLink(Base):
     """A durable relation or search state for one lifecycle record.
 
@@ -868,6 +991,11 @@ class IngestWarning(Base):
 # of the legacy/Lean v1 tuples prevents an older revision from creating them
 # before its upgrade has established the observation and opportunity links.
 OPPORTUNITY_TABLES = ("opportunity", "opportunity_link")
+COMPANY_CONTEXT_TABLES = (
+    "company",
+    "company_opportunity_tracking",
+    "company_tracking_event",
+)
 # ``0027_collection_index_and_linkage``가 만든다. 선별 적재의 검색 색인이다.
 COLLECTION_INDEX_TABLES = ("collected_record_index", "collected_record_token")
 
@@ -875,6 +1003,7 @@ COLLECTION_INDEX_TABLES = ("collected_record_index", "collected_record_token")
 IDENTITY_TABLES = (
     "notice_observation", "order_plan", "order_plan_observation",
     *OPPORTUNITY_TABLES,
+    *COMPANY_CONTEXT_TABLES,
     *COLLECTION_INDEX_TABLES,
 )
 

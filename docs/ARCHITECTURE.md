@@ -691,7 +691,10 @@ runner는 DB·MinIO·저장소 없이 전용 인증 secret만 사용한다.
 별도 REST를 통해 A안 React reader가 읽는다. [작업 정본](0923_assumption-analysis/intent.md).
 
 
-## 가상 SI 3사 데모 목표 계약 (2026-10-06, 구현 전)
+## 가상 SI 3사 데모 계약 (2026-10-09, DEMO-01 데모 브랜치 구현)
 
 회사 identity·추적은 lifecycle, 버전 프로필·지식그래프·회사별 분석은 deep_review가 소유한다. 원문과 v7 개요는 공유하고 결과는 회사 문맥으로 분리한다.
+DEMO-01은 별도 데모 브랜치에서 lifecycle 회사 identity·독립 추적과 deep_review의 nullable 회사 계보,
+legacy NULL 조회·worker 경계까지 구현했다. Notice·Opportunity 원문은 공유 소유를 유지한다.
+main·운영에는 미반영이며, 버전 프로필·지식그래프·회사별 분석·비교 UI·실제 인수는 DEMO-02~05의 미구현 범위다.
 [ADR-0070](tracking/decisions/0070-multi-company-knowledge-demo.md) · [공통 계약](work/demo-contract.md) · [기능 로드맵](work/constitution/roadmap.md).

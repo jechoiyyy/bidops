@@ -585,6 +585,7 @@ def maybe_auto_start_deep_review(
             existing = work.scalar(
                 select(DeepReview.id)
                 .where(
+                    DeepReview.company_id.is_(None),
                     DeepReview.notice_id == notice_id,
                     DeepReview.bundle_id == bundle_id,
                     DeepReview.profile_version_id == profile_id,
@@ -955,7 +956,7 @@ def auto_preparation_fields(
     deep_review_status_by_notice: dict[int, str] = {}
     for notice_id, deep_review_id, review_status in session.execute(
         select(DeepReview.notice_id, DeepReview.id, DeepReview.status)
-        .where(DeepReview.notice_id.in_(ids))
+        .where(DeepReview.notice_id.in_(ids), DeepReview.company_id.is_(None))
         .order_by(DeepReview.notice_id.asc(), DeepReview.created_at.desc())
     ).all():
         deep_review_by_notice.setdefault(int(notice_id), deep_review_id)

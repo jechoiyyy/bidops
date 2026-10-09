@@ -554,9 +554,15 @@ class DocumentBundleItem(Base):
 
 class ProfileVersion(Base):
     __tablename__ = "profile_version"
-    __table_args__ = (UniqueConstraint("version", name="uq_profile_version_version"),)
+    __table_args__ = (
+        UniqueConstraint("version", name="uq_profile_version_version"),
+        UniqueConstraint("id", "company_id", name="uq_profile_version_company_scope"),
+    )
 
     id: Mapped[uuid_module.UUID] = _uuid_column(primary_key=True)
+    company_id: Mapped[uuid_module.UUID | None] = mapped_column(
+        _fk("company.id", ondelete="RESTRICT"), nullable=True
+    )
     version: Mapped[int] = mapped_column(Integer, nullable=False)
     label: Mapped[str] = mapped_column(String(255), nullable=False)
     profile_payload: Mapped[Any] = mapped_column(JSONB_COMPAT, nullable=False)
@@ -606,15 +612,37 @@ class AnalysisPolicyVersion(Base):
 class DeepReview(Base):
     __tablename__ = "deep_review"
     __table_args__ = (
-        UniqueConstraint("notice_id", "bundle_id", "profile_version_id", "policy_version_id", name="uq_deep_review_inputs"),
+        Index(
+            "uq_deep_review_legacy_inputs",
+            "notice_id", "bundle_id", "profile_version_id", "policy_version_id",
+            unique=True,
+            postgresql_where=text("company_id IS NULL"),
+            sqlite_where=text("company_id IS NULL"),
+        ),
+        Index(
+            "uq_deep_review_company_inputs",
+            "company_id", "notice_id", "bundle_id", "profile_version_id", "policy_version_id",
+            unique=True,
+            postgresql_where=text("company_id IS NOT NULL"),
+            sqlite_where=text("company_id IS NOT NULL"),
+        ),
         UniqueConstraint("id", "notice_id", name="uq_deep_review_notice_scope"),
         UniqueConstraint("id", "bundle_id", name="uq_deep_review_bundle_scope"),
         UniqueConstraint("id", "profile_version_id", name="uq_deep_review_profile_scope"),
+        ForeignKeyConstraint(
+            ["profile_version_id", "company_id"],
+            [_table("profile_version.id"), _table("profile_version.company_id")],
+            ondelete="RESTRICT",
+            name="fk_deep_review_profile_company_scope",
+        ),
         ForeignKeyConstraint(["id", "current_attempt_id"], [_table("deep_review_attempt.deep_review_id"), _table("deep_review_attempt.id")], name="fk_deep_review_current_attempt_scope", use_alter=True),
         CheckConstraint("status IN ('queued','running','completed','failed')", name="ck_deep_review_status"),
     )
 
     id: Mapped[uuid_module.UUID] = _uuid_column(primary_key=True)
+    company_id: Mapped[uuid_module.UUID | None] = mapped_column(
+        _fk("company.id", ondelete="RESTRICT"), nullable=True
+    )
     notice_id: Mapped[int] = mapped_column(_fk("notice.id"), nullable=False)
     bundle_id: Mapped[uuid_module.UUID] = mapped_column(_fk("document_bundle.id"), nullable=False)
     profile_version_id: Mapped[uuid_module.UUID] = mapped_column(_fk("profile_version.id"), nullable=False)
@@ -625,6 +653,15 @@ class DeepReview(Base):
     requested_by_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
     created_at: Mapped[datetime] = mapped_column(AwareDateTime(), default=utc_now, nullable=False)
     completed_at: Mapped[datetime | None] = mapped_column(AwareDateTime(), nullable=True)
+
+
+@event.listens_for(ProfileVersion, "before_update")
+@event.listens_for(DeepReview, "before_update")
+def _immutable_company_scope(
+    _mapper: Any, _connection: Any, target: ProfileVersion | DeepReview
+) -> None:
+    if sa_inspect(target).attrs.company_id.history.has_changes():
+        raise ValueError("company scope is immutable")
 
 
 class DeepReviewAttempt(Base):
@@ -1773,6 +1810,12 @@ class PreSpecCompanyFitAttempt(Base):
         ForeignKeyConstraint(["notice_id", "document_version_id"],
                              [_table("document_version.notice_id"), _table("document_version.id")],
                              ondelete="RESTRICT", name="fk_prespec_company_fit_document_scope"),
+        ForeignKeyConstraint(
+            ["profile_version_id", "company_id"],
+            [_table("profile_version.id"), _table("profile_version.company_id")],
+            ondelete="RESTRICT",
+            name="fk_prespec_company_fit_profile_company_scope",
+        ),
         CheckConstraint("status IN ('queued','running','completed','failed','needs_human_review')", name="ck_prespec_company_fit_status"),
         CheckConstraint("quality_status IN ('unmeasured_reference','mock_reference')", name="ck_prespec_company_fit_quality"),
         CheckConstraint("(status = 'completed' AND result_jsonb IS NOT NULL AND result_sha256 IS NOT NULL) OR (status <> 'completed' AND result_jsonb IS NULL AND result_sha256 IS NULL)", name="ck_prespec_company_fit_result"),
@@ -1781,6 +1824,9 @@ class PreSpecCompanyFitAttempt(Base):
         CheckConstraint(dual(" AND ".join(f"length({field}) = 64 AND {field} NOT GLOB '*[^0-9a-f]*'" for field in ("input_sha256", "policy_digest", "model_revision"))), name="ck_prespec_company_fit_hashes"),
     )
     id: Mapped[uuid_module.UUID] = _uuid_column(primary_key=True)
+    company_id: Mapped[uuid_module.UUID | None] = mapped_column(
+        _fk("company.id", ondelete="RESTRICT"), nullable=True
+    )
     notice_id: Mapped[int] = mapped_column(_fk("notice.id", ondelete="RESTRICT"), nullable=False)
     document_version_id: Mapped[uuid_module.UUID] = mapped_column(nullable=False)
     overview_run_id: Mapped[uuid_module.UUID | None] = mapped_column(_fk("prespec_overview_run.id", ondelete="RESTRICT"), nullable=True)

@@ -92,6 +92,9 @@ class Settings(BaseSettings):
         default=DEFAULT_MODULES,
         validation_alias="BIDOPS_MODULES",
     )
+    # DEMO-01 multi-company routes are local-demo only and fail closed.
+    # Enabling this flag registers no data and starts no work by itself.
+    demo_enabled: bool = Field(default=False, validation_alias="BIDOPS_DEMO_ENABLED")
     reviewer_name: str = Field(
         default="",
         validation_alias=AliasChoices(

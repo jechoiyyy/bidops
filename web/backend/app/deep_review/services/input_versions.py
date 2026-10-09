@@ -328,7 +328,7 @@ def resolve_active_versions(
     profile_id, policy_id = active_version_ids(environ)
     profile = session.get(ProfileVersion, profile_id)
     policy = session.get(AnalysisPolicyVersion, policy_id)
-    if profile is None or policy is None:
+    if profile is None or profile.company_id is not None or policy is None:
         raise InputVersionError("service_unavailable", "active profile 또는 analysis policy를 찾을 수 없습니다")
     if not allow_unmeasured_reference and not policy_activation_valid(policy):
         raise InputVersionError("service_unavailable", "품질 표본 검증을 통과하지 않은 policy입니다")
@@ -517,7 +517,11 @@ def import_profile_version(
         raise InputVersionError("invalid_request", "프로필 source를 읽을 수 없습니다") from exc
     digest = payload["source_sha256"]
     source_key, source_size, source_metadata = _store_profile_source(raw, digest)
-    existing = session.scalar(select(ProfileVersion).where(ProfileVersion.profile_sha256 == digest).limit(1))
+    existing = session.scalar(
+        select(ProfileVersion)
+        .where(ProfileVersion.profile_sha256 == digest, ProfileVersion.company_id.is_(None))
+        .limit(1)
+    )
     if existing is not None:
         if repair_missing_source:
             _repair_profile_source_location(session, existing, source_key, source_size, source_metadata, created_by_name)
@@ -571,7 +575,14 @@ def import_profile_version(
             # The savepoint has rolled back, but the surrounding Session
             # transaction (including caller work) remains usable.  Resolve an
             # exact immutable identity before allocating a new version.
-            existing = session.scalar(select(ProfileVersion).where(ProfileVersion.profile_sha256 == digest).limit(1))
+            existing = session.scalar(
+                select(ProfileVersion)
+                .where(
+                    ProfileVersion.profile_sha256 == digest,
+                    ProfileVersion.company_id.is_(None),
+                )
+                .limit(1)
+            )
             if existing is not None:
                 _validate_profile_snapshot(session, existing, require_verified_source=True)
                 return existing

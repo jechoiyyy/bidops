@@ -1,15 +1,15 @@
 {
   "schema_version": 2,
   "feature": "DEMO-01-company-context",
-  "phase": "review",
+  "phase": "validating",
   "steps": [
     {
       "id": "STEP-001",
       "title": "회사 식별과 migration",
       "model": "complex",
       "fingerprint": "cfa3e454fd637b0eafab326a5b228ee3f6de3e05efc181ef9bce693ba11ff2ab",
-      "status": "stale",
-      "updated_at": null,
+      "status": "done",
+      "updated_at": "2026-10-09T13:42:18+09:00",
       "history": [
         {
           "id": "STEP-001",
@@ -19,15 +19,16 @@
           "status": "pending",
           "updated_at": null
         }
-      ]
+      ],
+      "note": "PostgreSQL17.11 schema/권한/경계/migration 검사132통과, 기대목록보완4검사추가통과, skip0. 초기0001 live metadata 및 partialindex 오염수정. 로그 docs/work/_runs/demo01-20261009/"
     },
     {
       "id": "STEP-002",
       "title": "회사 API와 기존 조회 경계",
       "model": "complex",
       "fingerprint": "e60b999f3c2de996b47e404a44ed0ba448fdcad9863bab5cf5ac4f595e943622",
-      "status": "stale",
-      "updated_at": "2026-10-06T08:29:55+09:00",
+      "status": "done",
+      "updated_at": "2026-10-09T13:52:45+09:00",
       "history": [
         {
           "id": "STEP-002",
@@ -57,15 +58,15 @@
           "note": "문서 수정 검토 완료; 제품 구현은 미착수"
         }
       ],
-      "note": "문서 수정 검토 완료; 제품 구현은 미착수"
+      "note": "회사 API SQLite/PG 14건 delta 포함 통과, 기존121+자동경로76 통과; frontend build pass. auto_prepare SW flag 기존1실패 main c242850 동일 재현 보존."
     },
     {
       "id": "STEP-003",
       "title": "회사별 추적 transaction",
       "model": "complex",
       "fingerprint": "5cdcf04ca814ca24c1b0e73b387a7a89bbbd3501cb4222fb9f1db5120b084239",
-      "status": "stale",
-      "updated_at": null,
+      "status": "done",
+      "updated_at": "2026-10-09T13:58:25+09:00",
       "history": [
         {
           "id": "STEP-003",
@@ -75,15 +76,16 @@
           "status": "pending",
           "updated_at": null
         }
-      ]
+      ],
+      "note": "리더 PG17.11 company_context/tracking_lifecycle/module_boundaries 57 passed, skip0. app role 최초 동시저장/replay 및 current/event/receipt rollback 확인."
     },
     {
       "id": "STEP-004",
       "title": "교차 회사·호환 인수",
       "model": "complex",
       "fingerprint": "e2e18675e14c86b2f2c8bc390fc442c7f3500ac61f3c97eb7d30bc1b257c5707",
-      "status": "stale",
-      "updated_at": "2026-10-06T08:29:55+09:00",
+      "status": "done",
+      "updated_at": "2026-10-09T14:04:25+09:00",
       "history": [
         {
           "id": "STEP-004",
@@ -113,27 +115,87 @@
           "note": "문서 수정 검토 완료; 제품 구현은 미착수"
         }
       ],
-      "note": "문서 수정 검토 완료; 제품 구현은 미착수"
+      "note": "최종 SQLite/PG 회사 인수27passed0skip, 앱role UPDATE/reset·동일상태결정·손상replay·NULL enqueue; doctor6/diff/hash 통과. 실제모델·배포 없음."
     }
   ],
   "proof": {
     "docs": {
-      "result": "pending"
+      "result": "pass",
+      "method": "review",
+      "note": "지정 gpt-5.6-sol high 독립 리뷰 PASS 차단0; T1~T6와 문서·최종34hash 대조",
+      "evidence": "docs/work/_runs/demo01-20261009/review.md",
+      "exit_code": null,
+      "actor": "orchestrator",
+      "command": "python3 scripts/feature_status.py doctor _",
+      "at": "2026-10-09T14:05:28+09:00",
+      "head": "c2428508ff728b9039158474bafae5bb5357a3d4",
+      "source_hash": "88c40813619c686126ed38947bcecf89a5d145defc2e88b608cb622aadbe1809",
+      "spec_hash": "7b020fc77e4b03eca36abdccf7f3540c1697313fa85eec765c23ed0d69389cd5"
     },
     "tests": {
-      "result": "pending"
+      "result": "pass",
+      "method": "command",
+      "note": "최종27·추적/경계57·스키마136 및 관련 회귀 증거; 기존 main 재현 실패1 분리",
+      "evidence": "docs/work/_runs/demo01-20261009/DEMO-01-company-context.md",
+      "exit_code": 0,
+      "actor": "orchestrator",
+      "command": "",
+      "at": "2026-10-09T14:04:36+09:00",
+      "head": "c2428508ff728b9039158474bafae5bb5357a3d4",
+      "source_hash": "88c40813619c686126ed38947bcecf89a5d145defc2e88b608cb622aadbe1809",
+      "spec_hash": "7b020fc77e4b03eca36abdccf7f3540c1697313fa85eec765c23ed0d69389cd5"
     },
     "postgres": {
-      "result": "pending"
+      "result": "pass",
+      "method": "command",
+      "note": "일회용 PostgreSQL17.11 migration/제약/strict API/app 역할 동시저장·UPDATE/reset, skip0",
+      "evidence": "docs/work/_runs/demo01-20261009/DEMO-01-company-context.md",
+      "exit_code": 0,
+      "actor": "orchestrator",
+      "command": "",
+      "at": "2026-10-09T14:04:37+09:00",
+      "head": "c2428508ff728b9039158474bafae5bb5357a3d4",
+      "source_hash": "88c40813619c686126ed38947bcecf89a5d145defc2e88b608cb622aadbe1809",
+      "spec_hash": "7b020fc77e4b03eca36abdccf7f3540c1697313fa85eec765c23ed0d69389cd5"
     },
     "frontend": {
-      "result": "pending"
+      "result": "pass",
+      "method": "command",
+      "note": "오류 코드 등록만 변경; Node22 TypeScript/Vite build PASS. 화면/layout 변경 없어 viewport 검사 비적용",
+      "evidence": "docs/work/_runs/demo01-20261009/step002-frontend-build.log",
+      "exit_code": 0,
+      "actor": "orchestrator",
+      "command": "",
+      "at": "2026-10-09T14:04:37+09:00",
+      "head": "c2428508ff728b9039158474bafae5bb5357a3d4",
+      "source_hash": "88c40813619c686126ed38947bcecf89a5d145defc2e88b608cb622aadbe1809",
+      "spec_hash": "7b020fc77e4b03eca36abdccf7f3540c1697313fa85eec765c23ed0d69389cd5"
     },
     "api_guard": {
-      "result": "pending"
+      "result": "pass",
+      "method": "command",
+      "note": "회사별 API 분리/disabled404/legacy NULL/손상snapshot failclosed 검증, 실제 외부 모델 호출0",
+      "evidence": "docs/work/_runs/demo01-20261009/step004-tests.log",
+      "exit_code": 0,
+      "actor": "orchestrator",
+      "command": "",
+      "at": "2026-10-09T14:04:37+09:00",
+      "head": "c2428508ff728b9039158474bafae5bb5357a3d4",
+      "source_hash": "88c40813619c686126ed38947bcecf89a5d145defc2e88b608cb622aadbe1809",
+      "spec_hash": "7b020fc77e4b03eca36abdccf7f3540c1697313fa85eec765c23ed0d69389cd5"
     },
     "real_data_run": {
-      "result": "pending"
+      "result": "not_applicable",
+      "method": "manual",
+      "note": "실제 모델·품질 인수는 DEMO03 STEP007 및 DEMO05 소유. 회사 문맥/추적 기능은 실제 모델 호출 대상 아님",
+      "evidence": "docs/work/_runs/demo01-20261009/DEMO-01-company-context.md",
+      "exit_code": null,
+      "actor": "orchestrator",
+      "command": "",
+      "at": "2026-10-09T14:04:37+09:00",
+      "head": "c2428508ff728b9039158474bafae5bb5357a3d4",
+      "source_hash": "88c40813619c686126ed38947bcecf89a5d145defc2e88b608cb622aadbe1809",
+      "spec_hash": "7b020fc77e4b03eca36abdccf7f3540c1697313fa85eec765c23ed0d69389cd5"
     }
   },
   "notes": [
@@ -184,8 +246,90 @@
     {
       "at": "2026-10-09T13:22:56+09:00",
       "text": "재검증: 2026-10-09 사용자 요청에 따른 로컬 실제 자료/LiteLLM 재계획; 기존 증거는 변경 범위와 source hash 대조 후 재사용, 실제 Luna는 DEMO-03/05 필수 게이트 유지"
+    },
+    {
+      "at": "2026-10-09T13:27:14+09:00",
+      "text": "단계 → implementing: 2026-10-09 사용자 재계획/계속 요청, DEMO00 done. 별도 demo/local-20261009 기준 run demo01-20261009; main/운영 미반영"
+    },
+    {
+      "at": "2026-10-09T13:27:15+09:00",
+      "text": "단계 STEP-001 in_progress: 회사 식별·nullable scope·migration·runtime 권한 구현 시작"
+    },
+    {
+      "at": "2026-10-09T13:42:18+09:00",
+      "text": "단계 STEP-001 done: PostgreSQL17.11 schema/권한/경계/migration 검사132통과, 기대목록보완4검사추가통과, skip0. 초기0001 live metadata 및 partialindex 오염수정. 로그 docs/work/_runs/demo01-20261009/"
+    },
+    {
+      "at": "2026-10-09T13:42:18+09:00",
+      "text": "단계 STEP-002 in_progress: 회사API·demo guard·legacy NULL scope 구현; 조사완료, STEP001 검증통과"
+    },
+    {
+      "at": "2026-10-09T13:52:39+09:00",
+      "text": "단계 STEP-002 done: 회사 API SQLite/PG 14건 delta 포함 통과, 기존118+자동경로76 통과; frontend build pass. auto_prepare SW flag 기존1실패 main c242850 동일 재현 보존."
+    },
+    {
+      "at": "2026-10-09T13:52:39+09:00",
+      "text": "단계 STEP-003 in_progress: "
+    },
+    {
+      "at": "2026-10-09T13:52:45+09:00",
+      "text": "단계 STEP-002 done: 회사 API SQLite/PG 14건 delta 포함 통과, 기존121+자동경로76 통과; frontend build pass. auto_prepare SW flag 기존1실패 main c242850 동일 재현 보존."
+    },
+    {
+      "at": "2026-10-09T13:58:25+09:00",
+      "text": "단계 STEP-003 done: 리더 PG17.11 company_context/tracking_lifecycle/module_boundaries 57 passed, skip0. app role 최초 동시저장/replay 및 current/event/receipt rollback 확인."
+    },
+    {
+      "at": "2026-10-09T13:58:25+09:00",
+      "text": "단계 STEP-004 in_progress: "
+    },
+    {
+      "at": "2026-10-09T14:04:25+09:00",
+      "text": "단계 STEP-004 done: 최종 SQLite/PG 회사 인수27passed0skip, 앱role UPDATE/reset·동일상태결정·손상replay·NULL enqueue; doctor6/diff/hash 통과. 실제모델·배포 없음."
+    },
+    {
+      "at": "2026-10-09T14:04:26+09:00",
+      "text": "단계 → validating: 4/4 구현·인수 완료; 독립 최종 리뷰와 데모 기준 브랜치 통합 기록 중"
     }
   ],
-  "updated_at": "2026-10-09T13:22:56+09:00",
-  "resume_phase": "drafting"
+  "updated_at": "2026-10-09T14:05:28+09:00",
+  "resume_phase": "drafting",
+  "proof_history": [
+    {
+      "key": "tests",
+      "previous": {
+        "result": "pending"
+      }
+    },
+    {
+      "key": "postgres",
+      "previous": {
+        "result": "pending"
+      }
+    },
+    {
+      "key": "frontend",
+      "previous": {
+        "result": "pending"
+      }
+    },
+    {
+      "key": "api_guard",
+      "previous": {
+        "result": "pending"
+      }
+    },
+    {
+      "key": "real_data_run",
+      "previous": {
+        "result": "pending"
+      }
+    },
+    {
+      "key": "docs",
+      "previous": {
+        "result": "pending"
+      }
+    }
+  ]
 }
