@@ -1,0 +1,71 @@
+{
+  "id": "demo01-20261009",
+  "state": "implementing",
+  "features": [
+    "DEMO-01-company-context"
+  ],
+  "target": "demo/local-20261009",
+  "base_sha": "c2428508ff728b9039158474bafae5bb5357a3d4",
+  "base_root": "/Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009",
+  "branch": "sdlc/batch-demo01-20261009",
+  "workspace": "/Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/batch-demo01-20261009",
+  "work_dir": "docs/work",
+  "engine": "codex",
+  "approved_at": "2026-10-09T13:26:51+09:00",
+  "policy": {
+    "auto_commit": false,
+    "manual_proof": "defer",
+    "final_review": true,
+    "max_retries": 1,
+    "git": {
+      "isolation": "worktree",
+      "merge": "no-ff",
+      "copy_untracked": []
+    },
+    "commit_policy": "manual",
+    "merge_policy": "manual"
+  },
+  "specs": {
+    "DEMO-01-company-context": "7b020fc77e4b03eca36abdccf7f3540c1697313fa85eec765c23ed0d69389cd5"
+  },
+  "ready": {
+    "DEMO-01-company-context": {
+      "inputs": {
+        "source_hash": "88c40813619c686126ed38947bcecf89a5d145defc2e88b608cb622aadbe1809",
+        "spec_hash": "7b020fc77e4b03eca36abdccf7f3540c1697313fa85eec765c23ed0d69389cd5"
+      },
+      "at": "2026-10-09T14:05:29+09:00"
+    }
+  },
+  "decisions": [
+    {
+      "feature": "DEMO-01-company-context",
+      "note": "승인된 STEP002 회사 경계 구현의 실제 파일과 증거 위치를 plan에 정합화; 수용 동작·범위 변경 없음",
+      "at": "2026-10-09T13:51:18+09:00"
+    },
+    {
+      "feature": "DEMO-01-company-context",
+      "note": "STEP004 실제 구현·검증 매핑과 현재 로컬/LiteLLM 및 미실행 Luna 게이트를 문서에 정합화; 새 제품 범위 없음",
+      "at": "2026-10-09T14:03:15+09:00"
+    },
+    {
+      "feature": "DEMO-01-company-context",
+      "note": "최종 결과를 T1~T6 실제 실행 증거에 연결, 승인된 제품 동작 유지",
+      "at": "2026-10-09T14:04:26+09:00"
+    }
+  ],
+  "review": {
+    "result": "pass",
+    "evidence": "docs/work/_runs/demo01-20261009/review.md",
+    "model": "gpt-5.6-sol",
+    "effort": "high",
+    "independent": true,
+    "at": "2026-10-09T14:05:48+09:00",
+    "inputs": {
+      "DEMO-01-company-context": {
+        "source_hash": "88c40813619c686126ed38947bcecf89a5d145defc2e88b608cb622aadbe1809",
+        "spec_hash": "7b020fc77e4b03eca36abdccf7f3540c1697313fa85eec765c23ed0d69389cd5"
+      }
+    }
+  }
+}
