@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
   "feature": "DEMO-00-luna-preflight",
-  "phase": "validating",
+  "phase": "done",
   "steps": [
     {
       "id": "STEP-001",
@@ -370,9 +370,13 @@
     {
       "at": "2026-10-09T13:25:00+09:00",
       "text": "단계 → validating: 로컬 준비4/4 완료, 재계획 독립 리뷰·통합 단계"
+    },
+    {
+      "at": "2026-10-09T13:26:37+09:00",
+      "text": "단계 → done: 배치 검증 및 통합 완료"
     }
   ],
-  "updated_at": "2026-10-09T13:26:23+09:00",
+  "updated_at": "2026-10-09T13:26:37+09:00",
   "resume_phase": "implementing",
   "proof_history": [
     {
@@ -462,5 +466,11 @@
         "result": "pending"
       }
     }
-  ]
+  ],
+  "integration": {
+    "run": "demo00-20261007",
+    "revision": "8406c53f92be57bf50e20fc6f5f13bf753a3db06",
+    "source_hash": "eeb7dbdf770d6b095fd3fdd50f7dcbf3ebcba575059e99acfa6636967b15beca",
+    "spec_hash": "324203a69dd8616fcbccf0384bd050a1a2ef8e416203137e2bdd590dd9786e2d"
+  }
 }

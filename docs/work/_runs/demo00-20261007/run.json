@@ -1,6 +1,6 @@
 {
   "id": "demo00-20261007",
-  "state": "awaiting_merge",
+  "state": "done",
   "features": [
     "DEMO-00-luna-preflight"
   ],
@@ -67,5 +67,13 @@
         "spec_hash": "324203a69dd8616fcbccf0384bd050a1a2ef8e416203137e2bdd590dd9786e2d"
       }
     }
-  }
+  },
+  "merged_sha": "8406c53f92be57bf50e20fc6f5f13bf753a3db06",
+  "merged_inputs": {
+    "DEMO-00-luna-preflight": {
+      "source_hash": "eeb7dbdf770d6b095fd3fdd50f7dcbf3ebcba575059e99acfa6636967b15beca",
+      "spec_hash": "324203a69dd8616fcbccf0384bd050a1a2ef8e416203137e2bdd590dd9786e2d"
+    }
+  },
+  "completed_at": "2026-10-09T13:26:37+09:00"
 }
