@@ -100,6 +100,27 @@ COMPANY_CONTEXT_TABLES = {
     "company_opportunity_tracking",
     "company_tracking_event",
 }
+COMPANY_KNOWLEDGE_TABLES = {
+    "knowledge_ontology_version",
+    "company_knowledge_source",
+    "company_knowledge_version",
+    "company_knowledge_node",
+    "company_knowledge_edge",
+    "company_knowledge_binding",
+    "company_knowledge_binding_event",
+}
+
+
+def test_company_knowledge_grants_keep_lineage_append_only_and_worker_closed() -> None:
+    assert COMPANY_KNOWLEDGE_TABLES <= _table_grants("app", "SELECT")
+    assert COMPANY_KNOWLEDGE_TABLES <= _table_grants("app", "INSERT")
+    assert not COMPANY_KNOWLEDGE_TABLES & _table_grants("app", "UPDATE")
+    assert not COMPANY_KNOWLEDGE_TABLES & _table_grants("app", "DELETE")
+    assert _column_update_grant("app", "company_knowledge_binding") == {
+        "graph_version_id", "profile_version_id", "revision", "updated_at", "actor"
+    }
+    for privilege in ("SELECT", "INSERT", "UPDATE", "DELETE"):
+        assert not COMPANY_KNOWLEDGE_TABLES & _table_grants("worker", privilege)
 
 
 def test_company_context_grants_match_registration_tracking_and_worker_reads() -> None:
@@ -542,6 +563,38 @@ def test_effective_company_context_grants_are_minimal() -> None:
                     )
                 for table in ("company", "company_tracking_event"):
                     assert not _table_privilege(connection, "app", table, "UPDATE")
+        finally:
+            engine.dispose()
+
+
+@requires_postgres
+def test_effective_company_knowledge_grants_are_minimal() -> None:
+    _ensure_roles()
+    with temporary_database() as database_url:
+        engine = _apply_policy(database_url)
+        try:
+            with engine.begin() as connection:
+                for table in sorted(COMPANY_KNOWLEDGE_TABLES):
+                    assert _table_privilege(connection, "app", table, "SELECT")
+                    assert _table_privilege(connection, "app", table, "INSERT")
+                    assert _table_privilege(connection, "ro_backup", table, "SELECT")
+                    assert not _table_privilege(connection, "app", table, "DELETE")
+                    for privilege in ("SELECT", "INSERT", "UPDATE", "DELETE"):
+                        assert not _table_privilege(connection, "worker", table, privilege)
+                for table in COMPANY_KNOWLEDGE_TABLES - {"company_knowledge_binding"}:
+                    assert not _table_privilege(connection, "app", table, "UPDATE")
+                for column in (
+                    "graph_version_id", "profile_version_id", "revision", "updated_at", "actor"
+                ):
+                    assert _column_privilege(
+                        connection, "app", "company_knowledge_binding", column, "UPDATE"
+                    )
+                assert not _column_privilege(
+                    connection, "app", "company_knowledge_binding", "company_id", "UPDATE"
+                )
+                assert not _table_privilege(
+                    connection, "app", "company_knowledge_binding", "UPDATE"
+                )
         finally:
             engine.dispose()
 

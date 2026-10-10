@@ -85,6 +85,11 @@ const KNOWN_CODE_DESCRIPTION: Record<string, CodeDescription> = {
     detail: "등록된 회사 이름과 가상회사 표식을 확인한 뒤 다시 시도하십시오.",
     action: null,
   },
+  company_profile_not_ready: {
+    title: "회사 프로필이 아직 준비되지 않았습니다.",
+    detail: "회사 지식 버전을 활성화한 뒤 다시 여십시오.",
+    action: null,
+  },
   bundle_not_ready: {
     title: "확정된 문서 묶음이 필요합니다.",
     detail: "문서 준비에서 문서 묶음을 확정한 뒤 다시 시도하십시오.",

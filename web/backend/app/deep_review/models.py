@@ -136,6 +136,11 @@ class ContentObject(Base):
 
 class ContentObjectLocation(Base):
     __tablename__ = "content_object_location"
+    __table_args__ = (
+        UniqueConstraint(
+            "id", "content_object_id", name="uq_content_object_location_content_scope"
+        ),
+    )
 
     id: Mapped[uuid_module.UUID] = _uuid_column(primary_key=True)
     content_object_id: Mapped[uuid_module.UUID] = mapped_column(_fk("content_object.id"), nullable=False)
@@ -588,6 +593,318 @@ class ProfileEvidence(Base):
     confirmed_at: Mapped[datetime] = mapped_column(AwareDateTime(), nullable=False)
 
 
+# ---------------------------------------------------------------------------
+# Company knowledge (7 tables)
+# ---------------------------------------------------------------------------
+
+
+class KnowledgeOntologyVersion(Base):
+    __tablename__ = "knowledge_ontology_version"
+    __table_args__ = (
+        UniqueConstraint("version", name="uq_knowledge_ontology_version"),
+        UniqueConstraint("sha256", name="uq_knowledge_ontology_sha256"),
+        CheckConstraint(
+            dual("length(sha256) = 64 AND sha256 NOT GLOB '*[^0-9a-f]*'"),
+            name="ck_knowledge_ontology_sha256",
+        ),
+        CheckConstraint(
+            DualSQL(
+                "json_valid(payload) AND json_type(payload) = 'object'",
+                "jsonb_typeof(payload) = 'object'",
+            ),
+            name="ck_knowledge_ontology_payload",
+        ),
+    )
+
+    id: Mapped[uuid_module.UUID] = _uuid_column(primary_key=True)
+    version: Mapped[str] = mapped_column(String(128), nullable=False)
+    sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    payload: Mapped[Any] = mapped_column(JSONB_COMPAT, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        AwareDateTime(), default=utc_now, server_default=text("CURRENT_TIMESTAMP"), nullable=False
+    )
+
+
+class CompanyKnowledgeSource(Base):
+    __tablename__ = "company_knowledge_source"
+    __table_args__ = (
+        UniqueConstraint(
+            "company_id", "source_sha256", name="uq_company_knowledge_source_identity"
+        ),
+        UniqueConstraint("id", "company_id", name="uq_company_knowledge_source_company"),
+        ForeignKeyConstraint(
+            ["content_location_id", "content_object_id"],
+            [
+                _table("content_object_location.id"),
+                _table("content_object_location.content_object_id"),
+            ],
+            ondelete="RESTRICT",
+            name="fk_company_knowledge_source_location_content",
+        ),
+        CheckConstraint("size_bytes > 0", name="ck_company_knowledge_source_size"),
+        CheckConstraint(
+            dual(
+                "length(source_sha256) = 64 AND source_sha256 NOT GLOB '*[^0-9a-f]*'"
+            ),
+            name="ck_company_knowledge_source_sha256",
+        ),
+    )
+
+    id: Mapped[uuid_module.UUID] = _uuid_column(primary_key=True)
+    company_id: Mapped[uuid_module.UUID] = mapped_column(
+        _fk("company.id", ondelete="RESTRICT"), nullable=False
+    )
+    source_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    size_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    content_object_id: Mapped[uuid_module.UUID] = mapped_column(
+        _fk("content_object.id", ondelete="RESTRICT"), nullable=False
+    )
+    content_location_id: Mapped[uuid_module.UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        AwareDateTime(), default=utc_now, server_default=text("CURRENT_TIMESTAMP"), nullable=False
+    )
+
+
+class CompanyKnowledgeVersion(Base):
+    __tablename__ = "company_knowledge_version"
+    __table_args__ = (
+        UniqueConstraint(
+            "company_id", "ontology_id", "source_sha256",
+            name="uq_company_knowledge_version_identity",
+        ),
+        UniqueConstraint("id", "company_id", name="uq_company_knowledge_version_company"),
+        UniqueConstraint(
+            "id", "company_id", "profile_version_id",
+            name="uq_company_knowledge_version_profile_scope",
+        ),
+        ForeignKeyConstraint(
+            ["profile_version_id", "company_id"],
+            [_table("profile_version.id"), _table("profile_version.company_id")],
+            ondelete="RESTRICT",
+            name="fk_company_knowledge_version_profile_company",
+        ),
+        ForeignKeyConstraint(
+            ["source_id", "company_id"],
+            [_table("company_knowledge_source.id"), _table("company_knowledge_source.company_id")],
+            ondelete="RESTRICT",
+            name="fk_company_knowledge_version_source_company",
+        ),
+        CheckConstraint(
+            dual(
+                "length(source_sha256) = 64 AND source_sha256 NOT GLOB '*[^0-9a-f]*'"
+            ),
+            name="ck_company_knowledge_version_source_sha256",
+        ),
+        CheckConstraint(
+            dual("length(graph_sha256) = 64 AND graph_sha256 NOT GLOB '*[^0-9a-f]*'"),
+            name="ck_company_knowledge_version_graph_sha256",
+        ),
+        CheckConstraint(
+            DualSQL(
+                "json_valid(snapshot) AND json_type(snapshot) = 'object'",
+                "jsonb_typeof(snapshot) = 'object'",
+            ),
+            name="ck_company_knowledge_version_snapshot",
+        ),
+    )
+
+    id: Mapped[uuid_module.UUID] = _uuid_column(primary_key=True)
+    company_id: Mapped[uuid_module.UUID] = mapped_column(
+        _fk("company.id", ondelete="RESTRICT"), nullable=False
+    )
+    ontology_id: Mapped[uuid_module.UUID] = mapped_column(
+        _fk("knowledge_ontology_version.id", ondelete="RESTRICT"), nullable=False
+    )
+    source_id: Mapped[uuid_module.UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
+    profile_version_id: Mapped[uuid_module.UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
+    source_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    graph_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    snapshot: Mapped[Any] = mapped_column(JSONB_COMPAT, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        AwareDateTime(), default=utc_now, server_default=text("CURRENT_TIMESTAMP"), nullable=False
+    )
+
+
+class CompanyKnowledgeNode(Base):
+    __tablename__ = "company_knowledge_node"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["graph_version_id"],
+            [_table("company_knowledge_version.id")],
+            ondelete="CASCADE",
+            name="fk_company_knowledge_node_version",
+        ),
+        CheckConstraint(
+            DualSQL(
+                "json_valid(payload) AND json_type(payload) = 'object'",
+                "jsonb_typeof(payload) = 'object'",
+            ),
+            name="ck_company_knowledge_node_payload",
+        ),
+        CheckConstraint(
+            DualSQL(
+                "json_extract(payload, '$.id') = node_id",
+                "payload->>'id' = node_id",
+            ),
+            name="ck_company_knowledge_node_payload_id",
+        ),
+    )
+
+    graph_version_id: Mapped[uuid_module.UUID] = mapped_column(
+        Uuid(as_uuid=True), primary_key=True
+    )
+    node_id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    payload: Mapped[Any] = mapped_column(JSONB_COMPAT, nullable=False)
+
+
+class CompanyKnowledgeEdge(Base):
+    __tablename__ = "company_knowledge_edge"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["graph_version_id", "from_id"],
+            [
+                _table("company_knowledge_node.graph_version_id"),
+                _table("company_knowledge_node.node_id"),
+            ],
+            ondelete="CASCADE",
+            name="fk_company_knowledge_edge_from_node",
+        ),
+        ForeignKeyConstraint(
+            ["graph_version_id", "to_id"],
+            [
+                _table("company_knowledge_node.graph_version_id"),
+                _table("company_knowledge_node.node_id"),
+            ],
+            ondelete="CASCADE",
+            name="fk_company_knowledge_edge_to_node",
+        ),
+        CheckConstraint(
+            DualSQL(
+                "json_valid(payload) AND json_type(payload) = 'object'",
+                "jsonb_typeof(payload) = 'object'",
+            ),
+            name="ck_company_knowledge_edge_payload",
+        ),
+        CheckConstraint(
+            DualSQL(
+                "json_extract(payload, '$.id') = edge_id AND "
+                "json_extract(payload, '$.from_id') = from_id AND "
+                "json_extract(payload, '$.to_id') = to_id",
+                "payload->>'id' = edge_id AND payload->>'from_id' = from_id "
+                "AND payload->>'to_id' = to_id",
+            ),
+            name="ck_company_knowledge_edge_payload_identity",
+        ),
+    )
+
+    graph_version_id: Mapped[uuid_module.UUID] = mapped_column(
+        Uuid(as_uuid=True), primary_key=True
+    )
+    edge_id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    from_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    to_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    payload: Mapped[Any] = mapped_column(JSONB_COMPAT, nullable=False)
+
+
+class CompanyKnowledgeBinding(Base):
+    __tablename__ = "company_knowledge_binding"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["graph_version_id", "company_id", "profile_version_id"],
+            [
+                _table("company_knowledge_version.id"),
+                _table("company_knowledge_version.company_id"),
+                _table("company_knowledge_version.profile_version_id"),
+            ],
+            ondelete="RESTRICT",
+            name="fk_company_knowledge_binding_version_scope",
+        ),
+        CheckConstraint("revision >= 1", name="ck_company_knowledge_binding_revision"),
+        CheckConstraint(
+            "length(trim(actor)) BETWEEN 1 AND 128",
+            name="ck_company_knowledge_binding_actor",
+        ),
+    )
+
+    company_id: Mapped[uuid_module.UUID] = mapped_column(
+        _fk("company.id", ondelete="RESTRICT"), primary_key=True
+    )
+    graph_version_id: Mapped[uuid_module.UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
+    profile_version_id: Mapped[uuid_module.UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
+    revision: Mapped[int] = mapped_column(Integer, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        AwareDateTime(), default=utc_now, server_default=text("CURRENT_TIMESTAMP"), nullable=False
+    )
+    actor: Mapped[str] = mapped_column(String(128), nullable=False)
+
+
+class CompanyKnowledgeBindingEvent(Base):
+    __tablename__ = "company_knowledge_binding_event"
+    __table_args__ = (
+        UniqueConstraint(
+            "company_id", "revision", name="uq_company_knowledge_binding_event_revision"
+        ),
+        ForeignKeyConstraint(
+            ["graph_version_id", "company_id", "profile_version_id"],
+            [
+                _table("company_knowledge_version.id"),
+                _table("company_knowledge_version.company_id"),
+                _table("company_knowledge_version.profile_version_id"),
+            ],
+            ondelete="RESTRICT",
+            name="fk_company_knowledge_binding_event_version_scope",
+        ),
+        ForeignKeyConstraint(
+            ["previous_graph_version_id", "company_id"],
+            [
+                _table("company_knowledge_version.id"),
+                _table("company_knowledge_version.company_id"),
+            ],
+            ondelete="RESTRICT",
+            name="fk_company_knowledge_binding_event_previous_company",
+        ),
+        CheckConstraint("revision >= 1", name="ck_company_knowledge_binding_event_revision"),
+        CheckConstraint(
+            "length(trim(actor)) BETWEEN 1 AND 128",
+            name="ck_company_knowledge_binding_event_actor",
+        ),
+    )
+
+    id: Mapped[uuid_module.UUID] = _uuid_column(primary_key=True)
+    company_id: Mapped[uuid_module.UUID] = mapped_column(
+        _fk("company.id", ondelete="RESTRICT"), nullable=False
+    )
+    revision: Mapped[int] = mapped_column(Integer, nullable=False)
+    graph_version_id: Mapped[uuid_module.UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
+    profile_version_id: Mapped[uuid_module.UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
+    previous_graph_version_id: Mapped[uuid_module.UUID | None] = mapped_column(
+        Uuid(as_uuid=True), nullable=True
+    )
+    actor: Mapped[str] = mapped_column(String(128), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        AwareDateTime(), default=utc_now, server_default=text("CURRENT_TIMESTAMP"), nullable=False
+    )
+
+
+_COMPANY_KNOWLEDGE_APPEND_ONLY_MODELS = (
+    KnowledgeOntologyVersion,
+    CompanyKnowledgeSource,
+    CompanyKnowledgeVersion,
+    CompanyKnowledgeNode,
+    CompanyKnowledgeEdge,
+    CompanyKnowledgeBindingEvent,
+)
+
+
+def _reject_company_knowledge_mutation(*_args: Any) -> None:
+    raise ValueError("company knowledge lineage is append-only")
+
+
+for _company_knowledge_model in _COMPANY_KNOWLEDGE_APPEND_ONLY_MODELS:
+    event.listen(_company_knowledge_model, "before_update", _reject_company_knowledge_mutation)
+    event.listen(_company_knowledge_model, "before_delete", _reject_company_knowledge_mutation)
+
+
 class AnalysisPolicyVersion(Base):
     __tablename__ = "analysis_policy_version"
     __table_args__ = (UniqueConstraint("version", name="uq_analysis_policy_version_version"),)
@@ -912,6 +1229,17 @@ DOCUMENT_SEGMENT_TABLES = (
     "document_segment_manifest",
     "document_segment",
     "requirement_inventory_item",
+)
+
+
+COMPANY_KNOWLEDGE_TABLES = (
+    "knowledge_ontology_version",
+    "company_knowledge_source",
+    "company_knowledge_version",
+    "company_knowledge_node",
+    "company_knowledge_edge",
+    "company_knowledge_binding",
+    "company_knowledge_binding_event",
 )
 
 

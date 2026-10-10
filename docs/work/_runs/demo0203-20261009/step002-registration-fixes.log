@@ -1,0 +1,27 @@
+command: /tmp/bidops-demo00-verify-venv/bin/python -m pytest tests/deep_review/test_company_knowledge.py tests/app/test_company_knowledge_cli.py tests/app/test_db_migrations.py::test_migration_records_a_deterministic_audit_marker tests/app/test_models.py::test_init_db_creates_all_declared_tables_and_indexes -q
+........................F                                                [100%]
+=================================== FAILURES ===================================
+_____________ test_init_db_creates_all_declared_tables_and_indexes _____________
+
+    def test_init_db_creates_all_declared_tables_and_indexes():
+        test_engine = make_test_engine()
+        init_db(test_engine)
+    
+        inspector = inspect(test_engine)
+>       assert set(inspector.get_table_names()) == EXPECTED_TABLES
+E       AssertionError: assert {'agency_port...n_stage', ...} == {'agency_port...t_event', ...}
+E         
+E         Extra items in the left set:
+E         'deep_review_approval'
+E         'assumption_input_version'
+E         'assumption_run'
+E         'assumption_stage'
+E         'deep_review_preview'
+E         Use -v to get more diff
+
+tests/app/test_models.py:82: AssertionError
+=========================== short test summary info ============================
+FAILED tests/app/test_models.py::test_init_db_creates_all_declared_tables_and_indexes
+1 failed, 24 passed in 19.19s
+
+exit_code=1

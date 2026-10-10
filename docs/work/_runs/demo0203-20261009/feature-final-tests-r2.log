@@ -1,0 +1,33 @@
+command: cd web/backend && BIDOPS_PRESPEC_OVERVIEW_ENABLED=false BIDOPS_TEST_POSTGRES_URL=<fresh disposable postgres:17.11 via tests.postgres.temporary_postgres_server> -m pytest tests/core/test_company_ontology.py tests/deep_review/test_company_knowledge.py tests/app/test_company_knowledge_api.py tests/app/test_company_knowledge_cli.py tests/screening/test_profile_snapshot.py tests/app/test_deep_reviews.py tests/app/test_db_migrations.py tests/app/test_deep_review_migrations.py tests/app/test_mapper_isolation.py tests/app/test_models.py tests/app/test_module_cli_entrypoints.py tests/app/test_module_boundaries.py tests/app/test_module_public_surface.py tests/app/test_module_selection.py tests/app/test_extension_registration.py tests/app/test_alembic_autogenerate.py tests/app/test_runtime_database_privileges.py tests/app/test_company_context.py -q -rfs -p no:warnings
+........................................................................ [ 15%]
+........................................................................ [ 31%]
+........................................................................ [ 47%]
+........................................................................ [ 63%]
+................F....................................................... [ 78%]
+........................................................................ [ 94%]
+........................                                                 [100%]
+=================================== FAILURES ===================================
+_____________ test_init_db_creates_all_declared_tables_and_indexes _____________
+
+    def test_init_db_creates_all_declared_tables_and_indexes():
+        test_engine = make_test_engine()
+        init_db(test_engine)
+    
+        inspector = inspect(test_engine)
+>       assert set(inspector.get_table_names()) == EXPECTED_TABLES
+E       AssertionError: assert {'agency_port...n_stage', ...} == {'agency_port...t_event', ...}
+E         
+E         Extra items in the left set:
+E         'deep_review_preview'
+E         'assumption_stage'
+E         'assumption_run'
+E         'assumption_input_version'
+E         'deep_review_approval'
+E         Use -v to get more diff
+
+tests/app/test_models.py:82: AssertionError
+=========================== short test summary info ============================
+FAILED tests/app/test_models.py::test_init_db_creates_all_declared_tables_and_indexes
+1 failed, 455 passed in 167.33s (0:02:47)
+
+exit_code=1

@@ -4,6 +4,7 @@ data
 reports
 docs/reference/*
 docs/reference/company-performance-titles.tsv
+docs/demo-fixtures
 web/backend/app/screening/baseline_company_profile.md
 web/backend/.venv
 web/data

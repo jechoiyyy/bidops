@@ -1,0 +1,5 @@
+command: ['/tmp/bidops-demo00-verify-venv/bin/python', '-m', 'pytest', 'tests/deep_review/test_company_knowledge.py', 'tests/app/test_company_knowledge_cli.py', 'tests/app/test_alembic_autogenerate.py', 'tests/app/test_runtime_database_privileges.py', 'tests/app/test_db_migrations.py', 'tests/app/test_deep_review_migrations.py', 'tests/app/test_mapper_isolation.py', 'tests/app/test_module_cli_entrypoints.py', 'tests/app/test_module_boundaries.py', 'tests/app/test_company_context.py::test_register_company_is_flush_only_idempotent_and_identity_checked[postgres]', '-q']
+ERROR: Could not create the isolated PostgreSQL 17 backend test harness: Alembic failed to migrate the isolated PostgreSQL 17 test database
+
+
+exit_code=4

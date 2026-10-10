@@ -59,6 +59,9 @@ CROSS_PREFIX_ROUTES: dict[str, str] = {
     "/api/runs/{run_id}/pipeline/judgment": "screening",
     "/api/notices/{notice_pk}/review": "screening",
     "/api/pre-specs/{notice_id}/company-fit": "deep_review",
+    "/api/companies/{company_id}/profile": "deep_review",
+    "/api/companies/{company_id}/knowledge-graph": "deep_review",
+    "/api/companies/{company_id}/profile-evidence/{evidence_id}": "deep_review",
 }
 
 

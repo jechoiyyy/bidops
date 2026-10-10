@@ -691,10 +691,12 @@ runner는 DB·MinIO·저장소 없이 전용 인증 secret만 사용한다.
 별도 REST를 통해 A안 React reader가 읽는다. [작업 정본](0923_assumption-analysis/intent.md).
 
 
-## 가상 SI 3사 데모 계약 (2026-10-09, DEMO-01 데모 브랜치 구현)
+## 가상 SI 3사 데모 계약 (2026-10-09, DEMO-01·02 데모 브랜치 구현)
 
 회사 identity·추적은 lifecycle, 버전 프로필·지식그래프·회사별 분석은 deep_review가 소유한다. 원문과 v7 개요는 공유하고 결과는 회사 문맥으로 분리한다.
 DEMO-01은 별도 데모 브랜치에서 lifecycle 회사 identity·독립 추적과 deep_review의 nullable 회사 계보,
 legacy NULL 조회·worker 경계까지 구현했다. Notice·Opportunity 원문은 공유 소유를 유지한다.
-main·운영에는 미반영이며, 버전 프로필·지식그래프·회사별 분석·비교 UI·실제 인수는 DEMO-02~05의 미구현 범위다.
+DEMO-02는 같은 데모 브랜치에서 core의 순수 온톨로지·원본 validator와 deep_review 소유의 불변 온톨로지·원본·graph version·node·edge·binding·binding event(migration `0035`),
+원본 hash에 묶인 profile v2·ProfileEvidence 단일 등록, 명시적 activate CLI, 회사별 profile·knowledge-graph·profile-evidence 읽기 REST를 구현했다.
+main·운영에는 미반영이며, `bidops-local`에 승인된 3사 원본을 실제 등록·활성화하는 일(공통 계약 §10 준비 단계)과 회사별 분석·비교 UI·실제 인수는 DEMO-03~05의 미구현 범위다.
 [ADR-0070](tracking/decisions/0070-multi-company-knowledge-demo.md) · [공통 계약](work/demo-contract.md) · [기능 로드맵](work/constitution/roadmap.md).
