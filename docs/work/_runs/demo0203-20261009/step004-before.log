@@ -1,0 +1,3393 @@
+command: /tmp/bidops-demo00-verify-venv/bin/python -m pytest tests/deep_review/test_company_knowledge.py -q -k t6_profile_v2 or t7_profile_v1_consumer
+FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF                                   [100%]
+=================================== FAILURES ===================================
+_ test_t6_profile_v2_context_consumes_strict_projection_without_private_source[sqlite] _
+
+engine = Engine(sqlite://)
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x1155a25d0>
+
+    def test_t6_profile_v2_context_consumes_strict_projection_without_private_source(
+        engine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The consumer validates frozen DB lineage without source-namespace access."""
+    
+        with Session(engine) as session:
+            with session.begin():
+                imported = import_company_knowledge(
+                    session, _prepared(), actor="등록 담당자"
+                )
+            profile = session.get(ProfileVersion, imported.profile_version_id)
+            assert profile is not None
+            monkeypatch.setattr(
+                input_versions,
+                "_verified_profile_source",
+                lambda _session, _rows: pytest.fail(
+                    "profile v2 consumption must not read private source bytes"
+                ),
+            )
+    
+>           context = input_versions.profile_context(session, profile)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/deep_review/test_company_knowledge.py:259: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+app/deep_review/services/input_versions.py:824: in profile_context
+    _validate_profile_snapshot(session, profile)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+session = <sqlalchemy.orm.session.Session object at 0x114b9d370>
+profile = <app.deep_review.models.ProfileVersion object at 0x1155bd100>
+
+    def _validate_profile_snapshot(
+        session: Session,
+        profile: ProfileVersion,
+        *,
+        require_verified_source: bool = False,
+    ) -> None:
+        """Fail closed when any pinned fact/evidence pair is incomplete or altered.
+    
+        The import path has private ``source`` credentials and re-verifies the
+        original Markdown bytes.  The analysis worker intentionally has only
+        structure-read credentials, so its runtime check validates the immutable
+        fact/evidence pairs and their content-object lineage without treating the
+        inaccessible source namespace as evidence tampering.
+        """
+    
+        payload = profile.profile_payload if isinstance(profile.profile_payload, Mapping) else None
+        if payload is None or payload.get("schema") != "bidops.company-profile.v1" or payload.get("source_file") != PROFILE_SOURCE_FILE or payload.get("source_sha256") != profile.profile_sha256:
+>           raise InputVersionError("service_unavailable", "active profile hash가 payload와 일치하지 않습니다")
+E           app.deep_review.services.input_versions.InputVersionError: active profile hash가 payload와 일치하지 않습니다
+
+app/deep_review/services/input_versions.py:667: InputVersionError
+_ test_t6_profile_v2_context_consumes_strict_projection_without_private_source[postgres] _
+
+engine = Engine(postgresql+psycopg://owner:***@127.0.0.1:32790/bidops_test_d39fb8cfb9e34645)
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x115a17470>
+
+    def test_t6_profile_v2_context_consumes_strict_projection_without_private_source(
+        engine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The consumer validates frozen DB lineage without source-namespace access."""
+    
+        with Session(engine) as session:
+            with session.begin():
+                imported = import_company_knowledge(
+                    session, _prepared(), actor="등록 담당자"
+                )
+            profile = session.get(ProfileVersion, imported.profile_version_id)
+            assert profile is not None
+            monkeypatch.setattr(
+                input_versions,
+                "_verified_profile_source",
+                lambda _session, _rows: pytest.fail(
+                    "profile v2 consumption must not read private source bytes"
+                ),
+            )
+    
+>           context = input_versions.profile_context(session, profile)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/deep_review/test_company_knowledge.py:259: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+app/deep_review/services/input_versions.py:824: in profile_context
+    _validate_profile_snapshot(session, profile)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+session = <sqlalchemy.orm.session.Session object at 0x115a15f40>
+profile = <app.deep_review.models.ProfileVersion object at 0x115b22390>
+
+    def _validate_profile_snapshot(
+        session: Session,
+        profile: ProfileVersion,
+        *,
+        require_verified_source: bool = False,
+    ) -> None:
+        """Fail closed when any pinned fact/evidence pair is incomplete or altered.
+    
+        The import path has private ``source`` credentials and re-verifies the
+        original Markdown bytes.  The analysis worker intentionally has only
+        structure-read credentials, so its runtime check validates the immutable
+        fact/evidence pairs and their content-object lineage without treating the
+        inaccessible source namespace as evidence tampering.
+        """
+    
+        payload = profile.profile_payload if isinstance(profile.profile_payload, Mapping) else None
+        if payload is None or payload.get("schema") != "bidops.company-profile.v1" or payload.get("source_file") != PROFILE_SOURCE_FILE or payload.get("source_sha256") != profile.profile_sha256:
+>           raise InputVersionError("service_unavailable", "active profile hash가 payload와 일치하지 않습니다")
+E           app.deep_review.services.input_versions.InputVersionError: active profile hash가 payload와 일치하지 않습니다
+
+app/deep_review/services/input_versions.py:667: InputVersionError
+_ test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage[sqlite-payload_company] _
+
+engine = Engine(sqlite://), tamper = 'payload_company'
+
+    @pytest.mark.parametrize(
+        "tamper",
+        [
+            "payload_company",
+            "payload_graph",
+            "payload_source_hash",
+            "payload_ontology",
+            "payload_origin",
+            "payload_source_file",
+            "profile_company",
+            "graph_profile",
+            "graph_source_hash",
+            "graph_snapshot_hash",
+            "source_company",
+            "source_content",
+            "ontology_hash",
+            "node_payload",
+            "fact_projection",
+            "evidence_projection",
+        ],
+    )
+    def test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage(
+        engine, tamper: str
+    ) -> None:
+        prepared = _prepared()
+        with Session(engine) as session:
+            with session.begin():
+                imported = import_company_knowledge(
+                    session, prepared, actor="등록 담당자"
+                )
+            profile = session.get(ProfileVersion, imported.profile_version_id)
+            graph = session.get(CompanyKnowledgeVersion, imported.graph_version_id)
+            assert profile is not None and graph is not None
+            source = session.get(CompanyKnowledgeSource, graph.source_id)
+            ontology = session.get(KnowledgeOntologyVersion, graph.ontology_id)
+            node = session.get(
+                CompanyKnowledgeNode, (graph.id, "cap.delivery")
+            )
+            evidence = session.scalar(
+                select(ProfileEvidence).where(
+                    ProfileEvidence.profile_version_id == profile.id,
+                    ProfileEvidence.fact_key == "cap.delivery",
+                )
+            )
+            assert source is not None and ontology is not None
+            assert node is not None and evidence is not None
+    
+            payload = deepcopy(profile.profile_payload)
+            if tamper == "payload_company":
+                payload["company_id"] = str(uuid4())
+            elif tamper == "payload_graph":
+                payload["graph_version_id"] = str(uuid4())
+            elif tamper == "payload_source_hash":
+                payload["source_sha256"] = "f" * 64
+            elif tamper == "payload_ontology":
+                payload["ontology_version"] = "other-ontology"
+            elif tamper == "payload_origin":
+                payload["origin"] = "public_document"
+            elif tamper == "payload_source_file":
+                payload["source_file"] = "/private/company.json"
+            elif tamper == "profile_company":
+                profile.company_id = uuid4()
+            elif tamper == "graph_profile":
+                graph.profile_version_id = uuid4()
+            elif tamper == "graph_source_hash":
+                graph.source_sha256 = "f" * 64
+            elif tamper == "graph_snapshot_hash":
+                graph.graph_sha256 = "f" * 64
+            elif tamper == "source_company":
+                source.company_id = uuid4()
+            elif tamper == "source_content":
+                source.content_object_id = uuid4()
+            elif tamper == "ontology_hash":
+                ontology.sha256 = "f" * 64
+            elif tamper == "node_payload":
+                node.payload = {**node.payload, "label": "변조된 노드"}
+            elif tamper == "fact_projection":
+                payload["facts"][0] = {
+                    **payload["facts"][0],
+                    "value": "그래프에 없는 사실",
+                }
+            elif tamper == "evidence_projection":
+                evidence.quote = "그래프에 없는 인용"
+            profile.profile_payload = payload
+    
+            with session.no_autoflush, pytest.raises(
+                input_versions.InputVersionError
+            ) as rejected:
+>               input_versions.validate_profile_snapshot(session, profile)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               AttributeError: module 'app.deep_review.services.input_versions' has no attribute 'validate_profile_snapshot'. Did you mean: '_validate_profile_snapshot'?
+
+tests/deep_review/test_company_knowledge.py:383: AttributeError
+_ test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage[sqlite-payload_graph] _
+
+engine = Engine(sqlite://), tamper = 'payload_graph'
+
+    @pytest.mark.parametrize(
+        "tamper",
+        [
+            "payload_company",
+            "payload_graph",
+            "payload_source_hash",
+            "payload_ontology",
+            "payload_origin",
+            "payload_source_file",
+            "profile_company",
+            "graph_profile",
+            "graph_source_hash",
+            "graph_snapshot_hash",
+            "source_company",
+            "source_content",
+            "ontology_hash",
+            "node_payload",
+            "fact_projection",
+            "evidence_projection",
+        ],
+    )
+    def test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage(
+        engine, tamper: str
+    ) -> None:
+        prepared = _prepared()
+        with Session(engine) as session:
+            with session.begin():
+                imported = import_company_knowledge(
+                    session, prepared, actor="등록 담당자"
+                )
+            profile = session.get(ProfileVersion, imported.profile_version_id)
+            graph = session.get(CompanyKnowledgeVersion, imported.graph_version_id)
+            assert profile is not None and graph is not None
+            source = session.get(CompanyKnowledgeSource, graph.source_id)
+            ontology = session.get(KnowledgeOntologyVersion, graph.ontology_id)
+            node = session.get(
+                CompanyKnowledgeNode, (graph.id, "cap.delivery")
+            )
+            evidence = session.scalar(
+                select(ProfileEvidence).where(
+                    ProfileEvidence.profile_version_id == profile.id,
+                    ProfileEvidence.fact_key == "cap.delivery",
+                )
+            )
+            assert source is not None and ontology is not None
+            assert node is not None and evidence is not None
+    
+            payload = deepcopy(profile.profile_payload)
+            if tamper == "payload_company":
+                payload["company_id"] = str(uuid4())
+            elif tamper == "payload_graph":
+                payload["graph_version_id"] = str(uuid4())
+            elif tamper == "payload_source_hash":
+                payload["source_sha256"] = "f" * 64
+            elif tamper == "payload_ontology":
+                payload["ontology_version"] = "other-ontology"
+            elif tamper == "payload_origin":
+                payload["origin"] = "public_document"
+            elif tamper == "payload_source_file":
+                payload["source_file"] = "/private/company.json"
+            elif tamper == "profile_company":
+                profile.company_id = uuid4()
+            elif tamper == "graph_profile":
+                graph.profile_version_id = uuid4()
+            elif tamper == "graph_source_hash":
+                graph.source_sha256 = "f" * 64
+            elif tamper == "graph_snapshot_hash":
+                graph.graph_sha256 = "f" * 64
+            elif tamper == "source_company":
+                source.company_id = uuid4()
+            elif tamper == "source_content":
+                source.content_object_id = uuid4()
+            elif tamper == "ontology_hash":
+                ontology.sha256 = "f" * 64
+            elif tamper == "node_payload":
+                node.payload = {**node.payload, "label": "변조된 노드"}
+            elif tamper == "fact_projection":
+                payload["facts"][0] = {
+                    **payload["facts"][0],
+                    "value": "그래프에 없는 사실",
+                }
+            elif tamper == "evidence_projection":
+                evidence.quote = "그래프에 없는 인용"
+            profile.profile_payload = payload
+    
+            with session.no_autoflush, pytest.raises(
+                input_versions.InputVersionError
+            ) as rejected:
+>               input_versions.validate_profile_snapshot(session, profile)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               AttributeError: module 'app.deep_review.services.input_versions' has no attribute 'validate_profile_snapshot'. Did you mean: '_validate_profile_snapshot'?
+
+tests/deep_review/test_company_knowledge.py:383: AttributeError
+_ test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage[sqlite-payload_source_hash] _
+
+engine = Engine(sqlite://), tamper = 'payload_source_hash'
+
+    @pytest.mark.parametrize(
+        "tamper",
+        [
+            "payload_company",
+            "payload_graph",
+            "payload_source_hash",
+            "payload_ontology",
+            "payload_origin",
+            "payload_source_file",
+            "profile_company",
+            "graph_profile",
+            "graph_source_hash",
+            "graph_snapshot_hash",
+            "source_company",
+            "source_content",
+            "ontology_hash",
+            "node_payload",
+            "fact_projection",
+            "evidence_projection",
+        ],
+    )
+    def test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage(
+        engine, tamper: str
+    ) -> None:
+        prepared = _prepared()
+        with Session(engine) as session:
+            with session.begin():
+                imported = import_company_knowledge(
+                    session, prepared, actor="등록 담당자"
+                )
+            profile = session.get(ProfileVersion, imported.profile_version_id)
+            graph = session.get(CompanyKnowledgeVersion, imported.graph_version_id)
+            assert profile is not None and graph is not None
+            source = session.get(CompanyKnowledgeSource, graph.source_id)
+            ontology = session.get(KnowledgeOntologyVersion, graph.ontology_id)
+            node = session.get(
+                CompanyKnowledgeNode, (graph.id, "cap.delivery")
+            )
+            evidence = session.scalar(
+                select(ProfileEvidence).where(
+                    ProfileEvidence.profile_version_id == profile.id,
+                    ProfileEvidence.fact_key == "cap.delivery",
+                )
+            )
+            assert source is not None and ontology is not None
+            assert node is not None and evidence is not None
+    
+            payload = deepcopy(profile.profile_payload)
+            if tamper == "payload_company":
+                payload["company_id"] = str(uuid4())
+            elif tamper == "payload_graph":
+                payload["graph_version_id"] = str(uuid4())
+            elif tamper == "payload_source_hash":
+                payload["source_sha256"] = "f" * 64
+            elif tamper == "payload_ontology":
+                payload["ontology_version"] = "other-ontology"
+            elif tamper == "payload_origin":
+                payload["origin"] = "public_document"
+            elif tamper == "payload_source_file":
+                payload["source_file"] = "/private/company.json"
+            elif tamper == "profile_company":
+                profile.company_id = uuid4()
+            elif tamper == "graph_profile":
+                graph.profile_version_id = uuid4()
+            elif tamper == "graph_source_hash":
+                graph.source_sha256 = "f" * 64
+            elif tamper == "graph_snapshot_hash":
+                graph.graph_sha256 = "f" * 64
+            elif tamper == "source_company":
+                source.company_id = uuid4()
+            elif tamper == "source_content":
+                source.content_object_id = uuid4()
+            elif tamper == "ontology_hash":
+                ontology.sha256 = "f" * 64
+            elif tamper == "node_payload":
+                node.payload = {**node.payload, "label": "변조된 노드"}
+            elif tamper == "fact_projection":
+                payload["facts"][0] = {
+                    **payload["facts"][0],
+                    "value": "그래프에 없는 사실",
+                }
+            elif tamper == "evidence_projection":
+                evidence.quote = "그래프에 없는 인용"
+            profile.profile_payload = payload
+    
+            with session.no_autoflush, pytest.raises(
+                input_versions.InputVersionError
+            ) as rejected:
+>               input_versions.validate_profile_snapshot(session, profile)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               AttributeError: module 'app.deep_review.services.input_versions' has no attribute 'validate_profile_snapshot'. Did you mean: '_validate_profile_snapshot'?
+
+tests/deep_review/test_company_knowledge.py:383: AttributeError
+_ test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage[sqlite-payload_ontology] _
+
+engine = Engine(sqlite://), tamper = 'payload_ontology'
+
+    @pytest.mark.parametrize(
+        "tamper",
+        [
+            "payload_company",
+            "payload_graph",
+            "payload_source_hash",
+            "payload_ontology",
+            "payload_origin",
+            "payload_source_file",
+            "profile_company",
+            "graph_profile",
+            "graph_source_hash",
+            "graph_snapshot_hash",
+            "source_company",
+            "source_content",
+            "ontology_hash",
+            "node_payload",
+            "fact_projection",
+            "evidence_projection",
+        ],
+    )
+    def test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage(
+        engine, tamper: str
+    ) -> None:
+        prepared = _prepared()
+        with Session(engine) as session:
+            with session.begin():
+                imported = import_company_knowledge(
+                    session, prepared, actor="등록 담당자"
+                )
+            profile = session.get(ProfileVersion, imported.profile_version_id)
+            graph = session.get(CompanyKnowledgeVersion, imported.graph_version_id)
+            assert profile is not None and graph is not None
+            source = session.get(CompanyKnowledgeSource, graph.source_id)
+            ontology = session.get(KnowledgeOntologyVersion, graph.ontology_id)
+            node = session.get(
+                CompanyKnowledgeNode, (graph.id, "cap.delivery")
+            )
+            evidence = session.scalar(
+                select(ProfileEvidence).where(
+                    ProfileEvidence.profile_version_id == profile.id,
+                    ProfileEvidence.fact_key == "cap.delivery",
+                )
+            )
+            assert source is not None and ontology is not None
+            assert node is not None and evidence is not None
+    
+            payload = deepcopy(profile.profile_payload)
+            if tamper == "payload_company":
+                payload["company_id"] = str(uuid4())
+            elif tamper == "payload_graph":
+                payload["graph_version_id"] = str(uuid4())
+            elif tamper == "payload_source_hash":
+                payload["source_sha256"] = "f" * 64
+            elif tamper == "payload_ontology":
+                payload["ontology_version"] = "other-ontology"
+            elif tamper == "payload_origin":
+                payload["origin"] = "public_document"
+            elif tamper == "payload_source_file":
+                payload["source_file"] = "/private/company.json"
+            elif tamper == "profile_company":
+                profile.company_id = uuid4()
+            elif tamper == "graph_profile":
+                graph.profile_version_id = uuid4()
+            elif tamper == "graph_source_hash":
+                graph.source_sha256 = "f" * 64
+            elif tamper == "graph_snapshot_hash":
+                graph.graph_sha256 = "f" * 64
+            elif tamper == "source_company":
+                source.company_id = uuid4()
+            elif tamper == "source_content":
+                source.content_object_id = uuid4()
+            elif tamper == "ontology_hash":
+                ontology.sha256 = "f" * 64
+            elif tamper == "node_payload":
+                node.payload = {**node.payload, "label": "변조된 노드"}
+            elif tamper == "fact_projection":
+                payload["facts"][0] = {
+                    **payload["facts"][0],
+                    "value": "그래프에 없는 사실",
+                }
+            elif tamper == "evidence_projection":
+                evidence.quote = "그래프에 없는 인용"
+            profile.profile_payload = payload
+    
+            with session.no_autoflush, pytest.raises(
+                input_versions.InputVersionError
+            ) as rejected:
+>               input_versions.validate_profile_snapshot(session, profile)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               AttributeError: module 'app.deep_review.services.input_versions' has no attribute 'validate_profile_snapshot'. Did you mean: '_validate_profile_snapshot'?
+
+tests/deep_review/test_company_knowledge.py:383: AttributeError
+_ test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage[sqlite-payload_origin] _
+
+engine = Engine(sqlite://), tamper = 'payload_origin'
+
+    @pytest.mark.parametrize(
+        "tamper",
+        [
+            "payload_company",
+            "payload_graph",
+            "payload_source_hash",
+            "payload_ontology",
+            "payload_origin",
+            "payload_source_file",
+            "profile_company",
+            "graph_profile",
+            "graph_source_hash",
+            "graph_snapshot_hash",
+            "source_company",
+            "source_content",
+            "ontology_hash",
+            "node_payload",
+            "fact_projection",
+            "evidence_projection",
+        ],
+    )
+    def test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage(
+        engine, tamper: str
+    ) -> None:
+        prepared = _prepared()
+        with Session(engine) as session:
+            with session.begin():
+                imported = import_company_knowledge(
+                    session, prepared, actor="등록 담당자"
+                )
+            profile = session.get(ProfileVersion, imported.profile_version_id)
+            graph = session.get(CompanyKnowledgeVersion, imported.graph_version_id)
+            assert profile is not None and graph is not None
+            source = session.get(CompanyKnowledgeSource, graph.source_id)
+            ontology = session.get(KnowledgeOntologyVersion, graph.ontology_id)
+            node = session.get(
+                CompanyKnowledgeNode, (graph.id, "cap.delivery")
+            )
+            evidence = session.scalar(
+                select(ProfileEvidence).where(
+                    ProfileEvidence.profile_version_id == profile.id,
+                    ProfileEvidence.fact_key == "cap.delivery",
+                )
+            )
+            assert source is not None and ontology is not None
+            assert node is not None and evidence is not None
+    
+            payload = deepcopy(profile.profile_payload)
+            if tamper == "payload_company":
+                payload["company_id"] = str(uuid4())
+            elif tamper == "payload_graph":
+                payload["graph_version_id"] = str(uuid4())
+            elif tamper == "payload_source_hash":
+                payload["source_sha256"] = "f" * 64
+            elif tamper == "payload_ontology":
+                payload["ontology_version"] = "other-ontology"
+            elif tamper == "payload_origin":
+                payload["origin"] = "public_document"
+            elif tamper == "payload_source_file":
+                payload["source_file"] = "/private/company.json"
+            elif tamper == "profile_company":
+                profile.company_id = uuid4()
+            elif tamper == "graph_profile":
+                graph.profile_version_id = uuid4()
+            elif tamper == "graph_source_hash":
+                graph.source_sha256 = "f" * 64
+            elif tamper == "graph_snapshot_hash":
+                graph.graph_sha256 = "f" * 64
+            elif tamper == "source_company":
+                source.company_id = uuid4()
+            elif tamper == "source_content":
+                source.content_object_id = uuid4()
+            elif tamper == "ontology_hash":
+                ontology.sha256 = "f" * 64
+            elif tamper == "node_payload":
+                node.payload = {**node.payload, "label": "변조된 노드"}
+            elif tamper == "fact_projection":
+                payload["facts"][0] = {
+                    **payload["facts"][0],
+                    "value": "그래프에 없는 사실",
+                }
+            elif tamper == "evidence_projection":
+                evidence.quote = "그래프에 없는 인용"
+            profile.profile_payload = payload
+    
+            with session.no_autoflush, pytest.raises(
+                input_versions.InputVersionError
+            ) as rejected:
+>               input_versions.validate_profile_snapshot(session, profile)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               AttributeError: module 'app.deep_review.services.input_versions' has no attribute 'validate_profile_snapshot'. Did you mean: '_validate_profile_snapshot'?
+
+tests/deep_review/test_company_knowledge.py:383: AttributeError
+_ test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage[sqlite-payload_source_file] _
+
+engine = Engine(sqlite://), tamper = 'payload_source_file'
+
+    @pytest.mark.parametrize(
+        "tamper",
+        [
+            "payload_company",
+            "payload_graph",
+            "payload_source_hash",
+            "payload_ontology",
+            "payload_origin",
+            "payload_source_file",
+            "profile_company",
+            "graph_profile",
+            "graph_source_hash",
+            "graph_snapshot_hash",
+            "source_company",
+            "source_content",
+            "ontology_hash",
+            "node_payload",
+            "fact_projection",
+            "evidence_projection",
+        ],
+    )
+    def test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage(
+        engine, tamper: str
+    ) -> None:
+        prepared = _prepared()
+        with Session(engine) as session:
+            with session.begin():
+                imported = import_company_knowledge(
+                    session, prepared, actor="등록 담당자"
+                )
+            profile = session.get(ProfileVersion, imported.profile_version_id)
+            graph = session.get(CompanyKnowledgeVersion, imported.graph_version_id)
+            assert profile is not None and graph is not None
+            source = session.get(CompanyKnowledgeSource, graph.source_id)
+            ontology = session.get(KnowledgeOntologyVersion, graph.ontology_id)
+            node = session.get(
+                CompanyKnowledgeNode, (graph.id, "cap.delivery")
+            )
+            evidence = session.scalar(
+                select(ProfileEvidence).where(
+                    ProfileEvidence.profile_version_id == profile.id,
+                    ProfileEvidence.fact_key == "cap.delivery",
+                )
+            )
+            assert source is not None and ontology is not None
+            assert node is not None and evidence is not None
+    
+            payload = deepcopy(profile.profile_payload)
+            if tamper == "payload_company":
+                payload["company_id"] = str(uuid4())
+            elif tamper == "payload_graph":
+                payload["graph_version_id"] = str(uuid4())
+            elif tamper == "payload_source_hash":
+                payload["source_sha256"] = "f" * 64
+            elif tamper == "payload_ontology":
+                payload["ontology_version"] = "other-ontology"
+            elif tamper == "payload_origin":
+                payload["origin"] = "public_document"
+            elif tamper == "payload_source_file":
+                payload["source_file"] = "/private/company.json"
+            elif tamper == "profile_company":
+                profile.company_id = uuid4()
+            elif tamper == "graph_profile":
+                graph.profile_version_id = uuid4()
+            elif tamper == "graph_source_hash":
+                graph.source_sha256 = "f" * 64
+            elif tamper == "graph_snapshot_hash":
+                graph.graph_sha256 = "f" * 64
+            elif tamper == "source_company":
+                source.company_id = uuid4()
+            elif tamper == "source_content":
+                source.content_object_id = uuid4()
+            elif tamper == "ontology_hash":
+                ontology.sha256 = "f" * 64
+            elif tamper == "node_payload":
+                node.payload = {**node.payload, "label": "변조된 노드"}
+            elif tamper == "fact_projection":
+                payload["facts"][0] = {
+                    **payload["facts"][0],
+                    "value": "그래프에 없는 사실",
+                }
+            elif tamper == "evidence_projection":
+                evidence.quote = "그래프에 없는 인용"
+            profile.profile_payload = payload
+    
+            with session.no_autoflush, pytest.raises(
+                input_versions.InputVersionError
+            ) as rejected:
+>               input_versions.validate_profile_snapshot(session, profile)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               AttributeError: module 'app.deep_review.services.input_versions' has no attribute 'validate_profile_snapshot'. Did you mean: '_validate_profile_snapshot'?
+
+tests/deep_review/test_company_knowledge.py:383: AttributeError
+_ test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage[sqlite-profile_company] _
+
+engine = Engine(sqlite://), tamper = 'profile_company'
+
+    @pytest.mark.parametrize(
+        "tamper",
+        [
+            "payload_company",
+            "payload_graph",
+            "payload_source_hash",
+            "payload_ontology",
+            "payload_origin",
+            "payload_source_file",
+            "profile_company",
+            "graph_profile",
+            "graph_source_hash",
+            "graph_snapshot_hash",
+            "source_company",
+            "source_content",
+            "ontology_hash",
+            "node_payload",
+            "fact_projection",
+            "evidence_projection",
+        ],
+    )
+    def test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage(
+        engine, tamper: str
+    ) -> None:
+        prepared = _prepared()
+        with Session(engine) as session:
+            with session.begin():
+                imported = import_company_knowledge(
+                    session, prepared, actor="등록 담당자"
+                )
+            profile = session.get(ProfileVersion, imported.profile_version_id)
+            graph = session.get(CompanyKnowledgeVersion, imported.graph_version_id)
+            assert profile is not None and graph is not None
+            source = session.get(CompanyKnowledgeSource, graph.source_id)
+            ontology = session.get(KnowledgeOntologyVersion, graph.ontology_id)
+            node = session.get(
+                CompanyKnowledgeNode, (graph.id, "cap.delivery")
+            )
+            evidence = session.scalar(
+                select(ProfileEvidence).where(
+                    ProfileEvidence.profile_version_id == profile.id,
+                    ProfileEvidence.fact_key == "cap.delivery",
+                )
+            )
+            assert source is not None and ontology is not None
+            assert node is not None and evidence is not None
+    
+            payload = deepcopy(profile.profile_payload)
+            if tamper == "payload_company":
+                payload["company_id"] = str(uuid4())
+            elif tamper == "payload_graph":
+                payload["graph_version_id"] = str(uuid4())
+            elif tamper == "payload_source_hash":
+                payload["source_sha256"] = "f" * 64
+            elif tamper == "payload_ontology":
+                payload["ontology_version"] = "other-ontology"
+            elif tamper == "payload_origin":
+                payload["origin"] = "public_document"
+            elif tamper == "payload_source_file":
+                payload["source_file"] = "/private/company.json"
+            elif tamper == "profile_company":
+                profile.company_id = uuid4()
+            elif tamper == "graph_profile":
+                graph.profile_version_id = uuid4()
+            elif tamper == "graph_source_hash":
+                graph.source_sha256 = "f" * 64
+            elif tamper == "graph_snapshot_hash":
+                graph.graph_sha256 = "f" * 64
+            elif tamper == "source_company":
+                source.company_id = uuid4()
+            elif tamper == "source_content":
+                source.content_object_id = uuid4()
+            elif tamper == "ontology_hash":
+                ontology.sha256 = "f" * 64
+            elif tamper == "node_payload":
+                node.payload = {**node.payload, "label": "변조된 노드"}
+            elif tamper == "fact_projection":
+                payload["facts"][0] = {
+                    **payload["facts"][0],
+                    "value": "그래프에 없는 사실",
+                }
+            elif tamper == "evidence_projection":
+                evidence.quote = "그래프에 없는 인용"
+            profile.profile_payload = payload
+    
+            with session.no_autoflush, pytest.raises(
+                input_versions.InputVersionError
+            ) as rejected:
+>               input_versions.validate_profile_snapshot(session, profile)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               AttributeError: module 'app.deep_review.services.input_versions' has no attribute 'validate_profile_snapshot'. Did you mean: '_validate_profile_snapshot'?
+
+tests/deep_review/test_company_knowledge.py:383: AttributeError
+_ test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage[sqlite-graph_profile] _
+
+engine = Engine(sqlite://), tamper = 'graph_profile'
+
+    @pytest.mark.parametrize(
+        "tamper",
+        [
+            "payload_company",
+            "payload_graph",
+            "payload_source_hash",
+            "payload_ontology",
+            "payload_origin",
+            "payload_source_file",
+            "profile_company",
+            "graph_profile",
+            "graph_source_hash",
+            "graph_snapshot_hash",
+            "source_company",
+            "source_content",
+            "ontology_hash",
+            "node_payload",
+            "fact_projection",
+            "evidence_projection",
+        ],
+    )
+    def test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage(
+        engine, tamper: str
+    ) -> None:
+        prepared = _prepared()
+        with Session(engine) as session:
+            with session.begin():
+                imported = import_company_knowledge(
+                    session, prepared, actor="등록 담당자"
+                )
+            profile = session.get(ProfileVersion, imported.profile_version_id)
+            graph = session.get(CompanyKnowledgeVersion, imported.graph_version_id)
+            assert profile is not None and graph is not None
+            source = session.get(CompanyKnowledgeSource, graph.source_id)
+            ontology = session.get(KnowledgeOntologyVersion, graph.ontology_id)
+            node = session.get(
+                CompanyKnowledgeNode, (graph.id, "cap.delivery")
+            )
+            evidence = session.scalar(
+                select(ProfileEvidence).where(
+                    ProfileEvidence.profile_version_id == profile.id,
+                    ProfileEvidence.fact_key == "cap.delivery",
+                )
+            )
+            assert source is not None and ontology is not None
+            assert node is not None and evidence is not None
+    
+            payload = deepcopy(profile.profile_payload)
+            if tamper == "payload_company":
+                payload["company_id"] = str(uuid4())
+            elif tamper == "payload_graph":
+                payload["graph_version_id"] = str(uuid4())
+            elif tamper == "payload_source_hash":
+                payload["source_sha256"] = "f" * 64
+            elif tamper == "payload_ontology":
+                payload["ontology_version"] = "other-ontology"
+            elif tamper == "payload_origin":
+                payload["origin"] = "public_document"
+            elif tamper == "payload_source_file":
+                payload["source_file"] = "/private/company.json"
+            elif tamper == "profile_company":
+                profile.company_id = uuid4()
+            elif tamper == "graph_profile":
+                graph.profile_version_id = uuid4()
+            elif tamper == "graph_source_hash":
+                graph.source_sha256 = "f" * 64
+            elif tamper == "graph_snapshot_hash":
+                graph.graph_sha256 = "f" * 64
+            elif tamper == "source_company":
+                source.company_id = uuid4()
+            elif tamper == "source_content":
+                source.content_object_id = uuid4()
+            elif tamper == "ontology_hash":
+                ontology.sha256 = "f" * 64
+            elif tamper == "node_payload":
+                node.payload = {**node.payload, "label": "변조된 노드"}
+            elif tamper == "fact_projection":
+                payload["facts"][0] = {
+                    **payload["facts"][0],
+                    "value": "그래프에 없는 사실",
+                }
+            elif tamper == "evidence_projection":
+                evidence.quote = "그래프에 없는 인용"
+            profile.profile_payload = payload
+    
+            with session.no_autoflush, pytest.raises(
+                input_versions.InputVersionError
+            ) as rejected:
+>               input_versions.validate_profile_snapshot(session, profile)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               AttributeError: module 'app.deep_review.services.input_versions' has no attribute 'validate_profile_snapshot'. Did you mean: '_validate_profile_snapshot'?
+
+tests/deep_review/test_company_knowledge.py:383: AttributeError
+_ test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage[sqlite-graph_source_hash] _
+
+engine = Engine(sqlite://), tamper = 'graph_source_hash'
+
+    @pytest.mark.parametrize(
+        "tamper",
+        [
+            "payload_company",
+            "payload_graph",
+            "payload_source_hash",
+            "payload_ontology",
+            "payload_origin",
+            "payload_source_file",
+            "profile_company",
+            "graph_profile",
+            "graph_source_hash",
+            "graph_snapshot_hash",
+            "source_company",
+            "source_content",
+            "ontology_hash",
+            "node_payload",
+            "fact_projection",
+            "evidence_projection",
+        ],
+    )
+    def test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage(
+        engine, tamper: str
+    ) -> None:
+        prepared = _prepared()
+        with Session(engine) as session:
+            with session.begin():
+                imported = import_company_knowledge(
+                    session, prepared, actor="등록 담당자"
+                )
+            profile = session.get(ProfileVersion, imported.profile_version_id)
+            graph = session.get(CompanyKnowledgeVersion, imported.graph_version_id)
+            assert profile is not None and graph is not None
+            source = session.get(CompanyKnowledgeSource, graph.source_id)
+            ontology = session.get(KnowledgeOntologyVersion, graph.ontology_id)
+            node = session.get(
+                CompanyKnowledgeNode, (graph.id, "cap.delivery")
+            )
+            evidence = session.scalar(
+                select(ProfileEvidence).where(
+                    ProfileEvidence.profile_version_id == profile.id,
+                    ProfileEvidence.fact_key == "cap.delivery",
+                )
+            )
+            assert source is not None and ontology is not None
+            assert node is not None and evidence is not None
+    
+            payload = deepcopy(profile.profile_payload)
+            if tamper == "payload_company":
+                payload["company_id"] = str(uuid4())
+            elif tamper == "payload_graph":
+                payload["graph_version_id"] = str(uuid4())
+            elif tamper == "payload_source_hash":
+                payload["source_sha256"] = "f" * 64
+            elif tamper == "payload_ontology":
+                payload["ontology_version"] = "other-ontology"
+            elif tamper == "payload_origin":
+                payload["origin"] = "public_document"
+            elif tamper == "payload_source_file":
+                payload["source_file"] = "/private/company.json"
+            elif tamper == "profile_company":
+                profile.company_id = uuid4()
+            elif tamper == "graph_profile":
+                graph.profile_version_id = uuid4()
+            elif tamper == "graph_source_hash":
+                graph.source_sha256 = "f" * 64
+            elif tamper == "graph_snapshot_hash":
+                graph.graph_sha256 = "f" * 64
+            elif tamper == "source_company":
+                source.company_id = uuid4()
+            elif tamper == "source_content":
+                source.content_object_id = uuid4()
+            elif tamper == "ontology_hash":
+                ontology.sha256 = "f" * 64
+            elif tamper == "node_payload":
+                node.payload = {**node.payload, "label": "변조된 노드"}
+            elif tamper == "fact_projection":
+                payload["facts"][0] = {
+                    **payload["facts"][0],
+                    "value": "그래프에 없는 사실",
+                }
+            elif tamper == "evidence_projection":
+                evidence.quote = "그래프에 없는 인용"
+            profile.profile_payload = payload
+    
+            with session.no_autoflush, pytest.raises(
+                input_versions.InputVersionError
+            ) as rejected:
+>               input_versions.validate_profile_snapshot(session, profile)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               AttributeError: module 'app.deep_review.services.input_versions' has no attribute 'validate_profile_snapshot'. Did you mean: '_validate_profile_snapshot'?
+
+tests/deep_review/test_company_knowledge.py:383: AttributeError
+_ test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage[sqlite-graph_snapshot_hash] _
+
+engine = Engine(sqlite://), tamper = 'graph_snapshot_hash'
+
+    @pytest.mark.parametrize(
+        "tamper",
+        [
+            "payload_company",
+            "payload_graph",
+            "payload_source_hash",
+            "payload_ontology",
+            "payload_origin",
+            "payload_source_file",
+            "profile_company",
+            "graph_profile",
+            "graph_source_hash",
+            "graph_snapshot_hash",
+            "source_company",
+            "source_content",
+            "ontology_hash",
+            "node_payload",
+            "fact_projection",
+            "evidence_projection",
+        ],
+    )
+    def test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage(
+        engine, tamper: str
+    ) -> None:
+        prepared = _prepared()
+        with Session(engine) as session:
+            with session.begin():
+                imported = import_company_knowledge(
+                    session, prepared, actor="등록 담당자"
+                )
+            profile = session.get(ProfileVersion, imported.profile_version_id)
+            graph = session.get(CompanyKnowledgeVersion, imported.graph_version_id)
+            assert profile is not None and graph is not None
+            source = session.get(CompanyKnowledgeSource, graph.source_id)
+            ontology = session.get(KnowledgeOntologyVersion, graph.ontology_id)
+            node = session.get(
+                CompanyKnowledgeNode, (graph.id, "cap.delivery")
+            )
+            evidence = session.scalar(
+                select(ProfileEvidence).where(
+                    ProfileEvidence.profile_version_id == profile.id,
+                    ProfileEvidence.fact_key == "cap.delivery",
+                )
+            )
+            assert source is not None and ontology is not None
+            assert node is not None and evidence is not None
+    
+            payload = deepcopy(profile.profile_payload)
+            if tamper == "payload_company":
+                payload["company_id"] = str(uuid4())
+            elif tamper == "payload_graph":
+                payload["graph_version_id"] = str(uuid4())
+            elif tamper == "payload_source_hash":
+                payload["source_sha256"] = "f" * 64
+            elif tamper == "payload_ontology":
+                payload["ontology_version"] = "other-ontology"
+            elif tamper == "payload_origin":
+                payload["origin"] = "public_document"
+            elif tamper == "payload_source_file":
+                payload["source_file"] = "/private/company.json"
+            elif tamper == "profile_company":
+                profile.company_id = uuid4()
+            elif tamper == "graph_profile":
+                graph.profile_version_id = uuid4()
+            elif tamper == "graph_source_hash":
+                graph.source_sha256 = "f" * 64
+            elif tamper == "graph_snapshot_hash":
+                graph.graph_sha256 = "f" * 64
+            elif tamper == "source_company":
+                source.company_id = uuid4()
+            elif tamper == "source_content":
+                source.content_object_id = uuid4()
+            elif tamper == "ontology_hash":
+                ontology.sha256 = "f" * 64
+            elif tamper == "node_payload":
+                node.payload = {**node.payload, "label": "변조된 노드"}
+            elif tamper == "fact_projection":
+                payload["facts"][0] = {
+                    **payload["facts"][0],
+                    "value": "그래프에 없는 사실",
+                }
+            elif tamper == "evidence_projection":
+                evidence.quote = "그래프에 없는 인용"
+            profile.profile_payload = payload
+    
+            with session.no_autoflush, pytest.raises(
+                input_versions.InputVersionError
+            ) as rejected:
+>               input_versions.validate_profile_snapshot(session, profile)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               AttributeError: module 'app.deep_review.services.input_versions' has no attribute 'validate_profile_snapshot'. Did you mean: '_validate_profile_snapshot'?
+
+tests/deep_review/test_company_knowledge.py:383: AttributeError
+_ test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage[sqlite-source_company] _
+
+engine = Engine(sqlite://), tamper = 'source_company'
+
+    @pytest.mark.parametrize(
+        "tamper",
+        [
+            "payload_company",
+            "payload_graph",
+            "payload_source_hash",
+            "payload_ontology",
+            "payload_origin",
+            "payload_source_file",
+            "profile_company",
+            "graph_profile",
+            "graph_source_hash",
+            "graph_snapshot_hash",
+            "source_company",
+            "source_content",
+            "ontology_hash",
+            "node_payload",
+            "fact_projection",
+            "evidence_projection",
+        ],
+    )
+    def test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage(
+        engine, tamper: str
+    ) -> None:
+        prepared = _prepared()
+        with Session(engine) as session:
+            with session.begin():
+                imported = import_company_knowledge(
+                    session, prepared, actor="등록 담당자"
+                )
+            profile = session.get(ProfileVersion, imported.profile_version_id)
+            graph = session.get(CompanyKnowledgeVersion, imported.graph_version_id)
+            assert profile is not None and graph is not None
+            source = session.get(CompanyKnowledgeSource, graph.source_id)
+            ontology = session.get(KnowledgeOntologyVersion, graph.ontology_id)
+            node = session.get(
+                CompanyKnowledgeNode, (graph.id, "cap.delivery")
+            )
+            evidence = session.scalar(
+                select(ProfileEvidence).where(
+                    ProfileEvidence.profile_version_id == profile.id,
+                    ProfileEvidence.fact_key == "cap.delivery",
+                )
+            )
+            assert source is not None and ontology is not None
+            assert node is not None and evidence is not None
+    
+            payload = deepcopy(profile.profile_payload)
+            if tamper == "payload_company":
+                payload["company_id"] = str(uuid4())
+            elif tamper == "payload_graph":
+                payload["graph_version_id"] = str(uuid4())
+            elif tamper == "payload_source_hash":
+                payload["source_sha256"] = "f" * 64
+            elif tamper == "payload_ontology":
+                payload["ontology_version"] = "other-ontology"
+            elif tamper == "payload_origin":
+                payload["origin"] = "public_document"
+            elif tamper == "payload_source_file":
+                payload["source_file"] = "/private/company.json"
+            elif tamper == "profile_company":
+                profile.company_id = uuid4()
+            elif tamper == "graph_profile":
+                graph.profile_version_id = uuid4()
+            elif tamper == "graph_source_hash":
+                graph.source_sha256 = "f" * 64
+            elif tamper == "graph_snapshot_hash":
+                graph.graph_sha256 = "f" * 64
+            elif tamper == "source_company":
+                source.company_id = uuid4()
+            elif tamper == "source_content":
+                source.content_object_id = uuid4()
+            elif tamper == "ontology_hash":
+                ontology.sha256 = "f" * 64
+            elif tamper == "node_payload":
+                node.payload = {**node.payload, "label": "변조된 노드"}
+            elif tamper == "fact_projection":
+                payload["facts"][0] = {
+                    **payload["facts"][0],
+                    "value": "그래프에 없는 사실",
+                }
+            elif tamper == "evidence_projection":
+                evidence.quote = "그래프에 없는 인용"
+            profile.profile_payload = payload
+    
+            with session.no_autoflush, pytest.raises(
+                input_versions.InputVersionError
+            ) as rejected:
+>               input_versions.validate_profile_snapshot(session, profile)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               AttributeError: module 'app.deep_review.services.input_versions' has no attribute 'validate_profile_snapshot'. Did you mean: '_validate_profile_snapshot'?
+
+tests/deep_review/test_company_knowledge.py:383: AttributeError
+_ test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage[sqlite-source_content] _
+
+engine = Engine(sqlite://), tamper = 'source_content'
+
+    @pytest.mark.parametrize(
+        "tamper",
+        [
+            "payload_company",
+            "payload_graph",
+            "payload_source_hash",
+            "payload_ontology",
+            "payload_origin",
+            "payload_source_file",
+            "profile_company",
+            "graph_profile",
+            "graph_source_hash",
+            "graph_snapshot_hash",
+            "source_company",
+            "source_content",
+            "ontology_hash",
+            "node_payload",
+            "fact_projection",
+            "evidence_projection",
+        ],
+    )
+    def test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage(
+        engine, tamper: str
+    ) -> None:
+        prepared = _prepared()
+        with Session(engine) as session:
+            with session.begin():
+                imported = import_company_knowledge(
+                    session, prepared, actor="등록 담당자"
+                )
+            profile = session.get(ProfileVersion, imported.profile_version_id)
+            graph = session.get(CompanyKnowledgeVersion, imported.graph_version_id)
+            assert profile is not None and graph is not None
+            source = session.get(CompanyKnowledgeSource, graph.source_id)
+            ontology = session.get(KnowledgeOntologyVersion, graph.ontology_id)
+            node = session.get(
+                CompanyKnowledgeNode, (graph.id, "cap.delivery")
+            )
+            evidence = session.scalar(
+                select(ProfileEvidence).where(
+                    ProfileEvidence.profile_version_id == profile.id,
+                    ProfileEvidence.fact_key == "cap.delivery",
+                )
+            )
+            assert source is not None and ontology is not None
+            assert node is not None and evidence is not None
+    
+            payload = deepcopy(profile.profile_payload)
+            if tamper == "payload_company":
+                payload["company_id"] = str(uuid4())
+            elif tamper == "payload_graph":
+                payload["graph_version_id"] = str(uuid4())
+            elif tamper == "payload_source_hash":
+                payload["source_sha256"] = "f" * 64
+            elif tamper == "payload_ontology":
+                payload["ontology_version"] = "other-ontology"
+            elif tamper == "payload_origin":
+                payload["origin"] = "public_document"
+            elif tamper == "payload_source_file":
+                payload["source_file"] = "/private/company.json"
+            elif tamper == "profile_company":
+                profile.company_id = uuid4()
+            elif tamper == "graph_profile":
+                graph.profile_version_id = uuid4()
+            elif tamper == "graph_source_hash":
+                graph.source_sha256 = "f" * 64
+            elif tamper == "graph_snapshot_hash":
+                graph.graph_sha256 = "f" * 64
+            elif tamper == "source_company":
+                source.company_id = uuid4()
+            elif tamper == "source_content":
+                source.content_object_id = uuid4()
+            elif tamper == "ontology_hash":
+                ontology.sha256 = "f" * 64
+            elif tamper == "node_payload":
+                node.payload = {**node.payload, "label": "변조된 노드"}
+            elif tamper == "fact_projection":
+                payload["facts"][0] = {
+                    **payload["facts"][0],
+                    "value": "그래프에 없는 사실",
+                }
+            elif tamper == "evidence_projection":
+                evidence.quote = "그래프에 없는 인용"
+            profile.profile_payload = payload
+    
+            with session.no_autoflush, pytest.raises(
+                input_versions.InputVersionError
+            ) as rejected:
+>               input_versions.validate_profile_snapshot(session, profile)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               AttributeError: module 'app.deep_review.services.input_versions' has no attribute 'validate_profile_snapshot'. Did you mean: '_validate_profile_snapshot'?
+
+tests/deep_review/test_company_knowledge.py:383: AttributeError
+_ test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage[sqlite-ontology_hash] _
+
+engine = Engine(sqlite://), tamper = 'ontology_hash'
+
+    @pytest.mark.parametrize(
+        "tamper",
+        [
+            "payload_company",
+            "payload_graph",
+            "payload_source_hash",
+            "payload_ontology",
+            "payload_origin",
+            "payload_source_file",
+            "profile_company",
+            "graph_profile",
+            "graph_source_hash",
+            "graph_snapshot_hash",
+            "source_company",
+            "source_content",
+            "ontology_hash",
+            "node_payload",
+            "fact_projection",
+            "evidence_projection",
+        ],
+    )
+    def test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage(
+        engine, tamper: str
+    ) -> None:
+        prepared = _prepared()
+        with Session(engine) as session:
+            with session.begin():
+                imported = import_company_knowledge(
+                    session, prepared, actor="등록 담당자"
+                )
+            profile = session.get(ProfileVersion, imported.profile_version_id)
+            graph = session.get(CompanyKnowledgeVersion, imported.graph_version_id)
+            assert profile is not None and graph is not None
+            source = session.get(CompanyKnowledgeSource, graph.source_id)
+            ontology = session.get(KnowledgeOntologyVersion, graph.ontology_id)
+            node = session.get(
+                CompanyKnowledgeNode, (graph.id, "cap.delivery")
+            )
+            evidence = session.scalar(
+                select(ProfileEvidence).where(
+                    ProfileEvidence.profile_version_id == profile.id,
+                    ProfileEvidence.fact_key == "cap.delivery",
+                )
+            )
+            assert source is not None and ontology is not None
+            assert node is not None and evidence is not None
+    
+            payload = deepcopy(profile.profile_payload)
+            if tamper == "payload_company":
+                payload["company_id"] = str(uuid4())
+            elif tamper == "payload_graph":
+                payload["graph_version_id"] = str(uuid4())
+            elif tamper == "payload_source_hash":
+                payload["source_sha256"] = "f" * 64
+            elif tamper == "payload_ontology":
+                payload["ontology_version"] = "other-ontology"
+            elif tamper == "payload_origin":
+                payload["origin"] = "public_document"
+            elif tamper == "payload_source_file":
+                payload["source_file"] = "/private/company.json"
+            elif tamper == "profile_company":
+                profile.company_id = uuid4()
+            elif tamper == "graph_profile":
+                graph.profile_version_id = uuid4()
+            elif tamper == "graph_source_hash":
+                graph.source_sha256 = "f" * 64
+            elif tamper == "graph_snapshot_hash":
+                graph.graph_sha256 = "f" * 64
+            elif tamper == "source_company":
+                source.company_id = uuid4()
+            elif tamper == "source_content":
+                source.content_object_id = uuid4()
+            elif tamper == "ontology_hash":
+                ontology.sha256 = "f" * 64
+            elif tamper == "node_payload":
+                node.payload = {**node.payload, "label": "변조된 노드"}
+            elif tamper == "fact_projection":
+                payload["facts"][0] = {
+                    **payload["facts"][0],
+                    "value": "그래프에 없는 사실",
+                }
+            elif tamper == "evidence_projection":
+                evidence.quote = "그래프에 없는 인용"
+            profile.profile_payload = payload
+    
+            with session.no_autoflush, pytest.raises(
+                input_versions.InputVersionError
+            ) as rejected:
+>               input_versions.validate_profile_snapshot(session, profile)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               AttributeError: module 'app.deep_review.services.input_versions' has no attribute 'validate_profile_snapshot'. Did you mean: '_validate_profile_snapshot'?
+
+tests/deep_review/test_company_knowledge.py:383: AttributeError
+_ test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage[sqlite-node_payload] _
+
+engine = Engine(sqlite://), tamper = 'node_payload'
+
+    @pytest.mark.parametrize(
+        "tamper",
+        [
+            "payload_company",
+            "payload_graph",
+            "payload_source_hash",
+            "payload_ontology",
+            "payload_origin",
+            "payload_source_file",
+            "profile_company",
+            "graph_profile",
+            "graph_source_hash",
+            "graph_snapshot_hash",
+            "source_company",
+            "source_content",
+            "ontology_hash",
+            "node_payload",
+            "fact_projection",
+            "evidence_projection",
+        ],
+    )
+    def test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage(
+        engine, tamper: str
+    ) -> None:
+        prepared = _prepared()
+        with Session(engine) as session:
+            with session.begin():
+                imported = import_company_knowledge(
+                    session, prepared, actor="등록 담당자"
+                )
+            profile = session.get(ProfileVersion, imported.profile_version_id)
+            graph = session.get(CompanyKnowledgeVersion, imported.graph_version_id)
+            assert profile is not None and graph is not None
+            source = session.get(CompanyKnowledgeSource, graph.source_id)
+            ontology = session.get(KnowledgeOntologyVersion, graph.ontology_id)
+            node = session.get(
+                CompanyKnowledgeNode, (graph.id, "cap.delivery")
+            )
+            evidence = session.scalar(
+                select(ProfileEvidence).where(
+                    ProfileEvidence.profile_version_id == profile.id,
+                    ProfileEvidence.fact_key == "cap.delivery",
+                )
+            )
+            assert source is not None and ontology is not None
+            assert node is not None and evidence is not None
+    
+            payload = deepcopy(profile.profile_payload)
+            if tamper == "payload_company":
+                payload["company_id"] = str(uuid4())
+            elif tamper == "payload_graph":
+                payload["graph_version_id"] = str(uuid4())
+            elif tamper == "payload_source_hash":
+                payload["source_sha256"] = "f" * 64
+            elif tamper == "payload_ontology":
+                payload["ontology_version"] = "other-ontology"
+            elif tamper == "payload_origin":
+                payload["origin"] = "public_document"
+            elif tamper == "payload_source_file":
+                payload["source_file"] = "/private/company.json"
+            elif tamper == "profile_company":
+                profile.company_id = uuid4()
+            elif tamper == "graph_profile":
+                graph.profile_version_id = uuid4()
+            elif tamper == "graph_source_hash":
+                graph.source_sha256 = "f" * 64
+            elif tamper == "graph_snapshot_hash":
+                graph.graph_sha256 = "f" * 64
+            elif tamper == "source_company":
+                source.company_id = uuid4()
+            elif tamper == "source_content":
+                source.content_object_id = uuid4()
+            elif tamper == "ontology_hash":
+                ontology.sha256 = "f" * 64
+            elif tamper == "node_payload":
+                node.payload = {**node.payload, "label": "변조된 노드"}
+            elif tamper == "fact_projection":
+                payload["facts"][0] = {
+                    **payload["facts"][0],
+                    "value": "그래프에 없는 사실",
+                }
+            elif tamper == "evidence_projection":
+                evidence.quote = "그래프에 없는 인용"
+            profile.profile_payload = payload
+    
+            with session.no_autoflush, pytest.raises(
+                input_versions.InputVersionError
+            ) as rejected:
+>               input_versions.validate_profile_snapshot(session, profile)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               AttributeError: module 'app.deep_review.services.input_versions' has no attribute 'validate_profile_snapshot'. Did you mean: '_validate_profile_snapshot'?
+
+tests/deep_review/test_company_knowledge.py:383: AttributeError
+_ test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage[sqlite-fact_projection] _
+
+engine = Engine(sqlite://), tamper = 'fact_projection'
+
+    @pytest.mark.parametrize(
+        "tamper",
+        [
+            "payload_company",
+            "payload_graph",
+            "payload_source_hash",
+            "payload_ontology",
+            "payload_origin",
+            "payload_source_file",
+            "profile_company",
+            "graph_profile",
+            "graph_source_hash",
+            "graph_snapshot_hash",
+            "source_company",
+            "source_content",
+            "ontology_hash",
+            "node_payload",
+            "fact_projection",
+            "evidence_projection",
+        ],
+    )
+    def test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage(
+        engine, tamper: str
+    ) -> None:
+        prepared = _prepared()
+        with Session(engine) as session:
+            with session.begin():
+                imported = import_company_knowledge(
+                    session, prepared, actor="등록 담당자"
+                )
+            profile = session.get(ProfileVersion, imported.profile_version_id)
+            graph = session.get(CompanyKnowledgeVersion, imported.graph_version_id)
+            assert profile is not None and graph is not None
+            source = session.get(CompanyKnowledgeSource, graph.source_id)
+            ontology = session.get(KnowledgeOntologyVersion, graph.ontology_id)
+            node = session.get(
+                CompanyKnowledgeNode, (graph.id, "cap.delivery")
+            )
+            evidence = session.scalar(
+                select(ProfileEvidence).where(
+                    ProfileEvidence.profile_version_id == profile.id,
+                    ProfileEvidence.fact_key == "cap.delivery",
+                )
+            )
+            assert source is not None and ontology is not None
+            assert node is not None and evidence is not None
+    
+            payload = deepcopy(profile.profile_payload)
+            if tamper == "payload_company":
+                payload["company_id"] = str(uuid4())
+            elif tamper == "payload_graph":
+                payload["graph_version_id"] = str(uuid4())
+            elif tamper == "payload_source_hash":
+                payload["source_sha256"] = "f" * 64
+            elif tamper == "payload_ontology":
+                payload["ontology_version"] = "other-ontology"
+            elif tamper == "payload_origin":
+                payload["origin"] = "public_document"
+            elif tamper == "payload_source_file":
+                payload["source_file"] = "/private/company.json"
+            elif tamper == "profile_company":
+                profile.company_id = uuid4()
+            elif tamper == "graph_profile":
+                graph.profile_version_id = uuid4()
+            elif tamper == "graph_source_hash":
+                graph.source_sha256 = "f" * 64
+            elif tamper == "graph_snapshot_hash":
+                graph.graph_sha256 = "f" * 64
+            elif tamper == "source_company":
+                source.company_id = uuid4()
+            elif tamper == "source_content":
+                source.content_object_id = uuid4()
+            elif tamper == "ontology_hash":
+                ontology.sha256 = "f" * 64
+            elif tamper == "node_payload":
+                node.payload = {**node.payload, "label": "변조된 노드"}
+            elif tamper == "fact_projection":
+                payload["facts"][0] = {
+                    **payload["facts"][0],
+                    "value": "그래프에 없는 사실",
+                }
+            elif tamper == "evidence_projection":
+                evidence.quote = "그래프에 없는 인용"
+            profile.profile_payload = payload
+    
+            with session.no_autoflush, pytest.raises(
+                input_versions.InputVersionError
+            ) as rejected:
+>               input_versions.validate_profile_snapshot(session, profile)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               AttributeError: module 'app.deep_review.services.input_versions' has no attribute 'validate_profile_snapshot'. Did you mean: '_validate_profile_snapshot'?
+
+tests/deep_review/test_company_knowledge.py:383: AttributeError
+_ test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage[sqlite-evidence_projection] _
+
+engine = Engine(sqlite://), tamper = 'evidence_projection'
+
+    @pytest.mark.parametrize(
+        "tamper",
+        [
+            "payload_company",
+            "payload_graph",
+            "payload_source_hash",
+            "payload_ontology",
+            "payload_origin",
+            "payload_source_file",
+            "profile_company",
+            "graph_profile",
+            "graph_source_hash",
+            "graph_snapshot_hash",
+            "source_company",
+            "source_content",
+            "ontology_hash",
+            "node_payload",
+            "fact_projection",
+            "evidence_projection",
+        ],
+    )
+    def test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage(
+        engine, tamper: str
+    ) -> None:
+        prepared = _prepared()
+        with Session(engine) as session:
+            with session.begin():
+                imported = import_company_knowledge(
+                    session, prepared, actor="등록 담당자"
+                )
+            profile = session.get(ProfileVersion, imported.profile_version_id)
+            graph = session.get(CompanyKnowledgeVersion, imported.graph_version_id)
+            assert profile is not None and graph is not None
+            source = session.get(CompanyKnowledgeSource, graph.source_id)
+            ontology = session.get(KnowledgeOntologyVersion, graph.ontology_id)
+            node = session.get(
+                CompanyKnowledgeNode, (graph.id, "cap.delivery")
+            )
+            evidence = session.scalar(
+                select(ProfileEvidence).where(
+                    ProfileEvidence.profile_version_id == profile.id,
+                    ProfileEvidence.fact_key == "cap.delivery",
+                )
+            )
+            assert source is not None and ontology is not None
+            assert node is not None and evidence is not None
+    
+            payload = deepcopy(profile.profile_payload)
+            if tamper == "payload_company":
+                payload["company_id"] = str(uuid4())
+            elif tamper == "payload_graph":
+                payload["graph_version_id"] = str(uuid4())
+            elif tamper == "payload_source_hash":
+                payload["source_sha256"] = "f" * 64
+            elif tamper == "payload_ontology":
+                payload["ontology_version"] = "other-ontology"
+            elif tamper == "payload_origin":
+                payload["origin"] = "public_document"
+            elif tamper == "payload_source_file":
+                payload["source_file"] = "/private/company.json"
+            elif tamper == "profile_company":
+                profile.company_id = uuid4()
+            elif tamper == "graph_profile":
+                graph.profile_version_id = uuid4()
+            elif tamper == "graph_source_hash":
+                graph.source_sha256 = "f" * 64
+            elif tamper == "graph_snapshot_hash":
+                graph.graph_sha256 = "f" * 64
+            elif tamper == "source_company":
+                source.company_id = uuid4()
+            elif tamper == "source_content":
+                source.content_object_id = uuid4()
+            elif tamper == "ontology_hash":
+                ontology.sha256 = "f" * 64
+            elif tamper == "node_payload":
+                node.payload = {**node.payload, "label": "변조된 노드"}
+            elif tamper == "fact_projection":
+                payload["facts"][0] = {
+                    **payload["facts"][0],
+                    "value": "그래프에 없는 사실",
+                }
+            elif tamper == "evidence_projection":
+                evidence.quote = "그래프에 없는 인용"
+            profile.profile_payload = payload
+    
+            with session.no_autoflush, pytest.raises(
+                input_versions.InputVersionError
+            ) as rejected:
+>               input_versions.validate_profile_snapshot(session, profile)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               AttributeError: module 'app.deep_review.services.input_versions' has no attribute 'validate_profile_snapshot'. Did you mean: '_validate_profile_snapshot'?
+
+tests/deep_review/test_company_knowledge.py:383: AttributeError
+_ test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage[postgres-payload_company] _
+
+engine = Engine(postgresql+psycopg://owner:***@127.0.0.1:32790/bidops_test_b271e356ce49420f)
+tamper = 'payload_company'
+
+    @pytest.mark.parametrize(
+        "tamper",
+        [
+            "payload_company",
+            "payload_graph",
+            "payload_source_hash",
+            "payload_ontology",
+            "payload_origin",
+            "payload_source_file",
+            "profile_company",
+            "graph_profile",
+            "graph_source_hash",
+            "graph_snapshot_hash",
+            "source_company",
+            "source_content",
+            "ontology_hash",
+            "node_payload",
+            "fact_projection",
+            "evidence_projection",
+        ],
+    )
+    def test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage(
+        engine, tamper: str
+    ) -> None:
+        prepared = _prepared()
+        with Session(engine) as session:
+            with session.begin():
+                imported = import_company_knowledge(
+                    session, prepared, actor="등록 담당자"
+                )
+            profile = session.get(ProfileVersion, imported.profile_version_id)
+            graph = session.get(CompanyKnowledgeVersion, imported.graph_version_id)
+            assert profile is not None and graph is not None
+            source = session.get(CompanyKnowledgeSource, graph.source_id)
+            ontology = session.get(KnowledgeOntologyVersion, graph.ontology_id)
+            node = session.get(
+                CompanyKnowledgeNode, (graph.id, "cap.delivery")
+            )
+            evidence = session.scalar(
+                select(ProfileEvidence).where(
+                    ProfileEvidence.profile_version_id == profile.id,
+                    ProfileEvidence.fact_key == "cap.delivery",
+                )
+            )
+            assert source is not None and ontology is not None
+            assert node is not None and evidence is not None
+    
+            payload = deepcopy(profile.profile_payload)
+            if tamper == "payload_company":
+                payload["company_id"] = str(uuid4())
+            elif tamper == "payload_graph":
+                payload["graph_version_id"] = str(uuid4())
+            elif tamper == "payload_source_hash":
+                payload["source_sha256"] = "f" * 64
+            elif tamper == "payload_ontology":
+                payload["ontology_version"] = "other-ontology"
+            elif tamper == "payload_origin":
+                payload["origin"] = "public_document"
+            elif tamper == "payload_source_file":
+                payload["source_file"] = "/private/company.json"
+            elif tamper == "profile_company":
+                profile.company_id = uuid4()
+            elif tamper == "graph_profile":
+                graph.profile_version_id = uuid4()
+            elif tamper == "graph_source_hash":
+                graph.source_sha256 = "f" * 64
+            elif tamper == "graph_snapshot_hash":
+                graph.graph_sha256 = "f" * 64
+            elif tamper == "source_company":
+                source.company_id = uuid4()
+            elif tamper == "source_content":
+                source.content_object_id = uuid4()
+            elif tamper == "ontology_hash":
+                ontology.sha256 = "f" * 64
+            elif tamper == "node_payload":
+                node.payload = {**node.payload, "label": "변조된 노드"}
+            elif tamper == "fact_projection":
+                payload["facts"][0] = {
+                    **payload["facts"][0],
+                    "value": "그래프에 없는 사실",
+                }
+            elif tamper == "evidence_projection":
+                evidence.quote = "그래프에 없는 인용"
+            profile.profile_payload = payload
+    
+            with session.no_autoflush, pytest.raises(
+                input_versions.InputVersionError
+            ) as rejected:
+>               input_versions.validate_profile_snapshot(session, profile)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               AttributeError: module 'app.deep_review.services.input_versions' has no attribute 'validate_profile_snapshot'. Did you mean: '_validate_profile_snapshot'?
+
+tests/deep_review/test_company_knowledge.py:383: AttributeError
+_ test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage[postgres-payload_graph] _
+
+engine = Engine(postgresql+psycopg://owner:***@127.0.0.1:32790/bidops_test_c47ce95006c44be5)
+tamper = 'payload_graph'
+
+    @pytest.mark.parametrize(
+        "tamper",
+        [
+            "payload_company",
+            "payload_graph",
+            "payload_source_hash",
+            "payload_ontology",
+            "payload_origin",
+            "payload_source_file",
+            "profile_company",
+            "graph_profile",
+            "graph_source_hash",
+            "graph_snapshot_hash",
+            "source_company",
+            "source_content",
+            "ontology_hash",
+            "node_payload",
+            "fact_projection",
+            "evidence_projection",
+        ],
+    )
+    def test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage(
+        engine, tamper: str
+    ) -> None:
+        prepared = _prepared()
+        with Session(engine) as session:
+            with session.begin():
+                imported = import_company_knowledge(
+                    session, prepared, actor="등록 담당자"
+                )
+            profile = session.get(ProfileVersion, imported.profile_version_id)
+            graph = session.get(CompanyKnowledgeVersion, imported.graph_version_id)
+            assert profile is not None and graph is not None
+            source = session.get(CompanyKnowledgeSource, graph.source_id)
+            ontology = session.get(KnowledgeOntologyVersion, graph.ontology_id)
+            node = session.get(
+                CompanyKnowledgeNode, (graph.id, "cap.delivery")
+            )
+            evidence = session.scalar(
+                select(ProfileEvidence).where(
+                    ProfileEvidence.profile_version_id == profile.id,
+                    ProfileEvidence.fact_key == "cap.delivery",
+                )
+            )
+            assert source is not None and ontology is not None
+            assert node is not None and evidence is not None
+    
+            payload = deepcopy(profile.profile_payload)
+            if tamper == "payload_company":
+                payload["company_id"] = str(uuid4())
+            elif tamper == "payload_graph":
+                payload["graph_version_id"] = str(uuid4())
+            elif tamper == "payload_source_hash":
+                payload["source_sha256"] = "f" * 64
+            elif tamper == "payload_ontology":
+                payload["ontology_version"] = "other-ontology"
+            elif tamper == "payload_origin":
+                payload["origin"] = "public_document"
+            elif tamper == "payload_source_file":
+                payload["source_file"] = "/private/company.json"
+            elif tamper == "profile_company":
+                profile.company_id = uuid4()
+            elif tamper == "graph_profile":
+                graph.profile_version_id = uuid4()
+            elif tamper == "graph_source_hash":
+                graph.source_sha256 = "f" * 64
+            elif tamper == "graph_snapshot_hash":
+                graph.graph_sha256 = "f" * 64
+            elif tamper == "source_company":
+                source.company_id = uuid4()
+            elif tamper == "source_content":
+                source.content_object_id = uuid4()
+            elif tamper == "ontology_hash":
+                ontology.sha256 = "f" * 64
+            elif tamper == "node_payload":
+                node.payload = {**node.payload, "label": "변조된 노드"}
+            elif tamper == "fact_projection":
+                payload["facts"][0] = {
+                    **payload["facts"][0],
+                    "value": "그래프에 없는 사실",
+                }
+            elif tamper == "evidence_projection":
+                evidence.quote = "그래프에 없는 인용"
+            profile.profile_payload = payload
+    
+            with session.no_autoflush, pytest.raises(
+                input_versions.InputVersionError
+            ) as rejected:
+>               input_versions.validate_profile_snapshot(session, profile)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               AttributeError: module 'app.deep_review.services.input_versions' has no attribute 'validate_profile_snapshot'. Did you mean: '_validate_profile_snapshot'?
+
+tests/deep_review/test_company_knowledge.py:383: AttributeError
+_ test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage[postgres-payload_source_hash] _
+
+engine = Engine(postgresql+psycopg://owner:***@127.0.0.1:32790/bidops_test_6d528c976d334410)
+tamper = 'payload_source_hash'
+
+    @pytest.mark.parametrize(
+        "tamper",
+        [
+            "payload_company",
+            "payload_graph",
+            "payload_source_hash",
+            "payload_ontology",
+            "payload_origin",
+            "payload_source_file",
+            "profile_company",
+            "graph_profile",
+            "graph_source_hash",
+            "graph_snapshot_hash",
+            "source_company",
+            "source_content",
+            "ontology_hash",
+            "node_payload",
+            "fact_projection",
+            "evidence_projection",
+        ],
+    )
+    def test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage(
+        engine, tamper: str
+    ) -> None:
+        prepared = _prepared()
+        with Session(engine) as session:
+            with session.begin():
+                imported = import_company_knowledge(
+                    session, prepared, actor="등록 담당자"
+                )
+            profile = session.get(ProfileVersion, imported.profile_version_id)
+            graph = session.get(CompanyKnowledgeVersion, imported.graph_version_id)
+            assert profile is not None and graph is not None
+            source = session.get(CompanyKnowledgeSource, graph.source_id)
+            ontology = session.get(KnowledgeOntologyVersion, graph.ontology_id)
+            node = session.get(
+                CompanyKnowledgeNode, (graph.id, "cap.delivery")
+            )
+            evidence = session.scalar(
+                select(ProfileEvidence).where(
+                    ProfileEvidence.profile_version_id == profile.id,
+                    ProfileEvidence.fact_key == "cap.delivery",
+                )
+            )
+            assert source is not None and ontology is not None
+            assert node is not None and evidence is not None
+    
+            payload = deepcopy(profile.profile_payload)
+            if tamper == "payload_company":
+                payload["company_id"] = str(uuid4())
+            elif tamper == "payload_graph":
+                payload["graph_version_id"] = str(uuid4())
+            elif tamper == "payload_source_hash":
+                payload["source_sha256"] = "f" * 64
+            elif tamper == "payload_ontology":
+                payload["ontology_version"] = "other-ontology"
+            elif tamper == "payload_origin":
+                payload["origin"] = "public_document"
+            elif tamper == "payload_source_file":
+                payload["source_file"] = "/private/company.json"
+            elif tamper == "profile_company":
+                profile.company_id = uuid4()
+            elif tamper == "graph_profile":
+                graph.profile_version_id = uuid4()
+            elif tamper == "graph_source_hash":
+                graph.source_sha256 = "f" * 64
+            elif tamper == "graph_snapshot_hash":
+                graph.graph_sha256 = "f" * 64
+            elif tamper == "source_company":
+                source.company_id = uuid4()
+            elif tamper == "source_content":
+                source.content_object_id = uuid4()
+            elif tamper == "ontology_hash":
+                ontology.sha256 = "f" * 64
+            elif tamper == "node_payload":
+                node.payload = {**node.payload, "label": "변조된 노드"}
+            elif tamper == "fact_projection":
+                payload["facts"][0] = {
+                    **payload["facts"][0],
+                    "value": "그래프에 없는 사실",
+                }
+            elif tamper == "evidence_projection":
+                evidence.quote = "그래프에 없는 인용"
+            profile.profile_payload = payload
+    
+            with session.no_autoflush, pytest.raises(
+                input_versions.InputVersionError
+            ) as rejected:
+>               input_versions.validate_profile_snapshot(session, profile)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               AttributeError: module 'app.deep_review.services.input_versions' has no attribute 'validate_profile_snapshot'. Did you mean: '_validate_profile_snapshot'?
+
+tests/deep_review/test_company_knowledge.py:383: AttributeError
+_ test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage[postgres-payload_ontology] _
+
+engine = Engine(postgresql+psycopg://owner:***@127.0.0.1:32790/bidops_test_e1397d7eb53f4b71)
+tamper = 'payload_ontology'
+
+    @pytest.mark.parametrize(
+        "tamper",
+        [
+            "payload_company",
+            "payload_graph",
+            "payload_source_hash",
+            "payload_ontology",
+            "payload_origin",
+            "payload_source_file",
+            "profile_company",
+            "graph_profile",
+            "graph_source_hash",
+            "graph_snapshot_hash",
+            "source_company",
+            "source_content",
+            "ontology_hash",
+            "node_payload",
+            "fact_projection",
+            "evidence_projection",
+        ],
+    )
+    def test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage(
+        engine, tamper: str
+    ) -> None:
+        prepared = _prepared()
+        with Session(engine) as session:
+            with session.begin():
+                imported = import_company_knowledge(
+                    session, prepared, actor="등록 담당자"
+                )
+            profile = session.get(ProfileVersion, imported.profile_version_id)
+            graph = session.get(CompanyKnowledgeVersion, imported.graph_version_id)
+            assert profile is not None and graph is not None
+            source = session.get(CompanyKnowledgeSource, graph.source_id)
+            ontology = session.get(KnowledgeOntologyVersion, graph.ontology_id)
+            node = session.get(
+                CompanyKnowledgeNode, (graph.id, "cap.delivery")
+            )
+            evidence = session.scalar(
+                select(ProfileEvidence).where(
+                    ProfileEvidence.profile_version_id == profile.id,
+                    ProfileEvidence.fact_key == "cap.delivery",
+                )
+            )
+            assert source is not None and ontology is not None
+            assert node is not None and evidence is not None
+    
+            payload = deepcopy(profile.profile_payload)
+            if tamper == "payload_company":
+                payload["company_id"] = str(uuid4())
+            elif tamper == "payload_graph":
+                payload["graph_version_id"] = str(uuid4())
+            elif tamper == "payload_source_hash":
+                payload["source_sha256"] = "f" * 64
+            elif tamper == "payload_ontology":
+                payload["ontology_version"] = "other-ontology"
+            elif tamper == "payload_origin":
+                payload["origin"] = "public_document"
+            elif tamper == "payload_source_file":
+                payload["source_file"] = "/private/company.json"
+            elif tamper == "profile_company":
+                profile.company_id = uuid4()
+            elif tamper == "graph_profile":
+                graph.profile_version_id = uuid4()
+            elif tamper == "graph_source_hash":
+                graph.source_sha256 = "f" * 64
+            elif tamper == "graph_snapshot_hash":
+                graph.graph_sha256 = "f" * 64
+            elif tamper == "source_company":
+                source.company_id = uuid4()
+            elif tamper == "source_content":
+                source.content_object_id = uuid4()
+            elif tamper == "ontology_hash":
+                ontology.sha256 = "f" * 64
+            elif tamper == "node_payload":
+                node.payload = {**node.payload, "label": "변조된 노드"}
+            elif tamper == "fact_projection":
+                payload["facts"][0] = {
+                    **payload["facts"][0],
+                    "value": "그래프에 없는 사실",
+                }
+            elif tamper == "evidence_projection":
+                evidence.quote = "그래프에 없는 인용"
+            profile.profile_payload = payload
+    
+            with session.no_autoflush, pytest.raises(
+                input_versions.InputVersionError
+            ) as rejected:
+>               input_versions.validate_profile_snapshot(session, profile)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               AttributeError: module 'app.deep_review.services.input_versions' has no attribute 'validate_profile_snapshot'. Did you mean: '_validate_profile_snapshot'?
+
+tests/deep_review/test_company_knowledge.py:383: AttributeError
+_ test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage[postgres-payload_origin] _
+
+engine = Engine(postgresql+psycopg://owner:***@127.0.0.1:32790/bidops_test_60a6d0d4491843be)
+tamper = 'payload_origin'
+
+    @pytest.mark.parametrize(
+        "tamper",
+        [
+            "payload_company",
+            "payload_graph",
+            "payload_source_hash",
+            "payload_ontology",
+            "payload_origin",
+            "payload_source_file",
+            "profile_company",
+            "graph_profile",
+            "graph_source_hash",
+            "graph_snapshot_hash",
+            "source_company",
+            "source_content",
+            "ontology_hash",
+            "node_payload",
+            "fact_projection",
+            "evidence_projection",
+        ],
+    )
+    def test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage(
+        engine, tamper: str
+    ) -> None:
+        prepared = _prepared()
+        with Session(engine) as session:
+            with session.begin():
+                imported = import_company_knowledge(
+                    session, prepared, actor="등록 담당자"
+                )
+            profile = session.get(ProfileVersion, imported.profile_version_id)
+            graph = session.get(CompanyKnowledgeVersion, imported.graph_version_id)
+            assert profile is not None and graph is not None
+            source = session.get(CompanyKnowledgeSource, graph.source_id)
+            ontology = session.get(KnowledgeOntologyVersion, graph.ontology_id)
+            node = session.get(
+                CompanyKnowledgeNode, (graph.id, "cap.delivery")
+            )
+            evidence = session.scalar(
+                select(ProfileEvidence).where(
+                    ProfileEvidence.profile_version_id == profile.id,
+                    ProfileEvidence.fact_key == "cap.delivery",
+                )
+            )
+            assert source is not None and ontology is not None
+            assert node is not None and evidence is not None
+    
+            payload = deepcopy(profile.profile_payload)
+            if tamper == "payload_company":
+                payload["company_id"] = str(uuid4())
+            elif tamper == "payload_graph":
+                payload["graph_version_id"] = str(uuid4())
+            elif tamper == "payload_source_hash":
+                payload["source_sha256"] = "f" * 64
+            elif tamper == "payload_ontology":
+                payload["ontology_version"] = "other-ontology"
+            elif tamper == "payload_origin":
+                payload["origin"] = "public_document"
+            elif tamper == "payload_source_file":
+                payload["source_file"] = "/private/company.json"
+            elif tamper == "profile_company":
+                profile.company_id = uuid4()
+            elif tamper == "graph_profile":
+                graph.profile_version_id = uuid4()
+            elif tamper == "graph_source_hash":
+                graph.source_sha256 = "f" * 64
+            elif tamper == "graph_snapshot_hash":
+                graph.graph_sha256 = "f" * 64
+            elif tamper == "source_company":
+                source.company_id = uuid4()
+            elif tamper == "source_content":
+                source.content_object_id = uuid4()
+            elif tamper == "ontology_hash":
+                ontology.sha256 = "f" * 64
+            elif tamper == "node_payload":
+                node.payload = {**node.payload, "label": "변조된 노드"}
+            elif tamper == "fact_projection":
+                payload["facts"][0] = {
+                    **payload["facts"][0],
+                    "value": "그래프에 없는 사실",
+                }
+            elif tamper == "evidence_projection":
+                evidence.quote = "그래프에 없는 인용"
+            profile.profile_payload = payload
+    
+            with session.no_autoflush, pytest.raises(
+                input_versions.InputVersionError
+            ) as rejected:
+>               input_versions.validate_profile_snapshot(session, profile)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               AttributeError: module 'app.deep_review.services.input_versions' has no attribute 'validate_profile_snapshot'. Did you mean: '_validate_profile_snapshot'?
+
+tests/deep_review/test_company_knowledge.py:383: AttributeError
+_ test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage[postgres-payload_source_file] _
+
+engine = Engine(postgresql+psycopg://owner:***@127.0.0.1:32790/bidops_test_678d420022fa4657)
+tamper = 'payload_source_file'
+
+    @pytest.mark.parametrize(
+        "tamper",
+        [
+            "payload_company",
+            "payload_graph",
+            "payload_source_hash",
+            "payload_ontology",
+            "payload_origin",
+            "payload_source_file",
+            "profile_company",
+            "graph_profile",
+            "graph_source_hash",
+            "graph_snapshot_hash",
+            "source_company",
+            "source_content",
+            "ontology_hash",
+            "node_payload",
+            "fact_projection",
+            "evidence_projection",
+        ],
+    )
+    def test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage(
+        engine, tamper: str
+    ) -> None:
+        prepared = _prepared()
+        with Session(engine) as session:
+            with session.begin():
+                imported = import_company_knowledge(
+                    session, prepared, actor="등록 담당자"
+                )
+            profile = session.get(ProfileVersion, imported.profile_version_id)
+            graph = session.get(CompanyKnowledgeVersion, imported.graph_version_id)
+            assert profile is not None and graph is not None
+            source = session.get(CompanyKnowledgeSource, graph.source_id)
+            ontology = session.get(KnowledgeOntologyVersion, graph.ontology_id)
+            node = session.get(
+                CompanyKnowledgeNode, (graph.id, "cap.delivery")
+            )
+            evidence = session.scalar(
+                select(ProfileEvidence).where(
+                    ProfileEvidence.profile_version_id == profile.id,
+                    ProfileEvidence.fact_key == "cap.delivery",
+                )
+            )
+            assert source is not None and ontology is not None
+            assert node is not None and evidence is not None
+    
+            payload = deepcopy(profile.profile_payload)
+            if tamper == "payload_company":
+                payload["company_id"] = str(uuid4())
+            elif tamper == "payload_graph":
+                payload["graph_version_id"] = str(uuid4())
+            elif tamper == "payload_source_hash":
+                payload["source_sha256"] = "f" * 64
+            elif tamper == "payload_ontology":
+                payload["ontology_version"] = "other-ontology"
+            elif tamper == "payload_origin":
+                payload["origin"] = "public_document"
+            elif tamper == "payload_source_file":
+                payload["source_file"] = "/private/company.json"
+            elif tamper == "profile_company":
+                profile.company_id = uuid4()
+            elif tamper == "graph_profile":
+                graph.profile_version_id = uuid4()
+            elif tamper == "graph_source_hash":
+                graph.source_sha256 = "f" * 64
+            elif tamper == "graph_snapshot_hash":
+                graph.graph_sha256 = "f" * 64
+            elif tamper == "source_company":
+                source.company_id = uuid4()
+            elif tamper == "source_content":
+                source.content_object_id = uuid4()
+            elif tamper == "ontology_hash":
+                ontology.sha256 = "f" * 64
+            elif tamper == "node_payload":
+                node.payload = {**node.payload, "label": "변조된 노드"}
+            elif tamper == "fact_projection":
+                payload["facts"][0] = {
+                    **payload["facts"][0],
+                    "value": "그래프에 없는 사실",
+                }
+            elif tamper == "evidence_projection":
+                evidence.quote = "그래프에 없는 인용"
+            profile.profile_payload = payload
+    
+            with session.no_autoflush, pytest.raises(
+                input_versions.InputVersionError
+            ) as rejected:
+>               input_versions.validate_profile_snapshot(session, profile)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               AttributeError: module 'app.deep_review.services.input_versions' has no attribute 'validate_profile_snapshot'. Did you mean: '_validate_profile_snapshot'?
+
+tests/deep_review/test_company_knowledge.py:383: AttributeError
+_ test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage[postgres-profile_company] _
+
+engine = Engine(postgresql+psycopg://owner:***@127.0.0.1:32790/bidops_test_640e6777b9ef491c)
+tamper = 'profile_company'
+
+    @pytest.mark.parametrize(
+        "tamper",
+        [
+            "payload_company",
+            "payload_graph",
+            "payload_source_hash",
+            "payload_ontology",
+            "payload_origin",
+            "payload_source_file",
+            "profile_company",
+            "graph_profile",
+            "graph_source_hash",
+            "graph_snapshot_hash",
+            "source_company",
+            "source_content",
+            "ontology_hash",
+            "node_payload",
+            "fact_projection",
+            "evidence_projection",
+        ],
+    )
+    def test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage(
+        engine, tamper: str
+    ) -> None:
+        prepared = _prepared()
+        with Session(engine) as session:
+            with session.begin():
+                imported = import_company_knowledge(
+                    session, prepared, actor="등록 담당자"
+                )
+            profile = session.get(ProfileVersion, imported.profile_version_id)
+            graph = session.get(CompanyKnowledgeVersion, imported.graph_version_id)
+            assert profile is not None and graph is not None
+            source = session.get(CompanyKnowledgeSource, graph.source_id)
+            ontology = session.get(KnowledgeOntologyVersion, graph.ontology_id)
+            node = session.get(
+                CompanyKnowledgeNode, (graph.id, "cap.delivery")
+            )
+            evidence = session.scalar(
+                select(ProfileEvidence).where(
+                    ProfileEvidence.profile_version_id == profile.id,
+                    ProfileEvidence.fact_key == "cap.delivery",
+                )
+            )
+            assert source is not None and ontology is not None
+            assert node is not None and evidence is not None
+    
+            payload = deepcopy(profile.profile_payload)
+            if tamper == "payload_company":
+                payload["company_id"] = str(uuid4())
+            elif tamper == "payload_graph":
+                payload["graph_version_id"] = str(uuid4())
+            elif tamper == "payload_source_hash":
+                payload["source_sha256"] = "f" * 64
+            elif tamper == "payload_ontology":
+                payload["ontology_version"] = "other-ontology"
+            elif tamper == "payload_origin":
+                payload["origin"] = "public_document"
+            elif tamper == "payload_source_file":
+                payload["source_file"] = "/private/company.json"
+            elif tamper == "profile_company":
+                profile.company_id = uuid4()
+            elif tamper == "graph_profile":
+                graph.profile_version_id = uuid4()
+            elif tamper == "graph_source_hash":
+                graph.source_sha256 = "f" * 64
+            elif tamper == "graph_snapshot_hash":
+                graph.graph_sha256 = "f" * 64
+            elif tamper == "source_company":
+                source.company_id = uuid4()
+            elif tamper == "source_content":
+                source.content_object_id = uuid4()
+            elif tamper == "ontology_hash":
+                ontology.sha256 = "f" * 64
+            elif tamper == "node_payload":
+                node.payload = {**node.payload, "label": "변조된 노드"}
+            elif tamper == "fact_projection":
+                payload["facts"][0] = {
+                    **payload["facts"][0],
+                    "value": "그래프에 없는 사실",
+                }
+            elif tamper == "evidence_projection":
+                evidence.quote = "그래프에 없는 인용"
+            profile.profile_payload = payload
+    
+            with session.no_autoflush, pytest.raises(
+                input_versions.InputVersionError
+            ) as rejected:
+>               input_versions.validate_profile_snapshot(session, profile)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               AttributeError: module 'app.deep_review.services.input_versions' has no attribute 'validate_profile_snapshot'. Did you mean: '_validate_profile_snapshot'?
+
+tests/deep_review/test_company_knowledge.py:383: AttributeError
+_ test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage[postgres-graph_profile] _
+
+engine = Engine(postgresql+psycopg://owner:***@127.0.0.1:32790/bidops_test_0ab9498983ff41bf)
+tamper = 'graph_profile'
+
+    @pytest.mark.parametrize(
+        "tamper",
+        [
+            "payload_company",
+            "payload_graph",
+            "payload_source_hash",
+            "payload_ontology",
+            "payload_origin",
+            "payload_source_file",
+            "profile_company",
+            "graph_profile",
+            "graph_source_hash",
+            "graph_snapshot_hash",
+            "source_company",
+            "source_content",
+            "ontology_hash",
+            "node_payload",
+            "fact_projection",
+            "evidence_projection",
+        ],
+    )
+    def test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage(
+        engine, tamper: str
+    ) -> None:
+        prepared = _prepared()
+        with Session(engine) as session:
+            with session.begin():
+                imported = import_company_knowledge(
+                    session, prepared, actor="등록 담당자"
+                )
+            profile = session.get(ProfileVersion, imported.profile_version_id)
+            graph = session.get(CompanyKnowledgeVersion, imported.graph_version_id)
+            assert profile is not None and graph is not None
+            source = session.get(CompanyKnowledgeSource, graph.source_id)
+            ontology = session.get(KnowledgeOntologyVersion, graph.ontology_id)
+            node = session.get(
+                CompanyKnowledgeNode, (graph.id, "cap.delivery")
+            )
+            evidence = session.scalar(
+                select(ProfileEvidence).where(
+                    ProfileEvidence.profile_version_id == profile.id,
+                    ProfileEvidence.fact_key == "cap.delivery",
+                )
+            )
+            assert source is not None and ontology is not None
+            assert node is not None and evidence is not None
+    
+            payload = deepcopy(profile.profile_payload)
+            if tamper == "payload_company":
+                payload["company_id"] = str(uuid4())
+            elif tamper == "payload_graph":
+                payload["graph_version_id"] = str(uuid4())
+            elif tamper == "payload_source_hash":
+                payload["source_sha256"] = "f" * 64
+            elif tamper == "payload_ontology":
+                payload["ontology_version"] = "other-ontology"
+            elif tamper == "payload_origin":
+                payload["origin"] = "public_document"
+            elif tamper == "payload_source_file":
+                payload["source_file"] = "/private/company.json"
+            elif tamper == "profile_company":
+                profile.company_id = uuid4()
+            elif tamper == "graph_profile":
+                graph.profile_version_id = uuid4()
+            elif tamper == "graph_source_hash":
+                graph.source_sha256 = "f" * 64
+            elif tamper == "graph_snapshot_hash":
+                graph.graph_sha256 = "f" * 64
+            elif tamper == "source_company":
+                source.company_id = uuid4()
+            elif tamper == "source_content":
+                source.content_object_id = uuid4()
+            elif tamper == "ontology_hash":
+                ontology.sha256 = "f" * 64
+            elif tamper == "node_payload":
+                node.payload = {**node.payload, "label": "변조된 노드"}
+            elif tamper == "fact_projection":
+                payload["facts"][0] = {
+                    **payload["facts"][0],
+                    "value": "그래프에 없는 사실",
+                }
+            elif tamper == "evidence_projection":
+                evidence.quote = "그래프에 없는 인용"
+            profile.profile_payload = payload
+    
+            with session.no_autoflush, pytest.raises(
+                input_versions.InputVersionError
+            ) as rejected:
+>               input_versions.validate_profile_snapshot(session, profile)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               AttributeError: module 'app.deep_review.services.input_versions' has no attribute 'validate_profile_snapshot'. Did you mean: '_validate_profile_snapshot'?
+
+tests/deep_review/test_company_knowledge.py:383: AttributeError
+_ test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage[postgres-graph_source_hash] _
+
+engine = Engine(postgresql+psycopg://owner:***@127.0.0.1:32790/bidops_test_f5909325dd394a68)
+tamper = 'graph_source_hash'
+
+    @pytest.mark.parametrize(
+        "tamper",
+        [
+            "payload_company",
+            "payload_graph",
+            "payload_source_hash",
+            "payload_ontology",
+            "payload_origin",
+            "payload_source_file",
+            "profile_company",
+            "graph_profile",
+            "graph_source_hash",
+            "graph_snapshot_hash",
+            "source_company",
+            "source_content",
+            "ontology_hash",
+            "node_payload",
+            "fact_projection",
+            "evidence_projection",
+        ],
+    )
+    def test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage(
+        engine, tamper: str
+    ) -> None:
+        prepared = _prepared()
+        with Session(engine) as session:
+            with session.begin():
+                imported = import_company_knowledge(
+                    session, prepared, actor="등록 담당자"
+                )
+            profile = session.get(ProfileVersion, imported.profile_version_id)
+            graph = session.get(CompanyKnowledgeVersion, imported.graph_version_id)
+            assert profile is not None and graph is not None
+            source = session.get(CompanyKnowledgeSource, graph.source_id)
+            ontology = session.get(KnowledgeOntologyVersion, graph.ontology_id)
+            node = session.get(
+                CompanyKnowledgeNode, (graph.id, "cap.delivery")
+            )
+            evidence = session.scalar(
+                select(ProfileEvidence).where(
+                    ProfileEvidence.profile_version_id == profile.id,
+                    ProfileEvidence.fact_key == "cap.delivery",
+                )
+            )
+            assert source is not None and ontology is not None
+            assert node is not None and evidence is not None
+    
+            payload = deepcopy(profile.profile_payload)
+            if tamper == "payload_company":
+                payload["company_id"] = str(uuid4())
+            elif tamper == "payload_graph":
+                payload["graph_version_id"] = str(uuid4())
+            elif tamper == "payload_source_hash":
+                payload["source_sha256"] = "f" * 64
+            elif tamper == "payload_ontology":
+                payload["ontology_version"] = "other-ontology"
+            elif tamper == "payload_origin":
+                payload["origin"] = "public_document"
+            elif tamper == "payload_source_file":
+                payload["source_file"] = "/private/company.json"
+            elif tamper == "profile_company":
+                profile.company_id = uuid4()
+            elif tamper == "graph_profile":
+                graph.profile_version_id = uuid4()
+            elif tamper == "graph_source_hash":
+                graph.source_sha256 = "f" * 64
+            elif tamper == "graph_snapshot_hash":
+                graph.graph_sha256 = "f" * 64
+            elif tamper == "source_company":
+                source.company_id = uuid4()
+            elif tamper == "source_content":
+                source.content_object_id = uuid4()
+            elif tamper == "ontology_hash":
+                ontology.sha256 = "f" * 64
+            elif tamper == "node_payload":
+                node.payload = {**node.payload, "label": "변조된 노드"}
+            elif tamper == "fact_projection":
+                payload["facts"][0] = {
+                    **payload["facts"][0],
+                    "value": "그래프에 없는 사실",
+                }
+            elif tamper == "evidence_projection":
+                evidence.quote = "그래프에 없는 인용"
+            profile.profile_payload = payload
+    
+            with session.no_autoflush, pytest.raises(
+                input_versions.InputVersionError
+            ) as rejected:
+>               input_versions.validate_profile_snapshot(session, profile)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               AttributeError: module 'app.deep_review.services.input_versions' has no attribute 'validate_profile_snapshot'. Did you mean: '_validate_profile_snapshot'?
+
+tests/deep_review/test_company_knowledge.py:383: AttributeError
+_ test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage[postgres-graph_snapshot_hash] _
+
+engine = Engine(postgresql+psycopg://owner:***@127.0.0.1:32790/bidops_test_b75779fb93744572)
+tamper = 'graph_snapshot_hash'
+
+    @pytest.mark.parametrize(
+        "tamper",
+        [
+            "payload_company",
+            "payload_graph",
+            "payload_source_hash",
+            "payload_ontology",
+            "payload_origin",
+            "payload_source_file",
+            "profile_company",
+            "graph_profile",
+            "graph_source_hash",
+            "graph_snapshot_hash",
+            "source_company",
+            "source_content",
+            "ontology_hash",
+            "node_payload",
+            "fact_projection",
+            "evidence_projection",
+        ],
+    )
+    def test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage(
+        engine, tamper: str
+    ) -> None:
+        prepared = _prepared()
+        with Session(engine) as session:
+            with session.begin():
+                imported = import_company_knowledge(
+                    session, prepared, actor="등록 담당자"
+                )
+            profile = session.get(ProfileVersion, imported.profile_version_id)
+            graph = session.get(CompanyKnowledgeVersion, imported.graph_version_id)
+            assert profile is not None and graph is not None
+            source = session.get(CompanyKnowledgeSource, graph.source_id)
+            ontology = session.get(KnowledgeOntologyVersion, graph.ontology_id)
+            node = session.get(
+                CompanyKnowledgeNode, (graph.id, "cap.delivery")
+            )
+            evidence = session.scalar(
+                select(ProfileEvidence).where(
+                    ProfileEvidence.profile_version_id == profile.id,
+                    ProfileEvidence.fact_key == "cap.delivery",
+                )
+            )
+            assert source is not None and ontology is not None
+            assert node is not None and evidence is not None
+    
+            payload = deepcopy(profile.profile_payload)
+            if tamper == "payload_company":
+                payload["company_id"] = str(uuid4())
+            elif tamper == "payload_graph":
+                payload["graph_version_id"] = str(uuid4())
+            elif tamper == "payload_source_hash":
+                payload["source_sha256"] = "f" * 64
+            elif tamper == "payload_ontology":
+                payload["ontology_version"] = "other-ontology"
+            elif tamper == "payload_origin":
+                payload["origin"] = "public_document"
+            elif tamper == "payload_source_file":
+                payload["source_file"] = "/private/company.json"
+            elif tamper == "profile_company":
+                profile.company_id = uuid4()
+            elif tamper == "graph_profile":
+                graph.profile_version_id = uuid4()
+            elif tamper == "graph_source_hash":
+                graph.source_sha256 = "f" * 64
+            elif tamper == "graph_snapshot_hash":
+                graph.graph_sha256 = "f" * 64
+            elif tamper == "source_company":
+                source.company_id = uuid4()
+            elif tamper == "source_content":
+                source.content_object_id = uuid4()
+            elif tamper == "ontology_hash":
+                ontology.sha256 = "f" * 64
+            elif tamper == "node_payload":
+                node.payload = {**node.payload, "label": "변조된 노드"}
+            elif tamper == "fact_projection":
+                payload["facts"][0] = {
+                    **payload["facts"][0],
+                    "value": "그래프에 없는 사실",
+                }
+            elif tamper == "evidence_projection":
+                evidence.quote = "그래프에 없는 인용"
+            profile.profile_payload = payload
+    
+            with session.no_autoflush, pytest.raises(
+                input_versions.InputVersionError
+            ) as rejected:
+>               input_versions.validate_profile_snapshot(session, profile)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               AttributeError: module 'app.deep_review.services.input_versions' has no attribute 'validate_profile_snapshot'. Did you mean: '_validate_profile_snapshot'?
+
+tests/deep_review/test_company_knowledge.py:383: AttributeError
+_ test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage[postgres-source_company] _
+
+engine = Engine(postgresql+psycopg://owner:***@127.0.0.1:32790/bidops_test_40a8892bd8554ebe)
+tamper = 'source_company'
+
+    @pytest.mark.parametrize(
+        "tamper",
+        [
+            "payload_company",
+            "payload_graph",
+            "payload_source_hash",
+            "payload_ontology",
+            "payload_origin",
+            "payload_source_file",
+            "profile_company",
+            "graph_profile",
+            "graph_source_hash",
+            "graph_snapshot_hash",
+            "source_company",
+            "source_content",
+            "ontology_hash",
+            "node_payload",
+            "fact_projection",
+            "evidence_projection",
+        ],
+    )
+    def test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage(
+        engine, tamper: str
+    ) -> None:
+        prepared = _prepared()
+        with Session(engine) as session:
+            with session.begin():
+                imported = import_company_knowledge(
+                    session, prepared, actor="등록 담당자"
+                )
+            profile = session.get(ProfileVersion, imported.profile_version_id)
+            graph = session.get(CompanyKnowledgeVersion, imported.graph_version_id)
+            assert profile is not None and graph is not None
+            source = session.get(CompanyKnowledgeSource, graph.source_id)
+            ontology = session.get(KnowledgeOntologyVersion, graph.ontology_id)
+            node = session.get(
+                CompanyKnowledgeNode, (graph.id, "cap.delivery")
+            )
+            evidence = session.scalar(
+                select(ProfileEvidence).where(
+                    ProfileEvidence.profile_version_id == profile.id,
+                    ProfileEvidence.fact_key == "cap.delivery",
+                )
+            )
+            assert source is not None and ontology is not None
+            assert node is not None and evidence is not None
+    
+            payload = deepcopy(profile.profile_payload)
+            if tamper == "payload_company":
+                payload["company_id"] = str(uuid4())
+            elif tamper == "payload_graph":
+                payload["graph_version_id"] = str(uuid4())
+            elif tamper == "payload_source_hash":
+                payload["source_sha256"] = "f" * 64
+            elif tamper == "payload_ontology":
+                payload["ontology_version"] = "other-ontology"
+            elif tamper == "payload_origin":
+                payload["origin"] = "public_document"
+            elif tamper == "payload_source_file":
+                payload["source_file"] = "/private/company.json"
+            elif tamper == "profile_company":
+                profile.company_id = uuid4()
+            elif tamper == "graph_profile":
+                graph.profile_version_id = uuid4()
+            elif tamper == "graph_source_hash":
+                graph.source_sha256 = "f" * 64
+            elif tamper == "graph_snapshot_hash":
+                graph.graph_sha256 = "f" * 64
+            elif tamper == "source_company":
+                source.company_id = uuid4()
+            elif tamper == "source_content":
+                source.content_object_id = uuid4()
+            elif tamper == "ontology_hash":
+                ontology.sha256 = "f" * 64
+            elif tamper == "node_payload":
+                node.payload = {**node.payload, "label": "변조된 노드"}
+            elif tamper == "fact_projection":
+                payload["facts"][0] = {
+                    **payload["facts"][0],
+                    "value": "그래프에 없는 사실",
+                }
+            elif tamper == "evidence_projection":
+                evidence.quote = "그래프에 없는 인용"
+            profile.profile_payload = payload
+    
+            with session.no_autoflush, pytest.raises(
+                input_versions.InputVersionError
+            ) as rejected:
+>               input_versions.validate_profile_snapshot(session, profile)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               AttributeError: module 'app.deep_review.services.input_versions' has no attribute 'validate_profile_snapshot'. Did you mean: '_validate_profile_snapshot'?
+
+tests/deep_review/test_company_knowledge.py:383: AttributeError
+_ test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage[postgres-source_content] _
+
+engine = Engine(postgresql+psycopg://owner:***@127.0.0.1:32790/bidops_test_52c482e95d164cb1)
+tamper = 'source_content'
+
+    @pytest.mark.parametrize(
+        "tamper",
+        [
+            "payload_company",
+            "payload_graph",
+            "payload_source_hash",
+            "payload_ontology",
+            "payload_origin",
+            "payload_source_file",
+            "profile_company",
+            "graph_profile",
+            "graph_source_hash",
+            "graph_snapshot_hash",
+            "source_company",
+            "source_content",
+            "ontology_hash",
+            "node_payload",
+            "fact_projection",
+            "evidence_projection",
+        ],
+    )
+    def test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage(
+        engine, tamper: str
+    ) -> None:
+        prepared = _prepared()
+        with Session(engine) as session:
+            with session.begin():
+                imported = import_company_knowledge(
+                    session, prepared, actor="등록 담당자"
+                )
+            profile = session.get(ProfileVersion, imported.profile_version_id)
+            graph = session.get(CompanyKnowledgeVersion, imported.graph_version_id)
+            assert profile is not None and graph is not None
+            source = session.get(CompanyKnowledgeSource, graph.source_id)
+            ontology = session.get(KnowledgeOntologyVersion, graph.ontology_id)
+            node = session.get(
+                CompanyKnowledgeNode, (graph.id, "cap.delivery")
+            )
+            evidence = session.scalar(
+                select(ProfileEvidence).where(
+                    ProfileEvidence.profile_version_id == profile.id,
+                    ProfileEvidence.fact_key == "cap.delivery",
+                )
+            )
+            assert source is not None and ontology is not None
+            assert node is not None and evidence is not None
+    
+            payload = deepcopy(profile.profile_payload)
+            if tamper == "payload_company":
+                payload["company_id"] = str(uuid4())
+            elif tamper == "payload_graph":
+                payload["graph_version_id"] = str(uuid4())
+            elif tamper == "payload_source_hash":
+                payload["source_sha256"] = "f" * 64
+            elif tamper == "payload_ontology":
+                payload["ontology_version"] = "other-ontology"
+            elif tamper == "payload_origin":
+                payload["origin"] = "public_document"
+            elif tamper == "payload_source_file":
+                payload["source_file"] = "/private/company.json"
+            elif tamper == "profile_company":
+                profile.company_id = uuid4()
+            elif tamper == "graph_profile":
+                graph.profile_version_id = uuid4()
+            elif tamper == "graph_source_hash":
+                graph.source_sha256 = "f" * 64
+            elif tamper == "graph_snapshot_hash":
+                graph.graph_sha256 = "f" * 64
+            elif tamper == "source_company":
+                source.company_id = uuid4()
+            elif tamper == "source_content":
+                source.content_object_id = uuid4()
+            elif tamper == "ontology_hash":
+                ontology.sha256 = "f" * 64
+            elif tamper == "node_payload":
+                node.payload = {**node.payload, "label": "변조된 노드"}
+            elif tamper == "fact_projection":
+                payload["facts"][0] = {
+                    **payload["facts"][0],
+                    "value": "그래프에 없는 사실",
+                }
+            elif tamper == "evidence_projection":
+                evidence.quote = "그래프에 없는 인용"
+            profile.profile_payload = payload
+    
+            with session.no_autoflush, pytest.raises(
+                input_versions.InputVersionError
+            ) as rejected:
+>               input_versions.validate_profile_snapshot(session, profile)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               AttributeError: module 'app.deep_review.services.input_versions' has no attribute 'validate_profile_snapshot'. Did you mean: '_validate_profile_snapshot'?
+
+tests/deep_review/test_company_knowledge.py:383: AttributeError
+_ test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage[postgres-ontology_hash] _
+
+engine = Engine(postgresql+psycopg://owner:***@127.0.0.1:32790/bidops_test_ce640ec156fb46ee)
+tamper = 'ontology_hash'
+
+    @pytest.mark.parametrize(
+        "tamper",
+        [
+            "payload_company",
+            "payload_graph",
+            "payload_source_hash",
+            "payload_ontology",
+            "payload_origin",
+            "payload_source_file",
+            "profile_company",
+            "graph_profile",
+            "graph_source_hash",
+            "graph_snapshot_hash",
+            "source_company",
+            "source_content",
+            "ontology_hash",
+            "node_payload",
+            "fact_projection",
+            "evidence_projection",
+        ],
+    )
+    def test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage(
+        engine, tamper: str
+    ) -> None:
+        prepared = _prepared()
+        with Session(engine) as session:
+            with session.begin():
+                imported = import_company_knowledge(
+                    session, prepared, actor="등록 담당자"
+                )
+            profile = session.get(ProfileVersion, imported.profile_version_id)
+            graph = session.get(CompanyKnowledgeVersion, imported.graph_version_id)
+            assert profile is not None and graph is not None
+            source = session.get(CompanyKnowledgeSource, graph.source_id)
+            ontology = session.get(KnowledgeOntologyVersion, graph.ontology_id)
+            node = session.get(
+                CompanyKnowledgeNode, (graph.id, "cap.delivery")
+            )
+            evidence = session.scalar(
+                select(ProfileEvidence).where(
+                    ProfileEvidence.profile_version_id == profile.id,
+                    ProfileEvidence.fact_key == "cap.delivery",
+                )
+            )
+            assert source is not None and ontology is not None
+            assert node is not None and evidence is not None
+    
+            payload = deepcopy(profile.profile_payload)
+            if tamper == "payload_company":
+                payload["company_id"] = str(uuid4())
+            elif tamper == "payload_graph":
+                payload["graph_version_id"] = str(uuid4())
+            elif tamper == "payload_source_hash":
+                payload["source_sha256"] = "f" * 64
+            elif tamper == "payload_ontology":
+                payload["ontology_version"] = "other-ontology"
+            elif tamper == "payload_origin":
+                payload["origin"] = "public_document"
+            elif tamper == "payload_source_file":
+                payload["source_file"] = "/private/company.json"
+            elif tamper == "profile_company":
+                profile.company_id = uuid4()
+            elif tamper == "graph_profile":
+                graph.profile_version_id = uuid4()
+            elif tamper == "graph_source_hash":
+                graph.source_sha256 = "f" * 64
+            elif tamper == "graph_snapshot_hash":
+                graph.graph_sha256 = "f" * 64
+            elif tamper == "source_company":
+                source.company_id = uuid4()
+            elif tamper == "source_content":
+                source.content_object_id = uuid4()
+            elif tamper == "ontology_hash":
+                ontology.sha256 = "f" * 64
+            elif tamper == "node_payload":
+                node.payload = {**node.payload, "label": "변조된 노드"}
+            elif tamper == "fact_projection":
+                payload["facts"][0] = {
+                    **payload["facts"][0],
+                    "value": "그래프에 없는 사실",
+                }
+            elif tamper == "evidence_projection":
+                evidence.quote = "그래프에 없는 인용"
+            profile.profile_payload = payload
+    
+            with session.no_autoflush, pytest.raises(
+                input_versions.InputVersionError
+            ) as rejected:
+>               input_versions.validate_profile_snapshot(session, profile)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               AttributeError: module 'app.deep_review.services.input_versions' has no attribute 'validate_profile_snapshot'. Did you mean: '_validate_profile_snapshot'?
+
+tests/deep_review/test_company_knowledge.py:383: AttributeError
+_ test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage[postgres-node_payload] _
+
+engine = Engine(postgresql+psycopg://owner:***@127.0.0.1:32790/bidops_test_5cfbd3c36ed34559)
+tamper = 'node_payload'
+
+    @pytest.mark.parametrize(
+        "tamper",
+        [
+            "payload_company",
+            "payload_graph",
+            "payload_source_hash",
+            "payload_ontology",
+            "payload_origin",
+            "payload_source_file",
+            "profile_company",
+            "graph_profile",
+            "graph_source_hash",
+            "graph_snapshot_hash",
+            "source_company",
+            "source_content",
+            "ontology_hash",
+            "node_payload",
+            "fact_projection",
+            "evidence_projection",
+        ],
+    )
+    def test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage(
+        engine, tamper: str
+    ) -> None:
+        prepared = _prepared()
+        with Session(engine) as session:
+            with session.begin():
+                imported = import_company_knowledge(
+                    session, prepared, actor="등록 담당자"
+                )
+            profile = session.get(ProfileVersion, imported.profile_version_id)
+            graph = session.get(CompanyKnowledgeVersion, imported.graph_version_id)
+            assert profile is not None and graph is not None
+            source = session.get(CompanyKnowledgeSource, graph.source_id)
+            ontology = session.get(KnowledgeOntologyVersion, graph.ontology_id)
+            node = session.get(
+                CompanyKnowledgeNode, (graph.id, "cap.delivery")
+            )
+            evidence = session.scalar(
+                select(ProfileEvidence).where(
+                    ProfileEvidence.profile_version_id == profile.id,
+                    ProfileEvidence.fact_key == "cap.delivery",
+                )
+            )
+            assert source is not None and ontology is not None
+            assert node is not None and evidence is not None
+    
+            payload = deepcopy(profile.profile_payload)
+            if tamper == "payload_company":
+                payload["company_id"] = str(uuid4())
+            elif tamper == "payload_graph":
+                payload["graph_version_id"] = str(uuid4())
+            elif tamper == "payload_source_hash":
+                payload["source_sha256"] = "f" * 64
+            elif tamper == "payload_ontology":
+                payload["ontology_version"] = "other-ontology"
+            elif tamper == "payload_origin":
+                payload["origin"] = "public_document"
+            elif tamper == "payload_source_file":
+                payload["source_file"] = "/private/company.json"
+            elif tamper == "profile_company":
+                profile.company_id = uuid4()
+            elif tamper == "graph_profile":
+                graph.profile_version_id = uuid4()
+            elif tamper == "graph_source_hash":
+                graph.source_sha256 = "f" * 64
+            elif tamper == "graph_snapshot_hash":
+                graph.graph_sha256 = "f" * 64
+            elif tamper == "source_company":
+                source.company_id = uuid4()
+            elif tamper == "source_content":
+                source.content_object_id = uuid4()
+            elif tamper == "ontology_hash":
+                ontology.sha256 = "f" * 64
+            elif tamper == "node_payload":
+                node.payload = {**node.payload, "label": "변조된 노드"}
+            elif tamper == "fact_projection":
+                payload["facts"][0] = {
+                    **payload["facts"][0],
+                    "value": "그래프에 없는 사실",
+                }
+            elif tamper == "evidence_projection":
+                evidence.quote = "그래프에 없는 인용"
+            profile.profile_payload = payload
+    
+            with session.no_autoflush, pytest.raises(
+                input_versions.InputVersionError
+            ) as rejected:
+>               input_versions.validate_profile_snapshot(session, profile)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               AttributeError: module 'app.deep_review.services.input_versions' has no attribute 'validate_profile_snapshot'. Did you mean: '_validate_profile_snapshot'?
+
+tests/deep_review/test_company_knowledge.py:383: AttributeError
+_ test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage[postgres-fact_projection] _
+
+engine = Engine(postgresql+psycopg://owner:***@127.0.0.1:32790/bidops_test_c0faf0813b054552)
+tamper = 'fact_projection'
+
+    @pytest.mark.parametrize(
+        "tamper",
+        [
+            "payload_company",
+            "payload_graph",
+            "payload_source_hash",
+            "payload_ontology",
+            "payload_origin",
+            "payload_source_file",
+            "profile_company",
+            "graph_profile",
+            "graph_source_hash",
+            "graph_snapshot_hash",
+            "source_company",
+            "source_content",
+            "ontology_hash",
+            "node_payload",
+            "fact_projection",
+            "evidence_projection",
+        ],
+    )
+    def test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage(
+        engine, tamper: str
+    ) -> None:
+        prepared = _prepared()
+        with Session(engine) as session:
+            with session.begin():
+                imported = import_company_knowledge(
+                    session, prepared, actor="등록 담당자"
+                )
+            profile = session.get(ProfileVersion, imported.profile_version_id)
+            graph = session.get(CompanyKnowledgeVersion, imported.graph_version_id)
+            assert profile is not None and graph is not None
+            source = session.get(CompanyKnowledgeSource, graph.source_id)
+            ontology = session.get(KnowledgeOntologyVersion, graph.ontology_id)
+            node = session.get(
+                CompanyKnowledgeNode, (graph.id, "cap.delivery")
+            )
+            evidence = session.scalar(
+                select(ProfileEvidence).where(
+                    ProfileEvidence.profile_version_id == profile.id,
+                    ProfileEvidence.fact_key == "cap.delivery",
+                )
+            )
+            assert source is not None and ontology is not None
+            assert node is not None and evidence is not None
+    
+            payload = deepcopy(profile.profile_payload)
+            if tamper == "payload_company":
+                payload["company_id"] = str(uuid4())
+            elif tamper == "payload_graph":
+                payload["graph_version_id"] = str(uuid4())
+            elif tamper == "payload_source_hash":
+                payload["source_sha256"] = "f" * 64
+            elif tamper == "payload_ontology":
+                payload["ontology_version"] = "other-ontology"
+            elif tamper == "payload_origin":
+                payload["origin"] = "public_document"
+            elif tamper == "payload_source_file":
+                payload["source_file"] = "/private/company.json"
+            elif tamper == "profile_company":
+                profile.company_id = uuid4()
+            elif tamper == "graph_profile":
+                graph.profile_version_id = uuid4()
+            elif tamper == "graph_source_hash":
+                graph.source_sha256 = "f" * 64
+            elif tamper == "graph_snapshot_hash":
+                graph.graph_sha256 = "f" * 64
+            elif tamper == "source_company":
+                source.company_id = uuid4()
+            elif tamper == "source_content":
+                source.content_object_id = uuid4()
+            elif tamper == "ontology_hash":
+                ontology.sha256 = "f" * 64
+            elif tamper == "node_payload":
+                node.payload = {**node.payload, "label": "변조된 노드"}
+            elif tamper == "fact_projection":
+                payload["facts"][0] = {
+                    **payload["facts"][0],
+                    "value": "그래프에 없는 사실",
+                }
+            elif tamper == "evidence_projection":
+                evidence.quote = "그래프에 없는 인용"
+            profile.profile_payload = payload
+    
+            with session.no_autoflush, pytest.raises(
+                input_versions.InputVersionError
+            ) as rejected:
+>               input_versions.validate_profile_snapshot(session, profile)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               AttributeError: module 'app.deep_review.services.input_versions' has no attribute 'validate_profile_snapshot'. Did you mean: '_validate_profile_snapshot'?
+
+tests/deep_review/test_company_knowledge.py:383: AttributeError
+_ test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage[postgres-evidence_projection] _
+
+engine = Engine(postgresql+psycopg://owner:***@127.0.0.1:32790/bidops_test_bb5e9d1a8c1d45d3)
+tamper = 'evidence_projection'
+
+    @pytest.mark.parametrize(
+        "tamper",
+        [
+            "payload_company",
+            "payload_graph",
+            "payload_source_hash",
+            "payload_ontology",
+            "payload_origin",
+            "payload_source_file",
+            "profile_company",
+            "graph_profile",
+            "graph_source_hash",
+            "graph_snapshot_hash",
+            "source_company",
+            "source_content",
+            "ontology_hash",
+            "node_payload",
+            "fact_projection",
+            "evidence_projection",
+        ],
+    )
+    def test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage(
+        engine, tamper: str
+    ) -> None:
+        prepared = _prepared()
+        with Session(engine) as session:
+            with session.begin():
+                imported = import_company_knowledge(
+                    session, prepared, actor="등록 담당자"
+                )
+            profile = session.get(ProfileVersion, imported.profile_version_id)
+            graph = session.get(CompanyKnowledgeVersion, imported.graph_version_id)
+            assert profile is not None and graph is not None
+            source = session.get(CompanyKnowledgeSource, graph.source_id)
+            ontology = session.get(KnowledgeOntologyVersion, graph.ontology_id)
+            node = session.get(
+                CompanyKnowledgeNode, (graph.id, "cap.delivery")
+            )
+            evidence = session.scalar(
+                select(ProfileEvidence).where(
+                    ProfileEvidence.profile_version_id == profile.id,
+                    ProfileEvidence.fact_key == "cap.delivery",
+                )
+            )
+            assert source is not None and ontology is not None
+            assert node is not None and evidence is not None
+    
+            payload = deepcopy(profile.profile_payload)
+            if tamper == "payload_company":
+                payload["company_id"] = str(uuid4())
+            elif tamper == "payload_graph":
+                payload["graph_version_id"] = str(uuid4())
+            elif tamper == "payload_source_hash":
+                payload["source_sha256"] = "f" * 64
+            elif tamper == "payload_ontology":
+                payload["ontology_version"] = "other-ontology"
+            elif tamper == "payload_origin":
+                payload["origin"] = "public_document"
+            elif tamper == "payload_source_file":
+                payload["source_file"] = "/private/company.json"
+            elif tamper == "profile_company":
+                profile.company_id = uuid4()
+            elif tamper == "graph_profile":
+                graph.profile_version_id = uuid4()
+            elif tamper == "graph_source_hash":
+                graph.source_sha256 = "f" * 64
+            elif tamper == "graph_snapshot_hash":
+                graph.graph_sha256 = "f" * 64
+            elif tamper == "source_company":
+                source.company_id = uuid4()
+            elif tamper == "source_content":
+                source.content_object_id = uuid4()
+            elif tamper == "ontology_hash":
+                ontology.sha256 = "f" * 64
+            elif tamper == "node_payload":
+                node.payload = {**node.payload, "label": "변조된 노드"}
+            elif tamper == "fact_projection":
+                payload["facts"][0] = {
+                    **payload["facts"][0],
+                    "value": "그래프에 없는 사실",
+                }
+            elif tamper == "evidence_projection":
+                evidence.quote = "그래프에 없는 인용"
+            profile.profile_payload = payload
+    
+            with session.no_autoflush, pytest.raises(
+                input_versions.InputVersionError
+            ) as rejected:
+>               input_versions.validate_profile_snapshot(session, profile)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               AttributeError: module 'app.deep_review.services.input_versions' has no attribute 'validate_profile_snapshot'. Did you mean: '_validate_profile_snapshot'?
+
+tests/deep_review/test_company_knowledge.py:383: AttributeError
+_____ test_t6_profile_v2_rejects_made_up_evidence_for_unknown_fact[sqlite] _____
+
+engine = Engine(sqlite://)
+
+    def test_t6_profile_v2_rejects_made_up_evidence_for_unknown_fact(engine) -> None:
+        with Session(engine) as session:
+            with session.begin():
+                imported = import_company_knowledge(
+                    session, _prepared(), actor="등록 담당자"
+                )
+                graph = session.get(
+                    CompanyKnowledgeVersion, imported.graph_version_id
+                )
+                assert graph is not None
+                source = session.get(CompanyKnowledgeSource, graph.source_id)
+                assert source is not None
+                session.add(
+                    ProfileEvidence(
+                        id=uuid4(),
+                        profile_version_id=imported.profile_version_id,
+                        fact_key="qual.synthetic",
+                        content_object_id=source.content_object_id,
+                        source_sha256=imported.source_sha256,
+                        locator_type="profile_fact",
+                        locator={"fact_key": "qual.synthetic"},
+                        quote="만들어 낸 근거",
+                        confirmed_by_name="검사 담당자",
+                        confirmed_at=input_versions.datetime.now(input_versions.UTC),
+                    )
+                )
+            profile = session.get(ProfileVersion, imported.profile_version_id)
+            assert profile is not None
+    
+            with pytest.raises(input_versions.InputVersionError) as rejected:
+>               input_versions.validate_profile_snapshot(session, profile)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               AttributeError: module 'app.deep_review.services.input_versions' has no attribute 'validate_profile_snapshot'. Did you mean: '_validate_profile_snapshot'?
+
+tests/deep_review/test_company_knowledge.py:417: AttributeError
+____ test_t6_profile_v2_rejects_made_up_evidence_for_unknown_fact[postgres] ____
+
+engine = Engine(postgresql+psycopg://owner:***@127.0.0.1:32790/bidops_test_00d4d6f951e9494d)
+
+    def test_t6_profile_v2_rejects_made_up_evidence_for_unknown_fact(engine) -> None:
+        with Session(engine) as session:
+            with session.begin():
+                imported = import_company_knowledge(
+                    session, _prepared(), actor="등록 담당자"
+                )
+                graph = session.get(
+                    CompanyKnowledgeVersion, imported.graph_version_id
+                )
+                assert graph is not None
+                source = session.get(CompanyKnowledgeSource, graph.source_id)
+                assert source is not None
+                session.add(
+                    ProfileEvidence(
+                        id=uuid4(),
+                        profile_version_id=imported.profile_version_id,
+                        fact_key="qual.synthetic",
+                        content_object_id=source.content_object_id,
+                        source_sha256=imported.source_sha256,
+                        locator_type="profile_fact",
+                        locator={"fact_key": "qual.synthetic"},
+                        quote="만들어 낸 근거",
+                        confirmed_by_name="검사 담당자",
+                        confirmed_at=input_versions.datetime.now(input_versions.UTC),
+                    )
+                )
+            profile = session.get(ProfileVersion, imported.profile_version_id)
+            assert profile is not None
+    
+            with pytest.raises(input_versions.InputVersionError) as rejected:
+>               input_versions.validate_profile_snapshot(session, profile)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               AttributeError: module 'app.deep_review.services.input_versions' has no attribute 'validate_profile_snapshot'. Did you mean: '_validate_profile_snapshot'?
+
+tests/deep_review/test_company_knowledge.py:417: AttributeError
+_____ test_t7_profile_v1_consumer_keeps_fixed_source_file_contract[sqlite] _____
+
+engine = Engine(sqlite://)
+
+    def test_t7_profile_v1_consumer_keeps_fixed_source_file_contract(engine) -> None:
+        with Session(engine) as session:
+            profile_path = Path(__file__).parents[4] / "docs" / "reference" / "company-profile.md"
+            profile = input_versions.import_profile_version(
+                session, profile_path, created_by_name="검사 담당자"
+            )
+>           input_versions.validate_profile_snapshot(
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                session, profile, require_verified_source=True
+            )
+E           AttributeError: module 'app.deep_review.services.input_versions' has no attribute 'validate_profile_snapshot'. Did you mean: '_validate_profile_snapshot'?
+
+tests/deep_review/test_company_knowledge.py:427: AttributeError
+____ test_t7_profile_v1_consumer_keeps_fixed_source_file_contract[postgres] ____
+
+engine = Engine(postgresql+psycopg://owner:***@127.0.0.1:32790/bidops_test_d83ff0e3fc0b44f4)
+
+    def test_t7_profile_v1_consumer_keeps_fixed_source_file_contract(engine) -> None:
+        with Session(engine) as session:
+            profile_path = Path(__file__).parents[4] / "docs" / "reference" / "company-profile.md"
+            profile = input_versions.import_profile_version(
+                session, profile_path, created_by_name="검사 담당자"
+            )
+>           input_versions.validate_profile_snapshot(
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                session, profile, require_verified_source=True
+            )
+E           AttributeError: module 'app.deep_review.services.input_versions' has no attribute 'validate_profile_snapshot'. Did you mean: '_validate_profile_snapshot'?
+
+tests/deep_review/test_company_knowledge.py:427: AttributeError
+=========================== short test summary info ============================
+FAILED tests/deep_review/test_company_knowledge.py::test_t6_profile_v2_context_consumes_strict_projection_without_private_source[sqlite]
+FAILED tests/deep_review/test_company_knowledge.py::test_t6_profile_v2_context_consumes_strict_projection_without_private_source[postgres]
+FAILED tests/deep_review/test_company_knowledge.py::test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage[sqlite-payload_company]
+FAILED tests/deep_review/test_company_knowledge.py::test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage[sqlite-payload_graph]
+FAILED tests/deep_review/test_company_knowledge.py::test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage[sqlite-payload_source_hash]
+FAILED tests/deep_review/test_company_knowledge.py::test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage[sqlite-payload_ontology]
+FAILED tests/deep_review/test_company_knowledge.py::test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage[sqlite-payload_origin]
+FAILED tests/deep_review/test_company_knowledge.py::test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage[sqlite-payload_source_file]
+FAILED tests/deep_review/test_company_knowledge.py::test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage[sqlite-profile_company]
+FAILED tests/deep_review/test_company_knowledge.py::test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage[sqlite-graph_profile]
+FAILED tests/deep_review/test_company_knowledge.py::test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage[sqlite-graph_source_hash]
+FAILED tests/deep_review/test_company_knowledge.py::test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage[sqlite-graph_snapshot_hash]
+FAILED tests/deep_review/test_company_knowledge.py::test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage[sqlite-source_company]
+FAILED tests/deep_review/test_company_knowledge.py::test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage[sqlite-source_content]
+FAILED tests/deep_review/test_company_knowledge.py::test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage[sqlite-ontology_hash]
+FAILED tests/deep_review/test_company_knowledge.py::test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage[sqlite-node_payload]
+FAILED tests/deep_review/test_company_knowledge.py::test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage[sqlite-fact_projection]
+FAILED tests/deep_review/test_company_knowledge.py::test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage[sqlite-evidence_projection]
+FAILED tests/deep_review/test_company_knowledge.py::test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage[postgres-payload_company]
+FAILED tests/deep_review/test_company_knowledge.py::test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage[postgres-payload_graph]
+FAILED tests/deep_review/test_company_knowledge.py::test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage[postgres-payload_source_hash]
+FAILED tests/deep_review/test_company_knowledge.py::test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage[postgres-payload_ontology]
+FAILED tests/deep_review/test_company_knowledge.py::test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage[postgres-payload_origin]
+FAILED tests/deep_review/test_company_knowledge.py::test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage[postgres-payload_source_file]
+FAILED tests/deep_review/test_company_knowledge.py::test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage[postgres-profile_company]
+FAILED tests/deep_review/test_company_knowledge.py::test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage[postgres-graph_profile]
+FAILED tests/deep_review/test_company_knowledge.py::test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage[postgres-graph_source_hash]
+FAILED tests/deep_review/test_company_knowledge.py::test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage[postgres-graph_snapshot_hash]
+FAILED tests/deep_review/test_company_knowledge.py::test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage[postgres-source_company]
+FAILED tests/deep_review/test_company_knowledge.py::test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage[postgres-source_content]
+FAILED tests/deep_review/test_company_knowledge.py::test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage[postgres-ontology_hash]
+FAILED tests/deep_review/test_company_knowledge.py::test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage[postgres-node_payload]
+FAILED tests/deep_review/test_company_knowledge.py::test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage[postgres-fact_projection]
+FAILED tests/deep_review/test_company_knowledge.py::test_t6_profile_v2_consumer_rejects_inconsistent_frozen_lineage[postgres-evidence_projection]
+FAILED tests/deep_review/test_company_knowledge.py::test_t6_profile_v2_rejects_made_up_evidence_for_unknown_fact[sqlite]
+FAILED tests/deep_review/test_company_knowledge.py::test_t6_profile_v2_rejects_made_up_evidence_for_unknown_fact[postgres]
+FAILED tests/deep_review/test_company_knowledge.py::test_t7_profile_v1_consumer_keeps_fixed_source_file_contract[sqlite]
+FAILED tests/deep_review/test_company_knowledge.py::test_t7_profile_v1_consumer_keeps_fixed_source_file_contract[postgres]
+38 failed, 19 deselected in 25.77s
+
+exit_code=1

@@ -26,19 +26,30 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from ...core.company_ontology import (
+    COMPANY_SOURCE_NODE_TYPES,
+    RELATION_ENDPOINTS,
+    OntologyValidationError,
+    parse_ontology,
+)
 from ...core.model_binding import MODEL_ENDPOINT_REF, MODEL_NAME, canonical_json_bytes
 from ...core.models import AuditEvent
 from ..models import (
     AnalysisPolicyVersion,
+    CompanyKnowledgeEdge,
+    CompanyKnowledgeNode,
+    CompanyKnowledgeSource,
+    CompanyKnowledgeVersion,
     ContentObject,
     ContentObjectLocation,
     DocumentBundle,
     DocumentBundleItem,
     DocumentStructure,
+    KnowledgeOntologyVersion,
     ProfileEvidence,
     ProfileVersion,
 )
-from ...lifecycle.models import Notice, NoticeObservation
+from ...lifecycle.models import Company, Notice, NoticeObservation
 from . import assets
 from .deep_review_validation import validate_structure
 from ...core.company_profile import ParsedItem, parse_profile, profile_path, walk_sections
@@ -46,6 +57,9 @@ from ...core.company_profile import ParsedItem, parse_profile, profile_path, wal
 
 CANONICAL_POLICY_FILE = Path(__file__).resolve().parents[1] / "policies" / "analysis-policy-lean-v1.json"
 PROFILE_SOURCE_FILE = "docs/reference/company-profile.md"
+PROFILE_SCHEMA_V1 = "bidops.company-profile.v1"
+PROFILE_SCHEMA_V2 = "bidops.company-profile.v2"
+GRAPH_SNAPSHOT_SCHEMA = "bidops.company-knowledge-snapshot.v1"
 POLICY_SCHEMA = "bidops.analysis-policy.v1"
 STAGES = (
     "requirements_and_evaluation",
@@ -647,7 +661,7 @@ def _verified_profile_source(session: Session, evidence_rows: Sequence[ProfileEv
         return None
 
 
-def _validate_profile_snapshot(
+def _validate_profile_v1_snapshot(
     session: Session,
     profile: ProfileVersion,
     *,
@@ -663,7 +677,7 @@ def _validate_profile_snapshot(
     """
 
     payload = profile.profile_payload if isinstance(profile.profile_payload, Mapping) else None
-    if payload is None or payload.get("schema") != "bidops.company-profile.v1" or payload.get("source_file") != PROFILE_SOURCE_FILE or payload.get("source_sha256") != profile.profile_sha256:
+    if payload is None or payload.get("schema") != PROFILE_SCHEMA_V1 or payload.get("source_file") != PROFILE_SOURCE_FILE or payload.get("source_sha256") != profile.profile_sha256:
         raise InputVersionError("service_unavailable", "active profile hash가 payload와 일치하지 않습니다")
     facts = payload.get("facts")
     if not isinstance(facts, list):
@@ -702,6 +716,472 @@ def _validate_profile_snapshot(
             raise InputVersionError("service_unavailable", "profile evidence quote가 원문 substring이 아닙니다")
         if fact.get("locator") != row.locator:
             raise InputVersionError("service_unavailable", "profile evidence locator가 fact와 일치하지 않습니다")
+
+
+def _company_source_bytes_verified(
+    source: CompanyKnowledgeSource,
+    content: ContentObject,
+    location: ContentObjectLocation,
+) -> bool:
+    """Re-read one pinned v2 source only for privileged verification callers."""
+
+    try:
+        raw, metadata = assets.read_object(
+            "source", location.object_key, version_id=location.object_version_id
+        )
+    except (assets.AssetError, OSError, ValueError):
+        return False
+    return bool(
+        len(raw) == source.size_bytes
+        and _sha256(raw) == source.source_sha256
+        and metadata.namespace == "source"
+        and metadata.object_key == location.object_key
+        and metadata.object_version_id == location.object_version_id
+        and metadata.etag == location.etag
+        and metadata.size_bytes == source.size_bytes
+        and content.sha256 == source.source_sha256
+        and content.size_bytes == source.size_bytes
+    )
+
+
+def _stored_source_ref(
+    value: Any,
+    *,
+    source_sha256: str,
+) -> tuple[str, str]:
+    """Validate a private graph source ref and return its stable identity."""
+
+    if not isinstance(value, Mapping) or set(value) != {
+        "source_id",
+        "source_sha256",
+        "locator",
+        "quote",
+    }:
+        raise InputVersionError(
+            "service_unavailable", "company graph source ref가 올바르지 않습니다"
+        )
+    locator = value.get("locator")
+    quote = value.get("quote")
+    if (
+        value.get("source_id") != "self"
+        or value.get("source_sha256") != source_sha256
+        or not isinstance(locator, Mapping)
+        or set(locator) != {"json_pointer"}
+        or not isinstance(locator.get("json_pointer"), str)
+        or not locator["json_pointer"].startswith("/")
+        or not isinstance(quote, str)
+        or not quote
+    ):
+        raise InputVersionError(
+            "service_unavailable", "company graph source ref 계보가 올바르지 않습니다"
+        )
+    return locator["json_pointer"], quote
+
+
+def _validate_profile_v2_snapshot(
+    session: Session,
+    profile: ProfileVersion,
+    *,
+    require_verified_source: bool,
+) -> None:
+    """Validate the complete profile/graph/source projection frozen at import.
+
+    Normal analysis and API consumers validate immutable database lineage only;
+    their role does not have the private ``source`` namespace credential.  The
+    explicit verification path additionally re-reads the exact object version.
+    """
+
+    payload = profile.profile_payload if isinstance(profile.profile_payload, Mapping) else None
+    expected_payload_keys = {
+        "schema",
+        "company_id",
+        "origin",
+        "source_sha256",
+        "graph_version_id",
+        "ontology_version",
+        "facts",
+        "parse_errors",
+    }
+    if (
+        payload is None
+        or set(payload) != expected_payload_keys
+        or payload.get("schema") != PROFILE_SCHEMA_V2
+        or payload.get("origin") != "fictional_scenario"
+        or payload.get("source_sha256") != profile.profile_sha256
+        or payload.get("parse_errors") != []
+        or profile.company_id is None
+        or profile.source_kind != "company-knowledge-json-v2"
+        or payload.get("company_id") != str(profile.company_id)
+    ):
+        raise InputVersionError(
+            "service_unavailable", "company profile v2 identity가 올바르지 않습니다"
+        )
+    try:
+        graph_version_id = UUID(str(payload.get("graph_version_id")))
+    except (TypeError, ValueError) as exc:
+        raise InputVersionError(
+            "service_unavailable", "company profile v2 graph identity가 올바르지 않습니다"
+        ) from exc
+
+    graph = session.get(CompanyKnowledgeVersion, graph_version_id)
+    company = session.get(Company, profile.company_id)
+    if (
+        graph is None
+        or company is None
+        or not company.is_fictional
+        or graph.company_id != profile.company_id
+        or graph.profile_version_id != profile.id
+        or graph.source_sha256 != profile.profile_sha256
+    ):
+        raise InputVersionError(
+            "service_unavailable", "company profile v2 graph 소속이 올바르지 않습니다"
+        )
+
+    source = session.get(CompanyKnowledgeSource, graph.source_id)
+    content = session.get(ContentObject, source.content_object_id) if source is not None else None
+    location = (
+        session.get(ContentObjectLocation, source.content_location_id)
+        if source is not None
+        else None
+    )
+    if (
+        source is None
+        or content is None
+        or location is None
+        or source.company_id != profile.company_id
+        or source.source_sha256 != profile.profile_sha256
+        or source.size_bytes <= 0
+        or content.id != source.content_object_id
+        or content.sha256 != source.source_sha256
+        or content.size_bytes != source.size_bytes
+        or content.detected_mime != "application/json"
+        or location.id != source.content_location_id
+        or location.content_object_id != content.id
+        or location.namespace_key != "source"
+        or location.status != "verified"
+        or not isinstance(location.object_key, str)
+        or not location.object_key
+        or location.object_key.startswith(("/", "\\"))
+        or not location.object_version_id
+        or not location.etag
+    ):
+        raise InputVersionError(
+            "service_unavailable", "company profile v2 source 계보가 올바르지 않습니다"
+        )
+    if require_verified_source and not _company_source_bytes_verified(
+        source, content, location
+    ):
+        raise InputVersionError(
+            "service_unavailable", "company profile v2 원문을 검증할 수 없습니다"
+        )
+
+    ontology = session.get(KnowledgeOntologyVersion, graph.ontology_id)
+    snapshot = graph.snapshot if isinstance(graph.snapshot, Mapping) else None
+    try:
+        parsed_ontology = (
+            parse_ontology(canonical_json_bytes(ontology.payload))
+            if ontology is not None and isinstance(ontology.payload, Mapping)
+            else None
+        )
+        snapshot_digest = canonical_json_hash(snapshot) if snapshot is not None else None
+    except (OntologyValidationError, TypeError, ValueError):
+        parsed_ontology = None
+        snapshot_digest = None
+    if (
+        ontology is None
+        or parsed_ontology is None
+        or parsed_ontology.sha256 != ontology.sha256
+        or parsed_ontology.version != ontology.version
+        or snapshot is None
+        or set(snapshot) != {
+            "schema_version",
+            "company_slug",
+            "ontology_version",
+            "ontology_sha256",
+            "source_sha256",
+            "nodes",
+            "edges",
+        }
+        or snapshot.get("schema_version") != GRAPH_SNAPSHOT_SCHEMA
+        or snapshot.get("company_slug") != company.slug
+        or snapshot.get("ontology_version") != ontology.version
+        or snapshot.get("ontology_sha256") != ontology.sha256
+        or snapshot.get("source_sha256") != source.source_sha256
+        or payload.get("ontology_version") != ontology.version
+        or snapshot_digest != graph.graph_sha256
+    ):
+        raise InputVersionError(
+            "service_unavailable", "company profile v2 ontology 또는 graph hash가 올바르지 않습니다"
+        )
+
+    nodes = snapshot.get("nodes")
+    edges = snapshot.get("edges")
+    if not isinstance(nodes, list) or not isinstance(edges, list):
+        raise InputVersionError(
+            "service_unavailable", "company graph snapshot이 올바르지 않습니다"
+        )
+    # Pair rows with snapshot items by id, never by SQL ORDER BY position:
+    # PostgreSQL text collation (e.g. en_US.utf8) can order ids differently
+    # from the code-point order used by the snapshot.
+    node_rows = list(
+        session.scalars(
+            select(CompanyKnowledgeNode).where(
+                CompanyKnowledgeNode.graph_version_id == graph.id
+            )
+        )
+    )
+    edge_rows = list(
+        session.scalars(
+            select(CompanyKnowledgeEdge).where(
+                CompanyKnowledgeEdge.graph_version_id == graph.id
+            )
+        )
+    )
+    node_ids = [node.get("id") if isinstance(node, Mapping) else None for node in nodes]
+    edge_ids = [edge.get("id") if isinstance(edge, Mapping) else None for edge in edges]
+    node_row_by_id = {row.node_id: row for row in node_rows}
+    edge_row_by_id = {row.edge_id: row for row in edge_rows}
+    if (
+        any(not isinstance(item_id, str) for item_id in (*node_ids, *edge_ids))
+        or node_ids != sorted(set(node_ids))
+        or edge_ids != sorted(set(edge_ids))
+        or len(node_row_by_id) != len(node_rows)
+        or len(edge_row_by_id) != len(edge_rows)
+        or set(node_row_by_id) != set(node_ids)
+        or set(edge_row_by_id) != set(edge_ids)
+        or any(node_row_by_id[node["id"]].payload != node for node in nodes)
+        or any(
+            edge_row_by_id[edge["id"]].payload != edge
+            or edge_row_by_id[edge["id"]].from_id != edge.get("from_id")
+            or edge_row_by_id[edge["id"]].to_id != edge.get("to_id")
+            for edge in edges
+        )
+    ):
+        raise InputVersionError(
+            "service_unavailable", "company graph rows가 frozen snapshot과 일치하지 않습니다"
+        )
+
+    node_by_id: dict[str, Mapping[str, Any]] = {}
+    fact_source_refs: set[tuple[str, str]] = set()
+    fact_ref_by_key: dict[str, tuple[str, str]] = {}
+    expected_facts: list[dict[str, Any]] = []
+    expected_quotes: dict[str, str] = {}
+    node_keys = {
+        "id",
+        "type",
+        "label",
+        "concept_id",
+        "status",
+        "origin",
+        "value",
+        "source_refs",
+    }
+    for node in nodes:
+        if (
+            not isinstance(node, Mapping)
+            or set(node) != node_keys
+            or not isinstance(node.get("id"), str)
+            or not node["id"]
+            or node["id"] in node_by_id
+            or node.get("type") not in COMPANY_SOURCE_NODE_TYPES
+            or node.get("origin") != "fictional_scenario"
+            or node.get("status") not in {"confirmed", "inferred", "unknown"}
+            or not isinstance(node.get("source_refs"), list)
+        ):
+            raise InputVersionError(
+                "service_unavailable", "company graph node가 올바르지 않습니다"
+            )
+        node_by_id[node["id"]] = node
+        concept = parsed_ontology.concepts_by_id.get(node.get("concept_id"))
+        if node["type"] in {"capability", "technology", "domain", "qualification"}:
+            if concept is None or concept.kind != node["type"]:
+                raise InputVersionError(
+                    "service_unavailable", "company graph node concept가 ontology와 일치하지 않습니다"
+                )
+        elif node.get("concept_id") is not None:
+            raise InputVersionError(
+                "service_unavailable", "company graph node concept가 올바르지 않습니다"
+            )
+        refs = node["source_refs"]
+        if node["status"] == "unknown":
+            if node.get("value") is not None or refs:
+                raise InputVersionError(
+                    "service_unavailable", "unknown company fact 계보가 올바르지 않습니다"
+                )
+        elif len(refs) != 1:
+            raise InputVersionError(
+                "service_unavailable", "company fact에는 source ref가 정확히 하나 필요합니다"
+            )
+        if node.get("type") == "evidence":
+            continue
+        if node["status"] == "unknown":
+            quote = ""
+        else:
+            source_ref = _stored_source_ref(
+                refs[0], source_sha256=source.source_sha256
+            )
+            fact_source_refs.add(source_ref)
+            fact_ref_by_key[node["id"]] = source_ref
+            quote = source_ref[1]
+            expected_quotes[node["id"]] = quote
+        expected_facts.append(
+            {
+                "fact_key": node["id"],
+                "status": node["status"],
+                "value": node.get("value"),
+                "section_id": node.get("type"),
+                "section_number": None,
+                "locator": {"fact_key": node["id"]},
+                "quote": quote,
+                "origin": "fictional_scenario",
+            }
+        )
+
+    if (
+        not 1 <= len(expected_facts) <= 256
+        or sum(node.get("type") == "company" for node in nodes) != 1
+    ):
+        raise InputVersionError(
+            "service_unavailable", "company profile v2 fact 개수가 올바르지 않습니다"
+        )
+    facts = payload.get("facts")
+    if facts != expected_facts:
+        raise InputVersionError(
+            "service_unavailable", "company profile v2 facts가 graph와 일치하지 않습니다"
+        )
+
+    for node in nodes:
+        if node.get("type") != "evidence":
+            continue
+        if node.get("status") == "unknown":
+            # Contract §3: an unknown node of any type has value=null and no
+            # source refs (already enforced above). An unknown evidence node is
+            # not tied to a fact and receives no evidence ids (§4).
+            continue
+        value = node.get("value")
+        refs = node.get("source_refs")
+        fact_key = value.get("fact_key") if isinstance(value, Mapping) else None
+        if (
+            not isinstance(fact_key, str)
+            or fact_key not in expected_quotes
+            or len(refs) != 1
+            or _stored_source_ref(
+                refs[0], source_sha256=source.source_sha256
+            )
+            != fact_ref_by_key[fact_key]
+        ):
+            raise InputVersionError(
+                "service_unavailable", "company evidence node가 기존 fact를 가리키지 않습니다"
+            )
+
+    edge_keys = {
+        "id",
+        "type",
+        "from_id",
+        "to_id",
+        "status",
+        "origin",
+        "source_refs",
+    }
+    for edge in edges:
+        relation = RELATION_ENDPOINTS.get(edge.get("type")) if isinstance(edge, Mapping) else None
+        source_node = node_by_id.get(edge.get("from_id")) if isinstance(edge, Mapping) else None
+        target_node = node_by_id.get(edge.get("to_id")) if isinstance(edge, Mapping) else None
+        if (
+            not isinstance(edge, Mapping)
+            or set(edge) != edge_keys
+            or source_node is None
+            or target_node is None
+            or relation is None
+            or source_node.get("type") not in relation[0]
+            or target_node.get("type") not in relation[1]
+            or edge.get("origin") != "fictional_scenario"
+            or edge.get("status") not in {"confirmed", "inferred", "unknown"}
+            or not isinstance(edge.get("source_refs"), list)
+        ):
+            raise InputVersionError(
+                "service_unavailable", "company graph edge가 올바르지 않습니다"
+            )
+        refs = edge["source_refs"]
+        if edge["status"] == "unknown":
+            if refs:
+                raise InputVersionError(
+                    "service_unavailable", "unknown company edge에는 source ref가 없어야 합니다"
+                )
+        elif not refs or any(
+            _stored_source_ref(ref, source_sha256=source.source_sha256)
+            not in fact_source_refs
+            for ref in refs
+        ):
+            raise InputVersionError(
+                "service_unavailable", "company edge가 기존 fact source ref를 가리키지 않습니다"
+            )
+
+    evidence_rows = list(
+        session.scalars(
+            select(ProfileEvidence)
+            .where(ProfileEvidence.profile_version_id == profile.id)
+            .order_by(ProfileEvidence.fact_key.asc(), ProfileEvidence.id.asc())
+        )
+    )
+    by_fact: dict[str, list[ProfileEvidence]] = {}
+    for row in evidence_rows:
+        by_fact.setdefault(row.fact_key, []).append(row)
+    if set(by_fact) != set(expected_quotes):
+        raise InputVersionError(
+            "service_unavailable", "company profile v2 evidence 집합이 facts와 일치하지 않습니다"
+        )
+    for fact_key, quote in expected_quotes.items():
+        rows = by_fact[fact_key]
+        if (
+            len(rows) != 1
+            or rows[0].content_object_id != source.content_object_id
+            or rows[0].source_sha256 != source.source_sha256
+            or rows[0].locator_type != "profile_fact"
+            or rows[0].locator != {"fact_key": fact_key}
+            or rows[0].quote != quote
+        ):
+            raise InputVersionError(
+                "service_unavailable", "company profile v2 evidence projection이 올바르지 않습니다"
+            )
+
+
+def validate_profile_snapshot(
+    session: Session,
+    profile: ProfileVersion,
+    *,
+    require_verified_source: bool = False,
+) -> None:
+    """Strictly validate one pinned profile according to its declared schema."""
+
+    payload = profile.profile_payload if isinstance(profile.profile_payload, Mapping) else None
+    schema = payload.get("schema") if payload is not None else None
+    if schema == PROFILE_SCHEMA_V1:
+        _validate_profile_v1_snapshot(
+            session, profile, require_verified_source=require_verified_source
+        )
+        return
+    if schema == PROFILE_SCHEMA_V2:
+        _validate_profile_v2_snapshot(
+            session, profile, require_verified_source=require_verified_source
+        )
+        return
+    raise InputVersionError(
+        "service_unavailable", "profile schema가 지원되지 않습니다"
+    )
+
+
+def _validate_profile_snapshot(
+    session: Session,
+    profile: ProfileVersion,
+    *,
+    require_verified_source: bool = False,
+) -> None:
+    """Compatibility alias for existing callers inside this module."""
+
+    validate_profile_snapshot(
+        session, profile, require_verified_source=require_verified_source
+    )
 
 
 def _approved_policy_path(policy: Mapping[str, Any]) -> Path:
@@ -821,7 +1301,7 @@ def import_policy_version(
 
 
 def profile_context(session: Session, profile: ProfileVersion) -> dict[str, Any]:
-    _validate_profile_snapshot(session, profile)
+    validate_profile_snapshot(session, profile)
     evidence_rows = session.scalars(select(ProfileEvidence).where(ProfileEvidence.profile_version_id == profile.id).order_by(ProfileEvidence.fact_key.asc(), ProfileEvidence.id.asc())).all()
     evidence = [
         {
@@ -945,8 +1425,8 @@ def bundle_context(
 
 
 __all__ = [
-    "CANONICAL_POLICY_FILE", "MODEL_ENDPOINT_REF", "MODEL_NAME", "POLICY_SCHEMA", "PROFILE_SOURCE_FILE", "STAGES",
+    "CANONICAL_POLICY_FILE", "MODEL_ENDPOINT_REF", "MODEL_NAME", "POLICY_SCHEMA", "PROFILE_SCHEMA_V1", "PROFILE_SCHEMA_V2", "PROFILE_SOURCE_FILE", "STAGES",
     "GradeBasis", "InputVersionError", "active_version_ids", "bundle_context", "canonical_json_bytes", "canonical_json_hash",
     "effective_grade_basis", "import_policy_version", "import_profile_version", "load_canonical_policy", "policy_activation_valid",
-    "profile_context", "resolve_active_versions", "validate_pinned_policy", "policy_quality_snapshot",
+    "profile_context", "resolve_active_versions", "validate_pinned_policy", "validate_profile_snapshot", "policy_quality_snapshot",
 ]

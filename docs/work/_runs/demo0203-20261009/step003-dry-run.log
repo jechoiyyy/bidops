@@ -1,0 +1,67 @@
+{
+  "runs": [
+    {
+      "file": "docs/demo-fixtures/companies/demo-cloud-si.v1.json",
+      "command": [
+        "/tmp/bidops-demo00-verify-venv/bin/python",
+        "-m",
+        "app.deep_review.cli",
+        "import-company-knowledge",
+        "--ontology",
+        "/Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo0203-20261009-DEMO-02-company-knowledge/docs/demo-fixtures/ontology.v1.json",
+        "--company",
+        "/Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo0203-20261009-DEMO-02-company-knowledge/docs/demo-fixtures/companies/demo-cloud-si.v1.json",
+        "--actor",
+        "fixture-draft-check",
+        "--dry-run"
+      ],
+      "exit_code": 0,
+      "stdout": "{\"activated\":false,\"company_id\":null,\"created\":false,\"errors\":[],\"graph_sha256\":\"78b4a33e2b60a0aa37e4cf15afe0fa4a9a548631f3ee09e64b8f274f64cb902b\",\"graph_version_id\":null,\"ontology_version\":\"v1\",\"profile_version_id\":null,\"source_sha256\":\"58fe3ce03859d83a0c9327b7f90f1be3ce029bc7e5c62b9f3e4ba8bb0cf8339d\"}\n",
+      "stderr": "",
+      "source_sha256": "58fe3ce03859d83a0c9327b7f90f1be3ce029bc7e5c62b9f3e4ba8bb0cf8339d"
+    },
+    {
+      "file": "docs/demo-fixtures/companies/demo-data-ai.v1.json",
+      "command": [
+        "/tmp/bidops-demo00-verify-venv/bin/python",
+        "-m",
+        "app.deep_review.cli",
+        "import-company-knowledge",
+        "--ontology",
+        "/Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo0203-20261009-DEMO-02-company-knowledge/docs/demo-fixtures/ontology.v1.json",
+        "--company",
+        "/Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo0203-20261009-DEMO-02-company-knowledge/docs/demo-fixtures/companies/demo-data-ai.v1.json",
+        "--actor",
+        "fixture-draft-check",
+        "--dry-run"
+      ],
+      "exit_code": 0,
+      "stdout": "{\"activated\":false,\"company_id\":null,\"created\":false,\"errors\":[],\"graph_sha256\":\"b7f4affd61aa8485cee07d4b94aac5b661886780ce6ec5daf1064ef7d0c89b36\",\"graph_version_id\":null,\"ontology_version\":\"v1\",\"profile_version_id\":null,\"source_sha256\":\"b78fd0078615cd2ff9657484717c581aeacedeb9d66b6d2adde35a311f5c5eb2\"}\n",
+      "stderr": "",
+      "source_sha256": "b78fd0078615cd2ff9657484717c581aeacedeb9d66b6d2adde35a311f5c5eb2"
+    },
+    {
+      "file": "docs/demo-fixtures/companies/demo-public-si.v1.json",
+      "command": [
+        "/tmp/bidops-demo00-verify-venv/bin/python",
+        "-m",
+        "app.deep_review.cli",
+        "import-company-knowledge",
+        "--ontology",
+        "/Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo0203-20261009-DEMO-02-company-knowledge/docs/demo-fixtures/ontology.v1.json",
+        "--company",
+        "/Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo0203-20261009-DEMO-02-company-knowledge/docs/demo-fixtures/companies/demo-public-si.v1.json",
+        "--actor",
+        "fixture-draft-check",
+        "--dry-run"
+      ],
+      "exit_code": 0,
+      "stdout": "{\"activated\":false,\"company_id\":null,\"created\":false,\"errors\":[],\"graph_sha256\":\"b7e7110ab60314e445840169d2ac2930222a692eb504f66bda380601fa574a28\",\"graph_version_id\":null,\"ontology_version\":\"v1\",\"profile_version_id\":null,\"source_sha256\":\"6a2f6415f64cc5752fbb95efa01c61ac9662d7791054f783f14dc02d4728c3c7\"}\n",
+      "stderr": "",
+      "source_sha256": "6a2f6415f64cc5752fbb95efa01c61ac9662d7791054f783f14dc02d4728c3c7"
+    }
+  ],
+  "temporary_workspace_entries": [
+    "data"
+  ]
+}

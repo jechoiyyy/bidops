@@ -1,11 +1,13 @@
 """deep_review의 서버측 관리 CLI 명령.
 
-`python -m app.deep_review.cli`가 여섯 하위 명령을 모두 받는다.
+`python -m app.deep_review.cli`가 아홉 하위 명령을 모두 받는다.
 
 - ``run-bc-e2e``: 문서 준비(B)에서 심층 검토(C)까지의 격리 인수 흐름을 돌린다.
 - ``run-prespec-e2e``: 사전규격 회차 적재부터 보고서·최종 의견까지의 mock
   종단 인수 흐름을 격리 workspace에서 돌린다.
 - ``import-profile-policy``: 불변 회사 프로필·분석 policy 판을 import한다.
+- ``import-company-knowledge``: 가상회사 원본에서 profile/graph 버전을 등록한다.
+- ``activate-company-knowledge``: 회사의 active profile/graph binding을 갱신한다.
 - ``enqueue-overview``: 사전규격 공고 한 건의 개요 run을 대기열에 넣는다.
 - ``prepare-overviews``: 이미 적재된 사전규격의 자동 준비를 한 번에 돌린다.
 - ``close-overview-run``: 활성 개요 run 하나를 사람이 닫는다.
@@ -39,6 +41,14 @@ _SUBCOMMANDS: dict[str, tuple[str, str]] = {
     "import-profile-policy": (
         ".import_profile_policy",
         "불변 회사 프로필·분석 policy 판을 import한다",
+    ),
+    "import-company-knowledge": (
+        ".import_company_knowledge",
+        "온톨로지와 가상회사 지식 원본을 불변 버전으로 등록한다",
+    ),
+    "activate-company-knowledge": (
+        ".activate_company_knowledge",
+        "회사의 profile/graph binding을 원자적으로 활성화한다",
     ),
     "enqueue-overview": (
         ".enqueue_overview",

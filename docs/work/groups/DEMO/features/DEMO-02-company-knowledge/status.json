@@ -1,15 +1,15 @@
 {
   "schema_version": 2,
   "feature": "DEMO-02-company-knowledge",
-  "phase": "review",
+  "phase": "validating",
   "steps": [
     {
       "id": "STEP-001",
       "title": "온톨로지·원본 검증",
       "model": "complex",
       "fingerprint": "1ecd969875650ae54bfe7637737b5770faf909039ab08fd2a816e9d87b3e94c8",
-      "status": "stale",
-      "updated_at": null,
+      "status": "done",
+      "updated_at": "2026-10-09T19:06:52+09:00",
       "history": [
         {
           "id": "STEP-001",
@@ -19,15 +19,16 @@
           "status": "pending",
           "updated_at": null
         }
-      ]
+      ],
+      "note": "최종 리뷰 B2·N2 반영: 값 객체 정확 key 집합(null 명시), ontology version 128자 초과 ontology_invalid. red25fail→green, 리더 feature-final-tests-r2 455pass(기존실패1)/skip0"
     },
     {
       "id": "STEP-002",
       "title": "불변 등록·binding·CLI",
       "model": "complex",
       "fingerprint": "cb11b40bb8f6af93fe1c2cb605329e6e77ae4d89fdcb7b2f023c60a922c9e729",
-      "status": "stale",
-      "updated_at": null,
+      "status": "done",
+      "updated_at": "2026-10-09T19:06:52+09:00",
       "history": [
         {
           "id": "STEP-002",
@@ -37,15 +38,16 @@
           "status": "pending",
           "updated_at": null
         }
-      ]
+      ],
+      "note": "최종 리뷰 B1a·N4 반영: node/edge 행을 동결 snapshot에서 기록, 최초 import 객체 쓰기/재읽기 실패 무행·T5 새 프로세스 company.register 감사. 리더 r2 455pass/skip0"
     },
     {
       "id": "STEP-003",
       "title": "세 회사 합성 원본",
       "model": "standard",
       "fingerprint": "ff2bdd7d380ad6087dd6c73abad59155cfdf82a6440f62b3e1b6786080d6d4bd",
-      "status": "stale",
-      "updated_at": null,
+      "status": "done",
+      "updated_at": "2026-10-09T19:06:41+09:00",
       "history": [
         {
           "id": "STEP-003",
@@ -55,43 +57,106 @@
           "status": "pending",
           "updated_at": null
         }
-      ]
+      ],
+      "note": "사용자 재발행본 재승인(2026-10-09T19:06:02+09:00). 3사 새 hash와 manifest 대조 일치, fixture-approval.md 재승인 절 기록·동결. 엄격 validator dry-run3 exit0, 이전 바이트는 source_invalid. 실제 DB 미등록"
     },
     {
       "id": "STEP-004",
       "title": "프로필·근거 projection",
       "model": "complex",
       "fingerprint": "e9b6c3d958e33712d4176149a3d9865e75922e5016789a107609e6b1e06f0f5d",
-      "status": "pending",
-      "updated_at": null
+      "status": "done",
+      "updated_at": "2026-10-09T19:06:52+09:00",
+      "note": "최종 리뷰 B1b·c 반영: unknown evidence 소비 허용, 행-snapshot id 대조(PG collation 무관). 리더 r2 455pass/skip0"
     },
     {
       "id": "STEP-005",
       "title": "읽기 API와 버전 탐색",
       "model": "complex",
       "fingerprint": "270b0b86a86650f5fc5748b39b0227f8afab7b6f5a07ecbb9debdb2629a02c79",
-      "status": "pending",
-      "updated_at": null
+      "status": "done",
+      "updated_at": "2026-10-09T18:07:44+09:00",
+      "note": "3개 회사 지식 GET·strict DTO·binding/과거버전/타회사404·BFS 절단·경로 미노출. 리더 red20fail→green232pass/skip0 SQLite+PG17.11, step005-result.md"
     }
   ],
   "proof": {
     "docs": {
-      "result": "pending"
+      "result": "pass",
+      "method": "review",
+      "note": "독립 최종 리뷰 1회차 FAIL(B1·B2) 수정 후 2회차 PASS_WITH_NOTES 차단0; 공통계약 §3·4·8·기능 3문서·정본 DEMO 절 5개 대조, check-plan/doctor 통과, N1→DEMO-05·N5→DEMO-03 이관",
+      "evidence": "docs/work/_runs/demo0203-20261009/review.md",
+      "exit_code": null,
+      "actor": "orchestrator",
+      "command": "python3 scripts/feature_status.py doctor _",
+      "at": "2026-10-10T16:34:54+09:00",
+      "head": "506ac77627b6ceafab213aeda9e80ebce62e61e8",
+      "source_hash": "9f85fbb65afed755370d831969f715b259d00e3919247edf65dc5d9b783b72d3",
+      "spec_hash": "fa2866d6019f8483e1e0b25af72152a5de53f3eb14bb07034be0f438a90bedd9"
     },
     "tests": {
-      "result": "pending"
+      "result": "pass",
+      "method": "command",
+      "note": "최종 소스 T1~T8 검사 9파일 307pass/skip0 exit0(review-fix-tests.log); 리더 단계 합집합 r2 455pass/1fail/skip0 — 실패는 기준506ac77 재현 test_models 기대목록(기존5테이블) 분리",
+      "evidence": "docs/work/_runs/demo0203-20261009/review-fix-tests.log",
+      "exit_code": 0,
+      "actor": "orchestrator",
+      "command": "",
+      "at": "2026-10-10T16:34:54+09:00",
+      "head": "506ac77627b6ceafab213aeda9e80ebce62e61e8",
+      "source_hash": "9f85fbb65afed755370d831969f715b259d00e3919247edf65dc5d9b783b72d3",
+      "spec_hash": "fa2866d6019f8483e1e0b25af72152a5de53f3eb14bb07034be0f438a90bedd9"
     },
     "postgres": {
-      "result": "pending"
+      "result": "pass",
+      "method": "command",
+      "note": "일회용 postgres:17.11(harness)·SQLite 두 변형 skip0: migration0035·composite FK·append-only trigger·권한·API shape·collation 회귀; 리더 r2(feature-final-tests-r2.log)에서도 같은 PG 변형 통과, 기존 test_models 실패1은 기준 재현으로 분리(DEMO-02-company-knowledge.md)",
+      "evidence": "docs/work/_runs/demo0203-20261009/review-fix-tests.log",
+      "exit_code": 0,
+      "actor": "orchestrator",
+      "command": "",
+      "at": "2026-10-10T16:34:55+09:00",
+      "head": "506ac77627b6ceafab213aeda9e80ebce62e61e8",
+      "source_hash": "9f85fbb65afed755370d831969f715b259d00e3919247edf65dc5d9b783b72d3",
+      "spec_hash": "fa2866d6019f8483e1e0b25af72152a5de53f3eb14bb07034be0f438a90bedd9"
     },
     "frontend": {
-      "result": "pending"
+      "result": "pass",
+      "method": "command",
+      "note": "apiErrors.ts 오류 code 등록만 변경; Node22 Docker tsc -b && vite build exit0, 빌드 후 파일 hash 불변. 화면/layout 변경 없어 viewport 검사 비적용",
+      "evidence": "docs/work/_runs/demo0203-20261009/frontend-build.log",
+      "exit_code": 0,
+      "actor": "orchestrator",
+      "command": "",
+      "at": "2026-10-10T16:34:55+09:00",
+      "head": "506ac77627b6ceafab213aeda9e80ebce62e61e8",
+      "source_hash": "9f85fbb65afed755370d831969f715b259d00e3919247edf65dc5d9b783b72d3",
+      "spec_hash": "fa2866d6019f8483e1e0b25af72152a5de53f3eb14bb07034be0f438a90bedd9"
     },
     "api_guard": {
-      "result": "pending"
+      "result": "pass",
+      "method": "command",
+      "note": "회사 소속 404(타회사·legacy NULL·미존재)·binding 부재 409·demo disabled 404·계보 손상 500 fail-closed·공개 응답 locator/경로 미노출·dry-run 무쓰기; 모델 호출 0",
+      "evidence": "docs/work/_runs/demo0203-20261009/review-fix-tests.log",
+      "exit_code": 0,
+      "actor": "orchestrator",
+      "command": "",
+      "at": "2026-10-10T16:34:55+09:00",
+      "head": "506ac77627b6ceafab213aeda9e80ebce62e61e8",
+      "source_hash": "9f85fbb65afed755370d831969f715b259d00e3919247edf65dc5d9b783b72d3",
+      "spec_hash": "fa2866d6019f8483e1e0b25af72152a5de53f3eb14bb07034be0f438a90bedd9"
     },
     "real_data_run": {
-      "result": "pending"
+      "result": "not_applicable",
+      "method": "manual",
+      "note": "실제 Luna·18/9건·담당자 인수는 DEMO-03 STEP-007·DEMO-05 소유(plan 증명 절). 이 기능은 모델 호출 없음",
+      "evidence": "docs/work/groups/DEMO/features/DEMO-02-company-knowledge/plan.md",
+      "exit_code": null,
+      "actor": "orchestrator",
+      "command": "",
+      "at": "2026-10-10T16:34:55+09:00",
+      "head": "506ac77627b6ceafab213aeda9e80ebce62e61e8",
+      "source_hash": "9f85fbb65afed755370d831969f715b259d00e3919247edf65dc5d9b783b72d3",
+      "spec_hash": "fa2866d6019f8483e1e0b25af72152a5de53f3eb14bb07034be0f438a90bedd9"
     }
   },
   "notes": [
@@ -134,8 +199,126 @@
     {
       "at": "2026-10-09T13:22:56+09:00",
       "text": "재검증: 2026-10-09 사용자 요청에 따른 로컬 실제 자료/LiteLLM 재계획; 기존 증거는 변경 범위와 source hash 대조 후 재사용, 실제 Luna는 DEMO-03/05 필수 게이트 유지"
+    },
+    {
+      "at": "2026-10-09T15:15:13+09:00",
+      "text": "단계 → implementing: 사용자 loop로03까지 요청; demo0203 배치의 첫 기능. 데모브랜치 전용, 실제 전송·원본 승인 게이트 유지"
+    },
+    {
+      "at": "2026-10-09T15:15:13+09:00",
+      "text": "단계 STEP-001 in_progress: "
+    },
+    {
+      "at": "2026-10-09T15:22:57+09:00",
+      "text": "단계 STEP-001 done: 원본·온톨로지 순수validator와 module boundary 리더60passed 3.87s, 실제DB/객체/모델 호출없음"
+    },
+    {
+      "at": "2026-10-09T15:22:57+09:00",
+      "text": "단계 STEP-002 in_progress: "
+    },
+    {
+      "at": "2026-10-09T15:26:53+09:00",
+      "text": "단계 STEP-001 in_progress: 독립검토 차단3 보완: 등록 identity 규칙 정합, malformed enum 안전거부, 검증 후 중첩값 변조/원본 hash 결속. 초기60 통과는 보존하고 차이 검증 예정."
+    },
+    {
+      "at": "2026-10-09T15:34:53+09:00",
+      "text": "단계 STEP-001 done: 차단3수정, 리더77passed skip0 exit0; 지정 review프로필 codex_worker 독립delta PASS. review-step001-followup.md와 execution.json"
+    },
+    {
+      "at": "2026-10-09T15:53:33+09:00",
+      "text": "단계 STEP-002 done: 등록/CLI/감사 차이검사24passed skip0, PG migration 및 기존 관련136pass 보존. test_models 기존5개 누락 실패는 기준506ac77에서도 재현. step002-result.md"
+    },
+    {
+      "at": "2026-10-09T15:53:33+09:00",
+      "text": "단계 STEP-003 in_progress: "
+    },
+    {
+      "at": "2026-10-09T15:59:56+09:00",
+      "text": "단계 STEP-003 in_progress: 3사+ontology DRAFT 작성, 실제 CLI dry-run3개 exit0/errors=[]; step003-approval-request.json 해시 기준 사용자 승인 대기. 미등록·미동결."
+    },
+    {
+      "at": "2026-10-09T17:27:46+09:00",
+      "text": "단계 STEP-003 done: 사용자 현재 초안 승인 수신. 요청 manifest와4개 원본 해시 일치, fixture-approval.md에 승인자·시각·hash 기록. 원본 동결·실제 DB 미등록."
+    },
+    {
+      "at": "2026-10-09T17:27:53+09:00",
+      "text": "단계 STEP-004 in_progress: "
+    },
+    {
+      "at": "2026-10-09T17:35:44+09:00",
+      "text": "단계 STEP-004 done: v1/v2 strict profile consumer, 계보·hash·unknown근거 검증. 리더 red38fail→green78pass/skip0 SQLite+PG, step004-result.md."
+    },
+    {
+      "at": "2026-10-09T17:35:44+09:00",
+      "text": "단계 STEP-005 in_progress: "
+    },
+    {
+      "at": "2026-10-09T18:07:44+09:00",
+      "text": "단계 STEP-005 done: 3개 회사 지식 GET·strict DTO·binding/과거버전/타회사404·BFS 절단·경로 미노출. 리더 red20fail→green232pass/skip0 SQLite+PG17.11, step005-result.md"
+    },
+    {
+      "at": "2026-10-09T18:29:05+09:00",
+      "text": "단계 STEP-003 in_progress: 리뷰 B2(값 key 생략) 사용자 결정: nullable key null 명시로 3사 원본 재발행(사실·인용 불변, hash 변경). dry-run3 exit0/errors=[]. 재승인 대기·미등록"
+    },
+    {
+      "at": "2026-10-09T19:06:41+09:00",
+      "text": "단계 STEP-003 done: 사용자 재발행본 재승인(2026-10-09T19:06:02+09:00). 3사 새 hash와 manifest 대조 일치, fixture-approval.md 재승인 절 기록·동결. 엄격 validator dry-run3 exit0, 이전 바이트는 source_invalid. 실제 DB 미등록"
+    },
+    {
+      "at": "2026-10-09T19:06:52+09:00",
+      "text": "단계 STEP-001 done: 최종 리뷰 B2·N2 반영: 값 객체 정확 key 집합(null 명시), ontology version 128자 초과 ontology_invalid. red25fail→green, 리더 feature-final-tests-r2 455pass(기존실패1)/skip0"
+    },
+    {
+      "at": "2026-10-09T19:06:52+09:00",
+      "text": "단계 STEP-002 done: 최종 리뷰 B1a·N4 반영: node/edge 행을 동결 snapshot에서 기록, 최초 import 객체 쓰기/재읽기 실패 무행·T5 새 프로세스 company.register 감사. 리더 r2 455pass/skip0"
+    },
+    {
+      "at": "2026-10-09T19:06:52+09:00",
+      "text": "단계 STEP-004 done: 최종 리뷰 B1b·c 반영: unknown evidence 소비 허용, 행-snapshot id 대조(PG collation 무관). 리더 r2 455pass/skip0"
+    },
+    {
+      "at": "2026-10-10T16:34:55+09:00",
+      "text": "단계 → validating: STEP1~5 완료, 최종 독립 리뷰 PASS_WITH_NOTES, proof 기록; 커밋(수동)·배치 통합 대기"
     }
   ],
-  "updated_at": "2026-10-09T13:22:56+09:00",
-  "resume_phase": "drafting"
+  "updated_at": "2026-10-10T16:34:55+09:00",
+  "resume_phase": "drafting",
+  "proof_history": [
+    {
+      "key": "docs",
+      "previous": {
+        "result": "pending"
+      }
+    },
+    {
+      "key": "tests",
+      "previous": {
+        "result": "pending"
+      }
+    },
+    {
+      "key": "postgres",
+      "previous": {
+        "result": "pending"
+      }
+    },
+    {
+      "key": "frontend",
+      "previous": {
+        "result": "pending"
+      }
+    },
+    {
+      "key": "api_guard",
+      "previous": {
+        "result": "pending"
+      }
+    },
+    {
+      "key": "real_data_run",
+      "previous": {
+        "result": "pending"
+      }
+    }
+  ]
 }

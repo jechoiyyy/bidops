@@ -1,0 +1,2110 @@
+command: /tmp/bidops-demo00-verify-venv/bin/python -m pytest tests/deep_review/test_company_knowledge.py tests/app/test_company_knowledge_cli.py tests/app/test_alembic_autogenerate.py tests/app/test_runtime_database_privileges.py tests/app/test_db_migrations.py tests/app/test_deep_review_migrations.py tests/app/test_mapper_isolation.py tests/app/test_module_cli_entrypoints.py tests/app/test_module_boundaries.py tests/app/test_company_context.py::test_register_company_is_flush_only_idempotent_and_identity_checked[postgres] -q
+.F.F...F.F.F.FF.F.F.....................................F............... [ 49%]
+........................................................................ [ 98%]
+..                                                                       [100%]
+=================================== FAILURES ===================================
+_ test_t3_import_is_atomic_idempotent_and_builds_minimum_profile_v2[postgres] __
+
+self = <sqlalchemy.engine.base.Connection object at 0x116072ea0>
+dialect = <sqlalchemy.dialects.postgresql.psycopg.PGDialect_psycopg object at 0x107480bc0>
+context = <sqlalchemy.dialects.postgresql.psycopg.PGExecutionContext_psycopg object at 0x1153366f0>
+statement = <sqlalchemy.dialects.postgresql.psycopg.PGCompiler_psycopg object at 0x115335a30>
+parameters = [{'company_id': UUID('d06b50e0-0f12-4994-9d22-a9001457fc11'), 'content_location_id': UUID('2926dc76-d704-444f-b68e-9b9...39-ef42cf4b2fb5'), 'created_at': datetime.datetime(2026, 10, 9, 6, 45, 49, 637462, tzinfo=datetime.timezone.utc), ...}]
+
+    def _exec_single_context(
+        self,
+        dialect: Dialect,
+        context: ExecutionContext,
+        statement: Union[str, Compiled],
+        parameters: Optional[_AnyMultiExecuteParams],
+    ) -> CursorResult[Any]:
+        """continue the _execute_context() method for a single DBAPI
+        cursor.execute() or cursor.executemany() call.
+    
+        """
+        if dialect.bind_typing is BindTyping.SETINPUTSIZES:
+            generic_setinputsizes = context._prepare_set_input_sizes()
+    
+            if generic_setinputsizes:
+                try:
+                    dialect.do_set_input_sizes(
+                        context.cursor, generic_setinputsizes, context
+                    )
+                except BaseException as e:
+                    self._handle_dbapi_exception(
+                        e, str(statement), parameters, None, context
+                    )
+    
+        cursor, str_statement, parameters = (
+            context.cursor,
+            context.statement,
+            context.parameters,
+        )
+    
+        effective_parameters: Optional[_AnyExecuteParams]
+    
+        if not context.executemany:
+            effective_parameters = parameters[0]
+        else:
+            effective_parameters = parameters
+    
+        if self._has_events or self.engine._has_events:
+            for fn in self.dispatch.before_cursor_execute:
+                str_statement, effective_parameters = fn(
+                    self,
+                    cursor,
+                    str_statement,
+                    effective_parameters,
+                    context,
+                    context.executemany,
+                )
+    
+        if self._echo:
+            self._log_info(str_statement)
+    
+            stats = context._get_cache_stats()
+    
+            if not self.engine.hide_parameters:
+                self._log_info(
+                    "[%s] %r",
+                    stats,
+                    sql_util._repr_params(
+                        effective_parameters,
+                        batches=10,
+                        ismulti=context.executemany,
+                    ),
+                )
+            else:
+                self._log_info(
+                    "[%s] [SQL parameters hidden due to hide_parameters=True]",
+                    stats,
+                )
+    
+        evt_handled: bool = False
+        try:
+            if context.execute_style is ExecuteStyle.EXECUTEMANY:
+                effective_parameters = cast(
+                    "_CoreMultiExecuteParams", effective_parameters
+                )
+                if self.dialect._has_events:
+                    for fn in self.dialect.dispatch.do_executemany:
+                        if fn(
+                            cursor,
+                            str_statement,
+                            effective_parameters,
+                            context,
+                        ):
+                            evt_handled = True
+                            break
+                if not evt_handled:
+                    self.dialect.do_executemany(
+                        cursor,
+                        str_statement,
+                        effective_parameters,
+                        context,
+                    )
+            elif not effective_parameters and context.no_parameters:
+                if self.dialect._has_events:
+                    for fn in self.dialect.dispatch.do_execute_no_params:
+                        if fn(cursor, str_statement, context):
+                            evt_handled = True
+                            break
+                if not evt_handled:
+                    self.dialect.do_execute_no_params(
+                        cursor, str_statement, context
+                    )
+            else:
+                effective_parameters = cast(
+                    "_CoreSingleExecuteParams", effective_parameters
+                )
+                if self.dialect._has_events:
+                    for fn in self.dialect.dispatch.do_execute:
+                        if fn(
+                            cursor,
+                            str_statement,
+                            effective_parameters,
+                            context,
+                        ):
+                            evt_handled = True
+                            break
+                if not evt_handled:
+>                   self.dialect.do_execute(
+                        cursor, str_statement, effective_parameters, context
+                    )
+
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py:1969: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/default.py:952: in do_execute
+    cursor.execute(statement, parameters)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <psycopg.Cursor [closed] [IDLE] (host=127.0.0.1 port=32788 user=owner database=bidops_test_d3c14fa49d6a4da0) at 0x107472150>
+query = 'INSERT INTO bidops.company_knowledge_source (id, company_id, source_sha256, size_bytes, content_object_id, content_lo...bytes)s::BIGINT, %(content_object_id)s::UUID, %(content_location_id)s::UUID, %(created_at)s::TIMESTAMP WITH TIME ZONE)'
+params = {'company_id': UUID('d06b50e0-0f12-4994-9d22-a9001457fc11'), 'content_location_id': UUID('2926dc76-d704-444f-b68e-9b9b...c39-ef42cf4b2fb5'), 'created_at': datetime.datetime(2026, 10, 9, 6, 45, 49, 637462, tzinfo=datetime.timezone.utc), ...}
+
+    def execute(
+        self,
+        query: Query,
+        params: Params | None = None,
+        *,
+        prepare: bool | None = None,
+        binary: bool | None = None,
+    ) -> Self:
+        """
+        Execute a query or command to the database.
+        """
+        try:
+            with self._conn.lock:
+                self._conn.wait(
+                    self._execute_gen(query, params, prepare=prepare, binary=binary)
+                )
+        except e._NO_TRACEBACK as ex:
+>           raise ex.with_traceback(None)
+E           psycopg.errors.ForeignKeyViolation: insert or update on table "company_knowledge_source" violates foreign key constraint "fk_company_knowledge_source_location_content"
+E           DETAIL:  Key (content_location_id, content_object_id)=(2926dc76-d704-444f-b68e-9b9b2d0ef761, 003ac03e-704b-44bf-8c39-ef42cf4b2fb5) is not present in table "content_object_location".
+
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/psycopg/cursor.py:117: ForeignKeyViolation
+
+The above exception was the direct cause of the following exception:
+
+engine = Engine(postgresql+psycopg://owner:***@127.0.0.1:32788/bidops_test_d3c14fa49d6a4da0)
+
+    def test_t3_import_is_atomic_idempotent_and_builds_minimum_profile_v2(engine) -> None:
+        prepared = _prepared()
+        with Session(engine) as session:
+            with session.begin():
+>               created = import_company_knowledge(session, prepared, actor="등록 담당자")
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/deep_review/test_company_knowledge.py:194: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+app/deep_review/services/company_knowledge.py:421: in import_company_knowledge
+    source_row, content = _store_source(
+app/deep_review/services/company_knowledge.py:368: in _store_source
+    session.flush()
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/orm/session.py:4353: in flush
+    self._flush(objects)
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/orm/session.py:4488: in _flush
+    with util.safe_reraise():
+         ^^^^^^^^^^^^^^^^^^^
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/util/langhelpers.py:122: in __exit__
+    raise exc_value.with_traceback(exc_tb)
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/orm/session.py:4449: in _flush
+    flush_context.execute()
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/orm/unitofwork.py:465: in execute
+    rec.execute(self)
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/orm/unitofwork.py:641: in execute
+    util.preloaded.orm_persistence.save_obj(
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/orm/persistence.py:94: in save_obj
+    _emit_insert_statements(
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/orm/persistence.py:1234: in _emit_insert_statements
+    result = connection.execute(
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py:1421: in execute
+    return meth(
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/sql/elements.py:526: in _execute_on_connection
+    return connection._execute_clauseelement(
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py:1643: in _execute_clauseelement
+    ret = self._execute_context(
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py:1848: in _execute_context
+    return self._exec_single_context(
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py:1988: in _exec_single_context
+    self._handle_dbapi_exception(
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py:2365: in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py:1969: in _exec_single_context
+    self.dialect.do_execute(
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/default.py:952: in do_execute
+    cursor.execute(statement, parameters)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <psycopg.Cursor [closed] [IDLE] (host=127.0.0.1 port=32788 user=owner database=bidops_test_d3c14fa49d6a4da0) at 0x107472150>
+query = 'INSERT INTO bidops.company_knowledge_source (id, company_id, source_sha256, size_bytes, content_object_id, content_lo...bytes)s::BIGINT, %(content_object_id)s::UUID, %(content_location_id)s::UUID, %(created_at)s::TIMESTAMP WITH TIME ZONE)'
+params = {'company_id': UUID('d06b50e0-0f12-4994-9d22-a9001457fc11'), 'content_location_id': UUID('2926dc76-d704-444f-b68e-9b9b...c39-ef42cf4b2fb5'), 'created_at': datetime.datetime(2026, 10, 9, 6, 45, 49, 637462, tzinfo=datetime.timezone.utc), ...}
+
+    def execute(
+        self,
+        query: Query,
+        params: Params | None = None,
+        *,
+        prepare: bool | None = None,
+        binary: bool | None = None,
+    ) -> Self:
+        """
+        Execute a query or command to the database.
+        """
+        try:
+            with self._conn.lock:
+                self._conn.wait(
+                    self._execute_gen(query, params, prepare=prepare, binary=binary)
+                )
+        except e._NO_TRACEBACK as ex:
+>           raise ex.with_traceback(None)
+E           sqlalchemy.exc.IntegrityError: (psycopg.errors.ForeignKeyViolation) insert or update on table "company_knowledge_source" violates foreign key constraint "fk_company_knowledge_source_location_content"
+E           DETAIL:  Key (content_location_id, content_object_id)=(2926dc76-d704-444f-b68e-9b9b2d0ef761, 003ac03e-704b-44bf-8c39-ef42cf4b2fb5) is not present in table "content_object_location".
+E           [SQL: INSERT INTO bidops.company_knowledge_source (id, company_id, source_sha256, size_bytes, content_object_id, content_location_id, created_at) VALUES (%(id)s::UUID, %(company_id)s::UUID, %(source_sha256)s::VARCHAR, %(size_bytes)s::BIGINT, %(content_object_id)s::UUID, %(content_location_id)s::UUID, %(created_at)s::TIMESTAMP WITH TIME ZONE)]
+E           [parameters: {'id': UUID('cbbac1d8-a083-474e-b6e0-980e72802a0e'), 'company_id': UUID('d06b50e0-0f12-4994-9d22-a9001457fc11'), 'source_sha256': '6d80c443cd3db80f5f432adcb7abe07d4e152efd351b200c17d499430b332743', 'size_bytes': 1937, 'content_object_id': UUID('003ac03e-704b-44bf-8c39-ef42cf4b2fb5'), 'content_location_id': UUID('2926dc76-d704-444f-b68e-9b9b2d0ef761'), 'created_at': datetime.datetime(2026, 10, 9, 6, 45, 49, 637462, tzinfo=datetime.timezone.utc)}]
+E           (Background on this error at: https://sqlalche.me/e/20/gkpj)
+
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/psycopg/cursor.py:117: IntegrityError
+_________ test_t3_caller_rollback_removes_every_database_row[postgres] _________
+
+self = <sqlalchemy.engine.base.Connection object at 0x12155bf50>
+dialect = <sqlalchemy.dialects.postgresql.psycopg.PGDialect_psycopg object at 0x1160f0a40>
+context = <sqlalchemy.dialects.postgresql.psycopg.PGExecutionContext_psycopg object at 0x1215f5670>
+statement = <sqlalchemy.dialects.postgresql.psycopg.PGCompiler_psycopg object at 0x1215f5550>
+parameters = [{'company_id': UUID('fc234237-5bca-42c8-b6c8-2d16dc02e617'), 'content_location_id': UUID('fd3e79a5-cc18-495a-b172-18d...37-6f9237821a9b'), 'created_at': datetime.datetime(2026, 10, 9, 6, 45, 51, 658010, tzinfo=datetime.timezone.utc), ...}]
+
+    def _exec_single_context(
+        self,
+        dialect: Dialect,
+        context: ExecutionContext,
+        statement: Union[str, Compiled],
+        parameters: Optional[_AnyMultiExecuteParams],
+    ) -> CursorResult[Any]:
+        """continue the _execute_context() method for a single DBAPI
+        cursor.execute() or cursor.executemany() call.
+    
+        """
+        if dialect.bind_typing is BindTyping.SETINPUTSIZES:
+            generic_setinputsizes = context._prepare_set_input_sizes()
+    
+            if generic_setinputsizes:
+                try:
+                    dialect.do_set_input_sizes(
+                        context.cursor, generic_setinputsizes, context
+                    )
+                except BaseException as e:
+                    self._handle_dbapi_exception(
+                        e, str(statement), parameters, None, context
+                    )
+    
+        cursor, str_statement, parameters = (
+            context.cursor,
+            context.statement,
+            context.parameters,
+        )
+    
+        effective_parameters: Optional[_AnyExecuteParams]
+    
+        if not context.executemany:
+            effective_parameters = parameters[0]
+        else:
+            effective_parameters = parameters
+    
+        if self._has_events or self.engine._has_events:
+            for fn in self.dispatch.before_cursor_execute:
+                str_statement, effective_parameters = fn(
+                    self,
+                    cursor,
+                    str_statement,
+                    effective_parameters,
+                    context,
+                    context.executemany,
+                )
+    
+        if self._echo:
+            self._log_info(str_statement)
+    
+            stats = context._get_cache_stats()
+    
+            if not self.engine.hide_parameters:
+                self._log_info(
+                    "[%s] %r",
+                    stats,
+                    sql_util._repr_params(
+                        effective_parameters,
+                        batches=10,
+                        ismulti=context.executemany,
+                    ),
+                )
+            else:
+                self._log_info(
+                    "[%s] [SQL parameters hidden due to hide_parameters=True]",
+                    stats,
+                )
+    
+        evt_handled: bool = False
+        try:
+            if context.execute_style is ExecuteStyle.EXECUTEMANY:
+                effective_parameters = cast(
+                    "_CoreMultiExecuteParams", effective_parameters
+                )
+                if self.dialect._has_events:
+                    for fn in self.dialect.dispatch.do_executemany:
+                        if fn(
+                            cursor,
+                            str_statement,
+                            effective_parameters,
+                            context,
+                        ):
+                            evt_handled = True
+                            break
+                if not evt_handled:
+                    self.dialect.do_executemany(
+                        cursor,
+                        str_statement,
+                        effective_parameters,
+                        context,
+                    )
+            elif not effective_parameters and context.no_parameters:
+                if self.dialect._has_events:
+                    for fn in self.dialect.dispatch.do_execute_no_params:
+                        if fn(cursor, str_statement, context):
+                            evt_handled = True
+                            break
+                if not evt_handled:
+                    self.dialect.do_execute_no_params(
+                        cursor, str_statement, context
+                    )
+            else:
+                effective_parameters = cast(
+                    "_CoreSingleExecuteParams", effective_parameters
+                )
+                if self.dialect._has_events:
+                    for fn in self.dialect.dispatch.do_execute:
+                        if fn(
+                            cursor,
+                            str_statement,
+                            effective_parameters,
+                            context,
+                        ):
+                            evt_handled = True
+                            break
+                if not evt_handled:
+>                   self.dialect.do_execute(
+                        cursor, str_statement, effective_parameters, context
+                    )
+
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py:1969: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/default.py:952: in do_execute
+    cursor.execute(statement, parameters)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <psycopg.Cursor [closed] [IDLE] (host=127.0.0.1 port=32788 user=owner database=bidops_test_089e5477d6e94a83) at 0x1160e68d0>
+query = 'INSERT INTO bidops.company_knowledge_source (id, company_id, source_sha256, size_bytes, content_object_id, content_lo...bytes)s::BIGINT, %(content_object_id)s::UUID, %(content_location_id)s::UUID, %(created_at)s::TIMESTAMP WITH TIME ZONE)'
+params = {'company_id': UUID('fc234237-5bca-42c8-b6c8-2d16dc02e617'), 'content_location_id': UUID('fd3e79a5-cc18-495a-b172-18d5...437-6f9237821a9b'), 'created_at': datetime.datetime(2026, 10, 9, 6, 45, 51, 658010, tzinfo=datetime.timezone.utc), ...}
+
+    def execute(
+        self,
+        query: Query,
+        params: Params | None = None,
+        *,
+        prepare: bool | None = None,
+        binary: bool | None = None,
+    ) -> Self:
+        """
+        Execute a query or command to the database.
+        """
+        try:
+            with self._conn.lock:
+                self._conn.wait(
+                    self._execute_gen(query, params, prepare=prepare, binary=binary)
+                )
+        except e._NO_TRACEBACK as ex:
+>           raise ex.with_traceback(None)
+E           psycopg.errors.ForeignKeyViolation: insert or update on table "company_knowledge_source" violates foreign key constraint "fk_company_knowledge_source_location_content"
+E           DETAIL:  Key (content_location_id, content_object_id)=(fd3e79a5-cc18-495a-b172-18d5f600c771, 317da132-ff8d-41bb-b437-6f9237821a9b) is not present in table "content_object_location".
+
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/psycopg/cursor.py:117: ForeignKeyViolation
+
+The above exception was the direct cause of the following exception:
+
+engine = Engine(postgresql+psycopg://owner:***@127.0.0.1:32788/bidops_test_089e5477d6e94a83)
+
+    def test_t3_caller_rollback_removes_every_database_row(engine) -> None:
+        with Session(engine) as session:
+>           import_company_knowledge(session, _prepared(), actor="등록 담당자")
+
+tests/deep_review/test_company_knowledge.py:228: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+app/deep_review/services/company_knowledge.py:421: in import_company_knowledge
+    source_row, content = _store_source(
+app/deep_review/services/company_knowledge.py:368: in _store_source
+    session.flush()
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/orm/session.py:4353: in flush
+    self._flush(objects)
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/orm/session.py:4488: in _flush
+    with util.safe_reraise():
+         ^^^^^^^^^^^^^^^^^^^
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/util/langhelpers.py:122: in __exit__
+    raise exc_value.with_traceback(exc_tb)
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/orm/session.py:4449: in _flush
+    flush_context.execute()
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/orm/unitofwork.py:465: in execute
+    rec.execute(self)
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/orm/unitofwork.py:641: in execute
+    util.preloaded.orm_persistence.save_obj(
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/orm/persistence.py:94: in save_obj
+    _emit_insert_statements(
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/orm/persistence.py:1234: in _emit_insert_statements
+    result = connection.execute(
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py:1421: in execute
+    return meth(
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/sql/elements.py:526: in _execute_on_connection
+    return connection._execute_clauseelement(
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py:1643: in _execute_clauseelement
+    ret = self._execute_context(
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py:1848: in _execute_context
+    return self._exec_single_context(
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py:1988: in _exec_single_context
+    self._handle_dbapi_exception(
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py:2365: in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py:1969: in _exec_single_context
+    self.dialect.do_execute(
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/default.py:952: in do_execute
+    cursor.execute(statement, parameters)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <psycopg.Cursor [closed] [IDLE] (host=127.0.0.1 port=32788 user=owner database=bidops_test_089e5477d6e94a83) at 0x1160e68d0>
+query = 'INSERT INTO bidops.company_knowledge_source (id, company_id, source_sha256, size_bytes, content_object_id, content_lo...bytes)s::BIGINT, %(content_object_id)s::UUID, %(content_location_id)s::UUID, %(created_at)s::TIMESTAMP WITH TIME ZONE)'
+params = {'company_id': UUID('fc234237-5bca-42c8-b6c8-2d16dc02e617'), 'content_location_id': UUID('fd3e79a5-cc18-495a-b172-18d5...437-6f9237821a9b'), 'created_at': datetime.datetime(2026, 10, 9, 6, 45, 51, 658010, tzinfo=datetime.timezone.utc), ...}
+
+    def execute(
+        self,
+        query: Query,
+        params: Params | None = None,
+        *,
+        prepare: bool | None = None,
+        binary: bool | None = None,
+    ) -> Self:
+        """
+        Execute a query or command to the database.
+        """
+        try:
+            with self._conn.lock:
+                self._conn.wait(
+                    self._execute_gen(query, params, prepare=prepare, binary=binary)
+                )
+        except e._NO_TRACEBACK as ex:
+>           raise ex.with_traceback(None)
+E           sqlalchemy.exc.IntegrityError: (psycopg.errors.ForeignKeyViolation) insert or update on table "company_knowledge_source" violates foreign key constraint "fk_company_knowledge_source_location_content"
+E           DETAIL:  Key (content_location_id, content_object_id)=(fd3e79a5-cc18-495a-b172-18d5f600c771, 317da132-ff8d-41bb-b437-6f9237821a9b) is not present in table "content_object_location".
+E           [SQL: INSERT INTO bidops.company_knowledge_source (id, company_id, source_sha256, size_bytes, content_object_id, content_location_id, created_at) VALUES (%(id)s::UUID, %(company_id)s::UUID, %(source_sha256)s::VARCHAR, %(size_bytes)s::BIGINT, %(content_object_id)s::UUID, %(content_location_id)s::UUID, %(created_at)s::TIMESTAMP WITH TIME ZONE)]
+E           [parameters: {'id': UUID('86d617cd-1c1b-4dee-af1f-191128a27de8'), 'company_id': UUID('fc234237-5bca-42c8-b6c8-2d16dc02e617'), 'source_sha256': '6d80c443cd3db80f5f432adcb7abe07d4e152efd351b200c17d499430b332743', 'size_bytes': 1937, 'content_object_id': UUID('317da132-ff8d-41bb-b437-6f9237821a9b'), 'content_location_id': UUID('fd3e79a5-cc18-495a-b172-18d5f600c771'), 'created_at': datetime.datetime(2026, 10, 9, 6, 45, 51, 658010, tzinfo=datetime.timezone.utc)}]
+E           (Background on this error at: https://sqlalche.me/e/20/gkpj)
+
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/psycopg/cursor.py:117: IntegrityError
+______ test_t3_replay_verifies_the_exact_stored_object_version[postgres] _______
+
+self = <sqlalchemy.engine.base.Connection object at 0x1215e2870>
+dialect = <sqlalchemy.dialects.postgresql.psycopg.PGDialect_psycopg object at 0x1215f7260>
+context = <sqlalchemy.dialects.postgresql.psycopg.PGExecutionContext_psycopg object at 0x1215b2d50>
+statement = <sqlalchemy.dialects.postgresql.psycopg.PGCompiler_psycopg object at 0x1215b2c30>
+parameters = [{'company_id': UUID('a234bc01-a178-4483-9c8a-dc615a113b16'), 'content_location_id': UUID('dfc38a6f-d9d6-40dd-b769-3c8...ebf-35df2816199a'), 'created_at': datetime.datetime(2026, 10, 9, 6, 45, 54, 73014, tzinfo=datetime.timezone.utc), ...}]
+
+    def _exec_single_context(
+        self,
+        dialect: Dialect,
+        context: ExecutionContext,
+        statement: Union[str, Compiled],
+        parameters: Optional[_AnyMultiExecuteParams],
+    ) -> CursorResult[Any]:
+        """continue the _execute_context() method for a single DBAPI
+        cursor.execute() or cursor.executemany() call.
+    
+        """
+        if dialect.bind_typing is BindTyping.SETINPUTSIZES:
+            generic_setinputsizes = context._prepare_set_input_sizes()
+    
+            if generic_setinputsizes:
+                try:
+                    dialect.do_set_input_sizes(
+                        context.cursor, generic_setinputsizes, context
+                    )
+                except BaseException as e:
+                    self._handle_dbapi_exception(
+                        e, str(statement), parameters, None, context
+                    )
+    
+        cursor, str_statement, parameters = (
+            context.cursor,
+            context.statement,
+            context.parameters,
+        )
+    
+        effective_parameters: Optional[_AnyExecuteParams]
+    
+        if not context.executemany:
+            effective_parameters = parameters[0]
+        else:
+            effective_parameters = parameters
+    
+        if self._has_events or self.engine._has_events:
+            for fn in self.dispatch.before_cursor_execute:
+                str_statement, effective_parameters = fn(
+                    self,
+                    cursor,
+                    str_statement,
+                    effective_parameters,
+                    context,
+                    context.executemany,
+                )
+    
+        if self._echo:
+            self._log_info(str_statement)
+    
+            stats = context._get_cache_stats()
+    
+            if not self.engine.hide_parameters:
+                self._log_info(
+                    "[%s] %r",
+                    stats,
+                    sql_util._repr_params(
+                        effective_parameters,
+                        batches=10,
+                        ismulti=context.executemany,
+                    ),
+                )
+            else:
+                self._log_info(
+                    "[%s] [SQL parameters hidden due to hide_parameters=True]",
+                    stats,
+                )
+    
+        evt_handled: bool = False
+        try:
+            if context.execute_style is ExecuteStyle.EXECUTEMANY:
+                effective_parameters = cast(
+                    "_CoreMultiExecuteParams", effective_parameters
+                )
+                if self.dialect._has_events:
+                    for fn in self.dialect.dispatch.do_executemany:
+                        if fn(
+                            cursor,
+                            str_statement,
+                            effective_parameters,
+                            context,
+                        ):
+                            evt_handled = True
+                            break
+                if not evt_handled:
+                    self.dialect.do_executemany(
+                        cursor,
+                        str_statement,
+                        effective_parameters,
+                        context,
+                    )
+            elif not effective_parameters and context.no_parameters:
+                if self.dialect._has_events:
+                    for fn in self.dialect.dispatch.do_execute_no_params:
+                        if fn(cursor, str_statement, context):
+                            evt_handled = True
+                            break
+                if not evt_handled:
+                    self.dialect.do_execute_no_params(
+                        cursor, str_statement, context
+                    )
+            else:
+                effective_parameters = cast(
+                    "_CoreSingleExecuteParams", effective_parameters
+                )
+                if self.dialect._has_events:
+                    for fn in self.dialect.dispatch.do_execute:
+                        if fn(
+                            cursor,
+                            str_statement,
+                            effective_parameters,
+                            context,
+                        ):
+                            evt_handled = True
+                            break
+                if not evt_handled:
+>                   self.dialect.do_execute(
+                        cursor, str_statement, effective_parameters, context
+                    )
+
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py:1969: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/default.py:952: in do_execute
+    cursor.execute(statement, parameters)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <psycopg.Cursor [closed] [IDLE] (host=127.0.0.1 port=32788 user=owner database=bidops_test_c53a5bbb75ae4ed9) at 0x1160e5850>
+query = 'INSERT INTO bidops.company_knowledge_source (id, company_id, source_sha256, size_bytes, content_object_id, content_lo...bytes)s::BIGINT, %(content_object_id)s::UUID, %(content_location_id)s::UUID, %(created_at)s::TIMESTAMP WITH TIME ZONE)'
+params = {'company_id': UUID('a234bc01-a178-4483-9c8a-dc615a113b16'), 'content_location_id': UUID('dfc38a6f-d9d6-40dd-b769-3c8f...9ebf-35df2816199a'), 'created_at': datetime.datetime(2026, 10, 9, 6, 45, 54, 73014, tzinfo=datetime.timezone.utc), ...}
+
+    def execute(
+        self,
+        query: Query,
+        params: Params | None = None,
+        *,
+        prepare: bool | None = None,
+        binary: bool | None = None,
+    ) -> Self:
+        """
+        Execute a query or command to the database.
+        """
+        try:
+            with self._conn.lock:
+                self._conn.wait(
+                    self._execute_gen(query, params, prepare=prepare, binary=binary)
+                )
+        except e._NO_TRACEBACK as ex:
+>           raise ex.with_traceback(None)
+E           psycopg.errors.ForeignKeyViolation: insert or update on table "company_knowledge_source" violates foreign key constraint "fk_company_knowledge_source_location_content"
+E           DETAIL:  Key (content_location_id, content_object_id)=(dfc38a6f-d9d6-40dd-b769-3c8fc38df979, 5e3b7868-8fef-4137-9ebf-35df2816199a) is not present in table "content_object_location".
+
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/psycopg/cursor.py:117: ForeignKeyViolation
+
+The above exception was the direct cause of the following exception:
+
+engine = Engine(postgresql+psycopg://owner:***@127.0.0.1:32788/bidops_test_c53a5bbb75ae4ed9)
+object_store = {('source', 'source/company-knowledge-6d4cc17cedb24eab8ad2e12f59b5984a.json'): (b'{"schema_version":"bidops.company-kn...d351b200c17d499430b332743', etag='6d80c443cd3db80f5f432adcb7abe07d4e152efd351b200c17d499430b332743', size_bytes=1937))}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x120202750>
+
+    def test_t3_replay_verifies_the_exact_stored_object_version(
+        engine, object_store, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        prepared = _prepared()
+        with Session(engine) as session:
+            with session.begin():
+>               import_company_knowledge(session, prepared, actor="등록 담당자")
+
+tests/deep_review/test_company_knowledge.py:252: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+app/deep_review/services/company_knowledge.py:421: in import_company_knowledge
+    source_row, content = _store_source(
+app/deep_review/services/company_knowledge.py:368: in _store_source
+    session.flush()
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/orm/session.py:4353: in flush
+    self._flush(objects)
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/orm/session.py:4488: in _flush
+    with util.safe_reraise():
+         ^^^^^^^^^^^^^^^^^^^
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/util/langhelpers.py:122: in __exit__
+    raise exc_value.with_traceback(exc_tb)
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/orm/session.py:4449: in _flush
+    flush_context.execute()
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/orm/unitofwork.py:465: in execute
+    rec.execute(self)
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/orm/unitofwork.py:641: in execute
+    util.preloaded.orm_persistence.save_obj(
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/orm/persistence.py:94: in save_obj
+    _emit_insert_statements(
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/orm/persistence.py:1234: in _emit_insert_statements
+    result = connection.execute(
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py:1421: in execute
+    return meth(
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/sql/elements.py:526: in _execute_on_connection
+    return connection._execute_clauseelement(
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py:1643: in _execute_clauseelement
+    ret = self._execute_context(
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py:1848: in _execute_context
+    return self._exec_single_context(
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py:1988: in _exec_single_context
+    self._handle_dbapi_exception(
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py:2365: in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py:1969: in _exec_single_context
+    self.dialect.do_execute(
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/default.py:952: in do_execute
+    cursor.execute(statement, parameters)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <psycopg.Cursor [closed] [IDLE] (host=127.0.0.1 port=32788 user=owner database=bidops_test_c53a5bbb75ae4ed9) at 0x1160e5850>
+query = 'INSERT INTO bidops.company_knowledge_source (id, company_id, source_sha256, size_bytes, content_object_id, content_lo...bytes)s::BIGINT, %(content_object_id)s::UUID, %(content_location_id)s::UUID, %(created_at)s::TIMESTAMP WITH TIME ZONE)'
+params = {'company_id': UUID('a234bc01-a178-4483-9c8a-dc615a113b16'), 'content_location_id': UUID('dfc38a6f-d9d6-40dd-b769-3c8f...9ebf-35df2816199a'), 'created_at': datetime.datetime(2026, 10, 9, 6, 45, 54, 73014, tzinfo=datetime.timezone.utc), ...}
+
+    def execute(
+        self,
+        query: Query,
+        params: Params | None = None,
+        *,
+        prepare: bool | None = None,
+        binary: bool | None = None,
+    ) -> Self:
+        """
+        Execute a query or command to the database.
+        """
+        try:
+            with self._conn.lock:
+                self._conn.wait(
+                    self._execute_gen(query, params, prepare=prepare, binary=binary)
+                )
+        except e._NO_TRACEBACK as ex:
+>           raise ex.with_traceback(None)
+E           sqlalchemy.exc.IntegrityError: (psycopg.errors.ForeignKeyViolation) insert or update on table "company_knowledge_source" violates foreign key constraint "fk_company_knowledge_source_location_content"
+E           DETAIL:  Key (content_location_id, content_object_id)=(dfc38a6f-d9d6-40dd-b769-3c8fc38df979, 5e3b7868-8fef-4137-9ebf-35df2816199a) is not present in table "content_object_location".
+E           [SQL: INSERT INTO bidops.company_knowledge_source (id, company_id, source_sha256, size_bytes, content_object_id, content_location_id, created_at) VALUES (%(id)s::UUID, %(company_id)s::UUID, %(source_sha256)s::VARCHAR, %(size_bytes)s::BIGINT, %(content_object_id)s::UUID, %(content_location_id)s::UUID, %(created_at)s::TIMESTAMP WITH TIME ZONE)]
+E           [parameters: {'id': UUID('fdce4e03-83d4-4abe-9d33-30bae8cbb0f4'), 'company_id': UUID('a234bc01-a178-4483-9c8a-dc615a113b16'), 'source_sha256': '6d80c443cd3db80f5f432adcb7abe07d4e152efd351b200c17d499430b332743', 'size_bytes': 1937, 'content_object_id': UUID('5e3b7868-8fef-4137-9ebf-35df2816199a'), 'content_location_id': UUID('dfc38a6f-d9d6-40dd-b769-3c8fc38df979'), 'created_at': datetime.datetime(2026, 10, 9, 6, 45, 54, 73014, tzinfo=datetime.timezone.utc)}]
+E           (Background on this error at: https://sqlalche.me/e/20/gkpj)
+
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/psycopg/cursor.py:117: IntegrityError
+___ test_t4_activation_is_idempotent_and_preserves_previous_graph[postgres] ____
+
+self = <sqlalchemy.engine.base.Connection object at 0x121513110>
+dialect = <sqlalchemy.dialects.postgresql.psycopg.PGDialect_psycopg object at 0x121511790>
+context = <sqlalchemy.dialects.postgresql.psycopg.PGExecutionContext_psycopg object at 0x1212f9850>
+statement = <sqlalchemy.dialects.postgresql.psycopg.PGCompiler_psycopg object at 0x1212f9190>
+parameters = [{'company_id': UUID('f238b265-4e4e-473c-bda8-4887d8faa542'), 'content_location_id': UUID('c0b89426-858c-49a4-92f5-0d9...0f-646fdcfdec1c'), 'created_at': datetime.datetime(2026, 10, 9, 6, 45, 55, 423492, tzinfo=datetime.timezone.utc), ...}]
+
+    def _exec_single_context(
+        self,
+        dialect: Dialect,
+        context: ExecutionContext,
+        statement: Union[str, Compiled],
+        parameters: Optional[_AnyMultiExecuteParams],
+    ) -> CursorResult[Any]:
+        """continue the _execute_context() method for a single DBAPI
+        cursor.execute() or cursor.executemany() call.
+    
+        """
+        if dialect.bind_typing is BindTyping.SETINPUTSIZES:
+            generic_setinputsizes = context._prepare_set_input_sizes()
+    
+            if generic_setinputsizes:
+                try:
+                    dialect.do_set_input_sizes(
+                        context.cursor, generic_setinputsizes, context
+                    )
+                except BaseException as e:
+                    self._handle_dbapi_exception(
+                        e, str(statement), parameters, None, context
+                    )
+    
+        cursor, str_statement, parameters = (
+            context.cursor,
+            context.statement,
+            context.parameters,
+        )
+    
+        effective_parameters: Optional[_AnyExecuteParams]
+    
+        if not context.executemany:
+            effective_parameters = parameters[0]
+        else:
+            effective_parameters = parameters
+    
+        if self._has_events or self.engine._has_events:
+            for fn in self.dispatch.before_cursor_execute:
+                str_statement, effective_parameters = fn(
+                    self,
+                    cursor,
+                    str_statement,
+                    effective_parameters,
+                    context,
+                    context.executemany,
+                )
+    
+        if self._echo:
+            self._log_info(str_statement)
+    
+            stats = context._get_cache_stats()
+    
+            if not self.engine.hide_parameters:
+                self._log_info(
+                    "[%s] %r",
+                    stats,
+                    sql_util._repr_params(
+                        effective_parameters,
+                        batches=10,
+                        ismulti=context.executemany,
+                    ),
+                )
+            else:
+                self._log_info(
+                    "[%s] [SQL parameters hidden due to hide_parameters=True]",
+                    stats,
+                )
+    
+        evt_handled: bool = False
+        try:
+            if context.execute_style is ExecuteStyle.EXECUTEMANY:
+                effective_parameters = cast(
+                    "_CoreMultiExecuteParams", effective_parameters
+                )
+                if self.dialect._has_events:
+                    for fn in self.dialect.dispatch.do_executemany:
+                        if fn(
+                            cursor,
+                            str_statement,
+                            effective_parameters,
+                            context,
+                        ):
+                            evt_handled = True
+                            break
+                if not evt_handled:
+                    self.dialect.do_executemany(
+                        cursor,
+                        str_statement,
+                        effective_parameters,
+                        context,
+                    )
+            elif not effective_parameters and context.no_parameters:
+                if self.dialect._has_events:
+                    for fn in self.dialect.dispatch.do_execute_no_params:
+                        if fn(cursor, str_statement, context):
+                            evt_handled = True
+                            break
+                if not evt_handled:
+                    self.dialect.do_execute_no_params(
+                        cursor, str_statement, context
+                    )
+            else:
+                effective_parameters = cast(
+                    "_CoreSingleExecuteParams", effective_parameters
+                )
+                if self.dialect._has_events:
+                    for fn in self.dialect.dispatch.do_execute:
+                        if fn(
+                            cursor,
+                            str_statement,
+                            effective_parameters,
+                            context,
+                        ):
+                            evt_handled = True
+                            break
+                if not evt_handled:
+>                   self.dialect.do_execute(
+                        cursor, str_statement, effective_parameters, context
+                    )
+
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py:1969: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/default.py:952: in do_execute
+    cursor.execute(statement, parameters)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <psycopg.Cursor [closed] [IDLE] (host=127.0.0.1 port=32788 user=owner database=bidops_test_4e16d4b7a4b54fb6) at 0x1160e7590>
+query = 'INSERT INTO bidops.company_knowledge_source (id, company_id, source_sha256, size_bytes, content_object_id, content_lo...bytes)s::BIGINT, %(content_object_id)s::UUID, %(content_location_id)s::UUID, %(created_at)s::TIMESTAMP WITH TIME ZONE)'
+params = {'company_id': UUID('f238b265-4e4e-473c-bda8-4887d8faa542'), 'content_location_id': UUID('c0b89426-858c-49a4-92f5-0d92...40f-646fdcfdec1c'), 'created_at': datetime.datetime(2026, 10, 9, 6, 45, 55, 423492, tzinfo=datetime.timezone.utc), ...}
+
+    def execute(
+        self,
+        query: Query,
+        params: Params | None = None,
+        *,
+        prepare: bool | None = None,
+        binary: bool | None = None,
+    ) -> Self:
+        """
+        Execute a query or command to the database.
+        """
+        try:
+            with self._conn.lock:
+                self._conn.wait(
+                    self._execute_gen(query, params, prepare=prepare, binary=binary)
+                )
+        except e._NO_TRACEBACK as ex:
+>           raise ex.with_traceback(None)
+E           psycopg.errors.ForeignKeyViolation: insert or update on table "company_knowledge_source" violates foreign key constraint "fk_company_knowledge_source_location_content"
+E           DETAIL:  Key (content_location_id, content_object_id)=(c0b89426-858c-49a4-92f5-0d9219398cb0, a668f78d-3b3b-4df3-b40f-646fdcfdec1c) is not present in table "content_object_location".
+
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/psycopg/cursor.py:117: ForeignKeyViolation
+
+The above exception was the direct cause of the following exception:
+
+engine = Engine(postgresql+psycopg://owner:***@127.0.0.1:32788/bidops_test_4e16d4b7a4b54fb6)
+
+    def test_t4_activation_is_idempotent_and_preserves_previous_graph(engine) -> None:
+        with Session(engine) as session:
+            with session.begin():
+>               first = import_company_knowledge(session, _prepared(), actor="등록 담당자")
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/deep_review/test_company_knowledge.py:273: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+app/deep_review/services/company_knowledge.py:421: in import_company_knowledge
+    source_row, content = _store_source(
+app/deep_review/services/company_knowledge.py:368: in _store_source
+    session.flush()
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/orm/session.py:4353: in flush
+    self._flush(objects)
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/orm/session.py:4488: in _flush
+    with util.safe_reraise():
+         ^^^^^^^^^^^^^^^^^^^
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/util/langhelpers.py:122: in __exit__
+    raise exc_value.with_traceback(exc_tb)
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/orm/session.py:4449: in _flush
+    flush_context.execute()
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/orm/unitofwork.py:465: in execute
+    rec.execute(self)
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/orm/unitofwork.py:641: in execute
+    util.preloaded.orm_persistence.save_obj(
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/orm/persistence.py:94: in save_obj
+    _emit_insert_statements(
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/orm/persistence.py:1234: in _emit_insert_statements
+    result = connection.execute(
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py:1421: in execute
+    return meth(
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/sql/elements.py:526: in _execute_on_connection
+    return connection._execute_clauseelement(
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py:1643: in _execute_clauseelement
+    ret = self._execute_context(
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py:1848: in _execute_context
+    return self._exec_single_context(
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py:1988: in _exec_single_context
+    self._handle_dbapi_exception(
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py:2365: in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py:1969: in _exec_single_context
+    self.dialect.do_execute(
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/default.py:952: in do_execute
+    cursor.execute(statement, parameters)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <psycopg.Cursor [closed] [IDLE] (host=127.0.0.1 port=32788 user=owner database=bidops_test_4e16d4b7a4b54fb6) at 0x1160e7590>
+query = 'INSERT INTO bidops.company_knowledge_source (id, company_id, source_sha256, size_bytes, content_object_id, content_lo...bytes)s::BIGINT, %(content_object_id)s::UUID, %(content_location_id)s::UUID, %(created_at)s::TIMESTAMP WITH TIME ZONE)'
+params = {'company_id': UUID('f238b265-4e4e-473c-bda8-4887d8faa542'), 'content_location_id': UUID('c0b89426-858c-49a4-92f5-0d92...40f-646fdcfdec1c'), 'created_at': datetime.datetime(2026, 10, 9, 6, 45, 55, 423492, tzinfo=datetime.timezone.utc), ...}
+
+    def execute(
+        self,
+        query: Query,
+        params: Params | None = None,
+        *,
+        prepare: bool | None = None,
+        binary: bool | None = None,
+    ) -> Self:
+        """
+        Execute a query or command to the database.
+        """
+        try:
+            with self._conn.lock:
+                self._conn.wait(
+                    self._execute_gen(query, params, prepare=prepare, binary=binary)
+                )
+        except e._NO_TRACEBACK as ex:
+>           raise ex.with_traceback(None)
+E           sqlalchemy.exc.IntegrityError: (psycopg.errors.ForeignKeyViolation) insert or update on table "company_knowledge_source" violates foreign key constraint "fk_company_knowledge_source_location_content"
+E           DETAIL:  Key (content_location_id, content_object_id)=(c0b89426-858c-49a4-92f5-0d9219398cb0, a668f78d-3b3b-4df3-b40f-646fdcfdec1c) is not present in table "content_object_location".
+E           [SQL: INSERT INTO bidops.company_knowledge_source (id, company_id, source_sha256, size_bytes, content_object_id, content_location_id, created_at) VALUES (%(id)s::UUID, %(company_id)s::UUID, %(source_sha256)s::VARCHAR, %(size_bytes)s::BIGINT, %(content_object_id)s::UUID, %(content_location_id)s::UUID, %(created_at)s::TIMESTAMP WITH TIME ZONE)]
+E           [parameters: {'id': UUID('19fc8bd6-0300-45a3-b2ce-ce2c01d164a2'), 'company_id': UUID('f238b265-4e4e-473c-bda8-4887d8faa542'), 'source_sha256': '6d80c443cd3db80f5f432adcb7abe07d4e152efd351b200c17d499430b332743', 'size_bytes': 1937, 'content_object_id': UUID('a668f78d-3b3b-4df3-b40f-646fdcfdec1c'), 'content_location_id': UUID('c0b89426-858c-49a4-92f5-0d9219398cb0'), 'created_at': datetime.datetime(2026, 10, 9, 6, 45, 55, 423492, tzinfo=datetime.timezone.utc)}]
+E           (Background on this error at: https://sqlalche.me/e/20/gkpj)
+
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/psycopg/cursor.py:117: IntegrityError
+_ test_t4_rejects_cross_company_activation_without_mutating_binding[postgres] __
+
+self = <sqlalchemy.engine.base.Connection object at 0x121219f10>
+dialect = <sqlalchemy.dialects.postgresql.psycopg.PGDialect_psycopg object at 0x12125ea20>
+context = <sqlalchemy.dialects.postgresql.psycopg.PGExecutionContext_psycopg object at 0x121082420>
+statement = <sqlalchemy.dialects.postgresql.psycopg.PGCompiler_psycopg object at 0x121082300>
+parameters = [{'company_id': UUID('c27e6525-8959-4404-9d37-1e8b9e924a8c'), 'content_location_id': UUID('f385ee43-a0e2-4b1d-b648-7a8...d0-b24783317b0f'), 'created_at': datetime.datetime(2026, 10, 9, 6, 45, 56, 730678, tzinfo=datetime.timezone.utc), ...}]
+
+    def _exec_single_context(
+        self,
+        dialect: Dialect,
+        context: ExecutionContext,
+        statement: Union[str, Compiled],
+        parameters: Optional[_AnyMultiExecuteParams],
+    ) -> CursorResult[Any]:
+        """continue the _execute_context() method for a single DBAPI
+        cursor.execute() or cursor.executemany() call.
+    
+        """
+        if dialect.bind_typing is BindTyping.SETINPUTSIZES:
+            generic_setinputsizes = context._prepare_set_input_sizes()
+    
+            if generic_setinputsizes:
+                try:
+                    dialect.do_set_input_sizes(
+                        context.cursor, generic_setinputsizes, context
+                    )
+                except BaseException as e:
+                    self._handle_dbapi_exception(
+                        e, str(statement), parameters, None, context
+                    )
+    
+        cursor, str_statement, parameters = (
+            context.cursor,
+            context.statement,
+            context.parameters,
+        )
+    
+        effective_parameters: Optional[_AnyExecuteParams]
+    
+        if not context.executemany:
+            effective_parameters = parameters[0]
+        else:
+            effective_parameters = parameters
+    
+        if self._has_events or self.engine._has_events:
+            for fn in self.dispatch.before_cursor_execute:
+                str_statement, effective_parameters = fn(
+                    self,
+                    cursor,
+                    str_statement,
+                    effective_parameters,
+                    context,
+                    context.executemany,
+                )
+    
+        if self._echo:
+            self._log_info(str_statement)
+    
+            stats = context._get_cache_stats()
+    
+            if not self.engine.hide_parameters:
+                self._log_info(
+                    "[%s] %r",
+                    stats,
+                    sql_util._repr_params(
+                        effective_parameters,
+                        batches=10,
+                        ismulti=context.executemany,
+                    ),
+                )
+            else:
+                self._log_info(
+                    "[%s] [SQL parameters hidden due to hide_parameters=True]",
+                    stats,
+                )
+    
+        evt_handled: bool = False
+        try:
+            if context.execute_style is ExecuteStyle.EXECUTEMANY:
+                effective_parameters = cast(
+                    "_CoreMultiExecuteParams", effective_parameters
+                )
+                if self.dialect._has_events:
+                    for fn in self.dialect.dispatch.do_executemany:
+                        if fn(
+                            cursor,
+                            str_statement,
+                            effective_parameters,
+                            context,
+                        ):
+                            evt_handled = True
+                            break
+                if not evt_handled:
+                    self.dialect.do_executemany(
+                        cursor,
+                        str_statement,
+                        effective_parameters,
+                        context,
+                    )
+            elif not effective_parameters and context.no_parameters:
+                if self.dialect._has_events:
+                    for fn in self.dialect.dispatch.do_execute_no_params:
+                        if fn(cursor, str_statement, context):
+                            evt_handled = True
+                            break
+                if not evt_handled:
+                    self.dialect.do_execute_no_params(
+                        cursor, str_statement, context
+                    )
+            else:
+                effective_parameters = cast(
+                    "_CoreSingleExecuteParams", effective_parameters
+                )
+                if self.dialect._has_events:
+                    for fn in self.dialect.dispatch.do_execute:
+                        if fn(
+                            cursor,
+                            str_statement,
+                            effective_parameters,
+                            context,
+                        ):
+                            evt_handled = True
+                            break
+                if not evt_handled:
+>                   self.dialect.do_execute(
+                        cursor, str_statement, effective_parameters, context
+                    )
+
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py:1969: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/default.py:952: in do_execute
+    cursor.execute(statement, parameters)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <psycopg.Cursor [closed] [IDLE] (host=127.0.0.1 port=32788 user=owner database=bidops_test_d1250e904dbe4218) at 0x121044590>
+query = 'INSERT INTO bidops.company_knowledge_source (id, company_id, source_sha256, size_bytes, content_object_id, content_lo...bytes)s::BIGINT, %(content_object_id)s::UUID, %(content_location_id)s::UUID, %(created_at)s::TIMESTAMP WITH TIME ZONE)'
+params = {'company_id': UUID('c27e6525-8959-4404-9d37-1e8b9e924a8c'), 'content_location_id': UUID('f385ee43-a0e2-4b1d-b648-7a8c...1d0-b24783317b0f'), 'created_at': datetime.datetime(2026, 10, 9, 6, 45, 56, 730678, tzinfo=datetime.timezone.utc), ...}
+
+    def execute(
+        self,
+        query: Query,
+        params: Params | None = None,
+        *,
+        prepare: bool | None = None,
+        binary: bool | None = None,
+    ) -> Self:
+        """
+        Execute a query or command to the database.
+        """
+        try:
+            with self._conn.lock:
+                self._conn.wait(
+                    self._execute_gen(query, params, prepare=prepare, binary=binary)
+                )
+        except e._NO_TRACEBACK as ex:
+>           raise ex.with_traceback(None)
+E           psycopg.errors.ForeignKeyViolation: insert or update on table "company_knowledge_source" violates foreign key constraint "fk_company_knowledge_source_location_content"
+E           DETAIL:  Key (content_location_id, content_object_id)=(f385ee43-a0e2-4b1d-b648-7a8c233d2300, 922663a1-75b9-4f08-91d0-b24783317b0f) is not present in table "content_object_location".
+
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/psycopg/cursor.py:117: ForeignKeyViolation
+
+The above exception was the direct cause of the following exception:
+
+engine = Engine(postgresql+psycopg://owner:***@127.0.0.1:32788/bidops_test_d1250e904dbe4218)
+
+    def test_t4_rejects_cross_company_activation_without_mutating_binding(engine) -> None:
+        first = _prepared()
+        second_source = deepcopy(_source(first.ontology.sha256))
+        second_source["company"] = {"slug": "second-si", "name": "두번째 SI", "is_fictional": True}
+        second_source["nodes"][0]["label"] = "두번째 SI"
+        second = prepare_company_knowledge(_raw(_ontology()), _raw(second_source))
+        with Session(engine) as session:
+            with session.begin():
+>               first_row = import_company_knowledge(session, first, actor="등록 담당자")
+                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/deep_review/test_company_knowledge.py:317: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+app/deep_review/services/company_knowledge.py:421: in import_company_knowledge
+    source_row, content = _store_source(
+app/deep_review/services/company_knowledge.py:368: in _store_source
+    session.flush()
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/orm/session.py:4353: in flush
+    self._flush(objects)
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/orm/session.py:4488: in _flush
+    with util.safe_reraise():
+         ^^^^^^^^^^^^^^^^^^^
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/util/langhelpers.py:122: in __exit__
+    raise exc_value.with_traceback(exc_tb)
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/orm/session.py:4449: in _flush
+    flush_context.execute()
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/orm/unitofwork.py:465: in execute
+    rec.execute(self)
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/orm/unitofwork.py:641: in execute
+    util.preloaded.orm_persistence.save_obj(
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/orm/persistence.py:94: in save_obj
+    _emit_insert_statements(
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/orm/persistence.py:1234: in _emit_insert_statements
+    result = connection.execute(
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py:1421: in execute
+    return meth(
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/sql/elements.py:526: in _execute_on_connection
+    return connection._execute_clauseelement(
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py:1643: in _execute_clauseelement
+    ret = self._execute_context(
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py:1848: in _execute_context
+    return self._exec_single_context(
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py:1988: in _exec_single_context
+    self._handle_dbapi_exception(
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py:2365: in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py:1969: in _exec_single_context
+    self.dialect.do_execute(
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/default.py:952: in do_execute
+    cursor.execute(statement, parameters)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <psycopg.Cursor [closed] [IDLE] (host=127.0.0.1 port=32788 user=owner database=bidops_test_d1250e904dbe4218) at 0x121044590>
+query = 'INSERT INTO bidops.company_knowledge_source (id, company_id, source_sha256, size_bytes, content_object_id, content_lo...bytes)s::BIGINT, %(content_object_id)s::UUID, %(content_location_id)s::UUID, %(created_at)s::TIMESTAMP WITH TIME ZONE)'
+params = {'company_id': UUID('c27e6525-8959-4404-9d37-1e8b9e924a8c'), 'content_location_id': UUID('f385ee43-a0e2-4b1d-b648-7a8c...1d0-b24783317b0f'), 'created_at': datetime.datetime(2026, 10, 9, 6, 45, 56, 730678, tzinfo=datetime.timezone.utc), ...}
+
+    def execute(
+        self,
+        query: Query,
+        params: Params | None = None,
+        *,
+        prepare: bool | None = None,
+        binary: bool | None = None,
+    ) -> Self:
+        """
+        Execute a query or command to the database.
+        """
+        try:
+            with self._conn.lock:
+                self._conn.wait(
+                    self._execute_gen(query, params, prepare=prepare, binary=binary)
+                )
+        except e._NO_TRACEBACK as ex:
+>           raise ex.with_traceback(None)
+E           sqlalchemy.exc.IntegrityError: (psycopg.errors.ForeignKeyViolation) insert or update on table "company_knowledge_source" violates foreign key constraint "fk_company_knowledge_source_location_content"
+E           DETAIL:  Key (content_location_id, content_object_id)=(f385ee43-a0e2-4b1d-b648-7a8c233d2300, 922663a1-75b9-4f08-91d0-b24783317b0f) is not present in table "content_object_location".
+E           [SQL: INSERT INTO bidops.company_knowledge_source (id, company_id, source_sha256, size_bytes, content_object_id, content_location_id, created_at) VALUES (%(id)s::UUID, %(company_id)s::UUID, %(source_sha256)s::VARCHAR, %(size_bytes)s::BIGINT, %(content_object_id)s::UUID, %(content_location_id)s::UUID, %(created_at)s::TIMESTAMP WITH TIME ZONE)]
+E           [parameters: {'id': UUID('c5f9ed38-28c6-44f9-8f8a-0301288ac6cf'), 'company_id': UUID('c27e6525-8959-4404-9d37-1e8b9e924a8c'), 'source_sha256': '6d80c443cd3db80f5f432adcb7abe07d4e152efd351b200c17d499430b332743', 'size_bytes': 1937, 'content_object_id': UUID('922663a1-75b9-4f08-91d0-b24783317b0f'), 'content_location_id': UUID('f385ee43-a0e2-4b1d-b648-7a8c233d2300'), 'created_at': datetime.datetime(2026, 10, 9, 6, 45, 56, 730678, tzinfo=datetime.timezone.utc)}]
+E           (Background on this error at: https://sqlalche.me/e/20/gkpj)
+
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/psycopg/cursor.py:117: IntegrityError
+______ test_t7_append_only_orm_rows_reject_updates_and_deletes[postgres] _______
+
+self = <sqlalchemy.engine.base.Connection object at 0x121054c20>
+dialect = <sqlalchemy.dialects.postgresql.psycopg.PGDialect_psycopg object at 0x121055e80>
+context = <sqlalchemy.dialects.postgresql.psycopg.PGExecutionContext_psycopg object at 0x1210f5be0>
+statement = <sqlalchemy.dialects.postgresql.psycopg.PGCompiler_psycopg object at 0x12105e600>
+parameters = [{'company_id': UUID('32be3608-d00e-4bd9-a153-e5fc1059e558'), 'content_location_id': UUID('e17dd615-3840-4299-a395-05b...ab84-b0b35323e09b'), 'created_at': datetime.datetime(2026, 10, 9, 6, 45, 58, 1400, tzinfo=datetime.timezone.utc), ...}]
+
+    def _exec_single_context(
+        self,
+        dialect: Dialect,
+        context: ExecutionContext,
+        statement: Union[str, Compiled],
+        parameters: Optional[_AnyMultiExecuteParams],
+    ) -> CursorResult[Any]:
+        """continue the _execute_context() method for a single DBAPI
+        cursor.execute() or cursor.executemany() call.
+    
+        """
+        if dialect.bind_typing is BindTyping.SETINPUTSIZES:
+            generic_setinputsizes = context._prepare_set_input_sizes()
+    
+            if generic_setinputsizes:
+                try:
+                    dialect.do_set_input_sizes(
+                        context.cursor, generic_setinputsizes, context
+                    )
+                except BaseException as e:
+                    self._handle_dbapi_exception(
+                        e, str(statement), parameters, None, context
+                    )
+    
+        cursor, str_statement, parameters = (
+            context.cursor,
+            context.statement,
+            context.parameters,
+        )
+    
+        effective_parameters: Optional[_AnyExecuteParams]
+    
+        if not context.executemany:
+            effective_parameters = parameters[0]
+        else:
+            effective_parameters = parameters
+    
+        if self._has_events or self.engine._has_events:
+            for fn in self.dispatch.before_cursor_execute:
+                str_statement, effective_parameters = fn(
+                    self,
+                    cursor,
+                    str_statement,
+                    effective_parameters,
+                    context,
+                    context.executemany,
+                )
+    
+        if self._echo:
+            self._log_info(str_statement)
+    
+            stats = context._get_cache_stats()
+    
+            if not self.engine.hide_parameters:
+                self._log_info(
+                    "[%s] %r",
+                    stats,
+                    sql_util._repr_params(
+                        effective_parameters,
+                        batches=10,
+                        ismulti=context.executemany,
+                    ),
+                )
+            else:
+                self._log_info(
+                    "[%s] [SQL parameters hidden due to hide_parameters=True]",
+                    stats,
+                )
+    
+        evt_handled: bool = False
+        try:
+            if context.execute_style is ExecuteStyle.EXECUTEMANY:
+                effective_parameters = cast(
+                    "_CoreMultiExecuteParams", effective_parameters
+                )
+                if self.dialect._has_events:
+                    for fn in self.dialect.dispatch.do_executemany:
+                        if fn(
+                            cursor,
+                            str_statement,
+                            effective_parameters,
+                            context,
+                        ):
+                            evt_handled = True
+                            break
+                if not evt_handled:
+                    self.dialect.do_executemany(
+                        cursor,
+                        str_statement,
+                        effective_parameters,
+                        context,
+                    )
+            elif not effective_parameters and context.no_parameters:
+                if self.dialect._has_events:
+                    for fn in self.dialect.dispatch.do_execute_no_params:
+                        if fn(cursor, str_statement, context):
+                            evt_handled = True
+                            break
+                if not evt_handled:
+                    self.dialect.do_execute_no_params(
+                        cursor, str_statement, context
+                    )
+            else:
+                effective_parameters = cast(
+                    "_CoreSingleExecuteParams", effective_parameters
+                )
+                if self.dialect._has_events:
+                    for fn in self.dialect.dispatch.do_execute:
+                        if fn(
+                            cursor,
+                            str_statement,
+                            effective_parameters,
+                            context,
+                        ):
+                            evt_handled = True
+                            break
+                if not evt_handled:
+>                   self.dialect.do_execute(
+                        cursor, str_statement, effective_parameters, context
+                    )
+
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py:1969: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/default.py:952: in do_execute
+    cursor.execute(statement, parameters)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <psycopg.Cursor [closed] [IDLE] (host=127.0.0.1 port=32788 user=owner database=bidops_test_7bd9e7ddd33a49d3) at 0x1160e7410>
+query = 'INSERT INTO bidops.company_knowledge_source (id, company_id, source_sha256, size_bytes, content_object_id, content_lo...bytes)s::BIGINT, %(content_object_id)s::UUID, %(content_location_id)s::UUID, %(created_at)s::TIMESTAMP WITH TIME ZONE)'
+params = {'company_id': UUID('32be3608-d00e-4bd9-a153-e5fc1059e558'), 'content_location_id': UUID('e17dd615-3840-4299-a395-05b8...-ab84-b0b35323e09b'), 'created_at': datetime.datetime(2026, 10, 9, 6, 45, 58, 1400, tzinfo=datetime.timezone.utc), ...}
+
+    def execute(
+        self,
+        query: Query,
+        params: Params | None = None,
+        *,
+        prepare: bool | None = None,
+        binary: bool | None = None,
+    ) -> Self:
+        """
+        Execute a query or command to the database.
+        """
+        try:
+            with self._conn.lock:
+                self._conn.wait(
+                    self._execute_gen(query, params, prepare=prepare, binary=binary)
+                )
+        except e._NO_TRACEBACK as ex:
+>           raise ex.with_traceback(None)
+E           psycopg.errors.ForeignKeyViolation: insert or update on table "company_knowledge_source" violates foreign key constraint "fk_company_knowledge_source_location_content"
+E           DETAIL:  Key (content_location_id, content_object_id)=(e17dd615-3840-4299-a395-05b8cb580ec4, 260cadb7-af6d-4983-ab84-b0b35323e09b) is not present in table "content_object_location".
+
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/psycopg/cursor.py:117: ForeignKeyViolation
+
+The above exception was the direct cause of the following exception:
+
+engine = Engine(postgresql+psycopg://owner:***@127.0.0.1:32788/bidops_test_7bd9e7ddd33a49d3)
+
+    def test_t7_append_only_orm_rows_reject_updates_and_deletes(engine) -> None:
+        with Session(engine) as session:
+            with session.begin():
+>               imported = import_company_knowledge(session, _prepared(), actor="등록 담당자")
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/deep_review/test_company_knowledge.py:331: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+app/deep_review/services/company_knowledge.py:421: in import_company_knowledge
+    source_row, content = _store_source(
+app/deep_review/services/company_knowledge.py:368: in _store_source
+    session.flush()
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/orm/session.py:4353: in flush
+    self._flush(objects)
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/orm/session.py:4488: in _flush
+    with util.safe_reraise():
+         ^^^^^^^^^^^^^^^^^^^
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/util/langhelpers.py:122: in __exit__
+    raise exc_value.with_traceback(exc_tb)
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/orm/session.py:4449: in _flush
+    flush_context.execute()
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/orm/unitofwork.py:465: in execute
+    rec.execute(self)
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/orm/unitofwork.py:641: in execute
+    util.preloaded.orm_persistence.save_obj(
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/orm/persistence.py:94: in save_obj
+    _emit_insert_statements(
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/orm/persistence.py:1234: in _emit_insert_statements
+    result = connection.execute(
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py:1421: in execute
+    return meth(
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/sql/elements.py:526: in _execute_on_connection
+    return connection._execute_clauseelement(
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py:1643: in _execute_clauseelement
+    ret = self._execute_context(
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py:1848: in _execute_context
+    return self._exec_single_context(
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py:1988: in _exec_single_context
+    self._handle_dbapi_exception(
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py:2365: in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py:1969: in _exec_single_context
+    self.dialect.do_execute(
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/default.py:952: in do_execute
+    cursor.execute(statement, parameters)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <psycopg.Cursor [closed] [IDLE] (host=127.0.0.1 port=32788 user=owner database=bidops_test_7bd9e7ddd33a49d3) at 0x1160e7410>
+query = 'INSERT INTO bidops.company_knowledge_source (id, company_id, source_sha256, size_bytes, content_object_id, content_lo...bytes)s::BIGINT, %(content_object_id)s::UUID, %(content_location_id)s::UUID, %(created_at)s::TIMESTAMP WITH TIME ZONE)'
+params = {'company_id': UUID('32be3608-d00e-4bd9-a153-e5fc1059e558'), 'content_location_id': UUID('e17dd615-3840-4299-a395-05b8...-ab84-b0b35323e09b'), 'created_at': datetime.datetime(2026, 10, 9, 6, 45, 58, 1400, tzinfo=datetime.timezone.utc), ...}
+
+    def execute(
+        self,
+        query: Query,
+        params: Params | None = None,
+        *,
+        prepare: bool | None = None,
+        binary: bool | None = None,
+    ) -> Self:
+        """
+        Execute a query or command to the database.
+        """
+        try:
+            with self._conn.lock:
+                self._conn.wait(
+                    self._execute_gen(query, params, prepare=prepare, binary=binary)
+                )
+        except e._NO_TRACEBACK as ex:
+>           raise ex.with_traceback(None)
+E           sqlalchemy.exc.IntegrityError: (psycopg.errors.ForeignKeyViolation) insert or update on table "company_knowledge_source" violates foreign key constraint "fk_company_knowledge_source_location_content"
+E           DETAIL:  Key (content_location_id, content_object_id)=(e17dd615-3840-4299-a395-05b8cb580ec4, 260cadb7-af6d-4983-ab84-b0b35323e09b) is not present in table "content_object_location".
+E           [SQL: INSERT INTO bidops.company_knowledge_source (id, company_id, source_sha256, size_bytes, content_object_id, content_location_id, created_at) VALUES (%(id)s::UUID, %(company_id)s::UUID, %(source_sha256)s::VARCHAR, %(size_bytes)s::BIGINT, %(content_object_id)s::UUID, %(content_location_id)s::UUID, %(created_at)s::TIMESTAMP WITH TIME ZONE)]
+E           [parameters: {'id': UUID('8794e0b9-56e0-4a25-a390-2ba0bb0f4635'), 'company_id': UUID('32be3608-d00e-4bd9-a153-e5fc1059e558'), 'source_sha256': '6d80c443cd3db80f5f432adcb7abe07d4e152efd351b200c17d499430b332743', 'size_bytes': 1937, 'content_object_id': UUID('260cadb7-af6d-4983-ab84-b0b35323e09b'), 'content_location_id': UUID('e17dd615-3840-4299-a395-05b8cb580ec4'), 'created_at': datetime.datetime(2026, 10, 9, 6, 45, 58, 1400, tzinfo=datetime.timezone.utc)}]
+E           (Background on this error at: https://sqlalche.me/e/20/gkpj)
+
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/psycopg/cursor.py:117: IntegrityError
+______ test_t7_postgres_enforces_append_only_and_composite_company_scopes ______
+
+self = <sqlalchemy.engine.base.Connection object at 0x121023380>
+dialect = <sqlalchemy.dialects.postgresql.psycopg.PGDialect_psycopg object at 0x121021520>
+context = <sqlalchemy.dialects.postgresql.psycopg.PGExecutionContext_psycopg object at 0x121033c50>
+statement = <sqlalchemy.dialects.postgresql.psycopg.PGCompiler_psycopg object at 0x121033b30>
+parameters = [{'company_id': UUID('ccb5a061-a03f-4afc-a110-062000f3dc7f'), 'content_location_id': UUID('6842422c-1e6c-4e23-a52c-bb1...ef-fd33d7cafc9f'), 'created_at': datetime.datetime(2026, 10, 9, 6, 45, 59, 259865, tzinfo=datetime.timezone.utc), ...}]
+
+    def _exec_single_context(
+        self,
+        dialect: Dialect,
+        context: ExecutionContext,
+        statement: Union[str, Compiled],
+        parameters: Optional[_AnyMultiExecuteParams],
+    ) -> CursorResult[Any]:
+        """continue the _execute_context() method for a single DBAPI
+        cursor.execute() or cursor.executemany() call.
+    
+        """
+        if dialect.bind_typing is BindTyping.SETINPUTSIZES:
+            generic_setinputsizes = context._prepare_set_input_sizes()
+    
+            if generic_setinputsizes:
+                try:
+                    dialect.do_set_input_sizes(
+                        context.cursor, generic_setinputsizes, context
+                    )
+                except BaseException as e:
+                    self._handle_dbapi_exception(
+                        e, str(statement), parameters, None, context
+                    )
+    
+        cursor, str_statement, parameters = (
+            context.cursor,
+            context.statement,
+            context.parameters,
+        )
+    
+        effective_parameters: Optional[_AnyExecuteParams]
+    
+        if not context.executemany:
+            effective_parameters = parameters[0]
+        else:
+            effective_parameters = parameters
+    
+        if self._has_events or self.engine._has_events:
+            for fn in self.dispatch.before_cursor_execute:
+                str_statement, effective_parameters = fn(
+                    self,
+                    cursor,
+                    str_statement,
+                    effective_parameters,
+                    context,
+                    context.executemany,
+                )
+    
+        if self._echo:
+            self._log_info(str_statement)
+    
+            stats = context._get_cache_stats()
+    
+            if not self.engine.hide_parameters:
+                self._log_info(
+                    "[%s] %r",
+                    stats,
+                    sql_util._repr_params(
+                        effective_parameters,
+                        batches=10,
+                        ismulti=context.executemany,
+                    ),
+                )
+            else:
+                self._log_info(
+                    "[%s] [SQL parameters hidden due to hide_parameters=True]",
+                    stats,
+                )
+    
+        evt_handled: bool = False
+        try:
+            if context.execute_style is ExecuteStyle.EXECUTEMANY:
+                effective_parameters = cast(
+                    "_CoreMultiExecuteParams", effective_parameters
+                )
+                if self.dialect._has_events:
+                    for fn in self.dialect.dispatch.do_executemany:
+                        if fn(
+                            cursor,
+                            str_statement,
+                            effective_parameters,
+                            context,
+                        ):
+                            evt_handled = True
+                            break
+                if not evt_handled:
+                    self.dialect.do_executemany(
+                        cursor,
+                        str_statement,
+                        effective_parameters,
+                        context,
+                    )
+            elif not effective_parameters and context.no_parameters:
+                if self.dialect._has_events:
+                    for fn in self.dialect.dispatch.do_execute_no_params:
+                        if fn(cursor, str_statement, context):
+                            evt_handled = True
+                            break
+                if not evt_handled:
+                    self.dialect.do_execute_no_params(
+                        cursor, str_statement, context
+                    )
+            else:
+                effective_parameters = cast(
+                    "_CoreSingleExecuteParams", effective_parameters
+                )
+                if self.dialect._has_events:
+                    for fn in self.dialect.dispatch.do_execute:
+                        if fn(
+                            cursor,
+                            str_statement,
+                            effective_parameters,
+                            context,
+                        ):
+                            evt_handled = True
+                            break
+                if not evt_handled:
+>                   self.dialect.do_execute(
+                        cursor, str_statement, effective_parameters, context
+                    )
+
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py:1969: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/default.py:952: in do_execute
+    cursor.execute(statement, parameters)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <psycopg.Cursor [closed] [BAD] at 0x121044710>
+query = 'INSERT INTO bidops.company_knowledge_source (id, company_id, source_sha256, size_bytes, content_object_id, content_lo...bytes)s::BIGINT, %(content_object_id)s::UUID, %(content_location_id)s::UUID, %(created_at)s::TIMESTAMP WITH TIME ZONE)'
+params = {'company_id': UUID('ccb5a061-a03f-4afc-a110-062000f3dc7f'), 'content_location_id': UUID('6842422c-1e6c-4e23-a52c-bb19...1ef-fd33d7cafc9f'), 'created_at': datetime.datetime(2026, 10, 9, 6, 45, 59, 259865, tzinfo=datetime.timezone.utc), ...}
+
+    def execute(
+        self,
+        query: Query,
+        params: Params | None = None,
+        *,
+        prepare: bool | None = None,
+        binary: bool | None = None,
+    ) -> Self:
+        """
+        Execute a query or command to the database.
+        """
+        try:
+            with self._conn.lock:
+                self._conn.wait(
+                    self._execute_gen(query, params, prepare=prepare, binary=binary)
+                )
+        except e._NO_TRACEBACK as ex:
+>           raise ex.with_traceback(None)
+E           psycopg.errors.ForeignKeyViolation: insert or update on table "company_knowledge_source" violates foreign key constraint "fk_company_knowledge_source_location_content"
+E           DETAIL:  Key (content_location_id, content_object_id)=(6842422c-1e6c-4e23-a52c-bb19a2357a7d, 39a88896-0518-4daf-81ef-fd33d7cafc9f) is not present in table "content_object_location".
+
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/psycopg/cursor.py:117: ForeignKeyViolation
+
+The above exception was the direct cause of the following exception:
+
+    @requires_postgres
+    def test_t7_postgres_enforces_append_only_and_composite_company_scopes() -> None:
+        first = _prepared()
+        second_source = deepcopy(_source(first.ontology.sha256))
+        second_source["company"] = {
+            "slug": "second-si",
+            "name": "두번째 SI",
+            "is_fictional": True,
+        }
+        second_source["nodes"][0]["label"] = "두번째 SI"
+        second = prepare_company_knowledge(_raw(_ontology()), _raw(second_source))
+    
+        with migrated_engine() as bind, Session(bind, expire_on_commit=False) as session:
+            with session.begin():
+>               first_row = import_company_knowledge(session, first, actor="등록 담당자")
+                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/deep_review/test_company_knowledge.py:354: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+app/deep_review/services/company_knowledge.py:421: in import_company_knowledge
+    source_row, content = _store_source(
+app/deep_review/services/company_knowledge.py:368: in _store_source
+    session.flush()
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/orm/session.py:4353: in flush
+    self._flush(objects)
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/orm/session.py:4488: in _flush
+    with util.safe_reraise():
+         ^^^^^^^^^^^^^^^^^^^
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/util/langhelpers.py:122: in __exit__
+    raise exc_value.with_traceback(exc_tb)
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/orm/session.py:4449: in _flush
+    flush_context.execute()
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/orm/unitofwork.py:465: in execute
+    rec.execute(self)
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/orm/unitofwork.py:641: in execute
+    util.preloaded.orm_persistence.save_obj(
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/orm/persistence.py:94: in save_obj
+    _emit_insert_statements(
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/orm/persistence.py:1234: in _emit_insert_statements
+    result = connection.execute(
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py:1421: in execute
+    return meth(
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/sql/elements.py:526: in _execute_on_connection
+    return connection._execute_clauseelement(
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py:1643: in _execute_clauseelement
+    ret = self._execute_context(
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py:1848: in _execute_context
+    return self._exec_single_context(
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py:1988: in _exec_single_context
+    self._handle_dbapi_exception(
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py:2365: in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py:1969: in _exec_single_context
+    self.dialect.do_execute(
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/default.py:952: in do_execute
+    cursor.execute(statement, parameters)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <psycopg.Cursor [closed] [BAD] at 0x121044710>
+query = 'INSERT INTO bidops.company_knowledge_source (id, company_id, source_sha256, size_bytes, content_object_id, content_lo...bytes)s::BIGINT, %(content_object_id)s::UUID, %(content_location_id)s::UUID, %(created_at)s::TIMESTAMP WITH TIME ZONE)'
+params = {'company_id': UUID('ccb5a061-a03f-4afc-a110-062000f3dc7f'), 'content_location_id': UUID('6842422c-1e6c-4e23-a52c-bb19...1ef-fd33d7cafc9f'), 'created_at': datetime.datetime(2026, 10, 9, 6, 45, 59, 259865, tzinfo=datetime.timezone.utc), ...}
+
+    def execute(
+        self,
+        query: Query,
+        params: Params | None = None,
+        *,
+        prepare: bool | None = None,
+        binary: bool | None = None,
+    ) -> Self:
+        """
+        Execute a query or command to the database.
+        """
+        try:
+            with self._conn.lock:
+                self._conn.wait(
+                    self._execute_gen(query, params, prepare=prepare, binary=binary)
+                )
+        except e._NO_TRACEBACK as ex:
+>           raise ex.with_traceback(None)
+E           sqlalchemy.exc.IntegrityError: (psycopg.errors.ForeignKeyViolation) insert or update on table "company_knowledge_source" violates foreign key constraint "fk_company_knowledge_source_location_content"
+E           DETAIL:  Key (content_location_id, content_object_id)=(6842422c-1e6c-4e23-a52c-bb19a2357a7d, 39a88896-0518-4daf-81ef-fd33d7cafc9f) is not present in table "content_object_location".
+E           [SQL: INSERT INTO bidops.company_knowledge_source (id, company_id, source_sha256, size_bytes, content_object_id, content_location_id, created_at) VALUES (%(id)s::UUID, %(company_id)s::UUID, %(source_sha256)s::VARCHAR, %(size_bytes)s::BIGINT, %(content_object_id)s::UUID, %(content_location_id)s::UUID, %(created_at)s::TIMESTAMP WITH TIME ZONE)]
+E           [parameters: {'id': UUID('1ce62a8e-0b77-4cda-82ee-93114f11e55f'), 'company_id': UUID('ccb5a061-a03f-4afc-a110-062000f3dc7f'), 'source_sha256': '6d80c443cd3db80f5f432adcb7abe07d4e152efd351b200c17d499430b332743', 'size_bytes': 1937, 'content_object_id': UUID('39a88896-0518-4daf-81ef-fd33d7cafc9f'), 'content_location_id': UUID('6842422c-1e6c-4e23-a52c-bb19a2357a7d'), 'created_at': datetime.datetime(2026, 10, 9, 6, 45, 59, 259865, tzinfo=datetime.timezone.utc)}]
+E           (Background on this error at: https://sqlalche.me/e/20/gkpj)
+
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/psycopg/cursor.py:117: IntegrityError
+________ test_t5_fresh_process_import_replay_and_activate_are_json_only ________
+
+tmp_path = PosixPath('/private/var/folders/_c/3g36y_md7rg3l_xrx0r5lxyr0000gp/T/pytest-of-temp/pytest-1060/test_t5_fresh_process_import_r0')
+
+    def test_t5_fresh_process_import_replay_and_activate_are_json_only(tmp_path: Path) -> None:
+        ontology, company = _files(tmp_path)
+        environment = _environment(tmp_path)
+        command = (
+            "import-company-knowledge",
+            "--ontology", str(ontology),
+            "--company", str(company),
+            "--actor", "등록 담당자",
+        )
+        created_result = _run(environment, *command)
+>       assert created_result.returncode == 0, created_result.stderr
+E       AssertionError: storage_failed
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['/tmp/bidops-demo00-verify-venv/bin/python', '-m', 'app.deep_review.cli', 'import-company-knowl...null,"source_sha256":"6d80c443cd3db80f5f432adcb7abe07d4e152efd351b200c17d499430b332743"}\n', stderr='storage_failed\n').returncode
+
+tests/app/test_company_knowledge_cli.py:106: AssertionError
+_____ test_t3_t4_t7_app_role_runs_import_and_activation_with_closed_worker _____
+
+self = <sqlalchemy.engine.base.Connection object at 0x120175010>
+dialect = <sqlalchemy.dialects.postgresql.psycopg.PGDialect_psycopg object at 0x120137e60>
+context = <sqlalchemy.dialects.postgresql.psycopg.PGExecutionContext_psycopg object at 0x120147230>
+statement = <sqlalchemy.dialects.postgresql.psycopg.PGCompiler_psycopg object at 0x120147110>
+parameters = [{'company_id': UUID('ad1ee779-66e7-404e-99ca-09a191f46e22'), 'content_location_id': UUID('21e76255-6b33-4982-b518-5eb...2cb-371a26ce4a81'), 'created_at': datetime.datetime(2026, 10, 9, 6, 46, 2, 207563, tzinfo=datetime.timezone.utc), ...}]
+
+    def _exec_single_context(
+        self,
+        dialect: Dialect,
+        context: ExecutionContext,
+        statement: Union[str, Compiled],
+        parameters: Optional[_AnyMultiExecuteParams],
+    ) -> CursorResult[Any]:
+        """continue the _execute_context() method for a single DBAPI
+        cursor.execute() or cursor.executemany() call.
+    
+        """
+        if dialect.bind_typing is BindTyping.SETINPUTSIZES:
+            generic_setinputsizes = context._prepare_set_input_sizes()
+    
+            if generic_setinputsizes:
+                try:
+                    dialect.do_set_input_sizes(
+                        context.cursor, generic_setinputsizes, context
+                    )
+                except BaseException as e:
+                    self._handle_dbapi_exception(
+                        e, str(statement), parameters, None, context
+                    )
+    
+        cursor, str_statement, parameters = (
+            context.cursor,
+            context.statement,
+            context.parameters,
+        )
+    
+        effective_parameters: Optional[_AnyExecuteParams]
+    
+        if not context.executemany:
+            effective_parameters = parameters[0]
+        else:
+            effective_parameters = parameters
+    
+        if self._has_events or self.engine._has_events:
+            for fn in self.dispatch.before_cursor_execute:
+                str_statement, effective_parameters = fn(
+                    self,
+                    cursor,
+                    str_statement,
+                    effective_parameters,
+                    context,
+                    context.executemany,
+                )
+    
+        if self._echo:
+            self._log_info(str_statement)
+    
+            stats = context._get_cache_stats()
+    
+            if not self.engine.hide_parameters:
+                self._log_info(
+                    "[%s] %r",
+                    stats,
+                    sql_util._repr_params(
+                        effective_parameters,
+                        batches=10,
+                        ismulti=context.executemany,
+                    ),
+                )
+            else:
+                self._log_info(
+                    "[%s] [SQL parameters hidden due to hide_parameters=True]",
+                    stats,
+                )
+    
+        evt_handled: bool = False
+        try:
+            if context.execute_style is ExecuteStyle.EXECUTEMANY:
+                effective_parameters = cast(
+                    "_CoreMultiExecuteParams", effective_parameters
+                )
+                if self.dialect._has_events:
+                    for fn in self.dialect.dispatch.do_executemany:
+                        if fn(
+                            cursor,
+                            str_statement,
+                            effective_parameters,
+                            context,
+                        ):
+                            evt_handled = True
+                            break
+                if not evt_handled:
+                    self.dialect.do_executemany(
+                        cursor,
+                        str_statement,
+                        effective_parameters,
+                        context,
+                    )
+            elif not effective_parameters and context.no_parameters:
+                if self.dialect._has_events:
+                    for fn in self.dialect.dispatch.do_execute_no_params:
+                        if fn(cursor, str_statement, context):
+                            evt_handled = True
+                            break
+                if not evt_handled:
+                    self.dialect.do_execute_no_params(
+                        cursor, str_statement, context
+                    )
+            else:
+                effective_parameters = cast(
+                    "_CoreSingleExecuteParams", effective_parameters
+                )
+                if self.dialect._has_events:
+                    for fn in self.dialect.dispatch.do_execute:
+                        if fn(
+                            cursor,
+                            str_statement,
+                            effective_parameters,
+                            context,
+                        ):
+                            evt_handled = True
+                            break
+                if not evt_handled:
+>                   self.dialect.do_execute(
+                        cursor, str_statement, effective_parameters, context
+                    )
+
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py:1969: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/default.py:952: in do_execute
+    cursor.execute(statement, parameters)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <psycopg.Cursor [closed] [BAD] at 0x121045250>
+query = 'INSERT INTO bidops.company_knowledge_source (id, company_id, source_sha256, size_bytes, content_object_id, content_lo...bytes)s::BIGINT, %(content_object_id)s::UUID, %(content_location_id)s::UUID, %(created_at)s::TIMESTAMP WITH TIME ZONE)'
+params = {'company_id': UUID('ad1ee779-66e7-404e-99ca-09a191f46e22'), 'content_location_id': UUID('21e76255-6b33-4982-b518-5eb3...a2cb-371a26ce4a81'), 'created_at': datetime.datetime(2026, 10, 9, 6, 46, 2, 207563, tzinfo=datetime.timezone.utc), ...}
+
+    def execute(
+        self,
+        query: Query,
+        params: Params | None = None,
+        *,
+        prepare: bool | None = None,
+        binary: bool | None = None,
+    ) -> Self:
+        """
+        Execute a query or command to the database.
+        """
+        try:
+            with self._conn.lock:
+                self._conn.wait(
+                    self._execute_gen(query, params, prepare=prepare, binary=binary)
+                )
+        except e._NO_TRACEBACK as ex:
+>           raise ex.with_traceback(None)
+E           psycopg.errors.ForeignKeyViolation: insert or update on table "company_knowledge_source" violates foreign key constraint "fk_company_knowledge_source_location_content"
+E           DETAIL:  Key (content_location_id, content_object_id)=(21e76255-6b33-4982-b518-5eb318545c72, c238ae07-59ea-45c7-a2cb-371a26ce4a81) is not present in table "content_object_location".
+
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/psycopg/cursor.py:117: ForeignKeyViolation
+
+The above exception was the direct cause of the following exception:
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x120134bf0>
+
+    @requires_postgres
+    def test_t3_t4_t7_app_role_runs_import_and_activation_with_closed_worker(
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Exercise the real app credential, including ContentObject and advisory lock paths."""
+    
+        stored: dict[tuple[str, str], tuple[bytes, assets.ObjectMetadata]] = {}
+    
+        def store_named(namespace, key, data, **_kwargs):
+            import hashlib
+    
+            digest = hashlib.sha256(data).hexdigest()
+            metadata = assets.ObjectMetadata(namespace, key, f"v-{digest}", digest, len(data))
+            stored[(namespace, key)] = (data, metadata)
+            return Path(key), metadata
+    
+        def read_object(namespace, key, *, version_id=None, **_kwargs):
+            data, metadata = stored[(namespace, key)]
+            assert version_id is None or version_id == metadata.object_version_id
+            return data, metadata
+    
+        monkeypatch.setattr(assets, "store_named", store_named)
+        monkeypatch.setattr(assets, "read_object", read_object)
+        first_ontology_raw = _raw(_ontology())
+        ontology_sha = parse_ontology(first_ontology_raw).sha256
+        first = prepare_company_knowledge(first_ontology_raw, _raw(_source(ontology_sha)))
+        second = prepare_company_knowledge(
+            first_ontology_raw,
+            _raw(_source(ontology_sha, scenario="scenario-v2", description="두번째 합성 역량")),
+        )
+    
+        _ensure_roles()
+        with temporary_database() as database_url:
+            policy_engine = _apply_policy(database_url)
+            app_engine = schema_bound(create_engine(database_url, future=True))
+            try:
+                with app_engine.begin() as connection:
+                    connection.exec_driver_sql("SET LOCAL ROLE app")
+                    with Session(bind=connection, expire_on_commit=False) as session:
+                        with session.begin():
+>                           first_row = import_company_knowledge(
+                                session, first, actor="등록 담당자"
+                            )
+
+tests/app/test_company_knowledge_cli.py:204: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+app/deep_review/services/company_knowledge.py:421: in import_company_knowledge
+    source_row, content = _store_source(
+app/deep_review/services/company_knowledge.py:368: in _store_source
+    session.flush()
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/orm/session.py:4353: in flush
+    self._flush(objects)
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/orm/session.py:4488: in _flush
+    with util.safe_reraise():
+         ^^^^^^^^^^^^^^^^^^^
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/util/langhelpers.py:122: in __exit__
+    raise exc_value.with_traceback(exc_tb)
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/orm/session.py:4449: in _flush
+    flush_context.execute()
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/orm/unitofwork.py:465: in execute
+    rec.execute(self)
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/orm/unitofwork.py:641: in execute
+    util.preloaded.orm_persistence.save_obj(
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/orm/persistence.py:94: in save_obj
+    _emit_insert_statements(
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/orm/persistence.py:1234: in _emit_insert_statements
+    result = connection.execute(
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py:1421: in execute
+    return meth(
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/sql/elements.py:526: in _execute_on_connection
+    return connection._execute_clauseelement(
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py:1643: in _execute_clauseelement
+    ret = self._execute_context(
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py:1848: in _execute_context
+    return self._exec_single_context(
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py:1988: in _exec_single_context
+    self._handle_dbapi_exception(
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py:2365: in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py:1969: in _exec_single_context
+    self.dialect.do_execute(
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/default.py:952: in do_execute
+    cursor.execute(statement, parameters)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <psycopg.Cursor [closed] [BAD] at 0x121045250>
+query = 'INSERT INTO bidops.company_knowledge_source (id, company_id, source_sha256, size_bytes, content_object_id, content_lo...bytes)s::BIGINT, %(content_object_id)s::UUID, %(content_location_id)s::UUID, %(created_at)s::TIMESTAMP WITH TIME ZONE)'
+params = {'company_id': UUID('ad1ee779-66e7-404e-99ca-09a191f46e22'), 'content_location_id': UUID('21e76255-6b33-4982-b518-5eb3...a2cb-371a26ce4a81'), 'created_at': datetime.datetime(2026, 10, 9, 6, 46, 2, 207563, tzinfo=datetime.timezone.utc), ...}
+
+    def execute(
+        self,
+        query: Query,
+        params: Params | None = None,
+        *,
+        prepare: bool | None = None,
+        binary: bool | None = None,
+    ) -> Self:
+        """
+        Execute a query or command to the database.
+        """
+        try:
+            with self._conn.lock:
+                self._conn.wait(
+                    self._execute_gen(query, params, prepare=prepare, binary=binary)
+                )
+        except e._NO_TRACEBACK as ex:
+>           raise ex.with_traceback(None)
+E           sqlalchemy.exc.IntegrityError: (psycopg.errors.ForeignKeyViolation) insert or update on table "company_knowledge_source" violates foreign key constraint "fk_company_knowledge_source_location_content"
+E           DETAIL:  Key (content_location_id, content_object_id)=(21e76255-6b33-4982-b518-5eb318545c72, c238ae07-59ea-45c7-a2cb-371a26ce4a81) is not present in table "content_object_location".
+E           [SQL: INSERT INTO bidops.company_knowledge_source (id, company_id, source_sha256, size_bytes, content_object_id, content_location_id, created_at) VALUES (%(id)s::UUID, %(company_id)s::UUID, %(source_sha256)s::VARCHAR, %(size_bytes)s::BIGINT, %(content_object_id)s::UUID, %(content_location_id)s::UUID, %(created_at)s::TIMESTAMP WITH TIME ZONE)]
+E           [parameters: {'id': UUID('85672984-f0bc-4925-8c8b-71401c397828'), 'company_id': UUID('ad1ee779-66e7-404e-99ca-09a191f46e22'), 'source_sha256': '6d80c443cd3db80f5f432adcb7abe07d4e152efd351b200c17d499430b332743', 'size_bytes': 1937, 'content_object_id': UUID('c238ae07-59ea-45c7-a2cb-371a26ce4a81'), 'content_location_id': UUID('21e76255-6b33-4982-b518-5eb318545c72'), 'created_at': datetime.datetime(2026, 10, 9, 6, 46, 2, 207563, tzinfo=datetime.timezone.utc)}]
+E           (Background on this error at: https://sqlalche.me/e/20/gkpj)
+
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/psycopg/cursor.py:117: IntegrityError
+_____________ test_migration_records_a_deterministic_audit_marker ______________
+
+    def test_migration_records_a_deterministic_audit_marker() -> None:
+        with migrated_engine() as engine:
+            with engine.connect() as connection:
+                row = connection.execute(
+                    text(
+                        "SELECT event_id, actor, target_type, target_id, details_json"
+                        " FROM bidops.screening_audit_event"
+                        " WHERE event_type = 'db.migration' AND target_id = :revision"
+                    ),
+                    {"revision": ALEMBIC_HEAD},
+>               ).one()
+                  ^^^^^
+
+tests/app/test_db_migrations.py:382: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/result.py:1574: in one
+    return self._only_one_row(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <sqlalchemy.engine.cursor.CursorResult object at 0x1212611d0>
+raise_for_second_row = True, raise_for_none = True, scalar = False
+
+    def _only_one_row(
+        self,
+        raise_for_second_row: bool,
+        raise_for_none: bool,
+        scalar: bool,
+    ) -> Optional[_R]:
+        onerow = self._fetchone_impl
+    
+        row: Optional[_InterimRowType[Any]] = onerow(hard_close=True)
+        if row is None:
+            if raise_for_none:
+>               raise exc.NoResultFound(
+                    "No row was found when one was required"
+                )
+E               sqlalchemy.exc.NoResultFound: No row was found when one was required
+
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/result.py:799: NoResultFound
+=============================== warnings summary ===============================
+../../../../../../../../../../../../tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/fastapi/testclient.py:1
+  /tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+app/deep_review/schemas/document_bundles.py:115
+  /Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo0203-20261009-DEMO-02-company-knowledge/web/backend/app/deep_review/schemas/document_bundles.py:115: UserWarning: Field name "schema" in "DocumentStructure" shadows an attribute in parent "StrictModel"
+    class DocumentStructure(StrictModel):
+
+app/deep_review/schemas/document_bundles.py:224
+  /Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo0203-20261009-DEMO-02-company-knowledge/web/backend/app/deep_review/schemas/document_bundles.py:224: UserWarning: Field name "schema" in "SegmentExtractorBinding" shadows an attribute in parent "StrictModel"
+    class SegmentExtractorBinding(StrictModel):
+
+app/deep_review/schemas/document_bundles.py:232
+  /Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo0203-20261009-DEMO-02-company-knowledge/web/backend/app/deep_review/schemas/document_bundles.py:232: UserWarning: Field name "schema" in "DocumentSegmentsView" shadows an attribute in parent "StrictModel"
+    class DocumentSegmentsView(StrictModel):
+
+app/deep_review/agents/common/contracts.py:391
+  /Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo0203-20261009-DEMO-02-company-knowledge/web/backend/app/deep_review/agents/common/contracts.py:391: UserWarning: Field name "schema" in "AgentRunView" shadows an attribute in parent "_StrictModel"
+    class AgentRunView(_StrictModel):
+
+app/deep_review/agents/common/contracts.py:462
+  /Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo0203-20261009-DEMO-02-company-knowledge/web/backend/app/deep_review/agents/common/contracts.py:462: UserWarning: Field name "schema" in "AgentCommand" shadows an attribute in parent "_StrictModel"
+    class AgentCommand(_StrictModel, Generic[TAction]):
+
+app/deep_review/schemas/reports.py:69
+  /Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo0203-20261009-DEMO-02-company-knowledge/web/backend/app/deep_review/schemas/reports.py:69: UserWarning: Field name "schema" in "DeepReviewReport" shadows an attribute in parent "StrictModel"
+    class DeepReviewReport(StrictModel):
+
+app/deep_review/schemas/reports.py:122
+  /Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo0203-20261009-DEMO-02-company-knowledge/web/backend/app/deep_review/schemas/reports.py:122: UserWarning: Field name "schema" in "NarrativeReport" shadows an attribute in parent "DeepReviewReport"
+    class NarrativeReport(DeepReviewReport):
+
+app/deep_review/schemas/reports.py:143
+  /Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo0203-20261009-DEMO-02-company-knowledge/web/backend/app/deep_review/schemas/reports.py:143: UserWarning: Field name "schema" in "DeepReviewValidation" shadows an attribute in parent "StrictModel"
+    class DeepReviewValidation(StrictModel):
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/deep_review/test_company_knowledge.py::test_t3_import_is_atomic_idempotent_and_builds_minimum_profile_v2[postgres]
+FAILED tests/deep_review/test_company_knowledge.py::test_t3_caller_rollback_removes_every_database_row[postgres]
+FAILED tests/deep_review/test_company_knowledge.py::test_t3_replay_verifies_the_exact_stored_object_version[postgres]
+FAILED tests/deep_review/test_company_knowledge.py::test_t4_activation_is_idempotent_and_preserves_previous_graph[postgres]
+FAILED tests/deep_review/test_company_knowledge.py::test_t4_rejects_cross_company_activation_without_mutating_binding[postgres]
+FAILED tests/deep_review/test_company_knowledge.py::test_t7_append_only_orm_rows_reject_updates_and_deletes[postgres]
+FAILED tests/deep_review/test_company_knowledge.py::test_t7_postgres_enforces_append_only_and_composite_company_scopes
+FAILED tests/app/test_company_knowledge_cli.py::test_t5_fresh_process_import_replay_and_activate_are_json_only
+FAILED tests/app/test_company_knowledge_cli.py::test_t3_t4_t7_app_role_runs_import_and_activation_with_closed_worker
+FAILED tests/app/test_db_migrations.py::test_migration_records_a_deterministic_audit_marker
+10 failed, 136 passed, 9 warnings in 92.23s (0:01:32)
+
+exit_code=1

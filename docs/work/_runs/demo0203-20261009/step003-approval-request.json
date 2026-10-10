@@ -1,0 +1,64 @@
+{
+  "status": "pending_user_approval",
+  "ontology": {
+    "path": "docs/demo-fixtures/ontology.v1.json",
+    "file_sha256": "cc821ae70b36d8e3aaed40b3f524b5be7209a491c4cf670cdff048ae4f5c27ef",
+    "canonical_sha256": "3775a3486e887d601b04bc5b073ff29f49f8dd2177ea3444f0d66f1b68a79411"
+  },
+  "companies": [
+    {
+      "path": "docs/demo-fixtures/companies/demo-cloud-si.v1.json",
+      "name": "데모 클라우드SI",
+      "source_sha256": "58fe3ce03859d83a0c9327b7f90f1be3ce029bc7e5c62b9f3e4ba8bb0cf8339d",
+      "node_counts": {
+        "company": 1,
+        "domain": 1,
+        "capability": 4,
+        "technology": 3,
+        "staff_group": 2,
+        "project": 3,
+        "qualification": 1,
+        "evidence": 14
+      },
+      "staff_total": 50,
+      "core_capabilities": 3,
+      "non_core_capabilities": 1
+    },
+    {
+      "path": "docs/demo-fixtures/companies/demo-data-ai.v1.json",
+      "name": "데모 데이터AI",
+      "source_sha256": "b78fd0078615cd2ff9657484717c581aeacedeb9d66b6d2adde35a311f5c5eb2",
+      "node_counts": {
+        "company": 1,
+        "domain": 1,
+        "capability": 4,
+        "technology": 3,
+        "staff_group": 2,
+        "project": 3,
+        "qualification": 1,
+        "evidence": 14
+      },
+      "staff_total": 50,
+      "core_capabilities": 3,
+      "non_core_capabilities": 1
+    },
+    {
+      "path": "docs/demo-fixtures/companies/demo-public-si.v1.json",
+      "name": "데모 업무SI",
+      "source_sha256": "6a2f6415f64cc5752fbb95efa01c61ac9662d7791054f783f14dc02d4728c3c7",
+      "node_counts": {
+        "company": 1,
+        "domain": 1,
+        "capability": 4,
+        "technology": 3,
+        "staff_group": 2,
+        "project": 3,
+        "qualification": 1,
+        "evidence": 14
+      },
+      "staff_total": 50,
+      "core_capabilities": 3,
+      "non_core_capabilities": 1
+    }
+  ]
+}

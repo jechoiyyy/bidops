@@ -1,0 +1,8 @@
+{
+  "profile": "review",
+  "model": "gpt-5.6-sol",
+  "effort": "high",
+  "cwd": "/Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo0203-20261009-DEMO-02-company-knowledge",
+  "exit_code": 0,
+  "report": "/Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo0203-20261009-DEMO-02-company-knowledge/docs/work/_runs/demo0203-20261009/review-step001-followup.md"
+}

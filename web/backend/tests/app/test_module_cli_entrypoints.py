@@ -39,6 +39,8 @@ MODULE_CLIS: tuple[tuple[str, tuple[str, ...], int], ...] = (
     ("app.deep_review.cli", ("run-bc-e2e",), 0),
     ("app.deep_review.cli", ("run-prespec-e2e",), 0),
     ("app.deep_review.cli", ("import-profile-policy",), 0),
+    ("app.deep_review.cli", ("import-company-knowledge",), 0),
+    ("app.deep_review.cli", ("activate-company-knowledge",), 0),
     ("app.lifecycle.ingest.cli", (), 0),
 )
 

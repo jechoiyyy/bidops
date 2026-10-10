@@ -47,6 +47,7 @@ _ROUTER_REGISTRATION: tuple[tuple[str, str], ...] = (
     ("screening", "screening_run_router"),
     ("lifecycle", "runs_router"),
     ("lifecycle", "companies_router"),
+    ("deep_review", "company_knowledge_router"),
     ("lifecycle", "notices_router"),
     ("lifecycle", "pre_specs_router"),
     ("lifecycle", "opportunities_router"),

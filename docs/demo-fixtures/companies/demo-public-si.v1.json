@@ -1,0 +1,1150 @@
+{
+  "schema_version": "bidops.company-knowledge-source.v1",
+  "company": {
+    "slug": "demo-public-si",
+    "name": "데모 업무SI",
+    "is_fictional": true
+  },
+  "scenario_version": "v1",
+  "ontology_version": "v1",
+  "ontology_sha256": "3775a3486e887d601b04bc5b073ff29f49f8dd2177ea3444f0d66f1b68a79411",
+  "nodes": [
+    {
+      "id": "company",
+      "type": "company",
+      "label": "데모 업무SI",
+      "concept_id": null,
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "value": "데모 업무SI",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/0/value"
+          },
+          "quote": "데모 업무SI"
+        }
+      ]
+    },
+    {
+      "id": "domain-public-si",
+      "type": "domain",
+      "label": "공공 업무 서비스",
+      "concept_id": "domain.public-work-services",
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "value": "가상 설정의 전문 분야는 공공기관 업무 시스템과 행정 서비스의 분석·구축이다.",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/1/value"
+          },
+          "quote": "가상 설정의 전문 분야는 공공기관 업무 시스템과 행정 서비스의 분석·구축이다."
+        }
+      ]
+    },
+    {
+      "id": "cap-public-analysis",
+      "type": "capability",
+      "label": "공공 업무 분석·재설계",
+      "concept_id": "capability.public-work-analysis",
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "value": {
+        "scope": "core",
+        "description": "주력 역량: 공공기관의 업무 흐름과 담당 역할을 분석해 절차 및 화면 개선 범위를 설계한다."
+      },
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/2/value/description"
+          },
+          "quote": "주력 역량: 공공기관의 업무 흐름과 담당 역할을 분석해 절차 및 화면 개선 범위를 설계한다."
+        }
+      ]
+    },
+    {
+      "id": "cap-public-case-system",
+      "type": "capability",
+      "label": "민원 업무시스템 구축",
+      "concept_id": "capability.public-case-system",
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "value": {
+        "scope": "core",
+        "description": "주력 역량: 민원 접수·배정·처리 상태를 연결하는 업무시스템을 구현한다."
+      },
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/3/value/description"
+          },
+          "quote": "주력 역량: 민원 접수·배정·처리 상태를 연결하는 업무시스템을 구현한다."
+        }
+      ]
+    },
+    {
+      "id": "cap-public-data-linkage",
+      "type": "capability",
+      "label": "공공 데이터 연계 구현",
+      "concept_id": "capability.public-data-linkage",
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "value": {
+        "scope": "core",
+        "description": "주력 역량: 공공 업무에서 필요한 기관 간 데이터 전달과 연계 검증을 설계한다."
+      },
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/4/value/description"
+          },
+          "quote": "주력 역량: 공공 업무에서 필요한 기관 간 데이터 전달과 연계 검증을 설계한다."
+        }
+      ]
+    },
+    {
+      "id": "cap-public-telecom-equipment",
+      "type": "capability",
+      "label": "통신장비 제조·납품",
+      "concept_id": "capability.public-telecom-equipment",
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "value": {
+        "scope": "non_core",
+        "description": "비주력 영역: 통신망 장비 자체 제조와 대량 납품은 제공 범위의 주력으로 삼지 않는다."
+      },
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/5/value/description"
+          },
+          "quote": "비주력 영역: 통신망 장비 자체 제조와 대량 납품은 제공 범위의 주력으로 삼지 않는다."
+        }
+      ]
+    },
+    {
+      "id": "tech-workflow-engine",
+      "type": "technology",
+      "label": "업무 규칙 처리 엔진",
+      "concept_id": "technology.workflow-rule-engine",
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "value": "업무 규칙 처리 엔진",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/6/value"
+          },
+          "quote": "업무 규칙 처리 엔진"
+        }
+      ]
+    },
+    {
+      "id": "tech-api-hub",
+      "type": "technology",
+      "label": "기관 API 연계 허브",
+      "concept_id": "technology.service-api-hub",
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "value": "기관 API 연계 허브",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/7/value"
+          },
+          "quote": "기관 API 연계 허브"
+        }
+      ]
+    },
+    {
+      "id": "tech-audit-store",
+      "type": "technology",
+      "label": "감사 이벤트 저장소",
+      "concept_id": "technology.audit-event-store",
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "value": "감사 이벤트 저장소",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/8/value"
+          },
+          "quote": "감사 이벤트 저장소"
+        }
+      ]
+    },
+    {
+      "id": "staff-public-analysis",
+      "type": "staff_group",
+      "label": "업무분석·서비스설계 직군",
+      "concept_id": null,
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "value": {
+        "role": "공공 업무 분석·서비스설계 직군 (총 28명)",
+        "total": 28,
+        "available": null,
+        "as_of": null
+      },
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/9/value/role"
+          },
+          "quote": "공공 업무 분석·서비스설계 직군 (총 28명)"
+        }
+      ]
+    },
+    {
+      "id": "staff-public-engineering",
+      "type": "staff_group",
+      "label": "응용시스템·연계개발 직군",
+      "concept_id": null,
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "value": {
+        "role": "민원 업무시스템·공공 데이터 연계 개발 직군 (총 22명)",
+        "total": 22,
+        "available": null,
+        "as_of": null
+      },
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/10/value/role"
+          },
+          "quote": "민원 업무시스템·공공 데이터 연계 개발 직군 (총 22명)"
+        }
+      ]
+    },
+    {
+      "id": "project-public-workflow",
+      "type": "project",
+      "label": "가상 행정업무 통합 사례 A",
+      "concept_id": null,
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "value": {
+        "role": "시스템 통합 주관",
+        "scope": "가상 행정업무 통합 시나리오로서 수행 역할은 시스템 통합 주관이며, 업무 규칙 처리 엔진을 적용해 공공 업무 분석·재설계와 신청·접수 흐름을 연결한다.",
+        "amount_krw": null,
+        "started_on": null,
+        "ended_on": null
+      },
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/11/value/scope"
+          },
+          "quote": "가상 행정업무 통합 시나리오로서 수행 역할은 시스템 통합 주관이며, 업무 규칙 처리 엔진을 적용해 공공 업무 분석·재설계와 신청·접수 흐름을 연결한다."
+        }
+      ]
+    },
+    {
+      "id": "project-public-intake",
+      "type": "project",
+      "label": "가상 민원처리 개선 사례 B",
+      "concept_id": null,
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "value": {
+        "role": "응용시스템 구축 주관",
+        "scope": "가상 민원처리 개선 시나리오로서 수행 역할은 응용시스템 구축 주관이며, 기관 API 연계 허브를 통해 민원 업무시스템 구축 범위의 접수·배정 상태를 연결한다.",
+        "amount_krw": null,
+        "started_on": null,
+        "ended_on": null
+      },
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/12/value/scope"
+          },
+          "quote": "가상 민원처리 개선 시나리오로서 수행 역할은 응용시스템 구축 주관이며, 기관 API 연계 허브를 통해 민원 업무시스템 구축 범위의 접수·배정 상태를 연결한다."
+        }
+      ]
+    },
+    {
+      "id": "project-public-data",
+      "type": "project",
+      "label": "가상 공공데이터 연계 사례 C",
+      "concept_id": null,
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "value": {
+        "role": "연계 기능 개발 수행",
+        "scope": "가상 공공데이터 연계 시나리오로서 수행 역할은 연계 기능 개발이며, 감사 이벤트 저장소를 적용해 공공 데이터 연계 구현의 변경 이력을 추적한다.",
+        "amount_krw": null,
+        "started_on": null,
+        "ended_on": null
+      },
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/13/value/scope"
+          },
+          "quote": "가상 공공데이터 연계 시나리오로서 수행 역할은 연계 기능 개발이며, 감사 이벤트 저장소를 적용해 공공 데이터 연계 구현의 변경 이력을 추적한다."
+        }
+      ]
+    },
+    {
+      "id": "qualification-security-management",
+      "type": "qualification",
+      "label": "정보보호 관리 인증 보유 여부",
+      "concept_id": "qualification.security-management",
+      "status": "unknown",
+      "origin": "fictional_scenario",
+      "value": null,
+      "source_refs": []
+    },
+    {
+      "id": "evidence-company",
+      "type": "evidence",
+      "label": "데모 업무SI의 가상 원본 근거",
+      "concept_id": null,
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "value": {
+        "fact_key": "company"
+      },
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/0/value"
+          },
+          "quote": "데모 업무SI"
+        }
+      ]
+    },
+    {
+      "id": "evidence-domain-public-si",
+      "type": "evidence",
+      "label": "공공 업무 서비스의 가상 원본 근거",
+      "concept_id": null,
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "value": {
+        "fact_key": "domain-public-si"
+      },
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/1/value"
+          },
+          "quote": "가상 설정의 전문 분야는 공공기관 업무 시스템과 행정 서비스의 분석·구축이다."
+        }
+      ]
+    },
+    {
+      "id": "evidence-cap-public-analysis",
+      "type": "evidence",
+      "label": "공공 업무 분석·재설계의 가상 원본 근거",
+      "concept_id": null,
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "value": {
+        "fact_key": "cap-public-analysis"
+      },
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/2/value/description"
+          },
+          "quote": "주력 역량: 공공기관의 업무 흐름과 담당 역할을 분석해 절차 및 화면 개선 범위를 설계한다."
+        }
+      ]
+    },
+    {
+      "id": "evidence-cap-public-case-system",
+      "type": "evidence",
+      "label": "민원 업무시스템 구축의 가상 원본 근거",
+      "concept_id": null,
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "value": {
+        "fact_key": "cap-public-case-system"
+      },
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/3/value/description"
+          },
+          "quote": "주력 역량: 민원 접수·배정·처리 상태를 연결하는 업무시스템을 구현한다."
+        }
+      ]
+    },
+    {
+      "id": "evidence-cap-public-data-linkage",
+      "type": "evidence",
+      "label": "공공 데이터 연계 구현의 가상 원본 근거",
+      "concept_id": null,
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "value": {
+        "fact_key": "cap-public-data-linkage"
+      },
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/4/value/description"
+          },
+          "quote": "주력 역량: 공공 업무에서 필요한 기관 간 데이터 전달과 연계 검증을 설계한다."
+        }
+      ]
+    },
+    {
+      "id": "evidence-cap-public-telecom-equipment",
+      "type": "evidence",
+      "label": "통신장비 제조·납품의 가상 원본 근거",
+      "concept_id": null,
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "value": {
+        "fact_key": "cap-public-telecom-equipment"
+      },
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/5/value/description"
+          },
+          "quote": "비주력 영역: 통신망 장비 자체 제조와 대량 납품은 제공 범위의 주력으로 삼지 않는다."
+        }
+      ]
+    },
+    {
+      "id": "evidence-tech-workflow-engine",
+      "type": "evidence",
+      "label": "업무 규칙 처리 엔진의 가상 원본 근거",
+      "concept_id": null,
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "value": {
+        "fact_key": "tech-workflow-engine"
+      },
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/6/value"
+          },
+          "quote": "업무 규칙 처리 엔진"
+        }
+      ]
+    },
+    {
+      "id": "evidence-tech-api-hub",
+      "type": "evidence",
+      "label": "기관 API 연계 허브의 가상 원본 근거",
+      "concept_id": null,
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "value": {
+        "fact_key": "tech-api-hub"
+      },
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/7/value"
+          },
+          "quote": "기관 API 연계 허브"
+        }
+      ]
+    },
+    {
+      "id": "evidence-tech-audit-store",
+      "type": "evidence",
+      "label": "감사 이벤트 저장소의 가상 원본 근거",
+      "concept_id": null,
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "value": {
+        "fact_key": "tech-audit-store"
+      },
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/8/value"
+          },
+          "quote": "감사 이벤트 저장소"
+        }
+      ]
+    },
+    {
+      "id": "evidence-staff-public-analysis",
+      "type": "evidence",
+      "label": "업무분석·서비스설계 직군의 가상 원본 근거",
+      "concept_id": null,
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "value": {
+        "fact_key": "staff-public-analysis"
+      },
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/9/value/role"
+          },
+          "quote": "공공 업무 분석·서비스설계 직군 (총 28명)"
+        }
+      ]
+    },
+    {
+      "id": "evidence-staff-public-engineering",
+      "type": "evidence",
+      "label": "응용시스템·연계개발 직군의 가상 원본 근거",
+      "concept_id": null,
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "value": {
+        "fact_key": "staff-public-engineering"
+      },
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/10/value/role"
+          },
+          "quote": "민원 업무시스템·공공 데이터 연계 개발 직군 (총 22명)"
+        }
+      ]
+    },
+    {
+      "id": "evidence-project-public-workflow",
+      "type": "evidence",
+      "label": "가상 행정업무 통합 사례 A의 가상 원본 근거",
+      "concept_id": null,
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "value": {
+        "fact_key": "project-public-workflow"
+      },
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/11/value/scope"
+          },
+          "quote": "가상 행정업무 통합 시나리오로서 수행 역할은 시스템 통합 주관이며, 업무 규칙 처리 엔진을 적용해 공공 업무 분석·재설계와 신청·접수 흐름을 연결한다."
+        }
+      ]
+    },
+    {
+      "id": "evidence-project-public-intake",
+      "type": "evidence",
+      "label": "가상 민원처리 개선 사례 B의 가상 원본 근거",
+      "concept_id": null,
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "value": {
+        "fact_key": "project-public-intake"
+      },
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/12/value/scope"
+          },
+          "quote": "가상 민원처리 개선 시나리오로서 수행 역할은 응용시스템 구축 주관이며, 기관 API 연계 허브를 통해 민원 업무시스템 구축 범위의 접수·배정 상태를 연결한다."
+        }
+      ]
+    },
+    {
+      "id": "evidence-project-public-data",
+      "type": "evidence",
+      "label": "가상 공공데이터 연계 사례 C의 가상 원본 근거",
+      "concept_id": null,
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "value": {
+        "fact_key": "project-public-data"
+      },
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/13/value/scope"
+          },
+          "quote": "가상 공공데이터 연계 시나리오로서 수행 역할은 연계 기능 개발이며, 감사 이벤트 저장소를 적용해 공공 데이터 연계 구현의 변경 이력을 추적한다."
+        }
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge-company-domain",
+      "type": "operates_in",
+      "from_id": "company",
+      "to_id": "domain-public-si",
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/1/value"
+          },
+          "quote": "가상 설정의 전문 분야는 공공기관 업무 시스템과 행정 서비스의 분석·구축이다."
+        }
+      ]
+    },
+    {
+      "id": "edge-company-cap-public-analysis",
+      "type": "has_capability",
+      "from_id": "company",
+      "to_id": "cap-public-analysis",
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/2/value/description"
+          },
+          "quote": "주력 역량: 공공기관의 업무 흐름과 담당 역할을 분석해 절차 및 화면 개선 범위를 설계한다."
+        }
+      ]
+    },
+    {
+      "id": "edge-company-cap-public-case-system",
+      "type": "has_capability",
+      "from_id": "company",
+      "to_id": "cap-public-case-system",
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/3/value/description"
+          },
+          "quote": "주력 역량: 민원 접수·배정·처리 상태를 연결하는 업무시스템을 구현한다."
+        }
+      ]
+    },
+    {
+      "id": "edge-company-cap-public-data-linkage",
+      "type": "has_capability",
+      "from_id": "company",
+      "to_id": "cap-public-data-linkage",
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/4/value/description"
+          },
+          "quote": "주력 역량: 공공 업무에서 필요한 기관 간 데이터 전달과 연계 검증을 설계한다."
+        }
+      ]
+    },
+    {
+      "id": "edge-company-cap-public-telecom-equipment",
+      "type": "has_capability",
+      "from_id": "company",
+      "to_id": "cap-public-telecom-equipment",
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/5/value/description"
+          },
+          "quote": "비주력 영역: 통신망 장비 자체 제조와 대량 납품은 제공 범위의 주력으로 삼지 않는다."
+        }
+      ]
+    },
+    {
+      "id": "edge-company-staff-public-analysis",
+      "type": "has_staff",
+      "from_id": "company",
+      "to_id": "staff-public-analysis",
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/9/value/role"
+          },
+          "quote": "공공 업무 분석·서비스설계 직군 (총 28명)"
+        }
+      ]
+    },
+    {
+      "id": "edge-staff-public-analysis-supports-cap-public-analysis",
+      "type": "supports_capability",
+      "from_id": "staff-public-analysis",
+      "to_id": "cap-public-analysis",
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/9/value/role"
+          },
+          "quote": "공공 업무 분석·서비스설계 직군 (총 28명)"
+        }
+      ]
+    },
+    {
+      "id": "edge-company-staff-public-engineering",
+      "type": "has_staff",
+      "from_id": "company",
+      "to_id": "staff-public-engineering",
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/10/value/role"
+          },
+          "quote": "민원 업무시스템·공공 데이터 연계 개발 직군 (총 22명)"
+        }
+      ]
+    },
+    {
+      "id": "edge-staff-public-engineering-supports-cap-public-case-system",
+      "type": "supports_capability",
+      "from_id": "staff-public-engineering",
+      "to_id": "cap-public-case-system",
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/10/value/role"
+          },
+          "quote": "민원 업무시스템·공공 데이터 연계 개발 직군 (총 22명)"
+        }
+      ]
+    },
+    {
+      "id": "edge-company-project-public-workflow",
+      "type": "performed",
+      "from_id": "company",
+      "to_id": "project-public-workflow",
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/11/value/scope"
+          },
+          "quote": "가상 행정업무 통합 시나리오로서 수행 역할은 시스템 통합 주관이며, 업무 규칙 처리 엔진을 적용해 공공 업무 분석·재설계와 신청·접수 흐름을 연결한다."
+        }
+      ]
+    },
+    {
+      "id": "edge-project-public-workflow-technology",
+      "type": "uses_technology",
+      "from_id": "project-public-workflow",
+      "to_id": "tech-workflow-engine",
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/11/value/scope"
+          },
+          "quote": "가상 행정업무 통합 시나리오로서 수행 역할은 시스템 통합 주관이며, 업무 규칙 처리 엔진을 적용해 공공 업무 분석·재설계와 신청·접수 흐름을 연결한다."
+        }
+      ]
+    },
+    {
+      "id": "edge-project-public-workflow-supports-cap-public-analysis",
+      "type": "supports_capability",
+      "from_id": "project-public-workflow",
+      "to_id": "cap-public-analysis",
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/11/value/scope"
+          },
+          "quote": "가상 행정업무 통합 시나리오로서 수행 역할은 시스템 통합 주관이며, 업무 규칙 처리 엔진을 적용해 공공 업무 분석·재설계와 신청·접수 흐름을 연결한다."
+        }
+      ]
+    },
+    {
+      "id": "edge-company-project-public-intake",
+      "type": "performed",
+      "from_id": "company",
+      "to_id": "project-public-intake",
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/12/value/scope"
+          },
+          "quote": "가상 민원처리 개선 시나리오로서 수행 역할은 응용시스템 구축 주관이며, 기관 API 연계 허브를 통해 민원 업무시스템 구축 범위의 접수·배정 상태를 연결한다."
+        }
+      ]
+    },
+    {
+      "id": "edge-project-public-intake-technology",
+      "type": "uses_technology",
+      "from_id": "project-public-intake",
+      "to_id": "tech-api-hub",
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/12/value/scope"
+          },
+          "quote": "가상 민원처리 개선 시나리오로서 수행 역할은 응용시스템 구축 주관이며, 기관 API 연계 허브를 통해 민원 업무시스템 구축 범위의 접수·배정 상태를 연결한다."
+        }
+      ]
+    },
+    {
+      "id": "edge-project-public-intake-supports-cap-public-case-system",
+      "type": "supports_capability",
+      "from_id": "project-public-intake",
+      "to_id": "cap-public-case-system",
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/12/value/scope"
+          },
+          "quote": "가상 민원처리 개선 시나리오로서 수행 역할은 응용시스템 구축 주관이며, 기관 API 연계 허브를 통해 민원 업무시스템 구축 범위의 접수·배정 상태를 연결한다."
+        }
+      ]
+    },
+    {
+      "id": "edge-company-project-public-data",
+      "type": "performed",
+      "from_id": "company",
+      "to_id": "project-public-data",
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/13/value/scope"
+          },
+          "quote": "가상 공공데이터 연계 시나리오로서 수행 역할은 연계 기능 개발이며, 감사 이벤트 저장소를 적용해 공공 데이터 연계 구현의 변경 이력을 추적한다."
+        }
+      ]
+    },
+    {
+      "id": "edge-project-public-data-technology",
+      "type": "uses_technology",
+      "from_id": "project-public-data",
+      "to_id": "tech-audit-store",
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/13/value/scope"
+          },
+          "quote": "가상 공공데이터 연계 시나리오로서 수행 역할은 연계 기능 개발이며, 감사 이벤트 저장소를 적용해 공공 데이터 연계 구현의 변경 이력을 추적한다."
+        }
+      ]
+    },
+    {
+      "id": "edge-project-public-data-supports-cap-public-data-linkage",
+      "type": "supports_capability",
+      "from_id": "project-public-data",
+      "to_id": "cap-public-data-linkage",
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/13/value/scope"
+          },
+          "quote": "가상 공공데이터 연계 시나리오로서 수행 역할은 연계 기능 개발이며, 감사 이벤트 저장소를 적용해 공공 데이터 연계 구현의 변경 이력을 추적한다."
+        }
+      ]
+    },
+    {
+      "id": "edge-company-qualification-security-management",
+      "type": "holds_qualification",
+      "from_id": "company",
+      "to_id": "qualification-security-management",
+      "status": "unknown",
+      "origin": "fictional_scenario",
+      "source_refs": []
+    },
+    {
+      "id": "edge-company-supported-by",
+      "type": "supported_by",
+      "from_id": "company",
+      "to_id": "evidence-company",
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/0/value"
+          },
+          "quote": "데모 업무SI"
+        }
+      ]
+    },
+    {
+      "id": "edge-domain-public-si-supported-by",
+      "type": "supported_by",
+      "from_id": "domain-public-si",
+      "to_id": "evidence-domain-public-si",
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/1/value"
+          },
+          "quote": "가상 설정의 전문 분야는 공공기관 업무 시스템과 행정 서비스의 분석·구축이다."
+        }
+      ]
+    },
+    {
+      "id": "edge-cap-public-analysis-supported-by",
+      "type": "supported_by",
+      "from_id": "cap-public-analysis",
+      "to_id": "evidence-cap-public-analysis",
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/2/value/description"
+          },
+          "quote": "주력 역량: 공공기관의 업무 흐름과 담당 역할을 분석해 절차 및 화면 개선 범위를 설계한다."
+        }
+      ]
+    },
+    {
+      "id": "edge-cap-public-case-system-supported-by",
+      "type": "supported_by",
+      "from_id": "cap-public-case-system",
+      "to_id": "evidence-cap-public-case-system",
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/3/value/description"
+          },
+          "quote": "주력 역량: 민원 접수·배정·처리 상태를 연결하는 업무시스템을 구현한다."
+        }
+      ]
+    },
+    {
+      "id": "edge-cap-public-data-linkage-supported-by",
+      "type": "supported_by",
+      "from_id": "cap-public-data-linkage",
+      "to_id": "evidence-cap-public-data-linkage",
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/4/value/description"
+          },
+          "quote": "주력 역량: 공공 업무에서 필요한 기관 간 데이터 전달과 연계 검증을 설계한다."
+        }
+      ]
+    },
+    {
+      "id": "edge-cap-public-telecom-equipment-supported-by",
+      "type": "supported_by",
+      "from_id": "cap-public-telecom-equipment",
+      "to_id": "evidence-cap-public-telecom-equipment",
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/5/value/description"
+          },
+          "quote": "비주력 영역: 통신망 장비 자체 제조와 대량 납품은 제공 범위의 주력으로 삼지 않는다."
+        }
+      ]
+    },
+    {
+      "id": "edge-tech-workflow-engine-supported-by",
+      "type": "supported_by",
+      "from_id": "tech-workflow-engine",
+      "to_id": "evidence-tech-workflow-engine",
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/6/value"
+          },
+          "quote": "업무 규칙 처리 엔진"
+        }
+      ]
+    },
+    {
+      "id": "edge-tech-api-hub-supported-by",
+      "type": "supported_by",
+      "from_id": "tech-api-hub",
+      "to_id": "evidence-tech-api-hub",
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/7/value"
+          },
+          "quote": "기관 API 연계 허브"
+        }
+      ]
+    },
+    {
+      "id": "edge-tech-audit-store-supported-by",
+      "type": "supported_by",
+      "from_id": "tech-audit-store",
+      "to_id": "evidence-tech-audit-store",
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/8/value"
+          },
+          "quote": "감사 이벤트 저장소"
+        }
+      ]
+    },
+    {
+      "id": "edge-staff-public-analysis-supported-by",
+      "type": "supported_by",
+      "from_id": "staff-public-analysis",
+      "to_id": "evidence-staff-public-analysis",
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/9/value/role"
+          },
+          "quote": "공공 업무 분석·서비스설계 직군 (총 28명)"
+        }
+      ]
+    },
+    {
+      "id": "edge-staff-public-engineering-supported-by",
+      "type": "supported_by",
+      "from_id": "staff-public-engineering",
+      "to_id": "evidence-staff-public-engineering",
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/10/value/role"
+          },
+          "quote": "민원 업무시스템·공공 데이터 연계 개발 직군 (총 22명)"
+        }
+      ]
+    },
+    {
+      "id": "edge-project-public-workflow-supported-by",
+      "type": "supported_by",
+      "from_id": "project-public-workflow",
+      "to_id": "evidence-project-public-workflow",
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/11/value/scope"
+          },
+          "quote": "가상 행정업무 통합 시나리오로서 수행 역할은 시스템 통합 주관이며, 업무 규칙 처리 엔진을 적용해 공공 업무 분석·재설계와 신청·접수 흐름을 연결한다."
+        }
+      ]
+    },
+    {
+      "id": "edge-project-public-intake-supported-by",
+      "type": "supported_by",
+      "from_id": "project-public-intake",
+      "to_id": "evidence-project-public-intake",
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/12/value/scope"
+          },
+          "quote": "가상 민원처리 개선 시나리오로서 수행 역할은 응용시스템 구축 주관이며, 기관 API 연계 허브를 통해 민원 업무시스템 구축 범위의 접수·배정 상태를 연결한다."
+        }
+      ]
+    },
+    {
+      "id": "edge-project-public-data-supported-by",
+      "type": "supported_by",
+      "from_id": "project-public-data",
+      "to_id": "evidence-project-public-data",
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/13/value/scope"
+          },
+          "quote": "가상 공공데이터 연계 시나리오로서 수행 역할은 연계 기능 개발이며, 감사 이벤트 저장소를 적용해 공공 데이터 연계 구현의 변경 이력을 추적한다."
+        }
+      ]
+    }
+  ]
+}

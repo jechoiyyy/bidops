@@ -27,6 +27,7 @@ from app.core.models import CORE_LEAN_V1_TABLES
 from app.deep_review.models import (
     ATTACHMENT_FETCH_TABLES,
     BID_DELTA_TABLES,
+    COMPANY_KNOWLEDGE_TABLES,
     DEEP_REVIEW_LEAN_V1_TABLES,
     DOCUMENT_SEGMENT_TABLES,
     PRESPEC_OVERVIEW_TABLES,
@@ -73,6 +74,7 @@ ALL_TABLES = frozenset(
     + BID_DELTA_TABLES
     + ORDER_PLAN_SCREENING_TABLES
     + DOCUMENT_SEGMENT_TABLES
+    + COMPANY_KNOWLEDGE_TABLES
     + ("prespec_company_fit_attempt",)
     + PRESPEC_V4_TABLES
     + ("deep_review_preview", "deep_review_approval")
