@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-import re
 from uuid import UUID, uuid4
 
 from sqlalchemy import func, select
@@ -11,11 +10,12 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ...core.api_errors import BundleServiceError, validate_actor
+from ...core.company_ontology import (
+    CompanyIdentityValidationError,
+    normalize_company_identity,
+)
 from ...core.models import AuditEvent
 from ..models import Company
-
-
-_SLUG_PATTERN = re.compile(r"^[a-z][a-z0-9-]{1,63}$")
 
 
 @dataclass(frozen=True)
@@ -31,14 +31,24 @@ def _identity_error(message: str, *, status_code: int = 409) -> BundleServiceErr
 def _registration_values(
     *, slug: str, name: str, is_fictional: bool, actor: str
 ) -> tuple[str, str, str]:
-    if not isinstance(slug, str) or _SLUG_PATTERN.fullmatch(slug) is None:
-        raise BundleServiceError("invalid_request", "회사 slug가 올바르지 않습니다", status_code=422)
-    clean_name = name.strip() if isinstance(name, str) else ""
-    if not clean_name or len(clean_name) > 128:
-        raise BundleServiceError("invalid_request", "회사 이름이 올바르지 않습니다", status_code=422)
-    if is_fictional is not True:
-        raise BundleServiceError("invalid_request", "가상 회사만 등록할 수 있습니다", status_code=422)
-    return slug, clean_name, validate_actor(actor)
+    try:
+        identity = normalize_company_identity(
+            slug=slug,
+            name=name,
+            is_fictional=is_fictional,
+        )
+    except CompanyIdentityValidationError as exc:
+        messages = {
+            "company_slug_invalid": "회사 slug가 올바르지 않습니다",
+            "company_name_invalid": "회사 이름이 올바르지 않습니다",
+            "company_fictional_required": "가상 회사만 등록할 수 있습니다",
+        }
+        raise BundleServiceError(
+            "invalid_request",
+            messages[exc.code],
+            status_code=422,
+        ) from None
+    return identity.slug, identity.name, validate_actor(actor)
 
 
 def _same_identity(company: Company, *, name: str, is_fictional: bool) -> CompanyRegistration:

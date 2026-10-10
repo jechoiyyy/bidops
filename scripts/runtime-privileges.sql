@@ -53,6 +53,13 @@ GRANT SELECT ON TABLE
     bidops.document_bundle_item,
     bidops.profile_version,
     bidops.profile_evidence,
+    bidops.knowledge_ontology_version,
+    bidops.company_knowledge_source,
+    bidops.company_knowledge_version,
+    bidops.company_knowledge_node,
+    bidops.company_knowledge_edge,
+    bidops.company_knowledge_binding,
+    bidops.company_knowledge_binding_event,
     bidops.analysis_policy_version,
     bidops.deep_review,
     bidops.bid_delta_comparison,
@@ -147,6 +154,13 @@ GRANT INSERT ON TABLE
     bidops.prespec_v4_pdf_snapshot,
     bidops.profile_version,
     bidops.profile_evidence,
+    bidops.knowledge_ontology_version,
+    bidops.company_knowledge_source,
+    bidops.company_knowledge_version,
+    bidops.company_knowledge_node,
+    bidops.company_knowledge_edge,
+    bidops.company_knowledge_binding,
+    bidops.company_knowledge_binding_event,
     bidops.analysis_policy_version,
     bidops.deep_review,
     bidops.deep_review_attempt,
@@ -234,6 +248,12 @@ GRANT UPDATE (
 GRANT UPDATE (
     tracking_status, reason, selected_by, selected_at, revision
 ) ON bidops.company_opportunity_tracking TO app;
+-- Company knowledge lineage is append-only. Only the current pointer advances;
+-- company identity remains SELECT-only and activation uses a transaction
+-- advisory lock instead of opening a synthetic UPDATE privilege on company.
+GRANT UPDATE (
+    graph_version_id, profile_version_id, revision, updated_at, actor
+) ON bidops.company_knowledge_binding TO app;
 GRANT UPDATE (
     version, role, effective_date, replaces_document_version_id, is_current,
     safety_status, needs_human_review

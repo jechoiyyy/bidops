@@ -1,0 +1,353 @@
+{
+  "schema_version": "bidops.company-ontology.v1",
+  "version": "v1",
+  "concepts": [
+    {
+      "id": "domain.public-work-services",
+      "label": "공공 업무 서비스",
+      "aliases": [
+        "공공행정 업무 시스템",
+        "공공기관 업무서비스"
+      ],
+      "kind": "domain"
+    },
+    {
+      "id": "domain.data-ai-services",
+      "label": "데이터·AI 서비스",
+      "aliases": [
+        "데이터 인공지능 응용",
+        "분석형 데이터 플랫폼"
+      ],
+      "kind": "domain"
+    },
+    {
+      "id": "domain.cloud-operations",
+      "label": "클라우드 운영 서비스",
+      "aliases": [
+        "클라우드 인프라 운영",
+        "서비스 플랫폼 운영"
+      ],
+      "kind": "domain"
+    },
+    {
+      "id": "capability.public-work-analysis",
+      "label": "공공 업무 분석·재설계",
+      "aliases": [
+        "행정 절차 분석",
+        "업무 프로세스 개선"
+      ],
+      "kind": "capability"
+    },
+    {
+      "id": "capability.public-case-system",
+      "label": "민원 업무시스템 구축",
+      "aliases": [
+        "공공 접수 처리 시스템",
+        "행정업무 흐름 구현"
+      ],
+      "kind": "capability"
+    },
+    {
+      "id": "capability.public-data-linkage",
+      "label": "공공 데이터 연계 구현",
+      "aliases": [
+        "행정 데이터 연동",
+        "공공 정보 연결"
+      ],
+      "kind": "capability"
+    },
+    {
+      "id": "capability.public-telecom-equipment",
+      "label": "통신장비 제조·납품",
+      "aliases": [
+        "네트워크 장비 양산",
+        "통신 장비 생산"
+      ],
+      "kind": "capability"
+    },
+    {
+      "id": "capability.data-platform",
+      "label": "데이터 플랫폼 구축",
+      "aliases": [
+        "데이터 수집 처리 기반",
+        "분산 데이터 통합"
+      ],
+      "kind": "capability"
+    },
+    {
+      "id": "capability.data-quality",
+      "label": "데이터 품질·관리 체계",
+      "aliases": [
+        "데이터 표준 운영",
+        "분석 데이터 정합성 관리"
+      ],
+      "kind": "capability"
+    },
+    {
+      "id": "capability.applied-ai",
+      "label": "업무형 AI 적용",
+      "aliases": [
+        "업무 인공지능 기능 적용",
+        "분석형 AI 업무지원"
+      ],
+      "kind": "capability"
+    },
+    {
+      "id": "capability.civil-construction",
+      "label": "대형 토목시설 시공",
+      "aliases": [
+        "산업 시설 토목 공사",
+        "기반시설 건설"
+      ],
+      "kind": "capability"
+    },
+    {
+      "id": "capability.cloud-transition",
+      "label": "하이브리드 클라우드 전환",
+      "aliases": [
+        "복합 클라우드 환경 구성",
+        "클라우드 자원 이전 설계"
+      ],
+      "kind": "capability"
+    },
+    {
+      "id": "capability.cloud-platform-operations",
+      "label": "클라우드 플랫폼 운영",
+      "aliases": [
+        "클라우드 자원 운영 관리",
+        "서비스 기반 운영"
+      ],
+      "kind": "capability"
+    },
+    {
+      "id": "capability.service-observability",
+      "label": "서비스 관측·장애 대응",
+      "aliases": [
+        "운영 지표 통합",
+        "장애 원인 분석 체계"
+      ],
+      "kind": "capability"
+    },
+    {
+      "id": "capability.server-manufacturing",
+      "label": "서버 제조·납품",
+      "aliases": [
+        "전산장비 자체 생산",
+        "서버 장비 대량 공급"
+      ],
+      "kind": "capability"
+    },
+    {
+      "id": "technology.workflow-rule-engine",
+      "label": "업무 규칙 처리 엔진",
+      "aliases": [
+        "업무 흐름 규칙 처리 모듈",
+        "업무 판단 규칙 실행기"
+      ],
+      "kind": "technology"
+    },
+    {
+      "id": "technology.service-api-hub",
+      "label": "기관 API 연계 허브",
+      "aliases": [
+        "공공기관 API 연결 계층",
+        "서비스 연동 게이트"
+      ],
+      "kind": "technology"
+    },
+    {
+      "id": "technology.audit-event-store",
+      "label": "감사 이벤트 저장소",
+      "aliases": [
+        "변경 이력 추적 저장",
+        "업무 감사 로그"
+      ],
+      "kind": "technology"
+    },
+    {
+      "id": "technology.data-pipeline",
+      "label": "데이터 처리 파이프라인",
+      "aliases": [
+        "데이터 적재 변환 흐름",
+        "분산 데이터 준비 작업"
+      ],
+      "kind": "technology"
+    },
+    {
+      "id": "technology.feature-store",
+      "label": "분석 특징 저장소",
+      "aliases": [
+        "모델 입력 변수 저장",
+        "학습 특징 관리"
+      ],
+      "kind": "technology"
+    },
+    {
+      "id": "technology.model-inference",
+      "label": "모델 추론 서비스",
+      "aliases": [
+        "AI 추론 API",
+        "업무형 모델 실행 계층"
+      ],
+      "kind": "technology"
+    },
+    {
+      "id": "technology.container-runtime",
+      "label": "컨테이너 실행 환경",
+      "aliases": [
+        "컨테이너 기반 런타임",
+        "클러스터 실행 플랫폼"
+      ],
+      "kind": "technology"
+    },
+    {
+      "id": "technology.infrastructure-automation",
+      "label": "인프라 구성 자동화",
+      "aliases": [
+        "선언형 클라우드 구성",
+        "환경 배포 코드 관리"
+      ],
+      "kind": "technology"
+    },
+    {
+      "id": "technology.telemetry-collection",
+      "label": "로그·지표·추적 수집 체계",
+      "aliases": [
+        "서비스 원격측정 수집",
+        "관측 데이터 통합 계층"
+      ],
+      "kind": "technology"
+    },
+    {
+      "id": "qualification.security-management",
+      "label": "정보보호 관리 인증",
+      "aliases": [
+        "정보보안 관리체계 자격",
+        "보안 운영 인증"
+      ],
+      "kind": "qualification"
+    }
+  ],
+  "relations": [
+    {
+      "type": "has_capability",
+      "from_types": [
+        "company"
+      ],
+      "to_types": [
+        "capability"
+      ],
+      "evidence_required": true
+    },
+    {
+      "type": "uses_technology",
+      "from_types": [
+        "project",
+        "capability"
+      ],
+      "to_types": [
+        "technology"
+      ],
+      "evidence_required": true
+    },
+    {
+      "type": "operates_in",
+      "from_types": [
+        "company",
+        "project"
+      ],
+      "to_types": [
+        "domain"
+      ],
+      "evidence_required": true
+    },
+    {
+      "type": "has_staff",
+      "from_types": [
+        "company"
+      ],
+      "to_types": [
+        "staff_group"
+      ],
+      "evidence_required": true
+    },
+    {
+      "type": "performed",
+      "from_types": [
+        "company"
+      ],
+      "to_types": [
+        "project"
+      ],
+      "evidence_required": true
+    },
+    {
+      "type": "supports_capability",
+      "from_types": [
+        "project",
+        "staff_group"
+      ],
+      "to_types": [
+        "capability"
+      ],
+      "evidence_required": true
+    },
+    {
+      "type": "holds_qualification",
+      "from_types": [
+        "company"
+      ],
+      "to_types": [
+        "qualification"
+      ],
+      "evidence_required": true
+    },
+    {
+      "type": "supported_by",
+      "from_types": [
+        "capability",
+        "company",
+        "domain",
+        "project",
+        "qualification",
+        "requirement",
+        "staff_group",
+        "technology"
+      ],
+      "to_types": [
+        "evidence"
+      ],
+      "evidence_required": true
+    },
+    {
+      "type": "has_requirement",
+      "from_types": [
+        "notice"
+      ],
+      "to_types": [
+        "requirement"
+      ],
+      "evidence_required": true
+    },
+    {
+      "type": "requires_capability",
+      "from_types": [
+        "requirement"
+      ],
+      "to_types": [
+        "capability"
+      ],
+      "evidence_required": true
+    },
+    {
+      "type": "requires_qualification",
+      "from_types": [
+        "requirement"
+      ],
+      "to_types": [
+        "qualification"
+      ],
+      "evidence_required": true
+    }
+  ]
+}

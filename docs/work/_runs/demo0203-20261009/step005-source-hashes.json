@@ -1,0 +1,11 @@
+{
+  "web/backend/app/deep_review/routers/company_knowledge.py": "101b34d6b4ceea8f2f617adb430990128ec1065343c68fb2c90347b1953512bc",
+  "web/backend/app/deep_review/schemas/company_knowledge.py": "b7b113c7eff51b9d2cd653c758b3069d56b7b47c564678a2c19d9e5bace39c6d",
+  "web/backend/app/deep_review/services/company_knowledge.py": "81043a67feae4279f944760e12d66fee788c4b20f8a7764a466a6f2cccf81890",
+  "web/backend/app/deep_review/__init__.py": "bb074ab415b73ca3ea12f2a902dfc56630253b3a6265cc42012a5cbf3a9efb13",
+  "web/backend/app/main.py": "9ecf72171834e46724e9090ddc4f4ffb4ee956c61a0d6bb80ea6045f296fa76b",
+  "web/backend/tests/app/test_company_knowledge_api.py": "95c3b57e5eb1de800dbe4891a37c43d14c2e2fee9437879f0ebd97f5bb5862af",
+  "web/backend/tests/app/boundary_map.py": "f81fd6845f2dcfa8694b0a00a2380e7449995b3ae7031937e1f3d02818a6a5fa",
+  "web/backend/tests/app/test_module_selection.py": "71978349f92b8b88779cc1f092ec781990e13d4aceed202b149c5ac06ef2853b",
+  "web/frontend/src/lib/apiErrors.ts": "94be40a9fca6a112ed995d2c2bad9982e2a90c5a559c23eca415c16dfac64fc0"
+}

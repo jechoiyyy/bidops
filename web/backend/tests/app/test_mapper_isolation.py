@@ -122,5 +122,5 @@ def test_the_four_modules_together_declare_the_whole_schema(tmp_path: Path) -> N
         (bmap.CORE, bmap.LIFECYCLE, bmap.SCREENING, bmap.DEEP_REVIEW), tmp_path
     )
 
-    assert len(registered) == 89
+    assert len(registered) == 96
     assert set(registered) == set(bmap.TABLE_OWNER)

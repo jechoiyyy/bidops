@@ -575,10 +575,12 @@ schema 위반(`semantic_schema_invalid`)은 계속 `failed`이며 그 사유 코
 [상세 명세](0923_assumption-analysis/spec.md).
 
 
-## 가상 SI 3사 데모 계약 (2026-10-09, DEMO-01 데모 브랜치 구현)
+## 가상 SI 3사 데모 계약 (2026-10-09, DEMO-01·02 데모 브랜치 구현)
 
 가상 설정 여부와 confirmed/inferred/unknown을 분리한다. 회사 핏과 추적 선택을 분리하고 가상회사에 기존 C-1 등급을 복사하지 않는다.
 DEMO-01은 별도 데모 브랜치에서 회사별 `미선택|계속 추적|보류|종료`와 append-only 감사를 구현했다.
 기존 Opportunity 판단·재검토 신호와 NULL 회사 계보는 그대로 보존하며 main·운영에는 반영하지 않았다.
-회사 지식·그래프·회사별 분석·비교 화면·실제 인수는 DEMO-02~05의 미구현 후속 범위다.
+DEMO-02는 가상 원본의 confirmed/inferred/unknown과 `fictional_scenario` origin을 profile v2·graph·읽기 응답에 그대로 보존한다.
+unknown은 값 null·근거 0개로 남기며 명시적 미보유나 숫자 0으로 바꾸지 않는다. 등록은 자동 활성화하지 않고 회사별 binding은 명시적 activate로만 바뀌며 이전 버전과 binding 이력을 보존한다.
+회사별 분석·비교 화면·실제 인수는 DEMO-03~05의 미구현 후속 범위다.
 [ADR-0070](tracking/decisions/0070-multi-company-knowledge-demo.md) · [공통 계약](work/demo-contract.md) · [기능 로드맵](work/constitution/roadmap.md).

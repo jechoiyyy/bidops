@@ -1,0 +1,5 @@
+{
+  "web/backend/app/core/company_ontology.py": "02cb4a770df663e9e7a4ce7cc0dd9486255c776a9ba67673da0fd2568b1ed188",
+  "web/backend/app/lifecycle/services/company_context.py": "00da9ac357ce8e8cbaeeac0464d98c45b6e119a0ecd51a7a2d8a1225db067aa9",
+  "web/backend/tests/core/test_company_ontology.py": "333df59b34b743b5213bbe4b5f164a8eca2e513b400239924645ef68045cf478"
+}

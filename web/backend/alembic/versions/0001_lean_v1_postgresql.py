@@ -80,7 +80,11 @@ def _lean_v1_metadata() -> MetaData:
         Base.metadata.tables[name].to_metadata(metadata, schema="bidops")
 
     profile_version = metadata.tables["bidops.profile_version"]
+    content_object_location = metadata.tables["bidops.content_object_location"]
     deep_review = metadata.tables["bidops.deep_review"]
+    for constraint in tuple(content_object_location.constraints):
+        if constraint.name == "uq_content_object_location_content_scope":
+            content_object_location.constraints.remove(constraint)
     for index in tuple(deep_review.indexes):
         if index.name in {
             "uq_deep_review_legacy_inputs",

@@ -1,0 +1,16 @@
+
+==================================== ERRORS ====================================
+_____________ ERROR collecting tests/core/test_company_ontology.py _____________
+ImportError while importing test module '/Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo0203-20261009-DEMO-02-company-knowledge/web/backend/tests/core/test_company_ontology.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/Users/temp/.local/share/uv/python/cpython-3.12.15-macos-aarch64-none/lib/python3.12/importlib/__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/core/test_company_ontology.py:15: in <module>
+    from app.core.company_ontology import (
+E   ModuleNotFoundError: No module named 'app.core.company_ontology'
+=========================== short test summary info ============================
+ERROR tests/core/test_company_ontology.py
+!!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!
+1 error in 0.53s

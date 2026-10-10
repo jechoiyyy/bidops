@@ -22,14 +22,15 @@ KnowledgeOntologyVersion·CompanyKnowledgeVersion·Node·Edge·Source·Binding�
 이 개수는 설명 충분성을 위한 tunable이며 모델 품질 임계값은 아니다.
 세 회사는 비슷한 인력 총규모로 창작하고 분야별 구성을 달리한다. 정확한 숫자는 가상 설정으로 표시하고 결과 보기 전에 동결한다.
 공공 업무/데이터AI/클라우드 운영이라는 사용자 선택을 보존하며 실제 회사자료에서 실적·인력을 복사하지 않는다.
-원본과 온톨로지는 Claude가 초안을 쓰고 사용자가 승인한다. 승인 기록(승인자·시각·각 source_sha256)을 증거 디렉터리에 남기기 전에는 등록하지 않으며,
+원본과 온톨로지는 현재 실행 엔진의 `standard` 프로필 구현자가 초안을 쓰고 사용자가 승인한다. 승인 기록(승인자·시각·각 source_sha256)을 증거 디렉터리에 남기기 전에는 등록하지 않으며,
 작성자는 초안 작성 중 데모 후보 공고(data/runs의 사전규격)를 열람하지 않는다. 승인 후 공고 선정 전에 동결한다.
 공고 선정 뒤 별칭 1회 보강(공통 §7)은 DEMO-05가 수행하며, 이 기능의 validator는 개념 집합이 같고 aliases만 다른 새 ontology version을 허용한다.
 온톨로지 validator는 한글 1자 alias를 거부한다(공통 §5 어휘 일치 규칙).
 qualification·인력 미확인 정보는 unknown/null이고 명시적 미보유와 다르다.
 unknown에는 존재하지 않는 근거를 생성하지 않는다. fictional_scenario 표식은 projection/모델 payload에도 보존한다.
 원본 저장·다시 읽기 hash 검증 후 profile v2와 graph snapshot을 같은 등록에서 만들고 전체 transaction을 commit한다.
-실패하면 이번 요청의 임시 객체만 정리하며 다른 버전은 수정하지 않는다.
+실패하면 이번 요청의 격리 filesystem 임시 파일만 정리하며 다른 버전은 수정하지 않는다.
+MinIO에 이미 발행된 version 객체는 기존 delete 금지 권한을 유지해 보존하며, DB 참조가 없는 객체는 저장소 reconciliation 대상으로 남긴다. DB rollback이 MinIO 객체 삭제까지 보장한다고 표시하지 않는다.
 active binding은 회사마다 하나이고 새 binding event를 append한다. import는 자동 활성화하지 않는다.
 같은 원본·ontology 재등록은 동일 version이다. CLI가 lifecycle 공개 service로 회사 identity를 등록한다.
 새 프로필 v2 소비를 추가하며 기존 v1의 고정 source_file(`docs/reference/company-profile.md`)/원본 version 검증을 완화하지 않는다.

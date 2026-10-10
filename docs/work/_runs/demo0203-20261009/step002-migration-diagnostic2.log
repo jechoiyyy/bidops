@@ -1,0 +1,172 @@
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 0001_lean_v1_postgresql, Create the closed Lean v1 PostgreSQL model.
+INFO  [alembic.runtime.migration] Running upgrade 0001_lean_v1_postgresql -> 0002_screening_basis_text, Preserve full legacy screening basis text.
+INFO  [alembic.runtime.migration] Running upgrade 0002_screening_basis_text -> 0003_screening_runtime_pg, Create the screening runtime on PostgreSQL 17.
+Traceback (most recent call last):
+  File "/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 1969, in _exec_single_context
+    self.dialect.do_execute(
+  File "/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/default.py", line 952, in do_execute
+    cursor.execute(statement, parameters)
+  File "/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/psycopg/cursor.py", line 117, in execute
+    raise ex.with_traceback(None)
+psycopg.errors.UndefinedFunction: function jsonb_typeof(json) does not exist
+LINE 61: ...screening_execution_generation_config_json CHECK (jsonb_type...
+                                                              ^
+HINT:  No function matches the given name and argument types. You might need to add explicit type casts.
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/alembic/__main__.py", line 4, in <module>
+    main(prog="alembic")
+  File "/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/alembic/config.py", line 1039, in main
+    CommandLine(prog=prog).main(argv=argv)
+  File "/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/alembic/config.py", line 1029, in main
+    self.run_cmd(cfg, options)
+  File "/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/alembic/config.py", line 963, in run_cmd
+    fn(
+  File "/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/alembic/command.py", line 487, in upgrade
+    script.run_env()
+  File "/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/alembic/script/base.py", line 550, in run_env
+    util.load_python_file(self.dir, "env.py")
+  File "/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/alembic/util/pyfiles.py", line 114, in load_python_file
+    module = load_module_py(module_id, path)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/alembic/util/pyfiles.py", line 132, in load_module_py
+    spec.loader.exec_module(module)  # type: ignore
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<frozen importlib._bootstrap_external>", line 999, in exec_module
+  File "<frozen importlib._bootstrap>", line 488, in _call_with_frames_removed
+  File "/Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo0203-20261009-DEMO-02-company-knowledge/web/backend/alembic/env.py", line 151, in <module>
+    run_migrations_online()
+  File "/Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo0203-20261009-DEMO-02-company-knowledge/web/backend/alembic/env.py", line 145, in run_migrations_online
+    do_run_migrations(connection)
+  File "/Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo0203-20261009-DEMO-02-company-knowledge/web/backend/alembic/env.py", line 133, in do_run_migrations
+    context.run_migrations()
+  File "<string>", line 8, in run_migrations
+  File "/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/alembic/runtime/environment.py", line 967, in run_migrations
+    self.get_context().run_migrations(**kw)
+  File "/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/alembic/runtime/migration.py", line 621, in run_migrations
+    step.migration_fn(**kw)
+  File "/Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo0203-20261009-DEMO-02-company-knowledge/web/backend/alembic/versions/0003_screening_runtime_pg.py", line 627, in upgrade
+    Base.metadata.create_all(bind=connection, tables=_runtime_tables(), checkfirst=False)
+  File "/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/sql/schema.py", line 5929, in create_all
+    bind._run_ddl_visitor(
+  File "/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 2469, in _run_ddl_visitor
+    ).traverse_single(element)
+      ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/sql/visitors.py", line 661, in traverse_single
+    return meth(obj, **kw)
+           ^^^^^^^^^^^^^^^
+  File "/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/sql/ddl.py", line 985, in visit_metadata
+    self.traverse_single(
+  File "/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/sql/visitors.py", line 661, in traverse_single
+    return meth(obj, **kw)
+           ^^^^^^^^^^^^^^^
+  File "/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/sql/ddl.py", line 1023, in visit_table
+    )._invoke_with(self.connection)
+      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/sql/ddl.py", line 322, in _invoke_with
+    return bind.execute(self)
+           ^^^^^^^^^^^^^^^^^^
+  File "/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 1421, in execute
+    return meth(
+           ^^^^^
+  File "/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/sql/ddl.py", line 188, in _execute_on_connection
+    return connection._execute_ddl(
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 1532, in _execute_ddl
+    ret = self._execute_context(
+          ^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 1848, in _execute_context
+    return self._exec_single_context(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 1988, in _exec_single_context
+    self._handle_dbapi_exception(
+  File "/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 2365, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 1969, in _exec_single_context
+    self.dialect.do_execute(
+  File "/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/default.py", line 952, in do_execute
+    cursor.execute(statement, parameters)
+  File "/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/psycopg/cursor.py", line 117, in execute
+    raise ex.with_traceback(None)
+sqlalchemy.exc.ProgrammingError: (psycopg.errors.UndefinedFunction) function jsonb_typeof(json) does not exist
+LINE 61: ...screening_execution_generation_config_json CHECK (jsonb_type...
+                                                              ^
+HINT:  No function matches the given name and argument types. You might need to add explicit type casts.
+[SQL: 
+CREATE TABLE bidops.screening_execution (
+	queue_no SERIAL NOT NULL, 
+	execution_id VARCHAR(36) NOT NULL, 
+	trigger VARCHAR(32) NOT NULL, 
+	source_run_id VARCHAR(160) NOT NULL, 
+	scope VARCHAR(32) NOT NULL, 
+	notice_pk INTEGER, 
+	notice_id VARCHAR(255), 
+	status VARCHAR(16) NOT NULL, 
+	active_slot INTEGER, 
+	requested_by VARCHAR(255) NOT NULL, 
+	policy_version VARCHAR(255) NOT NULL, 
+	prompt_version VARCHAR(255) NOT NULL, 
+	model_name VARCHAR(255) NOT NULL, 
+	model_digest VARCHAR(64) NOT NULL, 
+	company_profile_version VARCHAR(128) NOT NULL, 
+	company_profile_digest VARCHAR(64) NOT NULL, 
+	generation_config_json JSON DEFAULT '{"num_ctx":16384,"num_predict":{"counterargument":2048,"perspective":2048,"synthesis":4096},"schema_version":"bidops.generation-config.v1","stream":false,"think":false}' NOT NULL, 
+	generation_config_digest VARCHAR(64) DEFAULT '51f1878845ed282b20e9c074ca29adbb5ce0a208c89ffae51425a2565ad5dfd1' NOT NULL, 
+	input_artifact_path TEXT NOT NULL, 
+	input_artifact_digest VARCHAR(64) NOT NULL, 
+	artifact_dir TEXT NOT NULL, 
+	current_notice_id VARCHAR(255), 
+	current_stage VARCHAR(64), 
+	stop_requested_at TIMESTAMP WITH TIME ZONE, 
+	stop_requested_by VARCHAR(255), 
+	stop_reason VARCHAR(32), 
+	queued_at TIMESTAMP WITH TIME ZONE NOT NULL, 
+	started_at TIMESTAMP WITH TIME ZONE, 
+	finished_at TIMESTAMP WITH TIME ZONE, 
+	heartbeat_at TIMESTAMP WITH TIME ZONE, 
+	candidate_count INTEGER DEFAULT '0' NOT NULL, 
+	completed_count INTEGER DEFAULT '0' NOT NULL, 
+	failure_count INTEGER DEFAULT '0' NOT NULL, 
+	published_run_id VARCHAR(160), 
+	error_summary TEXT, 
+	PRIMARY KEY (queue_no), 
+	CONSTRAINT ck_screening_execution_id CHECK (length(execution_id) = 36 AND substr(execution_id, 1, 4) = 'scr-' AND substr(execution_id, 5) ~ '^[0-9a-f]*$'), 
+	CONSTRAINT ck_screening_execution_trigger CHECK (trigger IN ('cli_single', 'manual_run', 'quality_gate', 'schedule')), 
+	CONSTRAINT ck_screening_execution_scope CHECK (scope IN ('single_notice', 'full_run', 'quality_sample')), 
+	CONSTRAINT ck_screening_execution_status CHECK (status IN ('대기', '실행 중', '중지 요청', '성공', '부분 성공', '실패', '중단됨')), 
+	CONSTRAINT ck_screening_execution_single_notice CHECK (((scope = 'single_notice' AND notice_pk IS NOT NULL AND notice_id IS NOT NULL) OR (scope <> 'single_notice' AND notice_pk IS NULL AND notice_id IS NULL))), 
+	CONSTRAINT ck_screening_execution_active_slot CHECK (((status IN ('실행 중', '중지 요청') AND active_slot = 1) OR (status NOT IN ('실행 중', '중지 요청') AND active_slot IS NULL))), 
+	CONSTRAINT ck_screening_execution_terminal CHECK (((status IN ('성공', '부분 성공', '실패', '중단됨') AND finished_at IS NOT NULL) OR (status NOT IN ('성공', '부분 성공', '실패', '중단됨') AND finished_at IS NULL))), 
+	CONSTRAINT ck_screening_execution_stop_reason CHECK (stop_reason IS NULL OR stop_reason IN ('user_requested', 'process_interrupted')), 
+	CONSTRAINT ck_screening_execution_counts CHECK (candidate_count >= 0 AND completed_count >= 0 AND failure_count >= 0), 
+	CONSTRAINT ck_screening_execution_requested_by CHECK (length(trim(requested_by)) > 0), 
+	CONSTRAINT ck_screening_execution_stop_requested_by CHECK (stop_requested_by IS NULL OR length(trim(stop_requested_by)) > 0), 
+	CONSTRAINT ck_screening_execution_stop_pair CHECK ((stop_requested_at IS NULL AND stop_requested_by IS NULL) OR (stop_requested_at IS NOT NULL AND stop_requested_by IS NOT NULL)), 
+	CONSTRAINT ck_screening_execution_stop_requested CHECK (status <> '중지 요청' OR (stop_requested_at IS NOT NULL AND stop_requested_by IS NOT NULL)), 
+	CONSTRAINT ck_screening_execution_user_stop_pair CHECK (stop_reason <> 'user_requested' OR (stop_requested_at IS NOT NULL AND stop_requested_by IS NOT NULL)), 
+	CONSTRAINT ck_screening_execution_strings CHECK (length(trim(source_run_id)) > 0 AND length(trim(policy_version)) > 0 AND length(trim(prompt_version)) > 0 AND length(trim(model_name)) > 0 AND length(trim(company_profile_version)) > 0 AND (notice_id IS NULL OR length(trim(notice_id)) > 0) AND (current_notice_id IS NULL OR length(trim(current_notice_id)) > 0) AND (current_stage IS NULL OR length(trim(current_stage)) > 0) AND (stop_requested_by IS NULL OR length(trim(stop_requested_by)) > 0) AND (error_summary IS NULL OR length(trim(error_summary)) > 0)), 
+	CONSTRAINT ck_screening_execution_input_artifact_digest CHECK (length(input_artifact_digest) = 64 AND input_artifact_digest ~ '^[0-9a-f]*$'), 
+	CONSTRAINT ck_screening_execution_input_artifact_nonempty CHECK (length(trim(input_artifact_path)) > 0), 
+	CONSTRAINT ck_screening_execution_artifact_dir_nonempty CHECK (length(trim(artifact_dir)) > 0), 
+	CONSTRAINT ck_screening_execution_model_digest CHECK (length(model_digest) = 64 AND model_digest ~ '^[0-9a-f]*$'), 
+	CONSTRAINT ck_screening_execution_profile_digest CHECK (length(company_profile_digest) = 64 AND company_profile_digest ~ '^[0-9a-f]*$'), 
+	CONSTRAINT ck_screening_execution_input_artifact_path CHECK (length(trim(input_artifact_path)) > 0 AND input_artifact_path NOT LIKE '/%%' AND input_artifact_path !~ '\\' AND input_artifact_path <> '..' AND input_artifact_path NOT LIKE '../%%' AND input_artifact_path NOT LIKE '%%/../%%' AND input_artifact_path NOT LIKE '%%/..'), 
+	CONSTRAINT ck_screening_execution_artifact_dir CHECK (length(trim(artifact_dir)) > 0 AND artifact_dir NOT LIKE '/%%' AND artifact_dir !~ '\\' AND artifact_dir <> '..' AND artifact_dir NOT LIKE '../%%' AND artifact_dir NOT LIKE '%%/../%%' AND artifact_dir NOT LIKE '%%/..'), 
+	CONSTRAINT ck_screening_execution_generation_config_json CHECK (jsonb_typeof(generation_config_json) = 'object'), 
+	CONSTRAINT ck_screening_execution_generation_config_digest CHECK (length(generation_config_digest) = 64 AND generation_config_digest ~ '^[0-9a-f]*$'), 
+	UNIQUE (execution_id), 
+	UNIQUE (input_artifact_path), 
+	UNIQUE (artifact_dir), 
+	UNIQUE (published_run_id)
+)
+
+]
+(Background on this error at: https://sqlalche.me/e/20/f405)
+
+exit_code=1

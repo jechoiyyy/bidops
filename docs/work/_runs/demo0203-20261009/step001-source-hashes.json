@@ -1,0 +1,4 @@
+{
+  "web/backend/app/core/company_ontology.py": "ec9eb7a4bd4b794d1b213d026d8ef07cefa0f31864f279f6f2f5644de92a937e",
+  "web/backend/tests/core/test_company_ontology.py": "2dec0df6c578db12006a493db1643aa81a4359a42bc1c04d8befc2032d935b3a"
+}

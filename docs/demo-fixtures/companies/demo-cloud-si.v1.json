@@ -1,0 +1,1150 @@
+{
+  "schema_version": "bidops.company-knowledge-source.v1",
+  "company": {
+    "slug": "demo-cloud-si",
+    "name": "데모 클라우드SI",
+    "is_fictional": true
+  },
+  "scenario_version": "v1",
+  "ontology_version": "v1",
+  "ontology_sha256": "3775a3486e887d601b04bc5b073ff29f49f8dd2177ea3444f0d66f1b68a79411",
+  "nodes": [
+    {
+      "id": "company",
+      "type": "company",
+      "label": "데모 클라우드SI",
+      "concept_id": null,
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "value": "데모 클라우드SI",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/0/value"
+          },
+          "quote": "데모 클라우드SI"
+        }
+      ]
+    },
+    {
+      "id": "domain-cloud-si",
+      "type": "domain",
+      "label": "클라우드 운영 서비스",
+      "concept_id": "domain.cloud-operations",
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "value": "가상 설정의 전문 분야는 클라우드 업무서비스의 전환·운영·신뢰성 관리다.",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/1/value"
+          },
+          "quote": "가상 설정의 전문 분야는 클라우드 업무서비스의 전환·운영·신뢰성 관리다."
+        }
+      ]
+    },
+    {
+      "id": "cap-cloud-transition",
+      "type": "capability",
+      "label": "하이브리드 클라우드 전환",
+      "concept_id": "capability.cloud-transition",
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "value": {
+        "scope": "core",
+        "description": "주력 역량: 업무서비스 구성과 운영 제약을 검토해 하이브리드 클라우드 전환 단계를 설계한다."
+      },
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/2/value/description"
+          },
+          "quote": "주력 역량: 업무서비스 구성과 운영 제약을 검토해 하이브리드 클라우드 전환 단계를 설계한다."
+        }
+      ]
+    },
+    {
+      "id": "cap-cloud-platform-ops",
+      "type": "capability",
+      "label": "클라우드 플랫폼 운영",
+      "concept_id": "capability.cloud-platform-operations",
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "value": {
+        "scope": "core",
+        "description": "주력 역량: 컨테이너 기반 업무서비스의 배포·자원·운영 절차를 관리한다."
+      },
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/3/value/description"
+          },
+          "quote": "주력 역량: 컨테이너 기반 업무서비스의 배포·자원·운영 절차를 관리한다."
+        }
+      ]
+    },
+    {
+      "id": "cap-service-observability",
+      "type": "capability",
+      "label": "서비스 관측·장애 대응",
+      "concept_id": "capability.service-observability",
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "value": {
+        "scope": "core",
+        "description": "주력 역량: 서비스 로그와 지표를 연결해 장애 탐지와 원인 분석 절차를 운영한다."
+      },
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/4/value/description"
+          },
+          "quote": "주력 역량: 서비스 로그와 지표를 연결해 장애 탐지와 원인 분석 절차를 운영한다."
+        }
+      ]
+    },
+    {
+      "id": "cap-cloud-server-manufacturing",
+      "type": "capability",
+      "label": "서버 제조·납품",
+      "concept_id": "capability.server-manufacturing",
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "value": {
+        "scope": "non_core",
+        "description": "비주력 영역: 서버 장비 자체 제조와 대량 납품은 제공 범위의 주력으로 삼지 않는다."
+      },
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/5/value/description"
+          },
+          "quote": "비주력 영역: 서버 장비 자체 제조와 대량 납품은 제공 범위의 주력으로 삼지 않는다."
+        }
+      ]
+    },
+    {
+      "id": "tech-container-runtime",
+      "type": "technology",
+      "label": "컨테이너 실행 환경",
+      "concept_id": "technology.container-runtime",
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "value": "컨테이너 실행 환경",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/6/value"
+          },
+          "quote": "컨테이너 실행 환경"
+        }
+      ]
+    },
+    {
+      "id": "tech-infrastructure-automation",
+      "type": "technology",
+      "label": "인프라 구성 자동화",
+      "concept_id": "technology.infrastructure-automation",
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "value": "인프라 구성 자동화",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/7/value"
+          },
+          "quote": "인프라 구성 자동화"
+        }
+      ]
+    },
+    {
+      "id": "tech-telemetry",
+      "type": "technology",
+      "label": "로그·지표·추적 수집 체계",
+      "concept_id": "technology.telemetry-collection",
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "value": "로그·지표·추적 수집 체계",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/8/value"
+          },
+          "quote": "로그·지표·추적 수집 체계"
+        }
+      ]
+    },
+    {
+      "id": "staff-cloud-platform",
+      "type": "staff_group",
+      "label": "클라우드 플랫폼 운영 직군",
+      "concept_id": null,
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "value": {
+        "role": "클라우드 플랫폼 운영 직군 (총 30명)",
+        "total": 30,
+        "available": null,
+        "as_of": null
+      },
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/9/value/role"
+          },
+          "quote": "클라우드 플랫폼 운영 직군 (총 30명)"
+        }
+      ]
+    },
+    {
+      "id": "staff-reliability",
+      "type": "staff_group",
+      "label": "서비스 신뢰성·관측 직군",
+      "concept_id": null,
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "value": {
+        "role": "서비스 신뢰성·관측 직군 (총 20명)",
+        "total": 20,
+        "available": null,
+        "as_of": null
+      },
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/10/value/role"
+          },
+          "quote": "서비스 신뢰성·관측 직군 (총 20명)"
+        }
+      ]
+    },
+    {
+      "id": "project-cloud-transition",
+      "type": "project",
+      "label": "가상 업무서비스 전환 사례 A",
+      "concept_id": null,
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "value": {
+        "role": "클라우드 이전 설계 주관",
+        "scope": "가상 업무서비스 전환 시나리오로서 수행 역할은 클라우드 이전 설계 주관이며, 인프라 구성 자동화로 하이브리드 클라우드 전환 절차를 표현한다.",
+        "amount_krw": null,
+        "started_on": null,
+        "ended_on": null
+      },
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/11/value/scope"
+          },
+          "quote": "가상 업무서비스 전환 시나리오로서 수행 역할은 클라우드 이전 설계 주관이며, 인프라 구성 자동화로 하이브리드 클라우드 전환 절차를 표현한다."
+        }
+      ]
+    },
+    {
+      "id": "project-cloud-platform",
+      "type": "project",
+      "label": "가상 컨테이너 운영 사례 B",
+      "concept_id": null,
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "value": {
+        "role": "플랫폼 운영 표준 수립",
+        "scope": "가상 컨테이너 운영 시나리오로서 수행 역할은 플랫폼 운영 표준 수립이며, 컨테이너 실행 환경에 배포·자원 점검 절차를 구성한다.",
+        "amount_krw": null,
+        "started_on": null,
+        "ended_on": null
+      },
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/12/value/scope"
+          },
+          "quote": "가상 컨테이너 운영 시나리오로서 수행 역할은 플랫폼 운영 표준 수립이며, 컨테이너 실행 환경에 배포·자원 점검 절차를 구성한다."
+        }
+      ]
+    },
+    {
+      "id": "project-cloud-observability",
+      "type": "project",
+      "label": "가상 서비스 관측 대응 사례 C",
+      "concept_id": null,
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "value": {
+        "role": "운영 개선 수행",
+        "scope": "가상 서비스 관측 대응 시나리오로서 수행 역할은 운영 개선이며, 로그·지표·추적 수집 체계로 장애 탐지와 원인 분석 절차를 연결한다.",
+        "amount_krw": null,
+        "started_on": null,
+        "ended_on": null
+      },
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/13/value/scope"
+          },
+          "quote": "가상 서비스 관측 대응 시나리오로서 수행 역할은 운영 개선이며, 로그·지표·추적 수집 체계로 장애 탐지와 원인 분석 절차를 연결한다."
+        }
+      ]
+    },
+    {
+      "id": "qualification-security-management",
+      "type": "qualification",
+      "label": "정보보호 관리 인증 보유 여부",
+      "concept_id": "qualification.security-management",
+      "status": "unknown",
+      "origin": "fictional_scenario",
+      "value": null,
+      "source_refs": []
+    },
+    {
+      "id": "evidence-company",
+      "type": "evidence",
+      "label": "데모 클라우드SI의 가상 원본 근거",
+      "concept_id": null,
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "value": {
+        "fact_key": "company"
+      },
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/0/value"
+          },
+          "quote": "데모 클라우드SI"
+        }
+      ]
+    },
+    {
+      "id": "evidence-domain-cloud-si",
+      "type": "evidence",
+      "label": "클라우드 운영 서비스의 가상 원본 근거",
+      "concept_id": null,
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "value": {
+        "fact_key": "domain-cloud-si"
+      },
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/1/value"
+          },
+          "quote": "가상 설정의 전문 분야는 클라우드 업무서비스의 전환·운영·신뢰성 관리다."
+        }
+      ]
+    },
+    {
+      "id": "evidence-cap-cloud-transition",
+      "type": "evidence",
+      "label": "하이브리드 클라우드 전환의 가상 원본 근거",
+      "concept_id": null,
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "value": {
+        "fact_key": "cap-cloud-transition"
+      },
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/2/value/description"
+          },
+          "quote": "주력 역량: 업무서비스 구성과 운영 제약을 검토해 하이브리드 클라우드 전환 단계를 설계한다."
+        }
+      ]
+    },
+    {
+      "id": "evidence-cap-cloud-platform-ops",
+      "type": "evidence",
+      "label": "클라우드 플랫폼 운영의 가상 원본 근거",
+      "concept_id": null,
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "value": {
+        "fact_key": "cap-cloud-platform-ops"
+      },
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/3/value/description"
+          },
+          "quote": "주력 역량: 컨테이너 기반 업무서비스의 배포·자원·운영 절차를 관리한다."
+        }
+      ]
+    },
+    {
+      "id": "evidence-cap-service-observability",
+      "type": "evidence",
+      "label": "서비스 관측·장애 대응의 가상 원본 근거",
+      "concept_id": null,
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "value": {
+        "fact_key": "cap-service-observability"
+      },
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/4/value/description"
+          },
+          "quote": "주력 역량: 서비스 로그와 지표를 연결해 장애 탐지와 원인 분석 절차를 운영한다."
+        }
+      ]
+    },
+    {
+      "id": "evidence-cap-cloud-server-manufacturing",
+      "type": "evidence",
+      "label": "서버 제조·납품의 가상 원본 근거",
+      "concept_id": null,
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "value": {
+        "fact_key": "cap-cloud-server-manufacturing"
+      },
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/5/value/description"
+          },
+          "quote": "비주력 영역: 서버 장비 자체 제조와 대량 납품은 제공 범위의 주력으로 삼지 않는다."
+        }
+      ]
+    },
+    {
+      "id": "evidence-tech-container-runtime",
+      "type": "evidence",
+      "label": "컨테이너 실행 환경의 가상 원본 근거",
+      "concept_id": null,
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "value": {
+        "fact_key": "tech-container-runtime"
+      },
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/6/value"
+          },
+          "quote": "컨테이너 실행 환경"
+        }
+      ]
+    },
+    {
+      "id": "evidence-tech-infrastructure-automation",
+      "type": "evidence",
+      "label": "인프라 구성 자동화의 가상 원본 근거",
+      "concept_id": null,
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "value": {
+        "fact_key": "tech-infrastructure-automation"
+      },
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/7/value"
+          },
+          "quote": "인프라 구성 자동화"
+        }
+      ]
+    },
+    {
+      "id": "evidence-tech-telemetry",
+      "type": "evidence",
+      "label": "로그·지표·추적 수집 체계의 가상 원본 근거",
+      "concept_id": null,
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "value": {
+        "fact_key": "tech-telemetry"
+      },
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/8/value"
+          },
+          "quote": "로그·지표·추적 수집 체계"
+        }
+      ]
+    },
+    {
+      "id": "evidence-staff-cloud-platform",
+      "type": "evidence",
+      "label": "클라우드 플랫폼 운영 직군의 가상 원본 근거",
+      "concept_id": null,
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "value": {
+        "fact_key": "staff-cloud-platform"
+      },
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/9/value/role"
+          },
+          "quote": "클라우드 플랫폼 운영 직군 (총 30명)"
+        }
+      ]
+    },
+    {
+      "id": "evidence-staff-reliability",
+      "type": "evidence",
+      "label": "서비스 신뢰성·관측 직군의 가상 원본 근거",
+      "concept_id": null,
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "value": {
+        "fact_key": "staff-reliability"
+      },
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/10/value/role"
+          },
+          "quote": "서비스 신뢰성·관측 직군 (총 20명)"
+        }
+      ]
+    },
+    {
+      "id": "evidence-project-cloud-transition",
+      "type": "evidence",
+      "label": "가상 업무서비스 전환 사례 A의 가상 원본 근거",
+      "concept_id": null,
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "value": {
+        "fact_key": "project-cloud-transition"
+      },
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/11/value/scope"
+          },
+          "quote": "가상 업무서비스 전환 시나리오로서 수행 역할은 클라우드 이전 설계 주관이며, 인프라 구성 자동화로 하이브리드 클라우드 전환 절차를 표현한다."
+        }
+      ]
+    },
+    {
+      "id": "evidence-project-cloud-platform",
+      "type": "evidence",
+      "label": "가상 컨테이너 운영 사례 B의 가상 원본 근거",
+      "concept_id": null,
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "value": {
+        "fact_key": "project-cloud-platform"
+      },
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/12/value/scope"
+          },
+          "quote": "가상 컨테이너 운영 시나리오로서 수행 역할은 플랫폼 운영 표준 수립이며, 컨테이너 실행 환경에 배포·자원 점검 절차를 구성한다."
+        }
+      ]
+    },
+    {
+      "id": "evidence-project-cloud-observability",
+      "type": "evidence",
+      "label": "가상 서비스 관측 대응 사례 C의 가상 원본 근거",
+      "concept_id": null,
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "value": {
+        "fact_key": "project-cloud-observability"
+      },
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/13/value/scope"
+          },
+          "quote": "가상 서비스 관측 대응 시나리오로서 수행 역할은 운영 개선이며, 로그·지표·추적 수집 체계로 장애 탐지와 원인 분석 절차를 연결한다."
+        }
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge-company-domain",
+      "type": "operates_in",
+      "from_id": "company",
+      "to_id": "domain-cloud-si",
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/1/value"
+          },
+          "quote": "가상 설정의 전문 분야는 클라우드 업무서비스의 전환·운영·신뢰성 관리다."
+        }
+      ]
+    },
+    {
+      "id": "edge-company-cap-cloud-transition",
+      "type": "has_capability",
+      "from_id": "company",
+      "to_id": "cap-cloud-transition",
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/2/value/description"
+          },
+          "quote": "주력 역량: 업무서비스 구성과 운영 제약을 검토해 하이브리드 클라우드 전환 단계를 설계한다."
+        }
+      ]
+    },
+    {
+      "id": "edge-company-cap-cloud-platform-ops",
+      "type": "has_capability",
+      "from_id": "company",
+      "to_id": "cap-cloud-platform-ops",
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/3/value/description"
+          },
+          "quote": "주력 역량: 컨테이너 기반 업무서비스의 배포·자원·운영 절차를 관리한다."
+        }
+      ]
+    },
+    {
+      "id": "edge-company-cap-service-observability",
+      "type": "has_capability",
+      "from_id": "company",
+      "to_id": "cap-service-observability",
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/4/value/description"
+          },
+          "quote": "주력 역량: 서비스 로그와 지표를 연결해 장애 탐지와 원인 분석 절차를 운영한다."
+        }
+      ]
+    },
+    {
+      "id": "edge-company-cap-cloud-server-manufacturing",
+      "type": "has_capability",
+      "from_id": "company",
+      "to_id": "cap-cloud-server-manufacturing",
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/5/value/description"
+          },
+          "quote": "비주력 영역: 서버 장비 자체 제조와 대량 납품은 제공 범위의 주력으로 삼지 않는다."
+        }
+      ]
+    },
+    {
+      "id": "edge-company-staff-cloud-platform",
+      "type": "has_staff",
+      "from_id": "company",
+      "to_id": "staff-cloud-platform",
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/9/value/role"
+          },
+          "quote": "클라우드 플랫폼 운영 직군 (총 30명)"
+        }
+      ]
+    },
+    {
+      "id": "edge-staff-cloud-platform-supports-cap-cloud-platform-ops",
+      "type": "supports_capability",
+      "from_id": "staff-cloud-platform",
+      "to_id": "cap-cloud-platform-ops",
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/9/value/role"
+          },
+          "quote": "클라우드 플랫폼 운영 직군 (총 30명)"
+        }
+      ]
+    },
+    {
+      "id": "edge-company-staff-reliability",
+      "type": "has_staff",
+      "from_id": "company",
+      "to_id": "staff-reliability",
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/10/value/role"
+          },
+          "quote": "서비스 신뢰성·관측 직군 (총 20명)"
+        }
+      ]
+    },
+    {
+      "id": "edge-staff-reliability-supports-cap-service-observability",
+      "type": "supports_capability",
+      "from_id": "staff-reliability",
+      "to_id": "cap-service-observability",
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/10/value/role"
+          },
+          "quote": "서비스 신뢰성·관측 직군 (총 20명)"
+        }
+      ]
+    },
+    {
+      "id": "edge-company-project-cloud-transition",
+      "type": "performed",
+      "from_id": "company",
+      "to_id": "project-cloud-transition",
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/11/value/scope"
+          },
+          "quote": "가상 업무서비스 전환 시나리오로서 수행 역할은 클라우드 이전 설계 주관이며, 인프라 구성 자동화로 하이브리드 클라우드 전환 절차를 표현한다."
+        }
+      ]
+    },
+    {
+      "id": "edge-project-cloud-transition-technology",
+      "type": "uses_technology",
+      "from_id": "project-cloud-transition",
+      "to_id": "tech-infrastructure-automation",
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/11/value/scope"
+          },
+          "quote": "가상 업무서비스 전환 시나리오로서 수행 역할은 클라우드 이전 설계 주관이며, 인프라 구성 자동화로 하이브리드 클라우드 전환 절차를 표현한다."
+        }
+      ]
+    },
+    {
+      "id": "edge-project-cloud-transition-supports-cap-cloud-transition",
+      "type": "supports_capability",
+      "from_id": "project-cloud-transition",
+      "to_id": "cap-cloud-transition",
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/11/value/scope"
+          },
+          "quote": "가상 업무서비스 전환 시나리오로서 수행 역할은 클라우드 이전 설계 주관이며, 인프라 구성 자동화로 하이브리드 클라우드 전환 절차를 표현한다."
+        }
+      ]
+    },
+    {
+      "id": "edge-company-project-cloud-platform",
+      "type": "performed",
+      "from_id": "company",
+      "to_id": "project-cloud-platform",
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/12/value/scope"
+          },
+          "quote": "가상 컨테이너 운영 시나리오로서 수행 역할은 플랫폼 운영 표준 수립이며, 컨테이너 실행 환경에 배포·자원 점검 절차를 구성한다."
+        }
+      ]
+    },
+    {
+      "id": "edge-project-cloud-platform-technology",
+      "type": "uses_technology",
+      "from_id": "project-cloud-platform",
+      "to_id": "tech-container-runtime",
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/12/value/scope"
+          },
+          "quote": "가상 컨테이너 운영 시나리오로서 수행 역할은 플랫폼 운영 표준 수립이며, 컨테이너 실행 환경에 배포·자원 점검 절차를 구성한다."
+        }
+      ]
+    },
+    {
+      "id": "edge-project-cloud-platform-supports-cap-cloud-platform-ops",
+      "type": "supports_capability",
+      "from_id": "project-cloud-platform",
+      "to_id": "cap-cloud-platform-ops",
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/12/value/scope"
+          },
+          "quote": "가상 컨테이너 운영 시나리오로서 수행 역할은 플랫폼 운영 표준 수립이며, 컨테이너 실행 환경에 배포·자원 점검 절차를 구성한다."
+        }
+      ]
+    },
+    {
+      "id": "edge-company-project-cloud-observability",
+      "type": "performed",
+      "from_id": "company",
+      "to_id": "project-cloud-observability",
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/13/value/scope"
+          },
+          "quote": "가상 서비스 관측 대응 시나리오로서 수행 역할은 운영 개선이며, 로그·지표·추적 수집 체계로 장애 탐지와 원인 분석 절차를 연결한다."
+        }
+      ]
+    },
+    {
+      "id": "edge-project-cloud-observability-technology",
+      "type": "uses_technology",
+      "from_id": "project-cloud-observability",
+      "to_id": "tech-telemetry",
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/13/value/scope"
+          },
+          "quote": "가상 서비스 관측 대응 시나리오로서 수행 역할은 운영 개선이며, 로그·지표·추적 수집 체계로 장애 탐지와 원인 분석 절차를 연결한다."
+        }
+      ]
+    },
+    {
+      "id": "edge-project-cloud-observability-supports-cap-service-observability",
+      "type": "supports_capability",
+      "from_id": "project-cloud-observability",
+      "to_id": "cap-service-observability",
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/13/value/scope"
+          },
+          "quote": "가상 서비스 관측 대응 시나리오로서 수행 역할은 운영 개선이며, 로그·지표·추적 수집 체계로 장애 탐지와 원인 분석 절차를 연결한다."
+        }
+      ]
+    },
+    {
+      "id": "edge-company-qualification-security-management",
+      "type": "holds_qualification",
+      "from_id": "company",
+      "to_id": "qualification-security-management",
+      "status": "unknown",
+      "origin": "fictional_scenario",
+      "source_refs": []
+    },
+    {
+      "id": "edge-company-supported-by",
+      "type": "supported_by",
+      "from_id": "company",
+      "to_id": "evidence-company",
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/0/value"
+          },
+          "quote": "데모 클라우드SI"
+        }
+      ]
+    },
+    {
+      "id": "edge-domain-cloud-si-supported-by",
+      "type": "supported_by",
+      "from_id": "domain-cloud-si",
+      "to_id": "evidence-domain-cloud-si",
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/1/value"
+          },
+          "quote": "가상 설정의 전문 분야는 클라우드 업무서비스의 전환·운영·신뢰성 관리다."
+        }
+      ]
+    },
+    {
+      "id": "edge-cap-cloud-transition-supported-by",
+      "type": "supported_by",
+      "from_id": "cap-cloud-transition",
+      "to_id": "evidence-cap-cloud-transition",
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/2/value/description"
+          },
+          "quote": "주력 역량: 업무서비스 구성과 운영 제약을 검토해 하이브리드 클라우드 전환 단계를 설계한다."
+        }
+      ]
+    },
+    {
+      "id": "edge-cap-cloud-platform-ops-supported-by",
+      "type": "supported_by",
+      "from_id": "cap-cloud-platform-ops",
+      "to_id": "evidence-cap-cloud-platform-ops",
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/3/value/description"
+          },
+          "quote": "주력 역량: 컨테이너 기반 업무서비스의 배포·자원·운영 절차를 관리한다."
+        }
+      ]
+    },
+    {
+      "id": "edge-cap-service-observability-supported-by",
+      "type": "supported_by",
+      "from_id": "cap-service-observability",
+      "to_id": "evidence-cap-service-observability",
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/4/value/description"
+          },
+          "quote": "주력 역량: 서비스 로그와 지표를 연결해 장애 탐지와 원인 분석 절차를 운영한다."
+        }
+      ]
+    },
+    {
+      "id": "edge-cap-cloud-server-manufacturing-supported-by",
+      "type": "supported_by",
+      "from_id": "cap-cloud-server-manufacturing",
+      "to_id": "evidence-cap-cloud-server-manufacturing",
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/5/value/description"
+          },
+          "quote": "비주력 영역: 서버 장비 자체 제조와 대량 납품은 제공 범위의 주력으로 삼지 않는다."
+        }
+      ]
+    },
+    {
+      "id": "edge-tech-container-runtime-supported-by",
+      "type": "supported_by",
+      "from_id": "tech-container-runtime",
+      "to_id": "evidence-tech-container-runtime",
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/6/value"
+          },
+          "quote": "컨테이너 실행 환경"
+        }
+      ]
+    },
+    {
+      "id": "edge-tech-infrastructure-automation-supported-by",
+      "type": "supported_by",
+      "from_id": "tech-infrastructure-automation",
+      "to_id": "evidence-tech-infrastructure-automation",
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/7/value"
+          },
+          "quote": "인프라 구성 자동화"
+        }
+      ]
+    },
+    {
+      "id": "edge-tech-telemetry-supported-by",
+      "type": "supported_by",
+      "from_id": "tech-telemetry",
+      "to_id": "evidence-tech-telemetry",
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/8/value"
+          },
+          "quote": "로그·지표·추적 수집 체계"
+        }
+      ]
+    },
+    {
+      "id": "edge-staff-cloud-platform-supported-by",
+      "type": "supported_by",
+      "from_id": "staff-cloud-platform",
+      "to_id": "evidence-staff-cloud-platform",
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/9/value/role"
+          },
+          "quote": "클라우드 플랫폼 운영 직군 (총 30명)"
+        }
+      ]
+    },
+    {
+      "id": "edge-staff-reliability-supported-by",
+      "type": "supported_by",
+      "from_id": "staff-reliability",
+      "to_id": "evidence-staff-reliability",
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/10/value/role"
+          },
+          "quote": "서비스 신뢰성·관측 직군 (총 20명)"
+        }
+      ]
+    },
+    {
+      "id": "edge-project-cloud-transition-supported-by",
+      "type": "supported_by",
+      "from_id": "project-cloud-transition",
+      "to_id": "evidence-project-cloud-transition",
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/11/value/scope"
+          },
+          "quote": "가상 업무서비스 전환 시나리오로서 수행 역할은 클라우드 이전 설계 주관이며, 인프라 구성 자동화로 하이브리드 클라우드 전환 절차를 표현한다."
+        }
+      ]
+    },
+    {
+      "id": "edge-project-cloud-platform-supported-by",
+      "type": "supported_by",
+      "from_id": "project-cloud-platform",
+      "to_id": "evidence-project-cloud-platform",
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/12/value/scope"
+          },
+          "quote": "가상 컨테이너 운영 시나리오로서 수행 역할은 플랫폼 운영 표준 수립이며, 컨테이너 실행 환경에 배포·자원 점검 절차를 구성한다."
+        }
+      ]
+    },
+    {
+      "id": "edge-project-cloud-observability-supported-by",
+      "type": "supported_by",
+      "from_id": "project-cloud-observability",
+      "to_id": "evidence-project-cloud-observability",
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/13/value/scope"
+          },
+          "quote": "가상 서비스 관측 대응 시나리오로서 수행 역할은 운영 개선이며, 로그·지표·추적 수집 체계로 장애 탐지와 원인 분석 절차를 연결한다."
+        }
+      ]
+    }
+  ]
+}
