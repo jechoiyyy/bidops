@@ -1,0 +1,146 @@
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 0001_lean_v1_postgresql, Create the closed Lean v1 PostgreSQL model.
+INFO  [alembic.runtime.migration] Running upgrade 0001_lean_v1_postgresql -> 0002_screening_basis_text, Preserve full legacy screening basis text.
+INFO  [alembic.runtime.migration] Running upgrade 0002_screening_basis_text -> 0003_screening_runtime_pg, Create the screening runtime on PostgreSQL 17.
+INFO  [alembic.runtime.migration] Running upgrade 0003_screening_runtime_pg -> 0004_cumulative_external_identity, Make notices cumulative and add observation-backed order plans.
+INFO  [alembic.runtime.migration] Running upgrade 0004_cumulative_external_identity -> 0005_opportunity_links, Create the internal opportunity and lifecycle-link tables.
+INFO  [alembic.runtime.migration] Running upgrade 0005_opportunity_links -> 0006_bid_first_opportunity_registration, Allow bid-first opportunities and deferred official references.
+INFO  [alembic.runtime.migration] Running upgrade 0006_bid_first_opportunity_registration -> 0007_opportunity_tracking_state, Add human tracking state and an independent recheck signal to opportunities.
+INFO  [alembic.runtime.migration] Running upgrade 0007_opportunity_tracking_state -> 0008_prespec_attachment_fetch, Add the re-evaluated pre-specification attachment fetch queue.
+INFO  [alembic.runtime.migration] Running upgrade 0008_prespec_attachment_fetch -> 0009_observation_snapshot_retention, Preserve normalized collection snapshots on run observations.
+INFO  [alembic.runtime.migration] Running upgrade 0009_observation_snapshot_retention -> 0010_opportunity_link_integrity, Enforce authoritative opportunity ownership and retain merge history.
+INFO  [alembic.runtime.migration] Running upgrade 0010_opportunity_link_integrity -> 0011_judgment_review_revisions, Add immutable judgment and human-review revision history.
+INFO  [alembic.runtime.migration] Running upgrade 0011_judgment_review_revisions -> 0012_prespec_overview_review, Persist pre-spec overview cut lineage and future model attempts.
+INFO  [alembic.runtime.migration] Running upgrade 0012_prespec_overview_review -> 0013_document_integrity, Enforce document lineage and bundle ordinal integrity.
+INFO  [alembic.runtime.migration] Running upgrade 0013_document_integrity -> 0014_prespec_overview_attempt_result, Add the ADR-0035 pre-spec overview attempt/result lifecycle.
+INFO  [alembic.runtime.migration] Running upgrade 0014_prespec_overview_attempt_result -> 0015_bid_delta_final_decision, Add the immutable bid delta and final decision database layer.
+INFO  [alembic.runtime.migration] Running upgrade 0015_bid_delta_final_decision -> 0016_order_plan_screening, Add the immutable C-2 order-plan screening storage boundary.
+INFO  [alembic.runtime.migration] Running upgrade 0016_order_plan_screening -> 0017_order_plan_screening_heartbeat, Add the C-2 execution heartbeat used by stale recovery.
+INFO  [alembic.runtime.migration] Running upgrade 0017_order_plan_screening_heartbeat -> 0018_prespec_auto_preparation_segments, 사전규격 자동 준비와 결정적 segment 저장소를 위한 스키마.
+INFO  [alembic.runtime.migration] Running upgrade 0018_prespec_auto_preparation_segments -> 0019_prespec_page_overview, Append-only descriptive page summaries, separate from recommendation results.
+INFO  [alembic.runtime.migration] Running upgrade 0019_prespec_page_overview -> 0020_prespec_company_fit, Frozen company-fit inputs and terminal assessment history.
+INFO  [alembic.runtime.migration] Running upgrade 0020_prespec_company_fit -> 0021_prespec_v4_pdf_contract, Immutable v4 PDF preparation snapshot and input manifest.
+INFO  [alembic.runtime.migration] Running upgrade 0021_prespec_v4_pdf_contract -> 0022_prespec_v4_attempt, Fenced v4 overview attempts and current-result lineage.
+INFO  [alembic.runtime.migration] Running upgrade 0022_prespec_v4_attempt -> 0023_rhwp_snapshot, Nullable native rhwp artifacts on immutable v4 snapshots.
+INFO  [alembic.runtime.migration] Running upgrade 0023_rhwp_snapshot -> 0024_section_candidates, Nullable section candidate references on immutable v4 snapshots.
+INFO  [alembic.runtime.migration] Running upgrade 0024_section_candidates -> 0025_overview_claim_ledger, Fenced claim verification and immutable multi-call overview provenance.
+INFO  [alembic.runtime.migration] Running upgrade 0025_overview_claim_ledger -> 0026_overview_mvp, 폐기된 개요 스택(v3·legacy v4·v5) 철거와 MVP `prespec_overview_run` 도입.
+INFO  [alembic.runtime.migration] Running upgrade 0026_overview_mvp -> 0027_collection_index_and_linkage, 수집 색인과 사업기회 연결 상태 확장 (spec §2.1·§3.3).
+INFO  [alembic.runtime.migration] Running upgrade 0027_collection_index_and_linkage -> 0028_final_decision_basis, 최종 결정 근거를 비교와 분리한다 (ADR-0058, spec §9.2).
+INFO  [alembic.runtime.migration] Running upgrade 0028_final_decision_basis -> 0029_c2_quality_gate, C-2 품질 게이트·감사 표본·일일 스위치 저장소와 실행 용도를 더한다.
+INFO  [alembic.runtime.migration] Running upgrade 0029_c2_quality_gate -> 0030_prespec_review_exclusion, Persist human pre-spec review exclusions independently of source observations.
+INFO  [alembic.runtime.migration] Running upgrade 0030_prespec_review_exclusion -> 0031_prespec_preliminary_assessment, Store immutable preliminary-assessment inputs and results on overview runs.
+INFO  [alembic.runtime.migration] Running upgrade 0031_prespec_preliminary_assessment -> 0032_luna_deep_review, Immutable per-attempt Luna source previews and transfer approvals.
+INFO  [alembic.runtime.migration] Running upgrade 0032_luna_deep_review -> 0033_assumption_analysis, Separate append-only assumptions, consent and invocation results.
+INFO  [alembic.runtime.migration] Running upgrade 0033_assumption_analysis -> 0034_company_context, Add company identity and company-scoped tracking lineage.
+INFO  [alembic.runtime.migration] Running upgrade 0034_company_context -> 0035_company_knowledge, Add immutable company knowledge versions and active bindings.
+Traceback (most recent call last):
+  File "/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 1969, in _exec_single_context
+    self.dialect.do_execute(
+  File "/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/default.py", line 952, in do_execute
+    cursor.execute(statement, parameters)
+  File "/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/psycopg/cursor.py", line 117, in execute
+    raise ex.with_traceback(None)
+psycopg.errors.UndefinedFunction: function json_typeof(jsonb) does not exist
+LINE 12:  CONSTRAINT ck_knowledge_ontology_payload CHECK (json_typeof...
+                                                          ^
+HINT:  No function matches the given name and argument types. You might need to add explicit type casts.
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/alembic/__main__.py", line 4, in <module>
+    main(prog="alembic")
+  File "/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/alembic/config.py", line 1039, in main
+    CommandLine(prog=prog).main(argv=argv)
+  File "/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/alembic/config.py", line 1029, in main
+    self.run_cmd(cfg, options)
+  File "/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/alembic/config.py", line 963, in run_cmd
+    fn(
+  File "/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/alembic/command.py", line 487, in upgrade
+    script.run_env()
+  File "/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/alembic/script/base.py", line 550, in run_env
+    util.load_python_file(self.dir, "env.py")
+  File "/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/alembic/util/pyfiles.py", line 114, in load_python_file
+    module = load_module_py(module_id, path)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/alembic/util/pyfiles.py", line 132, in load_module_py
+    spec.loader.exec_module(module)  # type: ignore
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<frozen importlib._bootstrap_external>", line 999, in exec_module
+  File "<frozen importlib._bootstrap>", line 488, in _call_with_frames_removed
+  File "/Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo0203-20261009-DEMO-02-company-knowledge/web/backend/alembic/env.py", line 151, in <module>
+    run_migrations_online()
+  File "/Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo0203-20261009-DEMO-02-company-knowledge/web/backend/alembic/env.py", line 145, in run_migrations_online
+    do_run_migrations(connection)
+  File "/Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo0203-20261009-DEMO-02-company-knowledge/web/backend/alembic/env.py", line 133, in do_run_migrations
+    context.run_migrations()
+  File "<string>", line 8, in run_migrations
+  File "/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/alembic/runtime/environment.py", line 967, in run_migrations
+    self.get_context().run_migrations(**kw)
+  File "/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/alembic/runtime/migration.py", line 621, in run_migrations
+    step.migration_fn(**kw)
+  File "/Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo0203-20261009-DEMO-02-company-knowledge/web/backend/alembic/versions/0035_company_knowledge.py", line 29, in upgrade
+    op.create_table(
+  File "<string>", line 8, in create_table
+  File "<string>", line 3, in create_table
+  File "/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/alembic/operations/ops.py", line 1323, in create_table
+    return operations.invoke(op)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/alembic/operations/base.py", line 448, in invoke
+    return fn(self, operation)
+           ^^^^^^^^^^^^^^^^^^^
+  File "/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/alembic/operations/toimpl.py", line 140, in create_table
+    operations.impl.create_table(table, **kw)
+  File "/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/alembic/ddl/impl.py", line 434, in create_table
+    self._exec(schema.CreateTable(table, **kw))
+  File "/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/alembic/ddl/impl.py", line 252, in _exec
+    return conn.execute(construct, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 1421, in execute
+    return meth(
+           ^^^^^
+  File "/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/sql/ddl.py", line 188, in _execute_on_connection
+    return connection._execute_ddl(
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 1532, in _execute_ddl
+    ret = self._execute_context(
+          ^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 1848, in _execute_context
+    return self._exec_single_context(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 1988, in _exec_single_context
+    self._handle_dbapi_exception(
+  File "/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 2365, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 1969, in _exec_single_context
+    self.dialect.do_execute(
+  File "/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/default.py", line 952, in do_execute
+    cursor.execute(statement, parameters)
+  File "/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/psycopg/cursor.py", line 117, in execute
+    raise ex.with_traceback(None)
+sqlalchemy.exc.ProgrammingError: (psycopg.errors.UndefinedFunction) function json_typeof(jsonb) does not exist
+LINE 12:  CONSTRAINT ck_knowledge_ontology_payload CHECK (json_typeof...
+                                                          ^
+HINT:  No function matches the given name and argument types. You might need to add explicit type casts.
+[SQL: 
+CREATE TABLE bidops.knowledge_ontology_version (
+	id UUID NOT NULL, 
+	version VARCHAR(128) NOT NULL, 
+	sha256 VARCHAR(64) NOT NULL, 
+	payload JSONB NOT NULL, 
+	created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL, 
+	PRIMARY KEY (id), 
+	CONSTRAINT uq_knowledge_ontology_version UNIQUE (version), 
+	CONSTRAINT uq_knowledge_ontology_sha256 UNIQUE (sha256), 
+	CONSTRAINT ck_knowledge_ontology_sha256 CHECK (length(sha256) = 64 AND sha256 ~ '^[0-9a-f]*$'), 
+	CONSTRAINT ck_knowledge_ontology_payload CHECK (json_typeof(payload) = 'object')
+)
+
+]
+(Background on this error at: https://sqlalche.me/e/20/f405)
+
+exit_code=1

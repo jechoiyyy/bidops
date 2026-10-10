@@ -76,6 +76,8 @@ _LIFECYCLE_PUBLIC_SURFACE: tuple[str, ...] = (
     "app/lifecycle/ingest/contracts.py",
     "app/lifecycle/models.py",
     "app/lifecycle/schemas/__init__.py",
+    # DEMO-02 회사 지식 읽기 DTO가 CompanyDTO를 재사용한다(데모 계약 §8).
+    "app/lifecycle/schemas/companies.py",
     "app/lifecycle/schemas/opportunities.py",
     "app/lifecycle/schemas/pre_specs.py",
 )
@@ -299,7 +301,7 @@ TABLE_OWNER: dict[str, str] = {
     "order_plan_screening_quality_evaluation": SCREENING,
     "order_plan_screening_audit_sample": SCREENING,
     "order_plan_screening_daily_trigger": SCREENING,
-    # deep_review (38)
+    # deep_review (47)
     "attachment_fetch": DEEP_REVIEW,
     "content_object": DEEP_REVIEW,
     "content_object_location": DEEP_REVIEW,
@@ -311,6 +313,13 @@ TABLE_OWNER: dict[str, str] = {
     "document_bundle_item": DEEP_REVIEW,
     "profile_version": DEEP_REVIEW,
     "profile_evidence": DEEP_REVIEW,
+    "knowledge_ontology_version": DEEP_REVIEW,
+    "company_knowledge_source": DEEP_REVIEW,
+    "company_knowledge_version": DEEP_REVIEW,
+    "company_knowledge_node": DEEP_REVIEW,
+    "company_knowledge_edge": DEEP_REVIEW,
+    "company_knowledge_binding": DEEP_REVIEW,
+    "company_knowledge_binding_event": DEEP_REVIEW,
     "analysis_policy_version": DEEP_REVIEW,
     "work_job": DEEP_REVIEW,
     "deep_review": DEEP_REVIEW,

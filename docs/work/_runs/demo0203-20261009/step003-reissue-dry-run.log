@@ -1,0 +1,94 @@
+{
+  "runs": [
+    {
+      "file": "docs/demo-fixtures/companies/demo-cloud-si.v1.json",
+      "command": [
+        "/tmp/bidops-demo00-verify-venv/bin/python",
+        "-m",
+        "app.deep_review.cli",
+        "import-company-knowledge",
+        "--ontology",
+        "/Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo0203-20261009-DEMO-02-company-knowledge/docs/demo-fixtures/ontology.v1.json",
+        "--company",
+        "/Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo0203-20261009-DEMO-02-company-knowledge/docs/demo-fixtures/companies/demo-cloud-si.v1.json",
+        "--actor",
+        "fixture-reissue-check",
+        "--dry-run"
+      ],
+      "exit_code": 0,
+      "stdout": {
+        "activated": false,
+        "company_id": null,
+        "created": false,
+        "errors": [],
+        "graph_sha256": "e863e119d2344ad1ed611cafe03f659ea5f432818e9c7e0b89d90e33bffa8ad6",
+        "graph_version_id": null,
+        "ontology_version": "v1",
+        "profile_version_id": null,
+        "source_sha256": "ae3a1ad324153e870f9ac29a75190950eeaee76921ba40d4d2f3e8b06cc74c41"
+      },
+      "stderr": "",
+      "source_sha256": "ae3a1ad324153e870f9ac29a75190950eeaee76921ba40d4d2f3e8b06cc74c41"
+    },
+    {
+      "file": "docs/demo-fixtures/companies/demo-data-ai.v1.json",
+      "command": [
+        "/tmp/bidops-demo00-verify-venv/bin/python",
+        "-m",
+        "app.deep_review.cli",
+        "import-company-knowledge",
+        "--ontology",
+        "/Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo0203-20261009-DEMO-02-company-knowledge/docs/demo-fixtures/ontology.v1.json",
+        "--company",
+        "/Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo0203-20261009-DEMO-02-company-knowledge/docs/demo-fixtures/companies/demo-data-ai.v1.json",
+        "--actor",
+        "fixture-reissue-check",
+        "--dry-run"
+      ],
+      "exit_code": 0,
+      "stdout": {
+        "activated": false,
+        "company_id": null,
+        "created": false,
+        "errors": [],
+        "graph_sha256": "0ae128b378ffd44616ffa75a5399902e729960c589812ad45ce587d47a0b9d82",
+        "graph_version_id": null,
+        "ontology_version": "v1",
+        "profile_version_id": null,
+        "source_sha256": "19366eabe277bcc951c5a73e9ce0c96532aa745c4e53748b9dbb65af5558fdc2"
+      },
+      "stderr": "",
+      "source_sha256": "19366eabe277bcc951c5a73e9ce0c96532aa745c4e53748b9dbb65af5558fdc2"
+    },
+    {
+      "file": "docs/demo-fixtures/companies/demo-public-si.v1.json",
+      "command": [
+        "/tmp/bidops-demo00-verify-venv/bin/python",
+        "-m",
+        "app.deep_review.cli",
+        "import-company-knowledge",
+        "--ontology",
+        "/Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo0203-20261009-DEMO-02-company-knowledge/docs/demo-fixtures/ontology.v1.json",
+        "--company",
+        "/Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo0203-20261009-DEMO-02-company-knowledge/docs/demo-fixtures/companies/demo-public-si.v1.json",
+        "--actor",
+        "fixture-reissue-check",
+        "--dry-run"
+      ],
+      "exit_code": 0,
+      "stdout": {
+        "activated": false,
+        "company_id": null,
+        "created": false,
+        "errors": [],
+        "graph_sha256": "d8d32ca1f94ff0599ac8c1bad946a29e57aaf8a55e27c0c8fd1d244344a0fe18",
+        "graph_version_id": null,
+        "ontology_version": "v1",
+        "profile_version_id": null,
+        "source_sha256": "7b83417b00124768336451f46e53233820655126a7ed112f0f440ea4ee514670"
+      },
+      "stderr": "",
+      "source_sha256": "7b83417b00124768336451f46e53233820655126a7ed112f0f440ea4ee514670"
+    }
+  ]
+}

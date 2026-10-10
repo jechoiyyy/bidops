@@ -1,0 +1,65 @@
+{
+  "status": "pending_user_reapproval",
+  "reason": "DEMO-02 독립 리뷰 B2: 값 객체 key 생략을 계약 §3대로 null 명시로 정정(사용자 결정 2026-10-09)",
+  "ontology": {
+    "path": "docs/demo-fixtures/ontology.v1.json",
+    "file_sha256": "cc821ae70b36d8e3aaed40b3f524b5be7209a491c4cf670cdff048ae4f5c27ef",
+    "changed": false
+  },
+  "companies": [
+    {
+      "path": "docs/demo-fixtures/companies/demo-cloud-si.v1.json",
+      "name": "데모 클라우드SI",
+      "previous_source_sha256": "58fe3ce03859d83a0c9327b7f90f1be3ce029bc7e5c62b9f3e4ba8bb0cf8339d",
+      "source_sha256": "ae3a1ad324153e870f9ac29a75190950eeaee76921ba40d4d2f3e8b06cc74c41",
+      "node_counts": {
+        "company": 1,
+        "domain": 1,
+        "capability": 4,
+        "technology": 3,
+        "staff_group": 2,
+        "project": 3,
+        "qualification": 1,
+        "evidence": 14
+      },
+      "staff_total": 50,
+      "change": "staff_group/project value에 계약 §3 nullable key를 null로 명시(사실·인용·노드 순서 불변)"
+    },
+    {
+      "path": "docs/demo-fixtures/companies/demo-data-ai.v1.json",
+      "name": "데모 데이터AI",
+      "previous_source_sha256": "b78fd0078615cd2ff9657484717c581aeacedeb9d66b6d2adde35a311f5c5eb2",
+      "source_sha256": "19366eabe277bcc951c5a73e9ce0c96532aa745c4e53748b9dbb65af5558fdc2",
+      "node_counts": {
+        "company": 1,
+        "domain": 1,
+        "capability": 4,
+        "technology": 3,
+        "staff_group": 2,
+        "project": 3,
+        "qualification": 1,
+        "evidence": 14
+      },
+      "staff_total": 50,
+      "change": "staff_group/project value에 계약 §3 nullable key를 null로 명시(사실·인용·노드 순서 불변)"
+    },
+    {
+      "path": "docs/demo-fixtures/companies/demo-public-si.v1.json",
+      "name": "데모 업무SI",
+      "previous_source_sha256": "6a2f6415f64cc5752fbb95efa01c61ac9662d7791054f783f14dc02d4728c3c7",
+      "source_sha256": "7b83417b00124768336451f46e53233820655126a7ed112f0f440ea4ee514670",
+      "node_counts": {
+        "company": 1,
+        "domain": 1,
+        "capability": 4,
+        "technology": 3,
+        "staff_group": 2,
+        "project": 3,
+        "qualification": 1,
+        "evidence": 14
+      },
+      "staff_total": 50,
+      "change": "staff_group/project value에 계약 §3 nullable key를 null로 명시(사실·인용·노드 순서 불변)"
+    }
+  ]
+}

@@ -13,6 +13,7 @@
 | 경로 | 신규/수정 | 내용 |
 |---|---|---|
 | web/backend/app/core/company_ontology.py | 신규 | 순수 타입/관계 검증 |
+| web/backend/tests/core/test_company_ontology.py | 신규 | STEP-001 순수 온톨로지·원본 계약 T1·T2·T8 |
 | web/backend/app/deep_review/models.py | 수정 | graph/version/binding |
 | web/backend/app/deep_review/services/company_knowledge.py | 신규 | 등록·projection·활성화·조회 |
 | web/backend/app/deep_review/services/input_versions.py | 수정 | profile v2·v1 호환 |
@@ -21,7 +22,10 @@
 | web/backend/app/deep_review/routers/company_knowledge.py | 신규 | 읽기 API |
 | web/backend/app/deep_review/schemas/company_knowledge.py | 신규 | DTO |
 | web/backend/app/main.py | 수정 | router 등록 |
-| web/backend/alembic/versions/<next>_company_knowledge.py | 신규 | 테이블·FK·head(권한은 runtime-privileges.sql) |
+| web/backend/alembic/versions/0035_company_knowledge.py | 신규 | 테이블·FK·head·감사 marker(권한은 runtime-privileges.sql) |
+| web/backend/alembic/versions/0001_lean_v1_postgresql.py | 수정 | historical metadata에서 신규 location 복합 unique 제외 |
+| web/backend/app/lifecycle/services/company_context.py | 수정 | STEP-001과 회사 identity 검증 공유 |
+| web/backend/tests/app/{boundary_map,test_db_migrations,test_deep_review_migrations,test_mapper_isolation,test_models,test_module_cli_entrypoints}.py | 수정 | 신규 테이블·head·CLI 폐쇄 목록 정합 |
 | docs/demo-fixtures/ontology.v1.json | 신규 | concept/alias/관계 |
 | docs/demo-fixtures/companies/*.v1.json | 신규 | 순수 합성회사 자료 3개 |
 | web/backend/tests/deep_review/test_company_knowledge.py | 신규 | 등록·검증·API |
@@ -101,4 +105,16 @@ overview=true가 필요한 사례만 fixture에서 설정한다.
 
 ## 결과
 
-미구현. 문서 검토와 제품 검증을 구분한다. 실제 작업 후 차이·재시도·증거·커밋 여부를 기록한다.
+2026-10-09 STEP-001~005 구현·리더 검증과 기능 최종 독립 리뷰(1회차 FAIL → 수정 → 2회차 PASS_WITH_NOTES, 차단 0)를 마쳤다. proof 기록·커밋·배치 통합이 남으며 커밋·병합은 수동 정책이다.
+STEP-005부터는 Codex 리더의 사용량 한도로 Claude Code 리더가 이어받았다(같은 run·기능 worktree, git 명령 없이 진행). 기능 기록은 `_runs/demo0203-20261009/DEMO-02-company-knowledge.md`.
+
+- STEP-001: validator·identity·변조 차단, 리더 77passed 및 지정 독립 delta 리뷰 PASS. `_runs/demo0203-20261009/step001-result.md`.
+- STEP-002: 7테이블/0035·원자 등록·binding·CLI·최소 권한. fresh PG migration 통과. 최초 관련 검사 136passed/10failed에서 확인한 Location insert 순서·감사 marker를 수정했고 직접 영향 검사 24passed. 추가 table 목록 검사의 기존 실패 1개는 기준506ac77에서도 재현했다. `_runs/demo0203-20261009/step002-result.md`에 명령·한계를 연결했다.
+- STEP-003: `docs/demo-fixtures/README.md`와 원본4개 작성, CLI dry-run3개 모두 exit0/errors=[]/미등록. 2026-10-09 사용자 “현재 초안 승인” 후 동결했으나, 최종 리뷰 B2(값 객체 nullable key 생략이 공통 계약 §3 위반)에 대한 사용자 결정으로 회사 원본 3개에 null을 명시해 재발행했다(사실·인용·노드 순서·ontology 불변). 같은 날 사용자가 재발행 hash를 재승인했고 `docs/validation-runs/2026-10-09-company-demo/DEMO-02-company-knowledge/fixture-approval.md`에 최초 승인(superseded)과 재승인을 기록했다. 실제 DB 등록은 하지 않았다.
+- STEP-004: v1/v2 strict profile consumer와 계보·hash·unknown 근거 검증. 리더 red 38failed → green 78passed/skip0(SQLite+PG). `_runs/demo0203-20261009/step004-result.md`.
+- STEP-005: 회사 profile·knowledge-graph·profile-evidence 읽기 REST, binding/과거 버전/타회사 404, BFS 절단, 경로 미노출. 리더 red 20failed → green 232passed/skip0(SQLite+일회용 PG17.11). `_runs/demo0203-20261009/step005-result.md`.
+- 최종 리뷰 수정: B1(등록 후 소비 불가 3경로: 다중 ref 행 순서·unknown evidence·PG collation), B2(값 객체 정확 key), N2(ontology version 길이), N4(T3 최초 객체 실패·T5 감사) 반영. red 25failed → 리더 최종 455passed/1failed(기존 실패)/skip0. `_runs/demo0203-20261009/review.md`.
+- 프런트 오류 code 등록(`company_profile_not_ready`)은 Node 22 Docker production build exit0. `_runs/demo0203-20261009/frontend-build.log`.
+- MinIO는 기존 delete 금지 정책을 보존하며 실패 시 발행 version이 남을 수 있다. isolated filesystem의 요청 임시 파일만 rollback/중첩 transaction 종료 시 정리한다.
+- 이관: worker 역할의 신규 테이블 SELECT·evidence 목록 code-point 정렬은 DEMO-03, alias-only 판정의 쓰기 경로 연결은 DEMO-05.
+- 미커밋 기능 worktree에 보존했고 main/실행 중 스택/실제 모델에는 적용하지 않았다. `bidops-local` 실제 3사 등록·활성화는 공통 계약 §10 준비 단계에 남는다.

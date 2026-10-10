@@ -1,0 +1,711 @@
+command: cd web/backend && BIDOPS_PRESPEC_OVERVIEW_ENABLED=false BIDOPS_TEST_POSTGRES_URL=<fresh disposable postgres:17.11 via tests.postgres.temporary_postgres_server> /tmp/bidops-demo00-verify-venv/bin/python -m pytest tests/deep_review/test_company_knowledge_api.py -q -rs -p no:warnings
+FFFFFF..FFFFFFFFFFFFFF                                                   [100%]
+=================================== FAILURES ===================================
+__ test_t4_profile_requires_binding_but_explicit_version_is_readable[sqlite] ___
+
+engine = Engine(sqlite://)
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10d125b80>
+
+    def test_t4_profile_requires_binding_but_explicit_version_is_readable(
+        engine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        application, sessions = _application(engine, monkeypatch)
+        imported = _import(sessions, _prepared(), activate=False)
+        client = TestClient(application)
+    
+>       _assert_error(
+            client.get(_profile_path(imported.company_id)), 409, "company_profile_not_ready"
+        )
+
+tests/deep_review/test_company_knowledge_api.py:176: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+response = <Response [404 Not Found]>, status = 409
+code = 'company_profile_not_ready'
+
+    def _assert_error(response, status: int, code: str) -> None:
+>       assert response.status_code == status, response.text
+E       AssertionError: {"detail":"Not Found"}
+E       assert 404 == 409
+E        +  where 404 = <Response [404 Not Found]>.status_code
+
+tests/deep_review/test_company_knowledge_api.py:127: AssertionError
+_ test_t4_profile_requires_binding_but_explicit_version_is_readable[postgres] __
+
+engine = Engine(postgresql+psycopg://owner:***@127.0.0.1:32792/bidops_test_59bb3f37ecee4a69)
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10d63b9b0>
+
+    def test_t4_profile_requires_binding_but_explicit_version_is_readable(
+        engine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        application, sessions = _application(engine, monkeypatch)
+        imported = _import(sessions, _prepared(), activate=False)
+        client = TestClient(application)
+    
+>       _assert_error(
+            client.get(_profile_path(imported.company_id)), 409, "company_profile_not_ready"
+        )
+
+tests/deep_review/test_company_knowledge_api.py:176: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+response = <Response [404 Not Found]>, status = 409
+code = 'company_profile_not_ready'
+
+    def _assert_error(response, status: int, code: str) -> None:
+>       assert response.status_code == status, response.text
+E       AssertionError: {"detail":"Not Found"}
+E       assert 404 == 409
+E        +  where 404 = <Response [404 Not Found]>.status_code
+
+tests/deep_review/test_company_knowledge_api.py:127: AssertionError
+__ test_t4_past_version_is_reproduced_after_activating_a_new_version[sqlite] ___
+
+engine = Engine(sqlite://)
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10d1cbf20>
+
+    def test_t4_past_version_is_reproduced_after_activating_a_new_version(
+        engine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        application, sessions = _application(engine, monkeypatch)
+        first = _import(sessions, _prepared(), activate=True)
+        client = TestClient(application)
+    
+>       v1_profile = _profile(client, first.company_id)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/deep_review/test_company_knowledge_api.py:220: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+client = <starlette.testclient.TestClient object at 0x10d9f2090>
+company_id = UUID('cfeae504-8365-4ead-8487-087cad401f02'), params = {}
+response = <Response [404 Not Found]>, @py_assert1 = 404, @py_assert4 = 200
+@py_assert3 = False
+@py_format6 = '404\n{404 = <Response [404 Not Found]>.status_code\n} == 200'
+@py_format8 = '{"detail":"Not Found"}\n>assert 404\n{404 = <Response [404 Not Found]>.status_code\n} == 200'
+
+    def _profile(client, company_id, **params):
+        response = client.get(_profile_path(company_id), params=params)
+>       assert response.status_code == 200, response.text
+E       AssertionError: {"detail":"Not Found"}
+E       assert 404 == 200
+E        +  where 404 = <Response [404 Not Found]>.status_code
+
+tests/deep_review/test_company_knowledge_api.py:139: AssertionError
+_ test_t4_past_version_is_reproduced_after_activating_a_new_version[postgres] __
+
+engine = Engine(postgresql+psycopg://owner:***@127.0.0.1:32792/bidops_test_d147217846d8470e)
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10dac7230>
+
+    def test_t4_past_version_is_reproduced_after_activating_a_new_version(
+        engine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        application, sessions = _application(engine, monkeypatch)
+        first = _import(sessions, _prepared(), activate=True)
+        client = TestClient(application)
+    
+>       v1_profile = _profile(client, first.company_id)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/deep_review/test_company_knowledge_api.py:220: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+client = <starlette.testclient.TestClient object at 0x10d987860>
+company_id = UUID('bb036244-6f6b-431a-899b-951fbeb3f2ba'), params = {}
+response = <Response [404 Not Found]>, @py_assert1 = 404, @py_assert4 = 200
+@py_assert3 = False
+@py_format6 = '404\n{404 = <Response [404 Not Found]>.status_code\n} == 200'
+@py_format8 = '{"detail":"Not Found"}\n>assert 404\n{404 = <Response [404 Not Found]>.status_code\n} == 200'
+
+    def _profile(client, company_id, **params):
+        response = client.get(_profile_path(company_id), params=params)
+>       assert response.status_code == 200, response.text
+E       AssertionError: {"detail":"Not Found"}
+E       assert 404 == 200
+E        +  where 404 = <Response [404 Not Found]>.status_code
+
+tests/deep_review/test_company_knowledge_api.py:139: AssertionError
+___ test_t4_other_company_unknown_and_legacy_resources_are_not_found[sqlite] ___
+
+engine = Engine(sqlite://)
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10da86810>
+
+    def test_t4_other_company_unknown_and_legacy_resources_are_not_found(
+        engine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        application, sessions = _application(engine, monkeypatch)
+        alpha = _import(sessions, _prepared(), activate=True)
+        beta = _import(sessions, _second_company(), activate=True)
+        assert alpha.company_id != beta.company_id
+        client = TestClient(application)
+>       beta_profile = _profile(client, beta.company_id)
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/deep_review/test_company_knowledge_api.py:274: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+client = <starlette.testclient.TestClient object at 0x10d69baa0>
+company_id = UUID('2ddb9040-4b4a-4a81-863b-644f2124e2eb'), params = {}
+response = <Response [404 Not Found]>, @py_assert1 = 404, @py_assert4 = 200
+@py_assert3 = False
+@py_format6 = '404\n{404 = <Response [404 Not Found]>.status_code\n} == 200'
+@py_format8 = '{"detail":"Not Found"}\n>assert 404\n{404 = <Response [404 Not Found]>.status_code\n} == 200'
+
+    def _profile(client, company_id, **params):
+        response = client.get(_profile_path(company_id), params=params)
+>       assert response.status_code == 200, response.text
+E       AssertionError: {"detail":"Not Found"}
+E       assert 404 == 200
+E        +  where 404 = <Response [404 Not Found]>.status_code
+
+tests/deep_review/test_company_knowledge_api.py:139: AssertionError
+__ test_t4_other_company_unknown_and_legacy_resources_are_not_found[postgres] __
+
+engine = Engine(postgresql+psycopg://owner:***@127.0.0.1:32792/bidops_test_a3d73cbd57d346ed)
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10fe23d40>
+
+    def test_t4_other_company_unknown_and_legacy_resources_are_not_found(
+        engine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        application, sessions = _application(engine, monkeypatch)
+        alpha = _import(sessions, _prepared(), activate=True)
+        beta = _import(sessions, _second_company(), activate=True)
+        assert alpha.company_id != beta.company_id
+        client = TestClient(application)
+>       beta_profile = _profile(client, beta.company_id)
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/deep_review/test_company_knowledge_api.py:274: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+client = <starlette.testclient.TestClient object at 0x10fd7ef60>
+company_id = UUID('00484504-446f-49de-8695-c70dac5eaf7e'), params = {}
+response = <Response [404 Not Found]>, @py_assert1 = 404, @py_assert4 = 200
+@py_assert3 = False
+@py_format6 = '404\n{404 = <Response [404 Not Found]>.status_code\n} == 200'
+@py_format8 = '{"detail":"Not Found"}\n>assert 404\n{404 = <Response [404 Not Found]>.status_code\n} == 200'
+
+    def _profile(client, company_id, **params):
+        response = client.get(_profile_path(company_id), params=params)
+>       assert response.status_code == 200, response.text
+E       AssertionError: {"detail":"Not Found"}
+E       assert 404 == 200
+E        +  where 404 = <Response [404 Not Found]>.status_code
+
+tests/deep_review/test_company_knowledge_api.py:139: AssertionError
+_________ test_t4_company_knowledge_routes_are_provided_by_deep_review _________
+
+    def test_t4_company_knowledge_routes_are_provided_by_deep_review() -> None:
+        from app import deep_review
+    
+>       paths = {route.path for route in deep_review.company_knowledge_router.routes}
+                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/deep_review/test_company_knowledge_api.py:384: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'company_knowledge_router'
+
+    def __getattr__(name: str) -> Any:
+        target = _EXPORTS.get(name)
+        if target is None:
+>           raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+E           AttributeError: module 'app.deep_review' has no attribute 'company_knowledge_router'
+
+app/deep_review/__init__.py:108: AttributeError
+________ test_t6_profile_and_evidence_match_frozen_source_facts[sqlite] ________
+
+engine = Engine(sqlite://)
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10fd581a0>
+
+    def test_t6_profile_and_evidence_match_frozen_source_facts(
+        engine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        before = _fixture_digests()
+        application, sessions = _application(engine, monkeypatch)
+        imported = _import_fixtures(sessions)
+        client = TestClient(application)
+    
+        for name, (raw, source) in _fixture_sources().items():
+            row = imported[name]
+            digest = hashlib.sha256(raw).hexdigest()
+>           profile = _profile(client, row.company_id)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/deep_review/test_company_knowledge_api.py:435: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+client = <starlette.testclient.TestClient object at 0x10fe9afc0>
+company_id = UUID('66a513c7-08d0-417d-b849-3bda303e6f12'), params = {}
+response = <Response [404 Not Found]>, @py_assert1 = 404, @py_assert4 = 200
+@py_assert3 = False
+@py_format6 = '404\n{404 = <Response [404 Not Found]>.status_code\n} == 200'
+@py_format8 = '{"detail":"Not Found"}\n>assert 404\n{404 = <Response [404 Not Found]>.status_code\n} == 200'
+
+    def _profile(client, company_id, **params):
+        response = client.get(_profile_path(company_id), params=params)
+>       assert response.status_code == 200, response.text
+E       AssertionError: {"detail":"Not Found"}
+E       assert 404 == 200
+E        +  where 404 = <Response [404 Not Found]>.status_code
+
+tests/deep_review/test_company_knowledge_api.py:139: AssertionError
+_______ test_t6_profile_and_evidence_match_frozen_source_facts[postgres] _______
+
+engine = Engine(postgresql+psycopg://owner:***@127.0.0.1:32792/bidops_test_7e8e6f3edc87468b)
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10fd580b0>
+
+    def test_t6_profile_and_evidence_match_frozen_source_facts(
+        engine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        before = _fixture_digests()
+        application, sessions = _application(engine, monkeypatch)
+        imported = _import_fixtures(sessions)
+        client = TestClient(application)
+    
+        for name, (raw, source) in _fixture_sources().items():
+            row = imported[name]
+            digest = hashlib.sha256(raw).hexdigest()
+>           profile = _profile(client, row.company_id)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/deep_review/test_company_knowledge_api.py:435: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+client = <starlette.testclient.TestClient object at 0x10fe219d0>
+company_id = UUID('9a16d51c-d4d6-44d8-b6b1-b1bd39afe8f6'), params = {}
+response = <Response [404 Not Found]>, @py_assert1 = 404, @py_assert4 = 200
+@py_assert3 = False
+@py_format6 = '404\n{404 = <Response [404 Not Found]>.status_code\n} == 200'
+@py_format8 = '{"detail":"Not Found"}\n>assert 404\n{404 = <Response [404 Not Found]>.status_code\n} == 200'
+
+    def _profile(client, company_id, **params):
+        response = client.get(_profile_path(company_id), params=params)
+>       assert response.status_code == 200, response.text
+E       AssertionError: {"detail":"Not Found"}
+E       assert 404 == 200
+E        +  where 404 = <Response [404 Not Found]>.status_code
+
+tests/deep_review/test_company_knowledge_api.py:139: AssertionError
+___ test_t6_public_responses_never_expose_private_locators_or_paths[sqlite] ____
+
+engine = Engine(sqlite://)
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10dc97e60>
+tmp_path = PosixPath('/private/var/folders/_c/3g36y_md7rg3l_xrx0r5lxyr0000gp/T/pytest-of-temp/pytest-1065/test_t6_public_responses_never0')
+
+    def test_t6_public_responses_never_expose_private_locators_or_paths(
+        engine, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        application, sessions = _application(engine, monkeypatch)
+        imported = _import_fixtures(sessions)
+        client = TestClient(application)
+        with sessions() as session:
+            locations = list(session.scalars(select(ContentObjectLocation)))
+            object_keys = [location.object_key for location in locations]
+            version_ids = [location.object_version_id for location in locations]
+            source_ids = [str(row.id) for row in session.scalars(select(CompanyKnowledgeSource))]
+        assert object_keys and all(object_keys)
+        private_values = [
+            *object_keys,
+            *version_ids,
+            *source_ids,
+            str(tmp_path),
+            str(assets.asset_root(tmp_path)),
+            str(FIXTURES),
+        ]
+        for row in imported.values():
+            profile_response = client.get(_profile_path(row.company_id))
+            graph_response = client.get(
+                _graph_path(row.company_id), params={"depth": 3, "limit": 500}
+            )
+            responses = [profile_response, graph_response]
+            responses.extend(
+                client.get(_evidence_path(row.company_id, evidence_id))
+>               for evidence_id in _evidence_ids(profile_response.json())
+                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+            )
+
+tests/deep_review/test_company_knowledge_api.py:501: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+profile_body = {'detail': 'Not Found'}
+
+    def _evidence_ids(profile_body) -> list[str]:
+        return [
+            evidence_id
+>           for fact in profile_body["facts"]
+                        ^^^^^^^^^^^^^^^^^^^^^
+            for evidence_id in fact["evidence_ids"]
+        ]
+E       KeyError: 'facts'
+
+tests/deep_review/test_company_knowledge_api.py:161: KeyError
+__ test_t6_public_responses_never_expose_private_locators_or_paths[postgres] ___
+
+engine = Engine(postgresql+psycopg://owner:***@127.0.0.1:32792/bidops_test_0349bd22527a4959)
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10d82e000>
+tmp_path = PosixPath('/private/var/folders/_c/3g36y_md7rg3l_xrx0r5lxyr0000gp/T/pytest-of-temp/pytest-1065/test_t6_public_responses_never1')
+
+    def test_t6_public_responses_never_expose_private_locators_or_paths(
+        engine, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        application, sessions = _application(engine, monkeypatch)
+        imported = _import_fixtures(sessions)
+        client = TestClient(application)
+        with sessions() as session:
+            locations = list(session.scalars(select(ContentObjectLocation)))
+            object_keys = [location.object_key for location in locations]
+            version_ids = [location.object_version_id for location in locations]
+            source_ids = [str(row.id) for row in session.scalars(select(CompanyKnowledgeSource))]
+        assert object_keys and all(object_keys)
+        private_values = [
+            *object_keys,
+            *version_ids,
+            *source_ids,
+            str(tmp_path),
+            str(assets.asset_root(tmp_path)),
+            str(FIXTURES),
+        ]
+        for row in imported.values():
+            profile_response = client.get(_profile_path(row.company_id))
+            graph_response = client.get(
+                _graph_path(row.company_id), params={"depth": 3, "limit": 500}
+            )
+            responses = [profile_response, graph_response]
+            responses.extend(
+                client.get(_evidence_path(row.company_id, evidence_id))
+>               for evidence_id in _evidence_ids(profile_response.json())
+                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+            )
+
+tests/deep_review/test_company_knowledge_api.py:501: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+profile_body = {'detail': 'Not Found'}
+
+    def _evidence_ids(profile_body) -> list[str]:
+        return [
+            evidence_id
+>           for fact in profile_body["facts"]
+                        ^^^^^^^^^^^^^^^^^^^^^
+            for evidence_id in fact["evidence_ids"]
+        ]
+E       KeyError: 'facts'
+
+tests/deep_review/test_company_knowledge_api.py:161: KeyError
+_________ test_t6_graph_truncation_is_exact_on_frozen_fixtures[sqlite] _________
+
+engine = Engine(sqlite://)
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10da30830>
+
+    def test_t6_graph_truncation_is_exact_on_frozen_fixtures(
+        engine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        application, sessions = _application(engine, monkeypatch)
+        imported = _import_fixtures(sessions)
+        client = TestClient(application)
+        saw_truncation = False
+        saw_complete = False
+    
+        for name, (_raw_bytes, source) in _fixture_sources().items():
+            row = imported[name]
+>           profile = _profile(client, row.company_id)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/deep_review/test_company_knowledge_api.py:591: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+client = <starlette.testclient.TestClient object at 0x119a30920>
+company_id = UUID('c8aafe1b-2d3c-49f6-b155-c1082a1ddf12'), params = {}
+response = <Response [404 Not Found]>, @py_assert1 = 404, @py_assert4 = 200
+@py_assert3 = False
+@py_format6 = '404\n{404 = <Response [404 Not Found]>.status_code\n} == 200'
+@py_format8 = '{"detail":"Not Found"}\n>assert 404\n{404 = <Response [404 Not Found]>.status_code\n} == 200'
+
+    def _profile(client, company_id, **params):
+        response = client.get(_profile_path(company_id), params=params)
+>       assert response.status_code == 200, response.text
+E       AssertionError: {"detail":"Not Found"}
+E       assert 404 == 200
+E        +  where 404 = <Response [404 Not Found]>.status_code
+
+tests/deep_review/test_company_knowledge_api.py:139: AssertionError
+________ test_t6_graph_truncation_is_exact_on_frozen_fixtures[postgres] ________
+
+engine = Engine(postgresql+psycopg://owner:***@127.0.0.1:32792/bidops_test_301667ad1e394872)
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x119c17fe0>
+
+    def test_t6_graph_truncation_is_exact_on_frozen_fixtures(
+        engine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        application, sessions = _application(engine, monkeypatch)
+        imported = _import_fixtures(sessions)
+        client = TestClient(application)
+        saw_truncation = False
+        saw_complete = False
+    
+        for name, (_raw_bytes, source) in _fixture_sources().items():
+            row = imported[name]
+>           profile = _profile(client, row.company_id)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/deep_review/test_company_knowledge_api.py:591: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+client = <starlette.testclient.TestClient object at 0x11999a120>
+company_id = UUID('f026e203-11fd-4da5-91cb-c86d257c80e9'), params = {}
+response = <Response [404 Not Found]>, @py_assert1 = 404, @py_assert4 = 200
+@py_assert3 = False
+@py_format6 = '404\n{404 = <Response [404 Not Found]>.status_code\n} == 200'
+@py_format8 = '{"detail":"Not Found"}\n>assert 404\n{404 = <Response [404 Not Found]>.status_code\n} == 200'
+
+    def _profile(client, company_id, **params):
+        response = client.get(_profile_path(company_id), params=params)
+>       assert response.status_code == 200, response.text
+E       AssertionError: {"detail":"Not Found"}
+E       assert 404 == 200
+E        +  where 404 = <Response [404 Not Found]>.status_code
+
+tests/deep_review/test_company_knowledge_api.py:139: AssertionError
+_____________ test_t6_graph_traversal_terminates_on_cycles[sqlite] _____________
+
+engine = Engine(sqlite://)
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x1199f34a0>
+
+    def test_t6_graph_traversal_terminates_on_cycles(
+        engine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        application, sessions = _application(engine, monkeypatch)
+        imported = _import_fixtures(sessions)
+        client = TestClient(application)
+        for name, (_raw_bytes, source) in _fixture_sources().items():
+>           graph = _graph(client, imported[name].company_id, depth=3, limit=500)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/deep_review/test_company_knowledge_api.py:663: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+client = <starlette.testclient.TestClient object at 0x119ad9700>
+company_id = UUID('c49dadbf-62bb-4374-87cb-b4a7287cdb4d')
+params = {'depth': 3, 'limit': 500}, response = <Response [404 Not Found]>
+@py_assert1 = 404, @py_assert4 = 200, @py_assert3 = False
+@py_format6 = '404\n{404 = <Response [404 Not Found]>.status_code\n} == 200'
+@py_format8 = '{"detail":"Not Found"}\n>assert 404\n{404 = <Response [404 Not Found]>.status_code\n} == 200'
+
+    def _graph(client, company_id, **params):
+        response = client.get(_graph_path(company_id), params=params)
+>       assert response.status_code == 200, response.text
+E       AssertionError: {"detail":"Not Found"}
+E       assert 404 == 200
+E        +  where 404 = <Response [404 Not Found]>.status_code
+
+tests/deep_review/test_company_knowledge_api.py:146: AssertionError
+____________ test_t6_graph_traversal_terminates_on_cycles[postgres] ____________
+
+engine = Engine(postgresql+psycopg://owner:***@127.0.0.1:32792/bidops_test_a5f92714255849ca)
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x119a33080>
+
+    def test_t6_graph_traversal_terminates_on_cycles(
+        engine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        application, sessions = _application(engine, monkeypatch)
+        imported = _import_fixtures(sessions)
+        client = TestClient(application)
+        for name, (_raw_bytes, source) in _fixture_sources().items():
+>           graph = _graph(client, imported[name].company_id, depth=3, limit=500)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/deep_review/test_company_knowledge_api.py:663: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+client = <starlette.testclient.TestClient object at 0x10d090950>
+company_id = UUID('9cca8284-50c5-4e97-9909-241919a70502')
+params = {'depth': 3, 'limit': 500}, response = <Response [404 Not Found]>
+@py_assert1 = 404, @py_assert4 = 200, @py_assert3 = False
+@py_format6 = '404\n{404 = <Response [404 Not Found]>.status_code\n} == 200'
+@py_format8 = '{"detail":"Not Found"}\n>assert 404\n{404 = <Response [404 Not Found]>.status_code\n} == 200'
+
+    def _graph(client, company_id, **params):
+        response = client.get(_graph_path(company_id), params=params)
+>       assert response.status_code == 200, response.text
+E       AssertionError: {"detail":"Not Found"}
+E       assert 404 == 200
+E        +  where 404 = <Response [404 Not Found]>.status_code
+
+tests/deep_review/test_company_knowledge_api.py:146: AssertionError
+____________ test_t6_graph_query_validation_and_absent_root[sqlite] ____________
+
+engine = Engine(sqlite://)
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x119afc110>
+
+    def test_t6_graph_query_validation_and_absent_root(
+        engine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        application, sessions = _application(engine, monkeypatch)
+        imported = _import(sessions, _prepared(), activate=True)
+        client = TestClient(application)
+        path = _graph_path(imported.company_id)
+    
+>       _assert_error(client.get(path, params={"root_node_id": "absent.node"}), 404, "not_found")
+
+tests/deep_review/test_company_knowledge_api.py:682: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+response = <Response [404 Not Found]>, status = 404, code = 'not_found'
+
+    def _assert_error(response, status: int, code: str) -> None:
+        assert response.status_code == status, response.text
+        body = response.json()
+>       assert set(body) == ENVELOPE_KEYS, body
+E       AssertionError: {'detail': 'Not Found'}
+E       assert {'detail'} == {'error', 'request_id'}
+E         
+E         Extra items in the left set:
+E         'detail'
+E         Extra items in the right set:
+E         'request_id'
+E         'error'
+E         Use -v to get more diff
+
+tests/deep_review/test_company_knowledge_api.py:129: AssertionError
+___________ test_t6_graph_query_validation_and_absent_root[postgres] ___________
+
+engine = Engine(postgresql+psycopg://owner:***@127.0.0.1:32792/bidops_test_908e624b35b641df)
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10dd51d90>
+
+    def test_t6_graph_query_validation_and_absent_root(
+        engine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        application, sessions = _application(engine, monkeypatch)
+        imported = _import(sessions, _prepared(), activate=True)
+        client = TestClient(application)
+        path = _graph_path(imported.company_id)
+    
+>       _assert_error(client.get(path, params={"root_node_id": "absent.node"}), 404, "not_found")
+
+tests/deep_review/test_company_knowledge_api.py:682: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+response = <Response [404 Not Found]>, status = 404, code = 'not_found'
+
+    def _assert_error(response, status: int, code: str) -> None:
+        assert response.status_code == status, response.text
+        body = response.json()
+>       assert set(body) == ENVELOPE_KEYS, body
+E       AssertionError: {'detail': 'Not Found'}
+E       assert {'detail'} == {'error', 'request_id'}
+E         
+E         Extra items in the left set:
+E         'detail'
+E         Extra items in the right set:
+E         'request_id'
+E         'error'
+E         Use -v to get more diff
+
+tests/deep_review/test_company_knowledge_api.py:129: AssertionError
+___________ test_t6_inconsistent_frozen_lineage_fails_closed[sqlite] ___________
+
+engine = Engine(sqlite://)
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10d144ad0>
+
+    def test_t6_inconsistent_frozen_lineage_fails_closed(
+        engine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        application, sessions = _application(engine, monkeypatch)
+        imported = _import(sessions, _prepared(), activate=True)
+        client = TestClient(application)
+>       evidence_id = _evidence_ids(_profile(client, imported.company_id))[0]
+                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/deep_review/test_company_knowledge_api.py:742: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+client = <starlette.testclient.TestClient object at 0x10fda6030>
+company_id = UUID('33025d68-2e72-4898-bbd8-41cf08e75601'), params = {}
+response = <Response [404 Not Found]>, @py_assert1 = 404, @py_assert4 = 200
+@py_assert3 = False
+@py_format6 = '404\n{404 = <Response [404 Not Found]>.status_code\n} == 200'
+@py_format8 = '{"detail":"Not Found"}\n>assert 404\n{404 = <Response [404 Not Found]>.status_code\n} == 200'
+
+    def _profile(client, company_id, **params):
+        response = client.get(_profile_path(company_id), params=params)
+>       assert response.status_code == 200, response.text
+E       AssertionError: {"detail":"Not Found"}
+E       assert 404 == 200
+E        +  where 404 = <Response [404 Not Found]>.status_code
+
+tests/deep_review/test_company_knowledge_api.py:139: AssertionError
+__________ test_t6_inconsistent_frozen_lineage_fails_closed[postgres] __________
+
+engine = Engine(postgresql+psycopg://owner:***@127.0.0.1:32792/bidops_test_ef6d644f5e374685)
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10fe21a30>
+
+    def test_t6_inconsistent_frozen_lineage_fails_closed(
+        engine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        application, sessions = _application(engine, monkeypatch)
+        imported = _import(sessions, _prepared(), activate=True)
+        client = TestClient(application)
+>       evidence_id = _evidence_ids(_profile(client, imported.company_id))[0]
+                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/deep_review/test_company_knowledge_api.py:742: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+client = <starlette.testclient.TestClient object at 0x10dadb560>
+company_id = UUID('da32b05b-6060-47fe-b90b-d551d7d56b39'), params = {}
+response = <Response [404 Not Found]>, @py_assert1 = 404, @py_assert4 = 200
+@py_assert3 = False
+@py_format6 = '404\n{404 = <Response [404 Not Found]>.status_code\n} == 200'
+@py_format8 = '{"detail":"Not Found"}\n>assert 404\n{404 = <Response [404 Not Found]>.status_code\n} == 200'
+
+    def _profile(client, company_id, **params):
+        response = client.get(_profile_path(company_id), params=params)
+>       assert response.status_code == 200, response.text
+E       AssertionError: {"detail":"Not Found"}
+E       assert 404 == 200
+E        +  where 404 = <Response [404 Not Found]>.status_code
+
+tests/deep_review/test_company_knowledge_api.py:139: AssertionError
+_________ test_t6_tampered_frozen_rows_fail_closed_without_correction __________
+
+object_store = {('source', 'source/company-knowledge-03b5cc99a3b440a7a31a39cdaffb267f.json'): (b'{"schema_version":"bidops.company-kn...d351b200c17d499430b332743', etag='6d80c443cd3db80f5f432adcb7abe07d4e152efd351b200c17d499430b332743', size_bytes=1937))}
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10dc6be60>
+
+    def test_t6_tampered_frozen_rows_fail_closed_without_correction(
+        object_store, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Raw SQL bypasses the ORM append-only guard; SQLite has no DB trigger."""
+    
+        bind = create_engine(
+            "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
+        )
+        init_db(bind)
+        try:
+            application, sessions = _application(bind, monkeypatch)
+            imported = _import(sessions, _prepared(), activate=True)
+            client = TestClient(application)
+>           evidence_id = _evidence_ids(_profile(client, imported.company_id))[0]
+                                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/deep_review/test_company_knowledge_api.py:786: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+client = <starlette.testclient.TestClient object at 0x119887350>
+company_id = UUID('f88d3357-d153-4a3a-ba09-393f2efebc02'), params = {}
+response = <Response [404 Not Found]>, @py_assert1 = 404, @py_assert4 = 200
+@py_assert3 = False
+@py_format6 = '404\n{404 = <Response [404 Not Found]>.status_code\n} == 200'
+@py_format8 = '{"detail":"Not Found"}\n>assert 404\n{404 = <Response [404 Not Found]>.status_code\n} == 200'
+
+    def _profile(client, company_id, **params):
+        response = client.get(_profile_path(company_id), params=params)
+>       assert response.status_code == 200, response.text
+E       AssertionError: {"detail":"Not Found"}
+E       assert 404 == 200
+E        +  where 404 = <Response [404 Not Found]>.status_code
+
+tests/deep_review/test_company_knowledge_api.py:139: AssertionError
+20 failed, 2 passed in 14.61s
+
+exit_code=1

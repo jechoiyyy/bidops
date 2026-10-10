@@ -1,0 +1,10 @@
+{
+  "web/backend/app/deep_review/models.py": "473a8667a980480f69d7aa8a22b5407e29491aeac35413ed4f0c28eec12c749e",
+  "web/backend/alembic/versions/0035_company_knowledge.py": "c1ab1a02e462bd88ed845b2aa451939e7710e78b73d65fad5981d528e1acc096",
+  "web/backend/alembic/versions/0001_lean_v1_postgresql.py": "dd1e385f5e04f1a9d4cebece3275d91b8c970e139928540cc168526126cad4d9",
+  "web/backend/app/deep_review/services/company_knowledge.py": "68edf6ab8f8e9c4140705043bc03c9c7870bbbb94d8bb0b84e6f2d572fa2eb8e",
+  "web/backend/app/deep_review/cli/company_knowledge.py": "91168a98d53cd980aa6943fc16469414f25b9859a2c9a9f103831edf4ad7fffc",
+  "web/backend/tests/deep_review/test_company_knowledge.py": "baf51cae97f8a23103f1bdef06ecce1044e3d8b34318b863776f3d2e2979b378",
+  "web/backend/tests/app/test_company_knowledge_cli.py": "28bdac863a32673a05ca0e0f691e0e66023e2af882433a1659a56834977beda3",
+  "scripts/runtime-privileges.sql": "e45e1c20eee067f6bb7a7f0dd23a3e61f63a6e48cb087f11f4fbd4c71efc077d"
+}

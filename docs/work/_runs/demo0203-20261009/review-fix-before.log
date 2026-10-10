@@ -1,0 +1,3064 @@
+command: cd web/backend && BIDOPS_PRESPEC_OVERVIEW_ENABLED=false BIDOPS_TEST_POSTGRES_URL=<fresh disposable postgres:17.11 via tests.postgres.temporary_postgres_server> -m pytest tests/core/test_company_ontology.py tests/deep_review/test_company_knowledge.py tests/app/test_company_knowledge_api.py tests/app/test_company_knowledge_cli.py -k b1_ or n2_ or b2_ or first_import_storage or fresh_process_import -q -rfs -p no:warnings
+FFFFFFF......FFFFFFFFFF.....FFFF.FFF.F                                   [100%]
+=================================== FAILURES ===================================
+_____ test_n2_ontology_version_longer_than_the_storage_column_is_rejected ______
+
+    def test_n2_ontology_version_longer_than_the_storage_column_is_rejected() -> None:
+>       from app.core.company_ontology import MAX_ONTOLOGY_VERSION_LENGTH
+E       ImportError: cannot import name 'MAX_ONTOLOGY_VERSION_LENGTH' from 'app.core.company_ontology' (/Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo0203-20261009-DEMO-02-company-knowledge/web/backend/app/core/company_ontology.py)
+
+tests/core/test_company_ontology.py:664: ImportError
+___________ test_b2_node_value_requires_every_declared_key[2-total] ____________
+
+index = 2, drop = 'total'
+
+    @pytest.mark.parametrize(
+        ("index", "drop"),
+        [
+            (2, "total"),
+            (2, "available"),
+            (2, "as_of"),
+            (3, "amount_krw"),
+            (3, "started_on"),
+            (3, "ended_on"),
+            (1, "scope"),
+            (5, "fact_key"),
+        ],
+    )
+    def test_b2_node_value_requires_every_declared_key(index: int, drop: str) -> None:
+        ontology, source_value, _ = _validated()
+        invalid = deepcopy(source_value)
+        invalid["nodes"][index]["value"].pop(drop)  # type: ignore[index]
+>       with pytest.raises(CompanyKnowledgeValidationError, match="node_value_invalid"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE <class 'app.core.company_ontology.CompanyKnowledgeValidationError'>
+
+tests/core/test_company_ontology.py:690: Failed
+_________ test_b2_node_value_requires_every_declared_key[2-available] __________
+
+index = 2, drop = 'available'
+
+    @pytest.mark.parametrize(
+        ("index", "drop"),
+        [
+            (2, "total"),
+            (2, "available"),
+            (2, "as_of"),
+            (3, "amount_krw"),
+            (3, "started_on"),
+            (3, "ended_on"),
+            (1, "scope"),
+            (5, "fact_key"),
+        ],
+    )
+    def test_b2_node_value_requires_every_declared_key(index: int, drop: str) -> None:
+        ontology, source_value, _ = _validated()
+        invalid = deepcopy(source_value)
+        invalid["nodes"][index]["value"].pop(drop)  # type: ignore[index]
+        with pytest.raises(CompanyKnowledgeValidationError, match="node_value_invalid"):
+>           parse_company_knowledge_source(_json_bytes(invalid), ontology=ontology)
+
+tests/core/test_company_ontology.py:691: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+app/core/company_ontology.py:878: in parse_company_knowledge_source
+    _validate_fact_ref(refs[0], document=value, node_index=index)
+app/core/company_ontology.py:761: in _validate_fact_ref
+    pointed = _resolve_pointer(document, ref.json_pointer)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+document = {'company': {'is_fictional': True, 'name': '합성 SI', 'slug': 'synthetic-si'}, 'edges': [{'from_id': 'company.synthetic'...fictional_scenario', ...}], 'ontology_sha256': '68dad6541c9b4555d2166eea2432bfcb13e655490af6a09f852ed186f527cefa', ...}
+pointer = '/nodes/2/value/available'
+
+    def _resolve_pointer(document: Any, pointer: str) -> Any:
+        if not pointer.startswith("/"):
+            raise CompanyKnowledgeValidationError("source_pointer_invalid")
+        current = document
+        for raw_component in pointer[1:].split("/"):
+            component = _decode_pointer_component(raw_component)
+            if isinstance(current, dict):
+                if component not in current:
+>                   raise CompanyKnowledgeValidationError("source_pointer_invalid")
+E                   app.core.company_ontology.CompanyKnowledgeValidationError: source_pointer_invalid
+
+app/core/company_ontology.py:728: CompanyKnowledgeValidationError
+
+During handling of the above exception, another exception occurred:
+
+index = 2, drop = 'available'
+
+    @pytest.mark.parametrize(
+        ("index", "drop"),
+        [
+            (2, "total"),
+            (2, "available"),
+            (2, "as_of"),
+            (3, "amount_krw"),
+            (3, "started_on"),
+            (3, "ended_on"),
+            (1, "scope"),
+            (5, "fact_key"),
+        ],
+    )
+    def test_b2_node_value_requires_every_declared_key(index: int, drop: str) -> None:
+        ontology, source_value, _ = _validated()
+        invalid = deepcopy(source_value)
+        invalid["nodes"][index]["value"].pop(drop)  # type: ignore[index]
+>       with pytest.raises(CompanyKnowledgeValidationError, match="node_value_invalid"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AssertionError: Regex pattern did not match.
+E        Regex: 'node_value_invalid'
+E        Input: 'source_pointer_invalid'
+
+tests/core/test_company_ontology.py:690: AssertionError
+___________ test_b2_node_value_requires_every_declared_key[2-as_of] ____________
+
+index = 2, drop = 'as_of'
+
+    @pytest.mark.parametrize(
+        ("index", "drop"),
+        [
+            (2, "total"),
+            (2, "available"),
+            (2, "as_of"),
+            (3, "amount_krw"),
+            (3, "started_on"),
+            (3, "ended_on"),
+            (1, "scope"),
+            (5, "fact_key"),
+        ],
+    )
+    def test_b2_node_value_requires_every_declared_key(index: int, drop: str) -> None:
+        ontology, source_value, _ = _validated()
+        invalid = deepcopy(source_value)
+        invalid["nodes"][index]["value"].pop(drop)  # type: ignore[index]
+>       with pytest.raises(CompanyKnowledgeValidationError, match="node_value_invalid"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE <class 'app.core.company_ontology.CompanyKnowledgeValidationError'>
+
+tests/core/test_company_ontology.py:690: Failed
+_________ test_b2_node_value_requires_every_declared_key[3-amount_krw] _________
+
+index = 3, drop = 'amount_krw'
+
+    @pytest.mark.parametrize(
+        ("index", "drop"),
+        [
+            (2, "total"),
+            (2, "available"),
+            (2, "as_of"),
+            (3, "amount_krw"),
+            (3, "started_on"),
+            (3, "ended_on"),
+            (1, "scope"),
+            (5, "fact_key"),
+        ],
+    )
+    def test_b2_node_value_requires_every_declared_key(index: int, drop: str) -> None:
+        ontology, source_value, _ = _validated()
+        invalid = deepcopy(source_value)
+        invalid["nodes"][index]["value"].pop(drop)  # type: ignore[index]
+>       with pytest.raises(CompanyKnowledgeValidationError, match="node_value_invalid"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE <class 'app.core.company_ontology.CompanyKnowledgeValidationError'>
+
+tests/core/test_company_ontology.py:690: Failed
+_________ test_b2_node_value_requires_every_declared_key[3-started_on] _________
+
+index = 3, drop = 'started_on'
+
+    @pytest.mark.parametrize(
+        ("index", "drop"),
+        [
+            (2, "total"),
+            (2, "available"),
+            (2, "as_of"),
+            (3, "amount_krw"),
+            (3, "started_on"),
+            (3, "ended_on"),
+            (1, "scope"),
+            (5, "fact_key"),
+        ],
+    )
+    def test_b2_node_value_requires_every_declared_key(index: int, drop: str) -> None:
+        ontology, source_value, _ = _validated()
+        invalid = deepcopy(source_value)
+        invalid["nodes"][index]["value"].pop(drop)  # type: ignore[index]
+>       with pytest.raises(CompanyKnowledgeValidationError, match="node_value_invalid"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE <class 'app.core.company_ontology.CompanyKnowledgeValidationError'>
+
+tests/core/test_company_ontology.py:690: Failed
+__________ test_b2_node_value_requires_every_declared_key[3-ended_on] __________
+
+index = 3, drop = 'ended_on'
+
+    @pytest.mark.parametrize(
+        ("index", "drop"),
+        [
+            (2, "total"),
+            (2, "available"),
+            (2, "as_of"),
+            (3, "amount_krw"),
+            (3, "started_on"),
+            (3, "ended_on"),
+            (1, "scope"),
+            (5, "fact_key"),
+        ],
+    )
+    def test_b2_node_value_requires_every_declared_key(index: int, drop: str) -> None:
+        ontology, source_value, _ = _validated()
+        invalid = deepcopy(source_value)
+        invalid["nodes"][index]["value"].pop(drop)  # type: ignore[index]
+>       with pytest.raises(CompanyKnowledgeValidationError, match="node_value_invalid"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE <class 'app.core.company_ontology.CompanyKnowledgeValidationError'>
+
+tests/core/test_company_ontology.py:690: Failed
+_________ test_b2_minimal_staff_and_project_values_need_explicit_nulls _________
+
+    def test_b2_minimal_staff_and_project_values_need_explicit_nulls() -> None:
+        ontology, source_value, _ = _validated()
+        minimal = deepcopy(source_value)
+        minimal["nodes"][2]["value"] = {"role": "개발", "total": 8}  # type: ignore[index]
+        minimal["nodes"][2]["source_refs"][0]["locator"]["json_pointer"] = "/nodes/2/value/role"  # type: ignore[index]
+        minimal["nodes"][2]["source_refs"][0]["quote"] = "개발"  # type: ignore[index]
+        with pytest.raises(CompanyKnowledgeValidationError, match="node_value_invalid"):
+>           parse_company_knowledge_source(_json_bytes(minimal), ontology=ontology)
+
+tests/core/test_company_ontology.py:710: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+raw = b'{"schema_version":"bidops.company-knowledge-source.v1","company":{"slug":"synthetic-si","name":"\xed\x95\xa9\xec\x84.../nodes/1/value/description"},"quote":"\xed\x95\xa9\xec\x84\xb1 \xea\xb5\xac\xec\xb6\x95 \xec\x97\xad\xeb\x9f\x89"}]}]}'
+
+    def parse_company_knowledge_source(
+        raw: bytes,
+        *,
+        ontology: ValidatedOntology,
+    ) -> ValidatedCompanyKnowledge:
+        """Validate raw synthetic-company JSON against one validated ontology."""
+    
+        if not isinstance(ontology, ValidatedOntology):
+            raise CompanyKnowledgeValidationError("ontology_binding_invalid")
+        value = _parse_json_object(raw, CompanyKnowledgeValidationError)
+        _strict_object(
+            value,
+            {
+                "schema_version",
+                "company",
+                "scenario_version",
+                "ontology_version",
+                "ontology_sha256",
+                "nodes",
+                "edges",
+            },
+            error_type=CompanyKnowledgeValidationError,
+            code="source_keys_invalid",
+        )
+        if value["schema_version"] != COMPANY_SOURCE_SCHEMA:
+            raise CompanyKnowledgeValidationError("source_schema_invalid")
+        company_value = _strict_object(
+            value["company"],
+            {"slug", "name", "is_fictional"},
+            error_type=CompanyKnowledgeValidationError,
+            code="company_keys_invalid",
+        )
+        try:
+            company = normalize_company_identity(
+                slug=company_value["slug"],
+                name=company_value["name"],
+                is_fictional=company_value["is_fictional"],
+            )
+        except CompanyIdentityValidationError as exc:
+            raise CompanyKnowledgeValidationError(exc.code) from None
+        scenario_version = _nonempty_string(
+            value["scenario_version"],
+            error_type=CompanyKnowledgeValidationError,
+            code="scenario_version_invalid",
+        )
+        if value["ontology_version"] != ontology.version:
+            raise CompanyKnowledgeValidationError("ontology_version_mismatch")
+        if (
+            not isinstance(value["ontology_sha256"], str)
+            or SHA256_RE.fullmatch(value["ontology_sha256"]) is None
+            or value["ontology_sha256"] != ontology.sha256
+        ):
+            raise CompanyKnowledgeValidationError("ontology_hash_mismatch")
+    
+        raw_nodes = value["nodes"]
+        if not isinstance(raw_nodes, list):
+            raise CompanyKnowledgeValidationError("nodes_invalid")
+        nodes: list[CompanyKnowledgeNode] = []
+        node_ids: set[str] = set()
+        company_count = 0
+        non_evidence_count = 0
+        concepts = ontology.concepts_by_id
+        for index, raw_node in enumerate(raw_nodes):
+            node = _strict_object(
+                raw_node,
+                {"id", "type", "label", "concept_id", "status", "origin", "value", "source_refs"},
+                error_type=CompanyKnowledgeValidationError,
+                code="node_keys_invalid",
+            )
+            node_id = _stable_key(
+                node["id"], error_type=CompanyKnowledgeValidationError, code="node_id_invalid"
+            )
+            if node_id in node_ids:
+                raise CompanyKnowledgeValidationError("duplicate_id")
+            node_ids.add(node_id)
+            node_type = node["type"]
+            if not isinstance(node_type, str) or node_type not in COMPANY_SOURCE_NODE_TYPES:
+                raise CompanyKnowledgeValidationError("node_type_invalid")
+            if node_type == "company":
+                company_count += 1
+            if node_type != "evidence":
+                non_evidence_count += 1
+            label = _nonempty_string(
+                node["label"],
+                error_type=CompanyKnowledgeValidationError,
+                code="node_label_invalid",
+            )
+            concept_id = node["concept_id"]
+            if node_type in CONCEPT_KINDS:
+                if not isinstance(concept_id, str) or concept_id not in concepts:
+                    raise CompanyKnowledgeValidationError("concept_reference_invalid")
+                if concepts[concept_id].kind != node_type:
+                    raise CompanyKnowledgeValidationError("concept_kind_mismatch")
+            elif concept_id is not None:
+                raise CompanyKnowledgeValidationError("concept_reference_invalid")
+            status = node["status"]
+            if not isinstance(status, str) or status not in FACT_STATUSES:
+                raise CompanyKnowledgeValidationError("node_status_invalid")
+            if node["origin"] != "fictional_scenario":
+                raise CompanyKnowledgeValidationError("source_origin_invalid")
+            refs = _parse_source_refs(node["source_refs"])
+            if status == "unknown":
+                if node["value"] is not None:
+                    raise CompanyKnowledgeValidationError("unknown_value_invalid")
+                if refs:
+                    raise CompanyKnowledgeValidationError("unknown_source_refs_invalid")
+                parsed_value = None
+            else:
+                parsed_value = _node_value(node_type, node["value"])
+                if len(refs) != 1:
+                    raise CompanyKnowledgeValidationError("fact_source_ref_count_invalid")
+                if node_type != "evidence":
+                    _validate_fact_ref(refs[0], document=value, node_index=index)
+            nodes.append(
+                CompanyKnowledgeNode(
+                    id=node_id,
+                    type=node_type,
+                    label=label,
+                    concept_id=concept_id,
+                    status=status,
+                    origin="fictional_scenario",
+                    value=parsed_value,
+                    source_refs=refs,
+                )
+            )
+        if company_count != 1:
+            raise CompanyKnowledgeValidationError("company_node_count_invalid")
+        if not 1 <= non_evidence_count <= 256:
+            raise CompanyKnowledgeValidationError("profile_fact_count_invalid")
+    
+        nodes_by_id = {node.id: node for node in nodes}
+        reusable_refs: set[SourceRef] = set()
+        for node in nodes:
+            if node.type != "evidence" and node.status != "unknown":
+                reusable_refs.update(node.source_refs)
+        for node in nodes:
+            if node.type != "evidence" or node.status == "unknown":
+                continue
+            if not isinstance(node.value, dict):
+                raise CompanyKnowledgeValidationError("evidence_fact_key_invalid")
+            fact = nodes_by_id.get(node.value["fact_key"])
+            if fact is None or fact.type == "evidence" or fact.status == "unknown":
+                raise CompanyKnowledgeValidationError("evidence_fact_key_invalid")
+            if node.source_refs != fact.source_refs:
+                raise CompanyKnowledgeValidationError("source_ref_not_reused")
+    
+        raw_edges = value["edges"]
+        if not isinstance(raw_edges, list):
+            raise CompanyKnowledgeValidationError("edges_invalid")
+        edges: list[CompanyKnowledgeEdge] = []
+        edge_ids: set[str] = set()
+        for raw_edge in raw_edges:
+            edge = _strict_object(
+                raw_edge,
+                {"id", "type", "from_id", "to_id", "status", "origin", "source_refs"},
+                error_type=CompanyKnowledgeValidationError,
+                code="edge_keys_invalid",
+            )
+            edge_id = _stable_key(
+                edge["id"], error_type=CompanyKnowledgeValidationError, code="edge_id_invalid"
+            )
+            if edge_id in edge_ids:
+                raise CompanyKnowledgeValidationError("duplicate_id")
+            edge_ids.add(edge_id)
+            relation_type = edge["type"]
+            if not isinstance(relation_type, str) or relation_type not in RELATION_ENDPOINTS:
+                raise CompanyKnowledgeValidationError("edge_type_invalid")
+            from_id = edge["from_id"]
+            to_id = edge["to_id"]
+            if not isinstance(from_id, str) or not isinstance(to_id, str):
+                raise CompanyKnowledgeValidationError("edge_reference_invalid")
+            from_node = nodes_by_id.get(from_id)
+            to_node = nodes_by_id.get(to_id)
+            if from_node is None or to_node is None:
+                raise CompanyKnowledgeValidationError("edge_reference_invalid")
+            allowed_from, allowed_to = RELATION_ENDPOINTS[relation_type]
+            if from_node.type not in allowed_from or to_node.type not in allowed_to:
+                raise CompanyKnowledgeValidationError("edge_endpoint_invalid")
+            status = edge["status"]
+            if not isinstance(status, str) or status not in FACT_STATUSES:
+                raise CompanyKnowledgeValidationError("edge_status_invalid")
+            if edge["origin"] != "fictional_scenario":
+                raise CompanyKnowledgeValidationError("source_origin_invalid")
+            refs = _parse_source_refs(edge["source_refs"])
+            if status == "unknown":
+                if refs:
+                    raise CompanyKnowledgeValidationError("unknown_source_refs_invalid")
+            else:
+                if not refs:
+                    raise CompanyKnowledgeValidationError("edge_source_refs_required")
+                if any(ref not in reusable_refs for ref in refs):
+>                   raise CompanyKnowledgeValidationError("source_ref_not_reused")
+E                   app.core.company_ontology.CompanyKnowledgeValidationError: source_ref_not_reused
+
+app/core/company_ontology.py:957: CompanyKnowledgeValidationError
+
+During handling of the above exception, another exception occurred:
+
+    def test_b2_minimal_staff_and_project_values_need_explicit_nulls() -> None:
+        ontology, source_value, _ = _validated()
+        minimal = deepcopy(source_value)
+        minimal["nodes"][2]["value"] = {"role": "개발", "total": 8}  # type: ignore[index]
+        minimal["nodes"][2]["source_refs"][0]["locator"]["json_pointer"] = "/nodes/2/value/role"  # type: ignore[index]
+        minimal["nodes"][2]["source_refs"][0]["quote"] = "개발"  # type: ignore[index]
+>       with pytest.raises(CompanyKnowledgeValidationError, match="node_value_invalid"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AssertionError: Regex pattern did not match.
+E        Regex: 'node_value_invalid'
+E        Input: 'source_ref_not_reused'
+
+tests/core/test_company_ontology.py:709: AssertionError
+________ test_b2_overlay_values_use_exact_key_sets[notice-value0-True] _________
+
+node_type = 'notice', value = {'notice_id': 7}, accepted = True
+
+    @pytest.mark.parametrize(
+        ("node_type", "value", "accepted"),
+        [
+            ("notice", {"notice_id": 7}, True),
+            ("notice", {}, False),
+            ("notice", {"notice_id": 7, "extra": 1}, False),
+            ("notice", {"notice_id": True}, False),
+            ("requirement", {"text": "필수 요구", "mandatory": None}, True),
+            ("requirement", {"text": "필수 요구", "mandatory": True}, True),
+            ("requirement", {"text": "필수 요구"}, False),
+            ("requirement", {"text": "필수 요구", "mandatory": "yes"}, False),
+            ("requirement", {"text": " ", "mandatory": None}, False),
+        ],
+    )
+    def test_b2_overlay_values_use_exact_key_sets(node_type: str, value: dict, accepted: bool) -> None:
+        from app.core import company_ontology
+    
+        if accepted:
+>           assert company_ontology._node_value(node_type, value) == value
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/core/test_company_ontology.py:754: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+node_type = 'notice', value = {'notice_id': 7}
+
+    def _node_value(node_type: str, value: Any) -> Any:
+        if node_type in {"company", "domain", "technology", "qualification"}:
+            if value is not None and not isinstance(value, str):
+                raise CompanyKnowledgeValidationError("node_value_invalid")
+            if isinstance(value, str) and not value.strip():
+                raise CompanyKnowledgeValidationError("node_value_invalid")
+            return value
+        if node_type == "capability":
+            if value is None:
+                return None
+            item = _strict_object(
+                value,
+                {"scope", "description"},
+                error_type=CompanyKnowledgeValidationError,
+                code="node_value_invalid",
+            )
+            if not isinstance(item["scope"], str) or item["scope"] not in {"core", "non_core"}:
+                raise CompanyKnowledgeValidationError("node_value_invalid")
+            _nonempty_string(
+                item["description"],
+                error_type=CompanyKnowledgeValidationError,
+                code="node_value_invalid",
+            )
+            return deepcopy(item)
+        if node_type == "staff_group":
+            if not isinstance(value, dict) or not {"role"} <= set(value) <= {
+                "role",
+                "total",
+                "available",
+                "as_of",
+            }:
+                raise CompanyKnowledgeValidationError("node_value_invalid")
+            _nonempty_string(
+                value["role"],
+                error_type=CompanyKnowledgeValidationError,
+                code="node_value_invalid",
+            )
+            total = _nullable_nonnegative_int(value.get("total"), name="total")
+            available = _nullable_nonnegative_int(value.get("available"), name="available")
+            if total is not None and available is not None and available > total:
+                raise CompanyKnowledgeValidationError("available_exceeds_total")
+            _nullable_date(value.get("as_of"))
+            return deepcopy(value)
+        if node_type == "project":
+            if not isinstance(value, dict) or not {"role", "scope"} <= set(value) <= {
+                "role",
+                "scope",
+                "amount_krw",
+                "started_on",
+                "ended_on",
+            }:
+                raise CompanyKnowledgeValidationError("node_value_invalid")
+            _nonempty_string(
+                value["role"],
+                error_type=CompanyKnowledgeValidationError,
+                code="node_value_invalid",
+            )
+            _nonempty_string(
+                value["scope"],
+                error_type=CompanyKnowledgeValidationError,
+                code="node_value_invalid",
+            )
+            _nullable_nonnegative_int(value.get("amount_krw"), name="amount_krw")
+            started = _nullable_date(value.get("started_on"))
+            ended = _nullable_date(value.get("ended_on"))
+            if started is not None and ended is not None and ended < started:
+                raise CompanyKnowledgeValidationError("date_order_invalid")
+            return deepcopy(value)
+        if node_type == "evidence":
+            if value is None:
+                return None
+            item = _strict_object(
+                value,
+                {"fact_key"},
+                error_type=CompanyKnowledgeValidationError,
+                code="node_value_invalid",
+            )
+            _stable_key(
+                item["fact_key"],
+                error_type=CompanyKnowledgeValidationError,
+                code="evidence_fact_key_invalid",
+            )
+            return deepcopy(item)
+>       raise CompanyKnowledgeValidationError("node_type_invalid")
+E       app.core.company_ontology.CompanyKnowledgeValidationError: node_type_invalid
+
+app/core/company_ontology.py:711: CompanyKnowledgeValidationError
+________ test_b2_overlay_values_use_exact_key_sets[notice-value1-False] ________
+
+node_type = 'notice', value = {}, accepted = False
+
+    @pytest.mark.parametrize(
+        ("node_type", "value", "accepted"),
+        [
+            ("notice", {"notice_id": 7}, True),
+            ("notice", {}, False),
+            ("notice", {"notice_id": 7, "extra": 1}, False),
+            ("notice", {"notice_id": True}, False),
+            ("requirement", {"text": "필수 요구", "mandatory": None}, True),
+            ("requirement", {"text": "필수 요구", "mandatory": True}, True),
+            ("requirement", {"text": "필수 요구"}, False),
+            ("requirement", {"text": "필수 요구", "mandatory": "yes"}, False),
+            ("requirement", {"text": " ", "mandatory": None}, False),
+        ],
+    )
+    def test_b2_overlay_values_use_exact_key_sets(node_type: str, value: dict, accepted: bool) -> None:
+        from app.core import company_ontology
+    
+        if accepted:
+            assert company_ontology._node_value(node_type, value) == value
+        else:
+            with pytest.raises(CompanyKnowledgeValidationError, match="node_value_invalid"):
+>               company_ontology._node_value(node_type, value)
+
+tests/core/test_company_ontology.py:757: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+node_type = 'notice', value = {}
+
+    def _node_value(node_type: str, value: Any) -> Any:
+        if node_type in {"company", "domain", "technology", "qualification"}:
+            if value is not None and not isinstance(value, str):
+                raise CompanyKnowledgeValidationError("node_value_invalid")
+            if isinstance(value, str) and not value.strip():
+                raise CompanyKnowledgeValidationError("node_value_invalid")
+            return value
+        if node_type == "capability":
+            if value is None:
+                return None
+            item = _strict_object(
+                value,
+                {"scope", "description"},
+                error_type=CompanyKnowledgeValidationError,
+                code="node_value_invalid",
+            )
+            if not isinstance(item["scope"], str) or item["scope"] not in {"core", "non_core"}:
+                raise CompanyKnowledgeValidationError("node_value_invalid")
+            _nonempty_string(
+                item["description"],
+                error_type=CompanyKnowledgeValidationError,
+                code="node_value_invalid",
+            )
+            return deepcopy(item)
+        if node_type == "staff_group":
+            if not isinstance(value, dict) or not {"role"} <= set(value) <= {
+                "role",
+                "total",
+                "available",
+                "as_of",
+            }:
+                raise CompanyKnowledgeValidationError("node_value_invalid")
+            _nonempty_string(
+                value["role"],
+                error_type=CompanyKnowledgeValidationError,
+                code="node_value_invalid",
+            )
+            total = _nullable_nonnegative_int(value.get("total"), name="total")
+            available = _nullable_nonnegative_int(value.get("available"), name="available")
+            if total is not None and available is not None and available > total:
+                raise CompanyKnowledgeValidationError("available_exceeds_total")
+            _nullable_date(value.get("as_of"))
+            return deepcopy(value)
+        if node_type == "project":
+            if not isinstance(value, dict) or not {"role", "scope"} <= set(value) <= {
+                "role",
+                "scope",
+                "amount_krw",
+                "started_on",
+                "ended_on",
+            }:
+                raise CompanyKnowledgeValidationError("node_value_invalid")
+            _nonempty_string(
+                value["role"],
+                error_type=CompanyKnowledgeValidationError,
+                code="node_value_invalid",
+            )
+            _nonempty_string(
+                value["scope"],
+                error_type=CompanyKnowledgeValidationError,
+                code="node_value_invalid",
+            )
+            _nullable_nonnegative_int(value.get("amount_krw"), name="amount_krw")
+            started = _nullable_date(value.get("started_on"))
+            ended = _nullable_date(value.get("ended_on"))
+            if started is not None and ended is not None and ended < started:
+                raise CompanyKnowledgeValidationError("date_order_invalid")
+            return deepcopy(value)
+        if node_type == "evidence":
+            if value is None:
+                return None
+            item = _strict_object(
+                value,
+                {"fact_key"},
+                error_type=CompanyKnowledgeValidationError,
+                code="node_value_invalid",
+            )
+            _stable_key(
+                item["fact_key"],
+                error_type=CompanyKnowledgeValidationError,
+                code="evidence_fact_key_invalid",
+            )
+            return deepcopy(item)
+>       raise CompanyKnowledgeValidationError("node_type_invalid")
+E       app.core.company_ontology.CompanyKnowledgeValidationError: node_type_invalid
+
+app/core/company_ontology.py:711: CompanyKnowledgeValidationError
+
+During handling of the above exception, another exception occurred:
+
+node_type = 'notice', value = {}, accepted = False
+
+    @pytest.mark.parametrize(
+        ("node_type", "value", "accepted"),
+        [
+            ("notice", {"notice_id": 7}, True),
+            ("notice", {}, False),
+            ("notice", {"notice_id": 7, "extra": 1}, False),
+            ("notice", {"notice_id": True}, False),
+            ("requirement", {"text": "필수 요구", "mandatory": None}, True),
+            ("requirement", {"text": "필수 요구", "mandatory": True}, True),
+            ("requirement", {"text": "필수 요구"}, False),
+            ("requirement", {"text": "필수 요구", "mandatory": "yes"}, False),
+            ("requirement", {"text": " ", "mandatory": None}, False),
+        ],
+    )
+    def test_b2_overlay_values_use_exact_key_sets(node_type: str, value: dict, accepted: bool) -> None:
+        from app.core import company_ontology
+    
+        if accepted:
+            assert company_ontology._node_value(node_type, value) == value
+        else:
+>           with pytest.raises(CompanyKnowledgeValidationError, match="node_value_invalid"):
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           AssertionError: Regex pattern did not match.
+E            Regex: 'node_value_invalid'
+E            Input: 'node_type_invalid'
+
+tests/core/test_company_ontology.py:756: AssertionError
+________ test_b2_overlay_values_use_exact_key_sets[notice-value2-False] ________
+
+node_type = 'notice', value = {'extra': 1, 'notice_id': 7}, accepted = False
+
+    @pytest.mark.parametrize(
+        ("node_type", "value", "accepted"),
+        [
+            ("notice", {"notice_id": 7}, True),
+            ("notice", {}, False),
+            ("notice", {"notice_id": 7, "extra": 1}, False),
+            ("notice", {"notice_id": True}, False),
+            ("requirement", {"text": "필수 요구", "mandatory": None}, True),
+            ("requirement", {"text": "필수 요구", "mandatory": True}, True),
+            ("requirement", {"text": "필수 요구"}, False),
+            ("requirement", {"text": "필수 요구", "mandatory": "yes"}, False),
+            ("requirement", {"text": " ", "mandatory": None}, False),
+        ],
+    )
+    def test_b2_overlay_values_use_exact_key_sets(node_type: str, value: dict, accepted: bool) -> None:
+        from app.core import company_ontology
+    
+        if accepted:
+            assert company_ontology._node_value(node_type, value) == value
+        else:
+            with pytest.raises(CompanyKnowledgeValidationError, match="node_value_invalid"):
+>               company_ontology._node_value(node_type, value)
+
+tests/core/test_company_ontology.py:757: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+node_type = 'notice', value = {'extra': 1, 'notice_id': 7}
+
+    def _node_value(node_type: str, value: Any) -> Any:
+        if node_type in {"company", "domain", "technology", "qualification"}:
+            if value is not None and not isinstance(value, str):
+                raise CompanyKnowledgeValidationError("node_value_invalid")
+            if isinstance(value, str) and not value.strip():
+                raise CompanyKnowledgeValidationError("node_value_invalid")
+            return value
+        if node_type == "capability":
+            if value is None:
+                return None
+            item = _strict_object(
+                value,
+                {"scope", "description"},
+                error_type=CompanyKnowledgeValidationError,
+                code="node_value_invalid",
+            )
+            if not isinstance(item["scope"], str) or item["scope"] not in {"core", "non_core"}:
+                raise CompanyKnowledgeValidationError("node_value_invalid")
+            _nonempty_string(
+                item["description"],
+                error_type=CompanyKnowledgeValidationError,
+                code="node_value_invalid",
+            )
+            return deepcopy(item)
+        if node_type == "staff_group":
+            if not isinstance(value, dict) or not {"role"} <= set(value) <= {
+                "role",
+                "total",
+                "available",
+                "as_of",
+            }:
+                raise CompanyKnowledgeValidationError("node_value_invalid")
+            _nonempty_string(
+                value["role"],
+                error_type=CompanyKnowledgeValidationError,
+                code="node_value_invalid",
+            )
+            total = _nullable_nonnegative_int(value.get("total"), name="total")
+            available = _nullable_nonnegative_int(value.get("available"), name="available")
+            if total is not None and available is not None and available > total:
+                raise CompanyKnowledgeValidationError("available_exceeds_total")
+            _nullable_date(value.get("as_of"))
+            return deepcopy(value)
+        if node_type == "project":
+            if not isinstance(value, dict) or not {"role", "scope"} <= set(value) <= {
+                "role",
+                "scope",
+                "amount_krw",
+                "started_on",
+                "ended_on",
+            }:
+                raise CompanyKnowledgeValidationError("node_value_invalid")
+            _nonempty_string(
+                value["role"],
+                error_type=CompanyKnowledgeValidationError,
+                code="node_value_invalid",
+            )
+            _nonempty_string(
+                value["scope"],
+                error_type=CompanyKnowledgeValidationError,
+                code="node_value_invalid",
+            )
+            _nullable_nonnegative_int(value.get("amount_krw"), name="amount_krw")
+            started = _nullable_date(value.get("started_on"))
+            ended = _nullable_date(value.get("ended_on"))
+            if started is not None and ended is not None and ended < started:
+                raise CompanyKnowledgeValidationError("date_order_invalid")
+            return deepcopy(value)
+        if node_type == "evidence":
+            if value is None:
+                return None
+            item = _strict_object(
+                value,
+                {"fact_key"},
+                error_type=CompanyKnowledgeValidationError,
+                code="node_value_invalid",
+            )
+            _stable_key(
+                item["fact_key"],
+                error_type=CompanyKnowledgeValidationError,
+                code="evidence_fact_key_invalid",
+            )
+            return deepcopy(item)
+>       raise CompanyKnowledgeValidationError("node_type_invalid")
+E       app.core.company_ontology.CompanyKnowledgeValidationError: node_type_invalid
+
+app/core/company_ontology.py:711: CompanyKnowledgeValidationError
+
+During handling of the above exception, another exception occurred:
+
+node_type = 'notice', value = {'extra': 1, 'notice_id': 7}, accepted = False
+
+    @pytest.mark.parametrize(
+        ("node_type", "value", "accepted"),
+        [
+            ("notice", {"notice_id": 7}, True),
+            ("notice", {}, False),
+            ("notice", {"notice_id": 7, "extra": 1}, False),
+            ("notice", {"notice_id": True}, False),
+            ("requirement", {"text": "필수 요구", "mandatory": None}, True),
+            ("requirement", {"text": "필수 요구", "mandatory": True}, True),
+            ("requirement", {"text": "필수 요구"}, False),
+            ("requirement", {"text": "필수 요구", "mandatory": "yes"}, False),
+            ("requirement", {"text": " ", "mandatory": None}, False),
+        ],
+    )
+    def test_b2_overlay_values_use_exact_key_sets(node_type: str, value: dict, accepted: bool) -> None:
+        from app.core import company_ontology
+    
+        if accepted:
+            assert company_ontology._node_value(node_type, value) == value
+        else:
+>           with pytest.raises(CompanyKnowledgeValidationError, match="node_value_invalid"):
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           AssertionError: Regex pattern did not match.
+E            Regex: 'node_value_invalid'
+E            Input: 'node_type_invalid'
+
+tests/core/test_company_ontology.py:756: AssertionError
+________ test_b2_overlay_values_use_exact_key_sets[notice-value3-False] ________
+
+node_type = 'notice', value = {'notice_id': True}, accepted = False
+
+    @pytest.mark.parametrize(
+        ("node_type", "value", "accepted"),
+        [
+            ("notice", {"notice_id": 7}, True),
+            ("notice", {}, False),
+            ("notice", {"notice_id": 7, "extra": 1}, False),
+            ("notice", {"notice_id": True}, False),
+            ("requirement", {"text": "필수 요구", "mandatory": None}, True),
+            ("requirement", {"text": "필수 요구", "mandatory": True}, True),
+            ("requirement", {"text": "필수 요구"}, False),
+            ("requirement", {"text": "필수 요구", "mandatory": "yes"}, False),
+            ("requirement", {"text": " ", "mandatory": None}, False),
+        ],
+    )
+    def test_b2_overlay_values_use_exact_key_sets(node_type: str, value: dict, accepted: bool) -> None:
+        from app.core import company_ontology
+    
+        if accepted:
+            assert company_ontology._node_value(node_type, value) == value
+        else:
+            with pytest.raises(CompanyKnowledgeValidationError, match="node_value_invalid"):
+>               company_ontology._node_value(node_type, value)
+
+tests/core/test_company_ontology.py:757: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+node_type = 'notice', value = {'notice_id': True}
+
+    def _node_value(node_type: str, value: Any) -> Any:
+        if node_type in {"company", "domain", "technology", "qualification"}:
+            if value is not None and not isinstance(value, str):
+                raise CompanyKnowledgeValidationError("node_value_invalid")
+            if isinstance(value, str) and not value.strip():
+                raise CompanyKnowledgeValidationError("node_value_invalid")
+            return value
+        if node_type == "capability":
+            if value is None:
+                return None
+            item = _strict_object(
+                value,
+                {"scope", "description"},
+                error_type=CompanyKnowledgeValidationError,
+                code="node_value_invalid",
+            )
+            if not isinstance(item["scope"], str) or item["scope"] not in {"core", "non_core"}:
+                raise CompanyKnowledgeValidationError("node_value_invalid")
+            _nonempty_string(
+                item["description"],
+                error_type=CompanyKnowledgeValidationError,
+                code="node_value_invalid",
+            )
+            return deepcopy(item)
+        if node_type == "staff_group":
+            if not isinstance(value, dict) or not {"role"} <= set(value) <= {
+                "role",
+                "total",
+                "available",
+                "as_of",
+            }:
+                raise CompanyKnowledgeValidationError("node_value_invalid")
+            _nonempty_string(
+                value["role"],
+                error_type=CompanyKnowledgeValidationError,
+                code="node_value_invalid",
+            )
+            total = _nullable_nonnegative_int(value.get("total"), name="total")
+            available = _nullable_nonnegative_int(value.get("available"), name="available")
+            if total is not None and available is not None and available > total:
+                raise CompanyKnowledgeValidationError("available_exceeds_total")
+            _nullable_date(value.get("as_of"))
+            return deepcopy(value)
+        if node_type == "project":
+            if not isinstance(value, dict) or not {"role", "scope"} <= set(value) <= {
+                "role",
+                "scope",
+                "amount_krw",
+                "started_on",
+                "ended_on",
+            }:
+                raise CompanyKnowledgeValidationError("node_value_invalid")
+            _nonempty_string(
+                value["role"],
+                error_type=CompanyKnowledgeValidationError,
+                code="node_value_invalid",
+            )
+            _nonempty_string(
+                value["scope"],
+                error_type=CompanyKnowledgeValidationError,
+                code="node_value_invalid",
+            )
+            _nullable_nonnegative_int(value.get("amount_krw"), name="amount_krw")
+            started = _nullable_date(value.get("started_on"))
+            ended = _nullable_date(value.get("ended_on"))
+            if started is not None and ended is not None and ended < started:
+                raise CompanyKnowledgeValidationError("date_order_invalid")
+            return deepcopy(value)
+        if node_type == "evidence":
+            if value is None:
+                return None
+            item = _strict_object(
+                value,
+                {"fact_key"},
+                error_type=CompanyKnowledgeValidationError,
+                code="node_value_invalid",
+            )
+            _stable_key(
+                item["fact_key"],
+                error_type=CompanyKnowledgeValidationError,
+                code="evidence_fact_key_invalid",
+            )
+            return deepcopy(item)
+>       raise CompanyKnowledgeValidationError("node_type_invalid")
+E       app.core.company_ontology.CompanyKnowledgeValidationError: node_type_invalid
+
+app/core/company_ontology.py:711: CompanyKnowledgeValidationError
+
+During handling of the above exception, another exception occurred:
+
+node_type = 'notice', value = {'notice_id': True}, accepted = False
+
+    @pytest.mark.parametrize(
+        ("node_type", "value", "accepted"),
+        [
+            ("notice", {"notice_id": 7}, True),
+            ("notice", {}, False),
+            ("notice", {"notice_id": 7, "extra": 1}, False),
+            ("notice", {"notice_id": True}, False),
+            ("requirement", {"text": "필수 요구", "mandatory": None}, True),
+            ("requirement", {"text": "필수 요구", "mandatory": True}, True),
+            ("requirement", {"text": "필수 요구"}, False),
+            ("requirement", {"text": "필수 요구", "mandatory": "yes"}, False),
+            ("requirement", {"text": " ", "mandatory": None}, False),
+        ],
+    )
+    def test_b2_overlay_values_use_exact_key_sets(node_type: str, value: dict, accepted: bool) -> None:
+        from app.core import company_ontology
+    
+        if accepted:
+            assert company_ontology._node_value(node_type, value) == value
+        else:
+>           with pytest.raises(CompanyKnowledgeValidationError, match="node_value_invalid"):
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           AssertionError: Regex pattern did not match.
+E            Regex: 'node_value_invalid'
+E            Input: 'node_type_invalid'
+
+tests/core/test_company_ontology.py:756: AssertionError
+______ test_b2_overlay_values_use_exact_key_sets[requirement-value4-True] ______
+
+node_type = 'requirement', value = {'mandatory': None, 'text': '필수 요구'}
+accepted = True
+
+    @pytest.mark.parametrize(
+        ("node_type", "value", "accepted"),
+        [
+            ("notice", {"notice_id": 7}, True),
+            ("notice", {}, False),
+            ("notice", {"notice_id": 7, "extra": 1}, False),
+            ("notice", {"notice_id": True}, False),
+            ("requirement", {"text": "필수 요구", "mandatory": None}, True),
+            ("requirement", {"text": "필수 요구", "mandatory": True}, True),
+            ("requirement", {"text": "필수 요구"}, False),
+            ("requirement", {"text": "필수 요구", "mandatory": "yes"}, False),
+            ("requirement", {"text": " ", "mandatory": None}, False),
+        ],
+    )
+    def test_b2_overlay_values_use_exact_key_sets(node_type: str, value: dict, accepted: bool) -> None:
+        from app.core import company_ontology
+    
+        if accepted:
+>           assert company_ontology._node_value(node_type, value) == value
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/core/test_company_ontology.py:754: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+node_type = 'requirement', value = {'mandatory': None, 'text': '필수 요구'}
+
+    def _node_value(node_type: str, value: Any) -> Any:
+        if node_type in {"company", "domain", "technology", "qualification"}:
+            if value is not None and not isinstance(value, str):
+                raise CompanyKnowledgeValidationError("node_value_invalid")
+            if isinstance(value, str) and not value.strip():
+                raise CompanyKnowledgeValidationError("node_value_invalid")
+            return value
+        if node_type == "capability":
+            if value is None:
+                return None
+            item = _strict_object(
+                value,
+                {"scope", "description"},
+                error_type=CompanyKnowledgeValidationError,
+                code="node_value_invalid",
+            )
+            if not isinstance(item["scope"], str) or item["scope"] not in {"core", "non_core"}:
+                raise CompanyKnowledgeValidationError("node_value_invalid")
+            _nonempty_string(
+                item["description"],
+                error_type=CompanyKnowledgeValidationError,
+                code="node_value_invalid",
+            )
+            return deepcopy(item)
+        if node_type == "staff_group":
+            if not isinstance(value, dict) or not {"role"} <= set(value) <= {
+                "role",
+                "total",
+                "available",
+                "as_of",
+            }:
+                raise CompanyKnowledgeValidationError("node_value_invalid")
+            _nonempty_string(
+                value["role"],
+                error_type=CompanyKnowledgeValidationError,
+                code="node_value_invalid",
+            )
+            total = _nullable_nonnegative_int(value.get("total"), name="total")
+            available = _nullable_nonnegative_int(value.get("available"), name="available")
+            if total is not None and available is not None and available > total:
+                raise CompanyKnowledgeValidationError("available_exceeds_total")
+            _nullable_date(value.get("as_of"))
+            return deepcopy(value)
+        if node_type == "project":
+            if not isinstance(value, dict) or not {"role", "scope"} <= set(value) <= {
+                "role",
+                "scope",
+                "amount_krw",
+                "started_on",
+                "ended_on",
+            }:
+                raise CompanyKnowledgeValidationError("node_value_invalid")
+            _nonempty_string(
+                value["role"],
+                error_type=CompanyKnowledgeValidationError,
+                code="node_value_invalid",
+            )
+            _nonempty_string(
+                value["scope"],
+                error_type=CompanyKnowledgeValidationError,
+                code="node_value_invalid",
+            )
+            _nullable_nonnegative_int(value.get("amount_krw"), name="amount_krw")
+            started = _nullable_date(value.get("started_on"))
+            ended = _nullable_date(value.get("ended_on"))
+            if started is not None and ended is not None and ended < started:
+                raise CompanyKnowledgeValidationError("date_order_invalid")
+            return deepcopy(value)
+        if node_type == "evidence":
+            if value is None:
+                return None
+            item = _strict_object(
+                value,
+                {"fact_key"},
+                error_type=CompanyKnowledgeValidationError,
+                code="node_value_invalid",
+            )
+            _stable_key(
+                item["fact_key"],
+                error_type=CompanyKnowledgeValidationError,
+                code="evidence_fact_key_invalid",
+            )
+            return deepcopy(item)
+>       raise CompanyKnowledgeValidationError("node_type_invalid")
+E       app.core.company_ontology.CompanyKnowledgeValidationError: node_type_invalid
+
+app/core/company_ontology.py:711: CompanyKnowledgeValidationError
+______ test_b2_overlay_values_use_exact_key_sets[requirement-value5-True] ______
+
+node_type = 'requirement', value = {'mandatory': True, 'text': '필수 요구'}
+accepted = True
+
+    @pytest.mark.parametrize(
+        ("node_type", "value", "accepted"),
+        [
+            ("notice", {"notice_id": 7}, True),
+            ("notice", {}, False),
+            ("notice", {"notice_id": 7, "extra": 1}, False),
+            ("notice", {"notice_id": True}, False),
+            ("requirement", {"text": "필수 요구", "mandatory": None}, True),
+            ("requirement", {"text": "필수 요구", "mandatory": True}, True),
+            ("requirement", {"text": "필수 요구"}, False),
+            ("requirement", {"text": "필수 요구", "mandatory": "yes"}, False),
+            ("requirement", {"text": " ", "mandatory": None}, False),
+        ],
+    )
+    def test_b2_overlay_values_use_exact_key_sets(node_type: str, value: dict, accepted: bool) -> None:
+        from app.core import company_ontology
+    
+        if accepted:
+>           assert company_ontology._node_value(node_type, value) == value
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/core/test_company_ontology.py:754: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+node_type = 'requirement', value = {'mandatory': True, 'text': '필수 요구'}
+
+    def _node_value(node_type: str, value: Any) -> Any:
+        if node_type in {"company", "domain", "technology", "qualification"}:
+            if value is not None and not isinstance(value, str):
+                raise CompanyKnowledgeValidationError("node_value_invalid")
+            if isinstance(value, str) and not value.strip():
+                raise CompanyKnowledgeValidationError("node_value_invalid")
+            return value
+        if node_type == "capability":
+            if value is None:
+                return None
+            item = _strict_object(
+                value,
+                {"scope", "description"},
+                error_type=CompanyKnowledgeValidationError,
+                code="node_value_invalid",
+            )
+            if not isinstance(item["scope"], str) or item["scope"] not in {"core", "non_core"}:
+                raise CompanyKnowledgeValidationError("node_value_invalid")
+            _nonempty_string(
+                item["description"],
+                error_type=CompanyKnowledgeValidationError,
+                code="node_value_invalid",
+            )
+            return deepcopy(item)
+        if node_type == "staff_group":
+            if not isinstance(value, dict) or not {"role"} <= set(value) <= {
+                "role",
+                "total",
+                "available",
+                "as_of",
+            }:
+                raise CompanyKnowledgeValidationError("node_value_invalid")
+            _nonempty_string(
+                value["role"],
+                error_type=CompanyKnowledgeValidationError,
+                code="node_value_invalid",
+            )
+            total = _nullable_nonnegative_int(value.get("total"), name="total")
+            available = _nullable_nonnegative_int(value.get("available"), name="available")
+            if total is not None and available is not None and available > total:
+                raise CompanyKnowledgeValidationError("available_exceeds_total")
+            _nullable_date(value.get("as_of"))
+            return deepcopy(value)
+        if node_type == "project":
+            if not isinstance(value, dict) or not {"role", "scope"} <= set(value) <= {
+                "role",
+                "scope",
+                "amount_krw",
+                "started_on",
+                "ended_on",
+            }:
+                raise CompanyKnowledgeValidationError("node_value_invalid")
+            _nonempty_string(
+                value["role"],
+                error_type=CompanyKnowledgeValidationError,
+                code="node_value_invalid",
+            )
+            _nonempty_string(
+                value["scope"],
+                error_type=CompanyKnowledgeValidationError,
+                code="node_value_invalid",
+            )
+            _nullable_nonnegative_int(value.get("amount_krw"), name="amount_krw")
+            started = _nullable_date(value.get("started_on"))
+            ended = _nullable_date(value.get("ended_on"))
+            if started is not None and ended is not None and ended < started:
+                raise CompanyKnowledgeValidationError("date_order_invalid")
+            return deepcopy(value)
+        if node_type == "evidence":
+            if value is None:
+                return None
+            item = _strict_object(
+                value,
+                {"fact_key"},
+                error_type=CompanyKnowledgeValidationError,
+                code="node_value_invalid",
+            )
+            _stable_key(
+                item["fact_key"],
+                error_type=CompanyKnowledgeValidationError,
+                code="evidence_fact_key_invalid",
+            )
+            return deepcopy(item)
+>       raise CompanyKnowledgeValidationError("node_type_invalid")
+E       app.core.company_ontology.CompanyKnowledgeValidationError: node_type_invalid
+
+app/core/company_ontology.py:711: CompanyKnowledgeValidationError
+_____ test_b2_overlay_values_use_exact_key_sets[requirement-value6-False] ______
+
+node_type = 'requirement', value = {'text': '필수 요구'}, accepted = False
+
+    @pytest.mark.parametrize(
+        ("node_type", "value", "accepted"),
+        [
+            ("notice", {"notice_id": 7}, True),
+            ("notice", {}, False),
+            ("notice", {"notice_id": 7, "extra": 1}, False),
+            ("notice", {"notice_id": True}, False),
+            ("requirement", {"text": "필수 요구", "mandatory": None}, True),
+            ("requirement", {"text": "필수 요구", "mandatory": True}, True),
+            ("requirement", {"text": "필수 요구"}, False),
+            ("requirement", {"text": "필수 요구", "mandatory": "yes"}, False),
+            ("requirement", {"text": " ", "mandatory": None}, False),
+        ],
+    )
+    def test_b2_overlay_values_use_exact_key_sets(node_type: str, value: dict, accepted: bool) -> None:
+        from app.core import company_ontology
+    
+        if accepted:
+            assert company_ontology._node_value(node_type, value) == value
+        else:
+            with pytest.raises(CompanyKnowledgeValidationError, match="node_value_invalid"):
+>               company_ontology._node_value(node_type, value)
+
+tests/core/test_company_ontology.py:757: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+node_type = 'requirement', value = {'text': '필수 요구'}
+
+    def _node_value(node_type: str, value: Any) -> Any:
+        if node_type in {"company", "domain", "technology", "qualification"}:
+            if value is not None and not isinstance(value, str):
+                raise CompanyKnowledgeValidationError("node_value_invalid")
+            if isinstance(value, str) and not value.strip():
+                raise CompanyKnowledgeValidationError("node_value_invalid")
+            return value
+        if node_type == "capability":
+            if value is None:
+                return None
+            item = _strict_object(
+                value,
+                {"scope", "description"},
+                error_type=CompanyKnowledgeValidationError,
+                code="node_value_invalid",
+            )
+            if not isinstance(item["scope"], str) or item["scope"] not in {"core", "non_core"}:
+                raise CompanyKnowledgeValidationError("node_value_invalid")
+            _nonempty_string(
+                item["description"],
+                error_type=CompanyKnowledgeValidationError,
+                code="node_value_invalid",
+            )
+            return deepcopy(item)
+        if node_type == "staff_group":
+            if not isinstance(value, dict) or not {"role"} <= set(value) <= {
+                "role",
+                "total",
+                "available",
+                "as_of",
+            }:
+                raise CompanyKnowledgeValidationError("node_value_invalid")
+            _nonempty_string(
+                value["role"],
+                error_type=CompanyKnowledgeValidationError,
+                code="node_value_invalid",
+            )
+            total = _nullable_nonnegative_int(value.get("total"), name="total")
+            available = _nullable_nonnegative_int(value.get("available"), name="available")
+            if total is not None and available is not None and available > total:
+                raise CompanyKnowledgeValidationError("available_exceeds_total")
+            _nullable_date(value.get("as_of"))
+            return deepcopy(value)
+        if node_type == "project":
+            if not isinstance(value, dict) or not {"role", "scope"} <= set(value) <= {
+                "role",
+                "scope",
+                "amount_krw",
+                "started_on",
+                "ended_on",
+            }:
+                raise CompanyKnowledgeValidationError("node_value_invalid")
+            _nonempty_string(
+                value["role"],
+                error_type=CompanyKnowledgeValidationError,
+                code="node_value_invalid",
+            )
+            _nonempty_string(
+                value["scope"],
+                error_type=CompanyKnowledgeValidationError,
+                code="node_value_invalid",
+            )
+            _nullable_nonnegative_int(value.get("amount_krw"), name="amount_krw")
+            started = _nullable_date(value.get("started_on"))
+            ended = _nullable_date(value.get("ended_on"))
+            if started is not None and ended is not None and ended < started:
+                raise CompanyKnowledgeValidationError("date_order_invalid")
+            return deepcopy(value)
+        if node_type == "evidence":
+            if value is None:
+                return None
+            item = _strict_object(
+                value,
+                {"fact_key"},
+                error_type=CompanyKnowledgeValidationError,
+                code="node_value_invalid",
+            )
+            _stable_key(
+                item["fact_key"],
+                error_type=CompanyKnowledgeValidationError,
+                code="evidence_fact_key_invalid",
+            )
+            return deepcopy(item)
+>       raise CompanyKnowledgeValidationError("node_type_invalid")
+E       app.core.company_ontology.CompanyKnowledgeValidationError: node_type_invalid
+
+app/core/company_ontology.py:711: CompanyKnowledgeValidationError
+
+During handling of the above exception, another exception occurred:
+
+node_type = 'requirement', value = {'text': '필수 요구'}, accepted = False
+
+    @pytest.mark.parametrize(
+        ("node_type", "value", "accepted"),
+        [
+            ("notice", {"notice_id": 7}, True),
+            ("notice", {}, False),
+            ("notice", {"notice_id": 7, "extra": 1}, False),
+            ("notice", {"notice_id": True}, False),
+            ("requirement", {"text": "필수 요구", "mandatory": None}, True),
+            ("requirement", {"text": "필수 요구", "mandatory": True}, True),
+            ("requirement", {"text": "필수 요구"}, False),
+            ("requirement", {"text": "필수 요구", "mandatory": "yes"}, False),
+            ("requirement", {"text": " ", "mandatory": None}, False),
+        ],
+    )
+    def test_b2_overlay_values_use_exact_key_sets(node_type: str, value: dict, accepted: bool) -> None:
+        from app.core import company_ontology
+    
+        if accepted:
+            assert company_ontology._node_value(node_type, value) == value
+        else:
+>           with pytest.raises(CompanyKnowledgeValidationError, match="node_value_invalid"):
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           AssertionError: Regex pattern did not match.
+E            Regex: 'node_value_invalid'
+E            Input: 'node_type_invalid'
+
+tests/core/test_company_ontology.py:756: AssertionError
+_____ test_b2_overlay_values_use_exact_key_sets[requirement-value7-False] ______
+
+node_type = 'requirement', value = {'mandatory': 'yes', 'text': '필수 요구'}
+accepted = False
+
+    @pytest.mark.parametrize(
+        ("node_type", "value", "accepted"),
+        [
+            ("notice", {"notice_id": 7}, True),
+            ("notice", {}, False),
+            ("notice", {"notice_id": 7, "extra": 1}, False),
+            ("notice", {"notice_id": True}, False),
+            ("requirement", {"text": "필수 요구", "mandatory": None}, True),
+            ("requirement", {"text": "필수 요구", "mandatory": True}, True),
+            ("requirement", {"text": "필수 요구"}, False),
+            ("requirement", {"text": "필수 요구", "mandatory": "yes"}, False),
+            ("requirement", {"text": " ", "mandatory": None}, False),
+        ],
+    )
+    def test_b2_overlay_values_use_exact_key_sets(node_type: str, value: dict, accepted: bool) -> None:
+        from app.core import company_ontology
+    
+        if accepted:
+            assert company_ontology._node_value(node_type, value) == value
+        else:
+            with pytest.raises(CompanyKnowledgeValidationError, match="node_value_invalid"):
+>               company_ontology._node_value(node_type, value)
+
+tests/core/test_company_ontology.py:757: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+node_type = 'requirement', value = {'mandatory': 'yes', 'text': '필수 요구'}
+
+    def _node_value(node_type: str, value: Any) -> Any:
+        if node_type in {"company", "domain", "technology", "qualification"}:
+            if value is not None and not isinstance(value, str):
+                raise CompanyKnowledgeValidationError("node_value_invalid")
+            if isinstance(value, str) and not value.strip():
+                raise CompanyKnowledgeValidationError("node_value_invalid")
+            return value
+        if node_type == "capability":
+            if value is None:
+                return None
+            item = _strict_object(
+                value,
+                {"scope", "description"},
+                error_type=CompanyKnowledgeValidationError,
+                code="node_value_invalid",
+            )
+            if not isinstance(item["scope"], str) or item["scope"] not in {"core", "non_core"}:
+                raise CompanyKnowledgeValidationError("node_value_invalid")
+            _nonempty_string(
+                item["description"],
+                error_type=CompanyKnowledgeValidationError,
+                code="node_value_invalid",
+            )
+            return deepcopy(item)
+        if node_type == "staff_group":
+            if not isinstance(value, dict) or not {"role"} <= set(value) <= {
+                "role",
+                "total",
+                "available",
+                "as_of",
+            }:
+                raise CompanyKnowledgeValidationError("node_value_invalid")
+            _nonempty_string(
+                value["role"],
+                error_type=CompanyKnowledgeValidationError,
+                code="node_value_invalid",
+            )
+            total = _nullable_nonnegative_int(value.get("total"), name="total")
+            available = _nullable_nonnegative_int(value.get("available"), name="available")
+            if total is not None and available is not None and available > total:
+                raise CompanyKnowledgeValidationError("available_exceeds_total")
+            _nullable_date(value.get("as_of"))
+            return deepcopy(value)
+        if node_type == "project":
+            if not isinstance(value, dict) or not {"role", "scope"} <= set(value) <= {
+                "role",
+                "scope",
+                "amount_krw",
+                "started_on",
+                "ended_on",
+            }:
+                raise CompanyKnowledgeValidationError("node_value_invalid")
+            _nonempty_string(
+                value["role"],
+                error_type=CompanyKnowledgeValidationError,
+                code="node_value_invalid",
+            )
+            _nonempty_string(
+                value["scope"],
+                error_type=CompanyKnowledgeValidationError,
+                code="node_value_invalid",
+            )
+            _nullable_nonnegative_int(value.get("amount_krw"), name="amount_krw")
+            started = _nullable_date(value.get("started_on"))
+            ended = _nullable_date(value.get("ended_on"))
+            if started is not None and ended is not None and ended < started:
+                raise CompanyKnowledgeValidationError("date_order_invalid")
+            return deepcopy(value)
+        if node_type == "evidence":
+            if value is None:
+                return None
+            item = _strict_object(
+                value,
+                {"fact_key"},
+                error_type=CompanyKnowledgeValidationError,
+                code="node_value_invalid",
+            )
+            _stable_key(
+                item["fact_key"],
+                error_type=CompanyKnowledgeValidationError,
+                code="evidence_fact_key_invalid",
+            )
+            return deepcopy(item)
+>       raise CompanyKnowledgeValidationError("node_type_invalid")
+E       app.core.company_ontology.CompanyKnowledgeValidationError: node_type_invalid
+
+app/core/company_ontology.py:711: CompanyKnowledgeValidationError
+
+During handling of the above exception, another exception occurred:
+
+node_type = 'requirement', value = {'mandatory': 'yes', 'text': '필수 요구'}
+accepted = False
+
+    @pytest.mark.parametrize(
+        ("node_type", "value", "accepted"),
+        [
+            ("notice", {"notice_id": 7}, True),
+            ("notice", {}, False),
+            ("notice", {"notice_id": 7, "extra": 1}, False),
+            ("notice", {"notice_id": True}, False),
+            ("requirement", {"text": "필수 요구", "mandatory": None}, True),
+            ("requirement", {"text": "필수 요구", "mandatory": True}, True),
+            ("requirement", {"text": "필수 요구"}, False),
+            ("requirement", {"text": "필수 요구", "mandatory": "yes"}, False),
+            ("requirement", {"text": " ", "mandatory": None}, False),
+        ],
+    )
+    def test_b2_overlay_values_use_exact_key_sets(node_type: str, value: dict, accepted: bool) -> None:
+        from app.core import company_ontology
+    
+        if accepted:
+            assert company_ontology._node_value(node_type, value) == value
+        else:
+>           with pytest.raises(CompanyKnowledgeValidationError, match="node_value_invalid"):
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           AssertionError: Regex pattern did not match.
+E            Regex: 'node_value_invalid'
+E            Input: 'node_type_invalid'
+
+tests/core/test_company_ontology.py:756: AssertionError
+_____ test_b2_overlay_values_use_exact_key_sets[requirement-value8-False] ______
+
+node_type = 'requirement', value = {'mandatory': None, 'text': ' '}
+accepted = False
+
+    @pytest.mark.parametrize(
+        ("node_type", "value", "accepted"),
+        [
+            ("notice", {"notice_id": 7}, True),
+            ("notice", {}, False),
+            ("notice", {"notice_id": 7, "extra": 1}, False),
+            ("notice", {"notice_id": True}, False),
+            ("requirement", {"text": "필수 요구", "mandatory": None}, True),
+            ("requirement", {"text": "필수 요구", "mandatory": True}, True),
+            ("requirement", {"text": "필수 요구"}, False),
+            ("requirement", {"text": "필수 요구", "mandatory": "yes"}, False),
+            ("requirement", {"text": " ", "mandatory": None}, False),
+        ],
+    )
+    def test_b2_overlay_values_use_exact_key_sets(node_type: str, value: dict, accepted: bool) -> None:
+        from app.core import company_ontology
+    
+        if accepted:
+            assert company_ontology._node_value(node_type, value) == value
+        else:
+            with pytest.raises(CompanyKnowledgeValidationError, match="node_value_invalid"):
+>               company_ontology._node_value(node_type, value)
+
+tests/core/test_company_ontology.py:757: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+node_type = 'requirement', value = {'mandatory': None, 'text': ' '}
+
+    def _node_value(node_type: str, value: Any) -> Any:
+        if node_type in {"company", "domain", "technology", "qualification"}:
+            if value is not None and not isinstance(value, str):
+                raise CompanyKnowledgeValidationError("node_value_invalid")
+            if isinstance(value, str) and not value.strip():
+                raise CompanyKnowledgeValidationError("node_value_invalid")
+            return value
+        if node_type == "capability":
+            if value is None:
+                return None
+            item = _strict_object(
+                value,
+                {"scope", "description"},
+                error_type=CompanyKnowledgeValidationError,
+                code="node_value_invalid",
+            )
+            if not isinstance(item["scope"], str) or item["scope"] not in {"core", "non_core"}:
+                raise CompanyKnowledgeValidationError("node_value_invalid")
+            _nonempty_string(
+                item["description"],
+                error_type=CompanyKnowledgeValidationError,
+                code="node_value_invalid",
+            )
+            return deepcopy(item)
+        if node_type == "staff_group":
+            if not isinstance(value, dict) or not {"role"} <= set(value) <= {
+                "role",
+                "total",
+                "available",
+                "as_of",
+            }:
+                raise CompanyKnowledgeValidationError("node_value_invalid")
+            _nonempty_string(
+                value["role"],
+                error_type=CompanyKnowledgeValidationError,
+                code="node_value_invalid",
+            )
+            total = _nullable_nonnegative_int(value.get("total"), name="total")
+            available = _nullable_nonnegative_int(value.get("available"), name="available")
+            if total is not None and available is not None and available > total:
+                raise CompanyKnowledgeValidationError("available_exceeds_total")
+            _nullable_date(value.get("as_of"))
+            return deepcopy(value)
+        if node_type == "project":
+            if not isinstance(value, dict) or not {"role", "scope"} <= set(value) <= {
+                "role",
+                "scope",
+                "amount_krw",
+                "started_on",
+                "ended_on",
+            }:
+                raise CompanyKnowledgeValidationError("node_value_invalid")
+            _nonempty_string(
+                value["role"],
+                error_type=CompanyKnowledgeValidationError,
+                code="node_value_invalid",
+            )
+            _nonempty_string(
+                value["scope"],
+                error_type=CompanyKnowledgeValidationError,
+                code="node_value_invalid",
+            )
+            _nullable_nonnegative_int(value.get("amount_krw"), name="amount_krw")
+            started = _nullable_date(value.get("started_on"))
+            ended = _nullable_date(value.get("ended_on"))
+            if started is not None and ended is not None and ended < started:
+                raise CompanyKnowledgeValidationError("date_order_invalid")
+            return deepcopy(value)
+        if node_type == "evidence":
+            if value is None:
+                return None
+            item = _strict_object(
+                value,
+                {"fact_key"},
+                error_type=CompanyKnowledgeValidationError,
+                code="node_value_invalid",
+            )
+            _stable_key(
+                item["fact_key"],
+                error_type=CompanyKnowledgeValidationError,
+                code="evidence_fact_key_invalid",
+            )
+            return deepcopy(item)
+>       raise CompanyKnowledgeValidationError("node_type_invalid")
+E       app.core.company_ontology.CompanyKnowledgeValidationError: node_type_invalid
+
+app/core/company_ontology.py:711: CompanyKnowledgeValidationError
+
+During handling of the above exception, another exception occurred:
+
+node_type = 'requirement', value = {'mandatory': None, 'text': ' '}
+accepted = False
+
+    @pytest.mark.parametrize(
+        ("node_type", "value", "accepted"),
+        [
+            ("notice", {"notice_id": 7}, True),
+            ("notice", {}, False),
+            ("notice", {"notice_id": 7, "extra": 1}, False),
+            ("notice", {"notice_id": True}, False),
+            ("requirement", {"text": "필수 요구", "mandatory": None}, True),
+            ("requirement", {"text": "필수 요구", "mandatory": True}, True),
+            ("requirement", {"text": "필수 요구"}, False),
+            ("requirement", {"text": "필수 요구", "mandatory": "yes"}, False),
+            ("requirement", {"text": " ", "mandatory": None}, False),
+        ],
+    )
+    def test_b2_overlay_values_use_exact_key_sets(node_type: str, value: dict, accepted: bool) -> None:
+        from app.core import company_ontology
+    
+        if accepted:
+            assert company_ontology._node_value(node_type, value) == value
+        else:
+>           with pytest.raises(CompanyKnowledgeValidationError, match="node_value_invalid"):
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           AssertionError: Regex pattern did not match.
+E            Regex: 'node_value_invalid'
+E            Input: 'node_type_invalid'
+
+tests/core/test_company_ontology.py:756: AssertionError
+______ test_n2_ontology_version_is_bounded_by_its_database_column[sqlite] ______
+
+engine = Engine(sqlite://)
+
+    def test_n2_ontology_version_is_bounded_by_its_database_column(engine) -> None:
+>       from app.core.company_ontology import MAX_ONTOLOGY_VERSION_LENGTH, parse_ontology
+E       ImportError: cannot import name 'MAX_ONTOLOGY_VERSION_LENGTH' from 'app.core.company_ontology' (/Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo0203-20261009-DEMO-02-company-knowledge/web/backend/app/core/company_ontology.py)
+
+tests/deep_review/test_company_knowledge.py:746: ImportError
+_____ test_n2_ontology_version_is_bounded_by_its_database_column[postgres] _____
+
+engine = Engine(postgresql+psycopg://owner:***@127.0.0.1:32800/bidops_test_9a1c161afc3b43ca)
+
+    def test_n2_ontology_version_is_bounded_by_its_database_column(engine) -> None:
+>       from app.core.company_ontology import MAX_ONTOLOGY_VERSION_LENGTH, parse_ontology
+E       ImportError: cannot import name 'MAX_ONTOLOGY_VERSION_LENGTH' from 'app.core.company_ontology' (/Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo0203-20261009-DEMO-02-company-knowledge/web/backend/app/core/company_ontology.py)
+
+tests/deep_review/test_company_knowledge.py:746: ImportError
+_ test_b1_contract_valid_source_is_consumable_after_import_and_activation[sqlite-unsorted_edge_refs] _
+
+engine = Engine(sqlite://)
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x1169bc470>
+case = 'unsorted_edge_refs'
+
+    @pytest.mark.parametrize("case", ["unsorted_edge_refs", "unknown_evidence", "collation_ids"])
+    def test_b1_contract_valid_source_is_consumable_after_import_and_activation(
+        engine, monkeypatch: pytest.MonkeyPatch, case: str
+    ) -> None:
+        from app.core.company_ontology import parse_ontology
+        from app.deep_review.services.input_versions import (
+            profile_context,
+            validate_profile_snapshot,
+        )
+    
+        ontology_raw = _raw(_ontology())
+        source = _consumable_case_source(parse_ontology(ontology_raw).sha256, case)
+        prepared = prepare_company_knowledge(ontology_raw, _raw(source))
+        application, sessions = _application(engine, monkeypatch)
+        imported = _import(sessions, prepared, activate=True)
+        assert imported.created is True
+    
+        nodes = {node["id"]: node for node in source["nodes"]}
+        edges = {edge["id"]: edge for edge in source["edges"]}
+        fact_ids = sorted(node_id for node_id, node in nodes.items() if node["type"] != "evidence")
+        with sessions() as session:
+            profile = session.get(ProfileVersion, imported.profile_version_id)
+            assert profile is not None
+>           validate_profile_snapshot(session, profile)
+
+tests/app/test_company_knowledge_api.py:992: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+app/deep_review/services/input_versions.py:1147: in validate_profile_snapshot
+    _validate_profile_v2_snapshot(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+session = <sqlalchemy.orm.session.Session object at 0x116a19f40>
+profile = <app.deep_review.models.ProfileVersion object at 0x1169a1dc0>
+
+    def _validate_profile_v2_snapshot(
+        session: Session,
+        profile: ProfileVersion,
+        *,
+        require_verified_source: bool,
+    ) -> None:
+        """Validate the complete profile/graph/source projection frozen at import.
+    
+        Normal analysis and API consumers validate immutable database lineage only;
+        their role does not have the private ``source`` namespace credential.  The
+        explicit verification path additionally re-reads the exact object version.
+        """
+    
+        payload = profile.profile_payload if isinstance(profile.profile_payload, Mapping) else None
+        expected_payload_keys = {
+            "schema",
+            "company_id",
+            "origin",
+            "source_sha256",
+            "graph_version_id",
+            "ontology_version",
+            "facts",
+            "parse_errors",
+        }
+        if (
+            payload is None
+            or set(payload) != expected_payload_keys
+            or payload.get("schema") != PROFILE_SCHEMA_V2
+            or payload.get("origin") != "fictional_scenario"
+            or payload.get("source_sha256") != profile.profile_sha256
+            or payload.get("parse_errors") != []
+            or profile.company_id is None
+            or profile.source_kind != "company-knowledge-json-v2"
+            or payload.get("company_id") != str(profile.company_id)
+        ):
+            raise InputVersionError(
+                "service_unavailable", "company profile v2 identity가 올바르지 않습니다"
+            )
+        try:
+            graph_version_id = UUID(str(payload.get("graph_version_id")))
+        except (TypeError, ValueError) as exc:
+            raise InputVersionError(
+                "service_unavailable", "company profile v2 graph identity가 올바르지 않습니다"
+            ) from exc
+    
+        graph = session.get(CompanyKnowledgeVersion, graph_version_id)
+        company = session.get(Company, profile.company_id)
+        if (
+            graph is None
+            or company is None
+            or not company.is_fictional
+            or graph.company_id != profile.company_id
+            or graph.profile_version_id != profile.id
+            or graph.source_sha256 != profile.profile_sha256
+        ):
+            raise InputVersionError(
+                "service_unavailable", "company profile v2 graph 소속이 올바르지 않습니다"
+            )
+    
+        source = session.get(CompanyKnowledgeSource, graph.source_id)
+        content = session.get(ContentObject, source.content_object_id) if source is not None else None
+        location = (
+            session.get(ContentObjectLocation, source.content_location_id)
+            if source is not None
+            else None
+        )
+        if (
+            source is None
+            or content is None
+            or location is None
+            or source.company_id != profile.company_id
+            or source.source_sha256 != profile.profile_sha256
+            or source.size_bytes <= 0
+            or content.id != source.content_object_id
+            or content.sha256 != source.source_sha256
+            or content.size_bytes != source.size_bytes
+            or content.detected_mime != "application/json"
+            or location.id != source.content_location_id
+            or location.content_object_id != content.id
+            or location.namespace_key != "source"
+            or location.status != "verified"
+            or not isinstance(location.object_key, str)
+            or not location.object_key
+            or location.object_key.startswith(("/", "\\"))
+            or not location.object_version_id
+            or not location.etag
+        ):
+            raise InputVersionError(
+                "service_unavailable", "company profile v2 source 계보가 올바르지 않습니다"
+            )
+        if require_verified_source and not _company_source_bytes_verified(
+            source, content, location
+        ):
+            raise InputVersionError(
+                "service_unavailable", "company profile v2 원문을 검증할 수 없습니다"
+            )
+    
+        ontology = session.get(KnowledgeOntologyVersion, graph.ontology_id)
+        snapshot = graph.snapshot if isinstance(graph.snapshot, Mapping) else None
+        try:
+            parsed_ontology = (
+                parse_ontology(canonical_json_bytes(ontology.payload))
+                if ontology is not None and isinstance(ontology.payload, Mapping)
+                else None
+            )
+            snapshot_digest = canonical_json_hash(snapshot) if snapshot is not None else None
+        except (OntologyValidationError, TypeError, ValueError):
+            parsed_ontology = None
+            snapshot_digest = None
+        if (
+            ontology is None
+            or parsed_ontology is None
+            or parsed_ontology.sha256 != ontology.sha256
+            or parsed_ontology.version != ontology.version
+            or snapshot is None
+            or set(snapshot) != {
+                "schema_version",
+                "company_slug",
+                "ontology_version",
+                "ontology_sha256",
+                "source_sha256",
+                "nodes",
+                "edges",
+            }
+            or snapshot.get("schema_version") != GRAPH_SNAPSHOT_SCHEMA
+            or snapshot.get("company_slug") != company.slug
+            or snapshot.get("ontology_version") != ontology.version
+            or snapshot.get("ontology_sha256") != ontology.sha256
+            or snapshot.get("source_sha256") != source.source_sha256
+            or payload.get("ontology_version") != ontology.version
+            or snapshot_digest != graph.graph_sha256
+        ):
+            raise InputVersionError(
+                "service_unavailable", "company profile v2 ontology 또는 graph hash가 올바르지 않습니다"
+            )
+    
+        nodes = snapshot.get("nodes")
+        edges = snapshot.get("edges")
+        if not isinstance(nodes, list) or not isinstance(edges, list):
+            raise InputVersionError(
+                "service_unavailable", "company graph snapshot이 올바르지 않습니다"
+            )
+        node_rows = list(
+            session.scalars(
+                select(CompanyKnowledgeNode)
+                .where(CompanyKnowledgeNode.graph_version_id == graph.id)
+                .order_by(CompanyKnowledgeNode.node_id.asc())
+            )
+        )
+        edge_rows = list(
+            session.scalars(
+                select(CompanyKnowledgeEdge)
+                .where(CompanyKnowledgeEdge.graph_version_id == graph.id)
+                .order_by(CompanyKnowledgeEdge.edge_id.asc())
+            )
+        )
+        if (
+            [node.get("id") if isinstance(node, Mapping) else None for node in nodes]
+            != sorted(row.node_id for row in node_rows)
+            or len(nodes) != len(node_rows)
+            or any(row.payload != node for row, node in zip(node_rows, nodes))
+            or [edge.get("id") if isinstance(edge, Mapping) else None for edge in edges]
+            != sorted(row.edge_id for row in edge_rows)
+            or len(edges) != len(edge_rows)
+            or any(row.payload != edge for row, edge in zip(edge_rows, edges))
+        ):
+>           raise InputVersionError(
+                "service_unavailable", "company graph rows가 frozen snapshot과 일치하지 않습니다"
+            )
+E           app.deep_review.services.input_versions.InputVersionError: company graph rows가 frozen snapshot과 일치하지 않습니다
+
+app/deep_review/services/input_versions.py:947: InputVersionError
+_ test_b1_contract_valid_source_is_consumable_after_import_and_activation[sqlite-unknown_evidence] _
+
+engine = Engine(sqlite://)
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x1169fb770>
+case = 'unknown_evidence'
+
+    @pytest.mark.parametrize("case", ["unsorted_edge_refs", "unknown_evidence", "collation_ids"])
+    def test_b1_contract_valid_source_is_consumable_after_import_and_activation(
+        engine, monkeypatch: pytest.MonkeyPatch, case: str
+    ) -> None:
+        from app.core.company_ontology import parse_ontology
+        from app.deep_review.services.input_versions import (
+            profile_context,
+            validate_profile_snapshot,
+        )
+    
+        ontology_raw = _raw(_ontology())
+        source = _consumable_case_source(parse_ontology(ontology_raw).sha256, case)
+        prepared = prepare_company_knowledge(ontology_raw, _raw(source))
+        application, sessions = _application(engine, monkeypatch)
+        imported = _import(sessions, prepared, activate=True)
+        assert imported.created is True
+    
+        nodes = {node["id"]: node for node in source["nodes"]}
+        edges = {edge["id"]: edge for edge in source["edges"]}
+        fact_ids = sorted(node_id for node_id, node in nodes.items() if node["type"] != "evidence")
+        with sessions() as session:
+            profile = session.get(ProfileVersion, imported.profile_version_id)
+            assert profile is not None
+>           validate_profile_snapshot(session, profile)
+
+tests/app/test_company_knowledge_api.py:992: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+app/deep_review/services/input_versions.py:1147: in validate_profile_snapshot
+    _validate_profile_v2_snapshot(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+session = <sqlalchemy.orm.session.Session object at 0x116655a90>
+profile = <app.deep_review.models.ProfileVersion object at 0x1208f64e0>
+
+    def _validate_profile_v2_snapshot(
+        session: Session,
+        profile: ProfileVersion,
+        *,
+        require_verified_source: bool,
+    ) -> None:
+        """Validate the complete profile/graph/source projection frozen at import.
+    
+        Normal analysis and API consumers validate immutable database lineage only;
+        their role does not have the private ``source`` namespace credential.  The
+        explicit verification path additionally re-reads the exact object version.
+        """
+    
+        payload = profile.profile_payload if isinstance(profile.profile_payload, Mapping) else None
+        expected_payload_keys = {
+            "schema",
+            "company_id",
+            "origin",
+            "source_sha256",
+            "graph_version_id",
+            "ontology_version",
+            "facts",
+            "parse_errors",
+        }
+        if (
+            payload is None
+            or set(payload) != expected_payload_keys
+            or payload.get("schema") != PROFILE_SCHEMA_V2
+            or payload.get("origin") != "fictional_scenario"
+            or payload.get("source_sha256") != profile.profile_sha256
+            or payload.get("parse_errors") != []
+            or profile.company_id is None
+            or profile.source_kind != "company-knowledge-json-v2"
+            or payload.get("company_id") != str(profile.company_id)
+        ):
+            raise InputVersionError(
+                "service_unavailable", "company profile v2 identity가 올바르지 않습니다"
+            )
+        try:
+            graph_version_id = UUID(str(payload.get("graph_version_id")))
+        except (TypeError, ValueError) as exc:
+            raise InputVersionError(
+                "service_unavailable", "company profile v2 graph identity가 올바르지 않습니다"
+            ) from exc
+    
+        graph = session.get(CompanyKnowledgeVersion, graph_version_id)
+        company = session.get(Company, profile.company_id)
+        if (
+            graph is None
+            or company is None
+            or not company.is_fictional
+            or graph.company_id != profile.company_id
+            or graph.profile_version_id != profile.id
+            or graph.source_sha256 != profile.profile_sha256
+        ):
+            raise InputVersionError(
+                "service_unavailable", "company profile v2 graph 소속이 올바르지 않습니다"
+            )
+    
+        source = session.get(CompanyKnowledgeSource, graph.source_id)
+        content = session.get(ContentObject, source.content_object_id) if source is not None else None
+        location = (
+            session.get(ContentObjectLocation, source.content_location_id)
+            if source is not None
+            else None
+        )
+        if (
+            source is None
+            or content is None
+            or location is None
+            or source.company_id != profile.company_id
+            or source.source_sha256 != profile.profile_sha256
+            or source.size_bytes <= 0
+            or content.id != source.content_object_id
+            or content.sha256 != source.source_sha256
+            or content.size_bytes != source.size_bytes
+            or content.detected_mime != "application/json"
+            or location.id != source.content_location_id
+            or location.content_object_id != content.id
+            or location.namespace_key != "source"
+            or location.status != "verified"
+            or not isinstance(location.object_key, str)
+            or not location.object_key
+            or location.object_key.startswith(("/", "\\"))
+            or not location.object_version_id
+            or not location.etag
+        ):
+            raise InputVersionError(
+                "service_unavailable", "company profile v2 source 계보가 올바르지 않습니다"
+            )
+        if require_verified_source and not _company_source_bytes_verified(
+            source, content, location
+        ):
+            raise InputVersionError(
+                "service_unavailable", "company profile v2 원문을 검증할 수 없습니다"
+            )
+    
+        ontology = session.get(KnowledgeOntologyVersion, graph.ontology_id)
+        snapshot = graph.snapshot if isinstance(graph.snapshot, Mapping) else None
+        try:
+            parsed_ontology = (
+                parse_ontology(canonical_json_bytes(ontology.payload))
+                if ontology is not None and isinstance(ontology.payload, Mapping)
+                else None
+            )
+            snapshot_digest = canonical_json_hash(snapshot) if snapshot is not None else None
+        except (OntologyValidationError, TypeError, ValueError):
+            parsed_ontology = None
+            snapshot_digest = None
+        if (
+            ontology is None
+            or parsed_ontology is None
+            or parsed_ontology.sha256 != ontology.sha256
+            or parsed_ontology.version != ontology.version
+            or snapshot is None
+            or set(snapshot) != {
+                "schema_version",
+                "company_slug",
+                "ontology_version",
+                "ontology_sha256",
+                "source_sha256",
+                "nodes",
+                "edges",
+            }
+            or snapshot.get("schema_version") != GRAPH_SNAPSHOT_SCHEMA
+            or snapshot.get("company_slug") != company.slug
+            or snapshot.get("ontology_version") != ontology.version
+            or snapshot.get("ontology_sha256") != ontology.sha256
+            or snapshot.get("source_sha256") != source.source_sha256
+            or payload.get("ontology_version") != ontology.version
+            or snapshot_digest != graph.graph_sha256
+        ):
+            raise InputVersionError(
+                "service_unavailable", "company profile v2 ontology 또는 graph hash가 올바르지 않습니다"
+            )
+    
+        nodes = snapshot.get("nodes")
+        edges = snapshot.get("edges")
+        if not isinstance(nodes, list) or not isinstance(edges, list):
+            raise InputVersionError(
+                "service_unavailable", "company graph snapshot이 올바르지 않습니다"
+            )
+        node_rows = list(
+            session.scalars(
+                select(CompanyKnowledgeNode)
+                .where(CompanyKnowledgeNode.graph_version_id == graph.id)
+                .order_by(CompanyKnowledgeNode.node_id.asc())
+            )
+        )
+        edge_rows = list(
+            session.scalars(
+                select(CompanyKnowledgeEdge)
+                .where(CompanyKnowledgeEdge.graph_version_id == graph.id)
+                .order_by(CompanyKnowledgeEdge.edge_id.asc())
+            )
+        )
+        if (
+            [node.get("id") if isinstance(node, Mapping) else None for node in nodes]
+            != sorted(row.node_id for row in node_rows)
+            or len(nodes) != len(node_rows)
+            or any(row.payload != node for row, node in zip(node_rows, nodes))
+            or [edge.get("id") if isinstance(edge, Mapping) else None for edge in edges]
+            != sorted(row.edge_id for row in edge_rows)
+            or len(edges) != len(edge_rows)
+            or any(row.payload != edge for row, edge in zip(edge_rows, edges))
+        ):
+            raise InputVersionError(
+                "service_unavailable", "company graph rows가 frozen snapshot과 일치하지 않습니다"
+            )
+    
+        node_by_id: dict[str, Mapping[str, Any]] = {}
+        fact_source_refs: set[tuple[str, str]] = set()
+        fact_ref_by_key: dict[str, tuple[str, str]] = {}
+        expected_facts: list[dict[str, Any]] = []
+        expected_quotes: dict[str, str] = {}
+        node_keys = {
+            "id",
+            "type",
+            "label",
+            "concept_id",
+            "status",
+            "origin",
+            "value",
+            "source_refs",
+        }
+        for node in nodes:
+            if (
+                not isinstance(node, Mapping)
+                or set(node) != node_keys
+                or not isinstance(node.get("id"), str)
+                or not node["id"]
+                or node["id"] in node_by_id
+                or node.get("type") not in COMPANY_SOURCE_NODE_TYPES
+                or node.get("origin") != "fictional_scenario"
+                or node.get("status") not in {"confirmed", "inferred", "unknown"}
+                or not isinstance(node.get("source_refs"), list)
+            ):
+                raise InputVersionError(
+                    "service_unavailable", "company graph node가 올바르지 않습니다"
+                )
+            node_by_id[node["id"]] = node
+            concept = parsed_ontology.concepts_by_id.get(node.get("concept_id"))
+            if node["type"] in {"capability", "technology", "domain", "qualification"}:
+                if concept is None or concept.kind != node["type"]:
+                    raise InputVersionError(
+                        "service_unavailable", "company graph node concept가 ontology와 일치하지 않습니다"
+                    )
+            elif node.get("concept_id") is not None:
+                raise InputVersionError(
+                    "service_unavailable", "company graph node concept가 올바르지 않습니다"
+                )
+            refs = node["source_refs"]
+            if node["status"] == "unknown":
+                if node.get("value") is not None or refs:
+                    raise InputVersionError(
+                        "service_unavailable", "unknown company fact 계보가 올바르지 않습니다"
+                    )
+            elif len(refs) != 1:
+                raise InputVersionError(
+                    "service_unavailable", "company fact에는 source ref가 정확히 하나 필요합니다"
+                )
+            if node.get("type") == "evidence":
+                continue
+            if node["status"] == "unknown":
+                quote = ""
+            else:
+                source_ref = _stored_source_ref(
+                    refs[0], source_sha256=source.source_sha256
+                )
+                fact_source_refs.add(source_ref)
+                fact_ref_by_key[node["id"]] = source_ref
+                quote = source_ref[1]
+                expected_quotes[node["id"]] = quote
+            expected_facts.append(
+                {
+                    "fact_key": node["id"],
+                    "status": node["status"],
+                    "value": node.get("value"),
+                    "section_id": node.get("type"),
+                    "section_number": None,
+                    "locator": {"fact_key": node["id"]},
+                    "quote": quote,
+                    "origin": "fictional_scenario",
+                }
+            )
+    
+        if (
+            not 1 <= len(expected_facts) <= 256
+            or sum(node.get("type") == "company" for node in nodes) != 1
+        ):
+            raise InputVersionError(
+                "service_unavailable", "company profile v2 fact 개수가 올바르지 않습니다"
+            )
+        facts = payload.get("facts")
+        if facts != expected_facts:
+            raise InputVersionError(
+                "service_unavailable", "company profile v2 facts가 graph와 일치하지 않습니다"
+            )
+    
+        for node in nodes:
+            if node.get("type") != "evidence":
+                continue
+            value = node.get("value")
+            refs = node.get("source_refs")
+            fact_key = value.get("fact_key") if isinstance(value, Mapping) else None
+            if (
+                not isinstance(fact_key, str)
+                or fact_key not in expected_quotes
+                or len(refs) != 1
+                or _stored_source_ref(
+                    refs[0], source_sha256=source.source_sha256
+                )
+                != fact_ref_by_key[fact_key]
+            ):
+>               raise InputVersionError(
+                    "service_unavailable", "company evidence node가 기존 fact를 가리키지 않습니다"
+                )
+E               app.deep_review.services.input_versions.InputVersionError: company evidence node가 기존 fact를 가리키지 않습니다
+
+app/deep_review/services/input_versions.py:1055: InputVersionError
+_ test_b1_contract_valid_source_is_consumable_after_import_and_activation[postgres-unsorted_edge_refs] _
+
+engine = Engine(postgresql+psycopg://owner:***@127.0.0.1:32800/bidops_test_cd95d7c7dbd242c5)
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x1208a0230>
+case = 'unsorted_edge_refs'
+
+    @pytest.mark.parametrize("case", ["unsorted_edge_refs", "unknown_evidence", "collation_ids"])
+    def test_b1_contract_valid_source_is_consumable_after_import_and_activation(
+        engine, monkeypatch: pytest.MonkeyPatch, case: str
+    ) -> None:
+        from app.core.company_ontology import parse_ontology
+        from app.deep_review.services.input_versions import (
+            profile_context,
+            validate_profile_snapshot,
+        )
+    
+        ontology_raw = _raw(_ontology())
+        source = _consumable_case_source(parse_ontology(ontology_raw).sha256, case)
+        prepared = prepare_company_knowledge(ontology_raw, _raw(source))
+        application, sessions = _application(engine, monkeypatch)
+        imported = _import(sessions, prepared, activate=True)
+        assert imported.created is True
+    
+        nodes = {node["id"]: node for node in source["nodes"]}
+        edges = {edge["id"]: edge for edge in source["edges"]}
+        fact_ids = sorted(node_id for node_id, node in nodes.items() if node["type"] != "evidence")
+        with sessions() as session:
+            profile = session.get(ProfileVersion, imported.profile_version_id)
+            assert profile is not None
+>           validate_profile_snapshot(session, profile)
+
+tests/app/test_company_knowledge_api.py:992: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+app/deep_review/services/input_versions.py:1147: in validate_profile_snapshot
+    _validate_profile_v2_snapshot(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+session = <sqlalchemy.orm.session.Session object at 0x12088d0a0>
+profile = <app.deep_review.models.ProfileVersion object at 0x120b80d70>
+
+    def _validate_profile_v2_snapshot(
+        session: Session,
+        profile: ProfileVersion,
+        *,
+        require_verified_source: bool,
+    ) -> None:
+        """Validate the complete profile/graph/source projection frozen at import.
+    
+        Normal analysis and API consumers validate immutable database lineage only;
+        their role does not have the private ``source`` namespace credential.  The
+        explicit verification path additionally re-reads the exact object version.
+        """
+    
+        payload = profile.profile_payload if isinstance(profile.profile_payload, Mapping) else None
+        expected_payload_keys = {
+            "schema",
+            "company_id",
+            "origin",
+            "source_sha256",
+            "graph_version_id",
+            "ontology_version",
+            "facts",
+            "parse_errors",
+        }
+        if (
+            payload is None
+            or set(payload) != expected_payload_keys
+            or payload.get("schema") != PROFILE_SCHEMA_V2
+            or payload.get("origin") != "fictional_scenario"
+            or payload.get("source_sha256") != profile.profile_sha256
+            or payload.get("parse_errors") != []
+            or profile.company_id is None
+            or profile.source_kind != "company-knowledge-json-v2"
+            or payload.get("company_id") != str(profile.company_id)
+        ):
+            raise InputVersionError(
+                "service_unavailable", "company profile v2 identity가 올바르지 않습니다"
+            )
+        try:
+            graph_version_id = UUID(str(payload.get("graph_version_id")))
+        except (TypeError, ValueError) as exc:
+            raise InputVersionError(
+                "service_unavailable", "company profile v2 graph identity가 올바르지 않습니다"
+            ) from exc
+    
+        graph = session.get(CompanyKnowledgeVersion, graph_version_id)
+        company = session.get(Company, profile.company_id)
+        if (
+            graph is None
+            or company is None
+            or not company.is_fictional
+            or graph.company_id != profile.company_id
+            or graph.profile_version_id != profile.id
+            or graph.source_sha256 != profile.profile_sha256
+        ):
+            raise InputVersionError(
+                "service_unavailable", "company profile v2 graph 소속이 올바르지 않습니다"
+            )
+    
+        source = session.get(CompanyKnowledgeSource, graph.source_id)
+        content = session.get(ContentObject, source.content_object_id) if source is not None else None
+        location = (
+            session.get(ContentObjectLocation, source.content_location_id)
+            if source is not None
+            else None
+        )
+        if (
+            source is None
+            or content is None
+            or location is None
+            or source.company_id != profile.company_id
+            or source.source_sha256 != profile.profile_sha256
+            or source.size_bytes <= 0
+            or content.id != source.content_object_id
+            or content.sha256 != source.source_sha256
+            or content.size_bytes != source.size_bytes
+            or content.detected_mime != "application/json"
+            or location.id != source.content_location_id
+            or location.content_object_id != content.id
+            or location.namespace_key != "source"
+            or location.status != "verified"
+            or not isinstance(location.object_key, str)
+            or not location.object_key
+            or location.object_key.startswith(("/", "\\"))
+            or not location.object_version_id
+            or not location.etag
+        ):
+            raise InputVersionError(
+                "service_unavailable", "company profile v2 source 계보가 올바르지 않습니다"
+            )
+        if require_verified_source and not _company_source_bytes_verified(
+            source, content, location
+        ):
+            raise InputVersionError(
+                "service_unavailable", "company profile v2 원문을 검증할 수 없습니다"
+            )
+    
+        ontology = session.get(KnowledgeOntologyVersion, graph.ontology_id)
+        snapshot = graph.snapshot if isinstance(graph.snapshot, Mapping) else None
+        try:
+            parsed_ontology = (
+                parse_ontology(canonical_json_bytes(ontology.payload))
+                if ontology is not None and isinstance(ontology.payload, Mapping)
+                else None
+            )
+            snapshot_digest = canonical_json_hash(snapshot) if snapshot is not None else None
+        except (OntologyValidationError, TypeError, ValueError):
+            parsed_ontology = None
+            snapshot_digest = None
+        if (
+            ontology is None
+            or parsed_ontology is None
+            or parsed_ontology.sha256 != ontology.sha256
+            or parsed_ontology.version != ontology.version
+            or snapshot is None
+            or set(snapshot) != {
+                "schema_version",
+                "company_slug",
+                "ontology_version",
+                "ontology_sha256",
+                "source_sha256",
+                "nodes",
+                "edges",
+            }
+            or snapshot.get("schema_version") != GRAPH_SNAPSHOT_SCHEMA
+            or snapshot.get("company_slug") != company.slug
+            or snapshot.get("ontology_version") != ontology.version
+            or snapshot.get("ontology_sha256") != ontology.sha256
+            or snapshot.get("source_sha256") != source.source_sha256
+            or payload.get("ontology_version") != ontology.version
+            or snapshot_digest != graph.graph_sha256
+        ):
+            raise InputVersionError(
+                "service_unavailable", "company profile v2 ontology 또는 graph hash가 올바르지 않습니다"
+            )
+    
+        nodes = snapshot.get("nodes")
+        edges = snapshot.get("edges")
+        if not isinstance(nodes, list) or not isinstance(edges, list):
+            raise InputVersionError(
+                "service_unavailable", "company graph snapshot이 올바르지 않습니다"
+            )
+        node_rows = list(
+            session.scalars(
+                select(CompanyKnowledgeNode)
+                .where(CompanyKnowledgeNode.graph_version_id == graph.id)
+                .order_by(CompanyKnowledgeNode.node_id.asc())
+            )
+        )
+        edge_rows = list(
+            session.scalars(
+                select(CompanyKnowledgeEdge)
+                .where(CompanyKnowledgeEdge.graph_version_id == graph.id)
+                .order_by(CompanyKnowledgeEdge.edge_id.asc())
+            )
+        )
+        if (
+            [node.get("id") if isinstance(node, Mapping) else None for node in nodes]
+            != sorted(row.node_id for row in node_rows)
+            or len(nodes) != len(node_rows)
+            or any(row.payload != node for row, node in zip(node_rows, nodes))
+            or [edge.get("id") if isinstance(edge, Mapping) else None for edge in edges]
+            != sorted(row.edge_id for row in edge_rows)
+            or len(edges) != len(edge_rows)
+            or any(row.payload != edge for row, edge in zip(edge_rows, edges))
+        ):
+>           raise InputVersionError(
+                "service_unavailable", "company graph rows가 frozen snapshot과 일치하지 않습니다"
+            )
+E           app.deep_review.services.input_versions.InputVersionError: company graph rows가 frozen snapshot과 일치하지 않습니다
+
+app/deep_review/services/input_versions.py:947: InputVersionError
+_ test_b1_contract_valid_source_is_consumable_after_import_and_activation[postgres-unknown_evidence] _
+
+engine = Engine(postgresql+psycopg://owner:***@127.0.0.1:32800/bidops_test_ec23e57845f8417c)
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x120c176b0>
+case = 'unknown_evidence'
+
+    @pytest.mark.parametrize("case", ["unsorted_edge_refs", "unknown_evidence", "collation_ids"])
+    def test_b1_contract_valid_source_is_consumable_after_import_and_activation(
+        engine, monkeypatch: pytest.MonkeyPatch, case: str
+    ) -> None:
+        from app.core.company_ontology import parse_ontology
+        from app.deep_review.services.input_versions import (
+            profile_context,
+            validate_profile_snapshot,
+        )
+    
+        ontology_raw = _raw(_ontology())
+        source = _consumable_case_source(parse_ontology(ontology_raw).sha256, case)
+        prepared = prepare_company_knowledge(ontology_raw, _raw(source))
+        application, sessions = _application(engine, monkeypatch)
+        imported = _import(sessions, prepared, activate=True)
+        assert imported.created is True
+    
+        nodes = {node["id"]: node for node in source["nodes"]}
+        edges = {edge["id"]: edge for edge in source["edges"]}
+        fact_ids = sorted(node_id for node_id, node in nodes.items() if node["type"] != "evidence")
+        with sessions() as session:
+            profile = session.get(ProfileVersion, imported.profile_version_id)
+            assert profile is not None
+>           validate_profile_snapshot(session, profile)
+
+tests/app/test_company_knowledge_api.py:992: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+app/deep_review/services/input_versions.py:1147: in validate_profile_snapshot
+    _validate_profile_v2_snapshot(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+session = <sqlalchemy.orm.session.Session object at 0x120855970>
+profile = <app.deep_review.models.ProfileVersion object at 0x120c140e0>
+
+    def _validate_profile_v2_snapshot(
+        session: Session,
+        profile: ProfileVersion,
+        *,
+        require_verified_source: bool,
+    ) -> None:
+        """Validate the complete profile/graph/source projection frozen at import.
+    
+        Normal analysis and API consumers validate immutable database lineage only;
+        their role does not have the private ``source`` namespace credential.  The
+        explicit verification path additionally re-reads the exact object version.
+        """
+    
+        payload = profile.profile_payload if isinstance(profile.profile_payload, Mapping) else None
+        expected_payload_keys = {
+            "schema",
+            "company_id",
+            "origin",
+            "source_sha256",
+            "graph_version_id",
+            "ontology_version",
+            "facts",
+            "parse_errors",
+        }
+        if (
+            payload is None
+            or set(payload) != expected_payload_keys
+            or payload.get("schema") != PROFILE_SCHEMA_V2
+            or payload.get("origin") != "fictional_scenario"
+            or payload.get("source_sha256") != profile.profile_sha256
+            or payload.get("parse_errors") != []
+            or profile.company_id is None
+            or profile.source_kind != "company-knowledge-json-v2"
+            or payload.get("company_id") != str(profile.company_id)
+        ):
+            raise InputVersionError(
+                "service_unavailable", "company profile v2 identity가 올바르지 않습니다"
+            )
+        try:
+            graph_version_id = UUID(str(payload.get("graph_version_id")))
+        except (TypeError, ValueError) as exc:
+            raise InputVersionError(
+                "service_unavailable", "company profile v2 graph identity가 올바르지 않습니다"
+            ) from exc
+    
+        graph = session.get(CompanyKnowledgeVersion, graph_version_id)
+        company = session.get(Company, profile.company_id)
+        if (
+            graph is None
+            or company is None
+            or not company.is_fictional
+            or graph.company_id != profile.company_id
+            or graph.profile_version_id != profile.id
+            or graph.source_sha256 != profile.profile_sha256
+        ):
+            raise InputVersionError(
+                "service_unavailable", "company profile v2 graph 소속이 올바르지 않습니다"
+            )
+    
+        source = session.get(CompanyKnowledgeSource, graph.source_id)
+        content = session.get(ContentObject, source.content_object_id) if source is not None else None
+        location = (
+            session.get(ContentObjectLocation, source.content_location_id)
+            if source is not None
+            else None
+        )
+        if (
+            source is None
+            or content is None
+            or location is None
+            or source.company_id != profile.company_id
+            or source.source_sha256 != profile.profile_sha256
+            or source.size_bytes <= 0
+            or content.id != source.content_object_id
+            or content.sha256 != source.source_sha256
+            or content.size_bytes != source.size_bytes
+            or content.detected_mime != "application/json"
+            or location.id != source.content_location_id
+            or location.content_object_id != content.id
+            or location.namespace_key != "source"
+            or location.status != "verified"
+            or not isinstance(location.object_key, str)
+            or not location.object_key
+            or location.object_key.startswith(("/", "\\"))
+            or not location.object_version_id
+            or not location.etag
+        ):
+            raise InputVersionError(
+                "service_unavailable", "company profile v2 source 계보가 올바르지 않습니다"
+            )
+        if require_verified_source and not _company_source_bytes_verified(
+            source, content, location
+        ):
+            raise InputVersionError(
+                "service_unavailable", "company profile v2 원문을 검증할 수 없습니다"
+            )
+    
+        ontology = session.get(KnowledgeOntologyVersion, graph.ontology_id)
+        snapshot = graph.snapshot if isinstance(graph.snapshot, Mapping) else None
+        try:
+            parsed_ontology = (
+                parse_ontology(canonical_json_bytes(ontology.payload))
+                if ontology is not None and isinstance(ontology.payload, Mapping)
+                else None
+            )
+            snapshot_digest = canonical_json_hash(snapshot) if snapshot is not None else None
+        except (OntologyValidationError, TypeError, ValueError):
+            parsed_ontology = None
+            snapshot_digest = None
+        if (
+            ontology is None
+            or parsed_ontology is None
+            or parsed_ontology.sha256 != ontology.sha256
+            or parsed_ontology.version != ontology.version
+            or snapshot is None
+            or set(snapshot) != {
+                "schema_version",
+                "company_slug",
+                "ontology_version",
+                "ontology_sha256",
+                "source_sha256",
+                "nodes",
+                "edges",
+            }
+            or snapshot.get("schema_version") != GRAPH_SNAPSHOT_SCHEMA
+            or snapshot.get("company_slug") != company.slug
+            or snapshot.get("ontology_version") != ontology.version
+            or snapshot.get("ontology_sha256") != ontology.sha256
+            or snapshot.get("source_sha256") != source.source_sha256
+            or payload.get("ontology_version") != ontology.version
+            or snapshot_digest != graph.graph_sha256
+        ):
+            raise InputVersionError(
+                "service_unavailable", "company profile v2 ontology 또는 graph hash가 올바르지 않습니다"
+            )
+    
+        nodes = snapshot.get("nodes")
+        edges = snapshot.get("edges")
+        if not isinstance(nodes, list) or not isinstance(edges, list):
+            raise InputVersionError(
+                "service_unavailable", "company graph snapshot이 올바르지 않습니다"
+            )
+        node_rows = list(
+            session.scalars(
+                select(CompanyKnowledgeNode)
+                .where(CompanyKnowledgeNode.graph_version_id == graph.id)
+                .order_by(CompanyKnowledgeNode.node_id.asc())
+            )
+        )
+        edge_rows = list(
+            session.scalars(
+                select(CompanyKnowledgeEdge)
+                .where(CompanyKnowledgeEdge.graph_version_id == graph.id)
+                .order_by(CompanyKnowledgeEdge.edge_id.asc())
+            )
+        )
+        if (
+            [node.get("id") if isinstance(node, Mapping) else None for node in nodes]
+            != sorted(row.node_id for row in node_rows)
+            or len(nodes) != len(node_rows)
+            or any(row.payload != node for row, node in zip(node_rows, nodes))
+            or [edge.get("id") if isinstance(edge, Mapping) else None for edge in edges]
+            != sorted(row.edge_id for row in edge_rows)
+            or len(edges) != len(edge_rows)
+            or any(row.payload != edge for row, edge in zip(edge_rows, edges))
+        ):
+            raise InputVersionError(
+                "service_unavailable", "company graph rows가 frozen snapshot과 일치하지 않습니다"
+            )
+    
+        node_by_id: dict[str, Mapping[str, Any]] = {}
+        fact_source_refs: set[tuple[str, str]] = set()
+        fact_ref_by_key: dict[str, tuple[str, str]] = {}
+        expected_facts: list[dict[str, Any]] = []
+        expected_quotes: dict[str, str] = {}
+        node_keys = {
+            "id",
+            "type",
+            "label",
+            "concept_id",
+            "status",
+            "origin",
+            "value",
+            "source_refs",
+        }
+        for node in nodes:
+            if (
+                not isinstance(node, Mapping)
+                or set(node) != node_keys
+                or not isinstance(node.get("id"), str)
+                or not node["id"]
+                or node["id"] in node_by_id
+                or node.get("type") not in COMPANY_SOURCE_NODE_TYPES
+                or node.get("origin") != "fictional_scenario"
+                or node.get("status") not in {"confirmed", "inferred", "unknown"}
+                or not isinstance(node.get("source_refs"), list)
+            ):
+                raise InputVersionError(
+                    "service_unavailable", "company graph node가 올바르지 않습니다"
+                )
+            node_by_id[node["id"]] = node
+            concept = parsed_ontology.concepts_by_id.get(node.get("concept_id"))
+            if node["type"] in {"capability", "technology", "domain", "qualification"}:
+                if concept is None or concept.kind != node["type"]:
+                    raise InputVersionError(
+                        "service_unavailable", "company graph node concept가 ontology와 일치하지 않습니다"
+                    )
+            elif node.get("concept_id") is not None:
+                raise InputVersionError(
+                    "service_unavailable", "company graph node concept가 올바르지 않습니다"
+                )
+            refs = node["source_refs"]
+            if node["status"] == "unknown":
+                if node.get("value") is not None or refs:
+                    raise InputVersionError(
+                        "service_unavailable", "unknown company fact 계보가 올바르지 않습니다"
+                    )
+            elif len(refs) != 1:
+                raise InputVersionError(
+                    "service_unavailable", "company fact에는 source ref가 정확히 하나 필요합니다"
+                )
+            if node.get("type") == "evidence":
+                continue
+            if node["status"] == "unknown":
+                quote = ""
+            else:
+                source_ref = _stored_source_ref(
+                    refs[0], source_sha256=source.source_sha256
+                )
+                fact_source_refs.add(source_ref)
+                fact_ref_by_key[node["id"]] = source_ref
+                quote = source_ref[1]
+                expected_quotes[node["id"]] = quote
+            expected_facts.append(
+                {
+                    "fact_key": node["id"],
+                    "status": node["status"],
+                    "value": node.get("value"),
+                    "section_id": node.get("type"),
+                    "section_number": None,
+                    "locator": {"fact_key": node["id"]},
+                    "quote": quote,
+                    "origin": "fictional_scenario",
+                }
+            )
+    
+        if (
+            not 1 <= len(expected_facts) <= 256
+            or sum(node.get("type") == "company" for node in nodes) != 1
+        ):
+            raise InputVersionError(
+                "service_unavailable", "company profile v2 fact 개수가 올바르지 않습니다"
+            )
+        facts = payload.get("facts")
+        if facts != expected_facts:
+            raise InputVersionError(
+                "service_unavailable", "company profile v2 facts가 graph와 일치하지 않습니다"
+            )
+    
+        for node in nodes:
+            if node.get("type") != "evidence":
+                continue
+            value = node.get("value")
+            refs = node.get("source_refs")
+            fact_key = value.get("fact_key") if isinstance(value, Mapping) else None
+            if (
+                not isinstance(fact_key, str)
+                or fact_key not in expected_quotes
+                or len(refs) != 1
+                or _stored_source_ref(
+                    refs[0], source_sha256=source.source_sha256
+                )
+                != fact_ref_by_key[fact_key]
+            ):
+>               raise InputVersionError(
+                    "service_unavailable", "company evidence node가 기존 fact를 가리키지 않습니다"
+                )
+E               app.deep_review.services.input_versions.InputVersionError: company evidence node가 기존 fact를 가리키지 않습니다
+
+app/deep_review/services/input_versions.py:1055: InputVersionError
+_ test_b1_contract_valid_source_is_consumable_after_import_and_activation[postgres-collation_ids] _
+
+engine = Engine(postgresql+psycopg://owner:***@127.0.0.1:32800/bidops_test_f5c284620f50485c)
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x120c14620>
+case = 'collation_ids'
+
+    @pytest.mark.parametrize("case", ["unsorted_edge_refs", "unknown_evidence", "collation_ids"])
+    def test_b1_contract_valid_source_is_consumable_after_import_and_activation(
+        engine, monkeypatch: pytest.MonkeyPatch, case: str
+    ) -> None:
+        from app.core.company_ontology import parse_ontology
+        from app.deep_review.services.input_versions import (
+            profile_context,
+            validate_profile_snapshot,
+        )
+    
+        ontology_raw = _raw(_ontology())
+        source = _consumable_case_source(parse_ontology(ontology_raw).sha256, case)
+        prepared = prepare_company_knowledge(ontology_raw, _raw(source))
+        application, sessions = _application(engine, monkeypatch)
+        imported = _import(sessions, prepared, activate=True)
+        assert imported.created is True
+    
+        nodes = {node["id"]: node for node in source["nodes"]}
+        edges = {edge["id"]: edge for edge in source["edges"]}
+        fact_ids = sorted(node_id for node_id, node in nodes.items() if node["type"] != "evidence")
+        with sessions() as session:
+            profile = session.get(ProfileVersion, imported.profile_version_id)
+            assert profile is not None
+>           validate_profile_snapshot(session, profile)
+
+tests/app/test_company_knowledge_api.py:992: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+app/deep_review/services/input_versions.py:1147: in validate_profile_snapshot
+    _validate_profile_v2_snapshot(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+session = <sqlalchemy.orm.session.Session object at 0x120cafa10>
+profile = <app.deep_review.models.ProfileVersion object at 0x120c1ec30>
+
+    def _validate_profile_v2_snapshot(
+        session: Session,
+        profile: ProfileVersion,
+        *,
+        require_verified_source: bool,
+    ) -> None:
+        """Validate the complete profile/graph/source projection frozen at import.
+    
+        Normal analysis and API consumers validate immutable database lineage only;
+        their role does not have the private ``source`` namespace credential.  The
+        explicit verification path additionally re-reads the exact object version.
+        """
+    
+        payload = profile.profile_payload if isinstance(profile.profile_payload, Mapping) else None
+        expected_payload_keys = {
+            "schema",
+            "company_id",
+            "origin",
+            "source_sha256",
+            "graph_version_id",
+            "ontology_version",
+            "facts",
+            "parse_errors",
+        }
+        if (
+            payload is None
+            or set(payload) != expected_payload_keys
+            or payload.get("schema") != PROFILE_SCHEMA_V2
+            or payload.get("origin") != "fictional_scenario"
+            or payload.get("source_sha256") != profile.profile_sha256
+            or payload.get("parse_errors") != []
+            or profile.company_id is None
+            or profile.source_kind != "company-knowledge-json-v2"
+            or payload.get("company_id") != str(profile.company_id)
+        ):
+            raise InputVersionError(
+                "service_unavailable", "company profile v2 identity가 올바르지 않습니다"
+            )
+        try:
+            graph_version_id = UUID(str(payload.get("graph_version_id")))
+        except (TypeError, ValueError) as exc:
+            raise InputVersionError(
+                "service_unavailable", "company profile v2 graph identity가 올바르지 않습니다"
+            ) from exc
+    
+        graph = session.get(CompanyKnowledgeVersion, graph_version_id)
+        company = session.get(Company, profile.company_id)
+        if (
+            graph is None
+            or company is None
+            or not company.is_fictional
+            or graph.company_id != profile.company_id
+            or graph.profile_version_id != profile.id
+            or graph.source_sha256 != profile.profile_sha256
+        ):
+            raise InputVersionError(
+                "service_unavailable", "company profile v2 graph 소속이 올바르지 않습니다"
+            )
+    
+        source = session.get(CompanyKnowledgeSource, graph.source_id)
+        content = session.get(ContentObject, source.content_object_id) if source is not None else None
+        location = (
+            session.get(ContentObjectLocation, source.content_location_id)
+            if source is not None
+            else None
+        )
+        if (
+            source is None
+            or content is None
+            or location is None
+            or source.company_id != profile.company_id
+            or source.source_sha256 != profile.profile_sha256
+            or source.size_bytes <= 0
+            or content.id != source.content_object_id
+            or content.sha256 != source.source_sha256
+            or content.size_bytes != source.size_bytes
+            or content.detected_mime != "application/json"
+            or location.id != source.content_location_id
+            or location.content_object_id != content.id
+            or location.namespace_key != "source"
+            or location.status != "verified"
+            or not isinstance(location.object_key, str)
+            or not location.object_key
+            or location.object_key.startswith(("/", "\\"))
+            or not location.object_version_id
+            or not location.etag
+        ):
+            raise InputVersionError(
+                "service_unavailable", "company profile v2 source 계보가 올바르지 않습니다"
+            )
+        if require_verified_source and not _company_source_bytes_verified(
+            source, content, location
+        ):
+            raise InputVersionError(
+                "service_unavailable", "company profile v2 원문을 검증할 수 없습니다"
+            )
+    
+        ontology = session.get(KnowledgeOntologyVersion, graph.ontology_id)
+        snapshot = graph.snapshot if isinstance(graph.snapshot, Mapping) else None
+        try:
+            parsed_ontology = (
+                parse_ontology(canonical_json_bytes(ontology.payload))
+                if ontology is not None and isinstance(ontology.payload, Mapping)
+                else None
+            )
+            snapshot_digest = canonical_json_hash(snapshot) if snapshot is not None else None
+        except (OntologyValidationError, TypeError, ValueError):
+            parsed_ontology = None
+            snapshot_digest = None
+        if (
+            ontology is None
+            or parsed_ontology is None
+            or parsed_ontology.sha256 != ontology.sha256
+            or parsed_ontology.version != ontology.version
+            or snapshot is None
+            or set(snapshot) != {
+                "schema_version",
+                "company_slug",
+                "ontology_version",
+                "ontology_sha256",
+                "source_sha256",
+                "nodes",
+                "edges",
+            }
+            or snapshot.get("schema_version") != GRAPH_SNAPSHOT_SCHEMA
+            or snapshot.get("company_slug") != company.slug
+            or snapshot.get("ontology_version") != ontology.version
+            or snapshot.get("ontology_sha256") != ontology.sha256
+            or snapshot.get("source_sha256") != source.source_sha256
+            or payload.get("ontology_version") != ontology.version
+            or snapshot_digest != graph.graph_sha256
+        ):
+            raise InputVersionError(
+                "service_unavailable", "company profile v2 ontology 또는 graph hash가 올바르지 않습니다"
+            )
+    
+        nodes = snapshot.get("nodes")
+        edges = snapshot.get("edges")
+        if not isinstance(nodes, list) or not isinstance(edges, list):
+            raise InputVersionError(
+                "service_unavailable", "company graph snapshot이 올바르지 않습니다"
+            )
+        node_rows = list(
+            session.scalars(
+                select(CompanyKnowledgeNode)
+                .where(CompanyKnowledgeNode.graph_version_id == graph.id)
+                .order_by(CompanyKnowledgeNode.node_id.asc())
+            )
+        )
+        edge_rows = list(
+            session.scalars(
+                select(CompanyKnowledgeEdge)
+                .where(CompanyKnowledgeEdge.graph_version_id == graph.id)
+                .order_by(CompanyKnowledgeEdge.edge_id.asc())
+            )
+        )
+        if (
+            [node.get("id") if isinstance(node, Mapping) else None for node in nodes]
+            != sorted(row.node_id for row in node_rows)
+            or len(nodes) != len(node_rows)
+            or any(row.payload != node for row, node in zip(node_rows, nodes))
+            or [edge.get("id") if isinstance(edge, Mapping) else None for edge in edges]
+            != sorted(row.edge_id for row in edge_rows)
+            or len(edges) != len(edge_rows)
+            or any(row.payload != edge for row, edge in zip(edge_rows, edges))
+        ):
+>           raise InputVersionError(
+                "service_unavailable", "company graph rows가 frozen snapshot과 일치하지 않습니다"
+            )
+E           app.deep_review.services.input_versions.InputVersionError: company graph rows가 frozen snapshot과 일치하지 않습니다
+
+app/deep_review/services/input_versions.py:947: InputVersionError
+_____ test_n2_overlong_ontology_version_is_a_validation_error_with_exit_2 ______
+
+tmp_path = PosixPath('/private/var/folders/_c/3g36y_md7rg3l_xrx0r5lxyr0000gp/T/pytest-of-temp/pytest-1073/test_n2_overlong_ontology_vers0')
+
+    def test_n2_overlong_ontology_version_is_a_validation_error_with_exit_2(tmp_path: Path) -> None:
+        from app.core.company_ontology import OntologyValidationError
+    
+        ontology_value = _ontology()
+        ontology_value["version"] = "v" * 129
+        ontology_raw = _raw(ontology_value)
+        try:
+            ontology_sha = parse_ontology(ontology_raw).sha256
+        except OntologyValidationError:
+            ontology_sha = "0" * 64
+        source = _source(ontology_sha)
+        source["ontology_version"] = ontology_value["version"]
+        ontology_path = tmp_path / "ontology.json"
+        company_path = tmp_path / "company.json"
+        ontology_path.write_bytes(ontology_raw)
+        company_path.write_bytes(_raw(source))
+        result = _run(
+            _environment(tmp_path),
+            "import-company-knowledge",
+            "--ontology", str(ontology_path),
+            "--company", str(company_path),
+            "--actor", "등록 담당자",
+        )
+>       assert result.returncode == 2, result.stdout + result.stderr
+E       AssertionError: {"activated":false,"company_id":"7f21a3a6-8303-4133-a71f-86c9812b139f","created":true,"errors":[],"graph_sha256":"d5162da2856446d447adb0d5e2da4006609d6dfadeba248b314124d3f4c6cf6c","graph_version_id":"2788cee0-eb0d-4df9-ae06-40a6f229ff9f","ontology_version":"vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv","profile_version_id":"910a3127-729b-46e8-9c5c-679e11990828","source_sha256":"57d86bf5867171f4405d2f751f891fe472f355732c39b0f080c59e371cf8f90d"}
+E         
+E       assert 0 == 2
+E        +  where 0 = CompletedProcess(args=['/tmp/bidops-demo00-verify-venv/bin/python', '-m', 'app.deep_review.cli', 'import-company-knowl...8-9c5c-679e11990828","source_sha256":"57d86bf5867171f4405d2f751f891fe472f355732c39b0f080c59e371cf8f90d"}\n', stderr='').returncode
+
+tests/app/test_company_knowledge_cli.py:293: AssertionError
+=========================== short test summary info ============================
+FAILED tests/core/test_company_ontology.py::test_n2_ontology_version_longer_than_the_storage_column_is_rejected
+FAILED tests/core/test_company_ontology.py::test_b2_node_value_requires_every_declared_key[2-total]
+FAILED tests/core/test_company_ontology.py::test_b2_node_value_requires_every_declared_key[2-available]
+FAILED tests/core/test_company_ontology.py::test_b2_node_value_requires_every_declared_key[2-as_of]
+FAILED tests/core/test_company_ontology.py::test_b2_node_value_requires_every_declared_key[3-amount_krw]
+FAILED tests/core/test_company_ontology.py::test_b2_node_value_requires_every_declared_key[3-started_on]
+FAILED tests/core/test_company_ontology.py::test_b2_node_value_requires_every_declared_key[3-ended_on]
+FAILED tests/core/test_company_ontology.py::test_b2_minimal_staff_and_project_values_need_explicit_nulls
+FAILED tests/core/test_company_ontology.py::test_b2_overlay_values_use_exact_key_sets[notice-value0-True]
+FAILED tests/core/test_company_ontology.py::test_b2_overlay_values_use_exact_key_sets[notice-value1-False]
+FAILED tests/core/test_company_ontology.py::test_b2_overlay_values_use_exact_key_sets[notice-value2-False]
+FAILED tests/core/test_company_ontology.py::test_b2_overlay_values_use_exact_key_sets[notice-value3-False]
+FAILED tests/core/test_company_ontology.py::test_b2_overlay_values_use_exact_key_sets[requirement-value4-True]
+FAILED tests/core/test_company_ontology.py::test_b2_overlay_values_use_exact_key_sets[requirement-value5-True]
+FAILED tests/core/test_company_ontology.py::test_b2_overlay_values_use_exact_key_sets[requirement-value6-False]
+FAILED tests/core/test_company_ontology.py::test_b2_overlay_values_use_exact_key_sets[requirement-value7-False]
+FAILED tests/core/test_company_ontology.py::test_b2_overlay_values_use_exact_key_sets[requirement-value8-False]
+FAILED tests/deep_review/test_company_knowledge.py::test_n2_ontology_version_is_bounded_by_its_database_column[sqlite]
+FAILED tests/deep_review/test_company_knowledge.py::test_n2_ontology_version_is_bounded_by_its_database_column[postgres]
+FAILED tests/app/test_company_knowledge_api.py::test_b1_contract_valid_source_is_consumable_after_import_and_activation[sqlite-unsorted_edge_refs]
+FAILED tests/app/test_company_knowledge_api.py::test_b1_contract_valid_source_is_consumable_after_import_and_activation[sqlite-unknown_evidence]
+FAILED tests/app/test_company_knowledge_api.py::test_b1_contract_valid_source_is_consumable_after_import_and_activation[postgres-unsorted_edge_refs]
+FAILED tests/app/test_company_knowledge_api.py::test_b1_contract_valid_source_is_consumable_after_import_and_activation[postgres-unknown_evidence]
+FAILED tests/app/test_company_knowledge_api.py::test_b1_contract_valid_source_is_consumable_after_import_and_activation[postgres-collation_ids]
+FAILED tests/app/test_company_knowledge_cli.py::test_n2_overlong_ontology_version_is_a_validation_error_with_exit_2
+25 failed, 13 passed, 126 deselected in 11.98s
+
+exit_code=1

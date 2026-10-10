@@ -319,6 +319,7 @@ def test_model_has_exact_closed_table_set():
     from app.deep_review.models import (
         ATTACHMENT_FETCH_TABLES,
         BID_DELTA_TABLES,
+        COMPANY_KNOWLEDGE_TABLES,
         DEEP_REVIEW_LEAN_V1_TABLES,
         DOCUMENT_SEGMENT_TABLES,
         PRESPEC_OVERVIEW_TABLES,
@@ -347,12 +348,13 @@ def test_model_has_exact_closed_table_set():
         "assumption_run",
         "assumption_stage",
     )
-    assert len(Base.metadata.tables) == 89
+    assert len(Base.metadata.tables) == 96
     assert set(Base.metadata.tables) == set(
         LEGACY_TABLES + NEW_TABLES + SCREENING_RUNTIME_TABLES + IDENTITY_TABLES
         + ATTACHMENT_FETCH_TABLES + REVISION_TABLES
         + PRESPEC_OVERVIEW_TABLES + BID_DELTA_TABLES + ORDER_PLAN_SCREENING_TABLES
         + DOCUMENT_SEGMENT_TABLES
+        + COMPANY_KNOWLEDGE_TABLES
         + ("prespec_company_fit_attempt",)
         + PRESPEC_V4_TABLES
         + post_lean_deep_review_tables
