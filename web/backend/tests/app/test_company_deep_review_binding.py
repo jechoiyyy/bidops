@@ -56,11 +56,14 @@ from app.lifecycle.models import Notice
 from tests.app.test_deep_reviews import _FixtureStore
 from tests.deep_review.test_company_fit_enqueue import (  # noqa: F401 - shared fixtures
     FIXTURES,
+    TEXTS,
     World,
     build_world,
     configure,
     import_company,
     object_store,
+    ready_bundle,
+    structure_payload,
 )
 from tests.postgres import migrated_engine, requires_postgres
 
@@ -109,28 +112,16 @@ def engine(request):
 
 LUNA_V4 = CANONICAL_POLICY_FILE.with_name("analysis-policy-luna-v4.json")
 LUNA_DEMO = DEMO_LUNA_POLICY_FILE
-TEXTS = {
-    1: "데이터 플랫폼 구축 및 데이터 품질·관리 체계 수립을 수행한다.",
-    2: "정보보호 관리 인증 보유 여부를 제출한다.",
-    3: "제안사는 기관 내부망에서 검색 서비스를 구축하고 시험 결과와 운영 매뉴얼을 제출해야 한다.",
-}
-STRUCTURE_SHA = "e" * 64
 
 
 def structure_loader(_session, structure):
-    return {
-        "schema": "bidops.document-structure.v1",
-        "structure_id": str(structure.id),
-        "document_version_id": str(structure.document_version_id),
-        "source_sha256": structure.source_sha256,
-        "media_type": structure.media_type,
-        "extractor": {"name": structure.extractor_name, "version": structure.extractor_version,
-                      "upstream_commit": structure.upstream_commit},
-        "pages": [{"number": page, "width": 612, "height": 792, "image_content_object_id": None} for page in TEXTS],
-        "blocks": [{"block_key": f"source-{page}", "parent_block_key": None, "type": "paragraph", "page": page,
-                    "bbox": None, "text": body, "confidence": None, "attributes": {}} for page, body in TEXTS.items()],
-        "warnings": [], "created_at": "2026-10-09T00:00:00+09:00",
-    }
+    """The deep service's injected loader: the same payload the fixture bundle stored.
+
+    ``ready_bundle`` (shared with the fit tests) stores exactly this payload, so
+    the company fit (production loader) and the deep service read one source.
+    """
+
+    return structure_payload(structure, TEXTS)
 
 
 @dataclass(frozen=True)
@@ -159,35 +150,10 @@ def deep_configure(monkeypatch, world: DeepWorld | World, *, deep_policy_id=None
     configure(monkeypatch, **values)
 
 
-def ready_bundle(session: Session, notice_id: int, document_id: UUID, *, revision: int = 1) -> UUID:
-    document = session.get(DocumentVersion, document_id)
-    from app.deep_review.models import ContentObject
-
-    content = session.get(ContentObject, document.content_object_id)
-    structure = DocumentStructure(
-        id=uuid4(), document_version_id=document.id, source_sha256=content.sha256, payload_sha256=STRUCTURE_SHA,
-        extractor_name="fixture", extractor_version="1", page_count=len(TEXTS), block_count=len(TEXTS),
-        validation_status="ready", media_type="application/pdf", payload_content_object_id=content.id,
-    )
-    session.add(structure)
-    bundle = DocumentBundle(id=uuid4(), notice_id=notice_id, revision=revision, version=1, status="ready",
-                            issues_snapshot=[], created_by_name="준비 담당자", confirmed_by_name="준비 담당자",
-                            confirmed_at=datetime.now(UTC))
-    session.add(bundle)
-    session.flush()
-    session.add(DocumentBundleItem(
-        bundle_id=bundle.id, document_version_id=document.id, ordinal=0, document_version_version=1,
-        content_object_id=content.id, content_sha256=content.sha256, detected_mime="application/pdf",
-        size_bytes=10, original_filename="제안요청서.pdf", source_kind="manual", role_at_confirmation="제안요청서",
-        is_current_at_confirmation=True, safety_status_at_confirmation="safe",
-        structure_id_at_confirmation=structure.id, structure_payload_sha256=STRUCTURE_SHA,
-    ))
-    session.flush()
-    return bundle.id
-
-
 def deep_world(session: Session, monkeypatch, *, slug: str = "demo-data-ai") -> DeepWorld:
-    base = build_world(session, monkeypatch, slug=slug)
+    # One ready bundle (``ready_bundle`` stores its structure payload for real), shared by
+    # the deep preview (injected ``structure_loader``, same payload) and any company fit.
+    base = build_world(session, monkeypatch, slug=slug, bundle=False)
     bundle_id = ready_bundle(session, base.notice_id, base.document_id)
     policy = import_policy_version(session, LUNA_DEMO, created_by_name="정책 담당자", label="analysis-policy-luna-demo-v1")
     session.commit()

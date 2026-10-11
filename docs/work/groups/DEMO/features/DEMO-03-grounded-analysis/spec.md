@@ -18,6 +18,7 @@ graph path뿐 아니라 원문 requirements·profile facts·원본 evidence를 �
 검색 경로는 충족 판정이 아니다. 원문에 없는 인력·자격·실적을 생성하지 않는다.
 공통 §5의 용어 정규화·한글 부분 문자열/영문 경계 일치·concept/alias 매핑·3 hop·필수 정보 보존·분할/coverage를 그대로 구현한다.
 원문 단위는 기존 분할기 `DeepReviewService._requirements`의 출력과 requirement_id 형식을 그대로 쓰고, 필드가 빠진 fallback unit은 company_input_invalid로 실패한다.
+회사 핏도 같은 분할기 unit을 개요 행 evidence page로 연결해 모델에 전달한다(2026-10-11 개정, 공통 §9). 핏은 ready bundle이 필수(없으면 bundle_not_ready)이고 분할 설정은 핏 정책 v3 `chunking.source_characters`이며, inventory 불일치는 심층과 같이 company_input_invalid다.
 
 회사 핏은 승인 흐름 없이 `enqueue-company-fit` CLI(공통 §9)로 attempt를 만든다. 모델 transport는 LiteLLM이고 별칭은 `local-agent-main`이다. CLI는 worker DB 역할로 실행하며
 기존 worker-only attempt INSERT 권한을 app 역할에 열지 않는다. 입력은 enqueue transaction에서 동결해 attempt에 저장한다.
@@ -38,8 +39,8 @@ considered_claim_ids는 입력 verified claims이고 출력 로컬 ID와 다름�
 회사별 목록·비교·상세 projection은 lifecycle 공개 확장점으로 제공해 역방향 import를 만들지 않는다.
 deep_review가 lifecycle의 새 공개 파일(`schemas/companies.py` 등)을 import하면 `tests/app/boundary_map.py` 공개 표면을 갱신한다.
 새 테이블·열 권한은 `scripts/runtime-privileges.sql`, 새 오류 code는 응답 router 허용 목록에 등록한다.
-DEMO-03은 fake 모델을 쓴 제품 경로 통합 뒤 대표 1건의 실제 Luna 심층 보고서까지 인수한다. 실제 18개 핏과 대표 1건×3사·목표 9건은 DEMO-05가 소유한다.
-2026-10-09 notice 179의 LiteLLM 개요는 overview transport의 `unmeasured_reference` 증거이며 이 Luna 게이트를 충족하지 않는다.
+DEMO-03은 fake 모델을 쓴 제품 경로 통합과 실제 `bidops-local` 스택 준비·호출 전 fail-closed 확인(T9, 2026-10-11 재정의)까지 인수한다. 대표 1건 실제 Luna 심층 보고서, 실제 18개 핏과 대표 1건×3사·목표 9건은 DEMO-05가 소유한다.
+2026-10-09 notice 179의 LiteLLM 개요는 overview transport의 `unmeasured_reference` 증거이며 DEMO-05의 Luna 게이트를 충족하지 않는다.
 
 ## 인터페이스·상태·실패
 
@@ -74,9 +75,9 @@ unknown/null·준비 전·stale·실패·참조 표식을 성공/부적합으로
 | ID | 시나리오 | 기대 결과 | 종류 |
 |---|---|---|---|
 | T1 | graph 입력/동의어/모호함/한글 조사·복합어/영문 경계 | 허용 사전만 매핑·"ai"가 "mail"에 미일치·unknown/필수 자격·coverage 보존·fallback unit 실패 | 단위 |
-| T2 | 심층 승인/소속/hash/replay, 핏 enqueue 소속/중복 | 불일치 호출 전 거부·replay 작업 1개·같은 회사·공고 활성 핏 중복 거부 | API/PG |
+| T2 | 심층 승인/소속/hash/replay, 핏 enqueue 소속/중복/bundle | 불일치 호출 전 거부·replay 작업 1개·같은 회사·공고 활성 핏 중복 거부·핏 ready bundle 없음 bundle_not_ready·핏 inventory 불일치 company_input_invalid·v2 핏 정책 선택 analysis_policy_unavailable | API/PG |
 | T3 | mismatch/unknown 수동 심층, 우선 검토 아닌 SW=Y 공고 | 준비·승인 충족 시 실행·fit 불변·C-1 등급 무관 | 통합 |
-| T4 | 서비스 fake 종단 | 핏: enqueue→claim→결과, 심층: preview→approve→claim→3단계→보고서/근거 company/graph 일치 | PG 통합 |
+| T4 | 서비스 fake 종단 | 핏: enqueue→claim→결과(동결 입력의 개요 Requirement가 evidence page의 분할기 unit·document_requirement_ids를 실제 조립 경로로 가짐), 심층: preview→approve→claim→3단계→보고서/근거 company/graph 일치 | PG 통합 |
 | T5 | Luna ID/숫자/coverage | 필수 근거 오류/누락은 실패·원응답 보존·v4/demo 정책 매핑과 기존 정책 호환 | 회귀 |
 | T6 | 현재성/재시도/버전 | 옛 결과 stale·같은 review 새 attempt·새 graph 새 review·current_attempt별 동결 provenance | API |
 | T7 | 목록/비교/provider 부재 | 회사 혼합 없음·missing/null/다른 입력·N+1 없음·queued/completed GET의 provenance/hash가 동결 snapshot 및 최상위 identity와 일치 | 통합 |

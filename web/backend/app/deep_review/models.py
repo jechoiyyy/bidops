@@ -2156,7 +2156,7 @@ class PrespecOverviewRun(Base):
 
 
 class CompanyFitPolicyVersion(Base):
-    """Immutable ``bidops.company-fit-policy.v2`` payload (DEMO-03, contract §9).
+    """Immutable ``bidops.company-fit-policy.v2``/``v3`` payload (DEMO-03, contract §9).
 
     Import never activates a row: the company path selects one only through
     ``BIDOPS_DEMO_COMPANY_FIT_POLICY_VERSION_ID``.

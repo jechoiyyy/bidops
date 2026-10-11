@@ -196,15 +196,16 @@ def ready_bundle_document_sets(
 
 
 def notice_document_sets(session: Session, notice_ids: Sequence[int]) -> dict[int, list[UUID]]:
-    """notice → the document-version set a company fit freezes (sorted by id). Three queries max.
+    """notice → the document-version set a **v2-era** company fit froze (sorted by id). Three queries max.
 
-    The latest ready bundle's documents (``ready_bundle_document_sets``, the
-    same set a deep review freezes and the comparison uses), so a fit and a
-    review of the same notice can be compared on one document list (§10
-    verifier).  A notice without a ready bundle falls back to all its
-    ``is_current`` DocumentVersion rows: the fit gates (§9) do not require a
-    bundle, and the frozen list then honestly records what was current at
-    enqueue (a later bundle with other documents reads as a different input).
+    The latest ready bundle's documents (``ready_bundle_document_sets``), else
+    every ``is_current`` DocumentVersion row of the notice.  Since the
+    2026-10-11 amendment (§9, STEP-008) a new fit enqueue requires a ready
+    bundle and freezes exactly its documents, so the fallback is no longer a
+    fit input.  It remains only for the currentness of attempts frozen on a
+    ``bidops.company-fit-policy.v2`` row before the amendment, which may have
+    recorded a notice's current documents without a bundle
+    (``company_fit.company_current_flags``).
     """
 
     ids = tuple(dict.fromkeys(int(value) for value in notice_ids))

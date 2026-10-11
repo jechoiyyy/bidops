@@ -1,0 +1,14 @@
+command: cd web/backend && BIDOPS_PRESPEC_OVERVIEW_ENABLED=false BIDOPS_TEST_POSTGRES_URL=<fresh disposable postgres:17.11 via tests.postgres.temporary_postgres_server> -m pytest tests/core/test_company_ontology.py tests/deep_review/test_company_knowledge.py tests/app/test_company_knowledge_api.py tests/app/test_company_knowledge_cli.py tests/screening/test_profile_snapshot.py tests/app/test_deep_reviews.py tests/app/test_alembic_autogenerate.py tests/app/test_company_context.py tests/app/test_company_context_schema.py tests/deep_review/test_company_fit_enqueue.py tests/deep_review/test_company_knowledge_retrieval.py tests/app/test_company_e2e.py tests/app/test_company_reads.py tests/app/test_company_analysis.py tests/app/test_company_deep_review_binding.py tests/app/test_module_cli_entrypoints.py tests/deep_review/test_company_fit.py tests/deep_review/test_company_fit_postgres.py tests/app/test_module_boundaries.py tests/app/test_company_luna_policy.py tests/app/test_luna_deep_review.py tests/app/test_narrative_review.py tests/app/test_runtime_database_privileges.py -q -rfs -p no:warnings -p no:cacheprovider
+........................................................................ [  9%]
+........................................................................ [ 18%]
+........................................................................ [ 28%]
+........................................................................ [ 37%]
+........................................................................ [ 47%]
+........................................................................ [ 56%]
+........................................................................ [ 65%]
+........................................................................ [ 75%]
+........................................................................ [ 84%]
+........................................................................ [ 94%]
+............................................                             [100%]
+764 passed in 207.78s (0:03:27)
+exit_code=0

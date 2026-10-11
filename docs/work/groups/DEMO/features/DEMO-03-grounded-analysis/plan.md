@@ -41,6 +41,10 @@
 | web/backend/app/deep_review/cli/__init__.py | 수정 | policy import·enqueue-company-fit dispatch |
 | web/backend/app/deep_review/cli/import_profile_policy.py | 수정 | demo policy strict import |
 | web/backend/app/deep_review/policies/company-fit-demo-v2.json | 신규 | 불변 목적별 fit policy |
+| web/backend/app/deep_review/policies/company-fit-demo-v3.json | 신규(STEP-008) | v2 + `chunking.source_characters`=6000, schema `bidops.company-fit-policy.v3` |
+| web/backend/app/deep_review/services/company_fit_policy.py | 수정(STEP-008) | v2/v3 검증·승인 파일, enqueue 선택은 v3만 |
+| web/backend/app/deep_review/services/company_fit.py | 수정(STEP-008) | ready bundle 필수·분할기 unit·개요 evidence page 연결 |
+| web/backend/app/deep_review/services/company_deep_review.py | 수정(STEP-008) | `company_source_units`를 순환 없는 공유 위치로 이동(동작 불변) |
 
 ## 작업 순서
 
@@ -73,6 +77,10 @@
    - 목표(2026-10-11 재정의): 구현된 회사·graph 입력 경로를 실제 `bidops-local` 스택에 단계별 사용자 확인으로 적용하고(백업·0036 migration·3사 import/activate·demo 정책 import·demo flag·codex-runner), 회사 미리보기가 모델 호출 없이 동결 입력을 만들거나 fail-closed되는 것을 확인한다. 실제 Luna 대표 1건 보고서(원안)는 DEMO-05로 이관했다.
    - 작업 대상: 이미지·migration·CLI import·env/demo.env·compose overlay·preview 호출·읽기 전용 진단. 검사 완화·SQL 보정·모델 호출 없음.
    - 검증: spec T9(재정의); `docs/validation-runs/2026-10-10-company-demo/DEMO-03-grounded-analysis/README.md`와 `_runs/demo0203-20261009/demo03-step007-*.log`.
+8. STEP-008 회사 핏 원문 unit 연결 [complex]
+   - 목표(2026-10-11 Codex 배치 리뷰 2회차 차단, 사용자 결정 "코드 수정·bundle 필수"): 핏 Requirement가 개요 evidence page의 분할기 unit과 document_requirement_ids를 실제 조립 경로로 갖게 한다(공통 §9 개정).
+   - 작업 대상: 핏 정책 v3 파일·검증, enqueue gate에 ready bundle(bundle_not_ready), 심층과 같은 `company_source_units`(inventory 엄격 일치) 재사용, `requirements_from_overview(..., source_units, document_version_id)` 호출, 입력 bundle_id=null·0036 guard 유지. migration·운영 스택 변경 없음.
+   - 검증: spec T2,T4; 영향 검사 파일을 일회용 PostgreSQL 17.11에서 재실행.
 
 ## 위임
 
@@ -84,7 +92,8 @@
 | STEP-004 | M | 높음 | complex | 불변식·상태·외부 실행 경계 |
 | STEP-005 | M | 높음 | complex | 불변식·상태·외부 실행 경계 |
 | STEP-006 | M | 높음 | complex | 불변식·상태·외부 실행 경계 |
-| STEP-007 | M | 높음 | complex | 실제 외부 전송·완성 보고서 품질 게이트 |
+| STEP-007 | M | 높음 | complex | 실제 운영 자원 변경·호출 전 fail-closed 확인(모델 호출 없음) |
+| STEP-008 | M | 높음 | complex | 동결 입력·정책 불변성·fail-closed gate |
 
 ## 검사 명령과 증거
 
@@ -93,6 +102,8 @@
 ```sh
 cd web/backend
 BIDOPS_PRESPEC_OVERVIEW_ENABLED=false python3 -m pytest tests/app/test_company_analysis.py tests/deep_review/test_company_knowledge_retrieval.py tests/app/test_luna_deep_review.py tests/app/test_narrative_review.py tests/deep_review/test_company_fit.py tests/deep_review/test_company_fit_postgres.py tests/app/test_module_boundaries.py tests/app/test_runtime_database_privileges.py -q
+# STEP-008 영향 검사
+BIDOPS_PRESPEC_OVERVIEW_ENABLED=false python3 -m pytest tests/deep_review/test_company_fit_enqueue.py tests/deep_review/test_company_knowledge_retrieval.py tests/app/test_company_e2e.py tests/app/test_company_reads.py tests/app/test_company_analysis.py tests/app/test_company_deep_review_binding.py tests/app/test_module_cli_entrypoints.py tests/deep_review/test_company_fit.py tests/deep_review/test_company_fit_postgres.py tests/app/test_module_boundaries.py -q
 ```
 
 PostgreSQL 대상은 일회용 postgres:17.11과 BIDOPS_TEST_POSTGRES_URL을 사용한다.
@@ -131,5 +142,7 @@ STEP-007은 2026-10-11 사용자 단계별 승인으로 실제 `bidops-local`에
 - STEP-004: `analysis-policy-luna-demo-v1`(v4 파생, sha256 9cb6254e…c3b0, path_limit 32 필수, profile_characters 8000)·회사 slice 빌더. 리더 542 passed. path index는 sanitizer로 모델 미노출(provenance 전용).
 - STEP-005: 회사별 GET 6개·비교·FrozenProvenance GET·legacy reader 거부, lifecycle 공개 함수 2개. 리더 661 passed.
 - STEP-006: 공용 슬롯 claim 분기·fake Luna 종단·legacy writer/CLI/정책 분리·선택 사실 slice 배치·핏 문서 집합 동결. 리더 751 passed.
-- 문서: contracts·ARCHITECTURE·business-rules·deep-review-erd DEMO 절 갱신.
-- 기능 브랜치 커밋 `7a110ce`. main·운영에는 미반영이며 `bidops-local`에는 STEP-007 범위(스택 준비)만 적용했다.
+- STEP-008(2026-10-11, Codex 배치 리뷰 2회차 차단 처리): 핏 정책 v3(`company-fit-demo-v3.json`, `source_characters` 6000, sha256 `1ecf5cbf…e2e0d`, v2 파일 불변)·최신 ready bundle 필수(`bundle_not_ready`)·공용 `bundle_source_units`로 핏 Requirement를 개요 문서·evidence page의 원문 unit에 연결. 새 enqueue는 v3만, 동결된 v2 attempt는 그대로 실행. 리더 23파일 764 passed/0 skipped(`demo03-step008-leader.log`). 상세는 `demo03-step008-result.md`.
+- 위 "검사 명령과 증거" 절의 "신규 테스트는 아직 없으며" 문장은 계획 작성 시점 문구다. 실제 실행 결과는 이 절과 단계별 리더 로그가 정본이다.
+- 문서: contracts·ARCHITECTURE·business-rules·deep-review-erd DEMO 절 갱신, STEP-008 반영(공통 계약 §9 개정 포함).
+- 기능 브랜치 커밋 `7a110ce`(STEP-001~007), `15b4969`(STEP-008 코드). 그 밖의 커밋은 문서·기록이다. main·운영에는 미반영이며 `bidops-local`에는 STEP-007 범위(스택 준비)만 적용했다. 핏 v3는 `bidops-local`에 import되지 않았다(DEMO-05 준비, 단계별 확인).
