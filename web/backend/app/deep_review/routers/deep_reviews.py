@@ -38,6 +38,7 @@ from ..models import (
 from ..schemas.company_fit import CompanyFitResponse
 from ..schemas.deep_reviews import DeepReviewPreviewView, AttemptView, DeepReviewView, OpportunityDeepReviewsResponse
 from ..services.company_fit import company_fit_view
+from ..services.company_projection import is_company_review
 from ..services.deep_reviews import DeepReviewService, DeepReviewServiceError
 from ..services.document_bundles import BundleServiceError, PageOverviewError, validate_actor
 from ..services.input_versions import InputVersionError
@@ -190,6 +191,10 @@ def create_deep_review(
 @router.get("/deep-reviews/{deep_review_id}", response_model=DeepReviewView)
 def get_deep_review(deep_review_id: UUID, session: Session = Depends(get_db)) -> dict[str, object] | JSONResponse:
     try:
+        if is_company_review(session, deep_review_id):
+            # DEMO company reviews are read only through the company path
+            # (contract §6/§9: CompanyReviewView with frozen provenance).
+            raise DeepReviewServiceError("not_found", "deep review를 찾을 수 없습니다", status_code=404)
         return service.view(session, deep_review_id)
     except (DeepReviewServiceError, InputVersionError) as error:
         return _error_response(error)

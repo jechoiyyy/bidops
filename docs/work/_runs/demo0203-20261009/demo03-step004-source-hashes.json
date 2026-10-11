@@ -1,0 +1,16 @@
+{
+  "step": "DEMO-03 STEP-004",
+  "algorithm": "sha256",
+  "files": {
+    "created": {
+      "web/backend/app/deep_review/policies/analysis-policy-luna-demo-v1.json": "9cb6254ef2f7fa3fbc608d775951aed14d958204f5366b30f92da661a4cbc3b0",
+      "web/backend/app/deep_review/services/company_slices.py": "aa6b2e1197ce3a079087eafc52828dd7a117e8e91b45b75518c784ec96989d1d",
+      "web/backend/tests/app/test_company_luna_policy.py": "d428420ffddb3659f71a94d17f1005ce3e7446623667f266330c2da5fbed034a"
+    },
+    "modified": {
+      "web/backend/app/deep_review/services/company_deep_review.py": "1bede1892d9be8d11335827008d6ec487693393a46b79765efa6b05260555b32",
+      "web/backend/app/deep_review/services/input_versions.py": "6c6ec41950a2875d27d8c74333df22549be95340f154558096f4c2aa079e73a2",
+      "web/backend/tests/app/test_company_deep_review_binding.py": "39ce91670de06bedfedb40b3c912f70ff740bab4c04bdd70f3469f3096fb836f"
+    }
+  }
+}

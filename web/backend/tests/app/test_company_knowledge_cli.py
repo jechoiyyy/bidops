@@ -244,8 +244,16 @@ def test_t3_t4_t7_app_role_runs_import_and_activation_with_closed_worker(
                         assert active.revision == 1
                         assert replaced.revision == 2
 
+            # DEMO-03 opened worker SELECT on the knowledge lineage (company-fit
+            # enqueue/runner); every worker write stays closed.
+            with app_engine.begin() as connection:
+                connection.exec_driver_sql("SET LOCAL ROLE worker")
+                connection.exec_driver_sql("SELECT 1 FROM bidops.company_knowledge_binding")
             denied = (
-                ("worker", "SELECT 1 FROM bidops.company_knowledge_binding"),
+                ("worker", "UPDATE bidops.company_knowledge_binding SET revision = revision"),
+                ("worker", "DELETE FROM bidops.company_knowledge_binding"),
+                ("worker", "INSERT INTO bidops.knowledge_ontology_version DEFAULT VALUES"),
+                ("worker", "SELECT 1 FROM bidops.company_knowledge_binding_event"),
                 ("app", "UPDATE bidops.company SET name = name"),
                 (
                     "app",

@@ -1,0 +1,40 @@
+{
+  "step": "DEMO-03 STEP-002",
+  "algorithm": "sha256",
+  "files": {
+    "created": {
+      "web/backend/alembic/versions/0036_company_analysis.py": "2d86fb57bc0097ed6923c51d4716cd91f2f58fb769ff2dfbc128198d7b303e50",
+      "web/backend/app/deep_review/cli/enqueue_company_fit.py": "f2d868e0de06309d04632ef896dca61dc9a475ccf7d90d5824afd76664fa36ee",
+      "web/backend/app/deep_review/cli/import_company_fit_policy.py": "9dec9decec1e1d244c6516d37add0fd52284e4d848e63cced939ab09edfa3a66",
+      "web/backend/app/deep_review/policies/company-fit-demo-v2.json": "eb075ecb09a0499569ca61dd5c19268901ab1e3895083874ce278f7a560171e7",
+      "web/backend/app/deep_review/services/company_analysis_input.py": "b7f6f56de1b24892c62794c80f37638054526f824cfb97f9d009f9e7147bcbba",
+      "web/backend/app/deep_review/services/company_fit_policy.py": "ae06b9db54cab58faac29319b9304c1109d9e7aaefead988d4d0add03d1849a1",
+      "web/backend/tests/app/test_company_analysis.py": "50f36c57be2790ed3e92e55da85c24a668d66c176fe40bc93a0a06b96d621934",
+      "web/backend/tests/deep_review/test_company_fit_enqueue.py": "69cf71526e0a03625b294cac840cc2ee8c690d48952336f28a0a71b23a8f4815"
+    },
+    "modified": {
+      "scripts/runtime-privileges.sql": "412e13087858856a0f4887010c16e810133c915986fe5efe00195bb05cef6927",
+      "web/backend/alembic/versions/0001_lean_v1_postgresql.py": "0b3f6f3fdd6d80fc6ba23d7fd5503cff30adc0a5039783338d04d9759fd6a711",
+      "web/backend/app/core/config.py": "a1c93d13872b3b1074dc50fdd3091e4971504a89a42fa68869f3a85e968b13d2",
+      "web/backend/app/core/db.py": "cd3053d02d388c41f6461a98d8c9469df538b92fde6e423e54d3627b8a4d6ae6",
+      "web/backend/app/deep_review/cli/__init__.py": "ec688ba3760fcd5f6bd4ca3965d3bb76ba298a4d858094d4adfbc96563f031d0",
+      "web/backend/app/deep_review/models.py": "3eb160ee7d70dbdda6e6fde6e76a2491fc3f546ff89b6b85f49337a8fc2a8398",
+      "web/backend/app/deep_review/schemas/company_fit.py": "361e33e845f3d6b6def302195af1f6408be06c85b14d87fccd3a7ad72b79c895",
+      "web/backend/app/deep_review/services/company_fit.py": "1d529893a0b9728127f29bd3083e6c3efaf302d4207faae9b5118fd100046c05",
+      "web/backend/app/deep_review/services/company_fit_runner.py": "0ad9115c436f108c425543f520a59bd609c9a3e0daff1a80c07513166c0ca1ef",
+      "web/backend/app/deep_review/services/company_knowledge.py": "aeb42e80754fbd7674534003a0742449a333ca821efe97b788e731033a29be26",
+      "web/backend/tests/app/boundary_map.py": "cb86afa9a9dd999123b28dcdca423da824abff6b928efa80897db80da28ce1d5",
+      "web/backend/tests/app/test_company_context.py": "ad65a13a028b4d6bfb59e8f15115f945371b206cffeb4a88f8150ce91bb090f2",
+      "web/backend/tests/app/test_company_context_schema.py": "be450f9525e714c9c581d2ba45e9675a094713ba1c567bb5399a1236f211a5be",
+      "web/backend/tests/app/test_company_knowledge_cli.py": "28a32cfd42020a8c3e20fad11fc54a6a951323287d31a3e452d4ee5062927676",
+      "web/backend/tests/app/test_db_migrations.py": "f368a31aed46abd75298897eedf1c7c58ec930ca2bd3c3c505d4904d1cf6ab21",
+      "web/backend/tests/app/test_deep_review_migrations.py": "a42ead5c4f09a2493d989e679d64d576bbad5846e8b96ce5569aa9f8e5f4e505",
+      "web/backend/tests/app/test_luna_deep_review.py": "4e255b5f99280d8bc13a1daebd99ff16d835fc23c647b6138c03a04faa4573b7",
+      "web/backend/tests/app/test_mapper_isolation.py": "a13993ce50b5ef5b4ef370dfbdfc7572c10a9cfa2d723a33aef46c01021ba0ba",
+      "web/backend/tests/app/test_models.py": "57bebc2c9b0ac15dfac5a98273d6b2f5a8b5d77df5feae77695e500cb7e28214",
+      "web/backend/tests/app/test_module_cli_entrypoints.py": "d5c617278477afb94a601665db6b3cd533f086ad9f109177815d0327ffd33985",
+      "web/backend/tests/app/test_runtime_database_privileges.py": "7105339df0fc2b7f413aca1428b04908f5d49919164c7e9e878abfa501f806ef",
+      "web/backend/tests/deep_review/test_company_fit.py": "fbc6c705dd4eac9e34d069e9b969e09035381ad32265a7afe7099c1fa3d67aa6"
+    }
+  }
+}

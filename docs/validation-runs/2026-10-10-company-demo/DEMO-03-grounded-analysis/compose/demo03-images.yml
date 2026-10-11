@@ -1,0 +1,14 @@
+# DEMO-03 local image override for the bidops-local project (2026-10-11).
+# Applied after .sdlc/local-runtime/compose.yml and litellm.yml so that the
+# application services and the one-off migrate/ro-backup containers use the
+# image built from the DEMO-03 feature worktree. document-worker keeps the
+# native arm64 image (document pipeline code unchanged by DEMO-03).
+services:
+  migrate:
+    image: bidops-local:demo03-20261011
+  ro-backup:
+    image: bidops-local:demo03-20261011
+  web:
+    image: bidops-local:demo03-20261011
+  analysis-worker:
+    image: bidops-local:demo03-20261011

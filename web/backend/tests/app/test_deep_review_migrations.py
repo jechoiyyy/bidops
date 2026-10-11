@@ -347,8 +347,9 @@ def test_model_has_exact_closed_table_set():
         "assumption_input_version",
         "assumption_run",
         "assumption_stage",
+        "company_fit_policy_version",
     )
-    assert len(Base.metadata.tables) == 96
+    assert len(Base.metadata.tables) == 97
     assert set(Base.metadata.tables) == set(
         LEGACY_TABLES + NEW_TABLES + SCREENING_RUNTIME_TABLES + IDENTITY_TABLES
         + ATTACHMENT_FETCH_TABLES + REVISION_TABLES
@@ -461,6 +462,10 @@ def test_lean_v1_migration_snapshot_excludes_company_context():
     deep_review = metadata.tables["bidops.deep_review"]
     assert "company_id" not in profile_version.c
     assert "company_id" not in deep_review.c
+    assert "graph_version_id" not in deep_review.c
+    assert "ck_deep_review_graph_scope" not in {
+        constraint.name for constraint in deep_review.constraints
+    }
     assert {
         "uq_deep_review_legacy_inputs",
         "uq_deep_review_company_inputs",

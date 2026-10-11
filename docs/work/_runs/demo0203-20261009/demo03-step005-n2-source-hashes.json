@@ -1,0 +1,12 @@
+{
+  "step": "DEMO-03 STEP-005 review note N2",
+  "algorithm": "sha256",
+  "files": {
+    "modified": {
+      "web/backend/tests/app/test_company_reads.py": "8879460bf932da1da732fcfb5c5d12c7c43b328c62756734a4b17944e1f9caff"
+    },
+    "unchanged_verified": {
+      "web/backend/app/lifecycle/services/company_notices.py": "281c31c51d78da03f291aca15a25fbf76bedfab01b6392b296da93ca9f3200d1"
+    }
+  }
+}

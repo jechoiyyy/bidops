@@ -47,6 +47,16 @@ EXPECTED_TABLES = set(
     + COMPANY_KNOWLEDGE_TABLES
     + ("prespec_company_fit_attempt",)
     + PRESPEC_V4_TABLES
+    # Luna consent (0032), assumption analysis (0033) and the company-fit
+    # policy table (0036) are declared after the Lean v1 tuples.
+    + (
+        "deep_review_preview",
+        "deep_review_approval",
+        "assumption_input_version",
+        "assumption_run",
+        "assumption_stage",
+        "company_fit_policy_version",
+    )
 )
 
 

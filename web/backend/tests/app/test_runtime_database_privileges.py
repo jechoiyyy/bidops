@@ -111,7 +111,14 @@ COMPANY_KNOWLEDGE_TABLES = {
 }
 
 
-def test_company_knowledge_grants_keep_lineage_append_only_and_worker_closed() -> None:
+#: DEMO-03 company-fit enqueue/runner (worker credential) rebuilds and rechecks
+#: the frozen company input, so it reads the knowledge lineage. The binding
+#: event history is not needed and stays closed.
+WORKER_COMPANY_KNOWLEDGE_READS = COMPANY_KNOWLEDGE_TABLES - {"company_knowledge_binding_event"}
+COMPANY_FIT_POLICY_TABLES = {"company_fit_policy_version"}
+
+
+def test_company_knowledge_grants_keep_lineage_append_only_and_worker_read_only() -> None:
     assert COMPANY_KNOWLEDGE_TABLES <= _table_grants("app", "SELECT")
     assert COMPANY_KNOWLEDGE_TABLES <= _table_grants("app", "INSERT")
     assert not COMPANY_KNOWLEDGE_TABLES & _table_grants("app", "UPDATE")
@@ -119,8 +126,31 @@ def test_company_knowledge_grants_keep_lineage_append_only_and_worker_closed() -
     assert _column_update_grant("app", "company_knowledge_binding") == {
         "graph_version_id", "profile_version_id", "revision", "updated_at", "actor"
     }
-    for privilege in ("SELECT", "INSERT", "UPDATE", "DELETE"):
+    assert COMPANY_KNOWLEDGE_TABLES & _table_grants("worker", "SELECT") == WORKER_COMPANY_KNOWLEDGE_READS
+    for privilege in ("INSERT", "UPDATE", "DELETE"):
         assert not COMPANY_KNOWLEDGE_TABLES & _table_grants("worker", privilege)
+    for table in sorted(COMPANY_KNOWLEDGE_TABLES):
+        assert (
+            re.search(
+                rf"GRANT\s+UPDATE\s*\([^)]*\)\s+ON\s+bidops\.{table}\s+TO\s+worker;",
+                POLICY,
+            )
+            is None
+        )
+
+
+def test_company_fit_policy_and_attempt_grants_keep_insert_worker_only() -> None:
+    assert COMPANY_FIT_POLICY_TABLES <= _table_grants("app", "SELECT")
+    assert COMPANY_FIT_POLICY_TABLES <= _table_grants("app", "INSERT")
+    assert COMPANY_FIT_POLICY_TABLES <= _table_grants("worker", "SELECT")
+    assert not COMPANY_FIT_POLICY_TABLES & _table_grants("worker", "INSERT")
+    for role in ("app", "worker"):
+        for privilege in ("UPDATE", "DELETE"):
+            assert not COMPANY_FIT_POLICY_TABLES & _table_grants(role, privilege)
+    # The fit attempt INSERT stays a worker-only privilege (enqueue CLI runs as worker).
+    assert "prespec_company_fit_attempt" in _table_grants("worker", "INSERT")
+    assert "prespec_company_fit_attempt" not in _table_grants("app", "INSERT")
+    assert "prespec_company_fit_attempt" not in _table_grants("app", "UPDATE")
 
 
 def test_company_context_grants_match_registration_tracking_and_worker_reads() -> None:
@@ -579,8 +609,26 @@ def test_effective_company_knowledge_grants_are_minimal() -> None:
                     assert _table_privilege(connection, "app", table, "INSERT")
                     assert _table_privilege(connection, "ro_backup", table, "SELECT")
                     assert not _table_privilege(connection, "app", table, "DELETE")
-                    for privilege in ("SELECT", "INSERT", "UPDATE", "DELETE"):
+                    assert _table_privilege(connection, "worker", table, "SELECT") == (
+                        table in WORKER_COMPANY_KNOWLEDGE_READS
+                    )
+                    for privilege in ("INSERT", "UPDATE", "DELETE"):
                         assert not _table_privilege(connection, "worker", table, privilege)
+                for table in sorted(COMPANY_FIT_POLICY_TABLES):
+                    assert _table_privilege(connection, "app", table, "SELECT")
+                    assert _table_privilege(connection, "app", table, "INSERT")
+                    assert _table_privilege(connection, "worker", table, "SELECT")
+                    assert _table_privilege(connection, "ro_backup", table, "SELECT")
+                    for privilege in ("UPDATE", "DELETE"):
+                        assert not _table_privilege(connection, "app", table, privilege)
+                    for privilege in ("INSERT", "UPDATE", "DELETE"):
+                        assert not _table_privilege(connection, "worker", table, privilege)
+                assert _table_privilege(connection, "worker", "prespec_company_fit_attempt", "INSERT")
+                assert not _table_privilege(connection, "app", "prespec_company_fit_attempt", "INSERT")
+                for table in ("deep_review_preview", "deep_review_approval"):
+                    assert _column_privilege(connection, "app", table, "company_id", "INSERT")
+                    assert _column_privilege(connection, "worker", table, "company_id", "SELECT")
+                assert _column_privilege(connection, "app", "deep_review_preview", "provenance_jsonb", "INSERT")
                 for table in COMPANY_KNOWLEDGE_TABLES - {"company_knowledge_binding"}:
                     assert not _table_privilege(connection, "app", table, "UPDATE")
                 for column in (

@@ -39,6 +39,35 @@ class CompanyFitPayload(BaseModel):
         return self
 
 
+# v1 reason + ``graph_path_indexes`` into the frozen ``input.graph_paths``.
+# No docstrings on the v2 models: their JSON schema is frozen byte-for-byte in
+# the approved policy's ``prompt_output_contract``.
+class FitReasonV2(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    kind: Literal["scope_match", "scope_mismatch", "information_gap"]
+    explanation: Text
+    notice_refs: list[str] = Field(min_length=1, max_length=8)
+    company_refs: list[str] = Field(max_length=8)
+    graph_path_indexes: list[int] = Field(max_length=32)
+
+
+# DEMO company-fit result (``bidops.prespec-company-fit-result.v2``). Same
+# decision/summary/reason rules as v1; ``notice_refs`` cite frozen
+# ``requirements[].id``, ``company_refs`` cite ``profile_facts[].fact_key`` and
+# ``graph_path_indexes`` cite 0-based positions of ``graph_paths``.
+class CompanyFitPayloadV2(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    schema_version: Literal["bidops.prespec-company-fit-result.v2"]
+    decision: Decision
+    summary: Text
+    reasons: list[FitReasonV2] = Field(min_length=1, max_length=8)
+    verification_items: list[Text] = Field(max_length=8)
+
+    @model_validator(mode="after")
+    def consistent_decision(self):
+        return CompanyFitPayload.consistent_decision(self)
+
+
 class FitNoticeFact(RuntimeContractModel):
     ref: str
     text: str

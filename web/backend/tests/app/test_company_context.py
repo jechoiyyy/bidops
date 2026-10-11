@@ -24,11 +24,17 @@ from app.core.db import get_db, init_db, schema_bound
 from app.core.models import AuditEvent, IdempotencyRecord
 from app.deep_review.models import (
     AnalysisPolicyVersion,
+    CompanyFitPolicyVersion,
+    CompanyKnowledgeSource,
+    CompanyKnowledgeVersion,
     ContentObject,
+    ContentObjectLocation,
     DeepReview,
     DocumentBundle,
     DocumentVersion,
+    KnowledgeOntologyVersion,
     PreSpecCompanyFitAttempt,
+    PrespecOverviewRun,
     ProfileVersion,
     WorkJob,
 )
@@ -313,6 +319,76 @@ def test_legacy_profile_import_does_not_reuse_company_digest(
         assert imported.version == 2
 
 
+def _company_graph(session: Session, *, company_id, profile_id) -> CompanyKnowledgeVersion:
+    """Minimal graph version bound to (company, profile): DEMO-03 (0036) lineage."""
+
+    digest = uuid4().hex * 2
+    ontology = KnowledgeOntologyVersion(id=uuid4(), version=f"fixture-{uuid4().hex[:8]}",
+                                        sha256=uuid4().hex * 2, payload={"fixture": True})
+    content = ContentObject(id=uuid4(), sha256=digest, size_bytes=1, detected_mime="application/json",
+                            retention_class="fixture")
+    session.add_all([ontology, content])
+    session.flush()
+    location = ContentObjectLocation(id=uuid4(), content_object_id=content.id, namespace_key="source",
+                                     object_key=f"fixture/{uuid4().hex}", status="verified")
+    session.add(location)
+    session.flush()
+    source = CompanyKnowledgeSource(id=uuid4(), company_id=company_id, source_sha256=digest, size_bytes=1,
+                                    content_object_id=content.id, content_location_id=location.id)
+    session.add(source)
+    session.flush()
+    graph = CompanyKnowledgeVersion(id=uuid4(), company_id=company_id, ontology_id=ontology.id,
+                                    source_id=source.id, profile_version_id=profile_id, source_sha256=digest,
+                                    graph_sha256=uuid4().hex * 2, snapshot={"fixture": True})
+    session.add(graph)
+    session.flush()
+    return graph
+
+
+def _company_fit_attempt(
+    session: Session, seeded, document: DocumentVersion, *, input_sha256: str, created_at: datetime
+) -> PreSpecCompanyFitAttempt:
+    """A DEMO-03 (0036) company fit row: fit policy FK, graph scope, provenance, overview."""
+
+    job = WorkJob(id=uuid4(), job_type="prespec_overview", aggregate_type="prespec_overview_run",
+                  aggregate_id=uuid4(), status="completed")
+    session.add(job)
+    session.flush()
+    run = PrespecOverviewRun(
+        id=uuid4(), notice_id=seeded.notice.id, document_version_id=document.id, work_job_id=job.id,
+        status="completed", range_source="auto", range_reason_codes=[], policy_digest="0" * 64,
+        model_name="fixture", warnings_json=[], reason_codes=[], call_count=1, raw_response_refs=[],
+        result_json={}, checks_json={"overall": "passed"}, completed_at=created_at,
+    )
+    policy = CompanyFitPolicyVersion(id=uuid4(), sha256=uuid4().hex * 2, payload={"fixture": True})
+    session.add_all([run, policy])
+    session.flush()
+    attempt_id = uuid4()
+    identity = {
+        "purpose": "company_fit", "bundle_id": None, "company_id": str(seeded.company.id),
+        "profile_version_id": str(seeded.company_profile.id),
+        "graph_version_id": str(seeded.company_graph.id), "overview_run_id": str(run.id),
+        "policy_version_id": str(policy.id), "policy_sha256": policy.sha256,
+        "model_name": "fixture", "model_revision": None,
+    }
+    return PreSpecCompanyFitAttempt(
+        id=attempt_id, company_id=seeded.company.id, notice_id=seeded.notice.id,
+        document_version_id=document.id, overview_run_id=run.id,
+        profile_version_id=seeded.company_profile.id, deep_policy_version_id=None,
+        company_fit_policy_version_id=policy.id, graph_version_id=seeded.company_graph.id,
+        input_jsonb={
+            **identity, "schema_version": "bidops.company-analysis-input.v1",
+            "execution_nonce": str(attempt_id), "target_review_id": None,
+            "notice_id": seeded.notice.id, "document_version_ids": [str(document.id)],
+        },
+        input_sha256=input_sha256,
+        provenance_jsonb={**identity, "input_sha256": input_sha256,
+                          "documents": [{"document_version_id": str(document.id), "source_sha256": "a" * 64}]},
+        policy_digest=policy.sha256, model_name="fixture", model_revision=None,
+        quality_status="unmeasured_reference", status="queued", created_at=created_at,
+    )
+
+
 def _seed_legacy_and_company_analysis(session: Session):
     notice = Notice(notice_key=f"company-context-{uuid4()}", source_type="pre_spec", title="회사 경계")
     opportunity = Opportunity(first_registered_stage="pre_spec")
@@ -338,9 +414,11 @@ def _seed_legacy_and_company_analysis(session: Session):
     policy = _policy()
     session.add_all([bundle, legacy_profile, company_profile, policy])
     session.flush()
+    company_graph = _company_graph(session, company_id=company.id, profile_id=company_profile.id)
     company_review = DeepReview(
         id=uuid4(), company_id=company.id, notice_id=notice.id, bundle_id=bundle.id,
         profile_version_id=company_profile.id, policy_version_id=policy.id,
+        graph_version_id=company_graph.id,
         effective_grade_at_start="unknown", status="queued",
         created_at=datetime(2026, 10, 2, tzinfo=UTC),
     )
@@ -363,6 +441,7 @@ def _seed_legacy_and_company_analysis(session: Session):
         opportunity=opportunity,
         company=company,
         company_profile=company_profile,
+        company_graph=company_graph,
         legacy_profile=legacy_profile,
         company_review=company_review,
         legacy_review=legacy_review,
@@ -430,7 +509,7 @@ def test_legacy_auto_enqueue_uses_null_scope_beside_a_company_attempt(
         bundle.confirmed_at = datetime(2026, 10, 9, tzinfo=UTC)
         session.flush()
 
-        company_input = {
+        v1_input = {
             "schema_version": "bidops.prespec-company-fit-input.v1",
             "notice_id": str(seeded.notice.id),
             "document_version_id": str(document.id),
@@ -442,27 +521,15 @@ def test_legacy_auto_enqueue_uses_null_scope_beside_a_company_attempt(
             "model_revision": "6" * 64,
             "quality_status": "unmeasured_reference",
         }
-        company_attempt = PreSpecCompanyFitAttempt(
-            id=uuid4(),
-            company_id=seeded.company.id,
-            notice_id=seeded.notice.id,
-            document_version_id=document.id,
-            profile_version_id=seeded.company_profile.id,
-            deep_policy_version_id=seeded.policy.id,
-            input_jsonb=company_input,
-            input_sha256="7" * 64,
-            policy_digest="5" * 64,
-            model_name="fixture",
-            model_revision="6" * 64,
-            quality_status="unmeasured_reference",
-            status="queued",
+        company_attempt = _company_fit_attempt(
+            session, seeded, document, input_sha256="7" * 64,
             created_at=datetime(2026, 10, 8, tzinfo=UTC),
         )
         session.add(company_attempt)
         session.commit()
 
         legacy_input = {
-            **company_input,
+            **v1_input,
             "profile_version_id": str(enqueue_profile.id),
             "policy_digest": "8" * 64,
             "model_revision": "9" * 64,
@@ -561,18 +628,8 @@ def test_company_fit_projection_claim_and_recovery_use_only_null_lineage(
             quality_status="unmeasured_reference", status="queued",
             created_at=datetime(2026, 10, 1, tzinfo=UTC),
         )
-        company_input = {
-            **legacy_input,
-            "profile_version_id": str(seeded.company_profile.id),
-            "policy_digest": "8" * 64,
-            "model_revision": "9" * 64,
-        }
-        company = PreSpecCompanyFitAttempt(
-            id=uuid4(), company_id=seeded.company.id, notice_id=seeded.notice.id,
-            document_version_id=document.id, profile_version_id=seeded.company_profile.id,
-            deep_policy_version_id=seeded.policy.id, input_jsonb=company_input, input_sha256="7" * 64,
-            policy_digest="8" * 64, model_name="fixture", model_revision="9" * 64,
-            quality_status="unmeasured_reference", status="queued",
+        company = _company_fit_attempt(
+            session, seeded, document, input_sha256="7" * 64,
             created_at=datetime(2026, 10, 1, tzinfo=UTC) + timedelta(days=1),
         )
         session.add_all([legacy, company])

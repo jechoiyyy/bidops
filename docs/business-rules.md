@@ -575,7 +575,7 @@ schema 위반(`semantic_schema_invalid`)은 계속 `failed`이며 그 사유 코
 [상세 명세](0923_assumption-analysis/spec.md).
 
 
-## 가상 SI 3사 데모 계약 (2026-10-09, DEMO-01·02 데모 브랜치 구현)
+## 가상 SI 3사 데모 계약 (2026-10-09, DEMO-01·02 데모 브랜치 구현; 2026-10-10 DEMO-03 구현, 실제 Luna 대표 1건은 2026-10-11 DEMO-05로 이관)
 
 가상 설정 여부와 confirmed/inferred/unknown을 분리한다. 회사 핏과 추적 선택을 분리하고 가상회사에 기존 C-1 등급을 복사하지 않는다.
 DEMO-01은 별도 데모 브랜치에서 회사별 `미선택|계속 추적|보류|종료`와 append-only 감사를 구현했다.
@@ -583,4 +583,7 @@ DEMO-01은 별도 데모 브랜치에서 회사별 `미선택|계속 추적|보�
 DEMO-02는 가상 원본의 confirmed/inferred/unknown과 `fictional_scenario` origin을 profile v2·graph·읽기 응답에 그대로 보존한다.
 unknown은 값 null·근거 0개로 남기며 명시적 미보유나 숫자 0으로 바꾸지 않는다. 등록은 자동 활성화하지 않고 회사별 binding은 명시적 activate로만 바뀌며 이전 버전과 binding 이력을 보존한다.
 회사별 분석·비교 화면·실제 인수는 DEMO-03~05의 미구현 후속 범위다.
+DEMO-03(2026-10-10)은 회사 핏 결과(matched/mismatch/unknown)·회사 심층 상태·추적 선택을 각각 별도 필드로 보여 주고 서로 대신하지 않는다. 회사 경로 자격은 SW사업대상=Y·ready bundle·completed v7 개요·활성 binding·정책이며 C-1 `우선 검토` 등급은 보지 않는다(`grade_not_priority`는 NULL 계보 전용). 핏 mismatch/unknown은 수동 심층 요청 금지 사유가 아니다.
+graph 경로(direct/partial/unmapped)는 검색 결과이며 역량·자격·실적 충족 판정이 아니고, unknown 사실·unmapped 요구·예산 제외 사실(`excluded_fact_keys`)은 입력 한계로 보존되어 부적합 근거가 되지 않는다. 동결 사실·evidence·원문 unit이 어느 slice에도 실리지 않으면 보고서를 완료하지 않는다(`slice_coverage_mismatch`).
+현재성은 활성 binding(graph/profile)+문서 집합/bundle/개요+정책/model/generation 전체 일치로 판정하고, 옛 결과는 `is_current=false`로 보존하며 다른 회사 결과로 채우지 않는다. 승인된 실행은 이후 버전 변경에 영향받지 않고, 승인 후 bundle이 교체되면 worker가 호출 전에 `bundle_not_ready`로 실패하며 재시도는 새 preview·승인이다. 실패 결과는 사람 검토로 남기고 자동 보정·자동 재호출하지 않는다. 모든 회사 결과는 `unmeasured_reference`다.
 [ADR-0070](tracking/decisions/0070-multi-company-knowledge-demo.md) · [공통 계약](work/demo-contract.md) · [기능 로드맵](work/constitution/roadmap.md).

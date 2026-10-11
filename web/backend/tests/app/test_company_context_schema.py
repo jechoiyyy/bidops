@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from uuid import UUID, uuid4
 
@@ -104,30 +105,156 @@ def _insert_profile(connection, *, version: int, company_id: UUID | None) -> UUI
     return profile_id
 
 
+def _seed_company_lineage(
+    connection,  # type: ignore[no-untyped-def]
+    dependencies: dict[str, object],
+) -> dict[str, object]:
+    """DEMO-03 (0036) company-row dependencies: a completed overview and a fit policy."""
+
+    from datetime import UTC, datetime
+
+    from sqlalchemy.orm import Session
+
+    from app.deep_review.models import CompanyFitPolicyVersion, PrespecOverviewRun, WorkJob
+
+    session = Session(bind=connection)
+    job = WorkJob(id=uuid4(), job_type="prespec_overview", aggregate_type="prespec_overview_run",
+                  aggregate_id=uuid4(), status="completed")
+    session.add(job)
+    session.flush()
+    run = PrespecOverviewRun(
+        id=uuid4(), notice_id=dependencies["notice_id"], document_version_id=dependencies["document_id"],
+        work_job_id=job.id, status="completed", range_source="auto", range_reason_codes=[],
+        policy_digest="0" * 64, model_name="fixture", warnings_json=[], reason_codes=[], call_count=1,
+        raw_response_refs=[], result_json={}, checks_json={"overall": "passed"},
+        completed_at=datetime.now(UTC),
+    )
+    policy = CompanyFitPolicyVersion(id=uuid4(), sha256=uuid4().hex * 2, payload={"fixture": True})
+    session.add_all([run, policy])
+    session.flush()
+    session.close()
+    return {**dependencies, "overview_run_id": run.id, "fit_policy_id": policy.id, "fit_policy_sha": policy.sha256}
+
+
+def _insert_graph(connection, *, company_id: UUID, profile_id: UUID) -> UUID:  # type: ignore[no-untyped-def]
+    """A company knowledge graph version bound to (company, profile) (0035/0036 scope)."""
+
+    from sqlalchemy.orm import Session
+
+    from app.deep_review.models import (
+        CompanyKnowledgeSource,
+        CompanyKnowledgeVersion,
+        ContentObject,
+        ContentObjectLocation,
+        KnowledgeOntologyVersion,
+    )
+
+    session = Session(bind=connection)
+    digest = uuid4().hex * 2
+    ontology = KnowledgeOntologyVersion(id=uuid4(), version=f"fixture-{uuid4().hex[:8]}",
+                                        sha256=uuid4().hex * 2, payload={"fixture": True})
+    content = ContentObject(id=uuid4(), sha256=digest, size_bytes=1, detected_mime="application/json",
+                            retention_class="fixture")
+    session.add_all([ontology, content])
+    session.flush()
+    location = ContentObjectLocation(id=uuid4(), content_object_id=content.id, namespace_key="source",
+                                     object_key=f"fixture/{uuid4().hex}", status="verified")
+    session.add(location)
+    session.flush()
+    source = CompanyKnowledgeSource(id=uuid4(), company_id=company_id, source_sha256=digest, size_bytes=1,
+                                    content_object_id=content.id, content_location_id=location.id)
+    session.add(source)
+    session.flush()
+    graph = CompanyKnowledgeVersion(id=uuid4(), company_id=company_id, ontology_id=ontology.id,
+                                    source_id=source.id, profile_version_id=profile_id, source_sha256=digest,
+                                    graph_sha256=uuid4().hex * 2, snapshot={"fixture": True})
+    session.add(graph)
+    session.flush()
+    session.close()
+    return graph.id
+
+
 def _insert_review(
     connection,  # type: ignore[no-untyped-def]
     *,
     company_id: UUID | None,
     profile_id: UUID,
     dependencies: dict[str, object],
+    graph_id: UUID | None = None,
 ) -> UUID:
     review_id = uuid4()
     connection.execute(
         text(
             "INSERT INTO bidops.deep_review "
             "(id, company_id, notice_id, bundle_id, profile_version_id, "
-            " policy_version_id, effective_grade_at_start, status, created_at) "
+            " policy_version_id, effective_grade_at_start, status, created_at, graph_version_id) "
             "VALUES (:id, :company_id, :notice_id, :bundle_id, :profile_id, "
-            " :policy_id, '우선 검토', 'queued', now())"
+            " :policy_id, '우선 검토', 'queued', now(), :graph_id)"
         ),
         {
             "id": review_id,
             "company_id": company_id,
             "profile_id": profile_id,
-            **dependencies,
+            "graph_id": graph_id,
+            **{key: dependencies[key] for key in ("notice_id", "bundle_id", "policy_id")},
         },
     )
     return review_id
+
+
+def _insert_company_fit(
+    connection,  # type: ignore[no-untyped-def]
+    *,
+    company_id: UUID,
+    profile_id: UUID,
+    graph_id: UUID | None,
+    dependencies: dict[str, object],
+    digest_digit: str,
+) -> UUID:
+    """A DEMO-03 company fit row: company-fit policy FK, graph scope, frozen provenance."""
+
+    attempt_id = uuid4()
+    identity = {
+        "purpose": "company_fit", "bundle_id": None, "company_id": str(company_id),
+        "profile_version_id": str(profile_id),
+        "graph_version_id": None if graph_id is None else str(graph_id),
+        "overview_run_id": str(dependencies["overview_run_id"]),
+        "policy_version_id": str(dependencies["fit_policy_id"]),
+        "policy_sha256": dependencies["fit_policy_sha"], "model_name": "fixture", "model_revision": None,
+    }
+    input_payload = {
+        **identity,
+        "schema_version": "bidops.company-analysis-input.v1", "execution_nonce": str(attempt_id),
+        "target_review_id": None, "notice_id": dependencies["notice_id"],
+        "document_version_ids": [str(dependencies["document_id"])],
+    }
+    provenance = {**identity, "input_sha256": digest_digit * 64,
+                  "documents": [{"document_version_id": str(dependencies["document_id"]), "source_sha256": "a" * 64}]}
+    connection.execute(
+        text(
+            "INSERT INTO bidops.prespec_company_fit_attempt "
+            "(id, company_id, notice_id, document_version_id, overview_run_id, "
+            " profile_version_id, deep_policy_version_id, company_fit_policy_version_id, graph_version_id, "
+            " input_jsonb, input_sha256, provenance_jsonb, "
+            " policy_digest, model_name, model_revision, quality_status, status, created_at) "
+            "VALUES (:id, :company_id, :notice_id, :document_id, :overview_run_id, :profile_id, "
+            " NULL, :fit_policy_id, :graph_id, CAST(:input_payload AS jsonb), :input_sha256, "
+            " CAST(:provenance AS jsonb), :fit_policy_sha, 'fixture', NULL, 'unmeasured_reference', "
+            " 'queued', now())"
+        ),
+        {
+            "id": attempt_id,
+            "company_id": company_id,
+            "profile_id": profile_id,
+            "graph_id": graph_id,
+            "input_payload": json.dumps(input_payload, ensure_ascii=False),
+            "input_sha256": digest_digit * 64,
+            "provenance": json.dumps(provenance, ensure_ascii=False),
+            **{key: dependencies[key] for key in (
+                "notice_id", "document_id", "overview_run_id", "fit_policy_id", "fit_policy_sha")},
+        },
+    )
+    return attempt_id
 
 
 def _insert_fit(
@@ -190,7 +317,21 @@ def test_company_context_migration_has_no_grants_and_runtime_head_matches() -> N
         ROOT / "web/backend/alembic/versions/0034_company_context.py"
     ).read_text(encoding="utf-8")
     assert "GRANT " not in migration
-    assert ALEMBIC_HEAD == "0034_company_context"
+    # DEMO-02(0035)·DEMO-03(0036)이 뒤에 쌓이므로 고정 문자열 대신 체인의 유일한
+    # head가 런타임 상수와 같은지 확인한다.
+    revisions: dict[str, str | None] = {}
+    for path in (ROOT / "web/backend/alembic/versions").glob("[0-9]*.py"):
+        text = path.read_text(encoding="utf-8")
+        revision = re.search(r"^revision\s*=\s*['\"]([^'\"]+)['\"]", text, re.MULTILINE)
+        down = re.search(
+            r"^down_revision\s*=\s*(?:['\"]([^'\"]+)['\"]|None)", text, re.MULTILINE
+        )
+        assert revision is not None, path
+        revisions[revision.group(1)] = down.group(1) if down and down.group(1) else None
+    assert "0034_company_context" in revisions
+    parents = {parent for parent in revisions.values() if parent}
+    heads = sorted(set(revisions) - parents)
+    assert heads == [ALEMBIC_HEAD], heads
 
 
 def test_0034_preserves_existing_null_lineage_without_backfill() -> None:
@@ -330,8 +471,26 @@ def test_review_and_fit_profile_company_scope_is_database_enforced(
                 version=1,
                 company_id=company_ids.get(profile_company),
             )
+            dependencies = _seed_company_lineage(connection, dependencies)
+            # DEMO-03 (0036): a company row also pins the graph bound to its
+            # profile; the graph belongs to the profile's company.
+            graph_id = (
+                _insert_graph(connection, company_id=company_ids[profile_company], profile_id=profile_id)
+                if profile_company is not None
+                else None
+            )
 
         company_id = company_ids.get(analysis_company)
+
+        def insert_fit(connection, digit: str) -> None:  # type: ignore[no-untyped-def]
+            if company_id is None:
+                _insert_fit(connection, company_id=None, profile_id=profile_id,
+                            dependencies=dependencies, digest_digit=digit)
+            else:
+                _insert_company_fit(connection, company_id=company_id, profile_id=profile_id,
+                                    graph_id=graph_id, dependencies=dependencies, digest_digit=digit)
+
+        review_graph = graph_id if company_id is not None else None
         if allowed:
             with engine.begin() as connection:
                 _insert_review(
@@ -339,15 +498,10 @@ def test_review_and_fit_profile_company_scope_is_database_enforced(
                     company_id=company_id,
                     profile_id=profile_id,
                     dependencies=dependencies,
+                    graph_id=review_graph,
                 )
             with engine.begin() as connection:
-                _insert_fit(
-                    connection,
-                    company_id=company_id,
-                    profile_id=profile_id,
-                    dependencies=dependencies,
-                    digest_digit="1",
-                )
+                insert_fit(connection, "1")
         else:
             with pytest.raises(DBAPIError):
                 with engine.begin() as connection:
@@ -356,16 +510,11 @@ def test_review_and_fit_profile_company_scope_is_database_enforced(
                         company_id=company_id,
                         profile_id=profile_id,
                         dependencies=dependencies,
+                        graph_id=review_graph,
                     )
             with pytest.raises(DBAPIError):
                 with engine.begin() as connection:
-                    _insert_fit(
-                        connection,
-                        company_id=company_id,
-                        profile_id=profile_id,
-                        dependencies=dependencies,
-                        digest_digit="2",
-                    )
+                    insert_fit(connection, "2")
 
 
 def test_profile_review_and_fit_company_scope_cannot_be_reassigned() -> None:
@@ -391,16 +540,20 @@ def test_profile_review_and_fit_company_scope_cannot_be_reassigned() -> None:
             legacy_profile_id = _insert_profile(
                 connection, version=3, company_id=None
             )
+            dependencies = _seed_company_lineage(connection, dependencies)
+            graph_id = _insert_graph(connection, company_id=company_id, profile_id=profile_id)
             review_id = _insert_review(
                 connection,
                 company_id=company_id,
                 profile_id=profile_id,
                 dependencies=dependencies,
+                graph_id=graph_id,
             )
-            fit_id = _insert_fit(
+            fit_id = _insert_company_fit(
                 connection,
                 company_id=company_id,
                 profile_id=profile_id,
+                graph_id=graph_id,
                 dependencies=dependencies,
                 digest_digit="3",
             )

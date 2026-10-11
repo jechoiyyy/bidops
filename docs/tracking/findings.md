@@ -40,6 +40,12 @@
   맞추고 새 불변 manifest/묶음 경로를 검증해야 한다. 단순 집합 불일치를 모델 오류로 취급하지
   않도록 입력 품질의 불확실성 처리도 검토한다. stage 전 실패 진단의 보존·조회도 보완 대상이다.
   원문 인용·숫자 대조 스위치는 이 검사를 끄지 않으며 같은 입력의 재시도로 해결되지 않는다.
+- 재현 추가(2026-10-11, 데모 브랜치 `bidops-local`): 사전규격 179(HWPX 1개, blocks 4141)에서 DEMO-03 회사
+  심층 미리보기가 같은 조건으로 호출 전 `company_input_invalid`(409)로 끝났다. 분할 단위 47개, inventory
+  `expected_ids` 11개(prefix 11개) vs 본문 관측 ID 50개(빠진 expected 0, 추가 39). 회사 경로는 legacy와 같은
+  엄격 일치를 유지하므로 이 결함이 해결될 때까지 요구사항 표가 있는 실제 공고는 어느 경로로도 심층에 들어가지
+  않는다. DEMO-05 대표 공고 선정은 모델 호출 전에 inventory 일치를 먼저 검사한다
+  (`docs/validation-runs/2026-10-10-company-demo/DEMO-03-grounded-analysis/README.md`).
 
 ## 실제 Qwen 회사 대조가 근거 ID와 주장 ID를 혼용한다 (2026-09-22, 미해결)
 

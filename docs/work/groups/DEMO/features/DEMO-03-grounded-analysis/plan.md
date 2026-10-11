@@ -69,10 +69,10 @@
    - 목표: 교차 경로 통합의 수용 조건을 충족한다.
    - 작업 대상: fake E2E·공용 슬롯·legacy 분리.
    - 검증: spec T2~T8; 아래 명령과 해당 단계 증거.
-7. STEP-007 실제 Luna 대표 인수 [complex]
-   - 목표: 구현된 회사·graph 입력 경로로 대표 공고 1건의 실제 Luna 심층 보고서를 완성하고 원문 근거를 확인한다.
-   - 작업 대상: 동결 provenance·preview·건별 승인·Luna `codex-exec`·3단계 보고서·결정적 검증. LiteLLM 개요·핏 transport와 분리한다.
-   - 검증: spec T9; `docs/validation-runs/<actual-date>-company-demo/DEMO-03-grounded-analysis/`의 승인·attempt·검증 증거.
+7. STEP-007 실제 격리 스택 준비와 호출 전 게이트 확인 [complex]
+   - 목표(2026-10-11 재정의): 구현된 회사·graph 입력 경로를 실제 `bidops-local` 스택에 단계별 사용자 확인으로 적용하고(백업·0036 migration·3사 import/activate·demo 정책 import·demo flag·codex-runner), 회사 미리보기가 모델 호출 없이 동결 입력을 만들거나 fail-closed되는 것을 확인한다. 실제 Luna 대표 1건 보고서(원안)는 DEMO-05로 이관했다.
+   - 작업 대상: 이미지·migration·CLI import·env/demo.env·compose overlay·preview 호출·읽기 전용 진단. 검사 완화·SQL 보정·모델 호출 없음.
+   - 검증: spec T9(재정의); `docs/validation-runs/2026-10-10-company-demo/DEMO-03-grounded-analysis/README.md`와 `_runs/demo0203-20261009/demo03-step007-*.log`.
 
 ## 위임
 
@@ -117,8 +117,19 @@ overview=true가 필요한 사례만 fixture에서 설정한다.
 - postgres: DB/API shape 변경 시 임시 PG 검사+head/권한; 아니면 N/A 이유 기록.
 - frontend: UI 변경 시 build+두 폭 의미/구조; 아니면 N/A 이유 기록.
 - api_guard: 회사 소속/모델 경계 변경 시 승인·hash·호출 0 검사; 아니면 N/A 이유 기록.
-- real_data_run: 대표 1건 실제 Luna 심층은 STEP-007에서 확인한다. 전체 18/9건·담당자 인수는 DEMO-05가 소유한다.
+- real_data_run: 2026-10-11 재계획으로 DEMO-03에는 비적용(N/A). 대표 1건 실제 Luna 심층은 DEMO-05(대표 1건×3사→전체 18/9건·담당자 인수)가 소유한다. 사유·증거는 STEP-007 기록.
 
 ## 결과
 
-미구현. 문서 검토와 제품 검증을 구분한다. 실제 작업 후 차이·재시도·증거·커밋 여부를 기록한다.
+2026-10-10 STEP-001~006 구현·리더 검증(각 단계 일회용 PostgreSQL 17.11 독립 재실행, 최종 751 passed/0 skipped)과 독립 최종 리뷰(PASS_WITH_NOTES, 차단 0, N2 PG 정렬 변형 수정 반영)를 마쳤다.
+STEP-007은 2026-10-11 사용자 단계별 승인으로 실제 `bidops-local`에 백업·롤백 태그·이미지 `bidops-local:demo03-20261011`·0036 migration·3사 import/activate·demo 정책 2건 import·`env/demo.env`·web/analysis-worker 교체·codex-runner 기동을 적용했다. 대표 후보 공고 179의 회사 미리보기는 3사 모두 모델 호출 전에 409 `company_input_invalid`로 fail-closed됐다(segment inventory 11 vs 본문 ID 50, findings 2026-09-22 항목 재현, DEMO-03 결함 아님). 사용자 결정으로 원안 T9(대표 1건 실제 Luna 심층)를 DEMO-05로 이관하고 STEP-007을 "실제 격리 스택 준비·호출 전 게이트 확인"으로 재정의했다. `real_data_run`은 비적용. 증거는 `docs/validation-runs/2026-10-10-company-demo/DEMO-03-grounded-analysis/README.md`와 `_runs/demo0203-20261009/demo03-step007-*.log`. 커밋·병합은 수동 정책이다.
+기능 기록은 `_runs/demo0203-20261009/DEMO-03-grounded-analysis.md`, 단계별 `demo03-step00N-result.md`, 리뷰 `demo03-review.md`.
+
+- STEP-001: 순수 검색·coverage·slice 모듈, 90건. 리더 153 passed. 어휘 미일치 위험 기록(DEMO-05).
+- STEP-002: 0036 단일 migration·fit 정책 v2·CLI 2개·동결 입력·runner 분기. 리더 515 passed/1 failed(DEMO-02 잔존 head 고정 단언, 체인 head 검사로 교체) → 통과. `model_revision` CHECK 완화.
+- STEP-003: 회사 preview/승인/생성/재시도 REST·service, worker `approved_company_input`. 리더 625 passed. `version_conflict` 409.
+- STEP-004: `analysis-policy-luna-demo-v1`(v4 파생, sha256 9cb6254e…c3b0, path_limit 32 필수, profile_characters 8000)·회사 slice 빌더. 리더 542 passed. path index는 sanitizer로 모델 미노출(provenance 전용).
+- STEP-005: 회사별 GET 6개·비교·FrozenProvenance GET·legacy reader 거부, lifecycle 공개 함수 2개. 리더 661 passed.
+- STEP-006: 공용 슬롯 claim 분기·fake Luna 종단·legacy writer/CLI/정책 분리·선택 사실 slice 배치·핏 문서 집합 동결. 리더 751 passed.
+- 문서: contracts·ARCHITECTURE·business-rules·deep-review-erd DEMO 절 갱신.
+- 기능 브랜치 커밋 `7a110ce`. main·운영에는 미반영이며 `bidops-local`에는 STEP-007 범위(스택 준비)만 적용했다.

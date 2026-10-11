@@ -1,0 +1,268 @@
+command: cd web/backend && BIDOPS_PRESPEC_OVERVIEW_ENABLED=false BIDOPS_TEST_POSTGRES_URL=<fresh disposable postgres:17.11 via tests.postgres.temporary_postgres_server> /tmp/bidops-demo00-verify-venv/bin/python -m pytest tests/app/test_company_analysis.py tests/deep_review/test_company_fit_enqueue.py tests/app/test_models.py tests/app/test_deep_review_migrations.py tests/app/test_runtime_database_privileges.py tests/app/test_module_cli_entrypoints.py -q -rfs -p no:warnings
+
+==================================== ERRORS ====================================
+_____________ ERROR collecting tests/app/test_company_analysis.py ______________
+ImportError while importing test module '/Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo0203-20261009-DEMO-03-grounded-analysis/web/backend/tests/app/test_company_analysis.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/Users/temp/.local/share/uv/python/cpython-3.12.15-macos-aarch64-none/lib/python3.12/importlib/__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/app/test_company_analysis.py:38: in <module>
+    from tests.deep_review.test_company_fit_enqueue import (  # noqa: F401 - shared fixtures
+tests/deep_review/test_company_fit_enqueue.py:26: in <module>
+    from app.deep_review.models import (
+E   ImportError: cannot import name 'CompanyFitPolicyVersion' from 'app.deep_review.models' (/Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo0203-20261009-DEMO-03-grounded-analysis/web/backend/app/deep_review/models.py)
+------------------------------- Captured stderr --------------------------------
+/Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo0203-20261009-DEMO-03-grounded-analysis/web/backend/app/deep_review/schemas/document_bundles.py:115: UserWarning: Field name "schema" in "DocumentStructure" shadows an attribute in parent "StrictModel"
+  class DocumentStructure(StrictModel):
+/Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo0203-20261009-DEMO-03-grounded-analysis/web/backend/app/deep_review/schemas/document_bundles.py:224: UserWarning: Field name "schema" in "SegmentExtractorBinding" shadows an attribute in parent "StrictModel"
+  class SegmentExtractorBinding(StrictModel):
+/Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo0203-20261009-DEMO-03-grounded-analysis/web/backend/app/deep_review/schemas/document_bundles.py:232: UserWarning: Field name "schema" in "DocumentSegmentsView" shadows an attribute in parent "StrictModel"
+  class DocumentSegmentsView(StrictModel):
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+  from starlette.testclient import TestClient as TestClient  # noqa
+/Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo0203-20261009-DEMO-03-grounded-analysis/web/backend/app/deep_review/agents/common/contracts.py:391: UserWarning: Field name "schema" in "AgentRunView" shadows an attribute in parent "_StrictModel"
+  class AgentRunView(_StrictModel):
+/Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo0203-20261009-DEMO-03-grounded-analysis/web/backend/app/deep_review/agents/common/contracts.py:462: UserWarning: Field name "schema" in "AgentCommand" shadows an attribute in parent "_StrictModel"
+  class AgentCommand(_StrictModel, Generic[TAction]):
+/Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo0203-20261009-DEMO-03-grounded-analysis/web/backend/app/deep_review/schemas/reports.py:69: UserWarning: Field name "schema" in "DeepReviewReport" shadows an attribute in parent "StrictModel"
+  class DeepReviewReport(StrictModel):
+/Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo0203-20261009-DEMO-03-grounded-analysis/web/backend/app/deep_review/schemas/reports.py:122: UserWarning: Field name "schema" in "NarrativeReport" shadows an attribute in parent "DeepReviewReport"
+  class NarrativeReport(DeepReviewReport):
+/Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo0203-20261009-DEMO-03-grounded-analysis/web/backend/app/deep_review/schemas/reports.py:143: UserWarning: Field name "schema" in "DeepReviewValidation" shadows an attribute in parent "StrictModel"
+  class DeepReviewValidation(StrictModel):
+________ ERROR collecting tests/deep_review/test_company_fit_enqueue.py ________
+ImportError while importing test module '/Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo0203-20261009-DEMO-03-grounded-analysis/web/backend/tests/deep_review/test_company_fit_enqueue.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/Users/temp/.local/share/uv/python/cpython-3.12.15-macos-aarch64-none/lib/python3.12/importlib/__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/deep_review/test_company_fit_enqueue.py:26: in <module>
+    from app.deep_review.models import (
+E   ImportError: cannot import name 'CompanyFitPolicyVersion' from 'app.deep_review.models' (/Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo0203-20261009-DEMO-03-grounded-analysis/web/backend/app/deep_review/models.py)
+!!!!!!!!!!!!!!!!!!! Interrupted: 2 errors during collection !!!!!!!!!!!!!!!!!!!!
+2 errors in 0.86s
+exit_code=2
+
+===== second RED run (existing tests updated for STEP-002 expectations) =====
+command: cd web/backend && BIDOPS_PRESPEC_OVERVIEW_ENABLED=false BIDOPS_TEST_POSTGRES_URL=<fresh disposable postgres:17.11 via tests.postgres.temporary_postgres_server> /tmp/bidops-demo00-verify-venv/bin/python -m pytest tests/app/test_models.py tests/app/test_deep_review_migrations.py tests/app/test_runtime_database_privileges.py tests/app/test_module_cli_entrypoints.py -q -rfs -p no:warnings
+.F............F.......FF...........F....................FF.              [100%]
+=================================== FAILURES ===================================
+_____________ test_init_db_creates_all_declared_tables_and_indexes _____________
+
+    def test_init_db_creates_all_declared_tables_and_indexes():
+        test_engine = make_test_engine()
+        init_db(test_engine)
+    
+        inspector = inspect(test_engine)
+>       assert set(inspector.get_table_names()) == EXPECTED_TABLES
+E       AssertionError: assert {'agency_port...n_stage', ...} == {'agency_port...n_stage', ...}
+E         
+E         Extra items in the right set:
+E         'company_fit_policy_version'
+E         Use -v to get more diff
+
+tests/app/test_models.py:92: AssertionError
+____________________ test_model_has_exact_closed_table_set _____________________
+
+    def test_model_has_exact_closed_table_set():
+        from app.core.db import Base
+        from app.core.models import CORE_LEAN_V1_TABLES
+        from app.deep_review.models import (
+            ATTACHMENT_FETCH_TABLES,
+            BID_DELTA_TABLES,
+            COMPANY_KNOWLEDGE_TABLES,
+            DEEP_REVIEW_LEAN_V1_TABLES,
+            DOCUMENT_SEGMENT_TABLES,
+            PRESPEC_OVERVIEW_TABLES,
+            PRESPEC_V4_TABLES,
+        )
+        from app.lifecycle.models import IDENTITY_TABLES, LIFECYCLE_LEGACY_TABLES
+        from app.screening.models import (
+            ORDER_PLAN_SCREENING_TABLES,
+            REVISION_TABLES,
+            SCREENING_LEGACY_TABLES,
+            SCREENING_RUNTIME_TABLES,
+        )
+    
+        # 이주 전 `app/models.py`가 갖고 있던 Lean v1 두 tuple을 소유 모듈의
+        # 조각에서 다시 만든다 (명세 §5.1). 집합은 그대로다.
+        LEGACY_TABLES = LIFECYCLE_LEGACY_TABLES + SCREENING_LEGACY_TABLES
+        NEW_TABLES = DEEP_REVIEW_LEAN_V1_TABLES + CORE_LEAN_V1_TABLES
+    
+        assert len(LEGACY_TABLES) == 13
+        assert len(NEW_TABLES) == 25
+        assert "actor" not in LEGACY_TABLES + NEW_TABLES
+        post_lean_deep_review_tables = (
+            "deep_review_preview",
+            "deep_review_approval",
+            "assumption_input_version",
+            "assumption_run",
+            "assumption_stage",
+            "company_fit_policy_version",
+        )
+>       assert len(Base.metadata.tables) == 97
+E       AssertionError: assert 96 == 97
+E        +  where 96 = len(FacadeDict({'idempotency_record': Table('idempotency_record', MetaData(), Column('id', Uuid(), table=<idempotency_reco...tc_now at 0x10b7b0900>)), Column('details_json', JSON(), table=<screening_audit_event>, nullable=False), schema=None)}))
+E        +    where FacadeDict({'idempotency_record': Table('idempotency_record', MetaData(), Column('id', Uuid(), table=<idempotency_reco...tc_now at 0x10b7b0900>)), Column('details_json', JSON(), table=<screening_audit_event>, nullable=False), schema=None)}) = MetaData().tables
+E        +      where MetaData() = <class 'app.core.db.Base'>.metadata
+
+tests/app/test_deep_review_migrations.py:352: AssertionError
+_ test_company_knowledge_grants_keep_lineage_append_only_and_worker_read_only __
+
+    def test_company_knowledge_grants_keep_lineage_append_only_and_worker_read_only() -> None:
+        assert COMPANY_KNOWLEDGE_TABLES <= _table_grants("app", "SELECT")
+        assert COMPANY_KNOWLEDGE_TABLES <= _table_grants("app", "INSERT")
+        assert not COMPANY_KNOWLEDGE_TABLES & _table_grants("app", "UPDATE")
+        assert not COMPANY_KNOWLEDGE_TABLES & _table_grants("app", "DELETE")
+        assert _column_update_grant("app", "company_knowledge_binding") == {
+            "graph_version_id", "profile_version_id", "revision", "updated_at", "actor"
+        }
+>       assert COMPANY_KNOWLEDGE_TABLES & _table_grants("worker", "SELECT") == WORKER_COMPANY_KNOWLEDGE_READS
+E       AssertionError: assert set() == {'company_kno...logy_version'}
+E         
+E         Extra items in the right set:
+E         'company_knowledge_node'
+E         'company_knowledge_edge'
+E         'company_knowledge_source'
+E         'company_knowledge_version'
+E         'knowledge_ontology_version'
+E         'company_knowledge_binding'
+E         Use -v to get more diff
+
+tests/app/test_runtime_database_privileges.py:129: AssertionError
+______ test_company_fit_policy_and_attempt_grants_keep_insert_worker_only ______
+
+    def test_company_fit_policy_and_attempt_grants_keep_insert_worker_only() -> None:
+>       assert COMPANY_FIT_POLICY_TABLES <= _table_grants("app", "SELECT")
+E       AssertionError: assert {'company_fit_policy_version'} <= {'agency_port...t_fetch', ...}
+E         
+E         Extra items in the left set:
+E         'company_fit_policy_version'
+
+tests/app/test_runtime_database_privileges.py:143: AssertionError
+_____________ test_effective_company_knowledge_grants_are_minimal ______________
+
+    @requires_postgres
+    def test_effective_company_knowledge_grants_are_minimal() -> None:
+        _ensure_roles()
+        with temporary_database() as database_url:
+            engine = _apply_policy(database_url)
+            try:
+                with engine.begin() as connection:
+                    for table in sorted(COMPANY_KNOWLEDGE_TABLES):
+                        assert _table_privilege(connection, "app", table, "SELECT")
+                        assert _table_privilege(connection, "app", table, "INSERT")
+                        assert _table_privilege(connection, "ro_backup", table, "SELECT")
+                        assert not _table_privilege(connection, "app", table, "DELETE")
+>                       assert _table_privilege(connection, "worker", table, "SELECT") == (
+                            table in WORKER_COMPANY_KNOWLEDGE_READS
+                        )
+E                       AssertionError: assert False == ('company_knowledge_binding' in {'company_knowledge_binding', 'company_knowledge_edge', 'company_knowledge_node', 'company_knowledge_source', 'company_knowledge_version', 'knowledge_ontology_version'})
+E                        +  where False = _table_privilege(<sqlalchemy.engine.base.Connection object at 0x10cff3ef0>, 'worker', 'company_knowledge_binding', 'SELECT')
+
+tests/app/test_runtime_database_privileges.py:612: AssertionError
+_ test_module_cli_starts_in_a_fresh_interpreter[app.deep_review.cli-import-company-fit-policy-0] _
+
+module = 'app.deep_review.cli', subcommand = ('import-company-fit-policy',)
+expected_exit = 0
+tmp_path = PosixPath('/private/var/folders/_c/3g36y_md7rg3l_xrx0r5lxyr0000gp/T/pytest-of-temp/pytest-1078/test_module_cli_starts_in_a_fr9')
+
+    @pytest.mark.parametrize(
+        "module,subcommand,expected_exit",
+        MODULE_CLIS,
+        ids=lambda value: "-".join(value) if isinstance(value, tuple) else None,
+    )
+    def test_module_cli_starts_in_a_fresh_interpreter(
+        module: str, subcommand: tuple[str, ...], expected_exit: int, tmp_path: Path
+    ) -> None:
+        command = [sys.executable, "-m", module, *subcommand, "--help"]
+        printable = " ".join(["python", "-m", module, *subcommand, "--help"])
+        completed = subprocess.run(
+            command,
+            cwd=BACKEND_ROOT,
+            env=_environment(tmp_path),
+            capture_output=True,
+            text=True,
+            timeout=180,
+        )
+        assert "Traceback" not in completed.stderr, (
+            f"{printable} 가 예외로 죽었다.\n"
+            f"--- stderr ---\n{completed.stderr}"
+        )
+>       assert completed.returncode == expected_exit, (
+            f"{printable} 의 종료 코드가 {expected_exit}이 아니다 "
+            f"(exit {completed.returncode}).\n"
+            f"--- stdout ---\n{completed.stdout}\n--- stderr ---\n{completed.stderr}"
+        )
+E       AssertionError: python -m app.deep_review.cli import-company-fit-policy --help 의 종료 코드가 0이 아니다 (exit 2).
+E         --- stdout ---
+E         
+E         --- stderr ---
+E         usage: python -m app.deep_review.cli [-h]
+E                                              {run-bc-e2e,run-prespec-e2e,import-profile-policy,import-company-knowledge,activate-company-knowledge,enqueue-overview,prepare-overviews,close-deep-review,close-overview-run}
+E                                              ...
+E         python -m app.deep_review.cli: error: argument command: invalid choice: 'import-company-fit-policy' (choose from run-bc-e2e, run-prespec-e2e, import-profile-policy, import-company-knowledge, activate-company-knowledge, enqueue-overview, prepare-overviews, close-deep-review, close-overview-run)
+E         
+E       assert 2 == 0
+E        +  where 2 = CompletedProcess(args=['/tmp/bidops-demo00-verify-venv/bin/python', '-m', 'app.deep_review.cli', 'import-company-fit-p...-knowledge, activate-company-knowledge, enqueue-overview, prepare-overviews, close-deep-review, close-overview-run)\n").returncode
+
+tests/app/test_module_cli_entrypoints.py:86: AssertionError
+_ test_module_cli_starts_in_a_fresh_interpreter[app.deep_review.cli-enqueue-company-fit-0] _
+
+module = 'app.deep_review.cli', subcommand = ('enqueue-company-fit',)
+expected_exit = 0
+tmp_path = PosixPath('/private/var/folders/_c/3g36y_md7rg3l_xrx0r5lxyr0000gp/T/pytest-of-temp/pytest-1078/test_module_cli_starts_in_a_fr10')
+
+    @pytest.mark.parametrize(
+        "module,subcommand,expected_exit",
+        MODULE_CLIS,
+        ids=lambda value: "-".join(value) if isinstance(value, tuple) else None,
+    )
+    def test_module_cli_starts_in_a_fresh_interpreter(
+        module: str, subcommand: tuple[str, ...], expected_exit: int, tmp_path: Path
+    ) -> None:
+        command = [sys.executable, "-m", module, *subcommand, "--help"]
+        printable = " ".join(["python", "-m", module, *subcommand, "--help"])
+        completed = subprocess.run(
+            command,
+            cwd=BACKEND_ROOT,
+            env=_environment(tmp_path),
+            capture_output=True,
+            text=True,
+            timeout=180,
+        )
+        assert "Traceback" not in completed.stderr, (
+            f"{printable} 가 예외로 죽었다.\n"
+            f"--- stderr ---\n{completed.stderr}"
+        )
+>       assert completed.returncode == expected_exit, (
+            f"{printable} 의 종료 코드가 {expected_exit}이 아니다 "
+            f"(exit {completed.returncode}).\n"
+            f"--- stdout ---\n{completed.stdout}\n--- stderr ---\n{completed.stderr}"
+        )
+E       AssertionError: python -m app.deep_review.cli enqueue-company-fit --help 의 종료 코드가 0이 아니다 (exit 2).
+E         --- stdout ---
+E         
+E         --- stderr ---
+E         usage: python -m app.deep_review.cli [-h]
+E                                              {run-bc-e2e,run-prespec-e2e,import-profile-policy,import-company-knowledge,activate-company-knowledge,enqueue-overview,prepare-overviews,close-deep-review,close-overview-run}
+E                                              ...
+E         python -m app.deep_review.cli: error: argument command: invalid choice: 'enqueue-company-fit' (choose from run-bc-e2e, run-prespec-e2e, import-profile-policy, import-company-knowledge, activate-company-knowledge, enqueue-overview, prepare-overviews, close-deep-review, close-overview-run)
+E         
+E       assert 2 == 0
+E        +  where 2 = CompletedProcess(args=['/tmp/bidops-demo00-verify-venv/bin/python', '-m', 'app.deep_review.cli', 'enqueue-company-fit'...-knowledge, activate-company-knowledge, enqueue-overview, prepare-overviews, close-deep-review, close-overview-run)\n").returncode
+
+tests/app/test_module_cli_entrypoints.py:86: AssertionError
+=========================== short test summary info ============================
+FAILED tests/app/test_models.py::test_init_db_creates_all_declared_tables_and_indexes
+FAILED tests/app/test_deep_review_migrations.py::test_model_has_exact_closed_table_set
+FAILED tests/app/test_runtime_database_privileges.py::test_company_knowledge_grants_keep_lineage_append_only_and_worker_read_only
+FAILED tests/app/test_runtime_database_privileges.py::test_company_fit_policy_and_attempt_grants_keep_insert_worker_only
+FAILED tests/app/test_runtime_database_privileges.py::test_effective_company_knowledge_grants_are_minimal
+FAILED tests/app/test_module_cli_entrypoints.py::test_module_cli_starts_in_a_fresh_interpreter[app.deep_review.cli-import-company-fit-policy-0]
+FAILED tests/app/test_module_cli_entrypoints.py::test_module_cli_starts_in_a_fresh_interpreter[app.deep_review.cli-enqueue-company-fit-0]
+7 failed, 52 passed in 19.89s
+exit_code=1
