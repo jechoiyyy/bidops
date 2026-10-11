@@ -132,4 +132,4 @@ STEP-007은 2026-10-11 사용자 단계별 승인으로 실제 `bidops-local`에
 - STEP-005: 회사별 GET 6개·비교·FrozenProvenance GET·legacy reader 거부, lifecycle 공개 함수 2개. 리더 661 passed.
 - STEP-006: 공용 슬롯 claim 분기·fake Luna 종단·legacy writer/CLI/정책 분리·선택 사실 slice 배치·핏 문서 집합 동결. 리더 751 passed.
 - 문서: contracts·ARCHITECTURE·business-rules·deep-review-erd DEMO 절 갱신.
-- 미커밋 기능 worktree에 보존. main·운영·`bidops-local` 실제 스택에는 미반영.
+- 기능 브랜치 커밋 `7a110ce`. main·운영에는 미반영이며 `bidops-local`에는 STEP-007 범위(스택 준비)만 적용했다.

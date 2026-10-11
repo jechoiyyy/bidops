@@ -83,80 +83,80 @@
     "docs": {
       "result": "pass",
       "method": "review",
-      "note": "독립 최종 리뷰 1회차 FAIL(B1·B2) 수정 후 2회차 PASS_WITH_NOTES 차단0; 공통계약 §3·4·8·기능 3문서·정본 DEMO 절 5개 대조, check-plan/doctor 통과, N1→DEMO-05·N5→DEMO-03 이관",
-      "evidence": "docs/work/_runs/demo0203-20261009/review.md",
+      "note": "배치 최종 독립 리뷰(506ac77→7a110ce) PASS_WITH_NOTES 차단0: DEMO-03이 DEMO-02 수용조건을 깨지 않음 확인. DEMO-02 단락 stale 문구(3사 등록 미수행·DEMO-03 미구현) 수정. 기능 리뷰 review.md 2회차 PASS_WITH_NOTES 유지, doctor 통과",
+      "evidence": "docs/work/_runs/demo0203-20261009/batch-review.md;docs/work/_runs/demo0203-20261009/review.md",
       "exit_code": null,
       "actor": "orchestrator",
       "command": "python3 scripts/feature_status.py doctor _",
-      "at": "2026-10-10T16:34:54+09:00",
-      "head": "506ac77627b6ceafab213aeda9e80ebce62e61e8",
-      "source_hash": "9f85fbb65afed755370d831969f715b259d00e3919247edf65dc5d9b783b72d3",
-      "spec_hash": "fa2866d6019f8483e1e0b25af72152a5de53f3eb14bb07034be0f438a90bedd9"
+      "at": "2026-10-11T11:54:37+09:00",
+      "head": "7a110ce92da4c05c25f5b20b0f90e0c4f08f8702",
+      "source_hash": "9b1f430b2a7707437cb013cc37d410e68a00156b3fa615bc4653f28269072002",
+      "spec_hash": "f91391df9927a6b7b91a6af4f3628e48814c310ee0a67830abd496ef5e5d92e6"
     },
     "tests": {
       "result": "pass",
       "method": "command",
-      "note": "최종 소스 T1~T8 검사 9파일 307pass/skip0 exit0(review-fix-tests.log); 리더 단계 합집합 r2 455pass/1fail/skip0 — 실패는 기준506ac77 재현 test_models 기대목록(기존5테이블) 분리",
-      "evidence": "docs/work/_runs/demo0203-20261009/review-fix-tests.log",
+      "note": "배치 최종 코드(DEMO-03 포함 7a110ce 트리)에서 DEMO-02 T1~T8 검사 9파일 1회 재실행, 일회용 PostgreSQL 17.11, 308 passed/0 skipped exit0. 이후 Markdown만 변경",
+      "evidence": "docs/work/_runs/demo0203-20261009/batch-demo02-final-tests.log",
       "exit_code": 0,
       "actor": "orchestrator",
       "command": "",
-      "at": "2026-10-10T16:34:54+09:00",
-      "head": "506ac77627b6ceafab213aeda9e80ebce62e61e8",
-      "source_hash": "9f85fbb65afed755370d831969f715b259d00e3919247edf65dc5d9b783b72d3",
-      "spec_hash": "fa2866d6019f8483e1e0b25af72152a5de53f3eb14bb07034be0f438a90bedd9"
+      "at": "2026-10-11T11:54:37+09:00",
+      "head": "7a110ce92da4c05c25f5b20b0f90e0c4f08f8702",
+      "source_hash": "9b1f430b2a7707437cb013cc37d410e68a00156b3fa615bc4653f28269072002",
+      "spec_hash": "f91391df9927a6b7b91a6af4f3628e48814c310ee0a67830abd496ef5e5d92e6"
     },
     "postgres": {
       "result": "pass",
       "method": "command",
-      "note": "일회용 postgres:17.11(harness)·SQLite 두 변형 skip0: migration0035·composite FK·append-only trigger·권한·API shape·collation 회귀; 리더 r2(feature-final-tests-r2.log)에서도 같은 PG 변형 통과, 기존 test_models 실패1은 기준 재현으로 분리(DEMO-02-company-knowledge.md)",
-      "evidence": "docs/work/_runs/demo0203-20261009/review-fix-tests.log",
+      "note": "배치 최종 코드에서 일회용 postgres:17.11: migration 체인(0035→0036)·composite FK·append-only trigger·권한·API shape 변형 포함 308 passed/0 skipped",
+      "evidence": "docs/work/_runs/demo0203-20261009/batch-demo02-final-tests.log",
       "exit_code": 0,
       "actor": "orchestrator",
       "command": "",
-      "at": "2026-10-10T16:34:55+09:00",
-      "head": "506ac77627b6ceafab213aeda9e80ebce62e61e8",
-      "source_hash": "9f85fbb65afed755370d831969f715b259d00e3919247edf65dc5d9b783b72d3",
-      "spec_hash": "fa2866d6019f8483e1e0b25af72152a5de53f3eb14bb07034be0f438a90bedd9"
+      "at": "2026-10-11T11:54:38+09:00",
+      "head": "7a110ce92da4c05c25f5b20b0f90e0c4f08f8702",
+      "source_hash": "9b1f430b2a7707437cb013cc37d410e68a00156b3fa615bc4653f28269072002",
+      "spec_hash": "f91391df9927a6b7b91a6af4f3628e48814c310ee0a67830abd496ef5e5d92e6"
     },
     "frontend": {
       "result": "pass",
       "method": "command",
-      "note": "apiErrors.ts 오류 code 등록만 변경; Node22 Docker tsc -b && vite build exit0, 빌드 후 파일 hash 불변. 화면/layout 변경 없어 viewport 검사 비적용",
+      "note": "apiErrors.ts 오류 code 등록만 변경, Node22 Docker tsc -b && vite build exit0. 이후 DEMO-03은 web/frontend 무변경(git diff 0d980bd..7a110ce -- web/frontend 비어 있음)이라 증거 재사용",
       "evidence": "docs/work/_runs/demo0203-20261009/frontend-build.log",
       "exit_code": 0,
       "actor": "orchestrator",
       "command": "",
-      "at": "2026-10-10T16:34:55+09:00",
-      "head": "506ac77627b6ceafab213aeda9e80ebce62e61e8",
-      "source_hash": "9f85fbb65afed755370d831969f715b259d00e3919247edf65dc5d9b783b72d3",
-      "spec_hash": "fa2866d6019f8483e1e0b25af72152a5de53f3eb14bb07034be0f438a90bedd9"
+      "at": "2026-10-11T11:54:38+09:00",
+      "head": "7a110ce92da4c05c25f5b20b0f90e0c4f08f8702",
+      "source_hash": "9b1f430b2a7707437cb013cc37d410e68a00156b3fa615bc4653f28269072002",
+      "spec_hash": "f91391df9927a6b7b91a6af4f3628e48814c310ee0a67830abd496ef5e5d92e6"
     },
     "api_guard": {
       "result": "pass",
       "method": "command",
-      "note": "회사 소속 404(타회사·legacy NULL·미존재)·binding 부재 409·demo disabled 404·계보 손상 500 fail-closed·공개 응답 locator/경로 미노출·dry-run 무쓰기; 모델 호출 0",
-      "evidence": "docs/work/_runs/demo0203-20261009/review-fix-tests.log",
+      "note": "배치 최종 코드에서 회사 소속 404·binding 부재 409·demo disabled 404·계보 손상 fail-closed·공개 응답 locator 미노출·dry-run 무쓰기 검사 포함 308 passed; 모델 호출 0",
+      "evidence": "docs/work/_runs/demo0203-20261009/batch-demo02-final-tests.log",
       "exit_code": 0,
       "actor": "orchestrator",
       "command": "",
-      "at": "2026-10-10T16:34:55+09:00",
-      "head": "506ac77627b6ceafab213aeda9e80ebce62e61e8",
-      "source_hash": "9f85fbb65afed755370d831969f715b259d00e3919247edf65dc5d9b783b72d3",
-      "spec_hash": "fa2866d6019f8483e1e0b25af72152a5de53f3eb14bb07034be0f438a90bedd9"
+      "at": "2026-10-11T11:54:38+09:00",
+      "head": "7a110ce92da4c05c25f5b20b0f90e0c4f08f8702",
+      "source_hash": "9b1f430b2a7707437cb013cc37d410e68a00156b3fa615bc4653f28269072002",
+      "spec_hash": "f91391df9927a6b7b91a6af4f3628e48814c310ee0a67830abd496ef5e5d92e6"
     },
     "real_data_run": {
       "result": "not_applicable",
       "method": "manual",
-      "note": "실제 Luna·18/9건·담당자 인수는 DEMO-03 STEP-007·DEMO-05 소유(plan 증명 절). 이 기능은 모델 호출 없음",
+      "note": "이 기능은 모델 호출 없음. 실제 대표 1건×3사와 18/9건·담당자 인수는 DEMO-05 소유(2026-10-11 재계획)",
       "evidence": "docs/work/groups/DEMO/features/DEMO-02-company-knowledge/plan.md",
       "exit_code": null,
       "actor": "orchestrator",
       "command": "",
-      "at": "2026-10-10T16:34:55+09:00",
-      "head": "506ac77627b6ceafab213aeda9e80ebce62e61e8",
-      "source_hash": "9f85fbb65afed755370d831969f715b259d00e3919247edf65dc5d9b783b72d3",
-      "spec_hash": "fa2866d6019f8483e1e0b25af72152a5de53f3eb14bb07034be0f438a90bedd9"
+      "at": "2026-10-11T11:54:39+09:00",
+      "head": "7a110ce92da4c05c25f5b20b0f90e0c4f08f8702",
+      "source_hash": "9b1f430b2a7707437cb013cc37d410e68a00156b3fa615bc4653f28269072002",
+      "spec_hash": "f91391df9927a6b7b91a6af4f3628e48814c310ee0a67830abd496ef5e5d92e6"
     }
   },
   "notes": [
@@ -281,7 +281,7 @@
       "text": "단계 → validating: STEP1~5 완료, 최종 독립 리뷰 PASS_WITH_NOTES, proof 기록; 커밋(수동)·배치 통합 대기"
     }
   ],
-  "updated_at": "2026-10-10T16:34:55+09:00",
+  "updated_at": "2026-10-11T11:54:39+09:00",
   "resume_phase": "drafting",
   "proof_history": [
     {
@@ -318,6 +318,102 @@
       "key": "real_data_run",
       "previous": {
         "result": "pending"
+      }
+    },
+    {
+      "key": "docs",
+      "previous": {
+        "result": "pass",
+        "method": "review",
+        "note": "독립 최종 리뷰 1회차 FAIL(B1·B2) 수정 후 2회차 PASS_WITH_NOTES 차단0; 공통계약 §3·4·8·기능 3문서·정본 DEMO 절 5개 대조, check-plan/doctor 통과, N1→DEMO-05·N5→DEMO-03 이관",
+        "evidence": "docs/work/_runs/demo0203-20261009/review.md",
+        "exit_code": null,
+        "actor": "orchestrator",
+        "command": "python3 scripts/feature_status.py doctor _",
+        "at": "2026-10-10T16:34:54+09:00",
+        "head": "506ac77627b6ceafab213aeda9e80ebce62e61e8",
+        "source_hash": "9f85fbb65afed755370d831969f715b259d00e3919247edf65dc5d9b783b72d3",
+        "spec_hash": "fa2866d6019f8483e1e0b25af72152a5de53f3eb14bb07034be0f438a90bedd9"
+      }
+    },
+    {
+      "key": "tests",
+      "previous": {
+        "result": "pass",
+        "method": "command",
+        "note": "최종 소스 T1~T8 검사 9파일 307pass/skip0 exit0(review-fix-tests.log); 리더 단계 합집합 r2 455pass/1fail/skip0 — 실패는 기준506ac77 재현 test_models 기대목록(기존5테이블) 분리",
+        "evidence": "docs/work/_runs/demo0203-20261009/review-fix-tests.log",
+        "exit_code": 0,
+        "actor": "orchestrator",
+        "command": "",
+        "at": "2026-10-10T16:34:54+09:00",
+        "head": "506ac77627b6ceafab213aeda9e80ebce62e61e8",
+        "source_hash": "9f85fbb65afed755370d831969f715b259d00e3919247edf65dc5d9b783b72d3",
+        "spec_hash": "fa2866d6019f8483e1e0b25af72152a5de53f3eb14bb07034be0f438a90bedd9"
+      }
+    },
+    {
+      "key": "postgres",
+      "previous": {
+        "result": "pass",
+        "method": "command",
+        "note": "일회용 postgres:17.11(harness)·SQLite 두 변형 skip0: migration0035·composite FK·append-only trigger·권한·API shape·collation 회귀; 리더 r2(feature-final-tests-r2.log)에서도 같은 PG 변형 통과, 기존 test_models 실패1은 기준 재현으로 분리(DEMO-02-company-knowledge.md)",
+        "evidence": "docs/work/_runs/demo0203-20261009/review-fix-tests.log",
+        "exit_code": 0,
+        "actor": "orchestrator",
+        "command": "",
+        "at": "2026-10-10T16:34:55+09:00",
+        "head": "506ac77627b6ceafab213aeda9e80ebce62e61e8",
+        "source_hash": "9f85fbb65afed755370d831969f715b259d00e3919247edf65dc5d9b783b72d3",
+        "spec_hash": "fa2866d6019f8483e1e0b25af72152a5de53f3eb14bb07034be0f438a90bedd9"
+      }
+    },
+    {
+      "key": "frontend",
+      "previous": {
+        "result": "pass",
+        "method": "command",
+        "note": "apiErrors.ts 오류 code 등록만 변경; Node22 Docker tsc -b && vite build exit0, 빌드 후 파일 hash 불변. 화면/layout 변경 없어 viewport 검사 비적용",
+        "evidence": "docs/work/_runs/demo0203-20261009/frontend-build.log",
+        "exit_code": 0,
+        "actor": "orchestrator",
+        "command": "",
+        "at": "2026-10-10T16:34:55+09:00",
+        "head": "506ac77627b6ceafab213aeda9e80ebce62e61e8",
+        "source_hash": "9f85fbb65afed755370d831969f715b259d00e3919247edf65dc5d9b783b72d3",
+        "spec_hash": "fa2866d6019f8483e1e0b25af72152a5de53f3eb14bb07034be0f438a90bedd9"
+      }
+    },
+    {
+      "key": "api_guard",
+      "previous": {
+        "result": "pass",
+        "method": "command",
+        "note": "회사 소속 404(타회사·legacy NULL·미존재)·binding 부재 409·demo disabled 404·계보 손상 500 fail-closed·공개 응답 locator/경로 미노출·dry-run 무쓰기; 모델 호출 0",
+        "evidence": "docs/work/_runs/demo0203-20261009/review-fix-tests.log",
+        "exit_code": 0,
+        "actor": "orchestrator",
+        "command": "",
+        "at": "2026-10-10T16:34:55+09:00",
+        "head": "506ac77627b6ceafab213aeda9e80ebce62e61e8",
+        "source_hash": "9f85fbb65afed755370d831969f715b259d00e3919247edf65dc5d9b783b72d3",
+        "spec_hash": "fa2866d6019f8483e1e0b25af72152a5de53f3eb14bb07034be0f438a90bedd9"
+      }
+    },
+    {
+      "key": "real_data_run",
+      "previous": {
+        "result": "not_applicable",
+        "method": "manual",
+        "note": "실제 Luna·18/9건·담당자 인수는 DEMO-03 STEP-007·DEMO-05 소유(plan 증명 절). 이 기능은 모델 호출 없음",
+        "evidence": "docs/work/groups/DEMO/features/DEMO-02-company-knowledge/plan.md",
+        "exit_code": null,
+        "actor": "orchestrator",
+        "command": "",
+        "at": "2026-10-10T16:34:55+09:00",
+        "head": "506ac77627b6ceafab213aeda9e80ebce62e61e8",
+        "source_hash": "9f85fbb65afed755370d831969f715b259d00e3919247edf65dc5d9b783b72d3",
+        "spec_hash": "fa2866d6019f8483e1e0b25af72152a5de53f3eb14bb07034be0f438a90bedd9"
       }
     }
   ]
