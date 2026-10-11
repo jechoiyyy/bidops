@@ -1929,5 +1929,5 @@ DEMO-03(2026-10-10, 같은 데모 브랜치)은 공통 계약 §5·§6·§9·§1
   FrozenProvenance는 동결 snapshot(핏 attempt `provenance_jsonb`, 심층은 승인 preview `provenance_jsonb`)을 그대로 직렬화하고 view와 중복된 identity/hash가 다르면 500 `processing_failed`로 거부한다. fit/review summary는 created_at DESC·id DESC 최신 실행이다.
 - legacy 분리: `GET /api/deep-reviews/{id}`·`/report`·`GET /api/evidence/{id}`·`POST .../report-revisions`·`/final-opinions`·`close-deep-review`는 회사 review에 404 `not_found`, legacy preview/check/attempt는 회사 행을 거부한다. NULL 회사 응답은 바뀌지 않았다.
 - 정책: 심층 `analysis-policy-luna-demo-v1`(sha256 `9cb6254ef2f7fa3fbc608d775951aed14d958204f5366b30f92da661a4cbc3b0`, v4 파생, `policy_identity` 매핑, `chunking.path_limit_per_requirement`=32 필수, `profile_characters`=8000, execution·validation은 v4 상속)은 `BIDOPS_DEMO_DEEP_REVIEW_POLICY_VERSION_ID`로만 선택되고 legacy 전역 활성 정책으로는 거부된다. `global_path_index`·`excluded_path_count_by_requirement`·교정 field path는 프롬프트 sanitizer가 제거하므로 저장·hash·provenance 전용이다.
-실제 Luna 대표 1건(STEP-007)은 실행하지 않았다.
+실제 Luna 대표 1건(원안 T9)은 실행하지 않았고 2026-10-11 재계획으로 DEMO-05로 이관했다. STEP-007은 `bidops-local` 격리 스택 준비와 호출 전 fail-closed 확인까지다.
 [ADR-0070](tracking/decisions/0070-multi-company-knowledge-demo.md) · [공통 계약](work/demo-contract.md) · [기능 로드맵](work/constitution/roadmap.md).

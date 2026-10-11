@@ -1,7 +1,7 @@
 # DEMO-03 그래프 근거 기반 모델 분석
 
 - 기준 SHA: `0d980bd` (배치 `sdlc/batch-demo0203-20261009`, DEMO-02 통합 직후). 기능 브랜치 `sdlc/demo0203-20261009-DEMO-03-grounded-analysis` HEAD도 같은 SHA이며 모든 변경은 미커밋이다(commit_policy=manual).
-- 대상: 데모 브랜치 전용. main·운영 통합, 실행 중 `bidops-local` 스택 재배포·migration, 실제 3사 등록·정책 import, 실제 모델 호출은 수행하지 않았다.
+- 대상: 데모 브랜치 전용. main·운영 통합과 실제 모델 호출은 수행하지 않았다. STEP-001~006 구현 중에는 `bidops-local`을 바꾸지 않았고, 스택 재배포·0036 migration·3사 등록·정책 import는 2026-10-11 STEP-007에서 단계별 사용자 승인 후 수행했다.
 - 리더: Claude Code 리더가 STEP-001~006을 sdlc:implementer-opus에 단계별 위임하고 매 단계 일회용 PostgreSQL 17.11에서 독립 재실행·hash 대조로 검증했다. 상태는 리더만 변경했다.
 
 ## 구현과 증거
@@ -32,8 +32,26 @@
 ## 상태와 커밋 대기 (2026-10-11)
 
 - status: STEP-001~007 done, proofs docs/tests/postgres/api_guard=pass, frontend·real_data_run=not_applicable, phase=validating. `check` 필수 검증 충족, `run _ ready --feature DEMO-03-grounded-analysis` 통과(배치 통합 가능). `run _ accept-spec`으로 2026-10-11 spec 재정의 기록.
-- commit_policy=manual: 기능 worktree의 전체 변경은 미커밋 상태로 사용자 커밋을 기다린다. 커밋 뒤 loop를 재개하면 ExitWorktree(keep) → 배치 통합 → §4 배치 검증 → `run _ finish`(merge 대기)로 진행한다.
+- commit_policy=manual: 사용자가 기능 변경을 `7a110ce`로 커밋했다. 이후 loop는 ExitWorktree(keep) → 배치 통합 → §4 배치 검증 → `run _ finish`(merge 대기)로 진행한다.
 - 배치 worktree의 `run.md`는 이 세션(기능 worktree 고정)에서 갱신하지 못했다. 배치 통합 단계에서 이 파일의 내용을 옮긴다.
+
+## 배치 §4 최종 검증 (2026-10-11, 기능 worktree에서 선행)
+
+기능 커밋 `7a110ce`의 부모가 배치 HEAD `0d980bd`이고 기준 `demo/local-20261009`가 `506ac77`에서 움직이지 않았다. 따라서 no-ff 병합 결과 트리는 이 worktree 트리와 같고, 배치 검증을 병합 전에 이 트리에서 수행했다. 이 세션은 기능 worktree에 고정돼 배치 worktree에서 git을 실행할 수 없다.
+
+- DEMO-02 검사 9파일을 최종 코드에서 1회 재실행했다. 일회용 PostgreSQL 17.11, 308 passed, 0 skipped, exit 0 (`batch-demo02-final-tests.log`).
+- 배치 독립 리뷰(Claude 읽기 전용 subagent, 506ac77→7a110ce)는 PASS_WITH_NOTES, 차단 0이다(`batch-review.md`). 정본 문서의 stale 문구 7건을 Markdown 8줄로 고쳤다.
+- 두 기능 proof를 재기록했다. DEMO-02는 새 검사 로그, DEMO-03은 Markdown만 바뀌어 기존 510 passed 로그를 재사용했다. 두 기능 모두 `check` 충족, `run _ ready` 통과.
+- DEMO-02 spec_hash는 공유 입력(roadmap DEMO-03 행, feature.json real_data_run 범위)만 바뀌어 `run _ accept-spec`으로 기록했다.
+- **차단: Codex 독립 리뷰.** run engine이 codex라 `run _ finish`는 `runtime.codex.json`의 review 프로필(`gpt-5.6-sol`/high)로 기록된 `run _ review`를 요구한다. 2026-10-11 시도가 Codex 사용량 한도로 실패했다(`batch-codex-review-attempt1-usage-limit.events.jsonl`, 재시도 가능 2026-10-14 13:23). Claude 리뷰를 그 모델로 기록하지 않았다. 프롬프트는 `batch-codex-review.prompt.md`에 보존했다.
+
+배치 worktree에서 남은 순서(사용자 커밋 뒤):
+
+1. 이 worktree의 문서 수정·증거·proof 재기록을 기능 브랜치에 커밋한다.
+2. 배치 worktree에서 Claude를 시작해 `git merge --no-ff sdlc/demo0203-20261009-DEMO-03-grounded-analysis` 후 HEAD tree가 기능 브랜치 tree와 같은지 확인한다.
+3. 배치에서 `check` 두 기능을 다시 확인하고 run.md에 이 절을 옮긴다.
+4. Codex 한도 해제 뒤 같은 프롬프트로 리뷰를 실행해 `run _ review --evidence <보고서> --model gpt-5.6-sol --effort high --independent --result pass|fail`로 기록한다.
+5. `run _ finish` → 병합 대기(merge_policy=manual). 기준 반영은 사용자 요청 시 `run _ finish --merge`.
 
 ## 한계와 후속
 

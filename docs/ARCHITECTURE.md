@@ -698,7 +698,7 @@ DEMO-01은 별도 데모 브랜치에서 lifecycle 회사 identity·독립 추�
 legacy NULL 조회·worker 경계까지 구현했다. Notice·Opportunity 원문은 공유 소유를 유지한다.
 DEMO-02는 같은 데모 브랜치에서 core의 순수 온톨로지·원본 validator와 deep_review 소유의 불변 온톨로지·원본·graph version·node·edge·binding·binding event(migration `0035`),
 원본 hash에 묶인 profile v2·ProfileEvidence 단일 등록, 명시적 activate CLI, 회사별 profile·knowledge-graph·profile-evidence 읽기 REST를 구현했다.
-main·운영에는 미반영이며, `bidops-local`에 승인된 3사 원본을 실제 등록·활성화하는 일(공통 계약 §10 준비 단계)과 회사별 분석·비교 UI·실제 인수는 DEMO-03~05의 미구현 범위다.
+main·운영에는 미반영이다. `bidops-local`의 승인된 3사 원본 등록·활성화(공통 계약 §10 준비 단계)는 DEMO-03 STEP-007에서 수행했고, 회사별 비교 UI와 실제 인수는 DEMO-04~05 범위다.
 DEMO-03(2026-10-10)은 deep_review에 회사별 분석 경로를 추가했다. 순수 `company_knowledge_retrieval`(용어 정규화·concept 매핑·3 hop 경로 검색·경로 상한·필수 사실·coverage·slice), `company_analysis_input`(CompanyAnalysisInput·FrozenProvenance builder, 공고 현재 문서 집합),
 `company_fit_policy`·`company_fit`(enqueue CLI, v2 결과 검증)·`company_fit_runner` 회사 분기(동결 입력만, `overview` 용도 LiteLLM `local-agent-main`, 심층 자동 시작 없음), `company_deep_review`(회사 preview/승인/생성/재시도·현재성), `company_slices`(stage별 회사 slice·검증), `company_projection`(회사 읽기·비교 projection), 라우터 `company_analysis`(쓰기)·`company_reads`(읽기·비교).
 회사 심층은 기존 DeepReviewPreview/Approval/DeepReview에 `company_id`·`graph_version_id`·`provenance_jsonb`를 더해 재사용하고 기존 공용 analysis-worker 슬롯이 `BIDOPS_DEMO_ENABLED`일 때만 회사 job을 claim한다. worker는 승인 preview의 동결 입력만 쓰며(`approved_company_input`: 승인·preview·review 회사 일치, 계보·hash·nonce 일치, 생성 audit 회사 키, pinned bundle 재분할 일치) 어긋나면 `approval_invalid`로 호출 0, 회사 행↔demo 정책 identity 불일치는 `company_policy_invalid`다.
