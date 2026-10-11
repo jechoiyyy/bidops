@@ -27,6 +27,8 @@ prepare 스크립트는 default dry-run이며 --apply는 승인된 초기화 단
 실제 fixture/원문/manifest는 `data/demo/`(이 기능이 .gitignore에 추가), 공개 schema와 순수 합성회사 예제만 Git 대상이다.
 공고 선정 뒤 온톨로지 별칭을 1회 보강하고(개념 불변) 3사를 재등록·활성화한 뒤 manifest를 동결한다. 보강 diff와 사유를 증거로 남긴다.
 첫 대표 1건×3사 인수 뒤 나머지로 확대한다. 결과를 맞추기 위해 profile/모델 출력을 수정하지 않는다.
+2026-10-11 DEMO-03 T9(대표 1건 실제 Luna 심층: 별도 미리보기·건별 승인 뒤 completed 3단계·필수 검증·원문 근거 확인, LiteLLM 개요 결과 비합산)를 이 기능의 첫 대표 1건×3사 인수로 이관했다. DEMO-03은 실제 `bidops-local`에 0036·3사·demo 정책 2건·demo flag·codex-runner를 적용했고(2026-10-11, `docs/validation-runs/2026-10-10-company-demo/DEMO-03-grounded-analysis/`), 공고 179는 회사 미리보기 단계에서 inventory 불일치로 fail-closed됐다.
+후보 공고 선정은 모델 호출 전에 문서 segment manifest `expected_ids`와 분할 단위 본문 관측 ID의 일치를 검사해 불일치 공고를 다음 후보로 바꾼다(`docs/tracking/findings.md` "요구사항 표의 행별 셀 위치 차이"). 검사 완화·SQL 보정으로 통과시키지 않는다.
 최소 시연 기준(demo_ready)은 핏 18건과 first_deep_review_notice_id의 3사 보고서 인수다. 목표는 9건이며, demo_ready만 충족하면 나머지는 실패·미실행 기록과 함께 시연한다.
 verify-company-demo는 GET만 사용해 manifest의 동일 회사/문서/graph로 정확히 18개 completed 핏·9개 completed report를 검사한다.
 담당자(사용자 본인)는 보고서마다 과업·회사 근거·격차·미확인·후속 행동을 원문과 대조한다.

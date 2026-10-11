@@ -1,0 +1,11 @@
+# command (cwd web/backend): /tmp/bidops-demo00-verify-venv/bin/python /private/tmp/claude-502/-Users-temp-orca-bidops--sdlc-worktrees-demo-local-20261009--sdlc-worktrees-batch-demo0203-20261009/debd3fe0-3d60-4655-b3fd-d1fa7fb26fcb/scratchpad/run_pg_pytest.py tests/app/test_company_deep_review_binding.py tests/app/test_luna_deep_review.py tests/app/test_deep_reviews.py tests/app/test_company_analysis.py tests/deep_review/test_company_fit_enqueue.py tests/deep_review/test_company_fit.py tests/app/test_company_knowledge_api.py tests/app/test_module_boundaries.py tests/app/test_runtime_database_privileges.py tests/app/test_models.py tests/app/test_deep_review_migrations.py tests/app/test_company_context.py tests/app/test_company_context_schema.py tests/app/test_module_cli_entrypoints.py tests/app/test_module_selection.py tests/app/test_module_public_surface.py tests/app/test_narrative_review.py -q -rfs -p no:warnings
+# harness: tests.postgres.temporary_postgres_server() -> disposable postgres:17.11; BIDOPS_TEST_POSTGRES_URL and BIDOPS_PRESPEC_OVERVIEW_ENABLED=false set by the helper
+........................................................................ [ 14%]
+........................................................................ [ 28%]
+........................................................................ [ 43%]
+........................................................................ [ 57%]
+........................................................................ [ 72%]
+........................................................................ [ 86%]
+.................................................................        [100%]
+497 passed in 131.69s (0:02:11)
+exit_code=0

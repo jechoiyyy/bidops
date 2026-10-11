@@ -70,10 +70,10 @@
       "dependency_gate": true
     },
     "real_data_run": {
-      "description": "DEMO-03 대표 1건 실제 Luna 심층과 DEMO-05 실제 6건/18건/9건·담당자 인수 증거",
+      "description": "DEMO-05 실제 대표 1건×3사(2026-10-11 DEMO-03 T9에서 이관)와 6건/18건/9건·담당자 인수 증거",
       "required": true,
       "method": "manual",
-      "applies_when": "DEMO-03-grounded-analysis 또는 DEMO-05-demo-acceptance",
+      "applies_when": "DEMO-05-demo-acceptance (DEMO-03은 2026-10-11 재계획으로 비적용)",
       "dependency_gate": true
     }
   },

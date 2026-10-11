@@ -1,0 +1,23 @@
+BIDOPS_PRESPEC_OVERVIEW_ENABLED=false /tmp/bidops-demo00-verify-venv/bin/python -m pytest tests/app/test_company_luna_policy.py -q -rfs -p no:warnings  # RED: before policy file, mapping and company_slices exist
+
+==================================== ERRORS ====================================
+____________ ERROR collecting tests/app/test_company_luna_policy.py ____________
+ImportError while importing test module '/Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo0203-20261009-DEMO-03-grounded-analysis/web/backend/tests/app/test_company_luna_policy.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/Users/temp/.local/share/uv/python/cpython-3.12.15-macos-aarch64-none/lib/python3.12/importlib/__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/app/test_company_luna_policy.py:35: in <module>
+    from app.deep_review.services.company_slices import (
+E   ModuleNotFoundError: No module named 'app.deep_review.services.company_slices'
+------------------------------- Captured stderr --------------------------------
+/Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo0203-20261009-DEMO-03-grounded-analysis/web/backend/app/deep_review/schemas/document_bundles.py:115: UserWarning: Field name "schema" in "DocumentStructure" shadows an attribute in parent "StrictModel"
+  class DocumentStructure(StrictModel):
+/Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo0203-20261009-DEMO-03-grounded-analysis/web/backend/app/deep_review/schemas/document_bundles.py:224: UserWarning: Field name "schema" in "SegmentExtractorBinding" shadows an attribute in parent "StrictModel"
+  class SegmentExtractorBinding(StrictModel):
+/Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo0203-20261009-DEMO-03-grounded-analysis/web/backend/app/deep_review/schemas/document_bundles.py:232: UserWarning: Field name "schema" in "DocumentSegmentsView" shadows an attribute in parent "StrictModel"
+  class DocumentSegmentsView(StrictModel):
+!!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!
+1 error in 0.62s
+exit_code=2

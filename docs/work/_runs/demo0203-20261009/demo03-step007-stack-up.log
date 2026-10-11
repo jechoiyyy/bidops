@@ -1,0 +1,17 @@
+ Network bidops-local_luna-egress Creating 
+ Network bidops-local_luna-egress Created 
+ Network bidops-local_luna-internal Creating 
+ Network bidops-local_luna-internal Created 
+ Container bidops-local-analysis-worker-1 Creating 
+ Container bidops-local-codex-runner-1 Creating 
+ Container bidops-local-web-1 Recreate 
+ Container bidops-local-analysis-worker-1 Created 
+ Container bidops-local-codex-runner-1 Created 
+ Container bidops-local-web-1 Recreated 
+ Container bidops-local-codex-runner-1 Starting 
+ Container bidops-local-web-1 Starting 
+ Container bidops-local-analysis-worker-1 Starting 
+ Container bidops-local-codex-runner-1 Started 
+ Container bidops-local-analysis-worker-1 Started 
+ Container bidops-local-web-1 Started 
+exit=0

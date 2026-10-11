@@ -1,0 +1,58 @@
+cd web/backend && /tmp/bidops-demo00-verify-venv/bin/python <scratchpad>/run_pg_pytest.py tests/app/test_company_reads.py -k filters_order -q -rfs -p no:warnings  # MUTATION (temporary, reverted): .nulls_last() removed from both sorts in app/lifecycle/services/company_notices.py; expect sqlite pass / postgres fail
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+_ test_t7_filters_order_nulls_tiebreak_and_pagination_run_on_the_server[sqlite] _
+
+world_reads_any_engine = (<sqlalchemy.orm.session.Session object at 0x11250b350>, DeepWorld(fit=World(company_id=UUID('d74dc217-6c40-4606-96e7-...ervices.deep_reviews.DeepReviewService object at 0x112eebfe0>, <starlette.testclient.TestClient object at 0x112f250a0>)
+
+    def test_t7_filters_order_nulls_tiebreak_and_pagination_run_on_the_server(world_reads_any_engine) -> None:
+        session, world, _svc, http = world_reads_any_engine
+        day = datetime(2026, 10, 6, tzinfo=UTC)
+        session.get(Notice, world.notice_id).published_at = day
+        session.get(Notice, world.notice_id).deadline_at = day + timedelta(days=9)
+        session.commit()
+        a = extra_notice(session, title="클라우드 전환 사업", posted=day + timedelta(days=1), deadline=day + timedelta(days=3))
+        b = extra_notice(session, title="데이터 품질 진단", posted=day + timedelta(days=1), deadline=None)
+        c = extra_notice(session, title="ERP 고도화", posted=None, deadline=day + timedelta(days=3))
+        base = f"/api/companies/{world.company_id}/pre-specs"
+    
+        # posted_at DESC, nulls last, notice_id DESC tie-break.
+        assert list_ids(http.get(base).json()) == [max(a, b), min(a, b), world.notice_id, c]
+        # deadline ASC, nulls last, notice_id DESC tie-break.
+>       assert list_ids(http.get(base, params={"sort": "deadline_asc"}).json()) == [max(a, c), min(a, c), world.notice_id, b]
+E       assert [3, 4, 2, 1] == [4, 2, 1, 3]
+E         
+E         At index 0 diff: 3 != 4
+E         Use -v to get more diff
+
+tests/app/test_company_reads.py:428: AssertionError
+_ test_t7_filters_order_nulls_tiebreak_and_pagination_run_on_the_server[postgres] _
+
+world_reads_any_engine = (<sqlalchemy.orm.session.Session object at 0x112ee8320>, DeepWorld(fit=World(company_id=UUID('3c74a408-835d-4381-a154-...ervices.deep_reviews.DeepReviewService object at 0x1132ab8c0>, <starlette.testclient.TestClient object at 0x11324cbf0>)
+
+    def test_t7_filters_order_nulls_tiebreak_and_pagination_run_on_the_server(world_reads_any_engine) -> None:
+        session, world, _svc, http = world_reads_any_engine
+        day = datetime(2026, 10, 6, tzinfo=UTC)
+        session.get(Notice, world.notice_id).published_at = day
+        session.get(Notice, world.notice_id).deadline_at = day + timedelta(days=9)
+        session.commit()
+        a = extra_notice(session, title="클라우드 전환 사업", posted=day + timedelta(days=1), deadline=day + timedelta(days=3))
+        b = extra_notice(session, title="데이터 품질 진단", posted=day + timedelta(days=1), deadline=None)
+        c = extra_notice(session, title="ERP 고도화", posted=None, deadline=day + timedelta(days=3))
+        base = f"/api/companies/{world.company_id}/pre-specs"
+    
+        # posted_at DESC, nulls last, notice_id DESC tie-break.
+>       assert list_ids(http.get(base).json()) == [max(a, b), min(a, b), world.notice_id, c]
+E       assert [4, 3, 2, 1] == [3, 2, 1, 4]
+E         
+E         At index 0 diff: 4 != 3
+E         Use -v to get more diff
+
+tests/app/test_company_reads.py:426: AssertionError
+=========================== short test summary info ============================
+FAILED tests/app/test_company_reads.py::test_t7_filters_order_nulls_tiebreak_and_pagination_run_on_the_server[sqlite]
+FAILED tests/app/test_company_reads.py::test_t7_filters_order_nulls_tiebreak_and_pagination_run_on_the_server[postgres]
+2 failed, 25 deselected in 2.64s
+exit_code=1
+exit_code=1
+# reverted: company_notices.py restored from backup, sha256 281c31c51d78da03f291aca15a25fbf76bedfab01b6392b296da93ca9f3200d1 (== step005 source hash)

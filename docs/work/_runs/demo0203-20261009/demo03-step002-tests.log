@@ -1,0 +1,10 @@
+command: cd web/backend && BIDOPS_PRESPEC_OVERVIEW_ENABLED=false BIDOPS_TEST_POSTGRES_URL=<fresh disposable postgres:17.11 via tests.postgres.temporary_postgres_server> /tmp/bidops-demo00-verify-venv/bin/python -m pytest tests/app/test_company_analysis.py tests/deep_review/test_company_fit_enqueue.py tests/deep_review/test_company_fit.py tests/deep_review/test_company_fit_postgres.py tests/deep_review/test_company_knowledge_retrieval.py tests/app/test_company_knowledge_api.py tests/app/test_company_knowledge_cli.py tests/app/test_runtime_database_privileges.py tests/app/test_models.py tests/app/test_alembic_autogenerate.py tests/app/test_deep_review_migrations.py tests/app/test_module_boundaries.py tests/app/test_luna_deep_review.py tests/app/test_deep_reviews.py tests/app/test_module_cli_entrypoints.py -q -rfs -p no:warnings
+........................................................................ [ 16%]
+........................................................................ [ 32%]
+........................................................................ [ 49%]
+........................................................................ [ 65%]
+........................................................................ [ 82%]
+........................................................................ [ 98%]
+.......                                                                  [100%]
+439 passed in 80.77s (0:01:20)
+exit_code=0

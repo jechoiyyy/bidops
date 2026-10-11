@@ -91,6 +91,12 @@ def _lean_v1_metadata() -> MetaData:
             "uq_deep_review_company_inputs",
         }:
             deep_review.indexes.remove(index)
+    # 0036 (DEMO-03) graph scope: its CHECK is textual, so it is removed by name
+    # before the column (whose composite FK goes with it).
+    for constraint in tuple(deep_review.constraints):
+        if constraint.name == "ck_deep_review_graph_scope":
+            deep_review.constraints.remove(constraint)
+    _remove_column_added_after_lean_v1(deep_review, "graph_version_id")
     _remove_column_added_after_lean_v1(profile_version, "company_id")
     _remove_column_added_after_lean_v1(deep_review, "company_id")
     deep_review.append_constraint(

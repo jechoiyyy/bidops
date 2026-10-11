@@ -15,9 +15,10 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from hashlib import sha256
 import json
-from typing import Any
+from typing import Any, Sequence
 from uuid import NAMESPACE_URL, UUID, uuid5
 
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -398,6 +399,45 @@ def get_company_tracking(
         opportunity_id=opportunity_id,
         current=current,
     )
+
+
+def company_tracking_views(
+    session: Session,
+    *,
+    company_ids: Sequence[UUID],
+    opportunity_ids: Sequence[int],
+) -> dict[tuple[UUID, int], CompanyTrackingDTO]:
+    """Batched read of company decisions for every (company, opportunity) pair.
+
+    One query regardless of the number of pairs (company-scoped list and
+    comparison projections, DEMO contract §6).  A pair without a row is the
+    §2 default (``미선택``/revision 0/metadata null), exactly as
+    :func:`get_company_tracking`; nothing is materialized.  The caller passes
+    ids it has already resolved; unknown ids are simply absent rows.
+    """
+
+    companies = tuple(dict.fromkeys(UUID(str(value)) for value in company_ids))
+    opportunities = tuple(dict.fromkeys(int(value) for value in opportunity_ids))
+    if not companies or not opportunities:
+        return {}
+    rows = {
+        (row.company_id, row.opportunity_id): row
+        for row in session.scalars(
+            select(CompanyOpportunityTracking).where(
+                CompanyOpportunityTracking.company_id.in_(companies),
+                CompanyOpportunityTracking.opportunity_id.in_(opportunities),
+            )
+        )
+    }
+    return {
+        (company_id, opportunity_id): _tracking_dto(
+            company_id=company_id,
+            opportunity_id=opportunity_id,
+            current=rows.get((company_id, opportunity_id)),
+        )
+        for company_id in companies
+        for opportunity_id in opportunities
+    }
 
 
 def _apply_company_tracking_current(
