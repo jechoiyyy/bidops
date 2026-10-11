@@ -23,7 +23,7 @@
 | 보고서 근거 확인 | 회사 report/evidence GET | 문서/가상회사/graph 버전 일치 |
 | 변경 입력 구분 | binding 변경 뒤 옛 결과/preview 조회·제출 | stale/409·이미 승인된 실행 입력 불변 |
 | 자격 분리 | C-1 등급이 우선 검토가 아닌 SW=Y 공고 | 회사 핏·심층이 SW사업대상=Y만으로 허용됨 |
-| 실제 Luna 심층 게이트 | 대표 1건 preview→건별 승인→Luna 실행 | completed 3단계·필수 검증·원문 근거 확인. LiteLLM 개요 완료를 대신 쓰지 않음 |
+| 실제 격리 스택 게이트 (2026-10-11 재정의) | 승인 단계별 `bidops-local` 준비→대표 공고 회사 미리보기 | 모델 호출 없이 fail-closed 또는 동결 입력 생성. 대표 1건 실제 Luna 심층(completed 3단계·필수 검증·원문 근거)은 DEMO-05가 인수하며 LiteLLM 개요 완료로 대신하지 않음 |
 
 ## 선행·후속 기능
 
@@ -73,4 +73,5 @@
 | 실제 전송·운영 변경 승인 | 각 작업 직전 | 문서화 승인으로 대체하지 않음; DEMO-05 증거에 연결 |
 
 제품 범위·회사 구성·표본 수·모델·온톨로지 수준은 사용자 선택으로 확정되었다.
-2026-10-09 재계획: 핏은 LiteLLM `local-agent-main`과 승인 없는 CLI, 심층은 별도 Luna preview/approval을 재사용한다. 대표 1건의 실제 Luna 심층 완료가 DEMO-04 선행 게이트다.
+2026-10-09 재계획: 핏은 LiteLLM `local-agent-main`과 승인 없는 CLI, 심층은 별도 Luna preview/approval을 재사용한다. 당시 대표 1건의 실제 Luna 심층 완료를 DEMO-04 선행 게이트로 두었다.
+2026-10-11 재계획: 대표 1건 실제 Luna 심층은 DEMO-05로 이관했다(공고 179가 기존 inventory 불일치 findings로 호출 전 fail-closed). DEMO-03 게이트는 실제 격리 스택 준비와 호출 전 fail-closed 확인이며, DEMO-04는 fake 종단·실제 스택 준비 증거를 입력으로 진행한다.

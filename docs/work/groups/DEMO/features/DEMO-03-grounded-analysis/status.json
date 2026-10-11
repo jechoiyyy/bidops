@@ -140,41 +140,41 @@
     "docs": {
       "result": "pass",
       "method": "review",
-      "note": "배치 최종 독립 리뷰(506ac77→7a110ce) PASS_WITH_NOTES 차단0; 노트 중 정본 문서 stale 문구 7건(operations·ARCHITECTURE·deep-review-erd·ADR 색인·contracts·validation README·plan/_runs 결과) 수정, diff 8줄 확인, doctor 통과. 기능 리뷰 demo03-review PASS_WITH_NOTES 유지",
-      "evidence": "docs/work/_runs/demo0203-20261009/batch-review.md;docs/work/_runs/demo0203-20261009/demo03-review.md;docs/work/_runs/demo0203-20261009/DEMO-03-grounded-analysis.md",
+      "note": "Codex 배치 리뷰 1회차 FAIL 차단3(intent/spec/공통계약 T9 잔존 문구, 정본 DEMO-02 단락·절 제목 stale, batch-review 대상 오기) 모두 문서 수정으로 처리, 같은 패턴 전수 검색으로 PRD·PLAN 제목 추가 수정. doctor·check-plan 통과. 최종 트리 문서 일치 판정은 Codex 2회차 리뷰",
+      "evidence": "docs/work/_runs/demo0203-20261009/batch-review.md;docs/work/_runs/demo0203-20261009/demo03-review.md",
       "exit_code": null,
       "actor": "orchestrator",
       "command": "python3 scripts/feature_status.py doctor _",
-      "at": "2026-10-11T11:54:18+09:00",
-      "head": "7a110ce92da4c05c25f5b20b0f90e0c4f08f8702",
-      "source_hash": "9b1f430b2a7707437cb013cc37d410e68a00156b3fa615bc4653f28269072002",
-      "spec_hash": "6df3d057c0079b94278f015f09e56d340c6e426a7fd78f0deb4aa2dbed5070a5"
+      "at": "2026-10-11T19:03:52+09:00",
+      "head": "a9105c7ffddfdf852bcfedabdb0543f4c7d2a820",
+      "source_hash": "49587e6894d44acb179a33d207c0238390077f1f240301b34b9accc0f51e9a6d",
+      "spec_hash": "43ae6120719590c7d869636465185b709821c677e74a47c1dee592eb807b69e3"
     },
     "tests": {
       "result": "pass",
       "method": "command",
-      "note": "plan 검사 8파일+회사 테스트 8파일, 일회용 PostgreSQL 17.11, 510 passed/0 skipped. 증거 이후 변경은 Markdown 8줄(코드 무변경)이라 재실행 없이 재사용",
+      "note": "plan 검사 8파일+회사 테스트 8파일, 일회용 PostgreSQL 17.11, 510 passed/0 skipped. 7a110ce 이후 변경은 Markdown뿐(제품 코드 무변경, Codex 리뷰도 확인)이라 재사용",
       "evidence": "docs/work/_runs/demo0203-20261009/demo03-final-leader.log",
       "exit_code": 0,
       "actor": "orchestrator",
       "command": "",
-      "at": "2026-10-11T11:54:19+09:00",
-      "head": "7a110ce92da4c05c25f5b20b0f90e0c4f08f8702",
-      "source_hash": "9b1f430b2a7707437cb013cc37d410e68a00156b3fa615bc4653f28269072002",
-      "spec_hash": "6df3d057c0079b94278f015f09e56d340c6e426a7fd78f0deb4aa2dbed5070a5"
+      "at": "2026-10-11T19:03:52+09:00",
+      "head": "a9105c7ffddfdf852bcfedabdb0543f4c7d2a820",
+      "source_hash": "49587e6894d44acb179a33d207c0238390077f1f240301b34b9accc0f51e9a6d",
+      "spec_hash": "43ae6120719590c7d869636465185b709821c677e74a47c1dee592eb807b69e3"
     },
     "postgres": {
       "result": "pass",
       "method": "command",
-      "note": "migration·권한·회사 API PG 변형 510 passed; 실제 bidops-local 0033→0036 migration exit0. 증거 이후 Markdown만 변경되어 재사용",
+      "note": "migration·권한·회사 API PG 변형 510 passed; 실제 bidops-local 0033→0036 migration exit0. 이후 Markdown만 변경되어 재사용",
       "evidence": "docs/work/_runs/demo0203-20261009/demo03-final-leader.log;docs/work/_runs/demo0203-20261009/demo03-step007-migrate.log",
       "exit_code": 0,
       "actor": "orchestrator",
       "command": "",
-      "at": "2026-10-11T11:54:19+09:00",
-      "head": "7a110ce92da4c05c25f5b20b0f90e0c4f08f8702",
-      "source_hash": "9b1f430b2a7707437cb013cc37d410e68a00156b3fa615bc4653f28269072002",
-      "spec_hash": "6df3d057c0079b94278f015f09e56d340c6e426a7fd78f0deb4aa2dbed5070a5"
+      "at": "2026-10-11T19:03:53+09:00",
+      "head": "a9105c7ffddfdf852bcfedabdb0543f4c7d2a820",
+      "source_hash": "49587e6894d44acb179a33d207c0238390077f1f240301b34b9accc0f51e9a6d",
+      "spec_hash": "43ae6120719590c7d869636465185b709821c677e74a47c1dee592eb807b69e3"
     },
     "frontend": {
       "result": "not_applicable",
@@ -184,23 +184,23 @@
       "exit_code": null,
       "actor": "orchestrator",
       "command": "",
-      "at": "2026-10-11T11:54:20+09:00",
-      "head": "7a110ce92da4c05c25f5b20b0f90e0c4f08f8702",
-      "source_hash": "9b1f430b2a7707437cb013cc37d410e68a00156b3fa615bc4653f28269072002",
-      "spec_hash": "6df3d057c0079b94278f015f09e56d340c6e426a7fd78f0deb4aa2dbed5070a5"
+      "at": "2026-10-11T19:03:53+09:00",
+      "head": "a9105c7ffddfdf852bcfedabdb0543f4c7d2a820",
+      "source_hash": "49587e6894d44acb179a33d207c0238390077f1f240301b34b9accc0f51e9a6d",
+      "spec_hash": "43ae6120719590c7d869636465185b709821c677e74a47c1dee592eb807b69e3"
     },
     "api_guard": {
       "result": "pass",
       "method": "command",
-      "note": "승인·hash·소속·호출 0 검사 통과(510 passed); 실제 스택 회사 미리보기 호출 전 fail-closed. 증거 이후 Markdown만 변경되어 재사용",
+      "note": "승인·hash·소속·호출 0 검사 통과(510 passed); 실제 스택 회사 미리보기 호출 전 fail-closed. 이후 Markdown만 변경되어 재사용",
       "evidence": "docs/work/_runs/demo0203-20261009/demo03-final-leader.log;docs/validation-runs/2026-10-10-company-demo/DEMO-03-grounded-analysis/README.md",
       "exit_code": 0,
       "actor": "orchestrator",
       "command": "",
-      "at": "2026-10-11T11:54:20+09:00",
-      "head": "7a110ce92da4c05c25f5b20b0f90e0c4f08f8702",
-      "source_hash": "9b1f430b2a7707437cb013cc37d410e68a00156b3fa615bc4653f28269072002",
-      "spec_hash": "6df3d057c0079b94278f015f09e56d340c6e426a7fd78f0deb4aa2dbed5070a5"
+      "at": "2026-10-11T19:03:53+09:00",
+      "head": "a9105c7ffddfdf852bcfedabdb0543f4c7d2a820",
+      "source_hash": "49587e6894d44acb179a33d207c0238390077f1f240301b34b9accc0f51e9a6d",
+      "spec_hash": "43ae6120719590c7d869636465185b709821c677e74a47c1dee592eb807b69e3"
     },
     "real_data_run": {
       "result": "not_applicable",
@@ -210,10 +210,10 @@
       "exit_code": null,
       "actor": "orchestrator",
       "command": "",
-      "at": "2026-10-11T11:54:20+09:00",
-      "head": "7a110ce92da4c05c25f5b20b0f90e0c4f08f8702",
-      "source_hash": "9b1f430b2a7707437cb013cc37d410e68a00156b3fa615bc4653f28269072002",
-      "spec_hash": "6df3d057c0079b94278f015f09e56d340c6e426a7fd78f0deb4aa2dbed5070a5"
+      "at": "2026-10-11T19:03:54+09:00",
+      "head": "a9105c7ffddfdf852bcfedabdb0543f4c7d2a820",
+      "source_hash": "49587e6894d44acb179a33d207c0238390077f1f240301b34b9accc0f51e9a6d",
+      "spec_hash": "43ae6120719590c7d869636465185b709821c677e74a47c1dee592eb807b69e3"
     }
   },
   "notes": [
@@ -346,7 +346,7 @@
       "text": "단계 → validating: STEP-001~007 done, proofs 기록(docs/tests/postgres/api_guard pass, frontend·real_data_run N/A). 커밋 대기(commit_policy=manual)"
     }
   ],
-  "updated_at": "2026-10-11T11:54:20+09:00",
+  "updated_at": "2026-10-11T19:03:54+09:00",
   "resume_phase": "implementing",
   "proof_history": [
     {
@@ -478,6 +478,102 @@
         "at": "2026-10-11T11:16:35+09:00",
         "head": "0d980bd2a67ba52ece17b63ff6a9f32272bb6daf",
         "source_hash": "620e8ccbb5bac59ea44f6c8abd2e17e55fb76936ea379679cd041a98ea943ff6",
+        "spec_hash": "6df3d057c0079b94278f015f09e56d340c6e426a7fd78f0deb4aa2dbed5070a5"
+      }
+    },
+    {
+      "key": "docs",
+      "previous": {
+        "result": "pass",
+        "method": "review",
+        "note": "배치 최종 독립 리뷰(506ac77→7a110ce) PASS_WITH_NOTES 차단0; 노트 중 정본 문서 stale 문구 7건(operations·ARCHITECTURE·deep-review-erd·ADR 색인·contracts·validation README·plan/_runs 결과) 수정, diff 8줄 확인, doctor 통과. 기능 리뷰 demo03-review PASS_WITH_NOTES 유지",
+        "evidence": "docs/work/_runs/demo0203-20261009/batch-review.md;docs/work/_runs/demo0203-20261009/demo03-review.md;docs/work/_runs/demo0203-20261009/DEMO-03-grounded-analysis.md",
+        "exit_code": null,
+        "actor": "orchestrator",
+        "command": "python3 scripts/feature_status.py doctor _",
+        "at": "2026-10-11T11:54:18+09:00",
+        "head": "7a110ce92da4c05c25f5b20b0f90e0c4f08f8702",
+        "source_hash": "9b1f430b2a7707437cb013cc37d410e68a00156b3fa615bc4653f28269072002",
+        "spec_hash": "6df3d057c0079b94278f015f09e56d340c6e426a7fd78f0deb4aa2dbed5070a5"
+      }
+    },
+    {
+      "key": "tests",
+      "previous": {
+        "result": "pass",
+        "method": "command",
+        "note": "plan 검사 8파일+회사 테스트 8파일, 일회용 PostgreSQL 17.11, 510 passed/0 skipped. 증거 이후 변경은 Markdown 8줄(코드 무변경)이라 재실행 없이 재사용",
+        "evidence": "docs/work/_runs/demo0203-20261009/demo03-final-leader.log",
+        "exit_code": 0,
+        "actor": "orchestrator",
+        "command": "",
+        "at": "2026-10-11T11:54:19+09:00",
+        "head": "7a110ce92da4c05c25f5b20b0f90e0c4f08f8702",
+        "source_hash": "9b1f430b2a7707437cb013cc37d410e68a00156b3fa615bc4653f28269072002",
+        "spec_hash": "6df3d057c0079b94278f015f09e56d340c6e426a7fd78f0deb4aa2dbed5070a5"
+      }
+    },
+    {
+      "key": "postgres",
+      "previous": {
+        "result": "pass",
+        "method": "command",
+        "note": "migration·권한·회사 API PG 변형 510 passed; 실제 bidops-local 0033→0036 migration exit0. 증거 이후 Markdown만 변경되어 재사용",
+        "evidence": "docs/work/_runs/demo0203-20261009/demo03-final-leader.log;docs/work/_runs/demo0203-20261009/demo03-step007-migrate.log",
+        "exit_code": 0,
+        "actor": "orchestrator",
+        "command": "",
+        "at": "2026-10-11T11:54:19+09:00",
+        "head": "7a110ce92da4c05c25f5b20b0f90e0c4f08f8702",
+        "source_hash": "9b1f430b2a7707437cb013cc37d410e68a00156b3fa615bc4653f28269072002",
+        "spec_hash": "6df3d057c0079b94278f015f09e56d340c6e426a7fd78f0deb4aa2dbed5070a5"
+      }
+    },
+    {
+      "key": "frontend",
+      "previous": {
+        "result": "not_applicable",
+        "method": "command",
+        "note": "DEMO-03은 web/frontend를 변경하지 않음(git diff 0d980bd -- web/frontend 비어 있음). 화면은 DEMO-04 소유",
+        "evidence": "docs/work/_runs/demo0203-20261009/DEMO-03-grounded-analysis.md",
+        "exit_code": null,
+        "actor": "orchestrator",
+        "command": "",
+        "at": "2026-10-11T11:54:20+09:00",
+        "head": "7a110ce92da4c05c25f5b20b0f90e0c4f08f8702",
+        "source_hash": "9b1f430b2a7707437cb013cc37d410e68a00156b3fa615bc4653f28269072002",
+        "spec_hash": "6df3d057c0079b94278f015f09e56d340c6e426a7fd78f0deb4aa2dbed5070a5"
+      }
+    },
+    {
+      "key": "api_guard",
+      "previous": {
+        "result": "pass",
+        "method": "command",
+        "note": "승인·hash·소속·호출 0 검사 통과(510 passed); 실제 스택 회사 미리보기 호출 전 fail-closed. 증거 이후 Markdown만 변경되어 재사용",
+        "evidence": "docs/work/_runs/demo0203-20261009/demo03-final-leader.log;docs/validation-runs/2026-10-10-company-demo/DEMO-03-grounded-analysis/README.md",
+        "exit_code": 0,
+        "actor": "orchestrator",
+        "command": "",
+        "at": "2026-10-11T11:54:20+09:00",
+        "head": "7a110ce92da4c05c25f5b20b0f90e0c4f08f8702",
+        "source_hash": "9b1f430b2a7707437cb013cc37d410e68a00156b3fa615bc4653f28269072002",
+        "spec_hash": "6df3d057c0079b94278f015f09e56d340c6e426a7fd78f0deb4aa2dbed5070a5"
+      }
+    },
+    {
+      "key": "real_data_run",
+      "previous": {
+        "result": "not_applicable",
+        "method": "manual",
+        "note": "2026-10-11 사용자 결정으로 대표 1건 실제 Luna 심층(T9 원안)을 DEMO-05로 이관. 실제 스택 준비 완료, 공고 179 호출 전 fail-closed, 모델 호출 0",
+        "evidence": "docs/validation-runs/2026-10-10-company-demo/DEMO-03-grounded-analysis/README.md;docs/work/_runs/demo0203-20261009/demo03-step007-result.md",
+        "exit_code": null,
+        "actor": "orchestrator",
+        "command": "",
+        "at": "2026-10-11T11:54:20+09:00",
+        "head": "7a110ce92da4c05c25f5b20b0f90e0c4f08f8702",
+        "source_hash": "9b1f430b2a7707437cb013cc37d410e68a00156b3fa615bc4653f28269072002",
         "spec_hash": "6df3d057c0079b94278f015f09e56d340c6e426a7fd78f0deb4aa2dbed5070a5"
       }
     }

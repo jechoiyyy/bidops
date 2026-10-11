@@ -1,0 +1,17 @@
+Read-only independent SDLC batch final review, round 2, gpt-5.6-sol/high. No tests, edits, agents, workflows, Docker, model/API calls, or commits. Return a concise Korean verdict (PASS / PASS_WITH_NOTES / FAIL) with concrete blockers only; list non-blocking notes one line each.
+
+Batch run `demo0203-20261009`: DEMO-02-company-knowledge then DEMO-03-grounded-analysis on demo branch `demo/local-20261009`. Approved base SHA `506ac77`. The final batch tree is the current HEAD of this worktree (`git rev-parse HEAD`); untracked files under docs/work/_runs are run records, not product changes. Review the whole change with `git diff 506ac77 HEAD`.
+
+Round 1 (`docs/work/_runs/demo0203-20261009/batch-codex-review.md`, untracked) returned FAIL with three blockers: (1) DEMO-03 intent/spec and docs/work/demo-contract.md still required a real Luna run as a DEMO-03/DEMO-04 gate; (2) DEMO-02 paragraphs in docs/business-rules.md and docs/contracts.md and the docs/operations.md heading still said DEMO-03 was unimplemented; (3) docs/work/_runs/demo0203-20261009/batch-review.md misstated its review target. The leader's handling is recorded in batch-review.md section "Codex 독립 리뷰 1회차 FAIL과 처리". First verify each round-1 blocker is resolved in the source, then review the full batch again; do not limit yourself to the round-1 items.
+
+Read root AGENTS.md, docs/standards.md, docs/work/demo-contract.md, and the DEMO-02 and DEMO-03 feature documents under docs/work/groups/DEMO/features/ (intent.md, spec.md acceptance criteria, plan.md). The common constraints are in `python3 scripts/feature_status.py config` (constraints list); you may run that read-only command.
+
+Prior evidence in docs/work/_runs/demo0203-20261009/: per-feature reviews review.md (DEMO-02) and demo03-review.md (DEMO-03), batch-review.md, leader test logs batch-demo02-final-tests.log (DEMO-02 9 files on final code, 308 passed, skip 0) and demo03-final-leader.log (510 passed, skip 0), and STEP-007 real isolated stack evidence docs/validation-runs/2026-10-10-company-demo/DEMO-03-grounded-analysis/README.md. Product code has not changed since `7a110ce`; check that with `git diff 7a110ce HEAD --stat`. Do not re-run tests; judge whether the evidence matches the final source.
+
+Decide:
+1. Does the final tree satisfy every DEMO-02 and DEMO-03 spec acceptance criterion as currently written (DEMO-03 was re-planned on 2026-10-11 by user decision: T9 real Luna representative run moved to DEMO-05; STEP-007 = real bidops-local stack prep plus pre-call fail-closed check; real_data_run not applicable)?
+2. Do the two features' code and contract paragraphs (docs/contracts.md, docs/ARCHITECTURE.md, docs/business-rules.md, docs/deep-review-erd.md, docs/operations.md, docs/PRD.md, docs/PLAN.md, docs/ADR.md) agree with each other and with the code?
+3. Common constraints: append-only/immutable inputs, unknown/null not promoted, per-item approval and no fallback for external models, single analysis-worker slot and module dependency direction, new tables/columns registered in scripts/runtime-privileges.sql with no GRANT in migrations, no main/ops changes.
+4. No document claims real model quality or a completed real Luna run; no secrets in committed evidence.
+
+Do not inspect candidate notice content or actual company data beyond the committed fixtures. Report only blockers you verified in the source, with file:line and the exact criterion violated.

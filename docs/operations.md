@@ -1648,7 +1648,7 @@ policy 상태와 데이터는 변경하지 않는다. 이 모드는 운영 수�
 대표 목록·첨부·개요·심층 보고서·프로필 API와 화면 열람을 확인해 증거를 보존한다.
 
 
-## 가상 SI 3사 데모 목표 계약 (2026-10-06, 구현 전)
+## 가상 SI 3사 데모 목표 계약 (2026-10-06 채택; DEMO-01~03 데모 브랜치 구현, DEMO-04~05 구현 전)
 
 별도 Compose 프로젝트·PostgreSQL·MinIO 자원에서 수동으로 초기화한다. 운영 secret/볼륨을 공유하지 않는다. 새 모델 호출은 실행 직전 승인하며 자동 일정은 비활성이다.
 DEMO-02(2026-10-09, 데모 브랜치)는 회사 지식 `import-company-knowledge`·`activate-company-knowledge` CLI를 추가했다. 원본(`docs/demo-fixtures`)은 이미지에 넣지 않고(`.dockerignore` 제외)
