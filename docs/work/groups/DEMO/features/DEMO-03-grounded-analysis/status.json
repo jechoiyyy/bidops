@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
   "feature": "DEMO-03-grounded-analysis",
-  "phase": "validating",
+  "phase": "done",
   "steps": [
     {
       "id": "STEP-001",
@@ -373,9 +373,13 @@
     {
       "at": "2026-10-11T20:40:16+09:00",
       "text": "단계 → validating: STEP-001~008 done. STEP-008(핏 원문 unit 연결) 리더 재실행 764 passed/0 skipped. proofs 재기록. 커밋·재병합·Codex 3회차 대기"
+    },
+    {
+      "at": "2026-10-11T23:25:39+09:00",
+      "text": "단계 → done: 배치 검증 및 통합 완료"
     }
   ],
-  "updated_at": "2026-10-11T20:40:16+09:00",
+  "updated_at": "2026-10-11T23:25:39+09:00",
   "resume_phase": "implementing",
   "proof_history": [
     {
@@ -708,5 +712,11 @@
         "reason": "작업 계약 변경"
       }
     }
-  ]
+  ],
+  "integration": {
+    "run": "demo0203-20261009",
+    "revision": "679224a7439df41fcaa104c3a1170c3170d5934f",
+    "source_hash": "b03842f58e0321c94e9abe790829ef412bc2ad75abccf647fea5028d9a4d6ae6",
+    "spec_hash": "694697dd8a6608d97712507e36099c46b7fa1911fd0e98e81307c90c6209968f"
+  }
 }

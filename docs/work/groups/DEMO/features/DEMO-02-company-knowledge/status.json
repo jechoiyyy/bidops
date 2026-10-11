@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
   "feature": "DEMO-02-company-knowledge",
-  "phase": "validating",
+  "phase": "done",
   "steps": [
     {
       "id": "STEP-001",
@@ -279,9 +279,13 @@
     {
       "at": "2026-10-10T16:34:55+09:00",
       "text": "단계 → validating: STEP1~5 완료, 최종 독립 리뷰 PASS_WITH_NOTES, proof 기록; 커밋(수동)·배치 통합 대기"
+    },
+    {
+      "at": "2026-10-11T23:25:38+09:00",
+      "text": "단계 → done: 배치 검증 및 통합 완료"
     }
   ],
-  "updated_at": "2026-10-11T20:40:12+09:00",
+  "updated_at": "2026-10-11T23:25:38+09:00",
   "resume_phase": "drafting",
   "proof_history": [
     {
@@ -608,5 +612,11 @@
         "spec_hash": "f91391df9927a6b7b91a6af4f3628e48814c310ee0a67830abd496ef5e5d92e6"
       }
     }
-  ]
+  ],
+  "integration": {
+    "run": "demo0203-20261009",
+    "revision": "679224a7439df41fcaa104c3a1170c3170d5934f",
+    "source_hash": "b03842f58e0321c94e9abe790829ef412bc2ad75abccf647fea5028d9a4d6ae6",
+    "spec_hash": "f91391df9927a6b7b91a6af4f3628e48814c310ee0a67830abd496ef5e5d92e6"
+  }
 }
