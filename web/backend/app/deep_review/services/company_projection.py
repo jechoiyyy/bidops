@@ -282,7 +282,7 @@ def current_document_sets(
     detail view and the comparison (company independent).  A notice without a
     ready bundle is absent (detail: ``bundle_id=null``, ``document_version_ids=[]``).
     Same source as the frozen document set of a deep review and of a company
-    fit (``company_analysis_input.notice_document_sets``).
+    fit (a v3 fit enqueue requires this ready bundle, contract §9 2026-10-11).
     """
 
     return ready_bundle_document_sets(session, notice_ids)

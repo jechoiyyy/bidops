@@ -1,0 +1,17 @@
+Read-only independent SDLC batch final review, round 3, gpt-5.6-sol/high. No tests, edits, agents, workflows, Docker, model/API calls, or commits. Return a concise Korean verdict (PASS / PASS_WITH_NOTES / FAIL) with concrete blockers only; list non-blocking notes one line each.
+
+Batch run `demo0203-20261009`: DEMO-02-company-knowledge then DEMO-03-grounded-analysis on demo branch `demo/local-20261009`. Approved base SHA `506ac77`. The final batch tree is the current HEAD of this worktree (`git rev-parse HEAD`); untracked files under docs/work/_runs are run records, not product changes. Review the whole change with `git diff 506ac77 HEAD`.
+
+History (all in docs/work/_runs/demo0203-20261009/): round 1 (`batch-codex-review.md`, may be untracked in the batch worktree) FAIL with three doc blockers, handled per batch-review.md. Round 2 (`batch-codex-review-r2.md`) confirmed those were resolved and raised one product blocker: company-fit Requirements carried no source units. The user decided "fix the code, ready bundle required". The leader amended docs/work/demo-contract.md §9 (search "2026-10-11 개정"), DEMO-03 spec (T2, T4, the source-unit paragraph) and plan STEP-008, and an implementer changed the code. The record is demo03-step008-result.md, with the leader rerun at demo03-step008-leader.log (23 files, 764 passed, 0 skipped). Round 2 also noted the stale STEP-007 delegation reason in plan.md; check it.
+
+First verify the round-2 blocker is resolved in the real assembly path: web/backend/app/deep_review/services/company_fit.py `prepare_company_fit`, services/company_source_units.py, services/company_fit_policy.py, policies/company-fit-demo-v3.json, and the tests that exercise the real path (tests/deep_review/test_company_fit_enqueue.py, tests/app/test_company_e2e.py, tests/app/test_company_analysis.py). Then review the full batch again; do not limit yourself to round-2 items.
+
+Read root AGENTS.md, docs/standards.md, docs/work/demo-contract.md, and the DEMO-02 and DEMO-03 feature documents under docs/work/groups/DEMO/features/ (intent.md, spec.md acceptance criteria, plan.md). The common constraints are in `python3 scripts/feature_status.py config` (constraints list); you may run that read-only command. Do not re-run tests; judge whether the evidence matches the final source.
+
+Decide:
+1. Does the final tree satisfy every DEMO-02 and DEMO-03 spec acceptance criterion as currently written (DEMO-03 re-planned 2026-10-11: T9 real Luna run moved to DEMO-05; STEP-007 = real bidops-local stack prep plus pre-call fail-closed check; STEP-008 = fit source-unit linking; real_data_run not applicable)?
+2. Do the code and contract paragraphs (docs/work/demo-contract.md, docs/contracts.md, docs/ARCHITECTURE.md, docs/business-rules.md, docs/deep-review-erd.md, docs/operations.md, docs/PRD.md, docs/PLAN.md, docs/ADR.md) agree with each other and with the code?
+3. Common constraints: append-only/immutable inputs and policy files (v2 kept, v3 new), unknown/null not promoted, per-item approval and no fallback for external models, single analysis-worker slot and module dependency direction, new tables/columns registered in scripts/runtime-privileges.sql with no GRANT in migrations, no migration edits, no main/ops changes.
+4. No document claims real model quality or a completed real Luna run; no secrets in committed evidence.
+
+Do not inspect candidate notice content or actual company data beyond the committed fixtures. Report only blockers you verified in the source, with file:line and the exact criterion violated.

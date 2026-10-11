@@ -72,7 +72,6 @@ from app.deep_review.services.reports import ReportService
 from app.deep_review.workers.deep_review import run_once as run_deep_review_once
 from tests.app.test_company_analysis import FakeLiteLLM, valid_payload
 from tests.app.test_company_deep_review_binding import (
-    STRUCTURE_SHA,
     TEXTS,
     DeepWorld,
     _sqlite_engine,
@@ -89,6 +88,7 @@ from tests.deep_review.test_company_fit_enqueue import (  # noqa: F401 - shared 
     build_world,
     import_company,
     object_store,
+    store_structure,
 )
 from tests.postgres import migrated_engine, requires_postgres
 
@@ -252,31 +252,24 @@ def luna_service(runner: FakeLunaRunner, **kwargs) -> DeepReviewService:
 
 
 def ready_bundle_with_blocks(session: Session, notice_id: int, document_ids, *, revision: int = 1) -> UUID:
-    """A ready bundle over the documents; each has a pinned structure and DB blocks (= TEXTS)."""
+    """A ready bundle over the documents; each has a pinned structure and DB blocks (= TEXTS).
+
+    The structure payload is stored for real (``store_structure``) so the company
+    fit reads it through the production loader; the deep service's injected
+    ``structure_loader`` returns the same payload.
+    """
 
     bundle = DocumentBundle(id=uuid4(), notice_id=notice_id, revision=revision, version=1, status="ready",
                             issues_snapshot=[], created_by_name="준비 담당자", confirmed_by_name="준비 담당자",
                             confirmed_at=datetime.now(UTC))
     session.add(bundle)
     session.flush()
-    payload = session.scalar(select(ContentObject).where(ContentObject.sha256 == STRUCTURE_SHA))
-    if payload is None:
-        payload = ContentObject(id=uuid4(), sha256=STRUCTURE_SHA, size_bytes=1, detected_mime="application/json",
-                                retention_class="fixture")
-        session.add(payload)
-        session.flush()
     for ordinal, document_id in enumerate(document_ids):
         document = session.get(DocumentVersion, document_id)
         content = session.get(ContentObject, document.content_object_id)
         structure = session.scalar(select(DocumentStructure).where(DocumentStructure.document_version_id == document.id))
         if structure is None:
-            structure = DocumentStructure(
-                id=uuid4(), document_version_id=document.id, source_sha256=content.sha256, payload_sha256=STRUCTURE_SHA,
-                extractor_name="fixture", extractor_version="1", page_count=len(TEXTS), block_count=len(TEXTS),
-                validation_status="ready", media_type="application/pdf", payload_content_object_id=payload.id,
-            )
-            session.add(structure)
-            session.flush()
+            structure = store_structure(session, document, TEXTS)
             for page, body in TEXTS.items():
                 session.add(DocumentBlock(structure_id=structure.id, block_key=f"source-{page}", page=page,
                                           block_type="paragraph", content=body, attributes={}))
@@ -289,7 +282,7 @@ def ready_bundle_with_blocks(session: Session, notice_id: int, document_ids, *, 
             size_bytes=10, original_filename=document.original_filename, source_kind="manual",
             role_at_confirmation=document.role, is_current_at_confirmation=True,
             safety_status_at_confirmation="safe", structure_id_at_confirmation=structure.id,
-            structure_payload_sha256=STRUCTURE_SHA,
+            structure_payload_sha256=structure.payload_sha256,
         ))
     session.flush()
     return bundle.id
@@ -306,7 +299,7 @@ class E2EWorld:
 
 
 def e2e_world(session: Session, monkeypatch, *, documents: int = 1) -> E2EWorld:
-    base = build_world(session, monkeypatch)
+    base = build_world(session, monkeypatch, bundle=False)
     document_ids = [base.document_id] + [add_document(session, base.notice_id).id for _ in range(documents - 1)]
     bundle_id = ready_bundle_with_blocks(session, base.notice_id, document_ids)
     policy = import_policy_version(session, DEMO_LUNA_POLICY_FILE, created_by_name="정책 담당자",
@@ -496,6 +489,16 @@ def test_t4_fit_and_review_of_a_multi_document_notice_are_comparable(engine, mon
         assert session.get(DeepReview, UUID(created["id"])).status == "completed"
         units = {unit["document_version_id"] for row in frozen["input"]["requirements"] for unit in row["source_units"]}
         assert units == set(expected)
+        # STEP-008 (§9, 2026-10-11): the fit's overview rows carry the very splitter units of
+        # the deep preview (v3 source_characters = demo Luna source_characters), limited to
+        # the overview document and each row's evidence pages.
+        fitted = session.get(PreSpecCompanyFitAttempt, queued.attempt_id).input_jsonb
+        deep_units = {unit["requirement_id"]: unit for row in frozen["input"]["requirements"]
+                      for unit in row["source_units"]}
+        fit_units = [unit for row in fitted["requirements"] for unit in row["source_units"]]
+        assert len(fit_units) == len(TEXTS)
+        assert all(deep_units[unit["requirement_id"]] == unit for unit in fit_units)
+        assert {unit["document_version_id"] for unit in fit_units} == {str(world.deep.fit.document_id)}
 
         comparison = projection.company_comparison(session, notice_id=world.deep.notice_id)
         assert comparison["document_version_ids"] == expected
@@ -524,14 +527,27 @@ def test_t4_fit_and_review_of_a_multi_document_notice_are_comparable(engine, mon
         assert item["fit"]["is_current"] is False and item["review"]["is_current"] is False
 
 
-def test_b2_fit_freezes_the_notice_document_set_and_requires_the_overview_document(sqlite_engine, monkeypatch) -> None:
-    """Fit provenance documents = the notice's current set (bundle, else current documents)."""
+def test_b2_fit_freezes_the_ready_bundle_document_set_and_requires_the_overview_document(sqlite_engine, monkeypatch) -> None:
+    """Fit provenance documents = the latest ready bundle's set (§9, 2026-10-11: bundle required).
+
+    Before STEP-008 a notice without a ready bundle fell back to its
+    ``is_current`` documents; the amended contract removes that fallback.
+    """
 
     with Session(sqlite_engine) as session:
-        base = build_world(session, monkeypatch)
+        base = build_world(session, monkeypatch, bundle=False)
         extra = add_document(session, base.notice_id)
         both = sorted([str(base.document_id), str(extra.id)])
-        # No ready bundle: every current document of the notice (fallback).
+        # No ready bundle: fail closed before any write (no current-document fallback).
+        before = count(session, PreSpecCompanyFitAttempt)
+        with pytest.raises(fit.CompanyFitGateError) as error:
+            fit.enqueue_company_fit(session, company_id=base.company_id, notice_id=base.notice_id, actor="핏 담당자")
+        assert error.value.code == "bundle_not_ready"
+        session.rollback()
+        assert count(session, PreSpecCompanyFitAttempt) == before
+        # A ready bundle over both documents is the frozen set.
+        ready_bundle_with_blocks(session, base.notice_id, [base.document_id, extra.id])
+        session.commit()
         first = fit.enqueue_company_fit(session, company_id=base.company_id, notice_id=base.notice_id, actor="핏 담당자")
         session.commit()
         row = session.get(PreSpecCompanyFitAttempt, first.attempt_id)
@@ -539,8 +555,11 @@ def test_b2_fit_freezes_the_notice_document_set_and_requires_the_overview_docume
         assert [item["document_version_id"] for item in row.provenance_jsonb["documents"]] == both
         assert row.document_version_id == base.document_id  # the overview's document column is unchanged
         assert fit.company_current_flags(session, [row]) == {row.id: True}
-        # A ready bundle with another set makes the frozen fit stale (old row unchanged).
-        bundle_id = ready_bundle_with_blocks(session, base.notice_id, [base.document_id])
+        # Only the overview document's units are linked to overview rows.
+        linked = {unit["document_version_id"] for item in row.input_jsonb["requirements"] for unit in item["source_units"]}
+        assert linked == {str(base.document_id)}
+        # A newer ready bundle with another set makes the frozen fit stale (old row unchanged).
+        bundle_id = ready_bundle_with_blocks(session, base.notice_id, [base.document_id], revision=2)
         session.commit()
         assert fit.company_current_flags(session, [row]) == {row.id: False}
         row.status, row.error_code, row.completed_at = "failed", "company_fit_execution_failed", datetime.now(UTC)
@@ -554,7 +573,7 @@ def test_b2_fit_freezes_the_notice_document_set_and_requires_the_overview_docume
         fresh.status, fresh.completed_at = "failed", datetime.now(UTC)
         session.get(DocumentBundle, bundle_id).status = "superseded"
         session.commit()
-        ready_bundle_with_blocks(session, base.notice_id, [extra.id], revision=2)
+        ready_bundle_with_blocks(session, base.notice_id, [extra.id], revision=3)
         session.commit()
         before = count(session, PreSpecCompanyFitAttempt)
         with pytest.raises(fit.CompanyFitGateError) as error:

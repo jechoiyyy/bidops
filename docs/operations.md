@@ -1648,10 +1648,12 @@ policy 상태와 데이터는 변경하지 않는다. 이 모드는 운영 수�
 대표 목록·첨부·개요·심층 보고서·프로필 API와 화면 열람을 확인해 증거를 보존한다.
 
 
-## 가상 SI 3사 데모 목표 계약 (2026-10-06, 구현 전)
+## 가상 SI 3사 데모 목표 계약 (2026-10-06 채택; DEMO-01~03 데모 브랜치 구현, DEMO-04~05 구현 전)
 
 별도 Compose 프로젝트·PostgreSQL·MinIO 자원에서 수동으로 초기화한다. 운영 secret/볼륨을 공유하지 않는다. 새 모델 호출은 실행 직전 승인하며 자동 일정은 비활성이다.
 DEMO-02(2026-10-09, 데모 브랜치)는 회사 지식 `import-company-knowledge`·`activate-company-knowledge` CLI를 추가했다. 원본(`docs/demo-fixtures`)은 이미지에 넣지 않고(`.dockerignore` 제외)
 일회성 CLI 컨테이너에 `/run/demo-fixtures`로 read-only 마운트해 `--dry-run` → import → 직전 사람 확인 뒤 activate 순서로 쓴다. import는 자동 활성화하지 않는다.
 `bidops-local`의 실제 3사 등록·활성화는 2026-10-11 DEMO-03 STEP-007에서 단계별 사용자 확인 후 수행했다(증거 `validation-runs/2026-10-10-company-demo/DEMO-03-grounded-analysis/README.md`). 새 환경에서는 같은 순서와 직전 확인을 다시 거친다.
+2026-10-11 DEMO-03 STEP-008부터 회사 핏 enqueue는 `company-fit-demo-v3.json` 정책 행과 공고의 ready bundle을 요구한다. 현재 `bidops-local`에는 v2 행만 import돼 있어 핏 enqueue가 `analysis_policy_unavailable`로 막힌다.
+핏을 실제로 돌리기 전에 이미지 재빌드, `import-company-fit-policy`로 v3 import, `env/demo.env`의 `BIDOPS_DEMO_COMPANY_FIT_POLICY_VERSION_ID`를 web·analysis-worker 모두 v3 행으로 바꾸는 일을 각각 직전 확인 후 한다(DEMO-05 준비 단계).
 [ADR-0070](tracking/decisions/0070-multi-company-knowledge-demo.md) · [공통 계약](work/demo-contract.md) · [기능 로드맵](work/constitution/roadmap.md).
