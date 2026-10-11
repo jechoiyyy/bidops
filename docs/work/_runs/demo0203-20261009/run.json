@@ -1,0 +1,114 @@
+{
+  "id": "demo0203-20261009",
+  "state": "awaiting_merge",
+  "features": [
+    "DEMO-02-company-knowledge",
+    "DEMO-03-grounded-analysis"
+  ],
+  "target": "demo/local-20261009",
+  "base_sha": "506ac77627b6ceafab213aeda9e80ebce62e61e8",
+  "base_root": "/Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009",
+  "branch": "sdlc/batch-demo0203-20261009",
+  "workspace": "/Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/batch-demo0203-20261009",
+  "work_dir": "docs/work",
+  "engine": "codex",
+  "approved_at": "2026-10-09T15:15:04+09:00",
+  "policy": {
+    "auto_commit": false,
+    "manual_proof": "defer",
+    "final_review": true,
+    "max_retries": 1,
+    "git": {
+      "isolation": "worktree",
+      "merge": "no-ff",
+      "copy_untracked": []
+    },
+    "commit_policy": "manual",
+    "merge_policy": "manual"
+  },
+  "specs": {
+    "DEMO-02-company-knowledge": "f91391df9927a6b7b91a6af4f3628e48814c310ee0a67830abd496ef5e5d92e6",
+    "DEMO-03-grounded-analysis": "694697dd8a6608d97712507e36099c46b7fa1911fd0e98e81307c90c6209968f"
+  },
+  "ready": {
+    "DEMO-02-company-knowledge": {
+      "inputs": {
+        "source_hash": "b03842f58e0321c94e9abe790829ef412bc2ad75abccf647fea5028d9a4d6ae6",
+        "spec_hash": "f91391df9927a6b7b91a6af4f3628e48814c310ee0a67830abd496ef5e5d92e6"
+      },
+      "at": "2026-10-11T23:02:55+09:00"
+    },
+    "DEMO-03-grounded-analysis": {
+      "inputs": {
+        "source_hash": "b03842f58e0321c94e9abe790829ef412bc2ad75abccf647fea5028d9a4d6ae6",
+        "spec_hash": "694697dd8a6608d97712507e36099c46b7fa1911fd0e98e81307c90c6209968f"
+      },
+      "at": "2026-10-11T23:02:54+09:00"
+    }
+  },
+  "decisions": [
+    {
+      "feature": "DEMO-02-company-knowledge",
+      "note": "STEP001 실제 core 단위 검사 파일을 plan 표에 정합화, 수용조건 유지",
+      "at": "2026-10-09T15:24:11+09:00"
+    },
+    {
+      "feature": "DEMO-02-company-knowledge",
+      "note": "현 Codex runtime standard 초안 작성자 정합화; 기존 MinIO delete 금지 권한을 보존하고 filesystem 임시 cleanup과 발행 version 보존을 명확화. 사용자 원본 승인 게이트 유지.",
+      "at": "2026-10-09T15:49:23+09:00"
+    },
+    {
+      "feature": "DEMO-02-company-knowledge",
+      "note": "STEP002 실제 migration0035와 감사 marker·closed-table/CLI 검사 파일을 변경 표에 반영. 수용조건 유지.",
+      "at": "2026-10-09T15:52:35+09:00"
+    },
+    {
+      "feature": "DEMO-02-company-knowledge",
+      "note": "plan 결과 절에 STEP001/002 검증과 STEP003 원본 승인 대기 상태 기록; STEP004/005 및 기능 완료 미주장.",
+      "at": "2026-10-09T15:59:56+09:00"
+    },
+    {
+      "feature": "DEMO-02-company-knowledge",
+      "note": "사용자 현재 초안 승인: 원본4개 hash 대조/승인 기록/동결 완료, STEP004 시작 상태를 plan 결과에 정합화. 수용범위 변경 없음.",
+      "at": "2026-10-09T17:28:48+09:00"
+    },
+    {
+      "feature": "DEMO-03-grounded-analysis",
+      "note": "2026-10-11 사용자 결정: T9 대표 1건 실제 Luna 심층을 DEMO-05로 이관하고 STEP-007을 실제 bidops-local 준비·호출 전 fail-closed 확인으로 재정의. 사유: 유일한 준비 공고 179가 findings inventory 불일치로 company_input_invalid, 검사 완화·즉석 공고 준비 대신 이관 선택. real_data_run은 DEMO-03 비적용.",
+      "at": "2026-10-11T11:10:55+09:00"
+    },
+    {
+      "feature": "DEMO-02-company-knowledge",
+      "note": "DEMO-02 intent/spec/plan(결과 앞) 무변경. spec_hash 변화는 공유 입력뿐: roadmap DEMO-03 행과 feature.json real_data_run applies_when(2026-10-11 사용자 결정 T9→DEMO-05 이관). DEMO-02 수용 범위 변경 없음",
+      "at": "2026-10-11T11:56:09+09:00"
+    },
+    {
+      "feature": "DEMO-03-grounded-analysis",
+      "note": "Codex 배치 리뷰 1회차 차단1 처리: intent 사용자 흐름 표·재계획 문단과 spec 범위 문단을 2026-10-11 사용자 결정(T9 실제 Luna→DEMO-05, STEP-007=격리 스택 준비·호출 전 fail-closed)에 맞춰 정합화. 수용 기준 T1~T9 문구 무변경, 범위 확대 없음",
+      "at": "2026-10-11T19:03:37+09:00"
+    },
+    {
+      "feature": "DEMO-03-grounded-analysis",
+      "note": "2026-10-11 사용자 결정(Codex 배치 리뷰 2회차 차단1 처리): 회사 핏도 ready bundle 필수·분할기 unit을 개요 evidence page로 연결. 공통 §9 개정(핏 정책 v3 source_characters, bundle_not_ready gate), spec T2/T4 기대 결과 보강, plan STEP-008 추가, STEP-007 위임 사유 정정(Codex 노트)",
+      "at": "2026-10-11T20:11:44+09:00"
+    }
+  ],
+  "review": {
+    "result": "pass",
+    "evidence": "docs/work/_runs/demo0203-20261009/batch-codex-review-r3.md",
+    "model": "gpt-5.6-sol",
+    "effort": "high",
+    "independent": true,
+    "at": "2026-10-11T23:15:16+09:00",
+    "inputs": {
+      "DEMO-02-company-knowledge": {
+        "source_hash": "b03842f58e0321c94e9abe790829ef412bc2ad75abccf647fea5028d9a4d6ae6",
+        "spec_hash": "f91391df9927a6b7b91a6af4f3628e48814c310ee0a67830abd496ef5e5d92e6"
+      },
+      "DEMO-03-grounded-analysis": {
+        "source_hash": "b03842f58e0321c94e9abe790829ef412bc2ad75abccf647fea5028d9a4d6ae6",
+        "spec_hash": "694697dd8a6608d97712507e36099c46b7fa1911fd0e98e81307c90c6209968f"
+      }
+    }
+  }
+}
