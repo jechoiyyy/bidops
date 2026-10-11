@@ -1,0 +1,307 @@
+cd web/backend && BIDOPS_PRESPEC_OVERVIEW_ENABLED=false python -m pytest tests/app/test_company_reads.py -q -rfs -p no:warnings  # RED: new tests written after the projection service/router draft, before main.py/deep_review registration and legacy-reader refusal; sqlite only (postgres variants skip without BIDOPS_TEST_POSTGRES_URL)
+.s....F...s.s...F.s.s.F                                                  [100%]
+=================================== FAILURES ===================================
+_____________ test_t7_comparison_statuses_priority_and_population ______________
+
+self = <sqlalchemy.engine.base.Connection object at 0x114a29fa0>
+dialect = <sqlalchemy.dialects.sqlite.pysqlite.SQLiteDialect_pysqlite object at 0x114263bc0>
+context = <sqlalchemy.dialects.sqlite.base.SQLiteExecutionContext object at 0x114a2ab70>
+statement = <sqlalchemy.dialects.sqlite.base.SQLiteCompiler object at 0x114770380>
+parameters = [('0915c05d1469421e9e058ff7884de4cd', '0305992c50154fe08572dea4dad38a12', 'fb8f54d324154a639c35a7e05247c3943f0388e29569406c9baa805ba8991c93', 'application/pdf', 'fixture', '1', ...)]
+
+    def _exec_single_context(
+        self,
+        dialect: Dialect,
+        context: ExecutionContext,
+        statement: Union[str, Compiled],
+        parameters: Optional[_AnyMultiExecuteParams],
+    ) -> CursorResult[Any]:
+        """continue the _execute_context() method for a single DBAPI
+        cursor.execute() or cursor.executemany() call.
+    
+        """
+        if dialect.bind_typing is BindTyping.SETINPUTSIZES:
+            generic_setinputsizes = context._prepare_set_input_sizes()
+    
+            if generic_setinputsizes:
+                try:
+                    dialect.do_set_input_sizes(
+                        context.cursor, generic_setinputsizes, context
+                    )
+                except BaseException as e:
+                    self._handle_dbapi_exception(
+                        e, str(statement), parameters, None, context
+                    )
+    
+        cursor, str_statement, parameters = (
+            context.cursor,
+            context.statement,
+            context.parameters,
+        )
+    
+        effective_parameters: Optional[_AnyExecuteParams]
+    
+        if not context.executemany:
+            effective_parameters = parameters[0]
+        else:
+            effective_parameters = parameters
+    
+        if self._has_events or self.engine._has_events:
+            for fn in self.dispatch.before_cursor_execute:
+                str_statement, effective_parameters = fn(
+                    self,
+                    cursor,
+                    str_statement,
+                    effective_parameters,
+                    context,
+                    context.executemany,
+                )
+    
+        if self._echo:
+            self._log_info(str_statement)
+    
+            stats = context._get_cache_stats()
+    
+            if not self.engine.hide_parameters:
+                self._log_info(
+                    "[%s] %r",
+                    stats,
+                    sql_util._repr_params(
+                        effective_parameters,
+                        batches=10,
+                        ismulti=context.executemany,
+                    ),
+                )
+            else:
+                self._log_info(
+                    "[%s] [SQL parameters hidden due to hide_parameters=True]",
+                    stats,
+                )
+    
+        evt_handled: bool = False
+        try:
+            if context.execute_style is ExecuteStyle.EXECUTEMANY:
+                effective_parameters = cast(
+                    "_CoreMultiExecuteParams", effective_parameters
+                )
+                if self.dialect._has_events:
+                    for fn in self.dialect.dispatch.do_executemany:
+                        if fn(
+                            cursor,
+                            str_statement,
+                            effective_parameters,
+                            context,
+                        ):
+                            evt_handled = True
+                            break
+                if not evt_handled:
+                    self.dialect.do_executemany(
+                        cursor,
+                        str_statement,
+                        effective_parameters,
+                        context,
+                    )
+            elif not effective_parameters and context.no_parameters:
+                if self.dialect._has_events:
+                    for fn in self.dialect.dispatch.do_execute_no_params:
+                        if fn(cursor, str_statement, context):
+                            evt_handled = True
+                            break
+                if not evt_handled:
+                    self.dialect.do_execute_no_params(
+                        cursor, str_statement, context
+                    )
+            else:
+                effective_parameters = cast(
+                    "_CoreSingleExecuteParams", effective_parameters
+                )
+                if self.dialect._has_events:
+                    for fn in self.dialect.dispatch.do_execute:
+                        if fn(
+                            cursor,
+                            str_statement,
+                            effective_parameters,
+                            context,
+                        ):
+                            evt_handled = True
+                            break
+                if not evt_handled:
+>                   self.dialect.do_execute(
+                        cursor, str_statement, effective_parameters, context
+                    )
+
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py:1969: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <sqlalchemy.dialects.sqlite.pysqlite.SQLiteDialect_pysqlite object at 0x114263bc0>
+cursor = <sqlite3.Cursor object at 0x1147eac40>
+statement = 'INSERT INTO document_structure (id, document_version_id, source_sha256, media_type, extractor_name, extractor_version...payload_sha256, page_count, block_count, validation_status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+parameters = ('0915c05d1469421e9e058ff7884de4cd', '0305992c50154fe08572dea4dad38a12', 'fb8f54d324154a639c35a7e05247c3943f0388e29569406c9baa805ba8991c93', 'application/pdf', 'fixture', '1', ...)
+context = <sqlalchemy.dialects.sqlite.base.SQLiteExecutionContext object at 0x114a2ab70>
+
+    def do_execute(self, cursor, statement, parameters, context=None):
+>       cursor.execute(statement, parameters)
+E       sqlite3.IntegrityError: UNIQUE constraint failed: document_structure.document_version_id
+
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/default.py:952: IntegrityError
+
+The above exception was the direct cause of the following exception:
+
+sqlite_engine = Engine(sqlite://)
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x1145b7b60>
+
+    def test_t7_comparison_statuses_priority_and_population(sqlite_engine, monkeypatch) -> None:
+        with Session(sqlite_engine) as session:
+            world = deep_world(session, monkeypatch)
+            svc = service()
+            public = import_company(session, "demo-public-si")
+            cloud = import_company(session, "demo-cloud-si")
+            register_company(session, slug="extra-si", name="추가 SI", is_fictional=True, actor="등록 담당자")
+            session.commit()
+            opportunity_id = link_opportunity(session, world.notice_id)
+            decide(session, public.company_id, opportunity_id, "보류")
+            http = http_client(sqlite_engine, monkeypatch)
+            path = f"/api/pre-specs/{world.notice_id}/company-comparison"
+    
+            def statuses() -> dict[str, str]:
+                body = http.get(path).json()
+                return {item["company"]["slug"]: item["comparison_status"] for item in body["items"]}
+    
+            body = http.get(path).json()
+            assert body["schema_version"] == "bidops.company-comparison.v1" and body["notice_id"] == world.notice_id
+            assert [item["company"]["slug"] for item in body["items"]] == ["demo-cloud-si", "demo-data-ai", "demo-public-si"]
+            assert body["document_version_ids"] == [str(world.fit.document_id)]
+            assert all(item["comparison_status"] == "missing" and item["fit"] is None and item["review"] is None
+                       for item in body["items"])
+            by_slug = {item["company"]["slug"]: item for item in body["items"]}
+            assert by_slug["demo-public-si"]["tracking"]["tracking_status"] == "보류"
+            assert by_slug["demo-data-ai"]["tracking"]["tracking_status"] == "미선택"
+            assert by_slug["demo-cloud-si"]["graph_version_id"] == str(cloud.graph_version_id)
+            assert "score" not in json.dumps(body) and "rank" not in json.dumps(body)
+    
+            enqueue_fit(session, world.company_id, world.notice_id)
+            create_review(session, svc, world)
+            enqueue_fit(session, public.company_id, world.notice_id)
+            assert statuses() == {"demo-cloud-si": "missing", "demo-data-ai": "comparable", "demo-public-si": "missing"}
+            item = next(i for i in http.get(path).json()["items"] if i["company"]["slug"] == "demo-data-ai")
+            assert item["fit"]["status"] == "queued" and item["review"]["status"] == "queued"
+    
+            # A new binding makes this company's results stale (old results kept, not replaced).
+            import_company(session, raw=second_source())
+            session.commit()
+            assert statuses()["demo-data-ai"] == "stale"
+            # A new common document set outranks stale/missing for companies with executions.
+            extra = add_document(session, world.notice_id)
+            session.get(DocumentBundle, world.bundle_id).status = "superseded"
+            session.commit()
+>           bundle_two = ready_bundle(session, world.notice_id, world.fit.document_id, revision=2)
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/app/test_company_reads.py:490: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/app/test_company_deep_review_binding.py:177: in ready_bundle
+    session.flush()
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/orm/session.py:4353: in flush
+    self._flush(objects)
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/orm/session.py:4488: in _flush
+    with util.safe_reraise():
+         ^^^^^^^^^^^^^^^^^^^
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/util/langhelpers.py:122: in __exit__
+    raise exc_value.with_traceback(exc_tb)
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/orm/session.py:4449: in _flush
+    flush_context.execute()
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/orm/unitofwork.py:465: in execute
+    rec.execute(self)
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/orm/unitofwork.py:641: in execute
+    util.preloaded.orm_persistence.save_obj(
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/orm/persistence.py:94: in save_obj
+    _emit_insert_statements(
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/orm/persistence.py:1049: in _emit_insert_statements
+    result = connection.execute(
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py:1421: in execute
+    return meth(
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/sql/elements.py:526: in _execute_on_connection
+    return connection._execute_clauseelement(
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py:1643: in _execute_clauseelement
+    ret = self._execute_context(
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py:1848: in _execute_context
+    return self._exec_single_context(
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py:1988: in _exec_single_context
+    self._handle_dbapi_exception(
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py:2365: in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py:1969: in _exec_single_context
+    self.dialect.do_execute(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <sqlalchemy.dialects.sqlite.pysqlite.SQLiteDialect_pysqlite object at 0x114263bc0>
+cursor = <sqlite3.Cursor object at 0x1147eac40>
+statement = 'INSERT INTO document_structure (id, document_version_id, source_sha256, media_type, extractor_name, extractor_version...payload_sha256, page_count, block_count, validation_status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+parameters = ('0915c05d1469421e9e058ff7884de4cd', '0305992c50154fe08572dea4dad38a12', 'fb8f54d324154a639c35a7e05247c3943f0388e29569406c9baa805ba8991c93', 'application/pdf', 'fixture', '1', ...)
+context = <sqlalchemy.dialects.sqlite.base.SQLiteExecutionContext object at 0x114a2ab70>
+
+    def do_execute(self, cursor, statement, parameters, context=None):
+>       cursor.execute(statement, parameters)
+E       sqlalchemy.exc.IntegrityError: (sqlite3.IntegrityError) UNIQUE constraint failed: document_structure.document_version_id
+E       [SQL: INSERT INTO document_structure (id, document_version_id, source_sha256, media_type, extractor_name, extractor_version, upstream_commit, payload_content_object_id, payload_sha256, page_count, block_count, validation_status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)]
+E       [parameters: ('0915c05d1469421e9e058ff7884de4cd', '0305992c50154fe08572dea4dad38a12', 'fb8f54d324154a639c35a7e05247c3943f0388e29569406c9baa805ba8991c93', 'application/pdf', 'fixture', '1', None, 'fdf11c4bbf164624a3588d4036e380ae', 'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee', 3, 3, 'ready', '2026-10-10 10:26:57.251144')]
+E       (Background on this error at: https://sqlalche.me/e/20/gkpj)
+
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/default.py:952: IntegrityError
+_ test_assembled_app_registers_company_reads_and_hides_them_when_demo_disabled _
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x114fb4d70>
+
+    def test_assembled_app_registers_company_reads_and_hides_them_when_demo_disabled(monkeypatch) -> None:
+        from app import deep_review, main as main_module
+        from app.main import create_app
+    
+        registration = main_module._ROUTER_REGISTRATION
+>       assert ("deep_review", "company_reads_router") in registration
+E       AssertionError: assert ('deep_review', 'company_reads_router') in (('screening', 'screening_run_router'), ('lifecycle', 'runs_router'), ('lifecycle', 'companies_router'), ('deep_review', 'company_knowledge_router'), ('deep_review', 'company_analysis_router'), ('lifecycle', 'notices_router'), ...)
+
+tests/app/test_company_reads.py:680: AssertionError
+----------------------------- Captured stderr call -----------------------------
+/Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo0203-20261009-DEMO-03-grounded-analysis/web/backend/app/deep_review/agents/common/contracts.py:391: UserWarning: Field name "schema" in "AgentRunView" shadows an attribute in parent "_StrictModel"
+  class AgentRunView(_StrictModel):
+/Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo0203-20261009-DEMO-03-grounded-analysis/web/backend/app/deep_review/agents/common/contracts.py:462: UserWarning: Field name "schema" in "AgentCommand" shadows an attribute in parent "_StrictModel"
+  class AgentCommand(_StrictModel, Generic[TAction]):
+__________________ test_legacy_id_readers_refuse_company_rows __________________
+
+world_session_reads = (<sqlalchemy.orm.session.Session object at 0x116e39520>, DeepWorld(fit=World(company_id=UUID('d6e5152b-3ce8-4ed4-9197-...ervices.deep_reviews.DeepReviewService object at 0x1168faa50>, <starlette.testclient.TestClient object at 0x1168faab0>)
+
+    def test_legacy_id_readers_refuse_company_rows(world_session_reads) -> None:
+        from app.deep_review.routers import deep_reviews as legacy_reviews, reports as legacy_reports
+    
+        session, world, svc, _http = world_session_reads
+        created = create_review(session, svc, world)
+        complete_review(session, created["id"])
+        materialize_report(session, created["id"])
+        evidence = profile_evidence_ref(session, created["id"])
+        app = FastAPI()
+        app.include_router(legacy_reviews.router)
+        app.include_router(legacy_reports.router)
+        engine = session.get_bind()
+    
+        def db():
+            with Session(engine) as fresh:
+                yield fresh
+    
+        app.dependency_overrides[get_db] = db
+        http = TestClient(app)
+        for path in (f"/api/deep-reviews/{created['id']}", f"/api/deep-reviews/{created['id']}/report",
+                     f"/api/evidence/{evidence}"):
+            reply = http.get(path)
+>           assert reply.status_code == 404 and reply.json()["error"]["code"] == "not_found", (path, reply.text)
+E           AssertionError: ('/api/deep-reviews/33a2a299-9643-4858-9cce-0ec0431fab63', '{"id":"33a2a299-9643-4858-9cce-0ec0431fab63","notice_id":1...":"2026-10-10T10:26:58.660002Z","completed_at":"2026-10-10T10:26:58.666441Z","quality_status":"unmeasured_reference"}')
+E           assert (200 == 404)
+E            +  where 200 = <Response [200 OK]>.status_code
+
+tests/app/test_company_reads.py:814: AssertionError
+=========================== short test summary info ============================
+FAILED tests/app/test_company_reads.py::test_t7_comparison_statuses_priority_and_population
+FAILED tests/app/test_company_reads.py::test_assembled_app_registers_company_reads_and_hides_them_when_demo_disabled
+FAILED tests/app/test_company_reads.py::test_legacy_id_readers_refuse_company_rows
+SKIPPED [5] tests/app/test_company_reads.py: BIDOPS_TEST_POSTGRES_URL is not set; PostgreSQL migration and constraint tests need a disposable PostgreSQL 17 server
+3 failed, 15 passed, 5 skipped in 2.98s
+exit_code=1

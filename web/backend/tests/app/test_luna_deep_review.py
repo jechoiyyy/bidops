@@ -202,7 +202,12 @@ def test_upgrade_from_previous_head_and_permissions():
         engine = create_engine(url)
         with engine.connect() as connection:
             assert 'deep_review_preview' in inspect(connection).get_table_names(schema='bidops')
-            assert len(inspect(connection).get_foreign_keys('deep_review_preview', schema='bidops')) == 4
+            # 0032's four input FKs plus the DEMO-03 (0036) company and graph-scope FKs.
+            foreign_keys = inspect(connection).get_foreign_keys('deep_review_preview', schema='bidops')
+            assert sorted(tuple(fk['constrained_columns']) for fk in foreign_keys) == sorted([
+                ('notice_id',), ('bundle_id',), ('profile_version_id',), ('policy_version_id',),
+                ('company_id',), ('graph_version_id', 'company_id', 'profile_version_id'),
+            ])
         engine.dispose()
 
 
@@ -759,3 +764,50 @@ def test_luna_policy_review_deadline_is_passed_to_each_luna_client(engine, monke
         _frozen, _created, job = _create_approved_job(session, service, notice, bundle)
         service.run_claim(session, job)
     assert deadlines and set(deadlines) == {100.0 + timeout_seconds}
+
+
+def test_legacy_luna_refuses_the_company_demo_policy_as_active_policy(engine, monkeypatch):
+    """DEMO-03: analysis-policy-luna-demo-v1 is selected only by the demo setting, never globally."""
+    from app.deep_review.services.input_versions import InputVersionError
+
+    notice, bundle, service = setup(engine, monkeypatch, policy_name='analysis-policy-luna-demo-v1.json')
+    with Session(engine) as session:
+        with pytest.raises(InputVersionError) as error:
+            preview(service, session, notice, bundle, True)
+        assert error.value.code == 'service_unavailable'
+        session.rollback()
+        assert session.scalar(select(DeepReviewPreview)) is None
+        with pytest.raises((DeepReviewServiceError, InputVersionError)) as error:
+            service.create_review(session, notice, bundle, 'tester', uuid4())
+        assert error.value.code in {'preview_required', 'service_unavailable'}
+        session.rollback()
+        assert session.scalar(select(DeepReview)) is None
+        assert session.scalar(select(WorkJob).where(WorkJob.job_type == 'deep_review')) is None
+    assert not service.client.calls
+
+
+def test_legacy_worker_refuses_a_review_pinned_to_the_company_demo_policy(engine, monkeypatch):
+    """A NULL-lineage review pinned to the company-only policy fails before any model call."""
+    from sqlalchemy import update
+    from app.deep_review.services.input_versions import DEMO_LUNA_POLICY_FILE
+
+    notice, bundle, service = setup(engine, monkeypatch, policy_name='analysis-policy-luna-v4.json')
+    with Session(engine) as session:
+        demo = import_policy_version(session, DEMO_LUNA_POLICY_FILE)
+        session.commit()
+        pre = preview(service, session, notice, bundle, True)
+        created = service.create_review(session, notice, bundle, 'tester', uuid4(), preview_id=UUID(pre['preview_id']))
+        review_id = UUID(created['id'])
+        # Such a row can no longer be created (the active-policy guard); pin it directly.
+        session.execute(update(DeepReview).where(DeepReview.id == review_id).values(policy_version_id=demo.id))
+        session.commit()
+        claim = service.claim_next_job(session, 'luna-test')
+        assert claim is not None and claim.deep_review_id == review_id
+        with pytest.raises(DeepReviewServiceError) as error:
+            service.run_claim(session, claim)
+        assert error.value.code == 'company_policy_invalid'
+        session.expire_all()
+        assert session.get(WorkJob, claim.job_id).last_error_code == 'company_policy_invalid'
+        assert service.view(session, review_id)['status'] == 'failed'
+        assert session.scalar(select(ReportRevision)) is None
+    assert not service.client.calls

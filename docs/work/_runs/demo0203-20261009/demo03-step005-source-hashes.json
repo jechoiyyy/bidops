@@ -1,0 +1,23 @@
+{
+  "step": "DEMO-03 STEP-005",
+  "algorithm": "sha256",
+  "files": {
+    "created": {
+      "web/backend/app/deep_review/routers/company_reads.py": "48fd7abf746fe1384426d7c21c45d71f8937ee06eab57961a8ba280c6311b6ca",
+      "web/backend/app/deep_review/services/company_projection.py": "f144f84af75a5a32ffb8ed971465652c9b9725dbf5863029aae36b1726e66b20",
+      "web/backend/app/lifecycle/services/company_notices.py": "281c31c51d78da03f291aca15a25fbf76bedfab01b6392b296da93ca9f3200d1",
+      "web/backend/tests/app/test_company_reads.py": "4e60135c451f05a927059da0f114a1f6b325ce3a58e65a61c6b9ea7065a500b3"
+    },
+    "modified": {
+      "web/backend/app/deep_review/__init__.py": "b6bb0b22fd2056f324d0ae5cc7f00ec0d645b5d83646d34bf4c926e6882c1ae3",
+      "web/backend/app/deep_review/routers/company_analysis.py": "3d905f63c4694cd9b692462d8694a38b44479be638ae14c674810fdf90d1d1a1",
+      "web/backend/app/deep_review/routers/deep_reviews.py": "ece16edb4072a225ef88e2fe553e675ff6158b22eb5ad5db22bf2b0e985faeb9",
+      "web/backend/app/deep_review/routers/reports.py": "6e7ed94e746bcca8171e2ea5fa1e92f6344439f213993f953ad1f53fcb5b600b",
+      "web/backend/app/deep_review/schemas/company_analysis.py": "1e2ee42b4c397dcf08ec67ad38b27f561ddcabfc38dab96382fec33ef8b8a983",
+      "web/backend/app/lifecycle/__init__.py": "574d9d3ab8bfb588a435b50efa22ca5f9639792132bb4c3bf429ae0c85c0baf2",
+      "web/backend/app/lifecycle/services/opportunity_tracking.py": "57f9e5ec551d966c590329f03b399dbe244445bf76d8088b71a908da155db3a6",
+      "web/backend/app/main.py": "d7352f6366b0ed811eda44d7c4e8156317c4ceb7c0e0a858a6c0442740769dff",
+      "web/backend/tests/app/test_module_selection.py": "06f1e02bf39fb8955fb0a7c5bdc39fa85911cb864cf5a031e8362b3880547fbe"
+    }
+  }
+}

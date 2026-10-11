@@ -1,0 +1,14 @@
+cd web/backend && /tmp/bidops-demo00-verify-venv/bin/python <scratchpad>/run_pg_pytest.py tests/app/test_company_e2e.py tests/app/test_company_deep_review_binding.py tests/app/test_company_analysis.py tests/app/test_company_luna_policy.py tests/app/test_company_reads.py tests/app/test_luna_deep_review.py tests/app/test_deep_reviews.py tests/app/test_narrative_review.py tests/deep_review/test_reports.py tests/deep_review/test_bc_e2e.py tests/deep_review/test_company_fit.py tests/deep_review/test_company_fit_enqueue.py tests/deep_review/test_company_knowledge_retrieval.py tests/app/test_company_knowledge_api.py tests/app/test_company_context.py tests/app/test_company_context_schema.py tests/app/test_deep_review_migrations.py tests/app/test_db_migrations.py tests/app/test_models.py tests/app/test_module_boundaries.py tests/app/test_module_public_surface.py tests/app/test_module_selection.py tests/app/test_runtime_database_privileges.py tests/app/test_module_cli_entrypoints.py tests/app/test_analysis_worker_slots.py -q -rfs -p no:warnings  # disposable postgres:17.11, BIDOPS_PRESPEC_OVERVIEW_ENABLED=false
+........................................................................ [  9%]
+........................................................................ [ 19%]
+........................................................................ [ 29%]
+........................................................................ [ 38%]
+........................................................................ [ 48%]
+........................................................................ [ 58%]
+........................................................................ [ 68%]
+........................................................................ [ 77%]
+........................................................................ [ 87%]
+........................................................................ [ 97%]
+...................                                                      [100%]
+739 passed in 199.18s (0:03:19)
+exit_code=0

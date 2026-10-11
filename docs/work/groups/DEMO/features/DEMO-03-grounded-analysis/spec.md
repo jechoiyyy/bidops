@@ -81,7 +81,9 @@ unknown/null·준비 전·stale·실패·참조 표식을 성공/부적합으로
 | T6 | 현재성/재시도/버전 | 옛 결과 stale·같은 review 새 attempt·새 graph 새 review·current_attempt별 동결 provenance | API |
 | T7 | 목록/비교/provider 부재 | 회사 혼합 없음·missing/null/다른 입력·N+1 없음·queued/completed GET의 provenance/hash가 동결 snapshot 및 최상위 identity와 일치 | 통합 |
 | T8 | 슬롯/승인 없는 외부 전송 | 심층 무승인·hash 불일치 호출 0·동시 슬롯 1·안전 로그·legacy runner가 회사 행을 NULL 입력으로 처리하지 않음 | 통합 |
-| T9 | 대표 1건 실제 Luna 심층 | 별도 미리보기·건별 승인 뒤 completed 3단계·필수 검증·원문 근거 확인; LiteLLM 개요 결과를 합산하지 않음 | 실제 모델/수동 |
+| T9 | 실제 격리 스택 준비와 호출 전 게이트 확인 (2026-10-11 재정의) | 승인 단계별로 0036 migration·3사 import/activate·demo 정책 2건 import·demo flag·codex-runner까지 실제 `bidops-local`에 적용하고, 회사 미리보기가 모델 호출 없이 fail-closed(또는 동결 입력 생성)되는 것을 실제 스택에서 확인; 모델 호출·DB SQL 보정·검사 완화 없음 | 실제 스택/수동 |
+
+> T9 원안 "대표 1건 실제 Luna 심층(별도 미리보기·건별 승인 뒤 completed 3단계·필수 검증·원문 근거 확인)"은 2026-10-11 사용자 결정으로 DEMO-05-demo-acceptance(T-실제 대표 1건×3사)로 이관했다. 사유: 로컬에 문서 준비가 끝난 유일한 공고 179가 기존 findings "요구사항 표의 행별 셀 위치 차이"(inventory 11 vs 본문 50)로 호출 전 fail-closed됐고, 다른 공고 준비는 DEMO-05 prepare 범위다. 기록: `docs/validation-runs/2026-10-10-company-demo/DEMO-03-grounded-analysis/README.md`.
 
 ## 컨벤션 반영 항목
 

@@ -1,0 +1,17 @@
+# DEMO-03 STEP-007 local stack overlay (2026-10-11). Passes the demo flag and
+# the two purpose-specific immutable policy IDs into web and analysis-worker.
+# Values come from env/demo.env (Git 밖). Nothing here starts work, activates a
+# policy or opens a model egress; docker-compose.luna.yml owns codex-runner.
+services:
+  web:
+    environment:
+      BIDOPS_DEMO_ENABLED: ${BIDOPS_DEMO_ENABLED:-false}
+      BIDOPS_DEMO_DEEP_REVIEW_POLICY_VERSION_ID: ${BIDOPS_DEMO_DEEP_REVIEW_POLICY_VERSION_ID:-}
+      BIDOPS_DEMO_COMPANY_FIT_POLICY_VERSION_ID: ${BIDOPS_DEMO_COMPANY_FIT_POLICY_VERSION_ID:-}
+  codex-runner:
+    image: bidops-local:codex-runner-20261011
+  analysis-worker:
+    environment:
+      BIDOPS_DEMO_ENABLED: ${BIDOPS_DEMO_ENABLED:-false}
+      BIDOPS_DEMO_DEEP_REVIEW_POLICY_VERSION_ID: ${BIDOPS_DEMO_DEEP_REVIEW_POLICY_VERSION_ID:-}
+      BIDOPS_DEMO_COMPANY_FIT_POLICY_VERSION_ID: ${BIDOPS_DEMO_COMPANY_FIT_POLICY_VERSION_ID:-}

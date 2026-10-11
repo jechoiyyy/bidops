@@ -936,9 +936,12 @@ class DeepReview(Base):
             postgresql_where=text("company_id IS NULL"),
             sqlite_where=text("company_id IS NULL"),
         ),
+        # DEMO-03: a company review lineage includes the graph version, so a
+        # new graph/profile binding is a new review (demo contract §8).
         Index(
             "uq_deep_review_company_inputs",
             "company_id", "notice_id", "bundle_id", "profile_version_id", "policy_version_id",
+            "graph_version_id",
             unique=True,
             postgresql_where=text("company_id IS NOT NULL"),
             sqlite_where=text("company_id IS NOT NULL"),
@@ -952,6 +955,20 @@ class DeepReview(Base):
             ondelete="RESTRICT",
             name="fk_deep_review_profile_company_scope",
         ),
+        ForeignKeyConstraint(
+            ["graph_version_id", "company_id", "profile_version_id"],
+            [
+                _table("company_knowledge_version.id"),
+                _table("company_knowledge_version.company_id"),
+                _table("company_knowledge_version.profile_version_id"),
+            ],
+            ondelete="RESTRICT",
+            name="fk_deep_review_graph_scope",
+        ),
+        CheckConstraint(
+            "(company_id IS NULL) = (graph_version_id IS NULL)",
+            name="ck_deep_review_graph_scope",
+        ),
         ForeignKeyConstraint(["id", "current_attempt_id"], [_table("deep_review_attempt.deep_review_id"), _table("deep_review_attempt.id")], name="fk_deep_review_current_attempt_scope", use_alter=True),
         CheckConstraint("status IN ('queued','running','completed','failed')", name="ck_deep_review_status"),
     )
@@ -964,6 +981,8 @@ class DeepReview(Base):
     bundle_id: Mapped[uuid_module.UUID] = mapped_column(_fk("document_bundle.id"), nullable=False)
     profile_version_id: Mapped[uuid_module.UUID] = mapped_column(_fk("profile_version.id"), nullable=False)
     policy_version_id: Mapped[uuid_module.UUID] = mapped_column(_fk("analysis_policy_version.id"), nullable=False)
+    #: DEMO-03 company knowledge graph of a company review; NULL for legacy rows.
+    graph_version_id: Mapped[uuid_module.UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
     effective_grade_at_start: Mapped[str] = mapped_column(String(32), nullable=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False)
     current_attempt_id: Mapped[uuid_module.UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
@@ -977,7 +996,10 @@ class DeepReview(Base):
 def _immutable_company_scope(
     _mapper: Any, _connection: Any, target: ProfileVersion | DeepReview
 ) -> None:
-    if sa_inspect(target).attrs.company_id.history.has_changes():
+    attrs = sa_inspect(target).attrs
+    if attrs.company_id.history.has_changes():
+        raise ValueError("company scope is immutable")
+    if isinstance(target, DeepReview) and attrs.graph_version_id.history.has_changes():
         raise ValueError("company scope is immutable")
 
 
@@ -1230,6 +1252,10 @@ DOCUMENT_SEGMENT_TABLES = (
     "document_segment",
     "requirement_inventory_item",
 )
+
+
+# 0036 adds the purpose-specific company-fit policy table (DEMO-03).
+COMPANY_ANALYSIS_TABLES = ("company_fit_policy_version",)
 
 
 COMPANY_KNOWLEDGE_TABLES = (
@@ -2129,8 +2155,57 @@ class PrespecOverviewRun(Base):
     completed_at: Mapped[datetime | None] = mapped_column(AwareDateTime(), nullable=True)
 
 
+class CompanyFitPolicyVersion(Base):
+    """Immutable ``bidops.company-fit-policy.v2`` payload (DEMO-03, contract §9).
+
+    Import never activates a row: the company path selects one only through
+    ``BIDOPS_DEMO_COMPANY_FIT_POLICY_VERSION_ID``.
+    """
+
+    __tablename__ = "company_fit_policy_version"
+    __table_args__ = (
+        UniqueConstraint("sha256", name="uq_company_fit_policy_version_sha256"),
+        CheckConstraint(
+            dual("length(sha256) = 64 AND sha256 NOT GLOB '*[^0-9a-f]*'"),
+            name="ck_company_fit_policy_version_sha256",
+        ),
+        CheckConstraint(
+            DualSQL(
+                "json_valid(payload) AND json_type(payload) = 'object'",
+                "jsonb_typeof(payload) = 'object'",
+            ),
+            name="ck_company_fit_policy_version_payload",
+        ),
+    )
+
+    id: Mapped[uuid_module.UUID] = _uuid_column(primary_key=True)
+    sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    payload: Mapped[Any] = mapped_column(JSONB_COMPAT, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        AwareDateTime(), default=utc_now, server_default=text("CURRENT_TIMESTAMP"), nullable=False
+    )
+
+
+def _reject_company_fit_policy_mutation(*_args: Any) -> None:
+    raise ValueError("company fit policy versions are append-only")
+
+
+event.listen(CompanyFitPolicyVersion, "before_update", _reject_company_fit_policy_mutation)
+event.listen(CompanyFitPolicyVersion, "before_delete", _reject_company_fit_policy_mutation)
+
+
+_FIT_HEX = "length({0}) = 64 AND {0} NOT GLOB '*[^0-9a-f]*'"
+
+
 class PreSpecCompanyFitAttempt(Base):
-    """Frozen inputs and a fenced lifecycle; terminal attempts are immutable."""
+    """Frozen inputs and a fenced lifecycle; terminal attempts are immutable.
+
+    ``company_id IS NULL`` rows are the legacy single-company lineage
+    (analysis policy FK, required 64-hex model revision).  Company rows
+    (DEMO-03) pin the company-fit policy, the active graph/profile binding and
+    the frozen provenance snapshot; their ``model_revision`` is the policy's
+    declared revision, or NULL when none is declared (never a guessed value).
+    """
     __tablename__ = "prespec_company_fit_attempt"
     __table_args__ = (
         UniqueConstraint("input_sha256", name="uq_prespec_company_fit_input"),
@@ -2144,12 +2219,42 @@ class PreSpecCompanyFitAttempt(Base):
             ondelete="RESTRICT",
             name="fk_prespec_company_fit_profile_company_scope",
         ),
+        ForeignKeyConstraint(
+            ["graph_version_id", "company_id", "profile_version_id"],
+            [
+                _table("company_knowledge_version.id"),
+                _table("company_knowledge_version.company_id"),
+                _table("company_knowledge_version.profile_version_id"),
+            ],
+            ondelete="RESTRICT",
+            name="fk_prespec_company_fit_graph_scope",
+        ),
+        CheckConstraint(
+            "(company_id IS NULL AND deep_policy_version_id IS NOT NULL AND company_fit_policy_version_id IS NULL) "
+            "OR (company_id IS NOT NULL AND deep_policy_version_id IS NULL AND company_fit_policy_version_id IS NOT NULL)",
+            name="ck_prespec_company_fit_policy_scope",
+        ),
+        CheckConstraint(
+            "(company_id IS NULL) = (graph_version_id IS NULL)",
+            name="ck_prespec_company_fit_graph_scope",
+        ),
+        CheckConstraint(
+            "company_id IS NULL OR provenance_jsonb IS NOT NULL",
+            name="ck_prespec_company_fit_provenance",
+        ),
         CheckConstraint("status IN ('queued','running','completed','failed','needs_human_review')", name="ck_prespec_company_fit_status"),
         CheckConstraint("quality_status IN ('unmeasured_reference','mock_reference')", name="ck_prespec_company_fit_quality"),
         CheckConstraint("(status = 'completed' AND result_jsonb IS NOT NULL AND result_sha256 IS NOT NULL) OR (status <> 'completed' AND result_jsonb IS NULL AND result_sha256 IS NULL)", name="ck_prespec_company_fit_result"),
         CheckConstraint("(status IN ('queued','running') AND completed_at IS NULL) OR (status IN ('completed','failed','needs_human_review') AND completed_at IS NOT NULL)", name="ck_prespec_company_fit_completion"),
         CheckConstraint("(status = 'running' AND lease_owner IS NOT NULL AND lease_expires_at IS NOT NULL) OR (status <> 'running' AND lease_owner IS NULL AND lease_expires_at IS NULL)", name="ck_prespec_company_fit_lease"),
-        CheckConstraint(dual(" AND ".join(f"length({field}) = 64 AND {field} NOT GLOB '*[^0-9a-f]*'" for field in ("input_sha256", "policy_digest", "model_revision"))), name="ck_prespec_company_fit_hashes"),
+        CheckConstraint(
+            dual(
+                f"{_FIT_HEX.format('input_sha256')} AND {_FIT_HEX.format('policy_digest')} AND "
+                f"((company_id IS NULL AND model_revision IS NOT NULL AND {_FIT_HEX.format('model_revision')}) "
+                f"OR (company_id IS NOT NULL AND (model_revision IS NULL OR ({_FIT_HEX.format('model_revision')}))))"
+            ),
+            name="ck_prespec_company_fit_hashes",
+        ),
     )
     id: Mapped[uuid_module.UUID] = _uuid_column(primary_key=True)
     company_id: Mapped[uuid_module.UUID | None] = mapped_column(
@@ -2159,12 +2264,21 @@ class PreSpecCompanyFitAttempt(Base):
     document_version_id: Mapped[uuid_module.UUID] = mapped_column(nullable=False)
     overview_run_id: Mapped[uuid_module.UUID | None] = mapped_column(_fk("prespec_overview_run.id", ondelete="RESTRICT"), nullable=True)
     profile_version_id: Mapped[uuid_module.UUID] = mapped_column(_fk("profile_version.id", ondelete="RESTRICT"), nullable=False)
-    deep_policy_version_id: Mapped[uuid_module.UUID] = mapped_column(_fk("analysis_policy_version.id", ondelete="RESTRICT"), nullable=False)
+    #: Legacy (company_id IS NULL) rows only; see ``ck_prespec_company_fit_policy_scope``.
+    deep_policy_version_id: Mapped[uuid_module.UUID | None] = mapped_column(_fk("analysis_policy_version.id", ondelete="RESTRICT"), nullable=True)
+    #: Company rows only: the purpose-specific immutable fit policy.
+    company_fit_policy_version_id: Mapped[uuid_module.UUID | None] = mapped_column(
+        _fk("company_fit_policy_version.id", ondelete="RESTRICT"), nullable=True
+    )
+    #: Company rows only: graph version of the active binding at enqueue.
+    graph_version_id: Mapped[uuid_module.UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
     input_jsonb: Mapped[Any] = mapped_column(JSONB_COMPAT, nullable=False)
     input_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    #: Company rows only: FrozenProvenance snapshot written at enqueue (contract §10).
+    provenance_jsonb: Mapped[Any] = mapped_column(JSONB_NULL_COMPAT, nullable=True)
     policy_digest: Mapped[str] = mapped_column(String(64), nullable=False)
     model_name: Mapped[str] = mapped_column(String(255), nullable=False)
-    model_revision: Mapped[str] = mapped_column(String(64), nullable=False)
+    model_revision: Mapped[str | None] = mapped_column(String(64), nullable=True)
     quality_status: Mapped[str] = mapped_column(String(32), nullable=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="queued")
     result_jsonb: Mapped[Any] = mapped_column(JSONB_NULL_COMPAT, nullable=True)
@@ -2204,7 +2318,27 @@ class DeepReviewPreview(Base):
         ForeignKeyConstraint(["bundle_id"], [_table("document_bundle.id")], ondelete="RESTRICT"),
         ForeignKeyConstraint(["profile_version_id"], [_table("profile_version.id")], ondelete="RESTRICT"),
         ForeignKeyConstraint(["policy_version_id"], [_table("analysis_policy_version.id")], ondelete="RESTRICT"),
+        ForeignKeyConstraint(["company_id"], [_table("company.id")], ondelete="RESTRICT",
+                             name="fk_deep_review_preview_company"),
+        ForeignKeyConstraint(
+            ["graph_version_id", "company_id", "profile_version_id"],
+            [
+                _table("company_knowledge_version.id"),
+                _table("company_knowledge_version.company_id"),
+                _table("company_knowledge_version.profile_version_id"),
+            ],
+            ondelete="RESTRICT",
+            name="fk_deep_review_preview_graph_scope",
+        ),
         CheckConstraint("length(input_sha256) = 64", name="ck_deep_review_preview_hash"),
+        CheckConstraint(
+            "(company_id IS NULL) = (graph_version_id IS NULL)",
+            name="ck_deep_review_preview_graph_scope",
+        ),
+        CheckConstraint(
+            "company_id IS NULL OR provenance_jsonb IS NOT NULL",
+            name="ck_deep_review_preview_provenance",
+        ),
     )
     id: Mapped[uuid_module.UUID] = _uuid_column(primary_key=True)
     notice_id: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -2214,6 +2348,11 @@ class DeepReviewPreview(Base):
     input_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
     input_snapshot: Mapped[dict[str, Any]] = mapped_column(JSONB_COMPAT, nullable=False)
     created_at: Mapped[datetime] = mapped_column(AwareDateTime(), default=utc_now, nullable=False)
+    #: DEMO-03 company preview scope; NULL keeps the existing Luna path unchanged.
+    company_id: Mapped[uuid_module.UUID | None] = mapped_column(Uuid, nullable=True)
+    graph_version_id: Mapped[uuid_module.UUID | None] = mapped_column(Uuid, nullable=True)
+    #: FrozenProvenance of a company preview (contract §10); required for company rows.
+    provenance_jsonb: Mapped[Any] = mapped_column(JSONB_NULL_COMPAT, nullable=True)
 
 
 class DeepReviewApproval(Base):
@@ -2223,6 +2362,8 @@ class DeepReviewApproval(Base):
         ForeignKeyConstraint(["attempt_id"], [_table("deep_review_attempt.id")], ondelete="RESTRICT"),
         UniqueConstraint("preview_id", name="uq_deep_review_approval_preview"),
         UniqueConstraint("attempt_id", name="uq_deep_review_approval_attempt"),
+        ForeignKeyConstraint(["company_id"], [_table("company.id")], ondelete="RESTRICT",
+                             name="fk_deep_review_approval_company"),
     )
     id: Mapped[uuid_module.UUID] = _uuid_column(primary_key=True)
     preview_id: Mapped[uuid_module.UUID] = mapped_column(Uuid, nullable=False)
@@ -2230,6 +2371,8 @@ class DeepReviewApproval(Base):
     claimed_name: Mapped[str] = mapped_column(String(128), nullable=False)
     request_id: Mapped[uuid_module.UUID] = mapped_column(Uuid, nullable=False)
     approved_at: Mapped[datetime] = mapped_column(AwareDateTime(), default=utc_now, nullable=False)
+    #: DEMO-03 company approval scope; must equal the preview's company (service invariant).
+    company_id: Mapped[uuid_module.UUID | None] = mapped_column(Uuid, nullable=True)
 
 
 @event.listens_for(DeepReviewPreview, "before_update")

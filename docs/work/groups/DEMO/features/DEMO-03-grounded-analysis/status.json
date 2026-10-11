@@ -1,23 +1,24 @@
 {
   "schema_version": 2,
   "feature": "DEMO-03-grounded-analysis",
-  "phase": "review",
+  "phase": "validating",
   "steps": [
     {
       "id": "STEP-001",
       "title": "그래프 검색과 coverage",
       "model": "complex",
       "fingerprint": "4008abc587549ef07faded580128787200fdaf5cc28e90b948419d9b20b95d4f",
-      "status": "pending",
-      "updated_at": null
+      "status": "done",
+      "updated_at": "2026-10-10T16:56:13+09:00",
+      "note": "순수 retrieval 모듈+T1 90건. 리더 153pass/skip7(기존PG)/exit0 demo03-step001-leader.log, hash 일치. 우려: fixture 어휘로 실제 원문 대부분 unmapped 가능(DEMO-05 별칭), 필수사실 예산초과 fail-closed, 전체 graph version 필요"
     },
     {
       "id": "STEP-002",
       "title": "회사 핏 요청과 실행",
       "model": "complex",
       "fingerprint": "5eba419e6bce6d35200b0296e878964fdb0f0e9298537b168a1d204a64017e27",
-      "status": "stale",
-      "updated_at": null,
+      "status": "done",
+      "updated_at": "2026-10-10T18:20:29+09:00",
       "history": [
         {
           "id": "STEP-002",
@@ -45,15 +46,16 @@
             }
           ]
         }
-      ]
+      ],
+      "note": "구현자 DONE_WITH_CONCERNS; 리더 재실행 515 passed/1 failed(DEMO-02 잔존 head 고정 단언, 리더가 체인 head 검사로 교체 후 12 passed) PG 포함 exit0; hash 30개 중 리더 수정 1개 외 일치; 결정: model_revision CHECK 완화·profile_characters 12000·worker가 company_knowledge_source SELECT; 상세 _runs/demo0203-20261009/demo03-step002-result.md"
     },
     {
       "id": "STEP-003",
       "title": "Luna 승인과 회사 binding",
       "model": "complex",
       "fingerprint": "155c5c91f9726e08f76012a09e770568736cbae69eb2582b93ac2f1043feb068",
-      "status": "stale",
-      "updated_at": null,
+      "status": "done",
+      "updated_at": "2026-10-10T18:50:21+09:00",
       "history": [
         {
           "id": "STEP-003",
@@ -63,15 +65,16 @@
           "status": "pending",
           "updated_at": null
         }
-      ]
+      ],
+      "note": "구현자 DONE_WITH_CONCERNS; 리더 재실행 625 passed/0 skipped PG 포함 exit0, hash 10개 일치; 결정: version_conflict 409 재사용·설정 gate가 replay보다 앞·claim 분기는 STEP-006; 상세 _runs/demo0203-20261009/demo03-step003-result.md"
     },
     {
       "id": "STEP-004",
       "title": "새 Luna 정책과 근거 참조",
       "model": "complex",
       "fingerprint": "a9fb7b5f4cfee45f939edd6dab76ecdb59695da7308e8de44ccb841da520ac0b",
-      "status": "stale",
-      "updated_at": null,
+      "status": "done",
+      "updated_at": "2026-10-10T19:11:48+09:00",
       "history": [
         {
           "id": "STEP-004",
@@ -81,15 +84,16 @@
           "status": "pending",
           "updated_at": null
         }
-      ]
+      ],
+      "note": "구현자 DONE_WITH_CONCERNS; 리더 재실행 542 passed/0 skipped PG exit0, hash 6개·정책 sha 일치, v4 diff 직접 확인; 결정: profile_characters 8000, global_path_index는 sanitizer로 모델 미노출(provenance 전용) 수용, 경로 밖 선택 사실 누락은 STEP-006 필수 수정; 상세 _runs/demo0203-20261009/demo03-step004-result.md"
     },
     {
       "id": "STEP-005",
       "title": "회사별 읽기와 비교",
       "model": "complex",
       "fingerprint": "d294812aa1f1fde04f2b859e05b4a51ccdf05d5f72541fff545df254496fef44",
-      "status": "pending",
-      "updated_at": "2026-10-06T08:30:17+09:00",
+      "status": "done",
+      "updated_at": "2026-10-10T19:38:04+09:00",
       "history": [
         {
           "id": "STEP-005",
@@ -100,43 +104,116 @@
           "updated_at": null
         }
       ],
-      "note": "문서 수정 검토 완료; 제품 구현 미착수"
+      "note": "구현자 DONE_WITH_CONCERNS; 리더 재실행 661 passed/0 skipped PG exit0, hash 13개 일치, import 방향 확인; 결정: lifecycle 공개 함수 확장점 수용, 핏 documents 동결 범위 수정·legacy 쓰기 경로 회사 행 차단은 STEP-006; 상세 _runs/demo0203-20261009/demo03-step005-result.md"
     },
     {
       "id": "STEP-006",
       "title": "교차 경로 통합",
       "model": "complex",
       "fingerprint": "87c0e76215e0a3f924ddd656e6af09974c38a0f20453c114399bb05237ea3009",
-      "status": "pending",
-      "updated_at": null
+      "status": "done",
+      "updated_at": "2026-10-10T20:18:58+09:00",
+      "note": "구현자 DONE_WITH_CONCERNS; 리더 재실행 751 passed/0 skipped PG exit0, hash 18개 일치; 결정: 승인 후 bundle 교체는 호출 전 fail-closed 수용, 핏 문서 집합=공고 현재 문서 전체; 상세 _runs/demo0203-20261009/demo03-step006-result.md"
     },
     {
       "id": "STEP-007",
-      "title": "실제 Luna 대표 인수",
+      "title": "실제 격리 스택 준비와 호출 전 게이트 확인",
       "model": "complex",
-      "fingerprint": "9cdfe51aa69d69244df4d193a2c248c2227c1b5ee0aeb1962b7edd7115839f3e",
-      "status": "pending",
-      "updated_at": null
+      "fingerprint": "7cd4ceed5a3fa25e370d9f31dd779d349debae038f5634baedd53479ef51f4e9",
+      "status": "done",
+      "updated_at": "2026-10-11T11:12:06+09:00",
+      "note": "2026-10-11 재정의 범위 완료: 사용자 승인 4회(백업·태그·이미지·0036 / 3사 import / activate / 정책 2건 import / env·스택 교체)로 bidops-local 적용, 공고 179 회사 미리보기 3사 409 company_input_invalid(모델 호출 0, findings inventory 불일치 재현). 원안 T9 실제 Luna 대표 1건은 사용자 결정으로 DEMO-05 이관. 증거 docs/validation-runs/2026-10-10-company-demo/DEMO-03-grounded-analysis/README.md, _runs demo03-step007-*.log",
+      "history": [
+        {
+          "id": "STEP-007",
+          "title": "실제 Luna 대표 인수",
+          "model": "complex",
+          "fingerprint": "9cdfe51aa69d69244df4d193a2c248c2227c1b5ee0aeb1962b7edd7115839f3e",
+          "status": "in_progress",
+          "updated_at": "2026-10-10T20:18:58+09:00",
+          "note": "실제 Luna 대표 1건: 전제 점검·runbook·증거 디렉터리 준비만 수행, 모델 호출·운영 변경은 사용자 직전 확인 대기"
+        }
+      ]
     }
   ],
   "proof": {
     "docs": {
-      "result": "pending"
+      "result": "pass",
+      "method": "review",
+      "note": "독립 리뷰 PASS_WITH_NOTES(차단 0, N2 수정 반영), 정본 4문서 DEMO 절·plan 결과·spec T9 재정의·roadmap/ADR-0070/findings 갱신, doctor exit0, check-plan 일치",
+      "evidence": "docs/work/_runs/demo0203-20261009/demo03-review.md;docs/work/_runs/demo0203-20261009/demo03-final-doctor.log;docs/work/_runs/demo0203-20261009/DEMO-03-grounded-analysis.md",
+      "exit_code": null,
+      "actor": "Claude Code 리더",
+      "command": "python3 scripts/feature_status.py doctor _",
+      "at": "2026-10-11T11:16:33+09:00",
+      "head": "0d980bd2a67ba52ece17b63ff6a9f32272bb6daf",
+      "source_hash": "620e8ccbb5bac59ea44f6c8abd2e17e55fb76936ea379679cd041a98ea943ff6",
+      "spec_hash": "6df3d057c0079b94278f015f09e56d340c6e426a7fd78f0deb4aa2dbed5070a5"
     },
     "tests": {
-      "result": "pending"
+      "result": "pass",
+      "method": "command",
+      "note": "plan 검사 명령 8파일+회사 테스트 8파일, 일회용 PostgreSQL 17.11, 510 passed/0 skipped (2026-10-11 최종 코드)",
+      "evidence": "docs/work/_runs/demo0203-20261009/demo03-final-leader.log",
+      "exit_code": 0,
+      "actor": "Claude Code 리더",
+      "command": "",
+      "at": "2026-10-11T11:16:34+09:00",
+      "head": "0d980bd2a67ba52ece17b63ff6a9f32272bb6daf",
+      "source_hash": "620e8ccbb5bac59ea44f6c8abd2e17e55fb76936ea379679cd041a98ea943ff6",
+      "spec_hash": "6df3d057c0079b94278f015f09e56d340c6e426a7fd78f0deb4aa2dbed5070a5"
     },
     "postgres": {
-      "result": "pending"
+      "result": "pass",
+      "method": "command",
+      "note": "test_db_migrations·test_deep_review_migrations·test_runtime_database_privileges·company_fit_postgres·회사 API PG 변형 통과(510 passed); 실제 bidops-local DB 0033→0036 migration·권한 적용 exit0, alembic current=0036",
+      "evidence": "docs/work/_runs/demo0203-20261009/demo03-final-leader.log;docs/work/_runs/demo0203-20261009/demo03-step007-migrate.log",
+      "exit_code": 0,
+      "actor": "Claude Code 리더",
+      "command": "",
+      "at": "2026-10-11T11:16:34+09:00",
+      "head": "0d980bd2a67ba52ece17b63ff6a9f32272bb6daf",
+      "source_hash": "620e8ccbb5bac59ea44f6c8abd2e17e55fb76936ea379679cd041a98ea943ff6",
+      "spec_hash": "6df3d057c0079b94278f015f09e56d340c6e426a7fd78f0deb4aa2dbed5070a5"
     },
     "frontend": {
-      "result": "pending"
+      "result": "not_applicable",
+      "method": "command",
+      "note": "DEMO-03은 web/frontend를 변경하지 않음(git diff 0d980bd -- web/frontend 비어 있음, 신규 파일 0). 화면은 DEMO-04 소유",
+      "evidence": "docs/work/_runs/demo0203-20261009/DEMO-03-grounded-analysis.md",
+      "exit_code": null,
+      "actor": "Claude Code 리더",
+      "command": "",
+      "at": "2026-10-11T11:16:35+09:00",
+      "head": "0d980bd2a67ba52ece17b63ff6a9f32272bb6daf",
+      "source_hash": "620e8ccbb5bac59ea44f6c8abd2e17e55fb76936ea379679cd041a98ea943ff6",
+      "spec_hash": "6df3d057c0079b94278f015f09e56d340c6e426a7fd78f0deb4aa2dbed5070a5"
     },
     "api_guard": {
-      "result": "pending"
+      "result": "pass",
+      "method": "command",
+      "note": "test_company_analysis·test_company_e2e·test_company_deep_review_binding·test_company_luna_policy·test_company_fit_enqueue(승인·hash·소속·호출 0) 통과; 실제 스택에서 회사 미리보기가 모델 호출 없이 fail-closed 확인",
+      "evidence": "docs/work/_runs/demo0203-20261009/demo03-final-leader.log;docs/validation-runs/2026-10-10-company-demo/DEMO-03-grounded-analysis/README.md",
+      "exit_code": 0,
+      "actor": "Claude Code 리더",
+      "command": "",
+      "at": "2026-10-11T11:16:34+09:00",
+      "head": "0d980bd2a67ba52ece17b63ff6a9f32272bb6daf",
+      "source_hash": "620e8ccbb5bac59ea44f6c8abd2e17e55fb76936ea379679cd041a98ea943ff6",
+      "spec_hash": "6df3d057c0079b94278f015f09e56d340c6e426a7fd78f0deb4aa2dbed5070a5"
     },
     "real_data_run": {
-      "result": "pending"
+      "result": "not_applicable",
+      "method": "manual",
+      "note": "2026-10-11 재계획: 대표 1건 실제 Luna 심층(T9 원안)을 DEMO-05로 이관(feature.json applies_when 갱신). 실제 스택 준비는 완료, 공고 179는 findings inventory 불일치로 호출 전 fail-closed, 모델 호출 0",
+      "evidence": "docs/validation-runs/2026-10-10-company-demo/DEMO-03-grounded-analysis/README.md;docs/work/_runs/demo0203-20261009/demo03-step007-result.md",
+      "exit_code": null,
+      "actor": "사용자 결정(2026-10-11) 기록: Claude Code 리더",
+      "command": "",
+      "at": "2026-10-11T11:16:35+09:00",
+      "head": "0d980bd2a67ba52ece17b63ff6a9f32272bb6daf",
+      "source_hash": "620e8ccbb5bac59ea44f6c8abd2e17e55fb76936ea379679cd041a98ea943ff6",
+      "spec_hash": "6df3d057c0079b94278f015f09e56d340c6e426a7fd78f0deb4aa2dbed5070a5"
     }
   },
   "notes": [
@@ -191,8 +268,122 @@
     {
       "at": "2026-10-09T13:22:56+09:00",
       "text": "재검증: 2026-10-09 사용자 요청에 따른 로컬 실제 자료/LiteLLM 재계획; 기존 증거는 변경 범위와 source hash 대조 후 재사용, 실제 Luna는 DEMO-03/05 필수 게이트 유지"
+    },
+    {
+      "at": "2026-10-10T16:39:02+09:00",
+      "text": "단계 → implementing: 사용자 '이어서 진행'; demo0203 배치 둘째 기능. DEMO-02 배치 통합(0d980bd) 뒤 기능 worktree에서 시작. 데모 브랜치 전용, 실제 Luna 전송은 STEP-007 건별 승인 게이트"
+    },
+    {
+      "at": "2026-10-10T16:40:37+09:00",
+      "text": "단계 STEP-001 in_progress: "
+    },
+    {
+      "at": "2026-10-10T16:56:13+09:00",
+      "text": "단계 STEP-001 done: 순수 retrieval 모듈+T1 90건. 리더 153pass/skip7(기존PG)/exit0 demo03-step001-leader.log, hash 일치. 우려: fixture 어휘로 실제 원문 대부분 unmapped 가능(DEMO-05 별칭), 필수사실 예산초과 fail-closed, 전체 graph version 필요"
+    },
+    {
+      "at": "2026-10-10T16:56:19+09:00",
+      "text": "단계 STEP-002 in_progress: "
+    },
+    {
+      "at": "2026-10-10T18:20:29+09:00",
+      "text": "단계 STEP-002 done: 구현자 DONE_WITH_CONCERNS; 리더 재실행 515 passed/1 failed(DEMO-02 잔존 head 고정 단언, 리더가 체인 head 검사로 교체 후 12 passed) PG 포함 exit0; hash 30개 중 리더 수정 1개 외 일치; 결정: model_revision CHECK 완화·profile_characters 12000·worker가 company_knowledge_source SELECT; 상세 _runs/demo0203-20261009/demo03-step002-result.md"
+    },
+    {
+      "at": "2026-10-10T18:20:29+09:00",
+      "text": "단계 STEP-003 in_progress: Luna 승인과 회사 binding 위임(sdlc:implementer-opus); 회사 POST preview/create/attempts REST는 STEP-003, GET/비교는 STEP-005로 리더 배정"
+    },
+    {
+      "at": "2026-10-10T18:50:21+09:00",
+      "text": "단계 STEP-003 done: 구현자 DONE_WITH_CONCERNS; 리더 재실행 625 passed/0 skipped PG 포함 exit0, hash 10개 일치; 결정: version_conflict 409 재사용·설정 gate가 replay보다 앞·claim 분기는 STEP-006; 상세 _runs/demo0203-20261009/demo03-step003-result.md"
+    },
+    {
+      "at": "2026-10-10T18:50:21+09:00",
+      "text": "단계 STEP-004 in_progress: 새 Luna demo 정책·승인 매핑·회사 slice 빌더·검증 위임(sdlc:implementer-opus); T4 심층 종단은 STEP-006 claim 분기 후 완성"
+    },
+    {
+      "at": "2026-10-10T19:11:48+09:00",
+      "text": "단계 STEP-004 done: 구현자 DONE_WITH_CONCERNS; 리더 재실행 542 passed/0 skipped PG exit0, hash 6개·정책 sha 일치, v4 diff 직접 확인; 결정: profile_characters 8000, global_path_index는 sanitizer로 모델 미노출(provenance 전용) 수용, 경로 밖 선택 사실 누락은 STEP-006 필수 수정; 상세 _runs/demo0203-20261009/demo03-step004-result.md"
+    },
+    {
+      "at": "2026-10-10T19:11:48+09:00",
+      "text": "단계 STEP-005 in_progress: 회사별 읽기·비교·FrozenProvenance GET 위임(sdlc:implementer-opus)"
+    },
+    {
+      "at": "2026-10-10T19:38:04+09:00",
+      "text": "단계 STEP-005 done: 구현자 DONE_WITH_CONCERNS; 리더 재실행 661 passed/0 skipped PG exit0, hash 13개 일치, import 방향 확인; 결정: lifecycle 공개 함수 확장점 수용, 핏 documents 동결 범위 수정·legacy 쓰기 경로 회사 행 차단은 STEP-006; 상세 _runs/demo0203-20261009/demo03-step005-result.md"
+    },
+    {
+      "at": "2026-10-10T19:38:04+09:00",
+      "text": "단계 STEP-006 in_progress: 교차 경로 통합 위임(sdlc:implementer-opus): 공용 슬롯 claim 분기·fake E2E·legacy 분리·STEP-004 slicer 누락·핏 documents 동결 수정"
+    },
+    {
+      "at": "2026-10-10T20:18:58+09:00",
+      "text": "단계 STEP-006 done: 구현자 DONE_WITH_CONCERNS; 리더 재실행 751 passed/0 skipped PG exit0, hash 18개 일치; 결정: 승인 후 bundle 교체는 호출 전 fail-closed 수용, 핏 문서 집합=공고 현재 문서 전체; 상세 _runs/demo0203-20261009/demo03-step006-result.md"
+    },
+    {
+      "at": "2026-10-10T20:18:58+09:00",
+      "text": "단계 STEP-007 in_progress: 실제 Luna 대표 1건: 전제 점검·runbook·증거 디렉터리 준비만 수행, 모델 호출·운영 변경은 사용자 직전 확인 대기"
+    },
+    {
+      "at": "2026-10-10T21:32:53+09:00",
+      "text": "단계 → blocked: STEP-001~006 done·독립 리뷰 PASS_WITH_NOTES(차단 0). STEP-007 대표 1건 실제 Luna 심층은 운영 변경(이미지 재빌드·0036 migration·3사 등록/활성·정책 import·env/demo.env·codex 인증·대표 공고)과 실제 모델 호출 직전 사용자 확인 대기. resume_phase=implementing(STEP-007 in_progress). runbook docs/validation-runs/2026-10-10-company-demo/DEMO-03-grounded-analysis/README.md"
+    },
+    {
+      "at": "2026-10-11T11:10:54+09:00",
+      "text": "plan 작업 ID 동기화"
+    },
+    {
+      "at": "2026-10-11T11:12:06+09:00",
+      "text": "단계 STEP-007 done: 2026-10-11 재정의 범위 완료: 사용자 승인 4회(백업·태그·이미지·0036 / 3사 import / activate / 정책 2건 import / env·스택 교체)로 bidops-local 적용, 공고 179 회사 미리보기 3사 409 company_input_invalid(모델 호출 0, findings inventory 불일치 재현). 원안 T9 실제 Luna 대표 1건은 사용자 결정으로 DEMO-05 이관. 증거 docs/validation-runs/2026-10-10-company-demo/DEMO-03-grounded-analysis/README.md, _runs demo03-step007-*.log"
+    },
+    {
+      "at": "2026-10-11T11:17:01+09:00",
+      "text": "단계 → implementing: blocked 해소: 사용자 단계별 승인으로 STEP-007 실제 스택 준비 수행, 2026-10-11 재계획(T9 DEMO-05 이관) 반영 후 복귀"
+    },
+    {
+      "at": "2026-10-11T11:17:01+09:00",
+      "text": "단계 → validating: STEP-001~007 done, proofs 기록(docs/tests/postgres/api_guard pass, frontend·real_data_run N/A). 커밋 대기(commit_policy=manual)"
     }
   ],
-  "updated_at": "2026-10-09T13:22:56+09:00",
-  "resume_phase": "drafting"
+  "updated_at": "2026-10-11T11:17:01+09:00",
+  "resume_phase": "implementing",
+  "proof_history": [
+    {
+      "key": "docs",
+      "previous": {
+        "result": "pending"
+      }
+    },
+    {
+      "key": "tests",
+      "previous": {
+        "result": "pending"
+      }
+    },
+    {
+      "key": "postgres",
+      "previous": {
+        "result": "pending"
+      }
+    },
+    {
+      "key": "api_guard",
+      "previous": {
+        "result": "pending"
+      }
+    },
+    {
+      "key": "frontend",
+      "previous": {
+        "result": "pending"
+      }
+    },
+    {
+      "key": "real_data_run",
+      "previous": {
+        "result": "pending"
+      }
+    }
+  ]
 }

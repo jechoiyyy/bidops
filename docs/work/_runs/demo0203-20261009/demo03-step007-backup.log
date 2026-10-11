@@ -1,0 +1,11 @@
+ Image postgres:17.11@sha256:051f7b7b3abdd564d5d1bd1e8c4b9c1b6e77087d1dd22020ede611c096a272e0 Pulling 
+ Image postgres:17.11@sha256:051f7b7b3abdd564d5d1bd1e8c4b9c1b6e77087d1dd22020ede611c096a272e0 Pulled 
+ Container bidops-local-postgres-1 Running 
+ Image postgres:17.11@sha256:051f7b7b3abdd564d5d1bd1e8c4b9c1b6e77087d1dd22020ede611c096a272e0 Pulling 
+ Image postgres:17.11@sha256:051f7b7b3abdd564d5d1bd1e8c4b9c1b6e77087d1dd22020ede611c096a272e0 Pulled 
+ Container bidops-local-postgres-1 Waiting 
+ Container bidops-local-postgres-1 Healthy 
+ Container bidops-local-ro-backup-run-2064a0cb8377 Creating 
+ Container bidops-local-ro-backup-run-2064a0cb8377 Created 
+Full backup written to a worktree-scoped external backup directory. Configure pg_receivewal/WAL archiving for the 4-hour RPO; this script never deletes backups.
+exit=0

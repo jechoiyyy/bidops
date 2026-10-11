@@ -47,7 +47,8 @@ def preview(service, session, notice_id, bundle_id, verification, review_id=None
         raise DeepReviewServiceError("not_found", "공고를 찾을 수 없습니다", status_code=404)
     if review_id:
         review = session.get(DeepReview, review_id)
-        if review is None or review.notice_id != notice_id or review.bundle_id != bundle_id:
+        # Company reviews (DEMO-03) are retried only through the company path.
+        if review is None or review.company_id is not None or review.notice_id != notice_id or review.bundle_id != bundle_id:
             raise DeepReviewServiceError("not_found", "검토를 찾을 수 없습니다", status_code=404)
         profile = session.get(ProfileVersion, review.profile_version_id)
         policy = session.get(AnalysisPolicyVersion, review.policy_version_id)
@@ -73,6 +74,10 @@ def check(service, session, preview_id, notice, bundle_id, profile, policy, veri
     row = session.get(DeepReviewPreview, preview_id) if preview_id else None
     if row is None:
         raise DeepReviewServiceError("preview_required", "전송 미리보기를 확인하십시오", status_code=409)
+    if row.company_id is not None:
+        # A company preview freezes a CompanyAnalysisInput; it is approved only
+        # through the company path (demo contract §9).
+        raise DeepReviewServiceError("preview_changed", "입력이 변경되었습니다. 전송 미리보기를 다시 확인하십시오", status_code=409)
     current = snapshot(service, session, notice, bundle_id, profile, policy, verification)
     if (row.notice_id != notice.id or row.bundle_id != bundle_id or row.profile_version_id != profile.id
             or row.policy_version_id != policy.id or row.input_sha256 != canonical_json_hash(current)
@@ -84,19 +89,74 @@ def check(service, session, preview_id, notice, bundle_id, profile, policy, veri
 
 
 def approve(session, row, attempt_id, actor, request_id):
-    session.add(DeepReviewApproval(preview_id=row.id, attempt_id=attempt_id, claimed_name=actor, request_id=request_id))
+    # The approval carries the preview's company scope (NULL on the legacy
+    # path, unchanged); company ids are added to the audit only when set.
+    session.add(DeepReviewApproval(preview_id=row.id, attempt_id=attempt_id, claimed_name=actor, request_id=request_id,
+                                   company_id=row.company_id))
+    company = ({"company_id": str(row.company_id), "graph_version_id": str(row.graph_version_id)}
+               if row.company_id is not None else {})
     session.add(AuditEvent(actor_kind="human", claimed_name=actor, action="deep_review.external_transfer_approved",
                            aggregate_type="deep_review_attempt", aggregate_id=str(attempt_id), request_id=str(request_id),
                            safe_metadata={"preview_id": str(row.id), "input_sha256": row.input_sha256,
-                                          "provider": "codex-exec", "model": "gpt-5.6-luna", "reasoning_effort": "xhigh"}))
+                                          "provider": "codex-exec", "model": "gpt-5.6-luna", "reasoning_effort": "xhigh",
+                                          **company}))
     session.flush()
 
 
 def approved_input(session, attempt_id, review):
     approval = session.scalar(select(DeepReviewApproval).where(DeepReviewApproval.attempt_id == attempt_id))
     row = session.get(DeepReviewPreview, approval.preview_id) if approval else None
-    if (row is None or row.notice_id != review.notice_id or row.bundle_id != review.bundle_id
+    # Legacy (NULL) lineage only; company attempts use approved_company_input.
+    if (row is None or review.company_id is not None or row.company_id is not None or approval.company_id is not None
+            or row.notice_id != review.notice_id or row.bundle_id != review.bundle_id
             or row.profile_version_id != review.profile_version_id or row.policy_version_id != review.policy_version_id
             or canonical_json_hash(row.input_snapshot) != row.input_sha256):
         raise InputVersionError("approval_invalid", "승인된 동결 입력을 확인할 수 없습니다")
     return deepcopy(row.input_snapshot)
+
+
+def approved_company_input(session, attempt_id, review):
+    """Worker-side ``approval_invalid`` check of a company attempt (demo contract §9).
+
+    Returns a copy of the approved preview's frozen CompanyAnalysisInput only
+    when the approval exists for this attempt, the approval/preview/review
+    company ids agree, the preview lineage (notice/bundle/profile/graph/policy)
+    is the review's, the stored hash matches the frozen input and its
+    FrozenProvenance, and the input is bound to that preview (nonce) and to
+    this review (``target_review_id``: none for the first attempt, the review
+    for a retry).  The input is never rebuilt here.
+    """
+
+    from ..models import DeepReviewAttempt
+
+    approval = session.scalar(select(DeepReviewApproval).where(DeepReviewApproval.attempt_id == attempt_id))
+    row = session.get(DeepReviewPreview, approval.preview_id) if approval else None
+    attempt = session.get(DeepReviewAttempt, attempt_id)
+    frozen = row.input_snapshot if row is not None and isinstance(row.input_snapshot, dict) else None
+    provenance = row.provenance_jsonb if row is not None and isinstance(row.provenance_jsonb, dict) else None
+    try:
+        digest = canonical_json_hash(frozen) if frozen is not None else None
+    except (TypeError, ValueError):
+        digest = None
+    expected_target = None if attempt is None or attempt.sequence == 1 else str(review.id)
+    if (
+        row is None or attempt is None or frozen is None or provenance is None
+        or review.company_id is None or review.graph_version_id is None
+        or attempt.deep_review_id != review.id
+        or approval.company_id != review.company_id or row.company_id != review.company_id
+        or row.notice_id != review.notice_id or row.bundle_id != review.bundle_id
+        or row.profile_version_id != review.profile_version_id
+        or row.policy_version_id != review.policy_version_id
+        or row.graph_version_id != review.graph_version_id
+        or digest != row.input_sha256 or provenance.get("input_sha256") != row.input_sha256
+        or frozen.get("purpose") != "deep_review" or frozen.get("execution_nonce") != str(row.id)
+        or frozen.get("target_review_id") != expected_target
+        or frozen.get("company_id") != str(review.company_id)
+        or frozen.get("notice_id") != review.notice_id
+        or frozen.get("bundle_id") != str(review.bundle_id)
+        or frozen.get("profile_version_id") != str(review.profile_version_id)
+        or frozen.get("graph_version_id") != str(review.graph_version_id)
+        or frozen.get("policy_version_id") != str(review.policy_version_id)
+    ):
+        raise InputVersionError("approval_invalid", "승인된 동결 입력을 확인할 수 없습니다")
+    return deepcopy(frozen)

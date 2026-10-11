@@ -1,0 +1,11 @@
+........................................................................ [ 45%]
+.............................................................sssssss.... [ 90%]
+................                                                         [100%]
+=========================== short test summary info ============================
+SKIPPED [2] tests/app/test_narrative_review.py:310: BIDOPS_TEST_POSTGRES_URL is not set; PostgreSQL migration and constraint tests need a disposable PostgreSQL 17 server
+SKIPPED [1] tests/app/test_narrative_review.py:320: BIDOPS_TEST_POSTGRES_URL is not set; PostgreSQL migration and constraint tests need a disposable PostgreSQL 17 server
+SKIPPED [1] tests/app/test_narrative_review.py:326: BIDOPS_TEST_POSTGRES_URL is not set; PostgreSQL migration and constraint tests need a disposable PostgreSQL 17 server
+SKIPPED [1] tests/app/test_narrative_review.py:332: BIDOPS_TEST_POSTGRES_URL is not set; PostgreSQL migration and constraint tests need a disposable PostgreSQL 17 server
+SKIPPED [2] tests/app/test_narrative_review.py:338: BIDOPS_TEST_POSTGRES_URL is not set; PostgreSQL migration and constraint tests need a disposable PostgreSQL 17 server
+153 passed, 7 skipped in 5.56s
+exit_code=0

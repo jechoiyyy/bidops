@@ -1,0 +1,20 @@
+{
+  "step": "DEMO-03 STEP-003",
+  "algorithm": "sha256",
+  "files": {
+    "created": {
+      "web/backend/app/deep_review/routers/company_analysis.py": "f336fd741ab2f7cbfb99f1f0de8f1de1e9b41ccecdbc35fc94c07f7d9b708c7b",
+      "web/backend/app/deep_review/schemas/company_analysis.py": "b13cffb20ae844b7e55e2bfdf2ce785f25a10016551921d575d576b20e39a08d",
+      "web/backend/app/deep_review/services/company_deep_review.py": "d4eda085e7c9e01e5d065e8ecc3d4bf1a838f4882903aebe1cb2ee8f00c839a6",
+      "web/backend/tests/app/test_company_deep_review_binding.py": "9070c269458c047fe76c9038f847a44a721e3547ec1fd02ef9913dd648075d48"
+    },
+    "modified": {
+      "web/backend/app/deep_review/__init__.py": "021da209bec58ccbf4f3336a83a745e6c3fb8be6a8c0223dc9ac9513b0a4802b",
+      "web/backend/app/deep_review/services/company_fit.py": "e66c9655c06530d199e96e4fdd009a2c102fd743fe4d85e6a94136717d237ac0",
+      "web/backend/app/deep_review/services/deep_reviews.py": "6ed236fbcf0a0d0670766515d97dbadf1c4c9fe06f6b61758878c5f602242345",
+      "web/backend/app/deep_review/services/luna_inputs.py": "088f0aed98685e1e295aecb5ebae3afbd817c5d6a99b0a0ff0204eb296638b00",
+      "web/backend/app/main.py": "e500bb5876ae36fb1f62009cf18a9dfb4090f69d583d12d98722eb7463b902ce",
+      "web/backend/tests/app/test_module_selection.py": "c3ffc49afccac98e66af02e8f35b5e7169c266bd45f5187ec20a9a767959efd6"
+    }
+  }
+}

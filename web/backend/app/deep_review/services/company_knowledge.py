@@ -939,6 +939,112 @@ def _bounded_component(
     return distances
 
 
+def _nodes_by_id(resolved: _ResolvedKnowledge) -> dict[str, Mapping[str, Any]]:
+    nodes_by_id: dict[str, Mapping[str, Any]] = {}
+    for node in resolved.nodes:
+        node_id = node.get("id") if isinstance(node, Mapping) else None
+        if not isinstance(node_id, str) or node_id in nodes_by_id:
+            raise _read_failed()
+        nodes_by_id[node_id] = node
+    return nodes_by_id
+
+
+def _edges(resolved: _ResolvedKnowledge) -> list[Mapping[str, Any]]:
+    edges = [edge for edge in resolved.edges if isinstance(edge, Mapping)]
+    if len(edges) != len(resolved.edges):
+        raise _read_failed()
+    return edges
+
+
+def _facts_by_ref(nodes_by_id: Mapping[str, Mapping[str, Any]]) -> dict[tuple[str, str], list[str]]:
+    facts_by_ref: dict[tuple[str, str], list[str]] = {}
+    for node_id in sorted(nodes_by_id):
+        node = nodes_by_id[node_id]
+        if node.get("type") == "evidence" or node.get("status") == "unknown":
+            continue
+        refs = node.get("source_refs")
+        if not isinstance(refs, list) or len(refs) != 1:
+            raise _read_failed()
+        facts_by_ref.setdefault(_source_ref_key(refs[0]), []).append(node_id)
+    return facts_by_ref
+
+
+def _public_node(
+    resolved: _ResolvedKnowledge,
+    node_id: str,
+    node: Mapping[str, Any],
+    facts_by_ref: Mapping[tuple[str, str], list[str]],
+) -> PublicKnowledgeNode:
+    if node.get("type") == "evidence":
+        evidence_ids = _reused_evidence_ids(node, facts_by_ref=facts_by_ref, resolved=resolved)
+    else:
+        evidence_ids = _fact_evidence_ids(resolved, node_id, node.get("status"))
+    return PublicKnowledgeNode(
+        id=node_id,
+        type=node.get("type"),
+        label=node.get("label"),
+        concept_id=node.get("concept_id"),
+        status=node.get("status"),
+        origin=node.get("origin"),
+        value=node.get("value"),
+        evidence_ids=evidence_ids,
+    )
+
+
+def _public_edge(
+    resolved: _ResolvedKnowledge,
+    edge: Mapping[str, Any],
+    facts_by_ref: Mapping[tuple[str, str], list[str]],
+) -> PublicKnowledgeEdge:
+    return PublicKnowledgeEdge(
+        id=edge.get("id"),
+        type=edge.get("type"),
+        from_id=edge.get("from_id"),
+        to_id=edge.get("to_id"),
+        status=edge.get("status"),
+        origin=edge.get("origin"),
+        evidence_ids=_reused_evidence_ids(edge, facts_by_ref=facts_by_ref, resolved=resolved),
+    )
+
+
+def company_knowledge_public_graph(
+    session: Session,
+    *,
+    company_id: UUID,
+    graph_version_id: UUID,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """The whole, untruncated public graph of one company graph version.
+
+    Analysis input builders (DEMO-03) need every node and edge, never the
+    bounded REST neighbourhood.  Rows are ``PublicKnowledgeNode``/``Edge``
+    JSON (no ``source_refs``), id sorted, with the same evidence mapping as
+    the read API: fact nodes carry their own ProfileEvidence id (none when
+    unknown); evidence nodes and relations carry the evidence ids of the
+    non-unknown facts whose source ref they reuse.  Lineage problems raise
+    ``CompanyKnowledgeServiceError("processing_failed")``; a graph of another
+    company raises ``not_found``.
+    """
+
+    resolved = _resolve_company_knowledge(
+        session, company_id=company_id, graph_version_id=graph_version_id
+    )
+    nodes_by_id = _nodes_by_id(resolved)
+    edges = _edges(resolved)
+    for edge in edges:
+        if edge.get("from_id") not in nodes_by_id or edge.get("to_id") not in nodes_by_id:
+            raise _read_failed()
+    facts_by_ref = _facts_by_ref(nodes_by_id)
+    nodes = [
+        _public_node(resolved, node_id, nodes_by_id[node_id], facts_by_ref).model_dump(mode="json")
+        for node_id in sorted(nodes_by_id)
+    ]
+    public_edges = [
+        _public_edge(resolved, edge, facts_by_ref).model_dump(mode="json")
+        for edge in sorted(edges, key=lambda item: str(item.get("id")))
+    ]
+    return nodes, public_edges
+
+
 def company_knowledge_graph_view(
     session: Session,
     *,
@@ -966,15 +1072,8 @@ def company_knowledge_graph_view(
     resolved = _resolve_company_knowledge(
         session, company_id=company_id, graph_version_id=graph_version_id
     )
-    nodes_by_id: dict[str, Mapping[str, Any]] = {}
-    for node in resolved.nodes:
-        node_id = node.get("id") if isinstance(node, Mapping) else None
-        if not isinstance(node_id, str) or node_id in nodes_by_id:
-            raise _read_failed()
-        nodes_by_id[node_id] = node
-    edges = [edge for edge in resolved.edges if isinstance(edge, Mapping)]
-    if len(edges) != len(resolved.edges):
-        raise _read_failed()
+    nodes_by_id = _nodes_by_id(resolved)
+    edges = _edges(resolved)
 
     if root_node_id is None:
         company_nodes = [
@@ -988,54 +1087,19 @@ def company_knowledge_graph_view(
     else:
         raise CompanyKnowledgeServiceError("not_found")
 
-    facts_by_ref: dict[tuple[str, str], list[str]] = {}
-    for node_id in sorted(nodes_by_id):
-        node = nodes_by_id[node_id]
-        if node.get("type") == "evidence" or node.get("status") == "unknown":
-            continue
-        refs = node.get("source_refs")
-        if not isinstance(refs, list) or len(refs) != 1:
-            raise _read_failed()
-        facts_by_ref.setdefault(_source_ref_key(refs[0]), []).append(node_id)
+    facts_by_ref = _facts_by_ref(nodes_by_id)
 
     distances = _bounded_component(set(nodes_by_id), edges, root=root, depth=depth)
     ordered = sorted(distances, key=lambda node_id: (distances[node_id], node_id))
     returned = ordered[:limit]
     returned_set = set(returned)
 
-    public_nodes: list[PublicKnowledgeNode] = []
-    for node_id in returned:
-        node = nodes_by_id[node_id]
-        if node.get("type") == "evidence":
-            evidence_ids = _reused_evidence_ids(
-                node, facts_by_ref=facts_by_ref, resolved=resolved
-            )
-        else:
-            evidence_ids = _fact_evidence_ids(resolved, node_id, node.get("status"))
-        public_nodes.append(
-            PublicKnowledgeNode(
-                id=node_id,
-                type=node.get("type"),
-                label=node.get("label"),
-                concept_id=node.get("concept_id"),
-                status=node.get("status"),
-                origin=node.get("origin"),
-                value=node.get("value"),
-                evidence_ids=evidence_ids,
-            )
-        )
+    public_nodes = [
+        _public_node(resolved, node_id, nodes_by_id[node_id], facts_by_ref)
+        for node_id in returned
+    ]
     public_edges = [
-        PublicKnowledgeEdge(
-            id=edge.get("id"),
-            type=edge.get("type"),
-            from_id=edge.get("from_id"),
-            to_id=edge.get("to_id"),
-            status=edge.get("status"),
-            origin=edge.get("origin"),
-            evidence_ids=_reused_evidence_ids(
-                edge, facts_by_ref=facts_by_ref, resolved=resolved
-            ),
-        )
+        _public_edge(resolved, edge, facts_by_ref)
         for edge in sorted(edges, key=lambda item: str(item.get("id")))
         if edge.get("from_id") in returned_set and edge.get("to_id") in returned_set
     ]
@@ -1096,6 +1160,7 @@ __all__ = [
     "PreparedCompanyKnowledge",
     "activate_company_knowledge",
     "company_knowledge_graph_view",
+    "company_knowledge_public_graph",
     "company_profile_evidence_view",
     "company_profile_view",
     "import_company_knowledge",

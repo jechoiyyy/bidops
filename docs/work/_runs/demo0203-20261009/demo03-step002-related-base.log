@@ -1,0 +1,723 @@
+base commit tree: git archive HEAD (0d980bd) of web/backend + docs/demo-fixtures + scripts; untracked STEP-001 files not included
+command: cd web/backend && BIDOPS_PRESPEC_OVERVIEW_ENABLED=false BIDOPS_TEST_POSTGRES_URL=<fresh disposable postgres:17.11> /tmp/bidops-demo00-verify-venv/bin/python -m pytest tests/app/test_analysis_worker_slots.py tests/app/test_assumption_analysis.py tests/app/test_auto_deep_review_start.py tests/app/test_company_context.py tests/app/test_company_context_schema.py tests/app/test_db_migrations.py tests/app/test_integration_t14.py tests/app/test_narrative_review.py tests/app/test_prespec_attachment_fetch.py tests/app/test_revision_migrations.py tests/app/test_workload_api.py tests/deep_review/test_assumption_report.py tests/deep_review/test_auto_preparation.py tests/deep_review/test_company_knowledge.py tests/deep_review/test_document_integrity.py tests/app/test_mapper_isolation.py tests/app/test_module_public_surface.py tests/app/test_extension_registration.py -q -rfs -p no:warnings
+..........................................................F............. [ 19%]
+...................................................FF................... [ 38%]
+.................................F...................................... [ 57%]
+..............................................FFFFFFFFFFFF.............. [ 77%]
+...............................FF....................................... [ 96%]
+..............                                                           [100%]
+=================================== FAILURES ===================================
+____ test_company_context_migration_has_no_grants_and_runtime_head_matches _____
+
+    def test_company_context_migration_has_no_grants_and_runtime_head_matches() -> None:
+        migration = (
+            ROOT / "web/backend/alembic/versions/0034_company_context.py"
+        ).read_text(encoding="utf-8")
+        assert "GRANT " not in migration
+>       assert ALEMBIC_HEAD == "0034_company_context"
+E       AssertionError: assert '0035_company_knowledge' == '0034_company_context'
+E         
+E         - 0034_company_context
+E         + 0035_company_knowledge
+
+tests/app/test_company_context_schema.py:193: AssertionError
+__________________ test_profile_source_repair_postgres[False] __________________
+
+session = <sqlalchemy.orm.session.Session object at 0x1368e7110>
+source = PosixPath('/private/tmp/claude-502/-Users-temp-orca-bidops--sdlc-worktrees-demo-local-20261009--sdlc-worktrees-batch-demo0203-20261009/debd3fe0-3d60-4655-b3fd-d1fa7fb26fcb/scratchpad/base/docs/reference/company-profile.md')
+
+    def import_profile_version(
+        session: Session,
+        source: Path | None = None,
+        *,
+        created_by_name: str | None = None,
+        label: str = "company-profile",
+        repair_missing_source: bool = False,
+    ) -> ProfileVersion:
+        """Idempotently import the canonical Markdown profile as an immutable row."""
+    
+        created_by_name = _safe_created_by(created_by_name)
+        source_path = Path(source or profile_path())
+        if str(source_path).lower().startswith(("http:", "https:")):
+            raise InputVersionError("invalid_request", "프로필 source는 URL일 수 없습니다")
+        try:
+>           payload, facts, raw = _profile_payload_and_facts(source_path)
+                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+app/deep_review/services/input_versions.py:529: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+app/deep_review/services/input_versions.py:466: in _profile_payload_and_facts
+    raw = source.read_bytes()
+          ^^^^^^^^^^^^^^^^^^^
+/Users/temp/.local/share/uv/python/cpython-3.12.15-macos-aarch64-none/lib/python3.12/pathlib.py:1019: in read_bytes
+    with self.open(mode='rb') as f:
+         ^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/private/tmp/claude-502/-Users-temp-orca-bidops--sdlc-worktrees-demo-local-20261009--sdlc-worktrees-batch-demo0203-20261009/debd3fe0-3d60-4655-b3fd-d1fa7fb26fcb/scratchpad/base/docs/reference/company-profile.md')
+mode = 'rb', buffering = -1, encoding = None, errors = None, newline = None
+
+    def open(self, mode='r', buffering=-1, encoding=None,
+             errors=None, newline=None):
+        """
+        Open the file pointed to by this path and return a file object, as
+        the built-in open() function does.
+        """
+        if "b" not in mode:
+            encoding = io.text_encoding(encoding)
+>       return io.open(self, mode, buffering, encoding, errors, newline)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/private/tmp/claude-502/-Users-temp-orca-bidops--sdlc-worktrees-demo-local-20261009--sdlc-worktrees-batch-demo0203-20261009/debd3fe0-3d60-4655-b3fd-d1fa7fb26fcb/scratchpad/base/docs/reference/company-profile.md'
+
+/Users/temp/.local/share/uv/python/cpython-3.12.15-macos-aarch64-none/lib/python3.12/pathlib.py:1013: FileNotFoundError
+
+The above exception was the direct cause of the following exception:
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x136551d60>
+tampered = False
+
+    @pytest.mark.requires_postgres
+    @pytest.mark.parametrize("tampered", [False, True])
+    def test_profile_source_repair_postgres(monkeypatch, tampered):
+        from tests.app.test_deep_reviews import test_explicit_profile_source_repair_preserves_snapshot_and_old_location
+        with migrated_engine() as bind:
+>           test_explicit_profile_source_repair_preserves_snapshot_and_old_location(bind, monkeypatch, tampered)
+
+tests/app/test_narrative_review.py:343: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/app/test_deep_reviews.py:274: in test_explicit_profile_source_repair_preserves_snapshot_and_old_location
+    profile = import_profile_version(session, profile_path, created_by_name="운영자")
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+session = <sqlalchemy.orm.session.Session object at 0x1368e7110>
+source = PosixPath('/private/tmp/claude-502/-Users-temp-orca-bidops--sdlc-worktrees-demo-local-20261009--sdlc-worktrees-batch-demo0203-20261009/debd3fe0-3d60-4655-b3fd-d1fa7fb26fcb/scratchpad/base/docs/reference/company-profile.md')
+
+    def import_profile_version(
+        session: Session,
+        source: Path | None = None,
+        *,
+        created_by_name: str | None = None,
+        label: str = "company-profile",
+        repair_missing_source: bool = False,
+    ) -> ProfileVersion:
+        """Idempotently import the canonical Markdown profile as an immutable row."""
+    
+        created_by_name = _safe_created_by(created_by_name)
+        source_path = Path(source or profile_path())
+        if str(source_path).lower().startswith(("http:", "https:")):
+            raise InputVersionError("invalid_request", "프로필 source는 URL일 수 없습니다")
+        try:
+            payload, facts, raw = _profile_payload_and_facts(source_path)
+        except (OSError, UnicodeError) as exc:
+>           raise InputVersionError("invalid_request", "프로필 source를 읽을 수 없습니다") from exc
+E           app.deep_review.services.input_versions.InputVersionError: 프로필 source를 읽을 수 없습니다
+
+app/deep_review/services/input_versions.py:531: InputVersionError
+__________________ test_profile_source_repair_postgres[True] ___________________
+
+session = <sqlalchemy.orm.session.Session object at 0x1369a2840>
+source = PosixPath('/private/tmp/claude-502/-Users-temp-orca-bidops--sdlc-worktrees-demo-local-20261009--sdlc-worktrees-batch-demo0203-20261009/debd3fe0-3d60-4655-b3fd-d1fa7fb26fcb/scratchpad/base/docs/reference/company-profile.md')
+
+    def import_profile_version(
+        session: Session,
+        source: Path | None = None,
+        *,
+        created_by_name: str | None = None,
+        label: str = "company-profile",
+        repair_missing_source: bool = False,
+    ) -> ProfileVersion:
+        """Idempotently import the canonical Markdown profile as an immutable row."""
+    
+        created_by_name = _safe_created_by(created_by_name)
+        source_path = Path(source or profile_path())
+        if str(source_path).lower().startswith(("http:", "https:")):
+            raise InputVersionError("invalid_request", "프로필 source는 URL일 수 없습니다")
+        try:
+>           payload, facts, raw = _profile_payload_and_facts(source_path)
+                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+app/deep_review/services/input_versions.py:529: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+app/deep_review/services/input_versions.py:466: in _profile_payload_and_facts
+    raw = source.read_bytes()
+          ^^^^^^^^^^^^^^^^^^^
+/Users/temp/.local/share/uv/python/cpython-3.12.15-macos-aarch64-none/lib/python3.12/pathlib.py:1019: in read_bytes
+    with self.open(mode='rb') as f:
+         ^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/private/tmp/claude-502/-Users-temp-orca-bidops--sdlc-worktrees-demo-local-20261009--sdlc-worktrees-batch-demo0203-20261009/debd3fe0-3d60-4655-b3fd-d1fa7fb26fcb/scratchpad/base/docs/reference/company-profile.md')
+mode = 'rb', buffering = -1, encoding = None, errors = None, newline = None
+
+    def open(self, mode='r', buffering=-1, encoding=None,
+             errors=None, newline=None):
+        """
+        Open the file pointed to by this path and return a file object, as
+        the built-in open() function does.
+        """
+        if "b" not in mode:
+            encoding = io.text_encoding(encoding)
+>       return io.open(self, mode, buffering, encoding, errors, newline)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/private/tmp/claude-502/-Users-temp-orca-bidops--sdlc-worktrees-demo-local-20261009--sdlc-worktrees-batch-demo0203-20261009/debd3fe0-3d60-4655-b3fd-d1fa7fb26fcb/scratchpad/base/docs/reference/company-profile.md'
+
+/Users/temp/.local/share/uv/python/cpython-3.12.15-macos-aarch64-none/lib/python3.12/pathlib.py:1013: FileNotFoundError
+
+The above exception was the direct cause of the following exception:
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x136978530>
+tampered = True
+
+    @pytest.mark.requires_postgres
+    @pytest.mark.parametrize("tampered", [False, True])
+    def test_profile_source_repair_postgres(monkeypatch, tampered):
+        from tests.app.test_deep_reviews import test_explicit_profile_source_repair_preserves_snapshot_and_old_location
+        with migrated_engine() as bind:
+>           test_explicit_profile_source_repair_preserves_snapshot_and_old_location(bind, monkeypatch, tampered)
+
+tests/app/test_narrative_review.py:343: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/app/test_deep_reviews.py:274: in test_explicit_profile_source_repair_preserves_snapshot_and_old_location
+    profile = import_profile_version(session, profile_path, created_by_name="운영자")
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+session = <sqlalchemy.orm.session.Session object at 0x1369a2840>
+source = PosixPath('/private/tmp/claude-502/-Users-temp-orca-bidops--sdlc-worktrees-demo-local-20261009--sdlc-worktrees-batch-demo0203-20261009/debd3fe0-3d60-4655-b3fd-d1fa7fb26fcb/scratchpad/base/docs/reference/company-profile.md')
+
+    def import_profile_version(
+        session: Session,
+        source: Path | None = None,
+        *,
+        created_by_name: str | None = None,
+        label: str = "company-profile",
+        repair_missing_source: bool = False,
+    ) -> ProfileVersion:
+        """Idempotently import the canonical Markdown profile as an immutable row."""
+    
+        created_by_name = _safe_created_by(created_by_name)
+        source_path = Path(source or profile_path())
+        if str(source_path).lower().startswith(("http:", "https:")):
+            raise InputVersionError("invalid_request", "프로필 source는 URL일 수 없습니다")
+        try:
+            payload, facts, raw = _profile_payload_and_facts(source_path)
+        except (OSError, UnicodeError) as exc:
+>           raise InputVersionError("invalid_request", "프로필 source를 읽을 수 없습니다") from exc
+E           app.deep_review.services.input_versions.InputVersionError: 프로필 source를 읽을 수 없습니다
+
+app/deep_review/services/input_versions.py:531: InputVersionError
+___ test_fetch_fixture_completes_with_provider_filename[header.hwp-fixture1] ___
+
+db_session = <sqlalchemy.orm.session.Session object at 0x142921760>
+tmp_path = PosixPath('/private/var/folders/_c/3g36y_md7rg3l_xrx0r5lxyr0000gp/T/pytest-of-temp/pytest-1095/test_fetch_fixture_completes_w1')
+filename = 'header.hwp'
+fixture = PosixPath('/private/tmp/claude-502/-Users-temp-orca-bidops--sdlc-worktrees-demo-local-20261009--sdlc-worktrees-batch-d...20261009/debd3fe0-3d60-4655-b3fd-d1fa7fb26fcb/scratchpad/base/web/backend/tests/fixtures/documents/labor_template.hwp')
+
+    @pytest.mark.parametrize(
+        ("filename", "fixture"),
+        [("header.pdf", SAFE_PDF), ("header.hwp", SAFE_HWP)],
+    )
+    def test_fetch_fixture_completes_with_provider_filename(
+        db_session: Session, tmp_path: Path, filename: str, fixture: Path
+    ):
+        _, _, _ = queue_one(db_session, sw_status="Y")
+        claim = claim_next(db_session, worker_id="worker-a", lease_seconds=120)
+        assert claim is not None
+        result = fetch_claimed(
+            db_session,
+            claim,
+            connectors={
+                "g2b": StubConnector(
+                    assets.ProviderResponse(fixture.read_bytes(), G2B_URL, filename)
+                )
+            },
+            processor=DocumentProcessor(clamav_checker=lambda _content: True),
+            root=tmp_path,
+        )
+>       assert result is not None and result.status == "완료"
+E       AssertionError: assert (<app.deep_review.models.AttachmentFetch object at 0x1429f6c00> is not None and '대기' == '완료'
+E         
+E         - 완료
+E         + 대기)
+
+tests/app/test_prespec_attachment_fetch.py:651: AssertionError
+______ test_sw_y_with_a_positive_overview_starts_exactly_one_deep_review _______
+
+db_session = <sqlalchemy.orm.session.Session object at 0x1108f1f10>
+active_versions = (UUID('9f6e1d20-f1bf-4bd9-9d20-4039813149d5'), UUID('42abb379-2834-4170-8675-047f4f9a00ca'))
+matched_company_fit_gate = None
+
+    def test_sw_y_with_a_positive_overview_starts_exactly_one_deep_review(
+        db_session: Session, active_versions, matched_company_fit_gate
+    ):
+        """§6.4의 모든 조건이 성립하면 시스템 actor로 한 건만 만든다."""
+    
+        notice, bundle = _auto_start_context(db_session)
+        service = _RecordingDeepReviewService()
+    
+        outcome = maybe_auto_start_deep_review(db_session, notice.id, service=service)
+    
+>       assert outcome.created is True
+E       AssertionError: assert False is True
+E        +  where False = AutoDeepReviewOutcome(notice_id=1, bundle_id=None, deep_review_id=None, created=False, reason='manual_request_required').created
+
+tests/deep_review/test_auto_preparation.py:456: AssertionError
+__________________ test_sw_n_is_always_left_to_a_human_click ___________________
+
+db_session = <sqlalchemy.orm.session.Session object at 0x169aafc50>
+active_versions = (UUID('9f6e1d20-f1bf-4bd9-9d20-4039813149d5'), UUID('42abb379-2834-4170-8675-047f4f9a00ca'))
+
+    def test_sw_n_is_always_left_to_a_human_click(db_session: Session, active_versions):
+        notice, _bundle = _auto_start_context(db_session, sw_business_status="N")
+        service = _RecordingDeepReviewService()
+    
+        outcome = maybe_auto_start_deep_review(db_session, notice.id, service=service)
+    
+>       assert (outcome.created, outcome.reason) == (False, REASON_NOT_SW_BUSINESS)
+E       AssertionError: assert (False, 'manu...est_required') == (False, 'not_sw_business')
+E         
+E         At index 1 diff: 'manual_request_required' != 'not_sw_business'
+E         Use -v to get more diff
+
+tests/deep_review/test_auto_preparation.py:478: AssertionError
+_ test_an_unsettled_or_failed_overview_is_left_to_a_human_click[needs_human_review] _
+
+db_session = <sqlalchemy.orm.session.Session object at 0x16a133290>
+active_versions = (UUID('9f6e1d20-f1bf-4bd9-9d20-4039813149d5'), UUID('42abb379-2834-4170-8675-047f4f9a00ca'))
+status = 'needs_human_review'
+
+    @pytest.mark.parametrize("status", ["needs_human_review", "failed", "cancelled", "queued", None])
+    def test_an_unsettled_or_failed_overview_is_left_to_a_human_click(
+        db_session: Session, active_versions, status: str
+    ):
+        notice, _bundle = _auto_start_context(db_session, overview_status=status)
+        service = _RecordingDeepReviewService()
+    
+        outcome = maybe_auto_start_deep_review(db_session, notice.id, service=service)
+    
+>       assert (outcome.created, outcome.reason) == (False, REASON_OVERVIEW_NOT_COMPLETED)
+E       AssertionError: assert (False, 'manu...est_required') == (False, 'over...ot_completed')
+E         
+E         At index 1 diff: 'manual_request_required' != 'overview_not_completed'
+E         Use -v to get more diff
+
+tests/deep_review/test_auto_preparation.py:491: AssertionError
+____ test_an_unsettled_or_failed_overview_is_left_to_a_human_click[failed] _____
+
+db_session = <sqlalchemy.orm.session.Session object at 0x16a218800>
+active_versions = (UUID('9f6e1d20-f1bf-4bd9-9d20-4039813149d5'), UUID('42abb379-2834-4170-8675-047f4f9a00ca'))
+status = 'failed'
+
+    @pytest.mark.parametrize("status", ["needs_human_review", "failed", "cancelled", "queued", None])
+    def test_an_unsettled_or_failed_overview_is_left_to_a_human_click(
+        db_session: Session, active_versions, status: str
+    ):
+        notice, _bundle = _auto_start_context(db_session, overview_status=status)
+        service = _RecordingDeepReviewService()
+    
+        outcome = maybe_auto_start_deep_review(db_session, notice.id, service=service)
+    
+>       assert (outcome.created, outcome.reason) == (False, REASON_OVERVIEW_NOT_COMPLETED)
+E       AssertionError: assert (False, 'manu...est_required') == (False, 'over...ot_completed')
+E         
+E         At index 1 diff: 'manual_request_required' != 'overview_not_completed'
+E         Use -v to get more diff
+
+tests/deep_review/test_auto_preparation.py:491: AssertionError
+___ test_an_unsettled_or_failed_overview_is_left_to_a_human_click[cancelled] ___
+
+db_session = <sqlalchemy.orm.session.Session object at 0x16a0217c0>
+active_versions = (UUID('9f6e1d20-f1bf-4bd9-9d20-4039813149d5'), UUID('42abb379-2834-4170-8675-047f4f9a00ca'))
+status = 'cancelled'
+
+    @pytest.mark.parametrize("status", ["needs_human_review", "failed", "cancelled", "queued", None])
+    def test_an_unsettled_or_failed_overview_is_left_to_a_human_click(
+        db_session: Session, active_versions, status: str
+    ):
+        notice, _bundle = _auto_start_context(db_session, overview_status=status)
+        service = _RecordingDeepReviewService()
+    
+        outcome = maybe_auto_start_deep_review(db_session, notice.id, service=service)
+    
+>       assert (outcome.created, outcome.reason) == (False, REASON_OVERVIEW_NOT_COMPLETED)
+E       AssertionError: assert (False, 'manu...est_required') == (False, 'over...ot_completed')
+E         
+E         At index 1 diff: 'manual_request_required' != 'overview_not_completed'
+E         Use -v to get more diff
+
+tests/deep_review/test_auto_preparation.py:491: AssertionError
+____ test_an_unsettled_or_failed_overview_is_left_to_a_human_click[queued] _____
+
+db_session = <sqlalchemy.orm.session.Session object at 0x169f440e0>
+active_versions = (UUID('9f6e1d20-f1bf-4bd9-9d20-4039813149d5'), UUID('42abb379-2834-4170-8675-047f4f9a00ca'))
+status = 'queued'
+
+    @pytest.mark.parametrize("status", ["needs_human_review", "failed", "cancelled", "queued", None])
+    def test_an_unsettled_or_failed_overview_is_left_to_a_human_click(
+        db_session: Session, active_versions, status: str
+    ):
+        notice, _bundle = _auto_start_context(db_session, overview_status=status)
+        service = _RecordingDeepReviewService()
+    
+        outcome = maybe_auto_start_deep_review(db_session, notice.id, service=service)
+    
+>       assert (outcome.created, outcome.reason) == (False, REASON_OVERVIEW_NOT_COMPLETED)
+E       AssertionError: assert (False, 'manu...est_required') == (False, 'over...ot_completed')
+E         
+E         At index 1 diff: 'manual_request_required' != 'overview_not_completed'
+E         Use -v to get more diff
+
+tests/deep_review/test_auto_preparation.py:491: AssertionError
+_____ test_an_unsettled_or_failed_overview_is_left_to_a_human_click[None] ______
+
+db_session = <sqlalchemy.orm.session.Session object at 0x16a1c8620>
+active_versions = (UUID('9f6e1d20-f1bf-4bd9-9d20-4039813149d5'), UUID('42abb379-2834-4170-8675-047f4f9a00ca'))
+status = None
+
+    @pytest.mark.parametrize("status", ["needs_human_review", "failed", "cancelled", "queued", None])
+    def test_an_unsettled_or_failed_overview_is_left_to_a_human_click(
+        db_session: Session, active_versions, status: str
+    ):
+        notice, _bundle = _auto_start_context(db_session, overview_status=status)
+        service = _RecordingDeepReviewService()
+    
+        outcome = maybe_auto_start_deep_review(db_session, notice.id, service=service)
+    
+>       assert (outcome.created, outcome.reason) == (False, REASON_OVERVIEW_NOT_COMPLETED)
+E       AssertionError: assert (False, 'manu...est_required') == (False, 'over...ot_completed')
+E         
+E         At index 1 diff: 'manual_request_required' != 'overview_not_completed'
+E         Use -v to get more diff
+
+tests/deep_review/test_auto_preparation.py:491: AssertionError
+____________ test_a_human_confirmed_bundle_is_left_to_a_human_click ____________
+
+db_session = <sqlalchemy.orm.session.Session object at 0x16a06b9e0>
+active_versions = (UUID('9f6e1d20-f1bf-4bd9-9d20-4039813149d5'), UUID('42abb379-2834-4170-8675-047f4f9a00ca'))
+
+    def test_a_human_confirmed_bundle_is_left_to_a_human_click(
+        db_session: Session, active_versions
+    ):
+        notice, _bundle = _auto_start_context(db_session, confirmed_by="담당자")
+        service = _RecordingDeepReviewService()
+    
+        outcome = maybe_auto_start_deep_review(db_session, notice.id, service=service)
+    
+>       assert (outcome.created, outcome.reason) == (False, REASON_BUNDLE_NOT_AUTO_READY)
+E       AssertionError: assert (False, 'manu...est_required') == (False, 'bund...t_auto_ready')
+E         
+E         At index 1 diff: 'manual_request_required' != 'bundle_not_auto_ready'
+E         Use -v to get more diff
+
+tests/deep_review/test_auto_preparation.py:503: AssertionError
+___________ test_a_draft_bundle_is_not_ready_for_an_automatic_start ____________
+
+db_session = <sqlalchemy.orm.session.Session object at 0x16a392d80>
+active_versions = (UUID('9f6e1d20-f1bf-4bd9-9d20-4039813149d5'), UUID('42abb379-2834-4170-8675-047f4f9a00ca'))
+
+    def test_a_draft_bundle_is_not_ready_for_an_automatic_start(
+        db_session: Session, active_versions
+    ):
+        notice, _bundle = _auto_start_context(
+            db_session, bundle_status="draft", confirmed_by=None
+        )
+        service = _RecordingDeepReviewService()
+    
+        outcome = maybe_auto_start_deep_review(db_session, notice.id, service=service)
+    
+>       assert (outcome.created, outcome.reason) == (False, REASON_BUNDLE_NOT_AUTO_READY)
+E       AssertionError: assert (False, 'manu...est_required') == (False, 'bund...t_auto_ready')
+E         
+E         At index 1 diff: 'manual_request_required' != 'bundle_not_auto_ready'
+E         Use -v to get more diff
+
+tests/deep_review/test_auto_preparation.py:517: AssertionError
+________ test_missing_active_version_ids_fail_closed_with_a_safe_reason ________
+
+db_session = <sqlalchemy.orm.session.Session object at 0x16892b860>
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x16a133020>
+
+    def test_missing_active_version_ids_fail_closed_with_a_safe_reason(
+        db_session: Session, monkeypatch: pytest.MonkeyPatch
+    ):
+        """active profile/policy 환경변수가 없으면 만들지 않고 안전 코드만 남긴다."""
+    
+        monkeypatch.delenv("BIDOPS_ACTIVE_PROFILE_VERSION_ID", raising=False)
+        monkeypatch.delenv("BIDOPS_ACTIVE_ANALYSIS_POLICY_VERSION_ID", raising=False)
+        notice, _bundle = _auto_start_context(db_session)
+    
+        outcome = maybe_auto_start_deep_review(db_session, notice.id)
+    
+>       assert (outcome.created, outcome.reason) == (False, "service_unavailable")
+E       AssertionError: assert (False, 'manu...est_required') == (False, 'service_unavailable')
+E         
+E         At index 1 diff: 'manual_request_required' != 'service_unavailable'
+E         Use -v to get more diff
+
+tests/deep_review/test_auto_preparation.py:532: AssertionError
+____________ test_a_service_failure_leaves_only_a_stable_safe_code _____________
+
+db_session = <sqlalchemy.orm.session.Session object at 0x16a3176b0>
+active_versions = (UUID('9f6e1d20-f1bf-4bd9-9d20-4039813149d5'), UUID('42abb379-2834-4170-8675-047f4f9a00ca'))
+matched_company_fit_gate = None
+
+    def test_a_service_failure_leaves_only_a_stable_safe_code(
+        db_session: Session, active_versions, matched_company_fit_gate
+    ):
+        """예외 본문·경로·비밀값은 사유에 넣지 않는다. 안정 code만 남는다."""
+    
+        from app.deep_review.services.deep_reviews import DeepReviewServiceError
+    
+        notice, _bundle = _auto_start_context(db_session)
+        service = _RecordingDeepReviewService(
+            error=DeepReviewServiceError(
+                "service_unavailable", "/srv/secret/path 에서 실패", status_code=503
+            )
+        )
+    
+        outcome = maybe_auto_start_deep_review(db_session, notice.id, service=service)
+    
+>       assert (outcome.created, outcome.reason) == (False, "service_unavailable")
+E       AssertionError: assert (False, 'manu...est_required') == (False, 'service_unavailable')
+E         
+E         At index 1 diff: 'manual_request_required' != 'service_unavailable'
+E         Use -v to get more diff
+
+tests/deep_review/test_auto_preparation.py:552: AssertionError
+__________ test_the_automatic_start_never_touches_the_tracking_status __________
+
+db_session = <sqlalchemy.orm.session.Session object at 0x16a069550>
+active_versions = (UUID('9f6e1d20-f1bf-4bd9-9d20-4039813149d5'), UUID('42abb379-2834-4170-8675-047f4f9a00ca'))
+matched_company_fit_gate = None
+
+    def test_the_automatic_start_never_touches_the_tracking_status(
+        db_session: Session, active_versions, matched_company_fit_gate
+    ):
+        """자동 시작은 사업기회 추적 상태를 바꾸지 않는다 (§6.4)."""
+    
+        notice, _bundle = _auto_start_context(db_session)
+        opportunity = Opportunity(first_registered_stage="pre_spec")
+        db_session.add(opportunity)
+        db_session.flush()
+        db_session.add(
+            OpportunityLink(
+                opportunity_id=opportunity.id,
+                stage="notice",
+                notice_id=notice.id,
+                link_type="candidate",
+                status="사람 확인 완료",
+                human_decision="accepted",
+                reviewer_name="담당자",
+                reviewed_at=WHEN,
+                review_reason="같은 사업으로 확인",
+            )
+        )
+        db_session.commit()
+    
+        outcome = maybe_auto_start_deep_review(
+            db_session, notice.id, service=_RecordingDeepReviewService()
+        )
+    
+>       assert outcome.created is True
+E       AssertionError: assert False is True
+E        +  where False = AutoDeepReviewOutcome(notice_id=1, bundle_id=None, deep_review_id=None, created=False, reason='manual_request_required').created
+
+tests/deep_review/test_auto_preparation.py:584: AssertionError
+_____ test_t7_profile_v1_consumer_keeps_fixed_source_file_contract[sqlite] _____
+
+session = <sqlalchemy.orm.session.Session object at 0x1370c2090>
+source = PosixPath('/private/tmp/claude-502/-Users-temp-orca-bidops--sdlc-worktrees-demo-local-20261009--sdlc-worktrees-batch-demo0203-20261009/debd3fe0-3d60-4655-b3fd-d1fa7fb26fcb/scratchpad/base/docs/reference/company-profile.md')
+
+    def import_profile_version(
+        session: Session,
+        source: Path | None = None,
+        *,
+        created_by_name: str | None = None,
+        label: str = "company-profile",
+        repair_missing_source: bool = False,
+    ) -> ProfileVersion:
+        """Idempotently import the canonical Markdown profile as an immutable row."""
+    
+        created_by_name = _safe_created_by(created_by_name)
+        source_path = Path(source or profile_path())
+        if str(source_path).lower().startswith(("http:", "https:")):
+            raise InputVersionError("invalid_request", "프로필 source는 URL일 수 없습니다")
+        try:
+>           payload, facts, raw = _profile_payload_and_facts(source_path)
+                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+app/deep_review/services/input_versions.py:529: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+app/deep_review/services/input_versions.py:466: in _profile_payload_and_facts
+    raw = source.read_bytes()
+          ^^^^^^^^^^^^^^^^^^^
+/Users/temp/.local/share/uv/python/cpython-3.12.15-macos-aarch64-none/lib/python3.12/pathlib.py:1019: in read_bytes
+    with self.open(mode='rb') as f:
+         ^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/private/tmp/claude-502/-Users-temp-orca-bidops--sdlc-worktrees-demo-local-20261009--sdlc-worktrees-batch-demo0203-20261009/debd3fe0-3d60-4655-b3fd-d1fa7fb26fcb/scratchpad/base/docs/reference/company-profile.md')
+mode = 'rb', buffering = -1, encoding = None, errors = None, newline = None
+
+    def open(self, mode='r', buffering=-1, encoding=None,
+             errors=None, newline=None):
+        """
+        Open the file pointed to by this path and return a file object, as
+        the built-in open() function does.
+        """
+        if "b" not in mode:
+            encoding = io.text_encoding(encoding)
+>       return io.open(self, mode, buffering, encoding, errors, newline)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/private/tmp/claude-502/-Users-temp-orca-bidops--sdlc-worktrees-demo-local-20261009--sdlc-worktrees-batch-demo0203-20261009/debd3fe0-3d60-4655-b3fd-d1fa7fb26fcb/scratchpad/base/docs/reference/company-profile.md'
+
+/Users/temp/.local/share/uv/python/cpython-3.12.15-macos-aarch64-none/lib/python3.12/pathlib.py:1013: FileNotFoundError
+
+The above exception was the direct cause of the following exception:
+
+engine = Engine(sqlite://)
+
+    def test_t7_profile_v1_consumer_keeps_fixed_source_file_contract(engine) -> None:
+        with Session(engine) as session:
+            profile_path = Path(__file__).parents[4] / "docs" / "reference" / "company-profile.md"
+>           profile = input_versions.import_profile_version(
+                session, profile_path, created_by_name="검사 담당자"
+            )
+
+tests/deep_review/test_company_knowledge.py:459: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+session = <sqlalchemy.orm.session.Session object at 0x1370c2090>
+source = PosixPath('/private/tmp/claude-502/-Users-temp-orca-bidops--sdlc-worktrees-demo-local-20261009--sdlc-worktrees-batch-demo0203-20261009/debd3fe0-3d60-4655-b3fd-d1fa7fb26fcb/scratchpad/base/docs/reference/company-profile.md')
+
+    def import_profile_version(
+        session: Session,
+        source: Path | None = None,
+        *,
+        created_by_name: str | None = None,
+        label: str = "company-profile",
+        repair_missing_source: bool = False,
+    ) -> ProfileVersion:
+        """Idempotently import the canonical Markdown profile as an immutable row."""
+    
+        created_by_name = _safe_created_by(created_by_name)
+        source_path = Path(source or profile_path())
+        if str(source_path).lower().startswith(("http:", "https:")):
+            raise InputVersionError("invalid_request", "프로필 source는 URL일 수 없습니다")
+        try:
+            payload, facts, raw = _profile_payload_and_facts(source_path)
+        except (OSError, UnicodeError) as exc:
+>           raise InputVersionError("invalid_request", "프로필 source를 읽을 수 없습니다") from exc
+E           app.deep_review.services.input_versions.InputVersionError: 프로필 source를 읽을 수 없습니다
+
+app/deep_review/services/input_versions.py:531: InputVersionError
+____ test_t7_profile_v1_consumer_keeps_fixed_source_file_contract[postgres] ____
+
+session = <sqlalchemy.orm.session.Session object at 0x1369f1f10>
+source = PosixPath('/private/tmp/claude-502/-Users-temp-orca-bidops--sdlc-worktrees-demo-local-20261009--sdlc-worktrees-batch-demo0203-20261009/debd3fe0-3d60-4655-b3fd-d1fa7fb26fcb/scratchpad/base/docs/reference/company-profile.md')
+
+    def import_profile_version(
+        session: Session,
+        source: Path | None = None,
+        *,
+        created_by_name: str | None = None,
+        label: str = "company-profile",
+        repair_missing_source: bool = False,
+    ) -> ProfileVersion:
+        """Idempotently import the canonical Markdown profile as an immutable row."""
+    
+        created_by_name = _safe_created_by(created_by_name)
+        source_path = Path(source or profile_path())
+        if str(source_path).lower().startswith(("http:", "https:")):
+            raise InputVersionError("invalid_request", "프로필 source는 URL일 수 없습니다")
+        try:
+>           payload, facts, raw = _profile_payload_and_facts(source_path)
+                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+app/deep_review/services/input_versions.py:529: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+app/deep_review/services/input_versions.py:466: in _profile_payload_and_facts
+    raw = source.read_bytes()
+          ^^^^^^^^^^^^^^^^^^^
+/Users/temp/.local/share/uv/python/cpython-3.12.15-macos-aarch64-none/lib/python3.12/pathlib.py:1019: in read_bytes
+    with self.open(mode='rb') as f:
+         ^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/private/tmp/claude-502/-Users-temp-orca-bidops--sdlc-worktrees-demo-local-20261009--sdlc-worktrees-batch-demo0203-20261009/debd3fe0-3d60-4655-b3fd-d1fa7fb26fcb/scratchpad/base/docs/reference/company-profile.md')
+mode = 'rb', buffering = -1, encoding = None, errors = None, newline = None
+
+    def open(self, mode='r', buffering=-1, encoding=None,
+             errors=None, newline=None):
+        """
+        Open the file pointed to by this path and return a file object, as
+        the built-in open() function does.
+        """
+        if "b" not in mode:
+            encoding = io.text_encoding(encoding)
+>       return io.open(self, mode, buffering, encoding, errors, newline)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/private/tmp/claude-502/-Users-temp-orca-bidops--sdlc-worktrees-demo-local-20261009--sdlc-worktrees-batch-demo0203-20261009/debd3fe0-3d60-4655-b3fd-d1fa7fb26fcb/scratchpad/base/docs/reference/company-profile.md'
+
+/Users/temp/.local/share/uv/python/cpython-3.12.15-macos-aarch64-none/lib/python3.12/pathlib.py:1013: FileNotFoundError
+
+The above exception was the direct cause of the following exception:
+
+engine = Engine(postgresql+psycopg://owner:***@127.0.0.1:32809/bidops_test_23c1a5be8e0a4203)
+
+    def test_t7_profile_v1_consumer_keeps_fixed_source_file_contract(engine) -> None:
+        with Session(engine) as session:
+            profile_path = Path(__file__).parents[4] / "docs" / "reference" / "company-profile.md"
+>           profile = input_versions.import_profile_version(
+                session, profile_path, created_by_name="검사 담당자"
+            )
+
+tests/deep_review/test_company_knowledge.py:459: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+session = <sqlalchemy.orm.session.Session object at 0x1369f1f10>
+source = PosixPath('/private/tmp/claude-502/-Users-temp-orca-bidops--sdlc-worktrees-demo-local-20261009--sdlc-worktrees-batch-demo0203-20261009/debd3fe0-3d60-4655-b3fd-d1fa7fb26fcb/scratchpad/base/docs/reference/company-profile.md')
+
+    def import_profile_version(
+        session: Session,
+        source: Path | None = None,
+        *,
+        created_by_name: str | None = None,
+        label: str = "company-profile",
+        repair_missing_source: bool = False,
+    ) -> ProfileVersion:
+        """Idempotently import the canonical Markdown profile as an immutable row."""
+    
+        created_by_name = _safe_created_by(created_by_name)
+        source_path = Path(source or profile_path())
+        if str(source_path).lower().startswith(("http:", "https:")):
+            raise InputVersionError("invalid_request", "프로필 source는 URL일 수 없습니다")
+        try:
+            payload, facts, raw = _profile_payload_and_facts(source_path)
+        except (OSError, UnicodeError) as exc:
+>           raise InputVersionError("invalid_request", "프로필 source를 읽을 수 없습니다") from exc
+E           app.deep_review.services.input_versions.InputVersionError: 프로필 source를 읽을 수 없습니다
+
+app/deep_review/services/input_versions.py:531: InputVersionError
+=========================== short test summary info ============================
+FAILED tests/app/test_company_context_schema.py::test_company_context_migration_has_no_grants_and_runtime_head_matches
+FAILED tests/app/test_narrative_review.py::test_profile_source_repair_postgres[False]
+FAILED tests/app/test_narrative_review.py::test_profile_source_repair_postgres[True]
+FAILED tests/app/test_prespec_attachment_fetch.py::test_fetch_fixture_completes_with_provider_filename[header.hwp-fixture1]
+FAILED tests/deep_review/test_auto_preparation.py::test_sw_y_with_a_positive_overview_starts_exactly_one_deep_review
+FAILED tests/deep_review/test_auto_preparation.py::test_sw_n_is_always_left_to_a_human_click
+FAILED tests/deep_review/test_auto_preparation.py::test_an_unsettled_or_failed_overview_is_left_to_a_human_click[needs_human_review]
+FAILED tests/deep_review/test_auto_preparation.py::test_an_unsettled_or_failed_overview_is_left_to_a_human_click[failed]
+FAILED tests/deep_review/test_auto_preparation.py::test_an_unsettled_or_failed_overview_is_left_to_a_human_click[cancelled]
+FAILED tests/deep_review/test_auto_preparation.py::test_an_unsettled_or_failed_overview_is_left_to_a_human_click[queued]
+FAILED tests/deep_review/test_auto_preparation.py::test_an_unsettled_or_failed_overview_is_left_to_a_human_click[None]
+FAILED tests/deep_review/test_auto_preparation.py::test_a_human_confirmed_bundle_is_left_to_a_human_click
+FAILED tests/deep_review/test_auto_preparation.py::test_a_draft_bundle_is_not_ready_for_an_automatic_start
+FAILED tests/deep_review/test_auto_preparation.py::test_missing_active_version_ids_fail_closed_with_a_safe_reason
+FAILED tests/deep_review/test_auto_preparation.py::test_a_service_failure_leaves_only_a_stable_safe_code
+FAILED tests/deep_review/test_auto_preparation.py::test_the_automatic_start_never_touches_the_tracking_status
+FAILED tests/deep_review/test_company_knowledge.py::test_t7_profile_v1_consumer_keeps_fixed_source_file_contract[sqlite]
+FAILED tests/deep_review/test_company_knowledge.py::test_t7_profile_v1_consumer_keeps_fixed_source_file_contract[postgres]
+18 failed, 356 passed in 975.96s (0:16:15)
+exit_code=1

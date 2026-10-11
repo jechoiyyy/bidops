@@ -1,0 +1,12 @@
+cd web/backend && /tmp/bidops-demo00-verify-venv/bin/python <scratchpad>/run_pg_pytest.py tests/app/test_company_reads.py tests/app/test_company_deep_review_binding.py tests/app/test_company_analysis.py tests/app/test_company_luna_policy.py tests/app/test_luna_deep_review.py tests/app/test_deep_reviews.py tests/app/test_narrative_review.py tests/deep_review/test_reports.py tests/deep_review/test_bc_e2e.py tests/deep_review/test_company_fit.py tests/deep_review/test_company_fit_enqueue.py tests/app/test_company_knowledge_api.py tests/app/test_company_context.py tests/app/test_module_boundaries.py tests/app/test_module_public_surface.py tests/app/test_module_selection.py tests/app/test_runtime_database_privileges.py -q -rfs -p no:warnings  # disposable postgres:17.11, BIDOPS_PRESPEC_OVERVIEW_ENABLED=false
+........................................................................ [ 13%]
+........................................................................ [ 26%]
+........................................................................ [ 40%]
+........................................................................ [ 53%]
+........................................................................ [ 66%]
+........................................................................ [ 80%]
+........................................................................ [ 93%]
+...................................                                      [100%]
+539 passed in 123.87s (0:02:03)
+exit_code=0
+exit_code=0

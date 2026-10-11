@@ -1,0 +1,1131 @@
+;
+; Archive created at 2026-10-10 16:58:21 UTC
+;     dbname: bidops
+;     TOC Entries: 1121
+;     Compression: gzip
+;     Dump Version: 1.16-0
+;     Format: CUSTOM
+;     Integer: 4 bytes
+;     Offset: 8 bytes
+;     Dumped from database version: 17.11 (Debian 17.11-1.pgdg12+2)
+;     Dumped by pg_dump version: 17.11 (Debian 17.11-0+deb13u1)
+;
+;
+; Selected TOC Entries:
+;
+6; 2615 16385 SCHEMA - bidops migrate
+5002; 0 0 ACL - SCHEMA bidops migrate
+330; 1255 17482 FUNCTION bidops generation_config_canonical_json(text) migrate
+331; 1255 17483 FUNCTION bidops generation_config_digest(text) migrate
+329; 1255 17481 FUNCTION bidops generation_config_strict_int(jsonb, bigint, bigint) migrate
+402; 1255 19210 FUNCTION bidops reject_luna_mutation() migrate
+368; 1255 17522 FUNCTION bidops tf_always_on_enabled_insert() migrate
+369; 1255 17524 FUNCTION bidops tf_always_on_enabled_update() migrate
+380; 1255 17550 FUNCTION bidops tf_always_on_generation_binding_insert() migrate
+381; 1255 17552 FUNCTION bidops tf_always_on_generation_binding_update() migrate
+334; 1255 18275 FUNCTION bidops tf_bid_delta_append_only() migrate
+335; 1255 18276 FUNCTION bidops tf_bid_delta_attempt_terminal() migrate
+340; 1255 18277 FUNCTION bidops tf_bid_delta_attempt_terminal_delete() migrate
+386; 1255 18278 FUNCTION bidops tf_bid_delta_comparison_fence() migrate
+345; 1255 17812 FUNCTION bidops tf_judgment_revision_append_only() migrate
+391; 1255 18467 FUNCTION bidops tf_order_plan_screening_artifact_append_only() migrate
+398; 1255 19132 FUNCTION bidops tf_order_plan_screening_audit_sample_append_only() migrate
+389; 1255 18463 FUNCTION bidops tf_order_plan_screening_batch_attempt_audit() migrate
+388; 1255 18461 FUNCTION bidops tf_order_plan_screening_batch_attempt_guard() migrate
+399; 1255 19134 FUNCTION bidops tf_order_plan_screening_daily_trigger_append_only() migrate
+387; 1255 18459 FUNCTION bidops tf_order_plan_screening_execution_guard() migrate
+393; 1255 18471 FUNCTION bidops tf_order_plan_screening_execution_heartbeat_guard() migrate
+349; 1255 19138 FUNCTION bidops tf_order_plan_screening_execution_purpose_guard() migrate
+392; 1255 18469 FUNCTION bidops tf_order_plan_screening_feedback_append_only() migrate
+401; 1255 18457 FUNCTION bidops tf_order_plan_screening_policy_guard() migrate
+397; 1255 19130 FUNCTION bidops tf_order_plan_screening_quality_evaluation_append_only() migrate
+400; 1255 19136 FUNCTION bidops tf_order_plan_screening_quality_evaluation_thresholds() migrate
+396; 1255 19128 FUNCTION bidops tf_order_plan_screening_quality_gate_append_only() migrate
+390; 1255 18465 FUNCTION bidops tf_order_plan_screening_result_append_only() migrate
+395; 1255 18636 FUNCTION bidops tf_prespec_company_fit_guard() migrate
+394; 1255 18743 FUNCTION bidops tf_prespec_v4_input_immutable() migrate
+341; 1255 17498 FUNCTION bidops tf_quality_gate_evaluation_append() migrate
+374; 1255 17538 FUNCTION bidops tf_quality_gate_evaluation_generation_binding() migrate
+375; 1255 17540 FUNCTION bidops tf_quality_gate_evaluation_generation_binding_update() migrate
+342; 1255 17500 FUNCTION bidops tf_quality_gate_evaluation_no_update() migrate
+383; 1255 17556 FUNCTION bidops tf_quality_gate_evaluation_projection_changed() migrate
+372; 1255 17534 FUNCTION bidops tf_quality_gate_generation_binding_insert() migrate
+373; 1255 17536 FUNCTION bidops tf_quality_gate_generation_binding_update() migrate
+344; 1255 17532 FUNCTION bidops tf_quality_gate_generation_canonical_insert() migrate
+333; 1255 17530 FUNCTION bidops tf_quality_gate_generation_config_immutable() migrate
+339; 1255 17496 FUNCTION bidops tf_quality_gate_input_immutable() migrate
+337; 1255 17492 FUNCTION bidops tf_quality_gate_profile_pair_insert() migrate
+338; 1255 17494 FUNCTION bidops tf_quality_gate_profile_pair_update() migrate
+350; 1255 17508 FUNCTION bidops tf_quality_gate_review_pass_a_insert() migrate
+351; 1255 17510 FUNCTION bidops tf_quality_gate_review_pass_a_update() migrate
+346; 1255 17814 FUNCTION bidops tf_review_revision_append_only() migrate
+378; 1255 17546 FUNCTION bidops tf_schedule_execution_generation_binding_insert() migrate
+379; 1255 17548 FUNCTION bidops tf_schedule_execution_generation_binding_update() migrate
+352; 1255 17512 FUNCTION bidops tf_schedule_execution_job_kind_insert() migrate
+353; 1255 17514 FUNCTION bidops tf_schedule_execution_job_kind_update() migrate
+365; 1255 17516 FUNCTION bidops tf_schedule_execution_relation_insert() migrate
+367; 1255 17520 FUNCTION bidops tf_schedule_execution_relation_target_update() migrate
+366; 1255 17518 FUNCTION bidops tf_schedule_execution_relation_update() migrate
+376; 1255 17542 FUNCTION bidops tf_screening_attempt_generation_binding_insert() migrate
+377; 1255 17544 FUNCTION bidops tf_screening_attempt_generation_binding_update() migrate
+371; 1255 17528 FUNCTION bidops tf_screening_execution_generation_canonical_insert() migrate
+370; 1255 17526 FUNCTION bidops tf_screening_execution_generation_config_immutable() migrate
+384; 1255 17625 FUNCTION bidops tf_screening_execution_notice_identity_insert() migrate
+385; 1255 17627 FUNCTION bidops tf_screening_execution_notice_identity_update() migrate
+332; 1255 17484 FUNCTION bidops tf_screening_execution_profile_pair_insert() migrate
+336; 1255 17486 FUNCTION bidops tf_screening_execution_profile_pair_update() migrate
+347; 1255 17504 FUNCTION bidops tf_screening_policy_active_gate_insert() migrate
+348; 1255 17506 FUNCTION bidops tf_screening_policy_active_gate_update() migrate
+343; 1255 17502 FUNCTION bidops tf_screening_policy_body_immutable() migrate
+382; 1255 17554 FUNCTION bidops tf_screening_policy_projection_changed() migrate
+223; 1259 16432 TABLE bidops agency_portal migrate
+5003; 0 0 ACL bidops TABLE agency_portal migrate
+222; 1259 16431 SEQUENCE bidops agency_portal_id_seq migrate
+5004; 0 0 SEQUENCE OWNED BY bidops agency_portal_id_seq migrate
+5005; 0 0 ACL bidops SEQUENCE agency_portal_id_seq migrate
+218; 1259 16394 TABLE bidops alembic_version migrate
+5006; 0 0 ACL bidops TABLE alembic_version migrate
+283; 1259 17378 TABLE bidops always_on_state migrate
+5007; 0 0 ACL bidops TABLE always_on_state migrate
+226; 1259 16456 TABLE bidops analysis_policy_version migrate
+5008; 0 0 ACL bidops TABLE analysis_policy_version migrate
+326; 1259 19213 TABLE bidops assumption_input_version migrate
+5009; 0 0 ACL bidops TABLE assumption_input_version migrate
+327; 1259 19236 TABLE bidops assumption_run migrate
+5010; 0 0 ACL bidops TABLE assumption_run migrate
+328; 1259 19262 TABLE bidops assumption_stage migrate
+5011; 0 0 ACL bidops TABLE assumption_stage migrate
+231; 1259 16493 TABLE bidops attachment migrate
+5012; 0 0 ACL bidops TABLE attachment migrate
+5013; 0 0 ACL bidops COLUMN attachment.name migrate
+5014; 0 0 ACL bidops COLUMN attachment.source_url migrate
+5015; 0 0 ACL bidops COLUMN attachment.origin migrate
+5016; 0 0 ACL bidops COLUMN attachment.file_ext migrate
+5017; 0 0 ACL bidops COLUMN attachment.size_bytes migrate
+5018; 0 0 ACL bidops COLUMN attachment.legacy_stored_path migrate
+5019; 0 0 ACL bidops COLUMN attachment.extract_status migrate
+5020; 0 0 ACL bidops COLUMN attachment.source_system migrate
+5021; 0 0 ACL bidops COLUMN attachment.source_attachment_key migrate
+5022; 0 0 ACL bidops COLUMN attachment.last_seen_at migrate
+5023; 0 0 ACL bidops COLUMN attachment.retired_at migrate
+5024; 0 0 ACL bidops COLUMN attachment.retired_reason migrate
+5025; 0 0 ACL bidops COLUMN attachment.retired_by_name migrate
+294; 1259 17694 TABLE bidops attachment_fetch migrate
+5026; 0 0 ACL bidops TABLE attachment_fetch migrate
+230; 1259 16492 SEQUENCE bidops attachment_id_seq migrate
+5027; 0 0 SEQUENCE OWNED BY bidops attachment_id_seq migrate
+5028; 0 0 ACL bidops SEQUENCE attachment_id_seq migrate
+229; 1259 16483 TABLE bidops audit_event migrate
+5029; 0 0 ACL bidops TABLE audit_event migrate
+300; 1259 18131 TABLE bidops bid_delta_attempt migrate
+5030; 0 0 ACL bidops TABLE bid_delta_attempt migrate
+299; 1259 18013 TABLE bidops bid_delta_comparison migrate
+5031; 0 0 ACL bidops TABLE bid_delta_comparison migrate
+302; 1259 18194 TABLE bidops bid_delta_evidence migrate
+5032; 0 0 ACL bidops TABLE bid_delta_evidence migrate
+301; 1259 18161 TABLE bidops bid_delta_item migrate
+5033; 0 0 ACL bidops TABLE bid_delta_item migrate
+303; 1259 18223 TABLE bidops bid_final_decision migrate
+5034; 0 0 ACL bidops TABLE bid_final_decision migrate
+5035; 0 0 ACL bidops COLUMN bid_final_decision.id migrate
+263; 1259 16944 TABLE bidops claim migrate
+5036; 0 0 ACL bidops TABLE claim migrate
+267; 1259 17060 TABLE bidops claim_evidence migrate
+5037; 0 0 ACL bidops TABLE claim_evidence migrate
+317; 1259 18987 TABLE bidops collected_record_index migrate
+5038; 0 0 ACL bidops TABLE collected_record_index migrate
+5039; 0 0 ACL bidops COLUMN collected_record_index.selection_reason migrate
+5040; 0 0 ACL bidops COLUMN collected_record_index.ingested_notice_id migrate
+5041; 0 0 ACL bidops COLUMN collected_record_index.ingested_order_plan_id migrate
+316; 1259 18986 SEQUENCE bidops collected_record_index_id_seq migrate
+5042; 0 0 SEQUENCE OWNED BY bidops collected_record_index_id_seq migrate
+5043; 0 0 ACL bidops SEQUENCE collected_record_index_id_seq migrate
+319; 1259 19022 TABLE bidops collected_record_token migrate
+5044; 0 0 ACL bidops TABLE collected_record_token migrate
+318; 1259 19021 SEQUENCE bidops collected_record_token_id_seq migrate
+5045; 0 0 SEQUENCE OWNED BY bidops collected_record_token_id_seq migrate
+5046; 0 0 ACL bidops SEQUENCE collected_record_token_id_seq migrate
+271; 1259 17142 TABLE bidops company_profile_snapshot migrate
+5047; 0 0 ACL bidops TABLE company_profile_snapshot migrate
+224; 1259 16440 TABLE bidops content_object migrate
+5048; 0 0 ACL bidops TABLE content_object migrate
+238; 1259 16558 TABLE bidops content_object_location migrate
+5049; 0 0 ACL bidops TABLE content_object_location migrate
+239; 1259 16570 TABLE bidops content_scan migrate
+5050; 0 0 ACL bidops TABLE content_scan migrate
+245; 1259 16639 TABLE bidops counterargument migrate
+5051; 0 0 ACL bidops TABLE counterargument migrate
+244; 1259 16638 SEQUENCE bidops counterargument_id_seq migrate
+5052; 0 0 SEQUENCE OWNED BY bidops counterargument_id_seq migrate
+5053; 0 0 ACL bidops SEQUENCE counterargument_id_seq migrate
+253; 1259 16729 TABLE bidops deep_review migrate
+5054; 0 0 ACL bidops TABLE deep_review migrate
+325; 1259 19191 TABLE bidops deep_review_approval migrate
+5055; 0 0 ACL bidops TABLE deep_review_approval migrate
+257; 1259 16799 TABLE bidops deep_review_attempt migrate
+5056; 0 0 ACL bidops TABLE deep_review_attempt migrate
+324; 1259 19163 TABLE bidops deep_review_preview migrate
+5057; 0 0 ACL bidops TABLE deep_review_preview migrate
+261; 1259 16892 TABLE bidops deep_review_stage migrate
+5058; 0 0 ACL bidops TABLE deep_review_stage migrate
+259; 1259 16843 TABLE bidops document_block migrate
+5059; 0 0 ACL bidops TABLE document_block migrate
+240; 1259 16583 TABLE bidops document_bundle migrate
+5060; 0 0 ACL bidops TABLE document_bundle migrate
+5061; 0 0 ACL bidops COLUMN document_bundle.version migrate
+5062; 0 0 ACL bidops COLUMN document_bundle.status migrate
+5063; 0 0 ACL bidops COLUMN document_bundle.issues_snapshot migrate
+5064; 0 0 ACL bidops COLUMN document_bundle.confirmed_by_name migrate
+5065; 0 0 ACL bidops COLUMN document_bundle.confirmed_at migrate
+260; 1259 16857 TABLE bidops document_bundle_item migrate
+5066; 0 0 ACL bidops TABLE document_bundle_item migrate
+5067; 0 0 ACL bidops COLUMN document_bundle_item.document_version_version migrate
+5068; 0 0 ACL bidops COLUMN document_bundle_item.content_object_id migrate
+5069; 0 0 ACL bidops COLUMN document_bundle_item.content_sha256 migrate
+5070; 0 0 ACL bidops COLUMN document_bundle_item.detected_mime migrate
+5071; 0 0 ACL bidops COLUMN document_bundle_item.size_bytes migrate
+5072; 0 0 ACL bidops COLUMN document_bundle_item.original_filename migrate
+5073; 0 0 ACL bidops COLUMN document_bundle_item.source_kind migrate
+5074; 0 0 ACL bidops COLUMN document_bundle_item.source_system migrate
+5075; 0 0 ACL bidops COLUMN document_bundle_item.source_attachment_key migrate
+5076; 0 0 ACL bidops COLUMN document_bundle_item.source_url migrate
+5077; 0 0 ACL bidops COLUMN document_bundle_item.role_at_confirmation migrate
+5078; 0 0 ACL bidops COLUMN document_bundle_item.effective_date_at_confirmation migrate
+5079; 0 0 ACL bidops COLUMN document_bundle_item.replaces_id_at_confirmation migrate
+5080; 0 0 ACL bidops COLUMN document_bundle_item.is_current_at_confirmation migrate
+5081; 0 0 ACL bidops COLUMN document_bundle_item.safety_status_at_confirmation migrate
+5082; 0 0 ACL bidops COLUMN document_bundle_item.structure_id_at_confirmation migrate
+5083; 0 0 ACL bidops COLUMN document_bundle_item.structure_payload_sha256 migrate
+311; 1259 18506 TABLE bidops document_segment migrate
+5084; 0 0 ACL bidops TABLE document_segment migrate
+310; 1259 18475 TABLE bidops document_segment_manifest migrate
+5085; 0 0 ACL bidops TABLE document_segment_manifest migrate
+256; 1259 16777 TABLE bidops document_structure migrate
+5086; 0 0 ACL bidops TABLE document_structure migrate
+5087; 0 0 ACL bidops COLUMN document_structure.id migrate
+252; 1259 16694 TABLE bidops document_version migrate
+5088; 0 0 ACL bidops TABLE document_version migrate
+5089; 0 0 ACL bidops COLUMN document_version.version migrate
+5090; 0 0 ACL bidops COLUMN document_version.role migrate
+5091; 0 0 ACL bidops COLUMN document_version.effective_date migrate
+5092; 0 0 ACL bidops COLUMN document_version.replaces_document_version_id migrate
+5093; 0 0 ACL bidops COLUMN document_version.is_current migrate
+5094; 0 0 ACL bidops COLUMN document_version.safety_status migrate
+5095; 0 0 ACL bidops COLUMN document_version.needs_human_review migrate
+264; 1259 16965 TABLE bidops evidence_ref migrate
+5096; 0 0 ACL bidops TABLE evidence_ref migrate
+266; 1259 17024 TABLE bidops final_opinion migrate
+5097; 0 0 ACL bidops TABLE final_opinion migrate
+228; 1259 16474 TABLE bidops idempotency_record migrate
+5098; 0 0 ACL bidops TABLE idempotency_record migrate
+233; 1259 16508 TABLE bidops ingest_warning migrate
+5099; 0 0 ACL bidops TABLE ingest_warning migrate
+232; 1259 16507 SEQUENCE bidops ingest_warning_id_seq migrate
+5100; 0 0 SEQUENCE OWNED BY bidops ingest_warning_id_seq migrate
+5101; 0 0 ACL bidops SEQUENCE ingest_warning_id_seq migrate
+235; 1259 16522 TABLE bidops judgment migrate
+5102; 0 0 ACL bidops TABLE judgment migrate
+234; 1259 16521 SEQUENCE bidops judgment_id_seq migrate
+5103; 0 0 SEQUENCE OWNED BY bidops judgment_id_seq migrate
+5104; 0 0 ACL bidops SEQUENCE judgment_id_seq migrate
+296; 1259 17737 TABLE bidops judgment_revision migrate
+5105; 0 0 ACL bidops TABLE judgment_revision migrate
+295; 1259 17736 SEQUENCE bidops judgment_revision_id_seq migrate
+5106; 0 0 SEQUENCE OWNED BY bidops judgment_revision_id_seq migrate
+5107; 0 0 ACL bidops SEQUENCE judgment_revision_id_seq migrate
+249; 1259 16667 TABLE bidops matched_performance migrate
+5108; 0 0 ACL bidops TABLE matched_performance migrate
+248; 1259 16666 SEQUENCE bidops matched_performance_id_seq migrate
+5109; 0 0 SEQUENCE OWNED BY bidops matched_performance_id_seq migrate
+5110; 0 0 ACL bidops SEQUENCE matched_performance_id_seq migrate
+221; 1259 16414 TABLE bidops notice migrate
+5111; 0 0 ACL bidops TABLE notice migrate
+5112; 0 0 ACL bidops COLUMN notice.id migrate
+5113; 0 0 ACL bidops COLUMN notice.bid_no migrate
+5114; 0 0 ACL bidops COLUMN notice.bid_ord migrate
+5115; 0 0 ACL bidops COLUMN notice.source_type migrate
+5116; 0 0 ACL bidops COLUMN notice.title migrate
+5117; 0 0 ACL bidops COLUMN notice.agency migrate
+5118; 0 0 ACL bidops COLUMN notice.demand_agency migrate
+5119; 0 0 ACL bidops COLUMN notice.published_at migrate
+5120; 0 0 ACL bidops COLUMN notice.deadline_at migrate
+5121; 0 0 ACL bidops COLUMN notice.budget migrate
+5122; 0 0 ACL bidops COLUMN notice.estimated_price migrate
+5123; 0 0 ACL bidops COLUMN notice.method migrate
+5124; 0 0 ACL bidops COLUMN notice.url migrate
+5125; 0 0 ACL bidops COLUMN notice.sample_role migrate
+5126; 0 0 ACL bidops COLUMN notice.sample_stratum migrate
+5127; 0 0 ACL bidops COLUMN notice.collection_bucket migrate
+5128; 0 0 ACL bidops COLUMN notice.procurement_class_json migrate
+5129; 0 0 ACL bidops COLUMN notice.region_limit_json migrate
+5130; 0 0 ACL bidops COLUMN notice.lifecycle_json migrate
+5131; 0 0 ACL bidops COLUMN notice.qualification_flags_json migrate
+5132; 0 0 ACL bidops COLUMN notice.focus_matches_json migrate
+5133; 0 0 ACL bidops COLUMN notice.performance_matches_json migrate
+5134; 0 0 ACL bidops COLUMN notice.performance_top_score migrate
+5135; 0 0 ACL bidops COLUMN notice.candidate_sources_json migrate
+5136; 0 0 ACL bidops COLUMN notice.unknown_fields_json migrate
+5137; 0 0 ACL bidops COLUMN notice.raw_source migrate
+5138; 0 0 ACL bidops COLUMN notice.review_exclusion_status migrate
+5139; 0 0 ACL bidops COLUMN notice.review_exclusion_actor_name migrate
+5140; 0 0 ACL bidops COLUMN notice.review_exclusion_reason migrate
+5141; 0 0 ACL bidops COLUMN notice.review_exclusion_changed_at migrate
+220; 1259 16413 SEQUENCE bidops notice_id_seq migrate
+5142; 0 0 SEQUENCE OWNED BY bidops notice_id_seq migrate
+5143; 0 0 ACL bidops SEQUENCE notice_id_seq migrate
+285; 1259 17559 TABLE bidops notice_observation migrate
+5144; 0 0 ACL bidops TABLE notice_observation migrate
+284; 1259 17558 SEQUENCE bidops notice_observation_id_seq migrate
+5145; 0 0 SEQUENCE OWNED BY bidops notice_observation_id_seq migrate
+5146; 0 0 ACL bidops SEQUENCE notice_observation_id_seq migrate
+291; 1259 17630 TABLE bidops opportunity migrate
+5147; 0 0 ACL bidops TABLE opportunity migrate
+290; 1259 17629 SEQUENCE bidops opportunity_id_seq migrate
+5148; 0 0 SEQUENCE OWNED BY bidops opportunity_id_seq migrate
+5149; 0 0 ACL bidops SEQUENCE opportunity_id_seq migrate
+293; 1259 17639 TABLE bidops opportunity_link migrate
+5150; 0 0 ACL bidops TABLE opportunity_link migrate
+292; 1259 17638 SEQUENCE bidops opportunity_link_id_seq migrate
+5151; 0 0 SEQUENCE OWNED BY bidops opportunity_link_id_seq migrate
+5152; 0 0 ACL bidops SEQUENCE opportunity_link_id_seq migrate
+287; 1259 17584 TABLE bidops order_plan migrate
+5153; 0 0 ACL bidops TABLE order_plan migrate
+5154; 0 0 ACL bidops COLUMN order_plan.title migrate
+5155; 0 0 ACL bidops COLUMN order_plan.agency_code migrate
+5156; 0 0 ACL bidops COLUMN order_plan.agency_name migrate
+5157; 0 0 ACL bidops COLUMN order_plan.supervising_agency_name migrate
+5158; 0 0 ACL bidops COLUMN order_plan.business_division migrate
+5159; 0 0 ACL bidops COLUMN order_plan.business_division_code migrate
+5160; 0 0 ACL bidops COLUMN order_plan.service_type migrate
+5161; 0 0 ACL bidops COLUMN order_plan.service_type_code migrate
+5162; 0 0 ACL bidops COLUMN order_plan.budget_amount migrate
+5163; 0 0 ACL bidops COLUMN order_plan.contract_amount migrate
+5164; 0 0 ACL bidops COLUMN order_plan.planned_order_year migrate
+5165; 0 0 ACL bidops COLUMN order_plan.planned_order_month migrate
+5166; 0 0 ACL bidops COLUMN order_plan.procurement_method migrate
+5167; 0 0 ACL bidops COLUMN order_plan.contract_method migrate
+5168; 0 0 ACL bidops COLUMN order_plan.published_at migrate
+5169; 0 0 ACL bidops COLUMN order_plan.changed_at migrate
+5170; 0 0 ACL bidops COLUMN order_plan.bid_ntice_no_list migrate
+5171; 0 0 ACL bidops COLUMN order_plan.notice_posted migrate
+5172; 0 0 ACL bidops COLUMN order_plan.source_url migrate
+5173; 0 0 ACL bidops COLUMN order_plan.first_discovered_at migrate
+5174; 0 0 ACL bidops COLUMN order_plan.last_discovered_at migrate
+5175; 0 0 ACL bidops COLUMN order_plan.source_sha256 migrate
+5176; 0 0 ACL bidops COLUMN order_plan.unknown_fields_json migrate
+5177; 0 0 ACL bidops COLUMN order_plan.raw_source migrate
+286; 1259 17583 SEQUENCE bidops order_plan_id_seq migrate
+5178; 0 0 SEQUENCE OWNED BY bidops order_plan_id_seq migrate
+5179; 0 0 ACL bidops SEQUENCE order_plan_id_seq migrate
+289; 1259 17596 TABLE bidops order_plan_observation migrate
+5180; 0 0 ACL bidops TABLE order_plan_observation migrate
+288; 1259 17595 SEQUENCE bidops order_plan_observation_id_seq migrate
+5181; 0 0 SEQUENCE OWNED BY bidops order_plan_observation_id_seq migrate
+5182; 0 0 ACL bidops SEQUENCE order_plan_observation_id_seq migrate
+308; 1259 18405 TABLE bidops order_plan_screening_artifact migrate
+5183; 0 0 ACL bidops TABLE order_plan_screening_artifact migrate
+322; 1259 19090 TABLE bidops order_plan_screening_audit_sample migrate
+5184; 0 0 ACL bidops TABLE order_plan_screening_audit_sample migrate
+306; 1259 18338 TABLE bidops order_plan_screening_batch_attempt migrate
+5185; 0 0 ACL bidops TABLE order_plan_screening_batch_attempt migrate
+5186; 0 0 ACL bidops COLUMN order_plan_screening_batch_attempt.attempt_status migrate
+5187; 0 0 ACL bidops COLUMN order_plan_screening_batch_attempt.failure_type migrate
+5188; 0 0 ACL bidops COLUMN order_plan_screening_batch_attempt.failure_code migrate
+5189; 0 0 ACL bidops COLUMN order_plan_screening_batch_attempt.response_object_ref migrate
+5190; 0 0 ACL bidops COLUMN order_plan_screening_batch_attempt.input_tokens migrate
+5191; 0 0 ACL bidops COLUMN order_plan_screening_batch_attempt.cached_input_tokens migrate
+5192; 0 0 ACL bidops COLUMN order_plan_screening_batch_attempt.output_tokens migrate
+5193; 0 0 ACL bidops COLUMN order_plan_screening_batch_attempt.total_tokens migrate
+5194; 0 0 ACL bidops COLUMN order_plan_screening_batch_attempt.duration_ms migrate
+5195; 0 0 ACL bidops COLUMN order_plan_screening_batch_attempt.started_at migrate
+5196; 0 0 ACL bidops COLUMN order_plan_screening_batch_attempt.finished_at migrate
+323; 1259 19111 TABLE bidops order_plan_screening_daily_trigger migrate
+5197; 0 0 ACL bidops TABLE order_plan_screening_daily_trigger migrate
+305; 1259 18305 TABLE bidops order_plan_screening_execution migrate
+5198; 0 0 ACL bidops TABLE order_plan_screening_execution migrate
+5199; 0 0 ACL bidops COLUMN order_plan_screening_execution.status migrate
+5200; 0 0 ACL bidops COLUMN order_plan_screening_execution.active_slot migrate
+5201; 0 0 ACL bidops COLUMN order_plan_screening_execution.partial_artifact migrate
+5202; 0 0 ACL bidops COLUMN order_plan_screening_execution.candidate_count migrate
+5203; 0 0 ACL bidops COLUMN order_plan_screening_execution.completed_count migrate
+5204; 0 0 ACL bidops COLUMN order_plan_screening_execution.failure_count migrate
+5205; 0 0 ACL bidops COLUMN order_plan_screening_execution.stage1_selected_count migrate
+5206; 0 0 ACL bidops COLUMN order_plan_screening_execution.stage1_filtered_out_count migrate
+5207; 0 0 ACL bidops COLUMN order_plan_screening_execution.stage1_failed_count migrate
+5208; 0 0 ACL bidops COLUMN order_plan_screening_execution.stage2_relevant_count migrate
+5209; 0 0 ACL bidops COLUMN order_plan_screening_execution.stage2_not_relevant_count migrate
+5210; 0 0 ACL bidops COLUMN order_plan_screening_execution.stage2_uncertain_count migrate
+5211; 0 0 ACL bidops COLUMN order_plan_screening_execution.stage2_failed_count migrate
+5212; 0 0 ACL bidops COLUMN order_plan_screening_execution.stage2_rejected_count migrate
+5213; 0 0 ACL bidops COLUMN order_plan_screening_execution.human_review_count migrate
+5214; 0 0 ACL bidops COLUMN order_plan_screening_execution.error_code migrate
+5215; 0 0 ACL bidops COLUMN order_plan_screening_execution.started_at migrate
+5216; 0 0 ACL bidops COLUMN order_plan_screening_execution.finished_at migrate
+5217; 0 0 ACL bidops COLUMN order_plan_screening_execution.heartbeat_at migrate
+309; 1259 18424 TABLE bidops order_plan_screening_feedback migrate
+5218; 0 0 ACL bidops TABLE order_plan_screening_feedback migrate
+304; 1259 18285 TABLE bidops order_plan_screening_policy migrate
+5219; 0 0 ACL bidops TABLE order_plan_screening_policy migrate
+5220; 0 0 ACL bidops COLUMN order_plan_screening_policy.policy_status migrate
+5221; 0 0 ACL bidops COLUMN order_plan_screening_policy.quality_gate_status migrate
+5222; 0 0 ACL bidops COLUMN order_plan_screening_policy.active_slot migrate
+5223; 0 0 ACL bidops COLUMN order_plan_screening_policy.activated_by migrate
+5224; 0 0 ACL bidops COLUMN order_plan_screening_policy.activated_at migrate
+321; 1259 19067 TABLE bidops order_plan_screening_quality_evaluation migrate
+5225; 0 0 ACL bidops TABLE order_plan_screening_quality_evaluation migrate
+320; 1259 19047 TABLE bidops order_plan_screening_quality_gate migrate
+5226; 0 0 ACL bidops TABLE order_plan_screening_quality_gate migrate
+307; 1259 18369 TABLE bidops order_plan_screening_result migrate
+5227; 0 0 ACL bidops TABLE order_plan_screening_result migrate
+243; 1259 16625 TABLE bidops perspective migrate
+5228; 0 0 ACL bidops TABLE perspective migrate
+242; 1259 16624 SEQUENCE bidops perspective_id_seq migrate
+5229; 0 0 SEQUENCE OWNED BY bidops perspective_id_seq migrate
+5230; 0 0 ACL bidops SEQUENCE perspective_id_seq migrate
+313; 1259 18589 TABLE bidops prespec_company_fit_attempt migrate
+5231; 0 0 ACL bidops TABLE prespec_company_fit_attempt migrate
+5232; 0 0 ACL bidops COLUMN prespec_company_fit_attempt.status migrate
+5233; 0 0 ACL bidops COLUMN prespec_company_fit_attempt.result_jsonb migrate
+5234; 0 0 ACL bidops COLUMN prespec_company_fit_attempt.result_sha256 migrate
+5235; 0 0 ACL bidops COLUMN prespec_company_fit_attempt.raw_response_sha256 migrate
+5236; 0 0 ACL bidops COLUMN prespec_company_fit_attempt.error_code migrate
+5237; 0 0 ACL bidops COLUMN prespec_company_fit_attempt.lease_owner migrate
+5238; 0 0 ACL bidops COLUMN prespec_company_fit_attempt.lease_expires_at migrate
+5239; 0 0 ACL bidops COLUMN prespec_company_fit_attempt.completed_at migrate
+5240; 0 0 ACL bidops COLUMN prespec_company_fit_attempt.prompt_tokens migrate
+5241; 0 0 ACL bidops COLUMN prespec_company_fit_attempt.output_tokens migrate
+5242; 0 0 ACL bidops COLUMN prespec_company_fit_attempt.latency_ms migrate
+315; 1259 18930 TABLE bidops prespec_overview_run migrate
+5243; 0 0 ACL bidops TABLE prespec_overview_run migrate
+314; 1259 18638 TABLE bidops prespec_v4_pdf_snapshot migrate
+5244; 0 0 ACL bidops TABLE prespec_v4_pdf_snapshot migrate
+241; 1259 16605 TABLE bidops profile_evidence migrate
+5245; 0 0 ACL bidops TABLE profile_evidence migrate
+225; 1259 16447 TABLE bidops profile_version migrate
+5246; 0 0 ACL bidops TABLE profile_version migrate
+272; 1259 17158 TABLE bidops quality_gate migrate
+5247; 0 0 ACL bidops TABLE quality_gate migrate
+273; 1259 17189 TABLE bidops quality_gate_evaluation migrate
+5248; 0 0 ACL bidops TABLE quality_gate_evaluation migrate
+281; 1259 17291 TABLE bidops quality_gate_review migrate
+5249; 0 0 ACL bidops TABLE quality_gate_review migrate
+5250; 0 0 ACL bidops COLUMN quality_gate_review.execution_id migrate
+5251; 0 0 ACL bidops COLUMN quality_gate_review.decision_digest migrate
+5252; 0 0 ACL bidops COLUMN quality_gate_review.evidence_judgment migrate
+5253; 0 0 ACL bidops COLUMN quality_gate_review.note migrate
+5254; 0 0 ACL bidops COLUMN quality_gate_review.updated_at migrate
+280; 1259 17290 SEQUENCE bidops quality_gate_review_review_id_seq migrate
+5255; 0 0 SEQUENCE OWNED BY bidops quality_gate_review_review_id_seq migrate
+5256; 0 0 ACL bidops SEQUENCE quality_gate_review_review_id_seq migrate
+258; 1259 16820 TABLE bidops report_revision migrate
+5257; 0 0 ACL bidops TABLE report_revision migrate
+268; 1259 17075 TABLE bidops report_revision_evidence migrate
+5258; 0 0 ACL bidops TABLE report_revision_evidence migrate
+312; 1259 18533 TABLE bidops requirement_inventory_item migrate
+5259; 0 0 ACL bidops TABLE requirement_inventory_item migrate
+237; 1259 16538 TABLE bidops review migrate
+5260; 0 0 ACL bidops TABLE review migrate
+5261; 0 0 ACL bidops COLUMN review.run_id migrate
+5262; 0 0 ACL bidops COLUMN review.disposition migrate
+5263; 0 0 ACL bidops COLUMN review.system_judgment_review migrate
+5264; 0 0 ACL bidops COLUMN review.corrected_grade migrate
+5265; 0 0 ACL bidops COLUMN review.corrected_readiness migrate
+5266; 0 0 ACL bidops COLUMN review.weakest_perspective migrate
+5267; 0 0 ACL bidops COLUMN review.reason migrate
+5268; 0 0 ACL bidops COLUMN review.reviewer_snapshot migrate
+5269; 0 0 ACL bidops COLUMN review.updated_at migrate
+236; 1259 16537 SEQUENCE bidops review_id_seq migrate
+5270; 0 0 SEQUENCE OWNED BY bidops review_id_seq migrate
+5271; 0 0 ACL bidops SEQUENCE review_id_seq migrate
+298; 1259 17779 TABLE bidops review_revision migrate
+5272; 0 0 ACL bidops TABLE review_revision migrate
+297; 1259 17778 SEQUENCE bidops review_revision_id_seq migrate
+5273; 0 0 SEQUENCE OWNED BY bidops review_revision_id_seq migrate
+5274; 0 0 ACL bidops SEQUENCE review_revision_id_seq migrate
+219; 1259 16401 TABLE bidops run migrate
+5275; 0 0 ACL bidops TABLE run migrate
+5276; 0 0 ACL bidops COLUMN run.window_from migrate
+5277; 0 0 ACL bidops COLUMN run.window_to migrate
+5278; 0 0 ACL bidops COLUMN run.timezone migrate
+5279; 0 0 ACL bidops COLUMN run.screening_basis migrate
+5280; 0 0 ACL bidops COLUMN run.status migrate
+5281; 0 0 ACL bidops COLUMN run.superseded_by migrate
+5282; 0 0 ACL bidops COLUMN run.counts_json migrate
+282; 1259 17315 TABLE bidops schedule_execution migrate
+5283; 0 0 ACL bidops TABLE schedule_execution migrate
+276; 1259 17237 TABLE bidops schedule_reservation migrate
+5284; 0 0 ACL bidops TABLE schedule_reservation migrate
+275; 1259 17227 TABLE bidops schedule_setting migrate
+5285; 0 0 ACL bidops TABLE schedule_setting migrate
+279; 1259 17257 TABLE bidops screening_attempt migrate
+5286; 0 0 ACL bidops TABLE screening_attempt migrate
+278; 1259 17256 SEQUENCE bidops screening_attempt_attempt_id_seq migrate
+5287; 0 0 SEQUENCE OWNED BY bidops screening_attempt_attempt_id_seq migrate
+5288; 0 0 ACL bidops SEQUENCE screening_attempt_attempt_id_seq migrate
+277; 1259 17246 TABLE bidops screening_audit_event migrate
+5289; 0 0 ACL bidops TABLE screening_audit_event migrate
+255; 1259 16764 TABLE bidops screening_evidence migrate
+5290; 0 0 ACL bidops TABLE screening_evidence migrate
+254; 1259 16763 SEQUENCE bidops screening_evidence_id_seq migrate
+5291; 0 0 SEQUENCE OWNED BY bidops screening_evidence_id_seq migrate
+5292; 0 0 ACL bidops SEQUENCE screening_evidence_id_seq migrate
+270; 1259 17096 TABLE bidops screening_execution migrate
+5293; 0 0 ACL bidops TABLE screening_execution migrate
+269; 1259 17095 SEQUENCE bidops screening_execution_queue_no_seq migrate
+5294; 0 0 SEQUENCE OWNED BY bidops screening_execution_queue_no_seq migrate
+5295; 0 0 ACL bidops SEQUENCE screening_execution_queue_no_seq migrate
+274; 1259 17207 TABLE bidops screening_policy migrate
+5296; 0 0 ACL bidops TABLE screening_policy migrate
+5297; 0 0 ACL bidops COLUMN screening_policy.status migrate
+5298; 0 0 ACL bidops COLUMN screening_policy.active_slot migrate
+5299; 0 0 ACL bidops COLUMN screening_policy.activated_at migrate
+5300; 0 0 ACL bidops COLUMN screening_policy.activated_by migrate
+5301; 0 0 ACL bidops COLUMN screening_policy.quality_gate_result_id migrate
+265; 1259 17010 TABLE bidops validation_check migrate
+5302; 0 0 ACL bidops TABLE validation_check migrate
+262; 1259 16915 TABLE bidops validation_run migrate
+5303; 0 0 ACL bidops TABLE validation_run migrate
+251; 1259 16681 TABLE bidops verification_answer migrate
+5304; 0 0 ACL bidops TABLE verification_answer migrate
+250; 1259 16680 SEQUENCE bidops verification_answer_id_seq migrate
+5305; 0 0 SEQUENCE OWNED BY bidops verification_answer_id_seq migrate
+5306; 0 0 ACL bidops SEQUENCE verification_answer_id_seq migrate
+247; 1259 16653 TABLE bidops verification_item migrate
+5307; 0 0 ACL bidops TABLE verification_item migrate
+246; 1259 16652 SEQUENCE bidops verification_item_id_seq migrate
+5308; 0 0 SEQUENCE OWNED BY bidops verification_item_id_seq migrate
+5309; 0 0 ACL bidops SEQUENCE verification_item_id_seq migrate
+227; 1259 16465 TABLE bidops work_job migrate
+5310; 0 0 ACL bidops TABLE work_job migrate
+3645; 2604 16435 DEFAULT bidops agency_portal id migrate
+3646; 2604 16496 DEFAULT bidops attachment id migrate
+3699; 2604 18990 DEFAULT bidops collected_record_index id migrate
+3701; 2604 19025 DEFAULT bidops collected_record_token id migrate
+3651; 2604 16642 DEFAULT bidops counterargument id migrate
+3647; 2604 16511 DEFAULT bidops ingest_warning id migrate
+3648; 2604 16525 DEFAULT bidops judgment id migrate
+3685; 2604 17740 DEFAULT bidops judgment_revision id migrate
+3653; 2604 16670 DEFAULT bidops matched_performance id migrate
+3643; 2604 16417 DEFAULT bidops notice id migrate
+3668; 2604 17562 DEFAULT bidops notice_observation id migrate
+3675; 2604 17633 DEFAULT bidops opportunity id migrate
+3678; 2604 17642 DEFAULT bidops opportunity_link id migrate
+3671; 2604 17587 DEFAULT bidops order_plan id migrate
+3672; 2604 17599 DEFAULT bidops order_plan_observation id migrate
+3650; 2604 16628 DEFAULT bidops perspective id migrate
+3667; 2604 17294 DEFAULT bidops quality_gate_review review_id migrate
+3649; 2604 16541 DEFAULT bidops review id migrate
+3687; 2604 17782 DEFAULT bidops review_revision id migrate
+3665; 2604 17260 DEFAULT bidops screening_attempt attempt_id migrate
+3655; 2604 16767 DEFAULT bidops screening_evidence id migrate
+3656; 2604 17099 DEFAULT bidops screening_execution queue_no migrate
+3654; 2604 16684 DEFAULT bidops verification_answer id migrate
+3652; 2604 16656 DEFAULT bidops verification_item id migrate
+4889; 0 16432 TABLE DATA bidops agency_portal migrate
+4884; 0 16394 TABLE DATA bidops alembic_version migrate
+4949; 0 17378 TABLE DATA bidops always_on_state migrate
+4892; 0 16456 TABLE DATA bidops analysis_policy_version migrate
+4992; 0 19213 TABLE DATA bidops assumption_input_version migrate
+4993; 0 19236 TABLE DATA bidops assumption_run migrate
+4994; 0 19262 TABLE DATA bidops assumption_stage migrate
+4897; 0 16493 TABLE DATA bidops attachment migrate
+4960; 0 17694 TABLE DATA bidops attachment_fetch migrate
+4895; 0 16483 TABLE DATA bidops audit_event migrate
+4966; 0 18131 TABLE DATA bidops bid_delta_attempt migrate
+4965; 0 18013 TABLE DATA bidops bid_delta_comparison migrate
+4968; 0 18194 TABLE DATA bidops bid_delta_evidence migrate
+4967; 0 18161 TABLE DATA bidops bid_delta_item migrate
+4969; 0 18223 TABLE DATA bidops bid_final_decision migrate
+4929; 0 16944 TABLE DATA bidops claim migrate
+4933; 0 17060 TABLE DATA bidops claim_evidence migrate
+4983; 0 18987 TABLE DATA bidops collected_record_index migrate
+4985; 0 19022 TABLE DATA bidops collected_record_token migrate
+4937; 0 17142 TABLE DATA bidops company_profile_snapshot migrate
+4890; 0 16440 TABLE DATA bidops content_object migrate
+4904; 0 16558 TABLE DATA bidops content_object_location migrate
+4905; 0 16570 TABLE DATA bidops content_scan migrate
+4911; 0 16639 TABLE DATA bidops counterargument migrate
+4919; 0 16729 TABLE DATA bidops deep_review migrate
+4991; 0 19191 TABLE DATA bidops deep_review_approval migrate
+4923; 0 16799 TABLE DATA bidops deep_review_attempt migrate
+4990; 0 19163 TABLE DATA bidops deep_review_preview migrate
+4927; 0 16892 TABLE DATA bidops deep_review_stage migrate
+4925; 0 16843 TABLE DATA bidops document_block migrate
+4906; 0 16583 TABLE DATA bidops document_bundle migrate
+4926; 0 16857 TABLE DATA bidops document_bundle_item migrate
+4977; 0 18506 TABLE DATA bidops document_segment migrate
+4976; 0 18475 TABLE DATA bidops document_segment_manifest migrate
+4922; 0 16777 TABLE DATA bidops document_structure migrate
+4918; 0 16694 TABLE DATA bidops document_version migrate
+4930; 0 16965 TABLE DATA bidops evidence_ref migrate
+4932; 0 17024 TABLE DATA bidops final_opinion migrate
+4894; 0 16474 TABLE DATA bidops idempotency_record migrate
+4899; 0 16508 TABLE DATA bidops ingest_warning migrate
+4901; 0 16522 TABLE DATA bidops judgment migrate
+4962; 0 17737 TABLE DATA bidops judgment_revision migrate
+4915; 0 16667 TABLE DATA bidops matched_performance migrate
+4887; 0 16414 TABLE DATA bidops notice migrate
+4951; 0 17559 TABLE DATA bidops notice_observation migrate
+4957; 0 17630 TABLE DATA bidops opportunity migrate
+4959; 0 17639 TABLE DATA bidops opportunity_link migrate
+4953; 0 17584 TABLE DATA bidops order_plan migrate
+4955; 0 17596 TABLE DATA bidops order_plan_observation migrate
+4974; 0 18405 TABLE DATA bidops order_plan_screening_artifact migrate
+4988; 0 19090 TABLE DATA bidops order_plan_screening_audit_sample migrate
+4972; 0 18338 TABLE DATA bidops order_plan_screening_batch_attempt migrate
+4989; 0 19111 TABLE DATA bidops order_plan_screening_daily_trigger migrate
+4971; 0 18305 TABLE DATA bidops order_plan_screening_execution migrate
+4975; 0 18424 TABLE DATA bidops order_plan_screening_feedback migrate
+4970; 0 18285 TABLE DATA bidops order_plan_screening_policy migrate
+4987; 0 19067 TABLE DATA bidops order_plan_screening_quality_evaluation migrate
+4986; 0 19047 TABLE DATA bidops order_plan_screening_quality_gate migrate
+4973; 0 18369 TABLE DATA bidops order_plan_screening_result migrate
+4909; 0 16625 TABLE DATA bidops perspective migrate
+4979; 0 18589 TABLE DATA bidops prespec_company_fit_attempt migrate
+4981; 0 18930 TABLE DATA bidops prespec_overview_run migrate
+4980; 0 18638 TABLE DATA bidops prespec_v4_pdf_snapshot migrate
+4907; 0 16605 TABLE DATA bidops profile_evidence migrate
+4891; 0 16447 TABLE DATA bidops profile_version migrate
+4938; 0 17158 TABLE DATA bidops quality_gate migrate
+4939; 0 17189 TABLE DATA bidops quality_gate_evaluation migrate
+4947; 0 17291 TABLE DATA bidops quality_gate_review migrate
+4924; 0 16820 TABLE DATA bidops report_revision migrate
+4934; 0 17075 TABLE DATA bidops report_revision_evidence migrate
+4978; 0 18533 TABLE DATA bidops requirement_inventory_item migrate
+4903; 0 16538 TABLE DATA bidops review migrate
+4964; 0 17779 TABLE DATA bidops review_revision migrate
+4885; 0 16401 TABLE DATA bidops run migrate
+4948; 0 17315 TABLE DATA bidops schedule_execution migrate
+4942; 0 17237 TABLE DATA bidops schedule_reservation migrate
+4941; 0 17227 TABLE DATA bidops schedule_setting migrate
+4945; 0 17257 TABLE DATA bidops screening_attempt migrate
+4943; 0 17246 TABLE DATA bidops screening_audit_event migrate
+4921; 0 16764 TABLE DATA bidops screening_evidence migrate
+4936; 0 17096 TABLE DATA bidops screening_execution migrate
+4940; 0 17207 TABLE DATA bidops screening_policy migrate
+4931; 0 17010 TABLE DATA bidops validation_check migrate
+4928; 0 16915 TABLE DATA bidops validation_run migrate
+4917; 0 16681 TABLE DATA bidops verification_answer migrate
+4913; 0 16653 TABLE DATA bidops verification_item migrate
+4893; 0 16465 TABLE DATA bidops work_job migrate
+5311; 0 0 SEQUENCE SET bidops agency_portal_id_seq migrate
+5312; 0 0 SEQUENCE SET bidops attachment_id_seq migrate
+5313; 0 0 SEQUENCE SET bidops collected_record_index_id_seq migrate
+5314; 0 0 SEQUENCE SET bidops collected_record_token_id_seq migrate
+5315; 0 0 SEQUENCE SET bidops counterargument_id_seq migrate
+5316; 0 0 SEQUENCE SET bidops ingest_warning_id_seq migrate
+5317; 0 0 SEQUENCE SET bidops judgment_id_seq migrate
+5318; 0 0 SEQUENCE SET bidops judgment_revision_id_seq migrate
+5319; 0 0 SEQUENCE SET bidops matched_performance_id_seq migrate
+5320; 0 0 SEQUENCE SET bidops notice_id_seq migrate
+5321; 0 0 SEQUENCE SET bidops notice_observation_id_seq migrate
+5322; 0 0 SEQUENCE SET bidops opportunity_id_seq migrate
+5323; 0 0 SEQUENCE SET bidops opportunity_link_id_seq migrate
+5324; 0 0 SEQUENCE SET bidops order_plan_id_seq migrate
+5325; 0 0 SEQUENCE SET bidops order_plan_observation_id_seq migrate
+5326; 0 0 SEQUENCE SET bidops perspective_id_seq migrate
+5327; 0 0 SEQUENCE SET bidops quality_gate_review_review_id_seq migrate
+5328; 0 0 SEQUENCE SET bidops review_id_seq migrate
+5329; 0 0 SEQUENCE SET bidops review_revision_id_seq migrate
+5330; 0 0 SEQUENCE SET bidops screening_attempt_attempt_id_seq migrate
+5331; 0 0 SEQUENCE SET bidops screening_evidence_id_seq migrate
+5332; 0 0 SEQUENCE SET bidops screening_execution_queue_no_seq migrate
+5333; 0 0 SEQUENCE SET bidops verification_answer_id_seq migrate
+5334; 0 0 SEQUENCE SET bidops verification_item_id_seq migrate
+4079; 2606 16439 CONSTRAINT bidops agency_portal agency_portal_pkey migrate
+4067; 2606 19475 CONSTRAINT bidops alembic_version alembic_version_pkc migrate
+4268; 2606 17390 CONSTRAINT bidops always_on_state always_on_state_pkey migrate
+4089; 2606 16462 CONSTRAINT bidops analysis_policy_version analysis_policy_version_pkey migrate
+4449; 2606 19220 CONSTRAINT bidops assumption_input_version assumption_input_version_pkey migrate
+4451; 2606 19242 CONSTRAINT bidops assumption_run assumption_run_input_version_id_key migrate
+4453; 2606 19240 CONSTRAINT bidops assumption_run assumption_run_pkey migrate
+4455; 2606 19246 CONSTRAINT bidops assumption_run assumption_run_request_id_key migrate
+4457; 2606 19244 CONSTRAINT bidops assumption_run assumption_run_work_job_id_key migrate
+4459; 2606 19271 CONSTRAINT bidops assumption_stage assumption_stage_pkey migrate
+4102; 2606 16500 CONSTRAINT bidops attachment attachment_pkey migrate
+4100; 2606 16491 CONSTRAINT bidops audit_event audit_event_pkey migrate
+4324; 2606 18141 CONSTRAINT bidops bid_delta_attempt bid_delta_attempt_pkey migrate
+4316; 2606 18029 CONSTRAINT bidops bid_delta_comparison bid_delta_comparison_pkey migrate
+4340; 2606 18205 CONSTRAINT bidops bid_delta_evidence bid_delta_evidence_pkey migrate
+4331; 2606 18172 CONSTRAINT bidops bid_delta_item bid_delta_item_pkey migrate
+4344; 2606 18233 CONSTRAINT bidops bid_final_decision bid_final_decision_pkey migrate
+4216; 2606 17064 CONSTRAINT bidops claim_evidence claim_evidence_pkey migrate
+4202; 2606 16952 CONSTRAINT bidops claim claim_pkey migrate
+4410; 2606 18997 CONSTRAINT bidops collected_record_index collected_record_index_pkey migrate
+4420; 2606 19027 CONSTRAINT bidops collected_record_token collected_record_token_pkey migrate
+4231; 2606 17157 CONSTRAINT bidops company_profile_snapshot company_profile_snapshot_artifact_path_key migrate
+4233; 2606 17153 CONSTRAINT bidops company_profile_snapshot company_profile_snapshot_pkey migrate
+4235; 2606 17155 CONSTRAINT bidops company_profile_snapshot company_profile_snapshot_version_key migrate
+4115; 2606 16564 CONSTRAINT bidops content_object_location content_object_location_pkey migrate
+4081; 2606 16444 CONSTRAINT bidops content_object content_object_pkey migrate
+4117; 2606 16577 CONSTRAINT bidops content_scan content_scan_pkey migrate
+4131; 2606 16646 CONSTRAINT bidops counterargument counterargument_pkey migrate
+4443; 2606 19195 CONSTRAINT bidops deep_review_approval deep_review_approval_pkey migrate
+4163; 2606 16804 CONSTRAINT bidops deep_review_attempt deep_review_attempt_pkey migrate
+4145; 2606 16734 CONSTRAINT bidops deep_review deep_review_pkey migrate
+4441; 2606 19170 CONSTRAINT bidops deep_review_preview deep_review_preview_pkey migrate
+4186; 2606 16900 CONSTRAINT bidops deep_review_stage deep_review_stage_pkey migrate
+4176; 2606 16849 CONSTRAINT bidops document_block document_block_pkey migrate
+4180; 2606 16867 CONSTRAINT bidops document_bundle_item document_bundle_item_pkey migrate
+4119; 2606 16590 CONSTRAINT bidops document_bundle document_bundle_pkey migrate
+4381; 2606 18488 CONSTRAINT bidops document_segment_manifest document_segment_manifest_pkey migrate
+4385; 2606 18523 CONSTRAINT bidops document_segment document_segment_pkey migrate
+4157; 2606 16784 CONSTRAINT bidops document_structure document_structure_pkey migrate
+4139; 2606 16704 CONSTRAINT bidops document_version document_version_pkey migrate
+4206; 2606 16972 CONSTRAINT bidops evidence_ref evidence_ref_pkey migrate
+4212; 2606 17032 CONSTRAINT bidops final_opinion final_opinion_pkey migrate
+4096; 2606 16480 CONSTRAINT bidops idempotency_record idempotency_record_pkey migrate
+4105; 2606 16515 CONSTRAINT bidops ingest_warning ingest_warning_pkey migrate
+4107; 2606 16529 CONSTRAINT bidops judgment judgment_pkey migrate
+4305; 2606 17752 CONSTRAINT bidops judgment_revision judgment_revision_pkey migrate
+4135; 2606 16674 CONSTRAINT bidops matched_performance matched_performance_pkey migrate
+4272; 2606 17568 CONSTRAINT bidops notice_observation notice_observation_pkey migrate
+4075; 2606 16424 CONSTRAINT bidops notice notice_pkey migrate
+4292; 2606 17660 CONSTRAINT bidops opportunity_link opportunity_link_pkey migrate
+4287; 2606 17637 CONSTRAINT bidops opportunity opportunity_pkey migrate
+4283; 2606 17605 CONSTRAINT bidops order_plan_observation order_plan_observation_pkey migrate
+4277; 2606 17591 CONSTRAINT bidops order_plan order_plan_pkey migrate
+4373; 2606 18416 CONSTRAINT bidops order_plan_screening_artifact order_plan_screening_artifact_pkey migrate
+4432; 2606 19098 CONSTRAINT bidops order_plan_screening_audit_sample order_plan_screening_audit_sample_pkey migrate
+4365; 2606 18361 CONSTRAINT bidops order_plan_screening_batch_attempt order_plan_screening_batch_attempt_pkey migrate
+4437; 2606 19117 CONSTRAINT bidops order_plan_screening_daily_trigger order_plan_screening_daily_trigger_pkey migrate
+4360; 2606 18325 CONSTRAINT bidops order_plan_screening_execution order_plan_screening_execution_pkey migrate
+4377; 2606 18437 CONSTRAINT bidops order_plan_screening_feedback order_plan_screening_feedback_pkey migrate
+4355; 2606 18302 CONSTRAINT bidops order_plan_screening_policy order_plan_screening_policy_pkey migrate
+4426; 2606 19080 CONSTRAINT bidops order_plan_screening_quality_evaluation order_plan_screening_quality_evaluation_pkey migrate
+4424; 2606 19061 CONSTRAINT bidops order_plan_screening_quality_gate order_plan_screening_quality_gate_pkey migrate
+4369; 2606 18387 CONSTRAINT bidops order_plan_screening_result order_plan_screening_result_pkey migrate
+4129; 2606 16632 CONSTRAINT bidops perspective perspective_pkey migrate
+4301; 2606 17707 CONSTRAINT bidops attachment_fetch pk_attachment_fetch migrate
+4396; 2606 18602 CONSTRAINT bidops prespec_company_fit_attempt prespec_company_fit_attempt_pkey migrate
+4407; 2606 18942 CONSTRAINT bidops prespec_overview_run prespec_overview_run_pkey migrate
+4400; 2606 18654 CONSTRAINT bidops prespec_v4_pdf_snapshot prespec_v4_pdf_snapshot_pkey migrate
+4125; 2606 16611 CONSTRAINT bidops profile_evidence profile_evidence_pkey migrate
+4085; 2606 16453 CONSTRAINT bidops profile_version profile_version_pkey migrate
+4243; 2606 17204 CONSTRAINT bidops quality_gate_evaluation quality_gate_evaluation_pkey migrate
+4237; 2606 17186 CONSTRAINT bidops quality_gate quality_gate_pass_a_execution_id_key migrate
+4239; 2606 17188 CONSTRAINT bidops quality_gate quality_gate_pass_b_execution_id_key migrate
+4241; 2606 17184 CONSTRAINT bidops quality_gate quality_gate_pkey migrate
+4262; 2606 17302 CONSTRAINT bidops quality_gate_review quality_gate_review_pkey migrate
+4218; 2606 17079 CONSTRAINT bidops report_revision_evidence report_revision_evidence_pkey migrate
+4170; 2606 16828 CONSTRAINT bidops report_revision report_revision_pkey migrate
+4391; 2606 18542 CONSTRAINT bidops requirement_inventory_item requirement_inventory_item_pkey migrate
+4111; 2606 16545 CONSTRAINT bidops review review_pkey migrate
+4312; 2606 17793 CONSTRAINT bidops review_revision review_revision_pkey migrate
+4069; 2606 16407 CONSTRAINT bidops run run_pkey migrate
+4266; 2606 17337 CONSTRAINT bidops schedule_execution schedule_execution_pkey migrate
+4252; 2606 17245 CONSTRAINT bidops schedule_reservation schedule_reservation_pkey migrate
+4250; 2606 17236 CONSTRAINT bidops schedule_setting schedule_setting_pkey migrate
+4256; 2606 17280 CONSTRAINT bidops screening_attempt screening_attempt_pkey migrate
+4254; 2606 17255 CONSTRAINT bidops screening_audit_event screening_audit_event_pkey migrate
+4155; 2606 16771 CONSTRAINT bidops screening_evidence screening_evidence_pkey migrate
+4220; 2606 17138 CONSTRAINT bidops screening_execution screening_execution_artifact_dir_key migrate
+4222; 2606 17134 CONSTRAINT bidops screening_execution screening_execution_execution_id_key migrate
+4224; 2606 17136 CONSTRAINT bidops screening_execution screening_execution_input_artifact_path_key migrate
+4226; 2606 17132 CONSTRAINT bidops screening_execution screening_execution_pkey migrate
+4228; 2606 17140 CONSTRAINT bidops screening_execution screening_execution_published_run_id_key migrate
+4247; 2606 17225 CONSTRAINT bidops screening_policy screening_policy_pkey migrate
+4091; 2606 16464 CONSTRAINT bidops analysis_policy_version uq_analysis_policy_version_version migrate
+4461; 2606 19273 CONSTRAINT bidops assumption_stage uq_assumption_stage_part migrate
+4303; 2606 17709 CONSTRAINT bidops attachment_fetch uq_attachment_fetch_attachment migrate
+4327; 2606 18145 CONSTRAINT bidops bid_delta_attempt uq_bid_delta_attempt_scope migrate
+4329; 2606 18143 CONSTRAINT bidops bid_delta_attempt uq_bid_delta_attempt_sequence migrate
+4318; 2606 18035 CONSTRAINT bidops bid_delta_comparison uq_bid_delta_comparison_inputs migrate
+4320; 2606 18033 CONSTRAINT bidops bid_delta_comparison uq_bid_delta_comparison_opportunity_scope migrate
+4322; 2606 18031 CONSTRAINT bidops bid_delta_comparison uq_bid_delta_comparison_sequence migrate
+4342; 2606 18207 CONSTRAINT bidops bid_delta_evidence uq_bid_delta_evidence_scope migrate
+4334; 2606 18178 CONSTRAINT bidops bid_delta_item uq_bid_delta_item_attempt_scope migrate
+4336; 2606 18174 CONSTRAINT bidops bid_delta_item uq_bid_delta_item_category migrate
+4338; 2606 18176 CONSTRAINT bidops bid_delta_item uq_bid_delta_item_ordinal migrate
+4347; 2606 18241 CONSTRAINT bidops bid_final_decision uq_bid_final_decision_idempotency migrate
+4349; 2606 18237 CONSTRAINT bidops bid_final_decision uq_bid_final_decision_opportunity_scope migrate
+4351; 2606 18235 CONSTRAINT bidops bid_final_decision uq_bid_final_decision_sequence migrate
+4353; 2606 18239 CONSTRAINT bidops bid_final_decision uq_bid_final_decision_supersession migrate
+4182; 2606 16869 CONSTRAINT bidops document_bundle_item uq_bundle_item_scope migrate
+4204; 2606 16954 CONSTRAINT bidops claim uq_claim_scope migrate
+4418; 2606 18999 CONSTRAINT bidops collected_record_index uq_collected_record_index_run_kind_key migrate
+4083; 2606 16446 CONSTRAINT bidops content_object uq_content_object_sha256 migrate
+4445; 2606 19199 CONSTRAINT bidops deep_review_approval uq_deep_review_approval_attempt migrate
+4447; 2606 19197 CONSTRAINT bidops deep_review_approval uq_deep_review_approval_preview migrate
+4166; 2606 16808 CONSTRAINT bidops deep_review_attempt uq_deep_review_attempt_scope migrate
+4168; 2606 16806 CONSTRAINT bidops deep_review_attempt uq_deep_review_attempt_sequence migrate
+4147; 2606 16740 CONSTRAINT bidops deep_review uq_deep_review_bundle_scope migrate
+4149; 2606 16736 CONSTRAINT bidops deep_review uq_deep_review_inputs migrate
+4151; 2606 16738 CONSTRAINT bidops deep_review uq_deep_review_notice_scope migrate
+4153; 2606 16742 CONSTRAINT bidops deep_review uq_deep_review_profile_scope migrate
+4188; 2606 16902 CONSTRAINT bidops deep_review_stage uq_deep_review_stage_name migrate
+4190; 2606 16904 CONSTRAINT bidops deep_review_stage uq_deep_review_stage_sequence migrate
+4178; 2606 16851 CONSTRAINT bidops document_block uq_document_block_key migrate
+4184; 2606 16871 CONSTRAINT bidops document_bundle_item uq_document_bundle_item_bundle_ordinal migrate
+4121; 2606 16592 CONSTRAINT bidops document_bundle uq_document_bundle_notice_revision migrate
+4123; 2606 16594 CONSTRAINT bidops document_bundle uq_document_bundle_notice_scope migrate
+4383; 2606 18490 CONSTRAINT bidops document_segment_manifest uq_document_segment_manifest_identity migrate
+4387; 2606 18527 CONSTRAINT bidops document_segment uq_document_segment_ordinal migrate
+4389; 2606 18525 CONSTRAINT bidops document_segment uq_document_segment_segment_id migrate
+4159; 2606 16786 CONSTRAINT bidops document_structure uq_document_structure_document_version migrate
+4161; 2606 16788 CONSTRAINT bidops document_structure uq_document_structure_document_version_scope migrate
+4143; 2606 16706 CONSTRAINT bidops document_version uq_document_version_notice_scope migrate
+4208; 2606 16974 CONSTRAINT bidops evidence_ref uq_evidence_ref_scope migrate
+4214; 2606 17034 CONSTRAINT bidops final_opinion uq_final_opinion_sequence migrate
+4098; 2606 16482 CONSTRAINT bidops idempotency_record uq_idempotency_scope migrate
+4109; 2606 16531 CONSTRAINT bidops judgment uq_judgment_notice_id migrate
+4308; 2606 17756 CONSTRAINT bidops judgment_revision uq_judgment_revision_notice_id migrate
+4310; 2606 17754 CONSTRAINT bidops judgment_revision uq_judgment_revision_notice_sequence migrate
+4077; 2606 16426 CONSTRAINT bidops notice uq_notice_key migrate
+4274; 2606 17570 CONSTRAINT bidops notice_observation uq_notice_observation_notice_run migrate
+4296; 2606 18012 CONSTRAINT bidops opportunity_link uq_opportunity_link_notice_scope migrate
+4298; 2606 18010 CONSTRAINT bidops opportunity_link uq_opportunity_link_opportunity_scope migrate
+4285; 2606 17607 CONSTRAINT bidops order_plan_observation uq_order_plan_observation_plan_run migrate
+4375; 2606 18418 CONSTRAINT bidops order_plan_screening_artifact uq_order_plan_screening_artifact_kind migrate
+4434; 2606 19100 CONSTRAINT bidops order_plan_screening_audit_sample uq_order_plan_screening_audit_sample_plan migrate
+4367; 2606 18363 CONSTRAINT bidops order_plan_screening_batch_attempt uq_order_plan_screening_batch_attempt_scope migrate
+4439; 2606 19119 CONSTRAINT bidops order_plan_screening_daily_trigger uq_order_plan_screening_daily_trigger_request migrate
+4363; 2606 18327 CONSTRAINT bidops order_plan_screening_execution uq_order_plan_screening_execution_request migrate
+4379; 2606 18439 CONSTRAINT bidops order_plan_screening_feedback uq_order_plan_screening_feedback_revision migrate
+4358; 2606 18304 CONSTRAINT bidops order_plan_screening_policy uq_order_plan_screening_policy_version migrate
+4428; 2606 19084 CONSTRAINT bidops order_plan_screening_quality_evaluation uq_order_plan_screening_quality_evaluation_artifact migrate
+4430; 2606 19082 CONSTRAINT bidops order_plan_screening_quality_evaluation uq_order_plan_screening_quality_evaluation_revision migrate
+4371; 2606 18389 CONSTRAINT bidops order_plan_screening_result uq_order_plan_screening_result_plan migrate
+4279; 2606 17593 CONSTRAINT bidops order_plan uq_order_plan_unty_no migrate
+4398; 2606 18604 CONSTRAINT bidops prespec_company_fit_attempt uq_prespec_company_fit_input migrate
+4402; 2606 18658 CONSTRAINT bidops prespec_v4_pdf_snapshot uq_prespec_v4_pdf_snapshot_document_scope migrate
+4404; 2606 18656 CONSTRAINT bidops prespec_v4_pdf_snapshot uq_prespec_v4_pdf_snapshot_identity migrate
+4127; 2606 16613 CONSTRAINT bidops profile_evidence uq_profile_evidence_scope migrate
+4087; 2606 16455 CONSTRAINT bidops profile_version uq_profile_version_version migrate
+4245; 2606 17206 CONSTRAINT bidops quality_gate_evaluation uq_quality_gate_evaluation_revision migrate
+4264; 2606 17304 CONSTRAINT bidops quality_gate_review uq_quality_gate_review_notice_reviewer migrate
+4172; 2606 16832 CONSTRAINT bidops report_revision uq_report_revision_scope migrate
+4174; 2606 16830 CONSTRAINT bidops report_revision uq_report_revision_sequence migrate
+4393; 2606 18544 CONSTRAINT bidops requirement_inventory_item uq_requirement_inventory_item_ordinal migrate
+4113; 2606 16547 CONSTRAINT bidops review uq_review_notice migrate
+4314; 2606 17795 CONSTRAINT bidops review_revision uq_review_revision_notice_sequence migrate
+4258; 2606 17282 CONSTRAINT bidops screening_attempt uq_screening_attempt_number migrate
+4260; 2606 17284 CONSTRAINT bidops screening_attempt uq_screening_attempt_span migrate
+4192; 2606 16926 CONSTRAINT bidops validation_run uq_validation_run_revision_status_scope migrate
+4194; 2606 16924 CONSTRAINT bidops validation_run uq_validation_run_scope migrate
+4196; 2606 16922 CONSTRAINT bidops validation_run uq_validation_run_sequence migrate
+4198; 2606 16928 CONSTRAINT bidops validation_run uq_validation_run_status migrate
+4210; 2606 17018 CONSTRAINT bidops validation_check validation_check_pkey migrate
+4200; 2606 16920 CONSTRAINT bidops validation_run validation_run_pkey migrate
+4137; 2606 16688 CONSTRAINT bidops verification_answer verification_answer_pkey migrate
+4133; 2606 16660 CONSTRAINT bidops verification_item verification_item_pkey migrate
+4094; 2606 16472 CONSTRAINT bidops work_job work_job_pkey migrate
+4299; 1259 17720 INDEX bidops ix_attachment_fetch_status_next_attempt migrate
+4332; 1259 18273 INDEX bidops ix_bid_delta_item_comparison migrate
+4345; 1259 18274 INDEX bidops ix_bid_final_decision_comparison migrate
+4411; 1259 19020 INDEX bidops ix_collected_record_index_agency migrate
+4412; 1259 19017 INDEX bidops ix_collected_record_index_bf_spec_rgst_no migrate
+4413; 1259 19018 INDEX bidops ix_collected_record_index_bid_no migrate
+4414; 1259 19015 INDEX bidops ix_collected_record_index_kind_key migrate
+4415; 1259 19019 INDEX bidops ix_collected_record_index_kind_title migrate
+4416; 1259 19016 INDEX bidops ix_collected_record_index_order_plan_unty_no migrate
+4421; 1259 19034 INDEX bidops ix_collected_record_token_index migrate
+4422; 1259 19033 INDEX bidops ix_collected_record_token_token migrate
+4070; 1259 16428 INDEX bidops ix_notice_bid_no migrate
+4071; 1259 16430 INDEX bidops ix_notice_collection_sample migrate
+4072; 1259 16427 INDEX bidops ix_notice_deadline_at migrate
+4073; 1259 16429 INDEX bidops ix_notice_notice_key migrate
+4269; 1259 17582 INDEX bidops ix_notice_observation_notice migrate
+4270; 1259 17581 INDEX bidops ix_notice_observation_run migrate
+4288; 1259 17678 INDEX bidops ix_opportunity_link_notice migrate
+4289; 1259 17676 INDEX bidops ix_opportunity_link_opportunity migrate
+4290; 1259 17677 INDEX bidops ix_opportunity_link_order_plan migrate
+4280; 1259 17619 INDEX bidops ix_order_plan_observation_plan migrate
+4281; 1259 17618 INDEX bidops ix_order_plan_observation_run migrate
+4275; 1259 17594 INDEX bidops ix_order_plan_published_at migrate
+4435; 1259 19125 INDEX bidops ix_order_plan_screening_daily_trigger_latest migrate
+4394; 1259 18635 INDEX bidops ix_prespec_company_fit_notice_created migrate
+4405; 1259 18968 INDEX bidops ix_prespec_overview_run_notice_created migrate
+4103; 1259 16506 INDEX bidops uq_attachment_notice_source_key migrate
+4325; 1259 18272 INDEX bidops uq_bid_delta_attempt_active migrate
+4164; 1259 16819 INDEX bidops uq_deep_review_attempt_active migrate
+4140; 1259 16727 INDEX bidops uq_document_version_attachment_current migrate
+4141; 1259 16728 INDEX bidops uq_document_version_attachment_version migrate
+4306; 1259 17777 INDEX bidops uq_judgment_revision_execution_notice migrate
+4293; 1259 17735 INDEX bidops uq_opportunity_link_authoritative_notice migrate
+4294; 1259 17734 INDEX bidops uq_opportunity_link_authoritative_order_plan migrate
+4361; 1259 18456 INDEX bidops uq_order_plan_screening_execution_active migrate
+4356; 1259 18455 INDEX bidops uq_order_plan_screening_policy_active migrate
+4408; 1259 18969 INDEX bidops uq_prespec_overview_run_active migrate
+4229; 1259 17141 INDEX bidops uq_screening_execution_active_slot migrate
+4248; 1259 17226 INDEX bidops uq_screening_policy_active_slot migrate
+4092; 1259 16473 INDEX bidops uq_work_job_active migrate
+4706; 2620 17523 TRIGGER bidops always_on_state always_on_enabled_insert migrate
+4707; 2620 17525 TRIGGER bidops always_on_state always_on_enabled_update migrate
+4708; 2620 17551 TRIGGER bidops always_on_state always_on_generation_binding_insert migrate
+4709; 2620 17553 TRIGGER bidops always_on_state always_on_generation_binding_update migrate
+4736; 2620 19284 TRIGGER bidops assumption_input_version immutable_assumption migrate
+4737; 2620 19285 TRIGGER bidops assumption_run immutable_assumption migrate
+4738; 2620 19286 TRIGGER bidops assumption_stage immutable_assumption migrate
+4735; 2620 19212 TRIGGER bidops deep_review_approval immutable_luna migrate
+4734; 2620 19211 TRIGGER bidops deep_review_preview immutable_luna migrate
+4686; 2620 17499 TRIGGER bidops quality_gate_evaluation quality_gate_evaluation_append migrate
+4687; 2620 17539 TRIGGER bidops quality_gate_evaluation quality_gate_evaluation_generation_binding migrate
+4688; 2620 17541 TRIGGER bidops quality_gate_evaluation quality_gate_evaluation_generation_binding_update migrate
+4689; 2620 17501 TRIGGER bidops quality_gate_evaluation quality_gate_evaluation_no_update migrate
+4690; 2620 17557 TRIGGER bidops quality_gate_evaluation quality_gate_evaluation_projection_changed migrate
+4679; 2620 17535 TRIGGER bidops quality_gate quality_gate_generation_binding_insert migrate
+4680; 2620 17537 TRIGGER bidops quality_gate quality_gate_generation_binding_update migrate
+4681; 2620 17533 TRIGGER bidops quality_gate quality_gate_generation_canonical_insert migrate
+4682; 2620 17531 TRIGGER bidops quality_gate quality_gate_generation_config_immutable migrate
+4683; 2620 17497 TRIGGER bidops quality_gate quality_gate_input_immutable migrate
+4684; 2620 17493 TRIGGER bidops quality_gate quality_gate_profile_pair_insert migrate
+4685; 2620 17495 TRIGGER bidops quality_gate quality_gate_profile_pair_update migrate
+4697; 2620 17509 TRIGGER bidops quality_gate_review quality_gate_review_pass_a_insert migrate
+4698; 2620 17511 TRIGGER bidops quality_gate_review quality_gate_review_pass_a_update migrate
+4699; 2620 17547 TRIGGER bidops schedule_execution schedule_execution_generation_binding_insert migrate
+4700; 2620 17549 TRIGGER bidops schedule_execution schedule_execution_generation_binding_update migrate
+4701; 2620 17513 TRIGGER bidops schedule_execution schedule_execution_job_kind_insert migrate
+4702; 2620 17515 TRIGGER bidops schedule_execution schedule_execution_job_kind_update migrate
+4703; 2620 17517 TRIGGER bidops schedule_execution schedule_execution_relation_insert migrate
+4704; 2620 17521 TRIGGER bidops schedule_execution schedule_execution_relation_target_update migrate
+4705; 2620 17519 TRIGGER bidops schedule_execution schedule_execution_relation_update migrate
+4695; 2620 17543 TRIGGER bidops screening_attempt screening_attempt_generation_binding_insert migrate
+4696; 2620 17545 TRIGGER bidops screening_attempt screening_attempt_generation_binding_update migrate
+4673; 2620 17529 TRIGGER bidops screening_execution screening_execution_generation_canonical_insert migrate
+4674; 2620 17527 TRIGGER bidops screening_execution screening_execution_generation_config_immutable migrate
+4675; 2620 17626 TRIGGER bidops screening_execution screening_execution_notice_identity_insert migrate
+4676; 2620 17628 TRIGGER bidops screening_execution screening_execution_notice_identity_update migrate
+4677; 2620 17485 TRIGGER bidops screening_execution screening_execution_profile_pair_insert migrate
+4678; 2620 17487 TRIGGER bidops screening_execution screening_execution_profile_pair_update migrate
+4691; 2620 17505 TRIGGER bidops screening_policy screening_policy_active_gate_insert migrate
+4692; 2620 17507 TRIGGER bidops screening_policy screening_policy_active_gate_update migrate
+4693; 2620 17503 TRIGGER bidops screening_policy screening_policy_body_immutable migrate
+4694; 2620 17555 TRIGGER bidops screening_policy screening_policy_projection_changed migrate
+4713; 2620 18282 TRIGGER bidops bid_delta_attempt tr_bid_delta_attempt_terminal migrate
+4714; 2620 18283 TRIGGER bidops bid_delta_attempt tr_bid_delta_attempt_terminal_delete migrate
+4712; 2620 18284 TRIGGER bidops bid_delta_comparison tr_bid_delta_comparison_fence migrate
+4716; 2620 18281 TRIGGER bidops bid_delta_evidence tr_bid_delta_evidence_append_only migrate
+4717; 2620 18279 TRIGGER bidops bid_final_decision tr_bid_delta_final_decision_append_only migrate
+4715; 2620 18280 TRIGGER bidops bid_delta_item tr_bid_delta_item_append_only migrate
+4710; 2620 17813 TRIGGER bidops judgment_revision tr_judgment_revision_append_only migrate
+4725; 2620 18468 TRIGGER bidops order_plan_screening_artifact tr_order_plan_screening_artifact_append_only migrate
+4732; 2620 19133 TRIGGER bidops order_plan_screening_audit_sample tr_order_plan_screening_audit_sample_append_only migrate
+4722; 2620 18464 TRIGGER bidops order_plan_screening_batch_attempt tr_order_plan_screening_batch_attempt_audit migrate
+4723; 2620 18462 TRIGGER bidops order_plan_screening_batch_attempt tr_order_plan_screening_batch_attempt_guard migrate
+4733; 2620 19135 TRIGGER bidops order_plan_screening_daily_trigger tr_order_plan_screening_daily_trigger_append_only migrate
+4719; 2620 18460 TRIGGER bidops order_plan_screening_execution tr_order_plan_screening_execution_guard migrate
+4720; 2620 18472 TRIGGER bidops order_plan_screening_execution tr_order_plan_screening_execution_heartbeat_guard migrate
+4721; 2620 19139 TRIGGER bidops order_plan_screening_execution tr_order_plan_screening_execution_purpose_guard migrate
+4726; 2620 18470 TRIGGER bidops order_plan_screening_feedback tr_order_plan_screening_feedback_append_only migrate
+4718; 2620 18458 TRIGGER bidops order_plan_screening_policy tr_order_plan_screening_policy_guard migrate
+4730; 2620 19131 TRIGGER bidops order_plan_screening_quality_evaluation tr_order_plan_screening_quality_evaluation_append_only migrate
+4731; 2620 19137 TRIGGER bidops order_plan_screening_quality_evaluation tr_order_plan_screening_quality_evaluation_thresholds migrate
+4729; 2620 19129 TRIGGER bidops order_plan_screening_quality_gate tr_order_plan_screening_quality_gate_append_only migrate
+4724; 2620 18466 TRIGGER bidops order_plan_screening_result tr_order_plan_screening_result_append_only migrate
+4727; 2620 18637 TRIGGER bidops prespec_company_fit_attempt tr_prespec_company_fit_guard migrate
+4728; 2620 18744 TRIGGER bidops prespec_v4_pdf_snapshot tr_prespec_v4_pdf_snapshot_immutable migrate
+4711; 2620 17815 TRIGGER bidops review_revision tr_review_revision_append_only migrate
+4549; 2606 17406 FK CONSTRAINT bidops always_on_state always_on_state_company_profile_digest_fkey migrate
+4550; 2606 17401 FK CONSTRAINT bidops always_on_state always_on_state_company_profile_version_fkey migrate
+4551; 2606 17396 FK CONSTRAINT bidops always_on_state always_on_state_policy_version_fkey migrate
+4552; 2606 17391 FK CONSTRAINT bidops always_on_state always_on_state_quality_gate_result_id_fkey migrate
+4665; 2606 19226 FK CONSTRAINT bidops assumption_input_version assumption_input_version_bundle_id_fkey migrate
+4666; 2606 19221 FK CONSTRAINT bidops assumption_input_version assumption_input_version_notice_id_fkey migrate
+4667; 2606 19231 FK CONSTRAINT bidops assumption_input_version assumption_input_version_profile_version_id_fkey migrate
+4668; 2606 19252 FK CONSTRAINT bidops assumption_run assumption_run_input_version_id_fkey migrate
+4669; 2606 19247 FK CONSTRAINT bidops assumption_run assumption_run_notice_id_fkey migrate
+4670; 2606 19257 FK CONSTRAINT bidops assumption_run assumption_run_work_job_id_fkey migrate
+4671; 2606 19279 FK CONSTRAINT bidops assumption_stage assumption_stage_raw_content_object_id_fkey migrate
+4672; 2606 19274 FK CONSTRAINT bidops assumption_stage assumption_stage_run_id_fkey migrate
+4463; 2606 16501 FK CONSTRAINT bidops attachment attachment_notice_id_fkey migrate
+4505; 2606 16955 FK CONSTRAINT bidops claim claim_deep_review_id_fkey migrate
+4506; 2606 16960 FK CONSTRAINT bidops claim claim_stage_id_fkey migrate
+4650; 2606 19005 FK CONSTRAINT bidops collected_record_index collected_record_index_ingested_notice_id_fkey migrate
+4651; 2606 19010 FK CONSTRAINT bidops collected_record_index collected_record_index_ingested_order_plan_id_fkey migrate
+4652; 2606 19000 FK CONSTRAINT bidops collected_record_index collected_record_index_run_id_fkey migrate
+4653; 2606 19028 FK CONSTRAINT bidops collected_record_token collected_record_token_index_id_fkey migrate
+4468; 2606 16565 FK CONSTRAINT bidops content_object_location content_object_location_content_object_id_fkey migrate
+4469; 2606 16578 FK CONSTRAINT bidops content_scan content_scan_content_object_id_fkey migrate
+4475; 2606 16647 FK CONSTRAINT bidops counterargument counterargument_judgment_id_fkey migrate
+4663; 2606 19205 FK CONSTRAINT bidops deep_review_approval deep_review_approval_attempt_id_fkey migrate
+4664; 2606 19200 FK CONSTRAINT bidops deep_review_approval deep_review_approval_preview_id_fkey migrate
+4491; 2606 16809 FK CONSTRAINT bidops deep_review_attempt deep_review_attempt_deep_review_id_fkey migrate
+4492; 2606 16814 FK CONSTRAINT bidops deep_review_attempt deep_review_attempt_work_job_id_fkey migrate
+4483; 2606 16748 FK CONSTRAINT bidops deep_review deep_review_bundle_id_fkey migrate
+4484; 2606 16743 FK CONSTRAINT bidops deep_review deep_review_notice_id_fkey migrate
+4485; 2606 16758 FK CONSTRAINT bidops deep_review deep_review_policy_version_id_fkey migrate
+4659; 2606 19176 FK CONSTRAINT bidops deep_review_preview deep_review_preview_bundle_id_fkey migrate
+4660; 2606 19171 FK CONSTRAINT bidops deep_review_preview deep_review_preview_notice_id_fkey migrate
+4661; 2606 19186 FK CONSTRAINT bidops deep_review_preview deep_review_preview_policy_version_id_fkey migrate
+4662; 2606 19181 FK CONSTRAINT bidops deep_review_preview deep_review_preview_profile_version_id_fkey migrate
+4486; 2606 16753 FK CONSTRAINT bidops deep_review deep_review_profile_version_id_fkey migrate
+4500; 2606 16905 FK CONSTRAINT bidops deep_review_stage deep_review_stage_attempt_id_fkey migrate
+4501; 2606 16910 FK CONSTRAINT bidops deep_review_stage deep_review_stage_raw_response_content_object_id_fkey migrate
+4495; 2606 16852 FK CONSTRAINT bidops document_block document_block_structure_id_fkey migrate
+4496; 2606 16872 FK CONSTRAINT bidops document_bundle_item document_bundle_item_bundle_id_fkey migrate
+4497; 2606 16882 FK CONSTRAINT bidops document_bundle_item document_bundle_item_content_object_id_fkey migrate
+4498; 2606 16877 FK CONSTRAINT bidops document_bundle_item document_bundle_item_document_version_id_fkey migrate
+4499; 2606 16887 FK CONSTRAINT bidops document_bundle_item document_bundle_item_structure_id_at_confirmation_fkey migrate
+4470; 2606 16595 FK CONSTRAINT bidops document_bundle document_bundle_notice_id_fkey migrate
+4471; 2606 16600 FK CONSTRAINT bidops document_bundle document_bundle_supersedes_bundle_id_fkey migrate
+4489; 2606 16789 FK CONSTRAINT bidops document_structure document_structure_document_version_id_fkey migrate
+4490; 2606 16794 FK CONSTRAINT bidops document_structure document_structure_payload_content_object_id_fkey migrate
+4479; 2606 16712 FK CONSTRAINT bidops document_version document_version_attachment_id_fkey migrate
+4480; 2606 16717 FK CONSTRAINT bidops document_version document_version_content_object_id_fkey migrate
+4481; 2606 16707 FK CONSTRAINT bidops document_version document_version_notice_id_fkey migrate
+4482; 2606 16722 FK CONSTRAINT bidops document_version document_version_replaces_document_version_id_fkey migrate
+4507; 2606 17000 FK CONSTRAINT bidops evidence_ref evidence_ref_deep_review_id_fkey migrate
+4508; 2606 17005 FK CONSTRAINT bidops evidence_ref evidence_ref_notice_id_fkey migrate
+4515; 2606 17050 FK CONSTRAINT bidops final_opinion final_opinion_deep_review_id_fkey migrate
+4516; 2606 17055 FK CONSTRAINT bidops final_opinion final_opinion_report_revision_id_fkey migrate
+4562; 2606 17710 FK CONSTRAINT bidops attachment_fetch fk_attachment_fetch_attachment migrate
+4563; 2606 17715 FK CONSTRAINT bidops attachment_fetch fk_attachment_fetch_document_version migrate
+4591; 2606 18146 FK CONSTRAINT bidops bid_delta_attempt fk_bid_delta_attempt_comparison migrate
+4592; 2606 18151 FK CONSTRAINT bidops bid_delta_attempt fk_bid_delta_attempt_work_job migrate
+4571; 2606 18051 FK CONSTRAINT bidops bid_delta_comparison fk_bid_delta_comparison_baseline_bundle migrate
+4572; 2606 18121 FK CONSTRAINT bidops bid_delta_comparison fk_bid_delta_comparison_baseline_bundle_item_scope migrate
+4573; 2606 18111 FK CONSTRAINT bidops bid_delta_comparison fk_bid_delta_comparison_baseline_bundle_notice migrate
+4574; 2606 18056 FK CONSTRAINT bidops bid_delta_comparison fk_bid_delta_comparison_baseline_document_version migrate
+4575; 2606 18041 FK CONSTRAINT bidops bid_delta_comparison fk_bid_delta_comparison_baseline_link migrate
+4576; 2606 18101 FK CONSTRAINT bidops bid_delta_comparison fk_bid_delta_comparison_baseline_link_notice migrate
+4577; 2606 18091 FK CONSTRAINT bidops bid_delta_comparison fk_bid_delta_comparison_baseline_link_opportunity migrate
+4578; 2606 18046 FK CONSTRAINT bidops bid_delta_comparison fk_bid_delta_comparison_baseline_notice migrate
+4579; 2606 18061 FK CONSTRAINT bidops bid_delta_comparison fk_bid_delta_comparison_baseline_structure migrate
+4580; 2606 18076 FK CONSTRAINT bidops bid_delta_comparison fk_bid_delta_comparison_comparison_bundle migrate
+4581; 2606 18126 FK CONSTRAINT bidops bid_delta_comparison fk_bid_delta_comparison_comparison_bundle_item_scope migrate
+4582; 2606 18116 FK CONSTRAINT bidops bid_delta_comparison fk_bid_delta_comparison_comparison_bundle_notice migrate
+4583; 2606 18081 FK CONSTRAINT bidops bid_delta_comparison fk_bid_delta_comparison_comparison_document_version migrate
+4584; 2606 18066 FK CONSTRAINT bidops bid_delta_comparison fk_bid_delta_comparison_comparison_link migrate
+4585; 2606 18106 FK CONSTRAINT bidops bid_delta_comparison fk_bid_delta_comparison_comparison_link_notice migrate
+4586; 2606 18096 FK CONSTRAINT bidops bid_delta_comparison fk_bid_delta_comparison_comparison_link_opportunity migrate
+4587; 2606 18071 FK CONSTRAINT bidops bid_delta_comparison fk_bid_delta_comparison_comparison_notice migrate
+4588; 2606 18086 FK CONSTRAINT bidops bid_delta_comparison fk_bid_delta_comparison_comparison_structure migrate
+4589; 2606 18156 FK CONSTRAINT bidops bid_delta_comparison fk_bid_delta_comparison_current_attempt_scope migrate
+4590; 2606 18036 FK CONSTRAINT bidops bid_delta_comparison fk_bid_delta_comparison_opportunity migrate
+4596; 2606 18213 FK CONSTRAINT bidops bid_delta_evidence fk_bid_delta_evidence_document_version migrate
+4597; 2606 18208 FK CONSTRAINT bidops bid_delta_evidence fk_bid_delta_evidence_item migrate
+4598; 2606 18218 FK CONSTRAINT bidops bid_delta_evidence fk_bid_delta_evidence_structure migrate
+4593; 2606 18184 FK CONSTRAINT bidops bid_delta_item fk_bid_delta_item_attempt migrate
+4594; 2606 18189 FK CONSTRAINT bidops bid_delta_item fk_bid_delta_item_attempt_comparison_scope migrate
+4595; 2606 18179 FK CONSTRAINT bidops bid_delta_item fk_bid_delta_item_comparison migrate
+4599; 2606 18252 FK CONSTRAINT bidops bid_final_decision fk_bid_final_decision_baseline_document_version migrate
+4600; 2606 19039 FK CONSTRAINT bidops bid_final_decision fk_bid_final_decision_basis_notice migrate
+4601; 2606 18247 FK CONSTRAINT bidops bid_final_decision fk_bid_final_decision_comparison migrate
+4602; 2606 18257 FK CONSTRAINT bidops bid_final_decision fk_bid_final_decision_comparison_document_version migrate
+4603; 2606 18267 FK CONSTRAINT bidops bid_final_decision fk_bid_final_decision_comparison_scope migrate
+4604; 2606 18242 FK CONSTRAINT bidops bid_final_decision fk_bid_final_decision_opportunity migrate
+4605; 2606 18262 FK CONSTRAINT bidops bid_final_decision fk_bid_final_decision_supersedes_scope migrate
+4520; 2606 17065 FK CONSTRAINT bidops claim_evidence fk_claim_evidence_claim_scope migrate
+4521; 2606 17070 FK CONSTRAINT bidops claim_evidence fk_claim_evidence_ref_scope migrate
+4487; 2606 17090 FK CONSTRAINT bidops deep_review fk_deep_review_current_attempt_scope migrate
+4619; 2606 18528 FK CONSTRAINT bidops document_segment fk_document_segment_manifest migrate
+4616; 2606 18496 FK CONSTRAINT bidops document_segment_manifest fk_document_segment_manifest_document_version migrate
+4617; 2606 18491 FK CONSTRAINT bidops document_segment_manifest fk_document_segment_manifest_structure migrate
+4618; 2606 18501 FK CONSTRAINT bidops document_segment_manifest fk_document_segment_manifest_structure_document_scope migrate
+4509; 2606 16985 FK CONSTRAINT bidops evidence_ref fk_evidence_document_bundle_scope migrate
+4510; 2606 16980 FK CONSTRAINT bidops evidence_ref fk_evidence_document_review_scope migrate
+4511; 2606 16975 FK CONSTRAINT bidops evidence_ref fk_evidence_notice_review_scope migrate
+4512; 2606 16990 FK CONSTRAINT bidops evidence_ref fk_evidence_profile_review_scope migrate
+4513; 2606 16995 FK CONSTRAINT bidops evidence_ref fk_evidence_profile_scope migrate
+4517; 2606 17035 FK CONSTRAINT bidops final_opinion fk_final_opinion_revision_scope migrate
+4518; 2606 17045 FK CONSTRAINT bidops final_opinion fk_final_opinion_validation_revision_scope migrate
+4519; 2606 17040 FK CONSTRAINT bidops final_opinion fk_final_opinion_validation_snapshot migrate
+4564; 2606 17767 FK CONSTRAINT bidops judgment_revision fk_judgment_revision_execution migrate
+4565; 2606 17757 FK CONSTRAINT bidops judgment_revision fk_judgment_revision_notice migrate
+4566; 2606 17762 FK CONSTRAINT bidops judgment_revision fk_judgment_revision_observation migrate
+4567; 2606 17772 FK CONSTRAINT bidops judgment_revision fk_judgment_revision_parent_scope migrate
+4557; 2606 17727 FK CONSTRAINT bidops opportunity fk_opportunity_merged_into migrate
+4558; 2606 17689 FK CONSTRAINT bidops opportunity fk_opportunity_recheck_signal_link migrate
+4612; 2606 18419 FK CONSTRAINT bidops order_plan_screening_artifact fk_order_plan_screening_artifact_execution migrate
+4656; 2606 19101 FK CONSTRAINT bidops order_plan_screening_audit_sample fk_order_plan_screening_audit_sample_execution migrate
+4657; 2606 19106 FK CONSTRAINT bidops order_plan_screening_audit_sample fk_order_plan_screening_audit_sample_order_plan migrate
+4608; 2606 18364 FK CONSTRAINT bidops order_plan_screening_batch_attempt fk_order_plan_screening_batch_attempt_execution migrate
+4658; 2606 19120 FK CONSTRAINT bidops order_plan_screening_daily_trigger fk_order_plan_screening_daily_trigger_policy migrate
+4606; 2606 18333 FK CONSTRAINT bidops order_plan_screening_execution fk_order_plan_screening_execution_policy migrate
+4607; 2606 18328 FK CONSTRAINT bidops order_plan_screening_execution fk_order_plan_screening_execution_source_run migrate
+4613; 2606 18440 FK CONSTRAINT bidops order_plan_screening_feedback fk_order_plan_screening_feedback_execution migrate
+4614; 2606 18445 FK CONSTRAINT bidops order_plan_screening_feedback fk_order_plan_screening_feedback_order_plan migrate
+4615; 2606 18450 FK CONSTRAINT bidops order_plan_screening_feedback fk_order_plan_screening_feedback_supersedes migrate
+4655; 2606 19085 FK CONSTRAINT bidops order_plan_screening_quality_evaluation fk_order_plan_screening_quality_evaluation_gate migrate
+4654; 2606 19062 FK CONSTRAINT bidops order_plan_screening_quality_gate fk_order_plan_screening_quality_gate_policy migrate
+4609; 2606 18390 FK CONSTRAINT bidops order_plan_screening_result fk_order_plan_screening_result_execution migrate
+4610; 2606 18400 FK CONSTRAINT bidops order_plan_screening_result fk_order_plan_screening_result_order_plan migrate
+4611; 2606 18395 FK CONSTRAINT bidops order_plan_screening_result fk_order_plan_screening_result_source_run migrate
+4621; 2606 18605 FK CONSTRAINT bidops prespec_company_fit_attempt fk_prespec_company_fit_document_scope migrate
+4622; 2606 18981 FK CONSTRAINT bidops prespec_company_fit_attempt fk_prespec_company_fit_overview_run migrate
+4643; 2606 18948 FK CONSTRAINT bidops prespec_overview_run fk_prespec_overview_run_document_scope migrate
+4644; 2606 18943 FK CONSTRAINT bidops prespec_overview_run fk_prespec_overview_run_document_version migrate
+4645; 2606 19148 FK CONSTRAINT bidops prespec_overview_run fk_prespec_overview_run_profile_version migrate
+4646; 2606 19153 FK CONSTRAINT bidops prespec_overview_run fk_prespec_overview_run_reused_from migrate
+4626; 2606 18659 FK CONSTRAINT bidops prespec_v4_pdf_snapshot fk_prespec_v4_pdf_snapshot_document_scope migrate
+4627; 2606 18975 FK CONSTRAINT bidops prespec_v4_pdf_snapshot fk_prespec_v4_pdf_snapshot_document_version migrate
+4628; 2606 18970 FK CONSTRAINT bidops prespec_v4_pdf_snapshot fk_prespec_v4_pdf_snapshot_notice migrate
+4522; 2606 17085 FK CONSTRAINT bidops report_revision_evidence fk_report_revision_evidence_ref_scope migrate
+4523; 2606 17080 FK CONSTRAINT bidops report_revision_evidence fk_report_revision_evidence_revision_scope migrate
+4493; 2606 16833 FK CONSTRAINT bidops report_revision fk_report_revision_parent_scope migrate
+4620; 2606 18545 FK CONSTRAINT bidops requirement_inventory_item fk_requirement_inventory_item_manifest migrate
+4568; 2606 17806 FK CONSTRAINT bidops review_revision fk_review_revision_judgment_scope migrate
+4569; 2606 17796 FK CONSTRAINT bidops review_revision fk_review_revision_notice migrate
+4570; 2606 17801 FK CONSTRAINT bidops review_revision fk_review_revision_observation migrate
+4466; 2606 17620 FK CONSTRAINT bidops review fk_review_run migrate
+4629; 2606 18795 FK CONSTRAINT bidops prespec_v4_pdf_snapshot fk_rhwp_snapshot_hwpx_content_object_id migrate
+4630; 2606 18800 FK CONSTRAINT bidops prespec_v4_pdf_snapshot fk_rhwp_snapshot_hwpx_location_id migrate
+4631; 2606 18815 FK CONSTRAINT bidops prespec_v4_pdf_snapshot fk_rhwp_snapshot_para_page_map_content_object_id migrate
+4632; 2606 18820 FK CONSTRAINT bidops prespec_v4_pdf_snapshot fk_rhwp_snapshot_para_page_map_location_id migrate
+4633; 2606 18805 FK CONSTRAINT bidops prespec_v4_pdf_snapshot fk_rhwp_snapshot_structure_id migrate
+4634; 2606 18810 FK CONSTRAINT bidops prespec_v4_pdf_snapshot fk_rhwp_snapshot_structure_location_id migrate
+4635; 2606 18825 FK CONSTRAINT bidops prespec_v4_pdf_snapshot fk_section_candidates_section_candidates_content_object_id migrate
+4636; 2606 18830 FK CONSTRAINT bidops prespec_v4_pdf_snapshot fk_section_candidates_section_candidates_location_id migrate
+4502; 2606 16929 FK CONSTRAINT bidops validation_run fk_validation_run_revision_scope migrate
+4464; 2606 16516 FK CONSTRAINT bidops ingest_warning ingest_warning_run_id_fkey migrate
+4465; 2606 16532 FK CONSTRAINT bidops judgment judgment_notice_id_fkey migrate
+4477; 2606 16675 FK CONSTRAINT bidops matched_performance matched_performance_judgment_id_fkey migrate
+4553; 2606 17571 FK CONSTRAINT bidops notice_observation notice_observation_notice_id_fkey migrate
+4554; 2606 17576 FK CONSTRAINT bidops notice_observation notice_observation_run_id_fkey migrate
+4559; 2606 17671 FK CONSTRAINT bidops opportunity_link opportunity_link_notice_id_fkey migrate
+4560; 2606 17661 FK CONSTRAINT bidops opportunity_link opportunity_link_opportunity_id_fkey migrate
+4561; 2606 17666 FK CONSTRAINT bidops opportunity_link opportunity_link_order_plan_id_fkey migrate
+4555; 2606 17608 FK CONSTRAINT bidops order_plan_observation order_plan_observation_order_plan_id_fkey migrate
+4556; 2606 17613 FK CONSTRAINT bidops order_plan_observation order_plan_observation_run_id_fkey migrate
+4474; 2606 16633 FK CONSTRAINT bidops perspective perspective_judgment_id_fkey migrate
+4623; 2606 18630 FK CONSTRAINT bidops prespec_company_fit_attempt prespec_company_fit_attempt_deep_policy_version_id_fkey migrate
+4624; 2606 18610 FK CONSTRAINT bidops prespec_company_fit_attempt prespec_company_fit_attempt_notice_id_fkey migrate
+4625; 2606 18625 FK CONSTRAINT bidops prespec_company_fit_attempt prespec_company_fit_attempt_profile_version_id_fkey migrate
+4647; 2606 18953 FK CONSTRAINT bidops prespec_overview_run prespec_overview_run_notice_id_fkey migrate
+4648; 2606 18958 FK CONSTRAINT bidops prespec_overview_run prespec_overview_run_snapshot_id_fkey migrate
+4649; 2606 18963 FK CONSTRAINT bidops prespec_overview_run prespec_overview_run_work_job_id_fkey migrate
+4637; 2606 18684 FK CONSTRAINT bidops prespec_v4_pdf_snapshot prespec_v4_pdf_snapshot_page_text_content_object_id_fkey migrate
+4638; 2606 18689 FK CONSTRAINT bidops prespec_v4_pdf_snapshot prespec_v4_pdf_snapshot_page_text_location_id_fkey migrate
+4639; 2606 18674 FK CONSTRAINT bidops prespec_v4_pdf_snapshot prespec_v4_pdf_snapshot_pdf_content_object_id_fkey migrate
+4640; 2606 18679 FK CONSTRAINT bidops prespec_v4_pdf_snapshot prespec_v4_pdf_snapshot_pdf_location_id_fkey migrate
+4641; 2606 18664 FK CONSTRAINT bidops prespec_v4_pdf_snapshot prespec_v4_pdf_snapshot_source_content_object_id_fkey migrate
+4642; 2606 18669 FK CONSTRAINT bidops prespec_v4_pdf_snapshot prespec_v4_pdf_snapshot_source_location_id_fkey migrate
+4472; 2606 16619 FK CONSTRAINT bidops profile_evidence profile_evidence_content_object_id_fkey migrate
+4473; 2606 16614 FK CONSTRAINT bidops profile_evidence profile_evidence_profile_version_id_fkey migrate
+4530; 2606 17421 FK CONSTRAINT bidops quality_gate quality_gate_baseline_run_id_fkey migrate
+4531; 2606 17431 FK CONSTRAINT bidops quality_gate quality_gate_company_profile_digest_fkey migrate
+4532; 2606 17456 FK CONSTRAINT bidops quality_gate quality_gate_company_profile_version_fkey migrate
+4536; 2606 17451 FK CONSTRAINT bidops quality_gate_evaluation quality_gate_evaluation_gate_id_fkey migrate
+4533; 2606 17466 FK CONSTRAINT bidops quality_gate quality_gate_pass_a_execution_id_fkey migrate
+4534; 2606 17461 FK CONSTRAINT bidops quality_gate quality_gate_pass_b_execution_id_fkey migrate
+4535; 2606 17436 FK CONSTRAINT bidops quality_gate quality_gate_policy_version_fkey migrate
+4539; 2606 17310 FK CONSTRAINT bidops quality_gate_review quality_gate_review_execution_id_fkey migrate
+4540; 2606 17305 FK CONSTRAINT bidops quality_gate_review quality_gate_review_gate_id_fkey migrate
+4494; 2606 16838 FK CONSTRAINT bidops report_revision report_revision_deep_review_id_fkey migrate
+4467; 2606 16548 FK CONSTRAINT bidops review review_notice_id_fkey migrate
+4462; 2606 16408 FK CONSTRAINT bidops run run_superseded_by_fkey migrate
+4541; 2606 17373 FK CONSTRAINT bidops schedule_execution schedule_execution_company_profile_digest_fkey migrate
+4542; 2606 17368 FK CONSTRAINT bidops schedule_execution schedule_execution_company_profile_version_fkey migrate
+4543; 2606 17343 FK CONSTRAINT bidops schedule_execution schedule_execution_duplicate_of_execution_id_fkey migrate
+4544; 2606 17363 FK CONSTRAINT bidops schedule_execution schedule_execution_policy_version_fkey migrate
+4545; 2606 17348 FK CONSTRAINT bidops schedule_execution schedule_execution_recovery_of_execution_id_fkey migrate
+4546; 2606 17353 FK CONSTRAINT bidops schedule_execution schedule_execution_run_id_fkey migrate
+4547; 2606 17338 FK CONSTRAINT bidops schedule_execution schedule_execution_run_key_fkey migrate
+4548; 2606 17358 FK CONSTRAINT bidops schedule_execution schedule_execution_screening_execution_id_fkey migrate
+4538; 2606 17285 FK CONSTRAINT bidops screening_attempt screening_attempt_execution_id_fkey migrate
+4488; 2606 16772 FK CONSTRAINT bidops screening_evidence screening_evidence_perspective_id_fkey migrate
+4524; 2606 17416 FK CONSTRAINT bidops screening_execution screening_execution_company_profile_digest_fkey migrate
+4525; 2606 17441 FK CONSTRAINT bidops screening_execution screening_execution_company_profile_version_fkey migrate
+4526; 2606 17476 FK CONSTRAINT bidops screening_execution screening_execution_notice_pk_fkey migrate
+4527; 2606 17471 FK CONSTRAINT bidops screening_execution screening_execution_policy_version_fkey migrate
+4528; 2606 17446 FK CONSTRAINT bidops screening_execution screening_execution_published_run_id_fkey migrate
+4529; 2606 17411 FK CONSTRAINT bidops screening_execution screening_execution_source_run_id_fkey migrate
+4537; 2606 17426 FK CONSTRAINT bidops screening_policy screening_policy_quality_gate_result_id_fkey migrate
+4514; 2606 17019 FK CONSTRAINT bidops validation_check validation_check_validation_run_id_fkey migrate
+4503; 2606 16934 FK CONSTRAINT bidops validation_run validation_run_deep_review_id_fkey migrate
+4504; 2606 16939 FK CONSTRAINT bidops validation_run validation_run_report_revision_id_fkey migrate
+4478; 2606 16689 FK CONSTRAINT bidops verification_answer verification_answer_review_id_fkey migrate
+4476; 2606 16661 FK CONSTRAINT bidops verification_item verification_item_judgment_id_fkey migrate
+2476; 826 19288 DEFAULT ACL bidops DEFAULT PRIVILEGES FOR SEQUENCES migrate
+2475; 826 19287 DEFAULT ACL bidops DEFAULT PRIVILEGES FOR TABLES migrate

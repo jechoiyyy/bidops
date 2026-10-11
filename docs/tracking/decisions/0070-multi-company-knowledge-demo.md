@@ -70,3 +70,7 @@ ADR-0045 모듈 경계, ADR-0047 데스크톱, ADR-0050 모델 경계, ADR-0069 
 | 실제 corpus는 2026-10-06~08 수집 범위를 동결하고 그 안에서 6건을 선택 | 실제 3일 수집을 재사용하면서 18개 핏·9개 심층 조합의 범위를 유지 |
 | 개요·회사 핏은 LiteLLM 별칭 `local-agent-main`, 심층은 Luna `codex-exec` 경로 유지 | transport·정책·승인과 품질 증거가 다르므로 임의 통합이나 fallback을 금지 |
 | DEMO-01~05의 main 병합과 운영 전환은 로컬 인수 뒤 별도 작업 | 기존 ID 직접 조회 전수 경계, backup·배포·활성화·실제 전송의 단계별 승인을 그대로 보존 |
+
+## 개정 — 2026-10-11 DEMO-03 실제 인수 범위 재계획
+
+DEMO-03 STEP-007은 사용자 단계별 승인으로 실제 `bidops-local`에 0036 migration·3사 import/activate·demo 정책 2건 import·demo flag·codex-runner를 적용했다. 로컬에 문서 준비가 끝난 유일한 공고 179의 회사 심층 미리보기는 모델 호출 전에 `company_input_invalid`로 fail-closed됐다(segment inventory 11개 vs 본문 ID 50개, findings "요구사항 표의 행별 셀 위치 차이"의 재현). 사용자는 검사를 완화하거나 다른 공고를 즉석 준비하는 대신 대표 1건 실제 Luna 심층(T9)을 DEMO-05 첫 대표 1건×3사 인수로 이관하기로 했다. DEMO-03의 `real_data_run` proof는 비적용으로 닫고, DEMO-05 후보 선정은 모델 호출 전 inventory 일치 검사를 전제로 한다. 운영 전환·main 병합은 여전히 별도 작업이다.

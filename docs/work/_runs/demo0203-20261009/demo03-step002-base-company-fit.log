@@ -1,0 +1,65 @@
+base commit tree: git archive HEAD (0d980bd) of web/backend; untracked STEP-001 files not included
+command: cd web/backend && BIDOPS_PRESPEC_OVERVIEW_ENABLED=false /tmp/bidops-demo00-verify-venv/bin/python -m pytest tests/deep_review/test_company_fit.py tests/app/test_models.py -q -rfs -p no:warnings
+...........................F...F.                                        [100%]
+=================================== FAILURES ===================================
+____________ test_automatic_queue_and_shared_creation_gate[matched] ____________
+
+context = (<sqlalchemy.orm.session.Session object at 0x10c54fa70>, {'company_facts': [{'fact_key': 'scope', 'ref': 'company:0', ...ring'}, ...}, 'required': ['schema_version', 'decision', 'summary', 'reasons', 'verification_items'], ...}, ...}, ...})
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10c54d400>
+decision = 'matched'
+
+    @pytest.mark.parametrize("decision", ["matched", "mismatch", "unknown"])
+    def test_automatic_queue_and_shared_creation_gate(context, monkeypatch, decision):
+        session, inputs = context
+        bundle = ready_bundle(session, inputs)
+        from app.deep_review.services.auto_preparation import maybe_auto_start_deep_review
+        class Service:
+            def create_review(self, session, notice_id, bundle_id, actor, request_id, *, actor_kind):
+                assert actor_kind == "system"
+                review = DeepReview(id=uuid4(), notice_id=notice_id, bundle_id=bundle_id,
+                    profile_version_id=UUID(inputs["profile_version_id"]), policy_version_id=UUID(inputs["deep_policy_version_id"]),
+                    effective_grade_at_start="우선 검토", status="queued", requested_by_name=actor)
+                session.add(review); session.commit()
+                return {"id": str(review.id)}
+        monkeypatch.setattr(worker, "maybe_auto_start_deep_review", lambda s, n: maybe_auto_start_deep_review(s, n, service=Service()))
+        client = Client(output(decision))
+        runner = worker.PreSpecCompanyFitRunner(client=client, raw_response_store=_FakeStore())
+        assert runner.run_once(session, "worker")
+        assert session.scalar(select(func.count()).select_from(PreSpecCompanyFitAttempt)) == 1
+        row = session.scalar(select(PreSpecCompanyFitAttempt))
+        assert row.status == "completed"
+>       assert session.scalar(select(func.count()).select_from(DeepReview)) == (1 if decision == "matched" else 0)
+E       assert 0 == 1
+E        +  where 0 = scalar(<sqlalchemy.sql.selectable.Select object at 0x10bbbf7d0>)
+E        +    where scalar = <sqlalchemy.orm.session.Session object at 0x10c54fa70>.scalar
+E        +    and   <sqlalchemy.sql.selectable.Select object at 0x10bbbf7d0> = select_from(DeepReview)
+E        +      where select_from = <sqlalchemy.sql.selectable.Select object at 0x10bbbf4d0>.select_from
+E        +        where <sqlalchemy.sql.selectable.Select object at 0x10bbbf4d0> = select(<sqlalchemy.sql.functions.count at 0x10bbead20; count>)
+E        +          where <sqlalchemy.sql.functions.count at 0x10bbead20; count> = <sqlalchemy.sql.functions._FunctionGenerator object at 0x10c3b9040>()
+E        +            where <sqlalchemy.sql.functions._FunctionGenerator object at 0x10c3b9040> = func.count
+
+tests/deep_review/test_company_fit.py:492: AssertionError
+_____________ test_init_db_creates_all_declared_tables_and_indexes _____________
+
+    def test_init_db_creates_all_declared_tables_and_indexes():
+        test_engine = make_test_engine()
+        init_db(test_engine)
+    
+        inspector = inspect(test_engine)
+>       assert set(inspector.get_table_names()) == EXPECTED_TABLES
+E       AssertionError: assert {'agency_port...n_stage', ...} == {'agency_port...t_event', ...}
+E         
+E         Extra items in the left set:
+E         'assumption_run'
+E         'assumption_input_version'
+E         'deep_review_approval'
+E         'assumption_stage'
+E         'deep_review_preview'
+E         Use -v to get more diff
+
+tests/app/test_models.py:82: AssertionError
+=========================== short test summary info ============================
+FAILED tests/deep_review/test_company_fit.py::test_automatic_queue_and_shared_creation_gate[matched]
+FAILED tests/app/test_models.py::test_init_db_creates_all_declared_tables_and_indexes
+2 failed, 31 passed in 1.70s
+exit_code=1
