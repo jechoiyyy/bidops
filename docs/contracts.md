@@ -1919,7 +1919,7 @@ DEMO-01은 별도 데모 브랜치에 `GET /api/demo-config`, strict 회사 목�
 DEMO-02는 `python -m app.deep_review.cli import-company-knowledge`(`--dry-run` 포함)·`activate-company-knowledge` JSON CLI와
 `GET /api/companies/{company_id}/profile`·`/knowledge-graph`·`/profile-evidence/{evidence_id}`를 공통 계약 §4·§8대로 구현했다.
 활성 binding이 없으면 profile·graph는 409 `company_profile_not_ready`, 타회사·legacy NULL 자원은 404이며 공개 응답에는 source locator·object key·원문 경로가 없다.
-main·운영에는 미반영이며, 회사별 분석·비교 DTO와 실제 인수는 DEMO-03~05에서 구현한다.
+main·운영에는 미반영이다. 회사별 분석·비교 DTO는 아래 DEMO-03 단락이 정하며, 화면과 실제 인수는 DEMO-04~05 범위다.
 DEMO-03(2026-10-10, 같은 데모 브랜치)은 공통 계약 §5·§6·§9·§10의 회사별 분석 계약을 구현했다.
 - 회사 핏: REST 없이 CLI `python -m app.deep_review.cli import-company-fit-policy --policy <file> --actor <name>`(`bidops.company-fit-policy.v2`, canonical sha256을 승인 파일과 대조, import만·활성화 없음)과
   `enqueue-company-fit --company-id <uuid> --notice-id <int> --actor <name> [--dry-run]`(worker DB 역할, attempt 1개 queued, `CompanyAnalysisInput(purpose=company_fit, execution_nonce=attempt id, bundle_id=null)`과 FrozenProvenance를 enqueue transaction에서 동결, gate code는 §9 목록, exit 0/2/1).

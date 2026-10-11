@@ -1,6 +1,6 @@
 # 배치 demo0203-20261009 최종 독립 리뷰 (2026-10-11)
 
-- 범위: 승인 기준 `506ac77` → 배치 최종 트리 `7a110ce`(tree `c57721646e7370b465c615188fad4cb9090ee4dc`). 배치 HEAD `0d980bd`가 `7a110ce`의 부모라 no-ff 병합 결과 트리는 이 트리와 같다.
+- 범위: 승인 기준 `506ac77` → DEMO-03 구현 커밋 `7a110ce`(tree `c57721646e7370b465c615188fad4cb9090ee4dc`). 이 리뷰는 아래 노트에 따른 문서 수정(`a9105c7`)과 그 이후 수정 **이전**의 트리를 대상으로 했다. 최종 배치 트리의 문서 일치는 이 리뷰가 아니라 Codex 독립 리뷰(`batch-codex-review*.md`)가 판정한다.
 - 기능별 독립 리뷰(DEMO-02 `review.md`, DEMO-03 `demo03-review.md`)는 재수행하지 않고, 두 리뷰가 보지 못한 배치 수준 차이만 검토했다. 리뷰어는 구현에 관여하지 않은 읽기 전용 subagent다.
 - 판정: **PASS_WITH_NOTES, 차단 0**.
 
@@ -10,6 +10,16 @@
 2. 공통 제약 충족: 새 테이블·열 `runtime-privileges.sql` 등록, 0036 불변 trigger, lifecycle→deep_review import 없음, `company_fit_policy_version` append-only, demo 정책의 전역 활성 거부, `bidops-local` overlay 외 main·운영 compose/script 변경 없음.
 3. 실제 모델 품질·실제 Luna 완료 주장 없음. DEMO-03 `real_data_run` N/A, T9는 DEMO-05 spec/intent가 인수.
 4. `docs/validation-runs`·`docs/work/_runs`에 키·토큰·auth.json 내용 없음. 절대 경로는 worktree·scratchpad 경로뿐이다.
+
+## Codex 독립 리뷰 1회차 FAIL과 처리 (2026-10-11)
+
+배치 HEAD `441f5c0`(tree `76df522c`)에 대한 Codex `gpt-5.6-sol`/high 리뷰가 FAIL, 차단 3건을 냈다(배치 worktree `batch-codex-review.md`). 세 건 모두 소스에서 사실로 확인했고 제품 코드 결함은 없었다.
+
+| 차단 | 처리 |
+|---|---|
+| DEMO-03 intent 사용자 흐름 표·재계획 문단, spec 범위 문단, 공통 계약 §Luna 문단이 실제 Luna 완료를 DEMO-03·DEMO-04 게이트로 요구 | 2026-10-11 사용자 결정(T9→DEMO-05)에 맞춰 문구 정합화. DEMO-03 spec_hash 변경은 `run _ accept-spec`으로 기록 |
+| business-rules·contracts DEMO-02 단락의 "DEMO-03~05 미구현", operations 절 제목 "구현 전" | 수정. 같은 패턴 전수 검색으로 PRD·PLAN 절 제목도 함께 수정 |
+| 이 파일의 범위 문장이 최종 트리를 대상으로 했다고 기록 | 위 범위 문장을 실제 대상(`7a110ce`)으로 정정 |
 
 ## 노트와 처리
 

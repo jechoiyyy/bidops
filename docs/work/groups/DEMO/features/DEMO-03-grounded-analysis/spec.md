@@ -38,8 +38,8 @@ considered_claim_ids는 입력 verified claims이고 출력 로컬 ID와 다름�
 회사별 목록·비교·상세 projection은 lifecycle 공개 확장점으로 제공해 역방향 import를 만들지 않는다.
 deep_review가 lifecycle의 새 공개 파일(`schemas/companies.py` 등)을 import하면 `tests/app/boundary_map.py` 공개 표면을 갱신한다.
 새 테이블·열 권한은 `scripts/runtime-privileges.sql`, 새 오류 code는 응답 router 허용 목록에 등록한다.
-DEMO-03은 fake 모델을 쓴 제품 경로 통합 뒤 대표 1건의 실제 Luna 심층 보고서까지 인수한다. 실제 18개 핏과 대표 1건×3사·목표 9건은 DEMO-05가 소유한다.
-2026-10-09 notice 179의 LiteLLM 개요는 overview transport의 `unmeasured_reference` 증거이며 이 Luna 게이트를 충족하지 않는다.
+DEMO-03은 fake 모델을 쓴 제품 경로 통합과 실제 `bidops-local` 스택 준비·호출 전 fail-closed 확인(T9, 2026-10-11 재정의)까지 인수한다. 대표 1건 실제 Luna 심층 보고서, 실제 18개 핏과 대표 1건×3사·목표 9건은 DEMO-05가 소유한다.
+2026-10-09 notice 179의 LiteLLM 개요는 overview transport의 `unmeasured_reference` 증거이며 DEMO-05의 Luna 게이트를 충족하지 않는다.
 
 ## 인터페이스·상태·실패
 
