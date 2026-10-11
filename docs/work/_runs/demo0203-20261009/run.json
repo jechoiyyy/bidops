@@ -1,6 +1,6 @@
 {
   "id": "demo0203-20261009",
-  "state": "awaiting_merge",
+  "state": "done",
   "features": [
     "DEMO-02-company-knowledge",
     "DEMO-03-grounded-analysis"
@@ -110,5 +110,17 @@
         "spec_hash": "694697dd8a6608d97712507e36099c46b7fa1911fd0e98e81307c90c6209968f"
       }
     }
-  }
+  },
+  "merged_sha": "679224a7439df41fcaa104c3a1170c3170d5934f",
+  "merged_inputs": {
+    "DEMO-02-company-knowledge": {
+      "source_hash": "b03842f58e0321c94e9abe790829ef412bc2ad75abccf647fea5028d9a4d6ae6",
+      "spec_hash": "f91391df9927a6b7b91a6af4f3628e48814c310ee0a67830abd496ef5e5d92e6"
+    },
+    "DEMO-03-grounded-analysis": {
+      "source_hash": "b03842f58e0321c94e9abe790829ef412bc2ad75abccf647fea5028d9a4d6ae6",
+      "spec_hash": "694697dd8a6608d97712507e36099c46b7fa1911fd0e98e81307c90c6209968f"
+    }
+  },
+  "completed_at": "2026-10-11T23:25:39+09:00"
 }
