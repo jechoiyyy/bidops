@@ -30,6 +30,15 @@
 
 배치 `run.json`의 `review`에 `result=pass`, 근거 `batch-codex-review.md`(2026-10-11T19:01:12)가 기록돼 있으나 그 보고서의 판정은 FAIL이다. 보고서를 읽기 전에 pass로 기록된 오기다. 입력 hash(`9b1f430b…`)가 현재 스냅샷과 달라 `run _ finish` 근거가 되지 않으며, 통과한 회차의 `run _ review`로 대체한다. 1회차 판정은 FAIL로 본다.
 
+## 3회차 전 사전 점검 (2026-10-11)
+
+구현에 관여하지 않은 읽기 전용 subagent가 `506ac77..15b4969`를 3회차 프롬프트 기준으로 검토했다. 제품 코드·공통 제약 차단은 0이었다.
+차단 2건은 STEP-008 이전 문구가 남은 기록 문서였다(`DEMO-03-grounded-analysis.md`의 510 passed·"공고 현재 문서 집합"·STEP-001~007, plan 결과 절의 STEP-008 누락). 두 파일을 현재 사실로 고쳤고 공통 계약 §9의 "schema_version은 v2다" 문장도 v3 개정과 맞췄다.
+이 점검은 지정 모델 리뷰가 아니므로 `run _ review` 근거로 쓰지 않는다.
+
+- migration 편집 여부: 기존 migration 중 바뀐 파일은 `0001_lean_v1_postgresql.py`뿐이다. 이 파일은 현재 ORM metadata에서 lean v1 schema를 복원하는 helper이며, DEMO-02(`3500aef`)·DEMO-03(`7a110ce`)은 뒤에 추가된 열·제약(`company_id`, `graph_version_id`, `ck_deep_review_graph_scope`, `uq_content_object_location_content_scope`)을 그 복원에서 제거하는 줄만 더했다. 0001이 만드는 schema는 바뀌지 않는다(DEMO-01 `c1a8293` 선례).
+- 반복 실패 원인: 상태 문구가 정본·계획·기록 문서 여러 곳에 복제돼 수정 회차마다 일부가 남았고, 구현 중 결정(핏 unit 비움)을 계약 문장과 대조하지 않고 받아들였다. 이후 회차는 Codex 호출 전에 옛 SHA·직전 pass 수·"STEP-001~00N"·"현재 문서 집합"·"구현 전" 문구를 전수 검색한다.
+
 ## 노트와 처리
 
 | 노트 | 처리 |

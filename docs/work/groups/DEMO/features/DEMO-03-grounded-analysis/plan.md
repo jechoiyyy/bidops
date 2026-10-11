@@ -142,5 +142,7 @@ STEP-007은 2026-10-11 사용자 단계별 승인으로 실제 `bidops-local`에
 - STEP-004: `analysis-policy-luna-demo-v1`(v4 파생, sha256 9cb6254e…c3b0, path_limit 32 필수, profile_characters 8000)·회사 slice 빌더. 리더 542 passed. path index는 sanitizer로 모델 미노출(provenance 전용).
 - STEP-005: 회사별 GET 6개·비교·FrozenProvenance GET·legacy reader 거부, lifecycle 공개 함수 2개. 리더 661 passed.
 - STEP-006: 공용 슬롯 claim 분기·fake Luna 종단·legacy writer/CLI/정책 분리·선택 사실 slice 배치·핏 문서 집합 동결. 리더 751 passed.
-- 문서: contracts·ARCHITECTURE·business-rules·deep-review-erd DEMO 절 갱신.
-- 기능 브랜치 커밋 `7a110ce`. main·운영에는 미반영이며 `bidops-local`에는 STEP-007 범위(스택 준비)만 적용했다.
+- STEP-008(2026-10-11, Codex 배치 리뷰 2회차 차단 처리): 핏 정책 v3(`company-fit-demo-v3.json`, `source_characters` 6000, sha256 `1ecf5cbf…e2e0d`, v2 파일 불변)·최신 ready bundle 필수(`bundle_not_ready`)·공용 `bundle_source_units`로 핏 Requirement를 개요 문서·evidence page의 원문 unit에 연결. 새 enqueue는 v3만, 동결된 v2 attempt는 그대로 실행. 리더 23파일 764 passed/0 skipped(`demo03-step008-leader.log`). 상세는 `demo03-step008-result.md`.
+- 위 "검사 명령과 증거" 절의 "신규 테스트는 아직 없으며" 문장은 계획 작성 시점 문구다. 실제 실행 결과는 이 절과 단계별 리더 로그가 정본이다.
+- 문서: contracts·ARCHITECTURE·business-rules·deep-review-erd DEMO 절 갱신, STEP-008 반영(공통 계약 §9 개정 포함).
+- 기능 브랜치 커밋 `7a110ce`(STEP-001~007), `15b4969`(STEP-008 코드). 그 밖의 커밋은 문서·기록이다. main·운영에는 미반영이며 `bidops-local`에는 STEP-007 범위(스택 준비)만 적용했다. 핏 v3는 `bidops-local`에 import되지 않았다(DEMO-05 준비, 단계별 확인).

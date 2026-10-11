@@ -428,7 +428,7 @@ web과 analysis-worker에 같은 값을 명시 주입한다. 기존 전역 activ
 핏은 신규 CompanyFitPolicyVersion(id UUID PK,sha256 hash UNIQUE,payload JSON,created_at timestamp)이며
 기존 fit_policy/model/revision/generation을 고정한 bidops.company-fit-policy.v2를 저장한다.
 이 payload 전체는 {schema_version,model_name,model_revision,prompt_version,generation,stages,system_prompt,
-prompt_output_contract,chunking}이다. schema_version은 bidops.company-fit-policy.v2다. model_revision은 기존 코드 함수
+prompt_output_contract,chunking}이다. 원안의 schema_version은 bidops.company-fit-policy.v2이며 새 enqueue의 현재 schema는 아래 2026-10-11 개정의 v3다. model_revision은 기존 코드 함수
 `fit_policy(model)`(company_fit.py)에 없는 새 키이며(기존에는 동결 입력에만 있음) LiteLLM 별칭 `local-agent-main`과 확인 가능한 선언 revision을 고정한다.
 revision이 metadata에 없으면 null로 보존하고 upstream 모델명이나 revision을 추정하지 않는다.
 나머지 키는 기존 fit_policy의 구조와 타입을 따른다.
