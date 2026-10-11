@@ -1,0 +1,41 @@
+
+Running 1 test using 1 worker
+
+  ✘  1 [app] › tests/company-workspace.spec.ts:385:1 › 회차 전환 뒤 demo-config 재조회가 실패해도 데모를 끄지 않고 화면을 다시 마운트하지 않는다 (5.7s)
+
+
+  1) [app] › tests/company-workspace.spec.ts:385:1 › 회차 전환 뒤 demo-config 재조회가 실패해도 데모를 끄지 않고 화면을 다시 마운트하지 않는다 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByRole('combobox', { name: '데모 회사 선택' })
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" with timeout 5000ms
+      - waiting for getByRole('combobox', { name: '데모 회사 선택' })
+
+
+      409 |   await expect(runSelector).toHaveValue(otherRun as string);
+      410 |   await expect(page.locator(".app-shell")).toHaveAttribute("data-mount-probe", "kept");
+    > 411 |   await expect(companySelect(page)).toBeVisible();
+          |                                     ^
+      412 |   await expect(page.getByRole("navigation", { name: "주 메뉴" }).getByRole("link", { name: "회사 선택", exact: true })).toBeVisible();
+      413 |   // 회사 경로도 그대로 열린다.
+      414 |   await companySelect(page).selectOption(companyId("demo-data-ai"));
+        at /Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-workspace.spec.ts:411:37
+
+    Error Context: test-results/company-workspace-회차-전환-뒤--86286--데모를-끄지-않고-화면을-다시-마운트하지-않는다-app/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/company-workspace-회차-전환-뒤--86286--데모를-끄지-않고-화면을-다시-마운트하지-않는다-app/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/company-workspace-회차-전환-뒤--86286--데모를-끄지-않고-화면을-다시-마운트하지-않는다-app/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    [app] › tests/company-workspace.spec.ts:385:1 › 회차 전환 뒤 demo-config 재조회가 실패해도 데모를 끄지 않고 화면을 다시 마운트하지 않는다 

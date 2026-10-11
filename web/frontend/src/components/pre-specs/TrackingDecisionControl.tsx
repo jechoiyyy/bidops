@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient, type QueryClient, type QueryKey } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { Selector } from "@astryxdesign/core/Selector";
 import { TextInput } from "@astryxdesign/core/TextInput";
@@ -11,7 +11,18 @@ import { DisabledReason } from "../common/DisabledReason";
 import { EmptyState } from "../common/EmptyState";
 import { MutationFeedback } from "../common/MutationFeedback";
 import { api } from "../../lib/api";
-import { describeApiError, type ApiErrorDescription } from "../../lib/apiErrors";
+import { describeApiError, describeCompanyApiError, type ApiErrorDescription } from "../../lib/apiErrors";
+import {
+  applyCompanyTrackingSaved,
+  COMPANY_TRACKING_DECISIONS,
+  companyApi,
+  companyKeys,
+  type CompanyTrackingDTO,
+  type CompanyTrackingStatus,
+  type CompanyTrackingUpdateRequest,
+  type Uuid,
+} from "../../lib/companyApi";
+import { generateRequestId } from "../../lib/requestId";
 import { originOf, trackingDescription, trackingVariant } from "../../lib/opportunity";
 import { formatDateTime, present } from "../../lib/format";
 import type {
@@ -36,6 +47,17 @@ import type {
  * 심층 검토가 정상 완료돼도 다시 묻지 않는다. 이 배열을 늘리면 그 결정이 깨진다.
  */
 export const TRACKING_DECISION_STATUSES: OpportunityTrackingStatus[] = ["계속 추적"];
+
+/**
+ * 사유·담당자 필수 규칙. 기존 사전규격 경로와 회사 경로가 같은 문구로 막는다.
+ * 사유는 공백을 뺀 뒤 1자 이상이어야 하며(서버도 trim 뒤 1~2000자), 담당자 이름은
+ * 감사 표식일 뿐 인증이 아니다.
+ */
+function requiredDecisionInputReason(reason: string, actorName: string): string | null {
+  if (!reason.trim()) return "추적 결정을 저장하려면 사유를 입력하십시오.";
+  if (!actorName.trim()) return "추적 결정을 저장하려면 담당자 이름을 입력하십시오.";
+  return null;
+}
 
 /** 사유 예시 드롭다운에서 "직접 입력"을 뜻하는 값. 계약에 실리지 않는다. */
 const OTHER_REASON_PRESET = "__other__";
@@ -84,7 +106,9 @@ export function PreSpecDocumentSummary({ item }: { item: PreSpecListItem }) {
   );
 }
 
-export interface TrackingDecisionControlProps {
+export interface PreSpecTrackingDecisionControlProps {
+  /** 기존 사전규격 경로. 회사 adapter가 없으면 이 형태다. */
+  adapter?: undefined;
   item: PreSpecListItem | undefined;
   isPending: boolean;
   isError: boolean;
@@ -141,7 +165,21 @@ export interface TrackingDecisionControlProps {
   onDirtyChange?: (dirty: boolean) => void;
 }
 
-export function TrackingDecisionControl({
+/**
+ * 사전규격 추적 결정 컨트롤.
+ *
+ * - adapter 없음: 기존 사전규격 화면. 고를 수 있는 값은 `계속 추적` 하나다(ADR-0046 결정 6).
+ * - `adapter`(회사 경로): 가상회사 데모의 회사별 추적. 계속 추적·보류·종료 세 상태를 저장한다
+ *   (계약 §2, 2026-09-17 결정의 데모 회사 경로 한정 예외). 기존 화면의 단일 선택은 바꾸지 않는다.
+ *
+ * 두 경로는 사유 필수·담당자 필수·종료 확인·미저장 이탈 확인 규칙을 같은 자리에서 쓴다.
+ */
+export function TrackingDecisionControl(props: TrackingDecisionControlProps) {
+  if (props.adapter) return <CompanyTrackingDecision adapter={props.adapter} headingLevel={props.headingLevel} />;
+  return <PreSpecTrackingDecisionControl {...props} />;
+}
+
+function PreSpecTrackingDecisionControl({
   item,
   isPending,
   isError,
@@ -158,7 +196,7 @@ export function TrackingDecisionControl({
   noticeNumber,
   showRecordHeading = true,
   showIntent = true,
-}: TrackingDecisionControlProps) {
+}: PreSpecTrackingDecisionControlProps) {
   const Heading = headingLevel;
   const opportunityId = item?.opportunity_id ?? null;
   const inherited = item !== undefined && isInheritedTracking(item);
@@ -283,11 +321,7 @@ export function TrackingDecisionControl({
     ? "추적 상태 저장 요청을 처리하고 있습니다."
     : !hasOpportunity
       ? "아직 사업기회에 연결되지 않아 추적 결정을 기록할 수 없습니다."
-      : !reason.trim()
-        ? "추적 결정을 저장하려면 사유를 입력하십시오."
-        : !actorName.trim()
-          ? "추적 결정을 저장하려면 담당자 이름을 입력하십시오."
-          : null;
+      : requiredDecisionInputReason(reason, actorName);
 
   useEffect(() => {
     onDecisionStateChange?.({ ready, disabledReason, hasForm, saveLabel });
@@ -543,6 +577,417 @@ export function TrackingDecisionControl({
         summary={endConfirm?.summary ?? []}
         title={endConfirm?.title ?? "추적을 종료합니다"}
       />
+    </section>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// 회사 경로 adapter (가상회사 데모, `docs/work/demo-contract.md` §2)
+
+/**
+ * 추적 결정을 어느 API로 읽고 저장할지. 컨트롤의 규칙(세 상태·사유·담당자·종료 확인·
+ * 미저장 이탈 확인·request_id·expected_revision)은 컨트롤이 소유하고, adapter는 endpoint와
+ * 저장 성공 뒤 cache 반영만 정한다.
+ *
+ * adapter는 만들 때의 회사·사업기회를 붙잡는다. 저장 mutation은 시작할 때의 adapter를
+ * 변수로 넘기므로, 사람이 그사이 다른 회사로 옮겨도 cache 반영은 시작한 회사에만 한다.
+ */
+export interface TrackingDecisionAdapter {
+  /** 회사 경로임을 밝힌다. 화면 문구와 radio 이름의 범위다. */
+  scopeKey: string;
+  /** 사업기회 미연결이면 null이며 저장 form을 그리지 않는다. */
+  opportunityId: number | null;
+  /** 이 경로가 저장하는 결정. 회사 경로는 계속 추적·보류·종료 세 상태다. */
+  decisions: readonly CompanyTrackingStatus[];
+  queryKey: QueryKey;
+  load: (signal: AbortSignal) => Promise<CompanyTrackingDTO>;
+  save: (payload: CompanyTrackingUpdateRequest, actorName: string) => Promise<CompanyTrackingDTO>;
+  /** 저장 성공 뒤 시작한 회사의 cache만 갱신한다. */
+  applySaved: (queryClient: QueryClient, saved: CompanyTrackingDTO) => void;
+  /** 종료 확인 창의 대상 문구. */
+  targetLabel: string;
+  /** 저장을 시작한 주체 문구(예: "회사 데모 업무SI"). 처리 중 이탈 확인에 쓴다. */
+  ownerLabel: string;
+}
+
+export interface CompanyTrackingDecisionControlProps {
+  adapter: TrackingDecisionAdapter;
+  headingLevel?: "h3" | "h4";
+}
+
+export type TrackingDecisionControlProps = PreSpecTrackingDecisionControlProps | CompanyTrackingDecisionControlProps;
+
+/** 회사 경로 adapter. 회사·사업기회·공고를 만들 때 고정한다. */
+export function companyTrackingAdapter({ companyId, opportunityId, noticeId, companyName = null }: { companyId: Uuid; opportunityId: number | null; noticeId: number | null; companyName?: string | null }): TrackingDecisionAdapter {
+  return {
+    scopeKey: `company-${companyId}-${opportunityId ?? "unlinked"}`,
+    opportunityId,
+    decisions: COMPANY_TRACKING_DECISIONS,
+    queryKey: companyKeys.tracking(companyId, opportunityId ?? 0),
+    load: (signal) => companyApi.getTracking(companyId, opportunityId as number, { signal }),
+    save: (payload, actorName) => companyApi.updateTracking(companyId, opportunityId as number, payload, actorName),
+    applySaved: (queryClient, saved) => applyCompanyTrackingSaved(queryClient, { companyId, opportunityId: opportunityId as number, noticeId }, saved),
+    targetLabel: `사업기회 #${opportunityId ?? "미연결"} · 이 회사`,
+    ownerLabel: companyName ? `회사 ${companyName}` : "저장을 시작한 회사",
+  };
+}
+
+/** 같은 저장 의도(상태·사유·기준 revision·담당자)의 재시도에는 같은 request_id를 쓴다. */
+function trackingIntentFingerprint(status: CompanyTrackingStatus, reason: string, expectedRevision: number, actorName: string): string {
+  return JSON.stringify([status, reason.trim(), expectedRevision, actorName.trim()]);
+}
+
+function readErrorCode(error: unknown): string | null {
+  return describeCompanyApiError(error, "").code;
+}
+
+function TrackingSnapshot({ label, tracking, testId }: { label: string; tracking: { status: string; reason: string | null; actor: string | null; at?: string | null; revision: number }; testId: string }) {
+  return (
+    <div className="cw-tracking-snapshot" data-testid={testId}>
+      <strong>{label}</strong>
+      <dl className="cw-facts">
+        <dt>추적 상태</dt><dd>{tracking.status}</dd>
+        <dt>사유</dt><dd>{tracking.reason?.trim() ? tracking.reason : "값 없음"}</dd>
+        <dt>담당자</dt><dd>{tracking.actor?.trim() ? tracking.actor : "값 없음"}</dd>
+        {tracking.at !== undefined ? <><dt>기록 시각</dt><dd>{tracking.at ? formatDateTime(tracking.at) : "값 없음"}</dd></> : null}
+        <dt>기준 기록</dt><dd>{tracking.revision}회</dd>
+      </dl>
+    </div>
+  );
+}
+
+interface CompanyTrackingSaveVariables {
+  adapter: TrackingDecisionAdapter;
+  payload: CompanyTrackingUpdateRequest;
+  actorName: string;
+}
+
+/**
+ * 회사 경로의 추적 결정 입력.
+ *
+ * - 화면은 서버가 성공을 돌려준 뒤에만 바뀐다(낙관적 갱신 없음).
+ * - 409 `version_conflict`: 초안을 그대로 두고 서버 최신값을 다시 읽어 나란히 보여 준다.
+ *   자동으로 덮어쓰지 않으며, 사람이 `최신값 기준으로 다시 저장 준비`를 눌러야 그 revision으로 저장한다.
+ * - 409 `idempotency_conflict`: 같은 request_id로 다른 내용을 보낸 재전송 충돌이다. 그 request_id는
+ *   버리고, 사람이 새 저장 요청으로 다시 시작해야 저장한다.
+ * - 저장하지 않은 입력이 있으면 회사 전환을 포함한 경로 이동 전에 확인한다. 취소하면 그대로 남는다.
+ */
+function CompanyTrackingDecision({ adapter, headingLevel = "h3" }: CompanyTrackingDecisionControlProps) {
+  const Heading = headingLevel;
+  const queryClient = useQueryClient();
+  const opportunityId = adapter.opportunityId;
+  const trackingQuery = useQuery({
+    queryKey: adapter.queryKey,
+    queryFn: ({ signal }) => adapter.load(signal),
+    enabled: opportunityId !== null,
+    retry: false,
+  });
+  const latest = trackingQuery.data;
+  const [status, setStatus] = useState<CompanyTrackingStatus | null>(null);
+  const [reason, setReason] = useState("");
+  const [actorName, setActorName] = useState("");
+  /** 초안이 기준으로 삼은 서버 값. 초안이 있는 동안 서버 값이 바뀌어도 몰래 바꾸지 않는다. */
+  const [base, setBase] = useState<CompanyTrackingDTO | null>(null);
+  const [pendingRequest, setPendingRequest] = useState<{ requestId: string; fingerprint: string } | null>(null);
+  const [problem, setProblem] = useState<ApiErrorDescription | null>(null);
+  const [versionConflict, setVersionConflict] = useState(false);
+  const [resendConflict, setResendConflict] = useState(false);
+  const [savedMessage, setSavedMessage] = useState<string | null>(null);
+  const [endConfirm, setEndConfirm] = useState<ReturnType<typeof trackingEndConfirmContent> | null>(null);
+
+  const dirty = status !== null || reason.trim().length > 0;
+
+  useEffect(() => {
+    // 잃을 초안이 없을 때만 기준을 서버 최신값으로 맞춘다.
+    if (latest && (!dirty || base === null)) setBase(latest);
+  }, [latest, dirty, base]);
+
+  useEffect(() => {
+    if (dirty) setSavedMessage(null);
+  }, [dirty]);
+
+  useEffect(() => {
+    // 사람이 초안을 모두 지우면 비교할 초안이 없다. 충돌 표시는 거두고 기준은 위에서 최신값으로 맞춘다.
+    if (!dirty && versionConflict) {
+      setVersionConflict(false);
+      setProblem(null);
+    }
+  }, [dirty, versionConflict]);
+
+  const mutation = useMutation({
+    mutationFn: (variables: CompanyTrackingSaveVariables) => variables.adapter.save(variables.payload, variables.actorName),
+    // hook 단위 콜백은 화면이 다른 회사로 바뀌어 이 컴포넌트가 사라진 뒤에도 실행된다.
+    // 그래서 cache 반영은 시작할 때의 adapter(시작한 회사)로만 한다.
+    onSuccess: (saved, variables) => variables.adapter.applySaved(queryClient, saved),
+  });
+
+  const pendingStatus = mutation.isPending ? mutation.variables?.payload.tracking_status ?? null : null;
+  const owner = adapter.ownerLabel;
+  // 저장 요청을 이미 보낸 뒤에는 "입력이 사라진다"가 틀린 말이다. 보낸 요청은 이동해도
+  // 취소되지 않고 시작한 회사에 저장될 수 있으므로 그 사실을 그대로 적는다.
+  const guard = useUnsavedGuard(dirty, mutation.isPending ? {
+    blockSpaNavigation: true,
+    scope: "pathname",
+    title: "추적 결정 저장 요청을 처리하고 있습니다",
+    message: `저장 요청을 이미 보냈습니다. 지금 이동해도 그 요청은 취소되지 않으며 ${owner}에 저장될 수 있습니다. 다른 회사에는 저장되지 않습니다. 저장 결과는 ${owner} 화면에서 다시 확인하십시오.`,
+    confirmLabel: "이동하기 (보낸 요청은 계속 처리)",
+    cancelLabel: "이 회사에 머물기",
+    summary: [
+      { label: "보낸 요청", value: `${pendingStatus ?? "추적 결정"} · 처리 중` },
+      { label: "사유", value: reason.trim() || "값 없음" },
+    ],
+  } : {
+    blockSpaNavigation: true,
+    scope: "pathname",
+    title: "이 회사의 추적 결정을 저장하지 않았습니다",
+    message: "저장하지 않은 추적 결정 입력이 있습니다. 다른 화면이나 다른 회사로 옮기면 이 입력은 사라지며, 다른 회사에 저장되지 않습니다.",
+    confirmLabel: "입력을 버리고 이동",
+    cancelLabel: "이 회사에 머물기",
+    summary: [
+      { label: "추적 상태", value: status ?? "값 없음" },
+      { label: "사유", value: reason.trim() || "값 없음" },
+    ],
+  });
+
+  if (opportunityId === null) {
+    return (
+      <section className="cw-section" aria-labelledby="company-tracking-title" data-testid="company-tracking-unlinked">
+        <Heading id="company-tracking-title">이 회사의 추적 결정</Heading>
+        <p className="cw-caption">아직 사업기회에 연결되지 않아 추적 결정을 기록할 수 없습니다.</p>
+      </section>
+    );
+  }
+
+  const needsNewIntent = versionConflict || resendConflict;
+  const ready = base !== null && status !== null && requiredDecisionInputReason(reason, actorName) === null
+    && reason.trim().length <= 2000 && !mutation.isPending && !needsNewIntent;
+  const disabledReason = mutation.isPending
+    ? "저장 요청을 처리하고 있습니다."
+    : base === null
+      ? "현재 추적 상태를 확인한 뒤 저장할 수 있습니다."
+      : versionConflict
+        ? "서버 최신값과 초안을 비교한 뒤 ‘최신값 기준으로 다시 저장 준비’를 눌러야 저장합니다."
+        : resendConflict
+          ? "재전송 충돌을 확인한 뒤 ‘새 저장 요청으로 다시 시작’을 눌러야 저장합니다."
+          : status === null
+            ? "추적 상태(계속 추적·보류·종료)를 고르십시오."
+            : requiredDecisionInputReason(reason, actorName);
+
+  const send = () => {
+    if (!ready || base === null || status === null) return;
+    const fingerprint = trackingIntentFingerprint(status, reason, base.revision, actorName);
+    let requestId: string;
+    try {
+      requestId = pendingRequest?.fingerprint === fingerprint ? pendingRequest.requestId : generateRequestId();
+    } catch {
+      setProblem({
+        title: "안전한 요청 식별자를 만들 수 없습니다.",
+        detail: "이 브라우저에서 암호학적 난수를 쓸 수 없어 저장하지 않았습니다. 다른 브라우저에서 다시 시도하십시오.",
+        action: null,
+        code: null,
+      });
+      return;
+    }
+    setPendingRequest({ requestId, fingerprint });
+    setProblem(null);
+    mutation.mutate(
+      {
+        adapter,
+        payload: { tracking_status: status, reason: reason.trim(), expected_revision: base.revision, request_id: requestId },
+        actorName: actorName.trim(),
+      },
+      {
+        // 이 컴포넌트가 아직 같은 회사 화면에 있을 때만 입력을 비운다.
+        onSuccess: (saved) => {
+          guard.release();
+          setStatus(null);
+          setReason("");
+          setPendingRequest(null);
+          setBase(saved);
+          setSavedMessage(`${saved.tracking_status}(으)로 저장했습니다.`);
+        },
+        onError: (caught) => {
+          const code = readErrorCode(caught);
+          if (code === "version_conflict") {
+            // 초안은 그대로 둔다. 서버 최신값을 다시 읽어 나란히 보여 주되 기준은 바꾸지 않는다.
+            setVersionConflict(true);
+            void trackingQuery.refetch();
+          } else if (code === "idempotency_conflict") {
+            // 그 request_id는 다시 쓰지 않는다. 새 저장 요청으로만 다시 보낸다.
+            setResendConflict(true);
+            setPendingRequest(null);
+            void trackingQuery.refetch();
+          }
+          // 그 밖의 실패는 입력과 request_id를 그대로 둔다. 같은 입력의 재시도는 같은 request_id다.
+          setProblem(describeCompanyApiError(caught, "추적 결정을 저장하지 못했습니다."));
+        },
+      },
+    );
+  };
+
+  const rebaseOnLatest = () => {
+    if (!latest) return;
+    setBase(latest);
+    setVersionConflict(false);
+    setProblem(null);
+    setPendingRequest(null);
+  };
+
+  const startNewIntent = () => {
+    setResendConflict(false);
+    setProblem(null);
+    setPendingRequest(null);
+  };
+
+  return (
+    <section className="cw-section" aria-labelledby="company-tracking-title" data-testid="company-tracking">
+      <Heading id="company-tracking-title">이 회사의 추적 결정</Heading>
+      <p className="cw-caption" data-testid="company-tracking-boundary">
+        계속 추적·보류·종료는 이 회사의 사업 추적 결정입니다. 회사 핏(적합성) 판정이나 최종 입찰 참여 결정(Go/No-Go)이 아니며 서로 대신하지 않습니다.
+        세 상태 저장은 가상회사 데모 경로에만 있습니다.
+      </p>
+      {trackingQuery.isPending ? (
+        <p role="status">현재 추적 상태를 불러오는 중입니다.</p>
+      ) : trackingQuery.isError && !latest ? (
+        <EmptyState
+          compact
+          tone="error"
+          title="현재 추적 상태를 확인할 수 없습니다."
+          problem={describeCompanyApiError(trackingQuery.error, "추적 상태를 불러오지 못했습니다.")}
+          action={{ label: "다시 시도", onClick: () => { void trackingQuery.refetch(); } }}
+        />
+      ) : latest ? (
+        <p data-testid="company-tracking-current">
+          현재 {latest.tracking_status}
+          {latest.selected_by ? ` · ${latest.selected_by}` : ""}
+          {latest.selected_at ? ` · ${formatDateTime(latest.selected_at)}` : ""}
+          <span className="cw-caption"> · 기록 {latest.revision}회</span>
+        </p>
+      ) : null}
+
+      {versionConflict && base ? (
+        <div className="cw-tracking-conflict" role="group" aria-label="추적 결정 저장 충돌" data-testid="company-tracking-conflict">
+          <p>
+            다른 사람이 먼저 이 회사의 추적 결정을 바꿨습니다. 초안은 지우지 않았고 서버 값으로 자동 덮어쓰지 않습니다.
+            두 값을 비교한 뒤 최신값을 기준으로 다시 저장할지 정하십시오.
+          </p>
+          <div className="cw-tracking-conflict-grid">
+            <TrackingSnapshot
+              label="내 초안 · 저장 안 됨"
+              testId="company-tracking-conflict-draft"
+              tracking={{ status: status ?? "선택 안 함", reason, actor: actorName, revision: base.revision }}
+            />
+            {latest && latest.revision !== base.revision ? (
+              <TrackingSnapshot
+                label="서버 최신값"
+                testId="company-tracking-conflict-latest"
+                tracking={{ status: latest.tracking_status, reason: latest.reason, actor: latest.selected_by, at: latest.selected_at, revision: latest.revision }}
+              />
+            ) : trackingQuery.isFetching ? (
+              <p role="status">서버 최신값을 불러오는 중입니다.</p>
+            ) : (
+              <p className="cw-caption">서버 최신값을 확인하지 못했습니다. 다시 불러온 뒤 비교하십시오.</p>
+            )}
+          </div>
+          <div className="cw-tracking-actions">
+            <button
+              className="cw-button"
+              type="button"
+              disabled={!latest || latest.revision === base.revision || trackingQuery.isFetching}
+              onClick={rebaseOnLatest}
+            >
+              최신값 기준으로 다시 저장 준비
+            </button>
+            <button className="cw-button" type="button" disabled={trackingQuery.isFetching} onClick={() => { void trackingQuery.refetch(); }}>
+              서버 최신값 다시 불러오기
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      <form
+        className="cw-tracking-form"
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (!ready || status === null) return;
+          if (status === "종료") {
+            setEndConfirm(trackingEndConfirmContent({ actor: actorName, reason, target: adapter.targetLabel }));
+            return;
+          }
+          send();
+        }}
+      >
+        <fieldset disabled={mutation.isPending}>
+          <legend>추적 상태</legend>
+          {adapter.decisions.map((value) => (
+            <label key={value}>
+              <input
+                checked={status === value}
+                name={`company-tracking-${adapter.scopeKey}`}
+                type="radio"
+                value={value}
+                onChange={() => setStatus(value)}
+              />{" "}
+              {value}
+            </label>
+          ))}
+        </fieldset>
+        <label>
+          <span>사유 (필수)</span>
+          <textarea
+            aria-label="추적 결정 사유"
+            maxLength={2000}
+            readOnly={mutation.isPending}
+            value={reason}
+            onChange={(event) => setReason(event.target.value)}
+          />
+        </label>
+        <ActorField label="추적 결정 담당자 이름" value={actorName} onChange={setActorName} readOnly={mutation.isPending} />
+        <div className="cw-tracking-actions">
+          <button
+            className="cw-button"
+            disabled={!ready}
+            type="submit"
+            aria-describedby={disabledReason ? "company-tracking-save-disabled" : undefined}
+          >
+            {mutation.isPending ? "저장 중…" : problem && !needsNewIntent ? "다시 저장" : "추적 결정 저장"}
+          </button>
+          {disabledReason ? <DisabledReason id="company-tracking-save-disabled">{disabledReason}</DisabledReason> : null}
+        </div>
+      </form>
+      {problem ? (
+        <MutationFeedback
+          tone="error"
+          problem={problem}
+          onRecover={needsNewIntent ? undefined : () => { void trackingQuery.refetch(); }}
+        >
+          {resendConflict ? (
+            <p data-testid="company-tracking-resend-conflict">
+              같은 요청 식별자로 다른 내용을 보낸 재전송 충돌입니다. 앞선 요청이 이미 저장됐을 수 있으니 위의 현재 상태를 확인하십시오.
+              이 요청 식별자는 다시 쓰지 않습니다. 저장하려면 새 저장 요청으로 다시 시작하십시오.
+            </p>
+          ) : null}
+        </MutationFeedback>
+      ) : null}
+      {resendConflict ? (
+        <div className="cw-tracking-actions">
+          <button className="cw-button" type="button" onClick={startNewIntent}>새 저장 요청으로 다시 시작</button>
+        </div>
+      ) : null}
+      {savedMessage ? <p role="status">{savedMessage}</p> : null}
+      {/* 확인 창은 종료를 고른 순간에만 둔다. 닫힌 확인 창을 문서에 남겨 두면 같은 화면의
+          미저장 이탈 확인 창과 함께 alertdialog가 둘이 된다. */}
+      {endConfirm ? (
+        <ConfirmDecisionDialog
+          confirmLabel={endConfirm.confirmLabel}
+          isPending={mutation.isPending}
+          onConfirm={() => { setEndConfirm(null); send(); }}
+          onOpenChange={(next) => { if (!next) setEndConfirm(null); }}
+          open
+          summary={endConfirm.summary}
+          title={endConfirm.title}
+        />
+      ) : null}
     </section>
   );
 }

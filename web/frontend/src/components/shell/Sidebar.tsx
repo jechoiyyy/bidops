@@ -111,9 +111,30 @@ function isActiveItem(pathname: string, item: NavItem): boolean {
  * 없는 주소에서만 경로·흡수 목록으로 되돌아간다. 지원 폭이 1280px 이상뿐이라
  * (ADR-0047) 사이드바는 늘 보이며 서랍으로 접히지 않는다.
  */
-export function Sidebar({ activeNavPath, runSearch }: { activeNavPath: string | null; runSearch: string }) {
+/**
+ * 가상회사 데모 메뉴(`GET /api/demo-config`가 enabled일 때만). 회사가 정해진 주소에서만
+ * 그 회사의 화면 항목을 보이며, 회사를 몰래 고르지 않는다(`docs/work/demo-contract.md` §1).
+ */
+function demoGroup(companyId: string | null): NavGroup {
+  const items: NavItem[] = [{ label: "회사 선택", path: "/companies", icon: "profile" }];
+  if (companyId) {
+    items.push(
+      { label: "회사 사전규격", path: `/companies/${companyId}/pre-specs`, icon: "judgment" },
+      { label: "회사 프로필", path: `/companies/${companyId}/profile`, icon: "profile" },
+    );
+  }
+  return { label: "가상회사 데모", items };
+}
+
+export interface SidebarDemoNav {
+  /** 주소에서 읽은 현재 회사. 회사가 정해지지 않은 주소면 `null`이다. */
+  companyId: string | null;
+}
+
+export function Sidebar({ activeNavPath, runSearch, demoNav = null }: { activeNavPath: string | null; runSearch: string; demoNav?: SidebarDemoNav | null }) {
   const { pathname } = useLocation();
   const atHome = pathname === "/";
+  const visibleGroups = demoNav ? [...groups, demoGroup(demoNav.companyId)] : groups;
   return (
     <aside
       aria-label="주 메뉴"
@@ -138,7 +159,7 @@ export function Sidebar({ activeNavPath, runSearch }: { activeNavPath: string | 
         </span>
       </Link>
       <nav aria-label="주 메뉴" className="sidebar-nav">
-        {groups.map((group) => (
+        {visibleGroups.map((group) => (
           <div className="sidebar-group" key={group.label}>
             <div className="sidebar-group-label">{group.label}</div>
             <div className="sidebar-items">

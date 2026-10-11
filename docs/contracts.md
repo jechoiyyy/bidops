@@ -1919,7 +1919,8 @@ DEMO-01은 별도 데모 브랜치에 `GET /api/demo-config`, strict 회사 목�
 DEMO-02는 `python -m app.deep_review.cli import-company-knowledge`(`--dry-run` 포함)·`activate-company-knowledge` JSON CLI와
 `GET /api/companies/{company_id}/profile`·`/knowledge-graph`·`/profile-evidence/{evidence_id}`를 공통 계약 §4·§8대로 구현했다.
 활성 binding이 없으면 profile·graph는 409 `company_profile_not_ready`, 타회사·legacy NULL 자원은 404이며 공개 응답에는 source locator·object key·원문 경로가 없다.
-main·운영에는 미반영이다. 회사별 분석·비교 DTO는 아래 DEMO-03 단락이 정하며, 화면과 실제 인수는 DEMO-04~05 범위다.
+main·운영에는 미반영이다. 회사별 분석·비교 DTO는 아래 DEMO-03 단락이 정한다. DEMO-04(2026-10-12)는 이 DTO를 그대로 소비하는 화면만 추가했다. REST·DB 계약은 바꾸지 않았고, mock 화면 검증만 했다. 실제 인수는 DEMO-05 범위다.
+DEMO-04 화면 경로는 `/companies`(회사 선택, 기본 회사를 정하지 않음), `/companies/{company_id}/pre-specs`, `/companies/{company_id}/pre-specs/{notice_id}`, `/companies/{company_id}/profile`, `/companies/{company_id}/deep-reviews/{review_id}`, `/pre-specs/{notice_id}/company-comparison`이다. 회사 추적 PATCH와 심층 생성·재시도는 의도마다 새 UUID v4 `request_id`를 쓰고, 같은 의도의 재시도에는 같은 값을 쓴다.
 DEMO-03(2026-10-10, 같은 데모 브랜치)은 공통 계약 §5·§6·§9·§10의 회사별 분석 계약을 구현했다.
 - 회사 핏: REST 없이 CLI `python -m app.deep_review.cli import-company-fit-policy --policy <file> --actor <name>`(승인 파일 `company-fit-demo-v2.json`(`bidops.company-fit-policy.v2`, 이력 보존)·`company-fit-demo-v3.json`(`bidops.company-fit-policy.v3` = v2 + `chunking.source_characters`=6000 필수), canonical sha256을 승인 파일과 대조, import만·활성화 없음)과
   `enqueue-company-fit --company-id <uuid> --notice-id <int> --actor <name> [--dry-run]`(worker DB 역할, attempt 1개 queued, `CompanyAnalysisInput(purpose=company_fit, execution_nonce=attempt id, bundle_id=null)`과 FrozenProvenance를 enqueue transaction에서 동결, gate code는 §9 목록(`bundle_not_ready` 포함), exit 0/2/1).

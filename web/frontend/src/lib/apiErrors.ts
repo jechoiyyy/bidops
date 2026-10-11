@@ -417,6 +417,121 @@ export function describeApiError(error: unknown, fallback: string): ApiErrorDesc
 }
 
 /**
+ * 가상회사 데모 회사 경로(`docs/work/demo-contract.md` §2·§9)의 안전한 오류 코드 문구.
+ *
+ * 정본은 backend 회사 router의 허용 목록이다: lifecycle `routers/companies.py`의
+ * `_TRACKING_ERRORS`, deep_review `routers/company_knowledge.py`의 `_ERRORS`,
+ * `services/company_projection.py`의 `READ_ERROR_STATUS`(company_reads),
+ * `services/company_deep_review.py`의 `ERROR_STATUS`(company_analysis).
+ * 허용 목록 중 공용 표의 문구가 회사 경로에서도 맞는 코드(`company_profile_not_ready`·
+ * `bundle_not_ready`·`active_attempt_exists`·`review_not_ready`·`evidence_out_of_scope`·
+ * `unsafe_document`·`actor_name_*`·`processing_failed`)는 공용 문구를 그대로 쓰고,
+ * 회사 경로에서 뜻이 다르거나(`not_found`·`effective_grade_ineligible`·
+ * `version_conflict`·`idempotency_conflict`) 공용 표에 없는 코드만 여기서 적는다.
+ *
+ * 기존 단일회사 화면의 문구를 바꾸지 않도록 공용 표에 섞지 않고 회사 화면만
+ * `describeCompanyApiError`로 읽는다.
+ */
+const COMPANY_CODE_DESCRIPTION: Record<string, CodeDescription> = {
+  not_found: {
+    title: "이 회사에서 대상을 찾을 수 없습니다.",
+    detail: "없는 대상이거나 다른 회사 소속입니다. 다른 회사의 결과로 대신 보여 주지 않습니다. 회사 목록에서 다시 여십시오.",
+    action: null,
+  },
+  effective_grade_ineligible: {
+    title: "SW사업대상 사전규격이 아닙니다.",
+    detail: "회사 경로의 심층 분석은 SW사업대상=Y 공고만 받습니다. C-1 등급은 이 조건에 쓰지 않습니다.",
+    action: null,
+  },
+  invalid_request: {
+    title: "요청 형식이 올바르지 않습니다.",
+    detail: "입력한 값을 확인한 뒤 다시 시도하십시오.",
+    action: null,
+  },
+  tracking_status_invalid: {
+    title: "지원하지 않는 추적 상태입니다.",
+    detail: "계속 추적·보류·종료 중 하나를 고른 뒤 다시 저장하십시오.",
+    action: null,
+  },
+  tracking_reason_required: {
+    title: "추적 상태를 고른 이유가 필요합니다.",
+    detail: "사유를 입력한 뒤 다시 저장하십시오.",
+    action: null,
+  },
+  version_conflict: {
+    title: "이 회사의 대상이 그사이 바뀌었습니다.",
+    detail: "입력은 지우지 않았습니다. 최신 상태를 다시 불러온 뒤 입력을 확인하고 다시 저장하십시오. 자동으로 덮어쓰지 않습니다.",
+    action: "reload",
+  },
+  idempotency_conflict: {
+    title: "같은 요청 식별자가 다른 요청에 이미 쓰였습니다.",
+    detail: "재전송이 앞선 요청과 충돌했습니다. 최신 상태를 다시 불러와 저장 여부를 확인하십시오.",
+    action: "reload",
+  },
+  company_input_invalid: {
+    title: "회사 분석 입력을 만들 수 없습니다.",
+    detail: "회사·문서·그래프 버전이 서로 맞지 않습니다. 자동으로 보정하지 않으므로 회사 지식과 문서 준비 상태를 확인하십시오.",
+    action: null,
+  },
+  overview_not_completed: {
+    title: "개요 검토가 아직 완료되지 않았습니다.",
+    detail: "개요 검토가 완료된 뒤에 회사별 심층 분석을 요청할 수 있습니다.",
+    action: null,
+  },
+  review_exists: {
+    title: "같은 입력의 심층 검토가 이미 있습니다.",
+    detail: "새 검토를 만들지 않습니다. 기존 검토에서 새 분석 회차를 요청하십시오.",
+    action: null,
+  },
+  preview_required: {
+    title: "전송 미리보기 확인이 필요합니다.",
+    detail: "전송 내용 미리보기를 다시 열어 확인한 뒤 승인하십시오.",
+    action: null,
+  },
+  preview_changed: {
+    title: "미리보기 뒤에 전송 입력이 바뀌었습니다.",
+    detail: "이전 승인은 쓰지 않습니다. 전송 내용 미리보기를 다시 확인한 뒤 승인하십시오.",
+    action: null,
+  },
+  preview_used: {
+    title: "이미 승인에 쓰인 미리보기입니다.",
+    detail: "같은 미리보기로 다시 요청하지 않습니다. 새 미리보기를 만들어 확인하십시오.",
+    action: null,
+  },
+  reference_mode_required: {
+    title: "참조 실행 모드가 꺼져 있습니다.",
+    detail: "새 심층 분석 요청은 참조 실행 모드에서만 받습니다. 과거 결과 조회는 계속 할 수 있습니다.",
+    action: null,
+  },
+  luna_disabled: {
+    title: "Luna 심층 검토가 비활성입니다.",
+    detail: "심층 분석 요청을 보낼 수 없습니다. 운영 설정은 담당자에게 확인하십시오.",
+    action: "contact",
+  },
+  analysis_policy_unavailable: {
+    title: "분석 정책을 사용할 수 없습니다.",
+    detail: "데모 정책이 설정·등록되지 않았습니다. 다른 정책으로 대신 실행하지 않습니다. 담당자에게 확인하십시오.",
+    action: "contact",
+  },
+  model_binding_invalid: {
+    title: "분석 모델 설정이 유효하지 않습니다.",
+    detail: "설정이 맞지 않아 호출 전에 막았습니다. 다른 모델로 대신 보내지 않습니다. 담당자에게 확인하십시오.",
+    action: "contact",
+  },
+};
+
+/** 회사 경로 화면의 오류 문구. 회사 표에 없는 코드는 공용 규칙(`describeApiError`)으로 떨어진다. */
+export function describeCompanyApiError(error: unknown, fallback: string): ApiErrorDescription {
+  const status = readStatus(error);
+  const code = readCode(error);
+  if (status !== 0 && code !== null) {
+    const known = COMPANY_CODE_DESCRIPTION[code];
+    if (known) return { ...known, code };
+  }
+  return describeApiError(error, fallback);
+}
+
+/**
  * 오류 표시에 붙일 행동 버튼 하나. `contact`와 `null`은 버튼을 만들지 않는다 —
  * 화면이 대신 문의할 수 없고, 없는 복구 경로를 버튼으로 지어내지 않는다.
  */

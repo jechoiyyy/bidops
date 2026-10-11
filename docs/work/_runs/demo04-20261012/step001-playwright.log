@@ -1,0 +1,26 @@
+
+Running 21 tests using 8 workers
+
+  ✓   8 [app] › tests/company-workspace.spec.ts:323:1 › demo-config가 없으면(미등록 404) 비활성으로 닫힌다 (449ms)
+  ✓   4 [app] › tests/company-workspace.spec.ts:304:1 › demo-config가 꺼져 있으면 회사 메뉴·선택기·경로가 SPA에 없다 (679ms)
+  ✓   1 [app] › tests/company-workspace.spec.ts:99:1 › 첫 진입은 회사 선택이고 기본 회사를 정하지 않는다 (694ms)
+  ✓   6 [app] › tests/company-workspace.spec.ts:169:1 › 프로필 화면에서 회사를 바꾸면 새 회사의 프로필로 가고 머리글·사실이 그 회사다 (733ms)
+  ✓   3 [app] › tests/company-workspace.spec.ts:247:1 › 회사 A에서 시작한 저장은 A로 끝나고, 그사이 연 회사 B 화면을 무효화하거나 덮지 않는다 (1.3s)
+  ✓   9 [app] › tests/luna-deep-review.spec.ts:7:3 › Luna 미리보기·승인·보고서 1280 (923ms)
+  ✓  11 [app] › tests/luna-deep-review.spec.ts:47:1 › Luna 설정 변경 시 미리보기 해제와 재시도 request ID 보존 (761ms)
+  ✓  10 [app] › tests/luna-deep-review.spec.ts:7:3 › Luna 미리보기·승인·보고서 1440 (890ms)
+  ✓   5 [app] › tests/company-workspace.spec.ts:185:1 › 두 탭이 서로 다른 회사를 열어도 서로의 화면·선택을 바꾸지 않는다 (1.8s)
+  ✓   7 [app] › tests/company-workspace.spec.ts:118:1 › A→B→A 전환·새로고침·뒤로/앞으로에서 주소·머리글·목록·선택이 회사별로 유지된다 (1.9s)
+  ✓  12 [app] › tests/luna-deep-review.spec.ts:76:3 › Luna 검증 미실시 승인·보고서 1280 (1.3s)
+  ✓   2 [app] › tests/company-workspace.spec.ts:211:1 › 미저장 추적 입력이 있으면 회사 전환 전에 확인하고, 취소하면 회사 A에 남는다 (2.2s)
+  ✓  15 [app] › tests/narrative-report.spec.ts:9:3 › 편집된 본문·문장 연결·원문 패널 1440 (834ms)
+  ✓  17 [app] › tests/narrative-report.spec.ts:86:1 › 차단하지 않는 확인 사항을 해당 문장과 연결한다 (479ms)
+  ✓  13 [app] › tests/luna-deep-review.spec.ts:76:3 › Luna 검증 미실시 승인·보고서 1440 (1.2s)
+  ✓  20 [app] › tests/narrative-report.spec.ts:141:3 › Luna 보조 연결 경고와 본문 보존 1280 (522ms)
+  ✓  18 [app] › tests/narrative-report.spec.ts:103:1 › 새 분석의 대조 스위치와 대조하지 않은 보고서·인용을 구분한다 1280 (749ms)
+  ✓  14 [app] › tests/narrative-report.spec.ts:9:3 › 편집된 본문·문장 연결·원문 패널 1280 (1.4s)
+  ✓  21 [app] › tests/narrative-report.spec.ts:141:3 › Luna 보조 연결 경고와 본문 보존 1440 (520ms)
+  ✓  16 [app] › tests/narrative-report.spec.ts:57:1 › 이전 보고서 읽기와 새 수정본 도착 중 편집 보존 (1.5s)
+  ✓  19 [app] › tests/narrative-report.spec.ts:103:1 › 새 분석의 대조 스위치와 대조하지 않은 보고서·인용을 구분한다 1440 (1.2s)
+
+  21 passed (3.8s)

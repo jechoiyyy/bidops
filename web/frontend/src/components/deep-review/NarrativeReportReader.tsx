@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, type QueryKey } from "@tanstack/react-query";
 import { Button } from "@astryxdesign/core/Button";
 import { getEvidence } from "./api";
-import type { NarrativeReport, NarrativeRole, ValidationCheck } from "./types";
+import type { EvidenceView, NarrativeReport, NarrativeRole, ValidationCheck } from "./types";
 import { qualityStatusLabel } from "../../lib/qualityStatus";
 import { formatDateTime } from "../../lib/format";
 import "../../styles/narrative-report.css";
@@ -10,7 +10,22 @@ import "../../styles/narrative-report.css";
 const ROLE: Record<NarrativeRole, string> = { source: "문서 조건", company_basis: "회사 근거", impact: "우리에게 미치는 영향", action: "확인할 일", decision_condition: "판단 갱신 조건", synthesis: "종합 해석", recommendation: "시스템 권고" };
 const KIND = { fact: "사실", calculation: "계산", inference: "해석", opinion: "의견", unknown: "미확인" };
 
-export function NarrativeReportReader({ report, checks, revision, executionStatus, onRecords, onRefresh, onAnalysisSettings }: { report: NarrativeReport; checks: ValidationCheck[]; revision?: number; executionStatus: string; onRecords: () => void; onRefresh: () => void; onAnalysisSettings: () => void }) {
+/**
+ * 근거 원문을 어디서 읽을지. reader는 그대로 두고 조회 endpoint와 cache key만 바꾼다.
+ * 기본은 기존 단일회사 경로(`GET /api/evidence/{id}`, `["deep-review-evidence", id]`)다.
+ * 회사 보고서는 회사 근거 endpoint와 회사 key를 넘겨 다른 회사의 cache를 공유하지 않는다.
+ */
+export interface EvidenceSource {
+  queryKey: (evidenceId: string) => QueryKey;
+  fetch: (evidenceId: string) => Promise<EvidenceView>;
+}
+
+const DEFAULT_EVIDENCE_SOURCE: EvidenceSource = {
+  queryKey: (evidenceId) => ["deep-review-evidence", evidenceId],
+  fetch: (evidenceId) => getEvidence(evidenceId),
+};
+
+export function NarrativeReportReader({ report, checks, revision, executionStatus, onRecords, onRefresh, onAnalysisSettings, evidenceSource = DEFAULT_EVIDENCE_SOURCE }: { report: NarrativeReport; checks: ValidationCheck[]; revision?: number; executionStatus: string; onRecords: () => void; onRefresh: () => void; onAnalysisSettings: () => void; evidenceSource?: EvidenceSource }) {
   const [large, setLarge] = useState(false);
   const [focused, setFocused] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
@@ -18,7 +33,7 @@ export function NarrativeReportReader({ report, checks, revision, executionStatu
   const panel = useRef<HTMLElement | null>(null);
   const article = useRef<HTMLElement | null>(null);
   const focusTrigger = useRef<HTMLElement | null>(null);
-  const evidence = useQuery({ queryKey: ["deep-review-evidence", selected], queryFn: () => getEvidence(selected!), enabled: selected !== null });
+  const evidence = useQuery({ queryKey: selected === null ? ["deep-review-evidence", null] : evidenceSource.queryKey(selected), queryFn: () => evidenceSource.fetch(selected!), enabled: selected !== null });
   const resultValidationSkipped = checks.some(check => check.check_type === "result_validation_skipped");
   const sourceVerificationSkipped = checks.some(check => check.check_type === "source_verification_skipped");
   const byId = new Map(report.claims.map(row => [row.claim_id, row]));

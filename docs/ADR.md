@@ -317,4 +317,4 @@ ADR-0021은 “운영 제품 전에 동일 모집단과 사람 정답으로 비�
 
 - [ADR-0069 사용자 요청 기반 Luna 심층검토](tracking/decisions/0069-user-requested-luna-deep-review.md): 건별 미리보기·승인·동결 입력, 공용 슬롯, 참조 표식, 기본 자동 시작 비활성.
 
-- [ADR-0070 가상 SI 3사·지식그래프 기반 사내 데모](tracking/decisions/0070-multi-company-knowledge-demo.md): 목표 설계 채택, 회사별 결과·추적 분리, 불변 그래프 근거, 실제 6건/18건/9건 인수. DEMO-01~03은 데모 브랜치에 구현(main·운영 미반영), DEMO-04~05는 구현 전. 2026-10-09 개정: `bidops-local`·실제 3일 수집·LiteLLM 개요를 준비 기준으로 채택하고 실제 Luna 심층은 DEMO-03/05 인수 게이트로 유지. 2026-10-11 재계획: DEMO-03은 실제 격리 스택 준비와 호출 전 fail-closed 확인까지로 닫고, 대표 1건 실제 Luna 심층은 DEMO-05로 이관(유일한 준비 공고 179가 기존 inventory 불일치 findings로 호출 전 거부).
+- [ADR-0070 가상 SI 3사·지식그래프 기반 사내 데모](tracking/decisions/0070-multi-company-knowledge-demo.md): 목표 설계 채택, 회사별 결과·추적 분리, 불변 그래프 근거, 실제 6건/18건/9건 인수. DEMO-01~04는 데모 브랜치에 구현(main·운영 미반영, DEMO-04는 frontend만 바꾸고 mock 화면으로만 검증), DEMO-05는 구현 전. 2026-10-09 개정: `bidops-local`·실제 3일 수집·LiteLLM 개요를 준비 기준으로 채택하고 실제 Luna 심층은 DEMO-03/05 인수 게이트로 유지. 2026-10-11 재계획: DEMO-03은 실제 격리 스택 준비와 호출 전 fail-closed 확인까지로 닫고, 대표 1건 실제 Luna 심층은 DEMO-05로 이관(유일한 준비 공고 179가 기존 inventory 불일치 findings로 호출 전 거부).
