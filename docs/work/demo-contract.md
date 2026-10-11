@@ -432,6 +432,9 @@ prompt_output_contract,chunking}이다. schema_version은 bidops.company-fit-pol
 `fit_policy(model)`(company_fit.py)에 없는 새 키이며(기존에는 동결 입력에만 있음) LiteLLM 별칭 `local-agent-main`과 확인 가능한 선언 revision을 고정한다.
 revision이 metadata에 없으면 null로 보존하고 upstream 모델명이나 revision을 추정하지 않는다.
 나머지 키는 기존 fit_policy의 구조와 타입을 따른다.
+2026-10-11 개정(DEMO-03 STEP-008): 핏 Requirement를 원문 unit에 연결하기 위해 `bidops.company-fit-policy.v3`를 추가한다.
+v3는 v2와 같은 키 집합에 `chunking.source_characters`(양의 정수, 필수, 기본값 없음)만 더하며 승인 파일은 `company-fit-demo-v3.json`(값 6000, demo Luna 정책의 narrative 분할 설정과 같아 핏·심층 원문 unit id가 일치)이다.
+v2 파일과 행은 이력으로 보존하고 import도 허용하지만, enqueue는 v3만 사용하며 선택된 행이 v2면 analysis_policy_unavailable이다. 이미 동결된 attempt는 저장된 정책 행으로 실행한다.
 심층은 기존 AnalysisPolicyVersion에 analysis-policy-luna-demo-v1(DEMO-00 v4 기반)을 import하고 demo 설정 ID로 선택한다.
 CLI `import-company-fit-policy --policy <file> --actor <name>`는 {policy_version_id:UUID?,sha256:hash?,created:bool,errors:string[]}를 반환한다.
 같은 canonical hash 재등록은 기존 ID, 새 hash는 새 row. exit0/2/1·stdout 규칙은 §8과 같고 import는 활성화하지 않는다.
@@ -447,9 +450,15 @@ model_revision은 Luna처럼 선언 revision이 없으면 null이며 추정하�
 analysis-worker 이미지와 worker DB 역할로 실행한다(기존 핏 attempt INSERT는 worker 전용 권한이며 app 역할에 열지 않는다).
 한 번에 attempt 1개를 queued로 만든다. 입력 CompanyAnalysisInput(purpose=company_fit)은 이 transaction에서 만들어 attempt에 동결하며,
 execution_nonce=attempt id이므로 같은 자료의 재실행도 새 input_sha256이 된다(기존 input_sha256 UNIQUE 유지). target_review_id/bundle_id=null.
+핏은 공고의 최신 ready bundle을 필수로 한다(2026-10-11 개정). document_version_ids는 그 bundle의 문서 집합이며 개요 문서를 포함해야 한다.
+원문 unit은 심층과 같은 분할기(`DeepReviewService._requirements`, max_requirements=1, v3 `chunking.source_characters`)와 bundle inventory로 만들고,
+inventory 관측 ID와 expected_ids가 다르면 company_input_invalid다(심층과 같은 규칙, 완화하지 않음).
+각 핏 Requirement(개요 행)의 source_units는 개요 문서(document_version_id 일치)의 unit 중 그 행 evidence의 정수 page에 속한 unit이며 분할기 순서를 유지한다.
+document_requirement_ids는 연결된 unit들의 ID 합집합(정렬·중복 제거)이다. evidence page에 해당하는 unit이 없는 행은 빈 배열로 남겨 coverage에 드러내며 unit을 지어내지 않는다.
+bundle_id는 입력에 null로 두고(0036 동결 guard 유지) unit의 document_version_id·structure_id·source_sha256이 원문을 고정한다.
 dry-run은 쓰기 없이 gate와 입력 생성만 검사하고 ID·hash는 null이다. exit0/2/1·stdout/stderr 규칙은 §8과 같다.
 gate 오류 code는 company_not_found|company_profile_not_ready|company_input_invalid|analysis_policy_unavailable|model_binding_invalid|
-overview_not_completed|effective_grade_ineligible(SW사업대상≠Y)|company_fit_disabled|active_attempt_exists(같은 회사·공고에 queued/running 존재)다.
+overview_not_completed|effective_grade_ineligible(SW사업대상≠Y)|company_fit_disabled|bundle_not_ready(ready bundle 없음, 2026-10-11 추가)|active_attempt_exists(같은 회사·공고에 queued/running 존재)다.
 claim은 기존 공용 슬롯·lease·실패 종결 규칙을 그대로 쓴다. 기존 runner의 claim은 company_id 유무로 입력 구성기를 분기하며,
 기존 자동 enqueue(`_enqueue_one`)는 company_id IS NULL 행만 만든다. 자동 resume·재호출은 없다.
 
