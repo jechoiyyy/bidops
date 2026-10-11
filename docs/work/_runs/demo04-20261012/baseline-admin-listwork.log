@@ -1,0 +1,176 @@
+
+Running 35 tests using 8 workers
+
+  ✓   8 [app] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/prespec-list-work.spec.ts:139:1 › 대시보드 결정 대기 링크가 같은 집합의 목록 필터로 잇는다 (732ms)
+  ✓   3 [app] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/admin-workspace-consistency.spec.ts:129:1 › 실행 상태 새로고침은 현재 목록과 상세를 갱신하고 닫힌 탭은 조회하지 않는다 (899ms)
+  ✓   2 [app] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/admin-workspace-consistency.spec.ts:112:1 › 상시 운영 변경은 상세와 상단 요약에 함께 반영된다 (964ms)
+  ✓   5 [app] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/prespec-list-work.spec.ts:101:1 › 행은 색 없는 등급 글자 토큰을 두고 판정 없음을 접지 않는다 (1.2s)
+  ✓   7 [app] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/prespec-list-work.spec.ts:113:1 › 새 사전규격 필터는 페이지 전에 서버 질의로 적용된다 (1.2s)
+  ✘   1 [app] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/admin-workspace-consistency.spec.ts:23:3 › 판정 기준과 실행 상태의 8개 탭은 1280px에서 같은 ERP 골격을 쓴다 (1.1s)
+  ✘   4 [app] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/admin-workspace-consistency.spec.ts:23:3 › 판정 기준과 실행 상태의 8개 탭은 1440px에서 같은 ERP 골격을 쓴다 (1.1s)
+  ✓   9 [app] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/prespec-list-work.spec.ts:210:1 › 사전규격의 회차는 기존 조건에 더해지고 기본값 복원이 함께 지운다 (953ms)
+  ✓   6 [app] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/prespec-list-work.spec.ts:147:1 › 최근 workspace는 KST 관측 범위 기본값과 수집 회차를 API에 전달한다 (1.7s)
+  ✓  12 [app] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/prespec-list-work.spec.ts:332:1 › 마감 구간 컨트롤은 조회 도구 줄의 네 번째 칸이고 줄을 늘리지 않는다 (472ms)
+  ✓  13 [app] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/prespec-list-work.spec.ts:352:1 › 기존 view URL은 전체 workspace의 overview_view로 정규화된다 (496ms)
+  ✓  18 [app] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/prespec-list-work.spec.ts:552:1 › PN-01 선택 검토는 목록 정렬의 첫 ID를 opaque context로 연다 (583ms)
+  ✓  16 [app] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/prespec-list-work.spec.ts:369:1 › 목록에서 방향키로 행을 옮기고 선택이 화면에 남는다 (653ms)
+  ✓  10 [app] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/prespec-list-work.spec.ts:250:1 › 사전규격도 목록에 없는 회차를 바꾸지 않고, 회차 목록 조회 실패는 선택기 안에서 알린다 (1.9s)
+  ✓  15 [app] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/prespec-list-work.spec.ts:530:1 › LS-02 native checkbox toggles without changing active row or detail draft (1.1s)
+  ✓  19 [app] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/prespec-list-work.spec.ts:565:3 › PN-01 cross-page metadata preserves timezone ties microseconds and nulls (published) (1.4s)
+  ✓  17 [app] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/prespec-list-work.spec.ts:391:1 › 경계에서 방향키가 페이지를 넘기고 필터 변경은 첫 페이지로 돌린다 (1.4s)
+  ✓  21 [app] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/prespec-list-work.spec.ts:627:1 › PN-03 선택 행의 상세 링크는 같은 순회 index를 시작하고 미선택 행은 단건 URL을 쓴다 (875ms)
+  ✓  11 [app] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/prespec-list-work.spec.ts:272:1 › 검토할 항목 기본 구간은 마감 전·미확인이고 마감 경과는 1클릭 전환이다 (2.4s)
+  ✓  22 [app] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/prespec-list-work.spec.ts:660:1 › PN-03 선택 저장소를 사용할 수 없으면 검토 순서를 성공인 것처럼 열지 않는다 (610ms)
+  ✓  25 [app] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/prespec-list-work.spec.ts:760:1 › 개요 결과 본문과 첫 주장은 한 번만 렌더된다 (617ms)
+  ✓  26 [app] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/prespec-list-work.spec.ts:796:1 › 우측 정보 영역은 긴 내용을 생략하지 않고 필요하면 본문만 스크롤한다 (645ms)
+  ✓  20 [app] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/prespec-list-work.spec.ts:565:3 › PN-01 cross-page metadata preserves timezone ties microseconds and nulls (deadline) (1.8s)
+  ✓  31 [app] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/prespec-list-work.spec.ts:1046:3 › preSpecCautions (spec §3.2) › 결정적 검사가 실패한 주장만 있으면 그 주장 문장이 한 줄이 된다 (2ms)
+  ✓  32 [app] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/prespec-list-work.spec.ts:1064:3 › preSpecCautions (spec §3.2) › 첨부 차단·실패만 있으면 건수를 더하고 첨부 문구를 쓴다 (1ms)
+  ✓  33 [app] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/prespec-list-work.spec.ts:1077:3 › preSpecCautions (spec §3.2) › 자동 준비 blocked와 심층 검토 미확인이 함께 있으면 사유 라벨과 미확인 수를 함께 말한다 (4ms)
+  ✓  34 [app] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/prespec-list-work.spec.ts:1094:3 › preSpecCautions (spec §3.2) › 심층 검토 미확인만 있으면 주의는 0건이고 미확인 수만 말한다 (2ms)
+  ✓  35 [app] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/prespec-list-work.spec.ts:1108:3 › preSpecCautions (spec §3.2) › 심층 검토 보고서를 읽지 않았으면 미확인 0건으로 지어내지 않고 캡션을 내지 않는다 (1ms)
+  ✓  28 [app] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/prespec-list-work.spec.ts:890:1 › 우측 정보 영역은 사업명·기관·설명·과업 3건·예산·마감·게시·본공고·주의 한 줄·추적 폼·상세 링크를 순서대로 둔다 (733ms)
+  ✓  27 [app] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/prespec-list-work.spec.ts:855:1 › LS-08 전체 선택은 현재 페이지만 더하고 다른 페이지 선택을 유지한다 (1.1s)
+  ✓  29 [app] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/prespec-list-work.spec.ts:953:1 › 수요기관이 있으면 목록 행과 상세 머리가 수요기관을 앞·크게, 공고기관을 뒤·작게 둔다 (656ms)
+  ✓  30 [app] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/prespec-list-work.spec.ts:986:1 › 목록 우측 상세의 경계 문장은 M4 승인 문안 하나다 (472ms)
+  ✓  14 [app] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/prespec-list-work.spec.ts:448:1 › LS-04 선택은 두 페이지·새로고침·정렬에 남고 실제 필터 변경에서만 비워진다 (2.9s)
+  ✘  23 [app] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/prespec-list-work.spec.ts:678:1 › LS-06 필터·상세 이탈 guard 취소는 URL·active·check·입력을 보존한다 (5.7s)
+  ✘  24 [app] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/prespec-list-work.spec.ts:734:1 › LS-06 pager guard 취소는 경계 URL·active·check·입력을 보존한다 (5.9s)
+
+
+  1) [app] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/admin-workspace-consistency.spec.ts:23:3 › 판정 기준과 실행 상태의 8개 탭은 1280px에서 같은 ERP 골격을 쓴다 
+
+    Error: /profile 시안 도구 모음 제외 본문 시작
+
+    expect(received).toBeCloseTo(expected, precision)
+
+    Expected: 167.4
+    Received: 345.21875
+
+    Expected precision:    0
+    Expected difference: < 0.5
+    Received difference:   177.81875
+
+      80 |       expect(metrics.summaryHeight, `${path} 요약 한 줄`).toBeCloseTo(physical(49), 0);
+      81 |       // canvas 위 여백 16→12(docs/0915_ui-redesign/spec.md §2.1)로 본문 시작이 4px 올라갔다.
+    > 82 |       expect(metrics.y, `${path} 시안 도구 모음 제외 본문 시작`).toBeCloseTo(physical(186), 0);
+         |                                                      ^
+      83 |       expect(Math.abs(metrics.y - metrics.summaryBottom), `${path} 요약과 본문 사이 틈`).toBeLessThanOrEqual(1);
+      84 |       expect(metrics.footerHeight, `${path} 하단 액션 높이`).toBeCloseTo(physical(57), 0);
+      85 |       // 작업 영역 카드의 1px 테두리가 그림자로 바뀌어(spec §2.3) 하단 단추가 1px 내려왔다.
+        at /Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/admin-workspace-consistency.spec.ts:82:54
+
+    Error Context: .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/test-results/admin-workspace-consistenc-6604b-개-탭은-1280px에서-같은-ERP-골격을-쓴다-app/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/test-results/admin-workspace-consistenc-6604b-개-탭은-1280px에서-같은-ERP-골격을-쓴다-app/trace.zip
+    Usage:
+
+        npx playwright show-trace .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/test-results/admin-workspace-consistenc-6604b-개-탭은-1280px에서-같은-ERP-골격을-쓴다-app/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) [app] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/admin-workspace-consistency.spec.ts:23:3 › 판정 기준과 실행 상태의 8개 탭은 1440px에서 같은 ERP 골격을 쓴다 
+
+    Error: /profile 시안 도구 모음 제외 본문 시작
+
+    expect(received).toBeCloseTo(expected, precision)
+
+    Expected: 167.4
+    Received: 345.21875
+
+    Expected precision:    0
+    Expected difference: < 0.5
+    Received difference:   177.81875
+
+      80 |       expect(metrics.summaryHeight, `${path} 요약 한 줄`).toBeCloseTo(physical(49), 0);
+      81 |       // canvas 위 여백 16→12(docs/0915_ui-redesign/spec.md §2.1)로 본문 시작이 4px 올라갔다.
+    > 82 |       expect(metrics.y, `${path} 시안 도구 모음 제외 본문 시작`).toBeCloseTo(physical(186), 0);
+         |                                                      ^
+      83 |       expect(Math.abs(metrics.y - metrics.summaryBottom), `${path} 요약과 본문 사이 틈`).toBeLessThanOrEqual(1);
+      84 |       expect(metrics.footerHeight, `${path} 하단 액션 높이`).toBeCloseTo(physical(57), 0);
+      85 |       // 작업 영역 카드의 1px 테두리가 그림자로 바뀌어(spec §2.3) 하단 단추가 1px 내려왔다.
+        at /Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/admin-workspace-consistency.spec.ts:82:54
+
+    Error Context: .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/test-results/admin-workspace-consistenc-0177b-개-탭은-1440px에서-같은-ERP-골격을-쓴다-app/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/test-results/admin-workspace-consistenc-0177b-개-탭은-1440px에서-같은-ERP-골격을-쓴다-app/trace.zip
+    Usage:
+
+        npx playwright show-trace .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/test-results/admin-workspace-consistenc-0177b-개-탭은-1440px에서-같은-ERP-골격을-쓴다-app/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  3) [app] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/prespec-list-work.spec.ts:678:1 › LS-06 필터·상세 이탈 guard 취소는 URL·active·check·입력을 보존한다 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByRole('alertdialog')
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" with timeout 5000ms
+      - waiting for getByRole('alertdialog')
+
+
+      699 |   });
+      700 |   const guard = page.getByRole("alertdialog");
+    > 701 |   await expect(guard).toBeVisible();
+          |                       ^
+      702 |   // The modal layer disables body hit-testing; the portal surface must remain
+      703 |   // pointer-interactive so this is a real click, not a forced test bypass.
+      704 |   await expect(guard).toHaveCSS("pointer-events", "auto");
+        at /Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/prespec-list-work.spec.ts:701:23
+
+    Error Context: .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/test-results/prespec-list-work-LS-06-필터-edd34-는-URL·active·check·입력을-보존한다-app/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/test-results/prespec-list-work-LS-06-필터-edd34-는-URL·active·check·입력을-보존한다-app/trace.zip
+    Usage:
+
+        npx playwright show-trace .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/test-results/prespec-list-work-LS-06-필터-edd34-는-URL·active·check·입력을-보존한다-app/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  4) [app] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/prespec-list-work.spec.ts:734:1 › LS-06 pager guard 취소는 경계 URL·active·check·입력을 보존한다 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByRole('alertdialog')
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" with timeout 5000ms
+      - waiting for getByRole('alertdialog')
+
+
+      749 |   });
+      750 |   const guard = page.getByRole("alertdialog");
+    > 751 |   await expect(guard).toBeVisible();
+          |                       ^
+      752 |   await guard.getByRole("button", { name: "계속 편집", exact: true }).click();
+      753 |   await expect(page).toHaveURL(beforeUrl);
+      754 |   await expect(rows.first()).toHaveAttribute("aria-current", "true");
+        at /Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/prespec-list-work.spec.ts:751:23
+
+    Error Context: .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/test-results/prespec-list-work-LS-06-pa-f43cf-계-URL·active·check·입력을-보존한다-app/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/test-results/prespec-list-work-LS-06-pa-f43cf-계-URL·active·check·입력을-보존한다-app/trace.zip
+    Usage:
+
+        npx playwright show-trace .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/test-results/prespec-list-work-LS-06-pa-f43cf-계-URL·active·check·입력을-보존한다-app/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  4 failed
+    [app] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/admin-workspace-consistency.spec.ts:23:3 › 판정 기준과 실행 상태의 8개 탭은 1280px에서 같은 ERP 골격을 쓴다 
+    [app] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/admin-workspace-consistency.spec.ts:23:3 › 판정 기준과 실행 상태의 8개 탭은 1440px에서 같은 ERP 골격을 쓴다 
+    [app] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/prespec-list-work.spec.ts:678:1 › LS-06 필터·상세 이탈 guard 취소는 URL·active·check·입력을 보존한다 
+    [app] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/prespec-list-work.spec.ts:734:1 › LS-06 pager guard 취소는 경계 URL·active·check·입력을 보존한다 
+  31 passed (9.9s)

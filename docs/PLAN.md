@@ -586,7 +586,7 @@ scheduler 설계는 이 착수점에 포함하지 않는다.
 현재 구현·검증 상태는 [`tracking/status.md`](tracking/status.md)가 정본이다.
 
 
-## 가상 SI 3사 데모 목표 계약 (2026-10-06 채택; DEMO-01~03 데모 브랜치 구현, DEMO-04~05 구현 전)
+## 가상 SI 3사 데모 목표 계약 (2026-10-06 채택; DEMO-01~04 데모 브랜치 구현(DEMO-04는 mock 화면 검증), DEMO-05 구현 전)
 
 DEMO 신규 작업은 아래 로드맵과 기능 큐로 관리한다. 기존 C-2 단계의 완료·대기 사실을 새 데모 상태로 덮지 않는다.
 [ADR-0070](tracking/decisions/0070-multi-company-knowledge-demo.md) · [공통 계약](work/demo-contract.md) · [기능 로드맵](work/constitution/roadmap.md).

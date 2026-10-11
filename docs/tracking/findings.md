@@ -2,6 +2,17 @@
 
 기준일: 2026-09-03
 
+## 데모 기준 `c50ed55`의 화면 스위트에 기존 실패 3종이 있다 (2026-10-12, 미해결)
+
+- 재현: 데모 브랜치 `demo/local-20261009` @ `c50ed55`의 빌드를 macOS(Apple Silicon)의 Playwright chromium v1234로 실행했다. 이 Mac에서는 `vite preview`가 IPv6 localhost에만 바인딩되므로, preview를 `--host 127.0.0.1`로 직접 띄우고 `PW_PORT`로 재사용했다.
+  - `prespec-list-work.spec.ts:678`·`:734`(LS-06): 담당자 이름만 입력한 상태에서 필터·쪽 이동을 하면 이탈 확인 창을 기대하지만, 창이 뜨지 않는다. 현재 `TrackingDecisionControl`은 사유가 있을 때만 dirty로 본다. 검사의 기대와 제품 규칙이 어긋나 있는 것으로 보인다.
+  - `design-shell.spec.ts:228` "native compact 셸…": 드롭다운에서 선택한 항목의 중심이 trigger 중심과 5~7px 어긋나 허용치 4px를 넘는다. 두 폭 모두 실패한다. native select의 OS 기하에 의존하는 것으로 보인다.
+  - `mock-review-prototype.spec.ts`: `src/mock-review/scenario`가 `.md`를 import해 Playwright 수집 단계에서 SyntaxError가 난다. 이 때문에 파일을 지정하지 않은 `test:screens` 전체 실행이 시작되지 않는다.
+  - 증거는 DEMO-04 run의 `docs/work/_runs/demo04-20261012/baseline-design-shell.log`·`baseline-admin-listwork.log`·`feature-final-screens.log`에 있다. 같은 run에서 `admin-workspace-consistency.spec.ts:23` 2건도 실패했는데, 이는 아래 2026-09-16 항목에 이미 있다.
+- 영향: 화면 게이트(`test:screens`)를 그대로 돌리면 수집 오류로 멈추고, spec을 나열해 돌려도 6건이 항상 실패한다. 그래서 새 회귀를 기존 실패와 가르려면 기준 빌드와 대조해야 한다.
+- 지금 해결하지 않은 이유: 셋 다 DEMO-04가 바꾸지 않은 파일이나 규칙에 걸려 있다. 특히 LS-06은 검사와 제품 중 무엇이 맞는지 판단이 필요하다.
+- 후속: LS-06은 dirty 규칙(담당자만 입력한 경우도 dirty로 볼지)을 정한 뒤 검사나 제품을 맞춘다. `mock-review-prototype`은 `.md` import를 Playwright가 읽을 수 있는 방식으로 바꾸거나 `testIgnore`에 넣는다. design-shell 기하 허용치는 Linux CI 기준값과 대조한다.
+
 ## 이전 백업에서 확인한 과거 회사 프로필 객체 버전 누락 (2026-09-29, 미해결)
 
 - 재현: `scripts/transfer-check.py`로 MinIO의 모든 객체 버전과 DB의 verified·미삭제

@@ -1,8 +1,8 @@
-import { LunaRequest } from "../components/deep-review/LunaRequest";
+import { createCompanyLunaAdapter, LunaRequest } from "../components/deep-review/LunaRequest";
 import { SourceVerificationSetting } from "../components/deep-review/SourceVerificationSetting";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import {
   createDeepReviewAttempt,
   DeepReviewApiError,
@@ -13,7 +13,19 @@ import {
   saveRevision,
 } from "../components/deep-review/api";
 import { attemptFailureSentence } from "../components/deep-review/attemptErrors";
-import { NarrativeReportReader } from "../components/deep-review/NarrativeReportReader";
+import { NarrativeReportReader, type EvidenceSource } from "../components/deep-review/NarrativeReportReader";
+import { CompanyHeader } from "../components/company/CompanyHeader";
+import { EmptyState } from "../components/common/EmptyState";
+import { companyTrackingAdapter, TrackingDecisionControl } from "../components/pre-specs/TrackingDecisionControl";
+import {
+  companyApi,
+  companyKeys,
+  companyReviewStatusLabel,
+  isCompanyUuid,
+  shortIdentity,
+  type CompanyReviewView,
+  type Uuid,
+} from "../lib/companyApi";
 import { SegmentInventoryPanel } from "../components/deep-review/SegmentInventoryPanel";
 import { TechnicalFacts, TechnicalInfo, type TechnicalFact } from "../components/common/TechnicalInfo";
 import { ActorField } from "../components/common/ActorField";
@@ -31,7 +43,7 @@ import { Toast } from "../components/common/Toast";
 import { useToast } from "../components/common/useToast";
 import { useUnsavedGuard } from "../components/common/useUnsavedGuard";
 import { ReviewHistoryLinkRail, StickyDecisionHeader } from "../components/common/ReviewPrimitives";
-import { describeApiError } from "../lib/apiErrors";
+import { describeApiError, describeCompanyApiError } from "../lib/apiErrors";
 import { formatDateTime } from "../lib/format";
 import { TERM } from "../lib/glossary";
 import { qualityStatusLabel, qualityStatusNote, qualityStatusVariant } from "../lib/qualityStatus";
@@ -44,6 +56,7 @@ import type {
   StageName,
 } from "../components/deep-review/types";
 import "../styles/deep-review-evidence.css";
+import "../styles/company-workspace.css";
 
 const STAGE_LABELS: Record<StageName, string> = {
   requirements_and_evaluation: "요구사항·평가",
@@ -66,6 +79,20 @@ const POLL_MEDIUM_ATTEMPTS = 10;
 
 function isReportNotReady(error: unknown): boolean {
   return error instanceof DeepReviewApiError && error.status === 409 && error.code === "review_not_ready";
+}
+
+/** 회사 경로는 공용 `ApiError`를 쓴다. 안전한 코드만 읽는다(message로 분기하지 않는다). */
+function isCompanyReportNotReady(error: unknown): boolean {
+  return describeCompanyApiError(error, "").code === "review_not_ready";
+}
+
+/** 진행 중 검토의 폴링 간격. 기존 화면과 같은 단계 규칙이다. */
+function reviewPollInterval(data: DeepReviewView | undefined, dataUpdateCount: number, fetchFailureCount: number): number | false {
+  if (!isActiveReview(data)) return false;
+  const attempts = dataUpdateCount + fetchFailureCount;
+  if (attempts <= POLL_FAST_ATTEMPTS) return POLL_FAST_MS;
+  if (attempts <= POLL_MEDIUM_ATTEMPTS) return POLL_MEDIUM_MS;
+  return POLL_SLOW_MS;
 }
 
 function statusLabel(status: string): string {
@@ -939,6 +966,274 @@ export function DeepReviewPage() {
         title="심층검토 의견을 기록합니다"
         warning="이 기록은 저장 뒤 되돌릴 수 없습니다. 추가만 기록되어 지울 수 없습니다."
       />
+      {toast ? <Toast message={toast.message} variant={toast.variant} onDismiss={dismissToast} /> : null}
+    </section>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// 회사 심층 검토 보고서 adapter (가상회사 데모, `docs/work/demo-contract.md` §6·§9)
+//
+// 같은 `NarrativeReportReader`를 쓰되 보고서는 회사 wrapper의 `view`에서, 근거는 회사 근거
+// endpoint와 회사 query key에서 읽는다. 기존 단일회사 화면(`DeepReviewPage`)과 cache를
+// 공유하지 않는다. 보고서 수정본·심층검토 의견 저장은 회사 경로 계약에 endpoint가 없어
+// 이 화면에서 제공하지 않는다(기존 unscoped 쓰기 경로로 보내지 않는다).
+
+function CompanyAddressProblem({ title, companyId }: { title: string; companyId?: string }) {
+  return (
+    <section className="cw-page">
+      <EmptyState
+        tone="error"
+        title={title}
+        description="주소의 식별자를 확인할 수 없어 아무 회사의 결과도 보여 주지 않습니다."
+        action={companyId ? { label: "회사 사전규격 목록", to: `/companies/${companyId}/pre-specs` } : { label: "회사 다시 고르기", to: "/companies" }}
+      />
+    </section>
+  );
+}
+
+export function CompanyDeepReviewPage() {
+  const { companyId, reviewId } = useParams();
+  if (!isCompanyUuid(companyId)) return <CompanyAddressProblem title="회사 주소가 올바르지 않습니다." />;
+  if (!isCompanyUuid(reviewId)) return <CompanyAddressProblem title="심층 검토 주소가 올바르지 않습니다." companyId={companyId} />;
+  // 회사·검토가 바뀌면 다시 마운트한다. 다른 회사의 입력·승인 state가 넘어오지 않는다.
+  return <CompanyDeepReviewReport companyId={companyId} key={`${companyId}:${reviewId}`} reviewId={reviewId} />;
+}
+
+interface CompanyAttemptVariables {
+  companyId: Uuid;
+  reviewId: Uuid;
+  previewId: string;
+  requestId: string;
+  actorName: string;
+}
+
+function CompanyDeepReviewReport({ companyId, reviewId }: { companyId: Uuid; reviewId: Uuid }) {
+  const queryClient = useQueryClient();
+  const reviewQuery = useQuery({
+    queryKey: companyKeys.deepReview(companyId, reviewId),
+    queryFn: ({ signal }) => companyApi.getDeepReview(companyId, reviewId, { signal }),
+    retry: false,
+    refetchInterval: (query) => reviewPollInterval(query.state.data, query.state.dataUpdateCount, query.state.fetchFailureCount),
+    refetchIntervalInBackground: false,
+  });
+  const fetchedReview = reviewQuery.data;
+  // 응답이 다른 회사 소속이면 이 화면에 그리지 않는다(서버도 404를 낸다).
+  const review: CompanyReviewView | undefined = fetchedReview && fetchedReview.company_id === companyId ? fetchedReview : undefined;
+  const reviewMismatch = fetchedReview !== undefined && review === undefined;
+  const reportQuery = useQuery({
+    queryKey: companyKeys.report(companyId, reviewId),
+    queryFn: ({ signal }) => companyApi.getReport(companyId, reviewId, { signal }),
+    enabled: review !== undefined,
+    retry: false,
+    staleTime: 10_000,
+  });
+  useEffect(() => {
+    if (review?.status === "completed") void queryClient.invalidateQueries({ queryKey: companyKeys.report(companyId, reviewId) });
+  }, [companyId, queryClient, review?.status, reviewId]);
+  const wrapper = reportQuery.data && reportQuery.data.company_id === companyId ? reportQuery.data : undefined;
+  const reportView = wrapper?.view;
+  const noticeId = review?.notice_id ?? null;
+  const detailQuery = useQuery({
+    queryKey: companyKeys.preSpec(companyId, noticeId ?? 0),
+    queryFn: ({ signal }) => companyApi.getPreSpec(companyId, noticeId as number, { signal }),
+    enabled: noticeId !== null,
+    retry: false,
+  });
+  const companyQuery = useQuery({
+    queryKey: companyKeys.detail(companyId),
+    queryFn: ({ signal }) => companyApi.getCompany(companyId, { signal }),
+    retry: false,
+  });
+  const company = companyQuery.data && companyQuery.data.company_id === companyId ? companyQuery.data : null;
+  const trackingAdapter = useMemo(
+    () => (detailQuery.data ? companyTrackingAdapter({ companyId, opportunityId: detailQuery.data.opportunity_id, noticeId: detailQuery.data.notice_id, companyName: company?.name ?? null }) : null),
+    [company?.name, companyId, detailQuery.data],
+  );
+  const evidenceSource = useMemo<EvidenceSource>(() => ({
+    queryKey: (evidenceId) => companyKeys.reviewEvidence(companyId, reviewId, evidenceId),
+    fetch: (evidenceId) => companyApi.getReviewEvidence(companyId, reviewId, evidenceId),
+  }), [companyId, reviewId]);
+
+  const [actorName, setActorName] = useState("");
+  const [sourceVerificationEnabled, setSourceVerificationEnabled] = useState(true);
+  const settings = useRef<HTMLDetailsElement | null>(null);
+  const records = useRef<HTMLDetailsElement | null>(null);
+  const { toast, showToast, dismissToast } = useToast();
+  const attemptMutation = useMutation({
+    mutationFn: (variables: CompanyAttemptVariables) => companyApi.createDeepReviewAttempt(
+      variables.companyId,
+      variables.reviewId,
+      { preview_id: variables.previewId, source_verification_enabled: true, request_id: variables.requestId },
+      variables.actorName,
+    ),
+    // 시작한 회사·검토의 key만 무효화한다.
+    onSuccess: async (_attempt, variables) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: companyKeys.deepReview(variables.companyId, variables.reviewId) }),
+        queryClient.invalidateQueries({ queryKey: companyKeys.report(variables.companyId, variables.reviewId) }),
+        queryClient.invalidateQueries({ queryKey: companyKeys.preSpecLists(variables.companyId) }),
+      ]);
+    },
+  });
+
+  const attempt = review?.current_attempt ?? null;
+  const reportNotReady = isCompanyReportNotReady(reportQuery.error);
+  const isNarrative = reportView?.report.schema === "bidops.deep-review-report.v2";
+  const openSettings = () => {
+    if (settings.current) {
+      settings.current.open = true;
+      settings.current.scrollIntoView({ block: "start" });
+      settings.current.querySelector("input")?.focus();
+    }
+  };
+  const openRecords = () => {
+    if (records.current) {
+      records.current.open = true;
+      records.current.scrollIntoView({ block: "start" });
+    }
+  };
+  const identity = wrapper ?? review;
+
+  return (
+    <section className="cw-page deep-review-page is-narrative" aria-label="회사 심층 검토" data-company-id={companyId} data-astryx-theme="bidops">
+      <CompanyHeader companyId={companyId} screen="deep-review" />
+      {reviewQuery.isPending ? (
+        <p role="status">이 회사의 심층 검토를 불러오는 중입니다.</p>
+      ) : reviewQuery.isError || reviewMismatch ? (
+        <EmptyState
+          tone="error"
+          title="이 회사의 심층 검토를 불러오지 못했습니다."
+          problem={describeCompanyApiError(reviewQuery.error, "심층 검토를 불러오지 못했습니다.")}
+          action={{ label: "회사 사전규격 목록", to: `/companies/${companyId}/pre-specs` }}
+        />
+      ) : review ? (
+        <>
+          <div className="cw-section cw-report-identity" data-testid="company-report-identity">
+            <h3>회사 심층 검토 보고서</h3>
+            <dl className="cw-facts">
+              <dt>회사</dt>
+              <dd data-testid="company-report-company">
+                {company ? `${company.name} · ${company.is_fictional ? "가상회사" : "가상회사 표식 없음"}` : "회사 확인 중"}
+              </dd>
+              <dt>검토 상태</dt>
+              <dd data-testid="company-report-status" data-review-status={review.status}>
+                <Badge variant={review.status === "failed" ? "danger" : "neutral"} label={companyReviewStatusLabel(review.status)} />
+                {attempt ? <span className="cw-caption"> · 현재 분석 회차 {attempt.sequence}회 · {statusLabel(attempt.status)}</span> : <span className="cw-caption"> · 분석 회차 없음</span>}
+              </dd>
+              <dt>입력 기준</dt>
+              <dd data-testid="company-report-current" data-is-current={String(review.is_current)}>
+                {review.is_current ? "현재 회사 지식·문서 기준" : "현재 입력 기준 아님 · 이전 회사 지식 또는 문서로 만든 결과입니다"}
+              </dd>
+              <dt>품질 표식</dt>
+              <dd>{qualityStatusLabel(review.quality_status)} · <span className="cw-caption">{qualityStatusNote(review.quality_status)}</span></dd>
+              <dt>공고</dt>
+              <dd><Link className="cw-link" to={`/companies/${companyId}/pre-specs/${review.notice_id}`}>notice {review.notice_id} · 이 회사 기준 상세</Link></dd>
+              <dt>프로필 버전</dt><dd data-testid="company-report-profile-version">{identity?.profile_version_id ?? "확인 불가"}</dd>
+              <dt>그래프 버전</dt><dd data-testid="company-report-graph-version">{identity?.graph_version_id ?? "확인 불가"}</dd>
+              <dt>그래프 해시</dt><dd title={identity?.graph_sha256}>{shortIdentity(identity?.graph_sha256)}</dd>
+              <dt>온톨로지</dt><dd>{identity?.ontology_version ?? "확인 불가"}</dd>
+              <dt>입력 해시</dt><dd title={review.input_sha256}>{shortIdentity(review.input_sha256)}</dd>
+            </dl>
+            {wrapper && (wrapper.profile_version_id !== review.profile_version_id || wrapper.graph_version_id !== review.graph_version_id) ? (
+              <p role="alert">보고서의 회사 지식 버전이 검토 기록과 다릅니다. 이 보고서를 이 검토의 결과로 읽지 마십시오.</p>
+            ) : null}
+            <p className="cw-caption">
+              심층 검토는 참고 분석이며 추적 결정이나 최종 입찰 Go/No-Go를 대신하지 않습니다. 보고서 수정본·심층검토 의견 저장은 회사 경로 계약에 없어 이 화면에서 제공하지 않습니다.
+            </p>
+            {isActiveReview(review) ? <p role="status" aria-live="polite">분석 진행 상태를 제한된 간격으로 자동 갱신하고 있습니다.</p> : null}
+          </div>
+
+          {reportView && isNarrative && reportView.report.schema === "bidops.deep-review-report.v2" ? (
+            <NarrativeReportReader
+              checks={reportView.validation.checks}
+              evidenceSource={evidenceSource}
+              executionStatus={review.status}
+              onAnalysisSettings={openSettings}
+              onRecords={openRecords}
+              onRefresh={() => { void reportQuery.refetch(); void reviewQuery.refetch(); }}
+              report={reportView.report}
+              revision={reportView.history.find((item) => item.revision_id === reportView.current_revision_id)?.sequence}
+            />
+          ) : reportView ? (
+            <p className="cw-section" role="status">회사 보고서 계약은 서술형 보고서(v2)입니다. 이 보고서 형식은 이 화면에서 표시하지 않습니다.</p>
+          ) : reportQuery.isFetching && !reportQuery.data ? (
+            <p className="cw-section" role="status">보고서를 불러오는 중입니다.</p>
+          ) : reportNotReady ? (
+            <p className="cw-section" role="status" data-testid="company-report-not-ready">
+              {isActiveReview(review) ? "분석이 끝나면 보고서를 표시합니다." : "이 검토에는 아직 완성된 보고서가 없습니다."} 결과가 없는 것을 부적합이나 실패로 읽지 마십시오.
+            </p>
+          ) : reportQuery.isError ? (
+            <MutationFeedback
+              onRecover={() => { void reportQuery.refetch(); }}
+              problem={describeCompanyApiError(reportQuery.error, "보고서를 확인할 수 없습니다.")}
+              recoverLabel="보고서 다시 조회"
+              recoverPending={reportQuery.isFetching}
+              tone="error"
+            />
+          ) : null}
+
+          <details ref={records} className="cw-section" id="company-review-records">
+            <summary>검증·분석 회차 기록</summary>
+            {reportView ? (
+              <p>
+                검증 상태 · {reportView.validation.checks.some((check) => check.check_type === "source_verification_skipped") ? "원문 대조 미실시" : reportView.validation.status === "passed" ? "통과" : "실패"}
+                {" · "}실패 {reportView.validation.checks.filter((check) => check.status === "failed").length}건 · 경고 {reportView.validation.checks.filter((check) => check.status === "warning").length}건
+              </p>
+            ) : null}
+            {review.attempts.length > 0 ? (
+              <ol aria-label="분석 회차 이력">
+                {review.attempts.map((item) => (
+                  <li key={item.id}>
+                    {item.sequence}회차 · {statusLabel(item.status)} · {attemptTime(item)}
+                    {attemptErrorCode(item) ? ` · ${attemptFailureSentence(attemptErrorCode(item) as string)}` : ""}
+                    {item.id === review.current_attempt?.id ? " · 현재 회차" : ""}
+                  </li>
+                ))}
+              </ol>
+            ) : <p>아직 실행한 분석 회차가 없습니다.</p>}
+          </details>
+
+          {attempt && ["failed", "completed"].includes(attempt.status) ? (
+            <details ref={settings} className="cw-section" id="company-review-analysis-settings" open={attempt.status === "failed"} data-testid="company-review-retry">
+              <summary>분석 설정 · 새 분석 회차</summary>
+              <p>같은 회사·문서 기준으로 새 분석 회차를 요청합니다. 기존 보고서와 실패 이력은 덮어쓰지 않으며 새 회차가 따로 남습니다.</p>
+              <SourceVerificationSetting value={sourceVerificationEnabled} onChange={setSourceVerificationEnabled} disabled={attemptMutation.isPending} />
+              <ActorField label="재시도 담당자 이름" value={actorName} onChange={setActorName} autoComplete="off" />
+              {sourceVerificationEnabled ? (
+                <LunaRequest
+                  key={`${companyId}:${reviewId}:${sourceVerificationEnabled}:${actorName}`}
+                  adapter={createCompanyLunaAdapter({ companyId, company, noticeId: review.notice_id, bundleId: review.bundle_id, reviewId })}
+                  actor={actorName}
+                  bundleId={review.bundle_id}
+                  noticeId={review.notice_id}
+                  reviewId={reviewId}
+                  verification={sourceVerificationEnabled}
+                  onSubmit={async (previewId, requestId) => {
+                    const created = await attemptMutation.mutateAsync({ companyId, reviewId, previewId, requestId, actorName: actorName.trim() });
+                    showToast(`분석 회차 ${created.sequence}회를 새로 요청했습니다. 기존 이력은 그대로 남습니다.`);
+                    return created;
+                  }}
+                />
+              ) : (
+                <p role="status">회사 경로는 원문 대조를 사용하는 요청만 받습니다. 이 설정으로는 미리보기와 요청을 보내지 않으며 이전 미리보기 승인은 폐기했습니다.</p>
+              )}
+            </details>
+          ) : null}
+
+          {trackingAdapter ? (
+            <TrackingDecisionControl adapter={trackingAdapter} />
+          ) : detailQuery.isError ? (
+            <MutationFeedback
+              onRecover={() => { void detailQuery.refetch(); }}
+              problem={describeCompanyApiError(detailQuery.error, "추적 결정을 위한 사업기회 연결을 확인할 수 없습니다.")}
+              tone="error"
+            />
+          ) : (
+            <p className="cw-section" role="status">추적 결정을 위한 사업기회 연결을 확인하는 중입니다.</p>
+          )}
+        </>
+      ) : null}
       {toast ? <Toast message={toast.message} variant={toast.variant} onDismiss={dismissToast} /> : null}
     </section>
   );

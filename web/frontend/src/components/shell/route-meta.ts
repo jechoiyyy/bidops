@@ -70,6 +70,16 @@ export interface RouteMetadata {
   record?: RouteRecordCrumb;
   /** 같은 화면을 다른 목록에서도 열 때의 대안 위치. 주소의 `from` 값으로 고른다. */
   alternateOrigin?: { from: string; navPath: string; ancestors: RouteAncestor[] };
+  /**
+   * 주소 param에 따라 달라지는 위치(가상회사 데모의 `/companies/:companyId/...`).
+   * 값이 있으면 정적 `navPath`·`listPath`·`ancestors`보다 앞선다. 회사가 바뀌면
+   * 경로 링크도 그 회사의 주소를 가리켜야 하므로 정적 문자열로 둘 수 없다.
+   */
+  dynamic?: (params: Readonly<Record<string, string | undefined>>) => {
+    navPath?: string | null;
+    listPath?: string | null;
+    ancestors?: RouteAncestor[];
+  };
 }
 
 export interface RouteMetadataHandle {
@@ -215,6 +225,76 @@ export const routeMetadata = {
     ancestors: [],
     listPath: null,
   },
+  // ── 가상회사 데모(`docs/work/demo-contract.md` §1) ─────────────────────────
+  // `GET /api/demo-config`가 enabled일 때만 이 route들이 등록된다(`routes.tsx`).
+  // 회사 식별자는 주소가 정본이므로 위치·링크는 `dynamic`이 param에서 만든다.
+  companies: {
+    title: "회사 선택",
+    dataScope: "cumulative",
+    runSelectorVisible: false,
+    navGroup: "가상회사 데모",
+    navPath: "/companies",
+    ancestors: [],
+    listPath: null,
+  },
+  companyPreSpecs: {
+    title: "회사 사전규격",
+    dataScope: "cumulative",
+    topbar: "title",
+    runSelectorVisible: false,
+    navGroup: "가상회사 데모",
+    navPath: null,
+    ancestors: [{ label: "회사 선택", path: "/companies" }],
+    listPath: null,
+    record: { param: "noticeId", label: (value) => `notice ${value}`, placement: "leaf" },
+    dynamic: (params) => {
+      const list = companyPath(params.companyId, "pre-specs");
+      return { navPath: list, listPath: list };
+    },
+  },
+  companyProfile: {
+    title: "회사 프로필",
+    dataScope: "cumulative",
+    runSelectorVisible: false,
+    navGroup: "가상회사 데모",
+    navPath: null,
+    ancestors: [{ label: "회사 선택", path: "/companies" }],
+    listPath: null,
+    dynamic: (params) => ({ navPath: companyPath(params.companyId, "profile") }),
+  },
+  companyDeepReview: {
+    title: "회사 심층 검토",
+    dataScope: "cumulative",
+    runSelectorVisible: false,
+    navGroup: "가상회사 데모",
+    navPath: null,
+    ancestors: [{ label: "회사 선택", path: "/companies" }],
+    listPath: null,
+    record: {
+      param: "reviewId",
+      label: (value) => (value.length > 8 ? `${value.slice(0, 8)}…` : value),
+      placement: "leaf",
+    },
+    dynamic: (params) => {
+      const list = companyPath(params.companyId, "pre-specs");
+      return {
+        navPath: list,
+        ancestors: list
+          ? [{ label: "회사 선택", path: "/companies" }, { label: "회사 사전규격", path: list }]
+          : [{ label: "회사 선택", path: "/companies" }],
+      };
+    },
+  },
+  companyComparison: {
+    title: "3사 비교",
+    dataScope: "cumulative",
+    runSelectorVisible: false,
+    navGroup: "가상회사 데모",
+    navPath: "/companies",
+    ancestors: [{ label: "회사 선택", path: "/companies" }],
+    listPath: null,
+    record: { param: "noticeId", label: (value) => `notice ${value}`, placement: "before-screen" },
+  },
   // 심층 검토 보고서는 사전규격 아래에 둔다. 사전규격 상세의 문서 준비가
   // 여는 화면이고, 자동으로 시작된 심층 검토의 진입점도 거기다(ADR-0049).
   // 사업 추적 상세에서도 보고서 ID로 열 수 있으므로, 주소에 `from=opportunities`
@@ -251,6 +331,12 @@ export const routeMetadata = {
   },
 } satisfies Record<string, RouteMetadata>;
 
+/** 회사 경로 하나. 회사 식별자가 UUID 모양이 아니면 링크를 만들지 않는다. */
+function companyPath(companyId: string | undefined, resource: "pre-specs" | "profile"): string | null {
+  if (!companyId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(companyId)) return null;
+  return `/companies/${companyId}/${resource}`;
+}
+
 export interface ResolvedRouteLocation {
   /** 사이드바에서 활성이 될 항목의 경로. */
   navPath: string | null;
@@ -284,9 +370,14 @@ export function resolveRouteLocation(
   search: URLSearchParams,
 ): ResolvedRouteLocation {
   const alternate = metadata.alternateOrigin;
+  const dynamic = metadata.dynamic?.(params) ?? {};
   const origin = alternate && search.get("from") === alternate.from
     ? { navPath: alternate.navPath, ancestors: alternate.ancestors }
-    : { navPath: metadata.navPath, ancestors: metadata.ancestors };
+    : {
+      navPath: dynamic.navPath !== undefined ? dynamic.navPath : metadata.navPath,
+      ancestors: dynamic.ancestors ?? metadata.ancestors,
+    };
+  const listPath = dynamic.listPath !== undefined ? dynamic.listPath : metadata.listPath;
 
   const recordValue = metadata.record ? params[metadata.record.param] ?? null : null;
   const record = metadata.record && recordValue
@@ -306,9 +397,9 @@ export function resolveRouteLocation(
   const trailingRecord = record && record.placement === "leaf" ? record : null;
   crumbs.push({
     label: metadata.title,
-    to: trailingRecord ? metadata.listPath : null,
+    to: trailingRecord ? listPath : null,
     role: "screen",
-    ...(trailingRecord && metadata.listPath === "/pre-specs" ? { context: "pre-spec-list" as const } : {}),
+    ...(trailingRecord && listPath === "/pre-specs" ? { context: "pre-spec-list" as const } : {}),
   });
   if (trailingRecord) crumbs.push({ label: trailingRecord.label, to: trailingRecord.to, role: "record" });
   const topbarMode: RouteTopbarMode = metadata.topbar === "title" && record === null ? "title" : "breadcrumb";
@@ -320,7 +411,7 @@ export function resolveRouteLocation(
  *  거부 목록인 이유: `/metrics`·`/runs`·`/attachments`는 metadata상 `cumulative`여도
  *  페이지가 `run`을 직접 읽으므로 `dataScope`로는 구분할 수 없고, 모르는 경로는
  *  회차를 쓰는 쪽(현행 동작)으로 남겨야 안전하다. */
-const RUN_FREE_PATHS = ["/opportunities", "/order-plans", "/pre-specs", "/go-no-go", "/deep-reviews"];
+const RUN_FREE_PATHS = ["/opportunities", "/order-plans", "/pre-specs", "/go-no-go", "/deep-reviews", "/companies"];
 
 function isRunFreePath(path: string): boolean {
   return RUN_FREE_PATHS.some((p) => path === p || path.startsWith(`${p}/`));

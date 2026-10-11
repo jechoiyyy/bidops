@@ -26,6 +26,13 @@ function adminLocale(page: ReactNode) {
 }
 const criteriaView = adminLocale(<CriteriaPage />);
 const runStatusView = adminLocale(<RunStatusPage />);
+// 가상회사 데모 화면(`docs/work/demo-contract.md` §1·§6). demo-config가 enabled일 때만 등록한다.
+const CompanyPickerPage = lazy(() => import("./pages/CompanyPreSpecsPage").then(({ CompanyPickerPage }) => ({ default: CompanyPickerPage })));
+const CompanyPreSpecsPage = lazy(() => import("./pages/CompanyPreSpecsPage").then(({ CompanyPreSpecsPage }) => ({ default: CompanyPreSpecsPage })));
+const CompanyPreSpecDetailPage = lazy(() => import("./pages/CompanyPreSpecsPage").then(({ CompanyPreSpecDetailPage }) => ({ default: CompanyPreSpecDetailPage })));
+const CompanyDeepReviewPage = lazy(() => import("./pages/DeepReviewPage").then(({ CompanyDeepReviewPage }) => ({ default: CompanyDeepReviewPage })));
+const CompanyProfilePage = lazy(() => import("./pages/CompanyProfilePage").then(({ CompanyProfilePage }) => ({ default: CompanyProfilePage })));
+const CompanyComparisonPage = lazy(() => import("./pages/CompanyComparisonPage").then(({ CompanyComparisonPage }) => ({ default: CompanyComparisonPage })));
 const ReviewWorkspacePage = lazy(() => import("./pages/ReviewWorkspacePage").then(({ ReviewWorkspacePage }) => ({ default: ReviewWorkspacePage })));
 const GoNoGoPage = lazy(() => import("./pages/GoNoGoPage").then(({ GoNoGoPage }) => ({ default: GoNoGoPage })));
 
@@ -47,10 +54,27 @@ function LegacyOrderPlanRedirect() {
   return <RedirectWithSearch to="/order-plans" extraParams={orderPlanPk ? { selected: orderPlanPk } : undefined} />;
 }
 
-export const routes: RouteObject[] = [
+/**
+ * 회사 경로. `GET /api/demo-config`가 `enabled:true`일 때만 등록한다(계약 §1).
+ * 꺼져 있으면 이 경로들은 SPA에 없고, 서버 guard가 같은 주소를 404로 막는다.
+ * 첫 진입은 회사 선택(`/companies`)이며 기본 회사를 몰래 확정하지 않는다.
+ */
+function companyRoutes(): RouteObject[] {
+  return [
+    { path: "companies", element: <CompanyPickerPage />, handle: routeHandle(routeMetadata.companies) },
+    { path: "companies/:companyId/pre-specs", element: <CompanyPreSpecsPage />, handle: routeHandle(routeMetadata.companyPreSpecs) },
+    { path: "companies/:companyId/pre-specs/:noticeId", element: <CompanyPreSpecDetailPage />, handle: routeHandle(routeMetadata.companyPreSpecs) },
+    { path: "companies/:companyId/profile", element: <CompanyProfilePage />, handle: routeHandle(routeMetadata.companyProfile) },
+    { path: "companies/:companyId/deep-reviews/:reviewId", element: <CompanyDeepReviewPage />, handle: routeHandle(routeMetadata.companyDeepReview) },
+    { path: "pre-specs/:noticeId/company-comparison", element: <CompanyComparisonPage />, handle: routeHandle(routeMetadata.companyComparison) },
+  ];
+}
+
+export function buildRoutes(demoEnabled: boolean): RouteObject[] {
+  return [
   {
     path: "/",
-    element: <AppShell />,
+    element: <AppShell demoEnabled={demoEnabled} />,
     children: [
       {
         element: <LazyRouteBoundary />,
@@ -96,8 +120,13 @@ export const routes: RouteObject[] = [
           { path: "audit", element: runStatusView, handle: routeHandle(routeMetadata.runStatus) },
           { path: "assumption-analyses/:runId", element: <AssumptionAnalysisPage />, handle: routeHandle(routeMetadata.assumptionAnalysis) },
           { path: "deep-reviews/:deepReviewId", element: <DeepReviewPage />, handle: routeHandle(routeMetadata.deepReview) },
+          ...(demoEnabled ? companyRoutes() : []),
         ],
       },
     ],
   },
-];
+  ];
+}
+
+/** 데모가 꺼진 기본 route 표. 기존 화면은 데모 여부와 무관하게 같다. */
+export const routes: RouteObject[] = buildRoutes(false);

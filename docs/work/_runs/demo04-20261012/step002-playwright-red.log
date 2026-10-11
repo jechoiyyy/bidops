@@ -1,0 +1,87 @@
+
+Running 10 tests using 8 workers
+
+  ✓   8 [app] › tests/company-graph.spec.ts:342:1 › 프로필이 준비되지 않은 회사(409)는 관계 목록을 읽지도 그리지도 않는다 (615ms)
+  ✓   7 [app] › tests/company-graph.spec.ts:293:1 › 관계가 없는 응답은 빈 상태로, 판정이 아니라고 말한다 (669ms)
+  ✓   5 [app] › tests/company-graph.spec.ts:52:1 › 관계 목록은 서버 노드를 유형별로 묶고 관계 행을 그대로 보여 주며 버전·가상 표식·미확인을 문자로 구분한다 (689ms)
+  ✓   1 [app] › tests/company-graph.spec.ts:269:1 › 관계 목록을 읽는 중에는 완료된 목록처럼 보이지 않는다 (701ms)
+  ✓   6 [app] › tests/company-graph.spec.ts:307:1 › 없는 중심(404)·네트워크 실패·그래프 409는 오류로 보이고 다시 시도할 수 있다 (843ms)
+  ✓   3 [app] › tests/company-graph.spec.ts:114:1 › 노드를 중심으로 다시 보면 root_node_id로 서버에 다시 묻고, 회사 중심으로 돌아올 수 있다 (1.1s)
+  ✓  10 [app] › tests/company-graph.spec.ts:364:1 › 긴 한글 label은 1440 폭에서 가로로 넘치지 않는다(목록·근거 패널) (586ms)
+  ✓   9 [app] › tests/company-graph.spec.ts:352:1 › 응답 그래프의 버전·hash가 프로필과 다르면 목록을 그리지 않는다 (984ms)
+  ✘   2 [app] › tests/company-graph.spec.ts:227:1 › depth·limit을 바꾸면 그 query로 다시 묻고, 잘린 목록은 생략 개수와 함께 누락의 증거가 아니라고 알린다 (5.9s)
+  ✘   4 [app] › tests/company-graph.spec.ts:155:1 › 노드·관계를 클릭·Enter·Space로 열고 버튼·Escape로 닫으면 연 행으로 초점이 돌아간다 (5.9s)
+
+
+  1) [app] › tests/company-graph.spec.ts:155:1 › 노드·관계를 클릭·Enter·Space로 열고 버튼·Escape로 닫으면 연 행으로 초점이 돌아간다 
+
+    Error: expect(locator).toBeFocused() failed
+
+    Locator:  getByTestId('company-graph').locator('[data-graph-trigger="node:capability.public_admin"]')
+    Expected: focused
+    Received: inactive
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toBeFocused" with timeout 5000ms
+      - waiting for getByTestId('company-graph').locator('[data-graph-trigger="node:capability.public_admin"]')
+        14 × locator resolved to <button type="button" class="kg-row" aria-pressed="false" data-graph-trigger="node:capability.public_admin">…</button>
+           - unexpected value "inactive"
+
+
+      180 |   await panel(page).getByRole("button", { name: "근거 닫기" }).click();
+      181 |   await expect(panel(page)).toHaveCount(0);
+    > 182 |   await expect(publicAdmin).toBeFocused();
+          |                             ^
+      183 |   await expect(publicAdmin).toHaveAttribute("aria-pressed", "false");
+      184 |
+      185 |   // Tab 순서: 행 → 그 행의 "중심으로 보기" → 다음 행.
+        at /Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-graph.spec.ts:182:29
+
+    Error Context: test-results/company-graph-노드·관계를-클릭·En-c925f-·Escape로-닫으면-연-행으로-초점이-돌아간다-app/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/company-graph-노드·관계를-클릭·En-c925f-·Escape로-닫으면-연-행으로-초점이-돌아간다-app/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/company-graph-노드·관계를-클릭·En-c925f-·Escape로-닫으면-연-행으로-초점이-돌아간다-app/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) [app] › tests/company-graph.spec.ts:227:1 › depth·limit을 바꾸면 그 query로 다시 묻고, 잘린 목록은 생략 개수와 함께 누락의 증거가 아니라고 알린다 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByTestId('company-graph').getByRole('note', { name: '목록 잘림 안내' })
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" with timeout 5000ms
+      - waiting for getByTestId('company-graph').getByRole('note', { name: '목록 잘림 안내' })
+
+
+      248 |   expect(body.omitted_node_count).toBe(2);
+      249 |   const notice = graph(page).getByRole("note", { name: "목록 잘림 안내" });
+    > 250 |   await expect(notice).toBeVisible();
+          |                        ^
+      251 |   await expect(notice.getByTestId("graph-omitted-count")).toHaveText("2");
+      252 |   await expect(notice).toContainText("목록이 잘렸습니다.");
+      253 |   await expect(notice).toContainText("깊이 2단계 안의 노드 중 2개를 표시하지 않았습니다(최대 10개)");
+        at /Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-graph.spec.ts:250:24
+
+    Error Context: test-results/company-graph-depth·limit을-7f7f1--생략-개수와-함께-누락의-증거가-아니라고-알린다-app/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/company-graph-depth·limit을-7f7f1--생략-개수와-함께-누락의-증거가-아니라고-알린다-app/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/company-graph-depth·limit을-7f7f1--생략-개수와-함께-누락의-증거가-아니라고-알린다-app/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2 failed
+    [app] › tests/company-graph.spec.ts:155:1 › 노드·관계를 클릭·Enter·Space로 열고 버튼·Escape로 닫으면 연 행으로 초점이 돌아간다 
+    [app] › tests/company-graph.spec.ts:227:1 › depth·limit을 바꾸면 그 query로 다시 묻고, 잘린 목록은 생략 개수와 함께 누락의 증거가 아니라고 알린다 
+  8 passed (6.6s)

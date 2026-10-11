@@ -1,0 +1,78 @@
+
+Running 16 tests using 8 workers
+
+  -   8 [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/design-shell.spec.ts:316:1 › 지원 폭 1280·1440·1920px에서 셸이 가로로 넘치지 않는다
+  -   2 [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/design-shell.spec.ts:113:1 › 1440px 셸의 팔레트 색과 기준 치수를 고정한다
+  -   1 [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/design-shell.spec.ts:204:1 › 제목 모드 상단바가 18px 제목을 쓰고 높이는 68.4px다
+  ✓   3 [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/design-shell.spec.ts:72:1 › 셸에 좁은 폭 서랍이 없고 사이드바가 항상 보인다 (405ms)
+  ✓   6 [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/design-shell.spec.ts:80:1 › 나라장터 바로가기가 주 메뉴 하단에서 새 탭 링크로 제공된다 (414ms)
+  ✓   7 [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/design-shell.spec.ts:342:1 › 콘텐츠를 스크롤해도 사이드바는 viewport에 고정되어 메뉴 이동을 유지한다 (433ms)
+  ✓  11 [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/design-shell.spec.ts:72:1 › 셸에 좁은 폭 서랍이 없고 사이드바가 항상 보인다 (318ms)
+  ✓   9 [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/design-shell.spec.ts:80:1 › 나라장터 바로가기가 주 메뉴 하단에서 새 탭 링크로 제공된다 (419ms)
+  ✓  14 [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/design-shell.spec.ts:204:1 › 제목 모드 상단바가 18px 제목을 쓰고 높이는 68.4px다 (366ms)
+  ✘   4 [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/design-shell.spec.ts:228:1 › native compact 셸이 드롭다운·대화상자를 viewport 안에 두고 키보드 초점을 되돌린다 (950ms)
+  ✓  12 [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/design-shell.spec.ts:113:1 › 1440px 셸의 팔레트 색과 기준 치수를 고정한다 (619ms)
+  ✓  16 [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/design-shell.spec.ts:342:1 › 콘텐츠를 스크롤해도 사이드바는 viewport에 고정되어 메뉴 이동을 유지한다 (441ms)
+  ✘  13 [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/design-shell.spec.ts:228:1 › native compact 셸이 드롭다운·대화상자를 viewport 안에 두고 키보드 초점을 되돌린다 (878ms)
+  ✓  15 [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/design-shell.spec.ts:316:1 › 지원 폭 1280·1440·1920px에서 셸이 가로로 넘치지 않는다 (1.8s)
+  ✓   5 [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/design-shell.spec.ts:47:1 › 모든 시안 대상 route가 공통 bidops light 셸 안에서 렌더링된다 (3.0s)
+  ✓  10 [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/design-shell.spec.ts:47:1 › 모든 시안 대상 route가 공통 bidops light 셸 안에서 렌더링된다 (2.8s)
+
+
+  1) [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/design-shell.spec.ts:228:1 › native compact 셸이 드롭다운·대화상자를 viewport 안에 두고 키보드 초점을 되돌린다 
+
+    Error: expect(received).toBeLessThanOrEqual(expected)
+
+    Expected: <= 4
+    Received:    6.197486877441406
+
+      285 |   const triggerCenter = (popoverGeometry.triggerTop + popoverGeometry.triggerBottom) / 2;
+      286 |   const selectedCenter = (popoverGeometry.selectedTop + popoverGeometry.selectedBottom) / 2;
+    > 287 |   expect(Math.abs(selectedCenter - triggerCenter)).toBeLessThanOrEqual(4);
+          |                                                    ^
+      288 |
+      289 |   await page.keyboard.press("Escape");
+      290 |   await expect(listbox).toBeHidden();
+        at /Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/design-shell.spec.ts:287:52
+
+    Error Context: .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/test-results/design-shell-native-compac-38b7b-viewport-안에-두고-키보드-초점을-되돌린다-layout-laptop/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/test-results/design-shell-native-compac-38b7b-viewport-안에-두고-키보드-초점을-되돌린다-layout-laptop/trace.zip
+    Usage:
+
+        npx playwright show-trace .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/test-results/design-shell-native-compac-38b7b-viewport-안에-두고-키보드-초점을-되돌린다-layout-laptop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/design-shell.spec.ts:228:1 › native compact 셸이 드롭다운·대화상자를 viewport 안에 두고 키보드 초점을 되돌린다 
+
+    Error: expect(received).toBeLessThanOrEqual(expected)
+
+    Expected: <= 4
+    Received:    5.041023254394531
+
+      285 |   const triggerCenter = (popoverGeometry.triggerTop + popoverGeometry.triggerBottom) / 2;
+      286 |   const selectedCenter = (popoverGeometry.selectedTop + popoverGeometry.selectedBottom) / 2;
+    > 287 |   expect(Math.abs(selectedCenter - triggerCenter)).toBeLessThanOrEqual(4);
+          |                                                    ^
+      288 |
+      289 |   await page.keyboard.press("Escape");
+      290 |   await expect(listbox).toBeHidden();
+        at /Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/design-shell.spec.ts:287:52
+
+    Error Context: .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/test-results/design-shell-native-compac-38b7b-viewport-안에-두고-키보드-초점을-되돌린다-layout-desktop/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/test-results/design-shell-native-compac-38b7b-viewport-안에-두고-키보드-초점을-되돌린다-layout-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/test-results/design-shell-native-compac-38b7b-viewport-안에-두고-키보드-초점을-되돌린다-layout-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2 failed
+    [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/design-shell.spec.ts:228:1 › native compact 셸이 드롭다운·대화상자를 viewport 안에 두고 키보드 초점을 되돌린다 
+    [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/design-shell.spec.ts:228:1 › native compact 셸이 드롭다운·대화상자를 viewport 안에 두고 키보드 초점을 되돌린다 
+  3 skipped
+  11 passed (4.1s)

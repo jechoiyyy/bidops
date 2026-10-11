@@ -193,6 +193,13 @@ export function useUnsavedGuard(dirty: boolean, options: UnsavedGuardOptions = {
   const blockerRef = useRef(blocker);
   blockerRef.current = blocker;
 
+  // 막힌 이동 하나마다 확인 창 하나다. 상태만 보면 안 된다: router는 blocker 갱신을
+  // transition으로 묶으므로, `계속 편집`의 reset() 직후 다음 이동이 다시 막히면 React는
+  // "unblocked"를 그리지 않은 채 blocked→blocked만 본다. 그때 상태 값은 같아 효과가
+  // 다시 돌지 않고 이동은 확인 창 없이 조용히 막힌다. 막힌 이동마다 새로 만들어지는
+  // `blocker.location`을 함께 보아 새 이동이면 창을 다시 연다. 같은 이동이 다시
+  // 그려질 때는 같은 객체라 창을 두 번 열지 않는다.
+  const blockedLocation = blocker.state === "blocked" ? blocker.location : null;
   useEffect(() => {
     if (blocker.state !== "blocked") return undefined;
     openHost(requestFrom(owner, contentRef.current, {
@@ -200,7 +207,7 @@ export function useUnsavedGuard(dirty: boolean, options: UnsavedGuardOptions = {
       onConfirm: () => blockerRef.current.proceed?.(),
     }));
     return () => dismissHost(owner);
-  }, [blocker.state, owner]);
+  }, [blocker.state, blockedLocation, owner]);
 
   useEffect(() => {
     if (!dirty) return;
