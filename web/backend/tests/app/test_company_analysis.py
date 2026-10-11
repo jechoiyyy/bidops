@@ -38,6 +38,7 @@ from tests.deep_review.test_company_fit import _FakeStore, ready_bundle, setup_i
 from tests.deep_review.test_company_fit_enqueue import (  # noqa: F401 - shared fixtures
     FIXTURES,
     OVERVIEW_RESULT,
+    POLICY_V2_FILE,
     World,
     build_world,
     configure,
@@ -154,16 +155,20 @@ def test_t4_fit_enqueue_claim_and_complete(engine, monkeypatch, transport, auto_
         assert row.status == "completed" and row.error_code is None
         assert row.result_jsonb == payload and row.result_sha256 == fit.digest(payload)
         assert row.input_jsonb == frozen_input and row.provenance_jsonb == frozen_provenance
-        # The fit freezes the notice's current document set (no bundle here: its current
-        # documents); the multi-document comparable case is tests/app/test_company_e2e.py.
+        # The fit freezes the latest ready bundle's document set (one document here); the
+        # multi-document comparable case is tests/app/test_company_e2e.py.
         assert [item["document_version_id"] for item in row.provenance_jsonb["documents"]] == (
             row.input_jsonb["document_version_ids"]) == [str(world.document_id)]
+        # The model receives the frozen overview rows with their linked source units.
+        units = [unit for requirement in frozen_input["requirements"] for unit in requirement["source_units"]]
+        assert units and row.input_jsonb["bundle_id"] is None
         assert row.raw_response_sha256 and len(store.calls) == 1
         assert row.lease_owner is None and row.completed_at is not None
         assert transport.for_purpose_calls == [("overview", MODEL, "prespec_company_fit_v2")]
         assert len(transport.requests) == 1
         prompt = _prompt(transport.requests[0])
         assert payload["reasons"][0]["notice_refs"][0] in prompt and "graph_paths" in prompt
+        assert "source_units" in prompt and units[0]["requirement_id"] in prompt
         assert "prespec-company-fit-input.v1" not in prompt and "fit_policy" not in prompt
         assert transport.requests[0]["model"] == MODEL
         assert fit.validate_company_fit_result(row.result_jsonb, row.input_jsonb).decision == "matched"
@@ -221,6 +226,73 @@ def test_t4_validation_retry_can_complete_with_the_second_response(sqlite_engine
         session.expire_all()
         row = session.get(PreSpecCompanyFitAttempt, queued.attempt_id)
         assert row.status == "completed" and row.result_jsonb == good and len(transport.requests) == 2
+    get_settings.cache_clear()
+
+
+def _v2_era_attempt(session: Session, world: World) -> tuple[PreSpecCompanyFitAttempt, UUID]:
+    """A company attempt frozen before STEP-008: pinned to the v2 policy row, no source units.
+
+    Built from the real (read-only) ``prepare_company_fit`` output, then re-pinned
+    to the imported v2 row with the pre-amendment empty unit links, exactly the
+    shape the STEP-002..007 code froze.  Returns (row, v2 policy id).
+    """
+
+    from app.deep_review.services.company_analysis_input import frozen_provenance
+    from app.deep_review.services.company_fit_policy import import_company_fit_policy
+
+    history = import_company_fit_policy(session, POLICY_V2_FILE, actor="정책 담당자")
+    session.commit()
+    attempt_id = uuid4()
+    prepared = fit.prepare_company_fit(session, company_id=world.company_id, notice_id=world.notice_id,
+                                       execution_nonce=attempt_id)
+    value = deepcopy(prepared.input)
+    value["policy_version_id"], value["policy_sha256"] = str(history.policy_version_id), history.sha256
+    for requirement in value["requirements"]:
+        requirement["source_units"], requirement["document_requirement_ids"] = [], []
+    digest = fit.digest(value)
+    provenance = frozen_provenance(value, input_sha256=digest, documents=prepared.provenance["documents"])
+    row = PreSpecCompanyFitAttempt(
+        id=attempt_id, company_id=world.company_id, notice_id=world.notice_id,
+        document_version_id=prepared.document_version_id, overview_run_id=prepared.overview_run_id,
+        profile_version_id=prepared.profile_version_id, deep_policy_version_id=None,
+        company_fit_policy_version_id=history.policy_version_id, graph_version_id=prepared.graph_version_id,
+        input_jsonb=value, input_sha256=digest, provenance_jsonb=provenance, policy_digest=history.sha256,
+        model_name=prepared.model_name, model_revision=prepared.model_revision,
+        quality_status=prepared.quality_status, status="queued",
+    )
+    session.add(row)
+    session.commit()
+    return row, history.policy_version_id
+
+
+@pytest.mark.parametrize("selected", ["v2", "v3"])
+def test_t4_v2_pinned_attempt_runs_with_its_stored_policy_row(sqlite_engine, monkeypatch, transport, selected) -> None:
+    """Contract §9 (2026-10-11): already frozen attempts run with their stored policy row.
+
+    A v2-era attempt still runs while the v2 row is the selected policy; once the
+    operator selects the v3 row it is not current (policy currentness) and fails
+    closed before any transport call.  Enqueue never selects v2 (enqueue tests).
+    """
+
+    with Session(sqlite_engine) as session:
+        world = build_world(session, monkeypatch)
+        row, v2_id = _v2_era_attempt(session, world)
+        attempt_id, frozen_input = row.id, deepcopy(row.input_jsonb)
+        if selected == "v2":
+            configure(monkeypatch, BIDOPS_DEMO_COMPANY_FIT_POLICY_VERSION_ID=str(v2_id))
+            transport.responses.append(valid_payload(frozen_input))
+        assert fit.company_current_flags(session, [row]) == {attempt_id: selected == "v2"}
+        assert _runner().run_once(session, "fit-worker")
+        session.expire_all()
+        row = session.get(PreSpecCompanyFitAttempt, attempt_id)
+        assert row.input_jsonb == frozen_input and row.company_fit_policy_version_id == v2_id
+        if selected == "v2":
+            assert row.status == "completed" and row.error_code is None
+            assert transport.for_purpose_calls == [("overview", MODEL, "prespec_company_fit_v2")]
+            assert len(transport.requests) == 1
+        else:
+            assert row.status == "failed" and row.error_code == "inputs_changed"
+            assert transport.requests == [] and transport.for_purpose_calls == []
     get_settings.cache_clear()
 
 

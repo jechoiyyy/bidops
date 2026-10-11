@@ -21,6 +21,15 @@
 | business-rules·contracts DEMO-02 단락의 "DEMO-03~05 미구현", operations 절 제목 "구현 전" | 수정. 같은 패턴 전수 검색으로 PRD·PLAN 절 제목도 함께 수정 |
 | 이 파일의 범위 문장이 최종 트리를 대상으로 했다고 기록 | 위 범위 문장을 실제 대상(`7a110ce`)으로 정정 |
 
+## Codex 독립 리뷰 2회차 FAIL과 처리 (2026-10-11)
+
+기능 브랜치 `55c64cc` 트리에 대한 2회차(`batch-codex-review-r2.md`)는 1회차 차단 3건 해소를 확인하고 제품 차단 1건을 냈다. 회사 핏 Requirement가 원문 unit을 갖지 않는다는 지적이며 리더가 소스에서 사실로 확인했다.
+사용자 결정 "코드 수정, bundle 필수"에 따라 공통 계약 §9·spec·plan을 개정하고 STEP-008로 구현했다(`demo03-step008-result.md`, 리더 재실행 764 passed, 0 skipped). 노트의 STEP-007 위임 사유도 정정했다. 3회차 프롬프트는 `batch-codex-review-r3.prompt.md`다.
+
+## run 기록 정정 (2026-10-11)
+
+배치 `run.json`의 `review`에 `result=pass`, 근거 `batch-codex-review.md`(2026-10-11T19:01:12)가 기록돼 있으나 그 보고서의 판정은 FAIL이다. 보고서를 읽기 전에 pass로 기록된 오기다. 입력 hash(`9b1f430b…`)가 현재 스냅샷과 달라 `run _ finish` 근거가 되지 않으며, 통과한 회차의 `run _ review`로 대체한다. 1회차 판정은 FAIL로 본다.
+
 ## 노트와 처리
 
 | 노트 | 처리 |

@@ -15,13 +15,18 @@ called here; the composed worker slot executes the attempt later.
 Gate codes: company_not_found | company_profile_not_ready |
 company_input_invalid | analysis_policy_unavailable | model_binding_invalid |
 overview_not_completed | effective_grade_ineligible | company_fit_disabled |
-active_attempt_exists (exit 2).  ``BIDOPS_DEMO_ENABLED``,
+bundle_not_ready | active_attempt_exists (exit 2).  ``BIDOPS_DEMO_ENABLED``,
 ``BIDOPS_PRESPEC_COMPANY_FIT_ENABLED`` or ``BIDOPS_REFERENCE_WORKFLOW_MODE``
 false all report ``company_fit_disabled``.  An unparseable company id is
 ``company_not_found``; a missing or non-SW사업대상=Y notice is
 ``effective_grade_ineligible``; an invalid actor name is
-``company_input_invalid``.  Storage/dependency failure is ``storage_failed``
-(exit 1).  stderr carries only the safe code; argparse syntax errors exit 2.
+``company_input_invalid``.  Since 2026-10-11 (contract §9) the notice needs a
+ready document bundle (``bundle_not_ready`` otherwise; its pinned structure
+snapshot must load), the selected policy must be the v3 file
+(``analysis_policy_unavailable`` for a v2 row) and a segment-inventory
+mismatch of the bundle's units is ``company_input_invalid``.
+Storage/dependency failure is ``storage_failed`` (exit 1).  stderr carries
+only the safe code; argparse syntax errors exit 2.
 """
 
 from __future__ import annotations

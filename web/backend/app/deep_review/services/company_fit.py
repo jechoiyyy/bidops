@@ -12,7 +12,10 @@ Two lineages share the ``prespec_company_fit_attempt`` table:
   (purpose ``company_fit``) and FrozenProvenance in one transaction, gated on
   SW사업대상=Y (never the C-1 grade), a completed current v7 overview, the
   company's active knowledge binding, the explicitly configured company-fit
-  policy row and the ``overview`` purpose LiteLLM binding.  Results are
+  policy row (v3 for a new enqueue) and the ``overview`` purpose LiteLLM
+  binding, plus (2026-10-11, STEP-008) the notice's latest ready document
+  bundle: its documents are the frozen set and its splitter units are linked
+  to the overview rows by evidence page.  Results are
   ``bidops.prespec-company-fit-result.v2`` validated by
   ``validate_company_fit_result``.
 """
@@ -51,15 +54,31 @@ from .company_analysis_input import (
     document_provenance,
     frozen_provenance,
     notice_document_sets,
+    ready_bundle_document_sets,
     resolve_company_knowledge_context,
 )
-from .company_fit_policy import COMPANY_FIT_STAGE, CompanyFitPolicyError, resolve_company_fit_policy
+from .company_fit_policy import (
+    COMPANY_FIT_POLICY_SCHEMA_V3,
+    COMPANY_FIT_STAGE,
+    CompanyFitPolicyError,
+    resolve_company_fit_enqueue_policy,
+    resolve_company_fit_policy,
+)
 from .company_knowledge_retrieval import (
     CompanyRetrievalError,
     requirements_from_overview,
     validate_graph_path_indexes,
 )
-from .input_versions import active_version_ids, canonical_json_hash, profile_context, resolve_active_versions
+from .company_source_units import bundle_source_units
+from .deep_review_validation import DeepReviewValidationError
+from .input_versions import (
+    InputVersionError,
+    active_version_ids,
+    bundle_context,
+    canonical_json_hash,
+    profile_context,
+    resolve_active_versions,
+)
 from .overview_runs import automation_completed_result, current_runs
 
 PROMPT_VERSION = "prespec-company-fit-v1"
@@ -392,6 +411,8 @@ COMPANY_FIT_GATE_CODES = frozenset({
     "company_not_found", "company_profile_not_ready", "company_input_invalid",
     "analysis_policy_unavailable", "model_binding_invalid", "overview_not_completed",
     "effective_grade_ineligible", "company_fit_disabled", "active_attempt_exists",
+    # 2026-10-11 (STEP-008): no ready document bundle for the notice.
+    "bundle_not_ready",
 })
 
 
@@ -560,7 +581,12 @@ def prepare_company_fit(
 ) -> PreparedCompanyFit:
     """Run every gate except ``active_attempt_exists`` and build the frozen input.
 
-    Read-only. Raises ``CompanyFitGateError`` with one contract code.
+    Read-only. Raises ``CompanyFitGateError`` with one contract code.  Gate
+    order (§9, 2026-10-11): company_fit_disabled → company binding → policy
+    (v3) → model binding → SW사업대상=Y → completed v7 overview → latest ready
+    bundle (``bundle_not_ready``; its pinned structures must load) → the
+    overview document is in the bundle's document set → source units (strict
+    inventory equality) → overview requirements linked to those units.
     """
 
     settings = settings or get_settings()
@@ -571,7 +597,7 @@ def prepare_company_fit(
     except CompanyAnalysisError as error:
         raise CompanyFitGateError(error.code) from None
     try:
-        policy_row, policy = resolve_company_fit_policy(session, settings)
+        policy_row, policy = resolve_company_fit_enqueue_policy(session, settings)
     except CompanyFitPolicyError:
         raise CompanyFitGateError("analysis_policy_unavailable") from None
     if not company_model_binding_ok(policy, settings):
@@ -583,14 +609,30 @@ def prepare_company_fit(
         raise CompanyFitGateError("overview_not_completed")
     run, result, document = overview
     chunking = policy["chunking"]
-    # The notice's current document-version set (latest ready bundle, else
-    # every current document), the same list a deep review of this notice
-    # freezes; the overview's document must be one of them (§10 verifier).
-    document_ids = notice_document_sets(session, [notice_id]).get(int(notice_id), [])
+    # The notice's latest ready bundle is required (no current-document
+    # fallback): its document set is frozen -- the same set a deep review of
+    # this notice freezes -- and its confirmation-time structures are the
+    # source of the units.  Loaded exactly like the deep preview's bundle.
+    ready = ready_bundle_document_sets(session, [notice_id]).get(int(notice_id))
+    if ready is None:
+        raise CompanyFitGateError("bundle_not_ready")
+    bundle_id, document_ids = ready
+    try:
+        bundle, structures = bundle_context(session, bundle_id)
+    except (InputVersionError, DeepReviewValidationError):
+        raise CompanyFitGateError("bundle_not_ready") from None
+    # The overview's document must be one of them (§10 verifier).
     if document.id not in document_ids:
         raise CompanyFitGateError("company_input_invalid")
     try:
-        requirements = requirements_from_overview(run.id, result, knowledge.ontology)
+        # The deep path's splitter units (strict inventory equality); each
+        # overview row links the overview document's units on its evidence pages.
+        units = bundle_source_units(
+            session, bundle, structures, source_characters=chunking["source_characters"]
+        )
+        requirements = requirements_from_overview(
+            run.id, result, knowledge.ontology, source_units=units, document_version_id=document.id
+        )
         value = build_company_analysis_input(
             purpose="company_fit",
             execution_nonce=execution_nonce,
@@ -791,9 +833,15 @@ def company_current_flags(
     with the same model/revision/generation; the ``overview`` LiteLLM binding
     is valid; the notice is still SW사업대상=Y; the notice's current overview is
     the frozen completed v7 run with the same result hash and current document;
-    the notice's current document-version set (``notice_document_sets``) is
-    the frozen ``document_version_ids``/provenance ``documents``; and the
-    stored input/provenance hashes are intact.  Batched per call.
+    the notice's current document-version set is the frozen
+    ``document_version_ids``/provenance ``documents``; and the stored
+    input/provenance hashes are intact.  Batched per call.
+
+    The current document set follows the selected policy's schema (an attempt
+    is only current on its own policy row): v3 attempts were frozen from the
+    latest ready bundle, so only that bundle's set counts (no ready bundle →
+    not current); v2-era attempts keep the set they were frozen with
+    (``notice_document_sets``: ready bundle, else current documents).
     """
 
     settings = settings or get_settings()
@@ -809,7 +857,13 @@ def company_current_flags(
     notice_ids = sorted({row.notice_id for row in rows})
     overviews = _current_company_overviews(session, notice_ids, runs=runs)
     sw = _sw_notice_ids(session, notice_ids)
-    document_sets = notice_document_sets(session, notice_ids)
+    if policy["schema_version"] == COMPANY_FIT_POLICY_SCHEMA_V3:
+        document_sets = {
+            notice_id: documents
+            for notice_id, (_bundle, documents) in ready_bundle_document_sets(session, notice_ids).items()
+        }
+    else:
+        document_sets = notice_document_sets(session, notice_ids)
     bindings = {
         binding.company_id: binding
         for binding in session.scalars(select(CompanyKnowledgeBinding).where(

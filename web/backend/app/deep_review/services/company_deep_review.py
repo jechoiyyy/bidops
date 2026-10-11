@@ -54,7 +54,7 @@ from ..schemas.company_analysis import (
     CompanyReviewView,
     FrozenProvenance,
 )
-from . import document_segments, luna_inputs
+from . import luna_inputs
 from .company_analysis_input import (
     CompanyAnalysisError,
     build_company_analysis_input,
@@ -63,6 +63,7 @@ from .company_analysis_input import (
     resolve_company_knowledge_context,
 )
 from .company_fit import company_part_is_prompt_safe, current_company_overviews, digest as overview_digest
+from .company_source_units import bundle_source_units
 from .company_knowledge_retrieval import CompanyRetrievalError, requirements_from_source_units
 from .deep_review_validation import DeepReviewValidationError
 from .deep_reviews import (
@@ -284,27 +285,15 @@ def company_source_units(
     ``DeepReviewService._requirements`` with ``max_requirements=1`` and the
     policy ``source_characters``; ``document_requirement_ids`` from the bundle
     inventory.  An inventory mismatch is ``company_input_invalid`` (the legacy
-    worker would fail the same input after approval).
+    worker would fail the same input after approval).  The splitting itself is
+    ``company_source_units.bundle_source_units``, shared with the company fit
+    enqueue (STEP-008); this wrapper keeps the deep path's 409 error.
     """
 
-    units = [
-        row
-        for group in DeepReviewService._requirements(
-            bundle, structures, max_characters=source_characters, max_requirements=1
-        )
-        for row in group
-    ]
-    inventory = document_segments.inventory_context(
-        session, [UUID(str(row["structure_id_at_confirmation"])) for row in bundle["documents"]]
-    )
-    for unit in units:
-        unit["document_requirement_ids"] = sorted(
-            document_segments.observed_requirement_ids([str(unit.get("text", ""))], inventory.get("prefixes", []))
-        )
-    observed = {rid for unit in units for rid in unit["document_requirement_ids"]}
-    if observed != set(inventory.get("expected_ids", [])):
-        raise _error("company_input_invalid")
-    return units
+    try:
+        return bundle_source_units(session, bundle, structures, source_characters=source_characters)
+    except CompanyAnalysisError:
+        raise _error("company_input_invalid") from None
 
 
 def prepare_company_deep_review(

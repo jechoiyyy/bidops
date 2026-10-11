@@ -1,22 +1,32 @@
-"""Immutable DEMO company-fit policy (``bidops.company-fit-policy.v2``).
+"""Immutable DEMO company-fit policies (``bidops.company-fit-policy.v2``/``v3``).
 
 Demo contract §9: the payload pins the existing fit policy structure plus the
 LiteLLM alias ``local-agent-main`` and an optional declared revision (``null``
 when the deployment declares none -- never a guessed upstream value).  The
-approved policy is a canonical JSON file shipped in the image; import compares
-the given bytes with that file and stores an append-only
+approved policies are canonical JSON files shipped in the image; import
+compares the given bytes with those files and stores an append-only
 ``CompanyFitPolicyVersion`` row.  Import never activates anything: the company
 path selects a row only through ``BIDOPS_DEMO_COMPANY_FIT_POLICY_VERSION_ID``.
 
+2026-10-11 amendment (STEP-008): ``v3`` is ``v2`` plus a required
+``chunking.source_characters`` -- the splitter setting with which a fit links
+overview rows to the bundle's source units (``company-fit-demo-v3.json``,
+6000, the demo Luna narrative setting so fit and deep unit ids agree).  ``v2``
+files/rows stay valid history: importable, readable, and an attempt already
+frozen on a v2 row still runs with it.  A **new enqueue** only accepts a v3
+row (``resolve_company_fit_enqueue_policy``); a selected v2 row is
+``analysis_policy_unavailable``.
+
 Loader rules (``validate_company_fit_policy``), all failing with
-``policy_invalid``: exact key set; ``schema_version``; ``model_name`` non-empty
-without whitespace; ``model_revision`` null or 64 lowercase hex; the approved
-generation; a single ``company_fit`` stage; ``prompt_output_contract`` equal to
-the code's v2 result schema; ``chunking`` with exactly ``max_characters``,
-``path_limit_per_requirement``, ``profile_characters`` (positive ints),
-``retries`` (0..approved) and the approved ``timeout_seconds``.  The
-``path_limit_per_requirement`` check is here because the model client's
-chunking check ignores unknown keys (contract §9).
+``policy_invalid``: exact key set; ``schema_version`` v2 or v3; ``model_name``
+non-empty without whitespace; ``model_revision`` null or 64 lowercase hex; the
+approved generation; a single ``company_fit`` stage; ``prompt_output_contract``
+equal to the code's v2 result schema; ``chunking`` with exactly
+``max_characters``, ``path_limit_per_requirement``, ``profile_characters``
+(positive ints), ``retries`` (0..approved) and the approved ``timeout_seconds``
+-- plus, for v3 only, a positive int ``source_characters`` (no default).  The
+``path_limit_per_requirement``/``source_characters`` checks are here because
+the model client's chunking check ignores unknown keys (contract §9).
 """
 
 from __future__ import annotations
@@ -45,21 +55,35 @@ from .input_versions import canonical_json_hash
 
 
 POLICY_DIR = Path(__file__).resolve().parents[1] / "policies"
-DEMO_POLICY_FILE = POLICY_DIR / "company-fit-demo-v2.json"
+DEMO_POLICY_V2_FILE = POLICY_DIR / "company-fit-demo-v2.json"
+DEMO_POLICY_V3_FILE = POLICY_DIR / "company-fit-demo-v3.json"
+#: The policy file a new enqueue can use (v3). v2 is kept, importable history.
+DEMO_POLICY_FILE = DEMO_POLICY_V3_FILE
 #: Files shipped in the image whose exact bytes may be imported.
-APPROVED_POLICY_FILES: tuple[Path, ...] = (DEMO_POLICY_FILE,)
+APPROVED_POLICY_FILES: tuple[Path, ...] = (DEMO_POLICY_V2_FILE, DEMO_POLICY_V3_FILE)
 
-COMPANY_FIT_POLICY_SCHEMA = "bidops.company-fit-policy.v2"
+COMPANY_FIT_POLICY_SCHEMA_V2 = "bidops.company-fit-policy.v2"
+COMPANY_FIT_POLICY_SCHEMA_V3 = "bidops.company-fit-policy.v3"
+#: The schema a new enqueue requires (contract §9, 2026-10-11).
+COMPANY_FIT_POLICY_SCHEMA = COMPANY_FIT_POLICY_SCHEMA_V3
 COMPANY_FIT_STAGE = "company_fit"
 DEMO_PROMPT_VERSION = "prespec-company-fit-demo-v2"
 DEMO_MODEL_NAME = "local-agent-main"
+#: v3 split size: equal to ``analysis-policy-luna-demo-v1`` ``chunking.source_characters``.
+DEMO_SOURCE_CHARACTERS = 6000
 POLICY_KEYS = frozenset({
     "schema_version", "model_name", "model_revision", "prompt_version", "generation",
     "stages", "system_prompt", "prompt_output_contract", "chunking",
 })
-CHUNKING_KEYS = frozenset({
+CHUNKING_KEYS_V2 = frozenset({
     "max_characters", "path_limit_per_requirement", "profile_characters", "retries", "timeout_seconds",
 })
+CHUNKING_KEYS_V3 = CHUNKING_KEYS_V2 | {"source_characters"}
+#: Exact ``chunking`` key set per accepted schema; any other schema is invalid.
+CHUNKING_KEYS_BY_SCHEMA: Mapping[str, frozenset[str]] = {
+    COMPANY_FIT_POLICY_SCHEMA_V2: CHUNKING_KEYS_V2,
+    COMPANY_FIT_POLICY_SCHEMA_V3: CHUNKING_KEYS_V3,
+}
 _HEX64 = re.compile(r"[0-9a-f]{64}")
 
 #: Added to the v1 fit instruction. Graph paths are retrieval, never fulfilment.
@@ -81,17 +105,20 @@ class CompanyFitPolicyError(ValueError):
         super().__init__(code)
 
 
-def build_demo_policy_payload() -> dict[str, Any]:
+def build_demo_policy_payload(schema_version: str = COMPANY_FIT_POLICY_SCHEMA_V3) -> dict[str, Any]:
     """The approved demo policy, derived from the v1 fit policy (``company_fit.fit_policy``).
 
-    Used to write ``company-fit-demo-v2.json`` and by tests; runtime reads the
-    stored row, never this builder.
+    Used to write ``company-fit-demo-v2.json`` / ``company-fit-demo-v3.json``
+    and by tests; runtime reads the stored row, never this builder.  v3 is v2
+    with its own ``schema_version`` and ``chunking.source_characters``.
     """
 
     from .company_fit import INSTRUCTION, SYSTEM_PROMPT
 
-    return {
-        "schema_version": COMPANY_FIT_POLICY_SCHEMA,
+    if schema_version not in CHUNKING_KEYS_BY_SCHEMA:
+        raise ValueError("unknown company-fit policy schema")
+    payload: dict[str, Any] = {
+        "schema_version": schema_version,
         "model_name": DEMO_MODEL_NAME,
         "model_revision": None,
         "prompt_version": DEMO_PROMPT_VERSION,
@@ -109,6 +136,10 @@ def build_demo_policy_payload() -> dict[str, Any]:
             "timeout_seconds": APPROVED_TIMEOUT_SECONDS,
         },
     }
+    if schema_version == COMPANY_FIT_POLICY_SCHEMA_V3:
+        # Splitter size for the overview rows' source units (DeepReviewService._requirements).
+        payload["chunking"]["source_characters"] = DEMO_SOURCE_CHARACTERS
+    return payload
 
 
 def _positive_int(value: Any) -> bool:
@@ -116,14 +147,15 @@ def _positive_int(value: Any) -> bool:
 
 
 def validate_company_fit_policy(payload: Any) -> dict[str, Any]:
-    """Strictly validate one v2 payload and return a deep copy."""
+    """Strictly validate one v2 or v3 payload and return a deep copy."""
 
     def invalid() -> CompanyFitPolicyError:
         return CompanyFitPolicyError("policy_invalid")
 
     if not isinstance(payload, Mapping) or set(payload) != POLICY_KEYS:
         raise invalid()
-    if payload["schema_version"] != COMPANY_FIT_POLICY_SCHEMA:
+    schema = payload["schema_version"]
+    if not isinstance(schema, str) or schema not in CHUNKING_KEYS_BY_SCHEMA:
         raise invalid()
     model = payload["model_name"]
     if not isinstance(model, str) or not model or len(model) > 255 or any(char.isspace() for char in model):
@@ -152,9 +184,12 @@ def validate_company_fit_policy(payload: Any) -> dict[str, Any]:
     if payload["prompt_output_contract"] != CompanyFitPayloadV2.model_json_schema():
         raise invalid()
     chunking = payload["chunking"]
-    if not isinstance(chunking, Mapping) or set(chunking) != CHUNKING_KEYS:
+    if not isinstance(chunking, Mapping) or set(chunking) != CHUNKING_KEYS_BY_SCHEMA[schema]:
         raise invalid()
-    for key in ("max_characters", "path_limit_per_requirement", "profile_characters"):
+    positive = ["max_characters", "path_limit_per_requirement", "profile_characters"]
+    if schema == COMPANY_FIT_POLICY_SCHEMA_V3:
+        positive.append("source_characters")
+    for key in positive:
         if not _positive_int(chunking[key]):
             raise invalid()
     retries = chunking["retries"]
@@ -236,7 +271,7 @@ def import_company_fit_policy(session: Session, path: Path, *, actor: str) -> Co
         actor_kind="human", claimed_name=actor, action="company_fit_policy.import",
         aggregate_type="company_fit_policy_version", aggregate_id=str(row.id),
         safe_metadata={"sha256": row.sha256, "created": created,
-                       "schema_version": COMPANY_FIT_POLICY_SCHEMA},
+                       "schema_version": payload["schema_version"]},
     ))
     session.flush()
     return CompanyFitPolicyImport(policy_version_id=row.id, sha256=row.sha256, created=created)
@@ -256,7 +291,12 @@ def policy_row_payload(row: CompanyFitPolicyVersion | None) -> dict[str, Any] | 
 
 
 def resolve_company_fit_policy(session: Session, settings: Any = None) -> tuple[CompanyFitPolicyVersion, dict[str, Any]]:
-    """The explicitly configured demo fit policy, or ``analysis_policy_unavailable``."""
+    """The explicitly configured demo fit policy (v2 or v3), or ``analysis_policy_unavailable``.
+
+    Used for currentness and by the runner's eligibility check, so an attempt
+    frozen on a v2 row keeps running while that row is the selected one.  A
+    new enqueue uses ``resolve_company_fit_enqueue_policy``.
+    """
 
     settings = settings or get_settings()
     policy_id = getattr(settings, "demo_company_fit_policy_version_id", None)
@@ -269,17 +309,39 @@ def resolve_company_fit_policy(session: Session, settings: Any = None) -> tuple[
     return row, payload
 
 
+def resolve_company_fit_enqueue_policy(
+    session: Session, settings: Any = None
+) -> tuple[CompanyFitPolicyVersion, dict[str, Any]]:
+    """The configured policy for a **new** enqueue: v3 only (contract §9, 2026-10-11).
+
+    A selected v2 row has no ``chunking.source_characters`` to build source
+    units with, so it is ``analysis_policy_unavailable`` (never a default size).
+    """
+
+    row, payload = resolve_company_fit_policy(session, settings)
+    if payload["schema_version"] != COMPANY_FIT_POLICY_SCHEMA_V3:
+        raise CompanyFitPolicyError("analysis_policy_unavailable")
+    return row, payload
+
+
 __all__ = [
     "APPROVED_POLICY_FILES",
+    "CHUNKING_KEYS_BY_SCHEMA",
     "COMPANY_FIT_POLICY_SCHEMA",
+    "COMPANY_FIT_POLICY_SCHEMA_V2",
+    "COMPANY_FIT_POLICY_SCHEMA_V3",
     "COMPANY_FIT_STAGE",
     "CompanyFitPolicyError",
     "CompanyFitPolicyImport",
     "DEMO_POLICY_FILE",
+    "DEMO_POLICY_V2_FILE",
+    "DEMO_POLICY_V3_FILE",
+    "DEMO_SOURCE_CHARACTERS",
     "build_demo_policy_payload",
     "import_company_fit_policy",
     "load_company_fit_policy_file",
     "policy_row_payload",
+    "resolve_company_fit_enqueue_policy",
     "resolve_company_fit_policy",
     "validate_company_fit_policy",
 ]

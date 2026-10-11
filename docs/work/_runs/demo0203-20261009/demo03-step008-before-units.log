@@ -1,0 +1,492 @@
+command: cd web/backend && BIDOPS_PRESPEC_OVERVIEW_ENABLED=false BIDOPS_TEST_POSTGRES_URL=<fresh disposable postgres:17.11 via tests.postgres.temporary_postgres_server> -m pytest tests/deep_review/test_company_fit_enqueue.py tests/app/test_company_analysis.py tests/app/test_company_e2e.py -q -p no:cacheprovider
+...........................F.........................FFFF..FFFF......... [ 62%]
+......................FFF..................                              [100%]
+=================================== FAILURES ===================================
+______ test_t2_enqueue_freezes_one_queued_company_attempt_with_provenance ______
+
+world_session = (<sqlalchemy.orm.session.Session object at 0x110767bf0>, World(company_id=UUID('c4e3fc6b-f932-4bb8-a31e-16045edeac2b')...5cbf10cc43a0bf6b1d2d5f87e1172332854e94d868326d5c82e45a9e2e0d', bundle_id=UUID('58aba0a6-dd64-40a2-9a5c-475a844b5459')))
+
+    def test_t2_enqueue_freezes_one_queued_company_attempt_with_provenance(world_session) -> None:
+        session, world = world_session
+        before = counts(session)
+        result = enqueue(session, world)
+        assert result.created is True and result.company_id == world.company_id and result.notice_id == world.notice_id
+        row = session.get(PreSpecCompanyFitAttempt, result.attempt_id)
+        assert counts(session) == (before[0] + 1, before[1] + 1)
+        assert row.status == "queued" and row.company_id == world.company_id
+        assert row.graph_version_id == world.graph_version_id and row.profile_version_id == world.profile_version_id
+        assert row.company_fit_policy_version_id == world.policy_id and row.deep_policy_version_id is None
+        assert row.overview_run_id == world.run_id and row.document_version_id == world.document_id
+        assert row.policy_digest == world.policy_sha256 and row.model_name == "local-agent-main"
+        assert row.model_revision is None and row.quality_status == "unmeasured_reference"
+        inputs = row.input_jsonb
+        assert row.input_sha256 == result.input_sha256 == fit.digest(inputs)
+        assert inputs["schema_version"] == "bidops.company-analysis-input.v1"
+        assert inputs["purpose"] == "company_fit" and inputs["execution_nonce"] == str(row.id)
+        assert inputs["target_review_id"] is None and inputs["bundle_id"] is None
+        assert inputs["company_id"] == str(world.company_id)
+        assert inputs["graph_version_id"] == str(world.graph_version_id)
+        assert inputs["policy_version_id"] == str(world.policy_id) and inputs["policy_sha256"] == world.policy_sha256
+        assert inputs["document_version_ids"] == [str(world.document_id)]
+        assert inputs["overview_run_id"] == str(world.run_id)
+        assert inputs["model_name"] == "local-agent-main" and inputs["model_revision"] is None
+        assert inputs["ontology_version"] == json.loads(ONTOLOGY_FILE.read_bytes())["version"]
+        requirement_ids = [item["id"] for item in inputs["requirements"]]
+        assert requirement_ids[0] == f"overview:{world.run_id}:business_overview:0"
+        assert f"overview:{world.run_id}:main_tasks:1" in requirement_ids
+        main = next(item for item in inputs["requirements"] if item["id"].endswith("main_tasks:0"))
+        assert {"capability.data-platform", "capability.data-quality"} <= set(main["concept_ids"])
+        assert any(path["relation"] == "direct" and path["requirement_id"] == main["id"] for path in inputs["graph_paths"])
+        # Unknown/qualification facts are always present and remain unknown.
+        qualification = next(fact for fact in inputs["profile_facts"] if fact["fact_key"] == "qualification-security-management")
+        assert qualification["status"] == "unknown" and qualification["value"] is None
+        assert set(inputs["coverage"]) == {
+            "included_requirement_ids", "unmapped_requirement_ids", "excluded_fact_keys",
+            "excluded_path_count_by_requirement",
+        }
+        assert sorted(requirement_ids) == inputs["coverage"]["included_requirement_ids"]
+        provenance = row.provenance_jsonb
+        assert provenance == {
+            "input_sha256": row.input_sha256, "purpose": "company_fit", "company_id": str(world.company_id),
+            "profile_version_id": str(world.profile_version_id), "profile_sha256": inputs["profile_sha256"],
+            "graph_version_id": str(world.graph_version_id), "graph_sha256": inputs["graph_sha256"],
+            "ontology_version": inputs["ontology_version"], "ontology_sha256": inputs["ontology_sha256"],
+            "documents": [{"document_version_id": str(world.document_id), "source_sha256": world.content_sha256}],
+            "overview_run_id": str(world.run_id), "overview_sha256": inputs["overview_sha256"], "bundle_id": None,
+            "policy_version_id": str(world.policy_id), "policy_sha256": world.policy_sha256,
+            "model_name": "local-agent-main", "model_revision": None,
+            "generation_config_sha256": inputs["generation_config_sha256"],
+        }
+        # STEP-008 (contract §9, 2026-10-11): each overview row carries the existing
+        # splitter's units of the overview document on its integer evidence pages.
+        from app.deep_review.services.deep_reviews import DeepReviewService
+        from app.deep_review.services.input_versions import bundle_context
+    
+        item = session.scalars(select(DocumentBundleItem).where(DocumentBundleItem.bundle_id == world.bundle_id)).one()
+        pinned, structures = bundle_context(session, world.bundle_id)  # production loader (stored payload)
+        splitter = [unit for group in DeepReviewService._requirements(
+            pinned, structures, max_characters=SOURCE_CHARACTERS, max_requirements=1) for unit in group]
+        assert [unit["page"] for unit in splitter] == sorted(TEXTS)
+        by_id = {requirement["id"]: requirement for requirement in inputs["requirements"]}
+        evidence_pages = {"business_overview:0": 1, "main_tasks:0": 2, "main_tasks:1": 3, "budget_and_period:0": 4}
+        for suffix, page in evidence_pages.items():
+            requirement = by_id[f"overview:{world.run_id}:{suffix}"]
+            expected = [{**unit, "document_requirement_ids": []} for unit in splitter if unit["page"] == page]
+>           assert requirement["source_units"] == expected, suffix
+E           AssertionError: business_overview:0
+E           assert [] == [{'block_orde...4a8e36', ...}]
+E             
+E             Right contains one more item: {'block_order': 0, 'document_ordinal': 0, 'document_requirement_ids': [], 'document_version_id': 'ba62210c-26eb-45aa-bc6b-5eb0bd4a8e36', ...}
+E             Use -v to get more diff
+
+tests/deep_review/test_company_fit_enqueue.py:585: AssertionError
+__________ test_t2_selected_v2_fit_policy_is_unavailable_for_enqueue ___________
+
+world_session = (<sqlalchemy.orm.session.Session object at 0x115e5f9e0>, World(company_id=UUID('d0f513ad-f748-46d5-a890-c3af20c5cc8c')...5cbf10cc43a0bf6b1d2d5f87e1172332854e94d868326d5c82e45a9e2e0d', bundle_id=UUID('befa77b8-1d1d-4cae-8034-6d188504575a')))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x115e77770>
+
+    def test_t2_selected_v2_fit_policy_is_unavailable_for_enqueue(world_session, monkeypatch) -> None:
+        session, world = world_session
+        history = import_company_fit_policy(session, POLICY_V2_FILE, actor="정책 담당자")
+        session.commit()
+        before = counts(session)
+        configure(monkeypatch, BIDOPS_DEMO_COMPANY_FIT_POLICY_VERSION_ID=str(history.policy_version_id))
+>       assert gate_code(session, world) == "analysis_policy_unavailable"
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/deep_review/test_company_fit_enqueue.py:775: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+session = <sqlalchemy.orm.session.Session object at 0x115e5f9e0>
+world = World(company_id=UUID('d0f513ad-f748-46d5-a890-c3af20c5cc8c'), graph_version_id=UUID('63a7e3cc-51d4-4b75-b8ec-168fb013...f5cbf10cc43a0bf6b1d2d5f87e1172332854e94d868326d5c82e45a9e2e0d', bundle_id=UUID('befa77b8-1d1d-4cae-8034-6d188504575a'))
+kwargs = {}, error = <ExceptionInfo for raises contextmanager>
+
+    def gate_code(session: Session, world: World, **kwargs) -> str:
+>       with pytest.raises(fit.CompanyFitGateError) as error:
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE <class 'app.deep_review.services.company_fit.CompanyFitGateError'>
+
+tests/deep_review/test_company_fit_enqueue.py:318: Failed
+___________ test_t2_ready_bundle_is_required_after_the_overview_gate ___________
+
+sqlite_engine = Engine(sqlite://)
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x11600c200>
+object_store = {('source', 'source/company-knowledge-dd04b3033f4848b3b324d286cec464db.json'): (b'{\n  "schema_version": "bidops.compa...4e53748b9dbb65af5558fdc2', etag='19366eabe277bcc951c5a73e9ce0c96532aa745c4e53748b9dbb65af5558fdc2', size_bytes=36120))}
+
+    def test_t2_ready_bundle_is_required_after_the_overview_gate(sqlite_engine, monkeypatch, object_store) -> None:
+        with Session(sqlite_engine) as session:
+            world = build_world(session, monkeypatch, bundle=False)
+            before = counts(session)
+>           assert gate_code(session, world) == "bundle_not_ready"
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/deep_review/test_company_fit_enqueue.py:797: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+session = <sqlalchemy.orm.session.Session object at 0x1133292e0>
+world = World(company_id=UUID('2a481835-d605-45ee-9d65-6e03a0e2257e'), graph_version_id=UUID('6ff51a3e-c598-4f5a-b363-bd082b4c...-8a71-a896f49b99cc'), policy_sha256='1ecf5cbf10cc43a0bf6b1d2d5f87e1172332854e94d868326d5c82e45a9e2e0d', bundle_id=None)
+kwargs = {}, error = <ExceptionInfo for raises contextmanager>
+
+    def gate_code(session: Session, world: World, **kwargs) -> str:
+>       with pytest.raises(fit.CompanyFitGateError) as error:
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE <class 'app.deep_review.services.company_fit.CompanyFitGateError'>
+
+tests/deep_review/test_company_fit_enqueue.py:318: Failed
+___ test_t2_inventory_ids_link_to_overview_rows_and_a_mismatch_fails_closed ____
+
+sqlite_engine = Engine(sqlite://)
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x11609da30>
+
+    def test_t2_inventory_ids_link_to_overview_rows_and_a_mismatch_fails_closed(sqlite_engine, monkeypatch) -> None:
+        with Session(sqlite_engine) as session:
+            world = build_world(session, monkeypatch, texts=REQUIREMENT_TEXTS, manifest=True)
+            queued = enqueue(session, world)
+            row = session.get(PreSpecCompanyFitAttempt, queued.attempt_id)
+            by_id = {requirement["id"]: requirement for requirement in row.input_jsonb["requirements"]}
+            expected = {"business_overview:0": ["SFR-1"], "main_tasks:0": ["SFR-2"], "main_tasks:1": ["SFR-3"],
+                        "budget_and_period:0": []}
+            for suffix, ids in expected.items():
+                requirement = by_id[f"overview:{world.run_id}:{suffix}"]
+>               assert requirement["document_requirement_ids"] == ids, suffix
+E               AssertionError: business_overview:0
+E               assert [] == ['SFR-1']
+E                 
+E                 Right contains one more item: 'SFR-1'
+E                 Use -v to get more diff
+
+tests/deep_review/test_company_fit_enqueue.py:838: AssertionError
+_________________ test_t2_bundle_units_are_the_deep_path_units _________________
+
+sqlite_engine = Engine(sqlite://)
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x115e052e0>
+
+    def test_t2_bundle_units_are_the_deep_path_units(sqlite_engine, monkeypatch) -> None:
+        """Fit and deep share one splitter helper; the deep wrapper keeps its own error type."""
+    
+        from app.deep_review.services import company_deep_review as cdr
+        from app.deep_review.services.company_analysis_input import CompanyAnalysisError
+>       from app.deep_review.services.company_source_units import bundle_source_units
+E       ModuleNotFoundError: No module named 'app.deep_review.services.company_source_units'
+
+tests/deep_review/test_company_fit_enqueue.py:871: ModuleNotFoundError
+_____________ test_enqueue_cli_main_success_dry_run_and_duplicate ______________
+
+world_session = (<sqlalchemy.orm.session.Session object at 0x115d514f0>, World(company_id=UUID('604a5c55-70f5-4233-98be-5120b683585b')...5cbf10cc43a0bf6b1d2d5f87e1172332854e94d868326d5c82e45a9e2e0d', bundle_id=UUID('f09dd023-fbcd-4c68-817b-8592dbffe014')))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x115fd20c0>
+capsys = <_pytest.capture.CaptureFixture object at 0x1131fb6b0>
+
+    def test_enqueue_cli_main_success_dry_run_and_duplicate(world_session, monkeypatch, capsys) -> None:
+        """The CLI module wraps the same service with its own transaction."""
+    
+        session, world = world_session
+        from app.deep_review.cli import enqueue_company_fit as cli
+        from sqlalchemy.orm import sessionmaker
+    
+        monkeypatch.setattr(cli, "init_db", lambda: None)
+        monkeypatch.setattr(cli, "SessionLocal", sessionmaker(bind=session.get_bind(), class_=Session))
+        argv = ["--company-id", str(world.company_id), "--notice-id", str(world.notice_id), "--actor", "핏 담당자"]
+        assert cli.main([*argv, "--dry-run"]) == 0
+        dry = json.loads(capsys.readouterr().out)
+        assert dry == {"company_id": str(world.company_id), "notice_id": world.notice_id, "attempt_id": None,
+                       "input_sha256": None, "created": False, "errors": []}
+        assert counts(session)[0] == 0
+        assert cli.main(argv) == 0
+        created = json.loads(capsys.readouterr().out)
+        assert created["created"] is True and UUID(created["attempt_id"])
+        assert len(created["input_sha256"]) == 64 and created["errors"] == []
+        assert cli.main(argv) == 2
+        captured = capsys.readouterr()
+        duplicate = json.loads(captured.out)
+        assert duplicate["errors"] == ["active_attempt_exists"] and duplicate["attempt_id"] is None
+        assert captured.err.strip() == "active_attempt_exists"
+        session.expire_all()
+        assert counts(session)[0] == 1
+        # The CLI path freezes source units read through the production structure loader.
+        frozen = session.get(PreSpecCompanyFitAttempt, UUID(created["attempt_id"])).input_jsonb
+>       assert [len(row["source_units"]) for row in frozen["requirements"]] == [1, 1, 1, 0]
+E       assert [0, 0, 0, 0] == [1, 1, 1, 0]
+E         
+E         At index 0 diff: 0 != 1
+E         Use -v to get more diff
+
+tests/deep_review/test_company_fit_enqueue.py:1010: AssertionError
+__________________ test_enqueue_cli_reports_bundle_not_ready ___________________
+
+sqlite_engine = Engine(sqlite://)
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x115db1dc0>
+capsys = <_pytest.capture.CaptureFixture object at 0x115e5d370>
+
+    def test_enqueue_cli_reports_bundle_not_ready(sqlite_engine, monkeypatch, capsys) -> None:
+        from app.deep_review.cli import enqueue_company_fit as cli
+        from sqlalchemy.orm import sessionmaker
+    
+        with Session(sqlite_engine) as session:
+            world = build_world(session, monkeypatch, bundle=False)
+            monkeypatch.setattr(cli, "init_db", lambda: None)
+            monkeypatch.setattr(cli, "SessionLocal", sessionmaker(bind=session.get_bind(), class_=Session))
+            argv = ["--company-id", str(world.company_id), "--notice-id", str(world.notice_id), "--actor", "핏 담당자"]
+>           assert cli.main(argv) == 2
+E           AssertionError: assert 0 == 2
+E            +  where 0 = <function main at 0x1135d2200>(['--company-id', 'da5b6e4c-1892-492a-a2e7-961a2be0583e', '--notice-id', '1', '--actor', '핏 담당자'])
+E            +    where <function main at 0x1135d2200> = <module 'app.deep_review.cli.enqueue_company_fit' from '/Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo0203-20261009-DEMO-03-grounded-analysis/web/backend/app/deep_review/cli/enqueue_company_fit.py'>.main
+
+tests/deep_review/test_company_fit_enqueue.py:1022: AssertionError
+----------------------------- Captured stdout call -----------------------------
+{"attempt_id":"147f43ac-8c03-439b-9e43-65301ae12568","company_id":"da5b6e4c-1892-492a-a2e7-961a2be0583e","created":true,"errors":[],"input_sha256":"a54d83c8cef28136954dc0f74404004e53afa2ff7ac57699f64d495f456b0426","notice_id":1}
+________________ test_t4_fit_enqueue_claim_and_complete[sqlite] ________________
+
+engine = Engine(sqlite://)
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x1137d7650>
+transport = <tests.app.test_company_analysis.FakeLiteLLM object at 0x1159010a0>
+auto_start_calls = []
+caplog = <_pytest.logging.LogCaptureFixture object at 0x11315c440>
+
+    def test_t4_fit_enqueue_claim_and_complete(engine, monkeypatch, transport, auto_start_calls, caplog) -> None:
+        caplog.set_level(logging.DEBUG)
+        with Session(engine) as session:
+            world = build_world(session, monkeypatch)
+            queued = enqueue(session, world)
+            row = session.get(PreSpecCompanyFitAttempt, queued.attempt_id)
+            frozen_input, frozen_provenance = deepcopy(row.input_jsonb), deepcopy(row.provenance_jsonb)
+            payload = valid_payload(frozen_input)
+            transport.responses.append(payload)
+            store = _FakeStore()
+    
+            assert _runner(store=store).run_once(session, "fit-worker")
+    
+            session.expire_all()
+            row = session.get(PreSpecCompanyFitAttempt, queued.attempt_id)
+            assert row.status == "completed" and row.error_code is None
+            assert row.result_jsonb == payload and row.result_sha256 == fit.digest(payload)
+            assert row.input_jsonb == frozen_input and row.provenance_jsonb == frozen_provenance
+            # The fit freezes the latest ready bundle's document set (one document here); the
+            # multi-document comparable case is tests/app/test_company_e2e.py.
+            assert [item["document_version_id"] for item in row.provenance_jsonb["documents"]] == (
+                row.input_jsonb["document_version_ids"]) == [str(world.document_id)]
+            # The model receives the frozen overview rows with their linked source units.
+            units = [unit for requirement in frozen_input["requirements"] for unit in requirement["source_units"]]
+>           assert units and row.input_jsonb["bundle_id"] is None
+E           assert ([])
+
+tests/app/test_company_analysis.py:164: AssertionError
+_______________ test_t4_fit_enqueue_claim_and_complete[postgres] _______________
+
+engine = Engine(postgresql+psycopg://owner:***@127.0.0.1:32838/bidops_test_f803ee0763924942)
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x116240770>
+transport = <tests.app.test_company_analysis.FakeLiteLLM object at 0x110f5a9f0>
+auto_start_calls = []
+caplog = <_pytest.logging.LogCaptureFixture object at 0x115a42030>
+
+    def test_t4_fit_enqueue_claim_and_complete(engine, monkeypatch, transport, auto_start_calls, caplog) -> None:
+        caplog.set_level(logging.DEBUG)
+        with Session(engine) as session:
+            world = build_world(session, monkeypatch)
+            queued = enqueue(session, world)
+            row = session.get(PreSpecCompanyFitAttempt, queued.attempt_id)
+            frozen_input, frozen_provenance = deepcopy(row.input_jsonb), deepcopy(row.provenance_jsonb)
+            payload = valid_payload(frozen_input)
+            transport.responses.append(payload)
+            store = _FakeStore()
+    
+            assert _runner(store=store).run_once(session, "fit-worker")
+    
+            session.expire_all()
+            row = session.get(PreSpecCompanyFitAttempt, queued.attempt_id)
+            assert row.status == "completed" and row.error_code is None
+            assert row.result_jsonb == payload and row.result_sha256 == fit.digest(payload)
+            assert row.input_jsonb == frozen_input and row.provenance_jsonb == frozen_provenance
+            # The fit freezes the latest ready bundle's document set (one document here); the
+            # multi-document comparable case is tests/app/test_company_e2e.py.
+            assert [item["document_version_id"] for item in row.provenance_jsonb["documents"]] == (
+                row.input_jsonb["document_version_ids"]) == [str(world.document_id)]
+            # The model receives the frozen overview rows with their linked source units.
+            units = [unit for requirement in frozen_input["requirements"] for unit in requirement["source_units"]]
+>           assert units and row.input_jsonb["bundle_id"] is None
+E           assert ([])
+
+tests/app/test_company_analysis.py:164: AssertionError
+___ test_t4_fit_and_review_of_a_multi_document_notice_are_comparable[sqlite] ___
+
+engine = Engine(sqlite://)
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x1219014c0>
+
+    def test_t4_fit_and_review_of_a_multi_document_notice_are_comparable(engine, monkeypatch) -> None:
+        with Session(engine) as session:
+            world = e2e_world(session, monkeypatch, documents=2)
+            expected = sorted(str(value) for value in world.document_ids)
+            # Company fit (LiteLLM fake): enqueue freezes the notice's whole current document set.
+            litellm = FakeLiteLLM()
+            real = ModelClient.for_purpose.__func__
+    
+            def for_purpose(cls, purpose, **kwargs):
+                assert purpose == "overview"
+                return real(cls, purpose, completion_create=litellm.create, models_list=litellm.models,
+                            model_info_list=litellm.model_info, **kwargs)
+    
+            monkeypatch.setattr(ModelClient, "for_purpose", classmethod(for_purpose))
+            queued = fit.enqueue_company_fit(session, company_id=world.company_id, notice_id=world.deep.notice_id,
+                                             actor="핏 담당자")
+            session.commit()
+            attempt = session.get(PreSpecCompanyFitAttempt, queued.attempt_id)
+            assert attempt.input_jsonb["document_version_ids"] == expected
+            assert [row["document_version_id"] for row in attempt.provenance_jsonb["documents"]] == expected
+            assert attempt.document_version_id == world.deep.fit.document_id and attempt.provenance_jsonb["bundle_id"] is None
+            litellm.responses.append(valid_payload(attempt.input_jsonb))
+            assert fit_worker.PreSpecCompanyFitRunner(raw_response_store=_FakeStore()).run_once(session, "fit-worker")
+            session.expire_all()
+            assert session.get(PreSpecCompanyFitAttempt, queued.attempt_id).status == "completed"
+            assert litellm.requests and len(litellm.requests) == 1
+            # Company deep review (Luna fake) over the same ready bundle.
+            runner = FakeLunaRunner()
+            svc = luna_service(runner)
+            frozen, created = queue_review(session, svc, world)
+            assert frozen["input"]["document_version_ids"] == [str(value) for value in world.document_ids]
+            assert run_deep_review_once(session, "company-e2e-worker", service=svc).claimed
+            session.expire_all()
+            assert session.get(DeepReview, UUID(created["id"])).status == "completed"
+            units = {unit["document_version_id"] for row in frozen["input"]["requirements"] for unit in row["source_units"]}
+            assert units == set(expected)
+            # STEP-008 (§9, 2026-10-11): the fit's overview rows carry the very splitter units of
+            # the deep preview (v3 source_characters = demo Luna source_characters), limited to
+            # the overview document and each row's evidence pages.
+            fitted = session.get(PreSpecCompanyFitAttempt, queued.attempt_id).input_jsonb
+            deep_units = {unit["requirement_id"]: unit for row in frozen["input"]["requirements"]
+                          for unit in row["source_units"]}
+            fit_units = [unit for row in fitted["requirements"] for unit in row["source_units"]]
+>           assert len(fit_units) == len(TEXTS)
+E           AssertionError: assert 0 == 3
+E            +  where 0 = len([])
+E            +  and   3 = len({1: '데이터 플랫폼 구축 및 데이터 품질·관리 체계 수립을 수행한다.', 2: '정보보호 관리 인증 보유 여부를 제출한다.', 3: '제안사는 기관 내부망에서 검색 서비스를 구축하고 시험 결과와 운영 매뉴얼을 제출해야 한다.'})
+
+tests/app/test_company_e2e.py:499: AssertionError
+__ test_t4_fit_and_review_of_a_multi_document_notice_are_comparable[postgres] __
+
+engine = Engine(postgresql+psycopg://owner:***@127.0.0.1:32838/bidops_test_422b5c7972804281)
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x121ca8b60>
+
+    def test_t4_fit_and_review_of_a_multi_document_notice_are_comparable(engine, monkeypatch) -> None:
+        with Session(engine) as session:
+            world = e2e_world(session, monkeypatch, documents=2)
+            expected = sorted(str(value) for value in world.document_ids)
+            # Company fit (LiteLLM fake): enqueue freezes the notice's whole current document set.
+            litellm = FakeLiteLLM()
+            real = ModelClient.for_purpose.__func__
+    
+            def for_purpose(cls, purpose, **kwargs):
+                assert purpose == "overview"
+                return real(cls, purpose, completion_create=litellm.create, models_list=litellm.models,
+                            model_info_list=litellm.model_info, **kwargs)
+    
+            monkeypatch.setattr(ModelClient, "for_purpose", classmethod(for_purpose))
+            queued = fit.enqueue_company_fit(session, company_id=world.company_id, notice_id=world.deep.notice_id,
+                                             actor="핏 담당자")
+            session.commit()
+            attempt = session.get(PreSpecCompanyFitAttempt, queued.attempt_id)
+            assert attempt.input_jsonb["document_version_ids"] == expected
+            assert [row["document_version_id"] for row in attempt.provenance_jsonb["documents"]] == expected
+            assert attempt.document_version_id == world.deep.fit.document_id and attempt.provenance_jsonb["bundle_id"] is None
+            litellm.responses.append(valid_payload(attempt.input_jsonb))
+            assert fit_worker.PreSpecCompanyFitRunner(raw_response_store=_FakeStore()).run_once(session, "fit-worker")
+            session.expire_all()
+            assert session.get(PreSpecCompanyFitAttempt, queued.attempt_id).status == "completed"
+            assert litellm.requests and len(litellm.requests) == 1
+            # Company deep review (Luna fake) over the same ready bundle.
+            runner = FakeLunaRunner()
+            svc = luna_service(runner)
+            frozen, created = queue_review(session, svc, world)
+            assert frozen["input"]["document_version_ids"] == [str(value) for value in world.document_ids]
+            assert run_deep_review_once(session, "company-e2e-worker", service=svc).claimed
+            session.expire_all()
+            assert session.get(DeepReview, UUID(created["id"])).status == "completed"
+            units = {unit["document_version_id"] for row in frozen["input"]["requirements"] for unit in row["source_units"]}
+            assert units == set(expected)
+            # STEP-008 (§9, 2026-10-11): the fit's overview rows carry the very splitter units of
+            # the deep preview (v3 source_characters = demo Luna source_characters), limited to
+            # the overview document and each row's evidence pages.
+            fitted = session.get(PreSpecCompanyFitAttempt, queued.attempt_id).input_jsonb
+            deep_units = {unit["requirement_id"]: unit for row in frozen["input"]["requirements"]
+                          for unit in row["source_units"]}
+            fit_units = [unit for row in fitted["requirements"] for unit in row["source_units"]]
+>           assert len(fit_units) == len(TEXTS)
+E           AssertionError: assert 0 == 3
+E            +  where 0 = len([])
+E            +  and   3 = len({1: '데이터 플랫폼 구축 및 데이터 품질·관리 체계 수립을 수행한다.', 2: '정보보호 관리 인증 보유 여부를 제출한다.', 3: '제안사는 기관 내부망에서 검색 서비스를 구축하고 시험 결과와 운영 매뉴얼을 제출해야 한다.'})
+
+tests/app/test_company_e2e.py:499: AssertionError
+_ test_b2_fit_freezes_the_ready_bundle_document_set_and_requires_the_overview_document _
+
+sqlite_engine = Engine(sqlite://)
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x12117f800>
+
+    def test_b2_fit_freezes_the_ready_bundle_document_set_and_requires_the_overview_document(sqlite_engine, monkeypatch) -> None:
+        """Fit provenance documents = the latest ready bundle's set (§9, 2026-10-11: bundle required).
+    
+        Before STEP-008 a notice without a ready bundle fell back to its
+        ``is_current`` documents; the amended contract removes that fallback.
+        """
+    
+        with Session(sqlite_engine) as session:
+            base = build_world(session, monkeypatch, bundle=False)
+            extra = add_document(session, base.notice_id)
+            both = sorted([str(base.document_id), str(extra.id)])
+            # No ready bundle: fail closed before any write (no current-document fallback).
+            before = count(session, PreSpecCompanyFitAttempt)
+>           with pytest.raises(fit.CompanyFitGateError) as error:
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           Failed: DID NOT RAISE <class 'app.deep_review.services.company_fit.CompanyFitGateError'>
+
+tests/app/test_company_e2e.py:543: Failed
+=============================== warnings summary ===============================
+app/deep_review/schemas/document_bundles.py:115
+  /Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo0203-20261009-DEMO-03-grounded-analysis/web/backend/app/deep_review/schemas/document_bundles.py:115: UserWarning: Field name "schema" in "DocumentStructure" shadows an attribute in parent "StrictModel"
+    class DocumentStructure(StrictModel):
+
+app/deep_review/schemas/document_bundles.py:224
+  /Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo0203-20261009-DEMO-03-grounded-analysis/web/backend/app/deep_review/schemas/document_bundles.py:224: UserWarning: Field name "schema" in "SegmentExtractorBinding" shadows an attribute in parent "StrictModel"
+    class SegmentExtractorBinding(StrictModel):
+
+app/deep_review/schemas/document_bundles.py:232
+  /Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo0203-20261009-DEMO-03-grounded-analysis/web/backend/app/deep_review/schemas/document_bundles.py:232: UserWarning: Field name "schema" in "DocumentSegmentsView" shadows an attribute in parent "StrictModel"
+    class DocumentSegmentsView(StrictModel):
+
+../../../../../../../../../../../../tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/fastapi/testclient.py:1
+  /tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+app/deep_review/agents/common/contracts.py:391
+  /Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo0203-20261009-DEMO-03-grounded-analysis/web/backend/app/deep_review/agents/common/contracts.py:391: UserWarning: Field name "schema" in "AgentRunView" shadows an attribute in parent "_StrictModel"
+    class AgentRunView(_StrictModel):
+
+app/deep_review/agents/common/contracts.py:462
+  /Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo0203-20261009-DEMO-03-grounded-analysis/web/backend/app/deep_review/agents/common/contracts.py:462: UserWarning: Field name "schema" in "AgentCommand" shadows an attribute in parent "_StrictModel"
+    class AgentCommand(_StrictModel, Generic[TAction]):
+
+app/deep_review/schemas/reports.py:69
+  /Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo0203-20261009-DEMO-03-grounded-analysis/web/backend/app/deep_review/schemas/reports.py:69: UserWarning: Field name "schema" in "DeepReviewReport" shadows an attribute in parent "StrictModel"
+    class DeepReviewReport(StrictModel):
+
+app/deep_review/schemas/reports.py:122
+  /Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo0203-20261009-DEMO-03-grounded-analysis/web/backend/app/deep_review/schemas/reports.py:122: UserWarning: Field name "schema" in "NarrativeReport" shadows an attribute in parent "DeepReviewReport"
+    class NarrativeReport(DeepReviewReport):
+
+app/deep_review/schemas/reports.py:143
+  /Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo0203-20261009-DEMO-03-grounded-analysis/web/backend/app/deep_review/schemas/reports.py:143: UserWarning: Field name "schema" in "DeepReviewValidation" shadows an attribute in parent "StrictModel"
+    class DeepReviewValidation(StrictModel):
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/deep_review/test_company_fit_enqueue.py::test_t2_enqueue_freezes_one_queued_company_attempt_with_provenance
+FAILED tests/deep_review/test_company_fit_enqueue.py::test_t2_selected_v2_fit_policy_is_unavailable_for_enqueue
+FAILED tests/deep_review/test_company_fit_enqueue.py::test_t2_ready_bundle_is_required_after_the_overview_gate
+FAILED tests/deep_review/test_company_fit_enqueue.py::test_t2_inventory_ids_link_to_overview_rows_and_a_mismatch_fails_closed
+FAILED tests/deep_review/test_company_fit_enqueue.py::test_t2_bundle_units_are_the_deep_path_units
+FAILED tests/deep_review/test_company_fit_enqueue.py::test_enqueue_cli_main_success_dry_run_and_duplicate
+FAILED tests/deep_review/test_company_fit_enqueue.py::test_enqueue_cli_reports_bundle_not_ready
+FAILED tests/app/test_company_analysis.py::test_t4_fit_enqueue_claim_and_complete[sqlite]
+FAILED tests/app/test_company_analysis.py::test_t4_fit_enqueue_claim_and_complete[postgres]
+FAILED tests/app/test_company_e2e.py::test_t4_fit_and_review_of_a_multi_document_notice_are_comparable[sqlite]
+FAILED tests/app/test_company_e2e.py::test_t4_fit_and_review_of_a_multi_document_notice_are_comparable[postgres]
+FAILED tests/app/test_company_e2e.py::test_b2_fit_freezes_the_ready_bundle_document_set_and_requires_the_overview_document
+12 failed, 103 passed, 9 warnings in 23.59s
+exit_code=1
