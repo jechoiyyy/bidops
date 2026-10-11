@@ -1,0 +1,61 @@
+{
+  "id": "demo04-20261012",
+  "state": "awaiting_merge",
+  "features": [
+    "DEMO-04-review-workspace"
+  ],
+  "target": "demo/local-20261009",
+  "base_sha": "c50ed55162b07f0a614f5d24c62d5f8df308d2a9",
+  "base_root": "/Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009",
+  "branch": "sdlc/batch-demo04-20261012",
+  "workspace": "/Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/batch-demo04-20261012",
+  "work_dir": "docs/work",
+  "engine": "claude",
+  "approved_at": "2026-10-12T00:48:12+09:00",
+  "policy": {
+    "auto_commit": false,
+    "manual_proof": "defer",
+    "final_review": true,
+    "max_retries": 1,
+    "git": {
+      "isolation": "worktree",
+      "merge": "no-ff",
+      "copy_untracked": []
+    },
+    "commit_policy": "manual",
+    "merge_policy": "manual"
+  },
+  "specs": {
+    "DEMO-04-review-workspace": "84fa415983e4e7a2d734340d5829f80247cdf05dd36c0fb30ca33eac8e69edc2"
+  },
+  "ready": {
+    "DEMO-04-review-workspace": {
+      "inputs": {
+        "source_hash": "409770bb71728eb9daad8d7ee289c9654f2faeac9afaaa61c21f53efe9d09fcf",
+        "spec_hash": "84fa415983e4e7a2d734340d5829f80247cdf05dd36c0fb30ca33eac8e69edc2"
+      },
+      "at": "2026-10-12T08:44:28+09:00"
+    }
+  },
+  "decisions": [
+    {
+      "feature": "DEMO-04-review-workspace",
+      "note": "intent/spec 무변경. plan 변경 파일 표에 구현 중 실제로 바꾼 공용 파일(useUnsavedGuard 경합 수정·NarrativeReportReader 근거 source 주입·App/셸 demo-config 확정·추가 spec 3개·fixture) 추가 표와 결과 절 기록, 정본 문서(business-rules 등) DEMO-04 상태 문구 갱신. 수용 기준 T1~T7·범위 변경 없음(독립 리뷰 지적 6 정합화).",
+      "at": "2026-10-12T02:50:54+09:00"
+    }
+  ],
+  "review": {
+    "result": "pass",
+    "evidence": "docs/work/_runs/demo04-20261012/review.md",
+    "model": "claude-opus-5-5",
+    "effort": "default",
+    "independent": true,
+    "at": "2026-10-12T08:44:48+09:00",
+    "inputs": {
+      "DEMO-04-review-workspace": {
+        "source_hash": "409770bb71728eb9daad8d7ee289c9654f2faeac9afaaa61c21f53efe9d09fcf",
+        "spec_hash": "84fa415983e4e7a2d734340d5829f80247cdf05dd36c0fb30ca33eac8e69edc2"
+      }
+    }
+  }
+}
