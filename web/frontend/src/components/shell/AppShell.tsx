@@ -3,6 +3,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Outlet, useMatches, useSearchParams } from "react-router-dom";
 import { EmptyState } from "../common/EmptyState";
 import { api } from "../../lib/api";
+import { demoConfigQueryKey, isCompanyUuid } from "../../lib/companyApi";
+import { CompanySelector } from "./CompanySelector";
 import { Sidebar } from "./Sidebar";
 import { TopBar } from "./TopBar";
 import {
@@ -12,7 +14,11 @@ import {
   type RouteMetadata,
 } from "./route-meta";
 
-export function AppShell() {
+/**
+ * `demoEnabled`는 `GET /api/demo-config`의 값이다(`routes.tsx`가 넘긴다). 꺼져 있으면
+ * 회사 메뉴·선택기·데모 표식을 그리지 않는다.
+ */
+export function AppShell({ demoEnabled = false }: { demoEnabled?: boolean }) {
   const matches = useMatches();
   const activeMatch = matches.reduce<{ metadata: RouteMetadata; params: Readonly<Record<string, string | undefined>> } | null>(
     (current, match) => {
@@ -64,17 +70,28 @@ export function AppShell() {
       next.set("run", runId);
       return next;
     }, { replace: true });
-    void queryClient.invalidateQueries();
+    // 회차가 바뀌면 화면 데이터를 다시 읽는다. route 표를 정하는 demo-config는 회차와 무관하고
+    // 다시 읽다 실패하면 회사 화면이 사라질 수 있으므로 제외한다.
+    void queryClient.invalidateQueries({ predicate: (query) => query.queryKey[0] !== demoConfigQueryKey[0] });
   };
+
+  // 회사는 주소가 정본이다. 회사 route의 `companyId` param만 읽고 기본 회사를 고르지 않는다.
+  const companyParam = activeMatch?.params.companyId;
+  const activeCompanyId = demoEnabled && isCompanyUuid(companyParam) ? companyParam : null;
 
   const selectedRun = runContextEnabled ? detailQuery.data ?? selectedSummary : null;
   const runError = runContextEnabled ? runsQuery.error ?? detailQuery.error : null;
 
   return (
     <div className="app-shell" data-astryx-theme="bidops" data-theme="light">
-      <Sidebar activeNavPath={location.navPath} runSearch={runSearch} />
+      <Sidebar
+        activeNavPath={location.navPath}
+        demoNav={demoEnabled ? { companyId: activeCompanyId } : null}
+        runSearch={runSearch}
+      />
       <div className="app-content">
         <TopBar
+          companyContext={demoEnabled ? <CompanySelector companyId={activeCompanyId} /> : null}
           crumbs={location.crumbs}
           dataScope={activeRouteMetadata.dataScope}
           isLoading={runContextEnabled && (runsQuery.isLoading || detailQuery.isLoading)}

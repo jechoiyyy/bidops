@@ -1,0 +1,124 @@
+
+Running 8 tests using 8 workers
+
+[1/8] [app] › tests/company-workspace.spec.ts:302:1 › demo-config가 꺼져 있으면 회사 메뉴·선택기·경로가 SPA에 없다
+[2/8] [app] › tests/company-workspace.spec.ts:245:1 › 회사 A에서 시작한 저장은 A로 끝나고, 그사이 연 회사 B 화면을 무효화하거나 덮지 않는다
+[3/8] [app] › tests/company-workspace.spec.ts:118:1 › A→B→A 전환·새로고침·뒤로/앞으로에서 주소·머리글·목록·선택이 회사별로 유지된다
+[4/8] [app] › tests/company-workspace.spec.ts:209:1 › 미저장 추적 입력이 있으면 회사 전환 전에 확인하고, 취소하면 회사 A에 남는다
+[5/8] [app] › tests/company-workspace.spec.ts:183:1 › 두 탭이 서로 다른 회사를 열어도 서로의 화면·선택을 바꾸지 않는다
+[6/8] [app] › tests/company-workspace.spec.ts:167:1 › 프로필 화면에서 회사를 바꾸면 새 회사의 프로필로 가고 머리글·사실이 그 회사다
+[7/8] [app] › tests/company-workspace.spec.ts:99:1 › 첫 진입은 회사 선택이고 기본 회사를 정하지 않는다
+[8/8] [app] › tests/company-workspace.spec.ts:321:1 › demo-config가 없으면(미등록 404) 비활성으로 닫힌다
+  1) [app] › tests/company-workspace.spec.ts:245:1 › 회사 A에서 시작한 저장은 A로 끝나고, 그사이 연 회사 B 화면을 무효화하거나 덮지 않는다 
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 5
+
+    - Array []
+    + Array [
+    +   "GET /api/companies/22222222-2222-4222-8222-222222222222/pre-specs/7102",
+    +   "GET /api/companies/22222222-2222-4222-8222-222222222222",
+    +   "GET /api/companies/22222222-2222-4222-8222-222222222222/opportunities/8102/tracking",
+    + ]
+
+      283 |   await expect(page.getByTestId("company-header").getByTestId("company-name")).toHaveText("데모 데이터AI");
+      284 |   const afterRelease = trace.requests.slice(requestsBeforeRelease);
+    > 285 |   expect(afterRelease.filter((entry) => entry.includes(`/api/companies/${idB}`))).toEqual([]);
+          |                                                                                   ^
+      286 |   expect(afterRelease.filter((entry) => entry.startsWith("PATCH"))).toEqual([`PATCH /api/companies/${idA}/opportunities/8102/tracking`]);
+      287 |
+      288 |   const patch = trace.trackingPatches[0];
+        at /Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-workspace.spec.ts:285:83
+
+    Error Context: test-results/company-workspace-회사-A에서-시-88038-사이-연-회사-B-화면을-무효화하거나-덮지-않는다-app/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/company-workspace-회사-A에서-시-88038-사이-연-회사-B-화면을-무효화하거나-덮지-않는다-app/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/company-workspace-회사-A에서-시-88038-사이-연-회사-B-화면을-무효화하거나-덮지-않는다-app/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+  2) [app] › tests/company-workspace.spec.ts:118:1 › A→B→A 전환·새로고침·뒤로/앞으로에서 주소·머리글·목록·선택이 회사별로 유지된다 
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  getByRole('table', { name: '회사별 사전규격 판정' }).locator('button.cw-row-select[aria-pressed="true"]')
+    Expected: 0
+    Received: 1
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toHaveCount" with timeout 5000ms
+      - waiting for getByRole('table', { name: '회사별 사전규격 판정' }).locator('button.cw-row-select[aria-pressed="true"]')
+        14 × locator resolved to 1 element
+           - unexpected value "1"
+
+
+      84 |   const pressed = companyList(page).locator('button.cw-row-select[aria-pressed="true"]');
+      85 |   if (noticeId === null) {
+    > 86 |     await expect(pressed).toHaveCount(0);
+         |                           ^
+      87 |     await expect(page.getByRole("complementary", { name: "선택한 사전규격" })).toContainText("목록에서 사전규격을 고르십시오.");
+      88 |     return;
+      89 |   }
+        at expectSelected (/Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-workspace.spec.ts:86:27)
+        at /Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-workspace.spec.ts:130:9
+
+    Error Context: test-results/company-workspace-A→B→A-전환-74af3-로에서-주소·머리글·목록·선택이-회사별로-유지된다-app/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/company-workspace-A→B→A-전환-74af3-로에서-주소·머리글·목록·선택이-회사별로-유지된다-app/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/company-workspace-A→B→A-전환-74af3-로에서-주소·머리글·목록·선택이-회사별로-유지된다-app/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+  3) [app] › tests/company-workspace.spec.ts:183:1 › 두 탭이 서로 다른 회사를 열어도 서로의 화면·선택을 바꾸지 않는다 ─────────
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  getByRole('table', { name: '회사별 사전규격 판정' }).locator('button.cw-row-select[aria-pressed="true"]')
+    Expected: 0
+    Received: 1
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toHaveCount" with timeout 5000ms
+      - waiting for getByRole('table', { name: '회사별 사전규격 판정' }).locator('button.cw-row-select[aria-pressed="true"]')
+        14 × locator resolved to 1 element
+           - unexpected value "1"
+
+
+      84 |   const pressed = companyList(page).locator('button.cw-row-select[aria-pressed="true"]');
+      85 |   if (noticeId === null) {
+    > 86 |     await expect(pressed).toHaveCount(0);
+         |                           ^
+      87 |     await expect(page.getByRole("complementary", { name: "선택한 사전규격" })).toContainText("목록에서 사전규격을 고르십시오.");
+      88 |     return;
+      89 |   }
+        at expectSelected (/Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-workspace.spec.ts:86:27)
+        at /Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-workspace.spec.ts:197:9
+
+    Error Context: test-results/company-workspace-두-탭이-서로-다른-회사를-열어도-서로의-화면·선택을-바꾸지-않는다-app/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/company-workspace-두-탭이-서로-다른-회사를-열어도-서로의-화면·선택을-바꾸지-않는다-app/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/company-workspace-두-탭이-서로-다른-회사를-열어도-서로의-화면·선택을-바꾸지-않는다-app/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+  3 failed
+    [app] › tests/company-workspace.spec.ts:118:1 › A→B→A 전환·새로고침·뒤로/앞으로에서 주소·머리글·목록·선택이 회사별로 유지된다 ─
+    [app] › tests/company-workspace.spec.ts:183:1 › 두 탭이 서로 다른 회사를 열어도 서로의 화면·선택을 바꾸지 않는다 ──────────
+    [app] › tests/company-workspace.spec.ts:245:1 › 회사 A에서 시작한 저장은 A로 끝나고, 그사이 연 회사 B 화면을 무효화하거나 덮지 않는다 
+  5 passed (6.8s)

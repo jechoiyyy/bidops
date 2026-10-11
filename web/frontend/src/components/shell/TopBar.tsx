@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { Link, useLocation, useMatches } from "react-router-dom";
 import type { RunSummary } from "../../lib/types";
 import { BasisPopover } from "./BasisPopover";
@@ -21,6 +22,8 @@ interface TopBarProps {
   /** 회차 선택을 잃지 않도록 경로 링크에 그대로 넘기는 search 문자열. */
   runSearch: string;
   isLoading?: boolean;
+  /** 가상회사 데모의 회사 선택기·데모 표식. demo-config가 enabled일 때만 셸이 넘긴다. */
+  companyContext?: ReactNode;
 }
 
 /**
@@ -56,10 +59,11 @@ export function TopBar({
   runSelectorVisible,
   runSearch,
   isLoading = false,
+  companyContext = null,
 }: TopBarProps) {
-  // 상단바 오른쪽 칸에 남은 것은 회차 축뿐이다. 회차 선택기는 모드와 무관하게
-  // 화면의 데이터 축이 회차일 때만 나온다.
-  const contextVisible = runSelectorVisible;
+  // 상단바 오른쪽 칸은 회차 축과 (데모가 켜졌을 때만) 회사 축이다. 회차 선택기는
+  // 모드와 무관하게 화면의 데이터 축이 회차일 때만 나온다.
+  const contextVisible = runSelectorVisible || companyContext !== null;
   const lastIndex = crumbs.length - 1;
   const routeLocation = useLocation();
   const matches = useMatches();
@@ -101,6 +105,7 @@ export function TopBar({
       <div className="topbar-page-actions" id="page-header-actions" />
       {contextVisible ? (
         <div className="topbar-context">
+          {companyContext}
           {runSelectorVisible ? (
             <RunSelector
               disabled={isLoading}

@@ -12,6 +12,33 @@ import type {
 } from "../src/lib/types";
 import { searchKey, searchMatches } from "../src/lib/search";
 import { clickReadyUnlinkedPreSpec, decisionQueueItems, opportunityDeepReviews, opportunityTrackingHistory } from "./fixtures/lifecycle-v2";
+import {
+  COMPANY_FIXTURES,
+  COMPANY_NOTICE_FIXTURES,
+  companyAttemptView,
+  companyDto,
+  companyFitAttempts,
+  companyPreviewView,
+  companyReportView,
+  companyReviewEvidence,
+  companyReviewView,
+  comparisonStatusFor,
+  fitSummary,
+  initialTrackingStore,
+  knowledgeGraphView,
+  LONG_COMPANY_NAME_SUFFIX,
+  LONG_NOTICE_TITLE,
+  LONG_SUMMARY,
+  profileEvidenceView,
+  profileView,
+  reviewIdFor,
+  reviewSummary,
+  trackingDto,
+  type CompanyFixture,
+  type CompanyNoticeFixture,
+  type CompanyReviewStatus,
+  type CompanyTrackingRow,
+} from "./fixtures/company-demo";
 
 const opportunityFixtures = new WeakMap<Page, OpportunityListItem[]>();
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -3590,6 +3617,448 @@ export async function mockOrderPlanBulkTracking(
       await fulfillJson(route, response);
       return;
     }
+    await route.fallback();
+  });
+  return trace;
+}
+
+
+// ---------------------------------------------------------------------------
+// 가상회사 데모 회사 경로(`docs/work/demo-contract.md` §1·2·4·6·9)
+//
+// 기본 `mockApi`는 `/api/demo-config`를 등록하지 않는다(미등록 → 404 → 화면은 데모
+// 비활성으로 닫는다). 회사 화면을 보는 spec과 `npm run dev:mock`만 이 함수를 건다.
+// 회사 경로 밖의 요청은 fallback으로 아래 mock에 넘긴다.
+
+export interface CompanyWorkspaceMockOptions {
+  /** `GET /api/demo-config`의 `enabled`. 기본 true. */
+  enabled?: boolean;
+  /**
+   * 회사 지식을 아직 등록·활성화하지 않은 회사. 이 회사의 profile·knowledge-graph·
+   * profile-evidence는 서버처럼 409 `company_profile_not_ready`다(계약 §4).
+   */
+  profileNotReadyCompanyIds?: string[];
+  /**
+   * 공백이 거의 없는 긴 한글 제목·요약·사유·회사 이름으로 바꿔 응답한다. 긴 문장이 표·카드에서
+   * 가로 넘침 없이 줄바꿈되는지 보는 구조 검사용이다(값만 바뀌고 응답 모양은 같다).
+   */
+  longText?: boolean;
+}
+
+export interface CompanyWorkspaceMockTrace {
+  /** 회사 경로 요청을 `METHOD path?query` 모양으로 순서대로 남긴다. */
+  requests: string[];
+  trackingPatches: Array<{ companyId: string; opportunityId: number; body: Record<string, unknown>; headers: Record<string, string> }>;
+  previewPosts: Array<{ companyId: string; noticeId: number; body: unknown }>;
+  reviewPosts: Array<{ companyId: string; noticeId: number; body: unknown; headers: Record<string, string> }>;
+  attemptPosts: Array<{ companyId: string; reviewId: string; body: unknown; headers: Record<string, string> }>;
+  /**
+   * 다른 사람이 서버에서 먼저 추적 결정을 바꾼 상황을 만든다(revision+1, 같은 transaction의
+   * 결정처럼). 화면의 PATCH가 아니므로 `trackingPatches`에 남지 않는다.
+   */
+  externalTrackingUpdate: (companyId: string, opportunityId: number, changes: { tracking_status: CompanyTrackingRow["tracking_status"]; reason: string; selected_by: string }) => void;
+  /** 서버 worker가 회사 심층 검토의 현재 회차를 진행시킨 상황(대기→실행 중→완료/실패). */
+  setReviewStatus: (companyId: string, reviewId: string, status: CompanyReviewStatus) => void;
+  /**
+   * 심층 미리보기·생성·재시도에 공통 gate 오류를 건다(계약 §9 "오류와 gate"). `null`이면 푼다.
+   * 예: 409 `overview_not_completed`, 503 `luna_disabled`, 409 `company_profile_not_ready`.
+   */
+  setDeepReviewGate: (gate: { status: number; code: string } | null) => void;
+  /** 미리보기 뒤 입력이 바뀐 상황. 이 미리보기로 승인하면 409 `preview_changed`다. 생략하면 지금까지 만든 모든 미리보기. */
+  markPreviewChanged: (previewId?: string) => void;
+}
+
+/** 3사 비교가 500 `processing_failed`로 끝나는 공고(오류 상태 사례). */
+export const COMPARISON_ERROR_NOTICE_ID = 7190;
+
+const COMPANY_PATH = /\/api\/(?:demo-config|companies(?:\/[^?]*)?|pre-specs\/\d+\/company-comparison)(?:\?.*)?$/;
+
+function companyError(route: Route, status: number, code: string, requestId: unknown = null, details: Record<string, unknown> | null = null) {
+  return fulfillJson(route, { error: { code, message: "합성 회사 경로 오류", details }, request_id: typeof requestId === "string" ? requestId : null }, status);
+}
+
+/** 회사 심층 검토 한 건의 가짜 서버 상태. 회차 상태는 오래된 순서이며 마지막이 현재 회차다. */
+interface CompanyReviewState {
+  company: CompanyFixture;
+  notice: CompanyNoticeFixture;
+  attempts: CompanyReviewStatus[];
+  isCurrent: boolean;
+}
+
+/** seed 검토(`REVIEW_SEEDS`) + 화면이 만든 검토. 회사·검토 id로만 찾는다(다른 회사 소속은 없다). */
+function seededReviewStates(): Map<string, CompanyReviewState> {
+  const states = new Map<string, CompanyReviewState>();
+  for (const company of COMPANY_FIXTURES) {
+    for (const notice of COMPANY_NOTICE_FIXTURES) {
+      const summary = reviewSummary(company, notice);
+      if (summary) states.set(`${company.company_id}:${summary.review_id}`, { company, notice, attempts: [summary.status], isCurrent: summary.is_current });
+    }
+  }
+  return states;
+}
+
+function reviewStatusOf(state: CompanyReviewState): CompanyReviewStatus {
+  return state.attempts[state.attempts.length - 1];
+}
+
+function companyNoticeView(company: CompanyFixture, notice: CompanyNoticeFixture, store: Map<string, CompanyTrackingRow>, reviews: Map<string, CompanyReviewState>) {
+  const row = notice.opportunity_id === null ? undefined : store.get(`${company.company_id}:${notice.opportunity_id}`);
+  const reviewId = reviewIdFor(company, notice.notice_id);
+  const review = reviews.get(`${company.company_id}:${reviewId}`);
+  return {
+    notice_id: notice.notice_id,
+    opportunity_id: notice.opportunity_id,
+    title: notice.title,
+    posted_at: notice.posted_at,
+    deadline_at: notice.deadline_at,
+    fit: fitSummary(company, notice),
+    review: review ? { review_id: reviewId, status: reviewStatusOf(review), is_current: review.isCurrent } : null,
+    tracking: notice.opportunity_id === null || !row ? null : trackingDto(row),
+  };
+}
+
+function boundedIntParam(raw: string | null, fallback: number, min: number, max: number): number | null {
+  if (raw === null) return fallback;
+  if (!/^[0-9]+$/.test(raw)) return null;
+  const value = Number(raw);
+  return value >= min && value <= max ? value : null;
+}
+
+/** `longText` 옵션: 제목·요약·사유·회사 이름만 긴 한글로 바꾼다. 다른 필드는 그대로다. */
+function longTextBody(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(longTextBody);
+  if (value !== null && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    const out: Record<string, unknown> = {};
+    for (const [key, entry] of Object.entries(record)) {
+      if (key === "title" && typeof entry === "string") out[key] = LONG_NOTICE_TITLE;
+      else if ((key === "summary" || key === "explanation" || key === "reason") && typeof entry === "string") out[key] = LONG_SUMMARY;
+      else if (key === "name" && typeof entry === "string" && "slug" in record) out[key] = `${entry}${LONG_COMPANY_NAME_SUFFIX}`;
+      else out[key] = longTextBody(entry);
+    }
+    return out;
+  }
+  return value;
+}
+
+interface CompanyPreviewRecord {
+  companyId: string;
+  noticeId: number;
+  targetReviewId: string | null;
+  usedBy: string | null;
+  changed: boolean;
+}
+
+export async function mockCompanyWorkspace(page: Page, options: CompanyWorkspaceMockOptions = {}): Promise<CompanyWorkspaceMockTrace> {
+  const enabled = options.enabled ?? true;
+  const profileNotReady = new Set(options.profileNotReadyCompanyIds ?? []);
+  const store = initialTrackingStore();
+  // 서버 `IdempotencyRecord` 규칙: key=(actor, 작업, 대상, request_id), 같은 key·같은 body면 첫 응답, 다른 body면 409.
+  const receipts = new Map<string, { fingerprint: string; snapshot: unknown; status: number }>();
+  const reviews = seededReviewStates();
+  const previews = new Map<string, CompanyPreviewRecord>();
+  let previewOrdinal = 0;
+  let gate: { status: number; code: string } | null = null;
+  const respond = (route: Route, payload: unknown, status = 200) => fulfillJson(route, options.longText ? longTextBody(payload) : payload, status);
+  const trace: CompanyWorkspaceMockTrace = {
+    requests: [],
+    trackingPatches: [],
+    previewPosts: [],
+    reviewPosts: [],
+    attemptPosts: [],
+    externalTrackingUpdate: (companyId, opportunityId, changes) => {
+      const key = `${companyId}:${opportunityId}`;
+      const row = store.get(key);
+      if (!row) throw new Error(`fixture에 없는 추적 행: ${key}`);
+      store.set(key, { ...row, ...changes, selected_at: "2026-10-12T00:30:00+00:00", revision: row.revision + 1 });
+    },
+    setReviewStatus: (companyId, reviewId, status) => {
+      const state = reviews.get(`${companyId}:${reviewId}`);
+      if (!state) throw new Error(`fixture에 없는 회사 심층 검토: ${companyId}:${reviewId}`);
+      state.attempts[state.attempts.length - 1] = status;
+    },
+    setDeepReviewGate: (next) => { gate = next; },
+    markPreviewChanged: (previewId) => {
+      for (const [id, record] of previews) if (previewId === undefined || previewId === id) record.changed = true;
+    },
+  };
+
+  /** 같은 request_id 재요청은 상태 검사보다 먼저 처리한다(계약 §9). 처리했으면 true. */
+  async function replayed(route: Route, key: string, fingerprint: string, requestId: unknown): Promise<boolean> {
+    const receipt = receipts.get(key);
+    if (!receipt) return false;
+    if (receipt.fingerprint === fingerprint) await respond(route, receipt.snapshot, receipt.status);
+    else await companyError(route, 409, "idempotency_conflict", requestId);
+    return true;
+  }
+
+  await page.route(COMPANY_PATH, async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    const pathname = url.pathname;
+    const method = request.method();
+    if (pathname === "/api/demo-config") {
+      await respond(route, { enabled });
+      return;
+    }
+    // 데모가 꺼지면 회사 경로는 서버 guard처럼 404다(계약 §1).
+    if (!enabled) { await companyError(route, 404, "not_found"); return; }
+    trace.requests.push(`${method} ${pathname}${url.search}`);
+
+    const comparison = pathname.match(/^\/api\/pre-specs\/(\d+)\/company-comparison$/);
+    if (comparison) {
+      // 존재하지 않는 공고는 404, 7190은 서버 내부 오류(안전한 processing_failed) 사례다.
+      if (Number(comparison[1]) === COMPARISON_ERROR_NOTICE_ID) { await companyError(route, 500, "processing_failed"); return; }
+      const notice = COMPANY_NOTICE_FIXTURES.find((entry) => entry.notice_id === Number(comparison[1]));
+      if (!notice) { await companyError(route, 404, "not_found"); return; }
+      await respond(route, {
+        schema_version: "bidops.company-comparison.v1",
+        notice_id: notice.notice_id,
+        document_version_ids: [notice.document_version_id],
+        items: COMPANY_FIXTURES.map((company) => {
+          const view = companyNoticeView(company, notice, store, reviews);
+          return {
+            company: companyDto(company),
+            fit: view.fit,
+            review: view.review,
+            tracking: view.tracking,
+            // 핏·심층 검토가 모두 없으면 그래프 버전을 정할 실행이 없다(null).
+            graph_version_id: view.fit || view.review ? company.graph_version_id : null,
+            comparison_status: comparisonStatusFor(company, notice, view.fit, view.review),
+          };
+        }),
+      });
+      return;
+    }
+
+    if (pathname === "/api/companies") {
+      const limit = Number(url.searchParams.get("limit") ?? "20");
+      const offset = Number(url.searchParams.get("offset") ?? "0");
+      await respond(route, { items: COMPANY_FIXTURES.slice(offset, offset + limit).map(companyDto), total: COMPANY_FIXTURES.length, limit, offset });
+      return;
+    }
+
+    const scoped = pathname.match(/^\/api\/companies\/([^/]+)(\/.*)?$/);
+    const company = scoped ? COMPANY_FIXTURES.find((entry) => entry.company_id === scoped[1]) : undefined;
+    if (!scoped || !company) { await companyError(route, 404, "not_found"); return; }
+    const rest = scoped[2] ?? "";
+
+    if (rest === "" && method === "GET") { await respond(route, companyDto(company)); return; }
+    const knowledgeRead = rest === "/profile" || rest === "/knowledge-graph" || /^\/profile-evidence\/[^/]+$/.test(rest);
+    if (knowledgeRead && profileNotReady.has(company.company_id)) { await companyError(route, 409, "company_profile_not_ready"); return; }
+    if (rest === "/profile" || rest === "/knowledge-graph") {
+      // 과거 버전 조회(graph_version_id)는 이 fixture에 버전이 하나뿐이라 다른 값이면 404다.
+      const graphVersionId = url.searchParams.get("graph_version_id");
+      if (graphVersionId !== null && graphVersionId !== company.graph_version_id) { await companyError(route, 404, "not_found"); return; }
+    }
+    if (rest === "/profile") { await respond(route, profileView(company)); return; }
+    if (rest === "/knowledge-graph") {
+      // 서버 query 검사와 같은 범위(depth 1..3 기본 2, limit 1..500 기본 200, root는 stable key).
+      const depth = boundedIntParam(url.searchParams.get("depth"), 2, 1, 3);
+      const limit = boundedIntParam(url.searchParams.get("limit"), 200, 1, 500);
+      const rootNodeId = url.searchParams.get("root_node_id");
+      if (depth === null || limit === null || (rootNodeId !== null && !/^[a-z][a-z0-9_.:-]{0,127}$/.test(rootNodeId))) {
+        await companyError(route, 422, "invalid_request");
+        return;
+      }
+      const view = knowledgeGraphView(company, { rootNodeId, depth, limit });
+      if (!view) { await companyError(route, 404, "not_found"); return; }
+      await respond(route, view);
+      return;
+    }
+    const evidence = rest.match(/^\/profile-evidence\/([^/]+)$/);
+    if (evidence) {
+      const view = profileEvidenceView(company, evidence[1]);
+      if (!view) { await companyError(route, 404, "not_found"); return; }
+      await respond(route, view);
+      return;
+    }
+    if (rest === "/pre-specs") {
+      const q = (url.searchParams.get("q") ?? "").trim();
+      const fit = url.searchParams.get("fit");
+      const trackingStatus = url.searchParams.get("tracking_status");
+      const sort = url.searchParams.get("sort") ?? "posted_at_desc";
+      // 서버 query 검사와 같은 범위(fit·tracking_status·sort 열거값, limit 1..500 기본 50, offset>=0 기본 0).
+      const limit = boundedIntParam(url.searchParams.get("limit"), 50, 1, 500);
+      const offset = boundedIntParam(url.searchParams.get("offset"), 0, 0, Number.MAX_SAFE_INTEGER);
+      if (
+        limit === null || offset === null
+        || (fit !== null && !["matched", "mismatch", "unknown"].includes(fit))
+        || (trackingStatus !== null && !["미선택", "계속 추적", "보류", "종료"].includes(trackingStatus))
+        || !["posted_at_desc", "deadline_asc"].includes(sort)
+      ) {
+        await companyError(route, 422, "invalid_request");
+        return;
+      }
+      const rows = COMPANY_NOTICE_FIXTURES
+        .map((notice) => companyNoticeView(company, notice, store, reviews))
+        .filter((row) => !q || (row.title ?? "").includes(q))
+        .filter((row) => !fit || (row.fit?.status === "completed" && row.fit.decision === fit))
+        .filter((row) => !trackingStatus || row.tracking?.tracking_status === trackingStatus)
+        .sort((left, right) => {
+          const key = sort === "deadline_asc" ? "deadline_at" : "posted_at";
+          const a = left[key]; const b = right[key];
+          if (a === null && b === null) return right.notice_id - left.notice_id;
+          if (a === null) return 1;
+          if (b === null) return -1;
+          const diff = sort === "deadline_asc" ? Date.parse(a) - Date.parse(b) : Date.parse(b) - Date.parse(a);
+          return diff !== 0 ? diff : right.notice_id - left.notice_id;
+        });
+      await respond(route, { schema_version: "bidops.company-pre-spec-list.v1", items: rows.slice(offset, offset + limit), total: rows.length, limit, offset });
+      return;
+    }
+    const preSpec = rest.match(/^\/pre-specs\/(\d+)(\/.*)?$/);
+    if (preSpec) {
+      const notice = COMPANY_NOTICE_FIXTURES.find((entry) => entry.notice_id === Number(preSpec[1]));
+      if (!notice) { await companyError(route, 404, "not_found"); return; }
+      const tail = preSpec[2] ?? "";
+      if (tail === "" && method === "GET") {
+        await respond(route, {
+          ...companyNoticeView(company, notice, store, reviews),
+          overview_run_id: notice.overview_run_id,
+          bundle_id: notice.bundle_id,
+          document_version_ids: [notice.document_version_id],
+          company_id: company.company_id,
+        });
+        return;
+      }
+      if (tail === "/company-fit") { await respond(route, companyFitAttempts(company, notice)); return; }
+      if (tail === "/deep-review-previews" && method === "POST") {
+        const body = request.postDataJSON() as Record<string, unknown> | null;
+        trace.previewPosts.push({ companyId: company.company_id, noticeId: notice.notice_id, body });
+        if (!body || body.bundle_id !== notice.bundle_id || body.source_verification_enabled !== true) { await companyError(route, 422, "invalid_request"); return; }
+        if (gate) { await companyError(route, gate.status, gate.code); return; }
+        const targetReviewId = typeof body.review_id === "string" ? body.review_id : null;
+        // 재시도 대상은 이 회사의 같은 공고 검토여야 한다(다른 회사 소속은 404).
+        if (targetReviewId !== null && reviews.get(`${company.company_id}:${targetReviewId}`)?.notice.notice_id !== notice.notice_id) { await companyError(route, 404, "not_found"); return; }
+        previewOrdinal += 1;
+        const view = companyPreviewView(company, notice, previewOrdinal, targetReviewId);
+        previews.set(view.preview_id, { companyId: company.company_id, noticeId: notice.notice_id, targetReviewId, usedBy: null, changed: false });
+        await respond(route, view);
+        return;
+      }
+      if (tail === "/deep-reviews" && method === "POST") {
+        const headers = request.headers();
+        const body = request.postDataJSON() as Record<string, unknown> | null;
+        trace.reviewPosts.push({ companyId: company.company_id, noticeId: notice.notice_id, body, headers });
+        const actor = fixtureActor(headers).trim();
+        if (!actor) { await companyError(route, 400, "actor_name_required", body?.request_id); return; }
+        if (!body || !uuidPattern.test(String(body.request_id)) || !uuidPattern.test(String(body.preview_id)) || body.bundle_id !== notice.bundle_id || body.source_verification_enabled !== true) { await companyError(route, 422, "invalid_request", body?.request_id); return; }
+        if (gate) { await companyError(route, gate.status, gate.code, body.request_id); return; }
+        const receiptKey = `create:${company.company_id}:${notice.notice_id}:${actor}:${String(body.request_id)}`;
+        if (await replayed(route, receiptKey, JSON.stringify([body.preview_id, body.bundle_id, body.source_verification_enabled]), body.request_id)) return;
+        const preview = previews.get(String(body.preview_id));
+        if (!preview) { await companyError(route, 409, "preview_required", body.request_id); return; }
+        if (preview.companyId !== company.company_id) { await companyError(route, 404, "not_found", body.request_id); return; }
+        if (preview.changed || preview.noticeId !== notice.notice_id || preview.targetReviewId !== null) { await companyError(route, 409, "preview_changed", body.request_id); return; }
+        if (preview.usedBy !== null) { await companyError(route, 409, "preview_used", body.request_id); return; }
+        const reviewId = reviewIdFor(company, notice.notice_id);
+        const existing = reviews.get(`${company.company_id}:${reviewId}`);
+        if (existing && ["queued", "running"].includes(reviewStatusOf(existing))) { await companyError(route, 409, "active_attempt_exists", body.request_id); return; }
+        // 같은 회사·공고·문서·지식 계보의 검토가 있으면 미리보기를 쓰지 않고 막는다.
+        if (existing) { await companyError(route, 409, "review_exists", body.request_id); return; }
+        const state: CompanyReviewState = { company, notice, attempts: ["queued"], isCurrent: true };
+        reviews.set(`${company.company_id}:${reviewId}`, state);
+        preview.usedBy = String(body.request_id);
+        const snapshot = companyReviewView(company, notice, "queued", true, state.attempts);
+        receipts.set(receiptKey, { fingerprint: JSON.stringify([body.preview_id, body.bundle_id, body.source_verification_enabled]), snapshot, status: 202 });
+        await respond(route, snapshot, 202);
+        return;
+      }
+      await companyError(route, 404, "not_found");
+      return;
+    }
+    const review = rest.match(/^\/deep-reviews\/([^/]+)(\/.*)?$/);
+    if (review) {
+      const reviewId = review[1];
+      const state = reviews.get(`${company.company_id}:${reviewId}`);
+      // 다른 회사 소속이거나 없는 검토는 404다(계약 §1).
+      if (!state) { await companyError(route, 404, "not_found"); return; }
+      const status = reviewStatusOf(state);
+      const tail = review[2] ?? "";
+      if (tail === "" && method === "GET") { await respond(route, companyReviewView(company, state.notice, status, state.isCurrent, state.attempts)); return; }
+      const hasReport = state.attempts.includes("completed");
+      if (tail === "/report") {
+        if (!hasReport) { await companyError(route, 409, "review_not_ready"); return; }
+        await respond(route, companyReportView(company, state.notice.notice_id));
+        return;
+      }
+      const reviewEvidence = tail.match(/^\/evidence\/([^/]+)$/);
+      if (reviewEvidence) {
+        if (!hasReport || reviewEvidence[1] !== companyReviewEvidence.evidence_id) { await companyError(route, 404, "not_found"); return; }
+        await respond(route, companyReviewEvidence);
+        return;
+      }
+      if (tail === "/attempts" && method === "POST") {
+        const headers = request.headers();
+        const body = request.postDataJSON() as Record<string, unknown> | null;
+        trace.attemptPosts.push({ companyId: company.company_id, reviewId, body, headers });
+        const actor = fixtureActor(headers).trim();
+        if (!actor) { await companyError(route, 400, "actor_name_required", body?.request_id); return; }
+        if (!body || !uuidPattern.test(String(body.request_id)) || !uuidPattern.test(String(body.preview_id)) || body.source_verification_enabled !== true) { await companyError(route, 422, "invalid_request", body?.request_id); return; }
+        if (gate) { await companyError(route, gate.status, gate.code, body.request_id); return; }
+        const receiptKey = `attempt:${company.company_id}:${reviewId}:${actor}:${String(body.request_id)}`;
+        const fingerprint = JSON.stringify([body.preview_id, body.source_verification_enabled]);
+        if (await replayed(route, receiptKey, fingerprint, body.request_id)) return;
+        const preview = previews.get(String(body.preview_id));
+        if (!preview) { await companyError(route, 409, "preview_required", body.request_id); return; }
+        if (preview.companyId !== company.company_id) { await companyError(route, 404, "not_found", body.request_id); return; }
+        if (preview.changed || preview.targetReviewId !== reviewId) { await companyError(route, 409, "preview_changed", body.request_id); return; }
+        if (preview.usedBy !== null) { await companyError(route, 409, "preview_used", body.request_id); return; }
+        if (["queued", "running"].includes(status)) { await companyError(route, 409, "active_attempt_exists", body.request_id); return; }
+        state.attempts.push("queued");
+        preview.usedBy = String(body.request_id);
+        const snapshot = companyAttemptView(company, reviewId, String(body.preview_id), state.attempts.length);
+        receipts.set(receiptKey, { fingerprint, snapshot, status: 202 });
+        await respond(route, snapshot, 202);
+        return;
+      }
+      await companyError(route, 404, "not_found");
+      return;
+    }
+    const tracking = rest.match(/^\/opportunities\/(\d+)\/tracking$/);
+    if (tracking) {
+      const opportunityId = Number(tracking[1]);
+      const key = `${company.company_id}:${opportunityId}`;
+      const row = store.get(key);
+      if (!row) { await companyError(route, 404, "not_found"); return; }
+      if (method === "GET") { await respond(route, trackingDto(row)); return; }
+      if (method === "PATCH") {
+        const headers = request.headers();
+        const body = (request.postDataJSON() ?? {}) as Record<string, unknown>;
+        trace.trackingPatches.push({ companyId: company.company_id, opportunityId, body, headers });
+        const requestId = body.request_id;
+        const actor = fixtureActor(headers).trim();
+        if (!actor) { await companyError(route, 400, "actor_name_required", requestId); return; }
+        if (!uuidPattern.test(String(requestId)) || typeof body.expected_revision !== "number" || Object.keys(body).some((field) => !["tracking_status", "reason", "expected_revision", "request_id"].includes(field))) {
+          await companyError(route, 422, "invalid_request", requestId);
+          return;
+        }
+        if (!["미선택", "계속 추적", "보류", "종료"].includes(String(body.tracking_status))) { await companyError(route, 422, "tracking_status_invalid", requestId); return; }
+        const reason = typeof body.reason === "string" ? body.reason.trim() : "";
+        if (!reason || reason.length > 2000) { await companyError(route, 422, "tracking_reason_required", requestId); return; }
+        // 서버(`opportunity_tracking.set_company_tracking`)와 같이 receipt key에 actor를 넣고 hash는 body 기준이다.
+        const receiptKey = `tracking:${key}:${actor}:${String(requestId)}`;
+        const fingerprint = JSON.stringify([body.tracking_status, reason, body.expected_revision]);
+        if (await replayed(route, receiptKey, fingerprint, requestId)) return;
+        if (body.expected_revision !== row.revision) { await companyError(route, 409, "version_conflict", requestId, { current_revision: row.revision }); return; }
+        const next: CompanyTrackingRow = {
+          ...row,
+          tracking_status: body.tracking_status as CompanyTrackingRow["tracking_status"],
+          reason: body.tracking_status === "미선택" ? null : reason,
+          selected_by: body.tracking_status === "미선택" ? null : actor,
+          selected_at: body.tracking_status === "미선택" ? null : "2026-10-12T01:00:00+00:00",
+          revision: row.revision + 1,
+        };
+        store.set(key, next);
+        const snapshot = trackingDto(next);
+        receipts.set(receiptKey, { fingerprint, snapshot, status: 200 });
+        await respond(route, snapshot);
+        return;
+      }
+    }
+    // 이 mock이 모르는 회사 하위 경로(등록 누락)는 서버 404처럼 꾸미지 않고 아래 mock으로 넘긴다.
+    // 그러면 다른 미등록 경로와 같은 404 "고정 응답 없음"이 되어, 등록 누락을 제품의 not_found로 오인하지 않는다.
     await route.fallback();
   });
   return trace;

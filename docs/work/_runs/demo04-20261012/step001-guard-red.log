@@ -1,0 +1,112 @@
+
+Running 3 tests using 3 workers
+
+[1/3] [app] › tests/company-workspace.spec.ts:311:1 › 경쟁 재현: 머물기 직후 같은 task에서 다시 회사를 바꿔도 확인 창이 다시 뜬다
+[2/3] [app] › tests/company-workspace.spec.ts:311:1 › 경쟁 재현: 머물기 직후 같은 task에서 다시 회사를 바꿔도 확인 창이 다시 뜬다
+[3/3] [app] › tests/company-workspace.spec.ts:311:1 › 경쟁 재현: 머물기 직후 같은 task에서 다시 회사를 바꿔도 확인 창이 다시 뜬다
+  1) [app] › tests/company-workspace.spec.ts:311:1 › 경쟁 재현: 머물기 직후 같은 task에서 다시 회사를 바꿔도 확인 창이 다시 뜬다 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByRole('alertdialog')
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" with timeout 5000ms
+      - waiting for getByRole('alertdialog')
+
+
+      333 |
+      334 |   const guard = page.getByRole("alertdialog");
+    > 335 |   await expect(guard).toBeVisible({ timeout: 5_000 });
+          |                       ^
+      336 |   await expect(guard).toContainText("이 회사의 추적 결정을 저장하지 않았습니다");
+      337 |   await expect(page).toHaveURL(new RegExp(`${detailA}$`));
+      338 |
+        at /Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-workspace.spec.ts:335:23
+
+    Error Context: test-results/company-workspace-경쟁-재현-머물-e891a-sk에서-다시-회사를-바꿔도-확인-창이-다시-뜬다-app-repeat1/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/company-workspace-경쟁-재현-머물-e891a-sk에서-다시-회사를-바꿔도-확인-창이-다시-뜬다-app-repeat1/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/company-workspace-경쟁-재현-머물-e891a-sk에서-다시-회사를-바꿔도-확인-창이-다시-뜬다-app-repeat1/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+  2) [app] › tests/company-workspace.spec.ts:311:1 › 경쟁 재현: 머물기 직후 같은 task에서 다시 회사를 바꿔도 확인 창이 다시 뜬다 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByRole('alertdialog')
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" with timeout 5000ms
+      - waiting for getByRole('alertdialog')
+
+
+      333 |
+      334 |   const guard = page.getByRole("alertdialog");
+    > 335 |   await expect(guard).toBeVisible({ timeout: 5_000 });
+          |                       ^
+      336 |   await expect(guard).toContainText("이 회사의 추적 결정을 저장하지 않았습니다");
+      337 |   await expect(page).toHaveURL(new RegExp(`${detailA}$`));
+      338 |
+        at /Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-workspace.spec.ts:335:23
+
+    Error Context: test-results/company-workspace-경쟁-재현-머물-e891a-sk에서-다시-회사를-바꿔도-확인-창이-다시-뜬다-app/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/company-workspace-경쟁-재현-머물-e891a-sk에서-다시-회사를-바꿔도-확인-창이-다시-뜬다-app/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/company-workspace-경쟁-재현-머물-e891a-sk에서-다시-회사를-바꿔도-확인-창이-다시-뜬다-app/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+  3) [app] › tests/company-workspace.spec.ts:311:1 › 경쟁 재현: 머물기 직후 같은 task에서 다시 회사를 바꿔도 확인 창이 다시 뜬다 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByRole('alertdialog')
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" with timeout 5000ms
+      - waiting for getByRole('alertdialog')
+
+
+      333 |
+      334 |   const guard = page.getByRole("alertdialog");
+    > 335 |   await expect(guard).toBeVisible({ timeout: 5_000 });
+          |                       ^
+      336 |   await expect(guard).toContainText("이 회사의 추적 결정을 저장하지 않았습니다");
+      337 |   await expect(page).toHaveURL(new RegExp(`${detailA}$`));
+      338 |
+        at /Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-workspace.spec.ts:335:23
+
+    Error Context: test-results/company-workspace-경쟁-재현-머물-e891a-sk에서-다시-회사를-바꿔도-확인-창이-다시-뜬다-app-repeat2/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/company-workspace-경쟁-재현-머물-e891a-sk에서-다시-회사를-바꿔도-확인-창이-다시-뜬다-app-repeat2/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/company-workspace-경쟁-재현-머물-e891a-sk에서-다시-회사를-바꿔도-확인-창이-다시-뜬다-app-repeat2/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+  3 failed
+    [app] › tests/company-workspace.spec.ts:311:1 › 경쟁 재현: 머물기 직후 같은 task에서 다시 회사를 바꿔도 확인 창이 다시 뜬다 ─
+    [app] › tests/company-workspace.spec.ts:311:1 › 경쟁 재현: 머물기 직후 같은 task에서 다시 회사를 바꿔도 확인 창이 다시 뜬다 ─
+    [app] › tests/company-workspace.spec.ts:311:1 › 경쟁 재현: 머물기 직후 같은 task에서 다시 회사를 바꿔도 확인 창이 다시 뜬다 ─
