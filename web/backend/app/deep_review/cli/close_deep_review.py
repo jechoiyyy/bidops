@@ -12,7 +12,8 @@ from ..services.deep_reviews import _validate_actor, DeepReviewServiceError, Dee
 def close_queued(session, review_id, actor):
     actor = _validate_actor(actor)
     review = session.scalar(select(DeepReview).where(DeepReview.id == review_id).with_for_update())
-    if review is None:
+    # A DEMO company review is not drained by this legacy operator tool.
+    if review is None or review.company_id is not None:
         raise DeepReviewServiceError('not_found', '검토 없음', status_code=404)
     attempt = session.get(DeepReviewAttempt, review.current_attempt_id)
     job = session.scalar(select(WorkJob).where(WorkJob.id == attempt.work_job_id).with_for_update()) if attempt else None

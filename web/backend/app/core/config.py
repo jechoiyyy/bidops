@@ -11,6 +11,7 @@ import math
 from functools import lru_cache
 from pathlib import Path
 from typing import Literal
+from uuid import UUID
 
 from pydantic import AliasChoices, Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -95,6 +96,14 @@ class Settings(BaseSettings):
     # DEMO-01 multi-company routes are local-demo only and fail closed.
     # Enabling this flag registers no data and starts no work by itself.
     demo_enabled: bool = Field(default=False, validation_alias="BIDOPS_DEMO_ENABLED")
+    # DEMO-03 purpose-specific immutable policy rows (contract §9). Empty means
+    # unset; there is no global fallback and importing a policy selects nothing.
+    demo_company_fit_policy_version_id: UUID | None = Field(
+        default=None, validation_alias="BIDOPS_DEMO_COMPANY_FIT_POLICY_VERSION_ID"
+    )
+    demo_deep_review_policy_version_id: UUID | None = Field(
+        default=None, validation_alias="BIDOPS_DEMO_DEEP_REVIEW_POLICY_VERSION_ID"
+    )
     reviewer_name: str = Field(
         default="",
         validation_alias=AliasChoices(
@@ -286,6 +295,19 @@ class Settings(BaseSettings):
         """
 
         parse_modules(value)
+        return value
+
+    @field_validator(
+        "demo_company_fit_policy_version_id",
+        "demo_deep_review_policy_version_id",
+        mode="before",
+    )
+    @classmethod
+    def empty_policy_id_is_unset(cls, value: object) -> object:
+        """An empty or blank environment value means "not configured"."""
+
+        if isinstance(value, str) and not value.strip():
+            return None
         return value
 
     @field_validator("log_level", mode="before")

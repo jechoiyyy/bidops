@@ -62,6 +62,18 @@ CROSS_PREFIX_ROUTES: dict[str, str] = {
     "/api/companies/{company_id}/profile": "deep_review",
     "/api/companies/{company_id}/knowledge-graph": "deep_review",
     "/api/companies/{company_id}/profile-evidence/{evidence_id}": "deep_review",
+    # DEMO-03 회사별 Luna 심층 검토 미리보기·승인·재시도.
+    "/api/companies/{company_id}/pre-specs/{notice_id}/deep-review-previews": "deep_review",
+    "/api/companies/{company_id}/pre-specs/{notice_id}/deep-reviews": "deep_review",
+    "/api/companies/{company_id}/deep-reviews/{review_id}/attempts": "deep_review",
+    # DEMO-03 회사별 조회와 3사 비교.
+    "/api/companies/{company_id}/pre-specs": "deep_review",
+    "/api/companies/{company_id}/pre-specs/{notice_id}": "deep_review",
+    "/api/companies/{company_id}/pre-specs/{notice_id}/company-fit": "deep_review",
+    "/api/companies/{company_id}/deep-reviews/{review_id}": "deep_review",
+    "/api/companies/{company_id}/deep-reviews/{review_id}/report": "deep_review",
+    "/api/companies/{company_id}/deep-reviews/{review_id}/evidence/{evidence_id}": "deep_review",
+    "/api/pre-specs/{notice_id}/company-comparison": "deep_review",
 }
 
 

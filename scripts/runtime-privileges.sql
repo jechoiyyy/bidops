@@ -60,6 +60,7 @@ GRANT SELECT ON TABLE
     bidops.company_knowledge_edge,
     bidops.company_knowledge_binding,
     bidops.company_knowledge_binding_event,
+    bidops.company_fit_policy_version,
     bidops.analysis_policy_version,
     bidops.deep_review,
     bidops.bid_delta_comparison,
@@ -109,6 +110,9 @@ GRANT SELECT ON TABLE
     bidops.collected_record_token
 TO app;
 
+-- DEMO-03 company-fit policy rows are imported append-only by an app-role CLI
+-- (SELECT/INSERT only; a trigger rejects UPDATE/DELETE). Company-fit attempts
+-- stay worker-INSERT only, as before.
 -- App-owned create paths include ingestion, UI mutations, orchestration, and
 -- append-only audit/result/history rows. v4 preparation/enqueue is an app
 -- transaction: the app creates the WorkJob and attempt, while only the worker
@@ -161,6 +165,7 @@ GRANT INSERT ON TABLE
     bidops.company_knowledge_edge,
     bidops.company_knowledge_binding,
     bidops.company_knowledge_binding_event,
+    bidops.company_fit_policy_version,
     bidops.analysis_policy_version,
     bidops.deep_review,
     bidops.deep_review_attempt,
@@ -344,6 +349,11 @@ GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA bidops TO app;
 -- pre-spec attachment worker. Reads include the review/snapshot lineage and
 -- phase-2 attempt/result/event rows needed by the lifecycle worker. Legacy
 -- reviews, screening policy controls, and schedules are not in this list.
+-- DEMO-03: `enqueue-company-fit` (worker credential) and the company-fit slot
+-- rebuild/recheck the frozen company input, so the worker reads the company
+-- knowledge lineage (the source row only, never the private source object;
+-- the binding event history stays closed) and the immutable fit policy rows.
+-- The worker writes none of these tables.
 GRANT SELECT ON TABLE
     bidops.alembic_version,
     bidops.notice,
@@ -363,6 +373,13 @@ GRANT SELECT ON TABLE
     bidops.document_bundle_item,
     bidops.profile_version,
     bidops.profile_evidence,
+    bidops.knowledge_ontology_version,
+    bidops.company_knowledge_source,
+    bidops.company_knowledge_version,
+    bidops.company_knowledge_node,
+    bidops.company_knowledge_edge,
+    bidops.company_knowledge_binding,
+    bidops.company_fit_policy_version,
     bidops.analysis_policy_version,
     bidops.deep_review,
     bidops.deep_review_attempt,

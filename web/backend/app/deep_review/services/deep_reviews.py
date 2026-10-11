@@ -38,6 +38,7 @@ from .deep_review_validation import DeepReviewValidationError, merge_stage_chunk
 from ...core.model_binding import canonical_json_bytes
 from .effective_grade import eligible_with_grade
 from .input_versions import (
+    DEMO_LUNA_POLICY_IDENTITY,
     STAGES,
     GradeBasis,
     InputVersionError,
@@ -60,7 +61,7 @@ from ...core.model_client import (
     ModelInvocationError,
 )
 from .deep_review_vllm import DEEP_REVIEW_STAGE_CONTRACT, NARRATIVE_STAGE_CONTRACT
-from . import narrative_inputs, document_segments, luna_inputs
+from . import company_slices, narrative_inputs, document_segments, luna_inputs
 from .mock_analysis_client import MockAnalysisClient
 from ...core.constants import (
     DEEP_REVIEW_CREATION_ACTION_BY_ACTOR_KIND,
@@ -110,6 +111,9 @@ _NARRATIVE_ERROR_PATHS = {
     "profile_evidence_out_of_slice": "$.evidence[*].profile_evidence_id",
     "local_identifier_redefinition": "$.claims[*].claim_id|evidence[*].evidence_id",
     "local_identifier_invalid": "$.claims[*].claim_id|evidence[*].evidence_id",
+    # Company (DEMO-03) slice check: a cited profile evidence must copy the
+    # supplied row's profile_version_id, source_sha256, locator and quote.
+    "profile_evidence_mismatch": "$.evidence[*]",
 }
 
 
@@ -810,7 +814,9 @@ class DeepReviewService:
             # Lock the review aggregate before idempotency replay and active
             # attempt checks.  This makes same-review retries serializable.
             review = session.scalar(select(DeepReview).where(DeepReview.id == review_id).with_for_update())
-            if review is None:
+            # Company reviews (DEMO-03) are retried only through the company
+            # path with a company preview; the legacy path never touches them.
+            if review is None or review.company_id is not None:
                 raise DeepReviewServiceError("not_found", "deep review를 찾을 수 없습니다", status_code=404, request_id=request_id)
             duplicate = self._idempotent_response(session, operation="deep_review_attempt", aggregate_type="deep_review", aggregate_id=str(review_id), actor=claimed_name, request_id=request_id, request_hash=request_hash)
             if duplicate is not None:
@@ -848,7 +854,7 @@ class DeepReviewService:
             validate_pinned_policy(policy, allow_unmeasured_reference=self.reference_workflow_mode)
             notice = lock_notice(session, review.notice_id)
             preview = luna_inputs.check(self, session, preview_id, notice, review.bundle_id, profile, policy, source_verification_enabled) if luna_inputs.is_luna(policy) else None
-            if preview is not None and session.scalar(select(DeepReview.id).where(DeepReview.notice_id == review.notice_id, DeepReview.status.in_(("queued", "running"))).limit(1)):
+            if preview is not None and session.scalar(select(DeepReview.id).where(DeepReview.company_id.is_(None), DeepReview.notice_id == review.notice_id, DeepReview.status.in_(("queued", "running"))).limit(1)):
                 raise DeepReviewServiceError("active_attempt_exists", "이미 대기·실행 중인 검토가 있습니다", status_code=409)
             max_sequence = session.scalar(select(DeepReviewAttempt.sequence).where(DeepReviewAttempt.deep_review_id == review.id).order_by(DeepReviewAttempt.sequence.desc()).limit(1)) or 0
             # Completed attempts are immutable snapshots.  A retry may move
@@ -884,18 +890,21 @@ class DeepReviewService:
         # End any read transaction before beginning the short claim transaction.
         if session.in_transaction():
             session.commit()
+        # Company-scoped jobs (DEMO-03) share this one slot and its lease,
+        # fencing and failure rules, but only while BIDOPS_DEMO_ENABLED is on;
+        # otherwise they are left untouched (queued).  Orphan jobs still pass
+        # the predicate and keep the fail-closed review_scope_missing handling.
+        company_scope = [] if getattr(self.settings, "demo_enabled", False) else [
+            ~exists().where(
+                DeepReview.id == WorkJob.aggregate_id,
+                DeepReview.company_id.is_not(None),
+            ),
+        ]
         job = session.scalar(
             select(WorkJob)
             .where(
                 WorkJob.job_type == "deep_review",
-                # The legacy worker must leave company-scoped jobs untouched
-                # for the explicit company analysis path. Orphan jobs still
-                # pass this predicate and retain the existing fail-closed
-                # review_scope_missing handling below.
-                ~exists().where(
-                    DeepReview.id == WorkJob.aggregate_id,
-                    DeepReview.company_id.is_not(None),
-                ),
+                *company_scope,
                 or_(WorkJob.status == "queued", and_(WorkJob.status == "running", WorkJob.lease_expires_at < now)),
             )
             .order_by(WorkJob.priority.desc(), WorkJob.scheduled_at.asc(), WorkJob.id.asc())
@@ -1584,8 +1593,85 @@ class DeepReviewService:
         )
         session.commit()
 
+    def _approved_company_context(
+        self,
+        session: Session,
+        review: DeepReview,
+        attempt: DeepReviewAttempt,
+        profile: ProfileVersion,
+        policy: AnalysisPolicyVersion,
+        creation: Mapping[str, Any],
+    ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Mapping[str, Any]]]:
+        """Worker-side ``approval_invalid`` gate of a company attempt (DEMO-03 §9/§10).
+
+        Returns (approved frozen CompanyAnalysisInput, pinned bundle, pinned
+        structures).  The input is never rebuilt: ``approved_company_input``
+        checks approval/preview/review company, lineage, hash and nonce; here
+        the creation audit's company keys, this attempt's approval audit, the
+        pinned profile/policy/graph hashes and the frozen source units are
+        compared with immutable rows.  The pinned bundle structures are read
+        only as the deterministic validation context (quotes/locators); they
+        must re-split into exactly the frozen units or the attempt fails
+        before any model call.  Nothing new is added to the model input.
+        """
+
+        from .company_deep_review import company_source_units
+        from ..models import CompanyKnowledgeVersion, DeepReviewApproval, DeepReviewPreview
+
+        def invalid() -> InputVersionError:
+            return InputVersionError("approval_invalid", "승인된 동결 입력을 확인할 수 없습니다")
+
+        frozen = luna_inputs.approved_company_input(session, attempt.id, review)
+        approval = session.scalar(select(DeepReviewApproval).where(DeepReviewApproval.attempt_id == attempt.id))
+        preview = session.get(DeepReviewPreview, approval.preview_id) if approval is not None else None
+        graph = session.get(CompanyKnowledgeVersion, review.graph_version_id)
+        approval_audits = session.scalars(select(AuditEvent).where(
+            AuditEvent.action == "deep_review.external_transfer_approved",
+            AuditEvent.aggregate_type == "deep_review_attempt",
+            AuditEvent.aggregate_id == str(attempt.id),
+        ).limit(2)).all()
+        approved = approval_audits[0].safe_metadata if len(approval_audits) == 1 and isinstance(approval_audits[0].safe_metadata, Mapping) else {}
+        if (
+            approval is None or preview is None or graph is None
+            or creation.get("company_id") != str(review.company_id)
+            or creation.get("graph_version_id") != str(review.graph_version_id)
+            or creation.get("graph_sha256") != graph.graph_sha256 or frozen.get("graph_sha256") != graph.graph_sha256
+            or creation.get("grade_source") != "company_sw_business" or creation.get("effective_grade") is not None
+            or (attempt.sequence == 1 and (
+                creation.get("preview_id") != str(preview.id) or creation.get("input_sha256") != preview.input_sha256
+            ))
+            or approved.get("preview_id") != str(preview.id) or approved.get("input_sha256") != preview.input_sha256
+            or approved.get("company_id") != str(review.company_id)
+            or approved.get("graph_version_id") != str(review.graph_version_id)
+            or frozen.get("profile_sha256") != profile.profile_sha256
+            or frozen.get("policy_sha256") != policy.policy_sha256
+            or frozen.get("model_name") != policy.model_name
+        ):
+            raise invalid()
+        bundle, structures = bundle_context(session, review.bundle_id, structure_loader=self.structure_loader)
+        chunking = _policy_payload(policy).get("chunking")
+        source_characters = chunking.get("source_characters") if isinstance(chunking, Mapping) else None
+        if type(source_characters) is not int or source_characters < 1:
+            raise DeepReviewServiceError("company_policy_invalid", "회사 분석 정책이 올바르지 않습니다", status_code=503)
+        units = company_source_units(session, bundle, structures, source_characters=source_characters)
+        frozen_units = [unit for row in frozen.get("requirements", []) for unit in row.get("source_units", [])]
+        if (
+            frozen_units != units
+            or [str(row["document_version_id"]) for row in bundle["documents"]] != list(frozen.get("document_version_ids", []))
+        ):
+            raise invalid()
+        return frozen, bundle, structures
+
     def run_claim(self, session: Session, claim: JobClaim) -> None:
-        """Execute the three ordered business stages without an open I/O transaction."""
+        """Execute the three ordered business stages without an open I/O transaction.
+
+        ``review.company_id`` selects the input: legacy (NULL) rows use the
+        Luna preview snapshot (``approved_input``) or the live narrative
+        context; company rows use only the approved frozen
+        CompanyAnalysisInput (``_approved_company_context``), company slices
+        and the company slice validator.  Lease, fencing, validation repair,
+        raw-response storage and report materialization are shared.
+        """
 
         stage_row: DeepReviewStage | None = None
         previous_outputs: list[Mapping[str, Any]] = []
@@ -1599,6 +1685,12 @@ class DeepReviewService:
             if profile is None or policy is None:
                 raise DeepReviewServiceError("service_unavailable", "고정된 profile 또는 policy가 없습니다", status_code=503)
             validate_pinned_policy(policy, allow_unmeasured_reference=self.reference_workflow_mode)
+            company = review.company_id is not None
+            # The demo Luna policy is company-only and company rows run only on
+            # it (DEMO-03 §5/§9).  Checked before any audit/approval/model step.
+            demo_policy = luna_inputs.is_luna(policy) and _policy_payload(policy).get("policy_identity") == DEMO_LUNA_POLICY_IDENTITY
+            if company != demo_policy:
+                raise DeepReviewServiceError("company_policy_invalid", "회사 계보와 분석 정책이 일치하지 않습니다", status_code=503)
             pinned_provider, pinned_runtime_model = self._runtime_identity(policy)
             # 생성 감사는 사람 클릭과 자동 시작 둘 중 하나다. 사람 action만
             # 보면 자동 생성된 검토가 고정 입력 snapshot을 못 찾고 503으로
@@ -1634,16 +1726,26 @@ class DeepReviewService:
                 bundle, structures = bundle_context(session, review.bundle_id, structure_loader=self.structure_loader)
                 profile_payload = profile_context(session, profile)
                 policy_payload = _policy_payload(policy)
+            company_input: dict[str, Any] | None = None
             if luna:
                 if not self.settings.luna_deep_review_enabled or self.settings.analysis_provider == "mock":
                     raise DeepReviewServiceError("service_unavailable", "Luna 실행 비활성", status_code=503)
-                frozen = luna_inputs.approved_input(session, attempt.id, review)
-                bundle, structures, profile_payload, policy_payload = (frozen[k] for k in ("bundle", "structures", "profile", "policy"))
+                if company:
+                    company_input, bundle, structures = self._approved_company_context(
+                        session, review, attempt, profile, policy, audit_snapshot,
+                    )
+                    policy_payload = _policy_payload(policy)
+                    profile_payload = company_slices.company_validation_profile(company_input)
+                else:
+                    frozen = luna_inputs.approved_input(session, attempt.id, review)
+                    bundle, structures, profile_payload, policy_payload = (frozen[k] for k in ("bundle", "structures", "profile", "policy"))
             from .verification import result_checks_enabled as checks_enabled
             result_checks_enabled = checks_enabled(policy_payload)
             narrative = policy_payload.get("pipeline_version") == "narrative-v2"
+            if company and (not narrative or not result_checks_enabled):
+                raise DeepReviewServiceError("company_policy_invalid", "회사 분석 정책이 올바르지 않습니다", status_code=503)
             source_units = []
-            if narrative:
+            if narrative and not company:
                 inventory = frozen["inventory"] if luna else document_segments.inventory_context(session, [UUID(str(row["structure_id_at_confirmation"])) for row in bundle["documents"]])
                 source_units = [row for group in self._requirements(bundle, structures, max_characters=int(policy_payload["chunking"]["source_characters"]), max_requirements=1) for row in group]
                 for unit in source_units:
@@ -1701,7 +1803,12 @@ class DeepReviewService:
                 else:
                     client = self._bind_client(pinned_model_name, narrative=True) if narrative else self._bind_client(pinned_model_name)
                 self._mark_running(session, claim, stage_row)
-                slices = narrative_inputs.build_slices(stage_name, source_units, profile_payload, previous_outputs, policy_payload) if narrative else self._stage_slices(stage_name, bundle, structures, profile_payload, previous_outputs)
+                if company:
+                    # Only the approved frozen CompanyAnalysisInput is sliced;
+                    # coverage is re-checked before any model call.
+                    slices = company_slices.company_stage_slices(stage_name, company_input, previous_outputs, policy_payload)
+                else:
+                    slices = narrative_inputs.build_slices(stage_name, source_units, profile_payload, previous_outputs, policy_payload) if narrative else self._stage_slices(stage_name, bundle, structures, profile_payload, previous_outputs)
                 partial_slice_count = len(slices)
                 chunks: list[Mapping[str, Any]] = []
                 invocation_metadata: list[dict[str, Any]] = []
@@ -1778,7 +1885,8 @@ class DeepReviewService:
                                 chunk_output = narrative_inputs.bind_local_ids(chunk_output, input_slice)
                                 chunk_output, relation_diagnostics = narrative_inputs.project_related_claims(chunk_output, input_slice, policy_payload)
                                 if result_checks_enabled:
-                                    narrative_inputs.validate_slice_output(chunk_output, input_slice, stage_name, source_verification_enabled=source_verification_enabled)
+                                    slice_validator = company_slices.validate_company_slice_output if company else narrative_inputs.validate_slice_output
+                                    slice_validator(chunk_output, input_slice, stage_name, source_verification_enabled=source_verification_enabled)
                             # Validate each untrusted chunk before paying for the
                             # next provider call. The final merge repeats this
                             # check and adds cross-chunk duplicate/conflict rules.

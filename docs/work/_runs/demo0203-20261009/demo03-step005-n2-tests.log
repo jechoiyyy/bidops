@@ -1,0 +1,307 @@
+cd web/backend && /tmp/bidops-demo00-verify-venv/bin/python <scratchpad>/run_pg_pytest.py tests/app/test_company_reads.py -q -rfs -p no:warnings  # N2: ordering + comparison tests now also run on disposable postgres:17.11, BIDOPS_PRESPEC_OVERVIEW_ENABLED=false
+......F....................                                              [100%]
+=================================== FAILURES ===================================
+_ test_t7_filters_order_nulls_tiebreak_and_pagination_run_on_the_server[postgres] _
+
+self = <sqlalchemy.engine.base.Connection object at 0x11c689ac0>
+dialect = <sqlalchemy.dialects.postgresql.psycopg.PGDialect_psycopg object at 0x11b754dd0>
+context = <sqlalchemy.dialects.postgresql.psycopg.PGExecutionContext_psycopg object at 0x11c6aa8a0>
+statement = <sqlalchemy.dialects.postgresql.psycopg.PGCompiler_psycopg object at 0x11c610980>
+parameters = [{'completed_at': datetime.datetime(2026, 10, 10, 11, 33, 3, 446405, tzinfo=datetime.timezone.utc), 'prespec_company_f...s.prespec- ... (350 chars)), 'result_sha256': 'b4375e65173ea36fc57296cc95394a018712c138e6be899f9bc26e72f7862c52', ...}]
+
+    def _exec_single_context(
+        self,
+        dialect: Dialect,
+        context: ExecutionContext,
+        statement: Union[str, Compiled],
+        parameters: Optional[_AnyMultiExecuteParams],
+    ) -> CursorResult[Any]:
+        """continue the _execute_context() method for a single DBAPI
+        cursor.execute() or cursor.executemany() call.
+    
+        """
+        if dialect.bind_typing is BindTyping.SETINPUTSIZES:
+            generic_setinputsizes = context._prepare_set_input_sizes()
+    
+            if generic_setinputsizes:
+                try:
+                    dialect.do_set_input_sizes(
+                        context.cursor, generic_setinputsizes, context
+                    )
+                except BaseException as e:
+                    self._handle_dbapi_exception(
+                        e, str(statement), parameters, None, context
+                    )
+    
+        cursor, str_statement, parameters = (
+            context.cursor,
+            context.statement,
+            context.parameters,
+        )
+    
+        effective_parameters: Optional[_AnyExecuteParams]
+    
+        if not context.executemany:
+            effective_parameters = parameters[0]
+        else:
+            effective_parameters = parameters
+    
+        if self._has_events or self.engine._has_events:
+            for fn in self.dispatch.before_cursor_execute:
+                str_statement, effective_parameters = fn(
+                    self,
+                    cursor,
+                    str_statement,
+                    effective_parameters,
+                    context,
+                    context.executemany,
+                )
+    
+        if self._echo:
+            self._log_info(str_statement)
+    
+            stats = context._get_cache_stats()
+    
+            if not self.engine.hide_parameters:
+                self._log_info(
+                    "[%s] %r",
+                    stats,
+                    sql_util._repr_params(
+                        effective_parameters,
+                        batches=10,
+                        ismulti=context.executemany,
+                    ),
+                )
+            else:
+                self._log_info(
+                    "[%s] [SQL parameters hidden due to hide_parameters=True]",
+                    stats,
+                )
+    
+        evt_handled: bool = False
+        try:
+            if context.execute_style is ExecuteStyle.EXECUTEMANY:
+                effective_parameters = cast(
+                    "_CoreMultiExecuteParams", effective_parameters
+                )
+                if self.dialect._has_events:
+                    for fn in self.dialect.dispatch.do_executemany:
+                        if fn(
+                            cursor,
+                            str_statement,
+                            effective_parameters,
+                            context,
+                        ):
+                            evt_handled = True
+                            break
+                if not evt_handled:
+                    self.dialect.do_executemany(
+                        cursor,
+                        str_statement,
+                        effective_parameters,
+                        context,
+                    )
+            elif not effective_parameters and context.no_parameters:
+                if self.dialect._has_events:
+                    for fn in self.dialect.dispatch.do_execute_no_params:
+                        if fn(cursor, str_statement, context):
+                            evt_handled = True
+                            break
+                if not evt_handled:
+                    self.dialect.do_execute_no_params(
+                        cursor, str_statement, context
+                    )
+            else:
+                effective_parameters = cast(
+                    "_CoreSingleExecuteParams", effective_parameters
+                )
+                if self.dialect._has_events:
+                    for fn in self.dialect.dispatch.do_execute:
+                        if fn(
+                            cursor,
+                            str_statement,
+                            effective_parameters,
+                            context,
+                        ):
+                            evt_handled = True
+                            break
+                if not evt_handled:
+>                   self.dialect.do_execute(
+                        cursor, str_statement, effective_parameters, context
+                    )
+
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py:1969: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/default.py:952: in do_execute
+    cursor.execute(statement, parameters)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <psycopg.Cursor [closed] [IDLE] (host=127.0.0.1 port=32831 user=owner database=bidops_test_048ab2391b5b4b21) at 0x11c4b7050>
+query = 'UPDATE bidops.prespec_company_fit_attempt SET status=%(status)s::VARCHAR, result_jsonb=%(result_jsonb)s::JSONB, resul..._at)s::TIMESTAMP WITH TIME ZONE WHERE bidops.prespec_company_fit_attempt.id = %(prespec_company_fit_attempt_id)s::UUID'
+params = {'completed_at': datetime.datetime(2026, 10, 10, 11, 33, 3, 446405, tzinfo=datetime.timezone.utc), 'prespec_company_fi...ps.prespec- ... (350 chars)), 'result_sha256': 'b4375e65173ea36fc57296cc95394a018712c138e6be899f9bc26e72f7862c52', ...}
+
+    def execute(
+        self,
+        query: Query,
+        params: Params | None = None,
+        *,
+        prepare: bool | None = None,
+        binary: bool | None = None,
+    ) -> Self:
+        """
+        Execute a query or command to the database.
+        """
+        try:
+            with self._conn.lock:
+                self._conn.wait(
+                    self._execute_gen(query, params, prepare=prepare, binary=binary)
+                )
+        except e._NO_TRACEBACK as ex:
+>           raise ex.with_traceback(None)
+E           psycopg.errors.RaiseException: company fit transition rejected
+E           CONTEXT:  PL/pgSQL function bidops.tf_prespec_company_fit_guard() line 15 at RAISE
+
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/psycopg/cursor.py:117: RaiseException
+
+The above exception was the direct cause of the following exception:
+
+world_reads_any_engine = (<sqlalchemy.orm.session.Session object at 0x11bbb5fd0>, DeepWorld(fit=World(company_id=UUID('29fa8e50-5458-47de-83d9-...ervices.deep_reviews.DeepReviewService object at 0x11c475910>, <starlette.testclient.TestClient object at 0x11c5362a0>)
+
+    def test_t7_filters_order_nulls_tiebreak_and_pagination_run_on_the_server(world_reads_any_engine) -> None:
+        session, world, _svc, http = world_reads_any_engine
+        day = datetime(2026, 10, 6, tzinfo=UTC)
+        session.get(Notice, world.notice_id).published_at = day
+        session.get(Notice, world.notice_id).deadline_at = day + timedelta(days=9)
+        session.commit()
+        a = extra_notice(session, title="클라우드 전환 사업", posted=day + timedelta(days=1), deadline=day + timedelta(days=3))
+        b = extra_notice(session, title="데이터 품질 진단", posted=day + timedelta(days=1), deadline=None)
+        c = extra_notice(session, title="ERP 고도화", posted=None, deadline=day + timedelta(days=3))
+        base = f"/api/companies/{world.company_id}/pre-specs"
+    
+        # posted_at DESC, nulls last, notice_id DESC tie-break.
+        assert list_ids(http.get(base).json()) == [max(a, b), min(a, b), world.notice_id, c]
+        # deadline ASC, nulls last, notice_id DESC tie-break.
+        assert list_ids(http.get(base, params={"sort": "deadline_asc"}).json()) == [max(a, c), min(a, c), world.notice_id, b]
+        page = http.get(base, params={"limit": 2, "offset": 1}).json()
+        assert page["total"] == 4 and page["limit"] == 2 and page["offset"] == 1
+        assert list_ids(page) == [min(a, b), world.notice_id]
+        # q uses the existing list search rule (whitespace/ASCII case folded).
+        assert list_ids(http.get(base, params={"q": "erp고도"}).json()) == [c]
+        assert http.get(base, params={"q": "데이터 품질"}).json()["total"] == 1
+    
+        # tracking: only linked notices carry a company decision; filters before pagination.
+        opp_a, opp_c = link_opportunity(session, a), link_opportunity(session, c)
+        decide(session, world.company_id, opp_a, "계속 추적")
+        other = import_company(session, "demo-public-si")
+        session.commit()
+        decide(session, other.company_id, opp_c, "보류")
+        items = {row["notice_id"]: row for row in http.get(base).json()["items"]}
+        assert items[a]["opportunity_id"] == opp_a and items[a]["tracking"]["tracking_status"] == "계속 추적"
+        assert items[c]["tracking"]["tracking_status"] == "미선택" and items[c]["tracking"]["revision"] == 0
+        assert items[b]["opportunity_id"] is None and items[b]["tracking"] is None
+        assert items[a]["tracking"]["company_id"] == str(world.company_id)
+        assert list_ids(http.get(base, params={"tracking_status": "계속 추적"}).json()) == [a]
+        assert list_ids(http.get(base, params={"tracking_status": "보류"}).json()) == []
+        assert list_ids(http.get(base, params={"tracking_status": "미선택"}).json()) == [c]
+        other_list = http.get(f"/api/companies/{other.company_id}/pre-specs", params={"tracking_status": "보류"}).json()
+        assert list_ids(other_list) == [c]
+    
+        # fit filter: current completed results only.
+>       complete_fit(session, enqueue_fit(session, world.company_id, world.notice_id), "unknown")
+
+tests/app/test_company_reads.py:448: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/app/test_company_reads.py:166: in complete_fit
+    session.commit()
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/orm/session.py:2035: in commit
+    trans.commit(_to_root=True)
+<string>:2: in commit
+    ???
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/orm/state_changes.py:137: in _go
+    ret_value = fn(self, *arg, **kw)
+                ^^^^^^^^^^^^^^^^^^^^
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/orm/session.py:1316: in commit
+    self._prepare_impl()
+<string>:2: in _prepare_impl
+    ???
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/orm/state_changes.py:137: in _go
+    ret_value = fn(self, *arg, **kw)
+                ^^^^^^^^^^^^^^^^^^^^
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/orm/session.py:1290: in _prepare_impl
+    self.session.flush()
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/orm/session.py:4353: in flush
+    self._flush(objects)
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/orm/session.py:4488: in _flush
+    with util.safe_reraise():
+         ^^^^^^^^^^^^^^^^^^^
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/util/langhelpers.py:122: in __exit__
+    raise exc_value.with_traceback(exc_tb)
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/orm/session.py:4449: in _flush
+    flush_context.execute()
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/orm/unitofwork.py:465: in execute
+    rec.execute(self)
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/orm/unitofwork.py:641: in execute
+    util.preloaded.orm_persistence.save_obj(
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/orm/persistence.py:86: in save_obj
+    _emit_update_statements(
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/orm/persistence.py:913: in _emit_update_statements
+    c = connection.execute(
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py:1421: in execute
+    return meth(
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/sql/elements.py:526: in _execute_on_connection
+    return connection._execute_clauseelement(
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py:1643: in _execute_clauseelement
+    ret = self._execute_context(
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py:1848: in _execute_context
+    return self._exec_single_context(
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py:1988: in _exec_single_context
+    self._handle_dbapi_exception(
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py:2365: in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py:1969: in _exec_single_context
+    self.dialect.do_execute(
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/sqlalchemy/engine/default.py:952: in do_execute
+    cursor.execute(statement, parameters)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <psycopg.Cursor [closed] [IDLE] (host=127.0.0.1 port=32831 user=owner database=bidops_test_048ab2391b5b4b21) at 0x11c4b7050>
+query = 'UPDATE bidops.prespec_company_fit_attempt SET status=%(status)s::VARCHAR, result_jsonb=%(result_jsonb)s::JSONB, resul..._at)s::TIMESTAMP WITH TIME ZONE WHERE bidops.prespec_company_fit_attempt.id = %(prespec_company_fit_attempt_id)s::UUID'
+params = {'completed_at': datetime.datetime(2026, 10, 10, 11, 33, 3, 446405, tzinfo=datetime.timezone.utc), 'prespec_company_fi...ps.prespec- ... (350 chars)), 'result_sha256': 'b4375e65173ea36fc57296cc95394a018712c138e6be899f9bc26e72f7862c52', ...}
+
+    def execute(
+        self,
+        query: Query,
+        params: Params | None = None,
+        *,
+        prepare: bool | None = None,
+        binary: bool | None = None,
+    ) -> Self:
+        """
+        Execute a query or command to the database.
+        """
+        try:
+            with self._conn.lock:
+                self._conn.wait(
+                    self._execute_gen(query, params, prepare=prepare, binary=binary)
+                )
+        except e._NO_TRACEBACK as ex:
+>           raise ex.with_traceback(None)
+E           sqlalchemy.exc.ProgrammingError: (psycopg.errors.RaiseException) company fit transition rejected
+E           CONTEXT:  PL/pgSQL function bidops.tf_prespec_company_fit_guard() line 15 at RAISE
+E           [SQL: UPDATE bidops.prespec_company_fit_attempt SET status=%(status)s::VARCHAR, result_jsonb=%(result_jsonb)s::JSONB, result_sha256=%(result_sha256)s::VARCHAR, completed_at=%(completed_at)s::TIMESTAMP WITH TIME ZONE WHERE bidops.prespec_company_fit_attempt.id = %(prespec_company_fit_attempt_id)s::UUID]
+E           [parameters: {'status': 'completed', 'result_jsonb': Jsonb({'schema_version': 'bidops.prespec- ... (350 chars)), 'result_sha256': 'b4375e65173ea36fc57296cc95394a018712c138e6be899f9bc26e72f7862c52', 'completed_at': datetime.datetime(2026, 10, 10, 11, 33, 3, 446405, tzinfo=datetime.timezone.utc), 'prespec_company_fit_attempt_id': UUID('84ad40bc-a8d6-4d3b-ba6b-7de5984b59d2')}]
+E           (Background on this error at: https://sqlalche.me/e/20/f405)
+
+/tmp/bidops-demo00-verify-venv/lib/python3.12/site-packages/psycopg/cursor.py:117: ProgrammingError
+=========================== short test summary info ============================
+FAILED tests/app/test_company_reads.py::test_t7_filters_order_nulls_tiebreak_and_pagination_run_on_the_server[postgres]
+1 failed, 26 passed in 14.78s
+exit_code=1
+exit_code=1
+
+# --- second run (first run above failed: test fixture complete_fit skipped the running state, rejected by PG guard tf_prespec_company_fit_guard; not a product defect) ---
+cd web/backend && /tmp/bidops-demo00-verify-venv/bin/python <scratchpad>/run_pg_pytest.py tests/app/test_company_reads.py -q -rfs -p no:warnings  # N2 rerun after fixing the test helper complete_fit (worker transitions queued→running(lease)→completed); disposable postgres:17.11
+...........................                                              [100%]
+27 passed in 14.50s
+exit_code=0
+exit_code=0

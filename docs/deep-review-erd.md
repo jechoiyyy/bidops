@@ -893,7 +893,7 @@ app은 입력/실행 INSERT와 세 표 SELECT, worker는 결과 INSERT와 세 �
 [REST 및 결과 계약](0923_assumption-analysis/spec.md).
 
 
-## 가상 SI 3사 데모 계약 (2026-10-09, DEMO-01·02 데모 브랜치 구현)
+## 가상 SI 3사 데모 계약 (2026-10-09, DEMO-01·02 데모 브랜치 구현; 2026-10-10 DEMO-03 구현, 실제 Luna 대표 1건은 2026-10-11 DEMO-05로 이관)
 
 DEMO-01은 별도 데모 브랜치의 migration에 `ProfileVersion`·`DeepReview`·
 `PreSpecCompanyFitAttempt`의 nullable `company_id`와 회사/profile 소속 제약을 추가했다.
@@ -901,5 +901,8 @@ DEMO-01은 별도 데모 브랜치의 migration에 `ProfileVersion`·`DeepReview
 DEMO-02는 migration `0035_company_knowledge`로 `knowledge_ontology_version`·`company_knowledge_source`·`company_knowledge_version`·
 `company_knowledge_node`·`company_knowledge_edge`·`company_knowledge_binding`·`company_knowledge_binding_event`를 추가했다.
 version·source·node·edge·event는 append-only이고 binding pointer만 갱신되며, 회사·profile·source·graph 소속은 composite FK로 묶는다. 권한은 `scripts/runtime-privileges.sql`이 부여한다.
-승인 binding·회사 분석 입력과 실행 저장은 DEMO-03의 미구현 후속 범위며 기존 불변 입력·근거 FK·슬롯 1개 계약을 유지한다.
+승인 binding·회사 분석 입력과 실행 저장은 아래 DEMO-03 단락이 정의하며 기존 불변 입력·근거 FK·슬롯 1개 계약을 유지한다.
+DEMO-03는 migration `0036_company_analysis`로 `company_fit_policy_version`(id, sha256 UNIQUE, payload, created_at; UPDATE/DELETE 거부 trigger)을 추가하고,
+`prespec_company_fit_attempt`에 `company_fit_policy_version_id`(FK)·`graph_version_id`·`provenance_jsonb`를 더해 `deep_policy_version_id`·`model_revision`을 nullable로 바꿨다(정책 FK는 purpose별 하나 CHECK, legacy 행 hex64 유지, 회사 행은 선언 revision 또는 NULL). (graph, company, profile)→`company_knowledge_version` 복합 FK와 회사 행의 동결 입력 일치 INSERT guard(nonce=행 id, 개요 문서 포함 문서 집합, bundle/target null)를 둔다.
+`deep_review`에 `graph_version_id`+복합 FK+불변 trigger를 더하고 `uq_deep_review_company_inputs`에 graph_version_id를 포함했다. `deep_review_preview`에 `company_id`·`graph_version_id`·`provenance_jsonb`(0034 scope trigger 재사용), `deep_review_approval`에 `company_id`를 더했다. 회사 열이 있는 행이 존재하면 upgrade를 거부하고 빈 DB downgrade를 검사했다. EvidenceRef·ReportRevision·ValidationRun에는 회사 열을 두지 않고 `deep_review_id`로 계보를 잇는다. 권한은 `scripts/runtime-privileges.sql`(app: fit policy SELECT/INSERT; worker: 지식 테이블·fit policy SELECT, binding_event 제외, 쓰기 없음).
 [ADR-0070](tracking/decisions/0070-multi-company-knowledge-demo.md) · [공통 계약](work/demo-contract.md) · [기능 로드맵](work/constitution/roadmap.md).

@@ -50,6 +50,12 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     # DEMO-01 company identity seam. deep_review's company-knowledge importer
     # registers lifecycle-owned rows through this flush-only service.
     "register_company": (".services.company_context", "register_company"),
+    # DEMO-03 company-scoped reads (deep_review serves `/api/companies/{id}/pre-specs`
+    # and `/api/pre-specs/{id}/company-comparison`). The shared notice rows
+    # (population, search, order, authoritative opportunity) and the batched
+    # per-company tracking decisions stay lifecycle-owned; read-only.
+    "company_pre_spec_notices": (".services.company_notices", "company_pre_spec_notices"),
+    "company_tracking_views": (".services.opportunity_tracking", "company_tracking_views"),
     # === 조립이 쓴다 — router 인스턴스 (routers/*.py) ======================
     # `app/main.py`가 `getattr(<모듈>, <router 이름>)`로 가져간다. 정적 import가
     # 없어도 조립에 반드시 필요하다. 이름은 "무엇의 router인가"로 짓는다 —
@@ -160,6 +166,8 @@ if TYPE_CHECKING:  # pragma: no cover - 정적 분석용 이름 노출
     )
     from .runtime import build_runtime
     from .services.company_context import register_company
+    from .services.company_notices import company_pre_spec_notices
+    from .services.opportunity_tracking import company_tracking_views
     from .extensions import (
         EffectiveGradeChangedHook,
         ExtensionRegistry,

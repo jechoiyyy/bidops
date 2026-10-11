@@ -1,0 +1,206 @@
+#0 building with "orbstack" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 4.77kB done
+#1 DONE 0.0s
+
+#2 resolve image config for docker-image://docker.io/docker/dockerfile:1
+#2 DONE 1.1s
+
+#3 docker-image://docker.io/docker/dockerfile:1@sha256:4edf897a3ffa55b89f906fc8cc78afdb3f1834cc9c7083565e611a8a7d5fe99e
+#3 resolve docker.io/docker/dockerfile:1@sha256:4edf897a3ffa55b89f906fc8cc78afdb3f1834cc9c7083565e611a8a7d5fe99e 0.0s done
+#3 CACHED
+
+#4 [internal] load metadata for docker.io/library/node:22-alpine
+#4 DONE 1.1s
+
+#5 [internal] load metadata for docker.io/library/python:3.12-slim
+#5 DONE 1.4s
+
+#6 [internal] load .dockerignore
+#6 transferring context: 426B done
+#6 DONE 0.0s
+
+#7 [internal] load build context
+#7 DONE 0.0s
+
+#8 [frontend 1/6] FROM docker.io/library/node:22-alpine@sha256:0a7108bf6c7bf5de370ffb1a3ed6be93d405b43ff159f681a8d18c0e2bc2e402
+#8 resolve docker.io/library/node:22-alpine@sha256:0a7108bf6c7bf5de370ffb1a3ed6be93d405b43ff159f681a8d18c0e2bc2e402 0.0s done
+#8 DONE 0.0s
+
+#9 [runtime  1/16] FROM docker.io/library/python:3.12-slim@sha256:a6e34c598f2467ed0e9a8d349809fcd8b5c603269512df273a0bb1784edc11b1
+#9 resolve docker.io/library/python:3.12-slim@sha256:a6e34c598f2467ed0e9a8d349809fcd8b5c603269512df273a0bb1784edc11b1
+#9 resolve docker.io/library/python:3.12-slim@sha256:a6e34c598f2467ed0e9a8d349809fcd8b5c603269512df273a0bb1784edc11b1 0.0s done
+#9 DONE 0.0s
+
+#7 [internal] load build context
+#7 transferring context: 51.85MB 0.1s done
+#7 DONE 0.1s
+
+#10 [runtime  2/16] WORKDIR /app/web/backend
+#10 CACHED
+
+#11 [runtime  3/16] COPY web/backend/requirements.lock ./
+#11 CACHED
+
+#12 [runtime  4/16] RUN python -m pip install --no-cache-dir --no-deps --only-binary=:all:         --require-hashes --requirement requirements.lock     && python -m pip check
+#12 CACHED
+
+#13 [runtime  5/16] RUN apt-get update     && apt-get install --no-install-recommends --yes         git poppler-utils clamav postgresql-client fontconfig fonts-nanum fonts-noto-cjk     && rm -rf /var/lib/apt/lists/*
+#13 CACHED
+
+#14 [runtime  6/16] RUN case "1000:1000" in         0:*|*:0) echo 'BIDOPS_UID and BIDOPS_GID must be non-zero' >&2; exit 1 ;;         *[!0-9:]*|*:|:*) echo 'BIDOPS_UID and BIDOPS_GID must be numeric' >&2; exit 1 ;;     esac     && groupadd --gid "1000" bidops     && useradd --uid "1000" --gid "1000" --create-home --shell /usr/sbin/nologin bidops
+#14 CACHED
+
+#15 [frontend 2/6] WORKDIR /build
+#15 CACHED
+
+#16 [frontend 3/6] COPY web/frontend/package.json web/frontend/package-lock.json ./
+#16 CACHED
+
+#17 [frontend 4/6] RUN npm ci
+#17 CACHED
+
+#18 [frontend 5/6] COPY web/frontend/ ./
+#18 DONE 0.6s
+
+#19 [runtime  7/16] COPY web/backend/ ./
+#19 DONE 0.6s
+
+#20 [frontend 6/6] RUN npm run build
+#20 0.503 
+#20 0.503 > bidops-admin-frontend@0.1.0 build
+#20 0.503 > tsc -b && vite build
+#20 0.503 
+#20 26.98 vite v6.4.3 building for production...
+#20 27.05 transforming...
+#20 32.51 ✓ 2754 modules transformed.
+#20 32.81 rendering chunks...
+#20 33.03 computing gzip size...
+#20 33.05 dist/index.html                                      0.51 kB │ gzip:   0.32 kB
+#20 33.05 dist/assets/TechnicalInfo-6ZUn47tA.css               0.95 kB │ gzip:   0.38 kB
+#20 33.05 dist/assets/useUnsavedGuard-CPH887jz.css             2.64 kB │ gzip:   0.73 kB
+#20 33.05 dist/assets/useListSelection-FlBubonH.css            3.23 kB │ gzip:   0.77 kB
+#20 33.05 dist/assets/AssumptionAnalysisPage-D2uv4XMx.css      3.92 kB │ gzip:   0.92 kB
+#20 33.06 dist/assets/GoNoGoPage-wQiGZ31Q.css                  8.98 kB │ gzip:   1.76 kB
+#20 33.06 dist/assets/DashboardPage-DHY8dTum.css               9.23 kB │ gzip:   1.84 kB
+#20 33.06 dist/assets/CriteriaPage-D_A_mbYf.css               12.56 kB │ gzip:   2.20 kB
+#20 33.06 dist/assets/ReviewWorkspacePage-D-riKpt1.css        13.88 kB │ gzip:   2.92 kB
+#20 33.06 dist/assets/BidDeltaDecisionPage-X7dCguVq.css       16.26 kB │ gzip:   2.44 kB
+#20 33.06 dist/assets/RunStatusPage-CaIKtO0W.css              17.78 kB │ gzip:   2.93 kB
+#20 33.06 dist/assets/opportunities-relaxed-BShOw4vV.css      18.12 kB │ gzip:   2.80 kB
+#20 33.06 dist/assets/DeepReviewPage-D_3EC9HR.css             22.64 kB │ gzip:   3.75 kB
+#20 33.06 dist/assets/OrderPlansPage-B4XZHfvQ.css             27.55 kB │ gzip:   4.51 kB
+#20 33.06 dist/assets/pre-specs-relaxed-DNhZZtIN.css          45.91 kB │ gzip:   6.25 kB
+#20 33.06 dist/assets/PreSpecDetailPage-BhDdCQO5.css          59.52 kB │ gzip:   7.84 kB
+#20 33.06 dist/assets/index-CVr0hL51.css                     365.82 kB │ gzip:  60.63 kB
+#20 33.06 dist/assets/useIsomorphicLayoutEffect-CrmehkXn.js    0.11 kB │ gzip:   0.12 kB
+#20 33.06 dist/assets/PageHeaderActions-BGLEuNSb.js            0.23 kB │ gzip:   0.21 kB
+#20 33.06 dist/assets/arrow-right-Bjoeuq_P.js                  0.35 kB │ gzip:   0.27 kB
+#20 33.06 dist/assets/arrow-up-right-CBpdAuII.js               0.35 kB │ gzip:   0.27 kB
+#20 33.06 dist/assets/search-BJA7s9w4.js                       0.35 kB │ gzip:   0.28 kB
+#20 33.06 dist/assets/Panel-B5dRmM3F.js                        0.38 kB │ gzip:   0.25 kB
+#20 33.06 dist/assets/characters-WgeUjB8u.js                   0.40 kB │ gzip:   0.26 kB
+#20 33.06 dist/assets/copy-BW1lc1Bn.js                         0.41 kB │ gzip:   0.32 kB
+#20 33.06 dist/assets/activity-DrIp05FV.js                     0.42 kB │ gzip:   0.31 kB
+#20 33.06 dist/assets/refresh-cw-W8ADo5_u.js                   0.50 kB │ gzip:   0.33 kB
+#20 33.06 dist/assets/TechnicalInfo-C9M-u53s.js                0.53 kB │ gzip:   0.29 kB
+#20 33.06 dist/assets/useIndicatorFocusRing-CHzhHzGj.js        0.54 kB │ gzip:   0.38 kB
+#20 33.06 dist/assets/chevron-right-D8NiXeA1.js                0.56 kB │ gzip:   0.29 kB
+#20 33.06 dist/assets/glossary-DUdlvorw.js                     0.65 kB │ gzip:   0.48 kB
+#20 33.06 dist/assets/useCollapsible-DAUZihuz.js               0.70 kB │ gzip:   0.39 kB
+#20 33.06 dist/assets/loader-circle-CMNaxD67.js                0.70 kB │ gzip:   0.36 kB
+#20 33.06 dist/assets/Badge-C8jsxRJo.js                        0.71 kB │ gzip:   0.49 kB
+#20 33.06 dist/assets/qualityStatus-DWuZyteu.js                0.73 kB │ gzip:   0.44 kB
+#20 33.06 dist/assets/deadline-yi40Kju4.js                     0.90 kB │ gzip:   0.49 kB
+#20 33.06 dist/assets/grade-VuYPPMQY.js                        1.08 kB │ gzip:   0.55 kB
+#20 33.06 dist/assets/DisabledReason-wInDpsrA.js               1.24 kB │ gzip:   0.63 kB
+#20 33.06 dist/assets/useToast-DTFZEuDL.js                     1.25 kB │ gzip:   0.70 kB
+#20 33.06 dist/assets/opportunity-DC-YOxX7.js                  1.64 kB │ gzip:   0.94 kB
+#20 33.06 dist/assets/Tooltip-CVx-Lzok.js                      1.89 kB │ gzip:   0.84 kB
+#20 33.06 dist/assets/orderPlanFormat-BudHDcFS.js              2.42 kB │ gzip:   1.31 kB
+#20 33.06 dist/assets/ToggleButton-D6UioS0g.js                 2.55 kB │ gzip:   1.23 kB
+#20 33.06 dist/assets/DialogHeader-Ct75k0bP.js                 2.78 kB │ gzip:   1.36 kB
+#20 33.06 dist/assets/labels-B1VdB4U_.js                       3.19 kB │ gzip:   1.53 kB
+#20 33.06 dist/assets/useMutation-vMkjxUCT.js                  3.21 kB │ gzip:   1.30 kB
+#20 33.06 dist/assets/CheckboxInput-B_qelWHo.js                3.25 kB │ gzip:   1.72 kB
+#20 33.06 dist/assets/StatusBadge-DZBRbWBl.js                  3.25 kB │ gzip:   1.83 kB
+#20 33.06 dist/assets/api-DBsu5HIk.js                          4.05 kB │ gzip:   1.49 kB
+#20 33.06 dist/assets/createLucideIcon-Bbxkvdhh.js             4.15 kB │ gzip:   1.77 kB
+#20 33.06 dist/assets/TextArea-CN9WB-nT.js                     4.37 kB │ gzip:   2.16 kB
+#20 33.06 dist/assets/useQueries-DKwGnJwp.js                   4.57 kB │ gzip:   1.91 kB
+#20 33.06 dist/assets/Token-BCVUl8x5.js                        4.65 kB │ gzip:   1.92 kB
+#20 33.06 dist/assets/Item-DWy1CIXo.js                         5.61 kB │ gzip:   2.12 kB
+#20 33.06 dist/assets/useUnsavedGuard-B4YtnIJf.js              5.74 kB │ gzip:   2.65 kB
+#20 33.06 dist/assets/Divider-D2egOxjL.js                      5.75 kB │ gzip:   2.65 kB
+#20 33.06 dist/assets/WorkspaceFilters-DY3FYhAC.js             6.06 kB │ gzip:   2.75 kB
+#20 33.06 dist/assets/Tab-CGQ7kzeX.js                          8.88 kB │ gzip:   3.92 kB
+#20 33.06 dist/assets/trackingFlow-DKwMdpPE.js                 9.24 kB │ gzip:   3.61 kB
+#20 33.06 dist/assets/AssumptionAnalysisPage-BcySOCl9.js       9.96 kB │ gzip:   4.27 kB
+#20 33.06 dist/assets/opportunities-relaxed-QLW1iyMA.js       12.25 kB │ gzip:   4.44 kB
+#20 33.06 dist/assets/apiErrors-BV_Ze9PF.js                   13.03 kB │ gzip:   4.17 kB
+#20 33.06 dist/assets/useResolvedRequired-CjmxbCa5.js         14.56 kB │ gzip:   5.33 kB
+#20 33.06 dist/assets/DashboardPage-Es0CsHmx.js               16.20 kB │ gzip:   5.75 kB
+#20 33.06 dist/assets/Dialog-VeD40RN4.js                      16.58 kB │ gzip:   4.76 kB
+#20 33.06 dist/assets/useListSelection-W4B0ttRp.js            16.60 kB │ gzip:   5.73 kB
+#20 33.06 dist/assets/ReviewPrimitives-CwrnzYzv.js            20.38 kB │ gzip:   7.13 kB
+#20 33.06 dist/assets/GoNoGoPage-XAah3i6_.js                  28.55 kB │ gzip:   8.59 kB
+#20 33.06 dist/assets/Table-g-F-whYh.js                       29.25 kB │ gzip:  10.48 kB
+#20 33.06 dist/assets/TextInput-CcaktLgn.js                   30.74 kB │ gzip:  11.52 kB
+#20 33.06 dist/assets/useClickableContainer-BBwDsCli.js       49.42 kB │ gzip:  17.95 kB
+#20 33.06 dist/assets/BidDeltaDecisionPage-CW6Bh-od.js        53.89 kB │ gzip:  15.15 kB
+#20 33.06 dist/assets/ReviewWorkspacePage-I3n0ySP2.js         54.41 kB │ gzip:  14.12 kB
+#20 33.06 dist/assets/DeepReviewPage-azPpVi6x.js              57.17 kB │ gzip:  16.13 kB
+#20 33.06 dist/assets/OpportunitiesPage-ChPCp5F_.js           58.22 kB │ gzip:  16.98 kB
+#20 33.06 dist/assets/pre-specs-relaxed-DKZEqNlF.js           60.98 kB │ gzip:  19.32 kB
+#20 33.06 dist/assets/PreSpecDetailPage-VLe0a4S1.js           74.70 kB │ gzip:  21.99 kB
+#20 33.06 dist/assets/OrderPlansPage-B-Em52j8.js              81.08 kB │ gzip:  24.71 kB
+#20 33.06 dist/assets/CriteriaPage-D4silAo3.js               107.38 kB │ gzip:  31.51 kB
+#20 33.06 dist/assets/PreSpecsPage-DUw8ef7i.js               133.08 kB │ gzip:  42.99 kB
+#20 33.06 dist/assets/RunStatusPage-ZON1LFDg.js              208.15 kB │ gzip:  61.15 kB
+#20 33.06 dist/assets/index-BKtX4quL.js                      563.91 kB │ gzip: 164.62 kB
+#20 33.06 
+#20 33.06 (!) Some chunks are larger than 500 kB after minification. Consider:
+#20 33.06 - Using dynamic import() to code-split the application
+#20 33.06 - Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+#20 33.06 - Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+#20 33.06 ✓ built in 6.06s
+#20 DONE 33.2s
+
+#21 [runtime  8/16] COPY --from=frontend /build/dist /app/web/frontend/dist
+#21 DONE 0.1s
+
+#22 [runtime  9/16] COPY scripts /app/scripts
+#22 DONE 0.0s
+
+#23 [runtime 10/16] COPY docker-compose.yml /app/docker-compose.yml
+#23 DONE 0.0s
+
+#24 [runtime 11/16] RUN chmod +x /app/scripts/*.sh
+#24 DONE 0.1s
+
+#25 [runtime 12/16] COPY skills/ /app/skills/
+#25 DONE 0.1s
+
+#26 [runtime 13/16] COPY skills/references/ /app/skills/references/
+#26 DONE 0.0s
+
+#27 [runtime 14/16] COPY web/container-entrypoint.sh /usr/local/bin/bidops-entrypoint
+#27 DONE 0.0s
+
+#28 [runtime 15/16] COPY web/container-git-wrapper.sh /usr/local/bin/git
+#28 DONE 0.0s
+
+#29 [runtime 16/16] RUN install -d -o bidops -g bidops -m 0770         /app/data /app/reports /app/backups /app/web/data         /app/web/data/attachments /app/web/data/profile-snapshots         /app/docs/reference /scratch     && install -d -o root -g root -m 0555         /app/experiments/order-plan-screening/config /run/c2     && chmod 0555 /usr/local/bin/bidops-entrypoint /usr/local/bin/git         /app/web/backend/app/deep_review/document_mcp/vendor/rhwp/bin/rhwp     && chown -R root:root /app/skills /app/docs     && find /app/skills /app/docs -type d -exec chmod 0555 {} +     && find /app/skills /app/docs -type f -exec chmod 0444 {} +     && chown -R bidops:bidops /app/web/backend /app/web/frontend/dist
+#29 DONE 0.3s
+
+#30 exporting to image
+#30 exporting layers
+#30 exporting layers 1.2s done
+#30 exporting manifest sha256:d555af897d340a57079803f78b00bdaa7227bbc0120fa265bb391a7c076ae191 0.0s done
+#30 exporting config sha256:3ea954d24af5052e65610306bec60cc106ce7215e343d1658f4d77cafa218ea8 0.0s done
+#30 exporting attestation manifest sha256:dd1cf4c31dfd85435e7a44d1cf68cf7af7b937b5da4bd64268f34d2588d8765e 0.0s done
+#30 exporting manifest list sha256:02e90973b68f999d937fe9994bbca0b246e0592b231c1e3a699a1cb9b255e06a 0.0s done
+#30 naming to docker.io/library/bidops-local:demo03-20261011 done
+#30 DONE 1.3s
+exit=0

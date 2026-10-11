@@ -61,6 +61,17 @@ PROFILE_SCHEMA_V1 = "bidops.company-profile.v1"
 PROFILE_SCHEMA_V2 = "bidops.company-profile.v2"
 GRAPH_SNAPSHOT_SCHEMA = "bidops.company-knowledge-snapshot.v1"
 POLICY_SCHEMA = "bidops.analysis-policy.v1"
+LUNA_V4_POLICY_IDENTITY = "analysis-policy-luna-v4"
+#: DEMO-03 company deep-review policy: v4 plus company/graph input descriptions
+#: (demo contract §5/§9).  Approved only through this identity and file.
+DEMO_LUNA_POLICY_IDENTITY = "analysis-policy-luna-demo-v1"
+DEMO_LUNA_POLICY_FILE = CANONICAL_POLICY_FILE.with_name("analysis-policy-luna-demo-v1.json")
+#: Approved Luna files selected by ``policy_identity`` before any content-based
+#: v1-v3 detection.  An unknown identity is rejected, never downgraded.
+_LUNA_POLICY_FILES_BY_IDENTITY = {
+    LUNA_V4_POLICY_IDENTITY: CANONICAL_POLICY_FILE.with_name("analysis-policy-luna-v4.json"),
+    DEMO_LUNA_POLICY_IDENTITY: DEMO_LUNA_POLICY_FILE,
+}
 STAGES = (
     "requirements_and_evaluation",
     "delivery_risk_economics",
@@ -348,6 +359,12 @@ def resolve_active_versions(
         raise InputVersionError("service_unavailable", "품질 표본 검증을 통과하지 않은 policy입니다")
     if not _policy_hash_matches(policy):
         raise InputVersionError("service_unavailable", "active policy hash가 payload와 일치하지 않습니다")
+    rules = policy.validation_rules if isinstance(policy.validation_rules, Mapping) else {}
+    snapshot = rules.get("policy_snapshot")
+    if isinstance(snapshot, Mapping) and snapshot.get("policy_identity") == DEMO_LUNA_POLICY_IDENTITY:
+        # The DEMO-03 company policy is selected only by
+        # BIDOPS_DEMO_DEEP_REVIEW_POLICY_VERSION_ID; it is never a global active policy.
+        raise InputVersionError("service_unavailable", "회사 전용 정책은 전역 active policy가 될 수 없습니다")
     if not isinstance(profile.profile_payload, Mapping) or profile.profile_payload.get("source_sha256") != profile.profile_sha256:
         raise InputVersionError("service_unavailable", "active profile hash가 payload와 일치하지 않습니다")
     _validate_model_binding(policy, allow_unmeasured_reference=allow_unmeasured_reference)
@@ -1188,14 +1205,27 @@ def _approved_policy_path(policy: Mapping[str, Any]) -> Path:
     if policy.get("schema") == POLICY_SCHEMA:
         return CANONICAL_POLICY_FILE
     if policy.get("model_endpoint_ref") == "codex-exec":
-        policy_identity = policy.get("policy_identity")
-        if policy_identity is not None:
-            if policy_identity == "analysis-policy-luna-v4":
-                return CANONICAL_POLICY_FILE.with_name("analysis-policy-luna-v4.json")
+        if "policy_identity" in policy:
+            policy_identity = policy["policy_identity"]
+            if isinstance(policy_identity, str) and policy_identity in _LUNA_POLICY_FILES_BY_IDENTITY:
+                return _LUNA_POLICY_FILES_BY_IDENTITY[policy_identity]
             raise InputVersionError("invalid_request", "승인되지 않은 analysis policy identity입니다")
         version = "v3" if policy.get("validation", {}).get("result_checks") == "disabled_reference_v1" else "v2" if policy.get("validation", {}).get("related_claim_policy") == "omit_invalid_with_warning_v1" else "v1"
         return CANONICAL_POLICY_FILE.with_name(f"analysis-policy-luna-{version}.json")
     return CANONICAL_POLICY_FILE.with_name("analysis-policy-narrative-v2.json")
+
+
+def _require_path_limit(policy: Mapping[str, Any]) -> None:
+    """Demo contract §9: the demo loader itself checks the path limit key.
+
+    ``chunking.path_limit_per_requirement`` must exist and be a positive int
+    (``bool`` is not an int here); it is part of the canonical policy bytes.
+    """
+
+    chunking = policy.get("chunking")
+    value = chunking.get("path_limit_per_requirement") if isinstance(chunking, Mapping) else None
+    if type(value) is not int or value < 1:
+        raise InputVersionError("invalid_request", "analysis policy chunking.path_limit_per_requirement는 양의 정수여야 합니다")
 
 
 def load_canonical_policy(path: Path | None = None) -> tuple[dict[str, Any], bytes, str]:
@@ -1210,6 +1240,8 @@ def load_canonical_policy(path: Path | None = None) -> tuple[dict[str, Any], byt
     canonical = canonical_json_bytes(policy)
     if raw != canonical:
         raise InputVersionError("invalid_request", "canonical analysis policy bytes가 승인본과 다릅니다")
+    if policy.get("policy_identity") == DEMO_LUNA_POLICY_IDENTITY:
+        _require_path_limit(policy)
     approved_path = _approved_policy_path(policy)
     if policy_path.resolve() != approved_path.resolve():
         try:
@@ -1425,7 +1457,7 @@ def bundle_context(
 
 
 __all__ = [
-    "CANONICAL_POLICY_FILE", "MODEL_ENDPOINT_REF", "MODEL_NAME", "POLICY_SCHEMA", "PROFILE_SCHEMA_V1", "PROFILE_SCHEMA_V2", "PROFILE_SOURCE_FILE", "STAGES",
+    "CANONICAL_POLICY_FILE", "DEMO_LUNA_POLICY_FILE", "DEMO_LUNA_POLICY_IDENTITY", "LUNA_V4_POLICY_IDENTITY", "MODEL_ENDPOINT_REF", "MODEL_NAME", "POLICY_SCHEMA", "PROFILE_SCHEMA_V1", "PROFILE_SCHEMA_V2", "PROFILE_SOURCE_FILE", "STAGES",
     "GradeBasis", "InputVersionError", "active_version_ids", "bundle_context", "canonical_json_bytes", "canonical_json_hash",
     "effective_grade_basis", "import_policy_version", "import_profile_version", "load_canonical_policy", "policy_activation_valid",
     "profile_context", "resolve_active_versions", "validate_pinned_policy", "validate_profile_snapshot", "policy_quality_snapshot",

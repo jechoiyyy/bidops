@@ -472,6 +472,10 @@ def ready_bundle(session, inputs):
 @pytest.mark.parametrize("decision", ["matched", "mismatch", "unknown"])
 def test_automatic_queue_and_shared_creation_gate(context, monkeypatch, decision):
     session, inputs = context
+    # ADR-0069 made automatic deep-review start opt-in (default false); this
+    # case exercises the opted-in automatic chain, so it states that explicitly.
+    monkeypatch.setenv("BIDOPS_DEEP_REVIEW_AUTO_START_ENABLED", "true")
+    get_settings.cache_clear()
     bundle = ready_bundle(session, inputs)
     from app.deep_review.services.auto_preparation import maybe_auto_start_deep_review
     class Service:

@@ -33,6 +33,7 @@ from ...core.constants import DEEP_REVIEW_CREATION_ACTIONS
 from ...core.models import AuditEvent, IdempotencyRecord
 from ..models import DeepReview, ReportRevision, ValidationCheck, ValidationRun
 from ..schemas.reports import EvidenceView, FinalOpinionRequest, FinalOpinionView, ReportRevisionRequest, ReportView
+from ..services.company_projection import is_company_evidence, is_company_review
 from ..services.evidence import EvidenceService, EvidenceServiceError
 from ..services.document_bundles import BundleServiceError, validate_actor
 from ..services.reports import ReportService, ReportServiceError
@@ -153,7 +154,9 @@ def _review_lineage(session: Session, review_id: UUID) -> UUID | None:
 
 def _review(session: Session, review_id: UUID) -> DeepReview:
     review = session.get(DeepReview, review_id)
-    if review is None:
+    # Legacy writers (report revisions, final opinions) never touch a DEMO
+    # company review; company equivalents are out of scope (contract §1/§6).
+    if review is None or review.company_id is not None:
         raise ReportServiceError("not_found", "deep review를 찾을 수 없습니다", status_code=404)
     return review
 
@@ -223,6 +226,10 @@ def _error_response(error: ReportServiceError | EvidenceServiceError, *, request
 @router.get("/deep-reviews/{deep_review_id}/report", response_model=ReportView)
 def get_report(deep_review_id: UUID, session: Session = Depends(get_db)) -> ReportView | JSONResponse:
     try:
+        if is_company_review(session, deep_review_id):
+            # DEMO company reports are read only through the company wrapper
+            # (`/api/companies/{id}/deep-reviews/{review_id}/report`, contract §6).
+            raise ReportServiceError("not_found", "deep review를 찾을 수 없습니다", status_code=404)
         return service.get_report(session, deep_review_id)
     except ReportServiceError as error:
         return _error_response(error)
@@ -402,6 +409,8 @@ def create_final_opinion(
 @router.get("/evidence/{evidence_id}", response_model=EvidenceView)
 def get_evidence(evidence_id: UUID, session: Session = Depends(get_db)) -> EvidenceView | JSONResponse:
     try:
+        if is_company_evidence(session, evidence_id):
+            raise EvidenceServiceError("not_found", "근거를 찾을 수 없습니다", status_code=404)
         return evidence_service.get(session, evidence_id)
     except EvidenceServiceError as error:
         return _error_response(error)

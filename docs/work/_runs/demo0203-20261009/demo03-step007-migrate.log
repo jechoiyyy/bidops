@@ -1,0 +1,62 @@
+ Container bidops-local-migrate-run-27c629e0c76a Creating 
+ Container bidops-local-migrate-run-27c629e0c76a Created 
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade 0033_assumption_analysis -> 0034_company_context, Add company identity and company-scoped tracking lineage.
+INFO  [alembic.runtime.migration] Running upgrade 0034_company_context -> 0035_company_knowledge, Add immutable company knowledge versions and active bindings.
+INFO  [alembic.runtime.migration] Running upgrade 0035_company_knowledge -> 0036_company_analysis, DEMO-03 company analysis lineage: fit policy, graph scope, frozen provenance.
+BEGIN
+REVOKE
+REVOKE
+ALTER DEFAULT PRIVILEGES
+ALTER DEFAULT PRIVILEGES
+GRANT
+GRANT
+GRANT
+GRANT
+GRANT
+GRANT
+GRANT
+GRANT
+GRANT
+GRANT
+GRANT
+GRANT
+GRANT
+GRANT
+GRANT
+GRANT
+GRANT
+GRANT
+GRANT
+GRANT
+GRANT
+GRANT
+GRANT
+GRANT
+GRANT
+GRANT
+GRANT
+GRANT
+GRANT
+GRANT
+GRANT
+GRANT
+GRANT
+GRANT
+GRANT
+GRANT
+GRANT
+GRANT
+GRANT
+ALTER DEFAULT PRIVILEGES
+GRANT
+ALTER DEFAULT PRIVILEGES
+GRANT
+GRANT
+GRANT
+COMMIT
+GRANT
+GRANT
+GRANT
+exit=0

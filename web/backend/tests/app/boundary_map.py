@@ -320,6 +320,7 @@ TABLE_OWNER: dict[str, str] = {
     "company_knowledge_edge": DEEP_REVIEW,
     "company_knowledge_binding": DEEP_REVIEW,
     "company_knowledge_binding_event": DEEP_REVIEW,
+    "company_fit_policy_version": DEEP_REVIEW,
     "analysis_policy_version": DEEP_REVIEW,
     "work_job": DEEP_REVIEW,
     "deep_review": DEEP_REVIEW,

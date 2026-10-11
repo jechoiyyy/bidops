@@ -1,0 +1,15 @@
+
+==================================== ERRORS ====================================
+____ ERROR collecting tests/deep_review/test_company_knowledge_retrieval.py ____
+ImportError while importing test module '/Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo0203-20261009-DEMO-03-grounded-analysis/web/backend/tests/deep_review/test_company_knowledge_retrieval.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/Users/temp/.local/share/uv/python/cpython-3.12.15-macos-aarch64-none/lib/python3.12/importlib/__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/deep_review/test_company_knowledge_retrieval.py:23: in <module>
+    from app.deep_review.services import company_knowledge_retrieval as retrieval
+E   ImportError: cannot import name 'company_knowledge_retrieval' from 'app.deep_review.services' (/Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo0203-20261009-DEMO-03-grounded-analysis/web/backend/app/deep_review/services/__init__.py)
+!!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!
+1 error in 0.53s
+exit_code=2

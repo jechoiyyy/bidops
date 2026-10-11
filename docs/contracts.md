@@ -1911,7 +1911,7 @@ coverage·considered·전제·근거 검사를 모두 통과해야 하며 검사
   기존 심층검토 정책/회사 프로필/결과는 수정하지 않는다.
 
 
-## 가상 SI 3사 데모 계약 (2026-10-09, DEMO-01·02 데모 브랜치 구현)
+## 가상 SI 3사 데모 계약 (2026-10-09, DEMO-01·02 데모 브랜치 구현; 2026-10-10 DEMO-03 구현, 실제 Luna 대표 1건은 2026-10-11 DEMO-05로 이관)
 
 새 회사 namespace·그래프·입력·비교 DTO는 아래 공통 계약에 고정한다. 기존 API의 wire 의미와 NULL 회사 계보를 유지한다.
 DEMO-01은 별도 데모 브랜치에 `GET /api/demo-config`, strict 회사 목록·상세,
@@ -1920,4 +1920,14 @@ DEMO-02는 `python -m app.deep_review.cli import-company-knowledge`(`--dry-run` 
 `GET /api/companies/{company_id}/profile`·`/knowledge-graph`·`/profile-evidence/{evidence_id}`를 공통 계약 §4·§8대로 구현했다.
 활성 binding이 없으면 profile·graph는 409 `company_profile_not_ready`, 타회사·legacy NULL 자원은 404이며 공개 응답에는 source locator·object key·원문 경로가 없다.
 main·운영에는 미반영이며, 회사별 분석·비교 DTO와 실제 인수는 DEMO-03~05에서 구현한다.
+DEMO-03(2026-10-10, 같은 데모 브랜치)은 공통 계약 §5·§6·§9·§10의 회사별 분석 계약을 구현했다.
+- 회사 핏: REST 없이 CLI `python -m app.deep_review.cli import-company-fit-policy --policy <file> --actor <name>`(`bidops.company-fit-policy.v2`, canonical sha256을 승인 파일과 대조, import만·활성화 없음)과
+  `enqueue-company-fit --company-id <uuid> --notice-id <int> --actor <name> [--dry-run]`(worker DB 역할, attempt 1개 queued, `CompanyAnalysisInput(purpose=company_fit, execution_nonce=attempt id, bundle_id=null)`과 FrozenProvenance를 enqueue transaction에서 동결, gate code는 §9 목록, exit 0/2/1).
+  `documents`/`document_version_ids`는 공고의 현재 문서 집합 전체(ready bundle 문서, 없으면 is_current 문서)이며 개요 문서를 포함해야 한다. 결과는 `bidops.prespec-company-fit-result.v2`(`reasons[].graph_path_indexes`는 동결 `graph_paths`의 0-based 위치, 중복·범위 밖·타 요구 참조는 검증 실패).
+- 회사 심층: `POST /api/companies/{company_id}/pre-specs/{notice_id}/deep-review-previews`(body `{bundle_id,source_verification_enabled:true,review_id?}` → `CompanyDeepReviewPreviewView`, `input`은 이 응답에만), `POST .../deep-reviews`(`{preview_id,source_verification_enabled:true,request_id,bundle_id}` → 202 `CompanyReviewView`), `POST /api/companies/{company_id}/deep-reviews/{review_id}/attempts`(→ 202 기존 AttemptView). nonce=preview id, 승인 재검사도 저장 preview id를 nonce로 재사용, 재시도만 `target_review_id`. 409 `review_exists`(preview 미소비)·`active_attempt_exists`·`preview_used`·`preview_changed`·`version_conflict`(재시도 계보가 현재 아님). 설정 gate(404 DEMO off, 503 `reference_mode_required`·`luna_disabled`·`analysis_policy_unavailable`·`model_binding_invalid`, 409 `company_profile_not_ready`·`overview_not_completed`·`bundle_not_ready`·`company_input_invalid`, 403 `effective_grade_ineligible`=SW사업대상≠Y만)는 replay보다 앞, 상태 검사는 replay 뒤다.
+- 회사 읽기(GET, 모델 호출 없음, reference/Luna flag 무관, DEMO off는 404, 타회사 자원은 404): `/api/companies/{company_id}/pre-specs`(`bidops.company-pre-spec-list.v1`; 모집단 SW=Y 사전규격 전체, `q`·`fit`·`tracking_status`·`sort=posted_at_desc|deadline_asc`·`limit`≤500·`offset`, 서버 필터·nulls last·notice_id DESC), `/pre-specs/{notice_id}`, `/pre-specs/{notice_id}/company-fit`(`CompanyScopedFitView[]`: 기존 CompanyFitView+`company_id,graph_version_id,graph_sha256,ontology_version,input_sha256,paths,provenance`, `model_revision` nullable), `/deep-reviews/{review_id}`(`CompanyReviewView`), `/deep-reviews/{review_id}/report`(`bidops.company-report-view.v1` wrapper, 결과 없음 409 `review_not_ready`), `/deep-reviews/{review_id}/evidence/{evidence_id}`, `GET /api/pre-specs/{notice_id}/company-comparison`(`bidops.company-comparison.v1`, §7 slug 오름차순, 최신 생성 실행·fallback 없음, different_input>stale>missing>comparable).
+  FrozenProvenance는 동결 snapshot(핏 attempt `provenance_jsonb`, 심층은 승인 preview `provenance_jsonb`)을 그대로 직렬화하고 view와 중복된 identity/hash가 다르면 500 `processing_failed`로 거부한다. fit/review summary는 created_at DESC·id DESC 최신 실행이다.
+- legacy 분리: `GET /api/deep-reviews/{id}`·`/report`·`GET /api/evidence/{id}`·`POST .../report-revisions`·`/final-opinions`·`close-deep-review`는 회사 review에 404 `not_found`, legacy preview/check/attempt는 회사 행을 거부한다. NULL 회사 응답은 바뀌지 않았다.
+- 정책: 심층 `analysis-policy-luna-demo-v1`(sha256 `9cb6254ef2f7fa3fbc608d775951aed14d958204f5366b30f92da661a4cbc3b0`, v4 파생, `policy_identity` 매핑, `chunking.path_limit_per_requirement`=32 필수, `profile_characters`=8000, execution·validation은 v4 상속)은 `BIDOPS_DEMO_DEEP_REVIEW_POLICY_VERSION_ID`로만 선택되고 legacy 전역 활성 정책으로는 거부된다. `global_path_index`·`excluded_path_count_by_requirement`·교정 field path는 프롬프트 sanitizer가 제거하므로 저장·hash·provenance 전용이다.
+실제 Luna 대표 1건(원안 T9)은 실행하지 않았고 2026-10-11 재계획으로 DEMO-05로 이관했다. STEP-007은 `bidops-local` 격리 스택 준비와 호출 전 fail-closed 확인까지다.
 [ADR-0070](tracking/decisions/0070-multi-company-knowledge-demo.md) · [공통 계약](work/demo-contract.md) · [기능 로드맵](work/constitution/roadmap.md).

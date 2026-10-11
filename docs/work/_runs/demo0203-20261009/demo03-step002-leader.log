@@ -1,0 +1,27 @@
+........................................................................ [ 13%]
+........................................................................ [ 27%]
+........................................................................ [ 41%]
+........................................................................ [ 55%]
+........................................................................ [ 69%]
+........................................................................ [ 83%]
+...................................F.................................... [ 97%]
+............                                                             [100%]
+=================================== FAILURES ===================================
+____ test_company_context_migration_has_no_grants_and_runtime_head_matches _____
+
+    def test_company_context_migration_has_no_grants_and_runtime_head_matches() -> None:
+        migration = (
+            ROOT / "web/backend/alembic/versions/0034_company_context.py"
+        ).read_text(encoding="utf-8")
+        assert "GRANT " not in migration
+>       assert ALEMBIC_HEAD == "0034_company_context"
+E       AssertionError: assert '0036_company_analysis' == '0034_company_context'
+E         
+E         - 0034_company_context
+E         + 0036_company_analysis
+
+tests/app/test_company_context_schema.py:318: AssertionError
+=========================== short test summary info ============================
+FAILED tests/app/test_company_context_schema.py::test_company_context_migration_has_no_grants_and_runtime_head_matches
+1 failed, 515 passed in 168.27s (0:02:48)
+exit_code=1

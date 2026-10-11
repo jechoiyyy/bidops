@@ -1,0 +1,28 @@
+{
+  "step": "DEMO-03 STEP-006",
+  "algorithm": "sha256",
+  "files": {
+    "created": {
+      "web/backend/tests/app/test_company_e2e.py": "28e8273f629938aa1c36edfae2c1fc82137bce446d106c6a87ab9f3bc3d86e6a"
+    },
+    "modified": {
+      "web/backend/alembic/versions/0036_company_analysis.py": "7a01e4c57555e1faf5d53ffd338ab97993198d20cc7ebbe0f2b8a5b69334b948",
+      "web/backend/app/deep_review/cli/close_deep_review.py": "ee9bf5e2e40d4661339af2a553db19ef01c61724c7d773f888ea343b3eb12aeb",
+      "web/backend/app/deep_review/routers/reports.py": "9156f4302fc5b1dc15bb55010364a92937b74d7b1768fea1b2a4eb20ccd15a85",
+      "web/backend/app/deep_review/services/company_analysis_input.py": "44689c8ca062d54b2ccb6b4d5a9525ff757404fc0db4cf40dd83f13a509e1349",
+      "web/backend/app/deep_review/services/company_fit.py": "113f5deceb047a3f6a8f1310f8b86e50864f324405c30758dc73f32ea589c884",
+      "web/backend/app/deep_review/services/company_knowledge_retrieval.py": "1a2977857580a35759732b077f593dac07bfcf4024f994f4b506c41baed1d107",
+      "web/backend/app/deep_review/services/company_projection.py": "c26c9e4124260d4a7be7a103fa1c63e544c57059b21ba3b12acd68296bab353a",
+      "web/backend/app/deep_review/services/company_slices.py": "8631856e928c1d01b9943ada5d1c6c2bf58c01bd60f0e03bc90e01d43ecda1f7",
+      "web/backend/app/deep_review/services/deep_reviews.py": "81ff49007b1ca5a546241f49ede63ec856fbf1c895436ca829c43e8dfe7c1ccb",
+      "web/backend/app/deep_review/services/input_versions.py": "372e4492e4456c975e1beebfcb429e58f2d0935fd7874710ed710593699e4a90",
+      "web/backend/tests/app/test_company_analysis.py": "bd63a8b24855b8b33c2088a852651a915f157bd67dbe9d33aab2c7af4adaaf6a",
+      "web/backend/tests/app/test_company_context.py": "cf4b8633b8a2c1dd14656a49c2eb6ed292d639409b4817bbd25e04388636efa5",
+      "web/backend/tests/app/test_company_context_schema.py": "50243d68acc26465514faf11aaeec85e70e5adf4cb198df02cecbb1375c79442",
+      "web/backend/tests/app/test_company_deep_review_binding.py": "daeca1d74138aaf815ed4a4e80459703a53909ab5dac7dfaf09fc50635b84a50",
+      "web/backend/tests/app/test_company_luna_policy.py": "51d22f72c7a91bad3fe950b75b11d2eaf87cc6788c9e555727bce5b828671964",
+      "web/backend/tests/app/test_luna_deep_review.py": "6cec1c0e27ebfc68cab27361fd4c7df808fcc6e783b423fc8c2d65b7514f935c",
+      "web/backend/tests/deep_review/test_company_knowledge_retrieval.py": "451638f7405fdf020a64c1a509e003573b43ac4cd7dde1c72bd5fd94dda19f43"
+    }
+  }
+}

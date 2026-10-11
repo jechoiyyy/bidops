@@ -1653,5 +1653,5 @@ policy 상태와 데이터는 변경하지 않는다. 이 모드는 운영 수�
 별도 Compose 프로젝트·PostgreSQL·MinIO 자원에서 수동으로 초기화한다. 운영 secret/볼륨을 공유하지 않는다. 새 모델 호출은 실행 직전 승인하며 자동 일정은 비활성이다.
 DEMO-02(2026-10-09, 데모 브랜치)는 회사 지식 `import-company-knowledge`·`activate-company-knowledge` CLI를 추가했다. 원본(`docs/demo-fixtures`)은 이미지에 넣지 않고(`.dockerignore` 제외)
 일회성 CLI 컨테이너에 `/run/demo-fixtures`로 read-only 마운트해 `--dry-run` → import → 직전 사람 확인 뒤 activate 순서로 쓴다. import는 자동 활성화하지 않는다.
-`bidops-local`의 실제 3사 등록·활성화는 아직 수행하지 않았으며 공통 계약 §10 준비 단계에서 직전 확인 후 한다.
+`bidops-local`의 실제 3사 등록·활성화는 2026-10-11 DEMO-03 STEP-007에서 단계별 사용자 확인 후 수행했다(증거 `validation-runs/2026-10-10-company-demo/DEMO-03-grounded-analysis/README.md`). 새 환경에서는 같은 순서와 직전 확인을 다시 거친다.
 [ADR-0070](tracking/decisions/0070-multi-company-knowledge-demo.md) · [공통 계약](work/demo-contract.md) · [기능 로드맵](work/constitution/roadmap.md).

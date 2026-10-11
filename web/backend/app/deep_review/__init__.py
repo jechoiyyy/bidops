@@ -37,6 +37,14 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     # DEMO 회사 지식 읽기 (`/api/companies/{id}/profile` 등). 접두사는 lifecycle의
     # `/api/companies`이지만 제공 모듈은 deep_review다(§5.3).
     "company_knowledge_router": (".routers.company_knowledge", "router"),
+    # DEMO-03 회사별 Luna 심층 검토 미리보기·승인·재시도 (`/api/companies/{id}/...`).
+    # 접두사는 lifecycle 것이고 제공 모듈은 deep_review다(§5.3).
+    "company_analysis_router": (".routers.company_analysis", "router"),
+    # DEMO-03 회사별 조회(목록·상세·핏 attempt·심층·보고서·근거)와 3사 비교. 앞의 것은
+    # `/api/companies/{id}/...`, 비교는 `/api/pre-specs/{id}/company-comparison`이다.
+    # 두 접두사 모두 lifecycle 것이고 제공 모듈은 deep_review다(§5.3).
+    "company_reads_router": (".routers.company_reads", "router"),
+    "company_comparison_router": (".routers.company_reads", "comparison_router"),
     "assumption_analysis_router": (".routers.assumption_analysis", "router"),
     "run_assumption_analysis_once": (".services.assumption_analysis", "run_once"),
     "deep_reviews_router": (".routers.deep_reviews", "router"),
