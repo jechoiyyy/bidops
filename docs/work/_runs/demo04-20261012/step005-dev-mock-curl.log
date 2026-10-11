@@ -1,0 +1,15 @@
+/api/demo-config -> 200 application/json {"enabled":true}
+/api/companies -> 200 application/json {"items":[{"company_id":"33333333-3333-4333-8333-333333333333","slug":"demo-cloud-si","name":"데모
+/api/companies/11111111-1111-4111-8111-111111111111 -> 200 application/json {"company_id":"11111111-1111-4111-8111-111111111111","slug":"demo-public-si","name":"데모 업무SI
+/api/companies/11111111-1111-4111-8111-111111111111/profile -> 200 application/json {"schema_version":"bidops.company-profile-view.v1","company":{"company_id":"11111111-1111-4111-8111-
+/api/companies/11111111-1111-4111-8111-111111111111/knowledge-graph?depth=2&limit=200 -> 200 application/json {"schema_version":"bidops.company-knowledge-graph.v1","company_id":"11111111-1111-4111-8111-11111111
+/api/companies/11111111-1111-4111-8111-111111111111/pre-specs?sort=posted_at_desc&limit=20&offset=0 -> 200 application/json {"schema_version":"bidops.company-pre-spec-list.v1","items":[{"notice_id":7101,"opportunity_id":8101
+/api/companies/11111111-1111-4111-8111-111111111111/pre-specs/7101 -> 200 application/json {"notice_id":7101,"opportunity_id":8101,"title":"차세대 행정업무 통합 정보시스템 구�
+/api/companies/11111111-1111-4111-8111-111111111111/deep-reviews/ -> 404 application/json {"detail":"고정 응답 없음"}
+/api/companies/11111111-1111-4111-8111-111111111111/deep-reviews//report -> 404 application/json {"detail":"고정 응답 없음"}
+/api/pre-specs/7101/company-comparison -> 200 application/json {"schema_version":"bidops.company-comparison.v1","notice_id":7101,"document_version_ids":["71010000-
+/api/companies/00000000-0000-4000-8000-000000000000/profile -> 404 application/json {"error":{"code":"not_found","message":"합성 회사 경로 오류","details":null},"request_id":nu
+/api/companies/11111111-1111-4111-8111-111111111111/not-registered-path -> 404 application/json {"detail":"고정 응답 없음"}
+/api/totally-unregistered -> 404 application/json {"detail":"고정 응답 없음"}
+/api/companies/11111111-1111-4111-8111-111111111111/deep-reviews/11111111-244f-4000-8000-000000007101 -> 200 application/json {"id":"11111111-244f-4000-8000-000000007101","notice_id":7101,"bundle_id":"71010000-0000-4000-8000-0
+/api/companies/11111111-1111-4111-8111-111111111111/deep-reviews/11111111-244f-4000-8000-000000007101/report -> 200 application/json {"schema_version":"bidops.company-report-view.v1","company_id":"11111111-1111-4111-8111-111111111111

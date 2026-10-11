@@ -14,8 +14,9 @@ const viewports = {
 // - 픽셀: 기준 이미지 대조. 게이트에서 빠져 있고 `npm run test:pixel`로만 돈다.
 //
 // 층을 나누기 전에는 모든 spec이 두 폭으로 돌았는데, 폭에 실제로 의존하는 것은
-// 아래 두 파일뿐이라 실행 시간의 절반이 같은 검사의 재실행이었다.
-const LAYOUT_SPECS = ["**/overflow.spec.ts", "**/design-shell.spec.ts"];
+// 처음 두 파일뿐이라 실행 시간의 절반이 같은 검사의 재실행이었다. company-layout은
+// DEMO-04 회사 화면의 두 폭 구조 검사다.
+const LAYOUT_SPECS = ["**/overflow.spec.ts", "**/design-shell.spec.ts", "**/company-layout.spec.ts"];
 const PIXEL_SPECS = ["**/pixel-screens.spec.ts"];
 
 // 같은 작업 트리에서 여러 검증이 동시에 돌 때 서로의 build 결과와 port를 밟지 않도록

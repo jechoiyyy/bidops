@@ -1,0 +1,97 @@
+
+Running 2 tests using 2 workers
+
+  ✘  1 [app] › tests/company-review.spec.ts:328:1 › T5: 상세와 보고서를 열기만 하면 미리보기·생성·재시도 호출이 0이고 핏 승인 UI가 없다 (2.1s)
+  ✘  2 [app] › tests/company-review.spec.ts:182:1 › T4: 409 version_conflict는 초안을 지우지 않고 서버 최신값을 나란히 보이며, 사람이 최신값 기준으로 다시 준비해야 저장한다 (5.6s)
+
+
+  1) [app] › tests/company-review.spec.ts:182:1 › T4: 409 version_conflict는 초안을 지우지 않고 서버 최신값을 나란히 보이며, 사람이 최신값 기준으로 다시 준비해야 저장한다 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByTestId('company-tracking').getByTestId('company-tracking-conflict')
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" with timeout 5000ms
+      - waiting for getByTestId('company-tracking').getByTestId('company-tracking-conflict')
+
+
+      193 |
+      194 |   const conflict = control.getByTestId("company-tracking-conflict");
+    > 195 |   await expect(conflict).toBeVisible();
+          |                          ^
+      196 |   await expect(control.getByRole("alert")).toContainText("이 회사의 대상이 그사이 바뀌었습니다.");
+      197 |   const draft = conflict.getByTestId("company-tracking-conflict-draft");
+      198 |   const latest = conflict.getByTestId("company-tracking-conflict-latest");
+        at /Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-review.spec.ts:195:26
+
+    Error Context: test-results/company-review-T4-409-vers-c9483-며-사람이-최신값-기준으로-다시-준비해야-저장한다-app/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/company-review-T4-409-vers-c9483-며-사람이-최신값-기준으로-다시-준비해야-저장한다-app/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/company-review-T4-409-vers-c9483-며-사람이-최신값-기준으로-다시-준비해야-저장한다-app/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) [app] › tests/company-review.spec.ts:328:1 › T5: 상세와 보고서를 열기만 하면 미리보기·생성·재시도 호출이 0이고 핏 승인 UI가 없다 
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  -  1
+    + Received  + 26
+
+    - Array []
+    + Array [
+    +   Object {
+    +     "body": Object {
+    +       "bundle_id": "71010000-0000-4000-8000-0000000000f1",
+    +       "source_verification_enabled": true,
+    +     },
+    +     "companyId": "11111111-1111-4111-8111-111111111111",
+    +     "noticeId": 7101,
+    +   },
+    +   Object {
+    +     "body": Object {
+    +       "bundle_id": "71020000-0000-4000-8000-0000000000f1",
+    +       "source_verification_enabled": true,
+    +     },
+    +     "companyId": "33333333-3333-4333-8333-333333333333",
+    +     "noticeId": 7102,
+    +   },
+    +   Object {
+    +     "body": Object {
+    +       "bundle_id": "71030000-0000-4000-8000-0000000000f1",
+    +       "source_verification_enabled": true,
+    +     },
+    +     "companyId": "22222222-2222-4222-8222-222222222222",
+    +     "noticeId": 7103,
+    +   },
+    + ]
+
+      342 |   await expect(page.getByTestId("company-review-retry")).toBeVisible();
+      343 |   await expect(approval(page)).toHaveCount(0);
+    > 344 |   expect(trace.previewPosts).toEqual([]);
+          |                              ^
+      345 |   expect(trace.reviewPosts).toEqual([]);
+      346 |   expect(trace.attemptPosts).toEqual([]);
+      347 | });
+        at /Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-review.spec.ts:344:30
+
+    Error Context: test-results/company-review-T5-상세와-보고서를-ee8ce-·생성·재시도-호출이-0이고-핏-승인-UI가-없다-app/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/company-review-T5-상세와-보고서를-ee8ce-·생성·재시도-호출이-0이고-핏-승인-UI가-없다-app/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/company-review-T5-상세와-보고서를-ee8ce-·생성·재시도-호출이-0이고-핏-승인-UI가-없다-app/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2 failed
+    [app] › tests/company-review.spec.ts:182:1 › T4: 409 version_conflict는 초안을 지우지 않고 서버 최신값을 나란히 보이며, 사람이 최신값 기준으로 다시 준비해야 저장한다 
+    [app] › tests/company-review.spec.ts:328:1 › T5: 상세와 보고서를 열기만 하면 미리보기·생성·재시도 호출이 0이고 핏 승인 UI가 없다 

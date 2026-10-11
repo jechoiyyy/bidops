@@ -1,0 +1,519 @@
+
+Running 22 tests using 8 workers
+
+  ✘   6 [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:338:1 › 3사 비교 표: 긴 한글에서도 비교 상태 열이 숨지 않고 표가 가로 스크롤 없이 들어간다 (788ms)
+  ✘   7 [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:299:1 › 프로필·관계 목록: 긴 label의 노드·관계 행이 들어가고 근거 패널을 열어도 행과 겹치거나 넘치지 않는다 (800ms)
+  ✘   1 [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:258:1 › 추적 409 version_conflict의 초안·최신값 비교 패널이 긴 사유와 함께 폭 안에 있다 (861ms)
+  ✓   4 [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:183:1 › 회사 선택(/companies): 긴 회사 이름 3행과 열기 링크가 폭 안에 있다 (1.1s)
+  ✘   8 [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:240:1 › 회사 사전규격 상세: 긴 제목, 핏 판정 이력 3건, 추적 컨트롤이 폭 안에 있다 (1.2s)
+  ✘   5 [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:279:1 › Luna 외부 전송 승인 상자(미리보기 후)가 긴 회사 이름·범위와 함께 폭 안에 있다 (1.3s)
+  ✘   2 [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:198:1 › 회사 사전규격 목록: 긴 제목·요약과 판정·추적 열이 폭 안에 있고 선택한 공고 패널도 들어간다 (1.4s)
+  ✓  12 [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:183:1 › 회사 선택(/companies): 긴 회사 이름 3행과 열기 링크가 폭 안에 있다 (778ms)
+  ✘  10 [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:385:1 › 심층 검토 보고서: 회사 식별 줄과 NarrativeReportReader, 근거 패널이 폭 안에 있다 (1.2s)
+  ✓  11 [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:419:1 › 비보안 HTTP origin에서도 회사 추적 저장과 Luna 생성은 UUID v4 request_id를 보낸다 (1.2s)
+  ✘  16 [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:258:1 › 추적 409 version_conflict의 초안·최신값 비교 패널이 긴 사유와 함께 폭 안에 있다 (626ms)
+  ✘  15 [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:240:1 › 회사 사전규격 상세: 긴 제목, 핏 판정 이력 3건, 추적 컨트롤이 폭 안에 있다 (1.1s)
+  ✘  13 [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:198:1 › 회사 사전규격 목록: 긴 제목·요약과 판정·추적 열이 폭 안에 있고 선택한 공고 패널도 들어간다 (1.4s)
+  ✘  18 [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:299:1 › 프로필·관계 목록: 긴 label의 노드·관계 행이 들어가고 근거 패널을 열어도 행과 겹치거나 넘치지 않는다 (647ms)
+  ✘  17 [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:279:1 › Luna 외부 전송 승인 상자(미리보기 후)가 긴 회사 이름·범위와 함께 폭 안에 있다 (1.2s)
+  ✘  19 [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:338:1 › 3사 비교 표: 긴 한글에서도 비교 상태 열이 숨지 않고 표가 가로 스크롤 없이 들어간다 (1.1s)
+  ✘  21 [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:385:1 › 심층 검토 보고서: 회사 식별 줄과 NarrativeReportReader, 근거 패널이 폭 안에 있다 (1.1s)
+  ✓  22 [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:419:1 › 비보안 HTTP origin에서도 회사 추적 저장과 Luna 생성은 UUID v4 request_id를 보낸다 (1.1s)
+  ✓   3 [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:224:1 › 읽는 중 목록은 완료 화면으로 측정하지 않고, 완료된 뒤의 표가 폭 안에 있다 (6.2s)
+  ✘   9 [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:371:1 › 읽는 중 3사 비교는 완료 화면으로 측정하지 않고, 완료 뒤에 폭 안에 있다 (6.2s)
+  ✓  14 [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:224:1 › 읽는 중 목록은 완료 화면으로 측정하지 않고, 완료된 뒤의 표가 폭 안에 있다 (6.1s)
+  ✘  20 [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:371:1 › 읽는 중 3사 비교는 완료 화면으로 측정하지 않고, 완료 뒤에 폭 안에 있다 (6.1s)
+
+
+  1) [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:198:1 › 회사 사전규격 목록: 긴 제목·요약과 판정·추적 열이 폭 안에 있고 선택한 공고 패널도 들어간다 
+
+    Error: 회사 사전규격 목록(선택 패널): canvas 안쪽 가로 넘침
+
+    expect(received).toBeLessThanOrEqual(expected)
+
+    Expected: <= 1
+    Received:    785
+
+      124 |     expect(region!.left, `${name}: ${key} 왼쪽 끝`).toBeGreaterThanOrEqual(-1);
+      125 |     expect(region!.right, `${name}: ${key} 오른쪽 끝(폭 ${measure.viewport})`).toBeLessThanOrEqual(measure.viewport + 1);
+    > 126 |     expect(region!.overflow, `${name}: ${key} 안쪽 가로 넘침`).toBeLessThanOrEqual(1);
+          |                                                          ^
+      127 |   }
+      128 |   expect(measure.escaped, `${name}: 화면 밖으로 나간 요소`).toEqual([]);
+      129 |   expect(measure.clipped, `${name}: 가로로 잘리거나 스크롤되는 요소`).toEqual([]);
+        at expectFits (/Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:126:58)
+        at expectScreenFits (/Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:176:3)
+        at /Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:221:3
+
+    Error Context: .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/test-results/company-layout-회사-사전규격-목록--c4498--열이-폭-안에-있고-선택한-공고-패널도-들어간다-layout-laptop/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/test-results/company-layout-회사-사전규격-목록--c4498--열이-폭-안에-있고-선택한-공고-패널도-들어간다-layout-laptop/trace.zip
+    Usage:
+
+        npx playwright show-trace .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/test-results/company-layout-회사-사전규격-목록--c4498--열이-폭-안에-있고-선택한-공고-패널도-들어간다-layout-laptop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:240:1 › 회사 사전규격 상세: 긴 제목, 핏 판정 이력 3건, 추적 컨트롤이 폭 안에 있다 
+
+    Error: 회사 사전규격 상세: canvas 안쪽 가로 넘침
+
+    expect(received).toBeLessThanOrEqual(expected)
+
+    Expected: <= 1
+    Received:    41
+
+      124 |     expect(region!.left, `${name}: ${key} 왼쪽 끝`).toBeGreaterThanOrEqual(-1);
+      125 |     expect(region!.right, `${name}: ${key} 오른쪽 끝(폭 ${measure.viewport})`).toBeLessThanOrEqual(measure.viewport + 1);
+    > 126 |     expect(region!.overflow, `${name}: ${key} 안쪽 가로 넘침`).toBeLessThanOrEqual(1);
+          |                                                          ^
+      127 |   }
+      128 |   expect(measure.escaped, `${name}: 화면 밖으로 나간 요소`).toEqual([]);
+      129 |   expect(measure.clipped, `${name}: 가로로 잘리거나 스크롤되는 요소`).toEqual([]);
+        at expectFits (/Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:126:58)
+        at expectScreenFits (/Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:176:3)
+        at /Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:255:3
+
+    Error Context: .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/test-results/company-layout-회사-사전규격-상세-긴-제목-핏-판정-이력-3건-추적-컨트롤이-폭-안에-있다-layout-laptop/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/test-results/company-layout-회사-사전규격-상세-긴-제목-핏-판정-이력-3건-추적-컨트롤이-폭-안에-있다-layout-laptop/trace.zip
+    Usage:
+
+        npx playwright show-trace .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/test-results/company-layout-회사-사전규격-상세-긴-제목-핏-판정-이력-3건-추적-컨트롤이-폭-안에-있다-layout-laptop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  3) [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:258:1 › 추적 409 version_conflict의 초안·최신값 비교 패널이 긴 사유와 함께 폭 안에 있다 
+
+    Error: 충돌 초안: 글자가 칸보다 넓습니다
+
+    expect(received).toBeLessThanOrEqual(expected)
+
+    Expected: <= 1
+    Received:    325
+
+      151 |   await expect(locator, `${name}: 보이지 않습니다`).toBeVisible();
+      152 |   const overflow = await locator.evaluate((element) => element.scrollWidth - element.clientWidth);
+    > 153 |   expect(overflow, `${name}: 글자가 칸보다 넓습니다`).toBeLessThanOrEqual(1);
+          |                                             ^
+      154 | }
+      155 |
+      156 | /** 상단바의 회사 선택기·가상회사 표식과 사이드바가 폭 안에 있다. */
+        at expectNotClipped (/Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:153:45)
+        at /Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:274:3
+
+    Error Context: .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/test-results/company-layout-추적-409-vers-2086e-최신값-비교-패널이-긴-사유와-함께-폭-안에-있다-layout-laptop/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/test-results/company-layout-추적-409-vers-2086e-최신값-비교-패널이-긴-사유와-함께-폭-안에-있다-layout-laptop/trace.zip
+    Usage:
+
+        npx playwright show-trace .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/test-results/company-layout-추적-409-vers-2086e-최신값-비교-패널이-긴-사유와-함께-폭-안에-있다-layout-laptop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  4) [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:279:1 › Luna 외부 전송 승인 상자(미리보기 후)가 긴 회사 이름·범위와 함께 폭 안에 있다 
+
+    Error: Luna 승인 상자: canvas 안쪽 가로 넘침
+
+    expect(received).toBeLessThanOrEqual(expected)
+
+    Expected: <= 1
+    Received:    41
+
+      124 |     expect(region!.left, `${name}: ${key} 왼쪽 끝`).toBeGreaterThanOrEqual(-1);
+      125 |     expect(region!.right, `${name}: ${key} 오른쪽 끝(폭 ${measure.viewport})`).toBeLessThanOrEqual(measure.viewport + 1);
+    > 126 |     expect(region!.overflow, `${name}: ${key} 안쪽 가로 넘침`).toBeLessThanOrEqual(1);
+          |                                                          ^
+      127 |   }
+      128 |   expect(measure.escaped, `${name}: 화면 밖으로 나간 요소`).toEqual([]);
+      129 |   expect(measure.clipped, `${name}: 가로로 잘리거나 스크롤되는 요소`).toEqual([]);
+        at expectFits (/Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:126:58)
+        at expectScreenFits (/Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:176:3)
+        at /Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:296:3
+
+    Error Context: .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/test-results/company-layout-Luna-외부-전송--5b7dc--후-가-긴-회사-이름·범위와-함께-폭-안에-있다-layout-laptop/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/test-results/company-layout-Luna-외부-전송--5b7dc--후-가-긴-회사-이름·범위와-함께-폭-안에-있다-layout-laptop/trace.zip
+    Usage:
+
+        npx playwright show-trace .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/test-results/company-layout-Luna-외부-전송--5b7dc--후-가-긴-회사-이름·범위와-함께-폭-안에-있다-layout-laptop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  5) [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:299:1 › 프로필·관계 목록: 긴 label의 노드·관계 행이 들어가고 근거 패널을 열어도 행과 겹치거나 넘치지 않는다 
+
+    Error: 긴 관계 행 [data-edge-to]: 글자가 칸보다 넓습니다
+
+    expect(received).toBeLessThanOrEqual(expected)
+
+    Expected: <= 1
+    Received:    92
+
+      151 |   await expect(locator, `${name}: 보이지 않습니다`).toBeVisible();
+      152 |   const overflow = await locator.evaluate((element) => element.scrollWidth - element.clientWidth);
+    > 153 |   expect(overflow, `${name}: 글자가 칸보다 넓습니다`).toBeLessThanOrEqual(1);
+          |                                             ^
+      154 | }
+      155 |
+      156 | /** 상단바의 회사 선택기·가상회사 표식과 사이드바가 폭 안에 있다. */
+        at expectNotClipped (/Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:153:45)
+        at /Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:316:5
+
+    Error Context: .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/test-results/company-layout-프로필·관계-목록-긴-b1a77--근거-패널을-열어도-행과-겹치거나-넘치지-않는다-layout-laptop/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/test-results/company-layout-프로필·관계-목록-긴-b1a77--근거-패널을-열어도-행과-겹치거나-넘치지-않는다-layout-laptop/trace.zip
+    Usage:
+
+        npx playwright show-trace .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/test-results/company-layout-프로필·관계-목록-긴-b1a77--근거-패널을-열어도-행과-겹치거나-넘치지-않는다-layout-laptop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  6) [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:338:1 › 3사 비교 표: 긴 한글에서도 비교 상태 열이 숨지 않고 표가 가로 스크롤 없이 들어간다 
+
+    Error: demo-cloud-si 비교 상태 칸: 글자가 칸보다 넓습니다
+
+    expect(received).toBeLessThanOrEqual(expected)
+
+    Expected: <= 1
+    Received:    125
+
+      151 |   await expect(locator, `${name}: 보이지 않습니다`).toBeVisible();
+      152 |   const overflow = await locator.evaluate((element) => element.scrollWidth - element.clientWidth);
+    > 153 |   expect(overflow, `${name}: 글자가 칸보다 넓습니다`).toBeLessThanOrEqual(1);
+          |                                             ^
+      154 | }
+      155 |
+      156 | /** 상단바의 회사 선택기·가상회사 표식과 사이드바가 폭 안에 있다. */
+        at expectNotClipped (/Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:153:45)
+        at /Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:357:5
+
+    Error Context: .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/test-results/company-layout-3사-비교-표-긴-한-bf68a--열이-숨지-않고-표가-가로-스크롤-없이-들어간다-layout-laptop/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/test-results/company-layout-3사-비교-표-긴-한-bf68a--열이-숨지-않고-표가-가로-스크롤-없이-들어간다-layout-laptop/trace.zip
+    Usage:
+
+        npx playwright show-trace .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/test-results/company-layout-3사-비교-표-긴-한-bf68a--열이-숨지-않고-표가-가로-스크롤-없이-들어간다-layout-laptop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  7) [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:371:1 › 읽는 중 3사 비교는 완료 화면으로 측정하지 않고, 완료 뒤에 폭 안에 있다 
+
+    Error: 읽기 완료 뒤 3사 비교: canvas 안쪽 가로 넘침
+
+    expect(received).toBeLessThanOrEqual(expected)
+
+    Expected: <= 1
+    Received:    508
+
+      124 |     expect(region!.left, `${name}: ${key} 왼쪽 끝`).toBeGreaterThanOrEqual(-1);
+      125 |     expect(region!.right, `${name}: ${key} 오른쪽 끝(폭 ${measure.viewport})`).toBeLessThanOrEqual(measure.viewport + 1);
+    > 126 |     expect(region!.overflow, `${name}: ${key} 안쪽 가로 넘침`).toBeLessThanOrEqual(1);
+          |                                                          ^
+      127 |   }
+      128 |   expect(measure.escaped, `${name}: 화면 밖으로 나간 요소`).toEqual([]);
+      129 |   expect(measure.clipped, `${name}: 가로로 잘리거나 스크롤되는 요소`).toEqual([]);
+        at expectFits (/Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:126:58)
+        at expectScreenFits (/Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:176:3)
+        at /Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:382:3
+
+    Error Context: .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/test-results/company-layout-읽는-중-3사-비교는-완료-화면으로-측정하지-않고-완료-뒤에-폭-안에-있다-layout-laptop/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/test-results/company-layout-읽는-중-3사-비교는-완료-화면으로-측정하지-않고-완료-뒤에-폭-안에-있다-layout-laptop/trace.zip
+    Usage:
+
+        npx playwright show-trace .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/test-results/company-layout-읽는-중-3사-비교는-완료-화면으로-측정하지-않고-완료-뒤에-폭-안에-있다-layout-laptop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  8) [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:385:1 › 심층 검토 보고서: 회사 식별 줄과 NarrativeReportReader, 근거 패널이 폭 안에 있다 
+
+    Error: 심층 검토 보고서: canvas 안쪽 가로 넘침
+
+    expect(received).toBeLessThanOrEqual(expected)
+
+    Expected: <= 1
+    Received:    293
+
+      124 |     expect(region!.left, `${name}: ${key} 왼쪽 끝`).toBeGreaterThanOrEqual(-1);
+      125 |     expect(region!.right, `${name}: ${key} 오른쪽 끝(폭 ${measure.viewport})`).toBeLessThanOrEqual(measure.viewport + 1);
+    > 126 |     expect(region!.overflow, `${name}: ${key} 안쪽 가로 넘침`).toBeLessThanOrEqual(1);
+          |                                                          ^
+      127 |   }
+      128 |   expect(measure.escaped, `${name}: 화면 밖으로 나간 요소`).toEqual([]);
+      129 |   expect(measure.clipped, `${name}: 가로로 잘리거나 스크롤되는 요소`).toEqual([]);
+        at expectFits (/Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:126:58)
+        at expectScreenFits (/Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:176:3)
+        at /Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:399:3
+
+    Error Context: .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/test-results/company-layout-심층-검토-보고서-회-bc581-ReportReader-근거-패널이-폭-안에-있다-layout-laptop/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/test-results/company-layout-심층-검토-보고서-회-bc581-ReportReader-근거-패널이-폭-안에-있다-layout-laptop/trace.zip
+    Usage:
+
+        npx playwright show-trace .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/test-results/company-layout-심층-검토-보고서-회-bc581-ReportReader-근거-패널이-폭-안에-있다-layout-laptop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  9) [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:198:1 › 회사 사전규격 목록: 긴 제목·요약과 판정·추적 열이 폭 안에 있고 선택한 공고 패널도 들어간다 
+
+    Error: 회사 사전규격 목록(선택 패널): canvas 안쪽 가로 넘침
+
+    expect(received).toBeLessThanOrEqual(expected)
+
+    Expected: <= 1
+    Received:    785
+
+      124 |     expect(region!.left, `${name}: ${key} 왼쪽 끝`).toBeGreaterThanOrEqual(-1);
+      125 |     expect(region!.right, `${name}: ${key} 오른쪽 끝(폭 ${measure.viewport})`).toBeLessThanOrEqual(measure.viewport + 1);
+    > 126 |     expect(region!.overflow, `${name}: ${key} 안쪽 가로 넘침`).toBeLessThanOrEqual(1);
+          |                                                          ^
+      127 |   }
+      128 |   expect(measure.escaped, `${name}: 화면 밖으로 나간 요소`).toEqual([]);
+      129 |   expect(measure.clipped, `${name}: 가로로 잘리거나 스크롤되는 요소`).toEqual([]);
+        at expectFits (/Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:126:58)
+        at expectScreenFits (/Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:176:3)
+        at /Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:221:3
+
+    Error Context: .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/test-results/company-layout-회사-사전규격-목록--c4498--열이-폭-안에-있고-선택한-공고-패널도-들어간다-layout-desktop/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/test-results/company-layout-회사-사전규격-목록--c4498--열이-폭-안에-있고-선택한-공고-패널도-들어간다-layout-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/test-results/company-layout-회사-사전규격-목록--c4498--열이-폭-안에-있고-선택한-공고-패널도-들어간다-layout-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  10) [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:240:1 › 회사 사전규격 상세: 긴 제목, 핏 판정 이력 3건, 추적 컨트롤이 폭 안에 있다 
+
+    Error: 회사 사전규격 상세: canvas 안쪽 가로 넘침
+
+    expect(received).toBeLessThanOrEqual(expected)
+
+    Expected: <= 1
+    Received:    24
+
+      124 |     expect(region!.left, `${name}: ${key} 왼쪽 끝`).toBeGreaterThanOrEqual(-1);
+      125 |     expect(region!.right, `${name}: ${key} 오른쪽 끝(폭 ${measure.viewport})`).toBeLessThanOrEqual(measure.viewport + 1);
+    > 126 |     expect(region!.overflow, `${name}: ${key} 안쪽 가로 넘침`).toBeLessThanOrEqual(1);
+          |                                                          ^
+      127 |   }
+      128 |   expect(measure.escaped, `${name}: 화면 밖으로 나간 요소`).toEqual([]);
+      129 |   expect(measure.clipped, `${name}: 가로로 잘리거나 스크롤되는 요소`).toEqual([]);
+        at expectFits (/Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:126:58)
+        at expectScreenFits (/Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:176:3)
+        at /Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:255:3
+
+    Error Context: .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/test-results/company-layout-회사-사전규격-상세-긴-제목-핏-판정-이력-3건-추적-컨트롤이-폭-안에-있다-layout-desktop/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/test-results/company-layout-회사-사전규격-상세-긴-제목-핏-판정-이력-3건-추적-컨트롤이-폭-안에-있다-layout-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/test-results/company-layout-회사-사전규격-상세-긴-제목-핏-판정-이력-3건-추적-컨트롤이-폭-안에-있다-layout-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  11) [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:258:1 › 추적 409 version_conflict의 초안·최신값 비교 패널이 긴 사유와 함께 폭 안에 있다 
+
+    Error: 충돌 초안: 글자가 칸보다 넓습니다
+
+    expect(received).toBeLessThanOrEqual(expected)
+
+    Expected: <= 1
+    Received:    245
+
+      151 |   await expect(locator, `${name}: 보이지 않습니다`).toBeVisible();
+      152 |   const overflow = await locator.evaluate((element) => element.scrollWidth - element.clientWidth);
+    > 153 |   expect(overflow, `${name}: 글자가 칸보다 넓습니다`).toBeLessThanOrEqual(1);
+          |                                             ^
+      154 | }
+      155 |
+      156 | /** 상단바의 회사 선택기·가상회사 표식과 사이드바가 폭 안에 있다. */
+        at expectNotClipped (/Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:153:45)
+        at /Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:274:3
+
+    Error Context: .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/test-results/company-layout-추적-409-vers-2086e-최신값-비교-패널이-긴-사유와-함께-폭-안에-있다-layout-desktop/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/test-results/company-layout-추적-409-vers-2086e-최신값-비교-패널이-긴-사유와-함께-폭-안에-있다-layout-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/test-results/company-layout-추적-409-vers-2086e-최신값-비교-패널이-긴-사유와-함께-폭-안에-있다-layout-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  12) [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:279:1 › Luna 외부 전송 승인 상자(미리보기 후)가 긴 회사 이름·범위와 함께 폭 안에 있다 
+
+    Error: Luna 승인 상자: canvas 안쪽 가로 넘침
+
+    expect(received).toBeLessThanOrEqual(expected)
+
+    Expected: <= 1
+    Received:    24
+
+      124 |     expect(region!.left, `${name}: ${key} 왼쪽 끝`).toBeGreaterThanOrEqual(-1);
+      125 |     expect(region!.right, `${name}: ${key} 오른쪽 끝(폭 ${measure.viewport})`).toBeLessThanOrEqual(measure.viewport + 1);
+    > 126 |     expect(region!.overflow, `${name}: ${key} 안쪽 가로 넘침`).toBeLessThanOrEqual(1);
+          |                                                          ^
+      127 |   }
+      128 |   expect(measure.escaped, `${name}: 화면 밖으로 나간 요소`).toEqual([]);
+      129 |   expect(measure.clipped, `${name}: 가로로 잘리거나 스크롤되는 요소`).toEqual([]);
+        at expectFits (/Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:126:58)
+        at expectScreenFits (/Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:176:3)
+        at /Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:296:3
+
+    Error Context: .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/test-results/company-layout-Luna-외부-전송--5b7dc--후-가-긴-회사-이름·범위와-함께-폭-안에-있다-layout-desktop/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/test-results/company-layout-Luna-외부-전송--5b7dc--후-가-긴-회사-이름·범위와-함께-폭-안에-있다-layout-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/test-results/company-layout-Luna-외부-전송--5b7dc--후-가-긴-회사-이름·범위와-함께-폭-안에-있다-layout-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  13) [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:299:1 › 프로필·관계 목록: 긴 label의 노드·관계 행이 들어가고 근거 패널을 열어도 행과 겹치거나 넘치지 않는다 
+
+    Error: 긴 관계 행 [data-edge-to]: 글자가 칸보다 넓습니다
+
+    expect(received).toBeLessThanOrEqual(expected)
+
+    Expected: <= 1
+    Received:    12
+
+      151 |   await expect(locator, `${name}: 보이지 않습니다`).toBeVisible();
+      152 |   const overflow = await locator.evaluate((element) => element.scrollWidth - element.clientWidth);
+    > 153 |   expect(overflow, `${name}: 글자가 칸보다 넓습니다`).toBeLessThanOrEqual(1);
+          |                                             ^
+      154 | }
+      155 |
+      156 | /** 상단바의 회사 선택기·가상회사 표식과 사이드바가 폭 안에 있다. */
+        at expectNotClipped (/Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:153:45)
+        at /Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:316:5
+
+    Error Context: .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/test-results/company-layout-프로필·관계-목록-긴-b1a77--근거-패널을-열어도-행과-겹치거나-넘치지-않는다-layout-desktop/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/test-results/company-layout-프로필·관계-목록-긴-b1a77--근거-패널을-열어도-행과-겹치거나-넘치지-않는다-layout-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/test-results/company-layout-프로필·관계-목록-긴-b1a77--근거-패널을-열어도-행과-겹치거나-넘치지-않는다-layout-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  14) [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:338:1 › 3사 비교 표: 긴 한글에서도 비교 상태 열이 숨지 않고 표가 가로 스크롤 없이 들어간다 
+
+    Error: demo-cloud-si 비교 상태 칸: 글자가 칸보다 넓습니다
+
+    expect(received).toBeLessThanOrEqual(expected)
+
+    Expected: <= 1
+    Received:    86
+
+      151 |   await expect(locator, `${name}: 보이지 않습니다`).toBeVisible();
+      152 |   const overflow = await locator.evaluate((element) => element.scrollWidth - element.clientWidth);
+    > 153 |   expect(overflow, `${name}: 글자가 칸보다 넓습니다`).toBeLessThanOrEqual(1);
+          |                                             ^
+      154 | }
+      155 |
+      156 | /** 상단바의 회사 선택기·가상회사 표식과 사이드바가 폭 안에 있다. */
+        at expectNotClipped (/Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:153:45)
+        at /Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:357:5
+
+    Error Context: .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/test-results/company-layout-3사-비교-표-긴-한-bf68a--열이-숨지-않고-표가-가로-스크롤-없이-들어간다-layout-desktop/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/test-results/company-layout-3사-비교-표-긴-한-bf68a--열이-숨지-않고-표가-가로-스크롤-없이-들어간다-layout-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/test-results/company-layout-3사-비교-표-긴-한-bf68a--열이-숨지-않고-표가-가로-스크롤-없이-들어간다-layout-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  15) [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:371:1 › 읽는 중 3사 비교는 완료 화면으로 측정하지 않고, 완료 뒤에 폭 안에 있다 
+
+    Error: 읽기 완료 뒤 3사 비교: canvas 안쪽 가로 넘침
+
+    expect(received).toBeLessThanOrEqual(expected)
+
+    Expected: <= 1
+    Received:    460
+
+      124 |     expect(region!.left, `${name}: ${key} 왼쪽 끝`).toBeGreaterThanOrEqual(-1);
+      125 |     expect(region!.right, `${name}: ${key} 오른쪽 끝(폭 ${measure.viewport})`).toBeLessThanOrEqual(measure.viewport + 1);
+    > 126 |     expect(region!.overflow, `${name}: ${key} 안쪽 가로 넘침`).toBeLessThanOrEqual(1);
+          |                                                          ^
+      127 |   }
+      128 |   expect(measure.escaped, `${name}: 화면 밖으로 나간 요소`).toEqual([]);
+      129 |   expect(measure.clipped, `${name}: 가로로 잘리거나 스크롤되는 요소`).toEqual([]);
+        at expectFits (/Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:126:58)
+        at expectScreenFits (/Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:176:3)
+        at /Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:382:3
+
+    Error Context: .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/test-results/company-layout-읽는-중-3사-비교는-완료-화면으로-측정하지-않고-완료-뒤에-폭-안에-있다-layout-desktop/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/test-results/company-layout-읽는-중-3사-비교는-완료-화면으로-측정하지-않고-완료-뒤에-폭-안에-있다-layout-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/test-results/company-layout-읽는-중-3사-비교는-완료-화면으로-측정하지-않고-완료-뒤에-폭-안에-있다-layout-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  16) [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:385:1 › 심층 검토 보고서: 회사 식별 줄과 NarrativeReportReader, 근거 패널이 폭 안에 있다 
+
+    Error: 심층 검토 보고서: canvas 안쪽 가로 넘침
+
+    expect(received).toBeLessThanOrEqual(expected)
+
+    Expected: <= 1
+    Received:    165
+
+      124 |     expect(region!.left, `${name}: ${key} 왼쪽 끝`).toBeGreaterThanOrEqual(-1);
+      125 |     expect(region!.right, `${name}: ${key} 오른쪽 끝(폭 ${measure.viewport})`).toBeLessThanOrEqual(measure.viewport + 1);
+    > 126 |     expect(region!.overflow, `${name}: ${key} 안쪽 가로 넘침`).toBeLessThanOrEqual(1);
+          |                                                          ^
+      127 |   }
+      128 |   expect(measure.escaped, `${name}: 화면 밖으로 나간 요소`).toEqual([]);
+      129 |   expect(measure.clipped, `${name}: 가로로 잘리거나 스크롤되는 요소`).toEqual([]);
+        at expectFits (/Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:126:58)
+        at expectScreenFits (/Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:176:3)
+        at /Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:399:3
+
+    Error Context: .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/test-results/company-layout-심층-검토-보고서-회-bc581-ReportReader-근거-패널이-폭-안에-있다-layout-desktop/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/test-results/company-layout-심층-검토-보고서-회-bc581-ReportReader-근거-패널이-폭-안에-있다-layout-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/test-results/company-layout-심층-검토-보고서-회-bc581-ReportReader-근거-패널이-폭-안에-있다-layout-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  16 failed
+    [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:198:1 › 회사 사전규격 목록: 긴 제목·요약과 판정·추적 열이 폭 안에 있고 선택한 공고 패널도 들어간다 
+    [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:240:1 › 회사 사전규격 상세: 긴 제목, 핏 판정 이력 3건, 추적 컨트롤이 폭 안에 있다 
+    [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:258:1 › 추적 409 version_conflict의 초안·최신값 비교 패널이 긴 사유와 함께 폭 안에 있다 
+    [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:279:1 › Luna 외부 전송 승인 상자(미리보기 후)가 긴 회사 이름·범위와 함께 폭 안에 있다 
+    [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:299:1 › 프로필·관계 목록: 긴 label의 노드·관계 행이 들어가고 근거 패널을 열어도 행과 겹치거나 넘치지 않는다 
+    [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:338:1 › 3사 비교 표: 긴 한글에서도 비교 상태 열이 숨지 않고 표가 가로 스크롤 없이 들어간다 
+    [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:371:1 › 읽는 중 3사 비교는 완료 화면으로 측정하지 않고, 완료 뒤에 폭 안에 있다 
+    [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:385:1 › 심층 검토 보고서: 회사 식별 줄과 NarrativeReportReader, 근거 패널이 폭 안에 있다 
+    [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:198:1 › 회사 사전규격 목록: 긴 제목·요약과 판정·추적 열이 폭 안에 있고 선택한 공고 패널도 들어간다 
+    [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:240:1 › 회사 사전규격 상세: 긴 제목, 핏 판정 이력 3건, 추적 컨트롤이 폭 안에 있다 
+    [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:258:1 › 추적 409 version_conflict의 초안·최신값 비교 패널이 긴 사유와 함께 폭 안에 있다 
+    [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:279:1 › Luna 외부 전송 승인 상자(미리보기 후)가 긴 회사 이름·범위와 함께 폭 안에 있다 
+    [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:299:1 › 프로필·관계 목록: 긴 label의 노드·관계 행이 들어가고 근거 패널을 열어도 행과 겹치거나 넘치지 않는다 
+    [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:338:1 › 3사 비교 표: 긴 한글에서도 비교 상태 열이 숨지 않고 표가 가로 스크롤 없이 들어간다 
+    [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:371:1 › 읽는 중 3사 비교는 완료 화면으로 측정하지 않고, 완료 뒤에 폭 안에 있다 
+    [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:385:1 › 심층 검토 보고서: 회사 식별 줄과 NarrativeReportReader, 근거 패널이 폭 안에 있다 
+  6 passed (10.2s)

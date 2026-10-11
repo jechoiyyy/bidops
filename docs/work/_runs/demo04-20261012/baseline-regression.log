@@ -1,0 +1,18 @@
+
+Running 13 tests using 8 workers
+
+  ✓   3 [app] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/luna-deep-review.spec.ts:47:1 › Luna 설정 변경 시 미리보기 해제와 재시도 request ID 보존 (1.1s)
+  ✓   2 [app] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/luna-deep-review.spec.ts:76:3 › Luna 검증 미실시 승인·보고서 1280 (1.1s)
+  ✓   1 [app] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/luna-deep-review.spec.ts:76:3 › Luna 검증 미실시 승인·보고서 1440 (1.1s)
+  ✓   8 [app] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/narrative-report.spec.ts:9:3 › 편집된 본문·문장 연결·원문 패널 1440 (1.2s)
+  ✓   4 [app] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/luna-deep-review.spec.ts:7:3 › Luna 미리보기·승인·보고서 1440 (1.1s)
+  ✓   5 [app] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/narrative-report.spec.ts:9:3 › 편집된 본문·문장 연결·원문 패널 1280 (1.2s)
+  ✓   6 [app] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/luna-deep-review.spec.ts:7:3 › Luna 미리보기·승인·보고서 1280 (1.1s)
+  ✓   7 [app] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/narrative-report.spec.ts:57:1 › 이전 보고서 읽기와 새 수정본 도착 중 편집 보존 (1.4s)
+  ✓   9 [app] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/narrative-report.spec.ts:86:1 › 차단하지 않는 확인 사항을 해당 문장과 연결한다 (477ms)
+  ✓  13 [app] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/narrative-report.spec.ts:141:3 › Luna 보조 연결 경고와 본문 보존 1440 (562ms)
+  ✓  12 [app] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/narrative-report.spec.ts:141:3 › Luna 보조 연결 경고와 본문 보존 1280 (602ms)
+  ✓  10 [app] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/narrative-report.spec.ts:103:1 › 새 분석의 대조 스위치와 대조하지 않은 보고서·인용을 구분한다 1280 (712ms)
+  ✓  11 [app] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/narrative-report.spec.ts:103:1 › 새 분석의 대조 스위치와 대조하지 않은 보고서·인용을 구분한다 1440 (712ms)
+
+  13 passed (3.6s)

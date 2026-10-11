@@ -1,0 +1,135 @@
+
+Running 100 tests using 8 workers
+
+  -    1 [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/design-shell.spec.ts:204:1 › 제목 모드 상단바가 18px 제목을 쓰고 높이는 68.4px다
+  -    5 [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/design-shell.spec.ts:316:1 › 지원 폭 1280·1440·1920px에서 셸이 가로로 넘치지 않는다
+  -    6 [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/design-shell.spec.ts:113:1 › 1440px 셸의 팔레트 색과 기준 치수를 고정한다
+  ✓    2 [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/design-shell.spec.ts:72:1 › 셸에 좁은 폭 서랍이 없고 사이드바가 항상 보인다 (463ms)
+  ✓    4 [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/design-shell.spec.ts:342:1 › 콘텐츠를 스크롤해도 사이드바는 viewport에 고정되어 메뉴 이동을 유지한다 (500ms)
+  ✓    3 [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/design-shell.spec.ts:80:1 › 나라장터 바로가기가 주 메뉴 하단에서 새 탭 링크로 제공된다 (513ms)
+  ✓    7 [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/design-shell.spec.ts:228:1 › native compact 셸이 드롭다운·대화상자를 viewport 안에 두고 키보드 초점을 되돌린다 (1.3s)
+  ✓   12 [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/overflow.spec.ts:21:3 › reviews 화면이 가로로 넘치지 않는다 (783ms)
+  ✓   10 [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/overflow.spec.ts:21:3 › judgments 화면이 가로로 넘치지 않는다 (1.1s)
+  ✓   11 [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/overflow.spec.ts:21:3 › queue 화면이 가로로 넘치지 않는다 (1.2s)
+  ✓    9 [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/overflow.spec.ts:21:3 › dashboard 화면이 가로로 넘치지 않는다 (1.2s)
+  ✓   13 [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/overflow.spec.ts:21:3 › attachments 화면이 가로로 넘치지 않는다 (1.0s)
+  ✓   14 [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/overflow.spec.ts:21:3 › runs 화면이 가로로 넘치지 않는다 (1.1s)
+  ✓   15 [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/overflow.spec.ts:21:3 › profile 화면이 가로로 넘치지 않는다 (996ms)
+  ✓   16 [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/overflow.spec.ts:21:3 › metrics 화면이 가로로 넘치지 않는다 (1.0s)
+  ✓   17 [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/overflow.spec.ts:21:3 › quality-gates 화면이 가로로 넘치지 않는다 (1.0s)
+  ✓   18 [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/overflow.spec.ts:21:3 › quality-gates-comparison 화면이 가로로 넘치지 않는다 (1.0s)
+  ✓   19 [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/overflow.spec.ts:21:3 › policies 화면이 가로로 넘치지 않는다 (1.1s)
+  ✓   20 [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/overflow.spec.ts:21:3 › operations 화면이 가로로 넘치지 않는다 (1.0s)
+  ✓   21 [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/overflow.spec.ts:21:3 › audit 화면이 가로로 넘치지 않는다 (1.0s)
+  ✓    8 [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/design-shell.spec.ts:47:1 › 모든 시안 대상 route가 공통 bidops light 셸 안에서 렌더링된다 (3.2s)
+  ✓   22 [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/overflow.spec.ts:21:3 › criteria 화면이 가로로 넘치지 않는다 (968ms)
+  ✓   23 [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/overflow.spec.ts:21:3 › run-status 화면이 가로로 넘치지 않는다 (1.0s)
+  ✓   24 [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/overflow.spec.ts:21:3 › go-no-go 화면이 가로로 넘치지 않는다 (1.0s)
+  ✓   25 [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/overflow.spec.ts:21:3 › judgment-detail 화면이 가로로 넘치지 않는다 (1.0s)
+  ✓   26 [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/overflow.spec.ts:30:3 › opportunities-list 화면이 가로로 넘치지 않는다 (1.0s)
+  ✓   27 [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/overflow.spec.ts:30:3 › opportunity-detail 화면이 가로로 넘치지 않는다 (1.0s)
+  ✓   28 [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/overflow.spec.ts:30:3 › order-plans-list 화면이 가로로 넘치지 않는다 (1.1s)
+  ✓   29 [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/overflow.spec.ts:30:3 › pre-specs-list 화면이 가로로 넘치지 않는다 (930ms)
+  ✓   30 [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/overflow.spec.ts:30:3 › pre-spec-detail 화면이 가로로 넘치지 않는다 (959ms)
+  ✓   31 [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/overflow.spec.ts:30:3 › document-preparation-draft 화면이 가로로 넘치지 않는다 (985ms)
+  ✓   32 [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/overflow.spec.ts:30:3 › document-preparation-processing 화면이 가로로 넘치지 않는다 (986ms)
+  ✓   33 [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/overflow.spec.ts:30:3 › document-preparation-blocked 화면이 가로로 넘치지 않는다 (999ms)
+  ✓   34 [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/overflow.spec.ts:30:3 › document-preparation-ready 화면이 가로로 넘치지 않는다 (996ms)
+  ✓   35 [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/overflow.spec.ts:30:3 › deep-review-queued 화면이 가로로 넘치지 않는다 (984ms)
+  ✓   36 [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/overflow.spec.ts:30:3 › deep-review-running 화면이 가로로 넘치지 않는다 (1.0s)
+  ✓   37 [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/overflow.spec.ts:30:3 › deep-review-failed 화면이 가로로 넘치지 않는다 (968ms)
+  ✓   38 [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/overflow.spec.ts:30:3 › deep-review-complete 화면이 가로로 넘치지 않는다 (973ms)
+  ✓   39 [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/overflow.spec.ts:30:3 › bid-delta-unchanged 화면이 가로로 넘치지 않는다 (947ms)
+  ✓   40 [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/overflow.spec.ts:30:3 › bid-delta-changed 화면이 가로로 넘치지 않는다 (942ms)
+  ✓   41 [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/overflow.spec.ts:30:3 › bid-delta-unknown 화면이 가로로 넘치지 않는다 (963ms)
+  ✓   42 [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/overflow.spec.ts:30:3 › bid-delta-failed 화면이 가로로 넘치지 않는다 (950ms)
+  ✓   43 [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/overflow.spec.ts:42:1 › pre-specs-tracking-panel 화면이 가로로 넘치지 않는다 (1.0s)
+  ✓   48 [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/overflow.spec.ts:171:1 › [search-ux] 사전규격 도구가 탭 아래 필터·검색·회차·추가 조건 순으로 놓인다 (527ms)
+  ✓   46 [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/overflow.spec.ts:119:1 › pre-specs 제외 확인 창과 전체 이력 필터가 지원 폭 안에 보인다 (957ms)
+  ✓   47 [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/overflow.spec.ts:165:1 › [search-ux] 발주계획 도구가 탭 아래 필터·검색 순으로 놓인다 (1.0s)
+  ✓   44 [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/overflow.spec.ts:56:1 › LS-BT 발주계획 선택과 확인 대화상자가 지원 폭 안에 보인다 (1.7s)
+  ✓   49 [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/overflow.spec.ts:177:1 › [search-ux] 사업 추적 도구가 탭 아래 필터·검색 순으로 놓인다 (1.0s)
+  ✓   50 [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/overflow.spec.ts:184:1 › [search-ux] Go/No-Go 도구는 탭 아래 검색만 둔다 (1.0s)
+  ✓   52 [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/design-shell.spec.ts:72:1 › 셸에 좁은 폭 서랍이 없고 사이드바가 항상 보인다 (270ms)
+  ✓   53 [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/design-shell.spec.ts:342:1 › 콘텐츠를 스크롤해도 사이드바는 viewport에 고정되어 메뉴 이동을 유지한다 (279ms)
+  ✓   54 [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/design-shell.spec.ts:80:1 › 나라장터 바로가기가 주 메뉴 하단에서 새 탭 링크로 제공된다 (434ms)
+  ✓   55 [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/design-shell.spec.ts:113:1 › 1440px 셸의 팔레트 색과 기준 치수를 고정한다 (592ms)
+  ✓   56 [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/design-shell.spec.ts:204:1 › 제목 모드 상단바가 18px 제목을 쓰고 높이는 68.4px다 (520ms)
+  ✓   45 [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/overflow.spec.ts:85:1 › LS-PN 선택 도구와 상세 오류 순회가 지원 폭 안에 보인다 (2.5s)
+  ✓   57 [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/overflow.spec.ts:21:3 › dashboard 화면이 가로로 넘치지 않는다 (1.1s)
+  ✓   62 [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/overflow.spec.ts:21:3 › reviews 화면이 가로로 넘치지 않는다 (755ms)
+  ✘   58 [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/design-shell.spec.ts:228:1 › native compact 셸이 드롭다운·대화상자를 viewport 안에 두고 키보드 초점을 되돌린다 (1.1s)
+  ✓   60 [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/overflow.spec.ts:21:3 › queue 화면이 가로로 넘치지 않는다 (1.2s)
+  ✓   61 [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/overflow.spec.ts:21:3 › judgments 화면이 가로로 넘치지 않는다 (1.0s)
+  ✓   63 [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/overflow.spec.ts:21:3 › attachments 화면이 가로로 넘치지 않는다 (1.0s)
+  ✓   65 [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/overflow.spec.ts:21:3 › profile 화면이 가로로 넘치지 않는다 (1.0s)
+  ✓   64 [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/overflow.spec.ts:21:3 › runs 화면이 가로로 넘치지 않는다 (1.1s)
+  ✓   66 [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/overflow.spec.ts:21:3 › quality-gates 화면이 가로로 넘치지 않는다 (1.1s)
+  ✓   59 [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/design-shell.spec.ts:316:1 › 지원 폭 1280·1440·1920px에서 셸이 가로로 넘치지 않는다 (2.2s)
+  ✓   51 [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/design-shell.spec.ts:47:1 › 모든 시안 대상 route가 공통 bidops light 셸 안에서 렌더링된다 (3.4s)
+  ✓   67 [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/overflow.spec.ts:21:3 › quality-gates-comparison 화면이 가로로 넘치지 않는다 (1.0s)
+  ✓   69 [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/overflow.spec.ts:21:3 › policies 화면이 가로로 넘치지 않는다 (962ms)
+  ✓   68 [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/overflow.spec.ts:21:3 › metrics 화면이 가로로 넘치지 않는다 (1.1s)
+  ✓   70 [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/overflow.spec.ts:21:3 › operations 화면이 가로로 넘치지 않는다 (973ms)
+  ✓   71 [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/overflow.spec.ts:21:3 › audit 화면이 가로로 넘치지 않는다 (967ms)
+  ✓   72 [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/overflow.spec.ts:21:3 › criteria 화면이 가로로 넘치지 않는다 (974ms)
+  ✓   73 [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/overflow.spec.ts:21:3 › run-status 화면이 가로로 넘치지 않는다 (1.0s)
+  ✓   74 [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/overflow.spec.ts:21:3 › go-no-go 화면이 가로로 넘치지 않는다 (1.0s)
+  ✓   75 [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/overflow.spec.ts:21:3 › judgment-detail 화면이 가로로 넘치지 않는다 (970ms)
+  ✓   76 [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/overflow.spec.ts:30:3 › opportunities-list 화면이 가로로 넘치지 않는다 (950ms)
+  ✓   77 [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/overflow.spec.ts:30:3 › opportunity-detail 화면이 가로로 넘치지 않는다 (951ms)
+  ✓   78 [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/overflow.spec.ts:30:3 › order-plans-list 화면이 가로로 넘치지 않는다 (964ms)
+  ✓   79 [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/overflow.spec.ts:30:3 › pre-specs-list 화면이 가로로 넘치지 않는다 (938ms)
+  ✓   80 [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/overflow.spec.ts:30:3 › pre-spec-detail 화면이 가로로 넘치지 않는다 (968ms)
+  ✓   81 [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/overflow.spec.ts:30:3 › document-preparation-draft 화면이 가로로 넘치지 않는다 (999ms)
+  ✓   82 [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/overflow.spec.ts:30:3 › document-preparation-processing 화면이 가로로 넘치지 않는다 (995ms)
+  ✓   83 [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/overflow.spec.ts:30:3 › document-preparation-blocked 화면이 가로로 넘치지 않는다 (1.0s)
+  ✓   84 [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/overflow.spec.ts:30:3 › document-preparation-ready 화면이 가로로 넘치지 않는다 (946ms)
+  ✓   85 [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/overflow.spec.ts:30:3 › deep-review-queued 화면이 가로로 넘치지 않는다 (975ms)
+  ✓   86 [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/overflow.spec.ts:30:3 › deep-review-running 화면이 가로로 넘치지 않는다 (997ms)
+  ✓   87 [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/overflow.spec.ts:30:3 › deep-review-failed 화면이 가로로 넘치지 않는다 (977ms)
+  ✓   88 [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/overflow.spec.ts:30:3 › deep-review-complete 화면이 가로로 넘치지 않는다 (994ms)
+  ✓   89 [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/overflow.spec.ts:30:3 › bid-delta-unchanged 화면이 가로로 넘치지 않는다 (960ms)
+  ✓   90 [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/overflow.spec.ts:30:3 › bid-delta-changed 화면이 가로로 넘치지 않는다 (957ms)
+  ✓   91 [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/overflow.spec.ts:30:3 › bid-delta-unknown 화면이 가로로 넘치지 않는다 (977ms)
+  ✓   92 [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/overflow.spec.ts:30:3 › bid-delta-failed 화면이 가로로 넘치지 않는다 (948ms)
+  ✓   93 [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/overflow.spec.ts:42:1 › pre-specs-tracking-panel 화면이 가로로 넘치지 않는다 (1.0s)
+  ✓   99 [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/overflow.spec.ts:177:1 › [search-ux] 사업 추적 도구가 탭 아래 필터·검색 순으로 놓인다 (557ms)
+  ✓  100 [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/overflow.spec.ts:184:1 › [search-ux] Go/No-Go 도구는 탭 아래 검색만 둔다 (520ms)
+  ✓   97 [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/overflow.spec.ts:165:1 › [search-ux] 발주계획 도구가 탭 아래 필터·검색 순으로 놓인다 (1.1s)
+  ✓   96 [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/overflow.spec.ts:119:1 › pre-specs 제외 확인 창과 전체 이력 필터가 지원 폭 안에 보인다 (1.2s)
+  ✓   98 [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/overflow.spec.ts:171:1 › [search-ux] 사전규격 도구가 탭 아래 필터·검색·회차·추가 조건 순으로 놓인다 (1.1s)
+  ✓   94 [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/overflow.spec.ts:56:1 › LS-BT 발주계획 선택과 확인 대화상자가 지원 폭 안에 보인다 (1.6s)
+  ✓   95 [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/overflow.spec.ts:85:1 › LS-PN 선택 도구와 상세 오류 순회가 지원 폭 안에 보인다 (2.5s)
+
+
+  1) [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/design-shell.spec.ts:228:1 › native compact 셸이 드롭다운·대화상자를 viewport 안에 두고 키보드 초점을 되돌린다 
+
+    Error: expect(received).toBeLessThanOrEqual(expected)
+
+    Expected: <= 4
+    Received:    7.255470275878906
+
+      285 |   const triggerCenter = (popoverGeometry.triggerTop + popoverGeometry.triggerBottom) / 2;
+      286 |   const selectedCenter = (popoverGeometry.selectedTop + popoverGeometry.selectedBottom) / 2;
+    > 287 |   expect(Math.abs(selectedCenter - triggerCenter)).toBeLessThanOrEqual(4);
+          |                                                    ^
+      288 |
+      289 |   await page.keyboard.press("Escape");
+      290 |   await expect(listbox).toBeHidden();
+        at /Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/design-shell.spec.ts:287:52
+
+    Error Context: .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/test-results/design-shell-native-compac-38b7b-viewport-안에-두고-키보드-초점을-되돌린다-layout-desktop/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/test-results/design-shell-native-compac-38b7b-viewport-안에-두고-키보드-초점을-되돌린다-layout-desktop/trace.zip
+    Usage:
+
+        npx playwright show-trace .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/test-results/design-shell-native-compac-38b7b-viewport-안에-두고-키보드-초점을-되돌린다-layout-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/design-shell.spec.ts:228:1 › native compact 셸이 드롭다운·대화상자를 viewport 안에 두고 키보드 초점을 되돌린다 
+  3 skipped
+  96 passed (15.5s)

@@ -1,0 +1,23 @@
+
+Running 18 tests using 8 workers
+
+  ✓   8 [app] › tests/company-graph.spec.ts:345:1 › 프로필이 준비되지 않은 회사(409)는 관계 목록을 읽지도 그리지도 않는다 (647ms)
+  ✓   1 [app] › tests/company-graph.spec.ts:296:1 › 관계가 없는 응답은 빈 상태로, 판정이 아니라고 말한다 (666ms)
+  ✓   7 [app] › tests/company-graph.spec.ts:52:1 › 관계 목록은 서버 노드를 유형별로 묶고 관계 행을 그대로 보여 주며 버전·가상 표식·미확인을 문자로 구분한다 (707ms)
+  ✓   3 [app] › tests/company-graph.spec.ts:272:1 › 관계 목록을 읽는 중에는 완료된 목록처럼 보이지 않는다 (736ms)
+  ✓   6 [app] › tests/company-graph.spec.ts:227:1 › depth·limit을 바꾸면 그 query로 다시 묻고, 잘린 목록은 생략 개수와 함께 누락의 증거가 아니라고 알린다 (760ms)
+  ✓   2 [app] › tests/company-graph.spec.ts:310:1 › 없는 중심(404)·네트워크 실패·그래프 409는 오류로 보이고 다시 시도할 수 있다 (817ms)
+  ✓   5 [app] › tests/company-graph.spec.ts:155:1 › 노드·관계를 클릭·Enter·Space로 열고 버튼·Escape로 닫으면 연 행으로 초점이 돌아간다 (1.0s)
+  ✓   9 [app] › tests/company-graph.spec.ts:355:1 › 응답 그래프의 버전·hash가 프로필과 다르면 목록을 그리지 않는다 (519ms)
+  ✓  11 [app] › tests/company-workspace.spec.ts:99:1 › 첫 진입은 회사 선택이고 기본 회사를 정하지 않는다 (574ms)
+  ✓  10 [app] › tests/company-graph.spec.ts:367:1 › 긴 한글 label은 1440 폭에서 가로로 넘치지 않는다(목록·근거 패널) (639ms)
+  ✓   4 [app] › tests/company-graph.spec.ts:114:1 › 노드를 중심으로 다시 보면 root_node_id로 서버에 다시 묻고, 회사 중심으로 돌아올 수 있다 (1.4s)
+  ✓  13 [app] › tests/company-workspace.spec.ts:169:1 › 프로필 화면에서 회사를 바꾸면 새 회사의 프로필로 가고 머리글·사실이 그 회사다 (604ms)
+  ✓  18 [app] › tests/company-workspace.spec.ts:323:1 › demo-config가 없으면(미등록 404) 비활성으로 닫힌다 (214ms)
+  ✓  17 [app] › tests/company-workspace.spec.ts:304:1 › demo-config가 꺼져 있으면 회사 메뉴·선택기·경로가 SPA에 없다 (354ms)
+  ✓  14 [app] › tests/company-workspace.spec.ts:185:1 › 두 탭이 서로 다른 회사를 열어도 서로의 화면·선택을 바꾸지 않는다 (1.3s)
+  ✓  12 [app] › tests/company-workspace.spec.ts:118:1 › A→B→A 전환·새로고침·뒤로/앞으로에서 주소·머리글·목록·선택이 회사별로 유지된다 (1.5s)
+  ✓  15 [app] › tests/company-workspace.spec.ts:211:1 › 미저장 추적 입력이 있으면 회사 전환 전에 확인하고, 취소하면 회사 A에 남는다 (1.5s)
+  ✓  16 [app] › tests/company-workspace.spec.ts:247:1 › 회사 A에서 시작한 저장은 A로 끝나고, 그사이 연 회사 B 화면을 무효화하거나 덮지 않는다 (1.4s)
+
+  18 passed (3.2s)

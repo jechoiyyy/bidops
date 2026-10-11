@@ -15,6 +15,7 @@
 import {
   mockApi,
   mockBidDelta,
+  mockCompanyWorkspace,
   mockDeepReviewLifecycle,
   mockDocumentStructurePage,
   mockOpportunity,
@@ -132,6 +133,9 @@ async function buildPage(): Promise<FakePage> {
   await mockOrderPlanBulkTracking(page as never);
   await mockDeepReviewLifecycle(page as never, "completed");
   await mockBidDelta(page as never, { calculationStatus: "completed", resultStatus: "changed", withHistory: true });
+  // 가상회사 데모 화면(`/companies/...`)을 브라우저로 보려고 demo-config를 켠다. 응답은
+  // 같은 Playwright fixture(`mockCompanyWorkspace`)이며 실제 회사 자료가 아니다.
+  await mockCompanyWorkspace(page as never);
 
   // 사전규격 목록 fixture에는 있지만 공고 상세 fixture가 없는 건이 있다
   // (`mockPreSpecs`는 991만 상세를 준다). 브라우저로 목록의 행을 눌러 보는

@@ -1,0 +1,27 @@
+
+Running 22 tests using 8 workers
+
+  ✓   4 [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:183:1 › 회사 선택(/companies): 긴 회사 이름 3행과 열기 링크가 폭 안에 있다 (1.0s)
+  ✓   8 [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:240:1 › 회사 사전규격 상세: 긴 제목, 핏 판정 이력 3건, 추적 컨트롤이 폭 안에 있다 (1.2s)
+  ✓   7 [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:338:1 › 3사 비교 표: 긴 한글에서도 비교 상태 열이 숨지 않고 표가 가로 스크롤 없이 들어간다 (1.2s)
+  ✓   2 [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:279:1 › Luna 외부 전송 승인 상자(미리보기 후)가 긴 회사 이름·범위와 함께 폭 안에 있다 (1.2s)
+  ✓   5 [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:198:1 › 회사 사전규격 목록: 긴 제목·요약과 판정·추적 열이 폭 안에 있고 선택한 공고 패널도 들어간다 (1.3s)
+  ✓   6 [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:299:1 › 프로필·관계 목록: 긴 label의 노드·관계 행이 들어가고 근거 패널을 열어도 행과 겹치거나 넘치지 않는다 (1.4s)
+  ✓   3 [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:258:1 › 추적 409 version_conflict의 초안·최신값 비교 패널이 긴 사유와 함께 폭 안에 있다 (1.4s)
+  ✓  11 [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:419:1 › 비보안 HTTP origin에서도 회사 추적 저장과 Luna 생성은 UUID v4 request_id를 보낸다 (1.2s)
+  ✓  10 [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:385:1 › 심층 검토 보고서: 회사 식별 줄과 NarrativeReportReader, 근거 패널이 폭 안에 있다 (1.2s)
+  ✓  12 [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:183:1 › 회사 선택(/companies): 긴 회사 이름 3행과 열기 링크가 폭 안에 있다 (778ms)
+  ✓  15 [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:240:1 › 회사 사전규격 상세: 긴 제목, 핏 판정 이력 3건, 추적 컨트롤이 폭 안에 있다 (1.1s)
+  ✓  13 [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:198:1 › 회사 사전규격 목록: 긴 제목·요약과 판정·추적 열이 폭 안에 있고 선택한 공고 패널도 들어간다 (1.3s)
+  ✓  16 [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:299:1 › 프로필·관계 목록: 긴 label의 노드·관계 행이 들어가고 근거 패널을 열어도 행과 겹치거나 넘치지 않는다 (1.1s)
+  ✓  18 [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:279:1 › Luna 외부 전송 승인 상자(미리보기 후)가 긴 회사 이름·범위와 함께 폭 안에 있다 (1.1s)
+  ✓  17 [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:258:1 › 추적 409 version_conflict의 초안·최신값 비교 패널이 긴 사유와 함께 폭 안에 있다 (1.2s)
+  ✓  19 [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:338:1 › 3사 비교 표: 긴 한글에서도 비교 상태 열이 숨지 않고 표가 가로 스크롤 없이 들어간다 (1.2s)
+  ✓  21 [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:385:1 › 심층 검토 보고서: 회사 식별 줄과 NarrativeReportReader, 근거 패널이 폭 안에 있다 (1.2s)
+  ✓  22 [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:419:1 › 비보안 HTTP origin에서도 회사 추적 저장과 Luna 생성은 UUID v4 request_id를 보낸다 (1.1s)
+  ✓   1 [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:224:1 › 읽는 중 목록은 완료 화면으로 측정하지 않고, 완료된 뒤의 표가 폭 안에 있다 (6.2s)
+  ✓   9 [layout-laptop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:371:1 › 읽는 중 3사 비교는 완료 화면으로 측정하지 않고, 완료 뒤에 폭 안에 있다 (6.0s)
+  ✓  14 [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:224:1 › 읽는 중 목록은 완료 화면으로 측정하지 않고, 완료된 뒤의 표가 폭 안에 있다 (6.1s)
+  ✓  20 [layout-desktop] › .sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-layout.spec.ts:371:1 › 읽는 중 3사 비교는 완료 화면으로 측정하지 않고, 완료 뒤에 폭 안에 있다 (6.1s)
+
+  22 passed (9.6s)

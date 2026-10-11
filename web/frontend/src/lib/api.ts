@@ -1582,3 +1582,11 @@ export function parseOrderPlanScreeningError(error: unknown): OrderPlanScreening
     ?? (error.status === 422 ? "invalid_request" : error.status === 503 ? "service_unavailable" : null);
   return { status: error.status, code, request_id: error.requestId };
 }
+
+/**
+ * 같은 요청·오류 envelope 규칙을 다른 typed client(`lib/companyApi.ts`)가 다시
+ * 구현하지 않도록 내보낸다. 오류는 언제나 `ApiError`(status·안전한 code)이며
+ * 서버 message로 분기하지 않는다.
+ */
+export { request as apiRequest, query as apiQueryString, actorHeaders as apiActorHeaders };
+export type { ReadRequestOptions };

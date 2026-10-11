@@ -29,6 +29,20 @@
 | web/frontend/playwright.config.ts | 수정 | LAYOUT_SPECS에 company-layout.spec.ts 추가 |
 | web/frontend/tests/company-layout.spec.ts | 신규 | 두 폭 T2/T3/T6 구조 검사 |
 
+2026-10-12 구현 중 추가한 경로(run demo04-20261012에서 수용 범위 변경 없이 기록). 실제 diff가 정본이다.
+
+| 경로 | 신규/수정 | 내용 |
+|---|---|---|
+| web/frontend/src/App.tsx | 수정 | demo-config를 확정한 뒤 router를 한 번 만든다 |
+| web/frontend/src/components/shell/{TopBar,Sidebar,route-meta}.tsx·ts, CompanySelector.tsx | 수정/신규 | 회사 선택기, 가상회사 표식, 회사 메뉴, 동적 경로 메타 |
+| web/frontend/src/lib/api.ts | 수정 | 기존 request 도우미를 이름만 바꿔 내보낸다(동작 변경 없음) |
+| web/frontend/src/components/common/useUnsavedGuard.ts | 수정 | 재차단 경합 수정: 막힌 이동마다 확인 창을 연다 |
+| web/frontend/src/components/deep-review/NarrativeReportReader.tsx | 수정 | 근거 조회 source 주입(기본값은 기존 그대로) |
+| web/frontend/src/components/company/{CompanyHeader,CompanySummaries,CompanyFitAttempts}.tsx | 신규 | 회사 머리글, 요약, 핏 판정 이력 |
+| web/frontend/src/styles/company-workspace.css | 신규 | 회사 화면 스타일(테마 토큰) |
+| web/frontend/tests/fixtures/company-demo.ts | 신규 | 3사 고정 응답 seed |
+| web/frontend/tests/company-{prespecs,comparison,review}.spec.ts | 신규 | T3·T4·T5 |
+
 ## 작업 순서
 
 1. STEP-001 회사 경로와 상태 [complex]
@@ -96,4 +110,12 @@ Playwright는 `tests/api-mock.ts`의 고정 응답으로 돌며 실제 백엔드
 
 ## 결과
 
-미구현. 문서 검토와 제품 검증을 구분한다. 실제 작업 후 차이·재시도·증거·커밋 여부를 기록한다.
+2026-10-12 run `demo04-20261012`에서 STEP-001~005를 구현했다. 리더가 단계마다 영향 검사를 다시 돌렸고, 독립 최종 리뷰(PASS_WITH_NOTES, 차단 0)와 그 회차의 주의 3건 수정까지 마쳤다. 변경은 frontend뿐이고, 검증은 Playwright mock으로만 했다. 실제 백엔드·자료 화면 인수는 DEMO-05가 맡는다. 커밋·병합은 수동 정책이다.
+기능 기록은 `_runs/demo04-20261012/DEMO-04-review-workspace.md`, 증거 요약은 `docs/validation-runs/2026-10-12-company-demo/DEMO-04-review-workspace/README.md`, 리뷰는 `_runs/demo04-20261012/review.md`.
+
+- 위 "검사 명령과 증거" 절의 "신규 테스트는 아직 없으며" 문장은 계획 작성 시점 문구다. 실제 실행 결과는 이 절과 리더 로그가 정본이다.
+- 이 Mac에서는 `vite preview`가 IPv6 localhost에만 바인딩된다. 그래서 위 명령은 preview를 `--host 127.0.0.1`로 띄우고 `PW_PORT`·`PW_OUT_DIR`로 재사용해 실행했다(설정 변경 없음).
+- 최종: `npm run build` exit 0. 리뷰 수정 뒤 영향 app spec 13개 271 passed. 두 폭 layout 117 passed / 2 failed / 3 skipped. 리뷰 수정 전 화면 게이트 전체 833 passed / 6 failed / 6 skipped. 실패는 모두 기준 `c50ed55`에서도 같은 기존 실패이고(findings 2026-10-12·2026-09-16), 건너뜀은 설계상이다.
+- 구현 중 추가한 공용 변경은 변경 파일 표의 추가 표에 적었다: `useUnsavedGuard` 재차단 경합 수정, `NarrativeReportReader` 근거 source 주입, 셸·`App.tsx` demo-config 확정.
+- 판단: 핏 GraphPath는 계약상 id만 있어 id로 표시한다. 회사 경로 원문 대조는 true만 보낸다. 회사 보고서는 읽기 전용이다. 정상 조작으로 생기지 않는 409는 합성 검사로 분리했다.
+- 남은 한계: 실제 스택의 생성→폴링→보고서 흐름과 회사 전환은 DEMO-05에서 인수한다. demo-config 재조회 실패 유지 분기는 코드 리뷰로만 확인했다. 회사 목록 키보드 조작은 backlog다.

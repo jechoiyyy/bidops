@@ -1,0 +1,13 @@
+
+Running 8 tests using 8 workers
+
+  ✓  8 [app] › tests/company-workspace.spec.ts:321:1 › demo-config가 없으면(미등록 404) 비활성으로 닫힌다 (468ms)
+  ✓  4 [app] › tests/company-workspace.spec.ts:302:1 › demo-config가 꺼져 있으면 회사 메뉴·선택기·경로가 SPA에 없다 (692ms)
+  ✓  3 [app] › tests/company-workspace.spec.ts:99:1 › 첫 진입은 회사 선택이고 기본 회사를 정하지 않는다 (733ms)
+  ✓  1 [app] › tests/company-workspace.spec.ts:167:1 › 프로필 화면에서 회사를 바꾸면 새 회사의 프로필로 가고 머리글·사실이 그 회사다 (756ms)
+  ✓  6 [app] › tests/company-workspace.spec.ts:118:1 › A→B→A 전환·새로고침·뒤로/앞으로에서 주소·머리글·목록·선택이 회사별로 유지된다 (1.5s)
+  ✓  7 [app] › tests/company-workspace.spec.ts:183:1 › 두 탭이 서로 다른 회사를 열어도 서로의 화면·선택을 바꾸지 않는다 (1.6s)
+  ✓  5 [app] › tests/company-workspace.spec.ts:209:1 › 미저장 추적 입력이 있으면 회사 전환 전에 확인하고, 취소하면 회사 A에 남는다 (1.7s)
+  ✓  2 [app] › tests/company-workspace.spec.ts:245:1 › 회사 A에서 시작한 저장은 A로 끝나고, 그사이 연 회사 B 화면을 무효화하거나 덮지 않는다 (2.1s)
+
+  8 passed (2.8s)

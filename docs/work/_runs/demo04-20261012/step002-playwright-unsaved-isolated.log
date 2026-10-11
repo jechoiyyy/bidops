@@ -1,0 +1,6 @@
+
+Running 1 test using 1 worker
+
+  ✓  1 [app] › tests/company-workspace.spec.ts:211:1 › 미저장 추적 입력이 있으면 회사 전환 전에 확인하고, 취소하면 회사 A에 남는다 (887ms)
+
+  1 passed (1.3s)

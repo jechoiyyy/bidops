@@ -1,0 +1,245 @@
+
+Running 26 tests using 8 workers
+
+  ✓   1 [app] › tests/company-comparison.spec.ts:211:1 › T3: 순위·종합 점수·보정값·재정렬 조작이 없다 (625ms)
+  ✓   5 [app] › tests/company-comparison.spec.ts:74:1 › T3: 3사 비교는 서버가 준 slug 순서와 비교 상태·각 실행 상태를 그대로, 따로 보여 준다 (687ms)
+  ✓   3 [app] › tests/company-comparison.spec.ts:157:1 › T3: 비교 상태가 '비교 가능'이어도 실패한 실행은 실패로 따로 보인다(공고 7103) (697ms)
+  ✓   4 [app] › tests/company-comparison.spec.ts:259:1 › 회사 이름 링크는 그 회사의 같은 공고 상세로 가고, 원문 공고 링크가 있다 (821ms)
+  ✓   9 [app] › tests/company-comparison.spec.ts:294:1 › T6: 비교를 읽는 중에는 완료 화면을 그리지 않는다 (444ms)
+  ✓   2 [app] › tests/company-comparison.spec.ts:271:1 › 비교 오류: 없는 공고 404, 서버 오류 500, 잘못된 주소를 성공 화면으로 그리지 않는다 (1.4s)
+  ✓  10 [app] › tests/company-comparison.spec.ts:312:1 › T6: 사전규격 목록·상세의 읽는 중 상태도 완료로 보이지 않는다 (869ms)
+  ✓  12 [app] › tests/company-comparison.spec.ts:372:1 › 비교 화면 구조: 회사 수와 같은 행, 공통 문서 버전 수, 데모 표식 (922ms)
+  ✓  13 [app] › tests/company-prespecs.spec.ts:58:1 › T3: 목록 기본 요청은 정렬·쪽 크기·offset만 서버로 보낸다 (945ms)
+  ✓  11 [app] › tests/company-comparison.spec.ts:343:1 › T6: 1440 폭에서 공백 없는 긴 한글 제목·요약·사유·회사 이름이 목록·상세·비교에서 넘치지 않는다 (1.7s)
+  ✓  15 [app] › tests/company-prespecs.spec.ts:122:1 › T3: 추적·검색·정렬 조건이 서버 요청과 주소에 실리고 마감일 없음은 서버 순서대로 뒤에 온다 (1.5s)
+  ✓  19 [app] › tests/company-prespecs.spec.ts:268:1 › T3: 조건에 맞는 항목이 없는 것과 목록이 비어 있는 것을 다르게 안내한다 (492ms)
+  ✓  20 [app] › tests/company-prespecs.spec.ts:281:1 › 목록 오류는 빈 목록이 아니라 오류로 보이고 다시 시도하면 회복한다 (477ms)
+  ✓  17 [app] › tests/company-prespecs.spec.ts:185:1 › T3: 쪽 이동은 limit/offset을 서버로 보내고 주소에 남기며 쪽을 넘어도 선택을 지우지 않는다 (2.1s)
+  ✓  22 [app] › tests/company-prespecs.spec.ts:321:1 › T3: 핏 판정 이력은 최신순이고 완료·실패·이전 입력이 서로 다른 판정과 상태로 보인다 (955ms)
+  ✓  16 [app] › tests/company-prespecs.spec.ts:161:1 › T6: 허용값 밖의 주소 인자는 기본값으로 복원되고 서버로 가지 않는다 (3.4s)
+  ✘   7 [app] › tests/company-comparison.spec.ts:120:1 › T3: 이전 입력·결과 없음·사람 검토 필요가 서로 다른 표시로 구분된다(공고 7104) (5.6s)
+  ✘   6 [app] › tests/company-comparison.spec.ts:234:1 › T3: 네 가지 비교 상태가 서로 다른 한국어 문구와 설명으로 안내된다 (5.7s)
+  ✘   8 [app] › tests/company-comparison.spec.ts:179:1 › T3: 화면은 서버의 비교 상태를 다시 계산하지 않고 값 그대로 쓴다 (5.8s)
+  ✓  26 [app] › tests/company-prespecs.spec.ts:482:1 › 핏 판정 이력 오류는 빈 이력이 아니라 오류로 보이고 다시 시도하면 회복한다 (560ms)
+  ✓  23 [app] › tests/company-prespecs.spec.ts:365:1 › T3: 사유마다 서버가 준 그래프 경로를 그대로 보여 주고 없는 경로를 만들지 않는다 (1.8s)
+  ✓  25 [app] › tests/company-prespecs.spec.ts:466:1 › T5 일부: 회사 핏은 CLI 전용이라 생성·승인 화면이 없고, 원문·비교로 가는 링크가 있다 (1.0s)
+  ✘  14 [app] › tests/company-prespecs.spec.ts:77:1 › T3: 핏 필터는 주소와 서버 요청에 실리고, 서버가 준 행을 브라우저가 다시 거르지 않는다 (6.0s)
+  ✓  24 [app] › tests/company-prespecs.spec.ts:419:1 › T3: unknown·대기·사람 검토 필요·실패는 판정으로 바뀌지 않고 이전 완료 실행이 대신하지 않는다 (2.4s)
+  ✘  18 [app] › tests/company-prespecs.spec.ts:227:1 › T3: 의미 필터가 바뀌면 offset과 회사별 선택이 초기화되고, 정렬 변경은 선택을 유지한다 (5.8s)
+  ✘  21 [app] › tests/company-prespecs.spec.ts:301:1 › T6: 조건을 바꾼 직후에는 이전 조건의 행을 새 결과처럼 보여 주지 않는다 (6.0s)
+
+
+  1) [app] › tests/company-comparison.spec.ts:120:1 › T3: 이전 입력·결과 없음·사람 검토 필요가 서로 다른 표시로 구분된다(공고 7104) 
+
+    Error: expect(locator).toHaveText(expected) failed
+
+    Locator:  locator('tr[data-company-slug="demo-data-ai"]').locator('td[data-comparison-status] .badge')
+    Expected: "이전 입력"
+    Received: "현재 입력 아님"
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toHaveText" with timeout 5000ms
+      - waiting for locator('tr[data-company-slug="demo-data-ai"]').locator('td[data-comparison-status] .badge')
+        14 × locator resolved to <span class="badge badge-alert">현재 입력 아님</span>
+           - unexpected value "현재 입력 아님"
+
+
+      125 |   const dataAi = rowOf(page, "demo-data-ai");
+      126 |   await expect(dataAi.locator("td[data-comparison-status]")).toHaveAttribute("data-comparison-status", "stale");
+    > 127 |   await expect(dataAi.locator("td[data-comparison-status] .badge")).toHaveText(STATUS_LABEL.stale);
+          |                                                                     ^
+      128 |   await expect(dataAi.locator("td[data-comparison-status]")).toContainText(STATUS_NOTE.stale);
+      129 |   // 이전 입력의 판정(미확인)은 판정 값 그대로 두고 "현재 입력 기준 아님"을 덧붙인다. 성공/부적합으로 바꾸지 않는다.
+      130 |   await expect(dataAi.locator("[data-fit-decision]")).toHaveAttribute("data-fit-decision", "unknown");
+        at /Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-comparison.spec.ts:127:69
+
+    Error Context: test-results/company-comparison-T3-이전-입-6a012-필요가-서로-다른-표시로-구분된다-공고-7104--app/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/company-comparison-T3-이전-입-6a012-필요가-서로-다른-표시로-구분된다-공고-7104--app/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/company-comparison-T3-이전-입-6a012-필요가-서로-다른-표시로-구분된다-공고-7104--app/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) [app] › tests/company-comparison.spec.ts:179:1 › T3: 화면은 서버의 비교 상태를 다시 계산하지 않고 값 그대로 쓴다 ───────
+
+    Error: expect(locator).toHaveText(expected) failed
+
+    Locator:  locator('tr[data-company-slug="demo-data-ai"]').locator('td[data-comparison-status] .badge')
+    Expected: "이전 입력"
+    Received: "현재 입력 아님"
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toHaveText" with timeout 5000ms
+      - waiting for locator('tr[data-company-slug="demo-data-ai"]').locator('td[data-comparison-status] .badge')
+        14 × locator resolved to <span class="badge badge-alert">현재 입력 아님</span>
+           - unexpected value "현재 입력 아님"
+
+
+      202 |   await expect(comparisonRows(page)).toHaveCount(3);
+      203 |   await expect(rowOf(page, "demo-cloud-si").locator("td[data-comparison-status] .badge")).toHaveText(STATUS_LABEL.comparable);
+    > 204 |   await expect(rowOf(page, "demo-data-ai").locator("td[data-comparison-status] .badge")).toHaveText(STATUS_LABEL.stale);
+          |                                                                                          ^
+      205 |   await expect(rowOf(page, "demo-public-si").locator("td[data-comparison-status] .badge")).toHaveText(STATUS_LABEL.missing);
+      206 |   // 서버가 준 순서도 그대로다(서버 순서가 곧 화면 순서).
+      207 |   const slugs = await comparisonRows(page).evaluateAll((rows) => rows.map((row) => row.getAttribute("data-company-slug")));
+        at /Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-comparison.spec.ts:204:90
+
+    Error Context: test-results/company-comparison-T3-화면은-서버의-비교-상태를-다시-계산하지-않고-값-그대로-쓴다-app/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/company-comparison-T3-화면은-서버의-비교-상태를-다시-계산하지-않고-값-그대로-쓴다-app/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/company-comparison-T3-화면은-서버의-비교-상태를-다시-계산하지-않고-값-그대로-쓴다-app/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  3) [app] › tests/company-comparison.spec.ts:234:1 › T3: 네 가지 비교 상태가 서로 다른 한국어 문구와 설명으로 안내된다 ──────
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByRole('region', { name: '비교 상태 안내' }).locator('dt').filter({ hasText: '이전 입력' })
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" with timeout 5000ms
+      - waiting for getByRole('region', { name: '비교 상태 안내' }).locator('dt').filter({ hasText: '이전 입력' })
+
+
+      239 |   await expect(legend).toContainText("다른 입력, 이전 입력, 결과 없음, 비교 가능 순");
+      240 |   for (const status of ["comparable", "stale", "missing", "different_input"] as const) {
+    > 241 |     await expect(legend.locator("dt", { hasText: STATUS_LABEL[status] })).toBeVisible();
+          |                                                                           ^
+      242 |     await expect(legend).toContainText(STATUS_NOTE[status]);
+      243 |   }
+      244 |   expect(new Set(Object.values(STATUS_LABEL)).size).toBe(4);
+        at /Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-comparison.spec.ts:241:75
+
+    Error Context: test-results/company-comparison-T3-네-가지-비교-상태가-서로-다른-한국어-문구와-설명으로-안내된다-app/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/company-comparison-T3-네-가지-비교-상태가-서로-다른-한국어-문구와-설명으로-안내된다-app/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/company-comparison-T3-네-가지-비교-상태가-서로-다른-한국어-문구와-설명으로-안내된다-app/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  4) [app] › tests/company-prespecs.spec.ts:77:1 › T3: 핏 필터는 주소와 서버 요청에 실리고, 서버가 준 행을 브라우저가 다시 거르지 않는다 
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  getByRole('table', { name: '회사별 사전규격 판정' }).locator('tbody tr')
+    Expected: 1
+    Received: 4
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toHaveCount" with timeout 5000ms
+      - waiting for getByRole('table', { name: '회사별 사전규격 판정' }).locator('tbody tr')
+        14 × locator resolved to 4 elements
+           - unexpected value "4"
+
+
+      82 |   await fitSelect(page).selectOption("matched");
+      83 |   await expect.poll(() => urlParam(page, "fit")).toBe("matched");
+    > 84 |   await expect(rows(page)).toHaveCount(1);
+         |                            ^
+      85 |   await expect.poll(() => lastListRequest(trace)).toMatchObject({ fit: "matched", offset: "0" });
+      86 |   await expect(rows(page).first().locator("[data-fit-decision]")).toHaveAttribute("data-fit-decision", "matched");
+      87 |   await expect(pager(page)).toContainText("전체 1건");
+        at /Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-prespecs.spec.ts:84:28
+
+    Error Context: test-results/company-prespecs-T3-핏-필터는--16556-고-서버가-준-행을-브라우저가-다시-거르지-않는다-app/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/company-prespecs-T3-핏-필터는--16556-고-서버가-준-행을-브라우저가-다시-거르지-않는다-app/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/company-prespecs-T3-핏-필터는--16556-고-서버가-준-행을-브라우저가-다시-거르지-않는다-app/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  5) [app] › tests/company-prespecs.spec.ts:227:1 › T3: 의미 필터가 바뀌면 offset과 회사별 선택이 초기화되고, 정렬 변경은 선택을 유지한다 
+
+    Error: expect(received).toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 0
+
+      Object {
+    -   "fit": "mismatch",
+        "limit": "2",
+        "offset": "0",
+      }
+
+    Call Log:
+    - Timeout 5000ms exceeded while waiting on the predicate
+
+      251 |   expect(urlParam(page, "offset")).toBeNull();
+      252 |   expect(urlParam(page, "limit")).toBe("2");
+    > 253 |   await expect.poll(() => lastListRequest(trace)).toMatchObject({ fit: "mismatch", offset: "0", limit: "2" });
+          |                                                   ^
+      254 |   await expect.poll(() => rowIds(page)).toEqual(["7103"]);
+      255 |   // 선택이 비워졌다: 화면·회사별 저장소 모두.
+      256 |   await expect(rows(page).locator('button.cw-row-select[aria-pressed="true"]')).toHaveCount(0);
+        at /Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-prespecs.spec.ts:253:51
+
+    Error Context: test-results/company-prespecs-T3-의미-필터가-5eec8-별-선택이-초기화되고-정렬-변경은-선택을-유지한다-app/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/company-prespecs-T3-의미-필터가-5eec8-별-선택이-초기화되고-정렬-변경은-선택을-유지한다-app/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/company-prespecs-T3-의미-필터가-5eec8-별-선택이-초기화되고-정렬-변경은-선택을-유지한다-app/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  6) [app] › tests/company-prespecs.spec.ts:301:1 › T6: 조건을 바꾼 직후에는 이전 조건의 행을 새 결과처럼 보여 주지 않는다 ─────
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByRole('status').filter({ hasText: '이 회사의 사전규격을 불러오는 중입니다.' })
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" with timeout 5000ms
+      - waiting for getByRole('status').filter({ hasText: '이 회사의 사전규격을 불러오는 중입니다.' })
+
+
+      309 |   });
+      310 |   await fitSelect(page).selectOption("matched");
+    > 311 |   await expect(page.getByRole("status").filter({ hasText: "이 회사의 사전규격을 불러오는 중입니다." })).toBeVisible();
+          |                                                                                        ^
+      312 |   await expect(table(page)).toHaveCount(0);
+      313 |   await expect(pager(page)).toHaveCount(0);
+      314 |   held.release();
+        at /Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo04-20261012-DEMO-04-review-workspace/web/frontend/tests/company-prespecs.spec.ts:311:88
+
+    Error Context: test-results/company-prespecs-T6-조건을-바꾼-직후에는-이전-조건의-행을-새-결과처럼-보여-주지-않는다-app/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/company-prespecs-T6-조건을-바꾼-직후에는-이전-조건의-행을-새-결과처럼-보여-주지-않는다-app/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/company-prespecs-T6-조건을-바꾼-직후에는-이전-조건의-행을-새-결과처럼-보여-주지-않는다-app/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  6 failed
+    [app] › tests/company-comparison.spec.ts:120:1 › T3: 이전 입력·결과 없음·사람 검토 필요가 서로 다른 표시로 구분된다(공고 7104) 
+    [app] › tests/company-comparison.spec.ts:179:1 › T3: 화면은 서버의 비교 상태를 다시 계산하지 않고 값 그대로 쓴다 ────────
+    [app] › tests/company-comparison.spec.ts:234:1 › T3: 네 가지 비교 상태가 서로 다른 한국어 문구와 설명으로 안내된다 ───────
+    [app] › tests/company-prespecs.spec.ts:77:1 › T3: 핏 필터는 주소와 서버 요청에 실리고, 서버가 준 행을 브라우저가 다시 거르지 않는다 
+    [app] › tests/company-prespecs.spec.ts:227:1 › T3: 의미 필터가 바뀌면 offset과 회사별 선택이 초기화되고, 정렬 변경은 선택을 유지한다 
+    [app] › tests/company-prespecs.spec.ts:301:1 › T6: 조건을 바꾼 직후에는 이전 조건의 행을 새 결과처럼 보여 주지 않는다 ──────
+  20 passed (10.8s)
