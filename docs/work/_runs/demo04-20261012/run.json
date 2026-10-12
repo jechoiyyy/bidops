@@ -1,6 +1,6 @@
 {
   "id": "demo04-20261012",
-  "state": "awaiting_merge",
+  "state": "done",
   "features": [
     "DEMO-04-review-workspace"
   ],
@@ -57,5 +57,13 @@
         "spec_hash": "84fa415983e4e7a2d734340d5829f80247cdf05dd36c0fb30ca33eac8e69edc2"
       }
     }
-  }
+  },
+  "merged_sha": "784acf9c5b493e0c6ee897a0a4634ce89f1937ec",
+  "merged_inputs": {
+    "DEMO-04-review-workspace": {
+      "source_hash": "409770bb71728eb9daad8d7ee289c9654f2faeac9afaaa61c21f53efe9d09fcf",
+      "spec_hash": "84fa415983e4e7a2d734340d5829f80247cdf05dd36c0fb30ca33eac8e69edc2"
+    }
+  },
+  "completed_at": "2026-10-12T09:20:02+09:00"
 }
