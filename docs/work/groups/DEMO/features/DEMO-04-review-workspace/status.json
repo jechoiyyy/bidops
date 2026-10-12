@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
   "feature": "DEMO-04-review-workspace",
-  "phase": "validating",
+  "phase": "done",
   "steps": [
     {
       "id": "STEP-001",
@@ -243,9 +243,13 @@
     {
       "at": "2026-10-12T02:50:43+09:00",
       "text": "단계 → validating: STEP-001~005 구현·리더 검증·독립 리뷰(PASS_WITH_NOTES, 차단0)·주의 3건 수정 완료. mock 화면 검증만, 실제 인수 DEMO-05. 사용자 커밋 대기."
+    },
+    {
+      "at": "2026-10-12T09:20:02+09:00",
+      "text": "단계 → done: 배치 검증 및 통합 완료"
     }
   ],
-  "updated_at": "2026-10-12T02:50:43+09:00",
+  "updated_at": "2026-10-12T09:20:02+09:00",
   "resume_phase": "drafting",
   "proof_history": [
     {
@@ -284,5 +288,11 @@
         "result": "pending"
       }
     }
-  ]
+  ],
+  "integration": {
+    "run": "demo04-20261012",
+    "revision": "784acf9c5b493e0c6ee897a0a4634ce89f1937ec",
+    "source_hash": "409770bb71728eb9daad8d7ee289c9654f2faeac9afaaa61c21f53efe9d09fcf",
+    "spec_hash": "84fa415983e4e7a2d734340d5829f80247cdf05dd36c0fb30ca33eac8e69edc2"
+  }
 }
