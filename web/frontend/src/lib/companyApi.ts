@@ -374,8 +374,8 @@ export interface CompanyDeepReviewPreviewRequest {
  */
 export interface CompanyDeepReviewPreview extends DeepReviewPreview {
   provider: "codex-exec";
-  model: "gpt-5.6-luna";
-  reasoning_effort: "xhigh";
+  model: "gpt-6-luna";
+  reasoning_effort: "high";
   company_id: Uuid;
   profile_version_id: Uuid;
   graph_version_id: Uuid;

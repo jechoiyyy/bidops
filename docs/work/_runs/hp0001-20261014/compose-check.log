@@ -1,0 +1,5 @@
+Compose config with synthetic environment only; no actual secrets or service changes.
+Files: docker-compose.yml, docker-compose.luna.yml, docker-compose.hp-local.yml
+Rendered runner image: bidops-local:codex-runner-20261014
+Missing image variable: rejected as required.
+exit_code=0

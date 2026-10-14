@@ -6,6 +6,16 @@ import {assumptionApi, DeepReviewApiError} from '../deep-review/api';
 import {generateRequestId} from '../../lib/requestId';
 import type {Preview} from './types';
 
+function previewModelLabel(input: Record<string, unknown>): string {
+  const scenario = input.scenario;
+  if (scenario === null || typeof scenario !== 'object') return '설정 확인 불가';
+  const settings = (scenario as Record<string, unknown>).settings;
+  if (settings === null || typeof settings !== 'object') return '설정 확인 불가';
+  const {model, reasoning_effort: reasoningEffort} = settings as Record<string, unknown>;
+  if (typeof model !== 'string' || typeof reasoningEffort !== 'string') return '설정 확인 불가';
+  return `${model} · ${reasoningEffort}`;
+}
+
 export function AssumptionRequest({noticeId, bundleId, actor}: {noticeId: number; bundleId: string; actor: string}) {
   const [preview, setPreview] = useState<Preview | null>(null);
   const [approved, setApproved] = useState(false);
@@ -36,9 +46,10 @@ export function AssumptionRequest({noticeId, bundleId, actor}: {noticeId: number
   }
   return <section aria-label="가정 분석 요청">
     <h3>1489번 가정 분석</h3>
-    <p>실제 문서·회사 자료에 별도 가정을 더합니다. gpt-5.6-luna · xhigh · 품질 미측정 · 가상 회사 정보 포함</p>
+    <p>실제 문서·회사 자료에 별도 가정을 더합니다. 품질 미측정 · 가상 회사 정보 포함</p>
     <Button label="가정 분석 입력 미리보기" onClick={()=>void act(false)} isDisabled={busy}/>
     {preview && <section aria-label="가정 분석 전송 승인">
+      <p>실행 모델 · {previewModelLabel(preview.input)}</p>
       <p>이전 미리보기 대비 변경: {preview.previous_preview_id ? preview.changed_fields.join(', ') || '없음' : '최초 입력'}</p>
       <p>미확인 필수 증빙 유효·담당/백업 확보·90분 현장 도착 체계는 가정입니다. 부품·제조사 지원 확보는 미확인입니다.</p>
       <p>월 300만원 · 준비비 200만원 · 지원비 400/800만원 · 3/6/12개월 × 90/100%의 12조합. 6/12개월은 민감도 분석이며 차액은 가정상 잔액입니다.</p>

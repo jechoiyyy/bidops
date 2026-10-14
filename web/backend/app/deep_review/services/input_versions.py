@@ -53,6 +53,7 @@ from ...lifecycle.models import Company, Notice, NoticeObservation
 from . import assets
 from .deep_review_validation import validate_structure
 from ...core.company_profile import ParsedItem, parse_profile, profile_path, walk_sections
+from .luna_identity import ALLOWED_MODELS, COMPANY_POLICY_IDENTITIES, HP_POLICY_IDENTITY
 
 
 CANONICAL_POLICY_FILE = Path(__file__).resolve().parents[1] / "policies" / "analysis-policy-lean-v1.json"
@@ -62,15 +63,20 @@ PROFILE_SCHEMA_V2 = "bidops.company-profile.v2"
 GRAPH_SNAPSHOT_SCHEMA = "bidops.company-knowledge-snapshot.v1"
 POLICY_SCHEMA = "bidops.analysis-policy.v1"
 LUNA_V4_POLICY_IDENTITY = "analysis-policy-luna-v4"
+LUNA_V5_POLICY_IDENTITY = "analysis-policy-luna-v5"
 #: DEMO-03 company deep-review policy: v4 plus company/graph input descriptions
 #: (demo contract §5/§9).  Approved only through this identity and file.
 DEMO_LUNA_POLICY_IDENTITY = "analysis-policy-luna-demo-v1"
 DEMO_LUNA_POLICY_FILE = CANONICAL_POLICY_FILE.with_name("analysis-policy-luna-demo-v1.json")
+HP_LUNA_POLICY_FILE = CANONICAL_POLICY_FILE.with_name("analysis-policy-luna-hp-v1.json")
+LUNA_V5_POLICY_FILE = CANONICAL_POLICY_FILE.with_name("analysis-policy-luna-v5.json")
 #: Approved Luna files selected by ``policy_identity`` before any content-based
 #: v1-v3 detection.  An unknown identity is rejected, never downgraded.
 _LUNA_POLICY_FILES_BY_IDENTITY = {
     LUNA_V4_POLICY_IDENTITY: CANONICAL_POLICY_FILE.with_name("analysis-policy-luna-v4.json"),
+    LUNA_V5_POLICY_IDENTITY: LUNA_V5_POLICY_FILE,
     DEMO_LUNA_POLICY_IDENTITY: DEMO_LUNA_POLICY_FILE,
+    HP_POLICY_IDENTITY: HP_LUNA_POLICY_FILE,
 }
 STAGES = (
     "requirements_and_evaluation",
@@ -300,18 +306,16 @@ def _policy_hash_matches(policy: AnalysisPolicyVersion) -> bool:
 
 
 def _validate_model_binding(policy: AnalysisPolicyVersion, *, allow_unmeasured_reference: bool) -> None:
-    """transport 참조를 확인하고, 모델명 검사는 참조 모드에서만 넘긴다 (명세 §6.5).
+    """Validate the stored transport/model pair without authorizing execution.
 
-    `model_endpoint_ref`는 어느 모드에서도 승인된 OpenAI 호환 transport여야
-    한다. 모델명은 참조 실행에서 코드 상수와 대조하지 않는다 — policy hash가
-    저장소 canonical 파일과 같은지는 그대로 보고, "그 모델이 실제로 서비스되고
-    있는가"는 실행 직전 `ModelClient.verify_identity`가 서버 served id로
-    확인한다. 설정의 모델명과 비교하면 배포가 모델을 바꿀 때 실행 row에
-    기록되는 모델명과 실제로 부른 모델이 갈린다.
+    Reference-mode codex rows may retain legacy model names for immutable
+    lookup. Runtime execution separately requires ``matches_runtime``.
     """
 
-    if policy.model_endpoint_ref == "codex-exec" and allow_unmeasured_reference and policy.model_name == "gpt-5.6-luna":
-        return
+    if policy.model_endpoint_ref == "codex-exec":
+        if allow_unmeasured_reference and policy.model_name in ALLOWED_MODELS:
+            return
+        raise InputVersionError("service_unavailable", "허용되지 않은 analysis model입니다")
     if policy.model_endpoint_ref != MODEL_ENDPOINT_REF:
         raise InputVersionError("service_unavailable", "허용되지 않은 analysis model입니다")
     if not allow_unmeasured_reference and policy.model_name != MODEL_NAME:
@@ -361,8 +365,8 @@ def resolve_active_versions(
         raise InputVersionError("service_unavailable", "active policy hash가 payload와 일치하지 않습니다")
     rules = policy.validation_rules if isinstance(policy.validation_rules, Mapping) else {}
     snapshot = rules.get("policy_snapshot")
-    if isinstance(snapshot, Mapping) and snapshot.get("policy_identity") == DEMO_LUNA_POLICY_IDENTITY:
-        # The DEMO-03 company policy is selected only by
+    if isinstance(snapshot, Mapping) and snapshot.get("policy_identity") in COMPANY_POLICY_IDENTITIES:
+        # Company policies are selected only by
         # BIDOPS_DEMO_DEEP_REVIEW_POLICY_VERSION_ID; it is never a global active policy.
         raise InputVersionError("service_unavailable", "회사 전용 정책은 전역 active policy가 될 수 없습니다")
     if not isinstance(profile.profile_payload, Mapping) or profile.profile_payload.get("source_sha256") != profile.profile_sha256:
@@ -1240,7 +1244,7 @@ def load_canonical_policy(path: Path | None = None) -> tuple[dict[str, Any], byt
     canonical = canonical_json_bytes(policy)
     if raw != canonical:
         raise InputVersionError("invalid_request", "canonical analysis policy bytes가 승인본과 다릅니다")
-    if policy.get("policy_identity") == DEMO_LUNA_POLICY_IDENTITY:
+    if policy.get("policy_identity") in COMPANY_POLICY_IDENTITIES:
         _require_path_limit(policy)
     approved_path = _approved_policy_path(policy)
     if policy_path.resolve() != approved_path.resolve():
@@ -1457,7 +1461,7 @@ def bundle_context(
 
 
 __all__ = [
-    "CANONICAL_POLICY_FILE", "DEMO_LUNA_POLICY_FILE", "DEMO_LUNA_POLICY_IDENTITY", "LUNA_V4_POLICY_IDENTITY", "MODEL_ENDPOINT_REF", "MODEL_NAME", "POLICY_SCHEMA", "PROFILE_SCHEMA_V1", "PROFILE_SCHEMA_V2", "PROFILE_SOURCE_FILE", "STAGES",
+    "CANONICAL_POLICY_FILE", "DEMO_LUNA_POLICY_FILE", "DEMO_LUNA_POLICY_IDENTITY", "HP_LUNA_POLICY_FILE", "LUNA_V4_POLICY_IDENTITY", "LUNA_V5_POLICY_FILE", "LUNA_V5_POLICY_IDENTITY", "MODEL_ENDPOINT_REF", "MODEL_NAME", "POLICY_SCHEMA", "PROFILE_SCHEMA_V1", "PROFILE_SCHEMA_V2", "PROFILE_SOURCE_FILE", "STAGES",
     "GradeBasis", "InputVersionError", "active_version_ids", "bundle_context", "canonical_json_bytes", "canonical_json_hash",
     "effective_grade_basis", "import_policy_version", "import_profile_version", "load_canonical_policy", "policy_activation_valid",
     "profile_context", "resolve_active_versions", "validate_pinned_policy", "validate_profile_snapshot", "policy_quality_snapshot",

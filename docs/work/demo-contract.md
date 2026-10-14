@@ -443,6 +443,8 @@ CLI `import-company-fit-policy --policy <file> --actor <name>`는 {policy_versio
 CompanyAnalysisInput.policy_version_id/sha256는 purpose별 해당 테이블의 identity다. DB는 purpose에 따라 정확한 FK 열을 사용한다.
 model_revision은 Luna처럼 선언 revision이 없으면 null이며 추정하지 않는다.
 
+2026-10-14 HP-00: 심층 model identity는 [HP 공통 계약 §0](hp-contract.md#0-모델-identity-확정-hp-00)을 따른다. 회사 정책 identity 집합은 `analysis-policy-luna-demo-v1`·`analysis-policy-luna-hp-v1`이며, NULL 계보용 정책은 `analysis-policy-luna-v5`다. NULL 계보 기능 off의 기존 `service_unavailable`은 유지하고, 정책 model/effort가 runner identity와 다르면 `model_binding_invalid`로 외부 호출 전에 닫는다.
+
 #### 회사 핏 enqueue CLI
 
 `python -m app.deep_review.cli enqueue-company-fit --company-id <uuid> --notice-id <int> --actor <name> [--dry-run]`

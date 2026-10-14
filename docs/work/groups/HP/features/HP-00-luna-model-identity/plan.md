@@ -13,7 +13,7 @@
 | web/codex-runner/Dockerfile | 수정 | `@openai/codex@0.162.1` |
 | web/backend/app/deep_review/services/luna_client.py | 수정 | identity 사용, cli_version 검사 |
 | web/backend/app/deep_review/policies/analysis-policy-luna-hp-v1.json | 신규 | canonical 정책(demo-v1 + identity 키 4개) |
-| web/backend/app/deep_review/policies/analysis-policy-luna-v5.json | 신규 | canonical 정책(v4 + identity 키 3개), NULL 계보용 |
+| web/backend/app/deep_review/policies/analysis-policy-luna-v5.json | 신규 | canonical 정책(v4 + identity 키 4개), NULL 계보용 |
 | web/backend/app/deep_review/services/input_versions.py | 수정 | hp-v1 파일 매핑, v5 버전 판정, 회사 identity 집합의 path_limit·전역 active 거부, 모델 허용 집합 |
 | web/backend/app/deep_review/services/company_deep_review.py | 수정 | 정책 선택 순서(모델→identity 집합→구조), preview/감사 표식을 정책 row에서 |
 | web/backend/app/deep_review/services/company_slices.py | 수정 | `policy_identity in COMPANY_POLICY_IDENTITIES` |
@@ -52,7 +52,7 @@
    - 검증: `docker compose -f docker-compose.yml -f docker-compose.luna.yml -f docker-compose.hp-local.yml config`(env 주입 확인), `python3 scripts/feature_status.py doctor _`, diff 확인.
 6. STEP-006 격리 스택 runner 재빌드·env 교체·smoke [standard]
    - 목표: `bidops-local` codex-runner를 `bidops-local:codex-runner-<YYYYMMDD>`로 올리고(hp-local overlay), hp-v1을 import·선택한 뒤 사용자 승인 1건으로 identity를 확인한다.
-   - 작업 대상: 사용자 확인 뒤 build·태그·교체(실행 중 스택의 compose 집합에서 증거 overlay를 hp-local overlay로 바꾼 집합), hp-v1·v5 import, `env/demo.env`의 `BIDOPS_DEMO_DEEP_REVIEW_POLICY_VERSION_ID`·`BIDOPS_DEMO_CODEX_RUNNER_IMAGE`, 승인된 preview 1건.
+   - 작업 대상: 사용자 확인 뒤 build·태그·교체(실행 중 스택의 compose 집합을 보존하고 hp-local overlay를 마지막에 추가한 집합), hp-v1·v5 import, `env/demo.env`의 `BIDOPS_DEMO_DEEP_REVIEW_POLICY_VERSION_ID`·`BIDOPS_DEMO_CODEX_RUNNER_IMAGE`, 승인된 preview 1건.
    - 검증: T11(수동, 건별 승인; 승인 없으면 pending으로 기록).
 
 ## 위임
@@ -85,7 +85,7 @@ T11은 사용자 확인 뒤 `bidops-local`에서만 실행하고 명령·시각�
 |---|---|---|
 | gpt-6-luna가 격리 컨테이너 계정에서 거부됨 | smoke `model_access_denied` | 호스트 codex 계정과 auth.json 동일성 확인, HP-03 전까지 막힘으로 보고 |
 | CLI 0.162.1 플래그 변경 | T1의 `codex exec --help` 대조 실패 | 플래그 차이를 README에 적고 runner argv 조정 뒤 T1 재실행 |
-| v5 버전 판정이 v4와 섞임 | `_approved_policy_path`가 v5 파일에 v4 경로를 돌려줌 | 판정 키를 `execution.cli_version`으로 고정하고 T3에 v4·v5 쌍 추가 |
+| v5 버전 판정이 v4와 섞임 | `_approved_policy_path`가 v5 파일에 v4 경로를 돌려줌 | 명시적 `policy_identity=analysis-policy-luna-v5`와 identity map으로 해석하고 T3에 v4·v5 쌍 추가 |
 | legacy fixture·row가 Literal에 걸림 | 테스트 422/ValidationError | attempt/report는 `str|None` 유지, preview만 Literal |
 | 정책 파일 bytes가 canonical과 다름 | `load_canonical_policy` 거부 | 발행 스크립트는 `canonical_json_bytes`로 쓰고 sha256 기록 |
 | 격리 스택 compose 집합이 워크트리마다 달라 runner 교체가 다른 스택에 적용됨 | `docker inspect` config_files 불일치 | README에 집합을 적고 hp-local overlay를 포함한 같은 집합으로만 교체 |
@@ -101,4 +101,8 @@ T11은 사용자 확인 뒤 `bidops-local`에서만 실행하고 명령·시각�
 
 ## 결과
 
-구현 후 작성한다.
+- 2026-10-14 STEP-001~005 구현·자동 검증 완료, STEP-006 이미지 빌드·백업·격리 스택 교체 완료, hp-v1/v5 정책 등록 완료, 정책 선택·실제 단일 attempt의 T11 identity 확인 완료.
+- 관련 backend 160개 사례 통과(최초 156 + fixture-only 수정 후 4), TypeScript/production build·Playwright 27개 통과, 합성 Compose image 검사 통과.
+- 독립 gpt-5.6-sol/high 리뷰 차단 0건. 기존 정책 파일 bytes 보존.
+- 실제 모델 접근·identity 확인 완료. 응답은 숫자/원문 범위 검증에서 차단되어 분석 성공·품질 검증은 아님. 승인된 bidops-local web·analysis-worker·runner 교체 및 health·SPA·DB head 확인 완료. 이번 loop의 commit/merge는 사용자 명시 승인됨. HP-01은 의존 없는 별도 작업 공간에서 구현 중이며 배치 검증 후 통합.
+- 상세 증거·환경 한계·재개 위치: [run 기록](../../../../_runs/hp0001-20261014/HP-00-luna-model-identity.md), [독립 리뷰](../../../../_runs/hp0001-20261014/final-feature-review.md).
