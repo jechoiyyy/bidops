@@ -25,7 +25,7 @@ for (const viewport of [{width:1280,height:800},{width:1440,height:900}]) {
     await page.getByLabel('문서 준비 담당자 이름').fill('Luna 검증 담당자');
     await page.getByRole('button',{name:'전송 내용 미리보기'}).click();
     const approval=page.getByRole('region',{name:'외부 전송 승인'});
-    await expect(approval.getByText('gpt-5.6-luna · xhigh · codex-exec')).toBeVisible();
+    await expect(approval.getByText('gpt-6-luna · high · codex-exec')).toBeVisible();
     await approval.getByText('전송 원천 입력과 정책 전체 확인').click();
     await expect(approval.locator('pre')).toContainText('bidops.luna-input.v1');
     await page.screenshot({path:info.outputPath('luna-preview.png')});

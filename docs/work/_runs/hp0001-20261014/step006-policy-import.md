@@ -1,0 +1,18 @@
+# HP-00 STEP006 policy import evidence
+
+After a separate user approval, the live `bidops-local-web-1` app image registered the two canonical policies on 2026-10-14. The operation used a one-off Python invocation of the product domain services; no product source, policy file, status/proof, or environment file was changed.
+
+The planned `import-profile-policy` CLI was not used. Its implementation unconditionally calls `import_profile_version`, which writes and rereads the profile source in versioned MinIO before checking whether the corresponding profile row already exists. That side effect is outside a policy-only import. No policy-only REST or CLI exists, so the invocation called the official `load_canonical_policy` and `import_policy_version` services directly, with two policy rows in one SQLAlchemy transaction and no raw SQL writes. It used the running image's policy files, checked both canonical SHA-256 values before import, and passed no quality measurement arguments.
+
+The exact command was `docker exec -i bidops-local-web-1 python -`; its output and exit code are in [step006-policy-import.log](step006-policy-import.log). The audit actor was `codex:user-approved-hp00`, which records the executing agent under the user's approval without guessing a person's name.
+
+| Policy | Version | Returned UUID | SHA-256 | Quality | Deployable |
+| --- | ---: | --- | --- | --- | --- |
+| `analysis-policy-luna-hp-v1` | 2 | `09fe587d-cd12-4449-8d9f-9d453b297de0` | `776c3efc908bf005f57df58d153406add592103d7cd7d3874ae9984cd363184b` | `unmeasured_reference` | no |
+| `analysis-policy-luna-v5` | 3 | `90d5c09e-8b91-4a46-9763-ac950e7ec06c` | `f575e827d592fbe8c90bb4f2210d242351e805cd0975212559b2fa7a615cce2e` | `unmeasured_reference` | no |
+
+Before import, the DB had one analysis-policy row: the existing demo-v1 row (`cd59bbdd-b4a6-4308-94f0-6b8aea180efc`, SHA-256 `9cb6254ef2f7fa3fbc608d775951aed14d958204f5366b30f92da661a4cbc3b0`). The transaction compared a hash of all existing policy columns before and after and verified that only the two new IDs appeared. It also verified the full profile-row snapshot was unchanged. The lead independently confirmed the existing policy row hash, the two new IDs and hashes, `model=gpt-6-luna`, `reasoning_effort=high`, and null quality metadata.
+
+After commit, Alembic remained at `0036_company_analysis`; active work jobs, deep-review attempts, overview runs, company-fit attempts, and C-2 executions remained 0. Six queued deep-review-stage rows under failed parents remain preserved. Web and analysis-worker environment fingerprints stayed equal to the pre-import value (`97de4b20876d867dd1257453dbe853aba22a8639893bf3689ad5442c332aacc3`) for the demo policy ID, active policy/profile IDs, runner image, demo enable, and auto-start keys. The current binding still resolves to `analysis-policy-luna-demo-v1`, while global active policy/profile environment variables remain empty. No migration, profile import, policy selection, service recreation, model request, or external request was performed.
+
+Future policy selection is only a prepared diff, not applied: after separate approval, change only `BIDOPS_DEMO_DEEP_REVIEW_POLICY_VERSION_ID` in `/Users/temp/orca/bidops/.sdlc/local-runtime/hp00-20261014/hp00.env` from the current demo-v1 UUID to the returned HP-v1 UUID `09fe587d-cd12-4449-8d9f-9d453b297de0`. This 0600 overlay is the last explicit env input and takes precedence over the unchanged baseline `/Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/env/demo.env`. Keep the global active IDs, company-fit policy ID, runner image, and all other env values unchanged. No environment or service change for that selection is part of this import.

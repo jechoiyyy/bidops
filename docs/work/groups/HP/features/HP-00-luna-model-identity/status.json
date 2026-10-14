@@ -1,15 +1,15 @@
 {
   "schema_version": 2,
   "feature": "HP-00-luna-model-identity",
-  "phase": "review",
+  "phase": "validating",
   "steps": [
     {
       "id": "STEP-001",
       "title": "identity 모듈·runner·client",
       "model": "standard",
       "fingerprint": "7eedd2460878ab0e4130eba4aad42a53c1861977e168d52ac111c44e7c7ec3f7",
-      "status": "stale",
-      "updated_at": null,
+      "status": "done",
+      "updated_at": "2026-10-14T19:56:05+09:00",
       "history": [
         {
           "id": "STEP-001",
@@ -19,15 +19,16 @@
           "status": "pending",
           "updated_at": null
         }
-      ]
+      ],
+      "note": "T1/T2 test_codex_runner.py 15 passed; 호스트 codex CLI 0.162.1. 회사 가짜 runner 후속 통합은 STEP-002/003 정책 전환 후 T9에서 검사"
     },
     {
       "id": "STEP-002",
       "title": "정책 hp-v1·v5 발행·회사 identity 집합·검증",
       "model": "complex",
       "fingerprint": "a9572913609eacf0ff4df4f3bedf9e0f6d2992eeeb01d168e89bec69343f5eb7",
-      "status": "stale",
-      "updated_at": null,
+      "status": "done",
+      "updated_at": "2026-10-14T20:06:45+09:00",
       "history": [
         {
           "id": "STEP-002",
@@ -55,15 +56,16 @@
             }
           ]
         }
-      ]
+      ],
+      "note": "리더 정책 T3/T4 검사 7 passed; STEP003 의존인 preview/attempt 표식과 일반 claim 통합은 후속 T5~T9에서 검증"
     },
     {
       "id": "STEP-003",
       "title": "모델 일치 강제와 표식 출처",
       "model": "complex",
       "fingerprint": "45f1fd9fb94aab6b9a4d17217dbc9e427fb88774b2981ee612428a3962600d12",
-      "status": "stale",
-      "updated_at": null,
+      "status": "done",
+      "updated_at": "2026-10-14T20:18:30+09:00",
       "history": [
         {
           "id": "STEP-003",
@@ -91,15 +93,16 @@
             }
           ]
         }
-      ]
+      ],
+      "note": "7개 backend 파일 PG 포함 156 passed/4 fixture 실패. 제품 코드 변경 없이 fixture 수정 후 관련 4 passed, 기존 통과 증거 재사용"
     },
     {
       "id": "STEP-004",
       "title": "프런트 타입·문구·fixture",
       "model": "standard",
       "fingerprint": "282a5a6928d0114011f68f58420c31a1a77f8c8ef5a2a472d60a0eea46b755da",
-      "status": "stale",
-      "updated_at": null,
+      "status": "done",
+      "updated_at": "2026-10-14T20:25:11+09:00",
       "history": [
         {
           "id": "STEP-004",
@@ -127,15 +130,16 @@
             }
           ]
         }
-      ]
+      ],
+      "note": "TypeScript+production build 성공; IPv6 localhost 검증환경 차이를 IPv4 preview로 해결하고 같은 빌드로 3개 Playwright spec 27 passed"
     },
     {
       "id": "STEP-005",
       "title": "계약 문서·overlay·증거 README",
       "model": "standard",
       "fingerprint": "6fc3aad63872b0a948c34ae33a05c30643d896be18087d9ad6c3f10f399bc655",
-      "status": "stale",
-      "updated_at": null,
+      "status": "done",
+      "updated_at": "2026-10-14T20:28:13+09:00",
       "history": [
         {
           "id": "STEP-005",
@@ -163,15 +167,16 @@
             }
           ]
         }
-      ]
+      ],
+      "note": "정책 sha·계약 diff 확인, 합성 env compose image 렌더 및 필수 image 누락 거부 통과, doctor 13 features·diff --check 통과"
     },
     {
       "id": "STEP-006",
       "title": "격리 스택 runner 재빌드·env 교체·smoke",
       "model": "standard",
-      "fingerprint": "8fbff2facbb253e9477203eb43abbe3161968ce2857d1f628d35cfa207fc771f",
-      "status": "stale",
-      "updated_at": null,
+      "fingerprint": "bec37f7cca0654e314fffa6aa1ee2922ce5e2c4433970723f7d3091e51d3cc8e",
+      "status": "done",
+      "updated_at": "2026-10-14T23:24:52+09:00",
       "history": [
         {
           "id": "STEP-006",
@@ -198,28 +203,125 @@
               "updated_at": null
             }
           ]
+        },
+        {
+          "id": "STEP-006",
+          "title": "격리 스택 runner 재빌드·env 교체·smoke",
+          "model": "standard",
+          "fingerprint": "8fbff2facbb253e9477203eb43abbe3161968ce2857d1f628d35cfa207fc771f",
+          "status": "stale",
+          "updated_at": null,
+          "history": [
+            {
+              "id": "STEP-006",
+              "title": "격리 스택 runner 재빌드와 smoke",
+              "model": "standard",
+              "fingerprint": "086a50e8f3ac4d3d0ed34aeb254fb11456bee6a7e304f459cf5367b9bc04a140",
+              "status": "pending",
+              "updated_at": null
+            },
+            {
+              "id": "STEP-006",
+              "title": "격리 스택 runner 재빌드·env 교체·smoke",
+              "model": "standard",
+              "fingerprint": "29686c81fca169b390631dd104ac960d8741756a2e922999fb41a186c0eb0b7d",
+              "status": "stale",
+              "updated_at": null,
+              "history": [
+                {
+                  "id": "STEP-006",
+                  "title": "격리 스택 runner 재빌드와 smoke",
+                  "model": "standard",
+                  "fingerprint": "086a50e8f3ac4d3d0ed34aeb254fb11456bee6a7e304f459cf5367b9bc04a140",
+                  "status": "pending",
+                  "updated_at": null
+                }
+              ]
+            }
+          ]
         }
-      ]
+      ],
+      "note": "실제1건 invocation model/CLI/effort/policy hash 확인 T11 충족. initial+repair 응답은 결정적검증 실패로 안전종결; 품질·분석성공 아님. active0, 기존 데이터보존."
     }
   ],
   "proof": {
     "docs": {
-      "result": "pending"
+      "result": "pass",
+      "method": "review",
+      "note": "독립 코드리뷰 차단0+배포증거 리더확인+doctor/diff 통과; 배치최종리뷰 별도",
+      "evidence": "docs/work/_runs/hp0001-20261014/HP-00-luna-model-identity.md",
+      "exit_code": null,
+      "actor": "orchestrator",
+      "command": "python3 scripts/feature_status.py doctor _",
+      "at": "2026-10-14T23:25:07+09:00",
+      "head": "fba715332e70e0994e2296a8899acf8270f5bd6b",
+      "source_hash": "63523c2d1d7bd8f3e8deefc5eb0a418ca587c3814c62e977875a8d62b04079da",
+      "spec_hash": "d683a71b1c92e848373458189f3588e4955e8f74e0fadc14c36b5dd905c5e604"
     },
     "tests": {
-      "result": "pending"
+      "result": "pass",
+      "method": "command",
+      "note": "제품/테스트 소스 동일; 관련160사례 통과 로그 재사용. T11 actual identity 증거 포함, 품질성공 아님",
+      "evidence": "docs/work/_runs/hp0001-20261014/HP-00-luna-model-identity.md",
+      "exit_code": 0,
+      "actor": "orchestrator",
+      "command": "",
+      "at": "2026-10-14T23:25:08+09:00",
+      "head": "fba715332e70e0994e2296a8899acf8270f5bd6b",
+      "source_hash": "63523c2d1d7bd8f3e8deefc5eb0a418ca587c3814c62e977875a8d62b04079da",
+      "spec_hash": "d683a71b1c92e848373458189f3588e4955e8f74e0fadc14c36b5dd905c5e604"
     },
     "postgres": {
-      "result": "pending"
+      "result": "pass",
+      "method": "command",
+      "note": "제품소스 동일; 일회용PG17.11 변형 통과 증거 재사용",
+      "evidence": "docs/work/_runs/hp0001-20261014/HP-00-luna-model-identity.md",
+      "exit_code": 0,
+      "actor": "orchestrator",
+      "command": "",
+      "at": "2026-10-14T23:25:08+09:00",
+      "head": "fba715332e70e0994e2296a8899acf8270f5bd6b",
+      "source_hash": "63523c2d1d7bd8f3e8deefc5eb0a418ca587c3814c62e977875a8d62b04079da",
+      "spec_hash": "d683a71b1c92e848373458189f3588e4955e8f74e0fadc14c36b5dd905c5e604"
     },
     "frontend": {
-      "result": "pending"
+      "result": "pass",
+      "method": "command",
+      "note": "프런트소스 동일; tsc/build 및 browser27pass 증거 재사용",
+      "evidence": "docs/work/_runs/hp0001-20261014/frontend-browser-tests.log",
+      "exit_code": 0,
+      "actor": "orchestrator",
+      "command": "",
+      "at": "2026-10-14T23:25:08+09:00",
+      "head": "fba715332e70e0994e2296a8899acf8270f5bd6b",
+      "source_hash": "63523c2d1d7bd8f3e8deefc5eb0a418ca587c3814c62e977875a8d62b04079da",
+      "spec_hash": "d683a71b1c92e848373458189f3588e4955e8f74e0fadc14c36b5dd905c5e604"
     },
     "api_guard": {
-      "result": "pending"
+      "result": "pass",
+      "method": "command",
+      "note": "제품소스 동일; identity mismatch 및 승인불변 guard 검사 재사용, 실제응답도 결정적검증에 의해 차단",
+      "evidence": "docs/work/_runs/hp0001-20261014/HP-00-luna-model-identity.md",
+      "exit_code": 0,
+      "actor": "orchestrator",
+      "command": "",
+      "at": "2026-10-14T23:25:09+09:00",
+      "head": "fba715332e70e0994e2296a8899acf8270f5bd6b",
+      "source_hash": "63523c2d1d7bd8f3e8deefc5eb0a418ca587c3814c62e977875a8d62b04079da",
+      "spec_hash": "d683a71b1c92e848373458189f3588e4955e8f74e0fadc14c36b5dd905c5e604"
     },
     "real_data_run": {
-      "result": "pending"
+      "result": "not_applicable",
+      "method": "manual",
+      "note": "feature.json 적용대상 HP03/06 사람인수에만 해당. HP00 T11 실제identity 별도확인, 사용자 인수/모델품질 대신 작성하지 않음",
+      "evidence": "docs/work/_runs/hp0001-20261014/step006-smoke-attempt.json",
+      "exit_code": null,
+      "actor": "orchestrator",
+      "command": "",
+      "at": "2026-10-14T23:25:09+09:00",
+      "head": "fba715332e70e0994e2296a8899acf8270f5bd6b",
+      "source_hash": "63523c2d1d7bd8f3e8deefc5eb0a418ca587c3814c62e977875a8d62b04079da",
+      "spec_hash": "d683a71b1c92e848373458189f3588e4955e8f74e0fadc14c36b5dd905c5e604"
     }
   },
   "notes": [
@@ -242,7 +344,214 @@
     {
       "at": "2026-10-14T19:45:39+09:00",
       "text": "단계 → review: 독립 검사 2회(1차 지적 11건 반영, 2차 잔여 항목 반영: v5 발행·snapshot 강제 지점·hp-local overlay·가정 분석 표식). 제품 구현 미착수"
+    },
+    {
+      "at": "2026-10-14T19:53:05+09:00",
+      "text": "단계 → implementing"
+    },
+    {
+      "at": "2026-10-14T19:53:05+09:00",
+      "text": "단계 STEP-001 in_progress: "
+    },
+    {
+      "at": "2026-10-14T19:56:05+09:00",
+      "text": "단계 STEP-001 done: T1/T2 test_codex_runner.py 15 passed; 호스트 codex CLI 0.162.1. 회사 가짜 runner 후속 통합은 STEP-002/003 정책 전환 후 T9에서 검사"
+    },
+    {
+      "at": "2026-10-14T19:56:05+09:00",
+      "text": "단계 STEP-002 in_progress: "
+    },
+    {
+      "at": "2026-10-14T20:06:45+09:00",
+      "text": "단계 STEP-002 done: 리더 정책 T3/T4 검사 7 passed; STEP003 의존인 preview/attempt 표식과 일반 claim 통합은 후속 T5~T9에서 검증"
+    },
+    {
+      "at": "2026-10-14T20:06:45+09:00",
+      "text": "단계 STEP-003 in_progress: "
+    },
+    {
+      "at": "2026-10-14T20:18:30+09:00",
+      "text": "단계 STEP-003 done: 7개 backend 파일 PG 포함 156 passed/4 fixture 실패. 제품 코드 변경 없이 fixture 수정 후 관련 4 passed, 기존 통과 증거 재사용"
+    },
+    {
+      "at": "2026-10-14T20:18:30+09:00",
+      "text": "단계 STEP-004 in_progress: "
+    },
+    {
+      "at": "2026-10-14T20:25:11+09:00",
+      "text": "단계 STEP-004 done: TypeScript+production build 성공; IPv6 localhost 검증환경 차이를 IPv4 preview로 해결하고 같은 빌드로 3개 Playwright spec 27 passed"
+    },
+    {
+      "at": "2026-10-14T20:25:11+09:00",
+      "text": "단계 STEP-005 in_progress: "
+    },
+    {
+      "at": "2026-10-14T20:28:13+09:00",
+      "text": "단계 STEP-005 done: 정책 sha·계약 diff 확인, 합성 env compose image 렌더 및 필수 image 누락 거부 통과, doctor 13 features·diff --check 통과"
+    },
+    {
+      "at": "2026-10-14T20:28:57+09:00",
+      "text": "plan 작업 ID 동기화"
+    },
+    {
+      "at": "2026-10-14T20:28:57+09:00",
+      "text": "단계 STEP-006 pending: 직전 사람 확인 대기. 이미지 빌드·스택 교체·policy import·env 변경·실제 모델 호출 미실행"
+    },
+    {
+      "at": "2026-10-14T20:31:52+09:00",
+      "text": "단계 → validating: STEP001~005 자동 검증·독립 리뷰 완료. STEP006 실제 적용/모델 smoke 직전 승인 대기, done 아님"
+    },
+    {
+      "at": "2026-10-14T21:26:36+09:00",
+      "text": "단계 STEP-006 in_progress: 사용자 승인: 백업·롤백 준비 후 격리 web/analysis-worker/runner 교체. 정책 import·선택·실자료 모델 호출은 아직 별도 확인 대상"
+    },
+    {
+      "at": "2026-10-14T23:07:30+09:00",
+      "text": "단계 STEP-006 in_progress: 사용자가 이번 loop의 필요한 모든 승인 절차를 포괄 승인. 격리 정책 선택·재배포·동결 payload 1건 smoke 진행, 기존 품질/데이터 경계 유지; session-authorization.md 참조"
+    },
+    {
+      "at": "2026-10-14T23:24:52+09:00",
+      "text": "단계 STEP-006 done: 실제1건 invocation model/CLI/effort/policy hash 확인 T11 충족. initial+repair 응답은 결정적검증 실패로 안전종결; 품질·분석성공 아님. active0, 기존 데이터보존."
     }
   ],
-  "updated_at": "2026-10-14T19:45:39+09:00"
+  "updated_at": "2026-10-14T23:25:09+09:00",
+  "proof_history": [
+    {
+      "key": "docs",
+      "previous": {
+        "result": "pending"
+      }
+    },
+    {
+      "key": "tests",
+      "previous": {
+        "result": "pending"
+      }
+    },
+    {
+      "key": "postgres",
+      "previous": {
+        "result": "pending"
+      }
+    },
+    {
+      "key": "frontend",
+      "previous": {
+        "result": "pending"
+      }
+    },
+    {
+      "key": "api_guard",
+      "previous": {
+        "result": "pending"
+      }
+    },
+    {
+      "key": "real_data_run",
+      "previous": {
+        "result": "pending"
+      }
+    },
+    {
+      "key": "docs",
+      "previous": {
+        "result": "stale",
+        "method": "review",
+        "note": "독립 feature 코드/문서 리뷰 차단 0, doctor/diff 확인. 배치 통합 최종 리뷰는 미실행",
+        "evidence": "docs/work/_runs/hp0001-20261014/final-feature-review.md",
+        "exit_code": null,
+        "actor": "orchestrator",
+        "command": "python3 scripts/feature_status.py doctor _",
+        "at": "2026-10-14T20:32:41+09:00",
+        "head": "fba715332e70e0994e2296a8899acf8270f5bd6b",
+        "source_hash": "64baf7da99c69ab42765b7ec832bba1f65d6959277527217b8a5f843188cc727",
+        "spec_hash": "d683a71b1c92e848373458189f3588e4955e8f74e0fadc14c36b5dd905c5e604",
+        "reason": "작업 상태 변경"
+      }
+    },
+    {
+      "key": "tests",
+      "previous": {
+        "result": "stale",
+        "method": "command",
+        "note": "최초 156 통과 + 제품 불변 fixture 수정 후 관련 4 통과; 두 원본 로그 보존",
+        "evidence": "docs/work/_runs/hp0001-20261014/HP-00-luna-model-identity.md",
+        "exit_code": 0,
+        "actor": "orchestrator",
+        "command": "",
+        "at": "2026-10-14T20:32:41+09:00",
+        "head": "fba715332e70e0994e2296a8899acf8270f5bd6b",
+        "source_hash": "64baf7da99c69ab42765b7ec832bba1f65d6959277527217b8a5f843188cc727",
+        "spec_hash": "d683a71b1c92e848373458189f3588e4955e8f74e0fadc14c36b5dd905c5e604",
+        "reason": "작업 상태 변경"
+      }
+    },
+    {
+      "key": "postgres",
+      "previous": {
+        "result": "stale",
+        "method": "command",
+        "note": "일회용 postgres:17.11 명시 URL, 관련 PG 변형 skip 없음",
+        "evidence": "docs/work/_runs/hp0001-20261014/HP-00-luna-model-identity.md",
+        "exit_code": 0,
+        "actor": "orchestrator",
+        "command": "",
+        "at": "2026-10-14T20:32:41+09:00",
+        "head": "fba715332e70e0994e2296a8899acf8270f5bd6b",
+        "source_hash": "64baf7da99c69ab42765b7ec832bba1f65d6959277527217b8a5f843188cc727",
+        "spec_hash": "d683a71b1c92e848373458189f3588e4955e8f74e0fadc14c36b5dd905c5e604",
+        "reason": "작업 상태 변경"
+      }
+    },
+    {
+      "key": "frontend",
+      "previous": {
+        "result": "stale",
+        "method": "command",
+        "note": "TypeScript/production build 성공 후 같은 dist IPv4 preview 사용; 27 passed",
+        "evidence": "docs/work/_runs/hp0001-20261014/frontend-browser-tests.log",
+        "exit_code": 0,
+        "actor": "orchestrator",
+        "command": "",
+        "at": "2026-10-14T20:32:42+09:00",
+        "head": "fba715332e70e0994e2296a8899acf8270f5bd6b",
+        "source_hash": "64baf7da99c69ab42765b7ec832bba1f65d6959277527217b8a5f843188cc727",
+        "spec_hash": "d683a71b1c92e848373458189f3588e4955e8f74e0fadc14c36b5dd905c5e604",
+        "reason": "작업 상태 변경"
+      }
+    },
+    {
+      "key": "api_guard",
+      "previous": {
+        "result": "stale",
+        "method": "command",
+        "note": "T2 identity mismatch 및 T5/T6/T8 호출 0·승인 불변 검사 포함",
+        "evidence": "docs/work/_runs/hp0001-20261014/HP-00-luna-model-identity.md",
+        "exit_code": 0,
+        "actor": "orchestrator",
+        "command": "",
+        "at": "2026-10-14T20:32:42+09:00",
+        "head": "fba715332e70e0994e2296a8899acf8270f5bd6b",
+        "source_hash": "64baf7da99c69ab42765b7ec832bba1f65d6959277527217b8a5f843188cc727",
+        "spec_hash": "d683a71b1c92e848373458189f3588e4955e8f74e0fadc14c36b5dd905c5e604",
+        "reason": "작업 상태 변경"
+      }
+    },
+    {
+      "key": "real_data_run",
+      "previous": {
+        "result": "pending",
+        "method": "manual",
+        "note": "STEP006 이미지 빌드·스택 교체·policy import·실제 모델 smoke 직전 사람 확인 대기",
+        "evidence": null,
+        "exit_code": null,
+        "actor": "orchestrator",
+        "command": "",
+        "at": "2026-10-14T20:32:42+09:00",
+        "head": "fba715332e70e0994e2296a8899acf8270f5bd6b",
+        "source_hash": "64baf7da99c69ab42765b7ec832bba1f65d6959277527217b8a5f843188cc727",
+        "spec_hash": "d683a71b1c92e848373458189f3588e4955e8f74e0fadc14c36b5dd905c5e604"
+      }
+    }
+  ]
 }

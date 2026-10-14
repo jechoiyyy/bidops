@@ -1,0 +1,3 @@
+services:
+  codex-runner:
+    image: ${BIDOPS_DEMO_CODEX_RUNNER_IMAGE:?codex runner image tag required}
