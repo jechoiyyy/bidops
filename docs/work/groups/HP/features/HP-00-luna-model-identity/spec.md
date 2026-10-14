@@ -35,9 +35,9 @@ def matches_runtime(model_name, reasoning_effort) -> bool  # model_name == MODEL
 | 파일 | 기반 | 다른 키 | 용도 |
 |---|---|---|---|
 | `analysis-policy-luna-hp-v1.json` | demo-v1 | `policy_identity=analysis-policy-luna-hp-v1`, `model_name=gpt-6-luna`, `generation.reasoning_effort=high`, `execution.cli_version=0.162.1` | 회사 계보(HP). `COMPANY_POLICY_IDENTITIES`에 속하고 전역 active로는 거부 |
-| `analysis-policy-luna-v5.json` | v4 | `model_name=gpt-6-luna`, `generation.reasoning_effort=high`, `execution.cli_version=0.162.1`(그 외 v4와 동일) | NULL 계보(일반 Luna preview·가정 분석·기존 end-to-end 테스트). 전역 active 후보 |
+| `analysis-policy-luna-v5.json` | v4 | `policy_identity=analysis-policy-luna-v5`, `model_name=gpt-6-luna`, `generation.reasoning_effort=high`, `execution.cli_version=0.162.1`(그 외 v4와 동일) | NULL 계보(일반 Luna preview·가정 분석·기존 end-to-end 테스트). 전역 active 후보 |
 
-- `input_versions.py`: `_approved_policy_path`의 codex-exec 분기에서 identity가 없는 파일의 버전 판정(`v1|v2|v3`)에 `v5`를 더한다(판정 키: `execution.cli_version == CLI_VERSION`이면 v5). `_LUNA_POLICY_FILES_BY_IDENTITY`에 hp-v1 파일을 더한다. `_require_path_limit`·전역 active 거부는 `COMPANY_POLICY_IDENTITIES` 전체에 적용. `_validate_model_binding`의 codex-exec 참조 모드 허용 조건은 `policy.model_name in ALLOWED_MODELS`(저장 row 검증용; 실행 허용은 아래 표가 정한다).
+- `input_versions.py`: `_LUNA_POLICY_FILES_BY_IDENTITY`에 hp-v1과 v5 identity·파일을 더한다. v4는 이미 명시적 identity를 가지므로 v5도 identity로 해석하며 identity 없는 v1~v3 판별은 바꾸지 않는다. `_require_path_limit`·전역 active 거부는 `COMPANY_POLICY_IDENTITIES` 전체에 적용. `_validate_model_binding`의 codex-exec 참조 모드 허용 조건은 `policy.model_name in ALLOWED_MODELS`(저장 row 검증용; 실행 허용은 아래 표가 정한다).
 - 나머지 키·값·순서는 기반 파일과 같다. `pipeline_version == "narrative-v2"` 검사는 유지(HP-03이 바꾼다). 두 파일의 sha256은 발행 뒤 plan `## 결과`와 validation-runs README에 적는다.
 
 ### 모델 일치 강제 (runner는 하나이므로 정책이 다른 모델을 적으면 실행하지 않는다)
@@ -72,6 +72,7 @@ v1~v4 정책 row로는 새 preview·attempt를 만들 수 없고 이미 승인�
 - attempt view(`deep_reviews._attempt_view`): attempt → review → `policy_version_id`로 `AnalysisPolicyVersion`을 읽어 `model=row.model_name`, `reasoning_effort=row.validation_rules["generation"]["reasoning_effort"]`(import가 기록하는 위치)를 돌려준다(승인이 있는 attempt만; 없으면 기존 null). legacy row는 저장된 값(gpt-5.6-luna/xhigh) 그대로 보인다.
 - invocation metadata(worker Luna 분기): `cli_version=CLI_VERSION`, `reasoning_effort=정책 generation.reasoning_effort`, `model=result.model`.
 - 가정 분석: `assumption_inputs.MODEL/EFFORT`를 identity 값으로 바꾼다(VERSION `1489-assumptions-v1` 유지). 모델·effort는 preview 응답 `input.scenario.settings`에만 있고 별도 settings REST는 없다. 화면 `assumption-analysis/Request.tsx`의 고정 문구에서 모델명을 빼고, preview가 돌아온 뒤 `input.scenario.settings.model · reasoning_effort`를 표시한다.
+- 가정 분석의 새 불변 `input` snapshot에는 `policy_binding={policy_version_id,policy_sha256,model,reasoning_effort}`를 넣어 worker가 승인 당시 정책 row를 재확인한다. 기존 AssumptionInputVersion에는 정책 FK가 없고 일반 snapshot의 policy 본문도 제거하므로 이 최소 참조가 필요하다. 기존 snapshot·row는 수정하지 않으며 REST 상위 DTO 키와 테이블은 유지한다. 새 snapshot 참조는 승인 input hash에 포함된다.
 
 ### pydantic·TypeScript 타입
 
@@ -81,8 +82,8 @@ v1~v4 정책 row로는 새 preview·attempt를 만들 수 없고 이미 승인�
 
 ### 격리 스택 runner overlay (STEP-006)
 
-- 새 compose overlay `docker-compose.hp-local.yml`(저장소, 계약 파일): `codex-runner` 서비스의 `image: ${BIDOPS_DEMO_CODEX_RUNNER_IMAGE:?codex runner image tag required}`만 선언한다(그 외 설정은 `docker-compose.luna.yml` 그대로). `env/demo.env`의 `BIDOPS_DEMO_CODEX_RUNNER_IMAGE`가 이 overlay의 유일한 소비처가 된다.
-- 이미지는 `docker-compose.luna.yml` build로 만들고 `bidops-local:codex-runner-<YYYYMMDD>`로 태그한다. 교체는 실행 중 스택의 compose 파일 집합(`docker inspect` `com.docker.compose.project.config_files`)에서 시점 증거 overlay(`docs/validation-runs/2026-10-10-company-demo/.../demo03-stack.yml`)를 이 overlay로 바꾼 집합으로 한다. 집합·태그·sha256을 README에 적는다.
+- 새 compose overlay `docker-compose.hp-local.yml`(저장소, 계약 파일): `codex-runner` 서비스의 `image: ${BIDOPS_DEMO_CODEX_RUNNER_IMAGE:?codex runner image tag required}`만 선언한다(그 외 설정은 `docker-compose.luna.yml` 그대로). `BIDOPS_DEMO_CODEX_RUNNER_IMAGE`를 HP overlay에서도 명시적으로 소비한다. 현재 DEMO overlay의 같은 image 설정은 보존한다.
+- 이미지는 `docker-compose.luna.yml` build로 만들고 `bidops-local:codex-runner-<YYYYMMDD>`로 태그한다. 교체는 직전 `docker inspect`의 `com.docker.compose.project.config_files`로 확인한 현재 집합을 보존하고 이 overlay를 마지막에 추가한 집합으로 한다. 2026-10-14 읽기 전용 확인에서는 현재 DEMO overlay가 image 변수를 이미 소비하고 옛 시점 증거 overlay는 없었으므로 DEMO overlay를 제거하거나 대체하지 않는다. 집합·태그·sha256을 README에 적는다.
 - `env/demo.env`의 `BIDOPS_DEMO_DEEP_REVIEW_POLICY_VERSION_ID`를 hp-v1 row id로 바꾼다. 실제 호출 전 사용자 확인.
 
 ## 설정 키와 기본값
@@ -105,7 +106,7 @@ v1~v4 정책 row로는 새 preview·attempt를 만들 수 없고 이미 승인�
 ## 인터페이스(CLI·UI·API)
 
 - 정책 import: `python -m app.deep_review.cli import-profile-policy --policy <파일> --actor <name> --label <identity 또는 v5> --expected-policy-sha256 <발행 sha256>`(DEMO-00 runbook과 같은 절차)를 두 파일에 각각.
-- REST 경로·DTO 키 변경 없음(값·오류 code만). 프런트 경로 변경 없음.
+- REST 경로·상위 DTO 키 변경 없음. 가정 분석의 불변 input 내부에는 위 policy_binding 참조를 추가한다(그 밖에는 값·오류 code 변경). 프런트 경로 변경 없음.
 - 새 compose overlay `docker-compose.hp-local.yml`.
 
 ## 결정과 이유
@@ -115,7 +116,7 @@ v1~v4 정책 row로는 새 preview·attempt를 만들 수 없고 이미 승인�
 | identity 모듈 한 곳 + runner 상수 대조 테스트 | 26개 파일 복제가 전환을 막았다(2026-10-14 조사·독립 검사) | 각 파일 문자열 치환만 |
 | 표식은 정책 row에서 읽고 상수는 검증에만 쓴다 | 공통 계약 §0; 기록과 실제 호출이 갈리지 않게(`_validate_model_binding` docstring과 같은 이유) | 상수를 응답에 그대로 복사 |
 | 정책 모델이 runner identity와 다르면 실행하지 않는다 | runner가 하나라 legacy 정책 attempt가 새 모델로 실행되면 승인 감사·정책 row·실행 기록이 갈린다(독립 검사 1차) | `model: str` 유지(표식 약화) |
-| NULL 계보용 v5를 함께 발행한다 | v1~v4를 막으면 일반 Luna 경로의 end-to-end 테스트(`test_luna_deep_review.py` 21곳·가정 분석 9건)가 전부 거부 기대로 바뀌어 실행 커버리지가 사라진다(독립 검사 2차). v5는 v4에 identity 키 3개만 바꾼 파일이다 | hp-v1 전역 허용(회사 전용 불변식 위반) / 일반 경로 영구 fail-closed(커버리지 상실) |
+| NULL 계보용 v5를 함께 발행한다 | v1~v4를 막으면 일반 Luna 경로의 end-to-end 테스트(`test_luna_deep_review.py` 21곳·가정 분석 9건)가 전부 거부 기대로 바뀌어 실행 커버리지가 사라진다(독립 검사 2차). v5는 v4의 policy_identity·model_name·reasoning_effort·cli_version 4개 키만 바꾼 파일이다 | hp-v1 전역 허용(회사 전용 불변식 위반) / 일반 경로 영구 fail-closed(커버리지 상실) |
 | CLI 0.162.1 | 호스트 `codex --version`이 `codex-cli 0.162.1`이고 그 호스트의 SDLC 도구(`runtime.codex.json`)가 gpt-6-luna를 쓴다 | 0.155.1 유지(gpt-6 계열 미검증) |
 | legacy 값 조회 허용 | 기존 row·fixture·감사 기록 불변 | legacy row 조회 거부 |
 | 회사 정책 identity 집합 | worker·slice 검증이 demo-v1 문자열에 묶여 hp-v1 실행이 `company_policy_invalid`로 막힌다(독립 검사 1차) | demo-v1 문자열 치환 |
@@ -143,3 +144,7 @@ v1~v4 정책 row로는 새 preview·attempt를 만들 수 없고 이미 승인�
 ## 컨벤션 반영 항목
 
 `luna_identity` 상수 이름, `COMPANY_POLICY_IDENTITIES`, "정책 모델 ≠ runner identity → `model_binding_invalid`" 규칙, v5·hp-v1 파일, `docker-compose.hp-local.yml`·`BIDOPS_DEMO_CODEX_RUNNER_IMAGE` → contracts.md ADR-0069 절·DEMO-03 정책 줄, operations.md 격리 스택 절(HP-03에서 정리해도 된다).
+
+### 2026-10-14 실행 전 명세 정정
+
+독립 검토에서 v4 identity 상속 시 v5 canonical import가 v4 파일로 해석되어 거부됨을 확인했다. 이미 지정한 새 v5 정책 identity를 명시하고 기존 identity map에 등록한다. 승인 범위·기존 정책 불변성은 유지하며 제품 동작 변경이 아닌 발행 규칙의 모순을 해소한다.

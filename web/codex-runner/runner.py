@@ -12,8 +12,9 @@ import time
 import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-CLI_VERSION = "0.155.1"
-MODEL = "gpt-5.6-luna"
+CLI_VERSION = "0.162.1"
+MODEL = "gpt-6-luna"
+REASONING_EFFORT = "high"
 TIMEOUT = 900
 HEARTBEAT_TIMEOUT = 45
 MAX_BYTES = 8 * 1024 * 1024
@@ -68,9 +69,14 @@ def error_code(diagnostic):
     return "runner_failed"
 
 
+def require_cli_version(version):
+    if version != 'codex-cli ' + CLI_VERSION:
+        raise SystemExit('cli_version_mismatch')
+
+
 def argv(schema, output, cwd):
     return ["codex", "exec", "--ignore-user-config", "--ignore-rules", "--strict-config",
-            "--model", MODEL, "-c", 'model_reasoning_effort="xhigh"',
+            "--model", MODEL, "-c", f'model_reasoning_effort="{REASONING_EFFORT}"',
             "-c", 'approval_policy="never"', "-c", 'web_search="disabled"',
             "-c", 'features.shell_tool=false', "-c", 'features.multi_agent=false',
             "--sandbox", "read-only", "--ephemeral", "--json", "--skip-git-repo-check",
@@ -220,6 +226,5 @@ class Handler(BaseHTTPRequestHandler):
 
 if __name__ == '__main__':
     version = subprocess.run(['codex', '--version'], capture_output=True, text=True, check=True).stdout.strip()
-    if version != 'codex-cli ' + CLI_VERSION:
-        raise SystemExit('cli_version_mismatch')
+    require_cli_version(version)
     ThreadingHTTPServer(('0.0.0.0', 8091), Handler).serve_forever()

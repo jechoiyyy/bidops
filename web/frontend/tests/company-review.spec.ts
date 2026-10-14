@@ -358,7 +358,7 @@ test("T5: 미리보기 → 승인 상자(회사·가상 표식·모델·품질·
   await request(page).getByRole("button", { name: "전송 내용 미리보기" }).click();
   const box = approval(page);
   await expect(box.getByTestId("company-approval-company")).toHaveText("전송 대상 회사 · 데모 클라우드SI · 가상회사");
-  await expect(box.getByText("gpt-5.6-luna · xhigh · codex-exec")).toBeVisible();
+  await expect(box.getByText("gpt-6-luna · high · codex-exec")).toBeVisible();
   await expect(box.getByTestId("company-approval-quality")).toHaveText("품질 표식 · 참조 실행 · 품질 미측정");
   await expect(box.getByTestId("company-approval-verification")).toContainText("원문 대조 · 사용");
   const versions = box.locator('[aria-label="회사 지식 버전"]');

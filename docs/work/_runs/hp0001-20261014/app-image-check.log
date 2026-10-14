@@ -1,0 +1,1 @@
+{"identity": ["gpt-6-luna", "high", "0.162.1"], "policy_hashes": {"analysis-policy-luna-hp-v1.json": "776c3efc908bf005f57df58d153406add592103d7cd7d3874ae9984cd363184b", "analysis-policy-luna-v5.json": "f575e827d592fbe8c90bb4f2210d242351e805cd0975212559b2fa7a615cce2e"}, "frontend_present": true, "uid": 1000, "network": "none"}

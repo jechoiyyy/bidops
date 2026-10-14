@@ -61,8 +61,12 @@ test('1489 상세에서 승인 전 호출 금지·변경 시 무효화·중복 �
   });
   await page.route('**/api/notices/1489/assumption-analysis-previews', route=>route.fulfill({json:fixture.preview}));
   await page.goto('/pre-specs/1489');
+  const request=page.getByRole('region',{name:'가정 분석 요청'});
+  await expect(request).not.toContainText('gpt-5.6-luna');
+  await expect(request).not.toContainText('gpt-6-luna');
   await page.getByLabel('문서 준비 담당자 이름').fill('tester');
   await page.getByRole('button',{name:'가정 분석 입력 미리보기'}).click();
+  await expect(page.getByRole('region',{name:'가정 분석 전송 승인'})).toContainText('실행 모델 · gpt-6-luna · high');
   const submit=page.getByRole('button',{name:'승인하고 가정 분석 요청'});
   await expect(submit).toBeDisabled();
   expect(requests).toHaveLength(0);

@@ -1,0 +1,10 @@
+command=env -i HOME=/Users/temp PATH=<current PATH> docker compose --project-name bidops-local --project-directory /Users/temp/orca/bidops --env-file /Users/temp/orca/bidops/env/local.env --env-file /Users/temp/orca/bidops/env/local-model.env --env-file /Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/env/demo.env --env-file /Users/temp/orca/bidops/.sdlc/local-runtime/hp00-20261014/hp00.env -f /Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo05-20261012-DEMO-05-demo-acceptance/docker-compose.yml -f /Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo05-20261012-DEMO-05-demo-acceptance/docker-compose.edge.yml -f /Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo05-20261012-DEMO-05-demo-acceptance/docker-compose.model-egress.yml -f /Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo05-20261012-DEMO-05-demo-acceptance/docker-compose.prespec-attachment.yml -f /Users/temp/orca/bidops/.sdlc/local-runtime/compose.yml -f /Users/temp/orca/bidops/.sdlc/local-runtime/litellm.yml -f /Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo05-20261012-DEMO-05-demo-acceptance/docker-compose.luna.yml -f /Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/demo05-20261012-DEMO-05-demo-acceptance/docker-compose.demo.yml -f /Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/hp0001-20261014-HP-00-luna-model-identity/docker-compose.hp-local.yml up -d --no-deps --no-build --force-recreate web analysis-worker
+ Container bidops-local-web-1 Recreate 
+ Container bidops-local-analysis-worker-1 Recreate 
+ Container bidops-local-analysis-worker-1 Recreated 
+ Container bidops-local-web-1 Recreated 
+ Container bidops-local-web-1 Starting 
+ Container bidops-local-analysis-worker-1 Starting 
+ Container bidops-local-analysis-worker-1 Started 
+ Container bidops-local-web-1 Started 
+exit_code=0
