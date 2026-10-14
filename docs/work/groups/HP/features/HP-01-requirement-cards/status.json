@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
   "feature": "HP-01-requirement-cards",
-  "phase": "validating",
+  "phase": "done",
   "steps": [
     {
       "id": "STEP-001",
@@ -317,9 +317,13 @@
     {
       "at": "2026-10-15T00:15:31+09:00",
       "text": "단계 → validating: 7단계완료, 최종 관련검사/격리0037·backfill·불변확인 완료. 쪽가용성목표미달은 정본한계로 보존, 독립최종review중"
+    },
+    {
+      "at": "2026-10-15T00:20:19+09:00",
+      "text": "단계 → done: 배치 검증 및 통합 완료"
     }
   ],
-  "updated_at": "2026-10-15T00:19:30+09:00",
+  "updated_at": "2026-10-15T00:20:19+09:00",
   "proof_history": [
     {
       "key": "tests",
@@ -357,5 +361,11 @@
         "result": "pending"
       }
     }
-  ]
+  ],
+  "integration": {
+    "run": "hp0001-20261014",
+    "revision": "ce819ab9a4e47eee8a944468dd42df76d5e782f7",
+    "source_hash": "1a40e9af45a73b1259bfae71eb933f9ec46d309b47c20d6aec98764f51d7db79",
+    "spec_hash": "a3381294c849873f6c48178e048a604125e22396eeb8a1df943f94e29dc29c2b"
+  }
 }

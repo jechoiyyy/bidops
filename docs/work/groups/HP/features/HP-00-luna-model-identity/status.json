@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
   "feature": "HP-00-luna-model-identity",
-  "phase": "validating",
+  "phase": "done",
   "steps": [
     {
       "id": "STEP-001",
@@ -412,9 +412,13 @@
     {
       "at": "2026-10-14T23:24:52+09:00",
       "text": "단계 STEP-006 done: 실제1건 invocation model/CLI/effort/policy hash 확인 T11 충족. initial+repair 응답은 결정적검증 실패로 안전종결; 품질·분석성공 아님. active0, 기존 데이터보존."
+    },
+    {
+      "at": "2026-10-15T00:20:18+09:00",
+      "text": "단계 → done: 배치 검증 및 통합 완료"
     }
   ],
-  "updated_at": "2026-10-15T00:19:30+09:00",
+  "updated_at": "2026-10-15T00:20:18+09:00",
   "proof_history": [
     {
       "key": "docs",
@@ -649,5 +653,11 @@
         "spec_hash": "d683a71b1c92e848373458189f3588e4955e8f74e0fadc14c36b5dd905c5e604"
       }
     }
-  ]
+  ],
+  "integration": {
+    "run": "hp0001-20261014",
+    "revision": "ce819ab9a4e47eee8a944468dd42df76d5e782f7",
+    "source_hash": "1a40e9af45a73b1259bfae71eb933f9ec46d309b47c20d6aec98764f51d7db79",
+    "spec_hash": "d683a71b1c92e848373458189f3588e4955e8f74e0fadc14c36b5dd905c5e604"
+  }
 }
