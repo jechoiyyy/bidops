@@ -2,7 +2,7 @@
 
 The world is the STEP-002 company world (real DEMO-02 registration of the frozen
 fixtures, completed v7 overview, SW사업대상=Y notice) plus a ready document
-bundle and the approved ``analysis-policy-luna-demo-v1`` row (STEP-004) selected by
+bundle and the approved ``analysis-policy-luna-hp-v1`` row selected by
 ``BIDOPS_DEMO_DEEP_REVIEW_POLICY_VERSION_ID``.  No model, transport or network
 is called anywhere in this module (an autouse guard fails the test otherwise);
 the company job is queued for the shared slot but never claimed here.
@@ -47,7 +47,7 @@ from app.deep_review.services.company_knowledge import activate_company_knowledg
 from app.deep_review.services.deep_reviews import DeepReviewService, DeepReviewServiceError
 from app.deep_review.services.input_versions import (
     CANONICAL_POLICY_FILE,
-    DEMO_LUNA_POLICY_FILE,
+    HP_LUNA_POLICY_FILE,
     InputVersionError,
     canonical_json_hash,
     import_policy_version,
@@ -111,7 +111,7 @@ def engine(request):
 
 
 LUNA_V4 = CANONICAL_POLICY_FILE.with_name("analysis-policy-luna-v4.json")
-LUNA_DEMO = DEMO_LUNA_POLICY_FILE
+LUNA_HP = HP_LUNA_POLICY_FILE
 
 
 def structure_loader(_session, structure):
@@ -155,7 +155,7 @@ def deep_world(session: Session, monkeypatch, *, slug: str = "demo-data-ai") -> 
     # the deep preview (injected ``structure_loader``, same payload) and any company fit.
     base = build_world(session, monkeypatch, slug=slug, bundle=False)
     bundle_id = ready_bundle(session, base.notice_id, base.document_id)
-    policy = import_policy_version(session, LUNA_DEMO, created_by_name="정책 담당자", label="analysis-policy-luna-demo-v1")
+    policy = import_policy_version(session, LUNA_HP, created_by_name="정책 담당자", label="analysis-policy-luna-hp-v1")
     session.commit()
     world = DeepWorld(fit=base, company_id=base.company_id, notice_id=base.notice_id, bundle_id=bundle_id,
                       policy_id=policy.id, graph_version_id=base.graph_version_id,
@@ -277,7 +277,7 @@ def test_t2_preview_freezes_company_input_and_provenance(engine, monkeypatch) ->
             "source_verification_enabled", "input", "company_id", "profile_version_id", "graph_version_id",
             "graph_sha256", "ontology_version",
         }
-        assert (response["provider"], response["model"], response["reasoning_effort"]) == ("codex-exec", "gpt-5.6-luna", "xhigh")
+        assert (response["provider"], response["model"], response["reasoning_effort"]) == ("codex-exec", "gpt-6-luna", "high")
         assert response["quality_status"] == "unmeasured_reference" and response["source_verification_enabled"] is True
         assert set(frozen) == COMPANY_ANALYSIS_INPUT_KEYS
         assert frozen["purpose"] == "deep_review" and frozen["execution_nonce"] == str(pid)
@@ -450,6 +450,12 @@ def test_t2_replay_preview_used_and_idempotency(engine, monkeypatch) -> None:
         assert review.effective_grade_at_start == "unknown" and review.current_attempt_id is not None
         approval = session.scalar(select(DeepReviewApproval))
         assert approval.company_id == world.company_id and approval.attempt_id == review.current_attempt_id
+        approval_audit = session.scalar(select(AuditEvent).where(
+            AuditEvent.action == "deep_review.external_transfer_approved",
+            AuditEvent.aggregate_id == str(review.current_attempt_id),
+        ))
+        assert approval_audit.safe_metadata["model"] == "gpt-6-luna"
+        assert approval_audit.safe_metadata["reasoning_effort"] == "high"
         job = session.get(WorkJob, session.get(DeepReviewAttempt, review.current_attempt_id).work_job_id)
         assert (job.job_type, job.aggregate_type, job.aggregate_id, job.status, job.max_attempts) == (
             "deep_review", "deep_review", review.id, "queued", 1)
@@ -486,7 +492,7 @@ def test_t2_changed_inputs_between_preview_and_approval_are_preview_changed(worl
         import_company(session, raw=second_source())
         session.commit()
     elif change == "policy":
-        policy = import_policy_version(session, LUNA_DEMO, created_by_name="정책 담당자",
+        policy = import_policy_version(session, LUNA_HP, created_by_name="정책 담당자",
                                        validation_metadata=_measured("c"))
         session.commit()
         assert policy.id != world.policy_id
@@ -752,7 +758,7 @@ def test_t6_currentness_follows_every_input(world_session, monkeypatch, change) 
     review_id = UUID(created["id"])
     before = _rows(session)
     if change == "policy_setting":
-        policy = import_policy_version(session, LUNA_DEMO, created_by_name="정책 담당자",
+        policy = import_policy_version(session, LUNA_HP, created_by_name="정책 담당자",
                                        validation_metadata=_measured("d"))
         session.commit()
         deep_configure(monkeypatch, world, BIDOPS_DEMO_DEEP_REVIEW_POLICY_VERSION_ID=str(policy.id))

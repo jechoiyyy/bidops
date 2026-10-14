@@ -1,4 +1,5 @@
 """Shared worker boundary with synthetic source and runner; never calls Luna."""
+from copy import deepcopy
 import hashlib
 import json
 from uuid import UUID, uuid4
@@ -10,12 +11,14 @@ from sqlalchemy.orm import Session
 from tests.app.test_deep_reviews import engine
 from tests.app.test_luna_deep_review import setup
 from tests.postgres import migrated_engine
-from app.deep_review.models import AssumptionInputVersion, AssumptionRun, AssumptionStage
+from app.deep_review.models import AssumptionInputVersion, AssumptionRun, AssumptionStage, WorkJob
 from app.deep_review.services.assumption_analysis import AssumptionAnalysisService
 from app.deep_review.services.assumption_report import SECTIONS
 from app.deep_review.services.deep_reviews import DeepReviewServiceError
 from app.core.db import ALEMBIC_HEAD
 from app.core.model_client import InvocationResult, ModelInvocationError
+from app.deep_review.services.luna_identity import MODEL, PROVIDER, REASONING_EFFORT
+from app.deep_review.services.input_versions import CANONICAL_POLICY_FILE, canonical_json_hash, import_policy_version
 
 
 class Runner:
@@ -26,7 +29,8 @@ class Runner:
     def invoke_prompt(self, prompt, *, contract):
         data = json.loads(prompt); self.calls.append(data)
         assert contract == 'assumption-stage-v1'
-        assert data['scenario']['settings']['model'] == 'gpt-5.6-luna'
+        assert data['scenario']['settings']['model'] == MODEL
+        assert data['scenario']['settings']['reasoning_effort'] == REASONING_EFFORT
         if data['stage'] == self.fail:
             raise ModelInvocationError('output_truncated', (), b'{"partial":')
         keys = list(SECTIONS) if data['stage'] == 'decision' else ['scope']
@@ -36,7 +40,7 @@ class Runner:
                      {'source_id': 'document-1', 'quote': next(s[2] for s in data['sources'] if s[0] == 'document-1')}]}]} for key in keys]}
         raw = json.dumps(output).encode()
         return InvocationResult(output, raw, hashlib.sha256(prompt.encode()).hexdigest(), hashlib.sha256(raw).hexdigest(),
-                                None, None, 1, (), 'codex-exec', 'gpt-5.6-luna')
+                                None, None, 1, (), PROVIDER, MODEL)
 
 
 def context(engine, monkeypatch, fail=None):
@@ -51,7 +55,12 @@ def context(engine, monkeypatch, fail=None):
     def synthetic(session, notice_id, bundle_id):
         profile, policy = resolve_active_versions(session, allow_unmeasured_reference=True)
         data = snapshot(base, session, lock_notice(session, notice_id), bundle_id, profile, policy, False)
-        data.pop('policy'); data['schema'] = 'bidops.assumption-input.v1'; data['scenario'] = scenario()
+        data.pop('policy')
+        data['policy_binding'] = {
+            'policy_version_id': str(policy.id), 'policy_sha256': policy.policy_sha256,
+            'model': policy.model_name, 'reasoning_effort': REASONING_EFFORT,
+        }
+        data['schema'] = 'bidops.assumption-input.v1'; data['scenario'] = scenario()
         data['prompt_contract'] = execution_contract()
         return data, profile.id
     monkeypatch.setattr(service, '_snapshot', synthetic)
@@ -64,6 +73,14 @@ def exercise(engine, monkeypatch, fail=None):
         preview = service.preview(session, notice, bundle)
         request = uuid4(); pid = UUID(preview['preview_id'])
         created = service.create(session, notice, pid, 'tester', request)
+        from app.core.models import AuditEvent
+        audit = session.scalar(select(AuditEvent).where(
+            AuditEvent.action == 'assumption_analysis.external_transfer_approved',
+            AuditEvent.aggregate_id == created['id'],
+        ))
+        assert audit.safe_metadata['provider'] == PROVIDER
+        assert audit.safe_metadata['model'] == MODEL
+        assert audit.safe_metadata['reasoning_effort'] == REASONING_EFFORT
         assert service.create(session, notice, pid, 'tester', request) == created
         with pytest.raises(DeepReviewServiceError, match='이미 승인'):
             service.create(session, notice, pid, 'tester', uuid4())
@@ -215,6 +232,49 @@ def test_changed_execution_code_invalidates_queued_consent(engine, monkeypatch):
         result = service.view(session, UUID(created['id']))
         assert result['status'] == 'failed'
         assert result['error_code'] == 'execution_config_changed'
+        assert result['call_count'] == 0 and service.client.calls == []
+
+
+@pytest.mark.parametrize(('mismatch', 'expected'), [
+    ('settings', 'execution_config_changed'),
+    ('policy', 'model_binding_invalid'),
+])
+def test_t8_legacy_identity_is_rejected_before_runner(engine, monkeypatch, mismatch, expected):
+    notice, bundle, service = context(engine, monkeypatch)
+    with Session(engine) as session:
+        preview = service.preview(session, notice, bundle)
+        approved = session.get(AssumptionInputVersion, UUID(preview['preview_id']))
+        data = deepcopy(approved.input_snapshot)
+        if mismatch == 'settings':
+            data['scenario']['settings']['model'] = 'gpt-5.6-luna'
+            data['scenario']['settings']['reasoning_effort'] = 'xhigh'
+        else:
+            legacy = import_policy_version(
+                session, CANONICAL_POLICY_FILE.with_name('analysis-policy-luna-v4.json')
+            )
+            data['policy_binding'] = {
+                'policy_version_id': str(legacy.id), 'policy_sha256': legacy.policy_sha256,
+                'model': legacy.model_name, 'reasoning_effort': 'xhigh',
+            }
+        frozen = AssumptionInputVersion(
+            notice_id=notice, bundle_id=bundle, profile_version_id=approved.profile_version_id,
+            input_sha256=canonical_json_hash(data), input_snapshot=data,
+        )
+        session.add(frozen); session.flush()
+        run_id = uuid4()
+        job = WorkJob(
+            job_type='assumption_analysis', aggregate_type='assumption_run', aggregate_id=run_id,
+            status='queued', max_attempts=1,
+        )
+        session.add(job); session.flush()
+        run = AssumptionRun(
+            id=run_id, notice_id=notice, input_version_id=frozen.id, work_job_id=job.id,
+            request_id=uuid4(), claimed_name='tester',
+        )
+        session.add(run); session.commit()
+        assert service.run_once(session, 'identity-guard-worker')
+        result = service.view(session, run_id)
+        assert result['status'] == 'failed' and result['error_code'] == expected
         assert result['call_count'] == 0 and service.client.calls == []
 
 

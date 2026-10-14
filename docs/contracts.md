@@ -1821,9 +1821,18 @@ payload/hash는 변경하지 않는다. `ReportView.report`, `ReportRevisionRequ
 `POST /api/notices/{notice_id}/deep-review-previews`는
 `{bundle_id, source_verification_enabled=true, review_id=null}`를 받아
 `DeepReviewPreviewView`를 반환한다. 재실행은 `review_id`의 고정 정책·프로필을 쓴다.
-입력은 `preview_id`, `input_sha256`, `provider=codex-exec`, `model=gpt-5.6-luna`,
-`reasoning_effort=xhigh`, `quality_status=unmeasured_reference`, 대조 설정과 `input`이다.
+입력은 `preview_id`, `input_sha256`, `provider=codex-exec`, 고정 정책 row의 `model_name`과
+`generation.reasoning_effort`, `quality_status=unmeasured_reference`, 대조 설정과 `input`이다.
 `input`은 문서·회사 근거를 포함하므로 일반 로그·감사 metadata에 넣지 않는다.
+HP-00의 새 identity는 `gpt-6-luna`/`high`, codex CLI `0.162.1`이다. preview·승인 표식의 모델과
+effort는 고정 정책 row에서 읽고 실행 metadata의 CLI version은 identity 모듈에서 읽는다. 정책의
+모델·effort가 runner identity와 다르면 preview·생성·worker claim은 외부 호출 전에 거부하며
+REST는 503 `model_binding_invalid`, worker는 호출 없이 실패로 종결한다. 모델 artifact revision은 없다.
+기존 정책 v1~v4·demo-v1과 실행 row는 변경하지 않고, `gpt-5.6-luna`/`xhigh`는 legacy 조회에만 허용한다.
+NULL 계보용 `analysis-policy-luna-v5`는 v4에서 `policy_identity`, `model_name`,
+`generation.reasoning_effort`, `execution.cli_version` 네 값만 바꾼 불변 정책이다. 가정 분석의
+새 불변 input snapshot은 승인 당시 정책을 재확인하도록 `policy_binding={policy_version_id,
+policy_sha256,model,reasoning_effort}`를 포함하며 기존 snapshot은 수정하지 않는다.
 
 생성 및 재실행 API·Agent payload에 optional `preview_id`가 추가됐다. Luna 정책에서는
 필수이며 없으면 409 `preview_required`, 입력·설정 불일치는 `preview_changed`,
@@ -1841,7 +1850,8 @@ migration `0032_luna_deep_review`는 `deep_review_preview`와 `deep_review_appro
 추가한다. 둘 다 UPDATE/DELETE를 DB trigger와 ORM이 거부한다. 승인 preview와 attempt는
 각각 unique이며 FK는 RESTRICT다. app은 SELECT/INSERT, worker는 SELECT만 갖는다.
 승인이 존재하면 downgrade를 거부한다. 정책과 모델 revision의 확인되지 않은 값은
-추정하지 않는다. 실행 metadata의 CLI version은 0.155.1이고 모델 artifact revision은 없다.
+추정하지 않는다. 실행 metadata의 CLI version은 HP-00 identity 기준 `0.162.1`이고
+모델 artifact revision은 없다.
 
 내부 runner API는 `/calls` POST → `/calls/{id}` GET heartbeat/result → DELETE 취소다.
 외부 공개 API가 아니며 worker 전용 내부망에서만 사용한다. prompt는 stdin으로 전달하고
@@ -1931,6 +1941,6 @@ DEMO-03(2026-10-10, 같은 데모 브랜치)은 공통 계약 §5·§6·§9·§1
 - 회사 읽기(GET, 모델 호출 없음, reference/Luna flag 무관, DEMO off는 404, 타회사 자원은 404): `/api/companies/{company_id}/pre-specs`(`bidops.company-pre-spec-list.v1`; 모집단 SW=Y 사전규격 전체, `q`·`fit`·`tracking_status`·`sort=posted_at_desc|deadline_asc`·`limit`≤500·`offset`, 서버 필터·nulls last·notice_id DESC), `/pre-specs/{notice_id}`, `/pre-specs/{notice_id}/company-fit`(`CompanyScopedFitView[]`: 기존 CompanyFitView+`company_id,graph_version_id,graph_sha256,ontology_version,input_sha256,paths,provenance`, `model_revision` nullable), `/deep-reviews/{review_id}`(`CompanyReviewView`), `/deep-reviews/{review_id}/report`(`bidops.company-report-view.v1` wrapper, 결과 없음 409 `review_not_ready`), `/deep-reviews/{review_id}/evidence/{evidence_id}`, `GET /api/pre-specs/{notice_id}/company-comparison`(`bidops.company-comparison.v1`, §7 slug 오름차순, 최신 생성 실행·fallback 없음, different_input>stale>missing>comparable).
   FrozenProvenance는 동결 snapshot(핏 attempt `provenance_jsonb`, 심층은 승인 preview `provenance_jsonb`)을 그대로 직렬화하고 view와 중복된 identity/hash가 다르면 500 `processing_failed`로 거부한다. fit/review summary는 created_at DESC·id DESC 최신 실행이다.
 - legacy 분리: `GET /api/deep-reviews/{id}`·`/report`·`GET /api/evidence/{id}`·`POST .../report-revisions`·`/final-opinions`·`close-deep-review`는 회사 review에 404 `not_found`, legacy preview/check/attempt는 회사 행을 거부한다. NULL 회사 응답은 바뀌지 않았다.
-- 정책: 심층 `analysis-policy-luna-demo-v1`(sha256 `9cb6254ef2f7fa3fbc608d775951aed14d958204f5366b30f92da661a4cbc3b0`, v4 파생, `policy_identity` 매핑, `chunking.path_limit_per_requirement`=32 필수, `profile_characters`=8000, execution·validation은 v4 상속)은 `BIDOPS_DEMO_DEEP_REVIEW_POLICY_VERSION_ID`로만 선택되고 legacy 전역 활성 정책으로는 거부된다. `global_path_index`·`excluded_path_count_by_requirement`·교정 field path는 프롬프트 sanitizer가 제거하므로 저장·hash·provenance 전용이다.
+- 정책: 심층 `analysis-policy-luna-demo-v1`(sha256 `9cb6254ef2f7fa3fbc608d775951aed14d958204f5366b30f92da661a4cbc3b0`, v4 파생, `policy_identity` 매핑, `chunking.path_limit_per_requirement`=32 필수, `profile_characters`=8000, execution·validation은 v4 상속)은 `BIDOPS_DEMO_DEEP_REVIEW_POLICY_VERSION_ID`로만 선택되고 legacy 전역 활성 정책으로는 거부된다. HP-00은 회사 계보 전용 `analysis-policy-luna-hp-v1`(sha256 `776c3efc908bf005f57df58d153406add592103d7cd7d3874ae9984cd363184b`, `gpt-6-luna`/`high`)을 같은 설정으로 선택 가능한 회사 policy identity 집합에 추가하며, 전역 active로는 거부한다. `global_path_index`·`excluded_path_count_by_requirement`·교정 field path는 프롬프트 sanitizer가 제거하므로 저장·hash·provenance 전용이다.
 실제 Luna 대표 1건(원안 T9)은 실행하지 않았고 2026-10-11 재계획으로 DEMO-05로 이관했다. STEP-007은 `bidops-local` 격리 스택 준비와 호출 전 fail-closed 확인까지다.
 [ADR-0070](tracking/decisions/0070-multi-company-knowledge-demo.md) · [공통 계약](work/demo-contract.md) · [기능 로드맵](work/constitution/roadmap.md).

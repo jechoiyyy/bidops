@@ -1,7 +1,7 @@
 {
   "preview": {
     "preview_id": "b587c03c-3d1e-4dbd-a1f6-28b292b706ba",
-    "input_sha256": "6ba557fdc8641ca9ba899a0a68df12ce45f81bb28076156344bfbb776bce8c69",
+    "input_sha256": "7f0c91702af7413dd8803ba28c4b4a9499b0c382a36f672a70420fb1fe569d85",
     "input": {
       "inventory": {
         "manifest_count": 0,
@@ -450,8 +450,8 @@
         },
         "settings": {
           "provider": "codex-exec",
-          "model": "gpt-5.6-luna",
-          "reasoning_effort": "xhigh",
+          "model": "gpt-6-luna",
+          "reasoning_effort": "high",
           "quality_status": "unmeasured_reference",
           "contains_assumptions": true
         }
@@ -566,14 +566,14 @@
     "error_code": null,
     "approved_at": "2026-09-23T10:49:52.163168Z",
     "input_version_id": "b587c03c-3d1e-4dbd-a1f6-28b292b706ba",
-    "input_sha256": "6ba557fdc8641ca9ba899a0a68df12ce45f81bb28076156344bfbb776bce8c69",
+    "input_sha256": "7f0c91702af7413dd8803ba28c4b4a9499b0c382a36f672a70420fb1fe569d85",
     "scenario": {
       "version": "1489-assumptions-v1",
       "settings": {
-        "model": "gpt-5.6-luna",
+        "model": "gpt-6-luna",
         "provider": "codex-exec",
         "quality_status": "unmeasured_reference",
-        "reasoning_effort": "xhigh",
+        "reasoning_effort": "high",
         "contains_assumptions": true
       },
       "economics": {

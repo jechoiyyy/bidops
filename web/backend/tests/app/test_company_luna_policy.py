@@ -45,6 +45,9 @@ from app.deep_review.services.input_versions import (
     CANONICAL_POLICY_FILE,
     DEMO_LUNA_POLICY_FILE,
     DEMO_LUNA_POLICY_IDENTITY,
+    HP_LUNA_POLICY_FILE,
+    LUNA_V5_POLICY_FILE,
+    LUNA_V5_POLICY_IDENTITY,
     InputVersionError,
     _approved_policy_path,
     _policy_hash_matches,
@@ -53,6 +56,7 @@ from app.deep_review.services.input_versions import (
     load_canonical_policy,
     validate_pinned_policy,
 )
+from app.deep_review.services.luna_identity import COMPANY_POLICY_IDENTITIES, HP_POLICY_IDENTITY
 from app.deep_review.services.narrative_inputs import NarrativeInputError
 from tests.app.test_company_deep_review_binding import (  # noqa: F401 - shared fixtures
     LUNA_V4,
@@ -69,6 +73,8 @@ from tests.deep_review.test_company_knowledge_retrieval import DOC_ID, PROFILE_I
 
 
 DEMO_SHA256 = "9cb6254ef2f7fa3fbc608d775951aed14d958204f5366b30f92da661a4cbc3b0"
+HP_SHA256 = "776c3efc908bf005f57df58d153406add592103d7cd7d3874ae9984cd363184b"
+V5_SHA256 = "f575e827d592fbe8c90bb4f2210d242351e805cd0975212559b2fa7a615cce2e"
 TEXTS = [
     "데이터 플랫폼 구축 및 데이터 품질·관리 체계 수립을 수행한다.",
     "정보보호 관리 인증 보유 여부를 제출한다.",
@@ -83,6 +89,16 @@ def demo_policy() -> dict:
 
 def v4_policy() -> dict:
     payload, _raw, _digest = load_canonical_policy(LUNA_V4)
+    return payload
+
+
+def hp_policy() -> dict:
+    payload, _raw, _digest = load_canonical_policy(HP_LUNA_POLICY_FILE)
+    return payload
+
+
+def v5_policy() -> dict:
+    payload, _raw, _digest = load_canonical_policy(LUNA_V5_POLICY_FILE)
     return payload
 
 
@@ -148,9 +164,40 @@ def test_t5_demo_policy_is_canonical_pinned_and_differs_from_v4_only_by_company_
     assert "판정이 아니" in payload["stages"][1]["instruction"]
 
 
+@pytest.mark.parametrize(
+    ("path", "base_path", "identity", "digest"),
+    [
+        (HP_LUNA_POLICY_FILE, DEMO_LUNA_POLICY_FILE, HP_POLICY_IDENTITY, HP_SHA256),
+        (LUNA_V5_POLICY_FILE, LUNA_V4, LUNA_V5_POLICY_IDENTITY, V5_SHA256),
+    ],
+)
+def test_t3_hp_and_v5_policies_are_canonical_four_key_derivatives(
+    path, base_path, identity, digest,
+) -> None:
+    assert COMPANY_POLICY_IDENTITIES == frozenset({DEMO_LUNA_POLICY_IDENTITY, HP_POLICY_IDENTITY})
+    payload, canonical, actual_digest = load_canonical_policy(path)
+    base, _base_raw, _base_digest = load_canonical_policy(base_path)
+    assert path.read_bytes() == canonical == canonical_json_bytes(payload)
+    assert actual_digest == hashlib.sha256(path.read_bytes()).hexdigest() == digest
+    assert payload["policy_identity"] == identity
+    assert payload["model_name"] == "gpt-6-luna"
+    assert payload["generation"]["reasoning_effort"] == "high"
+    assert payload["execution"]["cli_version"] == "0.162.1"
+
+    expected = deepcopy(base)
+    expected["policy_identity"] = identity
+    expected["model_name"] = "gpt-6-luna"
+    expected["generation"]["reasoning_effort"] = "high"
+    expected["execution"]["cli_version"] = "0.162.1"
+    assert payload == expected
+    assert _approved_policy_path(payload) == path
+
+
 def test_t5_mapping_rejects_mutation_unknown_identity_and_invalid_path_limit(tmp_path) -> None:
     payload = demo_policy()
     assert _approved_policy_path(payload) == DEMO_LUNA_POLICY_FILE
+    assert _approved_policy_path(hp_policy()) == HP_LUNA_POLICY_FILE
+    assert _approved_policy_path(v5_policy()) == LUNA_V5_POLICY_FILE
     assert _approved_policy_path(v4_policy()) == LUNA_V4
     for version in ("v1", "v2", "v3"):
         legacy, _raw, _digest = load_canonical_policy(CANONICAL_POLICY_FILE.with_name(f"analysis-policy-luna-{version}.json"))
@@ -178,6 +225,13 @@ def test_t5_mapping_rejects_mutation_unknown_identity_and_invalid_path_limit(tmp
             candidate["chunking"]["path_limit_per_requirement"] = bad
         with pytest.raises(InputVersionError, match="path_limit_per_requirement"):
             load_canonical_policy(write_candidate(tmp_path, candidate))
+        hp_candidate = deepcopy(hp_policy())
+        if bad == "missing":
+            del hp_candidate["chunking"]["path_limit_per_requirement"]
+        else:
+            hp_candidate["chunking"]["path_limit_per_requirement"] = bad
+        with pytest.raises(InputVersionError, match="path_limit_per_requirement"):
+            load_canonical_policy(write_candidate(tmp_path, hp_candidate))
     # The same key is not required of v4 (its approved bytes have no such key).
     assert "path_limit_per_requirement" not in v4_policy()["chunking"]
     # Non-canonical bytes of the approved content are rejected too.
@@ -187,18 +241,22 @@ def test_t5_mapping_rejects_mutation_unknown_identity_and_invalid_path_limit(tmp
         load_canonical_policy(pretty)
 
 
-def test_t5_import_five_luna_policies_creates_distinct_rows(engine) -> None:
+def test_t3_import_seven_luna_policies_creates_distinct_rows(engine) -> None:
     paths = [CANONICAL_POLICY_FILE.with_name(f"analysis-policy-luna-v{version}.json") for version in range(1, 5)]
-    paths.append(DEMO_LUNA_POLICY_FILE)
+    paths.extend((DEMO_LUNA_POLICY_FILE, LUNA_V5_POLICY_FILE, HP_LUNA_POLICY_FILE))
     with Session(engine) as session:
         rows = [import_policy_version(session, path, created_by_name="정책 담당자") for path in paths]
         session.commit()
-        assert len({row.id for row in rows}) == 5
+        assert len({row.id for row in rows}) == 7
         assert [row.policy_sha256 for row in rows] == [hashlib.sha256(path.read_bytes()).hexdigest() for path in paths]
-        demo = rows[-1]
+        demo, v5, hp = rows[-3:]
         assert demo.policy_sha256 == DEMO_SHA256
         assert import_policy_version(session, DEMO_LUNA_POLICY_FILE, created_by_name="정책 담당자").id == demo.id
+        assert import_policy_version(session, LUNA_V5_POLICY_FILE, created_by_name="정책 담당자").id == v5.id
+        assert import_policy_version(session, HP_LUNA_POLICY_FILE, created_by_name="정책 담당자").id == hp.id
         assert (demo.model_endpoint_ref, demo.model_name) == ("codex-exec", "gpt-5.6-luna")
+        assert (v5.model_endpoint_ref, v5.model_name) == ("codex-exec", "gpt-6-luna")
+        assert (hp.model_endpoint_ref, hp.model_name) == ("codex-exec", "gpt-6-luna")
         for row in rows:
             assert _policy_hash_matches(row)
             validate_pinned_policy(row, allow_unmeasured_reference=True)
@@ -209,17 +267,24 @@ def test_t5_import_five_luna_policies_creates_distinct_rows(engine) -> None:
         assert all(_policy_payload(row).get("policy_identity") in {None, "analysis-policy-luna-v4"} for row in rows[:4])
 
 
-def test_t5_company_deep_policy_requires_the_demo_policy_row(world_session, monkeypatch) -> None:
+def test_t4_company_deep_policy_checks_runtime_before_company_identity(world_session, monkeypatch) -> None:
     from tests.app.test_company_deep_review_binding import code, deep_configure
 
     session, world, svc = world_session
     resolved = cdr.resolve_company_deep_policy(session)
     assert resolved.row.id == world.policy_id
-    assert resolved.payload["policy_identity"] == DEMO_LUNA_POLICY_IDENTITY
+    assert resolved.payload["policy_identity"] == HP_POLICY_IDENTITY
     assert (resolved.path_limit_per_requirement, resolved.profile_characters) == (32, 8000)
+
+    demo = import_policy_version(session, DEMO_LUNA_POLICY_FILE, created_by_name="정책 담당자")
     v4 = import_policy_version(session, LUNA_V4, created_by_name="정책 담당자")
+    v5 = import_policy_version(session, LUNA_V5_POLICY_FILE, created_by_name="정책 담당자")
     session.commit()
+    deep_configure(monkeypatch, world, BIDOPS_DEMO_DEEP_REVIEW_POLICY_VERSION_ID=str(demo.id))
+    assert code(lambda: preview(session, svc, world)) == "model_binding_invalid"
     deep_configure(monkeypatch, world, BIDOPS_DEMO_DEEP_REVIEW_POLICY_VERSION_ID=str(v4.id))
+    assert code(lambda: preview(session, svc, world)) == "model_binding_invalid"
+    deep_configure(monkeypatch, world, BIDOPS_DEMO_DEEP_REVIEW_POLICY_VERSION_ID=str(v5.id))
     assert code(lambda: preview(session, svc, world)) == "analysis_policy_unavailable"
 
 
@@ -278,8 +343,8 @@ def test_t4_stage_slices_cover_the_frozen_preview_input(engine, monkeypatch) -> 
     with Session(engine) as session:
         world = deep_world(session, monkeypatch)
         frozen = preview(session, service(), world)["input"]
-    policy = demo_policy()
-    assert frozen["policy_sha256"] == DEMO_SHA256
+    policy = hp_policy()
+    assert frozen["policy_sha256"] == HP_SHA256
     assert set(frozen) == COMPANY_ANALYSIS_INPUT_KEYS and frozen["graph_paths"]
     units = _unit_ids(frozen)
     assert units == set(frozen["coverage"]["included_requirement_ids"])
@@ -335,7 +400,7 @@ def pure_frozen(slug: str = "demo-data-ai", texts=TEXTS, *, policy: dict | None 
         "graph_sha256": "c" * 64, "ontology_version": "demo-ontology-v1", "ontology_sha256": "d" * 64,
         "notice_id": 1, "document_version_ids": [DOC_ID], "bundle_id": str(uuid4()),
         "overview_run_id": RUN_ID, "overview_sha256": "e" * 64, "policy_version_id": str(uuid4()),
-        "policy_sha256": canonical_json_hash(policy), "model_name": "gpt-5.6-luna", "model_revision": None,
+        "policy_sha256": canonical_json_hash(policy), "model_name": policy["model_name"], "model_revision": None,
         "generation_config_sha256": canonical_json_hash(policy["generation"]), **part,
     }
     assert set(value) == COMPANY_ANALYSIS_INPUT_KEYS
@@ -348,9 +413,10 @@ def _code(call) -> str:
     return error.value.code
 
 
-def test_t4_policy_payload_with_row_hash_is_accepted_and_slices_are_deterministic() -> None:
-    policy = demo_policy()
-    frozen = pure_frozen()
+@pytest.mark.parametrize("policy_factory", [demo_policy, hp_policy])
+def test_t6_company_policy_payload_with_row_hash_is_accepted_and_slices_are_deterministic(policy_factory) -> None:
+    policy = policy_factory()
+    frozen = pure_frozen(policy=policy)
     with_hash = {**policy, "policy_sha256": frozen["policy_sha256"]}  # ``_policy_payload`` shape
     first = company_stage_slices(STAGES[0], frozen, [], with_hash)
     stage_one = _stage_output(STAGES[0], first)
@@ -595,10 +661,10 @@ def test_t5_company_fact_numbers_must_appear_in_the_cited_profile_quote() -> Non
         validate_deep_review_stage(foreign, profile=profile, profile_version_id=frozen["profile_version_id"], **context)
 
 
-def test_t4_frozen_preview_uses_the_demo_policy_identity(world_session) -> None:
+def test_t4_frozen_preview_uses_the_hp_policy_identity(world_session) -> None:
     session, world, svc = world_session
     response = preview(session, svc, world)
     frozen = response["input"]
     assert frozen["policy_version_id"] == str(world.policy_id)
-    assert frozen["policy_sha256"] == DEMO_SHA256
+    assert frozen["policy_sha256"] == HP_SHA256
     assert UUID(frozen["execution_nonce"]) == UUID(response["preview_id"])

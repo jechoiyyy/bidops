@@ -38,5 +38,5 @@ def test_fixed_context_and_fresh_snapshots():
     assert current["assumptions"][0]["kind"] == "assumption"
     assert current["assumptions"][-1]["kind"] == "unknown"
     assert len(current["economics"]["rows"]) == 12
-    assert current["settings"]["model"] == "gpt-5.6-luna"
-    assert current["settings"]["reasoning_effort"] == "xhigh"
+    assert current["settings"]["model"] == "gpt-6-luna"
+    assert current["settings"]["reasoning_effort"] == "high"

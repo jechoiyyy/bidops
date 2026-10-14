@@ -1,4 +1,5 @@
 """Explicit consent, append-only results and fenced execution in the shared worker."""
+from collections.abc import Mapping
 from copy import deepcopy
 from datetime import timedelta
 import hashlib
@@ -12,13 +13,21 @@ from sqlalchemy import select, or_, and_, update
 from ...core.models import AuditEvent
 from ...core.model_client import InvocationResult, ModelInvocationError
 from ...lifecycle import lock_notice
-from ..models import AssumptionInputVersion, AssumptionRun, AssumptionStage, WorkJob, DeepReviewPreview
+from ..models import (
+    AnalysisPolicyVersion,
+    AssumptionInputVersion,
+    AssumptionRun,
+    AssumptionStage,
+    WorkJob,
+    DeepReviewPreview,
+)
 from .assumption_inputs import scenario
 from .assumption_report import STAGES, INSTRUCTION, MAX_PROMPT_CHARS, output_schema, prompts, source_units, project_output, AssumptionOutputError
 from .deep_reviews import DeepReviewService, DeepReviewServiceError, JobClaim, StaleFenceError, _validate_actor
 from .input_versions import resolve_active_versions, canonical_json_hash
 from .luna_inputs import snapshot
 from .luna_client import LunaClient
+from .luna_identity import MODEL, PROVIDER, matches_runtime, policy_reasoning_effort
 
 
 def execution_contract():
@@ -45,8 +54,15 @@ class AssumptionAnalysisService:
             reject('unsupported_scenario', '이 가정 버전은 1489번 전용입니다', 400)
         profile, policy = resolve_active_versions(session, allow_unmeasured_reference=True)
         source = snapshot(self.base, session, notice, bundle_id, profile, policy, False)
-        # The old policy controls readiness only; this path pins its own prompt/schema.
+        # This path owns its prompt/schema, but still pins the immutable policy
+        # row that authorized the shared runner identity.
         source.pop('policy')
+        source['policy_binding'] = {
+            'policy_version_id': str(policy.id),
+            'policy_sha256': policy.policy_sha256,
+            'model': policy.model_name,
+            'reasoning_effort': policy_reasoning_effort(policy),
+        }
         source['schema'] = 'bidops.assumption-input.v1'
         source['scenario'] = scenario()
         source['prompt_contract'] = execution_contract()
@@ -101,7 +117,9 @@ class AssumptionAnalysisService:
         session.add(AuditEvent(actor_kind='human', claimed_name=actor, action='assumption_analysis.external_transfer_approved',
                               aggregate_type='assumption_run', aggregate_id=str(run_id), request_id=str(request_id),
                               safe_metadata={'preview_id': str(row.id), 'input_sha256': row.input_sha256,
-                                             'model': 'gpt-5.6-luna', 'reasoning_effort': 'xhigh'}))
+                                             'provider': PROVIDER,
+                                             'model': row.input_snapshot['scenario']['settings']['model'],
+                                             'reasoning_effort': row.input_snapshot['scenario']['settings']['reasoning_effort']}))
         session.commit()
         return {'id': str(run.id), 'notice_id': notice_id}
 
@@ -168,6 +186,21 @@ class AssumptionAnalysisService:
                 reject('approval_invalid', '승인 입력 무결성이 일치하지 않습니다')
             if data['scenario'] != scenario() or data['prompt_contract'] != execution_contract():
                 reject('execution_config_changed', '승인 후 실행 설정이 변경되었습니다')
+            binding = data.get('policy_binding')
+            try:
+                policy = session.get(AnalysisPolicyVersion, UUID(str(binding['policy_version_id'])))
+            except (KeyError, TypeError, ValueError):
+                policy = None
+            if (
+                not isinstance(binding, Mapping)
+                or policy is None
+                or policy.model_endpoint_ref != PROVIDER
+                or binding.get('policy_sha256') != policy.policy_sha256
+                or binding.get('model') != policy.model_name
+                or binding.get('reasoning_effort') != policy_reasoning_effort(policy)
+                or not matches_runtime(policy.model_name, policy_reasoning_effort(policy))
+            ):
+                reject('model_binding_invalid', '심층 분석 모델 설정이 유효하지 않습니다', 503)
             if not self.base.settings.luna_deep_review_enabled or not self.base.reference_workflow_mode:
                 reject('service_unavailable', 'Luna 참조 실행이 비활성입니다', 503)
             client = self.client or LunaClient(self.base.settings.luna_runner_url,
@@ -196,7 +229,7 @@ class AssumptionAnalysisService:
                         error_code = error.code
                         if error.raw_response:
                             result = InvocationResult({}, error.raw_response, hashlib.sha256(prompt.encode()).hexdigest(),
-                                hashlib.sha256(error.raw_response).hexdigest(), None, None, int((time.monotonic()-tick)*1000), (), 'codex-exec', 'gpt-5.6-luna')
+                                hashlib.sha256(error.raw_response).hexdigest(), None, None, int((time.monotonic()-tick)*1000), (), PROVIDER, MODEL)
                     except AssumptionOutputError as error:
                         error_code = str(error)
                     aggregate, metadata = self.base._store_raw_aggregate([(result, {'stage': stage, 'part': part})]) if result else (None, None)
