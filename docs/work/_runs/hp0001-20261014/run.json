@@ -1,6 +1,6 @@
 {
   "id": "hp0001-20261014",
-  "state": "awaiting_merge",
+  "state": "done",
   "features": [
     "HP-00-luna-model-identity",
     "HP-01-requirement-cards"
@@ -95,5 +95,17 @@
         "spec_hash": "a3381294c849873f6c48178e048a604125e22396eeb8a1df943f94e29dc29c2b"
       }
     }
-  }
+  },
+  "merged_sha": "ce819ab9a4e47eee8a944468dd42df76d5e782f7",
+  "merged_inputs": {
+    "HP-00-luna-model-identity": {
+      "source_hash": "1a40e9af45a73b1259bfae71eb933f9ec46d309b47c20d6aec98764f51d7db79",
+      "spec_hash": "d683a71b1c92e848373458189f3588e4955e8f74e0fadc14c36b5dd905c5e604"
+    },
+    "HP-01-requirement-cards": {
+      "source_hash": "1a40e9af45a73b1259bfae71eb933f9ec46d309b47c20d6aec98764f51d7db79",
+      "spec_hash": "a3381294c849873f6c48178e048a604125e22396eeb8a1df943f94e29dc29c2b"
+    }
+  },
+  "completed_at": "2026-10-15T00:20:19+09:00"
 }
