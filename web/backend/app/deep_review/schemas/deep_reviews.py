@@ -101,8 +101,8 @@ class DeepReviewPreviewView(StrictModel):
     preview_id: UUID
     input_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     provider: Literal["codex-exec"]
-    model: Literal["gpt-5.6-luna"]
-    reasoning_effort: Literal["xhigh"]
+    model: Literal["gpt-6-luna"]
+    reasoning_effort: Literal["high"]
     quality_status: Literal["unmeasured_reference"]
     source_verification_enabled: bool
     input: dict

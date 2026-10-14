@@ -64,10 +64,11 @@ from app.deep_review.services.deep_reviews import DeepReviewService, DeepReviewS
 from app.deep_review.services.evidence import EvidenceService
 from app.deep_review.services.input_versions import (
     CANONICAL_POLICY_FILE,
-    DEMO_LUNA_POLICY_FILE,
+    HP_LUNA_POLICY_FILE,
     import_policy_version,
 )
 from app.deep_review.services.luna_client import LunaClient
+from app.deep_review.services.luna_identity import CLI_VERSION
 from app.deep_review.services.reports import ReportService
 from app.deep_review.workers.deep_review import run_once as run_deep_review_once
 from tests.app.test_company_analysis import FakeLiteLLM, valid_payload
@@ -132,7 +133,7 @@ class FakeLunaRunner:
 
     Wire contract (``LunaClient.invoke_prompt``): ``POST /calls {"prompt"}`` →
     202 ``{"call_id"}``; ``GET /calls/{id}`` → ``{"status": "completed",
-    "raw_response", "cli_version": "0.155.1", "input_sha256": sha256(prompt),
+    "raw_response", "cli_version": "0.162.1", "input_sha256": sha256(prompt),
     "latency_ms"}``; ``DELETE /calls/{id}``.  The answer is a
     ``bidops.deep-review-stage.v2`` payload built only from the prompt: one
     document claim per supplied unit (quote = the unit text, locator copied),
@@ -162,7 +163,7 @@ class FakeLunaRunner:
             call_id = str(uuid4())
             self.results[call_id] = {
                 "status": "completed", "raw_response": json.dumps(output, ensure_ascii=False),
-                "cli_version": "0.155.1", "input_sha256": hashlib.sha256(prompt.encode()).hexdigest(),
+                "cli_version": CLI_VERSION, "input_sha256": hashlib.sha256(prompt.encode()).hexdigest(),
                 "latency_ms": 1,
             }
             return httpx.Response(202, json={"call_id": call_id})
@@ -302,8 +303,8 @@ def e2e_world(session: Session, monkeypatch, *, documents: int = 1) -> E2EWorld:
     base = build_world(session, monkeypatch, bundle=False)
     document_ids = [base.document_id] + [add_document(session, base.notice_id).id for _ in range(documents - 1)]
     bundle_id = ready_bundle_with_blocks(session, base.notice_id, document_ids)
-    policy = import_policy_version(session, DEMO_LUNA_POLICY_FILE, created_by_name="정책 담당자",
-                                   label="analysis-policy-luna-demo-v1")
+    policy = import_policy_version(session, HP_LUNA_POLICY_FILE, created_by_name="정책 담당자",
+                                   label="analysis-policy-luna-hp-v1")
     session.commit()
     deep = DeepWorld(fit=base, company_id=base.company_id, notice_id=base.notice_id, bundle_id=bundle_id,
                      policy_id=policy.id, graph_version_id=base.graph_version_id,
@@ -723,11 +724,11 @@ def test_t8_company_row_on_a_non_demo_policy_is_refused_before_any_call(sqlite_e
         svc = luna_service(runner)
         _frozen, created = queue_review(session, svc, world)
         review_id = UUID(created["id"])
-        v4 = import_policy_version(session, CANONICAL_POLICY_FILE.with_name("analysis-policy-luna-v4.json"),
+        v5 = import_policy_version(session, CANONICAL_POLICY_FILE.with_name("analysis-policy-luna-v5.json"),
                                    created_by_name="정책 담당자")
         session.commit()
         _tamper(session, "UPDATE deep_review SET policy_version_id = :policy WHERE id = :id",
-                policy=v4.id.hex, id=review_id.hex)
+                policy=v5.id.hex, id=review_id.hex)
         claim = svc.claim_next_job(session, "company-e2e-worker")
         with pytest.raises(DeepReviewServiceError) as error:
             svc.run_claim(session, claim)

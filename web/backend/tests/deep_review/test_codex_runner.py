@@ -10,6 +10,7 @@ import httpx
 import pytest
 
 from app.deep_review.services.luna_client import LunaClient
+from app.deep_review.services import luna_identity
 from app.core.model_client import ModelInvocationError
 
 RUNNER = Path(__file__).resolve().parents[3] / 'codex-runner' / 'runner.py'
@@ -21,14 +22,73 @@ spec.loader.exec_module(runner)
 def test_fixed_argv_and_schema():
     args = runner.argv(Path('/tmp/schema'), Path('/tmp/out'), Path('/tmp/work'))
     assert '--ignore-user-config' in args and '--ignore-rules' in args and '--ephemeral' in args
-    assert args[args.index('--model')+1] == 'gpt-5.6-luna'
-    assert 'model_reasoning_effort="xhigh"' in args
+    assert luna_identity.PROVIDER == 'codex-exec'
+    assert runner.MODEL == luna_identity.MODEL == 'gpt-6-luna'
+    assert runner.REASONING_EFFORT == luna_identity.REASONING_EFFORT == 'high'
+    assert runner.CLI_VERSION == luna_identity.CLI_VERSION == '0.162.1'
+    assert luna_identity.HP_POLICY_IDENTITY == 'analysis-policy-luna-hp-v1'
+    assert luna_identity.COMPANY_POLICY_IDENTITIES == frozenset({
+        'analysis-policy-luna-demo-v1', 'analysis-policy-luna-hp-v1',
+    })
+    assert luna_identity.ALLOWED_MODELS == frozenset({'gpt-6-luna', 'gpt-5.6-luna'})
+    assert luna_identity.ALLOWED_EFFORTS == frozenset({'high', 'xhigh'})
+    assert luna_identity.matches_runtime('gpt-6-luna', 'high')
+    assert not luna_identity.matches_runtime('gpt-5.6-luna', 'xhigh')
+    assert args[args.index('--model')+1] == luna_identity.MODEL
+    assert f'model_reasoning_effort="{luna_identity.REASONING_EFFORT}"' in args
     assert args[args.index('--sandbox')+1] == 'read-only'
     assert 'resume' not in args and 'shell' not in args
     # Compare with installed CLI help without sending input or reading auth.
     help_text = subprocess.run(['codex','exec','--help'], capture_output=True, text=True, check=True).stdout
     for flag in ('--ignore-user-config','--ignore-rules','--ephemeral','--output-schema','--skip-git-repo-check'):
         assert flag in help_text
+
+
+def test_runner_rejects_a_different_codex_cli_version():
+    assert runner.require_cli_version('codex-cli ' + luna_identity.CLI_VERSION) is None
+    with pytest.raises(SystemExit, match='cli_version_mismatch'):
+        runner.require_cli_version('codex-cli 0.155.1')
+
+
+@pytest.mark.parametrize(('cli_version', 'accepted'), [('0.162.1', True), ('0.155.1', False)])
+def test_client_requires_the_current_runner_identity(cli_version, accepted):
+    import hashlib
+    from uuid import uuid4
+
+    prompt = 'synthetic-only'
+    call_id = str(uuid4())
+    methods = []
+
+    def transport(request):
+        methods.append(request.method)
+        if request.method == 'POST':
+            return httpx.Response(202, json={'call_id': call_id})
+        if request.method == 'DELETE':
+            return httpx.Response(200, json={})
+        return httpx.Response(200, json={
+            'status': 'completed', 'raw_response': '{"sections":[]}',
+            'cli_version': cli_version, 'input_sha256': hashlib.sha256(prompt.encode()).hexdigest(),
+            'latency_ms': 1,
+        })
+
+    client = LunaClient('http://codex-runner:8091', lambda: None, time.monotonic() + 60,
+                        transport=httpx.MockTransport(transport))
+    try:
+        if accepted:
+            result = client.invoke_prompt(prompt, contract='assumption-stage-v1')
+            assert result.model == luna_identity.MODEL
+            assert result.provider == luna_identity.PROVIDER
+            assert result.attempts == ({
+                'status': 'succeeded', 'provider': luna_identity.PROVIDER, 'model': luna_identity.MODEL,
+                'cli_version': luna_identity.CLI_VERSION, 'reasoning_effort': luna_identity.REASONING_EFFORT,
+            },)
+        else:
+            with pytest.raises(ModelInvocationError) as error:
+                client.invoke_prompt(prompt, contract='assumption-stage-v1')
+            assert error.value.code == 'runner_identity_mismatch'
+        assert methods == ['POST', 'GET', 'DELETE']
+    finally:
+        client.close()
 
 
 @pytest.mark.parametrize('mode,expected', [('success','completed'),('auth','authentication_failed'),('model','model_access_denied'),('bad','schema_invalid'),('timeout','model_timeout'),('lease','lease_lost')])
@@ -124,12 +184,12 @@ def test_assumption_contract_uses_fixed_schema_and_same_model(monkeypatch):
         if request.method == 'DELETE':
             return httpx.Response(200, json={})
         return httpx.Response(200, json={'status':'completed','raw_response':'{"sections":[]}',
-            'cli_version':'0.155.1','input_sha256':hashlib.sha256(prompt.encode()).hexdigest(),'latency_ms':1})
+            'cli_version':luna_identity.CLI_VERSION,'input_sha256':hashlib.sha256(prompt.encode()).hexdigest(),'latency_ms':1})
     client=LunaClient('http://codex-runner:8091',lambda:None,time.monotonic()+60,transport=httpx.MockTransport(transport))
     try:
         result=client.invoke_prompt(prompt,contract='assumption-stage-v1')
         assert seen == [{'prompt':prompt,'contract':'assumption-stage-v1'}]
-        assert result.model == 'gpt-5.6-luna'
+        assert result.model == luna_identity.MODEL
         assert result.structured_output == {'sections':[]}
     finally:
         client.close()

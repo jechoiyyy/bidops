@@ -8,16 +8,30 @@ from ...core.models import AuditEvent
 from ..models import DeepReviewPreview, DeepReviewApproval, DeepReview
 from .input_versions import bundle_context, profile_context, canonical_json_hash, InputVersionError, effective_grade_basis
 from .effective_grade import eligible_with_grade
+from .luna_identity import PROVIDER, matches_runtime, policy_reasoning_effort
 
 
 def is_luna(policy):
     return getattr(policy, "model_endpoint_ref", None) == "codex-exec"
 
 
+def require_runtime(policy):
+    """Reject a pinned codex policy that the one shared runner cannot execute."""
+
+    from .deep_reviews import DeepReviewServiceError
+    if is_luna(policy) and not matches_runtime(
+        getattr(policy, "model_name", None), policy_reasoning_effort(policy)
+    ):
+        raise DeepReviewServiceError(
+            "model_binding_invalid", "심층 분석 모델 설정이 유효하지 않습니다", status_code=503
+        )
+
+
 def snapshot(service, session, notice, bundle_id, profile, policy, verification):
     from .deep_reviews import _policy_payload, DeepReviewServiceError
     if not service.settings.luna_deep_review_enabled or not service.reference_workflow_mode or service.settings.analysis_provider == "mock":
         raise DeepReviewServiceError("service_unavailable", "Luna 참조 실행이 비활성입니다", status_code=503)
+    require_runtime(policy)
     if notice.source_type != "pre_spec":
         raise DeepReviewServiceError("invalid_request", "사전규격만 지원합니다")
     from .overview_runs import current_runs
@@ -64,7 +78,8 @@ def preview(service, session, notice_id, bundle_id, verification, review_id=None
     session.add(row)
     session.commit()
     return {"preview_id": str(row.id), "input_sha256": row.input_sha256,
-            "provider": "codex-exec", "model": "gpt-5.6-luna", "reasoning_effort": "xhigh",
+            "provider": PROVIDER, "model": policy.model_name,
+            "reasoning_effort": policy_reasoning_effort(policy),
             "quality_status": "unmeasured_reference", "source_verification_enabled": verification,
             "input": deepcopy(data)}
 
@@ -95,10 +110,17 @@ def approve(session, row, attempt_id, actor, request_id):
                                    company_id=row.company_id))
     company = ({"company_id": str(row.company_id), "graph_version_id": str(row.graph_version_id)}
                if row.company_id is not None else {})
+    from ..models import AnalysisPolicyVersion
+    policy = session.get(AnalysisPolicyVersion, row.policy_version_id)
+    if policy is None:
+        from .deep_reviews import DeepReviewServiceError
+        raise DeepReviewServiceError("model_binding_invalid", "심층 분석 모델 설정이 유효하지 않습니다", status_code=503)
+    require_runtime(policy)
     session.add(AuditEvent(actor_kind="human", claimed_name=actor, action="deep_review.external_transfer_approved",
                            aggregate_type="deep_review_attempt", aggregate_id=str(attempt_id), request_id=str(request_id),
                            safe_metadata={"preview_id": str(row.id), "input_sha256": row.input_sha256,
-                                          "provider": "codex-exec", "model": "gpt-5.6-luna", "reasoning_effort": "xhigh",
+                                          "provider": PROVIDER, "model": policy.model_name,
+                                          "reasoning_effort": policy_reasoning_effort(policy),
                                           **company}))
     session.flush()
 

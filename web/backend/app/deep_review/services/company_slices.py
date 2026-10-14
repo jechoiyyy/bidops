@@ -57,7 +57,8 @@ from .company_knowledge_retrieval import (
     check_slice_coverage,
     validate_source_unit,
 )
-from .input_versions import DEMO_LUNA_POLICY_IDENTITY, STAGES, canonical_json_hash
+from .input_versions import STAGES, canonical_json_hash
+from .luna_identity import COMPANY_POLICY_IDENTITIES
 from .narrative_inputs import NarrativeInputError, _size, pack_verified, validate_slice_output
 
 
@@ -96,9 +97,9 @@ def _ids(rows: Any, key: str) -> list[str]:
 
 
 def _chunking(frozen: Mapping[str, Any], policy: Any) -> dict[str, int]:
-    """The frozen demo policy only: identity, hash binding and positive budgets."""
+    """A frozen company policy only: identity, hash binding and positive budgets."""
 
-    if not isinstance(policy, Mapping) or policy.get("policy_identity") != DEMO_LUNA_POLICY_IDENTITY:
+    if not isinstance(policy, Mapping) or policy.get("policy_identity") not in COMPANY_POLICY_IDENTITIES:
         raise _fail("company_policy_invalid")
     if policy.get("pipeline_version") != "narrative-v2":
         raise _fail("company_policy_invalid")

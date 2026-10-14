@@ -38,7 +38,6 @@ from .deep_review_validation import DeepReviewValidationError, merge_stage_chunk
 from ...core.model_binding import canonical_json_bytes
 from .effective_grade import eligible_with_grade
 from .input_versions import (
-    DEMO_LUNA_POLICY_IDENTITY,
     STAGES,
     GradeBasis,
     InputVersionError,
@@ -48,6 +47,12 @@ from .input_versions import (
     policy_quality_snapshot,
     resolve_active_versions,
     validate_pinned_policy,
+)
+from .luna_identity import (
+    CLI_VERSION,
+    COMPANY_POLICY_IDENTITIES,
+    matches_runtime,
+    policy_reasoning_effort,
 )
 from ...core.model_binding import MODEL_ENDPOINT_REF
 from ...core.model_client import (
@@ -576,6 +581,8 @@ class DeepReviewService:
         from .verification import enabled_for_attempt
         from ..models import DeepReviewApproval
         approval = session.scalar(select(DeepReviewApproval).where(DeepReviewApproval.attempt_id == attempt.id))
+        review = session.get(DeepReview, attempt.deep_review_id) if approval else None
+        policy = session.get(AnalysisPolicyVersion, review.policy_version_id) if review is not None else None
         stages = self._stages(session, attempt.id)
         last_error = None
         for stage in reversed(stages):
@@ -597,9 +604,9 @@ class DeepReviewService:
             "completed_at": attempt.completed_at.isoformat() if attempt.completed_at else None,
             "last_error_code": last_error,
             "source_verification_enabled": enabled_for_attempt(session, attempt.id),
-            "provider": "codex-exec" if approval else None,
-            "model": "gpt-5.6-luna" if approval else None,
-            "reasoning_effort": "xhigh" if approval else None,
+            "provider": policy.model_endpoint_ref if policy is not None else None,
+            "model": policy.model_name if policy is not None else None,
+            "reasoning_effort": policy_reasoning_effort(policy) if policy is not None else None,
             "preview_id": str(approval.preview_id) if approval else None,
         }
 
@@ -692,6 +699,7 @@ class DeepReviewService:
             )
             if luna_inputs.is_luna(policy) and actor_kind != "human":
                 raise DeepReviewServiceError("manual_request_required", "Luna는 사람 요청만 지원합니다", status_code=409)
+            luna_inputs.require_runtime(policy)
             preview = luna_inputs.check(self, session, preview_id, notice, bundle_id, profile, policy, source_verification_enabled) if luna_inputs.is_luna(policy) else None
             if preview is not None and session.scalar(select(DeepReview.id).where(
                 DeepReview.company_id.is_(None),
@@ -852,6 +860,7 @@ class DeepReviewService:
             profile = session.get(ProfileVersion, review.profile_version_id)
             policy = session.get(AnalysisPolicyVersion, review.policy_version_id)
             validate_pinned_policy(policy, allow_unmeasured_reference=self.reference_workflow_mode)
+            luna_inputs.require_runtime(policy)
             notice = lock_notice(session, review.notice_id)
             preview = luna_inputs.check(self, session, preview_id, notice, review.bundle_id, profile, policy, source_verification_enabled) if luna_inputs.is_luna(policy) else None
             if preview is not None and session.scalar(select(DeepReview.id).where(DeepReview.company_id.is_(None), DeepReview.notice_id == review.notice_id, DeepReview.status.in_(("queued", "running"))).limit(1)):
@@ -1680,16 +1689,32 @@ class DeepReviewService:
             attempt = session.get(DeepReviewAttempt, claim.attempt_id)
             if review is None or attempt is None or attempt.lease_fence != claim.fence:
                 raise StaleFenceError()
+            # Early fail-closed checks still belong to the first unfinished
+            # stage so attempt views expose their stable error code.
+            stage_row = session.scalar(
+                select(DeepReviewStage)
+                .where(
+                    DeepReviewStage.attempt_id == claim.attempt_id,
+                    DeepReviewStage.status.in_(("queued", "running")),
+                )
+                .order_by(DeepReviewStage.sequence.asc())
+                .limit(1)
+            )
             profile = session.get(ProfileVersion, review.profile_version_id)
             policy = session.get(AnalysisPolicyVersion, review.policy_version_id)
             if profile is None or policy is None:
                 raise DeepReviewServiceError("service_unavailable", "고정된 profile 또는 policy가 없습니다", status_code=503)
             validate_pinned_policy(policy, allow_unmeasured_reference=self.reference_workflow_mode)
+            luna = luna_inputs.is_luna(policy)
+            if luna and not matches_runtime(policy.model_name, policy_reasoning_effort(policy)):
+                raise DeepReviewServiceError(
+                    "model_binding_invalid", "심층 분석 모델 설정이 유효하지 않습니다", status_code=503
+                )
             company = review.company_id is not None
-            # The demo Luna policy is company-only and company rows run only on
-            # it (DEMO-03 §5/§9).  Checked before any audit/approval/model step.
-            demo_policy = luna_inputs.is_luna(policy) and _policy_payload(policy).get("policy_identity") == DEMO_LUNA_POLICY_IDENTITY
-            if company != demo_policy:
+            # Company policy identities are company-only and company rows run
+            # only on one of them. Checked before any audit/approval/model step.
+            company_policy = luna_inputs.is_luna(policy) and _policy_payload(policy).get("policy_identity") in COMPANY_POLICY_IDENTITIES
+            if company != company_policy:
                 raise DeepReviewServiceError("company_policy_invalid", "회사 계보와 분석 정책이 일치하지 않습니다", status_code=503)
             pinned_provider, pinned_runtime_model = self._runtime_identity(policy)
             # 생성 감사는 사람 클릭과 자동 시작 둘 중 하나다. 사람 action만
@@ -1721,7 +1746,6 @@ class DeepReviewService:
                     approval_check(review.notice_id)
                 except ModelInvocationError as error:
                     raise DeepReviewServiceError(error.code, "외부 분석 provider 사용 승인이 없습니다", status_code=403) from error
-            luna = luna_inputs.is_luna(policy)
             if not luna:
                 bundle, structures = bundle_context(session, review.bundle_id, structure_loader=self.structure_loader)
                 profile_payload = profile_context(session, profile)
@@ -1772,6 +1796,7 @@ class DeepReviewService:
             pinned_profile_sha256 = str(profile.profile_sha256)
             pinned_policy_sha256 = str(policy.policy_sha256)
             pinned_model_name = str(policy.model_name)
+            pinned_reasoning_effort = policy_reasoning_effort(policy)
             session.commit()
             previous_outputs: list[Mapping[str, Any]] = prefix_outputs
             known_claim_ids: set[str] = prefix_claim_ids
@@ -1920,6 +1945,7 @@ class DeepReviewService:
                                 "response_sha256": hashlib.sha256(result.raw_response).hexdigest(),
                                 "provider": result.provider or str(getattr(client, "provider_name", "unknown")),
                                 "model": result.model or pinned_model_name,
+                                **({"cli_version": CLI_VERSION, "reasoning_effort": pinned_reasoning_effort} if luna else {}),
                                 "policy_sha256": pinned_policy_sha256,
                                 "prompt_tokens": result.prompt_tokens,
                                 "output_tokens": result.output_tokens,
@@ -1942,7 +1968,7 @@ class DeepReviewService:
                             "response_sha256": hashlib.sha256(result.raw_response).hexdigest(),
                             "provider": result.provider or str(getattr(client, "provider_name", "unknown")),
                             "model": result.model or pinned_model_name,
-                            **({"cli_version": "0.155.1", "reasoning_effort": "xhigh"} if luna else {}),
+                            **({"cli_version": CLI_VERSION, "reasoning_effort": pinned_reasoning_effort} if luna else {}),
                             "policy_sha256": pinned_policy_sha256, "prompt_tokens": result.prompt_tokens,
                             "output_tokens": result.output_tokens, "latency_ms": result.latency_ms,
                             "status": "succeeded", "attempts": safe_attempts,
