@@ -1,0 +1,44 @@
+{
+  "analysis_policy_version": {
+    "before": 3,
+    "after": 3,
+    "added": 0,
+    "missing": 0,
+    "changed_existing": 0
+  },
+  "document_segment": {
+    "before": 1531,
+    "after": 1636,
+    "added": 105,
+    "missing": 0,
+    "changed_existing": 0
+  },
+  "document_segment_manifest": {
+    "before": 18,
+    "after": 19,
+    "added": 1,
+    "missing": 0,
+    "changed_existing": 0
+  },
+  "document_structure": {
+    "before": 18,
+    "after": 18,
+    "added": 0,
+    "missing": 0,
+    "changed_existing": 0
+  },
+  "profile_version": {
+    "before": 7,
+    "after": 7,
+    "added": 0,
+    "missing": 0,
+    "changed_existing": 0
+  },
+  "requirement_inventory_item": {
+    "before": 48,
+    "after": 83,
+    "added": 35,
+    "missing": 0,
+    "changed_existing": 0
+  }
+}

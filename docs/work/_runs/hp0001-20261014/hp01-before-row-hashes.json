@@ -1,0 +1,13 @@
+{
+  "external_path": "/Users/temp/orca/bidops/.sdlc/local-runtime/hp01-20261014/before-row-hashes.json",
+  "sha256": "cb7449ccf3425a4d245fb66e0728484ba9ae20a56739c62f0dcb6e340d7ac2ae",
+  "counts": {
+    "analysis_policy_version": 3,
+    "document_segment": 1531,
+    "document_segment_manifest": 18,
+    "document_structure": 18,
+    "profile_version": 7,
+    "requirement_inventory_item": 48
+  },
+  "comparison": "existing row md5(to_jsonb minus newly added columns); no row bodies retained"
+}

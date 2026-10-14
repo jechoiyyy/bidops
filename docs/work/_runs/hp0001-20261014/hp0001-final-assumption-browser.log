@@ -1,0 +1,17 @@
+
+Running 4 tests using 4 workers
+
+(node:99736) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:99735) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:99733) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:99734) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  3 [app] › tests/assumption-analysis.spec.ts:45:1 › 가정 분석 실패에도 앞선 부분 결과를 표시한다 (523ms)
+  ✓  4 [app] › tests/assumption-analysis.spec.ts:54:1 › 1489 상세에서 승인 전 호출 금지·변경 시 무효화·중복 제출 방지 (678ms)
+  ✓  1 [app] › tests/assumption-analysis.spec.ts:6:3 › 가정 분석 A안 읽기와 미연결 근거 1440 (807ms)
+  ✓  2 [app] › tests/assumption-analysis.spec.ts:6:3 › 가정 분석 A안 읽기와 미연결 근거 1280 (814ms)
+
+  4 passed (1.3s)

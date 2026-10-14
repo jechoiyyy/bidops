@@ -605,6 +605,18 @@ segment·요구사항 inventory를 담는다. Lean v1 동결 이후 추가된 �
   없어 사후 재구성이 불가능하므로, 이 migration 이전에 만들어진 `DocumentStructure`에는
   manifest가 없고 `GET /api/document-structures/{id}/segments`가 404다.
 
+## 8.1.1 요구사항 카드와 anchor 열 (`0037`)
+
+HP-01은 기존 세 테이블을 확장한다. 새 migration은 기존 행을 수정하지 않는다.
+
+| 테이블 | 추가 열 | 계약 |
+|---|---|---|
+| `requirement_inventory_item` | `source TEXT NOT NULL DEFAULT 'column_header_table'` | `column_header_table` 또는 `label_value_table` |
+| `requirement_inventory_item` | `card JSONB NULL` | 라벨·값 카드 필드. 기존 열 제목 경로는 `NULL` |
+| `document_segment` | `page_anchor_block_keys JSONB NULL` | build 시점의 가장 가까운 비어 있지 않은 앞 문단 block key 최대 3개, 가까운 순 |
+
+세 열은 기존 append-only 행에 대해 기본값 또는 `NULL`로 읽힌다. 새 카드 manifest는 `source`와 `card`를 inventory 행에 저장하며, segment 쪽 상속 anchor는 `document_segment` 행에 저장한다. anchor는 구조 payload hash 대상이 아니고 extractor 규칙 hash가 anchor 선택 규칙을 고정한다. 읽기 때 직접 매핑 키가 있으면 `mapped|partial`을 우선하고, 없을 때만 첫 매핑 anchor의 `page_first`로 `inherited`를 만든다.
+
 ## 8.2 `0018`의 기존 제약 변경과 명세 이름 정정
 
 `0018_prespec_auto_preparation_segments`는 기존 CHECK 둘을 바꾼다.

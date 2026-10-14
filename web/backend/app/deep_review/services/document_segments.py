@@ -58,15 +58,16 @@ from .overview_range import (  # noqa: PLC2701 - 개요 절단 heading 규칙 �
 logger = logging.getLogger(__name__)
 
 SCHEMA = "bidops.document-segments.v1"
-TAXONOMY_VERSION = "bidops.segment-taxonomy.v1"
+TAXONOMY_VERSION = "bidops.segment-taxonomy.v2"
 EXTRACTOR_NAME = "bidops-document-segments"
-EXTRACTOR_VERSION = "1"
+EXTRACTOR_VERSION = "2"
 
 TAXONOMY_LABELS = (
     "business_eligibility_evaluation",
     "technical_functional",
     "quality_security_constraints",
     "partnership_governance",
+    "operations_maintenance",
 )
 
 #: 요구사항 ID 후보. 영문 또는 한글 prefix + 구분자 + 숫자만 받는다. 날짜
@@ -86,6 +87,20 @@ _ID_COLUMN_HEADERS = frozenset({
 _TITLE_COLUMN_HEADERS = frozenset({
     "요구사항명", "요구사항명칭", "요구사항이름", "제목", "명칭", "요구사항제목",
 })
+
+#: 라벨·값 요구사항 카드 사전. key와 label 모두 규칙 hash에 들어간다.
+_CARD_LABELS: dict[str, frozenset[str]] = {
+    "category": frozenset({"요구사항분류"}),
+    "requirement_id": frozenset({"요구사항고유번호", "고유번호", "요구사항번호", "요구사항id"}),
+    "title": frozenset({"요구사항명칭", "명칭", "요구사항명"}),
+    "compliance_level": frozenset({"응락수준", "필수여부", "중요도"}),
+    "definition": frozenset({"정의"}),
+    "details": frozenset({"세부내용", "세부설명"}),
+    "outputs": frozenset({"산출정보", "산출내용", "산출물"}),
+    "related": frozenset({"관련요구사항"}),
+}
+_REQUIRED_CARD_FIELDS = ("category", "title", "definition", "details")
+_PAGE_ANCHOR_COUNT = 3
 
 #: 번호형 heading. 장·절 표기, 소수점 번호, 로마 숫자 세 가지만 받는다.
 _CHAPTER_HEADING = re.compile(r"^\s*제\s*\d{1,2}\s*[장절편]\s*\S")
@@ -111,13 +126,40 @@ _PREFIX_TAXONOMY: dict[str, tuple[str, ...]] = {
     "DAR": ("technical_functional",),
     "INR": ("technical_functional",),
     "TFR": ("technical_functional",),
+    "ECR": ("technical_functional",),
     "PER": ("quality_security_constraints",),
     "SER": ("quality_security_constraints",),
     "QUR": ("quality_security_constraints",),
     "COR": ("quality_security_constraints",),
     "TER": ("quality_security_constraints",),
+    "STR": ("quality_security_constraints",),
     "PMR": ("partnership_governance",),
     "PSR": ("partnership_governance",),
+    "MAR": ("operations_maintenance",),
+    "MPR": ("operations_maintenance",),
+    "MHR": ("operations_maintenance",),
+}
+
+#: HP 공통 계약 §3.4의 카드 category 값. 입력을 공백 제거·casefold하고
+#: 끝의 "요구사항"을 제거한 뒤 정확히 일치할 때만 label을 준다.
+_CATEGORY_TAXONOMY: dict[str, str] = {
+    "기능": "technical_functional",
+    "데이터": "technical_functional",
+    "인터페이스": "technical_functional",
+    "시스템": "technical_functional",
+    "시스템장비구성": "technical_functional",
+    "보안": "quality_security_constraints",
+    "품질": "quality_security_constraints",
+    "성능": "quality_security_constraints",
+    "제약": "quality_security_constraints",
+    "테스트": "quality_security_constraints",
+    "표준": "quality_security_constraints",
+    "프로젝트관리": "partnership_governance",
+    "프로젝트지원": "partnership_governance",
+    "유지관리": "operations_maintenance",
+    "유지관리수행": "operations_maintenance",
+    "유지관리인력": "operations_maintenance",
+    "운영": "operations_maintenance",
 }
 
 #: 제목에서만 본다. 공백을 지운 casefold 제목에 이 토큰이 들어 있으면 label이다.
@@ -139,6 +181,9 @@ _TAXONOMY_KEYWORDS: dict[str, tuple[str, ...]] = {
         "공동수급", "분담이행", "하도급", "추진체계", "보고체계", "역할과책임",
         "사업관리", "프로젝트관리요구사항", "품질보증체계",
     ),
+    "operations_maintenance": (
+        "유지관리", "유지보수", "운영", "장애", "서비스수준", "상주",
+    ),
 }
 
 #: 추출기 binding의 정체성. 규칙표가 바뀌면 hash가 바뀌고, 그러면 같은 구조라도
@@ -152,6 +197,11 @@ _RULES = {
     "toc_page_suffix": _TOC_PAGE_SUFFIX.pattern,
     "min_leading_occurrences": _MIN_LEADING_OCCURRENCES,
     "min_ambiguous_occurrences": _MIN_AMBIGUOUS_OCCURRENCES,
+    "card_labels": {key: sorted(value) for key, value in sorted(_CARD_LABELS.items())},
+    "card_table_rule": "id_label_with_token_value",
+    "card_prefix_rule": "cards_only",
+    "page_anchor_rule": f"nearest_preceding_nonempty_paragraphs:{_PAGE_ANCHOR_COUNT}",
+    "category_taxonomy": {key: value for key, value in sorted(_CATEGORY_TAXONOMY.items())},
     "prefix_taxonomy": {key: list(value) for key, value in sorted(_PREFIX_TAXONOMY.items())},
     "taxonomy_keywords": {key: list(value) for key, value in sorted(_TAXONOMY_KEYWORDS.items())},
     "taxonomy_labels": list(TAXONOMY_LABELS),
@@ -219,6 +269,28 @@ class _Candidate:
     sort_key: tuple[int, int, int, int] = field(default=(0, 0, 0, 0))
 
 
+@dataclass(frozen=True)
+class _Card:
+    raw_id: str
+    normalized_id: str
+    raw_prefix: str
+    normalized_prefix: str
+    locator: dict[str, Any]
+    title: str | None
+    category: str
+    compliance_level: str | None
+    definition: str
+    details: str
+    outputs: str | None
+    related_raw: str | None
+    related_ids: tuple[str, ...]
+    table_key: str
+    first_cell_block_key: str
+    card_warnings: tuple[str, ...]
+    page_anchor_block_keys: tuple[str, ...]
+    sort_key: tuple[int, int, int, int]
+
+
 def _locator(block: _Block, kind: str) -> dict[str, Any]:
     return {
         "kind": kind,
@@ -260,16 +332,181 @@ def _read_blocks(structure_payload: Mapping[str, Any]) -> list[_Block]:
 # --------------------------------------------------------------------------
 
 
-def _table_columns(blocks: Sequence[_Block]) -> dict[str, tuple[int, int | None, int]]:
+def _card_field(value: str) -> str | None:
+    squashed = _squash(value)
+    for field_name, labels in _CARD_LABELS.items():
+        if squashed in labels:
+            return field_name
+    return None
+
+
+def _preceding_paragraph_keys(
+    blocks: Sequence[_Block],
+    before_ordinal: int,
+) -> tuple[str, ...]:
+    keys: list[str] = []
+    for block in reversed(blocks[:before_ordinal]):
+        if block.block_type != "paragraph" or not block.text.strip():
+            continue
+        keys.append(block.block_key)
+        if len(keys) == _PAGE_ANCHOR_COUNT:
+            break
+    return tuple(keys)
+
+
+def _row_value(label: _Block, row_cells: Sequence[_Block]) -> _Block | None:
+    """라벨 오른쪽 첫 비어 있지 않은 비라벨 셀을 돌려준다."""
+
+    assert label.column is not None
+    for cell in sorted(row_cells, key=lambda item: (item.column if item.column is not None else -1, item.ordinal)):
+        if cell.column is None or cell.column <= label.column:
+            continue
+        if not cell.text.strip() or _card_field(cell.text) is not None:
+            continue
+        return cell
+    return None
+
+
+def _collect_cards(blocks: Sequence[_Block]) -> list[_Card]:
+    """라벨·값 표에서 요구사항 카드를 원문 순서로 읽는다."""
+
+    tables: dict[str, list[_Block]] = {}
+    table_blocks: dict[str, _Block] = {}
+    for block in blocks:
+        if block.block_type == "table" and block.table_key is not None:
+            current = table_blocks.get(block.table_key)
+            if current is None or block.ordinal < current.ordinal:
+                table_blocks[block.table_key] = block
+        elif block.block_type == "table_cell" and block.table_key is not None:
+            if block.row is None or block.column is None:
+                continue
+            tables.setdefault(block.table_key, []).append(block)
+
+    cards: list[_Card] = []
+    ordered_tables = sorted(tables.items(), key=lambda item: min(cell.ordinal for cell in item[1]))
+    for table_key, table_cells in ordered_tables:
+        by_row: dict[int, list[_Block]] = {}
+        for cell in table_cells:
+            assert cell.row is not None
+            by_row.setdefault(cell.row, []).append(cell)
+
+        id_labels = sorted(
+            (
+                cell
+                for cell in table_cells
+                if _card_field(cell.text) == "requirement_id"
+            ),
+            key=lambda item: (item.row if item.row is not None else -1, item.column if item.column is not None else -1),
+        )
+        valid_id_labels: list[tuple[_Block, _Block, re.Match[str]]] = []
+        for label in id_labels:
+            assert label.row is not None
+            value = _row_value(label, by_row[label.row])
+            match = _ID_TOKEN.search(value.text) if value is not None else None
+            if value is not None and match is not None:
+                valid_id_labels.append((label, value, match))
+        if not valid_id_labels:
+            continue
+
+        category_rows = sorted({
+            cell.row
+            for cell in table_cells
+            if cell.row is not None and _card_field(cell.text) == "category"
+        })
+        last_row = max(by_row)
+        first_cell = min(table_cells, key=lambda item: item.ordinal)
+        table_block = table_blocks.get(table_key)
+        anchors = (
+            _preceding_paragraph_keys(blocks, table_block.ordinal)
+            if table_block is not None
+            else ()
+        )
+
+        for id_label, id_value, match in valid_id_labels:
+            assert id_label.row is not None
+            preceding_categories = [row for row in category_rows if row <= id_label.row]
+            start_row = preceding_categories[-1] if preceding_categories else id_label.row
+            following_id_rows = [
+                label.row
+                for label in id_labels
+                if label.row is not None and label.row > id_label.row
+            ]
+            end_row = min(following_id_rows) - 1 if following_id_rows else last_row
+
+            fields: dict[str, str] = {}
+            for row in range(start_row, end_row + 1):
+                for label in sorted(by_row.get(row, ()), key=lambda item: item.column if item.column is not None else -1):
+                    field_name = _card_field(label.text)
+                    if field_name is None or field_name in fields:
+                        continue
+                    value = _row_value(label, by_row[row])
+                    if value is not None:
+                        fields[field_name] = value.text
+
+            row_first_cell = min(
+                by_row[id_label.row],
+                key=lambda item: (
+                    item.column if item.column is not None else -1,
+                    item.ordinal,
+                ),
+            )
+            related_raw = fields.get("related")
+            related_ids = tuple(sorted({
+                _normalize_id(related.group("prefix"), related.group("number"))
+                for related in _ID_TOKEN.finditer(related_raw or "")
+            }))
+            warnings = tuple(
+                f"missing:{field_name}"
+                for field_name in _REQUIRED_CARD_FIELDS
+                if not fields.get(field_name, "").strip()
+            )
+            cards.append(
+                _Card(
+                    raw_id=id_value.text,
+                    normalized_id=_normalize_id(match.group("prefix"), match.group("number")),
+                    raw_prefix=match.group("prefix"),
+                    normalized_prefix=match.group("prefix").upper(),
+                    locator=_locator(row_first_cell, "table_cell"),
+                    title=fields.get("title") if fields.get("title", "").strip() else None,
+                    category=fields.get("category", ""),
+                    compliance_level=(
+                        fields.get("compliance_level")
+                        if fields.get("compliance_level", "").strip()
+                        else None
+                    ),
+                    definition=fields.get("definition", ""),
+                    details=fields.get("details", ""),
+                    outputs=fields.get("outputs") if fields.get("outputs", "").strip() else None,
+                    related_raw=related_raw if (related_raw or "").strip() else None,
+                    related_ids=related_ids,
+                    table_key=table_key,
+                    first_cell_block_key=first_cell.block_key,
+                    card_warnings=warnings,
+                    page_anchor_block_keys=anchors,
+                    sort_key=(row_first_cell.ordinal, id_label.row, row_first_cell.column or 0, 0),
+                )
+            )
+    cards.sort(key=lambda item: item.sort_key)
+    return cards
+
+
+def _table_columns(
+    blocks: Sequence[_Block],
+    *,
+    excluded_table_keys: Iterable[str] = (),
+) -> dict[str, tuple[int, int | None, int]]:
     """표별 (ID 열, 제목 열, header 행)을 찾는다.
 
     header 행은 ID 열 header가 처음 나타난 행이다. 그 아래 행만 값 행으로 읽는다.
     """
 
+    excluded = set(excluded_table_keys)
     found: dict[str, tuple[int, int | None, int]] = {}
     titles: dict[str, dict[int, int]] = {}
     for block in blocks:
         if block.block_type != "table_cell" or block.table_key is None:
+            continue
+        if block.table_key in excluded:
             continue
         if block.row is None or block.column is None:
             continue
@@ -284,10 +521,14 @@ def _table_columns(blocks: Sequence[_Block]) -> dict[str, tuple[int, int | None,
     return found
 
 
-def _collect_candidates(blocks: Sequence[_Block]) -> list[_Candidate]:
+def _collect_candidates(
+    blocks: Sequence[_Block],
+    *,
+    excluded_table_keys: Iterable[str] = (),
+) -> list[_Candidate]:
     """표 열 경로와 문단 경로의 ID 후보를 원문 순서로 모은다."""
 
-    tables = _table_columns(blocks)
+    tables = _table_columns(blocks, excluded_table_keys=excluded_table_keys)
     cells: dict[tuple[str, int, int], _Block] = {}
     for block in blocks:
         if block.block_type == "table_cell" and block.table_key and block.row is not None and block.column is not None:
@@ -390,30 +631,65 @@ def _confirm_prefixes(
 
 def _build_inventory(
     blocks: Sequence[_Block],
-) -> tuple[list[dict[str, Any]], dict[str, Any], set[str]]:
-    candidates = _collect_candidates(blocks)
+) -> tuple[list[dict[str, Any]], dict[str, Any], set[str], set[str]]:
+    cards = _collect_cards(blocks)
+    card_tables = {card.table_key for card in cards}
+    candidates = _collect_candidates(blocks, excluded_table_keys=card_tables)
     confirmed, ambiguous = _confirm_prefixes(candidates)
-    items: list[dict[str, Any]] = []
-    seen: dict[str, int] = {}
+    ordered_items: list[tuple[tuple[int, int, int, int], dict[str, Any]]] = []
     for candidate in candidates:
         if candidate.normalized_prefix not in confirmed:
             continue
-        seen[candidate.normalized_id] = seen.get(candidate.normalized_id, 0) + 1
-        items.append({
+        ordered_items.append((candidate.sort_key, {
             "raw_id": candidate.raw_id,
             "normalized_id": candidate.normalized_id,
             "locator": candidate.locator,
             "title": candidate.title,
-            "ordinal": len(items) + 1,
-        })
+            "source": "column_header_table",
+            "card": None,
+        }))
+    for card in cards:
+        ordered_items.append((card.sort_key, {
+            "raw_id": card.raw_id,
+            "normalized_id": card.normalized_id,
+            "locator": card.locator,
+            "title": card.title,
+            "source": "label_value_table",
+            "card": {
+                "category": card.category,
+                "compliance_level": card.compliance_level,
+                "definition": card.definition,
+                "details": card.details,
+                "outputs": card.outputs,
+                "related_raw": card.related_raw,
+                "related_ids": list(card.related_ids),
+                "table_key": card.table_key,
+                "first_cell_block_key": card.first_cell_block_key,
+                "card_warnings": list(card.card_warnings),
+                "page_anchor_block_keys": list(card.page_anchor_block_keys),
+            },
+        }))
+
+    ordered_items.sort(key=lambda item: item[0])
+    items: list[dict[str, Any]] = []
+    seen: dict[str, int] = {}
+    for ordinal, (_sort_key, item) in enumerate(ordered_items, start=1):
+        item["ordinal"] = ordinal
+        items.append(item)
+        normalized_id = str(item["normalized_id"])
+        seen[normalized_id] = seen.get(normalized_id, 0) + 1
+
+    prefixes = confirmed | {card.normalized_prefix for card in cards}
     summary = {
         "expected_ids": sorted(seen),
         "duplicate_ids": sorted(key for key, count in seen.items() if count > 1),
         "ambiguous_items": ambiguous,
-        "prefixes": sorted(confirmed),
+        "prefixes": sorted(prefixes),
         "item_count": len(items),
+        "card_item_count": len(cards),
+        "label_value_table_count": len(card_tables),
     }
-    return items, summary, confirmed
+    return items, summary, prefixes, card_tables
 
 
 # --------------------------------------------------------------------------
@@ -492,6 +768,16 @@ def _boundaries(
 # --------------------------------------------------------------------------
 
 
+def _category_labels(category_text: str) -> set[str]:
+    """카드 category가 §3.4 표와 정확히 맞으면 taxonomy label 하나를 준다."""
+
+    category = _squash(category_text)
+    if category.endswith("요구사항"):
+        category = category[:-len("요구사항")]
+    label = _CATEGORY_TAXONOMY.get(category)
+    return {label} if label is not None else set()
+
+
 def _keyword_labels(title: str) -> set[str]:
     squashed = _squash(title)
     return {
@@ -546,14 +832,14 @@ def build_manifest_payload(structure_payload: Mapping[str, Any]) -> dict[str, An
 
     blocks = _read_blocks(structure_payload)
     warnings: list[str] = []
-    items, summary, _confirmed = _build_inventory(blocks)
+    items, summary, _confirmed, card_tables = _build_inventory(blocks)
     if not items:
         warnings.append("inventory_empty")
 
-    tables = _table_columns(blocks)
+    tables = _table_columns(blocks, excluded_table_keys=card_tables)
     toc_indices, toc_entries, toc_warnings = _toc_region(blocks)
     warnings.extend(toc_warnings)
-    boundaries = _boundaries(blocks, toc_indices, set(tables))
+    boundaries = _boundaries(blocks, toc_indices, set(tables) | card_tables)
 
     heading_titles = [
         _normalise_heading_text(block.text)
@@ -575,6 +861,7 @@ def build_manifest_payload(structure_payload: Mapping[str, Any]) -> dict[str, An
     document_version_id = str(structure_payload.get("document_version_id"))
     segments: list[dict[str, Any]] = []
     titles: list[str | None] = []
+    segment_anchors: list[list[str]] = []
     for index, boundary in enumerate(boundaries):
         end_ordinal = (boundaries[index + 1].ordinal - 1) if index + 1 < len(boundaries) else (len(blocks) - 1)
         end_block = blocks[end_ordinal]
@@ -588,8 +875,22 @@ def build_manifest_payload(structure_payload: Mapping[str, Any]) -> dict[str, An
         title = boundary.text.strip() or None
         keyword_labels = _keyword_labels(title or "")
         prefix_labels = _prefix_labels(requirement_ids)
-        labels = sorted(keyword_labels | prefix_labels)
-        conflict = bool(keyword_labels and prefix_labels and not (keyword_labels & prefix_labels))
+        card_category_labels: set[str] = set()
+        for item in items:
+            if item["source"] != "label_value_table":
+                continue
+            item_ordinal = int(item["locator"]["ordinal"])
+            if not boundary.ordinal <= item_ordinal <= end_ordinal:
+                continue
+            card = item.get("card")
+            if isinstance(card, Mapping):
+                card_category_labels.update(_category_labels(_text(card.get("category"))))
+        if card_category_labels:
+            labels = sorted(card_category_labels)
+            conflict = False
+        else:
+            labels = sorted(keyword_labels | prefix_labels)
+            conflict = bool(keyword_labels and prefix_labels and not (keyword_labels & prefix_labels))
         status = "classified" if labels and not conflict else "needs_human_review"
         segment_id = _segment_id(document_version_id, start_locator, end_locator)
         if conflict:
@@ -607,6 +908,7 @@ def build_manifest_payload(structure_payload: Mapping[str, Any]) -> dict[str, An
             "status": status,
         })
         titles.append(title)
+        segment_anchors.append(list(_preceding_paragraph_keys(blocks, boundary.ordinal)))
 
     coverage = _coverage(blocks, segments, toc_summary)
     for gap in coverage["gaps"]:
@@ -639,6 +941,7 @@ def build_manifest_payload(structure_payload: Mapping[str, Any]) -> dict[str, An
         segment["mapping_status"] = "unavailable"
     payload["inventory_items"] = items
     payload["segment_titles"] = titles
+    payload["segment_anchors"] = segment_anchors
     return payload
 
 
@@ -696,7 +999,7 @@ def wire_payload(payload: Mapping[str, Any]) -> dict[str, Any]:
     return {
         key: value
         for key, value in payload.items()
-        if key not in {"inventory_items", "segment_titles"}
+        if key not in {"inventory_items", "segment_titles", "segment_anchors"}
     }
 
 
@@ -741,7 +1044,12 @@ def store_manifest(session: Session, structure_payload: Mapping[str, Any]) -> Do
     )
     session.add(manifest)
     session.flush()
-    for segment, title in zip(payload["segments"], payload["segment_titles"], strict=True):
+    for segment, title, anchor_block_keys in zip(
+        payload["segments"],
+        payload["segment_titles"],
+        payload["segment_anchors"],
+        strict=True,
+    ):
         session.add(
             DocumentSegment(
                 manifest_id=manifest.id,
@@ -753,6 +1061,7 @@ def store_manifest(session: Session, structure_payload: Mapping[str, Any]) -> Do
                 end_locator=segment["end_locator"],
                 requirement_ids=segment["requirement_ids"],
                 source_block_keys=segment["source_block_keys"],
+                page_anchor_block_keys=anchor_block_keys,
                 classification_source=segment["classification_source"],
                 confidence=None,
                 status=segment["status"],
@@ -767,6 +1076,8 @@ def store_manifest(session: Session, structure_payload: Mapping[str, Any]) -> Do
                 locator=item["locator"],
                 title=item["title"],
                 ordinal=item["ordinal"],
+                source=item["source"],
+                card=item["card"],
             )
         )
     session.flush()
@@ -819,23 +1130,62 @@ def _block_page_ranges(page_map: Mapping[str, Any] | None) -> dict[str, tuple[in
 def _segment_pages(
     source_block_keys: Sequence[str],
     block_pages: Mapping[str, tuple[int, int]] | None,
+    anchor_block_keys: Sequence[str],
 ) -> dict[str, Any]:
     """segment 하나의 ``page_range``·``mapping_status``를 계산한다.
 
-    매핑된 키가 하나도 없으면 페이지를 만들어 내지 않고 ``unavailable``·``null``로
-    둔다. 일부만 매핑되면 ``partial``이며 범위는 매핑된 키만으로 계산한다.
+    대상 block의 직접 매핑이 있으면 그것을 우선한다. 직접 매핑이 전혀 없을 때만
+    저장된 anchor를 가까운 순으로 살펴 첫 매핑 page를 상속한다. 둘 다 없으면
+    ``unavailable``·``null``로 둔다.
     """
 
     if block_pages is None:
         return {"page_range": None, "mapping_status": "unavailable"}
     mapped = [block_pages[key] for key in source_block_keys if key in block_pages]
-    if not mapped:
-        return {"page_range": None, "mapping_status": "unavailable"}
-    status = "mapped" if len(mapped) == len(source_block_keys) else "partial"
-    return {
-        "page_range": {"first": min(first for first, _ in mapped), "last": max(last for _, last in mapped)},
-        "mapping_status": status,
-    }
+    if mapped:
+        status = "mapped" if len(mapped) == len(source_block_keys) else "partial"
+        return {
+            "page_range": {"first": min(first for first, _ in mapped), "last": max(last for _, last in mapped)},
+            "mapping_status": status,
+        }
+    for key in anchor_block_keys:
+        anchor_pages = block_pages.get(key)
+        if anchor_pages is not None:
+            page = anchor_pages[0]
+            return {"page_range": {"first": page, "last": page}, "mapping_status": "inherited"}
+    return {"page_range": None, "mapping_status": "unavailable"}
+
+
+def resolve_card_pages(
+    payload: Mapping[str, Any],
+    page_map: Mapping[str, Any] | None,
+) -> list[dict[str, Any]]:
+    """카드 inventory 항목에 조회 시점 쪽 범위를 붙여 돌려준다.
+
+    ``payload``나 그 안의 항목을 변경하지 않는다. 카드의 요구사항 locator만 직접
+    매핑 대상으로 삼고, 직접 매핑이 없을 때 ``card.page_anchor_block_keys``를
+    상속 후보로 쓴다.
+    """
+
+    block_pages = _block_page_ranges(page_map)
+    resolved: list[dict[str, Any]] = []
+    items = payload.get("inventory_items")
+    for item in items if isinstance(items, list) else []:
+        if not isinstance(item, Mapping) or item.get("source") != "label_value_table":
+            continue
+        locator = item.get("locator")
+        locator = locator if isinstance(locator, Mapping) else {}
+        block_key = locator.get("block_key")
+        direct_keys = [block_key] if isinstance(block_key, str) and block_key else []
+        card = item.get("card")
+        card = card if isinstance(card, Mapping) else {}
+        anchors = card.get("page_anchor_block_keys")
+        anchor_keys = [key for key in anchors if isinstance(key, str)] if isinstance(anchors, list) else []
+        resolved.append({
+            **dict(item),
+            **_segment_pages(direct_keys, block_pages, anchor_keys),
+        })
+    return resolved
 
 
 def read_manifest_view(
@@ -880,7 +1230,11 @@ def read_manifest_view(
             "classification_source": row.classification_source,
             "confidence": None if row.confidence is None else float(row.confidence),
             "status": row.status,
-            **_segment_pages(list(row.source_block_keys or []), block_pages),
+            **_segment_pages(
+                list(row.source_block_keys or []),
+                block_pages,
+                list(row.page_anchor_block_keys or []),
+            ),
         } for row in segments],
         "inventory_summary": dict(manifest.inventory_summary or {}),
         "coverage": dict(manifest.coverage or {}),
@@ -976,6 +1330,21 @@ def _read_para_page_map(
         raise _para_page_map_unreadable() from error
 
 
+def _read_latest_para_page_map(
+    session: Session,
+    structure_id: UUID,
+    store: ObjectStore | None,
+) -> dict[str, Any] | None:
+    """`segments_view`와 카드 조회가 공유하는 fail-closed 대응표 경로."""
+
+    snapshot = latest_para_page_map_snapshot(session, structure_id)
+    if snapshot is None:
+        return None
+    if store is None:
+        raise _para_page_map_unreadable()
+    return _read_para_page_map(session, snapshot, store)
+
+
 def segments_view(
     session: Session,
     structure_id: UUID,
@@ -997,16 +1366,49 @@ def segments_view(
     document = session.get(DocumentVersion, structure.document_version_id)
     if document is None or document.safety_status != "safe":
         raise SegmentViewError("unsafe_document", "quarantine 문서는 열람할 수 없습니다", status_code=403)
-    snapshot = latest_para_page_map_snapshot(session, structure_id)
-    page_map: dict[str, Any] | None = None
-    if snapshot is not None:
-        if store is None:
-            raise _para_page_map_unreadable()
-        page_map = _read_para_page_map(session, snapshot, store)
+    page_map = _read_latest_para_page_map(session, structure_id, store)
     view = read_manifest_view(session, structure_id, page_map=page_map)
     if view is None:
         raise SegmentViewError("not_found", "document segment manifest를 찾을 수 없습니다", status_code=404)
     return validate_document_segments(view)
+
+
+def requirement_cards(
+    session: Session,
+    structure_id: UUID,
+    store: ObjectStore,
+) -> list[dict[str, Any]]:
+    """현재 identity manifest의 요구사항 카드만 문서 순서로 조회한다.
+
+    구조 payload는 읽지 않는다. 카드 본문과 locator는 DB 행에서 가져오며, 쪽 정보는
+    `segments_view`와 같은 고정 객체 version·SHA-256·schema 검증 경로로 계산한다.
+    구조의 존재·안전 여부는 호출자가 먼저 검사한다.
+    """
+
+    manifest = _manifest_for_structure(session, structure_id)
+    if manifest is None:
+        return []
+    items = session.scalars(
+        select(RequirementInventoryItem)
+        .where(
+            RequirementInventoryItem.manifest_id == manifest.id,
+            RequirementInventoryItem.source == "label_value_table",
+        )
+        .order_by(RequirementInventoryItem.ordinal.asc())
+    ).all()
+    page_map = _read_latest_para_page_map(session, structure_id, store)
+    payload = {
+        "inventory_items": [{
+            "raw_id": item.raw_id,
+            "normalized_id": item.normalized_id,
+            "locator": dict(item.locator or {}),
+            "title": item.title,
+            "ordinal": item.ordinal,
+            "source": item.source,
+            "card": dict(item.card or {}),
+        } for item in items],
+    }
+    return resolve_card_pages(payload, page_map)
 
 
 def structure_is_readable(session: Session, structure_id: UUID) -> bool:
@@ -1096,6 +1498,8 @@ __all__ = [
     "latest_para_page_map_snapshot",
     "observed_requirement_ids",
     "read_manifest_view",
+    "requirement_cards",
+    "resolve_card_pages",
     "segments_view",
     "store_manifest",
     "structure_exists",

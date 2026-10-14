@@ -12,15 +12,16 @@ import type { DocumentSegmentView, SegmentPageRange, TaxonomyLabel } from "./typ
 // 주는 것(순번·분류·요구사항 ID·페이지)만 보여 주고, 제목을 만들어 내거나
 // 다른 endpoint에서 원문을 받아 다시 짓지 않는다.
 //
-// 원문 열기는 기존 page endpoint(`/document-structures/{id}/pages/{page}`)를
-// 그대로 쓴다. PDF 페이지 링크는 계약이 주는 `page_range`(물리 PDF 순번)만
-// 쓰고, `mapping_status`가 `unavailable`이라 `page_range`가 없으면 페이지를
-// 추정하지 않고 미확인으로 남긴다.
+// 원문 열기는 `start_locator.page`를 기존 page endpoint
+// (`/document-structures/{id}/pages/{page}`)에 전달한다. PDF 페이지 링크는 계약이
+// 주는 `page_range`(물리 PDF 순번)를 쓰며 두 페이지 값은 다른 계약이다.
+// `mapping_status`가 `unavailable`이라 `page_range`가 없으면 추정하지 않는다.
 
 const TAXONOMY_LABEL: Record<TaxonomyLabel, string> = {
   business_eligibility_evaluation: "사업·자격·평가",
   technical_functional: "기술·기능",
   quality_security_constraints: "품질·보안·제약",
+  operations_maintenance: "운영·유지관리",
   partnership_governance: "협력·거버넌스",
 };
 
@@ -199,7 +200,11 @@ export function SegmentInventoryPanel({ documentVersionId = null, structureId, s
                         >
                           PDF {pageRangeText(segment.page_range)}페이지 ↗
                         </a>
-                        {segment.mapping_status === "partial" ? " · 일부 블록만 대응" : null}
+                        {segment.mapping_status === "partial"
+                          ? " · 일부 블록만 대응"
+                          : segment.mapping_status === "inherited"
+                            ? " · 앞 문단 쪽 상속"
+                            : null}
                       </span>
                     )}
                   </div>

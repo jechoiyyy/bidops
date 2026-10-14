@@ -1,0 +1,105 @@
+
+> bidops-admin-frontend@0.1.0 build
+> tsc -b && vite build
+
+vite v6.4.3 building for production...
+transforming...
+✓ 2764 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                                      0.51 kB │ gzip:   0.32 kB
+dist/assets/TechnicalInfo-6ZUn47tA.css               0.95 kB │ gzip:   0.38 kB
+dist/assets/useUnsavedGuard-CPH887jz.css             2.64 kB │ gzip:   0.73 kB
+dist/assets/useListSelection-FlBubonH.css            3.23 kB │ gzip:   0.77 kB
+dist/assets/AssumptionAnalysisPage-D2uv4XMx.css      3.92 kB │ gzip:   0.92 kB
+dist/assets/GoNoGoPage-wQiGZ31Q.css                  8.98 kB │ gzip:   1.76 kB
+dist/assets/DashboardPage-DHY8dTum.css               9.23 kB │ gzip:   1.84 kB
+dist/assets/CriteriaPage-D_A_mbYf.css               12.56 kB │ gzip:   2.20 kB
+dist/assets/ReviewWorkspacePage-D-riKpt1.css        13.88 kB │ gzip:   2.92 kB
+dist/assets/BidDeltaDecisionPage-X7dCguVq.css       16.26 kB │ gzip:   2.44 kB
+dist/assets/RunStatusPage-CaIKtO0W.css              17.78 kB │ gzip:   2.93 kB
+dist/assets/opportunities-relaxed-BShOw4vV.css      18.12 kB │ gzip:   2.80 kB
+dist/assets/DeepReviewPage-D_3EC9HR.css             22.64 kB │ gzip:   3.75 kB
+dist/assets/OrderPlansPage-B4XZHfvQ.css             27.55 kB │ gzip:   4.51 kB
+dist/assets/pre-specs-relaxed-DNhZZtIN.css          45.91 kB │ gzip:   6.25 kB
+dist/assets/PreSpecDetailPage-BhDdCQO5.css          59.52 kB │ gzip:   7.84 kB
+dist/assets/index-Dw_EFzZO.css                     378.21 kB │ gzip:  62.13 kB
+dist/assets/useIsomorphicLayoutEffect-8V1JObTL.js    0.11 kB │ gzip:   0.12 kB
+dist/assets/PageHeaderActions-WgHSB9UN.js            0.23 kB │ gzip:   0.21 kB
+dist/assets/StatusBadge-BGm-OZL5.js                  0.29 kB │ gzip:   0.23 kB
+dist/assets/arrow-right-Bx8PEdPy.js                  0.35 kB │ gzip:   0.27 kB
+dist/assets/arrow-up-right-C00nzEl6.js               0.35 kB │ gzip:   0.27 kB
+dist/assets/search-BNTK07SK.js                       0.35 kB │ gzip:   0.28 kB
+dist/assets/Panel-orajsPuC.js                        0.38 kB │ gzip:   0.26 kB
+dist/assets/characters-WgeUjB8u.js                   0.40 kB │ gzip:   0.26 kB
+dist/assets/copy-BejB_GsL.js                         0.41 kB │ gzip:   0.32 kB
+dist/assets/activity-Ce-Thfia.js                     0.42 kB │ gzip:   0.31 kB
+dist/assets/refresh-cw-C7HGpmL_.js                   0.50 kB │ gzip:   0.33 kB
+dist/assets/useIndicatorFocusRing-CNbhd6y0.js        0.53 kB │ gzip:   0.37 kB
+dist/assets/TechnicalInfo-9l0yf4Q8.js                0.53 kB │ gzip:   0.29 kB
+dist/assets/chevron-right-DsxJzDBL.js                0.56 kB │ gzip:   0.29 kB
+dist/assets/search-DyxyVo9g.js                       0.65 kB │ gzip:   0.41 kB
+dist/assets/glossary-DUdlvorw.js                     0.65 kB │ gzip:   0.48 kB
+dist/assets/useCollapsible-CzaWbvhF.js               0.70 kB │ gzip:   0.39 kB
+dist/assets/loader-circle-BLc9gOx6.js                0.70 kB │ gzip:   0.36 kB
+dist/assets/deadline-yi40Kju4.js                     0.90 kB │ gzip:   0.49 kB
+dist/assets/grade-VuYPPMQY.js                        1.08 kB │ gzip:   0.55 kB
+dist/assets/DisabledReason-Dm-Gllo3.js               1.24 kB │ gzip:   0.63 kB
+dist/assets/useToast-PKfFB34H.js                     1.25 kB │ gzip:   0.70 kB
+dist/assets/CompanyHeader-BR-9N_vT.js                1.56 kB │ gzip:   0.79 kB
+dist/assets/CompanySummaries-C-Qg53hq.js             1.71 kB │ gzip:   0.65 kB
+dist/assets/Tooltip-Dex0j942.js                      1.88 kB │ gzip:   0.84 kB
+dist/assets/qualityStatus-rnHwIrRA.js                2.37 kB │ gzip:   1.25 kB
+dist/assets/orderPlanFormat-elhyrqsX.js              2.42 kB │ gzip:   1.31 kB
+dist/assets/ToggleButton-D-FKRG8p.js                 2.53 kB │ gzip:   1.22 kB
+dist/assets/DialogHeader-BYzwE6yL.js                 2.82 kB │ gzip:   1.38 kB
+dist/assets/labels-DMazsk6N.js                       3.19 kB │ gzip:   1.53 kB
+dist/assets/useMutation-DFVv5q-o.js                  3.21 kB │ gzip:   1.30 kB
+dist/assets/CheckboxInput-ByCWyI99.js                3.23 kB │ gzip:   1.71 kB
+dist/assets/api-ChDaINxc.js                          4.05 kB │ gzip:   1.50 kB
+dist/assets/createLucideIcon-aMFBNaYs.js             4.13 kB │ gzip:   1.76 kB
+dist/assets/TextArea-CZnpoMuK.js                     4.41 kB │ gzip:   2.17 kB
+dist/assets/CompanyComparisonPage-O333TnTR.js        4.43 kB │ gzip:   1.79 kB
+dist/assets/useQueries-CFP9hIWV.js                   4.57 kB │ gzip:   1.91 kB
+dist/assets/Token-CkxtJ8mk.js                        4.68 kB │ gzip:   1.93 kB
+dist/assets/WorkspaceFilters-Fo6yWCF7.js             5.40 kB │ gzip:   2.43 kB
+dist/assets/useListSelection-DbSC5k5W.js             5.65 kB │ gzip:   2.47 kB
+dist/assets/Item-Kf75_upz.js                         5.65 kB │ gzip:   2.13 kB
+dist/assets/Divider-B-YZ8w4l.js                      5.73 kB │ gzip:   2.65 kB
+dist/assets/useUnsavedGuard-Dgs7Ed8s.js              5.78 kB │ gzip:   2.66 kB
+dist/assets/SourceVerificationSetting-D3GFQIxG.js    6.90 kB │ gzip:   2.90 kB
+dist/assets/Tab-DJ6UStsH.js                          8.92 kB │ gzip:   3.94 kB
+dist/assets/trackingFlow-CZiiuQy5.js                 9.24 kB │ gzip:   3.61 kB
+dist/assets/useClickableContainer-BUe6MZou.js        9.89 kB │ gzip:   3.78 kB
+dist/assets/AssumptionAnalysisPage-BNXIXtdm.js       9.99 kB │ gzip:   4.28 kB
+dist/assets/listSelection-D2ImzDNi.js               11.13 kB │ gzip:   3.65 kB
+dist/assets/opportunities-relaxed-D2vvLi6g.js       12.24 kB │ gzip:   4.44 kB
+dist/assets/useResolvedRequired-JIY7OrH9.js         14.59 kB │ gzip:   5.34 kB
+dist/assets/DashboardPage-Wuj7UKNx.js               16.23 kB │ gzip:   5.77 kB
+dist/assets/Dialog-CjvU4p_t.js                      16.56 kB │ gzip:   4.75 kB
+dist/assets/apiErrors-CSJHztV3.js                   16.81 kB │ gzip:   5.02 kB
+dist/assets/CompanyProfilePage-BAt0-6BZ.js          18.56 kB │ gzip:   6.26 kB
+dist/assets/ReviewPrimitives-CJ4KyzVz.js            20.42 kB │ gzip:   7.14 kB
+dist/assets/TrackingDecisionControl-Dfwnar6a.js     23.43 kB │ gzip:   7.16 kB
+dist/assets/CompanyPreSpecsPage-B79SfkBr.js         25.38 kB │ gzip:   7.84 kB
+dist/assets/GoNoGoPage-U5qHxgP4.js                  28.61 kB │ gzip:   8.62 kB
+dist/assets/Table-BHMCbxKa.js                       29.29 kB │ gzip:  10.50 kB
+dist/assets/TextInput-BdlafjG5.js                   30.77 kB │ gzip:  11.53 kB
+dist/assets/Button-ByNDMIfl.js                      39.55 kB │ gzip:  14.64 kB
+dist/assets/pre-specs-relaxed-MEnhlkRQ.js           47.50 kB │ gzip:  15.86 kB
+dist/assets/BidDeltaDecisionPage-BUyrAml0.js        53.92 kB │ gzip:  15.16 kB
+dist/assets/ReviewWorkspacePage-CIiJgONa.js         54.41 kB │ gzip:  14.12 kB
+dist/assets/OpportunitiesPage-OxRbn6fb.js           58.21 kB │ gzip:  16.98 kB
+dist/assets/DeepReviewPage-CJDA98PU.js              67.65 kB │ gzip:  18.98 kB
+dist/assets/PreSpecDetailPage-Bp7rkNAf.js           75.09 kB │ gzip:  22.12 kB
+dist/assets/OrderPlansPage-CrfU2S8l.js              81.18 kB │ gzip:  24.76 kB
+dist/assets/CriteriaPage-G-UfL3ks.js               107.41 kB │ gzip:  31.53 kB
+dist/assets/PreSpecsPage-DR6d59Lz.js               133.18 kB │ gzip:  43.01 kB
+dist/assets/RunStatusPage-Bvgn408R.js              208.14 kB │ gzip:  61.16 kB
+dist/assets/index-Dw7_JHs8.js                      579.69 kB │ gzip: 169.58 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 3.95s

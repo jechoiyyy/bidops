@@ -1277,12 +1277,52 @@ def validate_document_segments(payload: Mapping[str, Any]) -> dict[str, Any]:
         issues.append(_issue("duplicate_segment_id", f"segment IDs must be unique: {duplicates}", "$.segments"))
     if [int(item["ordinal"]) for item in segments] != list(range(1, len(segments) + 1)):
         issues.append(_issue("segment_ordinal_gap", "segment ordinals must be 1..n without gaps", "$.segments"))
+    binding = payload["extractor_binding"]
+    if payload["taxonomy_version"] != binding["taxonomy_version"]:
+        issues.append(_issue(
+            "segment_taxonomy_binding",
+            "taxonomy_version must match extractor_binding.taxonomy_version",
+            "$.taxonomy_version",
+        ))
     for index, segment in enumerate(segments):
         path = f"$.segments[{index}]"
         if segment["status"] == "needs_human_review" and segment["confidence"] is not None:
             issues.append(_issue("segment_review_confidence", "needs_human_review segments must not carry a confidence", path))
         if segment["status"] == "classified" and not segment["taxonomy_labels"]:
             issues.append(_issue("segment_label_missing", "classified segments must carry at least one taxonomy label", path))
+        mapping_status = segment["mapping_status"]
+        page_range = segment["page_range"]
+        if mapping_status == "unavailable" and page_range is not None:
+            issues.append(_issue(
+                "segment_page_unavailable",
+                "unavailable segments must not carry a page_range",
+                path,
+            ))
+        if mapping_status != "unavailable" and page_range is None:
+            issues.append(_issue(
+                "segment_page_missing",
+                "mapped, partial, and inherited segments must carry a page_range",
+                path,
+            ))
+        if mapping_status == "inherited" and page_range is not None and page_range["first"] != page_range["last"]:
+            issues.append(_issue(
+                "segment_inherited_page_range",
+                "inherited page ranges must identify one page",
+                path,
+            ))
+    summary = payload["inventory_summary"]
+    if summary["card_item_count"] > summary["item_count"]:
+        issues.append(_issue(
+            "segment_card_item_count",
+            "card_item_count cannot exceed item_count",
+            "$.inventory_summary.card_item_count",
+        ))
+    if summary["label_value_table_count"] > summary["card_item_count"]:
+        issues.append(_issue(
+            "segment_card_table_count",
+            "label_value_table_count cannot exceed card_item_count",
+            "$.inventory_summary.label_value_table_count",
+        ))
     return _strict(payload, "document-segments", issues)
 
 
