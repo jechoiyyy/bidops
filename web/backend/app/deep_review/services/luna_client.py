@@ -8,14 +8,15 @@ import httpx
 
 from ...core.model_client import InvocationResult, ModelInvocationError, build_prompt
 from ..contracts import validate_payload, SchemaValidationError
+from .luna_identity import CLI_VERSION, MODEL, PROVIDER, REASONING_EFFORT
 
 SAFE_ERRORS = frozenset({'lease_lost', 'model_timeout', 'output_truncated', 'schema_invalid',
                          'authentication_failed', 'model_access_denied', 'runner_failed', 'runner_unavailable'})
 
 
 class LunaClient:
-    provider_name = 'codex-exec'
-    model = 'gpt-5.6-luna'
+    provider_name = PROVIDER
+    model = MODEL
 
     def __init__(self, endpoint, heartbeat, deadline, *, transport=None):
         address = urlsplit(endpoint)
@@ -61,7 +62,7 @@ class LunaClient:
             if data['status'] != 'completed':
                 code = data.get('error_code')
                 raise ModelInvocationError(code if code in SAFE_ERRORS else 'runner_failed', (), data.get('raw_response', '').encode())
-            if data.get('cli_version') != '0.155.1' or data.get('input_sha256') != digest:
+            if data.get('cli_version') != CLI_VERSION or data.get('input_sha256') != digest:
                 raise ModelInvocationError('runner_identity_mismatch', ())
             raw = data['raw_response'].encode()
             try:
@@ -75,7 +76,7 @@ class LunaClient:
             output_digest = hashlib.sha256(raw).hexdigest()
             return InvocationResult(output, raw, digest, output_digest, None, None, data['latency_ms'],
                                     ({'status': 'succeeded', 'provider': self.provider_name, 'model': self.model,
-                                      'cli_version': '0.155.1', 'reasoning_effort': 'xhigh'},), self.provider_name, self.model)
+                                      'cli_version': CLI_VERSION, 'reasoning_effort': REASONING_EFFORT},), self.provider_name, self.model)
         except (httpx.HTTPError, ValueError, KeyError, TypeError) as error:
             raise ModelInvocationError('runner_unavailable', ()) from error
         finally:

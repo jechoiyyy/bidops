@@ -77,17 +77,14 @@ from .deep_reviews import (
 )
 from .effective_grade import sw_business_notice_ids
 from .input_versions import (
-    DEMO_LUNA_POLICY_IDENTITY,
     InputVersionError,
     bundle_context,
     canonical_json_hash,
     validate_pinned_policy,
 )
+from .luna_identity import COMPANY_POLICY_IDENTITIES, PROVIDER, matches_runtime, policy_reasoning_effort
 
 
-LUNA_PROVIDER = "codex-exec"
-LUNA_MODEL = "gpt-5.6-luna"
-LUNA_REASONING_EFFORT = "xhigh"
 QUALITY_STATUS = "unmeasured_reference"
 CREATE_OPERATION = "company_deep_review_create"
 ATTEMPT_OPERATION = "company_deep_review_attempt"
@@ -189,8 +186,8 @@ def resolve_company_deep_policy(session: Session, settings: Any = None) -> Compa
     """Explicit demo policy row only; there is no global active-policy fallback.
 
     ``analysis_policy_unavailable``: setting unset, row missing, row not the
-    approved policy bytes, not the ``analysis-policy-luna-demo-v1`` identity
-    (contract §9; v4 and older rows carry no company/graph input description),
+    approved policy bytes, not an identity in ``COMPANY_POLICY_IDENTITIES``
+    (contract §9; global Luna rows carry no company/graph input description),
     or an unusable payload -- including a missing or non-positive
     ``chunking.path_limit_per_requirement`` (no default).
     ``model_binding_invalid``: not a Luna ``codex-exec`` binding, or the mock
@@ -202,18 +199,22 @@ def resolve_company_deep_policy(session: Session, settings: Any = None) -> Compa
     row = session.get(AnalysisPolicyVersion, policy_id) if policy_id else None
     if row is None:
         raise _error("analysis_policy_unavailable")
-    if not luna_inputs.is_luna(row) or row.model_name != LUNA_MODEL or settings.analysis_provider == "mock":
+    payload = _policy_payload(row)
+    generation = payload.get("generation")
+    if settings.analysis_provider == "mock" or not luna_inputs.is_luna(row):
+        raise _error("model_binding_invalid")
+    if isinstance(generation, Mapping) and not matches_runtime(row.model_name, generation.get("reasoning_effort")):
+        # A legacy company row is a runner binding mismatch even though its
+        # identity is company-scoped; check this before the identity set.
         raise _error("model_binding_invalid")
     try:
         validate_pinned_policy(row, allow_unmeasured_reference=True)
     except InputVersionError:
         raise _error("analysis_policy_unavailable") from None
-    payload = _policy_payload(row)
     chunking = payload.get("chunking")
-    generation = payload.get("generation")
     if (
         payload.get("pipeline_version") != "narrative-v2"
-        or payload.get("policy_identity") != DEMO_LUNA_POLICY_IDENTITY
+        or payload.get("policy_identity") not in COMPANY_POLICY_IDENTITIES
         or not isinstance(chunking, Mapping)
         or not isinstance(generation, Mapping)
         or not _positive_int(chunking.get("source_characters"))
@@ -223,7 +224,7 @@ def resolve_company_deep_policy(session: Session, settings: Any = None) -> Compa
     path_limit = chunking.get("path_limit_per_requirement")
     if not _positive_int(path_limit):
         raise _error("analysis_policy_unavailable")
-    if generation.get("reasoning_effort") != LUNA_REASONING_EFFORT:
+    if not matches_runtime(row.model_name, generation.get("reasoning_effort")):
         raise _error("model_binding_invalid")
     revision = payload.get("model_revision")
     if revision is not None and not isinstance(revision, str):
@@ -443,7 +444,8 @@ def preview_company_deep_review(
         try:
             response = CompanyDeepReviewPreviewView.model_validate({
                 "preview_id": str(row.id), "input_sha256": row.input_sha256,
-                "provider": LUNA_PROVIDER, "model": LUNA_MODEL, "reasoning_effort": LUNA_REASONING_EFFORT,
+                "provider": PROVIDER, "model": prepared.policy.row.model_name,
+                "reasoning_effort": policy_reasoning_effort(prepared.policy.row),
                 "quality_status": QUALITY_STATUS, "source_verification_enabled": True,
                 "input": deepcopy(prepared.input),
                 "company_id": str(company_id), "profile_version_id": str(prepared.profile_version_id),
@@ -550,7 +552,7 @@ def _creation_metadata(
         "profile_sha256": prepared.input["profile_sha256"],
         "policy_version_id": str(policy.id), "policy_sha256": policy.policy_sha256,
         "policy_model_name": policy.model_name,
-        "analysis_provider": LUNA_PROVIDER, "runtime_model": str(policy.model_name),
+        "analysis_provider": PROVIDER, "runtime_model": str(policy.model_name),
         "external_provider_approved": True,
         "policy_quality": {"status": "reference_workflow_unmeasured", "deployable": False},
         "reference_workflow_mode": True,

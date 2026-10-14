@@ -1,0 +1,7 @@
+command: docker exec -i bidops-local-web-1 python -
+database_head=0036_company_analysis
+actor=codex:user-approved-hp00
+registered_policy={"created_by_name": "codex:user-approved-hp00", "deployable": false, "id": "09fe587d-cd12-4449-8d9f-9d453b297de0", "label": "analysis-policy-luna-hp-v1", "policy_sha256": "776c3efc908bf005f57df58d153406add592103d7cd7d3874ae9984cd363184b", "quality_status": "unmeasured_reference", "version": 2}
+registered_policy={"created_by_name": "codex:user-approved-hp00", "deployable": false, "id": "90d5c09e-8b91-4a46-9763-ac950e7ec06c", "label": "analysis-policy-luna-v5", "policy_sha256": "f575e827d592fbe8c90bb4f2210d242351e805cd0975212559b2fa7a615cce2e", "quality_status": "unmeasured_reference", "version": 3}
+new_policy_rows=2 existing_policy_rows_preserved=true profile_rows_preserved=true
+exit=0

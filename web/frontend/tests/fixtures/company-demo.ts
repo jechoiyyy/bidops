@@ -491,7 +491,7 @@ function provenance(company: CompanyFixture, notice: CompanyNoticeFixture, purpo
     bundle_id: purpose === "deep_review" ? notice.bundle_id : null,
     policy_version_id: fixtureUuid(company, `policy:${purpose}`, 1),
     policy_sha256: fixtureSha(`policy:${purpose}`),
-    model_name: purpose === "deep_review" ? "gpt-5.6-luna" : "local-agent-main",
+    model_name: purpose === "deep_review" ? "gpt-6-luna" : "local-agent-main",
     model_revision: null,
     generation_config_sha256: fixtureSha(`generation:${purpose}`),
   };
@@ -792,8 +792,8 @@ export function companyPreviewView(company: CompanyFixture, notice: CompanyNotic
     preview_id: previewId,
     input_sha256: fixtureSha(`${company.slug}:${notice.notice_id}:preview:${previewOrdinal}`),
     provider: "codex-exec",
-    model: "gpt-5.6-luna",
-    reasoning_effort: "xhigh",
+    model: "gpt-6-luna",
+    reasoning_effort: "high",
     quality_status: "unmeasured_reference",
     source_verification_enabled: true,
     // CompanyAnalysisInput(purpose=deep_review)의 전체 key 집합(`services/company_analysis_input.py`
@@ -817,7 +817,7 @@ export function companyPreviewView(company: CompanyFixture, notice: CompanyNotic
       overview_sha256: fixtureSha(`${notice.notice_id}:overview`),
       policy_version_id: fixtureUuid(company, "policy:deep_review", 1),
       policy_sha256: fixtureSha("policy:deep_review"),
-      model_name: "gpt-5.6-luna",
+      model_name: "gpt-6-luna",
       model_revision: null,
       generation_config_sha256: fixtureSha("generation:deep_review"),
       requirements: [

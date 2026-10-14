@@ -1,0 +1,3 @@
+command=docker run --rm --network bidops-local_database --env-file /Users/temp/orca/bidops/env/local.env -e BIDOPS_DATABASE_URL=postgresql+psycopg://ro_backup@postgres:5432/bidops -e BIDOPS_DATABASE_HOST=postgres -e BACKUP_DIR=/backup -v /Users/temp/orca/bidops/scripts/backup-postgres.sh:/opt/backup-postgres.sh:ro -v /Users/temp/orca/bidops/backups/postgres/hp00-policy-selection-20261014T141000Z:/backup:rw sha256:2d2b8998d31037bf721cfdf764d76ba74171b4fab3431b7f72c27c56ddbdf9e3 bash -c "umask 077; bash /opt/backup-postgres.sh"
+Full backup written to a worktree-scoped external backup directory. Configure pg_receivewal/WAL archiving for the 4-hour RPO; this script never deletes backups.
+exit_code=0

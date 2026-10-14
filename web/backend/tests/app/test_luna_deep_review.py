@@ -1,27 +1,30 @@
 """Current Luna approval → synthesis worker → report tests; no external model."""
 from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
+import hashlib
 import json
 import os
 from pathlib import Path
 
 import pytest
-from sqlalchemy import select, text
+from sqlalchemy import select, text, update
 from sqlalchemy.orm import Session
 
 from tests.app.test_deep_reviews import engine, _seed_review_context, _FixtureStore
 from tests.app.test_narrative_review import NarrativeClient, structure_loader, SOURCE
 from tests.postgres import migrated_engine
 from app.core.config import get_settings
+from app.core.models import AuditEvent
 from app.deep_review.models import *
 from app.lifecycle.models import Notice
 from app.deep_review.services.deep_reviews import DeepReviewService, DeepReviewServiceError
 from app.deep_review.services.input_versions import CANONICAL_POLICY_FILE, import_policy_version
+from app.deep_review.services.luna_identity import CLI_VERSION
 from app.deep_review.services.luna_inputs import preview
 from app.deep_review.services.reports import ReportService
 
 
-def setup(engine, monkeypatch, *, policy_name='analysis-policy-luna-v1.json', raw_response_store=None):
+def setup(engine, monkeypatch, *, policy_name='analysis-policy-luna-v5.json', raw_response_store=None):
     notice, bundle, _, _ = _seed_review_context(engine, monkeypatch, measured=False)
     with Session(engine) as session:
         session.get(Notice, notice).source_type = 'pre_spec'
@@ -61,7 +64,7 @@ class _CapturingEncryptedStore:
         }
 
 
-def _create_approved_job(session, service, notice, bundle, *, worker='luna-v4-test'):
+def _create_approved_job(session, service, notice, bundle, *, worker='luna-v5-test'):
     frozen = preview(service, session, notice, bundle, True)
     created = service.create_review(session, notice, bundle, 'tester', uuid4(), preview_id=UUID(frozen['preview_id']))
     job = service.claim_next_job(session, worker)
@@ -75,6 +78,7 @@ def exercise(engine, monkeypatch):
             service.create_review(session, notice, bundle, 'tester', uuid4())
         assert error.value.code == 'preview_required'
         pre = preview(service, session, notice, bundle, True)
+        assert (pre['provider'], pre['model'], pre['reasoning_effort']) == ('codex-exec', 'gpt-6-luna', 'high')
         pid = UUID(pre['preview_id'])
         with pytest.raises(DeepReviewServiceError) as error:
             service.create_review(session, notice, bundle, 'tester', uuid4(), preview_id=pid, source_verification_enabled=False)
@@ -83,13 +87,27 @@ def exercise(engine, monkeypatch):
         created = service.create_review(session, notice, bundle, 'tester', request_id, preview_id=pid)
         assert service.create_review(session, notice, bundle, 'tester', request_id, preview_id=pid) == created
         assert created['current_attempt']['provider'] == 'codex-exec'
+        assert created['current_attempt']['model'] == 'gpt-6-luna'
+        assert created['current_attempt']['reasoning_effort'] == 'high'
         assert session.scalar(select(DeepReviewApproval)).claimed_name == 'tester'
+        approval_audit = session.scalar(select(AuditEvent).where(
+            AuditEvent.action == 'deep_review.external_transfer_approved',
+            AuditEvent.aggregate_id == created['current_attempt']['id'],
+        ))
+        assert approval_audit.safe_metadata['model'] == 'gpt-6-luna'
+        assert approval_audit.safe_metadata['reasoning_effort'] == 'high'
         with pytest.raises(DeepReviewServiceError):
             service.create_attempt(session, UUID(created['id']), 'tester', uuid4(), preview_id=pid)
         claim = service.claim_next_job(session, 'luna-test')
         service.run_claim(session, claim)
         view = service.view(session, claim.deep_review_id)
         assert view['status'] == 'completed'
+        first_stage = session.scalar(select(DeepReviewStage).where(
+            DeepReviewStage.attempt_id == claim.attempt_id,
+            DeepReviewStage.sequence == 1,
+        ))
+        assert first_stage.invocation_metadata[0]['cli_version'] == CLI_VERSION
+        assert first_stage.invocation_metadata[0]['reasoning_effort'] == 'high'
         report = ReportService().get_report(session, claim.deep_review_id)
         assert report['report']['quality_status'] == 'unmeasured_reference'
         assert len(service.client.calls) >= 4
@@ -126,6 +144,53 @@ def test_luna_approval_worker_report_postgres(monkeypatch):
                 connection.execute(text('UPDATE deep_review_preview SET input_sha256 = input_sha256'))
 
 
+def test_t5_legacy_policy_is_rejected_after_feature_flags(engine, monkeypatch):
+    notice, bundle, service = setup(engine, monkeypatch, policy_name='analysis-policy-luna-v4.json')
+    with Session(engine) as session:
+        with pytest.raises(DeepReviewServiceError) as error:
+            preview(service, session, notice, bundle, True)
+        assert error.value.code == 'model_binding_invalid' and error.value.status_code == 503
+        with pytest.raises(DeepReviewServiceError) as error:
+            service.create_review(session, notice, bundle, 'tester', uuid4())
+        assert error.value.code == 'model_binding_invalid'
+
+    monkeypatch.setenv('BIDOPS_LUNA_DEEP_REVIEW_ENABLED', 'false')
+    get_settings.cache_clear()
+    disabled = DeepReviewService(
+        client=service.client, structure_loader=structure_loader, raw_response_store=_FixtureStore()
+    )
+    with Session(engine) as session:
+        with pytest.raises(DeepReviewServiceError) as error:
+            preview(disabled, session, notice, bundle, True)
+        assert error.value.code == 'service_unavailable'
+
+
+def test_t6_legacy_approved_attempt_fails_before_runner_and_keeps_legacy_view(engine, monkeypatch):
+    notice, bundle, service = setup(engine, monkeypatch)
+    with Session(engine) as session:
+        frozen = preview(service, session, notice, bundle, True)
+        created = service.create_review(
+            session, notice, bundle, 'tester', uuid4(), preview_id=UUID(frozen['preview_id'])
+        )
+        legacy = import_policy_version(
+            session, CANONICAL_POLICY_FILE.with_name('analysis-policy-luna-v4.json')
+        )
+        session.commit()
+        session.execute(update(DeepReview).where(DeepReview.id == UUID(created['id'])).values(
+            policy_version_id=legacy.id
+        ))
+        session.commit()
+        claim = service.claim_next_job(session, 'legacy-binding-test')
+        with pytest.raises(DeepReviewServiceError) as error:
+            service.run_claim(session, claim)
+        assert error.value.code == 'model_binding_invalid'
+        assert service.client.calls == []
+        attempt = service.view(session, UUID(created['id']))['current_attempt']
+        assert attempt['status'] == 'failed'
+        assert attempt['last_error_code'] == 'model_binding_invalid'
+        assert (attempt['model'], attempt['reasoning_effort']) == ('gpt-5.6-luna', 'xhigh')
+
+
 def test_disabled_auto_start_has_no_side_effects(engine):
     from app.deep_review.services.auto_preparation import maybe_auto_start_deep_review
     with Session(engine) as session:
@@ -154,7 +219,7 @@ def test_rest_preview_approval_and_agent_contract(engine, monkeypatch):
     headers = {'X-BidOps-Actor-Name': 'tester'}
     response = http.post(f'/api/notices/{notice}/deep-reviews', json=request, headers=headers)
     assert response.status_code == 202, response.text
-    assert response.json()['current_attempt']['reasoning_effort'] == 'xhigh'
+    assert response.json()['current_attempt']['reasoning_effort'] == 'high'
     replay = http.post(f'/api/notices/{notice}/deep-reviews', json=request, headers=headers)
     assert replay.json() == response.json()
     assert http.post(f'/api/notices/{notice+1}/deep-review-previews', json=payload).status_code == 404
@@ -297,7 +362,7 @@ def test_worker_through_luna_http_adapter(engine, monkeypatch):
             prompt = json.loads(request.content)['prompt']
             payload = json.loads(prompt)
             output = fake.invoke(payload['stage'], payload['input_slice'], {'stages': []})
-            result.update(status='completed', raw_response=output.raw_response.decode(), cli_version='0.155.1',
+            result.update(status='completed', raw_response=output.raw_response.decode(), cli_version=CLI_VERSION,
                           input_sha256=hashlib.sha256(prompt.encode()).hexdigest(), latency_ms=1)
             return httpx.Response(202, json={'call_id': str(uuid4())})
         return httpx.Response(200, json=result if request.method == 'GET' else {})
@@ -312,11 +377,11 @@ def test_worker_through_luna_http_adapter(engine, monkeypatch):
         assert len(fake.calls) == 4
 
 
-def exercise_optional_relation(engine, monkeypatch, *, strict=False):
+def exercise_optional_relation(engine, monkeypatch):
     from copy import deepcopy
     from dataclasses import replace
     from app.deep_review.services.input_versions import _policy_hash_matches
-    notice, bundle, service = setup(engine, monkeypatch, policy_name=f"analysis-policy-luna-{'v1' if strict else 'v2'}.json")
+    notice, bundle, service = setup(engine, monkeypatch, policy_name="analysis-policy-luna-v5.json")
     original = service.client.invoke
     originals = []
     def invoke(*args, **kwargs):
@@ -333,11 +398,6 @@ def exercise_optional_relation(engine, monkeypatch, *, strict=False):
         pre = preview(service, session, notice, bundle, True)
         created = service.create_review(session, notice, bundle, 'tester', uuid4(), preview_id=UUID(pre['preview_id']))
         job = service.claim_next_job(session, 'relation-test')
-        if strict:
-            with pytest.raises(DeepReviewServiceError, match='범위 검증'):
-                service.run_claim(session, job)
-            assert service.view(session, job.deep_review_id)['status'] == 'failed'
-            return
         service.run_claim(session, job)
         report = ReportService().get_report(session, job.deep_review_id)
         assert service.view(session, job.deep_review_id)['status'] == 'completed'
@@ -367,9 +427,39 @@ def exercise_optional_relation(engine, monkeypatch, *, strict=False):
             Path(os.environ['BIDOPS_RELATION_FIXTURE']).write_text(json.dumps({'review': service.view(session, job.deep_review_id), 'report': report}, ensure_ascii=False))
 
 
-@pytest.mark.parametrize('strict', [False, True])
-def test_optional_relation_policy_worker_report(engine, monkeypatch, strict):
-    exercise_optional_relation(engine, monkeypatch, strict=strict)
+def test_optional_relation_policy_worker_report(engine, monkeypatch):
+    exercise_optional_relation(engine, monkeypatch)
+
+
+def test_legacy_strict_relation_policy_remains_a_validator_error():
+    from app.deep_review.services.narrative_inputs import (
+        NarrativeInputError,
+        project_related_claims,
+        validate_slice_output,
+    )
+
+    unit = {
+        'requirement_id': 'unit', 'document_requirement_ids': [],
+        'document_version_id': 'doc', 'structure_id': 'structure', 'text': SOURCE,
+    }
+    incoming = {'requirements': [unit]}
+    output = {
+        'claims': [{
+            'claim_id': 'claim', 'source_unit_ids': ['unit'], 'requirement_ids': [],
+            'related_claim_ids': ['outside'], 'premise_claim_ids': [], 'evidence_ids': ['evidence'],
+            'claim_type': 'fact', 'body': SOURCE,
+        }],
+        'coverage': [{'source_unit_id': 'unit', 'status': 'reviewed', 'claim_ids': ['claim'], 'reason': None}],
+        'considered_claim_ids': [],
+        'evidence': [{
+            'evidence_id': 'evidence', 'source_kind': 'document', 'document_version_id': 'doc',
+            'structure_id': 'structure', 'quote': SOURCE,
+        }],
+    }
+    projected, diagnostics = project_related_claims(output, incoming, {'validation': {}})
+    assert projected == output and diagnostics == []
+    with pytest.raises(NarrativeInputError, match='claim_relation_out_of_slice'):
+        validate_slice_output(projected, incoming, 'requirements_and_evaluation')
 
 
 @pytest.mark.requires_postgres
@@ -378,55 +468,26 @@ def test_optional_relation_policy_worker_report_postgres(monkeypatch):
         exercise_optional_relation(engine, monkeypatch)
 
 
-def exercise_validation_off(engine, monkeypatch, *, corruption=None):
-    from copy import deepcopy
-    from dataclasses import replace
-    from app.deep_review.services.verification import enabled_for_attempt
+def exercise_legacy_validation_off_policy_is_queryable(engine, monkeypatch):
     notice, bundle, service = setup(engine, monkeypatch, policy_name='analysis-policy-luna-v3.json')
-    original = service.client.invoke
-    def invoke(*args, **kwargs):
-        result = original(*args, **kwargs)
-        value = deepcopy(result.structured_output)
-        if args[0] == 'requirements_and_evaluation':
-            value['considered_claim_ids'] = [row['claim_id'] for row in value['claims']]
-            value['coverage'] = []
-            value['claims'][0]['body'] = '사업비는 123456789원이며 이 문장은 검증하지 않은 모델의 출력이다.'
-            value['evidence'][0]['quote'] = '원문에 없는 모델 인용'
-            if corruption == 'hash': value['evidence'][0]['source_sha256'] = 'f'*64
-            if corruption == 'dangling': value['claims'][0]['evidence_ids'] = [str(uuid4())]
-        return replace(result, structured_output=value, raw_response=json.dumps(value).encode())
-    service.client.invoke = invoke
     with Session(engine) as session:
-        pre = preview(service, session, notice, bundle, True)
-        assert pre['input']['policy']['validation']['result_checks'] == 'disabled_reference_v1'
-        service.create_review(session, notice, bundle, 'tester', uuid4(), preview_id=UUID(pre['preview_id']))
-        job = service.claim_next_job(session, 'validation-off-test')
-        assert enabled_for_attempt(session, job.attempt_id) is False
-        if corruption:
-            with pytest.raises(DeepReviewServiceError): service.run_claim(session, job)
-            assert service.view(session, job.deep_review_id)['status'] == 'failed'
-            return
-        service.run_claim(session, job)
-        result = ReportService().get_report(session, job.deep_review_id)
-        assert service.view(session, job.deep_review_id)['status'] == 'completed'
-        assert result['report']['claims'][0]['body'].startswith('사업비는 123456789원')
-        checks = result['validation']['checks']
-        assert any(c['check_type'] == 'result_validation_skipped' and c['status'] == 'warning' for c in checks)
-        assert any('검증을 끈 참조 실행' in value for value in result['report']['analysis_limitations'])
-        assert result['report']['quality_status'] == 'unmeasured_reference'
-        if os.environ.get('BIDOPS_VALIDATION_OFF_FIXTURE'):
-            Path(os.environ['BIDOPS_VALIDATION_OFF_FIXTURE']).write_text(json.dumps({'review':service.view(session, job.deep_review_id),'report':result,'preview':pre},ensure_ascii=False))
+        digest = hashlib.sha256(CANONICAL_POLICY_FILE.with_name('analysis-policy-luna-v3.json').read_bytes()).hexdigest()
+        policy = session.scalar(select(AnalysisPolicyVersion).where(AnalysisPolicyVersion.policy_sha256 == digest))
+        assert policy.validation_rules['policy_snapshot']['validation']['result_checks'] == 'disabled_reference_v1'
+        with pytest.raises(DeepReviewServiceError) as error:
+            preview(service, session, notice, bundle, True)
+        assert error.value.code == 'model_binding_invalid'
+    assert service.client.calls == []
 
 
-@pytest.mark.parametrize('corruption', [None, 'hash', 'dangling'])
-def test_validation_off_keeps_storage_scope(engine, monkeypatch, corruption):
-    exercise_validation_off(engine, monkeypatch, corruption=corruption)
+def test_legacy_validation_off_policy_is_queryable(engine, monkeypatch):
+    exercise_legacy_validation_off_policy_is_queryable(engine, monkeypatch)
 
 
 @pytest.mark.requires_postgres
 def test_validation_off_postgres(monkeypatch):
     with migrated_engine() as engine:
-        exercise_validation_off(engine, monkeypatch)
+        exercise_legacy_validation_off_policy_is_queryable(engine, monkeypatch)
 
 
 def test_luna_v4_policy_identity_is_canonical_and_preserves_legacy_mapping(engine, tmp_path):
@@ -474,14 +535,14 @@ def test_luna_v4_policy_identity_is_canonical_and_preserves_legacy_mapping(engin
     ('requirements_and_evaluation', 'evidence', {'code': 'narrative:evidence_out_of_slice', 'path': '$.claims[*].evidence_ids'}),
     ('delivery_risk_economics', 'evidence', {'code': 'narrative:evidence_out_of_slice', 'path': '$.claims[*].evidence_ids'}),
 ])
-def test_luna_v4_repairs_one_invalid_slice_with_same_approval_and_encrypted_originals(
+def test_luna_v5_repairs_one_invalid_slice_with_same_approval_and_encrypted_originals(
     engine, monkeypatch, target_stage, failure_kind, expected_issue,
 ):
     from copy import deepcopy
     from dataclasses import replace
 
     store = _CapturingEncryptedStore()
-    notice, bundle, service = setup(engine, monkeypatch, policy_name='analysis-policy-luna-v4.json', raw_response_store=store)
+    notice, bundle, service = setup(engine, monkeypatch, policy_name='analysis-policy-luna-v5.json', raw_response_store=store)
     original = service.client.invoke
     target_call_count = 0
 
@@ -543,11 +604,11 @@ def test_luna_v4_repairs_one_invalid_slice_with_same_approval_and_encrypted_orig
         assert warnings[0]['message'] in report['report']['analysis_limitations']
 
 
-def test_luna_v4_projects_optional_related_claim_warning_without_repair(engine, monkeypatch):
+def test_luna_v5_projects_optional_related_claim_warning_without_repair(engine, monkeypatch):
     from copy import deepcopy
     from dataclasses import replace
 
-    notice, bundle, service = setup(engine, monkeypatch, policy_name='analysis-policy-luna-v4.json')
+    notice, bundle, service = setup(engine, monkeypatch, policy_name='analysis-policy-luna-v5.json')
     original = service.client.invoke
     target_calls = 0
 
@@ -574,12 +635,12 @@ def test_luna_v4_projects_optional_related_claim_warning_without_repair(engine, 
         assert report['report']['claims'][0]['related_claim_ids'] == []
 
 
-def test_luna_v4_stops_after_one_failed_repair_and_preserves_both_responses(engine, monkeypatch):
+def test_luna_v5_stops_after_one_failed_repair_and_preserves_both_responses(engine, monkeypatch):
     from copy import deepcopy
     from dataclasses import replace
 
     store = _CapturingEncryptedStore()
-    notice, bundle, service = setup(engine, monkeypatch, policy_name='analysis-policy-luna-v4.json', raw_response_store=store)
+    notice, bundle, service = setup(engine, monkeypatch, policy_name='analysis-policy-luna-v5.json', raw_response_store=store)
     original = service.client.invoke
     target_calls = 0
 
@@ -608,12 +669,12 @@ def test_luna_v4_stops_after_one_failed_repair_and_preserves_both_responses(engi
 
 
 @pytest.mark.parametrize('eventual_success', [True, False])
-def test_luna_v4_schema_invalid_repairs_once_and_preserves_encrypted_originals(engine, monkeypatch, eventual_success):
+def test_luna_v5_schema_invalid_repairs_once_and_preserves_encrypted_originals(engine, monkeypatch, eventual_success):
     import hashlib
     from app.core.model_client import ModelInvocationError
 
     store = _CapturingEncryptedStore()
-    notice, bundle, service = setup(engine, monkeypatch, policy_name='analysis-policy-luna-v4.json', raw_response_store=store)
+    notice, bundle, service = setup(engine, monkeypatch, policy_name='analysis-policy-luna-v5.json', raw_response_store=store)
     original = service.client.invoke
     target_calls = 0
     invalid_raw = b'{"schema":"invalid"}'
@@ -678,37 +739,25 @@ def test_luna_v4_schema_invalid_repairs_once_and_preserves_encrypted_originals(e
     'analysis-policy-luna-v1.json', 'analysis-policy-luna-v2.json', 'analysis-policy-luna-v3.json',
 ])
 def test_legacy_luna_policies_do_not_validation_repair(engine, monkeypatch, policy_name):
-    from copy import deepcopy
-    from dataclasses import replace
-
     notice, bundle, service = setup(engine, monkeypatch, policy_name=policy_name)
-    original = service.client.invoke
-    target_calls = 0
-
-    def invoke(*args, **kwargs):
-        nonlocal target_calls
-        result = original(*args, **kwargs)
-        if args[0] == 'requirements_and_evaluation':
-            target_calls += 1
-            output = deepcopy(result.structured_output)
-            output['claims'][0]['evidence_ids'] = [str(uuid4())]
-            return replace(result, structured_output=output, raw_response=json.dumps(output).encode())
-        return result
-
-    service.client.invoke = invoke
     with Session(engine) as session:
-        _frozen, _created, job = _create_approved_job(session, service, notice, bundle)
-        with pytest.raises(DeepReviewServiceError):
-            service.run_claim(session, job)
-        assert target_calls == 1
-        assert all('validation_repair' not in call for call in service.client.calls)
+        digest = hashlib.sha256(CANONICAL_POLICY_FILE.with_name(policy_name).read_bytes()).hexdigest()
+        policy = session.scalar(select(AnalysisPolicyVersion).where(AnalysisPolicyVersion.policy_sha256 == digest))
+        payload = policy.validation_rules['policy_snapshot']
+        assert payload['model_name'] == 'gpt-5.6-luna'
+        assert payload['generation']['reasoning_effort'] == 'xhigh'
+        assert payload.get('execution', {}).get('validation_repair_attempts', 0) == 0
+        with pytest.raises(DeepReviewServiceError) as error:
+            preview(service, session, notice, bundle, True)
+        assert error.value.code == 'model_binding_invalid'
+    assert service.client.calls == []
 
 
-def test_luna_v4_never_repairs_synthesis_slice(engine, monkeypatch):
+def test_luna_v5_never_repairs_synthesis_slice(engine, monkeypatch):
     from copy import deepcopy
     from dataclasses import replace
 
-    notice, bundle, service = setup(engine, monkeypatch, policy_name='analysis-policy-luna-v4.json')
+    notice, bundle, service = setup(engine, monkeypatch, policy_name='analysis-policy-luna-v5.json')
     original = service.client.invoke
     synthesis_calls = 0
 
@@ -731,12 +780,7 @@ def test_luna_v4_never_repairs_synthesis_slice(engine, monkeypatch):
         assert not any('validation_repair' in call for call in service.client.calls if call['stage'] == 'synthesis_and_validation')
 
 
-@pytest.mark.parametrize(('policy_name', 'timeout_seconds'), [
-    ('analysis-policy-luna-v1.json', 7200),
-    ('analysis-policy-luna-v2.json', 7200),
-    ('analysis-policy-luna-v3.json', 7200),
-    ('analysis-policy-luna-v4.json', 18000),
-])
+@pytest.mark.parametrize(('policy_name', 'timeout_seconds'), [('analysis-policy-luna-v5.json', 18000)])
 def test_luna_policy_review_deadline_is_passed_to_each_luna_client(engine, monkeypatch, policy_name, timeout_seconds):
     from app.deep_review.services import deep_reviews as module
 
@@ -766,11 +810,32 @@ def test_luna_policy_review_deadline_is_passed_to_each_luna_client(engine, monke
     assert deadlines and set(deadlines) == {100.0 + timeout_seconds}
 
 
-def test_legacy_luna_refuses_the_company_demo_policy_as_active_policy(engine, monkeypatch):
-    """DEMO-03: analysis-policy-luna-demo-v1 is selected only by the demo setting, never globally."""
+@pytest.mark.parametrize(('policy_name', 'timeout_seconds'), [
+    ('analysis-policy-luna-v1.json', 7200),
+    ('analysis-policy-luna-v2.json', 7200),
+    ('analysis-policy-luna-v3.json', 7200),
+    ('analysis-policy-luna-v4.json', 18000),
+])
+def test_legacy_luna_policy_deadlines_remain_queryable(engine, monkeypatch, policy_name, timeout_seconds):
+    from app.deep_review.services.deep_reviews import _policy_execution_limit, _policy_payload
+
+    setup(engine, monkeypatch, policy_name=policy_name)
+    with Session(engine) as session:
+        digest = hashlib.sha256(CANONICAL_POLICY_FILE.with_name(policy_name).read_bytes()).hexdigest()
+        policy = session.scalar(select(AnalysisPolicyVersion).where(AnalysisPolicyVersion.policy_sha256 == digest))
+        assert _policy_execution_limit(
+            _policy_payload(policy), 'review_timeout_seconds', default=7200, minimum=1, maximum=86400
+        ) == timeout_seconds
+
+
+@pytest.mark.parametrize('policy_name', [
+    'analysis-policy-luna-demo-v1.json', 'analysis-policy-luna-hp-v1.json',
+])
+def test_luna_refuses_company_policy_as_active_policy(engine, monkeypatch, policy_name):
+    """Company policies are selected only by the company setting, never globally."""
     from app.deep_review.services.input_versions import InputVersionError
 
-    notice, bundle, service = setup(engine, monkeypatch, policy_name='analysis-policy-luna-demo-v1.json')
+    notice, bundle, service = setup(engine, monkeypatch, policy_name=policy_name)
     with Session(engine) as session:
         with pytest.raises(InputVersionError) as error:
             preview(service, session, notice, bundle, True)
@@ -791,7 +856,7 @@ def test_legacy_worker_refuses_a_review_pinned_to_the_company_demo_policy(engine
     from sqlalchemy import update
     from app.deep_review.services.input_versions import DEMO_LUNA_POLICY_FILE
 
-    notice, bundle, service = setup(engine, monkeypatch, policy_name='analysis-policy-luna-v4.json')
+    notice, bundle, service = setup(engine, monkeypatch, policy_name='analysis-policy-luna-v5.json')
     with Session(engine) as session:
         demo = import_policy_version(session, DEMO_LUNA_POLICY_FILE)
         session.commit()
@@ -805,9 +870,9 @@ def test_legacy_worker_refuses_a_review_pinned_to_the_company_demo_policy(engine
         assert claim is not None and claim.deep_review_id == review_id
         with pytest.raises(DeepReviewServiceError) as error:
             service.run_claim(session, claim)
-        assert error.value.code == 'company_policy_invalid'
+        assert error.value.code == 'model_binding_invalid'
         session.expire_all()
-        assert session.get(WorkJob, claim.job_id).last_error_code == 'company_policy_invalid'
+        assert session.get(WorkJob, claim.job_id).last_error_code == 'model_binding_invalid'
         assert service.view(session, review_id)['status'] == 'failed'
         assert session.scalar(select(ReportRevision)) is None
     assert not service.client.calls

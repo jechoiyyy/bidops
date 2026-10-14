@@ -5,10 +5,11 @@ These values are user assumptions, never a mutation of the company profile.
 from copy import deepcopy
 from decimal import Decimal, ROUND_HALF_UP, localcontext
 
+from .luna_identity import MODEL, REASONING_EFFORT
+
 SCHEMA = "bidops.assumption-analysis.v1"
 VERSION = "1489-assumptions-v1"
-MODEL = "gpt-5.6-luna"
-EFFORT = "xhigh"
+EFFORT = REASONING_EFFORT
 ASSUMPTIONS = (
     {"id": "assumption-qualification", "kind": "assumption", "text": "미확인 필수 참가 증빙이 유효하다고 가정한다."},
     {"id": "assumption-staff", "kind": "assumption", "text": "담당 인력과 백업 인력을 확보했다고 가정한다."},
