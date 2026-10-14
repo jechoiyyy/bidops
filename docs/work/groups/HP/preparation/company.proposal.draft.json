@@ -1,0 +1,117 @@
+{
+  "schema_version": "bidops.hp-company-proposal.v1",
+  "status": "draft_unapproved",
+  "registration_allowed": false,
+  "company": {
+    "name": "가상 온웹서비스",
+    "slug": "hp-onweb",
+    "is_fictional": true
+  },
+  "facts": [
+    {
+      "id": "headcount",
+      "origin": "fictional_scenario",
+      "proposed_status": "confirmed",
+      "proposed_value": 18,
+      "rationale": "인원 제안",
+      "decision": null
+    },
+    {
+      "id": "annual_revenue_krw",
+      "origin": "fictional_scenario",
+      "proposed_status": "confirmed",
+      "proposed_value": 1800000000,
+      "rationale": "연매출 가정",
+      "decision": null
+    },
+    {
+      "id": "founded_year",
+      "origin": "fictional_scenario",
+      "proposed_status": "confirmed",
+      "proposed_value": 2018,
+      "rationale": "설립연도 가정",
+      "decision": null
+    },
+    {
+      "id": "homepage_projects",
+      "origin": "fictional_scenario",
+      "proposed_status": "confirmed",
+      "proposed_value": {
+        "count": 3,
+        "period_years": 3,
+        "largest_amount_krw": 200000000
+      },
+      "rationale": "가상 홈페이지 실적",
+      "decision": null
+    },
+    {
+      "id": "cap.cms",
+      "origin": "fictional_scenario",
+      "proposed_status": "confirmed",
+      "proposed_value": true,
+      "rationale": "CMS 구축 경험",
+      "decision": null
+    },
+    {
+      "id": "cap.web-accessibility",
+      "origin": "fictional_scenario",
+      "proposed_status": "confirmed",
+      "proposed_value": true,
+      "rationale": "접근성 개선 수행 경험; 인증 보유와 다름",
+      "decision": null
+    },
+    {
+      "id": "cap.incident",
+      "origin": "fictional_scenario",
+      "proposed_status": "confirmed",
+      "proposed_value": {
+        "business_hours": true,
+        "around_clock": null
+      },
+      "rationale": "업무시간 대응만 확정 가정",
+      "decision": null
+    },
+    {
+      "id": "qual.isms",
+      "origin": "fictional_scenario",
+      "proposed_status": "confirmed",
+      "proposed_value": false,
+      "rationale": "의도적 미보유",
+      "decision": null
+    },
+    {
+      "id": "cap.multilingual",
+      "origin": "fictional_scenario",
+      "proposed_status": "confirmed",
+      "proposed_value": false,
+      "rationale": "의도적 실적 없음",
+      "decision": null
+    },
+    {
+      "id": "cap.onsite",
+      "origin": "fictional_scenario",
+      "proposed_status": "confirmed",
+      "proposed_value": {
+        "available_people": 2
+      },
+      "rationale": "의도적 상주 가용 상한",
+      "decision": null
+    },
+    {
+      "id": "tech.oracle",
+      "origin": "fictional_scenario",
+      "proposed_status": "unknown",
+      "proposed_value": null,
+      "rationale": "Oracle 경험 미확인",
+      "decision": null
+    },
+    {
+      "id": "qual.direct-production",
+      "origin": "fictional_scenario",
+      "proposed_status": "unknown",
+      "proposed_value": null,
+      "rationale": "직접생산확인 유효범위 미확인",
+      "decision": null
+    }
+  ]
+}
