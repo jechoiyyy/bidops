@@ -34,7 +34,8 @@ export type TaxonomyLabel =
   | "business_eligibility_evaluation"
   | "technical_functional"
   | "quality_security_constraints"
-  | "partnership_governance";
+  | "partnership_governance"
+  | "operations_maintenance";
 
 export type EmptyRequest = Record<string, never>;
 
@@ -360,6 +361,7 @@ export interface DocumentStructurePageView {
 export interface SegmentLocator {
   kind: SegmentLocatorKind;
   block_key: string;
+  /** 구조 원문을 여는 페이지로, 변환 PDF의 물리 페이지 순번과 다를 수 있다. */
   page: number;
   ordinal: number;
   table_key: string | null;
@@ -373,9 +375,9 @@ export interface SegmentPageRange {
   last: number;
 }
 
-/** 대응표가 segment의 블록을 PDF 페이지로 얼마나 연결했는지. `unavailable`이면
- * `page_range`는 항상 `null`이고 화면은 그 미확인을 그대로 둔다. */
-export type SegmentMappingStatus = "mapped" | "partial" | "unavailable";
+/** 대응표가 segment의 블록을 PDF 페이지로 얼마나 연결했는지. `inherited`는 앞 문단
+ * anchor에서 쪽을 상속한 상태다. `unavailable`이면 `page_range`는 항상 `null`이다. */
+export type SegmentMappingStatus = "mapped" | "partial" | "inherited" | "unavailable";
 
 export interface DocumentSegmentView {
   segment_id: string;
@@ -389,7 +391,7 @@ export interface DocumentSegmentView {
   /** 결정적 규칙에는 확률이 없다. 계약이 항상 `null`로 둔다. */
   confidence: null;
   status: SegmentStatus;
-  /** 대응표로 확인한 물리 PDF 페이지 범위. 확인하지 못하면 `null`이다. */
+  /** 대응표로 확인하거나 앞 문단에서 상속한 물리 PDF 페이지 범위. 확인하지 못하면 `null`이다. */
   page_range: SegmentPageRange | null;
   mapping_status: SegmentMappingStatus;
 }
@@ -409,6 +411,8 @@ export interface RequirementInventorySummary {
   ambiguous_items: RequirementInventoryAmbiguity[];
   prefixes: string[];
   item_count: number;
+  card_item_count: number;
+  label_value_table_count: number;
 }
 
 export interface SegmentSpan {

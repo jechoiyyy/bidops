@@ -5,7 +5,7 @@ import {
   lifecycleVisualTargets,
   pages,
 } from "./screen-fixtures";
-import { mockApi, mockOrderPlanBulkTracking, mockOrderPlans, mockPreSpecs } from "./api-mock";
+import { mockApi, mockDeepReviewLifecycle, mockOrderPlanBulkTracking, mockOrderPlans, mockPreSpecs } from "./api-mock";
 import { mockGoNoGo } from "./go-no-go-fixtures";
 import { mockOpportunities } from "./opportunities-fixtures";
 
@@ -35,6 +35,20 @@ for (const target of lifecycleVisualTargets) {
     await expectNoHorizontalOverflow(page);
   });
 }
+
+test("deep-review-segment-panel 목록이 지원 폭에서 패널 밖으로 넘치지 않는다", async ({ page }) => {
+  await mockDeepReviewLifecycle(page, "completed");
+  await page.goto("/deep-reviews/fixture-review");
+  const panel = page.locator(".deep-review-segment-panel");
+  await expect(panel).toBeVisible();
+  await expect(panel.locator(".deep-review-segment-list > li")).toHaveCount(4);
+  const dimensions = await panel.evaluate((element) => ({
+    clientWidth: element.clientWidth,
+    scrollWidth: element.scrollWidth,
+  }));
+  expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.clientWidth + 1);
+  await expectNoHorizontalOverflow(page);
+});
 
 // 추적 결정은 대화상자가 아니라 우측 정보 영역 바닥의 인라인 폼이다
 // (docs/0915_ui-redesign/spec.md §3.3). 폼이 실제로 그려지는 건(신규·미선택)을

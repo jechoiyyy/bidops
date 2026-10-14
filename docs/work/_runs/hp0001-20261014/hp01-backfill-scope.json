@@ -1,0 +1,29 @@
+{
+  "selection": "HP-01 intent default: four existing homepage pre-specs, not all 179 structures",
+  "authorization": "user unattended isolated migration/backfill approval",
+  "notices": [
+    {
+      "id": 79,
+      "structure_ids": [
+        "f25729bf-e39f-4624-a17c-bcbeaa023888"
+      ],
+      "status": "ready"
+    },
+    {
+      "id": 116,
+      "structure_ids": [],
+      "status": "structure_absent"
+    },
+    {
+      "id": 129,
+      "structure_ids": [],
+      "status": "structure_absent"
+    },
+    {
+      "id": 156,
+      "structure_ids": [],
+      "status": "structure_absent"
+    }
+  ],
+  "scope": "backfill existing ready structure only; no collection/conversion triggered for absent structures"
+}

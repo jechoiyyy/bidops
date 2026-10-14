@@ -1,0 +1,19 @@
+{
+  "restore_point": "hp01-20261014T150633Z",
+  "postgres_dump": "/Users/temp/orca/bidops/backups/postgres/hp01-20261014T150633Z/full/bidops-20261014T150723Z.dump",
+  "bytes": 5062794,
+  "sha256": "cd0d972541ec211950f94c5471ff9ef6a8414dc17f882b30aed74e5f809ad9b8",
+  "pg_restore_list_exit": 0,
+  "pg_restore_list_lines": 1251,
+  "objects_path": "/Users/temp/orca/bidops/backups/objects/hp01-20261014T150633Z",
+  "object_manifest_sha256": "e98afbadc1f9ba05db42b2eba0a0e8092a1d405f2812f1e6877576b60aaa2939",
+  "object_versions": 164,
+  "object_counts": {
+    "source": 42,
+    "structure": 51,
+    "quarantine": 22,
+    "model-response": 49
+  },
+  "object_bytes": 210361810,
+  "object_hash_mismatches": 0
+}

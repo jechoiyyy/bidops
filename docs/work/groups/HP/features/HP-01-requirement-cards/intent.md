@@ -15,7 +15,7 @@ taxonomy에 운영·유지관리 목적과 MAR·MPR·MHR 접두사가 없어 유
 ## 기대 결과
 
 구조화가 끝난 문서의 manifest에 카드가 inventory 항목으로 들어가고(`source=label_value_table`, 카드 필드·쪽 anchor 보존), segments 조회와 카드 조회가 쪽을 `inherited`(앞 문단 상속)로 돌려주며, 유지관리 segment가 `operations_maintenance`로 분류된다.
-deep_review는 `requirement_cards(session, structure_id)`로 카드 목록을 읽는다. 기존 manifest 행과 열 제목 표 경로는 그대로 남고, 업그레이드 전 구조는 backfill CLI로 현재 manifest를 얻는다.
+deep_review는 `requirement_cards(session, structure_id, store)`로 카드 목록을 읽는다. 기존 manifest 행과 열 제목 표 경로는 그대로 남고, 업그레이드 전 구조는 backfill CLI로 현재 manifest를 얻는다.
 
 ## 유즈케이스
 
@@ -68,7 +68,7 @@ deep_review는 `requirement_cards(session, structure_id)`로 카드 목록을 �
 
 | 차이 | 출처 A | 출처 B | 결정 |
 |---|---|---|---|
-| 쪽의 출처 | contracts.md: 대응표의 매핑된 키만으로 계산, 셀은 대개 `unavailable` | 2026-10-14 검증: 앞 문단에서 상속하면 198/198 | 상속을 새 enum `inherited`로 추가하되 직접 매핑이 있으면 그것을 우선 |
+| 쪽의 출처 | contracts.md: 대응표의 매핑된 키만으로 계산, 셀은 대개 `unavailable` | 초기 scratchpad 주장 198/198(검증 근거 아님); 제품 실측은 88/198, 110건 미확인 | 상속을 새 enum `inherited`로 추가하되 직접 매핑 우선. 가까운 3개 anchor 규칙 밖의 쪽은 미확인으로 보존 |
 | 대응표 범위 | HP 공통 계약 §2 초안 "문단 block만 매핑" | 코드(`para_page_map.py`)는 text 일치로 셀도 매핑 가능 | 계약 문구를 "문단과 text가 유일하게 일치하는 셀"로 고침(이번 replan에서 수정) |
 | taxonomy | v1 4개 label | 유지관리 공고 카드의 절반이 유지관리 분류 | v2 label 추가, v1 규칙은 유지 |
 | 저장 | spec 초안 "migration 없음" | inventory 항목은 열 5개 행 | 열 3개 추가 migration |
