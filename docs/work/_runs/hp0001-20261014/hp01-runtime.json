@@ -1,0 +1,29 @@
+{
+  "bidops-local-web-1": {
+    "image": "sha256:1b0e5878849b40a810f17fb1315dea0eece43a59b6c813156a27c30882fda0db",
+    "configured_image": "bidops-local:hp01-20261014",
+    "environment_unchanged": true,
+    "networks_unchanged": true,
+    "mounts_unchanged": true,
+    "running": true,
+    "health": "healthy"
+  },
+  "bidops-local-analysis-worker-1": {
+    "image": "sha256:1b0e5878849b40a810f17fb1315dea0eece43a59b6c813156a27c30882fda0db",
+    "configured_image": "bidops-local:hp01-20261014",
+    "environment_unchanged": true,
+    "networks_unchanged": true,
+    "mounts_unchanged": true,
+    "running": true,
+    "health": null
+  },
+  "bidops-local-codex-runner-1": {
+    "image": "sha256:64bf4925bdbc6e1a891a3a32753e5d61d0def8ef3eb95eeebf7ac407d44e620b",
+    "configured_image": "bidops-local:codex-runner-20261014",
+    "environment_unchanged": true,
+    "networks_unchanged": true,
+    "mounts_unchanged": true,
+    "running": true,
+    "health": null
+  }
+}

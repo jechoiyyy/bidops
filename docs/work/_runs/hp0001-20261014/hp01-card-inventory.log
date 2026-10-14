@@ -1,0 +1,194 @@
+[
+  {
+    "name": "doc1",
+    "card_count": 27,
+    "inherited_page_count": 0,
+    "mapped_page_count": 0,
+    "unavailable_count": 27,
+    "prefixes": [
+      "COR",
+      "MHR",
+      "MPR",
+      "PER",
+      "PMR",
+      "PSR",
+      "QUR",
+      "SER",
+      "SFR",
+      "STR"
+    ],
+    "categories": [
+      "기능 요구사항",
+      "보안 요구 사항",
+      "보안 요구사항",
+      "성능 요구사항",
+      "유지관리 수행 요구사항",
+      "유지관리 인력 요구사항",
+      "제약사항",
+      "표준 요구사항",
+      "품질 요구 사항",
+      "프로젝트 관리 요구사항",
+      "프로젝트 지원 요구사항"
+    ],
+    "duplicate_ids": [],
+    "warnings": [
+      "coverage_gap:0-35"
+    ]
+  },
+  {
+    "name": "gangwon",
+    "card_count": 57,
+    "inherited_page_count": 18,
+    "mapped_page_count": 0,
+    "unavailable_count": 39,
+    "prefixes": [
+      "COR",
+      "DAR",
+      "ECR",
+      "INR",
+      "PER",
+      "PMR",
+      "PSR",
+      "QUR",
+      "SER",
+      "SFR",
+      "TER"
+    ],
+    "categories": [
+      "기능 요구사항",
+      "데이터 요구사항",
+      "보안 요구사항",
+      "성능 요구사항",
+      "시스템 요구사항",
+      "인터페이스 요구사항",
+      "제약사항",
+      "테스트 요구사항",
+      "품질 요구사항",
+      "프로젝트 관리 요구사항",
+      "프로젝트 지원 요구사항"
+    ],
+    "duplicate_ids": [
+      "COR-1",
+      "DAR-1",
+      "ECR-1",
+      "INR-1",
+      "PER-1",
+      "PMR-1",
+      "PSR-1",
+      "QUR-1",
+      "SER-1",
+      "SFR-1",
+      "TER-1"
+    ],
+    "warnings": [
+      "coverage_gap:0-39"
+    ]
+  },
+  {
+    "name": "mofa",
+    "card_count": 31,
+    "inherited_page_count": 31,
+    "mapped_page_count": 0,
+    "unavailable_count": 0,
+    "prefixes": [
+      "COR",
+      "MAR",
+      "PMR",
+      "PSR",
+      "QUR",
+      "SER",
+      "SFR"
+    ],
+    "categories": [
+      "기능 요구사항",
+      "보안 요구사항",
+      "유지관리 요구사항",
+      "제약사항",
+      "품질 요구사항",
+      "프로젝트 관리 요구사항",
+      "프로젝트 지원 요구사항"
+    ],
+    "duplicate_ids": [],
+    "warnings": [
+      "coverage_gap:0-39"
+    ]
+  },
+  {
+    "name": "nyj",
+    "card_count": 35,
+    "inherited_page_count": 35,
+    "mapped_page_count": 0,
+    "unavailable_count": 0,
+    "prefixes": [
+      "COR",
+      "DAR",
+      "MHR",
+      "MPR",
+      "PMR",
+      "PSR",
+      "QUR",
+      "SER",
+      "SFR",
+      "TER"
+    ],
+    "categories": [
+      "기능",
+      "데이터",
+      "보안",
+      "유지관리 수행",
+      "유지관리 인력",
+      "제약",
+      "테스트",
+      "품질",
+      "프로젝트 관리",
+      "프로젝트 지원"
+    ],
+    "duplicate_ids": [],
+    "warnings": [
+      "coverage_gap:0-74"
+    ]
+  },
+  {
+    "name": "school",
+    "card_count": 48,
+    "inherited_page_count": 4,
+    "mapped_page_count": 0,
+    "unavailable_count": 44,
+    "prefixes": [
+      "COR",
+      "DAR",
+      "MHR",
+      "MPR",
+      "PMR",
+      "PSR",
+      "QUR",
+      "SER",
+      "TER"
+    ],
+    "categories": [
+      "데이터 요구사항",
+      "보안 요구사항",
+      "유지관리 수행 요구사항",
+      "유지관리 인력 요구사항",
+      "제약사항",
+      "테스트 요구사항",
+      "품질 요구사항",
+      "프로젝트 관리 요구사항",
+      "프로젝트 지원 요구사항"
+    ],
+    "duplicate_ids": [
+      "COR-1",
+      "DAR-1",
+      "MHR-1",
+      "MPR-1",
+      "PMR-1",
+      "PSR-1",
+      "QUR-1",
+      "SER-1",
+      "TER-1"
+    ],
+    "warnings": [
+      "coverage_gap:0-379"
+    ]
+  }
+]

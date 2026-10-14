@@ -2036,7 +2036,7 @@ def test_segments_endpoint_returns_the_manifest_without_source_text(context: Con
     body = response.json()
     assert body["schema"] == "bidops.document-segments.v1"
     assert body["structure_id"] == str(structure_id)
-    assert body["taxonomy_version"] == "bidops.segment-taxonomy.v1"
+    assert body["taxonomy_version"] == "bidops.segment-taxonomy.v2"
     assert "inventory_summary" in body and "coverage" in body
     for segment in body["segments"]:
         assert segment["classification_source"] == "deterministic"

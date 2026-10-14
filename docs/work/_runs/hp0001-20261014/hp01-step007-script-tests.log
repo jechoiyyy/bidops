@@ -1,0 +1,35 @@
+F..                                                                      [100%]
+=================================== FAILURES ===================================
+_______ test_evidence_cli_summarizes_cards_without_emitting_source_text ________
+
+tmp_path = PosixPath('/private/var/folders/_c/3g36y_md7rg3l_xrx0r5lxyr0000gp/T/pytest-of-temp/pytest-1227/test_evidence_cli_summarizes_c0')
+
+    def test_evidence_cli_summarizes_cards_without_emitting_source_text(tmp_path: Path) -> None:
+        _write_pair(tmp_path)
+        output_path = tmp_path / "evidence.json"
+    
+        result = _run("--dir", str(tmp_path), "--out", str(output_path))
+    
+        assert result.returncode == 0
+        rows = json.loads(result.stdout)
+        assert rows == json.loads(output_path.read_text(encoding="utf-8"))
+>       assert rows == [{
+            "name": "synthetic",
+            "card_count": 1,
+            "inherited_page_count": 1,
+            "mapped_page_count": 0,
+            "unavailable_count": 0,
+            "prefixes": ["SFR"],
+            "categories": ["기능"],
+            "duplicate_ids": [],
+            "warnings": [],
+        }]
+E       AssertionError: assert [{'card_count...unt': 1, ...}] == [{'card_count...unt': 1, ...}]
+E         
+E         At index 0 diff: {'name': 'synthetic', 'card_count': 1, 'inherited_page_count': 1, 'mapped_page_count': 0, 'unavailable_count': 0, 'prefixes': ['SFR'], 'categories': ['기능'], 'duplicate_ids': [], 'warnings': ['coverage_gap:0-0']} != {'name': 'synthetic', 'card_count': 1, 'inherited_page_count': 1, 'mapped_page_count': 0, 'unavailable_count': 0, 'prefixes': ['SFR'], 'categories': ['기능'], 'duplicate_ids': [], 'warnings': []}
+E         Use -v to get more diff
+
+tests/app/test_hp_card_inventory_script.py:92: AssertionError
+=========================== short test summary info ============================
+FAILED tests/app/test_hp_card_inventory_script.py::test_evidence_cli_summarizes_cards_without_emitting_source_text
+1 failed, 2 passed in 2.07s

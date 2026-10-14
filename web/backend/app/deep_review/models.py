@@ -430,6 +430,16 @@ class DocumentSegment(Base):
             ),
             name="ck_document_segment_source_block_keys",
         ),
+        CheckConstraint(
+            DualSQL(
+                "page_anchor_block_keys IS NULL OR "
+                "(json_valid(page_anchor_block_keys) AND "
+                "json_type(page_anchor_block_keys) = 'array')",
+                "page_anchor_block_keys IS NULL OR "
+                "jsonb_typeof(page_anchor_block_keys) = 'array'",
+            ),
+            name="ck_document_segment_page_anchor_block_keys",
+        ),
     )
 
     id: Mapped[uuid_module.UUID] = _uuid_column(primary_key=True)
@@ -444,6 +454,9 @@ class DocumentSegment(Base):
     end_locator: Mapped[Any] = mapped_column(JSONB_COMPAT, nullable=False)
     requirement_ids: Mapped[Any] = mapped_column(JSONB_COMPAT, nullable=False)
     source_block_keys: Mapped[Any] = mapped_column(JSONB_COMPAT, nullable=False)
+    page_anchor_block_keys: Mapped[Any | None] = mapped_column(
+        JSONB_NULL_COMPAT, nullable=True
+    )
     classification_source: Mapped[str] = mapped_column(String(32), nullable=False)
     confidence: Mapped[Decimal | None] = mapped_column(Numeric(6, 5), nullable=True)
     status: Mapped[str] = mapped_column(String(32), nullable=False)
@@ -476,6 +489,22 @@ class RequirementInventoryItem(Base):
             dual("json_valid(locator) AND json_type(locator) = 'object'"),
             name="ck_requirement_inventory_item_locator",
         ),
+        CheckConstraint(
+            "source IN ('column_header_table','label_value_table')",
+            name="ck_requirement_inventory_item_source",
+        ),
+        CheckConstraint(
+            "(source = 'column_header_table' AND card IS NULL) OR "
+            "(source = 'label_value_table' AND card IS NOT NULL)",
+            name="ck_requirement_inventory_item_card_source",
+        ),
+        CheckConstraint(
+            DualSQL(
+                "card IS NULL OR (json_valid(card) AND json_type(card) = 'object')",
+                "card IS NULL OR jsonb_typeof(card) = 'object'",
+            ),
+            name="ck_requirement_inventory_item_card",
+        ),
     )
 
     id: Mapped[uuid_module.UUID] = _uuid_column(primary_key=True)
@@ -487,6 +516,13 @@ class RequirementInventoryItem(Base):
     locator: Mapped[Any] = mapped_column(JSONB_COMPAT, nullable=False)
     title: Mapped[str | None] = mapped_column(Text, nullable=True)
     ordinal: Mapped[int] = mapped_column(Integer, nullable=False)
+    source: Mapped[str] = mapped_column(
+        Text,
+        default="column_header_table",
+        server_default=text("'column_header_table'"),
+        nullable=False,
+    )
+    card: Mapped[Any | None] = mapped_column(JSONB_NULL_COMPAT, nullable=True)
 
     manifest: Mapped["DocumentSegmentManifest"] = relationship(
         "DocumentSegmentManifest",

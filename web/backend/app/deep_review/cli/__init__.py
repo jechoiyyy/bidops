@@ -13,6 +13,8 @@
 - ``enqueue-overview``: 사전규격 공고 한 건의 개요 run을 대기열에 넣는다.
 - ``prepare-overviews``: 이미 적재된 사전규격의 자동 준비를 한 번에 돌린다.
 - ``close-overview-run``: 활성 개요 run 하나를 사람이 닫는다.
+- ``rebuild-segment-manifests``: 과거 ready 구조에 현재 segment manifest를
+  멱등 생성한다(worker 역할).
 
 T8 2단계가 두 스크립트에 패키지 진입점을 만들어 하나의 하위 명령 체계로
 합쳤다. 합친 것은 **진입점뿐**이고, 각 하위 명령의 인자·출력·종료 코드는
@@ -72,6 +74,10 @@ _SUBCOMMANDS: dict[str, tuple[str, str]] = {
     "close-overview-run": (
         ".close_overview_run",
         "활성 사전규격 개요 run 하나를 닫는다 (queued→cancelled, running→failed)",
+    ),
+    "rebuild-segment-manifests": (
+        ".rebuild_segment_manifests",
+        "과거 ready 구조에 현재 segment manifest를 멱등 생성한다 (worker 역할)",
     ),
 }
 

@@ -24,6 +24,7 @@ from sqlalchemy.orm import Session
 
 from ..document_mcp.contracts import validate_structure
 from ..document_mcp.processor import ClamAVChecker, DocumentProcessor
+from ...core.object_store import ObjectStore, ObjectStoreError, object_store
 from ...core.constants import (
     UNSUPPORTED_ATTACHMENT_EXTRACT_STATUS,
     UNSUPPORTED_ATTACHMENT_ISSUE_CODE,
@@ -267,6 +268,133 @@ def _as_uuid(value: UUID | str | None) -> UUID | None:
     return None if value is None else _uuid(value)
 
 
+def _latest_scan_clean(session: Session, content_id: UUID) -> bool:
+    scan = session.scalar(
+        select(ContentScan)
+        .where(ContentScan.content_object_id == content_id)
+        .order_by(ContentScan.scanned_at.desc(), ContentScan.id.desc())
+        .limit(1)
+    )
+    return scan is not None and scan.status == "clean"
+
+
+def _content_location_matches(
+    session: Session,
+    content: ContentObject,
+    store: ObjectStore,
+    namespace: str,
+) -> bool:
+    """고정 location의 object version·etag·크기·hash를 함께 확인한다."""
+
+    location = session.scalar(
+        select(ContentObjectLocation)
+        .where(
+            ContentObjectLocation.content_object_id == content.id,
+            ContentObjectLocation.namespace_key == namespace,
+            ContentObjectLocation.status == "verified",
+        )
+        .order_by(ContentObjectLocation.created_at.desc(), ContentObjectLocation.id.desc())
+    )
+    if location is None:
+        return False
+    try:
+        raw, object_metadata = store.get(
+            namespace,
+            location.object_key,
+            max_bytes=max(content.size_bytes, 1),
+            version_id=location.object_version_id,
+        )
+    except (ObjectStoreError, OSError, ValueError):
+        return False
+    return (
+        location.etag == object_metadata.etag
+        and location.object_version_id == object_metadata.object_version_id
+        and len(raw) == content.size_bytes
+        and hashlib.sha256(raw).hexdigest() == content.sha256
+    )
+
+
+def load_structure_payload(
+    session: Session,
+    structure: DocumentStructure,
+    store: ObjectStore,
+    *,
+    allow_unsafe: bool = False,
+) -> dict[str, Any] | None:
+    """고정 객체와 DB 계보를 재검증해 structure payload를 읽는다.
+
+    서비스 조회와 과거 구조 backfill이 같은 fail-closed 경계를 공유한다. 오류
+    본문이나 내부 object key는 호출자에게 내보내지 않고 ``None``으로 닫는다.
+    """
+
+    document = session.get(DocumentVersion, structure.document_version_id)
+    if document is None or (not allow_unsafe and document.safety_status != "safe"):
+        return None
+    content = session.get(ContentObject, document.content_object_id)
+    if content is None:
+        return None
+    if not allow_unsafe:
+        # A viewer/backfill must re-check the live safety projection instead
+        # of trusting a stale document version or structure row.
+        if not _latest_scan_clean(session, content.id):
+            return None
+        if (
+            structure.source_sha256 != content.sha256
+            or structure.media_type != content.detected_mime
+            or not _content_location_matches(session, content, store, "source")
+        ):
+            return None
+    location = session.scalar(
+        select(ContentObjectLocation)
+        .where(
+            ContentObjectLocation.content_object_id == structure.payload_content_object_id,
+            ContentObjectLocation.namespace_key == "structure",
+            ContentObjectLocation.status == "verified",
+        )
+        .order_by(ContentObjectLocation.created_at.desc(), ContentObjectLocation.id.desc())
+    )
+    if location is None:
+        return None
+    try:
+        payload_object = session.get(ContentObject, structure.payload_content_object_id)
+        if payload_object is None:
+            return None
+        raw, object_metadata = store.get(
+            "structure",
+            location.object_key,
+            max_bytes=max(payload_object.size_bytes, 1),
+            version_id=location.object_version_id,
+        )
+        if (
+            payload_object.sha256 != structure.payload_sha256
+            or len(raw) != payload_object.size_bytes
+            or hashlib.sha256(raw).hexdigest() != structure.payload_sha256
+            or location.etag != object_metadata.etag
+            or location.object_version_id != object_metadata.object_version_id
+        ):
+            return None
+        payload = json.loads(raw.decode("utf-8"))
+        if not isinstance(payload, dict):
+            return None
+        if (
+            payload.get("document_version_id") != str(document.id)
+            or payload.get("structure_id") != str(structure.id)
+            or payload.get("source_sha256") != structure.source_sha256
+        ):
+            return None
+        validate_structure(payload)
+        return payload
+    except (
+        ObjectStoreError,
+        OSError,
+        UnicodeError,
+        ValueError,
+        json.JSONDecodeError,
+        RuntimeError,
+    ):
+        return None
+
+
 class DocumentBundleService:
     """T3 application service; one instance may be configured in tests."""
 
@@ -282,6 +410,13 @@ class DocumentBundleService:
         self.processor = processor
         self.clamav_checker = clamav_checker
         self.converter = converter or ScratchDocumentProcessor(clamav_checker=clamav_checker)
+
+    def _object_store(self) -> ObjectStore:
+        return object_store(
+            self.root,
+            namespaces=("source", "structure"),
+            read_namespaces=("source", "structure"),
+        )
 
     # ------------------------------------------------------------------
     # ORM projection helpers
@@ -460,7 +595,9 @@ class DocumentBundleService:
             else:
                 if content is None or structure.source_sha256 != content.sha256 or structure.media_type != content.detected_mime:
                     issues.append(_error_issue("structure_unavailable", "문서 구조의 원문 계보가 일치하지 않습니다", document_version_id=document.id))
-                payload = self._load_structure_payload(session, structure, allow_unsafe=True)
+                payload = load_structure_payload(
+                    session, structure, self._object_store(), allow_unsafe=True
+                )
                 if payload is None:
                     # A missing, malformed, or hash/lineage-mismatched
                     # payload is a blocking issue; silently skipping it would
@@ -486,94 +623,12 @@ class DocumentBundleService:
             issues.append(_error_issue("attachment_bytes_missing", "확인 시점에 다뤄야 할 첨부가 없습니다"))
         return _dedupe_issues(issues)
 
-    def _load_structure_payload(self, session: Session, structure: DocumentStructure, *, allow_unsafe: bool = False) -> dict[str, Any] | None:
-        document = session.get(DocumentVersion, structure.document_version_id)
-        if document is None or (not allow_unsafe and document.safety_status != "safe"):
-            return None
-        content = session.get(ContentObject, document.content_object_id)
-        if content is None:
-            return None
-        if not allow_unsafe:
-            # A viewer must re-check the live safety projection instead of
-            # trusting a stale document version or structure row.
-            if not self._latest_scan_clean(session, content.id):
-                return None
-            if (
-                structure.source_sha256 != content.sha256
-                or structure.media_type != content.detected_mime
-                or not self._source_location_matches(session, content)
-            ):
-                return None
-        location = session.scalar(
-            select(ContentObjectLocation)
-            .where(
-                ContentObjectLocation.content_object_id == structure.payload_content_object_id,
-                ContentObjectLocation.namespace_key == "structure",
-                ContentObjectLocation.status == "verified",
-            )
-            .order_by(ContentObjectLocation.created_at.desc(), ContentObjectLocation.id.desc())
-        )
-        if location is None:
-            return None
-        try:
-            raw, object_metadata = assets.read_object("structure", location.object_key, root=self.root)
-            payload_object = session.get(ContentObject, structure.payload_content_object_id)
-            if (
-                payload_object is None
-                or payload_object.sha256 != structure.payload_sha256
-                or len(raw) != payload_object.size_bytes
-                or hashlib.sha256(raw).hexdigest() != structure.payload_sha256
-                or location.etag != object_metadata.etag
-                or location.object_version_id != object_metadata.object_version_id
-            ):
-                return None
-            payload = json.loads(raw.decode("utf-8"))
-            if not isinstance(payload, dict):
-                return None
-            if (
-                payload.get("document_version_id") != str(document.id)
-                or payload.get("structure_id") != str(structure.id)
-                or payload.get("source_sha256") != structure.source_sha256
-            ):
-                return None
-            # The JSON payload is authoritative, so lineage checks above are
-            # not enough: a syntactically valid but contract-invalid payload
-            # must also fail closed before it can influence ready validation.
-            validate_structure(payload)
-            return payload
-        except (assets.AssetError, OSError, UnicodeError, ValueError, json.JSONDecodeError, RuntimeError):
-            return None
-
     def _latest_scan_clean(self, session: Session, content_id: UUID) -> bool:
-        scan = session.scalar(
-            select(ContentScan)
-            .where(ContentScan.content_object_id == content_id)
-            .order_by(ContentScan.scanned_at.desc(), ContentScan.id.desc())
-            .limit(1)
-        )
-        return scan is not None and scan.status == "clean"
+        return _latest_scan_clean(session, content_id)
 
     def _source_location_matches(self, session: Session, content: ContentObject) -> bool:
-        location = session.scalar(
-            select(ContentObjectLocation)
-            .where(
-                ContentObjectLocation.content_object_id == content.id,
-                ContentObjectLocation.namespace_key == "source",
-                ContentObjectLocation.status == "verified",
-            )
-            .order_by(ContentObjectLocation.created_at.desc(), ContentObjectLocation.id.desc())
-        )
-        if location is None:
-            return False
-        try:
-            raw, object_metadata = assets.read_object("source", location.object_key, root=self.root)
-        except (assets.AssetError, OSError, ValueError):
-            return False
-        return (
-            location.etag == object_metadata.etag
-            and location.object_version_id == object_metadata.object_version_id
-            and len(raw) == content.size_bytes
-            and hashlib.sha256(raw).hexdigest() == content.sha256
+        return _content_location_matches(
+            session, content, self._object_store(), "source"
         )
 
     def _bundle_view(self, session: Session, bundle: DocumentBundle) -> BundleView:
@@ -817,7 +872,9 @@ class DocumentBundleService:
             content = session.get(ContentObject, document.content_object_id)
             if content is None:
                 continue
-            payload = self._load_structure_payload(session, structure, allow_unsafe=True)
+            payload = load_structure_payload(
+                session, structure, self._object_store(), allow_unsafe=True
+            )
             payload_hash = structure.payload_sha256 if payload is not None else "0" * 64
             planned.append((ordinal, document, structure, content, payload_hash))
             ordinal += 1
@@ -1310,7 +1367,13 @@ class DocumentBundleService:
                 and current_content is not None
                 and current_structure.source_sha256 == current_content.sha256 == asset.sha256
                 and current_structure.media_type == current_content.detected_mime
-                and self._load_structure_payload(session, current_structure, allow_unsafe=True) is not None
+                and load_structure_payload(
+                    session,
+                    current_structure,
+                    self._object_store(),
+                    allow_unsafe=True,
+                )
+                is not None
             )
             same_byte_restore = bool(
                 current
@@ -1549,7 +1612,13 @@ class DocumentBundleService:
                 and current_content is not None
                 and current_structure.source_sha256 == current_content.sha256 == asset.sha256
                 and current_structure.media_type == current_content.detected_mime
-                and self._load_structure_payload(session, current_structure, allow_unsafe=True) is not None
+                and load_structure_payload(
+                    session,
+                    current_structure,
+                    self._object_store(),
+                    allow_unsafe=True,
+                )
+                is not None
             )
             same_byte_restore = bool(current and current_content and current_content.sha256 == asset.sha256 and current_structure_valid and inspected.safety_status == "safe")
 
@@ -2089,7 +2158,7 @@ class DocumentBundleService:
         document = session.get(DocumentVersion, structure.document_version_id)
         if document is None or document.safety_status != "safe":
             raise BundleServiceError("unsafe_document", "quarantine 문서는 열람할 수 없습니다", status_code=403)
-        payload = self._load_structure_payload(session, structure)
+        payload = load_structure_payload(session, structure, self._object_store())
         if payload is None:
             raise BundleServiceError("unsafe_document", "document structure를 검증할 수 없습니다", status_code=403)
         try:

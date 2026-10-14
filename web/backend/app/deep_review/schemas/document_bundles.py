@@ -139,12 +139,13 @@ TaxonomyLabel = Literal[
     "technical_functional",
     "quality_security_constraints",
     "partnership_governance",
+    "operations_maintenance",
 ]
 SegmentStatus = Literal["classified", "needs_human_review"]
 SegmentLocatorKind = Literal["paragraph", "table_cell", "block"]
 # 대응표(``bidops.para-page-map.v1``)는 native snapshot에만 있다. 없으면
 # ``unavailable``·``null``이며 미확인을 페이지로 승격시키지 않는다.
-SegmentMappingStatus = Literal["mapped", "partial", "unavailable"]
+SegmentMappingStatus = Literal["mapped", "partial", "inherited", "unavailable"]
 
 
 class SegmentLocator(StrictModel):
@@ -196,6 +197,8 @@ class RequirementInventorySummary(StrictModel):
     ambiguous_items: list[RequirementInventoryAmbiguity]
     prefixes: list[str]
     item_count: int = Field(ge=0)
+    card_item_count: int = Field(ge=0)
+    label_value_table_count: int = Field(ge=0)
 
 
 class SegmentSpan(StrictModel):

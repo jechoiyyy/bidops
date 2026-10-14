@@ -349,10 +349,31 @@ test("우측 열은 보고서 범위·문서 inventory·수정본 저장·이력
 test("사람 확인 segment는 대응된 PDF 페이지만 링크하고 미확인은 미확인으로 남긴다", async ({ page }) => {
   await mockApi(page);
   await mockDeepReviewLifecycle(page, "completed");
+  const sourcePageRequests: string[] = [];
+  await page.route(`**/api/document-structures/${FIXTURE_STRUCTURE_ID}/pages/7`, async (route) => {
+    sourcePageRequests.push(new URL(route.request().url()).pathname);
+    await route.fulfill({
+      json: {
+        structure_id: FIXTURE_STRUCTURE_ID,
+        page: 7,
+        metadata: { number: 7, width: 612, height: 792, image_content_object_id: null },
+        blocks: [{
+          block_key: "fixture-block-inherited",
+          parent_block_key: null,
+          type: "paragraph",
+          page: 7,
+          bbox: null,
+          text: "상속 쪽을 가리키는 구조 원문 페이지",
+          confidence: null,
+          attributes: {},
+        }],
+      },
+    });
+  });
   await page.goto("/deep-reviews/fixture-review");
 
   const items = page.locator(".deep-review-segment-list > li");
-  await expect(items).toHaveCount(3, { timeout: 10_000 });
+  await expect(items).toHaveCount(4, { timeout: 10_000 });
 
   // 구간은 계약 순번(`segment 2`)이 아니라 사람 말 머리로 구분한다. 계약
   // 순번·블록 키·요구사항 ID 나열은 접힌 `기술 정보` 안에 그대로 남는다.
@@ -373,6 +394,19 @@ test("사람 확인 segment는 대응된 PDF 페이지만 링크하고 미확인
   const unavailable = page.locator('.deep-review-segment-list > li[data-segment-ordinal="4"]');
   await expect(unavailable).toContainText("페이지 미확인");
   await expect(unavailable.getByRole("link")).toHaveCount(0);
+
+  // inherited도 PDF에는 물리 쪽 8을 연결하지만, 원문 열기는 구조 locator의 쪽 7을 쓴다.
+  const inherited = page.locator('.deep-review-segment-list > li[data-segment-ordinal="5"]');
+  await expect(inherited).toContainText("운영·유지관리");
+  await expect(inherited).toContainText("앞 문단 쪽 상속");
+  const inheritedLink = inherited.getByRole("link", { name: "5번째 구간 · PDF 8페이지 열기" });
+  await expect(inheritedLink).toHaveAttribute("href", `/api/document-structures/${FIXTURE_STRUCTURE_ID}/pdf#page=8`);
+  await expect(inheritedLink).toHaveText("PDF 8페이지 ↗");
+  await inherited.getByRole("button", { name: "7쪽 원문 열기", exact: true }).click();
+  const source = page.locator("#deep-review-segment-source");
+  await expect(source).toContainText("페이지 7 원문");
+  await expect(source).toContainText("상속 쪽을 가리키는 구조 원문 페이지");
+  expect(sourcePageRequests).toEqual([`/api/document-structures/${FIXTURE_STRUCTURE_ID}/pages/7`]);
 
   // 접은 곳을 펴면 계약 순번·블록 키·요구사항 ID가 그대로 있다.
   await expect(partial.getByText("fixture-block-partial")).toBeHidden();

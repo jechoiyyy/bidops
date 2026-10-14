@@ -1,15 +1,15 @@
 {
   "schema_version": 2,
   "feature": "HP-01-requirement-cards",
-  "phase": "review",
+  "phase": "validating",
   "steps": [
     {
       "id": "STEP-001",
       "title": "카드 표 판정·파서·경계",
       "model": "complex",
       "fingerprint": "e5835a2ddea4b5e54057e48077fc99d314c79b15f7ce70b48f0aab92d785ecf5",
-      "status": "stale",
-      "updated_at": null,
+      "status": "done",
+      "updated_at": "2026-10-14T23:27:09+09:00",
       "history": [
         {
           "id": "STEP-001",
@@ -37,15 +37,16 @@
             }
           ]
         }
-      ]
+      ],
+      "note": "리더 T1~T4/T8 5passed. 새 summary schema는 STEP002에서 같은묶음 완성; 임시우회없음"
     },
     {
       "id": "STEP-002",
       "title": "저장 열·계약 스키마·pydantic",
       "model": "complex",
       "fingerprint": "3df599b99c8f10a6eddf88a7e0162714440bf0d8c42c6a33adef5ab20ea83a87",
-      "status": "stale",
-      "updated_at": null,
+      "status": "done",
+      "updated_at": "2026-10-14T23:35:37+09:00",
       "history": [
         {
           "id": "STEP-002",
@@ -55,15 +56,16 @@
           "status": "pending",
           "updated_at": null
         }
-      ]
+      ],
+      "note": "리더: 관련109pass·PG수정후2pass·runtime3pass. 기존 Linux /proc 변환검사 host 환경 실패1 및 MinIO skip1은 별도기록; 카드 segment 대상 assertion 수정. migration 기존행 보존 확인"
     },
     {
       "id": "STEP-003",
       "title": "쪽 계산과 조회 함수",
       "model": "standard",
       "fingerprint": "3522f8f247c87fe1c1a882915b8bc33b48f5d52a878a957310b7fd10b2aa52bf",
-      "status": "stale",
-      "updated_at": null,
+      "status": "done",
+      "updated_at": "2026-10-14T23:42:44+09:00",
       "history": [
         {
           "id": "STEP-003",
@@ -73,15 +75,16 @@
           "status": "pending",
           "updated_at": null
         }
-      ]
+      ],
+      "note": "리더 관련단위/PG 38pass, 직접매핑 우선·저장anchor상속·대응표변조failclosed"
     },
     {
       "id": "STEP-004",
       "title": "taxonomy v2",
       "model": "standard",
       "fingerprint": "b940176c3b5016b15c2f85d53c544429c038a7f06ceb44558eb7299c32dfc413",
-      "status": "stale",
-      "updated_at": null,
+      "status": "done",
+      "updated_at": "2026-10-14T23:46:24+09:00",
       "history": [
         {
           "id": "STEP-004",
@@ -91,15 +94,16 @@
           "status": "pending",
           "updated_at": null
         }
-      ]
+      ],
+      "note": "리더 taxonomy/card/endpoint 관련38pass. v2 category우선·기존충돌 보존"
     },
     {
       "id": "STEP-005",
       "title": "backfill CLI",
       "model": "complex",
       "fingerprint": "f16b453fb3ccd491df0bf268bb4e2c231a98a1091528e8bcf4cdeeb50777bbcf",
-      "status": "stale",
-      "updated_at": null,
+      "status": "done",
+      "updated_at": "2026-10-14T23:55:53+09:00",
       "history": [
         {
           "id": "STEP-005",
@@ -127,43 +131,106 @@
             }
           ]
         }
-      ]
+      ],
+      "note": "리더 PG·CLI실프로세스 worker권한·bundle영향 96pass; MinIO별도fixture1skip, Linux전용변환1제외(앞서Linux통과). dry/create/repeat/missing/hash/savepoint 확인"
     },
     {
       "id": "STEP-006",
       "title": "프런트 타입·라벨",
       "model": "standard",
       "fingerprint": "cb5005597a0a73c44c941e4fe9bf6f170896ce5213f45d2ea9a79acbb4db0f35",
-      "status": "pending",
-      "updated_at": null
+      "status": "done",
+      "updated_at": "2026-10-15T00:00:57+09:00",
+      "note": "리더 strict tsc+productionbuild 및 관련Playwright4pass(의미2·1280/1440구조2). mock API, 실제모델인수아님"
     },
     {
       "id": "STEP-007",
       "title": "증거 스크립트와 문서",
       "model": "standard",
       "fingerprint": "4cf76c6a163b63316e366da8193459bf0402b519ac570951b28ba81f181423cb",
-      "status": "pending",
-      "updated_at": null
+      "status": "done",
+      "updated_at": "2026-10-15T00:12:46+09:00",
+      "note": "리더 CLI합성3pass(실패기대1수정); 실제5건T11카드198·쪽88/198 목표미달명시; PDF10표본; doctor통과. 격리0037/backfill1건·멱등·이전행보존·REST200 완료"
     }
   ],
   "proof": {
     "docs": {
-      "result": "pending"
+      "result": "pass",
+      "method": "review",
+      "note": "독립 최종 리뷰 PASS, 차단0; 현재 계약·실측·한계 기록 일치",
+      "evidence": "docs/work/_runs/hp0001-20261014/final-batch-review.md",
+      "exit_code": null,
+      "actor": "orchestrator",
+      "command": "python3 scripts/feature_status.py doctor _",
+      "at": "2026-10-15T00:19:30+09:00",
+      "head": "daf520186bc4381bf64837bba24eeabee9cbc20a",
+      "source_hash": "1a40e9af45a73b1259bfae71eb933f9ec46d309b47c20d6aec98764f51d7db79",
+      "spec_hash": "a3381294c849873f6c48178e048a604125e22396eeb8a1df943f94e29dc29c2b"
     },
     "tests": {
-      "result": "pending"
+      "result": "pass",
+      "method": "command",
+      "note": "최종 통합 제품 입력의 관련검사 및 개별 로그 참조; skip/미검증 한계 명시",
+      "evidence": "docs/work/_runs/hp0001-20261014/hp0001-final-validation.md",
+      "exit_code": 0,
+      "actor": "orchestrator",
+      "command": "",
+      "at": "2026-10-15T00:15:47+09:00",
+      "head": "daf520186bc4381bf64837bba24eeabee9cbc20a",
+      "source_hash": "1a40e9af45a73b1259bfae71eb933f9ec46d309b47c20d6aec98764f51d7db79",
+      "spec_hash": "a3381294c849873f6c48178e048a604125e22396eeb8a1df943f94e29dc29c2b"
     },
     "postgres": {
-      "result": "pending"
+      "result": "pass",
+      "method": "command",
+      "note": "최종 통합 제품 입력의 관련검사 및 개별 로그 참조; skip/미검증 한계 명시",
+      "evidence": "docs/work/_runs/hp0001-20261014/hp0001-final-validation.md",
+      "exit_code": 0,
+      "actor": "orchestrator",
+      "command": "",
+      "at": "2026-10-15T00:15:47+09:00",
+      "head": "daf520186bc4381bf64837bba24eeabee9cbc20a",
+      "source_hash": "1a40e9af45a73b1259bfae71eb933f9ec46d309b47c20d6aec98764f51d7db79",
+      "spec_hash": "a3381294c849873f6c48178e048a604125e22396eeb8a1df943f94e29dc29c2b"
     },
     "frontend": {
-      "result": "pending"
+      "result": "pass",
+      "method": "command",
+      "note": "최종 통합 제품 입력의 관련검사 및 개별 로그 참조; skip/미검증 한계 명시",
+      "evidence": "docs/work/_runs/hp0001-20261014/hp0001-final-validation.md",
+      "exit_code": 0,
+      "actor": "orchestrator",
+      "command": "",
+      "at": "2026-10-15T00:15:47+09:00",
+      "head": "daf520186bc4381bf64837bba24eeabee9cbc20a",
+      "source_hash": "1a40e9af45a73b1259bfae71eb933f9ec46d309b47c20d6aec98764f51d7db79",
+      "spec_hash": "a3381294c849873f6c48178e048a604125e22396eeb8a1df943f94e29dc29c2b"
     },
     "api_guard": {
-      "result": "pending"
+      "result": "not_applicable",
+      "method": "command",
+      "note": "HP00 승인/소속/identity 경계 관련검사 통과; HP01은 외부 호출·회사 자원 접근 변경 없음",
+      "evidence": "docs/work/_runs/hp0001-20261014/hp0001-final-validation.md",
+      "exit_code": null,
+      "actor": "orchestrator",
+      "command": "",
+      "at": "2026-10-15T00:15:48+09:00",
+      "head": "daf520186bc4381bf64837bba24eeabee9cbc20a",
+      "source_hash": "1a40e9af45a73b1259bfae71eb933f9ec46d309b47c20d6aec98764f51d7db79",
+      "spec_hash": "a3381294c849873f6c48178e048a604125e22396eeb8a1df943f94e29dc29c2b"
     },
     "real_data_run": {
-      "result": "pending"
+      "result": "not_applicable",
+      "method": "manual",
+      "note": "feature.json: 사람 인수 proof는 HP03/06만 적용. HP00 실제 identity 검증은 별도 기록하며 분석 실패를 보존",
+      "evidence": "docs/work/_runs/hp0001-20261014/hp0001-final-validation.md",
+      "exit_code": null,
+      "actor": "orchestrator",
+      "command": "",
+      "at": "2026-10-15T00:15:47+09:00",
+      "head": "daf520186bc4381bf64837bba24eeabee9cbc20a",
+      "source_hash": "1a40e9af45a73b1259bfae71eb933f9ec46d309b47c20d6aec98764f51d7db79",
+      "spec_hash": "a3381294c849873f6c48178e048a604125e22396eeb8a1df943f94e29dc29c2b"
     }
   },
   "notes": [
@@ -186,7 +253,109 @@
     {
       "at": "2026-10-14T19:45:39+09:00",
       "text": "단계 → review: 독립 검사 2회(1차 지적 13건 반영, 2차 잔여: 저장 열·anchor 운반·카드 prefix 규칙·backfill 실행 자리). 제품 구현 미착수"
+    },
+    {
+      "at": "2026-10-14T23:20:02+09:00",
+      "text": "단계 → implementing: HP00 실제 모델 검증 감시 중, 큐 의존 없는 HP01을 별도 기능 worktree에서 구현. 사용자 unattended 지시에 따라 독립작업 진행, 통합은 각 필수 게이트 후"
+    },
+    {
+      "at": "2026-10-14T23:20:02+09:00",
+      "text": "단계 STEP-001 in_progress: "
+    },
+    {
+      "at": "2026-10-14T23:27:09+09:00",
+      "text": "단계 STEP-001 done: 리더 T1~T4/T8 5passed. 새 summary schema는 STEP002에서 같은묶음 완성; 임시우회없음"
+    },
+    {
+      "at": "2026-10-14T23:27:09+09:00",
+      "text": "단계 STEP-002 in_progress: "
+    },
+    {
+      "at": "2026-10-14T23:35:37+09:00",
+      "text": "단계 STEP-002 done: 리더: 관련109pass·PG수정후2pass·runtime3pass. 기존 Linux /proc 변환검사 host 환경 실패1 및 MinIO skip1은 별도기록; 카드 segment 대상 assertion 수정. migration 기존행 보존 확인"
+    },
+    {
+      "at": "2026-10-14T23:35:37+09:00",
+      "text": "단계 STEP-003 in_progress: "
+    },
+    {
+      "at": "2026-10-14T23:42:44+09:00",
+      "text": "단계 STEP-003 done: 리더 관련단위/PG 38pass, 직접매핑 우선·저장anchor상속·대응표변조failclosed"
+    },
+    {
+      "at": "2026-10-14T23:42:44+09:00",
+      "text": "단계 STEP-004 in_progress: "
+    },
+    {
+      "at": "2026-10-14T23:46:24+09:00",
+      "text": "단계 STEP-004 done: 리더 taxonomy/card/endpoint 관련38pass. v2 category우선·기존충돌 보존"
+    },
+    {
+      "at": "2026-10-14T23:46:24+09:00",
+      "text": "단계 STEP-005 in_progress: "
+    },
+    {
+      "at": "2026-10-14T23:55:53+09:00",
+      "text": "단계 STEP-005 done: 리더 PG·CLI실프로세스 worker권한·bundle영향 96pass; MinIO별도fixture1skip, Linux전용변환1제외(앞서Linux통과). dry/create/repeat/missing/hash/savepoint 확인"
+    },
+    {
+      "at": "2026-10-14T23:55:53+09:00",
+      "text": "단계 STEP-006 in_progress: "
+    },
+    {
+      "at": "2026-10-15T00:00:57+09:00",
+      "text": "단계 STEP-006 done: 리더 strict tsc+productionbuild 및 관련Playwright4pass(의미2·1280/1440구조2). mock API, 실제모델인수아님"
+    },
+    {
+      "at": "2026-10-15T00:00:57+09:00",
+      "text": "단계 STEP-007 in_progress: "
+    },
+    {
+      "at": "2026-10-15T00:12:46+09:00",
+      "text": "단계 STEP-007 done: 리더 CLI합성3pass(실패기대1수정); 실제5건T11카드198·쪽88/198 목표미달명시; PDF10표본; doctor통과. 격리0037/backfill1건·멱등·이전행보존·REST200 완료"
+    },
+    {
+      "at": "2026-10-15T00:15:31+09:00",
+      "text": "단계 → validating: 7단계완료, 최종 관련검사/격리0037·backfill·불변확인 완료. 쪽가용성목표미달은 정본한계로 보존, 독립최종review중"
     }
   ],
-  "updated_at": "2026-10-14T19:45:39+09:00"
+  "updated_at": "2026-10-15T00:19:30+09:00",
+  "proof_history": [
+    {
+      "key": "tests",
+      "previous": {
+        "result": "pending"
+      }
+    },
+    {
+      "key": "postgres",
+      "previous": {
+        "result": "pending"
+      }
+    },
+    {
+      "key": "frontend",
+      "previous": {
+        "result": "pending"
+      }
+    },
+    {
+      "key": "real_data_run",
+      "previous": {
+        "result": "pending"
+      }
+    },
+    {
+      "key": "api_guard",
+      "previous": {
+        "result": "pending"
+      }
+    },
+    {
+      "key": "docs",
+      "previous": {
+        "result": "pending"
+      }
+    }
+  ]
 }

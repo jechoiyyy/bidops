@@ -248,79 +248,79 @@
     "docs": {
       "result": "pass",
       "method": "review",
-      "note": "독립 코드리뷰 차단0+배포증거 리더확인+doctor/diff 통과; 배치최종리뷰 별도",
-      "evidence": "docs/work/_runs/hp0001-20261014/HP-00-luna-model-identity.md",
+      "note": "독립 최종 리뷰 PASS, 차단0; 현재 계약·실측·한계 기록 일치",
+      "evidence": "docs/work/_runs/hp0001-20261014/final-batch-review.md",
       "exit_code": null,
       "actor": "orchestrator",
       "command": "python3 scripts/feature_status.py doctor _",
-      "at": "2026-10-14T23:25:07+09:00",
-      "head": "fba715332e70e0994e2296a8899acf8270f5bd6b",
-      "source_hash": "63523c2d1d7bd8f3e8deefc5eb0a418ca587c3814c62e977875a8d62b04079da",
+      "at": "2026-10-15T00:19:30+09:00",
+      "head": "daf520186bc4381bf64837bba24eeabee9cbc20a",
+      "source_hash": "1a40e9af45a73b1259bfae71eb933f9ec46d309b47c20d6aec98764f51d7db79",
       "spec_hash": "d683a71b1c92e848373458189f3588e4955e8f74e0fadc14c36b5dd905c5e604"
     },
     "tests": {
       "result": "pass",
       "method": "command",
-      "note": "제품/테스트 소스 동일; 관련160사례 통과 로그 재사용. T11 actual identity 증거 포함, 품질성공 아님",
-      "evidence": "docs/work/_runs/hp0001-20261014/HP-00-luna-model-identity.md",
+      "note": "최종 통합 제품 입력의 관련검사 및 개별 로그 참조; skip/미검증 한계 명시",
+      "evidence": "docs/work/_runs/hp0001-20261014/hp0001-final-validation.md",
       "exit_code": 0,
       "actor": "orchestrator",
       "command": "",
-      "at": "2026-10-14T23:25:08+09:00",
-      "head": "fba715332e70e0994e2296a8899acf8270f5bd6b",
-      "source_hash": "63523c2d1d7bd8f3e8deefc5eb0a418ca587c3814c62e977875a8d62b04079da",
+      "at": "2026-10-15T00:15:46+09:00",
+      "head": "daf520186bc4381bf64837bba24eeabee9cbc20a",
+      "source_hash": "1a40e9af45a73b1259bfae71eb933f9ec46d309b47c20d6aec98764f51d7db79",
       "spec_hash": "d683a71b1c92e848373458189f3588e4955e8f74e0fadc14c36b5dd905c5e604"
     },
     "postgres": {
       "result": "pass",
       "method": "command",
-      "note": "제품소스 동일; 일회용PG17.11 변형 통과 증거 재사용",
-      "evidence": "docs/work/_runs/hp0001-20261014/HP-00-luna-model-identity.md",
+      "note": "최종 통합 제품 입력의 관련검사 및 개별 로그 참조; skip/미검증 한계 명시",
+      "evidence": "docs/work/_runs/hp0001-20261014/hp0001-final-validation.md",
       "exit_code": 0,
       "actor": "orchestrator",
       "command": "",
-      "at": "2026-10-14T23:25:08+09:00",
-      "head": "fba715332e70e0994e2296a8899acf8270f5bd6b",
-      "source_hash": "63523c2d1d7bd8f3e8deefc5eb0a418ca587c3814c62e977875a8d62b04079da",
+      "at": "2026-10-15T00:15:46+09:00",
+      "head": "daf520186bc4381bf64837bba24eeabee9cbc20a",
+      "source_hash": "1a40e9af45a73b1259bfae71eb933f9ec46d309b47c20d6aec98764f51d7db79",
       "spec_hash": "d683a71b1c92e848373458189f3588e4955e8f74e0fadc14c36b5dd905c5e604"
     },
     "frontend": {
       "result": "pass",
       "method": "command",
-      "note": "프런트소스 동일; tsc/build 및 browser27pass 증거 재사용",
-      "evidence": "docs/work/_runs/hp0001-20261014/frontend-browser-tests.log",
+      "note": "최종 통합 제품 입력의 관련검사 및 개별 로그 참조; skip/미검증 한계 명시",
+      "evidence": "docs/work/_runs/hp0001-20261014/hp0001-final-validation.md",
       "exit_code": 0,
       "actor": "orchestrator",
       "command": "",
-      "at": "2026-10-14T23:25:08+09:00",
-      "head": "fba715332e70e0994e2296a8899acf8270f5bd6b",
-      "source_hash": "63523c2d1d7bd8f3e8deefc5eb0a418ca587c3814c62e977875a8d62b04079da",
+      "at": "2026-10-15T00:15:46+09:00",
+      "head": "daf520186bc4381bf64837bba24eeabee9cbc20a",
+      "source_hash": "1a40e9af45a73b1259bfae71eb933f9ec46d309b47c20d6aec98764f51d7db79",
       "spec_hash": "d683a71b1c92e848373458189f3588e4955e8f74e0fadc14c36b5dd905c5e604"
     },
     "api_guard": {
       "result": "pass",
       "method": "command",
-      "note": "제품소스 동일; identity mismatch 및 승인불변 guard 검사 재사용, 실제응답도 결정적검증에 의해 차단",
-      "evidence": "docs/work/_runs/hp0001-20261014/HP-00-luna-model-identity.md",
+      "note": "HP00 승인/소속/identity 경계 관련검사 통과; HP01은 외부 호출·회사 자원 접근 변경 없음",
+      "evidence": "docs/work/_runs/hp0001-20261014/hp0001-final-validation.md",
       "exit_code": 0,
       "actor": "orchestrator",
       "command": "",
-      "at": "2026-10-14T23:25:09+09:00",
-      "head": "fba715332e70e0994e2296a8899acf8270f5bd6b",
-      "source_hash": "63523c2d1d7bd8f3e8deefc5eb0a418ca587c3814c62e977875a8d62b04079da",
+      "at": "2026-10-15T00:15:47+09:00",
+      "head": "daf520186bc4381bf64837bba24eeabee9cbc20a",
+      "source_hash": "1a40e9af45a73b1259bfae71eb933f9ec46d309b47c20d6aec98764f51d7db79",
       "spec_hash": "d683a71b1c92e848373458189f3588e4955e8f74e0fadc14c36b5dd905c5e604"
     },
     "real_data_run": {
       "result": "not_applicable",
       "method": "manual",
-      "note": "feature.json 적용대상 HP03/06 사람인수에만 해당. HP00 T11 실제identity 별도확인, 사용자 인수/모델품질 대신 작성하지 않음",
-      "evidence": "docs/work/_runs/hp0001-20261014/step006-smoke-attempt.json",
+      "note": "feature.json: 사람 인수 proof는 HP03/06만 적용. HP00 실제 identity 검증은 별도 기록하며 분석 실패를 보존",
+      "evidence": "docs/work/_runs/hp0001-20261014/hp0001-final-validation.md",
       "exit_code": null,
       "actor": "orchestrator",
       "command": "",
-      "at": "2026-10-14T23:25:09+09:00",
-      "head": "fba715332e70e0994e2296a8899acf8270f5bd6b",
-      "source_hash": "63523c2d1d7bd8f3e8deefc5eb0a418ca587c3814c62e977875a8d62b04079da",
+      "at": "2026-10-15T00:15:46+09:00",
+      "head": "daf520186bc4381bf64837bba24eeabee9cbc20a",
+      "source_hash": "1a40e9af45a73b1259bfae71eb933f9ec46d309b47c20d6aec98764f51d7db79",
       "spec_hash": "d683a71b1c92e848373458189f3588e4955e8f74e0fadc14c36b5dd905c5e604"
     }
   },
@@ -414,7 +414,7 @@
       "text": "단계 STEP-006 done: 실제1건 invocation model/CLI/effort/policy hash 확인 T11 충족. initial+repair 응답은 결정적검증 실패로 안전종결; 품질·분석성공 아님. active0, 기존 데이터보존."
     }
   ],
-  "updated_at": "2026-10-14T23:25:09+09:00",
+  "updated_at": "2026-10-15T00:19:30+09:00",
   "proof_history": [
     {
       "key": "docs",
@@ -550,6 +550,102 @@
         "at": "2026-10-14T20:32:42+09:00",
         "head": "fba715332e70e0994e2296a8899acf8270f5bd6b",
         "source_hash": "64baf7da99c69ab42765b7ec832bba1f65d6959277527217b8a5f843188cc727",
+        "spec_hash": "d683a71b1c92e848373458189f3588e4955e8f74e0fadc14c36b5dd905c5e604"
+      }
+    },
+    {
+      "key": "tests",
+      "previous": {
+        "result": "pass",
+        "method": "command",
+        "note": "제품/테스트 소스 동일; 관련160사례 통과 로그 재사용. T11 actual identity 증거 포함, 품질성공 아님",
+        "evidence": "docs/work/_runs/hp0001-20261014/HP-00-luna-model-identity.md",
+        "exit_code": 0,
+        "actor": "orchestrator",
+        "command": "",
+        "at": "2026-10-14T23:25:08+09:00",
+        "head": "fba715332e70e0994e2296a8899acf8270f5bd6b",
+        "source_hash": "63523c2d1d7bd8f3e8deefc5eb0a418ca587c3814c62e977875a8d62b04079da",
+        "spec_hash": "d683a71b1c92e848373458189f3588e4955e8f74e0fadc14c36b5dd905c5e604"
+      }
+    },
+    {
+      "key": "postgres",
+      "previous": {
+        "result": "pass",
+        "method": "command",
+        "note": "제품소스 동일; 일회용PG17.11 변형 통과 증거 재사용",
+        "evidence": "docs/work/_runs/hp0001-20261014/HP-00-luna-model-identity.md",
+        "exit_code": 0,
+        "actor": "orchestrator",
+        "command": "",
+        "at": "2026-10-14T23:25:08+09:00",
+        "head": "fba715332e70e0994e2296a8899acf8270f5bd6b",
+        "source_hash": "63523c2d1d7bd8f3e8deefc5eb0a418ca587c3814c62e977875a8d62b04079da",
+        "spec_hash": "d683a71b1c92e848373458189f3588e4955e8f74e0fadc14c36b5dd905c5e604"
+      }
+    },
+    {
+      "key": "frontend",
+      "previous": {
+        "result": "pass",
+        "method": "command",
+        "note": "프런트소스 동일; tsc/build 및 browser27pass 증거 재사용",
+        "evidence": "docs/work/_runs/hp0001-20261014/frontend-browser-tests.log",
+        "exit_code": 0,
+        "actor": "orchestrator",
+        "command": "",
+        "at": "2026-10-14T23:25:08+09:00",
+        "head": "fba715332e70e0994e2296a8899acf8270f5bd6b",
+        "source_hash": "63523c2d1d7bd8f3e8deefc5eb0a418ca587c3814c62e977875a8d62b04079da",
+        "spec_hash": "d683a71b1c92e848373458189f3588e4955e8f74e0fadc14c36b5dd905c5e604"
+      }
+    },
+    {
+      "key": "real_data_run",
+      "previous": {
+        "result": "not_applicable",
+        "method": "manual",
+        "note": "feature.json 적용대상 HP03/06 사람인수에만 해당. HP00 T11 실제identity 별도확인, 사용자 인수/모델품질 대신 작성하지 않음",
+        "evidence": "docs/work/_runs/hp0001-20261014/step006-smoke-attempt.json",
+        "exit_code": null,
+        "actor": "orchestrator",
+        "command": "",
+        "at": "2026-10-14T23:25:09+09:00",
+        "head": "fba715332e70e0994e2296a8899acf8270f5bd6b",
+        "source_hash": "63523c2d1d7bd8f3e8deefc5eb0a418ca587c3814c62e977875a8d62b04079da",
+        "spec_hash": "d683a71b1c92e848373458189f3588e4955e8f74e0fadc14c36b5dd905c5e604"
+      }
+    },
+    {
+      "key": "api_guard",
+      "previous": {
+        "result": "pass",
+        "method": "command",
+        "note": "제품소스 동일; identity mismatch 및 승인불변 guard 검사 재사용, 실제응답도 결정적검증에 의해 차단",
+        "evidence": "docs/work/_runs/hp0001-20261014/HP-00-luna-model-identity.md",
+        "exit_code": 0,
+        "actor": "orchestrator",
+        "command": "",
+        "at": "2026-10-14T23:25:09+09:00",
+        "head": "fba715332e70e0994e2296a8899acf8270f5bd6b",
+        "source_hash": "63523c2d1d7bd8f3e8deefc5eb0a418ca587c3814c62e977875a8d62b04079da",
+        "spec_hash": "d683a71b1c92e848373458189f3588e4955e8f74e0fadc14c36b5dd905c5e604"
+      }
+    },
+    {
+      "key": "docs",
+      "previous": {
+        "result": "pass",
+        "method": "review",
+        "note": "독립 코드리뷰 차단0+배포증거 리더확인+doctor/diff 통과; 배치최종리뷰 별도",
+        "evidence": "docs/work/_runs/hp0001-20261014/HP-00-luna-model-identity.md",
+        "exit_code": null,
+        "actor": "orchestrator",
+        "command": "python3 scripts/feature_status.py doctor _",
+        "at": "2026-10-14T23:25:07+09:00",
+        "head": "fba715332e70e0994e2296a8899acf8270f5bd6b",
+        "source_hash": "63523c2d1d7bd8f3e8deefc5eb0a418ca587c3814c62e977875a8d62b04079da",
         "spec_hash": "d683a71b1c92e848373458189f3588e4955e8f74e0fadc14c36b5dd905c5e604"
       }
     }
