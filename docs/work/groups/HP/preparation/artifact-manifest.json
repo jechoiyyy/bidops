@@ -1,0 +1,83 @@
+{
+  "schema_version": "bidops.hp-preparation-manifest.v1",
+  "status": "draft_only",
+  "external_root": "/Users/temp/orca/bidops/.sdlc/local-runtime/hp-preparation-20261015",
+  "files": [
+    {
+      "name": "cards.v1.json",
+      "sha256": "b179e87f5e80da3b4c5fa92abf6b5e167c39eb7a78d132ec21095915ef4ab10f",
+      "bytes": 685744
+    },
+    {
+      "name": "cards.v2.json",
+      "sha256": "9883e9a7e45914c327804384986584ec2ee436709a5dfabfb696649db188b1d7",
+      "bytes": 685744
+    },
+    {
+      "name": "coverage.v1.json",
+      "sha256": "6ba1feca271236e01609c61658eda411ca7302269f397c5ed3f828346342abe5",
+      "bytes": 599969
+    },
+    {
+      "name": "coverage.v2.json",
+      "sha256": "a0058f6cd8af069dbdfab1438fc2327bcb7500a4cd26694214337120f888b7a4",
+      "bytes": 599969
+    },
+    {
+      "name": "human-worksheet.blank.v1.json",
+      "sha256": "8a9334d3c73f038e3f24e107bec33f84dc267cd0fff7921114db7d94c1306db9",
+      "bytes": 672758
+    },
+    {
+      "name": "human-worksheet.blank.v2.json",
+      "sha256": "ee01d6d2a8d0064571da0ac3509128f7f6ee9588597295f29dea241fd7707616",
+      "bytes": 672758
+    }
+  ],
+  "documents": [
+    {
+      "id": "doc1",
+      "source_sha256": "8b6cbf1a7da6f242dae0a1a90b2513513178667a7fc2343e93cbcf6318005a1e",
+      "cards": 27,
+      "inherited": 0,
+      "unavailable": 27
+    },
+    {
+      "id": "gangwon",
+      "source_sha256": "a82b1ed3115780861689981d6d00d0b342f4177b87d9060dd443ac5c7616a42a",
+      "cards": 57,
+      "inherited": 18,
+      "unavailable": 39
+    },
+    {
+      "id": "mofa",
+      "source_sha256": "0c244555166296720f0bbb0b35a3d1d9429087a1d3f6b08842a47872e335cd3e",
+      "cards": 31,
+      "inherited": 31,
+      "unavailable": 0
+    },
+    {
+      "id": "nyj",
+      "source_sha256": "9493e92b163c6587399c5ab93e1eaad03a90f06486830c3c20c446a37f205abc",
+      "cards": 35,
+      "inherited": 35,
+      "unavailable": 0
+    },
+    {
+      "id": "school",
+      "source_sha256": "7d1da6d943c4a2e92ea8ec495e980b4616bd3d4d2cbf415e7e0bc0348720657b",
+      "cards": 48,
+      "inherited": 4,
+      "unavailable": 44
+    }
+  ],
+  "candidate_concepts": 28,
+  "candidate_matched_cards": 129,
+  "human_gold_completed": 0,
+  "final_acceptance": null,
+  "current_files": [
+    "cards.v2.json",
+    "coverage.v2.json",
+    "human-worksheet.blank.v2.json"
+  ]
+}

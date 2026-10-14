@@ -1,0 +1,20 @@
+{
+  "schema_version": "bidops.hp-preparation-validation.v1",
+  "status": "preparation_tools_only",
+  "synthetic_tests_passed": 14,
+  "actual_document_count": 5,
+  "actual_unique_cards": 198,
+  "candidate_matched_cards": 129,
+  "unmatched_cards": 69,
+  "source_quotes_equal_to_original_blocks": true,
+  "page_status_preserved": true,
+  "human_answer_fields_blank": true,
+  "blank_gold_cli_exit": 2,
+  "overwrite_cli_exit": 2,
+  "existing_output_unchanged": true,
+  "current_artifact_tool_hash_matches": true,
+  "cypher_executed": false,
+  "human_gold_authored": false,
+  "actual_graph_experiment": false,
+  "acceptance": null
+}

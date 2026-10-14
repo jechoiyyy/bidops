@@ -1,0 +1,16 @@
+{
+  "schema_version": "bidops.hp-graph-human-review-preparation.v1",
+  "status": "blank_unapproved",
+  "binding": null,
+  "annotator": null,
+  "adoption_criteria": null,
+  "queries": [
+    {"id":"q1","paths":null,"readability_postgres":null,"readability_neo4j":null,"reason":null},
+    {"id":"q2","paths":null,"readability_postgres":null,"readability_neo4j":null,"reason":null},
+    {"id":"q3","paths":null,"readability_postgres":null,"readability_neo4j":null,"reason":null},
+    {"id":"q4","paths":null,"readability_postgres":null,"readability_neo4j":null,"reason":null},
+    {"id":"q5","paths":null,"readability_postgres":null,"readability_neo4j":null,"reason":null}
+  ],
+  "explanation_samples": [],
+  "adoption": null
+}
