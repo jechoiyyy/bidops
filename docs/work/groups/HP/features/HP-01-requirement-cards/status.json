@@ -1,0 +1,192 @@
+{
+  "schema_version": 2,
+  "feature": "HP-01-requirement-cards",
+  "phase": "review",
+  "steps": [
+    {
+      "id": "STEP-001",
+      "title": "카드 표 판정·파서·경계",
+      "model": "complex",
+      "fingerprint": "e5835a2ddea4b5e54057e48077fc99d314c79b15f7ce70b48f0aab92d785ecf5",
+      "status": "stale",
+      "updated_at": null,
+      "history": [
+        {
+          "id": "STEP-001",
+          "title": "카드 파서와 inventory 통합",
+          "model": "complex",
+          "fingerprint": "d9a7b77bbc5cc71de22efaf3877da3254c359130e11e84e66ce62c86cbfb5a00",
+          "status": "pending",
+          "updated_at": null
+        },
+        {
+          "id": "STEP-001",
+          "title": "카드 표 판정·파서·경계",
+          "model": "complex",
+          "fingerprint": "0954f7c830344bcd9a7da08c6023d77872f264037da6f4a93fa1a938bbf7935c",
+          "status": "stale",
+          "updated_at": null,
+          "history": [
+            {
+              "id": "STEP-001",
+              "title": "카드 파서와 inventory 통합",
+              "model": "complex",
+              "fingerprint": "d9a7b77bbc5cc71de22efaf3877da3254c359130e11e84e66ce62c86cbfb5a00",
+              "status": "pending",
+              "updated_at": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "STEP-002",
+      "title": "저장 열·계약 스키마·pydantic",
+      "model": "complex",
+      "fingerprint": "3df599b99c8f10a6eddf88a7e0162714440bf0d8c42c6a33adef5ab20ea83a87",
+      "status": "stale",
+      "updated_at": null,
+      "history": [
+        {
+          "id": "STEP-002",
+          "title": "쪽 상속",
+          "model": "standard",
+          "fingerprint": "63fdacb6f3dedec29c4bbe4e9adddfeab33ed3d97e297595a1b0c4688f0d52b1",
+          "status": "pending",
+          "updated_at": null
+        }
+      ]
+    },
+    {
+      "id": "STEP-003",
+      "title": "쪽 계산과 조회 함수",
+      "model": "standard",
+      "fingerprint": "3522f8f247c87fe1c1a882915b8bc33b48f5d52a878a957310b7fd10b2aa52bf",
+      "status": "stale",
+      "updated_at": null,
+      "history": [
+        {
+          "id": "STEP-003",
+          "title": "taxonomy v2",
+          "model": "standard",
+          "fingerprint": "44ecb07fbdc6533665a4258bbea55c642e94ee67e4f6f9791f9f2dcb8e3db5e5",
+          "status": "pending",
+          "updated_at": null
+        }
+      ]
+    },
+    {
+      "id": "STEP-004",
+      "title": "taxonomy v2",
+      "model": "standard",
+      "fingerprint": "b940176c3b5016b15c2f85d53c544429c038a7f06ceb44558eb7299c32dfc413",
+      "status": "stale",
+      "updated_at": null,
+      "history": [
+        {
+          "id": "STEP-004",
+          "title": "저장·조회·PostgreSQL 변형",
+          "model": "complex",
+          "fingerprint": "7a9b16c9d7d06b407998702581642ffefbf5d8ff86a8c200cdac3577eef786fb",
+          "status": "pending",
+          "updated_at": null
+        }
+      ]
+    },
+    {
+      "id": "STEP-005",
+      "title": "backfill CLI",
+      "model": "complex",
+      "fingerprint": "f16b453fb3ccd491df0bf268bb4e2c231a98a1091528e8bcf4cdeeb50777bbcf",
+      "status": "stale",
+      "updated_at": null,
+      "history": [
+        {
+          "id": "STEP-005",
+          "title": "증거 스크립트와 계약 문서",
+          "model": "standard",
+          "fingerprint": "72421771eb717bd582eb2c617105ea322c769f8831fb054e75080560a3426d3e",
+          "status": "pending",
+          "updated_at": null
+        },
+        {
+          "id": "STEP-005",
+          "title": "backfill CLI",
+          "model": "complex",
+          "fingerprint": "83e2eff8aaaa61753696c4d7915b342386397849a699eea130a7c9081bad3506",
+          "status": "stale",
+          "updated_at": null,
+          "history": [
+            {
+              "id": "STEP-005",
+              "title": "증거 스크립트와 계약 문서",
+              "model": "standard",
+              "fingerprint": "72421771eb717bd582eb2c617105ea322c769f8831fb054e75080560a3426d3e",
+              "status": "pending",
+              "updated_at": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "STEP-006",
+      "title": "프런트 타입·라벨",
+      "model": "standard",
+      "fingerprint": "cb5005597a0a73c44c941e4fe9bf6f170896ce5213f45d2ea9a79acbb4db0f35",
+      "status": "pending",
+      "updated_at": null
+    },
+    {
+      "id": "STEP-007",
+      "title": "증거 스크립트와 문서",
+      "model": "standard",
+      "fingerprint": "4cf76c6a163b63316e366da8193459bf0402b519ac570951b28ba81f181423cb",
+      "status": "pending",
+      "updated_at": null
+    }
+  ],
+  "proof": {
+    "docs": {
+      "result": "pending"
+    },
+    "tests": {
+      "result": "pending"
+    },
+    "postgres": {
+      "result": "pending"
+    },
+    "frontend": {
+      "result": "pending"
+    },
+    "api_guard": {
+      "result": "pending"
+    },
+    "real_data_run": {
+      "result": "pending"
+    }
+  },
+  "notes": [
+    {
+      "at": "2026-10-14T18:53:35+09:00",
+      "text": "생성 (drafting)"
+    },
+    {
+      "at": "2026-10-14T19:05:03+09:00",
+      "text": "plan 작업 ID 동기화"
+    },
+    {
+      "at": "2026-10-14T19:22:14+09:00",
+      "text": "plan 작업 ID 동기화"
+    },
+    {
+      "at": "2026-10-14T19:45:39+09:00",
+      "text": "plan 작업 ID 동기화"
+    },
+    {
+      "at": "2026-10-14T19:45:39+09:00",
+      "text": "단계 → review: 독립 검사 2회(1차 지적 13건 반영, 2차 잔여: 저장 열·anchor 운반·카드 prefix 규칙·backfill 실행 자리). 제품 구현 미착수"
+    }
+  ],
+  "updated_at": "2026-10-14T19:45:39+09:00"
+}

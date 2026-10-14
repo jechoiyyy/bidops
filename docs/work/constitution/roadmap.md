@@ -1,9 +1,43 @@
 # BidOps roadmap
 
-## DEMO — 가상 SI 3사 의사결정 데모
+## HP — 홈페이지 전문 가상 1사 심층 검토 재정의
 
-2026-10-06 확정한 신규 목표다. 기존 C-2·운영·생애주기 기록은 기존 문서에 보존한다.
+2026-10-14 확정한 신규 목표다([ADR-0071](../../tracking/decisions/0071-homepage-single-company-deep-review.md), [HP 공통 계약](../hp-contract.md)).
 상태의 정본은 기능 status.json, 순서·직접 의존의 정본은 queue.json이다. 아래 표는 제품 항목의 연결이다.
+
+| 기능 | 목표 | 선행 | 상세 |
+|---|---|---|---|
+| `HP-00-luna-model-identity` | codex-exec 모델을 `gpt-6-luna`/high로 전환하는 새 불변 정책·runner·client·화면 표식 | 없음 | [intent](../groups/HP/features/HP-00-luna-model-identity/intent.md) |
+| `HP-01-requirement-cards` | HWP 구조화 결과에서 요구사항 카드 inventory·쪽 상속·taxonomy v2 | 없음 | [intent](../groups/HP/features/HP-01-requirement-cards/intent.md) |
+| `HP-02-homepage-ontology-company` | 홈페이지 온톨로지 어휘·가상회사 1곳 원본 (사용자 공동 설계·승인·동결) | HP-01 | [intent](../groups/HP/features/HP-02-homepage-ontology-company/intent.md) |
+| `HP-03-two-tier-analysis` | 카드 단위 타입화 추출 → 결정적 대조 → 역할별 판단·종합 파이프라인 | HP-00, HP-02 | [intent](../groups/HP/features/HP-03-two-tier-analysis/intent.md) |
+| `HP-04-practitioner-verdict` | 실무자 판정 5블록 화면과 REST | HP-03 | [intent](../groups/HP/features/HP-04-practitioner-verdict/intent.md) |
+| `HP-05-neo4j-experiment` | PostgreSQL 그래프 대 Neo4j 비교 실험(경로 recall·질의 표현력·설명 가능성) | HP-02 | [intent](../groups/HP/features/HP-05-neo4j-experiment/intent.md) |
+| `HP-06-gold-acceptance` | 사용자 gold 10건 대조 인수와 수치 기록 | HP-04 | [intent](../groups/HP/features/HP-06-gold-acceptance/intent.md) |
+
+### 실행 순서 (2026-10-14)
+
+| 구간 | 내용 | 사람 입력·확인 |
+|---|---|---|
+| 1 | HP-00·HP-01을 한 배치로 구현. HP-01은 모델 호출 없음. HP-00은 코드·정책이며 격리 스택 smoke 1건만 건별 승인 대상(승인 없으면 pending) | 문서 commit, run 시작 승인, DEMO-05 run abandon, smoke 승인 |
+| 2 | HP-02 온톨로지 공동 설계: 카드 198장 어휘 후보 → 분류 → concept id/alias → 가상회사 초안 → 승인 → 동결 | 어휘·분류·회사 초안 검토 |
+| 2' | 사용자가 gold 10건을 작성한다(형식 승인됨). HP-02~04와 병행하며 모델 출력 전에 끝낸다 | gold 작성 |
+| 3 | HP-03 파이프라인 구현. 첫 실제 호출(모델 smoke → 대표 1건)은 건별 승인 | 전송 승인 |
+| 3' | HP-05 Neo4j 실험을 HP-02 동결 뒤 HP-03과 병행 | 채택 조건 숫자 확정 |
+| 4 | HP-04 화면 → HP-06 gold 대조 인수 | 인수 |
+
+호출 수·시간 목표는 공통 계약 §7의 정책 값이다. 슬롯은 하나라 순차 실행된다.
+
+## 후속 범위
+
+C-2 다회사 선별·입찰 delta·Go/No-Go·외부 공개·편집/자동 추출 UI·시맨틱웹 연계·OCR은 HP 이후 별도 기능화한다.
+이번 큐에는 등록하지 않으며 완료 예정이나 구현 사실로 적지 않는다.
+
+## DEMO — 가상 SI 3사 의사결정 데모 (2026-10-06 ~ 2026-10-14, 종료)
+
+[ADR-0070](../../tracking/decisions/0070-multi-company-knowledge-demo.md)과 [DEMO 공통 계약](../demo-contract.md)이 기록이다.
+DEMO-00~03은 validating, DEMO-04는 done으로 기록이 남아 있고 DEMO-05는 2026-10-14에 중단했다(run `demo05-20261012` abandon은 사용자 결정).
+DEMO 기능의 미완료 증거를 HP 완료로 적지 않으며, HP는 DEMO-01~04 코드를 기준 브랜치 `demo/local-20261009`에서 재사용한다.
 
 | 기능 | 목표 | 상세 |
 |---|---|---|
@@ -12,24 +46,4 @@
 | `DEMO-02-company-knowledge` | 온톨로지·3사 지식그래프 | [intent](../groups/DEMO/features/DEMO-02-company-knowledge/intent.md) |
 | `DEMO-03-grounded-analysis` | 그래프 근거 기반 모델 분석 | [intent](../groups/DEMO/features/DEMO-03-grounded-analysis/intent.md) |
 | `DEMO-04-review-workspace` | 회사 전환·탐색·비교·결정 | [intent](../groups/DEMO/features/DEMO-04-review-workspace/intent.md) |
-| `DEMO-05-demo-acceptance` | 실제 예제와 인수 | [intent](../groups/DEMO/features/DEMO-05-demo-acceptance/intent.md) |
-
-### 2026-10-09 재계획 순서
-
-기존 목표일은 확정 일정으로 사용하지 않는다. 아래는 2026-10-09 로컬 증거를 반영한 실행 순서이며 완료 사실은 각 기능 status와 실제 증거로만 판단한다.
-
-| 구간 | 내용 | 사람 입력·확인 |
-|---|---|---|
-| 완료 증거 정리 | DEMO-00의 기존 STEP-001/002 이력 보존, `bidops-local` 3일 수집·notice 179 문서 준비·LiteLLM 개요 증거 판정 | 개요 참조 실행을 Luna 심층 품질로 승격하지 않음 |
-| 다음 | DEMO-01·DEMO-02 회사 경계와 온톨로지·가상회사 구현 | 가상회사 초안 사용자 승인 후 동결 |
-| 이후 | DEMO-03 회사 핏·그래프 근거·Luna 심층 연결 | 2026-10-11 재계획: 실제 `bidops-local` 준비(0036·3사·정책·flag·runner)와 호출 전 fail-closed 확인까지가 DEMO-03 게이트. 대표 1건 실제 Luna 심층은 DEMO-05로 이관(공고 179 inventory 불일치 findings). DEMO-04는 fake 종단·실제 스택 준비 증거를 입력으로 진행 |
-| 이후 | DEMO-04 회사 전환·탐색·비교·결정 화면 | 실제 심층 결과와 fake 화면 검증을 구분 |
-| 최종 | DEMO-05 3일 수집 corpus에서 6건 동결·핏 18·대표 3건 → 목표 9건·인수 | LiteLLM 개요/핏과 Luna 심층을 별도 호출·증거로 기록 |
-
-보고서 호출 수는 원문 단위 수의 약 2배이고 호출당 5~6분이다. 슬롯이 하나라 순차 실행되며, 마감은 정책 값(v4 5시간)이다.
-대표 1건×3사로 최소 기준을 먼저 확보한다. 운영 1489 실행은 이 순서의 선행조건이 아니며, v4 운영 전환이 필요할 때 별도 승인 작업으로 수행한다.
-
-## 후속 범위
-
-C-2 다회사 선별·입찰 delta·Go/No-Go·외부 공개·편집/자동 추출 UI·시맨틱웹 연계는 DEMO 이후 별도 기능화한다.
-이번 큐에는 등록하지 않으며 완료 예정이나 구현 사실로 적지 않는다.
+| `DEMO-05-demo-acceptance` | 실제 예제와 인수 (중단) | [intent](../groups/DEMO/features/DEMO-05-demo-acceptance/intent.md) |
