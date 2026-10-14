@@ -1,0 +1,33 @@
+{
+  "schema_version": 2,
+  "feature": "HP-04-practitioner-verdict",
+  "phase": "drafting",
+  "steps": [],
+  "proof": {
+    "docs": {
+      "result": "pending"
+    },
+    "tests": {
+      "result": "pending"
+    },
+    "postgres": {
+      "result": "pending"
+    },
+    "frontend": {
+      "result": "pending"
+    },
+    "api_guard": {
+      "result": "pending"
+    },
+    "real_data_run": {
+      "result": "pending"
+    }
+  },
+  "notes": [
+    {
+      "at": "2026-10-14T18:53:35+09:00",
+      "text": "생성 (drafting)"
+    }
+  ],
+  "updated_at": "2026-10-14T18:53:35+09:00"
+}

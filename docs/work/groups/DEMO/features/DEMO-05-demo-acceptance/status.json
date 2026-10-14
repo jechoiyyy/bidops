@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
   "feature": "DEMO-05-demo-acceptance",
-  "phase": "review",
+  "phase": "blocked",
   "steps": [
     {
       "id": "STEP-001",
@@ -190,8 +190,12 @@
     {
       "at": "2026-10-09T13:22:56+09:00",
       "text": "재검증: 2026-10-09 사용자 요청에 따른 로컬 실제 자료/LiteLLM 재계획; 기존 증거는 변경 범위와 source hash 대조 후 재사용, 실제 Luna는 DEMO-03/05 필수 게이트 유지"
+    },
+    {
+      "at": "2026-10-14T19:05:03+09:00",
+      "text": "단계 → blocked: 2026-10-14 HP 전환(ADR-0071)으로 DEMO 그룹 종료. 실제 인수는 HP-06으로 이관. run demo05-20261012의 abandon과 feature worktree의 미커밋 변경 처리는 사용자 결정"
     }
   ],
-  "updated_at": "2026-10-09T13:22:56+09:00",
-  "resume_phase": "drafting"
+  "updated_at": "2026-10-14T19:05:03+09:00",
+  "resume_phase": "review"
 }

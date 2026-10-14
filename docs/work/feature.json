@@ -27,8 +27,9 @@
     "PostgreSQL 17·versioned MinIO·합성 analysis worker의 슬롯 1개와 모듈 의존 방향을 유지한다.",
     "문서 변경은 diff/문서 검사만, 제품 변경은 직접 영향 검사만 실행하고 성공 후 반복하지 않는다.",
     "운영 변경·실제 모델 호출은 직전 확인 대상이며 문서화 승인을 실행 승인으로 사용하지 않는다.",
-    "DEMO-00은 현재 run을 수동으로 main에 통합하되 운영 배포하지 않는다. DEMO-01~05는 그 main에서 분기한 데모 브랜치와 bidops-local 격리 자원에서만 구현·검증하며 main 병합·운영 전환은 별도 작업이다(ADR-0070 2026-10-09 개정).",
-    "LiteLLM local-agent-main의 개요·회사 핏과 Luna codex-exec 심층검토는 용도·정책·승인·품질 증거를 분리하고 서로의 완료를 대신하지 않는다.",
+    "HP 기능은 데모 브랜치 demo/local-20261009와 bidops-local 격리 자원에서만 구현·검증하며 main 병합·운영 전환은 별도 작업이다(ADR-0071).",
+    "HP의 모델 호출은 codex-exec gpt-6-luna/high 하나다. LiteLLM local-agent-main·Qwen·Terra를 쓰지 않고, 기존 정책 파일·실행 row는 바꾸지 않는다(ADR-0071).",
+    "HWP/HWPX 원본이 입력 정본이며 PDF는 PDF 전용 첨부와 쪽 locator에만 쓴다. OCR은 범위 밖이다(ADR-0071).",
     "새 DB 테이블·열 권한은 scripts/runtime-privileges.sql에 등록하고 migration에 GRANT를 쓰지 않는다.",
     "사용자 요청 없이 commit·merge·push·브랜치 삭제하지 않는다."
   ],
@@ -70,10 +71,10 @@
       "dependency_gate": true
     },
     "real_data_run": {
-      "description": "DEMO-05 실제 대표 1건×3사(2026-10-11 DEMO-03 T9에서 이관)와 6건/18건/9건·담당자 인수 증거",
+      "description": "실제 격리 스택에서 건별 승인한 모델 실행과 사람 인수 증거(HP-03 대표 1건 smoke·HP-06 gold 10건 대조). DEMO-05 항목은 2026-10-14 종료",
       "required": true,
       "method": "manual",
-      "applies_when": "DEMO-05-demo-acceptance (DEMO-03은 2026-10-11 재계획으로 비적용)",
+      "applies_when": "HP-03-two-tier-analysis(대표 1건), HP-06-gold-acceptance(gold 10건); 그 밖의 기능은 비적용",
       "dependency_gate": true
     }
   },
@@ -105,7 +106,7 @@
     "commit_policy": "manual",
     "merge_policy": "manual"
   },
-  "commit_message_example": "docs: 가상 SI 3사 데모 기능 명세와 SDLC 실행 큐 추가",
+  "commit_message_example": "docs: 홈페이지 전문 1사 HP 기능 명세와 SDLC 실행 큐 추가",
   "status_command": "python3 scripts/feature_status.py",
   "schema_version": 2,
   "tool_version": "0.6.0",
@@ -120,6 +121,6 @@
     "web/backend/AGENTS.md",
     "web/frontend/AGENTS.md"
   ],
-  "default_group": "DEMO",
+  "default_group": "HP",
   "worktree_dir": ".sdlc/worktrees"
 }

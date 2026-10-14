@@ -1,0 +1,248 @@
+{
+  "schema_version": 2,
+  "feature": "HP-00-luna-model-identity",
+  "phase": "review",
+  "steps": [
+    {
+      "id": "STEP-001",
+      "title": "identity 모듈·runner·client",
+      "model": "standard",
+      "fingerprint": "7eedd2460878ab0e4130eba4aad42a53c1861977e168d52ac111c44e7c7ec3f7",
+      "status": "stale",
+      "updated_at": null,
+      "history": [
+        {
+          "id": "STEP-001",
+          "title": "identity 모듈·runner·client",
+          "model": "standard",
+          "fingerprint": "4bf05084fa7bc67fed83d406e0ed0a66bbc0beef062f502b0cbd3c37bc0c46f4",
+          "status": "pending",
+          "updated_at": null
+        }
+      ]
+    },
+    {
+      "id": "STEP-002",
+      "title": "정책 hp-v1·v5 발행·회사 identity 집합·검증",
+      "model": "complex",
+      "fingerprint": "a9572913609eacf0ff4df4f3bedf9e0f6d2992eeeb01d168e89bec69343f5eb7",
+      "status": "stale",
+      "updated_at": null,
+      "history": [
+        {
+          "id": "STEP-002",
+          "title": "정책 hp-v1 발행과 매핑·검증",
+          "model": "complex",
+          "fingerprint": "f15e652a89b36f55d43b16c74d488b82356b37232e3c1c6a32bee843be791a8b",
+          "status": "pending",
+          "updated_at": null
+        },
+        {
+          "id": "STEP-002",
+          "title": "정책 hp-v1 발행·회사 identity 집합·검증",
+          "model": "complex",
+          "fingerprint": "91715aea549124918280e3e4d3c753f2ad292c2252f4c6d26ddfce668dabab8d",
+          "status": "stale",
+          "updated_at": null,
+          "history": [
+            {
+              "id": "STEP-002",
+              "title": "정책 hp-v1 발행과 매핑·검증",
+              "model": "complex",
+              "fingerprint": "f15e652a89b36f55d43b16c74d488b82356b37232e3c1c6a32bee843be791a8b",
+              "status": "pending",
+              "updated_at": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "STEP-003",
+      "title": "모델 일치 강제와 표식 출처",
+      "model": "complex",
+      "fingerprint": "45f1fd9fb94aab6b9a4d17217dbc9e427fb88774b2981ee612428a3962600d12",
+      "status": "stale",
+      "updated_at": null,
+      "history": [
+        {
+          "id": "STEP-003",
+          "title": "표식을 정책 row에서 읽기",
+          "model": "complex",
+          "fingerprint": "eda90223265384b104e4a8d7f6b78148dc363f8e6e9bdfa0a58c3e05ab4d5a82",
+          "status": "pending",
+          "updated_at": null
+        },
+        {
+          "id": "STEP-003",
+          "title": "모델 일치 강제와 표식 출처",
+          "model": "complex",
+          "fingerprint": "64154232d88ad5d43f74b62cf62ec1e404e43a87142e9fe79650575b5bd10469",
+          "status": "stale",
+          "updated_at": null,
+          "history": [
+            {
+              "id": "STEP-003",
+              "title": "표식을 정책 row에서 읽기",
+              "model": "complex",
+              "fingerprint": "eda90223265384b104e4a8d7f6b78148dc363f8e6e9bdfa0a58c3e05ab4d5a82",
+              "status": "pending",
+              "updated_at": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "STEP-004",
+      "title": "프런트 타입·문구·fixture",
+      "model": "standard",
+      "fingerprint": "282a5a6928d0114011f68f58420c31a1a77f8c8ef5a2a472d60a0eea46b755da",
+      "status": "stale",
+      "updated_at": null,
+      "history": [
+        {
+          "id": "STEP-004",
+          "title": "프런트 타입·문구·fixture",
+          "model": "standard",
+          "fingerprint": "293815501463f6733df2265dd5e3cdbccf02ebcd9f86083d5c619b7249ddfde0",
+          "status": "pending",
+          "updated_at": null
+        },
+        {
+          "id": "STEP-004",
+          "title": "프런트 타입·문구·fixture",
+          "model": "standard",
+          "fingerprint": "aa3ca3538ee9f7f06449b46425ad1c6e6350fdbeebf1ff355d3b6f7fd4804e89",
+          "status": "stale",
+          "updated_at": null,
+          "history": [
+            {
+              "id": "STEP-004",
+              "title": "프런트 타입·문구·fixture",
+              "model": "standard",
+              "fingerprint": "293815501463f6733df2265dd5e3cdbccf02ebcd9f86083d5c619b7249ddfde0",
+              "status": "pending",
+              "updated_at": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "STEP-005",
+      "title": "계약 문서·overlay·증거 README",
+      "model": "standard",
+      "fingerprint": "6fc3aad63872b0a948c34ae33a05c30643d896be18087d9ad6c3f10f399bc655",
+      "status": "stale",
+      "updated_at": null,
+      "history": [
+        {
+          "id": "STEP-005",
+          "title": "계약 문서와 증거 README",
+          "model": "standard",
+          "fingerprint": "ca8e7e1bea6bfc6a40c2bee1faeef15f6b78d92579ae13a5f724a837a4a8fb72",
+          "status": "pending",
+          "updated_at": null
+        },
+        {
+          "id": "STEP-005",
+          "title": "계약 문서와 증거 README",
+          "model": "standard",
+          "fingerprint": "f9dde8b63599c3b2702e1f66fcd27ac16ef3ad3a66f6b291ef3c5fc6b18bc214",
+          "status": "stale",
+          "updated_at": null,
+          "history": [
+            {
+              "id": "STEP-005",
+              "title": "계약 문서와 증거 README",
+              "model": "standard",
+              "fingerprint": "ca8e7e1bea6bfc6a40c2bee1faeef15f6b78d92579ae13a5f724a837a4a8fb72",
+              "status": "pending",
+              "updated_at": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "STEP-006",
+      "title": "격리 스택 runner 재빌드·env 교체·smoke",
+      "model": "standard",
+      "fingerprint": "8fbff2facbb253e9477203eb43abbe3161968ce2857d1f628d35cfa207fc771f",
+      "status": "stale",
+      "updated_at": null,
+      "history": [
+        {
+          "id": "STEP-006",
+          "title": "격리 스택 runner 재빌드와 smoke",
+          "model": "standard",
+          "fingerprint": "086a50e8f3ac4d3d0ed34aeb254fb11456bee6a7e304f459cf5367b9bc04a140",
+          "status": "pending",
+          "updated_at": null
+        },
+        {
+          "id": "STEP-006",
+          "title": "격리 스택 runner 재빌드·env 교체·smoke",
+          "model": "standard",
+          "fingerprint": "29686c81fca169b390631dd104ac960d8741756a2e922999fb41a186c0eb0b7d",
+          "status": "stale",
+          "updated_at": null,
+          "history": [
+            {
+              "id": "STEP-006",
+              "title": "격리 스택 runner 재빌드와 smoke",
+              "model": "standard",
+              "fingerprint": "086a50e8f3ac4d3d0ed34aeb254fb11456bee6a7e304f459cf5367b9bc04a140",
+              "status": "pending",
+              "updated_at": null
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "proof": {
+    "docs": {
+      "result": "pending"
+    },
+    "tests": {
+      "result": "pending"
+    },
+    "postgres": {
+      "result": "pending"
+    },
+    "frontend": {
+      "result": "pending"
+    },
+    "api_guard": {
+      "result": "pending"
+    },
+    "real_data_run": {
+      "result": "pending"
+    }
+  },
+  "notes": [
+    {
+      "at": "2026-10-14T18:53:35+09:00",
+      "text": "생성 (drafting)"
+    },
+    {
+      "at": "2026-10-14T19:05:03+09:00",
+      "text": "plan 작업 ID 동기화"
+    },
+    {
+      "at": "2026-10-14T19:17:30+09:00",
+      "text": "plan 작업 ID 동기화"
+    },
+    {
+      "at": "2026-10-14T19:45:39+09:00",
+      "text": "plan 작업 ID 동기화"
+    },
+    {
+      "at": "2026-10-14T19:45:39+09:00",
+      "text": "단계 → review: 독립 검사 2회(1차 지적 11건 반영, 2차 잔여 항목 반영: v5 발행·snapshot 강제 지점·hp-local overlay·가정 분석 표식). 제품 구현 미착수"
+    }
+  ],
+  "updated_at": "2026-10-14T19:45:39+09:00"
+}
