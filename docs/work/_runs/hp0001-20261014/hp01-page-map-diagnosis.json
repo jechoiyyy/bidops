@@ -1,0 +1,47 @@
+[
+  {
+    "name": "doc1",
+    "cards": 27,
+    "inherited": 0,
+    "unavailable": 27,
+    "nearest_mapped_preceding_paragraph_distance_min": 4,
+    "max": 39,
+    "without_any_preceding_mapped_paragraph": 0
+  },
+  {
+    "name": "gangwon",
+    "cards": 57,
+    "inherited": 18,
+    "unavailable": 39,
+    "nearest_mapped_preceding_paragraph_distance_min": 4,
+    "max": 16,
+    "without_any_preceding_mapped_paragraph": 0
+  },
+  {
+    "name": "mofa",
+    "cards": 31,
+    "inherited": 31,
+    "unavailable": 0,
+    "nearest_mapped_preceding_paragraph_distance_min": null,
+    "max": null,
+    "without_any_preceding_mapped_paragraph": 0
+  },
+  {
+    "name": "nyj",
+    "cards": 35,
+    "inherited": 35,
+    "unavailable": 0,
+    "nearest_mapped_preceding_paragraph_distance_min": null,
+    "max": null,
+    "without_any_preceding_mapped_paragraph": 0
+  },
+  {
+    "name": "school",
+    "cards": 48,
+    "inherited": 4,
+    "unavailable": 44,
+    "nearest_mapped_preceding_paragraph_distance_min": 4,
+    "max": 26,
+    "without_any_preceding_mapped_paragraph": 0
+  }
+]

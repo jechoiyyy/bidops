@@ -1,0 +1,64 @@
+{
+  "source_dir": "/Users/temp/orca/fixtures/RFP",
+  "artifact_dir": "/Users/temp/orca/bidops/.sdlc/local-runtime/hp01-20261014-fixtures",
+  "worker": "bidops-local-document-worker-1",
+  "method": "process_document(original_bytes, options={prepare_pdf: true, timeout_seconds: 120})",
+  "model_calls": 0,
+  "documents": [
+    {
+      "name": "nyj",
+      "file": "nyj.hwpx",
+      "original_name": "2027년 남양주시 홈페이지 통합유지관리 제안요청서.hwpx",
+      "source_sha256": "9493e92b163c6587399c5ab93e1eaad03a90f06486830c3c20c446a37f205abc",
+      "artifacts": {
+        "nyj.para_page_map.json": "477c851713fc71dddcdd5542728101f269c2d96407de846f7f3c9710e5caaed9",
+        "nyj.structure.json": "0f1a7fcc946240bde9879a46462396ebe0f472914458b196488e59868c209591",
+        "nyj.pdf": "547449358d464a406ed21a9edc3dca25f08f4ca9a8baf1999625c8768a0cf579"
+      }
+    },
+    {
+      "name": "doc1",
+      "file": "doc1.hwp",
+      "original_name": "(붙임2) 2027년 홈페이지 유지관리 용역사업 제안요청서(수정본).hwp",
+      "source_sha256": "8b6cbf1a7da6f242dae0a1a90b2513513178667a7fc2343e93cbcf6318005a1e",
+      "artifacts": {
+        "doc1.structure.json": "1997c5f489e9f63c66faf4d25cdf179378576d1735fc5a0c2632fee429f82be5",
+        "doc1.pdf": "c20e4779d879b869ddb876f95cc4323e8514143c55652506991efbf6e12aac34",
+        "doc1.para_page_map.json": "73b2c78b7bcdcfc8f38f7363e866cecce2803802dedcca5b76814e5ad894ff0b"
+      }
+    },
+    {
+      "name": "school",
+      "file": "school.hwp",
+      "original_name": "[붙임2] 제안요청서(2027_2028년 학교 홈페이지 웹호스팅 유지관리)(수정)_재재수정.hwp",
+      "source_sha256": "7d1da6d943c4a2e92ea8ec495e980b4616bd3d4d2cbf415e7e0bc0348720657b",
+      "artifacts": {
+        "school.pdf": "5d1dfe51027c04309022d998493fd285fb8b3d1bf9cb05bd7e60df7d0362b926",
+        "school.structure.json": "44e6fb3e4b86df1d4983d8b714f9ecfac1229855fc7ef668c7db0d7970c14801",
+        "school.para_page_map.json": "33b5f5b11b00e220481e7c8116566a6c3f70d2f8dd67bdd5f8906ab05c45615d"
+      }
+    },
+    {
+      "name": "mofa",
+      "file": "mofa.hwpx",
+      "original_name": "(제안요청서) 2027년 외교부 홈페이지 유지관리 용역.hwpx",
+      "source_sha256": "0c244555166296720f0bbb0b35a3d1d9429087a1d3f6b08842a47872e335cd3e",
+      "artifacts": {
+        "mofa.structure.json": "d68ccca27d49e689fe274b1f65f7a875c7e0e3b0263d1dee13ef06e921de7ce5",
+        "mofa.pdf": "d10857940863686d3dd5124fe1b572dfd304e5cd3df5226239b70e072e226ab8",
+        "mofa.para_page_map.json": "6137e60baf854efebdd83d88bbe289afa554566f008c835b43f5c39db48811c3"
+      }
+    },
+    {
+      "name": "gangwon",
+      "file": "gangwon.hwp",
+      "original_name": "1. 통합 강원대학교 홈페이지 구축(2단계) 사업 제안요청서_20260918_v2.hwp",
+      "source_sha256": "a82b1ed3115780861689981d6d00d0b342f4177b87d9060dd443ac5c7616a42a",
+      "artifacts": {
+        "gangwon.structure.json": "f47ef293e5bfb6b460f1d06d2faf7fa8ea00331ea1497f626ae8fb6d5edbf312",
+        "gangwon.para_page_map.json": "80b35a1d8f817e686a4eb6f9227dbdd581cdcacf1c4de0be89090233e9485ce5",
+        "gangwon.pdf": "06d44a26e0e117809ffa351be331f924c5627df53427174645732049f982f92f"
+      }
+    }
+  ]
+}

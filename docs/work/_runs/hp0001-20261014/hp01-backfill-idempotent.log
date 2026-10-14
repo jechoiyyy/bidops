@@ -1,0 +1,9 @@
+ Container bidops-local-analysis-worker-run-e3c8af984bcf Creating 
+ Container bidops-local-analysis-worker-run-e3c8af984bcf Created 
+/app/web/backend/app/deep_review/schemas/document_bundles.py:115: UserWarning: Field name "schema" in "DocumentStructure" shadows an attribute in parent "StrictModel"
+  class DocumentStructure(StrictModel):
+/app/web/backend/app/deep_review/schemas/document_bundles.py:227: UserWarning: Field name "schema" in "SegmentExtractorBinding" shadows an attribute in parent "StrictModel"
+  class SegmentExtractorBinding(StrictModel):
+/app/web/backend/app/deep_review/schemas/document_bundles.py:235: UserWarning: Field name "schema" in "DocumentSegmentsView" shadows an attribute in parent "StrictModel"
+  class DocumentSegmentsView(StrictModel):
+{"created":false,"errors":[],"manifest_id":"f2bbaa5c-b074-48f9-9c89-2b79b573dde2","structure_id":"f25729bf-e39f-4624-a17c-bcbeaa023888"}

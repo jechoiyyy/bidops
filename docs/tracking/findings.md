@@ -2164,3 +2164,11 @@ runner 소비자가 없어 보류했다. 운영 DB/MinIO 쓰기·migration 적�
 - 동일 upstream commit의 native ARM worker에서 기본 DATA512MiB를 그대로 사용해 공고179의 정규 PDF snapshot 준비가 성공했다(80쪽). Rosetta 완화 코드는 최종 변경에서 제거했다. 적용된 로컬 이미지와 바인딩은 `docs/validation-runs/20261009-litellm-reference/target179-document.json`에 기록했다.
 - 물리5쪽에서 export-text와 Poppler 텍스트층에는 웹사이트 현황·도메인이 있지만, 직접 렌더링한 화면에는 그 일부가 보이지 않는다. PDF 렌더링/텍스트 표시 불일치이며 모델 문제가 아니다. 전체80쪽의 시각적 정확도를 승인한 것으로 취급하지 않는다. 이 작업은 해당5쪽을 모델 전송에서 제외하고, 시각적으로 대조된4쪽만 개요 검증 후보로 고정했다.
 - 재현: 위 sourceSHA의 snapshotPDF `eb394a414704b70de1e23d264df4a61a50b38c0aea3c3fdc3232a7a7c5896bcb`를 `pdftoppm -f5 -l5 -png`로 렌더하고 `pdftotext -f5 -l5 -layout` 및 동결page-text와 대조한다. 로컬 증거는 `.sdlc/local-runtime/target179/page-05.png`, `page05-poppler.txt`, `snapshot-pages.json`이다. 원본HWPX와 snapshot은 보존했다. 렌더러 레이아웃/가림 분석은 별도 후속 범위이며 텍스트나 PDF를 수동 보정하지 않는다.
+
+
+## 2026-10-14 HP 카드 쪽 연결의 실측 한계와 PDF 표 겹침
+
+- HP-01의 제품 파서로 실제 RFP 5건에서 27/57/31/35/48장(합계 198장)을 추출했다. 현재 명세의 가까운 비어 있지 않은 문단 3개 anchor 규칙으로는 0/18/31/35/4장, 합계 88장만 `inherited`이며 110장은 `unavailable`이다. 셀 직접 매핑은 0장이다. 초안 scratchpad의 198/198을 재현하지 못했으며 완료·품질 수치로 인용하지 않는다.
+- 미확인 카드의 가장 가까운 매핑 가능한 앞 문단은 4~39개 앞에 있었다. 원문·대응표와 고정 규칙은 유지한다. anchor 수를 무제한으로 늘리면 먼 앞쪽 페이지를 카드 쪽으로 잘못 연결할 수 있으므로 이번 범위에서 임의 변경하지 않았다. 후속은 직접 셀 매핑 개선 또는 별도 버전의 anchor 규칙과 정확도 검증이다.
+- 문서당 첫·마지막 카드 2개, 총 10개 PDF 렌더를 리더가 직접 확인했다. 상속값이 있는 6개는 해당 물리 PDF 쪽에 카드가 있고, 4개는 PDF에 카드가 있으나 제품 쪽은 미확인으로 남는다. 전체 198장의 쪽 정확도를 검증한 것은 아니다. `hp01-pdf-spotcheck.json`·`hp01-page-map-diagnosis.json` 및 변환 입력 hash는 `docs/work/_runs/hp0001-20261014/`에 있다.
+- 같은 표본 중 `school` 물리 PDF 13쪽은 첫 DAR-001 카드가 보이지만 아래 DAR-003 부근 텍스트가 겹친다. 구조 추출 성공이 PDF 전체의 시각적 정확성을 뜻하지 않는다. 재현 산출물은 Git 외부 `.sdlc/local-runtime/hp01-20261014-fixtures/school.pdf`와 `samples/school-13.png`이며 원문/변환 hash는 위 실행 기록에 있다. renderer 수정은 HP 카드 inventory 범위 밖이다. 원문과 구조를 보존하고 PDF를 수동 보정하지 않는다.

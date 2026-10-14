@@ -414,13 +414,15 @@ test("심층 보고서 우측 열이 문서 inventory와 사람 확인 필요 se
   await expect(inventory).toContainText("기대 ID 수");
   await expect(inventory).toContainText("중복 ID");
   await expect(inventory).toContainText("모호 항목");
-  await expect(panel.locator(".deep-review-segment-coverage")).toContainText("사람 확인 필요 구간 3건");
+  await expect(panel.locator(".deep-review-segment-coverage")).toContainText("사람 확인 필요 구간 4건");
+  await expect(panel).toContainText("운영·유지관리");
+  await expect(panel).toContainText("앞 문단 쪽 상속");
   await expect(panel).toContainText("접두사 확인 안 됨");
   // 계약에 원문 text가 없으므로 제목을 만들어 내지 않는다.
   await expect(panel).toContainText("segment 제목을 제공하지 않습니다");
 
   const items = panel.locator(".deep-review-segment-list > li");
-  await expect(items).toHaveCount(3);
+  await expect(items).toHaveCount(4);
   // 계약 순번·블록 키·요구사항 ID 나열은 접힌 `기술 정보` 안이고(ADR-0066),
   // 사람이 읽는 분류·건수·원문 조작은 밖에 남는다.
   const first = items.first();

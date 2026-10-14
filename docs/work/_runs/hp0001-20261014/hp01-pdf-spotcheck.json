@@ -1,0 +1,252 @@
+{
+  "method": "lead visual inspection of 2 first/last-card PDF pages per document, physical 1-based PDF pages; originals and renders outside Git",
+  "samples": [
+    {
+      "name": "doc1",
+      "id": "STR-1",
+      "locator": {
+        "kind": "table_cell",
+        "block_key": "table-1-9-r1-c0",
+        "page": 1,
+        "ordinal": 320,
+        "table_key": "table-1-9",
+        "row": 1,
+        "column": 0
+      },
+      "range": null,
+      "status": "unavailable",
+      "pdf_candidate_pages": [
+        9
+      ],
+      "visually_verified_pdf_page": 9,
+      "image_sha256": "a23f872ba1da46c0197be090ab3e406093c7fd87f8f01f8634901899b114c9da",
+      "result": "card_visible_but_product_page_unavailable",
+      "visual_limitation": null
+    },
+    {
+      "name": "doc1",
+      "id": "PSR-2",
+      "locator": {
+        "kind": "table_cell",
+        "block_key": "table-1-38-r1-c0",
+        "page": 1,
+        "ordinal": 817,
+        "table_key": "table-1-38",
+        "row": 1,
+        "column": 0
+      },
+      "range": null,
+      "status": "unavailable",
+      "pdf_candidate_pages": [
+        24
+      ],
+      "visually_verified_pdf_page": 24,
+      "image_sha256": "233de29c773d8493d9bdc7fe334b292ba154afefad331aa763e4feaebbd9bf7a",
+      "result": "card_visible_but_product_page_unavailable",
+      "visual_limitation": null
+    },
+    {
+      "name": "gangwon",
+      "id": "ECR-1",
+      "locator": {
+        "kind": "table_cell",
+        "block_key": "table-1-23-r1-c0",
+        "page": 1,
+        "ordinal": 548,
+        "table_key": "table-1-23",
+        "row": 1,
+        "column": 0
+      },
+      "range": {
+        "first": 13,
+        "last": 13
+      },
+      "status": "inherited",
+      "pdf_candidate_pages": [
+        11,
+        13
+      ],
+      "visually_verified_pdf_page": 13,
+      "image_sha256": "7d5fa64761bc371252daa555c31356819177c810cf315138b68d8c5dbcbd14a9",
+      "result": "inherited_page_matches_card",
+      "visual_limitation": null
+    },
+    {
+      "name": "gangwon",
+      "id": "PSR-3",
+      "locator": {
+        "kind": "table_cell",
+        "block_key": "table-1-83-r1-c0",
+        "page": 1,
+        "ordinal": 1429,
+        "table_key": "table-1-83",
+        "row": 1,
+        "column": 0
+      },
+      "range": null,
+      "status": "unavailable",
+      "pdf_candidate_pages": [
+        12,
+        49
+      ],
+      "visually_verified_pdf_page": 49,
+      "image_sha256": "6e7290b992cd4cefd23a16c1a30c392968a0e779c9540178794acc86a6b991b7",
+      "result": "card_visible_but_product_page_unavailable",
+      "visual_limitation": null
+    },
+    {
+      "name": "mofa",
+      "id": "MAR-1",
+      "locator": {
+        "kind": "table_cell",
+        "block_key": "table-1-11-r0-c0",
+        "page": 1,
+        "ordinal": 351,
+        "table_key": "table-1-11",
+        "row": 0,
+        "column": 0
+      },
+      "range": {
+        "first": 9,
+        "last": 9
+      },
+      "status": "inherited",
+      "pdf_candidate_pages": [
+        9
+      ],
+      "visually_verified_pdf_page": 9,
+      "image_sha256": "2e34d4fb9d68b0dcb2c256727eba8d37b40300749315bd5e2deafc7284be84eb",
+      "result": "inherited_page_matches_card",
+      "visual_limitation": null
+    },
+    {
+      "name": "mofa",
+      "id": "COR-4",
+      "locator": {
+        "kind": "table_cell",
+        "block_key": "table-1-44-r0-c0",
+        "page": 1,
+        "ordinal": 915,
+        "table_key": "table-1-44",
+        "row": 0,
+        "column": 0
+      },
+      "range": {
+        "first": 31,
+        "last": 31
+      },
+      "status": "inherited",
+      "pdf_candidate_pages": [
+        31
+      ],
+      "visually_verified_pdf_page": 31,
+      "image_sha256": "b1ac2d094c331c1456d71031c7467aa0e0cdf422b1adbbf5558d639ca54d0ee4",
+      "result": "inherited_page_matches_card",
+      "visual_limitation": null
+    },
+    {
+      "name": "nyj",
+      "id": "SFR-1",
+      "locator": {
+        "kind": "table_cell",
+        "block_key": "table-1-20-r1-c0",
+        "page": 1,
+        "ordinal": 705,
+        "table_key": "table-1-20",
+        "row": 1,
+        "column": 0
+      },
+      "range": {
+        "first": 11,
+        "last": 11
+      },
+      "status": "inherited",
+      "pdf_candidate_pages": [
+        10,
+        11
+      ],
+      "visually_verified_pdf_page": 11,
+      "image_sha256": "c2cc882eaffe3036d104222c3dedd0c9e6e1989629348d1e8295a74df6563751",
+      "result": "inherited_page_matches_card",
+      "visual_limitation": null
+    },
+    {
+      "name": "nyj",
+      "id": "MHR-3",
+      "locator": {
+        "kind": "table_cell",
+        "block_key": "table-1-57-r1-c0",
+        "page": 1,
+        "ordinal": 1391,
+        "table_key": "table-1-57",
+        "row": 1,
+        "column": 0
+      },
+      "range": {
+        "first": 33,
+        "last": 33
+      },
+      "status": "inherited",
+      "pdf_candidate_pages": [
+        10,
+        33
+      ],
+      "visually_verified_pdf_page": 33,
+      "image_sha256": "9a83ceea3b44334f9173a82135c4ec6480f9a202fa4a06192fffc6fc296f56e1",
+      "result": "inherited_page_matches_card",
+      "visual_limitation": null
+    },
+    {
+      "name": "school",
+      "id": "DAR-1",
+      "locator": {
+        "kind": "table_cell",
+        "block_key": "table-1-14-r1-c0",
+        "page": 1,
+        "ordinal": 545,
+        "table_key": "table-1-14",
+        "row": 1,
+        "column": 0
+      },
+      "range": {
+        "first": 13,
+        "last": 13
+      },
+      "status": "inherited",
+      "pdf_candidate_pages": [
+        11,
+        13
+      ],
+      "visually_verified_pdf_page": 13,
+      "image_sha256": "87162ee255c3e7fa2fe07624848753e4d030275761dbd92249a38ab957dea1b7",
+      "result": "inherited_page_matches_card",
+      "visual_limitation": "other card text overlaps on same page"
+    },
+    {
+      "name": "school",
+      "id": "MHR-2",
+      "locator": {
+        "kind": "table_cell",
+        "block_key": "table-1-66-r1-c0",
+        "page": 1,
+        "ordinal": 1676,
+        "table_key": "table-1-66",
+        "row": 1,
+        "column": 0
+      },
+      "range": null,
+      "status": "unavailable",
+      "pdf_candidate_pages": [
+        12,
+        34
+      ],
+      "visually_verified_pdf_page": 34,
+      "image_sha256": "cb3c6f6718c817ae4d4531ae6836b74e80fbc5309063affda35825067ad7c29c",
+      "result": "card_visible_but_product_page_unavailable",
+      "visual_limitation": null
+    }
+  ],
+  "inherited_matches": 6,
+  "unavailable_preserved": 4,
+  "scope": "10 samples only; no 198-card accuracy claim"
+}

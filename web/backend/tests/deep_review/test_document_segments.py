@@ -108,6 +108,44 @@ def _requirement_table(
     return rows
 
 
+def _requirement_card_table(
+    cards: list[list[tuple[str, str]]],
+    *,
+    table_key: str = "card-table-1",
+) -> list[dict]:
+    """라벨·값 요구사항 카드가 세로로 쌓인 합성 표를 만든다."""
+
+    rows: list[dict] = [{
+        "block_key": f"{table_key}-block",
+        "type": "table",
+        "text": "",
+        "attributes": {"table_key": table_key},
+    }]
+    row = 0
+    for card in cards:
+        for label, value in card:
+            for column, text in enumerate((label, value)):
+                rows.append({
+                    "block_key": f"{table_key}-r{row}-c{column}",
+                    "parent_block_key": f"{table_key}-block",
+                    "type": "table_cell",
+                    "text": text,
+                    "attributes": {"table_key": table_key, "row": row, "column": column},
+                })
+            row += 1
+    return rows
+
+
+def _taxonomy_card(raw_id: str, category: str) -> list[tuple[str, str]]:
+    return [
+        ("요구사항분류", category),
+        ("요구사항고유번호", raw_id),
+        ("요구사항명칭", "합성 taxonomy 항목"),
+        ("정의", "합성 정의"),
+        ("세부내용", "합성 세부내용"),
+    ]
+
+
 def _fire_prevention_ids() -> list[str]:
     payload = json.loads((FIXTURES / "fire_prevention_55.json").read_text(encoding="utf-8"))
     return list(payload["expected_requirement_ids"])
@@ -222,6 +260,145 @@ def test_document_without_any_id_system_has_empty_inventory() -> None:
     assert "inventory_empty" in payload["warnings"]
 
 
+def test_label_value_cards_preserve_raw_fields_related_ids_and_anchors() -> None:
+    payload = document_segments.build_manifest_payload(
+        _structure(_blocks([
+            {"block_key": "paragraph-anchor-1", "text": "첫 앵커"},
+            {"block_key": "paragraph-anchor-2", "text": "둘째 앵커"},
+            {"block_key": "paragraph-anchor-empty", "text": "  "},
+            {"block_key": "paragraph-anchor-3", "text": "셋째 앵커"},
+            *_requirement_card_table([
+                [
+                    ("요구사항 분류", " 기능 요구사항 "),
+                    ("요구사항 고유번호", " SFR-001 "),
+                    ("요구사항 명칭", " 원문 명칭 "),
+                    ("응락 수준", "필수"),
+                    ("정의", " 원문 정의 "),
+                    ("세부 내용", " 원문 세부 내용 "),
+                    ("산출 정보", " 산출 원문 "),
+                    ("관련 요구사항", "SFR-003, SFR_002 / SFR-003"),
+                ],
+                [
+                    ("요구사항분류", "데이터 요구사항"),
+                    ("요구사항고유번호", "DAR-010"),
+                    ("요구사항명칭", "데이터 항목"),
+                    ("정의", "데이터 정의"),
+                    ("세부내용", "데이터 세부 내용"),
+                ],
+            ]),
+        ]))
+    )
+
+    items = payload["inventory_items"]
+    assert len(items) == 2
+    assert [item["source"] for item in items] == ["label_value_table", "label_value_table"]
+    first = items[0]
+    assert first["raw_id"] == " SFR-001 "
+    assert first["normalized_id"] == "SFR-1"
+    assert first["title"] == " 원문 명칭 "
+    assert first["card"] == {
+        "category": " 기능 요구사항 ",
+        "compliance_level": "필수",
+        "definition": " 원문 정의 ",
+        "details": " 원문 세부 내용 ",
+        "outputs": " 산출 원문 ",
+        "related_raw": "SFR-003, SFR_002 / SFR-003",
+        "related_ids": ["SFR-2", "SFR-3"],
+        "table_key": "card-table-1",
+        "first_cell_block_key": "card-table-1-r0-c0",
+        "card_warnings": [],
+        "page_anchor_block_keys": ["paragraph-anchor-3", "paragraph-anchor-2", "paragraph-anchor-1"],
+    }
+    assert payload["inventory_summary"]["card_item_count"] == 2
+    assert payload["inventory_summary"]["label_value_table_count"] == 1
+    assert payload["segment_anchors"] == [["paragraph-anchor-3", "paragraph-anchor-2", "paragraph-anchor-1"]]
+    assert "segment_anchors" not in document_segments.wire_payload(payload)
+
+
+def test_card_label_variants_keep_card_and_warn_for_missing_required_field() -> None:
+    payload = document_segments.build_manifest_payload(
+        _structure(_blocks(_requirement_card_table([[
+            ("요구사항분류", "기능"),
+            ("고유번호", "ECR-007"),
+            ("명칭", "변형 라벨 항목"),
+            ("세부설명", "세부 설명 원문"),
+            ("산출물", "산출물 원문"),
+        ]])))
+    )
+
+    item = payload["inventory_items"][0]
+    assert item["normalized_id"] == "ECR-7"
+    assert item["title"] == "변형 라벨 항목"
+    assert item["card"]["definition"] == ""
+    assert item["card"]["details"] == "세부 설명 원문"
+    assert item["card"]["outputs"] == "산출물 원문"
+    assert item["card"]["card_warnings"] == ["missing:definition"]
+
+
+def test_card_table_is_not_column_header_table_and_card_prefix_does_not_confirm_paragraph() -> None:
+    payload = document_segments.build_manifest_payload(
+        _structure(_blocks([
+            {"block_key": "paragraph-mention", "text": "본문에서 SFR-001 참조"},
+            *_requirement_card_table([[
+                ("요구사항분류", "기능"),
+                ("요구사항고유번호", "REQ-001"),
+                ("요구사항명칭", "카드 경로"),
+                ("정의", "카드 정의"),
+                ("세부내용", "카드 상세"),
+            ]]),
+            *_requirement_table(["REQ-001"], table_key="column-table-1"),
+        ]))
+    )
+
+    items = payload["inventory_items"]
+    assert [(item["normalized_id"], item["source"]) for item in items] == [
+        ("REQ-1", "label_value_table"),
+        ("REQ-1", "column_header_table"),
+    ]
+    assert payload["inventory_summary"]["duplicate_ids"] == ["REQ-1"]
+    assert "SFR-1" not in payload["inventory_summary"]["expected_ids"]
+    assert [segment["start_locator"]["block_key"] for segment in payload["segments"]] == [
+        "card-table-1-block",
+        "column-table-1-block",
+    ]
+
+
+def test_tokenless_card_is_ignored_and_duplicate_cards_are_both_kept() -> None:
+    tokenless = document_segments.build_manifest_payload(
+        _structure(_blocks(_requirement_card_table([[
+            ("요구사항분류", "기능"),
+            ("요구사항번호", "해당 없음"),
+            ("요구사항명", "ID 없는 행"),
+            ("정의", "정의"),
+            ("세부내용", "세부"),
+        ]])))
+    )
+    assert tokenless["inventory_summary"]["card_item_count"] == 0
+    assert tokenless["inventory_items"] == []
+
+    duplicate = document_segments.build_manifest_payload(
+        _structure(_blocks([
+            *_requirement_card_table([[
+                ("요구사항분류", "기능"),
+                ("요구사항번호", "SFR-001"),
+                ("요구사항명", "첫 카드"),
+                ("정의", "첫 정의"),
+                ("세부내용", "첫 세부"),
+            ]], table_key="card-table-1"),
+            *_requirement_card_table([[
+                ("요구사항분류", "기능"),
+                ("요구사항번호", "SFR-001"),
+                ("요구사항명", "둘째 카드"),
+                ("정의", "둘째 정의"),
+                ("세부내용", "둘째 세부"),
+            ]], table_key="card-table-2"),
+        ]))
+    )
+    assert [item["normalized_id"] for item in duplicate["inventory_items"]] == ["SFR-1", "SFR-1"]
+    assert duplicate["inventory_summary"]["duplicate_ids"] == ["SFR-1"]
+    assert duplicate["inventory_summary"]["label_value_table_count"] == 2
+
+
 # --------------------------------------------------------------------------
 # segment manifest
 # --------------------------------------------------------------------------
@@ -276,6 +453,96 @@ def test_keyword_rule_labels_a_segment_and_prefix_rule_adds_labels() -> None:
     assert first["classification_source"] == "deterministic"
     assert first["confidence"] is None
     assert "technical_functional" in last["taxonomy_labels"]
+
+
+def test_taxonomy_v2_maps_contract_categories_exactly() -> None:
+    expected = {
+        "기능": "technical_functional",
+        "데이터": "technical_functional",
+        "인터페이스": "technical_functional",
+        "시스템": "technical_functional",
+        "시스템장비구성": "technical_functional",
+        "보안": "quality_security_constraints",
+        "품질": "quality_security_constraints",
+        "성능": "quality_security_constraints",
+        "제약": "quality_security_constraints",
+        "테스트": "quality_security_constraints",
+        "표준": "quality_security_constraints",
+        "프로젝트관리": "partnership_governance",
+        "프로젝트지원": "partnership_governance",
+        "유지관리": "operations_maintenance",
+        "유지관리수행": "operations_maintenance",
+        "유지관리인력": "operations_maintenance",
+        "운영": "operations_maintenance",
+    }
+    assert document_segments._RULES["category_taxonomy"] == expected
+    for category, label in expected.items():
+        assert document_segments._category_labels(category) == {label}
+
+    assert document_segments._category_labels(" 시 스 템 장 비 구 성 요 구 사 항 ") == {
+        "technical_functional"
+    }
+    assert document_segments._category_labels(" 유지관리 수행 요구사항 ") == {
+        "operations_maintenance"
+    }
+    assert document_segments._category_labels("기능 분류") == set()
+    assert document_segments._category_labels("기능 요구사항 추가") == set()
+
+
+def test_taxonomy_v2_card_categories_override_title_and_prefix_candidates() -> None:
+    card_table = _requirement_card_table([
+        _taxonomy_card("STR-001", " 기능 요구사항 "),
+        _taxonomy_card("QUR-002", "운영"),
+    ], table_key="card-table-category-priority")
+    card_table[0]["text"] = "제1장 입찰참가자격"
+    payload = document_segments.build_manifest_payload(
+        _structure(_blocks(card_table))
+    )
+
+    segment = payload["segments"][0]
+    assert payload["taxonomy_version"] == "bidops.segment-taxonomy.v2"
+    assert segment["taxonomy_labels"] == ["operations_maintenance", "technical_functional"]
+    assert segment["status"] == "classified"
+    assert not any(warning.startswith("taxonomy_conflict:") for warning in payload["warnings"])
+
+
+def test_taxonomy_v2_prefix_keywords_and_unknown_categories_keep_existing_review_rule() -> None:
+    prefix_tables = [
+        *_requirement_card_table([_taxonomy_card("ECR-001", "미분류")], table_key="card-ecr"),
+        *_requirement_card_table([_taxonomy_card("STR-002", "미분류")], table_key="card-str"),
+        *_requirement_card_table([_taxonomy_card("MAR-003", "미분류")], table_key="card-mar"),
+        *_requirement_card_table([_taxonomy_card("MPR-004", "미분류")], table_key="card-mpr"),
+        *_requirement_card_table([_taxonomy_card("MHR-005", "미분류")], table_key="card-mhr"),
+    ]
+    ambiguous_table = _requirement_card_table(
+        [_taxonomy_card("SFR-006", "알 수 없는 category")],
+        table_key="card-unknown-category",
+    )
+    ambiguous_table[0]["text"] = "제2장 입찰참가자격"
+    payload = document_segments.build_manifest_payload(
+        _structure(_blocks([
+            {"block_key": "maintenance-heading", "text": "제1장 장애 대응 체계"},
+            *prefix_tables,
+            *ambiguous_table,
+        ]))
+    )
+
+    assert payload["taxonomy_version"] == "bidops.segment-taxonomy.v2"
+    assert payload["segments"][0]["taxonomy_labels"] == ["operations_maintenance"]
+    assert [segment["taxonomy_labels"] for segment in payload["segments"][1:6]] == [
+        ["technical_functional"],
+        ["quality_security_constraints"],
+        ["operations_maintenance"],
+        ["operations_maintenance"],
+        ["operations_maintenance"],
+    ]
+    unknown = payload["segments"][-1]
+    assert unknown["taxonomy_labels"] == [
+        "business_eligibility_evaluation",
+        "technical_functional",
+    ]
+    assert unknown["status"] == "needs_human_review"
+    assert any(warning == f"taxonomy_conflict:{unknown['segment_id']}" for warning in payload["warnings"])
 
 
 def test_unlabelled_segment_is_needs_human_review_without_a_model() -> None:
@@ -480,8 +747,51 @@ def test_bundle_inventory_context_unions_every_document(stored) -> None:
     assert context["needs_human_review_count"] >= 0
 
 
+def test_card_ids_and_prefixes_feed_inventory_context_and_observed_ids(stored) -> None:
+    payload = document_segments.build_manifest_payload(
+        _structure(
+            _blocks(_requirement_card_table([[
+                ("요구사항분류", "기능"),
+                ("요구사항번호", "ECR-007"),
+                ("요구사항명", "카드 항목"),
+                ("정의", "정의 원문"),
+                ("세부내용", "세부 원문"),
+            ]])),
+            structure_id=stored["structure_id"],
+            document_version_id=stored["document_id"],
+        )
+    )
+    with Session(stored["engine"]) as session:
+        session.add(DocumentSegmentManifest(
+            structure_id=stored["structure_id"],
+            document_version_id=stored["document_id"],
+            source_sha256=payload["source_sha256"],
+            taxonomy_version=document_segments.TAXONOMY_VERSION,
+            extractor_binding=payload["extractor_binding"],
+            extractor_binding_sha256=payload["extractor_binding_sha256"],
+            inventory_summary=payload["inventory_summary"],
+            warnings=payload["warnings"],
+            coverage=payload["coverage"],
+            payload_sha256=payload["payload_sha256"],
+        ))
+        session.commit()
+    with Session(stored["engine"]) as session:
+        context = document_segments.inventory_context(session, [stored["structure_id"]])
+
+    assert context["expected_ids"] == ["ECR-7"]
+    assert context["prefixes"] == ["ECR"]
+    assert document_segments.observed_requirement_ids(
+        ["ECR-007, ECR_008: 함께 이행한다. ISO-9001은 요구사항이 아니다."],
+        context["prefixes"],
+    ) == ["ECR-7", "ECR-8"]
+
+
 def test_wire_payload_satisfies_the_published_contract() -> None:
-    from app.deep_review.services.deep_review_validation import validate_document_segments
+    from app.deep_review.services.deep_review_validation import (
+        DeepReviewValidationError,
+        validate_document_segments,
+    )
+    from app.deep_review.schemas.document_bundles import DocumentSegmentsView
 
     payload = document_segments.build_manifest_payload(
         _structure(_blocks([
@@ -493,7 +803,23 @@ def test_wire_payload_satisfies_the_published_contract() -> None:
     )
     wire = document_segments.wire_payload(payload)
     assert validate_document_segments(wire) == dict(wire)
-    assert "inventory_items" not in wire and "segment_titles" not in wire
+    assert DocumentSegmentsView.model_validate(wire).model_dump(mode="json")["schema"] == wire["schema"]
+    assert not {"inventory_items", "segment_titles", "segment_anchors"} & wire.keys()
+
+    # STEP-002 publishes the enum additions before STEP-003/004 starts
+    # producing them.  Both validation layers must accept the future wire
+    # values without exposing the parallel storage-only anchor list.
+    inherited = json.loads(json.dumps(wire))
+    inherited["segments"][0]["taxonomy_labels"] = ["operations_maintenance"]
+    inherited["segments"][0]["mapping_status"] = "inherited"
+    inherited["segments"][0]["page_range"] = {"first": 7, "last": 7}
+    assert validate_document_segments(inherited) == inherited
+    assert DocumentSegmentsView.model_validate(inherited).segments[0].mapping_status == "inherited"
+
+    missing_summary_count = json.loads(json.dumps(wire))
+    missing_summary_count["inventory_summary"].pop("card_item_count")
+    with pytest.raises(DeepReviewValidationError):
+        validate_document_segments(missing_summary_count)
 
 
 # --------------------------------------------------------------------------
@@ -521,7 +847,7 @@ def _mapped_structure(stored) -> dict:
 def _para_page_map() -> dict:
     """``bidops.para-page-map.v1`` 합성 대응표.
 
-    segment 1·2는 전부, segment 3은 일부만, segment 4는 하나도 매핑하지 않는다.
+    segment 1·2는 전부, segment 3은 일부만, segment 4는 직접 매핑하지 않는다.
     """
 
     mapped = [
@@ -631,7 +957,7 @@ def test_segments_are_unavailable_without_a_para_page_map(stored, tmp_path) -> N
     assert all(segment["page_range"] is None for segment in view["segments"])
 
 
-def test_para_page_map_yields_mapped_partial_and_unavailable_segments(stored, tmp_path) -> None:
+def test_para_page_map_yields_mapped_partial_and_inherited_segments(stored, tmp_path) -> None:
     with Session(stored["engine"]) as session:
         document_segments.store_manifest(session, _mapped_structure(stored))
         session.commit()
@@ -642,11 +968,91 @@ def test_para_page_map_yields_mapped_partial_and_unavailable_segments(stored, tm
         ("mapped", {"first": 1, "last": 2}),
         ("mapped", {"first": 3, "last": 3}),
         ("partial", {"first": 4, "last": 5}),
-        ("unavailable", None),
+        ("inherited", {"first": 3, "last": 3}),
     ]
     # 계산값은 저장하지 않는다 — segment 행에는 그런 열이 없다.
     columns = {column.name for column in DocumentSegment.__table__.columns}
     assert not columns & {"page_range", "mapping_status"}
+
+
+def test_segment_pages_prefers_direct_mapping_over_anchors() -> None:
+    block_pages = {
+        "direct": (2, 4),
+        "anchor-near": (7, 7),
+        "anchor-far": (3, 3),
+    }
+    assert document_segments._segment_pages(
+        ["direct"], block_pages, ["anchor-near", "anchor-far"]
+    ) == {"page_range": {"first": 2, "last": 4}, "mapping_status": "mapped"}
+    assert document_segments._segment_pages(
+        ["direct", "unmapped"], block_pages, ["anchor-near", "anchor-far"]
+    ) == {"page_range": {"first": 2, "last": 4}, "mapping_status": "partial"}
+    assert document_segments._segment_pages(
+        ["unmapped"], block_pages, ["anchor-unmapped", "anchor-near", "anchor-far"]
+    ) == {"page_range": {"first": 7, "last": 7}, "mapping_status": "inherited"}
+    assert document_segments._segment_pages(
+        ["unmapped"], block_pages, ["anchor-unmapped"]
+    ) == {"page_range": None, "mapping_status": "unavailable"}
+    assert document_segments._segment_pages(
+        ["direct"], None, ["anchor-near"]
+    ) == {"page_range": None, "mapping_status": "unavailable"}
+
+
+def test_requirement_cards_returns_empty_without_current_manifest(stored, tmp_path) -> None:
+    with Session(stored["engine"]) as session:
+        cards = document_segments.requirement_cards(
+            session,
+            stored["structure_id"],
+            FilesystemObjectStore(tmp_path),
+        )
+    assert cards == []
+
+
+def test_resolve_card_pages_uses_only_card_locator_and_nearest_anchor() -> None:
+    card_fields = [
+        ("요구사항분류", "기능"),
+        ("요구사항번호", "SFR-001"),
+        ("요구사항명", "합성 조회"),
+        ("정의", "합성 정의"),
+        ("세부내용", "합성 상세"),
+    ]
+    payload = document_segments.build_manifest_payload(
+        _structure(_blocks([
+            *_requirement_card_table([card_fields], table_key="card-unanchored"),
+            {"block_key": "anchor-far", "text": "제1장 기능 요구사항"},
+            {"block_key": "anchor-near", "text": "제2장 시스템 기능"},
+            *_requirement_card_table(
+                [card_fields, [
+                    ("요구사항분류", "운영"),
+                    ("요구사항번호", "MAR-002"),
+                    ("요구사항명", "합성 운영"),
+                    ("정의", "합성 운영 정의"),
+                    ("세부내용", "합성 운영 상세"),
+                ]],
+                table_key="card-anchored",
+            ),
+            *_requirement_table(["REQ-010"], table_key="column-table"),
+        ]))
+    )
+    original = json.dumps(payload, ensure_ascii=False, sort_keys=True)
+    page_map = {
+        "blocks": [
+            {"block_key": "anchor-near", "page_first": 4, "page_last": 5},
+            {"block_key": "anchor-far", "page_first": 3, "page_last": 3},
+            {"block_key": "card-anchored-r1-c0", "page_first": 8, "page_last": 8},
+        ]
+    }
+
+    cards = document_segments.resolve_card_pages(payload, page_map)
+
+    assert [card["normalized_id"] for card in cards] == ["SFR-1", "SFR-1", "MAR-2"]
+    assert [(card["mapping_status"], card["page_range"]) for card in cards] == [
+        ("unavailable", None),
+        ("mapped", {"first": 8, "last": 8}),
+        ("inherited", {"first": 4, "last": 4}),
+    ]
+    assert cards[1]["card"]["page_anchor_block_keys"] == ["anchor-near", "anchor-far"]
+    assert json.dumps(payload, ensure_ascii=False, sort_keys=True) == original
 
 
 def test_para_page_map_hash_mismatch_fails_closed(stored, tmp_path) -> None:

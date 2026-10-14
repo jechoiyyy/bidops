@@ -322,7 +322,7 @@ flowchart LR
 
 문서 구조는 목차와 의미 있는 heading을 기준으로 절단한다. 구조가 모호하면 더 공격적으로 자르거나 내용을 추정하지 않고 unknown 또는 사람 검토로 보낸다. review bundle은 특정 document version과 cut snapshot을 고정하여 뒤늦은 원문 변경이 리뷰를 바꾸지 않게 한다.
 
-구조를 저장하는 같은 시점에 결정적 **segment manifest**와 **요구사항 inventory**를 만든다([ADR-0051](tracking/decisions/0051-deep-review-v2-deterministic-subset.md)). append-only이며 identity 키는 `(structure_id, taxonomy_version, extractor_binding_sha256)`다. 규칙이 바뀌면 `rules_sha256`이 바뀌어 새 row가 되고 기존 row를 덮지 않는다. 분류 출처는 `deterministic` 고정, `confidence`는 항상 `null`이며 못 정한 경계는 `needs_human_review`다. 읽기 계약은 `GET /api/document-structures/{structure_id}/segments`이고 응답에 원문 text가 없다. **이 변경 전에 만들어진 구조에는 manifest가 없고 조회가 404다** — `document_block`에 ordinal이 없어 사후 재구성이 불가능하다.
+구조를 저장하는 같은 시점에 결정적 **segment manifest**와 **요구사항 inventory**를 만든다([ADR-0051](tracking/decisions/0051-deep-review-v2-deterministic-subset.md)). append-only이며 identity 키는 `(structure_id, taxonomy_version, extractor_binding_sha256)`다. 규칙이 바뀌면 `rules_sha256`이 바뀌어 새 row가 되고 기존 row를 덮지 않는다. 분류 출처는 `deterministic` 고정, `confidence`는 항상 `null`이며 못 정한 경계는 `needs_human_review`다. HP-01 extractor v2는 라벨·값 요구사항 카드를 `requirement_inventory_item`에 보존하고, 저장한 앞 문단 anchor로 직접 쪽 매핑이 없는 카드의 `inherited` 쪽을 계산하며 taxonomy v2의 `operations_maintenance`를 추가한다. 읽기 계약은 `GET /api/document-structures/{structure_id}/segments`이고 응답에 원문 text가 없다. **이 변경 전에 만들어진 구조에는 manifest가 없고 조회가 404다** — `document_block`에 ordinal이 없어 사후 재구성이 불가능하다.
 
 적합성 등급이 `우선 검토`인 사전규격은 이 준비를 자동으로 진행한다([ADR-0049](tracking/decisions/0049-prespec-auto-preparation-and-auto-deep-review.md)). 자동 준비는 자기가 만든 초안만 확정하고(`confirmed_by_name == "auto-preparation"`) 사람이 만든 초안은 건드리지 않으며, 등급이 내려가도 이미 만든 묶음을 되돌리지 않는다. 촉발은 회차 적재 hook, effective grade 변경 hook, 첨부 취득 종결 셋이다.
 

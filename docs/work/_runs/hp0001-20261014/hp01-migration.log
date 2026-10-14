@@ -1,0 +1,59 @@
+ Container bidops-local-migrate-run-f245e511f602 Creating 
+ Container bidops-local-migrate-run-f245e511f602 Created 
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade 0036_company_analysis -> 0037_requirement_card_columns, Persist requirement-card provenance and page inheritance anchors.
+BEGIN
+REVOKE
+REVOKE
+ALTER DEFAULT PRIVILEGES
+ALTER DEFAULT PRIVILEGES
+GRANT
+GRANT
+GRANT
+GRANT
+GRANT
+GRANT
+GRANT
+GRANT
+GRANT
+GRANT
+GRANT
+GRANT
+GRANT
+GRANT
+GRANT
+GRANT
+GRANT
+GRANT
+GRANT
+GRANT
+GRANT
+GRANT
+GRANT
+GRANT
+GRANT
+GRANT
+GRANT
+GRANT
+GRANT
+GRANT
+GRANT
+GRANT
+GRANT
+GRANT
+GRANT
+GRANT
+GRANT
+GRANT
+GRANT
+ALTER DEFAULT PRIVILEGES
+GRANT
+ALTER DEFAULT PRIVILEGES
+GRANT
+GRANT
+GRANT
+COMMIT
+GRANT
+GRANT
+GRANT

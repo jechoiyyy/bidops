@@ -102,4 +102,8 @@ python3 scripts/feature_status.py doctor _
 
 ## 결과
 
-구현 후 작성한다.
+STEP-001~007 구현과 직접 영향 검사를 완료했다. 세부 명령·초기 실패·수정 후 증거는 `docs/work/_runs/hp0001-20261014/hp01-*.log`와 단계 결과 파일에 있다. 단위·PostgreSQL migration/CLI 실제 subprocess·타입/build·1280/1440 화면 의미/구조를 검증했다. 초기 PG 저장 테스트는 카드가 아닌 앞 문단 segment를 골랐고 정확한 segment ID로 수정했다. Linux `/proc` 전용 변환 검사는 macOS에서 실패했으나 동일 소스를 Linux 이미지에서 통과했다. MinIO 전용 기존 fixture 1건은 준비되지 않아 skip했으며 실제 객체 읽기는 격리 backfill·API에서 별도 검증했다.
+
+T11 실제 5건 카드 수는 목표 198장과 일치한다. 쪽은 직접0/상속88/미확인110으로 198/198 목표 미달이다. 가까운 3개 anchor 규칙을 바꾸거나 미확인을 추정으로 채우지 않았다. PDF10표본은 상속6건 위치일치·미확인4건; school13쪽의 다른 카드 텍스트 겹침은 findings에 남겼다. 입력/변환 hash·출력은 validation README와 run 증거에 연결했다.
+
+2026-10-15 KST 사용자 일괄 승인으로 bidops-local 전체 DB·객체164버전을 백업한 뒤0037 migration, notice79의 기존구조1건 backfill·멱등재실행·앱이미지교체·실제 REST200을 확인했다. 기존행 변경0, 새manifest1/segment105/card35. 기본 홈페이지 사전규격4건 중 나머지3건은 구조없음. 원문·프로필·정책은 보존됐고 추가모델호출은 없다. 자세한 증거는 `hp01-deployment.md`; 독립 최종 리뷰와 배치 통합 기록은 loop 결과에서 관리한다.

@@ -1,0 +1,174 @@
+................................Fs...................................... [ 64%]
+.......................................F                                 [100%]
+=================================== FAILURES ===================================
+_________ test_production_upload_writes_and_consumes_converter_result __________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x108b091c0>
+context = Context(engine=Engine(sqlite://), service=<app.deep_review.services.document_bundles.DocumentBundleService object at 0...te/var/folders/_c/3g36y_md7rg3l_xrx0r5lxyr0000gp/T/pytest-of-temp/pytest-1222/test_production_upload_writes_0/assets'))
+tmp_path = PosixPath('/private/var/folders/_c/3g36y_md7rg3l_xrx0r5lxyr0000gp/T/pytest-of-temp/pytest-1222/test_production_upload_writes_0')
+
+    def test_production_upload_writes_and_consumes_converter_result(monkeypatch: pytest.MonkeyPatch, context: Context, tmp_path: Path) -> None:
+        scratch = tmp_path / "converter-scratch"
+        converter = ScratchDocumentProcessor(scratch, wait_seconds=2, clamav_checker=lambda _content: True)
+        requests: list[Path] = []
+        real_write_request = document_converter.write_request
+    
+        def write_and_run_converter(*args, **kwargs):  # type: ignore[no-untyped-def]
+            request = real_write_request(*args, **kwargs)
+            requests.append(request)
+            assert convert_one(scratch) is True
+            return request
+    
+        monkeypatch.setattr(document_converter, "write_request", write_and_run_converter)
+        service = DocumentBundleService(root=context.asset_root, converter=converter)
+        bundle = make_bundle(context)
+        with Session(context.engine) as session:  # type: ignore[arg-type]
+>           document = asyncio.run(service.upload_document(session, bundle.id, MemoryUpload(fixture_pdf(), "sidecar.pdf", "application/pdf"), "담당자", uuid4()))
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/app/test_document_bundles.py:151: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/Users/temp/.local/share/uv/python/cpython-3.12.15-macos-aarch64-none/lib/python3.12/asyncio/runners.py:195: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+/Users/temp/.local/share/uv/python/cpython-3.12.15-macos-aarch64-none/lib/python3.12/asyncio/runners.py:118: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/Users/temp/.local/share/uv/python/cpython-3.12.15-macos-aarch64-none/lib/python3.12/asyncio/base_events.py:691: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+app/deep_review/services/document_bundles.py:883: in upload_document
+    inspected = assets.inspect_quarantine(asset, processor=self.processor or self.converter, clamav_checker=self.clamav_checker)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+app/deep_review/services/assets.py:648: in inspect_quarantine
+    processed = worker.process(data, asset.declared_media_type, options)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+app/deep_review/services/document_converter.py:94: in process
+    request_path = write_request(
+tests/app/test_document_bundles.py:142: in write_and_run_converter
+    request = real_write_request(*args, **kwargs)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+app/deep_review/document_protocol.py:520: in write_request
+    _atomic_write(content_path, content, limit=MAX_INPUT_BYTES)
+app/deep_review/document_protocol.py:136: in _atomic_write
+    temporary_fd, temporary_path = tempfile.mkstemp(dir=f"/proc/self/fd/{directory_fd}", prefix=".pending-")
+                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/Users/temp/.local/share/uv/python/cpython-3.12.15-macos-aarch64-none/lib/python3.12/tempfile.py:357: in mkstemp
+    return _mkstemp_inner(dir, prefix, suffix, flags, output_type)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+dir = '/proc/self/fd/15', pre = '.pending-', suf = '', flags = 2818
+output_type = <class 'str'>
+
+    def _mkstemp_inner(dir, pre, suf, flags, output_type):
+        """Code common to mkstemp, TemporaryFile, and NamedTemporaryFile."""
+    
+        dir = _os.path.abspath(dir)
+        names = _get_candidate_names()
+        if output_type is bytes:
+            names = map(_os.fsencode, names)
+    
+        for seq in range(TMP_MAX):
+            name = next(names)
+            file = _os.path.join(dir, pre + name + suf)
+            _sys.audit("tempfile.mkstemp", file)
+            try:
+>               fd = _os.open(file, flags, 0o600)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               FileNotFoundError: [Errno 2] No such file or directory: '/proc/self/fd/15/.pending-alg1pah1'
+
+/Users/temp/.local/share/uv/python/cpython-3.12.15-macos-aarch64-none/lib/python3.12/tempfile.py:256: FileNotFoundError
+__ test_pg_store_manifest_persists_card_source_card_json_and_parallel_anchors __
+
+    @requires_postgres
+    def test_pg_store_manifest_persists_card_source_card_json_and_parallel_anchors() -> None:
+        with migrated_engine() as engine:
+            with Session(engine) as session:
+                structure, document = _seed_structure(session)
+                session.commit()
+                payload = _structure(
+                    _blocks(
+                        [
+                            {"block_key": "anchor-1", "text": "제1장 기능 요구사항"},
+                            {"block_key": "anchor-2", "text": "요구사항 카드 목록"},
+                            *_requirement_card_table(
+                                [[
+                                    ("요구사항분류", "기능"),
+                                    ("요구사항번호", "SFR-001"),
+                                    ("요구사항명", "회원 조회"),
+                                    ("정의", "회원 정보를 조회한다."),
+                                    ("세부내용", "권한별 회원 정보를 제공한다."),
+                                ]]
+                            ),
+                        ]
+                    ),
+                    structure_id=structure.id,
+                    document_version_id=document.id,
+                )
+                manifest = document_segments.store_manifest(session, payload)
+                session.commit()
+    
+                item = session.scalar(
+                    select(RequirementInventoryItem).where(
+                        RequirementInventoryItem.manifest_id == manifest.id
+                    )
+                )
+                segment = session.scalar(
+                    select(DocumentSegment).where(DocumentSegment.manifest_id == manifest.id)
+                )
+                assert item is not None
+                assert item.source == "label_value_table"
+                assert item.card["category"] == "기능"
+                assert item.card["page_anchor_block_keys"] == ["anchor-2", "anchor-1"]
+                assert segment is not None
+>               assert segment.page_anchor_block_keys == ["anchor-2", "anchor-1"]
+E               AssertionError: assert [] == ['anchor-2', 'anchor-1']
+E                 
+E                 Right contains 2 more items, first extra item: 'anchor-2'
+E                 Use -v to get more diff
+
+tests/deep_review/test_document_segments_postgres.py:312: AssertionError
+=============================== warnings summary ===============================
+app/deep_review/agents/common/contracts.py:391
+  /Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/hp0001-20261014-HP-01-requirement-cards/web/backend/app/deep_review/agents/common/contracts.py:391: UserWarning: Field name "schema" in "AgentRunView" shadows an attribute in parent "_StrictModel"
+    class AgentRunView(_StrictModel):
+
+app/deep_review/agents/common/contracts.py:462
+  /Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/hp0001-20261014-HP-01-requirement-cards/web/backend/app/deep_review/agents/common/contracts.py:462: UserWarning: Field name "schema" in "AgentCommand" shadows an attribute in parent "_StrictModel"
+    class AgentCommand(_StrictModel, Generic[TAction]):
+
+app/deep_review/schemas/document_bundles.py:115
+  /Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/hp0001-20261014-HP-01-requirement-cards/web/backend/app/deep_review/schemas/document_bundles.py:115: UserWarning: Field name "schema" in "DocumentStructure" shadows an attribute in parent "StrictModel"
+    class DocumentStructure(StrictModel):
+
+app/deep_review/schemas/document_bundles.py:227
+  /Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/hp0001-20261014-HP-01-requirement-cards/web/backend/app/deep_review/schemas/document_bundles.py:227: UserWarning: Field name "schema" in "SegmentExtractorBinding" shadows an attribute in parent "StrictModel"
+    class SegmentExtractorBinding(StrictModel):
+
+app/deep_review/schemas/document_bundles.py:235
+  /Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/hp0001-20261014-HP-01-requirement-cards/web/backend/app/deep_review/schemas/document_bundles.py:235: UserWarning: Field name "schema" in "DocumentSegmentsView" shadows an attribute in parent "StrictModel"
+    class DocumentSegmentsView(StrictModel):
+
+app/deep_review/schemas/reports.py:69
+  /Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/hp0001-20261014-HP-01-requirement-cards/web/backend/app/deep_review/schemas/reports.py:69: UserWarning: Field name "schema" in "DeepReviewReport" shadows an attribute in parent "StrictModel"
+    class DeepReviewReport(StrictModel):
+
+app/deep_review/schemas/reports.py:122
+  /Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/hp0001-20261014-HP-01-requirement-cards/web/backend/app/deep_review/schemas/reports.py:122: UserWarning: Field name "schema" in "NarrativeReport" shadows an attribute in parent "DeepReviewReport"
+    class NarrativeReport(DeepReviewReport):
+
+app/deep_review/schemas/reports.py:143
+  /Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/hp0001-20261014-HP-01-requirement-cards/web/backend/app/deep_review/schemas/reports.py:143: UserWarning: Field name "schema" in "DeepReviewValidation" shadows an attribute in parent "StrictModel"
+    class DeepReviewValidation(StrictModel):
+
+tests/app/test_document_bundles.py::test_segments_endpoint_returns_the_manifest_without_source_text
+  /tmp/bidops-hp0001-20261014-venv/lib/python3.12/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+SKIPPED [1] tests/app/test_document_bundles.py:159: requires the isolated MinIO service
+FAILED tests/app/test_document_bundles.py::test_production_upload_writes_and_consumes_converter_result
+FAILED tests/deep_review/test_document_segments_postgres.py::test_pg_store_manifest_persists_card_source_card_json_and_parallel_anchors
+2 failed, 109 passed, 1 skipped, 9 warnings in 12.50s
