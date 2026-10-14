@@ -1,0 +1,99 @@
+{
+  "id": "hp0001-20261014",
+  "state": "awaiting_merge",
+  "features": [
+    "HP-00-luna-model-identity",
+    "HP-01-requirement-cards"
+  ],
+  "target": "demo/local-20261009",
+  "base_sha": "fba715332e70e0994e2296a8899acf8270f5bd6b",
+  "base_root": "/Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009",
+  "branch": "sdlc/batch-hp0001-20261014",
+  "workspace": "/Users/temp/orca/bidops/.sdlc/worktrees/demo-local-20261009/.sdlc/worktrees/batch-hp0001-20261014",
+  "work_dir": "docs/work",
+  "engine": "codex",
+  "approved_at": "2026-10-14T19:52:46+09:00",
+  "policy": {
+    "auto_commit": false,
+    "manual_proof": "defer",
+    "final_review": true,
+    "max_retries": 1,
+    "git": {
+      "isolation": "worktree",
+      "merge": "no-ff",
+      "copy_untracked": []
+    },
+    "commit_policy": "manual",
+    "merge_policy": "manual"
+  },
+  "specs": {
+    "HP-00-luna-model-identity": "d683a71b1c92e848373458189f3588e4955e8f74e0fadc14c36b5dd905c5e604",
+    "HP-01-requirement-cards": "a3381294c849873f6c48178e048a604125e22396eeb8a1df943f94e29dc29c2b"
+  },
+  "ready": {
+    "HP-00-luna-model-identity": {
+      "inputs": {
+        "source_hash": "1a40e9af45a73b1259bfae71eb933f9ec46d309b47c20d6aec98764f51d7db79",
+        "spec_hash": "d683a71b1c92e848373458189f3588e4955e8f74e0fadc14c36b5dd905c5e604"
+      },
+      "at": "2026-10-15T00:19:31+09:00"
+    },
+    "HP-01-requirement-cards": {
+      "inputs": {
+        "source_hash": "1a40e9af45a73b1259bfae71eb933f9ec46d309b47c20d6aec98764f51d7db79",
+        "spec_hash": "a3381294c849873f6c48178e048a604125e22396eeb8a1df943f94e29dc29c2b"
+      },
+      "at": "2026-10-15T00:19:52+09:00"
+    }
+  },
+  "decisions": [
+    {
+      "feature": "HP-00-luna-model-identity",
+      "note": "독립 명세 검토: v5의 v4 identity 상속 모순을 명시적 v5 identity와 map 등록으로 정정; 기존 정책 불변·승인 범위 유지",
+      "at": "2026-10-14T19:55:59+09:00"
+    },
+    {
+      "feature": "HP-00-luna-model-identity",
+      "note": "고정 정책 검사 구현 조사: AssumptionInputVersion에 정책 계보가 없어 새 불변 input에 최소 policy_binding을 포함. 기존 row/상위 DTO/DB 유지, 승인 hash에 결합",
+      "at": "2026-10-14T20:14:17+09:00"
+    },
+    {
+      "feature": "HP-00-luna-model-identity",
+      "note": "현재 bidops-local inspect 결과 기존 demo overlay가 image를 소비하고 옛 증거 overlay는 없음. 현재 compose 집합 보존+hp overlay 마지막 추가로 적용 안내 정정; 운영 변경 미실행",
+      "at": "2026-10-14T20:28:57+09:00"
+    },
+    {
+      "feature": "HP-00-luna-model-identity",
+      "note": "독립 리뷰 권고의 v5 4키 오기 정정 및 결과·미완료 경계 기록; 제품 계약 동일",
+      "at": "2026-10-14T20:31:52+09:00"
+    },
+    {
+      "feature": "HP-00-luna-model-identity",
+      "note": "v5 4키 오기 정정 및 결과 기록; 제품 계약 동일",
+      "at": "2026-10-14T20:32:22+09:00"
+    },
+    {
+      "feature": "HP-01-requirement-cards",
+      "note": "최종 독립 리뷰 지적에 따라 intent의 과거 scratchpad 198/198을 실제88/198·110미확인으로 사실교정; 제품 spec/수용 범위 변경 없음. 사용자 승인된 구현·검증 범위 내 기록 정정",
+      "at": "2026-10-15T00:19:51+09:00"
+    }
+  ],
+  "review": {
+    "result": "pass",
+    "evidence": "docs/work/_runs/hp0001-20261014/final-batch-review.md",
+    "model": "gpt-5.6-sol",
+    "effort": "high",
+    "independent": true,
+    "at": "2026-10-15T00:20:14+09:00",
+    "inputs": {
+      "HP-00-luna-model-identity": {
+        "source_hash": "1a40e9af45a73b1259bfae71eb933f9ec46d309b47c20d6aec98764f51d7db79",
+        "spec_hash": "d683a71b1c92e848373458189f3588e4955e8f74e0fadc14c36b5dd905c5e604"
+      },
+      "HP-01-requirement-cards": {
+        "source_hash": "1a40e9af45a73b1259bfae71eb933f9ec46d309b47c20d6aec98764f51d7db79",
+        "spec_hash": "a3381294c849873f6c48178e048a604125e22396eeb8a1df943f94e29dc29c2b"
+      }
+    }
+  }
+}
