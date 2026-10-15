@@ -1,31 +1,34 @@
-# HP-02~06 검토 묶음 — 준비만 완료, 결정·구현 전
+# HP-02~06 loop 전 준비
 
-2026-10-15. HP-00·01 loop은 `demo/local-20261009`에 통합·완료 기록 커밋 `95d361d`까지 끝났다. 관련 backend333·browser31 통과, build·독립 리뷰 PASS/차단0. 상세는 [최종 검증](../../../_runs/hp0001-20261014/hp0001-final-validation.md)과 [격리 적용](../../../_runs/hp0001-20261014/hp01-deployment.md). MinIO fixture1 skip, 실제 모델 분석 실패, 카드 쪽110미확인, 기본 대상3건 구조 부재 한계는 유지한다.
+현재 기준은 회사 v2·온톨로지 v1·선정10사례다. 설정 승인은 완료됐으며 **제품 구현·실제 비교·독립 정답·최종 인수는 아직 완료되지 않았다.** 기능별 최신 intent/spec/plan이 실행 계약이고 preparation 문서는 의사결정 경과다.
 
-아래 다섯 기능은 계속 **drafting**이며 큐에 구현 승인·완료로 올리지 않았다. 제품·회사 DB·정책·모델 호출·Neo4j 실험 변경 없음. 원문 근거·사람 자료는 Git 밖 제한 디렉터리에 두고 [artifact-manifest.json](artifact-manifest.json)에 위치·hash·규모만 기록했다.
+## 확정 입력과 작성 자료
 
-| 기능 | 준비 완료 | 아직 하지 않은 일 |
+- [회사 v2 승인 원본](company.experience.approved.v2.json): 14기존사실·세 가상 실적 담당 범위·표준 절차. 현재 인력/자격/SLA/계약 수용은 따로 판단한다.
+- [평가 basis v2](company.evaluation-basis.v2.json)·[검토 입력 동결](review-inputs.frozen.v2.json): company SHA는 basis 파일 bytes, ontology는 canonical SHA. 제품 등록 projection은 HP02 구현 대상이다.
+- [승인 온톨로지](ontology.approved.v1.json): 51concept·4kind·11관계. [선정 문서](evaluation-documents.selected.v1.json): 10사업·11원문·541카드, inherited312/unavailable229. 직접 매핑 쪽은0이며 정확도 지표가 아니다.
+- [인수 후보 기준](acceptance-criteria.approved.v1.json)·[그래프 채택 후보 기준](graph-adoption-criteria.approved.v1.json): 기준 승인과 실제 인수·채택은 별개다.
+- 사람이 읽는 자료: `/Users/temp/orca/bidops/.sdlc/local-runtime/hp-evaluation-20261015/index.company-v2.html`; 빈 작성 양식 `assisted-review.worksheet.blank.v2.json`. 모델 답 없이 원문·회사 사실을 제공한다. 폴리텍 초안 노출 이력 때문에 이 작성 흐름은 독립 blind gold가 아니다.
+- 원문·파생 자료 위치와 해시: [artifact-manifest.json](artifact-manifest.json). v1/draft/이전 양식은 불변 보존하며 v2로 자동 이관하지 않는다.
+
+## 구현 준비 범위
+
+| 기능 | 실행 명세·계획 | loop에서 해야 할 일 |
 |---|---|---|
-| [HP-02](../features/HP-02-homepage-ontology-company/preparation.md) | 실제198카드 근거, 28concept/분류/alias 후보, 가상회사 초안, 기존 매퍼 연결 coverage 도구 | D1/D2 확정, 정식 fixture·등록·활성화 |
-| [HP-03](../features/HP-03-two-tier-analysis/preparation.md) | 기존 함수 연결, frozen input·stage 출력·저장 초안, 경계 사례·구현 순서 | 제품 파이프라인/migration/모델 검증 |
-| [HP-04](../features/HP-04-practitioner-verdict/preparation.md) | 다섯 블록·상태표·REST envelope·화면/API 검사 계획 | 실제 화면/API·두 폭 검증 |
-| [HP-05](../features/HP-05-neo4j-experiment/preparation.md) | 5개 Python/Cypher 질의쌍·실험 절차·경로 scorer·사람 평가 빈 양식 | Neo4j 실행/동등성·recall 측정·채택 |
-| [HP-06](../features/HP-06-gold-acceptance/preparation.md) | 모델 답 없는5문서198카드 작성 자료·gold 검사·채점 도구 | 나머지 표본·사람 gold·모델10건·최종 인수 |
+| HP02 | [spec](../features/HP-02-homepage-ontology-company/spec.md) · [plan](../features/HP-02-homepage-ontology-company/plan.md) | v2 projection·binding·격리 등록/조회·coverage |
+| HP03 | [spec](../features/HP-03-two-tier-analysis/spec.md) · [plan](../features/HP-03-two-tier-analysis/plan.md) | 추출/대조/역할/종합·저장·worker·대표 실제검증 |
+| HP04 | [spec](../features/HP-04-practitioner-verdict/spec.md) · [plan](../features/HP-04-practitioner-verdict/plan.md) | 읽기 REST·다섯블록 화면·두 폭/실제조회 검증 |
+| HP05 | [spec](../features/HP-05-neo4j-experiment/spec.md) · [plan](../features/HP-05-neo4j-experiment/plan.md) | 엔진 adapter·동등성·사람 기대경로 후 실제비교 |
+| HP06 | [spec](../features/HP-06-gold-acceptance/spec.md) · [plan](../features/HP-06-gold-acceptance/plan.md) | export/채점 연결·독립정답·실제10건·사람 인수 |
 
-실제 후보 매핑은 **129/198(65.2%)**다. 넓은 관련어 묶음까지 포함한 출현 비율이므로 정확도나 목표 달성으로 해석하지 않는다. 미매핑69카드도 coverage에 남겼다. 28개 후보의 related alias는 사용자 검토 뒤 분리할 수 있다.
+18개 STEP을 동기화했고 독립 문서 리뷰(수정 차이1회 재검토 포함)는 PASS/차단0이다. HP02~06은 review 상태로 실행 큐에 등록했다. 다음 착수 기능은 HP02이며 나머지는 명시된 선행 기능을 기다린다. 구현 run은 시작하지 않았다. 단계/큐의 정본은 status.json과 queue.json, 변경은 feature_status.py만 사용한다.
 
-## 돌아온 뒤 권장 검토 순서
+## 남은 사람 참여와 권장 순서
 
-| 순서/결정 | 근거·추천안 | 대안·영향 | 현재 결정 |
-|---|---|---|---|
-| 1 D2 온톨로지 | 실제 근거부터 보고 4kind·관계 유지. 관련어/동의어 분리 후 concept·alias 확정 | kind/관계 확장은 validator·DB·검색 범위 변경. 접두는 기존 DEMO 유지도 가능 | 미확정 |
-| 2 D1 회사 | 가상 온웹서비스 중간규모, 미보유2·상주상한1·unknown2를 구분 | 더 작은/큰 회사는 결과 분포를 바꿈. 실제 공고에 맞춘 사후 숫자 조정 금지 | 미확정 |
-| 3 D4/D5 HP03 | 문서+ordinal 기반 unit ID, 8장/12,000자 시작안, 40분 목표와 hard timeout 구분, 카드외 명시적 selector | 시간상한2400초 대안; 큰 단위 분할은 근거 연결 추가 설계 필요 | 미확정 |
-| 4 D3/D6 HP04 | DEMO row 보존+HP 목록 필터, 회사 scoped current/attempt 조회, conflicts는 주의 안 | 모든 회사 탭 노출/404 빈결과 대안은 안내·API 소비자 영향 | 미확정 |
-| 5 D7 HP06 | 10문서 선정·회사 동결 후 모델 결과 보기 전에 사람 gold 작성. top5만의 precision 한계 먼저 해소 | 전체정답집합 또는 불일치 사람 adjudication; 기준은 측정 전 결정 | 미확정 |
-| 6 D8 HP05 | 기대경로·분모·우위 정의부터 확정. 현행 recall와 보조질의 분리 | 질의 표현력만으로 채택 후보 가능하나 주관 비중 증가. 운영 비용/AGE 제외는 이미 결정 | 미확정 |
-
-원문 쪽 보완은 HP01 findings의 별도 문제다. 110건을 임의 추정하지 않고 후속에서도 unavailable로 처리한다. 최종 인수는 사람이 작성하며 준비 문서나 도구 통과로 대신하지 않는다.
+1. HP02~04 구현 전 추가 제품 설정 결정은 없다. 검토 가능한 문서를 수동 커밋한 뒤 loop를 시작한다.
+2. 독립 평가 전에 **모델 답을 보지 않은 평가자**를 우선 권장한다. 같은10건을 재사용할 수 있다. 불가능하면 새 미노출 holdout을 선정한다. 현재 모델 보조 기록을 독립 정답으로 바꾸지 않는다.
+3. HP05 실제 비교 전에 원본 그래프의 기대·필수 경로를 사람이 동결한다. 결과 뒤 질의 작성/수정 용이성과 설명을 평가하고 도입을 결정한다.
+4. HP06 사람 정답·불일치·중대 오류를 검토한 뒤 최종 인수한다. 미확정 사업별 비용/책임/기한 등은 unknown으로 보존하며 해당 공고를 판단할 때만 묻는다.
 
 ## 오프라인 도구 실행
 
@@ -33,7 +36,7 @@
 
 ```sh
 python docs/work/groups/HP/preparation/hp_prepare.py export /path/to/structure-pairs --out /outside/git/cards.NEW.json
-python docs/work/groups/HP/preparation/hp_prepare.py coverage /outside/git/cards.NEW.json docs/work/groups/HP/preparation/ontology.candidates.draft.json --out /outside/git/coverage.NEW.json
+python docs/work/groups/HP/preparation/hp_prepare.py coverage /outside/git/cards.NEW.json docs/work/groups/HP/preparation/ontology.approved.v1.json --out /outside/git/coverage.NEW.json
 python docs/work/groups/HP/preparation/hp_prepare.py blank-gold /outside/git/cards.NEW.json --out /outside/git/human-worksheet.blank.NEW.json
 python docs/work/groups/HP/preparation/hp_prepare.py gold-check /outside/git/human-written-gold.json --out /outside/git/gold-check.NEW.json
 python docs/work/groups/HP/preparation/hp_prepare.py score /outside/git/human-written-gold.json /outside/git/predictions.json --out /outside/git/score.NEW.json
@@ -42,10 +45,10 @@ python docs/work/groups/HP/preparation/hp_prepare.py graph-score /outside/git/ex
 
 export 입력은 `sources.json`의 name/file/source_sha256 및 `<name>.structure.json`, `<name>.para_page_map.json`, 원본 파일이다. 원본 hash·structure source hash를 검사하고 입력 디렉터리 이탈·symlink를 거부한다. 제품의 build_manifest_payload/resolve_card_pages만 호출하며 DB·네트워크·모델은 쓰지 않는다. 출력0600·exclusive create, 원문/오류값을 stdout에 내보내지 않는다. 원문 자료 디렉터리는0700이다.
 
-## 검증 범위
+## 검증과 한계
 
-- `python -m unittest discover -s docs/work/groups/HP/preparation -p test_hp_prepare.py -v`: 초기12개 통과. 이후 입력 경로 격리만 추가하여 `-k input_path` 1개 통과. 변경되지 않은12개 결과 재사용.
-- `python -m unittest discover -s docs/work/groups/HP/preparation -p test_graph_queries.py -v`: 합성 그래프1개 통과. 준비 도구 총14검사, 사람 정답/실제 그래프 실험 결과가 아니다.
-- 실제 source pack/coverage/blind pack 생성 성공. 경로 검사 추가 뒤 새 v2로 생성하고 cards v1/v2 documents 동일 확인. v1도 불변 보존. v2는 현재 준비 도구 hash에 고정.
-- blank 실제 작성자료의 gold-check 거부, 출력 덮어쓰기 거부, 원문 hash·198카드 ID 고유성·blank 정답 유지·근거 block 인용 일치 검사 결과는 [validation.json](validation.json).
-- Cypher 실행, Neo4j/PostgreSQL 실험 동등성, 사람 평가, HP03/04 제품, HP06 실제 품질은 미검증이다. 이번 후속 준비는 제품 변경이 없어 앱 재빌드·배포·전체 테스트를 반복하지 않았다.
+HP00·01은 완료 커밋 `95d361d`와 [최종 검증](../../../_runs/hp0001-20261014/hp0001-final-validation.md)이 있다: 관련 backend333·browser31·build·독립리뷰 통과. MinIO fixture1 skip, 실제 모델 분석 실패, 최초198카드 쪽110미확인과 기본 backfill3건 구조 부재는 유지한다.
+
+이전 준비 도구는23검사, 보조 그래프 질의는 합성1검사가 통과했다. 이를 실제 엔진 비교/모델 품질 근거로 쓰지 않는다. 이번 문서 작업에서는 doctor·5개 check-plan·JSON 파싱·v2 동결 파일 해시·10건 정답 빈칸 보존과 제품 소스 동일성을 검사했다. 제품 코드 변경이 없어 앱 재빌드·배포·모델 실행을 반복하지 않았다.
+
+최종 독립 리뷰·원본 증거 재사용 판단은 [preloop-review.md](preloop-review.md)에 기록했다. loop 이전 기록 검증과 제품 기능 검증은 구분한다.

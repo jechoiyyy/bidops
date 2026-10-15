@@ -1,8 +1,10 @@
 # HP-05 비교 준비 (실험 미실행)
 
-사용자 결정대로 비교 기준은 경로 recall·질의 표현력·설명 가능성 세 가지다. **운영 비용과 Apache AGE는 제외**한다. 공통 계약 §10의 “운영 비용 수용” 문장은 기존 결정과 충돌하는 잔여 문구이며 실험 기준으로 쓰지 않는다. 별도의 채택 결정을 대신 만들지 않고 다음 정본 정리 때 제거한다.
+> 승인 전 제안과 준비 경과 기록이다. 현재 실행 계약·결정 상태는 [intent](intent.md)·[spec](spec.md)·[plan](plan.md)을 따른다.
 
-준비물: [Python 질의](../../preparation/graph_queries.py), [Cypher 5 질의](../../preparation/graph-queries.draft.cypher), [사람 평가 빈 양식](../../preparation/graph-human-review.blank.json), [경로 채점기 graph-score](../../preparation/hp_prepare.py). Python의 숫자 경계·null·unknown·cycle은 합성 자료에서만 검사했다. Cypher는 실행하지 않았다. Neo4j 이미지를 받거나 컨테이너를 띄우지 않았다.
+사용자 결정대로 비교 기준은 경로 recall·질의 표현력·설명 가능성 세 가지다. **운영 비용과 Apache AGE는 제외**한다. 공통 계약 §10에 남아 있던 “운영 비용 수용” 문구도 기존 결정에 맞춰 제거했다.
+
+준비물: [Python 질의](../../preparation/graph_queries.py), [Cypher 5 질의](../../preparation/graph-queries.draft.cypher), [사람 평가 빈 양식](../../preparation/graph-human-review.blank.v2.json), [경로 채점기 graph-score](../../preparation/hp_prepare.py). Python의 숫자 경계·null·unknown·cycle은 합성 자료에서만 검사했다. Cypher는 실행하지 않았다. Neo4j 이미지를 받거나 컨테이너를 띄우지 않았다.
 
 두 가지 측정을 섞지 않는다.
 
@@ -21,6 +23,12 @@
 6. 같은10경로에 대해 설명의 근거 추적 가능성·판단에 필요한 누락 정보를 사람이 평가한다. 5질의의 가독성·변경 용이성도 사람 점수와 이유로 남긴다. 운영 비용 점수는 받지 않는다.
 7. 사전 기준으로 유지/채택/보류를 사람이 결정한다. 채택이면 replan으로 제품 연결 범위를 따로 만든다.
 
-D8 추천: “2경로/10건”은 분모가 모호하므로 기대경로 전체의 micro recall 개선 ≥0.10(제안)·기존 필수경로 회귀0, 또는 5질의 중3개 이상에서 사전 정의한 가독성/변경용이성 우위를 채택 후보 조건으로 삼고 설명 가능성 열화가 없어야 한다. 대안은 recall 차이가 없더라도 질의 표현력만으로 채택 후보를 만드는 것(주관 평가 비중 증가). 숫자·가중·최종 채택은 모두 미확정. 실행 결과를 보고 임계값을 고치지 않는다.
+D8은 2026-10-15 사용자 “확정해”로 확정됐다. 현행보다 기대경로 발견율10%p 이상 개선 **또는** 고정5질의 중3개 이상에서 작성·수정이 더 쉽다는 평가를 받고, **두 경우 모두** 기존 필수 경로 손실0과 설명 가능성 비열화를 만족해야 채택 후보가 된다. 최종 도입은 결과를 보고 사람이 결정한다. 실행 후 임계값을 바꾸지 않는다.
+
+[고정 기준 파일](../../preparation/graph-adoption-criteria.approved.v1.json)과 기준 hash를 연결한 [새 사람 평가 빈 양식](../../preparation/graph-human-review.blank.v2.json)을 마련했다. 원본 양식은 보존했다. 작성·수정 용이성은 query별 neo4j/postgres/tie/unassessed와 이유로 사람이 평가하며, 미평가를 Neo4j 우위로 세지 않는다. 필수 경로 손실·설명 가능성·최종 채택은 아직 null이다.
+
+집계 계획: 동일 기대경로 집합에서 엔진별 micro recall을 비교하고 Neo4j−PostgreSQL이0.10 이상인지 본다(상대10%가 아닌10%p). 분모0이나 미작성 기대경로는 미측정이다. 필수 경로 집합도 실행 전에 사람이 표시해야 한다. 같은 데이터·방향·홉·정렬·cap을 쓰는 현행 비교와 확장 탐색 실험을 혼합하지 않으며, 동일 검색 의미라면 recall 차이가 없을 수 있다. 그 경우 작성·수정 용이성 경로로 채택 후보를 평가할 수 있다.
+
+실제 Neo4j 실행·필수 경로 판정·설명 평가·도입은 수행하지 않았다. 기존 graph-score는 엔진별 경로 채점 도구이며 이번 파일만으로 두 엔진 자동 비교/채택기가 구현됐다고 보지 않는다. 회사/온톨로지 최종 동결, 기대경로 작성, 정확한 이미지 digest와 비교 어댑터 검증이 선행해야 한다.
 
 구문 조사: [Neo4j variable-length paths](https://neo4j.com/docs/cypher-manual/current/patterns/variable-length-paths/)와 [PostgreSQL17 WITH](https://www.postgresql.org/docs/17/queries-with.html)를 확인했다. 초안은 Neo4j5 호환 legacy `*1..3` 표기를 사용하며 실제 고정 버전에서 실행 검증이 남아 있다. 문서 조회가 DB 엔진 동등성의 증거는 아니다.

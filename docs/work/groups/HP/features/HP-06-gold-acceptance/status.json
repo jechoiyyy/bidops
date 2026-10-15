@@ -1,8 +1,33 @@
 {
   "schema_version": 2,
   "feature": "HP-06-gold-acceptance",
-  "phase": "drafting",
-  "steps": [],
+  "phase": "review",
+  "steps": [
+    {
+      "id": "STEP-001",
+      "title": "독립 작성 자료·검증기 정합화",
+      "model": "complex",
+      "fingerprint": "8295472735568f06891a399cc4a449a85d42b80b81f306d1cd39d1130b15fd07",
+      "status": "pending",
+      "updated_at": null
+    },
+    {
+      "id": "STEP-002",
+      "title": "attempt export와 채점·인수 기록",
+      "model": "complex",
+      "fingerprint": "6eefbdcb84f3a5a655ca6b68175eec2ee2d17bc2ff563c109a7bd47b54c139e7",
+      "status": "pending",
+      "updated_at": null
+    },
+    {
+      "id": "STEP-003",
+      "title": "독립 사람10건·실제 평가 인수",
+      "model": "complex",
+      "fingerprint": "40db857fe42531046b80da275d80e78706de8e0ab15f0b5043d66e0ef5518de8",
+      "status": "pending",
+      "updated_at": null
+    }
+  ],
   "proof": {
     "docs": {
       "result": "pending"
@@ -27,7 +52,15 @@
     {
       "at": "2026-10-14T18:53:35+09:00",
       "text": "생성 (drafting)"
+    },
+    {
+      "at": "2026-10-15T15:34:07+09:00",
+      "text": "plan 작업 ID 동기화"
+    },
+    {
+      "at": "2026-10-15T15:50:40+09:00",
+      "text": "단계 → review: 명세 독립 검사 PASS(gpt-5.6-sol/high), 지적6개 반영·차이1회 재검토·차단0. preparation/preloop-review.md 참조. 제품 구현/검증 전"
     }
   ],
-  "updated_at": "2026-10-14T18:53:35+09:00"
+  "updated_at": "2026-10-15T15:50:40+09:00"
 }

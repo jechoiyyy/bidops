@@ -1,0 +1,163 @@
+{
+  "captured_at": "2026-10-15",
+  "source_kind": "working_tree",
+  "base_commit": "43c2a36f2f0e5a5dc33d4896c9831d90b4c50381",
+  "files": [
+    {
+      "path": "AGENTS.md",
+      "sha256": "36f3633f48a4f9d0166c54375afbbe5427d19443be9006a9a3d4bdb541065857"
+    },
+    {
+      "path": "docs/ARCHITECTURE.md",
+      "sha256": "ea75509fd9f803739ef100c1a0d1bd31ee8af0983b557875db4421e791e9d314"
+    },
+    {
+      "path": "docs/PRD.md",
+      "sha256": "41c7d2a855937cefaad78c76d1dc397112b18604874aeeaebb193d0dca96e3af"
+    },
+    {
+      "path": "docs/business-rules.md",
+      "sha256": "959e32d0ce09acf4e8e6c388a799fb9496b1f9357c90c2046c6c8b35774faa39"
+    },
+    {
+      "path": "docs/contracts.md",
+      "sha256": "9a036c9c8c5df2f3779f9a643aba8db795e690e14ad31da455cf37c9ce089969"
+    },
+    {
+      "path": "docs/deep-review-erd.md",
+      "sha256": "bebb87ef0e0d6bfb265d6cb784203ef5efa4f70031358c0efe458d8032433485"
+    },
+    {
+      "path": "docs/operations.md",
+      "sha256": "939450d77ba62780c1ef991883f5ace08866faf8294272fb6354e257e199c63d"
+    },
+    {
+      "path": "docs/standards.md",
+      "sha256": "990eb4a2130e63a62f8b65faa1712d8eb271e4f38030ea495153e180448a567f"
+    },
+    {
+      "path": "docs/work/constitution/mission.md",
+      "sha256": "0aaf8afabe8e42d929d521a20b5a977ecefde89984e861388cbc6d99da37a385"
+    },
+    {
+      "path": "docs/work/constitution/roadmap.md",
+      "sha256": "dcff341030d254a5d60f1fbbba57d3feec8c0740779559bac2d755fab76dbc3b"
+    },
+    {
+      "path": "docs/work/constitution/tech-stack.md",
+      "sha256": "f8684f5b190750d50166e51b7953d094ec81110b6b0eb4878aedccc336bb14b4"
+    },
+    {
+      "path": "docs/work/demo-contract.md",
+      "sha256": "5ece4080f0dca1618e3940208d59733d4b79f41469920e5e66b3ceb3122dc705"
+    },
+    {
+      "path": "docs/work/feature.json",
+      "sha256": "fa1192b9ec5d197e9a89ac9688eec8c7cdb14fae2ebbb47a932328c209b4c3a1"
+    },
+    {
+      "path": "docs/work/groups/HP/features/HP-02-homepage-ontology-company/intent.md",
+      "sha256": "94e3a686111b0b82ec0460433eeaf601e7f8d38bd22ece0f107365e58f00b315"
+    },
+    {
+      "path": "docs/work/groups/HP/features/HP-02-homepage-ontology-company/plan.md",
+      "sha256": "225e7f1aefea2bce6f5f1c2565b36254200bb4af5674fdbbee1f5a6731e881b3"
+    },
+    {
+      "path": "docs/work/groups/HP/features/HP-02-homepage-ontology-company/spec.md",
+      "sha256": "218d906d960021f0f4f25d10c580bc701946a13e513ee3be1759ea6f0ddd529f"
+    },
+    {
+      "path": "docs/work/groups/HP/features/HP-03-two-tier-analysis/intent.md",
+      "sha256": "3706f5ac98edd200b7a60592f66cd5369ef43d913ef8da9b08a5bc487cfebf1b"
+    },
+    {
+      "path": "docs/work/groups/HP/features/HP-03-two-tier-analysis/plan.md",
+      "sha256": "460390847c71a2e41d42d57c5c230f70b75bfb121adc5f82c34abb4b46e8923b"
+    },
+    {
+      "path": "docs/work/groups/HP/features/HP-03-two-tier-analysis/spec.md",
+      "sha256": "78eeb1c606ee2a01654cbbe2c763a5185c497ae63b83d2877c21f2f950c70fbb"
+    },
+    {
+      "path": "docs/work/groups/HP/features/HP-04-practitioner-verdict/intent.md",
+      "sha256": "67e43d517582faffcfbcc365e599bcf2e74419c332f883c417e66cb00fd43277"
+    },
+    {
+      "path": "docs/work/groups/HP/features/HP-04-practitioner-verdict/plan.md",
+      "sha256": "4db2b02f1be6d38da447ea10f5c6ff8aa3321f2a8e1195bd30cc0b7784af8e85"
+    },
+    {
+      "path": "docs/work/groups/HP/features/HP-04-practitioner-verdict/spec.md",
+      "sha256": "99636b66967176c415d73ff021b62ab6f1d055cba424690f1b53c57c64d72fb8"
+    },
+    {
+      "path": "docs/work/groups/HP/features/HP-05-neo4j-experiment/intent.md",
+      "sha256": "79320438c1d2c905d0c43396d19c00d5387ca3e2323b1414f4ed8864bfacd144"
+    },
+    {
+      "path": "docs/work/groups/HP/features/HP-05-neo4j-experiment/plan.md",
+      "sha256": "6f40bee5f0e805edb54145082053ff7cbd754428c860c920c5e046e861bda78e"
+    },
+    {
+      "path": "docs/work/groups/HP/features/HP-05-neo4j-experiment/spec.md",
+      "sha256": "ac56af3ec8e78df13e2ad65160a19ed4cb6e5834cd4832ff0e46a5f038d808c3"
+    },
+    {
+      "path": "docs/work/groups/HP/features/HP-06-gold-acceptance/intent.md",
+      "sha256": "2002ba3245d83b9d89688ed4e59c8c0a2b0d9f0ee5aecad385106524ef45e00b"
+    },
+    {
+      "path": "docs/work/groups/HP/features/HP-06-gold-acceptance/plan.md",
+      "sha256": "6ce7989bd501f8eebe01ac33165f65726ac072e541895ba053dc0e9e9f493349"
+    },
+    {
+      "path": "docs/work/groups/HP/features/HP-06-gold-acceptance/spec.md",
+      "sha256": "35a66904fda72d250103db9502ff9a1b65c97c7618acaee49af5ddc747d38b5e"
+    },
+    {
+      "path": "docs/work/groups/HP/preparation/acceptance-criteria.approved.v1.json",
+      "sha256": "e7148fb47dc283f90a03d0c36b15c152311a570dfd2ece99e722e1e1348c760c"
+    },
+    {
+      "path": "docs/work/groups/HP/preparation/company.evaluation-basis.v2.json",
+      "sha256": "ab60487bd7fece9da8d81b0431483ce1e340a86603f1ee2f1950dad9a52a2188"
+    },
+    {
+      "path": "docs/work/groups/HP/preparation/company.experience.approved.v2.json",
+      "sha256": "3b37dac7a7358bb44b211b7b5689c4a8d3041660b340f07f52f2bae56c700b29"
+    },
+    {
+      "path": "docs/work/groups/HP/preparation/evaluation-documents.selected.v1.json",
+      "sha256": "3085f1b6d318544f87502252b13f458426bb58b18b8d206aa469c3f1b02feaf0"
+    },
+    {
+      "path": "docs/work/groups/HP/preparation/graph-adoption-criteria.approved.v1.json",
+      "sha256": "650ae6abf0340b5dd6df7de73e4e1e106681641d4c3a6addf23d1d7e2be62d7a"
+    },
+    {
+      "path": "docs/work/groups/HP/preparation/ontology.approved.v1.json",
+      "sha256": "fe4b6da7b96dcd570cd8cf548c14d09ef7cf3b952362adbc197437fea9849d8d"
+    },
+    {
+      "path": "docs/work/groups/HP/preparation/review-inputs.frozen.v2.json",
+      "sha256": "b3ec478a37eefa5486920da25de4d0923cac073b4b04797405cd7bc0d5fd4185"
+    },
+    {
+      "path": "docs/work/hp-contract.md",
+      "sha256": "51818e88d1a3b80f55d95d9ce5d259a03ee707fc102efc646eb69ca4c1c96466"
+    },
+    {
+      "path": "docs/work/runtime.codex.json",
+      "sha256": "91eb916e5b4f87a194ab22a83f21f9b121ed3e41bda35aa1486a2947cd093aa0"
+    },
+    {
+      "path": "web/backend/AGENTS.md",
+      "sha256": "0adbad1c2d3886d516475a2ffd263c98502690b77351ba368ee1e7577b855c01"
+    },
+    {
+      "path": "web/frontend/AGENTS.md",
+      "sha256": "5991ea94c353ac4a19b6a8e0c57e44e7d7bd83fc9e1259140ef94acf9b7d3e13"
+    }
+  ]
+}

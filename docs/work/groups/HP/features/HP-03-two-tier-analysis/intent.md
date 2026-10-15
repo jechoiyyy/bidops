@@ -1,67 +1,56 @@
-# 2층 분석 파이프라인 (카드 추출 → 결정적 대조 → 역할 판단·종합) — intent (초안, interview 전)
+# 카드·문서 조건 추출과 결정적 회사 대조 — intent
 
 - 기능 ID: `HP-03-two-tier-analysis`
-- 상위 항목: [HP 로드맵](../../../../constitution/roadmap.md), [HP 공통 계약](../../../../hp-contract.md) §6·7
-- 크기: L — 새 정책·새 저장 테이블·새 stage 계약·worker 변경·실제 모델 호출.
-- 작성일: 2026-10-14 (초안; 결정 대기 D4·D5와 아래 interview 항목을 닫은 뒤 spec으로 간다)
+- 상위: [로드맵](../../../../constitution/roadmap.md), [HP 공통 계약](../../../../hp-contract.md)
+- 크기: L — 새 데이터 계약·검증 또는 제품 경계를 다룬다.
+- 작성일: 2026-10-15. 현재는 구현 전 명세다.
 
-## 문제
+## 문제와 기대 결과
 
-현행 narrative-v2는 원문 조각마다 3단계를 돌려 100쪽 문서에 호출 50~80회·4~8시간이 들고, 결과가 서술 claim이라 카드 단위 충족/부족/미확인과 실무자 판정으로 바로 이어지지 않는다.
-DEMO-05에서 Luna 96×3 실행이 1단계 결정적 검증에서 전부 실패한 것도 조각 단위 근거의 약함을 보여준다.
-
-## 기대 결과
-
-HP-01의 카드·segment를 unit으로 묶어 1층 타입화 추출을 호출하고, 코드가 온톨로지·회사 그래프와 결정적으로 대조한 뒤, 역할 셋과 종합 하나가 `bidops.practitioner-verdict.v1`을 만든다.
-한 문서(100쪽·unit 70개 기준)가 40분 안에 끝나고 모든 quote·locator·ID가 결정적 검증을 지나며, 실패는 사람 검토로 간다. 대표 1건을 사용자 승인 뒤 `bidops-local`에서 실제로 돌린다.
+카드·문서 조건 추출과 결정적 회사 대조를 현재 제품에서 완료로 볼 증거가 없다. 아래 유즈케이스를 구현·검증하고 실제 실행과 문서 준비를 구분한다. 승인 원본은 `../../preparation/company.experience.approved.v2.json`과 `ontology.approved.v1.json`이다. 상세 범위는 spec이 정본이며 preparation은 의사결정 경과다.
 
 ## 유즈케이스
 
-| 유즈케이스 | 실행 방법(명령·화면·API) | 확인 기준 |
+| 유즈케이스 | 실행 방법 | 확인 기준 |
 |---|---|---|
-| unit 생성 | preview 생성(기존 회사 preview 경로 재사용) | unit 목록(card/segment), batch 수, 예상 호출 수·시간이 preview input에 고정 |
-| 승인·실행 | 기존 건별 승인 → 공용 슬롯 worker | 단계 순서 extract→compare→roles→synthesis, 단계별 불변 row |
-| 결정적 검증 | 각 모델 응답 | quote가 unit 원문 부분문자열, locator가 unit block, unit id·concept id가 입력 집합 안; 실패는 `needs_human_review`로 종결(자동 보정 없음) |
-| 대조 | compare 단계 출력 | unit별 met/gap/unknown과 경로·사실 근거; unknown을 gap으로 바꾸지 않음 |
-| 종합 조회 | `GET .../verdict`(경로명 D6) | 판정 enum, 체크리스트 5항목, 매트릭스, 주의, 다음 행동, conflicts |
-| 시간·호출 상한 | 정책 값 | 상한 초과 시 `review_timeout`으로 종결, 부분 결과는 단계 row로 보존 |
-| 대표 1건 실제 실행 | 사용자 건별 승인 | 40분 이내 완료 또는 실패 사유 기록(`real_data_run` 증거) |
+| 참조 분석 요청 | 기존 회사 심층 preview → 승인 → attempt 생성 | 고정 회사 v2·카드·6영역·정책에 결속되고 공용 슬롯1개 |
+| 부분 실패 확인 | attempt 조회 및 HP 단계 저장 기록 | 통과 단계 보존, 실패/timeout 뒤 최종 판정 없음 |
+| 회사 근거 대조 | HP 결과의 compare 항목 조회 | 기능 경험과 현재 자격·인력·계약 수용을 분리 |
 
 ## 선행·후속 기능
 
 - 선행: HP-00-luna-model-identity, HP-02-homepage-ontology-company.
-- 후속: HP-04-practitioner-verdict, HP-06-gold-acceptance.
+- 후속: HP-04-practitioner-verdict.
 
 ## 영향 범위
 
-- 모듈·컴포넌트: deep_review services(새 pipeline 모듈, worker 분기, 정책 loader), contracts(새 stage schema 3종), policies(`analysis-policy-hp-v1.json`), codex-runner(schema 파일 추가: 새 출력 계약을 strict schema로 실어야 한다), REST(preview 입력 확장·verdict 조회), migration(새 테이블)·runtime-privileges.
-- 큰 틀 문서의 절: HP 공통 계약 §6·7·11, DEMO 계약 §9(재사용·확장), contracts.md, deep-review-erd.md, business-rules(판정은 보조 의견).
-- 데이터·저장소: 새 테이블(추출·대조·역할·종합), attempt 연결.
-- 외부 서비스·호출: codex-exec gpt-6-luna/high. 호출 수 = ceil(unit/batch)+4. 건별 승인.
+spec·plan의 파일 표를 따른다. 원본·기존 회사·narrative-v2 산출물은 불변이다. 실제 변경은 demo/local-20261009와 bidops-local에 한정한다. 이번 문서 사이클은 DB·모델·실험을 실행하지 않는다.
 
 ## 제약
 
-- (공통) feature.json constraints 전체를 따른다(HP-00 intent와 같은 목록).
-- (기능별) 모델 출력은 판정이 아니라 보조 의견이며 추적 승인·Go/No-Go를 저장하지 않는다. 역할 간 충돌은 보존한다.
-- (기능별) runner는 모델·schema를 요청에서 받지 않는다. 새 출력 계약은 runner 이미지에 파일로 싣는다.
+- 원문·프로필·정책·모델 입력과 결과·사람 리뷰는 불변/append-only로 보존한다.
+- unknown/null·적합성·참여 준비·추적·Go/No-Go를 서로 대신하지 않는다.
+- 외부 모델은 승인 payload만 건별 전송하며 전역 fallback과 자동 추적 결정을 금지한다.
+- PostgreSQL 17·versioned MinIO·합성 analysis worker의 슬롯 1개와 모듈 의존 방향을 유지한다.
+- 문서 변경은 diff/문서 검사만, 제품 변경은 직접 영향 검사만 실행하고 성공 후 반복하지 않는다.
+- 운영 변경·실제 모델 호출은 직전 확인 대상이며 문서화 승인을 실행 승인으로 사용하지 않는다.
+- HP 기능은 데모 브랜치 demo/local-20261009와 bidops-local 격리 자원에서만 구현·검증하며 main 병합·운영 전환은 별도 작업이다(ADR-0071).
+- HP의 모델 호출은 codex-exec gpt-6-luna/high 하나다. LiteLLM local-agent-main·Qwen·Terra를 쓰지 않고, 기존 정책 파일·실행 row는 바꾸지 않는다(ADR-0071).
+- HWP/HWPX 원본이 입력 정본이며 PDF는 PDF 전용 첨부와 쪽 locator에만 쓴다. OCR은 범위 밖이다(ADR-0071).
+- 새 DB 테이블·열 권한은 scripts/runtime-privileges.sql에 등록하고 migration에 GRANT를 쓰지 않는다.
+- 사용자 요청 없이 commit·merge·push·브랜치 삭제하지 않는다.
+- 회사 v2는 가상 실적의 명시 담당 범위만 역량 근거로 연결하고 현재 인력·자격·SLA·계약 수용을 별도 대조한다. 참고 공고는 완료 증거가 아니며 v1/v2 입력·사람 응답 hash를 혼용하지 않는다(HP02 preparation 실적 기반 회사 v2 재계획, 2026-10-15).
 
-## 범위 밖
+추가로 AGENTS.md, docs/standards.md, docs/business-rules.md, docs/contracts.md, docs/operations.md와 변경 경로의 AGENTS.md를 따른다. [실행 입력 해시](../../preparation/source-baseline.preloop.json)에 이번 문서 입력의 해시를 기록한다.
 
-화면(HP-04), gold 채점(HP-06), narrative-v2 경로 삭제(보존), 여러 문서 동시 실행(슬롯 1).
+## 결정과 범위 밖
+
+회사 v2의 세 가상 수행 범위와 표준 절차, 51concept·4kind·11관계, 평가10사례, 품질·Neo4j 후보 기준은 2026-10-15 사용자 확정이다. 기술 세부는 사용자의 “너가 먼저 판단” 및 “loop 전 모든 작업” 위임에 따라 spec에 고정한다. 실제 회사의 완료 실적, 현재 자격·가용 인력·계약 수용을 추정하지 않는다. main·운영 변경, origin push, 브랜치 삭제, 자동 Go/No-Go는 범위 밖이다.
 
 ## 출처 간 차이
 
-| 차이 | 출처 A | 출처 B | 결정 |
-|---|---|---|---|
-| 단계 구성 | narrative-v2 3단계 서술 | 2026-10-14 사용자: 항목별 sub-agent 분할·합치기 아이디어 | 공통 계약 §6·7의 2층 구조(사용자 확인 필요) |
+초기 preparation의 D1/D2/v2 초안 표기는 승인 이전 경과다. 현재 승인 파일과 spec을 따른다. 폴리텍 모델 선검토는 독립 gold가 아니다. 기존 승인·사람 응답을 v2로 자동 승격하지 않는다.
 
-## 미해결 질문 (interview 항목)
+## 남은 사람 참여
 
-| 질문 | 답이 필요한 시점 | 결정 |
-|---|---|---|
-| D4 batch_size·묶음 문자 상한·timeout·repair 횟수 | spec 작성 전 | 제안 8장/12,000자/3600초/1회 |
-| D5 카드 아닌 segment를 unit으로 넣는 범위 | spec 작성 전 | 제안: 사업개요·일정·예산·참가자격·평가·계약 label segment |
-| 역할 셋의 prompt 범위와 각 역할이 받는 type 집합 | spec 작성 전 | 제안: eligibility_economics=자격·실적·인력·계약·평가 / technical_fit=기술·기능·성능SLA·보안 / operations_risk=운영·성능SLA·보안·인력 |
-| 응락수준 "선택"·"권장" 카드의 mandatory 처리 | spec 작성 전 | 제안: mandatory=false, 판정 가중 없음, 매트릭스에 표시 |
-| 저장 테이블 설계(단계별 row vs 단일 JSON) | spec 작성 전 | 제안: 단계별 불변 row + attempt FK |
-| 대표 1건 선택(fixture 5건 중 또는 로컬 수집 공고) | 구현 중 | 사용자 선택 |
+구현 전 제품 결정 없음. 실제 실행은 기존 승인 범위와 전송 binding을 확인한다.

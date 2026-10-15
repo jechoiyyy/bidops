@@ -1,0 +1,17 @@
+{
+  "schema_version": "bidops.hp-demo-acceptance-criteria.v1",
+  "version": "v1",
+  "status": "criteria_approved",
+  "approved_on": "2026-10-15",
+  "approval_response": "확정해",
+  "scope": "initial_demo_acceptance_candidate_only",
+  "document_count": 10,
+  "verdict_correct_min": 8,
+  "blocking_recall_min": 0.8,
+  "card_accuracy_min": 0.7,
+  "critical_false_met_max": 0,
+  "critical_false_met_definition": "명백한 필수자격 미충족을 충족으로 판단한 사례",
+  "precision": "measure_and_human_adjudicate_unmatched_items_no_numeric_threshold",
+  "zero_denominator": "unmeasured_never_pass",
+  "final_acceptance": "human_decision_required"
+}

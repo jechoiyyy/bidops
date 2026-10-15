@@ -1,0 +1,145 @@
+{
+  "schema_version": "bidops.hp-evaluation-candidates.v1",
+  "status": "source_prepared_with_one_blocked",
+  "selection_basis_approved": true,
+  "environment": "bidops-local",
+  "observed_on": "2026-10-15",
+  "documents": [
+    {
+      "document_id": "doc1",
+      "title": "폴리텍",
+      "source_sha256": "8b6cbf1a7da6f242dae0a1a90b2513513178667a7fc2343e93cbcf6318005a1e",
+      "preparation_status": "source_cards_ready",
+      "cards": 27
+    },
+    {
+      "document_id": "gangwon",
+      "title": "강원대",
+      "source_sha256": "a82b1ed3115780861689981d6d00d0b342f4177b87d9060dd443ac5c7616a42a",
+      "preparation_status": "source_cards_ready",
+      "cards": 57
+    },
+    {
+      "document_id": "mofa",
+      "title": "외교부",
+      "source_sha256": "0c244555166296720f0bbb0b35a3d1d9429087a1d3f6b08842a47872e335cd3e",
+      "preparation_status": "source_cards_ready",
+      "cards": 31
+    },
+    {
+      "document_id": "nyj",
+      "title": "남양주",
+      "source_sha256": "9493e92b163c6587399c5ab93e1eaad03a90f06486830c3c20c446a37f205abc",
+      "preparation_status": "source_cards_ready",
+      "cards": 35
+    },
+    {
+      "document_id": "school",
+      "title": "학교 웹호스팅",
+      "source_sha256": "7d1da6d943c4a2e92ea8ec495e980b4616bd3d4d2cbf415e7e0bc0348720657b",
+      "preparation_status": "source_cards_ready",
+      "cards": 48
+    },
+    {
+      "document_id": "notice-151",
+      "notice_pk": 151,
+      "title": "수원 국제회의복합지구 플랫폼(웹사이트) 구축",
+      "selection_reason": "웹사이트 신규 구축",
+      "classification_basis": "title_only_pending_source_review",
+      "source_sha256": null,
+      "preparation_status": "source_prepared",
+      "sources": [
+        {
+          "name": "notice151-attachment225",
+          "source_sha256": "75f0e001867b1cb2dfea0926e5db251e261e4dd9cbedd7f511423bad43f37fd0",
+          "status": "prepared"
+        },
+        {
+          "name": "notice151-attachment226",
+          "source_sha256": "0dc2b0bb330c52c459f990d49374fb6b5f2c4c3a697c53b01bea0f5d7f6981eb",
+          "status": "prepared"
+        }
+      ]
+    },
+    {
+      "document_id": "notice-57",
+      "notice_pk": 57,
+      "title": "2027년 대전광역시 누리집 기능개선 및 유지관리 사업",
+      "selection_reason": "누리집 기능개선",
+      "classification_basis": "title_only_pending_source_review",
+      "source_sha256": null,
+      "preparation_status": "source_prepared",
+      "sources": [
+        {
+          "name": "notice57-attachment88",
+          "source_sha256": "6b1ef039aab7bc080c1d439c2d5bb54169745b70f3edd5b60cfacb594c008261",
+          "status": "prepared"
+        }
+      ]
+    },
+    {
+      "document_id": "notice-129",
+      "notice_pk": 129,
+      "title": "국가데이터처 업무포털(UBIS) 및 홈페이지 유지관리(2027)",
+      "selection_reason": "업무포털 결합",
+      "classification_basis": "title_only_pending_source_review",
+      "source_sha256": null,
+      "preparation_status": "source_prepared",
+      "sources": [
+        {
+          "name": "notice129-attachment187",
+          "source_sha256": "1ec595c7ceede2e77c1684d6cd42557cf7e96c504b8a18f648af59d6855d76c2",
+          "status": "prepared"
+        }
+      ]
+    },
+    {
+      "document_id": "notice-156",
+      "notice_pk": 156,
+      "title": "2027년 교육저작권지원센터 홈페이지, 폰트점검 프로그램 운영 및 유지관리",
+      "selection_reason": "폰트점검 프로그램 결합",
+      "classification_basis": "title_only_pending_source_review",
+      "source_sha256": null,
+      "preparation_status": "source_prepared",
+      "sources": [
+        {
+          "name": "notice156-attachment231",
+          "source_sha256": "651c71860483d95e810771fa8b513d5162a227a2f8e96e3cc0b1b19bb823ab5e",
+          "status": "prepared"
+        }
+      ]
+    },
+    {
+      "document_id": "notice-116",
+      "notice_pk": 116,
+      "title": "국가슈퍼컴퓨팅센터 홈페이지/정보관리시스템 유지보수 및 운영관리",
+      "selection_reason": "연구정보시스템 결합",
+      "classification_basis": "title_only_pending_source_review",
+      "source_sha256": null,
+      "preparation_status": "conversion_blocked",
+      "sources": [
+        {
+          "name": "notice116-attachment169",
+          "source_sha256": "827843bd9edb6ba7c5784f63104238d21a70cc03cda9474c14c68aecdc84f5f4",
+          "status": "failed"
+        }
+      ],
+      "error_code": "hwpx_verify_failed"
+    }
+  ],
+  "excluded": [
+    {
+      "notice_pk": 79,
+      "reason": "기존 학교 웹호스팅과 같은 사업 가능성"
+    }
+  ],
+  "human_gold_completed": 0,
+  "final_selection_approved": false,
+  "replacement_proposal": {
+    "notice_pk": 73,
+    "title": "2027~2028년 교육포털시스템 유지관리",
+    "source_sha256": "acc0cbad89e68348752bc681dde356b1372734ca651406260007a2ee870c925b",
+    "status": "prepared_pending_user_selection",
+    "tradeoff": "별개 세종교육청 사업이나 기존 서울교육청 학교 웹호스팅과 업무 유형 일부 중복"
+  }
+}

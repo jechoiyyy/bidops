@@ -1,0 +1,275 @@
+{
+  "schema_version": "bidops.company-knowledge-source.v1",
+  "company": {
+    "name": "가상 온웹서비스",
+    "slug": "hp-onweb",
+    "is_fictional": true
+  },
+  "scenario_version": "hp-onweb-v1",
+  "ontology_version": "homepage-ontology-v1",
+  "ontology_sha256": "c961f5c9efaa9f359b8e4f6a10ff205450bbdf82dd0bc2b0fdc4916558897fb3",
+  "nodes": [
+    {
+      "id": "company.onweb",
+      "type": "company",
+      "label": "가상 온웹서비스",
+      "concept_id": null,
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "value": "가상 온웹서비스. 인원 18명; 연매출 18억원; 회계연도는 미지정; 최근 3년 홈페이지 사업 3건; 개별 사업명·일자는 미지정; 최근 3년; 최대 단일 사업 2억원; CMS 구축 경험 보유; 웹접근성 개선 경험 보유; 인증 취득 지원 실적과 별개; 업무시간 장애 대응 가능; 구체 시간대는 미지정; ISMS 미보유; ISMS-P 보유 여부는 별개; 다국어 홈페이지 수행 실적 없음; 수행 역량 부재를 뜻하지 않음; 상주 투입 가능 인원 최대 2명; Oracle 경험 미확인; 직접생산확인 유효범위 미확인; 미보유로 해석하지 않음; 24시간 대응 가능 여부 미확인",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/0/value"
+          },
+          "quote": "가상 온웹서비스. 인원 18명; 연매출 18억원; 회계연도는 미지정; 최근 3년 홈페이지 사업 3건; 개별 사업명·일자는 미지정; 최근 3년; 최대 단일 사업 2억원; CMS 구축 경험 보유; 웹접근성 개선 경험 보유; 인증 취득 지원 실적과 별개; 업무시간 장애 대응 가능; 구체 시간대는 미지정; ISMS 미보유; ISMS-P 보유 여부는 별개; 다국어 홈페이지 수행 실적 없음; 수행 역량 부재를 뜻하지 않음; 상주 투입 가능 인원 최대 2명; Oracle 경험 미확인; 직접생산확인 유효범위 미확인; 미보유로 해석하지 않음; 24시간 대응 가능 여부 미확인"
+        }
+      ]
+    },
+    {
+      "id": "fact.cms_delivery_experience",
+      "type": "capability",
+      "label": "CMS 구축 경험 보유",
+      "concept_id": "cap.cms",
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "value": {
+        "scope": "core",
+        "description": "CMS 구축 경험 보유"
+      },
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/1/value/description"
+          },
+          "quote": "CMS 구축 경험 보유"
+        }
+      ]
+    },
+    {
+      "id": "fact.web_accessibility_improvement_experience",
+      "type": "capability",
+      "label": "웹접근성 개선 경험 보유; 인증 취득 지원 실적과 별개",
+      "concept_id": "cap.web-accessibility",
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "value": {
+        "scope": "core",
+        "description": "웹접근성 개선 경험 보유; 인증 취득 지원 실적과 별개"
+      },
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/2/value/description"
+          },
+          "quote": "웹접근성 개선 경험 보유; 인증 취득 지원 실적과 별개"
+        }
+      ]
+    },
+    {
+      "id": "fact.business_hours_incident_response",
+      "type": "capability",
+      "label": "업무시간 장애 대응 가능; 구체 시간대는 미지정",
+      "concept_id": "cap.incident",
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "value": {
+        "scope": "core",
+        "description": "업무시간 장애 대응 가능; 구체 시간대는 미지정"
+      },
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/3/value/description"
+          },
+          "quote": "업무시간 장애 대응 가능; 구체 시간대는 미지정"
+        }
+      ]
+    },
+    {
+      "id": "fact.headcount",
+      "type": "staff_group",
+      "label": "인원 18명",
+      "concept_id": null,
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "value": {
+        "role": "전체 인력",
+        "total": 18,
+        "available": null,
+        "as_of": null
+      },
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/4/value/total"
+          },
+          "quote": "18"
+        }
+      ]
+    },
+    {
+      "id": "fact.onsite_available_people",
+      "type": "staff_group",
+      "label": "상주 투입 가능 인원 최대 2명",
+      "concept_id": null,
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "value": {
+        "role": "상주 투입 인력",
+        "total": null,
+        "available": 2,
+        "as_of": null
+      },
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/5/value/available"
+          },
+          "quote": "2"
+        }
+      ]
+    },
+    {
+      "id": "fact.isms_held",
+      "type": "qualification",
+      "label": "ISMS 보유 여부",
+      "concept_id": "qual.isms",
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "value": "ISMS 미보유; ISMS-P 보유 여부는 별개",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/6/value"
+          },
+          "quote": "ISMS 미보유; ISMS-P 보유 여부는 별개"
+        }
+      ]
+    },
+    {
+      "id": "fact.oracle_experience",
+      "type": "technology",
+      "label": "Oracle 경험 미확인",
+      "concept_id": "tech.oracle",
+      "status": "unknown",
+      "origin": "fictional_scenario",
+      "value": null,
+      "source_refs": []
+    },
+    {
+      "id": "fact.direct_production_valid_scope",
+      "type": "qualification",
+      "label": "직접생산확인 유효범위 미확인; 미보유로 해석하지 않음",
+      "concept_id": "qual.direct-production",
+      "status": "unknown",
+      "origin": "fictional_scenario",
+      "value": null,
+      "source_refs": []
+    },
+    {
+      "id": "fact.around_clock_response",
+      "type": "capability",
+      "label": "24시간 대응 가능 여부 미확인",
+      "concept_id": "cap.around-clock-response",
+      "status": "unknown",
+      "origin": "fictional_scenario",
+      "value": null,
+      "source_refs": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge.fact.cms_delivery_experience",
+      "type": "has_capability",
+      "from_id": "company.onweb",
+      "to_id": "fact.cms_delivery_experience",
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/1/value/description"
+          },
+          "quote": "CMS 구축 경험 보유"
+        }
+      ]
+    },
+    {
+      "id": "edge.fact.web_accessibility_improvement_experience",
+      "type": "has_capability",
+      "from_id": "company.onweb",
+      "to_id": "fact.web_accessibility_improvement_experience",
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/2/value/description"
+          },
+          "quote": "웹접근성 개선 경험 보유; 인증 취득 지원 실적과 별개"
+        }
+      ]
+    },
+    {
+      "id": "edge.fact.business_hours_incident_response",
+      "type": "has_capability",
+      "from_id": "company.onweb",
+      "to_id": "fact.business_hours_incident_response",
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/3/value/description"
+          },
+          "quote": "업무시간 장애 대응 가능; 구체 시간대는 미지정"
+        }
+      ]
+    },
+    {
+      "id": "edge.fact.headcount",
+      "type": "has_staff",
+      "from_id": "company.onweb",
+      "to_id": "fact.headcount",
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/4/value/total"
+          },
+          "quote": "18"
+        }
+      ]
+    },
+    {
+      "id": "edge.fact.onsite_available_people",
+      "type": "has_staff",
+      "from_id": "company.onweb",
+      "to_id": "fact.onsite_available_people",
+      "status": "confirmed",
+      "origin": "fictional_scenario",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/nodes/5/value/available"
+          },
+          "quote": "2"
+        }
+      ]
+    }
+  ]
+}

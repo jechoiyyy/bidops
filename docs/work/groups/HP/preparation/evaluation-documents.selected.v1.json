@@ -1,0 +1,194 @@
+{
+  "schema_version": "bidops.hp-evaluation-selection.v1",
+  "status": "sample_selection_approved",
+  "approval": {
+    "date": "2026-10-15",
+    "user_response": "대안으로 진행해봐",
+    "scope": "국가슈퍼컴퓨팅센터116을 세종교육포털73으로 교체한 평가10사례 선택"
+  },
+  "environment": "bidops-local",
+  "documents": [
+    {
+      "document_id": "doc1",
+      "notice_pk": null,
+      "title": "폴리텍",
+      "source_sha256": "8b6cbf1a7da6f242dae0a1a90b2513513178667a7fc2343e93cbcf6318005a1e",
+      "sources_sha256": "4dc8ca0a41ba5bee4ec6b2a357d8bfe3fbd0e7aeac26d31ba433edddb6bedd13",
+      "sources": [
+        {
+          "source_sha256": "8b6cbf1a7da6f242dae0a1a90b2513513178667a7fc2343e93cbcf6318005a1e",
+          "structure_sha256": "1997c5f489e9f63c66faf4d25cdf179378576d1735fc5a0c2632fee429f82be5",
+          "page_map_sha256": "73b2c78b7bcdcfc8f38f7363e866cecce2803802dedcca5b76814e5ad894ff0b"
+        }
+      ],
+      "cards": 27
+    },
+    {
+      "document_id": "gangwon",
+      "notice_pk": null,
+      "title": "강원대",
+      "source_sha256": "a82b1ed3115780861689981d6d00d0b342f4177b87d9060dd443ac5c7616a42a",
+      "sources_sha256": "a03782c0284d5381b50e9f51d1ac187c49429dafc913d1552340b64fc5560210",
+      "sources": [
+        {
+          "source_sha256": "a82b1ed3115780861689981d6d00d0b342f4177b87d9060dd443ac5c7616a42a",
+          "structure_sha256": "f47ef293e5bfb6b460f1d06d2faf7fa8ea00331ea1497f626ae8fb6d5edbf312",
+          "page_map_sha256": "80b35a1d8f817e686a4eb6f9227dbdd581cdcacf1c4de0be89090233e9485ce5"
+        }
+      ],
+      "cards": 57
+    },
+    {
+      "document_id": "mofa",
+      "notice_pk": null,
+      "title": "외교부",
+      "source_sha256": "0c244555166296720f0bbb0b35a3d1d9429087a1d3f6b08842a47872e335cd3e",
+      "sources_sha256": "cd83f3e37c47ff2aa1a75f8c458fbcddba612f721557554aa6c273be5b72c178",
+      "sources": [
+        {
+          "source_sha256": "0c244555166296720f0bbb0b35a3d1d9429087a1d3f6b08842a47872e335cd3e",
+          "structure_sha256": "d68ccca27d49e689fe274b1f65f7a875c7e0e3b0263d1dee13ef06e921de7ce5",
+          "page_map_sha256": "6137e60baf854efebdd83d88bbe289afa554566f008c835b43f5c39db48811c3"
+        }
+      ],
+      "cards": 31
+    },
+    {
+      "document_id": "notice129-attachment187",
+      "notice_pk": 129,
+      "title": "국가데이터처 업무포털(UBIS) 및 홈페이지 유지관리(2027)",
+      "source_sha256": "1ec595c7ceede2e77c1684d6cd42557cf7e96c504b8a18f648af59d6855d76c2",
+      "sources_sha256": "2dea99f990145862938bb0cfe60a2dcdefbc28876cacd70a35fb6b744aeba29d",
+      "sources": [
+        {
+          "source_sha256": "1ec595c7ceede2e77c1684d6cd42557cf7e96c504b8a18f648af59d6855d76c2",
+          "structure_sha256": "085cb78dd8efc059f30bf615b1a4c6c638fae3cdeb92ccbff2b5963a86e3f584",
+          "page_map_sha256": "72364178b1b930619dfbe8b882376a57f0aa4cf57cf5467e5d71342791121304"
+        }
+      ],
+      "cards": 102
+    },
+    {
+      "document_id": "notice151-attachment225",
+      "notice_pk": 151,
+      "title": "수원 국제회의복합지구 플랫폼(웹사이트) 구축",
+      "source_sha256": "75f0e001867b1cb2dfea0926e5db251e261e4dd9cbedd7f511423bad43f37fd0",
+      "sources_sha256": "82eac34352bfcd0259bb04ce7dd3e95963c7d850e9359cabdbc6e83c22727958",
+      "sources": [
+        {
+          "source_sha256": "75f0e001867b1cb2dfea0926e5db251e261e4dd9cbedd7f511423bad43f37fd0",
+          "structure_sha256": "0ace2478731d91e41c862761d78bb96934eaecbb5ce11a452ac9d4d9a17563de",
+          "page_map_sha256": "85e3f0e64cdbb69373ede524f4962a3494ec58a20d0119d8edb02f884d3d584f"
+        },
+        {
+          "source_sha256": "0dc2b0bb330c52c459f990d49374fb6b5f2c4c3a697c53b01bea0f5d7f6981eb",
+          "structure_sha256": "2c2f4a85b64bc406b5442e5364ed09d48bc7491d395ffd44a64d68a00574e3f2",
+          "page_map_sha256": "baadc5091fb6c9815890929f3491ecc1e0b954f283351224b22826c53dec9091"
+        }
+      ],
+      "cards": 43
+    },
+    {
+      "document_id": "notice156-attachment231",
+      "notice_pk": 156,
+      "title": "2027년 교육저작권지원센터 홈페이지, 폰트점검 프로그램 운영 및 유지관리",
+      "source_sha256": "651c71860483d95e810771fa8b513d5162a227a2f8e96e3cc0b1b19bb823ab5e",
+      "sources_sha256": "6c0ce3d6d4f9cf6d110a0b29d7e842192707678bb801729d4030edc35f9c53ac",
+      "sources": [
+        {
+          "source_sha256": "651c71860483d95e810771fa8b513d5162a227a2f8e96e3cc0b1b19bb823ab5e",
+          "structure_sha256": "5caba6a6c9c862ceca44deaccece53ad9741ef48e0abdf72dd42f3422a952df0",
+          "page_map_sha256": "b0ea450f67a6e2a4baf695bb5b4f33236bc35bdb5c2b928cd3144543d053f6ec"
+        }
+      ],
+      "cards": 79
+    },
+    {
+      "document_id": "notice57-attachment88",
+      "notice_pk": 57,
+      "title": "2027년 대전광역시 누리집 기능개선 및 유지관리 사업",
+      "source_sha256": "6b1ef039aab7bc080c1d439c2d5bb54169745b70f3edd5b60cfacb594c008261",
+      "sources_sha256": "d228e55a1fa8132602463f546030733410721a8f6715cb2a81d8c1c9fd47a01c",
+      "sources": [
+        {
+          "source_sha256": "6b1ef039aab7bc080c1d439c2d5bb54169745b70f3edd5b60cfacb594c008261",
+          "structure_sha256": "c15f86a719c449dbf8d65f8f056c5cc0f848ffeea917aa8da994097447097bfb",
+          "page_map_sha256": "57800b7039a57257bd1110fd737e6b7489ad61ed1efb69db55eedf5c837fe240"
+        }
+      ],
+      "cards": 76
+    },
+    {
+      "document_id": "notice73-attachment107",
+      "notice_pk": 73,
+      "title": "2027~2028년 교육포털시스템 유지관리",
+      "source_sha256": "acc0cbad89e68348752bc681dde356b1372734ca651406260007a2ee870c925b",
+      "sources_sha256": "94d3aa09aed1ed1ab9c3727f0cde7e422ffd34d2cd7e45acf78fce11bcbe8497",
+      "sources": [
+        {
+          "source_sha256": "acc0cbad89e68348752bc681dde356b1372734ca651406260007a2ee870c925b",
+          "structure_sha256": "6f2635f28010e9053c7a8b18c164cf1ee3ed7f26c9a99c1abc4350813f8d5c76",
+          "page_map_sha256": "35ea650c6c3d5fc6488b5dc4ca588dd1564b1438285db7e412893fbdb8b3aa27"
+        }
+      ],
+      "cards": 43
+    },
+    {
+      "document_id": "nyj",
+      "notice_pk": null,
+      "title": "남양주",
+      "source_sha256": "9493e92b163c6587399c5ab93e1eaad03a90f06486830c3c20c446a37f205abc",
+      "sources_sha256": "882d8eb1775b0d28f06ba259bd55db5f1a0f41d641ca0ae6d1e648503991b73d",
+      "sources": [
+        {
+          "source_sha256": "9493e92b163c6587399c5ab93e1eaad03a90f06486830c3c20c446a37f205abc",
+          "structure_sha256": "0f1a7fcc946240bde9879a46462396ebe0f472914458b196488e59868c209591",
+          "page_map_sha256": "477c851713fc71dddcdd5542728101f269c2d96407de846f7f3c9710e5caaed9"
+        }
+      ],
+      "cards": 35
+    },
+    {
+      "document_id": "school",
+      "notice_pk": null,
+      "title": "학교 웹호스팅",
+      "source_sha256": "7d1da6d943c4a2e92ea8ec495e980b4616bd3d4d2cbf415e7e0bc0348720657b",
+      "sources_sha256": "ce3dff99e18974103b8e3b6bc243e6430d4d457bc59bc9f9beaf4afc0db2f0a8",
+      "sources": [
+        {
+          "source_sha256": "7d1da6d943c4a2e92ea8ec495e980b4616bd3d4d2cbf415e7e0bc0348720657b",
+          "structure_sha256": "44e6fb3e4b86df1d4983d8b714f9ecfac1229855fc7ef668c7db0d7970c14801",
+          "page_map_sha256": "33b5f5b11b00e220481e7c8116566a6c3f70d2f8dd67bdd5f8906ab05c45615d"
+        }
+      ],
+      "cards": 48
+    }
+  ],
+  "limitations": [
+    "서울 학교 웹호스팅과 세종 교육포털의 학교 누리집 운영 범위가 일부 겹침",
+    "쪽 상속312·미확인229; 정확한 쪽 매핑0",
+    "회사·전체 온톨로지 동결과 사람 정답 작성은 별도 미완료"
+  ],
+  "excluded": [
+    {
+      "notice_pk": 116,
+      "reason": "hwpx_verify_failed",
+      "source_preserved": true
+    },
+    {
+      "notice_pk": 79,
+      "reason": "기존 학교 웹호스팅과 같은 사업 가능성"
+    }
+  ],
+  "cards_pack": {
+    "path": "/Users/temp/orca/bidops/.sdlc/local-runtime/hp-evaluation-20261015/cards.candidate10.v1.json",
+    "sha256": "a316fe21d3be172222e8bc3aed36b819337ee5c53c1e788ba360ae57e4823d62"
+  },
+  "blank_worksheet": {
+    "path": "/Users/temp/orca/bidops/.sdlc/local-runtime/hp-evaluation-20261015/human-worksheet.blank.candidate10.v1.json",
+    "sha256": "fc8fa7330ff3c67a8ccb3f3d70f9829def56605f2e629a92089e31998eb886ee"
+  },
+  "human_gold_completed": 0,
+  "company_ontology_frozen": false,
+  "final_acceptance": null
+}

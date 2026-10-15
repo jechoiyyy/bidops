@@ -1,0 +1,54 @@
+{
+  "schema_version": "bidops.hp-graph-human-review-preparation.v2",
+  "status": "blank",
+  "binding": null,
+  "annotator": null,
+  "adoption_criteria": "graph-adoption-criteria.approved.v1.json",
+  "queries": [
+    {
+      "id": "q1",
+      "paths": null,
+      "readability_postgres": null,
+      "readability_neo4j": null,
+      "reason": null,
+      "authoring_modification_winner": null
+    },
+    {
+      "id": "q2",
+      "paths": null,
+      "readability_postgres": null,
+      "readability_neo4j": null,
+      "reason": null,
+      "authoring_modification_winner": null
+    },
+    {
+      "id": "q3",
+      "paths": null,
+      "readability_postgres": null,
+      "readability_neo4j": null,
+      "reason": null,
+      "authoring_modification_winner": null
+    },
+    {
+      "id": "q4",
+      "paths": null,
+      "readability_postgres": null,
+      "readability_neo4j": null,
+      "reason": null,
+      "authoring_modification_winner": null
+    },
+    {
+      "id": "q5",
+      "paths": null,
+      "readability_postgres": null,
+      "readability_neo4j": null,
+      "reason": null,
+      "authoring_modification_winner": null
+    }
+  ],
+  "explanation_samples": [],
+  "adoption": null,
+  "criteria_sha256": "650ae6abf0340b5dd6df7de73e4e1e106681641d4c3a6addf23d1d7e2be62d7a",
+  "required_path_losses": null,
+  "explainability_degraded": null
+}

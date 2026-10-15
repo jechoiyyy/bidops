@@ -1,0 +1,11 @@
+{
+  "schema_version": "bidops.hp-company-evaluation-basis.v2",
+  "company_slug": "hp-onweb",
+  "scenario_file": "company.experience.approved.v2.json",
+  "scenario_sha256": "3b37dac7a7358bb44b211b7b5689c4a8d3041660b340f07f52f2bae56c700b29",
+  "ontology_file": "ontology.approved.v1.json",
+  "ontology_sha256": "c961f5c9efaa9f359b8e4f6a10ff205450bbdf82dd0bc2b0fdc4916558897fb3",
+  "registration_projection_status": "pending_v2_implementation",
+  "registration_file": null,
+  "previous_basis_file": "company.evaluation-basis.v1.json"
+}

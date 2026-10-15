@@ -1,0 +1,528 @@
+{
+  "schema_version": "bidops.company-ontology.v1",
+  "version": "homepage-preparation-draft-20261015-v3",
+  "concepts": [
+    {
+      "id": "cap.web-accessibility",
+      "label": "웹접근성",
+      "aliases": [
+        "웹 접근성"
+      ],
+      "kind": "capability"
+    },
+    {
+      "id": "cap.accessibility-certification-support",
+      "label": "웹접근성 인증 지원",
+      "aliases": [
+        "웹접근성 인증 취득 지원"
+      ],
+      "kind": "capability"
+    },
+    {
+      "id": "qual.web-accessibility",
+      "label": "웹접근성 품질인증",
+      "aliases": [
+        "웹 접근성 품질인증",
+        "접근성 품질인증"
+      ],
+      "kind": "qualification"
+    },
+    {
+      "id": "cap.web-standards",
+      "label": "웹표준",
+      "aliases": [
+        "웹 표준"
+      ],
+      "kind": "capability"
+    },
+    {
+      "id": "cap.browser-compatibility",
+      "label": "웹호환성",
+      "aliases": [
+        "웹 호환성",
+        "크로스브라우징"
+      ],
+      "kind": "capability"
+    },
+    {
+      "id": "cap.cms",
+      "label": "CMS 구축",
+      "aliases": [
+        "콘텐츠관리시스템 구축",
+        "콘텐츠 관리 시스템 구축"
+      ],
+      "kind": "capability"
+    },
+    {
+      "id": "cap.content-operations",
+      "label": "콘텐츠 운영",
+      "aliases": [
+        "콘텐츠 관리",
+        "콘텐츠관리"
+      ],
+      "kind": "capability"
+    },
+    {
+      "id": "tech.cms",
+      "label": "CMS",
+      "aliases": [
+        "콘텐츠관리시스템",
+        "콘텐츠 관리 시스템"
+      ],
+      "kind": "technology"
+    },
+    {
+      "id": "cap.search",
+      "label": "통합검색",
+      "aliases": [
+        "통합 검색"
+      ],
+      "kind": "capability"
+    },
+    {
+      "id": "tech.search-engine",
+      "label": "검색엔진",
+      "aliases": [
+        "검색 엔진"
+      ],
+      "kind": "technology"
+    },
+    {
+      "id": "cap.ux-design",
+      "label": "UX 설계",
+      "aliases": [
+        "사용자 경험 설계"
+      ],
+      "kind": "capability"
+    },
+    {
+      "id": "cap.ui-design",
+      "label": "UI 디자인",
+      "aliases": [
+        "사용자 인터페이스 디자인"
+      ],
+      "kind": "capability"
+    },
+    {
+      "id": "cap.web-publishing",
+      "label": "웹 퍼블리싱",
+      "aliases": [
+        "퍼블리싱"
+      ],
+      "kind": "capability"
+    },
+    {
+      "id": "cap.responsive",
+      "label": "반응형 웹",
+      "aliases": [
+        "반응형 웹사이트"
+      ],
+      "kind": "capability"
+    },
+    {
+      "id": "cap.migration",
+      "label": "데이터이관",
+      "aliases": [
+        "데이터 이관",
+        "데이터 마이그레이션"
+      ],
+      "kind": "capability"
+    },
+    {
+      "id": "cap.integration",
+      "label": "시스템연계",
+      "aliases": [
+        "시스템 연계"
+      ],
+      "kind": "capability"
+    },
+    {
+      "id": "tech.sso",
+      "label": "SSO",
+      "aliases": [
+        "통합인증"
+      ],
+      "kind": "technology"
+    },
+    {
+      "id": "tech.api",
+      "label": "API",
+      "aliases": [],
+      "kind": "technology"
+    },
+    {
+      "id": "cap.vulnerability",
+      "label": "취약점점검",
+      "aliases": [
+        "취약점 점검"
+      ],
+      "kind": "capability"
+    },
+    {
+      "id": "cap.secure-coding",
+      "label": "시큐어코딩",
+      "aliases": [
+        "시큐어 코딩"
+      ],
+      "kind": "capability"
+    },
+    {
+      "id": "cap.privacy",
+      "label": "개인정보보호",
+      "aliases": [
+        "개인정보 보호"
+      ],
+      "kind": "capability"
+    },
+    {
+      "id": "cap.periodic-inspection",
+      "label": "정기점검",
+      "aliases": [
+        "정기 점검"
+      ],
+      "kind": "capability"
+    },
+    {
+      "id": "cap.monitoring",
+      "label": "모니터링",
+      "aliases": [],
+      "kind": "capability"
+    },
+    {
+      "id": "cap.incident",
+      "label": "장애대응",
+      "aliases": [
+        "장애 대응",
+        "장애처리",
+        "장애 처리"
+      ],
+      "kind": "capability"
+    },
+    {
+      "id": "cap.backup",
+      "label": "백업",
+      "aliases": [],
+      "kind": "capability"
+    },
+    {
+      "id": "cap.recovery",
+      "label": "데이터 복구",
+      "aliases": [
+        "백업 복구"
+      ],
+      "kind": "capability"
+    },
+    {
+      "id": "cap.incident-recovery",
+      "label": "장애복구",
+      "aliases": [
+        "장애 복구"
+      ],
+      "kind": "capability"
+    },
+    {
+      "id": "cap.sla",
+      "label": "서비스수준관리",
+      "aliases": [
+        "서비스 수준 관리",
+        "SLA 관리"
+      ],
+      "kind": "capability"
+    },
+    {
+      "id": "cap.availability",
+      "label": "가용성 관리",
+      "aliases": [
+        "가용성 보장"
+      ],
+      "kind": "capability"
+    },
+    {
+      "id": "cap.around-clock-response",
+      "label": "24시간 대응",
+      "aliases": [
+        "24시간 장애 대응"
+      ],
+      "kind": "capability"
+    },
+    {
+      "id": "cap.onsite",
+      "label": "상주 운영",
+      "aliases": [
+        "상주 유지관리"
+      ],
+      "kind": "capability"
+    },
+    {
+      "id": "cap.handover",
+      "label": "인수인계",
+      "aliases": [
+        "인수 인계"
+      ],
+      "kind": "capability"
+    },
+    {
+      "id": "cap.knowledge-transfer",
+      "label": "기술이전",
+      "aliases": [
+        "기술 이전"
+      ],
+      "kind": "capability"
+    },
+    {
+      "id": "cap.training",
+      "label": "교육지원",
+      "aliases": [
+        "교육 지원"
+      ],
+      "kind": "capability"
+    },
+    {
+      "id": "cap.manual-authoring",
+      "label": "매뉴얼 작성",
+      "aliases": [
+        "매뉴얼 제작"
+      ],
+      "kind": "capability"
+    },
+    {
+      "id": "cap.multilingual",
+      "label": "다국어 홈페이지",
+      "aliases": [
+        "다국어 웹사이트"
+      ],
+      "kind": "capability"
+    },
+    {
+      "id": "cap.hosting",
+      "label": "웹호스팅",
+      "aliases": [
+        "웹 호스팅"
+      ],
+      "kind": "capability"
+    },
+    {
+      "id": "tech.egov",
+      "label": "전자정부표준프레임워크",
+      "aliases": [
+        "전자정부 표준프레임워크",
+        "전자정부 표준 프레임워크"
+      ],
+      "kind": "technology"
+    },
+    {
+      "id": "tech.java",
+      "label": "Java",
+      "aliases": [],
+      "kind": "technology"
+    },
+    {
+      "id": "tech.jsp",
+      "label": "JSP",
+      "aliases": [],
+      "kind": "technology"
+    },
+    {
+      "id": "tech.db",
+      "label": "데이터베이스",
+      "aliases": [
+        "DB"
+      ],
+      "kind": "technology"
+    },
+    {
+      "id": "tech.dbms",
+      "label": "DBMS",
+      "aliases": [
+        "데이터베이스 관리 시스템"
+      ],
+      "kind": "technology"
+    },
+    {
+      "id": "tech.oracle",
+      "label": "Oracle",
+      "aliases": [],
+      "kind": "technology"
+    },
+    {
+      "id": "tech.ssl",
+      "label": "SSL",
+      "aliases": [],
+      "kind": "technology"
+    },
+    {
+      "id": "tech.tls",
+      "label": "TLS",
+      "aliases": [],
+      "kind": "technology"
+    },
+    {
+      "id": "qual.gs",
+      "label": "GS인증",
+      "aliases": [
+        "GS 인증"
+      ],
+      "kind": "qualification"
+    },
+    {
+      "id": "qual.isms",
+      "label": "ISMS",
+      "aliases": [],
+      "kind": "qualification"
+    },
+    {
+      "id": "qual.isms-p",
+      "label": "ISMS-P",
+      "aliases": [],
+      "kind": "qualification"
+    },
+    {
+      "id": "qual.direct-production",
+      "label": "직접생산확인",
+      "aliases": [
+        "직접생산확인증명서",
+        "직접생산 확인"
+      ],
+      "kind": "qualification"
+    },
+    {
+      "id": "qual.sme",
+      "label": "중소기업확인",
+      "aliases": [
+        "중소기업확인서"
+      ],
+      "kind": "qualification"
+    },
+    {
+      "id": "dom.website",
+      "label": "홈페이지",
+      "aliases": [
+        "웹사이트",
+        "누리집"
+      ],
+      "kind": "domain"
+    }
+  ],
+  "relations": [
+    {
+      "type": "has_capability",
+      "from_types": [
+        "company"
+      ],
+      "to_types": [
+        "capability"
+      ],
+      "evidence_required": true
+    },
+    {
+      "type": "uses_technology",
+      "from_types": [
+        "project",
+        "capability"
+      ],
+      "to_types": [
+        "technology"
+      ],
+      "evidence_required": true
+    },
+    {
+      "type": "operates_in",
+      "from_types": [
+        "company",
+        "project"
+      ],
+      "to_types": [
+        "domain"
+      ],
+      "evidence_required": true
+    },
+    {
+      "type": "has_staff",
+      "from_types": [
+        "company"
+      ],
+      "to_types": [
+        "staff_group"
+      ],
+      "evidence_required": true
+    },
+    {
+      "type": "performed",
+      "from_types": [
+        "company"
+      ],
+      "to_types": [
+        "project"
+      ],
+      "evidence_required": true
+    },
+    {
+      "type": "supports_capability",
+      "from_types": [
+        "project",
+        "staff_group"
+      ],
+      "to_types": [
+        "capability"
+      ],
+      "evidence_required": true
+    },
+    {
+      "type": "holds_qualification",
+      "from_types": [
+        "company"
+      ],
+      "to_types": [
+        "qualification"
+      ],
+      "evidence_required": true
+    },
+    {
+      "type": "supported_by",
+      "from_types": [
+        "capability",
+        "company",
+        "domain",
+        "project",
+        "qualification",
+        "requirement",
+        "staff_group",
+        "technology"
+      ],
+      "to_types": [
+        "evidence"
+      ],
+      "evidence_required": true
+    },
+    {
+      "type": "has_requirement",
+      "from_types": [
+        "notice"
+      ],
+      "to_types": [
+        "requirement"
+      ],
+      "evidence_required": true
+    },
+    {
+      "type": "requires_capability",
+      "from_types": [
+        "requirement"
+      ],
+      "to_types": [
+        "capability"
+      ],
+      "evidence_required": true
+    },
+    {
+      "type": "requires_qualification",
+      "from_types": [
+        "requirement"
+      ],
+      "to_types": [
+        "qualification"
+      ],
+      "evidence_required": true
+    }
+  ]
+}

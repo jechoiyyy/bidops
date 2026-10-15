@@ -1,0 +1,45 @@
+{
+  "schema_version": "bidops.hp-human-gold-input-freeze.v1",
+  "status": "inputs_frozen_human_gold_unwritten",
+  "approval": {
+    "date": "2026-10-15",
+    "user_response": "확정할게",
+    "scope": [
+      "51concept·4kind·11relations·ID·alias 동결",
+      "CMS 구축·접근성 개선·업무시간 장애 대응 core 표시",
+      "미지정 회사 상세 unknown/null 유지"
+    ]
+  },
+  "ontology": {
+    "file": "ontology.approved.v1.json",
+    "file_sha256": "fe4b6da7b96dcd570cd8cf548c14d09ef7cf3b952362adbc197437fea9849d8d",
+    "canonical_sha256": "c961f5c9efaa9f359b8e4f6a10ff205450bbdf82dd0bc2b0fdc4916558897fb3"
+  },
+  "company": {
+    "basis_file": "company.evaluation-basis.v1.json",
+    "company_sha256": "739e65f08667656fc1b0c67e89601477586ad8855218678d7a2d2ac022622b80",
+    "registration_file_sha256": "9e946f0d9f66e61bbb85dade22962a390d4a04e806ef65c9d8c153c02dd2723f",
+    "scenario_file_sha256": "c4d2c3cf5c004d14fc14d6b9a8e931044b500806941b982b0e78689ac9bc145b"
+  },
+  "sample": {
+    "file": "evaluation-documents.selected.v1.json",
+    "sha256": "3085f1b6d318544f87502252b13f458426bb58b18b8d206aa469c3f1b02feaf0",
+    "cases": 10,
+    "source_files": 11,
+    "cards": 541
+  },
+  "worksheet": {
+    "path": "/Users/temp/orca/bidops/.sdlc/local-runtime/hp-evaluation-20261015/human-worksheet.blank.frozen.v1.json",
+    "sha256": "e36db462780efbaa48063874180b2e7c395e58636dc14ff4696b379b0a7d8623",
+    "schema_version": "bidops.hp-human-gold-preparation.v3"
+  },
+  "human_gold_completed": 0,
+  "database_registered": false,
+  "product_implementation_complete": false,
+  "final_acceptance": null,
+  "limitations": [
+    "ISMS-P 중첩 검색 미해결; 어휘 출현만으로 충족 판정 금지",
+    "수치·기간 대조는 typed scenario 병행 필요; 제품 연결 미구현",
+    "쪽 상속312·미확인229; mapped0"
+  ]
+}

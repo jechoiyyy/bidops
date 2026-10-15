@@ -1,8 +1,33 @@
 {
   "schema_version": 2,
   "feature": "HP-02-homepage-ontology-company",
-  "phase": "drafting",
-  "steps": [],
+  "phase": "review",
+  "steps": [
+    {
+      "id": "STEP-001",
+      "title": "v2등록 projection· binding 작성",
+      "model": "complex",
+      "fingerprint": "9fc126a9220db8195e8e61cae0bd698464562bb5ba87559877a57fc5f0017e1f",
+      "status": "pending",
+      "updated_at": null
+    },
+    {
+      "id": "STEP-002",
+      "title": "격리 등록·조회 검증",
+      "model": "complex",
+      "fingerprint": "f707b47a9e895fcb2ef4b270636657e2b9977241fd5c2fbf497610e95b8b2ac2",
+      "status": "pending",
+      "updated_at": null
+    },
+    {
+      "id": "STEP-003",
+      "title": "동결 자료 coverage와 격리 적용 기록",
+      "model": "complex",
+      "fingerprint": "dfdf71933bcf48f49f581b80b9cbe947536795e0abb8f074ad3672296cd4bde4",
+      "status": "pending",
+      "updated_at": null
+    }
+  ],
   "proof": {
     "docs": {
       "result": "pending"
@@ -27,7 +52,15 @@
     {
       "at": "2026-10-14T18:53:35+09:00",
       "text": "생성 (drafting)"
+    },
+    {
+      "at": "2026-10-15T15:34:07+09:00",
+      "text": "plan 작업 ID 동기화"
+    },
+    {
+      "at": "2026-10-15T15:50:40+09:00",
+      "text": "단계 → review: 명세 독립 검사 PASS(gpt-5.6-sol/high), 지적6개 반영·차이1회 재검토·차단0. preparation/preloop-review.md 참조. 제품 구현/검증 전"
     }
   ],
-  "updated_at": "2026-10-14T18:53:35+09:00"
+  "updated_at": "2026-10-15T15:50:40+09:00"
 }

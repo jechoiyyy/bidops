@@ -1,0 +1,106 @@
+{
+  "schema_version": "bidops.hp-registration-projection-review.v1",
+  "status": "draft_not_approved",
+  "scenario_sha256": "c4d2c3cf5c004d14fc14d6b9a8e931044b500806941b982b0e78689ac9bc145b",
+  "registration_sha256": "f253db71554843f6f693ce3dbb411875c33f54eaf2026d90bab02fe94431332b",
+  "ontology_sha256": "17c6d674e220a89ed5b2fc409000ddcf6e5459f5e00bbffe779da78363df5a4a",
+  "fact_mapping": [
+    {
+      "fact_id": "headcount",
+      "node_id": "fact.headcount",
+      "typed_fact_preserved_in": "company.scenario.approved.v1.json",
+      "projection_mode": "structured_or_scoped_statement"
+    },
+    {
+      "fact_id": "annual_revenue",
+      "node_id": "company.onweb",
+      "typed_fact_preserved_in": "company.scenario.approved.v1.json",
+      "projection_mode": "summary_only"
+    },
+    {
+      "fact_id": "homepage_project_count",
+      "node_id": "company.onweb",
+      "typed_fact_preserved_in": "company.scenario.approved.v1.json",
+      "projection_mode": "summary_only"
+    },
+    {
+      "fact_id": "homepage_project_period",
+      "node_id": "company.onweb",
+      "typed_fact_preserved_in": "company.scenario.approved.v1.json",
+      "projection_mode": "summary_only"
+    },
+    {
+      "fact_id": "largest_homepage_project_amount",
+      "node_id": "company.onweb",
+      "typed_fact_preserved_in": "company.scenario.approved.v1.json",
+      "projection_mode": "summary_only"
+    },
+    {
+      "fact_id": "cms_delivery_experience",
+      "node_id": "fact.cms_delivery_experience",
+      "typed_fact_preserved_in": "company.scenario.approved.v1.json",
+      "projection_mode": "structured_or_scoped_statement"
+    },
+    {
+      "fact_id": "web_accessibility_improvement_experience",
+      "node_id": "fact.web_accessibility_improvement_experience",
+      "typed_fact_preserved_in": "company.scenario.approved.v1.json",
+      "projection_mode": "structured_or_scoped_statement"
+    },
+    {
+      "fact_id": "business_hours_incident_response",
+      "node_id": "fact.business_hours_incident_response",
+      "typed_fact_preserved_in": "company.scenario.approved.v1.json",
+      "projection_mode": "structured_or_scoped_statement"
+    },
+    {
+      "fact_id": "isms_held",
+      "node_id": "fact.isms_held",
+      "typed_fact_preserved_in": "company.scenario.approved.v1.json",
+      "projection_mode": "structured_or_scoped_statement"
+    },
+    {
+      "fact_id": "multilingual_homepage_project_experience",
+      "node_id": "company.onweb",
+      "typed_fact_preserved_in": "company.scenario.approved.v1.json",
+      "projection_mode": "summary_only"
+    },
+    {
+      "fact_id": "onsite_available_people",
+      "node_id": "fact.onsite_available_people",
+      "typed_fact_preserved_in": "company.scenario.approved.v1.json",
+      "projection_mode": "structured_or_scoped_statement"
+    },
+    {
+      "fact_id": "oracle_experience",
+      "node_id": "fact.oracle_experience",
+      "typed_fact_preserved_in": "company.scenario.approved.v1.json",
+      "projection_mode": "unknown"
+    },
+    {
+      "fact_id": "direct_production_valid_scope",
+      "node_id": "fact.direct_production_valid_scope",
+      "typed_fact_preserved_in": "company.scenario.approved.v1.json",
+      "projection_mode": "unknown"
+    },
+    {
+      "fact_id": "around_clock_response",
+      "node_id": "fact.around_clock_response",
+      "typed_fact_preserved_in": "company.scenario.approved.v1.json",
+      "projection_mode": "unknown"
+    }
+  ],
+  "proposed_decisions": [
+    "51concept/11relations candidate dictionary",
+    "CMS 구축·접근성 개선·업무시간 장애 대응을 core 역량으로 표시",
+    "미지정 기준일/개별 실적/직군은 null 유지"
+  ],
+  "limitations": [
+    "숫자·기간·실적 부재는 승인된 typed scenario와 함께 읽어야 함; 등록 그래프만으로 전부 수치 대조 불가",
+    "CMS·접근성 경험은 모든 기술/인증/사업 요구 충족을 보증하지 않음",
+    "ISMS 미보유 노드에 holds_qualification edge 없음",
+    "ISMS-P 중첩 매핑은 HP03에서 검증 필요"
+  ],
+  "validator_passed": true,
+  "database_registered": false
+}

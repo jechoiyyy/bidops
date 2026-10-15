@@ -157,80 +157,80 @@
     "docs": {
       "result": "pass",
       "method": "review",
-      "note": "독립 최종 리뷰 PASS, 차단0; 현재 계약·실측·한계 기록 일치",
-      "evidence": "docs/work/_runs/hp0001-20261014/final-batch-review.md",
+      "note": "테스트 재실행 아님. 완료95d361d 대비 제품/실행 소스 동일; 변경은 docs/공통 workflow 설정. 독립 리뷰의 범위 대조로 기존 docs/work/_runs/hp0001-20261014/final-batch-review.md 재사용. 기존 실패/skip/비적용 한계 유지.",
+      "evidence": "docs/work/groups/HP/preparation/preloop-review.md",
       "exit_code": null,
       "actor": "orchestrator",
       "command": "python3 scripts/feature_status.py doctor _",
-      "at": "2026-10-15T00:19:30+09:00",
-      "head": "daf520186bc4381bf64837bba24eeabee9cbc20a",
-      "source_hash": "1a40e9af45a73b1259bfae71eb933f9ec46d309b47c20d6aec98764f51d7db79",
-      "spec_hash": "a3381294c849873f6c48178e048a604125e22396eeb8a1df943f94e29dc29c2b"
+      "at": "2026-10-15T15:50:42+09:00",
+      "head": "43c2a36f2f0e5a5dc33d4896c9831d90b4c50381",
+      "source_hash": "58181e457b93cccc3e5dc8e6efa6df132c4634cdb435d0200e3831a19cc3c95e",
+      "spec_hash": "49c4c3618ee3be4b7bb6e56618c6a1873aa21ab88e3a0d352e96567607cafbba"
     },
     "tests": {
       "result": "pass",
       "method": "command",
-      "note": "최종 통합 제품 입력의 관련검사 및 개별 로그 참조; skip/미검증 한계 명시",
-      "evidence": "docs/work/_runs/hp0001-20261014/hp0001-final-validation.md",
+      "note": "테스트 재실행 아님. 완료95d361d 대비 제품/실행 소스 동일; 변경은 docs/공통 workflow 설정. 독립 리뷰의 범위 대조로 기존 docs/work/_runs/hp0001-20261014/hp0001-final-validation.md 재사용. 기존 실패/skip/비적용 한계 유지.",
+      "evidence": "docs/work/groups/HP/preparation/preloop-review.md",
       "exit_code": 0,
       "actor": "orchestrator",
       "command": "",
-      "at": "2026-10-15T00:15:47+09:00",
-      "head": "daf520186bc4381bf64837bba24eeabee9cbc20a",
-      "source_hash": "1a40e9af45a73b1259bfae71eb933f9ec46d309b47c20d6aec98764f51d7db79",
-      "spec_hash": "a3381294c849873f6c48178e048a604125e22396eeb8a1df943f94e29dc29c2b"
+      "at": "2026-10-15T15:50:42+09:00",
+      "head": "43c2a36f2f0e5a5dc33d4896c9831d90b4c50381",
+      "source_hash": "58181e457b93cccc3e5dc8e6efa6df132c4634cdb435d0200e3831a19cc3c95e",
+      "spec_hash": "49c4c3618ee3be4b7bb6e56618c6a1873aa21ab88e3a0d352e96567607cafbba"
     },
     "postgres": {
       "result": "pass",
       "method": "command",
-      "note": "최종 통합 제품 입력의 관련검사 및 개별 로그 참조; skip/미검증 한계 명시",
-      "evidence": "docs/work/_runs/hp0001-20261014/hp0001-final-validation.md",
+      "note": "테스트 재실행 아님. 완료95d361d 대비 제품/실행 소스 동일; 변경은 docs/공통 workflow 설정. 독립 리뷰의 범위 대조로 기존 docs/work/_runs/hp0001-20261014/hp0001-final-validation.md 재사용. 기존 실패/skip/비적용 한계 유지.",
+      "evidence": "docs/work/groups/HP/preparation/preloop-review.md",
       "exit_code": 0,
       "actor": "orchestrator",
       "command": "",
-      "at": "2026-10-15T00:15:47+09:00",
-      "head": "daf520186bc4381bf64837bba24eeabee9cbc20a",
-      "source_hash": "1a40e9af45a73b1259bfae71eb933f9ec46d309b47c20d6aec98764f51d7db79",
-      "spec_hash": "a3381294c849873f6c48178e048a604125e22396eeb8a1df943f94e29dc29c2b"
+      "at": "2026-10-15T15:50:42+09:00",
+      "head": "43c2a36f2f0e5a5dc33d4896c9831d90b4c50381",
+      "source_hash": "58181e457b93cccc3e5dc8e6efa6df132c4634cdb435d0200e3831a19cc3c95e",
+      "spec_hash": "49c4c3618ee3be4b7bb6e56618c6a1873aa21ab88e3a0d352e96567607cafbba"
     },
     "frontend": {
       "result": "pass",
       "method": "command",
-      "note": "최종 통합 제품 입력의 관련검사 및 개별 로그 참조; skip/미검증 한계 명시",
-      "evidence": "docs/work/_runs/hp0001-20261014/hp0001-final-validation.md",
+      "note": "테스트 재실행 아님. 완료95d361d 대비 제품/실행 소스 동일; 변경은 docs/공통 workflow 설정. 독립 리뷰의 범위 대조로 기존 docs/work/_runs/hp0001-20261014/hp0001-final-validation.md 재사용. 기존 실패/skip/비적용 한계 유지.",
+      "evidence": "docs/work/groups/HP/preparation/preloop-review.md",
       "exit_code": 0,
       "actor": "orchestrator",
       "command": "",
-      "at": "2026-10-15T00:15:47+09:00",
-      "head": "daf520186bc4381bf64837bba24eeabee9cbc20a",
-      "source_hash": "1a40e9af45a73b1259bfae71eb933f9ec46d309b47c20d6aec98764f51d7db79",
-      "spec_hash": "a3381294c849873f6c48178e048a604125e22396eeb8a1df943f94e29dc29c2b"
+      "at": "2026-10-15T15:50:42+09:00",
+      "head": "43c2a36f2f0e5a5dc33d4896c9831d90b4c50381",
+      "source_hash": "58181e457b93cccc3e5dc8e6efa6df132c4634cdb435d0200e3831a19cc3c95e",
+      "spec_hash": "49c4c3618ee3be4b7bb6e56618c6a1873aa21ab88e3a0d352e96567607cafbba"
     },
     "api_guard": {
       "result": "not_applicable",
       "method": "command",
-      "note": "HP00 승인/소속/identity 경계 관련검사 통과; HP01은 외부 호출·회사 자원 접근 변경 없음",
-      "evidence": "docs/work/_runs/hp0001-20261014/hp0001-final-validation.md",
+      "note": "테스트 재실행 아님. 완료95d361d 대비 제품/실행 소스 동일; 변경은 docs/공통 workflow 설정. 독립 리뷰의 범위 대조로 기존 docs/work/_runs/hp0001-20261014/hp0001-final-validation.md 재사용. 기존 실패/skip/비적용 한계 유지.",
+      "evidence": "docs/work/groups/HP/preparation/preloop-review.md",
       "exit_code": null,
       "actor": "orchestrator",
       "command": "",
-      "at": "2026-10-15T00:15:48+09:00",
-      "head": "daf520186bc4381bf64837bba24eeabee9cbc20a",
-      "source_hash": "1a40e9af45a73b1259bfae71eb933f9ec46d309b47c20d6aec98764f51d7db79",
-      "spec_hash": "a3381294c849873f6c48178e048a604125e22396eeb8a1df943f94e29dc29c2b"
+      "at": "2026-10-15T15:50:42+09:00",
+      "head": "43c2a36f2f0e5a5dc33d4896c9831d90b4c50381",
+      "source_hash": "58181e457b93cccc3e5dc8e6efa6df132c4634cdb435d0200e3831a19cc3c95e",
+      "spec_hash": "49c4c3618ee3be4b7bb6e56618c6a1873aa21ab88e3a0d352e96567607cafbba"
     },
     "real_data_run": {
       "result": "not_applicable",
       "method": "manual",
-      "note": "feature.json: 사람 인수 proof는 HP03/06만 적용. HP00 실제 identity 검증은 별도 기록하며 분석 실패를 보존",
-      "evidence": "docs/work/_runs/hp0001-20261014/hp0001-final-validation.md",
+      "note": "테스트 재실행 아님. 완료95d361d 대비 제품/실행 소스 동일; 변경은 docs/공통 workflow 설정. 독립 리뷰의 범위 대조로 기존 docs/work/_runs/hp0001-20261014/hp0001-final-validation.md 재사용. 기존 실패/skip/비적용 한계 유지.",
+      "evidence": "docs/work/groups/HP/preparation/preloop-review.md",
       "exit_code": null,
       "actor": "orchestrator",
       "command": "",
-      "at": "2026-10-15T00:15:47+09:00",
-      "head": "daf520186bc4381bf64837bba24eeabee9cbc20a",
-      "source_hash": "1a40e9af45a73b1259bfae71eb933f9ec46d309b47c20d6aec98764f51d7db79",
-      "spec_hash": "a3381294c849873f6c48178e048a604125e22396eeb8a1df943f94e29dc29c2b"
+      "at": "2026-10-15T15:50:43+09:00",
+      "head": "43c2a36f2f0e5a5dc33d4896c9831d90b4c50381",
+      "source_hash": "58181e457b93cccc3e5dc8e6efa6df132c4634cdb435d0200e3831a19cc3c95e",
+      "spec_hash": "49c4c3618ee3be4b7bb6e56618c6a1873aa21ab88e3a0d352e96567607cafbba"
     }
   },
   "notes": [
@@ -323,7 +323,7 @@
       "text": "단계 → done: 배치 검증 및 통합 완료"
     }
   ],
-  "updated_at": "2026-10-15T00:20:19+09:00",
+  "updated_at": "2026-10-15T15:50:43+09:00",
   "proof_history": [
     {
       "key": "tests",
@@ -359,6 +359,102 @@
       "key": "docs",
       "previous": {
         "result": "pending"
+      }
+    },
+    {
+      "key": "docs",
+      "previous": {
+        "result": "pass",
+        "method": "review",
+        "note": "독립 최종 리뷰 PASS, 차단0; 현재 계약·실측·한계 기록 일치",
+        "evidence": "docs/work/_runs/hp0001-20261014/final-batch-review.md",
+        "exit_code": null,
+        "actor": "orchestrator",
+        "command": "python3 scripts/feature_status.py doctor _",
+        "at": "2026-10-15T00:19:30+09:00",
+        "head": "daf520186bc4381bf64837bba24eeabee9cbc20a",
+        "source_hash": "1a40e9af45a73b1259bfae71eb933f9ec46d309b47c20d6aec98764f51d7db79",
+        "spec_hash": "a3381294c849873f6c48178e048a604125e22396eeb8a1df943f94e29dc29c2b"
+      }
+    },
+    {
+      "key": "tests",
+      "previous": {
+        "result": "pass",
+        "method": "command",
+        "note": "최종 통합 제품 입력의 관련검사 및 개별 로그 참조; skip/미검증 한계 명시",
+        "evidence": "docs/work/_runs/hp0001-20261014/hp0001-final-validation.md",
+        "exit_code": 0,
+        "actor": "orchestrator",
+        "command": "",
+        "at": "2026-10-15T00:15:47+09:00",
+        "head": "daf520186bc4381bf64837bba24eeabee9cbc20a",
+        "source_hash": "1a40e9af45a73b1259bfae71eb933f9ec46d309b47c20d6aec98764f51d7db79",
+        "spec_hash": "a3381294c849873f6c48178e048a604125e22396eeb8a1df943f94e29dc29c2b"
+      }
+    },
+    {
+      "key": "postgres",
+      "previous": {
+        "result": "pass",
+        "method": "command",
+        "note": "최종 통합 제품 입력의 관련검사 및 개별 로그 참조; skip/미검증 한계 명시",
+        "evidence": "docs/work/_runs/hp0001-20261014/hp0001-final-validation.md",
+        "exit_code": 0,
+        "actor": "orchestrator",
+        "command": "",
+        "at": "2026-10-15T00:15:47+09:00",
+        "head": "daf520186bc4381bf64837bba24eeabee9cbc20a",
+        "source_hash": "1a40e9af45a73b1259bfae71eb933f9ec46d309b47c20d6aec98764f51d7db79",
+        "spec_hash": "a3381294c849873f6c48178e048a604125e22396eeb8a1df943f94e29dc29c2b"
+      }
+    },
+    {
+      "key": "frontend",
+      "previous": {
+        "result": "pass",
+        "method": "command",
+        "note": "최종 통합 제품 입력의 관련검사 및 개별 로그 참조; skip/미검증 한계 명시",
+        "evidence": "docs/work/_runs/hp0001-20261014/hp0001-final-validation.md",
+        "exit_code": 0,
+        "actor": "orchestrator",
+        "command": "",
+        "at": "2026-10-15T00:15:47+09:00",
+        "head": "daf520186bc4381bf64837bba24eeabee9cbc20a",
+        "source_hash": "1a40e9af45a73b1259bfae71eb933f9ec46d309b47c20d6aec98764f51d7db79",
+        "spec_hash": "a3381294c849873f6c48178e048a604125e22396eeb8a1df943f94e29dc29c2b"
+      }
+    },
+    {
+      "key": "api_guard",
+      "previous": {
+        "result": "not_applicable",
+        "method": "command",
+        "note": "HP00 승인/소속/identity 경계 관련검사 통과; HP01은 외부 호출·회사 자원 접근 변경 없음",
+        "evidence": "docs/work/_runs/hp0001-20261014/hp0001-final-validation.md",
+        "exit_code": null,
+        "actor": "orchestrator",
+        "command": "",
+        "at": "2026-10-15T00:15:48+09:00",
+        "head": "daf520186bc4381bf64837bba24eeabee9cbc20a",
+        "source_hash": "1a40e9af45a73b1259bfae71eb933f9ec46d309b47c20d6aec98764f51d7db79",
+        "spec_hash": "a3381294c849873f6c48178e048a604125e22396eeb8a1df943f94e29dc29c2b"
+      }
+    },
+    {
+      "key": "real_data_run",
+      "previous": {
+        "result": "not_applicable",
+        "method": "manual",
+        "note": "feature.json: 사람 인수 proof는 HP03/06만 적용. HP00 실제 identity 검증은 별도 기록하며 분석 실패를 보존",
+        "evidence": "docs/work/_runs/hp0001-20261014/hp0001-final-validation.md",
+        "exit_code": null,
+        "actor": "orchestrator",
+        "command": "",
+        "at": "2026-10-15T00:15:47+09:00",
+        "head": "daf520186bc4381bf64837bba24eeabee9cbc20a",
+        "source_hash": "1a40e9af45a73b1259bfae71eb933f9ec46d309b47c20d6aec98764f51d7db79",
+        "spec_hash": "a3381294c849873f6c48178e048a604125e22396eeb8a1df943f94e29dc29c2b"
       }
     }
   ],
