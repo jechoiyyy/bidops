@@ -1,8 +1,77 @@
 {
   "schema_version": 2,
   "feature": "HP-03-two-tier-analysis",
-  "phase": "drafting",
-  "steps": [],
+  "phase": "review",
+  "steps": [
+    {
+      "id": "STEP-001",
+      "title": "unit 선택·batch·schema",
+      "model": "complex",
+      "fingerprint": "c31a0bae320c9afc48eb15e2429dd6d9260aede73a7dca2ee855086a5c4af3c5",
+      "status": "pending",
+      "updated_at": null
+    },
+    {
+      "id": "STEP-002",
+      "title": "불변 단계 저장·migration",
+      "model": "complex",
+      "fingerprint": "ff85555de5636b2a86f6051cfc1c07ff0fa533ea9420e331ea3ee2bdbc7ca328",
+      "status": "stale",
+      "updated_at": null,
+      "history": [
+        {
+          "id": "STEP-002",
+          "title": "불변 단계 저장·migration",
+          "model": "complex",
+          "fingerprint": "149a36fba6b88babceec9f7d577bd466ae28c6b1f03dc04f8607d938208db994",
+          "status": "pending",
+          "updated_at": null
+        }
+      ]
+    },
+    {
+      "id": "STEP-003",
+      "title": "추출·회사 결정적 대조",
+      "model": "complex",
+      "fingerprint": "4f3abbd303a521f922ea775db630a711d6b76b630f04e850dafdfde2a804d5bb",
+      "status": "pending",
+      "updated_at": null
+    },
+    {
+      "id": "STEP-004",
+      "title": "역할·종합 조립",
+      "model": "complex",
+      "fingerprint": "0c013f6f26bff15bbc4634605e239bde6a8f21022c5a3037b61821ee309f40a0",
+      "status": "pending",
+      "updated_at": null
+    },
+    {
+      "id": "STEP-005",
+      "title": "worker·preview·정책 연결",
+      "model": "complex",
+      "fingerprint": "fa0b90ac766d20f427fb2a5db530a58e8b3f5832be4766c4d6a0c7441497d375",
+      "status": "stale",
+      "updated_at": null,
+      "history": [
+        {
+          "id": "STEP-005",
+          "title": "worker·preview·정책 연결",
+          "model": "complex",
+          "fingerprint": "26aa73e2b24a2f02c43155250bfbcf9d801ed4ad490661aac0d5773b024de0b6",
+          "status": "pending",
+          "updated_at": null
+        }
+      ]
+    },
+    {
+      "id": "STEP-006",
+      "title": "통합·대표 실제 실행 증거",
+      "model": "complex",
+      "fingerprint": "eb6da5dda299ef7f58d096df895b8fbd8ef67789e40027ef65986a6d514ca2c1",
+      "status": "pending",
+      "updated_at": null
+    }
+  ],
   "proof": {
     "docs": {
       "result": "pending"
@@ -27,7 +96,19 @@
     {
       "at": "2026-10-14T18:53:35+09:00",
       "text": "생성 (drafting)"
+    },
+    {
+      "at": "2026-10-15T15:34:07+09:00",
+      "text": "plan 작업 ID 동기화"
+    },
+    {
+      "at": "2026-10-15T15:46:47+09:00",
+      "text": "plan 작업 ID 동기화"
+    },
+    {
+      "at": "2026-10-15T15:50:40+09:00",
+      "text": "단계 → review: 명세 독립 검사 PASS(gpt-5.6-sol/high), 지적6개 반영·차이1회 재검토·차단0. preparation/preloop-review.md 참조. 제품 구현/검증 전"
     }
   ],
-  "updated_at": "2026-10-14T18:53:35+09:00"
+  "updated_at": "2026-10-15T15:50:40+09:00"
 }

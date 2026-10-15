@@ -1,8 +1,33 @@
 {
   "schema_version": 2,
   "feature": "HP-04-practitioner-verdict",
-  "phase": "drafting",
-  "steps": [],
+  "phase": "review",
+  "steps": [
+    {
+      "id": "STEP-001",
+      "title": "읽기 API·현재성 투영",
+      "model": "complex",
+      "fingerprint": "eb8b11de4c177458bd477ac3bf4ac4dcda6b6efb4b2facc93f2fd19c35d4bc60",
+      "status": "pending",
+      "updated_at": null
+    },
+    {
+      "id": "STEP-002",
+      "title": "판정 다섯 블록 연결",
+      "model": "complex",
+      "fingerprint": "597494d12d05fb3d975d241130a63730dbb9a306979b7256758895a878f55682",
+      "status": "pending",
+      "updated_at": null
+    },
+    {
+      "id": "STEP-003",
+      "title": "상태·오류·실제 조회 검증",
+      "model": "complex",
+      "fingerprint": "31f17adc733434e84d03774f1948b1539cad55f9ee1f8c2042bd8769130f438d",
+      "status": "pending",
+      "updated_at": null
+    }
+  ],
   "proof": {
     "docs": {
       "result": "pending"
@@ -27,7 +52,15 @@
     {
       "at": "2026-10-14T18:53:35+09:00",
       "text": "생성 (drafting)"
+    },
+    {
+      "at": "2026-10-15T15:34:07+09:00",
+      "text": "plan 작업 ID 동기화"
+    },
+    {
+      "at": "2026-10-15T15:50:40+09:00",
+      "text": "단계 → review: 명세 독립 검사 PASS(gpt-5.6-sol/high), 지적6개 반영·차이1회 재검토·차단0. preparation/preloop-review.md 참조. 제품 구현/검증 전"
     }
   ],
-  "updated_at": "2026-10-14T18:53:35+09:00"
+  "updated_at": "2026-10-15T15:50:40+09:00"
 }

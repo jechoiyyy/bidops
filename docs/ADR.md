@@ -320,3 +320,20 @@ ADR-0021은 “운영 제품 전에 동일 모집단과 사람 정답으로 비�
 - [ADR-0070 가상 SI 3사·지식그래프 기반 사내 데모](tracking/decisions/0070-multi-company-knowledge-demo.md): 목표 설계 채택, 회사별 결과·추적 분리, 불변 그래프 근거, 실제 6건/18건/9건 인수. DEMO-01~04는 데모 브랜치에 구현(main·운영 미반영, DEMO-04는 frontend만 바꾸고 mock 화면으로만 검증), DEMO-05는 구현 전. 2026-10-09 개정: `bidops-local`·실제 3일 수집·LiteLLM 개요를 준비 기준으로 채택하고 실제 Luna 심층은 DEMO-03/05 인수 게이트로 유지. 2026-10-11 재계획: DEMO-03은 실제 격리 스택 준비와 호출 전 fail-closed 확인까지로 닫고, 대표 1건 실제 Luna 심층은 DEMO-05로 이관(유일한 준비 공고 179가 기존 inventory 불일치 findings로 호출 전 거부).
 
 - [ADR-0071 홈페이지 전문 가상 1사 기준 심층 검토 재정의](tracking/decisions/0071-homepage-single-company-deep-review.md): 2026-10-14 가상 SI 3사 데모를 홈페이지 구축·운영·유지보수 전문 가상 1사로 전환. HWP/HWPX 원본 정본, 요구사항 카드 inventory, codex-exec `gpt-6-luna`/high 단일 모델(LiteLLM·Terra 제외), 2층 분석, 5블록 실무자 화면, gold 10건, Neo4j 비교 실험(AGE 제외). DEMO 그룹 종료, HP 그룹 HP-00~06.
+
+- ADR-0071 후속 결정(2026-10-15): [HP 공통 계약](work/hp-contract.md) §1·4·5·6·7·11에 업무별 concept 분리 원칙·가상회사 기본 설정·카드+여섯 문서 영역·40분 목표/60분 강제 종료·실패 시 부분 보존과 사람 검토를 반영. 제품 구현·정책 적용·최종 인수 완료를 뜻하지 않는다.
+
+- ADR-0071 화면 후속 결정(2026-10-15): [HP 공통 계약 §8](work/hp-contract.md#8-실무자-판정-화면-확정-구성-세부는-hp-04)의 다섯 영역·부족/미확인/충족 정렬·원문 쪽 불확실성 표시·DEMO 데이터 보존 및 가상 온웹서비스만 표시를 사용자 승인. 구현·화면 검증은 별도다.
+
+- ADR-0071 사람 정답 작성 결정(2026-10-15): [HP 공통 계약 §9](work/hp-contract.md#9-gold-10건-작성-방식-확정-점수-결정-대기-hp-06)에서 회사·용어 동결 후 모델 결과 전 작성, 5건부터 최종10건, 충족/부족 각각5개 강제 폐기, 불일치 사람 검토를 승인. 통과 점수·정답·인수 결과는 미확정.
+
+- ADR-0071 초기 데모 품질 기준 확정(2026-10-15): [HP 계약 §9](work/hp-contract.md#9-gold-10건-작성-방식품질-기준-확정-hp-06), 종합8/10·차단조건recall80%·카드일치70%·명백한 필수자격 미충족의 충족 오판0건. 비일치·중대한 오류는 사람 검토, 최종 인수 별도. 운영 품질 보증 아님.
+
+- ADR-0071 Neo4j 실험 기준 확정(2026-10-15): [HP 계약 §10](work/hp-contract.md#10-neo4j-비교-실험-확정-기준-hp-05), 경로발견율10%p 개선 또는5질의 중3개 작성·수정 우위, 필수경로 손실0·설명 비열화가 채택 후보 조건. 비용·AGE 제외, 최종 도입은 실제 결과 후 사람 결정.
+
+- ADR-0071 회사 기준 v2 방향 승인(2026-10-15): [HP02 재계획](work/groups/HP/features/HP-02-homepage-ontology-company/preparation.md#실적-기반-회사-v2-재계획--2026-10-15). 가상 실적의 명시 담당 범위→역량 도출, 현재 자격/인력/SLA와 계약 조건 분리. 평가 외3원문 참고, 구체 수행 가정은 초안. v1 불변 보존·새 기준의 사람 정답/제품 구현 미완료.
+
+- ADR-0071 회사 v2 담당 범위 확정(2026-10-15): 사용자 “확정해”로 [세 가상 실적·표준 절차](work/groups/HP/preparation/company.experience.approved.v2.json) 승인. 기존 미확인 인력/자격/SLA·계약 조건 유지. [v2 입력](work/groups/HP/preparation/review-inputs.frozen.v2.json)은 모델 보조 검토 자료이며 독립 gold나 제품 완료가 아니다.
+
+- 2026-10-15 HP pre-loop: 승인 회사 v2·온톨로지와 HP02~06 intent/spec/plan 정합화. source 포함 unit ID, typed sidecar binding, 단계 결과·REST·사람 평가 경계를 문서화. 기술 조정값은 사용자 위임으로 고정, 제품 구현·실제 실험은 시작하지 않음.
+- 2026-10-15 HP 명세 독립 리뷰 반영: 승인 입력 v2/preview 결속, 그래프 expected/required/actual/human/report 계약, gold 조건 ID의 사람 대응표를 명시. 기존 실제실험 필수 요구에 맞춰 HP05 real_data_run을 필수 수동 proof로 정합화; 제품 수용 기준 완화 없음.

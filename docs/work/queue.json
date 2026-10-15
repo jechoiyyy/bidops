@@ -9,6 +9,42 @@
       "feature": "HP-01-requirement-cards",
       "depends_on": [],
       "added_at": "2026-10-14T19:45:40+09:00"
+    },
+    {
+      "feature": "HP-02-homepage-ontology-company",
+      "depends_on": [
+        "HP-01-requirement-cards"
+      ],
+      "added_at": "2026-10-15T15:50:43+09:00"
+    },
+    {
+      "feature": "HP-03-two-tier-analysis",
+      "depends_on": [
+        "HP-00-luna-model-identity",
+        "HP-02-homepage-ontology-company"
+      ],
+      "added_at": "2026-10-15T15:50:43+09:00"
+    },
+    {
+      "feature": "HP-04-practitioner-verdict",
+      "depends_on": [
+        "HP-03-two-tier-analysis"
+      ],
+      "added_at": "2026-10-15T15:50:43+09:00"
+    },
+    {
+      "feature": "HP-05-neo4j-experiment",
+      "depends_on": [
+        "HP-02-homepage-ontology-company"
+      ],
+      "added_at": "2026-10-15T15:50:43+09:00"
+    },
+    {
+      "feature": "HP-06-gold-acceptance",
+      "depends_on": [
+        "HP-04-practitioner-verdict"
+      ],
+      "added_at": "2026-10-15T15:50:43+09:00"
     }
   ]
 }

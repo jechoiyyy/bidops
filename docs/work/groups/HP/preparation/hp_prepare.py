@@ -70,31 +70,75 @@ def source_file(directory, name):
 
 
 def export_cards(directory):
-    from app.deep_review.services.document_segments import build_manifest_payload, resolve_card_pages
     directory = Path(directory)
     sources = unique_rows(read(source_file(directory, 'sources.json')), 'name')
     docs = []
     for name, src in sorted(sources.items()):
-        source_path = source_file(directory, src['file'])
-        if digest(source_path.read_bytes()) != src['source_sha256']:
-            raise ValueError('source_hash_mismatch')
-        sp = source_file(directory, f'{name}.structure.json')
-        mp = source_file(directory, f'{name}.para_page_map.json')
-        s, m = read(sp), read(mp)
-        if s['source_sha256'] != src['source_sha256']:
-            raise ValueError('structure_source_mismatch')
-        cards = resolve_card_pages(build_manifest_payload(s), m)
-        rows = []
-        for c in cards:
-            table = c['card']['table_key']
-            blocks = [b for b in s['blocks'] if b.get('attributes', {}).get('table_key') == table]
-            rows.append({**c, 'unit_id': f"card:{src['source_sha256']}:{c['ordinal']}:{c['normalized_id']}",
-                         'blocks': [{'block_key': b['block_key'], 'text': b.get('text', '')} for b in blocks]})
-        unique_rows(rows, 'unit_id')
+        source_docs, all_cards = [], []
+        for item in [src, *src.get('companions', [])]:
+            source_doc, cards = export_source(directory, item)
+            source_docs.append(source_doc)
+            all_cards.extend(cards)
+        unique_rows(source_docs, 'source_sha256')
+        unique_rows(all_cards, 'unit_id')
         docs.append({'document_id': name, 'source_sha256': src['source_sha256'],
-                     'structure_sha256': digest(sp.read_bytes()), 'page_map_sha256': digest(mp.read_bytes()),
-                     'cards': rows})
-    return {'schema_version': 'bidops.hp-preparation-cards.v1', 'status': 'draft', 'documents': docs}
+                     'source_documents': source_docs, 'sources_sha256': source_binding(source_docs),
+                     'cards': all_cards})
+    return {'schema_version': 'bidops.hp-preparation-cards.v2', 'status': 'draft', 'documents': docs}
+
+
+def export_source(directory, src):
+    from app.deep_review.services.document_segments import build_manifest_payload, resolve_card_pages
+    name = src['name']
+    source_path = source_file(directory, src['file'])
+    if digest(source_path.read_bytes()) != src['source_sha256']:
+        raise ValueError('source_hash_mismatch')
+    sp = source_file(directory, f'{name}.structure.json')
+    mp = source_file(directory, f'{name}.para_page_map.json')
+    s, m = read(sp), read(mp)
+    if s['source_sha256'] != src['source_sha256']:
+        raise ValueError('structure_source_mismatch')
+    cards = resolve_card_pages(build_manifest_payload(s), m)
+    rows = []
+    for c in cards:
+        table = c['card']['table_key']
+        blocks = [b for b in s['blocks'] if b.get('attributes', {}).get('table_key') == table]
+        rows.append({**c, 'unit_id': f"card:{src['source_sha256']}:{c['ordinal']}:{c['normalized_id']}",
+                     'blocks': [{'block_key': b['block_key'], 'text': b.get('text', '')} for b in blocks]})
+    unique_rows(rows, 'unit_id')
+    doc = {'source_sha256': src['source_sha256'],
+           'structure_sha256': digest(sp.read_bytes()), 'page_map_sha256': digest(mp.read_bytes()),
+           'blocks': [{'unit_id': f"block:{src['source_sha256']}:{b['block_key']}",
+                       'block_key': b['block_key'], 'text': b['text']}
+                      for b in s['blocks'] if b.get('text', '').strip()]}
+    unique_rows(doc['blocks'], 'unit_id')
+    return doc, rows
+
+
+def source_binding(documents):
+    return digest(canonical(sorted([{k: d[k] for k in
+        ('source_sha256', 'structure_sha256', 'page_map_sha256')} for d in documents],
+        key=lambda d: d['source_sha256'])))
+
+
+def source_universe(document):
+    sources = unique_rows(document['source_documents'], 'source_sha256')
+    if document['source_sha256'] not in sources or document['sources_sha256'] != source_binding(list(sources.values())):
+        raise ValueError('source_set_binding_mismatch')
+    blocks = []
+    for sha, src in sources.items():
+        for key in ('source_sha256', 'structure_sha256', 'page_map_sha256'):
+            hash_value(src[key])
+        for block in src['blocks']:
+            if block['unit_id'] != f"block:{sha}:{block['block_key']}" or not block.get('text'):
+                raise ValueError('source_block_invalid')
+            blocks.append(block)
+    block_ids = set(unique_rows(blocks, 'unit_id'))
+    cards = set(unique_rows(document['source_cards'], 'unit_id'))
+    for card in cards:
+        if len(card.split(':')) < 4 or card.split(':')[0] != 'card' or card.split(':')[1] not in sources:
+            raise ValueError('card_source_invalid')
+    return cards, cards | block_ids
 
 
 def coverage(pack, ontology):
@@ -108,7 +152,7 @@ def coverage(pack, ontology):
             for b in c['blocks']:
                 for concept in match_concepts(b['text'], parsed):
                     evidence.append({'concept_id': concept, 'block_key': b['block_key'], 'quote': b['text']})
-            rows.append({'document_id': d['document_id'], 'source_sha256': d['source_sha256'],
+            rows.append({'document_id': d['document_id'], 'source_sha256': c['unit_id'].split(':')[1],
                          'unit_id': c['unit_id'], 'card_id': c['normalized_id'], 'title': c['title'],
                          'page_range': c['page_range'], 'mapping_status': c['mapping_status'],
                          'concept_ids': sorted({e['concept_id'] for e in evidence}), 'evidence': evidence})
@@ -123,11 +167,15 @@ def blank_gold(pack):
     docs = []
     for d in pack['documents']:
         docs.append({'document_id': d['document_id'], 'source_sha256': d['source_sha256'],
-                     'verdict': None, 'blocking_conditions': None, 'met': [None]*5, 'gap': [None]*5,
+                     'sources_sha256': d['sources_sha256'],
+                     'source_documents': [{**{k: src[k] for k in ('source_sha256', 'structure_sha256', 'page_map_sha256')},
+                                           'blocks': [{k: b[k] for k in ('unit_id', 'block_key', 'text')} for b in src['blocks']]}
+                                          for src in d['source_documents']],
+                     'verdict': None, 'blocking_conditions': None, 'met': None, 'gap': None,
                      'cautions': None, 'card_states': [],
                      'source_cards': [{k: c[k] for k in ('unit_id', 'raw_id', 'title', 'card', 'blocks',
                                                         'locator', 'page_range', 'mapping_status')} for c in d['cards']]})
-    return {'schema_version': 'bidops.hp-human-gold-preparation.v1', 'status': 'blank',
+    return {'schema_version': 'bidops.hp-human-gold-preparation.v3', 'status': 'blank',
             'annotator': None, 'authored_at': None, 'written_before_model_output': None,
             'company_sha256': None, 'ontology_sha256': None, 'documents': docs}
 
@@ -144,7 +192,7 @@ def hash_value(value):
 
 
 def check_gold(gold, expected_documents=10):
-    if gold.get('schema_version') != 'bidops.hp-human-gold-preparation.v1' or gold.get('status') != 'human_completed':
+    if gold.get('schema_version') != 'bidops.hp-human-gold-preparation.v3' or gold.get('status') != 'human_completed':
         raise ValueError('human_gold_incomplete')
     if not gold.get('annotator') or not gold.get('authored_at') or gold.get('written_before_model_output') is not True:
         raise ValueError('human_provenance_required')
@@ -157,11 +205,11 @@ def check_gold(gold, expected_documents=10):
         hash_value(d['source_sha256'])
         if d['verdict'] not in VERDICTS or not isinstance(d['cautions'], list):
             raise ValueError('human_fields_incomplete')
-        universe = set(unique_rows(d['source_cards'], 'unit_id'))
+        card_ids, universe = source_universe(d)
         for k in ('met', 'gap'):
             ids = id_list(d[k])
-            if len(ids) != 5 or not ids <= universe:
-                raise ValueError('five_source_ids_required')
+            if not ids <= universe:
+                raise ValueError('source_ids_required')
         if set(d['met']) & set(d['gap']):
             raise ValueError('contradictory_gold')
         # Conditions are human-assigned stable IDs; text-only matching needs adjudication.
@@ -170,7 +218,7 @@ def check_gold(gold, expected_documents=10):
             if not c.get('text') or not id_list(c['source_unit_ids']) or not set(c['source_unit_ids']) <= universe:
                 raise ValueError('condition_evidence_required')
         states = unique_rows(d['card_states'], 'unit_id')
-        if len(states) != 10 or not set(states) <= universe or any(r['status'] not in STATES for r in states.values()):
+        if len(states) != 10 or not set(states) <= card_ids or any(r['status'] not in STATES for r in states.values()):
             raise ValueError('ten_card_states_required')
         for k in ('met', 'gap'):
             if any(i in states and states[i]['status'] != k for i in d[k]):
@@ -182,6 +230,36 @@ def ratio(n, d):
     return {'numerator': n, 'denominator': d, 'value': n/d if d else None}
 
 
+def candidate_checks(rows):
+    criteria_path = Path(__file__).with_name('acceptance-criteria.approved.v1.json')
+    criteria = read(criteria_path)
+    def aggregate(field):
+        return ratio(sum(r[field]['numerator'] for r in rows),
+                     sum(r[field]['denominator'] for r in rows))
+    blocking = aggregate('blocking_recall')
+    cards = aggregate('card_accuracy')
+    correct = sum(r['verdict_correct'] for r in rows)
+    def verdict(value):
+        return 'pass' if value else 'fail'
+    def minimum(metric, threshold):
+        return 'unmeasured' if metric['value'] is None else verdict(metric['value'] >= threshold)
+    checks = {
+        'document_count': verdict(len(rows) == criteria['document_count']),
+        'verdict_correct': verdict(correct >= criteria['verdict_correct_min']),
+        'blocking_recall': minimum(blocking, criteria['blocking_recall_min']),
+        'card_accuracy': minimum(cards, criteria['card_accuracy_min']),
+        # A model or the scorer must never author this human adjudication.
+        'critical_false_met': 'pending_human_review',
+    }
+    return {'criteria_sha256': digest(criteria_path.read_bytes()),
+            'checks': checks, 'blocking_recall_micro': blocking,
+            'card_accuracy_micro': cards, 'verdict_correct': correct,
+            'critical_false_met_count': None,
+            'critical_false_met_max': criteria['critical_false_met_max'],
+            'status': 'numeric_criteria_failed' if 'fail' in checks.values() else 'pending_human_review',
+            'acceptance': 'not_decided'}
+
+
 def score(gold, prediction, expected_documents=10):
     gs = check_gold(gold, expected_documents)
     ps = unique_rows(prediction['documents'], 'document_id')
@@ -190,14 +268,16 @@ def score(gold, prediction, expected_documents=10):
     out = []
     for key, g in gs.items():
         p = ps[key]
-        if p['source_sha256'] != g['source_sha256'] or p['verdict'] not in VERDICTS:
+        if p['source_sha256'] != g['source_sha256'] or p.get('sources_sha256') != g['sources_sha256'] or p['verdict'] not in VERDICTS:
             raise ValueError('prediction_source_or_verdict_invalid')
-        universe = set(unique_rows(g['source_cards'], 'unit_id'))
+        card_ids, universe = source_universe(g)
         for field in ('met', 'gap'):
-            if not id_list(p[field]) <= universe or len(p[field]) != 5:
-                raise ValueError('prediction_five_source_ids_required')
+            if not id_list(p[field]) <= universe:
+                raise ValueError('prediction_source_ids_required')
+        if set(p['met']) & set(p['gap']):
+            raise ValueError('contradictory_prediction')
         states = unique_rows(p['card_states'], 'unit_id')
-        if not set(states) <= universe or any(v['status'] not in STATES for v in states.values()):
+        if not set(states) <= card_ids or any(v['status'] not in STATES for v in states.values()):
             raise ValueError('prediction_card_invalid')
         sample = {r['unit_id']: r['status'] for r in g['card_states']}
         if not set(sample) <= set(states):
@@ -207,14 +287,17 @@ def score(gold, prediction, expected_documents=10):
         differences = [i for i, s in sample.items() if states[i]['status'] != s]
         out.append({'document_id': key, 'verdict_correct': g['verdict'] == p['verdict'],
                     'blocking_recall': ratio(len(expected & found), len(expected)),
-                    'met_reference_precision_at_5': ratio(len(set(g['met']) & set(p['met'])), 5),
-                    'gap_reference_precision_at_5': ratio(len(set(g['gap']) & set(p['gap'])), 5),
+                    'met_reference_precision': ratio(len(set(g['met']) & set(p['met'])), len(p['met'])),
+                    'gap_reference_precision': ratio(len(set(g['gap']) & set(p['gap'])), len(p['gap'])),
+                    'unmatched_met_need_human_adjudication': sorted(set(p['met'])-set(g['met'])),
+                    'unmatched_gap_need_human_adjudication': sorted(set(p['gap'])-set(g['gap'])),
                     'card_accuracy': ratio(len(sample)-len(differences), len(sample)),
                     'card_mismatches': differences, 'missing_conditions': sorted(expected-found),
                     'unmatched_conditions_need_human_adjudication': sorted(found-expected)})
-    return {'schema_version': 'bidops.hp-preparation-score.v1', 'acceptance': 'not_decided',
+    return {'schema_version': 'bidops.hp-preparation-score.v4', 'acceptance': 'not_decided',
+            'candidate_assessment': candidate_checks(out),
             'verdict_accuracy': ratio(sum(r['verdict_correct'] for r in out), len(out)), 'documents': out,
-            'note': 'top5 reference overlap only; free-text conditions need blinded human ID alignment; no automatic acceptance'}
+            'note': 'variable-length reference overlap only; unmatched items and free-text conditions need human adjudication; no automatic acceptance'}
 
 
 def path_set(rows):
@@ -265,13 +348,16 @@ def main():
         elif a.action == 'coverage': result = coverage(read(a.inputs[0]), read(a.inputs[1]))
         elif a.action == 'blank-gold': result = blank_gold(read(a.inputs[0]))
         elif a.action == 'gold-check':
-            check_gold(read(a.inputs[0])); result = {'schema_version':'bidops.hp-gold-check.v1','structurally_valid':True,'acceptance':'not_decided'}
+            check_gold(read(a.inputs[0])); result = {'schema_version':'bidops.hp-gold-check.v2','structurally_valid':True,'acceptance':'not_decided'}
         elif a.action == 'score': result = score(read(a.inputs[0]), read(a.inputs[1]))
         else: result = graph_score(read(a.inputs[0]), read(a.inputs[1]))
         result['input_sha256'] = [digest(Path(x).read_bytes()) if Path(x).is_file() else None for x in a.inputs]
         result['tool_sha256'] = digest(Path(__file__).read_bytes())
         if a.action in {'score','graph-score'}:
-            result['scoring_input_sha256'] = digest(canonical({'inputs':result['input_sha256'],'tool':result['tool_sha256']}))
+            binding = {'inputs':result['input_sha256'],'tool':result['tool_sha256']}
+            if a.action == 'score':
+                binding['criteria'] = result['candidate_assessment']['criteria_sha256']
+            result['scoring_input_sha256'] = digest(canonical(binding))
         write(a.out, result)
         print(json.dumps({'status':'prepared','action':a.action}))
         return 0

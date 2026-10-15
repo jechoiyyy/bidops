@@ -1,0 +1,23 @@
+{
+  "schema_version": "bidops.hp-graph-adoption-criteria.v1",
+  "version": "v1",
+  "status": "criteria_approved",
+  "approved_on": "2026-10-15",
+  "approval_response": "확정해",
+  "candidate_condition": {
+    "operator": "or",
+    "recall_improvement_percentage_points_min": 10,
+    "query_authoring_modification_wins_min": 3,
+    "query_count": 5
+  },
+  "required_safeguards": {
+    "existing_required_paths_lost_max": 0,
+    "explainability_degradation_allowed": false
+  },
+  "excluded": [
+    "operating_cost",
+    "apache_age"
+  ],
+  "actual_experiment_status": "not_run",
+  "final_adoption": "human_decision_required"
+}

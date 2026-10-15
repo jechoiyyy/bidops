@@ -40,10 +40,13 @@ UI는 production build와 해당 화면의 1280×800·1440×900 의미/구조 �
 설정/큐/상태는 docs/work, CLI는 python3 scripts/feature_status.py <command> <ID> 순서다.
 standard=gpt-6-luna/max, complex 및 독립 review=gpt-5.6-sol/high.
 commit/merge는 manual, push/브랜치 삭제는 요청 때만 한다.
-DEMO 그룹은 2026-10-14에 닫았다. 활성 run `demo05-20261012`는 사용자가 abandon한 뒤 HP run을 시작한다.
+DEMO 그룹은 2026-10-14에 닫았다. DEMO05 run은 abandon됐고 HP00·01 run도 종료됐다. 새 loop 시작 전에 active run을 CLI로 다시 확인한다.
 
 ## 이전 DEMO 설계 (기록)
 회사 식별·추적은 lifecycle, 프로필·그래프·회사별 분석은 deep_review가 소유한다. 새 API namespace는 /api/companies이며 기존 경로의 wire 의미는 유지한다.
 멱등성은 body request_id+core IdempotencyRecord, 심층 승인은 기존 DeepReviewPreview/Approval, 핏은 worker 역할 CLI enqueue다.
 Luna 승인 정책은 이미지 파일과 `_approved_policy_path` 매핑으로만 인정된다.
 2026-10-09 확인한 LiteLLM 별칭 `local-agent-main`의 선언 입력 상한은 32,768 tokens였고 HP에서는 쓰지 않는다.
+
+### 회사 v2 준비 방향(2026-10-15)
+승인 typed 사실+가상 실적 담당 범위+현재 조건을 단일 원본으로 연결한 뒤 기존 노드/관계로 projection한다. HP02 spec에서 기존 strict graph+typed sidecar binding을 사용하도록 고정했다. 실제 v2 등록 파일/제품 연결은 loop 구현 대상이다. HP03은 기능 유사성·현재 조건·계약 수용 조건을 분리하고 v1/v2 hash를 혼용하지 않는다. 출처는 HP02 preparation의 실적 기반 회사 v2 재계획 절이다.

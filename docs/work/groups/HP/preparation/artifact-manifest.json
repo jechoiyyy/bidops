@@ -32,6 +32,21 @@
       "name": "human-worksheet.blank.v2.json",
       "sha256": "ee01d6d2a8d0064571da0ac3509128f7f6ee9588597295f29dea241fd7707616",
       "bytes": 672758
+    },
+    {
+      "name": "coverage.v3.json",
+      "sha256": "72a2692ce3d75431d6ff4058d70a8c846f6bc32f593f7029c90dc13fa6d46b89",
+      "bytes": 616510
+    },
+    {
+      "name": "human-worksheet.blank.v3.json",
+      "sha256": "6432f4433d1c00d85035a27edf9c55bcd735ec1ad57195ea7fbf6a6cc8f22ff1",
+      "bytes": 672538
+    },
+    {
+      "name": "coverage.v4.json",
+      "sha256": "5b936619fafdcaeb11f93ccca00bc7c154708db9b0603d4b4bd0f06d0458bbc4",
+      "bytes": 541306
     }
   ],
   "documents": [
@@ -71,13 +86,121 @@
       "unavailable": 44
     }
   ],
-  "candidate_concepts": 28,
-  "candidate_matched_cards": 129,
+  "candidate_concepts": 51,
+  "candidate_matched_cards": 118,
   "human_gold_completed": 0,
   "final_acceptance": null,
   "current_files": [
     "cards.v2.json",
-    "coverage.v2.json",
-    "human-worksheet.blank.v2.json"
-  ]
+    "coverage.v4.json",
+    "human-worksheet.blank.v3.json"
+  ],
+  "current_ontology_candidate": "ontology.candidates.draft.v3.json",
+  "approved_scope": "granularity principle and six concept splits only",
+  "evaluation_candidate_artifacts": {
+    "external_root": "/Users/temp/orca/bidops/.sdlc/local-runtime/hp-evaluation-20261015",
+    "selection_status": "replacement_pending_user",
+    "cases": 10,
+    "source_files": 11,
+    "cards": 541,
+    "inherited": 312,
+    "unavailable": 229,
+    "files": [
+      {
+        "name": "cards.candidate10.v1.json",
+        "sha256": "a316fe21d3be172222e8bc3aed36b819337ee5c53c1e788ba360ae57e4823d62",
+        "bytes": 8284681
+      },
+      {
+        "name": "human-worksheet.blank.candidate10.v1.json",
+        "sha256": "fc8fa7330ff3c67a8ccb3f3d70f9829def56605f2e629a92089e31998eb886ee",
+        "bytes": 8250159
+      },
+      {
+        "name": "validation.v1.json",
+        "sha256": "de95d4e9ed1f667477212cffd567a2c5e982f2f049a12c7a02a9f5b59b7ff420",
+        "bytes": 1347
+      },
+      {
+        "name": "index.html",
+        "sha256": "f304e4d2c4726a14883f2816c71952431987c95f4ba0fe020d064ab1d46435d8",
+        "bytes": 3232797
+      },
+      {
+        "name": "preparation-results.json",
+        "sha256": "58ece38a553e4aeaa9a7fea60b315d9f8bd6fa9ded5828910501382e72445f96",
+        "bytes": 2903
+      },
+      {
+        "name": "notice116-conversion-diagnostic.json",
+        "sha256": "17ec558ff91467b09287ecd10e0fcae5594f2b2b5ec4f870c33cd876348599ce",
+        "bytes": 86
+      },
+      {
+        "name": "candidate-10-sources/sources.json",
+        "sha256": "e12c52b339a71b7618ca10faa29d8ef0ad13360eeb85f8df2df833b062e93c94",
+        "bytes": 2957
+      }
+    ]
+  },
+  "evaluation_selected_artifacts": {
+    "selection_file": "evaluation-documents.selected.v1.json",
+    "selection_sha256": "3085f1b6d318544f87502252b13f458426bb58b18b8d206aa469c3f1b02feaf0",
+    "external_root": "/Users/temp/orca/bidops/.sdlc/local-runtime/hp-evaluation-20261015",
+    "source_artifacts_reused_unchanged": true,
+    "cases": 10,
+    "source_files": 11,
+    "cards": 541,
+    "selection_status": "approved",
+    "index": {
+      "name": "index.selected.v1.html",
+      "sha256": "401049f4d5d1831b7afb8e473a236912407c5b02f8a3882237df208cd2754a6c"
+    },
+    "company_ontology_frozen": false,
+    "human_gold_completed": 0
+  },
+  "final_review_drafts": {
+    "ontology": "ontology.candidates.draft.v3.json",
+    "registration": "company.registration.draft.v1.json",
+    "fact_mapping": "company.registration.review.v1.json",
+    "status": "pending_user_decision",
+    "coverage": {
+      "path": "/Users/temp/orca/bidops/.sdlc/local-runtime/hp-evaluation-20261015/coverage.selected10.v1.json",
+      "sha256": "54cefbfb1e3653a02c016167f5d02359f17083fe75128b8d761504e3b2e56265",
+      "cards": 541,
+      "matched_cards": 297
+    }
+  },
+  "frozen_human_gold_inputs": {
+    "record": "human-gold-inputs.frozen.v1.json",
+    "sha256": "a86fd9b8482ea3a676886f2f13f879a394cbe2d762be861d1d1eb0ff721f3841",
+    "index": "/Users/temp/orca/bidops/.sdlc/local-runtime/hp-evaluation-20261015/index.frozen.v1.html",
+    "index_sha256": "25b33fe406bd4f977ecf40bc78deab4bac1497eca845d5c25f1dd4b4964eb8a0",
+    "company_sha256": "739e65f08667656fc1b0c67e89601477586ad8855218678d7a2d2ac022622b80",
+    "ontology_sha256": "c961f5c9efaa9f359b8e4f6a10ff205450bbdf82dd0bc2b0fdc4916558897fb3",
+    "human_gold_completed": 0
+  },
+  "company_v2_preparation": {
+    "draft_file": "company.experience.draft.v2.json",
+    "draft_sha256": "80c6d521dcc1d62783c9f3f540e9d0cb0c79e3e029bae1b3831c8d196933d7f1",
+    "external_root": "/Users/temp/orca/bidops/.sdlc/local-runtime/hp-company-v2-20261015",
+    "validation_sha256": "25a12a3737666bfef239e54d4dd49538c5b842210cb19897bbcc83af72107670",
+    "reference_notice_ids": [
+      3,
+      46,
+      158
+    ],
+    "direction_approved": true,
+    "scopes_approved": false,
+    "v1_inputs_preserved": true
+  },
+  "current_company_review_inputs": {
+    "record": "review-inputs.frozen.v2.json",
+    "sha256": "b3ec478a37eefa5486920da25de4d0923cac073b4b04797405cd7bc0d5fd4185",
+    "company_sha256": "ab60487bd7fece9da8d81b0431483ce1e340a86603f1ee2f1950dad9a52a2188",
+    "review_mode": "model_assisted",
+    "human_review_completed": 0,
+    "index": "/Users/temp/orca/bidops/.sdlc/local-runtime/hp-evaluation-20261015/index.company-v2.html",
+    "index_sha256": "68cd24448551d3d59a6d3fd64b2151ac6f2a21c407551a8fdfc7c2ee8cc3169f"
+  }
 }

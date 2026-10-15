@@ -1,0 +1,469 @@
+{
+  "schema_version": "bidops.hp-experience-company.v1",
+  "version": "hp-onweb-v2",
+  "status": "approved_fictional_scenario",
+  "direction_approved": true,
+  "approval_basis": "사용자: 그렇게 진행해보자 — 실적 기반 역량+현재 수행 조건 분리",
+  "company": {
+    "name": "가상 온웹서비스",
+    "slug": "hp-onweb",
+    "is_fictional": true
+  },
+  "previous_scenario_sha256": "c4d2c3cf5c004d14fc14d6b9a8e931044b500806941b982b0e78689ac9bc145b",
+  "retained_facts": [
+    {
+      "id": "headcount",
+      "origin": "fictional_scenario",
+      "status": "confirmed",
+      "value": 18,
+      "unit": "명",
+      "statement": "인원 18명",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/retained_facts/0/statement"
+          },
+          "quote": "인원 18명"
+        }
+      ]
+    },
+    {
+      "id": "annual_revenue",
+      "origin": "fictional_scenario",
+      "status": "confirmed",
+      "value": 1800000000,
+      "unit": "KRW",
+      "statement": "연매출 18억원; 회계연도는 미지정",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/retained_facts/1/statement"
+          },
+          "quote": "연매출 18억원; 회계연도는 미지정"
+        }
+      ]
+    },
+    {
+      "id": "homepage_project_count",
+      "origin": "fictional_scenario",
+      "status": "confirmed",
+      "value": 3,
+      "unit": "건",
+      "statement": "최근 3년 홈페이지 사업 3건; 가상 사업명·담당 범위는 projects에 명시, 기준일·개별 일자는 미지정",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/retained_facts/2/statement"
+          },
+          "quote": "최근 3년 홈페이지 사업 3건; 가상 사업명·담당 범위는 projects에 명시, 기준일·개별 일자는 미지정"
+        }
+      ]
+    },
+    {
+      "id": "homepage_project_period",
+      "origin": "fictional_scenario",
+      "status": "confirmed",
+      "value": 3,
+      "unit": "년",
+      "statement": "최근 3년",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/retained_facts/3/statement"
+          },
+          "quote": "최근 3년"
+        }
+      ]
+    },
+    {
+      "id": "largest_homepage_project_amount",
+      "origin": "fictional_scenario",
+      "status": "confirmed",
+      "value": 200000000,
+      "unit": "KRW",
+      "statement": "최대 단일 사업 2억원",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/retained_facts/4/statement"
+          },
+          "quote": "최대 단일 사업 2억원"
+        }
+      ]
+    },
+    {
+      "id": "cms_delivery_experience",
+      "origin": "fictional_scenario",
+      "status": "confirmed",
+      "value": true,
+      "unit": null,
+      "statement": "CMS 구축 경험 보유",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/retained_facts/5/statement"
+          },
+          "quote": "CMS 구축 경험 보유"
+        }
+      ]
+    },
+    {
+      "id": "web_accessibility_improvement_experience",
+      "origin": "fictional_scenario",
+      "status": "confirmed",
+      "value": true,
+      "unit": null,
+      "statement": "웹접근성 개선 경험 보유; 인증 취득 지원 실적과 별개",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/retained_facts/6/statement"
+          },
+          "quote": "웹접근성 개선 경험 보유; 인증 취득 지원 실적과 별개"
+        }
+      ]
+    },
+    {
+      "id": "business_hours_incident_response",
+      "origin": "fictional_scenario",
+      "status": "confirmed",
+      "value": true,
+      "unit": null,
+      "statement": "업무시간 장애 대응 가능; 구체 시간대는 미지정",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/retained_facts/7/statement"
+          },
+          "quote": "업무시간 장애 대응 가능; 구체 시간대는 미지정"
+        }
+      ]
+    },
+    {
+      "id": "isms_held",
+      "origin": "fictional_scenario",
+      "status": "confirmed",
+      "value": false,
+      "unit": null,
+      "statement": "ISMS 미보유; ISMS-P 보유 여부는 별개",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/retained_facts/8/statement"
+          },
+          "quote": "ISMS 미보유; ISMS-P 보유 여부는 별개"
+        }
+      ]
+    },
+    {
+      "id": "multilingual_homepage_project_experience",
+      "origin": "fictional_scenario",
+      "status": "confirmed",
+      "value": false,
+      "unit": null,
+      "statement": "다국어 홈페이지 수행 실적 없음; 수행 역량 부재를 뜻하지 않음",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/retained_facts/9/statement"
+          },
+          "quote": "다국어 홈페이지 수행 실적 없음; 수행 역량 부재를 뜻하지 않음"
+        }
+      ]
+    },
+    {
+      "id": "onsite_available_people",
+      "origin": "fictional_scenario",
+      "status": "confirmed",
+      "value": 2,
+      "unit": "명",
+      "statement": "상주 투입 가능 인원 최대 2명",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/retained_facts/10/statement"
+          },
+          "quote": "상주 투입 가능 인원 최대 2명"
+        }
+      ]
+    },
+    {
+      "id": "oracle_experience",
+      "origin": "fictional_scenario",
+      "status": "unknown",
+      "value": null,
+      "unit": null,
+      "statement": "Oracle 경험 미확인",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/retained_facts/11/statement"
+          },
+          "quote": "Oracle 경험 미확인"
+        }
+      ]
+    },
+    {
+      "id": "direct_production_valid_scope",
+      "origin": "fictional_scenario",
+      "status": "unknown",
+      "value": null,
+      "unit": null,
+      "statement": "직접생산확인 유효범위 미확인; 미보유로 해석하지 않음",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/retained_facts/12/statement"
+          },
+          "quote": "직접생산확인 유효범위 미확인; 미보유로 해석하지 않음"
+        }
+      ]
+    },
+    {
+      "id": "around_clock_response",
+      "origin": "fictional_scenario",
+      "status": "unknown",
+      "value": null,
+      "unit": null,
+      "statement": "24시간 대응 가능 여부 미확인",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/retained_facts/13/statement"
+          },
+          "quote": "24시간 대응 가능 여부 미확인"
+        }
+      ]
+    }
+  ],
+  "projects": [
+    {
+      "id": "project.build",
+      "name": "가상 평생교육 포털 구축",
+      "type": "기능 구축",
+      "origin": "fictional_scenario",
+      "approval_status": "approved",
+      "assumed_delivery_status": "completed_for_listed_scope_only",
+      "actual_completion_evidence": null,
+      "role": "명시된 응용SW 범위 직접 수행(가정)",
+      "started_on": null,
+      "ended_on": null,
+      "amount_krw": null,
+      "recency": "기존 최근3년·3건 가정의 구체화; 기준일/개별 날짜 미지정",
+      "delivered_scope": [
+        "반응형 사용자 페이지",
+        "강좌 검색·수강신청",
+        "온라인 결제 연계·강좌 관리",
+        "관리자 운영 화면"
+      ],
+      "not_assumed": [
+        "서버 자원 공급",
+        "결제 보안 인증 보유",
+        "외국어 홈페이지"
+      ],
+      "reference_tender": {
+        "notice_pk": 3,
+        "title": "2026학년도 혁신지원사업 평생교육포털시스템 구축",
+        "source_sha256": "5633723eb984fbc3115179a7b930638efa9a140ef0e52de2a9efeb148060cdc8",
+        "structure_sha256": "075592d97d43c116d767f6f06cc912d12ffd6b21639391cf0ee4af0fde9e6282",
+        "meaning": "요구 유형의 참고자료이며 회사 수행·검수 증거가 아님",
+        "evidence": [
+          {
+            "block_key": "paragraph-1-143",
+            "quote": "❍ 통합 평생교육포털 홈페이지 구축 (반응형 웹 기반 사용자 서비스)"
+          },
+          {
+            "block_key": "paragraph-1-144",
+            "quote": "❍ 온·오프라인 강좌 검색 및 통합 수강신청 서비스 구축"
+          },
+          {
+            "block_key": "paragraph-1-145",
+            "quote": "❍ 온라인 결제 및 강좌관리시스템 도입"
+          },
+          {
+            "block_key": "paragraph-1-146",
+            "quote": "❍ 통합 운영관리시스템 구축 (관리자)"
+          }
+        ]
+      },
+      "capability_concept_ids": [
+        "cap.responsive"
+      ]
+    },
+    {
+      "id": "project.improve",
+      "name": "가상 기관 홈페이지 기능·접근성 개선",
+      "type": "기능 개선",
+      "origin": "fictional_scenario",
+      "approval_status": "approved",
+      "assumed_delivery_status": "completed_for_listed_scope_only",
+      "actual_completion_evidence": null,
+      "role": "명시된 응용SW 범위 직접 수행(가정)",
+      "started_on": null,
+      "ended_on": null,
+      "amount_krw": null,
+      "recency": "기존 최근3년·3건 가정의 구체화; 기준일/개별 날짜 미지정",
+      "delivered_scope": [
+        "메뉴·페이지·업무 기능 보완",
+        "DB 기반 기능 개발",
+        "웹표준·브라우저 호환성·접근성 개선",
+        "웹 취약점 점검 및 수정"
+      ],
+      "not_assumed": [
+        "접근성 인증 취득 지원 실적",
+        "ISMS/ISMS-P 보유",
+        "특정 응답시간·SLA 달성"
+      ],
+      "reference_tender": {
+        "notice_pk": 46,
+        "title": "2027년 옴부즈만 누리집 및 규제혁신플랫폼 유지관리",
+        "source_sha256": "9e6ed3f22829e4cdcddd287b48b45929a743c3b319c3b7475aca51b47e50f672",
+        "structure_sha256": "f3f95c2e15ac071b68d980dd8b34253b7a73a99a70d0c7c2b84d73631c4136f1",
+        "meaning": "요구 유형의 참고자료이며 회사 수행·검수 증거가 아님",
+        "evidence": [
+          {
+            "block_key": "paragraph-1-183",
+            "quote": "◦ 옴부즈만 누리집 및 규지스 시스템 기능변경, 추가 등 보완개발"
+          },
+          {
+            "block_key": "paragraph-1-191",
+            "quote": "◦ 메뉴의 추가·변경에 따른 웹 페이지 생성, 프로그램 개발, DB 구축"
+          },
+          {
+            "block_key": "paragraph-1-195",
+            "quote": "◦ 옴부즈만 누리집 웹 표준, 웹 호환성, 웹 접근성 수준 준수"
+          },
+          {
+            "block_key": "paragraph-1-208",
+            "quote": "◦ SQL인젝션, 인증 우회 취약점, 관리자 페이지 노출 등의 옴부즈만 누리집·규지스 보안취약점 점검 및 조치"
+          }
+        ]
+      },
+      "capability_concept_ids": [
+        "cap.web-standards",
+        "cap.browser-compatibility",
+        "cap.web-accessibility",
+        "cap.vulnerability"
+      ]
+    },
+    {
+      "id": "project.operate",
+      "name": "가상 통합 홈페이지 콘텐츠·CMS 유지관리",
+      "type": "운영 유지관리",
+      "origin": "fictional_scenario",
+      "approval_status": "approved",
+      "assumed_delivery_status": "completed_for_listed_scope_only",
+      "actual_completion_evidence": null,
+      "role": "명시된 응용SW 범위 직접 수행(가정)",
+      "started_on": null,
+      "ended_on": null,
+      "amount_krw": null,
+      "recency": "기존 최근3년·3건 가정의 구체화; 기준일/개별 날짜 미지정",
+      "delivered_scope": [
+        "사용자 문의·수정 요청 처리",
+        "콘텐츠·메뉴 현행화",
+        "CMS 버그 수정·템플릿 변경",
+        "변경 소스 형상관리·보안약점 점검"
+      ],
+      "not_assumed": [
+        "24시간 상시대응",
+        "전체256개 사이트 운영 실적",
+        "인증마크 유지·취득 지원",
+        "상용솔루션 전체 지원 능력"
+      ],
+      "reference_tender": {
+        "notice_pk": 158,
+        "title": "2027년 통합누리집 유지관리 용역",
+        "source_sha256": "46ecc58b80173219d3a4309f0741405cf02a16294c15053a687284bdac426580",
+        "structure_sha256": "18089988debd5e066b220199e2d1417c94c2f76372767e635d14d50259ec99bf",
+        "meaning": "요구 유형의 참고자료이며 회사 수행·검수 증거가 아님",
+        "evidence": [
+          {
+            "block_key": "paragraph-1-50",
+            "quote": "- 홈페이지 사용자 지원 서비스 운영(각종 문의, 수정사항 처리 등)"
+          },
+          {
+            "block_key": "paragraph-1-52",
+            "quote": "- 메뉴 및 콘텐츠 추가/삭제/변경"
+          },
+          {
+            "block_key": "paragraph-1-55",
+            "quote": "- 소스코드 수정(변경) 시 보안약점 점검(개선)"
+          },
+          {
+            "block_key": "paragraph-1-65",
+            "quote": "요구사항 분류유지관리 수행 요구 사항요구사항 고유번호MAR-03요구사항 명칭홈페이지 웹 빌더 유지관리요구사항 상세설명정의홈페이지 웹 빌더(본청, 직속기관 및 학교 CMS 포함) 유지관리세부내용○ 프로그램 버그 수정 및 보완·패치○ 홈페이지 변경 요구에 대한 의견반영 및 기능 개선○ 정기적으로 웹 서비스 속도 점검 및 용량관리로 최적화된 서비스 제공○ 학교 및 기관 신설 시, 홈페이지 개설  - 단, 기관 신설 시 고도의 개발작업이 필요한 경우 별도 용역사업으로 추진○ 학교 홈페이지 템플릿 수정 개발 및 변경○ 응용SW 소스코드 변경 시 형상관리 시스템 이용하여 보안약점 점검 및 개선 후 실서버에 적용산출물사업 수행계획서, 월간 보고서"
+          }
+        ]
+      },
+      "capability_concept_ids": [
+        "cap.content-operations",
+        "cap.secure-coding"
+      ]
+    }
+  ],
+  "current_conditions": {
+    "onsite_available_max": 2,
+    "staff_roles": null,
+    "availability_as_of": null,
+    "around_clock_response": null,
+    "oracle_experience": null,
+    "direct_production_valid_scope": null,
+    "isms_held": false,
+    "multilingual_project_experience": false
+  },
+  "comparison_rules": {
+    "functional": "유사 수행 범위·검수 가정으로 개념 대응을 제시하되 기술·규모·통합·성능 차이는 별도 대조",
+    "current_conditions": "자격·현재 가용 인력·SLA는 과거 실적으로 대체하지 않음",
+    "procedural": "표준 절차는 일반 이행 역량 근거이며 특정 계약 조건 수용을 자동 뜻하지 않음",
+    "card_aggregation": "원자 조건으로 분해하여 일부 충족을 카드 전체 met으로 올리지 않음"
+  },
+  "evaluation_separation": {
+    "reference_notice_ids": [
+      3,
+      46,
+      158
+    ],
+    "reference_source_hashes_disjoint": true,
+    "selection_record_sha256": "3085f1b6d318544f87502252b13f458426bb58b18b8d206aa469c3f1b02feaf0",
+    "limitation": "원문/사업은 분리했지만 공통 서식·도메인 유사성이 있으며 폴리텍 모델 초안을 이미 본 뒤 설계한 개발 시나리오임"
+  },
+  "database_registered": false,
+  "eligible_as_human_gold": false,
+  "approval": {
+    "date": "2026-10-15",
+    "user_response": "확정해",
+    "scope": "세 가상 실적의 명시 담당 범위와 표준 수행 절차; 미포함 자격/인력/SLA/계약 조건은 그대로 유지"
+  },
+  "standard_procedures": {
+    "status": "approved",
+    "procedures": [
+      "요구사항·변경 이력 관리",
+      "착수계획·정기 진행보고·완료 산출물 제출",
+      "소스·산출물 버전관리",
+      "운영 매뉴얼·담당자 교육·인수인계"
+    ],
+    "not_auto_accepted": [
+      "손해배상 범위·상한",
+      "추가 비용 부담·무상 기간",
+      "사업별 제출 기한·부수",
+      "지식재산권 귀속",
+      "상주 장소·보안 설비",
+      "특정 SLA·응답시간"
+    ]
+  }
+}

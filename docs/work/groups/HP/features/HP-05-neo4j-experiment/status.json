@@ -1,8 +1,33 @@
 {
   "schema_version": 2,
   "feature": "HP-05-neo4j-experiment",
-  "phase": "drafting",
-  "steps": [],
+  "phase": "review",
+  "steps": [
+    {
+      "id": "STEP-001",
+      "title": "동결 export와 엔진 adapter",
+      "model": "complex",
+      "fingerprint": "86ffb68b332111e3eed5f35a0d740ed32b15978b5ac3e55ad19641b7e41e5dfd",
+      "status": "pending",
+      "updated_at": null
+    },
+    {
+      "id": "STEP-002",
+      "title": "질의·채점·보고 도구",
+      "model": "complex",
+      "fingerprint": "78df1e6f961a46d6d70c684bb5069e865991fe4a3e8e24c48e3cbc5291a64cae",
+      "status": "pending",
+      "updated_at": null
+    },
+    {
+      "id": "STEP-003",
+      "title": "사람 기대경로 동결 후 실제 비교",
+      "model": "complex",
+      "fingerprint": "9fe2601788274f41af29e9f15bda65f5953c9debd188ee85776642ca5506592d",
+      "status": "pending",
+      "updated_at": null
+    }
+  ],
   "proof": {
     "docs": {
       "result": "pending"
@@ -27,7 +52,15 @@
     {
       "at": "2026-10-14T18:53:35+09:00",
       "text": "생성 (drafting)"
+    },
+    {
+      "at": "2026-10-15T15:34:07+09:00",
+      "text": "plan 작업 ID 동기화"
+    },
+    {
+      "at": "2026-10-15T15:50:40+09:00",
+      "text": "단계 → review: 명세 독립 검사 PASS(gpt-5.6-sol/high), 지적6개 반영·차이1회 재검토·차단0. preparation/preloop-review.md 참조. 제품 구현/검증 전"
     }
   ],
-  "updated_at": "2026-10-14T18:53:35+09:00"
+  "updated_at": "2026-10-15T15:50:40+09:00"
 }

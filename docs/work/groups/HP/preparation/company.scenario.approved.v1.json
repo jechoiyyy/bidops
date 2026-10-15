@@ -1,0 +1,264 @@
+{
+  "schema_version": "bidops.hp-approved-company-scenario.v1",
+  "version": "v1",
+  "status": "scenario_approved",
+  "registration_ready": false,
+  "company": {
+    "name": "가상 온웹서비스",
+    "slug": "hp-onweb",
+    "is_fictional": true
+  },
+  "approval": {
+    "date": "2026-10-15",
+    "user_response": "진행해",
+    "scope": "직전 회사 설정 제안 표; 실제 회사 자료나 제품 등록 승인 결과가 아님"
+  },
+  "facts": [
+    {
+      "id": "headcount",
+      "origin": "fictional_scenario",
+      "status": "confirmed",
+      "value": 18,
+      "unit": "명",
+      "statement": "인원 18명",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/facts/0/statement"
+          },
+          "quote": "인원 18명"
+        }
+      ]
+    },
+    {
+      "id": "annual_revenue",
+      "origin": "fictional_scenario",
+      "status": "confirmed",
+      "value": 1800000000,
+      "unit": "KRW",
+      "statement": "연매출 18억원; 회계연도는 미지정",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/facts/1/statement"
+          },
+          "quote": "연매출 18억원; 회계연도는 미지정"
+        }
+      ]
+    },
+    {
+      "id": "homepage_project_count",
+      "origin": "fictional_scenario",
+      "status": "confirmed",
+      "value": 3,
+      "unit": "건",
+      "statement": "최근 3년 홈페이지 사업 3건; 개별 사업명·일자는 미지정",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/facts/2/statement"
+          },
+          "quote": "최근 3년 홈페이지 사업 3건; 개별 사업명·일자는 미지정"
+        }
+      ]
+    },
+    {
+      "id": "homepage_project_period",
+      "origin": "fictional_scenario",
+      "status": "confirmed",
+      "value": 3,
+      "unit": "년",
+      "statement": "최근 3년",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/facts/3/statement"
+          },
+          "quote": "최근 3년"
+        }
+      ]
+    },
+    {
+      "id": "largest_homepage_project_amount",
+      "origin": "fictional_scenario",
+      "status": "confirmed",
+      "value": 200000000,
+      "unit": "KRW",
+      "statement": "최대 단일 사업 2억원",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/facts/4/statement"
+          },
+          "quote": "최대 단일 사업 2억원"
+        }
+      ]
+    },
+    {
+      "id": "cms_delivery_experience",
+      "origin": "fictional_scenario",
+      "status": "confirmed",
+      "value": true,
+      "unit": null,
+      "statement": "CMS 구축 경험 보유",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/facts/5/statement"
+          },
+          "quote": "CMS 구축 경험 보유"
+        }
+      ]
+    },
+    {
+      "id": "web_accessibility_improvement_experience",
+      "origin": "fictional_scenario",
+      "status": "confirmed",
+      "value": true,
+      "unit": null,
+      "statement": "웹접근성 개선 경험 보유; 인증 취득 지원 실적과 별개",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/facts/6/statement"
+          },
+          "quote": "웹접근성 개선 경험 보유; 인증 취득 지원 실적과 별개"
+        }
+      ]
+    },
+    {
+      "id": "business_hours_incident_response",
+      "origin": "fictional_scenario",
+      "status": "confirmed",
+      "value": true,
+      "unit": null,
+      "statement": "업무시간 장애 대응 가능; 구체 시간대는 미지정",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/facts/7/statement"
+          },
+          "quote": "업무시간 장애 대응 가능; 구체 시간대는 미지정"
+        }
+      ]
+    },
+    {
+      "id": "isms_held",
+      "origin": "fictional_scenario",
+      "status": "confirmed",
+      "value": false,
+      "unit": null,
+      "statement": "ISMS 미보유; ISMS-P 보유 여부는 별개",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/facts/8/statement"
+          },
+          "quote": "ISMS 미보유; ISMS-P 보유 여부는 별개"
+        }
+      ]
+    },
+    {
+      "id": "multilingual_homepage_project_experience",
+      "origin": "fictional_scenario",
+      "status": "confirmed",
+      "value": false,
+      "unit": null,
+      "statement": "다국어 홈페이지 수행 실적 없음; 수행 역량 부재를 뜻하지 않음",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/facts/9/statement"
+          },
+          "quote": "다국어 홈페이지 수행 실적 없음; 수행 역량 부재를 뜻하지 않음"
+        }
+      ]
+    },
+    {
+      "id": "onsite_available_people",
+      "origin": "fictional_scenario",
+      "status": "confirmed",
+      "value": 2,
+      "unit": "명",
+      "statement": "상주 투입 가능 인원 최대 2명",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/facts/10/statement"
+          },
+          "quote": "상주 투입 가능 인원 최대 2명"
+        }
+      ]
+    },
+    {
+      "id": "oracle_experience",
+      "origin": "fictional_scenario",
+      "status": "unknown",
+      "value": null,
+      "unit": null,
+      "statement": "Oracle 경험 미확인",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/facts/11/statement"
+          },
+          "quote": "Oracle 경험 미확인"
+        }
+      ]
+    },
+    {
+      "id": "direct_production_valid_scope",
+      "origin": "fictional_scenario",
+      "status": "unknown",
+      "value": null,
+      "unit": null,
+      "statement": "직접생산확인 유효범위 미확인; 미보유로 해석하지 않음",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/facts/12/statement"
+          },
+          "quote": "직접생산확인 유효범위 미확인; 미보유로 해석하지 않음"
+        }
+      ]
+    },
+    {
+      "id": "around_clock_response",
+      "origin": "fictional_scenario",
+      "status": "unknown",
+      "value": null,
+      "unit": null,
+      "statement": "24시간 대응 가능 여부 미확인",
+      "source_refs": [
+        {
+          "source_id": "self",
+          "locator": {
+            "json_pointer": "/facts/13/statement"
+          },
+          "quote": "24시간 대응 가능 여부 미확인"
+        }
+      ]
+    }
+  ],
+  "unresolved_details": [
+    "설립연도",
+    "연매출 회계연도",
+    "최근3년 기준일 및 개별 실적 역할·기간·금액",
+    "상주 가용 기준일과 직군",
+    "업무시간의 구체 시간대",
+    "온톨로지 최종 concept 연결"
+  ]
+}

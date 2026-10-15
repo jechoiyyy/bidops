@@ -1,5 +1,11 @@
 # 미해결 문제
 
+## HP 평가 후보116 HWP의 native 검증 실패 (2026-10-15, 미해결)
+
+- 재현: bidops-local 사전규격116 첨부169, 원문 SHA `827843bd9edb6ba7c5784f63104238d21a70cc03cda9474c14c68aecdc84f5f4`,4,265,984bytes. ClamAV clean 뒤 local document-worker-1의 `process_document(..., options={prepare_pdf:true,timeout_seconds:120})`가 `DocumentProcessingError/hwpx_verify_failed`로 종료한다. 진단도 같은 코드다.
+- 영향: 국가슈퍼컴퓨팅센터 후보의 카드·쪽·사람 작성자료를 발행할 수 없다. 원문·scan SHA·진단은 Git 밖 `.sdlc/local-runtime/hp-evaluation-20261015/`에 보존했다.
+- 현재 범위는 평가자료 준비여서 converter/vendor 수정과 원문 손실 원인 규명은 별도 작업이다. verify 게이트를 우회하지 않는다. 후속은 이 고정 원본으로 native HWP→HWPX 검증 차이를 좁혀 원문 보존을 확인하거나 사용자가 정상 변환된 대체 후보를 선택하는 것이다. 교체 후보 준비는 최종 표본 승인으로 처리하지 않는다.
+
 기준일: 2026-09-03
 
 ## 데모 기준 `c50ed55`의 화면 스위트에 기존 실패 3종이 있다 (2026-10-12, 미해결)

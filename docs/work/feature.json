@@ -31,7 +31,8 @@
     "HP의 모델 호출은 codex-exec gpt-6-luna/high 하나다. LiteLLM local-agent-main·Qwen·Terra를 쓰지 않고, 기존 정책 파일·실행 row는 바꾸지 않는다(ADR-0071).",
     "HWP/HWPX 원본이 입력 정본이며 PDF는 PDF 전용 첨부와 쪽 locator에만 쓴다. OCR은 범위 밖이다(ADR-0071).",
     "새 DB 테이블·열 권한은 scripts/runtime-privileges.sql에 등록하고 migration에 GRANT를 쓰지 않는다.",
-    "사용자 요청 없이 commit·merge·push·브랜치 삭제하지 않는다."
+    "사용자 요청 없이 commit·merge·push·브랜치 삭제하지 않는다.",
+    "회사 v2는 가상 실적의 명시 담당 범위만 역량 근거로 연결하고 현재 인력·자격·SLA·계약 수용을 별도 대조한다. 참고 공고는 완료 증거가 아니며 v1/v2 입력·사람 응답 hash를 혼용하지 않는다(HP02 preparation 실적 기반 회사 v2 재계획, 2026-10-15)."
   ],
   "steps_heading": "## 작업 순서",
   "proof": {
@@ -71,10 +72,10 @@
       "dependency_gate": true
     },
     "real_data_run": {
-      "description": "실제 격리 스택에서 건별 승인한 모델 실행과 사람 인수 증거(HP-03 대표 1건 smoke·HP-06 gold 10건 대조). DEMO-05 항목은 2026-10-14 종료",
+      "description": "실제 격리 실행과 사람 판단: HP03 대표1건 모델 실행, HP05 두 엔진 비교·사람 평가/결론, HP06 독립gold10건 대조·최종 인수. 준비/도구 검증으로 대체 불가",
       "required": true,
       "method": "manual",
-      "applies_when": "HP-03-two-tier-analysis(대표 1건), HP-06-gold-acceptance(gold 10건); 그 밖의 기능은 비적용",
+      "applies_when": "HP-03-two-tier-analysis(대표1건), HP-05-neo4j-experiment(실제비교·사람평가·실험결론), HP-06-gold-acceptance(gold10건·인수); 그 밖의 기능은 비적용",
       "dependency_gate": true
     }
   },

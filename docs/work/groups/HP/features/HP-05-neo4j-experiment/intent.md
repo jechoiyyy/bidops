@@ -1,60 +1,55 @@
-# PostgreSQL 그래프 대 Neo4j 비교 실험 — intent (초안, interview 전)
+# PostgreSQL 그래프와 Neo4j 비교 — intent
 
 - 기능 ID: `HP-05-neo4j-experiment`
-- 상위 항목: [HP 로드맵](../../../../constitution/roadmap.md), [HP 공통 계약](../../../../hp-contract.md) §10
-- 크기: M — 실험 기록(`docs/experiments`), 일회용 Neo4j 컨테이너, 적재·질의·채점 스크립트. 제품 코드 변경 없음, 외부 호출 없음.
-- 작성일: 2026-10-14 (초안; D8 채택 조건 숫자와 기대 경로 표시 방식을 닫은 뒤 실험 파일을 만든다)
+- 상위: [로드맵](../../../../constitution/roadmap.md), [HP 공통 계약](../../../../hp-contract.md)
+- 크기: M — 새 데이터 계약·검증 또는 제품 경계를 다룬다.
+- 작성일: 2026-10-15. 현재는 구현 전 명세다.
 
-## 문제
+## 문제와 기대 결과
 
-현행 그래프는 PostgreSQL 테이블과 코드 BFS(3단계)다. 그래프 DB가 경로 recall·질의 표현력·설명 가능성에서 실제로 나은지 측정한 적이 없고, 측정 없이 도입하면 운영 자원만 는다.
-
-## 기대 결과
-
-같은 동결 온톨로지·회사·요구 concept를 두 엔진에 적재하고 세 기준으로 비교한 실험 기록이 있으며 판단(유지/채택/보류)이 ADR에 한 줄로 남는다. Apache AGE는 비교하지 않는다.
+PostgreSQL 그래프와 Neo4j 비교를 현재 제품에서 완료로 볼 증거가 없다. 아래 유즈케이스를 구현·검증하고 실제 실행과 문서 준비를 구분한다. 승인 원본은 `../../preparation/company.experience.approved.v2.json`과 `ontology.approved.v1.json`이다. 상세 범위는 spec이 정본이며 preparation은 의사결정 경과다.
 
 ## 유즈케이스
 
-| 유즈케이스 | 실행 방법(명령·화면·API) | 확인 기준 |
+| 유즈케이스 | 실행 방법 | 확인 기준 |
 |---|---|---|
-| 적재 동등성 | 적재 스크립트(PostgreSQL은 기존 CLI, Neo4j는 실험 스크립트) | 노드·관계 수와 id 집합이 양쪽에서 같다 |
-| 경로 recall | gold 10건의 요구 concept마다 사용자가 표시한 기대 경로 집합 대 양쪽 검색 결과 | recall 표(엔진별), 차이 경로 목록 |
-| 질의 표현력 | 고정 질의 5개를 Python(현행)과 Cypher로 작성 | 길이·절 수·변경 용이성 표와 사용자 가독성 평가 |
-| 설명 가능성 | 같은 경로 10개를 화면 표현 형태로 나란히 | 사용자 평가 표 |
-| 판단 | `docs/experiments/<날짜>-neo4j-vs-postgres.md` | 채택/기각/보류와 이유, 채택이면 replan 안내 |
+| 동일 입력 비교 | 계획의 export·query·graph-score CLI | 동일 hash·방향·홉·cap의 원시 경로와 채점 저장 |
+| 도입 판단 | 사람 평가 양식과 비교 보고서 | 사전 기준 충족 여부와 최종 사람 결정을 분리 |
 
 ## 선행·후속 기능
 
-- 선행: HP-02-homepage-ontology-company(동결 자료).
-- 후속: 없음(채택 시 replan으로 제품 기능화).
+- 선행: HP-02-homepage-ontology-company.
+- 후속: 없음.
 
 ## 영향 범위
 
-- 모듈·컴포넌트: `docs/experiments/`(신규 디렉터리·index), 실험 스크립트(`scripts/experiments/neo4j/`), 일회용 compose overlay(격리, 네트워크 내부망).
-- 큰 틀 문서의 절: HP 공통 계약 §10·11(D8), mission 범위 밖(실험 예외).
-- 데이터·저장소: 제품 DB 변경 없음. Neo4j 컨테이너는 가상회사 자료만 적재하고 실험 뒤 폐기.
-- 외부 서비스·호출: 없음(Neo4j 이미지 pull은 사용자 확인).
+spec·plan의 파일 표를 따른다. 원본·기존 회사·narrative-v2 산출물은 불변이다. 실제 변경은 demo/local-20261009와 bidops-local에 한정한다. 이번 문서 사이클은 DB·모델·실험을 실행하지 않는다.
 
 ## 제약
 
-- (공통) feature.json constraints 전체를 따른다(HP-00 intent와 같은 목록).
-- (기능별) 실제 공고 원문을 Neo4j에 넣지 않는다. 채택 조건은 실행 전에 적고 결과를 보고 바꾸면 기록에 남긴다.
+- 원문·프로필·정책·모델 입력과 결과·사람 리뷰는 불변/append-only로 보존한다.
+- unknown/null·적합성·참여 준비·추적·Go/No-Go를 서로 대신하지 않는다.
+- 외부 모델은 승인 payload만 건별 전송하며 전역 fallback과 자동 추적 결정을 금지한다.
+- PostgreSQL 17·versioned MinIO·합성 analysis worker의 슬롯 1개와 모듈 의존 방향을 유지한다.
+- 문서 변경은 diff/문서 검사만, 제품 변경은 직접 영향 검사만 실행하고 성공 후 반복하지 않는다.
+- 운영 변경·실제 모델 호출은 직전 확인 대상이며 문서화 승인을 실행 승인으로 사용하지 않는다.
+- HP 기능은 데모 브랜치 demo/local-20261009와 bidops-local 격리 자원에서만 구현·검증하며 main 병합·운영 전환은 별도 작업이다(ADR-0071).
+- HP의 모델 호출은 codex-exec gpt-6-luna/high 하나다. LiteLLM local-agent-main·Qwen·Terra를 쓰지 않고, 기존 정책 파일·실행 row는 바꾸지 않는다(ADR-0071).
+- HWP/HWPX 원본이 입력 정본이며 PDF는 PDF 전용 첨부와 쪽 locator에만 쓴다. OCR은 범위 밖이다(ADR-0071).
+- 새 DB 테이블·열 권한은 scripts/runtime-privileges.sql에 등록하고 migration에 GRANT를 쓰지 않는다.
+- 사용자 요청 없이 commit·merge·push·브랜치 삭제하지 않는다.
+- 회사 v2는 가상 실적의 명시 담당 범위만 역량 근거로 연결하고 현재 인력·자격·SLA·계약 수용을 별도 대조한다. 참고 공고는 완료 증거가 아니며 v1/v2 입력·사람 응답 hash를 혼용하지 않는다(HP02 preparation 실적 기반 회사 v2 재계획, 2026-10-15).
 
-## 범위 밖
+추가로 AGENTS.md, docs/standards.md, docs/business-rules.md, docs/contracts.md, docs/operations.md와 변경 경로의 AGENTS.md를 따른다. [실행 입력 해시](../../preparation/source-baseline.preloop.json)에 이번 문서 입력의 해시를 기록한다.
 
-제품에 Neo4j 연결, Apache AGE, RDF/OWL·SPARQL.
+## 결정과 범위 밖
+
+회사 v2의 세 가상 수행 범위와 표준 절차, 51concept·4kind·11관계, 평가10사례, 품질·Neo4j 후보 기준은 2026-10-15 사용자 확정이다. 기술 세부는 사용자의 “너가 먼저 판단” 및 “loop 전 모든 작업” 위임에 따라 spec에 고정한다. 실제 회사의 완료 실적, 현재 자격·가용 인력·계약 수용을 추정하지 않는다. main·운영 변경, origin push, 브랜치 삭제, 자동 Go/No-Go는 범위 밖이다.
 
 ## 출처 간 차이
 
-| 차이 | 출처 A | 출처 B | 결정 |
-|---|---|---|---|
-| 비교 기준 | 2026-10-14 제안: recall·표현력·운영 비용·설명 가능성 | 사용자: 운영 비용 제외, AGE 제외 | 세 기준만 |
+초기 preparation의 D1/D2/v2 초안 표기는 승인 이전 경과다. 현재 승인 파일과 spec을 따른다. 폴리텍 모델 선검토는 독립 gold가 아니다. 기존 승인·사람 응답을 v2로 자동 승격하지 않는다.
 
-## 미해결 질문 (interview 항목)
+## 남은 사람 참여
 
-| 질문 | 답이 필요한 시점 | 결정 |
-|---|---|---|
-| D8 채택 조건 숫자 | 실험 파일 작성 전 | 제안: recall 차이 ≥ 2경로/10건 또는 질의 5개 중 3개 이상 뚜렷한 우위 |
-| 기대 경로 표시 방식(사용자가 요구 concept 30개에 경로를 직접 표시 vs 내가 후보를 만들고 사용자가 채점) | 실험 파일 작성 전 | 제안: 후보 제시 뒤 사용자 채점 |
-| 고정 질의 5개 선정 | 실험 파일 작성 전 | 제안: 금액·기간 조건 실적, 상주 인력 가용, 자격+실적 결합, 기술 스택 경로, 미보유 역추적 |
-| Neo4j 버전·이미지 | 실험 파일 작성 전 | 제안: `neo4j:5-community` 고정 digest |
+기대·필수 경로는 실제 비교 실행 전 사람이 작성하고, 설명/작성 용이성과 최종 채택은 결과 검토 때 판단한다. 도구 구현은 먼저 가능하다.
