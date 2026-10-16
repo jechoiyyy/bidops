@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>사업기회 — 판정</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:"Pretendard","Noto Sans KR",system-ui,sans-serif;font-size:13px;line-height:1.45;color:#1F2328;background:#FFFFFF;-webkit-font-smoothing:antialiased;font-feature-settings:"tnum" 1}
+a{color:#1F2328;text-decoration:none}a:hover{text-decoration:underline}
+button{font-family:inherit;font-size:12.5px;line-height:1.3;cursor:pointer}
+a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid #1D7B4E;outline-offset:1px}
+.sb a{display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:6px;color:#3B4047;font-size:13px;text-decoration:none}
+.sb a:hover{background:#ECEDF0;text-decoration:none}
+.sb a.on{background:#E6E8EC;color:#1F2328;font-weight:600}
+.sb .grp{font-size:11px;color:#8A8F98;font-weight:600;padding:12px 8px 4px}
+.tabs a{padding:8px 10px;color:#6B6F76;font-size:13px;display:inline-flex;align-items:center;gap:6px;border-bottom:2px solid transparent;margin-bottom:-1px}
+.tabs a.on{color:#1F2328;font-weight:600;border-bottom-color:#1F2328}
+.tabs a:hover{text-decoration:none;color:#1F2328}
+.tool{display:inline-flex;align-items:center;gap:6px;padding:4px 9px;border:1px solid #E6E7EB;border-radius:6px;background:#FFFFFF;font-size:12.5px;color:#3B4047}
+.btn{padding:6px 12px;border-radius:6px;border:1px solid #E6E7EB;background:#FFFFFF;color:#1F2328;display:inline-flex;align-items:center;gap:6px}
+.btn.pri{background:#1D7B4E;border-color:#1D7B4E;color:#FFFFFF;font-weight:600}
+table.grid{border-collapse:separate;border-spacing:0;width:100%}
+.grid th{position:sticky;top:0;background:#FFFFFF;font-weight:500;color:#6B6F76;font-size:12px;text-align:left;padding:8px 12px;border-bottom:1px solid #E6E7EB;white-space:nowrap}
+.grid td{padding:10px 12px;border-bottom:1px solid #F1F2F4;vertical-align:top;font-size:13px}
+.grid tr:hover td{background:#FAFAFB}
+.grid tr.sel td{background:#F3F8F5}
+.pill{display:inline-flex;align-items:center;gap:5px;padding:1px 8px;border-radius:999px;font-size:12px;font-weight:500;white-space:nowrap}
+.p-g{background:#E7F3EB;color:#1D7B4E}.p-a{background:#FFF4E5;color:#8A5200}.p-r{background:#FFF1ED;color:#8F2F1D}.p-b{background:#EAF2FB;color:#1F5AA6}.p-n{background:#F1F2F4;color:#3B4047}.p-t{background:#E3F2F4;color:#1D5A60}
+.av{width:22px;height:22px;border-radius:999px;background:#D9DCE1;color:#1F2328;font-size:10px;font-weight:600;display:inline-flex;align-items:center;justify-content:center;flex:0 0 22px}
+.sub{color:#6B6F76;font-size:12px}
+kbd{font-family:inherit;font-size:11px;border:1px solid #D9DCE1;border-bottom-width:2px;border-radius:4px;padding:0 5px;background:#FFFFFF;color:#3B4047}
+.chk{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #F1F2F4}
+mark{background:#B9E3CD;color:#114C33;border-radius:3px;padding:0 2px}
+select{font-family:inherit;font-size:12.5px;padding:4px 8px;border:1px solid #E6E7EB;border-radius:6px;background:#FFFFFF;color:#3B4047}
+svg{flex:0 0 auto}
+</style>
+</helmet>
+<div style="display: flex; flex-wrap: wrap; min-height: 960px; background: #FFFFFF">
+
+  <nav class="sb" aria-label="메뉴" style="flex: 0 0 240px; background: #F8F8F9; border-right: 1px solid #E6E7EB; padding: 10px 10px 12px; display: flex; flex-direction: column; gap: 1px; box-sizing: border-box">
+    <a href="Main.dc.html" style="padding: 6px 8px; margin-bottom: 8px; display: flex; align-items: center; gap: 8px"><span style="width: 24px; height: 24px; border-radius: 6px; background: #1D7B4E; color: #FFFFFF; font-weight: 700; font-size: 12px; display: inline-flex; align-items: center; justify-content: center">루</span><span style="font-weight: 600; color: #1F2328">루트랩</span><span style="margin-left: auto; color: #8A8F98; display: inline-flex"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></span></a>
+    <a href="Main.dc.html" style="border: 1px solid #E6E7EB; background: #FFFFFF; color: #8A8F98; margin-bottom: 10px; box-shadow: 0 1px 1px rgba(0,0,0,0.03)"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>검색<span style="margin-left: auto"><kbd>⌘K</kbd></span></a>
+    <a href="Main.dc.html"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10 21a2 2 0 0 0 4 0"/></svg>알림<span class="sub" style="margin-left: auto">3</span></a>
+    <a href="Timeline.dc.html"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="m8 12 3 3 5-6"/></svg>다음 행동<span class="sub" style="margin-left: auto">5</span></a>
+    <a href="Timeline.dc.html"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/></svg>노트</a>
+    <a href="Main.dc.html"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v18h18"/><path d="M7 15l4-5 4 3 5-7"/></svg>보고서</a>
+    <div class="grp">레코드</div>
+    <a href="Main.dc.html"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h12l4 4v12H4z"/><path d="M8 12h8M8 16h8"/></svg>공고</a>
+    <a href="Timeline.dc.html" class="on"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l3-7 4 14 3-7h4"/></svg>사업기회</a>
+    <a href="Main.dc.html"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-6h6v6"/></svg>기관</a>
+    <a href="Company.dc.html"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 4 7v5c0 5 3.5 8.5 8 9 4.5-.5 8-4 8-9V7z"/><path d="m9 12 2 2 4-4"/></svg>회사 근거<span class="pill p-a" style="margin-left: auto; font-size: 11px">2</span></a>
+    <div class="grp">리스트</div>
+    <a href="Main.dc.html"><span style="width: 8px; height: 8px; border-radius: 3px; background: #1D7B4E; display: inline-block; margin: 0 3px"></span>오늘의 브리핑<span class="pill p-g" style="margin-left: auto; font-size: 11px">6</span></a>
+    <a href="Timeline.dc.html"><span style="width: 8px; height: 8px; border-radius: 3px; background: #2096A1; display: inline-block; margin: 0 3px"></span>추적 중<span class="sub" style="margin-left: auto">9</span></a>
+    <a href="Main.dc.html"><span style="width: 8px; height: 8px; border-radius: 3px; background: #E3A85C; display: inline-block; margin: 0 3px"></span>연차 예고<span class="sub" style="margin-left: auto">2</span></a>
+    <a href="Main.dc.html"><span style="width: 8px; height: 8px; border-radius: 3px; background: #8F2F1D; display: inline-block; margin: 0 3px"></span>마감 임박<span class="sub" style="margin-left: auto">2</span></a>
+    <a href="Main.dc.html" style="color: #8A8F98"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>새 리스트</a>
+    <div style="margin-top: auto; display: flex; flex-direction: column; gap: 1px; padding-top: 12px">
+      <a href="Main.dc.html"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4a3.5 3.5 0 0 1 0 7M21.5 20a6.5 6.5 0 0 0-4.5-6.2"/></svg>팀원 초대</a>
+      <a href="Main.dc.html"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1 .9-1 1.7"/><path d="M12 17h.01"/></svg>도움말</a>
+      <a href="Company.dc.html"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>설정</a>
+      <a href="Main.dc.html" style="border-top: 1px solid #E6E7EB; margin-top: 6px; padding-top: 10px"><span class="av">김</span>김담당<span class="sub" style="margin-left: auto">기획</span></a>
+    </div>
+  </nav>
+
+  <main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; box-sizing: border-box">
+    <header style="height: 44px; border-bottom: 1px solid #E6E7EB; display: flex; align-items: center; padding: 0 16px; gap: 10px; flex-wrap: nowrap">
+      <span class="sub" style="display: inline-flex; align-items: center; gap: 6px">사업기회<span style="color: #C9CCD2">/</span><span style="color: #1F2328; font-weight: 600">2027년 외교부 홈페이지 유지관리 용역</span></span>
+      <div style="margin-left: auto; display: flex; gap: 6px; align-items: center"><button type="button" class="btn" style="padding: 5px 10px"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>리스트에 추가</button><button type="button" class="btn" style="padding: 5px 10px"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg>공유</button><button type="button" class="btn" style="padding: 5px 10px ; padding: 5px 7px"><svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg></button></div>
+    </header>
+
+    <div style="padding: 20px 24px 0; display: flex; align-items: flex-start; gap: 16px; flex-wrap: wrap">
+      <span style="width: 40px; height: 40px; border-radius: 10px; background: #E3F2F4; color: #1D5A60; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; flex: 0 0 40px">외</span>
+      <div style="display: flex; flex-direction: column; gap: 6px; min-width: 0">
+        <h1 style="margin: 0; font-size: 18px; font-weight: 700; line-height: 1.3">2027년 외교부 홈페이지 유지관리 용역</h1>
+        <div style="display: flex; gap: 6px; flex-wrap: wrap"><span class="pill p-t">입찰공고</span><span class="pill p-a">마감 D-9</span><span class="pill p-a">조건부 진행</span><span class="pill p-g">계속 추적</span></div>
+      </div>
+      <div style="margin-left: auto; display: flex; gap: 6px; align-items: center"><a href="Proposal.dc.html" class="btn pri" style="text-decoration: none">제안서 초안</a><button type="button" class="btn">다시 판정</button></div>
+    </div>
+
+    <div style="display: flex; flex-wrap: wrap; align-items: flex-start; flex: 1 1 auto">
+
+      <aside aria-label="판정 요약" style="flex: 0 0 280px; border-right: 1px solid #E6E7EB; padding: 20px 24px; box-sizing: border-box; min-height: 840px; display: flex; flex-direction: column; gap: 20px">
+        <div style="display: flex; flex-direction: column; gap: 8px">
+          <div style="font-size: 20px; font-weight: 700; color: #8A5200">조건부 진행</div>
+          <div>서울 상주 2명이 필요한데 상주 가능 지역이 대구뿐입니다. 원격 개발이 허용되고 직접생산 세부품명이 확인되면 진행 가능합니다.</div>
+        </div>
+        <div>
+          <div class="chk"><span>자격·실적</span><span class="pill p-a">확인 필요</span></div>
+          <div class="chk"><span>상주·인력</span><span class="pill p-r">부족</span></div>
+          <div class="chk"><span>금액·기간</span><span class="pill p-g">충족</span></div>
+          <div class="chk"><span>기술</span><span class="pill p-g">충족</span></div>
+          <div class="chk" style="border-bottom: 0"><span>운영·SLA</span><span class="pill p-r">부족</span></div>
+        </div>
+        <div>
+          <div style="font-weight: 600; margin-bottom: 8px">다음 행동</div>
+          <div style="display: flex; flex-direction: column; gap: 8px">
+            <label style="display: flex; align-items: center; gap: 8px"><input type="checkbox"> 원격 개발 허용 여부 질의 <span class="av" style="margin-left: auto" title="김담당">김</span></label>
+            <label style="display: flex; align-items: center; gap: 8px"><input type="checkbox"> 직접생산 세부품명 입력 <span class="av" style="margin-left: auto" title="총무">총</span></label>
+            <label style="display: flex; align-items: center; gap: 8px"><input type="checkbox"> SLA 월간 보고 양식 준비 <span class="av" style="margin-left: auto" title="운영팀">운</span></label>
+          </div>
+        </div>
+        <div class="sub">판정은 참고 의견입니다. 추적 여부와 참여 결정은 담당자가 정합니다.</div>
+      </aside>
+
+      <section aria-label="요구사항" style="flex: 999 1 560px; min-width: 0; padding: 0 24px 24px; box-sizing: border-box">
+        <nav class="tabs" aria-label="탭" style="display: flex; gap: 2px; border-bottom: 1px solid #E6E7EB">
+          <a href="Timeline.dc.html">활동</a>
+          <a href="Verdict.dc.html" class="on">판정</a>
+          <a href="Proposal.dc.html">제안서</a>
+          <a href="Timeline.dc.html">서류</a>
+          <a href="Timeline.dc.html">원문</a>
+          <a href="Timeline.dc.html">비슷한 공고</a>
+        </nav>
+
+        <div style="display: flex; align-items: center; gap: 8px; padding: 16px 0 10px; flex-wrap: wrap">
+          <span style="font-weight: 600">요구사항 54</span>
+          <span class="sub">부족 3 · 확인 필요 14 · 충족 37</span>
+          <div style="margin-left: auto; display: flex; gap: 6px; align-items: center">
+            <select aria-label="상태"><option>부족·확인 필요만</option><option>전체</option><option>부족</option><option>확인 필요</option><option>충족</option></select>
+            <button type="button" class="tool">필수만</button>
+          </div>
+        </div>
+
+        <div style="display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start">
+          <div style="flex: 999 1 480px; min-width: 0; overflow-x: auto">
+            <table class="grid">
+              <thead><tr><th style="min-width: 260px">요구사항</th><th style="width: 90px">대조</th><th style="min-width: 220px">회사 근거</th><th style="width: 60px">원문</th></tr></thead>
+              <tbody>
+                <tr class="sel"><td><div style="font-weight: 600">장애등급별 가용률을 SLA로 관리하고 매월 평가 제출</div><div class="sub">성능·SLA · 필수</div></td><td><span class="pill p-r">부족</span></td><td>월간 SLA 보고 실적 없음<div class="sub">ISO 20000-1로 보완 가능</div></td><td><a href="Verdict.dc.html" style="color: #1D7B4E">21쪽</a></td></tr>
+                <tr><td><div style="font-weight: 600">상주 인력 2명(서울), 유지관리 경험 PM 1명</div><div class="sub">인력 · 필수</div></td><td><span class="pill p-r">부족</span></td><td>상주 가능 지역 대구만<div class="sub">PM 경력 미입력</div></td><td><a href="Verdict.dc.html" style="color: #1D7B4E">11쪽</a></td></tr>
+                <tr><td><div style="font-weight: 600">보안적합성 검증 신청·장비 변경 분석서 제출</div><div class="sub">보안 · 필수</div></td><td><span class="pill p-a">확인 필요</span></td><td>수행 이력 모름<div class="sub">국가기관 사업 검증 경험 확인</div></td><td><a href="Verdict.dc.html" style="color: #1D7B4E">38쪽</a></td></tr>
+                <tr><td><div style="font-weight: 600">직접생산확인증명서 (정보시스템유지관리서비스)</div><div class="sub">자격 · 필수</div></td><td><span class="pill p-a">확인 필요</span></td><td>보유 확인<div class="sub">세부품명·유효기간 미입력</div></td><td><a href="Verdict.dc.html" style="color: #1D7B4E">29쪽</a></td></tr>
+                <tr><td><div style="font-weight: 600">하도급 시 사전승인, 10% 초과 시 공동수급</div><div class="sub">계약 · 조건부</div></td><td><span class="pill p-a">확인 필요</span></td><td>단독 수행이면 해당 없음</td><td><a href="Verdict.dc.html" style="color: #1D7B4E">30쪽</a></td></tr>
+                <tr><td><div style="font-weight: 600">전자정부 표준프레임워크 CMS 기능 개선</div><div class="sub">기능 · 필수</div></td><td><span class="pill p-g">충족</span></td><td>대구시 민원 홈서비스 유지관리 2022~2026</td><td><a href="Verdict.dc.html" style="color: #1D7B4E">14쪽</a></td></tr>
+                <tr><td><div style="font-weight: 600">웹 접근성 인증 유지·갱신</div><div class="sub">품질 · 필수</div></td><td><span class="pill p-g">충족</span></td><td>양산문화재단 홈페이지 통합</td><td><a href="Verdict.dc.html" style="color: #1D7B4E">15쪽</a></td></tr>
+              </tbody>
+            </table>
+            <div class="sub" style="padding: 10px 0">47건 더 보기</div>
+          </div>
+
+          <aside aria-label="원문" style="flex: 1 1 300px; max-width: 380px; display: flex; flex-direction: column; gap: 10px">
+            <div style="display: flex; justify-content: space-between; align-items: center; gap: 6px"><span style="font-weight: 600">원문 · 21쪽</span><a href="Verdict.dc.html" style="color: #1D7B4E; font-size: 12.5px">쪽 전체 보기</a></div>
+            <div style="font-size: 13px; line-height: 1.75; border: 1px solid #E6E7EB; border-radius: 8px; padding: 12px 14px; background: #FAFAFB">… 제안 시 서비스수준협약서를 확인하고 <mark>서비스수준 달성을 위한 관리방안을 제시하여야 하며, 계약 후 수요기관과 협의하여 서비스수준협약을 1개월 이내에 체결하여야 함</mark>. (필수지표) <mark>장애등급에 따른 가용률의 목표‧최소허용수준을 아래와 같이 설정하고 관리한다</mark> …</div>
+            <div style="display: flex; gap: 6px"><button type="button" class="btn">요구사항 아님</button><button type="button" class="btn">원문과 다름</button></div>
+          </aside>
+        </div>
+      </section>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":960}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

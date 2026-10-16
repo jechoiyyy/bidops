@@ -8,8 +8,11 @@
  * 근거: ADR-0048, `docs/design/PRD.md` §4.1 (토큰 표가 정본이다).
  *
  * 2026-09-15: 라이트 값이 무드보드 파생 팔레트에서 흰 바탕·회사 포인트색
- * `#75A03B` 계열로 바뀌었다. 지금의 라이트 정본은 `docs/0915_ui-redesign/spec.md`
- * §1.1 의 토큰 표이며, 아래 무드보드 설명은 다크 값과 파생 이력에만 해당한다.
+ * `#75A03B` 계열로 바뀌었다(`docs/0915_ui-redesign/spec.md` §1.1).
+ * 2026-10-16: 라이트 값을 RL 시안 v26(CRM 앱 구조, 흰 바탕·회색 사이드바·
+ * 초록 #1D7B4E 강조·시안 의미색 4종)으로 교체했다. 정본은
+ * `docs/1016_rootlab-redefinition/ui-spec.md` §2 와 mockups/v26 이며 ADR-0073 개정에
+ * 기록했다. 아래 무드보드 설명은 다크 값과 파생 이력에만 해당한다.
  *
  * 무드보드 anchor 5색:
  *   #D4CDCB warm greige   본문 canvas 계열과 구분선
@@ -148,15 +151,15 @@ export const bidopsTheme = defineTheme({
     // =========================================================================
     // 라이트: greige anchor(#D4CDCB)를 흰색과 섞어 만든 따뜻한 canvas 위에
     // 흰 카드가 뜬다. 다크: ink anchor(#17181F)를 바닥으로 쓴다(미활성).
-    '--color-background-surface': ['#ffffff', '#232634'],
-    '--color-background-body': ['#F6F7F4', '#17181F'], // 회녹 canvas (spec §1.1)
-    '--color-background-card': ['#ffffff', '#1C1E28'],
-    '--color-background-popover': ['#ffffff', '#1C1E28'],
-    '--color-background-muted': ['#EEF0EC', '#1C1E28'], // 중립 칩·보조 표면 (spec §1.1)
+    '--color-background-surface': ['#FFFFFF', '#232634'],
+    '--color-background-body': ['#FFFFFF', '#17181F'], // 흰 바탕 (시안 v26, ADR-0073 개정)
+    '--color-background-card': ['#FFFFFF', '#1C1E28'],
+    '--color-background-popover': ['#FFFFFF', '#1C1E28'],
+    '--color-background-muted': ['#F1F2F4', '#1C1E28'], // 중립 칩·활성 탭·입력 바탕 (시안 v26)
     // 라이트 모드 안의 어두운 면이며 다크 모드가 아니다. 사이드바는 더는 이
     // 토큰을 읽지 않고(spec §2.1), `.ps-chip-dark`·실행 단계 번호 등 어두운 면
     // 전용으로 남는다. 그 위 본문은 --color-on-dark(#E4EAD9) = 10.15:1.
-    '--color-background-inverted': ['#26391A', '#E8E4E2'],
+    '--color-background-inverted': ['#1F2328', '#E8E4E2'],
 
     // 적합성 등급 ramp 는 이 파일이 아니라 grade-ramp.css 에 있다.
     // Astryx 의 TokenName 이 닫힌 union 이라 커스텀 토큰을 받지 못한다
@@ -165,8 +168,8 @@ export const bidopsTheme = defineTheme({
     // Accent — 회사 포인트색 #75A03B 를 한 단계 진하게 내린 값이다(spec §1.1).
     // 포인트색 자체는 흰 글자 채움에 쓰지 못하므로(3.07:1) 단추 채움·링크는 이
     // 토큰이 맡는다. canvas 위 4.61:1, 흰 카드 위 4.96:1. 다크는 미활성이라 둔다.
-    '--color-accent': ['#587A2B', '#93A0B0'],
-    '--color-accent-muted': ['#F1F6E8', '#2F3A4C'],
+    '--color-accent': ['#1D7B4E', '#93A0B0'], // 시안 v26 주 버튼·링크, 흰 글자 5.0:1
+    '--color-accent-muted': ['#E7F3EB', '#2F3A4C'],
     '--color-neutral': ['#0000000F', '#FFFFFF1A'],
 
     // Overlays (modal scrims, hover/pressed tints)
@@ -175,14 +178,14 @@ export const bidopsTheme = defineTheme({
     '--color-overlay-pressed': ['#0000001A', '#FFFFFF1A'],
 
     // Text
-    '--color-text-primary': ['#1B211D', '#E8E4E2'], // canvas 위 15.23:1 (spec §1.1)
+    '--color-text-primary': ['#1F2328', '#E8E4E2'], // 시안 v26 본문
     // 보조 텍스트는 포인트 초록에 기운 회색이다(spec §1.1). 밝은 회색은 canvas
     // 위에서 AA 에 미달하므로 disabled 와 비텍스트에만 남긴다.
-    '--color-text-secondary': ['#4C5650', '#A9A6A4'], // canvas 위 7.09:1
-    '--color-text-disabled': ['#9AA39C', '#6B6E74'], // disabled 한정
-    '--color-text-accent': ['#3F5A1C', '#93A0B0'], // 링크·강조 글자, 흰 카드 위 7.80:1
+    '--color-text-secondary': ['#5F646B', '#A9A6A4'], // 시안 보조 글자(#6B6F76)를 muted 위 4.5:1 이상으로 한 단계 내림
+    '--color-text-disabled': ['#8A8F98', '#6B6E74'], // disabled 한정
+    '--color-text-accent': ['#1D7B4E', '#93A0B0'], // 링크·강조 글자, 흰 바탕 위 5.0:1
     // 어두운 면(--color-background-inverted #26391A) 위 본문. 10.15:1.
-    '--color-on-dark': '#E4EAD9',
+    '--color-on-dark': '#FFFFFF',
     '--color-on-light': '#17181F',
     '--color-on-accent': ['#ffffff', '#17181F'], // accent 위 5.65:1 / 6.65:1
     '--color-on-success': ['#ffffff', '#171717'],
@@ -190,10 +193,10 @@ export const bidopsTheme = defineTheme({
     '--color-on-warning': '#171717',
 
     // Icon
-    '--color-icon-accent': ['#587A2B', '#93A0B0'],
-    '--color-icon-primary': ['#1B211D', '#E8E4E2'],
+    '--color-icon-accent': ['#1D7B4E', '#93A0B0'],
+    '--color-icon-primary': ['#1F2328', '#E8E4E2'],
     // 아이콘은 비텍스트라 3:1 기준. canvas 위 3.65:1, 흰 카드 위 3.92:1 (spec §1.1).
-    '--color-icon-secondary': ['#79837C', '#A9A6A4'],
+    '--color-icon-secondary': ['#6B6F76', '#A9A6A4'],
     '--color-icon-disabled': ['#a3a3a3', '#525252'],
 
     // Status / Sentiment — dark mode follows the issue #2150 rubric:
@@ -225,19 +228,19 @@ export const bidopsTheme = defineTheme({
     //   without the heaviness of a solid T20 panel.
     // 성공만 포인트 초록 계열로 옮겼다(intent 결정 1). 경고·실패는 포인트와
     // 경쟁하지 않도록 별도 hue 를 그대로 둔다.
-    '--color-success': ['#3F5A1C', '#9fe59b'],
-    '--color-error': ['#a50c25', '#ffc6c1'],
-    '--color-warning': ['#745b00', '#fdcf4f'],
-    '--color-success-muted': ['#F1F6E8', '#84c9803D'],
-    '--color-error-muted': ['#facecb', '#ff9e973D'],
-    '--color-warning-muted': ['#f8da9d', '#deb4333D'],
+    '--color-success': ['#1D7B4E', '#9fe59b'],
+    '--color-error': ['#8F2F1D', '#ffc6c1'],
+    '--color-warning': ['#8A5200', '#fdcf4f'],
+    '--color-success-muted': ['#E7F3EB', '#84c9803D'],
+    '--color-error-muted': ['#FFF1ED', '#ff9e973D'],
+    '--color-warning-muted': ['#FFF4E5', '#deb4333D'],
 
     // Border
-    '--color-border': ['#E2E5DF', '#FFFFFF1A'], // 장식 선 (spec §1.1)
-    '--color-border-emphasized': ['#C9CFC3', '#4A4E5C'], // 입력 테두리
+    '--color-border': ['#E6E7EB', '#FFFFFF1A'], // 경계·표 줄 (시안 v26)
+    '--color-border-emphasized': ['#C9CCD2', '#4A4E5C'], // 입력 테두리
 
     // Effects
-    '--color-skeleton': ['#E7E4E2', '#2A2D38'],
+    '--color-skeleton': ['#ECEDF0', '#2A2D38'],
     '--color-shadow': ['#0000001A', '#0000004D'],
     '--color-tint-hover': ['black', 'white'],
 
@@ -311,10 +314,10 @@ export const bidopsTheme = defineTheme({
     // ~5% brighter than red/blue because the eye's luminance response
     // peaks in this band. Dropping L+C brings perceived brightness in
     // line with the rest of the palette without losing hue identity.
-    '--color-background-teal': ['#a5e3d6', '#7ec6b83D'],
-    '--color-border-teal': ['#94d6c8', '#63ab9d'],
-    '--color-icon-teal': ['#005348', '#7ec6b8'],
-    '--color-text-teal': ['#005348', '#99e2d3'],
+    '--color-background-teal': ['#E3F2F4', '#7ec6b83D'], // 단계 pill 바탕 (시안 v26)
+    '--color-border-teal': ['#B9DDE1', '#63ab9d'],
+    '--color-icon-teal': ['#1D5A60', '#7ec6b8'],
+    '--color-text-teal': ['#1D5A60', '#99e2d3'],
 
     // Cyan  H=215 — source #0c6f82
     // Same L=0.87 C=0.065 pastel as teal (luminance overshoot compensation).
@@ -325,10 +328,10 @@ export const bidopsTheme = defineTheme({
 
     // Blue  H=255 — source #0074e2
     //   T50 #0074e2 reserved for filled Info badge / progressbar / inset hover.
-    '--color-background-blue': ['#c4ddfb', '#9eb7ff3D'],
-    '--color-border-blue': ['#b1c9e7', '#6d9cfe'],
-    '--color-icon-blue': ['#00458c', '#9eb7ff'],
-    '--color-text-blue': ['#00458c', '#c7d3ff'],
+    '--color-background-blue': ['#EAF2FB', '#9eb7ff3D'], // 추정값 pill 바탕 (시안 v26)
+    '--color-border-blue': ['#C7DBF2', '#6d9cfe'],
+    '--color-icon-blue': ['#1F5AA6', '#9eb7ff'],
+    '--color-text-blue': ['#1F5AA6', '#c7d3ff'],
 
     // Purple  H=320 — source #980fb2
     '--color-background-purple': ['#eccef3', '#f297ff3D'],
@@ -362,9 +365,9 @@ export const bidopsTheme = defineTheme({
     // 9999px respectively, matching @astryxdesign/core's own defaults.
     // =========================================================================
     '--radius-none': '0px',
-    '--radius-inner': '0.375rem',
-    '--radius-element': '0.625rem',
-    '--radius-container': '1rem', // 카드 14px (spec §1.1)
+    '--radius-inner': '0.375rem', // 6px 버튼·칩·입력 (시안 v26)
+    '--radius-element': '0.5rem', // 8px 카드
+    '--radius-container': '0.5rem', // 8px 카드 (시안 v26: 표면은 경계선만, 큰 라운드 없음)
     '--radius-page': '1.75rem',
     '--radius-full': '9999px',
 
@@ -389,8 +392,8 @@ export const bidopsTheme = defineTheme({
     // 라이트 값은 spec §1.1 — 카드가 테두리 없이 뜨도록 넓고 옅은 그림자를 쓴다.
     // 다크는 미활성이라 색은 그대로 두고 offset 만 같은 선언을 공유한다.
     '--shadow-low':
-      '0 1px 2px light-dark(rgb(27 33 29 / 5%), oklch(0 0 0 / 25%)), ' +
-      '0 6px 18px light-dark(rgb(27 33 29 / 7%), oklch(0 0 0 / 40%)), ' +
+      '0 1px 2px light-dark(rgb(0 0 0 / 4%), oklch(0 0 0 / 25%)), ' +
+      '0 0 0 1px light-dark(rgb(0 0 0 / 0%), oklch(0 0 0 / 40%)), ' +
       'inset 0 0 0 1px light-dark(transparent, oklch(1 0 0 / 8%))',
     '--shadow-med':
       '0 2px 4px light-dark(oklch(0 0 0 / 5%), oklch(0 0 0 / 35%)), ' +

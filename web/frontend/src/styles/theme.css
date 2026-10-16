@@ -10,14 +10,14 @@
 
 @theme {
   /* RootLab canonical palette. Keep these names stable for the next rollout steps. */
-  --color-primary: #1A9058;
+  --color-primary: #1D7B4E;
   --color-primary-strong: #1D7B4E;
   --color-deep: #114C33;
   --color-deck: #218B56;
   --color-mint-accent: #24A266;
   --color-teal: #2096A1;
-  --color-soft-surface: #F3F7F4;
-  --color-text: #333333;
+  --color-soft-surface: #FFFFFF;
+  --color-text: #1F2328;
   --color-muted-brand: #777777;
   /* --color-border 는 Astryx 토큰 이름과 겹쳐 제거했다(ADR-0048). @theme 은
      :root 에 방출되어 @layer astryx-theme 을 이기므로, 남겨 두면 테마가 정한
@@ -42,14 +42,14 @@
   --color-ink: #114C33;
   --color-ink-deep: #114C33;
   --color-sage: #1A9058;
-  --color-keylime: #F3F7F4;
+  --color-keylime: #FFFFFF;
   --color-mint: #24A266;
   --color-slate: #2096A1;
   --color-paper: #FFFFFF;
-  --color-canvas: #F3F7F4;
+  --color-canvas: #FFFFFF;
   --color-charcoal: #333333;
-  --color-hair: #D7E1DB;
-  --color-hair-soft: #EEF3F0;
+  --color-hair: #E6E7EB;
+  --color-hair-soft: #F1F2F4;
   --color-alert: #7a3e00;
   --color-error-edge: #e8b6a8;
 
@@ -80,14 +80,14 @@
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 
   /* 여유형 RootLab 표면 토큰: 모든 공통 UI는 이 단계와 표면 조합을 따른다. */
-  --surface-app: #F3F7F4;
+  --surface-app: #FFFFFF;
   --surface-card: #FFFFFF;
   --surface-selected: #E7F3EB;
-  --surface-secondary: #EEF3F0;
+  --surface-secondary: #F1F2F4;
   --surface-warning: #FFF7E8;
   --surface-error: #FFF2EE;
-  --border-subtle: #D7E1DB;
-  --border-strong: #B8CFC0;
+  --border-subtle: #E6E7EB;
+  --border-strong: #C9CCD2;
   --space-1: 8px;
   --space-2: 16px;
   --space-3: 24px;
@@ -233,144 +233,8 @@ a {
   background: var(--color-soft-surface);
 }
 
-.sidebar {
-  display: flex;
-  flex: 0 0 216px;
-  flex-direction: column;
-  width: 216px;
-  min-height: var(--bo-ui-viewport-height);
-  overflow-y: auto;
-  color: var(--color-on-dark);
-  background: var(--color-deep);
-  border-top: 3px solid var(--color-mint-accent);
-}
-
-.sidebar-brand {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 18px 18px 20px;
-  border-bottom: 1px solid rgb(255 255 255 / 12%);
-  transition: background-color 120ms ease;
-}
-
-.sidebar-brand-logo {
-  display: block;
-  flex: 0 0 36px;
-  width: 36px;
-  height: 36px;
-  padding: 4px;
-  border-radius: 50%;
-  background: var(--color-primary);
-  object-fit: contain;
-}
-
-.sidebar-brand-text {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
-.sidebar-brand:hover,
-.sidebar-brand:focus-visible {
-  background: rgb(255 255 255 / 6%);
-}
-
-.sidebar-brand strong {
-  display: block;
-  color: var(--color-white);
-  font-size: 13.5px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-}
-
-.sidebar-brand span {
-  display: block;
-  margin-top: 3px;
-  color: rgb(255 255 255 / 68%);
-  font-size: var(--bo-type-caption);
-}
-
-.sidebar-brand-text > span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.sidebar-nav {
-  flex: 1;
-}
-
-.sidebar-group {
-  padding: 14px 10px 0;
-}
-
-.sidebar-group-label {
-  padding: 0 8px 6px;
-  color: rgb(255 255 255 / 62%);
-  font-size: var(--bo-type-caption);
-  font-weight: 500;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-}
-
-.sidebar-items {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
-
-.sidebar-item {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  min-height: 31px;
-  padding: 7px 8px;
-  border-left: 3px solid transparent;
-  border-radius: 4px;
-  color: var(--color-on-dark);
-  font-size: var(--bo-type-caption);
-  transition: background-color 120ms ease, color 120ms ease;
-}
-
-.sidebar-item svg {
-  flex: 0 0 15px;
-  width: 15px;
-  height: 15px;
-}
-
-.sidebar-item:hover,
-.sidebar-item.is-active {
-  color: var(--color-white);
-  background: rgb(255 255 255 / 12%);
-}
-
-.sidebar-item.is-active {
-  font-weight: 500;
-  border-left-color: var(--color-mint-accent);
-}
-
-.sidebar-item-pending {
-  margin-left: auto;
-  padding: 0 5px;
-  border-radius: var(--radius-sm);
-  color: rgb(255 255 255 / 78%);
-  background: rgb(255 255 255 / 12%);
-  font-size: var(--bo-type-caption);
-}
-
-.sidebar-footer {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 12px 18px;
-  border-top: 1px solid rgb(255 255 255 / 12%);
-  color: rgb(255 255 255 / 68%);
-  font-size: var(--bo-type-caption);
-}
-
-.sidebar-footer span:last-child {
-  color: rgb(255 255 255 / 68%);
-}
+/* 옛 어두운 사이드바 규칙(.sidebar*)은 2026-10-16 RL 셸 적용으로 삭제했다.
+   사이드바는 styles/shell-relaxed.css가 소유한다(ui-spec §1.2). */
 
 .app-content {
   display: flex;

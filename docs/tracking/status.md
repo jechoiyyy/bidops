@@ -6,6 +6,15 @@
 
 `구현됨`은 코드와 계약이 존재한다는 뜻이고, `검증됨`은 기록된 명령이 해당 범위에서 통과했다는 뜻이다. Mock 결과, 과거 브랜치 결과, 현재 worktree 결과, 외부 운영 승인을 서로 대신하지 않는다.
 
+## RL 테마 교체·공통 셸 적용 (2026-10-16, 구현·격리 검증, 미커밋·미배포)
+
+사용자 결정 "테마 토큰 교체하고 셸부터 시안 그대로 적용"(ADR-0073 개정, ADR-0048 개정). 정본은 [`docs/1016_rootlab-redefinition/ui-spec.md`](../1016_rootlab-redefinition/ui-spec.md) §1·§2와 `mockups/v26`.
+
+- 테마: `bidopsTheme.ts` 라이트 값을 시안 v26 hex로 교체(흰 바탕, 경계 `#E6E7EB`, 본문 `#1F2328`, 강조·성공 `#1D7B4E`, 경고 `#8A5200`, 실패 `#8F2F1D`, teal·blue ramp, 라운드 6/8px, 그림자 최소) → `astryx theme build` 재생성. `brand.css`에 `--bo-sidebar-bg/hover/active`·`--bo-avatar-bg`·`--bo-warning-subtle`. `theme.css`의 legacy `@theme` 값과 옛 어두운 `.sidebar*` 규칙(139줄) 정리.
+- 셸: `Sidebar.tsx` 재작성(워크스페이스 → 검색 ⌘K 비활성 → 알림·다음 행동·노트·보고서 → 레코드 공고·사업기회·기관·회사 근거 → 리스트 오늘의 브리핑·추적 중·연차 예고·마감 임박·새 리스트 → 하단 팀원 초대·도움말·설정·사용자; 건수는 `/api/workload`만; 미구현 항목은 `aria-disabled`), `TopBar.tsx`(44px, 제목 모드 색 점 + 15px, 경로 모드는 그룹 칸 제거·`/` 구분), `shell-relaxed.css` 사이드바 240px·상단바 44px·본문 흰 면, `/briefing` 자리 화면(`BriefingPage`, 안내만).
+- 검사: `npm run build` 통과, `test:contrast` 8/8(의미색 기대값을 시안 값으로 갱신), Playwright `common-interactions`·`dashboard`·`company-workspace`·`company-layout`·`opportunities` 109 passed(사이드바·breadcrumb·대시보드 위치 기대값 갱신), `design-shell` 11 passed / 2 failed — 실패 2건은 `업무구분` 드롭다운 선택 행 정렬(7.26px)로 **변경 전 빌드에서도 같은 값으로 실패**하는 기존 결함. 픽셀 기준선은 갱신하지 않았다(의도한 전면 변경, 다음 커밋에서 `test:pixel:update` 필요).
+- 남은 것: 브리핑 리스트·피크 패널(RL-01), 레코드 페이지 탭(RL-02~04), 회사 근거 화면(RL-00), 운영 메뉴의 `/settings/*` 경로 이동(지금은 설정 → `/criteria`), 커맨드 팔레트. 서버·운영 배포 변경 없음.
+
 ## 선택 항목 제외·일괄 추적 창 한 번 확인 통일 (2026-09-23, 구현·운영 배포 완료)
 
 - 승인 시안 `docs/0915_ui-redesign/mockups/0923_bulk-end-unify/`(결정은 `docs/0915_ui-redesign/decisions.md` 마지막 절). 발주계획 일괄 추적 시작·종료 창은 열 때 자동 미리보기·입력 한 번·저장 단추 한 번(8줄 집계는 `세부` 접힘), 사전규격 `선택 항목 제외` 창은 같은 구조(저장 의미 = 검토 제외 불변). 사유는 선택지 + `기타 · 직접 입력`(공용 `BulkReasonField`), 추적 사유 Selector에 `hasClear`, 사전규격 추적 결정의 미저장 판정은 사유만(담당자 이름만으로는 이동 확인 없음). REST·migration 변경 없음(head 0032).

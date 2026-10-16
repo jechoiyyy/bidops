@@ -97,6 +97,17 @@ export const fallbackRouteMetadata: RouteMetadata = {
 };
 
 export const routeMetadata = {
+  // RL 브리핑(시안 v26, ui-spec §4.1). 화면 본문은 RL-01이 채우고 지금은 자리만 있다.
+  briefing: {
+    title: "오늘의 브리핑",
+    dataScope: "cumulative",
+    topbar: "title",
+    runSelectorVisible: false,
+    navGroup: "리스트",
+    navPath: "/briefing",
+    ancestors: [],
+    listPath: null,
+  },
   dashboard: {
     title: "대시보드",
     dataScope: "cumulative",
@@ -411,7 +422,7 @@ export function resolveRouteLocation(
  *  거부 목록인 이유: `/metrics`·`/runs`·`/attachments`는 metadata상 `cumulative`여도
  *  페이지가 `run`을 직접 읽으므로 `dataScope`로는 구분할 수 없고, 모르는 경로는
  *  회차를 쓰는 쪽(현행 동작)으로 남겨야 안전하다. */
-const RUN_FREE_PATHS = ["/opportunities", "/order-plans", "/pre-specs", "/go-no-go", "/deep-reviews", "/companies"];
+const RUN_FREE_PATHS = ["/briefing", "/opportunities", "/order-plans", "/pre-specs", "/go-no-go", "/deep-reviews", "/companies"];
 
 function isRunFreePath(path: string): boolean {
   return RUN_FREE_PATHS.some((p) => path === p || path.startsWith(`${p}/`));

@@ -150,40 +150,36 @@ test("1440px 셸의 팔레트 색과 기준 치수를 고정한다", async ({ pa
     };
   });
 
-  // 색은 docs/0915_ui-redesign/spec.md §2.1 의 셸 표와 1:1로 대응한다.
-  // 사이드바·상단바는 더는 어두운 면·흰 면이 아니라 canvas와 같은 회녹 바탕이다.
+  // 색은 docs/1016_rootlab-redefinition/ui-spec.md §1·§2(시안 v26)와 1:1로 대응한다.
+  // 회색 사이드바(#F8F8F9) + 흰 상단바·본문.
   expect(metrics).toMatchObject({
     colorScheme: "light",
-    shellBackground: "rgb(246, 247, 244)", // #F6F7F4 회녹 canvas
-    sidebarBackground: "rgb(246, 247, 244)", // 셸과 같은 면
-    brandBackground: "rgba(0, 0, 0, 0)", // 면 없음(C안, spec §2.1)
-    topbarBackground: "rgb(246, 247, 244)",
-    canvasBackground: "rgb(246, 247, 244)",
+    shellBackground: "rgb(255, 255, 255)",
+    sidebarBackground: "rgb(248, 248, 249)", // --bo-sidebar-bg
+    brandBackground: "rgba(0, 0, 0, 0)", // 워크스페이스 줄은 면 없음
+    topbarBackground: "rgb(255, 255, 255)",
+    canvasBackground: "rgb(255, 255, 255)",
     uiScale: 0.9,
     rootZoom: "1",
   });
-  // Native compact CSS keeps the former rendered geometry without scaling the
-  // document. Chromium can serialize fractional values differently.
-  expect(metrics.sidebarWidth).toBeCloseTo(248 * 0.9, 1);
-  expect(metrics.topbarHeight).toBeCloseTo(76 * 0.9, 1);
+  // 사이드바 240px, 상단바 44px (ui-spec §1.1). Chromium can serialize fractional values differently.
+  expect(metrics.sidebarWidth).toBeCloseTo(240, 1);
+  expect(metrics.topbarHeight).toBeCloseTo(44, 1);
   expect(Number.parseFloat(metrics.shellMinWidth)).toBeCloseTo(1280, 1);
   expect(Number.parseFloat(metrics.bodyMinWidth)).toBeCloseTo(1280, 1);
 
-  // accent 는 회사 포인트색을 한 단계 내린 #587A2B 다(spec §1.1). 옛 slate 와
-  // RootLab 녹색이 되돌아오지 않았는지도 함께 본다.
-  expect(metrics.accentToken.toUpperCase()).toContain("587A2B");
+  // accent 는 시안의 #1D7B4E 다(ADR-0073 개정). 옛 slate·포인트 파생색이 되돌아오지 않았는지 본다.
+  expect(metrics.accentToken.toUpperCase()).toContain("1D7B4E");
   expect(metrics.accentToken.toUpperCase()).not.toContain("5B687C");
-  expect(metrics.accentToken).not.toContain("1D7B4E");
-  expect(metrics.accentToken).not.toContain("7FD9AE");
+  expect(metrics.accentToken.toUpperCase()).not.toContain("587A2B");
 
   // legacy @theme 은 :root 로 방출되어 @layer astryx-theme 을 이긴다. 이름이 겹치는
   // 토큰을 theme.css 에 되살리면 테마 값이 조용히 무시되므로 여기서 막는다.
-  expect(metrics.borderToken.toUpperCase()).toContain("E2E5DF");
+  expect(metrics.borderToken.toUpperCase()).toContain("E6E7EB");
   expect(metrics.borderToken.toUpperCase()).not.toContain("D4CDCB");
   expect(metrics.borderToken.toUpperCase()).not.toContain("D7E1DB");
-  // 성공만 포인트 초록 계열로 옮겼다(intent 결정 1).
-  expect(metrics.successToken.toUpperCase()).toContain("3F5A1C");
-  expect(metrics.successToken).not.toContain("276238");
+  // 성공은 시안의 초록(#1D7B4E)이다.
+  expect(metrics.successToken.toUpperCase()).toContain("1D7B4E");
 
   // canvas 여백은 셸의 기본값이지만 시안을 통째로 옮긴 화면(ERP 대시보드는
   // `padding:0`, 판정 기준·실행 상태는 좌우 24px)이 각자 덮는다. 기본값은
@@ -196,12 +192,10 @@ test("1440px 셸의 팔레트 색과 기준 치수를 고정한다", async ({ pa
   expect(canvasPadding).toEqual(["10.8px", "16.2px", "14.4px", "16.2px"]);
 });
 
-// 제목 모드는 상단바가 화면의 시각 제목을 맡는다. 페이지가 제목 줄을 지운 뒤
-// 이 글자는 기존 물리 크기인 18px 위계를 유지해야 한다.
-// 상단바 높이는 두 모드가 같아야 한다. native compact CSS가 기존 68.4px을
-// 직접 소유하며, 모드에 따라 셸이 흔들리면
+// 제목 모드는 상단바가 화면의 시각 제목을 맡는다(ui-spec §1.3: 색 점 + 15px/600).
+// 상단바 높이는 두 모드가 같은 44px이어야 한다 — 모드에 따라 셸이 흔들리면
 // 목록과 상세를 오갈 때마다 본문이 위아래로 튄다.
-test("제목 모드 상단바가 18px 제목을 쓰고 높이는 68.4px다", async ({ page }, testInfo) => {
+test("제목 모드 상단바가 15px 제목을 쓰고 높이는 44px다", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "layout-desktop", "치수 기준은 시안 폭에서만 고정한다");
 
   await page.goto("/order-plans", { waitUntil: "domcontentloaded" });
@@ -221,8 +215,8 @@ test("제목 모드 상단바가 18px 제목을 쓰고 높이는 68.4px다", asy
       topbarHeight: element.getBoundingClientRect().height,
     };
   });
-  expect(metrics).toMatchObject({ fontSize: "18px", fontWeight: "600" });
-  expect(metrics.topbarHeight).toBeCloseTo(68.4, 1);
+  expect(metrics).toMatchObject({ fontSize: "15px", fontWeight: "600" });
+  expect(metrics.topbarHeight).toBeCloseTo(44, 1);
 });
 
 test("native compact 셸이 드롭다운·대화상자를 viewport 안에 두고 키보드 초점을 되돌린다", async ({ page }) => {

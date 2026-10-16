@@ -85,8 +85,8 @@ test("단독 상세는 목록으로 돌아갈 경로 표시를 그대로 갖는�
 
   const topbar = page.locator("header.topbar");
   await expect(topbar).toHaveAttribute("data-topbar-mode", "breadcrumb");
+  // 시안 v26의 경로는 `상위 화면 / 레코드`다. 사이드바 1차 분류 칸은 그리지 않는다(ui-spec §1.3).
   await expect(topbar.locator(".topbar-breadcrumb .topbar-crumb")).toHaveText([
-    "탐색과 추적",
     "사업 추적",
     "#501",
   ]);

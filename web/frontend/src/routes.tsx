@@ -8,6 +8,7 @@ import { routeHandle, routeMetadata } from "./components/shell/route-meta";
 
 const MockReviewPage = import.meta.env.BIDOPS_REVIEW_MOCK ? lazy(() => import("./mock-review/MockReviewPage")) : null;
 
+const BriefingPage = lazy(() => import("./pages/BriefingPage").then(({ BriefingPage }) => ({ default: BriefingPage })));
 const DashboardPage = lazy(() => import("./pages/DashboardPage").then(({ DashboardPage }) => ({ default: DashboardPage })));
 const OpportunitiesPage = lazy(() => import("./pages/OpportunitiesPage").then(({ OpportunitiesPage }) => ({ default: OpportunitiesPage })));
 const OpportunityDetailPage = lazy(() => import("./pages/OpportunitiesPage").then(({ OpportunityDetailPage }) => ({ default: OpportunityDetailPage })));
@@ -80,6 +81,7 @@ export function buildRoutes(demoEnabled: boolean): RouteObject[] {
         element: <LazyRouteBoundary />,
         children: [
           { index: true, element: <DashboardPage />, handle: routeHandle(routeMetadata.dashboard) },
+          { path: "briefing", element: <BriefingPage />, handle: routeHandle(routeMetadata.briefing) },
           // 검토 대기열 · 공고 판정 이력 · 담당자 리뷰 기록은 한 화면의 세 탭이다.
           // 옛 경로를 리다이렉트하지 않고 각 탭의 정식 주소로 남겨 404를 막는다.
           //

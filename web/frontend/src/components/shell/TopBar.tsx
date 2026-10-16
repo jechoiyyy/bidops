@@ -64,7 +64,6 @@ export function TopBar({
   // 상단바 오른쪽 칸은 회차 축과 (데모가 켜졌을 때만) 회사 축이다. 회차 선택기는
   // 모드와 무관하게 화면의 데이터 축이 회차일 때만 나온다.
   const contextVisible = runSelectorVisible || companyContext !== null;
-  const lastIndex = crumbs.length - 1;
   const routeLocation = useLocation();
   const matches = useMatches();
   const noticeIdParam = matches[matches.length - 1]?.params.noticeId;
@@ -79,18 +78,24 @@ export function TopBar({
   return (
     <header className="topbar" data-route-data-scope={dataScope} data-shell-region="topbar" data-topbar-mode={topbarMode}>
       {topbarMode === "title" ? (
-        /* 글자만 넣는다. 링크·칩이 들어오면 제목을 읽는 쪽이 달라진다. */
-        <h1 className="topbar-title">{title}</h1>
+        /* 제목 모드(ui-spec §1.3): 리스트 색 점 + 이름. 글자만 `<h1>`에 넣는다 —
+           링크·칩이 들어오면 제목을 읽는 쪽이 달라진다. */
+        <div className="topbar-list-title">
+          <span aria-hidden="true" className="topbar-list-dot" />
+          <h1 className="topbar-title">{title}</h1>
+        </div>
       ) : (
         <nav aria-label="현재 위치" className="topbar-breadcrumb">
           <ol>
-            {crumbs.map((crumb, index) => (
+            {/* 시안의 breadcrumb은 `상위 화면 / 레코드`다. 사이드바 1차 분류 칸은
+                사이드바가 이미 보여 주므로 그리지 않는다(ui-spec §1.3). */}
+            {crumbs.filter((crumb) => crumb.role !== "group").map((crumb, index, visible) => (
               /* 구분자 `›`는 CSS ::before가 그린다. DOM에 넣으면 화면 이름 칸의
                  `<h1>` 글자에 섞여 제목을 읽는 쪽이 달라진다. */
               <li className={`topbar-crumb is-${crumb.role}`} key={`${crumb.role}-${crumb.label}`}>
                 <CrumbLabel
                   crumb={crumb}
-                  isLast={index === lastIndex}
+                  isLast={index === visible.length - 1}
                   preSpecListUrl={preSpecListUrl}
                   runSearch={runSearch}
                 />
