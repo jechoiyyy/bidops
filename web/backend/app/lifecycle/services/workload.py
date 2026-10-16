@@ -23,6 +23,7 @@ _WORKLOAD_KEYS: tuple[WorkloadKey, ...] = (
     "overview_human_review",
     "blocking_items_open",
     "order_plan_new_priority",
+    "company_attention",
 )
 #: `human_check_required`는 저장·측정된 값이 아니라 두 하위 건수의 합이다.
 _HUMAN_CHECK_PARTS: tuple[WorkloadKey, WorkloadKey] = ("overview_human_review", "blocking_items_open")

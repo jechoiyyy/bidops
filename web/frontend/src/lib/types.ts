@@ -2247,6 +2247,10 @@ export interface OpportunityDeepReviewsResponse {
  * `overview_human_review` + `blocking_items_open`이고, 하나라도 `null`이면 합계도
  * `null`(`unavailable_reason="sub_count_unavailable"`)이다. **화면은 합계를 직접
  * 더하지 않는다.**
+ *
+ * 마지막 `company_attention`(RL-00)은 실회사 활성 그래프의 추정값(`proposed`)+
+ * 확인 필요(`unknown`) 사실 수다. 실회사가 없으면 `null`(`provider_absent`),
+ * 활성 버전이 없으면 `null`(`company_profile_not_ready`)이다.
  */
 export type WorkloadKey =
   | "order_plan_pending"
@@ -2258,7 +2262,8 @@ export type WorkloadKey =
   | "human_check_required"
   | "overview_human_review"
   | "blocking_items_open"
-  | "order_plan_new_priority";
+  | "order_plan_new_priority"
+  | "company_attention";
 export interface WorkloadItem {
   key: WorkloadKey;
   count: number | null;

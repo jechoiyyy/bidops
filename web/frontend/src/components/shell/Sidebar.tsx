@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation } from "react-router-dom";
 import { api } from "../../lib/api";
+import { companyContextQueryKey, getCompanyContext } from "../../lib/companyApi";
 import type { WorkloadKey } from "../../lib/types";
 import { runSearchFor } from "./route-meta";
 
@@ -70,7 +71,8 @@ const groups: NavGroup[] = [
       // 사업기회 오브젝트의 전체 보기. 리스트 `추적 중`과 같은 화면이라 활성은 리스트 쪽이 받는다.
       { label: "사업기회", path: "/opportunities?section=전체", icon: "opp", navPath: "/opportunities?section=전체", absorbs: ["/go-no-go"] },
       { label: "기관", path: null, icon: "org" },
-      { label: "회사 근거", path: "/profile", icon: "shield", absorbs: ["/companies"] },
+      // 회사 근거(RL-00)는 읽기 전용 `/company`다. `/profile`은 설정 아래 판정 기준 화면으로 남는다.
+      { label: "회사 근거", path: "/company", icon: "shield", absorbs: ["/companies"], count: "company_attention" },
     ],
   },
   {
@@ -180,6 +182,13 @@ function demoGroup(companyId: string | null): NavGroup {
   return { label: "가상회사 데모", items };
 }
 
+/** 법인 표기(`㈜`·`(주)`·`주식회사`)를 뗀 이름과 머리글자. 이름이 없으면 제품 이름이다. */
+function workspaceIdentity(companyName: string | null): { name: string; mark: string } {
+  const short = (companyName ?? "").replace(/^(?:㈜|\(주\)|주식회사)\s*/u, "").replace(/\s*(?:㈜|\(주\)|주식회사)$/u, "").trim();
+  if (!short) return { name: "BidOps", mark: "B" };
+  return { name: short, mark: Array.from(short)[0] ?? "B" };
+}
+
 export interface SidebarDemoNav {
   /** 주소에서 읽은 현재 회사. 회사가 정해지지 않은 주소면 `null`이다. */
   companyId: string | null;
@@ -192,14 +201,18 @@ export function Sidebar({ activeNavPath, runSearch, demoNav = null }: { activeNa
   for (const item of workload.data?.items ?? []) {
     if (typeof item.count === "number") counts.set(item.key, item.count);
   }
+  // 워크스페이스 이름은 `GET /api/company`가 준다. 읽지 못하면 이름을 지어내지 않고
+  // 제품 이름을 둔다(회사 화면이 같은 key로 오류를 설명한다).
+  const company = useQuery({ queryKey: companyContextQueryKey, queryFn: ({ signal }) => getCompanyContext({ signal }), retry: false, staleTime: 60_000 });
+  const workspace = workspaceIdentity(company.data?.company.name ?? null);
   const visibleGroups = demoNav ? [...groups, demoGroup(demoNav.companyId)] : groups;
   return (
     <aside aria-label="주 메뉴" className="sidebar" data-shell-region="sidebar">
       {/* 워크스페이스 줄(시안: 머리글자 아이콘 + 회사명). 로그인·워크스페이스 전환이
           없으므로 링크는 브리핑으로 간다. */}
-      <Link aria-label="루트랩 BidOps 오늘의 브리핑으로 이동" className="sidebar-brand" to={{ pathname: "/briefing", search: runSearchFor("/briefing", runSearch) }}>
-        <span aria-hidden="true" className="sidebar-brand-mark">루</span>
-        <strong>루트랩</strong>
+      <Link aria-label={`${workspace.name} BidOps 오늘의 브리핑으로 이동`} className="sidebar-brand" to={{ pathname: "/briefing", search: runSearchFor("/briefing", runSearch) }}>
+        <span aria-hidden="true" className="sidebar-brand-mark">{workspace.mark}</span>
+        <strong>{workspace.name}</strong>
       </Link>
       {/* 검색은 커맨드 팔레트가 들어오기 전까지 자리만 둔다(ui-spec §1.2). */}
       <button aria-disabled="true" className="sidebar-search" disabled type="button">

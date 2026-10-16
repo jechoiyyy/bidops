@@ -199,9 +199,41 @@ class SPAStaticFiles(StaticFiles):
 FRONTEND_DIST = get_settings().bidops_root / "web" / "frontend" / "dist"
 
 
-def _is_demo_only_path(path: str) -> bool:
-    """Paths hidden as absent unless the isolated demo is enabled."""
+#: RL-00 (spec "등록 조건"): company reads that stay open with the demo off.
+#: ``*`` is one non-empty path segment. Only GET passes; every other method on
+#: these paths, and every other ``/api/companies`` path (company tracking PATCH,
+#: company_reads, company_analysis), stays hidden as absent.
+_DEMO_INDEPENDENT_COMPANY_GETS: tuple[tuple[str, ...], ...] = (
+    ("api", "companies"),
+    ("api", "companies", "*"),
+    ("api", "companies", "*", "profile"),
+    ("api", "companies", "*", "knowledge-graph"),
+    ("api", "companies", "*", "profile-evidence", "*"),
+)
 
+
+def _is_demo_independent_company_read(path: str, method: str) -> bool:
+    if method != "GET":
+        return False
+    segments = path.split("/")[1:]
+    if not segments or any(not segment for segment in segments):
+        return False
+    return any(
+        len(pattern) == len(segments)
+        and all(expected in {"*", actual} for expected, actual in zip(pattern, segments))
+        for pattern in _DEMO_INDEPENDENT_COMPANY_GETS
+    )
+
+
+def _is_demo_only_path(path: str, method: str = "GET") -> bool:
+    """Paths hidden as absent unless the isolated demo is enabled.
+
+    ``GET /api/company`` is not under ``/api/companies`` and is never hidden.
+    The SPA ``/companies/*`` routes and the company comparison stay demo-only.
+    """
+
+    if _is_demo_independent_company_read(path, method):
+        return False
     if path in {"/companies", "/api/companies"}:
         return True
     if path.startswith(("/companies/", "/api/companies/")):
@@ -271,7 +303,9 @@ def create_app(modules=None, *, mount_frontend: bool = True) -> FastAPI:
 
     @application.middleware("http")
     async def security_headers(request, call_next):  # type: ignore[no-untyped-def]
-        if not get_settings().demo_enabled and _is_demo_only_path(request.url.path):
+        if not get_settings().demo_enabled and _is_demo_only_path(
+            request.url.path, request.method
+        ):
             # Behave exactly like an unregistered route. In particular this
             # runs before UUID conversion and before the SPA fallback.
             response = JSONResponse(status_code=404, content={"detail": "Not Found"})

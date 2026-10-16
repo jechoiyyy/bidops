@@ -1,15 +1,15 @@
 {
   "schema_version": 2,
   "feature": "RL-00-company-ground-truth",
-  "phase": "review",
+  "phase": "validating",
   "steps": [
     {
       "id": "STEP-001",
       "title": "계약 enum·검증 규칙",
       "model": "complex",
       "fingerprint": "519e027ce659d54bb6ae0408365e4414fee6e5c6edebe05857a3a30e5932437f",
-      "status": "stale",
-      "updated_at": null,
+      "status": "done",
+      "updated_at": "2026-10-16T23:14:13+09:00",
       "history": [
         {
           "id": "STEP-001",
@@ -19,15 +19,16 @@
           "status": "pending",
           "updated_at": null
         }
-      ]
+      ],
+      "note": "status_counts=비evidence 노드 수; 조합 규칙은 spec 3개 그대로(node·edge 공통)"
     },
     {
       "id": "STEP-002",
       "title": "실회사 등록 규칙과 demo 분리",
       "model": "complex",
       "fingerprint": "fd97eba6a91543c121ca2bbaf55b69f0ba3de551c2c9960a5bea252987a9c1ad",
-      "status": "stale",
-      "updated_at": null,
+      "status": "done",
+      "updated_at": "2026-10-16T23:14:13+09:00",
       "history": [
         {
           "id": "STEP-002",
@@ -37,15 +38,16 @@
           "status": "pending",
           "updated_at": null
         }
-      ]
+      ],
+      "note": "PG 트랜잭션 lock으로 실회사 1곳 경합 직렬화; demo off GET 6경로만 통과"
     },
     {
       "id": "STEP-003",
       "title": "`GET /api/company`와 오류 code",
       "model": "standard",
       "fingerprint": "b566366e8979f9f2090f7969399ea971342d573ced70c88d34a7357996345686",
-      "status": "stale",
-      "updated_at": null,
+      "status": "done",
+      "updated_at": "2026-10-16T23:14:13+09:00",
       "history": [
         {
           "id": "STEP-003",
@@ -73,15 +75,16 @@
             }
           ]
         }
-      ]
+      ],
+      "note": "company_knowledge 라우터 prefix 제거(전체 경로); company_attention 미집계 사유 company_profile_not_ready·processing_failed는 기존 service 오류 code 재사용, STEP-007 contracts에 기록"
     },
     {
       "id": "STEP-004",
       "title": "루트랩 회사 파일 작성과 dry-run",
       "model": "complex",
       "fingerprint": "69887c38b7bf3b14276ee01d458646871ddc2e74803d320f52813bf556870853",
-      "status": "stale",
-      "updated_at": null,
+      "status": "done",
+      "updated_at": "2026-10-16T23:14:40+09:00",
       "history": [
         {
           "id": "STEP-004",
@@ -91,15 +94,16 @@
           "status": "pending",
           "updated_at": null
         }
-      ]
+      ],
+      "note": "T9 dry-run exit 0 errors 0; 노드 148(c126/p1/u21); 문서 밖 사실 없음, unknown 21건 README 목록; 판단 메모: project 63행(연차 분리), excl 6개(대기업 SI 행은 kind 없음)"
     },
     {
       "id": "STEP-005",
       "title": "`/company` 화면",
       "model": "standard",
       "fingerprint": "0ffaa8df5f7d6132bffa789f4022827e97edbfe9ef8b8b56385f6636fb6471fd",
-      "status": "stale",
-      "updated_at": null,
+      "status": "done",
+      "updated_at": "2026-10-17T06:04:43+09:00",
       "history": [
         {
           "id": "STEP-005",
@@ -109,23 +113,25 @@
           "status": "pending",
           "updated_at": null
         }
-      ]
+      ],
+      "note": "사용자 결정: demo-on /companies/:id/profile→/company 리다이렉트 적용, DEMO 프로필 화면 spec 12건 삭제(company-graph 10·company-layout 1)·1건 리다이렉트 검사로 교체; contrast 게이트 blue 금지에 .co-pill.is-proposed 단일 예외(ADR-0048 개정); 곧 만료는 지난 유효기간 포함"
     },
     {
       "id": "STEP-006",
       "title": "격리 등록·활성화",
       "model": "standard",
       "fingerprint": "177e2d6552d1a98b43d6b95095aac0f169ce98e42592863481257f6faa1aedb5",
-      "status": "pending",
-      "updated_at": null
+      "status": "done",
+      "updated_at": "2026-10-17T06:06:54+09:00",
+      "note": "bidops-local DB bidops_rla(사용자 결정): migrate+권한 exit0, import created·activate revision1, GET /api/company 200 strict, profile facts 148=비evidence 노드, company_attention 22"
     },
     {
       "id": "STEP-007",
       "title": "문서 개정",
       "model": "standard",
       "fingerprint": "8df6a0e256bf0ff35c390a385870a5855fcc0655978e5c49cd60ec4e06b654c1",
-      "status": "stale",
-      "updated_at": null,
+      "status": "done",
+      "updated_at": "2026-10-17T06:04:43+09:00",
       "history": [
         {
           "id": "STEP-007",
@@ -153,27 +159,88 @@
             }
           ]
         }
-      ]
+      ],
+      "note": "demo-contract RL 개정 절·hp-contract 주석·contracts·business-rules·operations·ui-spec·ADR 한 줄·theme 주석; operations 실행 방식은 STEP-006에서 보강"
     }
   ],
   "proof": {
     "docs": {
-      "result": "pending"
+      "result": "pass",
+      "method": "review",
+      "note": "doctor exit0, 독립 리뷰 BLOCKING 없음, 문서 diff 검토",
+      "evidence": "docs/work/_runs/rla-20261016/logs/RL-00-doctor.log; docs/work/_runs/rla-20261016/RL-00-review.md",
+      "exit_code": null,
+      "actor": "orchestrator",
+      "command": "python3 scripts/feature_status.py doctor _",
+      "at": "2026-10-17T06:12:36+09:00",
+      "head": "c93da20ca80369a2da16862a3698b79ab418dcff",
+      "source_hash": "cac83459d63789ec968b137e70db01d462886e42a960d8d2d32760e4138d848c",
+      "spec_hash": "7aaa401f099bc7f7ed61251993b49eafa501429a98166119c809388d7dd7204a"
     },
     "tests": {
-      "result": "pending"
+      "result": "pass",
+      "method": "command",
+      "note": "plan 증명 tests 명령 + module_boundaries·workload: 140 passed 85 skipped(PG)",
+      "evidence": "docs/work/_runs/rla-20261016/logs/RL-00-tests.log",
+      "exit_code": 0,
+      "actor": "orchestrator",
+      "command": "bash -lc \"cd web/backend && python -m pytest -q -x -p no:cacheprovider\"",
+      "at": "2026-10-17T06:12:36+09:00",
+      "head": "c93da20ca80369a2da16862a3698b79ab418dcff",
+      "source_hash": "cac83459d63789ec968b137e70db01d462886e42a960d8d2d32760e4138d848c",
+      "spec_hash": "7aaa401f099bc7f7ed61251993b49eafa501429a98166119c809388d7dd7204a"
     },
     "postgres": {
-      "result": "pending"
+      "result": "pass",
+      "method": "command",
+      "note": "일회용 postgres:17.11 255 passed (company_context_postgres·knowledge_api·privileges·alembic drift 포함)",
+      "evidence": "docs/work/_runs/rla-20261016/logs/RL-00-postgres.log",
+      "exit_code": 0,
+      "actor": "orchestrator",
+      "command": "",
+      "at": "2026-10-17T06:12:37+09:00",
+      "head": "c93da20ca80369a2da16862a3698b79ab418dcff",
+      "source_hash": "cac83459d63789ec968b137e70db01d462886e42a960d8d2d32760e4138d848c",
+      "spec_hash": "7aaa401f099bc7f7ed61251993b49eafa501429a98166119c809388d7dd7204a"
     },
     "frontend": {
-      "result": "pending"
+      "result": "pass",
+      "method": "command",
+      "note": "build·contrast 8/8·Playwright app 41 + company-layout 20",
+      "evidence": "docs/work/_runs/rla-20261016/logs/RL-00-frontend-build.log; docs/work/_runs/rla-20261016/logs/RL-00-playwright.log; docs/work/_runs/rla-20261016/logs/RL-00-playwright-layout.log",
+      "exit_code": 0,
+      "actor": "orchestrator",
+      "command": "bash -lc \"cd web/frontend && npm run build && npm run test:contrast\"",
+      "at": "2026-10-17T06:12:37+09:00",
+      "head": "c93da20ca80369a2da16862a3698b79ab418dcff",
+      "source_hash": "cac83459d63789ec968b137e70db01d462886e42a960d8d2d32760e4138d848c",
+      "spec_hash": "7aaa401f099bc7f7ed61251993b49eafa501429a98166119c809388d7dd7204a"
     },
     "api_guard": {
-      "result": "pending"
+      "result": "pass",
+      "method": "command",
+      "note": "외부 호출 없음; T6 demo off 가상 경로 404 유지(company-comparison·SPA /companies·company_reads·company_analysis POST) PG 테스트",
+      "evidence": "docs/work/_runs/rla-20261016/logs/RL-00-postgres.log",
+      "exit_code": 0,
+      "actor": "orchestrator",
+      "command": "",
+      "at": "2026-10-17T06:12:37+09:00",
+      "head": "c93da20ca80369a2da16862a3698b79ab418dcff",
+      "source_hash": "cac83459d63789ec968b137e70db01d462886e42a960d8d2d32760e4138d848c",
+      "spec_hash": "7aaa401f099bc7f7ed61251993b49eafa501429a98166119c809388d7dd7204a"
     },
     "real_data_run": {
-      "result": "pending"
+      "result": "not_applicable",
+      "method": "manual",
+      "note": "real_data_run은 RL-03 T12·RL-04 T11·RL-05 T5에만 적용; RL-00은 모델 호출 없음",
+      "evidence": "docs/work/feature.json",
+      "exit_code": null,
+      "actor": "orchestrator",
+      "command": "",
+      "at": "2026-10-17T06:12:37+09:00",
+      "head": "c93da20ca80369a2da16862a3698b79ab418dcff",
+      "source_hash": "cac83459d63789ec968b137e70db01d462886e42a960d8d2d32760e4138d848c",
+      "spec_hash": "7aaa401f099bc7f7ed61251993b49eafa501429a98166119c809388d7dd7204a"
     }
   },
   "notes": [
@@ -196,7 +263,101 @@
     {
       "at": "2026-10-16T20:41:31+09:00",
       "text": "단계 → review: 독립 검사 1·2차 반영(잔여 차단 1건은 /api/company를 deep_review 라우터로 이동해 해소, 3차 생략)"
+    },
+    {
+      "at": "2026-10-16T22:39:42+09:00",
+      "text": "단계 → implementing"
+    },
+    {
+      "at": "2026-10-16T22:41:05+09:00",
+      "text": "단계 STEP-001 in_progress: "
+    },
+    {
+      "at": "2026-10-16T22:41:05+09:00",
+      "text": "단계 STEP-002 in_progress: "
+    },
+    {
+      "at": "2026-10-16T22:41:05+09:00",
+      "text": "단계 STEP-003 in_progress: "
+    },
+    {
+      "at": "2026-10-16T23:14:13+09:00",
+      "text": "단계 STEP-001 done: status_counts=비evidence 노드 수; 조합 규칙은 spec 3개 그대로(node·edge 공통)"
+    },
+    {
+      "at": "2026-10-16T23:14:13+09:00",
+      "text": "단계 STEP-002 done: PG 트랜잭션 lock으로 실회사 1곳 경합 직렬화; demo off GET 6경로만 통과"
+    },
+    {
+      "at": "2026-10-16T23:14:13+09:00",
+      "text": "단계 STEP-003 done: company_knowledge 라우터 prefix 제거(전체 경로); company_attention 미집계 사유 company_profile_not_ready·processing_failed는 기존 service 오류 code 재사용, STEP-007 contracts에 기록"
+    },
+    {
+      "at": "2026-10-16T23:14:40+09:00",
+      "text": "단계 STEP-004 done: T9 dry-run exit 0 errors 0; 노드 148(c126/p1/u21); 문서 밖 사실 없음, unknown 21건 README 목록; 판단 메모: project 63행(연차 분리), excl 6개(대기업 SI 행은 kind 없음)"
+    },
+    {
+      "at": "2026-10-16T23:14:49+09:00",
+      "text": "단계 STEP-005 in_progress: "
+    },
+    {
+      "at": "2026-10-16T23:14:49+09:00",
+      "text": "단계 STEP-007 in_progress: "
+    },
+    {
+      "at": "2026-10-17T06:04:43+09:00",
+      "text": "단계 STEP-005 done: 사용자 결정: demo-on /companies/:id/profile→/company 리다이렉트 적용, DEMO 프로필 화면 spec 12건 삭제(company-graph 10·company-layout 1)·1건 리다이렉트 검사로 교체; contrast 게이트 blue 금지에 .co-pill.is-proposed 단일 예외(ADR-0048 개정); 곧 만료는 지난 유효기간 포함"
+    },
+    {
+      "at": "2026-10-17T06:04:43+09:00",
+      "text": "단계 STEP-007 done: demo-contract RL 개정 절·hp-contract 주석·contracts·business-rules·operations·ui-spec·ADR 한 줄·theme 주석; operations 실행 방식은 STEP-006에서 보강"
+    },
+    {
+      "at": "2026-10-17T06:06:54+09:00",
+      "text": "단계 STEP-006 done: bidops-local DB bidops_rla(사용자 결정): migrate+권한 exit0, import created·activate revision1, GET /api/company 200 strict, profile facts 148=비evidence 노드, company_attention 22"
+    },
+    {
+      "at": "2026-10-17T06:12:37+09:00",
+      "text": "단계 → validating"
     }
   ],
-  "updated_at": "2026-10-16T20:41:31+09:00"
+  "updated_at": "2026-10-17T06:12:37+09:00",
+  "proof_history": [
+    {
+      "key": "docs",
+      "previous": {
+        "result": "pending"
+      }
+    },
+    {
+      "key": "tests",
+      "previous": {
+        "result": "pending"
+      }
+    },
+    {
+      "key": "postgres",
+      "previous": {
+        "result": "pending"
+      }
+    },
+    {
+      "key": "frontend",
+      "previous": {
+        "result": "pending"
+      }
+    },
+    {
+      "key": "api_guard",
+      "previous": {
+        "result": "pending"
+      }
+    },
+    {
+      "key": "real_data_run",
+      "previous": {
+        "result": "pending"
+      }
+    }
+  ]
 }

@@ -589,3 +589,23 @@ graph 경로(direct/partial/unmapped)는 검색 결과이며 역량·자격·실
 DEMO-04 화면은 회사 경로에서만 계속 추적·보류·종료 세 상태를 저장한다. 이는 2026-09-17 결정(사전규격 화면은 계속 추적만)의 데모 한정 예외이며, 기존 사전규격 화면은 바꾸지 않았다. 저장은 서버 성공 뒤에만 화면에 반영하고, 시작한 회사의 화면만 갱신한다. 409 `version_conflict`이면 사용자 초안과 서버 최신값을 함께 보여 주고 자동으로 덮어쓰지 않는다. 회사 전환 전에는 미저장 입력을 확인한다.
 3사 비교는 서버의 `comparison_status`와 실행 상태를 그대로 보여 준다. 회사 순위나 종합 점수는 만들지 않는다. 회사 핏은 CLI 전용이라 화면에 생성·승인 UI가 없다.
 [ADR-0070](tracking/decisions/0070-multi-company-knowledge-demo.md) · [공통 계약](work/demo-contract.md) · [기능 로드맵](work/constitution/roadmap.md).
+
+
+## 회사 근거 사실 상태 (RL-00, 2026-10-16)
+
+루트랩 실회사의 근거는 회사 파일을 정본으로 등록한 불변 버전이다(계약은 [DEMO 계약 RL 개정](work/demo-contract.md#rl-개정-2026-10-16-rl-00-adr-0073)). 실회사는 DB 전체에서 1곳이고 가상회사는 `BIDOPS_DEMO_ENABLED=true`에서만 등록한다.
+
+- **사실 상태는 네 값이다.** 화면 이름과 대응은 다음과 같다.
+
+  | status | 화면 이름 | 뜻 | pill |
+  |---|---|---|---|
+  | `confirmed` | 확인됨 | 출처가 있고 사람이 확인한 사실(회사소개서·홈페이지·인터뷰·사용자 확인 선호) | success |
+  | `proposed` | 추정값 | 에이전트가 제안한 값, 사람이 아직 확인하지 않음 | blue(ADR-0048 개정: 이 pill만 blue) |
+  | `unknown` | 확인 필요 | 문서에 없거나 미입력. 값 null·근거 0개 | warning |
+  | `inferred` | (표시 안 함) | 모델 추론 전용. 등록 파일에는 없다 | — |
+
+- `proposed`(에이전트 제안)와 `inferred`(모델 추론)를 한 값에 섞지 않는다. `proposed`는 origin `agent_proposal`에서만 나오며 사람이 확인하면 새 버전에서 `confirmed`로 바뀐다.
+- **`proposed`는 차단 조건도 판정 근거도 아니다.** 추정값은 "확인 필요"와 같이 근거로 쓰지 않고(충족 근거 금지), 그렇다고 `부족`으로 승격하거나 그것만으로 공고를 막지도 않는다(HP 계약 §7의 `unknown` 규칙과 같다). `proposed`의 evidence는 확인 근거가 아니다. 판정·전송 쪽 고정은 RL-03 spec이 하며, 현재 `company_knowledge_retrieval.py`·`company_fit_policy.py`는 `proposed`를 모른다 — 실회사 binding이 활성화돼도 회사 핏·심층 경로는 demo off에서 닫혀 있다.
+- **보유와 세부는 상태를 분리한다.** "자격 있음, 세부 미입력"은 `confirmed` 노드(`{held:true,detail:null}`)와 별도 `unknown` 세부 노드로 둔다. 세부 미입력을 부족이나 미보유로, 보유 확인을 세부 확인으로 읽지 않는다. 명시되지 않은 값은 0이나 "해당 없음"으로 채우지 않는다.
+- "곧 만료"는 qualification `valid_until`이 있고 오늘부터 `BIDOPS_COMPANY_EXPIRY_WARNING_DAYS`(기본 60일) 안이거나 이미 지난 사실이다(지난 것은 행에 "만료됨"으로 표시하며 수치에서 빼지 않는다). 유효기간이 없는 사실은 만료 후보가 아니다.
+- **회사 근거 화면은 읽기 전용이다.** 값 수정·확정은 화면 행동이 아니라 회사 파일을 고쳐 다시 등록(새 버전, 이전 버전 불변)하는 절차다([operations.md](operations.md) "회사 근거 갱신"). 등록은 자동 활성화하지 않고 활성화는 명시적 CLI다.

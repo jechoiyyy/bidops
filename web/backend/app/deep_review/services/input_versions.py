@@ -28,9 +28,13 @@ from sqlalchemy.orm import Session
 
 from ...core.company_ontology import (
     COMPANY_SOURCE_NODE_TYPES,
+    FACT_STATUSES,
     RELATION_ENDPOINTS,
     OntologyValidationError,
     parse_ontology,
+    profile_origin_for,
+    registration_origin_allowed,
+    status_origin_allowed,
 )
 from ...core.model_binding import MODEL_ENDPOINT_REF, MODEL_NAME, canonical_json_bytes
 from ...core.models import AuditEvent
@@ -827,7 +831,7 @@ def _validate_profile_v2_snapshot(
         payload is None
         or set(payload) != expected_payload_keys
         or payload.get("schema") != PROFILE_SCHEMA_V2
-        or payload.get("origin") != "fictional_scenario"
+        or payload.get("origin") not in {"real_company", "fictional_scenario"}
         or payload.get("source_sha256") != profile.profile_sha256
         or payload.get("parse_errors") != []
         or profile.company_id is None
@@ -846,10 +850,12 @@ def _validate_profile_v2_snapshot(
 
     graph = session.get(CompanyKnowledgeVersion, graph_version_id)
     company = session.get(Company, profile.company_id)
+    # RL-00: real companies are valid; the payload origin must match the
+    # company kind so a real profile is never read as a fictional scenario.
     if (
         graph is None
         or company is None
-        or not company.is_fictional
+        or payload.get("origin") != profile_origin_for(is_fictional=company.is_fictional)
         or graph.company_id != profile.company_id
         or graph.profile_version_id != profile.id
         or graph.source_sha256 != profile.profile_sha256
@@ -1005,8 +1011,11 @@ def _validate_profile_v2_snapshot(
             or not node["id"]
             or node["id"] in node_by_id
             or node.get("type") not in COMPANY_SOURCE_NODE_TYPES
-            or node.get("origin") != "fictional_scenario"
-            or node.get("status") not in {"confirmed", "inferred", "unknown"}
+            or not registration_origin_allowed(
+                node.get("origin"), is_fictional=company.is_fictional
+            )
+            or node.get("status") not in FACT_STATUSES
+            or not status_origin_allowed(node.get("status"), node.get("origin"))
             or not isinstance(node.get("source_refs"), list)
         ):
             raise InputVersionError(
@@ -1054,7 +1063,7 @@ def _validate_profile_v2_snapshot(
                 "section_number": None,
                 "locator": {"fact_key": node["id"]},
                 "quote": quote,
-                "origin": "fictional_scenario",
+                "origin": node["origin"],
             }
         )
 
@@ -1116,8 +1125,11 @@ def _validate_profile_v2_snapshot(
             or relation is None
             or source_node.get("type") not in relation[0]
             or target_node.get("type") not in relation[1]
-            or edge.get("origin") != "fictional_scenario"
-            or edge.get("status") not in {"confirmed", "inferred", "unknown"}
+            or not registration_origin_allowed(
+                edge.get("origin"), is_fictional=company.is_fictional
+            )
+            or edge.get("status") not in FACT_STATUSES
+            or not status_origin_allowed(edge.get("status"), edge.get("origin"))
             or not isinstance(edge.get("source_refs"), list)
         ):
             raise InputVersionError(

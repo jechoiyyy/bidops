@@ -22,12 +22,27 @@ from app.deep_review.services.company_knowledge import (
     prepare_company_knowledge,
 )
 from tests.app.test_runtime_database_privileges import _apply_policy, _ensure_roles
-from tests.deep_review.test_company_knowledge import _ontology, _raw, _source
+from tests.deep_review.test_company_knowledge import (  # noqa: F401 - shared fixture
+    REAL_STATUS_COUNTS,
+    _ontology,
+    _raw,
+    _real_source,
+    _source,
+    fictional_import_demo,
+)
 from tests.postgres import requires_postgres, temporary_database
 
 
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
 PROJECT_ROOT = BACKEND_ROOT.parents[1]
+IMPORT_KEYS = {
+    "company_id", "profile_version_id", "graph_version_id",
+    "ontology_version", "source_sha256", "graph_sha256",
+    "created", "activated", "errors", "is_fictional", "status_counts",
+}
+ACTIVATE_KEYS = {
+    "company_id", "graph_version_id", "profile_version_id", "revision", "changed", "errors",
+}
 
 
 def _files(tmp_path: Path) -> tuple[Path, Path]:
@@ -39,10 +54,13 @@ def _files(tmp_path: Path) -> tuple[Path, Path]:
     return ontology_path, company_path
 
 
-def _environment(tmp_path: Path) -> dict[str, str]:
+def _environment(tmp_path: Path, *, demo: bool = True) -> dict[str, str]:
+    """Fresh-process environment. RL-00: fictional fixtures need the demo flag."""
+
     environment = dict(os.environ)
     environment.update(
         {
+            "BIDOPS_DEMO_ENABLED": "true" if demo else "false",
             "BIDOPS_ROOT": str(PROJECT_ROOT),
             "BIDOPS_DATA_DIR": str(tmp_path / "data"),
             "BIDOPS_ATTACHMENTS_DIR": str(tmp_path / "attachments"),
@@ -89,6 +107,9 @@ def test_t5_dry_run_has_zero_database_object_and_model_side_effects(tmp_path: Pa
     assert payload["errors"] == []
     assert payload["ontology_version"] == "ontology-v1"
     assert len(payload["source_sha256"]) == len(payload["graph_sha256"]) == 64
+    assert set(payload) == IMPORT_KEYS
+    assert payload["is_fictional"] is True
+    assert payload["status_counts"] == {"confirmed": 2, "proposed": 0, "inferred": 0, "unknown": 1}
     assert not (tmp_path / "company-knowledge.db").exists()
     assert not (tmp_path / "attachments").exists()
 
@@ -172,11 +193,11 @@ def test_t5_failure_keeps_result_shape_and_hides_internal_details(tmp_path: Path
     )
     assert result.returncode == 2
     payload = json.loads(result.stdout)
-    assert set(payload) == {
-        "company_id", "profile_version_id", "graph_version_id",
-        "ontology_version", "source_sha256", "graph_sha256",
-        "created", "activated", "errors",
-    }
+    # RL-00 spec "인터페이스": the import output gained is_fictional and
+    # status_counts; a failure keeps the same key set with both null.
+    assert set(payload) == IMPORT_KEYS
+    assert payload["is_fictional"] is None
+    assert payload["status_counts"] is None
     assert payload["errors"] == ["source_invalid"]
     assert result.stderr.strip() == "source_invalid"
     assert str(company) not in result.stdout + result.stderr
@@ -304,3 +325,195 @@ def test_n2_overlong_ontology_version_is_a_validation_error_with_exit_2(tmp_path
     assert payload["created"] is False
     assert payload["company_id"] is None
     assert result.stderr.strip() == "ontology_invalid"
+
+
+# --- RL-00 T1-T4: real company registration through the fresh-process CLI ---
+
+
+def _write_pair(tmp_path: Path, source: dict, *, name: str = "company.json") -> tuple[Path, Path]:
+    ontology_path = tmp_path / "ontology.json"
+    company_path = tmp_path / name
+    ontology_path.write_bytes(_raw(_ontology()))
+    company_path.write_bytes(_raw(source))
+    return ontology_path, company_path
+
+
+def _ontology_sha() -> str:
+    return parse_ontology(_raw(_ontology())).sha256
+
+
+def _import_args(ontology: Path, company: Path, *extra: str) -> tuple[str, ...]:
+    return (
+        "import-company-knowledge",
+        "--ontology", str(ontology),
+        "--company", str(company),
+        "--actor", "등록 담당자",
+        *extra,
+    )
+
+
+def _company_rows(tmp_path: Path) -> list[tuple[str, bool]]:
+    from sqlalchemy import select
+
+    from app.lifecycle.models import Company
+
+    database = create_engine(f"sqlite:///{tmp_path / 'company-knowledge.db'}")
+    try:
+        with Session(database) as session:
+            return [
+                (row.slug, row.is_fictional)
+                for row in session.scalars(select(Company).order_by(Company.slug))
+            ]
+    finally:
+        database.dispose()
+
+
+def test_rl_t1_real_company_dry_run_import_and_activate_with_demo_off(tmp_path: Path) -> None:
+    ontology, company = _write_pair(tmp_path, _real_source(_ontology_sha()))
+    environment = _environment(tmp_path, demo=False)
+
+    dry = _run(environment, *_import_args(ontology, company, "--dry-run"))
+    assert dry.returncode == 0, dry.stdout + dry.stderr
+    dry_payload = json.loads(dry.stdout)
+    assert set(dry_payload) == IMPORT_KEYS
+    assert dry_payload["errors"] == []
+    assert dry_payload["created"] is False and dry_payload["company_id"] is None
+    assert dry_payload["is_fictional"] is False
+    assert dry_payload["status_counts"] == REAL_STATUS_COUNTS
+    assert not (tmp_path / "company-knowledge.db").exists()
+
+    created_result = _run(environment, *_import_args(ontology, company))
+    assert created_result.returncode == 0, created_result.stdout + created_result.stderr
+    created = json.loads(created_result.stdout)
+    assert set(created) == IMPORT_KEYS
+    assert created["created"] is True
+    assert created["is_fictional"] is False
+    assert created["status_counts"] == REAL_STATUS_COUNTS
+    assert created["source_sha256"] == dry_payload["source_sha256"]
+    assert created["graph_sha256"] == dry_payload["graph_sha256"]
+    assert _company_rows(tmp_path) == [("real-test-co", False)]
+
+    activated_result = _run(
+        environment,
+        "activate-company-knowledge",
+        "--company-id", created["company_id"],
+        "--graph-version-id", created["graph_version_id"],
+        "--actor", "활성 담당자",
+    )
+    assert activated_result.returncode == 0, activated_result.stdout + activated_result.stderr
+    activated = json.loads(activated_result.stdout)
+    # The activate output shape is unchanged by RL-00.
+    assert set(activated) == ACTIVATE_KEYS
+    assert activated["changed"] is True and activated["revision"] == 1
+
+
+def _combination(case: str) -> dict:
+    sha = _ontology_sha()
+    if case == "proposed_homepage":
+        source = _real_source(sha)
+        source["nodes"][3]["origin"] = "homepage"
+    elif case == "real_fictional_scenario":
+        source = _real_source(sha)
+        source["nodes"][9]["origin"] = "fictional_scenario"
+    elif case == "fictional_user_interview":
+        source = _source(sha)
+        source["nodes"][1]["origin"] = "user_interview"
+    elif case == "real_edge_fictional_scenario":
+        source = _real_source(sha)
+        source["edges"][0]["origin"] = "fictional_scenario"
+    elif case == "interview_inferred":
+        source = _real_source(sha)
+        source["nodes"][4]["status"] = "inferred"
+    elif case == "brochure_unknown":
+        source = _real_source(sha)
+        source["nodes"][2]["origin"] = "company_brochure"
+    elif case == "real_model_inference":
+        source = _real_source(sha)
+        source["nodes"][9]["origin"] = "model_inference"
+    else:  # pragma: no cover - parametrization guard
+        raise AssertionError(case)
+    return source
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "proposed_homepage",
+        "real_fictional_scenario",
+        "fictional_user_interview",
+        "real_edge_fictional_scenario",
+        "interview_inferred",
+        "brochure_unknown",
+        "real_model_inference",
+    ],
+)
+def test_rl_t2_status_origin_combination_violations_are_source_invalid(
+    tmp_path: Path, case: str
+) -> None:
+    ontology, company = _write_pair(tmp_path, _combination(case))
+    result = _run(_environment(tmp_path, demo=True), *_import_args(ontology, company))
+    assert result.returncode == 2, result.stdout + result.stderr
+    payload = json.loads(result.stdout)
+    assert set(payload) == IMPORT_KEYS
+    assert payload["errors"] == ["source_invalid"]
+    assert payload["is_fictional"] is None and payload["status_counts"] is None
+    assert result.stderr.strip() == "source_invalid"
+    # Validation precedes every DB write: no database file was even created.
+    assert not (tmp_path / "company-knowledge.db").exists()
+
+
+def test_rl_t3_second_real_company_slug_is_real_company_exists(tmp_path: Path) -> None:
+    sha = _ontology_sha()
+    ontology, first = _write_pair(tmp_path, _real_source(sha), name="first.json")
+    _ontology_unused, second = _write_pair(
+        tmp_path,
+        _real_source(sha, slug="other-real-co", name="다른 실회사"),
+        name="second.json",
+    )
+    environment = _environment(tmp_path, demo=False)
+    created = _run(environment, *_import_args(ontology, first))
+    assert created.returncode == 0, created.stdout + created.stderr
+
+    rejected = _run(environment, *_import_args(ontology, second))
+    assert rejected.returncode == 2, rejected.stdout + rejected.stderr
+    payload = json.loads(rejected.stdout)
+    assert set(payload) == IMPORT_KEYS
+    assert payload["errors"] == ["real_company_exists"]
+    assert payload["company_id"] is None and payload["created"] is False
+    assert payload["is_fictional"] is None and payload["status_counts"] is None
+    assert rejected.stderr.strip() == "real_company_exists"
+    assert _company_rows(tmp_path) == [("real-test-co", False)]
+
+    # Re-importing the same real company stays idempotent.
+    replay = _run(environment, *_import_args(ontology, first))
+    assert replay.returncode == 0, replay.stdout + replay.stderr
+    assert json.loads(replay.stdout)["created"] is False
+
+
+@pytest.mark.parametrize("dry_run", [True, False])
+def test_rl_t4_fictional_company_requires_demo_flag(tmp_path: Path, dry_run: bool) -> None:
+    ontology, company = _files(tmp_path)
+    extra = ("--dry-run",) if dry_run else ()
+    rejected = _run(_environment(tmp_path, demo=False), *_import_args(ontology, company, *extra))
+    assert rejected.returncode == 2, rejected.stdout + rejected.stderr
+    payload = json.loads(rejected.stdout)
+    assert set(payload) == IMPORT_KEYS
+    assert payload["errors"] == ["fictional_requires_demo"]
+    assert payload["is_fictional"] is None and payload["status_counts"] is None
+    assert rejected.stderr.strip() == "fictional_requires_demo"
+    assert not (tmp_path / "company-knowledge.db").exists()
+
+    allowed = _run(_environment(tmp_path, demo=True), *_import_args(ontology, company, *extra))
+    assert allowed.returncode == 0, allowed.stdout + allowed.stderr
+    assert json.loads(allowed.stdout)["is_fictional"] is True
+
+
+@pytest.mark.parametrize("value", ["false", 0, None, "true"])
+def test_rl_t4_non_boolean_is_fictional_is_source_invalid(tmp_path: Path, value) -> None:
+    source = _real_source(_ontology_sha())
+    source["company"]["is_fictional"] = value
+    ontology, company = _write_pair(tmp_path, source)
+    result = _run(_environment(tmp_path, demo=True), *_import_args(ontology, company, "--dry-run"))
+    assert result.returncode == 2, result.stdout + result.stderr
+    assert json.loads(result.stdout)["errors"] == ["source_invalid"]
+    assert result.stderr.strip() == "source_invalid"
