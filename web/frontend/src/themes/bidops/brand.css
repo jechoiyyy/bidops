@@ -16,3 +16,16 @@
   --bo-brand-edge: #cfdfb5; /* 완료 단계 카드 테두리 · 상세 열기 단추 테두리 */
   --bo-brand-deep: #3f5a1c; /* 진행 막대 첫 단(100%) */
 }
+
+/*
+ * RL 셸 토큰 — docs/1016_rootlab-redefinition/ui-spec.md §1·§2 (시안 v26).
+ * 사이드바 면과 활성 항목은 Astryx TokenName 에 없는 이름이라 프로젝트 토큰으로 둔다.
+ * 사이드바 글자는 테마의 --color-text-primary/secondary 를 그대로 읽는다.
+ */
+[data-astryx-theme='bidops'] {
+  --bo-sidebar-bg: #f8f8f9; /* 사이드바 면 */
+  --bo-sidebar-hover: #ecedf0; /* 항목 hover */
+  --bo-sidebar-active: #e6e8ec; /* 활성 항목 */
+  --bo-avatar-bg: #d9dce1; /* 아바타 바탕 */
+  --bo-warning-subtle: #fffbf5; /* 주의 행·확인 필요 블록 바탕 */
+}

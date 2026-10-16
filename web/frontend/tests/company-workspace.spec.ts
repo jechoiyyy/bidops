@@ -360,7 +360,7 @@ test("demo-config가 꺼져 있으면 회사 메뉴·선택기·경로가 SPA에
   const trace = await installMocks(page, { enabled: false });
   await page.goto("/pre-specs");
   const nav = page.getByRole("navigation", { name: "주 메뉴" });
-  await expect(nav.getByRole("link", { name: "사전규격", exact: true })).toBeVisible();
+  await expect(nav.getByRole("link", { name: "공고", exact: true })).toBeVisible();
   await expect(nav.getByText("가상회사 데모")).toHaveCount(0);
   await expect(nav.getByRole("link", { name: "회사 선택", exact: true })).toHaveCount(0);
   await expect(page.getByRole("combobox", { name: "데모 회사 선택" })).toHaveCount(0);
@@ -378,7 +378,7 @@ test("demo-config가 꺼져 있으면 회사 메뉴·선택기·경로가 SPA에
 test("demo-config가 없으면(미등록 404) 비활성으로 닫힌다", async ({ page }) => {
   await mockApi(page);
   await page.goto("/pre-specs");
-  await expect(page.getByRole("navigation", { name: "주 메뉴" }).getByRole("link", { name: "사전규격", exact: true })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "주 메뉴" }).getByRole("link", { name: "공고", exact: true })).toBeVisible();
   await expect(page.getByRole("combobox", { name: "데모 회사 선택" })).toHaveCount(0);
   await expect(page.getByRole("navigation", { name: "주 메뉴" }).getByRole("link", { name: "회사 선택", exact: true })).toHaveCount(0);
 });

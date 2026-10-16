@@ -1,10 +1,10 @@
 /*
  * 단계 A — 공통 셸
  *
- * AppShell이 bidops 테마의 경계를 소유한다. 2026-09-15부터 셸은 흰 바탕·회사
- * 포인트색 팔레트를 쓰며 사이드바·상단바가 canvas와 같은 밝은 면이다
- * (docs/0915_ui-redesign/spec.md §2.1). 사이드바는 더는 어두운 면이 아니므로
- * `--color-on-dark`·`--color-background-inverted`를 읽지 않는다.
+ * AppShell이 bidops 테마의 경계를 소유한다. 2026-10-16부터 셸은 RL 시안 v26
+ * (docs/1016_rootlab-redefinition/ui-spec.md §1, mockups/v26)을 따른다: 회색
+ * 사이드바 240px(우측 1px 경계) + 흰 상단바 44px(하단 1px 경계) + 흰 본문.
+ * 사이드바 면·활성 색은 brand.css의 `--bo-sidebar-*` 프로젝트 토큰이다.
  * 지원 폭은 1280~1920px이며 1280px 미만은 가로 스크롤로 둔다(ADR-0047).
  * 좁은 폭 전환(1180·900·640px)은 이 파일에서 제거했다. 기존 화면을 한 번에
  * 재작성하지 않기 위해 legacy 이름은 이 파일의 단일 bridge에서만
@@ -173,186 +173,259 @@ body {
   position: sticky;
   top: 0;
   align-self: flex-start;
-  flex: 0 0 223.2px;
+  flex: 0 0 240px;
   flex-direction: column;
-  width: 223.2px;
+  gap: 1px;
+  width: 240px;
   height: var(--bo-ui-viewport-height);
   min-height: 0;
   max-height: var(--bo-ui-viewport-height);
+  padding: 10px 10px 12px;
   overflow-x: hidden;
   overflow-y: auto;
-  /* 사이드바는 canvas와 같은 밝은 면이며 우측 테두리·상단 띠를 두지 않는다
-     (spec §2.1). theme.css의 옛 `.sidebar` 선언이 되살아나지 않도록 0으로 덮는다. */
+  /* RL 셸(ui-spec §1.1·§1.2, 시안 v26): 회색 사이드바 면 + 우측 1px 경계.
+     theme.css의 옛 `.sidebar` 선언이 되살아나지 않도록 상단 띠는 0으로 덮는다. */
   color: var(--color-text-secondary);
-  background: var(--color-background-body);
+  background: var(--bo-sidebar-bg);
   border-top: 0;
-  border-right: 0;
+  border-right: 1px solid var(--color-border);
+  font-size: 13px;
 }
 
 .app-shell[data-astryx-theme="bidops"] .sidebar :where(a, button):focus-visible {
-  outline-color: var(--color-text-accent);
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
 }
 
-/* 브랜드 줄 C안(워드마크형, spec §2.1): 면 없음, 1행 아이콘 28px + BidOps
-   20/700, 2행 짧은 `--bo-brand` 선 + 부제, 좌우 16px 안쪽 1px `--color-border`
-   구분선. hover는 배경을 바꾸지 않고 focus-visible은 위 `:where(a, button)`
-   규칙의 outline만 쓴다. */
+/* 워크스페이스 줄: 24px 머리글자 아이콘 + 회사명(시안 v26). */
 .app-shell[data-astryx-theme="bidops"] .sidebar-brand {
   display: flex;
-  flex-direction: column;
-  gap: 5.4px;
-  margin: 0 var(--spacing-4);
-  padding: 16.2px 0 10.8px;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 8px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: var(--radius-inner);
   color: var(--color-text-primary);
   background: transparent;
-  border-bottom: 1px solid var(--color-border);
+  text-decoration: none;
 }
 
-.app-shell[data-astryx-theme="bidops"] .sidebar-brand-row {
-  display: flex;
+.app-shell[data-astryx-theme="bidops"] .sidebar-brand:hover {
+  background: var(--bo-sidebar-hover);
+}
+
+.app-shell[data-astryx-theme="bidops"] .sidebar-brand-mark {
+  display: inline-flex;
+  flex: 0 0 24px;
   align-items: center;
-  gap: 9px;
-  /* theme.css의 옛 `.sidebar-brand span`이 span 후손 전부에 margin-top:3px를
-     주므로(닿는지 grep으로 확인) 여기서 0으로 되돌린다. */
-  margin: 0;
-}
-
-/* 브랜드 아이콘은 흰색 SVG를 mask로 써서 토큰 색으로 칠한다(파일을 복제하지
-   않기 위해). theme.css의 옛 `.sidebar-brand-logo`가 주는 원형·패딩을
-   0으로 되돌린다. */
-.app-shell[data-astryx-theme="bidops"] .sidebar-brand-logo {
-  width: 25.2px;
-  height: 25.2px;
-  flex: 0 0 25.2px;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
   margin: 0;
   padding: 0;
-  border-radius: 0;
+  border-radius: var(--radius-inner);
+  color: var(--color-on-accent);
   background: var(--color-accent);
-  -webkit-mask: url("/rootlab-icon-light.svg") center / contain no-repeat;
-  mask: url("/rootlab-icon-light.svg") center / contain no-repeat;
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .app-shell[data-astryx-theme="bidops"] .sidebar-brand strong {
-  font-size: 18px;
-  font-weight: 700;
-  line-height: 1.1;
-  letter-spacing: -0.02em;
+  margin: 0;
   color: var(--color-text-primary);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: 0;
 }
 
-.app-shell[data-astryx-theme="bidops"] .sidebar-brand-sub {
+/* 검색 자리(⌘K). 커맨드 팔레트 전까지 비활성이다. */
+.app-shell[data-astryx-theme="bidops"] .sidebar-search {
   display: flex;
   align-items: center;
-  gap: 7.2px;
-  margin: 0;
-  color: var(--color-text-secondary);
-  font-size: var(--bo-type-caption);
-  font-weight: 500;
-  line-height: var(--bo-type-caption-leading);
+  gap: 8px;
+  margin: 0 0 10px;
+  padding: 5px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-inner);
+  color: var(--color-text-disabled);
+  background: var(--color-background-surface);
+  box-shadow: 0 1px 1px rgb(0 0 0 / 3%);
+  font-size: 13px;
+  text-align: left;
+  cursor: default;
 }
 
-/* theme.css의 옛 `.sidebar-brand span`이 흰 글자·margin-top을 주므로(닿는지
-   grep으로 확인) 여기서 되돌린다. */
-.app-shell[data-astryx-theme="bidops"] .sidebar-brand-subtext {
-  margin: 0;
-  color: var(--color-text-secondary);
-  font-size: var(--bo-type-caption);
-  word-break: keep-all;
+.app-shell[data-astryx-theme="bidops"] .sidebar-search svg {
+  flex: 0 0 15px;
+  width: 15px;
+  height: 15px;
 }
 
-.app-shell[data-astryx-theme="bidops"] .sidebar-brand:hover strong {
-  color: var(--color-text-accent);
+.app-shell[data-astryx-theme="bidops"] .sidebar-search kbd {
+  margin-left: auto;
+  padding: 0 5px;
+  border: 1px solid var(--color-border-emphasized);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  color: var(--color-text-secondary);
+  background: var(--color-background-surface);
+  font-family: inherit;
+  font-size: 11px;
 }
 
 .app-shell[data-astryx-theme="bidops"] .sidebar-nav {
   display: flex;
-  flex-direction: column;
   flex: 1;
-  padding: var(--spacing-1) var(--spacing-3) var(--spacing-3);
+  flex-direction: column;
+  gap: 1px;
+  padding: 0;
 }
 
 .app-shell[data-astryx-theme="bidops"] .sidebar-group {
-  padding: var(--spacing-3) 0 0;
+  padding: 0;
 }
 
 .app-shell[data-astryx-theme="bidops"] .sidebar-group-label {
-  padding: 0 var(--spacing-3) var(--spacing-2);
-  color: var(--color-text-secondary);
-  font-size: var(--shell-sidebar-group-label-size);
-  font-weight: 500;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  padding: 12px 8px 4px;
+  color: var(--color-text-disabled);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: none;
 }
 
 .app-shell[data-astryx-theme="bidops"] .sidebar-items {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-1);
+  gap: 1px;
 }
 
 .app-shell[data-astryx-theme="bidops"] .sidebar-item {
   display: flex;
   align-items: center;
-  gap: var(--spacing-3);
-  min-height: var(--size-element-lg);
-  padding: var(--spacing-2) var(--spacing-3);
+  gap: 8px;
+  min-height: 30px;
+  padding: 5px 8px;
   border: 0;
   border-radius: var(--radius-inner);
-  color: var(--color-text-secondary);
-  font-size: var(--shell-sidebar-item-size);
+  color: var(--color-text-primary);
+  font-size: 13px;
+  line-height: 1.4;
+  text-decoration: none;
   transition: background-color var(--duration-fast) ease, color var(--duration-fast) ease;
 }
 
 .app-shell[data-astryx-theme="bidops"] .sidebar-item svg {
-  flex: 0 0 var(--shell-sidebar-icon-size);
-  width: var(--shell-sidebar-icon-size);
-  height: var(--shell-sidebar-icon-size);
+  flex: 0 0 15px;
+  width: 15px;
+  height: 15px;
+  color: var(--color-icon-secondary);
 }
 
 .app-shell[data-astryx-theme="bidops"] .sidebar-item:hover {
+  color: var(--color-text-primary);
+  background: var(--bo-sidebar-hover);
+}
+
+.app-shell[data-astryx-theme="bidops"] .sidebar-item.is-active {
+  color: var(--color-text-primary);
+  background: var(--bo-sidebar-active);
+  box-shadow: none;
+  outline: 0;
+  font-weight: 600;
+}
+
+.app-shell[data-astryx-theme="bidops"] .sidebar-item.is-active svg {
+  color: var(--color-icon-primary);
+}
+
+.app-shell[data-astryx-theme="bidops"] .sidebar-item.is-disabled {
+  color: var(--color-text-disabled);
+  cursor: default;
+}
+
+.app-shell[data-astryx-theme="bidops"] .sidebar-item.is-disabled:hover {
+  background: transparent;
+}
+
+.app-shell[data-astryx-theme="bidops"] .sidebar-item-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 리스트 항목의 색 점(8px, 라운드 3). 식별용이며 상태를 색만으로 말하지 않는다. */
+.app-shell[data-astryx-theme="bidops"] .sidebar-dot {
+  flex: 0 0 8px;
+  width: 8px;
+  height: 8px;
+  margin: 0 3px;
+  border-radius: 3px;
+}
+
+.app-shell[data-astryx-theme="bidops"] .sidebar-dot.is-accent { background: var(--color-accent); }
+.app-shell[data-astryx-theme="bidops"] .sidebar-dot.is-teal { background: var(--color-icon-teal); }
+.app-shell[data-astryx-theme="bidops"] .sidebar-dot.is-warning { background: var(--color-warning); }
+.app-shell[data-astryx-theme="bidops"] .sidebar-dot.is-error { background: var(--color-error); }
+
+.app-shell[data-astryx-theme="bidops"] .sidebar-item-count {
+  margin-left: auto;
   color: var(--color-text-secondary);
-  background: var(--color-background-muted);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.app-shell[data-astryx-theme="bidops"] .sidebar-item-count.is-active {
+  padding: 0 7px;
+  border-radius: var(--radius-full);
+  color: var(--color-success);
+  background: var(--color-success-muted);
+  font-size: 11px;
+  font-weight: 600;
 }
 
 .app-shell[data-astryx-theme="bidops"] .sidebar-external-link {
   margin-top: auto;
-}
-
-/* 활성 항목만 흰 카드로 떠오른다(spec §2.1). 좌측 띠는 두지 않되, 키보드
-   focus-visible과 같은 outline(2px solid var(--color-text-accent), offset 2px)을
-   기본값으로 상시 노출한다. */
-.app-shell[data-astryx-theme="bidops"] .sidebar-item.is-active {
-  color: var(--color-text-accent);
-  background: var(--color-background-surface);
-  box-shadow: var(--shadow-low);
-  outline: 2px solid var(--color-text-accent);
-  outline-offset: 2px;
-  font-weight: 600;
-}
-
-.app-shell[data-astryx-theme="bidops"] .sidebar-item-pending {
-  margin-left: auto;
-  padding: var(--spacing-0-5) var(--spacing-2);
-  border-radius: var(--radius-full);
   color: var(--color-text-secondary);
-  background: var(--color-background-muted);
-  /* 사용자 요청 2026-09-15: 사이드바 글자 +1px */
-  font-size: calc(var(--bo-type-caption) + 0.9px);
 }
 
+/* 하단: 팀원 초대·도움말·설정·사용자(시안 v26). */
 .app-shell[data-astryx-theme="bidops"] .sidebar-footer {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-1);
-  padding: var(--spacing-4) var(--spacing-5) var(--spacing-5);
+  gap: 1px;
+  padding: 12px 0 0;
   border-top: 0;
   color: var(--color-text-secondary);
-  /* 사용자 요청 2026-09-15: 사이드바 글자 +1px */
-  font-size: calc(var(--bo-type-caption) + 0.9px);
+  font-size: 13px;
 }
 
-.app-shell[data-astryx-theme="bidops"] .sidebar-footer span:last-child {
-  color: var(--color-text-secondary);
+.app-shell[data-astryx-theme="bidops"] .sidebar-user {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  padding: 10px 8px 4px;
+  border-top: 1px solid var(--color-border);
+  color: var(--color-text-primary);
+}
+
+.app-shell[data-astryx-theme="bidops"] .sidebar-avatar {
+  display: inline-flex;
+  flex: 0 0 22px;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-full);
+  color: var(--color-text-primary);
+  background: var(--bo-avatar-bg);
+  font-size: 10px;
+  font-weight: 600;
 }
 
 .app-shell[data-astryx-theme="bidops"] .app-content {
@@ -367,15 +440,31 @@ body {
   display: flex;
   flex: 0 0 auto;
   align-items: center;
-  gap: var(--spacing-4);
-  min-height: 68.4px;
-  height: 68.4px;
-  padding: var(--spacing-3) var(--shell-canvas-inline-padding);
+  gap: 10px;
+  min-height: 44px;
+  height: 44px;
+  padding: 0 16px;
   overflow: visible;
   color: var(--color-text-primary);
-  /* 상단바도 canvas와 같은 면이며 하단 테두리를 두지 않는다(spec §2.1). */
-  background: var(--color-background-body);
-  border-bottom: 0;
+  /* RL 상단바(ui-spec §1.3): 흰 면 44px + 하단 1px 경계. */
+  background: var(--color-background-surface);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.app-shell[data-astryx-theme="bidops"] .topbar-list-title {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.app-shell[data-astryx-theme="bidops"] .topbar-list-dot {
+  flex: 0 0 8px;
+  width: 8px;
+  height: 8px;
+  border-radius: 3px;
+  background: var(--color-accent);
 }
 
 /* 상단 경로. 화면 이름(`<h1>`)만 강조하고 앞뒤 칸은 보조 문구로 둔다.
@@ -392,8 +481,14 @@ body {
 .app-shell[data-astryx-theme="bidops"] .topbar-crumb + .topbar-crumb::before,
 .app-shell[data-astryx-theme="bidops"] .topbar-crumb-text {
   color: var(--color-text-secondary);
-  font-size: var(--bo-type-caption);
+  font-size: 12px;
   line-height: 1.4;
+}
+
+/* 시안의 경로 구분자는 `/`다. */
+.app-shell[data-astryx-theme="bidops"] .topbar-crumb + .topbar-crumb::before {
+  content: "/";
+  color: var(--color-border-emphasized);
 }
 
 .app-shell[data-astryx-theme="bidops"] .topbar-crumb.is-record .topbar-crumb-text {
@@ -412,7 +507,8 @@ body {
 .app-shell[data-astryx-theme="bidops"] .topbar h1 {
   overflow-wrap: anywhere;
   color: var(--color-text-primary);
-  font-size: var(--font-size-base);
+  font-size: 13px;
+  font-weight: 600;
   line-height: 1.4;
   white-space: normal;
 }
@@ -424,9 +520,9 @@ body {
 .app-shell[data-astryx-theme="bidops"] .topbar[data-topbar-mode="title"] h1 {
   flex: 0 0 auto;
   color: var(--color-text-primary);
-  font-size: var(--bo-type-page-title);
-  font-weight: var(--bo-type-page-title-weight);
-  line-height: var(--bo-type-page-title-leading);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.35;
   white-space: nowrap;
 }
 
@@ -537,7 +633,7 @@ body {
   /* 필터 줄이 상단바에 붙어 보이도록 위만 4px 줄인다(spec §2.1). */
   padding: var(--spacing-3) var(--shell-canvas-inline-padding) var(--spacing-4);
   overflow: auto;
-  background: var(--color-background-body);
+  background: var(--color-background-surface);
 }
 
 /* 승인된 판정 기준·실행 상태 ERP 시안의 바깥 프레임.
@@ -555,9 +651,9 @@ body {
 }
 
 .app-shell[data-astryx-theme="bidops"] .app-content:has(> .page-canvas > :is(.crit-page, .rs-page)) > .topbar h1 {
-  font-size: var(--bo-type-page-title);
-  font-weight: var(--bo-type-page-title-weight);
-  line-height: var(--bo-type-page-title-leading);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.35;
 }
 
 .app-shell[data-astryx-theme="bidops"] .shell-notice {

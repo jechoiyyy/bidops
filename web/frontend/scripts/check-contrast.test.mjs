@@ -162,12 +162,12 @@ test('cool gray anchor(#8D8F8E)가 텍스트 토큰에 배정되지 않는다', 
 });
 
 test('성공만 포인트 계열, 경고·실패는 별도 hue를 유지한다', () => {
-  // intent 결정 1. 성공만 포인트 초록으로 옮기고, 경고·실패는 포인트와 경쟁하지
-  // 않도록 별도 hue 를 그대로 둔다.
+  // intent 결정 1(0915)을 ADR-0073 개정(2026-10-16, 시안 v26)이 갱신했다: 의미색은
+  // 시안 값 그대로이며 성공은 강조색과 같은 초록, 경고·실패는 별도 hue 다.
   for (const [name, expected] of [
-    ['color-success', '#3f5a1c'],
-    ['color-error', '#a50c25'],
-    ['color-warning', '#745b00'],
+    ['color-success', '#1d7b4e'],
+    ['color-error', '#8f2f1d'],
+    ['color-warning', '#8a5200'],
   ]) {
     assert.equal(
       token(name).toLowerCase(),

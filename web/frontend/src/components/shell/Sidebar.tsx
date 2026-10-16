@@ -1,126 +1,180 @@
+import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation } from "react-router-dom";
+import { api } from "../../lib/api";
+import type { WorkloadKey } from "../../lib/types";
 import { runSearchFor } from "./route-meta";
 
-type IconName = "dashboard" | "queue" | "deadline" | "judgment" | "review" | "profile" | "metrics" | "quality" | "policy" | "runs" | "attachments" | "operations" | "audit" | "order-plan";
+/**
+ * RL 사이드바 — docs/1016_rootlab-redefinition/ui-spec.md §1.2 (시안 v26, mockups/v26).
+ *
+ * 위에서 아래로: 워크스페이스 → 검색(⌘K) → 빠른 이동(알림·다음 행동·노트·보고서)
+ * → 레코드(공고·사업기회·기관·회사 근거) → 리스트(오늘의 브리핑·추적 중·연차
+ * 예고·마감 임박·새 리스트) → 하단(팀원 초대·도움말·설정·사용자).
+ *
+ * 아직 화면이 없는 항목(노트·보고서·기관·새 리스트·팀원 초대·도움말)은 자리만
+ * 두고 `aria-disabled`로 비활성이다. 스스로 "준비 중" 화면을 만들지 않는다.
+ * 건수는 `GET /api/workload`의 값만 쓰고(ADR-0067) 없으면 그리지 않는다.
+ */
+type IconName =
+  | "search"
+  | "bell"
+  | "task"
+  | "note"
+  | "chart"
+  | "doc"
+  | "opp"
+  | "org"
+  | "shield"
+  | "plus"
+  | "users"
+  | "help"
+  | "gear"
+  | "external";
 
 interface NavItem {
   label: string;
-  path: string;
-  icon: IconName;
-  // 이 항목의 화면이 흡수한 옛 경로들이다. 옛 경로는 리다이렉트가 아니라 그
-  // 뷰·탭의 정식 주소로 남아 있으므로(ADR-0046 결정 8), 그 주소에 있을 때도
-  // 이 항목이 활성으로 보여야 한다.
+  /** 이동할 주소. `null`이면 화면이 아직 없는 비활성 항목이다. */
+  path: string | null;
+  icon?: IconName;
+  /** 리스트 항목의 색 점. 상태를 색 점만으로 말하지 않으며 식별용이다. */
+  dot?: "accent" | "teal" | "warning" | "error";
+  /** 활성 판단에 쓰는 `navPath`. 없으면 `path`의 pathname이다. */
+  navPath?: string;
+  /** 이 항목이 흡수한 옛 경로. 그 주소에서도 이 항목이 활성으로 보인다. */
   absorbs?: string[];
+  /** `GET /api/workload`에서 읽는 건수 키. */
+  count?: WorkloadKey;
 }
 
 interface NavGroup {
-  label: string;
+  label: string | null;
   items: NavItem[];
 }
 
-// ADR-0046 결정 1·2: 1차 분류를 `오늘의 업무` / `탐색과 추적`으로 바꾸고 항목을
-// 16에서 7로 줄인다. `검토 대기열`은 회차 축이라 같은 사업기회가 회차마다 다른
-// 행으로 나타났다. 그 자리를 `사업 추적`이 받고, 검토 대기열·공고 판정 이력·
-// 담당자 리뷰 기록·마감 추적은 사업 추적이 여는 화면이 된다.
-//
-// 회차 선택기 표시 여부가 사이드바만 보고 예측돼야 하므로(ADR-0046 결정 7)
-// 사이드바 항목 중 회차 선택기를 갖는 것은 `대시보드` 하나다. 나머지 한 자리인
-// 공고 판정 이력은 사이드바 항목이 아니다.
 const groups: NavGroup[] = [
   {
-    label: "오늘의 업무",
+    label: null,
     items: [
-      { label: "대시보드", path: "/", icon: "dashboard" },
+      // 알림은 대시보드가 누적 업무 집계를 맡고 있으므로 그 화면으로 간다.
+      { label: "알림", path: "/", icon: "bell", count: "human_check_required" },
+      { label: "다음 행동", path: "/opportunities?section=조치 필요", icon: "task", navPath: "/opportunities?section=조치 필요", count: "tracking_action_required" },
+      { label: "노트", path: null, icon: "note" },
+      { label: "보고서", path: null, icon: "chart" },
     ],
   },
   {
-    label: "탐색과 추적",
+    label: "레코드",
     items: [
-      { label: "발주계획", path: "/order-plans", icon: "order-plan" },
-      // 심층 검토 보고서는 사전규격이 여는 화면이다(ADR-0049의 자동 시작
-      // 진입점도 사전규격 상세에 있다). 사업 추적 상세에서 보고서 ID로 열면
-      // 주소의 `from`이 그 사실을 남기고, 그때는 `사업 추적`이 활성이 된다
-      // (route-meta.ts의 `alternateOrigin`).
-      { label: "사전규격", path: "/pre-specs", icon: "judgment", absorbs: ["/deep-reviews"] },
-      // 사업 추적이 검토 대기열의 자리를 받는다. 흡수한 옛 경로는 리다이렉트가
-      // 아니라 그 화면들의 정식 주소로 남아 있으므로(ADR-0046 결정 8) 그 주소에
-      // 있을 때도 이 항목이 활성으로 보인다.
-      {
-        label: "사업 추적",
-        path: "/opportunities",
-        icon: "queue",
-        absorbs: ["/queue", "/judgments", "/reviews", "/deadlines"],
-      },
-      { label: "최종 Go/No-Go", path: "/go-no-go", icon: "judgment" },
+      // 공고 오브젝트. 사전규격 목록이 현재 정본이고 발주계획·심층 보고서·판정 이력을 흡수한다.
+      { label: "공고", path: "/pre-specs", icon: "doc", absorbs: ["/deep-reviews", "/assumption-analyses", "/queue", "/judgments", "/reviews", "/deadlines"] },
+      // 사업기회 오브젝트의 전체 보기. 리스트 `추적 중`과 같은 화면이라 활성은 리스트 쪽이 받는다.
+      { label: "사업기회", path: "/opportunities?section=전체", icon: "opp", navPath: "/opportunities?section=전체", absorbs: ["/go-no-go"] },
+      { label: "기관", path: null, icon: "org" },
+      { label: "회사 근거", path: "/profile", icon: "shield", absorbs: ["/companies"] },
     ],
   },
   {
-    label: "기준과 운영",
+    label: "리스트",
     items: [
-      { label: "판정 기준", path: "/criteria", icon: "policy", absorbs: ["/profile", "/policies", "/quality-gates", "/metrics"] },
-      { label: "실행 상태", path: "/run-status", icon: "operations", absorbs: ["/runs", "/attachments", "/operations", "/audit"] },
+      { label: "오늘의 브리핑", path: "/briefing", dot: "accent" },
+      { label: "추적 중", path: "/opportunities?section=추적 중", dot: "teal", navPath: "/opportunities?section=추적 중" },
+      // 연차 예고는 발주계획에서 나온다. 발주계획 목록이 현재 그 리스트다.
+      { label: "연차 예고", path: "/order-plans", dot: "warning", count: "order_plan_new_priority" },
+      { label: "마감 임박", path: "/opportunities?section=전체&deadline_within_days=7&sort=deadline", dot: "error", navPath: "/opportunities?deadline", count: "tracking_deadline_imminent" },
+      { label: "새 리스트", path: null, icon: "plus" },
     ],
   },
 ];
 
+const footerItems: NavItem[] = [
+  { label: "팀원 초대", path: null, icon: "users" },
+  { label: "도움말", path: null, icon: "help" },
+  // 운영 메뉴(판정 기준·실행 상태·회차·첨부·감사)는 설정 아래로 옮겼다(ui-spec §1.2).
+  { label: "설정", path: "/criteria", icon: "gear", absorbs: ["/run-status", "/runs", "/attachments", "/operations", "/audit", "/policies", "/quality-gates", "/metrics", "/order-plan-policies"] },
+];
+
 function NavIcon({ name }: { name: IconName }) {
-  const common = { viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.7, "aria-hidden": true };
+  const common = { viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round" as const, strokeLinejoin: "round" as const, "aria-hidden": true };
   switch (name) {
-    case "dashboard":
-      return <svg {...common}><rect x="3" y="3" width="7" height="9" rx="1" /><rect x="14" y="3" width="7" height="5" rx="1" /><rect x="14" y="12" width="7" height="9" rx="1" /><rect x="3" y="16" width="7" height="5" rx="1" /></svg>;
-    case "queue":
-      return <svg {...common}><path d="M4 6h16M4 12h16M4 18h9" /></svg>;
-    case "order-plan":
-      return <svg {...common}><path d="M5 4h14v16H5z" /><path d="M8 8h8M8 12h8M8 16h5" /><path d="M8 4V2M16 4V2" /></svg>;
-    case "deadline":
-      return <svg {...common}><circle cx="12" cy="12" r="8" /><path d="M12 8v4l3 2" /></svg>;
-    case "judgment":
-      return <svg {...common}><path d="M6 3h9l4 4v14H6z" /><path d="M14 3v5h5M9 13h7M9 17h5" /></svg>;
-    case "review":
-      return <svg {...common}><path d="M21 12a9 9 0 1 1-4-7.5" /><path d="m9 12 2.5 2.5L20 6" /></svg>;
-    case "profile":
-      return <svg {...common}><path d="M4 21V6l7-3 7 3v15" /><path d="M9 21v-6h4v6M4 21h16" /></svg>;
-    case "metrics":
-      return <svg {...common}><path d="M4 19V5M4 19h16" /><path d="m8 15 4-6 3 3 4-7" /></svg>;
-    case "quality":
-      return <svg {...common}><path d="m12 3 7 3v5c0 4.4-2.9 8.3-7 10-4.1-1.7-7-5.6-7-10V6z" /><path d="m9 12 2 2 4-4" /></svg>;
-    case "policy":
-      return <svg {...common}><path d="M6 3h9l4 4v14H6z" /><path d="M14 3v5h5M9 13h7M9 17h5" /></svg>;
-    case "runs":
-      return <svg {...common}><path d="M12 3v6M12 15v6M5 12H3M21 12h-2" /><circle cx="12" cy="12" r="3" /><path d="m6.5 6.5 1.5 1.5M17.5 17.5 16 16" /></svg>;
-    case "attachments":
-      return <svg {...common}><path d="m21 11-8.5 8.5a5 5 0 0 1-7-7L14 4a3.5 3.5 0 0 1 5 5l-8.7 8.7a2 2 0 0 1-2.9-2.8L15.5 6" /></svg>;
-    case "operations":
-      return <svg {...common}><path d="M4 17h3l2-10 4 14 2-8h5" /></svg>;
-    case "audit":
-      return <svg {...common}><path d="M3 7h18M3 12h18M3 17h18" /></svg>;
+    case "search":
+      return <svg {...common}><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>;
+    case "bell":
+      return <svg {...common}><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" /><path d="M10 21a2 2 0 0 0 4 0" /></svg>;
+    case "task":
+      return <svg {...common}><rect x="3" y="4" width="18" height="16" rx="2" /><path d="m8 12 3 3 5-6" /></svg>;
+    case "note":
+      return <svg {...common}><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" /><path d="M14 3v6h6" /></svg>;
+    case "chart":
+      return <svg {...common}><path d="M3 3v18h18" /><path d="M7 15l4-5 4 3 5-7" /></svg>;
+    case "doc":
+      return <svg {...common}><path d="M4 4h12l4 4v12H4z" /><path d="M8 12h8M8 16h8" /></svg>;
+    case "opp":
+      return <svg {...common}><path d="M3 12h4l3-7 4 14 3-7h4" /></svg>;
+    case "org":
+      return <svg {...common}><path d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-6h6v6" /></svg>;
+    case "shield":
+      return <svg {...common}><path d="M12 3 4 7v5c0 5 3.5 8.5 8 9 4.5-.5 8-4 8-9V7z" /><path d="m9 12 2 2 4-4" /></svg>;
+    case "plus":
+      return <svg {...common}><path d="M12 5v14M5 12h14" /></svg>;
+    case "users":
+      return <svg {...common}><circle cx="9" cy="8" r="3.5" /><path d="M2.5 20a6.5 6.5 0 0 1 13 0" /><path d="M16 4a3.5 3.5 0 0 1 0 7M21.5 20a6.5 6.5 0 0 0-4.5-6.2" /></svg>;
+    case "help":
+      return <svg {...common}><circle cx="12" cy="12" r="9" /><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1 .9-1 1.7" /><path d="M12 17h.01" /></svg>;
+    case "gear":
+      return <svg {...common}><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" /></svg>;
+    case "external":
+      return <svg {...common}><path d="M14 4h6v6M20 4l-9 9M19 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5" /></svg>;
   }
+}
+
+function pathnameOf(path: string): string {
+  const index = path.indexOf("?");
+  return index === -1 ? path : path.slice(0, index);
 }
 
 function isCurrentPath(pathname: string, path: string): boolean {
   return path === "/" ? pathname === "/" : pathname === path || pathname.startsWith(`${path}/`);
 }
 
-function isActiveItem(pathname: string, item: NavItem): boolean {
-  if (isCurrentPath(pathname, item.path)) return true;
+/**
+ * 활성 항목은 화면 metadata가 정한 `activeNavPath`가 먼저 정한다. 같은 pathname을
+ * 쓰는 항목(사업기회 전체 보기·추적 중·마감 임박)은 항목의 `navPath`가 주소의
+ * 검색어까지 포함해 구분한다. metadata가 없는 주소에서만 경로·흡수 목록으로 돌아간다.
+ */
+function isActiveItem(item: NavItem, activeNavPath: string | null, pathname: string, search: string): boolean {
+  if (item.path === null) return false;
+  const itemNav = item.navPath ?? pathnameOf(item.path);
+  if (activeNavPath !== null) {
+    if (activeNavPath !== pathnameOf(itemNav)) {
+      return (item.absorbs ?? []).some((absorbed) => isCurrentPath(pathname, absorbed));
+    }
+    // 같은 화면을 가리키는 항목이 여럿이면 검색어가 가장 많이 맞는 하나만 활성이다.
+    const params = new URLSearchParams(search);
+    const section = params.get("section");
+    const deadline = params.has("deadline_within_days");
+    const isDetail = pathname.startsWith("/opportunities/") || pathname.startsWith("/go-no-go");
+    if (itemNav === "/opportunities?deadline") return deadline && !isDetail;
+    // 사업기회 레코드: 전체 보기와 상세·최종 Go/No-Go.
+    if (itemNav === "/opportunities?section=전체") return isDetail || (section === "전체" && !deadline);
+    // 다음 행동: 기본 구역(조치 필요). 화면이 기본 구역의 section 파라미터를 지우므로 비어 있어도 활성이다.
+    if (itemNav === "/opportunities?section=조치 필요") return !isDetail && !deadline && (section === null || section === "조치 필요");
+    if (itemNav === "/opportunities?section=추적 중") return !isDetail && !deadline && section === "추적 중";
+    return true;
+  }
+  if (isCurrentPath(pathname, pathnameOf(item.path))) return true;
   return (item.absorbs ?? []).some((absorbed) => isCurrentPath(pathname, absorbed));
 }
 
-/**
- * 활성 항목은 화면 metadata가 정한 `activeNavPath`가 먼저 정하고, metadata가
- * 없는 주소에서만 경로·흡수 목록으로 되돌아간다. 지원 폭이 1280px 이상뿐이라
- * (ADR-0047) 사이드바는 늘 보이며 서랍으로 접히지 않는다.
- */
 /**
  * 가상회사 데모 메뉴(`GET /api/demo-config`가 enabled일 때만). 회사가 정해진 주소에서만
  * 그 회사의 화면 항목을 보이며, 회사를 몰래 고르지 않는다(`docs/work/demo-contract.md` §1).
  */
 function demoGroup(companyId: string | null): NavGroup {
-  const items: NavItem[] = [{ label: "회사 선택", path: "/companies", icon: "profile" }];
+  const items: NavItem[] = [{ label: "회사 선택", path: "/companies", icon: "org" }];
   if (companyId) {
     items.push(
-      { label: "회사 사전규격", path: `/companies/${companyId}/pre-specs`, icon: "judgment" },
-      { label: "회사 프로필", path: `/companies/${companyId}/profile`, icon: "profile" },
+      { label: "회사 사전규격", path: `/companies/${companyId}/pre-specs`, icon: "doc" },
+      { label: "회사 프로필", path: `/companies/${companyId}/profile`, icon: "shield" },
     );
   }
   return { label: "가상회사 데모", items };
@@ -132,42 +186,38 @@ export interface SidebarDemoNav {
 }
 
 export function Sidebar({ activeNavPath, runSearch, demoNav = null }: { activeNavPath: string | null; runSearch: string; demoNav?: SidebarDemoNav | null }) {
-  const { pathname } = useLocation();
-  const atHome = pathname === "/";
+  const { pathname, search } = useLocation();
+  const workload = useQuery({ queryKey: ["workload"], queryFn: () => api.getWorkload(), staleTime: 60_000 });
+  const counts = new Map<WorkloadKey, number>();
+  for (const item of workload.data?.items ?? []) {
+    if (typeof item.count === "number") counts.set(item.key, item.count);
+  }
   const visibleGroups = demoNav ? [...groups, demoGroup(demoNav.companyId)] : groups;
   return (
-    <aside
-      aria-label="주 메뉴"
-      className="sidebar"
-      data-shell-region="sidebar"
-    >
-      <Link
-        aria-current={atHome ? "page" : undefined}
-        aria-label="RootLab BidOps 대시보드로 이동"
-        className={`sidebar-brand ${atHome ? "is-current" : ""}`.trim()}
-        to={{ pathname: "/", search: runSearch }}
-      >
-        {/* 브랜드 줄 C안(워드마크형, spec §2.1): 면 없이 아이콘 28px + BidOps
-            20/700, 아래 짧은 --bo-brand 선 + 부제. 아이콘은 CSS mask로 칠하므로
-            보조 기술에는 옆의 브랜드 글자만 노출한다. */}
-        <span className="sidebar-brand-row">
-          <span aria-hidden="true" className="sidebar-brand-logo" />
-          <strong>BidOps</strong>
-        </span>
-        <span className="sidebar-brand-sub">
-          <span className="sidebar-brand-subtext">ROOTLAB · 사업기회 모니터링</span>
-        </span>
+    <aside aria-label="주 메뉴" className="sidebar" data-shell-region="sidebar">
+      {/* 워크스페이스 줄(시안: 머리글자 아이콘 + 회사명). 로그인·워크스페이스 전환이
+          없으므로 링크는 브리핑으로 간다. */}
+      <Link aria-label="루트랩 BidOps 오늘의 브리핑으로 이동" className="sidebar-brand" to={{ pathname: "/briefing", search: runSearchFor("/briefing", runSearch) }}>
+        <span aria-hidden="true" className="sidebar-brand-mark">루</span>
+        <strong>루트랩</strong>
       </Link>
+      {/* 검색은 커맨드 팔레트가 들어오기 전까지 자리만 둔다(ui-spec §1.2). */}
+      <button aria-disabled="true" className="sidebar-search" disabled type="button">
+        <NavIcon name="search" />
+        <span>검색</span>
+        <kbd>⌘K</kbd>
+      </button>
       <nav aria-label="주 메뉴" className="sidebar-nav">
-        {visibleGroups.map((group) => (
-          <div className="sidebar-group" key={group.label}>
-            <div className="sidebar-group-label">{group.label}</div>
+        {visibleGroups.map((group, index) => (
+          <div className="sidebar-group" key={group.label ?? `quick-${index}`}>
+            {group.label ? <div className="sidebar-group-label">{group.label}</div> : null}
             <div className="sidebar-items">
               {group.items.map((item) => (
-                <NavLinkItem
-                  active={activeNavPath !== null ? activeNavPath === item.path : isActiveItem(pathname, item)}
+                <NavEntry
+                  active={isActiveItem(item, activeNavPath, pathname, search)}
+                  count={item.count ? counts.get(item.count) ?? null : null}
                   item={item}
-                  key={item.path}
+                  key={item.label}
                   runSearch={runSearch}
                 />
               ))}
@@ -181,28 +231,62 @@ export function Sidebar({ activeNavPath, runSearch, demoNav = null }: { activeNa
           rel="noopener noreferrer"
           target="_blank"
         >
-          나라장터 바로가기
+          <NavIcon name="external" />
+          <span>나라장터 바로가기</span>
         </a>
       </nav>
-      {/* `관리자 화면`은 삭제했다(ADR-0066 §3.3, 시안 M4). 이 화면을 쓰는 사람은
-          기획·사업개발 실무자이고, 운영 화면은 `실행 상태`·`판정 기준` 항목이 이미
-          가리킨다. */}
       <div className="sidebar-footer">
-        <span>기획부 · 사업기획</span>
+        {footerItems.map((item) => (
+          <NavEntry
+            active={isActiveItem(item, activeNavPath, pathname, search)}
+            count={null}
+            item={item}
+            key={item.label}
+            runSearch={runSearch}
+          />
+        ))}
+        {/* 사용자 줄. 로그인이 없으므로 부서 표식만 둔다(담당자 이름은 인증이 아니다). */}
+        <div className="sidebar-user">
+          <span aria-hidden="true" className="sidebar-avatar">기</span>
+          <span>기획부 · 사업기획</span>
+        </div>
       </div>
     </aside>
   );
 }
 
-function NavLinkItem({ item, active, runSearch }: { item: NavItem; active: boolean; runSearch: string }) {
+function NavEntry({ item, active, count, runSearch }: { item: NavItem; active: boolean; count: number | null; runSearch: string }) {
+  const body = (
+    <>
+      {item.icon ? <NavIcon name={item.icon} /> : null}
+      {item.dot ? <span aria-hidden="true" className={`sidebar-dot is-${item.dot}`} /> : null}
+      <span className="sidebar-item-label">{item.label}</span>
+      {/* 건수는 보조 표시다. 링크의 접근 가능한 이름은 항목 이름 하나로 두고(테스트·
+          보조 기술이 "알림 2"가 아니라 "알림"으로 읽는다) 건수는 title로 함께 준다. */}
+      {count !== null ? (
+        <span aria-hidden="true" className={`sidebar-item-count${active ? " is-active" : ""}`}>{count}</span>
+      ) : null}
+    </>
+  );
+  if (item.path === null) {
+    return (
+      <span aria-disabled="true" className="sidebar-item is-disabled" title="아직 준비되지 않은 항목">
+        {body}
+      </span>
+    );
+  }
+  const pathname = pathnameOf(item.path);
+  const query = item.path.includes("?") ? item.path.slice(item.path.indexOf("?")) : "";
+  const runQuery = runSearchFor(pathname, runSearch);
+  const searchValue = query && runQuery ? `${query}&${runQuery.slice(1)}` : query || runQuery;
   return (
     <Link
       aria-current={active ? "page" : undefined}
-      className={`sidebar-item ${active ? "is-active" : ""}`.trim()}
-      to={{ pathname: item.path, search: runSearchFor(item.path, runSearch) }}
+      className={`sidebar-item${active ? " is-active" : ""}`}
+      title={count !== null ? `${item.label} ${count}건` : undefined}
+      to={{ pathname, search: searchValue }}
     >
-      <NavIcon name={item.icon} />
-      <span>{item.label}</span>
+      {body}
     </Link>
   );
 }

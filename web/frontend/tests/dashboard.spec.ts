@@ -379,8 +379,9 @@ for (const [width, height] of WIDTHS) {
       };
     });
     expect(measured.overflow).toBe(0);
-    expect(measured.strip.top).toBeCloseTo(physical(92), 0);
-    expect(measured.strip.left).toBeCloseTo(physical(272), 0);
+    // RL 셸(ui-spec §1.1): 상단바 44px + canvas 위 여백, 사이드바 240px + canvas 좌 여백.
+    expect(measured.strip.top).toBeCloseTo(44 + physical(16), 0);
+    expect(measured.strip.left).toBeCloseTo(240 + physical(24), 0);
     expect(measured.panels).toHaveLength(5);
     // 두 열: 1·3번째 패널이 같은 왼쪽 가장자리에서 시작하고 마지막은 전폭이다.
     expect(measured.panels[2].left).toBeCloseTo(measured.panels[0].left, 0);
