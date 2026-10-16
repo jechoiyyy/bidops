@@ -39,6 +39,7 @@ import {
   type CompanyReviewStatus,
   type CompanyTrackingRow,
 } from "./fixtures/company-demo";
+import { RL_COMPANY_ID, rlAttentionCount, rlContextView, rlFacts, rlProfileView, type RlFact } from "./fixtures/company-rl";
 
 const opportunityFixtures = new WeakMap<Page, OpportunityListItem[]>();
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -80,6 +81,7 @@ const WORKLOAD_KEYS: WorkloadKey[] = [
   "order_plan_pending", "pre_spec_deep_review_ready", "tracking_action_required",
   "tracking_hold_review_due", "bid_final_decision_pending", "tracking_deadline_imminent",
   "human_check_required", "overview_human_review", "blocking_items_open", "order_plan_new_priority",
+  "company_attention",
 ];
 function workloadResponse(page: Page): WorkloadResponse {
   const providers = workloadProviders.get(page);
@@ -3634,6 +3636,67 @@ export async function mockOrderPlanBulkTracking(
       return;
     }
     await route.fallback();
+  });
+  return trace;
+}
+
+
+// ---------------------------------------------------------------------------
+// RL-00 실회사 `/company`(`GET /api/company`, `GET /api/companies/{id}/profile`)
+//
+// `mockApi` 뒤에 건다. 이 두 경로 밖의 요청은 `route.fallback()`으로 `mockApi`의 고정 응답(없으면
+// 404)에 넘기므로 실제 백엔드로 빠지지 않는다. 사이드바 건수는 workload `company_attention`
+// provider로 같은 사실 목록의 `proposed`+`unknown` 수를 준다.
+
+export interface RealCompanyMockOptions {
+  /** 실회사 행이 없는 상태: 404 `company_not_registered`, workload는 `provider_absent`. */
+  notRegistered?: boolean;
+  /** 실회사는 있으나 활성 그래프가 없는 상태: `active_graph_version:null`, profile은 409 `company_profile_not_ready`. */
+  noActiveVersion?: boolean;
+  /** 사실 목록. 기본은 `fixtures/company-rl.ts`의 `rlFacts()`. */
+  facts?: RlFact[];
+}
+
+export interface RealCompanyMockTrace {
+  /** 회사 경로 요청을 `METHOD path?query` 모양으로 순서대로 남긴다. */
+  requests: string[];
+}
+
+export async function mockRealCompany(page: Page, options: RealCompanyMockOptions = {}): Promise<RealCompanyMockTrace> {
+  const facts = options.facts ?? rlFacts();
+  const trace: RealCompanyMockTrace = { requests: [] };
+  if (options.notRegistered) {
+    workloadProvider(page, "company_attention", () => ({ count: null, unavailable_reason: "provider_absent" }));
+  } else if (options.noActiveVersion) {
+    workloadProvider(page, "company_attention", () => ({ count: null, unavailable_reason: "company_profile_not_ready" }));
+  } else {
+    workloadProvider(page, "company_attention", () => ({ count: rlAttentionCount(facts), unavailable_reason: null }));
+  }
+  await page.route(/\/api\/company(?:\?.*)?$/, async (route) => {
+    const request = route.request();
+    if (request.method() !== "GET") { await route.fallback(); return; }
+    const url = new URL(request.url());
+    trace.requests.push(`GET ${url.pathname}${url.search}`);
+    if (options.notRegistered) {
+      await fulfillJson(route, { error: { code: "company_not_registered", message: "합성 회사 오류", details: null }, request_id: null }, 404);
+      return;
+    }
+    await fulfillJson(route, rlContextView({ noActiveVersion: options.noActiveVersion }));
+  });
+  await page.route(/\/api\/companies\/[^/]+\/profile(?:\?.*)?$/, async (route) => {
+    const request = route.request();
+    if (request.method() !== "GET") { await route.fallback(); return; }
+    const url = new URL(request.url());
+    trace.requests.push(`GET ${url.pathname}${url.search}`);
+    if (options.notRegistered || url.pathname !== `/api/companies/${RL_COMPANY_ID}/profile`) {
+      await fulfillJson(route, { error: { code: "not_found", message: "합성 회사 오류", details: null }, request_id: null }, 404);
+      return;
+    }
+    if (options.noActiveVersion) {
+      await fulfillJson(route, { error: { code: "company_profile_not_ready", message: "합성 회사 오류", details: null }, request_id: null }, 409);
+      return;
+    }
+    await fulfillJson(route, rlProfileView(facts));
   });
   return trace;
 }

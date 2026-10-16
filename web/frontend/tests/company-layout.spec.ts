@@ -4,7 +4,6 @@ import {
   COMPANY_BY_SLUG,
   COMPANY_FIXTURES,
   LONG_COMPANY_NAME_SUFFIX,
-  LONG_GRAPH_LABEL,
   LONG_NOTICE_TITLE,
   companyReviewEvidence,
   reviewIdFor,
@@ -294,45 +293,6 @@ test("Luna 외부 전송 승인 상자(미리보기 후)가 긴 회사 이름·�
   await expectInViewport(box.getByRole("button", { name: "전송 승인하고 심층검토 요청" }), "승인 버튼");
   await expectInViewport(box.locator('[aria-label="회사 지식 버전"]'), "회사 지식 버전");
   await expectScreenFits(page, "Luna 승인 상자", info, "company-luna-approval");
-});
-
-test("프로필·관계 목록: 긴 label의 노드·관계 행이 들어가고 근거 패널을 열어도 행과 겹치거나 넘치지 않는다", async ({ page }, info) => {
-  await installMocks(page, { longText: true });
-  await page.goto(`/companies/${id("demo-public-si")}/profile`);
-  const graph = page.getByTestId("company-graph");
-  await expect(graph).toHaveAttribute("data-graph-state", "ready");
-  const longNode = graph.locator('li[data-node-id="capability.records_mgmt"]');
-  const longEdge = graph.locator('li[data-edge-id="edge.has_capability.records_mgmt"]');
-  await expect(longNode.locator(".kg-row-title")).toHaveText(LONG_GRAPH_LABEL);
-  await expect(longEdge.locator("[data-edge-to]")).toHaveText(LONG_GRAPH_LABEL);
-  await expect(graph.locator("li[data-edge-id]").first()).toBeVisible();
-  await expect(graph.getByTestId("graph-version")).toContainText(COMPANY_BY_SLUG["demo-public-si"].graph_version_id);
-
-  const relations = graph.getByRole("region", { name: "관계 목록" });
-  await expectInViewport(relations, "관계 목록");
-  await expectInViewport(longNode, "긴 label 노드 행");
-  for (const part of ["[data-edge-from]", "[data-edge-label]", "[data-edge-to]"]) {
-    await expectInViewport(longEdge.locator(part), `긴 관계 행 ${part}`);
-    await expectNotClipped(longEdge.locator(part), `긴 관계 행 ${part}`);
-  }
-  await expectScreenFits(page, "프로필 관계 목록", info, "company-profile-graph");
-
-  // 근거 패널을 열면 목록은 한 칸으로 좁아지고 패널이 옆에 선다.
-  await graph.locator('[data-graph-trigger="node:capability.records_mgmt"]').click();
-  const panel = page.getByTestId("graph-evidence-panel");
-  await expect(panel.getByRole("heading", { level: 4 })).toHaveText(LONG_GRAPH_LABEL);
-  await expect(panel.locator("li[data-evidence-loaded]")).toHaveCount(1);
-  await expectInViewport(panel, "근거 패널");
-  await expectNotClipped(panel.getByRole("heading", { level: 4 }), "근거 패널 제목");
-  await expectNotClipped(panel.locator("blockquote"), "근거 인용문");
-  const panelBox = (await panel.boundingBox())!;
-  const nodesBox = (await graph.getByRole("region", { name: "노드 목록" }).boundingBox())!;
-  const relationsBox = (await relations.boundingBox())!;
-  expect(panelBox.x, "근거 패널이 노드 목록과 겹칩니다").toBeGreaterThanOrEqual(nodesBox.x + nodesBox.width - 1);
-  expect(panelBox.x, "근거 패널이 관계 목록과 겹칩니다").toBeGreaterThanOrEqual(relationsBox.x + relationsBox.width - 1);
-  await expectInViewport(longEdge.locator("[data-edge-to]"), "근거 패널을 연 뒤 관계 행 끝");
-  await expectNotClipped(longEdge.locator("[data-edge-to]"), "근거 패널을 연 뒤 관계 행 끝");
-  await expectScreenFits(page, "프로필 근거 패널", info, "company-profile-evidence");
 });
 
 test("3사 비교 표: 긴 한글에서도 비교 상태 열이 숨지 않고 표가 가로 스크롤 없이 들어간다", async ({ page }, info) => {

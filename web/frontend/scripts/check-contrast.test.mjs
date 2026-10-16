@@ -183,13 +183,21 @@ test('상태·등급 표시에 blue 계열 토큰을 배정하지 않는다', ()
   // slate 농도만 쓰고, 상태는 success/error/warning/teal 의미색만 쓴다.
   // 테마와 core 는 blue 토큰을 정의하지만 화면 CSS 가 그것을 읽지 않는 것이
   // 이 게이트다.
+  // 예외 하나(ADR-0048 2026-10-16 개정, RL-00 spec "상태 이름 대응"): 회사 근거
+  // 화면의 추정값(`proposed`) pill 규칙 하나만 blue ramp 를 읽는다. 다른 선택자·
+  // 다른 파일은 그대로 막는다.
+  const allowed = new Set(['company-ground-truth.css|.co-pill.is-proposed']);
   const styles = join(root, 'src/styles');
   const offenders = [];
   for (const name of readdirSync(styles)) {
     if (!name.endsWith('.css')) continue;
-    const body = readFileSync(join(styles, name), 'utf8');
-    for (const m of body.matchAll(/var\(\s*(--color-[a-z-]*blue[a-z0-9-]*)/g)) {
-      offenders.push(`${name}: ${m[1]}`);
+    const body = readFileSync(join(styles, name), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+    for (const rule of body.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+      const selector = rule[1].trim();
+      for (const m of rule[2].matchAll(/var\(\s*(--color-[a-z-]*blue[a-z0-9-]*)/g)) {
+        if (allowed.has(`${name}|${selector}`)) continue;
+        offenders.push(`${name}: ${m[1]}`);
+      }
     }
   }
   assert.deepEqual(offenders, [], `화면 CSS 가 blue 토큰을 읽는다: ${offenders.join(', ')}`);

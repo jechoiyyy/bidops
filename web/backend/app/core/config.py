@@ -96,6 +96,11 @@ class Settings(BaseSettings):
     # DEMO-01 multi-company routes are local-demo only and fail closed.
     # Enabling this flag registers no data and starts no work by itself.
     demo_enabled: bool = Field(default=False, validation_alias="BIDOPS_DEMO_ENABLED")
+    # RL-00 "곧 만료" window for company facts (qualification ``valid_until``),
+    # passed to the screen as ``CompanyContextView.expiry_warning_days``.
+    company_expiry_warning_days: int = Field(
+        default=60, ge=1, le=365, validation_alias="BIDOPS_COMPANY_EXPIRY_WARNING_DAYS"
+    )
     # DEMO-03 purpose-specific immutable policy rows (contract §9). Empty means
     # unset; there is no global fallback and importing a policy selects nothing.
     demo_company_fit_policy_version_id: UUID | None = Field(

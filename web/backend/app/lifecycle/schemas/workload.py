@@ -9,6 +9,9 @@ from ...core.schema_base import AwareDateTime, RuntimeContractModel
 #: 뒤 다섯은 실무자 대시보드 패널 계약(ADR-0067)이 더했다 — 세는 키 넷과 그중 둘의
 #: 합계 하나다. `human_check_required`가 그 합계이며 바로 뒤 두 하위 건수를 더한
 #: 값이고, 하나라도 `null`이면 합계도 `null`(`sub_count_unavailable`)이다.
+#: 마지막 `company_attention`(RL-00)은 실회사 활성 그래프의 `proposed`+`unknown`
+#: 비evidence 노드 수이며 deep_review가 센다. 짝 목록 REST가 없는 ADR-0067 예외다
+#: (화면은 profile facts로 직접 센다). 실회사가 없으면 `null`(`provider_absent`).
 WorkloadKey = Literal[
     "order_plan_pending",
     "pre_spec_deep_review_ready",
@@ -20,6 +23,7 @@ WorkloadKey = Literal[
     "overview_human_review",
     "blocking_items_open",
     "order_plan_new_priority",
+    "company_attention",
 ]
 
 

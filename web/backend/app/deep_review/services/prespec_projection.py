@@ -164,6 +164,7 @@ class DeepReviewWorkloadProjection:
     """deep_review가 소유한 업무 건수. 대상이 없으면 실제 0이다."""
 
     def workload_counts(self, session: Any) -> Mapping[str, WorkloadCount]:
+        from .company_knowledge import company_attention_count
         from .decision_queue import decision_queue
 
         notice_ids = session.scalars(select(Notice.id).where(Notice.source_type == "pre_spec")).all()
@@ -185,6 +186,8 @@ class DeepReviewWorkloadProjection:
             "overview_human_review": WorkloadCount(
                 sum(int(statuses.get(status, 0)) for status in _HUMAN_REVIEW_OVERVIEW_STATUSES)
             ),
+            # RL-00 사이드바 "회사 근거" pill. 실회사·활성 binding이 없으면 null과 사유다.
+            "company_attention": WorkloadCount(*company_attention_count(session)),
         }
 
 

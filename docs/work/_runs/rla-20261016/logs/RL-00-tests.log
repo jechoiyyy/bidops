@@ -1,0 +1,61 @@
+...s.................s.s.s.s..s.s.s.s.s.s....sss.s.s.................... [ 32%]
+s.s.s.s.s.s.s.s.s..ss.s.ss.s....sssss..s.s.s................ssssssssssss [ 64%]
+ssss.s.s.s.s.s.s.s.s.s.ss..ss.s..................................sssssss [ 96%]
+sssssssss                                                                [100%]
+=============================== warnings summary ===============================
+../../../../../../../../../private/tmp/claude-502/-Users-temp-orca-bidops/f18c3f29-e3fa-486a-92f8-92223fb99eab/scratchpad/venv/lib/python3.12/site-packages/fastapi/testclient.py:1
+  /private/tmp/claude-502/-Users-temp-orca-bidops/f18c3f29-e3fa-486a-92f8-92223fb99eab/scratchpad/venv/lib/python3.12/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+app/deep_review/schemas/document_bundles.py:115
+  /Users/temp/orca/bidops/.sdlc/worktrees/rla-20261016-RL-00-company-ground-truth/web/backend/app/deep_review/schemas/document_bundles.py:115: UserWarning: Field name "schema" in "DocumentStructure" shadows an attribute in parent "StrictModel"
+    class DocumentStructure(StrictModel):
+
+app/deep_review/schemas/document_bundles.py:227
+  /Users/temp/orca/bidops/.sdlc/worktrees/rla-20261016-RL-00-company-ground-truth/web/backend/app/deep_review/schemas/document_bundles.py:227: UserWarning: Field name "schema" in "SegmentExtractorBinding" shadows an attribute in parent "StrictModel"
+    class SegmentExtractorBinding(StrictModel):
+
+app/deep_review/schemas/document_bundles.py:235
+  /Users/temp/orca/bidops/.sdlc/worktrees/rla-20261016-RL-00-company-ground-truth/web/backend/app/deep_review/schemas/document_bundles.py:235: UserWarning: Field name "schema" in "DocumentSegmentsView" shadows an attribute in parent "StrictModel"
+    class DocumentSegmentsView(StrictModel):
+
+app/deep_review/schemas/reports.py:69
+  /Users/temp/orca/bidops/.sdlc/worktrees/rla-20261016-RL-00-company-ground-truth/web/backend/app/deep_review/schemas/reports.py:69: UserWarning: Field name "schema" in "DeepReviewReport" shadows an attribute in parent "StrictModel"
+    class DeepReviewReport(StrictModel):
+
+app/deep_review/schemas/reports.py:122
+  /Users/temp/orca/bidops/.sdlc/worktrees/rla-20261016-RL-00-company-ground-truth/web/backend/app/deep_review/schemas/reports.py:122: UserWarning: Field name "schema" in "NarrativeReport" shadows an attribute in parent "DeepReviewReport"
+    class NarrativeReport(DeepReviewReport):
+
+app/deep_review/schemas/reports.py:143
+  /Users/temp/orca/bidops/.sdlc/worktrees/rla-20261016-RL-00-company-ground-truth/web/backend/app/deep_review/schemas/reports.py:143: UserWarning: Field name "schema" in "DeepReviewValidation" shadows an attribute in parent "StrictModel"
+    class DeepReviewValidation(StrictModel):
+
+app/deep_review/agents/common/contracts.py:391
+  /Users/temp/orca/bidops/.sdlc/worktrees/rla-20261016-RL-00-company-ground-truth/web/backend/app/deep_review/agents/common/contracts.py:391: UserWarning: Field name "schema" in "AgentRunView" shadows an attribute in parent "_StrictModel"
+    class AgentRunView(_StrictModel):
+
+app/deep_review/agents/common/contracts.py:462
+  /Users/temp/orca/bidops/.sdlc/worktrees/rla-20261016-RL-00-company-ground-truth/web/backend/app/deep_review/agents/common/contracts.py:462: UserWarning: Field name "schema" in "AgentCommand" shadows an attribute in parent "_StrictModel"
+    class AgentCommand(_StrictModel, Generic[TAction]):
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+SKIPPED [1] tests/app/test_company_knowledge_cli.py:207: BIDOPS_TEST_POSTGRES_URL is not set; PostgreSQL migration and constraint tests need a disposable PostgreSQL 17 server
+SKIPPED [12] tests/app/test_company_knowledge_api.py: BIDOPS_TEST_POSTGRES_URL is not set; PostgreSQL migration and constraint tests need a disposable PostgreSQL 17 server
+SKIPPED [3] tests/app/test_company_knowledge_api.py:990: BIDOPS_TEST_POSTGRES_URL is not set; PostgreSQL migration and constraint tests need a disposable PostgreSQL 17 server
+SKIPPED [12] tests/app/test_company_context.py: BIDOPS_TEST_POSTGRES_URL is not set; PostgreSQL migration and constraint tests need a disposable PostgreSQL 17 server
+SKIPPED [2] tests/app/test_company_context.py:891: BIDOPS_TEST_POSTGRES_URL is not set; PostgreSQL migration and constraint tests need a disposable PostgreSQL 17 server
+SKIPPED [1] tests/app/test_company_context.py:1082: BIDOPS_TEST_POSTGRES_URL is not set; PostgreSQL migration and constraint tests need a disposable PostgreSQL 17 server
+SKIPPED [4] tests/app/test_company_context.py:1294: BIDOPS_TEST_POSTGRES_URL is not set; PostgreSQL migration and constraint tests need a disposable PostgreSQL 17 server
+SKIPPED [1] tests/app/test_company_context.py:1306: BIDOPS_TEST_POSTGRES_URL is not set; PostgreSQL migration and constraint tests need a disposable PostgreSQL 17 server
+SKIPPED [14] tests/deep_review/test_company_knowledge.py: BIDOPS_TEST_POSTGRES_URL is not set; PostgreSQL migration and constraint tests need a disposable PostgreSQL 17 server
+SKIPPED [16] tests/deep_review/test_company_knowledge.py:475: BIDOPS_TEST_POSTGRES_URL is not set; PostgreSQL migration and constraint tests need a disposable PostgreSQL 17 server
+SKIPPED [1] tests/deep_review/test_company_knowledge.py:785: BIDOPS_TEST_POSTGRES_URL is not set; PostgreSQL migration and constraint tests need a disposable PostgreSQL 17 server
+SKIPPED [2] tests/deep_review/test_company_knowledge.py:863: BIDOPS_TEST_POSTGRES_URL is not set; PostgreSQL migration and constraint tests need a disposable PostgreSQL 17 server
+SKIPPED [3] tests/app/test_workload_api.py:94: BIDOPS_TEST_POSTGRES_URL is not set; PostgreSQL migration and constraint tests need a disposable PostgreSQL 17 server
+SKIPPED [4] tests/app/test_workload_api.py:113: BIDOPS_TEST_POSTGRES_URL is not set; PostgreSQL migration and constraint tests need a disposable PostgreSQL 17 server
+SKIPPED [6] tests/app/test_workload_api.py:274: BIDOPS_TEST_POSTGRES_URL is not set; PostgreSQL migration and constraint tests need a disposable PostgreSQL 17 server
+SKIPPED [3] tests/app/test_workload_api.py:406: BIDOPS_TEST_POSTGRES_URL is not set; PostgreSQL migration and constraint tests need a disposable PostgreSQL 17 server
+140 passed, 85 skipped, 9 warnings in 24.05s
+exit=0

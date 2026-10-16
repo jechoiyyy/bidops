@@ -261,7 +261,8 @@ const SIDEBAR_LINKS = [
   { group: null, label: "다음 행동", path: "/opportunities" },
   { group: "레코드", label: "공고", path: "/pre-specs" },
   { group: "레코드", label: "사업기회", path: "/opportunities" },
-  { group: "레코드", label: "회사 근거", path: "/profile" },
+  // RL-00: 회사 근거는 읽기 전용 `/company`다. `/profile`은 설정 아래 판정 기준 화면으로 남는다.
+  { group: "레코드", label: "회사 근거", path: "/company" },
   { group: "리스트", label: "오늘의 브리핑", path: "/briefing" },
   { group: "리스트", label: "추적 중", path: "/opportunities" },
   { group: "리스트", label: "연차 예고", path: "/order-plans" },

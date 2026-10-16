@@ -38,7 +38,7 @@
 |---|---|---|
 | 리스트(브리핑·공고·추적 중) | 리스트 색 점 + 이름(15px/600) + 보조 "6건 · 10월 16일 (금)" | 공유 · 가져오기 · 주 버튼(공고 추가) |
 | 레코드(사업기회) | breadcrumb "사업기회 / 공고명"(보조색 / 구분, 현재 칸 600) | 리스트에 추가 · 공유 · ⋯ |
-| 회사 근거 | 아이콘 + "회사 근거" + 보조 "㈜루트랩 · 마지막 저장 날짜" | 이전 버전 · 저장(주) |
+| 회사 근거 | 아이콘 + "회사 근거" + 보조 "㈜루트랩 · 마지막 저장 날짜"(`GET /api/company`의 `active_graph_version.created_at`) | 이전 버전(현재 버전만 보여 주고 선택은 후속). 저장(주) 버튼은 없다 — 화면은 읽기 전용(§4.6) |
 
 `<h1>`은 상단바 왼쪽 이름 하나다(현재 TopBar의 "경로 모드/제목 모드" 두 갈래는 이 규칙으로 합친다). 페이지 액션은 기존 `#page-header-actions` portal을 그대로 쓴다. 회차 선택기(`RunSelector`)는 실무 화면에서 그리지 않고 운영 메뉴에서만 쓴다.
 
@@ -51,7 +51,8 @@
 | `/opportunities` | 리스트 "추적 중" | 기존 화면을 표 규칙(§3.3)으로 맞춤 |
 | `/opportunities/:id` → `/opportunities/:id/activity` | 레코드 활동 탭 | 기존 `OpportunityDetailPage` 대체 |
 | `/opportunities/:id/verdict` · `/proposal` · `/documents` · `/source` · `/similar` | 레코드 탭 | `/pre-specs/:noticeId`의 심층 검토 진입은 verdict 탭으로 리다이렉트 |
-| `/company` → 기존 `/profile`·`/companies/:id/profile` 리다이렉트 | 회사 근거 | `?group=qualification\|performance\|staff\|preference\|proposal-assets` |
+| `/company` | 회사 근거(읽기 전용) | 기본 `?group=attention`, `?group=attention\|qualification\|performance\|staff\|preference\|proposal-assets`. `/companies/:id/profile → /company` 리다이렉트는 demo on 라우트에만 둔다 |
+| `/profile` | 설정 메뉴의 판정 기준 화면 | 그대로 둔다(`/company`로 리다이렉트하지 않음). 사이드바 "회사 근거" 링크만 `/company`로 바꾼다 |
 | `/settings/*` | 운영 메뉴 | 기존 criteria·run-status 묶음을 그대로 이동 |
 
 ## 2. 토큰 매핑
@@ -72,7 +73,7 @@
 | `#FFF4E5` / `#8A5200` | 확인 필요·조건부·D-day 임박 pill | `--color-warning-muted` / `--color-warning` |
 | `#FFF1ED` / `#8F2F1D` | 부족·정정·마감 임박 점 | `--color-error-muted` / `--color-error` |
 | `#E3F2F4` / `#1D5A60` | 단계(사전규격·입찰공고) pill | teal ramp `--color-bg-teal` / `--color-text-teal` |
-| `#EAF2FB` / `#1F5AA6` | 추정값·연차 추적 pill | 결정 필요: blue ramp 사용 여부(테마 주석은 상태에 blue 금지). 확정 전엔 `--color-background-muted` + `--color-text-secondary` |
+| `#EAF2FB` / `#1F5AA6` | 추정값 pill(연차 추적 pill 제외) | blue ramp `--color-background-blue` / `--color-text-blue` — 2026-10-16 결정: **추정값 pill만 blue**(ADR-0048 개정, §7-2). 연차 추적 pill은 이 결정 밖이며 RL-02가 정할 때까지 `--color-background-muted` + `--color-text-secondary` |
 | `#D9DCE1` | 아바타 바탕 | `--color-background-muted` 와 구분되는 신설 `--color-background-avatar` (임시: `--color-border-emphasized`) |
 | `#FFFBF5` | 주의 행 바탕·확인 필요 블록 | `--color-warning-muted`의 50% 혼합 → 신설 `--color-background-warning-subtle` (임시: `--color-warning-muted`) |
 | `#B9E3CD` | 원문 하이라이트 | `--color-success-muted` |
@@ -83,7 +84,7 @@
 
 | 이름 | 구현 | 규칙 |
 |---|---|---|
-| 상태 pill | Astryx `Token`(또는 `Badge` 건수 전용) | 높이 20, 패딩 1×8, 12px/500, 라운드 999. 의미: 충족·채택·추적 중=success, 확인 필요·조건부·재검토 중=warning, 부족·정정=error, 단계=teal, 대기·무시·나중에=muted, 추정값=§2 결정. 글자는 항상 상태 이름(아이콘만 금지) |
+| 상태 pill | Astryx `Token`(또는 `Badge` 건수 전용) | 높이 20, 패딩 1×8, 12px/500, 라운드 999. 의미: 충족·채택·추적 중=success, 확인 필요·조건부·재검토 중=warning, 부족·정정=error, 단계=teal, 대기·무시·나중에=muted, 추정값=blue(`--color-background-blue`/`--color-text-blue`, 상태 pill 중 이 pill만 blue). 글자는 항상 상태 이름(아이콘만 금지) |
 | 색 점 | `StatusDot` 또는 8px 사각(라운드 3) | 리스트 식별용. 상태를 색 점만으로 말하지 않는다 |
 | 버튼 | `Button` variant: primary(주 1개/화면), secondary(경계), ghost(아이콘) | 높이 30, 12.5px. 아이콘 전용은 `aria-label` |
 | 표 | Astryx `Table` + 프로젝트 CSS | 머리 12px/500 보조색, 셀 10×12, 줄 1px `--color-border`, hover `--color-background-muted` 30%, 선택 행 `--color-accent-muted`. 제목 셀은 2줄(제목 600 + 보조 12px). 숫자 우측 정렬 금지(한국어 값이 섞임) |
@@ -152,12 +153,14 @@
 
 ### 4.6 회사 근거 (`/company`, `Company.dc.html`)
 
-- 일: 판정이 막힌 빈 값을 채우고 추정값을 확정하기.
-- 상단바: 아이콘 + "회사 근거" + "㈜루트랩 · 마지막 저장 날짜" / 이전 버전 · 저장(주).
-- 좌측(240px): 항목 내비(확인이 필요한 것(건수 pill) · 자격 서류 · 실적 · 인력 · 선호·제외 조건 · 제안서 자료) / 숫자 3(확인됨 · 확인 필요 · 곧 만료).
-- 중앙: 블록 "지금 확인하면 판정이 바뀌는 것 n"(warning 경계; 행 = 항목 + 보조 "영향 공고" + 담당 아바타 + 입력/저장) → 그룹 표 4열(서류·상태 pill·내용·행동 버튼). 상태: 확인됨·확인 필요·추정값(행동 "맞음"·"수정")·곧 만료.
-- 규칙: 확인된 값만 판정·제안서에 쓴다(화면에는 적지 않음). 사본 파일은 저장하지 않고 파일명·발급일·유효기간만. 저장은 새 버전을 만들고 이전 버전은 불변.
-- 데이터: 기존 `/api/companies/:id/profile` 계보 + 사실 상태(confirmed/proposed/unknown → 확인됨/추정값/확인 필요) + 영향 공고(RL-00 spec).
+- 일: 판정이 막힌 빈 값과 추정값이 무엇인지 보고, 고칠 값을 회사 파일 수정 대상으로 확인하기. **화면은 읽기 전용이다**(2026-10-16 결정, RL-00) — 정본은 회사 파일이고 화면은 등록된 버전을 보여 준다. 시안의 "맞음·수정·입력·저장" 행동은 그리지 않는다.
+- 상단바: 아이콘 + "회사 근거" + "㈜루트랩 · 마지막 저장 날짜" / 이전 버전(현재 버전만 표시, 선택은 후속). 저장(주) 버튼은 없다. 본문 상단에 안내 한 줄 "값 수정은 회사 파일을 고쳐 다시 등록합니다(설정 › 도움말)".
+- 좌측(240px): 항목 내비(확인이 필요한 것(건수 pill) · 자격 서류 · 실적 · 인력 · 선호·제외 조건 · 제안서 자료) / 숫자 3(확인됨 · 확인 필요 · 곧 만료). 수치는 화면이 `profile` facts로 센다(분모 표시 없음). "곧 만료"는 qualification `valid_until`이 `expiry_warning_days` 이내인 사실이며, 현재 회사 파일에는 유효기간이 없어 0이다(계산 규칙만 구현).
+- 그룹 매핑(`?group=`): `attention`="확인이 필요한 것"(추정값 ∪ 확인 필요) · `qualification`=자격 서류 · `performance`=실적(project) · `staff`=인력(staff_group) · `preference`=선호·제외 조건(domain·`pref:`·`excl:` capability) · `proposal-assets`=제안서 자료(**비활성**, 빈 상태 "RL-04에서 채웁니다").
+- 중앙: 블록 "확인이 필요한 것 n"(warning 경계; 행 = 항목 + 상태 pill) → 그룹 표(서류·상태 pill·내용). **영향 공고 열은 RL-03(판정 결과)이 생기기 전까지 그리지 않는다**(빈 열 금지). 행마다 **fact_key를 복사하는 ghost 버튼 하나**만 둔다(회사 파일에서 고칠 노드를 찾기 위함).
+- 상태 이름: `confirmed`→확인됨(success), `proposed`→추정값(blue), `unknown`→확인 필요(warning), `inferred`→표시 안 함(RL-00 파일에 없음). 확인 필요는 부족이 아니다(error 색 금지).
+- 규칙: 확인된 값만 판정·제안서에 쓴다(화면에는 적지 않음). 사본 파일은 저장하지 않고 파일명·발급일·유효기간만. 새 값은 회사 파일을 고쳐 새 버전으로 등록하며 이전 버전은 불변이다. 운영 정보(graph hash·profile version·인터뷰 번호·`unmeasured_reference`)는 DOM에 두지 않는다(§5).
+- 데이터: `GET /api/company`(회사 이름·마지막 저장 날짜·만료 기준 일수), `GET /api/companies/{id}/profile`(facts·상태·origin, 화면이 센다), 사이드바 pill은 `GET /api/workload`의 `company_attention`(짝 목록 REST 없음, ADR-0067 예외 — contracts.md).
 
 ## 5. 검증
 
@@ -181,7 +184,7 @@
 ## 7. 미결정
 
 1. ~~테마~~ 닫힘(2026-10-16): 시안대로 테마 값을 교체했다(ADR-0048 개정).
-2. 추정값 pill 색(blue ramp 허용 여부).
+2. ~~추정값 pill 색~~ 닫힘(2026-10-16): blue ramp(`--color-background-blue`/`--color-text-blue`)를 쓰되 **추정값 pill만**이다(ADR-0048 개정, `bidopsTheme.ts` 주석 갱신).
 3. 보기 설정(열 숨김·칸반)·새 리스트·팀원 초대·노트·보고서는 v1 비활성으로 둘지 숨길지.
 4. 검색 ⌘K의 범위(공고·사업기회·기관 통합 검색 vs 화면 이동).
 5. Slack 버튼 반응이 화면 피크 패널에 실시간 반영되는 방식(폴링 주기).

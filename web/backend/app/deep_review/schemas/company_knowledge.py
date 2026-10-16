@@ -22,16 +22,28 @@ from pydantic import (
 )
 
 from ...core.company_ontology import STABLE_KEY_RE
+from ...core.schema_base import AwareDateTime
 from ...lifecycle.schemas.companies import CompanyDTO
 
 
 PROFILE_VIEW_SCHEMA = "bidops.company-profile-view.v1"
 KNOWLEDGE_GRAPH_VIEW_SCHEMA = "bidops.company-knowledge-graph.v1"
+COMPANY_CONTEXT_SCHEMA = "bidops.company-context.v1"
 
 Hash = Annotated[str, StringConstraints(strict=True, pattern=r"^[0-9a-f]{64}$")]
 StableKey = Annotated[str, StringConstraints(strict=True, pattern=STABLE_KEY_RE.pattern)]
-FactStatus = Literal["confirmed", "inferred", "unknown"]
-NodeOrigin = Literal["fictional_scenario", "public_document", "model_inference"]
+#: RL-00: ``proposed`` (agent proposal, not confirmed) is the fourth status.
+FactStatus = Literal["confirmed", "proposed", "inferred", "unknown"]
+#: Every node/edge origin (DEMO §3 three + RL-00 real-company confirmation sources).
+NodeOrigin = Literal[
+    "fictional_scenario",
+    "public_document",
+    "model_inference",
+    "company_brochure",
+    "homepage",
+    "user_interview",
+    "agent_proposal",
+]
 NodeType = Literal[
     "company",
     "capability",
@@ -67,7 +79,7 @@ class CompanyProfileFact(_StrictModel):
     fact_key: StableKey
     label: StrictStr
     status: FactStatus
-    origin: Literal["fictional_scenario"]
+    origin: NodeOrigin
     value: JsonValue
     evidence_ids: list[UUID]
 
@@ -120,14 +132,34 @@ class CompanyProfileEvidenceView(_StrictModel):
     evidence_id: UUID
     profile_version_id: UUID
     fact_key: StableKey
-    origin: Literal["fictional_scenario"]
+    origin: NodeOrigin
     quote: StrictStr
     source_sha256: Hash
 
 
+class ActiveGraphVersion(_StrictModel):
+    graph_version_id: UUID
+    created_at: AwareDateTime
+
+
+class CompanyContextView(_StrictModel):
+    """`GET /api/company` (RL-00): the single real company and its active graph.
+
+    Exactly these keys; no derived counts (the screen counts facts itself).
+    """
+
+    schema_version: Literal["bidops.company-context.v1"]
+    company: CompanyDTO
+    expiry_warning_days: StrictInt = Field(ge=1, le=365)
+    active_graph_version: ActiveGraphVersion | None
+
+
 __all__ = [
+    "COMPANY_CONTEXT_SCHEMA",
     "KNOWLEDGE_GRAPH_VIEW_SCHEMA",
     "PROFILE_VIEW_SCHEMA",
+    "ActiveGraphVersion",
+    "CompanyContextView",
     "CompanyKnowledgeGraphView",
     "CompanyProfileEvidenceView",
     "CompanyProfileFact",
