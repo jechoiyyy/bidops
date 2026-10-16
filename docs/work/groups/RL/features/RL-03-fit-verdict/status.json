@@ -1,0 +1,196 @@
+{
+  "schema_version": 2,
+  "feature": "RL-03-fit-verdict",
+  "phase": "review",
+  "steps": [
+    {
+      "id": "STEP-001",
+      "title": "정책 파일·schema·runner contract",
+      "model": "complex",
+      "fingerprint": "552f2d56a85d8d002a4efbee07e035ed1c921198bbe5a6797eebe04d94bb94c3",
+      "status": "stale",
+      "updated_at": null,
+      "history": [
+        {
+          "id": "STEP-001",
+          "title": "정책 파일·schema·runner contract",
+          "model": "complex",
+          "fingerprint": "e25c73d1991a927f63517582f30518394b18b6c581cc6a77f7a0ce1be7b4de7f",
+          "status": "pending",
+          "updated_at": null
+        }
+      ]
+    },
+    {
+      "id": "STEP-002",
+      "title": "저장 테이블·권한",
+      "model": "standard",
+      "fingerprint": "45854d0035fa4c364dfa70aa21f8043c1f89cbf508a1e0915bd498c403fbbd34",
+      "status": "stale",
+      "updated_at": null,
+      "history": [
+        {
+          "id": "STEP-002",
+          "title": "저장 테이블·권한",
+          "model": "standard",
+          "fingerprint": "e9502d959690555bf5420ee0471614d5caadc7029051957a37cfea9d33e9ea46",
+          "status": "pending",
+          "updated_at": null
+        }
+      ]
+    },
+    {
+      "id": "STEP-003",
+      "title": "정책 승인·gate",
+      "model": "complex",
+      "fingerprint": "305b7ea25d8a0f994d64a572e545052452dbd58fcacb61d29ba4448ac7a58afb",
+      "status": "stale",
+      "updated_at": null,
+      "history": [
+        {
+          "id": "STEP-003",
+          "title": "정책 승인·gate",
+          "model": "complex",
+          "fingerprint": "255e9ca42f8f9e23fb1e39ccd3795f69592746b169eae62ae235e7c89bd61384",
+          "status": "pending",
+          "updated_at": null
+        }
+      ]
+    },
+    {
+      "id": "STEP-004",
+      "title": "unit·batch·입력 v2",
+      "model": "complex",
+      "fingerprint": "bce81d0ad2a8568451fd72c1803afe84c59ccb8fb3b1aa00b6a503b31dbe8dc5",
+      "status": "stale",
+      "updated_at": null,
+      "history": [
+        {
+          "id": "STEP-004",
+          "title": "unit·batch·입력 v2",
+          "model": "complex",
+          "fingerprint": "b44500168f0eeb779724355e22aeaa063f8f2105212fbb692406a7ca5f32bbe8",
+          "status": "pending",
+          "updated_at": null
+        }
+      ]
+    },
+    {
+      "id": "STEP-005",
+      "title": "추출 검증·대조·역할/종합",
+      "model": "complex",
+      "fingerprint": "9ac99afd5f9b0db1881f0b581d3b5fa46ac6349c6f4881cc9ac2897254cb4e7b",
+      "status": "pending",
+      "updated_at": null
+    },
+    {
+      "id": "STEP-006",
+      "title": "자동 트리거·cap·큐",
+      "model": "complex",
+      "fingerprint": "d76dd64f79719b2e37f7f7c3a41422dbe6f2e77929f3c1de658e249138ec2a96",
+      "status": "stale",
+      "updated_at": null,
+      "history": [
+        {
+          "id": "STEP-006",
+          "title": "자동 트리거·cap·큐",
+          "model": "complex",
+          "fingerprint": "72d32c21c13525edd6dc2a1fbf73d2b461dd1dd70f389623dc2a2f2452bdd306",
+          "status": "pending",
+          "updated_at": null
+        }
+      ]
+    },
+    {
+      "id": "STEP-007",
+      "title": "REST·view",
+      "model": "complex",
+      "fingerprint": "a54cf9fac19d405a956085f794cd7d6f797bd81c3d2fda00c8462a988d37ce20",
+      "status": "stale",
+      "updated_at": null,
+      "history": [
+        {
+          "id": "STEP-007",
+          "title": "REST·view",
+          "model": "complex",
+          "fingerprint": "1f6f8ecd08a429ceaced98b043b2cbaaa5a9ba66963ac9472560c569fd5ece84",
+          "status": "pending",
+          "updated_at": null
+        }
+      ]
+    },
+    {
+      "id": "STEP-008",
+      "title": "연결(활동·브리핑·Slack 스레드)",
+      "model": "standard",
+      "fingerprint": "2c9665b34bec4df5cb7feb89c11c1355527245fbc14180a69a3156c15f65fd96",
+      "status": "stale",
+      "updated_at": null,
+      "history": [
+        {
+          "id": "STEP-008",
+          "title": "연결(활동·브리핑·Slack 스레드)",
+          "model": "standard",
+          "fingerprint": "d91ecb4f2f446f20781e8b0d07612bc04b9745ca7e5ad6d787700bee616a8cf0",
+          "status": "pending",
+          "updated_at": null
+        }
+      ]
+    },
+    {
+      "id": "STEP-009",
+      "title": "화면",
+      "model": "standard",
+      "fingerprint": "05d6608000732cf527e72e7e955500a59299dc70fdbcbddf7077dcdf28459e61",
+      "status": "pending",
+      "updated_at": null
+    },
+    {
+      "id": "STEP-010",
+      "title": "문서·mock 경로·실제 1건",
+      "model": "complex",
+      "fingerprint": "1d0f93ec85aa07895b6f89fb1c9d59a403f35bd452873f19370cfd07005a9f8e",
+      "status": "pending",
+      "updated_at": null
+    }
+  ],
+  "proof": {
+    "docs": {
+      "result": "pending"
+    },
+    "tests": {
+      "result": "pending"
+    },
+    "postgres": {
+      "result": "pending"
+    },
+    "frontend": {
+      "result": "pending"
+    },
+    "api_guard": {
+      "result": "pending"
+    },
+    "real_data_run": {
+      "result": "pending"
+    }
+  },
+  "notes": [
+    {
+      "at": "2026-10-16T16:16:21+09:00",
+      "text": "생성 (drafting)"
+    },
+    {
+      "at": "2026-10-16T16:20:23+09:00",
+      "text": "plan 작업 ID 동기화"
+    },
+    {
+      "at": "2026-10-16T16:45:08+09:00",
+      "text": "plan 작업 ID 동기화"
+    },
+    {
+      "at": "2026-10-16T20:41:31+09:00",
+      "text": "단계 → review: 독립 검사 1차 반영(1차 범위 사전규격만·worker INSERT 5개·정책 행 선택 env; 재검사 생략, 사용자 확인 항목 보고)"
+    }
+  ],
+  "updated_at": "2026-10-16T20:41:31+09:00"
+}

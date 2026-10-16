@@ -1,0 +1,88 @@
+{
+  "schema_version": 2,
+  "feature": "RL-06-local-llm-optimization",
+  "phase": "review",
+  "steps": [
+    {
+      "id": "STEP-001",
+      "title": "runner 토큰 응답·계측 열·저장",
+      "model": "complex",
+      "fingerprint": "6a5c718dc0556d16cec17150a98c6be58fe81a0a074a55cc8590a028cb4199dd",
+      "status": "stale",
+      "updated_at": null,
+      "history": [
+        {
+          "id": "STEP-001",
+          "title": "계측 열·저장",
+          "model": "standard",
+          "fingerprint": "1e06dace9daaabc61714bdbbfb64807cdac2b5262622be24e45faf00f5ba45d5",
+          "status": "pending",
+          "updated_at": null
+        }
+      ]
+    },
+    {
+      "id": "STEP-002",
+      "title": "usage-report CLI",
+      "model": "complex",
+      "fingerprint": "fb92391aa162c3daa80bbeea85b26ecaa55705b61be7165d0d284e29256c9128",
+      "status": "pending",
+      "updated_at": null
+    },
+    {
+      "id": "STEP-003",
+      "title": "실제 보고·실험 보고서",
+      "model": "standard",
+      "fingerprint": "d2da2eef7938fc39141947445cc03c048b6476c60fdf7f238407d0238ab72c1c",
+      "status": "pending",
+      "updated_at": null
+    },
+    {
+      "id": "STEP-004",
+      "title": "문서",
+      "model": "standard",
+      "fingerprint": "e7fbf7f919cf0eb63744a9e7a5de7d6413b2d7e32b36be347cab40636b324773",
+      "status": "pending",
+      "updated_at": null
+    }
+  ],
+  "proof": {
+    "docs": {
+      "result": "pending"
+    },
+    "tests": {
+      "result": "pending"
+    },
+    "postgres": {
+      "result": "pending"
+    },
+    "frontend": {
+      "result": "pending"
+    },
+    "api_guard": {
+      "result": "pending"
+    },
+    "real_data_run": {
+      "result": "pending"
+    }
+  },
+  "notes": [
+    {
+      "at": "2026-10-16T16:20:24+09:00",
+      "text": "생성 (drafting)"
+    },
+    {
+      "at": "2026-10-16T16:35:38+09:00",
+      "text": "plan 작업 ID 동기화"
+    },
+    {
+      "at": "2026-10-16T16:46:14+09:00",
+      "text": "plan 작업 ID 동기화"
+    },
+    {
+      "at": "2026-10-16T20:41:31+09:00",
+      "text": "단계 → review: 독립 검사 1차 반영(runner 토큰 응답 추가·집계 정의 고정; 재검사 생략)"
+    }
+  ],
+  "updated_at": "2026-10-16T20:41:31+09:00"
+}

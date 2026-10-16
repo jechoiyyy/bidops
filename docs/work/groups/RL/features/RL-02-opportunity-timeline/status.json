@@ -1,0 +1,228 @@
+{
+  "schema_version": 2,
+  "feature": "RL-02-opportunity-timeline",
+  "phase": "review",
+  "steps": [
+    {
+      "id": "STEP-001",
+      "title": "단계 바·레코드 제목 규칙",
+      "model": "complex",
+      "fingerprint": "9d9339abfbf32ee07c8ff3bb1e612ba9ec833ccf261f807076620705af3c5ace",
+      "status": "stale",
+      "updated_at": null,
+      "history": [
+        {
+          "id": "STEP-001",
+          "title": "단계 바·레코드 제목 규칙",
+          "model": "complex",
+          "fingerprint": "881cc840ce006f5d39501d228f3dfcbff99c27f35b23c6e8c1e3769c8a6bfbca",
+          "status": "pending",
+          "updated_at": null
+        }
+      ]
+    },
+    {
+      "id": "STEP-002",
+      "title": "활동 피드 파생",
+      "model": "complex",
+      "fingerprint": "5fabd9a551c8490685f9a49450675e41afc3a06bca3ae7f826a6b57dce3fef76",
+      "status": "stale",
+      "updated_at": null,
+      "history": [
+        {
+          "id": "STEP-002",
+          "title": "활동 피드 파생",
+          "model": "complex",
+          "fingerprint": "6c83ab953ac98f63c9d9b945648ade27d8748b6002ce3b27d31df06259ed947e",
+          "status": "pending",
+          "updated_at": null
+        },
+        {
+          "id": "STEP-002",
+          "title": "활동 피드 파생",
+          "model": "complex",
+          "fingerprint": "2f0be7f42b71381580b08072a648403ae34f369e260e1081108060f26b2781af",
+          "status": "stale",
+          "updated_at": null,
+          "history": [
+            {
+              "id": "STEP-002",
+              "title": "활동 피드 파생",
+              "model": "complex",
+              "fingerprint": "6c83ab953ac98f63c9d9b945648ade27d8748b6002ce3b27d31df06259ed947e",
+              "status": "pending",
+              "updated_at": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "STEP-003",
+      "title": "노트 테이블·REST",
+      "model": "complex",
+      "fingerprint": "b803616e59a8e1998d87b366addd5cbd9f91788bd2ef7197a63cd27100fed54e",
+      "status": "stale",
+      "updated_at": null,
+      "history": [
+        {
+          "id": "STEP-003",
+          "title": "노트 테이블·REST",
+          "model": "complex",
+          "fingerprint": "b6e828b862dbc24a83eabdf56b6657f91fda00264674312f07fede6a019720d7",
+          "status": "pending",
+          "updated_at": null
+        },
+        {
+          "id": "STEP-003",
+          "title": "노트 테이블·REST",
+          "model": "complex",
+          "fingerprint": "0d7227367be09443f28803e11b652ab4057daa366fbc488f63a4de8d7d143a5a",
+          "status": "stale",
+          "updated_at": null,
+          "history": [
+            {
+              "id": "STEP-003",
+              "title": "노트 테이블·REST",
+              "model": "complex",
+              "fingerprint": "b6e828b862dbc24a83eabdf56b6657f91fda00264674312f07fede6a019720d7",
+              "status": "pending",
+              "updated_at": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "STEP-004",
+      "title": "활동 REST",
+      "model": "standard",
+      "fingerprint": "9549c47540c810210fbb1e7df8c3b81a0e3b730b5aebae83dcb8fd70d4c4ffe9",
+      "status": "pending",
+      "updated_at": null
+    },
+    {
+      "id": "STEP-005",
+      "title": "마감 알림(규칙 파일 v2)",
+      "model": "standard",
+      "fingerprint": "a6a224f53959f220138cee16333ec50913b5bf95d5c7627f837de2955cc83e5d",
+      "status": "stale",
+      "updated_at": null,
+      "history": [
+        {
+          "id": "STEP-005",
+          "title": "마감 알림(규칙 파일 v2)",
+          "model": "standard",
+          "fingerprint": "3faa04a0f8bb465b8b89ef7b1607e745c2fdecfafc8c3c2259e6479c97f67058",
+          "status": "pending",
+          "updated_at": null
+        },
+        {
+          "id": "STEP-005",
+          "title": "마감 알림(규칙 파일 v2)",
+          "model": "standard",
+          "fingerprint": "1e55f2ad13a7ca0d265199fc239c4f98a535367e1145acb7fd16e54f8dca7f15",
+          "status": "stale",
+          "updated_at": null,
+          "history": [
+            {
+              "id": "STEP-005",
+              "title": "마감 알림(규칙 파일 v2)",
+              "model": "standard",
+              "fingerprint": "3faa04a0f8bb465b8b89ef7b1607e745c2fdecfafc8c3c2259e6479c97f67058",
+              "status": "pending",
+              "updated_at": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "STEP-006",
+      "title": "레코드 화면",
+      "model": "standard",
+      "fingerprint": "4e288d1f9da5fcede00a1fd5a50729bc5011f3f8b518d7381f2cc7caf1dff4fe",
+      "status": "stale",
+      "updated_at": null,
+      "history": [
+        {
+          "id": "STEP-006",
+          "title": "레코드 화면",
+          "model": "standard",
+          "fingerprint": "d58d55bae81da4b9e362603e4fee5debe8a3a81cbbe09f0f7495b4b2c16e0bf5",
+          "status": "pending",
+          "updated_at": null
+        },
+        {
+          "id": "STEP-006",
+          "title": "레코드 화면",
+          "model": "standard",
+          "fingerprint": "5d9b59d8fe657022e9d586cd41d3d91de254e7528e0d9d8fbb3b2e85ccff8673",
+          "status": "stale",
+          "updated_at": null,
+          "history": [
+            {
+              "id": "STEP-006",
+              "title": "레코드 화면",
+              "model": "standard",
+              "fingerprint": "d58d55bae81da4b9e362603e4fee5debe8a3a81cbbe09f0f7495b4b2c16e0bf5",
+              "status": "pending",
+              "updated_at": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "STEP-007",
+      "title": "문서",
+      "model": "standard",
+      "fingerprint": "3a2d434af077eb56cdf79945c6d4cfe7a94c56f373bd0fa5538abd654b103a24",
+      "status": "pending",
+      "updated_at": null
+    }
+  ],
+  "proof": {
+    "docs": {
+      "result": "pending"
+    },
+    "tests": {
+      "result": "pending"
+    },
+    "postgres": {
+      "result": "pending"
+    },
+    "frontend": {
+      "result": "pending"
+    },
+    "api_guard": {
+      "result": "pending"
+    },
+    "real_data_run": {
+      "result": "pending"
+    }
+  },
+  "notes": [
+    {
+      "at": "2026-10-16T16:12:14+09:00",
+      "text": "생성 (drafting)"
+    },
+    {
+      "at": "2026-10-16T16:15:28+09:00",
+      "text": "plan 작업 ID 동기화"
+    },
+    {
+      "at": "2026-10-16T16:28:12+09:00",
+      "text": "plan 작업 ID 동기화"
+    },
+    {
+      "at": "2026-10-16T16:37:02+09:00",
+      "text": "plan 작업 ID 동기화"
+    },
+    {
+      "at": "2026-10-16T20:41:31+09:00",
+      "text": "단계 → review: 독립 검사 1·2차 반영(잔여 = 큐 등록·opportunities.spec 22건 이식 명시, 3차 생략)"
+    }
+  ],
+  "updated_at": "2026-10-16T20:41:31+09:00"
+}

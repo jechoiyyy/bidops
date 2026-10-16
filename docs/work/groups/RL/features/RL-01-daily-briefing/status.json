@@ -1,0 +1,172 @@
+{
+  "schema_version": 2,
+  "feature": "RL-01-daily-briefing",
+  "phase": "review",
+  "steps": [
+    {
+      "id": "STEP-001",
+      "title": "저장 모델·migration·권한·규칙 파일",
+      "model": "standard",
+      "fingerprint": "62348375ae70ecca685d280ee3823d506d738b4a2f9c1f3b9449c9fedfb4ceaf",
+      "status": "stale",
+      "updated_at": null,
+      "history": [
+        {
+          "id": "STEP-001",
+          "title": "저장 모델·migration·권한·규칙 파일",
+          "model": "standard",
+          "fingerprint": "8b22036d870c5e5ea2a6b053645057b4dfb73402e90b95e8fc2864720163293a",
+          "status": "pending",
+          "updated_at": null
+        }
+      ]
+    },
+    {
+      "id": "STEP-002",
+      "title": "결정적 규칙 엔진",
+      "model": "complex",
+      "fingerprint": "bb244333a8379857e3a11d70a3ba9b7fd1f9385a3f345c49c7e7aa18c5500889",
+      "status": "stale",
+      "updated_at": null,
+      "history": [
+        {
+          "id": "STEP-002",
+          "title": "결정적 규칙 엔진",
+          "model": "complex",
+          "fingerprint": "fa708e71766ab773afc108a25ebebd1caa09ed28fdb7177328425c3a2ff337d4",
+          "status": "pending",
+          "updated_at": null
+        },
+        {
+          "id": "STEP-002",
+          "title": "결정적 규칙 엔진",
+          "model": "complex",
+          "fingerprint": "d996c955e7f6f5ca74dd5ba1a66e1cc30f4af0ea25446eb39837b10164717975",
+          "status": "stale",
+          "updated_at": null,
+          "history": [
+            {
+              "id": "STEP-002",
+              "title": "결정적 규칙 엔진",
+              "model": "complex",
+              "fingerprint": "fa708e71766ab773afc108a25ebebd1caa09ed28fdb7177328425c3a2ff337d4",
+              "status": "pending",
+              "updated_at": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "STEP-003",
+      "title": "생성 service·CLI",
+      "model": "complex",
+      "fingerprint": "6f9f7e1ca642b32087cc2b0e80b7aa1ec45b315387d97e8c6819e0fed672b333",
+      "status": "stale",
+      "updated_at": null,
+      "history": [
+        {
+          "id": "STEP-003",
+          "title": "생성 service·CLI",
+          "model": "complex",
+          "fingerprint": "47ab6996ed0d2030f966fcae62d7526260b80e5258a8a60dddb94dcdb27cf6c4",
+          "status": "pending",
+          "updated_at": null
+        }
+      ]
+    },
+    {
+      "id": "STEP-004",
+      "title": "REST·반응·workload",
+      "model": "complex",
+      "fingerprint": "fb19902a8b06b84e9825fc915d8c4066b6b10e467512c8dfc9e61c7db05039dd",
+      "status": "stale",
+      "updated_at": null,
+      "history": [
+        {
+          "id": "STEP-004",
+          "title": "REST·반응·workload",
+          "model": "complex",
+          "fingerprint": "4a8c97feed425fa2c97a6792007ca98b6ac4a52c47706f4e4c022f6792c45de5",
+          "status": "pending",
+          "updated_at": null
+        }
+      ]
+    },
+    {
+      "id": "STEP-005",
+      "title": "Slack 전송기·미리보기·`--send`",
+      "model": "complex",
+      "fingerprint": "5569bb71b487a2ec37a9776ae8465e1e6b96563c4c1199bdaa864edda9be5672",
+      "status": "pending",
+      "updated_at": null
+    },
+    {
+      "id": "STEP-006",
+      "title": "Socket Mode worker",
+      "model": "complex",
+      "fingerprint": "caa1ebbb07f0d43981e384db8ae994ddc8dfd0979e38a1c0a7936321bb5ec425",
+      "status": "pending",
+      "updated_at": null
+    },
+    {
+      "id": "STEP-007",
+      "title": "화면",
+      "model": "standard",
+      "fingerprint": "4625c2cec27a209f47b3481f3c7031f3e5fa2e2968a1b94e8928221f019fcb26",
+      "status": "pending",
+      "updated_at": null
+    },
+    {
+      "id": "STEP-008",
+      "title": "호스트 스크립트·문서·시운전",
+      "model": "standard",
+      "fingerprint": "9c504eab811de832774ae6fc7bf3dcf4e809bb4f32874b21022e155542467b2e",
+      "status": "pending",
+      "updated_at": null
+    }
+  ],
+  "proof": {
+    "docs": {
+      "result": "pending"
+    },
+    "tests": {
+      "result": "pending"
+    },
+    "postgres": {
+      "result": "pending"
+    },
+    "frontend": {
+      "result": "pending"
+    },
+    "api_guard": {
+      "result": "pending"
+    },
+    "real_data_run": {
+      "result": "pending"
+    }
+  },
+  "notes": [
+    {
+      "at": "2026-10-16T16:05:40+09:00",
+      "text": "생성 (drafting)"
+    },
+    {
+      "at": "2026-10-16T16:08:52+09:00",
+      "text": "plan 작업 ID 동기화"
+    },
+    {
+      "at": "2026-10-16T16:28:12+09:00",
+      "text": "plan 작업 ID 동기화"
+    },
+    {
+      "at": "2026-10-16T16:40:05+09:00",
+      "text": "plan 작업 ID 동기화"
+    },
+    {
+      "at": "2026-10-16T20:41:31+09:00",
+      "text": "단계 → review: 독립 검사 1·2차 반영(잔여 차단 2건 = normalize_text 정의·--date 의미 고정, 3차 생략)"
+    }
+  ],
+  "updated_at": "2026-10-16T20:41:31+09:00"
+}

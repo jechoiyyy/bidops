@@ -1,0 +1,168 @@
+{
+  "schema_version": 2,
+  "feature": "RL-04-proposal-draft",
+  "phase": "review",
+  "steps": [
+    {
+      "id": "STEP-001",
+      "title": "정책·schema·runner contract·의존",
+      "model": "complex",
+      "fingerprint": "f6531b4d282edc11437dc4ee7b31cacb078e254db763922531f5f8e7f7818bdf",
+      "status": "stale",
+      "updated_at": null,
+      "history": [
+        {
+          "id": "STEP-001",
+          "title": "정책·schema·runner contract·의존",
+          "model": "complex",
+          "fingerprint": "881ce74c1ee2d82c6da4fa34170fd17af77b320528b3386a2a005a620349227c",
+          "status": "pending",
+          "updated_at": null
+        }
+      ]
+    },
+    {
+      "id": "STEP-002",
+      "title": "저장 테이블·권한",
+      "model": "standard",
+      "fingerprint": "e33c55058db7903458d3f18d45dfad6bebf9c3a0ae552501d766c208f0423af4",
+      "status": "stale",
+      "updated_at": null,
+      "history": [
+        {
+          "id": "STEP-002",
+          "title": "저장 테이블·권한",
+          "model": "standard",
+          "fingerprint": "99fec458862439688d9dbfeb498a7a4906b0b0611d14c2c70c395ec003ac8f22",
+          "status": "pending",
+          "updated_at": null
+        }
+      ]
+    },
+    {
+      "id": "STEP-003",
+      "title": "입력 조립·payload 검사",
+      "model": "complex",
+      "fingerprint": "3c6bbae81b9031c4aa95935e8be3a368f3029a5057fb25c5c878a8c5538ba018",
+      "status": "pending",
+      "updated_at": null
+    },
+    {
+      "id": "STEP-004",
+      "title": "문장 검증·커버리지",
+      "model": "complex",
+      "fingerprint": "eca9df2e061ebc719bc9c1f4770bb3cf1d682808296f14dfd1acfcf65f9e9e8a",
+      "status": "pending",
+      "updated_at": null
+    },
+    {
+      "id": "STEP-005",
+      "title": "생성 service·전용 worker·gate",
+      "model": "complex",
+      "fingerprint": "0792c2f30cae217c8dac9e8abda6a41a0efc54df7eda211c4b02741076e942e6",
+      "status": "stale",
+      "updated_at": null,
+      "history": [
+        {
+          "id": "STEP-005",
+          "title": "생성 service·worker dispatch·gate",
+          "model": "complex",
+          "fingerprint": "2b4e64d2b4f7d4f17249eff9297cefeb816d2ec03d9c680254b29885566f7576",
+          "status": "pending",
+          "updated_at": null
+        }
+      ]
+    },
+    {
+      "id": "STEP-006",
+      "title": "REST·overlay·review",
+      "model": "complex",
+      "fingerprint": "9109e5d7db62dcb6d1563d555d06d973d8a6718064d0b82ee0635592800606b4",
+      "status": "stale",
+      "updated_at": null,
+      "history": [
+        {
+          "id": "STEP-006",
+          "title": "REST·overlay·review",
+          "model": "complex",
+          "fingerprint": "22b13c55b5c1d86a0f4b94b2b19f97fe5efd2b3fc3d7751793a9b9558fa83726",
+          "status": "pending",
+          "updated_at": null
+        }
+      ]
+    },
+    {
+      "id": "STEP-007",
+      "title": "PDF 렌더",
+      "model": "complex",
+      "fingerprint": "99e370efb7b076bcd281a66c2a4d555ee53ee5f9a1826d6c9b194e2b1a3ea8ab",
+      "status": "stale",
+      "updated_at": null,
+      "history": [
+        {
+          "id": "STEP-007",
+          "title": "PDF 렌더",
+          "model": "complex",
+          "fingerprint": "75a9067e658be8250db2ad23266d4ef5ab89d695c2f4c43d9909f04ef73bcfb3",
+          "status": "pending",
+          "updated_at": null
+        }
+      ]
+    },
+    {
+      "id": "STEP-008",
+      "title": "화면",
+      "model": "standard",
+      "fingerprint": "e6a5511fdbc322b56cec3bdce00099ad50bd929475369653dbf9dcbda8dba6ac",
+      "status": "pending",
+      "updated_at": null
+    },
+    {
+      "id": "STEP-009",
+      "title": "문서·mock·실제 1건",
+      "model": "complex",
+      "fingerprint": "a3d12c65f44460460c48f4fd3d9ad5c2a249ced554b20fb9098ddf475303ca3a",
+      "status": "pending",
+      "updated_at": null
+    }
+  ],
+  "proof": {
+    "docs": {
+      "result": "pending"
+    },
+    "tests": {
+      "result": "pending"
+    },
+    "postgres": {
+      "result": "pending"
+    },
+    "frontend": {
+      "result": "pending"
+    },
+    "api_guard": {
+      "result": "pending"
+    },
+    "real_data_run": {
+      "result": "pending"
+    }
+  },
+  "notes": [
+    {
+      "at": "2026-10-16T16:20:24+09:00",
+      "text": "생성 (drafting)"
+    },
+    {
+      "at": "2026-10-16T16:32:35+09:00",
+      "text": "plan 작업 ID 동기화"
+    },
+    {
+      "at": "2026-10-16T16:49:55+09:00",
+      "text": "plan 작업 ID 동기화"
+    },
+    {
+      "at": "2026-10-16T20:41:31+09:00",
+      "text": "단계 → review: 독립 검사 1차 반영(폰트=이미지 NanumGothic·전용 WorkJob·REST 8개; 재검사 생략)"
+    }
+  ],
+  "updated_at": "2026-10-16T20:41:31+09:00"
+}

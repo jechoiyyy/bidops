@@ -1,0 +1,116 @@
+{
+  "schema_version": 2,
+  "feature": "RL-05-gold-acceptance",
+  "phase": "review",
+  "steps": [
+    {
+      "id": "STEP-001",
+      "title": "gold 도구 이관",
+      "model": "standard",
+      "fingerprint": "daf2d2fb9039da6a8d31a915e8241a75a73dd6064aaaf04940d65832f52c0d9c",
+      "status": "stale",
+      "updated_at": null,
+      "history": [
+        {
+          "id": "STEP-001",
+          "title": "gold 도구 이관",
+          "model": "standard",
+          "fingerprint": "490beab0c4fbcd01bf494fb5ab8c41f17f7e18f8be81770f11f50a2cb175d0d3",
+          "status": "pending",
+          "updated_at": null
+        }
+      ]
+    },
+    {
+      "id": "STEP-002",
+      "title": "export CLI·holdout",
+      "model": "complex",
+      "fingerprint": "554d4a9392d9d5a6b016480cee1d44dd51aabb07f8a4b77dabd36635eba036a6",
+      "status": "stale",
+      "updated_at": null,
+      "history": [
+        {
+          "id": "STEP-002",
+          "title": "export CLI·holdout",
+          "model": "complex",
+          "fingerprint": "f5cc950766fc45a776a982ed953f1661f8638c06aa79f093deac91dcbbd64baa",
+          "status": "pending",
+          "updated_at": null
+        }
+      ]
+    },
+    {
+      "id": "STEP-003",
+      "title": "표본 선정·holdout 등록",
+      "model": "standard",
+      "fingerprint": "3c40a3e54482c2d9800a30a4ac87efd961a096206b5d61fad7b7cf355bcc26a2",
+      "status": "stale",
+      "updated_at": null,
+      "history": [
+        {
+          "id": "STEP-003",
+          "title": "표본 선정·holdout 등록",
+          "model": "standard",
+          "fingerprint": "2dc569eaaba025cf6a84a30fb1aac17eb552e7d2ce3921e0bc61a148168d060b",
+          "status": "pending",
+          "updated_at": null
+        }
+      ]
+    },
+    {
+      "id": "STEP-004",
+      "title": "gold 작성·실제 실행·채점·인수",
+      "model": "complex",
+      "fingerprint": "fbefd66882511b3ef7aaee7f39e8219a20aceda46154eb4226576de6e692cb14",
+      "status": "pending",
+      "updated_at": null
+    },
+    {
+      "id": "STEP-005",
+      "title": "문서",
+      "model": "standard",
+      "fingerprint": "6987ccf3f6ddfe1ef30861f9f3ae584bc00be83f35f0ba731c1d1009dfbf5273",
+      "status": "pending",
+      "updated_at": null
+    }
+  ],
+  "proof": {
+    "docs": {
+      "result": "pending"
+    },
+    "tests": {
+      "result": "pending"
+    },
+    "postgres": {
+      "result": "pending"
+    },
+    "frontend": {
+      "result": "pending"
+    },
+    "api_guard": {
+      "result": "pending"
+    },
+    "real_data_run": {
+      "result": "pending"
+    }
+  },
+  "notes": [
+    {
+      "at": "2026-10-16T16:20:24+09:00",
+      "text": "생성 (drafting)"
+    },
+    {
+      "at": "2026-10-16T16:35:38+09:00",
+      "text": "plan 작업 ID 동기화"
+    },
+    {
+      "at": "2026-10-16T16:49:55+09:00",
+      "text": "plan 작업 ID 동기화"
+    },
+    {
+      "at": "2026-10-16T20:41:31+09:00",
+      "text": "단계 → review: 독립 검사 1차 반영(표본=실제 수집 10건·holdout 조건 RL-03 (7); 재검사 생략, 사용자 확인 항목 보고)"
+    }
+  ],
+  "updated_at": "2026-10-16T20:41:31+09:00"
+}

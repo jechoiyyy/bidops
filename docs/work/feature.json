@@ -23,16 +23,17 @@
   "constraints": [
     "원문·프로필·정책·모델 입력과 결과·사람 리뷰는 불변/append-only로 보존한다.",
     "unknown/null·적합성·참여 준비·추적·Go/No-Go를 서로 대신하지 않는다.",
+    "외부 모델 전송은 정책 단위 사전 승인으로 자동화하되 건별 감사·payload 동결·allowlist·hosted fallback 금지를 유지한다(ADR-0073). 기존 \"건별 전송\" 문구는 이 규칙으로 읽는다.",
     "외부 모델은 승인 payload만 건별 전송하며 전역 fallback과 자동 추적 결정을 금지한다.",
     "PostgreSQL 17·versioned MinIO·합성 analysis worker의 슬롯 1개와 모듈 의존 방향을 유지한다.",
     "문서 변경은 diff/문서 검사만, 제품 변경은 직접 영향 검사만 실행하고 성공 후 반복하지 않는다.",
     "운영 변경·실제 모델 호출은 직전 확인 대상이며 문서화 승인을 실행 승인으로 사용하지 않는다.",
-    "HP 기능은 데모 브랜치 demo/local-20261009와 bidops-local 격리 자원에서만 구현·검증하며 main 병합·운영 전환은 별도 작업이다(ADR-0071).",
-    "HP의 모델 호출은 codex-exec gpt-6-luna/high 하나다. LiteLLM local-agent-main·Qwen·Terra를 쓰지 않고, 기존 정책 파일·실행 row는 바꾸지 않는다(ADR-0071).",
-    "HWP/HWPX 원본이 입력 정본이며 PDF는 PDF 전용 첨부와 쪽 locator에만 쓴다. OCR은 범위 밖이다(ADR-0071).",
+    "HWP/HWPX 원본이 입력 정본이며 PDF는 PDF 전용 첨부와 쪽 locator에만 쓴다. OCR은 범위 밖이다(ADR-0071·0073).",
     "새 DB 테이블·열 권한은 scripts/runtime-privileges.sql에 등록하고 migration에 GRANT를 쓰지 않는다.",
     "사용자 요청 없이 commit·merge·push·브랜치 삭제하지 않는다.",
-    "회사 v2는 가상 실적의 명시 담당 범위만 역량 근거로 연결하고 현재 인력·자격·SLA·계약 수용을 별도 대조한다. 참고 공고는 완료 증거가 아니며 v1/v2 입력·사람 응답 hash를 혼용하지 않는다(HP02 preparation 실적 기반 회사 v2 재계획, 2026-10-15)."
+    "RL 기능은 main에서 분기한 브랜치와 bidops-local 격리 자원에서 구현·검증하며 운영 전환은 별도 작업이다(ADR-0073).",
+    "RL의 모델 호출은 codex-exec gpt-6-luna/high 하나다. LiteLLM local-agent-main·Qwen·Terra를 쓰지 않고 기존 정책 파일·실행 row는 바꾸지 않는다(ADR-0071·0073).",
+    "회사는 실회사 루트랩 1곳이다. 확인된 사실(confirmed)·제안값(proposed)·미확인(unknown)을 분리하고 proposed와 unknown을 차단 조건으로 쓰지 않는다(ADR-0073)."
   ],
   "steps_heading": "## 작업 순서",
   "proof": {
@@ -68,22 +69,22 @@
       "description": "승인·입력 hash·회사 소속·외부 전송 차단 검사",
       "required": true,
       "method": "command",
-      "applies_when": "외부 호출 또는 회사별 자원 접근 변경",
+      "applies_when": "외부 호출 또는 회사별 자원 접근 변경(RL-00 T6 가드, RL-01 T8·T9 Slack, RL-03 T3·T9·T10, RL-04 T4·T9)",
       "dependency_gate": true
     },
     "real_data_run": {
-      "description": "실제 격리 실행과 사람 판단: HP03 대표1건 모델 실행, HP05 두 엔진 비교·사람 평가/결론, HP06 독립gold10건 대조·최종 인수. 준비/도구 검증으로 대체 불가",
+      "description": "실제 격리 실행과 사람 판단: RL-03 T12 실제 Luna 1건(폴리텍), RL-04 T11 실제 초안 1건, RL-05 T5 gold 10건 채점·사람 인수. mock·준비·도구 검증으로 대체 불가",
       "required": true,
       "method": "manual",
-      "applies_when": "HP-03-two-tier-analysis(대표1건), HP-05-neo4j-experiment(실제비교·사람평가·실험결론), HP-06-gold-acceptance(gold10건·인수); 그 밖의 기능은 비적용",
+      "applies_when": "RL-03-fit-verdict(T12), RL-04-proposal-draft(T11), RL-05-gold-acceptance(T5); 그 밖의 기능은 비적용",
       "dependency_gate": true
     }
   },
   "commands": {
     "docs": "python3 scripts/feature_status.py doctor _",
-    "tests": "",
+    "tests": "bash -lc \"cd web/backend && python -m pytest -q -x -p no:cacheprovider\"",
     "postgres": "",
-    "frontend": "",
+    "frontend": "bash -lc \"cd web/frontend && npm run build && npm run test:contrast\"",
     "api_guard": "",
     "real_data_run": ""
   },
@@ -107,7 +108,7 @@
     "commit_policy": "manual",
     "merge_policy": "manual"
   },
-  "commit_message_example": "docs: 홈페이지 전문 1사 HP 기능 명세와 SDLC 실행 큐 추가",
+  "commit_message_example": "docs(rl): RL-00~06 기능 명세와 SDLC 실행 큐 추가",
   "status_command": "python3 scripts/feature_status.py",
   "schema_version": 2,
   "tool_version": "0.6.0",
@@ -122,6 +123,6 @@
     "web/backend/AGENTS.md",
     "web/frontend/AGENTS.md"
   ],
-  "default_group": "HP",
+  "default_group": "RL",
   "worktree_dir": ".sdlc/worktrees"
 }

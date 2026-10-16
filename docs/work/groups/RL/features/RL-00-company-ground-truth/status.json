@@ -1,0 +1,202 @@
+{
+  "schema_version": 2,
+  "feature": "RL-00-company-ground-truth",
+  "phase": "review",
+  "steps": [
+    {
+      "id": "STEP-001",
+      "title": "계약 enum·검증 규칙",
+      "model": "complex",
+      "fingerprint": "519e027ce659d54bb6ae0408365e4414fee6e5c6edebe05857a3a30e5932437f",
+      "status": "stale",
+      "updated_at": null,
+      "history": [
+        {
+          "id": "STEP-001",
+          "title": "계약 enum·검증 규칙",
+          "model": "complex",
+          "fingerprint": "2c629c269ec0ef80010d351fc13e1275b8da6d8e6fba4f6d1bedf8fe7a038758",
+          "status": "pending",
+          "updated_at": null
+        }
+      ]
+    },
+    {
+      "id": "STEP-002",
+      "title": "실회사 등록 규칙과 demo 분리",
+      "model": "complex",
+      "fingerprint": "fd97eba6a91543c121ca2bbaf55b69f0ba3de551c2c9960a5bea252987a9c1ad",
+      "status": "stale",
+      "updated_at": null,
+      "history": [
+        {
+          "id": "STEP-002",
+          "title": "실회사 등록 규칙과 demo 분리",
+          "model": "complex",
+          "fingerprint": "9696368d9c2110d8cc6ff9a4613fc698537b2e564fcf0cad575550f08f0ebbdb",
+          "status": "pending",
+          "updated_at": null
+        }
+      ]
+    },
+    {
+      "id": "STEP-003",
+      "title": "`GET /api/company`와 오류 code",
+      "model": "standard",
+      "fingerprint": "b566366e8979f9f2090f7969399ea971342d573ced70c88d34a7357996345686",
+      "status": "stale",
+      "updated_at": null,
+      "history": [
+        {
+          "id": "STEP-003",
+          "title": "`GET /api/company`와 오류 code",
+          "model": "standard",
+          "fingerprint": "edabf1463b44838305c66d8cb6649ef06bddc152be2e599c35d728dfa0f9b09f",
+          "status": "pending",
+          "updated_at": null
+        },
+        {
+          "id": "STEP-003",
+          "title": "`GET /api/company`와 오류 code",
+          "model": "standard",
+          "fingerprint": "0c6e4b03c0815158e440044bf8209f10baaa1166ee96e3c7f7c2c32e78be3a97",
+          "status": "stale",
+          "updated_at": null,
+          "history": [
+            {
+              "id": "STEP-003",
+              "title": "`GET /api/company`와 오류 code",
+              "model": "standard",
+              "fingerprint": "edabf1463b44838305c66d8cb6649ef06bddc152be2e599c35d728dfa0f9b09f",
+              "status": "pending",
+              "updated_at": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "STEP-004",
+      "title": "루트랩 회사 파일 작성과 dry-run",
+      "model": "complex",
+      "fingerprint": "69887c38b7bf3b14276ee01d458646871ddc2e74803d320f52813bf556870853",
+      "status": "stale",
+      "updated_at": null,
+      "history": [
+        {
+          "id": "STEP-004",
+          "title": "루트랩 회사 파일 작성과 dry-run",
+          "model": "complex",
+          "fingerprint": "3487d7887c47428e5502d5c694b3e7ca4cc10a542d49a6d390c044967f695904",
+          "status": "pending",
+          "updated_at": null
+        }
+      ]
+    },
+    {
+      "id": "STEP-005",
+      "title": "`/company` 화면",
+      "model": "standard",
+      "fingerprint": "0ffaa8df5f7d6132bffa789f4022827e97edbfe9ef8b8b56385f6636fb6471fd",
+      "status": "stale",
+      "updated_at": null,
+      "history": [
+        {
+          "id": "STEP-005",
+          "title": "`/company` 화면",
+          "model": "standard",
+          "fingerprint": "49bc6d4638de6e0f49ec4a6c8e5ab8589c764b299f5c8562fab7d8cf1fce4706",
+          "status": "pending",
+          "updated_at": null
+        }
+      ]
+    },
+    {
+      "id": "STEP-006",
+      "title": "격리 등록·활성화",
+      "model": "standard",
+      "fingerprint": "177e2d6552d1a98b43d6b95095aac0f169ce98e42592863481257f6faa1aedb5",
+      "status": "pending",
+      "updated_at": null
+    },
+    {
+      "id": "STEP-007",
+      "title": "문서 개정",
+      "model": "standard",
+      "fingerprint": "8df6a0e256bf0ff35c390a385870a5855fcc0655978e5c49cd60ec4e06b654c1",
+      "status": "stale",
+      "updated_at": null,
+      "history": [
+        {
+          "id": "STEP-007",
+          "title": "문서 개정",
+          "model": "standard",
+          "fingerprint": "8210346bab18a3403c348e2f8021d653bf5649df5cbc617780751c76e7d46e46",
+          "status": "pending",
+          "updated_at": null
+        },
+        {
+          "id": "STEP-007",
+          "title": "문서 개정",
+          "model": "standard",
+          "fingerprint": "5ee4863c35d357963cb65a4e2325c7ca148e6ec2bd19a787b97818093eab084a",
+          "status": "stale",
+          "updated_at": null,
+          "history": [
+            {
+              "id": "STEP-007",
+              "title": "문서 개정",
+              "model": "standard",
+              "fingerprint": "8210346bab18a3403c348e2f8021d653bf5649df5cbc617780751c76e7d46e46",
+              "status": "pending",
+              "updated_at": null
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "proof": {
+    "docs": {
+      "result": "pending"
+    },
+    "tests": {
+      "result": "pending"
+    },
+    "postgres": {
+      "result": "pending"
+    },
+    "frontend": {
+      "result": "pending"
+    },
+    "api_guard": {
+      "result": "pending"
+    },
+    "real_data_run": {
+      "result": "pending"
+    }
+  },
+  "notes": [
+    {
+      "at": "2026-10-16T15:08:28+09:00",
+      "text": "생성 (drafting)"
+    },
+    {
+      "at": "2026-10-16T16:02:44+09:00",
+      "text": "plan 작업 ID 동기화"
+    },
+    {
+      "at": "2026-10-16T16:11:48+09:00",
+      "text": "plan 작업 ID 동기화"
+    },
+    {
+      "at": "2026-10-16T16:22:22+09:00",
+      "text": "plan 작업 ID 동기화"
+    },
+    {
+      "at": "2026-10-16T20:41:31+09:00",
+      "text": "단계 → review: 독립 검사 1·2차 반영(잔여 차단 1건은 /api/company를 deep_review 라우터로 이동해 해소, 3차 생략)"
+    }
+  ],
+  "updated_at": "2026-10-16T20:41:31+09:00"
+}

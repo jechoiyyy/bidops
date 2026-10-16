@@ -40,9 +40,48 @@ UI는 production build와 해당 화면의 1280×800·1440×900 의미/구조 �
 설정/큐/상태는 docs/work, CLI는 python3 scripts/feature_status.py <command> <ID> 순서다.
 standard=gpt-6-luna/max, complex 및 독립 review=gpt-5.6-sol/high.
 commit/merge는 manual, push/브랜치 삭제는 요청 때만 한다.
-DEMO 그룹은 2026-10-14에 닫았다. DEMO05 run은 abandon됐고 HP00·01 run도 종료됐다. 새 loop 시작 전에 active run을 CLI로 다시 확인한다.
+DEMO 그룹은 2026-10-14에, HP 그룹은 2026-10-16에 닫았다. DEMO05·hp0206 run은 abandon됐고 HP00·01 run은 종료돼 main에 들어왔다. 새 그룹 RL은 main에서 시작하며 새 loop 시작 전에 active run을 CLI로 다시 확인한다.
 
-## 이전 DEMO 설계 (기록)
+## 이전 DEMO·HP 설계 (기록)
+회사 식별·추적은 lifecycle, 프로필·그래프·회사별 분석은 deep_review가 소유한다. 새 API namespace는 /api/companies이며 기존 경로의 wire 의미는 유지한다.
+멱등성은 body request_id+core IdempotencyRecord, 심층 승인은 기존 DeepReviewPreview/Approval, 핏은 worker 역할 CLI enqueue다.
+Luna 승인 정책은 이미지 파일과 `_approved_policy_path` 매핑으로만 인정된다.
+2026-10-09 확인한 LiteLLM 별칭 `local-agent-main`의 선언 입력 상한은 32,768 tokens였고 HP에서는 쓰지 않는다.
+
+### 회사 v2 준비 방향(2026-10-15)
+승인 typed 사실+가상 실적 담당 범위+현재 조건을 단일 원본으로 연결한 뒤 기존 노드/관계로 projection한다. HP02 spec에서 기존 strict graph+typed sidecar binding을 사용하도록 고정했다. 실제 v2 등록 파일/제품 연결은 loop 구현 대상이다. HP03은 기능 유사성·현재 조건·계약 수용 조건을 분리하고 v1/v2 hash를 혼용하지 않는다. 출처는 HP02 preparation의 실적 기반 회사 v2 재계획 절이다.
+## RL 목표 설계 (2026-10-16, ADR-0073)
+회사는 실회사 루트랩 1곳이며 `is_fictional=false`로 등록한다. 회사 경계·그래프 저장·회사 REST·화면(DEMO-01~04)과 요구사항 카드 inventory(HP-01)·Luna identity(HP-00)를 재사용한다.
+모든 LLM 작업은 codex-exec `gpt-6-luna`/high 하나다. 공고 원문·첨부·회사 근거의 전송은 정책 파일 단위 사전 승인으로 자동화하고 건별 감사·payload 동결·allowlist·hosted fallback 금지는 유지한다. LiteLLM `local-agent-main`·Qwen·Terra는 RL에서 호출하지 않으며 로컬 LLM은 RL-06에서 토큰 최적화로만 검토한다.
+브리핑 전송은 Slack bot(전용 채널, 평일 1회)이며 토큰은 env 파일로 주입하고 payload에 공고 식별자·요약·링크만 넣는다. 화면은 같은 브리핑을 읽기 전용으로 보여 준다.
+제안서 초안 출력은 PDF(1차)이며 HWP는 후속 결정이다(인터뷰 E2). DOCX는 중간 형식으로만 쓴다. 생성기는 요구사항 카드 ID와 회사 근거 ID를 각 문장에 남긴다.
+core에는 순수 검증/타입만 두고 도메인 import를 추가하지 않는다. 그래프 DB·시맨틱웹 엔진은 도입하지 않는다(Neo4j 실험 보류).
+DB 권한은 migration이 아니라 scripts/runtime-privileges.sql이 정본이다. Luna 승인 정책은 이미지 파일과 `_approved_policy_path` 매핑으로만 인정된다.
+구현·검증은 main에서 분기한 기능 브랜치와 `COMPOSE_PROJECT_NAME=bidops-local` 격리 자원에서 하고 운영 배포는 별도 전환 작업이다.
+
+## 강제 기준과 실행용 복사
+feature.json constraints는 AGENTS.md, standards, business-rules, contracts, operations,
+backend/frontend AGENTS의 실행용 요약이다. 전체 규칙과 충돌하면 원문이 우선이다.
+각 기능 intent에 이 설정과 docs/work/source-baseline.json의 원본 hash를 연결한다.
+가상 설정 여부는 확실성 상태와 별도 축이다. 프로필/그래프의 원본은 동일 버전에서 파생한다.
+사내망/claimed name 경계를 유지하며 새로운 인증 기능을 암시하지 않는다.
+
+## 검증·실행
+문서 작업: doctor·링크·STEP/테스트 대응·diff. 앱 빌드나 제품 테스트를 실행하지 않는다.
+제품 작업: 각 plan의 직접 영향 검사, PostgreSQL 변형은 임시 postgres:17.11,
+BIDOPS_TEST_POSTGRES_URL과 BIDOPS_PRESPEC_OVERVIEW_ENABLED=false를 명시한다.
+UI는 production build와 해당 화면의 1280×800·1440×900 의미/구조 검사.
+명령이 비어 있는 proof는 자동 통과가 아니다. 해당 plan의 명령/수동 증거가 필요하다.
+별도 lint 도구는 미채택이므로 가짜 lint 성공 항목을 만들지 않는다.
+실제 모델 호출은 건별 승인 뒤 격리 스택에서만 하며 격리 검증을 품질 근거로 쓰지 않는다.
+
+## SDLC
+설정/큐/상태는 docs/work, CLI는 python3 scripts/feature_status.py <command> <ID> 순서다.
+standard=gpt-6-luna/max, complex 및 독립 review=gpt-5.6-sol/high.
+commit/merge는 manual, push/브랜치 삭제는 요청 때만 한다.
+DEMO 그룹은 2026-10-14에, HP 그룹은 2026-10-16에 닫았다. DEMO05·hp0206 run은 abandon됐고 HP00·01 run은 종료돼 main에 들어왔다. 새 그룹 RL은 main에서 시작하며 새 loop 시작 전에 active run을 CLI로 다시 확인한다.
+
+## 이전 DEMO·HP 설계 (기록)
 회사 식별·추적은 lifecycle, 프로필·그래프·회사별 분석은 deep_review가 소유한다. 새 API namespace는 /api/companies이며 기존 경로의 wire 의미는 유지한다.
 멱등성은 body request_id+core IdempotencyRecord, 심층 승인은 기존 DeepReviewPreview/Approval, 핏은 worker 역할 CLI enqueue다.
 Luna 승인 정책은 이미지 파일과 `_approved_policy_path` 매핑으로만 인정된다.
