@@ -62,13 +62,14 @@ bidops/
 Astryx의 "레이아웃도 컴포넌트로만, `<div>` 금지" 규칙은 ADR-0040에 따라 이 저장소에 적용하지 않으며 레이아웃은 프로젝트가 소유한다.
 화면의 색은 무드보드(git 이력 `docs/design/moodborad.jpg`, 삭제됨)에서 파생한 프로젝트 소유 테마 `bidops`가 정본이며(ADR-0048), 화면은 테마 토큰만 읽고 `:root`나 화면 CSS에서 `--color-*`를 재정의하지 않는다. 성공·실패·경고 의미색은 무드보드가 정하지 않는다.
 
-## HP 기능 문서와 실행 큐
+## RL 기능 문서와 실행 큐
 
-홈페이지 전문 가상 1사 심층 검토 재정의(2026-10-14, ADR-0071)는 [로드맵](docs/work/constitution/roadmap.md)과 [HP 공통 계약](docs/work/hp-contract.md)을 먼저 읽는다.
-이전 DEMO 그룹(가상 SI 3사)은 종료했고 [DEMO 공통 계약](docs/work/demo-contract.md)은 재사용 코드의 계약 기록이다.
-기능 상태는 `docs/work/groups/HP/features/*/status.json`, 순서·의존은 `docs/work/queue.json`이 정본이다.
+루트랩 실회사 기준 AX 과제(2026-10-16, ADR-0073)는 [로드맵](docs/work/constitution/roadmap.md)과 [재정의 초안](docs/1016_rootlab-redefinition/draft.md)을 먼저 읽는다.
+회사 근거는 `docs/reference/company-profile.md`(회사소개서)·`company-homepage-profile.md`(홈페이지)·`company-preferences.md`(제안값, `proposed`)이며 미확인 값은 `docs/1016_rootlab-redefinition/company-interview.md`로 채운다.
+이전 HP(가상 홈페이지 1사)·DEMO(가상 SI 3사) 그룹은 종료했고 HP-00·01 코드만 재사용한다. [HP 공통 계약](docs/work/hp-contract.md)·[DEMO 공통 계약](docs/work/demo-contract.md)은 재사용 코드의 계약 기록이다.
+기능 상태는 `docs/work/groups/RL/features/*/status.json`, 순서·의존은 `docs/work/queue.json`이 정본이다.
 `python3 scripts/feature_status.py queue _ show`로 확인하고 상태·큐는 이 도구로만 수정한다.
-HP의 모델 호출은 codex-exec `gpt-6-luna`/high 하나이며 LiteLLM·Qwen·Terra를 쓰지 않는다. 입력 정본은 HWP/HWPX 원본이다.
+모든 LLM 호출은 codex-exec `gpt-6-luna`/high 하나이며 전송은 정책 단위 사전 승인 + 건별 감사다. 입력 정본은 HWP/HWPX 원본이다.
 문서화 완료를 제품 구현·실제 모델 검증 완료로 표시하지 않는다. commit·merge는 수동이다.
 
 ## 작업 전 확인

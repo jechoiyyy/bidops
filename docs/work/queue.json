@@ -11,40 +11,59 @@
       "added_at": "2026-10-14T19:45:40+09:00"
     },
     {
-      "feature": "HP-02-homepage-ontology-company",
-      "depends_on": [
-        "HP-01-requirement-cards"
-      ],
-      "added_at": "2026-10-15T15:50:43+09:00"
+      "feature": "RL-00-company-ground-truth",
+      "depends_on": [],
+      "added_at": "2026-10-16T20:41:36+09:00"
     },
     {
-      "feature": "HP-03-two-tier-analysis",
+      "feature": "RL-01-daily-briefing",
       "depends_on": [
-        "HP-00-luna-model-identity",
-        "HP-02-homepage-ontology-company"
+        "RL-00-company-ground-truth"
       ],
-      "added_at": "2026-10-15T15:50:43+09:00"
+      "added_at": "2026-10-16T20:41:36+09:00"
     },
     {
-      "feature": "HP-04-practitioner-verdict",
+      "feature": "RL-02-opportunity-timeline",
       "depends_on": [
-        "HP-03-two-tier-analysis"
+        "RL-01-daily-briefing"
       ],
-      "added_at": "2026-10-15T15:50:43+09:00"
+      "added_at": "2026-10-16T20:41:36+09:00"
     },
     {
-      "feature": "HP-05-neo4j-experiment",
+      "feature": "RL-03-fit-verdict",
       "depends_on": [
-        "HP-02-homepage-ontology-company"
+        "RL-00-company-ground-truth",
+        "RL-01-daily-briefing",
+        "RL-02-opportunity-timeline"
       ],
-      "added_at": "2026-10-15T15:50:43+09:00"
+      "added_at": "2026-10-16T20:41:36+09:00"
     },
     {
-      "feature": "HP-06-gold-acceptance",
+      "feature": "RL-04-proposal-draft",
       "depends_on": [
-        "HP-04-practitioner-verdict"
+        "RL-03-fit-verdict",
+        "RL-00-company-ground-truth",
+        "RL-02-opportunity-timeline"
       ],
-      "added_at": "2026-10-15T15:50:43+09:00"
+      "added_at": "2026-10-16T20:41:36+09:00"
+    },
+    {
+      "feature": "RL-05-gold-acceptance",
+      "depends_on": [
+        "RL-03-fit-verdict",
+        "RL-00-company-ground-truth",
+        "RL-01-daily-briefing"
+      ],
+      "added_at": "2026-10-16T20:41:36+09:00"
+    },
+    {
+      "feature": "RL-06-local-llm-optimization",
+      "depends_on": [
+        "RL-04-proposal-draft",
+        "RL-03-fit-verdict",
+        "RL-05-gold-acceptance"
+      ],
+      "added_at": "2026-10-16T20:41:36+09:00"
     }
   ]
 }

@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
   "feature": "HP-02-homepage-ontology-company",
-  "phase": "review",
+  "phase": "blocked",
   "steps": [
     {
       "id": "STEP-001",
@@ -60,7 +60,12 @@
     {
       "at": "2026-10-15T15:50:40+09:00",
       "text": "단계 → review: 명세 독립 검사 PASS(gpt-5.6-sol/high), 지적6개 반영·차이1회 재검토·차단0. preparation/preloop-review.md 참조. 제품 구현/검증 전"
+    },
+    {
+      "at": "2026-10-16T11:17:07+09:00",
+      "text": "단계 → blocked: 2026-10-16 폐기: 가상회사 전제 종료, 루트랩 실회사 RL 그룹으로 재명세(ADR-0073)"
     }
   ],
-  "updated_at": "2026-10-15T15:50:40+09:00"
+  "updated_at": "2026-10-16T11:17:07+09:00",
+  "resume_phase": "review"
 }
