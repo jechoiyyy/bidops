@@ -167,79 +167,79 @@
     "docs": {
       "result": "pass",
       "method": "review",
-      "note": "doctor exit0, 독립 리뷰 BLOCKING 없음, 문서 diff 검토",
+      "note": "doctor exit0, 독립 리뷰 BLOCKING 없음. 재기록: 커밋 a4f6ee5 뒤 snapshot이 삭제 파일(company-graph.spec.ts) 'deleted' 표식 제거로만 바뀜(06:12 이후 docs/work 밖 변경 0, find -newer 확인). 같은 증거",
       "evidence": "docs/work/_runs/rla-20261016/logs/RL-00-doctor.log; docs/work/_runs/rla-20261016/RL-00-review.md",
       "exit_code": null,
       "actor": "orchestrator",
       "command": "python3 scripts/feature_status.py doctor _",
-      "at": "2026-10-17T06:12:36+09:00",
-      "head": "c93da20ca80369a2da16862a3698b79ab418dcff",
-      "source_hash": "cac83459d63789ec968b137e70db01d462886e42a960d8d2d32760e4138d848c",
+      "at": "2026-10-17T06:19:40+09:00",
+      "head": "a4f6ee57571ca9b32dc55e8bd73ac8bc19b1ae53",
+      "source_hash": "dea8ff6045936accef374f4dabdfa23d108a532237caf661a02bb93a3d317aca",
       "spec_hash": "7aaa401f099bc7f7ed61251993b49eafa501429a98166119c809388d7dd7204a"
     },
     "tests": {
       "result": "pass",
       "method": "command",
-      "note": "plan 증명 tests 명령 + module_boundaries·workload: 140 passed 85 skipped(PG)",
+      "note": "140 passed 85 skipped(PG). 재기록: 커밋 a4f6ee5 뒤 snapshot이 삭제 파일(company-graph.spec.ts) 'deleted' 표식 제거로만 바뀜(06:12 이후 docs/work 밖 변경 0, find -newer 확인). 같은 증거",
       "evidence": "docs/work/_runs/rla-20261016/logs/RL-00-tests.log",
       "exit_code": 0,
       "actor": "orchestrator",
       "command": "bash -lc \"cd web/backend && python -m pytest -q -x -p no:cacheprovider\"",
-      "at": "2026-10-17T06:12:36+09:00",
-      "head": "c93da20ca80369a2da16862a3698b79ab418dcff",
-      "source_hash": "cac83459d63789ec968b137e70db01d462886e42a960d8d2d32760e4138d848c",
+      "at": "2026-10-17T06:19:40+09:00",
+      "head": "a4f6ee57571ca9b32dc55e8bd73ac8bc19b1ae53",
+      "source_hash": "dea8ff6045936accef374f4dabdfa23d108a532237caf661a02bb93a3d317aca",
       "spec_hash": "7aaa401f099bc7f7ed61251993b49eafa501429a98166119c809388d7dd7204a"
     },
     "postgres": {
       "result": "pass",
       "method": "command",
-      "note": "일회용 postgres:17.11 255 passed (company_context_postgres·knowledge_api·privileges·alembic drift 포함)",
+      "note": "postgres:17.11 255 passed. 재기록: 커밋 a4f6ee5 뒤 snapshot이 삭제 파일(company-graph.spec.ts) 'deleted' 표식 제거로만 바뀜(06:12 이후 docs/work 밖 변경 0, find -newer 확인). 같은 증거",
       "evidence": "docs/work/_runs/rla-20261016/logs/RL-00-postgres.log",
       "exit_code": 0,
       "actor": "orchestrator",
       "command": "",
-      "at": "2026-10-17T06:12:37+09:00",
-      "head": "c93da20ca80369a2da16862a3698b79ab418dcff",
-      "source_hash": "cac83459d63789ec968b137e70db01d462886e42a960d8d2d32760e4138d848c",
+      "at": "2026-10-17T06:19:40+09:00",
+      "head": "a4f6ee57571ca9b32dc55e8bd73ac8bc19b1ae53",
+      "source_hash": "dea8ff6045936accef374f4dabdfa23d108a532237caf661a02bb93a3d317aca",
       "spec_hash": "7aaa401f099bc7f7ed61251993b49eafa501429a98166119c809388d7dd7204a"
     },
     "frontend": {
       "result": "pass",
       "method": "command",
-      "note": "build·contrast 8/8·Playwright app 41 + company-layout 20",
+      "note": "build·contrast 8/8·Playwright 41+20. 재기록: 커밋 a4f6ee5 뒤 snapshot이 삭제 파일(company-graph.spec.ts) 'deleted' 표식 제거로만 바뀜(06:12 이후 docs/work 밖 변경 0, find -newer 확인). 같은 증거",
       "evidence": "docs/work/_runs/rla-20261016/logs/RL-00-frontend-build.log; docs/work/_runs/rla-20261016/logs/RL-00-playwright.log; docs/work/_runs/rla-20261016/logs/RL-00-playwright-layout.log",
       "exit_code": 0,
       "actor": "orchestrator",
       "command": "bash -lc \"cd web/frontend && npm run build && npm run test:contrast\"",
-      "at": "2026-10-17T06:12:37+09:00",
-      "head": "c93da20ca80369a2da16862a3698b79ab418dcff",
-      "source_hash": "cac83459d63789ec968b137e70db01d462886e42a960d8d2d32760e4138d848c",
+      "at": "2026-10-17T06:19:41+09:00",
+      "head": "a4f6ee57571ca9b32dc55e8bd73ac8bc19b1ae53",
+      "source_hash": "dea8ff6045936accef374f4dabdfa23d108a532237caf661a02bb93a3d317aca",
       "spec_hash": "7aaa401f099bc7f7ed61251993b49eafa501429a98166119c809388d7dd7204a"
     },
     "api_guard": {
       "result": "pass",
       "method": "command",
-      "note": "외부 호출 없음; T6 demo off 가상 경로 404 유지(company-comparison·SPA /companies·company_reads·company_analysis POST) PG 테스트",
+      "note": "T6 demo off 404 유지. 재기록: 커밋 a4f6ee5 뒤 snapshot이 삭제 파일(company-graph.spec.ts) 'deleted' 표식 제거로만 바뀜(06:12 이후 docs/work 밖 변경 0, find -newer 확인). 같은 증거",
       "evidence": "docs/work/_runs/rla-20261016/logs/RL-00-postgres.log",
       "exit_code": 0,
       "actor": "orchestrator",
       "command": "",
-      "at": "2026-10-17T06:12:37+09:00",
-      "head": "c93da20ca80369a2da16862a3698b79ab418dcff",
-      "source_hash": "cac83459d63789ec968b137e70db01d462886e42a960d8d2d32760e4138d848c",
+      "at": "2026-10-17T06:19:41+09:00",
+      "head": "a4f6ee57571ca9b32dc55e8bd73ac8bc19b1ae53",
+      "source_hash": "dea8ff6045936accef374f4dabdfa23d108a532237caf661a02bb93a3d317aca",
       "spec_hash": "7aaa401f099bc7f7ed61251993b49eafa501429a98166119c809388d7dd7204a"
     },
     "real_data_run": {
       "result": "not_applicable",
       "method": "manual",
-      "note": "real_data_run은 RL-03 T12·RL-04 T11·RL-05 T5에만 적용; RL-00은 모델 호출 없음",
+      "note": "RL-03·04·05 전용, RL-00 모델 호출 없음",
       "evidence": "docs/work/feature.json",
       "exit_code": null,
       "actor": "orchestrator",
       "command": "",
-      "at": "2026-10-17T06:12:37+09:00",
-      "head": "c93da20ca80369a2da16862a3698b79ab418dcff",
-      "source_hash": "cac83459d63789ec968b137e70db01d462886e42a960d8d2d32760e4138d848c",
+      "at": "2026-10-17T06:19:41+09:00",
+      "head": "a4f6ee57571ca9b32dc55e8bd73ac8bc19b1ae53",
+      "source_hash": "dea8ff6045936accef374f4dabdfa23d108a532237caf661a02bb93a3d317aca",
       "spec_hash": "7aaa401f099bc7f7ed61251993b49eafa501429a98166119c809388d7dd7204a"
     }
   },
@@ -321,7 +321,7 @@
       "text": "단계 → validating"
     }
   ],
-  "updated_at": "2026-10-17T06:12:37+09:00",
+  "updated_at": "2026-10-17T06:19:41+09:00",
   "proof_history": [
     {
       "key": "docs",
@@ -357,6 +357,102 @@
       "key": "real_data_run",
       "previous": {
         "result": "pending"
+      }
+    },
+    {
+      "key": "docs",
+      "previous": {
+        "result": "pass",
+        "method": "review",
+        "note": "doctor exit0, 독립 리뷰 BLOCKING 없음, 문서 diff 검토",
+        "evidence": "docs/work/_runs/rla-20261016/logs/RL-00-doctor.log; docs/work/_runs/rla-20261016/RL-00-review.md",
+        "exit_code": null,
+        "actor": "orchestrator",
+        "command": "python3 scripts/feature_status.py doctor _",
+        "at": "2026-10-17T06:12:36+09:00",
+        "head": "c93da20ca80369a2da16862a3698b79ab418dcff",
+        "source_hash": "cac83459d63789ec968b137e70db01d462886e42a960d8d2d32760e4138d848c",
+        "spec_hash": "7aaa401f099bc7f7ed61251993b49eafa501429a98166119c809388d7dd7204a"
+      }
+    },
+    {
+      "key": "tests",
+      "previous": {
+        "result": "pass",
+        "method": "command",
+        "note": "plan 증명 tests 명령 + module_boundaries·workload: 140 passed 85 skipped(PG)",
+        "evidence": "docs/work/_runs/rla-20261016/logs/RL-00-tests.log",
+        "exit_code": 0,
+        "actor": "orchestrator",
+        "command": "bash -lc \"cd web/backend && python -m pytest -q -x -p no:cacheprovider\"",
+        "at": "2026-10-17T06:12:36+09:00",
+        "head": "c93da20ca80369a2da16862a3698b79ab418dcff",
+        "source_hash": "cac83459d63789ec968b137e70db01d462886e42a960d8d2d32760e4138d848c",
+        "spec_hash": "7aaa401f099bc7f7ed61251993b49eafa501429a98166119c809388d7dd7204a"
+      }
+    },
+    {
+      "key": "postgres",
+      "previous": {
+        "result": "pass",
+        "method": "command",
+        "note": "일회용 postgres:17.11 255 passed (company_context_postgres·knowledge_api·privileges·alembic drift 포함)",
+        "evidence": "docs/work/_runs/rla-20261016/logs/RL-00-postgres.log",
+        "exit_code": 0,
+        "actor": "orchestrator",
+        "command": "",
+        "at": "2026-10-17T06:12:37+09:00",
+        "head": "c93da20ca80369a2da16862a3698b79ab418dcff",
+        "source_hash": "cac83459d63789ec968b137e70db01d462886e42a960d8d2d32760e4138d848c",
+        "spec_hash": "7aaa401f099bc7f7ed61251993b49eafa501429a98166119c809388d7dd7204a"
+      }
+    },
+    {
+      "key": "frontend",
+      "previous": {
+        "result": "pass",
+        "method": "command",
+        "note": "build·contrast 8/8·Playwright app 41 + company-layout 20",
+        "evidence": "docs/work/_runs/rla-20261016/logs/RL-00-frontend-build.log; docs/work/_runs/rla-20261016/logs/RL-00-playwright.log; docs/work/_runs/rla-20261016/logs/RL-00-playwright-layout.log",
+        "exit_code": 0,
+        "actor": "orchestrator",
+        "command": "bash -lc \"cd web/frontend && npm run build && npm run test:contrast\"",
+        "at": "2026-10-17T06:12:37+09:00",
+        "head": "c93da20ca80369a2da16862a3698b79ab418dcff",
+        "source_hash": "cac83459d63789ec968b137e70db01d462886e42a960d8d2d32760e4138d848c",
+        "spec_hash": "7aaa401f099bc7f7ed61251993b49eafa501429a98166119c809388d7dd7204a"
+      }
+    },
+    {
+      "key": "api_guard",
+      "previous": {
+        "result": "pass",
+        "method": "command",
+        "note": "외부 호출 없음; T6 demo off 가상 경로 404 유지(company-comparison·SPA /companies·company_reads·company_analysis POST) PG 테스트",
+        "evidence": "docs/work/_runs/rla-20261016/logs/RL-00-postgres.log",
+        "exit_code": 0,
+        "actor": "orchestrator",
+        "command": "",
+        "at": "2026-10-17T06:12:37+09:00",
+        "head": "c93da20ca80369a2da16862a3698b79ab418dcff",
+        "source_hash": "cac83459d63789ec968b137e70db01d462886e42a960d8d2d32760e4138d848c",
+        "spec_hash": "7aaa401f099bc7f7ed61251993b49eafa501429a98166119c809388d7dd7204a"
+      }
+    },
+    {
+      "key": "real_data_run",
+      "previous": {
+        "result": "not_applicable",
+        "method": "manual",
+        "note": "real_data_run은 RL-03 T12·RL-04 T11·RL-05 T5에만 적용; RL-00은 모델 호출 없음",
+        "evidence": "docs/work/feature.json",
+        "exit_code": null,
+        "actor": "orchestrator",
+        "command": "",
+        "at": "2026-10-17T06:12:37+09:00",
+        "head": "c93da20ca80369a2da16862a3698b79ab418dcff",
+        "source_hash": "cac83459d63789ec968b137e70db01d462886e42a960d8d2d32760e4138d848c",
+        "spec_hash": "7aaa401f099bc7f7ed61251993b49eafa501429a98166119c809388d7dd7204a"
       }
     }
   ]
