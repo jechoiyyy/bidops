@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { mockApi, mockCompanyWorkspace } from "./api-mock";
+import { mockApi, mockCompanyWorkspace, mockRealCompany } from "./api-mock";
 import { COMPANY_BY_SLUG } from "./fixtures/company-demo";
 
 /*
@@ -166,20 +166,27 @@ test("A→B→A 전환·새로고침·뒤로/앞으로에서 주소·머리글·
   ].sort());
 });
 
-test("프로필 화면에서 회사를 바꾸면 새 회사의 프로필로 가고 머리글·사실이 그 회사다", async ({ page }) => {
+test("demo가 켜져 있으면 /companies/:id/profile은 세 회사 모두 /company로 가고 그 회사의 프로필을 보이지 않는다", async ({ page }) => {
   await installMocks(page);
-  await page.goto(`/companies/${companyId("demo-public-si")}/profile`);
-  const facts = page.getByRole("table", { name: "구조화 사실" });
-  await expect(page.getByTestId("company-header").getByTestId("company-name")).toHaveText("데모 업무SI");
-  await expect(facts.locator('tr[data-fact-key="capability.public_admin"]')).toBeVisible();
-  await expect(facts.locator('tr[data-fact-key="qualification.isms"]')).toContainText("미확인");
+  await mockRealCompany(page);
+  for (const slug of ["demo-public-si", "demo-data-ai", "demo-cloud-si"] as const) {
+    await page.goto(`/companies/${companyId(slug)}/profile`);
+    // replace 이동이라 주소가 /company이고(기본 그룹 attention은 쿼리 없이 열린다) 뒤로 가기가 옛 주소로 돌아가지 않는다.
+    await expect(page).toHaveURL(/\/company$/);
+    await expect(page.locator("header.topbar h1")).toHaveText("회사 근거");
+    await expect(page.getByTestId("company-attention")).toBeVisible();
+    await expect(page.getByTestId("company-header")).toHaveCount(0);
+    await expect(page.locator("main")).not.toContainText(COMPANY_BY_SLUG[slug].name);
+    await expect(page.getByTestId("company-profile-version")).toHaveCount(0);
+  }
+});
 
-  await companySelect(page).selectOption(companyId("demo-cloud-si"));
-  await expect(page).toHaveURL(new RegExp(`/companies/${companyId("demo-cloud-si")}/profile$`));
-  await expect(page.getByTestId("company-header").getByTestId("company-name")).toHaveText("데모 클라우드SI");
-  await expect(facts.locator('tr[data-fact-key="capability.cloud_migration"]')).toBeVisible();
-  await expect(facts.locator('tr[data-fact-key="capability.public_admin"]')).toHaveCount(0);
-  await expect(page.getByTestId("company-profile-version")).toHaveText(COMPANY_BY_SLUG["demo-cloud-si"].profile_version_id);
+test("demo가 꺼져 있으면 /companies/:id/profile은 /company로 가지 않는다", async ({ page }) => {
+  await installMocks(page, { enabled: false });
+  await mockRealCompany(page);
+  await page.goto(`/companies/${companyId("demo-public-si")}/profile`);
+  await expect(page.getByTestId("company-attention")).toHaveCount(0);
+  await expect(page).not.toHaveURL(/\/company(?:\?|$)/);
 });
 
 test("두 탭이 서로 다른 회사를 열어도 서로의 화면·선택을 바꾸지 않는다", async ({ context }) => {

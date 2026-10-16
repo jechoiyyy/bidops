@@ -37,11 +37,15 @@ from app.deep_review.services.company_knowledge import (
 )
 from app.deep_review.services.input_versions import InputVersionError
 from tests.deep_review.test_company_knowledge import (  # noqa: F401 - shared fixtures
+    REAL_STATUS_COUNTS,
     _ontology,
     _prepared,
+    _prepared_real,
     _raw,
+    _real_source,
     _source,
     engine,
+    fictional_import_demo,
     object_store,
 )
 
@@ -352,11 +356,19 @@ def test_t4_other_company_unknown_and_legacy_resources_are_not_found(
     assert _profile(client, beta.company_id) == beta_profile
 
 
-def test_t4_demo_disabled_hides_company_knowledge_paths_before_validation(
+def test_t4_demo_disabled_keeps_company_knowledge_reads_open(
     engine, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """RL-00 spec "등록 조건": company REST no longer depends on the demo flag.
+
+    DEMO-02 hid these three GETs behind the demo guard; RL-00 opens exactly
+    them (plus ``GET /api/company``) with the demo off. Validation therefore
+    runs normally (422) instead of the guard's pre-validation 404, and the
+    non-GET methods on the same paths stay hidden.
+    """
+
     application, sessions = _application(engine, monkeypatch, enabled=False)
-    imported = _import(sessions, _prepared(), activate=True)
+    imported = _import(sessions, _prepared_real(), activate=True)
     client = TestClient(application)
     with sessions() as session:
         evidence_id = session.scalar(
@@ -365,15 +377,21 @@ def test_t4_demo_disabled_hides_company_knowledge_paths_before_validation(
             )
         )
     assert evidence_id is not None
+    _profile(client, imported.company_id)
+    _graph(client, imported.company_id)
+    _evidence(client, imported.company_id, evidence_id)
     for path in (
-        _profile_path(imported.company_id),
-        _graph_path(imported.company_id),
-        _evidence_path(imported.company_id, evidence_id),
         "/api/companies/not-a-uuid/profile",
         "/api/companies/not-a-uuid/knowledge-graph?depth=99&root_node_id=BAD",
         "/api/companies/not-a-uuid/profile-evidence/not-a-uuid",
     ):
-        response = client.get(path)
+        assert client.get(path).status_code == 422, path
+    for path in (
+        _profile_path(imported.company_id),
+        _graph_path(imported.company_id),
+        _evidence_path(imported.company_id, evidence_id),
+    ):
+        response = client.post(path, json={})
         assert response.status_code == 404, path
         assert response.json() == {"detail": "Not Found"}, path
 
@@ -382,10 +400,13 @@ def test_t4_company_knowledge_routes_are_provided_by_deep_review() -> None:
     from app import deep_review
 
     paths = {route.path for route in deep_review.company_knowledge_router.routes}
+    # RL-00 spec "REST": the single-company context route is owned by the same
+    # deep_review router module (lifecycle cannot read the binding table).
     assert paths == {
         "/api/companies/{company_id}/profile",
         "/api/companies/{company_id}/knowledge-graph",
         "/api/companies/{company_id}/profile-evidence/{evidence_id}",
+        "/api/company",
     }
     assert ("deep_review", "company_knowledge_router") in main_module._ROUTER_REGISTRATION
 
@@ -1076,3 +1097,166 @@ def test_b1_contract_valid_source_is_consumable_after_import_and_activation(
         edge["id"]: (edge["from_id"], edge["to_id"], edge)
         for edge in graph_row.snapshot["edges"]
     }
+
+
+# --- RL-00 T1 · T5: real company profile v2 and the held/detail split -------
+
+
+REAL_ORIGINS = {"company_brochure", "homepage", "user_interview", "agent_proposal"}
+
+
+def test_rl_t1_real_company_profile_and_graph_are_readable_after_activation(
+    engine, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.core.company_ontology import parse_ontology
+    from app.deep_review.services.input_versions import validate_profile_snapshot
+
+    monkeypatch.setenv("BIDOPS_DEMO_ENABLED", "false")
+    from app.core.config import get_settings
+
+    get_settings.cache_clear()
+    source = _real_source(parse_ontology(_raw(_ontology())).sha256)
+    prepared = _prepared_real()
+    assert prepared.source.company.is_fictional is False
+    application, sessions = _application(engine, monkeypatch, enabled=False)
+    imported = _import(sessions, prepared, activate=True)
+    assert imported.created is True
+
+    with sessions() as session:
+        profile_row = session.get(ProfileVersion, imported.profile_version_id)
+        assert profile_row is not None
+        # Same source_kind as fictional registrations; origin carries the split.
+        assert profile_row.source_kind == "company-knowledge-json-v2"
+        assert profile_row.profile_payload["origin"] == "real_company"
+        validate_profile_snapshot(session, profile_row)
+
+    client = TestClient(application)
+    profile = _profile(client, imported.company_id)
+    assert profile["company"]["is_fictional"] is False
+    nodes = {node["id"]: node for node in source["nodes"]}
+    fact_nodes = sorted(
+        (node for node in source["nodes"] if node["type"] != "evidence"),
+        key=lambda node: node["id"],
+    )
+    assert [fact["fact_key"] for fact in profile["facts"]] == [node["id"] for node in fact_nodes]
+    counts = dict.fromkeys(REAL_STATUS_COUNTS, 0)
+    for fact in profile["facts"]:
+        node = nodes[fact["fact_key"]]
+        assert fact["origin"] == node["origin"] and fact["origin"] in REAL_ORIGINS
+        assert fact["status"] == node["status"]
+        assert fact["value"] == node["value"]
+        counts[fact["status"]] += 1
+        if fact["status"] == "unknown":
+            continue
+        evidence = _evidence(client, imported.company_id, fact["evidence_ids"][0])
+        assert evidence["origin"] == node["origin"]
+        assert evidence["quote"] == node["source_refs"][0]["quote"]
+    assert counts == REAL_STATUS_COUNTS
+
+    # The bounded view returns the company's connected component only.
+    graph = _graph(client, imported.company_id, depth=3, limit=500)
+    assert {node["id"] for node in graph["nodes"]} == {
+        "company:real", "project:2024-01", "qual:held", "ev:project",
+    }
+    public = {node["id"]: node for node in graph["nodes"]}
+    assert public["qual:held"]["origin"] == "user_interview"
+    assert public["ev:project"]["origin"] == "homepage"
+    assert {edge["origin"] for edge in graph["edges"]} == {"homepage", "user_interview"}
+    proposed = _graph(client, imported.company_id, root_node_id="qual:credit")
+    assert [(node["id"], node["status"], node["origin"]) for node in proposed["nodes"]] == [
+        ("qual:credit", "proposed", "agent_proposal"),
+    ]
+    assert len(proposed["nodes"][0]["evidence_ids"]) == 1
+
+
+def test_rl_t5_held_and_detail_are_two_facts_with_separate_evidence_rules(
+    engine, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    application, sessions = _application(engine, monkeypatch)
+    imported = _import(sessions, _prepared_real(), activate=True)
+    client = TestClient(application)
+    facts = {fact["fact_key"]: fact for fact in _profile(client, imported.company_id)["facts"]}
+
+    held = facts["qual:held"]
+    assert held["status"] == "confirmed"
+    assert held["value"] == {
+        "held": True, "detail": None, "valid_until": None, "issued_on": None, "file_name": None,
+    }
+    assert len(held["evidence_ids"]) == 1
+
+    detail = facts["qual:held.detail"]
+    assert detail["status"] == "unknown"
+    assert detail["value"] is None
+    assert detail["evidence_ids"] == []
+
+    proposed = facts["qual:credit"]
+    assert proposed["status"] == "proposed"
+    assert proposed["origin"] == "agent_proposal"
+    assert len(proposed["evidence_ids"]) == 1
+    assert _evidence(client, imported.company_id, proposed["evidence_ids"][0])["quote"] == "BBB-"
+
+
+_N = None
+#: (case, node index in `_real_source`, value, pointer suffix under /value, quote, code).
+#: Every pointer resolves to a real scalar with the exact quote, so the only
+#: failure left is the strict value shape itself.
+_VALUE_CASES = [
+    ("domain_excluded_without_kind", 7, {"tier": _N, "keywords": ["x"], "excluded": True, "kind": _N}, "/keywords/0", "x", "node_value_invalid"),
+    ("domain_bad_tier", 7, {"tier": 4, "keywords": ["x"], "excluded": False, "kind": _N}, "/keywords/0", "x", "node_value_invalid"),
+    ("domain_bool_tier", 7, {"tier": True, "keywords": ["x"], "excluded": False, "kind": _N}, "/keywords/0", "x", "node_value_invalid"),
+    ("domain_unknown_kind", 7, {"tier": _N, "keywords": ["x"], "excluded": True, "kind": "other"}, "/keywords/0", "x", "node_value_invalid"),
+    ("domain_missing_key", 7, {"tier": 1, "keywords": ["x"], "excluded": False}, "/keywords/0", "x", "node_value_invalid"),
+    ("domain_empty_keyword", 7, {"tier": 1, "keywords": [" "], "excluded": False, "kind": _N}, "/tier", "1", "node_value_invalid"),
+    ("qualification_missing_detail", 1, {"held": True, "valid_until": _N, "issued_on": _N, "file_name": _N}, "/held", "true", "node_value_invalid"),
+    ("qualification_non_bool_held", 1, {"held": "yes", "detail": _N, "valid_until": _N, "issued_on": _N, "file_name": _N}, "/held", "yes", "node_value_invalid"),
+    ("qualification_bad_date", 1, {"held": True, "detail": _N, "valid_until": "2027-13-01", "issued_on": _N, "file_name": _N}, "/held", "true", "date_invalid"),
+    ("qualification_path_file_name", 1, {"held": True, "detail": _N, "valid_until": _N, "issued_on": _N, "file_name": "dir/copy.pdf"}, "/held", "true", "node_value_invalid"),
+    ("capability_nested_params", 8, {"scope": "core", "description": "d", "params": {"krw": {"min": 1}}}, "/description", "d", "node_value_invalid"),
+    ("capability_null_param_value", 8, {"scope": "core", "description": "d", "params": {"krw": _N}}, "/description", "d", "node_value_invalid"),
+    ("capability_float_param", 8, {"scope": "core", "description": "d", "params": {"krw": 1.5}}, "/description", "d", "node_value_invalid"),
+    ("capability_negative_param", 8, {"scope": "core", "description": "d", "params": {"krw": -1}}, "/description", "d", "negative_number"),
+    ("staff_partial_extension", 4, {"role": "onsite", "total": _N, "available": 6, "as_of": _N, "region": "대구"}, "/role", "onsite", "node_value_invalid"),
+    ("project_partial_extension", 5, {"role": _N, "scope": _N, "amount_krw": _N, "started_on": _N, "ended_on": _N, "agency": "기관"}, "/agency", "기관", "node_value_invalid"),
+    ("project_negative_year", 5, {"role": _N, "scope": _N, "amount_krw": _N, "started_on": _N, "ended_on": _N, "agency": "기관", "year": -1}, "/agency", "기관", "negative_number"),
+    ("legacy_project_null_role", 5, {"role": _N, "scope": "s", "amount_krw": _N, "started_on": _N, "ended_on": _N}, "/scope", "s", "node_value_invalid"),
+]
+
+
+@pytest.mark.parametrize(
+    ("case", "index", "value", "suffix", "quote", "code"),
+    _VALUE_CASES,
+    ids=[case[0] for case in _VALUE_CASES],
+)
+def test_rl_value_extension_is_strict(case, index, value, suffix, quote, code) -> None:
+    from app.core.company_ontology import (
+        CompanyKnowledgeValidationError,
+        parse_company_knowledge_source,
+        parse_ontology,
+    )
+
+    ontology = parse_ontology(_raw(_ontology()))
+    source = _real_source(ontology.sha256)
+    # Control: the untouched real source is valid, so a rejection below is the value.
+    parse_company_knowledge_source(_raw(source), ontology=ontology)
+    source["nodes"][index]["value"] = value
+    source["nodes"][index]["source_refs"] = [
+        {"source_id": "self", "locator": {"json_pointer": f"/nodes/{index}/value{suffix}"}, "quote": quote}
+    ]
+    if source["nodes"][index]["id"] == "project:2024-01":
+        source["edges"] = [edge for edge in source["edges"] if edge["type"] != "performed"]
+        source["edges"] = [edge for edge in source["edges"] if edge["type"] != "supported_by"]
+        source["nodes"] = [node for node in source["nodes"] if node["type"] != "evidence"]
+    with pytest.raises(CompanyKnowledgeValidationError) as rejected:
+        parse_company_knowledge_source(_raw(source), ontology=ontology)
+    assert rejected.value.code == code
+
+
+def test_rl_existing_demo_fixtures_still_validate_unchanged() -> None:
+    """T4: the additive value extension keeps every DEMO fixture valid as is."""
+
+    before = _fixture_digests()
+    for path in COMPANY_FILES:
+        prepared = prepare_company_knowledge_files(ONTOLOGY_FILE, path)
+        assert prepared.source.company.is_fictional is True
+        assert {node.origin for node in prepared.source.nodes} == {"fictional_scenario"}
+    assert _fixture_digests() == before

@@ -151,15 +151,36 @@ def test_demo_config_and_disabled_routes_are_guarded_before_validation(
     client = TestClient(application)
 
     assert client.get("/api/demo-config").json() == {"enabled": False}
+    # RL-00 spec "등록 조건": GET /api/companies and /api/companies/{id} are no
+    # longer demo-only; validation runs as for any registered route.
+    assert client.get("/api/companies").status_code == 200
+    assert client.get("/api/companies/not-a-uuid").status_code == 422
+    assert client.get(f"/api/companies/{uuid4()}").status_code == 404
+    assert client.get(f"/api/companies/{uuid4()}").json()["error"]["code"] == "not_found"
     for path in (
-        "/api/companies",
-        "/api/companies/not-a-uuid",
         "/companies",
         "/companies/not-a-uuid",
+        f"/companies/{uuid4()}/profile",
         "/api/pre-specs/not-an-int/company-comparison",
         "/pre-specs/not-an-int/company-comparison",
+        _tracking_path(uuid4(), 1),
+        f"/api/companies/{uuid4()}/pre-specs",
+        "/api/companies/",
+        f"/api/companies/{uuid4()}/profile/extra",
     ):
-        assert client.get(path).status_code == 404
+        response = client.get(path)
+        assert response.status_code == 404, path
+        assert response.json() == {"detail": "Not Found"}, path
+    for method, path in (
+        ("PATCH", _tracking_path(uuid4(), 1)),
+        ("POST", "/api/companies"),
+        ("DELETE", f"/api/companies/{uuid4()}"),
+        ("PUT", f"/api/companies/{uuid4()}/profile"),
+        ("POST", f"/api/companies/{uuid4()}/pre-specs/1/company-fit"),
+    ):
+        response = client.request(method, path, json={})
+        assert response.status_code == 404, (method, path)
+        assert response.json() == {"detail": "Not Found"}, (method, path)
 
 
 def test_company_list_and_detail_are_strict_sorted_and_read_only(
@@ -1221,3 +1242,104 @@ def test_company_tracking_app_role_serializes_missing_row_and_replays_winner() -
             app_engine.dispose()
             owner_engine.dispose()
             policy_engine.dispose()
+
+
+# --- RL-00 STEP-002: one real company, demo-independent registration --------
+
+
+def test_rl_register_company_accepts_one_real_company_and_audits_request_value(engine) -> None:
+    with Session(engine) as session:
+        real = register_company(
+            session, slug="real-co", name="실회사", is_fictional=False, actor="등록 담당자"
+        )
+        replay = register_company(
+            session, slug="real-co", name="실회사", is_fictional=False, actor="등록 담당자"
+        )
+        fictional = register_company(
+            session, slug="alpha-si", name="알파 SI", is_fictional=True, actor="등록 담당자"
+        )
+        assert real.created is True and fictional.created is True
+        assert replay == type(replay)(company_id=real.company_id, created=False)
+        with pytest.raises(BundleServiceError) as second_real:
+            register_company(
+                session, slug="other-real", name="다른 실회사", is_fictional=False, actor="등록 담당자"
+            )
+        assert second_real.value.code == "real_company_exists"
+        # The same slug with the other fictional flag is still an identity conflict.
+        with pytest.raises(BundleServiceError) as flipped:
+            register_company(
+                session, slug="real-co", name="실회사", is_fictional=True, actor="등록 담당자"
+            )
+        assert flipped.value.code == "company_identity_conflict"
+        session.commit()
+
+    with Session(engine) as session:
+        rows = {
+            row.slug: row.is_fictional
+            for row in session.scalars(select(Company))
+        }
+        assert rows == {"real-co": False, "alpha-si": True}
+        audits = {
+            audit.aggregate_id: audit.safe_metadata
+            for audit in session.scalars(
+                select(AuditEvent).where(AuditEvent.action == "company.register")
+            )
+        }
+        assert audits == {
+            str(real.company_id): {"slug": "real-co", "is_fictional": False},
+            str(fictional.company_id): {"slug": "alpha-si", "is_fictional": True},
+        }
+
+
+@pytest.mark.parametrize("value", [None, "false", 0, 1])
+def test_rl_register_company_rejects_non_boolean_is_fictional(engine, value) -> None:
+    with Session(engine) as session:
+        with pytest.raises(BundleServiceError) as rejected:
+            register_company(
+                session, slug="real-co", name="실회사", is_fictional=value, actor="등록 담당자"
+            )
+        assert rejected.value.code == "invalid_request"
+        session.rollback()
+        assert session.scalar(select(func.count()).select_from(Company)) == 0
+
+
+@requires_postgres
+def test_rl_concurrent_distinct_real_companies_register_only_one() -> None:
+    """Two different real slugs racing in separate transactions: exactly one wins."""
+
+    barrier = Barrier(2)
+    with migrated_engine() as bind:
+        def attempt(slug: str):
+            with Session(bind) as session:
+                with session.begin():
+                    barrier.wait(timeout=30)
+                    try:
+                        register_company(
+                            session, slug=slug, name=f"{slug} 회사", is_fictional=False,
+                            actor="등록 담당자",
+                        )
+                    except BundleServiceError as error:
+                        return error.code
+                    return "created"
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            results = sorted(pool.map(attempt, ["real-a", "real-b"]))
+        assert results == ["created", "real_company_exists"]
+        with Session(bind) as session:
+            assert session.scalar(
+                select(func.count()).select_from(Company).where(Company.is_fictional.is_(False))
+            ) == 1
+
+
+def test_rl_company_expiry_warning_days_setting(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.core.config import Settings
+
+    monkeypatch.delenv("BIDOPS_COMPANY_EXPIRY_WARNING_DAYS", raising=False)
+    assert Settings().company_expiry_warning_days == 60
+    for accepted in ("1", "365"):
+        monkeypatch.setenv("BIDOPS_COMPANY_EXPIRY_WARNING_DAYS", accepted)
+        assert Settings().company_expiry_warning_days == int(accepted)
+    for rejected in ("0", "366", "-1", "abc"):
+        monkeypatch.setenv("BIDOPS_COMPANY_EXPIRY_WARNING_DAYS", rejected)
+        with pytest.raises(ValidationError):
+            Settings()

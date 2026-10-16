@@ -67,6 +67,17 @@ export interface CompanyListResponse {
   offset: number;
 }
 
+/**
+ * `GET /api/company`(RL-00, `schemas/company_knowledge.py` `CompanyContextView`). 키 전체이며
+ * 파생 건수는 없다 — 화면이 facts로 센다. 실회사가 없으면 404 `company_not_registered`다.
+ */
+export interface CompanyContextView {
+  schema_version: "bidops.company-context.v1";
+  company: CompanyDTO;
+  expiry_warning_days: number;
+  active_graph_version: { graph_version_id: Uuid; created_at: Timestamp } | null;
+}
+
 export const COMPANY_TRACKING_STATUSES = ["미선택", "계속 추적", "보류", "종료"] as const;
 export type CompanyTrackingStatus = (typeof COMPANY_TRACKING_STATUSES)[number];
 /** 회사 경로 화면이 저장하는 세 상태(계약 §2, 2026-09-17 결정의 데모 한정 예외). */
@@ -92,8 +103,17 @@ export interface CompanyTrackingUpdateRequest {
 // ---------------------------------------------------------------------------
 // §4 프로필·그래프·프로필 근거
 
-export type CompanyFactStatus = "confirmed" | "inferred" | "unknown";
-export type CompanyNodeOrigin = "fictional_scenario" | "public_document" | "model_inference";
+/** RL-00: `proposed`(에이전트 제안값, 사람 미확인)가 넷째 값이다. */
+export type CompanyFactStatus = "confirmed" | "proposed" | "inferred" | "unknown";
+/** DEMO 세 값 + RL-00 실회사 확인 출처 네 값(`schemas/company_knowledge.py` `NodeOrigin`). */
+export type CompanyNodeOrigin =
+  | "fictional_scenario"
+  | "public_document"
+  | "model_inference"
+  | "company_brochure"
+  | "homepage"
+  | "user_interview"
+  | "agent_proposal";
 export type CompanyNodeType =
   | "company"
   | "capability"
@@ -122,7 +142,7 @@ export interface CompanyProfileFact {
   fact_key: string;
   label: string;
   status: CompanyFactStatus;
-  origin: "fictional_scenario";
+  origin: CompanyNodeOrigin;
   value: JsonValue;
   evidence_ids: Uuid[];
 }
@@ -186,7 +206,7 @@ export interface CompanyProfileEvidenceView {
   evidence_id: Uuid;
   profile_version_id: Uuid;
   fact_key: string;
-  origin: "fictional_scenario";
+  origin: CompanyNodeOrigin;
   quote: string;
   source_sha256: Sha256;
 }
@@ -501,8 +521,14 @@ function companyMutationInit(method: "POST" | "PATCH", actorName: string, body: 
   };
 }
 
+/** `GET /api/company` — 단일 실회사와 활성 그래프 버전. 회사 선택 없이 항상 켜져 있다. */
+export function getCompanyContext(options?: ReadRequestOptions): Promise<CompanyContextView> {
+  return apiRequest<CompanyContextView>("/company", options);
+}
+
 export const companyApi = {
   getDemoConfig,
+  getCompanyContext,
 
   listCompanies: (params: { limit?: number; offset?: number } = {}, options?: ReadRequestOptions) =>
     apiRequest<CompanyListResponse>(`/companies${apiQueryString({ limit: params.limit, offset: params.offset })}`, options),
@@ -581,6 +607,8 @@ export const companyApi = {
 export const COMPANY_DIRECTORY_LIMIT = 100;
 
 export const demoConfigQueryKey = ["demo-config"] as const;
+/** 단일 실회사 컨텍스트(`GET /api/company`). 회사 id를 key에 두지 않는다 — id를 이 응답이 준다. */
+export const companyContextQueryKey = ["company-context"] as const;
 
 export const companyKeys = {
   /** 회사 디렉터리(회사 선택기). 회사 결과가 아니라 회사 identity 목록이다. */
@@ -697,6 +725,8 @@ export function companyFactStatusLabel(status: CompanyFactStatus): string {
   switch (status) {
     case "confirmed":
       return "시나리오 확정";
+    case "proposed":
+      return "추정값";
     case "inferred":
       return "추정";
     case "unknown":
@@ -712,6 +742,14 @@ export function companyOriginLabel(origin: CompanyNodeOrigin): string {
       return "공개 문서 사실";
     case "model_inference":
       return "모델 해석";
+    case "company_brochure":
+      return "회사소개서";
+    case "homepage":
+      return "홈페이지";
+    case "user_interview":
+      return "담당자 확인";
+    case "agent_proposal":
+      return "제안값";
   }
 }
 

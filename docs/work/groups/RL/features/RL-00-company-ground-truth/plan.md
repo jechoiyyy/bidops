@@ -97,4 +97,11 @@
 
 ## 결과
 
-구현 후 작성한다.
+run `rla-20261016`(배치 A), 기능 브랜치 `sdlc/rla-20261016-RL-00-company-ground-truth`, 기준 c93da20. 상세는 `docs/work/_runs/rla-20261016/RL-00-company-ground-truth.md`.
+
+- 단계 7/7 done. STEP-001~003·004·005·007 위임, STEP-006은 리더가 실행.
+- 증명: tests 140 passed·85 skipped(PG 변형)·exit 0; postgres(일회용 17.11) 255 passed·exit 0(모듈 경계·runtime 권한·alembic drift 포함); frontend build·contrast 8/8·Playwright app 41 + company-layout 20 passed; T9 dry-run exit 0·errors 0; STEP-006 bidops-local `bidops_rla` import·activate·REST 확인.
+- 사용자 결정(run 중): bidops-local 검증은 새 DB `bidops_rla`(기존 DB는 HP-03 migration 0039로 이력 분기); demo-on `/companies/:id/profile → /company` 리다이렉트 적용으로 DEMO 프로필 화면 spec 11건(company-graph 10·company-layout 1) 삭제·1건 교체.
+- spec 밖 구현 판단: contrast 게이트 blue 금지에 `.co-pill.is-proposed` 단일 예외(spec의 ADR-0048 개정 반영); "곧 만료"는 지난 유효기간 포함; `company_attention` 미집계 사유 `company_profile_not_ready`·`processing_failed`; fixture project 63행(연차 분리), `excl:*` 6개(대기업 SI 행은 kind 없음).
+- 독립 리뷰: BLOCKING 없음. 문서 불일치 2건은 반영. backlog: `agent_proposal`을 `proposed` 전용으로 좁히기, `company_attention_count`에 lineage 검사, import 단계 demo 재검사, AttentionList 제목과 ui-spec "확인이 필요한 것" 문구 통일, 미사용 `CompanyProfilePage.tsx` 정리.
+- 기존 실패(이번 변경과 무관, HEAD 동일): backend `tests/core/test_postgres_harness.py::test_profile_target_runs_without_docker`(company-profile.md 8절 vs 파서 7절 기대), frontend design-shell 2·admin-workspace-consistency 2·route-context 12(RL 셸 재설계 뒤 낡은 기대값).

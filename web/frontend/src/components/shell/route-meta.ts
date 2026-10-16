@@ -108,6 +108,18 @@ export const routeMetadata = {
     ancestors: [],
     listPath: null,
   },
+  // RL-00 회사 근거(ui-spec §4.6). 회사는 하나라 상위 화면이 없고, 읽기 전용이다.
+  // 화면 이름 하나가 `<h1>`(제목 모드)이며 "㈜회사 · 마지막 저장"과 "이전 버전"은 액션 슬롯이 그린다.
+  company: {
+    title: "회사 근거",
+    dataScope: "cumulative",
+    topbar: "title",
+    runSelectorVisible: false,
+    navGroup: "레코드",
+    navPath: "/company",
+    ancestors: [],
+    listPath: null,
+  },
   dashboard: {
     title: "대시보드",
     dataScope: "cumulative",
@@ -422,7 +434,7 @@ export function resolveRouteLocation(
  *  거부 목록인 이유: `/metrics`·`/runs`·`/attachments`는 metadata상 `cumulative`여도
  *  페이지가 `run`을 직접 읽으므로 `dataScope`로는 구분할 수 없고, 모르는 경로는
  *  회차를 쓰는 쪽(현행 동작)으로 남겨야 안전하다. */
-const RUN_FREE_PATHS = ["/briefing", "/opportunities", "/order-plans", "/pre-specs", "/go-no-go", "/deep-reviews", "/companies"];
+const RUN_FREE_PATHS = ["/briefing", "/company", "/opportunities", "/order-plans", "/pre-specs", "/go-no-go", "/deep-reviews", "/companies"];
 
 function isRunFreePath(path: string): boolean {
   return RUN_FREE_PATHS.some((p) => path === p || path.startsWith(`${p}/`));

@@ -1,0 +1,338 @@
+/*
+ * 회사 근거 `/company`(RL-00 STEP-005, ui-spec §4.6·§3).
+ *
+ * 레이아웃은 프로젝트가 소유한다(ADR-0040). 색·간격·모서리는 테마 토큰만 읽고
+ * `--color-*`를 다시 정의하지 않는다(ADR-0048). 글자는 4단 스케일만 쓴다
+ * (`styles/typography.css`). 지원 폭은 1280~1920px이다(ADR-0047).
+ *
+ * 상태 pill 색(ui-spec §3, spec "상태 이름 대응"):
+ *   확인됨 → success, 추정값 → blue ramp(이 pill 하나만 blue), 확인 필요 → warning.
+ * 확인 필요를 error 색으로 칠하지 않는다(unknown은 부족이 아니다).
+ */
+
+.co-page {
+  min-width: 0;
+  font-size: var(--bo-type-body);
+  line-height: var(--bo-type-body-leading);
+  overflow-wrap: anywhere;
+}
+
+.co-page.is-ready {
+  display: grid;
+  grid-template-columns: calc(var(--spacing-6) * 10) minmax(0, 1fr);
+  gap: var(--spacing-5);
+  align-items: start;
+}
+
+.co-page p {
+  margin: 0;
+}
+
+.co-status {
+  color: var(--color-text-secondary);
+}
+
+/* 좌측: 항목 내비 + 숫자 3 */
+.co-side {
+  display: grid;
+  gap: var(--spacing-4);
+  min-width: 0;
+}
+
+.co-nav {
+  display: grid;
+  gap: var(--spacing-0-5);
+}
+
+.co-nav-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-2);
+  min-height: calc(var(--spacing-6) * 1.4);
+  padding: 0 var(--spacing-2);
+  border-radius: var(--radius-inner);
+  color: var(--color-text-primary);
+  font-size: var(--bo-type-body);
+  text-decoration: none;
+}
+
+.co-nav-item:hover:not(.is-disabled) {
+  background: var(--color-background-muted);
+}
+
+.co-nav-item.is-active {
+  background: var(--color-background-muted);
+  font-weight: 600;
+}
+
+.co-nav-item.is-disabled {
+  color: var(--color-text-secondary);
+  opacity: 0.6;
+  cursor: default;
+}
+
+.co-nav-item:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
+
+.co-nav-count,
+.co-block-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: calc(var(--spacing-4) + var(--spacing-0-5));
+  padding: 0 var(--spacing-1-5);
+  border-radius: var(--radius-full);
+  color: var(--color-warning);
+  background: var(--color-warning-muted);
+  font-size: var(--bo-type-caption);
+  font-weight: 600;
+  line-height: var(--bo-type-caption-leading);
+}
+
+.co-counts {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.co-count {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-2);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.co-count dt {
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+  line-height: var(--bo-type-caption-leading);
+}
+
+.co-count dd {
+  margin: 0;
+  font-size: var(--bo-type-page-title);
+  font-weight: 600;
+  line-height: var(--bo-type-page-title-leading);
+}
+
+/* 중앙 */
+.co-main {
+  display: grid;
+  gap: var(--spacing-4);
+  min-width: 0;
+}
+
+.co-notice {
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+  line-height: var(--bo-type-caption-leading);
+}
+
+.co-block-title {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  margin: 0 0 var(--spacing-2);
+  font-size: var(--bo-type-section-title);
+  font-weight: var(--bo-type-section-title-weight);
+  line-height: var(--bo-type-section-title-leading);
+}
+
+.co-block-count {
+  background: var(--color-background-muted);
+  color: var(--color-text-secondary);
+}
+
+.co-attention .co-block-count {
+  color: var(--color-warning);
+  background: var(--color-warning-muted);
+}
+
+/* "지금 확인하면 판정이 바뀌는 것": warning 경계 블록 */
+.co-attention {
+  padding: var(--spacing-3);
+  border: 1px solid var(--color-warning);
+  border-radius: var(--radius-element);
+}
+
+.co-attention-list {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.co-attention-row {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) calc(var(--spacing-6) * 4) minmax(0, 3fr) auto;
+  align-items: start;
+  gap: var(--spacing-3);
+  padding: var(--spacing-2) var(--spacing-1);
+  border-top: 1px solid var(--color-border);
+}
+
+.co-attention-row:first-child {
+  border-top: 0;
+}
+
+.co-attention-main,
+.co-attention-value {
+  display: grid;
+  gap: var(--spacing-0-5);
+  min-width: 0;
+}
+
+.co-row-title {
+  display: block;
+  color: var(--color-text-primary);
+  font-weight: 600;
+}
+
+.co-row-sub {
+  display: block;
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+  font-weight: 400;
+  line-height: var(--bo-type-caption-leading);
+}
+
+.co-row-sub.is-warning {
+  color: var(--color-warning);
+}
+
+.co-value.is-empty {
+  color: var(--color-text-secondary);
+}
+
+.co-empty {
+  padding: var(--spacing-3) var(--spacing-2);
+  color: var(--color-text-secondary);
+}
+
+/* 그룹 표 */
+.co-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.co-table th,
+.co-table td {
+  padding: var(--spacing-2) var(--spacing-3);
+  border-bottom: 1px solid var(--color-border);
+  text-align: left;
+  vertical-align: top;
+  font-size: var(--bo-type-body);
+  line-height: var(--bo-type-body-leading);
+}
+
+.co-table thead th {
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+  font-weight: 500;
+  line-height: var(--bo-type-caption-leading);
+}
+
+.co-table tbody th {
+  font-weight: 400;
+}
+
+.co-table tbody tr:hover {
+  background: var(--color-background-muted);
+}
+
+.co-col-label {
+  width: 32%;
+}
+
+.co-col-status {
+  width: calc(var(--spacing-6) * 4);
+}
+
+.co-col-action {
+  width: calc(var(--spacing-6) * 5);
+  text-align: right;
+}
+
+.co-table td.co-col-action {
+  text-align: right;
+}
+
+/* 상태 pill: 높이 20, 패딩 1×8, 12px/500, 라운드 999 */
+.co-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: calc(var(--spacing-4) + var(--spacing-0-5));
+  padding: var(--spacing-0-5) var(--spacing-2);
+  border-radius: var(--radius-full);
+  font-size: var(--bo-type-caption);
+  font-weight: 500;
+  line-height: var(--bo-type-caption-leading);
+  white-space: nowrap;
+}
+
+.co-pill.is-confirmed {
+  color: var(--color-success);
+  background: var(--color-success-muted);
+}
+
+.co-pill.is-proposed {
+  color: var(--color-text-blue);
+  background: var(--color-background-blue);
+}
+
+.co-pill.is-unknown {
+  color: var(--color-warning);
+  background: var(--color-warning-muted);
+}
+
+.co-copy {
+  display: inline-flex;
+  justify-content: flex-end;
+}
+
+/* 복사 실패 시 선택 복사에 쓰는 보이지 않는 입력 */
+.co-clipboard-sink {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* 상단바 슬롯(portal): 왼쪽 "㈜루트랩 · 마지막 저장 날짜", 오른쪽 "이전 버전".
+   슬롯은 셸 DOM이라 화면 CSS가 닿지 않으므로 슬롯 안 요소만 고른다. */
+.topbar-page-actions:has(.co-topbar-meta) {
+  flex: 1 1 auto;
+}
+
+.co-topbar-meta {
+  margin-right: auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+  line-height: var(--bo-type-caption-leading);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.co-version-line {
+  margin: 0;
+  font-size: var(--bo-type-body);
+  line-height: var(--bo-type-body-leading);
+}
+
+.co-version-line.is-secondary {
+  margin-top: var(--spacing-1);
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+}
