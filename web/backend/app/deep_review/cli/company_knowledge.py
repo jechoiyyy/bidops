@@ -16,6 +16,7 @@ from ..services.company_knowledge import (
     activate_company_knowledge,
     import_company_knowledge,
     prepare_company_knowledge_files,
+    status_counts,
 )
 
 
@@ -26,6 +27,8 @@ def _emit(payload: dict[str, Any], *, error_code: str | None = None) -> None:
 
 
 def _import_payload(**overrides: Any) -> dict[str, Any]:
+    # RL-00: ``is_fictional`` and ``status_counts`` are always present and are
+    # null in every failure JSON (the activate output keeps its six keys).
     value: dict[str, Any] = {
         "company_id": None,
         "profile_version_id": None,
@@ -36,6 +39,8 @@ def _import_payload(**overrides: Any) -> dict[str, Any]:
         "created": False,
         "activated": False,
         "errors": [],
+        "is_fictional": None,
+        "status_counts": None,
     }
     value.update(overrides)
     return value
@@ -60,6 +65,8 @@ def _exit_for(code: str) -> int:
         "ontology_invalid",
         "ontology_version_conflict",
         "company_identity_conflict",
+        "real_company_exists",
+        "fictional_requires_demo",
         "company_not_found",
         "graph_not_found",
         "graph_company_mismatch",
@@ -92,8 +99,12 @@ def import_main(argv: list[str] | None = None) -> int:
         "source_sha256": prepared.source.source_sha256,
         "graph_sha256": prepared.graph.sha256,
     }
+    summary = {
+        "is_fictional": prepared.source.company.is_fictional,
+        "status_counts": status_counts(prepared.source),
+    }
     if args.dry_run:
-        _emit(_import_payload(**known))
+        _emit(_import_payload(**known, **summary))
         return 0
     try:
         init_db()
@@ -109,6 +120,7 @@ def import_main(argv: list[str] | None = None) -> int:
                 source_sha256=result.source_sha256,
                 graph_sha256=result.graph_sha256,
                 created=result.created,
+                **summary,
             )
         )
         return 0

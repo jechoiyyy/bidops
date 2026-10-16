@@ -1659,3 +1659,19 @@ DEMO-02(2026-10-09, 데모 브랜치)는 회사 지식 `import-company-knowledge
 DEMO-04(2026-10-12)는 frontend만 바꿨다. 새 env·migration·서비스는 없다. 회사 화면은 web 이미지를 다시 빌드해 교체하기 전에는 `bidops-local`에 나타나지 않는다. 이 재빌드·교체도 DEMO-05 준비 단계에서 직전 확인 후 한다.
 mock으로 화면만 볼 때는 `npm run dev:mock`(5174)을 쓴다. 응답은 Playwright fixture이며 실제 데이터나 회사 사실이 아니다.
 [ADR-0070](tracking/decisions/0070-multi-company-knowledge-demo.md) · [공통 계약](work/demo-contract.md) · [기능 로드맵](work/constitution/roadmap.md).
+
+
+## 회사 근거 갱신 (RL-00, 2026-10-16)
+
+루트랩 회사 근거는 화면에서 고치지 않는다. 회사 파일을 고쳐 새 버전으로 다시 등록한다(이전 버전과 binding 이력은 불변). 원본 파일은 Git 밖 `~/orca/fixtures/company/rootlab/`(`ontology.v2.json`, `rootlab.source.v1.json`)이며 출처·sha256 기록은 `docs/validation-runs/2026-10-16-rl/RL-00/README.md`다. 값은 회사소개서·홈페이지·선호 조건·인터뷰 문서에 있는 확인됨·추정값·확인 필요만 옮기고 새 사실을 만들지 않는다.
+
+1. **파일 수정.** 확인된 값은 해당 `unknown` 노드를 `confirmed`(값·source_ref 채움)로 바꾸거나, `proposed` 노드를 사람이 확인한 뒤 `confirmed`·origin을 확인 출처(`user_interview` 등)로 바꾼다. `proposed`는 origin `agent_proposal`만, `user_interview`는 `confirmed`·`unknown`만, `company_brochure`·`homepage`는 `confirmed`만 허용된다. 한글 이름은 `label`에만 두고 id는 ASCII다.
+2. **`--dry-run`.** `python -m app.deep_review.cli import-company-knowledge --ontology <ontology.v2.json> --company <rootlab.source.v1.json> --actor <이름> --dry-run`. DB·객체·모델 쓰기가 없다. exit 0이고 `errors=[]`, `is_fictional=false`, `status_counts`(confirmed·proposed·inferred·unknown)가 수정 의도와 맞는지 본다. exit 2면 `source_invalid`(조합·origin·value 형태)이거나 `real_company_exists`(다른 slug의 실회사가 이미 있음)다.
+3. **import.** 같은 명령에서 `--dry-run`만 뺀다. 같은 파일이면 같은 버전이고(`created=false`), 내용이 바뀌면 새 graph·profile version이다. import는 자동 활성화하지 않는다. 출력의 `graph_version_id`를 적어 둔다.
+4. **activate.** `python -m app.deep_review.cli activate-company-knowledge --company-id <uuid> --graph-version-id <uuid> --actor <이름>`. binding revision이 오르고 이전 binding 이력이 남는다.
+5. **확인.** `GET /api/company`의 `active_graph_version.graph_version_id`가 방금 활성화한 값인지, `GET /api/companies/{company_id}/profile`의 facts 수가 `status_counts` 합과 같고 origin·status가 의도한 값인지 본다. `GET /api/workload`의 `company_attention`은 `proposed`+`unknown` 합과 같아야 한다. 이전 버전은 `profile?graph_version_id=`로 계속 조회된다.
+6. **기록.** README에 새 파일 sha256(`source_sha256`·`graph_sha256` 포함)·`status_counts`·변경 사유를 덧붙인다.
+
+CLI는 web 이미지 안에서 돈다. fixture 디렉터리를 읽기 전용으로 마운트한 일회용 컨테이너로 실행한다(예: compose overlay에 `~/orca/fixtures/company/rootlab:/fixtures/rootlab:ro`를 둔 서비스로 `docker compose ... run --rm --no-deps -T <서비스> python -m app.deep_review.cli import-company-knowledge --ontology /fixtures/rootlab/ontology.v2.json --company /fixtures/rootlab/rootlab.source.v1.json --actor <이름>`). 2026-10-16 RL-00 STEP-006은 `bidops-local` 안의 별도 DB `bidops_rla`(기존 `bidops` DB는 HP-03 migration 0039에 있어 main 계열과 이력이 갈라졌다)에서 이 방식으로 import→activate→REST 확인을 했다(README 참조).
+
+운영 DB에서 import·activate를 실행하는 것은 **직전에 사람 확인을 받는다.** dry-run은 쓰기가 없지만 확인 없이 활성화하지 않는다. 격리 스택(`bidops-local`)에서 먼저 같은 순서로 확인하고 운영 반영은 별도 승인이다. 가상회사 파일은 `BIDOPS_DEMO_ENABLED=true`가 아니면 import·`--dry-run` 모두 `fictional_requires_demo`(exit 2)로 거부된다. "곧 만료" 기준일 수는 `BIDOPS_COMPANY_EXPIRY_WARNING_DAYS`(기본 60, 1..365)다.

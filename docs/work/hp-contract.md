@@ -25,6 +25,7 @@ LiteLLM `local-agent-main`·Qwen·Terra는 HP에서 호출하지 않는다. 실�
 ## 1. 회사 (설정 확정·제품 등록 전, HP-02)
 
 - 회사는 하나다. `is_fictional=true`, 모든 사실 노드·관계의 origin은 `fictional_scenario`다. 저장·등록·활성화는 DEMO §3·4·8 그대로다.
+- **RL 개정(2026-10-16, ADR-0073)**: 이 가상회사 전제는 HP 그룹 종료와 함께 닫혔다. 실회사(루트랩) 1곳 등록은 허용되고 가상회사 등록은 `BIDOPS_DEMO_ENABLED=true`에서만 가능하다. 아래 규칙의 대체는 [DEMO 계약 RL 개정](demo-contract.md#rl-개정-2026-10-16-rl-00-adr-0073) R1·R3·R4가 정본이다. 이 절의 HP 가상 설정 값은 기록으로 남는다.
 - 2026-10-15 회사 기본 설정 승인: 가상 온웹서비스(`hp-onweb`), 18명·연매출18억원·최근3년 홈페이지3건·최대 단일2억원. 상세와 미확인 값은 [승인 시나리오](groups/HP/preparation/company.scenario.approved.v1.json). 세 가상 실적 담당 범위와 표준 절차는 company.experience.approved.v2.json으로 승인됐다. 제품 projection은 HP02 spec대로 구현한다.
 - `bidops-local` DB에 남은 DEMO 3사 row는 보존한다. 2026-10-15 승인: HP 화면에는 가상 온웹서비스만 표시한다. 기존 row 삭제·DB 교체 없이 화면 회사 목록을 제한하며 인증·접근제어와 혼동하지 않는다.
 
@@ -108,7 +109,7 @@ label 집합: `business_eligibility_evaluation`, `technical_functional`, `qualit
 
 ## 5. 회사 프로필 (설정 확정·구현 전, HP-02)
 
-[승인 v2](groups/HP/preparation/company.experience.approved.v2.json)의 retained_facts14개·가상3실적·표준절차·현재 조건/제외가 정본이다. 미래 공고는 유형 참고이고 실제 완료 실적이 아니다. 날짜·개별 금액·자격 유효범위·현재 역할/가용일은 미지정 그대로다. HP02 spec의 기존 graph projection+typed sidecar로 제품에 연결한다. 기존 v1 파일/응답은 보존하며 v2로 자동 이관하지 않는다.
+(RL 개정 2026-10-16: 회사 근거의 정본은 실회사 루트랩 파일로 바뀌었다. status `proposed`·origin 확장은 [DEMO 계약 RL 개정](demo-contract.md#rl-개정-2026-10-16-rl-00-adr-0073) R3·R4.) [승인 v2](groups/HP/preparation/company.experience.approved.v2.json)의 retained_facts14개·가상3실적·표준절차·현재 조건/제외가 정본이다. 미래 공고는 유형 참고이고 실제 완료 실적이 아니다. 날짜·개별 금액·자격 유효범위·현재 역할/가용일은 미지정 그대로다. HP02 spec의 기존 graph projection+typed sidecar로 제품에 연결한다. 기존 v1 파일/응답은 보존하며 v2로 자동 이관하지 않는다.
 
 ## 6. 분석 단위와 1층 추출 (확정 뼈대, 세부는 HP-03)
 

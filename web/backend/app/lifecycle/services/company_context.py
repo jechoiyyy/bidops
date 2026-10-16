@@ -1,11 +1,18 @@
-"""Company identity registration and read-only lookup for the demo namespace."""
+"""Company identity registration and read-only lookup.
+
+RL-00 (ADR-0073): exactly one real company (``is_fictional=false``) may exist
+DB-wide; fictional demo companies stay allowed beside it.  Whether a fictional
+registration is permitted (``BIDOPS_DEMO_ENABLED``) is decided by the caller
+that reads settings (deep_review ``prepare_company_knowledge``), not here.
+"""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
+import hashlib
 from uuid import UUID, uuid4
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -41,7 +48,7 @@ def _registration_values(
         messages = {
             "company_slug_invalid": "회사 slug가 올바르지 않습니다",
             "company_name_invalid": "회사 이름이 올바르지 않습니다",
-            "company_fictional_required": "가상 회사만 등록할 수 있습니다",
+            "company_is_fictional_invalid": "가상회사 표식은 true 또는 false여야 합니다",
         }
         raise BundleServiceError(
             "invalid_request",
@@ -75,6 +82,36 @@ def _ensure_sqlite_outer_transaction(session: Session) -> None:
         connection.exec_driver_sql("BEGIN")
 
 
+_REAL_COMPANY_LOCK = "company-real-registration"
+
+
+def _real_company_lock(session: Session) -> None:
+    """Serialize real-company registration for the rest of the transaction.
+
+    There is no partial unique index (RL-00 adds no migration), so two
+    transactions registering *different* real slugs are ordered by a
+    transaction-scoped advisory lock; the later one then sees the winner.
+    SQLite tests are single-writer and need no lock.
+    """
+
+    if session.get_bind().dialect.name != "postgresql":
+        return
+    raw = int.from_bytes(hashlib.sha256(_REAL_COMPANY_LOCK.encode("utf-8")).digest()[:8], "big")
+    key = raw - (1 << 64) if raw >= (1 << 63) else raw
+    session.execute(text("SELECT pg_advisory_xact_lock(:lock_key)"), {"lock_key": key})
+
+
+def _other_real_company_exists(session: Session, slug: str) -> bool:
+    return (
+        session.scalar(
+            select(Company.id)
+            .where(Company.is_fictional.is_(False), Company.slug != slug)
+            .limit(1)
+        )
+        is not None
+    )
+
+
 def register_company(
     session: Session,
     *,
@@ -88,15 +125,25 @@ def register_company(
     The caller commits or rolls back the surrounding transaction. A savepoint
     confines a concurrent unique-slug collision so the winner can be read and
     checked without rolling back unrelated caller work.
+
+    A real company (``is_fictional=False``) is rejected with
+    ``real_company_exists`` when another real company with a different slug is
+    already registered. The same real slug stays idempotent.
     """
 
     slug, name, actor = _registration_values(
         slug=slug, name=name, is_fictional=is_fictional, actor=actor
     )
     _ensure_sqlite_outer_transaction(session)
+    if not is_fictional:
+        _real_company_lock(session)
     existing = session.scalar(select(Company).where(Company.slug == slug).limit(1))
     if existing is not None:
         return _same_identity(existing, name=name, is_fictional=is_fictional)
+    if not is_fictional and _other_real_company_exists(session, slug):
+        raise BundleServiceError(
+            "real_company_exists", "실회사는 하나만 등록할 수 있습니다", status_code=409
+        )
 
     company = Company(id=uuid4(), slug=slug, name=name, is_fictional=is_fictional)
     try:
@@ -123,7 +170,7 @@ def register_company(
             action="company.register",
             aggregate_type="company",
             aggregate_id=str(company.id),
-            safe_metadata={"slug": company.slug, "is_fictional": True},
+            safe_metadata={"slug": company.slug, "is_fictional": is_fictional},
         )
     )
     session.flush()

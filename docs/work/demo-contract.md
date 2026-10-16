@@ -6,6 +6,7 @@
   기존 관례(body `request_id`+`IdempotencyRecord`, 기존 Luna preview/approval)를 재사용한다. 결정과 이유는 ADR-0070 개정 절이 정본이다.
 - v1.2(2026-10-09 재계획): `bidops-local`과 2026-10-06~08 실제 수집 자료를 구현 기준으로 삼고,
   LiteLLM `local-agent-main` 개요·핏과 Luna `codex-exec` 심층검토의 transport·정책·승인·증거를 분리한다.
+- **RL 개정(2026-10-16, RL-00, ADR-0073)**: 문서 끝의 "RL 개정" 절이 §1(회사 등록·demo 플래그)·§3(Node/Edge status·origin·value·회사 파일 `is_fictional`)·§4(profile v2 origin·import 출력 shape·view origin)의 겹치는 부분을 대체한다. 아래 §1~§4 원문은 DEMO·HP 가상회사 기준 기록으로 그대로 둔다.
 - 이 문서는 DEMO-01~05가 함께 쓰는 새 계약의 정본이다. DEMO-00의 기존 Luna v4 구현과 로컬 준비 증거는 기존 계약을 따른다.
 - 코드 범위: DEMO-00은 현재 run을 수동으로 main에 통합하고, DEMO-01~05는 그 main에서 분기한 데모 브랜치와 `bidops-local`에서 구현·격리 검증한다. 운영 배포·정책 활성화는 별도 승인 작업이다.
 - 모든 아래 객체는 명시한 key를 필수로 가진다. `?`는 key 생략이 아니라 nullable이다.
@@ -20,7 +21,7 @@ false일 때 /companies 및 하위 UI 경로와 /pre-specs/{id}/company-comparis
 GET /api/demo-config는 항상 {enabled:bool}만 반환한다. 프런트는 이를 읽고 회사 메뉴/route를 등록한다.
 demo-config route와 서버 guard는 DEMO-01이 `main.py`의 SPA fallback(`install_frontend`) 등록 전에 구현한다.
 회사는 lifecycle의 `Company(id UUID PK, slug unique, name, is_fictional bool, created_at)`다.
-새 등록은 UUIDv4, slug는 `^[a-z][a-z0-9-]{1,63}$`, name은 1~128자다. 이 데모 등록은 is_fictional=true만 허용한다.
+새 등록은 UUIDv4, slug는 `^[a-z][a-z0-9-]{1,63}$`, name은 1~128자다. 이 데모 등록은 is_fictional=true만 허용한다(RL 개정 R1이 대체: 실회사 1곳 허용, 가상회사는 demo 켠 때만).
 회사의 활성 profile/graph는 deep_review의 `CompanyKnowledgeBinding`이 소유한다.
 전역 환경변수의 active profile을 회사 문맥의 fallback으로 사용하지 않는다.
 
@@ -91,7 +92,7 @@ NodeType = company|capability|technology|domain|staff_group|project|qualificatio
 | requires_capability | requirement → capability | 요구 역량 |
 | requires_qualification | requirement → qualification | 필수/선택 자격 요구 |
 
-회사 파일 = {schema_version:"bidops.company-knowledge-source.v1",company:{slug,name,is_fictional:true},
+회사 파일(`is_fictional:true` 고정·status 3값·origin 3값은 RL 개정 R3이 대체) = {schema_version:"bidops.company-knowledge-source.v1",company:{slug,name,is_fictional:true},
 scenario_version:string,ontology_version:string,ontology_sha256:hash,nodes:Node[],edges:Edge[]}.
 Node = {id:string,type:NodeType,label:string,concept_id:string?,status:confirmed|inferred|unknown,
 origin:fictional_scenario|public_document|model_inference,value:JSON?,source_refs:SourceRef[]}.
@@ -126,7 +127,7 @@ CompanyKnowledgeEdge, CompanyKnowledgeSource, CompanyKnowledgeBinding 및 bindin
 
 `python -m app.deep_review.cli import-company-knowledge --ontology <file> --company <file> --actor <name> [--dry-run]`
 → {company_id:UUID?,profile_version_id:UUID?,graph_version_id:UUID?,ontology_version:string?,
-source_sha256:hash?,graph_sha256:hash?,created:bool,activated:false,errors:string[]}.
+source_sha256:hash?,graph_sha256:hash?,created:bool,activated:false,errors:string[]}(RL 개정 R4가 키 두 개를 더한다).
 dry-run은 DB/객체/모델 쓰기 없이 검사하며 ID는 null, created=false다.
 `activate-company-knowledge --company-id <uuid> --graph-version-id <uuid> --actor <name>`는
 같은 회사 profile/graph binding을 원자적으로 활성화하고 이전 binding 감사 이력을 남긴다.
@@ -137,7 +138,7 @@ dry-run은 DB/객체/모델 쓰기 없이 검사하며 ID는 null, created=false
 관계는 별도 graph 입력이며 임의 문자열 facts로 중복 생성하지 않는다.
 기존 프로필 파서의 고정 source_file 검증을 우회하지 않는다. 새 bidops.company-profile.v2를 추가해
 company_id, origin, graph_version_id, ontology_version을 포함하고 기존 v1 소비를 그대로 유지한다.
-가상 confirmed 사실의 의미는 "시나리오 확정"이며 전송 payload에도 origin을 보존한다.
+가상 confirmed 사실의 의미는 "시나리오 확정"이며 전송 payload에도 origin을 보존한다(실회사 사실의 의미는 RL 개정 R4).
 
 `GET /api/companies/{company_id}/profile` → {schema_version:"bidops.company-profile-view.v1",
 company:CompanyDTO,profile_version_id:UUID,profile_sha256:hash,graph_version_id:UUID,
@@ -622,3 +623,51 @@ graph_version_id,graph_sha256,ontology_version,input_sha256 및 양쪽에 존재
 live config의 tracking mutation은 demo-laptop project에서만 실행하고 demo-desktop은 read-only 구조·캡처만 수행한다.
 테스트는 project.name으로 mutation case를 명시 skip하고, 두 project를 직렬로 실행하여 laptop 저장 뒤 desktop이 확인한다.
 두 폭에서 반복 저장하여 사람 결정을 추가하지 않는다.
+
+
+## RL 개정 (2026-10-16, RL-00, ADR-0073)
+
+루트랩 실회사 1곳을 같은 등록·binding·profile 경로로 받기 위한 개정이다. 근거 [RL-00 spec](groups/RL/features/RL-00-company-ground-truth/spec.md), [ADR-0073](../tracking/decisions/0073-rootlab-real-company-ax-redefinition.md). 위 §1~§4 원문은 DEMO·HP 가상회사 기준으로 남기고 겹치는 항목은 이 절이 대체한다. §2의 REST 공통형·§8의 저장·fingerprint·오류 envelope는 그대로다.
+상태: 코드 구현과 `bidops-local`(별도 DB `bidops_rla`) 격리 등록·활성화(STEP-006, [README](../validation-runs/2026-10-16-rl/RL-00/README.md))는 RL-00 run에서 끝났다. 운영 반영은 아직이며 이 절은 운영 결과를 주장하지 않는다. 회사 REST 응답 계약은 [contracts.md](../contracts.md) "회사 근거(RL-00)"가 정본이다.
+
+### R1. 회사 등록과 demo 플래그 (§1 대체)
+
+- `register_company`는 `is_fictional=false`(실회사)와 `true`(가상)를 모두 받는다. bool이 아니면 `source_invalid`다. 감사 `safe_metadata.is_fictional`은 요청값을 그대로 적는다.
+- **실회사는 DB 전체에서 1곳**이다. 이미 `is_fictional=false` 행이 있고 slug가 다르면 `real_company_exists`로 거부한다(CLI exit 2, HTTP로는 노출하지 않음). 같은 slug의 내용 변경은 §3대로 새 버전이다.
+- **가상회사 import는 `BIDOPS_DEMO_ENABLED=true`일 때만** 허용한다. 아니면 `fictional_requires_demo`(CLI exit 2)이며 `--dry-run`도 같다. 검사는 파일 내용 검증 뒤에 하므로 내용 오류가 있으면 `source_invalid`가 먼저다. `company_fictional_required` 코드는 폐기했다. 기존 DEMO·HP 가상회사 행은 삭제하지 않는다.
+- `BIDOPS_DEMO_ENABLED`는 이제 가상회사 등록·선택기·비교 UI·회사별 분석 경로만 통제한다. demo off에서는 **다음 method+경로만** 통과하고 나머지 회사 관련 경로는 계속 404다(SPA fallback보다 앞선 서버 guard, 경로 문자열 기준).
+
+  | 통과(demo off) | 계속 404(demo off) |
+  |---|---|
+  | `GET /api/companies`, `GET /api/companies/{id}`, `GET /api/companies/{id}/profile`, `GET /api/companies/{id}/knowledge-graph`, `GET /api/companies/{id}/profile-evidence/{eid}`, `GET /api/company` | 위 경로의 GET 아닌 method, 회사별 추적 PATCH, 회사별 사전규격·심층·Luna 전송 경로(`company_reads`·`company_analysis`), SPA `/companies/*`, `/pre-specs/{id}/company-comparison` |
+
+  서비스 쪽 demo gate(`company_deep_review`·`company_projection`·`company_fit`)는 바꾸지 않았다. 실회사 binding이 활성화돼도 회사 핏·심층 경로는 demo off에서 닫혀 있다(RL-03이 다시 정한다).
+- 새 설정 `BIDOPS_COMPANY_EXPIRY_WARNING_DAYS`(int, 기본 60, 범위 1..365)는 "곧 만료" 기준이며 `GET /api/company`의 `expiry_warning_days`로 전달된다.
+
+### R3. 온톨로지·원본·그래프 (§3 대체)
+
+- 회사 파일 `company.is_fictional`은 bool이다(true 고정 해제). `scenario_version` 키 이름은 유지하며 실회사에서는 원본 버전(예: `rootlab-2026-10-16`)을 담는다. 온톨로지는 `schema_version`을 그대로 두고 `version="bidops.company-ontology.rl-v2"`로 발행한다(HP v1 위에 `rl.*` concept 추가).
+- `Node.status`·`Edge.status` = `confirmed | proposed | inferred | unknown`. `proposed`는 **에이전트 제안값, 사람 미확인**이며 `confirmed`와 같은 source_ref 규칙(정확히 1개)을 따르지만 확인이 아니다. `inferred`는 모델 추론 전용으로 남고 RL-00 파일에는 없다.
+- `Node.origin`·`Edge.origin` = `fictional_scenario | public_document | model_inference | company_brochure | homepage | user_interview | agent_proposal`. 파일 종류별 허용: 실회사 파일은 `company_brochure·homepage·user_interview·agent_proposal`, 가상회사 파일은 `fictional_scenario`만이다. `public_document`·`model_inference`는 등록 파일에서 계속 거부한다(분석 overlay 전용). 어긋나면 `source_invalid`.
+- status·origin 조합: `proposed`는 origin `agent_proposal`만, `user_interview`는 `confirmed`·`unknown`만, `company_brochure`·`homepage`는 `confirmed`만. 어긋나면 `source_invalid`. 쓰기 쪽(`core/company_ontology.py`)과 읽기 쪽(`deep_review/services/input_versions.py`) 검사기가 같은 규칙을 쓴다.
+- **보유와 세부를 분리한다.** "보유는 확인, 세부 미입력"은 노드 하나에 `value={"held":true,"detail":null}`로 두고, 세부 값(세부품명·유효기간 등)은 **별도 노드** `status=unknown`(`value=null`, `source_refs=[]`)으로 둔다. 한 노드에 두 상태를 섞지 않는다. 세부가 확인되면 그 unknown 노드를 `confirmed`로 바꾼 새 버전을 등록한다.
+- SourceRef는 §3 그대로(`source_id:"self"`, `json_pointer`, `quote`)다. 출처 문서의 쪽·URL은 파일에 넣지 않고 validation-runs README에 적는다.
+- 노드 value 확장은 **추가 허용**이다(strict object, 적힌 키 전부 필수, `?`는 null 허용). 기존 가상회사 파일(DEMO·HP)의 형태는 그대로 통과한다.
+
+  | NodeType | §3 형태 | RL 확장(추가 허용) |
+  |---|---|---|
+  | company·technology | string \| null | 변경 없음 |
+  | domain | string \| null | `{tier:1\|2\|3\|null, keywords:string[], excluded:bool, kind:hardware\|staffing_only\|design_only\|election\|region\|amount_floor\|null}`; `excluded=true`면 `kind` 필수 |
+  | qualification | string \| null | `{held:bool, detail:string?, valid_until:date?, issued_on:date?, file_name:string?}`; 사본 파일은 저장하지 않고 파일명만(경로 문자 거부) |
+  | capability | `{scope,description}` | `{scope:core\|non_core, description:string, params:object?}`; `params`는 평면 객체(값 int·string·bool, int는 음수 금지) |
+  | staff_group | `{role,total?,available?,as_of?}` | `{role,total?,available?,as_of?,region:string?,grade:string?}` |
+  | project | `{role,scope,amount_krw?,started_on?,ended_on?}` | `role`·`scope`를 null 허용으로 넓히고 `agency:string?`, `year:int?` 추가(확장형 키 집합일 때만; 기존 키 집합은 role·scope 필수 그대로) |
+  | evidence·notice·requirement | §3 | 변경 없음 |
+
+### R4. 프로필 projection·CLI·조회 (§4 대체)
+
+- **import 출력 JSON은 기존 9키에 `is_fictional: bool|null`, `status_counts: {confirmed,proposed,inferred,unknown: int}|null` 두 키를 더한 11키**다. `status_counts`는 evidence가 아닌 노드를 status별로 센 값(= profile facts 수)이다. `--dry-run`도 두 값을 채우고, 실패 JSON은 두 키 모두 `null`이다. **activate 출력(6키)은 바뀌지 않는다.** 그 외 CLI 서명·dry-run 규칙(DB·객체·모델 쓰기 없음, ID null, created=false)은 §4 그대로다.
+- profile v2 payload 최상위 `origin` = 실회사 `"real_company"`, 가상회사 `"fictional_scenario"`. FactV2.origin은 노드 origin 그대로이고 `FactV2.status`는 4값이다. `ProfileVersion.source_kind`는 기존 `company-knowledge-json-v2`를 **그대로** 둔다(멱등 재등록·snapshot 검증이 이 값을 비교한다). 실회사 구분은 payload `origin`만이 한다. v1 소비 경로는 바뀌지 않았다. 읽기 쪽 snapshot 검증은 payload `origin`이 회사 종류(`is_fictional`)와 어긋나면 거부한다.
+- ProfileEvidence는 `confirmed`·`proposed` 노드마다 정확히 1개, `unknown`은 0개다(`confirmed_by_name`은 CLI actor, 뜻은 "등록자"). `proposed`의 evidence는 확인 근거가 아니다 — 화면은 status로 구분하고 판정·전송은 `proposed`를 `unknown`과 같이 근거로 쓰지 않는다(RL-03이 고정한다).
+- `GET /api/companies/{id}/profile`의 `facts[].origin`·`status`와 `profile-evidence`의 `origin`은 위 enum으로 넓어졌다(다른 키 그대로). 의미: 실회사 `confirmed` = 출처가 있고 사람이 확인한 사실, `proposed` = 에이전트 제안(사람 미확인), 가상회사 `confirmed` = "시나리오 확정"(§4).
+- 단일 회사 조회 `GET /api/company`는 contracts.md가 정본이다.

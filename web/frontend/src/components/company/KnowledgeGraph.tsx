@@ -79,7 +79,8 @@ function triggerKey(kind: "node" | "edge", id: string): string {
 
 function statusVariant(status: CompanyFactStatus): BadgeVariant {
   if (status === "unknown") return "evidence-unknown";
-  if (status === "inferred") return "evidence-inferred";
+  // 추정값(proposed)도 추정 계열이다. 확인(confirmed)으로 접지 않는다.
+  if (status === "inferred" || status === "proposed") return "evidence-inferred";
   return "evidence-confirmed";
 }
 

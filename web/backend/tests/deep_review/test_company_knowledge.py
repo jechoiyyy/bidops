@@ -130,6 +130,135 @@ def _source(ontology_sha256: str, *, scenario: str = "scenario-v1", description:
     }
 
 
+def _ref(pointer: str, quote: str) -> list[dict]:
+    return [{"source_id": "self", "locator": {"json_pointer": pointer}, "quote": quote}]
+
+
+def _real_source(
+    ontology_sha256: str,
+    *,
+    slug: str = "real-test-co",
+    name: str = "실회사 검사",
+    version: str = "real-test-2026-10-16",
+    credit_status: str = "proposed",
+) -> dict:
+    """RL-00 실회사 파일 (`is_fictional=false`): 새 origin·`proposed`·value 확장 표.
+
+    회사 자료가 아니라 계약 모양만 갖춘 합성 값이다. ``credit_status="confirmed"``는
+    재등록(T7)에서 제안값을 사람이 확인한 새 버전을 흉내 낸다.
+    """
+
+    credit_origin = "agent_proposal" if credit_status == "proposed" else "user_interview"
+    nodes = [
+        {
+            "id": "company:real", "type": "company", "label": name, "concept_id": None,
+            "status": "confirmed", "origin": "homepage", "value": name,
+            "source_refs": _ref("/nodes/0/value", name),
+        },
+        {
+            "id": "qual:held", "type": "qualification", "label": "보유 자격",
+            "concept_id": "qual.synthetic", "status": "confirmed", "origin": "user_interview",
+            "value": {"held": True, "detail": None, "valid_until": None, "issued_on": None, "file_name": None},
+            "source_refs": _ref("/nodes/1/value/held", "true"),
+        },
+        {
+            "id": "qual:held.detail", "type": "qualification", "label": "보유 자격 세부",
+            "concept_id": "qual.synthetic", "status": "unknown", "origin": "user_interview",
+            "value": None, "source_refs": [],
+        },
+        {
+            "id": "qual:credit", "type": "qualification", "label": "신용등급",
+            "concept_id": "qual.synthetic", "status": credit_status, "origin": credit_origin,
+            "value": {"held": True, "detail": "BBB-", "valid_until": "2027-06-30", "issued_on": None,
+                      "file_name": "credit.pdf"},
+            "source_refs": _ref("/nodes/3/value/detail", "BBB-"),
+        },
+        {
+            "id": "staff:onsite", "type": "staff_group", "label": "상주 인력",
+            "concept_id": None, "status": "confirmed", "origin": "user_interview",
+            "value": {"role": "onsite", "total": None, "available": 6, "as_of": None,
+                      "region": "대구", "grade": None},
+            "source_refs": _ref("/nodes/4/value/region", "대구"),
+        },
+        {
+            "id": "project:2024-01", "type": "project", "label": "검사 사업",
+            "concept_id": None, "status": "confirmed", "origin": "homepage",
+            "value": {"role": None, "scope": None, "amount_krw": None, "started_on": None,
+                      "ended_on": None, "agency": "검사기관", "year": 2024},
+            "source_refs": _ref("/nodes/5/value/agency", "검사기관"),
+        },
+        {
+            "id": "pref:domain:01", "type": "domain", "label": "선호 분야",
+            "concept_id": "domain.public", "status": "confirmed", "origin": "user_interview",
+            "value": {"tier": 1, "keywords": ["공공"], "excluded": False, "kind": None},
+            "source_refs": _ref("/nodes/6/value/keywords/0", "공공"),
+        },
+        {
+            "id": "excl:hardware", "type": "domain", "label": "하드웨어 제외",
+            "concept_id": "domain.public", "status": "confirmed", "origin": "user_interview",
+            "value": {"tier": None, "keywords": ["하드웨어"], "excluded": True, "kind": "hardware"},
+            "source_refs": _ref("/nodes/7/value/kind", "hardware"),
+        },
+        {
+            "id": "pref:amount_floor", "type": "capability", "label": "최소 금액",
+            "concept_id": "cap.delivery", "status": "confirmed", "origin": "user_interview",
+            "value": {"scope": "core", "description": "최소 사업 금액", "params": {"krw": 100000000}},
+            "source_refs": _ref("/nodes/8/value/params/krw", "100000000"),
+        },
+        {
+            "id": "cap:brochure", "type": "capability", "label": "소개서 역량",
+            "concept_id": "cap.delivery", "status": "confirmed", "origin": "company_brochure",
+            "value": {"scope": "core", "description": "회사소개서 역량"},
+            "source_refs": _ref("/nodes/9/value/description", "회사소개서 역량"),
+        },
+        {
+            "id": "ev:project", "type": "evidence", "label": "실적 근거",
+            "concept_id": None, "status": "confirmed", "origin": "homepage",
+            "value": {"fact_key": "project:2024-01"},
+            "source_refs": _ref("/nodes/5/value/agency", "검사기관"),
+        },
+    ]
+    edges = [
+        {
+            "id": "edge:performed", "type": "performed", "from_id": "company:real",
+            "to_id": "project:2024-01", "status": "confirmed", "origin": "homepage",
+            "source_refs": _ref("/nodes/5/value/agency", "검사기관"),
+        },
+        {
+            "id": "edge:holds", "type": "holds_qualification", "from_id": "company:real",
+            "to_id": "qual:held", "status": "confirmed", "origin": "user_interview",
+            "source_refs": _ref("/nodes/1/value/held", "true"),
+        },
+        {
+            "id": "edge:project-evidence", "type": "supported_by", "from_id": "project:2024-01",
+            "to_id": "ev:project", "status": "confirmed", "origin": "homepage",
+            "source_refs": _ref("/nodes/5/value/agency", "검사기관"),
+        },
+    ]
+    return {
+        "schema_version": "bidops.company-knowledge-source.v1",
+        "company": {"slug": slug, "name": name, "is_fictional": False},
+        "scenario_version": version,
+        "ontology_version": "ontology-v1",
+        "ontology_sha256": ontology_sha256,
+        "nodes": nodes,
+        "edges": edges,
+    }
+
+
+#: `_real_source()`의 비evidence 노드 상태 수 (= profile facts). import 출력의
+#: `status_counts`와 workload `company_attention`(proposed+unknown)이 이 값을 따른다.
+REAL_STATUS_COUNTS = {"confirmed": 8, "proposed": 1, "inferred": 0, "unknown": 1}
+
+
+def _prepared_real(**overrides):
+    from app.core.company_ontology import parse_ontology
+
+    ontology_raw = _raw(_ontology())
+    ontology = parse_ontology(ontology_raw)
+    return prepare_company_knowledge(ontology_raw, _raw(_real_source(ontology.sha256, **overrides)))
+
+
 def _prepared(*, scenario: str = "scenario-v1", description: str = "합성 구축 역량"):
     ontology_raw = _raw(_ontology())
     from app.core.company_ontology import parse_ontology
@@ -155,6 +284,22 @@ def engine(request):
         yield bind
     finally:
         bind.dispose()
+
+
+@pytest.fixture(autouse=True)
+def fictional_import_demo(monkeypatch: pytest.MonkeyPatch):
+    """RL-00: 가상회사 import·dry-run은 ``BIDOPS_DEMO_ENABLED=true``에서만 열린다.
+
+    이 모듈의 가상 fixture 검사는 데모가 켜진 세계를 전제로 한다. demo off 거부는
+    `tests/app/test_company_knowledge_cli.py`·`test_company_knowledge_api.py`가 본다.
+    """
+
+    from app.core.config import get_settings
+
+    monkeypatch.setenv("BIDOPS_DEMO_ENABLED", "true")
+    get_settings.cache_clear()
+    yield
+    get_settings.cache_clear()
 
 
 @pytest.fixture(autouse=True)

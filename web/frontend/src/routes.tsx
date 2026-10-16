@@ -9,6 +9,7 @@ import { routeHandle, routeMetadata } from "./components/shell/route-meta";
 const MockReviewPage = import.meta.env.BIDOPS_REVIEW_MOCK ? lazy(() => import("./mock-review/MockReviewPage")) : null;
 
 const BriefingPage = lazy(() => import("./pages/BriefingPage").then(({ BriefingPage }) => ({ default: BriefingPage })));
+const CompanyPage = lazy(() => import("./pages/CompanyPage").then(({ CompanyPage }) => ({ default: CompanyPage })));
 const DashboardPage = lazy(() => import("./pages/DashboardPage").then(({ DashboardPage }) => ({ default: DashboardPage })));
 const OpportunitiesPage = lazy(() => import("./pages/OpportunitiesPage").then(({ OpportunitiesPage }) => ({ default: OpportunitiesPage })));
 const OpportunityDetailPage = lazy(() => import("./pages/OpportunitiesPage").then(({ OpportunityDetailPage }) => ({ default: OpportunityDetailPage })));
@@ -32,7 +33,6 @@ const CompanyPickerPage = lazy(() => import("./pages/CompanyPreSpecsPage").then(
 const CompanyPreSpecsPage = lazy(() => import("./pages/CompanyPreSpecsPage").then(({ CompanyPreSpecsPage }) => ({ default: CompanyPreSpecsPage })));
 const CompanyPreSpecDetailPage = lazy(() => import("./pages/CompanyPreSpecsPage").then(({ CompanyPreSpecDetailPage }) => ({ default: CompanyPreSpecDetailPage })));
 const CompanyDeepReviewPage = lazy(() => import("./pages/DeepReviewPage").then(({ CompanyDeepReviewPage }) => ({ default: CompanyDeepReviewPage })));
-const CompanyProfilePage = lazy(() => import("./pages/CompanyProfilePage").then(({ CompanyProfilePage }) => ({ default: CompanyProfilePage })));
 const CompanyComparisonPage = lazy(() => import("./pages/CompanyComparisonPage").then(({ CompanyComparisonPage }) => ({ default: CompanyComparisonPage })));
 const ReviewWorkspacePage = lazy(() => import("./pages/ReviewWorkspacePage").then(({ ReviewWorkspacePage }) => ({ default: ReviewWorkspacePage })));
 const GoNoGoPage = lazy(() => import("./pages/GoNoGoPage").then(({ GoNoGoPage }) => ({ default: GoNoGoPage })));
@@ -65,7 +65,9 @@ function companyRoutes(): RouteObject[] {
     { path: "companies", element: <CompanyPickerPage />, handle: routeHandle(routeMetadata.companies) },
     { path: "companies/:companyId/pre-specs", element: <CompanyPreSpecsPage />, handle: routeHandle(routeMetadata.companyPreSpecs) },
     { path: "companies/:companyId/pre-specs/:noticeId", element: <CompanyPreSpecDetailPage />, handle: routeHandle(routeMetadata.companyPreSpecs) },
-    { path: "companies/:companyId/profile", element: <CompanyProfilePage />, handle: routeHandle(routeMetadata.companyProfile) },
+    // RL-00: 회사는 하나라 회사별 프로필 화면은 `/company`로 합쳐졌다(spec "화면 `/company`").
+    // demo가 켜진 route 표에만 있고, 꺼지면 이 주소는 SPA에 없다(서버 guard도 404).
+    { path: "companies/:companyId/profile", element: <Navigate replace to="/company" />, handle: routeHandle(routeMetadata.companyProfile) },
     { path: "companies/:companyId/deep-reviews/:reviewId", element: <CompanyDeepReviewPage />, handle: routeHandle(routeMetadata.companyDeepReview) },
     { path: "pre-specs/:noticeId/company-comparison", element: <CompanyComparisonPage />, handle: routeHandle(routeMetadata.companyComparison) },
   ];
@@ -82,6 +84,8 @@ export function buildRoutes(demoEnabled: boolean): RouteObject[] {
         children: [
           { index: true, element: <DashboardPage />, handle: routeHandle(routeMetadata.dashboard) },
           { path: "briefing", element: <BriefingPage />, handle: routeHandle(routeMetadata.briefing) },
+          // 회사 근거(읽기 전용). 회사가 하나라 선택기·demo 설정과 무관하게 항상 있다(RL-00).
+          { path: "company", element: <CompanyPage />, handle: routeHandle(routeMetadata.company) },
           // 검토 대기열 · 공고 판정 이력 · 담당자 리뷰 기록은 한 화면의 세 탭이다.
           // 옛 경로를 리다이렉트하지 않고 각 탭의 정식 주소로 남겨 404를 막는다.
           //

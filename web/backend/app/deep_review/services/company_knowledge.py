@@ -17,6 +17,8 @@ from sqlalchemy.orm import Session
 
 from ...core.api_errors import BundleServiceError, validate_actor
 from ...core.company_ontology import (
+    FACT_STATUSES,
+    ORIGINS,
     CompanyKnowledgeValidationError,
     GraphSnapshot,
     OntologyValidationError,
@@ -26,7 +28,9 @@ from ...core.company_ontology import (
     build_graph_snapshot,
     parse_company_knowledge_source,
     parse_ontology,
+    profile_origin_for,
 )
+from ...core.config import get_settings
 from ...core.db import isolated_test_boundary_active
 from ...lifecycle import register_company
 from ...lifecycle.models import Company
@@ -45,6 +49,9 @@ from ..models import (
     ProfileVersion,
 )
 from ..schemas.company_knowledge import (
+    COMPANY_CONTEXT_SCHEMA,
+    ActiveGraphVersion,
+    CompanyContextView,
     CompanyKnowledgeGraphView,
     CompanyProfileEvidenceView,
     CompanyProfileFact,
@@ -181,10 +188,20 @@ def _cleanup_abandoned_company_knowledge_source(session: Session, transaction: A
         session.info.pop(_COMMITTED_SOURCE_TRANSACTIONS_KEY, None)
 
 
+def _demo_enabled() -> bool:
+    return bool(getattr(get_settings(), "demo_enabled", False))
+
+
 def prepare_company_knowledge(
     ontology_raw: bytes, company_raw: bytes
 ) -> PreparedCompanyKnowledge:
-    """Validate both source documents without touching DB, storage, or models."""
+    """Validate both source documents without touching DB, storage, or models.
+
+    RL-00: a fictional company file is accepted only while
+    ``BIDOPS_DEMO_ENABLED=true``. The check lives here so ``--dry-run`` gives the
+    same ``fictional_requires_demo`` answer as a real import. Content errors are
+    reported first (``source_invalid``); the demo gate only judges valid files.
+    """
 
     try:
         ontology = parse_ontology(ontology_raw)
@@ -195,7 +212,19 @@ def prepare_company_knowledge(
         graph = build_graph_snapshot(source, ontology=ontology)
     except CompanyKnowledgeValidationError as error:
         raise CompanyKnowledgeServiceError("source_invalid") from error
+    if source.company.is_fictional and not _demo_enabled():
+        raise CompanyKnowledgeServiceError("fictional_requires_demo")
     return PreparedCompanyKnowledge(ontology=ontology, source=source, graph=graph)
+
+
+def status_counts(source: ValidatedCompanyKnowledge) -> dict[str, int]:
+    """Per-status count of the non-evidence nodes, i.e. of the profile facts."""
+
+    counts = {status: 0 for status in ("confirmed", "proposed", "inferred", "unknown")}
+    for node in source.nodes:
+        if node.type != "evidence":
+            counts[node.status] += 1
+    return counts
 
 
 def prepare_company_knowledge_files(
@@ -266,13 +295,13 @@ def _profile_v2_payload(
             "section_number": None,
             "locator": {"fact_key": node.id},
             "quote": quote,
-            "origin": "fictional_scenario",
+            "origin": node.origin,
         }
         projected.append((fact, None if node.status == "unknown" else quote))
     payload = {
         "schema": PROFILE_SCHEMA_V2,
         "company_id": str(company_id),
-        "origin": "fictional_scenario",
+        "origin": profile_origin_for(is_fictional=source.company.is_fictional),
         "source_sha256": source.source_sha256,
         "graph_version_id": str(graph_version_id),
         "ontology_version": source.ontology_version,
@@ -493,8 +522,8 @@ def import_company_knowledge(
         )
     except BundleServiceError as error:
         code = (
-            "company_identity_conflict"
-            if error.code == "company_identity_conflict"
+            error.code
+            if error.code in {"company_identity_conflict", "real_company_exists"}
             else "source_invalid"
         )
         raise CompanyKnowledgeServiceError(code) from error
@@ -843,7 +872,9 @@ def company_profile_view(
     }
     facts: list[CompanyProfileFact] = []
     for fact in resolved.facts:
-        if not isinstance(fact, Mapping) or fact.get("origin") != "fictional_scenario":
+        # The frozen lineage (including status x origin) was validated by
+        # ``validate_profile_snapshot``; FactV2.origin is the node origin.
+        if not isinstance(fact, Mapping) or fact.get("origin") not in ORIGINS:
             raise _read_failed()
         fact_key = fact.get("fact_key")
         status = fact.get("status")
@@ -855,7 +886,7 @@ def company_profile_view(
                 fact_key=fact_key,
                 label=label,
                 status=status,
-                origin="fictional_scenario",
+                origin=fact["origin"],
                 value=fact.get("value"),
                 evidence_ids=_fact_evidence_ids(resolved, fact_key, status),
             )
@@ -1143,14 +1174,99 @@ def company_profile_evidence_view(
         or evidence.locator != {"fact_key": evidence.fact_key}
     ):
         raise _read_failed()
+    facts = profile.profile_payload.get("facts") if isinstance(profile.profile_payload, Mapping) else None
+    origins = [
+        fact.get("origin")
+        for fact in (facts if isinstance(facts, list) else [])
+        if isinstance(fact, Mapping) and fact.get("fact_key") == evidence.fact_key
+    ]
+    if len(origins) != 1 or origins[0] not in ORIGINS:
+        raise _read_failed()
     return CompanyProfileEvidenceView(
         evidence_id=evidence.id,
         profile_version_id=profile.id,
         fact_key=evidence.fact_key,
-        origin="fictional_scenario",
+        origin=origins[0],
         quote=evidence.quote,
         source_sha256=evidence.source_sha256,
     )
+
+
+# ---------------------------------------------------------------------------
+# RL-00 single real company: `GET /api/company` and workload `company_attention`.
+# ---------------------------------------------------------------------------
+
+#: Statuses the "확인이 필요한 것" list and the sidebar pill count.
+_ATTENTION_STATUSES = frozenset({"proposed", "unknown"})
+
+
+def _real_company(session: Session) -> Company | None:
+    rows = list(
+        session.scalars(
+            select(Company).where(Company.is_fictional.is_(False)).order_by(Company.slug).limit(2)
+        )
+    )
+    if len(rows) > 1:
+        # register_company keeps one real company DB-wide; never pick one.
+        raise _read_failed()
+    return rows[0] if rows else None
+
+
+def company_context_view(session: Session) -> CompanyContextView:
+    """The single real company, its active graph version, and the expiry window."""
+
+    company = _real_company(session)
+    if company is None:
+        raise CompanyKnowledgeServiceError("company_not_registered")
+    active: ActiveGraphVersion | None = None
+    binding = session.get(CompanyKnowledgeBinding, company.id)
+    if binding is not None:
+        graph = session.get(CompanyKnowledgeVersion, binding.graph_version_id)
+        if (
+            graph is None
+            or graph.company_id != company.id
+            or graph.profile_version_id != binding.profile_version_id
+        ):
+            raise _read_failed()
+        active = ActiveGraphVersion(graph_version_id=graph.id, created_at=graph.created_at)
+    return CompanyContextView(
+        schema_version=COMPANY_CONTEXT_SCHEMA,
+        company=_company_dto(company),
+        expiry_warning_days=int(get_settings().company_expiry_warning_days),
+        active_graph_version=active,
+    )
+
+
+def company_attention_count(session: Session) -> tuple[int | None, str | None]:
+    """``proposed`` + ``unknown`` non-evidence nodes of the real company's active graph.
+
+    Returns ``(count, None)`` or ``(None, reason)``: ``provider_absent`` when no
+    real company is registered, ``company_profile_not_ready`` when it has no
+    active binding, ``processing_failed`` when the frozen snapshot is unusable.
+    A missing value is never folded into 0. Constant query count.
+    """
+
+    try:
+        company = _real_company(session)
+    except CompanyKnowledgeServiceError:
+        return None, "processing_failed"
+    if company is None:
+        return None, "provider_absent"
+    binding = session.get(CompanyKnowledgeBinding, company.id)
+    if binding is None:
+        return None, "company_profile_not_ready"
+    graph = session.get(CompanyKnowledgeVersion, binding.graph_version_id)
+    snapshot = graph.snapshot if graph is not None else None
+    nodes = snapshot.get("nodes") if isinstance(snapshot, Mapping) else None
+    if graph is None or graph.company_id != company.id or not isinstance(nodes, list):
+        return None, "processing_failed"
+    count = 0
+    for node in nodes:
+        if not isinstance(node, Mapping) or node.get("status") not in FACT_STATUSES:
+            return None, "processing_failed"
+        if node.get("type") != "evidence" and node.get("status") in _ATTENTION_STATUSES:
+            count += 1
+    return count, None
 
 
 __all__ = [
@@ -1159,6 +1275,8 @@ __all__ = [
     "CompanyKnowledgeServiceError",
     "PreparedCompanyKnowledge",
     "activate_company_knowledge",
+    "company_attention_count",
+    "company_context_view",
     "company_knowledge_graph_view",
     "company_knowledge_public_graph",
     "company_profile_evidence_view",
@@ -1166,4 +1284,5 @@ __all__ = [
     "import_company_knowledge",
     "prepare_company_knowledge",
     "prepare_company_knowledge_files",
+    "status_counts",
 ]

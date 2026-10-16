@@ -47,8 +47,16 @@ RelationType: TypeAlias = Literal[
     "requires_qualification",
 ]
 ConceptKind: TypeAlias = Literal["capability", "technology", "domain", "qualification"]
-FactStatus: TypeAlias = Literal["confirmed", "inferred", "unknown"]
-FactOrigin: TypeAlias = Literal["fictional_scenario", "public_document", "model_inference"]
+FactStatus: TypeAlias = Literal["confirmed", "proposed", "inferred", "unknown"]
+FactOrigin: TypeAlias = Literal[
+    "fictional_scenario",
+    "public_document",
+    "model_inference",
+    "company_brochure",
+    "homepage",
+    "user_interview",
+    "agent_proposal",
+]
 
 
 NODE_TYPES: Final[frozenset[str]] = frozenset(
@@ -69,9 +77,36 @@ COMPANY_SOURCE_NODE_TYPES: Final[frozenset[str]] = NODE_TYPES - {"notice", "requ
 CONCEPT_KINDS: Final[frozenset[str]] = frozenset(
     {"capability", "technology", "domain", "qualification"}
 )
-FACT_STATUSES: Final[frozenset[str]] = frozenset({"confirmed", "inferred", "unknown"})
-ORIGINS: Final[frozenset[str]] = frozenset(
-    {"fictional_scenario", "public_document", "model_inference"}
+#: RL-00: ``proposed`` = agent-proposed value not yet confirmed by a person.
+#: It follows the ``confirmed`` source-ref rule (exactly one) but is never a
+#: confirmation; ``inferred`` stays reserved for model inference.
+FACT_STATUSES: Final[frozenset[str]] = frozenset(
+    {"confirmed", "proposed", "inferred", "unknown"}
+)
+#: Origins a registered *real* company file may use (ADR-0073 decision 1).
+REAL_COMPANY_ORIGINS: Final[frozenset[str]] = frozenset(
+    {"company_brochure", "homepage", "user_interview", "agent_proposal"}
+)
+#: Origins a registered *fictional* company file may use (DEMO contract §3).
+FICTIONAL_COMPANY_ORIGINS: Final[frozenset[str]] = frozenset({"fictional_scenario"})
+#: Analysis-overlay origins; never accepted in a registration file.
+OVERLAY_ORIGINS: Final[frozenset[str]] = frozenset({"public_document", "model_inference"})
+ORIGINS: Final[frozenset[str]] = (
+    FICTIONAL_COMPANY_ORIGINS | OVERLAY_ORIGINS | REAL_COMPANY_ORIGINS
+)
+#: Profile v2 top-level ``origin`` by company kind (RL-00 "저장 projection").
+PROFILE_ORIGIN_REAL: Final[str] = "real_company"
+PROFILE_ORIGIN_FICTIONAL: Final[str] = "fictional_scenario"
+#: RL-00 status x origin rules. ``proposed`` only comes from an agent proposal;
+#: interview answers are confirmed or unknown; brochure and homepage rows are
+#: confirmed facts. Origins absent from this map add no status restriction.
+_ORIGIN_STATUSES: Final[Mapping[str, frozenset[str]]] = {
+    "user_interview": frozenset({"confirmed", "unknown"}),
+    "company_brochure": frozenset({"confirmed"}),
+    "homepage": frozenset({"confirmed"}),
+}
+DOMAIN_EXCLUSION_KINDS: Final[frozenset[str]] = frozenset(
+    {"hardware", "staffing_only", "design_only", "election", "region", "amount_floor"}
 )
 STABLE_KEY_RE: Final[re.Pattern[str]] = re.compile(r"^[a-z][a-z0-9_.:-]{0,127}$")
 COMPANY_SLUG_RE: Final[re.Pattern[str]] = re.compile(r"^[a-z][a-z0-9-]{1,63}$")
@@ -224,6 +259,12 @@ def normalize_company_identity(
     registration consume the same result without importing either domain into
     the other.  The lifecycle service historically trims the name, so this
     helper preserves that behavior.
+
+    RL-00: both real (``False``) and fictional (``True``) companies are valid
+    identities; anything that is not exactly a bool is rejected.  Whether a
+    fictional registration is *allowed* (demo flag) and whether another real
+    company already exists are decided by the services that can read settings
+    and the database, not here.
     """
 
     if not isinstance(slug, str) or COMPANY_SLUG_RE.fullmatch(slug) is None:
@@ -231,9 +272,41 @@ def normalize_company_identity(
     clean_name = name.strip() if isinstance(name, str) else ""
     if not clean_name or len(clean_name) > MAX_COMPANY_NAME_LENGTH:
         raise CompanyIdentityValidationError("company_name_invalid")
-    if is_fictional is not True:
-        raise CompanyIdentityValidationError("company_fictional_required")
-    return CompanyIdentity(slug=slug, name=clean_name, is_fictional=True)
+    if type(is_fictional) is not bool:
+        raise CompanyIdentityValidationError("company_is_fictional_invalid")
+    return CompanyIdentity(slug=slug, name=clean_name, is_fictional=is_fictional)
+
+
+def registration_origin_allowed(origin: Any, *, is_fictional: bool) -> bool:
+    """Whether a registration file of this company kind may use ``origin``.
+
+    Real files use the four confirmation sources; fictional files keep the
+    single ``fictional_scenario`` origin.  Overlay origins are never allowed.
+    """
+
+    if not isinstance(origin, str):
+        return False
+    allowed = FICTIONAL_COMPANY_ORIGINS if is_fictional else REAL_COMPANY_ORIGINS
+    return origin in allowed
+
+
+def status_origin_allowed(status: Any, origin: Any) -> bool:
+    """RL-00 status x origin combination rule shared by write and read checks."""
+
+    if not isinstance(status, str) or status not in FACT_STATUSES:
+        return False
+    if not isinstance(origin, str) or origin not in ORIGINS:
+        return False
+    if status == "proposed" and origin != "agent_proposal":
+        return False
+    allowed = _ORIGIN_STATUSES.get(origin)
+    return allowed is None or status in allowed
+
+
+def profile_origin_for(*, is_fictional: bool) -> str:
+    """Top-level profile v2 ``origin`` for a company kind."""
+
+    return PROFILE_ORIGIN_FICTIONAL if is_fictional else PROFILE_ORIGIN_REAL
 
 
 @dataclass(frozen=True, order=True)
@@ -630,22 +703,119 @@ def _nullable_date(value: Any) -> str | None:
     return value
 
 
+def _nullable_nonempty_string(value: Any) -> str | None:
+    if value is None:
+        return None
+    return _nonempty_string(
+        value, error_type=CompanyKnowledgeValidationError, code="node_value_invalid"
+    )
+
+
+def _key_set(value: Any, *allowed: frozenset[str]) -> frozenset[str]:
+    """Return the exact key set of a strict object among the allowed shapes.
+
+    RL-00 extensions are additive: the DEMO shape stays valid as is, and the
+    extended shape is a second strict shape ("?" is nullable, never omittable).
+    """
+
+    if not isinstance(value, dict):
+        raise CompanyKnowledgeValidationError("node_value_invalid")
+    keys = frozenset(value)
+    if keys not in allowed:
+        raise CompanyKnowledgeValidationError("node_value_invalid")
+    return keys
+
+
+_DOMAIN_KEYS: Final[frozenset[str]] = frozenset({"tier", "keywords", "excluded", "kind"})
+_QUALIFICATION_KEYS: Final[frozenset[str]] = frozenset(
+    {"held", "detail", "valid_until", "issued_on", "file_name"}
+)
+_CAPABILITY_KEYS: Final[frozenset[str]] = frozenset({"scope", "description"})
+_CAPABILITY_RL_KEYS: Final[frozenset[str]] = _CAPABILITY_KEYS | {"params"}
+_STAFF_KEYS: Final[frozenset[str]] = frozenset({"role", "total", "available", "as_of"})
+_STAFF_RL_KEYS: Final[frozenset[str]] = _STAFF_KEYS | {"region", "grade"}
+_PROJECT_KEYS: Final[frozenset[str]] = frozenset(
+    {"role", "scope", "amount_krw", "started_on", "ended_on"}
+)
+_PROJECT_RL_KEYS: Final[frozenset[str]] = _PROJECT_KEYS | {"agency", "year"}
+
+
+def _domain_value(value: Any) -> Any:
+    if value is None or isinstance(value, str):
+        if isinstance(value, str) and not value.strip():
+            raise CompanyKnowledgeValidationError("node_value_invalid")
+        return value
+    _key_set(value, _DOMAIN_KEYS)
+    tier = value["tier"]
+    if tier is not None and (type(tier) is not int or tier not in {1, 2, 3}):
+        raise CompanyKnowledgeValidationError("node_value_invalid")
+    _string_list(
+        value["keywords"], error_type=CompanyKnowledgeValidationError, code="node_value_invalid"
+    )
+    excluded = value["excluded"]
+    if type(excluded) is not bool:
+        raise CompanyKnowledgeValidationError("node_value_invalid")
+    kind = value["kind"]
+    if kind is not None and (not isinstance(kind, str) or kind not in DOMAIN_EXCLUSION_KINDS):
+        raise CompanyKnowledgeValidationError("node_value_invalid")
+    if excluded and kind is None:
+        raise CompanyKnowledgeValidationError("node_value_invalid")
+    return deepcopy(value)
+
+
+def _qualification_value(value: Any) -> Any:
+    if value is None or isinstance(value, str):
+        if isinstance(value, str) and not value.strip():
+            raise CompanyKnowledgeValidationError("node_value_invalid")
+        return value
+    _key_set(value, _QUALIFICATION_KEYS)
+    if type(value["held"]) is not bool:
+        raise CompanyKnowledgeValidationError("node_value_invalid")
+    _nullable_nonempty_string(value["detail"])
+    _nullable_date(value["valid_until"])
+    _nullable_date(value["issued_on"])
+    file_name = _nullable_nonempty_string(value["file_name"])
+    # Only the file name of a certificate copy is recorded; the copy itself and
+    # any storage path stay outside the graph (ui-spec §4.6).
+    if file_name is not None and ("/" in file_name or "\\" in file_name):
+        raise CompanyKnowledgeValidationError("node_value_invalid")
+    return deepcopy(value)
+
+
+def _capability_params(value: Any) -> None:
+    if value is None:
+        return
+    if not isinstance(value, dict):
+        raise CompanyKnowledgeValidationError("node_value_invalid")
+    for key, item in value.items():
+        _nonempty_string(key, error_type=CompanyKnowledgeValidationError, code="node_value_invalid")
+        if isinstance(item, bool):
+            continue
+        if type(item) is int:
+            # Amounts, counts, months and ratios: never negative (contract §3).
+            _nullable_nonnegative_int(item, name=key)
+            continue
+        if isinstance(item, str) and item.strip():
+            continue
+        raise CompanyKnowledgeValidationError("node_value_invalid")
+
+
 def _node_value(node_type: str, value: Any) -> Any:
-    if node_type in {"company", "domain", "technology", "qualification"}:
+    if node_type in {"company", "technology"}:
         if value is not None and not isinstance(value, str):
             raise CompanyKnowledgeValidationError("node_value_invalid")
         if isinstance(value, str) and not value.strip():
             raise CompanyKnowledgeValidationError("node_value_invalid")
         return value
+    if node_type == "domain":
+        return _domain_value(value)
+    if node_type == "qualification":
+        return _qualification_value(value)
     if node_type == "capability":
         if value is None:
             return None
-        item = _strict_object(
-            value,
-            {"scope", "description"},
-            error_type=CompanyKnowledgeValidationError,
-            code="node_value_invalid",
-        )
+        keys = _key_set(value, _CAPABILITY_KEYS, _CAPABILITY_RL_KEYS)
+        item = value
         if not isinstance(item["scope"], str) or item["scope"] not in {"core", "non_core"}:
             raise CompanyKnowledgeValidationError("node_value_invalid")
         _nonempty_string(
@@ -653,15 +823,12 @@ def _node_value(node_type: str, value: Any) -> Any:
             error_type=CompanyKnowledgeValidationError,
             code="node_value_invalid",
         )
+        if "params" in keys:
+            _capability_params(item["params"])
         return deepcopy(item)
     if node_type == "staff_group":
         # "?" means nullable, not omittable: every declared key is required.
-        _strict_object(
-            value,
-            {"role", "total", "available", "as_of"},
-            error_type=CompanyKnowledgeValidationError,
-            code="node_value_invalid",
-        )
+        keys = _key_set(value, _STAFF_KEYS, _STAFF_RL_KEYS)
         _nonempty_string(
             value["role"],
             error_type=CompanyKnowledgeValidationError,
@@ -672,24 +839,31 @@ def _node_value(node_type: str, value: Any) -> Any:
         if total is not None and available is not None and available > total:
             raise CompanyKnowledgeValidationError("available_exceeds_total")
         _nullable_date(value.get("as_of"))
+        if "region" in keys:
+            _nullable_nonempty_string(value["region"])
+            _nullable_nonempty_string(value["grade"])
         return deepcopy(value)
     if node_type == "project":
-        _strict_object(
-            value,
-            {"role", "scope", "amount_krw", "started_on", "ended_on"},
-            error_type=CompanyKnowledgeValidationError,
-            code="node_value_invalid",
-        )
-        _nonempty_string(
-            value["role"],
-            error_type=CompanyKnowledgeValidationError,
-            code="node_value_invalid",
-        )
-        _nonempty_string(
-            value["scope"],
-            error_type=CompanyKnowledgeValidationError,
-            code="node_value_invalid",
-        )
+        keys = _key_set(value, _PROJECT_KEYS, _PROJECT_RL_KEYS)
+        if keys == _PROJECT_KEYS:
+            # The DEMO shape is unchanged: role and scope stay required strings.
+            _nonempty_string(
+                value["role"],
+                error_type=CompanyKnowledgeValidationError,
+                code="node_value_invalid",
+            )
+            _nonempty_string(
+                value["scope"],
+                error_type=CompanyKnowledgeValidationError,
+                code="node_value_invalid",
+            )
+        else:
+            # RL-00 homepage rows: only name/agency/year are known; nothing
+            # else is invented, so role and scope may be null.
+            _nullable_nonempty_string(value["role"])
+            _nullable_nonempty_string(value["scope"])
+            _nullable_nonempty_string(value["agency"])
+            _nullable_nonnegative_int(value["year"], name="year")
         _nullable_nonnegative_int(value.get("amount_krw"), name="amount_krw")
         started = _nullable_date(value.get("started_on"))
         ended = _nullable_date(value.get("ended_on"))
@@ -798,7 +972,7 @@ def parse_company_knowledge_source(
     *,
     ontology: ValidatedOntology,
 ) -> ValidatedCompanyKnowledge:
-    """Validate raw synthetic-company JSON against one validated ontology."""
+    """Validate raw company JSON (real or fictional) against one validated ontology."""
 
     if not isinstance(ontology, ValidatedOntology):
         raise CompanyKnowledgeValidationError("ontology_binding_invalid")
@@ -891,8 +1065,11 @@ def parse_company_knowledge_source(
         status = node["status"]
         if not isinstance(status, str) or status not in FACT_STATUSES:
             raise CompanyKnowledgeValidationError("node_status_invalid")
-        if node["origin"] != "fictional_scenario":
+        origin = node["origin"]
+        if not registration_origin_allowed(origin, is_fictional=company.is_fictional):
             raise CompanyKnowledgeValidationError("source_origin_invalid")
+        if not status_origin_allowed(status, origin):
+            raise CompanyKnowledgeValidationError("status_origin_invalid")
         refs = _parse_source_refs(node["source_refs"])
         if status == "unknown":
             if node["value"] is not None:
@@ -913,7 +1090,7 @@ def parse_company_knowledge_source(
                 label=label,
                 concept_id=concept_id,
                 status=status,
-                origin="fictional_scenario",
+                origin=origin,
                 value=parsed_value,
                 source_refs=refs,
             )
@@ -974,8 +1151,11 @@ def parse_company_knowledge_source(
         status = edge["status"]
         if not isinstance(status, str) or status not in FACT_STATUSES:
             raise CompanyKnowledgeValidationError("edge_status_invalid")
-        if edge["origin"] != "fictional_scenario":
+        origin = edge["origin"]
+        if not registration_origin_allowed(origin, is_fictional=company.is_fictional):
             raise CompanyKnowledgeValidationError("source_origin_invalid")
+        if not status_origin_allowed(status, origin):
+            raise CompanyKnowledgeValidationError("status_origin_invalid")
         refs = _parse_source_refs(edge["source_refs"])
         if status == "unknown":
             if refs:
@@ -995,7 +1175,7 @@ def parse_company_knowledge_source(
                 from_id=from_id,
                 to_id=to_id,
                 status=status,
-                origin="fictional_scenario",
+                origin=origin,
                 source_refs=refs,
             )
         )
@@ -1123,13 +1303,19 @@ __all__ = [
     "COMPANY_SOURCE_NODE_TYPES",
     "COMPANY_SOURCE_SCHEMA",
     "CONCEPT_KINDS",
+    "DOMAIN_EXCLUSION_KINDS",
     "FACT_STATUSES",
+    "FICTIONAL_COMPANY_ORIGINS",
     "GRAPH_SNAPSHOT_SCHEMA",
     "MAX_COMPANY_NAME_LENGTH",
     "MAX_ONTOLOGY_VERSION_LENGTH",
     "NODE_TYPES",
     "ONTOLOGY_SCHEMA",
     "ORIGINS",
+    "OVERLAY_ORIGINS",
+    "PROFILE_ORIGIN_FICTIONAL",
+    "PROFILE_ORIGIN_REAL",
+    "REAL_COMPANY_ORIGINS",
     "RELATION_ENDPOINTS",
     "CompanyIdentity",
     "CompanyIdentityValidationError",
@@ -1150,6 +1336,9 @@ __all__ = [
     "normalize_company_identity",
     "parse_company_knowledge_source",
     "parse_ontology",
+    "profile_origin_for",
+    "registration_origin_allowed",
     "sha256_bytes",
+    "status_origin_allowed",
     "validate_alias_only_revision",
 ]

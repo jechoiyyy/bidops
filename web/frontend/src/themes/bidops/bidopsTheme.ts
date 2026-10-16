@@ -25,7 +25,7 @@
  *
  * 의미색(success/error/warning)과 categorical 팔레트는 **무드보드가 정하지 않는다**
  * (ADR-0048 결정 4). neutral 값을 그대로 유지해 실패·경고가 팔레트 톤에 묻히지
- * 않게 한다. 등급 ramp 가 slate 이므로 상태 표시에는 blue 계열을 쓰지 않는다.
+ * 않게 한다. 등급 ramp 가 slate 이므로 상태 표시에는 blue 계열을 쓰지 않는다. 단 추정값 pill 만 blue (ADR-0048 2026-10-16 개정).
  *
  * 대비: 텍스트 4.5:1, 비텍스트 3:1. `scripts/check-contrast.test.mjs` 가 게이트다.
  *
