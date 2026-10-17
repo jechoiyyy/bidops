@@ -64,6 +64,10 @@ _THIRD_PARTY_FLOOR = (
     "apscheduler",
     "asyncio",
     "multipart",
+    # Slack Web API·Socket Mode는 DEBUG에서 요청 본문과 interaction payload를 남긴다.
+    "slack_sdk",
+    "app.core.slack.sdk",
+    "app.core.slack.socket",
 )
 
 

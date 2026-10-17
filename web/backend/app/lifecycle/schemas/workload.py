@@ -12,6 +12,8 @@ from ...core.schema_base import AwareDateTime, RuntimeContractModel
 #: 마지막 `company_attention`(RL-00)은 실회사 활성 그래프의 `proposed`+`unknown`
 #: 비evidence 노드 수이며 deep_review가 센다. 짝 목록 REST가 없는 ADR-0067 예외다
 #: (화면은 profile facts로 직접 센다). 실회사가 없으면 `null`(`provider_absent`).
+#: 그 뒤 `briefing_pending`(RL-01)은 가장 최근 브리핑의 `reaction=대기` 추천 수이며
+#: lifecycle이 직접 센다. 브리핑이 하나도 없으면 `null`(`provider_absent`).
 WorkloadKey = Literal[
     "order_plan_pending",
     "pre_spec_deep_review_ready",
@@ -24,6 +26,7 @@ WorkloadKey = Literal[
     "blocking_items_open",
     "order_plan_new_priority",
     "company_attention",
+    "briefing_pending",
 ]
 
 

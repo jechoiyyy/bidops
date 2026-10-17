@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections import deque
 from collections.abc import Mapping, Sequence
+from copy import deepcopy
 from dataclasses import dataclass
 from datetime import UTC, datetime
 import hashlib
@@ -32,7 +33,7 @@ from ...core.company_ontology import (
 )
 from ...core.config import get_settings
 from ...core.db import isolated_test_boundary_active
-from ...lifecycle import register_company
+from ...lifecycle import CompanyFact, CompanyFactsProjection, register_company
 from ...lifecycle.models import Company
 from ...lifecycle.schemas.companies import CompanyDTO
 from ..models import (
@@ -1269,7 +1270,62 @@ def company_attention_count(session: Session) -> tuple[int | None, str | None]:
     return count, None
 
 
+def company_facts_projection(session: Session) -> CompanyFactsProjection | None:
+    """RL-01 lifecycle 확장점: 실회사 활성 그래프의 확정 사실 projection.
+
+    비evidence 노드 중 ``status=confirmed``만 넘긴다(``proposed``·``unknown``·``inferred``는
+    여기서 거르고, lifecycle 규칙이 한 번 더 확인한다). 실회사가 없거나 활성 binding이
+    없으면 ``None``이다. 고정 snapshot이 쓸 수 없으면 추정하지 않고 ``processing_failed``로
+    멈춘다. 그래프 크기와 무관한 상수 회 조회다.
+    """
+
+    company = _real_company(session)
+    if company is None:
+        return None
+    binding = session.get(CompanyKnowledgeBinding, company.id)
+    if binding is None:
+        return None
+    graph = session.get(CompanyKnowledgeVersion, binding.graph_version_id)
+    snapshot = graph.snapshot if graph is not None else None
+    nodes = snapshot.get("nodes") if isinstance(snapshot, Mapping) else None
+    if (
+        graph is None
+        or graph.company_id != company.id
+        or graph.profile_version_id != binding.profile_version_id
+        or not isinstance(nodes, list)
+    ):
+        raise _read_failed()
+    facts: list[CompanyFact] = []
+    for node in nodes:
+        if not isinstance(node, Mapping) or node.get("status") not in FACT_STATUSES:
+            raise _read_failed()
+        if node.get("type") == "evidence" or node.get("status") != "confirmed":
+            continue
+        fact_key, node_type, label = node.get("id"), node.get("type"), node.get("label")
+        if not all(isinstance(item, str) and item for item in (fact_key, node_type, label)):
+            raise _read_failed()
+        facts.append(
+            CompanyFact(
+                fact_key=fact_key,
+                type=node_type,
+                status="confirmed",
+                label=label,
+                value=deepcopy(node.get("value")),
+            )
+        )
+    facts.sort(key=lambda item: item.fact_key)
+    return CompanyFactsProjection(graph_version_id=graph.id, facts=tuple(facts))
+
+
+class CompanyFactsProjectionProvider:
+    """lifecycle 확장점 ``company_facts_projection`` 구현 (RL-01)."""
+
+    def company_facts_projection(self, session: Session) -> CompanyFactsProjection | None:
+        return company_facts_projection(session)
+
+
 __all__ = [
+    "CompanyFactsProjectionProvider",
     "CompanyKnowledgeActivation",
     "CompanyKnowledgeImport",
     "CompanyKnowledgeServiceError",
@@ -1277,6 +1333,7 @@ __all__ = [
     "activate_company_knowledge",
     "company_attention_count",
     "company_context_view",
+    "company_facts_projection",
     "company_knowledge_graph_view",
     "company_knowledge_public_graph",
     "company_profile_evidence_view",

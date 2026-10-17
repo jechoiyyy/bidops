@@ -54,6 +54,7 @@ Luna 승인 정책은 이미지 파일과 `_approved_policy_path` 매핑으로�
 회사는 실회사 루트랩 1곳이며 `is_fictional=false`로 등록한다. 회사 경계·그래프 저장·회사 REST·화면(DEMO-01~04)과 요구사항 카드 inventory(HP-01)·Luna identity(HP-00)를 재사용한다.
 모든 LLM 작업은 codex-exec `gpt-6-luna`/high 하나다. 공고 원문·첨부·회사 근거의 전송은 정책 파일 단위 사전 승인으로 자동화하고 건별 감사·payload 동결·allowlist·hosted fallback 금지는 유지한다. LiteLLM `local-agent-main`·Qwen·Terra는 RL에서 호출하지 않으며 로컬 LLM은 RL-06에서 토큰 최적화로만 검토한다.
 브리핑 전송은 Slack bot(전용 채널, 평일 1회)이며 토큰은 env 파일로 주입하고 payload에 공고 식별자·요약·링크만 넣는다. 화면은 같은 브리핑을 읽기 전용으로 보여 준다.
+**의존: `slack_sdk`(`>=3.27,<4`, `requirements.lock`은 3.45.0 hash 고정).** 호출은 core `slack.py` 전송기 하나(Web API `chat.postMessage`·`chat.update`, Socket Mode)만 하고 호출 전에 `BIDOPS_SLACK_ENABLED`·토큰·채널·허용 host(`slack.com`,`wss-primary.slack.com`)를 검사한다. 버튼 반응은 공개 endpoint 없이 Socket Mode worker(`slack-worker`, compose profile `slack`)가 받는다. 브리핑은 결정적 규칙이라 LLM을 부르지 않는다.
 제안서 초안 출력은 PDF(1차)이며 HWP는 후속 결정이다(인터뷰 E2). DOCX는 중간 형식으로만 쓴다. 생성기는 요구사항 카드 ID와 회사 근거 ID를 각 문장에 남긴다.
 core에는 순수 검증/타입만 두고 도메인 import를 추가하지 않는다. 그래프 DB·시맨틱웹 엔진은 도입하지 않는다(Neo4j 실험 보류).
 DB 권한은 migration이 아니라 scripts/runtime-privileges.sql이 정본이다. Luna 승인 정책은 이미지 파일과 `_approved_policy_path` 매핑으로만 인정된다.

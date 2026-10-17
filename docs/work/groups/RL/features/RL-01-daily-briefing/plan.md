@@ -100,4 +100,13 @@
 
 ## 결과
 
-구현 후 작성한다.
+run `rla-20261016`, 기능 브랜치 `sdlc/rla-20261016-RL-01-daily-briefing`, 기준 df02b33(배치, RL-00 통합 후). 상세 `docs/work/_runs/rla-20261016/RL-01-daily-briefing.md`, 결정 `decisions.md`.
+
+- 단계 8/8 done(STEP-001~007 위임, STEP-008 스크립트·문서 위임 + T12 리더 실행).
+- 증명: tests 237 passed·52 skipped(PG 변형) exit 0; postgres(17.11) 274 passed + 리뷰 수정 뒤 영향 파일 32 passed(모듈 경계·권한·alembic drift 포함); frontend build·contrast 8/8·Playwright 45; T11 스크립트 43 passed; T12 bidops-local `bidops_rla` 감독 시운전(생성·REST·반응 왕복·화면, `--send` 제외).
+- spec 개정(accept-spec): 지역 제외 보류 — 수집 `basis`는 판단 기준이라 참가 가능 지역 이름이 없음(독립 리뷰 BLOCKING, 사용자 결정). findings 2026-10-17.
+- 회사 파일: 루트랩 v2(`excl:region.keywords=["대구","세종"]`) 발행·활성(revision 2).
+- RL-00 회귀 수정: `tests/deep_review/test_decision_queues.py` strict dict 2건에 `company_attention`(provider_absent) 추가.
+- 미증명: 실제 Slack 전송·Socket Mode 연결·3초 ack(토큰 없음), slack-worker 컨테이너 기동, worker 역할의 실제 PG 반응 경로 일부.
+- backlog: decisions.md #8 항목, 반응 버튼 재누름=대기 토글·피크 제목 14px(4단 타이포) 확인, lock 정책 통일(notices.lock·plans.lock vs "공용 lock" 문구).
+- 기존 실패(무관): `tests/app/test_daily_lifecycle_script.py` 18건(macOS BSD date·bash 3.2), frontend design-shell 2·admin-workspace-consistency 2·route-context 12.

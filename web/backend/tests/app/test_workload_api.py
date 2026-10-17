@@ -35,9 +35,10 @@ RUNTIME_POLICY = (ROOT / "scripts/runtime-privileges.sql").read_text(encoding="u
 KEYS = ("order_plan_pending", "pre_spec_deep_review_ready", "tracking_action_required",
         "tracking_hold_review_due", "bid_final_decision_pending",
         "tracking_deadline_imminent", "human_check_required", "overview_human_review",
-        "blocking_items_open", "order_plan_new_priority", "company_attention")
+        "blocking_items_open", "order_plan_new_priority", "company_attention", "briefing_pending")
 (ORDER_PLAN, DEEP_REVIEW, ACTION, HOLD_DUE, FINAL_DECISION,
- IMMINENT, HUMAN_CHECK, OVERVIEW_HUMAN, BLOCKING_OPEN, NEW_PRIORITY, COMPANY_ATTENTION) = KEYS
+ IMMINENT, HUMAN_CHECK, OVERVIEW_HUMAN, BLOCKING_OPEN, NEW_PRIORITY, COMPANY_ATTENTION,
+ BRIEFING_PENDING) = KEYS
 #: lifecycle이 자기 테이블에서 직접 세는 키. 제공자 값으로 덮이지 않는다.
 LIFECYCLE_OWNED = (ACTION, HOLD_DUE, IMMINENT, BLOCKING_OPEN)
 COMBINATIONS = (("lifecycle",), ("lifecycle", "screening"), ("lifecycle", "screening", "deep_review"))
@@ -137,6 +138,8 @@ def test_workload_calls_each_provider_once_and_preserves_values(workload_session
                 HUMAN_CHECK: (4, None), NEW_PRIORITY: (None, "provider_absent"),
                 # RL-00: no registered provider and no real company -> absent.
                 COMPANY_ATTENTION: (None, "provider_absent"),
+                # RL-01: lifecycle이 직접 세지만 브리핑이 하나도 없으면 셀 대상이 없다.
+                BRIEFING_PENDING: (None, "provider_absent"),
             }
             assert calls == ["first", "second"] * request_number
 

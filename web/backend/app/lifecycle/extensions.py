@@ -16,10 +16,16 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Protocol, runtime_checkable
+from uuid import UUID
 
 __all__ = [
+    "BriefingOrderPlanCandidatesProvider",
+    "CompanyFact",
+    "CompanyFactsProjection",
+    "CompanyFactsProvider",
     "EffectiveGradeChangedHook",
     "ExtensionRegistry",
     "JudgmentProjection",
@@ -203,6 +209,64 @@ class OverviewDocumentProjection(Protocol):
         self, session: Any, notice_ids: Sequence[int], status: str
     ) -> Sequence[int]:
         """입력 집합 중 자동 준비 상태가 일치하는 공고 ID. 부재 기본값은 빈 목록."""
+
+
+# --- RL-01 평일 브리핑 입력 projection --------------------------------------
+
+
+@dataclass(frozen=True)
+class CompanyFact:
+    """회사 그래프 사실 하나 (RL-01 spec "회사 규칙 입력").
+
+    `fact_key`는 RL-00 노드 id(`pref:domain:01`·`excl:hardware`·`project:2024-01` 등),
+    `type`은 NodeType, `value`는 노드 value 그대로다. lifecycle은 deep_review 테이블을
+    읽지 않으므로 이 값만 받는다.
+    """
+
+    fact_key: str
+    type: str
+    status: str
+    label: str
+    value: Any
+
+
+@dataclass(frozen=True)
+class CompanyFactsProjection:
+    """실회사 활성 binding의 비evidence 노드 중 `status=confirmed`만 (RL-01 spec).
+
+    제공자가 `proposed`·`unknown`·`inferred`를 이미 걸렀다. 규칙 엔진은 status를 한 번
+    더 확인한다(이중 검사).
+    """
+
+    graph_version_id: UUID
+    facts: tuple[CompanyFact, ...]
+
+
+@runtime_checkable
+class CompanyFactsProvider(Protocol):
+    """`company_facts_projection(session) -> CompanyFactsProjection | None` (deep_review 제공).
+
+    실회사가 없거나 활성 그래프가 없으면 `None`이다. 제공자가 없을 때도 registry가
+    `None`을 돌려주므로 호출부는 둘을 같은 실패(`company_not_registered`)로 다룬다.
+    """
+
+    def company_facts_projection(self, session: Any) -> CompanyFactsProjection | None:
+        """실회사 확정 사실 projection. 공고 수와 무관한 상수 회 조회다."""
+
+
+@runtime_checkable
+class BriefingOrderPlanCandidatesProvider(Protocol):
+    """`briefing_order_plan_candidates(session, since, until)` (screening 제공).
+
+    누적 실행에서 발주계획별 **최신** C-2 결과가 `qwen_relevance='relevant'`이고
+    `OrderPlan.first_discovered_at`이 `(since, until]`에 드는 발주계획 id를 오름차순으로
+    돌려준다. 반복 발주처 규칙과 소유 사업기회 확인은 lifecycle(브리핑 규칙)이 한다.
+    """
+
+    def briefing_order_plan_candidates(
+        self, session: Any, since: datetime, until: datetime
+    ) -> Sequence[int]:
+        """창 안에 처음 관측된 relevant 발주계획 id. 상수 회 조회다."""
 
 
 # --- 6.2 이벤트 hook --------------------------------------------------------
@@ -476,6 +540,8 @@ class ExtensionRegistry:
 
     _judgment: _OwnedProvider | None = None
     _overview: _OwnedProvider | None = None
+    _company_facts: _OwnedProvider | None = None
+    _briefing_order_plans: _OwnedProvider | None = None
     _workload_projections: dict[str, WorkloadProjection] = field(default_factory=dict)
     _run_ingest_hooks: dict[str, RunIngestHook] = field(default_factory=dict)
     _tracking_hooks: dict[str, TrackingDecisionHook] = field(default_factory=dict)
@@ -494,6 +560,20 @@ class ExtensionRegistry:
         self, projection: OverviewDocumentProjection, *, owner: str
     ) -> None:
         self._overview = _claim_slot(self._overview, owner, projection, "개요·문서 projection")
+
+    def register_company_facts_projection(
+        self, provider: CompanyFactsProvider, *, owner: str
+    ) -> None:
+        self._company_facts = _claim_slot(
+            self._company_facts, owner, provider, "회사 사실 projection"
+        )
+
+    def register_briefing_order_plan_candidates(
+        self, provider: BriefingOrderPlanCandidatesProvider, *, owner: str
+    ) -> None:
+        self._briefing_order_plans = _claim_slot(
+            self._briefing_order_plans, owner, provider, "브리핑 발주계획 후보"
+        )
 
     def register_workload_projection(
         self, projection: WorkloadProjection, *, owner: str
@@ -555,6 +635,31 @@ class ExtensionRegistry:
     ) -> Sequence[int]:
         method = getattr(self.overview_document_projection, "notice_ids_for_auto_preparation_status", None)
         return method(session, notice_ids, status) if callable(method) else []
+
+    def company_facts_projection(self, session: Any) -> CompanyFactsProjection | None:
+        """실회사 확정 사실. 제공자가 없으면 `None`(= 실회사 없음과 같은 실패)."""
+
+        if self._company_facts is None:
+            return None
+        return self._company_facts.provider.company_facts_projection(session)
+
+    @property
+    def briefing_order_plan_candidates_supported(self) -> bool:
+        """발주계획 후보 제공자가 있는가. 없으면 브리핑이 경고
+        `order_plan_provider_absent`를 남긴다 — 빈 목록과 부재를 섞지 않는다."""
+
+        return self._briefing_order_plans is not None
+
+    def briefing_order_plan_candidates(
+        self, session: Any, since: datetime, until: datetime
+    ) -> Sequence[int]:
+        """창 안의 relevant 발주계획 id. 제공자가 없으면 빈 목록이다."""
+
+        if self._briefing_order_plans is None:
+            return []
+        return self._briefing_order_plans.provider.briefing_order_plan_candidates(
+            session, since, until
+        )
 
     def workload_counts(self, session: Any) -> Mapping[str, WorkloadCount]:
         counts: dict[str, WorkloadCount] = {}

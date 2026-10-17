@@ -2248,9 +2248,12 @@ export interface OpportunityDeepReviewsResponse {
  * `null`(`unavailable_reason="sub_count_unavailable"`)이다. **화면은 합계를 직접
  * 더하지 않는다.**
  *
- * 마지막 `company_attention`(RL-00)은 실회사 활성 그래프의 추정값(`proposed`)+
+ * `company_attention`(RL-00)은 실회사 활성 그래프의 추정값(`proposed`)+
  * 확인 필요(`unknown`) 사실 수다. 실회사가 없으면 `null`(`provider_absent`),
  * 활성 버전이 없으면 `null`(`company_profile_not_ready`)이다.
+ *
+ * 마지막 `briefing_pending`(RL-01)은 가장 최근 브리핑의 `reaction=대기` 추천 수다.
+ * 브리핑이 없으면 `null`(`provider_absent`)이다. 사이드바 "오늘의 브리핑" 건수가 읽는다.
  */
 export type WorkloadKey =
   | "order_plan_pending"
@@ -2263,7 +2266,8 @@ export type WorkloadKey =
   | "overview_human_review"
   | "blocking_items_open"
   | "order_plan_new_priority"
-  | "company_attention";
+  | "company_attention"
+  | "briefing_pending";
 export interface WorkloadItem {
   key: WorkloadKey;
   count: number | null;
@@ -2793,4 +2797,82 @@ export interface C2AuditSampleDrawResponse extends C2AuditSampleView {
   schema_version: "audit-sample-draw-response.v1";
   request_id: string;
   audit_event_id: string | null;
+}
+
+
+// ---------------------------------------------------------------------------
+// RL-01 오늘의 브리핑(`bidops.briefing.v1`, docs/work/groups/RL/features/RL-01-daily-briefing/spec.md)
+//
+// 응답에는 `score`·`policy_sha256`·`graph_version_id`가 없다(운영 정보). 화면은 이 필드를
+// 만들어 내거나 서버 값을 다시 판정하지 않는다.
+
+export type BriefingStatus = "generated" | "empty" | "collection_incomplete";
+export type BriefingItemKind = "recommendation" | "tracked_change";
+/** `대기`가 초기값이고 `tracked_change` 행은 `reaction=null`이다. */
+export type BriefingReaction = "대기" | "채택" | "무시" | "나중에";
+export type BriefingStage = "pre_spec" | "bid_notice" | "order_plan";
+export type BriefingDeadlineKind = "bid_close" | "opinion_close" | "planned_month";
+/** v1에서 닫힌 다섯 값. RL-03이 판정 enum을 더해 v2로 올린다. */
+export type BriefingVerdictDisplay = "분석 대기" | "연차 추적" | "재검토 중" | "마감 임박" | "분석 중";
+export type BriefingReactionVia = "screen" | "slack";
+
+/** 추천 이유 칩. 순서는 서버가 고정한다(최대 3). */
+export interface BriefingReason {
+  kind: "keyword" | "similar_project" | "repeat_agency";
+  text?: string | null;
+  count?: number | null;
+}
+
+/** 서버가 결정적으로 아는 차단 조건(최대 2). 화면 피크에는 그리지 않는다(Slack 전용). */
+export interface BriefingBlocking {
+  kind: "consortium_review" | "deadline_short";
+  text: string;
+}
+
+export interface BriefingItemView {
+  item_id: string;
+  kind: BriefingItemKind;
+  rank: number | null;
+  stage: BriefingStage;
+  notice_id: number | null;
+  order_plan_id: number | null;
+  opportunity_id: number;
+  title: string;
+  agency: string;
+  amount_krw: number | null;
+  deadline_at: string | null;
+  deadline_kind: BriefingDeadlineKind | null;
+  /** `YYYY-MM`. `deadline_kind="planned_month"`(발주계획)일 때만 있다. */
+  planned_month: string | null;
+  verdict_display: BriefingVerdictDisplay;
+  reasons: BriefingReason[];
+  blocking: BriefingBlocking[];
+  /** 추적 변화 행에서 바뀐 필드(`deadline_at`·`title`·`budget`·`estimated_price`의 합집합). */
+  change_fields: string[];
+  reaction: BriefingReaction | null;
+  reacted_by: string | null;
+  reacted_at: string | null;
+  reacted_via: BriefingReactionVia | null;
+  revision: number;
+  record_path: string;
+}
+
+export interface BriefingView {
+  schema_version: "bidops.briefing.v1";
+  /** KST 날짜 `YYYY-MM-DD`. */
+  briefing_date: string;
+  status: BriefingStatus;
+  generated_at: string;
+  /** 추천 수만(추적 변화 제외). */
+  item_count: number;
+  slack_sent_at: string | null;
+  items: BriefingItemView[];
+  tracked_changes: BriefingItemView[];
+  collection_note: string | null;
+}
+
+export interface BriefingReactionRequest {
+  reaction: BriefingReaction;
+  expected_revision: number;
+  request_id: string;
 }

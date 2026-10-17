@@ -77,6 +77,8 @@ app/
 | 사전규격 개요·문서 준비 상태 | 읽기 projection | deep_review | 개요 상태 `null`, 문서 건수 0 |
 | 미답변 차단 공고·건수 | 읽기 projection | screening | 공고 집합·페이지별 건수 빈 값 |
 | 결정 대기 업무 집계 | 읽기 projection | screening, deep_review | 그 업무의 count `null`·`provider_absent`. lifecycle이 직접 세는 `tracking_action_required`는 그대로다 |
+| 회사 사실 (`company_facts_projection`, RL-01) | 읽기 projection | deep_review | `None` → 브리핑 생성이 `company_not_registered`(exit 1, 행 없음) |
+| 브리핑 발주계획 후보 (`briefing_order_plan_candidates`, RL-01) | 읽기 projection | screening | 빈 목록 + 경고 `order_plan_provider_absent` |
 | 회차 적재됨 | 이벤트 hook | screening, deep_review | no-op, 건수 0 |
 | 추적 결정 변경됨 | 이벤트 hook | deep_review | no-op |
 | effective grade 변경됨 | 이벤트 hook | deep_review | no-op. 첨부 취득 자격 재계산과 자동 문서 준비가 일어나지 않는다 |
@@ -108,6 +110,7 @@ app/
 python -m app.screening.cli {run-one, score-candidate-quality}
 python -m app.deep_review.cli {run-bc-e2e, run-prespec-e2e, import-profile-policy}
 python -m app.lifecycle.ingest.cli {--run <회차> [--collection] | --all | --tracked-backfill}
+python -m app.lifecycle.cli {build-briefing [--date] [--send] [--dry-run] [--json], slack-worker}
 
 python -m app.deep_review.workers.document            # 자격증명 없는 문서 worker
 python -m app.deep_review.workers.prespec_attachment  # 사전규격 첨부 취득 worker
@@ -127,6 +130,8 @@ python -m app.workers.analysis                        # 모델을 쓰는 합성 
 `--extension-provider app.screening:register_lifecycle_extensions`처럼 **이름으로** 받는다 —
 deep_review가 형제 모듈을 import하지 않기 위해서다. 제공자가 없으면 판정이 0건이므로
 `screening_provider_missing`으로 fail closed한다.
+
+`app.lifecycle.cli build-briefing`도 같은 `register_configured_extensions()`로 제공자를 등록한다 — 등록이 없으면 회사 사실이 없어 `company_not_registered`로 fail closed한다(`slack-worker`는 반응 저장만 하므로 확장점을 등록하지 않는다). 진입점마다 같은 확장점·설정을 읽는지 `tests/app/test_briefing_cli_extensions.py`가 검사한다. **Slack 호출은 `app/core/slack.py`의 전송기 하나뿐이다.** `slack_sdk` client를 다른 곳에서 만들지 않으며, 전송기가 호출 전에 `BIDOPS_SLACK_ENABLED`·토큰·채널·허용 host를 검사하고 토큰을 로그·응답·오류에 넣지 않는다. `slack-worker`(compose profile `slack`, worker DB 자격)는 모델을 쓰지 않으므로 모델 슬롯과 무관한 별도 프로세스다.
 
 모델을 쓰는 C-2 선별·심층 검토·사전규격 개요 worker에 단독 진입점을 만들지 않는다. 합성
 worker가 한 바퀴에 C-2 → 심층 → 회사 핏 → 개요 순서로 **하나만** claim하며, 따로 띄우면 **모델 슬롯
