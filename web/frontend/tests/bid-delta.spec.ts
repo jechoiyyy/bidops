@@ -342,10 +342,10 @@ test("폼 오류의 안전 코드는 접힌 기술 정보에 있고 보조기술
   await expect(codeLine).toHaveText("오류 코드 bid_delta_comparison_stale");
 });
 
-// 비교 목록 → 비교 상세 → 저장 → 사업 추적 상세로 돌아오는 흐름. 사업 추적
-// 상세에서 이 화면으로 들어오는 링크(`변경 비교 열기 →`)는 사업 추적 화면이
+// 비교 목록 → 비교 상세 → 저장 → 사업기회 레코드로 돌아오는 흐름. 사업 추적
+// 목록 pane에서 이 화면으로 들어오는 링크(`변경 비교 열기 →`)는 사업 추적 화면이
 // 소유하므로 그쪽 spec이 본다.
-test("비교 목록 → 결정 저장 → 사업 추적 상세 이동 흐름을 유지한다", async ({ page }) => {
+test("비교 목록 → 결정 저장 → 사업기회 레코드 이동 흐름을 유지한다", async ({ page }) => {
   await mockBidDelta(page, { calculationStatus: "completed", resultStatus: "changed" });
   await mockOpportunity(page);
   await page.goto("/opportunities/501/bid-delta");
@@ -354,9 +354,24 @@ test("비교 목록 → 결정 저장 → 사업 추적 상세 이동 흐름을 
   await page.getByRole("button", { name: "결정 확인", exact: true }).click();
   await confirmFinalDecision(page, "Go로 최종 결정 저장");
   await expect(page.getByText("Go 최종 결정을 저장했습니다. 이전 결정은 그대로 남습니다.", { exact: true })).toBeVisible();
+  // `#501` 칸은 사업기회 레코드로 돌아간다(`/opportunities/501` → `/activity`, RL-02). 레코드 본문은
+  // opportunity-record.spec.ts가 보므로 여기서는 활동 응답 하나만 두고 레코드가 열리는지만 본다.
+  await page.route("**/api/opportunities/501/activity**", (route) => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({
+      schema_version: "bidops.opportunity-activity.v1",
+      opportunity_id: 501,
+      merged_into_opportunity_id: null,
+      title: "최종 결정 대기 사업",
+      stages: [],
+      items: [],
+      next_before: null,
+    }),
+  }));
   await routeCrumbLink(page, "#501").click();
-  await expect(page).toHaveURL(/\/opportunities\/501$/);
-  await expect(page.getByRole("heading", { name: "사업 추적 상세 #501", exact: true })).toBeVisible();
+  await expect(page).toHaveURL(/\/opportunities\/501\/activity$/);
+  await expect(page.getByTestId("record-title")).toHaveText("최종 결정 대기 사업");
 });
 
 test("미저장 최종 결정 초안은 beforeunload와 SPA 이동을 보호한다", async ({ page }) => {

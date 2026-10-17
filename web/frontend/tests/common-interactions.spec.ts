@@ -116,6 +116,15 @@ async function mockOpportunity(page: Page): Promise<{ patchCount: () => number }
   return { patchCount: () => patches };
 }
 
+/**
+ * 목록 우측 pane에서 사업기회 501을 연다(RL-02 T7). `/opportunities/501`은 이제 사업기회 레코드
+ * (`/opportunities/501/activity`)이고, 추적 상태 변경·되돌리기 대화상자와 변경 비교 진입은 목록 pane의
+ * 빠른 조작 화면이 그대로 갖는다. `selected`는 받은 목록 안의 id만 유효하므로 전체 구역으로 연다.
+ */
+async function openOpportunityDetail(page: Page): Promise<void> {
+  await page.goto(`/opportunities?section=${encodeURIComponent("전체")}&selected=501`);
+}
+
 async function mockPreSpecWorkbench(page: Page): Promise<{ createCount: () => number }> {
   let creates = 0;
   await page.route("**/api/notices/991**", async (route) => {
@@ -141,7 +150,7 @@ test.beforeEach(async ({ page }) => {
 
 test("UC-01은 키보드만으로 추적 저장 직전까지 이동하고 비활성 사유를 읽는다", async ({ page }) => {
   const trace = await mockOpportunity(page);
-  await page.goto("/opportunities/501");
+  await openOpportunityDetail(page);
 
   const editorToggle = page.getByRole("button", { name: "추적 상태 변경", exact: true });
   await tabTo(page, editorToggle);
@@ -215,8 +224,13 @@ test("UC-04는 키보드만으로 append-only 재시작 직전까지 이동한�
 
 test("사업 추적 상세는 변경 비교로 이동하고 추적 저장과 최종 결정 저장을 분리한다", async ({ page }) => {
   await mockOpportunity(page);
-  await page.goto("/opportunities/501");
-  await expect(page.locator('a[href="/opportunities/501/bid-delta"]')).toHaveCount(1);
+  await openOpportunityDetail(page);
+  // 목록 pane에서는 변경 비교 링크가 목록 문맥(`returnSearch`)을 함께 싣는다.
+  await expect(page.locator('a[href^="/opportunities/501/bid-delta"]')).toHaveCount(1);
+  await expect(page.locator('a[href^="/opportunities/501/bid-delta"]')).toHaveAttribute(
+    "href",
+    `/opportunities/501/bid-delta?section=${encodeURIComponent("전체")}&selected=501`,
+  );
   await expect(page.getByRole("button", { name: "최종 결정 저장" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "추적 상태 변경", exact: true })).toHaveCount(1);
   await expect(page.getByRole("dialog")).not.toBeVisible();
@@ -231,7 +245,7 @@ test("사업 추적 상세는 변경 비교로 이동하고 추적 저장과 최
 // 지킬 입력이 없고, 새 자리에는 있다.
 test("공통 unsaved guard가 옮겨간 예외 작업 입력을 지킨다", async ({ page }) => {
   await mockOpportunity(page);
-  await page.goto("/opportunities/501");
+  await openOpportunityDetail(page);
 
   await page.getByRole("button", { name: "추적 상태 변경", exact: true }).click();
   await page.getByRole("combobox", { name: "추적 상태", exact: true }).click();
@@ -569,7 +583,7 @@ test("저장 알림은 hover 중에 사라지지 않고 명시적으로 닫을 �
 // 열릴 때 초점은 취소에 있고 Esc는 취소이며, 확인 전에는 요청이 나가지 않는다.
 test("UC-05 추적 종료 확인 단계는 취소에 초점이 오고 Esc로 요청 없이 닫힌다", async ({ page }) => {
   const trace = await mockOpportunity(page);
-  await page.goto("/opportunities/501");
+  await openOpportunityDetail(page);
 
   await page.getByRole("button", { name: "추적 상태 변경", exact: true }).click();
   await page.getByRole("combobox", { name: "추적 상태", exact: true }).click();

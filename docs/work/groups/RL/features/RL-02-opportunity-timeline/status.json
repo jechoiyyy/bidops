@@ -1,15 +1,15 @@
 {
   "schema_version": 2,
   "feature": "RL-02-opportunity-timeline",
-  "phase": "review",
+  "phase": "implementing",
   "steps": [
     {
       "id": "STEP-001",
       "title": "단계 바·레코드 제목 규칙",
       "model": "complex",
       "fingerprint": "9d9339abfbf32ee07c8ff3bb1e612ba9ec833ccf261f807076620705af3c5ace",
-      "status": "stale",
-      "updated_at": null,
+      "status": "done",
+      "updated_at": "2026-10-17T13:39:02+09:00",
       "history": [
         {
           "id": "STEP-001",
@@ -19,15 +19,16 @@
           "status": "pending",
           "updated_at": null
         }
-      ]
+      ],
+      "note": "단계 6·제목 순수 함수, stage key order_plan…contract"
     },
     {
       "id": "STEP-002",
       "title": "활동 피드 파생",
       "model": "complex",
       "fingerprint": "5fabd9a551c8490685f9a49450675e41afc3a06bca3ae7f826a6b57dce3fef76",
-      "status": "stale",
-      "updated_at": null,
+      "status": "done",
+      "updated_at": "2026-10-17T13:39:02+09:00",
       "history": [
         {
           "id": "STEP-002",
@@ -55,15 +56,16 @@
             }
           ]
         }
-      ]
+      ],
+      "note": "활동 피드 파생 13 kind·커서·hook 확장점; action_added detail='담당 <owner>'(결정 #14)"
     },
     {
       "id": "STEP-003",
       "title": "노트 테이블·REST",
       "model": "complex",
       "fingerprint": "b803616e59a8e1998d87b366addd5cbd9f91788bd2ef7197a63cd27100fed54e",
-      "status": "stale",
-      "updated_at": null,
+      "status": "done",
+      "updated_at": "2026-10-17T13:18:54+09:00",
       "history": [
         {
           "id": "STEP-003",
@@ -91,23 +93,25 @@
             }
           ]
         }
-      ]
+      ],
+      "note": "opportunity_note·0039·열 단위 UPDATE 권한·멱등 노트 REST; 노트 없음은 기존 not_found 404 재사용"
     },
     {
       "id": "STEP-004",
       "title": "활동 REST",
       "model": "standard",
       "fingerprint": "9549c47540c810210fbb1e7df8c3b81a0e3b730b5aebae83dcb8fd70d4c4ffe9",
-      "status": "pending",
-      "updated_at": null
+      "status": "done",
+      "updated_at": "2026-10-17T13:39:02+09:00",
+      "note": "GET /activity; SQLite 292·PG 201(경계·권한·drift 포함)"
     },
     {
       "id": "STEP-005",
       "title": "마감 알림(규칙 파일 v2)",
       "model": "standard",
       "fingerprint": "a6a224f53959f220138cee16333ec50913b5bf95d5c7627f837de2955cc83e5d",
-      "status": "stale",
-      "updated_at": null,
+      "status": "done",
+      "updated_at": "2026-10-17T13:18:54+09:00",
       "history": [
         {
           "id": "STEP-005",
@@ -135,15 +139,16 @@
             }
           ]
         }
-      ]
+      ],
+      "note": "briefing-policy-v2(기본 경로 이동, v1 보존)·deadline_reminder 입찰공고만·공고당 1행 합침; SQLite 197·PG 117; test_api_opportunities 2건은 main c93da20에서도 실패(기존)"
     },
     {
       "id": "STEP-006",
       "title": "레코드 화면",
       "model": "standard",
       "fingerprint": "4e288d1f9da5fcede00a1fd5a50729bc5011f3f8b518d7381f2cc7caf1dff4fe",
-      "status": "stale",
-      "updated_at": null,
+      "status": "done",
+      "updated_at": "2026-10-17T13:39:03+09:00",
       "history": [
         {
           "id": "STEP-006",
@@ -171,15 +176,17 @@
             }
           ]
         }
-      ]
+      ],
+      "note": "레코드 화면·RecordTitleContext·'사업기회' 라벨; opportunities.spec 31건 ?selected= 이식; route-context 라벨·단독 route 기대값 갱신(결정 #13), 기존 12건 실패 동일; bid-delta request_id 테스트는 baseline에서도 반복 3/3 실패하는 기존 flaky"
     },
     {
       "id": "STEP-007",
       "title": "문서",
       "model": "standard",
       "fingerprint": "3a2d434af077eb56cdf79945c6d4cfe7a94c56f373bd0fa5538abd654b103a24",
-      "status": "pending",
-      "updated_at": null
+      "status": "done",
+      "updated_at": "2026-10-17T13:43:44+09:00",
+      "note": "contracts·business-rules·ui-spec §1.3·1.4·4.3·ARCHITECTURE·ADR·backend AGENTS.md; doctor exit 0"
     }
   ],
   "proof": {
@@ -222,7 +229,67 @@
     {
       "at": "2026-10-16T20:41:31+09:00",
       "text": "단계 → review: 독립 검사 1·2차 반영(잔여 = 큐 등록·opportunities.spec 22건 이식 명시, 3차 생략)"
+    },
+    {
+      "at": "2026-10-17T12:56:50+09:00",
+      "text": "단계 → implementing"
+    },
+    {
+      "at": "2026-10-17T12:57:04+09:00",
+      "text": "단계 STEP-003 in_progress: "
+    },
+    {
+      "at": "2026-10-17T12:57:04+09:00",
+      "text": "단계 STEP-005 in_progress: "
+    },
+    {
+      "at": "2026-10-17T12:57:30+09:00",
+      "text": "단계 STEP-006 in_progress: "
+    },
+    {
+      "at": "2026-10-17T13:18:54+09:00",
+      "text": "단계 STEP-003 done: opportunity_note·0039·열 단위 UPDATE 권한·멱등 노트 REST; 노트 없음은 기존 not_found 404 재사용"
+    },
+    {
+      "at": "2026-10-17T13:18:54+09:00",
+      "text": "단계 STEP-005 done: briefing-policy-v2(기본 경로 이동, v1 보존)·deadline_reminder 입찰공고만·공고당 1행 합침; SQLite 197·PG 117; test_api_opportunities 2건은 main c93da20에서도 실패(기존)"
+    },
+    {
+      "at": "2026-10-17T13:18:54+09:00",
+      "text": "단계 STEP-001 in_progress: "
+    },
+    {
+      "at": "2026-10-17T13:18:54+09:00",
+      "text": "단계 STEP-002 in_progress: "
+    },
+    {
+      "at": "2026-10-17T13:18:55+09:00",
+      "text": "단계 STEP-004 in_progress: "
+    },
+    {
+      "at": "2026-10-17T13:39:02+09:00",
+      "text": "단계 STEP-001 done: 단계 6·제목 순수 함수, stage key order_plan…contract"
+    },
+    {
+      "at": "2026-10-17T13:39:02+09:00",
+      "text": "단계 STEP-002 done: 활동 피드 파생 13 kind·커서·hook 확장점; action_added detail='담당 <owner>'(결정 #14)"
+    },
+    {
+      "at": "2026-10-17T13:39:02+09:00",
+      "text": "단계 STEP-004 done: GET /activity; SQLite 292·PG 201(경계·권한·drift 포함)"
+    },
+    {
+      "at": "2026-10-17T13:39:03+09:00",
+      "text": "단계 STEP-006 done: 레코드 화면·RecordTitleContext·'사업기회' 라벨; opportunities.spec 31건 ?selected= 이식; route-context 라벨·단독 route 기대값 갱신(결정 #13), 기존 12건 실패 동일; bid-delta request_id 테스트는 baseline에서도 반복 3/3 실패하는 기존 flaky"
+    },
+    {
+      "at": "2026-10-17T13:39:03+09:00",
+      "text": "단계 STEP-007 in_progress: "
+    },
+    {
+      "at": "2026-10-17T13:43:44+09:00",
+      "text": "단계 STEP-007 done: contracts·business-rules·ui-spec §1.3·1.4·4.3·ARCHITECTURE·ADR·backend AGENTS.md; doctor exit 0"
     }
   ],
-  "updated_at": "2026-10-16T20:41:31+09:00"
+  "updated_at": "2026-10-17T13:43:44+09:00"
 }

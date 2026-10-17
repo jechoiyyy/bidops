@@ -45,7 +45,7 @@ export interface RouteRecordCrumb {
   /** 식별자 자체가 다른 화면을 가리킬 때만 있다(입찰 변경 비교의 사업기회). */
   to?: (value: string) => string;
   /** `before-screen`은 식별자가 이 화면의 **상위 레코드**일 때다.
-   *  예: 입찰 변경 비교는 `사업 추적 › #501 › 입찰 변경 비교`다. */
+   *  예: 입찰 변경 비교는 `사업기회 › #501 › 입찰 변경 비교`다. */
   placement: "leaf" | "before-screen";
 }
 
@@ -136,7 +136,7 @@ export const routeMetadata = {
     runSelectorVisible: true,
     navGroup: "탐색과 추적",
     navPath: "/opportunities",
-    ancestors: [{ label: "사업 추적", path: "/opportunities" }],
+    ancestors: [{ label: "사업기회", path: "/opportunities" }],
     listPath: "/queue",
     record: { param: "noticePk", label: (value) => `공고 ${value}`, placement: "leaf" },
   },
@@ -148,7 +148,7 @@ export const routeMetadata = {
     runSelectorVisible: true,
     navGroup: "탐색과 추적",
     navPath: "/opportunities",
-    ancestors: [{ label: "사업 추적", path: "/opportunities" }],
+    ancestors: [{ label: "사업기회", path: "/opportunities" }],
     listPath: "/judgments",
     record: { param: "noticePk", label: (value) => `공고 ${value}`, placement: "leaf" },
   },
@@ -157,10 +157,11 @@ export const routeMetadata = {
   // 추적 상태 저장에 더해 예외 작업(후보 연결 판정·확인 항목 답변)의 저장도
   // 이 화면이 갖는다(결정 3).
   opportunities: {
-    title: "사업 추적",
+    title: "사업기회",
     dataScope: "cumulative",
-    // 목록은 제목 모드다. 상세(`/opportunities/:opportunityId`)는 같은 metadata를
-    // 쓰지만 record 칸이 생겨 경로 모드로 남는다.
+    // 목록은 제목 모드다. 레코드(`/opportunities/:opportunityId/*`)는 같은 metadata를
+    // 쓰지만 record 칸이 생겨 경로 모드로 남는다. 마지막 칸 `#<id>`는 레코드 페이지가
+    // 활동 응답의 제목을 `RecordTitleContext`로 올리면 그 제목으로 바뀐다(RL-02).
     topbar: "title",
     runSelectorVisible: false,
     navGroup: "탐색과 추적",
@@ -188,7 +189,7 @@ export const routeMetadata = {
     runSelectorVisible: false,
     navGroup: "탐색과 추적",
     navPath: "/opportunities",
-    ancestors: [{ label: "사업 추적", path: "/opportunities" }],
+    ancestors: [{ label: "사업기회", path: "/opportunities" }],
     listPath: null,
     // 이 화면은 사업기회 하나에 매달려 있다. 식별자가 상위 레코드이므로
     // 화면 이름 앞에 두고 그 사업기회 상세로 잇는다.
@@ -349,7 +350,7 @@ export const routeMetadata = {
     alternateOrigin: {
       from: "opportunities",
       navPath: "/opportunities",
-      ancestors: [{ label: "사업 추적", path: "/opportunities" }],
+      ancestors: [{ label: "사업기회", path: "/opportunities" }],
     },
   },
 } satisfies Record<string, RouteMetadata>;

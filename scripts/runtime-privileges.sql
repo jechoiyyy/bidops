@@ -528,6 +528,15 @@ GRANT UPDATE (
 ) ON bidops.briefing_item TO worker;
 GRANT INSERT ON TABLE bidops.briefing_reaction_event TO worker;
 
+-- RL-02 opportunity notes and next actions (0039). The web process appends a
+-- note and may fill only the completion pair once; the body, kind, actor and
+-- owner can never be rewritten through a runtime credential (column-scoped
+-- UPDATE). The worker only reads. No role may delete a note.
+GRANT SELECT ON TABLE bidops.opportunity_note TO app;
+GRANT INSERT ON TABLE bidops.opportunity_note TO app;
+GRANT UPDATE (done_at, done_by) ON bidops.opportunity_note TO app;
+GRANT SELECT ON TABLE bidops.opportunity_note TO worker;
+
 COMMIT;
 
 -- Assumption analyses reuse the queue but preserve independent immutable consent/results.

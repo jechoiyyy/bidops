@@ -1,0 +1,261 @@
+
+Running 193 tests using 8 workers
+
+  ✓    3 [app] › tests/bid-delta.spec.ts:114:5 › bid-delta calculation status › pending 상태를 결과 상태와 분리해 표현한다 (656ms)
+  ✓    7 [app] › tests/bid-delta.spec.ts:152:1 › 후보가 없으면 변경 없음이 아니라 이유가 있는 EmptyState를 표시한다 (652ms)
+  ✓    5 [app] › tests/bid-delta.spec.ts:176:3 › 결과 상태 changed는 계산 상태와 별도로 보존된다 (661ms)
+  ✓    2 [app] › tests/bid-delta.spec.ts:163:1 › 후보가 있어도 비교 만들기는 비활성이고 비교 계산 프로그램 미구현을 적는다 (687ms)
+  ✓    4 [app] › tests/bid-delta.spec.ts:114:5 › bid-delta calculation status › failed 상태를 결과 상태와 분리해 표현한다 (732ms)
+  ✓    1 [app] › tests/bid-delta.spec.ts:114:5 › bid-delta calculation status › running 상태를 결과 상태와 분리해 표현한다 (752ms)
+  ✓    8 [app] › tests/bid-delta.spec.ts:114:5 › bid-delta calculation status › completed 상태를 결과 상태와 분리해 표현한다 (748ms)
+  ✓   10 [app] › tests/bid-delta.spec.ts:176:3 › 결과 상태 unknown는 계산 상태와 별도로 보존된다 (474ms)
+  ✓   11 [app] › tests/bid-delta.spec.ts:176:3 › 결과 상태 failed는 계산 상태와 별도로 보존된다 (480ms)
+  ✓    9 [app] › tests/bid-delta.spec.ts:176:3 › 결과 상태 unchanged는 계산 상태와 별도로 보존된다 (508ms)
+  ✓   12 [app] › tests/bid-delta.spec.ts:190:1 › 양쪽 input fence와 evidence locator를 한 쌍으로 표시한다 (675ms)
+  ✓   13 [app] › tests/bid-delta.spec.ts:206:1 › 사람 결정은 자동 선택되지 않고 저장 전에는 form 초안을 유지한다 (701ms)
+  ✓   16 [app] › tests/bid-delta.spec.ts:256:1 › 과거 final decision 이력은 현재성 문자와 함께 append-only로 모두 보인다 (486ms)
+  ✓   15 [app] › tests/bid-delta.spec.ts:241:1 › 실패 비교 재시도는 expected version을 보내고 이전 attempt를 보존한다 (1.2s)
+  ✓   18 [app] › tests/bid-delta.spec.ts:300:1 › 요청 conflict는 typed code를 표시하고 최신 상태를 다시 불러와도 입력을 지우지 않는다 (774ms)
+  ✓   17 [app] › tests/bid-delta.spec.ts:270:1 › 결정 이력은 근거 종류를 적고 공고 조건 근거는 공고 ID와 짧은 해시를 보인다 (850ms)
+  ✓   14 [app] › tests/bid-delta.spec.ts:215:1 › 최종 결정 payload는 actor header와 모든 comparison fence를 포함한다 (1.3s)
+  ✓    6 [app] › tests/bid-delta.spec.ts:139:1 › 계산 대기 비교는 자동으로 다시 조회하지 않고 사람이 누를 때만 다시 읽는다 (2.2s)
+  ✓   23 [app] › tests/bid-delta.spec.ts:409:1 › 압축 헤더는 뷰포트를 과도하게 차지하지 않고 저장 액션을 복제하지 않는다 (505ms)
+  ✓   22 [app] › tests/bid-delta.spec.ts:399:1 › 결정 확인 액션은 읽기 칸을 끝까지 스크롤해도 뷰포트 안에 남는다 (515ms)
+  ✓   21 [app] › tests/bid-delta.spec.ts:377:1 › 미저장 최종 결정 초안은 beforeunload와 SPA 이동을 보호한다 (851ms)
+  ✓   19 [app] › tests/bid-delta.spec.ts:322:1 › 폼 오류의 안전 코드는 접힌 기술 정보에 있고 보조기술에는 계속 읽힌다 (1.1s)
+  ✓   24 [app] › tests/bid-delta.spec.ts:421:1 › 헤더의 결정 입력으로 이동은 결정 입력에 초점을 준다 (555ms)
+  ✓   26 [app] › tests/bid-delta.spec.ts:450:1 › 결정 칸은 이력과 최신 여부를 담고 계산 회차는 읽기 칸에 남는다 (535ms)
+  ✓   27 [app] › tests/bid-delta.spec.ts:460:1 › 보류는 최종 결정 선택지가 아니다 (520ms)
+  ✓   28 [app] › tests/bid-delta.spec.ts:468:1 › 계산 실패는 재시도 입력으로 데려가고 실패를 변경 없음으로 읽지 않는다 (536ms)
+  ✓   25 [app] › tests/bid-delta.spec.ts:429:1 › 계산 대기 중인 비교를 보면 공고 조건 근거 폼과 비활성 사유가 스크롤 없이 함께 보인다 (1.1s)
+  ✓   20 [app] › tests/bid-delta.spec.ts:348:1 › 비교 목록 → 결정 저장 → 사업기회 레코드 이동 흐름을 유지한다 (1.7s)
+  ✓   32 [app] › tests/bid-delta.spec.ts:589:1 › 공고 조건 표는 최신 차수 값을 보이고 값 없음·미확인·실제 N을 구분한다 (624ms)
+  ✓   34 [app] › tests/bid-delta.spec.ts:681:3 › 최신 입찰공고를 정할 수 없는 경우 공고 조건 결정을 막고 이유를 적는다 (503ms)
+  ✓   35 [app] › tests/bid-delta.spec.ts:681:3 › 최신 공고의 관측 해시가 없는 경우 공고 조건 결정을 막고 이유를 적는다 (561ms)
+  ✓   30 [app] › tests/bid-delta.spec.ts:517:1 › 확인 창이 열린 사이 비교가 갱신돼도 사람이 확인한 스냅숏만 저장 요청된다 (1.2s)
+  ✓   29 [app] › tests/bid-delta.spec.ts:480:1 › 최종 결정은 확인 없이는 요청이 나가지 않고 취소하면 초안만 남는다 (2.1s)
+  ✘   31 [app] › tests/bid-delta.spec.ts:561:1 › 같은 내용을 다시 확인하면 같은 request_id로, 내용을 고치면 새 request_id로 보낸다 (2.0s)
+  ✓   36 [app] › tests/bid-delta.spec.ts:701:3 › 409 final_decision_notice_not_latest는 공고 조건을 다시 읽고 초안을 지킨 채 새 fence로 다시 확인하게 한다 (1.7s)
+  ✓   39 [app] › tests/bid-delta.spec.ts:761:3 › 공고 조건 결정의 409 final_decision_bid_notice_missing는 코드별 문장으로 알리고 저장을 흉내내지 않는다 (1.2s)
+  ✓   33 [app] › tests/bid-delta.spec.ts:636:1 › 공고 조건 기준 결정은 최신 공고 fence·대체 대상·사유를 계약 필드 그대로 보낸다 (2.1s)
+  ✓   38 [app] › tests/bid-delta.spec.ts:761:3 › 공고 조건 결정의 503 bid_delta_currentness_unavailable는 코드별 문장으로 알리고 저장을 흉내내지 않는다 (1.6s)
+  ✓   40 [app] › tests/bid-delta.spec.ts:782:1 › 완료된 비교를 보면 결정 근거를 고를 수 있고 공고 조건 기준은 공고 조건 endpoint로 보낸다 (1.6s)
+  ✓   37 [app] › tests/bid-delta.spec.ts:701:3 › 409 final_decision_observation_changed는 공고 조건을 다시 읽고 초안을 지킨 채 새 fence로 다시 확인하게 한다 (2.0s)
+  ✓   41 [app] › tests/bid-delta.spec.ts:805:3 › 1280 결정 입력은 첫 화면에 이유와 기록자까지 보인다 (1.0s)
+  ✓   46 [app] › tests/bid-delta.spec.ts:805:3 › 1440 결정 입력은 첫 화면에 이유와 기록자까지 보인다 (549ms)
+  ✓   44 [app] › tests/briefing.spec.ts:173:1 › T10: 행을 누르면 피크가 열린다 — 머리·제목·보조·반응 버튼 3·반응 기록·왜 추천·자세히 보기만 (757ms)
+  ✓   42 [app] › tests/briefing.spec.ts:76:1 › T10: 뷰 탭은 반응 필터이고 건수는 클라이언트가 센다 · 6열 표와 추적 변화 묶음 (1.1s)
+  ✓   43 [app] › tests/briefing.spec.ts:122:1 › T10: 행 셀 — 단계·판정은 서버 값 그대로, 마감 D-n 강조는 7일 이내만 (1.1s)
+  ✓   51 [app] › tests/briefing.spec.ts:404:1 › T10: 담당자 이름이 없으면 저장하지 않고 입력 칸으로 안내한다 · 입력 중에는 단축키가 동작하지 않는다 (556ms)
+  ✓   47 [app] › tests/briefing.spec.ts:255:1 › T10: 키보드 1·2·H·Z — 저장 본문·담당자·다음 행 이동·5초 토스트 되돌리기 (1.1s)
+  ✓   49 [app] › tests/briefing.spec.ts:373:1 › T10: 이미 선택된 반응을 다시 누르면 대기로 돌아간다 · 마우스 버튼도 같은 저장 경로 (1.1s)
+  ✓   52 [app] › tests/briefing.spec.ts:457:1 › T10: 409 version_conflict는 조용히 덮어쓰지 않고 다시 읽은 뒤 확인하게 한다 (1.0s)
+  ✓   53 [app] › tests/briefing.spec.ts:492:1 › T10: 추적 변화 행에는 반응 버튼이 없고 서버도 반응을 받지 않는다 (1.0s)
+  ✓   45 [app] › tests/briefing.spec.ts:227:1 › T10: ?selected=<item_id>로 피크를 연다 · 속한 탭을 고르고 모르는 id는 무시한다 (2.1s)
+  ✓   54 [app] › tests/briefing.spec.ts:517:1 › T10: 추천 0건이면 수집 정상 빈 상태를 보여 준다 (952ms)
+  ✓   57 [app] › tests/briefing.spec.ts:565:1 › T10: 브리핑 API를 mock하지 않아도(고정 응답 404) 안내 문구가 나오고 외부로 새지 않는다 (427ms)
+  ✓   59 [app] › tests/briefing.spec.ts:604:1 › T10: 사이드바 건수는 briefing_pending이고 브리핑이 없으면 그리지 않는다 (340ms)
+  ✓   55 [app] › tests/briefing.spec.ts:527:1 › T10: 수집이 끝나지 않은 날은 경고 블록과 함께 항목도 보여 준다 (1.4s)
+  ✓   56 [app] › tests/briefing.spec.ts:545:1 › T10: 브리핑이 없으면 현재 자리 화면의 안내 문구를 보여 준다(최신·날짜·잘못된 날짜) (1.2s)
+  ✓   60 [app] › tests/briefing.spec.ts:626:1 › T10: 표시 금지 문자열 — 정책·점수·초 단위 시각·분모·모델명이 DOM에 없다 (777ms)
+  ✓   63 [app] › tests/briefing.spec.ts:705:1 › T10: 긴 한글 제목은 행에서 줄바꿈되고 가로 스크롤을 만들지 않는다 (439ms)
+  ✓   61 [app] › tests/briefing.spec.ts:653:3 › T10: 구조 1280x800 — 가로 넘침 없음 · h1 하나 · 6열 표와 피크 폭 (1.0s)
+  ✓   62 [app] › tests/briefing.spec.ts:653:3 › T10: 구조 1440x900 — 가로 넘침 없음 · h1 하나 · 6열 표와 피크 폭 (998ms)
+  ✓   58 [app] › tests/briefing.spec.ts:577:1 › T10: 날짜 이동 — 이전 브리핑은 직전 평일이고 최신 브리핑으로 돌아온다 (1.5s)
+  ✓   64 [app] › tests/briefing.spec.ts:722:1 › T10: 서버 오류는 안정 오류 문구와 다시 시도로 보여 준다(404와 구분) (927ms)
+  ✓   66 [app] › tests/common-interactions.spec.ts:189:1 › UC-03은 키보드만으로 draft bundle 생성 직전까지 이동한다 (624ms)
+  ✓   70 [app] › tests/common-interactions.spec.ts:287:1 › 사이드바는 시안 v26 구조(빠른 이동·레코드·리스트·하단)이고 미구현 항목은 비활성이다 (231ms)
+  ✓   68 [app] › tests/common-interactions.spec.ts:225:1 › 사업 추적 상세는 변경 비교로 이동하고 추적 저장과 최종 결정 저장을 분리한다 (1.0s)
+  ✓   65 [app] › tests/common-interactions.spec.ts:151:1 › UC-01은 키보드만으로 추적 저장 직전까지 이동하고 비활성 사유를 읽는다 (1.5s)
+  ✓   67 [app] › tests/common-interactions.spec.ts:207:1 › UC-04는 키보드만으로 append-only 재시작 직전까지 이동한다 (1.3s)
+  ✓   74 [app] › tests/common-interactions.spec.ts:359:1 › Go/No-Go 결정 대기 건수를 서버 집계로 보여 주고 이동을 제공한다 (487ms)
+  ✓   73 [app] › tests/common-interactions.spec.ts:349:1 › 사전규격 결정 대기 건수를 서버 집계로 보여 주고 마감 순으로 이동한다 (536ms)
+  ✓   71 [app] › tests/common-interactions.spec.ts:311:1 › 사이드바 링크가 모두 실제 화면으로 연결되고 설정이 판정 기준을 연다 (1.4s)
+  ✓   75 [app] › tests/common-interactions.spec.ts:367:1 › 회차가 없어도 누적 업무와 공고 판정 이력으로 이동할 수 있다 (467ms)
+  ✓   76 [app] › tests/common-interactions.spec.ts:375:1 › 누적 집계 미확인을 0으로 접지 않는다 (476ms)
+  ✓   69 [app] › tests/common-interactions.spec.ts:246:1 › 공통 unsaved guard가 옮겨간 예외 작업 입력을 지킨다 (2.0s)
+  ✓   79 [app] › tests/common-interactions.spec.ts:504:1 › 최종 Go/No-Go 목록은 사업 이름과 변경 비교 결과 없음을 값으로 보여준다 (470ms)
+  ✓   80 [app] › tests/common-interactions.spec.ts:528:1 › 최종 Go/No-Go 목록은 결정 대기열 한 번으로 그리고 행마다 workspace를 조회하지 않는다 (545ms)
+  ✓   83 [app] › tests/draft.spec.ts:24:1 › 공고 1차 판정 화면에는 리뷰 입력이 없고 저장 경로도 없다 (222ms)
+  ✓   48 [app] › tests/briefing.spec.ts:338:1 › T10: 토스트 되돌리기 버튼 · 5초 뒤 사라지면 Z는 아무것도 하지 않는다 (6.5s)
+  ✓   84 [app] › tests/draft.spec.ts:50:1 › 읽기 전용 화면은 저장된 리뷰와 수정하러 갈 자리를 함께 남긴다 (498ms)
+  ✘   50 [app] › tests/briefing.spec.ts:427:1 › T10: Enter는 피크를 열고 한 번 더 누르면 레코드로 간다 · Esc는 피크를 닫는다 · ↑↓는 행을 옮긴다 (6.1s)
+  ✓   72 [app] › tests/common-interactions.spec.ts:337:1 › 대시보드 바로가기에서 네 업무 각각으로 이동할 수 있다(회차 선택 상태) (3.1s)
+  ✓   77 [app] › tests/common-interactions.spec.ts:396:1 › 판정 기준은 모든 탭에 별도 판단과 소급 변경의 경계를 남긴다 (2.1s)
+  ✓   88 [app] › tests/opportunities.spec.ts:95:1 › 레코드 route는 목록으로 돌아갈 경로 표시를 그대로 갖는다 (212ms)
+  ✓   82 [app] › tests/common-interactions.spec.ts:584:1 › UC-05 추적 종료 확인 단계는 취소에 초점이 오고 Esc로 요청 없이 닫힌다 (1.7s)
+  ✓   86 [app] › tests/opportunities.spec.ts:22:1 › 추적을 선택했지만 사유·기록자가 없으면 미선택으로 바꾸지 않는다 (1.0s)
+  ✓   87 [app] › tests/opportunities.spec.ts:62:1 › 목록 workspace는 page canvas의 남은 높이를 채운다 (876ms)
+  ✓   89 [app] › tests/opportunities.spec.ts:43:1 › 목록은 상단바 제목 모드로 열리고 목록 기준이 상단바 안에 있다 (619ms)
+  ✓   92 [app] › tests/opportunities.spec.ts:178:1 › URL의 마감 창과 마감 임박순을 서버에 그대로 보내고 문맥 줄에서 해제한다 (583ms)
+  ✓   90 [app] › tests/opportunities.spec.ts:109:1 › 구역 탭은 신규 입찰공고까지 여섯이고 건수는 서버가 센 값이며 표시 수와 구분된다 (1.1s)
+  ✓   85 [app] › tests/draft.spec.ts:63:1 › 사업 추적의 추적 상태 변경은 미저장 입력을 지키라고 알린다 (1.8s)
+  ✓   93 [app] › tests/opportunities.spec.ts:205:1 › 허용 범위 밖의 마감 창은 서버에 보내지 않고 줄도 그리지 않는다 (939ms)
+  ✓   91 [app] › tests/opportunities.spec.ts:137:1 › 조치 필요 사유 칩은 서버 reason으로 좁히고 주소에 남으며 다른 구역으로 가면 풀린다 (1.6s)
+  ✓   95 [app] › tests/opportunities.spec.ts:233:1 › 행은 사업명·기관·단계 줄에 사유 칩과 사유별 주 행동 하나를 붙이고 보류 기한은 한국 시간 날짜 차이로 적는다 (722ms)
+  ✓   98 [app] › tests/opportunities.spec.ts:311:1 › 사유가 여럿이면 칩은 표기 순서로 모두 보이고 주 행동은 우선순위 하나다 (466ms)
+  ✓   96 [app] › tests/opportunities.spec.ts:289:1 › 대표 링크가 공고면 예산·입찰 마감을 그 값 그대로 보인다 (1.0s)
+  ✓   97 [app] › tests/opportunities.spec.ts:302:1 › 대표 링크가 사전규격이고 마감이 남아 있으면 예산·의견 마감을 D-n으로 보인다 (1.0s)
+  ✓   78 [app] › tests/common-interactions.spec.ts:415:1 › 실행 상태는 모든 탭에서 운영 텔레메트리 위치와 상시 운영 차단 사유를 확인할 수 있다 (4.8s)
+  ✓  100 [app] › tests/opportunities.spec.ts:365:1 › 사업명·기관·행 어디를 눌러도 목록을 떠나지 않고 오른쪽 상세가 바뀐다 (1.1s)
+  ✓   99 [app] › tests/opportunities.spec.ts:337:1 › 행의 주 행동은 사유에 맞는 상세 자리를 연다 (1.5s)
+  ✓   94 [app] › tests/opportunities.spec.ts:213:1 › 한 사업기회는 구역을 통틀어 한 행으로만 나타난다 (2.5s)
+  ✓  102 [app] › tests/opportunities.spec.ts:425:1 › 구역·정렬·최초 발견 단계·검색·선택이 주소에 남고 새로 고침해도 같은 목록과 상세가 열린다 (1.3s)
+  ✓  103 [app] › tests/opportunities.spec.ts:455:1 › 검색은 Enter로 서버 q에 적용하고 첫 페이지로 돌아가며 주소에 남는다 (1.2s)
+  ✓  101 [app] › tests/opportunities.spec.ts:384:1 › 선택한 행은 배경으로 표시되고 다른 행을 고르면 함께 옮겨간다 (1.6s)
+  ✓  105 [app] › tests/opportunities.spec.ts:513:1 › 목록에서 ↑↓로 행을 옮기면 선택·초점·URL이 함께 따라간다 (781ms)
+  ✓  107 [app] › tests/opportunities.spec.ts:577:1 › 저장하지 않은 입력이 있으면 ↓ 이동도 확인을 거치고 취소하면 선택이 남는다 (647ms)
+  ✓  104 [app] › tests/opportunities.spec.ts:498:1 › 목록 로딩 실패는 다시 시도로 복구한다 (1.5s)
+  ✓  111 [app] › tests/opportunities.spec.ts:659:1 › 검색 미확인 기록은 대상마다 가장 최근 것만 남기고 그 뒤에 찾은 같은 대상 후보가 있으면 숨긴다 (542ms)
+  ✓  108 [app] › tests/opportunities.spec.ts:603:1 › 3단계 연결 현황은 확정·후보·검색 미확인·연결 미확인을 구분한다 (908ms)
+  ✓  106 [app] › tests/opportunities.spec.ts:546:1 › 페이지 경계에서 ↑↓는 앞뒤 페이지의 첫 행·마지막 행으로 이어진다 (1.3s)
+  ✓  110 [app] › tests/opportunities.spec.ts:645:1 › 검색 미확인 연결은 원천 레코드를 만들어 내지 않는다 (1.1s)
+  ✓  109 [app] › tests/opportunities.spec.ts:630:1 › 연결된 공고 행은 실제 원천 화면 route로 이동한다 (1.3s)
+  ✓  112 [app] › tests/opportunities.spec.ts:697:1 › 후보 연결은 사유·기록자 없이 저장되지 않고 수용하면 확정으로 바뀐다 (1.8s)
+  ✓  114 [app] › tests/opportunities.spec.ts:756:1 › 후보 판정 실패는 입력을 유지하고 연결이 바뀌지 않았다고 말한다 (1.6s)
+  ✓  113 [app] › tests/opportunities.spec.ts:735:1 › 기각한 후보는 확정으로 올라가지 않고 이력으로 남는다 (1.7s)
+  ✓  116 [app] › tests/opportunities.spec.ts:807:1 › 미선택 건은 화면이 대신 상태를 고르지 않고 미선택으로 되돌릴 수도 없다 (1.4s)
+  ✓   81 [app] › tests/common-interactions.spec.ts:562:1 › 저장 알림은 hover 중에 사라지지 않고 명시적으로 닫을 수 있다 (8.1s)
+  ✓  117 [app] › tests/opportunities.spec.ts:819:1 › 입력을 남긴 채 닫으면 버릴지 확인하고 계속 작성하면 초안이 남는다 (1.7s)
+  ✓  121 [app] › tests/opportunities.spec.ts:935:1 › 재검토 신호는 계산 대기를 결과로 보여주지 않는다 (691ms)
+  ✓  122 [app] › tests/opportunities.spec.ts:952:1 › 새 공고 확인 완료는 보던 근거 연결과 메모를 보내고 추적 상태를 바꾸지 않는다 (738ms)
+  ✓  118 [app] › tests/opportunities.spec.ts:847:1 › 추적 종료는 확인 없이 요청이 나가지 않고 취소하면 초안만 남는다 (1.9s)
+  ✓  123 [app] › tests/opportunities.spec.ts:984:1 › 확인 완료 전에 근거 연결이 바뀌면 최신 상태를 다시 읽는다고 알리고 새 근거를 보여 준다 (1.1s)
+  ✓  119 [app] › tests/opportunities.spec.ts:878:1 › 추적 저장이 실패하면 초안을 그대로 두고 저장되지 않았다고 말한다 (1.7s)
+  ✓  120 [app] › tests/opportunities.spec.ts:896:1 › 확인 항목 예외는 회차를 그대로 쓰고 등급·처리 값을 덮지 않는다 (1.7s)
+  ✓  126 [app] › tests/opportunities.spec.ts:1066:1 › 찾아보기가 찾지 못하면 검색 미확인과 마지막 검색 시각을 없음으로 바꾸지 않고 보여 준다 (1.1s)
+  ✓  127 [app] › tests/opportunities.spec.ts:1086:1 › 찾아보기 기준 레코드가 서버에 없으면 어떤 원천이 없는지 설명한다 (1.1s)
+  ✓  124 [app] › tests/opportunities.spec.ts:1002:1 › 재검토 신호가 있으면 추적 상태 대화상자가 저장 시 새 공고 확인도 처리된다고 알린다 (1.8s)
+  ✓  132 [app] › tests/opportunities.spec.ts:1223:1 › 확인 사항이 없으면 신호 없음이라고만 말하고 자격 확인으로 읽히지 않게 한다 (992ms)
+  ✓  131 [app] › tests/opportunities.spec.ts:1194:1 › 추적 결정 카드에서 결정을 미선택으로 되돌린다 (1.1s)
+  ✓  128 [app] › tests/opportunities.spec.ts:1102:1 › 양쪽에 사람 추적 상태가 있어 병합이 거절되면 두 사업기회의 상태를 보여 주고 입력을 남긴다 (1.6s)
+  ✓  130 [app] › tests/opportunities.spec.ts:1176:1 › 추적 상태가 같아 서버가 병합한 수락은 사람 확인 병합으로 끝난다 (1.6s)
+  ✓  133 [app] › tests/opportunities.spec.ts:1234:1 › 추적 이력은 현재 추적 결정 사실을 먼저 보여 주고 결정 revision을 이력으로 남긴다 (997ms)
+  ✓  129 [app] › tests/opportunities.spec.ts:1134:1 › 병합이 막히면 각 사업을 미선택으로 되돌릴 수 있고 수락은 자동으로 다시 시도되지 않는다 (1.8s)
+  ✓  134 [app] › tests/opportunities.spec.ts:1250:1 › 추적 이력은 결정 revision과 재검토 신호 이벤트를 마이크로초·시간대까지 맞춰 최신순으로 함께 보여 준다 (1.0s)
+  ✓  135 [app] › tests/opportunities.spec.ts:1278:1 › 결정 기록이 없으면 없다고 말하고 미확인을 값으로 채우지 않는다 (1.0s)
+  ✓  137 [app] › tests/opportunities.spec.ts:1300:1 › 심층 검토 보고서 목록을 API에서 받아 상태·품질 표식·최종 의견과 함께 보여 준다 (1.0s)
+  ✓  138 [app] › tests/opportunities.spec.ts:1328:1 › 연결된 심층 검토 보고서가 없으면 빈 상태를 보여주고 목록을 지어내지 않는다 (1.0s)
+  ✓  139 [app] › tests/opportunities.spec.ts:1339:1 › 두 지원 폭에서 가로로 넘치지 않고 상세 바닥 액션이 보인다 (1.4s)
+  ✓  125 [app] › tests/opportunities.spec.ts:1016:1 › 단계 줄 찾아보기는 기준 레코드가 있는 빈 단계에만 있고 결과 후보를 후보 대화상자로 연다 (4.1s)
+  ✓  136 [app] › tests/opportunities.spec.ts:1291:1 › 결정 기록 조회가 실패해도 저장된 값을 결정 기록으로 위장하지 않는다 (1.7s)
+  ✓  140 [app] › tests/opportunities.spec.ts:1363:1 › 상세 본문을 끝까지 스크롤해도 상세 머리가 뷰포트 안에 남는다 (984ms)
+  ✓  143 [app] › tests/opportunity-record.spec.ts:58:1 › 상단 경로는 사업기회 / 제목이고 제목이 오기 전에는 #id, 다른 레코드의 제목은 쓰지 않는다 (562ms)
+  ✓  141 [app] › tests/opportunities.spec.ts:1395:1 › 목록의 글자 크기가 물리 크기의 14.4px·12.6px 단을 지킨다 (968ms)
+  ✓  145 [app] › tests/opportunity-record.spec.ts:123:1 › 같은 단계에 권위 연결이 둘이면 서버가 준 대표(stages[].link_id)로 헤더·속성·공고·비슷한 공고를 읽는다 (555ms)
+  ✓  147 [app] › tests/opportunity-record.spec.ts:186:1 › 제출 서류 블록은 비활성 안내 한 줄뿐이고 진행 막대·숫자가 없다 (541ms)
+  ✓  142 [app] › tests/opportunity-record.spec.ts:34:1 › /opportunities/:id는 활동 탭으로 replace 이동하고 알 수 없는 탭·식별자는 안전하게 처리한다 (1.5s)
+  ✓  149 [app] › tests/opportunity-record.spec.ts:225:1 › 활동 항목은 분 단위 시각·사람 이름·상태 pill·링크를 그리고 초 단위와 시스템 정보를 노출하지 않는다 (1.1s)
+  ✓  150 [app] › tests/opportunity-record.spec.ts:271:1 › 필터 칩은 받아 둔 항목을 클라이언트에서 가르고 서버를 다시 부르지 않는다 (1.1s)
+  ✓  152 [app] › tests/opportunity-record.spec.ts:322:1 › 노트는 담당자 이름 없이 저장되지 않고, ⌘Enter로 저장하며 UUID 요청 식별자와 기록자 헤더가 나간다 (1.1s)
+  ✓  144 [app] › tests/opportunity-record.spec.ts:97:1 › 헤더 pill은 단계·마감·판정·추적 상태 순서이고 판정 보기·제안서 초안은 비활성이다 (2.0s)
+  ✓  148 [app] › tests/opportunity-record.spec.ts:195:1 › 단계 바는 서버 상태 6개를 그대로 그리고 unknown은 미확인 글자와 회색 테두리다 (1.9s)
+  ✓  153 [app] › tests/opportunity-record.spec.ts:350:1 › 다음 행동은 담당을 선택 입력으로 보내고 좌측 목록에 체크 항목으로 나타난다 (1.1s)
+  ✓  155 [app] › tests/opportunity-record.spec.ts:408:1 › 저장 중 같은 입력을 연달아 눌러도 한 번만 보낸다 (520ms)
+  ✓  146 [app] › tests/opportunity-record.spec.ts:144:1 › 속성 8개는 고정 순서이고 값이 없으면 미공개·미지정이다 (2.5s)
+  ✓  154 [app] › tests/opportunity-record.spec.ts:377:1 › 저장이 실패하면 입력을 그대로 두고, 같은 입력의 재시도는 같은 요청 식별자를 쓰며 바꾸면 새 식별자다 (1.2s)
+  ✓  151 [app] › tests/opportunity-record.spec.ts:297:1 › 활동이 없으면 빈 상태를 말하고, 더 보기는 서버 커서로 다음 페이지를 이어 붙인다 (2.2s)
+  ✓  157 [app] › tests/opportunity-record.spec.ts:451:1 › 다음 행동 체크는 완료를 저장하고 이름이 없으면 저장하지 않으며 note_not_action을 사람 문구로 말한다 (1.1s)
+  ✓  115 [app] › tests/opportunities.spec.ts:774:1 › 추적 상태 변경은 사유 선택지와 기타 직접 입력을 갖고 공백을 막는다 (9.8s)
+  ✓  156 [app] › tests/opportunity-record.spec.ts:422:1 › 저장하지 않은 노트 초안은 beforeunload와 SPA 이동을 지키고, 탭을 오가도 초안이 남는다 (1.5s)
+  ✓  159 [app] › tests/opportunity-record.spec.ts:508:1 › 판정·제안서·서류 탭은 빈 상태 문장만 그리고 좌측 정보는 탭을 옮겨도 남는다 (1.1s)
+  ✓  158 [app] › tests/opportunity-record.spec.ts:483:1 › 다음 행동은 최대 5건만 보이고 모두 보기가 피드를 다음 행동으로 거른다 (1.3s)
+  ✓  162 [app] › tests/opportunity-record.spec.ts:563:1 › 병합된 사업기회는 병합 대상 레코드로 이동한다 (958ms)
+  ✓  161 [app] › tests/opportunity-record.spec.ts:545:1 › 탭은 ←→ 키로 옮기고 선택이 주소에 남는다 (1.0s)
+  ✓  160 [app] › tests/opportunity-record.spec.ts:524:1 › 원문 탭은 공고 상세로 가는 링크를 주고 비슷한 공고는 가장 뒤 단계 공고의 관련 목록을 쓴다 (1.3s)
+  ✓  167 [app] › tests/opportunity-record.spec.ts:637:3 › 1440px에서 가로로 넘치지 않고 좌측 정보가 280px이며 작성기가 보인다 (521ms)
+  ✓  169 [app] › tests/prespec-briefing.spec.ts:41:1 › 판정과 본공고 미확인을 부재나 임의 번호로 바꾸지 않는다 (470ms)
+  ✓  168 [app] › tests/prespec-briefing.spec.ts:4:1 › 담당자는 회차 판정과 사람 정정 사유를 구분하고 본공고와 품명을 읽는다 (492ms)
+  ✓  166 [app] › tests/opportunity-record.spec.ts:637:3 › 1280px에서 가로로 넘치지 않고 좌측 정보가 280px이며 작성기가 보인다 (987ms)
+  ✓  173 [app] › tests/screen-semantics.spec.ts:26:1 › 공통 셸이 로컬 글꼴과 기능 아이콘 접근성을 지킨다 (221ms)
+  ✓  172 [app] › tests/prespec-briefing.spec.ts:107:1 › 상세 6단이 DOM 순서대로 있고 순회는 상단바가 가지며 등급·추적 상태는 한 번만 나온다 (506ms)
+  ✓  170 [app] › tests/prespec-briefing.spec.ts:55:1 › 첨부는 안전한 원본 URL과 실제 다운로드 경로만 제공하며 0바이트를 보존한다 (989ms)
+  ✓  163 [app] › tests/opportunity-record.spec.ts:570:1 › ⋯ 메뉴는 기존 추적 대화상자를 열고 저장하면 헤더·속성·활동이 다시 읽힌다 (1.9s)
+  ✓  176 [app] › tests/screen-semantics.spec.ts:102:1 › 프로필의 불완전한 응답은 상태와 미확인을 0으로 확정하지 않는다 (502ms)
+  ✓  174 [app] › tests/screen-semantics.spec.ts:79:1 › 흡수한 마감·감사 경로가 기존 쿼리를 보존한다 (929ms)
+  ✓  175 [app] › tests/screen-semantics.spec.ts:52:1 › 대시보드는 네 업무를 한 줄에 두고 미확인을 작은 주석으로 표시한다 (943ms)
+  ✓  180 [app] › tests/screen-semantics.spec.ts:178:1 › 상시 운영은 승인 조합 불일치 상태에서 켤 수 없다 (471ms)
+  ✓  171 [app] › tests/prespec-briefing.spec.ts:93:1 › 승계 사유와 담당자를 읽되 조회 오류는 미확인으로 남긴다 (1.8s)
+  ✓  178 [app] › tests/screen-semantics.spec.ts:155:1 › 진행 중인 전량 판정은 중복 실행할 수 없다 (1.0s)
+  ✓  165 [app] › tests/opportunity-record.spec.ts:621:1 › 레코드 DOM에 회차·정책·모델·참조 실행 표식이 없다 (2.6s)
+  ✓  181 [app] › tests/screen-semantics.spec.ts:185:1 › 상시 운영 켜기는 대화상자에서 조합·담당자·결과 ID를 재확인한다 (661ms)
+  ✓  177 [app] › tests/screen-semantics.spec.ts:141:1 › 프로필 읽기 실패는 빈 정상 상태가 아니라 오류 상태로 표시한다 (1.5s)
+  ✓  179 [app] › tests/screen-semantics.spec.ts:162:1 › 정책 활성화는 최신 운영 게이트와 담당자 없이는 열리지 않는다 (1.3s)
+  ✓  186 [app] › tests/screen-semantics.spec.ts:327:1 › 사전규격 상세가 등급 출처와 자동 준비 네 단계를 한 줄로 말한다 (498ms)
+  ✓  164 [app] › tests/opportunity-record.spec.ts:597:1 › ⋯ 메뉴의 추적 되돌리기와 후보 연결은 기존 대화상자를 열고 해당이 없으면 이유와 함께 비활성이다 (3.2s)
+  ✓  187 [app] › tests/screen-semantics.spec.ts:348:1 › 클릭 대기 상태는 보고서 링크 대신 기존 심층 검토 실행 동선을 준다 (517ms)
+  ✓  183 [app] › tests/screen-semantics.spec.ts:256:1 › 평가 수치 누락은 0/10이 아니라 계산 불가로 남는다 (1.0s)
+  ✓  184 [app] › tests/screen-semantics.spec.ts:286:1 › 사전규격 선택 상세가 등급 4값과 판정 없음, 자동 준비 8값을 문자로 보여준다 (1.3s)
+  ✓  191 [app] › tests/screen-semantics.spec.ts:439:1 › 자동 심층 검토가 있어도 사업 추적 화면은 미선택을 그대로 보여준다 (473ms)
+  ✓  190 [app] › tests/screen-semantics.spec.ts:408:1 › 심층 보고서 우측 열이 문서 inventory와 사람 확인 필요 segment를 보여준다 (665ms)
+  ✓  192 [app] › tests/screen-semantics.spec.ts:468:1 › 입찰공고 상세는 예산과 추정가격을 따로 두고 개찰 없음과 대조된 실적 없음을 구분한다 (526ms)
+  ✓  188 [app] › tests/screen-semantics.spec.ts:366:1 › 사전규격 상세는 정정된 현재 등급 하나만 보여준다 (963ms)
+  ✓  182 [app] › tests/screen-semantics.spec.ts:241:1 › 값 없음·미확인·계산 불가·0을 구분해 표시한다 (1.8s)
+  ✓  185 [app] › tests/screen-semantics.spec.ts:300:1 › 사전규격 등급 필터는 URL과 동기화되고 서버 전체 건수를 줄인다 (1.6s)
+  ✓  193 [app] › tests/screen-semantics.spec.ts:489:1 › 유사 실적은 수집 탐색 신호와 판정 검토 결과를 따로 두고 예산·추정가격이 같아도 두 칸이다 (522ms)
+  ✓  189 [app] › tests/screen-semantics.spec.ts:391:1 › 심층 보고서의 품질 표식 3값과 표식 없음이 카드와 의견 저장 위에 함께 나온다 (2.2s)
+
+
+  1) [app] › tests/bid-delta.spec.ts:561:1 › 같은 내용을 다시 확인하면 같은 request_id로, 내용을 고치면 새 request_id로 보낸다 
+
+    Error: expect(received).not.toBe(expected) // Object.is equality
+
+    Expected: not "5d691f46-8c2e-41fe-a635-fdefcee75595"
+
+      581 |   await confirmFinalDecision(page, "No-Go로 최종 결정 저장");
+      582 |   await expect.poll(() => trace.posts.length).toBe(3);
+    > 583 |   expect(trace.posts[2].body.request_id).not.toBe(trace.posts[0].body.request_id);
+          |                                              ^
+      584 | });
+      585 |
+      586 |
+        at /Users/temp/orca/bidops/.sdlc/worktrees/rla-20261016-RL-02-opportunity-timeline/web/frontend/tests/bid-delta.spec.ts:583:46
+
+    Error Context: test-results/bid-delta-같은-내용을-다시-확인하면-같-6c6c6-로-내용을-고치면-새-request-id로-보낸다-app/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/bid-delta-같은-내용을-다시-확인하면-같-6c6c6-로-내용을-고치면-새-request-id로-보낸다-app/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/bid-delta-같은-내용을-다시-확인하면-같-6c6c6-로-내용을-고치면-새-request-id로-보낸다-app/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) [app] › tests/briefing.spec.ts:427:1 › T10: Enter는 피크를 열고 한 번 더 누르면 레코드로 간다 · Esc는 피크를 닫는다 · ↑↓는 행을 옮긴다 
+
+    Error: expect(page).toHaveURL(expected) failed
+
+    Expected pattern: /\/opportunities\/501$/
+    Received string:  "http://127.0.0.1:4319/opportunities/501/activity"
+    Timeout: 5000ms
+
+    Call log:
+      - Expect "toHaveURL" with timeout 5000ms
+        14 × locator resolved to <html lang="ko">…</html>
+           - unexpected value "http://127.0.0.1:4319/opportunities/501/activity"
+
+
+      452 |   await expect(peek(page)).toBeVisible();
+      453 |   await page.keyboard.press("Enter");
+    > 454 |   await expect(page).toHaveURL(/\/opportunities\/501$/);
+          |                      ^
+      455 | });
+      456 |
+      457 | test("T10: 409 version_conflict는 조용히 덮어쓰지 않고 다시 읽은 뒤 확인하게 한다", async ({ page }) => {
+        at /Users/temp/orca/bidops/.sdlc/worktrees/rla-20261016-RL-02-opportunity-timeline/web/frontend/tests/briefing.spec.ts:454:22
+
+    Error Context: test-results/briefing-T10-Enter는-피크를-열고-4db2a-·-Esc는-피크를-닫는다-·-↑↓는-행을-옮긴다-app/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/briefing-T10-Enter는-피크를-열고-4db2a-·-Esc는-피크를-닫는다-·-↑↓는-행을-옮긴다-app/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/briefing-T10-Enter는-피크를-열고-4db2a-·-Esc는-피크를-닫는다-·-↑↓는-행을-옮긴다-app/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2 failed
+    [app] › tests/bid-delta.spec.ts:561:1 › 같은 내용을 다시 확인하면 같은 request_id로, 내용을 고치면 새 request_id로 보낸다 
+    [app] › tests/briefing.spec.ts:427:1 › T10: Enter는 피크를 열고 한 번 더 누르면 레코드로 간다 · Esc는 피크를 닫는다 · ↑↓는 행을 옮긴다 
+  191 passed (32.8s)
+exit=1

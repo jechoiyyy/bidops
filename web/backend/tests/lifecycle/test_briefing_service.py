@@ -9,6 +9,7 @@ test_briefing_order_plan_candidates.py`와 CLI 진입점 검사가 본다.
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+import json
 
 import pytest
 from sqlalchemy import create_engine, func, select, text
@@ -400,3 +401,136 @@ def test_generated_at_is_stored_in_utc(session, world, plans) -> None:
     result = _build(session, now=kst_now)
 
     assert session.get(Briefing, result.briefing_id).generated_at == datetime(2026, 10, 15, 22, 30, tzinfo=UTC)
+
+
+# --- RL-02 T5: 마감 알림 -------------------------------------------------------
+
+
+def _kst(day: int, hour: int = 10):
+    """2026-10-<day> <hour>:00 KST를 UTC로."""
+
+    return datetime(2026, 10, day, hour, 0, tzinfo=UTC) - timedelta(hours=9)
+
+
+def test_t5_deadline_reminders_join_the_tracked_change_bundle_once_per_day(session, world, plans) -> None:
+    world.collection_run()
+    old = NOW - timedelta(days=20)  # 창 밖 첫 관측 → 추천 후보가 아니다.
+    tracked = world.opportunity(tracking_status="계속 추적")
+    held = world.opportunity(tracking_status="보류")
+    ended = world.opportunity(tracking_status="종료")
+    # 브리핑 날짜 D = 10-16(금). D-3 = 10-19, D-1 = 10-17.
+    d3 = world.notice("추적 D-3 입찰공고", source_type="bid_notice", sw=None, owner=tracked,
+                      observed_at=old, deadline_at=_kst(19))
+    d1_held = world.notice("보류 D-1 입찰공고", source_type="bid_notice", sw=None, owner=held,
+                           observed_at=old, deadline_at=_kst(17, 23))
+    untracked = world.notice("미추적 D-3 입찰공고", source_type="bid_notice", sw=None,
+                             observed_at=old, deadline_at=_kst(19))
+    world.notice("종료 D-1 입찰공고", source_type="bid_notice", sw=None, owner=ended,
+                 observed_at=old, deadline_at=_kst(17))
+    pre_spec_owner = world.opportunity(tracking_status="계속 추적")
+    world.notice("추적 사전규격 의견 마감 D-3", source_type="pre_spec", owner=pre_spec_owner,
+                 observed_at=old, deadline_at=_kst(19))
+    d2_owner = world.opportunity(tracking_status="계속 추적")
+    world.notice("추적 D-2 입찰공고", source_type="bid_notice", sw=None, owner=d2_owner,
+                 observed_at=old, deadline_at=_kst(18))
+    # 같은 날 정정 + 마감 D-1 → 한 행, "재검토 중". v2는 `method`도 추적 필드다.
+    both_owner = world.opportunity(tracking_status="계속 추적")
+    both = world.notice("정정과 마감이 겹친 입찰공고", source_type="bid_notice", sw=None, owner=both_owner,
+                        observed_at=old, deadline_at=_kst(17, 9))
+    world.observe(both, NOW - timedelta(hours=2), ["method", "agency"])
+    # 다음 브리핑(10-19 월)에서만 D-1이 되는 공고.
+    later_owner = world.opportunity(tracking_status="계속 추적")
+    later = world.notice("다음 주 D-1 입찰공고", source_type="bid_notice", sw=None, owner=later_owner,
+                         observed_at=old, deadline_at=_kst(20))
+    session.commit()
+
+    result = _build(session)
+
+    rows = {row.notice_id: row for row in _items(session, result.briefing_id)}
+    assert set(rows) == {d3.id, d1_held.id, both.id}
+    assert untracked.id not in rows
+    for notice in (d3, d1_held):
+        row = rows[notice.id]
+        assert (row.kind, row.rank, row.reaction, row.stage, row.deadline_kind) == (
+            "tracked_change", None, None, "bid_notice", "bid_close",
+        )
+        assert row.change_fields == ["deadline_reminder"]
+    assert rows[both.id].change_fields == ["method", "deadline_reminder"]
+    assert (result.item_count, result.tracked_change_count) == (0, 3)
+    view = get_briefing_view(session, BRIEFING_DATE)
+    verdicts = {item.notice_id: (item.verdict_display, item.change_fields) for item in view.tracked_changes}
+    assert verdicts == {
+        d3.id: ("마감 임박", ["deadline_reminder"]),
+        d1_held.id: ("마감 임박", ["deadline_reminder"]),
+        both.id: ("재검토 중", ["method", "deadline_reminder"]),
+    }
+
+    # 같은 날 재실행은 행을 더하지 않는다(브리핑 날짜 UNIQUE → 하루 1회).
+    again = _build(session)
+    assert (again.created, again.tracked_change_count) == (False, 3)
+    assert session.scalar(select(func.count(BriefingItem.id))) == 3
+
+    # 다음 브리핑 날짜에는 그날의 D-1만 알린다(D-3 공고는 D-0, D-1 공고는 마감 지남).
+    following = _build(session, NEXT_BRIEFING_DATE, now=NOW + timedelta(days=3))
+    following_rows = _items(session, following.briefing_id)
+    assert [(row.notice_id, row.change_fields) for row in following_rows] == [(later.id, ["deadline_reminder"])]
+
+
+def test_t5_reminder_on_a_recommended_bid_notice_stays_one_recommendation_row(session, world, plans) -> None:
+    world.collection_run()
+    tracked = world.opportunity(tracking_status="계속 추적")
+    fresh = world.notice("데이터 플랫폼 유지관리", source_type="bid_notice", sw=None, owner=tracked,
+                         deadline_at=_kst(19))
+    session.commit()
+
+    result = _build(session)
+
+    (row,) = _items(session, result.briefing_id)
+    assert (row.notice_id, row.kind, row.rank, row.change_fields) == (fresh.id, "recommendation", 1, ["deadline_reminder"])
+    assert (result.item_count, result.tracked_change_count) == (1, 0)
+
+
+def test_t5_v1_policy_sends_no_deadline_reminders(session, world, plans) -> None:
+    from app.core.config import DEFAULT_BRIEFING_POLICY_PATH
+
+    world.collection_run()
+    tracked = world.opportunity(tracking_status="계속 추적")
+    world.notice("추적 D-3 입찰공고", source_type="bid_notice", sw=None, owner=tracked,
+                 observed_at=NOW - timedelta(days=20), deadline_at=_kst(19))
+    session.commit()
+    v1 = load_briefing_policy(DEFAULT_BRIEFING_POLICY_PATH.parent / "briefing-policy-v1.json")
+
+    result = _build(session, policy=v1)
+
+    assert result.tracked_change_count == 0
+    assert session.get(Briefing, result.briefing_id).policy_sha256 == v1.sha256
+
+
+def test_t5_slack_tracked_change_message_renders_the_reminder_row(session, world, plans) -> None:
+    from app.lifecycle.services.briefing_slack import build_briefing_messages
+
+    world.collection_run()
+    world.notice("홈페이지 유지관리 용역")  # 추천 1건(메시지가 empty로 막히지 않게)
+    tracked = world.opportunity(tracking_status="계속 추적")
+    world.notice("추적 D-3 입찰공고", source_type="bid_notice", sw=None, owner=tracked,
+                 observed_at=NOW - timedelta(days=20), deadline_at=_kst(19))
+    both_owner = world.opportunity(tracking_status="보류")
+    both = world.notice("정정 겹침 입찰공고", source_type="bid_notice", sw=None, owner=both_owner,
+                        observed_at=NOW - timedelta(days=20), deadline_at=_kst(17))
+    world.observe(both, NOW - timedelta(hours=1), ["title"])
+    session.commit()
+    _build(session)
+    view = get_briefing_view(session, BRIEFING_DATE)
+
+    messages = build_briefing_messages(view, base_url="", items_per_message=10, deadline_warning_days=7)
+
+    assert [message.kind for message in messages] == ["recommendation", "tracked_change"]
+    blocks = messages[1].blocks
+    sections = [block["text"]["text"] for block in blocks if block["type"] == "section"]
+    contexts = [[element["text"] for element in block["elements"]] for block in blocks if block["type"] == "context"]
+    assert any("추적 D-3 입찰공고" in text and "*마감 D-3*" in text for text in sections)
+    assert any("정정 겹침 입찰공고" in text and "*마감 D-1*" in text for text in sections)
+    # 같은 형식 1행: 정정은 "바뀐 항목", 마감 사유는 "마감 임박". 내부 code는 보이지 않는다.
+    assert sorted(contexts) == sorted([["마감 임박"], ["바뀐 항목: 제목", "마감 임박"]])
+    assert "deadline_reminder" not in json.dumps(blocks, ensure_ascii=False)
+    assert not any(block["type"] == "actions" for block in blocks)

@@ -53,15 +53,20 @@ from .briefing_rules import (
     EXCLUSION_KINDS,
     TRACKED_STATUSES,
     BriefingCandidate,
+    DEADLINE_REMINDER_SOURCE_TYPE,
     BriefingRulesError,
+    DeadlineReminderCandidate,
     Recommendation,
     TrackedChange,
     TrackedChangeObservation,
     build_recommendations,
+    combine_tracked_changes,
     company_rules,
+    deadline_reminders,
     merge_tracked_changes,
     notice_candidate,
     order_plan_candidate,
+    tracked_change_verdict,
     tracked_changes,
 )
 from .company_context import _ensure_sqlite_outer_transaction
@@ -310,11 +315,49 @@ def _order_plan_population(
         population.candidates.append(order_plan_candidate(plan, opportunity_id=int(opportunity_id)))
 
 
+def _deadline_reminder_candidates(
+    session: Session, briefing_date: date, policy: BriefingPolicy
+) -> list[DeadlineReminderCandidate]:
+    """추적 상태 `계속 추적|보류`인 사업기회의 권위 연결 입찰공고 중 마감이 알림 날짜 범위
+    (브리핑 날짜 + `deadline_reminder_days`의 KST 날짜들)에 드는 것. 날짜 판정은 규칙 함수가
+    한 번 더 한다. 사전규격 의견 마감은 대상이 아니다(RL-02 spec "마감 알림")."""
+
+    days = policy.deadline_reminder_days
+    if not days:
+        return []
+    start = datetime.combine(briefing_date + timedelta(days=min(days)), time.min, tzinfo=KST)
+    end = datetime.combine(briefing_date + timedelta(days=max(days) + 1), time.min, tzinfo=KST)
+    owner = _owner_subquery("notice")
+    rows = session.execute(
+        select(Notice.id, owner.c.opportunity_id, Opportunity.tracking_status, Notice.source_type, Notice.deadline_at)
+        .join(owner, owner.c.record_id == Notice.id)
+        .join(Opportunity, Opportunity.id == owner.c.opportunity_id)
+        .where(
+            Opportunity.tracking_status.in_(sorted(TRACKED_STATUSES)),
+            Notice.source_type == DEADLINE_REMINDER_SOURCE_TYPE,
+            Notice.deadline_at >= start.astimezone(UTC),
+            Notice.deadline_at < end.astimezone(UTC),
+        )
+        .order_by(Notice.id)
+    ).all()
+    return [
+        DeadlineReminderCandidate(
+            notice_id=int(notice_id),
+            opportunity_id=int(opportunity_id),
+            tracking_status=status,
+            source_type=source_type,
+            deadline_at=deadline_at,
+        )
+        for notice_id, opportunity_id, status, source_type, deadline_at in rows
+    ]
+
+
 def _tracked_changes(
-    session: Session, window: CandidateWindow, policy: BriefingPolicy
+    session: Session, window: CandidateWindow, policy: BriefingPolicy, briefing_date: date
 ) -> tuple[tuple[TrackedChange, ...], dict[int, Notice]]:
     """추적 상태 `계속 추적|보류`인 사업기회의 권위 연결 공고 중 창 안 관측에 추적 필드
-    변경이 있는 공고. 권위 연결 = contracts "마감 임박 창"의 정의(`authoritative_link_predicate`)."""
+    변경이 있는 공고와, 마감 알림 날짜인 입찰공고(RL-02)를 (브리핑, 공고)당 1행으로 합친다.
+    권위 연결 = contracts "마감 임박 창"의 정의(`authoritative_link_predicate`)."""
 
     owner = _owner_subquery("notice")
     rows = session.execute(
@@ -334,7 +377,7 @@ def _tracked_changes(
         )
         .order_by(NoticeObservation.notice_id, NoticeObservation.id)
     ).all()
-    changes = tracked_changes(
+    corrections = tracked_changes(
         (
             TrackedChangeObservation(
                 notice_id=int(notice_id),
@@ -346,6 +389,10 @@ def _tracked_changes(
         ),
         policy,
     )
+    reminders = deadline_reminders(
+        _deadline_reminder_candidates(session, briefing_date, policy), policy, briefing_date
+    )
+    changes = combine_tracked_changes(corrections, reminders)
     if not changes:
         return (), {}
     notices = {
@@ -505,7 +552,7 @@ def build_briefing(
     _notice_population(session, window, current, population)
     _order_plan_population(session, window, population)
     result = build_recommendations(population.candidates, rules, active_policy, now=current)
-    changes, tracked_notices = _tracked_changes(session, window, active_policy)
+    changes, tracked_notices = _tracked_changes(session, window, active_policy, briefing_date)
     recommendations, remaining = merge_tracked_changes(result.items, changes)
 
     warnings: list[str] = list(population.warnings)
@@ -572,7 +619,8 @@ def build_briefing(
 
 def _verdict(item: BriefingItem) -> str:
     if item.kind == "tracked_change":
-        return "재검토 중"
+        # 정정 사유가 있으면 "재검토 중", 마감 알림 사유만이면 "마감 임박"(RL-02).
+        return tracked_change_verdict(list(item.change_fields or []))
     return "연차 추적" if item.stage == "order_plan" else "분석 대기"
 
 

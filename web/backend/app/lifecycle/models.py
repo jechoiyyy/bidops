@@ -33,6 +33,7 @@ from sqlalchemy import (
     Uuid,
     column,
     event,
+    inspect as sa_inspect,
     select,
     text,
 )
@@ -1165,6 +1166,65 @@ def _immutable_briefing_reaction_event(*_args: Any) -> None:
     raise ValueError("briefing reaction events are append-only")
 
 
+# ---------------------------------------------------------------------------
+# 사업기회 노트·다음 행동 (RL-02 spec "노트·다음 행동", ``0039_opportunity_note``)
+# ---------------------------------------------------------------------------
+#
+# 본문은 수정·삭제가 없다(append-only). `done_at`·`done_by`만 한 번 채울 수 있다.
+# runtime 권한도 같은 모양이다: web은 SELECT·INSERT와 `UPDATE (done_at, done_by)`만
+# 갖고 DELETE는 어느 역할에도 없다(`scripts/runtime-privileges.sql`). 노트 본문은 어떤
+# 모델 입력에도 넣지 않는다.
+
+#: 노트를 다시 쓸 수 없는 열. 완료 두 열만 NULL에서 한 번 채울 수 있다.
+_OPPORTUNITY_NOTE_FROZEN_COLUMNS = ("opportunity_id", "kind", "body", "actor", "owner", "created_at")
+
+
+class OpportunityNote(Base):
+    """사업기회에 남긴 노트(`note`) 또는 다음 행동(`action`) 한 건."""
+
+    __tablename__ = "opportunity_note"
+    __table_args__ = (
+        CheckConstraint("kind IN ('note','action')", name="ck_opportunity_note_kind"),
+        CheckConstraint(
+            "(done_at IS NULL) = (done_by IS NULL)",
+            name="ck_opportunity_note_done_pair",
+        ),
+        Index("ix_opportunity_note_opportunity", "opportunity_id", "created_at"),
+    )
+
+    id: Mapped[uuid_module.UUID] = _uuid_column(primary_key=True)
+    opportunity_id: Mapped[int] = mapped_column(
+        _fk("opportunity.id", ondelete="RESTRICT"), nullable=False
+    )
+    kind: Mapped[str] = mapped_column(String(16), nullable=False)
+    body: Mapped[str] = mapped_column(Text, nullable=False)
+    actor: Mapped[str] = mapped_column(Text, nullable=False)
+    # 다음 행동 담당 이름. 요청이 비우면 서버가 actor로 채운다(NOT NULL).
+    owner: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        AwareDateTime(), default=utc_now, server_default=text("CURRENT_TIMESTAMP"), nullable=False
+    )
+    done_at: Mapped[datetime | None] = mapped_column(AwareDateTime(), nullable=True)
+    done_by: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+@event.listens_for(OpportunityNote, "before_update")
+def _append_only_opportunity_note(_mapper: Any, _connection: Any, target: OpportunityNote) -> None:
+    state = sa_inspect(target)
+    for name in _OPPORTUNITY_NOTE_FROZEN_COLUMNS:
+        if state.attrs[name].history.has_changes():
+            raise ValueError("opportunity notes are append-only")
+    for name in ("done_at", "done_by"):
+        history = state.attrs[name].history
+        if history.has_changes() and any(value is not None for value in history.deleted):
+            raise ValueError("opportunity note completion is recorded once")
+
+
+@event.listens_for(OpportunityNote, "before_delete")
+def _undeletable_opportunity_note(*_args: Any) -> None:
+    raise ValueError("opportunity notes are append-only")
+
+
 # Added by the cumulative lifecycle-identity migrations.  Keeping these out
 # of the legacy/Lean v1 tuples prevents an older revision from creating them
 # before its upgrade has established the observation and opportunity links.
@@ -1178,6 +1238,8 @@ COMPANY_CONTEXT_TABLES = (
 COLLECTION_INDEX_TABLES = ("collected_record_index", "collected_record_token")
 # ``0038_briefing``이 만든다. 평일 브리핑과 반응 기록이다(RL-01).
 BRIEFING_TABLES = ("briefing", "briefing_item", "briefing_reaction_event")
+# ``0039_opportunity_note``가 만든다. 사업기회 노트·다음 행동이다(RL-02).
+OPPORTUNITY_NOTE_TABLES = ("opportunity_note",)
 
 
 IDENTITY_TABLES = (

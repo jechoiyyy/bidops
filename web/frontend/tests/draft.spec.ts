@@ -80,7 +80,8 @@ test("사업 추적의 추적 상태 변경은 미저장 입력을 지키라고 
     });
   });
 
-  await page.goto("/opportunities/501");
+  // 목록 우측 pane의 빠른 조작 상세로 연다(RL-02: `/opportunities/501`은 이제 사업기회 레코드다).
+  await page.goto(`/opportunities?section=${encodeURIComponent("전체")}&selected=501`);
   await page.getByRole("button", { name: "추적 상태 변경", exact: true }).click();
   const dialog = page.getByRole("dialog");
   await dialog.getByRole("combobox", { name: "선택 사유" }).click();
@@ -100,7 +101,7 @@ test("사업 추적의 추적 상태 변경은 미저장 입력을 지키라고 
   await expect(dialog).toContainText("입력한 내용을 버릴까요?");
   await expect(dialog).toContainText("저장된 추적 상태는 바뀌지 않습니다");
   await dialog.getByRole("button", { name: "계속 작성", exact: true }).click();
-  await expect.poll(() => new URL(page.url()).pathname).toBe("/opportunities/501");
+  await expect.poll(() => new URL(page.url()).pathname).toBe("/opportunities");
   await expect(dialog.getByLabel("선택 사유 직접 입력")).toHaveValue("검증용 미저장 메모");
 
   await dialog.getByRole("button", { name: "취소", exact: true }).click();
@@ -112,6 +113,7 @@ test("사업 추적의 추적 상태 변경은 미저장 입력을 지키라고 
     window.dispatchEvent(event);
     return event.defaultPrevented;
   })).toBe(false);
-  await page.locator('nav[aria-label="현재 위치"]').getByRole("link", { name: "사업 추적", exact: true }).click();
-  await expect.poll(() => new URL(page.url()).pathname).toBe("/opportunities");
+  // 입력을 버린 뒤에는 다른 화면으로의 이동이 막히지 않는다(목록 화면은 상단 경로 대신 사이드바로 이동한다).
+  await page.locator("aside.sidebar").getByRole("link", { name: "오늘의 브리핑", exact: true }).click();
+  await expect.poll(() => new URL(page.url()).pathname).toBe("/briefing");
 });

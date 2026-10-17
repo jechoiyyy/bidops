@@ -304,6 +304,9 @@ revision-history의 404·409·500은 공통 안전 envelope를 사용하며 `det
 |---|---|---|---|
 | `GET /api/opportunities` | optional `tracking_status`, `first_registered_stage`, `section=조치 필요\|추적 중\|보류\|추적 종료\|신규 입찰공고`, `reason=new_link\|candidate_pending\|merge_confirmation\|blocking_item\|hold_overdue`, `hold_review=overdue\|due_soon\|attention`, `deadline_within_days`(1..365), `q`(2~100자), `sort=created_at\|tracking_status\|first_registered_stage\|hold_review_due_at\|deadline`, `limit` 1..500(default 50), `offset` 0 이상 | `OpportunityListResponse`(`section_counts`·`action_reason_counts` 포함); 기본값은 `종료`를 포함한 전체 | 422 query(`section=미결정`은 집계 전용이라 값 자체를 거부) |
 | `GET /api/opportunities/{opportunity_id}` | path DB integer opportunity ID | `OpportunityDetailResponse`; `검색 미확인` link를 포함한 전체 link 목록 | 404 `opportunity_not_found` |
+| `GET /api/opportunities/{opportunity_id}/activity` | path DB integer opportunity ID; optional `kinds`(아래 kind 13값의 csv), `limit` 1..200(기본 50), `before`(opaque 커서) | 200 `OpportunityActivityResponse`(`bidops.opportunity-activity.v1`, 아래 "레코드 활동 피드"); 병합된 사업기회도 200이며 `merged_into_opportunity_id`를 채운다 | 404 `opportunity_not_found`; 422 `invalid_request`(모르는 kind·읽을 수 없는 커서)·limit 범위; 확장점 제공자의 예외는 500 `processing_failed` |
+| `POST /api/opportunities/{opportunity_id}/notes` | actor headers; body `{kind=note\|action, body(trim 뒤 1..2000자), owner?(≤128자), request_id:UUID}` | 201 `NoteView`(새 노트), 같은 요청의 재생은 200 같은 JSON | 400 `actor_name_required\|actor_name_invalid`; 404 `opportunity_not_found`; 409 `opportunity_merged`·`idempotency_conflict`; 422 body·`invalid_request` |
+| `PATCH /api/opportunities/{opportunity_id}/notes/{note_id}/done` | actor headers; body `{request_id:UUID}` | 200 `NoteView`(`done_by`=actor); 이미 완료된 행동은 바꾸지 않고 현재 값 200 | 400 actor; 404 `opportunity_not_found`·`not_found`(노트 없음·다른 사업기회의 노트); 409 `opportunity_merged`·`note_not_action`(`kind=note`)·`idempotency_conflict`; 422 body·path |
 | `GET /api/opportunities/{opportunity_id}/deep-reviews` | path DB integer opportunity ID | 200 `{opportunity_id, items[]}` — 연결 공고 전체의 심층 검토 목록 | 404 `not_found`; 422 path; 500 `processing_failed` |
 | `GET /api/opportunities/{opportunity_id}/tracking-decisions` | path DB integer opportunity ID | 200 `{opportunity_id, items[], recheck_events[]}`; `items`는 append-only 추적 결정 이력, `recheck_events`는 신호 생성·확인·해제를 감사에서 투영한 이력(`kind=created\|acknowledged\|cleared_by_decision`, `link_id?`, `actor_kind`, `claimed_name?`, `created_at`, `note_present`) | 404 `opportunity_not_found` |
 | `POST /api/opportunities/{opportunity_id}/recheck-acknowledgements` | actor headers; body `{expected_link_id, note?(≤500자)}` | 200 `OpportunityDetailResponse`; 신호를 해제하고 추적 상태는 바꾸지 않음 | 400 `actor_name_required\|actor_name_invalid`; 404 `opportunity_not_found`; 409 `recheck_signal_absent`(신호 없음)·`recheck_signal_changed`(근거 링크가 바뀜, details `{current_link_id}`)·`opportunity_merged`; 422 body |
@@ -319,6 +322,64 @@ revision-history의 404·409·500은 공통 안전 envelope를 사용하며 `det
 추적 상태 변경은 `set_tracking_status()`를 통해 사람 선택과 감사 이벤트를 함께 기록한다. `X-BidOps-Actor-Name`은 인증이 아닌 감사 표식이며, 비ASCII 이름은 `X-BidOps-Actor-Name-Format: utf-8-percent-v1`과 canonical UTF-8 percent encoding을 사용한다. `recheck_signal`은 시스템 신호 여부이고 `recheck_signal_at`·`recheck_signal_link_id`는 그 시각과 근거 link를 가리킨다. 이 값들은 사람의 `tracking_status`·`tracking_reason`·`tracking_selected_by`·`tracking_selected_at`과 별도이며, `FinalOpinion` 또는 최종 입찰 `Go/No-Go`로 변환하지 않는다.
 
 후보 수락(`PATCH …/links/{id}/decision` `accepted`)이 대상을 이미 소유한 다른 active 사업기회로 이끌면 §3.2와 같은 규칙으로 병합한다. 사람 상태 보유(`tracking_status ≠ 미선택` 또는 `recheck_signal_at IS NOT NULL`) 사업기회가 둘 중 1개 이하면 병합하고 후보 link를 `사람 확인 병합`(비소유, `human_decision=accepted`)으로 남긴다 — 소유권은 옮겨진 공식 link가 갖는다. **둘 다 사람 상태를 갖더라도 두 `tracking_status`가 같고 양쪽 모두 `recheck_signal_at IS NULL`이면 병합한다(2026-09-22, [ADR-0068](tracking/decisions/0068-same-state-merge-and-tracking-reset.md)).** 유지 쪽은 둘 중 오래된 사업기회(`created_at`, 동률이면 `id`)이고 그 추적 상태·사유·선택자·시각은 바뀌지 않으며, 병합된 쪽의 결정은 그 행에 남는 것과 별도로 감사 이벤트 `opportunity.merged.human_confirmed`의 `safe_metadata.merged_human_states[] = [{id, tracking_status, tracking_reason, tracking_selected_by, tracking_selected_at}]`에도 적힌다(같은 상태 병합일 때만 있는 키). 상태가 다르거나 한쪽에 신호가 있으면 409 `candidate_merge_state_conflict`이고 details는 `{opportunities: [{id, tracking_status, tracking_selected_by, tracking_selected_at, recheck_signal, recheck_signal_at}]}`다(`recheck_signal_at`은 2026-09-22 추가, 추가형). 화면은 이 응답을 받아 각 사업을 `미선택`으로 되돌리는 단추를 주며(같은 `PATCH …/tracking-status`, 사유·담당자 필수) 되돌린 뒤 수락을 자동 재시도하지 않는다. 자동 병합(공식 키 재적재)이 같은 조건으로 막히면 경고 `opportunity_merge_confirmation_required`와 함께 `병합 확인` 후보(`search_strategy=merge_confirmation`)를 만들며, 도착 레코드는 고아로 남지 않고 자기 사업기회(없으면 새로 생성)에 붙는다.
+
+#### 레코드 활동 피드·노트 (RL-02, 2026-10-17)
+
+사업기회 레코드 화면(`/opportunities/:id/activity`)의 입력이다. 기능 명세는 `docs/work/groups/RL/features/RL-02-opportunity-timeline/spec.md`, 업무 규칙은 [business-rules.md "사업기회 레코드 단계 바·활동 피드"](business-rules.md#사업기회-레코드-단계-바활동-피드-rl-02-2026-10-17)다. 오류 code `note_not_action`(409)은 라우터 로컬 map(`routers/opportunities.py`)과 프런트 `src/lib/apiErrors.ts`에만 등록했고, 노트를 못 찾는 경우는 새 code 없이 기존 core `not_found`(404)를 쓴다(core `api_errors`·lifecycle `API_ERROR_CODES` 불변).
+
+**`OpportunityActivityResponse`** — 키는 전부 일곱이다: `{schema_version:"bidops.opportunity-activity.v1", opportunity_id:int, merged_into_opportunity_id:int|null, title:string, stages:OpportunityStageView[6], items:ActivityItem[], next_before:string|null}`.
+
+- `title` = 권위 연결(`official`·`확정` 또는 `candidate`·`사람 확인 완료`·`accepted`) 중 **가장 뒤 단계**(입찰공고 > 사전규격 > 발주계획)의 제목, 없거나 비면 `#<id>`. 한 단계에 권위 연결이 여럿이면 연결 시각이 가장 늦은 것(같으면 연결 id가 큰 것)이 대표다.
+- `stages` = `{key, state, at:ts|null}` 6개이며 **순서 고정**이다: `order_plan`, `pre_spec`, `bid_notice`, `deadline`, `opening`, `contract`. `state` enum은 `done|current|upcoming_deadline|pending|unknown`이고 판정 규칙은 business-rules가 정본이다. `raw_source`(파일 경로 문자열)는 읽지 않는다.
+- `stages[].link_id:int|null`(추가형, 키는 언제나 있다) = 그 단계를 대표하는 권위 연결 id(`opportunity_stages.representatives`: 연결 시각이 가장 늦은 것, 같으면 id가 큰 것). `order_plan`·`pre_spec`·`bid_notice`는 그 단계 대표, `deadline`·`opening`은 입찰공고 대표의 id(입찰공고가 없으면 `null`), `contract`는 언제나 `null`이다. 화면은 대표 연결을 스스로 고르지 않고 이 id로 `GET /api/opportunities/{id}`의 `links`에서 찾으며, 활동 응답 전이거나 `null`이면 그 연결에서 오는 값을 비워 둔다.
+- `items` = `ActivityItem[]`, `at` 내림·동률 `item_id` 내림. `next_before`는 다음 페이지가 있을 때만 값이 있다.
+- `before` 커서는 opaque이며 `"<at ISO(UTC, Z)>|<item_id>"`다. 그 키보다 **엄격히 뒤**인 항목만 돌려주므로 같은 시각 묶음 한가운데에서 끊겨도 빠지거나 겹치지 않는다. 시간대 없는 `at`·`|` 앞뒤가 읽히지 않는 값·`item_id`가 `"<kind>:<pk>"` 모양이 아닌 값은 422 `invalid_request`다.
+- `kinds`는 csv이고 비어 있으면 필터가 없으며 모르는 kind가 하나라도 있으면 422다. 필터와 커서와 `limit`은 lifecycle 항목과 확장점 항목을 합친 뒤 한 번에 적용한다.
+
+**`ActivityItem`** — 키는 전부 여덟이다: `{item_id:string, kind, at:ts, actor:string|null, title:string, detail:string|null, link:{label, path}|null, status_pill:string|null}`. `item_id` = `"<kind>:<원본 PK>"`(결정적, 저장하지 않음, `|` 없음). 피드는 저장하지 않고 요청마다 원본에서 파생한다. 시스템 처리(수집 회차·변환·모델 호출·정책)는 어떤 kind에도 없다. `kind` 13값과 규칙:
+
+| kind | 원본 | `title` | `link` |
+|---|---|---|---|
+| `order_plan_found` | 권위 연결 `stage=order_plan`의 `created_at` | "발주계획 발견 · <기관>"(기관 없으면 "발주계획 발견") | `/order-plans/<pk>` |
+| `pre_spec_opened` | 권위 연결 사전규격의 `created_at` | "사전규격 공개" | `/pre-specs/<notice_pk>` |
+| `bid_posted` | 권위 연결 입찰공고의 `created_at` | "입찰공고 게시" | 공고 외부 URL(`Notice.url`, http(s)만, 새 창). 내부 입찰공고 상세 route는 없다 |
+| `notice_corrected` | 권위 연결 공고(사전규격·입찰공고)의 `NoticeObservation` 중 **첫 관측을 뺀** 것에서 `changed_fields_json ∩ {deadline_at,title,budget,estimated_price,method} ≠ ∅` | "정정 · <바뀐 필드 한글>"(마감·제목·예산·추정가격·계약방법 순) | 사전규격 `/pre-specs/<pk>#ps-record-history`, 입찰공고 외부 URL |
+| `tracking_decided` | 감사 `opportunity.tracking_status.changed`(`Opportunity.tracking_status` 경로만; 데모 회사별 이벤트 아님) | "<이름>이 <상태>로 결정", 새 상태가 `미선택`이면 "<이름>이 추적 되돌림"(`detail`=사유) | 없음 |
+| `recheck_signal` | 감사 `opportunity.recheck_signal.created`·`.acknowledged` | "재확인 신호" / "<이름>이 신호 확인" | 없음 |
+| `link_reviewed` | `OpportunityLink.human_decision`이 있는 후보 연결 | "<이름>이 연결 후보 수락\|거절" | 없음 |
+| `briefing_reacted` | `briefing_reaction_event` 중 `new ≠ 대기` | "<이름>이 <반응>", `status_pill`=반응 | `/briefing?date=<briefing_date>&selected=<briefing_item_id>` |
+| `note_added` | `opportunity_note kind=note` | 본문 첫 줄(≤120자) | 없음 |
+| `action_added` | `opportunity_note kind=action`의 `created_at` | "다음 행동: <본문>", **`detail`="담당 <owner>"** | 없음 |
+| `action_done` | 같은 행동의 `done_at` | "<이름>이 완료: <본문>" | 없음 |
+| `verdict_completed` | 확장점 `opportunity_activity_items`(RL-03) | 제공자 몫 | verdict 탭 |
+| `draft_prepared` | 같은 확장점(RL-04) | 제공자 몫 | proposal 탭 |
+
+이름 뒤 조사는 받침에 따라 이/가·으로/로를 고르고 한글 음절이 아닌 끝 글자는 `이`·`로`를 쓴다. 다음 행동 담당은 새 응답 키 없이 `action_added.detail`이 싣는다(run 결정 기록 #14). `verdict_completed`·`draft_prepared`는 제공자가 없으면 항목이 0건이다.
+
+**노트 REST.** `NoteView` = `{note_id:UUID, kind, body, actor, owner, created_at, done_at:ts|null, done_by:string|null}`(키 전부). `owner`는 `kind=action`의 담당 이름이며 비우면 서버가 actor로 채운다(NOT NULL, `kind=note`도 같다). 작성자(`actor`)·완료자(`done_by`)는 요청 헤더 `X-BidOps-Actor-Name`(+`-Format`)에서만 받고 body에 없다. `body`는 앞뒤 공백을 지운 뒤 1..2000자이며 줄바꿈·탭 외 제어 문자와 `owner`의 `system`(대소문자 무시)은 거부한다.
+
+- **멱등**은 core `IdempotencyRecord` fence(`app/core/idempotency_fence.py`)로 한다: `operation="opportunity_note.create"|"opportunity_note.done"`, `aggregate_type="opportunity"`, `aggregate_id=<사업기회 id>`, `claimed_name=actor`, `request_id=body.request_id`. 같은 범위·같은 요청 해시는 저장된 snapshot JSON을 **그대로** 재생하고(POST도 200) 다른 해시는 409 `idempotency_conflict`다. 노트 테이블에는 `request_id` UNIQUE가 없다 — 다른 actor의 같은 `request_id`는 별개의 노트다. 요청 해시 = canonical JSON `{operation, opportunity_id, kind, body(trim), owner(해소 후), actor}`(완료는 `{operation, opportunity_id, note_id, actor}`)의 SHA-256이다.
+- 생성 검사 순서: 입력(422·400) → 사업기회 404 → 병합 409 → 영수증 재생·충돌 → 저장. 완료 검사 순서: 입력 → 사업기회 404 → 병합 409 → 노트 404(`not_found`) → `kind=note`면 409 `note_not_action` → 영수증 재생·충돌 → 이미 완료면 현재 값 200 → 완료 저장. 완료는 한 번만 일어나며 다른 사람의 두 번째 완료도 첫 완료를 바꾸지 않는다.
+- 쓰기는 사업기회 행을 잠가 같은 사업기회의 노트 쓰기를 직렬화한다. 병합된 사업기회에는 쓰지 않는다(GET만 200).
+- **노트 본문은 어떤 모델 입력에도 넣지 않는다**(RL-03·04가 이 규칙을 상속한다). 이 REST는 외부 호출이 없다.
+
+**DB: `opportunity_note`** (migration `0039_opportunity_note`, 이전 head `0038_briefing`). lifecycle 소유(`tests/app/boundary_map.py TABLE_OWNER`).
+
+| 열 | 형 | 비고 |
+|---|---|---|
+| `id` | UUID PK | |
+| `opportunity_id` | INT FK `opportunity.id` `RESTRICT` | 인덱스 `ix_opportunity_note_opportunity (opportunity_id, created_at)` |
+| `kind` | VARCHAR(16) | CHECK `kind IN ('note','action')` |
+| `body` | TEXT | 길이 1..2000은 API가 보장 |
+| `actor`, `owner` | TEXT NOT NULL | |
+| `created_at` | timestamptz | 기본 `CURRENT_TIMESTAMP` |
+| `done_at`, `done_by` | timestamptz·TEXT NULL | CHECK `(done_at IS NULL) = (done_by IS NULL)` |
+
+- **append-only.** 본문·종류·작성자·담당·생성 시각은 바뀌지 않고 `done_at`·`done_by`만 NULL에서 한 번 채울 수 있다. ORM `before_update`·`before_delete`가 거부하고 DB 권한도 같은 모양이다(`scripts/runtime-privileges.sql`, 열 단위 GRANT 선례): web(`app`)은 `SELECT`·`INSERT`와 **`UPDATE (done_at, done_by)`만**, `worker`는 `SELECT`만, `ro_backup`은 `SELECT`, **어느 역할에도 DELETE가 없다** — 본문 UPDATE는 DB가 거부한다.
+- migration downgrade는 노트가 하나라도 있으면 거부한다. models와 migration은 같은 CHECK·인덱스 선언을 쓴다.
+- 새 테이블 검사: `tests/app/test_db_migrations.py`, 권한 `tests/app/test_runtime_database_privileges.py`, 본문 UPDATE 거부는 PostgreSQL 전용 `tests/app/test_opportunity_notes_api_postgres.py`.
+
+**확장점 `opportunity_activity_items`.** `lifecycle/extensions.py`가 `OpportunityActivityItemsProvider.opportunity_activity_items(session, opportunity_id) -> Sequence[ActivityItem]`을 선언하는 **hook 방식**이다 — owner별로 `register_opportunity_activity_items(provider, owner=…)`로 등록하고(같은 owner는 제자리 교체) 여러 제공자를 허용하며, registry가 등록 순서대로 항목을 이어 붙인 뒤 정렬·커서·`kinds` 필터는 피드가 lifecycle 항목과 함께 공통으로 한다. 제공자는 읽기 전용이며 사업기회 하나의 사건을 상수 회 조회로 읽고 `item_id`를 `"<kind>:<pk>"`로 결정적으로 만든다. `ActivityItem`·응답 모델은 `lifecycle/schemas/opportunity_activity.py`에 있고 `app.lifecycle` 공개 표면(`tests/app/boundary_map.py` allowlist)으로 제공자가 import한다. `ActivityItem`이 아닌 값을 돌려주면 조립 오류(`TypeError`)이고, 제공자의 예외는 GET을 500으로 만든다(읽기 오류를 빈 목록으로 접지 않는다). 현재 등록된 제공자는 없다 — RL-03(`verdict_completed`)·RL-04(`draft_prepared`)가 제공한다.
 
 ### 사업기회 구역·사유·보류 기한
 
@@ -1990,8 +2051,8 @@ DEMO-03(2026-10-10, 같은 데모 브랜치)은 공통 계약 §5·§6·§9·§1
 
 - `BriefingView` = `{schema_version:"bidops.briefing.v1", briefing_date, status: generated|empty|collection_incomplete, generated_at, item_count:int(추천 수만), slack_sent_at:ts|null, items:BriefingItemView[], tracked_changes:BriefingItemView[], collection_note:string|null}`. 키는 전부이며 더하지 않는다. `policy_sha256`·`graph_version_id`·`score`는 응답에 없다(운영 정보, DB 열에만). `collection_note`는 저장 열이 아니라 `briefing.warnings`의 수집 회차 경고 code에서 읽는다: `collection_run_missing`→"기준일 수집 회차 없음", `run_ambiguous`→"회차 중복", `collection_run_warnings`→"기준일 수집 회차에 적재 경고가 있습니다", 그 밖은 `null`.
 - `BriefingItemView` = `{item_id:UUID, kind: recommendation|tracked_change, rank:int|null, stage: pre_spec|bid_notice|order_plan, notice_id:int|null, order_plan_id:int|null, opportunity_id:int, title, agency, amount_krw:int|null, deadline_at:ts|null, deadline_kind: bid_close|opinion_close|planned_month|null, planned_month:"YYYY-MM"|null, verdict_display, reasons[], blocking[], change_fields:string[], reaction: 대기|채택|무시|나중에|null, reacted_by, reacted_at, reacted_via: screen|slack|null, revision:int≥0, record_path:"/opportunities/<opportunity_id>"}`. `notice_id`와 `order_plan_id`는 정확히 하나만 값이 있다. `tracked_change` 행은 `rank=null`·`reaction=null`이다.
-  - `verdict_display`는 v1에서 닫힌 다섯 값 `분석 대기|연차 추적|재검토 중|마감 임박|분석 중`이다(RL-03이 판정 enum을 더해 v2로 올린다). **현재 생성하는 값은 셋**이다: 사전규격·입찰공고 추천 → `분석 대기`, 발주계획 추천 → `연차 추적`, 추적 변화 행 → `재검토 중`. `마감 임박`(마감 사유만 있는 추적 행, RL-02)과 `분석 중`은 어휘만 있고 아직 만들지 않는다.
-  - `reasons[]`(최대 3, 순서 고정)는 `{kind:"keyword", text}`·`{kind:"similar_project", count:int≥1}`·`{kind:"repeat_agency", text}`다. 응답 직렬화는 항목마다 `text`·`count` 두 키를 모두 두고 해당 없는 쪽을 `null`로 채운다(예 `{kind:"keyword", text:"유지관리", count:null}`; PostgreSQL strict 응답 테스트가 이 모양을 고정한다). `blocking[]`(최대 2)는 `{kind:"consortium_review"|"deadline_short", text}`다. 지역·하드웨어 등은 제외 조건이라 `blocking`에 없다.
+  - `verdict_display`는 v1에서 닫힌 다섯 값 `분석 대기|연차 추적|재검토 중|마감 임박|분석 중`이다(RL-03이 판정 enum을 더해 v2로 올린다). **현재 생성하는 값은 넷**이다: 사전규격·입찰공고 추천 → `분석 대기`, 발주계획 추천 → `연차 추적`, 추적 변화 행 → `재검토 중`(정정 사유가 하나라도 있을 때), 추적 변화 행 → `마감 임박`(`change_fields`가 `deadline_reminder` 하나뿐일 때, RL-02). 추천 행에 마감 알림이 겹쳐도 그 행의 표시는 `분석 대기`·`연차 추적` 그대로이고 사유만 `change_fields`에 합친다(run 결정 기록 #12). `분석 중`은 어휘만 있고 아직 만들지 않는다.
+  - `reasons[]`(최대 3, 순서 고정)는 `{kind:"keyword", text}`·`{kind:"similar_project", count:int≥1}`·`{kind:"repeat_agency", text}`다. 응답 직렬화는 항목마다 `text`·`count` 두 키를 모두 두고 해당 없는 쪽을 `null`로 채운다(예 `{kind:"keyword", text:"유지관리", count:null}`; PostgreSQL strict 응답 테스트가 이 모양을 고정한다). `change_fields`(추적 변화 행의 사유, RL-02 추가형)의 값 집합은 공고 열 이름 `deadline_at|title|budget|estimated_price|method`와 마감 알림 사유 **`deadline_reminder`**다(`deadline_reminder`는 공고 열이 아니므로 규칙 파일 `tracked_change_fields`에 들어가지 않는다). `blocking[]`(최대 2)는 `{kind:"consortium_review"|"deadline_short", text}`다. 지역·하드웨어 등은 제외 조건이라 `blocking`에 없다.
 - 반응 PATCH: `reaction`은 `대기|채택|무시|나중에`(되돌리기 = 이전 값으로 새 PATCH). 항목당 반응은 하나이며 "마지막 담당 기록"이다. `expected_revision`이 현재 `revision`과 다르면 409 `version_conflict`(`details.current_revision`), 같은 `request_id`·같은 요청 해시는 저장된 `BriefingItemView` snapshot을 그대로 재생하고 같은 `request_id`에 다른 요청이면 409 `idempotency_conflict`, `tracked_change` 행은 409 `reaction_not_allowed`다. 요청 해시 = canonical JSON `{operation:"briefing.react", item_id, reaction, expected_revision, actor, via}`의 SHA-256, 영수증은 core `IdempotencyRecord`(`operation="briefing.react"`, `aggregate_type="briefing_item"`)이며 fence 로직은 `app/core/idempotency_fence.py` 하나를 `opportunity_tracking`과 브리핑이 공유한다. 반응은 `Opportunity.tracking_*`·`CompanyOpportunityTracking`을 읽지도 쓰지도 않는다.
 - 오류 envelope은 "공통 REST 규칙"과 같다. code 등록은 라우터 로컬 map(`routers/briefings.py`)과 프런트 `src/lib/apiErrors.ts`뿐이며 core `api_errors`·lifecycle `API_ERROR_CODES`는 바뀌지 않았다. 등록되지 않은 예외는 500 `processing_failed`다.
 
@@ -2008,20 +2069,23 @@ DEMO-03(2026-10-10, 같은 데모 브랜치)은 공통 계약 §5·§6·§9·§1
 - models와 migration은 같은 CHECK·인덱스 선언을 쓰며 `test_alembic_autogenerate.py` drift는 0이다. 새 테이블은 `tests/app/test_db_migrations.py NEW_TABLES`에 있다.
 - 권한(`scripts/runtime-privileges.sql`): web(`app`) — `briefing`·`briefing_item` SELECT/INSERT/UPDATE, `briefing_reaction_event` SELECT/INSERT. `slack-worker`(`worker` 자격) — `briefing` SELECT, `briefing_item` SELECT와 `UPDATE (reaction, reacted_by, reacted_at, reacted_via, revision)` 열만, `briefing_reaction_event` INSERT. **어느 역할에도 DELETE가 없고** 브리핑을 다시 만들거나 지우는 경로도 없다.
 
-### 규칙 파일 `bidops.briefing-policy.v1`
+### 규칙 파일 `bidops.briefing-policy.v1`·`v2`
 
-`web/backend/app/lifecycle/policies/briefing-policy-v1.json`(`BIDOPS_BRIEFING_POLICY_PATH`로 바꿀 수 있고 기본값이 이 파일)이다. 최상위 키는 아래가 전부이며 더하거나 빼면 `briefing_policy_invalid`로 거부한다. 파일 바이트의 sha256이 `briefing.policy_sha256`에 고정된다. 값을 하나라도 바꾸려면 새 버전 파일(`briefing-policy-v2.json`)을 발행하고 `config.py` 기본 경로를 함께 올린다(immutable 파일 규칙).
+**v2(RL-02, 2026-10-17)가 기본이다.** `web/backend/app/lifecycle/policies/briefing-policy-v2.json`이 `core/config.py` 기본 경로(`BIDOPS_BRIEFING_POLICY_PATH`로 바꿀 수 있다)이고, v1 파일(`briefing-policy-v1.json`)은 immutable 파일 규칙에 따라 지우지 않고 그대로 둔다. 로더는 두 schema를 모두 받으며 v1 파일은 마감 알림이 없는 것(`deadline_reminder_days=()`)으로 읽는다. v2 키는 **v1 전체 + `deadline_reminder_days`**이고 `tracked_change_fields`에 `method`가 더해졌다. 최상위 키는 schema별로 아래가 전부이며 더하거나 빼면 `briefing_policy_invalid`로 거부한다(v1 파일에 `deadline_reminder_days`가 있어도 거부). 파일 바이트의 sha256이 `briefing.policy_sha256`에 고정된다. 값을 하나라도 바꾸려면 새 버전 파일(`briefing-policy-v3.json`)을 발행하고 `config.py` 기본 경로를 함께 올린다(immutable 파일 규칙).
 
-| 키 | 값(v1) | 허용 범위 |
+| 키 | 값(v1; v2는 표시한 행만 다름) | 허용 범위 |
 |---|---|---|
 | `schema` | `"bidops.briefing-policy.v1"` | 고정 |
 | `policy_identity` | `"briefing-policy-v1"` | `briefing-policy-v<n>` |
 | `top_n` | 10 | 1..30 |
 | `weights` | `tier1` 30, `tier2` 20, `tier3` 10, `repeat_agency` 25, `similar_project` 25, `sw_target` 10, `amount_in_range` 10 | 각 0..100 |
 | `deadline_warning_days` | 7 | 1..30 |
-| `tracked_change_fields` | `["deadline_at","title","budget","estimated_price"]` | |
+| `tracked_change_fields` | v1 `["deadline_at","title","budget","estimated_price"]`, **v2 `[…, "method"]`**(활동 피드 `notice_corrected`와 필드 집합을 맞춘다) | |
 | `slack_items_per_message` | 10 | 1..12 (Block Kit 50 블록 상한) |
 | `large_enterprise_threshold_krw` | 2000000000 | 컨소시엄 검토 표식의 상한 상수 |
+| `deadline_reminder_days` (**v2만**) | `[3, 1]` | 정수 1..30, 비어 있지 않고 중복 없음. 마감 KST 날짜 − 브리핑 날짜가 이 값일 때 알림(업무 규칙은 business-rules) |
+
+`schema`·`policy_identity` 행의 값은 v1 기준이며 v2 파일은 각각 `bidops.briefing-policy.v2`·`briefing-policy-v2`다.
 
 ### CLI 출력과 경고 code
 
@@ -2059,6 +2123,7 @@ DEMO-03(2026-10-10, 같은 데모 브랜치)은 공통 계약 §5·§6·§9·§1
 - lifecycle `extensions.py`가 선언하고 다른 모듈이 제공한다(lifecycle은 deep_review·screening 테이블을 import하지 않는다, ADR-0045):
   - `company_facts_projection(session) -> CompanyFactsProjection | None` — deep_review 제공. `CompanyFactsProjection = {graph_version_id: UUID, facts: [{fact_key, type, status, label, value}]}`이며 실회사 활성 binding의 비evidence 노드 중 **`status=confirmed`만**이다(제공자가 거르고 규칙이 status를 다시 확인한다). 제공자 없음·실회사 없음은 `None` → `company_not_registered`.
   - `briefing_order_plan_candidates(session, since, until) -> Sequence[int]` — screening 제공. 발주계획별 **최신** C-2 결과가 `qwen_relevance='relevant'`이고 `first_discovered_at`이 `(since, until]`인 발주계획 id를 오름차순으로 낸다. 제공자가 없으면 빈 목록과 경고 `order_plan_provider_absent`다.
+  - `opportunity_activity_items(session, opportunity_id) -> Sequence[ActivityItem]` — RL-02가 선언한 **hook**이며 아직 제공자가 없다(RL-03 판정 완료·RL-04 초안 준비가 제공). 위 "레코드 활동 피드·노트"가 정본이다.
   - 적재 CLI·web과 같이 이 CLI도 `register_configured_extensions()`로 `BIDOPS_MODULES`가 고른 모듈의 제공자를 등록한다.
 - `app/core/slack.py`의 전송기 하나가 `chat.postMessage`(브리핑)·`chat.update`(반응 뒤 갱신)·Socket Mode 연결을 모두 맡는다. 호출 전에 enabled·토큰·채널·허용 host를 검사하고 하나라도 어긋나면 네트워크에 닿지 않는다. 토큰은 `SecretStr`이며 로그·응답·오류에 넣지 않고, 전송 payload는 허용한 Block Kit 키(`type`·`text`·`elements`·`style`·`action_id`·`value`)만 쓰고 내용은 `item_id`·제목·기관·금액·마감·이유 텍스트·링크뿐이다. 다른 채널·hosted fallback은 없다.
 - 설정: `BIDOPS_SLACK_ENABLED`(기본 false), `BIDOPS_SLACK_BOT_TOKEN`, `BIDOPS_SLACK_APP_TOKEN`, `BIDOPS_SLACK_CHANNEL_ID`, `BIDOPS_SLACK_ALLOWED_HOSTS`(기본 `slack.com,wss-primary.slack.com`), `BIDOPS_PUBLIC_BASE_URL`(레코드 링크 기준 주소). 값 위치는 `env/slack.env`(gitignore, 예시 `env/slack.env.example`)이고 compose overlay `docker-compose.slack-egress.yml`이 web과 `slack-worker`에 준다.

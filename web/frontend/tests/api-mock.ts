@@ -41,6 +41,7 @@ import {
 } from "./fixtures/company-demo";
 import { RL_COMPANY_ID, rlAttentionCount, rlContextView, rlFacts, rlProfileView, type RlFact } from "./fixtures/company-rl";
 import { briefingFixture, previousBriefingFixture } from "./fixtures/briefing";
+import { NOTICE_FIXTURES, RECORD_FIXTURES, RECORD_NOW, RELATED_BY_NOTICE, type RecordFixture } from "./fixtures/opportunity-record";
 
 const opportunityFixtures = new WeakMap<Page, OpportunityListItem[]>();
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -4280,6 +4281,223 @@ export async function mockCompanyWorkspace(page: Page, options: CompanyWorkspace
     // 이 mock이 모르는 회사 하위 경로(등록 누락)는 서버 404처럼 꾸미지 않고 아래 mock으로 넘긴다.
     // 그러면 다른 미등록 경로와 같은 404 "고정 응답 없음"이 되어, 등록 누락을 제품의 not_found로 오인하지 않는다.
     await route.fallback();
+  });
+  return trace;
+}
+
+
+// RL-02 사업기회 레코드(`GET /api/opportunities/{id}`·`/{id}/activity`, `POST /{id}/notes`,
+// `PATCH /{id}/notes/{note}/done`, `PATCH /{id}/tracking-status`, `GET /api/notices/{pk}`·`/related`).
+//
+// `mockApi` 뒤에 건다. fixture에 없는 사업기회·공고 id는 `route.fallback()`으로 `mockApi`의 고정 응답
+// (없으면 404 "고정 응답 없음")에 넘기고, fixture 사업기회의 모르는 하위 경로는 `trace.unhandled`에 남기고
+// 404로 답한다 — 실제 백엔드로 새지 않는다. 활동 피드 응답은 서버 규칙을 그대로 따른다: `at` 내림·동률은
+// `item_id` 내림, `before`는 `"<at>|<item_id>"` 불투명 커서, `kinds`는 csv 필터, 기본 `limit` 50.
+export interface OpportunityRecordMockTrace {
+  activityGets: URLSearchParams[];
+  noteCreates: Array<{ id: number; body: Record<string, unknown>; headers: Record<string, string> }>;
+  noteDones: Array<{ id: number; noteId: string; body: Record<string, unknown>; headers: Record<string, string> }>;
+  trackingPatches: Array<{ id: number; body: Record<string, unknown>; headers: Record<string, string> }>;
+  noticeGets: number[];
+  relatedGets: number[];
+  unhandled: string[];
+  /** 다음 노트 저장부터 이 오류로 답한다. `null`이면 정상으로 돌아간다. */
+  failNotes(failure: { status: number; code: string } | null): void;
+  /** 노트·다음 행동 저장 요청을 서버가 처리하기 전에 붙잡는다(중복 제출·저장 중 상태 확인). */
+  holdNotes(): { release: () => void };
+}
+
+function recordError(route: Route, status: number, code: string) {
+  return fulfillJson(route, { error: { code, message: "합성 레코드 오류", details: null }, request_id: null }, status);
+}
+
+export async function mockOpportunityRecord(page: Page): Promise<OpportunityRecordMockTrace> {
+  const records = new Map<number, RecordFixture>(RECORD_FIXTURES.map((record) => [record.detail.id, structuredClone(record)]));
+  let noteFailure: { status: number; code: string } | null = null;
+  let held: Promise<void> | null = null;
+  let clockMinutes = 0;
+  const receipts = new Map<string, { fingerprint: string; view: Record<string, unknown> }>();
+  const notes = new Map<string, { opportunityId: number; kind: string; body: string; owner: string; actor: string; createdAt: string; doneAt: string | null; doneBy: string | null }>();
+  const trace: OpportunityRecordMockTrace = {
+    activityGets: [], noteCreates: [], noteDones: [], trackingPatches: [], noticeGets: [], relatedGets: [], unhandled: [],
+    failNotes(failure) { noteFailure = failure; },
+    holdNotes() {
+      let release = () => {};
+      held = new Promise<void>((resolve) => { release = () => { held = null; resolve(); }; });
+      return { release };
+    },
+  };
+  const nextInstant = () => {
+    clockMinutes += 1;
+    return new Date(Date.parse(RECORD_NOW) + clockMinutes * 60_000).toISOString();
+  };
+  const noteView = (noteId: string) => {
+    const note = notes.get(noteId)!;
+    return { note_id: noteId, kind: note.kind, body: note.body, actor: note.actor, owner: note.owner, created_at: note.createdAt, done_at: note.doneAt, done_by: note.doneBy };
+  };
+
+  await page.route("**/api/opportunities/**", async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    const match = url.pathname.match(/^\/api\/opportunities\/(\d+)(\/.*)?$/);
+    const id = match ? Number(match[1]) : null;
+    const record = id === null ? undefined : records.get(id);
+    if (!match || id === null || !record) { await route.fallback(); return; }
+    const rest = match[2] ?? "";
+    const method = request.method();
+    const actor = fixtureActor(request.headers()).trim();
+
+    if (rest === "" && method === "GET") { await fulfillJson(route, record.detail); return; }
+
+    if (rest === "/activity" && method === "GET") {
+      trace.activityGets.push(new URLSearchParams(url.search));
+      const kinds = url.searchParams.get("kinds")?.split(",").filter(Boolean) ?? null;
+      const limit = Math.min(200, Math.max(1, Number(url.searchParams.get("limit") ?? 50)));
+      const before = url.searchParams.get("before");
+      const ordered = [...record.items]
+        .filter((item) => kinds === null || kinds.includes(item.kind))
+        .sort((left, right) => Date.parse(right.at) - Date.parse(left.at) || (left.item_id < right.item_id ? 1 : left.item_id > right.item_id ? -1 : 0));
+      let start = 0;
+      if (before) {
+        const cut = before.lastIndexOf("|");
+        const at = Date.parse(before.slice(0, cut)), itemId = before.slice(cut + 1);
+        start = ordered.findIndex((item) => Date.parse(item.at) < at || (Date.parse(item.at) === at && item.item_id < itemId));
+        if (start < 0) start = ordered.length;
+      }
+      const page_ = ordered.slice(start, start + limit);
+      const last = page_[page_.length - 1];
+      await fulfillJson(route, {
+        schema_version: "bidops.opportunity-activity.v1",
+        opportunity_id: record.detail.id,
+        merged_into_opportunity_id: record.mergedInto,
+        title: record.title,
+        stages: record.stages,
+        items: page_,
+        next_before: start + limit < ordered.length && last ? `${last.at}|${last.item_id}` : null,
+      });
+      return;
+    }
+
+    if (rest === "/notes" && method === "POST") {
+      const body = (request.postDataJSON() ?? {}) as Record<string, unknown>;
+      trace.noteCreates.push({ id, body, headers: request.headers() });
+      if (held) await held;
+      if (noteFailure) { await recordError(route, noteFailure.status, noteFailure.code); return; }
+      if (!actor) { await recordError(route, 400, "actor_name_required"); return; }
+      if (record.mergedInto !== null) { await recordError(route, 409, "opportunity_merged"); return; }
+      const text = typeof body.body === "string" ? body.body.trim() : "";
+      if ((body.kind !== "note" && body.kind !== "action") || !text || text.length > 2000 || !uuidPattern.test(String(body.request_id))) {
+        await recordError(route, 422, "invalid_request");
+        return;
+      }
+      const receiptKey = `create:${id}:${actor}:${String(body.request_id)}`;
+      const fingerprint = JSON.stringify([body.kind, text, body.owner ?? ""]);
+      const replay = receipts.get(receiptKey);
+      if (replay) {
+        if (replay.fingerprint !== fingerprint) { await recordError(route, 409, "idempotency_conflict"); return; }
+        await fulfillJson(route, replay.view, 200);
+        return;
+      }
+      const noteId = `a0000000-0000-4000-8000-${String(notes.size + 1).padStart(12, "0")}`;
+      const createdAt = nextInstant();
+      const owner = typeof body.owner === "string" && body.owner.trim() ? body.owner.trim() : actor;
+      notes.set(noteId, { opportunityId: id, kind: String(body.kind), body: text, owner, actor, createdAt, doneAt: null, doneBy: null });
+      record.items.push({
+        item_id: `${body.kind === "action" ? "action_added" : "note_added"}:${noteId}`,
+        kind: body.kind === "action" ? "action_added" : "note_added",
+        at: createdAt,
+        actor,
+        title: body.kind === "action" ? `다음 행동: ${text}` : text.split("\n")[0].slice(0, 120),
+        // 서버 계약(결정 #14): action_added의 detail은 "담당 <owner>"다.
+        detail: body.kind === "action" ? `담당 ${owner}` : null,
+        link: null,
+        status_pill: null,
+      });
+      const view = noteView(noteId);
+      receipts.set(receiptKey, { fingerprint, view });
+      await fulfillJson(route, view, 201);
+      return;
+    }
+
+    const done = rest.match(/^\/notes\/([^/]+)\/done$/);
+    if (done && method === "PATCH") {
+      const body = (request.postDataJSON() ?? {}) as Record<string, unknown>;
+      trace.noteDones.push({ id, noteId: done[1], body, headers: request.headers() });
+      if (!actor) { await recordError(route, 400, "actor_name_required"); return; }
+      const note = notes.get(done[1]) ?? null;
+      const seeded = record.items.find((item) => item.item_id === `action_added:${done[1]}`);
+      if (!note && !seeded) { await recordError(route, 404, "note_not_found"); return; }
+      if (note && note.kind !== "action") { await recordError(route, 409, "note_not_action"); return; }
+      if (note && note.doneAt === null) {
+        note.doneAt = nextInstant();
+        note.doneBy = actor;
+        record.items.push({
+          item_id: `action_done:${done[1]}`, kind: "action_done", at: note.doneAt, actor,
+          title: `${actor}이 완료: ${note.body}`, detail: null, link: null, status_pill: null,
+        });
+      } else if (!note && seeded && !record.items.some((item) => item.item_id === `action_done:${done[1]}`)) {
+        record.items.push({
+          item_id: `action_done:${done[1]}`, kind: "action_done", at: nextInstant(), actor,
+          title: `${actor}이 완료: ${seeded.title.replace("다음 행동: ", "")}`, detail: null, link: null, status_pill: null,
+        });
+      }
+      const view = note ? noteView(done[1]) : { note_id: done[1], kind: "action", body: seeded?.title ?? "", actor: seeded?.actor ?? actor, owner: seeded?.actor ?? actor, created_at: seeded?.at ?? RECORD_NOW, done_at: RECORD_NOW, done_by: actor };
+      await fulfillJson(route, view, 200);
+      return;
+    }
+
+    if (rest === "/tracking-status" && method === "PATCH") {
+      const body = (request.postDataJSON() ?? {}) as Record<string, unknown>;
+      trace.trackingPatches.push({ id, body, headers: request.headers() });
+      if (!actor) { await trackingError(route, "actor_name_required"); return; }
+      if (!["미선택", "계속 추적", "보류", "종료"].includes(String(body.tracking_status))) { await trackingError(route, "tracking_status_invalid"); return; }
+      if (typeof body.reason !== "string" || !body.reason.trim()) { await trackingError(route, "tracking_reason_required"); return; }
+      const status = body.tracking_status as OpportunityTrackingStatus;
+      const at = nextInstant();
+      record.detail = {
+        ...record.detail,
+        tracking_status: status,
+        tracking_reason: status === "미선택" ? null : body.reason,
+        tracking_selected_by: status === "미선택" ? null : actor,
+        tracking_selected_at: status === "미선택" ? null : at,
+      };
+      record.items.push({
+        item_id: `tracking_decided:t${record.items.length + 1}`, kind: "tracking_decided", at, actor,
+        title: status === "미선택" ? `${actor}이 추적 되돌림` : `${actor}이 ${status}으로 결정`,
+        detail: status === "미선택" ? body.reason : null, link: null, status_pill: null,
+      });
+      await fulfillJson(route, record.detail);
+      return;
+    }
+
+    trace.unhandled.push(`${method} ${url.pathname}`);
+    await recordError(route, 404, "not_found");
+  });
+
+  await page.route(/\/api\/notices\/(\d+)(?:\/related)?(?:\?.*)?$/, async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    const match = url.pathname.match(/^\/api\/notices\/(\d+)(\/related)?$/);
+    const pk = match ? Number(match[1]) : null;
+    const notice = NOTICE_FIXTURES.find((entry) => entry.id === pk);
+    if (!match || pk === null || !notice || request.method() !== "GET") { await route.fallback(); return; }
+    if (match[2]) {
+      trace.relatedGets.push(pk);
+      await fulfillJson(route, { notice_pk: pk, items: RELATED_BY_NOTICE[pk] ?? [] });
+      return;
+    }
+    trace.noticeGets.push(pk);
+    await fulfillJson(route, {
+      id: pk, notice_key: `RL-N-${pk}`, run_id: "fixture-run", title: notice.title, agency: notice.agency,
+      published_at: null, deadline_at: notice.deadline_at, estimated_price: notice.estimated_price,
+      sample_role: null, sample_stratum: null, collection_bucket: null, grade: null, readiness: null, focus: null,
+      attachment_count: 0, attachment_status: "none",
+      bid_no: null, bid_ord: null, source_type: notice.source_type, budget: notice.budget, method: notice.method,
+      url: notice.url, timezone: "Asia/Seoul", procurement_class: null, region_limit: null, lifecycle: null,
+      qualification_flags: notice.joint ? { joint_contract_method: notice.joint } : {},
+      focus_matches: [], performance_matches: [], performance_top_score: null, candidate_sources: [],
+      judgment: null, attachments: [], reviews: [],
+    });
   });
   return trace;
 }

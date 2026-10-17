@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Outlet, useMatches, useSearchParams } from "react-router-dom";
 import { EmptyState } from "../common/EmptyState";
@@ -6,6 +6,7 @@ import { api } from "../../lib/api";
 import { demoConfigQueryKey, isCompanyUuid } from "../../lib/companyApi";
 import { CompanySelector } from "./CompanySelector";
 import { Sidebar } from "./Sidebar";
+import { applyRecordTitle, RecordTitleContext, RecordTitleSetterContext, type RecordTitleValue } from "./RecordTitleContext";
 import { TopBar } from "./TopBar";
 import {
   fallbackRouteMetadata,
@@ -31,7 +32,16 @@ export function AppShell({ demoEnabled = false }: { demoEnabled?: boolean }) {
   const runContextEnabled = activeRouteMetadata.dataScope === "run";
   const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
-  const location = resolveRouteLocation(activeRouteMetadata, activeMatch?.params ?? {}, searchParams);
+  const [recordTitle, setRecordTitle] = useState<RecordTitleValue>(null);
+  const location = useMemo(
+    () => resolveRouteLocation(activeRouteMetadata, activeMatch?.params ?? {}, searchParams),
+    [activeRouteMetadata, activeMatch?.params, searchParams],
+  );
+  // 사업기회 레코드 페이지가 올린 제목은 같은 사업기회의 경로 칸에만 쓴다(RL-02).
+  const crumbs = useMemo(
+    () => applyRecordTitle(location.crumbs, activeMatch?.params ?? {}, recordTitle),
+    [location.crumbs, activeMatch?.params, recordTitle],
+  );
   // 회차 선택은 주소의 run 파라미터에만 남아 있다. 셸이 만드는 이동 링크는
   // 모두 이 값을 그대로 넘겨 담당자가 고른 회차를 잃지 않게 한다.
   const runSearch = searchParams.has("run") ? `?run=${encodeURIComponent(searchParams.get("run") ?? "")}` : "";
@@ -92,7 +102,7 @@ export function AppShell({ demoEnabled = false }: { demoEnabled?: boolean }) {
       <div className="app-content">
         <TopBar
           companyContext={demoEnabled ? <CompanySelector companyId={activeCompanyId} /> : null}
-          crumbs={location.crumbs}
+          crumbs={crumbs}
           dataScope={activeRouteMetadata.dataScope}
           isLoading={runContextEnabled && (runsQuery.isLoading || detailQuery.isLoading)}
           onRunChange={onRunChange}
@@ -114,7 +124,11 @@ export function AppShell({ demoEnabled = false }: { demoEnabled?: boolean }) {
           </div>
         ) : null}
         <main className="page-canvas" data-shell-region="canvas">
-          <Outlet />
+          <RecordTitleSetterContext.Provider value={setRecordTitle}>
+            <RecordTitleContext.Provider value={recordTitle}>
+              <Outlet />
+            </RecordTitleContext.Provider>
+          </RecordTitleSetterContext.Provider>
         </main>
       </div>
     </div>
