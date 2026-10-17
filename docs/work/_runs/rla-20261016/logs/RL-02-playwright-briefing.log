@@ -1,0 +1,33 @@
+
+Running 27 tests using 8 workers
+
+  ✓   8 [app] › tests/briefing.spec.ts:404:1 › T10: 담당자 이름이 없으면 저장하지 않고 입력 칸으로 안내한다 · 입력 중에는 단축키가 동작하지 않는다 (780ms)
+  ✓   5 [app] › tests/briefing.spec.ts:373:1 › T10: 이미 선택된 반응을 다시 누르면 대기로 돌아간다 · 마우스 버튼도 같은 저장 경로 (826ms)
+  ✓   3 [app] › tests/briefing.spec.ts:122:1 › T10: 행 셀 — 단계·판정은 서버 값 그대로, 마감 D-n 강조는 7일 이내만 (844ms)
+  ✓   4 [app] › tests/briefing.spec.ts:173:1 › T10: 행을 누르면 피크가 열린다 — 머리·제목·보조·반응 버튼 3·반응 기록·왜 추천·자세히 보기만 (981ms)
+  ✓   6 [app] › tests/briefing.spec.ts:255:1 › T10: 키보드 1·2·H·Z — 저장 본문·담당자·다음 행 이동·5초 토스트 되돌리기 (1.0s)
+  ✓   7 [app] › tests/briefing.spec.ts:76:1 › T10: 뷰 탭은 반응 필터이고 건수는 클라이언트가 센다 · 6열 표와 추적 변화 묶음 (1.3s)
+  ✓   9 [app] › tests/briefing.spec.ts:427:1 › T10: Enter는 피크를 열고 한 번 더 누르면 레코드로 간다 · Esc는 피크를 닫는다 · ↑↓는 행을 옮긴다 (616ms)
+  ✓  10 [app] › tests/briefing.spec.ts:458:1 › T10: 409 version_conflict는 조용히 덮어쓰지 않고 다시 읽은 뒤 확인하게 한다 (634ms)
+  ✓  12 [app] › tests/briefing.spec.ts:518:1 › T10: 추천 0건이면 수집 정상 빈 상태를 보여 준다 (520ms)
+  ✓  11 [app] › tests/briefing.spec.ts:493:1 › T10: 추적 변화 행에는 반응 버튼이 없고 서버도 반응을 받지 않는다 (687ms)
+  ✓   1 [app] › tests/briefing.spec.ts:227:1 › T10: ?selected=<item_id>로 피크를 연다 · 속한 탭을 고르고 모르는 id는 무시한다 (1.9s)
+  ✓  15 [app] › tests/briefing.spec.ts:566:1 › T10: 브리핑 API를 mock하지 않아도(고정 응답 404) 안내 문구가 나오고 외부로 새지 않는다 (547ms)
+  ✓  17 [app] › tests/briefing.spec.ts:605:1 › T10: 사이드바 건수는 briefing_pending이고 브리핑이 없으면 그리지 않는다 (465ms)
+  ✓  13 [app] › tests/briefing.spec.ts:528:1 › T10: 수집이 끝나지 않은 날은 경고 블록과 함께 항목도 보여 준다 (1.0s)
+  ✓  18 [app] › tests/briefing.spec.ts:627:1 › T10: 표시 금지 문자열 — 정책·점수·초 단위 시각·분모·모델명이 DOM에 없다 (866ms)
+  ✓  19 [app] › tests/briefing.spec.ts:654:3 › T10: 구조 1280x800 — 가로 넘침 없음 · h1 하나 · 6열 표와 피크 폭 (590ms)
+  ✓  21 [app] › tests/briefing.spec.ts:706:1 › T10: 긴 한글 제목은 행에서 줄바꿈되고 가로 스크롤을 만들지 않는다 (493ms)
+  ✓  22 [app] › tests/briefing.spec.ts:723:1 › T10: 서버 오류는 안정 오류 문구와 다시 시도로 보여 준다(404와 구분) (485ms)
+  ✓  20 [app] › tests/briefing.spec.ts:654:3 › T10: 구조 1440x900 — 가로 넘침 없음 · h1 하나 · 6열 표와 피크 폭 (584ms)
+  ✓  16 [app] › tests/briefing.spec.ts:578:1 › T10: 날짜 이동 — 이전 브리핑은 직전 평일이고 최신 브리핑으로 돌아온다 (1.1s)
+  ✓  14 [app] › tests/briefing.spec.ts:546:1 › T10: 브리핑이 없으면 현재 자리 화면의 안내 문구를 보여 준다(최신·날짜·잘못된 날짜) (1.3s)
+  ✓  23 [app] › tests/prespec-briefing.spec.ts:4:1 › 담당자는 회차 판정과 사람 정정 사유를 구분하고 본공고와 품명을 읽는다 (460ms)
+  ✓  24 [app] › tests/prespec-briefing.spec.ts:41:1 › 판정과 본공고 미확인을 부재나 임의 번호로 바꾸지 않는다 (482ms)
+  ✓  27 [app] › tests/prespec-briefing.spec.ts:107:1 › 상세 6단이 DOM 순서대로 있고 순회는 상단바가 가지며 등급·추적 상태는 한 번만 나온다 (515ms)
+  ✓  25 [app] › tests/prespec-briefing.spec.ts:55:1 › 첨부는 안전한 원본 URL과 실제 다운로드 경로만 제공하며 0바이트를 보존한다 (969ms)
+  ✓  26 [app] › tests/prespec-briefing.spec.ts:93:1 › 승계 사유와 담당자를 읽되 조회 오류는 미확인으로 남긴다 (1.9s)
+  ✓   2 [app] › tests/briefing.spec.ts:338:1 › T10: 토스트 되돌리기 버튼 · 5초 뒤 사라지면 Z는 아무것도 하지 않는다 (6.1s)
+
+  27 passed (6.8s)
+exit=0

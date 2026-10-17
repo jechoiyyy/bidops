@@ -31,7 +31,7 @@ from ..schemas.briefings import (
 )
 from .briefing import KST, BriefingError, get_briefing_view
 from .briefing_policy import BriefingPolicyError, load_briefing_policy
-from .briefing_rules import korean_amount_text
+from .briefing_rules import DEADLINE_REMINDER_FIELD, korean_amount_text
 
 #: 버튼 action id. Socket Mode worker는 이 값만 처리하고 나머지는 무시·감사한다.
 SLACK_REACT_ACTION_ID = "briefing_react"
@@ -63,7 +63,10 @@ _CHANGE_FIELD_LABEL = {
     "title": "제목",
     "budget": "예산",
     "estimated_price": "추정가격",
+    "method": "계약방법",
 }
+#: 마감 알림 사유(RL-02)는 바뀐 필드가 아니므로 "바뀐 항목"과 따로 한 요소로 쓴다.
+DEADLINE_REMINDER_LABEL = "마감 임박"
 
 
 @dataclass(frozen=True)
@@ -170,9 +173,13 @@ def _item_blocks(
         if blocking:
             context.append(_mrkdwn(blocking))
     else:
-        changed = " · ".join(_CHANGE_FIELD_LABEL.get(name, name) for name in item.change_fields)
+        changed = " · ".join(
+            _CHANGE_FIELD_LABEL.get(name, name) for name in item.change_fields if name != DEADLINE_REMINDER_FIELD
+        )
         if changed:
             context.append(_mrkdwn(_escape(f"바뀐 항목: {changed}")))
+        if DEADLINE_REMINDER_FIELD in item.change_fields:
+            context.append(_mrkdwn(DEADLINE_REMINDER_LABEL))
     if context:
         blocks.append({"type": "context", "elements": context})
     if note:

@@ -85,6 +85,8 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "EffectiveGradeChangedHook": (".extensions", "EffectiveGradeChangedHook"),
     "ExtensionRegistry": (".extensions", "ExtensionRegistry"),
     "JudgmentProjection": (".extensions", "JudgmentProjection"),
+    # RL-02 활동 피드 hook. RL-03(판정 완료)·RL-04(초안 준비)가 구현한다.
+    "OpportunityActivityItemsProvider": (".extensions", "OpportunityActivityItemsProvider"),
     "OverviewDocumentProjection": (".extensions", "OverviewDocumentProjection"),
     "PreSpecDocumentCounts": (".extensions", "PreSpecDocumentCounts"),
     "RunDirectoryClaim": (".extensions", "RunDirectoryClaim"),
@@ -181,6 +183,7 @@ if TYPE_CHECKING:  # pragma: no cover - 정적 분석용 이름 노출
         EffectiveGradeChangedHook,
         ExtensionRegistry,
         JudgmentProjection,
+        OpportunityActivityItemsProvider,
         OverviewDocumentProjection,
         PreSpecDocumentCounts,
         RunDirectoryClaim,

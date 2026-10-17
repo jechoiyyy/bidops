@@ -41,7 +41,7 @@
 | 개찰 | 입찰공고 `lifecycle_json.opening_at`(ISO, 키 없음/null 가능)이 있고 지남 | — | 있고 미래 | 키 없음·null, 또는 입찰공고 없음 |
 | 계약 | 데이터 없음 → 항상 `unknown` | — | — | 항상 |
 
-그 밖(어느 칸에도 안 맞는 경우): 그 단계보다 뒤 단계가 `done|current`이면 `unknown`(건너뛴 단계는 추정하지 않음), 아니면 `pending`. 예: 발주계획만 있으면 사전규격·입찰공고 `pending`, 마감·개찰 `unknown`; 사전규격 없이 입찰공고가 있으면 사전규격 `unknown`. `unknown`은 회색 테두리 + 라벨 뒤 "미확인". 응답 필드 `stages: [{key, state: done|current|upcoming_deadline|pending|unknown, at: ts|null}]` 6개 고정 순서. `raw_source`는 파일 경로 문자열이라 읽지 않는다.
+그 밖(어느 칸에도 안 맞는 경우): 그 단계보다 뒤 단계가 `done|current`이면 `unknown`(건너뛴 단계는 추정하지 않음), 아니면 `pending`. 예: 발주계획만 있으면 사전규격·입찰공고 `pending`, 마감·개찰 `unknown`; 사전규격 없이 입찰공고가 있으면 사전규격 `unknown`. `unknown`은 회색 테두리 + 라벨 뒤 "미확인". 응답 필드 `stages: [{key, state: done|current|upcoming_deadline|pending|unknown, at: ts|null, link_id: int|null}]` 6개 고정 순서. `link_id`는 그 단계 대표 권위 연결 id(마감·개찰은 입찰공고 대표, 없거나 계약이면 `null`)이고 화면은 대표 연결을 이 id로만 찾는다(2026-10-17 결정 #21). `raw_source`는 파일 경로 문자열이라 읽지 않는다.
 
 ### 활동 피드 `GET /api/opportunities/{id}/activity?kinds=&limit=&before=`
 

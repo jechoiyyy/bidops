@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import { mockApi } from "./api-mock";
 import { FIXED_NOW, FIXTURES, FUTURE_NOTICE_DEADLINE, mockOpportunities } from "./opportunities-fixtures";
 import { shortDateLabel } from "../src/lib/deadline";
@@ -6,6 +6,18 @@ import { shortDateLabel } from "../src/lib/deadline";
 test.beforeEach(async ({ page }) => {
   await mockApi(page);
 });
+
+/**
+ * 목록의 우측 pane에서 사업기회를 연다(`/opportunities?selected=<id>`, RL-02 T7).
+ *
+ * 예전에는 `/opportunities/<id>` 단독 상세 route가 같은 `OpportunityDetail`을 그렸지만 그 route는 이제
+ * 사업기회 레코드(`/opportunities/:id/activity`)다. 3단계 연결 현황·찾아보기·후보·확인 항목·병합 처리는
+ * 목록 pane이 그대로 갖는다. `selected`는 받은 목록 안의 id만 유효하므로 어느 구역에 있든 열리도록
+ * 전체 구역으로 연다.
+ */
+async function openDetail(page: Page, id: number): Promise<void> {
+  await page.goto(`/opportunities?section=${encodeURIComponent("전체")}&selected=${id}`);
+}
 
 test("추적을 선택했지만 사유·기록자가 없으면 미선택으로 바꾸지 않는다", async ({ page }) => {
   await mockOpportunities(page);
@@ -34,7 +46,7 @@ test("목록은 상단바 제목 모드로 열리고 목록 기준이 상단바 
 
   const topbar = page.locator("header.topbar");
   await expect(topbar).toHaveAttribute("data-topbar-mode", "title");
-  await expect(topbar.locator("h1")).toHaveText("사업 추적");
+  await expect(topbar.locator("h1")).toHaveText("사업기회");
   // 같은 이름을 세로로 두 번 쓰지 않는다. 경로와 편집 범위 칩도 제목 모드에는 없다.
   await expect(page.locator(".opportunity-page-header")).toHaveCount(0);
   await expect(page.locator(".topbar-breadcrumb")).toHaveCount(0);
@@ -78,8 +90,9 @@ test("목록 workspace는 page canvas의 남은 높이를 채운다", async ({ p
   }
 });
 
-// 상세는 목록으로 돌아갈 경로가 필요하므로 경로 모드로 남는다.
-test("단독 상세는 목록으로 돌아갈 경로 표시를 그대로 갖는다", async ({ page }) => {
+// 레코드(`/opportunities/:id/*`)는 목록으로 돌아갈 경로가 필요하므로 경로 모드로 남는다. 이 검사는 셸의
+// route 규칙만 본다(레코드 본문은 opportunity-record.spec.ts). 활동 응답이 아직 없는 동안의 마지막 칸은 `#id`다.
+test("레코드 route는 목록으로 돌아갈 경로 표시를 그대로 갖는다", async ({ page }) => {
   await mockOpportunities(page);
   await page.goto("/opportunities/501");
 
@@ -87,7 +100,7 @@ test("단독 상세는 목록으로 돌아갈 경로 표시를 그대로 갖는�
   await expect(topbar).toHaveAttribute("data-topbar-mode", "breadcrumb");
   // 시안 v26의 경로는 `상위 화면 / 레코드`다. 사이드바 1차 분류 칸은 그리지 않는다(ui-spec §1.3).
   await expect(topbar.locator(".topbar-breadcrumb .topbar-crumb")).toHaveText([
-    "사업 추적",
+    "사업기회",
     "#501",
   ]);
   await expect(topbar.getByRole("button", { name: "목록 기준" })).toHaveCount(0);
@@ -409,7 +422,7 @@ test("선택한 행은 배경으로 표시되고 다른 행을 고르면 함께 
   }
 });
 
-test("구역·정렬·최초 발견 단계·검색이 주소에 남고 단독 상세에서 되돌아온다", async ({ page }) => {
+test("구역·정렬·최초 발견 단계·검색·선택이 주소에 남고 새로 고침해도 같은 목록과 상세가 열린다", async ({ page }) => {
   const trace = await mockOpportunities(page);
   await page.goto(`/opportunities?section=%EB%B3%B4%EB%A5%98&first_registered_stage=order_plan&sort=tracking_status&q=${encodeURIComponent("학사행정")}`);
 
@@ -420,15 +433,23 @@ test("구역·정렬·최초 발견 단계·검색이 주소에 남고 단독 �
   await expect(page.getByRole("textbox", { name: "사업명·발주기관 검색" })).toHaveValue("학사행정");
   await expect(page.locator(".opportunity-detail-title")).toHaveText("학사행정시스템 통합 유지관리");
 
-  await page.goto(`/opportunities/606?${new URL(page.url()).searchParams.toString()}`);
-  await expect(page.getByRole("heading", { level: 2, name: "사업 추적 상세 #606" })).toBeVisible();
-  await page.getByRole("link", { name: "목록으로 →" }).click();
+  // 단독 상세 왕복(`/opportunities/606` → `목록으로 →`)은 사업기회 레코드로 대체됐다. 목록 문맥은 이제
+  // 선택(`selected`)을 더한 같은 주소에 남고, 새로 고침해도 같은 질의·같은 상세가 열린다.
+  const context = new URL(page.url()).searchParams;
+  context.set("selected", "606");
+  await page.goto(`/opportunities?${context.toString()}`);
+  await expect(page.locator(".opportunity-detail-title")).toHaveText("학사행정시스템 통합 유지관리");
+  await page.reload();
+  await expect(page.locator(".opportunity-detail-title")).toHaveText("학사행정시스템 통합 유지관리");
   const listUrl = new URL(page.url());
   expect(listUrl.pathname).toBe("/opportunities");
   expect(listUrl.searchParams.get("section")).toBe("보류");
   expect(listUrl.searchParams.get("sort")).toBe("tracking_status");
   expect(listUrl.searchParams.get("first_registered_stage")).toBe("order_plan");
   expect(listUrl.searchParams.get("q")).toBe("학사행정");
+  expect(listUrl.searchParams.get("selected")).toBe("606");
+  expect(trace.listQueries.at(-1)?.get("section")).toBe("보류");
+  expect(trace.listQueries.at(-1)?.get("q")).toBe("학사행정");
 });
 
 test("검색은 Enter로 서버 q에 적용하고 첫 페이지로 돌아가며 주소에 남는다", async ({ page }) => {
@@ -581,7 +602,7 @@ test("저장하지 않은 입력이 있으면 ↓ 이동도 확인을 거치고 
 
 test("3단계 연결 현황은 확정·후보·검색 미확인·연결 미확인을 구분한다", async ({ page }) => {
   await mockOpportunities(page);
-  await page.goto("/opportunities/101");
+  await openDetail(page, 101);
 
   const stages = page.locator(".opportunity-lifecycle li");
   await expect(stages).toHaveCount(3);
@@ -599,7 +620,7 @@ test("3단계 연결 현황은 확정·후보·검색 미확인·연결 미확�
 
   // 검색 실패 연결에는 원천 레코드가 없어 계약상 단계를 알 수 없다. 화면이 단계를
   // 추정해 채우지 않고, 그 연결이 어디에 있는지 말한다.
-  await page.goto("/opportunities/505");
+  await openDetail(page, 505);
   const unconfirmed = page.locator(".opportunity-lifecycle li").nth(1);
   await expect(unconfirmed).toContainText("연결 미확인");
   await expect(unconfirmed).not.toHaveClass(/is-confirmed/);
@@ -608,7 +629,7 @@ test("3단계 연결 현황은 확정·후보·검색 미확인·연결 미확�
 
 test("연결된 공고 행은 실제 원천 화면 route로 이동한다", async ({ page }) => {
   await mockOpportunities(page);
-  await page.goto("/opportunities/202");
+  await openDetail(page, 202);
 
   const rows = page.locator(".opportunity-linked-row");
   await expect(rows).toHaveCount(2);
@@ -616,14 +637,14 @@ test("연결된 공고 행은 실제 원천 화면 route로 이동한다", async
   await expect(rows.nth(0).getByRole("link", { name: "발주계획 검토목록 열기" })).toHaveAttribute("href", "/order-plans?selected=2001");
   await expect(rows.nth(1).getByRole("link", { name: "공고 판정 이력 열기" })).toHaveAttribute("href", "/judgments/2002");
 
-  await page.goto("/opportunities/404");
+  await openDetail(page, 404);
   await expect(page.locator(".opportunity-linked-row").getByRole("link", { name: "사전규격 상세 열기" }))
     .toHaveAttribute("href", "/pre-specs/61");
 });
 
 test("검색 미확인 연결은 원천 레코드를 만들어 내지 않는다", async ({ page }) => {
   await mockOpportunities(page);
-  await page.goto("/opportunities/505");
+  await openDetail(page, 505);
 
   const unconfirmedRow = page.locator(".opportunity-linked-row", { hasText: "검색 미확인" });
   await expect(unconfirmedRow).toContainText("일치하는 원천 레코드 미확인");
@@ -656,7 +677,7 @@ test("검색 미확인 기록은 대상마다 가장 최근 것만 남기고 그
   await page.route(/\/api\/opportunities\/505$/, (route) => route.fulfill({
     json: { ...stored, pending_candidate_link_count: 1, action_reasons: ["candidate_pending"], links },
   }));
-  await page.goto("/opportunities/505");
+  await openDetail(page, 505);
 
   const lifecycle = page.locator(".opportunity-lifecycle li");
   await expect(lifecycle.nth(1)).toContainText("검색 미확인");
@@ -675,7 +696,7 @@ test("검색 미확인 기록은 대상마다 가장 최근 것만 남기고 그
 
 test("후보 연결은 사유·기록자 없이 저장되지 않고 수용하면 확정으로 바뀐다", async ({ page }) => {
   const trace = await mockOpportunities(page);
-  await page.goto("/opportunities/101");
+  await openDetail(page, 101);
 
   await page.getByRole("button", { name: "후보 연결 확인" }).first().click();
   const dialog = page.getByRole("dialog");
@@ -713,7 +734,7 @@ test("후보 연결은 사유·기록자 없이 저장되지 않고 수용하면
 
 test("기각한 후보는 확정으로 올라가지 않고 이력으로 남는다", async ({ page }) => {
   const trace = await mockOpportunities(page);
-  await page.goto("/opportunities/101");
+  await openDetail(page, 101);
 
   await page.getByRole("button", { name: "후보 연결 확인" }).first().click();
   const dialog = page.getByRole("dialog");
@@ -734,7 +755,7 @@ test("기각한 후보는 확정으로 올라가지 않고 이력으로 남는�
 
 test("후보 판정 실패는 입력을 유지하고 연결이 바뀌지 않았다고 말한다", async ({ page }) => {
   await mockOpportunities(page, { linkDecisionStatus: 409 });
-  await page.goto("/opportunities/101");
+  await openDetail(page, 101);
 
   await page.getByRole("button", { name: "후보 연결 확인" }).first().click();
   const dialog = page.getByRole("dialog");
@@ -752,7 +773,7 @@ test("후보 판정 실패는 입력을 유지하고 연결이 바뀌지 않았�
 
 test("추적 상태 변경은 사유 선택지와 기타 직접 입력을 갖고 공백을 막는다", async ({ page }) => {
   const trace = await mockOpportunities(page);
-  await page.goto("/opportunities/101");
+  await openDetail(page, 101);
 
   await page.getByRole("button", { name: "추적 상태 변경" }).click();
   const dialog = page.getByRole("dialog");
@@ -785,7 +806,7 @@ test("추적 상태 변경은 사유 선택지와 기타 직접 입력을 갖고
 
 test("미선택 건은 화면이 대신 상태를 고르지 않고 미선택으로 되돌릴 수도 없다", async ({ page }) => {
   await mockOpportunities(page);
-  await page.goto("/opportunities/303");
+  await openDetail(page, 303);
 
   await page.getByRole("button", { name: "추적 여부 선택" }).click();
   const dialog = page.getByRole("dialog");
@@ -797,7 +818,7 @@ test("미선택 건은 화면이 대신 상태를 고르지 않고 미선택으�
 
 test("입력을 남긴 채 닫으면 버릴지 확인하고 계속 작성하면 초안이 남는다", async ({ page }) => {
   const trace = await mockOpportunities(page);
-  await page.goto("/opportunities/101");
+  await openDetail(page, 101);
 
   await page.getByRole("button", { name: "추적 상태 변경" }).click();
   const dialog = page.getByRole("dialog");
@@ -825,7 +846,7 @@ test("입력을 남긴 채 닫으면 버릴지 확인하고 계속 작성하면 
 
 test("추적 종료는 확인 없이 요청이 나가지 않고 취소하면 초안만 남는다", async ({ page }) => {
   const trace = await mockOpportunities(page);
-  await page.goto("/opportunities/101");
+  await openDetail(page, 101);
 
   await page.getByRole("button", { name: "추적 상태 변경" }).click();
   const dialog = page.getByRole("dialog");
@@ -856,7 +877,7 @@ test("추적 종료는 확인 없이 요청이 나가지 않고 취소하면 초
 
 test("추적 저장이 실패하면 초안을 그대로 두고 저장되지 않았다고 말한다", async ({ page }) => {
   await mockOpportunities(page, { trackingStatus: 422 });
-  await page.goto("/opportunities/101");
+  await openDetail(page, 101);
 
   await page.getByRole("button", { name: "추적 상태 변경" }).click();
   const dialog = page.getByRole("dialog");
@@ -874,7 +895,7 @@ test("추적 저장이 실패하면 초안을 그대로 두고 저장되지 않�
 
 test("확인 항목 예외는 회차를 그대로 쓰고 등급·처리 값을 덮지 않는다", async ({ page }) => {
   const trace = await mockOpportunities(page);
-  await page.goto("/opportunities/404");
+  await openDetail(page, 404);
 
   await page.getByRole("tab", { name: /확인 사항/ }).click();
   const item = page.locator(".opportunity-check-item", { hasText: "확인 항목 답변" });
@@ -913,20 +934,24 @@ test("확인 항목 예외는 회차를 그대로 쓰고 등급·처리 값을 �
 
 test("재검토 신호는 계산 대기를 결과로 보여주지 않는다", async ({ page }) => {
   await mockOpportunities(page);
-  await page.goto("/opportunities/202");
+  await openDetail(page, 202);
 
   await page.getByRole("tab", { name: /확인 사항/ }).click();
   const panel = page.locator("#opportunity-panel-checks");
   await expect(panel).toContainText("새 공고 재검토");
   await expect(panel).toContainText("변경 비교 결과 · 계산 대기");
   await expect(panel).toContainText("최종 입찰 참여 판단은 별도의");
-  // 변경 비교 화면으로 가는 길은 유지한다.
-  await expect(panel.locator('a[href="/opportunities/202/bid-delta"]')).toHaveCount(1);
+  // 변경 비교 화면으로 가는 길은 유지한다. 목록 pane에서는 링크가 목록 문맥(`returnSearch`)을 함께 싣는다.
+  await expect(panel.locator('a[href^="/opportunities/202/bid-delta"]')).toHaveCount(1);
+  await expect(panel.locator('a[href^="/opportunities/202/bid-delta"]')).toHaveAttribute(
+    "href",
+    `/opportunities/202/bid-delta?section=${encodeURIComponent("전체")}&selected=202`,
+  );
 });
 
 test("새 공고 확인 완료는 보던 근거 연결과 메모를 보내고 추적 상태를 바꾸지 않는다", async ({ page }) => {
   const trace = await mockOpportunities(page);
-  await page.goto("/opportunities/202");
+  await openDetail(page, 202);
 
   await page.getByRole("tab", { name: /확인 사항/ }).click();
   const card = page.locator(".opportunity-recheck-item");
@@ -958,7 +983,7 @@ test("새 공고 확인 완료는 보던 근거 연결과 메모를 보내고 �
 
 test("확인 완료 전에 근거 연결이 바뀌면 최신 상태를 다시 읽는다고 알리고 새 근거를 보여 준다", async ({ page }) => {
   const trace = await mockOpportunities(page, { recheckChanged: true });
-  await page.goto("/opportunities/202");
+  await openDetail(page, 202);
 
   await page.getByRole("tab", { name: /확인 사항/ }).click();
   const card = page.locator(".opportunity-recheck-item");
@@ -976,13 +1001,13 @@ test("확인 완료 전에 근거 연결이 바뀌면 최신 상태를 다시 �
 
 test("재검토 신호가 있으면 추적 상태 대화상자가 저장 시 새 공고 확인도 처리된다고 알린다", async ({ page }) => {
   await mockOpportunities(page);
-  await page.goto("/opportunities/202");
+  await openDetail(page, 202);
   await page.getByRole("button", { name: "추적 상태 변경", exact: true }).click();
   await expect(page.getByRole("dialog")).toContainText("저장하면 새 공고 확인도 함께 처리됩니다.");
   await page.getByRole("dialog").getByRole("button", { name: "취소", exact: true }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
 
-  await page.goto("/opportunities/101");
+  await openDetail(page, 101);
   await page.getByRole("button", { name: "추적 상태 변경", exact: true }).click();
   await expect(page.getByRole("dialog")).toContainText("추적 상태·선택 사유·결정 기록자를 함께 남깁니다.");
   await expect(page.getByRole("dialog")).not.toContainText("새 공고 확인도 함께 처리됩니다");
@@ -993,21 +1018,21 @@ test("단계 줄 찾아보기는 기준 레코드가 있는 빈 단계에만 있
   const stageSearches = page.locator(".opportunity-lifecycle .opportunity-stage-search");
 
   // 발주계획·입찰공고 확정 → 사전규격만 찾아본다.
-  await page.goto("/opportunities/202");
+  await openDetail(page, 202);
   await expect(page.locator(".opportunity-lifecycle li").nth(1).getByRole("button", { name: "사전규격 찾아보기" })).toBeVisible();
   await expect(stageSearches).toHaveText(["사전규격 찾아보기"]);
   // 입찰공고만 있으면 기준 레코드가 없어 찾아보기가 없다.
-  await page.goto("/opportunities/303");
+  await openDetail(page, 303);
   await expect(page.locator(".opportunity-lifecycle li")).toHaveCount(3);
   await expect(stageSearches).toHaveCount(0);
   // 사전규격만 있으면 입찰공고만 찾아본다.
-  await page.goto("/opportunities/404");
+  await openDetail(page, 404);
   await expect(stageSearches).toHaveText(["입찰공고 찾아보기"]);
   // 사전규격 후보가 대기 중이면 찾아보기 대신 후보를 본다.
-  await page.goto("/opportunities/101");
+  await openDetail(page, 101);
   await expect(stageSearches).toHaveText(["입찰공고 찾아보기"]);
 
-  await page.goto("/opportunities/606");
+  await openDetail(page, 606);
   await expect(stageSearches).toHaveText(["사전규격 찾아보기", "입찰공고 찾아보기"]);
   await page.getByRole("button", { name: "사전규격 찾아보기" }).click();
   const panel = page.getByRole("region", { name: "사전규격 찾아보기" });
@@ -1040,7 +1065,7 @@ test("단계 줄 찾아보기는 기준 레코드가 있는 빈 단계에만 있
 
 test("찾아보기가 찾지 못하면 검색 미확인과 마지막 검색 시각을 없음으로 바꾸지 않고 보여 준다", async ({ page }) => {
   const trace = await mockOpportunities(page, { searchScenario: "empty" });
-  await page.goto("/opportunities/606");
+  await openDetail(page, 606);
 
   await page.getByRole("button", { name: "입찰공고 찾아보기" }).click();
   const panel = page.getByRole("region", { name: "입찰공고 찾아보기" });
@@ -1060,7 +1085,7 @@ test("찾아보기가 찾지 못하면 검색 미확인과 마지막 검색 시�
 
 test("찾아보기 기준 레코드가 서버에 없으면 어떤 원천이 없는지 설명한다", async ({ page }) => {
   const trace = await mockOpportunities(page, { searchScenario: "source_missing" });
-  await page.goto("/opportunities/404");
+  await openDetail(page, 404);
 
   await page.getByRole("button", { name: "입찰공고 찾아보기" }).click();
   const panel = page.getByRole("region", { name: "입찰공고 찾아보기" });
@@ -1076,7 +1101,7 @@ test("찾아보기 기준 레코드가 서버에 없으면 어떤 원천이 없�
 
 test("양쪽에 사람 추적 상태가 있어 병합이 거절되면 두 사업기회의 상태를 보여 주고 입력을 남긴다", async ({ page }) => {
   const trace = await mockOpportunities(page, { linkDecisionMergeConflict: true });
-  await page.goto("/opportunities/909");
+  await openDetail(page, 909);
 
   await page.locator(".opportunity-action-footer").getByRole("button", { name: "후보 연결 확인" }).click();
   const dialog = page.getByRole("dialog");
@@ -1108,7 +1133,7 @@ test("양쪽에 사람 추적 상태가 있어 병합이 거절되면 두 사업
 
 test("병합이 막히면 각 사업을 미선택으로 되돌릴 수 있고 수락은 자동으로 다시 시도되지 않는다", async ({ page }) => {
   const trace = await mockOpportunities(page, { linkDecisionMergeConflict: true });
-  await page.goto("/opportunities/909");
+  await openDetail(page, 909);
 
   await page.locator(".opportunity-action-footer").getByRole("button", { name: "후보 연결 확인" }).click();
   const dialog = page.getByRole("dialog");
@@ -1150,7 +1175,7 @@ test("병합이 막히면 각 사업을 미선택으로 되돌릴 수 있고 수
 
 test("추적 상태가 같아 서버가 병합한 수락은 사람 확인 병합으로 끝난다", async ({ page }) => {
   const trace = await mockOpportunities(page, { linkDecisionMerged: true });
-  await page.goto("/opportunities/909");
+  await openDetail(page, 909);
 
   await page.locator(".opportunity-action-footer").getByRole("button", { name: "후보 연결 확인" }).click();
   const dialog = page.getByRole("dialog");
@@ -1168,7 +1193,7 @@ test("추적 상태가 같아 서버가 병합한 수락은 사람 확인 병합
 
 test("추적 결정 카드에서 결정을 미선택으로 되돌린다", async ({ page }) => {
   const trace = await mockOpportunities(page);
-  await page.goto("/opportunities/606");
+  await openDetail(page, 606);
 
   await page.getByRole("tab", { name: "추적 이력" }).click();
   const panel = page.locator("#opportunity-panel-decision");
@@ -1197,7 +1222,7 @@ test("추적 결정 카드에서 결정을 미선택으로 되돌린다", async 
 
 test("확인 사항이 없으면 신호 없음이라고만 말하고 자격 확인으로 읽히지 않게 한다", async ({ page }) => {
   await mockOpportunities(page);
-  await page.goto("/opportunities/606");
+  await openDetail(page, 606);
 
   await page.getByRole("tab", { name: "확인 사항", exact: true }).click();
   const panel = page.locator("#opportunity-panel-checks");
@@ -1208,7 +1233,7 @@ test("확인 사항이 없으면 신호 없음이라고만 말하고 자격 확�
 
 test("추적 이력은 현재 추적 결정 사실을 먼저 보여 주고 결정 revision을 이력으로 남긴다", async ({ page }) => {
   const trace = await mockOpportunities(page);
-  await page.goto("/opportunities/606");
+  await openDetail(page, 606);
 
   await page.getByRole("tab", { name: "추적 이력" }).click();
   const panel = page.locator("#opportunity-panel-decision");
@@ -1224,7 +1249,7 @@ test("추적 이력은 현재 추적 결정 사실을 먼저 보여 주고 결�
 
 test("추적 이력은 결정 revision과 재검토 신호 이벤트를 마이크로초·시간대까지 맞춰 최신순으로 함께 보여 준다", async ({ page }) => {
   await mockOpportunities(page);
-  await page.goto("/opportunities/202");
+  await openDetail(page, 202);
 
   await page.getByRole("tab", { name: "추적 이력" }).click();
   const items = page.locator("#opportunity-panel-decision .opportunity-history-item");
@@ -1252,7 +1277,7 @@ test("추적 이력은 결정 revision과 재검토 신호 이벤트를 마이�
 
 test("결정 기록이 없으면 없다고 말하고 미확인을 값으로 채우지 않는다", async ({ page }) => {
   await mockOpportunities(page, { emptyDecisions: true });
-  await page.goto("/opportunities/303");
+  await openDetail(page, 303);
 
   await page.getByRole("tab", { name: "추적 이력" }).click();
   const panel = page.locator("#opportunity-panel-decision");
@@ -1265,7 +1290,7 @@ test("결정 기록이 없으면 없다고 말하고 미확인을 값으로 채�
 
 test("결정 기록 조회가 실패해도 저장된 값을 결정 기록으로 위장하지 않는다", async ({ page }) => {
   await mockOpportunities(page, { decisionsStatus: 500 });
-  await page.goto("/opportunities/606");
+  await openDetail(page, 606);
 
   await page.getByRole("tab", { name: "추적 이력" }).click();
   await expect(page.locator("#opportunity-panel-decision")).toContainText("추적 이력을 불러오지 못했습니다");
@@ -1274,7 +1299,7 @@ test("결정 기록 조회가 실패해도 저장된 값을 결정 기록으로 
 
 test("심층 검토 보고서 목록을 API에서 받아 상태·품질 표식·최종 의견과 함께 보여 준다", async ({ page }) => {
   const trace = await mockOpportunities(page);
-  await page.goto("/opportunities/404");
+  await openDetail(page, 404);
 
   await page.getByRole("tab", { name: /확인 사항/ }).click();
   const entry = page.locator(".opportunity-deep-review");
@@ -1302,7 +1327,7 @@ test("심층 검토 보고서 목록을 API에서 받아 상태·품질 표식·
 
 test("연결된 심층 검토 보고서가 없으면 빈 상태를 보여주고 목록을 지어내지 않는다", async ({ page }) => {
   await mockOpportunities(page);
-  await page.goto("/opportunities/606");
+  await openDetail(page, 606);
 
   await page.getByRole("tab", { name: /확인 사항/ }).click();
   const entry = page.locator(".opportunity-deep-review");

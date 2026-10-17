@@ -1,4 +1,4 @@
-"""평일 브리핑의 결정적 규칙 엔진과 규칙 파일 (RL-01 spec T1·T2·T3).
+"""평일 브리핑의 결정적 규칙 엔진과 규칙 파일 (RL-01 spec T1·T2·T3, RL-02 spec T5).
 
 규칙은 순수 함수다. 후보는 `Notice`·`OrderPlan`과 같은 속성을 가진 가짜 객체로,
 회사 사실은 lifecycle 확장점 자료형(`CompanyFactsProjection`)으로 직접 만든다 —
@@ -11,13 +11,15 @@ lifecycle 테스트는 deep_review·screening을 import하지 않는다(경계 �
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from dataclasses import fields as dataclass_fields
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 import hashlib
 import json
 import random
 from types import SimpleNamespace
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -31,18 +33,31 @@ from app.lifecycle.services.briefing_policy import (
 )
 from app.lifecycle.services.briefing_rules import (
     CANDIDATE_FIELD_MAP,
+    DEADLINE_REMINDER_FIELD,
     EXCLUSION_KINDS,
     BriefingRulesError,
+    DeadlineReminderCandidate,
+    TrackedChange,
     TrackedChangeObservation,
     build_recommendations,
+    combine_tracked_changes,
     company_rules,
     korean_amount_text,
     merge_tracked_changes,
     normalize_text,
     notice_candidate,
     order_plan_candidate,
+    tracked_change_verdict,
     tracked_changes,
+    deadline_reminders,
 )
+
+V1_POLICY_PATH = DEFAULT_BRIEFING_POLICY_PATH.parent / "briefing-policy-v1.json"
+V2_POLICY_PATH = DEFAULT_BRIEFING_POLICY_PATH.parent / "briefing-policy-v2.json"
+V1_KEYS = {
+    "schema", "policy_identity", "top_n", "weights", "deadline_warning_days",
+    "tracked_change_fields", "slack_items_per_message", "large_enterprise_threshold_krw",
+}
 
 GRAPH = UUID("11111111-2222-3333-4444-555555555555")
 NOW = datetime(2026, 10, 16, 22, 30, tzinfo=UTC)  # 2026-10-17 07:30 KST
@@ -191,12 +206,12 @@ def _snapshot(result):
 # --- 규칙 파일 ---------------------------------------------------------------
 
 
-def test_policy_file_has_exactly_the_spec_values_and_its_byte_digest(policy) -> None:
-    raw = DEFAULT_BRIEFING_POLICY_PATH.read_bytes()
-    assert set(json.loads(raw)) == {
-        "schema", "policy_identity", "top_n", "weights", "deadline_warning_days",
-        "tracked_change_fields", "slack_items_per_message", "large_enterprise_threshold_krw",
-    }
+def test_v1_policy_file_has_exactly_the_spec_values_and_its_byte_digest() -> None:
+    # v1 파일은 v2 발행 뒤에도 그대로 남고 계속 읽힌다(immutable 파일 규칙).
+    policy = load_briefing_policy(V1_POLICY_PATH)
+    raw = V1_POLICY_PATH.read_bytes()
+    assert set(json.loads(raw)) == V1_KEYS
+    assert policy.deadline_reminder_days == ()
     assert policy.sha256 == hashlib.sha256(raw).hexdigest()
     assert (policy.schema, policy.policy_identity, policy.top_n) == (
         "bidops.briefing-policy.v1", "briefing-policy-v1", 10,
@@ -212,13 +227,39 @@ def test_policy_file_has_exactly_the_spec_values_and_its_byte_digest(policy) -> 
     assert policy.large_enterprise_threshold_krw == 2_000_000_000
 
 
-def test_config_default_points_at_the_v1_policy_file(monkeypatch) -> None:
+def test_v2_policy_file_is_v1_plus_deadline_reminder_days_and_method() -> None:
+    """RL-02 spec "마감 알림": v1 전체 + `deadline_reminder_days:[3,1]` + 추적 필드 `method`."""
+
+    raw = V2_POLICY_PATH.read_bytes()
+    value = json.loads(raw)
+    assert set(value) == V1_KEYS | {"deadline_reminder_days"}
+    assert (value["schema"], value["policy_identity"]) == ("bidops.briefing-policy.v2", "briefing-policy-v2")
+    v1 = json.loads(V1_POLICY_PATH.read_bytes())
+    for key in V1_KEYS - {"schema", "policy_identity", "tracked_change_fields"}:
+        assert value[key] == v1[key], key
+    assert value["tracked_change_fields"] == [*v1["tracked_change_fields"], "method"]
+    assert value["deadline_reminder_days"] == [3, 1]
+    policy = load_briefing_policy(V2_POLICY_PATH)
+    assert (policy.schema, policy.policy_identity) == ("bidops.briefing-policy.v2", "briefing-policy-v2")
+    assert policy.tracked_change_fields == ("deadline_at", "title", "budget", "estimated_price", "method")
+    assert policy.deadline_reminder_days == (3, 1)
+    assert policy.sha256 == hashlib.sha256(raw).hexdigest()
+    old = load_briefing_policy(V1_POLICY_PATH)
+    same = {f.name for f in dataclass_fields(policy)} - {
+        "schema", "policy_identity", "tracked_change_fields", "sha256", "deadline_reminder_days",
+    }
+    assert {name: getattr(policy, name) for name in same} == {name: getattr(old, name) for name in same}
+
+
+def test_config_default_points_at_the_v2_policy_file_and_v1_stays(monkeypatch) -> None:
     monkeypatch.delenv("BIDOPS_BRIEFING_POLICY_PATH", raising=False)
     assert Settings().briefing_policy_path == DEFAULT_BRIEFING_POLICY_PATH
-    assert DEFAULT_BRIEFING_POLICY_PATH.name == "briefing-policy-v1.json"
+    assert DEFAULT_BRIEFING_POLICY_PATH == V2_POLICY_PATH
     assert DEFAULT_BRIEFING_POLICY_PATH.parent.name == "policies"
-    monkeypatch.setenv("BIDOPS_BRIEFING_POLICY_PATH", "/elsewhere/briefing-policy-v2.json")
-    assert str(Settings().briefing_policy_path) == "/elsewhere/briefing-policy-v2.json"
+    assert V1_POLICY_PATH.is_file()
+    assert load_briefing_policy().policy_identity == "briefing-policy-v2"
+    monkeypatch.setenv("BIDOPS_BRIEFING_POLICY_PATH", "/elsewhere/briefing-policy-v3.json")
+    assert str(Settings().briefing_policy_path) == "/elsewhere/briefing-policy-v3.json"
 
 
 @pytest.mark.parametrize(
@@ -245,11 +286,43 @@ def test_config_default_points_at_the_v1_policy_file(monkeypatch) -> None:
     ],
 )
 def test_policy_rejects_keys_and_ranges_outside_the_contract(mutate) -> None:
-    value = json.loads(DEFAULT_BRIEFING_POLICY_PATH.read_bytes())
+    value = json.loads(V1_POLICY_PATH.read_bytes())
     mutate(value)
     with pytest.raises(BriefingPolicyError) as error:
         parse_briefing_policy(json.dumps(value).encode())
     assert str(error.value) == "briefing_policy_invalid"
+
+
+@pytest.mark.parametrize(
+    "mutate",
+    [
+        pytest.param(lambda v: v.pop("deadline_reminder_days"), id="v2-without-days"),
+        pytest.param(lambda v: v.update(schema="bidops.briefing-policy.v1"), id="v1-schema-with-days"),
+        pytest.param(lambda v: v.update(schema="bidops.briefing-policy.v3"), id="unknown-schema"),
+        pytest.param(lambda v: v.update(deadline_reminder_days=[]), id="days-empty"),
+        pytest.param(lambda v: v.update(deadline_reminder_days=[0]), id="days-zero"),
+        pytest.param(lambda v: v.update(deadline_reminder_days=[31]), id="days-over-30"),
+        pytest.param(lambda v: v.update(deadline_reminder_days=[3, 3]), id="days-duplicate"),
+        pytest.param(lambda v: v.update(deadline_reminder_days=[1.5]), id="days-float"),
+        pytest.param(lambda v: v.update(deadline_reminder_days=[True]), id="days-bool"),
+        pytest.param(lambda v: v.update(deadline_reminder_days="3"), id="days-string"),
+        pytest.param(lambda v: v.update(deadline_reminder_days=3), id="days-scalar"),
+        pytest.param(lambda v: v.update(tracked_change_fields=["method", "deadline_reminder"]), id="reminder-is-not-a-column"),
+        pytest.param(lambda v: v.update(extra=1), id="extra-key"),
+    ],
+)
+def test_v2_policy_rejects_keys_and_ranges_outside_the_contract(mutate) -> None:
+    value = json.loads(V2_POLICY_PATH.read_bytes())
+    mutate(value)
+    with pytest.raises(BriefingPolicyError) as error:
+        parse_briefing_policy(json.dumps(value).encode())
+    assert str(error.value) == "briefing_policy_invalid"
+
+
+def test_v2_policy_accepts_other_in_range_reminder_days() -> None:
+    value = json.loads(V2_POLICY_PATH.read_bytes())
+    value["deadline_reminder_days"] = [30, 7, 1]
+    assert parse_briefing_policy(json.dumps(value).encode()).deadline_reminder_days == (30, 7, 1)
 
 
 def test_policy_rejects_unreadable_and_non_json_files(tmp_path) -> None:
@@ -643,3 +716,100 @@ def test_t3_recommendation_row_absorbs_the_change_of_the_same_notice(policy) -> 
     ]
     # 원래 결과는 바뀌지 않는다(순수 함수).
     assert result.items[0].change_fields == ()
+
+
+
+# --- RL-02 T5: 마감 알림 -------------------------------------------------------
+
+KST = ZoneInfo("Asia/Seoul")
+#: 브리핑 날짜(금). D-3 = 10-19(월), D-1 = 10-17(토).
+BRIEF_DATE = date(2026, 10, 16)
+
+
+def _due(notice_id: int, days: int, *, status: str = "계속 추적", source_type: str = "bid_notice",
+         at: datetime | None = None, opportunity_id: int | None = None) -> DeadlineReminderCandidate:
+    deadline = at if at is not None else datetime(2026, 10, 16, 10, 0, tzinfo=KST) + timedelta(days=days)
+    return DeadlineReminderCandidate(
+        notice_id=notice_id,
+        opportunity_id=opportunity_id if opportunity_id is not None else notice_id + 100,
+        tracking_status=status,
+        source_type=source_type,
+        deadline_at=deadline,
+    )
+
+
+def test_t5_reminders_only_for_tracked_or_held_bid_notices_on_d3_and_d1(policy) -> None:
+    candidates = [
+        _due(1, 3),                                   # 계속 추적 D-3
+        _due(2, 1, status="보류"),                     # 보류 D-1
+        _due(3, 3, status="미선택"),                   # 미추적
+        _due(4, 1, status="종료"),                     # 종료
+        _due(5, 3, source_type="pre_spec"),           # 사전규격 의견 마감은 대상 아님
+        _due(6, 3, source_type="pre_spec_public"),
+        _due(7, 2),                                   # D-2
+        _due(8, 0),                                   # 당일
+        _due(9, -1),                                  # 지난 마감
+        _due(10, 4),
+        DeadlineReminderCandidate(notice_id=11, opportunity_id=111, tracking_status="계속 추적",
+                                  source_type="bid_notice", deadline_at=None),
+        _due(1, 3),                                   # 같은 공고가 두 번 와도 1행
+    ]
+    reminders = deadline_reminders(candidates, policy, BRIEF_DATE)
+    assert [(item.notice_id, item.opportunity_id, item.change_fields) for item in reminders] == [
+        (1, 101, (DEADLINE_REMINDER_FIELD,)),
+        (2, 102, (DEADLINE_REMINDER_FIELD,)),
+    ]
+    assert deadline_reminders(list(reversed(candidates)), policy, BRIEF_DATE) == reminders
+    assert DEADLINE_REMINDER_FIELD == "deadline_reminder"
+
+
+def test_t5_reminder_day_is_the_kst_date_of_the_deadline(policy) -> None:
+    # 2026-10-18 15:30Z = 10-19 00:30 KST → D-3 (UTC 날짜로는 D-2).
+    early = _due(1, 0, at=datetime(2026, 10, 18, 15, 30, tzinfo=UTC))
+    # 2026-10-19 14:59Z = 10-19 23:59 KST → D-3.
+    late = _due(2, 0, at=datetime(2026, 10, 19, 14, 59, tzinfo=UTC))
+    # 2026-10-19 15:00Z = 10-20 00:00 KST → D-4.
+    after = _due(3, 0, at=datetime(2026, 10, 19, 15, 0, tzinfo=UTC))
+    reminders = deadline_reminders([early, late, after], policy, BRIEF_DATE)
+    assert [item.notice_id for item in reminders] == [1, 2]
+
+
+def test_t5_v1_policy_has_no_deadline_reminders() -> None:
+    v1 = load_briefing_policy(V1_POLICY_PATH)
+    assert deadline_reminders([_due(1, 3), _due(2, 1)], v1, BRIEF_DATE) == ()
+
+
+def test_t5_same_notice_correction_and_reminder_merge_into_one_row(policy) -> None:
+    corrections = tracked_changes(
+        [
+            TrackedChangeObservation(notice_id=1, opportunity_id=101, tracking_status="계속 추적",
+                                     changed_fields=("title", "method")),
+            TrackedChangeObservation(notice_id=4, opportunity_id=104, tracking_status="보류",
+                                     changed_fields=("deadline_at",)),
+        ],
+        policy,
+    )
+    # v2는 `method`도 추적 필드다.
+    assert [change.change_fields for change in corrections] == [("title", "method"), ("deadline_at",)]
+    reminders = deadline_reminders([_due(1, 3), _due(2, 1, status="보류")], policy, BRIEF_DATE)
+    combined = combine_tracked_changes(corrections, reminders)
+    assert [(item.notice_id, item.opportunity_id, item.change_fields) for item in combined] == [
+        (1, 101, ("title", "method", "deadline_reminder")),
+        (2, 102, ("deadline_reminder",)),
+        (4, 104, ("deadline_at",)),
+    ]
+    assert [tracked_change_verdict(item.change_fields) for item in combined] == ["재검토 중", "마감 임박", "재검토 중"]
+    # 입력은 그대로다(순수 함수), 이미 사유가 있으면 두 번 넣지 않는다.
+    assert corrections[0].change_fields == ("title", "method")
+    assert combine_tracked_changes(combined, reminders) == combined
+
+
+def test_t5_reminder_on_a_recommended_notice_goes_into_the_recommendation_row(policy) -> None:
+    rules = company_rules(_projection())
+    recommended = _notice("홈페이지 유지관리", stage="bid_notice", notice_id=31)
+    result = build_recommendations([recommended], rules, policy, now=NOW)
+    combined = combine_tracked_changes((), (TrackedChange(notice_id=31, opportunity_id=9,
+                                                          change_fields=(DEADLINE_REMINDER_FIELD,)),))
+    items, remaining = merge_tracked_changes(result.items, combined)
+    assert [(item.candidate.notice_id, item.change_fields) for item in items] == [(31, ("deadline_reminder",))]
+    assert remaining == ()

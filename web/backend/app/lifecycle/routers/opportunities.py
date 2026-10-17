@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 import logging
 from typing import Annotated
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, Query
 from fastapi.responses import JSONResponse
@@ -14,8 +15,16 @@ from ...core.config import get_settings
 from ...core.db import get_db
 from .. import extension_registry
 from ..ingest.loader import tracked_backfill
+from ..schemas.opportunity_activity import (
+    ACTIVITY_LIMIT_DEFAULT,
+    ACTIVITY_LIMIT_MAX,
+    OpportunityActivityResponse,
+)
 from ..schemas.opportunities import (
     CandidateDecisionRequest,
+    NoteCreateRequest,
+    NoteDoneRequest,
+    NoteView,
     OpportunityActionReason,
     OpportunityDetailResponse,
     OpportunityFirstRegisteredStage,
@@ -37,8 +46,8 @@ from ..schemas.opportunities import (
     OrderPlanBulkStartRequest,
     OrderPlanBulkStartResponse,
 )
-from ..services import opportunity_candidates, opportunity_integrity, opportunity_tracking
-from ..services import opportunity_queries
+from ..services import opportunity_candidates, opportunity_integrity, opportunity_notes, opportunity_tracking
+from ..services import opportunity_activity, opportunity_queries
 from ..services import order_plan_bulk_tracking
 from ..services.collection_index import BACKFILL_TRACKING_STATUSES
 from ...core.api_errors import BundleServiceError, validate_actor
@@ -83,6 +92,9 @@ _ERRORS: dict[str, tuple[int, str]] = {
     "recheck_signal_absent": (409, "확인할 재검토 신호가 없습니다"),
     "recheck_signal_changed": (409, "재검토 신호의 근거 연결이 바뀌었습니다"),
     "idempotency_conflict": (409, "같은 request_id가 다른 요청에 사용되었습니다"),
+    # 노트·다음 행동(RL-02). `not_found`는 core 공용 어휘를 그대로 쓴다.
+    "note_not_action": (409, "다음 행동만 완료할 수 있습니다"),
+    "not_found": (404, "노트를 찾을 수 없습니다"),
     "temporarily_unavailable": (503, "사업기회 작업을 일시적으로 사용할 수 없습니다"),
     "service_unavailable": (503, "사업기회 작업을 일시적으로 사용할 수 없습니다"),
     "processing_failed": (500, "사업기회 작업을 완료할 수 없습니다"),
@@ -93,6 +105,7 @@ def _error_response(
     error: opportunity_tracking.OpportunityTrackingError
     | opportunity_integrity.OpportunityIntegrityError
     | order_plan_bulk_tracking.OrderPlanBulkTrackingError
+    | opportunity_notes.OpportunityNoteError
     | BundleServiceError,
 ) -> JSONResponse:
     """Return only stable, safe API error data."""
@@ -350,6 +363,36 @@ def get_opportunity(
         return _error_response(error)
 
 
+@router.get("/{opportunity_id}/activity", response_model=OpportunityActivityResponse)
+def get_opportunity_activity(
+    opportunity_id: int,
+    kinds: str | None = Query(default=None),
+    limit: int = Query(default=ACTIVITY_LIMIT_DEFAULT, ge=1, le=ACTIVITY_LIMIT_MAX),
+    before: str | None = Query(default=None),
+    session: Session = Depends(get_db),
+) -> OpportunityActivityResponse | JSONResponse:
+    """Derived record activity feed and six-stage bar (RL-02 spec "활동 피드").
+
+    A merged opportunity is still served (200) with ``merged_into_opportunity_id``;
+    only write endpoints answer 409 ``opportunity_merged``.
+    """
+
+    try:
+        return opportunity_activity.opportunity_activity(
+            session,
+            opportunity_id,
+            kinds=opportunity_activity.parse_kinds(kinds),
+            limit=limit,
+            before=before,
+            now=_request_now(),
+        )
+    except opportunity_tracking.OpportunityTrackingError as error:
+        return _error_response(error)
+    except Exception:  # pragma: no cover - defensive API boundary
+        session.rollback()
+        return _unexpected()
+
+
 @router.get("/{opportunity_id}/tracking-decisions", response_model=OpportunityTrackingDecisionsResponse)
 def get_tracking_decisions(
     opportunity_id: int,
@@ -500,6 +543,74 @@ def search_opportunity_records(
             _notify_tracking_decision(session, outcome.owner_opportunity_id)
         return outcome.response
     except (opportunity_tracking.OpportunityTrackingError, BundleServiceError) as error:
+        session.rollback()
+        return _error_response(error)
+    except Exception:  # pragma: no cover - defensive API boundary
+        session.rollback()
+        return _unexpected()
+
+
+@router.post(
+    "/{opportunity_id}/notes",
+    response_model=NoteView,
+    status_code=201,
+    responses={200: {"model": NoteView, "description": "같은 요청의 재생"}},
+)
+def create_opportunity_note(
+    opportunity_id: int,
+    payload: NoteCreateRequest,
+    actor: Annotated[str | None, Header(alias="X-BidOps-Actor-Name")] = None,
+    actor_format: Annotated[str | None, Header(alias="X-BidOps-Actor-Name-Format")] = None,
+    session: Session = Depends(get_db),
+) -> JSONResponse:
+    """Append a note or a next action; a replay of the same request returns 200."""
+
+    try:
+        actor_name = validate_actor(actor, actor_format)
+        result = opportunity_notes.create_note(
+            session,
+            opportunity_id,
+            kind=payload.kind,
+            body=payload.body,
+            owner=payload.owner,
+            request_id=payload.request_id,
+            actor=actor_name,
+        )
+        session.commit()
+        # The replay returns the receipt JSON verbatim, so it cannot drift from
+        # the first response by a single byte.
+        return JSONResponse(status_code=result.response_status, content=result.snapshot)
+    except (opportunity_notes.OpportunityNoteError, BundleServiceError) as error:
+        session.rollback()
+        return _error_response(error)
+    except Exception:  # pragma: no cover - defensive API boundary
+        session.rollback()
+        return _unexpected()
+
+
+@router.patch("/{opportunity_id}/notes/{note_id}/done", response_model=NoteView)
+def complete_opportunity_note(
+    opportunity_id: int,
+    note_id: UUID,
+    payload: NoteDoneRequest,
+    actor: Annotated[str | None, Header(alias="X-BidOps-Actor-Name")] = None,
+    actor_format: Annotated[str | None, Header(alias="X-BidOps-Actor-Name-Format")] = None,
+    session: Session = Depends(get_db),
+) -> JSONResponse:
+    """Mark a next action done once; an already done action is returned unchanged."""
+
+    try:
+        actor_name = validate_actor(actor, actor_format)
+        result = opportunity_notes.complete_note(
+            session,
+            opportunity_id,
+            note_id,
+            request_id=payload.request_id,
+            actor=actor_name,
+        )
+        session.commit()
+        return JSONResponse(status_code=200, content=result.snapshot)
+    except (opportunity_notes.OpportunityNoteError, BundleServiceError) as error:
         session.rollback()
         return _error_response(error)
     except Exception:  # pragma: no cover - defensive API boundary
