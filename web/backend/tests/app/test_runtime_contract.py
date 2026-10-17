@@ -305,6 +305,53 @@ def test_prespec_attachment_worker_is_idle_without_its_egress_override():
     assert override["networks"] == {"prespec-egress": None}
 
 
+def test_slack_worker_is_idle_without_its_egress_override():
+    """RL-01: worker는 기반 스택이 profile로 소유하고, overlay가 env 파일과 egress만 연다.
+
+    기반 파일은 Slack 값을 하나도 싣지 않는다 — `environment`가 `env_file`보다 우선하므로
+    기반에 `BIDOPS_SLACK_*`를 두면 overlay의 env 파일 값이 조용히 가려진다.
+    """
+
+    base = yaml.safe_load((ROOT / "docker-compose.yml").read_text(encoding="utf-8"))
+    worker = base["services"]["slack-worker"]
+    assert worker["profiles"] == ["slack"]
+    assert worker["networks"] == ["database"]
+    assert worker["command"] == ["python", "-m", "app.lifecycle.cli", "slack-worker"]
+    assert worker["healthcheck"] == {"disable": True}
+    assert worker["restart"] == "on-failure"
+    assert worker["environment"]["BIDOPS_DATABASE_URL"].startswith("postgresql+psycopg://worker:")
+    assert "env_file" not in worker and "ports" not in worker and "volumes" not in worker
+    for name in ("slack-worker", "web"):
+        assert not [key for key in base["services"][name]["environment"] if key.startswith("BIDOPS_SLACK")]
+        assert "BIDOPS_PUBLIC_BASE_URL" not in base["services"][name]["environment"]
+    assert "slack-egress" not in base["networks"]
+    assert all(network.get("internal") is True for network in base["networks"].values())
+    assert (ROOT / "web/backend/app/lifecycle/cli.py").is_file()
+    assert (ROOT / "web/backend/app/lifecycle/slack_worker.py").is_file()
+
+    override = yaml.safe_load((ROOT / "docker-compose.slack-egress.yml").read_text(encoding="utf-8"))
+    assert set(override["services"]) == {"web", "slack-worker"}
+    for service in override["services"].values():
+        # overlay는 env 파일과 egress network만 준다(포트·마운트·값 하드코딩 없음).
+        assert service == {"env_file": ["env/slack.env"], "networks": ["slack-egress"]}
+    assert override["networks"] == {"slack-egress": None}
+
+    example = (ROOT / "env/slack.env.example").read_text(encoding="utf-8")
+    values = dict(
+        line.split("=", 1) for line in example.splitlines() if line.strip() and not line.lstrip().startswith("#")
+    )
+    assert values == {
+        "BIDOPS_SLACK_ENABLED": "false",
+        "BIDOPS_SLACK_BOT_TOKEN": "",
+        "BIDOPS_SLACK_APP_TOKEN": "",
+        "BIDOPS_SLACK_CHANNEL_ID": "",
+        "BIDOPS_SLACK_ALLOWED_HOSTS": "slack.com,wss-primary.slack.com",
+        "BIDOPS_PUBLIC_BASE_URL": "",
+    }
+    ignored = (ROOT / ".gitignore").read_text(encoding="utf-8").splitlines()
+    assert "env/*.env" in ignored and "!env/*.env.example" in ignored
+
+
 def test_non_http_workers_disable_the_shared_web_image_healthcheck():
     compose = yaml.safe_load((ROOT / "docker-compose.yml").read_text(encoding="utf-8"))
     for name in ("document-worker", "analysis-worker"):

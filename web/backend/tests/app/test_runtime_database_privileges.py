@@ -1372,3 +1372,66 @@ def test_assumption_analysis_runtime_privileges():
                         assert not _table_privilege(connection, role, table, 'DELETE')
         finally:
             engine.dispose()
+
+
+#: RL-01 weekday briefing tables (0038, spec "저장").
+BRIEFING_TABLES = {"briefing", "briefing_item", "briefing_reaction_event"}
+WORKER_BRIEFING_ITEM_UPDATE = {"reaction", "reacted_by", "reacted_at", "reacted_via", "revision"}
+
+
+def test_briefing_grants_match_the_spec_and_never_delete() -> None:
+    """web: SELECT/INSERT/UPDATE briefing·item, SELECT/INSERT events; worker: reaction columns."""
+
+    assert BRIEFING_TABLES <= _table_grants("app", "SELECT")
+    assert BRIEFING_TABLES <= _table_grants("app", "INSERT")
+    assert _table_grants("app", "UPDATE") & BRIEFING_TABLES == {"briefing", "briefing_item"}
+    assert _table_grants("worker", "SELECT") & BRIEFING_TABLES == {"briefing", "briefing_item"}
+    assert _table_grants("worker", "INSERT") & BRIEFING_TABLES == {"briefing_reaction_event"}
+    assert not _table_grants("worker", "UPDATE") & BRIEFING_TABLES
+    assert _column_update_grant("worker", "briefing_item") == WORKER_BRIEFING_ITEM_UPDATE
+    for role in ("app", "worker", "ro_backup"):
+        assert not _table_grants(role, "DELETE") & BRIEFING_TABLES
+    for table in ("briefing", "briefing_reaction_event"):
+        assert (
+            re.search(
+                rf"GRANT\s+UPDATE\s*\([^)]*\)\s+ON\s+bidops\.{table}\s+TO\s+\w+;",
+                POLICY,
+            )
+            is None
+        )
+    # The worker credential replays reactions through the shared idempotency record.
+    assert "idempotency_record" in _table_grants("worker", "SELECT")
+    assert "idempotency_record" in _table_grants("worker", "INSERT")
+
+
+@requires_postgres
+def test_effective_briefing_grants_are_minimal() -> None:
+    _ensure_roles()
+    with temporary_database() as database_url:
+        engine = _apply_policy(database_url)
+        try:
+            with engine.begin() as connection:
+                for table in sorted(BRIEFING_TABLES):
+                    assert _table_privilege(connection, "app", table, "SELECT")
+                    assert _table_privilege(connection, "app", table, "INSERT")
+                    assert _table_privilege(connection, "ro_backup", table, "SELECT")
+                    for role in ("app", "worker", "ro_backup"):
+                        assert not _table_privilege(connection, role, table, "DELETE")
+                    for privilege in ("INSERT", "UPDATE", "DELETE"):
+                        assert not _table_privilege(connection, "ro_backup", table, privilege)
+                for table in ("briefing", "briefing_item"):
+                    assert _table_privilege(connection, "app", table, "UPDATE")
+                    assert _table_privilege(connection, "worker", table, "SELECT")
+                    assert not _table_privilege(connection, "worker", table, "INSERT")
+                assert not _table_privilege(connection, "app", "briefing_reaction_event", "UPDATE")
+                assert not _table_privilege(connection, "worker", "briefing", "UPDATE")
+                assert not _table_privilege(connection, "worker", "briefing_item", "UPDATE")
+                for column in sorted(WORKER_BRIEFING_ITEM_UPDATE):
+                    assert _column_privilege(connection, "worker", "briefing_item", column, "UPDATE")
+                for column in ("kind", "rank", "notice_id", "opportunity_id", "score", "reasons", "briefing_id"):
+                    assert not _column_privilege(connection, "worker", "briefing_item", column, "UPDATE")
+                assert _table_privilege(connection, "worker", "briefing_reaction_event", "INSERT")
+                assert not _table_privilege(connection, "worker", "briefing_reaction_event", "SELECT")
+                assert not _table_privilege(connection, "worker", "briefing_reaction_event", "UPDATE")
+        finally:
+            engine.dispose()

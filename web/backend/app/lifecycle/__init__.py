@@ -61,6 +61,7 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     # 없어도 조립에 반드시 필요하다. 이름은 "무엇의 router인가"로 짓는다 —
     # 조립 계층은 이 이름만 보고 등록 순서를 정하며 router 파일 경로를 알지
     # 못한다(§4).
+    "briefings_router": (".routers.briefings", "router"),
     "metrics_router": (".routers.metrics", "router"),
     "companies_router": (".routers.companies", "router"),
     "notices_router": (".routers.notices", "router"),
@@ -77,6 +78,10 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     # 형제 모듈이 확장점을 구현하고, 조립이 registry에 등록하며, 테스트가 그
     # 계약을 검사한다. `ClaimedDirectoryLoad`는 `RunDirectoryClaim.load`의 형일
     # 뿐이라 밖에서 이름으로 받지 않는다 — 공개하지 않는다.
+    "BriefingOrderPlanCandidatesProvider": (".extensions", "BriefingOrderPlanCandidatesProvider"),
+    "CompanyFact": (".extensions", "CompanyFact"),
+    "CompanyFactsProjection": (".extensions", "CompanyFactsProjection"),
+    "CompanyFactsProvider": (".extensions", "CompanyFactsProvider"),
     "EffectiveGradeChangedHook": (".extensions", "EffectiveGradeChangedHook"),
     "ExtensionRegistry": (".extensions", "ExtensionRegistry"),
     "JudgmentProjection": (".extensions", "JudgmentProjection"),
@@ -169,6 +174,10 @@ if TYPE_CHECKING:  # pragma: no cover - 정적 분석용 이름 노출
     from .services.company_notices import company_pre_spec_notices
     from .services.opportunity_tracking import company_tracking_views
     from .extensions import (
+        BriefingOrderPlanCandidatesProvider,
+        CompanyFact,
+        CompanyFactsProjection,
+        CompanyFactsProvider,
         EffectiveGradeChangedHook,
         ExtensionRegistry,
         JudgmentProjection,

@@ -20,6 +20,7 @@
 | `docker-compose.model-egress.yml` | 승인된 vLLM으로의 egress와 `screening`·`overview`·`deep_review` 설정 | `env/model.env` |
 | `docker-compose.c2-order-plan.yml` | C-2 발주계획 판정의 승인 입력 파일 마운트와 실행 토글 | `env/model.env` |
 | `docker-compose.prespec-attachment.yml` | 사전규격 첨부 worker의 G2B egress와 취득 활성화 | `env/prespec-attachment.env` |
+| `docker-compose.slack-egress.yml` | 평일 브리핑 Slack 전송(`web`)·Socket Mode 수신(`slack-worker`)의 `env/slack.env`와 Slack egress | `env/slack.env`(overlay가 `env_file:`로 직접 읽음) |
 | `docker-compose.mock-reference.yml` | 모델 없이 상태 전이만 확인(egress 없음) | 없음(파일 안에 리터럴) |
 
 자주 쓰는 조합은 세 가지다.
@@ -392,6 +393,7 @@ scripts/run-prespec-workflow.sh --help
 | `.env` | `docker-compose.yml`, `docker-compose.edge.yml` | 프로세스 정체성, 로그, DB·MinIO 자격증명, 암호화 키, 화면 port, 승인 profile/policy 참조 |
 | `env/model.env` | `docker-compose.model-egress.yml`, `docker-compose.c2-order-plan.yml` | 용도별 `BIDOPS_VLLM_{SCREENING,OVERVIEW,DEEP_REVIEW}_*`, 공유 `BIDOPS_VLLM_*`, C-2 입력 파일 host 경로 |
 | `env/prespec-attachment.env` | `docker-compose.prespec-attachment.yml` | `BIDOPS_G2B_ATTACHMENT_ALLOWED_HOSTS` |
+| `env/slack.env` | `docker-compose.slack-egress.yml` | `BIDOPS_SLACK_*`(활성 스위치·bot/app token·채널 ID·허용 host)와 `BIDOPS_PUBLIC_BASE_URL`. 예시 `env/slack.env.example`만 추적한다 |
 | 없음 | `docker-compose.mock-reference.yml` | 전용 값을 override 파일 안에 리터럴로 선언한다 |
 
 overlay 전용 값을 `.env`에 두지 않는다. `.env`에 두면 overlay를 붙이지 않은 기동에서도 endpoint가 주입되어 fail-closed 기본값이 흐려진다.
@@ -436,6 +438,7 @@ COMPOSE_PROJECT_NAME=bidops docker compose -f docker-compose.yml stop web analys
 | 객체 저장소 | MinIO root와 namespace별 access/secret, endpoint, secure flag | 용도별 최소 권한, versioning 유지 |
 | 문서 검사 | ClamAV host/port/timeout | clean scan envelope 없이는 준비 단계 진행 금지 |
 | 개요·심층 모델 | `BIDOPS_VLLM_{BASE_URL,ALLOWED_HOSTS,API_KEY,MODEL_REVISION}`과 `BIDOPS_VLLM_{OVERVIEW,DEEP_REVIEW}_*` override, response encryption key/ref | 승인된 사설 endpoint만, 응답 암호화. 모델명은 설정이 아니라 policy가 정한다 |
+| Slack 브리핑 | `BIDOPS_SLACK_ENABLED`, `BIDOPS_SLACK_BOT_TOKEN`, `BIDOPS_SLACK_APP_TOKEN`, `BIDOPS_SLACK_CHANNEL_ID`, `BIDOPS_SLACK_ALLOWED_HOSTS`, `BIDOPS_PUBLIC_BASE_URL`, `BIDOPS_BRIEFING_POLICY_PATH` | 기본 꺼짐(fail closed). 토큰은 `env/slack.env`에만 두고 로그·명령줄·문서에 적지 않는다. 호출 전 enabled·토큰·채널·허용 host를 검사한다 |
 | 모듈 선택 | `BIDOPS_MODULES` | 미지정이면 세 도메인 모듈 전부. 알 수 없는 이름·빈 값은 기동 실패. 꺼진 모듈 경로는 404 |
 | 활성 버전 | active profile version, active analysis policy version | 불변 ID, 빈 값이면 fail closed |
 | 외부 참조 | `BIDOPS_OPENAI_ENABLED`, `BIDOPS_REFERENCE_WORKFLOW_MODE` | 기존 `BIDOPS_ANALYSIS_PROVIDER=vllm|mock`는 유지한다. ADR-0069의 사용자 요청 사전규격 Luna만 정책 provider `codex-exec`와 전용 overlay로 별도 실행한다. 향후 발주계획 전용 projection에서만 공개 plan metadata+최소 승인 요약을 preview·건별 승인 후 전송 |
@@ -800,6 +803,51 @@ docker compose -f docker-compose.yml exec web \
 **트리거를 켜기 전 확인 항목(D-e).** 위 11을 켜기 전에 다음을 사람이 확인한다 — 수동 실행에서 본
 요청 수·소요 시간·실패 분포, 나라장터 API 일일 할당량 여유, backup·restore와 stale execution
 복구 훈련. 이 확인은 게이트 통과나 방화벽 승인을 대신하지 않는다.
+
+### 일일 브리핑·Slack (RL-01, 2026-10-17)
+
+평일 아침 한 번 후보를 고르는 브리핑이다(규칙은 [business-rules.md "브리핑 추천·반응"](business-rules.md), 계약은 [contracts.md "브리핑"](contracts.md)). LLM을 부르지 않는다. **Slack 전송은 기본 꺼짐이며 이 저장소는 cron을 설치하지 않는다.** 2026-10-17 격리 스택(`bidops-local`의 `bidops_rla`)에서 `--send` 없는 감독 시운전(T12: 생성·REST·반응·화면)을 했다([기록](validation-runs/2026-10-16-rl/RL-01/README.md)). 실제 Slack 전송·Socket Mode 연결은 토큰이 없어 아직 하지 않았고, cron도 설치하지 않았다 — 아래는 절차와 예시다.
+
+**배포(운영 변경이므로 직전에 사람 확인).** migration `0038_briefing`(테이블 3개, [contracts.md](contracts.md) 참조)을 적용하고 `web`·`slack-worker` 이미지를 새로 올린다. 전체 백업과 `before-briefing-<날짜>` 롤백 태그를 먼저 남기고 배포 기록에 migration head를 적는다. 브리핑·반응은 DELETE 권한이 없어 되돌리려면 백업으로 복구한다. 이 단계의 승인은 아래 설정·전송·cron 설치로 이어지지 않는다.
+
+**설정과 기동.**
+
+1. `cp env/slack.env.example env/slack.env`로 만들고 값을 채운다(`env/*.env`는 gitignore). 키는 `BIDOPS_SLACK_ENABLED`(기본 `false`), `BIDOPS_SLACK_BOT_TOKEN`(`xoxb-`, 전송·갱신), `BIDOPS_SLACK_APP_TOKEN`(`xapp-`, Socket Mode), `BIDOPS_SLACK_CHANNEL_ID`(브리핑 전용 채널 하나), `BIDOPS_SLACK_ALLOWED_HOSTS`(기본 `slack.com,wss-primary.slack.com`, 정확 일치·빈 값이면 어떤 host도 허용하지 않음), `BIDOPS_PUBLIC_BASE_URL`(메시지의 레코드 링크 기준 주소, 비면 링크 없이 제목만)이다.
+2. **fail closed.** `BIDOPS_SLACK_ENABLED=false`(기본)이거나 토큰·채널이 비어 있거나 호출 host가 허용 목록에 없으면 네트워크에 닿지 않는다. 전송기(`app/core/slack.py`)가 호출 전에 이 순서로 검사하고 어긋나면 CLI 출력의 `slack.skipped_reason`이 `slack_disabled`·`token_missing`·`channel_missing`·`host_not_allowed`가 된다. 다른 채널·hosted fallback은 없다. host 방화벽에서 `slack.com`·`wss-primary.slack.com`(443) 외 egress를 막은 뒤에만 켠다.
+3. 운영 compose 조합에 `docker-compose.slack-egress.yml`을 더하고 `slack-worker`는 profile `slack`으로 올린다. overlay가 `env/slack.env`를 `web`과 `slack-worker` 두 서비스에만 `env_file:`로 주므로 `--env-file`에는 넣지 않는다(기존 `.env`·`env/model.env`·`env/prespec-attachment.env`·`env/c2.env` 조합은 그대로).
+
+   ```bash
+   # 최소 조합 예: 기반 + edge + slack overlay. 운영 조합이면 나머지 overlay와 --env-file도 그대로 붙인다.
+   docker compose -f docker-compose.yml -f docker-compose.edge.yml \
+     -f docker-compose.slack-egress.yml --profile slack \
+     up -d --no-deps --no-build --force-recreate web slack-worker
+   ```
+
+   `env/slack.env`가 없으면 compose가 기동 전에 멈춘다. overlay 없이 올린 `slack-worker`는 기본값(꺼짐)이라 연결하지 않고 0으로 끝난다. 켜 놓고 토큰·채널·허용 host가 어긋나면 연결 전에 1로 끝나며 `restart: on-failure`가 드러낸다. 올린 뒤 플래그가 실제로 반영됐는지는 `docker compose exec -T web printenv BIDOPS_SLACK_ENABLED`처럼 **값 하나씩** 본다. `docker compose config`는 `env_file` 값을 펼쳐 토큰이 터미널에 나오므로 이 overlay를 붙인 채 쓰지 않는다.
+4. **토큰 취급.** 토큰은 `env/slack.env`(권한 600)에만 두고 명령줄·compose 파일·이미지·로그·이 문서·채팅·티켓에 적지 않는다. 앱은 토큰을 `SecretStr`로만 다루며 로그·응답·오류에 넣지 않는다(실패는 `slack_send_failed`와 안전한 code만). 노출이 의심되면 Slack 앱에서 토큰을 폐기·재발급하고 `env/slack.env`를 고쳐 두 서비스를 다시 만든다. Slack 앱 설정(Socket Mode 사용·interactivity·bot의 `chat:write` 권한·채널 초대·app-level token `connections:write`)은 시운전에서 확인한다.
+
+**실행: `scripts/run-daily-briefing.sh [--date YYYY-MM-DD] [--send] [--dry-run]`.** web 컨테이너 안에서 `python -m app.lifecycle.cli build-briefing --date <D> --json [--send]`를 실행한다(`COMPOSE_PROJECT_NAME` 기본 `bidops`, `docker compose -f docker-compose.yml exec -T web`로 실행 중인 컨테이너를 찾는다). `--date`는 브리핑 날짜 D(기본 오늘 KST)이고 수집 회차는 D-1이다. 토·일은 행 없이 `weekend`로 끝나고 같은 날 재실행은 기존 행을 그대로 둔다(`created=false`). `--dry-run`은 호출 순서만 출력하며 docker·web·Slack을 부르지 않는다(깨끗한 환경 `env -i HOME=… PATH=…`에서도 같다). 종료 코드:
+
+| 코드 | 뜻 |
+|---|---|
+| 0 | 성공과 정상 건너뜀(`weekend`·`empty`·`already_sent`·`slack_disabled`·`token_missing`·`channel_missing`·`host_not_allowed`·`not_requested`). `collection_run_missing` 같은 수집 경고도 브리핑 상태로 보일 뿐 실패가 아니다 |
+| 1 | 브리핑 생성 실패(`company_not_registered` 등, 행 없음). 그 밖의 비0 CLI·docker 종료 코드는 그대로 전달 |
+| 2 | 인자 오류, docker·jq 없음 |
+| 3 | **`slack_send_failed`.** CLI는 이 경우에도 0으로 끝나고 JSON `warnings[]`에만 코드를 싣는다. cron이 전송 실패를 성공으로 보지 않도록 스크립트가 JSON을 읽어 3으로 바꾼다. 브리핑 행은 남는다 |
+| 4 | CLI가 0으로 끝났지만 stdout이 기대한 JSON이 아니어서 `slack_send_failed`를 배제할 수 없음(fail closed) |
+
+**재시도.** 전송이 실패하면(3) 원인(토큰·네트워크·채널)을 고친 뒤 **같은 명령을 `--send`로 다시 실행**한다. 이미 보낸 메시지는 저장된 ts로 건너뛰고 빠진 메시지만 보내며, 전부 보내면 `slack_sent_at`이 찍히고 이후 재실행은 `already_sent`다. 자동 따라잡기는 없다 — 빠진 날은 `--date <D>`로 사람이 메운다(창은 직전 브리핑 이후라 한 날을 건너뛰면 다음 브리핑에 함께 들어온다). 수집이 덜 끝난 날은 `collection_incomplete`로 만들어지고 이미 만든 행은 다시 만들 수 없으므로, 기준일 수집이 끝난 뒤에 실행한다.
+
+**cron 예시(설치하지 않음).** 브리핑은 notices 트랙이 만든 D-1 회차와 발주계획 트랙의 C-2 결과를 읽으므로 **두 트랙이 끝난 뒤** 돈다. 줄은 두 트랙의 lock 파일을 둘 다 잡아(`flock -w`는 앞 실행이 끝나기를 기다린다) 수집·적재·C-2 실행 중에 끼어들지 않고, `timeout`으로 멈춘 실행을 끊는다. 시각은 운영 결정이다.
+
+```cron
+# 문서용 예시 — 설치되어 있지 않음. 감독 시운전을 마치고 사람이 crontab -e로 추가할 때만 참고한다.
+# flock -w 3600: notices·plans 트랙이 lock을 쥐고 있으면 최대 1시간 기다린다(기다림이 끝나면 비0으로 끝나 로그에 남는다).
+# timeout 30m: 멈춘 실행을 끊는다. 월~금만 돌리며 주말 처리는 CLI도 한 번 더 막는다.
+0 9 * * 1-5 cd /path/to/bidops && flock -w 3600 ~/.local/state/bidops/notices.lock flock -w 3600 ~/.local/state/bidops/plans.lock timeout 30m ./scripts/run-daily-briefing.sh --send >> ~/.local/state/bidops/logs/briefing-$(date +\%Y\%m).log 2>&1
+```
+
+**설치 전 감독 시운전(T12, 사람 확인 필요).** 순서: ① 깨끗한 환경에서 `env -i HOME=$HOME PATH=$PATH scripts/run-daily-briefing.sh --dry-run`으로 순서를 본 뒤 `--send` 없이 한 번 실행해 JSON·`GET /api/briefings/latest`·`/briefing` 화면을 확인한다. 이 실행은 그날 브리핑 행을 **실제로 만들고 지울 수 없으므로** 시운전 날짜가 곧 그날의 브리핑이다(행을 쓰지 않는 계산 확인은 컨테이너에서 `python -m app.lifecycle.cli build-briefing --dry-run`을 직접 준다). ② `GET /api/briefings/<날짜>/slack-preview`로 보낼 payload를 읽는다. ③ **테스트 채널**로 `--send`를 사람이 확인한 뒤 한 번 실행하고 메시지 1건과 버튼 클릭 → 화면 반영을 본다. ④ `GET /api/workload`의 `briefing_pending`이 화면의 대기 수와 같은지 본다. ⑤ 증거를 `docs/validation-runs/`에 기록한다. 차단 0이 된 뒤에만 cron을 설치한다. 가짜 docker·가짜 CLI로 도는 `tests/app/test_daily_briefing_script.py`는 호출 순서·인자·종료 코드만 증명하며 실제 컨테이너·실제 Slack 전송은 이 시운전이 증명한다.
 
 ## GPU 휴지
 

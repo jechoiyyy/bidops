@@ -1,0 +1,18 @@
+{
+  "schema": "bidops.briefing-policy.v1",
+  "policy_identity": "briefing-policy-v1",
+  "top_n": 10,
+  "weights": {
+    "tier1": 30,
+    "tier2": 20,
+    "tier3": 10,
+    "repeat_agency": 25,
+    "similar_project": 25,
+    "sw_target": 10,
+    "amount_in_range": 10
+  },
+  "deadline_warning_days": 7,
+  "tracked_change_fields": ["deadline_at", "title", "budget", "estimated_price"],
+  "slack_items_per_message": 10,
+  "large_enterprise_threshold_krw": 2000000000
+}

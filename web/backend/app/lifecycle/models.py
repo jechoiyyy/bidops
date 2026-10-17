@@ -18,6 +18,7 @@ from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import (
+    CHAR,
     BigInteger,
     Boolean,
     CheckConstraint,
@@ -38,7 +39,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, Session as OrmSession, mapped_column, relationship, synonym
 
 from ..core.db import Base
-from ..core.models import AwareDateTime, JSONB_COMPAT, _fk, _uuid_column, utc_now
+from ..core.models import AwareDateTime, JSONB_COMPAT, JSONB_NULL_COMPAT, _fk, _uuid_column, utc_now
 from ..core.sql_dialect import dual
 
 
@@ -987,6 +988,183 @@ class IngestWarning(Base):
     run: Mapped["Run"] = relationship(back_populates="warnings")
 
 
+# ---------------------------------------------------------------------------
+# 평일 브리핑 (RL-01 spec "저장", ``0038_briefing``)
+# ---------------------------------------------------------------------------
+#
+# 아래 CHECK·부분 UNIQUE 선언은 migration ``0038_briefing``과 글자까지 같다
+# (`tests/app/test_alembic_autogenerate.py` drift 0). 브리핑과 항목은 재생성·삭제가
+# 없고(runtime DELETE 권한 없음), 반응 이벤트는 append-only다.
+
+#: 부분 UNIQUE 인덱스 조건. PostgreSQL과 SQLite 격리 테스트가 같은 식을 쓴다.
+_BRIEFING_ITEM_NOTICE_WHERE = "notice_id IS NOT NULL"
+_BRIEFING_ITEM_ORDER_PLAN_WHERE = "order_plan_id IS NOT NULL"
+_BRIEFING_ITEM_RANK_WHERE = "rank IS NOT NULL"
+
+
+class Briefing(Base):
+    """하루 1건의 평일 브리핑. 같은 날 재실행은 이 행을 그대로 둔다."""
+
+    __tablename__ = "briefing"
+    __table_args__ = (
+        UniqueConstraint("briefing_date", name="uq_briefing_date"),
+        CheckConstraint(
+            "status IN ('generated','empty','collection_incomplete')",
+            name="ck_briefing_status",
+        ),
+    )
+
+    id: Mapped[uuid_module.UUID] = _uuid_column(primary_key=True)
+    briefing_date: Mapped[date] = mapped_column(Date, nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    generated_at: Mapped[datetime] = mapped_column(AwareDateTime(), nullable=False)
+    policy_sha256: Mapped[str] = mapped_column(CHAR(64), nullable=False)
+    # RL-00 회사 그래프 버전. lifecycle 단독 `init_db`에는 참조 테이블이 없으므로
+    # FK 없는 UUID 열이다(spec "회사 규칙 입력").
+    graph_version_id: Mapped[uuid_module.UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
+    item_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    excluded_counts: Mapped[Any] = mapped_column(JSONB_COMPAT, nullable=False)
+    warnings: Mapped[Any] = mapped_column(JSONB_COMPAT, nullable=False)
+    slack_message_ts: Mapped[Any] = mapped_column(JSONB_NULL_COMPAT, nullable=True)
+    slack_sent_at: Mapped[datetime | None] = mapped_column(AwareDateTime(), nullable=True)
+    tracked_change_message_ts: Mapped[Any] = mapped_column(JSONB_NULL_COMPAT, nullable=True)
+    created_by: Mapped[str] = mapped_column(Text, nullable=False)
+
+
+class BriefingItem(Base):
+    """브리핑 항목 한 행: 추천(`recommendation`) 또는 추적 중 변화(`tracked_change`)."""
+
+    __tablename__ = "briefing_item"
+    __table_args__ = (
+        Index(
+            "uq_briefing_item_notice",
+            "briefing_id",
+            "notice_id",
+            unique=True,
+            postgresql_where=text(_BRIEFING_ITEM_NOTICE_WHERE),
+            sqlite_where=text(_BRIEFING_ITEM_NOTICE_WHERE),
+        ),
+        Index(
+            "uq_briefing_item_order_plan",
+            "briefing_id",
+            "order_plan_id",
+            unique=True,
+            postgresql_where=text(_BRIEFING_ITEM_ORDER_PLAN_WHERE),
+            sqlite_where=text(_BRIEFING_ITEM_ORDER_PLAN_WHERE),
+        ),
+        Index(
+            "uq_briefing_item_rank",
+            "briefing_id",
+            "rank",
+            unique=True,
+            postgresql_where=text(_BRIEFING_ITEM_RANK_WHERE),
+            sqlite_where=text(_BRIEFING_ITEM_RANK_WHERE),
+        ),
+        CheckConstraint(
+            "(notice_id IS NULL) <> (order_plan_id IS NULL)",
+            name="ck_briefing_item_one_target",
+        ),
+        CheckConstraint(
+            "kind IN ('recommendation','tracked_change')",
+            name="ck_briefing_item_kind",
+        ),
+        CheckConstraint(
+            "stage IN ('pre_spec','bid_notice','order_plan')",
+            name="ck_briefing_item_stage",
+        ),
+        CheckConstraint(
+            "deadline_kind IS NULL OR deadline_kind IN ('bid_close','opinion_close','planned_month')",
+            name="ck_briefing_item_deadline_kind",
+        ),
+        CheckConstraint(
+            "reaction IS NULL OR reaction IN ('대기','채택','무시','나중에')",
+            name="ck_briefing_item_reaction",
+        ),
+        CheckConstraint(
+            "reacted_via IS NULL OR reacted_via IN ('screen','slack')",
+            name="ck_briefing_item_reacted_via",
+        ),
+        CheckConstraint(
+            "(kind = 'recommendation' AND rank IS NOT NULL AND reaction IS NOT NULL) OR "
+            "(kind = 'tracked_change' AND rank IS NULL AND reaction IS NULL)",
+            name="ck_briefing_item_kind_shape",
+        ),
+        CheckConstraint(
+            "(reacted_by IS NULL) = (reacted_at IS NULL) AND "
+            "(reacted_by IS NULL) = (reacted_via IS NULL)",
+            name="ck_briefing_item_reacted_triple",
+        ),
+    )
+
+    id: Mapped[uuid_module.UUID] = _uuid_column(primary_key=True)
+    briefing_id: Mapped[uuid_module.UUID] = mapped_column(
+        _fk("briefing.id", ondelete="RESTRICT"), nullable=False
+    )
+    kind: Mapped[str] = mapped_column(String(32), nullable=False)
+    rank: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    stage: Mapped[str] = mapped_column(String(32), nullable=False)
+    notice_id: Mapped[int | None] = mapped_column(
+        _fk("notice.id", ondelete="RESTRICT"), nullable=True
+    )
+    order_plan_id: Mapped[int | None] = mapped_column(
+        _fk("order_plan.id", ondelete="RESTRICT"), nullable=True
+    )
+    opportunity_id: Mapped[int] = mapped_column(
+        _fk("opportunity.id", ondelete="RESTRICT"), nullable=False
+    )
+    # 추적 변화 행에는 계산한 점수가 없다. 0으로 접지 않고 NULL로 둔다.
+    score: Mapped[Decimal | None] = mapped_column(Numeric(6, 2), nullable=True)
+    reasons: Mapped[Any] = mapped_column(
+        JSONB_COMPAT, default=list, server_default=text("'[]'"), nullable=False
+    )
+    blocking: Mapped[Any] = mapped_column(
+        JSONB_COMPAT, default=list, server_default=text("'[]'"), nullable=False
+    )
+    change_fields: Mapped[Any] = mapped_column(
+        JSONB_COMPAT, default=list, server_default=text("'[]'"), nullable=False
+    )
+    deadline_at: Mapped[datetime | None] = mapped_column(AwareDateTime(), nullable=True)
+    deadline_kind: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    planned_month: Mapped[str | None] = mapped_column(Text, nullable=True)
+    amount_krw: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    reaction: Mapped[str | None] = mapped_column(Text, nullable=True)
+    reacted_by: Mapped[str | None] = mapped_column(Text, nullable=True)
+    reacted_at: Mapped[datetime | None] = mapped_column(AwareDateTime(), nullable=True)
+    reacted_via: Mapped[str | None] = mapped_column(Text, nullable=True)
+    revision: Mapped[int] = mapped_column(
+        Integer, default=0, server_default=text("0"), nullable=False
+    )
+
+
+class BriefingReactionEvent(Base):
+    """반응 변화 한 건. append-only이며 runtime 역할에는 UPDATE·DELETE 권한이 없다."""
+
+    __tablename__ = "briefing_reaction_event"
+    __table_args__ = (
+        UniqueConstraint("item_id", "revision", name="uq_briefing_reaction_event_revision"),
+    )
+
+    id: Mapped[uuid_module.UUID] = _uuid_column(primary_key=True)
+    item_id: Mapped[uuid_module.UUID] = mapped_column(
+        _fk("briefing_item.id", ondelete="RESTRICT"), nullable=False
+    )
+    revision: Mapped[int] = mapped_column(Integer, nullable=False)
+    previous: Mapped[str] = mapped_column(Text, nullable=False)
+    new: Mapped[str] = mapped_column(Text, nullable=False)
+    actor: Mapped[str] = mapped_column(Text, nullable=False)
+    via: Mapped[str] = mapped_column(Text, nullable=False)
+    request_id: Mapped[uuid_module.UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        AwareDateTime(), default=utc_now, server_default=text("CURRENT_TIMESTAMP"), nullable=False
+    )
+
+
+@event.listens_for(BriefingReactionEvent, "before_update")
+@event.listens_for(BriefingReactionEvent, "before_delete")
+def _immutable_briefing_reaction_event(*_args: Any) -> None:
+    raise ValueError("briefing reaction events are append-only")
+
+
 # Added by the cumulative lifecycle-identity migrations.  Keeping these out
 # of the legacy/Lean v1 tuples prevents an older revision from creating them
 # before its upgrade has established the observation and opportunity links.
@@ -998,6 +1176,8 @@ COMPANY_CONTEXT_TABLES = (
 )
 # ``0027_collection_index_and_linkage``가 만든다. 선별 적재의 검색 색인이다.
 COLLECTION_INDEX_TABLES = ("collected_record_index", "collected_record_token")
+# ``0038_briefing``이 만든다. 평일 브리핑과 반응 기록이다(RL-01).
+BRIEFING_TABLES = ("briefing", "briefing_item", "briefing_reaction_event")
 
 
 IDENTITY_TABLES = (

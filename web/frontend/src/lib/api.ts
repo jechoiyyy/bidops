@@ -1,5 +1,8 @@
 import type {
   BidDeltaDecisionQueueQuery,
+  BriefingItemView,
+  BriefingReactionRequest,
+  BriefingView,
   BidDeltaDecisionQueueResponse,
   OpportunityTrackingDecisionsResponse,
   OpportunityDeepReviewsResponse,
@@ -871,6 +874,25 @@ export function toPageOverviewResponse(envelope: OverviewEnvelope): PageOverview
 
 export const api = {
   getWorkload: (options?: ReadRequestOptions) => request<WorkloadResponse>("/workload", options),
+
+  /** RL-01 가장 최근 브리핑. 없으면 404 `briefing_not_found`. */
+  getLatestBriefing: (options?: ReadRequestOptions) => request<BriefingView>("/briefings/latest", options),
+
+  /** RL-01 날짜별 브리핑(`YYYY-MM-DD`). 없으면 404 `briefing_not_found`, 날짜 형식 오류는 422. */
+  getBriefing: (date: string, options?: ReadRequestOptions) =>
+    request<BriefingView>(`/briefings/${encodeURIComponent(date)}`, options),
+
+  /**
+   * RL-01 추천 항목에 반응을 남긴다(추적 상태는 바꾸지 않는다). 되돌리기는 이전 값으로의
+   * 새 PATCH다. 409 `version_conflict`(그사이 다른 사람이 반응), `idempotency_conflict`,
+   * `reaction_not_allowed`(추적 변화 행)는 안정 코드로 읽는다.
+   */
+  reactBriefingItem: (itemId: string, payload: BriefingReactionRequest, actorName: string) =>
+    request<BriefingItemView>(`/briefings/items/${encodeURIComponent(itemId)}/reaction`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", ...actorHeaders(actorName) },
+      body: JSON.stringify(payload),
+    }),
 
   getBidDeltaDecisionQueue: (params: BidDeltaDecisionQueueQuery = {}, options?: ReadRequestOptions) =>
     request<BidDeltaDecisionQueueResponse>(`/bid-delta/decision-queue${query({ ...params })}`, options),

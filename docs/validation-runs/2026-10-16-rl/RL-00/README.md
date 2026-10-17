@@ -151,3 +151,10 @@ status_counts는 자체 검사기 결과와 같다(비evidence 노드 148개).
 - activate(exit 0): `changed=true`, `revision=1`.
 - REST(rla-web 내부 호출): `GET /api/company` 200, 키 4개 정확(`schema_version=bidops.company-context.v1`, `company.name=㈜루트랩`, `is_fictional=false`, `expiry_warning_days=60`, `active_graph_version.graph_version_id`=위 값); `GET /api/companies/{id}/profile` 200, facts 148(= 비evidence 노드 수, confirmed 126·proposed 1·unknown 21); `staff:onsite` confirmed·`region="대구"`·`available=6`(대구 외 표기 없음); `GET /api/workload` `company_attention` count 22(=proposed+unknown), 키 순서 끝.
 - 검사 뒤 `rla-web` 컨테이너는 제거했다. DB `bidops_rla`와 volume `bidops-local_rla-web-data`·`bidops-local_rla-pipeline-data`는 RL-01·02 시운전에서 이어 쓰려고 남겼다.
+
+## v2 재등록 (2026-10-17, RL-01 지역 규칙 정합)
+
+- 사유: RL-01 브리핑 지역 제외 규칙은 `excl:region.keywords`를 **허용 지역 이름**으로 읽는다(RL-01 spec "결정적 점수와 제외"). v1은 `["지역제한"]`이라 지역제한 공고가 거의 전부 제외된다. 사용자 결정(2026-10-17): **대구·세종**. 근거 preferences "지역제한 입찰에서 본점 소재지(대구) 외 지역 제한 → 제외", "지역제한 입찰: 대구 본점, 세종 지점"(세종 지점 등기 형태는 unknown이므로 세종 제한 공고를 제외하면 unknown을 차단 조건으로 쓰게 됨 → 허용에 포함).
+- 변경: `excl:region.value.keywords` `["지역제한"]` → `["대구","세종"]` 한 곳. 새 파일 `rootlab.source.v2.json`(v1은 그대로 보존).
+- `rootlab.source.v2.json` sha256 `5ffdcef056448639e0e43b18cd9ad24654bca774ce00c337ebca184a11d4f952`, graph_sha256 `a638050fb0a886868f1a2f19d59be8445688b12ea065a2c32f2f0cc944b228f0`, status_counts 동일(c126·p1·u21).
+- bidops-local `bidops_rla`: dry-run exit 0 → import `created=true`, `graph_version_id=089239e1-77d5-4fad-9893-1e3f293c294f`, `profile_version_id=8b2eca53-be22-49c0-834f-6e766e9a8440` → activate `revision=2`(이전 3437d2fc… 버전 불변).

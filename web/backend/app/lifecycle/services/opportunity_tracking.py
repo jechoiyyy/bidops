@@ -10,11 +10,8 @@ leaves the human tracking columns alone.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from hashlib import sha256
-import json
 from typing import Any, Sequence
 from uuid import NAMESPACE_URL, UUID, uuid5
 
@@ -22,7 +19,15 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from ...core.models import AuditEvent, IdempotencyRecord, utc_now
+from ...core.idempotency_fence import (
+    IdempotencyFenceError,
+    json_primitives,
+    load_receipt,
+    new_receipt,
+    receipt_id as fence_receipt_id,
+    request_sha256,
+)
+from ...core.models import AuditEvent, utc_now
 from ..models import (
     Company,
     CompanyOpportunityTracking,
@@ -108,16 +113,6 @@ def _validate_timestamp(value: datetime | None) -> datetime:
     return value.astimezone(UTC)
 
 
-def _canonical_json(value: Any) -> bytes:
-    return json.dumps(
-        value,
-        ensure_ascii=False,
-        sort_keys=True,
-        separators=(",", ":"),
-        allow_nan=False,
-    ).encode("utf-8")
-
-
 def _company_tracking_aggregate_id(company_id: UUID, opportunity_id: int) -> str:
     return f"{company_id}:{opportunity_id}"
 
@@ -131,47 +126,30 @@ def _company_tracking_request_hash(
     expected_revision: int,
     actor: str,
 ) -> str:
-    payload = {
-        "operation": COMPANY_TRACKING_OPERATION,
-        "company_id": str(company_id),
-        "opportunity_id": opportunity_id,
-        "tracking_status": status,
-        "trimmed_reason": reason,
-        "expected_revision": expected_revision,
-        "decoded_actor": actor,
-    }
-    return sha256(_canonical_json(payload)).hexdigest()
+    return request_sha256(
+        {
+            "operation": COMPANY_TRACKING_OPERATION,
+            "company_id": str(company_id),
+            "opportunity_id": opportunity_id,
+            "tracking_status": status,
+            "trimmed_reason": reason,
+            "expected_revision": expected_revision,
+            "decoded_actor": actor,
+        }
+    )
 
 
 def _company_tracking_receipt_id(
     *, company_id: UUID, opportunity_id: int, actor: str, request_id: UUID
 ) -> UUID:
-    scope = {
-        "operation": COMPANY_TRACKING_OPERATION,
-        "aggregate_type": COMPANY_TRACKING_AGGREGATE_TYPE,
-        "aggregate_id": _company_tracking_aggregate_id(company_id, opportunity_id),
-        "claimed_name": actor,
-        "request_id": str(request_id),
-    }
-    return uuid5(
+    return fence_receipt_id(
         _COMPANY_TRACKING_RECEIPT_NAMESPACE,
-        _canonical_json(scope).decode("utf-8"),
+        operation=COMPANY_TRACKING_OPERATION,
+        aggregate_type=COMPANY_TRACKING_AGGREGATE_TYPE,
+        aggregate_id=_company_tracking_aggregate_id(company_id, opportunity_id),
+        claimed_name=actor,
+        request_id=request_id,
     )
-
-
-def _json_primitives(value: Any) -> bool:
-    if value is None or isinstance(value, (str, int, bool)):
-        return True
-    if isinstance(value, float):
-        return value == value and value not in {float("inf"), float("-inf")}
-    if isinstance(value, list):
-        return all(_json_primitives(item) for item in value)
-    if isinstance(value, dict):
-        return all(
-            isinstance(key, str) and _json_primitives(item)
-            for key, item in value.items()
-        )
-    return False
 
 
 def _company_tracking_processing_failed() -> OpportunityTrackingError:
@@ -224,35 +202,9 @@ def _tracking_dto(
     )
 
 
-def _replay_company_tracking(
-    record: IdempotencyRecord,
-    *,
-    receipt_id: UUID,
-    company_id: UUID,
-    opportunity_id: int,
-    actor: str,
-    request_id: UUID,
-    request_hash: str,
+def _company_tracking_replay(
+    snapshot: dict[str, Any], *, company_id: UUID, opportunity_id: int
 ) -> CompanyTrackingMutationResult:
-    aggregate_id = _company_tracking_aggregate_id(company_id, opportunity_id)
-    if not (
-        record.id == receipt_id
-        and record.operation == COMPANY_TRACKING_OPERATION
-        and record.aggregate_type == COMPANY_TRACKING_AGGREGATE_TYPE
-        and record.aggregate_id == aggregate_id
-        and record.claimed_name == actor
-        and record.request_id == request_id
-    ):
-        raise _company_tracking_processing_failed()
-    if record.request_sha256 != request_hash:
-        raise OpportunityTrackingError(
-            "idempotency_conflict", "같은 request_id가 다른 요청에 사용되었습니다"
-        )
-    if record.response_status != 200 or not isinstance(record.response_snapshot, Mapping):
-        raise _company_tracking_processing_failed()
-    snapshot = dict(record.response_snapshot)
-    if not _json_primitives(snapshot):
-        raise _company_tracking_processing_failed()
     if (
         not isinstance(snapshot.get("company_id"), str)
         or not isinstance(snapshot.get("opportunity_id"), int)
@@ -274,7 +226,7 @@ def _replay_company_tracking(
     return CompanyTrackingMutationResult(
         response=response,
         snapshot=snapshot,
-        response_status=record.response_status,
+        response_status=200,
         replayed=True,
     )
 
@@ -289,17 +241,27 @@ def _existing_company_tracking_receipt(
     request_id: UUID,
     request_hash: str,
 ) -> CompanyTrackingMutationResult | None:
-    record = session.get(IdempotencyRecord, receipt_id)
-    if record is None:
+    try:
+        snapshot = load_receipt(
+            session,
+            receipt=receipt_id,
+            operation=COMPANY_TRACKING_OPERATION,
+            aggregate_type=COMPANY_TRACKING_AGGREGATE_TYPE,
+            aggregate_id=_company_tracking_aggregate_id(company_id, opportunity_id),
+            claimed_name=actor,
+            request_id=request_id,
+            request_hash=request_hash,
+        )
+    except IdempotencyFenceError as error:
+        if error.code == "idempotency_conflict":
+            raise OpportunityTrackingError(
+                "idempotency_conflict", "같은 request_id가 다른 요청에 사용되었습니다"
+            ) from None
+        raise _company_tracking_processing_failed() from None
+    if snapshot is None:
         return None
-    return _replay_company_tracking(
-        record,
-        receipt_id=receipt_id,
-        company_id=company_id,
-        opportunity_id=opportunity_id,
-        actor=actor,
-        request_id=request_id,
-        request_hash=request_hash,
+    return _company_tracking_replay(
+        snapshot, company_id=company_id, opportunity_id=opportunity_id
     )
 
 
@@ -625,7 +587,7 @@ def set_company_tracking(
         current=current,
     )
     snapshot = response.model_dump(mode="json")
-    if not _json_primitives(snapshot):
+    if not json_primitives(snapshot):
         raise _company_tracking_processing_failed()
     session.add_all(
         [
@@ -640,8 +602,8 @@ def set_company_tracking(
                 request_id=request_id,
                 created_at=event_at,
             ),
-            IdempotencyRecord(
-                id=receipt_id,
+            new_receipt(
+                receipt=receipt_id,
                 operation=COMPANY_TRACKING_OPERATION,
                 aggregate_type=COMPANY_TRACKING_AGGREGATE_TYPE,
                 aggregate_id=_company_tracking_aggregate_id(
@@ -649,9 +611,8 @@ def set_company_tracking(
                 ),
                 claimed_name=clean_actor,
                 request_id=request_id,
-                request_sha256=request_hash,
-                response_status=200,
-                response_snapshot=snapshot,
+                request_hash=request_hash,
+                snapshot=snapshot,
             ),
         ]
     )

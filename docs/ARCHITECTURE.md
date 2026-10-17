@@ -147,11 +147,13 @@ web/backend/app/
 ├── core/          db, config, logging_setup, redaction, sql_dialect, constants, db_admin,
 │                  generation_config, run_id, api_errors, object_store, clamav,
 │                  model_client(용도별 통일 transport), company_profile, model_binding,
-│                  schema_base, health
+│                  schema_base, health, idempotency_fence(멱등 영수증 fence 공용),
+│                  slack(Slack 전송기 — 유일한 Slack egress)
 │                  models 2개 (audit_event, idempotency_record)
 ├── lifecycle/     회차 적재와 기회 identity, 공고·발주계획·사전규격·첨부 메타
-│                  api, extensions, ingest/, routers/, services/, schemas/, runtime
-│                  models 10개
+│                  api, extensions, ingest/, routers/, services/, schemas/, runtime,
+│                  cli(build-briefing·slack-worker), slack_worker, policies/(브리핑 규칙 파일)
+│                  models 10개 (+ 브리핑 3개: briefing, briefing_item, briefing_reaction_event)
 ├── screening/     C-1 공고 판정과 C-2 발주계획 선별
 │                  orchestrator/queue/worker/policy/projection/ingest, routers/, services/,
 │                  schemas/, workers/order_plan, cli/, runtime
@@ -186,6 +188,10 @@ web/backend/app/
 | 회차 적재됨 | 이벤트 hook | screening, deep_review | no-op, 건수 0, 건너뛰었음을 경고로 남김 |
 | 추적 결정 변경됨 | 이벤트 hook | deep_review | no-op |
 | effective grade 변경됨 | 이벤트 hook | deep_review | no-op. 첨부 취득 자격 재계산과 자동 문서 준비가 일어나지 않는다 |
+| 회사 사실 projection (`company_facts_projection`, RL-01) | 읽기 projection | deep_review | `None` → 브리핑 생성 실패 `company_not_registered`(행 없음) |
+| 브리핑 발주계획 후보 (`briefing_order_plan_candidates`, RL-01) | 읽기 projection | screening | 빈 목록 + 경고 `order_plan_provider_absent` |
+
+**브리핑(RL-01, 2026-10-17)은 lifecycle이 소유한다.** 평일 브리핑 생성·반응 저장·REST(`/api/briefings`)와 `app.lifecycle.cli`(`build-briefing`·`slack-worker`)는 lifecycle에 있고, deep_review·screening 테이블은 위 두 확장점으로만 받는다(새 모듈을 만들지 않는다). Slack 호출(`chat.postMessage`·`chat.update`·Socket Mode)은 core `slack.py` 하나만 하며 호출 전에 enabled·토큰·채널·허용 host를 검사한다. 멱등 영수증 fence는 core `idempotency_fence.py` 하나를 사업기회 추적과 브리핑 반응이 같이 쓴다. 계약은 [contracts.md "브리핑"](contracts.md)이다.
 
 확장점 등록은 `main.py`가 앱 객체를 조립하는 시점에 한다. lifespan이나 runtime이 아니다 — runtime을 만들지 않는 격리 API 테스트에서도 projection이 있어야 하기 때문이다. 등록은 import와 객체 생성뿐이며 migration·seed·정책 활성화·모델 호출을 하지 않는다.
 
@@ -275,6 +281,8 @@ SW=Y 사전규격 적재 시 기관·이름이 일치하는 발주계획을 자�
 찾아보기로 보관 색인을 검색한다(모델 호출 없음). 상세는
 [spec.md](0917_opportunity-tracking/spec.md), [business-rules.md](business-rules.md#전량-수집과-선별-적재2026-09-17)가
 정본이다.
+
+**브리핑 흐름(RL-01, 2026-10-17):** 두 트랙 수집·C-2 → `scripts/run-daily-briefing.sh`(web 컨테이너의 `build-briefing`) → 결정적 규칙(회사 `confirmed` 사실·제외·점수, 발주계획은 반복 발주처 ∧ 유사 실적만)이 후보를 상위 N으로 줄여 `briefing`·`briefing_item` 저장 → `/briefing` 화면과 Slack 전송(`--send`, `core/slack.py`) → 화면·Slack 버튼 반응은 개인 기록으로만 저장하고 추적 상태·Go/No-Go를 바꾸지 않음. 상세는 [business-rules.md](business-rules.md#브리핑-추천반응-rl-01-2026-10-17)·[operations.md](operations.md)가 정본이다.
 
 ### 5.2 발주계획 C-2 선별 흐름
 
