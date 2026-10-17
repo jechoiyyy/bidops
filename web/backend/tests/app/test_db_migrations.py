@@ -27,6 +27,7 @@ from app.core.models import CORE_LEAN_V1_TABLES
 from app.deep_review.models import (
     ATTACHMENT_FETCH_TABLES,
     BID_DELTA_TABLES,
+    CARD_ANALYSIS_TABLES,
     COMPANY_ANALYSIS_TABLES,
     COMPANY_KNOWLEDGE_TABLES,
     DEEP_REVIEW_LEAN_V1_TABLES,
@@ -85,6 +86,7 @@ ALL_TABLES = frozenset(
     + COMPANY_ANALYSIS_TABLES
     + BRIEFING_TABLES
     + OPPORTUNITY_NOTE_TABLES
+    + CARD_ANALYSIS_TABLES
 )
 
 
@@ -1387,3 +1389,175 @@ def test_0029_policy_quality_gate_status_is_written_only_on_activation() -> None
                         " WHERE policy_version = 'c2-activate'"
                     )
                 )
+
+
+# --- RL-03 0040 card analysis storage (spec "저장") -----------------------------------
+
+_CARD_SHA = "c" * 64
+
+
+def _replica_insert(connection, sql: str, **params) -> None:
+    """Seed a row without its FK targets; triggers below run in normal mode."""
+
+    connection.execute(text("SET LOCAL session_replication_role = replica"))
+    connection.execute(text(sql), params)
+    connection.execute(text("SET LOCAL session_replication_role = origin"))
+
+
+def _approval_sql() -> str:
+    return (
+        "INSERT INTO bidops.transfer_policy_approval (id, policy_identity, policy_version_id,"
+        " policy_sha256, model_name, reasoning_effort, cli_version, scope, daily_cap,"
+        " approved_by, request_id) VALUES (:id, 'analysis-policy-luna-rl-v1', :policy,"
+        " :sha, 'gpt-6-luna', 'high', '0.162.1',"
+        " CAST('{\"stages\":[\"pre_spec\"],\"purposes\":[\"deep_review\"]}' AS jsonb),"
+        " :cap, 'jechoi', :request)"
+    )
+
+
+def test_0040_card_analysis_tables_are_append_only_and_revoke_once() -> None:
+    from sqlalchemy.exc import DBAPIError
+
+    approval, stage, feedback, request = uuid4(), uuid4(), uuid4(), uuid4()
+    with migrated_engine() as engine:
+        with engine.begin() as connection:
+            _replica_insert(connection, _approval_sql(), id=approval, policy=uuid4(), sha=_CARD_SHA,
+                            cap=10, request=uuid4())
+            _replica_insert(
+                connection,
+                "INSERT INTO bidops.card_analysis_stage (id, attempt_id, stage, stage_key,"
+                " input_sha256, result_sha256, payload) VALUES (:id, :attempt, 'extract', '0',"
+                " :sha, :sha, CAST('{}' AS jsonb))",
+                id=stage, attempt=uuid4(), sha=_CARD_SHA,
+            )
+            _replica_insert(
+                connection,
+                "INSERT INTO bidops.verdict_feedback (id, attempt_id, kind, unit_id, note, actor,"
+                " request_id) VALUES (:id, :attempt, 'not_requirement', 'u1', NULL, 'jechoi', :request)",
+                id=feedback, attempt=uuid4(), request=uuid4(),
+            )
+            _replica_insert(
+                connection,
+                "INSERT INTO bidops.verdict_request (id, opportunity_id, notice_id, actor, request_id,"
+                " status, reason) VALUES (:id, NULL, 1, 'system:transfer-policy', :request,"
+                " 'queued', 'daily_cap_reached')",
+                id=request, request=uuid4(),
+            )
+
+        # Approval: no DELETE, no change outside the revocation triple, revoke once.
+        for statement in (
+            "DELETE FROM bidops.transfer_policy_approval WHERE id = :id",
+            "UPDATE bidops.transfer_policy_approval SET daily_cap = 20 WHERE id = :id",
+            "UPDATE bidops.transfer_policy_approval SET scope = CAST('{}' AS jsonb) WHERE id = :id",
+        ):
+            with pytest.raises(DBAPIError, match="append-only"):
+                with engine.begin() as connection:
+                    connection.execute(text(statement), {"id": approval})
+        with pytest.raises(IntegrityError, match="ck_transfer_policy_approval_revoked"):
+            with engine.begin() as connection:
+                connection.execute(text(
+                    "UPDATE bidops.transfer_policy_approval SET revoked_by = 'jechoi',"
+                    " revoked_at = now() WHERE id = :id"), {"id": approval})
+        # A second active approval of the same policy sha is rejected.
+        with pytest.raises(IntegrityError, match="uq_transfer_policy_approval_active"):
+            with engine.begin() as connection:
+                _replica_insert(connection, _approval_sql(), id=uuid4(), policy=uuid4(), sha=_CARD_SHA,
+                                cap=10, request=uuid4())
+        with engine.begin() as connection:
+            connection.execute(text(
+                "UPDATE bidops.transfer_policy_approval SET revoked_by = 'jechoi', revoked_at = now(),"
+                " revoke_reason = '시험 철회' WHERE id = :id"), {"id": approval})
+        with pytest.raises(DBAPIError, match="already revoked"):
+            with engine.begin() as connection:
+                connection.execute(text(
+                    "UPDATE bidops.transfer_policy_approval SET revoke_reason = '다시' WHERE id = :id"),
+                    {"id": approval})
+        # After revocation the same policy can be approved again.
+        with engine.begin() as connection:
+            _replica_insert(connection, _approval_sql(), id=uuid4(), policy=uuid4(), sha=_CARD_SHA,
+                            cap=50, request=uuid4())
+        for cap in (0, 51):
+            with pytest.raises(IntegrityError, match="ck_transfer_policy_approval_daily_cap"):
+                with engine.begin() as connection:
+                    _replica_insert(connection, _approval_sql(), id=uuid4(), policy=uuid4(),
+                                    sha="d" * 64, cap=cap, request=uuid4())
+
+        # Stage and feedback reject every UPDATE and DELETE.
+        for table, row_id in (("card_analysis_stage", stage), ("verdict_feedback", feedback)):
+            for statement in (f"DELETE FROM bidops.{table} WHERE id = :id",
+                              f"UPDATE bidops.{table} SET created_at = now() WHERE id = :id"):
+                with pytest.raises(DBAPIError, match=f"{table} rows are append-only"):
+                    with engine.begin() as connection:
+                        connection.execute(text(statement), {"id": row_id})
+        with pytest.raises(IntegrityError, match="uq_card_analysis_stage_identity"):
+            with engine.begin() as connection:
+                _replica_insert(
+                    connection,
+                    "INSERT INTO bidops.card_analysis_stage (id, attempt_id, stage, stage_key,"
+                    " input_sha256, result_sha256, payload) SELECT :id, attempt_id, stage, stage_key,"
+                    " input_sha256, result_sha256, payload FROM bidops.card_analysis_stage WHERE id = :src",
+                    id=uuid4(), src=stage,
+                )
+        for stage_name, key, constraint in (
+            ("extract", "01", "ck_card_analysis_stage_key"),
+            ("role", "final", "ck_card_analysis_stage_key"),
+            # An unknown stage violates both CHECKs; PostgreSQL reports either one.
+            ("review", "0", "ck_card_analysis_stage_(name|key)"),
+        ):
+            with pytest.raises(IntegrityError, match=constraint):
+                with engine.begin() as connection:
+                    _replica_insert(
+                        connection,
+                        "INSERT INTO bidops.card_analysis_stage (id, attempt_id, stage, stage_key,"
+                        " input_sha256, result_sha256, payload) VALUES (:id, :attempt, :stage, :key,"
+                        " :sha, :sha, CAST('{}' AS jsonb))",
+                        id=uuid4(), attempt=uuid4(), stage=stage_name, key=key, sha=_CARD_SHA,
+                    )
+        with pytest.raises(IntegrityError, match="ck_verdict_feedback_note"):
+            with engine.begin() as connection:
+                _replica_insert(
+                    connection,
+                    "INSERT INTO bidops.verdict_feedback (id, attempt_id, kind, note, actor, request_id)"
+                    " VALUES (:id, :attempt, 'wrong_unit', :note, 'jechoi', :request)",
+                    id=uuid4(), attempt=uuid4(), note="가" * 501, request=uuid4(),
+                )
+
+        # The request queue is mutable (status advance), never append-only.
+        with engine.begin() as connection:
+            connection.execute(text(
+                "UPDATE bidops.verdict_request SET status = 'rejected', reason = 'gold_holdout'"
+                " WHERE id = :id"), {"id": request})
+        with pytest.raises(IntegrityError, match="ck_verdict_request_started_attempt"):
+            with engine.begin() as connection:
+                connection.execute(text("SET LOCAL session_replication_role = replica"))
+                connection.execute(text(
+                    "UPDATE bidops.verdict_request SET started_attempt_id = :attempt WHERE id = :id"),
+                    {"id": request, "attempt": uuid4()})
+        assert _scalar(engine, "SELECT count(*) FROM bidops.briefing_item WHERE slack_message_ts IS NOT NULL") == 0
+
+
+def test_0040_downgrades_when_empty_and_refuses_to_discard_rows() -> None:
+    with temporary_database() as database_url:
+        down = run_alembic(database_url, "downgrade", "0039_opportunity_note")
+        assert down.returncode == 0, down.stderr
+        from sqlalchemy import create_engine
+
+        engine = create_engine(database_url, future=True)
+        try:
+            assert not set(CARD_ANALYSIS_TABLES) & _tables(engine)
+            assert "slack_message_ts" not in set(_scalars(
+                engine,
+                "SELECT column_name FROM information_schema.columns"
+                " WHERE table_schema = 'bidops' AND table_name = 'briefing_item'",
+            ))
+            up = run_alembic(database_url, "upgrade", "head")
+            assert up.returncode == 0, up.stderr
+            with engine.begin() as connection:
+                _replica_insert(connection, _approval_sql(), id=uuid4(), policy=uuid4(), sha=_CARD_SHA,
+                                cap=10, request=uuid4())
+            refused = run_alembic(database_url, "downgrade", "0039_opportunity_note")
+            assert refused.returncode != 0
+            assert "refuses to discard transfer_policy_approval" in refused.stderr
+            assert _scalar(engine, "SELECT version_num FROM bidops.alembic_version") == ALEMBIC_HEAD
+        finally:
+            engine.dispose()

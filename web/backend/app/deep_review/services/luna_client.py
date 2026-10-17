@@ -12,6 +12,28 @@ from .luna_identity import CLI_VERSION, MODEL, PROVIDER, REASONING_EFFORT
 
 SAFE_ERRORS = frozenset({'lease_lost', 'model_timeout', 'output_truncated', 'schema_invalid',
                          'authentication_failed', 'model_access_denied', 'runner_failed', 'runner_unavailable'})
+#: Client-side contract allowlist (mirrors runner ``CONTRACT_SCHEMA_PATHS``).
+#: The value is the authority schema validated on the response; ``None`` keeps
+#: the assumption contract's existing caller-side validation.
+CONTRACT_SCHEMAS = {
+    "deep-review-stage-v2": "deep-review-stage-v2",
+    "assumption-stage-v1": None,
+    "card-extract-v1": "requirement-extract",
+    "card-extract-v2": "requirement-extract-v2",
+    "card-role-v1": "verdict-role",
+    "card-synthesis-v1": "practitioner-verdict",
+}
+
+
+def valid_runner_endpoint(endpoint) -> bool:
+    """The only accepted runner address (fixed internal endpoint, no path/query/userinfo)."""
+
+    try:
+        address = urlsplit(str(endpoint or ''))
+        return not (address.scheme != 'http' or address.hostname != 'codex-runner' or address.port != 8091
+                    or address.path or address.query or address.username)
+    except ValueError:
+        return False
 
 
 class LunaClient:
@@ -19,8 +41,7 @@ class LunaClient:
     model = MODEL
 
     def __init__(self, endpoint, heartbeat, deadline, *, transport=None):
-        address = urlsplit(endpoint)
-        if address.scheme != 'http' or address.hostname != 'codex-runner' or address.port != 8091 or address.path or address.query or address.username:
+        if not valid_runner_endpoint(endpoint):
             raise ValueError('invalid internal runner endpoint')
         self.http = httpx.Client(base_url=endpoint, timeout=10, transport=transport, trust_env=False)
         self.heartbeat = heartbeat
@@ -34,7 +55,7 @@ class LunaClient:
         return self.invoke_prompt(prompt)
 
     def invoke_prompt(self, prompt, *, contract="deep-review-stage-v2"):
-        if contract not in {"deep-review-stage-v2", "assumption-stage-v1"} or len(prompt) > (160000 if contract == "assumption-stage-v1" else 100000):
+        if contract not in CONTRACT_SCHEMAS or len(prompt) > (160000 if contract == "assumption-stage-v1" else 100000):
             raise ModelInvocationError("prompt_rejected", ())
         digest = hashlib.sha256(prompt.encode()).hexdigest()
         call_id = None
@@ -43,7 +64,7 @@ class LunaClient:
             if time.monotonic() >= self.deadline:
                 raise ModelInvocationError('review_timeout', ())
             payload = {'prompt': prompt}
-            if contract == 'assumption-stage-v1':
+            if contract != 'deep-review-stage-v2':
                 payload['contract'] = contract
             response = self.http.post('/calls', json=payload)
             response.raise_for_status()
@@ -67,8 +88,9 @@ class LunaClient:
             raw = data['raw_response'].encode()
             try:
                 output = json.loads(raw)
-                if contract == "deep-review-stage-v2":
-                    output = validate_payload(output, contract)
+                schema = CONTRACT_SCHEMAS[contract]
+                if schema is not None:
+                    output = validate_payload(output, schema)
             except (ValueError, SchemaValidationError) as error:
                 raise ModelInvocationError("schema_invalid", (), raw) from error
             # CLI strict schema emits nullable optional keys. They are valid in

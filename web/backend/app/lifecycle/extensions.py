@@ -26,6 +26,8 @@ if TYPE_CHECKING:  # 형만 쓴다. 실행 시점 import는 호출 경로(`oppor
 
 __all__ = [
     "BriefingOrderPlanCandidatesProvider",
+    "BriefingRecommendationHook",
+    "BriefingVerdictDisplayProvider",
     "CompanyFact",
     "CompanyFactsProjection",
     "CompanyFactsProvider",
@@ -271,6 +273,52 @@ class BriefingOrderPlanCandidatesProvider(Protocol):
         self, session: Any, since: datetime, until: datetime
     ) -> Sequence[int]:
         """창 안에 처음 관측된 relevant 발주계획 id. 상수 회 조회다."""
+
+
+# --- RL-03 브리핑 추천 hook ----------------------------------------------------
+
+
+@runtime_checkable
+class BriefingRecommendationHook(Protocol):
+    """`on_briefing_recommendation(session, notice_id, briefing_item_id)` (RL-03 spec "자동 트리거").
+
+    브리핑 생성 service가 새로 넣은 `kind=recommendation`·stage `pre_spec` 항목마다 부른다.
+    lifecycle은 누가 구현했는지 모르고 registry만 본다(제공자가 없으면 no-op). 같은
+    transaction 안에서 동기 실행되며 **구현이 자기 실패를 가둔다** — 한 hook의 실패가 브리핑
+    생성이나 형제 hook을 되돌리면 안 된다.
+
+    `briefing_generated(session, briefing_date)`는 같은 확장점의 두 번째 진입이다. 브리핑
+    행이 새로 만들어진 직후, 항목별 호출보다 **먼저** 한 번 불린다 — 구현은 여기서 지난
+    날 상한 초과로 쌓인 대기열을 오래된 순으로 처리한다(spec "`drain-verdict-queue`(같은
+    CLI, `build-briefing`가 호출)"; lifecycle은 deep_review CLI를 import하지 않으므로 이
+    확장점으로 뒤집는다).
+    """
+
+    def briefing_generated(self, session: Any, briefing_date: Any) -> None:
+        """새 브리핑 행이 막 들어간 뒤 한 번. 호출자 session·transaction 안이다."""
+
+    def on_briefing_recommendation(self, session: Any, notice_id: int, briefing_item_id: UUID) -> None:
+        """사전규격 추천 항목 하나. 호출자 session·transaction 안이다."""
+
+
+# --- RL-03 브리핑 판정 표시 projection -----------------------------------------
+
+
+@runtime_checkable
+class BriefingVerdictDisplayProvider(Protocol):
+    """`briefing_verdict_display(session, notice_ids) -> {notice_id: str}` (RL-03 spec "연결").
+
+    브리핑 추천 항목(사전규격·입찰공고)의 `verdict_display` 글자를 판정 모듈이 채운다
+    (`bidops.briefing.v2`). 사전규격은 최신 completed 판정 이름(`진행 가능`·`조건부 진행`·
+    `진행 어려움`·`판단 불가`), 진행 중이면 `분석 중`, 없으면 `분석 대기`; 입찰공고는 연결된
+    사전규격 판정이 있으면 `사전규격 판정 참조`, 없으면 `판정 대상 아님`이다.
+
+    돌려준 사전에 없는 공고와 제공자가 없을 때는 브리핑이 RL-01 v1 규칙(`분석 대기`)을 쓴다.
+    구현은 읽기 전용이며 넘긴 `notice_ids` 만큼을 상수 회 조회로 처리한다.
+    """
+
+    def briefing_verdict_display(self, session: Any, notice_ids: Sequence[int]) -> Mapping[int, str]:
+        """공고 id → 판정 표시 글자. 모르는 공고는 빠진다."""
 
 
 # --- RL-02 사업기회 활동 피드 hook --------------------------------------------
@@ -567,11 +615,13 @@ class ExtensionRegistry:
     _overview: _OwnedProvider | None = None
     _company_facts: _OwnedProvider | None = None
     _briefing_order_plans: _OwnedProvider | None = None
+    _briefing_verdict_display: _OwnedProvider | None = None
     _workload_projections: dict[str, WorkloadProjection] = field(default_factory=dict)
     _run_ingest_hooks: dict[str, RunIngestHook] = field(default_factory=dict)
     _tracking_hooks: dict[str, TrackingDecisionHook] = field(default_factory=dict)
     _effective_grade_hooks: dict[str, EffectiveGradeChangedHook] = field(default_factory=dict)
     _activity_item_providers: dict[str, OpportunityActivityItemsProvider] = field(default_factory=dict)
+    _briefing_recommendation_hooks: dict[str, BriefingRecommendationHook] = field(default_factory=dict)
 
     _absent_judgment: Any = field(default_factory=_AbsentJudgmentProjection, repr=False)
     _absent_overview: Any = field(default_factory=_AbsentOverviewDocumentProjection, repr=False)
@@ -601,6 +651,13 @@ class ExtensionRegistry:
             self._briefing_order_plans, owner, provider, "브리핑 발주계획 후보"
         )
 
+    def register_briefing_verdict_display(
+        self, provider: BriefingVerdictDisplayProvider, *, owner: str
+    ) -> None:
+        self._briefing_verdict_display = _claim_slot(
+            self._briefing_verdict_display, owner, provider, "브리핑 판정 표시"
+        )
+
     def register_workload_projection(
         self, projection: WorkloadProjection, *, owner: str
     ) -> None:
@@ -625,6 +682,12 @@ class ExtensionRegistry:
     ) -> None:
         """활동 피드 hook. 같은 owner는 제자리 교체(순서 유지), 다른 owner는 뒤에 붙는다."""
         self._activity_item_providers[_checked_owner(owner)] = provider
+
+    def register_briefing_recommendation_hook(
+        self, hook: BriefingRecommendationHook, *, owner: str
+    ) -> None:
+        """RL-03 브리핑 추천 hook. 같은 owner는 제자리 교체(순서 유지), 다른 owner는 뒤에 붙는다."""
+        self._briefing_recommendation_hooks[_checked_owner(owner)] = hook
 
     # --- 조회 (lifecycle이 호출한다) ---
     @property
@@ -692,6 +755,13 @@ class ExtensionRegistry:
         return self._briefing_order_plans.provider.briefing_order_plan_candidates(
             session, since, until
         )
+
+    def briefing_verdict_display(self, session: Any, notice_ids: Sequence[int]) -> Mapping[int, str]:
+        """공고 id → 판정 표시 글자. 제공자가 없거나 공고가 없으면 빈 사전(브리핑 v1 규칙 유지)."""
+
+        if self._briefing_verdict_display is None or not notice_ids:
+            return {}
+        return self._briefing_verdict_display.provider.briefing_verdict_display(session, notice_ids)
 
     def workload_counts(self, session: Any) -> Mapping[str, WorkloadCount]:
         counts: dict[str, WorkloadCount] = {}
@@ -761,6 +831,22 @@ class ExtensionRegistry:
                     raise TypeError("활동 피드 제공자는 ActivityItem만 돌려줘야 한다")
                 items.append(item)
         return items
+
+    def briefing_generated(self, session: Any, briefing_date: Any) -> None:
+        """등록 순서대로 실행한다. hook이 없으면 아무 일도 하지 않는다 (RL-03)."""
+
+        for hook in self._briefing_recommendation_hooks.values():
+            hook.briefing_generated(session, briefing_date)
+
+    def on_briefing_recommendation(self, session: Any, notice_id: int, briefing_item_id: UUID) -> None:
+        """등록 순서대로 실행한다. hook이 없으면 아무 일도 하지 않는다 (RL-03)."""
+
+        for hook in self._briefing_recommendation_hooks.values():
+            hook.on_briefing_recommendation(session, notice_id, briefing_item_id)
+
+    @property
+    def briefing_recommendation_hook_count(self) -> int:
+        return len(self._briefing_recommendation_hooks)
 
     @property
     def opportunity_activity_items_provider_count(self) -> int:

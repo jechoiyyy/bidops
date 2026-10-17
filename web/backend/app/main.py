@@ -54,6 +54,8 @@ _ROUTER_REGISTRATION: tuple[tuple[str, str], ...] = (
     ("lifecycle", "notices_router"),
     ("lifecycle", "pre_specs_router"),
     ("lifecycle", "opportunities_router"),
+    ("deep_review", "opportunity_verdicts_router"),
+    ("deep_review", "transfer_policy_router"),
     ("lifecycle", "workload_router"),
     ("lifecycle", "briefings_router"),
     ("screening", "notice_reviews_router"),
@@ -226,6 +228,51 @@ def _is_demo_independent_company_read(path: str, method: str) -> bool:
     )
 
 
+#: RL-03 (spec "REST" 가드 두 겹 (a)): company paths that open while
+#: ``BIDOPS_RL_ANALYSIS_ENABLED`` (method, pattern); the service still requires the
+#: real company. Every other ``/api/companies`` path keeps the RL-00/demo rule.
+_RL_COMPANY_PATHS: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("GET", ("api", "companies", "*", "pre-specs", "*", "verdict")),
+    ("POST", ("api", "companies", "*", "pre-specs", "*", "verdict-feedback")),
+)
+#: RL-03 paths that exist only while ``BIDOPS_RL_ANALYSIS_ENABLED`` (any method).
+_RL_ONLY_PATHS: tuple[tuple[str, ...], ...] = (
+    ("api", "opportunities", "*", "verdict"),
+    ("api", "opportunities", "*", "verdict-requests"),
+    ("api", "analysis", "transfer-policy"),
+)
+
+
+def _matches(path: str, pattern: tuple[str, ...]) -> bool:
+    segments = path.split("/")[1:]
+    if not segments or any(not segment for segment in segments):
+        return False
+    return len(pattern) == len(segments) and all(
+        expected in {"*", actual} for expected, actual in zip(pattern, segments)
+    )
+
+
+def _is_rl_company_path(path: str, method: str) -> bool:
+    return any(method == expected and _matches(path, pattern) for expected, pattern in _RL_COMPANY_PATHS)
+
+
+def _is_rl_only_path(path: str) -> bool:
+    return any(_matches(path, pattern) for pattern in _RL_ONLY_PATHS)
+
+
+def _is_hidden_path(path: str, method: str, settings) -> bool:  # type: ignore[no-untyped-def]
+    """Demo-only paths with the demo off, and RL-03 paths with RL analysis off, look absent."""
+
+    rl = bool(getattr(settings, "rl_analysis_enabled", False))
+    if not rl and _is_rl_only_path(path):
+        return True
+    if settings.demo_enabled:
+        return False
+    if rl and _is_rl_company_path(path, method):
+        return False
+    return _is_demo_only_path(path, method)
+
+
 def _is_demo_only_path(path: str, method: str = "GET") -> bool:
     """Paths hidden as absent unless the isolated demo is enabled.
 
@@ -304,9 +351,7 @@ def create_app(modules=None, *, mount_frontend: bool = True) -> FastAPI:
 
     @application.middleware("http")
     async def security_headers(request, call_next):  # type: ignore[no-untyped-def]
-        if not get_settings().demo_enabled and _is_demo_only_path(
-            request.url.path, request.method
-        ):
+        if _is_hidden_path(request.url.path, request.method, get_settings()):
             # Behave exactly like an unregistered route. In particular this
             # runs before UUID conversion and before the SPA fallback.
             response = JSONResponse(status_code=404, content={"detail": "Not Found"})

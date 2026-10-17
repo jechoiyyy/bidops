@@ -19,7 +19,7 @@
 
 | 유즈케이스 | 실행 방법 | 확인 기준 |
 |---|---|---|
-| 정책 사전 승인 | `python -m app.deep_review.cli approve-transfer-policy --policy analysis-policy-luna-rl-v1 --actor <name> --daily-cap 10`(사람이 직전 확인 뒤 실행) | `transfer_policy_approval` 행 1건(active), `GET /api/analysis/transfer-policy` 200 |
+| 정책 사전 승인 | `python -m app.deep_review.cli approve-transfer-policy --policy analysis-policy-luna-rl-v1 --actor <name> --daily-cap 10`(사람이 직전 확인 뒤 실행; 2026-10-17 결정 B23 뒤 새 기본 정책은 `analysis-policy-luna-rl-v2`이며 v2 행은 `--policy analysis-policy-luna-rl-v2`로 따로 승인) | `transfer_policy_approval` 행 1건(active), `GET /api/analysis/transfer-policy` 200 |
 | 자동 분석 | 브리핑 추천(pre_spec) 생성 → `sw_business_status='Y'` ∧ 문서 준비 ready(개요 run 불필요; 입찰공고·SW≠Y 추천은 트리거 없음) | attempt 1건 `running→completed`, 승인 없이는 생성조차 안 됨(`policy_not_approved`), 하루 cap 초과분은 `queued`·사유 `daily_cap_reached` |
 | 수동 다시 판정 | 판정 탭 "다시 판정" → `POST /api/opportunities/{id}/verdict-requests` | 202, 같은 계보면 새 attempt(기존 `create_company_attempt` 규칙), 계보 다르면 새 review; 이전 결과 보존 |
 | 판정 화면 | `/opportunities/501/verdict` | 좌측 판정·사유·체크리스트 5·다음 행동·고지 1줄, 중앙 요구사항 표(기본 부족·확인 필요만), 행 선택 → 원문 패널(쪽 링크, 상속 쪽 "(추정)", 미확인 쪽 링크 없음) |

@@ -527,7 +527,7 @@ def test_pg_0036_constraints_triggers_and_policy_immutability(monkeypatch) -> No
             session.commit()
             row_id = row.id
             assert session.scalar(text("SELECT version_num FROM bidops.alembic_version")) == ALEMBIC_HEAD
-            assert ALEMBIC_HEAD == "0039_opportunity_note"
+            assert ALEMBIC_HEAD == "0040_card_analysis"
 
             # A consistent copy is accepted (sanity for the helpers below).
             with engine.begin() as connection:

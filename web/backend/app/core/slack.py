@@ -1,7 +1,8 @@
 """Slack 전송기 하나 (RL-01 spec "Slack"·"인터페이스" 외부 호출 보호 장치).
 
-브리핑 메시지 전송(`chat.postMessage`), 버튼 반응 뒤 메시지 갱신(`chat.update`), Socket Mode
-연결(`apps.connections.open` → websocket)은 모두 이 모듈을 거친다. 다른 곳에서 `slack_sdk`
+브리핑 메시지 전송(`chat.postMessage`), 버튼 반응 뒤 메시지 갱신(`chat.update`), 판정 완료 스레드
+답글(`chat.postMessage` + `thread_ts`, RL-03), Socket Mode 연결(`apps.connections.open` → websocket)은
+모두 이 모듈을 거친다. 다른 곳에서 `slack_sdk`
 client를 직접 만들지 않는다.
 
 호출 **전에** 차례로 검사하고 하나라도 어긋나면 네트워크에 닿지 않는다(fail closed).
@@ -345,6 +346,27 @@ class SlackSender:
             raise SlackTransportError("payload_invalid")
         self._check_payload(blocks, text, allowed_keys)
         self._call("chat_update", channel=channel, ts=ts, blocks=list(blocks), text=text)
+
+    def post_thread_reply(self, *, channel: str, thread_ts: str, text: str) -> str:
+        """설정한 채널의 메시지 스레드에 글 한 줄을 달고 답글 ts를 돌려준다 (RL-03 "Slack 스레드").
+
+        `post_message`와 같은 검사(`preflight`: 켜짐·토큰·채널·allowlist)를 호출 전에 하고, 다른
+        채널은 `update_message`처럼 호출 전에 거부한다. 블록 없이 대체 텍스트 한 줄만 보낸다 —
+        무엇을 쓸지는 호출자가 정하고 이 전송기는 도메인을 모른다.
+        """
+
+        self._require_ready()
+        if channel != self._config.channel_id:
+            raise SlackTransportError("channel_not_allowed")
+        if not isinstance(thread_ts, str) or not thread_ts.strip():
+            raise SlackTransportError("payload_invalid")
+        if not isinstance(text, str) or not text.strip():
+            raise SlackTransportError("payload_invalid")
+        data = self._call("chat_postMessage", channel=channel, thread_ts=thread_ts, text=text)
+        ts = data.get("ts")
+        if not isinstance(ts, str) or not ts.strip():
+            raise SlackTransportError("slack_invalid_response")
+        return ts
 
     # --- Socket Mode ------------------------------------------------------------
 

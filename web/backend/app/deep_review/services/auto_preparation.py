@@ -67,6 +67,13 @@ AUTO_ACTOR_KIND = "system"
 #: 자동 준비를 연 사유. 감사 이벤트의 `trigger`로 남는다.
 AUTO_TRIGGER = "priority_grade"
 
+#: 운영자가 로컬 원본을 기존 G2B 첨부 행에 연결한 직후의 준비 촉발(RL-03 결정 B15).
+#: 이 촉발만 등급·브리핑 자격을 건너뛴다 — 묶음 확정 fence와 안전 검사는 그대로다.
+OPERATOR_LOCAL_ORIGINAL_TRIGGER = "operator_local_original"
+#: RL-03 브리핑 추천 준비 촉발(결정 B18). RL 분석이 켜져 있고 추천을 받은 SW=Y 사전규격일
+#: 때만 묶음 생성의 등급 자격을 건너뛴다(안전 검사·확정 fence는 그대로).
+BRIEFING_RECOMMENDATION_TRIGGER = "briefing_recommendation"
+
 #: 자동 확정만 남기는 감사 이벤트 (명세 §8).
 AUTO_CONFIRM_ACTION = "document_bundle.auto_confirm"
 
@@ -127,6 +134,9 @@ class AutoPreparationOutcome:
     #: enqueue 실패(`overview_enqueue_failed`) 한 가지뿐이며 확정을 되돌리지
     #: 않는다.
     warnings: tuple[str, ...] = ()
+    #: RL-03 ready 전환 재평가 결과(`verdict_trigger.VerdictTriggerOutcome`). RL 자동
+    #: 트리거가 꺼져 있으면 평가하지 않으므로 ``None``이다.
+    rl_verdict: Any = None
 
 
 @dataclass(frozen=True)
@@ -249,11 +259,13 @@ def _latest_bundles(session: Session, notice_id: int) -> list[DocumentBundle]:
     )
 
 
-def _trigger_metadata(run_id: str | None, review_id: int | None) -> dict[str, Any]:
+def _trigger_metadata(
+    run_id: str | None, review_id: int | None, trigger: str | None = None
+) -> dict[str, Any]:
     """감사 metadata. 안전한 식별자와 사유 코드만 담는다 (§10)."""
 
     return {
-        "trigger": AUTO_TRIGGER,
+        "trigger": trigger or AUTO_TRIGGER,
         "trigger_run_id": run_id,
         "trigger_review_id": review_id,
     }
@@ -268,8 +280,15 @@ def _prepare_one(
     run_id: str | None,
     review_id: int | None,
     deep_review_service: Any = None,
+    trigger: str | None = None,
+    rl_verdict_settings: Any = None,
+    rl_verdict_now: Any = None,
+    eligibility_override: str | None = None,
 ) -> AutoPreparationOutcome:
     """이미 자격이 확인된 공고 하나를 실제로 준비한다.
+
+    `eligibility_override`는 묶음 생성의 등급 자격만 건너뛰는 사유다(B15·B18).
+    호출부(`maybe_auto_prepare`)가 촉발과 공고 집합으로 정해 넘긴다.
 
     사전규격 여부와 자격은 호출부가 **batch로 한 번에** 걸러 두었다. 회차 하나가
     사전규격 약 2,000건이므로 여기서 공고당 다시 묻지 않는다.
@@ -283,9 +302,11 @@ def _prepare_one(
     # 없으면 **이 등급을 만든 것**이 촉발이다 — 등급 변경 hook은 확장점 서명상
     # 식별자를 받지 않으므로 그 경우 리뷰의 회차·리뷰 id가 남는다. 둘 다 없으면
     # `None`으로 남기고 다른 값으로 채우지 않는다.
+    trigger_name = trigger
     trigger = _trigger_metadata(
         run_id if run_id is not None else (grade.run_id if grade is not None else None),
         review_id if review_id is not None else (grade.review_id if grade is not None else None),
+        trigger_name,
     )
 
     attachment_ids = _active_attachment_ids(session, notice_id)
@@ -322,9 +343,12 @@ def _prepare_one(
         session.commit()
         warnings = _enqueue_overview(session, notice_id)
         maybe_auto_start_deep_review(session, notice_id, service=deep_review_service)
+        rl_verdict = _rl_verdict_after_ready(
+            session, notice_id, service=deep_review_service, settings=rl_verdict_settings, now=rl_verdict_now,
+        )
         return AutoPreparationOutcome(
             notice_id=notice_id, bundle_id=confirmed.id, reason=REASON_BUNDLE_UNCHANGED,
-            warnings=warnings,
+            warnings=warnings, rl_verdict=rl_verdict,
         )
 
     latest = bundles[0] if bundles else None
@@ -345,6 +369,9 @@ def _prepare_one(
                 AUTO_ACTOR_NAME,
                 actor_kind=AUTO_ACTOR_KIND,
                 trigger_metadata=trigger,
+                # 운영자 로컬 원본 연결(B15)·RL 브리핑 추천(B18)만 묶음 생성의 등급
+                # 자격을 건너뛴다.
+                **({"eligibility_override": eligibility_override} if eligibility_override else {}),
             )
         except BundleServiceError as error:
             return AutoPreparationOutcome(notice_id=notice_id, reason=error.code)
@@ -400,10 +427,31 @@ def _prepare_one(
     # 남고 위의 확정을 되돌리지 않는다.
     warnings = _enqueue_overview(session, notice_id)
     maybe_auto_start_deep_review(session, notice_id, service=deep_review_service)
+    rl_verdict = _rl_verdict_after_ready(
+        session, notice_id, service=deep_review_service, settings=rl_verdict_settings, now=rl_verdict_now,
+    )
     return AutoPreparationOutcome(
         notice_id=notice_id, bundle_id=view.id, created=created, confirmed=True,
-        warnings=warnings,
+        warnings=warnings, rl_verdict=rl_verdict,
     )
+
+
+def _rl_verdict_after_ready(
+    session: Session, notice_id: int, *, service: Any, settings: Any, now: Any
+) -> Any:
+    """RL-03 ready 전환 hook: 묶음이 `ready`인 자리에서 자동 판정 조건 (3)~(7)을 다시 본다.
+
+    RL 자동 트리거가 꺼져 있으면 아무것도 읽지 않고 ``None``이다. 실패는 trigger 안에서
+    안전 코드로 닫히고 방금 끝난 확정을 되돌리지 않는다.
+    """
+
+    active = settings if settings is not None else get_settings()
+    if not (getattr(active, "rl_analysis_enabled", False)
+            and getattr(active, "rl_analysis_auto_start_enabled", False)):
+        return None
+    from .verdict_trigger import on_bundle_ready
+
+    return on_bundle_ready(session, notice_id, service=service, settings=active, now=now)
 
 
 # --- SW사업대상=Y 자동 심층 검토 시작 (명세 §6.4) ----------------------------
@@ -660,8 +708,23 @@ def maybe_auto_prepare(
     root: Path | None = None,
     service: Any = None,
     deep_review_service: Any = None,
+    trigger: str | None = None,
+    rl_verdict_settings: Any = None,
+    rl_verdict_now: Any = None,
 ) -> list[AutoPreparationOutcome]:
     """대상 공고마다 자동 묶음 생성·확정 조건을 검사하고 만족하면 실행한다.
+
+    `trigger="briefing_recommendation"`(RL-03 자동 트리거 (2))이면 브리핑 추천 자체가
+    자격이다: 넘긴 사전규격 중 `SW사업대상=Y`인 것도 등급과 무관하게 준비한다(판정은
+    SW=Y만 하므로 그 밖은 열지 않는다). 감사 `trigger`에 그 이름이 남는다.
+
+    브리핑 추천으로 자격을 얻은 SW=Y 사전규격은 `BIDOPS_RL_ANALYSIS_ENABLED`가 켜져 있을 때만
+    묶음 생성의 등급 자격도 건너뛴다(결정 B18, `eligibility_override="briefing_recommendation"`).
+    꺼져 있으면 묶음 생성이 지금처럼 `effective_grade_ineligible`로 막힌다.
+
+    `trigger="operator_local_original"`(RL-03 결정 B15, `attach-local-original` CLI)이면
+    운영자가 원본을 연결한 그 사전규격이 등급·브리핑과 무관하게 자격을 얻는다. 건너뛰는
+    것은 이 자격 판단뿐이며 취득 종결·safe·구조 준비·확정 fence는 그대로 지난다.
 
     **선별과 등급은 batch로 한 번에 푼다.** 회차 적재 hook은 그 회차의 사전규격
     전부(관측 규모로 3일 약 1,200건, 1주 약 2,000건)를 한 번에 넘긴다. 공고당
@@ -697,6 +760,32 @@ def maybe_auto_prepare(
             if pre_spec_ids
             else frozenset()
         )
+        briefing_only: frozenset[int] = frozenset()
+        rl_settings = rl_verdict_settings if rl_verdict_settings is not None else get_settings()
+        rl_enabled = bool(getattr(rl_settings, "rl_analysis_enabled", False))
+        rl_auto = bool(getattr(rl_settings, "rl_analysis_enabled", False)
+                       and getattr(rl_settings, "rl_analysis_auto_start_enabled", False))
+        if pre_spec_ids and (trigger == "briefing_recommendation" or rl_auto):
+            from .effective_grade import sw_business_notice_ids
+
+            sw_ids = sw_business_notice_ids(session, [value for value in pre_spec_ids if value not in eligible])
+            if trigger == "briefing_recommendation":
+                briefing_only = sw_ids
+            elif sw_ids:
+                # RL-03 (2): 브리핑 추천을 받은 SW=Y 사전규격은 첨부가 늦게 끝나도(이 취득
+                # 완료 촉발) 준비가 이어진다. RL 자동 트리거가 켜져 있을 때만 연다.
+                from ...lifecycle.models import BriefingItem
+
+                briefing_only = frozenset(int(value) for value in session.scalars(
+                    select(BriefingItem.notice_id).where(
+                        BriefingItem.notice_id.in_(sorted(sw_ids)),
+                        BriefingItem.kind == "recommendation",
+                        BriefingItem.stage == "pre_spec",
+                    ).distinct()
+                ).all())
+            eligible = frozenset(eligible | briefing_only)
+        if trigger == OPERATOR_LOCAL_ORIGINAL_TRIGGER:
+            eligible = frozenset(eligible | set(pre_spec_ids))
     except Exception:
         # 등급을 아예 풀지 못하면(선별 모듈 부재 등) 자동 준비는 이번에 아무것도
         # 하지 않는다. 예외는 호출자에게 오르지 않는다.
@@ -707,6 +796,7 @@ def maybe_auto_prepare(
 
     pre_spec = set(pre_spec_ids)
     candidates: list[tuple[int, EffectiveGrade | None]] = []
+    briefing_trigger = {notice_id for notice_id in briefing_only}
     for notice_id in ids:
         if notice_id not in pre_spec:
             outcomes[notice_id] = AutoPreparationOutcome(notice_id=notice_id)
@@ -737,6 +827,19 @@ def maybe_auto_prepare(
                             run_id=run_id,
                             review_id=review_id,
                             deep_review_service=deep_review_service,
+                            trigger=trigger or (
+                                "briefing_recommendation" if notice_id in briefing_trigger else None
+                            ),
+                            rl_verdict_settings=rl_verdict_settings,
+                            rl_verdict_now=rl_verdict_now,
+                            eligibility_override=(
+                                OPERATOR_LOCAL_ORIGINAL_TRIGGER
+                                if trigger == OPERATOR_LOCAL_ORIGINAL_TRIGGER
+                                # briefing_only = 추천받은 SW=Y 사전규격 중 등급 자격이 없던 것
+                                else BRIEFING_RECOMMENDATION_TRIGGER
+                                if rl_enabled and notice_id in briefing_trigger
+                                else None
+                            ),
                         )
                     except Exception as error:
                         # 예외 본문은 여기서 버린다. 다음 촉발에서 다시 시도된다.

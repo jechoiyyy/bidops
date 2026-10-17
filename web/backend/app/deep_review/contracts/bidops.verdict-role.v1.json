@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "bidops.verdict-role.v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "role", "unit_findings", "cautions", "evidence_refs"],
+  "properties": {
+    "schema_version": {"const": "bidops.verdict-role.v1"},
+    "role": {"$ref": "#/$defs/role"},
+    "unit_findings": {"type": "array", "items": {"$ref": "#/$defs/finding"}},
+    "cautions": {"type": "array", "items": {"$ref": "#/$defs/caution"}},
+    "evidence_refs": {"type": "array", "items": {"$ref": "#/$defs/evidence"}}
+  },
+  "$defs": {
+    "nonempty": {"type": "string", "minLength": 1},
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "role": {"type": "string", "enum": ["eligibility_economics", "technical_fit", "operations_risk"]},
+    "fit": {"type": "string", "enum": ["met", "gap", "unknown"]},
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_sha256", "block_key", "quote"],
+      "properties": {
+        "source_sha256": {"$ref": "#/$defs/sha256"},
+        "block_key": {"$ref": "#/$defs/nonempty"},
+        "quote": {"$ref": "#/$defs/nonempty"}
+      }
+    },
+    "finding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["unit_id", "assessment", "reason", "evidence_refs"],
+      "properties": {
+        "unit_id": {"$ref": "#/$defs/nonempty"},
+        "assessment": {"$ref": "#/$defs/fit"},
+        "reason": {"$ref": "#/$defs/nonempty"},
+        "evidence_refs": {"type": "array", "items": {"$ref": "#/$defs/evidence"}}
+      }
+    },
+    "caution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["unit_id", "text", "evidence_refs"],
+      "properties": {
+        "unit_id": {"$ref": "#/$defs/nonempty"},
+        "text": {"$ref": "#/$defs/nonempty"},
+        "evidence_refs": {"type": "array", "items": {"$ref": "#/$defs/evidence"}}
+      }
+    }
+  }
+}

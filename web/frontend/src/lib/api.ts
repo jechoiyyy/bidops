@@ -121,6 +121,10 @@ import type {
   ScreeningStopRequest,
   TrackingStatusUpdateRequest,
   ValidationMetricsResponse,
+  VerdictFeedbackReceipt,
+  VerdictFeedbackRequest,
+  VerdictRequestReceipt,
+  PractitionerVerdictView,
   WarningListResponse,
 } from "./types";
 
@@ -1537,6 +1541,44 @@ export const api = {
       headers: { "Content-Type": "application/json", ...actorHeaders(actorName) },
       body: JSON.stringify({ request_id: requestId }),
     }),
+
+  /**
+   * 사업기회의 참여 판정(RL-03). GET은 생성·모델 호출을 하지 않는 읽기 전용이다. 대상 사전규격이
+   * 없으면 200 `availability=none`이며 `attempt_id`를 주면 그 실행의 결과를 본다.
+   */
+  getOpportunityVerdict: (
+    opportunityId: number,
+    params: { attemptId?: string | null } = {},
+    options?: ReadRequestOptions,
+  ) =>
+    request<PractitionerVerdictView>(
+      `/opportunities/${opportunityId}/verdict${query({ attempt_id: params.attemptId })}`,
+      options,
+    ),
+
+  /** 수동 "다시 판정". 항상 새 실행이며 이전 결과는 보존된다. 같은 `request_id`의 재전송은 같은 접수를 돌려받는다. */
+  requestOpportunityVerdict: (opportunityId: number, requestId: string, actorName: string) =>
+    request<VerdictRequestReceipt>(`/opportunities/${opportunityId}/verdict-requests`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...actorHeaders(actorName) },
+      body: JSON.stringify({ request_id: requestId }),
+    }),
+
+  /** 판정 오류 제보(append-only). 판정·추적·Go/No-Go를 바꾸지 않는다. */
+  createVerdictFeedback: (
+    companyId: string,
+    noticeId: number,
+    payload: VerdictFeedbackRequest,
+    actorName: string,
+  ) =>
+    request<VerdictFeedbackReceipt>(
+      `/companies/${encodeURIComponent(companyId)}/pre-specs/${noticeId}/verdict-feedback`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...actorHeaders(actorName) },
+        body: JSON.stringify(payload),
+      },
+    ),
 
   /** Preview the selected plans without creating a decision or receipt. */
   previewOrderPlanTracking: (orderPlanIds: readonly number[], options?: ReadRequestOptions) =>

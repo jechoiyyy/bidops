@@ -1,4 +1,4 @@
-"""평일 브리핑 REST `bidops.briefing.v1` (RL-01 spec "REST").
+"""평일 브리핑 REST `bidops.briefing.v2` (RL-01 spec "REST", RL-03 v2 `verdict_display` 확장).
 
 router는 parsing·HTTP 대응만 한다. 조회 projection·반응 상태 전이·멱등 fence는
 `services/briefing.py`, Slack 미리보기 payload는 `services/briefing_slack.py`가 한다.

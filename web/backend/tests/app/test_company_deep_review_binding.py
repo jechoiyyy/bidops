@@ -606,6 +606,8 @@ def test_t2_assembled_app_hides_company_deep_review_routes_when_demo_disabled(mo
         "/api/companies/{company_id}/pre-specs/{notice_id}/deep-review-previews",
         "/api/companies/{company_id}/pre-specs/{notice_id}/deep-reviews",
         "/api/companies/{company_id}/deep-reviews/{review_id}/attempts",
+        # RL-03: verdict feedback (opened by the middleware only with BIDOPS_RL_ANALYSIS_ENABLED)
+        "/api/companies/{company_id}/pre-specs/{notice_id}/verdict-feedback",
     }
     configure(monkeypatch, BIDOPS_DEMO_ENABLED="false")
     http = TestClient(create_app(mount_frontend=False))

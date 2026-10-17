@@ -1,0 +1,178 @@
+
+> bidops-admin-frontend@0.1.0 build
+> tsc -b && vite build
+
+vite v6.4.3 building for production...
+transforming...
+✓ 2794 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                                      0.51 kB │ gzip:   0.32 kB
+dist/assets/TechnicalInfo-6ZUn47tA.css               0.95 kB │ gzip:   0.38 kB
+dist/assets/useUnsavedGuard-CPH887jz.css             2.64 kB │ gzip:   0.73 kB
+dist/assets/useListSelection-FlBubonH.css            3.23 kB │ gzip:   0.77 kB
+dist/assets/AssumptionAnalysisPage-D2uv4XMx.css      3.92 kB │ gzip:   0.92 kB
+dist/assets/CompanyPage-Dln_8NYo.css                 5.35 kB │ gzip:   1.23 kB
+dist/assets/BriefingPage-DkZwHROo.css                7.56 kB │ gzip:   1.45 kB
+dist/assets/GoNoGoPage-wQiGZ31Q.css                  8.98 kB │ gzip:   1.76 kB
+dist/assets/DashboardPage-DHY8dTum.css               9.23 kB │ gzip:   1.84 kB
+dist/assets/CriteriaPage-D_A_mbYf.css               12.56 kB │ gzip:   2.20 kB
+dist/assets/ReviewWorkspacePage-D-riKpt1.css        13.88 kB │ gzip:   2.92 kB
+dist/assets/OpportunityRecordPage-CyqFBlnV.css      15.04 kB │ gzip:   2.58 kB
+dist/assets/BidDeltaDecisionPage-X7dCguVq.css       16.26 kB │ gzip:   2.44 kB
+dist/assets/RunStatusPage-CaIKtO0W.css              17.78 kB │ gzip:   2.93 kB
+dist/assets/opportunities-relaxed-BShOw4vV.css      18.12 kB │ gzip:   2.80 kB
+dist/assets/DeepReviewPage-D_3EC9HR.css             22.64 kB │ gzip:   3.75 kB
+dist/assets/OrderPlansPage-B4XZHfvQ.css             27.55 kB │ gzip:   4.51 kB
+dist/assets/pre-specs-relaxed-DNhZZtIN.css          45.91 kB │ gzip:   6.25 kB
+dist/assets/PreSpecDetailPage-BhDdCQO5.css          59.52 kB │ gzip:   7.84 kB
+dist/assets/index-CM7Q1fif.css                     377.85 kB │ gzip:  61.98 kB
+dist/assets/composeEventHandlers-BolWE7qY.js         0.11 kB │ gzip:   0.11 kB
+dist/assets/useIsomorphicLayoutEffect-kUzWzA84.js    0.11 kB │ gzip:   0.12 kB
+dist/assets/PageHeaderActions-BE9qifPS.js            0.23 kB │ gzip:   0.21 kB
+dist/assets/useToast-ewKdd6NS.js                     0.24 kB │ gzip:   0.20 kB
+dist/assets/StatusBadge-Cj5n8rVs.js                  0.29 kB │ gzip:   0.23 kB
+dist/assets/check-B6ZCO0m9.js                        0.30 kB │ gzip:   0.25 kB
+dist/assets/chevron-right-BWxPJ7l_.js                0.31 kB │ gzip:   0.25 kB
+dist/assets/arrow-right-CZ_Xd-n8.js                  0.35 kB │ gzip:   0.27 kB
+dist/assets/arrow-up-right-DqXJX3yZ.js               0.35 kB │ gzip:   0.27 kB
+dist/assets/search-vR8P9LnI.js                       0.35 kB │ gzip:   0.28 kB
+dist/assets/Panel-7Ft1lJ9-.js                        0.38 kB │ gzip:   0.25 kB
+dist/assets/characters-WgeUjB8u.js                   0.40 kB │ gzip:   0.26 kB
+dist/assets/copy-DmohfWoA.js                         0.41 kB │ gzip:   0.32 kB
+dist/assets/activity-CtJRWyI9.js                     0.42 kB │ gzip:   0.31 kB
+dist/assets/refresh-cw-DMYANLu8.js                   0.50 kB │ gzip:   0.33 kB
+dist/assets/useIndicatorFocusRing-BwpebRp6.js        0.53 kB │ gzip:   0.37 kB
+dist/assets/TechnicalInfo-CMkrasKv.js                0.53 kB │ gzip:   0.29 kB
+dist/assets/file-search-DWSZZ4Sp.js                  0.56 kB │ gzip:   0.38 kB
+dist/assets/search-DyxyVo9g.js                       0.65 kB │ gzip:   0.41 kB
+dist/assets/glossary-DUdlvorw.js                     0.65 kB │ gzip:   0.48 kB
+dist/assets/useCollapsible-D6Kslern.js               0.70 kB │ gzip:   0.38 kB
+dist/assets/loader-circle-Du9Hk-gp.js                0.70 kB │ gzip:   0.36 kB
+dist/assets/deadline-yi40Kju4.js                     0.90 kB │ gzip:   0.49 kB
+dist/assets/ActorField-D9PzlRZb.js                   1.05 kB │ gzip:   0.71 kB
+dist/assets/Toast-DCVFq473.js                        1.06 kB │ gzip:   0.63 kB
+dist/assets/grade-VuYPPMQY.js                        1.08 kB │ gzip:   0.55 kB
+dist/assets/DisabledReason-B7bPKB_W.js               1.24 kB │ gzip:   0.63 kB
+dist/assets/CompanyHeader-HsLQ8Nk-.js                1.56 kB │ gzip:   0.78 kB
+dist/assets/useRowKeyboardNavigation-DwXpg6KU.js     1.63 kB │ gzip:   0.85 kB
+dist/assets/CompanySummaries-zCLTPOv0.js             1.71 kB │ gzip:   0.65 kB
+dist/assets/Tooltip-CUTFvBL2.js                      1.88 kB │ gzip:   0.84 kB
+dist/assets/qualityStatus-Bb5HOY-V.js                2.37 kB │ gzip:   1.25 kB
+dist/assets/orderPlanFormat-B8PfpOkn.js              2.42 kB │ gzip:   1.31 kB
+dist/assets/ToggleButton-CBImnxH1.js                 2.53 kB │ gzip:   1.22 kB
+dist/assets/DialogHeader-DwG93_KN.js                 2.82 kB │ gzip:   1.37 kB
+dist/assets/labels-D2GGj8N5.js                       3.19 kB │ gzip:   1.53 kB
+dist/assets/useMutation-CG22-f0s.js                  3.21 kB │ gzip:   1.30 kB
+dist/assets/CheckboxInput-BvEN_h99.js                3.23 kB │ gzip:   1.71 kB
+dist/assets/TextInput-D78GN4gh.js                    3.24 kB │ gzip:   1.64 kB
+dist/assets/WorkspaceFilters-CCpe1rSt.js             3.83 kB │ gzip:   1.71 kB
+dist/assets/useKeyboardHint-D-ca_RUJ.js              3.83 kB │ gzip:   2.00 kB
+dist/assets/api-CnU71K3e.js                          4.05 kB │ gzip:   1.49 kB
+dist/assets/createLucideIcon-DYEZoI59.js             4.13 kB │ gzip:   1.76 kB
+dist/assets/TextArea-8QYmwYbF.js                     4.40 kB │ gzip:   2.17 kB
+dist/assets/CompanyComparisonPage-CzecXGMR.js        4.43 kB │ gzip:   1.79 kB
+dist/assets/briefing-aTkcNqlT.js                     4.57 kB │ gzip:   1.99 kB
+dist/assets/useQueries-DwE4-Qo1.js                   4.58 kB │ gzip:   1.92 kB
+dist/assets/Token-czpQDJF-.js                        4.73 kB │ gzip:   1.96 kB
+dist/assets/useUnsavedGuard-BQlzXkaY.js              4.77 kB │ gzip:   2.20 kB
+dist/assets/useListSelection-Dsp9LTqB.js             5.64 kB │ gzip:   2.47 kB
+dist/assets/Item-hgTlxewa.js                         5.65 kB │ gzip:   2.13 kB
+dist/assets/useTypeahead-BTplFeI_.js                 5.73 kB │ gzip:   2.65 kB
+dist/assets/SourceVerificationSetting-BJz9xAJZ.js    6.90 kB │ gzip:   2.90 kB
+dist/assets/TrackingStatusDialog-BWJvOgM0.js         8.58 kB │ gzip:   3.52 kB
+dist/assets/Tab-D2Kxc45g.js                          8.93 kB │ gzip:   3.94 kB
+dist/assets/trackingFlow-DqIW2IgT.js                 9.32 kB │ gzip:   3.64 kB
+dist/assets/useClickableContainer-15ubAzW_.js        9.80 kB │ gzip:   3.74 kB
+dist/assets/AssumptionAnalysisPage-DcyJ7HRv.js      10.04 kB │ gzip:   4.31 kB
+dist/assets/listSelection-D2ImzDNi.js               11.13 kB │ gzip:   3.65 kB
+dist/assets/opportunities-relaxed-Ddf8HpOV.js       12.23 kB │ gzip:   4.44 kB
+dist/assets/CompanyPage-CNOoXKZm.js                 14.49 kB │ gzip:   5.19 kB
+dist/assets/inputStyles.stylex-DLQPzwZ_.js          14.59 kB │ gzip:   5.34 kB
+dist/assets/BriefingPage-B8pFoR0i.js                15.09 kB │ gzip:   6.00 kB
+dist/assets/DashboardPage-DNPg1z3v.js               16.27 kB │ gzip:   5.80 kB
+dist/assets/Dialog-Co0bTOf7.js                      16.56 kB │ gzip:   4.75 kB
+dist/assets/ReviewPrimitives-Co46CkeY.js            20.50 kB │ gzip:   7.19 kB
+dist/assets/apiErrors-Cm91ThHd.js                   23.47 kB │ gzip:   6.21 kB
+dist/assets/TrackingDecisionControl-DMegQXd4.js     23.50 kB │ gzip:   7.20 kB
+dist/assets/Selector-D5OJaq8O.js                    24.17 kB │ gzip:   9.29 kB
+dist/assets/CompanyPreSpecsPage-CIqEHSJL.js         25.52 kB │ gzip:   7.92 kB
+dist/assets/GoNoGoPage-BNCJibpS.js                  28.81 kB │ gzip:   8.72 kB
+dist/assets/Table-BkIDWSDO.js                       29.33 kB │ gzip:  10.53 kB
+dist/assets/Button-BotqHa2X.js                      39.55 kB │ gzip:  14.64 kB
+dist/assets/pre-specs-relaxed-DXHbpxDX.js           47.49 kB │ gzip:  15.85 kB
+dist/assets/OpportunitiesPage-Dz9G8tb3.js           49.35 kB │ gzip:  15.03 kB
+dist/assets/BidDeltaDecisionPage-DlMmJS3u.js        54.04 kB │ gzip:  15.22 kB
+dist/assets/ReviewWorkspacePage-Bb0QKXCI.js         54.52 kB │ gzip:  14.19 kB
+dist/assets/OpportunityRecordPage-CYLk6tB5.js       64.01 kB │ gzip:  21.00 kB
+dist/assets/DeepReviewPage-BzNG6mul.js              67.83 kB │ gzip:  19.08 kB
+dist/assets/PreSpecDetailPage-DCi9anoC.js           75.27 kB │ gzip:  22.22 kB
+dist/assets/OrderPlansPage-D6RBoD_4.js              81.40 kB │ gzip:  24.86 kB
+dist/assets/CriteriaPage-CeLizmab.js               107.53 kB │ gzip:  31.59 kB
+dist/assets/PreSpecsPage-CuWsbPRR.js               133.40 kB │ gzip:  43.11 kB
+dist/assets/RunStatusPage-dX61kPpm.js              207.85 kB │ gzip:  61.11 kB
+dist/assets/index-CdMh6lbe.js                      586.13 kB │ gzip: 171.37 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 2.20s
+build_exit=0
+
+Running 52 tests using 8 workers
+
+[1/52] [app] › tests/opportunity-record.spec.ts:34:1 › /opportunities/:id는 활동 탭으로 replace 이동하고 알 수 없는 탭·식별자는 안전하게 처리한다
+[2/52] [app] › tests/opportunity-record.spec.ts:146:1 › 속성 8개는 고정 순서이고 값이 없으면 미공개·미지정이다
+[3/52] [app] › tests/opportunity-record.spec.ts:97:1 › 헤더 pill은 단계·마감·판정·추적 상태 순서이고 판정이 없으면 판정 보기·제안서 초안은 비활성이다
+[4/52] [app] › tests/opportunity-record.spec.ts:125:1 › 같은 단계에 권위 연결이 둘이면 서버가 준 대표(stages[].link_id)로 헤더·속성·공고·비슷한 공고를 읽는다
+[5/52] [app] › tests/opportunity-record.spec.ts:58:1 › 상단 경로는 사업기회 / 제목이고 제목이 오기 전에는 #id, 다른 레코드의 제목은 쓰지 않는다
+[6/52] [app] › tests/opportunity-record.spec.ts:188:1 › 제출 서류 블록은 비활성 안내 한 줄뿐이고 진행 막대·숫자가 없다
+[7/52] [app] › tests/opportunity-record.spec.ts:227:1 › 활동 항목은 분 단위 시각·사람 이름·상태 pill·링크를 그리고 초 단위와 시스템 정보를 노출하지 않는다
+[8/52] [app] › tests/opportunity-record.spec.ts:197:1 › 단계 바는 서버 상태 6개를 그대로 그리고 unknown은 미확인 글자와 회색 테두리다
+[9/52] [app] › tests/opportunity-record.spec.ts:273:1 › 필터 칩은 받아 둔 항목을 클라이언트에서 가르고 서버를 다시 부르지 않는다
+[10/52] [app] › tests/opportunity-record.spec.ts:299:1 › 활동이 없으면 빈 상태를 말하고, 더 보기는 서버 커서로 다음 페이지를 이어 붙인다
+[11/52] [app] › tests/opportunity-record.spec.ts:324:1 › 노트는 담당자 이름 없이 저장되지 않고, ⌘Enter로 저장하며 UUID 요청 식별자와 기록자 헤더가 나간다
+[12/52] [app] › tests/opportunity-record.spec.ts:352:1 › 다음 행동은 담당을 선택 입력으로 보내고 좌측 목록에 체크 항목으로 나타난다
+[13/52] [app] › tests/opportunity-record.spec.ts:379:1 › 저장이 실패하면 입력을 그대로 두고, 같은 입력의 재시도는 같은 요청 식별자를 쓰며 바꾸면 새 식별자다
+[14/52] [app] › tests/opportunity-record.spec.ts:410:1 › 저장 중 같은 입력을 연달아 눌러도 한 번만 보낸다
+[15/52] [app] › tests/opportunity-record.spec.ts:424:1 › 저장하지 않은 노트 초안은 beforeunload와 SPA 이동을 지키고, 탭을 오가도 초안이 남는다
+[16/52] [app] › tests/opportunity-record.spec.ts:453:1 › 다음 행동 체크는 완료를 저장하고 이름이 없으면 저장하지 않으며 note_not_action을 사람 문구로 말한다
+[17/52] [app] › tests/opportunity-record.spec.ts:485:1 › 다음 행동은 최대 5건만 보이고 모두 보기가 피드를 다음 행동으로 거른다
+[18/52] [app] › tests/opportunity-record.spec.ts:510:1 › 판정(없음)·제안서·서류 탭은 빈 상태 문장만 그리고 좌측 정보는 탭을 옮겨도 남는다
+[19/52] [app] › tests/opportunity-record.spec.ts:526:1 › 원문 탭은 공고 상세로 가는 링크를 주고 비슷한 공고는 가장 뒤 단계 공고의 관련 목록을 쓴다
+[20/52] [app] › tests/opportunity-record.spec.ts:547:1 › 탭은 ←→ 키로 옮기고 선택이 주소에 남는다
+[21/52] [app] › tests/opportunity-record.spec.ts:565:1 › 병합된 사업기회는 병합 대상 레코드로 이동한다
+[22/52] [app] › tests/opportunity-record.spec.ts:572:1 › ⋯ 메뉴는 기존 추적 대화상자를 열고 저장하면 헤더·속성·활동이 다시 읽힌다
+[23/52] [app] › tests/opportunity-record.spec.ts:599:1 › ⋯ 메뉴의 추적 되돌리기와 후보 연결은 기존 대화상자를 열고 해당이 없으면 이유와 함께 비활성이다
+[24/52] [app] › tests/opportunity-record.spec.ts:623:1 › 레코드 DOM에 회차·정책·모델·참조 실행 표식이 없다
+[25/52] [app] › tests/opportunity-record.spec.ts:639:3 › 1280px에서 가로로 넘치지 않고 좌측 정보가 280px이며 작성기가 보인다
+[26/52] [app] › tests/opportunity-record.spec.ts:639:3 › 1440px에서 가로로 넘치지 않고 좌측 정보가 280px이며 작성기가 보인다
+[27/52] [app] › tests/verdict.spec.ts:79:1 › 판정이 없으면 '아직 판정이 없습니다'와 다시 판정을 보이고 헤더는 분석 대기·판정 보기 비활성이다
+[28/52] [app] › tests/verdict.spec.ts:102:1 › 완료 판정은 좌측에 판정 이름·사유·체크리스트 5행·다음 행동·고지를 그린다
+[29/52] [app] › tests/verdict.spec.ts:142:1 › 원문에서 찾지 못한 영역이 있는 완료 판정은 그 영역을 한 줄로 알리고 없으면 알리지 않는다
+[30/52] [app] › tests/verdict.spec.ts:156:1 › 헤더 판정 pill은 판정 이름이고 판정 보기는 결과가 있을 때만 열려 판정 탭으로 간다
+[31/52] [app] › tests/verdict.spec.ts:178:1 › 발주계획만 있는 레코드는 판정 pill이 연차 추적으로 남는다
+[32/52] [app] › tests/verdict.spec.ts:194:1 › 요구사항 표는 부족 → 확인 필요 → 충족으로 정렬하고 기본은 부족·확인 필요만 보인다
+[33/52] [app] › tests/verdict.spec.ts:260:1 › 조건에 맞는 행이 없으면 표 대신 안내를 보이고 요구사항 수는 그대로다
+[34/52] [app] › tests/verdict.spec.ts:271:1 › 50행씩 보이고 'n건 더 보기'로 이어 붙인다
+[35/52] [app] › tests/verdict.spec.ts:291:1 › 행을 고르면 원문 패널이 열려 인용 2개를 mark로 보이고 쪽 전체 보기는 쪽 블록을 읽는다
+[36/52] [app] › tests/verdict.spec.ts:346:1 › 원문 칸의 쪽 링크도 그 행을 골라 패널을 열고 행은 키보드로 고른다
+[37/52] [app] › tests/verdict.spec.ts:357:1 › 서버가 문서 구조 id를 주지 않으면 쪽 전체 보기를 열지 않고 이유를 말한다
+[38/52] [app] › tests/verdict.spec.ts:368:1 › 원문 패널 행동은 담당자 이름을 받아 오류 제보를 보내고 실패하면 같은 요청 식별자로 다시 보낸다
+[39/52] [app] › tests/verdict.spec.ts:431:1 › ⋯ 판정 오류 제보는 판정 전체(wrong_verdict)를 요구사항 식별자 없이 보낸다
+[40/52] [app] › tests/verdict.spec.ts:446:1 › 다시 판정은 담당자 이름과 함께 UUID 요청 식별자로 접수하고 분석 중으로 바뀐다
+[41/52] [app] › tests/verdict.spec.ts:509:1 › 판정이 없는 탭의 다시 판정 버튼도 같은 요청 대화상자를 연다
+[42/52] [app] › tests/verdict.spec.ts:530:1 › 분석 중이면 안내와 검증이 끝난 부분표만 보이고 최종 판정은 없다
+[43/52] [app] › tests/verdict.spec.ts:550:1 › 분석 중 상태가 끝나면 주기적으로 다시 읽어 완료 판정으로 바뀐다
+[44/52] [app] › tests/verdict.spec.ts:565:1 › 검증 실패·시간 초과는 사람 검토 필요로 부분표를 보이고 안전한 코드만 말하며 자동 보정하지 않는다
+[45/52] [app] › tests/verdict.spec.ts:596:1 › legacy는 기존 보고서 링크를 주고 다시 판정을 둔다
+[46/52] [app] › tests/verdict.spec.ts:606:1 › 과거 기준 판정은 과거 기준 pill과 한글 사유를 보이고 모르는 사유는 코드 그대로 둔다
+[47/52] [app] › tests/verdict.spec.ts:627:1 › 판정을 읽지 못하면 오류와 다시 시도를 보이고 헤더는 기존 값으로 남는다
+[48/52] [app] › tests/verdict.spec.ts:645:1 › 실무 화면 DOM에는 정책 id·모델명·해시·참조 실행 표식·요구사항 식별자가 없고 실행 정보 대화상자에서만 보인다
+[49/52] [app] › tests/verdict.spec.ts:690:1 › 품질 표식이 없으면 표식 없음으로 말하고 미측정으로 바꾸지 않는다
+[50/52] [app] › tests/verdict.spec.ts:700:1 › 브리핑 v2 판정 칸은 서버가 준 판정 이름 글자 그대로이고 의미 색을 쓴다
+[51/52] [app] › tests/verdict.spec.ts:734:3 › 1280px에서 가로로 넘치지 않고 좌측 280px·원문 패널 300~380px이며 긴 한글도 넘치지 않는다
+[52/52] [app] › tests/verdict.spec.ts:734:3 › 1440px에서 가로로 넘치지 않고 좌측 280px·원문 패널 300~380px이며 긴 한글도 넘치지 않는다
+  52 passed (19.9s)
+playwright_exit=0

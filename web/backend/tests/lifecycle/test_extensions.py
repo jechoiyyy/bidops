@@ -505,3 +505,30 @@ def test_briefing_projection_slots_are_owned_and_replaced_in_place(registry):
         registry.register_company_facts_projection(_Facts("other"), owner="intruder")
     with pytest.raises(RuntimeError):
         registry.register_briefing_order_plan_candidates(_Plans(), owner="intruder")
+
+
+def test_briefing_verdict_display_slot_is_absent_by_default_and_owned(registry):
+    """RL-03 `briefing_verdict_display`: 제공자 없음·빈 공고 → 빈 사전, 자리는 owner 하나."""
+
+    from app.lifecycle import BriefingVerdictDisplayProvider
+
+    calls: list[list[int]] = []
+
+    class _Display:
+        def __init__(self, value):
+            self.value = value
+
+        def briefing_verdict_display(self, session, notice_ids):
+            calls.append(list(notice_ids))
+            return {notice_id: self.value for notice_id in notice_ids}
+
+    assert dict(registry.briefing_verdict_display("session", [1, 2])) == {}
+    assert isinstance(_Display("x"), BriefingVerdictDisplayProvider)
+    registry.register_briefing_verdict_display(_Display("분석 중"), owner="deep")
+    registry.register_briefing_verdict_display(_Display("진행 가능"), owner="deep")
+    assert dict(registry.briefing_verdict_display("session", [4])) == {4: "진행 가능"}
+    # 빈 공고 목록은 제공자를 부르지 않는다.
+    assert dict(registry.briefing_verdict_display("session", [])) == {}
+    assert calls == [[4]]
+    with pytest.raises(RuntimeError):
+        registry.register_briefing_verdict_display(_Display("x"), owner="intruder")
