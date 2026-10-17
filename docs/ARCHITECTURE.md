@@ -190,6 +190,9 @@ web/backend/app/
 | effective grade 변경됨 | 이벤트 hook | deep_review | no-op. 첨부 취득 자격 재계산과 자동 문서 준비가 일어나지 않는다 |
 | 회사 사실 projection (`company_facts_projection`, RL-01) | 읽기 projection | deep_review | `None` → 브리핑 생성 실패 `company_not_registered`(행 없음) |
 | 브리핑 발주계획 후보 (`briefing_order_plan_candidates`, RL-01) | 읽기 projection | screening | 빈 목록 + 경고 `order_plan_provider_absent` |
+| 사업기회 활동 항목 (`opportunity_activity_items`, RL-02) | 읽기 hook(owner별) | deep_review(RL-03 `verdict_completed`) | 그 kind의 항목 0건 |
+| 브리핑 판정 표시 (`briefing_verdict_display`, RL-03) | 읽기 projection | deep_review | 빈 사전 → 사전규격·입찰공고 `분석 대기`(v1 규칙) |
+| 브리핑 추천 (`on_briefing_recommendation`·`briefing_generated`, RL-03) | 이벤트 hook | deep_review | no-op. 자동 카드 판정 시작·상한 큐 처리 없음 |
 
 **브리핑(RL-01, 2026-10-17)은 lifecycle이 소유한다.** 평일 브리핑 생성·반응 저장·REST(`/api/briefings`)와 `app.lifecycle.cli`(`build-briefing`·`slack-worker`)는 lifecycle에 있고, deep_review·screening 테이블은 위 두 확장점으로만 받는다(새 모듈을 만들지 않는다). Slack 호출(`chat.postMessage`·`chat.update`·Socket Mode)은 core `slack.py` 하나만 하며 호출 전에 enabled·토큰·채널·허용 host를 검사한다. 멱등 영수증 fence는 core `idempotency_fence.py` 하나를 사업기회 추적과 브리핑 반응이 같이 쓴다. 계약은 [contracts.md "브리핑"](contracts.md)이다.
 
@@ -285,6 +288,8 @@ SW=Y 사전규격 적재 시 기관·이름이 일치하는 발주계획을 자�
 **브리핑 흐름(RL-01, 2026-10-17):** 두 트랙 수집·C-2 → `scripts/run-daily-briefing.sh`(web 컨테이너의 `build-briefing`) → 결정적 규칙(회사 `confirmed` 사실·제외·점수, 발주계획은 반복 발주처 ∧ 유사 실적만)이 후보를 상위 N으로 줄여 `briefing`·`briefing_item` 저장 → `/briefing` 화면과 Slack 전송(`--send`, `core/slack.py`) → 화면·Slack 버튼 반응은 개인 기록으로만 저장하고 추적 상태·Go/No-Go를 바꾸지 않음. 상세는 [business-rules.md](business-rules.md#브리핑-추천반응-rl-01-2026-10-17)·[operations.md](operations.md)가 정본이다.
 
 **레코드 활동 흐름(RL-02, 2026-10-17):** 사업기회 레코드 `GET /api/opportunities/{id}/activity`는 권위 연결·공고 관측·추적 감사·브리핑 반응·`opportunity_note`에서 요청마다 단계 바 6단계와 활동 항목을 **파생**하고(피드를 저장하지 않는다), 다른 모듈의 판정 완료·초안 준비 사건은 lifecycle hook `opportunity_activity_items`로 받아 공통 정렬·커서에 합친다(현재 제공자 없음). 추적 중 입찰공고의 D-3·D-1 마감 알림은 새 worker 없이 RL-01 브리핑의 `tracked_change` 사유로 들어간다(규칙 파일 v2). 상세는 [business-rules.md](business-rules.md#사업기회-레코드-단계-바활동-피드-rl-02-2026-10-17)·[contracts.md](contracts.md#레코드-활동-피드노트-rl-02-2026-10-17)가 정본이다.
+
+**카드 판정 흐름(RL-03, 2026-10-17):** 브리핑 `pre_spec` 추천 항목(hook `on_briefing_recommendation`) 또는 사람의 "다시 판정"(`POST /api/opportunities/{id}/verdict-requests`) → 게이트(실회사 ∧ `BIDOPS_RL_ANALYSIS_ENABLED`, 정책 단위 `transfer_policy_approval` 활성·sha·scope·일일 상한, SW사업대상 Y ∧ ready 문서 묶음; **개요 run은 보지 않는다**) → service가 preview·review·attempt·approval 행을 자동 생성(`actor_kind=system`, 상한 초과는 `verdict_request` 큐) → 분석 worker가 attempt claim 직후 `analysis.transfer.sent`를 남기고 → **추출**(Luna `card-extract-v1`, 카드·영역 unit 묶음) → **대조**(코드, 모델 호출 없음, 회사 `confirmed` 사실만 근거·`proposed`/`unknown`은 `unknown`) → **역할 3개**(Luna `card-role-v1`, 대조 결과를 넘지 못함) → **종합**(Luna `card-synthesis-v1`)을 `card_analysis_stage` append-only 행으로 쌓는다(모든 호출은 `codex-runner` 하나, hosted fallback 없음). 검증 실패는 사람 검토로 보내고 자동 보정·재시도가 없다. 읽기 쪽은 `GET …/verdict` view 한 곳이 attempt·단계 행·동결 입력을 읽어 조립하고 화면(`/opportunities/:id/verdict`)·활동 피드 `verdict_completed`·브리핑 `verdict_display`(v2)·Slack 스레드 한 줄이 그 결과만 소비한다. 판정은 참고 의견이며 추적 선택·Go/No-Go를 바꾸지 않는다. 상세는 [business-rules.md](business-rules.md#rl-자동-분석과-판정-상태-rl-03-2026-10-17)·[contracts.md](contracts.md#카드-기반-참여-판정-rl-03-2026-10-17)·[operations.md](operations.md)가 정본이다.
 
 ### 5.2 발주계획 C-2 선별 흐름
 

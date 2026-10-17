@@ -17,6 +17,7 @@ from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import (
+    CHAR,
     BigInteger,
     Boolean,
     CheckConstraint,
@@ -2417,6 +2418,244 @@ class DeepReviewApproval(Base):
 @event.listens_for(DeepReviewApproval, "before_delete")
 def _immutable_luna_input(*_args: Any) -> None:
     raise ValueError("Luna preview and approval are immutable")
+
+
+# ---------------------------------------------------------------------------
+# RL-03 card analysis (0040): policy-level transfer approval, validated card
+# stage results, verdict request queue/holdout markers and verdict feedback.
+# ---------------------------------------------------------------------------
+
+_SHA256_SQLITE = "length({c}) = 64 AND {c} NOT GLOB '*[^0-9a-f]*'"
+_SHA256_PG = "{c} ~ '^[0-9a-f]{{64}}$'"
+
+
+class TransferPolicyApproval(Base):
+    """Policy-level pre-approval of Luna transfer (spec "정책 단위 사전 승인").
+
+    Append-only: only the ``revoked_*`` triple may be filled, once.  The
+    PostgreSQL trigger enforces the same rule for runtime credentials.
+    """
+
+    __tablename__ = "transfer_policy_approval"
+    __table_args__ = (
+        UniqueConstraint("request_id", name="uq_transfer_policy_approval_request"),
+        Index(
+            "uq_transfer_policy_approval_active",
+            "policy_sha256",
+            unique=True,
+            postgresql_where=text("revoked_at IS NULL"),
+            sqlite_where=text("revoked_at IS NULL"),
+        ),
+        CheckConstraint(
+            DualSQL(_SHA256_SQLITE.format(c="policy_sha256"), _SHA256_PG.format(c="policy_sha256")),
+            name="ck_transfer_policy_approval_hash",
+        ),
+        CheckConstraint("daily_cap >= 1 AND daily_cap <= 50", name="ck_transfer_policy_approval_daily_cap"),
+        CheckConstraint(
+            "(revoked_at IS NULL) = (revoked_by IS NULL) AND "
+            "(revoked_at IS NULL) = (revoke_reason IS NULL)",
+            name="ck_transfer_policy_approval_revoked",
+        ),
+        CheckConstraint(
+            DualSQL(
+                "json_valid(scope) AND json_type(scope) = 'object'",
+                "jsonb_typeof(scope) = 'object'",
+            ),
+            name="ck_transfer_policy_approval_scope",
+        ),
+    )
+
+    id: Mapped[uuid_module.UUID] = _uuid_column(primary_key=True)
+    policy_identity: Mapped[str] = mapped_column(Text, nullable=False)
+    policy_version_id: Mapped[uuid_module.UUID] = mapped_column(
+        _fk("analysis_policy_version.id", ondelete="RESTRICT"), nullable=False
+    )
+    #: Canonical sha of the selected ``analysis_policy_version`` row.
+    policy_sha256: Mapped[str] = mapped_column(CHAR(64), nullable=False)
+    model_name: Mapped[str] = mapped_column(Text, nullable=False)
+    reasoning_effort: Mapped[str] = mapped_column(Text, nullable=False)
+    cli_version: Mapped[str] = mapped_column(Text, nullable=False)
+    scope: Mapped[Any] = mapped_column(JSONB_COMPAT, nullable=False)
+    daily_cap: Mapped[int] = mapped_column(Integer, nullable=False)
+    approved_by: Mapped[str] = mapped_column(Text, nullable=False)
+    approved_at: Mapped[datetime] = mapped_column(
+        AwareDateTime(), default=utc_now, server_default=text("CURRENT_TIMESTAMP"), nullable=False
+    )
+    revoked_by: Mapped[str | None] = mapped_column(Text, nullable=True)
+    revoked_at: Mapped[datetime | None] = mapped_column(AwareDateTime(), nullable=True)
+    revoke_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    request_id: Mapped[uuid_module.UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
+
+
+_TRANSFER_APPROVAL_REVOCATION = frozenset({"revoked_by", "revoked_at", "revoke_reason"})
+
+
+@event.listens_for(TransferPolicyApproval, "before_update")
+def _transfer_approval_revocation_only(
+    _mapper: Any, _connection: Any, target: TransferPolicyApproval
+) -> None:
+    state = sa_inspect(target)
+    if any(
+        state.attrs[column.key].history.has_changes()
+        for column in target.__table__.columns
+        if column.key not in _TRANSFER_APPROVAL_REVOCATION
+    ):
+        raise ValueError("transfer policy approvals are append-only")
+    history = state.attrs.revoked_at.history
+    previous = history.deleted[0] if history.deleted else (
+        None if history.added else target.revoked_at
+    )
+    if previous is not None:
+        raise ValueError("transfer policy approval is already revoked")
+
+
+@event.listens_for(TransferPolicyApproval, "before_delete")
+def _transfer_approval_no_delete(*_args: Any) -> None:
+    raise ValueError("transfer policy approvals are append-only")
+
+
+class CardAnalysisStage(Base):
+    """One validated card-v1 stage result, immutable within its attempt (HP-03 정의)."""
+
+    __tablename__ = "card_analysis_stage"
+    __table_args__ = (
+        UniqueConstraint(
+            "attempt_id", "stage", "stage_key", name="uq_card_analysis_stage_identity"
+        ),
+        CheckConstraint(
+            "stage IN ('extract','compare','role','synthesis')",
+            name="ck_card_analysis_stage_name",
+        ),
+        CheckConstraint(
+            DualSQL(
+                "((stage IN ('extract','compare') AND "
+                "(stage_key = '0' OR (length(stage_key) > 0 AND "
+                "stage_key NOT LIKE '0%' AND stage_key NOT GLOB '*[^0-9]*'))) "
+                "OR (stage = 'role' AND stage_key IN "
+                "('eligibility_economics','technical_fit','operations_risk')) "
+                "OR (stage = 'synthesis' AND stage_key = 'final'))",
+                "((stage IN ('extract','compare') AND "
+                "stage_key ~ '^(0|[1-9][0-9]*)$') "
+                "OR (stage = 'role' AND stage_key IN "
+                "('eligibility_economics','technical_fit','operations_risk')) "
+                "OR (stage = 'synthesis' AND stage_key = 'final'))",
+            ),
+            name="ck_card_analysis_stage_key",
+        ),
+        CheckConstraint(
+            DualSQL(
+                _SHA256_SQLITE.format(c="input_sha256") + " AND " + _SHA256_SQLITE.format(c="result_sha256"),
+                _SHA256_PG.format(c="input_sha256") + " AND " + _SHA256_PG.format(c="result_sha256"),
+            ),
+            name="ck_card_analysis_stage_hashes",
+        ),
+        CheckConstraint(
+            DualSQL(
+                "json_valid(payload) AND json_type(payload) = 'object'",
+                "jsonb_typeof(payload) = 'object'",
+            ),
+            name="ck_card_analysis_stage_payload",
+        ),
+    )
+
+    id: Mapped[uuid_module.UUID] = _uuid_column(primary_key=True)
+    attempt_id: Mapped[uuid_module.UUID] = mapped_column(
+        _fk("deep_review_attempt.id", ondelete="RESTRICT"), nullable=False
+    )
+    stage: Mapped[str] = mapped_column(String(16), nullable=False)
+    stage_key: Mapped[str] = mapped_column(String(64), nullable=False)
+    input_sha256: Mapped[str] = mapped_column(CHAR(64), nullable=False)
+    result_sha256: Mapped[str] = mapped_column(CHAR(64), nullable=False)
+    payload: Mapped[Any] = mapped_column(JSONB_COMPAT, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        AwareDateTime(), default=utc_now, server_default=text("CURRENT_TIMESTAMP"), nullable=False
+    )
+
+
+class VerdictRequest(Base):
+    """Manual request, daily-cap queue entry or gold holdout marker (spec "상태 값")."""
+
+    __tablename__ = "verdict_request"
+    __table_args__ = (
+        UniqueConstraint("request_id", name="uq_verdict_request_request"),
+        Index("ix_verdict_request_notice", "notice_id", "status"),
+        CheckConstraint(
+            "status IN ('queued','started','rejected')", name="ck_verdict_request_status"
+        ),
+        CheckConstraint(
+            "reason IS NULL OR reason IN ('daily_cap_reached','gold_holdout','manual')",
+            name="ck_verdict_request_reason",
+        ),
+        CheckConstraint(
+            "started_attempt_id IS NULL OR status = 'started'",
+            name="ck_verdict_request_started_attempt",
+        ),
+    )
+
+    id: Mapped[uuid_module.UUID] = _uuid_column(primary_key=True)
+    #: NULL when the notice has no opportunity identity yet (cap queue/holdout by notice).
+    opportunity_id: Mapped[int | None] = mapped_column(
+        _fk("opportunity.id", ondelete="RESTRICT"), nullable=True
+    )
+    notice_id: Mapped[int] = mapped_column(_fk("notice.id", ondelete="RESTRICT"), nullable=False)
+    actor: Mapped[str] = mapped_column(Text, nullable=False)
+    request_id: Mapped[uuid_module.UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    reason: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        AwareDateTime(), default=utc_now, server_default=text("CURRENT_TIMESTAMP"), nullable=False
+    )
+    started_attempt_id: Mapped[uuid_module.UUID | None] = mapped_column(
+        _fk("deep_review_attempt.id", ondelete="RESTRICT"), nullable=True
+    )
+
+
+class VerdictFeedback(Base):
+    """Append-only practitioner feedback on one verdict attempt."""
+
+    __tablename__ = "verdict_feedback"
+    __table_args__ = (
+        UniqueConstraint("request_id", name="uq_verdict_feedback_request"),
+        Index("ix_verdict_feedback_attempt", "attempt_id"),
+        CheckConstraint(
+            "kind IN ('wrong_verdict','wrong_unit','not_requirement','source_mismatch')",
+            name="ck_verdict_feedback_kind",
+        ),
+        CheckConstraint(
+            "note IS NULL OR length(note) <= 500", name="ck_verdict_feedback_note"
+        ),
+    )
+
+    id: Mapped[uuid_module.UUID] = _uuid_column(primary_key=True)
+    attempt_id: Mapped[uuid_module.UUID] = mapped_column(
+        _fk("deep_review_attempt.id", ondelete="RESTRICT"), nullable=False
+    )
+    kind: Mapped[str] = mapped_column(String(32), nullable=False)
+    unit_id: Mapped[str | None] = mapped_column(Text, nullable=True)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    actor: Mapped[str] = mapped_column(Text, nullable=False)
+    request_id: Mapped[uuid_module.UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        AwareDateTime(), default=utc_now, server_default=text("CURRENT_TIMESTAMP"), nullable=False
+    )
+
+
+def _reject_card_analysis_mutation(*_args: Any) -> None:
+    raise ValueError("card analysis stages and verdict feedback are append-only")
+
+
+for _card_append_only_model in (CardAnalysisStage, VerdictFeedback):
+    event.listen(_card_append_only_model, "before_update", _reject_card_analysis_mutation)
+    event.listen(_card_append_only_model, "before_delete", _reject_card_analysis_mutation)
+
+
+#: 0040 RL-03 card analysis tables (spec "저장").
+CARD_ANALYSIS_TABLES = (
+    "transfer_policy_approval",
+    "card_analysis_stage",
+    "verdict_request",
+    "verdict_feedback",
+)
 
 
 class AssumptionInputVersion(Base):

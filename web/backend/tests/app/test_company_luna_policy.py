@@ -48,15 +48,33 @@ from app.deep_review.services.input_versions import (
     HP_LUNA_POLICY_FILE,
     LUNA_V5_POLICY_FILE,
     LUNA_V5_POLICY_IDENTITY,
+    RL_LUNA_POLICY_FILE,
+    RL_LUNA_POLICY_FILE_V2,
+    RL_LUNA_POLICY_FILE_V3,
+    RL_LUNA_POLICY_FILE_V4,
+    RL_LUNA_POLICY_FILE_V5,
+    RL_LUNA_POLICY_FILE_V6,
     InputVersionError,
     _approved_policy_path,
     _policy_hash_matches,
     canonical_json_hash,
     import_policy_version,
     load_canonical_policy,
+    resolve_active_versions,
     validate_pinned_policy,
 )
-from app.deep_review.services.luna_identity import COMPANY_POLICY_IDENTITIES, HP_POLICY_IDENTITY
+from app.deep_review.services import luna_identity
+from app.deep_review.services.luna_identity import (
+    COMPANY_POLICY_IDENTITIES,
+    HP_POLICY_IDENTITY,
+    RL_POLICY_IDENTITIES,
+    RL_POLICY_IDENTITY,
+    RL_POLICY_IDENTITY_V2,
+    RL_POLICY_IDENTITY_V3,
+    RL_POLICY_IDENTITY_V4,
+    RL_POLICY_IDENTITY_V5,
+    RL_POLICY_IDENTITY_V6,
+)
 from app.deep_review.services.narrative_inputs import NarrativeInputError
 from tests.app.test_company_deep_review_binding import (  # noqa: F401 - shared fixtures
     LUNA_V4,
@@ -174,7 +192,15 @@ def test_t5_demo_policy_is_canonical_pinned_and_differs_from_v4_only_by_company_
 def test_t3_hp_and_v5_policies_are_canonical_four_key_derivatives(
     path, base_path, identity, digest,
 ) -> None:
-    assert COMPANY_POLICY_IDENTITIES == frozenset({DEMO_LUNA_POLICY_IDENTITY, HP_POLICY_IDENTITY})
+    # RL-03 spec "정책 행·선택" adds the card-v1 identities (v2: 결정 B23, v3: 결정 B30); the two HP-00
+    # files are unchanged.
+    assert COMPANY_POLICY_IDENTITIES == frozenset({
+        DEMO_LUNA_POLICY_IDENTITY, HP_POLICY_IDENTITY, RL_POLICY_IDENTITY, RL_POLICY_IDENTITY_V2,
+        RL_POLICY_IDENTITY_V3, RL_POLICY_IDENTITY_V4, RL_POLICY_IDENTITY_V5, RL_POLICY_IDENTITY_V6,
+    })
+    assert RL_POLICY_IDENTITIES == frozenset({
+        "analysis-policy-luna-rl-v1", "analysis-policy-luna-rl-v2", "analysis-policy-luna-rl-v3",
+        "analysis-policy-luna-rl-v4", "analysis-policy-luna-rl-v5", "analysis-policy-luna-rl-v6"})
     payload, canonical, actual_digest = load_canonical_policy(path)
     base, _base_raw, _base_digest = load_canonical_policy(base_path)
     assert path.read_bytes() == canonical == canonical_json_bytes(payload)
@@ -668,3 +694,566 @@ def test_t4_frozen_preview_uses_the_hp_policy_identity(world_session) -> None:
     assert frozen["policy_version_id"] == str(world.policy_id)
     assert frozen["policy_sha256"] == HP_SHA256
     assert UUID(frozen["execution_nonce"]) == UUID(response["preview_id"])
+
+
+# --- RL-03 STEP-001: card-v1 policy identity, closed validator, import, selection env ---
+
+RL_SHA256 = "9687c49be2cfb0400b97aaa038d19536e2b6a7b792ab957569ef9bc319976c4a"
+RL_COMPANY_INPUT_RULE = (
+    "회사 입력은 실회사 ㈜루트랩의 등록 사실이며 origin은 company_brochure·homepage·user_interview·agent_proposal 중 하나다. "
+    "status가 confirmed인 사실만 보유·수행·자격의 근거다. "
+    "proposed(에이전트 제안값)와 unknown은 확인되지 않은 값이며 보유·미보유 어느 쪽 근거도 아니다."
+)
+
+
+def rl_policy() -> dict:
+    payload, _raw, _digest = load_canonical_policy(RL_LUNA_POLICY_FILE)
+    return payload
+
+
+def test_rl_card_policy_is_canonical_pinned_and_follows_the_hp03_wire() -> None:
+    raw = RL_LUNA_POLICY_FILE.read_bytes()
+    payload, canonical, digest = load_canonical_policy(RL_LUNA_POLICY_FILE)
+    assert RL_LUNA_POLICY_FILE.name == "analysis-policy-luna-rl-v1.json"
+    assert raw == canonical == canonical_json_bytes(payload)
+    assert digest == hashlib.sha256(raw).hexdigest() == RL_SHA256
+    assert _approved_policy_path(payload) == RL_LUNA_POLICY_FILE
+    assert set(payload) == {
+        "schema", "policy_identity", "pipeline_version", "model_endpoint_ref", "model_name",
+        "model_revision", "generation", "quality_status", "chunking", "execution", "card",
+        "prompt_output_contract", "stage_schema", "report_schema", "stages", "validation",
+    }
+    assert payload["schema"] == "bidops.analysis-policy.v2"
+    assert payload["policy_identity"] == RL_POLICY_IDENTITY == "analysis-policy-luna-rl-v1"
+    assert payload["pipeline_version"] == "card-v1"
+    # HP-00 identity is read from the identity module, never a second copy.
+    assert payload["model_endpoint_ref"] == luna_identity.PROVIDER
+    assert payload["model_name"] == luna_identity.MODEL
+    assert payload["generation"] == {"reasoning_effort": luna_identity.REASONING_EFFORT}
+    assert payload["execution"] == {
+        "automatic_retry": False, "cli_version": luna_identity.CLI_VERSION, "review_timeout_seconds": 3600,
+        "timeout_seconds": 900, "validation_repair_attempts": 1,
+    }
+    assert payload["model_revision"] is None
+    assert payload["quality_status"] == "unmeasured_reference"
+    assert payload["stage_schema"] == "bidops.requirement-extract.v1"
+    assert payload["report_schema"] == "bidops.practitioner-verdict.v1"
+    assert payload["card"] == {"batch_size": 8, "batch_max_chars": 12000, "repair_attempts": 1, "target_seconds": 2400}
+    assert {key: payload["chunking"][key] for key in ("source_characters", "max_requirements", "timeout_seconds", "path_limit_per_requirement")} == {
+        "source_characters": 12000, "max_requirements": 8, "timeout_seconds": 900, "path_limit_per_requirement": 32,
+    }
+    assert [row["stage"] for row in payload["stages"]] == [
+        "extract", "eligibility_economics", "technical_fit", "operations_risk", "synthesis",
+    ]
+    assert payload["validation"] == {
+        "allowed_repair": "syntax_or_schema_only", "company_claims": "supplied_basis_only",
+        "evidence": "exact_frozen_quote", "human_decision": "never",
+    }
+    contract = payload["prompt_output_contract"]
+    assert set(contract) == {"input_rule", "evidence_rule", "unknown_rule", "repair_rule", "company_input_rule"}
+    assert contract["company_input_rule"] == RL_COMPANY_INPUT_RULE
+    # No narrative-v2 claim/recommendation rule and no fictional-company wording.
+    text = json.dumps(payload, ensure_ascii=False)
+    for forbidden in ("fictional_scenario", "claim_rule", "recommendation", "hp-onweb", "온웹"):
+        assert forbidden not in text, forbidden
+    assert _policy_execution_limit(payload, "review_timeout_seconds", default=7200, minimum=1, maximum=86400) == 3600
+    assert _policy_execution_limit(payload, "validation_repair_attempts", default=0, minimum=0, maximum=1) == 1
+
+
+@pytest.mark.parametrize(
+    ("mutate", "match"),
+    [
+        (lambda p: p.__setitem__("hp", p.pop("card")), "RL card analysis policy identity"),
+        (lambda p: p.__setitem__("pipeline_version", "narrative-v2"), "RL card analysis policy identity"),
+        (lambda p: p.__setitem__("model_name", "gpt-5.6-luna"), "RL card analysis policy identity"),
+        (lambda p: p["generation"].__setitem__("reasoning_effort", "xhigh"), "RL card analysis policy identity"),
+        (lambda p: p.__setitem__("model_revision", "0" * 64), "RL card analysis policy identity"),
+        (lambda p: p.__setitem__("quality_status", None), "RL card analysis policy identity"),
+        (lambda p: p["card"].__setitem__("batch_size", 9), "RL card analysis policy가"),
+        (lambda p: p["card"].__setitem__("batch_size", True), "RL card analysis policy가"),
+        (lambda p: p["card"].__setitem__("batch_max_chars", 12001), "RL card analysis policy가"),
+        (lambda p: p["card"].__setitem__("repair_attempts", 2), "RL card analysis policy가"),
+        (lambda p: p["execution"].__setitem__("cli_version", "0.155.1"), "RL card analysis policy가"),
+        (lambda p: p["execution"].__setitem__("review_timeout_seconds", 18000), "RL card analysis policy가"),
+        (lambda p: p["prompt_output_contract"].pop("company_input_rule"), "RL card analysis policy가"),
+        (lambda p: p["prompt_output_contract"].__setitem__("claim_rule", "x"), "RL card analysis policy가"),
+        (lambda p: p["stages"].reverse(), "RL card analysis policy가"),
+        (lambda p: p["validation"].__setitem__("human_decision", "auto"), "RL card analysis policy가"),
+        (lambda p: p["chunking"].pop("path_limit_per_requirement"), "path_limit_per_requirement"),
+        # A closed-valid but unapproved value still differs from the approved bytes.
+        (lambda p: p["card"].__setitem__("batch_size", 7), "승인되지 않은"),
+        (lambda p: p["prompt_output_contract"].__setitem__("company_input_rule", RL_COMPANY_INPUT_RULE + " "), "승인되지 않은"),
+    ],
+)
+def test_rl_card_policy_rejects_open_or_unapproved_candidates(tmp_path, mutate, match) -> None:
+    candidate = deepcopy(rl_policy())
+    mutate(candidate)
+    with pytest.raises(InputVersionError, match=match):
+        load_canonical_policy(write_candidate(tmp_path, candidate))
+
+
+def test_rl_card_identity_never_falls_back_and_other_identities_keep_their_files(tmp_path) -> None:
+    unknown = deepcopy(rl_policy())
+    unknown["policy_identity"] = "analysis-policy-luna-rl-v4"
+    with pytest.raises(InputVersionError, match="identity"):
+        load_canonical_policy(write_candidate(tmp_path, unknown))
+    # v1 content under the v2 identity lacks the v2 selector key (결정 B23).
+    renamed_v2 = deepcopy(rl_policy())
+    renamed_v2["policy_identity"] = RL_POLICY_IDENTITY_V2
+    with pytest.raises(InputVersionError, match="RL card analysis policy가"):
+        load_canonical_policy(write_candidate(tmp_path, renamed_v2))
+    # The RL card content under an existing identity is not that identity's file.
+    for identity in (HP_POLICY_IDENTITY, DEMO_LUNA_POLICY_IDENTITY):
+        renamed = deepcopy(rl_policy())
+        renamed["policy_identity"] = identity
+        with pytest.raises(InputVersionError, match="승인되지 않은"):
+            load_canonical_policy(write_candidate(tmp_path, renamed))
+    assert _approved_policy_path(hp_policy()) == HP_LUNA_POLICY_FILE
+    assert _approved_policy_path(demo_policy()) == DEMO_LUNA_POLICY_FILE
+    assert _approved_policy_path(v5_policy()) == LUNA_V5_POLICY_FILE
+
+
+def test_rl_card_policy_imports_as_an_immutable_company_only_row(engine) -> None:
+    with Session(engine) as session:
+        row = import_policy_version(session, RL_LUNA_POLICY_FILE, created_by_name="정책 담당자",
+                                    label="analysis-policy-luna-rl-v1")
+        session.commit()
+        assert row.policy_sha256 == RL_SHA256
+        assert (row.model_endpoint_ref, row.model_name) == ("codex-exec", "gpt-6-luna")
+        assert row.prompts == rl_policy()["stages"]
+        assert luna_identity.policy_reasoning_effort(row) == "high"
+        assert luna_identity.matches_runtime(row.model_name, luna_identity.policy_reasoning_effort(row))
+        assert _policy_hash_matches(row)
+        validate_pinned_policy(row, allow_unmeasured_reference=True)
+        snapshot = {key: value for key, value in _policy_payload(row).items() if key != "policy_sha256"}
+        assert snapshot == rl_policy()
+        # Idempotent replay returns the same immutable row.
+        assert import_policy_version(session, RL_LUNA_POLICY_FILE, created_by_name="정책 담당자").id == row.id
+        # A company policy can never be the global active deep-review policy.
+        profile = import_profile_version_for_global(session)
+        with pytest.raises(InputVersionError, match="회사 전용"):
+            resolve_active_versions(
+                session,
+                environ={"BIDOPS_ACTIVE_PROFILE_VERSION_ID": str(profile.id),
+                         "BIDOPS_ACTIVE_ANALYSIS_POLICY_VERSION_ID": str(row.id)},
+                allow_unmeasured_reference=True,
+            )
+
+
+RL_V2_SHA256 = "e733e94a02b1240794ac50b7397d3974fb241917cf73fdeed009ba4ba0c4ff3b"
+
+
+def rl_policy_v2() -> dict:
+    payload, _raw, _digest = load_canonical_policy(RL_LUNA_POLICY_FILE_V2)
+    return payload
+
+
+def test_rl_card_policy_v2_is_canonical_pinned_and_differs_from_v1_only_by_identity_selector_and_synthesis_rule() -> None:
+    # 결정 B23: a new immutable file; v1 bytes and sha are unchanged.  결정 B24: the v2 synthesis
+    # instruction also tells the model about missing_sections and the "진행 가능" cap.
+    raw = RL_LUNA_POLICY_FILE_V2.read_bytes()
+    payload, canonical, digest = load_canonical_policy(RL_LUNA_POLICY_FILE_V2)
+    assert RL_LUNA_POLICY_FILE_V2.name == "analysis-policy-luna-rl-v2.json"
+    assert raw == canonical == canonical_json_bytes(payload)
+    assert digest == hashlib.sha256(raw).hexdigest() == RL_V2_SHA256
+    assert hashlib.sha256(RL_LUNA_POLICY_FILE.read_bytes()).hexdigest() == RL_SHA256
+    assert _approved_policy_path(payload) == RL_LUNA_POLICY_FILE_V2
+    assert payload["policy_identity"] == RL_POLICY_IDENTITY_V2 == "analysis-policy-luna-rl-v2"
+    assert payload["pipeline_version"] == "card-v1"
+    assert payload["card"] == {"batch_size": 8, "batch_max_chars": 12000, "repair_attempts": 1,
+                               "target_seconds": 2400, "selector": "card-sections-v2"}
+    expected = deepcopy(rl_policy())
+    expected["policy_identity"] = RL_POLICY_IDENTITY_V2
+    expected["card"]["selector"] = "card-sections-v2"
+    expected["stages"][4]["instruction"] += (
+        " The input missing_sections lists the source areas the selector did not find in the notice;"
+        " their requirements are unknown. While missing_sections is non-empty the verdict must not be"
+        " \"진행 가능\" (the highest allowed verdict is \"조건부 진행\")."
+    )
+    assert expected["stages"][4]["stage"] == "synthesis"
+    assert payload == expected
+
+
+@pytest.mark.parametrize(
+    ("mutate", "match"),
+    [
+        (lambda p: p["card"].pop("selector"), "RL card analysis policy가"),
+        (lambda p: p["card"].__setitem__("selector", "card-sections-v1"), "RL card analysis policy가"),
+        (lambda p: p["card"].__setitem__("selector", "card-sections-v3"), "RL card analysis policy가"),
+        (lambda p: p["card"].__setitem__("selector_extra", "x"), "RL card analysis policy가"),
+        (lambda p: p["card"].__setitem__("batch_size", 7), "승인되지 않은"),
+    ],
+)
+def test_rl_card_policy_v2_rejects_open_or_unapproved_candidates(tmp_path, mutate, match) -> None:
+    candidate = deepcopy(rl_policy_v2())
+    mutate(candidate)
+    with pytest.raises(InputVersionError, match=match):
+        load_canonical_policy(write_candidate(tmp_path, candidate))
+
+
+def test_rl_card_policy_v1_cannot_carry_a_selector(tmp_path) -> None:
+    candidate = deepcopy(rl_policy())
+    candidate["card"]["selector"] = "card-sections-v2"
+    with pytest.raises(InputVersionError, match="RL card analysis policy가"):
+        load_canonical_policy(write_candidate(tmp_path, candidate))
+
+
+def test_rl_card_policy_v2_imports_beside_v1_and_resolves_its_selector(engine, monkeypatch) -> None:
+    from types import SimpleNamespace
+
+    from app.deep_review.services.company_deep_review import resolve_company_deep_policy
+
+    with Session(engine) as session:
+        v1 = import_policy_version(session, RL_LUNA_POLICY_FILE, created_by_name="정책 담당자",
+                                   label="analysis-policy-luna-rl-v1")
+        v2 = import_policy_version(session, RL_LUNA_POLICY_FILE_V2, created_by_name="정책 담당자",
+                                   label="analysis-policy-luna-rl-v2")
+        session.commit()
+        assert v1.id != v2.id and v2.policy_sha256 == RL_V2_SHA256
+        assert _policy_hash_matches(v2)
+        validate_pinned_policy(v2, allow_unmeasured_reference=True)
+        selectors = {}
+        for row in (v1, v2):
+            settings = SimpleNamespace(rl_deep_review_policy_version_id=row.id, analysis_provider="vllm",
+                                       reference_workflow_mode=True)
+            resolved = resolve_company_deep_policy(session, settings, rl=True)
+            assert resolved.pipeline_version == "card-v1"
+            selectors[_policy_payload(row)["policy_identity"]] = resolved.selector_version
+        assert selectors == {RL_POLICY_IDENTITY: "card-sections-v1", RL_POLICY_IDENTITY_V2: "card-sections-v2"}
+
+
+RL_V3_SHA256 = "635f673063ca1a92fb751aea6ffbdb76c54e0d70309b9f0a1e84d961fe192b12"
+
+
+def rl_policy_v3() -> dict:
+    payload, _raw, _digest = load_canonical_policy(RL_LUNA_POLICY_FILE_V3)
+    return payload
+
+
+def test_b30_rl_card_policy_v3_is_pinned_and_differs_from_v2_only_by_identity_selector_and_extract_rule() -> None:
+    # 결정 B30: a new immutable file; v1/v2 bytes and shas are unchanged.  Only the extract
+    # instruction is rewritten; role and synthesis instructions (incl. B24) are v2's.
+    raw = RL_LUNA_POLICY_FILE_V3.read_bytes()
+    payload, canonical, digest = load_canonical_policy(RL_LUNA_POLICY_FILE_V3)
+    assert RL_LUNA_POLICY_FILE_V3.name == "analysis-policy-luna-rl-v3.json"
+    assert raw == canonical == canonical_json_bytes(payload)
+    assert digest == hashlib.sha256(raw).hexdigest() == RL_V3_SHA256
+    assert hashlib.sha256(RL_LUNA_POLICY_FILE.read_bytes()).hexdigest() == RL_SHA256
+    assert hashlib.sha256(RL_LUNA_POLICY_FILE_V2.read_bytes()).hexdigest() == RL_V2_SHA256
+    assert _approved_policy_path(payload) == RL_LUNA_POLICY_FILE_V3
+    assert payload["policy_identity"] == RL_POLICY_IDENTITY_V3 == "analysis-policy-luna-rl-v3"
+    assert payload["card"] == {"batch_size": 8, "batch_max_chars": 12000, "repair_attempts": 1,
+                               "target_seconds": 2400, "selector": "card-sections-v3"}
+    v2 = rl_policy_v2()
+    expected = deepcopy(v2)
+    expected["policy_identity"] = RL_POLICY_IDENTITY_V3
+    expected["card"]["selector"] = "card-sections-v3"
+    expected["stages"][0]["instruction"] = payload["stages"][0]["instruction"]
+    assert payload == expected
+    assert payload["stages"][1:] == v2["stages"][1:]
+    assert "missing_sections" in payload["stages"][4]["instruction"]
+    extract = payload["stages"][0]
+    assert extract["stage"] == "extract" and extract["instruction"] != v2["stages"][0]["instruction"]
+    # the validation contract is stated explicitly (B30 (1))
+    for phrase in (
+        "exactly one item per input unit, in input order", "Several conditions of one unit",
+        "only a title still yields one item", "expected_concepts", "copy every {concept_id, alias_text} pair",
+        "Never map text to a concept by meaning", "exact substring", "YYYY-MM-DD", "kind=text",
+        "unit=person only for a count written as N명", "이상 or 최소 means gte", "이하, 이내, or 최대 means lte",
+        "Never repeat an identical constraint", "fact_key is always null",
+    ):
+        assert phrase in extract["instruction"], phrase
+
+
+@pytest.mark.parametrize(
+    ("mutate", "match"),
+    [
+        (lambda p: p["card"].pop("selector"), "RL card analysis policy가"),
+        (lambda p: p["card"].__setitem__("selector", "card-sections-v2"), "RL card analysis policy가"),
+        (lambda p: p["stages"][0].__setitem__("instruction", ""), "RL card analysis policy가"),
+        (lambda p: p["stages"][0].__setitem__("instruction", "Extract."), "승인되지 않은"),
+        (lambda p: p["card"].__setitem__("batch_size", 7), "승인되지 않은"),
+    ],
+)
+def test_b30_rl_card_policy_v3_rejects_open_or_unapproved_candidates(tmp_path, mutate, match) -> None:
+    candidate = deepcopy(rl_policy_v3())
+    mutate(candidate)
+    with pytest.raises(InputVersionError, match=match):
+        load_canonical_policy(write_candidate(tmp_path, candidate))
+
+
+def test_b30_v2_content_under_the_v3_identity_is_rejected(tmp_path) -> None:
+    renamed = deepcopy(rl_policy_v2())
+    renamed["policy_identity"] = RL_POLICY_IDENTITY_V3
+    with pytest.raises(InputVersionError, match="RL card analysis policy가"):
+        load_canonical_policy(write_candidate(tmp_path, renamed))
+    renamed["card"]["selector"] = "card-sections-v3"
+    with pytest.raises(InputVersionError, match="승인되지 않은"):
+        load_canonical_policy(write_candidate(tmp_path, renamed))
+
+
+def test_b30_rl_card_policy_v3_imports_beside_v1_v2_and_resolves_its_selector(engine) -> None:
+    from types import SimpleNamespace
+
+    from app.deep_review.services.company_deep_review import resolve_company_deep_policy
+
+    with Session(engine) as session:
+        rows = [
+            import_policy_version(session, path, created_by_name="정책 담당자", label=label)
+            for path, label in ((RL_LUNA_POLICY_FILE, "analysis-policy-luna-rl-v1"),
+                                (RL_LUNA_POLICY_FILE_V2, "analysis-policy-luna-rl-v2"),
+                                (RL_LUNA_POLICY_FILE_V3, "analysis-policy-luna-rl-v3"))
+        ]
+        session.commit()
+        assert len({row.id for row in rows}) == 3 and rows[2].policy_sha256 == RL_V3_SHA256
+        assert _policy_hash_matches(rows[2])
+        validate_pinned_policy(rows[2], allow_unmeasured_reference=True)
+        selectors = {}
+        for row in rows:
+            settings = SimpleNamespace(rl_deep_review_policy_version_id=row.id, analysis_provider="vllm",
+                                       reference_workflow_mode=True)
+            resolved = resolve_company_deep_policy(session, settings, rl=True)
+            assert resolved.pipeline_version == "card-v1"
+            selectors[_policy_payload(row)["policy_identity"]] = resolved.selector_version
+        assert selectors == {RL_POLICY_IDENTITY: "card-sections-v1", RL_POLICY_IDENTITY_V2: "card-sections-v2",
+                             RL_POLICY_IDENTITY_V3: "card-sections-v3"}
+
+
+RL_V4_SHA256 = "8cc623f280ca5d155073ecd261f5a2a1ecd3a8d497fc5aec9c815537923183d7"
+
+
+def rl_policy_v4() -> dict:
+    payload, _raw, _digest = load_canonical_policy(RL_LUNA_POLICY_FILE_V4)
+    return payload
+
+
+def test_b33_rl_card_policy_v4_is_pinned_and_differs_from_v3_only_by_identity_stage_schema_and_extract_rule() -> None:
+    raw = RL_LUNA_POLICY_FILE_V4.read_bytes()
+    payload, canonical, digest = load_canonical_policy(RL_LUNA_POLICY_FILE_V4)
+    assert RL_LUNA_POLICY_FILE_V4.name == "analysis-policy-luna-rl-v4.json"
+    assert raw == canonical == canonical_json_bytes(payload)
+    assert digest == hashlib.sha256(raw).hexdigest() == RL_V4_SHA256
+    for path, sha in ((RL_LUNA_POLICY_FILE, RL_SHA256), (RL_LUNA_POLICY_FILE_V2, RL_V2_SHA256),
+                      (RL_LUNA_POLICY_FILE_V3, RL_V3_SHA256)):
+        assert hashlib.sha256(path.read_bytes()).hexdigest() == sha
+    assert _approved_policy_path(payload) == RL_LUNA_POLICY_FILE_V4
+    assert payload["policy_identity"] == RL_POLICY_IDENTITY_V4 == "analysis-policy-luna-rl-v4"
+    assert payload["stage_schema"] == "bidops.requirement-extract.v2"
+    assert payload["card"]["selector"] == "card-sections-v3"
+    v3 = rl_policy_v3()
+    expected = deepcopy(v3)
+    expected["policy_identity"] = RL_POLICY_IDENTITY_V4
+    expected["stage_schema"] = "bidops.requirement-extract.v2"
+    expected["stages"][0]["instruction"] = payload["stages"][0]["instruction"]
+    assert payload == expected
+    assert payload["stages"][1:] == v3["stages"][1:]  # role and synthesis (incl. B24) unchanged
+    extract = payload["stages"][0]["instruction"]
+    assert extract != v3["stages"][0]["instruction"]
+    for phrase in (
+        "bidops.requirement-extract.v2", "exactly one item per input unit, in input order",
+        "Do not output ontology concepts or constraint operators", "kind/unit table",
+        "count = unit person only for N명, otherwise unit null", "date = unit null, value YYYY-MM-DD",
+        "N시간", "N일 이내", "다음 달 N일까지", "kind=text with unit null",
+        "quotes the shortest exact substring that holds only that number", "fact_key is always null",
+        "Never repeat an identical constraint",
+    ):
+        assert phrase in extract, phrase
+    assert "expected_concepts" not in extract and "concept_candidates" not in extract
+
+
+@pytest.mark.parametrize(
+    ("mutate", "match"),
+    [
+        (lambda p: p.__setitem__("stage_schema", "bidops.requirement-extract.v1"), "RL card analysis policy identity"),
+        (lambda p: p["card"].__setitem__("selector", "card-sections-v2"), "RL card analysis policy가"),
+        (lambda p: p["card"].pop("selector"), "RL card analysis policy가"),
+        (lambda p: p["stages"][0].__setitem__("instruction", "Extract."), "승인되지 않은"),
+    ],
+)
+def test_b33_rl_card_policy_v4_rejects_open_or_unapproved_candidates(tmp_path, mutate, match) -> None:
+    candidate = deepcopy(rl_policy_v4())
+    mutate(candidate)
+    with pytest.raises(InputVersionError, match=match):
+        load_canonical_policy(write_candidate(tmp_path, candidate))
+
+
+def test_b33_stage_schema_is_bound_to_the_identity(tmp_path) -> None:
+    # the v2 output contract under the v3 identity, or v3 content under the v4 identity, never loads
+    v3_with_v2 = deepcopy(rl_policy_v3())
+    v3_with_v2["stage_schema"] = "bidops.requirement-extract.v2"
+    with pytest.raises(InputVersionError, match="RL card analysis policy identity"):
+        load_canonical_policy(write_candidate(tmp_path, v3_with_v2))
+    v3_as_v4 = deepcopy(rl_policy_v3())
+    v3_as_v4["policy_identity"] = RL_POLICY_IDENTITY_V4
+    with pytest.raises(InputVersionError, match="RL card analysis policy identity"):
+        load_canonical_policy(write_candidate(tmp_path, v3_as_v4))
+
+
+def test_b33_rl_card_policy_v4_imports_beside_v1_to_v3_and_resolves_selector_v3(engine) -> None:
+    from types import SimpleNamespace
+
+    from app.deep_review.services.company_deep_review import resolve_company_deep_policy
+
+    with Session(engine) as session:
+        rows = [
+            import_policy_version(session, path, created_by_name="정책 담당자", label=path.stem)
+            for path in (RL_LUNA_POLICY_FILE, RL_LUNA_POLICY_FILE_V2, RL_LUNA_POLICY_FILE_V3, RL_LUNA_POLICY_FILE_V4)
+        ]
+        session.commit()
+        assert len({row.id for row in rows}) == 4 and rows[3].policy_sha256 == RL_V4_SHA256
+        validate_pinned_policy(rows[3], allow_unmeasured_reference=True)
+        settings = SimpleNamespace(rl_deep_review_policy_version_id=rows[3].id, analysis_provider="vllm",
+                                   reference_workflow_mode=True)
+        resolved = resolve_company_deep_policy(session, settings, rl=True)
+        assert resolved.pipeline_version == "card-v1" and resolved.selector_version == "card-sections-v3"
+        assert _policy_payload(rows[3])["stage_schema"] == "bidops.requirement-extract.v2"
+
+
+RL_V5_SHA256 = "19d7ff26fb9899f95237ec931c440bfad89feb42e3626fba89c33132f42928b2"
+
+
+def test_b35_rl_card_policy_v5_is_pinned_and_differs_from_v4_only_by_identity_and_extract_rule(tmp_path, engine) -> None:
+    from types import SimpleNamespace
+
+    from app.deep_review.services.company_deep_review import resolve_company_deep_policy
+
+    raw = RL_LUNA_POLICY_FILE_V5.read_bytes()
+    payload, canonical, digest = load_canonical_policy(RL_LUNA_POLICY_FILE_V5)
+    assert RL_LUNA_POLICY_FILE_V5.name == "analysis-policy-luna-rl-v5.json"
+    assert raw == canonical == canonical_json_bytes(payload)
+    assert digest == hashlib.sha256(raw).hexdigest() == RL_V5_SHA256
+    assert hashlib.sha256(RL_LUNA_POLICY_FILE_V4.read_bytes()).hexdigest() == RL_V4_SHA256
+    assert _approved_policy_path(payload) == RL_LUNA_POLICY_FILE_V5
+    v4 = rl_policy_v4()
+    expected = deepcopy(v4)
+    expected["policy_identity"] = RL_POLICY_IDENTITY_V5 == "analysis-policy-luna-rl-v5" and RL_POLICY_IDENTITY_V5
+    expected["stages"][0]["instruction"] = payload["stages"][0]["instruction"]
+    assert payload == expected  # same v2 wire (stage_schema) and selector card-sections-v3
+    assert payload["stage_schema"] == "bidops.requirement-extract.v2" and payload["card"]["selector"] == "card-sections-v3"
+    assert payload["stages"][1:] == v4["stages"][1:]
+    extract = payload["stages"][0]["instruction"]
+    assert extract != v4["stages"][0]["instruction"]
+    for phrase in (
+        "quotes the number together with its unit word and any comparator attached",
+        "5일 이상", "9글자 이상", "90%를 초과", "3회 미만", "3초 내에", "4시간 이내",
+        "Never quote a bare number", "N분, N초, N글자", "N시간", "10분 간격", "kind=text with unit null",
+        "exactly one item per input unit, in input order", "fact_key is always null",
+        "count = unit person only for N명",
+    ):
+        assert phrase in extract, phrase
+    assert "shortest exact substring" not in extract  # the v4 wording that induced bare numbers
+    for mutate, match in (
+        (lambda p: p.__setitem__("stage_schema", "bidops.requirement-extract.v1"), "RL card analysis policy identity"),
+        (lambda p: p["card"].__setitem__("selector", "card-sections-v2"), "RL card analysis policy가"),
+        (lambda p: p["stages"][0].__setitem__("instruction", "Extract."), "승인되지 않은"),
+    ):
+        candidate = deepcopy(payload)
+        mutate(candidate)
+        with pytest.raises(InputVersionError, match=match):
+            load_canonical_policy(write_candidate(tmp_path, candidate))
+    with Session(engine) as session:
+        row = import_policy_version(session, RL_LUNA_POLICY_FILE_V5, created_by_name="정책 담당자",
+                                    label="analysis-policy-luna-rl-v5")
+        session.commit()
+        assert row.policy_sha256 == RL_V5_SHA256
+        validate_pinned_policy(row, allow_unmeasured_reference=True)
+        settings = SimpleNamespace(rl_deep_review_policy_version_id=row.id, analysis_provider="vllm",
+                                   reference_workflow_mode=True)
+        resolved = resolve_company_deep_policy(session, settings, rl=True)
+        assert resolved.pipeline_version == "card-v1" and resolved.selector_version == "card-sections-v3"
+
+
+RL_V6_SHA256 = "84e94954c08a43e5751d1514cf1a02e6865c9d6f05c6483777785e29faf8534a"
+
+
+def test_b37_rl_card_policy_v6_is_pinned_and_differs_from_v5_only_by_identity_and_extract_rule(tmp_path, engine) -> None:
+    from types import SimpleNamespace
+
+    from app.deep_review.services.company_deep_review import resolve_company_deep_policy
+
+    raw = RL_LUNA_POLICY_FILE_V6.read_bytes()
+    payload, canonical, digest = load_canonical_policy(RL_LUNA_POLICY_FILE_V6)
+    assert RL_LUNA_POLICY_FILE_V6.name == "analysis-policy-luna-rl-v6.json"
+    assert raw == canonical == canonical_json_bytes(payload)
+    assert digest == hashlib.sha256(raw).hexdigest() == RL_V6_SHA256
+    assert hashlib.sha256(RL_LUNA_POLICY_FILE_V5.read_bytes()).hexdigest() == RL_V5_SHA256
+    assert _approved_policy_path(payload) == RL_LUNA_POLICY_FILE_V6
+    v5, _raw5, _digest5 = load_canonical_policy(RL_LUNA_POLICY_FILE_V5)
+    expected = deepcopy(v5)
+    expected["policy_identity"] = RL_POLICY_IDENTITY_V6
+    expected["stages"][0]["instruction"] = payload["stages"][0]["instruction"]
+    assert payload == expected and RL_POLICY_IDENTITY_V6 == "analysis-policy-luna-rl-v6"
+    assert payload["stages"][1:] == v5["stages"][1:]
+    extract = payload["stages"][0]["instruction"]
+    # v6 = v5 with sentences inserted at the end of rule (4); every v5 sentence is kept in order
+    anchor = "and it is never repaired. "
+    head, tail = v5["stages"][0]["instruction"].split(anchor)
+    assert extract.startswith(head + anchor) and extract.endswith(tail)
+    added = extract[len(head + anchor):len(extract) - len(tail)]
+    assert added.startswith("A numeric quote must occur exactly once") and tail.startswith("(5) Constraints")
+    for phrase in (
+        "A numeric quote must occur exactly once in its block",
+        "extend the quote with the adjacent words on its left until it is unique",
+        "월 1회", "연 1회 이상", "a repeated quote is rejected and never repaired",
+        "A date range written as A ～ B", "is kind=text with the range copied verbatim",
+        "never compute a duration, count, or any other number that is not written in the quote",
+        "5일 이상", "90%를 초과", "fact_key is always null",
+    ):
+        assert phrase in extract, phrase
+    for mutate, match in (
+        (lambda p: p.__setitem__("stage_schema", "bidops.requirement-extract.v1"), "RL card analysis policy identity"),
+        (lambda p: p["card"].__setitem__("selector", "card-sections-v2"), "RL card analysis policy가"),
+        (lambda p: p["stages"][0].__setitem__("instruction", "Extract."), "승인되지 않은"),
+    ):
+        candidate = deepcopy(payload)
+        mutate(candidate)
+        with pytest.raises(InputVersionError, match=match):
+            load_canonical_policy(write_candidate(tmp_path, candidate))
+    with Session(engine) as session:
+        row = import_policy_version(session, RL_LUNA_POLICY_FILE_V6, created_by_name="정책 담당자",
+                                    label="analysis-policy-luna-rl-v6")
+        session.commit()
+        assert row.policy_sha256 == RL_V6_SHA256
+        validate_pinned_policy(row, allow_unmeasured_reference=True)
+        settings = SimpleNamespace(rl_deep_review_policy_version_id=row.id, analysis_provider="vllm",
+                                   reference_workflow_mode=True)
+        resolved = resolve_company_deep_policy(session, settings, rl=True)
+        assert resolved.pipeline_version == "card-v1" and resolved.selector_version == "card-sections-v3"
+
+
+def import_profile_version_for_global(session):
+    from app.deep_review.services.input_versions import import_profile_version
+
+    profile = import_profile_version(session, created_by_name="정책 담당자", label="company-profile")
+    session.commit()
+    return profile
+
+
+def test_rl_selection_env_is_separate_from_demo_and_defaults_closed(monkeypatch) -> None:
+    from app.core.config import DEFAULT_RL_ANALYSIS_POLICY_PATH, Settings
+
+    for name in ("BIDOPS_RL_ANALYSIS_ENABLED", "BIDOPS_RL_ANALYSIS_AUTO_START_ENABLED",
+                 "BIDOPS_RL_ANALYSIS_POLICY_PATH", "BIDOPS_RL_DEEP_REVIEW_POLICY_VERSION_ID",
+                 "BIDOPS_DEMO_DEEP_REVIEW_POLICY_VERSION_ID"):
+        monkeypatch.delenv(name, raising=False)
+    settings = Settings()
+    assert settings.rl_analysis_enabled is False
+    assert settings.rl_analysis_auto_start_enabled is False
+    assert settings.rl_deep_review_policy_version_id is None
+    assert settings.rl_analysis_policy_path == DEFAULT_RL_ANALYSIS_POLICY_PATH
+    # 결정 B37: new imports default to the v6 file; v1-v5 stay importable by path.
+    assert DEFAULT_RL_ANALYSIS_POLICY_PATH.resolve() == RL_LUNA_POLICY_FILE_V6.resolve()
+    assert RL_LUNA_POLICY_FILE_V4.is_file() and RL_LUNA_POLICY_FILE_V5.is_file()
+    assert RL_LUNA_POLICY_FILE.is_file() and RL_LUNA_POLICY_FILE_V2.is_file() and RL_LUNA_POLICY_FILE_V3.is_file()
+    assert Settings.model_fields["rl_deep_review_policy_version_id"].validation_alias == "BIDOPS_RL_DEEP_REVIEW_POLICY_VERSION_ID"
+
+    selected = uuid4()
+    monkeypatch.setenv("BIDOPS_RL_DEEP_REVIEW_POLICY_VERSION_ID", str(selected))
+    settings = Settings()
+    assert settings.rl_deep_review_policy_version_id == selected
+    assert settings.demo_deep_review_policy_version_id is None
+    monkeypatch.setenv("BIDOPS_RL_DEEP_REVIEW_POLICY_VERSION_ID", "  ")
+    assert Settings().rl_deep_review_policy_version_id is None
+    monkeypatch.setenv("BIDOPS_RL_DEEP_REVIEW_POLICY_VERSION_ID", "not-a-uuid")
+    with pytest.raises(ValueError):
+        Settings()

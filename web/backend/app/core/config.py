@@ -31,6 +31,15 @@ DEFAULT_BRIEFING_POLICY_PATH = (
     Path(__file__).resolve().parents[1] / "lifecycle" / "policies" / "briefing-policy-v2.json"
 )
 
+#: RL-03 카드 판정 정책 파일(import 원본)의 기본 위치. 버전+sha256으로 고정된 immutable
+#: 파일이며 실행은 이 파일이 아니라 import된 행(`BIDOPS_RL_DEEP_REVIEW_POLICY_VERSION_ID`)을
+#: 고른다. core는 계약 내용을 모르고 경로만 갖는다. 새 import 기본값은 v6(결정 B37, v5와 같은
+#: 추출 출력 계약·selector에 "수치 인용은 블록 안에서 유일, 날짜 범위는 text" 지시)이며
+#: v1~v5 파일은 그대로 남아 경로를 지정하면 import할 수 있다.
+DEFAULT_RL_ANALYSIS_POLICY_PATH = (
+    Path(__file__).resolve().parents[1] / "deep_review" / "policies" / "analysis-policy-luna-rl-v6.json"
+)
+
 #: 조립 계층이 고를 수 있는 도메인 모듈 (명세 §7). core는 선택 대상이 아니라
 #: 항상 포함된다. 여기 있는 것은 이름뿐이며 core는 이 모듈들을 import하지 않는다.
 MODULE_NAMES: tuple[str, ...] = ("lifecycle", "screening", "deep_review")
@@ -115,6 +124,19 @@ class Settings(BaseSettings):
     )
     demo_deep_review_policy_version_id: UUID | None = Field(
         default=None, validation_alias="BIDOPS_DEMO_DEEP_REVIEW_POLICY_VERSION_ID"
+    )
+    # RL-03 실회사 카드 판정(spec "설정 키와 기본값"). 모두 기본 꺼짐·미설정이며 fail closed다.
+    # 분석 REST·게이트 개방과 자동 트리거는 별도 스위치이고, 참조 모드·Luna 플래그 요구는 그대로다.
+    rl_analysis_enabled: bool = Field(default=False, validation_alias="BIDOPS_RL_ANALYSIS_ENABLED")
+    rl_analysis_auto_start_enabled: bool = Field(
+        default=False, validation_alias="BIDOPS_RL_ANALYSIS_AUTO_START_ENABLED"
+    )
+    rl_analysis_policy_path: Path = Field(
+        default=DEFAULT_RL_ANALYSIS_POLICY_PATH, validation_alias="BIDOPS_RL_ANALYSIS_POLICY_PATH"
+    )
+    #: import된 RL 정책 행. demo 선택 env와 분리되며 비면 RL 경로가 fail closed한다.
+    rl_deep_review_policy_version_id: UUID | None = Field(
+        default=None, validation_alias="BIDOPS_RL_DEEP_REVIEW_POLICY_VERSION_ID"
     )
     reviewer_name: str = Field(
         default="",
@@ -325,6 +347,7 @@ class Settings(BaseSettings):
     @field_validator(
         "demo_company_fit_policy_version_id",
         "demo_deep_review_policy_version_id",
+        "rl_deep_review_policy_version_id",
         mode="before",
     )
     @classmethod

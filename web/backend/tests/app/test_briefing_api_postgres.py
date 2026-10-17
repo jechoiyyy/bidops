@@ -209,7 +209,7 @@ def test_t6_view_and_reaction_strict_dicts_replay_conflicts_and_tracking_unchang
 
     assert view.status_code == 200
     assert view.json() == {
-        "schema_version": "bidops.briefing.v1",
+        "schema_version": "bidops.briefing.v2",  # RL-03 spec "연결": v1 → v2
         "briefing_date": "2026-10-16",
         "status": "generated",
         "generated_at": _iso(briefing.generated_at),

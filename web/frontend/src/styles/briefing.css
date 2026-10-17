@@ -249,6 +249,16 @@
   background: var(--color-warning-muted);
 }
 
+.briefing-pill.is-verdict-success {
+  color: var(--color-success);
+  background: var(--color-success-muted);
+}
+
+.briefing-pill.is-verdict-error {
+  color: var(--color-error);
+  background: var(--color-error-muted);
+}
+
 .briefing-pill.is-reaction-accepted {
   color: var(--color-success);
   background: var(--color-success-muted);

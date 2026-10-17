@@ -113,6 +113,8 @@ label 집합: `business_eligibility_evaluation`, `technical_functional`, `qualit
 
 ## 6. 분석 단위와 1층 추출 (확정 뼈대, 세부는 HP-03)
 
+> **RL-03 주석.** 이 절은 루트랩 기준으로 [RL-03](groups/RL/features/RL-03-fit-verdict/spec.md)이 구현했다(`card-extract-v1`, 입력 `bidops.card-analysis-input.v1`, 단계 payload는 `confirmed` 사실 값 포함·`proposed`/`unknown`은 키·상태만). 차이는 RL-03 spec "루트랩 재명세 차이"와 [contracts.md](../contracts.md#카드-기반-참여-판정-rl-03-2026-10-17)가 정본이다.
+
 - 2026-10-15 승인: 요구사항 카드와 사업개요·추진 일정·예산·입찰참가자격·평가·계약 조건 영역을 분석한다. 구체 selector는 HP03 spec에서 고정한다.
 - 분석 단위는 **unit**이다. unit은 (a) 요구사항 카드 1장, 또는 (b) 카드가 아닌 segment(사업개요·추진 일정·예산·입찰참가자격·평가·계약 조건) 하나다. unit id는 `card:<source_sha256>:<ordinal>:<normalized_id>` 또는 `segment:<source_sha256>:<segment_id UUID>`다. source 중복 및 selector 세부는 HP03 spec을 따른다.
 - 1층 출력 계약 `bidops.requirement-extract.v1`(확정 필드, enum 전체는 HP-03 spec):
@@ -129,6 +131,8 @@ Extract = { unit_id, type: 자격|실적|인력|기술|기능|성능SLA|보안|�
 
 ## 7. 결정적 대조와 2층 판단 (확정 뼈대, 세부는 HP-03)
 
+> **RL-03 주석.** 루트랩 기준으로 RL-03이 구현했다. 대조는 allowlist의 값 경로만 읽고 `proposed`는 reason `proposed_fact`로 `unknown`이며, 역할(`card-role-v1`)은 대조 결과를 넘지 못하고 종합(`card-synthesis-v1`)은 세 역할 결과만 받는다. 저장은 `card_analysis_stage`, 호출 수 = B+4(추출 B + 역할 3 + 종합 1)다.
+
 - 대조는 코드가 한다. unit의 concept_candidates → 온톨로지 concept → 회사 그래프 경로(direct/partial/unmapped, DEMO §5 규칙) → 수치 제약은 회사 사실 value와 비교.
   unit별 `fit_status ∈ met|gap|unknown`: met = confirmed 직접 근거로 명시 기능 범위와 모든 원자 조건을 만족, gap = confirmed 사실이 요구를 부정(미보유·미달), unknown = 그 밖(경로 없음·unknown 사실·비교 불가).
 - 2층은 역할 셋 + 종합 하나다. 역할: `eligibility_economics`(참여조건·사업성), `technical_fit`(기술·기능 적합), `operations_risk`(운영·위험). 각 역할은 자기 type의 unit·추출·대조 결과만 받고 `bidops.verdict-role.v1`을 돌려준다. 종합은 세 역할 결과만 받고 `bidops.practitioner-verdict.v1`을 만든다. 체크리스트·매트릭스·conflicts는 코드가 대조 원본으로 조립한다. 정확 필드·역할 입력·상태/오류는 HP03 spec을 따른다.
@@ -138,6 +142,8 @@ Extract = { unit_id, type: 자격|실적|인력|기술|기능|성능SLA|보안|�
 - 저장은 새 테이블(HP-03 spec: hp_analysis_stage의 추출·대조·역할·종합 불변 row, attempt 단위)이며 기존 narrative-v2 보고서 테이블을 덮지 않는다. 오류 code는 DEMO §9를 재사용하고 새 code는 HP-03 spec에 열거한다.
 
 ## 8. 실무자 판정 화면 (확정 구성, 세부는 HP-04)
+
+> **RL-03 주석.** 루트랩 기준으로 RL-03이 구현했다. 화면은 `/opportunities/:id/verdict`([ui-spec §4.4](../1016_rootlab-redefinition/ui-spec.md)), REST는 사업기회 경로 별칭 `GET /api/opportunities/{id}/verdict`가 추가됐고 view에 B4 가산 키가 있다. 아래 5블록 구성·정렬 규칙은 그대로다.
 
 다섯 블록을 한 화면에 둔다(2026-10-15 사용자 승인). 데스크톱 전용·테마 토큰 규칙은 기존과 같다. 요구사항 목록 기본 순서는 부족→미확인→충족이며 각 상태를 합치지 않는다. 역할 의견 불일치는 주의 사항에 남긴다. 상속 쪽은 추정임을, unavailable은 쪽 미확인임을 명시한다. 쪽이 없으면 점프를 만들지 않는다.
 

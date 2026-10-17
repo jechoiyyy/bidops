@@ -47,7 +47,12 @@ from ..models import (
     OrderPlan,
     Run,
 )
-from ..schemas.briefings import BRIEFING_SCHEMA_VERSION, BriefingItemView, BriefingView
+from ..schemas.briefings import (
+    BRIEFING_SCHEMA_VERSION,
+    BRIEFING_VERDICT_DISPLAY_VALUES,
+    BriefingItemView,
+    BriefingView,
+)
 from .briefing_policy import BriefingPolicy, BriefingPolicyError, load_briefing_policy
 from .briefing_rules import (
     EXCLUSION_KINDS,
@@ -606,27 +611,76 @@ def build_briefing(
         if winner is None:
             raise
         return _existing_result(session, winner)
+    recommendation_rows = [_recommendation_row(briefing.id, item) for item in recommendations]
     session.add_all(
-        [_recommendation_row(briefing.id, item) for item in recommendations]
+        recommendation_rows
         + [_tracked_row(briefing.id, change, tracked_notices[change.notice_id]) for change in remaining]
     )
     session.flush()
+    _notify_recommendations(session, briefing_date, recommendation_rows)
     return BriefingBuildResult(**{**outcome.__dict__, "briefing_id": briefing.id})
+
+
+def _notify_recommendations(
+    session: Session, briefing_date: date, rows: Sequence[BriefingItem]
+) -> None:
+    """RL-03 확장점 `on_briefing_recommendation`: 새 브리핑 직후 대기열 처리, 그다음 사전규격 추천마다.
+
+    제공자가 없으면 아무 일도 하지 않는다. 구현(deep_review)이 자기 실패를 가두므로 브리핑
+    생성은 그 성패와 무관하다. 입찰공고·발주계획 추천은 부르지 않는다(spec "1차는 사전규격만").
+    """
+
+    registry = extension_registry()
+    if registry.briefing_recommendation_hook_count == 0:
+        return
+    registry.briefing_generated(session, briefing_date)
+    for row in rows:
+        if row.kind == "recommendation" and row.stage == "pre_spec" and row.notice_id is not None:
+            registry.on_briefing_recommendation(session, int(row.notice_id), row.id)
 
 
 # --- 조회 projection ------------------------------------------------------------
 
 
-def _verdict(item: BriefingItem) -> str:
+#: 판정 표시 확장점이 채우는 추천 항목 stage(RL-03 "연결": 사전규격 판정, 입찰공고는 연결 사전규격 참조).
+_VERDICT_DISPLAY_STAGES = frozenset({"pre_spec", "bid_notice"})
+
+
+def _verdict(item: BriefingItem, provided: dict[int, str] | None = None) -> str:
     if item.kind == "tracked_change":
         # 정정 사유가 있으면 "재검토 중", 마감 알림 사유만이면 "마감 임박"(RL-02).
         return tracked_change_verdict(list(item.change_fields or []))
-    return "연차 추적" if item.stage == "order_plan" else "분석 대기"
+    if item.stage == "order_plan":
+        return "연차 추적"
+    # v2: 판정 모듈이 준 글자(닫힌 값 집합 안의 것만). 없으면 v1 규칙 그대로 "분석 대기".
+    value = (provided or {}).get(int(item.notice_id)) if item.notice_id is not None else None
+    return value if value is not None else "분석 대기"
+
+
+def _provided_verdicts(session: Session, items: Sequence[BriefingItem]) -> dict[int, str]:
+    """확장점 `briefing_verdict_display`를 한 번 부른다. 값 집합 밖 글자는 버린다(조용히 넓히지 않는다)."""
+
+    notice_ids = sorted(
+        {
+            int(item.notice_id)
+            for item in items
+            if item.kind == "recommendation" and item.stage in _VERDICT_DISPLAY_STAGES and item.notice_id is not None
+        }
+    )
+    if not notice_ids:
+        return {}
+    provided = extension_registry().briefing_verdict_display(session, notice_ids)
+    return {
+        int(notice_id): value
+        for notice_id, value in provided.items()
+        if int(notice_id) in notice_ids and value in BRIEFING_VERDICT_DISPLAY_VALUES
+    }
 
 
 def item_views(session: Session, items: Sequence[BriefingItem]) -> list[BriefingItemView]:
-    """항목 행을 응답으로 바꾼다. 제목·기관은 원 레코드에서 읽는다(조회 2회 이하)."""
+    """항목 행을 응답으로 바꾼다. 제목·기관은 원 레코드에서 읽는다(조회 2회 이하 + 판정 표시 확장점 1회)."""
 
+    provided = _provided_verdicts(session, items)
     notice_ids = sorted({item.notice_id for item in items if item.notice_id is not None})
     plan_ids = sorted({item.order_plan_id for item in items if item.order_plan_id is not None})
     notices = (
@@ -673,7 +727,7 @@ def item_views(session: Session, items: Sequence[BriefingItem]) -> list[Briefing
                 deadline_at=item.deadline_at,
                 deadline_kind=item.deadline_kind,
                 planned_month=item.planned_month,
-                verdict_display=_verdict(item),
+                verdict_display=_verdict(item, provided),
                 reasons=list(item.reasons or []),
                 blocking=list(item.blocking or []),
                 change_fields=list(item.change_fields or []),

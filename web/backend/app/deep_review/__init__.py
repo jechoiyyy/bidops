@@ -45,6 +45,11 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     # 두 접두사 모두 lifecycle 것이고 제공 모듈은 deep_review다(§5.3).
     "company_reads_router": (".routers.company_reads", "router"),
     "company_comparison_router": (".routers.company_reads", "comparison_router"),
+    # RL-03 사업기회 경로 판정(`/api/opportunities/{id}/verdict*`)과 설정 화면의 전송 승인
+    # 조회(`/api/analysis/transfer-policy`). 앞의 접두사는 lifecycle 것이고 제공 모듈은
+    # deep_review다(§5.3, ADR-0045).
+    "opportunity_verdicts_router": (".routers.verdicts", "router"),
+    "transfer_policy_router": (".routers.verdicts", "transfer_policy_router"),
     "assumption_analysis_router": (".routers.assumption_analysis", "router"),
     "run_assumption_analysis_once": (".services.assumption_analysis", "run_once"),
     "deep_reviews_router": (".routers.deep_reviews", "router"),
@@ -93,6 +98,8 @@ def register_lifecycle_extensions(registry=None):
     - 사전규격 개요·문서 projection (§6.1)
     - 실회사 확정 사실 projection (RL-01 브리핑 규칙 입력)
     - 첨부 fetch 자격을 다시 세는 회차 적재·추적 결정·등급 변경 hook (§6.2)
+    - RL-03 브리핑 추천 hook(자동 카드 판정 트리거·대기열 처리)
+    - RL-03 활동 피드 `verdict_completed`·브리핑 판정 표시 projection
     """
 
     from .services.company_knowledge import CompanyFactsProjectionProvider
@@ -111,6 +118,17 @@ def register_lifecycle_extensions(registry=None):
     registry.register_company_facts_projection(
         CompanyFactsProjectionProvider(), owner=EXTENSION_OWNER
     )
+    # RL-03 브리핑 추천 → 자동 카드 판정 트리거·일일 상한 대기열 처리. 플래그가 꺼져
+    # 있으면 hook은 아무것도 읽지 않는다.
+    from .services.verdict_trigger import RLVerdictBriefingHook
+
+    registry.register_briefing_recommendation_hook(RLVerdictBriefingHook(), owner=EXTENSION_OWNER)
+    # RL-03 연결: 활동 피드 `verdict_completed`와 브리핑 `verdict_display`(v2). 읽기 전용이며
+    # `BIDOPS_RL_ANALYSIS_ENABLED`가 꺼져 있으면 아무것도 주지 않는다.
+    from .services.verdict_links import RLBriefingVerdictDisplay, RLVerdictActivityProvider
+
+    registry.register_opportunity_activity_items(RLVerdictActivityProvider(), owner=EXTENSION_OWNER)
+    registry.register_briefing_verdict_display(RLBriefingVerdictDisplay(), owner=EXTENSION_OWNER)
     hook = PreSpecAttachmentEligibilityHook()
     registry.register_run_ingest_hook(hook, owner=EXTENSION_OWNER)
     registry.register_tracking_decision_hook(hook, owner=EXTENSION_OWNER)

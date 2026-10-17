@@ -18,7 +18,7 @@ from datetime import date, datetime
 from typing import Any, Literal
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from ...core.slack import SlackSender, SlackTransportError
@@ -77,6 +77,9 @@ class SlackMessage:
     kind: Literal["recommendation", "tracked_change"]
     blocks: list[dict[str, Any]]
     text: str
+    #: 이 메시지에 실린 항목 id(보낸 순서). 전송기가 각 항목의 `slack_message_ts`를 남길 때 쓴다
+    #: (RL-03 판정 완료 스레드 답글의 `thread_ts`). payload에는 들어가지 않는다.
+    item_ids: tuple[UUID, ...] = ()
 
 
 def _escape(value: str) -> str:
@@ -250,7 +253,12 @@ def build_briefing_messages(
                 )
             )
         blocks.append(footer)
-        messages.append(SlackMessage(kind="recommendation", blocks=blocks, text=header_text))
+        messages.append(
+            SlackMessage(
+                kind="recommendation", blocks=blocks, text=header_text,
+                item_ids=tuple(item.item_id for item in chunk),
+            )
+        )
     for chunk in _chunks(view.tracked_changes, items_per_message):
         blocks = [{"type": "header", "text": _plain(TRACKED_CHANGE_HEADER)}]
         for item in chunk:
@@ -264,7 +272,12 @@ def build_briefing_messages(
                 )
             )
         blocks.append(footer)
-        messages.append(SlackMessage(kind="tracked_change", blocks=blocks, text=TRACKED_CHANGE_HEADER))
+        messages.append(
+            SlackMessage(
+                kind="tracked_change", blocks=blocks, text=TRACKED_CHANGE_HEADER,
+                item_ids=tuple(item.item_id for item in chunk),
+            )
+        )
     return messages
 
 
@@ -365,7 +378,9 @@ def send_briefing(
     없음(`empty`) → `slack_sent_at`이 이미 있음(`already_sent`).
 
     추천 메시지 다음 추적 변화 메시지를 보내고, 보낸 ts를 메시지마다 바로
-    `slack_message_ts`·`tracked_change_message_ts`(보낸 순서의 배열)에 덧붙인다. 전부 보낸
+    `slack_message_ts`·`tracked_change_message_ts`(보낸 순서의 배열)에 덧붙이며 그 메시지에 실린
+    항목마다 `briefing_item.slack_message_ts`에도 같은 ts를 남긴다(RL-03 판정 완료 스레드 답글의
+    `thread_ts`; 지난 실행에서 보낸 메시지의 항목이 비어 있으면 그 ts로 채운다). 전부 보낸
     뒤에만 `slack_sent_at`을 남긴다. 중간에 실패하면 `slack_send_failed` 경고와 함께 그때까지
     보낸 ts만 남기며, `--send` 재실행은 이미 ts가 있는 메시지를 건너뛰고 나머지만 보낸다
     (같은 메시지를 두 번 보내지 않는다).
@@ -402,7 +417,9 @@ def send_briefing(
         index = seen[message.kind]
         seen[message.kind] += 1
         if index < len(stored[message.kind]):
-            continue  # 지난 실행에서 이미 보낸 메시지
+            # 지난 실행에서 이미 보낸 메시지. 항목 ts가 비어 있으면 그 메시지 ts로 채운다.
+            _record_item_ts(session, message.item_ids, stored[message.kind][index], only_missing=True)
+            continue
         try:
             ts = sender.post_message(blocks=message.blocks, text=message.text, allowed_keys=SLACK_PAYLOAD_KEYS)
         except SlackTransportError as error:
@@ -415,6 +432,7 @@ def send_briefing(
             )
         posted.append(ts)
         stored[message.kind].append(ts)
+        _record_item_ts(session, message.item_ids, ts, only_missing=False)
         # JSON 열은 새 list를 넣어야 변경이 기록된다.
         if message.kind == "recommendation":
             briefing.slack_message_ts = list(stored["recommendation"])
@@ -424,6 +442,17 @@ def send_briefing(
     briefing.slack_sent_at = now
     session.flush()
     return BriefingSendOutcome(sent=True, message_ts=tuple(posted))
+
+
+def _record_item_ts(session: Session, item_ids: Sequence[UUID], ts: str, *, only_missing: bool) -> None:
+    """메시지에 실린 항목들의 `slack_message_ts`(추가형 열, RL-03)를 남긴다."""
+
+    if not item_ids:
+        return
+    statement = update(BriefingItem).where(BriefingItem.id.in_(list(item_ids)))
+    if only_missing:
+        statement = statement.where(BriefingItem.slack_message_ts.is_(None))
+    session.execute(statement.values(slack_message_ts=ts).execution_options(synchronize_session="fetch"))
 
 
 # --- 반응 뒤 메시지 갱신 (Socket Mode worker) -------------------------------------

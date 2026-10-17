@@ -103,9 +103,17 @@ def check(service, session, preview_id, notice, bundle_id, profile, policy, veri
     return row
 
 
-def approve(session, row, attempt_id, actor, request_id):
+def approve(session, row, attempt_id, actor, request_id, *, actor_kind="human", provider=PROVIDER):
     # The approval carries the preview's company scope (NULL on the legacy
     # path, unchanged); company ids are added to the audit only when set.
+    # ``actor_kind="system"`` is the RL policy-level path (RL-03 spec "전송
+    # 승인"): the row is created automatically under an active
+    # ``transfer_policy_approval`` with ``claimed_name="system:transfer-policy"``.
+    # ``provider`` is the attempt's provider lineage: ``codex-exec``, or
+    # ``mock-analysis`` on the RL mock card path (결정 B16, no transmission).
+    if actor_kind not in {"human", "system"} or provider not in {PROVIDER, "mock-analysis"}:
+        from .deep_reviews import DeepReviewServiceError
+        raise DeepReviewServiceError("invalid_request", "actor 종류가 올바르지 않습니다", status_code=400)
     session.add(DeepReviewApproval(preview_id=row.id, attempt_id=attempt_id, claimed_name=actor, request_id=request_id,
                                    company_id=row.company_id))
     company = ({"company_id": str(row.company_id), "graph_version_id": str(row.graph_version_id)}
@@ -116,10 +124,10 @@ def approve(session, row, attempt_id, actor, request_id):
         from .deep_reviews import DeepReviewServiceError
         raise DeepReviewServiceError("model_binding_invalid", "심층 분석 모델 설정이 유효하지 않습니다", status_code=503)
     require_runtime(policy)
-    session.add(AuditEvent(actor_kind="human", claimed_name=actor, action="deep_review.external_transfer_approved",
+    session.add(AuditEvent(actor_kind=actor_kind, claimed_name=actor, action="deep_review.external_transfer_approved",
                            aggregate_type="deep_review_attempt", aggregate_id=str(attempt_id), request_id=str(request_id),
                            safe_metadata={"preview_id": str(row.id), "input_sha256": row.input_sha256,
-                                          "provider": PROVIDER, "model": policy.model_name,
+                                          "provider": provider, "model": policy.model_name,
                                           "reasoning_effort": policy_reasoning_effort(policy),
                                           **company}))
     session.flush()
@@ -182,3 +190,11 @@ def approved_company_input(session, attempt_id, review):
     ):
         raise InputVersionError("approval_invalid", "승인된 동결 입력을 확인할 수 없습니다")
     return deepcopy(frozen)
+
+
+def approved_company_input_sha256(session, attempt_id):
+    """``input_sha256`` of the preview approved for one attempt (None when absent)."""
+
+    approval = session.scalar(select(DeepReviewApproval).where(DeepReviewApproval.attempt_id == attempt_id))
+    row = session.get(DeepReviewPreview, approval.preview_id) if approval else None
+    return row.input_sha256 if row is not None else None

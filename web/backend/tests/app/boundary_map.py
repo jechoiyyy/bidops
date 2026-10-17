@@ -307,7 +307,7 @@ TABLE_OWNER: dict[str, str] = {
     "order_plan_screening_quality_evaluation": SCREENING,
     "order_plan_screening_audit_sample": SCREENING,
     "order_plan_screening_daily_trigger": SCREENING,
-    # deep_review (47)
+    # deep_review (51)
     "attachment_fetch": DEEP_REVIEW,
     "content_object": DEEP_REVIEW,
     "content_object_location": DEEP_REVIEW,
@@ -334,6 +334,11 @@ TABLE_OWNER: dict[str, str] = {
     "deep_review_stage": DEEP_REVIEW,
     "deep_review_preview": DEEP_REVIEW,
     "deep_review_approval": DEEP_REVIEW,
+    # RL-03 card analysis (0040).
+    "transfer_policy_approval": DEEP_REVIEW,
+    "card_analysis_stage": DEEP_REVIEW,
+    "verdict_request": DEEP_REVIEW,
+    "verdict_feedback": DEEP_REVIEW,
     "assumption_input_version": DEEP_REVIEW,
     "assumption_run": DEEP_REVIEW,
     "assumption_stage": DEEP_REVIEW,

@@ -1,7 +1,7 @@
 /**
  * RL-01 `/briefing` 화면용 고정 응답(`GET /api/briefings/latest`·`/{date}`).
  *
- * 모양은 spec "REST (`bidops.briefing.v1`)"의 `BriefingView`·`BriefingItemView` 필드 목록에서
+ * 모양은 spec "REST (`bidops.briefing.v1`)"(RL-03이 `verdict_display` 값만 넓힌 v2)의 `BriefingView`·`BriefingItemView` 필드 목록에서
  * 옮겼다(응답에는 `score`·`policy_sha256`·`graph_version_id`가 없다). 값은 **fixture 작성자의
  * 창작값**이며 실제 공고가 아니다. 화면 시계는 테스트가 `BRIEFING_NOW`로 고정하므로 마감 D-n이
  * 결정적이다.
@@ -185,7 +185,7 @@ export function briefingFixture(): BriefingView {
     }),
   ];
   return {
-    schema_version: "bidops.briefing.v1",
+    schema_version: "bidops.briefing.v2",
     briefing_date: BRIEFING_DATE,
     status: "generated",
     generated_at: "2026-10-16T08:00:17+09:00",

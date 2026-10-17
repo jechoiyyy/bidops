@@ -8,7 +8,7 @@
 
 | 경로 | 신규/수정 | 내용 |
 |---|---|---|
-| web/backend/app/deep_review/policies/analysis-policy-luna-rl-v1.json | 신규 | card-v1 정책(HP-03 승인 wire 절 + 실회사 문구) |
+| web/backend/app/deep_review/policies/analysis-policy-luna-rl-v1.json | 신규 | card-v1 정책(HP-03 승인 wire 절 + 실회사 문구). 2026-10-17 결정 B23·B24로 `analysis-policy-luna-rl-v2.json`(selector `card-sections-v2`, 종합 지시에 `missing_sections` 규칙) 추가, v1 파일 불변 |
 | web/backend/app/deep_review/contracts/bidops.requirement-extract.v1.json, bidops.verdict-role.v1.json, bidops.practitioner-verdict.v1.json, bidops.card-analysis-input.v1.json | 신규 | 단계·입력 schema |
 | web/codex-runner/runner.py, Dockerfile | 수정 | contract `card-extract-v1|card-role-v1|card-synthesis-v1`, schema 파일 COPY |
 | web/backend/app/deep_review/models.py, alembic/versions/<head 다음>_card_analysis.py, scripts/runtime-privileges.sql, tests/app/test_runtime_database_privileges.py, tests/app/boundary_map.py, tests/app/test_db_migrations.py | 수정/신규 | 테이블 4·trigger·worker INSERT 5개·등록 |
@@ -112,4 +112,8 @@
 
 ## 결과
 
-구현 후 작성한다.
+2026-10-18, run `rlb-20261017`. STEP-001~010 done, 상태 validating. 상세 기록 `docs/work/_runs/rlb-20261017/RL-03-fit-verdict.md`, 결정 B1~B39 `docs/work/_runs/rlb-20261017/decisions.md`.
+
+- 구현: 카드 판정 파이프라인(unit·batch, 추출→결정적 대조→3역할→종합), 정책 단위 전송 승인·일일 상한·`analysis.transfer.sent` 감사, 판정 REST·화면 탭·활동·브리핑 연동, 자동 트리거·drain, mock 참조 실행, 로컬 원본 연결 CLI. 정책 v1~v6(기본 v6), selector v1~v3, 추출 계약 v1·v2, migration `0040_card_analysis`.
+- 증명: docs·tests(284)·postgres(156)·frontend(build + 52)·api_guard(57) pass. **real_data_run pending** — 실제 Luna T12 1~7차 모두 판정을 얻지 못함(마지막은 단일 제약 검증 실패). 사용자 결정 B37(옵션 B)로 pending 유지, 구조 원인은 `docs/tracking/findings.md` "RL-03 카드 판정은 제약 하나의…".
+- T11 mock 경로는 8차(v6) completed, `mock_reference`이며 T12 대체가 아님. 실제 전송 합계 모델 호출 8회(모두 사용자 승인 범위).

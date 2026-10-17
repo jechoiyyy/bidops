@@ -534,3 +534,105 @@ def test_t5_slack_tracked_change_message_renders_the_reminder_row(session, world
     assert sorted(contexts) == sorted([["마감 임박"], ["바뀐 항목: 제목", "마감 임박"]])
     assert "deadline_reminder" not in json.dumps(blocks, ensure_ascii=False)
     assert not any(block["type"] == "actions" for block in blocks)
+
+
+# --- RL-03 브리핑 추천 hook ----------------------------------------------------
+
+
+class _RecordingRecommendationHook:
+    """`BriefingRecommendationHook` 가짜. 호출 순서와 인자만 기록한다."""
+
+    def __init__(self) -> None:
+        self.calls: list[tuple] = []
+
+    def briefing_generated(self, session, briefing_date) -> None:
+        self.calls.append(("generated", briefing_date))
+
+    def on_briefing_recommendation(self, session, notice_id, briefing_item_id) -> None:
+        row = session.get(BriefingItem, briefing_item_id)
+        # 항목 행은 hook보다 먼저 flush돼 같은 transaction에서 보인다.
+        self.calls.append(("recommendation", notice_id, row.kind, row.stage, row.notice_id))
+
+
+def test_rl03_recommendation_hook_runs_after_the_rows_for_pre_specs_only(
+    session, world, plans, empty_extensions
+) -> None:
+    hook = _RecordingRecommendationHook()
+    empty_extensions.register_briefing_recommendation_hook(hook, owner="briefing-test")
+    world.collection_run()
+    pre_spec = world.notice("홈페이지 유지관리 용역", deadline_at=NOW + timedelta(days=3))
+    world.notice("데이터 플랫폼 유지관리", source_type="bid_notice", sw=None, deadline_at=NOW + timedelta(days=20))
+    repeat = world.plan("스마트 관광 플랫폼 고도화 용역 3차")
+    plans.ids = [repeat.id]
+    session.commit()
+
+    result = _build(session)
+
+    stages = {row.stage for row in _items(session, result.briefing_id)}
+    assert stages == {"pre_spec", "bid_notice", "order_plan"}
+    # 대기열 처리(generated)가 먼저 한 번, 그다음 사전규격 추천만 (입찰공고·발주계획은 부르지 않는다).
+    assert hook.calls == [
+        ("generated", BRIEFING_DATE),
+        ("recommendation", pre_spec.id, "recommendation", "pre_spec", pre_spec.id),
+    ]
+
+    # 같은 날 재실행은 행을 만들지 않으므로 hook도 다시 부르지 않는다. dry-run도 부르지 않는다.
+    _build(session)
+    build_briefing(session, NEXT_BRIEFING_DATE, now=NOW + timedelta(days=1), persist=False)
+    session.rollback()
+    assert len(hook.calls) == 2
+
+
+# --- RL-03 브리핑 판정 표시 projection (`bidops.briefing.v2`) ---------------------------
+
+
+class _VerdictDisplay:
+    """`BriefingVerdictDisplayProvider` 가짜. 받은 공고 id를 기록하고 고정 글자를 돌려준다."""
+
+    def __init__(self, values) -> None:
+        self.values = values
+        self.calls: list[list[int]] = []
+
+    def briefing_verdict_display(self, session, notice_ids):
+        self.calls.append(list(notice_ids))
+        return {notice_id: self.values[notice_id] for notice_id in notice_ids if notice_id in self.values}
+
+
+def test_rl03_verdict_display_provider_fills_pre_spec_and_bid_recommendations_only(
+    session, world, plans, empty_extensions
+) -> None:
+    world.collection_run()
+    pre_spec = world.notice("홈페이지 유지관리 용역", deadline_at=NOW + timedelta(days=3))
+    bid = world.notice("데이터 플랫폼 유지관리", source_type="bid_notice", sw=None, deadline_at=NOW + timedelta(days=20))
+    repeat = world.plan("스마트 관광 플랫폼 고도화 용역 3차")
+    plans.ids = [repeat.id]
+    tracked_owner = world.opportunity(tracking_status="계속 추적")
+    tracked = world.notice("추적 중 통합 시스템", owner=tracked_owner, observed_at=NOW - timedelta(days=10),
+                           deadline_at=NOW + timedelta(days=12))
+    world.observe(tracked, NOW - timedelta(hours=1), ["deadline_at"])
+    session.commit()
+    _build(session)
+
+    # 제공자가 없으면 v1 규칙 그대로다(스키마 버전만 v2).
+    view = get_briefing_view(session, BRIEFING_DATE)
+    assert view.schema_version == "bidops.briefing.v2"
+    assert {item.stage: item.verdict_display for item in view.items} == {
+        "pre_spec": "분석 대기", "bid_notice": "분석 대기", "order_plan": "연차 추적",
+    }
+
+    provider = _VerdictDisplay({pre_spec.id: "조건부 진행", bid.id: "사전규격 판정 참조", tracked.id: "진행 가능"})
+    empty_extensions.register_briefing_verdict_display(provider, owner="briefing-test")
+    view = get_briefing_view(session, BRIEFING_DATE)
+    assert {item.stage: item.verdict_display for item in view.items} == {
+        "pre_spec": "조건부 진행", "bid_notice": "사전규격 판정 참조", "order_plan": "연차 추적",
+    }
+    # 추적 변화 행은 RL-01 규칙(정정 → 재검토 중)을 유지하고 제공자에 묻지도 않는다. 조회는 한 번이다.
+    assert [item.verdict_display for item in view.tracked_changes] == ["재검토 중"]
+    assert provider.calls == [sorted([pre_spec.id, bid.id])]
+
+    # 닫힌 값 집합 밖 글자는 버리고 v1 규칙으로 돌아간다(500을 내지 않는다).
+    provider.values = {pre_spec.id: "아마 가능", bid.id: "판정 대상 아님"}
+    view = get_briefing_view(session, BRIEFING_DATE)
+    assert {item.stage: item.verdict_display for item in view.items if item.stage != "order_plan"} == {
+        "pre_spec": "분석 대기", "bid_notice": "판정 대상 아님",
+    }

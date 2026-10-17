@@ -48,6 +48,8 @@ from ..services.company_projection import (
 from ..services.deep_reviews import DeepReviewService
 from ..services.evidence import EvidenceService
 from ..services.reports import ReportService
+from ..schemas.verdict_view import PractitionerVerdictView
+from ..services.verdict_view import VERDICT_ERROR_MESSAGES, VERDICT_ERROR_STATUS, VerdictViewError, verdict_view
 
 
 router = APIRouter(prefix="/api/companies", tags=["company-analysis"])
@@ -121,6 +123,36 @@ def get_company_fit_attempts(
     session: Session = Depends(get_db),
 ) -> JSONResponse:
     return _read(session, lambda: company_fit_attempts(session, company_id=company_id, notice_id=notice_id))
+
+
+@router.get("/{company_id}/pre-specs/{notice_id}/verdict", response_model=PractitionerVerdictView)
+def get_company_pre_spec_verdict(
+    company_id: UUID,
+    notice_id: int = ApiPath(..., ge=1),
+    attempt_id: UUID | None = Query(default=None),
+    session: Session = Depends(get_db),
+) -> JSONResponse:
+    """RL-03 / HP-04 판정 view. 생성·모델 호출이 없는 읽기다."""
+
+    try:
+        content = verdict_view(session, company_id=company_id, notice_id=notice_id, attempt_id=attempt_id)
+    except VerdictViewError as error:
+        session.rollback()
+        return _verdict_error(error.code)
+    except Exception:  # noqa: BLE001 - safe API boundary
+        session.rollback()
+        return _verdict_error("processing_failed")
+    session.rollback()
+    return JSONResponse(status_code=200, content=content)
+
+
+def _verdict_error(code: str) -> JSONResponse:
+    safe = code if code in VERDICT_ERROR_STATUS else "processing_failed"
+    return JSONResponse(
+        status_code=VERDICT_ERROR_STATUS[safe],
+        content={"error": {"code": safe, "message": VERDICT_ERROR_MESSAGES[safe], "details": None},
+                 "request_id": None},
+    )
 
 
 @router.get("/{company_id}/deep-reviews/{review_id}", response_model=CompanyReviewView)

@@ -77,7 +77,7 @@
       "required": true,
       "method": "manual",
       "applies_when": "RL-03-fit-verdict(T12), RL-04-proposal-draft(T11), RL-05-gold-acceptance(T5); 그 밖의 기능은 비적용",
-      "dependency_gate": true
+      "dependency_gate": false
     }
   },
   "commands": {

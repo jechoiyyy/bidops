@@ -1350,7 +1350,9 @@ def test_luna_consent_runtime_privileges():
                 for table in ('deep_review_preview', 'deep_review_approval'):
                     for role in ('app', 'worker'):
                         assert _table_privilege(connection,role,table,'SELECT')
-                        assert _table_privilege(connection,role,table,'INSERT') == (role == 'app')
+                        # RL-03 spec "자동 트리거와 일일 상한": the worker creates the automatic
+                        # preview/approval with the human-path service (INSERT only).
+                        assert _table_privilege(connection,role,table,'INSERT')
                         assert not _table_privilege(connection,role,table,'UPDATE')
                         assert not _table_privilege(connection,role,table,'DELETE')
         finally:
@@ -1482,5 +1484,94 @@ def test_effective_opportunity_note_grants_are_minimal() -> None:
                         assert not _table_privilege(connection, role, NOTE_TABLE, privilege)
                 for role in ("app", "worker", "ro_backup"):
                     assert not _table_privilege(connection, role, NOTE_TABLE, "DELETE")
+        finally:
+            engine.dispose()
+
+
+
+#: RL-03 card analysis (0040, spec "저장").
+CARD_TABLES = {"transfer_policy_approval", "card_analysis_stage", "verdict_request", "verdict_feedback"}
+#: The automatic verdict path runs in the worker (bundle-ready hook) and creates
+#: these deep-review rows with the human-path service functions.
+WORKER_AUTO_INSERTS = {
+    "deep_review", "deep_review_attempt", "deep_review_stage", "deep_review_preview", "deep_review_approval",
+}
+APPROVAL_REVOCATION = {"revoked_by", "revoked_at", "revoke_reason"}
+APPROVAL_FROZEN_COLUMNS = (
+    "id", "policy_identity", "policy_version_id", "policy_sha256", "model_name", "reasoning_effort",
+    "cli_version", "scope", "daily_cap", "approved_by", "approved_at", "request_id",
+)
+
+
+def test_card_analysis_grants_follow_the_rl03_storage_contract() -> None:
+    # web: reads, approval/request/feedback appends, revocation triple only.
+    assert CARD_TABLES <= _table_grants("app", "SELECT")
+    assert _table_grants("app", "INSERT") & CARD_TABLES == {
+        "transfer_policy_approval", "verdict_request", "verdict_feedback",
+    }
+    assert not _table_grants("app", "UPDATE") & CARD_TABLES
+    assert _column_update_grant("app", "transfer_policy_approval") == APPROVAL_REVOCATION
+    # worker: stage append, cap-queue append and status advance, approval read.
+    assert _table_grants("worker", "SELECT") & CARD_TABLES == {
+        "transfer_policy_approval", "card_analysis_stage", "verdict_request",
+    }
+    assert _table_grants("worker", "INSERT") & CARD_TABLES == {"card_analysis_stage", "verdict_request"}
+    assert not _table_grants("worker", "UPDATE") & CARD_TABLES
+    assert _column_update_grant("worker", "verdict_request") == {"status", "started_attempt_id"}
+    assert _column_update_grant("app", "verdict_request") == {"status", "started_attempt_id"}
+    assert WORKER_AUTO_INSERTS <= _table_grants("worker", "INSERT")
+    # The automatic path gains no new UPDATE on the frozen envelopes.
+    assert not {"deep_review_preview", "deep_review_approval"} & _table_grants("worker", "UPDATE")
+    for table in ("card_analysis_stage", "verdict_feedback", "deep_review_preview", "deep_review_approval"):
+        for role in ("app", "worker"):
+            assert (
+                re.search(rf"GRANT\s+UPDATE\s*\([^)]*\)\s+ON\s+bidops\.{table}\s+TO\s+{role};", POLICY)
+                is None
+            )
+    for role in ("app", "worker", "ro_backup"):
+        assert not (CARD_TABLES | WORKER_AUTO_INSERTS) & _table_grants(role, "DELETE")
+
+
+@requires_postgres
+def test_effective_card_analysis_grants_are_minimal() -> None:
+    _ensure_roles()
+    with temporary_database() as database_url:
+        engine = _apply_policy(database_url)
+        try:
+            with engine.begin() as connection:
+                for table in sorted(CARD_TABLES):
+                    assert _table_privilege(connection, "app", table, "SELECT")
+                    assert _table_privilege(connection, "ro_backup", table, "SELECT")
+                    assert _table_privilege(connection, "app", table, "INSERT") == (table != "card_analysis_stage")
+                    assert _table_privilege(connection, "worker", table, "SELECT") == (table != "verdict_feedback")
+                    assert _table_privilege(connection, "worker", table, "INSERT") == (
+                        table in {"card_analysis_stage", "verdict_request"}
+                    )
+                    for role in ("app", "worker"):
+                        assert not _table_privilege(connection, role, table, "UPDATE")
+                    for role in ("app", "worker", "ro_backup"):
+                        assert not _table_privilege(connection, role, table, "DELETE")
+                    for privilege in ("INSERT", "UPDATE"):
+                        assert not _table_privilege(connection, "ro_backup", table, privilege)
+                for column in sorted(APPROVAL_REVOCATION):
+                    assert _column_privilege(connection, "app", "transfer_policy_approval", column, "UPDATE")
+                for column in APPROVAL_FROZEN_COLUMNS:
+                    assert not _column_privilege(connection, "app", "transfer_policy_approval", column, "UPDATE")
+                    assert not _column_privilege(connection, "worker", "transfer_policy_approval", column, "UPDATE")
+                for role in ("worker", "app"):
+                    for column in ("status", "started_attempt_id"):
+                        assert _column_privilege(connection, role, "verdict_request", column, "UPDATE")
+                for column in ("id", "opportunity_id", "notice_id", "actor", "request_id", "reason",
+                               "created_at"):
+                    assert not _column_privilege(connection, "worker", "verdict_request", column, "UPDATE")
+                    assert not _column_privilege(connection, "app", "verdict_request", column, "UPDATE")
+                for table in sorted(WORKER_AUTO_INSERTS):
+                    assert _table_privilege(connection, "worker", table, "INSERT")
+                    assert _table_privilege(connection, "app", table, "INSERT")
+                    for role in ("app", "worker", "ro_backup"):
+                        assert not _table_privilege(connection, role, table, "DELETE")
+                for table in ("deep_review_preview", "deep_review_approval"):
+                    for role in ("app", "worker"):
+                        assert not _table_privilege(connection, role, table, "UPDATE")
         finally:
             engine.dispose()
