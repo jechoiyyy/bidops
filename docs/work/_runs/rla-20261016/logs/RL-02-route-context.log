@@ -1,0 +1,535 @@
+
+Running 56 tests using 8 workers
+
+  ✓   5 [app] › tests/route-context.spec.ts:57:3 › dashboard route context (384ms)
+  ✓   4 [app] › tests/route-context.spec.ts:57:3 › pre-spec detail route context (411ms)
+  ✓   2 [app] › tests/route-context.spec.ts:57:3 › opportunity detail route context (421ms)
+  ✓   1 [app] › tests/route-context.spec.ts:57:3 › bid delta route context (426ms)
+  ✓   8 [app] › tests/route-context.spec.ts:57:3 › opportunities route context (434ms)
+  ✓   3 [app] › tests/route-context.spec.ts:57:3 › pre-specs route context (431ms)
+  ✓   7 [app] › tests/route-context.spec.ts:57:3 › queue detail route context (448ms)
+  ✓   6 [app] › tests/route-context.spec.ts:57:3 › queue list route context (457ms)
+  ✓  14 [app] › tests/route-context.spec.ts:57:3 › profile route context (292ms)
+  ✓  12 [app] › tests/route-context.spec.ts:57:3 › criteria route context (299ms)
+  ✓  15 [app] › tests/route-context.spec.ts:57:3 › metrics route context (294ms)
+  ✓  16 [app] › tests/route-context.spec.ts:57:3 › quality gates route context (285ms)
+  ✓  11 [app] › tests/route-context.spec.ts:57:3 › reviews route context (323ms)
+  ✓   9 [app] › tests/route-context.spec.ts:57:3 › judgments list route context (357ms)
+  ✓  13 [app] › tests/route-context.spec.ts:57:3 › go-no-go route context (344ms)
+  ✓  10 [app] › tests/route-context.spec.ts:57:3 › judgments detail route context (377ms)
+  ✓  17 [app] › tests/route-context.spec.ts:57:3 › policies route context (225ms)
+  ✓  20 [app] › tests/route-context.spec.ts:57:3 › runs route context (221ms)
+  ✓  18 [app] › tests/route-context.spec.ts:57:3 › run-status route context (238ms)
+  ✓  21 [app] › tests/route-context.spec.ts:57:3 › operations route context (226ms)
+  ✓  19 [app] › tests/route-context.spec.ts:57:3 › attachments route context (237ms)
+  ✓  22 [app] › tests/route-context.spec.ts:57:3 › audit route context (238ms)
+  ✓  23 [app] › tests/route-context.spec.ts:57:3 › deep review route context (328ms)
+  ✓  24 [app] › tests/route-context.spec.ts:80:1 › 직접 진입한 lazy route가 metadata와 실제 화면을 함께 렌더링한다 (423ms)
+  ✓  27 [app] › tests/route-context.spec.ts:156:1 › 누적 화면은 회차 API 실패와 무관하게 열린다 (556ms)
+  ✓  25 [app] › tests/route-context.spec.ts:96:1 › SPA 내부 link click으로 lazy route에 들어가도 metadata와 화면이 유지된다 (685ms)
+  ✘  30 [app] › tests/route-context.spec.ts:199:3 › opportunity detail 상단 경로 (5.2s)
+  ✘  28 [app] › tests/route-context.spec.ts:199:3 › dashboard 상단 경로 (5.3s)
+  ✘  29 [app] › tests/route-context.spec.ts:199:3 › pre-spec detail 상단 경로 (5.3s)
+  ✘  31 [app] › tests/route-context.spec.ts:199:3 › bid delta 상단 경로 (5.4s)
+  ✘  32 [app] › tests/route-context.spec.ts:199:3 › queue detail 상단 경로 (5.3s)
+  ✓  37 [app] › tests/route-context.spec.ts:218:3 › order-plans 상단 제목 모드 (246ms)
+  ✘  33 [app] › tests/route-context.spec.ts:199:3 › judgments detail 상단 경로 (5.2s)
+  ✓  38 [app] › tests/route-context.spec.ts:218:3 › go-no-go 상단 제목 모드 (173ms)
+  ✘  34 [app] › tests/route-context.spec.ts:199:3 › deep review 상단 경로 (5.3s)
+  ✓  39 [app] › tests/route-context.spec.ts:218:3 › pre-specs 상단 제목 모드 (263ms)
+  ✓  40 [app] › tests/route-context.spec.ts:218:3 › opportunities 상단 제목 모드 (255ms)
+  ✓  41 [app] › tests/route-context.spec.ts:256:3 › pre-spec detail 상단 경로가 목록으로 돌아가는 링크를 가진다 (240ms)
+  ✓  43 [app] › tests/route-context.spec.ts:256:3 › bid delta 상단 경로가 목록으로 돌아가는 링크를 가진다 (225ms)
+  ✓  45 [app] › tests/route-context.spec.ts:256:3 › judgments detail 상단 경로가 목록으로 돌아가는 링크를 가진다 (197ms)
+  ✓  44 [app] › tests/route-context.spec.ts:256:3 › queue detail 상단 경로가 목록으로 돌아가는 링크를 가진다 (251ms)
+  ✓  47 [app] › tests/route-context.spec.ts:256:3 › deep review 상단 경로가 목록으로 돌아가는 링크를 가진다 (214ms)
+  ✓  46 [app] › tests/route-context.spec.ts:256:3 › opportunity detail 상단 경로가 목록으로 돌아가는 링크를 가진다 (322ms)
+  ✓  42 [app] › tests/route-context.spec.ts:233:1 › 대시보드는 경로 모드이면서 상단바 액션 슬롯을 그대로 쓴다 (549ms)
+  ✓  50 [app] › tests/route-context.spec.ts:338:1 › PN-02 선택 상세 navigation은 저장된 snapshot 인접 ID만 이동한다 (525ms)
+  ✓  52 [app] › tests/route-context.spec.ts:385:1 › PN-04 token 없는 직접 주소는 저장된 선택과 무관하게 단건 mode다 (462ms)
+  ✓  53 [app] › tests/route-context.spec.ts:403:1 › PN-05 notice mismatch에서도 navigation shell은 위치를 잃지 않는다 (443ms)
+  ✓  55 [app] › tests/route-context.spec.ts:439:1 › PN-06 빠른 A→B 전환에서 늦은 A 응답이 B record를 덮지 않는다 (513ms)
+  ✓  51 [app] › tests/route-context.spec.ts:354:1 › PN-03 상세 새로고침과 오류 branch도 위치·목록 context를 보존한다 (2.2s)
+  ✓  54 [app] › tests/route-context.spec.ts:421:1 › PN-05 projection 부분 오류에서도 notice 본문과 navigation을 유지한다 (1.8s)
+  ✓  56 [app] › tests/route-context.spec.ts:474:1 › PN-06 record key가 문서 패널 상태를 초기화하고 guard 취소는 A를 보존한다 (1.0s)
+  ✘  36 [app] › tests/route-context.spec.ts:199:3 › run-status 상단 경로 (5.2s)
+  ✘  35 [app] › tests/route-context.spec.ts:199:3 › criteria 상단 경로 (5.3s)
+  ✘  48 [app] › tests/route-context.spec.ts:275:1 › 심층 검토 보고서에서 사이드바의 사전규격 항목이 활성이다 (5.2s)
+  ✘  49 [app] › tests/route-context.spec.ts:283:1 › 사업기회에서 연 심층 검토 보고서는 사업기회 아래로 보인다 (5.3s)
+  ✘  26 [app] › tests/route-context.spec.ts:121:1 › 라우트 오류 재시도는 reload 없이 복구한다 (30.1s)
+
+
+  1) [app] › tests/route-context.spec.ts:121:1 › 라우트 오류 재시도는 reload 없이 복구한다 ────────────────────────
+
+    Test timeout of 30000ms exceeded.
+
+    Error: locator.click: Test timeout of 30000ms exceeded.
+    Call log:
+      - waiting for locator('aside.sidebar').getByRole('link', { name: '대시보드', exact: true })
+
+
+      148 |
+      149 |   // 위치가 바뀌면 경계는 스스로 비워지고 다음 화면이 그대로 열린다.
+    > 150 |   await page.locator("aside.sidebar").getByRole("link", { name: "대시보드", exact: true }).click();
+          |                                                                                        ^
+      151 |   await expect(page.locator("header.topbar h1")).toHaveText("대시보드");
+      152 |   await expect(page.locator(".lazy-route-error")).toHaveCount(0);
+      153 |   expect(await page.evaluate(() => (window as unknown as { __reloads: number }).__reloads)).toBe(0);
+        at /Users/temp/orca/bidops/.sdlc/worktrees/rla-20261016-RL-02-opportunity-timeline/web/frontend/tests/route-context.spec.ts:150:88
+
+    Error Context: test-results/route-context-라우트-오류-재시도는-reload-없이-복구한다-app/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/route-context-라우트-오류-재시도는-reload-없이-복구한다-app/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/route-context-라우트-오류-재시도는-reload-없이-복구한다-app/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) [app] › tests/route-context.spec.ts:199:3 › dashboard 상단 경로 ───────────────────────────────────
+
+    Error: expect(locator).toHaveText(expected) failed
+
+    Locator: locator('header.topbar .topbar-breadcrumb .topbar-crumb')
+    Timeout: 5000ms
+    - Expected  - 1
+    + Received  + 0
+
+      Array [
+    -   "오늘의 업무",
+        "대시보드",
+      ]
+
+    Call log:
+      - Expect "toHaveText" with timeout 5000ms
+      - waiting for locator('header.topbar .topbar-breadcrumb .topbar-crumb')
+        14 × locator resolved to 1 element
+
+
+      200 |     await page.goto(context.path);
+      201 |     const crumbs = page.locator("header.topbar .topbar-breadcrumb .topbar-crumb");
+    > 202 |     await expect(crumbs).toHaveText(context.crumbs);
+          |                          ^
+      203 |     // 화면 이름 칸 하나만 `<h1>`이다. 제목을 두 번 쓰지 않는다.
+      204 |     await expect(page.locator("header.topbar h1")).toHaveCount(1);
+      205 |   });
+        at /Users/temp/orca/bidops/.sdlc/worktrees/rla-20261016-RL-02-opportunity-timeline/web/frontend/tests/route-context.spec.ts:202:26
+
+    Error Context: test-results/route-context-dashboard-상단-경로-app/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/route-context-dashboard-상단-경로-app/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/route-context-dashboard-상단-경로-app/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  3) [app] › tests/route-context.spec.ts:199:3 › pre-spec detail 상단 경로 ─────────────────────────────
+
+    Error: expect(locator).toHaveText(expected) failed
+
+    Locator: locator('header.topbar .topbar-breadcrumb .topbar-crumb')
+    Timeout: 5000ms
+    - Expected  - 1
+    + Received  + 0
+
+      Array [
+    -   "탐색과 추적",
+        "사전규격",
+        "notice 991",
+      ]
+
+    Call log:
+      - Expect "toHaveText" with timeout 5000ms
+      - waiting for locator('header.topbar .topbar-breadcrumb .topbar-crumb')
+        14 × locator resolved to 2 elements
+
+
+      200 |     await page.goto(context.path);
+      201 |     const crumbs = page.locator("header.topbar .topbar-breadcrumb .topbar-crumb");
+    > 202 |     await expect(crumbs).toHaveText(context.crumbs);
+          |                          ^
+      203 |     // 화면 이름 칸 하나만 `<h1>`이다. 제목을 두 번 쓰지 않는다.
+      204 |     await expect(page.locator("header.topbar h1")).toHaveCount(1);
+      205 |   });
+        at /Users/temp/orca/bidops/.sdlc/worktrees/rla-20261016-RL-02-opportunity-timeline/web/frontend/tests/route-context.spec.ts:202:26
+
+    Error Context: test-results/route-context-pre-spec-detail-상단-경로-app/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/route-context-pre-spec-detail-상단-경로-app/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/route-context-pre-spec-detail-상단-경로-app/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  4) [app] › tests/route-context.spec.ts:199:3 › opportunity detail 상단 경로 ──────────────────────────
+
+    Error: expect(locator).toHaveText(expected) failed
+
+    Locator: locator('header.topbar .topbar-breadcrumb .topbar-crumb')
+    Timeout: 5000ms
+    - Expected  - 1
+    + Received  + 0
+
+      Array [
+    -   "탐색과 추적",
+        "사업기회",
+        "#501",
+      ]
+
+    Call log:
+      - Expect "toHaveText" with timeout 5000ms
+      - waiting for locator('header.topbar .topbar-breadcrumb .topbar-crumb')
+        14 × locator resolved to 2 elements
+
+
+      200 |     await page.goto(context.path);
+      201 |     const crumbs = page.locator("header.topbar .topbar-breadcrumb .topbar-crumb");
+    > 202 |     await expect(crumbs).toHaveText(context.crumbs);
+          |                          ^
+      203 |     // 화면 이름 칸 하나만 `<h1>`이다. 제목을 두 번 쓰지 않는다.
+      204 |     await expect(page.locator("header.topbar h1")).toHaveCount(1);
+      205 |   });
+        at /Users/temp/orca/bidops/.sdlc/worktrees/rla-20261016-RL-02-opportunity-timeline/web/frontend/tests/route-context.spec.ts:202:26
+
+    Error Context: test-results/route-context-opportunity-detail-상단-경로-app/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/route-context-opportunity-detail-상단-경로-app/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/route-context-opportunity-detail-상단-경로-app/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  5) [app] › tests/route-context.spec.ts:199:3 › bid delta 상단 경로 ───────────────────────────────────
+
+    Error: expect(locator).toHaveText(expected) failed
+
+    Locator: locator('header.topbar .topbar-breadcrumb .topbar-crumb')
+    Timeout: 5000ms
+    - Expected  - 1
+    + Received  + 0
+
+      Array [
+    -   "탐색과 추적",
+        "사업기회",
+        "#501",
+        "입찰 변경 비교",
+      ]
+
+    Call log:
+      - Expect "toHaveText" with timeout 5000ms
+      - waiting for locator('header.topbar .topbar-breadcrumb .topbar-crumb')
+        14 × locator resolved to 3 elements
+
+
+      200 |     await page.goto(context.path);
+      201 |     const crumbs = page.locator("header.topbar .topbar-breadcrumb .topbar-crumb");
+    > 202 |     await expect(crumbs).toHaveText(context.crumbs);
+          |                          ^
+      203 |     // 화면 이름 칸 하나만 `<h1>`이다. 제목을 두 번 쓰지 않는다.
+      204 |     await expect(page.locator("header.topbar h1")).toHaveCount(1);
+      205 |   });
+        at /Users/temp/orca/bidops/.sdlc/worktrees/rla-20261016-RL-02-opportunity-timeline/web/frontend/tests/route-context.spec.ts:202:26
+
+    Error Context: test-results/route-context-bid-delta-상단-경로-app/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/route-context-bid-delta-상단-경로-app/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/route-context-bid-delta-상단-경로-app/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  6) [app] › tests/route-context.spec.ts:199:3 › queue detail 상단 경로 ────────────────────────────────
+
+    Error: expect(locator).toHaveText(expected) failed
+
+    Locator: locator('header.topbar .topbar-breadcrumb .topbar-crumb')
+    Timeout: 5000ms
+    - Expected  - 1
+    + Received  + 0
+
+      Array [
+    -   "탐색과 추적",
+        "사업기회",
+        "공고 판정 이력",
+        "공고 29",
+      ]
+
+    Call log:
+      - Expect "toHaveText" with timeout 5000ms
+      - waiting for locator('header.topbar .topbar-breadcrumb .topbar-crumb')
+        14 × locator resolved to 3 elements
+
+
+      200 |     await page.goto(context.path);
+      201 |     const crumbs = page.locator("header.topbar .topbar-breadcrumb .topbar-crumb");
+    > 202 |     await expect(crumbs).toHaveText(context.crumbs);
+          |                          ^
+      203 |     // 화면 이름 칸 하나만 `<h1>`이다. 제목을 두 번 쓰지 않는다.
+      204 |     await expect(page.locator("header.topbar h1")).toHaveCount(1);
+      205 |   });
+        at /Users/temp/orca/bidops/.sdlc/worktrees/rla-20261016-RL-02-opportunity-timeline/web/frontend/tests/route-context.spec.ts:202:26
+
+    Error Context: test-results/route-context-queue-detail-상단-경로-app/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/route-context-queue-detail-상단-경로-app/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/route-context-queue-detail-상단-경로-app/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  7) [app] › tests/route-context.spec.ts:199:3 › judgments detail 상단 경로 ────────────────────────────
+
+    Error: expect(locator).toHaveText(expected) failed
+
+    Locator: locator('header.topbar .topbar-breadcrumb .topbar-crumb')
+    Timeout: 5000ms
+    - Expected  - 1
+    + Received  + 0
+
+      Array [
+    -   "탐색과 추적",
+        "사업기회",
+        "공고 판정 이력",
+        "공고 29",
+      ]
+
+    Call log:
+      - Expect "toHaveText" with timeout 5000ms
+      - waiting for locator('header.topbar .topbar-breadcrumb .topbar-crumb')
+        14 × locator resolved to 3 elements
+
+
+      200 |     await page.goto(context.path);
+      201 |     const crumbs = page.locator("header.topbar .topbar-breadcrumb .topbar-crumb");
+    > 202 |     await expect(crumbs).toHaveText(context.crumbs);
+          |                          ^
+      203 |     // 화면 이름 칸 하나만 `<h1>`이다. 제목을 두 번 쓰지 않는다.
+      204 |     await expect(page.locator("header.topbar h1")).toHaveCount(1);
+      205 |   });
+        at /Users/temp/orca/bidops/.sdlc/worktrees/rla-20261016-RL-02-opportunity-timeline/web/frontend/tests/route-context.spec.ts:202:26
+
+    Error Context: test-results/route-context-judgments-detail-상단-경로-app/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/route-context-judgments-detail-상단-경로-app/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/route-context-judgments-detail-상단-경로-app/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  8) [app] › tests/route-context.spec.ts:199:3 › deep review 상단 경로 ─────────────────────────────────
+
+    Error: expect(locator).toHaveText(expected) failed
+
+    Locator: locator('header.topbar .topbar-breadcrumb .topbar-crumb')
+    Timeout: 5000ms
+    - Expected  - 1
+    + Received  + 0
+
+      Array [
+    -   "탐색과 추적",
+        "사전규격",
+        "심층 검토 보고서",
+        "fixture-…",
+      ]
+
+    Call log:
+      - Expect "toHaveText" with timeout 5000ms
+      - waiting for locator('header.topbar .topbar-breadcrumb .topbar-crumb')
+        14 × locator resolved to 3 elements
+
+
+      200 |     await page.goto(context.path);
+      201 |     const crumbs = page.locator("header.topbar .topbar-breadcrumb .topbar-crumb");
+    > 202 |     await expect(crumbs).toHaveText(context.crumbs);
+          |                          ^
+      203 |     // 화면 이름 칸 하나만 `<h1>`이다. 제목을 두 번 쓰지 않는다.
+      204 |     await expect(page.locator("header.topbar h1")).toHaveCount(1);
+      205 |   });
+        at /Users/temp/orca/bidops/.sdlc/worktrees/rla-20261016-RL-02-opportunity-timeline/web/frontend/tests/route-context.spec.ts:202:26
+
+    Error Context: test-results/route-context-deep-review-상단-경로-app/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/route-context-deep-review-상단-경로-app/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/route-context-deep-review-상단-경로-app/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  9) [app] › tests/route-context.spec.ts:199:3 › criteria 상단 경로 ────────────────────────────────────
+
+    Error: expect(locator).toHaveText(expected) failed
+
+    Locator: locator('header.topbar .topbar-breadcrumb .topbar-crumb')
+    Timeout: 5000ms
+    - Expected  - 1
+    + Received  + 0
+
+      Array [
+    -   "기준과 운영",
+        "판정 기준",
+      ]
+
+    Call log:
+      - Expect "toHaveText" with timeout 5000ms
+      - waiting for locator('header.topbar .topbar-breadcrumb .topbar-crumb')
+        14 × locator resolved to 1 element
+
+
+      200 |     await page.goto(context.path);
+      201 |     const crumbs = page.locator("header.topbar .topbar-breadcrumb .topbar-crumb");
+    > 202 |     await expect(crumbs).toHaveText(context.crumbs);
+          |                          ^
+      203 |     // 화면 이름 칸 하나만 `<h1>`이다. 제목을 두 번 쓰지 않는다.
+      204 |     await expect(page.locator("header.topbar h1")).toHaveCount(1);
+      205 |   });
+        at /Users/temp/orca/bidops/.sdlc/worktrees/rla-20261016-RL-02-opportunity-timeline/web/frontend/tests/route-context.spec.ts:202:26
+
+    Error Context: test-results/route-context-criteria-상단-경로-app/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/route-context-criteria-상단-경로-app/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/route-context-criteria-상단-경로-app/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  10) [app] › tests/route-context.spec.ts:199:3 › run-status 상단 경로 ─────────────────────────────────
+
+    Error: expect(locator).toHaveText(expected) failed
+
+    Locator: locator('header.topbar .topbar-breadcrumb .topbar-crumb')
+    Timeout: 5000ms
+    - Expected  - 1
+    + Received  + 0
+
+      Array [
+    -   "기준과 운영",
+        "실행 상태",
+      ]
+
+    Call log:
+      - Expect "toHaveText" with timeout 5000ms
+      - waiting for locator('header.topbar .topbar-breadcrumb .topbar-crumb')
+        14 × locator resolved to 1 element
+
+
+      200 |     await page.goto(context.path);
+      201 |     const crumbs = page.locator("header.topbar .topbar-breadcrumb .topbar-crumb");
+    > 202 |     await expect(crumbs).toHaveText(context.crumbs);
+          |                          ^
+      203 |     // 화면 이름 칸 하나만 `<h1>`이다. 제목을 두 번 쓰지 않는다.
+      204 |     await expect(page.locator("header.topbar h1")).toHaveCount(1);
+      205 |   });
+        at /Users/temp/orca/bidops/.sdlc/worktrees/rla-20261016-RL-02-opportunity-timeline/web/frontend/tests/route-context.spec.ts:202:26
+
+    Error Context: test-results/route-context-run-status-상단-경로-app/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/route-context-run-status-상단-경로-app/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/route-context-run-status-상단-경로-app/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  11) [app] › tests/route-context.spec.ts:275:1 › 심층 검토 보고서에서 사이드바의 사전규격 항목이 활성이다 ──────────────────
+
+    Error: expect(locator).toHaveText(expected) failed
+
+    Locator:  locator('aside.sidebar .sidebar-item.is-active')
+    Expected: "사전규격"
+    Received: "공고"
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toHaveText" with timeout 5000ms
+      - waiting for locator('aside.sidebar .sidebar-item.is-active')
+        14 × locator resolved to <a href="/pre-specs" aria-current="page" data-discover="true" class="sidebar-item is-active">…</a>
+           - unexpected value "공고"
+
+
+      277 |   const active = page.locator("aside.sidebar .sidebar-item.is-active");
+      278 |   await expect(active).toHaveCount(1);
+    > 279 |   await expect(active).toHaveText("사전규격");
+          |                        ^
+      280 |   await expect(active).toHaveAttribute("aria-current", "page");
+      281 | });
+      282 |
+        at /Users/temp/orca/bidops/.sdlc/worktrees/rla-20261016-RL-02-opportunity-timeline/web/frontend/tests/route-context.spec.ts:279:24
+
+    Error Context: test-results/route-context-심층-검토-보고서에서-사이드바의-사전규격-항목이-활성이다-app/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/route-context-심층-검토-보고서에서-사이드바의-사전규격-항목이-활성이다-app/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/route-context-심층-검토-보고서에서-사이드바의-사전규격-항목이-활성이다-app/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  12) [app] › tests/route-context.spec.ts:283:1 › 사업기회에서 연 심층 검토 보고서는 사업기회 아래로 보인다 ─────────────────
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  locator('aside.sidebar .sidebar-item.is-active')
+    Expected: 1
+    Received: 2
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toHaveCount" with timeout 5000ms
+      - waiting for locator('aside.sidebar .sidebar-item.is-active')
+        14 × locator resolved to 2 elements
+           - unexpected value "2"
+
+
+      284 |   await page.goto("/deep-reviews/fixture-review?from=opportunities");
+      285 |   const active = page.locator("aside.sidebar .sidebar-item.is-active");
+    > 286 |   await expect(active).toHaveCount(1);
+          |                        ^
+      287 |   await expect(active).toHaveText("사업기회");
+      288 |   await expect(page.locator("header.topbar .topbar-crumb")).toHaveText([
+      289 |     "탐색과 추적",
+        at /Users/temp/orca/bidops/.sdlc/worktrees/rla-20261016-RL-02-opportunity-timeline/web/frontend/tests/route-context.spec.ts:286:24
+
+    Error Context: test-results/route-context-사업기회에서-연-심층-검토-보고서는-사업기회-아래로-보인다-app/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/route-context-사업기회에서-연-심층-검토-보고서는-사업기회-아래로-보인다-app/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/route-context-사업기회에서-연-심층-검토-보고서는-사업기회-아래로-보인다-app/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  12 failed
+    [app] › tests/route-context.spec.ts:121:1 › 라우트 오류 재시도는 reload 없이 복구한다 ─────────────────────────
+    [app] › tests/route-context.spec.ts:199:3 › dashboard 상단 경로 ────────────────────────────────────
+    [app] › tests/route-context.spec.ts:199:3 › pre-spec detail 상단 경로 ──────────────────────────────
+    [app] › tests/route-context.spec.ts:199:3 › opportunity detail 상단 경로 ───────────────────────────
+    [app] › tests/route-context.spec.ts:199:3 › bid delta 상단 경로 ────────────────────────────────────
+    [app] › tests/route-context.spec.ts:199:3 › queue detail 상단 경로 ─────────────────────────────────
+    [app] › tests/route-context.spec.ts:199:3 › judgments detail 상단 경로 ─────────────────────────────
+    [app] › tests/route-context.spec.ts:199:3 › deep review 상단 경로 ──────────────────────────────────
+    [app] › tests/route-context.spec.ts:199:3 › criteria 상단 경로 ─────────────────────────────────────
+    [app] › tests/route-context.spec.ts:199:3 › run-status 상단 경로 ───────────────────────────────────
+    [app] › tests/route-context.spec.ts:275:1 › 심층 검토 보고서에서 사이드바의 사전규격 항목이 활성이다 ────────────────────
+    [app] › tests/route-context.spec.ts:283:1 › 사업기회에서 연 심층 검토 보고서는 사업기회 아래로 보인다 ───────────────────
+  44 passed (31.7s)
+exit=1

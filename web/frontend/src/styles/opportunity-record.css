@@ -1,0 +1,557 @@
+/*
+ * 사업기회 레코드 `/opportunities/:id/*`(RL-02 STEP-006, ui-spec §3·§4.3).
+ *
+ * 레이아웃은 프로젝트가 소유한다(ADR-0040). 색·간격·모서리는 테마 토큰만 읽고 `--color-*`를 다시
+ * 정의하지 않는다(ADR-0048). 글자는 4단 스케일만 쓴다(`styles/typography.css`): 제목은 page-title
+ * 단(18px = 20px × ui-scale 0.9)에 700 굵기를 준다. 지원 폭은 1280~1920px이다(ADR-0047).
+ *
+ * pill 색(ui-spec §3): 단계=teal, 추적 중=success, 보류·마감 임박=warning, 그 밖은 muted. blue 계열은
+ * 쓰지 않는다(`npm run test:contrast`가 막는다). 글자는 항상 상태 이름이다.
+ */
+
+.rec-page {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  font-size: var(--bo-type-body);
+  line-height: var(--bo-type-body-leading);
+  overflow-wrap: anywhere;
+}
+
+.rec-page p,
+.rec-page h2,
+.rec-page h3 {
+  margin: 0;
+}
+
+.rec-status {
+  padding: var(--spacing-3) 0;
+  color: var(--color-text-secondary);
+}
+
+/* 헤더: 아이콘 40px · 제목 + pill · 액션 */
+.rec-header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  padding-bottom: var(--spacing-3);
+}
+
+.rec-icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-element);
+  color: var(--color-text-teal);
+  background: var(--color-background-teal);
+  font-size: var(--bo-type-page-title);
+  font-weight: 700;
+  line-height: 1;
+}
+
+.rec-heading {
+  display: grid;
+  flex: 1 1 auto;
+  gap: var(--spacing-1);
+  min-width: 0;
+}
+
+.rec-title {
+  font-size: var(--bo-type-page-title);
+  font-weight: 700;
+  line-height: var(--bo-type-page-title-leading);
+}
+
+.rec-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-1-5);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rec-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: calc(var(--spacing-4) + var(--spacing-0-5));
+  padding: var(--spacing-0-5) var(--spacing-2);
+  border-radius: var(--radius-full);
+  color: var(--color-text-secondary);
+  background: var(--color-background-muted);
+  font-size: var(--bo-type-caption);
+  font-weight: 500;
+  line-height: var(--bo-type-caption-leading);
+  white-space: nowrap;
+}
+
+.rec-pill.is-stage {
+  color: var(--color-text-teal);
+  background: var(--color-background-teal);
+}
+
+.rec-pill.is-warning {
+  color: var(--color-warning);
+  background: var(--color-warning-muted);
+}
+
+.rec-pill.is-success {
+  color: var(--color-success);
+  background: var(--color-success-muted);
+}
+
+.rec-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--spacing-2);
+}
+
+.rec-side-block > .astryx-button {
+  justify-self: start;
+}
+
+/* 탭 줄 */
+.rec-tabs {
+  flex: 0 0 auto;
+}
+
+/* 본문: 좌측 정보 280px(우측 1px 경계) + 중앙 가변 */
+.rec-body {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  align-items: start;
+  min-width: 0;
+}
+
+.rec-side {
+  display: grid;
+  align-content: start;
+  gap: var(--spacing-4);
+  min-width: 0;
+  padding: var(--spacing-3) var(--spacing-4) var(--spacing-4) 0;
+  border-right: 1px solid var(--color-border);
+}
+
+.rec-side-block {
+  display: grid;
+  gap: var(--spacing-2);
+  min-width: 0;
+}
+
+.rec-side-title,
+.rec-section-title {
+  font-size: var(--bo-type-section-title);
+  font-weight: var(--bo-type-section-title-weight);
+  line-height: var(--bo-type-section-title-leading);
+}
+
+.rec-side-note {
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+  line-height: var(--bo-type-caption-leading);
+}
+
+.rec-side-note.is-disabled {
+  opacity: 0.7;
+}
+
+/* 속성 목록: 2열 grid(라벨 96px 보조색 / 값), 행 높이 34, 하단 1px */
+.rec-attributes {
+  display: grid;
+  margin: 0;
+}
+
+.rec-attribute {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  align-items: center;
+  gap: var(--spacing-2);
+  min-height: 34px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.rec-attribute dt {
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+  line-height: var(--bo-type-caption-leading);
+}
+
+.rec-attribute dd {
+  margin: 0;
+  min-width: 0;
+  padding: var(--spacing-1) 0;
+}
+
+.rec-attribute dd.is-empty,
+.rec-attribute-note {
+  color: var(--color-text-secondary);
+}
+
+.rec-attribute-note {
+  font-size: var(--bo-type-caption);
+}
+
+/* 다음 행동 */
+.rec-next-list {
+  display: grid;
+  gap: var(--spacing-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rec-next-item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-2);
+}
+
+.rec-next-main {
+  display: grid;
+  gap: var(--spacing-0-5);
+  min-width: 0;
+}
+
+.rec-avatar {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-full);
+  color: var(--color-text-primary);
+  background: var(--bo-avatar-bg);
+  font-size: var(--bo-type-caption);
+  font-weight: 600;
+  line-height: 1;
+}
+
+/* 중앙 */
+.rec-main {
+  display: grid;
+  align-content: start;
+  gap: var(--spacing-4);
+  min-width: 0;
+  padding: var(--spacing-3) 0 var(--spacing-4) var(--spacing-4);
+}
+
+/* 단계 바: 완료=✓ 채움, 현재=채움+링, 다가오는 마감=warning 테두리, 대기·미확인=회색 테두리 */
+.rec-stagebar {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rec-stage {
+  position: relative;
+  display: grid;
+  justify-items: start;
+  gap: var(--spacing-1);
+  min-width: 0;
+  padding-right: var(--spacing-2);
+}
+
+.rec-stage::before {
+  content: "";
+  position: absolute;
+  top: calc(var(--spacing-2) + var(--spacing-0-5));
+  left: calc(var(--spacing-5) + var(--spacing-1));
+  right: var(--spacing-1);
+  height: 2px;
+  background: var(--color-border);
+}
+
+.rec-stage:last-child::before {
+  display: none;
+}
+
+.rec-stage[data-state="done"]::before {
+  background: var(--color-accent);
+}
+
+.rec-stage-marker {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: calc(var(--spacing-5) + var(--spacing-0-5));
+  height: calc(var(--spacing-5) + var(--spacing-0-5));
+  border: 2px solid var(--color-border-emphasized);
+  border-radius: var(--radius-full);
+  color: var(--color-on-accent);
+  background: var(--color-background-surface);
+}
+
+.rec-stage-marker svg {
+  width: 12px;
+  height: 12px;
+}
+
+.rec-stage[data-state="done"] .rec-stage-marker {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+}
+
+.rec-stage[data-state="current"] .rec-stage-marker {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+  box-shadow: 0 0 0 3px var(--color-accent-muted);
+}
+
+.rec-stage[data-state="upcoming_deadline"] .rec-stage-marker {
+  border-color: var(--color-warning);
+}
+
+.rec-stage-label {
+  font-size: var(--bo-type-caption);
+  line-height: var(--bo-type-caption-leading);
+}
+
+.rec-stage[data-state="current"] .rec-stage-label {
+  font-weight: 600;
+}
+
+.rec-stage[data-state="pending"] .rec-stage-label,
+.rec-stage[data-state="unknown"] .rec-stage-label {
+  color: var(--color-text-secondary);
+}
+
+.rec-stage[data-state="upcoming_deadline"] .rec-stage-label {
+  color: var(--color-warning);
+  font-weight: 600;
+}
+
+.rec-stage-unknown {
+  color: var(--color-text-secondary);
+}
+
+.rec-stage-day {
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+  line-height: var(--bo-type-caption-leading);
+}
+
+/* 작성기 */
+.rec-composer {
+  display: grid;
+  gap: var(--spacing-2);
+  padding: var(--spacing-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-element);
+}
+
+.rec-composer-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--spacing-3);
+}
+
+.rec-composer-fields {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--spacing-3);
+  min-width: 0;
+}
+
+.rec-composer-buttons {
+  display: flex;
+  gap: var(--spacing-2);
+}
+
+.rec-composer .actor-field,
+.rec-owner {
+  display: grid;
+  gap: var(--spacing-0-5);
+}
+
+.rec-composer .actor-field label,
+.rec-owner span {
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+  font-weight: 400;
+  line-height: var(--bo-type-caption-leading);
+}
+
+.rec-composer .actor-field p {
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+  line-height: var(--bo-type-caption-leading);
+  max-width: calc(var(--spacing-6) * 9);
+}
+
+.rec-composer .actor-field input,
+.rec-owner input {
+  min-height: calc(var(--spacing-6) * 1.25);
+  padding: 0 var(--spacing-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-inner);
+  color: var(--color-text-primary);
+  background: var(--color-background-surface);
+  font-size: var(--bo-type-caption);
+}
+
+.rec-composer .actor-field input {
+  width: calc(var(--spacing-6) * 6);
+}
+
+.rec-owner input {
+  width: calc(var(--spacing-6) * 8);
+}
+
+.rec-composer .actor-field input[aria-invalid="true"] {
+  border-color: var(--color-error);
+}
+
+/* 활동 피드 */
+.rec-feed {
+  display: grid;
+  gap: var(--spacing-2);
+}
+
+.rec-feed-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-3);
+}
+
+.rec-chips {
+  display: flex;
+  gap: var(--spacing-1-5);
+}
+
+.rec-chip {
+  padding: var(--spacing-0-5) var(--spacing-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  color: var(--color-text-primary);
+  background: var(--color-background-surface);
+  font: inherit;
+  font-size: var(--bo-type-caption);
+  line-height: var(--bo-type-caption-leading);
+  cursor: pointer;
+}
+
+.rec-chip[aria-pressed="true"] {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+  background: var(--color-accent-muted);
+  font-weight: 600;
+}
+
+.rec-chip:focus-visible,
+.rec-activity-link:focus-visible,
+.rec-similar-title:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.rec-activity-list,
+.rec-similar-list {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rec-activity {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-3);
+  padding: var(--spacing-3) 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.rec-activity-mark {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--radius-full);
+  color: var(--color-text-secondary);
+  background: var(--color-background-muted);
+}
+
+.rec-activity-mark svg {
+  width: 14px;
+  height: 14px;
+}
+
+.rec-activity-mark.is-person {
+  color: var(--color-text-primary);
+  background: var(--bo-avatar-bg);
+  font-size: var(--bo-type-caption);
+  font-weight: 600;
+  line-height: 1;
+}
+
+.rec-activity-body {
+  display: grid;
+  gap: var(--spacing-0-5);
+  min-width: 0;
+}
+
+.rec-activity-title strong {
+  font-weight: 600;
+}
+
+.rec-activity-pill {
+  display: inline-flex;
+  align-items: center;
+  margin-left: var(--spacing-1-5);
+  padding: 0 var(--spacing-2);
+  border-radius: var(--radius-full);
+  color: var(--color-text-secondary);
+  background: var(--color-background-muted);
+  font-size: var(--bo-type-caption);
+  font-weight: 500;
+  line-height: var(--bo-type-caption-leading);
+  vertical-align: middle;
+}
+
+.rec-activity-detail,
+.rec-activity-meta,
+.rec-similar-meta {
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+  line-height: var(--bo-type-caption-leading);
+}
+
+.rec-activity-link,
+.rec-similar-title,
+.rec-source-external a {
+  color: var(--color-accent);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.rec-feed-more {
+  display: flex;
+  justify-content: center;
+  padding-top: var(--spacing-2);
+}
+
+/* 비슷한 공고 · 원문 */
+.rec-similar-item {
+  display: grid;
+  gap: var(--spacing-0-5);
+  padding: var(--spacing-3) 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.rec-source-external {
+  text-align: center;
+}

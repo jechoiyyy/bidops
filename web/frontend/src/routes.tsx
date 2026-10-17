@@ -12,7 +12,7 @@ const BriefingPage = lazy(() => import("./pages/BriefingPage").then(({ BriefingP
 const CompanyPage = lazy(() => import("./pages/CompanyPage").then(({ CompanyPage }) => ({ default: CompanyPage })));
 const DashboardPage = lazy(() => import("./pages/DashboardPage").then(({ DashboardPage }) => ({ default: DashboardPage })));
 const OpportunitiesPage = lazy(() => import("./pages/OpportunitiesPage").then(({ OpportunitiesPage }) => ({ default: OpportunitiesPage })));
-const OpportunityDetailPage = lazy(() => import("./pages/OpportunitiesPage").then(({ OpportunityDetailPage }) => ({ default: OpportunityDetailPage })));
+const OpportunityRecordPage = lazy(() => import("./pages/OpportunityRecordPage").then(({ OpportunityRecordPage }) => ({ default: OpportunityRecordPage })));
 const PreSpecsPage = lazy(() => import("./pages/PreSpecsPage").then(({ PreSpecsPage }) => ({ default: PreSpecsPage })));
 const PreSpecDetailPage = lazy(() => import("./pages/PreSpecDetailPage").then(({ PreSpecDetailPage }) => ({ default: PreSpecDetailPage })));
 const AssumptionAnalysisPage = lazy(() => import("./pages/AssumptionAnalysisPage").then(({ AssumptionAnalysisPage }) => ({ default: AssumptionAnalysisPage })));
@@ -43,6 +43,15 @@ function RedirectWithSearch({ to, extraParams }: { to: string; extraParams?: Rec
   const next = new URLSearchParams(searchParams);
   for (const [key, value] of Object.entries(extraParams ?? {})) next.set(key, value);
   return <Navigate replace to={{ pathname: to, search: next.toString() }} />;
+}
+
+/**
+ * `/opportunities/:id` → `/opportunities/:id/activity`(replace). 레코드의 기본 탭은 활동이다(RL-02).
+ * 목록 우측 pane의 빠른 조작 상세(`?selected=<id>`)는 이 경로와 별개로 남아 있다.
+ */
+function OpportunityRecordRedirect() {
+  const { opportunityId } = useParams();
+  return <RedirectWithSearch to={`/opportunities/${opportunityId ?? ""}/activity`} />;
 }
 
 /**
@@ -102,7 +111,10 @@ export function buildRoutes(demoEnabled: boolean): RouteObject[] {
           // 경쟁해 sort 파라미터를 잃었고, 그러면 저장된 뷰가 저장되지 않는다.
           { path: "deadlines", element: <ReviewWorkspacePage />, handle: routeHandle(routeMetadata.queue) },
           { path: "opportunities", element: <OpportunitiesPage />, handle: routeHandle(routeMetadata.opportunities) },
-          { path: "opportunities/:opportunityId", element: <OpportunityDetailPage />, handle: routeHandle(routeMetadata.opportunities) },
+          // 사업기회 레코드(RL-02): 탭은 `activity | verdict | proposal | documents | source | similar`.
+          // 알 수 없는 탭은 페이지가 활동 탭으로 되돌린다. `bid-delta`는 아래 정적 경로가 먼저 맞는다.
+          { path: "opportunities/:opportunityId", element: <OpportunityRecordRedirect />, handle: routeHandle(routeMetadata.opportunities) },
+          { path: "opportunities/:opportunityId/:tab", element: <OpportunityRecordPage />, handle: routeHandle(routeMetadata.opportunities) },
           { path: "opportunities/:opportunityId/bid-delta", element: <BidDeltaDecisionPage />, handle: routeHandle(routeMetadata.bidDelta) },
           // 최종 Go/No-Go는 되돌릴 수 없는 결정인데 지금까지 사이드바 진입점이 없었다.
           { path: "go-no-go", element: <GoNoGoPage />, handle: routeHandle(routeMetadata.goNoGo) },

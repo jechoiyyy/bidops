@@ -78,6 +78,8 @@ _LIFECYCLE_PUBLIC_SURFACE: tuple[str, ...] = (
     "app/lifecycle/schemas/__init__.py",
     # DEMO-02 회사 지식 읽기 DTO가 CompanyDTO를 재사용한다(데모 계약 §8).
     "app/lifecycle/schemas/companies.py",
+    # RL-02 활동 피드 hook의 `ActivityItem`. RL-03·04 제공자가 이 DTO를 만들어 돌려준다.
+    "app/lifecycle/schemas/opportunity_activity.py",
     "app/lifecycle/schemas/opportunities.py",
     "app/lifecycle/schemas/pre_specs.py",
 )
@@ -252,7 +254,7 @@ TABLE_OWNER: dict[str, str] = {
     # core (2)
     "audit_event": CORE,
     "idempotency_record": CORE,
-    # lifecycle (18)
+    # lifecycle (19)
     "run": LIFECYCLE,
     "notice": LIFECYCLE,
     "notice_observation": LIFECYCLE,
@@ -271,6 +273,7 @@ TABLE_OWNER: dict[str, str] = {
     "briefing": LIFECYCLE,
     "briefing_item": LIFECYCLE,
     "briefing_reaction_event": LIFECYCLE,
+    "opportunity_note": LIFECYCLE,
     # screening (32)
     "judgment": SCREENING,
     "judgment_revision": SCREENING,

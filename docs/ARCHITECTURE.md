@@ -284,6 +284,8 @@ SW=Y 사전규격 적재 시 기관·이름이 일치하는 발주계획을 자�
 
 **브리핑 흐름(RL-01, 2026-10-17):** 두 트랙 수집·C-2 → `scripts/run-daily-briefing.sh`(web 컨테이너의 `build-briefing`) → 결정적 규칙(회사 `confirmed` 사실·제외·점수, 발주계획은 반복 발주처 ∧ 유사 실적만)이 후보를 상위 N으로 줄여 `briefing`·`briefing_item` 저장 → `/briefing` 화면과 Slack 전송(`--send`, `core/slack.py`) → 화면·Slack 버튼 반응은 개인 기록으로만 저장하고 추적 상태·Go/No-Go를 바꾸지 않음. 상세는 [business-rules.md](business-rules.md#브리핑-추천반응-rl-01-2026-10-17)·[operations.md](operations.md)가 정본이다.
 
+**레코드 활동 흐름(RL-02, 2026-10-17):** 사업기회 레코드 `GET /api/opportunities/{id}/activity`는 권위 연결·공고 관측·추적 감사·브리핑 반응·`opportunity_note`에서 요청마다 단계 바 6단계와 활동 항목을 **파생**하고(피드를 저장하지 않는다), 다른 모듈의 판정 완료·초안 준비 사건은 lifecycle hook `opportunity_activity_items`로 받아 공통 정렬·커서에 합친다(현재 제공자 없음). 추적 중 입찰공고의 D-3·D-1 마감 알림은 새 worker 없이 RL-01 브리핑의 `tracked_change` 사유로 들어간다(규칙 파일 v2). 상세는 [business-rules.md](business-rules.md#사업기회-레코드-단계-바활동-피드-rl-02-2026-10-17)·[contracts.md](contracts.md#레코드-활동-피드노트-rl-02-2026-10-17)가 정본이다.
+
 ### 5.2 발주계획 C-2 선별 흐름
 
 ~~~mermaid

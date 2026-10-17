@@ -2876,3 +2876,88 @@ export interface BriefingReactionRequest {
   expected_revision: number;
   request_id: string;
 }
+
+/* ── RL-02 사업기회 레코드 활동 피드(`GET /api/opportunities/{id}/activity`) ───────────
+ * 서버가 파생한 6단계·활동 항목을 그대로 담는다. 화면은 단계 상태나 항목을 다시 계산하지
+ * 않는다. 모르는 `kind`는 숨기지 않고 일반 항목으로 그린다. */
+
+export type OpportunityStageState = "done" | "current" | "upcoming_deadline" | "pending" | "unknown";
+
+export interface OpportunityStageEntry {
+  /** 서버가 정한 단계 식별자. 화면은 6개 고정 순서로 읽고 이 값에 의미를 붙이지 않는다. */
+  key: string;
+  state: OpportunityStageState;
+  at: string | null;
+  /** 이 단계를 대표하는 권위 연결 id(서버가 고른다). 마감·개찰은 입찰공고 대표를 따르고, 해당 연결이
+   * 없거나 계약이면 `null`이다. 화면은 이 id로 상세 `links`에서 연결을 찾고 대표를 스스로 고르지 않는다. */
+  link_id: number | null;
+}
+
+export type OpportunityActivityKind =
+  | "order_plan_found"
+  | "pre_spec_opened"
+  | "bid_posted"
+  | "notice_corrected"
+  | "tracking_decided"
+  | "recheck_signal"
+  | "link_reviewed"
+  | "briefing_reacted"
+  | "note_added"
+  | "action_added"
+  | "action_done"
+  | "verdict_completed"
+  | "draft_prepared";
+
+export interface OpportunityActivityLink {
+  label: string;
+  path: string;
+}
+
+export interface OpportunityActivityItem {
+  /** `"<kind>:<원본 PK>"`. 저장하지 않는 결정적 값이다. */
+  item_id: string;
+  kind: OpportunityActivityKind;
+  at: string;
+  actor: string | null;
+  title: string;
+  detail: string | null;
+  link: OpportunityActivityLink | null;
+  status_pill: string | null;
+}
+
+export interface OpportunityActivityResponse {
+  schema_version: "bidops.opportunity-activity.v1";
+  opportunity_id: number;
+  merged_into_opportunity_id: number | null;
+  title: string;
+  stages: OpportunityStageEntry[];
+  items: OpportunityActivityItem[];
+  next_before: string | null;
+}
+
+export interface OpportunityActivityQuery {
+  kinds?: readonly OpportunityActivityKind[] | null;
+  limit?: number | null;
+  before?: string | null;
+}
+
+export type OpportunityNoteKind = "note" | "action";
+
+export interface OpportunityNoteView {
+  note_id: string;
+  kind: OpportunityNoteKind;
+  body: string;
+  actor: string;
+  owner: string;
+  created_at: string;
+  done_at: string | null;
+  done_by: string | null;
+}
+
+export interface OpportunityNoteCreateRequest {
+  kind: OpportunityNoteKind;
+  body: string;
+  /** 다음 행동 담당 이름. 비우면 서버가 기록자로 채운다. */
+  owner?: string;
+  request_id: string;
+}

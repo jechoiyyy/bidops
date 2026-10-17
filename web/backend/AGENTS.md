@@ -79,6 +79,7 @@ app/
 | 결정 대기 업무 집계 | 읽기 projection | screening, deep_review | 그 업무의 count `null`·`provider_absent`. lifecycle이 직접 세는 `tracking_action_required`는 그대로다 |
 | 회사 사실 (`company_facts_projection`, RL-01) | 읽기 projection | deep_review | `None` → 브리핑 생성이 `company_not_registered`(exit 1, 행 없음) |
 | 브리핑 발주계획 후보 (`briefing_order_plan_candidates`, RL-01) | 읽기 projection | screening | 빈 목록 + 경고 `order_plan_provider_absent` |
+| 사업기회 활동 항목 (`opportunity_activity_items`, RL-02) | 읽기 hook(owner별 등록·복수 허용) | 아직 없음 — RL-03(`verdict_completed`)·RL-04(`draft_prepared`)가 제공 | 그 kind의 항목 0건. 정렬·커서·`kinds` 필터는 lifecycle 피드가 합쳐 한다 |
 | 회차 적재됨 | 이벤트 hook | screening, deep_review | no-op, 건수 0 |
 | 추적 결정 변경됨 | 이벤트 hook | deep_review | no-op |
 | effective grade 변경됨 | 이벤트 hook | deep_review | no-op. 첨부 취득 자격 재계산과 자동 문서 준비가 일어나지 않는다 |

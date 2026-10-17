@@ -441,7 +441,7 @@ test("자동 심층 검토가 있어도 사업 추적 화면은 미선택을 그
   // §7.2: `미선택`은 더 이상 `조치 필요`(기본 탭)에 들지 않는다(`신규 입찰공고`·
   // `미결정`으로만 간다). `전체`로 이동해 `미선택` 표시가 여전히 그대로인지 본다.
   await page.goto("/opportunities?section=%EC%A0%84%EC%B2%B4");
-  await expect(page.locator("header.topbar h1")).toHaveText("사업 추적", { timeout: 10_000 });
+  await expect(page.locator("header.topbar h1")).toHaveText("사업기회", { timeout: 10_000 });
   await expect(page.getByText("미선택").first()).toBeVisible();
   // 자동 심층 검토를 위한 새 구역을 만들지 않는다.
   await expect(page.getByText("자동 심층 검토", { exact: false })).toHaveCount(0);

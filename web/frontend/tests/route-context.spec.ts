@@ -20,8 +20,8 @@ const routeContexts: RouteContextCase[] = [
   // 사업 추적·최종 Go/No-Go 목록은 제목 모드다. 무엇을 저장할 수 있는지는 목록 안의
   // 결정 UI가 말한다(사용자 결정 2026-09-08). 같은 metadata를 쓰는 상세
   // (`/opportunities/501`)는 경로 모드지만 상단바에 칩을 두지 않는 것은 같다.
-  { name: "opportunities", path: `/opportunities?run=${RUN_ID}`, title: "사업 추적", dataScope: "cumulative", runSelectorVisible: false },
-  { name: "opportunity detail", path: `/opportunities/501?run=${RUN_ID}`, title: "사업 추적", dataScope: "cumulative", runSelectorVisible: false },
+  { name: "opportunities", path: `/opportunities?run=${RUN_ID}`, title: "사업기회", dataScope: "cumulative", runSelectorVisible: false },
+  { name: "opportunity detail", path: `/opportunities/501?run=${RUN_ID}`, title: "사업기회", dataScope: "cumulative", runSelectorVisible: false },
   { name: "bid delta", path: `/opportunities/501/bid-delta?run=${RUN_ID}`, title: "입찰 변경 비교", dataScope: "cumulative", runSelectorVisible: false },
   { name: "pre-specs", path: `/pre-specs?run=${RUN_ID}`, title: "사전규격", dataScope: "cumulative", runSelectorVisible: false },
   { name: "pre-spec detail", path: `/pre-specs/991?run=${RUN_ID}`, title: "사전규격", dataScope: "cumulative", runSelectorVisible: false },
@@ -82,12 +82,15 @@ test("직접 진입한 lazy route가 metadata와 실제 화면을 함께 렌더�
   await page.goto(`/opportunities/501?run=${RUN_ID}`);
 
   const topbar = page.locator("header.topbar");
-  await expect(topbar.locator("h1")).toHaveText("사업 추적");
+  await expect(topbar.locator("h1")).toHaveText("사업기회");
   await expect(topbar).toHaveAttribute("data-route-data-scope", "cumulative");
   await expect(topbar).toHaveAttribute("data-topbar-mode", "breadcrumb");
   await expect(topbar.locator(".topbar-status")).toHaveCount(0);
   await expect(page.getByLabel("실행 회차", { exact: true })).toHaveCount(0);
-  await expect(page.locator(".opportunities-page")).toBeVisible();
+  // RL-02: 단독 상세 route는 레코드 페이지(`/opportunities/:id/activity`)로 바뀌었다.
+  await expect(page).toHaveURL(/\/opportunities\/501\/activity/);
+  // lazy chunk가 실제 레코드 화면을 그렸는지 본다(이 spec은 활동 응답을 mock하지 않으므로 상태 문구는 보지 않는다).
+  await expect(page.getByRole("region", { name: "사업기회 레코드" })).toBeVisible();
 });
 
 test("SPA 내부 link click으로 lazy route에 들어가도 metadata와 화면이 유지된다", async ({ page }) => {
@@ -162,7 +165,7 @@ test("누적 화면은 회차 API 실패와 무관하게 열린다", async ({ pa
   });
 
   await page.goto(`/opportunities?run=${RUN_ID}`);
-  await expect(page.locator("header.topbar h1")).toHaveText("사업 추적");
+  await expect(page.locator("header.topbar h1")).toHaveText("사업기회");
   await expect(page.getByLabel("실행 회차", { exact: true })).toHaveCount(0);
   await expect(page.locator(".opportunities-page")).toBeVisible();
   await expect(page.locator(".shell-notice")).toHaveCount(0);
@@ -181,11 +184,11 @@ type BreadcrumbCase = { name: string; path: string; crumbs: string[] };
 const breadcrumbCases: BreadcrumbCase[] = [
   { name: "dashboard", path: "/", crumbs: ["오늘의 업무", "대시보드"] },
   { name: "pre-spec detail", path: "/pre-specs/991", crumbs: ["탐색과 추적", "사전규격", "notice 991"] },
-  { name: "opportunity detail", path: "/opportunities/501", crumbs: ["탐색과 추적", "사업 추적", "#501"] },
+  { name: "opportunity detail", path: "/opportunities/501", crumbs: ["탐색과 추적", "사업기회", "#501"] },
   // 되돌릴 수 없는 결정 화면은 어느 사업기회의 결정인지 경로에 남긴다.
-  { name: "bid delta", path: "/opportunities/501/bid-delta", crumbs: ["탐색과 추적", "사업 추적", "#501", "입찰 변경 비교"] },
-  { name: "queue detail", path: "/queue/29", crumbs: ["탐색과 추적", "사업 추적", "공고 판정 이력", "공고 29"] },
-  { name: "judgments detail", path: "/judgments/29", crumbs: ["탐색과 추적", "사업 추적", "공고 판정 이력", "공고 29"] },
+  { name: "bid delta", path: "/opportunities/501/bid-delta", crumbs: ["탐색과 추적", "사업기회", "#501", "입찰 변경 비교"] },
+  { name: "queue detail", path: "/queue/29", crumbs: ["탐색과 추적", "사업기회", "공고 판정 이력", "공고 29"] },
+  { name: "judgments detail", path: "/judgments/29", crumbs: ["탐색과 추적", "사업기회", "공고 판정 이력", "공고 29"] },
   // 심층 검토 보고서는 사전규격이 여는 화면이다(ADR-0049의 자동 시작 진입점도 거기다).
   { name: "deep review", path: "/deep-reviews/fixture-review", crumbs: ["탐색과 추적", "사전규격", "심층 검토 보고서", "fixture-…"] },
   { name: "criteria", path: "/criteria", crumbs: ["기준과 운영", "판정 기준"] },
@@ -207,7 +210,7 @@ for (const context of breadcrumbCases) {
 const titleCases: Array<{ name: string; path: string; title: string }> = [
   { name: "order-plans", path: "/order-plans", title: "발주계획" },
   { name: "pre-specs", path: "/pre-specs", title: "사전규격" },
-  { name: "opportunities", path: "/opportunities", title: "사업 추적" },
+  { name: "opportunities", path: "/opportunities", title: "사업기회" },
   { name: "go-no-go", path: "/go-no-go", title: "최종 Go/No-Go" },
 ];
 
@@ -277,14 +280,14 @@ test("심층 검토 보고서에서 사이드바의 사전규격 항목이 활�
   await expect(active).toHaveAttribute("aria-current", "page");
 });
 
-test("사업 추적에서 연 심층 검토 보고서는 사업 추적 아래로 보인다", async ({ page }) => {
+test("사업기회에서 연 심층 검토 보고서는 사업기회 아래로 보인다", async ({ page }) => {
   await page.goto("/deep-reviews/fixture-review?from=opportunities");
   const active = page.locator("aside.sidebar .sidebar-item.is-active");
   await expect(active).toHaveCount(1);
-  await expect(active).toHaveText("사업 추적");
+  await expect(active).toHaveText("사업기회");
   await expect(page.locator("header.topbar .topbar-crumb")).toHaveText([
     "탐색과 추적",
-    "사업 추적",
+    "사업기회",
     "심층 검토 보고서",
     "fixture-…",
   ]);

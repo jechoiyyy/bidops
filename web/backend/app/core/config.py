@@ -26,8 +26,9 @@ DEFAULT_PRESPEC_OVERVIEW_POLICY_PATH = (
 
 #: 평일 브리핑 규칙 파일의 기본 위치(RL-01). 버전+sha256으로 고정된 immutable 파일이며
 #: 값을 바꾸려면 새 버전 파일을 발행하고 이 기본 경로를 함께 올린다. core는 내용을 모른다.
+#: v2(RL-02 마감 알림 `deadline_reminder_days`·`method` 추적)로 올렸고 v1 파일은 그대로 둔다.
 DEFAULT_BRIEFING_POLICY_PATH = (
-    Path(__file__).resolve().parents[1] / "lifecycle" / "policies" / "briefing-policy-v1.json"
+    Path(__file__).resolve().parents[1] / "lifecycle" / "policies" / "briefing-policy-v2.json"
 )
 
 #: 조립 계층이 고를 수 있는 도메인 모듈 (명세 §7). core는 선택 대상이 아니라

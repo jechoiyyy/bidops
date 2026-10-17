@@ -20,6 +20,7 @@ from app.deep_review.models import (
 from app.lifecycle.models import (
     BRIEFING_TABLES,
     IDENTITY_TABLES,
+    OPPORTUNITY_NOTE_TABLES,
     LIFECYCLE_LEGACY_TABLES,
     Notice,
     Run,
@@ -60,6 +61,8 @@ EXPECTED_TABLES = set(
     )
     # RL-01 weekday briefing (0038).
     + BRIEFING_TABLES
+    # RL-02 opportunity notes (0039).
+    + OPPORTUNITY_NOTE_TABLES
 )
 
 

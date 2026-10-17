@@ -16,7 +16,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
-from app.core.db import init_db
+from app.core.db import ALEMBIC_HEAD, init_db
 from app.lifecycle.models import (
     Briefing,
     BriefingItem,
@@ -204,6 +204,8 @@ def test_0038_downgrades_when_empty_refuses_with_history_and_upgrades_again() ->
             assert refused.returncode != 0
             assert "refuses to discard briefing history" in refused.stderr
             with engine.connect() as connection:
-                assert connection.scalar(text("SELECT version_num FROM bidops.alembic_version")) == "0038_briefing"
+                # 한 번의 downgrade 실행은 한 transaction이다. 0038이 거부하면 그 위
+                # revision(0039_opportunity_note)의 downgrade도 함께 되돌아가 head에 남는다.
+                assert connection.scalar(text("SELECT version_num FROM bidops.alembic_version")) == ALEMBIC_HEAD
         finally:
             engine.dispose()

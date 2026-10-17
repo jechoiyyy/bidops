@@ -18,8 +18,11 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 from uuid import UUID
+
+if TYPE_CHECKING:  # 형만 쓴다. 실행 시점 import는 호출 경로(`opportunity_activity_items`) 안에 있다.
+    from .schemas.opportunity_activity import ActivityItem
 
 __all__ = [
     "BriefingOrderPlanCandidatesProvider",
@@ -29,6 +32,7 @@ __all__ = [
     "EffectiveGradeChangedHook",
     "ExtensionRegistry",
     "JudgmentProjection",
+    "OpportunityActivityItemsProvider",
     "OverviewDocumentProjection",
     "PreSpecDocumentCounts",
     "RunIngestCounts",
@@ -267,6 +271,27 @@ class BriefingOrderPlanCandidatesProvider(Protocol):
         self, session: Any, since: datetime, until: datetime
     ) -> Sequence[int]:
         """창 안에 처음 관측된 relevant 발주계획 id. 상수 회 조회다."""
+
+
+# --- RL-02 사업기회 활동 피드 hook --------------------------------------------
+
+
+@runtime_checkable
+class OpportunityActivityItemsProvider(Protocol):
+    """`opportunity_activity_items(session, opportunity_id) -> list[ActivityItem]` (RL-02 spec).
+
+    다른 모듈의 사업 사건(RL-03 `verdict_completed`·RL-04 `draft_prepared`)을 사업기회 활동
+    피드에 싣는 hook이다. owner별로 등록하고 **여러 제공자를 허용한다** — registry가 등록
+    순서대로 합치고, 정렬·커서·`kinds` 필터는 피드 service가 lifecycle 항목과 함께 공통으로
+    한다. 제공자가 없으면 그 kind의 항목은 0건이다.
+
+    구현은 읽기 전용이다. 시스템 처리(수집 회차·변환·호출·정책)를 항목으로 만들지 않고,
+    `item_id`는 `"<kind>:<원본 PK>"`로 결정적이어야 한다. 사업기회 하나의 사건만 상수 회
+    조회로 읽는다.
+    """
+
+    def opportunity_activity_items(self, session: Any, opportunity_id: int) -> Sequence[ActivityItem]:
+        """이 사업기회의 사건 항목. 순서는 무의미하다(피드가 다시 정렬한다)."""
 
 
 # --- 6.2 이벤트 hook --------------------------------------------------------
@@ -546,6 +571,7 @@ class ExtensionRegistry:
     _run_ingest_hooks: dict[str, RunIngestHook] = field(default_factory=dict)
     _tracking_hooks: dict[str, TrackingDecisionHook] = field(default_factory=dict)
     _effective_grade_hooks: dict[str, EffectiveGradeChangedHook] = field(default_factory=dict)
+    _activity_item_providers: dict[str, OpportunityActivityItemsProvider] = field(default_factory=dict)
 
     _absent_judgment: Any = field(default_factory=_AbsentJudgmentProjection, repr=False)
     _absent_overview: Any = field(default_factory=_AbsentOverviewDocumentProjection, repr=False)
@@ -593,6 +619,12 @@ class ExtensionRegistry:
         self, hook: EffectiveGradeChangedHook, *, owner: str
     ) -> None:
         self._effective_grade_hooks[_checked_owner(owner)] = hook
+
+    def register_opportunity_activity_items(
+        self, provider: OpportunityActivityItemsProvider, *, owner: str
+    ) -> None:
+        """활동 피드 hook. 같은 owner는 제자리 교체(순서 유지), 다른 owner는 뒤에 붙는다."""
+        self._activity_item_providers[_checked_owner(owner)] = provider
 
     # --- 조회 (lifecycle이 호출한다) ---
     @property
@@ -712,6 +744,27 @@ class ExtensionRegistry:
 
         for hook in self._effective_grade_hooks.values():
             hook.effective_grade_changed(session, notice_ids)
+
+    def opportunity_activity_items(self, session: Any, opportunity_id: int) -> list[ActivityItem]:
+        """등록 순서대로 제공자를 부르고 항목을 이어 붙인다. 제공자가 없으면 빈 목록이다.
+
+        정렬은 하지 않는다 — 피드 service가 lifecycle 항목과 합친 뒤 공통 정렬한다. 제공자가
+        `ActivityItem`이 아닌 값을 돌려주면 조립 오류이므로 `TypeError`다(조용히 버리지 않는다).
+        """
+
+        from .schemas.opportunity_activity import ActivityItem
+
+        items: list[ActivityItem] = []
+        for provider in self._activity_item_providers.values():
+            for item in provider.opportunity_activity_items(session, opportunity_id):
+                if not isinstance(item, ActivityItem):
+                    raise TypeError("활동 피드 제공자는 ActivityItem만 돌려줘야 한다")
+                items.append(item)
+        return items
+
+    @property
+    def opportunity_activity_items_provider_count(self) -> int:
+        return len(self._activity_item_providers)
 
     @property
     def run_ingest_hook_count(self) -> int:
