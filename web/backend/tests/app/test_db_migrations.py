@@ -35,6 +35,7 @@ from app.deep_review.models import (
     PRESPEC_V4_TABLES,
 )
 from app.lifecycle.models import (
+    BRIEFING_TABLES,
     IDENTITY_TABLES,
     LIFECYCLE_LEGACY_TABLES,
     Notice,
@@ -81,6 +82,7 @@ ALL_TABLES = frozenset(
     + ("deep_review_preview", "deep_review_approval")
     + ("assumption_input_version", "assumption_run", "assumption_stage")
     + COMPANY_ANALYSIS_TABLES
+    + BRIEFING_TABLES
 )
 
 

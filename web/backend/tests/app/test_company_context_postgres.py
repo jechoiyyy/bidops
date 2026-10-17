@@ -86,7 +86,8 @@ def _workload(client) -> dict[str, tuple[int | None, str | None]]:
     response = client.get("/api/workload")
     assert response.status_code == 200, response.text
     items = response.json()["items"]
-    assert items[-1]["key"] == "company_attention"
+    # RL-01이 `company_attention` 뒤에 `briefing_pending`을 더했다(spec "최종 키 순서").
+    assert [item["key"] for item in items[-2:]] == ["company_attention", "briefing_pending"]
     return {item["key"]: (item["count"], item["unavailable_reason"]) for item in items}
 
 

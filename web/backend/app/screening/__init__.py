@@ -92,7 +92,11 @@ def register_lifecycle_extensions(registry=None):
     """
 
     from .ingest import ScreeningRunIngestHook
-    from .projection import ScreeningJudgmentProjection, ScreeningWorkloadProjection
+    from .projection import (
+        ScreeningBriefingOrderPlanCandidates,
+        ScreeningJudgmentProjection,
+        ScreeningWorkloadProjection,
+    )
 
     if registry is None:
         from ..lifecycle import extension_registry
@@ -103,6 +107,10 @@ def register_lifecycle_extensions(registry=None):
     )
     registry.register_run_ingest_hook(ScreeningRunIngestHook(), owner=EXTENSION_OWNER)
     registry.register_workload_projection(ScreeningWorkloadProjection(), owner=EXTENSION_OWNER)
+    # RL-01 브리핑: C-2 relevant 발주계획 후보. lifecycle은 screening을 import하지 않는다.
+    registry.register_briefing_order_plan_candidates(
+        ScreeningBriefingOrderPlanCandidates(), owner=EXTENSION_OWNER
+    )
     return registry
 
 

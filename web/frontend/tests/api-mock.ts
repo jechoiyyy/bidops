@@ -3,7 +3,7 @@ import fixtures from "./fixtures/api.json" with { type: "json" };
 import { getVisualResponse } from "./fixtures/visual-api";
 
 import type {
-  BidDeltaDecisionQueueItem, OpportunityListItem, OpportunitySectionCounts,
+  BidDeltaDecisionQueueItem, BriefingItemView, BriefingReaction, BriefingView, OpportunityListItem, OpportunitySectionCounts,
   OpportunityRecheckEventView, OpportunityTrackingDecisionItem, OpportunityTrackingStatus,
   OrderPlanListItem, OrderPlanListScope, OrderPlanScreeningExecutionSummary, OrderPlanScreeningErrorCode,
   OrderPlanTracking, OrderPlanBulkPreviewResponse, OrderPlanBulkStartResponse, OrderPlanBulkEndResponse,
@@ -40,6 +40,7 @@ import {
   type CompanyTrackingRow,
 } from "./fixtures/company-demo";
 import { RL_COMPANY_ID, rlAttentionCount, rlContextView, rlFacts, rlProfileView, type RlFact } from "./fixtures/company-rl";
+import { briefingFixture, previousBriefingFixture } from "./fixtures/briefing";
 
 const opportunityFixtures = new WeakMap<Page, OpportunityListItem[]>();
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -81,7 +82,7 @@ const WORKLOAD_KEYS: WorkloadKey[] = [
   "order_plan_pending", "pre_spec_deep_review_ready", "tracking_action_required",
   "tracking_hold_review_due", "bid_final_decision_pending", "tracking_deadline_imminent",
   "human_check_required", "overview_human_review", "blocking_items_open", "order_plan_new_priority",
-  "company_attention",
+  "company_attention", "briefing_pending",
 ];
 function workloadResponse(page: Page): WorkloadResponse {
   const providers = workloadProviders.get(page);
@@ -3697,6 +3698,146 @@ export async function mockRealCompany(page: Page, options: RealCompanyMockOption
       return;
     }
     await fulfillJson(route, rlProfileView(facts));
+  });
+  return trace;
+}
+
+
+// ---------------------------------------------------------------------------
+// RL-01 오늘의 브리핑(`GET /api/briefings/latest`·`/{date}`, `PATCH /api/briefings/items/{id}/reaction`)
+//
+// `mockApi` 뒤에 건다. `/api/briefings/**` 밖의 요청은 `route.fallback()`으로 `mockApi`의 고정 응답
+// (없으면 404)에 넘기므로 실제 백엔드로 빠지지 않는다. PATCH는 실제 서버의 검증 순서를 따른다:
+// actor 400 → body 422 → 항목 404 → 추적 변화 행 409 `reaction_not_allowed` → 멱등 replay/409
+// `idempotency_conflict` → `expected_revision` 불일치 409 `version_conflict`. 사이드바 건수는 workload
+// `briefing_pending` provider가 가장 최근 브리핑의 대기 추천 수를 준다(브리핑이 없으면 provider_absent).
+
+export interface BriefingMockOptions {
+  /** 날짜별 서버 상태. 기본은 `{ "2026-10-16": briefingFixture(), "2026-10-15": previousBriefingFixture() }`. */
+  briefings?: Record<string, BriefingView>;
+}
+
+export interface BriefingMockTrace {
+  /** 브리핑 경로 요청을 `METHOD path`(query 제외) 모양으로 순서대로 남긴다. */
+  requests: string[];
+  /** 화면이 보낸 반응 PATCH(성공·실패 모두). */
+  patches: Array<{ itemId: string; body: Record<string, unknown>; headers: Record<string, string>; actor: string }>;
+  /** 서버가 지금 가진 날짜별 상태(화면 상태가 아니라 서버 상태다). */
+  server: (date: string) => BriefingView | undefined;
+  /** 다른 사람이 서버에서 먼저 반응한 상황(revision+1). 화면의 PATCH가 아니므로 `patches`에 남지 않는다. */
+  externalReact: (itemId: string, reaction: BriefingReaction, by: string) => void;
+}
+
+function briefingPendingCount(view: BriefingView | undefined): number | null {
+  if (!view) return null;
+  return view.items.filter((entry) => entry.reaction === "대기").length;
+}
+
+export async function mockBriefing(page: Page, options: BriefingMockOptions = {}): Promise<BriefingMockTrace> {
+  const state = new Map<string, BriefingView>(
+    Object.entries(options.briefings ?? { [briefingFixture().briefing_date]: briefingFixture(), [previousBriefingFixture().briefing_date]: previousBriefingFixture() })
+      .map(([date, view]) => [date, structuredClone(view)] as const),
+  );
+  const replays = new Map<string, { hash: string; response: BriefingItemView }>();
+  let clockMinutes = 0;
+  const latestView = (): BriefingView | undefined => {
+    const dates = [...state.keys()].sort();
+    return dates.length === 0 ? undefined : state.get(dates[dates.length - 1]);
+  };
+  const locate = (itemId: string): BriefingItemView | undefined => {
+    for (const view of state.values()) {
+      const found = [...view.items, ...view.tracked_changes].find((entry) => entry.item_id === itemId);
+      if (found) return found;
+    }
+    return undefined;
+  };
+  const trace: BriefingMockTrace = {
+    requests: [],
+    patches: [],
+    server: (date) => state.get(date),
+    externalReact: (itemId, reaction, by) => {
+      const target = locate(itemId);
+      if (!target) throw new Error(`mock briefing item not found: ${itemId}`);
+      clockMinutes += 1;
+      target.reaction = reaction;
+      target.reacted_by = by;
+      target.reacted_at = new Date(Date.UTC(2026, 9, 16, 0, clockMinutes)).toISOString();
+      target.reacted_via = "screen";
+      target.revision += 1;
+    },
+  };
+  workloadProvider(page, "briefing_pending", () => {
+    const count = briefingPendingCount(latestView());
+    return count === null ? { count: null, unavailable_reason: "provider_absent" } : { count, unavailable_reason: null };
+  });
+  const notFound = (route: Route, code: "briefing_not_found" | "briefing_item_not_found") =>
+    fulfillJson(route, { error: { code, message: "합성 브리핑 오류", details: null }, request_id: null }, 404);
+
+  await page.route(/\/api\/briefings\/(?:latest|\d{4}-\d{2}-\d{2}|[^/?]+)(?:\?.*)?$/, async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    if (request.method() !== "GET" || url.pathname.startsWith("/api/briefings/items/")) { await route.fallback(); return; }
+    trace.requests.push(`GET ${url.pathname}`);
+    const key = url.pathname.slice("/api/briefings/".length);
+    if (key === "latest") {
+      const view = latestView();
+      if (!view) { await notFound(route, "briefing_not_found"); return; }
+      await fulfillJson(route, view);
+      return;
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(key)) {
+      // 실제 서버: path `YYYY-MM-DD` 검증 실패는 FastAPI 기본 422다.
+      await fulfillJson(route, { detail: [{ type: "date_from_datetime_parsing", loc: ["path", "date"], msg: "invalid", input: key }] }, 422);
+      return;
+    }
+    const view = state.get(key);
+    if (!view) { await notFound(route, "briefing_not_found"); return; }
+    await fulfillJson(route, view);
+  });
+
+  await page.route(/\/api\/briefings\/items\/[^/?]+\/reaction(?:\?.*)?$/, async (route) => {
+    const request = route.request();
+    if (request.method() !== "PATCH") { await route.fallback(); return; }
+    const url = new URL(request.url());
+    const itemId = decodeURIComponent(url.pathname.split("/")[4] ?? "");
+    const body = fixtureRecord(request.postDataJSON()) ?? {};
+    const headers = request.headers();
+    const actor = fixtureActor(headers);
+    trace.patches.push({ itemId, body, headers, actor });
+    trace.requests.push(`PATCH ${url.pathname}`);
+    const requestId = typeof body.request_id === "string" ? body.request_id : null;
+    const stable = (status: number, code: string) =>
+      fulfillJson(route, { error: { code, message: "합성 브리핑 오류", details: null }, request_id: requestId }, status);
+    if (!actor) { await stable(400, "actor_name_required"); return; }
+    const reactions = ["대기", "채택", "무시", "나중에"];
+    if (
+      typeof body.reaction !== "string" || !reactions.includes(body.reaction)
+      || typeof body.expected_revision !== "number" || !Number.isInteger(body.expected_revision)
+      || !requestId || !uuidPattern.test(requestId)
+    ) {
+      await fulfillJson(route, { detail: [{ type: "value_error", loc: ["body"], msg: "invalid", input: null }] }, 422);
+      return;
+    }
+    const target = locate(itemId);
+    if (!target) { await notFound(route, "briefing_item_not_found"); return; }
+    if (target.kind === "tracked_change") { await stable(409, "reaction_not_allowed"); return; }
+    const hash = JSON.stringify({ itemId, reaction: body.reaction, expected_revision: body.expected_revision, actor, via: "screen" });
+    const previous = replays.get(requestId);
+    if (previous) {
+      if (previous.hash !== hash) { await stable(409, "idempotency_conflict"); return; }
+      await fulfillJson(route, previous.response);
+      return;
+    }
+    if (body.expected_revision !== target.revision) { await stable(409, "version_conflict"); return; }
+    clockMinutes += 1;
+    target.reaction = body.reaction as BriefingReaction;
+    target.reacted_by = actor;
+    target.reacted_at = new Date(Date.UTC(2026, 9, 16, 0, clockMinutes)).toISOString();
+    target.reacted_via = "screen";
+    target.revision += 1;
+    const response = structuredClone(target);
+    replays.set(requestId, { hash, response });
+    await fulfillJson(route, response);
   });
   return trace;
 }

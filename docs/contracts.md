@@ -442,9 +442,9 @@ disabled 이전/다음 버튼을 제공한다.
 
 ### 결정 대기 집계와 큐 응답
 
-[ADR-0053](tracking/decisions/0053-decision-workload-read-contracts.md)의 읽기 전용 계약이며 2026-09-22에 실무자 대시보드 패널 계약([ADR-0067](tracking/decisions/0067-dashboard-workload-keys-and-panel-contracts.md))이 키 다섯(세는 키 넷과 그중 둘의 합계 하나)을 더했고, 2026-10-16 RL-00이 키 `company_attention` 하나를 끝에 더했다. 모든 경로가 DB 열을 새로 만들지 않고 기존 목록과 **같은 모집단**을 센다.
+[ADR-0053](tracking/decisions/0053-decision-workload-read-contracts.md)의 읽기 전용 계약이며 2026-09-22에 실무자 대시보드 패널 계약([ADR-0067](tracking/decisions/0067-dashboard-workload-keys-and-panel-contracts.md))이 키 다섯(세는 키 넷과 그중 둘의 합계 하나)을 더했고, 2026-10-16 RL-00이 키 `company_attention` 하나를 끝에 더했고, 2026-10-17 RL-01이 키 `briefing_pending` 하나를 그 뒤에 더했다. 모든 경로가 DB 열을 새로 만들지 않고 기존 목록과 **같은 모집단**을 센다.
 
-- `WorkloadResponse`: `generated_at`(UTC aware)과 `items[]`. item은 `key`, nullable `count`(0 이상), nullable `unavailable_reason` 셋뿐이다. `items`의 순서는 고정이며 `order_plan_pending`, `pre_spec_deep_review_ready`, `tracking_action_required`, `tracking_hold_review_due`, `bid_final_decision_pending`, `tracking_deadline_imminent`, `human_check_required`, `overview_human_review`, `blocking_items_open`, `order_plan_new_priority`, `company_attention` **열**이 언제나 모두 있다(ADR-0053 §1·§4 갱신, ADR-0067 결정 1, spec §7.1·§8). 앞 다섯의 뜻과 소유자는 바뀌지 않았다.
+- `WorkloadResponse`: `generated_at`(UTC aware)과 `items[]`. item은 `key`, nullable `count`(0 이상), nullable `unavailable_reason` 셋뿐이다. `items`의 순서는 고정이며 `order_plan_pending`, `pre_spec_deep_review_ready`, `tracking_action_required`, `tracking_hold_review_due`, `bid_final_decision_pending`, `tracking_deadline_imminent`, `human_check_required`, `overview_human_review`, `blocking_items_open`, `order_plan_new_priority`, `company_attention`, `briefing_pending` **열**이 언제나 모두 있다(ADR-0053 §1·§4 갱신, ADR-0067 결정 1, spec §7.1·§8). 앞 다섯의 뜻과 소유자는 바뀌지 않았다.
 - **제공자 부재와 실제 0은 다르다.** 소유 모듈이 등록되지 않았으면 `count=null`·`unavailable_reason="provider_absent"`이고, screening이 있어도 누적 범위(아래 "발주계획 목록 누적 모드")에 완료된 C-2 운영 실행이 하나도 없으면 `count=null`·`unavailable_reason="no_completed_execution"`이다. 오늘 실행이 없다는 이유로 `null`이 되지 않는다. 셀 수 있었다면 정수와 `unavailable_reason=null`이다. `null`을 0으로, 0을 `null`로 접지 않는다.
 - 각 건수의 소유자는 모듈이다. `order_plan_pending`은 screening이 `GET /api/order-plans`의 누적 모드(`source_run_id` 없음) 범위와 같은 필터(`stage1_status=selected`, `qwen_relevance=relevant,uncertain`, `tracking_status=미선택`)로, `pre_spec_deep_review_ready`는 deep_review가 `GET /api/pre-specs?workspace=actionable&auto_preparation_status=deep_review_ready_for_click&sw_only=false`와 같은 집합으로(2026-09-22 개정 — 이 필터를 건 `actionable`은 "심층 검토 클릭 대기 ∧ 추적 상태 null·`미선택`"으로 줄어든다. 사람이 추적 결정을 내린 건은 이유 불문 빠진다. 검토 제외는 종전대로 업무 집계를 바꾸지 않으므로 제외된 채 결정 대기인 건만 두 값이 갈린다), `bid_final_decision_pending`은 deep_review가 `GET /api/bid-delta/decision-queue?status=pending`의 `total`과 같은 값으로 센다. `tracking_action_required`와 `tracking_hold_review_due`는 lifecycle이 각각 `GET /api/opportunities`의 `조치 필요` 구역, `hold_review=overdue` 건수와 같은 첫 일치 규칙으로 직접 센다.
 - **2026-09-22에 더한 네 키도 짝지은 목록 호출의 `total`과 같은 값이다.** 소비자는 건수를 목록 페이지에서 다시 세지 않는다.
@@ -457,6 +457,7 @@ disabled 이전/다음 버튼을 제공한다.
   | `order_plan_new_priority` | screening 제공자 | `GET /api/order-plans?qwen_relevance=relevant&tracking_status=미선택&first_observed_from=<요청 시각 KST 일자 −1일>` |
 
 - **`company_attention`(2026-10-16, RL-00)은 사이드바 "회사 근거" pill의 건수다.** 값은 실회사 활성 그래프(활성 binding의 graph version snapshot)에서 `status`가 `proposed` 또는 `unknown`인 **비evidence 노드 수**이며 deep_review 제공자가 센다(어휘는 lifecycle `WorkloadKey`·`_WORKLOAD_KEYS`가 소유). 셀 수 없으면 `count=null`이고 사유는 다음 셋이다 — `provider_absent`(등록된 실회사 없음, 제공자 모듈 부재도 같은 값), `company_profile_not_ready`(실회사는 있으나 활성 binding 없음), `processing_failed`(실회사가 둘 이상이거나 snapshot을 읽을 수 없음). 못 센 값을 0으로 접지 않는다. **ADR-0067 "건수 키 = 목록 호출 total" 짝 규칙의 예외다:** 짝 목록 REST가 없고 `/company` 화면이 `GET /api/companies/{id}/profile`의 facts를 직접 센다. 두 값은 요청이 달라 어긋날 수 있으며 서로를 고치지 않는다.
+- **`briefing_pending`(2026-10-17, RL-01)은 사이드바 "오늘의 브리핑" 건수다.** 값은 가장 최근 `briefing_date`의 브리핑에서 `kind=recommendation`이고 `reaction=대기`인 항목 수이며 lifecycle이 직접 센다(추적 변화 행은 반응이 없어 세지 않는다). 브리핑이 하나도 없으면 `count=null`·`unavailable_reason="provider_absent"`다 — 0으로 접지 않는다. 짝 목록 호출은 `GET /api/briefings/latest`의 `items[]` 중 `reaction=대기`이며 소비자는 건수를 다시 세지 않는다.
 - **`human_check_required`는 측정값이 아니라 두 하위 건수(`overview_human_review` + `blocking_items_open`)의 합이다.** 세는 단위가 서로 다르므로(개요는 **사전규격 공고**, 확인 항목은 **사업기회**) 소비자는 합계만 보여 주지 않고 두 하위 건수를 함께 적는다. **하나라도 `null`이면 합계도 `null`**이고 이때 `unavailable_reason="sub_count_unavailable"`이다 — 제공자 부재를 0으로 접어 "확인할 일 없음"으로 말하지 않는다(ADR-0067 결정 5).
 - `tracking_deadline_imminent`의 창은 고정 7일이고 기준 시각은 `generated_at`이다. `order_plan_new_priority`의 "새로"는 관측 행의 최소 시각(`first_observed_at`)이 요청 시각 KST 일자의 **전일** 00:00 이상인 건이며 상한은 없다 — 일일 수집이 아침에 돌므로 당일 도착분도 "새로"에 든다. 건수와 목록은 서로 다른 요청이라 몇 초 차이가 날 수 있으므로, 소비자는 건수를 목록 길이로 덮거나 목록이 비었다고 건수를 0으로 고치지 않는다(ADR-0067 결정 7). `order_plan_new_priority`는 `relevant` 하나로 좁히고 `order_plan_pending`은 `relevant,uncertain`이므로 두 값은 서로 다르며 대신하지 않는다.
 - 심층 검토 목록 item은 `deep_review_id`, `notice_id`, nullable `notice_title`, `status`, nullable `quality_status`, `created_at`, nullable `current_attempt_status`, nullable `latest_final_opinion={value, decided_at}`다. 사업기회에 연결된 공고를 중복 제거해 읽으며 후보 링크도 포함한다 — 이 목록은 안전한 색인이지 소유권 확정이 아니다. 생성 시각 내림차순이고, 사업기회가 있고 실행이 없으면 200 빈 목록, 사업기회가 없으면 404다. `quality_status`의 `null`·참조·mock 의미를 승격하지 않는다.
@@ -1973,3 +1974,92 @@ DEMO-03(2026-10-10, 같은 데모 브랜치)은 공통 계약 §5·§6·§9·§1
 
   보유는 확인·세부는 미입력인 사실은 노드 둘로 나눈다(`{held:true,detail:null}` + 별도 `unknown` 노드). status·origin 조합과 파일 종류별 허용 origin은 DEMO 계약 R3이다.
 - 읽기 응답에는 graph hash·profile version·원본 위치가 있다. 실무 화면은 이를 DOM에 그리지 않는다(ui-spec §5 운영 정보 금지).
+
+## 브리핑 (RL-01, 2026-10-17)
+
+평일 1회 브리핑의 REST·DB·규칙 파일·CLI·Slack 계약이다. 업무 규칙(후보 모집단·제외·점수)은 [business-rules.md "브리핑 추천·반응"](business-rules.md), 실행 절차는 [operations.md "일일 브리핑·Slack"](operations.md)이 정본이고, 기능 명세는 `docs/work/groups/RL/features/RL-01-daily-briefing/spec.md`다. 브리핑은 lifecycle 모듈이 소유하고 Slack 호출은 `app/core/slack.py` 하나만 한다.
+
+### REST (`bidops.briefing.v1`)
+
+| 호출 | 입력 | 성공 | 실패 |
+|---|---|---|---|
+| `GET /api/briefings/latest` | 없음 | 200 `BriefingView`(가장 최근 `briefing_date`) | 404 `briefing_not_found` |
+| `GET /api/briefings/{date}` | path `YYYY-MM-DD` | 200 `BriefingView` | 404 `briefing_not_found`, 422 날짜 형식 |
+| `GET /api/briefings/{date}/slack-preview` | path `YYYY-MM-DD` | 200 `{schema_version:"bidops.briefing-slack-preview.v1", channel_id_present:bool, blocks:object[], text:string}` — 실제 전송과 같은 함수가 만든 Block Kit | 404 `briefing_not_found` |
+| `PATCH /api/briefings/items/{item_id}/reaction` | 헤더 `X-BidOps-Actor-Name`(+`-Format`); body `{reaction, expected_revision:int≥0, request_id:UUID}` | 200 `BriefingItemView` | 400 `actor_name_required\|actor_name_invalid`; 404 `briefing_item_not_found`; 409 `version_conflict\|idempotency_conflict\|reaction_not_allowed`; 422 body |
+
+- `BriefingView` = `{schema_version:"bidops.briefing.v1", briefing_date, status: generated|empty|collection_incomplete, generated_at, item_count:int(추천 수만), slack_sent_at:ts|null, items:BriefingItemView[], tracked_changes:BriefingItemView[], collection_note:string|null}`. 키는 전부이며 더하지 않는다. `policy_sha256`·`graph_version_id`·`score`는 응답에 없다(운영 정보, DB 열에만). `collection_note`는 저장 열이 아니라 `briefing.warnings`의 수집 회차 경고 code에서 읽는다: `collection_run_missing`→"기준일 수집 회차 없음", `run_ambiguous`→"회차 중복", `collection_run_warnings`→"기준일 수집 회차에 적재 경고가 있습니다", 그 밖은 `null`.
+- `BriefingItemView` = `{item_id:UUID, kind: recommendation|tracked_change, rank:int|null, stage: pre_spec|bid_notice|order_plan, notice_id:int|null, order_plan_id:int|null, opportunity_id:int, title, agency, amount_krw:int|null, deadline_at:ts|null, deadline_kind: bid_close|opinion_close|planned_month|null, planned_month:"YYYY-MM"|null, verdict_display, reasons[], blocking[], change_fields:string[], reaction: 대기|채택|무시|나중에|null, reacted_by, reacted_at, reacted_via: screen|slack|null, revision:int≥0, record_path:"/opportunities/<opportunity_id>"}`. `notice_id`와 `order_plan_id`는 정확히 하나만 값이 있다. `tracked_change` 행은 `rank=null`·`reaction=null`이다.
+  - `verdict_display`는 v1에서 닫힌 다섯 값 `분석 대기|연차 추적|재검토 중|마감 임박|분석 중`이다(RL-03이 판정 enum을 더해 v2로 올린다). **현재 생성하는 값은 셋**이다: 사전규격·입찰공고 추천 → `분석 대기`, 발주계획 추천 → `연차 추적`, 추적 변화 행 → `재검토 중`. `마감 임박`(마감 사유만 있는 추적 행, RL-02)과 `분석 중`은 어휘만 있고 아직 만들지 않는다.
+  - `reasons[]`(최대 3, 순서 고정)는 `{kind:"keyword", text}`·`{kind:"similar_project", count:int≥1}`·`{kind:"repeat_agency", text}`다. 응답 직렬화는 항목마다 `text`·`count` 두 키를 모두 두고 해당 없는 쪽을 `null`로 채운다(예 `{kind:"keyword", text:"유지관리", count:null}`; PostgreSQL strict 응답 테스트가 이 모양을 고정한다). `blocking[]`(최대 2)는 `{kind:"consortium_review"|"deadline_short", text}`다. 지역·하드웨어 등은 제외 조건이라 `blocking`에 없다.
+- 반응 PATCH: `reaction`은 `대기|채택|무시|나중에`(되돌리기 = 이전 값으로 새 PATCH). 항목당 반응은 하나이며 "마지막 담당 기록"이다. `expected_revision`이 현재 `revision`과 다르면 409 `version_conflict`(`details.current_revision`), 같은 `request_id`·같은 요청 해시는 저장된 `BriefingItemView` snapshot을 그대로 재생하고 같은 `request_id`에 다른 요청이면 409 `idempotency_conflict`, `tracked_change` 행은 409 `reaction_not_allowed`다. 요청 해시 = canonical JSON `{operation:"briefing.react", item_id, reaction, expected_revision, actor, via}`의 SHA-256, 영수증은 core `IdempotencyRecord`(`operation="briefing.react"`, `aggregate_type="briefing_item"`)이며 fence 로직은 `app/core/idempotency_fence.py` 하나를 `opportunity_tracking`과 브리핑이 공유한다. 반응은 `Opportunity.tracking_*`·`CompanyOpportunityTracking`을 읽지도 쓰지도 않는다.
+- 오류 envelope은 "공통 REST 규칙"과 같다. code 등록은 라우터 로컬 map(`routers/briefings.py`)과 프런트 `src/lib/apiErrors.ts`뿐이며 core `api_errors`·lifecycle `API_ERROR_CODES`는 바뀌지 않았다. 등록되지 않은 예외는 500 `processing_failed`다.
+
+### DB (migration `0038_briefing`)
+
+세 테이블 모두 lifecycle 소유다(`tests/app/boundary_map.py TABLE_OWNER`).
+
+| 테이블 | 열(요약) | 제약 |
+|---|---|---|
+| `briefing` | `id` UUID PK, `briefing_date` DATE, `status`, `generated_at`, `policy_sha256` CHAR(64), `graph_version_id` UUID(**FK 없음** — lifecycle 단독 `init_db`에 참조 테이블이 없다), `item_count`, `excluded_counts` JSONB, `warnings` JSONB, `slack_message_ts`·`tracked_change_message_ts` JSONB NULL(보낸 순서의 `text[]`), `slack_sent_at` NULL, `created_by` | UNIQUE `briefing_date`; CHECK `status IN ('generated','empty','collection_incomplete')` |
+| `briefing_item` | `id` UUID PK, `briefing_id`·`notice_id`·`order_plan_id`·`opportunity_id` FK(`RESTRICT`), `kind`, `rank` NULL, `stage`, `score` NUMERIC(6,2) **NULL**(추적 변화 행은 점수가 없다), `reasons`·`blocking`·`change_fields` JSONB, `deadline_at`·`deadline_kind`·`planned_month`·`amount_krw`, `reaction`·`reacted_by`·`reacted_at`·`reacted_via` NULL, `revision` INT 기본 0 | CHECK 8개: `(notice_id IS NULL) <> (order_plan_id IS NULL)`; `kind IN ('recommendation','tracked_change')`; `stage IN ('pre_spec','bid_notice','order_plan')`; `deadline_kind IS NULL OR IN ('bid_close','opinion_close','planned_month')`; `reaction IS NULL OR IN ('대기','채택','무시','나중에')`; `reacted_via IS NULL OR IN ('screen','slack')`; kind별 형태(추천은 `rank`·`reaction` 필수, 추적 변화는 둘 다 NULL); `reacted_by`·`reacted_at`·`reacted_via`는 모두 NULL이거나 모두 값. 부분 UNIQUE 3개: `(briefing_id, notice_id) WHERE notice_id IS NOT NULL`, `(briefing_id, order_plan_id) WHERE order_plan_id IS NOT NULL`, `(briefing_id, rank) WHERE rank IS NOT NULL` — 한 브리핑에서 공고·발주계획은 한 행뿐이다 |
+| `briefing_reaction_event` | `id` UUID PK, `item_id` FK, `revision`, `previous`, `new`, `actor`, `via`, `request_id` UUID, `created_at` | UNIQUE `(item_id, revision)`; ORM `before_update`·`before_delete`가 거부하고 UPDATE·DELETE 권한도 없다(append-only) |
+
+- models와 migration은 같은 CHECK·인덱스 선언을 쓰며 `test_alembic_autogenerate.py` drift는 0이다. 새 테이블은 `tests/app/test_db_migrations.py NEW_TABLES`에 있다.
+- 권한(`scripts/runtime-privileges.sql`): web(`app`) — `briefing`·`briefing_item` SELECT/INSERT/UPDATE, `briefing_reaction_event` SELECT/INSERT. `slack-worker`(`worker` 자격) — `briefing` SELECT, `briefing_item` SELECT와 `UPDATE (reaction, reacted_by, reacted_at, reacted_via, revision)` 열만, `briefing_reaction_event` INSERT. **어느 역할에도 DELETE가 없고** 브리핑을 다시 만들거나 지우는 경로도 없다.
+
+### 규칙 파일 `bidops.briefing-policy.v1`
+
+`web/backend/app/lifecycle/policies/briefing-policy-v1.json`(`BIDOPS_BRIEFING_POLICY_PATH`로 바꿀 수 있고 기본값이 이 파일)이다. 최상위 키는 아래가 전부이며 더하거나 빼면 `briefing_policy_invalid`로 거부한다. 파일 바이트의 sha256이 `briefing.policy_sha256`에 고정된다. 값을 하나라도 바꾸려면 새 버전 파일(`briefing-policy-v2.json`)을 발행하고 `config.py` 기본 경로를 함께 올린다(immutable 파일 규칙).
+
+| 키 | 값(v1) | 허용 범위 |
+|---|---|---|
+| `schema` | `"bidops.briefing-policy.v1"` | 고정 |
+| `policy_identity` | `"briefing-policy-v1"` | `briefing-policy-v<n>` |
+| `top_n` | 10 | 1..30 |
+| `weights` | `tier1` 30, `tier2` 20, `tier3` 10, `repeat_agency` 25, `similar_project` 25, `sw_target` 10, `amount_in_range` 10 | 각 0..100 |
+| `deadline_warning_days` | 7 | 1..30 |
+| `tracked_change_fields` | `["deadline_at","title","budget","estimated_price"]` | |
+| `slack_items_per_message` | 10 | 1..12 (Block Kit 50 블록 상한) |
+| `large_enterprise_threshold_krw` | 2000000000 | 컨소시엄 검토 표식의 상한 상수 |
+
+### CLI 출력과 경고 code
+
+`python -m app.lifecycle.cli build-briefing [--date YYYY-MM-DD] [--send] [--dry-run] [--json]`의 stdout은 JSON 하나다(`--json`이면 한 줄, 아니면 들여쓰기). `--date`는 브리핑 날짜 D(기본값 오늘 KST)이고 수집 회차는 D-1이다. 진단은 stderr로 낸다.
+
+- 키는 전부 아홉이다: `briefing_date`, `status`(주말·생성 실패는 `null`), `created`(같은 날 재실행은 `false`), `item_count`(추천 수), `tracked_change_count`, `excluded`(`hardware·election·design_only·staffing_only·region·amount_floor`별 건수), `warnings[]`, `slack`={`sent:bool`, `message_ts:string[]`, `skipped_reason:string|null`}.
+- 종료 코드: 0 성공(주말·이미 있는 날·Slack 건너뜀·`slack_send_failed` 포함), 1 생성 실패(`warnings=[code]`, 행 없음), 2 인자 오류. **`slack_send_failed`는 종료 코드 0이다** — 전송 실패는 `warnings[]`로만 알리므로 호스트 스크립트 `scripts/run-daily-briefing.sh`가 JSON을 읽어 비0(3)으로 바꾼다.
+- 경고·실패 code:
+
+  | code | 뜻 | 종료 |
+  |---|---|---|
+  | `company_not_registered` | 실회사 확정 사실 projection이 없음(제공자 부재·실회사 없음). 행을 만들지 않는다 | 1 |
+  | `briefing_policy_invalid`, `company_facts_invalid` | 규칙 파일·회사 사실이 계약과 다름. 행을 만들지 않는다 | 1 |
+  | `collection_run_missing` | D-1 notices 회차 `Run` 행 0건 → `status=collection_incomplete` | 0 |
+  | `run_ambiguous` | 그 회차 `Run` 행이 둘 이상(추정하지 않음) → `collection_incomplete` | 0 |
+  | `collection_run_warnings` | 그 회차의 `IngestWarning`이 1건 이상 → `collection_incomplete` | 0 |
+  | `orphan_candidate` | 소유 사업기회가 없는 후보가 있어 항목을 만들지 않음 | 0 |
+  | `order_plan_provider_absent` | 확장점 `briefing_order_plan_candidates` 제공자가 없어 발주계획 후보가 빔(빈 목록과 구분) | 0 |
+  | `slack_send_failed` | 전송 시도가 실패. 브리핑은 유지, 그때까지 보낸 ts만 저장 | 0 |
+
+- 최종 `slack.skipped_reason`은 아래 값이며 검사 순서는 `weekend` → `dry_run` → `not_requested` → 전송기 검사 → `empty` → `already_sent`다. `null`은 전송을 시도했다는 뜻이다(성공이면 `sent=true`, 실패면 `slack_send_failed` 경고).
+
+  | 값 | 조건 |
+  |---|---|
+  | `weekend` | D가 토·일. 행 없음, `status=null`, DB에 닿지 않음 |
+  | `dry_run` | `--dry-run` |
+  | `not_requested` | `--send` 없음 |
+  | `slack_disabled` · `token_missing` · `channel_missing` · `host_not_allowed` | 전송기 호출 전 검사(순서 그대로): `BIDOPS_SLACK_ENABLED`(기본 false), bot token, 채널 ID, 호출 host가 `BIDOPS_SLACK_ALLOWED_HOSTS`에 정확히 있음 |
+  | `empty` | `status=empty`이거나 보낼 메시지가 없음, 또는 생성 실패로 행이 없음. 추천이 0건이면 추적 변화만 있어도 `status=empty`이므로 보내지 않는다 |
+  | `already_sent` | `slack_sent_at`이 이미 있음 |
+  | `null` | 시도함 |
+
+### 확장점과 Slack
+
+- lifecycle `extensions.py`가 선언하고 다른 모듈이 제공한다(lifecycle은 deep_review·screening 테이블을 import하지 않는다, ADR-0045):
+  - `company_facts_projection(session) -> CompanyFactsProjection | None` — deep_review 제공. `CompanyFactsProjection = {graph_version_id: UUID, facts: [{fact_key, type, status, label, value}]}`이며 실회사 활성 binding의 비evidence 노드 중 **`status=confirmed`만**이다(제공자가 거르고 규칙이 status를 다시 확인한다). 제공자 없음·실회사 없음은 `None` → `company_not_registered`.
+  - `briefing_order_plan_candidates(session, since, until) -> Sequence[int]` — screening 제공. 발주계획별 **최신** C-2 결과가 `qwen_relevance='relevant'`이고 `first_discovered_at`이 `(since, until]`인 발주계획 id를 오름차순으로 낸다. 제공자가 없으면 빈 목록과 경고 `order_plan_provider_absent`다.
+  - 적재 CLI·web과 같이 이 CLI도 `register_configured_extensions()`로 `BIDOPS_MODULES`가 고른 모듈의 제공자를 등록한다.
+- `app/core/slack.py`의 전송기 하나가 `chat.postMessage`(브리핑)·`chat.update`(반응 뒤 갱신)·Socket Mode 연결을 모두 맡는다. 호출 전에 enabled·토큰·채널·허용 host를 검사하고 하나라도 어긋나면 네트워크에 닿지 않는다. 토큰은 `SecretStr`이며 로그·응답·오류에 넣지 않고, 전송 payload는 허용한 Block Kit 키(`type`·`text`·`elements`·`style`·`action_id`·`value`)만 쓰고 내용은 `item_id`·제목·기관·금액·마감·이유 텍스트·링크뿐이다. 다른 채널·hosted fallback은 없다.
+- 설정: `BIDOPS_SLACK_ENABLED`(기본 false), `BIDOPS_SLACK_BOT_TOKEN`, `BIDOPS_SLACK_APP_TOKEN`, `BIDOPS_SLACK_CHANNEL_ID`, `BIDOPS_SLACK_ALLOWED_HOSTS`(기본 `slack.com,wss-primary.slack.com`), `BIDOPS_PUBLIC_BASE_URL`(레코드 링크 기준 주소). 값 위치는 `env/slack.env`(gitignore, 예시 `env/slack.env.example`)이고 compose overlay `docker-compose.slack-egress.yml`이 web과 `slack-worker`에 준다.
+- Slack 버튼 `action_id="briefing_react"`, `value="<item_id>:채택|무시|대기"`. worker는 `request_id = uuid5(SLACK_REACTION_NS, trigger_id)`(`SLACK_REACTION_NS = uuid5(NAMESPACE_URL, "bidops:slack-reaction")`)로 같은 클릭의 중복 전달을 반응 1회로 만들고 `via=slack`으로 화면과 같은 service 함수를 부른다. `나중에`는 화면 전용이다.

@@ -1,0 +1,25 @@
+........................................................................ [ 33%]
+........................................................................ [ 67%]
+.....................................................................    [100%]
+=============================== warnings summary ===============================
+tests/app/test_runtime_database_privileges.py::test_notice_final_decision_records_and_locks_with_the_app_runtime_role
+  /Users/temp/orca/bidops/.sdlc/worktrees/rla-20261016-RL-01-daily-briefing/web/backend/app/deep_review/schemas/document_bundles.py:115: UserWarning: Field name "schema" in "DocumentStructure" shadows an attribute in parent "StrictModel"
+    class DocumentStructure(StrictModel):
+
+tests/app/test_runtime_database_privileges.py::test_notice_final_decision_records_and_locks_with_the_app_runtime_role
+  /Users/temp/orca/bidops/.sdlc/worktrees/rla-20261016-RL-01-daily-briefing/web/backend/app/deep_review/schemas/document_bundles.py:227: UserWarning: Field name "schema" in "SegmentExtractorBinding" shadows an attribute in parent "StrictModel"
+    class SegmentExtractorBinding(StrictModel):
+
+tests/app/test_runtime_database_privileges.py::test_notice_final_decision_records_and_locks_with_the_app_runtime_role
+  /Users/temp/orca/bidops/.sdlc/worktrees/rla-20261016-RL-01-daily-briefing/web/backend/app/deep_review/schemas/document_bundles.py:235: UserWarning: Field name "schema" in "DocumentSegmentsView" shadows an attribute in parent "StrictModel"
+    class DocumentSegmentsView(StrictModel):
+
+tests/app/test_runtime_database_privileges.py::test_collection_ingest_and_tracked_backfill_complete_with_the_app_runtime_role
+tests/app/test_runtime_database_privileges.py::test_collection_ingest_and_tracked_backfill_complete_with_the_app_runtime_role
+tests/app/test_runtime_database_privileges.py::test_collection_ingest_and_tracked_backfill_complete_with_the_app_runtime_role
+  /Users/temp/orca/bidops/.sdlc/worktrees/rla-20261016-RL-01-daily-briefing/web/backend/app/lifecycle/ingest/loader.py:3803: SADeprecationWarning: The Result.tuples() method is deprecated, Row now behaves like a tuple and can unpack types directly. (deprecated since: 2.1.0)
+    for link, plan, notice in session.execute(statement).tuples():
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+213 passed, 6 warnings in 102.24s (0:01:42)
+exit=0

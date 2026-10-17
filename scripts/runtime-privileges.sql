@@ -513,6 +513,21 @@ GRANT SELECT ON TABLE bidops.deep_review_preview, bidops.deep_review_approval TO
 GRANT INSERT ON TABLE bidops.deep_review_preview, bidops.deep_review_approval TO app;
 GRANT SELECT ON TABLE bidops.deep_review_preview, bidops.deep_review_approval TO worker;
 
+-- RL-01 weekday briefing (0038). The web process (REST, `build-briefing` CLI)
+-- creates the briefing and its items once per day, records Slack delivery, and
+-- stores reactions. Reaction events are append-only: SELECT/INSERT only. The
+-- Socket Mode slack-worker (worker credential) reads the briefing, advances
+-- only the reaction columns of an item, and appends events. No role may delete
+-- a briefing, an item, or an event (no regenerate/delete path exists).
+GRANT SELECT ON TABLE bidops.briefing, bidops.briefing_item, bidops.briefing_reaction_event TO app;
+GRANT INSERT ON TABLE bidops.briefing, bidops.briefing_item, bidops.briefing_reaction_event TO app;
+GRANT UPDATE ON TABLE bidops.briefing, bidops.briefing_item TO app;
+GRANT SELECT ON TABLE bidops.briefing, bidops.briefing_item TO worker;
+GRANT UPDATE (
+    reaction, reacted_by, reacted_at, reacted_via, revision
+) ON bidops.briefing_item TO worker;
+GRANT INSERT ON TABLE bidops.briefing_reaction_event TO worker;
+
 COMMIT;
 
 -- Assumption analyses reuse the queue but preserve independent immutable consent/results.

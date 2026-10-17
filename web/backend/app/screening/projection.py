@@ -799,10 +799,27 @@ class ScreeningWorkloadProjection:
         }
 
 
+class ScreeningBriefingOrderPlanCandidates:
+    """lifecycle 확장점 `briefing_order_plan_candidates` 구현 (RL-01 브리핑).
+
+    누적 실행에서 발주계획별 최신 C-2 결과가 `relevant`이고 `first_discovered_at`이
+    `(since, until]`인 발주계획 id를 오름차순으로 돌려준다. 최신 결과 규칙은 목록 누적
+    모드와 같은 service 함수가 소유한다.
+    """
+
+    def briefing_order_plan_candidates(
+        self, session: Session, since: datetime, until: datetime
+    ) -> list[int]:
+        from .services.order_plan_screening import OrderPlanScreeningService
+
+        return OrderPlanScreeningService().briefing_relevant_order_plan_ids(session, since, until)
+
+
 __all__ = [
     "CorrectedGrade",
     "FOCUS_ORDER",
     "JudgmentSummary",
+    "ScreeningBriefingOrderPlanCandidates",
     "ScreeningJudgmentProjection",
     "ScreeningWorkloadProjection",
     "current_judgment",

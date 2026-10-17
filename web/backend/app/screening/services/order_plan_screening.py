@@ -1113,6 +1113,47 @@ class OrderPlanScreeningService:
             OrderPlanScreeningExecution.status.in_({"성공", "부분 성공"}),
         )
 
+    @staticmethod
+    def _ranked_results(executions: Any):
+        """범위 실행(`executions` subquery)의 결과에 발주계획별 최신 순위(`position`)를 붙인다.
+
+        최신 = `finished_at` 내림, 같으면 `execution_id` 내림. 목록과 브리핑 후보가 같은 규칙을 쓴다.
+        """
+
+        return select(
+            OrderPlanScreeningResult,
+            func.row_number().over(
+                partition_by=OrderPlanScreeningResult.order_plan_id,
+                order_by=(executions.c.finished_at.desc(), executions.c.execution_id.desc()),
+            ).label("position"),
+        ).join(executions, executions.c.execution_id == OrderPlanScreeningResult.execution_id)
+
+    def briefing_relevant_order_plan_ids(
+        self, session: Session, since: datetime, until: datetime
+    ) -> list[int]:
+        """RL-01 브리핑 후보: 누적 범위 최신 결과가 `relevant`이고 창 안에 처음 관측된 발주계획.
+
+        창은 `OrderPlan.first_discovered_at ∈ (since, until]`이다. 반복 발주처 규칙과 소유
+        사업기회 확인은 lifecycle 브리핑 규칙이 한다. 조회 1회.
+        """
+
+        if since.tzinfo is None or until.tzinfo is None:
+            raise ValueError("briefing window bounds must be timezone-aware")
+        executions = self._cumulative_executions().subquery()
+        ranked = self._ranked_results(executions).subquery()
+        statement = (
+            select(OrderPlan.id)
+            .join(ranked, and_(ranked.c.order_plan_id == OrderPlan.id, ranked.c.position == 1))
+            .where(
+                ranked.c.qwen_relevance == "relevant",
+                OrderPlan.first_discovered_at.is_not(None),
+                OrderPlan.first_discovered_at > since,
+                OrderPlan.first_discovered_at <= until,
+            )
+            .order_by(OrderPlan.id)
+        )
+        return [int(value) for value in session.scalars(statement)]
+
     def has_cumulative_execution(self, session: Session) -> bool:
         statement = self._cumulative_executions().with_only_columns(OrderPlanScreeningExecution.execution_id)
         return session.scalar(statement.limit(1)) is not None
@@ -1195,13 +1236,7 @@ class OrderPlanScreeningService:
                 OrderPlanScreeningExecution.execution_id == (execution.execution_id if execution is not None else None)
             )
         ).subquery()
-        result_rows = select(
-            OrderPlanScreeningResult,
-            func.row_number().over(
-                partition_by=OrderPlanScreeningResult.order_plan_id,
-                order_by=(executions.c.finished_at.desc(), executions.c.execution_id.desc()),
-            ).label("position"),
-        ).join(executions, executions.c.execution_id == OrderPlanScreeningResult.execution_id).subquery()
+        result_rows = self._ranked_results(executions).subquery()
         result = aliased(OrderPlanScreeningResult, result_rows)
         # feedback은 두 모드 모두 발주계획마다 최신 1건이다. 실행과 무관하다.
         feedback_rows = select(

@@ -1,15 +1,15 @@
 {
   "schema_version": 2,
   "feature": "RL-01-daily-briefing",
-  "phase": "review",
+  "phase": "implementing",
   "steps": [
     {
       "id": "STEP-001",
       "title": "저장 모델·migration·권한·규칙 파일",
       "model": "standard",
       "fingerprint": "62348375ae70ecca685d280ee3823d506d738b4a2f9c1f3b9449c9fedfb4ceaf",
-      "status": "stale",
-      "updated_at": null,
+      "status": "done",
+      "updated_at": "2026-10-17T06:48:23+09:00",
       "history": [
         {
           "id": "STEP-001",
@@ -19,15 +19,16 @@
           "status": "pending",
           "updated_at": null
         }
-      ]
+      ],
+      "note": "테이블 3·CHECK·부분 UNIQUE·0038·권한(DELETE 없음)·규칙 파일 로더; NEW_TABLES 대신 head 기준 ALL_TABLES에 등록(NEW_TABLES는 0002 시점 검사)"
     },
     {
       "id": "STEP-002",
       "title": "결정적 규칙 엔진",
       "model": "complex",
       "fingerprint": "bb244333a8379857e3a11d70a3ba9b7fd1f9385a3f345c49c7e7aa18c5500889",
-      "status": "stale",
-      "updated_at": null,
+      "status": "done",
+      "updated_at": "2026-10-17T06:48:23+09:00",
       "history": [
         {
           "id": "STEP-002",
@@ -55,15 +56,16 @@
             }
           ]
         }
-      ]
+      ],
+      "note": "규칙 엔진·제공자 2; PG 213 passed; RL-00 회귀(test_decision_queues strict dict에 company_attention 누락) 리더가 수정; 회사 파일 excl:region 키워드 불일치는 사용자 결정 대기"
     },
     {
       "id": "STEP-003",
       "title": "생성 service·CLI",
       "model": "complex",
       "fingerprint": "6f9f7e1ca642b32087cc2b0e80b7aa1ec45b315387d97e8c6819e0fed672b333",
-      "status": "stale",
-      "updated_at": null,
+      "status": "done",
+      "updated_at": "2026-10-17T11:25:44+09:00",
       "history": [
         {
           "id": "STEP-003",
@@ -73,15 +75,16 @@
           "status": "pending",
           "updated_at": null
         }
-      ]
+      ],
+      "note": "생성 service·CLI; 새 경고 code collection_run_missing·collection_run_warnings(collection_note 열 없음, STEP-008 계약 반영); 소유 사업기회=권위 연결(사람 수락 후보 포함)+미병합"
     },
     {
       "id": "STEP-004",
       "title": "REST·반응·workload",
       "model": "complex",
       "fingerprint": "fb19902a8b06b84e9825fc915d8c4066b6b10e467512c8dfc9e61c7db05039dd",
-      "status": "stale",
-      "updated_at": null,
+      "status": "done",
+      "updated_at": "2026-10-17T11:25:44+09:00",
       "history": [
         {
           "id": "STEP-004",
@@ -91,39 +94,44 @@
           "status": "pending",
           "updated_at": null
         }
-      ]
+      ],
+      "note": "REST 4·반응 멱등(core/idempotency_fence 공용화)·briefing_pending; SQLite 179·PG 105 passed; empty+추적 변화도 Slack 미발송(spec 문자 그대로)"
     },
     {
       "id": "STEP-005",
       "title": "Slack 전송기·미리보기·`--send`",
       "model": "complex",
       "fingerprint": "5569bb71b487a2ec37a9776ae8465e1e6b96563c4c1199bdaa864edda9be5672",
-      "status": "pending",
-      "updated_at": null
+      "status": "done",
+      "updated_at": "2026-10-17T11:49:03+09:00",
+      "note": "core/slack.py 단일 전송기(enabled·token·channel·host allowlist 사전 검사, SecretStr·redact), --send 부분 실패 재시도, slack-sdk==3.45.0 hash 고정, compose slack-worker(profile slack)·slack-egress overlay; slack_send_failed는 경고·exit 0"
     },
     {
       "id": "STEP-006",
       "title": "Socket Mode worker",
       "model": "complex",
       "fingerprint": "caa1ebbb07f0d43981e384db8ae994ddc8dfd0979e38a1c0a7936321bb5ec425",
-      "status": "pending",
-      "updated_at": null
+      "status": "done",
+      "updated_at": "2026-10-17T11:49:04+09:00",
+      "note": "Socket Mode worker: ack 우선, uuid5(trigger_id) 멱등, 409 1회 재조회, chat.update 저장 ts만; 실제 Slack 계약·websocket은 가짜로 증명 불가(T12 몫)"
     },
     {
       "id": "STEP-007",
       "title": "화면",
       "model": "standard",
       "fingerprint": "4625c2cec27a209f47b3481f3c7031f3e5fa2e2968a1b94e8928221f019fcb26",
-      "status": "pending",
-      "updated_at": null
+      "status": "done",
+      "updated_at": "2026-10-17T06:40:57+09:00",
+      "note": "build·contrast 8/8·Playwright 45; 리더 재실행에서 1건 단언 경합(URL 변경 직후 비재시도 trace 단언) → 데이터 렌더 뒤로 순서 이동(기대값 동일) 후 통과; blocking은 화면에 그리지 않음(spec 피크 목록·ui-spec 판정 블록=RL-03), 반응 버튼 재누름=대기 토글"
     },
     {
       "id": "STEP-008",
       "title": "호스트 스크립트·문서·시운전",
       "model": "standard",
       "fingerprint": "9c504eab811de832774ae6fc7bf3dcf4e809bb4f32874b21022e155542467b2e",
-      "status": "pending",
-      "updated_at": null
+      "status": "done",
+      "updated_at": "2026-10-17T12:02:21+09:00",
+      "note": "run-daily-briefing.sh(T11 43 passed, slack_send_failed→exit 3), 문서 9종; T12 bidops_rla 감독 시운전(--send 제외) 리더 실행·기록; 기존 test_daily_lifecycle_script 18건 macOS BSD date/bash3.2 실패는 무관"
     }
   ],
   "proof": {
@@ -166,7 +174,75 @@
     {
       "at": "2026-10-16T20:41:31+09:00",
       "text": "단계 → review: 독립 검사 1·2차 반영(잔여 차단 2건 = normalize_text 정의·--date 의미 고정, 3차 생략)"
+    },
+    {
+      "at": "2026-10-17T06:19:50+09:00",
+      "text": "단계 → implementing"
+    },
+    {
+      "at": "2026-10-17T06:19:57+09:00",
+      "text": "단계 STEP-001 in_progress: "
+    },
+    {
+      "at": "2026-10-17T06:19:57+09:00",
+      "text": "단계 STEP-002 in_progress: "
+    },
+    {
+      "at": "2026-10-17T06:20:28+09:00",
+      "text": "단계 STEP-007 in_progress: "
+    },
+    {
+      "at": "2026-10-17T06:40:57+09:00",
+      "text": "단계 STEP-007 done: build·contrast 8/8·Playwright 45; 리더 재실행에서 1건 단언 경합(URL 변경 직후 비재시도 trace 단언) → 데이터 렌더 뒤로 순서 이동(기대값 동일) 후 통과; blocking은 화면에 그리지 않음(spec 피크 목록·ui-spec 판정 블록=RL-03), 반응 버튼 재누름=대기 토글"
+    },
+    {
+      "at": "2026-10-17T06:48:23+09:00",
+      "text": "단계 STEP-001 done: 테이블 3·CHECK·부분 UNIQUE·0038·권한(DELETE 없음)·규칙 파일 로더; NEW_TABLES 대신 head 기준 ALL_TABLES에 등록(NEW_TABLES는 0002 시점 검사)"
+    },
+    {
+      "at": "2026-10-17T06:48:23+09:00",
+      "text": "단계 STEP-002 done: 규칙 엔진·제공자 2; PG 213 passed; RL-00 회귀(test_decision_queues strict dict에 company_attention 누락) 리더가 수정; 회사 파일 excl:region 키워드 불일치는 사용자 결정 대기"
+    },
+    {
+      "at": "2026-10-17T06:48:24+09:00",
+      "text": "단계 STEP-003 in_progress: "
+    },
+    {
+      "at": "2026-10-17T06:48:24+09:00",
+      "text": "단계 STEP-004 in_progress: "
+    },
+    {
+      "at": "2026-10-17T11:25:44+09:00",
+      "text": "단계 STEP-003 done: 생성 service·CLI; 새 경고 code collection_run_missing·collection_run_warnings(collection_note 열 없음, STEP-008 계약 반영); 소유 사업기회=권위 연결(사람 수락 후보 포함)+미병합"
+    },
+    {
+      "at": "2026-10-17T11:25:44+09:00",
+      "text": "단계 STEP-004 done: REST 4·반응 멱등(core/idempotency_fence 공용화)·briefing_pending; SQLite 179·PG 105 passed; empty+추적 변화도 Slack 미발송(spec 문자 그대로)"
+    },
+    {
+      "at": "2026-10-17T11:25:44+09:00",
+      "text": "단계 STEP-005 in_progress: "
+    },
+    {
+      "at": "2026-10-17T11:25:44+09:00",
+      "text": "단계 STEP-006 in_progress: "
+    },
+    {
+      "at": "2026-10-17T11:49:03+09:00",
+      "text": "단계 STEP-005 done: core/slack.py 단일 전송기(enabled·token·channel·host allowlist 사전 검사, SecretStr·redact), --send 부분 실패 재시도, slack-sdk==3.45.0 hash 고정, compose slack-worker(profile slack)·slack-egress overlay; slack_send_failed는 경고·exit 0"
+    },
+    {
+      "at": "2026-10-17T11:49:04+09:00",
+      "text": "단계 STEP-006 done: Socket Mode worker: ack 우선, uuid5(trigger_id) 멱등, 409 1회 재조회, chat.update 저장 ts만; 실제 Slack 계약·websocket은 가짜로 증명 불가(T12 몫)"
+    },
+    {
+      "at": "2026-10-17T11:49:04+09:00",
+      "text": "단계 STEP-008 in_progress: "
+    },
+    {
+      "at": "2026-10-17T12:02:21+09:00",
+      "text": "단계 STEP-008 done: run-daily-briefing.sh(T11 43 passed, slack_send_failed→exit 3), 문서 9종; T12 bidops_rla 감독 시운전(--send 제외) 리더 실행·기록; 기존 test_daily_lifecycle_script 18건 macOS BSD date/bash3.2 실패는 무관"
     }
   ],
-  "updated_at": "2026-10-16T20:41:31+09:00"
+  "updated_at": "2026-10-17T12:02:21+09:00"
 }

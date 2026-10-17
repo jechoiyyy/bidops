@@ -45,6 +45,10 @@ MODULE_CLIS: tuple[tuple[str, tuple[str, ...], int], ...] = (
     ("app.deep_review.cli", ("enqueue-company-fit",), 0),
     ("app.deep_review.cli", ("rebuild-segment-manifests",), 0),
     ("app.lifecycle.ingest.cli", (), 0),
+    # RL-01 lifecycle 운영 명령(평일 브리핑).
+    ("app.lifecycle.cli", (), 0),
+    ("app.lifecycle.cli", ("build-briefing",), 0),
+    ("app.lifecycle.cli", ("slack-worker",), 0),
 )
 
 
