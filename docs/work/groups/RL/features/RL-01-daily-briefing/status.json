@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
   "feature": "RL-01-daily-briefing",
-  "phase": "validating",
+  "phase": "done",
   "steps": [
     {
       "id": "STEP-001",
@@ -306,9 +306,13 @@
     {
       "at": "2026-10-17T12:56:42+09:00",
       "text": "단계 → validating"
+    },
+    {
+      "at": "2026-10-17T14:44:40+09:00",
+      "text": "단계 → done: 배치 검증 및 통합 완료"
     }
   ],
-  "updated_at": "2026-10-17T14:24:32+09:00",
+  "updated_at": "2026-10-17T14:44:40+09:00",
   "proof_history": [
     {
       "key": "docs",
@@ -442,5 +446,11 @@
         "spec_hash": "c5c00cdb14168ae7b4f1b61bebdf81915aef1c75a28279ced6521ad54a81d11f"
       }
     }
-  ]
+  ],
+  "integration": {
+    "run": "rla-20261016",
+    "revision": "960ee61a0921360bbad84234a951b321e26cc3a0",
+    "source_hash": "4549452b5a0886d443597531cb5e98693ac9b38f50aa6cb6e14d0f8750179ee5",
+    "spec_hash": "c5c00cdb14168ae7b4f1b61bebdf81915aef1c75a28279ced6521ad54a81d11f"
+  }
 }

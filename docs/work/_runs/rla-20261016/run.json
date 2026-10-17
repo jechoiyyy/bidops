@@ -1,6 +1,6 @@
 {
   "id": "rla-20261016",
-  "state": "awaiting_merge",
+  "state": "done",
   "features": [
     "RL-00-company-ground-truth",
     "RL-01-daily-briefing",
@@ -93,5 +93,21 @@
         "spec_hash": "d5687935760fed0f47e625fe37aa4ec4481a4b4ade243f4c7fd405e841da5890"
       }
     }
-  }
+  },
+  "merged_sha": "960ee61a0921360bbad84234a951b321e26cc3a0",
+  "merged_inputs": {
+    "RL-00-company-ground-truth": {
+      "source_hash": "4549452b5a0886d443597531cb5e98693ac9b38f50aa6cb6e14d0f8750179ee5",
+      "spec_hash": "4b62e0faa77e0f8863334b6e02fb1ae1727b6aee122096590d4a2302def09efa"
+    },
+    "RL-01-daily-briefing": {
+      "source_hash": "4549452b5a0886d443597531cb5e98693ac9b38f50aa6cb6e14d0f8750179ee5",
+      "spec_hash": "c5c00cdb14168ae7b4f1b61bebdf81915aef1c75a28279ced6521ad54a81d11f"
+    },
+    "RL-02-opportunity-timeline": {
+      "source_hash": "4549452b5a0886d443597531cb5e98693ac9b38f50aa6cb6e14d0f8750179ee5",
+      "spec_hash": "d5687935760fed0f47e625fe37aa4ec4481a4b4ade243f4c7fd405e841da5890"
+    }
+  },
+  "completed_at": "2026-10-17T14:44:41+09:00"
 }
