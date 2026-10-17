@@ -2,7 +2,7 @@
 
 - 기능 ID: `RL-04-proposal-draft`
 - 근거: [intent.md](./intent.md), [spec.md](./spec.md)
-- 작성일: 2026-10-16
+- 작성일: 2026-10-16 (2026-10-17 배치 B 인터뷰 D2·D3·D4·D9·D10·D11·D12 반영 — [batch-b-interview.md](../../batch-b-interview.md))
 
 ## 변경 파일
 
@@ -13,12 +13,12 @@
 | web/backend/app/deep_review/models.py, alembic/versions/<head 다음>_proposal.py, scripts/runtime-privileges.sql | 수정/신규 | 테이블 4 |
 | web/backend/app/deep_review/services/proposal_input.py, proposal_draft.py, proposal_validation.py, proposal_render.py | 신규 | 입력·생성·검증·PDF |
 | web/backend/app/deep_review/services/proposal_worker.py, app/workers/proposal.py(또는 analysis worker에 job_type 추가), transfer_policy.py | 신규/수정 | WorkJob `proposal_section` 전용 run_once·승인 scope purposes(RL-03 `deep_reviews.py`는 손대지 않음) |
-| web/backend/app/deep_review/routers/proposals.py, schemas/proposal.py, main.py | 신규/수정 | REST 6 |
-| web/backend/requirements.txt, requirements.lock(reportlab·pillow·chardet hash), pyproject.toml | 수정 | `reportlab` (폰트는 web/Dockerfile의 기존 fonts-nanum 사용, Dockerfile 변경 없음) |
+| web/backend/app/deep_review/routers/proposals.py, schemas/proposal.py, main.py | 신규/수정 | REST 8 |
+| web/backend/requirements.txt, requirements.lock(reportlab·pillow·chardet hash), pyproject.toml | 수정 | `reportlab`, wheel hash는 PyPI에서 받아 고정(개발 의존성 취득용 네트워크만, 데이터 전송 아님). 폰트는 web/Dockerfile의 기존 fonts-nanum NanumGothic 사용, Dockerfile 변경·저장소 폰트 파일 추가 없음(D9) |
 | web/backend/app/deep_review/__init__.py(`register_lifecycle_extensions`) | 수정 | 활동 hook `draft_prepared` 제공 |
 | web/backend/tests/deep_review/test_proposal_validation.py, test_proposal_render.py, tests/app/test_proposal_api.py(+postgres), test_proposal_payload_guard.py, test_codex_runner.py | 신규/수정 | T1~T9 |
 | web/frontend/src/pages/OpportunityProposalTab.tsx, components/proposal/{SectionTabs,SectionBody,SentenceEditor,RequirementLinks,ProposalStepper}.tsx, lib/api.ts, apiErrors.ts, tests/proposal.spec.ts, tests/api-mock.ts | 신규/수정 | T8 |
-| docs/contracts.md, business-rules.md, operations.md, work/constitution/tech-stack.md("DOCX 중간 형식" 삭제·reportlab 추가), 1016_rootlab-redefinition/ui-spec.md, ADR.md, validation-runs README | 수정 | STEP-009 |
+| docs/contracts.md, business-rules.md, operations.md, work/constitution/tech-stack.md("DOCX 중간 형식" 삭제·reportlab 추가·폰트 = 이미지의 NanumGothic, 폰트 파일 추가 없음), 1016_rootlab-redefinition/ui-spec.md, ADR.md, validation-runs README | 수정 | STEP-009 |
 
 ## 작업 순서
 
@@ -81,7 +81,9 @@
 | 가격·인력 숫자 유입 | T2 금지 패턴 매칭 | 코드 검증 + 원문 인용 예외만 |
 | PDF 비결정성(시각·폰트·렌더러 버전) | 같은 overlay sha 다른 바이트 | `invariant=1`·subset 고정·overlay에 버전/폰트 sha 포함, T7 |
 | `proposed` 실적을 confirmed처럼 서술 | 실적 절에 신용등급 등 | 입력 필터 T1 |
-| 폰트 라이선스·용량 | 이미지 크기 | OFL 폰트 2종만 |
+| 폰트 부재·변경 | 로컬·이미지에 `/usr/share/fonts/truetype/nanum` 없음, 이미지 갱신으로 `font_sha256` 변화 | 저장소에 폰트 파일을 넣지 않고 이미지의 NanumGothic만 사용(D9), 없으면 503 `pdf_unavailable`(T7), `font_sha256`이 overlay에 들어가 바뀌면 새 export |
+| 실제 호출 상한 초과·RL-03 실패 판정으로 진행 | T11 호출 12회 초과, T12 미통과 상태에서 T11 시작 | T11은 RL-03 T12 통과 뒤에만, 승인 `--daily-cap 1`, 재시도·절 다시 쓰기 없음(D3·D4·D10) |
+| `proposed`/`unknown` 값·운영 정보 전송 | T1·T9 실패 | `missing_facts`는 `{fact_key, status}`만, 전송 payload는 spec의 8키만(D2) |
 | HWP 요구 재등장 | 사용자 요청 | 범위 밖 명시, 후속 결정 |
 
 ## 증명
@@ -91,7 +93,7 @@
 - postgres: `test_proposal_api_postgres.py test_db_migrations.py test_runtime_database_privileges.py`.
 - frontend: `npm run build && npx playwright test --project=app proposal.spec.ts`.
 - api_guard: T4·T9.
-- real_data_run: T11 실제 1건(사람 직전 확인), `unmeasured_reference`.
+- real_data_run: T11 실제 1건 — RL-03 T12가 통과한 그 판정(폴리텍 사전규격)으로 초안 1건, 최대 12회(절 6 + repair ≤ 6). 2026-10-17 배치 B 인터뷰가 범위 승인이며 실제 호출·정책 승인 CLI(`approve-transfer-policy --policy proposal-policy-luna-v1 --actor jechoi --daily-cap 1`) 직전에 짧게 알리고 진행. RL-03 T12가 1회 재시도 뒤에도 실패면 T11은 보류하고 보고(D3·D4·D10). spec의 호출당 repair(≤1) 외 자동 재시도·자동 보정·절 다시 쓰기 없음, 실패 절은 사람 검토로 남긴다. bidops-local 격리 스택에서만, runner egress·인증은 RL-03 T12와 같은 조건(`luna-egress`, `~/.codex/auth.json` 읽기 전용 secret — D6·D7), actor `jechoi`(D11). PDF는 격리 스택에서만 만들고 보관 값(365일·암호화 없음)은 spec 그대로(D12). 결과는 `unmeasured_reference`로만 기록하고 품질 근거로 쓰지 않는다.
 
 ## 결과
 

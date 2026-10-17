@@ -3,7 +3,7 @@
 - 기능 ID: `RL-03-fit-verdict`
 - 상위 항목: roadmap §RL 표 4행, ADR-0073 결정 2(G2)·4·5, HP 공통 계약 §6~8(재사용 계약), HP-03·HP-04 spec(재명세 원본), [ui-spec §4.4](../../../../../1016_rootlab-redefinition/ui-spec.md), [bid-procedure §3](../../../../../1016_rootlab-redefinition/bid-procedure.md)
 - 크기: L — 새 정책 파일·전송 사전 승인 테이블·분석 단계 테이블·worker 분기·runner contract 3개·REST 4개·화면 1개·자동 트리거. 외부 모델(Luna) 호출. **1차 분석 대상은 사전규격**(입찰공고는 문서 취득 경로가 없어 후속; 결정 근거는 spec 머리).
-- 작성일: 2026-10-16
+- 작성일: 2026-10-16 (2026-10-17 배치 B 인터뷰 D1·D2·D3·D4·D9·D10·D13 반영 — [batch-b-interview.md](../../batch-b-interview.md))
 
 ## 문제
 
@@ -11,7 +11,7 @@
 
 ## 기대 결과
 
-- 브리핑 상위 N에 든 사전규격은 문서 준비·개요가 끝나면 **자동으로** 카드 기반 분석이 돈다(입찰공고는 연결된 사전규격 판정을 참조 표시): 요구사항 카드(HP-01)와 여섯 영역 unit → Luna 1층 추출 → 코드 결정적 대조(루트랩 `confirmed` 사실만 근거) → 역할 3 → 종합. 전송은 정책 파일 단위 사전 승인으로 자동화하고 건별 감사·payload 동결·allowlist·일일 호출 상한을 둔다.
+- 브리핑 상위 N에 든 사전규격 중 공고 메타 `SW사업대상=Y`(`qualification_flags_json.sw_business_status='Y'`)인 것은 문서 묶음이 `ready`가 되면 **자동으로** 카드 기반 분석이 돈다(개요 run은 전제가 아니며 RL 경로는 개요 모델을 부르지 않는다; 입찰공고는 연결된 사전규격 판정을 참조 표시): 요구사항 카드(HP-01)와 여섯 영역 unit → Luna 1층 추출 → 코드 결정적 대조(루트랩 `confirmed` 사실만 근거) → 역할 3 → 종합. Luna 호출은 판정 단계(추출·역할·종합)에만 있다. 전송은 정책 파일 단위 사전 승인으로 자동화하고 건별 감사·payload 동결·allowlist·일일 호출 상한을 둔다.
 - `/opportunities/:id/verdict`가 판정(진행 가능·조건부 진행·진행 어려움·판단 불가)·체크리스트 5·요구사항 표(부족→확인 필요→충족)·원문 패널을 보여 준다. `unknown`과 `proposed`는 "확인 필요"이지 부족이 아니다.
 - 판정 완료는 활동 피드·브리핑 Slack 스레드에 한 줄로 기록되고 브리핑 판정 열이 채워진다. 추적·Go/No-Go는 바뀌지 않는다.
 
@@ -20,12 +20,13 @@
 | 유즈케이스 | 실행 방법 | 확인 기준 |
 |---|---|---|
 | 정책 사전 승인 | `python -m app.deep_review.cli approve-transfer-policy --policy analysis-policy-luna-rl-v1 --actor <name> --daily-cap 10`(사람이 직전 확인 뒤 실행) | `transfer_policy_approval` 행 1건(active), `GET /api/analysis/transfer-policy` 200 |
-| 자동 분석 | 브리핑 추천(pre_spec/bid) 생성 → 문서 준비 ready | attempt 1건 `running→completed`, 승인 없이는 생성조차 안 됨(`policy_not_approved`), 하루 cap 초과분은 `queued`·사유 `daily_cap_reached` |
+| 자동 분석 | 브리핑 추천(pre_spec) 생성 → `sw_business_status='Y'` ∧ 문서 준비 ready(개요 run 불필요; 입찰공고·SW≠Y 추천은 트리거 없음) | attempt 1건 `running→completed`, 승인 없이는 생성조차 안 됨(`policy_not_approved`), 하루 cap 초과분은 `queued`·사유 `daily_cap_reached` |
 | 수동 다시 판정 | 판정 탭 "다시 판정" → `POST /api/opportunities/{id}/verdict-requests` | 202, 같은 계보면 새 attempt(기존 `create_company_attempt` 규칙), 계보 다르면 새 review; 이전 결과 보존 |
 | 판정 화면 | `/opportunities/501/verdict` | 좌측 판정·사유·체크리스트 5·다음 행동·고지 1줄, 중앙 요구사항 표(기본 부족·확인 필요만), 행 선택 → 원문 패널(쪽 링크, 상속 쪽 "(추정)", 미확인 쪽 링크 없음) |
 | unknown 보존 | 직접생산 세부품명 unknown인 회사 + 품명 요구 공고 | 해당 unit `unknown`→"확인 필요", 체크리스트 자격 항목 `unknown`, 판정이 `진행 어려움`이 아님 |
 | 실패 보존 | 검증 실패·60분 초과 | attempt `failed`, 화면 "사람 검토 필요" + 검증된 부분표, 자동 보정·자동 재시도 없음 |
-| 전송 감사 | 실행 뒤 | 건별 감사 이벤트(정책 sha·입력 sha·unit 수·호출 수), payload에 노트·회사 `proposed`/`unknown` 값·원문 외 텍스트 없음 |
+| 전송 감사 | 실행 뒤 | 건별 감사 이벤트(정책 sha·입력 sha·unit 수·호출 수); 전송 payload = 공고 원문 unit(카드 + 여섯 영역) + 회사 `confirmed` 사실 전부(값 포함, `pref:*` 금액·컨소시엄·하도급 조건 포함) + `proposed`/`unknown`은 `fact_key`·`status`만(값 없음); 노트·운영 정보·모델/정책 id 없음 |
+| 확인 필요가 많은 결과 | 루트랩 v2(unknown 21건)로 판정 | "확인 필요" 비중이 큰 결과는 회사 데이터 상태로 기록하고 판정 실패나 품질 문제로 적지 않는다(보강은 RL-05 전 인터뷰) |
 
 ## 선행·후속 기능
 
@@ -37,12 +38,12 @@
 - 모듈·컴포넌트: deep_review(`services/card_analysis.py`·`card_compare.py`·`verdict_view.py`·`transfer_policy.py`, `schemas/card_analysis.py`·`verdict_view.py`, `contracts/bidops.requirement-extract.v1.json`·`verdict-role.v1`·`practitioner-verdict.v1`, `policies/analysis-policy-luna-rl-v1.json`, `services/company_deep_review.py` 게이트·분기, `company_analysis_input.py` v2, `deep_reviews.py` dispatch, `luna_client.py`·`luna_identity.py`, `cli/approve_transfer_policy.py`, `routers/company_analysis.py`·`company_reads.py`·새 `verdicts.py`), codex-runner(schema 3개·contract allowlist), lifecycle 확장점 제공(활동 `verdict_completed`, 브리핑 `verdict_display`), core(설정 3개), 프런트 `pages/OpportunityVerdictTab.tsx`·`components/verdict/*`·`SourcePanel`.
 - 큰 틀 문서의 절: HP 계약 §6·7·8(루트랩 기준 재적용 주석), DEMO 계약 §5·§6·§9(승인 단위 개정), contracts.md(REST·DB·정책), business-rules.md "회사 핏 판정"·"자동 문서 준비와 자동 심층 시작"(RL 자동 분석 규칙), operations.md(정책 승인·cap·시운전), ADR-0050·0069 완화 기록(ADR.md 한 줄), ui-spec §4.4.
 - 데이터·저장소: 새 테이블 `transfer_policy_approval`·`card_analysis_stage`·`verdict_request`·`verdict_feedback`(append-only), cap 초과 큐는 `verdict_request.queued`(WorkJob은 만들지 않음). worker 역할에 preview·review·attempt·approval·stage INSERT 권한 추가(runtime-privileges.sql).
-- 외부 서비스·호출: codex-exec `gpt-6-luna`/high(HP-00 identity)만. 호출 수 = ceil(unit/8)+3+1(+repair ≤ 1회/호출).
+- 외부 서비스·호출: codex-exec `gpt-6-luna`/high(HP-00 identity)만, 판정 단계에서만. 개요 모델(LiteLLM/vLLM) 호출 없음. 호출 수 = ceil(unit/8)+3+1(+repair ≤ 1회/호출). 이번 배치의 실제 호출은 T12 1건(attempt당 약 24회 이내, 검증 실패 시 1회만 재시도)뿐이다.
 
 ## 제약
 
 - (공통) feature.json constraints 전부. 특히 "외부 모델 전송은 정책 단위 사전 승인 + 건별 감사·payload 동결·allowlist·hosted fallback 금지", 슬롯 1개, HWP/HWPX 원본 정본, `proposed`·`unknown`은 차단 조건 아님.
-- (기능별) HP 계약 §7 enum·체크리스트 key·호출 수·40분 목표/60분 강제 종료 유지. 검증 실패는 사람 검토, 자동 보정 금지. 노트 본문(RL-02)·`proposed`/`unknown` 값·운영 정보는 payload에 넣지 않는다. 판정은 보조 의견이며 추적·Go/No-Go를 저장하지 않는다. 운영 전환·실제 호출은 직전 사람 확인.
+- (기능별) HP 계약 §7 enum·체크리스트 key·호출 수·40분 목표/60분 강제 종료 유지. 검증 실패는 사람 검토, 자동 보정 금지. 전송 payload는 회사 `confirmed` 사실 전부를 값과 함께 넣고 `proposed`/`unknown`은 `fact_key`·`status`만 넣는다. 노트 본문(RL-02)·`proposed`/`unknown` 값·운영 정보·모델/정책 id는 넣지 않는다. 판정은 보조 의견이며 추적·Go/No-Go를 저장하지 않는다. 운영 전환·실제 호출은 직전 사람 확인.
 
 ## 범위 밖
 
@@ -54,8 +55,11 @@ gold 채점·인수(RL-05), 제안서(RL-04), narrative-v2 경로 변경·삭제
 |---|---|---|---|
 | 전송 승인 단위 | ADR-0069·DEMO §9 건별 preview→approval | ADR-0073 결정 5 정책 단위 사전 승인 | 정책 승인 테이블을 두고 preview·approval 행은 **자동 생성**(사람 클릭 없음)으로 유지해 기존 동결·재검사 경로를 재사용 |
 | 회사 입력 문구 | HP 정책 "fictional scenario" 규칙 | 실회사 | 새 정책 파일에 실회사 규칙(`origin` 7값, `proposed`는 미확인과 같은 취급) |
-| 분석 트리거 | ADR-0049·0054 등급 `우선 검토` + 개요 completed + 회사 핏 matched | ADR-0073 결정 4 "카드 기반 1회 분석 자동" | RL 트리거 = 브리핑 추천 ∧ 문서 준비 ready ∧ 개요 completed ∧ SW=Y ∧ 정책 승인 active ∧ cap 여유(회사 핏 matched는 요구하지 않음). 기존 자동 심층 시작 플래그는 그대로 두고 RL 플래그를 따로 둔다 |
-| 분석 대상 | roadmap·브리핑 "사전규격·입찰공고" | 코드: 입찰공고는 첨부·준비·개요 경로 없음 | 1차 사전규격만, 입찰공고는 참조 표시·후속 기능(사용자 확인 대상으로 보고) |
+| 분석 트리거 | ADR-0049·0054 등급 `우선 검토` + 개요 completed + 회사 핏 matched | ADR-0073 결정 4 "카드 기반 1회 분석 자동" | RL 트리거 = 브리핑 추천 ∧ 문서 준비 ready ∧ SW=Y(`qualification_flags_json.sw_business_status='Y'`) ∧ 정책 승인 active ∧ cap 여유(개요 completed·회사 핏 matched는 요구하지 않음 — 2026-10-17 사용자 인터뷰 D1). 기존 자동 심층 시작 플래그는 그대로 두고 RL 플래그를 따로 둔다 |
+| 개요 전제 | 초판 intent·spec: 기존 서비스 전제 "개요 run completed"(입력의 `overview_run_id`·`overview_sha256` 필수) | 개요는 LiteLLM/vLLM 경로라 RL 모델 제약(codex-exec Luna 하나) 위반, Luna 개요 코드는 폐기 브랜치 | 2026-10-17 사용자 인터뷰 D1: 개요 조건 제거. 트리거·수동 요청 조건은 공고 메타 SW=Y ∧ 문서 묶음 ready, 판정 입력의 `overview_*`는 null(키 유지, spec "개요 의존 제거"). RL 경로는 개요 모델을 부르지 않고 Luna는 판정 단계만 |
+| 전송 회사 자료 범위 | 초판 spec: 역할·종합 `profile_facts`에 status 그대로(값 포함) | 초판 intent·T9: payload에 `proposed`/`unknown` 값 없음 | 2026-10-17 사용자 인터뷰 D2: `confirmed` 사실 전부(값 포함, `pref:*` 조건 포함), `proposed`·`unknown`은 `fact_key`·`status`만, 노트·운영 정보·모델/정책 id 제외. 공고 원문 unit(카드 + 여섯 영역)은 포함 |
+| 실제 호출 범위 | 초판 plan: T12 실제 1건 | 배치 B 승인 범위 | 2026-10-17 사용자 인터뷰 D3·D4·D10: 실제 호출은 T12(폴리텍 사전규격 판정 1건)뿐, 자동 트리거는 실제 스택에서 끔(mock으로 증명), 검증 실패 시 1회만 다시 시도 후 정지·RL-04 T11 보류, 자동 재시도·자동 보정 없음 |
+| 분석 대상 | roadmap·브리핑 "사전규격·입찰공고" | 코드: 입찰공고는 첨부·준비 경로 없음 | 1차 사전규격만, 입찰공고는 참조 표시·후속 기능(2026-10-17 사용자 인터뷰 D9에서 "spec대로" 확인) |
 | 판정 REST 경로 | HP-04 D6 `/companies/{company_id}/pre-specs/{notice_id}/verdict` | ui-spec 레코드 탭(사업기회 id) | 둘 다 둔다. 사업기회 경로는 연결된 최신 사전규격/공고로 해석하는 읽기 전용 별칭 |
 | 저장 테이블 이름 | HP-03 `hp_analysis_stage` | RL | `card_analysis_stage`(HP 이름 폐기, 구현 전이라 이관 없음) |
 
@@ -64,4 +68,5 @@ gold 채점·인수(RL-05), 제안서(RL-04), narrative-v2 경로 변경·삭제
 | 질문 | 답이 필요한 시점 | 결정 |
 |---|---|---|
 | 정책 승인 발행 시점 | spec 작성 전 | 추천값 수용(2026-10-16): RL-03에서 발행(RL-01에 LLM 없음) |
-| 자동 트리거·일일 상한 | spec 작성 전 | 추천값 수용: 브리핑 상위 N 진입 + 문서 준비 완료, cap `tunable` 기본 10 |
+| 자동 트리거·일일 상한 | spec 작성 전 | 추천값 수용: 브리핑 상위 N 진입 + 문서 준비 완료, cap `tunable` 기본 10 (2026-10-17 D1로 개요 조건 제거) |
+| 회사 unknown 보강 시점 | 실제 호출 전 | 2026-10-17 사용자 인터뷰 D13: 루트랩 v2 그대로 진행, "확인 필요" 비중은 데이터 상태로 기록, 보강은 RL-05 전 인터뷰 |

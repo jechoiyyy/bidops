@@ -2,7 +2,7 @@
 
 - 기능 ID: `RL-03-fit-verdict`
 - 근거: [intent.md](./intent.md), [spec.md](./spec.md), HP-03·HP-04 plan(변경 파일 지도 재사용)
-- 작성일: 2026-10-16 (독립 검사 1차 반영)
+- 작성일: 2026-10-16 (독립 검사 1차 반영; 2026-10-17 배치 B 인터뷰 D1~D13 반영 — [batch-b-interview.md](../../batch-b-interview.md))
 
 ## 변경 파일
 
@@ -14,7 +14,7 @@
 | web/backend/app/deep_review/models.py, alembic/versions/<head 다음>_card_analysis.py, scripts/runtime-privileges.sql, tests/app/test_runtime_database_privileges.py, tests/app/boundary_map.py, tests/app/test_db_migrations.py | 수정/신규 | 테이블 4·trigger·worker INSERT 5개·등록 |
 | web/backend/app/deep_review/services/transfer_policy.py, cli/approve_transfer_policy.py, cli/revoke_transfer_policy.py, cli/drain_verdict_queue.py | 신규 | 승인·철회·큐 |
 | web/backend/app/deep_review/services/card_units.py, card_analysis.py, card_compare.py, card_roles.py | 신규 | unit·batch·추출 검증·대조·역할/종합 조립 |
-| web/backend/app/deep_review/services/company_deep_review.py, company_analysis_input.py, deep_reviews.py, input_versions.py, luna_identity.py, luna_client.py, luna_inputs.py, schemas/company_analysis.py, company_knowledge_retrieval.py, company_projection.py, contracts/__init__.py | 수정 | gate 분기(RL enabled·실회사, 참조 모드·Luna 플래그 유지)·자동 preview/approval(`actor_kind`·`commit` 인자)·v2 입력(`card_analysis` 키 집합)·card-v1 dispatch·정책 행 선택 env·`_LUNA_POLICY_FILES_BY_IDENTITY`·retrieval status/origin 확장·client contract allowlist |
+| web/backend/app/deep_review/services/company_deep_review.py, company_analysis_input.py, deep_reviews.py, input_versions.py, luna_identity.py, luna_client.py, luna_inputs.py, schemas/company_analysis.py, company_knowledge_retrieval.py, company_projection.py, contracts/__init__.py | 수정 | gate 분기(RL enabled·실회사, 참조 모드·Luna 플래그 유지, `card-v1`은 개요 gate 생략 — D1)·자동 preview/approval(`actor_kind`·`commit` 인자)·v2 입력(`card_analysis` 키 집합, `overview_*` null 허용·현재성 개요 비교 제외 — D1)·전송 payload 규칙(D2)·card-v1 dispatch·정책 행 선택 env·`_LUNA_POLICY_FILES_BY_IDENTITY`·retrieval status/origin 확장·client contract allowlist |
 | web/backend/app/lifecycle/extensions.py, lifecycle/models.py(`briefing_item.slack_message_ts`), app/core/slack.py(`post_thread_reply`) | 수정 | 확장점 2개 선언·스레드 답글·RL-01 추가형 열 |
 | web/backend/app/deep_review/services/verdict_trigger.py, auto_preparation.py(hook) | 신규/수정 | 자동 트리거·cap |
 | web/backend/app/deep_review/services/verdict_view.py, schemas/verdict_view.py, routers/verdicts.py, routers/company_reads.py, routers/company_analysis.py, main.py | 신규/수정 | REST 4개·가드 |
@@ -35,11 +35,11 @@
    - 작업 대상: models.py, migration, runtime-privileges.sql, 권한 테스트, boundary_map, test_db_migrations.
    - 검증: `test_db_migrations.py`·`test_runtime_database_privileges.py`(PG).
 3. STEP-003 정책 승인·gate [complex]
-   - 목표: 승인/철회 CLI(행 canonical sha), 검사 순서, 자동 preview/approval 생성(`actor_kind=system`·commit 위임), 재판정 경로(기존 code), 감사 이벤트(claim 직후).
-   - 작업 대상: transfer_policy.py, CLI 2개, company_deep_review.py gate·resolve, luna_inputs.approve, deep_reviews.py claim.
+   - 목표: 승인/철회 CLI(행 canonical sha), 검사 순서, 자동 preview/approval 생성(`actor_kind=system`·commit 위임), 재판정 경로(기존 code), 감사 이벤트(claim 직후), `card-v1` 개요 비의존(gate에서 개요 단계 생략·SW≠Y는 `effective_grade_ineligible`·현재성에서 개요 비교 대신 `overview_*` null 확인, spec "개요 의존 제거" 1·3·5).
+   - 작업 대상: transfer_policy.py, CLI 2개, company_deep_review.py gate·resolve·`_review_current`, luna_inputs.approve, deep_reviews.py claim.
    - 검증: T2, T3, T10.
 4. STEP-004 unit·batch·입력 v2 [complex]
-   - 목표: HP-03 unit/selector/batch 규칙과 `card_analysis` 입력 정확 키·payload 허용 키, retrieval의 `proposed`·origin 7값.
+   - 목표: HP-03 unit/selector/batch 규칙과 `card_analysis` 입력 정확 키(`card-v1`은 `overview_*` null, v2 입력·`FrozenProvenance` nullable validator), 전송 payload 규칙(spec D2: `confirmed` 전부 값 포함, `proposed`/`unknown`은 `{fact_key, status}`만, 노트·운영 정보·모델/정책 id 제외), retrieval의 `proposed`·origin 7값.
    - 작업 대상: card_units.py, company_analysis_input.py, schemas/company_analysis.py, company_knowledge_retrieval.py.
    - 검증: T1(unit·batch), T9.
 5. STEP-005 추출 검증·대조·역할/종합 [complex]
@@ -47,7 +47,7 @@
    - 작업 대상: card_analysis.py, card_compare.py, card_roles.py, deep_reviews.py dispatch, 테스트.
    - 검증: T1(나머지), T5(PG).
 6. STEP-006 자동 트리거·cap·큐 [complex]
-   - 목표: 추천→준비→ready→(개요·SW)→worker 역할 attempt, cap 큐·drain, 현재성 재트리거 금지, 사전규격만.
+   - 목표: 추천→준비→ready→SW=Y(`sw_business_status='Y'`, 개요 run 없음 — D1)→worker 역할 attempt, cap 큐·drain, 현재성 재트리거 금지, 사전규격만.
    - 작업 대상: verdict_trigger.py, auto_preparation.py hook, drain CLI, lifecycle extensions 선언·deep_review 제공.
    - 검증: T4(PG).
 7. STEP-007 REST·view [complex]
@@ -63,8 +63,8 @@
    - 작업 대상: 프런트 파일.
    - 검증: T7.
 10. STEP-010 문서·mock 경로·실제 1건 [complex]
-   - 목표: 문서 8종, bidops-local mock 전 경로(T11), 사람 직전 확인 뒤 실제 Luna 1건(T12).
-   - 작업 대상: docs, validation-runs README, bidops-local.
+   - 목표: 문서 8종, bidops-local mock 전 경로(T11, 자동 트리거 on은 여기서만), 짧게 알린 뒤 실제 Luna 1건(T12). T12 조건: bidops-local 격리 스택(운영 `bidops` 스택·DB 금지), `BIDOPS_RL_ANALYSIS_AUTO_START_ENABLED=false`·`BIDOPS_PRESPEC_OVERVIEW_ENABLED=false`·`BIDOPS_DEEP_REVIEW_AUTO_START_ENABLED=false`로 수동 `POST verdict-requests` 1건; 폴리텍 사전규격 원본 HWP는 `~/orca/fixtures/RFP/(붙임2) 2027년 홈페이지 유지관리 용역사업 제안요청서(수정본).hwp`(이전 수집본과 sha 일치 확인)를 격리 DB에 등록(나라장터 호출 없음, D8); runner만 기존 `docker-compose.luna.yml`의 `luna-egress` bridge로 외부 통신하고 web·worker는 내부망(D7); Luna 인증은 호스트 `~/.codex/auth.json`(CLI 0.162.1)을 `BIDOPS_CODEX_AUTH_FILE` compose secret으로 읽기 전용 마운트하며 값·내용을 로그·문서에 남기지 않음(D6); 정책 승인·요청 actor `jechoi`(D11), `--daily-cap 2`(T12 + 재시도 1); attempt당 호출 약 24회 이내; 검증 실패면 1회만 다시 판정, 그래도 실패면 정지·보고하고 RL-04 T11 보류(D3·D4·D10).
+   - 작업 대상: docs, validation-runs README, bidops-local(compose luna overlay·env, 폴리텍 원본 등록).
    - 검증: T11, T12, `doctor _`.
 
 ## 위임
@@ -95,6 +95,11 @@
 | 입찰공고 판정 기대 | 사용자가 입찰공고 판정을 요구 | spec 머리 범위 결정을 보고, 후속 기능으로 등록 |
 | 실제 호출을 문서 승인으로 오인 | T12를 사람 확인 없이 실행 | STEP-010은 직전 확인 대상, 기본 플래그 false |
 | 노트 본문 payload 유입 | T9 실패 | 입력 조립이 lifecycle 노트를 읽지 않음 |
+| `proposed`/`unknown` 값 또는 운영 정보 전송 | T9 (b)(c) 실패, payload에 "BBB0"·policy sha | 전송 projection이 `{fact_key, status}`만 남김(D2), 위반 시 호출 전 fail closed·실행 중지·보고 |
+| 개요 모델 호출 유입(RL 제약 위반) | 실제 스택에 개요 run·LiteLLM/vLLM 호출 흔적 | `card-v1` 개요 gate 생략(D1), 실제 스택 `BIDOPS_PRESPEC_OVERVIEW_ENABLED=false`, T4 개요 호출 0 |
+| 실제 호출 상한 초과 | T12 호출 수 24 초과·attempt 3개 이상 | 승인 `--daily-cap 2`, 재시도 1회 뒤 정지(D10), 자동 재시도·자동 보정 없음 |
+| "확인 필요"가 많은 결과를 판정 실패로 오인 | T12 unit 다수가 unknown | 회사 unknown 21건이 원인인 데이터 상태로 README에 기록(D13), 보강은 RL-05 전 인터뷰 |
+| Luna 인증 정보 노출 | 로그·README에 auth.json 내용 | 읽기 전용 secret 마운트만, 내용 출력 금지(D6) |
 
 ## 증명
 
@@ -103,7 +108,7 @@
 - postgres: `test_card_analysis_postgres.py test_verdict_trigger_postgres.py test_db_migrations.py test_runtime_database_privileges.py`.
 - frontend: `npm run build && npx playwright test --project=app verdict.spec.ts opportunity-record.spec.ts`.
 - api_guard: T3·T9·T10(승인·입력 hash·회사 소속·외부 전송 차단).
-- real_data_run: T12 실제 1건(폴리텍 fixture) — 사람 직전 확인, 결과는 `unmeasured_reference`, README에 attempt id·sha·호출 수·시간 기록. T11 mock은 대체가 아님.
+- real_data_run: T12 실제 1건(폴리텍 사전규격, `~/orca/fixtures/RFP/` 로컬 원본 HWP, 나라장터 호출 없음) — 2026-10-17 배치 B 인터뷰가 범위 승인이며 실제 호출·정책 승인 CLI·runner 재배포·bidops-local 스택 변경 직전에 짧게 알리고 진행. 실제 호출은 이 1건(attempt당 약 24회 이내)뿐이고 자동 트리거는 실제 스택에서 꺼 둔다(자동 트리거는 T4·T11 mock으로 증명). 검증 실패면 1회만 다시 판정하고 그래도 실패면 정지·보고, RL-04 T11 보류(D3·D4·D10). spec의 호출당 repair(≤1) 외 자동 재시도·자동 보정 없음. runner만 `luna-egress`(D7), 인증은 `~/.codex/auth.json` 읽기 전용 secret(D6), actor `jechoi`(D11). 결과는 `unmeasured_reference`로만 기록하고 품질 근거로 쓰지 않으며 "확인 필요" 비중은 데이터 상태로 적는다(D13). README에 attempt id·sha·호출 수·시간·`analysis.transfer.sent` 감사 기록. 정지 조건: 승인 감사 없는 전송, payload에 노트·`proposed`/`unknown` 값·운영 정보, 상한 초과 → 즉시 중단·보고. Slack 스레드는 가짜 서버 검사(T8)까지이며 실제 Slack 증명으로 적지 않는다(D5). T11 mock은 T12의 대체가 아님.
 
 ## 결과
 
