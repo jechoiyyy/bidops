@@ -78,7 +78,8 @@ const groups: NavGroup[] = [
   {
     label: "리스트",
     items: [
-      { label: "오늘의 브리핑", path: "/briefing", dot: "accent" },
+      // 건수는 가장 최근 브리핑의 반응 대기 추천 수다(`briefing_pending`, RL-01). 브리핑이 없으면 그리지 않는다.
+      { label: "오늘의 브리핑", path: "/briefing", dot: "accent", count: "briefing_pending" },
       { label: "추적 중", path: "/opportunities?section=추적 중", dot: "teal", navPath: "/opportunities?section=추적 중" },
       // 연차 예고는 발주계획에서 나온다. 발주계획 목록이 현재 그 리스트다.
       { label: "연차 예고", path: "/order-plans", dot: "warning", count: "order_plan_new_priority" },

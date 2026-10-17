@@ -441,3 +441,67 @@ def test_the_same_owner_does_not_stack_effective_grade_hooks(registry):
 def test_an_empty_owner_is_refused_for_the_effective_grade_hook(registry):
     with pytest.raises(ValueError):
         registry.register_effective_grade_changed_hook(_GradeHook("g", []), owner="")
+
+
+# --- RL-01 브리핑 입력 projection --------------------------------------------
+
+
+def test_briefing_projections_are_absent_by_default(registry):
+    """제공자가 없으면 회사 사실은 `None`, 발주계획 후보는 빈 목록 + 미지원 술어다."""
+
+    from datetime import UTC, datetime
+
+    assert registry.company_facts_projection(None) is None
+    assert registry.briefing_order_plan_candidates_supported is False
+    since, until = datetime(2026, 10, 16, tzinfo=UTC), datetime(2026, 10, 17, tzinfo=UTC)
+    assert list(registry.briefing_order_plan_candidates(None, since, until)) == []
+
+
+def test_briefing_projection_slots_are_owned_and_replaced_in_place(registry):
+    from datetime import UTC, datetime
+    from uuid import uuid4
+
+    from app.lifecycle import (
+        BriefingOrderPlanCandidatesProvider,
+        CompanyFact,
+        CompanyFactsProjection,
+        CompanyFactsProvider,
+    )
+
+    graph = uuid4()
+    calls: list[tuple] = []
+
+    class _Facts:
+        def __init__(self, label):
+            self.label = label
+
+        def company_facts_projection(self, session):
+            calls.append(("facts", self.label, session))
+            return CompanyFactsProjection(
+                graph_version_id=graph,
+                facts=(CompanyFact("pref:domain:01", "domain", "confirmed", self.label, None),),
+            )
+
+    class _Plans:
+        def briefing_order_plan_candidates(self, session, since, until):
+            calls.append(("plans", since, until))
+            return (3, 7)
+
+    assert isinstance(_Facts("a"), CompanyFactsProvider)
+    assert isinstance(_Plans(), BriefingOrderPlanCandidatesProvider)
+    registry.register_company_facts_projection(_Facts("first"), owner="deep")
+    registry.register_company_facts_projection(_Facts("second"), owner="deep")
+    registry.register_briefing_order_plan_candidates(_Plans(), owner="screen")
+
+    projection = registry.company_facts_projection("session")
+    assert projection.graph_version_id == graph
+    assert projection.facts[0].label == "second"
+    since, until = datetime(2026, 10, 16, tzinfo=UTC), datetime(2026, 10, 17, tzinfo=UTC)
+    assert registry.briefing_order_plan_candidates_supported is True
+    assert tuple(registry.briefing_order_plan_candidates("session", since, until)) == (3, 7)
+    assert calls == [("facts", "second", "session"), ("plans", since, until)]
+
+    with pytest.raises(RuntimeError):
+        registry.register_company_facts_projection(_Facts("other"), owner="intruder")
+    with pytest.raises(RuntimeError):
+        registry.register_briefing_order_plan_candidates(_Plans(), owner="intruder")

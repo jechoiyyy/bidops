@@ -91,9 +91,11 @@ def register_lifecycle_extensions(registry=None):
     불러도 결과가 같다 — 등록은 `EXTENSION_OWNER` 키로 제자리 교체된다.
 
     - 사전규격 개요·문서 projection (§6.1)
+    - 실회사 확정 사실 projection (RL-01 브리핑 규칙 입력)
     - 첨부 fetch 자격을 다시 세는 회차 적재·추적 결정·등급 변경 hook (§6.2)
     """
 
+    from .services.company_knowledge import CompanyFactsProjectionProvider
     from .services.deep_review_hooks import PreSpecAttachmentEligibilityHook
     from .services.prespec_projection import DeepReviewWorkloadProjection, PreSpecOverviewDocumentProjection
 
@@ -105,6 +107,10 @@ def register_lifecycle_extensions(registry=None):
         PreSpecOverviewDocumentProjection(), owner=EXTENSION_OWNER
     )
     registry.register_workload_projection(DeepReviewWorkloadProjection(), owner=EXTENSION_OWNER)
+    # RL-01 브리핑: 실회사 확정 사실 projection. lifecycle은 deep_review 테이블을 읽지 않는다.
+    registry.register_company_facts_projection(
+        CompanyFactsProjectionProvider(), owner=EXTENSION_OWNER
+    )
     hook = PreSpecAttachmentEligibilityHook()
     registry.register_run_ingest_hook(hook, owner=EXTENSION_OWNER)
     registry.register_tracking_decision_hook(hook, owner=EXTENSION_OWNER)

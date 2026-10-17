@@ -96,6 +96,22 @@ const KNOWN_CODE_DESCRIPTION: Record<string, CodeDescription> = {
     detail: "회사 파일을 등록하고 활성화한 뒤 다시 여십시오.",
     action: null,
   },
+  // RL-01 브리핑(lifecycle `routers/briefings.py` 로컬 오류 map).
+  briefing_not_found: {
+    title: "브리핑이 아직 없습니다.",
+    detail: "해당 날짜의 브리핑이 만들어지지 않았습니다. 평일 브리핑이 만들어진 뒤에 다시 여십시오.",
+    action: null,
+  },
+  briefing_item_not_found: {
+    title: "브리핑 항목을 찾을 수 없습니다.",
+    detail: "항목이 없거나 다른 날짜의 브리핑에 속합니다. 최신 상태를 다시 불러온 뒤 확인하십시오.",
+    action: "reload",
+  },
+  reaction_not_allowed: {
+    title: "이 항목에는 반응을 남길 수 없습니다.",
+    detail: "추적 중인 사업의 변화는 확인용 항목이며 반응 대상이 아닙니다.",
+    action: null,
+  },
   bundle_not_ready: {
     title: "확정된 문서 묶음이 필요합니다.",
     detail: "문서 준비에서 문서 묶음을 확정한 뒤 다시 시도하십시오.",

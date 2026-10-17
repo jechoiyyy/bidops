@@ -18,6 +18,7 @@ from app.deep_review.models import (
     PRESPEC_V4_TABLES,
 )
 from app.lifecycle.models import (
+    BRIEFING_TABLES,
     IDENTITY_TABLES,
     LIFECYCLE_LEGACY_TABLES,
     Notice,
@@ -57,6 +58,8 @@ EXPECTED_TABLES = set(
         "assumption_stage",
         "company_fit_policy_version",
     )
+    # RL-01 weekday briefing (0038).
+    + BRIEFING_TABLES
 )
 
 

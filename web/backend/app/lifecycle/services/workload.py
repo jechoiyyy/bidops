@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from ..extensions import WorkloadCount, extension_registry
 from ..schemas.workload import WorkloadItem, WorkloadKey, WorkloadResponse
+from .briefing import count_briefing_pending
 from .opportunity_queries import (
     count_deadline_imminent,
     count_hold_review,
@@ -24,6 +25,7 @@ _WORKLOAD_KEYS: tuple[WorkloadKey, ...] = (
     "blocking_items_open",
     "order_plan_new_priority",
     "company_attention",
+    "briefing_pending",
 )
 #: `human_check_required`는 저장·측정된 값이 아니라 두 하위 건수의 합이다.
 _HUMAN_CHECK_PARTS: tuple[WorkloadKey, WorkloadKey] = ("overview_human_review", "blocking_items_open")
@@ -61,6 +63,11 @@ def get_workload(session: Session, *, now: datetime | None = None) -> WorkloadRe
         count_opportunity_action_reason(session, "blocking_item", now=generated_at)
     )
     counts["human_check_required"] = _sum_parts(counts)
+    # RL-01: 가장 최근 브리핑의 대기 추천 수. 브리핑이 없으면 셀 대상이 없다(0으로 접지 않는다).
+    pending = count_briefing_pending(session)
+    counts["briefing_pending"] = (
+        WorkloadCount(None, "provider_absent") if pending is None else WorkloadCount(pending)
+    )
     items = []
     for key in _WORKLOAD_KEYS:
         value = counts.get(key, WorkloadCount(None, "provider_absent"))

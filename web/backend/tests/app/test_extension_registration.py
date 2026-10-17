@@ -43,6 +43,19 @@ def test_app_assembly_registers_the_prespec_attachment_hooks():
     )
 
 
+def test_app_assembly_registers_the_briefing_input_providers():
+    """RL-01: 회사 사실은 deep_review, 발주계획 후보는 screening이 채운다."""
+
+    from app.deep_review.services.company_knowledge import CompanyFactsProjectionProvider
+    from app.screening.projection import ScreeningBriefingOrderPlanCandidates
+
+    registry = extension_registry()
+
+    assert registry.briefing_order_plan_candidates_supported is True
+    assert isinstance(registry._briefing_order_plans.provider, ScreeningBriefingOrderPlanCandidates)
+    assert isinstance(registry._company_facts.provider, CompanyFactsProjectionProvider)
+
+
 # --- `create_app()`을 두 번 부를 수 있다 -------------------------------------
 #
 # 전역 registry에 등록하므로, 두 번 조립하면 같은 owner가 같은 자리에 다시

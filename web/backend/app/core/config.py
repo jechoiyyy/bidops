@@ -24,6 +24,12 @@ DEFAULT_PRESPEC_OVERVIEW_POLICY_PATH = (
     Path(__file__).resolve().parents[1] / "deep_review" / "policies" / "prespec-overview-policy-v7.json"
 )
 
+#: 평일 브리핑 규칙 파일의 기본 위치(RL-01). 버전+sha256으로 고정된 immutable 파일이며
+#: 값을 바꾸려면 새 버전 파일을 발행하고 이 기본 경로를 함께 올린다. core는 내용을 모른다.
+DEFAULT_BRIEFING_POLICY_PATH = (
+    Path(__file__).resolve().parents[1] / "lifecycle" / "policies" / "briefing-policy-v1.json"
+)
+
 #: 조립 계층이 고를 수 있는 도메인 모듈 (명세 §7). core는 선택 대상이 아니라
 #: 항상 포함된다. 여기 있는 것은 이름뿐이며 core는 이 모듈들을 import하지 않는다.
 MODULE_NAMES: tuple[str, ...] = ("lifecycle", "screening", "deep_review")
@@ -209,6 +215,19 @@ class Settings(BaseSettings):
     vllm_overview_model_revision: str = Field(default="", validation_alias="BIDOPS_VLLM_OVERVIEW_MODEL_REVISION")
     vllm_overview_api_dialect: Literal["vllm", "ollama", "litellm"] = Field(default="vllm", validation_alias="BIDOPS_VLLM_OVERVIEW_API_DIALECT")
     prespec_overview_policy_path: Path = Field(default=DEFAULT_PRESPEC_OVERVIEW_POLICY_PATH, validation_alias="BIDOPS_PRESPEC_OVERVIEW_POLICY_PATH")
+    briefing_policy_path: Path = Field(default=DEFAULT_BRIEFING_POLICY_PATH, validation_alias="BIDOPS_BRIEFING_POLICY_PATH")
+    #: RL-01 브리핑 Slack 채널(env 파일 `env/slack.env`). 비면 전송하지 않는다. 미리보기는
+    #: 값이 있는지(`channel_id_present`)만 알리고 값 자체는 응답에 넣지 않는다.
+    slack_channel_id: str = Field(default="", validation_alias="BIDOPS_SLACK_CHANNEL_ID")
+    #: Slack 전송·Socket Mode 스위치. 기본 꺼짐(fail closed). 켜도 토큰·채널·허용 host가
+    #: 모두 맞아야 `core/slack.py`가 호출한다. 토큰은 `SecretStr`이라 repr에 값이 없다.
+    slack_enabled: bool = Field(default=False, validation_alias="BIDOPS_SLACK_ENABLED")
+    slack_bot_token: SecretStr = Field(default_factory=lambda: SecretStr(""), validation_alias="BIDOPS_SLACK_BOT_TOKEN")
+    slack_app_token: SecretStr = Field(default_factory=lambda: SecretStr(""), validation_alias="BIDOPS_SLACK_APP_TOKEN")
+    #: Slack 호출 허용 host(정확 일치, 쉼표 구분). 빈 값이면 어떤 host도 허용하지 않는다.
+    slack_allowed_hosts: str = Field(default="slack.com,wss-primary.slack.com", validation_alias="BIDOPS_SLACK_ALLOWED_HOSTS")
+    #: Slack 메시지의 레코드 링크 기준 주소(`<base>/opportunities/<id>`). 비면 링크 없이 제목만 쓴다.
+    public_base_url: str = Field(default="", validation_alias="BIDOPS_PUBLIC_BASE_URL")
     #: 켜면 묶음이 ready가 될 때 개요 run을 자동 enqueue한다. 끄면 새 run을 넣지
     #: 않고 queued run은 닫는다. 기본은 꺼 둔다 — startup은 아무것도 활성화하지 않는다.
     prespec_overview_enabled: bool = Field(default=False, validation_alias="BIDOPS_PRESPEC_OVERVIEW_ENABLED")

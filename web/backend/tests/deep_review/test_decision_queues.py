@@ -197,6 +197,8 @@ def test_workload_registration_counts_unlinked_non_sw_prespecs(queue_session, mo
         "pre_spec_deep_review_ready": WorkloadCount(1),
         "bid_final_decision_pending": WorkloadCount(1),
         "overview_human_review": WorkloadCount(1),
+        # RL-00: deep_review가 값을 세는 `company_attention`. 실회사가 없으면 제공자 부재다.
+        "company_attention": WorkloadCount(None, "provider_absent"),
     }
     assert registry.notice_ids_for_auto_preparation_status(session, [ready.id], "not_applicable") == []
 
@@ -430,10 +432,12 @@ def test_queue_projects_selected_bid_amounts_and_sorts_by_nearest_deadline(queue
 def test_workload_empty_counts_are_integer_zero(queue_session):
     counts = register_lifecycle_extensions(ExtensionRegistry()).workload_counts(queue_session)
     # deep_review가 소유한 세 키다. 대상이 없으면 실제 0이며 제공자 부재(`null`)가 아니다.
+    # RL-00 `company_attention`은 실회사 행이 없으면 0이 아니라 제공자 부재다(spec "REST").
     assert counts == {
         "pre_spec_deep_review_ready": WorkloadCount(0),
         "bid_final_decision_pending": WorkloadCount(0),
         "overview_human_review": WorkloadCount(0),
+        "company_attention": WorkloadCount(None, "provider_absent"),
     }
 
 

@@ -325,7 +325,7 @@ def test_model_has_exact_closed_table_set():
         PRESPEC_OVERVIEW_TABLES,
         PRESPEC_V4_TABLES,
     )
-    from app.lifecycle.models import IDENTITY_TABLES, LIFECYCLE_LEGACY_TABLES
+    from app.lifecycle.models import BRIEFING_TABLES, IDENTITY_TABLES, LIFECYCLE_LEGACY_TABLES
     from app.screening.models import (
         ORDER_PLAN_SCREENING_TABLES,
         REVISION_TABLES,
@@ -349,7 +349,7 @@ def test_model_has_exact_closed_table_set():
         "assumption_stage",
         "company_fit_policy_version",
     )
-    assert len(Base.metadata.tables) == 97
+    assert len(Base.metadata.tables) == 100
     assert set(Base.metadata.tables) == set(
         LEGACY_TABLES + NEW_TABLES + SCREENING_RUNTIME_TABLES + IDENTITY_TABLES
         + ATTACHMENT_FETCH_TABLES + REVISION_TABLES
@@ -359,6 +359,7 @@ def test_model_has_exact_closed_table_set():
         + ("prespec_company_fit_attempt",)
         + PRESPEC_V4_TABLES
         + post_lean_deep_review_tables
+        + BRIEFING_TABLES
     )
     assert isinstance(Base.metadata.tables["run"].c.screening_basis.type, Text)
     assert "fk_evidence_document_bundle_scope" in {
