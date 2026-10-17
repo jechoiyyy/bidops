@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
   "feature": "RL-01-daily-briefing",
-  "phase": "implementing",
+  "phase": "validating",
   "steps": [
     {
       "id": "STEP-001",
@@ -136,22 +136,82 @@
   ],
   "proof": {
     "docs": {
-      "result": "pending"
+      "result": "pass",
+      "method": "review",
+      "note": "doctor exit0, 독립 리뷰 BLOCKING 1건 사용자 결정으로 해소(spec accept), 문서 diff 검토",
+      "evidence": "docs/work/_runs/rla-20261016/logs/RL-01-doctor.log; docs/work/_runs/rla-20261016/RL-01-review.md",
+      "exit_code": null,
+      "actor": "orchestrator",
+      "command": "python3 scripts/feature_status.py doctor _",
+      "at": "2026-10-17T12:56:40+09:00",
+      "head": "e64a5851d0d68fca834f46a3cf86cf11044748a6",
+      "source_hash": "4e5b215865ffc1b394d34b74700af30e52051f6afcded14c206f44e3500b9fa7",
+      "spec_hash": "c5c00cdb14168ae7b4f1b61bebdf81915aef1c75a28279ced6521ad54a81d11f"
     },
     "tests": {
-      "result": "pending"
+      "result": "pass",
+      "method": "command",
+      "note": "plan tests + 스크립트·경계·workload·lock: 237 passed 52 skipped(PG)",
+      "evidence": "docs/work/_runs/rla-20261016/logs/RL-01-tests.log",
+      "exit_code": 0,
+      "actor": "orchestrator",
+      "command": "bash -lc \"cd web/backend && python -m pytest -q -x -p no:cacheprovider\"",
+      "at": "2026-10-17T12:56:41+09:00",
+      "head": "e64a5851d0d68fca834f46a3cf86cf11044748a6",
+      "source_hash": "4e5b215865ffc1b394d34b74700af30e52051f6afcded14c206f44e3500b9fa7",
+      "spec_hash": "c5c00cdb14168ae7b4f1b61bebdf81915aef1c75a28279ced6521ad54a81d11f"
     },
     "postgres": {
-      "result": "pending"
+      "result": "pass",
+      "method": "command",
+      "note": "postgres:17.11 274 passed(migrations·privileges·briefing_api_postgres·alembic drift·boundaries) + 리뷰 수정 뒤 영향 32 passed",
+      "evidence": "docs/work/_runs/rla-20261016/logs/RL-01-postgres.log; docs/work/_runs/rla-20261016/logs/RL-01-postgres-after-review.log",
+      "exit_code": 0,
+      "actor": "orchestrator",
+      "command": "",
+      "at": "2026-10-17T12:56:41+09:00",
+      "head": "e64a5851d0d68fca834f46a3cf86cf11044748a6",
+      "source_hash": "4e5b215865ffc1b394d34b74700af30e52051f6afcded14c206f44e3500b9fa7",
+      "spec_hash": "c5c00cdb14168ae7b4f1b61bebdf81915aef1c75a28279ced6521ad54a81d11f"
     },
     "frontend": {
-      "result": "pending"
+      "result": "pass",
+      "method": "command",
+      "note": "build·contrast 8/8·Playwright briefing+common 45; 이후 frontend 코드 변경 없음",
+      "evidence": "docs/work/_runs/rla-20261016/logs/RL-01-frontend-build.log; docs/work/_runs/rla-20261016/logs/RL-01-playwright.log",
+      "exit_code": 0,
+      "actor": "orchestrator",
+      "command": "bash -lc \"cd web/frontend && npm run build && npm run test:contrast\"",
+      "at": "2026-10-17T12:56:41+09:00",
+      "head": "e64a5851d0d68fca834f46a3cf86cf11044748a6",
+      "source_hash": "4e5b215865ffc1b394d34b74700af30e52051f6afcded14c206f44e3500b9fa7",
+      "spec_hash": "c5c00cdb14168ae7b4f1b61bebdf81915aef1c75a28279ced6521ad54a81d11f"
     },
     "api_guard": {
-      "result": "pending"
+      "result": "pass",
+      "method": "command",
+      "note": "T8·T9 가짜 Slack: enabled·토큰·채널·allowlist 사전 차단, 토큰 비노출, 멱등; T6 추적 불변. 실제 Slack 전송 미실행(토큰 없음)",
+      "evidence": "docs/work/_runs/rla-20261016/logs/RL-01-step005-006.log; docs/work/_runs/rla-20261016/logs/RL-01-tests.log",
+      "exit_code": 0,
+      "actor": "orchestrator",
+      "command": "",
+      "at": "2026-10-17T12:56:41+09:00",
+      "head": "e64a5851d0d68fca834f46a3cf86cf11044748a6",
+      "source_hash": "4e5b215865ffc1b394d34b74700af30e52051f6afcded14c206f44e3500b9fa7",
+      "spec_hash": "c5c00cdb14168ae7b4f1b61bebdf81915aef1c75a28279ced6521ad54a81d11f"
     },
     "real_data_run": {
-      "result": "pending"
+      "result": "not_applicable",
+      "method": "manual",
+      "note": "RL-03·04·05 전용, RL-01 모델 호출 없음. T12 감독 시운전은 validation-runs RL-01",
+      "evidence": "docs/work/feature.json",
+      "exit_code": null,
+      "actor": "orchestrator",
+      "command": "",
+      "at": "2026-10-17T12:56:42+09:00",
+      "head": "e64a5851d0d68fca834f46a3cf86cf11044748a6",
+      "source_hash": "4e5b215865ffc1b394d34b74700af30e52051f6afcded14c206f44e3500b9fa7",
+      "spec_hash": "c5c00cdb14168ae7b4f1b61bebdf81915aef1c75a28279ced6521ad54a81d11f"
     }
   },
   "notes": [
@@ -242,7 +302,49 @@
     {
       "at": "2026-10-17T12:02:21+09:00",
       "text": "단계 STEP-008 done: run-daily-briefing.sh(T11 43 passed, slack_send_failed→exit 3), 문서 9종; T12 bidops_rla 감독 시운전(--send 제외) 리더 실행·기록; 기존 test_daily_lifecycle_script 18건 macOS BSD date/bash3.2 실패는 무관"
+    },
+    {
+      "at": "2026-10-17T12:56:42+09:00",
+      "text": "단계 → validating"
     }
   ],
-  "updated_at": "2026-10-17T12:02:21+09:00"
+  "updated_at": "2026-10-17T12:56:42+09:00",
+  "proof_history": [
+    {
+      "key": "docs",
+      "previous": {
+        "result": "pending"
+      }
+    },
+    {
+      "key": "tests",
+      "previous": {
+        "result": "pending"
+      }
+    },
+    {
+      "key": "postgres",
+      "previous": {
+        "result": "pending"
+      }
+    },
+    {
+      "key": "frontend",
+      "previous": {
+        "result": "pending"
+      }
+    },
+    {
+      "key": "api_guard",
+      "previous": {
+        "result": "pending"
+      }
+    },
+    {
+      "key": "real_data_run",
+      "previous": {
+        "result": "pending"
+      }
+    }
+  ]
 }
