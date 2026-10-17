@@ -2812,8 +2812,22 @@ export type BriefingItemKind = "recommendation" | "tracked_change";
 export type BriefingReaction = "대기" | "채택" | "무시" | "나중에";
 export type BriefingStage = "pre_spec" | "bid_notice" | "order_plan";
 export type BriefingDeadlineKind = "bid_close" | "opinion_close" | "planned_month";
-/** v1에서 닫힌 다섯 값. RL-03이 판정 enum을 더해 v2로 올린다. */
-export type BriefingVerdictDisplay = "분석 대기" | "연차 추적" | "재검토 중" | "마감 임박" | "분석 중";
+/**
+ * v1에서 닫힌 다섯 값에 RL-03(`bidops.briefing.v2`)이 판정 enum 4값과 입찰공고용 2값을 더했다.
+ * 서버가 준 글자를 그대로 보여 주므로 모르는 값이 와도 화면은 숨기지 않는다.
+ */
+export type BriefingVerdictDisplay =
+  | "분석 대기"
+  | "연차 추적"
+  | "재검토 중"
+  | "마감 임박"
+  | "분석 중"
+  | "진행 가능"
+  | "조건부 진행"
+  | "진행 어려움"
+  | "판단 불가"
+  | "사전규격 판정 참조"
+  | "판정 대상 아님";
 export type BriefingReactionVia = "screen" | "slack";
 
 /** 추천 이유 칩. 순서는 서버가 고정한다(최대 3). */
@@ -2858,7 +2872,7 @@ export interface BriefingItemView {
 }
 
 export interface BriefingView {
-  schema_version: "bidops.briefing.v1";
+  schema_version: "bidops.briefing.v1" | "bidops.briefing.v2";
   /** KST 날짜 `YYYY-MM-DD`. */
   briefing_date: string;
   status: BriefingStatus;
@@ -2960,4 +2974,176 @@ export interface OpportunityNoteCreateRequest {
   /** 다음 행동 담당 이름. 비우면 서버가 기록자로 채운다. */
   owner?: string;
   request_id: string;
+}
+
+
+// ---------------------------------------------------------------------------
+// RL-03 참여 판정(`bidops.practitioner-verdict-view.v1`, docs/work/groups/RL/features/RL-03-fit-verdict/spec.md)
+//
+// 서버가 조립한 판정 view를 그대로 담는다. 화면은 판정·체크리스트·대조 상태를 다시 계산하지
+// 않는다. `unit_id`는 원문 hash를 포함할 수 있어 화면에 그리지 않는다. 값이 없으면 `null`이고
+// 0이나 빈 문자열로 접지 않는다.
+
+export type VerdictAvailability =
+  | "none"
+  | "pending"
+  | "running"
+  | "completed"
+  | "failed"
+  | "needs_human_review"
+  | "legacy";
+export type VerdictName = "진행 가능" | "조건부 진행" | "진행 어려움" | "판단 불가";
+/** 대조 결과. `unknown`은 "확인 필요"이며 부족이 아니다. */
+export type VerdictFit = "met" | "gap" | "unknown";
+export type VerdictMappingStatus = "mapped" | "partial" | "inherited" | "unavailable";
+export type VerdictChecklistKey =
+  | "qualification_track_record"
+  | "staffing_onsite"
+  | "amount_period"
+  | "technology"
+  | "operations_sla_security";
+export type VerdictStaleReason =
+  | "company_changed"
+  | "ontology_changed"
+  | "documents_changed"
+  | "policy_changed"
+  | "superseded";
+export type VerdictSectionKind = "overview" | "schedule" | "budget" | "eligibility" | "evaluation" | "contract";
+export type VerdictQualityStatus = "measured" | "unmeasured_reference" | "mock_reference";
+export type VerdictFeedbackKind = "wrong_verdict" | "wrong_unit" | "not_requirement" | "source_mismatch";
+
+export interface VerdictEvidenceRef {
+  source_sha256: string;
+  block_key: string;
+  quote: string;
+}
+
+export interface VerdictRoleFinding {
+  role: "eligibility_economics" | "technical_fit" | "operations_risk";
+  assessment: VerdictFit;
+  reason: string;
+  evidence_refs: VerdictEvidenceRef[];
+}
+
+export interface VerdictPageRange {
+  first: number;
+  last: number;
+}
+
+export interface VerdictMatrixRow {
+  unit_id: string;
+  type: string;
+  fit_status: VerdictFit;
+  role_findings: VerdictRoleFinding[];
+  evidence_refs: VerdictEvidenceRef[];
+  page_range: VerdictPageRange | null;
+  mapping_status: VerdictMappingStatus;
+  /** 표의 요구사항 문장. HP-04 wire 목록에는 없는 추가 키라 없을 수 있다(없으면 첫 원문 인용으로 대신한다). */
+  normalized_requirement?: string | null;
+  /** `true` 필수 · `false` 조건부 · `null`/없음 미표기. */
+  mandatory?: boolean | null;
+  /** 대조에 쓰인 회사 사실의 라벨(보조 한 줄). 없을 수 있다. */
+  fact_labels?: string[] | null;
+}
+
+export interface VerdictChecklistRow {
+  key: VerdictChecklistKey;
+  status: VerdictFit;
+  evidence_refs: VerdictEvidenceRef[];
+}
+
+export interface VerdictCaution {
+  unit_id: string;
+  text: string;
+  evidence_refs: VerdictEvidenceRef[];
+}
+
+export interface VerdictConflict {
+  unit_id: string;
+  roles: string[];
+  assessments: VerdictFit[];
+}
+
+export interface VerdictNextAction {
+  unit_id: string;
+  owner: string | null;
+  action: string;
+  evidence_refs: VerdictEvidenceRef[];
+}
+
+export interface VerdictResult {
+  verdict: VerdictName;
+  reason: string;
+  blocking_condition_ids: string[];
+  checklist: VerdictChecklistRow[];
+  matrix: VerdictMatrixRow[];
+  cautions: VerdictCaution[];
+  conflicts: VerdictConflict[];
+  next_actions: VerdictNextAction[];
+}
+
+/** 실행 정보. 실무 화면이 아니라 ⋯ "실행 정보" 대화상자에서만 읽는다. */
+export interface VerdictIdentity {
+  policy_id: string;
+  policy_sha256: string;
+  model: string;
+  reasoning_effort: string;
+  cli_version: string;
+}
+
+export interface VerdictDocumentVersionRef {
+  document_version_id: string;
+  source_sha256: string;
+  /** 쪽 전체 보기가 읽는 문서 구조 id. HP-04 wire에는 없는 추가 키라 없을 수 있다. */
+  structure_id?: string | null;
+}
+
+export interface VerdictSourceBinding {
+  document_versions: VerdictDocumentVersionRef[];
+  company_version_id: string;
+  company_sha256: string;
+  ontology_sha256: string;
+}
+
+export interface PractitionerVerdictView {
+  schema_version: "bidops.practitioner-verdict-view.v1";
+  company_id: string;
+  /** 판정 대상 사전규격. 사업기회 경로에서 권위 연결 사전규격이 없으면 `null`(availability `none`). */
+  notice_id: number | null;
+  attempt_id: string | null;
+  availability: VerdictAvailability;
+  is_current: boolean;
+  stale_reasons: VerdictStaleReason[];
+  quality_status: VerdictQualityStatus | null;
+  identity: VerdictIdentity | null;
+  source_binding: VerdictSourceBinding | null;
+  result: VerdictResult | null;
+  partial_stage_ids: string[];
+  error_code: string | null;
+  missing_sections: VerdictSectionKind[];
+  started_at: string | null;
+  finished_at: string | null;
+  /** 완료가 아닐 때 검증이 끝난 대조 행만. 완료이면 빈 배열이다. */
+  partial_matrix: VerdictMatrixRow[];
+  /** RL-03 사업기회 경로 추가 키. */
+  briefing_item_id: string | null;
+  opportunity_id: number | null;
+}
+
+export interface VerdictRequestReceipt {
+  request_id: string;
+  attempt_id: string;
+  status: "queued";
+}
+
+export interface VerdictFeedbackRequest {
+  attempt_id: string;
+  kind: VerdictFeedbackKind;
+  unit_id?: string;
+  note?: string;
+  request_id: string;
+}
+
+export interface VerdictFeedbackReceipt {
+  feedback_id: string;
 }

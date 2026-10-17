@@ -26,7 +26,10 @@ def cli_schema(value):
         return [cli_schema(item) for item in value]
     if not isinstance(value, dict):
         return value
-    result = {key: cli_schema(item) for key, item in value.items() if key not in {"$schema", "$id", "allOf", "oneOf"}}
+    # uniqueItems is not accepted by strict structured output (live T12, decision B28);
+    # BidOps authority validation still enforces uniqueness after decoding.
+    result = {key: cli_schema(item) for key, item in value.items()
+              if key not in {"$schema", "$id", "allOf", "oneOf", "uniqueItems"}}
     if "const" in result:
         result["enum"] = [result.pop("const")]
     if result.get("type") == "object":
@@ -69,6 +72,47 @@ def error_code(diagnostic):
     return "runner_failed"
 
 
+# Failure categories logged by the runner (decision B27). Only category names are
+# logged; prompt, model output and raw diagnostic text never leave this process.
+FAILURE_CATEGORIES = {
+    "schema": ("invalid schema", "invalid_json_schema", "response_format"),
+    "auth": ("401", "unauthorized", "invalid_api_key", "token_expired", "failed to refresh", "not logged in"),
+    "model_access": ("model_not_found", "model_not_supported", "not supported", "403"),
+    "usage_limit": ("usage limit", "usage_limit", "quota", "insufficient_quota", "billing"),
+    "rate_limited": ("429", "rate limit", "rate_limit", "too many requests"),
+    "context_length": ("context_length", "context length", "maximum context", "too long", "too large", "max_tokens"),
+    "network": ("connection", "timed out", "timeout", "stream disconnected", "network", "dns", "unreachable"),
+    "server": ("500", "502", "503", "504", "internal server error", "overloaded", "server_error"),
+}
+
+
+def failure_categories(diagnostic):
+    text = diagnostic.lower()
+    return sorted(name for name, needles in FAILURE_CATEGORIES.items() if any(n in text for n in needles))
+
+
+def event_errors(stream_text):
+    """Error/failure messages from codex `--json` stdout events (never agent output)."""
+    found = []
+    for line in stream_text.splitlines():
+        try:
+            event = json.loads(line)
+        except ValueError:
+            continue
+        if not isinstance(event, dict):
+            continue
+        kind = str(event.get("type") or (event.get("msg") or {}).get("type") or "")
+        if "error" in kind or "fail" in kind:
+            payload = event.get("msg") if isinstance(event.get("msg"), dict) else event
+            for key in ("message", "error", "reason", "code"):
+                value = payload.get(key)
+                if isinstance(value, (str, int)):
+                    found.append(str(value))
+                elif isinstance(value, dict):
+                    found.extend(str(v) for v in value.values() if isinstance(v, (str, int)))
+    return "\n".join(found)
+
+
 def require_cli_version(version):
     if version != 'codex-cli ' + CLI_VERSION:
         raise SystemExit('cli_version_mismatch')
@@ -104,9 +148,10 @@ def execute(prompt, alive, *, secret=Path('/run/secrets/codex_auth'), schema_pat
         schema_file, output = root / "schema.json", root / "output.json"
         schema_file.write_text(json.dumps(output_schema(schema)))
         env = {"PATH": "/usr/local/bin:/usr/bin:/bin", "HOME": str(home), "CODEX_HOME": str(home), "LANG": "C.UTF-8"}
-        with (root / "input").open("wb+") as source, (root / "errors").open("wb+") as errors:
+        with (root / "input").open("wb+") as source, (root / "errors").open("wb+") as errors, \
+                (root / "events").open("wb+") as events:
             source.write(prompt.encode()); source.seek(0)
-            process = subprocess.Popen(argv(schema_file, output, root), stdin=source, stdout=subprocess.DEVNULL,
+            process = subprocess.Popen(argv(schema_file, output, root), stdin=source, stdout=events,
                                        stderr=errors, cwd=root, env=env, start_new_session=True)
             try:
                 while process.poll() is None:
@@ -114,13 +159,17 @@ def execute(prompt, alive, *, secret=Path('/run/secrets/codex_auth'), schema_pat
                         return {"status": "failed", "error_code": "lease_lost"}
                     if time.monotonic() - started > TIMEOUT:
                         return {"status": "failed", "error_code": "model_timeout"}
-                    if errors.tell() > MAX_BYTES or (output.exists() and output.stat().st_size > MAX_BYTES):
+                    if errors.tell() > MAX_BYTES or events.tell() > MAX_BYTES or (output.exists() and output.stat().st_size > MAX_BYTES):
                         return {"status": "failed", "error_code": "output_truncated"}
                     time.sleep(0.1)
                 if process.returncode:
-                    errors.seek(0)
-                    diagnostic = errors.read(MAX_BYTES).decode(errors="replace").lower()
+                    errors.seek(0); events.seek(0)
+                    diagnostic = (errors.read(MAX_BYTES).decode(errors="replace") + "\n"
+                                  + event_errors(events.read(MAX_BYTES).decode(errors="replace"))).lower()
                     code = error_code(diagnostic)
+                    print(json.dumps({"event": "runner.call_failed", "error_code": code,
+                                      "categories": failure_categories(diagnostic),
+                                      "returncode": process.returncode}), flush=True)
                     return {"status": "failed", "error_code": code}
                 if not output.exists() or output.stat().st_size > MAX_BYTES:
                     return {"status": "failed", "error_code": "output_truncated"}
@@ -157,7 +206,7 @@ class Slot:
             def run():
                 try:
                     result = execute(prompt, lambda: not self.cancelled and time.monotonic()-self.heartbeat < HEARTBEAT_TIMEOUT,
-                                     schema_path=Path("/app/assumption.json" if contract == "assumption-stage-v1" else "/app/stage.json"))
+                                     schema_path=CONTRACT_SCHEMA_PATHS[contract])
                 except Exception:
                     result = {"status": "failed", "error_code": "runner_unavailable"}
                 with self.lock:
@@ -177,6 +226,18 @@ class Slot:
 
 slot = Slot()
 
+# Closed contract allowlist: each name maps to one schema file baked into the
+# image (Dockerfile COPY).  A request can never choose a path, schema or model.
+CONTRACT_SCHEMA_PATHS = {
+    "deep-review-stage-v2": Path("/app/stage.json"),
+    "assumption-stage-v1": Path("/app/assumption.json"),
+    "card-extract-v1": Path("/app/card-extract.json"),
+    # 결정 B33 (policy v4): kind x unit branches, no concept_candidates/operator.
+    "card-extract-v2": Path("/app/card-extract-v2.json"),
+    "card-role-v1": Path("/app/card-role.json"),
+    "card-synthesis-v1": Path("/app/card-synthesis.json"),
+}
+
 
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, *_args):
@@ -193,7 +254,7 @@ class Handler(BaseHTTPRequestHandler):
             if self.path != '/calls' or not 0 < length <= MAX_BYTES:
                 return self.reply(400, {})
             data = json.loads(self.rfile.read(length))
-            if set(data) not in ({'prompt'}, {'prompt', 'contract'}) or not isinstance(data['prompt'], str) or data.get('contract', 'deep-review-stage-v2') not in {'deep-review-stage-v2', 'assumption-stage-v1'}:
+            if set(data) not in ({'prompt'}, {'prompt', 'contract'}) or not isinstance(data['prompt'], str) or data.get('contract', 'deep-review-stage-v2') not in CONTRACT_SCHEMA_PATHS:
                 return self.reply(400, {})
             call_id = slot.start(data['prompt'], data.get('contract', 'deep-review-stage-v2'))
             self.reply(202 if call_id else 409, {'call_id': call_id})

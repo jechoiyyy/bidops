@@ -1135,6 +1135,9 @@ class BriefingItem(Base):
     revision: Mapped[int] = mapped_column(
         Integer, default=0, server_default=text("0"), nullable=False
     )
+    #: RL-03 (0040, 추가형): 이 항목이 실린 Slack 브리핑 메시지 ts. 판정 완료 스레드 답글의
+    #: `thread_ts`이며 미게시·토큰 없음이면 NULL이다(답글을 건너뛴다).
+    slack_message_ts: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
 class BriefingReactionEvent(Base):

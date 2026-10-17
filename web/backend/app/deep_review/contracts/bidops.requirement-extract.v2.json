@@ -1,0 +1,140 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "bidops.requirement-extract.v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "items"],
+  "properties": {
+    "schema_version": {"const": "bidops.requirement-extract.v2"},
+    "items": {"type": "array", "items": {"$ref": "#/$defs/extract"}}
+  },
+  "$defs": {
+    "nonempty": {"type": "string", "minLength": 1},
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "locator": {
+      "type": "object", "additionalProperties": false,
+      "required": ["source_sha256", "block_key"],
+      "properties": {
+        "source_sha256": {"$ref": "#/$defs/sha256"},
+        "block_key": {"$ref": "#/$defs/nonempty"}
+      }
+    },
+    "evidence": {
+      "type": "object", "additionalProperties": false,
+      "required": ["source_sha256", "block_key", "quote"],
+      "properties": {
+        "source_sha256": {"$ref": "#/$defs/sha256"},
+        "block_key": {"$ref": "#/$defs/nonempty"},
+        "quote": {"$ref": "#/$defs/nonempty"}
+      }
+    },
+    "amount_constraint": {
+      "type": "object", "additionalProperties": false,
+      "required": ["kind", "value", "unit", "fact_key", "quote", "locator"],
+      "properties": {
+        "kind": {"type": "string", "enum": ["amount"]},
+        "value": {"type": "number"},
+        "unit": {"type": "string", "enum": ["KRW"]},
+        "fact_key": {"type": "null"},
+        "quote": {"$ref": "#/$defs/nonempty"},
+        "locator": {"$ref": "#/$defs/locator"}
+      }
+    },
+    "duration_constraint": {
+      "type": "object", "additionalProperties": false,
+      "required": ["kind", "value", "unit", "fact_key", "quote", "locator"],
+      "properties": {
+        "kind": {"type": "string", "enum": ["duration"]},
+        "value": {"type": "number"},
+        "unit": {"type": "string", "enum": ["month", "day", "year"]},
+        "fact_key": {"type": "null"},
+        "quote": {"$ref": "#/$defs/nonempty"},
+        "locator": {"$ref": "#/$defs/locator"}
+      }
+    },
+    "count_constraint": {
+      "type": "object", "additionalProperties": false,
+      "required": ["kind", "value", "unit", "fact_key", "quote", "locator"],
+      "properties": {
+        "kind": {"type": "string", "enum": ["count"]},
+        "value": {"type": "number"},
+        "unit": {"type": ["string", "null"], "enum": ["person", null]},
+        "fact_key": {"type": "null"},
+        "quote": {"$ref": "#/$defs/nonempty"},
+        "locator": {"$ref": "#/$defs/locator"}
+      }
+    },
+    "percentage_constraint": {
+      "type": "object", "additionalProperties": false,
+      "required": ["kind", "value", "unit", "fact_key", "quote", "locator"],
+      "properties": {
+        "kind": {"type": "string", "enum": ["percentage"]},
+        "value": {"type": "number"},
+        "unit": {"type": "string", "enum": ["percent"]},
+        "fact_key": {"type": "null"},
+        "quote": {"$ref": "#/$defs/nonempty"},
+        "locator": {"$ref": "#/$defs/locator"}
+      }
+    },
+    "date_constraint": {
+      "type": "object", "additionalProperties": false,
+      "required": ["kind", "value", "unit", "fact_key", "quote", "locator"],
+      "properties": {
+        "kind": {"type": "string", "enum": ["date"]},
+        "value": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"},
+        "unit": {"type": "null"},
+        "fact_key": {"type": "null"},
+        "quote": {"$ref": "#/$defs/nonempty"},
+        "locator": {"$ref": "#/$defs/locator"}
+      }
+    },
+    "boolean_constraint": {
+      "type": "object", "additionalProperties": false,
+      "required": ["kind", "value", "unit", "fact_key", "quote", "locator"],
+      "properties": {
+        "kind": {"type": "string", "enum": ["boolean"]},
+        "value": {"type": "boolean"},
+        "unit": {"type": "null"},
+        "fact_key": {"type": "null"},
+        "quote": {"$ref": "#/$defs/nonempty"},
+        "locator": {"$ref": "#/$defs/locator"}
+      }
+    },
+    "text_constraint": {
+      "type": "object", "additionalProperties": false,
+      "required": ["kind", "value", "unit", "fact_key", "quote", "locator"],
+      "properties": {
+        "kind": {"type": "string", "enum": ["text"]},
+        "value": {"type": "string", "minLength": 1},
+        "unit": {"type": "null"},
+        "fact_key": {"type": "null"},
+        "quote": {"$ref": "#/$defs/nonempty"},
+        "locator": {"$ref": "#/$defs/locator"}
+      }
+    },
+    "constraint": {
+      "anyOf": [
+        {"$ref": "#/$defs/amount_constraint"},
+        {"$ref": "#/$defs/duration_constraint"},
+        {"$ref": "#/$defs/count_constraint"},
+        {"$ref": "#/$defs/percentage_constraint"},
+        {"$ref": "#/$defs/date_constraint"},
+        {"$ref": "#/$defs/boolean_constraint"},
+        {"$ref": "#/$defs/text_constraint"}
+      ]
+    },
+    "extract": {
+      "type": "object", "additionalProperties": false,
+      "required": ["unit_id", "type", "normalized_requirement", "mandatory", "constraints", "unknowns", "evidence"],
+      "properties": {
+        "unit_id": {"$ref": "#/$defs/nonempty"},
+        "type": {"type": "string", "enum": ["자격", "실적", "인력", "기술", "기능", "성능SLA", "보안", "운영", "계약", "평가"]},
+        "normalized_requirement": {"$ref": "#/$defs/nonempty"},
+        "mandatory": {"type": ["boolean", "null"]},
+        "constraints": {"type": "array", "items": {"$ref": "#/$defs/constraint"}},
+        "unknowns": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/nonempty"}},
+        "evidence": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/evidence"}}
+      }
+    }
+  }
+}

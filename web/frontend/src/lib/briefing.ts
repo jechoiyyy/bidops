@@ -64,9 +64,13 @@ export function stageLabel(stage: string): string {
 }
 
 /** 판정 칸 pill의 색 의미. 모르는 값은 muted로 두고 글자는 그대로 보여 준다. */
-export type VerdictTone = "muted" | "warning";
+export type VerdictTone = "muted" | "warning" | "success" | "error";
 
 export function verdictTone(verdict: BriefingVerdictDisplay | string): VerdictTone {
+  // 판정 이름(RL-03 v2): 진행 가능 success · 조건부 진행 warning · 진행 어려움 error · 판단 불가 중립.
+  if (verdict === "진행 가능") return "success";
+  if (verdict === "진행 어려움") return "error";
+  if (verdict === "조건부 진행") return "warning";
   // 재검토 중·마감 임박 = 사람이 먼저 봐야 하는 변화(warning), 그 밖은 중립이다.
   return verdict === "재검토 중" || verdict === "마감 임박" ? "warning" : "muted";
 }

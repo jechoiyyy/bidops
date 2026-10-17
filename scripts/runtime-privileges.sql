@@ -537,6 +537,49 @@ GRANT INSERT ON TABLE bidops.opportunity_note TO app;
 GRANT UPDATE (done_at, done_by) ON bidops.opportunity_note TO app;
 GRANT SELECT ON TABLE bidops.opportunity_note TO worker;
 
+-- RL-03 card analysis (0040, spec "저장"). The web process (REST, approval/
+-- revocation/drain CLIs) records policy-level transfer approvals, manual verdict
+-- requests and feedback; an approval can only be revoked once (column-scoped
+-- UPDATE of the revocation triple, the trigger rejects every other change and
+-- DELETE). Validated card stage results and feedback are append-only.
+GRANT SELECT ON TABLE
+    bidops.transfer_policy_approval,
+    bidops.card_analysis_stage,
+    bidops.verdict_request,
+    bidops.verdict_feedback
+TO app;
+GRANT INSERT ON TABLE
+    bidops.transfer_policy_approval,
+    bidops.verdict_request,
+    bidops.verdict_feedback
+TO app;
+GRANT UPDATE (revoked_by, revoked_at, revoke_reason) ON bidops.transfer_policy_approval TO app;
+-- The bundle-ready transition happens in the worker process, so the automatic
+-- path creates the preview, review, attempt, stage and approval rows there with
+-- the same service functions as the human path (INSERT only, no DELETE). The
+-- worker reads the active approval and request markers, appends card stages and
+-- cap-queue requests, and may advance only a request's status.
+GRANT SELECT ON TABLE
+    bidops.transfer_policy_approval,
+    bidops.card_analysis_stage,
+    bidops.verdict_request
+TO worker;
+GRANT INSERT ON TABLE
+    bidops.card_analysis_stage,
+    bidops.verdict_request
+TO worker;
+-- status·started_attempt_id: drain(build-briefing·app)과 자동 트리거(worker)가 queued를
+-- started로 바꾸며 attempt를 연결하고, 수동 요청(app)이 gold_holdout 행을 해제한다(RL-03 spec 저장, 결정 B1).
+GRANT UPDATE (status, started_attempt_id) ON bidops.verdict_request TO worker;
+GRANT UPDATE (status, started_attempt_id) ON bidops.verdict_request TO app;
+GRANT INSERT ON TABLE
+    bidops.deep_review,
+    bidops.deep_review_attempt,
+    bidops.deep_review_stage,
+    bidops.deep_review_preview,
+    bidops.deep_review_approval
+TO worker;
+
 COMMIT;
 
 -- Assumption analyses reuse the queue but preserve independent immutable consent/results.

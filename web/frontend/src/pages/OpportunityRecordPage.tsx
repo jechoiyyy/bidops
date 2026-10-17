@@ -17,9 +17,14 @@ import { ActivityFeed } from "../components/record/ActivityFeed";
 import { AttributeList } from "../components/record/AttributeList";
 import { COMPOSER_ACTOR_ID, Composer } from "../components/record/Composer";
 import { NextActions } from "../components/record/NextActions";
-import { RecordHeader, type RecordMenuAction } from "../components/record/RecordHeader";
+import { RecordHeader, type RecordMenuAction, type VerdictMenuAction } from "../components/record/RecordHeader";
 import { StageBar } from "../components/record/StageBar";
 import { usePublishRecordTitle } from "../components/shell/RecordTitleContext";
+import { FeedbackDialog } from "../components/verdict/FeedbackDialog";
+import { RunInfoDialog } from "../components/verdict/RunInfoDialog";
+import { VerdictRequestDialog } from "../components/verdict/VerdictRequestDialog";
+import { VerdictSummary } from "../components/verdict/VerdictSummary";
+import { OpportunityVerdictTab } from "./OpportunityVerdictTab";
 import { ApiError, api } from "../lib/api";
 import { describeApiError, type ApiErrorDescription } from "../lib/apiErrors";
 import { generateRequestId } from "../lib/requestId";
@@ -44,7 +49,9 @@ import type {
   OpportunityActivityKind,
   OpportunityNoteKind,
   RelatedNoticeRelation,
+  VerdictFeedbackKind,
 } from "../lib/types";
+import { hasVerdictResult, headerVerdictPill, isVerdictActive, requirementText } from "../lib/verdict";
 import "../styles/opportunities-relaxed.css";
 import "../styles/opportunity-record.css";
 
@@ -52,7 +59,8 @@ import "../styles/opportunity-record.css";
  * 사업기회 레코드 `/opportunities/:id/:tab`(ui-spec §4.3, RL-02 spec "레코드 라우트"·"화면").
  *
  * 헤더(단계·마감·판정·추적 pill, 액션) · 탭 줄 · 좌측 정보(속성 8개·다음 행동·제출 서류) · 중앙
- * (활동 탭: 단계 바 → 작성기 → 활동 피드). 판정·제안서·서류 탭은 후속 기능(RL-03·04)이 채울
+ * (활동 탭: 단계 바 → 작성기 → 활동 피드). 판정 탭(RL-03)은 서버 판정 view를 읽어 좌측을 판정
+ * 요약으로 바꾸고 중앙에 요구사항 표·원문 패널을 둔다. 제안서·서류 탭은 후속 기능(RL-04)이 채울
  * 자리라 빈 상태 문장만 둔다.
  *
  * 이 화면은 값을 계산하지 않는다. 단계 6개·레코드 제목·활동 항목은 활동 응답이 주고, 연결·추적
@@ -64,6 +72,8 @@ import "../styles/opportunity-record.css";
 const FEED_LIMIT = 50;
 const ACTION_EVENT_KINDS: readonly OpportunityActivityKind[] = ["action_added", "action_done"];
 const ACTION_EVENT_LIMIT = 200;
+/** 분석 중(pending·running)인 판정을 다시 읽는 간격. */
+const VERDICT_POLL_MS = 5000;
 
 const RELATION_LABEL: Record<RelatedNoticeRelation, string> = {
   ordinal: "같은 공고 · 다른 차수",
@@ -72,6 +82,12 @@ const RELATION_LABEL: Record<RelatedNoticeRelation, string> = {
 };
 
 type OpenDialog = "tracking" | "reset" | "signal" | { kind: "candidate"; linkId: number } | null;
+
+type VerdictDialogState =
+  | null
+  | { kind: "request" }
+  | { kind: "run-info" }
+  | { kind: "feedback"; unit: { unitId: string; requirement: string } | null; initialKind: VerdictFeedbackKind };
 
 function isNotFound(error: unknown): boolean {
   return error instanceof ApiError && error.status === 404;
@@ -165,10 +181,21 @@ function OpportunityRecord({ opportunityId, tab }: { opportunityId: number; tab:
     retry: false,
   });
 
+  // 참여 판정(RL-03). 헤더 판정 pill·`판정 보기`와 판정 탭이 같은 응답을 읽는다. 분석 중이면 주기적으로 다시 읽는다.
+  const verdictQuery = useQuery({
+    queryKey: ["opportunity-verdict", opportunityId],
+    queryFn: ({ signal }) => api.getOpportunityVerdict(opportunityId, {}, { signal }),
+    retry: false,
+    refetchInterval: (query) => (isVerdictActive(query.state.data) ? VERDICT_POLL_MS : false),
+  });
+  const verdictView = verdictQuery.data ?? null;
+
   usePublishRecordTitle(opportunityId, firstPage?.title ?? null);
 
   // ── 입력·대화상자 상태 ─────────────────────────────────────────────
   const [dialog, setDialog] = useState<OpenDialog>(null);
+  // 판정 대화상자(RL-03). 열 때마다 새로 마운트해 요청 식별자·입력이 새로 시작된다.
+  const [verdictDialog, setVerdictDialog] = useState<VerdictDialogState>(null);
   const [dirtySources, setDirtySources] = useState<Record<string, boolean>>({});
   const setSourceDirty = useCallback((key: string, dirty: boolean) => {
     setDirtySources((current) => (Boolean(current[key]) === dirty ? current : { ...current, [key]: dirty }));
@@ -344,7 +371,7 @@ function OpportunityRecord({ opportunityId, tab }: { opportunityId: number; tab:
   const now = new Date();
   const title = firstPage?.title ?? `#${opportunityId}`;
   const latest = latestAuthority(reps);
-  const pills = recordPills(item, reps, now);
+  const pills = recordPills(item, reps, now, headerVerdictPill(verdictView));
   const attributes = recordAttributes({ item, reps, notice: notice.data ?? null, activityItems: items });
   const pendingCandidate = links.find(isPendingCandidate) ?? null;
   const open = openActions(actionEvents.data?.items ?? []);
@@ -356,6 +383,18 @@ function OpportunityRecord({ opportunityId, tab }: { opportunityId: number; tab:
       return;
     }
     setDialog(action);
+  };
+  const verdictActive = isVerdictActive(verdictView);
+  const hasFeedbackTarget = verdictView !== null && verdictView.availability !== "none" && verdictView.attempt_id !== null;
+  const onVerdictMenu = (action: VerdictMenuAction) => {
+    if (action === "verdict-run-info") setVerdictDialog({ kind: "run-info" });
+    else setVerdictDialog({ kind: "feedback", unit: null, initialKind: "wrong_verdict" });
+  };
+  const afterVerdictRequested = () => {
+    setVerdictDialog(null);
+    showToast("판정을 요청했습니다. 분석이 끝나면 이 탭에 결과가 보입니다.");
+    void queryClient.invalidateQueries({ queryKey: ["opportunity-verdict", opportunityId] });
+    void queryClient.invalidateQueries({ queryKey: ["opportunity-activity", opportunityId] });
   };
   const dialogCandidate = typeof dialog === "object" && dialog !== null
     ? links.find((link) => link.id === dialog.linkId) ?? null
@@ -378,6 +417,18 @@ function OpportunityRecord({ opportunityId, tab }: { opportunityId: number; tab:
         }}
         pills={pills}
         title={title}
+        verdict={{
+          onVerdictTab: tab === "verdict",
+          hasResult: hasVerdictResult(verdictView),
+          onOpenVerdict: () => goTab("verdict"),
+          requestBlockedReason: verdictView?.notice_id === null
+            ? "연결된 사전규격이 없습니다"
+            : verdictActive ? "분석이 진행 중입니다" : null,
+          onRequestVerdict: () => setVerdictDialog({ kind: "request" }),
+          feedbackBlockedReason: hasFeedbackTarget ? null : "제보할 판정이 없습니다",
+          runInfoBlockedReason: verdictView?.identity ? null : "표시할 실행 정보가 없습니다",
+          onVerdictMenu,
+        }}
       />
 
       <TabList
@@ -406,25 +457,31 @@ function OpportunityRecord({ opportunityId, tab }: { opportunityId: number; tab:
       </TabList>
 
       <div className="rec-body">
-        <aside aria-label="사업 정보" className="rec-side">
-          <AttributeList attributes={attributes} />
-          <NextActions
-            actions={open}
-            failed={actionEvents.isError}
-            hasHistory={hasActionHistory}
-            loading={actionEvents.isPending}
-            onComplete={(noteId) => { void onCompleteAction(noteId); }}
-            onShowAll={() => {
-              setFilter("action");
-              goTab("activity");
-            }}
-            pendingNoteId={pendingNoteId}
-          />
-          <section aria-labelledby="rec-docs-title" className="rec-side-block">
-            <h3 className="rec-side-title" id="rec-docs-title">제출 서류</h3>
-            <p aria-disabled="true" className="rec-side-note is-disabled">제출 서류 체크는 준비 중입니다</p>
-          </section>
-        </aside>
+        {tab === "verdict" && verdictView?.availability === "completed" && verdictView.result ? (
+          <aside aria-label="판정 요약" className="rec-side">
+            <VerdictSummary result={verdictView.result} />
+          </aside>
+        ) : (
+          <aside aria-label="사업 정보" className="rec-side">
+            <AttributeList attributes={attributes} />
+            <NextActions
+              actions={open}
+              failed={actionEvents.isError}
+              hasHistory={hasActionHistory}
+              loading={actionEvents.isPending}
+              onComplete={(noteId) => { void onCompleteAction(noteId); }}
+              onShowAll={() => {
+                setFilter("action");
+                goTab("activity");
+              }}
+              pendingNoteId={pendingNoteId}
+            />
+            <section aria-labelledby="rec-docs-title" className="rec-side-block">
+              <h3 className="rec-side-title" id="rec-docs-title">제출 서류</h3>
+              <p aria-disabled="true" className="rec-side-note is-disabled">제출 서류 체크는 준비 중입니다</p>
+            </section>
+          </aside>
+        )}
 
         <div aria-labelledby={`record-tab-${tab}`} className="rec-main" id="record-panel" role="tabpanel">
           {tab === "activity" ? (
@@ -462,7 +519,17 @@ function OpportunityRecord({ opportunityId, tab }: { opportunityId: number; tab:
             </>
           ) : null}
 
-          {tab === "verdict" || tab === "proposal" || tab === "documents" ? (
+          {tab === "verdict" ? (
+            <OpportunityVerdictTab
+              onFeedback={({ row, kind }) =>
+                setVerdictDialog({ kind: "feedback", unit: { unitId: row.unit_id, requirement: requirementText(row) }, initialKind: kind })
+              }
+              onRequest={() => setVerdictDialog({ kind: "request" })}
+              query={verdictQuery}
+            />
+          ) : null}
+
+          {tab === "proposal" || tab === "documents" ? (
             <EmptyState compact title={RECORD_TAB_EMPTY[tab] ?? ""} />
           ) : null}
 
@@ -590,6 +657,28 @@ function OpportunityRecord({ opportunityId, tab }: { opportunityId: number; tab:
           open
         />
       ) : null}
+
+      {verdictDialog?.kind === "request" ? (
+        <VerdictRequestDialog
+          onClose={() => setVerdictDialog(null)}
+          onRequested={afterVerdictRequested}
+          opportunityId={opportunityId}
+        />
+      ) : null}
+
+      {verdictDialog?.kind === "feedback" && verdictView && verdictView.attempt_id && verdictView.notice_id !== null ? (
+        <FeedbackDialog
+          attemptId={verdictView.attempt_id}
+          companyId={verdictView.company_id}
+          initialKind={verdictDialog.initialKind}
+          noticeId={verdictView.notice_id}
+          onClose={() => setVerdictDialog(null)}
+          onSaved={() => { setVerdictDialog(null); showToast("판정 오류 제보를 남겼습니다."); }}
+          unit={verdictDialog.unit}
+        />
+      ) : null}
+
+      <RunInfoDialog onClose={() => setVerdictDialog(null)} open={verdictDialog?.kind === "run-info"} view={verdictView} />
 
       {toast ? <Toast message={toast.message} onDismiss={dismissToast} variant={toast.variant} /> : null}
     </section>

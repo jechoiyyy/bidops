@@ -41,7 +41,7 @@ import re
 from typing import Any, Final
 from uuid import UUID
 
-from app.core.company_ontology import OntologyConcept, ValidatedOntology, normalize_term
+from app.core.company_ontology import ORIGINS, OntologyConcept, ValidatedOntology, normalize_term
 
 from .narrative_inputs import NarrativeInputError, _size
 
@@ -78,7 +78,14 @@ RELATION_TYPES: Final[frozenset[str]] = frozenset({
     "supports_capability", "holds_qualification", "supported_by",
     "has_requirement", "requires_capability", "requires_qualification",
 })
-FACT_STATUSES: Final[frozenset[str]] = frozenset({"confirmed", "inferred", "unknown"})
+#: RL-03: ``proposed`` (agent-proposed, not confirmed by a person) is carried
+#: as-is; like ``unknown`` it is never evidence of possession or absence.
+FACT_STATUSES: Final[frozenset[str]] = frozenset({"confirmed", "proposed", "inferred", "unknown"})
+#: RL-00 origin enum (7 values).  Retrieval no longer pins the fictional
+#: scenario origin: each node/edge/fact keeps its registered origin and a
+#: profile evidence row inherits the origin of its fact (RL-03 spec "상태 값").
+COMPANY_ORIGINS: Final[frozenset[str]] = ORIGINS
+#: Kept for the fictional DEMO fixtures and their tests.
 COMPANY_ORIGIN: Final[str] = "fictional_scenario"
 # Only these relations are walked from the company node (contract §5:
 # has_capability / holds_qualification and supports_capability evidence via
@@ -370,7 +377,7 @@ def normalize_graph(
         node_id = _nonempty_str(raw["id"])
         if node_id in nodes or raw["type"] not in COMPANY_GRAPH_NODE_TYPES:
             raise _fail()
-        if raw["status"] not in FACT_STATUSES or raw["origin"] != COMPANY_ORIGIN or not isinstance(raw["label"], str):
+        if raw["status"] not in FACT_STATUSES or raw["origin"] not in COMPANY_ORIGINS or not isinstance(raw["label"], str):
             raise _fail()
         concept = raw["concept_id"]
         if concept is not None and not isinstance(concept, str):
@@ -394,7 +401,7 @@ def normalize_graph(
         edge_id = _nonempty_str(raw["id"])
         if edge_id in edges or raw["type"] not in RELATION_TYPES:
             raise _fail()
-        if raw["status"] not in FACT_STATUSES or raw["origin"] != COMPANY_ORIGIN:
+        if raw["status"] not in FACT_STATUSES or raw["origin"] not in COMPANY_ORIGINS:
             raise _fail()
         if raw["from_id"] not in nodes or raw["to_id"] not in nodes:
             raise _fail()
@@ -553,22 +560,25 @@ def _fact_input(fact: Mapping[str, Any]) -> dict[str, Any]:
         raise _fail()
     key = _nonempty_str(fact.get("fact_key"))
     status = fact.get("status")
-    if status not in FACT_STATUSES or fact.get("origin") != COMPANY_ORIGIN:
+    origin = fact.get("origin")
+    if status not in FACT_STATUSES or not isinstance(origin, str) or origin not in COMPANY_ORIGINS:
         raise _fail()
     if fact.get("locator") != {"fact_key": key} or not isinstance(fact.get("quote"), str):
         raise _fail()
     if status == "unknown" and (fact.get("quote") != "" or fact.get("value") is not None):
         raise _fail()
     return {
-        "fact_key": key, "status": status, "origin": COMPANY_ORIGIN,
+        "fact_key": key, "status": status, "origin": origin,
         "value": deepcopy(fact.get("value")), "quote": fact["quote"], "locator": {"fact_key": key},
     }
 
 
-def _evidence_input(row: Mapping[str, Any], profile_version_id: str) -> dict[str, Any]:
+def _evidence_input(row: Mapping[str, Any], profile_version_id: str, fact_origin: str) -> dict[str, Any]:
+    """One ``ProfileEvidenceInput``; its origin is the origin of its fact (preserved, never rewritten)."""
+
     if not isinstance(row, Mapping) or not EVIDENCE_KEYS <= set(row) or not set(row) <= EVIDENCE_KEYS | {"origin"}:
         raise _fail()
-    if row.get("origin", COMPANY_ORIGIN) != COMPANY_ORIGIN or row["locator_type"] != "profile_fact":
+    if row.get("origin", fact_origin) != fact_origin or row["locator_type"] != "profile_fact":
         raise _fail()
     key = _nonempty_str(row["fact_key"])
     if row["locator"] != {"fact_key": key} or not isinstance(row["quote"], str):
@@ -585,7 +595,7 @@ def _evidence_input(row: Mapping[str, Any], profile_version_id: str) -> dict[str
         "locator_type": "profile_fact",
         "locator": {"fact_key": key},
         "quote": row["quote"],
-        "origin": COMPANY_ORIGIN,
+        "origin": fact_origin,
     }
 
 
@@ -611,8 +621,12 @@ def _validated_profile(profile: Any, nodes: Mapping[str, Mapping[str, Any]]) -> 
         facts[row["fact_key"]] = row
     evidence: dict[str, dict[str, Any]] = {}
     for raw in profile["evidence"]:
-        row = _evidence_input(raw, profile_version_id)
-        if row["profile_evidence_id"] in evidence or row["fact_key"] not in facts:
+        raw_key = raw.get("fact_key") if isinstance(raw, Mapping) else None
+        fact = facts.get(raw_key) if isinstance(raw_key, str) else None
+        if fact is None:
+            raise _fail()
+        row = _evidence_input(raw, profile_version_id, fact["origin"])
+        if row["profile_evidence_id"] in evidence:
             raise _fail()
         if facts[row["fact_key"]]["status"] == "unknown":
             raise _fail()
@@ -634,8 +648,15 @@ def select_profile_facts(
     graph_paths: Sequence[Mapping[str, Any]],
     *,
     budget: int,
+    select_all: bool = False,
 ) -> dict[str, Any]:
     """Select ``ProfileFactInput`` rows within ``budget`` (``profile_size``).
+
+    ``select_all`` (RL-03 card-v1, spec "전송 payload 규칙" D2): every fact of
+    the binding is selected with all its evidence, independent of lexical match
+    and of ``budget``; nothing is excluded.  The per-stage transfer projection,
+    not this selection, then reduces non-confirmed facts to ``{fact_key,
+    status}``.
 
     Required, independent of lexical match: every ``unknown`` fact and every
     ``qualification`` node fact.  If the required facts alone exceed the
@@ -658,6 +679,17 @@ def select_profile_facts(
     for row in sorted(evidence.values(), key=_evidence_sort_key):
         evidence_by_fact.setdefault(row["fact_key"], []).append(row)
 
+    if select_all:
+        chosen = sorted(facts)
+        evidence_ids = {row["profile_evidence_id"] for row in evidence.values()}
+        for path in graph_paths:
+            if any(evidence_id not in evidence for evidence_id in path["profile_evidence_ids"]):
+                raise _fail()
+        return {
+            "profile_facts": [deepcopy(facts[key]) for key in chosen],
+            "profile_evidence": sorted((deepcopy(evidence[eid]) for eid in evidence_ids), key=_evidence_sort_key),
+            "excluded_fact_keys": [],
+        }
     required = sorted(
         key for key, fact in facts.items()
         if fact["status"] == "unknown" or nodes[key]["type"] == "qualification"
@@ -776,8 +808,13 @@ def build_company_retrieval(
     profile: Mapping[str, Any],
     path_limit_per_requirement: int,
     profile_budget: int,
+    select_all_facts: bool = False,
 ) -> dict[str, Any]:
     """The retrieval part of ``CompanyAnalysisInput`` for either purpose.
+
+    ``select_all_facts`` is the RL-03 card-v1 mode (D2): every binding fact,
+    its node and its evidence are frozen (``profile_budget`` is not applied
+    and ``coverage.excluded_fact_keys`` is empty); paths are unchanged.
 
     Returns exactly ``{requirements, profile_facts, profile_evidence,
     graph_nodes, graph_edges, graph_paths, coverage}``.  ``requirements`` keep
@@ -802,9 +839,12 @@ def build_company_retrieval(
     node_list, edge_list = normalize_graph(graph_nodes, graph_edges, ontology=concepts)
     search = search_graph_paths(rows, node_list, edge_list, path_limit_per_requirement=limit)
     paths = search["graph_paths"]
-    profile_part = _placeable_profile(
-        select_profile_facts(profile, node_list, rows, paths, budget=profile_budget),
-        node_list, paths, budget=profile_budget,
+    selection = select_profile_facts(
+        profile, node_list, rows, paths, budget=profile_budget, select_all=select_all_facts,
+    )
+    profile_part = (
+        selection if select_all_facts
+        else _placeable_profile(selection, node_list, paths, budget=profile_budget)
     )
     used_nodes = {node_id for path in paths for node_id in path["node_ids"]}
     used_nodes |= {
@@ -1053,6 +1093,7 @@ def check_slice_coverage(retrieval: Mapping[str, Any], slices: Sequence[Mapping[
 
 
 __all__ = [
+    "COMPANY_ORIGINS",
     "CompanyRetrievalError",
     "DEFAULT_PATH_LIMIT_PER_REQUIREMENT",
     "MAX_GRAPH_HOPS",

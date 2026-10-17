@@ -7,7 +7,7 @@ import type {
   OpportunityRecheckEventView, OpportunityTrackingDecisionItem, OpportunityTrackingStatus,
   OrderPlanListItem, OrderPlanListScope, OrderPlanScreeningExecutionSummary, OrderPlanScreeningErrorCode,
   OrderPlanTracking, OrderPlanBulkPreviewResponse, OrderPlanBulkStartResponse, OrderPlanBulkEndResponse,
-  OverviewEnvelope, OverviewRun, PreSpecDisplayAssessment, PreSpecListItem, PreSpecOrderPlanCandidatesResponse,
+  OverviewEnvelope, OverviewRun, PractitionerVerdictView, PreSpecDisplayAssessment, PreSpecListItem, PreSpecOrderPlanCandidatesResponse,
   RunSummary, WorkloadKey, WorkloadResponse,
 } from "../src/lib/types";
 import { searchKey, searchMatches } from "../src/lib/search";
@@ -42,6 +42,7 @@ import {
 import { RL_COMPANY_ID, rlAttentionCount, rlContextView, rlFacts, rlProfileView, type RlFact } from "./fixtures/company-rl";
 import { briefingFixture, previousBriefingFixture } from "./fixtures/briefing";
 import { NOTICE_FIXTURES, RECORD_FIXTURES, RECORD_NOW, RELATED_BY_NOTICE, type RecordFixture } from "./fixtures/opportunity-record";
+import { VERDICT_COMPANY_ID, noneView, pageBlocks, runningView } from "./fixtures/verdict";
 
 const opportunityFixtures = new WeakMap<Page, OpportunityListItem[]>();
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -4293,6 +4294,12 @@ export async function mockCompanyWorkspace(page: Page, options: CompanyWorkspace
 // (없으면 404 "고정 응답 없음")에 넘기고, fixture 사업기회의 모르는 하위 경로는 `trace.unhandled`에 남기고
 // 404로 답한다 — 실제 백엔드로 새지 않는다. 활동 피드 응답은 서버 규칙을 그대로 따른다: `at` 내림·동률은
 // `item_id` 내림, `before`는 `"<at>|<item_id>"` 불투명 커서, `kinds`는 csv 필터, 기본 `limit` 50.
+//
+// RL-03 판정(`GET /{id}/verdict`, `POST /{id}/verdict-requests`, `POST /api/companies/{company}/pre-specs/
+// {notice}/verdict-feedback`, `GET /api/document-structures/{id}/pages/{n}`)도 같은 규칙으로 답한다. 판정이
+// 없는 레코드는 서버처럼 200 `availability=none`이고 `trace.setVerdict`로 서버 쪽 상태를 바꾼다. 요청 검증 순서는
+// 실제 서버를 따른다: actor 400 → body 422 → 진행 중 실행 409 `active_attempt_exists` → 같은 request_id 재전송은
+// 같은 접수(202)다. 피드백은 actor 400 → body 422 → 201 `{feedback_id}`다.
 export interface OpportunityRecordMockTrace {
   activityGets: URLSearchParams[];
   noteCreates: Array<{ id: number; body: Record<string, unknown>; headers: Record<string, string> }>;
@@ -4301,6 +4308,18 @@ export interface OpportunityRecordMockTrace {
   noticeGets: number[];
   relatedGets: number[];
   unhandled: string[];
+  verdictGets: Array<{ id: number; params: URLSearchParams }>;
+  verdictRequests: Array<{ id: number; body: Record<string, unknown>; headers: Record<string, string> }>;
+  verdictFeedbacks: Array<{ companyId: string; noticeId: number; body: Record<string, unknown>; headers: Record<string, string> }>;
+  pageGets: Array<{ structureId: string; page: number }>;
+  /** 서버 쪽 판정 상태를 바꾼다. `null`이면 판정이 없는 상태(`availability=none`)로 돌아간다. */
+  setVerdict(opportunityId: number, view: PractitionerVerdictView | null): void;
+  /** 다음 판정 조회부터 이 오류로 답한다. `null`이면 정상으로 돌아간다. */
+  failVerdictGets(failure: { status: number; code: string } | null): void;
+  /** 다음 판정 요청부터 이 오류로 답한다. `null`이면 정상으로 돌아간다. */
+  failVerdictRequests(failure: { status: number; code: string } | null): void;
+  /** 다음 오류 제보부터 이 오류로 답한다. `null`이면 정상으로 돌아간다. */
+  failVerdictFeedbacks(failure: { status: number; code: string } | null): void;
   /** 다음 노트 저장부터 이 오류로 답한다. `null`이면 정상으로 돌아간다. */
   failNotes(failure: { status: number; code: string } | null): void;
   /** 노트·다음 행동 저장 요청을 서버가 처리하기 전에 붙잡는다(중복 제출·저장 중 상태 확인). */
@@ -4314,12 +4333,27 @@ function recordError(route: Route, status: number, code: string) {
 export async function mockOpportunityRecord(page: Page): Promise<OpportunityRecordMockTrace> {
   const records = new Map<number, RecordFixture>(RECORD_FIXTURES.map((record) => [record.detail.id, structuredClone(record)]));
   let noteFailure: { status: number; code: string } | null = null;
+  let verdictGetFailure: { status: number; code: string } | null = null;
+  let verdictRequestFailure: { status: number; code: string } | null = null;
+  let verdictFeedbackFailure: { status: number; code: string } | null = null;
+  const verdicts = new Map<number, PractitionerVerdictView>();
+  const verdictReceipts = new Map<string, { attempt_id: string }>();
+  const feedbackReceipts = new Map<string, string>();
+  let verdictAttempts = 0;
   let held: Promise<void> | null = null;
   let clockMinutes = 0;
   const receipts = new Map<string, { fingerprint: string; view: Record<string, unknown> }>();
   const notes = new Map<string, { opportunityId: number; kind: string; body: string; owner: string; actor: string; createdAt: string; doneAt: string | null; doneBy: string | null }>();
   const trace: OpportunityRecordMockTrace = {
     activityGets: [], noteCreates: [], noteDones: [], trackingPatches: [], noticeGets: [], relatedGets: [], unhandled: [],
+    verdictGets: [], verdictRequests: [], verdictFeedbacks: [], pageGets: [],
+    setVerdict(opportunityId, view) {
+      if (view === null) verdicts.delete(opportunityId);
+      else verdicts.set(opportunityId, structuredClone(view));
+    },
+    failVerdictGets(failure) { verdictGetFailure = failure; },
+    failVerdictRequests(failure) { verdictRequestFailure = failure; },
+    failVerdictFeedbacks(failure) { verdictFeedbackFailure = failure; },
     failNotes(failure) { noteFailure = failure; },
     holdNotes() {
       let release = () => {};
@@ -4446,6 +4480,36 @@ export async function mockOpportunityRecord(page: Page): Promise<OpportunityReco
       return;
     }
 
+    // 판정 조회: 판정이 없으면 서버처럼 200 none이다(대상 사전규격 pk는 권위 연결에서 읽는다).
+    if (rest === "/verdict" && method === "GET") {
+      trace.verdictGets.push({ id, params: new URLSearchParams(url.search) });
+      if (verdictGetFailure) { await recordError(route, verdictGetFailure.status, verdictGetFailure.code); return; }
+      const preSpec = record.detail.links.find((link) => link.source_type === "pre_spec");
+      await fulfillJson(route, verdicts.get(id) ?? noneView(id, preSpec?.notice_id ?? null));
+      return;
+    }
+
+    if (rest === "/verdict-requests" && method === "POST") {
+      const body = (request.postDataJSON() ?? {}) as Record<string, unknown>;
+      trace.verdictRequests.push({ id, body, headers: request.headers() });
+      if (verdictRequestFailure) { await recordError(route, verdictRequestFailure.status, verdictRequestFailure.code); return; }
+      if (!actor) { await recordError(route, 400, "actor_name_required"); return; }
+      if (!uuidPattern.test(String(body.request_id)) || Object.keys(body).some((key) => key !== "request_id")) { await recordError(route, 422, "invalid_request"); return; }
+      const replay = verdictReceipts.get(`${id}:${String(body.request_id)}`);
+      if (replay) { await fulfillJson(route, { request_id: body.request_id, attempt_id: replay.attempt_id, status: "queued" }, 202); return; }
+      // 서버(`request_manual_verdict`)처럼 권위 연결 사전규격이 없으면 404 not_found다.
+      const preSpec = record.detail.links.find((link) => link.source_type === "pre_spec");
+      if (!preSpec || preSpec.notice_id === null) { await recordError(route, 404, "not_found"); return; }
+      const current = verdicts.get(id);
+      if (current && (current.availability === "pending" || current.availability === "running")) { await recordError(route, 409, "active_attempt_exists"); return; }
+      verdictAttempts += 1;
+      const attemptId = `a3000000-0000-4000-8000-${String(verdictAttempts).padStart(12, "0")}`;
+      verdictReceipts.set(`${id}:${String(body.request_id)}`, { attempt_id: attemptId });
+      verdicts.set(id, { ...runningView("pending"), attempt_id: attemptId, notice_id: preSpec.notice_id, opportunity_id: id });
+      await fulfillJson(route, { request_id: body.request_id, attempt_id: attemptId, status: "queued" }, 202);
+      return;
+    }
+
     if (rest === "/tracking-status" && method === "PATCH") {
       const body = (request.postDataJSON() ?? {}) as Record<string, unknown>;
       trace.trackingPatches.push({ id, body, headers: request.headers() });
@@ -4472,6 +4536,39 @@ export async function mockOpportunityRecord(page: Page): Promise<OpportunityReco
 
     trace.unhandled.push(`${method} ${url.pathname}`);
     await recordError(route, 404, "not_found");
+  });
+
+  await page.route(/\/api\/companies\/[^/]+\/pre-specs\/\d+\/verdict-feedback(?:\?.*)?$/, async (route) => {
+    const request = route.request();
+    if (request.method() !== "POST") { await route.fallback(); return; }
+    const match = new URL(request.url()).pathname.match(/^\/api\/companies\/([^/]+)\/pre-specs\/(\d+)\/verdict-feedback$/);
+    if (!match) { await route.fallback(); return; }
+    const body = (request.postDataJSON() ?? {}) as Record<string, unknown>;
+    trace.verdictFeedbacks.push({ companyId: match[1], noticeId: Number(match[2]), body, headers: request.headers() });
+    if (verdictFeedbackFailure) { await recordError(route, verdictFeedbackFailure.status, verdictFeedbackFailure.code); return; }
+    if (!fixtureActor(request.headers()).trim()) { await recordError(route, 400, "actor_name_required"); return; }
+    const kinds = ["wrong_verdict", "wrong_unit", "not_requirement", "source_mismatch"];
+    const allowed = ["attempt_id", "kind", "unit_id", "note", "request_id"];
+    if (match[1] !== VERDICT_COMPANY_ID
+      || !uuidPattern.test(String(body.attempt_id)) || !uuidPattern.test(String(body.request_id))
+      || !kinds.includes(String(body.kind))
+      || (body.unit_id !== undefined && (typeof body.unit_id !== "string" || !body.unit_id))
+      || (body.note !== undefined && (typeof body.note !== "string" || body.note.length > 500))
+      || Object.keys(body).some((key) => !allowed.includes(key))) {
+      await recordError(route, 422, "invalid_request");
+      return;
+    }
+    const key = String(body.request_id);
+    const feedbackId = feedbackReceipts.get(key) ?? `f2000000-0000-4000-8000-${String(feedbackReceipts.size + 1).padStart(12, "0")}`;
+    feedbackReceipts.set(key, feedbackId);
+    await fulfillJson(route, { feedback_id: feedbackId }, 201);
+  });
+
+  await page.route(/\/api\/document-structures\/[^/]+\/pages\/\d+(?:\?.*)?$/, async (route) => {
+    const match = new URL(route.request().url()).pathname.match(/^\/api\/document-structures\/([^/]+)\/pages\/(\d+)$/);
+    if (!match || route.request().method() !== "GET") { await route.fallback(); return; }
+    trace.pageGets.push({ structureId: match[1], page: Number(match[2]) });
+    await fulfillJson(route, pageBlocks(Number(match[2])));
   });
 
   await page.route(/\/api\/notices\/(\d+)(?:\/related)?(?:\?.*)?$/, async (route) => {

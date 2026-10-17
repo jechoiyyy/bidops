@@ -7,6 +7,7 @@ from datetime import UTC, datetime, timedelta
 import time
 import hashlib
 import json
+import logging
 import os
 import re
 from copy import deepcopy
@@ -67,7 +68,7 @@ from ...core.model_client import (
 )
 from .deep_review_vllm import DEEP_REVIEW_STAGE_CONTRACT, NARRATIVE_STAGE_CONTRACT
 from . import company_slices, narrative_inputs, document_segments, luna_inputs
-from .mock_analysis_client import MockAnalysisClient
+from .mock_analysis_client import MOCK_MODEL_NAME, MockAnalysisClient
 from ...core.constants import (
     DEEP_REVIEW_CREATION_ACTION_BY_ACTOR_KIND,
     DEEP_REVIEW_CREATION_ACTIONS,
@@ -78,6 +79,7 @@ from ...core.object_store import EncryptedModelResponseStore
 STAGE_SEQUENCE = {name: index for index, name in enumerate(STAGES, start=1)}
 MOCK_ANALYSIS_PROVIDER = "mock-analysis"
 MODEL_PURPOSE = "deep_review"
+logger = logging.getLogger(__name__)
 #: 심층 검토를 만든 감사 action. 사람 클릭과 §6.4의 자동 시작 둘뿐이다.
 #: 정본은 `core.constants`다 — 의존성 없는 agent projection도 같은 표를 읽는다.
 CREATION_ACTION_BY_ACTOR_KIND = DEEP_REVIEW_CREATION_ACTION_BY_ACTOR_KIND
@@ -306,6 +308,31 @@ def _resolve_exact_evidence_quotes(
     return resolved
 
 
+_CARD_DERIVATION_KEYS = frozenset({"extract_contract", "code_derived_fields", "repair_rule_codes"})
+
+
+def _card_derivation_metadata(value: Mapping[str, Any] | None) -> dict[str, Any]:
+    """결정 B33: only the closed code-only keys (contract name, field names, rule codes)."""
+
+    if value is None:
+        return {}
+    if not isinstance(value, Mapping) or not set(value) <= _CARD_DERIVATION_KEYS:
+        raise DeepReviewServiceError("processing_failed", "카드 분석 감사 값이 올바르지 않습니다", status_code=500)
+    result: dict[str, Any] = {}
+    for key, item in value.items():
+        if key == "extract_contract":
+            if item != "bidops.requirement-extract.v2":
+                raise DeepReviewServiceError("processing_failed", "카드 분석 감사 값이 올바르지 않습니다", status_code=500)
+            result[key] = item
+        else:
+            if not isinstance(item, (list, tuple)) or any(
+                not isinstance(text, str) or re.fullmatch(r"[a-z][a-z0-9_.]{2,63}", text) is None for text in item
+            ):
+                raise DeepReviewServiceError("processing_failed", "카드 분석 감사 값이 올바르지 않습니다", status_code=500)
+            result[key] = list(item)
+    return result
+
+
 def _add_job_audit(
     session: Session,
     *,
@@ -315,9 +342,25 @@ def _add_job_audit(
     attempt_id: UUID | str | None,
     fence: int,
     status: str,
+    extra_safe_metadata: Mapping[str, Any] | None = None,
 ) -> None:
-    """Append only safe system metadata inside the fenced transition txn."""
+    """Append only safe system metadata inside the fenced transition txn.
 
+    ``extra_safe_metadata`` (RL-03 card-v1: stage keys, counts, hashes,
+    elapsed seconds) may add keys but never replace the base ones.
+    """
+
+    metadata: dict[str, Any] = {
+        "job_id": str(job_id),
+        "review_id": str(review_id) if review_id is not None else None,
+        "attempt_id": str(attempt_id) if attempt_id is not None else None,
+        "lease_fence": int(fence),
+        "status": status,
+    }
+    if extra_safe_metadata:
+        if set(metadata) & set(extra_safe_metadata):
+            raise ValueError("job_audit_metadata_conflict")
+        metadata.update(dict(extra_safe_metadata))
     session.add(AuditEvent(
         actor_kind="system",
         claimed_name=None,
@@ -325,13 +368,7 @@ def _add_job_audit(
         aggregate_type="work_job",
         aggregate_id=str(job_id),
         request_id=None,
-        safe_metadata={
-            "job_id": str(job_id),
-            "review_id": str(review_id) if review_id is not None else None,
-            "attempt_id": str(attempt_id) if attempt_id is not None else None,
-            "lease_fence": int(fence),
-            "status": status,
-        },
+        safe_metadata=metadata,
     ))
 
 
@@ -454,6 +491,7 @@ class DeepReviewService:
         report_service: Any | None = None,
         lease_seconds: int = 300,
         clock: Callable[[], datetime] = _now,
+        verdict_completed_notifier: Callable[[Session, UUID], Any] | None = None,
     ) -> None:
         settings = get_settings()
         self.settings = settings
@@ -488,6 +526,10 @@ class DeepReviewService:
         # stale while vLLM is still processing the approved request.
         self.lease_seconds = max(int(lease_seconds), MIN_LEASE_SECONDS)
         self.clock = clock
+        # RL-03 "Slack 스레드": card-v1 attempt가 completed로 commit된 직후 한 번 부른다.
+        # 기본은 `verdict_links.notify_verdict_completed`(브리핑 메시지 ts가 없거나 Slack이 꺼져
+        # 있으면 네트워크에 닿지 않는다). 테스트는 가짜 전송기를 묶은 함수를 넣는다.
+        self.verdict_completed_notifier = verdict_completed_notifier
 
     @property
     def client(self) -> Any | None:
@@ -508,6 +550,13 @@ class DeepReviewService:
         """
 
         if luna_inputs.is_luna(policy):
+            if (
+                self.settings.analysis_provider == "mock"
+                and self.reference_workflow_mode
+                and _policy_payload(policy).get("pipeline_version") == "card-v1"
+            ):
+                # 결정 B16: the RL card path runs the deterministic mock (no transfer).
+                return MOCK_ANALYSIS_PROVIDER, MOCK_MODEL_NAME
             return "codex-exec", str(policy.model_name)
         if self._client is not None and self._client_matches(str(policy.model_name)):
             return (
@@ -639,8 +688,13 @@ class DeepReviewService:
         attempt.work_job_id = job.id
         from .verification import record_selection
         record_selection(session, attempt.id, source_verification_enabled, actor, actor_kind)
-        for stage, sequence_number in STAGE_SEQUENCE.items():
-            session.add(DeepReviewStage(id=uuid4(), attempt_id=attempt.id, stage=stage, sequence=sequence_number, status="queued", structured_output={}, invocation_metadata={}))
+        # RL-03 card-v1 attempts keep their validated results in the
+        # append-only ``card_analysis_stage`` rows; the narrative StageName
+        # rows are not created for them (HP-03 "설정·상태·저장").
+        policy = session.get(AnalysisPolicyVersion, review.policy_version_id)
+        if policy is None or _policy_payload(policy).get("pipeline_version") != "card-v1":
+            for stage, sequence_number in STAGE_SEQUENCE.items():
+                session.add(DeepReviewStage(id=uuid4(), attempt_id=attempt.id, stage=stage, sequence=sequence_number, status="queued", structured_output={}, invocation_metadata={}))
         review.current_attempt_id = attempt.id
         review.status = "queued"
         return attempt
@@ -903,12 +957,27 @@ class DeepReviewService:
         # fencing and failure rules, but only while BIDOPS_DEMO_ENABLED is on;
         # otherwise they are left untouched (queued).  Orphan jobs still pass
         # the predicate and keep the fail-closed review_scope_missing handling.
-        company_scope = [] if getattr(self.settings, "demo_enabled", False) else [
-            ~exists().where(
-                DeepReview.id == WorkJob.aggregate_id,
-                DeepReview.company_id.is_not(None),
-            ),
-        ]
+        # RL-03: with BIDOPS_RL_ANALYSIS_ENABLED (and demo off) the real
+        # company's jobs are claimed too; fictional-company jobs stay queued.
+        if getattr(self.settings, "demo_enabled", False):
+            company_scope = []
+        elif getattr(self.settings, "rl_analysis_enabled", False):
+            from ...lifecycle.models import Company
+
+            company_scope = [
+                ~exists().where(
+                    DeepReview.id == WorkJob.aggregate_id,
+                    DeepReview.company_id.is_not(None),
+                    ~exists().where(Company.id == DeepReview.company_id, Company.is_fictional.is_(False)),
+                ),
+            ]
+        else:
+            company_scope = [
+                ~exists().where(
+                    DeepReview.id == WorkJob.aggregate_id,
+                    DeepReview.company_id.is_not(None),
+                ),
+            ]
         job = session.scalar(
             select(WorkJob)
             .where(
@@ -1671,6 +1740,304 @@ class DeepReviewService:
             raise invalid()
         return frozen, bundle, structures
 
+    def _approved_card_input(
+        self,
+        session: Session,
+        review: DeepReview,
+        attempt: DeepReviewAttempt,
+        profile: ProfileVersion,
+        policy: AnalysisPolicyVersion,
+        creation: Mapping[str, Any],
+    ) -> dict[str, Any]:
+        """Worker-side ``approval_invalid`` gate of an RL card-v1 attempt.
+
+        Same frozen-input checks as ``_approved_company_context`` (approval /
+        preview / review company, lineage, hash, nonce, creation and approval
+        audits, pinned profile/policy/graph hashes) plus the v2 shape: exact
+        v2 keys, ``overview_*`` both null (D1), and the frozen ``card_analysis``
+        units/batches/selector rebuilt from the pinned bundle unchanged.  The
+        input is never rebuilt into the call; nothing is added to it.
+        """
+
+        from .card_units import CardAnalysisSelectionError
+        from .company_analysis_input import COMPANY_ANALYSIS_INPUT_V2_KEYS, CompanyAnalysisError
+        from .company_deep_review import card_analysis_for_bundle, resolve_company_deep_policy
+        from .company_analysis_input import resolve_company_knowledge_context
+        from ..models import CompanyKnowledgeVersion, DeepReviewApproval, DeepReviewPreview
+
+        def invalid() -> InputVersionError:
+            return InputVersionError("approval_invalid", "승인된 동결 입력을 확인할 수 없습니다")
+
+        frozen = luna_inputs.approved_company_input(session, attempt.id, review)
+        approval = session.scalar(select(DeepReviewApproval).where(DeepReviewApproval.attempt_id == attempt.id))
+        preview = session.get(DeepReviewPreview, approval.preview_id) if approval is not None else None
+        graph = session.get(CompanyKnowledgeVersion, review.graph_version_id)
+        approval_audits = session.scalars(select(AuditEvent).where(
+            AuditEvent.action == "deep_review.external_transfer_approved",
+            AuditEvent.aggregate_type == "deep_review_attempt",
+            AuditEvent.aggregate_id == str(attempt.id),
+        ).limit(2)).all()
+        approved = approval_audits[0].safe_metadata if len(approval_audits) == 1 and isinstance(approval_audits[0].safe_metadata, Mapping) else {}
+        if (
+            approval is None or preview is None or graph is None
+            or set(frozen) != COMPANY_ANALYSIS_INPUT_V2_KEYS
+            or frozen.get("schema_version") != "bidops.company-analysis-input.v2"
+            or frozen.get("overview_run_id") is not None or frozen.get("overview_sha256") is not None
+            or creation.get("company_id") != str(review.company_id)
+            or creation.get("graph_version_id") != str(review.graph_version_id)
+            or creation.get("graph_sha256") != graph.graph_sha256 or frozen.get("graph_sha256") != graph.graph_sha256
+            or creation.get("grade_source") != "company_sw_business" or creation.get("effective_grade") is not None
+            or (attempt.sequence == 1 and (
+                creation.get("preview_id") != str(preview.id) or creation.get("input_sha256") != preview.input_sha256
+            ))
+            or approved.get("preview_id") != str(preview.id) or approved.get("input_sha256") != preview.input_sha256
+            or approved.get("company_id") != str(review.company_id)
+            or approved.get("graph_version_id") != str(review.graph_version_id)
+            or frozen.get("profile_sha256") != profile.profile_sha256
+            or frozen.get("policy_sha256") != policy.policy_sha256
+            or frozen.get("model_name") != policy.model_name
+        ):
+            raise invalid()
+        bundle, structures = bundle_context(session, review.bundle_id, structure_loader=self.structure_loader)
+        if [str(row["document_version_id"]) for row in bundle["documents"]] != list(frozen.get("document_version_ids", [])):
+            raise invalid()
+        try:
+            card_policy = resolve_company_deep_policy(session, self.settings, rl=True)
+            if card_policy.row.id != policy.id:
+                raise invalid()
+            knowledge = resolve_company_knowledge_context(session, review.company_id)
+            if (
+                str(knowledge.graph.id) != frozen.get("graph_version_id")
+                or str(knowledge.profile.id) != frozen.get("profile_version_id")
+            ):
+                raise invalid()
+            rebuilt = card_analysis_for_bundle(
+                session, bundle, structures, knowledge=knowledge, policy=card_policy,
+            ).model_dump(mode="json")
+        except (CardAnalysisSelectionError, CompanyAnalysisError, DeepReviewServiceError):
+            raise invalid() from None
+        if rebuilt != frozen.get("card_analysis"):
+            raise invalid()
+        return frozen
+
+    def _card_pipeline(self) -> Callable[..., None] | None:
+        """The card-v1 stage runner (RL-03 STEP-005 ``card_analysis.run_card_analysis``).
+
+        A ``None`` runner (kept as a seam) fails closed with
+        ``company_policy_invalid`` **before** the transfer audit and before
+        any call; no ``analysis.transfer.sent`` is written for a transfer that
+        cannot happen.
+        """
+
+        from .card_analysis import run_card_analysis
+
+        return run_card_analysis
+
+    def _persist_card_raw_response(
+        self,
+        session: Session,
+        claim: JobClaim,
+        result: Any,
+        *,
+        stage: str,
+        stage_key: str,
+        call_index: int,
+        repair_attempt: int,
+        extra_safe_metadata: Mapping[str, Any] | None = None,
+    ) -> None:
+        """Encrypt one card-v1 model response and append only its safe receipt (fenced).
+
+        The encrypted object is written before the fence lock; its DB pointer
+        and the ``deep_review.card.raw_response.stored`` audit (stage, key,
+        call index, repair attempt, response sha) are written only under the
+        live claim, so a stale worker cannot attach a late response.
+        ``extra_safe_metadata`` (결정 B33) adds code-only keys: the v2 extract
+        contract, the code-derived field names and repair rule codes.
+        """
+
+        raw = getattr(result, "raw_response", None)
+        if not isinstance(raw, bytes) or not raw:
+            raise DeepReviewServiceError("processing_failed", "model raw response가 없습니다", status_code=500)
+        aggregate, metadata = self._store_raw_aggregate([(
+            result, {"slice_index": call_index, "validation_repair_attempt": repair_attempt},
+        )])
+        if not self._lock_claim(session, claim):
+            session.rollback()
+            raise StaleFenceError()
+        content = self._raw_content_row(session, aggregate, metadata)
+        _add_job_audit(
+            session, action="deep_review.card.raw_response.stored", job_id=claim.job_id,
+            review_id=claim.deep_review_id, attempt_id=claim.attempt_id, fence=claim.fence, status="stored",
+            extra_safe_metadata={
+                "stage": stage, "stage_key": stage_key, "call_index": int(call_index),
+                "repair_attempt": int(repair_attempt), "content_object_id": str(content.id),
+                "response_sha256": hashlib.sha256(raw).hexdigest(),
+                **_card_derivation_metadata(extra_safe_metadata),
+            },
+        )
+        session.commit()
+
+    def _finish_card_claim(
+        self,
+        session: Session,
+        claim: JobClaim,
+        *,
+        batch_count: int,
+        call_count: int,
+        elapsed_seconds: float,
+        target_seconds: int,
+        target_missed: bool,
+        extract_derivation: Mapping[str, Any] | None = None,
+    ) -> None:
+        """Complete a card-v1 attempt once its full append-only stage set exists.
+
+        Exactly extract/compare ``0..B-1``, the three roles and ``final``;
+        anything else is a stale or broken attempt and nothing is completed.
+        The completion audit carries the call count and the 2400-second target
+        result (a missed target is still a completed attempt).
+        """
+
+        from ..models import CardAnalysisStage
+
+        if (
+            type(batch_count) is not int or batch_count < 1
+            or type(call_count) is not int or call_count < batch_count + 4
+            or isinstance(elapsed_seconds, bool) or not isinstance(elapsed_seconds, (int, float)) or elapsed_seconds < 0
+            or type(target_seconds) is not int or target_seconds < 1
+            or type(target_missed) is not bool or target_missed != (elapsed_seconds > target_seconds)
+        ):
+            raise DeepReviewServiceError("processing_failed", "카드 분석 완료 감사 값이 올바르지 않습니다", status_code=500)
+        now = self.clock()
+        if not self._lock_claim(session, claim):
+            session.rollback()
+            raise StaleFenceError()
+        rows = session.scalars(select(CardAnalysisStage).where(CardAnalysisStage.attempt_id == claim.attempt_id)).all()
+        keys = {(row.stage, row.stage_key) for row in rows}
+        batches = {str(index) for index in range(batch_count)}
+        expected = (
+            {("extract", key) for key in batches} | {("compare", key) for key in batches}
+            | {("role", role) for role in ("eligibility_economics", "technical_fit", "operations_risk")}
+            | {("synthesis", "final")}
+        )
+        if keys != expected or len(rows) != len(expected):
+            session.rollback()
+            raise DeepReviewServiceError("processing_failed", "카드 분석 단계 결과가 완전하지 않습니다", status_code=500)
+        attempt_count = session.execute(update(DeepReviewAttempt).where(
+            DeepReviewAttempt.id == claim.attempt_id, DeepReviewAttempt.deep_review_id == claim.deep_review_id,
+            DeepReviewAttempt.lease_fence == claim.fence, DeepReviewAttempt.status == "running",
+        ).values(status="completed", completed_at=now)).rowcount
+        review_count = session.execute(update(DeepReview).where(
+            DeepReview.id == claim.deep_review_id, DeepReview.current_attempt_id == claim.attempt_id,
+            DeepReview.status == "running",
+        ).values(status="completed", completed_at=now)).rowcount
+        job_count = session.execute(update(WorkJob).where(
+            WorkJob.id == claim.job_id, WorkJob.lease_owner == claim.worker_id,
+            WorkJob.lease_fence == claim.fence, WorkJob.status == "running",
+        ).values(status="completed", completed_at=now, lease_expires_at=None)).rowcount
+        if (attempt_count, review_count, job_count) != (1, 1, 1):
+            session.rollback()
+            raise StaleFenceError()
+        _add_job_audit(
+            session, action="deep_review.job.completed", job_id=claim.job_id, review_id=claim.deep_review_id,
+            attempt_id=claim.attempt_id, fence=claim.fence, status="completed",
+            extra_safe_metadata={
+                "pipeline_version": "card-v1", "batch_count": batch_count, "call_count": call_count,
+                "elapsed_seconds": float(elapsed_seconds), "target_seconds": target_seconds,
+                "target_missed": target_missed,
+                **_card_derivation_metadata(extract_derivation),
+            },
+        )
+        session.commit()
+        self._notify_verdict_completed(session, claim.attempt_id)
+
+    def _notify_verdict_completed(self, session: Session, attempt_id: UUID) -> None:
+        """판정 완료 Slack 스레드 답글(RL-03). 완료 commit 뒤라 어떤 실패도 attempt를 바꾸지 않는다."""
+
+        notifier = self.verdict_completed_notifier
+        if notifier is None:
+            from .verdict_links import notify_verdict_completed as notifier
+        try:
+            notifier(session, attempt_id)
+        except Exception as error:  # pragma: no cover - 기본 notifier는 예외를 내지 않는다
+            logger.warning("verdict completion notifier failed: attempt=%s error=%s", attempt_id, type(error).__name__)
+        finally:
+            # 읽기만 한 transaction을 닫는다(worker session을 idle-in-transaction으로 두지 않는다).
+            session.rollback()
+
+    def _run_card_claim(
+        self,
+        session: Session,
+        claim: JobClaim,
+        *,
+        review: DeepReview,
+        attempt: DeepReviewAttempt,
+        profile: ProfileVersion,
+        policy: AnalysisPolicyVersion,
+        creation: Mapping[str, Any],
+    ) -> None:
+        """Claimed RL card-v1 attempt: approval re-check → transfer audit → stage runner.
+
+        Spec "정책 단위 사전 승인": the approval must still be active for the
+        pinned policy sha with the ``pre_spec``/``deep_review`` scope.  A real
+        attempt also re-checks the daily cap here (결정 B17: the cap counts only
+        attempts that actually transmitted, so the last gate before the first
+        call is the worker; this attempt itself is excluded so a reclaimed run
+        is not refused by its own audit).  ``analysis.transfer.sent`` is
+        committed once, right after the claim and before the first call.
+
+        With ``BIDOPS_ANALYSIS_PROVIDER=mock`` in reference mode (결정 B16) the
+        runner uses the deterministic mock card client: nothing is transmitted,
+        so no ``analysis.transfer.sent`` is written and the cap is not checked;
+        the attempt's provider lineage (``mock-analysis``) was pinned at creation.
+        """
+
+        from . import transfer_policy
+        from .card_units import analysis_call_budget
+
+        mock = self.settings.analysis_provider == "mock"
+        if not self.settings.luna_deep_review_enabled or (mock and not self.reference_workflow_mode):
+            raise DeepReviewServiceError("service_unavailable", "Luna 실행 비활성", status_code=503)
+        runner = self._card_pipeline()
+        if runner is None:
+            raise DeepReviewServiceError("company_policy_invalid", "카드 분석 실행기가 연결되지 않았습니다", status_code=503)
+        frozen = self._approved_card_input(session, review, attempt, profile, policy, creation)
+        try:
+            approval = transfer_policy.require_transfer_approval(
+                session, policy, check_cap=not mock, reserve_in_flight=False, exclude_attempt_id=attempt.id,
+            )
+        except transfer_policy.TransferPolicyError as error:
+            raise DeepReviewServiceError(error.code, "전송 정책 승인이 없습니다", status_code=409) from None
+        policy_payload = _policy_payload(policy)
+        card = frozen["card_analysis"]
+        budget = analysis_call_budget(
+            len(card["batches"]), repair_attempts=int(policy_payload["card"]["repair_attempts"]),
+        )
+        preview_hash = luna_inputs.approved_company_input_sha256(session, attempt.id)
+        if not self._lock_claim(session, claim):
+            session.rollback()
+            raise StaleFenceError()
+        if not mock and not getattr(self, "_injected_client", False):
+            # 결정 B25: check the fixed runner endpoint before the transfer audit is
+            # written, so a misconfigured stack neither records a send nor uses the cap.
+            from .luna_client import valid_runner_endpoint
+
+            if not valid_runner_endpoint(self.settings.luna_runner_url):
+                session.rollback()
+                raise DeepReviewServiceError("runner_unavailable", "Luna runner 주소가 올바르지 않습니다", status_code=503)
+        if not mock:
+            transfer_policy.record_transfer_sent(
+                session, approval=approval, attempt_id=attempt.id, notice_id=int(review.notice_id),
+                input_sha256=preview_hash, unit_count=len(card["units"]),
+                planned_call_count=budget.normal_calls,
+            )
+        session.commit()
+        from .card_analysis import CardAnalysisRuntimeError
+
+        try:
+            runner(self, session, claim, frozen=frozen, policy=policy_payload, approval=approval)
+        except CardAnalysisRuntimeError as error:
+            raise DeepReviewServiceError(error.code, "카드 분석 실행이 검증을 통과하지 못했습니다", status_code=500) from None
+
     def run_claim(self, session: Session, claim: JobClaim) -> None:
         """Execute the three ordered business stages without an open I/O transaction.
 
@@ -1746,6 +2113,13 @@ class DeepReviewService:
                     approval_check(review.notice_id)
                 except ModelInvocationError as error:
                     raise DeepReviewServiceError(error.code, "외부 분석 provider 사용 승인이 없습니다", status_code=403) from error
+            if company and luna and _policy_payload(policy).get("pipeline_version") == "card-v1":
+                # RL-03 card-v1 (real company, policy-level transfer approval).
+                self._run_card_claim(
+                    session, claim, review=review, attempt=attempt, profile=profile, policy=policy,
+                    creation=audit_snapshot,
+                )
+                return
             if not luna:
                 bundle, structures = bundle_context(session, review.bundle_id, structure_loader=self.structure_loader)
                 profile_payload = profile_context(session, profile)

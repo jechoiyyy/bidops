@@ -79,7 +79,9 @@ app/
 | 결정 대기 업무 집계 | 읽기 projection | screening, deep_review | 그 업무의 count `null`·`provider_absent`. lifecycle이 직접 세는 `tracking_action_required`는 그대로다 |
 | 회사 사실 (`company_facts_projection`, RL-01) | 읽기 projection | deep_review | `None` → 브리핑 생성이 `company_not_registered`(exit 1, 행 없음) |
 | 브리핑 발주계획 후보 (`briefing_order_plan_candidates`, RL-01) | 읽기 projection | screening | 빈 목록 + 경고 `order_plan_provider_absent` |
-| 사업기회 활동 항목 (`opportunity_activity_items`, RL-02) | 읽기 hook(owner별 등록·복수 허용) | 아직 없음 — RL-03(`verdict_completed`)·RL-04(`draft_prepared`)가 제공 | 그 kind의 항목 0건. 정렬·커서·`kinds` 필터는 lifecycle 피드가 합쳐 한다 |
+| 사업기회 활동 항목 (`opportunity_activity_items`, RL-02) | 읽기 hook(owner별 등록·복수 허용) | deep_review(RL-03 `verdict_completed`), RL-04(`draft_prepared`)는 아직 없음 | 그 kind의 항목 0건. 정렬·커서·`kinds` 필터는 lifecycle 피드가 합쳐 한다 |
+| 브리핑 판정 표시 (`briefing_verdict_display`, RL-03) | 읽기 projection | deep_review | 빈 사전 → RL-01 v1 규칙(`분석 대기`). 값 집합 밖 글자도 버린다 |
+| 브리핑 추천 (`on_briefing_recommendation`·`briefing_generated`, RL-03) | 이벤트 hook | deep_review | no-op. 자동 카드 판정 트리거·대기열 처리가 일어나지 않는다 |
 | 회차 적재됨 | 이벤트 hook | screening, deep_review | no-op, 건수 0 |
 | 추적 결정 변경됨 | 이벤트 hook | deep_review | no-op |
 | effective grade 변경됨 | 이벤트 hook | deep_review | no-op. 첨부 취득 자격 재계산과 자동 문서 준비가 일어나지 않는다 |
@@ -109,7 +111,9 @@ app/
 
 ```bash
 python -m app.screening.cli {run-one, score-candidate-quality}
-python -m app.deep_review.cli {run-bc-e2e, run-prespec-e2e, import-profile-policy}
+python -m app.deep_review.cli {run-bc-e2e, run-prespec-e2e, import-profile-policy,
+                                approve-transfer-policy, revoke-transfer-policy, drain-verdict-queue,
+                                attach-local-original}
 python -m app.lifecycle.ingest.cli {--run <회차> [--collection] | --all | --tracked-backfill}
 python -m app.lifecycle.cli {build-briefing [--date] [--send] [--dry-run] [--json], slack-worker}
 
@@ -133,6 +137,8 @@ deep_review가 형제 모듈을 import하지 않기 위해서다. 제공자가 �
 `screening_provider_missing`으로 fail closed한다.
 
 `app.lifecycle.cli build-briefing`도 같은 `register_configured_extensions()`로 제공자를 등록한다 — 등록이 없으면 회사 사실이 없어 `company_not_registered`로 fail closed한다(`slack-worker`는 반응 저장만 하므로 확장점을 등록하지 않는다). 진입점마다 같은 확장점·설정을 읽는지 `tests/app/test_briefing_cli_extensions.py`가 검사한다. **Slack 호출은 `app/core/slack.py`의 전송기 하나뿐이다.** `slack_sdk` client를 다른 곳에서 만들지 않으며, 전송기가 호출 전에 `BIDOPS_SLACK_ENABLED`·토큰·채널·허용 host를 검사하고 토큰을 로그·응답·오류에 넣지 않는다. `slack-worker`(compose profile `slack`, worker DB 자격)는 모델을 쓰지 않으므로 모델 슬롯과 무관한 별도 프로세스다.
+
+**RL 카드 판정(RL-03)은 deep_review 소유이고 새 worker 진입점이 없다.** 모델 호출은 합성 worker의 같은 슬롯에서 `card-v1` attempt를 claim해 `codex-runner` 하나로만 한다. 자동 시작은 lifecycle 확장점 `on_briefing_recommendation`·`briefing_generated`(`RLVerdictBriefingHook`)로 들어오며 lifecycle은 deep_review CLI를 import하지 않는다 — `drain-verdict-queue`와 `build-briefing`이 같은 service 함수를 부른다. ready 전환이 `worker` DB 자격에서 일어나므로 worker 역할에 `deep_review`·`deep_review_attempt`·`deep_review_stage`·`deep_review_preview`·`deep_review_approval` INSERT가 있다(UPDATE·DELETE 없음, `runtime-privileges.sql`). 상한 확인과 시작은 PostgreSQL advisory lock으로 직렬화한다(SQLite에서는 no-op). `transfer_policy_approval`·`card_analysis_stage`·`verdict_feedback`은 trigger가 append-only를 지키고 어느 역할에도 DELETE가 없다. 새 진입점·확장점을 더하면 CLI·web·worker가 같은 확장점을 읽는지 진입점별로 검사한다.
 
 모델을 쓰는 C-2 선별·심층 검토·사전규격 개요 worker에 단독 진입점을 만들지 않는다. 합성
 worker가 한 바퀴에 C-2 → 심층 → 회사 핏 → 개요 순서로 **하나만** claim하며, 따로 띄우면 **모델 슬롯

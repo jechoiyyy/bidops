@@ -11,14 +11,15 @@ instead of a repaired response (§10).
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 from uuid import UUID
 
-from pydantic import Field, model_validator
+from pydantic import Field, TypeAdapter, ValidationError, model_validator
 
 from ...lifecycle.schemas.companies import CompanyDTO, CompanyTrackingDTO
 from .company_fit import CompanyFitPayloadV2, CompanyFitView
 from .deep_reviews import AttemptView, DeepReviewPreviewView, DeepReviewView
+from .card_analysis import CardAnalysisInput
 from .document_bundles import StrictModel
 from .reports import ReportView
 
@@ -41,8 +42,10 @@ class FrozenProvenance(StrictModel):
     ontology_version: str = Field(min_length=1)
     ontology_sha256: Sha256
     documents: list[FrozenDocument] = Field(min_length=1)
-    overview_run_id: UUID
-    overview_sha256: Sha256
+    #: RL-03 "개요 의존 제거" (D1): a ``card-v1`` deep-review input freezes both
+    #: as null.  Both null or both set; a company-fit provenance always has both.
+    overview_run_id: UUID | None
+    overview_sha256: Sha256 | None
     bundle_id: UUID | None
     policy_version_id: UUID
     policy_sha256: Sha256
@@ -55,7 +58,94 @@ class FrozenProvenance(StrictModel):
         ids = [str(row.document_version_id) for row in self.documents]
         if ids != sorted(ids) or len(ids) != len(set(ids)):
             raise ValueError("provenance_documents_unsorted")
+        if (self.overview_run_id is None) != (self.overview_sha256 is None):
+            raise ValueError("provenance_overview_partial")
+        if self.purpose == "company_fit" and self.overview_run_id is None:
+            raise ValueError("provenance_overview_required")
         return self
+
+
+class CompanyAnalysisInputV1(StrictModel):
+    """``bidops.company-analysis-input.v1`` (DEMO §5): narrative-v2 and company fit.
+
+    The retrieval parts keep the builder's own validation; this model fixes the
+    top-level key set, identity types and the required completed overview.
+    """
+
+    schema_version: Literal["bidops.company-analysis-input.v1"]
+    purpose: Literal["company_fit", "deep_review"]
+    execution_nonce: UUID
+    target_review_id: UUID | None
+    company_id: UUID
+    profile_version_id: UUID
+    profile_sha256: Sha256
+    graph_version_id: UUID
+    graph_sha256: Sha256
+    ontology_version: str = Field(min_length=1)
+    ontology_sha256: Sha256
+    notice_id: int = Field(ge=1)
+    document_version_ids: list[UUID] = Field(min_length=1)
+    bundle_id: UUID | None
+    overview_run_id: UUID
+    overview_sha256: Sha256
+    policy_version_id: UUID
+    policy_sha256: Sha256
+    model_name: str = Field(min_length=1)
+    model_revision: str | None
+    generation_config_sha256: Sha256
+    requirements: list[dict[str, Any]]
+    profile_facts: list[dict[str, Any]]
+    profile_evidence: list[dict[str, Any]]
+    graph_nodes: list[dict[str, Any]]
+    graph_edges: list[dict[str, Any]]
+    graph_paths: list[dict[str, Any]]
+    coverage: dict[str, Any]
+
+
+class CompanyAnalysisInputV2(CompanyAnalysisInputV1):
+    """``bidops.company-analysis-input.v2`` (HP-03 v2 keys; RL-03 ``card_analysis``).
+
+    ``overview_*`` are both null (RL ``card-v1``, D1) or both set.  The nested
+    ``company_binding`` must be the same binding as the top-level identity.
+    """
+
+    schema_version: Literal["bidops.company-analysis-input.v2"]  # type: ignore[assignment]
+    purpose: Literal["deep_review"]  # type: ignore[assignment]
+    overview_run_id: UUID | None  # type: ignore[assignment]
+    overview_sha256: Sha256 | None  # type: ignore[assignment]
+    card_analysis: CardAnalysisInput
+
+    @model_validator(mode="after")
+    def _binding_and_overview(self) -> "CompanyAnalysisInputV2":
+        if (self.overview_run_id is None) != (self.overview_sha256 is None):
+            raise ValueError("input_overview_partial")
+        binding = self.card_analysis.company_binding
+        if (
+            binding.graph_version_id != self.graph_version_id
+            or binding.graph_sha256 != self.graph_sha256
+            or binding.profile_version_id != self.profile_version_id
+            or binding.profile_sha256 != self.profile_sha256
+            or binding.ontology_version != self.ontology_version
+            or binding.ontology_sha256 != self.ontology_sha256
+        ):
+            raise ValueError("card_company_binding_mismatch")
+        return self
+
+
+CompanyAnalysisInput = Annotated[
+    CompanyAnalysisInputV1 | CompanyAnalysisInputV2,
+    Field(discriminator="schema_version"),
+]
+_COMPANY_ANALYSIS_INPUT = TypeAdapter(CompanyAnalysisInput)
+
+
+def validate_company_analysis_input(value: Any) -> CompanyAnalysisInputV1 | CompanyAnalysisInputV2:
+    """Validate a frozen input as v1 or v2 by ``schema_version`` (ValueError on failure)."""
+
+    try:
+        return _COMPANY_ANALYSIS_INPUT.validate_python(value)
+    except ValidationError as error:
+        raise ValueError("company_analysis_input_invalid") from error
 
 
 #: Identity fields duplicated on a company view and its provenance (§10).
@@ -83,8 +173,11 @@ class CompanyDeepReviewPreviewView(DeepReviewPreviewView):
     @model_validator(mode="after")
     def _input_identity(self) -> "CompanyDeepReviewPreviewView":
         frozen = self.input
+        validate_company_analysis_input(frozen)
         if (
-            frozen.get("schema_version") != "bidops.company-analysis-input.v1"
+            frozen.get("schema_version") not in {
+                "bidops.company-analysis-input.v1", "bidops.company-analysis-input.v2",
+            }
             or frozen.get("purpose") != "deep_review"
             or frozen.get("execution_nonce") != str(self.preview_id)
             or frozen.get("company_id") != str(self.company_id)
@@ -305,6 +398,9 @@ class CompanyComparisonView(StrictModel):
 
 __all__ = [
     "AttemptView",
+    "CompanyAnalysisInput",
+    "CompanyAnalysisInputV1",
+    "CompanyAnalysisInputV2",
     "CompanyComparisonItem",
     "CompanyComparisonView",
     "CompanyDeepReviewPreviewView",
@@ -319,5 +415,6 @@ __all__ = [
     "CompanyScopedFitView",
     "FrozenDocument",
     "FrozenProvenance",
+    "validate_company_analysis_input",
     "GraphPath",
 ]

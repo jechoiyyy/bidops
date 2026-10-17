@@ -13,6 +13,12 @@
 - ``enqueue-overview``: 사전규격 공고 한 건의 개요 run을 대기열에 넣는다.
 - ``prepare-overviews``: 이미 적재된 사전규격의 자동 준비를 한 번에 돌린다.
 - ``close-overview-run``: 활성 개요 run 하나를 사람이 닫는다.
+- ``approve-transfer-policy``·``revoke-transfer-policy``: RL 카드 판정 정책의
+  Luna 전송 정책 단위 사전 승인·철회(RL-03).
+- ``drain-verdict-queue``: 일일 상한으로 대기한 RL 판정 요청을 오래된 순으로 시작하거나
+  (``build-briefing``이 같은 service를 부른다) ``--hold``로 RL-05 gold 홀드아웃을 표시한다.
+- ``attach-local-original``: sha256이 기대값과 같은 운영자 로컬 원본을 기존 G2B 첨부 행에
+  연결하고(G2B fetcher와 같은 격리·검사 경로) 그 공고의 문서 준비를 연다(RL-03 결정 B15).
 - ``rebuild-segment-manifests``: 과거 ready 구조에 현재 segment manifest를
   멱등 생성한다(worker 역할).
 
@@ -74,6 +80,22 @@ _SUBCOMMANDS: dict[str, tuple[str, str]] = {
     "close-overview-run": (
         ".close_overview_run",
         "활성 사전규격 개요 run 하나를 닫는다 (queued→cancelled, running→failed)",
+    ),
+    "approve-transfer-policy": (
+        ".approve_transfer_policy",
+        "선택된 RL 카드 판정 정책 행의 Luna 전송을 정책 단위로 사전 승인한다",
+    ),
+    "revoke-transfer-policy": (
+        ".revoke_transfer_policy",
+        "정책 단위 전송 승인 한 건을 철회한다 (revoked_* 한 번만 기록)",
+    ),
+    "drain-verdict-queue": (
+        ".drain_verdict_queue",
+        "일일 상한으로 대기한 RL 판정 요청을 상한 안에서 시작하거나 gold 홀드아웃을 표시한다",
+    ),
+    "attach-local-original": (
+        ".attach_local_original",
+        "sha256이 일치하는 로컬 원본을 기존 G2B 첨부 행에 연결하고 문서 준비를 연다 (RL-03 B15)",
     ),
     "rebuild-segment-manifests": (
         ".rebuild_segment_manifests",

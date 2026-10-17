@@ -33,6 +33,13 @@ from ..services.company_deep_review import (
 )
 from ..services.deep_reviews import DeepReviewService, DeepReviewServiceError
 from ..services.input_versions import InputVersionError
+from ..schemas.verdict_view import VerdictFeedbackCreate, VerdictFeedbackReceipt
+from ..services.verdict_view import (
+    VERDICT_ERROR_MESSAGES,
+    VERDICT_ERROR_STATUS,
+    VerdictViewError,
+    create_verdict_feedback,
+)
 
 
 class _Strict(BaseModel):
@@ -149,6 +156,47 @@ def create_company_deep_review_attempt(
         actor=_actor(actor, actor_format), request_id=payload.request_id,
         source_verification_enabled=payload.source_verification_enabled,
     ), request_id=payload.request_id, status_code=202)
+
+
+@router.post(
+    "/{company_id}/pre-specs/{notice_id}/verdict-feedback",
+    response_model=VerdictFeedbackReceipt,
+    status_code=201,
+)
+def create_company_verdict_feedback(
+    company_id: UUID,
+    payload: VerdictFeedbackCreate,
+    notice_id: int = ApiPath(..., ge=1),
+    actor: Annotated[str | None, Header(alias="X-BidOps-Actor-Name")] = None,
+    actor_format: Annotated[str | None, Header(alias="X-BidOps-Actor-Name-Format")] = None,
+    session: Session = Depends(get_db),
+) -> JSONResponse:
+    """RL-03 판정 오류 제보 (append-only). 판정·추적·Go/No-Go를 바꾸지 않는다."""
+
+    try:
+        claimed = validate_actor(actor, actor_format)
+        content = create_verdict_feedback(
+            session, company_id=company_id, notice_id=notice_id, payload=payload, actor=claimed,
+        )
+    except BundleServiceError as error:
+        session.rollback()
+        return _verdict_error(error.code, request_id=payload.request_id)
+    except VerdictViewError as error:
+        session.rollback()
+        return _verdict_error(error.code, request_id=payload.request_id)
+    except Exception:  # noqa: BLE001 - safe API boundary
+        session.rollback()
+        return _verdict_error("processing_failed", request_id=payload.request_id)
+    return JSONResponse(status_code=201, content=content)
+
+
+def _verdict_error(code: str, *, request_id: UUID | None = None) -> JSONResponse:
+    safe = code if code in VERDICT_ERROR_STATUS else "processing_failed"
+    return JSONResponse(
+        status_code=VERDICT_ERROR_STATUS[safe],
+        content={"error": {"code": safe, "message": VERDICT_ERROR_MESSAGES[safe], "details": None},
+                 "request_id": str(request_id) if request_id else None},
+    )
 
 
 __all__ = [

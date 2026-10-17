@@ -319,6 +319,7 @@ def test_model_has_exact_closed_table_set():
     from app.deep_review.models import (
         ATTACHMENT_FETCH_TABLES,
         BID_DELTA_TABLES,
+        CARD_ANALYSIS_TABLES,
         COMPANY_KNOWLEDGE_TABLES,
         DEEP_REVIEW_LEAN_V1_TABLES,
         DOCUMENT_SEGMENT_TABLES,
@@ -354,7 +355,8 @@ def test_model_has_exact_closed_table_set():
         "assumption_stage",
         "company_fit_policy_version",
     )
-    assert len(Base.metadata.tables) == 101
+    # RL-03 0040 adds the four card analysis tables (spec "저장").
+    assert len(Base.metadata.tables) == 105
     assert set(Base.metadata.tables) == set(
         LEGACY_TABLES + NEW_TABLES + SCREENING_RUNTIME_TABLES + IDENTITY_TABLES
         + ATTACHMENT_FETCH_TABLES + REVISION_TABLES
@@ -366,6 +368,7 @@ def test_model_has_exact_closed_table_set():
         + post_lean_deep_review_tables
         + BRIEFING_TABLES
         + OPPORTUNITY_NOTE_TABLES
+        + CARD_ANALYSIS_TABLES
     )
     assert isinstance(Base.metadata.tables["run"].c.screening_basis.type, Text)
     assert "fk_evidence_document_bundle_scope" in {

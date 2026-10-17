@@ -66,6 +66,9 @@ from ...core.api_errors import (
 )
 
 CREATE_BUNDLE_RETRIES = 3
+#: 묶음 생성의 등급 자격 검사를 건너뛰는 촉발: 운영자 로컬 원본 연결(RL-03 결정 B15)과
+#: RL 분석이 켜진 상태의 브리핑 추천 SW=Y 사전규격(결정 B18). 안전 검사·확정 fence는 그대로다.
+ELIGIBILITY_OVERRIDE_TRIGGERS = frozenset({"operator_local_original", "briefing_recommendation"})
 DOCUMENT_ROLES = {"공고", "정정", "제안요청서", "과업지시서", "내역서", "제출서식", "부록", "기타"}
 
 
@@ -759,6 +762,7 @@ class DocumentBundleService:
         correlation_id: UUID | None = None,
         actor_kind: str = "human",
         trigger_metadata: Mapping[str, Any] | None = None,
+        eligibility_override: str | None = None,
     ) -> BundleView:
         """`actor_kind`/`trigger_metadata`는 자동 준비(§6.2)가 쓰는 인자다.
 
@@ -766,7 +770,16 @@ class DocumentBundleService:
         촉발 사유(`trigger`·회차·리뷰 식별자)를 감사 이벤트에 덧붙인다. 등급
         검사·revision 할당·`_seed_bundle_items`·issue 계산은 두 경로가 **같은
         코드**를 지난다.
+
+        `eligibility_override`가 `operator_local_original`(RL-03 결정 B15, 운영자가
+        sha256을 확인한 원본을 연결한 직후) 또는 `briefing_recommendation`(결정 B18, RL
+        분석이 켜진 상태에서 추천받은 SW=Y 사전규격 — 호출부 `maybe_auto_prepare`가
+        판정)일 때만 등급 자격 검사를 건너뛴다. 등급 값은 그대로 감사에 남고, 묶음 항목·issue·확정 fence는 같다.
+        그 밖의 값은 `invalid_request`다.
         """
+
+        if eligibility_override is not None and eligibility_override not in ELIGIBILITY_OVERRIDE_TRIGGERS:
+            raise BundleServiceError("invalid_request", "자격 예외 사유가 올바르지 않습니다", status_code=400)
 
         claimed_name = validate_actor(actor)
         for attempt in range(CREATE_BUNDLE_RETRIES):
@@ -782,7 +795,7 @@ class DocumentBundleService:
             # 공통 helper가 한다. 완화로 자격을 얻은 공고의 등급을 `우선 검토`로
             # 접어 기록하지 않는다.
             effective_grade_at_start = self.effective_grade(session, notice.id)
-            if not self.eligible(session, notice.id, effective_grade_at_start):
+            if eligibility_override is None and not self.eligible(session, notice.id, effective_grade_at_start):
                 raise BundleServiceError("effective_grade_ineligible", "우선 검토 또는 SW사업대상=Y 공고만 문서 bundle을 만들 수 있습니다", status_code=403)
             previous = session.scalar(select(DocumentBundle).where(DocumentBundle.notice_id == notice.id).order_by(DocumentBundle.revision.desc()).limit(1))
             revision = (previous.revision + 1) if previous else 1

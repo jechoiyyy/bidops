@@ -146,7 +146,8 @@ def test_briefing_view_shape_and_operational_fields_are_not_exposed(session, pla
     assert body == by_date.json()
     assert set(body) == VIEW_KEYS
     assert (body["schema_version"], body["briefing_date"], body["status"], body["item_count"]) == (
-        "bidops.briefing.v1", "2026-10-16", "generated", 3,
+        # RL-03 spec "연결": v1 → v2(키 동일, `verdict_display` 값 집합만 확장).
+        "bidops.briefing.v2", "2026-10-16", "generated", 3,
     )
     assert body["slack_sent_at"] is None and body["collection_note"] is None
     # 운영 정보(점수·규칙 파일 sha·그래프 버전)는 키로도 값으로도 응답에 없다.

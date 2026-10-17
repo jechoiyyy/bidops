@@ -1,15 +1,15 @@
 {
   "schema_version": 2,
   "feature": "RL-03-fit-verdict",
-  "phase": "review",
+  "phase": "validating",
   "steps": [
     {
       "id": "STEP-001",
       "title": "정책 파일·schema·runner contract",
       "model": "complex",
       "fingerprint": "552f2d56a85d8d002a4efbee07e035ed1c921198bbe5a6797eebe04d94bb94c3",
-      "status": "stale",
-      "updated_at": null,
+      "status": "done",
+      "updated_at": "2026-10-17T15:44:32+09:00",
       "history": [
         {
           "id": "STEP-001",
@@ -19,15 +19,16 @@
           "status": "pending",
           "updated_at": null
         }
-      ]
+      ],
+      "note": "card-v1 정책·schema 3+입력 schema·runner/client allowlist·identity·config 4키; SQLite 131·PG 126"
     },
     {
       "id": "STEP-002",
       "title": "저장 테이블·권한",
       "model": "standard",
       "fingerprint": "45854d0035fa4c364dfa70aa21f8043c1f89cbf508a1e0915bd498c403fbbd34",
-      "status": "stale",
-      "updated_at": null,
+      "status": "done",
+      "updated_at": "2026-10-17T15:44:32+09:00",
       "history": [
         {
           "id": "STEP-002",
@@ -37,15 +38,16 @@
           "status": "pending",
           "updated_at": null
         }
-      ]
+      ],
+      "note": "테이블 4·0040·trigger·권한(결정 B1: verdict_request UPDATE(status, started_attempt_id) worker·app)"
     },
     {
       "id": "STEP-003",
       "title": "정책 승인·gate",
       "model": "complex",
       "fingerprint": "c421ff67aea4b835157a1c55a473ecfb5eea2618e3de5f2c4e286427704ace17",
-      "status": "stale",
-      "updated_at": null,
+      "status": "done",
+      "updated_at": "2026-10-17T16:21:54+09:00",
       "history": [
         {
           "id": "STEP-003",
@@ -73,15 +75,16 @@
             }
           ]
         }
-      ]
+      ],
+      "note": "승인/철회 CLI·검사 순서·자동 preview/approval·transfer.sent 감사(claim 직후)·card-v1 개요 비의존; test_auto_preparation 13건은 main에서도 실패(기존)"
     },
     {
       "id": "STEP-004",
       "title": "unit·batch·입력 v2",
       "model": "complex",
       "fingerprint": "3f39c5fb6752071573d2a0b8fac3777ab0aa27cb205877dad584c5766ad1bf67",
-      "status": "stale",
-      "updated_at": null,
+      "status": "done",
+      "updated_at": "2026-10-17T16:21:54+09:00",
       "history": [
         {
           "id": "STEP-004",
@@ -109,23 +112,25 @@
             }
           ]
         }
-      ]
+      ],
+      "note": "HP-03 unit/batch 이식·v2 입력(overview null)·D2 projection·retrieval proposed/origin 7; SQLite 302·PG 180"
     },
     {
       "id": "STEP-005",
       "title": "추출 검증·대조·역할/종합",
       "model": "complex",
       "fingerprint": "9ac99afd5f9b0db1881f0b581d3b5fa46ac6349c6f4881cc9ac2897254cb4e7b",
-      "status": "pending",
-      "updated_at": null
+      "status": "done",
+      "updated_at": "2026-10-17T16:56:30+09:00",
+      "note": "추출 검증·allowlist 대조·역할/종합·실행기 연결, B10 label·B11 참조 사실만·100k 초과 fail closed; SQLite 252·PG 123"
     },
     {
       "id": "STEP-006",
       "title": "자동 트리거·cap·큐",
       "model": "complex",
       "fingerprint": "75c293fc7d6f31b39d415191ce7f22f4154fe011087d9aa012334cbc5d0ea1c8",
-      "status": "stale",
-      "updated_at": null,
+      "status": "done",
+      "updated_at": "2026-10-17T17:46:30+09:00",
       "history": [
         {
           "id": "STEP-006",
@@ -153,15 +158,16 @@
             }
           ]
         }
-      ]
+      ],
+      "note": "트리거 (1)~(7)·advisory lock(B8)·cap 큐·drain·hold, 브리핑 hook; 동시성 테스트가 lock 제거 시 실패함 확인(구현자)"
     },
     {
       "id": "STEP-007",
       "title": "REST·view",
       "model": "complex",
       "fingerprint": "a54cf9fac19d405a956085f794cd7d6f797bd81c3d2fda00c8462a988d37ce20",
-      "status": "stale",
-      "updated_at": null,
+      "status": "done",
+      "updated_at": "2026-10-17T17:46:30+09:00",
       "history": [
         {
           "id": "STEP-007",
@@ -171,15 +177,16 @@
           "status": "pending",
           "updated_at": null
         }
-      ]
+      ],
+      "note": "HP-04 view+B4 키·별칭·수동 요청·feedback·transfer-policy·미들웨어; SQLite 222·PG 190; 넓은 스위트 실패 120은 HEAD 동일, t14 4건은 harness 선택"
     },
     {
       "id": "STEP-008",
       "title": "연결(활동·브리핑·Slack 스레드)",
       "model": "standard",
       "fingerprint": "2c9665b34bec4df5cb7feb89c11c1355527245fbc14180a69a3156c15f65fd96",
-      "status": "stale",
-      "updated_at": null,
+      "status": "done",
+      "updated_at": "2026-10-17T18:10:19+09:00",
       "history": [
         {
           "id": "STEP-008",
@@ -189,23 +196,25 @@
           "status": "pending",
           "updated_at": null
         }
-      ]
+      ],
+      "note": "활동 verdict_completed·브리핑 v2 표시·post_thread_reply·항목별 slack_message_ts, FE notice_id null·오류 문구; SQLite 202·PG 72; 실제 Slack 미증명(D5)"
     },
     {
       "id": "STEP-009",
       "title": "화면",
       "model": "standard",
       "fingerprint": "05d6608000732cf527e72e7e955500a59299dc70fdbcbddf7077dcdf28459e61",
-      "status": "pending",
-      "updated_at": null
+      "status": "done",
+      "updated_at": "2026-10-17T16:04:20+09:00",
+      "note": "판정 탭 6상태·원문 패널·실행 정보·다시 판정·오류 제보; build·contrast·Playwright 78; view 가산 키(B4)는 STEP-007에서 백엔드가 제공해야 완전"
     },
     {
       "id": "STEP-010",
       "title": "문서·mock 경로·실제 1건",
       "model": "complex",
       "fingerprint": "794a792e58d71d6060d45be6f659a01e5f46516c0e78751b547e1a83971d2fd3",
-      "status": "stale",
-      "updated_at": null,
+      "status": "done",
+      "updated_at": "2026-10-18T08:53:17+09:00",
       "history": [
         {
           "id": "STEP-010",
@@ -215,27 +224,88 @@
           "status": "pending",
           "updated_at": null
         }
-      ]
+      ],
+      "note": "B25~B39: T11 mock 8차 v6 completed; T12 실제 1~7차 판정 미획득 → real_data_run pending(B37 옵션 B, findings 기록)"
     }
   ],
   "proof": {
     "docs": {
-      "result": "pending"
+      "result": "pass",
+      "method": "review",
+      "note": "doctor exit 0; 독립 리뷰가 spec·contracts·business-rules·operations·demo-contract·RL-05 spec·README·findings를 코드와 대조, 차단 4건 수정",
+      "evidence": "docs/work/_runs/rlb-20261017/logs/RL-03-proof-docs.log; decisions.md B39(독립 리뷰: 코드 차단 0, 문서 차단 4 수정)",
+      "exit_code": null,
+      "actor": "orchestrator",
+      "command": "python3 scripts/feature_status.py doctor _",
+      "at": "2026-10-18T08:58:54+09:00",
+      "head": "36f2b1ac18cd9bb5c4cd3c84b2c7d1d42d10a38e",
+      "source_hash": "2156d57f36775ebdfa6bacc2a525935c2d11678427ecac23724db8cee5c131a0",
+      "spec_hash": "8646c0f6f15ca105605d0dffb760ed92166b13333943b82bc549c8a66642e67c"
     },
     "tests": {
-      "result": "pending"
+      "result": "pass",
+      "method": "command",
+      "note": "plan 증명 7파일 SQLite 284 passed(16 skip=PG 변형, PG는 postgres·B37 PG 실행)",
+      "evidence": "docs/work/_runs/rlb-20261017/logs/RL-03-proof-tests.log",
+      "exit_code": 0,
+      "actor": "orchestrator",
+      "command": "bash -lc \"cd web/backend && python -m pytest -q -x -p no:cacheprovider\"",
+      "at": "2026-10-18T08:58:53+09:00",
+      "head": "36f2b1ac18cd9bb5c4cd3c84b2c7d1d42d10a38e",
+      "source_hash": "2156d57f36775ebdfa6bacc2a525935c2d11678427ecac23724db8cee5c131a0",
+      "spec_hash": "8646c0f6f15ca105605d0dffb760ed92166b13333943b82bc549c8a66642e67c"
     },
     "postgres": {
-      "result": "pending"
+      "result": "pass",
+      "method": "command",
+      "note": "일회용 postgres:17.11, 4파일 156 passed",
+      "evidence": "docs/work/_runs/rlb-20261017/logs/RL-03-proof-postgres.log",
+      "exit_code": 0,
+      "actor": "orchestrator",
+      "command": "",
+      "at": "2026-10-18T08:58:53+09:00",
+      "head": "36f2b1ac18cd9bb5c4cd3c84b2c7d1d42d10a38e",
+      "source_hash": "2156d57f36775ebdfa6bacc2a525935c2d11678427ecac23724db8cee5c131a0",
+      "spec_hash": "8646c0f6f15ca105605d0dffb760ed92166b13333943b82bc549c8a66642e67c"
     },
     "frontend": {
-      "result": "pending"
+      "result": "pass",
+      "method": "command",
+      "note": "npm run build + vite preview 127.0.0.1:4291, playwright app verdict·opportunity-record 52 passed",
+      "evidence": "docs/work/_runs/rlb-20261017/logs/RL-03-proof-frontend.log",
+      "exit_code": 0,
+      "actor": "orchestrator",
+      "command": "bash -lc \"cd web/frontend && npm run build && npm run test:contrast\"",
+      "at": "2026-10-18T08:58:53+09:00",
+      "head": "36f2b1ac18cd9bb5c4cd3c84b2c7d1d42d10a38e",
+      "source_hash": "2156d57f36775ebdfa6bacc2a525935c2d11678427ecac23724db8cee5c131a0",
+      "spec_hash": "8646c0f6f15ca105605d0dffb760ed92166b13333943b82bc549c8a66642e67c"
     },
     "api_guard": {
-      "result": "pending"
+      "result": "pass",
+      "method": "command",
+      "note": "PG: test_transfer_policy(T3·T10·B25)·test_verdict_payload_guard(T9) 57 passed, skip 0(루트랩 fixture 존재)",
+      "evidence": "docs/work/_runs/rlb-20261017/logs/RL-03-proof-api-guard.log",
+      "exit_code": 0,
+      "actor": "orchestrator",
+      "command": "",
+      "at": "2026-10-18T08:58:54+09:00",
+      "head": "36f2b1ac18cd9bb5c4cd3c84b2c7d1d42d10a38e",
+      "source_hash": "2156d57f36775ebdfa6bacc2a525935c2d11678427ecac23724db8cee5c131a0",
+      "spec_hash": "8646c0f6f15ca105605d0dffb760ed92166b13333943b82bc549c8a66642e67c"
     },
     "real_data_run": {
-      "result": "pending"
+      "result": "pending",
+      "method": "manual",
+      "note": "T12 실제 Luna 1~7차 판정 미획득(card_extract_invalid 등). 사용자 결정 B37 옵션 B로 pending 유지, findings 'RL-03 카드 판정은 제약 하나의…'·README T12 절",
+      "evidence": "docs/validation-runs/2026-10-17-rl/RL-03/README.md",
+      "exit_code": null,
+      "actor": "orchestrator",
+      "command": "",
+      "at": "2026-10-18T08:58:54+09:00",
+      "head": "36f2b1ac18cd9bb5c4cd3c84b2c7d1d42d10a38e",
+      "source_hash": "2156d57f36775ebdfa6bacc2a525935c2d11678427ecac23724db8cee5c131a0",
+      "spec_hash": "8646c0f6f15ca105605d0dffb760ed92166b13333943b82bc549c8a66642e67c"
     }
   },
   "notes": [
@@ -258,7 +328,133 @@
     {
       "at": "2026-10-17T15:20:04+09:00",
       "text": "plan 작업 ID 동기화"
+    },
+    {
+      "at": "2026-10-17T15:20:23+09:00",
+      "text": "단계 → implementing"
+    },
+    {
+      "at": "2026-10-17T15:20:32+09:00",
+      "text": "단계 STEP-001 in_progress: "
+    },
+    {
+      "at": "2026-10-17T15:20:32+09:00",
+      "text": "단계 STEP-002 in_progress: "
+    },
+    {
+      "at": "2026-10-17T15:44:32+09:00",
+      "text": "단계 STEP-001 done: card-v1 정책·schema 3+입력 schema·runner/client allowlist·identity·config 4키; SQLite 131·PG 126"
+    },
+    {
+      "at": "2026-10-17T15:44:32+09:00",
+      "text": "단계 STEP-002 done: 테이블 4·0040·trigger·권한(결정 B1: verdict_request UPDATE(status, started_attempt_id) worker·app)"
+    },
+    {
+      "at": "2026-10-17T15:44:32+09:00",
+      "text": "단계 STEP-003 in_progress: "
+    },
+    {
+      "at": "2026-10-17T15:44:32+09:00",
+      "text": "단계 STEP-004 in_progress: "
+    },
+    {
+      "at": "2026-10-17T15:44:55+09:00",
+      "text": "단계 STEP-009 in_progress: "
+    },
+    {
+      "at": "2026-10-17T16:04:20+09:00",
+      "text": "단계 STEP-009 done: 판정 탭 6상태·원문 패널·실행 정보·다시 판정·오류 제보; build·contrast·Playwright 78; view 가산 키(B4)는 STEP-007에서 백엔드가 제공해야 완전"
+    },
+    {
+      "at": "2026-10-17T16:21:54+09:00",
+      "text": "단계 STEP-003 done: 승인/철회 CLI·검사 순서·자동 preview/approval·transfer.sent 감사(claim 직후)·card-v1 개요 비의존; test_auto_preparation 13건은 main에서도 실패(기존)"
+    },
+    {
+      "at": "2026-10-17T16:21:54+09:00",
+      "text": "단계 STEP-004 done: HP-03 unit/batch 이식·v2 입력(overview null)·D2 projection·retrieval proposed/origin 7; SQLite 302·PG 180"
+    },
+    {
+      "at": "2026-10-17T16:21:54+09:00",
+      "text": "단계 STEP-005 in_progress: "
+    },
+    {
+      "at": "2026-10-17T16:56:30+09:00",
+      "text": "단계 STEP-005 done: 추출 검증·allowlist 대조·역할/종합·실행기 연결, B10 label·B11 참조 사실만·100k 초과 fail closed; SQLite 252·PG 123"
+    },
+    {
+      "at": "2026-10-17T16:56:30+09:00",
+      "text": "단계 STEP-006 in_progress: "
+    },
+    {
+      "at": "2026-10-17T16:56:30+09:00",
+      "text": "단계 STEP-007 in_progress: "
+    },
+    {
+      "at": "2026-10-17T17:46:30+09:00",
+      "text": "단계 STEP-006 done: 트리거 (1)~(7)·advisory lock(B8)·cap 큐·drain·hold, 브리핑 hook; 동시성 테스트가 lock 제거 시 실패함 확인(구현자)"
+    },
+    {
+      "at": "2026-10-17T17:46:30+09:00",
+      "text": "단계 STEP-007 done: HP-04 view+B4 키·별칭·수동 요청·feedback·transfer-policy·미들웨어; SQLite 222·PG 190; 넓은 스위트 실패 120은 HEAD 동일, t14 4건은 harness 선택"
+    },
+    {
+      "at": "2026-10-17T17:46:30+09:00",
+      "text": "단계 STEP-008 in_progress: "
+    },
+    {
+      "at": "2026-10-17T18:10:19+09:00",
+      "text": "단계 STEP-008 done: 활동 verdict_completed·브리핑 v2 표시·post_thread_reply·항목별 slack_message_ts, FE notice_id null·오류 문구; SQLite 202·PG 72; 실제 Slack 미증명(D5)"
+    },
+    {
+      "at": "2026-10-17T18:10:19+09:00",
+      "text": "단계 STEP-010 in_progress: "
+    },
+    {
+      "at": "2026-10-18T08:53:17+09:00",
+      "text": "단계 STEP-010 done: B25~B39: T11 mock 8차 v6 completed; T12 실제 1~7차 판정 미획득 → real_data_run pending(B37 옵션 B, findings 기록)"
+    },
+    {
+      "at": "2026-10-18T08:59:15+09:00",
+      "text": "단계 → validating"
     }
   ],
-  "updated_at": "2026-10-17T15:20:04+09:00"
+  "updated_at": "2026-10-18T08:59:15+09:00",
+  "proof_history": [
+    {
+      "key": "tests",
+      "previous": {
+        "result": "pending"
+      }
+    },
+    {
+      "key": "postgres",
+      "previous": {
+        "result": "pending"
+      }
+    },
+    {
+      "key": "frontend",
+      "previous": {
+        "result": "pending"
+      }
+    },
+    {
+      "key": "api_guard",
+      "previous": {
+        "result": "pending"
+      }
+    },
+    {
+      "key": "docs",
+      "previous": {
+        "result": "pending"
+      }
+    },
+    {
+      "key": "real_data_run",
+      "previous": {
+        "result": "pending"
+      }
+    }
+  ]
 }

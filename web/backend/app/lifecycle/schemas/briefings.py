@@ -1,20 +1,21 @@
-"""평일 브리핑 REST 계약 `bidops.briefing.v1` (RL-01 spec "REST").
+"""평일 브리핑 REST 계약 `bidops.briefing.v2` (RL-01 spec "REST", RL-03 spec "연결").
 
 응답에는 운영 정보(`score`·`policy_sha256`·`graph_version_id`)를 넣지 않는다. 키는
-spec 목록 그대로이며 더하거나 빼지 않는다.
+spec 목록 그대로이며 더하거나 빼지 않는다. v2는 v1에 키를 더하지 않고 `verdict_display`
+값 집합만 넓힌다(판정 이름 4값 + 입찰공고용 2값) — v1 값은 그대로 유효하다.
 """
 
 from __future__ import annotations
 
 from datetime import date
-from typing import Any, Literal
+from typing import Any, Literal, get_args
 from uuid import UUID
 
 from pydantic import Field, StrictBool, StrictInt, StrictStr
 
 from ...core.schema_base import AwareDateTime, RuntimeContractModel
 
-BRIEFING_SCHEMA_VERSION = "bidops.briefing.v1"
+BRIEFING_SCHEMA_VERSION = "bidops.briefing.v2"
 BRIEFING_SLACK_PREVIEW_SCHEMA_VERSION = "bidops.briefing-slack-preview.v1"
 
 BriefingStatus = Literal["generated", "empty", "collection_incomplete"]
@@ -23,8 +24,22 @@ BriefingStage = Literal["pre_spec", "bid_notice", "order_plan"]
 BriefingDeadlineKind = Literal["bid_close", "opinion_close", "planned_month"]
 BriefingReaction = Literal["대기", "채택", "무시", "나중에"]
 BriefingReactionVia = Literal["screen", "slack"]
-#: v1에서 닫힌 다섯 값. RL-03이 판정 enum을 더해 v2로 올린다.
-BriefingVerdictDisplay = Literal["분석 대기", "연차 추적", "재검토 중", "마감 임박", "분석 중"]
+#: v1에서 닫힌 다섯 값 + RL-03 v2의 판정 이름 4값(최신 completed 판정)과 입찰공고용 2값
+#: (연결된 사전규격 판정이 있으면 "사전규격 판정 참조", 없으면 "판정 대상 아님").
+BriefingVerdictDisplay = Literal[
+    "분석 대기",
+    "연차 추적",
+    "재검토 중",
+    "마감 임박",
+    "분석 중",
+    "진행 가능",
+    "조건부 진행",
+    "진행 어려움",
+    "판단 불가",
+    "사전규격 판정 참조",
+    "판정 대상 아님",
+]
+BRIEFING_VERDICT_DISPLAY_VALUES: tuple[str, ...] = get_args(BriefingVerdictDisplay)
 
 
 class BriefingReason(RuntimeContractModel):
@@ -67,7 +82,7 @@ class BriefingItemView(RuntimeContractModel):
 
 
 class BriefingView(RuntimeContractModel):
-    schema_version: Literal["bidops.briefing.v1"]
+    schema_version: Literal["bidops.briefing.v2"]
     briefing_date: date
     status: BriefingStatus
     generated_at: AwareDateTime
@@ -97,6 +112,7 @@ class BriefingSlackPreview(RuntimeContractModel):
 __all__ = [
     "BRIEFING_SCHEMA_VERSION",
     "BRIEFING_SLACK_PREVIEW_SCHEMA_VERSION",
+    "BRIEFING_VERDICT_DISPLAY_VALUES",
     "BriefingBlocking",
     "BriefingDeadlineKind",
     "BriefingItemKind",

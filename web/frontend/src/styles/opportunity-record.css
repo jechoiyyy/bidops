@@ -103,6 +103,11 @@
   background: var(--color-success-muted);
 }
 
+.rec-pill.is-error {
+  color: var(--color-error);
+  background: var(--color-error-muted);
+}
+
 .rec-actions {
   display: flex;
   flex: 0 0 auto;

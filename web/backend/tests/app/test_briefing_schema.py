@@ -205,7 +205,7 @@ def test_0038_downgrades_when_empty_refuses_with_history_and_upgrades_again() ->
             assert "refuses to discard briefing history" in refused.stderr
             with engine.connect() as connection:
                 # 한 번의 downgrade 실행은 한 transaction이다. 0038이 거부하면 그 위
-                # revision(0039_opportunity_note)의 downgrade도 함께 되돌아가 head에 남는다.
+                # revision(0039_opportunity_note·0040_card_analysis)의 downgrade도 함께 되돌아가 head에 남는다.
                 assert connection.scalar(text("SELECT version_num FROM bidops.alembic_version")) == ALEMBIC_HEAD
         finally:
             engine.dispose()

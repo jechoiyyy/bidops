@@ -570,6 +570,145 @@ export function describeCompanyApiError(error: unknown, fallback: string): ApiEr
 }
 
 /**
+ * RL-03 참여 판정(`GET|POST /api/opportunities/{id}/verdict*`, `POST …/verdict-feedback`)의 안전한 코드 문구.
+ *
+ * 정본은 RL-03 spec의 오류 code 목록이다. 요청 실패(`policy_not_approved`·`daily_cap_reached`·
+ * `active_attempt_exists`·`bundle_not_ready`·`effective_grade_ineligible`·`opportunity_not_found`)와 실패한
+ * 실행의 `error_code`(`card_*`·`input_budget_exceeded`)를 함께 적는다. 수동 요청·제보가 지나는 기존
+ * 서비스 gate의 코드(`not_found`·`company_input_invalid`·`reference_mode_required`·`luna_disabled`·
+ * `analysis_policy_unavailable`·`model_binding_invalid`·`idempotency_conflict`, backend
+ * `company_deep_review.ERROR_STATUS`·`verdict_trigger.VerdictRequestError`·`verdict_view`)도 판정 문맥의
+ * 문구로 적는다(회사 데모 화면 문구는 데모 정책을 말하므로 쓰지 않는다). spec이 쓰지 않기로 한
+ * `analysis_in_progress`·`documents_not_ready`·`verdict_source_missing`·`overview_not_completed`는 적지
+ * 않는다 — 서버가 내지 않는 코드의 문구를 화면이 미리 만들지 않는다. 표에 없는 코드는 공용 규칙으로
+ * 떨어지고 코드 자체는 표식으로 남는다.
+ */
+const VERDICT_CODE_DESCRIPTION: Record<string, CodeDescription> = {
+  not_found: {
+    title: "판정할 사전규격을 찾을 수 없습니다.",
+    detail: "이 사업기회에 연결된 사전규격이 없거나 실회사 판정 경로가 꺼져 있습니다. 다른 공고의 판정으로 대신 보여 주지 않습니다.",
+    action: null,
+  },
+  company_input_invalid: {
+    title: "판정 입력을 만들 수 없습니다.",
+    detail: "회사 사실·문서·그래프 버전이 서로 맞지 않거나 보내면 안 되는 값이 섞였습니다. 자동으로 보정하지 않으므로 회사 정보와 문서 준비 상태를 확인하십시오.",
+    action: null,
+  },
+  reference_mode_required: {
+    title: "참조 실행 모드가 꺼져 있습니다.",
+    detail: "새 판정 요청은 참조 실행 모드에서만 받습니다. 이미 있는 판정 조회는 계속 할 수 있습니다.",
+    action: null,
+  },
+  luna_disabled: {
+    title: "Luna 분석이 꺼져 있습니다.",
+    detail: "판정 요청을 보낼 수 없습니다. 운영 설정은 담당자에게 확인하십시오.",
+    action: "contact",
+  },
+  analysis_policy_unavailable: {
+    title: "판정 분석 정책을 사용할 수 없습니다.",
+    detail: "실회사 판정 정책이 설정·등록되지 않았습니다. 다른 정책으로 대신 실행하지 않습니다. 담당자에게 확인하십시오.",
+    action: "contact",
+  },
+  model_binding_invalid: {
+    title: "분석 모델 설정이 유효하지 않습니다.",
+    detail: "설정이 맞지 않아 호출 전에 막았습니다. 다른 모델로 대신 보내지 않습니다. 담당자에게 확인하십시오.",
+    action: "contact",
+  },
+  idempotency_conflict: {
+    title: "같은 요청 식별자가 다른 요청에 이미 쓰였습니다.",
+    detail: "재전송이 앞선 요청과 충돌했습니다. 최신 상태를 다시 불러와 요청·제보가 이미 저장됐는지 확인하십시오.",
+    action: "reload",
+  },
+  policy_not_approved: {
+    title: "분석 정책 전송 승인이 없습니다.",
+    detail: "판정은 운영 담당자가 분석 정책을 승인한 뒤에만 시작합니다. 화면이 대신 승인하지 않습니다. 담당자에게 확인하십시오.",
+    action: "contact",
+  },
+  daily_cap_reached: {
+    title: "오늘 판정 한도에 도달했습니다.",
+    detail: "하루에 시작할 수 있는 판정 수를 모두 썼습니다. 내일 다시 요청하거나 담당자에게 한도를 확인하십시오.",
+    action: null,
+  },
+  active_attempt_exists: {
+    title: "이미 분석 중인 판정이 있습니다.",
+    detail: "지금 분석이 끝난 뒤에 다시 판정을 요청할 수 있습니다. 최신 상태를 다시 불러와 확인하십시오.",
+    action: "reload",
+  },
+  bundle_not_ready: {
+    title: "문서 준비가 끝나지 않았습니다.",
+    detail: "공고 문서 묶음이 확정된 뒤에 판정을 요청할 수 있습니다. 문서 준비 상태를 확인하십시오.",
+    action: null,
+  },
+  effective_grade_ineligible: {
+    title: "SW사업 공고가 아니라 판정 대상이 아닙니다.",
+    detail: "공고 메타의 SW사업 대상 표시가 Y인 사전규격만 판정합니다. 서버가 조건으로 막았습니다.",
+    action: null,
+  },
+  opportunity_not_found: {
+    title: "사업기회를 찾을 수 없습니다.",
+    detail: "없거나 이미 지워진 사업기회입니다. 사업기회 목록에서 다시 여십시오.",
+    action: null,
+  },
+  input_budget_exceeded: {
+    title: "문서 한 단위가 분석 입력 한도를 넘었습니다.",
+    detail: "원문을 자르지 않으므로 이 문서는 판정하지 못했습니다. 사람이 원문을 직접 확인해야 합니다.",
+    action: null,
+  },
+  card_source_selection_incomplete: {
+    title: "공고 원문에서 판정에 필요한 영역을 모두 찾지 못했습니다.",
+    detail: "찾지 못한 영역이 원문에 없다는 뜻은 아닙니다. 아래 표는 검증을 통과한 부분만 보여 줍니다. 사람이 원문을 확인하십시오.",
+    action: null,
+  },
+  card_extract_invalid: {
+    title: "요구사항 추출 결과가 원문 검증을 통과하지 못했습니다.",
+    detail: "검증에 실패한 결과는 자동으로 고치지 않습니다. 아래 표는 검증을 통과한 부분만 보여 줍니다.",
+    action: null,
+  },
+  card_compare_invalid: {
+    title: "회사 사실 대조 결과가 검증을 통과하지 못했습니다.",
+    detail: "검증에 실패한 결과는 자동으로 고치지 않습니다. 아래 표는 검증을 통과한 부분만 보여 줍니다.",
+    action: null,
+  },
+  card_role_invalid: {
+    title: "역할별 검토 결과가 검증을 통과하지 못했습니다.",
+    detail: "검증에 실패한 결과는 자동으로 고치지 않습니다. 아래 표는 검증을 통과한 부분만 보여 줍니다.",
+    action: null,
+  },
+  card_synthesis_invalid: {
+    title: "종합 판정이 검증을 통과하지 못했습니다.",
+    detail: "검증에 실패한 결과는 자동으로 고치지 않습니다. 아래 표는 검증을 통과한 부분만 보여 줍니다.",
+    action: null,
+  },
+  card_review_timeout: {
+    title: "정해진 시간 안에 분석이 끝나지 않았습니다.",
+    detail: "늦게 온 응답은 저장하지 않습니다. 아래 표는 검증을 통과한 부분만 보여 줍니다. 다시 판정으로 새 분석을 요청하십시오.",
+    action: null,
+  },
+};
+
+/** 판정 화면의 오류 문구. 판정 표에 없는 코드는 공용 규칙(`describeApiError`)으로 떨어진다. */
+export function describeVerdictApiError(error: unknown, fallback: string): ApiErrorDescription {
+  const status = readStatus(error);
+  const code = readCode(error);
+  if (status !== 0 && code !== null) {
+    const known = VERDICT_CODE_DESCRIPTION[code];
+    if (known) return { ...known, code };
+  }
+  return describeApiError(error, fallback);
+}
+
+/**
+ * 실패한 판정 실행의 `error_code`를 사람 문구로 옮긴다. 화면에 문장이 있는 코드만 번역하고
+ * **모르는 코드는 숨기지 않고 코드 그대로** 돌려준다(`detail`은 `null`).
+ */
+export function describeVerdictRunCode(code: string | null): { title: string; detail: string | null; code: string | null } | null {
+  if (code === null) return null;
+  const known = VERDICT_CODE_DESCRIPTION[code];
+  if (known) return { title: known.title, detail: known.detail, code };
+  return { title: "분석 중 안전 오류가 기록됐습니다.", detail: null, code };
+}
+
+/**
  * 오류 표시에 붙일 행동 버튼 하나. `contact`와 `null`은 버튼을 만들지 않는다 —
  * 화면이 대신 문의할 수 없고, 없는 복구 경로를 버튼으로 지어내지 않는다.
  */
