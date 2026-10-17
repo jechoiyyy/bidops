@@ -43,7 +43,7 @@
       "id": "STEP-003",
       "title": "정책 승인·gate",
       "model": "complex",
-      "fingerprint": "305b7ea25d8a0f994d64a572e545052452dbd58fcacb61d29ba4448ac7a58afb",
+      "fingerprint": "c421ff67aea4b835157a1c55a473ecfb5eea2618e3de5f2c4e286427704ace17",
       "status": "stale",
       "updated_at": null,
       "history": [
@@ -54,6 +54,24 @@
           "fingerprint": "255e9ca42f8f9e23fb1e39ccd3795f69592746b169eae62ae235e7c89bd61384",
           "status": "pending",
           "updated_at": null
+        },
+        {
+          "id": "STEP-003",
+          "title": "정책 승인·gate",
+          "model": "complex",
+          "fingerprint": "305b7ea25d8a0f994d64a572e545052452dbd58fcacb61d29ba4448ac7a58afb",
+          "status": "stale",
+          "updated_at": null,
+          "history": [
+            {
+              "id": "STEP-003",
+              "title": "정책 승인·gate",
+              "model": "complex",
+              "fingerprint": "255e9ca42f8f9e23fb1e39ccd3795f69592746b169eae62ae235e7c89bd61384",
+              "status": "pending",
+              "updated_at": null
+            }
+          ]
         }
       ]
     },
@@ -61,7 +79,7 @@
       "id": "STEP-004",
       "title": "unit·batch·입력 v2",
       "model": "complex",
-      "fingerprint": "bce81d0ad2a8568451fd72c1803afe84c59ccb8fb3b1aa00b6a503b31dbe8dc5",
+      "fingerprint": "3f39c5fb6752071573d2a0b8fac3777ab0aa27cb205877dad584c5766ad1bf67",
       "status": "stale",
       "updated_at": null,
       "history": [
@@ -72,6 +90,24 @@
           "fingerprint": "b44500168f0eeb779724355e22aeaa063f8f2105212fbb692406a7ca5f32bbe8",
           "status": "pending",
           "updated_at": null
+        },
+        {
+          "id": "STEP-004",
+          "title": "unit·batch·입력 v2",
+          "model": "complex",
+          "fingerprint": "bce81d0ad2a8568451fd72c1803afe84c59ccb8fb3b1aa00b6a503b31dbe8dc5",
+          "status": "stale",
+          "updated_at": null,
+          "history": [
+            {
+              "id": "STEP-004",
+              "title": "unit·batch·입력 v2",
+              "model": "complex",
+              "fingerprint": "b44500168f0eeb779724355e22aeaa063f8f2105212fbb692406a7ca5f32bbe8",
+              "status": "pending",
+              "updated_at": null
+            }
+          ]
         }
       ]
     },
@@ -87,7 +123,7 @@
       "id": "STEP-006",
       "title": "자동 트리거·cap·큐",
       "model": "complex",
-      "fingerprint": "d76dd64f79719b2e37f7f7c3a41422dbe6f2e77929f3c1de658e249138ec2a96",
+      "fingerprint": "75c293fc7d6f31b39d415191ce7f22f4154fe011087d9aa012334cbc5d0ea1c8",
       "status": "stale",
       "updated_at": null,
       "history": [
@@ -98,6 +134,24 @@
           "fingerprint": "72d32c21c13525edd6dc2a1fbf73d2b461dd1dd70f389623dc2a2f2452bdd306",
           "status": "pending",
           "updated_at": null
+        },
+        {
+          "id": "STEP-006",
+          "title": "자동 트리거·cap·큐",
+          "model": "complex",
+          "fingerprint": "d76dd64f79719b2e37f7f7c3a41422dbe6f2e77929f3c1de658e249138ec2a96",
+          "status": "stale",
+          "updated_at": null,
+          "history": [
+            {
+              "id": "STEP-006",
+              "title": "자동 트리거·cap·큐",
+              "model": "complex",
+              "fingerprint": "72d32c21c13525edd6dc2a1fbf73d2b461dd1dd70f389623dc2a2f2452bdd306",
+              "status": "pending",
+              "updated_at": null
+            }
+          ]
         }
       ]
     },
@@ -149,9 +203,19 @@
       "id": "STEP-010",
       "title": "문서·mock 경로·실제 1건",
       "model": "complex",
-      "fingerprint": "1d0f93ec85aa07895b6f89fb1c9d59a403f35bd452873f19370cfd07005a9f8e",
-      "status": "pending",
-      "updated_at": null
+      "fingerprint": "794a792e58d71d6060d45be6f659a01e5f46516c0e78751b547e1a83971d2fd3",
+      "status": "stale",
+      "updated_at": null,
+      "history": [
+        {
+          "id": "STEP-010",
+          "title": "문서·mock 경로·실제 1건",
+          "model": "complex",
+          "fingerprint": "1d0f93ec85aa07895b6f89fb1c9d59a403f35bd452873f19370cfd07005a9f8e",
+          "status": "pending",
+          "updated_at": null
+        }
+      ]
     }
   ],
   "proof": {
@@ -190,7 +254,11 @@
     {
       "at": "2026-10-16T20:41:31+09:00",
       "text": "단계 → review: 독립 검사 1차 반영(1차 범위 사전규격만·worker INSERT 5개·정책 행 선택 env; 재검사 생략, 사용자 확인 항목 보고)"
+    },
+    {
+      "at": "2026-10-17T15:20:04+09:00",
+      "text": "plan 작업 ID 동기화"
     }
   ],
-  "updated_at": "2026-10-16T20:41:31+09:00"
+  "updated_at": "2026-10-17T15:20:04+09:00"
 }

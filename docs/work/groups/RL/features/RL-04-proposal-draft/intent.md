@@ -3,7 +3,7 @@
 - 기능 ID: `RL-04-proposal-draft`
 - 상위 항목: roadmap §RL 표 5행, ADR-0073 결정 2(G3)·개정(PDF 1차·HWP 후속), 인터뷰 E1~E4, [bid-procedure §4·§5](../../../../../1016_rootlab-redefinition/bid-procedure.md), [ui-spec §4.5](../../../../../1016_rootlab-redefinition/ui-spec.md), ux-review §5 결정 5·6
 - 크기: L — 새 정책 파일(용도 `proposal`)·전송 승인 행·테이블 4개·REST 8개·전용 WorkJob/worker·Luna 호출(절당 1회)·PDF 렌더러·화면 1개. 외부 모델 호출. 착수는 RL-03 병합 뒤.
-- 작성일: 2026-10-16
+- 작성일: 2026-10-16 (2026-10-17 배치 B 인터뷰 D2·D3·D4·D9·D10·D11·D12 반영 — [batch-b-interview.md](../../batch-b-interview.md))
 
 ## 문제
 
@@ -35,14 +35,14 @@
 ## 영향 범위
 
 - 모듈·컴포넌트: deep_review(`services/proposal_draft.py`·`proposal_render.py`·`proposal_validation.py`, `schemas/proposal.py`, `contracts/bidops.proposal-section.v1.json`, `policies/proposal-policy-luna-v1.json`, `routers/proposals.py`, worker dispatch `proposal-v1`), codex-runner(contract `proposal-section-v1`), 프런트 `pages/OpportunityProposalTab.tsx`·`components/proposal/*`, lifecycle 활동 hook `draft_prepared`.
-- 큰 틀 문서의 절: contracts.md(REST·DB·정책·PDF), business-rules.md(제안서 초안 규칙), operations.md(승인·cap·폰트), tech-stack(PDF 렌더러·폰트 의존), ui-spec §4.5.
+- 큰 틀 문서의 절: contracts.md(REST·DB·정책·PDF), business-rules.md(제안서 초안 규칙), operations.md(승인·cap·폰트), tech-stack(PDF 렌더러 `reportlab`; 폰트는 이미지의 NanumGothic이며 저장소에 폰트 파일을 추가하지 않음), ui-spec §4.5.
 - 데이터·저장소: `proposal_draft`·`proposal_section`·`proposal_sentence_edit`·`proposal_export`(PDF는 MinIO 객체 `proposal-pdf`, sha256). 권한 runtime-privileges.sql(열 단위·trigger). 폰트는 이미지의 `fonts-nanum`.
-- 외부 서비스·호출: Luna 절당 1회(+repair ≤1) = 6~12회/초안. PDF 렌더는 로컬.
+- 외부 서비스·호출: Luna 절당 1회(+repair ≤1) = 6~12회/초안. PDF 렌더는 로컬. 이번 배치의 실제 호출은 T11 1건(RL-03 T12가 통과한 판정으로 초안 1건, 최대 12회)뿐이다.
 
 ## 제약
 
 - (공통) feature.json constraints 전부(정책 단위 승인·건별 감사·allowlist·fallback 금지, append-only, unknown 보존).
-- (기능별) 출처 없는 문장 생성 금지, 가격·투입 인력·전략 수치 금지(빈 자리로), `proposed`/`unknown` 회사 사실은 문장 근거로 쓰지 않음, 노트 본문(RL-02) 전송 금지, 운영 정보 화면 노출 금지. PDF에 표식 보존. 제출본·가격·인력 확정은 사람.
+- (기능별) 출처 없는 문장 생성 금지, 가격·투입 인력·전략 수치 금지(빈 자리로), `proposed`/`unknown` 회사 사실은 문장 근거로 쓰지 않고 전송도 `fact_key`·`status`만(값 없음), 노트 본문(RL-02) 전송 금지, 운영 정보 화면 노출 금지. PDF에 표식 보존. 제출본·가격·인력 확정은 사람.
 
 ## 범위 밖
 
@@ -55,10 +55,14 @@ HWP 출력, 가격·투입 인력·일정표 생성, 제안발표 자료, 정량
 | 출력 형식 | ADR-0073 결정 2 DOCX | 개정(E2) PDF 1차·HWP 후속 | PDF만. HWP는 변환기 결정 뒤 별도 기능 |
 | 절 구성 | bid-procedure §5 5장(Ⅰ~Ⅴ) | ui-spec §4.5 절 탭 6개 | 화면·초안은 ui-spec 6절, 각 절이 §5의 어느 장·절에 대응하는지 표로 고정(spec) |
 | 사업수행 실적 | §5 Ⅱ-3 최근 3년 실적 | 인터뷰 B1·B2 실적증명 목록 미입력(unknown) | 홈페이지 실적(confirmed)만 문장으로, 증명 가능 여부는 빈 자리 |
+| PDF 폰트 | 초판 spec 머리·tech-stack 문구 "Noto Sans KR", plan 위험 "OFL 폰트 2종" | 초판 spec PDF 렌더 절: 이미지의 `fonts-nanum` NanumGothic | 2026-10-17 사용자 인터뷰 D9: 이미지의 NanumGothic, 저장소에 폰트 파일 추가 없음. 문구를 이 값으로 통일 |
+| 전송 회사 자료 | 초판 spec `missing_facts[{fact_key,label}]` | 2026-10-17 사용자 인터뷰 D2 "`proposed`·`unknown`은 값 없이 fact_key·status만" | `missing_facts[{fact_key,status}]`, `confirmed` 사실만 값과 함께(RL-03 전송 payload 규칙과 같음) |
+| 실제 호출 범위 | 초판 plan: T11 실제 1건 | 배치 B 승인 범위 | 2026-10-17 사용자 인터뷰 D3·D4·D10: T11은 RL-03 T12 통과 판정으로 초안 1건(최대 12회)만, T12가 재시도 뒤에도 실패면 T11 보류, 자동 재시도·자동 보정 없음 |
+| 초안 PDF 보관 | spec 365일·암호화 없음 | 2026-10-17 인터뷰 D12(리더 권장안) | spec 값 유지, 격리 스택에서만 생성(운영 반영은 별도) |
 
 ## 미해결 질문
 
 | 질문 | 답이 필요한 시점 | 결정 |
 |---|---|---|
-| PDF 렌더러 | spec 작성 전 | 추천값 수용(2026-10-16 "PDF는 기존 경로 재사용"이었으나 기존 경로는 PDF *읽기*라 생성기가 없음): ReportLab + 이미지에 이미 설치된 NanumGothic TrueType(독립 검사 결과 Noto CJK는 CFF라 ReportLab이 못 읽고 저장소에 폰트 바이너리가 없음). 사용자가 Noto Sans KR을 원하면 11MB 폰트 vendoring 승인이 필요하다 |
+| PDF 렌더러 | spec 작성 전 | 추천값 수용(2026-10-16 "PDF는 기존 경로 재사용"이었으나 기존 경로는 PDF *읽기*라 생성기가 없음): ReportLab + 이미지에 이미 설치된 NanumGothic TrueType(독립 검사 결과 Noto CJK는 CFF라 ReportLab이 못 읽고 저장소에 폰트 바이너리가 없음). 2026-10-17 사용자 인터뷰 D9로 이미지의 NanumGothic 확정, 저장소에 폰트 파일을 추가하지 않는다(Noto Sans KR vendoring 하지 않음) |
 | 일일 상한 | spec 작성 전 | 추천값: 초안 3건/일(`tunable`, 승인 행 cap) |
