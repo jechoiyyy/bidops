@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
   "feature": "RL-00-company-ground-truth",
-  "phase": "validating",
+  "phase": "done",
   "steps": [
     {
       "id": "STEP-001",
@@ -319,9 +319,13 @@
     {
       "at": "2026-10-17T06:12:37+09:00",
       "text": "단계 → validating"
+    },
+    {
+      "at": "2026-10-17T14:44:39+09:00",
+      "text": "단계 → done: 배치 검증 및 통합 완료"
     }
   ],
-  "updated_at": "2026-10-17T14:24:32+09:00",
+  "updated_at": "2026-10-17T14:44:39+09:00",
   "proof_history": [
     {
       "key": "docs",
@@ -551,5 +555,11 @@
         "spec_hash": "7aaa401f099bc7f7ed61251993b49eafa501429a98166119c809388d7dd7204a"
       }
     }
-  ]
+  ],
+  "integration": {
+    "run": "rla-20261016",
+    "revision": "960ee61a0921360bbad84234a951b321e26cc3a0",
+    "source_hash": "4549452b5a0886d443597531cb5e98693ac9b38f50aa6cb6e14d0f8750179ee5",
+    "spec_hash": "4b62e0faa77e0f8863334b6e02fb1ae1727b6aee122096590d4a2302def09efa"
+  }
 }
