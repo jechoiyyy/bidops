@@ -89,4 +89,11 @@
 
 ## 결과
 
-구현 후 작성한다.
+run `rla-20261016`, 기능 브랜치 `sdlc/rla-20261016-RL-02-opportunity-timeline`, 기준 5e2e119(배치, RL-00·01 통합 후). 상세 `docs/work/_runs/rla-20261016/RL-02-opportunity-timeline.md`, 결정 `decisions.md` #9~#21.
+
+- 단계 7/7 done(STEP-003·005 → STEP-001·002·004 순차 위임, STEP-006 화면 병렬, STEP-007 문서).
+- 증명: tests 295 passed(2 deselect = main c93da20에서도 실패하는 기존 test_api_opportunities 2건); postgres(17.11) 201 passed + 리뷰 수정 뒤 영향 69 passed(경계·권한·drift 포함); frontend build·contrast 8/8·Playwright 191 passed(+briefing 27, route-context는 batch HEAD와 같은 기존 12건만 실패, bid-delta request_id 1건은 batch HEAD에서도 반복 실패하는 기존 flaky).
+- 실제 스택 확인(필수 아님): bidops_rla 0039, 활동 피드·노트 REST·레코드 화면(validation-runs RL-02).
+- spec 개정(accept-spec): 활동 응답 `stages[].link_id` 가산 — 최종 리뷰 BLOCKING(대표 연결 선택 불일치) 해소, 대표 규칙은 백엔드에만(결정 #18·#21).
+- 기존 테스트 변경: opportunities.spec 31건 `?selected=` 이식, "사업 추적"→"사업기회" 라벨(opportunities·common-interactions·screen-semantics·route-context), 단독 route 기대값(route-context·bid-delta·draft·briefing Enter).
+- backlog: 결정 #9·#10·#16·#17·#20.

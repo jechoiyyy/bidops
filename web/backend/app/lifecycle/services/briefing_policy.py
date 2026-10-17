@@ -1,10 +1,14 @@
-"""평일 브리핑 규칙 파일 `bidops.briefing-policy.v1`의 적재와 검증 (RL-01 spec).
+"""평일 브리핑 규칙 파일 `bidops.briefing-policy.v1`·`v2`의 적재와 검증 (RL-01·RL-02 spec).
 
 규칙 파일은 버전+sha256으로 고정된 immutable 파일이다. 값 하나라도 바꾸려면 새 버전
 파일을 발행하고 `BIDOPS_BRIEFING_POLICY_PATH` 기본 경로를 함께 올린다. 여기서는
 키 집합·형·허용 범위를 엄격히 검사하고, **파일 바이트**의 sha256을 돌려준다 — 그 값이
 브리핑 행 `policy_sha256`에 고정된다(C-2 policy 적재와 같은 규칙). 검사 실패는 안전한
 code 하나(`briefing_policy_invalid`)로만 알린다.
+
+v2(RL-02 "마감 알림")는 v1 키 전체에 `deadline_reminder_days`(1..30, 중복 없음)를 더한
+것이다. 두 schema를 모두 받으며, v1 파일은 마감 알림이 없는 것(`deadline_reminder_days=()`)으로
+읽는다. 옛 v1 파일은 지우지 않는다(immutable 파일 규칙).
 """
 
 from __future__ import annotations
@@ -20,8 +24,10 @@ from typing import Any
 from ..models import Notice
 
 POLICY_SCHEMA = "bidops.briefing-policy.v1"
+POLICY_SCHEMA_V1 = POLICY_SCHEMA
+POLICY_SCHEMA_V2 = "bidops.briefing-policy.v2"
 
-#: 파일의 최상위 키 전체(spec "결정적 점수와 제외"). 더하거나 빼면 거부한다.
+#: v1 파일의 최상위 키 전체(spec "결정적 점수와 제외"). 더하거나 빼면 거부한다.
 POLICY_KEYS = frozenset(
     {
         "schema",
@@ -34,6 +40,9 @@ POLICY_KEYS = frozenset(
         "large_enterprise_threshold_krw",
     }
 )
+#: v2 파일의 최상위 키 전체(RL-02 spec "마감 알림"): v1 전체 + `deadline_reminder_days`.
+POLICY_KEYS_V2 = POLICY_KEYS | {"deadline_reminder_days"}
+SCHEMA_KEYS = {POLICY_SCHEMA_V1: POLICY_KEYS, POLICY_SCHEMA_V2: POLICY_KEYS_V2}
 WEIGHT_KEYS = (
     "tier1",
     "tier2",
@@ -49,6 +58,7 @@ TOP_N_RANGE = (1, 30)
 WEIGHT_RANGE = (0, 100)
 DEADLINE_WARNING_DAYS_RANGE = (1, 30)
 SLACK_ITEMS_PER_MESSAGE_RANGE = (1, 12)
+DEADLINE_REMINDER_DAYS_RANGE = (1, 30)
 
 _POLICY_IDENTITY_RE = re.compile(r"^briefing-policy-v[1-9][0-9]*$")
 
@@ -88,6 +98,8 @@ class BriefingPolicy:
     slack_items_per_message: int
     large_enterprise_threshold_krw: int
     sha256: str
+    #: 마감 알림 날짜(마감 KST 날짜 − 브리핑 날짜). v1 파일은 빈 tuple(알림 없음).
+    deadline_reminder_days: tuple[int, ...] = ()
 
 
 def _int_in(value: Any, bounds: tuple[int, int]) -> int:
@@ -107,10 +119,19 @@ def parse_briefing_policy(raw: bytes) -> BriefingPolicy:
         value = json.loads(raw.decode("utf-8"))
     except (UnicodeError, ValueError):
         raise BriefingPolicyError() from None
-    if not isinstance(value, Mapping) or set(value) != POLICY_KEYS:
+    if not isinstance(value, Mapping):
         raise BriefingPolicyError()
-    if value["schema"] != POLICY_SCHEMA:
+    schema = value.get("schema")
+    if not isinstance(schema, str) or schema not in SCHEMA_KEYS or set(value) != SCHEMA_KEYS[schema]:
         raise BriefingPolicyError()
+    reminder_days: tuple[int, ...] = ()
+    if schema == POLICY_SCHEMA_V2:
+        days = value["deadline_reminder_days"]
+        if not isinstance(days, list) or not days:
+            raise BriefingPolicyError()
+        reminder_days = tuple(_int_in(day, DEADLINE_REMINDER_DAYS_RANGE) for day in days)
+        if len(set(reminder_days)) != len(reminder_days):
+            raise BriefingPolicyError()
     identity = value["policy_identity"]
     if not isinstance(identity, str) or not _POLICY_IDENTITY_RE.fullmatch(identity):
         raise BriefingPolicyError()
@@ -130,7 +151,7 @@ def parse_briefing_policy(raw: bytes) -> BriefingPolicy:
     if isinstance(threshold, bool) or not isinstance(threshold, int) or threshold <= 0:
         raise BriefingPolicyError()
     return BriefingPolicy(
-        schema=POLICY_SCHEMA,
+        schema=schema,
         policy_identity=identity,
         top_n=_int_in(value["top_n"], TOP_N_RANGE),
         weights=BriefingWeights(
@@ -143,6 +164,7 @@ def parse_briefing_policy(raw: bytes) -> BriefingPolicy:
         ),
         large_enterprise_threshold_krw=threshold,
         sha256=hashlib.sha256(raw).hexdigest(),
+        deadline_reminder_days=reminder_days,
     )
 
 
@@ -165,6 +187,8 @@ __all__ = [
     "BriefingPolicyError",
     "BriefingWeights",
     "POLICY_SCHEMA",
+    "POLICY_SCHEMA_V1",
+    "POLICY_SCHEMA_V2",
     "load_briefing_policy",
     "parse_briefing_policy",
 ]

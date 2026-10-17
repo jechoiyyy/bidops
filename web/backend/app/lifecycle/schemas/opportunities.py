@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 from datetime import datetime
+import re
 from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import AliasChoices, Field, StrictInt, field_validator, model_validator
+from pydantic import AliasChoices, Field, StrictInt, StrictStr, field_validator, model_validator
 
 from ...core.schema_base import AwareDateTime, RuntimeContractModel
 
@@ -537,8 +538,85 @@ class OrderPlanBulkEndResponse(RuntimeContractModel):
         return _validate_bulk_receipt(self, succeeded_status="종료")
 
 
+
+# --- 노트·다음 행동 (RL-02 spec "노트·다음 행동") ------------------------------
+
+#: 노트 종류. `action`만 완료(`done_at`·`done_by`)를 채울 수 있다.
+OpportunityNoteKind = Literal["note", "action"]
+#: 앞뒤 공백을 지운 본문 길이 범위.
+NOTE_BODY_MAX_CHARS = 2000
+#: 담당 이름 상한. 담당자 헤더(`core.api_errors.MAX_ACTOR_NAME`)와 같다.
+NOTE_OWNER_MAX_CHARS = 128
+# 본문은 여러 줄이라 줄바꿈·탭은 허용하고 그 밖의 제어 문자는 거부한다.
+_NOTE_BODY_CONTROL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
+_NOTE_OWNER_CONTROL = re.compile(r"[\x00-\x1f\x7f-\x9f]")
+
+
+def clean_note_body(value: str) -> str:
+    """앞뒤 공백을 지운 본문. 비었거나 2000자를 넘거나 제어 문자가 있으면 거부한다."""
+
+    clean = value.strip()
+    if not 1 <= len(clean) <= NOTE_BODY_MAX_CHARS or _NOTE_BODY_CONTROL.search(clean):
+        raise ValueError("body must be 1..2000 characters after trimming")
+    return clean
+
+
+def clean_note_owner(value: str | None) -> str | None:
+    """앞뒤 공백을 지운 담당 이름. 비면 `None`(서버가 actor로 채운다)."""
+
+    if value is None:
+        return None
+    clean = value.strip()
+    if not clean:
+        return None
+    if (
+        len(clean) > NOTE_OWNER_MAX_CHARS
+        or _NOTE_OWNER_CONTROL.search(clean)
+        or clean.casefold() == "system"
+    ):
+        raise ValueError("owner is not a valid person name")
+    return clean
+
+
+class NoteCreateRequest(RuntimeContractModel):
+    """노트·다음 행동 생성. 작성자(actor)는 요청 헤더에서만 받는다."""
+
+    kind: OpportunityNoteKind
+    body: StrictStr
+    owner: StrictStr | None = None
+    request_id: UUID
+
+    _clean_body = field_validator("body")(clean_note_body)
+    _clean_owner = field_validator("owner")(clean_note_owner)
+
+
+class NoteDoneRequest(RuntimeContractModel):
+    """다음 행동 완료. 완료한 사람(`done_by`)은 요청 헤더의 actor다."""
+
+    request_id: UUID
+
+
+class NoteView(RuntimeContractModel):
+    note_id: UUID
+    kind: OpportunityNoteKind
+    body: StrictStr
+    actor: StrictStr
+    owner: StrictStr
+    created_at: AwareDateTime
+    done_at: AwareDateTime | None
+    done_by: StrictStr | None
+
+
 __all__ = [
     "CandidateDecisionRequest",
+    "NOTE_BODY_MAX_CHARS",
+    "NOTE_OWNER_MAX_CHARS",
+    "NoteCreateRequest",
+    "NoteDoneRequest",
+    "NoteView",
+    "OpportunityNoteKind",
+    "clean_note_body",
+    "clean_note_owner",
     "OpportunityActionReason",
     "OpportunityHoldReview",
     "OpportunitySearchRequest",

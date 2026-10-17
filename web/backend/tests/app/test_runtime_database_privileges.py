@@ -1435,3 +1435,52 @@ def test_effective_briefing_grants_are_minimal() -> None:
                 assert not _table_privilege(connection, "worker", "briefing_reaction_event", "UPDATE")
         finally:
             engine.dispose()
+
+
+#: RL-02 opportunity notes (0039, spec "저장").
+NOTE_TABLE = "opportunity_note"
+APP_NOTE_UPDATE = {"done_at", "done_by"}
+NOTE_FROZEN_COLUMNS = ("id", "opportunity_id", "kind", "body", "actor", "owner", "created_at")
+
+
+def test_opportunity_note_grants_are_append_only_with_a_column_scoped_completion() -> None:
+    """web: SELECT, INSERT, `UPDATE (done_at, done_by)`; worker: SELECT; no DELETE anywhere."""
+
+    assert NOTE_TABLE in _table_grants("app", "SELECT")
+    assert NOTE_TABLE in _table_grants("app", "INSERT")
+    assert NOTE_TABLE not in _table_grants("app", "UPDATE")
+    assert _column_update_grant("app", NOTE_TABLE) == APP_NOTE_UPDATE
+    assert NOTE_TABLE in _table_grants("worker", "SELECT")
+    for privilege in ("INSERT", "UPDATE"):
+        assert NOTE_TABLE not in _table_grants("worker", privilege)
+    assert (
+        re.search(rf"GRANT\s+UPDATE\s*\([^)]*\)\s+ON\s+bidops\.{NOTE_TABLE}\s+TO\s+worker;", POLICY)
+        is None
+    )
+    for role in ("app", "worker", "ro_backup"):
+        assert NOTE_TABLE not in _table_grants(role, "DELETE")
+
+
+@requires_postgres
+def test_effective_opportunity_note_grants_are_minimal() -> None:
+    _ensure_roles()
+    with temporary_database() as database_url:
+        engine = _apply_policy(database_url)
+        try:
+            with engine.begin() as connection:
+                assert _table_privilege(connection, "app", NOTE_TABLE, "SELECT")
+                assert _table_privilege(connection, "app", NOTE_TABLE, "INSERT")
+                assert not _table_privilege(connection, "app", NOTE_TABLE, "UPDATE")
+                for column in sorted(APP_NOTE_UPDATE):
+                    assert _column_privilege(connection, "app", NOTE_TABLE, column, "UPDATE")
+                for column in NOTE_FROZEN_COLUMNS:
+                    assert not _column_privilege(connection, "app", NOTE_TABLE, column, "UPDATE")
+                assert _table_privilege(connection, "worker", NOTE_TABLE, "SELECT")
+                assert _table_privilege(connection, "ro_backup", NOTE_TABLE, "SELECT")
+                for role in ("worker", "ro_backup"):
+                    for privilege in ("INSERT", "UPDATE"):
+                        assert not _table_privilege(connection, role, NOTE_TABLE, privilege)
+                for role in ("app", "worker", "ro_backup"):
+                    assert not _table_privilege(connection, role, NOTE_TABLE, "DELETE")
+        finally:
+            engine.dispose()

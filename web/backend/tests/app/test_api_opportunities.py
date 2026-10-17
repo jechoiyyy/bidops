@@ -1120,3 +1120,123 @@ def test_deadline_within_days_window_and_deadline_sort(opportunity_api, monkeypa
     assert ids()["total"] == len(ordered)
     for invalid in (0, -1, 366):
         assert client.get("/api/opportunities", params={"deadline_within_days": invalid}).status_code == 422
+
+
+# --- RL-02 활동 피드 REST (`GET /api/opportunities/{id}/activity`) -------------
+
+ACTIVITY_RESPONSE_KEYS = {
+    "schema_version", "opportunity_id", "merged_into_opportunity_id", "title", "stages", "items", "next_before",
+}
+ACTIVITY_ITEM_KEYS = {"item_id", "kind", "at", "actor", "title", "detail", "link", "status_pill"}
+
+
+def test_activity_feed_returns_the_v1_shape_with_title_stages_and_items(opportunity_api):
+    client, _session, ended, plan_opportunity = opportunity_api
+    (ended_link_id,) = [link.id for link in ended.links if link.link_type == "official"]
+    (plan_link_id,) = [link.id for link in plan_opportunity.links]
+
+    response = client.get(f"/api/opportunities/{ended.id}/activity")
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert set(payload) == ACTIVITY_RESPONSE_KEYS
+    assert payload["schema_version"] == "bidops.opportunity-activity.v1"
+    assert payload["opportunity_id"] == ended.id
+    assert payload["merged_into_opportunity_id"] is None
+    assert payload["title"] == "사업기회 입찰공고"
+    assert [stage["key"] for stage in payload["stages"]] == [
+        "order_plan", "pre_spec", "bid_notice", "deadline", "opening", "contract",
+    ]
+    assert all(set(stage) == {"key", "state", "at", "link_id"} for stage in payload["stages"])
+    # 대표 연결 id: 입찰공고와 그것을 따르는 마감·개찰만 값이 있고 `검색 미확인` 행은 대표가 아니다.
+    assert [stage["link_id"] for stage in payload["stages"]] == [
+        None, None, ended_link_id, ended_link_id, ended_link_id, None,
+    ]
+    # 마감(2026-09-25)이 지났으므로 입찰공고·마감은 done이고 건너뛴 앞 단계는 미확인이다.
+    assert [stage["state"] for stage in payload["stages"]] == [
+        "unknown", "unknown", "done", "done", "unknown", "unknown",
+    ]
+    assert payload["stages"][3]["at"] == "2026-09-25T01:00:00Z"
+    assert all(set(item) == ACTIVITY_ITEM_KEYS for item in payload["items"])
+    by_kind = {item["kind"]: item for item in payload["items"]}
+    assert set(by_kind) == {"bid_posted", "recheck_signal"}
+    assert by_kind["recheck_signal"] == {
+        "item_id": by_kind["recheck_signal"]["item_id"],
+        "kind": "recheck_signal",
+        "at": "2026-08-29T02:00:00Z",
+        "actor": None,
+        "title": "재확인 신호",
+        "detail": None,
+        "link": None,
+        "status_pill": None,
+    }
+    # 공고 URL이 없으면 링크를 만들지 않는다(내부 입찰공고 상세 라우트는 없다).
+    assert by_kind["bid_posted"]["link"] is None
+    assert payload["next_before"] is None
+
+    plan_payload = client.get(f"/api/opportunities/{plan_opportunity.id}/activity").json()
+    assert plan_payload["title"] == "사업기회 발주계획"
+    assert [stage["state"] for stage in plan_payload["stages"]][:3] == ["current", "pending", "pending"]
+    assert [stage["link_id"] for stage in plan_payload["stages"]] == [plan_link_id, None, None, None, None, None]
+    (found,) = plan_payload["items"]
+    assert (found["kind"], found["title"]) == ("order_plan_found", "발주계획 발견 · 계획 기관")
+    assert found["link"]["path"].startswith("/order-plans/")
+
+
+def test_activity_feed_pages_with_the_opaque_cursor_and_filters_kinds(opportunity_api):
+    client, session, ended, _plan_opportunity = opportunity_api
+    set_tracking_status(
+        session, ended, status="보류", reason="예산 확인", selected_by="김담당",
+        selected_at=datetime(2026, 9, 1, 1, tzinfo=timezone.utc),
+    )
+    session.commit()
+    path = f"/api/opportunities/{ended.id}/activity"
+
+    full = [item["item_id"] for item in client.get(path).json()["items"]]
+    first = client.get(path, params={"limit": 2}).json()
+    second = client.get(path, params={"limit": 2, "before": first["next_before"]}).json()
+    filtered = client.get(path, params={"kinds": "tracking_decided,recheck_signal"}).json()
+
+    assert len(full) == 3
+    assert [item["item_id"] for item in first["items"]] + [item["item_id"] for item in second["items"]] == full
+    assert first["next_before"] == f"{first['items'][-1]['at']}|{first['items'][-1]['item_id']}"
+    assert second["next_before"] is None
+    assert [item["kind"] for item in filtered["items"]] == ["tracking_decided", "recheck_signal"]
+    assert filtered["items"][0]["title"] == "김담당이 보류로 결정"
+
+
+def test_activity_feed_errors_are_safe(opportunity_api):
+    client, _session, ended, _plan_opportunity = opportunity_api
+    path = f"/api/opportunities/{ended.id}/activity"
+
+    missing = client.get("/api/opportunities/999999/activity")
+    assert missing.status_code == 404
+    assert missing.json()["error"]["code"] == "opportunity_not_found"
+    for params in ({"limit": 0}, {"limit": 201}, {"limit": "many"}):
+        assert client.get(path, params=params).status_code == 422
+    for params in ({"before": "bad"}, {"before": "2026-09-01T00:00:00|bid_posted:1"}, {"kinds": "run_ingested"}):
+        response = client.get(path, params=params)
+        assert response.status_code == 422, params
+        assert response.json()["error"] == {
+            "code": "invalid_request", "message": "요청이 올바르지 않습니다", "details": None,
+        }
+
+
+def test_activity_feed_serves_a_merged_opportunity_with_its_survivor(opportunity_api):
+    client, session, ended, plan_opportunity = opportunity_api
+    merged = Opportunity(
+        first_registered_stage="order_plan",
+        merged_into_opportunity_id=plan_opportunity.id,
+        merged_at=datetime(2026, 9, 2, tzinfo=timezone.utc),
+        merge_reason="합성 병합",
+    )
+    session.add(merged)
+    session.commit()
+
+    response = client.get(f"/api/opportunities/{merged.id}/activity")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["merged_into_opportunity_id"] == plan_opportunity.id
+    assert payload["title"] == f"#{merged.id}"
+    assert payload["items"] == []

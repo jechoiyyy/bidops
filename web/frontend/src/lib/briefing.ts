@@ -76,6 +76,8 @@ const CHANGE_FIELD_LABEL: Record<string, string> = {
   title: "제목",
   budget: "예산",
   estimated_price: "추정가격",
+  method: "계약방법",
+  deadline_reminder: "마감 임박",
 };
 
 export function changeFieldLabel(field: string): string {

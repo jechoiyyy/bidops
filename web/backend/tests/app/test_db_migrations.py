@@ -37,6 +37,7 @@ from app.deep_review.models import (
 from app.lifecycle.models import (
     BRIEFING_TABLES,
     IDENTITY_TABLES,
+    OPPORTUNITY_NOTE_TABLES,
     LIFECYCLE_LEGACY_TABLES,
     Notice,
     NoticeObservation,
@@ -83,6 +84,7 @@ ALL_TABLES = frozenset(
     + ("assumption_input_version", "assumption_run", "assumption_stage")
     + COMPANY_ANALYSIS_TABLES
     + BRIEFING_TABLES
+    + OPPORTUNITY_NOTE_TABLES
 )
 
 

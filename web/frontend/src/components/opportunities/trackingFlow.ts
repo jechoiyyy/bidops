@@ -30,10 +30,20 @@ export type LifecycleStage = "발주계획" | "사전규격" | "입찰공고";
 
 export const LIFECYCLE_STAGES: LifecycleStage[] = ["발주계획", "사전규격", "입찰공고"];
 
+/**
+ * 사전규격 공고 종류. 백엔드 `services/opportunity_candidates.py`의 `PRE_SPEC_SOURCE_TYPES`와
+ * 같은 집합이어야 한다(단계 바·레코드 제목과 화면 단계가 어긋나지 않게).
+ */
+export const PRE_SPEC_SOURCE_TYPES: ReadonlySet<string> = new Set(["pre_spec", "prespec", "pre-spec"]);
+
+export function isPreSpecSourceType(sourceType: string | null | undefined): boolean {
+  return typeof sourceType === "string" && PRE_SPEC_SOURCE_TYPES.has(sourceType);
+}
+
 /** 연결 하나가 가리키는 생애주기 단계. 단계를 알 수 없으면 null이다. */
 export function stageOfLink(link: OpportunityLinkView): LifecycleStage | null {
   if (link.stage === "order_plan") return "발주계획";
-  if (link.source_type === "pre_spec") return "사전규격";
+  if (isPreSpecSourceType(link.source_type)) return "사전규격";
   if (link.source_type === "bid_notice") return "입찰공고";
   // `검색 미확인`에는 원천 레코드가 없다. 찾아보기 대상(`search_target_kind`)이 실려
   // 있을 때만 그 단계로 읽고, 없으면 단계를 추정하지 않는다.
@@ -564,13 +574,13 @@ export function recordRoute(link: OpportunityLinkView): string | null {
   // source_run_id가 없으므로, 확인되지 않은 회차를 URL에 덧붙이지 않는다.
   if (link.order_plan_id !== null) return `/order-plans?selected=${link.order_plan_id}`;
   if (link.notice_id === null) return null;
-  if (link.source_type === "pre_spec") return `/pre-specs/${link.notice_id}`;
+  if (isPreSpecSourceType(link.source_type)) return `/pre-specs/${link.notice_id}`;
   return `/judgments/${link.notice_id}`;
 }
 
 /** 링크 버튼의 이름. 화면 이름을 그대로 말한다. */
 export function recordRouteLabel(link: OpportunityLinkView): string {
   if (link.order_plan_id !== null) return "발주계획 검토목록 열기";
-  if (link.source_type === "pre_spec") return "사전규격 상세 열기";
+  if (isPreSpecSourceType(link.source_type)) return "사전규격 상세 열기";
   return "공고 판정 이력 열기";
 }

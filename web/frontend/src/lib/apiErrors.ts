@@ -112,6 +112,22 @@ const KNOWN_CODE_DESCRIPTION: Record<string, CodeDescription> = {
     detail: "추적 중인 사업의 변화는 확인용 항목이며 반응 대상이 아닙니다.",
     action: null,
   },
+  // RL-02 사업기회 레코드(lifecycle `routers/opportunities.py` 로컬 오류 map).
+  note_not_action: {
+    title: "다음 행동만 완료로 표시할 수 있습니다.",
+    detail: "노트는 완료 대상이 아닙니다. 최신 상태를 다시 불러온 뒤 확인하십시오.",
+    action: "reload",
+  },
+  opportunity_not_found: {
+    title: "사업기회를 찾을 수 없습니다.",
+    detail: "없거나 이미 지워진 사업기회입니다. 사업기회 목록에서 다시 여십시오.",
+    action: null,
+  },
+  opportunity_merged: {
+    title: "다른 사업기회로 병합된 사업기회입니다.",
+    detail: "병합된 사업기회에는 노트를 남길 수 없습니다. 병합된 쪽 레코드를 여십시오.",
+    action: "reload",
+  },
   bundle_not_ready: {
     title: "확정된 문서 묶음이 필요합니다.",
     detail: "문서 준비에서 문서 묶음을 확정한 뒤 다시 시도하십시오.",

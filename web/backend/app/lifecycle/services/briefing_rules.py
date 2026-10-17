@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, replace
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 import unicodedata
 from typing import Any, Literal
@@ -40,6 +40,12 @@ EXCLUSION_KINDS = (*KEYWORD_EXCLUSION_KINDS, "region", "amount_floor")
 
 #: 추적 변화 묶음에 드는 사업기회 추적 상태(spec "tracked_change 묶음").
 TRACKED_STATUSES = frozenset({"계속 추적", "보류"})
+
+#: 마감 알림 사유(RL-02 spec "마감 알림"). 추적 변화 행 `change_fields`에 들어가는 값이며
+#: 공고 열 이름이 아니다(규칙 파일 `tracked_change_fields`에는 넣을 수 없다).
+DEADLINE_REMINDER_FIELD = "deadline_reminder"
+#: 마감 알림을 받는 공고 `source_type`. 사전규격 의견 마감은 대상이 아니다.
+DEADLINE_REMINDER_SOURCE_TYPE = "bid_notice"
 
 #: stage별 후보 필드 매핑 표(spec 표 그대로). `notice`는 사전규격·입찰공고 공통이다.
 CANDIDATE_FIELD_MAP: dict[str, dict[str, Any]] = {
@@ -602,6 +608,81 @@ def tracked_changes(
     )
 
 
+@dataclass(frozen=True)
+class DeadlineReminderCandidate:
+    """추적 중 사업기회의 권위 연결 공고 하나와 그 마감(RL-02 spec "마감 알림").
+
+    권위 연결(contracts "마감 임박 창")과 활성 사업기회 판정은 생성 service가 조회로 한다.
+    여기서는 추적 상태·공고 종류·마감 KST 날짜만 본다.
+    """
+
+    notice_id: int
+    opportunity_id: int
+    tracking_status: str
+    source_type: str | None
+    deadline_at: datetime | None
+
+
+def deadline_reminders(
+    candidates: Iterable[DeadlineReminderCandidate], policy: BriefingPolicy, briefing_date: date
+) -> tuple[TrackedChange, ...]:
+    """마감 KST 날짜 − 브리핑 날짜가 `deadline_reminder_days`에 드는 입찰공고, 공고당 1행.
+
+    추적 상태 `계속 추적|보류`인 사업기회의 입찰공고(`source_type='bid_notice'`)만 본다.
+    v1 규칙 파일(`deadline_reminder_days=()`)이면 언제나 빈 tuple이다. 하루 1회는 브리핑
+    날짜 UNIQUE가 보장한다.
+    """
+
+    days = set(policy.deadline_reminder_days)
+    if not days:
+        return ()
+    owner: dict[int, int] = {}
+    for candidate in candidates:
+        if candidate.tracking_status not in TRACKED_STATUSES:
+            continue
+        if candidate.source_type != DEADLINE_REMINDER_SOURCE_TYPE:
+            continue
+        deadline = candidate.deadline_at
+        if deadline is None or deadline.tzinfo is None or deadline.utcoffset() is None:
+            continue
+        if (deadline.astimezone(_SEOUL).date() - briefing_date).days not in days:
+            continue
+        owner.setdefault(int(candidate.notice_id), int(candidate.opportunity_id))
+    return tuple(
+        TrackedChange(notice_id=notice_id, opportunity_id=owner[notice_id], change_fields=(DEADLINE_REMINDER_FIELD,))
+        for notice_id in sorted(owner)
+    )
+
+
+def combine_tracked_changes(
+    changes: Sequence[TrackedChange], reminders: Sequence[TrackedChange]
+) -> tuple[TrackedChange, ...]:
+    """정정 행과 마감 알림을 (브리핑, 공고)당 1행으로 합친다.
+
+    같은 공고에 정정이 있으면 그 행 `change_fields` 끝에 `deadline_reminder`를 더하고(행을
+    추가하지 않는다), 없으면 마감 사유만 가진 행을 만든다. 입력은 바꾸지 않는다.
+    """
+
+    by_notice: dict[int, TrackedChange] = {change.notice_id: change for change in changes}
+    for reminder in reminders:
+        existing = by_notice.get(reminder.notice_id)
+        if existing is None:
+            by_notice[reminder.notice_id] = reminder
+            continue
+        combined = tuple(dict.fromkeys((*existing.change_fields, *reminder.change_fields)))
+        by_notice[reminder.notice_id] = replace(existing, change_fields=combined)
+    return tuple(by_notice[notice_id] for notice_id in sorted(by_notice))
+
+
+def tracked_change_verdict(change_fields: Sequence[str]) -> str:
+    """추적 변화 행의 표시: 정정 사유가 하나라도 있으면 "재검토 중", 마감 사유만이면 "마감 임박"."""
+
+    fields = list(change_fields)
+    if fields and all(name == DEADLINE_REMINDER_FIELD for name in fields):
+        return "마감 임박"
+    return "재검토 중"
+
+
 def merge_tracked_changes(
     items: Sequence[Recommendation], changes: Sequence[TrackedChange]
 ) -> tuple[tuple[Recommendation, ...], tuple[TrackedChange, ...]]:
@@ -628,6 +709,8 @@ def merge_tracked_changes(
 
 __all__ = [
     "CANDIDATE_FIELD_MAP",
+    "DEADLINE_REMINDER_FIELD",
+    "DEADLINE_REMINDER_SOURCE_TYPE",
     "EXCLUSION_KINDS",
     "KEYWORD_EXCLUSION_KINDS",
     "STAGES",
@@ -635,6 +718,7 @@ __all__ = [
     "BriefingCandidate",
     "BriefingRulesError",
     "CompanyRules",
+    "DeadlineReminderCandidate",
     "DomainPreference",
     "Keyword",
     "ProjectRecord",
@@ -643,11 +727,14 @@ __all__ = [
     "TrackedChange",
     "TrackedChangeObservation",
     "build_recommendations",
+    "combine_tracked_changes",
     "company_rules",
+    "deadline_reminders",
     "korean_amount_text",
     "merge_tracked_changes",
     "normalize_text",
     "notice_candidate",
     "order_plan_candidate",
+    "tracked_change_verdict",
     "tracked_changes",
 ]

@@ -37,8 +37,10 @@
 | 페이지 | 왼쪽 | 오른쪽 |
 |---|---|---|
 | 리스트(브리핑·공고·추적 중) | 리스트 색 점 + 이름(15px/600) + 보조 "6건 · 10월 16일 (금)" | 공유 · 가져오기 · 주 버튼(공고 추가) |
-| 레코드(사업기회) | breadcrumb "사업기회 / 공고명"(보조색 / 구분, 현재 칸 600) | 리스트에 추가 · 공유 · ⋯ |
+| 레코드(사업기회) | breadcrumb "사업기회 / <레코드 제목>"(보조색 / 구분, 현재 칸 600) | 리스트에 추가 · 공유 · ⋯ |
 | 회사 근거 | 아이콘 + "회사 근거" + 보조 "㈜루트랩 · 마지막 저장 날짜"(`GET /api/company`의 `active_graph_version.created_at`) | 이전 버전(현재 버전만 보여 주고 선택은 후속). 저장(주) 버튼은 없다 — 화면은 읽기 전용(§4.6) |
+
+레코드 제목은 권위 연결 중 가장 뒤 단계(입찰공고 > 사전규격 > 발주계획)의 제목이고 없으면 `#<id>`다(RL-02). 첫 칸 "사업기회"는 route-meta의 옛 "사업 추적" 라벨 4곳(`opportunities.title`, `bidDelta`·deep-review `from: opportunities`·공고 계열의 ancestors)을 바꾼 것이다. 마지막 칸은 레코드 페이지가 활동 응답의 `title`을 `RecordTitleContext`로 올리고 `AppShell`이 현재 match의 `opportunityId`와 같을 때만 덮어쓴다 — 응답 전과 다른 레코드의 값은 `#<id>`가 그대로 보인다.
 
 `<h1>`은 상단바 왼쪽 이름 하나다(현재 TopBar의 "경로 모드/제목 모드" 두 갈래는 이 규칙으로 합친다). 페이지 액션은 기존 `#page-header-actions` portal을 그대로 쓴다. 회차 선택기(`RunSelector`)는 실무 화면에서 그리지 않고 운영 메뉴에서만 쓴다.
 
@@ -46,10 +48,10 @@
 
 | 경로 | 화면 | 비고 |
 |---|---|---|
-| `/briefing` (신설, 기본 진입) | 오늘의 브리핑 | `?date=YYYY-MM-DD`, `?view=pending\|accepted\|ignored\|later`, `?selected=<notice>` |
+| `/briefing` (신설, 기본 진입) | 오늘의 브리핑 | `?date=YYYY-MM-DD`, `?view=pending\|accepted\|ignored\|later`, `?selected=<item_id>`(RL-01이 `<notice>`에서 `item_id`로 고정 — 발주계획 항목은 notice가 없다. 사업기회 활동의 `briefing_reacted` 링크 `/briefing?date=…&selected=<item_id>`가 쓴다, RL-02) |
 | `/notices` (신설) → 기존 `/order-plans`·`/pre-specs` 리다이렉트 | 공고 리스트 뷰 | 뷰 탭으로 단계 구분 |
 | `/opportunities` | 리스트 "추적 중" | 기존 화면을 표 규칙(§3.3)으로 맞춤 |
-| `/opportunities/:id` → `/opportunities/:id/activity` | 레코드 활동 탭 | 기존 `OpportunityDetailPage` 대체 |
+| `/opportunities/:id` → `/opportunities/:id/activity` | 레코드 활동 탭 | 라우트 페이지 `OpportunityDetailPage`를 `OpportunityRecordPage`로 대체(RL-02). 목록 우측 pane의 빠른 조작 상세 `OpportunityDetail`(`?selected=<id>`)은 그대로 둔다. 알 수 없는 탭은 활동 탭으로, 병합된 사업기회는 병합 대상으로 replace 이동 |
 | `/opportunities/:id/verdict` · `/proposal` · `/documents` · `/source` · `/similar` | 레코드 탭 | `/pre-specs/:noticeId`의 심층 검토 진입은 verdict 탭으로 리다이렉트 |
 | `/company` | 회사 근거(읽기 전용) | 기본 `?group=attention`, `?group=attention\|qualification\|performance\|staff\|preference\|proposal-assets`. `/companies/:id/profile → /company` 리다이렉트는 demo on 라우트에만 둔다 |
 | `/profile` | 설정 메뉴의 판정 기준 화면 | 그대로 둔다(`/company`로 리다이렉트하지 않음). 사이드바 "회사 근거" 링크만 `/company`로 바꾼다 |
@@ -126,11 +128,12 @@
 
 - 일: 이 사업이 지금 어디까지 왔는지 보고 결정·메모하기.
 - 레코드 헤더 pill: 단계 · 마감 D-n · 판정 · 추적 상태. 액션: 판정 보기(주) · 제안서 초안 · ⋯(추적 결정 변경·종료).
-- 좌측 정보(280px): 속성 8개(발주기관·사업기간·금액·계약·공동수급·입찰 마감·담당·추적) / 다음 행동(체크 2~3) / 제출 서류(진행 막대 + "n / 27" + "남은 서류 보기").
+- 좌측 정보(280px): 속성 8개(발주기관·사업기간·금액·계약·공동수급·입찰 마감·담당·추적) / 다음 행동(체크 2~3) / 제출 서류(진행 막대 + "n / 27" + "남은 서류 보기"). **RL-02 구현은 이 블록을 비활성 안내 한 줄 "제출 서류 체크는 준비 중입니다"로만 둔다** — 체크리스트 계약·저장이 없고 서류 목록은 RL-04가 입력이므로 진행 막대·숫자·"남은 서류 보기"는 후속 기능이 채울 때까지 그리지 않는다(임시 하드코딩 27종 금지).
 - 탭: 활동 · 판정 · 제안서 · 서류 · 원문 · 비슷한 공고.
 - 중앙: 단계 바 → 작성기 → 활동 목록. 활동은 사람 행동(추적 결정·반응·노트)과 사업 사건(발주계획 발견·사전규격 공개·공고 게시·정정·판정 완료·초안 준비)만. 각 항목 한 줄 + 보조(날짜 · 링크). 시스템 처리 세부(변환·호출·정책)는 넣지 않는다.
-- 상태: 탭별 빈 상태 문장 1줄. 판정 진행 중이면 헤더 pill "분석 중".
-- 데이터: 기존 `/api/opportunities/:id`(링크·추적 상태·마감), 공고 상세, 추적 PATCH `tracking-status`, 활동 피드 API(신설, RL-02 spec).
+- 상태: 탭별 빈 상태 문장 1줄. 판정 진행 중이면 헤더 pill "분석 중". RL-02 구현의 빈 상태 문장은 판정 "판정은 분석이 끝나면 여기에 보입니다", 제안서 "제안서 초안은 판정 뒤 만들 수 있습니다", 서류 "제출 서류 체크는 준비 중입니다", 원문 "원문은 공고 상세에서 봅니다"(+ 가장 뒤 단계 레코드 링크), 비슷한 공고는 가장 뒤 단계 공고 pk의 `GET /api/notices/{pk}/related` 목록이며 공고가 없으면(발주계획만) "공고가 연결되면 비슷한 공고를 찾습니다"다. 헤더 pill "분석 중"은 RL-03 전까지 만들지 않고(판정 pill은 "분석 대기", 발주계획만 있으면 "연차 추적") 주 버튼 "판정 보기"·"제안서 초안"은 RL-03·04가 열기 전까지 비활성이다(안내 "RL-03에서 열립니다"·"RL-04에서 열립니다").
+- 데이터: 기존 `/api/opportunities/:id`(링크·추적 상태·마감), 공고 상세, 추적 PATCH `tracking-status`, 활동 피드 `GET /api/opportunities/:id/activity`와 노트 `POST …/notes`·`PATCH …/notes/:note_id/done`(RL-02 구현, [contracts.md](../contracts.md#레코드-활동-피드노트-rl-02-2026-10-17)).
+- 상단 경로: "사업기회 / <레코드 제목>"(§1.3). 중앙 활동은 단계 바 → 작성기(노트·다음 행동) → 목록이며 필터 칩은 전체·사람·사업 사건·다음 행동(클라이언트 분류)이고 시각은 분 단위까지만 쓴다. 다음 행동의 담당 머리글자는 활동 항목 `action_added.detail`("담당 <이름>")에서 읽는다. 속성의 사업기간은 공고에 기간 열이 없어 항상 "미공개"이고(발주계획만이면 "n월 발주 예정") 개찰·계약 단계는 "미확인"일 수 있다. DOM에는 `run_id`·회차 디렉터리명·정책 id·모델명·`unmeasured_reference`를 그리지 않는다(§5).
 
 ### 4.4 사업기회 레코드 — 판정 (`/opportunities/:id/verdict`, `Verdict.dc.html`)
 

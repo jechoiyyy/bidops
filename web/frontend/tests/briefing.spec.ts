@@ -451,7 +451,8 @@ test("T10: Enter는 피크를 열고 한 번 더 누르면 레코드로 간다 �
   await page.keyboard.press("Enter");
   await expect(peek(page)).toBeVisible();
   await page.keyboard.press("Enter");
-  await expect(page).toHaveURL(/\/opportunities\/501$/);
+  // RL-02: record_path(`/opportunities/<id>`)는 레코드 활동 탭으로 replace 리다이렉트된다.
+  await expect(page).toHaveURL(/\/opportunities\/501\/activity$/);
 });
 
 test("T10: 409 version_conflict는 조용히 덮어쓰지 않고 다시 읽은 뒤 확인하게 한다", async ({ page }) => {

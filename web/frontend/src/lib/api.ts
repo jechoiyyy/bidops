@@ -61,6 +61,10 @@ import type {
   PreSpecOrderPlanCandidatesResponse,
   CompanyFitResponse,
   OpportunityDetailResponse,
+  OpportunityActivityQuery,
+  OpportunityActivityResponse,
+  OpportunityNoteCreateRequest,
+  OpportunityNoteView,
   CandidateLinkDecisionRequest,
   OpportunityLinkView,
   OpportunityListQuery,
@@ -1490,6 +1494,49 @@ export const api = {
 
   getOpportunity: (opportunityId: number, options?: ReadRequestOptions) =>
     request<OpportunityDetailResponse>(`/opportunities/${opportunityId}`, options),
+
+  /**
+   * 사업기회 레코드의 6단계와 활동 피드(RL-02). 병합된 사업기회도 200이며
+   * `merged_into_opportunity_id`로 화면이 이동한다. `before`는 서버가 준 불투명 커서다.
+   */
+  getOpportunityActivity: (
+    opportunityId: number,
+    params: OpportunityActivityQuery = {},
+    options?: ReadRequestOptions,
+  ) =>
+    request<OpportunityActivityResponse>(
+      `/opportunities/${opportunityId}/activity${query({
+        kinds: params.kinds ?? undefined,
+        limit: params.limit,
+        before: params.before,
+      })}`,
+      options,
+    ),
+
+  /** 노트·다음 행동을 남긴다(append-only). 같은 `request_id`의 재전송은 저장된 결과를 돌려받는다. */
+  createOpportunityNote: (
+    opportunityId: number,
+    payload: OpportunityNoteCreateRequest,
+    actorName: string,
+  ) =>
+    request<OpportunityNoteView>(`/opportunities/${opportunityId}/notes`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...actorHeaders(actorName) },
+      body: JSON.stringify(payload),
+    }),
+
+  /** 다음 행동을 완료로 표시한다. 이미 완료면 서버가 그대로 200을 준다. */
+  completeOpportunityNoteAction: (
+    opportunityId: number,
+    noteId: string,
+    requestId: string,
+    actorName: string,
+  ) =>
+    request<OpportunityNoteView>(`/opportunities/${opportunityId}/notes/${encodeURIComponent(noteId)}/done`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", ...actorHeaders(actorName) },
+      body: JSON.stringify({ request_id: requestId }),
+    }),
 
   /** Preview the selected plans without creating a decision or receipt. */
   previewOrderPlanTracking: (orderPlanIds: readonly number[], options?: ReadRequestOptions) =>
