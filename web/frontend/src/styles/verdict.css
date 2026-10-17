@@ -1,0 +1,416 @@
+/*
+ * 사업기회 레코드 판정 탭 `/opportunities/:id/verdict`(RL-03 STEP-009, ui-spec §3·§4.4).
+ *
+ * 레이아웃은 프로젝트가 소유한다(ADR-0040). 색·간격·모서리는 테마 토큰만 읽고 `--color-*`를 다시
+ * 정의하지 않는다(ADR-0048). 글자는 4단 스케일만 쓴다(`styles/typography.css`): 판정 이름은 page-title
+ * 단(20px)에 700 굵기를 준다. 지원 폭은 1280~1920px이다(ADR-0047).
+ *
+ * 색 의미(ui-spec §2·§3): 판정 이름 — 진행 가능 success · 조건부 진행 warning · 진행 어려움 error ·
+ * 판단 불가 secondary. 대조 pill — 충족 success · 부족 error · 확인 필요 warning. 확인 필요는 부족이
+ * 아니므로 error를 쓰지 않는다. blue 계열은 쓰지 않는다(`npm run test:contrast`가 막는다). 글자가 항상
+ * 상태 이름이고 색은 의미를 거들 뿐이다.
+ */
+
+/* 좌측: 판정 이름 20px/700 + 사유 */
+.vd-verdict {
+  gap: var(--spacing-2);
+}
+
+.vd-verdict-name {
+  margin: 0;
+  font-size: var(--bo-type-page-title);
+  font-weight: 700;
+  line-height: var(--bo-type-page-title-leading);
+}
+
+.vd-verdict-name.is-success {
+  color: var(--color-success);
+}
+
+.vd-verdict-name.is-warning {
+  color: var(--color-warning);
+}
+
+.vd-verdict-name.is-error {
+  color: var(--color-error);
+}
+
+.vd-verdict-name.is-muted {
+  color: var(--color-text-secondary);
+}
+
+.vd-verdict-reason {
+  margin: 0;
+  white-space: pre-line;
+}
+
+.vd-verdict-reason[data-clamped="true"] {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+}
+
+.vd-text-button {
+  justify-self: start;
+  padding: 0;
+  border: 0;
+  color: var(--color-accent);
+  background: transparent;
+  font: inherit;
+  font-size: var(--bo-type-caption);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.vd-text-button:focus-visible,
+.vd-page-link:focus-visible,
+.vd-row-main:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* 체크리스트 5행 */
+.vd-checklist {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.vd-checklist-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-2);
+  min-height: 34px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.vd-disclaimer {
+  padding-top: var(--spacing-2);
+}
+
+/* 상태 pill: 높이 20, 패딩 1×8, 12px/500, 라운드 999 */
+.vd-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: calc(var(--spacing-4) + var(--spacing-0-5));
+  padding: var(--spacing-0-5) var(--spacing-2);
+  border-radius: var(--radius-full);
+  color: var(--color-text-secondary);
+  background: var(--color-background-muted);
+  font-size: var(--bo-type-caption);
+  font-weight: 500;
+  line-height: var(--bo-type-caption-leading);
+  white-space: nowrap;
+}
+
+.vd-pill.is-success {
+  color: var(--color-success);
+  background: var(--color-success-muted);
+}
+
+.vd-pill.is-warning {
+  color: var(--color-warning);
+  background: var(--color-warning-muted);
+}
+
+.vd-pill.is-error {
+  color: var(--color-error);
+  background: var(--color-error-muted);
+}
+
+/* 중앙 + 우측 원문 패널: 패널은 행을 고른 때만 300~380px(폭에 비례, 지원 최소 폭 1280에서는 300px) */
+.vd-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  min-width: 0;
+}
+
+.vd-layout.has-source {
+  grid-template-columns: minmax(0, 1fr) clamp(300px, 22vw, 380px);
+  gap: var(--spacing-4);
+}
+
+.vd-center {
+  display: grid;
+  align-content: start;
+  gap: var(--spacing-3);
+  min-width: 0;
+}
+
+/* 상태 안내(분석 중·사람 검토·과거 기준) */
+.vd-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-3);
+  padding: var(--spacing-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-element);
+}
+
+.vd-banner.is-warning {
+  border-color: var(--color-warning);
+  background: var(--bo-warning-subtle);
+}
+
+.vd-banner p {
+  margin: 0;
+}
+
+.vd-banner-body {
+  display: grid;
+  flex: 1 1 auto;
+  gap: var(--spacing-1);
+  min-width: 0;
+}
+
+.vd-code {
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+}
+
+/* 요구사항 머리 + 도구 */
+.vd-requirements {
+  display: grid;
+  gap: var(--spacing-3);
+  min-width: 0;
+}
+
+.vd-req-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--spacing-3);
+}
+
+.vd-req-heading {
+  display: grid;
+  gap: var(--spacing-0-5);
+  min-width: 0;
+}
+
+.vd-req-counts {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+  line-height: var(--bo-type-caption-leading);
+}
+
+.vd-req-tools {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+}
+
+.vd-req-empty {
+  margin: 0;
+  padding: var(--spacing-4) 0;
+  color: var(--color-text-secondary);
+}
+
+/* 표: 좁은 폭에서는 표 안에서만 가로로 민다(페이지는 넘치지 않는다) */
+.vd-table-scroll {
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.vd-table-scroll table {
+  min-width: 480px;
+}
+
+.vd-row.is-selected {
+  background: var(--color-accent-muted);
+}
+
+.vd-row-main {
+  display: grid;
+  gap: var(--spacing-0-5);
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-primary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.vd-row-title {
+  font-weight: 600;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.vd-row-main:hover .vd-row-title {
+  text-decoration: underline;
+}
+
+.vd-row-sub {
+  display: block;
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+  font-weight: 400;
+  line-height: var(--bo-type-caption-leading);
+}
+
+.vd-row-company {
+  display: grid;
+  gap: var(--spacing-0-5);
+  min-width: 0;
+}
+
+.vd-row-reason {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow-wrap: anywhere;
+}
+
+.vd-row-source {
+  display: grid;
+  gap: var(--spacing-0-5);
+}
+
+.vd-page-link {
+  justify-self: start;
+  padding: 0;
+  border: 0;
+  color: var(--color-accent);
+  background: transparent;
+  font: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.vd-none {
+  color: var(--color-text-secondary);
+}
+
+/* 원문 패널(300~380px) */
+.vd-source {
+  position: sticky;
+  top: 0;
+  display: grid;
+  align-content: start;
+  gap: var(--spacing-3);
+  min-width: 0;
+  padding: var(--spacing-3) 0 var(--spacing-3) var(--spacing-4);
+  border-left: 1px solid var(--color-border);
+  overflow-wrap: anywhere;
+}
+
+.vd-source-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-2);
+}
+
+.vd-source-head h3 {
+  margin: 0;
+}
+
+.vd-source-suffix {
+  color: var(--color-text-secondary);
+  font-weight: 400;
+}
+
+.vd-source-requirement {
+  margin: 0;
+  font-weight: 600;
+}
+
+.vd-quotes {
+  display: grid;
+  gap: var(--spacing-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.vd-quote {
+  margin: 0;
+  padding: var(--spacing-2) var(--spacing-3);
+  border-left: 3px solid var(--color-border-emphasized);
+}
+
+.vd-quote mark {
+  color: var(--color-text-primary);
+  background: var(--color-success-muted);
+}
+
+.vd-source-actions,
+.vd-source-feedback {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-2);
+}
+
+.vd-source-actions p,
+.vd-source-feedback p {
+  margin: 0;
+  flex-basis: 100%;
+}
+
+/* 쪽 전체 보기·실행 정보 대화상자 */
+.vd-page-blocks {
+  display: grid;
+  gap: var(--spacing-2);
+  margin: 0;
+  padding: 0 0 0 var(--spacing-5);
+  max-height: 60dvh;
+  overflow-y: auto;
+}
+
+.vd-page-block {
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+.vd-page-block mark {
+  color: var(--color-text-primary);
+  background: var(--color-success-muted);
+}
+
+.vd-info {
+  display: grid;
+  margin: 0;
+}
+
+.vd-info-row {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr);
+  gap: var(--spacing-3);
+  padding: var(--spacing-1-5) 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.vd-info-row dt {
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+}
+
+.vd-info-row dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.vd-info-row dd.is-empty {
+  color: var(--color-text-secondary);
+}
+
+.vd-feedback-target {
+  margin: 0;
+  font-weight: 600;
+}

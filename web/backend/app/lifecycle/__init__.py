@@ -79,6 +79,10 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     # 계약을 검사한다. `ClaimedDirectoryLoad`는 `RunDirectoryClaim.load`의 형일
     # 뿐이라 밖에서 이름으로 받지 않는다 — 공개하지 않는다.
     "BriefingOrderPlanCandidatesProvider": (".extensions", "BriefingOrderPlanCandidatesProvider"),
+    # RL-03 브리핑 추천 hook. deep_review가 자동 판정 트리거·대기열 처리로 구현한다.
+    "BriefingRecommendationHook": (".extensions", "BriefingRecommendationHook"),
+    # RL-03 브리핑 판정 표시 projection(`bidops.briefing.v2`). deep_review가 구현한다.
+    "BriefingVerdictDisplayProvider": (".extensions", "BriefingVerdictDisplayProvider"),
     "CompanyFact": (".extensions", "CompanyFact"),
     "CompanyFactsProjection": (".extensions", "CompanyFactsProjection"),
     "CompanyFactsProvider": (".extensions", "CompanyFactsProvider"),
@@ -177,6 +181,8 @@ if TYPE_CHECKING:  # pragma: no cover - 정적 분석용 이름 노출
     from .services.opportunity_tracking import company_tracking_views
     from .extensions import (
         BriefingOrderPlanCandidatesProvider,
+        BriefingRecommendationHook,
+        BriefingVerdictDisplayProvider,
         CompanyFact,
         CompanyFactsProjection,
         CompanyFactsProvider,

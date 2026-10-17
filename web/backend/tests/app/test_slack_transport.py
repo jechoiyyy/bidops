@@ -22,7 +22,7 @@ import logging
 from pathlib import Path
 
 import pytest
-from sqlalchemy import create_engine, select, text
+from sqlalchemy import create_engine, select, text, update
 from sqlalchemy.orm import sessionmaker
 
 import app.core.slack as slack_module
@@ -36,7 +36,7 @@ from app.core.slack import (
     url_host_allowed,
 )
 from app.lifecycle.cli import SKIPPED_REASONS, build_briefing_command, build_parser
-from app.lifecycle.models import Briefing
+from app.lifecycle.models import Briefing, BriefingItem
 from app.lifecycle.services.briefing import get_briefing_view
 from app.lifecycle.services.briefing_policy import load_briefing_policy
 from app.lifecycle.services.briefing_slack import SLACK_PAYLOAD_KEYS, build_briefing_messages
@@ -157,6 +157,19 @@ def _briefing(factory) -> Briefing:
         return session.scalars(select(Briefing)).one()
 
 
+def _item_ts(factory) -> dict[str, list[str | None]]:
+    """항목별 `slack_message_ts`(RL-03 추가형 열). 추천은 순위 순, 추적 변화는 공고 순."""
+
+    with factory() as session:
+        rows = session.scalars(
+            select(BriefingItem).order_by(BriefingItem.kind, BriefingItem.rank, BriefingItem.notice_id)
+        ).all()
+    out: dict[str, list[str | None]] = {"recommendation": [], "tracked_change": []}
+    for row in rows:
+        out[row.kind].append(row.slack_message_ts)
+    return out
+
+
 # --- 전송기 단위 검사 ------------------------------------------------------------
 
 
@@ -225,6 +238,10 @@ def test_sender_checks_before_any_call(fake, overrides, reason) -> None:
     assert raised.value.code == reason
     with pytest.raises(SlackTransportError):
         sender.update_message(channel=CHANNEL, ts="1.1", blocks=blocks, text="x", allowed_keys=SLACK_PAYLOAD_KEYS)
+    # RL-03 스레드 답글도 같은 검사를 먼저 지난다.
+    with pytest.raises(SlackTransportError) as reply:
+        sender.post_thread_reply(channel=CHANNEL, thread_ts="1.1", text="x")
+    assert reply.value.code == reason
     assert fake.requests == []
 
 
@@ -271,6 +288,45 @@ def test_update_to_another_channel_is_refused_before_the_call(fake) -> None:
     with pytest.raises(SlackTransportError) as raised:
         sender.update_message(channel="C0OTHER", ts="1.1", blocks=[], text="x", allowed_keys=SLACK_PAYLOAD_KEYS)
     assert raised.value.code == "channel_not_allowed"
+    assert fake.requests == []
+
+
+def test_thread_reply_posts_one_line_into_the_thread_of_a_sent_message(fake, caplog) -> None:
+    """RL-03 `post_thread_reply`: 설정 채널·`thread_ts`·텍스트만 보내고 답글 ts를 돌려준다."""
+
+    caplog.set_level(logging.DEBUG)
+    sender = _sender(fake)
+    parent = sender.post_message(
+        blocks=[{"type": "section", "text": {"type": "mrkdwn", "text": "x"}}], text="x",
+        allowed_keys=SLACK_PAYLOAD_KEYS,
+    )
+
+    reply_ts = sender.post_thread_reply(channel=CHANNEL, thread_ts=parent, text="판정 완료 · 조건부 진행 · 확인할 것 2")
+
+    call = fake.calls("chat.postMessage")[-1]
+    assert set(call.body) == {"channel", "thread_ts", "text"}
+    assert call.body == {"channel": CHANNEL, "thread_ts": parent, "text": "판정 완료 · 조건부 진행 · 확인할 것 2"}
+    assert call.authorization == f"Bearer {BOT_TOKEN}" and "token" not in call.body
+    assert reply_ts in fake.posted and reply_ts != parent
+    _assert_no_secret(caplog.text, call.raw)
+
+
+@pytest.mark.parametrize(
+    "channel, thread_ts, text, code",
+    [
+        ("C0OTHER", "1.1", "x", "channel_not_allowed"),
+        (CHANNEL, "", "x", "payload_invalid"),
+        (CHANNEL, "  ", "x", "payload_invalid"),
+        (CHANNEL, None, "x", "payload_invalid"),
+        (CHANNEL, "1.1", "", "payload_invalid"),
+    ],
+)
+def test_thread_reply_to_another_channel_or_without_ts_is_refused_before_the_call(
+    fake, channel, thread_ts, text, code
+) -> None:
+    with pytest.raises(SlackTransportError) as raised:
+        _sender(fake).post_thread_reply(channel=channel, thread_ts=thread_ts, text=text)
+    assert raised.value.code == code
     assert fake.requests == []
 
 
@@ -406,6 +462,8 @@ def test_send_persists_ts_in_send_order_and_a_second_send_sends_nothing(database
     assert briefing.slack_message_ts == [first_ts]
     assert briefing.tracked_change_message_ts == [second_ts]
     assert briefing.slack_sent_at == NOW
+    # RL-03(추가형 열): 항목마다 자기가 실린 메시지 ts(판정 완료 스레드 답글의 thread_ts).
+    assert _item_ts(factory) == {"recommendation": [first_ts] * 3, "tracked_change": [second_ts]}
     # 보낸 블록 = 미리보기와 같은 함수의 결과(추천 메시지 다음 추적 변화 메시지).
     policy = load_briefing_policy()
     with factory() as session:
@@ -457,6 +515,8 @@ def test_messages_over_the_per_message_cap_are_split_under_the_same_header(
     assert briefing.slack_message_ts == ts[:2]
     assert briefing.tracked_change_message_ts == ts[2:]
     assert output["slack"]["message_ts"] == ts
+    # 나뉜 메시지마다 그 메시지에 실린 항목만 같은 ts를 갖는다(순위 1·2 → 첫 메시지, 3 → 둘째).
+    assert _item_ts(factory) == {"recommendation": [ts[0], ts[0], ts[1]], "tracked_change": [ts[2]]}
 
 
 def test_failure_keeps_the_briefing_and_a_rerun_sends_only_the_rest(database, slack_env, fake, capsys, caplog) -> None:
@@ -487,8 +547,14 @@ def test_failure_keeps_the_briefing_and_a_rerun_sends_only_the_rest(database, sl
     assert (briefing.slack_message_ts, briefing.tracked_change_message_ts, briefing.slack_sent_at) == (
         [first_ts], None, None,
     )
+    # 보낸 메시지의 항목만 ts를 갖고, 못 보낸 추적 변화 항목은 null이다(답글을 건너뛴다).
+    assert _item_ts(factory) == {"recommendation": [first_ts] * 3, "tracked_change": [None]}
     assert "slack_api_error:ratelimited" in printed
     _assert_no_secret(printed, caplog.text)
+    # 열이 생기기 전에 보낸 메시지처럼 항목 ts를 비워 두면 재실행이 그 메시지 ts로 채운다(재전송 없이).
+    with factory() as session:
+        session.execute(update(BriefingItem).where(BriefingItem.kind == "recommendation").values(slack_message_ts=None))
+        session.commit()
 
     retry_code, retry, _printed = _cli(factory, capsys, "--date", "2026-10-16", "--send")
 
@@ -504,6 +570,7 @@ def test_failure_keeps_the_briefing_and_a_rerun_sends_only_the_rest(database, sl
     assert (briefing.slack_message_ts, briefing.tracked_change_message_ts, briefing.slack_sent_at) == (
         [first_ts], [second_ts], NOW,
     )
+    assert _item_ts(factory) == {"recommendation": [first_ts] * 3, "tracked_change": [second_ts]}
 
 
 def test_total_failure_then_retry_sends_everything_once(database, slack_env, fake, capsys) -> None:

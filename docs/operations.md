@@ -836,6 +836,8 @@ docker compose -f docker-compose.yml exec web \
 | 3 | **`slack_send_failed`.** CLI는 이 경우에도 0으로 끝나고 JSON `warnings[]`에만 코드를 싣는다. cron이 전송 실패를 성공으로 보지 않도록 스크립트가 JSON을 읽어 3으로 바꾼다. 브리핑 행은 남는다 |
 | 4 | CLI가 0으로 끝났지만 stdout이 기대한 JSON이 아니어서 `slack_send_failed`를 배제할 수 없음(fail closed) |
 
+**RL-03 연결.** `BIDOPS_RL_ANALYSIS_AUTO_START_ENABLED`가 꺼져 있으면(기본) 위 설명 그대로이고 브리핑 CLI는 LLM·Luna를 부르지 않는다. 켜면 새 브리핑이 만들어진 직후 같은 transaction에서 지난날 상한 초과 큐를 처리하고 사전규격 추천 항목마다 자동 판정 시작 조건을 평가한다(모델 호출은 이 CLI가 아니라 분석 worker가 한다). 이 hook의 실패는 브리핑 생성에 영향을 주지 않는다. 절차·승인·상한은 아래 "RL 카드 판정 운영"이 정본이다.
+
 **재시도.** 전송이 실패하면(3) 원인(토큰·네트워크·채널)을 고친 뒤 **같은 명령을 `--send`로 다시 실행**한다. 이미 보낸 메시지는 저장된 ts로 건너뛰고 빠진 메시지만 보내며, 전부 보내면 `slack_sent_at`이 찍히고 이후 재실행은 `already_sent`다. 자동 따라잡기는 없다 — 빠진 날은 `--date <D>`로 사람이 메운다(창은 직전 브리핑 이후라 한 날을 건너뛰면 다음 브리핑에 함께 들어온다). 수집이 덜 끝난 날은 `collection_incomplete`로 만들어지고 이미 만든 행은 다시 만들 수 없으므로, 기준일 수집이 끝난 뒤에 실행한다.
 
 **cron 예시(설치하지 않음).** 브리핑은 notices 트랙이 만든 D-1 회차와 발주계획 트랙의 C-2 결과를 읽으므로 **두 트랙이 끝난 뒤** 돈다. 줄은 두 트랙의 lock 파일을 둘 다 잡아(`flock -w`는 앞 실행이 끝나기를 기다린다) 수집·적재·C-2 실행 중에 끼어들지 않고, `timeout`으로 멈춘 실행을 끊는다. 시각은 운영 결정이다.
@@ -1723,3 +1725,107 @@ mock으로 화면만 볼 때는 `npm run dev:mock`(5174)을 쓴다. 응답은 Pl
 CLI는 web 이미지 안에서 돈다. fixture 디렉터리를 읽기 전용으로 마운트한 일회용 컨테이너로 실행한다(예: compose overlay에 `~/orca/fixtures/company/rootlab:/fixtures/rootlab:ro`를 둔 서비스로 `docker compose ... run --rm --no-deps -T <서비스> python -m app.deep_review.cli import-company-knowledge --ontology /fixtures/rootlab/ontology.v2.json --company /fixtures/rootlab/rootlab.source.v1.json --actor <이름>`). 2026-10-16 RL-00 STEP-006은 `bidops-local` 안의 별도 DB `bidops_rla`(기존 `bidops` DB는 HP-03 migration 0039에 있어 main 계열과 이력이 갈라졌다)에서 이 방식으로 import→activate→REST 확인을 했다(README 참조).
 
 운영 DB에서 import·activate를 실행하는 것은 **직전에 사람 확인을 받는다.** dry-run은 쓰기가 없지만 확인 없이 활성화하지 않는다. 격리 스택(`bidops-local`)에서 먼저 같은 순서로 확인하고 운영 반영은 별도 승인이다. 가상회사 파일은 `BIDOPS_DEMO_ENABLED=true`가 아니면 import·`--dry-run` 모두 `fictional_requires_demo`(exit 2)로 거부된다. "곧 만료" 기준일 수는 `BIDOPS_COMPANY_EXPIRY_WARNING_DAYS`(기본 60, 1..365)다.
+
+## RL 카드 판정 운영 (RL-03, 2026-10-17)
+
+사전규격을 카드·영역 단위로 추출·대조·판정하는 RL-03의 실행·설정·승인 절차다(규칙은 [business-rules.md "RL 자동 분석과 판정 상태"](business-rules.md), 계약은 [contracts.md "카드 기반 참여 판정"](contracts.md)). **구현·mock 검증은 `bidops-local` 격리 스택에서 한 것이고 운영 `bidops` 스택·운영 DB에는 반영하지 않았다.** mock 전체 경로(T11)와 실제 Luna 1건(T12)의 결과는 [검증 기록](validation-runs/2026-10-17-rl/RL-03/README.md)에 적으며 그 기록이 없거나 pending이면 실행하지 않은 것이다. 실제 호출 결과는 `unmeasured_reference`이며 품질·운영 완료 근거로 쓰지 않는다. **모든 단계는 기본 꺼짐이고 아래 승인·플래그를 사람이 직전 확인 후 하나씩 켠다.** 앞 단계의 확인은 다음 단계로 이어지지 않는다.
+
+**플래그.**
+
+| 키 | 기본 | 역할 |
+|---|---|---|
+| `BIDOPS_RL_ANALYSIS_ENABLED` | `false` | 사업기회 판정 REST·실회사 판정 게이트 개방. 꺼져 있으면 `/api/opportunities/{id}/verdict*`·`/api/analysis/transfer-policy`가 404이고 브리핑 판정 표시·활동 피드 제공자는 아무것도 주지 않는다 |
+| `BIDOPS_RL_ANALYSIS_AUTO_START_ENABLED` | `false` | 브리핑 추천→자동 시작과 `drain-verdict-queue`. 꺼져 있으면 hook과 drain이 아무것도 읽거나 쓰지 않는다 |
+| `BIDOPS_RL_ANALYSIS_POLICY_PATH` | `policies/analysis-policy-luna-rl-v6.json` | import 원본 파일(immutable). 기본값은 결정 B23 전 v1, B30 전 v2, B33 전 v3, B35 전 v4, B37 전 v5였고 v1~v5 파일은 그대로 남는다. 승인 CLI는 이 파일의 identity·sha를 선택 행과 대조하므로 **선택 행과 같은 버전**을 가리켜야 한다(v1·v2 행을 계속 쓰면 그 파일 경로를 명시) |
+| `BIDOPS_RL_DEEP_REVIEW_POLICY_VERSION_ID` | 없음 | import한 정책 행 선택. 비어 있으면 RL 경로 fail closed(`analysis_policy_unavailable`). demo용 선택 env와 별개 |
+| `BIDOPS_REFERENCE_WORKFLOW_MODE`·`BIDOPS_LUNA_DEEP_REVIEW_ENABLED` | 기존 | **RL 경로도 요구한다**(변경 없음, 결과가 참조 실행 표식) |
+| `BIDOPS_PRESPEC_OVERVIEW_ENABLED`·`BIDOPS_DEEP_REVIEW_AUTO_START_ENABLED` | `false` | RL 판정은 개요를 쓰지 않는다. 실제 호출 스택에서는 둘 다 `false`로 둬 개요 모델 호출이 생기지 않게 한다 |
+
+기반 compose는 RL 키를 전달하지 않는다. 키는 web과 `worker` DB 자격으로 도는 서비스(`analysis-worker`·`prespec-attachment-worker`)가 **모두 같은 값**으로 읽어야 하므로 env 파일·overlay로 주고, 올린 뒤 `docker compose exec -T <서비스> printenv BIDOPS_RL_ANALYSIS_ENABLED`처럼 서비스마다 값 하나씩 확인한다.
+
+**1. 배포 전제(운영 변경이므로 직전에 사람 확인).** migration `0040_card_analysis`(테이블 4개 + `briefing_item.slack_message_ts`, [contracts.md](contracts.md))와 `scripts/runtime-privileges.sql`의 새 권한(worker INSERT 5개 포함)을 적용하고 `web`·`analysis-worker`·`codex-runner` 이미지를 새로 올린다. 전체 백업과 `before-rl-verdict-<날짜>` 롤백 태그를 먼저 남기고 migration head를 기록한다. 새 테이블은 DELETE 권한이 없어 되돌리려면 백업으로 복구한다. 회사 근거(RL-00)의 활성 binding이 먼저 있어야 한다(없으면 `company_profile_not_ready`).
+
+**2. 정책 import와 선택.** 정책 행은 승인 대상이자 선택 대상이다. 파일을 고쳐 쓰지 않고 immutable 파일을 import한다.
+
+```bash
+docker compose -f docker-compose.yml exec web \
+  python -m app.deep_review.cli import-profile-policy \
+  --policy /app/web/backend/app/deep_review/policies/analysis-policy-luna-rl-v6.json \
+  --label analysis-policy-luna-rl-v6 \
+  --expected-policy-sha256 84e94954c08a43e5751d1514cf1a02e6865c9d6f05c6483777785e29faf8534a --actor '<담당자 이름>'
+# 출력의 policy_version_id를 BIDOPS_RL_DEEP_REVIEW_POLICY_VERSION_ID로 env에 넣고 web·worker 서비스를 재생성한다.
+# v5 행이 필요한 환경: --policy …/analysis-policy-luna-rl-v5.json --label analysis-policy-luna-rl-v5
+#   --expected-policy-sha256 19d7ff26fb9899f95237ec931c440bfad89feb42e3626fba89c33132f42928b2
+# v4 행이 필요한 환경: --policy …/analysis-policy-luna-rl-v4.json --label analysis-policy-luna-rl-v4
+#   --expected-policy-sha256 8cc623f280ca5d155073ecd261f5a2a1ecd3a8d497fc5aec9c815537923183d7
+# v3 행이 필요한 환경: --policy …/analysis-policy-luna-rl-v3.json --label analysis-policy-luna-rl-v3
+#   --expected-policy-sha256 635f673063ca1a92fb751aea6ffbdb76c54e0d70309b9f0a1e84d961fe192b12
+# v2 행이 필요한 환경: --policy …/analysis-policy-luna-rl-v2.json --label analysis-policy-luna-rl-v2
+#   --expected-policy-sha256 e733e94a02b1240794ac50b7397d3974fb241917cf73fdeed009ba4ba0c4ff3b
+```
+
+**v1 → v2 전환(결정 B23).** v2(`card.selector="card-sections-v2"`)는 기호·사설 영역 불릿 제목(실제 HWP의 U+F06D 등)도 영역 제목으로 보고, 원문에서 찾지 못한 영역이 있어도 종합까지 가서 `missing_sections`를 기록한다(누락이 있으면 판정은 `진행 가능`이 될 수 없다). v1 행으로 이미 만든 판정·승인은 그대로 남는다. 전환 순서: (1) 위 명령으로 v2 import(행 canonical sha = 파일 sha `e733e94a…ff3b`), (2) `BIDOPS_RL_DEEP_REVIEW_POLICY_VERSION_ID`를 v2 행으로 바꾸고 `BIDOPS_RL_ANALYSIS_POLICY_PATH`를 지정했다면 v2 파일로 맞춘 뒤 web·`analysis-worker`·`prespec-attachment-worker`를 재생성하고 서비스마다 값을 확인, (3) **아래 3단계로 v2를 다시 승인**한다 — 승인은 정책 행 sha 단위라 v1 승인은 v2 행에 쓰이지 않는다(승인 없으면 `policy_not_approved`). 일일 상한 `today_used`는 v1·v2 행을 합쳐 센다. 선택 행을 바꾸면 v1 행으로 만든 판정은 현재성 사유 `policy_changed`로 "과거 기준"이 된다. import·선택 변경·승인은 각각 직전에 사람 확인을 받는다.
+
+**v2 → v3 전환(결정 B30).** v3(`card.selector="card-sections-v3"`)는 쪽번호 없는 목차 항목과 본문 없는 제목 unit을 원문 unit에서 빼고, 추출 지시문에 검증 계약(unit당 item 하나·입력 순서, 개념은 payload의 `expected_concepts` 그대로 복사, 날짜·인원·operator 규칙, 중복 금지)을 명시하며, 추출 payload의 unit마다 코드가 계산한 `expected_concepts`를 싣는다(검증기는 그대로, [contracts.md](contracts.md) "전송 payload 규칙"). runner·runner contract·migration은 바뀌지 않아 web·`analysis-worker` 이미지만 새로 올린다. 전환 순서는 v1 → v2와 같다: (1) 위 명령으로 v3 import(행 canonical sha = 파일 sha `635f6730…2b12`), (2) `BIDOPS_RL_DEEP_REVIEW_POLICY_VERSION_ID`를 v3 행으로 바꾸고 `BIDOPS_RL_ANALYSIS_POLICY_PATH`를 지정했다면 v3 파일로 맞춘 뒤 web·`analysis-worker`·`prespec-attachment-worker`를 재생성하고 서비스마다 값을 확인, (3) **v2 승인을 철회(`revoke-transfer-policy`, 사유 기록)하고 아래 3단계로 v3를 다시 승인**한다(`--policy analysis-policy-luna-rl-v3`; 승인은 행 sha 단위라 v2 승인은 v3 행에 쓰이지 않는다). `today_used`는 v1·v2·v3 행을 합쳐 세므로 같은 날 다시 승인할 때는 이미 쓴 수를 반영해 `--daily-cap`을 정한다. 선택 행을 바꾸면 v2 판정은 `policy_changed`로 "과거 기준"이 된다. 실제 호출 전 mock 경로(T11)를 v3 행으로 먼저 다시 돌리고, 추가 실제 호출은 다시 사용자 승인을 받는다(결정 B30). import·선택 변경·철회·승인은 각각 직전에 사람 확인을 받는다.
+
+**v3 → v4 전환(결정 B33).** v4는 selector `card-sections-v3`를 유지하고 추출 출력 계약을 `bidops.requirement-extract.v2`로 바꾼다: 모델은 의미 필드만 내고(개념 후보·operator 없음) 코드가 그 둘을 채운 뒤 바뀌지 않은 검증기로 판정하며, kind×unit 규칙이 출력 schema에 있어 위반하면 규칙 코드와 item 번호만 담은 repair 1회를 받는다([contracts.md](contracts.md) "정책·단계 contract"). **runner 이미지도 다시 빌드해야 한다**(새 schema 파일 `/app/card-extract-v2.json`과 contract `card-extract-v2` 허용 목록). web·`analysis-worker` 이미지도 새로 올린다. migration은 없다. 순서: (1) runner·web 이미지 재빌드(직전 사람 확인), (2) 위 명령으로 v4 import(행 canonical sha = 파일 sha `8cc623f2…83d7`), (3) `BIDOPS_RL_DEEP_REVIEW_POLICY_VERSION_ID`를 v4 행으로 바꾸고 `BIDOPS_RL_ANALYSIS_POLICY_PATH`를 지정했다면 v4 파일로 맞춘 뒤 web·`analysis-worker`·`prespec-attachment-worker`·runner를 재생성하고 서비스마다 값을 확인, (4) v3 승인을 철회하고 `--policy analysis-policy-luna-rl-v4`로 다시 승인(같은 날이면 `today_used`를 반영해 `--daily-cap` 결정), (5) mock 경로(T11)를 v4 행으로 먼저 돌리고, 실제 호출은 사용자 승인 범위(B33: 폴리텍 1건, 정상 8회·최대 16회, 실패 시 정지) 안에서만 한다. 선택 행을 바꾸면 v3 판정은 `policy_changed`로 "과거 기준"이 된다. 각 단계는 직전에 사람 확인을 받는다.
+
+**v4 → v5 전환(결정 B35).** v5는 v4와 같은 추출 출력 계약(v2)·selector를 쓰고 추출 지시문만 바뀐다(숫자 제약은 숫자+단위+붙은 비교어를 그대로 인용, 분·초·글자·시간·간격은 text). 같은 배포에 들어간 검증기 강화(잘린 인용 거부, `까지`·`내에` → `lte`)는 **모든 정책 버전에 적용**되므로, web·`analysis-worker` 이미지를 올리면 v1~v4 행의 새 실행에도 바로 효력이 있다(이미 저장된 단계 행은 다시 검증하지 않는다). **runner 이미지는 다시 빌드하지 않는다**(contract·schema 변경 없음; B33 runner 이미지 그대로). 순서: (1) web·`analysis-worker` 이미지 재빌드(직전 사람 확인), (2) 위 명령으로 v5 import(행 canonical sha = 파일 sha `19d7ff26…28b2`), (3) `BIDOPS_RL_DEEP_REVIEW_POLICY_VERSION_ID`를 v5 행으로 바꾸고 `BIDOPS_RL_ANALYSIS_POLICY_PATH`를 지정했다면 v5 파일로 맞춘 뒤 web·`analysis-worker`·`prespec-attachment-worker`를 재생성하고 값 확인, (4) v4 승인 철회 → `--policy analysis-policy-luna-rl-v5`로 재승인(같은 날이면 `today_used` 반영), (5) mock 경로(T11)를 v5 행으로 먼저 돌린다(mock이 이제 숫자 제약을 낸다), (6) 실제 호출은 B35 승인 범위(폴리텍 1건, 정상 8회·최대 16회, 실패 시 정지) 안에서만. 각 단계는 직전에 사람 확인을 받는다.
+
+**v5 → v6 전환(결정 B37).** v6는 v5와 같은 계약·selector에 추출 지시문만 바꾼다(숫자 인용은 block 안에서 유일하게 — 반복되면 왼쪽 단어를 붙임, 날짜 범위는 text이고 계산한 숫자 금지). 같은 배포의 검증기 수정(인용 유일성 `constraint_quote_not_unique`, 잘린 인용은 인용된 한 자리만 검사, 범위 `〜`·`.`/`)` 뒤 물결·숫자 사이 하이픈 → `unknown`)은 **모든 정책 버전에 적용**된다. **runner 이미지는 다시 빌드하지 않는다**(contract·schema 변경 없음). 순서는 v4 → v5와 같다: web·`analysis-worker` 이미지 재빌드 → v6 import(행 canonical sha = 파일 sha `84e94954…534a`) → 선택 env 변경·재생성·값 확인 → v5 승인 철회·`--policy analysis-policy-luna-rl-v6` 재승인 → mock 경로(T11) 확인. 각 단계는 직전에 사람 확인을 받는다. **v6로는 실제 호출을 한 적이 없다**: 결정 B37로 이 배치의 실제 호출은 끝났고 RL-03 실제 증명(T12)은 pending이다. 다음 실제 호출은 새 사용자 승인 대상이다.
+
+(경로는 web 이미지 안 위치다. 품질 인자는 주지 않는다 — 측정한 값이 없다.) `policy_sha256`은 이 **행의 canonical sha**이고 파일 raw sha가 아니다. 값을 하나라도 바꾸려면 새 버전 파일을 발행하고 다시 import·승인한다.
+
+**3. 전송 정책 승인(사람 직전 확인 대상, 실제 전송 권한을 여는 단계).**
+
+```bash
+docker compose -f docker-compose.yml exec web \
+  python -m app.deep_review.cli approve-transfer-policy \
+  --policy analysis-policy-luna-rl-v6 --actor '<담당자 이름>' --daily-cap <N> [--dry-run]
+# v1~v5 행을 계속 쓰는 환경이면 --policy analysis-policy-luna-rl-v1|…|v5(정책 파일 경로도 같은 버전)
+```
+
+- 출력 JSON의 `approval_id`·`policy_sha256`·`daily_cap`·`created`·`errors`를 기록에 적는다. `--daily-cap`은 하루(KST)에 **실제로 외부 전송한** RL attempt 수의 **코드로 강제되는 상한**이다(1..50, 기본 10, 결정 B17). `today_used`는 `analysis.transfer.sent` 감사가 있고 mock이 아닌 attempt만 센다 — mock attempt·전송 전에 멈춘 attempt는 세지 않는다. 대신 시작(자동·수동·drain) 시점에는 아직 전송하지 않은 실제 attempt(queued·running)를 예약으로 함께 세고, worker가 첫 호출 직전에 상한을 다시 검사해 넘으면 `daily_cap_reached`로 실패시킨다(전송 0). 배치 B 격리 실증은 `--daily-cap 2`(실제 1건 + 재시도 1)로 고정했다. 활성 승인은 정책 sha당 하나이며 두 번째는 `active_approval_exists`(exit 2), 정책·선택 행·모델 identity가 어긋나면 `policy_identity_mismatch`(exit 2)다. `--dry-run`은 쓰기 없이 검사한다.
+- 확인: `GET /api/analysis/transfer-policy`의 `active.approval_id`·`daily_cap`·`today_used`가 CLI 출력과 같은지 본다(화면 조작은 서버 상태로 확인한다).
+- **철회:** `revoke-transfer-policy --approval-id <id> --actor <이름> --reason <사유>`. 한 번만 가능하며 이후 자동 경로와 worker가 호출 전에 `policy_not_approved`로 멈춘다. 이미 실행 중인 attempt도 첫 호출 전 승인 재검사에서 멈춘다. 상한을 바꾸려면 철회하고 새로 승인한다.
+
+**4. Luna runner와 인증·egress.** 기존 `docker-compose.luna.yml`(profile `luna`)을 쓴다. `codex-runner`만 `luna-internal`(내부)과 `luna-egress` 두 네트워크에 있고 web·`analysis-worker`는 내부망뿐이며 runner에는 DB·MinIO·원문 volume이 없다. 인증은 `env/luna.env`의 `BIDOPS_CODEX_AUTH_FILE`이 가리키는 `auth.json` 파일 **하나를 compose secret으로 runner에만 읽기 전용 마운트**한다. 로컬 PoC는 호스트 개인 로그인 파일을 쓰며(2026-10-17 인터뷰 D6, CLI 0.162.1) 값·파일 내용을 로그·문서·채팅·명령줄에 남기지 않고 다른 서비스에 마운트하지 않는다. runner 이미지는 `card-extract-v1|card-role-v1|card-synthesis-v1` contract를 알아야 하므로 이 변경 뒤 다시 빌드한다. `luna-egress`는 host allowlist가 아니므로 운영에서는 방화벽에서 runner의 필요한 통신만 허용했는지 따로 확인한다. 구현·mock 검증은 Luna 인증·모델 접근·실자료 품질을 증명하지 않는다. 오케스트레이션 명령 배열과 롤백은 [Luna 운영 적용 절차](0922_luna-deep-review/apply.md)의 compose 조합을 따르고 서비스 교체는 `up -d --no-deps --no-build --force-recreate`로 한다.
+
+**4a. 로컬 원본 연결(결정 B15, 첨부 행에 파일이 없을 때).** G2B 링크만 있고 바이트가 없는 사전규격 첨부 행에, 이전 수집본과 sha256이 같은 로컬 원본을 연결한다. G2B를 부르지 않으며 바이트는 G2B fetcher와 **같은** 격리→ClamAV·MIME/확장자 검사→source→문서·구조 경로를 지난다. 연결 뒤 그 공고의 문서 준비를 trigger `operator_local_original`로 연다(등급·브리핑 자격만 건너뛰고 취득 종결·safe·구조·확정 fence는 그대로). 첨부 worker와 같은 자격·네트워크(worker DB 자격, `scanning` 네트워크의 ClamAV, 문서 storage, 변환 scratch)를 쓰므로 `prespec-attachment-worker` 컨테이너에서 실행하고, HWP 변환을 위해 `document-worker`가 떠 있어야 한다. 운영 DB 쓰기이므로 직전에 사람 확인을 받는다.
+
+```bash
+# 파일을 컨테이너 안의 임시 경로로 복사한다(호스트 경로는 컨테이너에서 보이지 않는다).
+docker compose -f docker-compose.yml cp '<로컬 원본.hwp>' prespec-attachment-worker:/tmp/local-original.hwp
+docker compose -f docker-compose.yml exec -T prespec-attachment-worker \
+  python -m app.deep_review.cli attach-local-original \
+  --notice-id <notice_id> --attachment-id <attachment_id> --file /tmp/local-original.hwp \
+  --expected-sha256 <이전 수집본 sha256> --actor '<담당자 이름>' --dry-run
+# dry-run 출력(errors=[])을 확인한 뒤 같은 명령을 --dry-run 없이 한 번 실행하고, 임시 파일을 지운다.
+docker compose -f docker-compose.yml exec -T prespec-attachment-worker rm -f /tmp/local-original.hwp
+```
+
+- 출력 JSON `{notice_id, attachment_id, content_sha256, size_bytes, provenance, fetch_status_before, document_version_id, scan_status, preparation, dry_run, errors}`를 기록에 적는다. `preparation.confirmed=true`면 묶음이 `ready`다. `preparation.reason=awaiting_fetch`면 같은 공고의 다른 첨부 취득이 아직 끝나지 않았다는 뜻이며 그 첨부도 연결하거나 취득을 종결한 뒤 다시 준비한다.
+- 거부(exit 2, 쓰기 없음): `sha256_mismatch`, `attachment_notice_mismatch`, `attachment_not_found`, `attachment_has_bytes`(문서가 이미 있거나 취득 `완료` — 이중 등록 방지), `attachment_fetch_in_progress`(G2B worker lease 중), `attachment_source_not_g2b`, `attachment_retired`, `notice_not_pre_spec`, `unsupported_extension`, `file_not_regular`(symlink·디렉터리 포함), `file_size_limit`(50MiB), `malware_detected`, `mime_mismatch`. 재시도성 실패(exit 1): `clamav_unavailable`·`converter_unavailable`·`service_unavailable`·`storage_failed`. 출력·stderr에 로컬 경로는 없다.
+- 감사 `prespec_attachment.local_original`(actor=담당자, `provenance=operator_local_original`, sha·크기·문서 id·취득 행의 이전 상태)이 성공·검사 차단마다 하나 남는다. 성공하면 첨부의 취득 행(있으면)이 `완료`로 바뀌고 lease fence가 올라가 이후 G2B worker가 같은 첨부를 다시 쓰지 않는다. 문서 버전은 `source_kind=provider`·`source_system=g2b`(원래 첨부의 출처)이고 `created_by_name`이 담당자다.
+
+**mock 전체 경로(T11, 결정 B16).** `BIDOPS_ANALYSIS_PROVIDER=mock`(참조 모드 필수)이면 카드 판정은 같은 단계·검증기를 지나되 결정적 mock client가 답한다(단위 원문을 그대로 인용, 제약·숫자 없음, 종합은 `판단 불가`). runner·네트워크 호출이 없고 `analysis.transfer.sent`도 남지 않으며 상한을 쓰지 않는다. 생성 감사의 provider 계보가 `mock-analysis`라 판정 보기의 `quality_status`는 `mock_reference`다 — 연결 증명일 뿐 품질 근거가 아니다. mock으로 판정한 공고의 review는 계보가 mock으로 고정되어 같은 DB에서 실제 호출로 이어 갈 수 없으므로(worker가 `service_unavailable`로 거부) T11과 T12는 서로 다른 DB에서 한다.
+
+**5. 수동 요청 시운전.** 자동 시작은 끈 채(`BIDOPS_RL_ANALYSIS_AUTO_START_ENABLED=false`, 개요·심층 자동도 false) 사업기회 판정 탭의 "다시 판정"(또는 `POST /api/opportunities/{id}/verdict-requests`)으로 한 건만 요청한다. 직전에 사람이 대상 공고·상한·승인(`today_used`)을 확인한다. 실제로 전송한 요청만 상한을 소비하고(B17) `analysis.transfer.sent` 감사가 첫 호출 전에 한 번 남아야 한다 — **그 감사가 없는 전송, payload에 노트·`proposed`/`unknown` 값·운영 정보가 들어간 정황, 상한 초과는 즉시 중단하고 보고한다.** 검증 실패(`failed`·`needs_human_review`)는 자동으로 다시 시도하지 않으며 사람이 한 번 다시 판정할 수 있다. 같은 시도가 또 실패하면 멈추고 후속 의존 실행(RL-04 초안)은 보류한다. 증거는 [README](validation-runs/2026-10-17-rl/RL-03/README.md)에 attempt id·sha·호출 수·시간·`analysis.transfer.sent` 건수로 남긴다.
+
+**6. 자동 시작과 큐(운영 자동화, 별도 확인).** `BIDOPS_RL_ANALYSIS_AUTO_START_ENABLED=true`는 `build-briefing`이 만든 추천 항목마다 위 자동 시작 조건을 평가하게 만든다. 추천받은 SW=Y 사전규격에 ready 묶음이 없으면 문서 준비를 열며, 이때 묶음 생성의 등급 자격만 건너뛴다(결정 B18, 개요 플래그와 무관; 안전 검사·확정 fence는 그대로). 이 플래그를 켜는 것, cron(브리핑 CLI)에서 켜진 채 도는 것은 실제 모델 전송을 일으키므로 승인 상한과 직전 확인이 필요하다. 상한을 넘은 요청은 큐에 쌓이고 **다음 브리핑이 새로 만들어진 직후** 한 번 처리된다(자동 따라잡기 없음). 필요하면 수동으로:
+
+```bash
+docker compose -f docker-compose.yml exec web \
+  python -m app.deep_review.cli drain-verdict-queue [--date YYYY-MM-DD]
+# RL-05 홀드아웃: 자동 분석에서 뺄 사전규격
+docker compose -f docker-compose.yml exec web \
+  python -m app.deep_review.cli drain-verdict-queue --hold <notice_id,…> --reason gold_holdout --actor '<이름>'
+```
+
+`drain`의 `--date`는 "그 날짜(KST) **이전**에 쌓인 요청"을 처리하라는 뜻이며 한 번만 돈다. 출력의 `stopped_reason`(`daily_cap_reached`·`policy_not_approved`·`auto_start_disabled`)·`remaining`(남은 큐)을 확인한다. 큐 길이가 늘기만 하면 상한이나 승인을 사람이 다시 정한다. 자동 시작의 실제 스택 증명은 T11 mock이 하며(실제 스택에서 자동 시작을 켜 둔 실증은 이 기능의 범위가 아니다) 가짜로 증명되지 않는 생성→폴링→후속 경로는 실제 스택에서 한 번 돌기 전까지 "검증됨"이라 쓰지 않는다.
+
+**7. Slack 스레드 답글은 지금 켜지 않는다(D5).** 판정 완료 스레드 답글은 판정을 닫는 `analysis-worker`가 `core/slack.py`로 보내는데, Slack overlay(`docker-compose.slack-egress.yml`)는 `env/slack.env`와 egress network를 `web`·`slack-worker`에만 주고 `analysis-worker`에는 주지 않는다. 그래서 현재 구성에서는 전송기 호출 전 검사가 막아 답글이 **건너뛰어지며 오류가 아니다**. 켜려면 worker에 토큰·egress를 주는 별도 overlay 변경과 사람 확인이 필요하며 이번 범위에서는 하지 않았다. 스레드 답글의 증명은 가짜 서버 검사까지이고 실제 Slack 게시 증명으로 적지 않는다.
+
+**8. 되돌리기.** 가장 빠른 차단은 `revoke-transfer-policy`(이후 호출 0)이고, 그다음 `BIDOPS_RL_ANALYSIS_AUTO_START_ENABLED=false`·`BIDOPS_RL_ANALYSIS_ENABLED=false`로 재생성한다. 이미 저장된 판정·단계 행은 append-only라 지우지 않는다. 승인 철회는 감사 기록이 남는 CLI로만 하며 SQL로 고치지 않는다.
+
+**검증 명령(문서 단계 근거).** 변경 영향 범위만 돌린다: `pytest tests/deep_review/test_card_analysis.py tests/deep_review/test_card_compare.py tests/app/test_transfer_policy.py tests/app/test_verdict_api.py tests/app/test_verdict_payload_guard.py tests/deep_review/test_codex_runner.py tests/app/test_company_luna_policy.py`, PostgreSQL 변형은 일회용 `postgres:17.11`과 `BIDOPS_TEST_POSTGRES_URL`로 `test_card_analysis_postgres.py test_verdict_trigger_postgres.py test_db_migrations.py test_runtime_database_privileges.py`, 화면은 `npx playwright test --project=app verdict.spec.ts opportunity-record.spec.ts`.

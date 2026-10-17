@@ -57,7 +57,18 @@ from ...lifecycle.models import Company, Notice, NoticeObservation
 from . import assets
 from .deep_review_validation import validate_structure
 from ...core.company_profile import ParsedItem, parse_profile, profile_path, walk_sections
-from .luna_identity import ALLOWED_MODELS, COMPANY_POLICY_IDENTITIES, HP_POLICY_IDENTITY
+from .luna_identity import (
+    ALLOWED_MODELS,
+    COMPANY_POLICY_IDENTITIES,
+    HP_POLICY_IDENTITY,
+    RL_POLICY_IDENTITIES,
+    RL_POLICY_IDENTITY,
+    RL_POLICY_IDENTITY_V2,
+    RL_POLICY_IDENTITY_V3,
+    RL_POLICY_IDENTITY_V4,
+    RL_POLICY_IDENTITY_V5,
+    RL_POLICY_IDENTITY_V6,
+)
 
 
 CANONICAL_POLICY_FILE = Path(__file__).resolve().parents[1] / "policies" / "analysis-policy-lean-v1.json"
@@ -74,6 +85,25 @@ DEMO_LUNA_POLICY_IDENTITY = "analysis-policy-luna-demo-v1"
 DEMO_LUNA_POLICY_FILE = CANONICAL_POLICY_FILE.with_name("analysis-policy-luna-demo-v1.json")
 HP_LUNA_POLICY_FILE = CANONICAL_POLICY_FILE.with_name("analysis-policy-luna-hp-v1.json")
 LUNA_V5_POLICY_FILE = CANONICAL_POLICY_FILE.with_name("analysis-policy-luna-v5.json")
+#: RL-03 card-v1 policy (spec "루트랩 재명세 차이"): HP-03 approval wire keys,
+#: identity ``analysis-policy-luna-rl-v1`` and the real-company input rule.
+RL_LUNA_POLICY_FILE = CANONICAL_POLICY_FILE.with_name("analysis-policy-luna-rl-v1.json")
+#: RL-03 결정 B23: v1 plus ``card.selector="card-sections-v2"`` (new immutable
+#: file; v1 is unchanged and stays importable for existing rows).
+RL_LUNA_POLICY_FILE_V2 = CANONICAL_POLICY_FILE.with_name("analysis-policy-luna-rl-v2.json")
+#: RL-03 결정 B30: v2 plus ``card.selector="card-sections-v3"`` and the rewritten
+#: extract instruction (explicit validation contract, ``expected_concepts``).
+#: New immutable file; v1/v2 are unchanged and stay importable.
+RL_LUNA_POLICY_FILE_V3 = CANONICAL_POLICY_FILE.with_name("analysis-policy-luna-rl-v3.json")
+#: RL-03 결정 B33: v3 plus ``stage_schema="bidops.requirement-extract.v2"`` and the
+#: rewritten extract instruction.  New immutable file; v1-v3 stay importable.
+RL_LUNA_POLICY_FILE_V4 = CANONICAL_POLICY_FILE.with_name("analysis-policy-luna-rl-v4.json")
+#: RL-03 결정 B35: v4 with the rewritten extract instruction only (same v2 wire,
+#: selector v3).  New immutable file; v1-v4 stay importable.
+RL_LUNA_POLICY_FILE_V5 = CANONICAL_POLICY_FILE.with_name("analysis-policy-luna-rl-v5.json")
+#: RL-03 결정 B37: v5 with the rewritten extract instruction only (unique numeric
+#: quotes, date ranges as text).  New immutable file; v1-v5 stay importable.
+RL_LUNA_POLICY_FILE_V6 = CANONICAL_POLICY_FILE.with_name("analysis-policy-luna-rl-v6.json")
 #: Approved Luna files selected by ``policy_identity`` before any content-based
 #: v1-v3 detection.  An unknown identity is rejected, never downgraded.
 _LUNA_POLICY_FILES_BY_IDENTITY = {
@@ -81,6 +111,12 @@ _LUNA_POLICY_FILES_BY_IDENTITY = {
     LUNA_V5_POLICY_IDENTITY: LUNA_V5_POLICY_FILE,
     DEMO_LUNA_POLICY_IDENTITY: DEMO_LUNA_POLICY_FILE,
     HP_POLICY_IDENTITY: HP_LUNA_POLICY_FILE,
+    RL_POLICY_IDENTITY: RL_LUNA_POLICY_FILE,
+    RL_POLICY_IDENTITY_V2: RL_LUNA_POLICY_FILE_V2,
+    RL_POLICY_IDENTITY_V3: RL_LUNA_POLICY_FILE_V3,
+    RL_POLICY_IDENTITY_V4: RL_LUNA_POLICY_FILE_V4,
+    RL_POLICY_IDENTITY_V5: RL_LUNA_POLICY_FILE_V5,
+    RL_POLICY_IDENTITY_V6: RL_LUNA_POLICY_FILE_V6,
 }
 STAGES = (
     "requirements_and_evaluation",
@@ -1244,6 +1280,114 @@ def _require_path_limit(policy: Mapping[str, Any]) -> None:
         raise InputVersionError("invalid_request", "analysis policy chunking.path_limit_per_requirement는 양의 정수여야 합니다")
 
 
+#: Closed key sets of the RL card-v1 policy (HP-03 "승인 wire와 호환 경계"; the
+#: HP ``hp`` packing block is named ``card`` in RL-03, spec "설정 키와 기본값").
+_CARD_POLICY_KEYS = frozenset({
+    "schema", "policy_identity", "pipeline_version", "model_endpoint_ref", "model_name",
+    "model_revision", "generation", "quality_status", "chunking", "execution", "card",
+    "prompt_output_contract", "stage_schema", "report_schema", "stages", "validation",
+})
+_CARD_CHUNKING_KEYS = frozenset({
+    "max_characters", "max_requirements", "merge_order", "path_limit_per_requirement",
+    "prior_characters", "profile_characters", "retries", "source_characters", "timeout_seconds",
+})
+_CARD_PROMPT_KEYS = frozenset({
+    "input_rule", "evidence_rule", "unknown_rule", "repair_rule", "company_input_rule",
+})
+_CARD_STAGES = ("extract", "eligibility_economics", "technical_fit", "operations_risk", "synthesis")
+_CARD_PACKING_KEYS = frozenset({"batch_size", "batch_max_chars", "repair_attempts", "target_seconds"})
+#: ``card.selector`` per RL identity (결정 B23): v1 has no key (``card-sections-v1``
+#: implied), v2 must name ``card-sections-v2`` exactly, v3 ``card-sections-v3`` (결정 B30).
+CARD_SELECTOR_BY_RL_IDENTITY = {
+    RL_POLICY_IDENTITY: None,
+    RL_POLICY_IDENTITY_V2: "card-sections-v2",
+    RL_POLICY_IDENTITY_V3: "card-sections-v3",
+    RL_POLICY_IDENTITY_V4: "card-sections-v3",
+    RL_POLICY_IDENTITY_V5: "card-sections-v3",
+    RL_POLICY_IDENTITY_V6: "card-sections-v3",
+}
+#: ``stage_schema`` per RL identity (결정 B33): v4 answers ``requirement-extract.v2``.
+STAGE_SCHEMA_BY_RL_IDENTITY = {
+    RL_POLICY_IDENTITY: "bidops.requirement-extract.v1",
+    RL_POLICY_IDENTITY_V2: "bidops.requirement-extract.v1",
+    RL_POLICY_IDENTITY_V3: "bidops.requirement-extract.v1",
+    RL_POLICY_IDENTITY_V4: "bidops.requirement-extract.v2",
+    RL_POLICY_IDENTITY_V5: "bidops.requirement-extract.v2",
+    RL_POLICY_IDENTITY_V6: "bidops.requirement-extract.v2",
+}
+
+
+def _bounded_int(value: Any, low: int, high: int) -> bool:
+    return type(value) is int and low <= value <= high
+
+
+def _card_selector_valid(identity: Any, card: Mapping[str, Any]) -> bool:
+    """Exact ``card`` key set per RL identity (v1: packing only; v2/v3: packing + selector)."""
+
+    if identity not in CARD_SELECTOR_BY_RL_IDENTITY:
+        return False
+    selector = CARD_SELECTOR_BY_RL_IDENTITY[identity]
+    if selector is None:
+        return set(card) == _CARD_PACKING_KEYS
+    return set(card) == _CARD_PACKING_KEYS | {"selector"} and card.get("selector") == selector
+
+
+def _require_card_policy(policy: Mapping[str, Any]) -> None:
+    """Validate the closed RL card-v1 policy before import or execution.
+
+    Identity, model, CLI, schemas and the fixed execution limits are exact.
+    ``card`` packing values are ``tunable`` only inside their HP-03 ranges.
+    """
+
+    if (
+        set(policy) != _CARD_POLICY_KEYS
+        or policy.get("schema") != "bidops.analysis-policy.v2"
+        or policy.get("policy_identity") not in RL_POLICY_IDENTITIES
+        or policy.get("pipeline_version") != "card-v1"
+        or policy.get("model_endpoint_ref") != "codex-exec"
+        or policy.get("model_name") != "gpt-6-luna"
+        or policy.get("model_revision") is not None
+        or policy.get("quality_status") != "unmeasured_reference"
+        or policy.get("stage_schema") != STAGE_SCHEMA_BY_RL_IDENTITY.get(policy.get("policy_identity"))
+        or policy.get("report_schema") != "bidops.practitioner-verdict.v1"
+        or policy.get("generation") != {"reasoning_effort": "high"}
+    ):
+        raise InputVersionError("invalid_request", "RL card analysis policy identity가 올바르지 않습니다")
+    chunking = policy.get("chunking")
+    execution = policy.get("execution")
+    card = policy.get("card")
+    stages = policy.get("stages")
+    prompt_contract = policy.get("prompt_output_contract")
+    if (
+        not isinstance(chunking, Mapping) or set(chunking) != _CARD_CHUNKING_KEYS
+        or chunking.get("source_characters") != 12000
+        or chunking.get("max_requirements") != 8
+        or chunking.get("timeout_seconds") != 900
+        or chunking.get("path_limit_per_requirement") != 32
+        or execution != {
+            "automatic_retry": False, "cli_version": "0.162.1", "review_timeout_seconds": 3600,
+            "timeout_seconds": 900, "validation_repair_attempts": 1,
+        }
+        or not isinstance(card, Mapping)
+        or not _card_selector_valid(policy.get("policy_identity"), card)
+        or not _bounded_int(card.get("batch_size"), 1, 8)
+        or not _bounded_int(card.get("batch_max_chars"), 1, 12000)
+        or not _bounded_int(card.get("repair_attempts"), 0, 1)
+        or not _bounded_int(card.get("target_seconds"), 1, 3600)
+        or not isinstance(prompt_contract, Mapping) or set(prompt_contract) != _CARD_PROMPT_KEYS
+        or any(not isinstance(value, str) or not value for value in prompt_contract.values())
+        or policy.get("validation") != {
+            "allowed_repair": "syntax_or_schema_only", "company_claims": "supplied_basis_only",
+            "evidence": "exact_frozen_quote", "human_decision": "never",
+        }
+        or not isinstance(stages, list)
+        or any(not isinstance(row, Mapping) or set(row) != {"stage", "instruction"}
+               or not isinstance(row.get("instruction"), str) or not row["instruction"] for row in stages)
+        or tuple(row["stage"] for row in stages) != _CARD_STAGES
+    ):
+        raise InputVersionError("invalid_request", "RL card analysis policy가 올바르지 않습니다")
+
+
 def load_canonical_policy(path: Path | None = None) -> tuple[dict[str, Any], bytes, str]:
     policy_path = Path(path or CANONICAL_POLICY_FILE)
     try:
@@ -1258,6 +1402,8 @@ def load_canonical_policy(path: Path | None = None) -> tuple[dict[str, Any], byt
         raise InputVersionError("invalid_request", "canonical analysis policy bytes가 승인본과 다릅니다")
     if policy.get("policy_identity") in COMPANY_POLICY_IDENTITIES:
         _require_path_limit(policy)
+    if policy.get("policy_identity") in RL_POLICY_IDENTITIES:
+        _require_card_policy(policy)
     approved_path = _approved_policy_path(policy)
     if policy_path.resolve() != approved_path.resolve():
         try:
@@ -1473,7 +1619,7 @@ def bundle_context(
 
 
 __all__ = [
-    "CANONICAL_POLICY_FILE", "DEMO_LUNA_POLICY_FILE", "DEMO_LUNA_POLICY_IDENTITY", "HP_LUNA_POLICY_FILE", "LUNA_V4_POLICY_IDENTITY", "LUNA_V5_POLICY_FILE", "LUNA_V5_POLICY_IDENTITY", "MODEL_ENDPOINT_REF", "MODEL_NAME", "POLICY_SCHEMA", "PROFILE_SCHEMA_V1", "PROFILE_SCHEMA_V2", "PROFILE_SOURCE_FILE", "STAGES",
+    "CANONICAL_POLICY_FILE", "DEMO_LUNA_POLICY_FILE", "DEMO_LUNA_POLICY_IDENTITY", "HP_LUNA_POLICY_FILE", "LUNA_V4_POLICY_IDENTITY", "RL_LUNA_POLICY_FILE", "RL_LUNA_POLICY_FILE_V2", "RL_LUNA_POLICY_FILE_V3", "RL_LUNA_POLICY_FILE_V4", "RL_LUNA_POLICY_FILE_V5", "RL_LUNA_POLICY_FILE_V6", "STAGE_SCHEMA_BY_RL_IDENTITY", "CARD_SELECTOR_BY_RL_IDENTITY", "LUNA_V5_POLICY_FILE", "LUNA_V5_POLICY_IDENTITY", "MODEL_ENDPOINT_REF", "MODEL_NAME", "POLICY_SCHEMA", "PROFILE_SCHEMA_V1", "PROFILE_SCHEMA_V2", "PROFILE_SOURCE_FILE", "STAGES",
     "GradeBasis", "InputVersionError", "active_version_ids", "bundle_context", "canonical_json_bytes", "canonical_json_hash",
     "effective_grade_basis", "import_policy_version", "import_profile_version", "load_canonical_policy", "policy_activation_valid",
     "profile_context", "resolve_active_versions", "validate_pinned_policy", "validate_profile_snapshot", "policy_quality_snapshot",

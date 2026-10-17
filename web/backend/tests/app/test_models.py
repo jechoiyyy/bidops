@@ -11,6 +11,7 @@ from app.core.models import CORE_LEAN_V1_TABLES
 from app.deep_review.models import (
     ATTACHMENT_FETCH_TABLES,
     BID_DELTA_TABLES,
+    CARD_ANALYSIS_TABLES,
     COMPANY_KNOWLEDGE_TABLES,
     DEEP_REVIEW_LEAN_V1_TABLES,
     DOCUMENT_SEGMENT_TABLES,
@@ -63,6 +64,8 @@ EXPECTED_TABLES = set(
     + BRIEFING_TABLES
     # RL-02 opportunity notes (0039).
     + OPPORTUNITY_NOTE_TABLES
+    # RL-03 card analysis (0040).
+    + CARD_ANALYSIS_TABLES
 )
 
 
@@ -166,3 +169,56 @@ def test_basic_model_relationships_and_json_columns_work():
         assert judgment.perspectives[0].evidence[0].status == "confirmed"
         assert run.generated_at.tzinfo is not None
         assert notice.raw_source == {"notice_id": "bid:R26BK01689645:000"}
+
+
+
+def test_card_analysis_orm_guards_match_the_append_only_contract():
+    """RL-03 0040: approvals revoke once; stages and feedback never change (ORM side)."""
+
+    from uuid import uuid4
+
+    from app.deep_review.models import CardAnalysisStage, TransferPolicyApproval, VerdictFeedback
+
+    test_engine = make_test_engine()
+    init_db(test_engine)
+    with Session(test_engine) as session:
+        approval = TransferPolicyApproval(
+            policy_identity="analysis-policy-luna-rl-v1", policy_version_id=uuid4(),
+            policy_sha256="a" * 64, model_name="gpt-6-luna", reasoning_effort="high",
+            cli_version="0.162.1", scope={"stages": ["pre_spec"], "purposes": ["deep_review"]},
+            daily_cap=10, approved_by="jechoi", request_id=uuid4(),
+        )
+        stage = CardAnalysisStage(attempt_id=uuid4(), stage="extract", stage_key="0",
+                                  input_sha256="b" * 64, result_sha256="c" * 64, payload={})
+        feedback = VerdictFeedback(attempt_id=uuid4(), kind="wrong_unit", unit_id="u1",
+                                   actor="jechoi", request_id=uuid4())
+        session.add_all([approval, stage, feedback])
+        session.commit()
+
+        approval.daily_cap = 20
+        with pytest.raises(ValueError, match="append-only"):
+            session.flush()
+        session.rollback()
+        approval.revoked_by, approval.revoked_at, approval.revoke_reason = (
+            "jechoi", datetime(2026, 10, 17, tzinfo=timezone.utc), "시험 철회")
+        session.commit()
+        approval.revoke_reason = "다시"
+        with pytest.raises(ValueError, match="already revoked"):
+            session.flush()
+        session.rollback()
+        session.delete(approval)
+        with pytest.raises(ValueError, match="append-only"):
+            session.flush()
+        session.rollback()
+        for row in (stage, feedback):
+            if isinstance(row, CardAnalysisStage):
+                row.payload = {"changed": True}
+            else:
+                row.note = "변경"
+            with pytest.raises(ValueError, match="append-only"):
+                session.flush()
+            session.rollback()
+            session.delete(row)
+            with pytest.raises(ValueError, match="append-only"):
+                session.flush()
+            session.rollback()

@@ -24,6 +24,15 @@ SCHEMA_FILES = {
     "deep-review-report-v2": "bidops.deep-review-report.v2.json",
     "deep-review-validation": "bidops.deep-review-validation.v1.json",
     "document-segments": "bidops.document-segments.v1.json",
+    # RL-03 card-v1 (spec "인터페이스"): frozen input and the three Luna stage
+    # outputs.  runner ``CONTRACT_SCHEMA_PATHS`` maps the same three files.
+    "card-analysis-input": "bidops.card-analysis-input.v1.json",
+    "requirement-extract": "bidops.requirement-extract.v1.json",
+    # 결정 B33: model output of policy v4 (no concept_candidates/operator;
+    # kind x unit branches).  Code assembles the v1 object from it.
+    "requirement-extract-v2": "bidops.requirement-extract.v2.json",
+    "verdict-role": "bidops.verdict-role.v1.json",
+    "practitioner-verdict": "bidops.practitioner-verdict.v1.json",
 }
 
 DOCUMENT_STRUCTURE_SCHEMA = "document-structure"
@@ -32,6 +41,11 @@ DEEP_REVIEW_STAGE_SCHEMA = "deep-review-stage"
 DEEP_REVIEW_REPORT_SCHEMA = "deep-review-report"
 DEEP_REVIEW_VALIDATION_SCHEMA = "deep-review-validation"
 DOCUMENT_SEGMENTS_SCHEMA = "document-segments"
+CARD_ANALYSIS_INPUT_SCHEMA = "card-analysis-input"
+REQUIREMENT_EXTRACT_SCHEMA = "requirement-extract"
+REQUIREMENT_EXTRACT_V2_SCHEMA = "requirement-extract-v2"
+VERDICT_ROLE_SCHEMA = "verdict-role"
+PRACTITIONER_VERDICT_SCHEMA = "practitioner-verdict"
 SCHEMAS = {key: value for key, value in SCHEMA_FILES.items()}
 
 
@@ -65,6 +79,7 @@ def validate_payload(payload: Mapping[str, Any], name: str) -> dict[str, Any]:
 
 
 __all__ = [
+    "CARD_ANALYSIS_INPUT_SCHEMA",
     "CONTRACT_DIR",
     "DEEP_REVIEW_REPORT_SCHEMA",
     "DEEP_REVIEW_STAGE_SCHEMA",
@@ -72,10 +87,14 @@ __all__ = [
     "DOCUMENT_BUNDLE_SCHEMA",
     "DOCUMENT_SEGMENTS_SCHEMA",
     "DOCUMENT_STRUCTURE_SCHEMA",
+    "PRACTITIONER_VERDICT_SCHEMA",
+    "REQUIREMENT_EXTRACT_SCHEMA",
+    "REQUIREMENT_EXTRACT_V2_SCHEMA",
     "SCHEMAS",
     "SCHEMA_FILES",
     "SchemaError",
     "SchemaValidationError",
+    "VERDICT_ROLE_SCHEMA",
     "load_schema",
     "schema_path",
     "validate_json_schema",

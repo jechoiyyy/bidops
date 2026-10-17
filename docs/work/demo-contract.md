@@ -7,6 +7,7 @@
 - v1.2(2026-10-09 재계획): `bidops-local`과 2026-10-06~08 실제 수집 자료를 구현 기준으로 삼고,
   LiteLLM `local-agent-main` 개요·핏과 Luna `codex-exec` 심층검토의 transport·정책·승인·증거를 분리한다.
 - **RL 개정(2026-10-16, RL-00, ADR-0073)**: 문서 끝의 "RL 개정" 절이 §1(회사 등록·demo 플래그)·§3(Node/Edge status·origin·value·회사 파일 `is_fictional`)·§4(profile v2 origin·import 출력 shape·view origin)의 겹치는 부분을 대체한다. 아래 §1~§4 원문은 DEMO·HP 가상회사 기준 기록으로 그대로 둔다.
+- **RL-03 개정(2026-10-17, ADR-0073)**: 문서 끝 "R5"가 §5(입력·현재성의 개요 요구·`origin`)·§6(회사 경로 자격)·§9(건별 승인)를 **실회사 `card-v1` 경로에 한해** 대체한다. 가상회사·`narrative-v2` 경로의 §5·§6·§9 원문은 그대로 유효하다.
 - 이 문서는 DEMO-01~05가 함께 쓰는 새 계약의 정본이다. DEMO-00의 기존 Luna v4 구현과 로컬 준비 증거는 기존 계약을 따른다.
 - 코드 범위: DEMO-00은 현재 run을 수동으로 main에 통합하고, DEMO-01~05는 그 main에서 분기한 데모 브랜치와 `bidops-local`에서 구현·격리 검증한다. 운영 배포·정책 활성화는 별도 승인 작업이다.
 - 모든 아래 객체는 명시한 key를 필수로 가진다. `?`는 key 생략이 아니라 nullable이다.
@@ -160,6 +161,8 @@ omitted_node_count는 root에서 depth 이내 도달 가능한 노드 수 minus 
 
 ## 5. 분석 입력·실행·현재성
 
+> **RL-03 주석(R5 참조).** 실회사 `card-v1` 경로는 아래의 "completed 개요" 요구와 `overview_run_id`·`overview_sha256` 필수·`origin: fictional_scenario` 고정 가정에서 벗어난다: 개요를 읽지 않고 두 값을 모두 `null`로 동결하며 현재성도 개요 비교 대신 "둘 다 null"을 확인하고, fact·evidence `origin`은 RL-00의 7값이다.
+
 문서 구조와 회사 비의존 v7 개요를 공유한다. 기존 v8 회사 의존 판정을 공통 개요로 재사용하지 않는다.
 DEMO의 회사 적합성 정본은 v2 회사 핏 결과다. 기존 C-1의 grade/정정/참여 준비를 가상회사에 복사하지 않는다.
 핏 enum과 실행 상태는 기존 company-fit 계약을 유지한다. DTO는 기존 값을 response.result 아래 보존한다.
@@ -237,6 +240,8 @@ endpoint·별칭·정책·동결 hash 검사 조건을 그대로 유지한다.
 실행 중 버전 변경은 이미 승인된 실행을 변경하지 않는다.
 
 ## 6. 회사별 분석 REST와 비교
+
+> **RL-03 주석(R5 참조).** 이 절의 회사 경로 자격("completed v7 개요")은 실회사 `card-v1` 경로에는 적용되지 않는다 — SW사업대상=Y ∧ ready bundle ∧ 활성 binding·정책이며 개요 run은 보지 않는다(`overview_not_completed`를 내지 않음). 사업기회 경로 REST·수동 요청·피드백은 [contracts.md "카드 기반 참여 판정"](../contracts.md#카드-기반-참여-판정-rl-03-2026-10-17)이 정본이다.
 
 base=/api/companies/{company_id}; 각 endpoint는 기존 service에 명시적 회사 context를 전달한다.
 - GET base/pre-specs: {schema_version:"bidops.company-pre-spec-list.v1",items:CompanyNotice[],total,limit,offset}.
@@ -423,6 +428,8 @@ activate 출력={company_id:UUID?,graph_version_id:UUID?,profile_version_id:UUID
 활성 오류 code는 company_not_found|graph_not_found|graph_company_mismatch|profile_invalid|storage_failed다.
 
 ## 9. 정책·분석 요청의 정확한 실행 계약
+
+> **RL-03 주석(R5 참조).** 아래 "심층 preview·승인"의 건별 사람 승인은 실회사 `card-v1` 경로에서 **정책 단위 사전 승인 + 자동 preview/approval + 건별 감사**로 바뀐다(검사 순서: 승인 활성 → sha 일치 → scope → 상한 → 아래 gate). 사람 클릭 경로는 그대로 두되 RL 경로는 쓰지 않는다.
 
 새 설정 BIDOPS_DEMO_COMPANY_FIT_POLICY_VERSION_ID와 BIDOPS_DEMO_DEEP_REVIEW_POLICY_VERSION_ID는 UUID 또는 빈 값(default)이다.
 web과 analysis-worker에 같은 값을 명시 주입한다. 기존 전역 active policy를 대신 읽지 않는다.
@@ -641,7 +648,7 @@ live config의 tracking mutation은 demo-laptop project에서만 실행하고 de
   |---|---|
   | `GET /api/companies`, `GET /api/companies/{id}`, `GET /api/companies/{id}/profile`, `GET /api/companies/{id}/knowledge-graph`, `GET /api/companies/{id}/profile-evidence/{eid}`, `GET /api/company` | 위 경로의 GET 아닌 method, 회사별 추적 PATCH, 회사별 사전규격·심층·Luna 전송 경로(`company_reads`·`company_analysis`), SPA `/companies/*`, `/pre-specs/{id}/company-comparison` |
 
-  서비스 쪽 demo gate(`company_deep_review`·`company_projection`·`company_fit`)는 바꾸지 않았다. 실회사 binding이 활성화돼도 회사 핏·심층 경로는 demo off에서 닫혀 있다(RL-03이 다시 정한다).
+  서비스 쪽 demo gate(`company_deep_review`·`company_projection`·`company_fit`)는 RL-00에서는 바꾸지 않았다. 실회사 binding이 활성화돼도 회사 핏·심층 경로는 demo off에서 닫혀 있었고, RL-03이 다시 정했다(아래 R5: 실회사 ∧ `BIDOPS_RL_ANALYSIS_ENABLED`에서만 판정 경로가 열리며 회사 핏은 여전히 demo off에서 닫혀 있다).
 - 새 설정 `BIDOPS_COMPANY_EXPIRY_WARNING_DAYS`(int, 기본 60, 범위 1..365)는 "곧 만료" 기준이며 `GET /api/company`의 `expiry_warning_days`로 전달된다.
 
 ### R3. 온톨로지·원본·그래프 (§3 대체)
@@ -668,6 +675,17 @@ live config의 tracking mutation은 demo-laptop project에서만 실행하고 de
 
 - **import 출력 JSON은 기존 9키에 `is_fictional: bool|null`, `status_counts: {confirmed,proposed,inferred,unknown: int}|null` 두 키를 더한 11키**다. `status_counts`는 evidence가 아닌 노드를 status별로 센 값(= profile facts 수)이다. `--dry-run`도 두 값을 채우고, 실패 JSON은 두 키 모두 `null`이다. **activate 출력(6키)은 바뀌지 않는다.** 그 외 CLI 서명·dry-run 규칙(DB·객체·모델 쓰기 없음, ID null, created=false)은 §4 그대로다.
 - profile v2 payload 최상위 `origin` = 실회사 `"real_company"`, 가상회사 `"fictional_scenario"`. FactV2.origin은 노드 origin 그대로이고 `FactV2.status`는 4값이다. `ProfileVersion.source_kind`는 기존 `company-knowledge-json-v2`를 **그대로** 둔다(멱등 재등록·snapshot 검증이 이 값을 비교한다). 실회사 구분은 payload `origin`만이 한다. v1 소비 경로는 바뀌지 않았다. 읽기 쪽 snapshot 검증은 payload `origin`이 회사 종류(`is_fictional`)와 어긋나면 거부한다.
-- ProfileEvidence는 `confirmed`·`proposed` 노드마다 정확히 1개, `unknown`은 0개다(`confirmed_by_name`은 CLI actor, 뜻은 "등록자"). `proposed`의 evidence는 확인 근거가 아니다 — 화면은 status로 구분하고 판정·전송은 `proposed`를 `unknown`과 같이 근거로 쓰지 않는다(RL-03이 고정한다).
+- ProfileEvidence는 `confirmed`·`proposed` 노드마다 정확히 1개, `unknown`은 0개다(`confirmed_by_name`은 CLI actor, 뜻은 "등록자"). `proposed`의 evidence는 확인 근거가 아니다 — 화면은 status로 구분하고 판정·전송은 `proposed`를 `unknown`과 같이 근거로 쓰지 않는다(RL-03이 고정했다, 아래 R5).
 - `GET /api/companies/{id}/profile`의 `facts[].origin`·`status`와 `profile-evidence`의 `origin`은 위 enum으로 넓어졌다(다른 키 그대로). 의미: 실회사 `confirmed` = 출처가 있고 사람이 확인한 사실, `proposed` = 에이전트 제안(사람 미확인), 가상회사 `confirmed` = "시나리오 확정"(§4).
 - 단일 회사 조회 `GET /api/company`는 contracts.md가 정본이다.
+
+### R5. 분석 입력·승인·현재성 (§5·§6·§9 대체, RL-03, 2026-10-17)
+
+적용 범위는 **실회사(`is_fictional=false`) ∧ `BIDOPS_RL_ANALYSIS_ENABLED=true` ∧ 선택된 정책 행의 `pipeline_version="card-v1"`**(`analysis-policy-luna-rl-v1`~`-v6`(= `RL_POLICY_IDENTITIES`; v2 결정 B23, v3 B30, v4 B33, v5 B35, v6 B37))뿐이다. 근거 [RL-03 spec](groups/RL/features/RL-03-fit-verdict/spec.md), 계약 [contracts.md "카드 기반 참여 판정"](../contracts.md#카드-기반-참여-판정-rl-03-2026-10-17). 가상회사·`narrative-v2`·회사 핏은 바뀌지 않는다.
+
+- **개요 비의존(D1).** gate 순서(binding → policy → model → 개요 → SW → bundle)에서 `card-v1`은 개요 단계를 건너뛴다(`current_company_overviews`를 읽지 않음). SW사업대상≠Y는 403 `effective_grade_ineligible`, ready bundle 없음은 409 `bundle_not_ready`이며 `overview_not_completed`는 RL 경로(자동·수동)에서 나오지 않는다. 자격은 공고 메타 `qualification_flags_json.sw_business_status='Y'` ∧ ready bundle이다.
+- **입력.** `bidops.company-analysis-input.v2` = v1 키 집합 + `card_analysis`(`schema_version:"bidops.card-analysis-input.v1"`, `company_binding`, `units`, `batches`, `missing_sections`, `selector`). `overview_run_id`·`overview_sha256` 키는 유지하되 `card-v1`에서는 **둘 다 `null`**(둘 다 null이거나 둘 다 값; v1 입력과 `company_fit` 출처에 null이 있으면 거부). `FrozenProvenance`의 키 집합은 그대로이고 두 필드만 nullable이다. 동결 입력은 승인·hash 대상이고 Luna로 나가는 단계 payload는 그 projection이다(전송 규칙은 contracts.md).
+- **현재성.** 회사 binding·문서/bundle·정책/model/generation 비교는 그대로이고, 개요 비교 대신 "동결값 `overview_*`가 둘 다 null"을 확인한다. SW=Y 변화도 현재성을 깨며 HP-04 `stale_reasons` 집합은 바뀌지 않는다.
+- **origin.** `ProfileFactInput`·`ProfileEvidenceInput`·retrieval의 `origin`은 `fictional_scenario` 고정이 아니라 RL-00 origin 7값이며 node·fact가 등록된 origin을 보존하고 evidence는 fact의 origin을 상속한다. `status`는 `proposed`를 포함한 4값을 받는다.
+- **승인(§9 대체).** 실행 직전 검사 순서는 활성 `transfer_policy_approval` → 정책 행 canonical sha 일치 → scope(`pre_spec`·`deep_review`) → 일일 상한 → 기존 gate이며 어긋나면 호출 전 409 `policy_not_approved`·`daily_cap_reached`로 fail closed한다. 승인 중에는 service가 preview·review·attempt·approval을 `actor_kind=system`·`claimed_name="system:transfer-policy"`·`request_id=uuid5(approval.id, input_sha256)`로 자동 생성하고(`preview_company_deep_review`·`create_company_review`·`create_company_attempt`·`luna_inputs.approve`에 `actor_kind`·`commit` 인자), worker는 claim 직후 첫 호출 전에 감사 `analysis.transfer.sent`를 남긴다. 기존 `deep_review.external_transfer_approved`는 자동 생성 시 그대로 남는다.
+- **오류 code 추가.** `policy_not_approved`·`daily_cap_reached`·`card_source_selection_incomplete`·`input_budget_exceeded`(409), 단계 실패 `card_*`(contracts.md).

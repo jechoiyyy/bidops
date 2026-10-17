@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "bidops.requirement-extract.v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "items"],
+  "properties": {
+    "schema_version": {"const": "bidops.requirement-extract.v1"},
+    "items": {"type": "array", "items": {"$ref": "#/$defs/extract"}}
+  },
+  "$defs": {
+    "nonempty": {"type": "string", "minLength": 1},
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "locator": {
+      "type": "object", "additionalProperties": false,
+      "required": ["source_sha256", "block_key"],
+      "properties": {
+        "source_sha256": {"$ref": "#/$defs/sha256"},
+        "block_key": {"$ref": "#/$defs/nonempty"}
+      }
+    },
+    "evidence": {
+      "type": "object", "additionalProperties": false,
+      "required": ["source_sha256", "block_key", "quote"],
+      "properties": {
+        "source_sha256": {"$ref": "#/$defs/sha256"},
+        "block_key": {"$ref": "#/$defs/nonempty"},
+        "quote": {"$ref": "#/$defs/nonempty"}
+      }
+    },
+    "constraint": {
+      "type": "object", "additionalProperties": false,
+      "required": ["kind", "value", "unit", "operator", "fact_key", "quote", "locator"],
+      "properties": {
+        "kind": {"type": "string", "enum": ["amount", "duration", "count", "date", "percentage", "boolean", "text"]},
+        "value": {"anyOf": [{"type": "number"}, {"type": "boolean"}, {"type": "string", "minLength": 1}]},
+        "unit": {"type": ["string", "null"], "enum": ["KRW", "person", "month", "day", "year", "percent", null]},
+        "operator": {"type": "string", "enum": ["eq", "gte", "lte", "unknown"]},
+        "fact_key": {"type": ["string", "null"], "minLength": 1},
+        "quote": {"$ref": "#/$defs/nonempty"},
+        "locator": {"$ref": "#/$defs/locator"}
+      }
+    },
+    "concept_candidate": {
+      "type": "object", "additionalProperties": false,
+      "required": ["concept_id", "alias_text"],
+      "properties": {
+        "concept_id": {"type": ["string", "null"], "minLength": 1},
+        "alias_text": {"$ref": "#/$defs/nonempty"}
+      }
+    },
+    "extract": {
+      "type": "object", "additionalProperties": false,
+      "required": ["unit_id", "type", "normalized_requirement", "mandatory", "constraints", "concept_candidates", "unknowns", "evidence"],
+      "properties": {
+        "unit_id": {"$ref": "#/$defs/nonempty"},
+        "type": {"type": "string", "enum": ["자격", "실적", "인력", "기술", "기능", "성능SLA", "보안", "운영", "계약", "평가"]},
+        "normalized_requirement": {"$ref": "#/$defs/nonempty"},
+        "mandatory": {"type": ["boolean", "null"]},
+        "constraints": {"type": "array", "items": {"$ref": "#/$defs/constraint"}},
+        "concept_candidates": {"type": "array", "items": {"$ref": "#/$defs/concept_candidate"}},
+        "unknowns": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/nonempty"}},
+        "evidence": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/evidence"}}
+      }
+    }
+  }
+}

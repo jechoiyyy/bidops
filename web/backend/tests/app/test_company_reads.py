@@ -732,6 +732,8 @@ def test_assembled_app_registers_company_reads_and_hides_them_when_demo_disabled
         "/api/companies/{company_id}/deep-reviews/{review_id}",
         "/api/companies/{company_id}/deep-reviews/{review_id}/report",
         "/api/companies/{company_id}/deep-reviews/{review_id}/evidence/{evidence_id}",
+        # RL-03 verdict view (opened by the middleware only with BIDOPS_RL_ANALYSIS_ENABLED)
+        "/api/companies/{company_id}/pre-specs/{notice_id}/verdict",
     }
     assert {route.path for route in deep_review.company_comparison_router.routes} == {
         "/api/pre-specs/{notice_id}/company-comparison"}
@@ -739,7 +741,8 @@ def test_assembled_app_registers_company_reads_and_hides_them_when_demo_disabled
     configure(monkeypatch, BIDOPS_DEMO_ENABLED="false")
     http = TestClient(create_app(mount_frontend=False))
     for path in (f"/api/companies/{uuid4()}/pre-specs", "/api/pre-specs/1/company-comparison",
-                 f"/api/companies/{uuid4()}/deep-reviews/{uuid4()}/report"):
+                 f"/api/companies/{uuid4()}/deep-reviews/{uuid4()}/report",
+                 f"/api/companies/{uuid4()}/pre-specs/1/verdict"):
         reply = http.get(path)
         assert reply.status_code == 404 and reply.json() == {"detail": "Not Found"}, path
 

@@ -94,7 +94,7 @@ test("상단 경로는 사업기회 / 제목이고 제목이 오기 전에는 #i
   expect(afterNav.slice(afterNav.indexOf("NAV") + 1)).not.toContain(FULL_TITLE);
 });
 
-test("헤더 pill은 단계·마감·판정·추적 상태 순서이고 판정 보기·제안서 초안은 비활성이다", async ({ page }) => {
+test("헤더 pill은 단계·마감·판정·추적 상태 순서이고 판정이 없으면 판정 보기·제안서 초안은 비활성이다", async ({ page }) => {
   await openRecord(page, "/opportunities/7101/activity");
 
   await expect(page.locator('[data-testid="record-title"]')).toHaveText(FULL_TITLE);
@@ -103,7 +103,9 @@ test("헤더 pill은 단계·마감·판정·추적 상태 순서이고 판정 �
 
   const verdict = page.getByRole("button", { name: "판정 보기", exact: true });
   await expect(verdict).toBeDisabled();
-  await expect(page.locator('.rec-action-hint[title="RL-03에서 열립니다"]')).toHaveCount(1);
+  // RL-03: 판정이 없으면 판정 보기가 비활성이고 이유는 "아직 판정이 없습니다"다(옛 안내 "RL-03에서 열립니다" 폐지).
+  await expect(page.locator('.rec-action-hint[title="아직 판정이 없습니다"]')).toHaveCount(1);
+  await expect(page.locator('.rec-action-hint[title="RL-03에서 열립니다"]')).toHaveCount(0);
   await expect(page.getByRole("button", { name: "제안서 초안", exact: true })).toBeDisabled();
   await expect(page.getByRole("button", { name: "사업기회 더보기" })).toBeVisible();
 
@@ -505,10 +507,10 @@ test("다음 행동은 최대 5건만 보이고 모두 보기가 피드를 다�
   await expect(chips.getByRole("button")).toHaveText(["전체", "사람", "사업 사건"]);
 });
 
-test("판정·제안서·서류 탭은 빈 상태 문장만 그리고 좌측 정보는 탭을 옮겨도 남는다", async ({ page }) => {
+test("판정(없음)·제안서·서류 탭은 빈 상태 문장만 그리고 좌측 정보는 탭을 옮겨도 남는다", async ({ page }) => {
   await openRecord(page, "/opportunities/7101/activity");
   for (const [tab, sentence] of [
-    ["판정", "판정은 분석이 끝나면 여기에 보입니다"],
+    ["판정", "아직 판정이 없습니다"],
     ["제안서", "제안서 초안은 판정 뒤 만들 수 있습니다"],
     ["서류", "제출 서류 체크는 준비 중입니다"],
   ] as const) {

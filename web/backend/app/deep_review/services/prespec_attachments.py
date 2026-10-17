@@ -10,7 +10,10 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+import hashlib
+import os
 import re
+import stat
 from pathlib import Path
 from typing import Any
 from uuid import UUID
@@ -34,7 +37,11 @@ from .document_structures import materialize_structure
 # 추적 관계 판정은 lifecycle 몫이다(명세 §5.2). 취득 자격은 그 공개 SQL 조각을
 # 그대로 쓰므로 목록의 표시 예외와 어긋나지 않는다.
 from ...lifecycle import lock_attachment, tracked_order_plan_connections
-from .auto_preparation import TERMINAL_FETCH_STATUSES, maybe_auto_prepare
+from .auto_preparation import (
+    OPERATOR_LOCAL_ORIGINAL_TRIGGER,
+    TERMINAL_FETCH_STATUSES,
+    maybe_auto_prepare,
+)
 from .effective_grade import priority_notice_ids
 
 
@@ -138,7 +145,9 @@ class AttachmentFetchClaim:
 
 @dataclass(frozen=True)
 class _AttachmentSnapshot:
-    fetch_id: UUID
+    # ``None`` only for the operator local-original path when the attachment
+    # has no fetch row (B15); the provider path always carries its claim row.
+    fetch_id: UUID | None
     attachment_id: int
     notice_id: int
     source_url: str | None
@@ -640,11 +649,12 @@ def _persist_inspected(
 def _document_for_safe_asset(
     session: Session,
     *,
-    row: AttachmentFetch,
+    row: AttachmentFetch | None,
     snapshot: _AttachmentSnapshot,
     inspected: assets.InspectedAsset,
     source_path: Path,
     root: Path | None,
+    created_by_name: str | None = None,
 ) -> DocumentVersion:
     content = _ensure_content_object(session, inspected)
     asset = inspected.asset
@@ -712,10 +722,55 @@ def _document_for_safe_asset(
         is_current=True,
         safety_status="safe",
         needs_human_review=False,
-        created_by_name=None,
+        created_by_name=created_by_name,
     )
     session.add(document)
     session.flush()
+    return document
+
+
+def _materialize_safe_document(
+    session: Session,
+    *,
+    row: AttachmentFetch | None,
+    snapshot: _AttachmentSnapshot,
+    inspected: assets.InspectedAsset,
+    source_path: Path,
+    root: Path | None,
+    request_paths: list[Path],
+    created_by_name: str | None = None,
+) -> DocumentVersion:
+    """Record the clean source document and its canonical structure (no commit).
+
+    The provider fetch and the operator local-original path (B15) share this
+    so both keep one quarantine → scan → source → document → structure rule.
+    """
+
+    document = _document_for_safe_asset(
+        session,
+        row=row,
+        snapshot=snapshot,
+        inspected=inspected,
+        source_path=source_path,
+        root=root,
+        created_by_name=created_by_name,
+    )
+    materialize_structure(
+        session,
+        document,
+        inspected.asset,
+        inspected,
+        request_paths,
+        root=root,
+        add_location=lambda current_session, content_id, namespace, path, digest: _add_structure_location(
+            current_session,
+            content_id,
+            namespace,
+            path,
+            digest,
+            root=root,
+        ),
+    )
     return document
 
 
@@ -747,29 +802,14 @@ def _complete_safe(
         # transaction back and removes request-created source bytes.
         session.rollback()
         return None
-    document = _document_for_safe_asset(
+    document = _materialize_safe_document(
         session,
         row=row,
         snapshot=snapshot,
         inspected=inspected,
         source_path=source_path,
         root=root,
-    )
-    structure = materialize_structure(
-        session,
-        document,
-        inspected.asset,
-        inspected,
-        request_paths,
-        root=root,
-        add_location=lambda current_session, content_id, namespace, path, digest: _add_structure_location(
-            current_session,
-            content_id,
-            namespace,
-            path,
-            digest,
-            root=root,
-        ),
+        request_paths=request_paths,
     )
     row.status = "완료"
     row.last_error_code = None
@@ -810,12 +850,19 @@ def fetch_claimed(
         notice_id = session.scalar(
             select(Attachment.notice_id).where(Attachment.id == row.attachment_id)
         )
-        # 위 조회가 연 읽기 transaction을 닫는다. 그래야 자동 준비가 자기
-        # transaction을 소유하고 자기 결과를 스스로 커밋한다 — 열린 채로 두면
-        # 다음 claim이 커밋해 줄 때까지 묶음이 durable하지 않다.
+        # 위 조회가 연 읽기 transaction을 닫는다.
         session.commit()
         if notice_id is not None:
             maybe_auto_prepare(session, [int(notice_id)], root=root)
+            # 자동 준비는 자격 조회가 다시 연 transaction의 savepoint session에서
+            # 돈다(`_work_session`). 그 commit은 savepoint만 놓으므로 여기서 바깥
+            # transaction을 커밋해야 묶음·감사가 durable하다 — worker는 poll마다
+            # session을 닫으므로(`--once` 포함) 그대로 두면 close의 rollback이
+            # 방금 만든 묶음을 지운다(B18 확인).
+            try:
+                session.commit()
+            except Exception:
+                session.rollback()
     return row
 
 
@@ -919,11 +966,431 @@ def _fetch_claimed(
             pass
 
 
+# --- operator local original (RL-03 결정 B15) ----------------------------------------
+#
+# A G2B attachment row may carry only a link (no bytes) while the operator holds
+# the original file whose sha256 was matched against an earlier collection.
+# ``attach_local_original`` connects those bytes to the *existing* attachment row
+# through the same quarantine → ClamAV/MIME inspection → source → document →
+# structure path the provider fetch uses, and then opens document preparation for
+# the notice with trigger ``operator_local_original``.  No G2B call is made.  The
+# only gate it bypasses is the grade/briefing eligibility of the preparation; the
+# attachment must belong to the notice, be a current G2B row and have no bytes.
+
+LOCAL_ORIGINAL_PROVENANCE = OPERATOR_LOCAL_ORIGINAL_TRIGGER
+LOCAL_ORIGINAL_ACTION = "prespec_attachment.local_original"
+_SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
+_ACTOR_MAX = 128
+_LOCAL_READ_CHUNK = 1024 * 1024
+
+
+class LocalOriginalError(ValueError):
+    """Stable, path-free code of a refused or failed local-original attach."""
+
+    def __init__(self, code: str, *, retryable: bool = False) -> None:
+        self.code = code
+        self.retryable = retryable
+        super().__init__(code)
+
+
+@dataclass(frozen=True)
+class LocalOriginalTarget:
+    notice_id: int
+    attachment_id: int
+    filename: str
+    source_attachment_key: str
+    source_url: str
+    fetch_id: UUID | None
+    fetch_status: str | None
+
+
+def _operator_actor(value: str | None) -> str:
+    if value is None or not value.strip():
+        raise LocalOriginalError("actor_name_required")
+    clean = value.strip()
+    if (
+        len(clean) > _ACTOR_MAX
+        or any(ord(char) < 32 or 127 <= ord(char) <= 159 for char in clean)
+        or clean.lower() == "system"
+        or clean.lower().startswith("system:")
+    ):
+        raise LocalOriginalError("actor_name_invalid")
+    return clean
+
+
+def read_operator_file(path: Path) -> bytes:
+    """Read one operator-supplied regular file with the attachment size cap.
+
+    The path itself (not only its target) must be a regular file: a symlink,
+    directory, device or FIFO is refused before it is opened.  The descriptor
+    is opened with ``O_NOFOLLOW`` and its identity is compared with the
+    pre-open ``lstat`` so a swap between the check and the read fails closed.
+    Error codes never carry the path.
+    """
+
+    try:
+        before = os.lstat(path)
+    except OSError:
+        raise LocalOriginalError("file_not_found") from None
+    if not stat.S_ISREG(before.st_mode):
+        raise LocalOriginalError("file_not_regular")
+    if before.st_size > assets.MAX_ASSET_BYTES:
+        raise LocalOriginalError("file_size_limit")
+    if before.st_size == 0:
+        raise LocalOriginalError("file_empty")
+    flags = os.O_RDONLY | getattr(os, "O_BINARY", 0) | getattr(os, "O_NOFOLLOW", 0)
+    try:
+        fd = os.open(path, flags)
+    except OSError:
+        raise LocalOriginalError("file_not_regular") from None
+    try:
+        opened = os.fstat(fd)
+        if (
+            not stat.S_ISREG(opened.st_mode)
+            or (opened.st_dev, opened.st_ino, opened.st_size) != (before.st_dev, before.st_ino, before.st_size)
+        ):
+            raise LocalOriginalError("file_changed")
+        chunks: list[bytes] = []
+        total = 0
+        while True:
+            blob = os.read(fd, _LOCAL_READ_CHUNK)
+            if not blob:
+                break
+            total += len(blob)
+            if total > assets.MAX_ASSET_BYTES:
+                raise LocalOriginalError("file_size_limit")
+            chunks.append(blob)
+        if total != before.st_size:
+            raise LocalOriginalError("file_changed")
+        return b"".join(chunks)
+    except OSError:
+        raise LocalOriginalError("file_changed") from None
+    finally:
+        os.close(fd)
+
+
+def _local_original_target(
+    session: Session,
+    *,
+    notice_id: int,
+    attachment: Attachment | None,
+    fallback_filename: str | None,
+    lock_fetch: bool = False,
+) -> tuple[LocalOriginalTarget, AttachmentFetch | None]:
+    """Every refusal of the attach, read (or re-read under locks) from the rows."""
+
+    if attachment is None:
+        raise LocalOriginalError("attachment_not_found")
+    if int(attachment.notice_id) != int(notice_id):
+        raise LocalOriginalError("attachment_notice_mismatch")
+    notice = session.get(Notice, int(notice_id))
+    if notice is None:
+        raise LocalOriginalError("notice_not_found")
+    if notice.source_type != "pre_spec":
+        # Document preparation and RL card analysis are pre-spec only (RL-03 범위).
+        raise LocalOriginalError("notice_not_pre_spec")
+    if attachment.retired_at is not None:
+        raise LocalOriginalError("attachment_retired")
+    if (
+        attachment.source_system != SOURCE_SYSTEM
+        or not attachment.source_attachment_key
+        or not attachment.source_url
+    ):
+        raise LocalOriginalError("attachment_source_not_g2b")
+    has_document = session.scalar(
+        select(DocumentVersion.id).where(DocumentVersion.attachment_id == attachment.id).limit(1)
+    )
+    if has_document is not None:
+        raise LocalOriginalError("attachment_has_bytes")
+    fetch_query = select(AttachmentFetch).where(AttachmentFetch.attachment_id == attachment.id)
+    if lock_fetch:
+        fetch_query = fetch_query.with_for_update()
+    fetch = session.scalar(fetch_query)
+    if fetch is not None:
+        if fetch.status == "완료" or fetch.document_version_id is not None:
+            raise LocalOriginalError("attachment_has_bytes")
+        if fetch.status == "진행":
+            # A provider worker holds (or held) the lease; never race it.
+            raise LocalOriginalError("attachment_fetch_in_progress")
+    # The G2B fetcher prefers the provider's file name over the stored row name; the
+    # operator's local file name plays that role here. G2B rows often store a
+    # placeholder such as "첨부 1" with no extension, so the stored name is only a
+    # fallback (결정 B22).
+    filename = None
+    for name in (fallback_filename, attachment.name):
+        if not name:
+            continue
+        try:
+            filename = assets._safe_filename(name)
+            break
+        except assets.AssetError:
+            continue
+    if filename is None:
+        raise LocalOriginalError("unsupported_extension")
+    return (
+        LocalOriginalTarget(
+            notice_id=int(notice_id),
+            attachment_id=int(attachment.id),
+            filename=filename,
+            source_attachment_key=str(attachment.source_attachment_key),
+            source_url=str(attachment.source_url),
+            fetch_id=fetch.id if fetch is not None else None,
+            fetch_status=fetch.status if fetch is not None else None,
+        ),
+        fetch,
+    )
+
+
+def _local_original_audit(
+    session: Session,
+    *,
+    actor: str,
+    target: LocalOriginalTarget,
+    content_sha256: str,
+    size_bytes: int,
+    status: str,
+    error_code: str | None,
+    scan_status: str | None,
+    document_version_id: UUID | None,
+) -> None:
+    # Safe identifiers only: no local path, file name, URL, object key or text.
+    session.add(
+        AuditEvent(
+            actor_kind="human",
+            claimed_name=actor,
+            action=LOCAL_ORIGINAL_ACTION,
+            aggregate_type="attachment",
+            aggregate_id=str(target.attachment_id),
+            safe_metadata={
+                "provenance": LOCAL_ORIGINAL_PROVENANCE,
+                "notice_id": target.notice_id,
+                "attachment_id": target.attachment_id,
+                "attachment_fetch_id": str(target.fetch_id) if target.fetch_id is not None else None,
+                "fetch_status_before": target.fetch_status,
+                "content_sha256": content_sha256,
+                "size_bytes": size_bytes,
+                "scan_status": scan_status,
+                "status": status,
+                "error_code": error_code,
+                "document_version_id": str(document_version_id) if document_version_id is not None else None,
+            },
+        )
+    )
+
+
+def _preparation_view(outcome: Any) -> dict[str, Any]:
+    if outcome is None:
+        return {"bundle_id": None, "created": False, "confirmed": False, "reason": "processing_failed"}
+    return {
+        "bundle_id": str(outcome.bundle_id) if outcome.bundle_id is not None else None,
+        "created": bool(outcome.created),
+        "confirmed": bool(outcome.confirmed),
+        "reason": outcome.reason,
+    }
+
+
+def attach_local_original(
+    session: Session,
+    *,
+    notice_id: int,
+    attachment_id: int,
+    content: bytes,
+    expected_sha256: str,
+    actor: str | None,
+    fallback_filename: str | None = None,
+    processor: Any = None,
+    clamav_checker: Any = None,
+    root: Path | None = None,
+    dry_run: bool = False,
+) -> dict[str, Any]:
+    """Connect operator-held original bytes to an existing G2B attachment row (B15).
+
+    Refusals (``LocalOriginalError``, nothing written): actor, sha format,
+    ``sha256_mismatch``, attachment/notice ownership, retired, non-G2B source,
+    ``attachment_has_bytes`` (any document version or a completed fetch row),
+    ``attachment_fetch_in_progress``, ``unsupported_extension``.  ``dry_run``
+    stops after these checks.  Inspection failures (malware, MIME, scanner
+    unavailable) write one refusal audit and no document.  On success the
+    document, its structure, the fetch row (``완료``, fence +1) and the audit
+    commit together; then ``maybe_auto_prepare`` runs with trigger
+    ``operator_local_original`` (bypassing only grade/briefing eligibility).
+    """
+
+    claimed = _operator_actor(actor)
+    expected = expected_sha256.strip().lower() if isinstance(expected_sha256, str) else ""
+    if _SHA256_RE.fullmatch(expected) is None:
+        raise LocalOriginalError("expected_sha256_invalid")
+    if not isinstance(content, (bytes, bytearray)) or not content:
+        raise LocalOriginalError("file_empty")
+    if len(content) > assets.MAX_ASSET_BYTES:
+        raise LocalOriginalError("file_size_limit")
+    data = bytes(content)
+    digest = hashlib.sha256(data).hexdigest()
+    if digest != expected:
+        raise LocalOriginalError("sha256_mismatch")
+    try:
+        notice_id = int(validate_notice_id(notice_id))  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        raise LocalOriginalError("notice_not_found") from None
+    if isinstance(attachment_id, bool) or not isinstance(attachment_id, int) or attachment_id <= 0:
+        raise LocalOriginalError("attachment_not_found")
+
+    if session.in_transaction():
+        session.rollback()
+    target, _fetch = _local_original_target(
+        session, notice_id=notice_id, attachment=session.get(Attachment, attachment_id),
+        fallback_filename=fallback_filename,
+    )
+    # Close the read transaction before any storage or scanner I/O.
+    session.rollback()
+    result: dict[str, Any] = {
+        "notice_id": target.notice_id,
+        "attachment_id": target.attachment_id,
+        "content_sha256": digest,
+        "size_bytes": len(data),
+        "provenance": LOCAL_ORIGINAL_PROVENANCE,
+        "fetch_status_before": target.fetch_status,
+        "document_version_id": None,
+        "scan_status": None,
+        "preparation": None,
+        "dry_run": bool(dry_run),
+        "errors": [],
+    }
+    if dry_run:
+        return result
+
+    asset: assets.QuarantinedAsset | None = None
+    request_paths: list[Path] = []
+    try:
+        asset = assets.quarantine_bytes(
+            data,
+            target.filename,
+            declared_media_type=None,
+            root=root,
+            source_kind="provider",
+            source_system=SOURCE_SYSTEM,
+            source_attachment_key=target.source_attachment_key,
+            source_url=target.source_url,
+        )
+        if asset.sha256 != digest or asset.size_bytes != len(data):
+            raise LocalOriginalError("hash_mismatch")
+        if clamav_checker is None and getattr(processor, "clamav_checker", None) is None:
+            # Same fail-closed seam as the provider fetch: no scanner, no parsing.
+            def unavailable_checker(_content: bytes) -> bool:
+                raise DocumentProcessingError("clamav_unavailable", "malware 검사를 완료할 수 없습니다")
+
+            processor = None
+            clamav_checker = unavailable_checker
+        inspected = assets.inspect_quarantine(asset, processor=processor, clamav_checker=clamav_checker)
+        result["scan_status"] = inspected.scan_status
+        if inspected.safety_status != "safe":
+            code = _safe_error_code(
+                inspected.error_code
+                or ("clamav_unavailable" if inspected.scan_status == "unavailable" else None),
+                fallback="unsafe_document",
+            )
+            _local_original_audit(
+                session, actor=claimed, target=target, content_sha256=digest, size_bytes=len(data),
+                status="차단", error_code=code, scan_status=inspected.scan_status, document_version_id=None,
+            )
+            session.commit()
+            raise LocalOriginalError(code, retryable=code in _RETRYABLE_CODES)
+        source_path, source_digest, source_size = assets.commit_source(asset, root=root)
+        request_paths.append(source_path)
+        if source_digest != digest or source_size != len(data):
+            raise LocalOriginalError("hash_mismatch")
+
+        # One fenced transaction: lock the attachment (lifecycle public lock),
+        # re-check every refusal on the locked rows, then record.
+        attachment = lock_attachment(session, target.attachment_id, populate_existing=True)
+        locked, fetch = _local_original_target(
+            session, notice_id=notice_id, attachment=attachment, fallback_filename=fallback_filename,
+            lock_fetch=True,
+        )
+        if (locked.source_attachment_key, locked.source_url, locked.filename) != (
+            target.source_attachment_key, target.source_url, target.filename,
+        ):
+            raise LocalOriginalError("attachment_changed")
+        snapshot = _AttachmentSnapshot(
+            fetch_id=locked.fetch_id,
+            attachment_id=locked.attachment_id,
+            notice_id=locked.notice_id,
+            source_url=locked.source_url,
+            source_attachment_key=locked.source_attachment_key,
+            name=locked.filename,
+            file_ext=None,
+        )
+        document = _materialize_safe_document(
+            session,
+            row=fetch,
+            snapshot=snapshot,
+            inspected=inspected,
+            source_path=source_path,
+            root=root,
+            request_paths=request_paths,
+            created_by_name=claimed,
+        )
+        if fetch is not None:
+            fetch.status = "완료"
+            fetch.last_error_code = None
+            fetch.document_version_id = document.id
+            fetch.lease_owner = None
+            fetch.lease_expires_at = None
+            # A stale provider claim of this row can no longer write.
+            fetch.lease_fence = int(fetch.lease_fence) + 1
+            fetch.completed_at = datetime.now(UTC)
+        _local_original_audit(
+            session, actor=claimed, target=locked, content_sha256=digest, size_bytes=len(data),
+            status="완료", error_code=None, scan_status=inspected.scan_status, document_version_id=document.id,
+        )
+        session.commit()
+        result["document_version_id"] = str(document.id)
+    except LocalOriginalError as error:
+        if session.in_transaction():
+            session.rollback()
+        assets.cleanup_paths(request_paths)
+        raise error
+    except assets.AssetError as error:
+        session.rollback()
+        assets.cleanup_paths(request_paths)
+        code = _safe_error_code(error.code)
+        raise LocalOriginalError(code, retryable=code in _RETRYABLE_CODES) from None
+    except DocumentProcessingError as error:
+        session.rollback()
+        assets.cleanup_paths(request_paths)
+        code = _safe_error_code(error.code)
+        raise LocalOriginalError(code, retryable=code in _RETRYABLE_CODES) from None
+    except Exception:
+        session.rollback()
+        assets.cleanup_paths(request_paths)
+        raise LocalOriginalError("service_unavailable", retryable=True) from None
+    finally:
+        try:
+            assets.cleanup_asset(asset)
+        except Exception:
+            pass
+
+    # Preparation is derived work: it swallows its own failures and never
+    # undoes the attach above (same rule as the provider fetch).
+    outcomes = maybe_auto_prepare(session, [notice_id], root=root, trigger=OPERATOR_LOCAL_ORIGINAL_TRIGGER)
+    # The eligibility reads open a transaction, so the preparation ran on a
+    # savepoint session of it; make its bundle/audit rows durable here (the
+    # provider worker gets the same effect from its next claim's commit).
+    session.commit()
+    result["preparation"] = _preparation_view(outcomes[0] if outcomes else None)
+    return result
+
+
 __all__ = [
     "AttachmentFetchClaim",
+    "LOCAL_ORIGINAL_ACTION",
+    "LOCAL_ORIGINAL_PROVENANCE",
+    "LocalOriginalError",
     "SOURCE_SYSTEM",
+    "attach_local_original",
     "claim_next",
     "fetch_claimed",
+    "read_operator_file",
     "refresh_fetch_eligibility",
     "validate_notice_id",
 ]

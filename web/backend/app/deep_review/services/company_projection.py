@@ -56,7 +56,7 @@ from ..schemas.company_analysis import (
 )
 from ..schemas.reports import EvidenceView
 from .company_analysis_input import ready_bundle_document_sets
-from .company_deep_review import company_review_current_flags, company_review_view, current_attempt_previews
+from .company_deep_review import company_review_current_flags, company_review_view, current_attempt_previews, rl_path
 from .company_fit import (
     CompanyFitResultError,
     company_current_flags,
@@ -117,11 +117,13 @@ def _demo_gate(settings: Any) -> None:
 
 
 def _company(session: Session, company_id: UUID, settings: Any) -> Company:
-    """DEMO off or unknown company → ``not_found``. No reference/Luna flag is read."""
+    """Unknown company → ``not_found``; DEMO rule, or RL-03 "가드 두 겹" (b): the real company
+    while ``BIDOPS_RL_ANALYSIS_ENABLED``. No reference/Luna flag is read here (reads)."""
 
-    _demo_gate(settings)
     company = session.get(Company, company_id)
     if company is None:
+        raise _error("not_found")
+    if not getattr(settings, "demo_enabled", False) and not rl_path(settings, company):
         raise _error("not_found")
     return company
 

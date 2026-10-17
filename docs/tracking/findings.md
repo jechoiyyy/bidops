@@ -1,5 +1,12 @@
 # 미해결 문제
 
+## RL-03 카드 판정은 제약 하나의 검증 실패로 판정 전체가 사람 검토로 끝난다 (2026-10-18, 미해결)
+
+- 재현: bidops-local `bidops_rla` 폴리텍 사전규격(notice 362, opportunity 353, 원문 HWP SHA `8b6cbf1a…005a1e`), 정책 v3~v5 실제 Luna 판정 T12 4~7차(attempt `6dd54a57…`·`bd0fe0a3…`·`28086c87…`·`ff63bc6e…`). 4차 이후 매번 묶음 응답의 제약 1개(5차 `다음 달 10일까지` 단위, 6차 잘린 인용 `5`, 7차 날짜 범위에서 계산한 기간 12)가 결정적 추출 검증에 걸려 `card_extract_invalid`·`needs_human_review`로 끝났다. 진단과 재생 근거는 `docs/validation-runs/2026-10-17-rl/RL-03/README.md` T12 절, 결정 B30~B37.
+- 영향: 한 판정이 검증하는 인용·제약이 60개 이상이고 하나라도 틀리면 묶음과 판정 전체가 실패한다. 항목 정확도가 높아도 전체 통과 확률이 낮아(98%/항목이면 약 30% 추정) 실제 판정과 RL-04 실제 초안(T11)을 얻지 못했다.
+- 지금 해결하지 않는 이유: 틀린 제약만 그 항목의 사람 검토 대상으로 격리하고 나머지로 판정을 이어가는 방식은 판정 의미·완료 조건·화면 표시를 바꾸는 spec 변경이다. 자동 보정(제약 삭제·값 수정)은 강제 게이트상 금지라 대안이 아니다.
+- 후속: 항목 단위 실패 설계(실패 항목 표시, 그 항목이 판정 근거에서 빠질 때 판정 상한, 사람 검토 흐름, 감사)를 별도 기능으로 설계하고 승인 뒤 실제 판정 1건으로 증명한다. 검증기 결함(인용 위치·범위 기호)은 B37에서 고쳤다.
+
 ## HP 평가 후보116 HWP의 native 검증 실패 (2026-10-15, 미해결)
 
 - 재현: bidops-local 사전규격116 첨부169, 원문 SHA `827843bd9edb6ba7c5784f63104238d21a70cc03cda9474c14c68aecdc84f5f4`,4,265,984bytes. ClamAV clean 뒤 local document-worker-1의 `process_document(..., options={prepare_pdf:true,timeout_seconds:120})`가 `DocumentProcessingError/hwpx_verify_failed`로 종료한다. 진단도 같은 코드다.

@@ -10,8 +10,10 @@ materializer, persistence, and audit paths remain unchanged.
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from decimal import Decimal
 import hashlib
 import json
+import re
 from typing import Any
 from uuid import NAMESPACE_URL, uuid5
 
@@ -349,9 +351,248 @@ class MockOverviewTransport:
         }
 
 
+# --- RL-03 card-v1 mock (결정 B16) -----------------------------------------------------
+
+#: Provider lineage of the mock card path (same value as the narrative mock).
+MOCK_CARD_PROVIDER = MockAnalysisClient.provider_name
+_CARD_CONTRACTS = {
+    "extract": "card-extract-v1",
+    "eligibility_economics": "card-role-v1",
+    "technical_fit": "card-role-v1",
+    "operations_risk": "card-role-v1",
+    "synthesis": "card-synthesis-v1",
+}
+# --- 결정 B35: realistic numeric constraints of the v2 mock answer --------------------
+#
+# Every match is quoted verbatim as number + unit word + an attached comparator
+# (whitespace and one particle 를/을/의 allowed), exactly as the v5 extract
+# instruction asks.  결정 B37 (v6): a quote that repeats in its block is extended
+# by whole words on the left until it is unique ("월 1회", "연 1회 이상").  A number that continues a range or list (preceded by a
+# digit, ``~``/``～``/``〜``, ``-``, ``/``, ``.`` or ``,``) is skipped.
+
+_MOCK_NUMBER = r"[0-9]+(?:,[0-9]{3})*(?:\.[0-9]+)?"
+_MOCK_COMPARATOR = r"(?:\s*(?:[를을의]\s*)?(?:이상|이하|이내|초과|미만))?"
+_MOCK_AMOUNT_MULTIPLIERS = {"억원": 100_000_000, "백만원": 1_000_000, "천원": 1_000, "원": 1}
+_MOCK_PATTERNS = (
+    ("count", "person", re.compile(rf"({_MOCK_NUMBER})\s*명{_MOCK_COMPARATOR}")),
+    ("amount", "KRW", re.compile(rf"({_MOCK_NUMBER})\s*(억원|백만원|천원|원){_MOCK_COMPARATOR}")),
+    ("duration", "day", re.compile(rf"({_MOCK_NUMBER})\s*일\s*이상")),
+    ("percentage", "percent", re.compile(rf"({_MOCK_NUMBER})\s*%{_MOCK_COMPARATOR}")),
+)
+_MOCK_RANGE_BEFORE = "0123456789~～〜-/.,"
+#: 결정 B37: a repeated quote is extended by whole words on the left (at most
+#: ``_MOCK_MAX_LEFT_WORDS``, never over a digit or an opening bracket/colon).
+_MOCK_MAX_LEFT_WORDS = 3
+_MOCK_WORD_STOP = "([{（「『<〈:：,，"
+
+
+def _occurrences(quote: str, text: str) -> int:
+    count, start = 0, text.find(quote)
+    while start >= 0:
+        count += 1
+        start = text.find(quote, start + 1)
+    return count
+
+
+def _unique_left_extended(text: str, start: int, end: int) -> int | None:
+    """Start index of the shortest left-extended quote ``text[start:end]`` that occurs once, or ``None``."""
+
+    for _ in range(_MOCK_MAX_LEFT_WORDS + 1):
+        if _occurrences(text[start:end], text) == 1:
+            return start
+        cursor = start
+        while cursor > 0 and text[cursor - 1].isspace():
+            cursor -= 1
+        word_end = cursor
+        while cursor > 0 and not text[cursor - 1].isspace() and text[cursor - 1] not in _MOCK_WORD_STOP:
+            cursor -= 1
+        if cursor == word_end or any(char.isdigit() for char in text[cursor:word_end]):
+            return None
+        start = cursor
+    return None
+
+
+def _mock_number(raw: str) -> int | float:
+    value = Decimal(raw.replace(",", ""))
+    return int(value) if value == value.to_integral_value() else float(value)
+
+
+def mock_numeric_constraints(unit: Mapping[str, Any]) -> list[dict[str, Any]]:
+    """Deterministic v2 numeric constraints of one unit (no operator, ``fact_key`` null)."""
+
+    constraints: list[dict[str, Any]] = []
+    seen: set[tuple[str, str, str]] = set()
+    for block in unit.get("blocks") or []:
+        text = str(block.get("text") or "")
+        for kind, unit_name, pattern in _MOCK_PATTERNS:
+            for match in pattern.finditer(text):
+                before = text[:match.start()].rstrip()
+                if before and before[-1] in _MOCK_RANGE_BEFORE:
+                    continue
+                start = _unique_left_extended(text, match.start(), match.end())
+                if start is None:
+                    continue  # no unique quote within three words: no constraint (never a guess)
+                quote = text[start:match.end()]
+                value = _mock_number(match.group(1))
+                if kind == "amount":
+                    value = _mock_number(str(Decimal(match.group(1).replace(",", ""))
+                                             * _MOCK_AMOUNT_MULTIPLIERS[match.group(2)]))
+                key = (kind, quote, str(block["block_key"]))
+                if key in seen:
+                    continue
+                seen.add(key)
+                constraints.append({
+                    "kind": kind, "value": value, "unit": unit_name, "fact_key": None, "quote": quote,
+                    "locator": {"source_sha256": unit["source_sha256"], "block_key": block["block_key"]},
+                })
+    return constraints
+
+
+#: 결정 B33: the extract stage answers v1 (policy v1-v3) or v2 (policy v4).
+_CARD_EXTRACT_CONTRACTS = frozenset({"card-extract-v1", "card-extract-v2"})
+_MOCK_ROLE_REASON = "모의 실행: 결정적 대조 결과를 그대로 옮겼다(모델 판단 아님)"
+_MOCK_SYNTHESIS_REASON = "모의 실행 결과이며 모델 판정이 아니다. 연결 확인용으로만 쓴다."
+
+
+def _mock_requirement_type(unit: Mapping[str, Any]) -> str:
+    if unit.get("kind") == "card":
+        return "기능"
+    sections = unit.get("section_kinds") or []
+    if "eligibility" in sections:
+        return "자격"
+    if "evaluation" in sections:
+        return "평가"
+    if "contract" in sections:
+        return "계약"
+    return "운영"
+
+
+class MockCardAnalysisClient:
+    """Deterministic ``invoke_prompt`` stand-in for the RL card-v1 runner (B16).
+
+    Used only when ``BIDOPS_ANALYSIS_PROVIDER=mock`` with reference mode.  It
+    performs no runner, model or network call.  Every answer is derived from
+    the stage input of the prompt and passes the normal validators unchanged:
+
+    * extract: one item per unit; ``normalized_requirement`` and the single
+      evidence quote are the unit's first non-blank block text copied
+      verbatim, no constraints (so no number is introduced), concept
+      candidates are the unit's ``expected_concepts`` copied as given when the
+      payload carries them (``card-sections-v3``, 결정 B30 -- the same
+      contract the real model is told to follow), otherwise the
+      deterministic ontology matches of the unit blocks.  Under the v2 extract
+      contract (``card-extract-v2``, policy v4, 결정 B33) the answer has no
+      ``concept_candidates`` and no operators -- the same v2 shape the real
+      model returns; code derives both.  It also carries the realistic numeric
+      constraints of ``mock_numeric_constraints`` (결정 B35: ``N명``, ``N원``,
+      ``N일 이상``, ``N%`` quoted with unit and attached comparator), so the
+      quote/unit/operator rules are exercised;
+    * roles: each unit's assessment is its deterministic compare result;
+    * synthesis: ``판단 불가`` with no blocking ids, cautions or actions.
+
+    ``raw_response`` is empty, so no model response object is stored.
+    """
+
+    provider_name = MOCK_CARD_PROVIDER
+    model = MOCK_MODEL_NAME
+
+    def __init__(self, ontology: Any) -> None:
+        self.ontology = ontology
+        self.calls: list[tuple[str, str]] = []
+
+    def invoke_prompt(self, prompt: str, *, contract: str) -> InvocationResult:
+        from ...core.model_client import ModelInvocationError
+
+        envelope = json.loads(prompt)
+        stage = envelope.get("stage") if isinstance(envelope, Mapping) else None
+        value = envelope.get("input") if isinstance(envelope, Mapping) else None
+        allowed = _CARD_EXTRACT_CONTRACTS if stage == "extract" else {_CARD_CONTRACTS.get(stage)}
+        if stage not in _CARD_CONTRACTS or contract not in allowed or not isinstance(value, Mapping):
+            raise ModelInvocationError("schema_invalid", (), b"")
+        self.calls.append((contract, str(stage)))
+        if stage == "extract":
+            output = self._extract(value, v2=contract == "card-extract-v2")
+        elif stage == "synthesis":
+            output = {
+                "schema_version": "bidops.practitioner-verdict.v1", "verdict": "판단 불가",
+                "reason": _MOCK_SYNTHESIS_REASON, "blocking_condition_ids": [], "cautions": [],
+                "next_actions": [],
+            }
+        else:
+            output = self._role(value)
+        encoded = json.dumps(output, ensure_ascii=False, sort_keys=True).encode("utf-8")
+        return InvocationResult(
+            output,
+            b"",
+            hashlib.sha256(prompt.encode("utf-8")).hexdigest(),
+            hashlib.sha256(encoded).hexdigest(),
+            None,
+            None,
+            0,
+            (),
+            self.provider_name,
+            self.model,
+        )
+
+    def _extract(self, value: Mapping[str, Any], *, v2: bool = False) -> dict[str, Any]:
+        from ...core.model_client import ModelInvocationError
+        from .company_knowledge_retrieval import match_concepts
+
+        items = []
+        for unit in value.get("units") or []:
+            blocks = [block for block in unit.get("blocks") or [] if str(block.get("text") or "").strip()]
+            if not blocks:
+                raise ModelInvocationError("schema_invalid", (), b"")
+            candidates: list[dict[str, Any]] = []
+            if "expected_concepts" in unit:
+                expected = unit["expected_concepts"]
+                if not isinstance(expected, list):
+                    raise ModelInvocationError("schema_invalid", (), b"")
+                candidates = [
+                    {"concept_id": row["concept_id"], "alias_text": row["alias_text"]} for row in expected
+                ]
+            else:
+                seen: set[tuple[str, str]] = set()
+                for block in blocks:
+                    for concept_id in match_concepts(block["text"], self.ontology):
+                        if (concept_id, block["text"]) not in seen:
+                            seen.add((concept_id, block["text"]))
+                            candidates.append({"concept_id": concept_id, "alias_text": block["text"]})
+            first = blocks[0]
+            item = {
+                "unit_id": unit["unit_id"], "type": _mock_requirement_type(unit),
+                "normalized_requirement": first["text"], "mandatory": None, "constraints": [],
+                "concept_candidates": candidates, "unknowns": [],
+                "evidence": [{"source_sha256": unit["source_sha256"], "block_key": first["block_key"],
+                              "quote": first["text"]}],
+            }
+            if v2:
+                item.pop("concept_candidates")
+                item["constraints"] = mock_numeric_constraints(unit)
+            items.append(item)
+        version = "bidops.requirement-extract.v2" if v2 else "bidops.requirement-extract.v1"
+        return {"schema_version": version, "items": items}
+
+    @staticmethod
+    def _role(value: Mapping[str, Any]) -> dict[str, Any]:
+        fits = {row["unit_id"]: row["fit_status"] for row in value["compare"]["items"]}
+        return {
+            "schema_version": "bidops.verdict-role.v1", "role": value["role"],
+            "unit_findings": [
+                {"unit_id": row["unit_id"], "assessment": fits[row["unit_id"]], "reason": _MOCK_ROLE_REASON,
+                 "evidence_refs": row["evidence"]}
+                for row in value["extract"]["items"]
+            ],
+            "cautions": [], "evidence_refs": [],
+        }
+
+
 __all__ = [
     "MAX_MOCK_ROWS",
+    "MOCK_CARD_PROVIDER",
     "MOCK_MODEL_NAME",
     "MockAnalysisClient",
+    "MockCardAnalysisClient",
+    "mock_numeric_constraints",
     "MockOverviewTransport",
 ]

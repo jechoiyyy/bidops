@@ -1596,3 +1596,33 @@ def test_auto_preparation_query_count_does_not_grow_with_the_batch(db_session: S
     assert [outcome.reason for outcome in maybe_auto_prepare(db_session, many)] == [
         "grade_not_priority"
     ] * len(many)
+
+
+def test_worker_once_session_keeps_the_automatic_bundle_after_it_closes(tmp_path: Path):
+    """``main`` runs each poll in ``with SessionLocal() as session`` and closes it.
+
+    The automatic preparation after a terminal fetch must be durable when that
+    session closes -- not left in the read transaction its eligibility queries
+    opened (the bundle work runs on a savepoint of it).
+    """
+
+    engine = make_engine()
+    init_db(engine)
+    try:
+        with Session(engine) as session:
+            notice, attachments = _priority_notice(session, ["제안요청서.pdf"])
+            notice_id = notice.id
+            connector = _responses(session, attachments, [SAFE_PDF.read_bytes()])
+        with Session(engine) as session:  # the worker's per-poll session
+            assert run_once(
+                session, "worker-once", connectors={"g2b": connector},
+                processor=DocumentProcessor(clamav_checker=lambda _content: True), root=tmp_path,
+                notice_id=notice_id,
+            ) is True
+        with Session(engine) as session:
+            bundles = list(session.scalars(select(DocumentBundle).where(DocumentBundle.notice_id == notice_id)))
+            assert [(bundle.revision, bundle.status) for bundle in bundles] == [(1, "ready")]
+            assert session.scalar(select(func.count()).select_from(AuditEvent).where(
+                AuditEvent.action == "document_bundle.auto_confirm")) == 1
+    finally:
+        engine.dispose()

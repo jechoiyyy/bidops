@@ -37,9 +37,8 @@ export function parseRecordTab(value: string | undefined): RecordTab | null {
   return (RECORD_TABS as readonly string[]).includes(value ?? "") ? (value as RecordTab) : null;
 }
 
-/** 후속 기능이 채울 탭의 빈 상태 문장(spec "화면"). */
+/** 후속 기능이 채울 탭의 빈 상태 문장(spec "화면"). 판정 탭은 RL-03이 채웠으므로 여기에 없다. */
 export const RECORD_TAB_EMPTY: Partial<Record<RecordTab, string>> = {
-  verdict: "판정은 분석이 끝나면 여기에 보입니다",
   proposal: "제안서 초안은 판정 뒤 만들 수 있습니다",
   documents: "제출 서류 체크는 준비 중입니다",
   source: "원문은 공고 상세에서 봅니다",
@@ -122,7 +121,7 @@ export function latestNoticeLink(reps: RepresentativeLinks | null): OpportunityL
 // ---------------------------------------------------------------------------
 // 헤더 pill (단계 · 마감 · 판정 · 추적 상태)
 
-export type RecordPillTone = "stage" | "muted" | "warning" | "success";
+export type RecordPillTone = "stage" | "muted" | "warning" | "success" | "error";
 
 export interface RecordPill {
   key: "stage" | "deadline" | "verdict" | "tracking";
@@ -149,11 +148,15 @@ function deadlinePill(reps: RepresentativeLinks, now: Date): RecordPill | null {
 /**
  * 헤더 pill. `reps`가 `null`(활동 응답 로딩·오류)이면 단계·마감·판정 pill을 그리지 않고 추적 상태만
  * 보인다 — 대표 연결을 모르는 동안 다른 연결로 단계나 마감을 짐작하지 않는다.
+ *
+ * 판정 pill은 발주계획만 있으면 "연차 추적", 그 밖에는 서버 판정 view가 준 값(`verdict`: 판정 이름·
+ * 분석 중·사람 검토 필요)이고, 값이 없으면(없음·불러오기 전·오류) "분석 대기"다(RL-03 spec).
  */
 export function recordPills(
   item: OpportunityDetailResponse,
   reps: RepresentativeLinks | null,
   now: Date = new Date(),
+  verdict: { label: string; tone: RecordPillTone } | null = null,
 ): RecordPill[] {
   const pills: RecordPill[] = [];
   if (reps) {
@@ -162,7 +165,11 @@ export function recordPills(
     pills.push({ key: "stage", label: latest ? latest.stage : "단계 미확인", tone: latest ? "stage" : "muted" });
     const deadline = deadlinePill(reps, now);
     if (deadline) pills.push(deadline);
-    pills.push({ key: "verdict", label: orderPlanOnly ? "연차 추적" : "분석 대기", tone: "muted" });
+    pills.push(
+      orderPlanOnly
+        ? { key: "verdict", label: "연차 추적", tone: "muted" }
+        : { key: "verdict", label: verdict?.label ?? "분석 대기", tone: verdict?.tone ?? "muted" },
+    );
   }
   pills.push({
     key: "tracking",
