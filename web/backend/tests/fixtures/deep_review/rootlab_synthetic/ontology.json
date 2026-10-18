@@ -1,0 +1,176 @@
+{
+ "schema_version": "bidops.company-ontology.v1",
+ "version": "bidops.company-ontology.rl-synthetic-v1",
+ "concepts": [
+  {
+   "id": "cap.web-accessibility",
+   "label": "웹접근성",
+   "aliases": [
+    "웹 접근성"
+   ],
+   "kind": "capability"
+  },
+  {
+   "id": "cap.cms",
+   "label": "CMS 구축",
+   "aliases": [
+    "콘텐츠관리시스템 구축"
+   ],
+   "kind": "capability"
+  },
+  {
+   "id": "qual.credit",
+   "label": "신용평가등급",
+   "aliases": [
+    "신용등급"
+   ],
+   "kind": "qualification"
+  },
+  {
+   "id": "qual.branch",
+   "label": "지사",
+   "aliases": [
+    "지점"
+   ],
+   "kind": "qualification"
+  },
+  {
+   "id": "qual.cert",
+   "label": "인증",
+   "aliases": [
+    "인증서"
+   ],
+   "kind": "qualification"
+  },
+  {
+   "id": "domain.homepage",
+   "label": "홈페이지",
+   "aliases": [
+    "누리집"
+   ],
+   "kind": "domain"
+  }
+ ],
+ "relations": [
+  {
+   "type": "has_capability",
+   "from_types": [
+    "company"
+   ],
+   "to_types": [
+    "capability"
+   ],
+   "evidence_required": true
+  },
+  {
+   "type": "uses_technology",
+   "from_types": [
+    "project",
+    "capability"
+   ],
+   "to_types": [
+    "technology"
+   ],
+   "evidence_required": true
+  },
+  {
+   "type": "operates_in",
+   "from_types": [
+    "company",
+    "project"
+   ],
+   "to_types": [
+    "domain"
+   ],
+   "evidence_required": true
+  },
+  {
+   "type": "has_staff",
+   "from_types": [
+    "company"
+   ],
+   "to_types": [
+    "staff_group"
+   ],
+   "evidence_required": true
+  },
+  {
+   "type": "performed",
+   "from_types": [
+    "company"
+   ],
+   "to_types": [
+    "project"
+   ],
+   "evidence_required": true
+  },
+  {
+   "type": "supports_capability",
+   "from_types": [
+    "project",
+    "staff_group"
+   ],
+   "to_types": [
+    "capability"
+   ],
+   "evidence_required": true
+  },
+  {
+   "type": "holds_qualification",
+   "from_types": [
+    "company"
+   ],
+   "to_types": [
+    "qualification"
+   ],
+   "evidence_required": true
+  },
+  {
+   "type": "supported_by",
+   "from_types": [
+    "capability",
+    "company",
+    "domain",
+    "project",
+    "qualification",
+    "requirement",
+    "staff_group",
+    "technology"
+   ],
+   "to_types": [
+    "evidence"
+   ],
+   "evidence_required": true
+  },
+  {
+   "type": "has_requirement",
+   "from_types": [
+    "notice"
+   ],
+   "to_types": [
+    "requirement"
+   ],
+   "evidence_required": true
+  },
+  {
+   "type": "requires_capability",
+   "from_types": [
+    "requirement"
+   ],
+   "to_types": [
+    "capability"
+   ],
+   "evidence_required": true
+  },
+  {
+   "type": "requires_qualification",
+   "from_types": [
+    "requirement"
+   ],
+   "to_types": [
+    "qualification"
+   ],
+   "evidence_required": true
+  }
+ ]
+}

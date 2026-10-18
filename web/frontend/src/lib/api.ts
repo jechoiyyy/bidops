@@ -125,6 +125,13 @@ import type {
   VerdictFeedbackRequest,
   VerdictRequestReceipt,
   PractitionerVerdictView,
+  ProposalEditReceipt,
+  ProposalExportReceipt,
+  ProposalRegenerationReceipt,
+  ProposalRequestReceipt,
+  ProposalSectionKey,
+  ProposalStageReceipt,
+  ProposalView,
   WarningListResponse,
 } from "./types";
 
@@ -687,11 +694,17 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
  * their payload is intentionally not part of the metadata transport model.
  */
 async function requestBlob(path: string): Promise<Blob> {
+  const response = await requestBinary(path, "application/json, application/x-ndjson");
+  return response.blob();
+}
+
+/** 본문을 해석하지 않고 성공 응답을 그대로 돌려준다. 실패는 안전한 `ApiError`로 던진다. */
+async function requestBinary(path: string, accept: string): Promise<Response> {
   let response: Response;
 
   try {
     response = await fetch(`${API_PREFIX}${path}`, {
-      headers: { Accept: "application/json, application/x-ndjson" },
+      headers: { Accept: accept },
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "네트워크 요청에 실패했습니다.";
@@ -719,7 +732,7 @@ async function requestBlob(path: string): Promise<Blob> {
       typeof body === "object" && body !== null && "request_id" in body ? body.request_id : null);
   }
 
-  return response.blob();
+  return response;
 }
 
 function query(params: Record<string, string | number | boolean | readonly string[] | null | undefined>): string {
@@ -1579,6 +1592,86 @@ export const api = {
         body: JSON.stringify(payload),
       },
     ),
+
+  /**
+   * 사업기회의 제안서 초안(RL-04). GET은 생성·모델 호출을 하지 않는 읽기 전용이다. 초안이 없으면
+   * 200 `{draft:null}`이고 `draftId`를 주면 그 초안(대체된 이전 초안 포함)을 본다.
+   */
+  getOpportunityProposal: (
+    opportunityId: number,
+    params: { draftId?: string | null } = {},
+    options?: ReadRequestOptions,
+  ) =>
+    request<ProposalView>(
+      `/opportunities/${opportunityId}/proposal${query({ draft_id: params.draftId })}`,
+      options,
+    ),
+
+  /** 새 초안 요청. 항상 새 draft이며 이전 초안은 `superseded`로 남는다. 같은 `request_id`의 재전송은 같은 접수를 돌려받는다. */
+  requestOpportunityProposal: (opportunityId: number, requestId: string, actorName: string) =>
+    request<ProposalRequestReceipt>(`/opportunities/${opportunityId}/proposal-requests`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...actorHeaders(actorName) },
+      body: JSON.stringify({ request_id: requestId }),
+    }),
+
+  /** 한 절만 새 revision으로 다시 쓴다. 이전 revision은 보존된다. */
+  regenerateProposalSection: (draftId: string, sectionKey: ProposalSectionKey, requestId: string, actorName: string) =>
+    request<ProposalRegenerationReceipt>(
+      `/proposals/${encodeURIComponent(draftId)}/sections/${encodeURIComponent(sectionKey)}/regenerations`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...actorHeaders(actorName) },
+        body: JSON.stringify({ request_id: requestId }),
+      },
+    ),
+
+  /** 절 검토 완료. 완료(`completed`)된 절만 검토 완료로 바뀐다. */
+  reviewProposalSection: (draftId: string, sectionKey: ProposalSectionKey, requestId: string, actorName: string) =>
+    request<unknown>(
+      `/proposals/${encodeURIComponent(draftId)}/sections/${encodeURIComponent(sectionKey)}/review`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", ...actorHeaders(actorName) },
+        body: JSON.stringify({ request_id: requestId }),
+      },
+    ),
+
+  /** 문장 수정(append-only edit). 생성 원문은 바뀌지 않고 화면·PDF가 최신 edit을 덮어 보인다. */
+  editProposalSentence: (draftId: string, sentenceId: string, text: string, requestId: string, actorName: string) =>
+    request<ProposalEditReceipt>(
+      `/proposals/${encodeURIComponent(draftId)}/sentences/${encodeURIComponent(sentenceId)}/edits`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...actorHeaders(actorName) },
+        body: JSON.stringify({ text, request_id: requestId }),
+      },
+    ),
+
+  /** PDF 내보내기 생성. 같은 내용이면 기존 export를 `created=false`로 돌려준다. 내려받기는 `getProposalExportUrl`의 GET이다. */
+  exportProposal: (draftId: string, requestId: string, actorName: string) =>
+    request<ProposalExportReceipt>(`/proposals/${encodeURIComponent(draftId)}/exports`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...actorHeaders(actorName) },
+      body: JSON.stringify({ request_id: requestId }),
+    }),
+
+  /** 내보낸 PDF를 읽는다(부작용 없는 GET). `sha256`은 응답 헤더 `X-BidOps-Export-Sha256`이며 없으면 `null`이다. */
+  getProposalExportPdf: async (draftId: string, exportId: string): Promise<{ blob: Blob; sha256: string | null }> => {
+    const response = await requestBinary(
+      `/proposals/${encodeURIComponent(draftId)}/exports/${encodeURIComponent(exportId)}.pdf`,
+      "application/pdf",
+    );
+    return { blob: await response.blob(), sha256: response.headers.get("X-BidOps-Export-Sha256") };
+  },
+
+  /** 제출 준비로 표시(`reviewed`에서만, 되돌리기 없음). */
+  markProposalReady: (draftId: string, requestId: string, actorName: string) =>
+    request<ProposalStageReceipt>(`/proposals/${encodeURIComponent(draftId)}/stage`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", ...actorHeaders(actorName) },
+      body: JSON.stringify({ stage: "ready", request_id: requestId }),
+    }),
 
   /** Preview the selected plans without creating a decision or receipt. */
   previewOrderPlanTracking: (orderPlanIds: readonly number[], options?: ReadRequestOptions) =>

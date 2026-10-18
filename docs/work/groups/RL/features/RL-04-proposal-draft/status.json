@@ -1,15 +1,15 @@
 {
   "schema_version": 2,
   "feature": "RL-04-proposal-draft",
-  "phase": "implementing",
+  "phase": "validating",
   "steps": [
     {
       "id": "STEP-001",
       "title": "정책·schema·runner contract·의존",
       "model": "complex",
       "fingerprint": "f6531b4d282edc11437dc4ee7b31cacb078e254db763922531f5f8e7f7818bdf",
-      "status": "stale",
-      "updated_at": null,
+      "status": "done",
+      "updated_at": "2026-10-18T09:21:36+09:00",
       "history": [
         {
           "id": "STEP-001",
@@ -19,15 +19,16 @@
           "status": "pending",
           "updated_at": null
         }
-      ]
+      ],
+      "note": "policy sha 0eb36cf9…, section schema 807a743f…, input schema c7ed9c4a…; reportlab 5.0.1+pillow 12.3.0+charset-normalizer 3.5.2(B42); 검증 SQLite 209·PG 258"
     },
     {
       "id": "STEP-002",
       "title": "저장 테이블·권한",
       "model": "standard",
       "fingerprint": "e33c55058db7903458d3f18d45dfad6bebf9c3a0ae552501d766c208f0423af4",
-      "status": "stale",
-      "updated_at": null,
+      "status": "done",
+      "updated_at": "2026-10-18T09:21:36+09:00",
       "history": [
         {
           "id": "STEP-002",
@@ -37,31 +38,34 @@
           "status": "pending",
           "updated_at": null
         }
-      ]
+      ],
+      "note": "migration 0041_proposal_draft, 4 테이블·trigger·열 단위 GRANT, DELETE 없음; spec 모순 2건 B41로 정정; 검증 PG 258"
     },
     {
       "id": "STEP-003",
       "title": "입력 조립·payload 검사",
       "model": "complex",
       "fingerprint": "3c6bbae81b9031c4aa95935e8be3a368f3029a5057fb25c5c878a8c5538ba018",
-      "status": "pending",
-      "updated_at": null
+      "status": "done",
+      "updated_at": "2026-10-18T09:38:35+09:00",
+      "note": "proposal_input.py·transfer_policy proposal 경로·합성 fixture; 검증 SQLite 292·PG 98(B44)"
     },
     {
       "id": "STEP-004",
       "title": "문장 검증·커버리지",
       "model": "complex",
       "fingerprint": "eca9df2e061ebc719bc9c1f4770bb3cf1d682808296f14dfd1acfcf65f9e9e8a",
-      "status": "pending",
-      "updated_at": null
+      "status": "done",
+      "updated_at": "2026-10-18T09:30:43+09:00",
+      "note": "proposal_validation.py T2·T3 54건, 예외는 공고 출처만(B43); 검증 88 passed"
     },
     {
       "id": "STEP-005",
       "title": "생성 service·전용 worker·gate",
       "model": "complex",
       "fingerprint": "0792c2f30cae217c8dac9e8abda6a41a0efc54df7eda211c4b02741076e942e6",
-      "status": "stale",
-      "updated_at": null,
+      "status": "done",
+      "updated_at": "2026-10-18T10:05:46+09:00",
       "history": [
         {
           "id": "STEP-005",
@@ -71,15 +75,16 @@
           "status": "pending",
           "updated_at": null
         }
-      ]
+      ],
+      "note": "proposal_draft·proposal_worker·mock_proposal_client·workers/proposal, 0041 trigger 좁힘(B45); 검증 SQLite 225·PG 343"
     },
     {
       "id": "STEP-006",
       "title": "REST·overlay·review",
       "model": "complex",
       "fingerprint": "9109e5d7db62dcb6d1563d555d06d973d8a6718064d0b82ee0635592800606b4",
-      "status": "stale",
-      "updated_at": null,
+      "status": "done",
+      "updated_at": "2026-10-18T10:21:47+09:00",
       "history": [
         {
           "id": "STEP-006",
@@ -89,15 +94,16 @@
           "status": "pending",
           "updated_at": null
         }
-      ]
+      ],
+      "note": "REST 8·overlay·review/stage·export seam·draft_prepared(B46); 검증 SQLite 168·PG 207"
     },
     {
       "id": "STEP-007",
       "title": "PDF 렌더",
       "model": "complex",
       "fingerprint": "99e370efb7b076bcd281a66c2a4d555ee53ee5f9a1826d6c9b194e2b1a3ea8ab",
-      "status": "stale",
-      "updated_at": null,
+      "status": "done",
+      "updated_at": "2026-10-18T10:59:17+09:00",
       "history": [
         {
           "id": "STEP-007",
@@ -107,43 +113,106 @@
           "status": "pending",
           "updated_at": null
         }
-      ]
+      ],
+      "note": "proposal_render(invariant=1, NanumGothic, renderer_identity reportlab==5.0.1/font fb489db5…), proposal-pdf namespace·키 2(B48·B49); 검증 SQLite 96·PG 120(scratch 폰트)"
     },
     {
       "id": "STEP-008",
       "title": "화면",
       "model": "standard",
       "fingerprint": "e6a5511fdbc322b56cec3bdce00099ad50bd929475369653dbf9dcbda8dba6ac",
-      "status": "pending",
-      "updated_at": null
+      "status": "done",
+      "updated_at": "2026-10-18T10:29:35+09:00",
+      "note": "제안서 탭·절 탭·문장 편집·검토·PDF 흐름; build 0, Playwright proposal·record·verdict·common 102 passed, contrast 8(B47 테스트 경쟁 수정)"
     },
     {
       "id": "STEP-009",
       "title": "문서·mock·실제 1건",
       "model": "complex",
       "fingerprint": "a3d12c65f44460460c48f4fd3d9ad5c2a249ced554b20fb9098ddf475303ca3a",
-      "status": "pending",
-      "updated_at": null
+      "status": "done",
+      "updated_at": "2026-10-18T11:07:25+09:00",
+      "note": "문서 7종+spec 머리말; T10 mock 전 경로 bidops_rla_t11 통과(draft 38fc8ce5…, export 1e874282… 재사용·편집 후 새 export, 전송 감사 0); T11 실제 초안 pending(B37)"
     }
   ],
   "proof": {
     "docs": {
-      "result": "pending"
+      "result": "pass",
+      "method": "review",
+      "note": "doctor 0; 문서 7종(contracts·business-rules·operations·tech-stack·ui-spec·ADR·ARCHITECTURE)+spec 머리말을 독립 리뷰가 코드와 대조, 차단 해소",
+      "evidence": "docs/work/_runs/rlb-20261017/logs/RL-04-proof-docs.log; decisions.md B50(RL-04+배치 최종 독립 리뷰: 차단 2 해소)",
+      "exit_code": null,
+      "actor": "orchestrator",
+      "command": "python3 scripts/feature_status.py doctor _",
+      "at": "2026-10-18T11:29:16+09:00",
+      "head": "9ae53ecbe1607d50f823e8404f59ccb47e75a96a",
+      "source_hash": "3ff4b4f112e44ac019c3bba969e66d3b8dc7f5e41939f0b94c974befbb58dd70",
+      "spec_hash": "485e5be98ffb32eae4f1a240cfa9893f76a7429507d361cff6fb70df193f6bbc"
     },
     "tests": {
-      "result": "pending"
+      "result": "pass",
+      "method": "command",
+      "note": "plan tests + 입력·초안·mock·전송 정책·runtime contract·object store, BIDOPS_PDF_FONT_DIR=이미지에서 복사한 NanumGothic(저장소 밖): 206 passed, 33 skip(PG 변형 32 + 컨테이너 전용 lock 1)",
+      "evidence": "docs/work/_runs/rlb-20261017/logs/RL-04-proof-tests.log",
+      "exit_code": 0,
+      "actor": "orchestrator",
+      "command": "bash -lc \"cd web/backend && python -m pytest -q -x -p no:cacheprovider\"",
+      "at": "2026-10-18T11:29:15+09:00",
+      "head": "9ae53ecbe1607d50f823e8404f59ccb47e75a96a",
+      "source_hash": "3ff4b4f112e44ac019c3bba969e66d3b8dc7f5e41939f0b94c974befbb58dd70",
+      "spec_hash": "485e5be98ffb32eae4f1a240cfa9893f76a7429507d361cff6fb70df193f6bbc"
     },
     "postgres": {
-      "result": "pending"
+      "result": "pass",
+      "method": "command",
+      "note": "postgres:17.11: proposal_api·proposal_draft·migrations·privileges·alembic drift 122 passed",
+      "evidence": "docs/work/_runs/rlb-20261017/logs/RL-04-proof-postgres.log",
+      "exit_code": 0,
+      "actor": "orchestrator",
+      "command": "",
+      "at": "2026-10-18T11:29:16+09:00",
+      "head": "9ae53ecbe1607d50f823e8404f59ccb47e75a96a",
+      "source_hash": "3ff4b4f112e44ac019c3bba969e66d3b8dc7f5e41939f0b94c974befbb58dd70",
+      "spec_hash": "485e5be98ffb32eae4f1a240cfa9893f76a7429507d361cff6fb70df193f6bbc"
     },
     "frontend": {
-      "result": "pending"
+      "result": "pass",
+      "method": "command",
+      "note": "build 0, Playwright app proposal·record·verdict·common 102 passed(vite preview 127.0.0.1), contrast 0",
+      "evidence": "docs/work/_runs/rlb-20261017/logs/RL-04-proof-frontend.log",
+      "exit_code": 0,
+      "actor": "orchestrator",
+      "command": "bash -lc \"cd web/frontend && npm run build && npm run test:contrast\"",
+      "at": "2026-10-18T11:29:16+09:00",
+      "head": "9ae53ecbe1607d50f823e8404f59ccb47e75a96a",
+      "source_hash": "3ff4b4f112e44ac019c3bba969e66d3b8dc7f5e41939f0b94c974befbb58dd70",
+      "spec_hash": "485e5be98ffb32eae4f1a240cfa9893f76a7429507d361cff6fb70df193f6bbc"
     },
     "api_guard": {
-      "result": "pending"
+      "result": "pass",
+      "method": "command",
+      "note": "PG: T4 gate·cap(6/1, mock 제외)·감사 순서·endpoint 검사, T9 8키 payload guard·합성 fixture 52 passed, skip 0",
+      "evidence": "docs/work/_runs/rlb-20261017/logs/RL-04-proof-api-guard.log",
+      "exit_code": 0,
+      "actor": "orchestrator",
+      "command": "",
+      "at": "2026-10-18T11:29:16+09:00",
+      "head": "9ae53ecbe1607d50f823e8404f59ccb47e75a96a",
+      "source_hash": "3ff4b4f112e44ac019c3bba969e66d3b8dc7f5e41939f0b94c974befbb58dd70",
+      "spec_hash": "485e5be98ffb32eae4f1a240cfa9893f76a7429507d361cff6fb70df193f6bbc"
     },
     "real_data_run": {
-      "result": "pending"
+      "result": "pending",
+      "method": "manual",
+      "note": "T11 실제 초안: RL-03 T12 실제 판정 없음(B37)으로 보류. T10 mock 전 경로는 통과(mock_reference, T11 대체 아님)",
+      "evidence": "docs/validation-runs/2026-10-17-rl/RL-04/README.md",
+      "exit_code": null,
+      "actor": "orchestrator",
+      "command": "",
+      "at": "2026-10-18T11:29:16+09:00",
+      "head": "9ae53ecbe1607d50f823e8404f59ccb47e75a96a",
+      "source_hash": "3ff4b4f112e44ac019c3bba969e66d3b8dc7f5e41939f0b94c974befbb58dd70",
+      "spec_hash": "485e5be98ffb32eae4f1a240cfa9893f76a7429507d361cff6fb70df193f6bbc"
     }
   },
   "notes": [
@@ -166,7 +235,121 @@
     {
       "at": "2026-10-18T09:04:12+09:00",
       "text": "단계 → implementing"
+    },
+    {
+      "at": "2026-10-18T09:04:33+09:00",
+      "text": "단계 STEP-001 in_progress: "
+    },
+    {
+      "at": "2026-10-18T09:04:33+09:00",
+      "text": "단계 STEP-002 in_progress: "
+    },
+    {
+      "at": "2026-10-18T09:21:36+09:00",
+      "text": "단계 STEP-001 done: policy sha 0eb36cf9…, section schema 807a743f…, input schema c7ed9c4a…; reportlab 5.0.1+pillow 12.3.0+charset-normalizer 3.5.2(B42); 검증 SQLite 209·PG 258"
+    },
+    {
+      "at": "2026-10-18T09:21:36+09:00",
+      "text": "단계 STEP-002 done: migration 0041_proposal_draft, 4 테이블·trigger·열 단위 GRANT, DELETE 없음; spec 모순 2건 B41로 정정; 검증 PG 258"
+    },
+    {
+      "at": "2026-10-18T09:21:37+09:00",
+      "text": "단계 STEP-003 in_progress: "
+    },
+    {
+      "at": "2026-10-18T09:22:07+09:00",
+      "text": "단계 STEP-004 in_progress: "
+    },
+    {
+      "at": "2026-10-18T09:30:43+09:00",
+      "text": "단계 STEP-004 done: proposal_validation.py T2·T3 54건, 예외는 공고 출처만(B43); 검증 88 passed"
+    },
+    {
+      "at": "2026-10-18T09:38:35+09:00",
+      "text": "단계 STEP-003 done: proposal_input.py·transfer_policy proposal 경로·합성 fixture; 검증 SQLite 292·PG 98(B44)"
+    },
+    {
+      "at": "2026-10-18T09:38:35+09:00",
+      "text": "단계 STEP-005 in_progress: "
+    },
+    {
+      "at": "2026-10-18T10:05:46+09:00",
+      "text": "단계 STEP-005 done: proposal_draft·proposal_worker·mock_proposal_client·workers/proposal, 0041 trigger 좁힘(B45); 검증 SQLite 225·PG 343"
+    },
+    {
+      "at": "2026-10-18T10:05:46+09:00",
+      "text": "단계 STEP-006 in_progress: "
+    },
+    {
+      "at": "2026-10-18T10:05:46+09:00",
+      "text": "단계 STEP-008 in_progress: "
+    },
+    {
+      "at": "2026-10-18T10:21:47+09:00",
+      "text": "단계 STEP-006 done: REST 8·overlay·review/stage·export seam·draft_prepared(B46); 검증 SQLite 168·PG 207"
+    },
+    {
+      "at": "2026-10-18T10:21:47+09:00",
+      "text": "단계 STEP-007 in_progress: "
+    },
+    {
+      "at": "2026-10-18T10:29:35+09:00",
+      "text": "단계 STEP-008 done: 제안서 탭·절 탭·문장 편집·검토·PDF 흐름; build 0, Playwright proposal·record·verdict·common 102 passed, contrast 8(B47 테스트 경쟁 수정)"
+    },
+    {
+      "at": "2026-10-18T10:59:17+09:00",
+      "text": "단계 STEP-007 done: proposal_render(invariant=1, NanumGothic, renderer_identity reportlab==5.0.1/font fb489db5…), proposal-pdf namespace·키 2(B48·B49); 검증 SQLite 96·PG 120(scratch 폰트)"
+    },
+    {
+      "at": "2026-10-18T10:59:17+09:00",
+      "text": "단계 STEP-009 in_progress: "
+    },
+    {
+      "at": "2026-10-18T11:07:25+09:00",
+      "text": "단계 STEP-009 done: 문서 7종+spec 머리말; T10 mock 전 경로 bidops_rla_t11 통과(draft 38fc8ce5…, export 1e874282… 재사용·편집 후 새 export, 전송 감사 0); T11 실제 초안 pending(B37)"
+    },
+    {
+      "at": "2026-10-18T11:29:39+09:00",
+      "text": "단계 → validating"
     }
   ],
-  "updated_at": "2026-10-18T09:04:12+09:00"
+  "updated_at": "2026-10-18T11:29:39+09:00",
+  "proof_history": [
+    {
+      "key": "tests",
+      "previous": {
+        "result": "pending"
+      }
+    },
+    {
+      "key": "postgres",
+      "previous": {
+        "result": "pending"
+      }
+    },
+    {
+      "key": "frontend",
+      "previous": {
+        "result": "pending"
+      }
+    },
+    {
+      "key": "api_guard",
+      "previous": {
+        "result": "pending"
+      }
+    },
+    {
+      "key": "docs",
+      "previous": {
+        "result": "pending"
+      }
+    },
+    {
+      "key": "real_data_run",
+      "previous": {
+        "result": "pending"
+      }
+    }
+  ]
 }

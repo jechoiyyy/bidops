@@ -580,6 +580,42 @@ GRANT INSERT ON TABLE
     bidops.deep_review_approval
 TO worker;
 
+-- RL-04 proposal draft (0041, spec "저장" 권한 행렬). The web process creates the
+-- draft and every queued section row (generation, regeneration), appends sentence
+-- edits and PDF exports, supersedes a draft, advances the review stages and marks
+-- a completed section reviewed. The worker never creates rows: it claims the
+-- queued sections and advances the draft status and the toc -> draft stage, and
+-- fills each section result column once (the trigger rejects any rewrite).
+-- Edits and exports are append-only. No role may delete any of the four tables;
+-- ro_backup reads them through the schema-wide SELECT grant above.
+GRANT SELECT ON TABLE
+    bidops.proposal_draft,
+    bidops.proposal_section,
+    bidops.proposal_sentence_edit,
+    bidops.proposal_export
+TO app;
+GRANT SELECT ON TABLE
+    bidops.proposal_draft,
+    bidops.proposal_section,
+    bidops.proposal_sentence_edit,
+    bidops.proposal_export
+TO worker;
+GRANT INSERT ON TABLE
+    bidops.proposal_draft,
+    bidops.proposal_section,
+    bidops.proposal_sentence_edit,
+    bidops.proposal_export
+TO app;
+GRANT UPDATE (stage, status) ON bidops.proposal_draft TO app;
+-- stage: the spec prose lets the worker advance toc -> draft when the first
+-- section completes (the trigger limits the worker to that one step).
+GRANT UPDATE (status, stage, started_at, completed_at) ON bidops.proposal_draft TO worker;
+GRANT UPDATE (status, reviewed_by, reviewed_at) ON bidops.proposal_section TO app;
+GRANT UPDATE (
+    status, input_sha256, result_sha256, payload, error_code,
+    prompt_tokens, output_tokens, latency_ms, completed_at
+) ON bidops.proposal_section TO worker;
+
 COMMIT;
 
 -- Assumption analyses reuse the queue but preserve independent immutable consent/results.

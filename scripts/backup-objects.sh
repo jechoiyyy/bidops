@@ -6,7 +6,7 @@ set -euo pipefail
 mkdir -p "$OBJECT_BACKUP_DIR"
 manifest="$OBJECT_BACKUP_DIR/object-versions.tsv"
 : > "$manifest"
-for bucket in bidops-source bidops-structure bidops-quarantine bidops-model-response; do
+for bucket in bidops-source bidops-structure bidops-quarantine bidops-model-response bidops-proposal-pdf; do
   namespace="${bucket#bidops-}"
   # This pinned mc has no mirror --versions flag. Enumerate every immutable
   # version explicitly, copy it under a version-qualified backup filename, and

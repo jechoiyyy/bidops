@@ -17,6 +17,8 @@ import { ActivityFeed } from "../components/record/ActivityFeed";
 import { AttributeList } from "../components/record/AttributeList";
 import { COMPOSER_ACTOR_ID, Composer } from "../components/record/Composer";
 import { NextActions } from "../components/record/NextActions";
+import { ProposalSidebar } from "../components/proposal/ProposalSidebar";
+import { useProposalController } from "../components/proposal/useProposalController";
 import { RecordHeader, type RecordMenuAction, type VerdictMenuAction } from "../components/record/RecordHeader";
 import { StageBar } from "../components/record/StageBar";
 import { usePublishRecordTitle } from "../components/shell/RecordTitleContext";
@@ -24,6 +26,7 @@ import { FeedbackDialog } from "../components/verdict/FeedbackDialog";
 import { RunInfoDialog } from "../components/verdict/RunInfoDialog";
 import { VerdictRequestDialog } from "../components/verdict/VerdictRequestDialog";
 import { VerdictSummary } from "../components/verdict/VerdictSummary";
+import { OpportunityProposalTab, PROPOSAL_ACTOR_ID } from "./OpportunityProposalTab";
 import { OpportunityVerdictTab } from "./OpportunityVerdictTab";
 import { ApiError, api } from "../lib/api";
 import { describeApiError, type ApiErrorDescription } from "../lib/apiErrors";
@@ -51,6 +54,7 @@ import type {
   RelatedNoticeRelation,
   VerdictFeedbackKind,
 } from "../lib/types";
+import { exportBlockedReason, readyBlockedReason, regenerateDraftBlockedReason } from "../lib/proposal";
 import { hasVerdictResult, headerVerdictPill, isVerdictActive, requirementText } from "../lib/verdict";
 import "../styles/opportunities-relaxed.css";
 import "../styles/opportunity-record.css";
@@ -60,8 +64,9 @@ import "../styles/opportunity-record.css";
  *
  * 헤더(단계·마감·판정·추적 pill, 액션) · 탭 줄 · 좌측 정보(속성 8개·다음 행동·제출 서류) · 중앙
  * (활동 탭: 단계 바 → 작성기 → 활동 피드). 판정 탭(RL-03)은 서버 판정 view를 읽어 좌측을 판정
- * 요약으로 바꾸고 중앙에 요구사항 표·원문 패널을 둔다. 제안서·서류 탭은 후속 기능(RL-04)이 채울
- * 자리라 빈 상태 문장만 둔다.
+ * 요약으로 바꾸고 중앙에 요구사항 표·원문 패널을 둔다. 제안서 탭(RL-04)은 서버 초안 view를 읽어 초안이
+ * 있으면 좌측을 단계·숫자·채워야 할 것으로 바꾸고 중앙에 절 탭·본문·요구사항 표를 둔다. 서류 탭은 후속
+ * 기능이 채울 자리라 빈 상태 문장만 둔다.
  *
  * 이 화면은 값을 계산하지 않는다. 단계 6개·레코드 제목·활동 항목은 활동 응답이 주고, 연결·추적
  * 상태는 사업기회 응답이 주며, 금액·계약방법 같은 공고 사실은 공고 응답이 준다. 추적 상태 변경·
@@ -70,6 +75,7 @@ import "../styles/opportunity-record.css";
  */
 
 const FEED_LIMIT = 50;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ACTION_EVENT_KINDS: readonly OpportunityActivityKind[] = ["action_added", "action_done"];
 const ACTION_EVENT_LIMIT = 200;
 /** 분석 중(pending·running)인 판정을 다시 읽는 간격. */
@@ -210,10 +216,38 @@ function OpportunityRecord({ opportunityId, tab }: { opportunityId: number; tab:
   const [actorName, setActorName] = useState("");
   const [actorMissing, setActorMissing] = useState(false);
   const [noteProblem, setNoteProblem] = useState<ApiErrorDescription | null>(null);
+  // 제안서 탭의 기록자 이름 칸(노트 작성기와 같은 이름 상태를 쓰되 누락 안내는 따로 둔다).
+  const [proposalActorMissing, setProposalActorMissing] = useState(false);
   const [pendingNoteId, setPendingNoteId] = useState<string | null>(null);
   const noteLock = useRef(false);
   /** 같은 입력의 재전송은 같은 요청 식별자를 쓴다(응답을 잃은 저장이 중복되지 않게). */
   const pendingRequest = useRef<{ fingerprint: string; requestId: string } | null>(null);
+
+  // 제안서 초안(RL-04). 헤더 액션과 제안서 탭이 같은 초안·조작 규칙을 읽는다. `?draft_id=`는 이전 초안을 연다.
+  const draftIdParam = useMemo(() => {
+    const value = new URLSearchParams(location.search).get("draft_id");
+    return value && UUID_PATTERN.test(value) ? value : null;
+  }, [location.search]);
+  const showLatestProposal = useCallback(() => {
+    const params = new URLSearchParams(location.search);
+    params.delete("draft_id");
+    const search = params.toString();
+    navigate({ pathname: location.pathname, search: search ? `?${search}` : "" }, { replace: true });
+  }, [location.pathname, location.search, navigate]);
+  const onProposalActorMissing = useCallback(() => {
+    setProposalActorMissing(true);
+    document.getElementById(PROPOSAL_ACTOR_ID)?.focus();
+  }, []);
+  const proposal = useProposalController({
+    opportunityId,
+    enabled: tab === "proposal",
+    draftId: draftIdParam,
+    actorName,
+    onActorMissing: onProposalActorMissing,
+    showToast,
+    onCreated: showLatestProposal,
+  });
+  const proposalDirty = useCallback((dirty: boolean) => setSourceDirty("proposal", dirty), [setSourceDirty]);
 
   const composerDirty = body.trim().length > 0;
   const dirty = composerDirty || Object.values(dirtySources).some(Boolean);
@@ -390,6 +424,14 @@ function OpportunityRecord({ opportunityId, tab }: { opportunityId: number; tab:
     if (action === "verdict-run-info") setVerdictDialog({ kind: "run-info" });
     else setVerdictDialog({ kind: "feedback", unit: null, initialKind: "wrong_verdict" });
   };
+  // 제안서 탭 헤더 액션(RL-04). 초안을 읽는 동안·읽지 못했을 때는 서버 상태를 모르므로 열지 않는다.
+  const proposalLoadReason = proposal.query.isPending
+    ? "초안을 불러오는 중입니다"
+    : proposal.query.isError
+      ? "초안을 불러오지 못했습니다"
+      : null;
+  const proposalBusy = proposal.pending !== null;
+  const verdictCompleted = hasVerdictResult(verdictView);
   const afterVerdictRequested = () => {
     setVerdictDialog(null);
     showToast("판정을 요청했습니다. 분석이 끝나면 이 탭에 결과가 보입니다.");
@@ -428,6 +470,18 @@ function OpportunityRecord({ opportunityId, tab }: { opportunityId: number; tab:
           feedbackBlockedReason: hasFeedbackTarget ? null : "제보할 판정이 없습니다",
           runInfoBlockedReason: verdictView?.identity ? null : "표시할 실행 정보가 없습니다",
           onVerdictMenu,
+          proposalBlockedReason: verdictCompleted ? null : "아직 판정이 없습니다",
+          onOpenProposal: () => goTab("proposal"),
+        }}
+        proposal={{
+          onProposalTab: tab === "proposal",
+          exportBlockedReason: proposalLoadReason ?? exportBlockedReason(proposal.draft, proposalBusy),
+          exportPending: proposal.pending === "export",
+          onExport: () => { void proposal.exportPdf(); },
+          regenerateBlockedReason: proposalLoadReason ?? regenerateDraftBlockedReason(proposal.draft, verdictCompleted, proposalBusy),
+          onRegenerate: () => proposal.openConfirm({ kind: "create" }),
+          readyBlockedReason: proposalLoadReason ?? readyBlockedReason(proposal.draft, proposalBusy),
+          onReady: () => proposal.openConfirm({ kind: "ready" }),
         }}
       />
 
@@ -460,6 +514,10 @@ function OpportunityRecord({ opportunityId, tab }: { opportunityId: number; tab:
         {tab === "verdict" && verdictView?.availability === "completed" && verdictView.result ? (
           <aside aria-label="판정 요약" className="rec-side">
             <VerdictSummary result={verdictView.result} />
+          </aside>
+        ) : tab === "proposal" && proposal.draft ? (
+          <aside aria-label="초안 상태" className="rec-side">
+            <ProposalSidebar draft={proposal.draft} />
           </aside>
         ) : (
           <aside aria-label="사업 정보" className="rec-side">
@@ -529,7 +587,21 @@ function OpportunityRecord({ opportunityId, tab }: { opportunityId: number; tab:
             />
           ) : null}
 
-          {tab === "proposal" || tab === "documents" ? (
+          {tab === "proposal" ? (
+            <OpportunityProposalTab
+              actorMissing={proposalActorMissing}
+              actorName={actorName}
+              controller={proposal}
+              onActorChange={(value) => { setActorName(value); if (value.trim()) setProposalActorMissing(false); }}
+              onDirtyChange={proposalDirty}
+              onShowLatest={showLatestProposal}
+              verdictCompleted={verdictCompleted}
+              verdictView={verdictView}
+              viewingDraftId={draftIdParam}
+            />
+          ) : null}
+
+          {tab === "documents" ? (
             <EmptyState compact title={RECORD_TAB_EMPTY[tab] ?? ""} />
           ) : null}
 

@@ -17,6 +17,7 @@ from app.deep_review.models import (
     DOCUMENT_SEGMENT_TABLES,
     PRESPEC_OVERVIEW_TABLES,
     PRESPEC_V4_TABLES,
+    PROPOSAL_TABLES,
 )
 from app.lifecycle.models import (
     BRIEFING_TABLES,
@@ -66,6 +67,8 @@ EXPECTED_TABLES = set(
     + OPPORTUNITY_NOTE_TABLES
     # RL-03 card analysis (0040).
     + CARD_ANALYSIS_TABLES
+    # RL-04 proposal draft (0041).
+    + PROPOSAL_TABLES
 )
 
 
@@ -220,5 +223,64 @@ def test_card_analysis_orm_guards_match_the_append_only_contract():
             session.rollback()
             session.delete(row)
             with pytest.raises(ValueError, match="append-only"):
+                session.flush()
+            session.rollback()
+
+
+def test_proposal_orm_guards_match_the_storage_contract():
+    """RL-04 0041: no deletes, append-only edits/exports, section results written once (ORM side)."""
+
+    from uuid import uuid4
+
+    from app.deep_review.models import (
+        ProposalDraft,
+        ProposalExport,
+        ProposalSection,
+        ProposalSentenceEdit,
+    )
+
+    test_engine = make_test_engine()
+    init_db(test_engine)
+    with Session(test_engine) as session:
+        draft = ProposalDraft(
+            opportunity_id=1, notice_id=1, verdict_attempt_id=uuid4(), policy_version_id=uuid4(),
+            policy_sha256="a" * 64, approval_id=uuid4(), status="queued", stage="toc",
+            created_by="jechoi",
+        )
+        session.add(draft)
+        session.flush()
+        section = ProposalSection(draft_id=draft.id, section_key="overview", revision=1, status="queued")
+        session.add(section)
+        session.flush()
+        edit = ProposalSentenceEdit(section_id=section.id, sentence_id=uuid4(), text="고친 문장",
+                                    actor="jechoi", request_id=uuid4())
+        export = ProposalExport(draft_id=draft.id, overlay_sha256="b" * 64, renderer_version="reportlab==4.2.0",
+                                font_sha256="c" * 64, content_object_id=uuid4(), pdf_sha256="d" * 64,
+                                page_count=2, created_by="jechoi")
+        session.add_all([edit, export])
+        session.commit()
+
+        # Draft/section status and the first fill of the result columns are ordinary updates.
+        section.status = "running"
+        session.commit()
+        section.status, section.result_sha256, section.payload = "completed", "e" * 64, {"paragraphs": []}
+        session.commit()
+        # Result columns are written once; identity never moves.
+        section.payload = {"paragraphs": [1]}
+        with pytest.raises(ValueError, match="written once"):
+            session.flush()
+        session.rollback()
+        section.revision = 2
+        with pytest.raises(ValueError, match="identity is immutable"):
+            session.flush()
+        session.rollback()
+        for row in (edit, export):
+            row.created_at = datetime(2026, 10, 17, tzinfo=timezone.utc)
+            with pytest.raises(ValueError, match="append-only"):
+                session.flush()
+            session.rollback()
+        for row in (edit, export, section, draft):
+            session.delete(row)
+            with pytest.raises(ValueError, match="append-only|never deleted"):
                 session.flush()
             session.rollback()

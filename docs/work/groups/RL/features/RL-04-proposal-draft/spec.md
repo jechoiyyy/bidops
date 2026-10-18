@@ -3,6 +3,7 @@
 - 기능 ID: `RL-04-proposal-draft`
 - 근거: [intent.md](./intent.md), RL-03 spec(전송 승인·unit·compare·verdict·gate 순서·cap·감사), RL-00 spec(사실 노드), RL-02 spec(hook·탭), bid-procedure §4·§5, ui-spec §3·§4.5, ux-review §5 결정 5·6
 - 작성일: 2026-10-16 (같은 날 독립 검사 1차 20건 반영; 2026-10-17 배치 B 인터뷰 D2·D3·D4·D9·D10·D11·D12와 v2 fixture 대조 정정 반영 — [batch-b-interview.md](../../batch-b-interview.md))
+- 구현 상태(2026-10-18): STEP-001~009 구현·mock 검증(`quality_status=mock_reference`) 완료, 결정 B41~B49(`docs/work/_runs/rlb-20261017/decisions.md`). **T11(실제 Luna 초안 1건)은 pending**이다 — 입력이 되는 RL-03 T12 실제 판정이 아직 없다(결정 B37, [findings "RL-03 카드 판정은 제약 하나의 검증 실패로 판정 전체가 사람 검토로 끝난다"](../../../../../tracking/findings.md#rl-03-카드-판정은-제약-하나의-검증-실패로-판정-전체가-사람-검토로-끝난다-2026-10-18-미해결)). 실제 초안은 RL-03 실제 판정이 completed가 된 뒤 사람 확인을 받고 진행한다.
 
 ## 큰 틀 문서와의 관계
 
@@ -48,7 +49,7 @@ Source = { kind: requirement_unit|company_fact|notice_meta, ref: string(unit_id 
 - 입력 예산: contract `proposal-section-v1`의 prompt 상한 120,000자(`luna_client` 집합에 등록). `requirements` 절 입력이 넘치면 **분할하지 않고** 절 `failed`·`input_budget_exceeded`(호출 수 6 고정). 사람은 다른 절을 검토하고 requirements 절은 사람 검토로 남는다.
 - 전송 승인: RL-03 `transfer_policy_approval` 행을 **이 정책 sha로 별도 발행**(`scope.purposes=["proposal"]`, `daily_cap` 기본 3 = 초안 생성 수; 절 재생성은 1/6로 센다 → 정수화: 하루 호출 상한 = cap×6 호출). gate 순서는 RL-03과 같다.
 - 입력 `bidops.proposal-input.v1` 키 전체: `{schema_version, purpose:"proposal", execution_nonce, draft_id, opportunity_id, notice_id, verdict_attempt_id, verdict_input_sha256, company_binding(RL-03과 동일 구조), policy_sha256, model_name, reasoning_effort, section_key, notice_meta:{title,agency,deadline_at,method,estimated_price}, units:[RL-03 unit 중 이 절 입력], compares:[해당 unit의 Compare], verdict:{verdict, reason, checklist}, company_facts:[{fact_key,type,label,value}](confirmed만), missing_facts:[{fact_key,status}], toc_reference:[§5 해당 장·절 제목]}`. 노트 본문·`proposed`/`unknown` 값·운영 정보 금지(T9 payload 검사). 위 키 전체는 동결 입력(`input_sha256` 대상)이고, Luna로 나가는 payload는 그중 `section_key`·`notice_meta`·`units`·`compares`·`verdict`·`company_facts`·`missing_facts`·`toc_reference`만 담는다. 나머지 identity·운영 키(`execution_nonce`·`draft_id`·`opportunity_id`·`notice_id`·`verdict_attempt_id`·`verdict_input_sha256`·`company_binding`·`policy_sha256`·`model_name`·`reasoning_effort`)는 보내지 않는다(2026-10-17 인터뷰 D2 "운영 정보·모델/정책 id 제외"). `input_sha256`은 canonical JSON SHA, 절마다 다르다.
-- 호출 수 = 6(+repair ≤ 6; cap 계산에 repair는 넣지 않는다 — 초안 1건 = cap 1, 절 재생성 = cap 1/6). 절 단위 실행은 **기존 `DeepReviewAttempt`를 쓰지 않는다**: `assumption_analysis` 패턴대로 WorkJob `job_type="proposal_section"`, `aggregate_type="proposal_section"`, aggregate_id=`proposal_section.id`, 절당 job 1개(초안 생성은 6 job을 한 transaction에서 queued로 만든다), 전용 `workers/proposal.py`의 `run_once`가 공용 슬롯 규칙(analysis worker 1 슬롯)을 그대로 따른다. `draft_in_progress` = 그 opportunity의 draft가 `queued|running`; `section_in_progress` = 그 절의 최신 revision이 `queued|running`(web이 queued 행을 INSERT하므로 판정 가능). `review_timeout_seconds=5400`은 draft 단위(첫 job claim부터 단조 시계), 초과 시 남은 job은 `failed·proposal_review_timeout`. 절 하나 실패해도 다른 절은 보존. draft `status`는 worker가 마지막 job 종료 시 갱신: 6절 모두 completed → `completed`, 하나라도 failed → `partial`(사람 검토).
+- 호출 수 = 6(+repair ≤ 6; cap 계산에 repair는 넣지 않는다 — 초안 1건 = cap 1, 절 재생성 = cap 1/6). 절 단위 실행은 **기존 `DeepReviewAttempt`를 쓰지 않는다**: `assumption_analysis` 패턴대로 WorkJob `job_type="proposal_section"`, `aggregate_type="proposal_section"`, aggregate_id=`proposal_section.id`, 절당 job 1개(초안 생성은 6 job을 한 transaction에서 queued로 만든다), 전용 `workers/proposal.py`의 `run_once`가 공용 슬롯 규칙(analysis worker 1 슬롯)을 그대로 따른다. `draft_in_progress` = 그 opportunity의 draft가 `queued|running`; `section_in_progress` = 그 절의 최신 revision이 `queued|running`(web이 queued 행을 INSERT하므로 판정 가능). `review_timeout_seconds=5400`은 draft 단위(첫 job claim부터 단조 시계), 초과 시 남은 job은 `failed·proposal_review_timeout`. 절 하나 실패해도 다른 절은 보존. draft `status`는 worker가 마지막 job 종료 시 갱신(결정 B45): 6절 최신 revision이 모두 completed(또는 reviewed) → `completed`, 완료 절이 하나 이상 → `partial`(사람 검토), 완료 절 0 → `failed`. 재생성 뒤에는 세 정착 상태 사이에서 다시 정한다. 검토 완료·제출 준비 단계의 초안과 superseded 초안은 절 재생성을 받지 않는다(409 `stage_transition_invalid`, 결정 B50).
 - 입력 읽기 경로: unit은 verdict attempt의 `deep_review_preview.input_snapshot.card_analysis.units`, Extract·Compare는 `card_analysis_stage(stage=extract|compare)` payload, verdict·checklist는 `card_analysis_stage(stage=synthesis)` + HP-04 코드 조립 결과(verdict view 함수 재사용).
 
 ### 저장
@@ -59,11 +60,11 @@ Source = { kind: requirement_unit|company_fact|notice_meta, ref: string(unit_id 
 | 역할 | INSERT | UPDATE 허용 열 | trigger 규칙 |
 |---|---|---|---|
 | web(app) | `proposal_draft`, `proposal_section`(queued 행), `proposal_sentence_edit`, `proposal_export` | draft: `stage`·`status`(superseded만); section: `status`(completed→reviewed만)·`reviewed_by`·`reviewed_at` | 그 외 전이·DELETE 거부 |
-| worker | 없음(job은 web이 만든 행을 claim) | draft: `status`·`started_at`·`completed_at`; section: `status`(queued→running→completed\|failed)·`input_sha256`·`result_sha256`·`payload`·`error_code`·`prompt_tokens`·`output_tokens`·`latency_ms`·`completed_at`(각 1회) | payload·result 재기록 거부 |
+| worker | 없음(job은 web이 만든 행을 claim) | draft: `status`·`stage`(`toc`→`draft` 한 단계만, trigger — 결정 B41)·`started_at`·`completed_at`; section: `status`(queued→running→completed\|failed)·`input_sha256`·`result_sha256`·`payload`·`error_code`·`prompt_tokens`·`output_tokens`·`latency_ms`·`completed_at`(각 1회) | payload·result 재기록 거부 |
 | ro_backup | — | — | — |
 - `proposal_sentence_edit` {id UUID PK, section_id FK, sentence_id UUID, text TEXT(1..400), actor, request_id, created_at}; append-only overlay. 화면·PDF는 sentence_id별 최신 edit을 적용하고 "수정됨" 표식.
 - `proposal_export` {id UUID PK, draft_id FK, overlay_sha256 CHAR(64)(절 revision·edit 집합·`renderer_version`·`font_sha256`의 canonical SHA), renderer_version TEXT(`reportlab==x.y.z`), font_sha256 CHAR(64), content_object_id UUID FK content_object(namespace `proposal-pdf`, retention_class `proposal-pdf-365d`, 암호화 없음 — 회사 자료가 아닌 초안; 2026-10-17 인터뷰 D12로 값 유지, 이번 배치는 격리 스택에서만 생성), pdf_sha256, page_count INT, created_by, created_at}; UNIQUE(draft_id, overlay_sha256) — 같은 내용은 재렌더하지 않는다.
-- migration(단일 head 다음), 권한: worker INSERT/UPDATE(section 1회 채움 열)·SELECT; web SELECT/INSERT draft·edit·export, UPDATE draft(status·stage)·section(status reviewed 열); ro_backup SELECT; DELETE 없음.
+- migration(단일 head 다음), 권한: worker UPDATE(section 1회 채움 열, draft status·stage·시각)·SELECT, INSERT 없음(위 표, 결정 B41); web SELECT/INSERT draft·edit·export, UPDATE draft(status·stage)·section(status reviewed 열); ro_backup SELECT; DELETE 없음.
 
 ### REST (`bidops.proposal.v1`)
 
@@ -71,9 +72,9 @@ Source = { kind: requirement_unit|company_fact|notice_meta, ref: string(unit_id 
 |---|---|---|---|
 | `GET /api/opportunities/{id}/proposal` | `?draft_id=` 생략 시 최신 | 200 `ProposalView` | 404 `opportunity_not_found`; 200 `{draft:null}`(초안 없음) |
 | `POST /api/opportunities/{id}/proposal-requests` | actor; `{request_id}` | 202 `{draft_id, status:"queued"}` | 409 `verdict_required`(completed 판정 없음)·`policy_not_approved`·`daily_cap_reached`·`draft_in_progress`; 404; 422 |
-| `POST /api/proposals/{draft_id}/sections/{key}/regenerations` | actor; `{request_id}` | 202 `{section_id, revision}` | 409 `daily_cap_reached`·`section_in_progress`; 404 |
-| `PATCH /api/proposals/{draft_id}/sections/{key}/review` | actor; `{request_id}` | 200 `SectionView`(`status=reviewed`) | 409 `section_not_completed`; 404 |
-| `POST /api/proposals/{draft_id}/sentences/{sentence_id}/edits` | actor; `{text, request_id}` | 201 `{edit_id}` | 404 `sentence_not_found`; 422 |
+| `POST /api/proposals/{draft_id}/sections/{key}/regenerations` | actor; `{request_id}` | 202 `{section_id, revision}` | 409 `daily_cap_reached`·`section_in_progress`·`stage_transition_invalid`(superseded 또는 stage `reviewed`·`ready`, 결정 B45·B50); 404 |
+| `PATCH /api/proposals/{draft_id}/sections/{key}/review` | actor; `{request_id}` | 200 `SectionView`(`status=reviewed`) | 409 `section_not_completed`·`stage_transition_invalid`(superseded, 결정 B50); 404 |
+| `POST /api/proposals/{draft_id}/sentences/{sentence_id}/edits` | actor; `{text, request_id}` | 201 `{edit_id}` | 404 `sentence_not_found`; 409 `stage_transition_invalid`(superseded, 결정 B50); 422 |
 | `POST /api/proposals/{draft_id}/exports` | actor; `{request_id}` | 201 `{export_id, pdf_sha256, created:bool}`(같은 overlay면 기존 행·`created=false`) | 409 `draft_not_completed`(partial 허용: 실패 절은 "생성 실패" 페이지로), 503 `pdf_unavailable` |
 | `GET /api/proposals/{draft_id}/exports/{export_id}.pdf` | 없음 | 200 `application/pdf`(헤더 `X-BidOps-Export-Sha256`; 부작용 없음) | 404 |
 | `PATCH /api/proposals/{draft_id}/stage` | actor; `{stage:"ready", request_id}` | 200 `{stage}` | 409 `stage_transition_invalid`; 404 |
@@ -82,7 +83,7 @@ Source = { kind: requirement_unit|company_fact|notice_meta, ref: string(unit_id 
 
 ### PDF 렌더
 
-- 렌더러 `reportlab`(순수 Python; 전이 의존 `pillow`·`chardet`의 x86_64 cp312 wheel hash를 `requirements.lock`에 추가 — hash는 PyPI에서 받는다(개발 의존성 취득용 네트워크만, 데이터 전송 아님)) + 폰트는 **이미 백엔드 이미지(`web/Dockerfile`)가 apt로 설치하는 `fonts-nanum`의 TrueType `NanumGothic.ttf`·`NanumGothicBold.ttf`**(`BIDOPS_PDF_FONT_DIR` 기본 `/usr/share/fonts/truetype/nanum`; `fonts-noto-cjk`는 CFF `.ttc`라 ReportLab `TTFont`가 못 읽으므로 쓰지 않는다; 바이너리 폰트를 저장소에 넣지 않는다). 로컬 테스트는 같은 경로가 없으면 `BIDOPS_PDF_FONT_DIR`로 지정하고 없으면 T7의 503 분기만 돈다. A4 세로, 본문 11pt/1.6, 쪽 번호, 표지(공고명·기관·"초안 · 생성일 · 제출본 아님"), 목차, 절 6개, 부록 A 요구사항 대응표(unit_id·정규화 문장·대조 pill 텍스트·절/문단), 부록 B 출처 목록(위첨자 번호 → 출처 kind·ref·quote).
+- 렌더러 `reportlab`(순수 Python; 전이 의존 `pillow`·`charset-normalizer`의 x86_64 cp312 wheel hash(결정 B42)를 `requirements.lock`에 추가 — hash는 PyPI에서 받는다(개발 의존성 취득용 네트워크만, 데이터 전송 아님)) + 폰트는 **이미 백엔드 이미지(`web/Dockerfile`)가 apt로 설치하는 `fonts-nanum`의 TrueType `NanumGothic.ttf`·`NanumGothicBold.ttf`**(`BIDOPS_PDF_FONT_DIR` 기본 `/usr/share/fonts/truetype/nanum`; `fonts-noto-cjk`는 CFF `.ttc`라 ReportLab `TTFont`가 못 읽으므로 쓰지 않는다; 바이너리 폰트를 저장소에 넣지 않는다). 로컬 테스트는 같은 경로가 없으면 `BIDOPS_PDF_FONT_DIR`로 지정하고 없으면 T7의 503 분기만 돈다. A4 세로, 본문 11pt/1.6, 쪽 번호, 표지(공고명·기관·"초안 · 생성일 · 제출본 아님"), 목차, 절 6개, 부록 A 요구사항 대응표(unit_id·정규화 문장·대조 pill 텍스트·절/문단), 부록 B 출처 목록(위첨자 번호 → 출처 kind·ref·quote).
 - 표식: `placeholder` 문장은 노란 바탕(`#FFF4E5`) + "[채울 것: 힌트]", `proposed_figure`는 같은 바탕 + "[제안 수치]", 수정된 문장은 끝에 "[수정됨]", 각 `statement` 끝에 위첨자 출처 번호. 색은 PDF 전용 상수(화면 테마 토큰과 무관).
 - 결정성: ReportLab `invariant=1`(CreationDate·trailer `/ID` 고정) + 생성일은 draft `created_at` + 폰트 subset 고정. 같은 `overlay_sha256`(렌더러 버전·폰트 sha 포함)이면 바이트 동일.
 
@@ -103,6 +104,8 @@ Source = { kind: requirement_unit|company_fact|notice_meta, ref: string(unit_id 
 | 정책 `execution.review_timeout_seconds` | int | 5400 | | 초안 전체 |
 | `BIDOPS_PROPOSAL_POLICY_PATH` | path | `policies/proposal-policy-luna-v1.json` | | immutable |
 | `BIDOPS_PDF_FONT_DIR` | path | `/usr/share/fonts/truetype/nanum` | | 없으면 `pdf_unavailable` |
+| `BIDOPS_PROPOSAL_PDF_ACCESS_KEY` | secret | 없음 | | 객체 namespace `proposal-pdf`(버킷 `bidops-proposal-pdf`) 전용 자격증명, web만 받음. 비면 `pdf_unavailable`(결정 B48) |
+| `BIDOPS_PROPOSAL_PDF_SECRET_KEY` | secret | 없음 | | 위와 짝(결정 B48) |
 | `BIDOPS_PROPOSAL_POLICY_VERSION_ID` | UUID | 없음 | | import된 정책 행 선택 |
 | `BIDOPS_LUNA_DEEP_REVIEW_ENABLED`·`BIDOPS_REFERENCE_WORKFLOW_MODE`·`BIDOPS_ANALYSIS_PROVIDER` | 기존 | | | 실행 조건 |
 | contract `proposal-section-v1` prompt 상한 | int | 120000자 | 고정 | 초과는 `input_budget_exceeded` |
@@ -115,7 +118,7 @@ Source = { kind: requirement_unit|company_fact|notice_meta, ref: string(unit_id 
 
 ## 저장
 
-위 표 4개. 객체 저장소: PDF는 `content_object`(기존 hash·version 규칙).
+위 표 4개. 객체 저장소: PDF는 `content_object`(기존 hash·version 규칙) — namespace `proposal-pdf`(버킷 `bidops-proposal-pdf`, versioning, 365일 만료, 암호화 없음, 백업·복구·active hash 검증 대상), 자격증명은 위 설정의 `BIDOPS_PROPOSAL_PDF_ACCESS_KEY`·`_SECRET_KEY`(결정 B48).
 
 ## 인터페이스(CLI·UI·API)
 
@@ -158,4 +161,4 @@ Source = { kind: requirement_unit|company_fact|notice_meta, ref: string(unit_id 
 
 ## 컨벤션 반영 항목
 
-- `bidops.proposal.v1`·`bidops.proposal-section.v1`·`bidops.proposal-input.v1`, 테이블 4(권한 행렬·trigger), REST 8, 오류 code 14, WorkJob `job_type=proposal_section`, runner contract `proposal-section-v1`(5곳), 정책 identity·행 선택 env, 설정 4, 의존 `reportlab`(+pillow·chardet lock), 객체 namespace `proposal-pdf`, tech-stack "DOCX 중간 형식" 문장 삭제·폰트 문구 "백엔드 이미지의 NanumGothic(저장소 폰트 파일 없음)".
+- `bidops.proposal.v1`·`bidops.proposal-section.v1`·`bidops.proposal-input.v1`, 테이블 4(권한 행렬·trigger), REST 8, 오류 code 14, WorkJob `job_type=proposal_section`, runner contract `proposal-section-v1`(5곳), 정책 identity·행 선택 env, 설정 6(`BIDOPS_PROPOSAL_POLICY_PATH`·`BIDOPS_PROPOSAL_POLICY_VERSION_ID`·`BIDOPS_PDF_FONT_DIR`·`BIDOPS_PROPOSAL_PDF_ACCESS_KEY`·`BIDOPS_PROPOSAL_PDF_SECRET_KEY`·승인 행 `daily_cap`; 결정 B48), 의존 `reportlab`(+pillow·charset-normalizer lock, 결정 B42), 객체 namespace `proposal-pdf`, tech-stack "DOCX 중간 형식" 문장 삭제·폰트 문구 "백엔드 이미지의 NanumGothic(저장소 폰트 파일 없음)".

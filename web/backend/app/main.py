@@ -56,6 +56,7 @@ _ROUTER_REGISTRATION: tuple[tuple[str, str], ...] = (
     ("lifecycle", "opportunities_router"),
     ("deep_review", "opportunity_verdicts_router"),
     ("deep_review", "transfer_policy_router"),
+    ("deep_review", "proposals_router"),
     ("lifecycle", "workload_router"),
     ("lifecycle", "briefings_router"),
     ("screening", "notice_reviews_router"),
@@ -240,6 +241,15 @@ _RL_ONLY_PATHS: tuple[tuple[str, ...], ...] = (
     ("api", "opportunities", "*", "verdict"),
     ("api", "opportunities", "*", "verdict-requests"),
     ("api", "analysis", "transfer-policy"),
+    # RL-04 제안서 초안 REST 8개 (spec "REST"); `.pdf` 내보내기는 한 경로 조각이다.
+    ("api", "opportunities", "*", "proposal"),
+    ("api", "opportunities", "*", "proposal-requests"),
+    ("api", "proposals", "*", "sections", "*", "regenerations"),
+    ("api", "proposals", "*", "sections", "*", "review"),
+    ("api", "proposals", "*", "sentences", "*", "edits"),
+    ("api", "proposals", "*", "exports"),
+    ("api", "proposals", "*", "exports", "*"),
+    ("api", "proposals", "*", "stage"),
 )
 
 
