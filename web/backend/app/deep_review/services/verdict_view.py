@@ -29,6 +29,7 @@ Any disagreement in the stored rows is ``processing_failed`` -- never repaired.
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -537,6 +538,80 @@ def _project_attempt(
     return view
 
 
+def latest_card_attempt(session: Session, company_id: UUID, notice_id: int) -> DeepReviewAttempt | None:
+    """The newest card-v1 attempt of the company/notice -- the one the verdict view shows (or None)."""
+
+    attempts = _latest_card_attempts(session, company_id, notice_id)
+    return attempts[0] if attempts else None
+
+
+@dataclass(frozen=True)
+class CompletedCardAttempt:
+    """The validated frozen sources of one completed card-v1 attempt (read only).
+
+    RL-04 reads its proposal input from here (spec "입력 읽기 경로"): ``frozen``
+    is the approved preview ``input_snapshot`` (``bidops.company-analysis-input.v2``),
+    ``card`` its validated ``card_analysis``, ``extract_items``/``compare_items``
+    the validated ``card_analysis_stage`` rows and ``result`` the HP-04 verdict
+    projection of the synthesis row (the same ``_result`` the verdict view shows).
+    """
+
+    attempt_id: UUID
+    company_id: UUID
+    notice_id: int
+    input_sha256: str
+    frozen: Mapping[str, Any]
+    card: CardAnalysisInput
+    extract_items: Mapping[str, Any]
+    compare_items: tuple[Any, ...]
+    result: Mapping[str, Any]
+
+
+def completed_card_attempt(session: Session, attempt_id: UUID) -> CompletedCardAttempt:
+    """Validated sources of a completed card-v1 attempt.
+
+    ``not_found``: no such attempt, not a card-v1 attempt or not ``completed``.
+    ``processing_failed``: the approved preview or a stored stage row disagrees
+    (the same checks the verdict view applies) -- never repaired.
+    """
+
+    attempt = session.get(DeepReviewAttempt, attempt_id)
+    review = session.get(DeepReview, attempt.deep_review_id) if attempt is not None else None
+    if attempt is None or review is None or attempt.status != "completed":
+        raise _error("not_found")
+    policy = session.get(AnalysisPolicyVersion, review.policy_version_id)
+    if not _is_card_policy(policy):
+        raise _error("not_found")
+    preview = _approved_preview(session, attempt.id)
+    frozen = preview.input_snapshot if preview is not None and isinstance(preview.input_snapshot, Mapping) else None
+    provenance = (
+        preview.provenance_jsonb if preview is not None and isinstance(preview.provenance_jsonb, Mapping) else None
+    )
+    if (
+        preview is None or frozen is None or provenance is None
+        or preview.company_id != review.company_id
+        or preview.graph_version_id != review.graph_version_id
+        or preview.policy_version_id != review.policy_version_id
+        or preview.bundle_id != review.bundle_id
+        or provenance.get("input_sha256") != preview.input_sha256
+        or provenance.get("graph_version_id") != str(review.graph_version_id)
+    ):
+        raise _error("processing_failed")
+    try:
+        card = CardAnalysisInput.model_validate(frozen["card_analysis"])
+    except (KeyError, TypeError, ValueError, ValidationError):
+        raise _error("processing_failed") from None
+    stages = _AttemptStages(_stage_rows(session, attempt.id))
+    if stages.final is None:
+        raise _error("processing_failed")
+    result = _result(stages, card, _fact_labels(frozen))
+    return CompletedCardAttempt(
+        attempt_id=attempt.id, company_id=review.company_id, notice_id=int(review.notice_id),
+        input_sha256=str(preview.input_sha256), frozen=frozen, card=card,
+        extract_items=dict(stages.extract_items), compare_items=tuple(stages.compare_items), result=result,
+    )
+
+
 def verdict_view(
     session: Session,
     *,
@@ -705,10 +780,13 @@ def transfer_policy_view(session: Session, *, settings: Any = None) -> dict[str,
 
 
 __all__ = [
+    "CompletedCardAttempt",
     "VERDICT_ERROR_MESSAGES",
     "VERDICT_ERROR_STATUS",
     "VerdictViewError",
+    "completed_card_attempt",
     "create_verdict_feedback",
+    "latest_card_attempt",
     "opportunity_verdict_view",
     "transfer_policy_view",
     "verdict_company",

@@ -1,0 +1,41 @@
+....................................................                     [100%]
+=============================== warnings summary ===============================
+app/deep_review/schemas/document_bundles.py:115
+  /Users/temp/orca/bidops/.sdlc/worktrees/rlb-20261017-RL-04-proposal-draft/web/backend/app/deep_review/schemas/document_bundles.py:115: UserWarning: Field name "schema" in "DocumentStructure" shadows an attribute in parent "StrictModel"
+    class DocumentStructure(StrictModel):
+
+app/deep_review/schemas/document_bundles.py:227
+  /Users/temp/orca/bidops/.sdlc/worktrees/rlb-20261017-RL-04-proposal-draft/web/backend/app/deep_review/schemas/document_bundles.py:227: UserWarning: Field name "schema" in "SegmentExtractorBinding" shadows an attribute in parent "StrictModel"
+    class SegmentExtractorBinding(StrictModel):
+
+app/deep_review/schemas/document_bundles.py:235
+  /Users/temp/orca/bidops/.sdlc/worktrees/rlb-20261017-RL-04-proposal-draft/web/backend/app/deep_review/schemas/document_bundles.py:235: UserWarning: Field name "schema" in "DocumentSegmentsView" shadows an attribute in parent "StrictModel"
+    class DocumentSegmentsView(StrictModel):
+
+app/deep_review/schemas/reports.py:69
+  /Users/temp/orca/bidops/.sdlc/worktrees/rlb-20261017-RL-04-proposal-draft/web/backend/app/deep_review/schemas/reports.py:69: UserWarning: Field name "schema" in "DeepReviewReport" shadows an attribute in parent "StrictModel"
+    class DeepReviewReport(StrictModel):
+
+app/deep_review/schemas/reports.py:122
+  /Users/temp/orca/bidops/.sdlc/worktrees/rlb-20261017-RL-04-proposal-draft/web/backend/app/deep_review/schemas/reports.py:122: UserWarning: Field name "schema" in "NarrativeReport" shadows an attribute in parent "DeepReviewReport"
+    class NarrativeReport(DeepReviewReport):
+
+app/deep_review/schemas/reports.py:143
+  /Users/temp/orca/bidops/.sdlc/worktrees/rlb-20261017-RL-04-proposal-draft/web/backend/app/deep_review/schemas/reports.py:143: UserWarning: Field name "schema" in "DeepReviewValidation" shadows an attribute in parent "StrictModel"
+    class DeepReviewValidation(StrictModel):
+
+tests/app/test_proposal_transfer_policy.py::test_completed_verdict_attempt_feeds_every_section_and_a_real_draft_is_capped[sqlite]
+  /private/tmp/claude-502/-Users-temp-orca-bidops/f18c3f29-e3fa-486a-92f8-92223fb99eab/scratchpad/venv/lib/python3.12/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+tests/app/test_proposal_transfer_policy.py::test_completed_verdict_attempt_feeds_every_section_and_a_real_draft_is_capped[sqlite]
+  /Users/temp/orca/bidops/.sdlc/worktrees/rlb-20261017-RL-04-proposal-draft/web/backend/app/deep_review/agents/common/contracts.py:391: UserWarning: Field name "schema" in "AgentRunView" shadows an attribute in parent "_StrictModel"
+    class AgentRunView(_StrictModel):
+
+tests/app/test_proposal_transfer_policy.py::test_completed_verdict_attempt_feeds_every_section_and_a_real_draft_is_capped[sqlite]
+  /Users/temp/orca/bidops/.sdlc/worktrees/rlb-20261017-RL-04-proposal-draft/web/backend/app/deep_review/agents/common/contracts.py:462: UserWarning: Field name "schema" in "AgentCommand" shadows an attribute in parent "_StrictModel"
+    class AgentCommand(_StrictModel, Generic[TAction]):
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+52 passed, 9 warnings in 42.06s
+guard_exit=0

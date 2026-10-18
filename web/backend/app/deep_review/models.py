@@ -2658,6 +2658,272 @@ CARD_ANALYSIS_TABLES = (
 )
 
 
+# ---------------------------------------------------------------------------
+# RL-04 proposal draft (0041): draft, per-section revisions, sentence edit
+# overlay and PDF export (RL-04 spec "저장").  Row-state rules are enforced by
+# PostgreSQL triggers and column-scoped grants; the ORM guards below mirror the
+# parts that matter for SQLite isolation tests.
+# ---------------------------------------------------------------------------
+
+PROPOSAL_SECTION_KEYS = (
+    "overview",
+    "track_record",
+    "strategy",
+    "requirements",
+    "operations_sla",
+    "organization",
+)
+_PROPOSAL_SECTION_KEY_SQL = ",".join(f"'{key}'" for key in PROPOSAL_SECTION_KEYS)
+
+
+class ProposalDraft(Base):
+    """One proposal draft generation for an opportunity (spec "저장")."""
+
+    __tablename__ = "proposal_draft"
+    __table_args__ = (
+        Index("ix_proposal_draft_opportunity", "opportunity_id", "created_at"),
+        CheckConstraint(
+            DualSQL(
+                _SHA256_SQLITE.format(c="policy_sha256"), _SHA256_PG.format(c="policy_sha256")
+            ),
+            name="ck_proposal_draft_policy_hash",
+        ),
+        CheckConstraint(
+            "status IN ('queued','running','completed','partial','failed','superseded')",
+            name="ck_proposal_draft_status",
+        ),
+        CheckConstraint(
+            "stage IN ('toc','draft','reviewed','ready')", name="ck_proposal_draft_stage"
+        ),
+    )
+
+    id: Mapped[uuid_module.UUID] = _uuid_column(primary_key=True)
+    opportunity_id: Mapped[int] = mapped_column(
+        _fk("opportunity.id", ondelete="RESTRICT"), nullable=False
+    )
+    notice_id: Mapped[int] = mapped_column(_fk("notice.id", ondelete="RESTRICT"), nullable=False)
+    verdict_attempt_id: Mapped[uuid_module.UUID] = mapped_column(
+        _fk("deep_review_attempt.id", ondelete="RESTRICT"), nullable=False
+    )
+    policy_version_id: Mapped[uuid_module.UUID] = mapped_column(
+        _fk("analysis_policy_version.id", ondelete="RESTRICT"), nullable=False
+    )
+    policy_sha256: Mapped[str] = mapped_column(CHAR(64), nullable=False)
+    approval_id: Mapped[uuid_module.UUID] = mapped_column(
+        _fk("transfer_policy_approval.id", ondelete="RESTRICT"), nullable=False
+    )
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    stage: Mapped[str] = mapped_column(String(16), nullable=False)
+    created_by: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        AwareDateTime(), default=utc_now, server_default=text("CURRENT_TIMESTAMP"), nullable=False
+    )
+    started_at: Mapped[datetime | None] = mapped_column(AwareDateTime(), nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(AwareDateTime(), nullable=True)
+
+
+class ProposalSection(Base):
+    """One revision of one section; the worker fills the result columns once."""
+
+    __tablename__ = "proposal_section"
+    __table_args__ = (
+        UniqueConstraint(
+            "draft_id", "section_key", "revision", name="uq_proposal_section_revision"
+        ),
+        CheckConstraint(
+            f"section_key IN ({_PROPOSAL_SECTION_KEY_SQL})", name="ck_proposal_section_key"
+        ),
+        CheckConstraint("revision >= 1", name="ck_proposal_section_revision"),
+        CheckConstraint(
+            "status IN ('queued','running','completed','failed','reviewed')",
+            name="ck_proposal_section_status",
+        ),
+        CheckConstraint(
+            DualSQL(
+                "(input_sha256 IS NULL OR (" + _SHA256_SQLITE.format(c="input_sha256") + ")) AND "
+                "(result_sha256 IS NULL OR (" + _SHA256_SQLITE.format(c="result_sha256") + "))",
+                "(input_sha256 IS NULL OR (" + _SHA256_PG.format(c="input_sha256") + ")) AND "
+                "(result_sha256 IS NULL OR (" + _SHA256_PG.format(c="result_sha256") + "))",
+            ),
+            name="ck_proposal_section_hashes",
+        ),
+        CheckConstraint(
+            DualSQL(
+                "payload IS NULL OR (json_valid(payload) AND json_type(payload) = 'object')",
+                "payload IS NULL OR jsonb_typeof(payload) = 'object'",
+            ),
+            name="ck_proposal_section_payload",
+        ),
+        CheckConstraint(
+            "(reviewed_by IS NULL) = (reviewed_at IS NULL) AND "
+            "(status = 'reviewed') = (reviewed_by IS NOT NULL)",
+            name="ck_proposal_section_reviewed",
+        ),
+    )
+
+    id: Mapped[uuid_module.UUID] = _uuid_column(primary_key=True)
+    draft_id: Mapped[uuid_module.UUID] = mapped_column(
+        _fk("proposal_draft.id", ondelete="RESTRICT"), nullable=False
+    )
+    section_key: Mapped[str] = mapped_column(String(32), nullable=False)
+    revision: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    input_sha256: Mapped[str | None] = mapped_column(CHAR(64), nullable=True)
+    result_sha256: Mapped[str | None] = mapped_column(CHAR(64), nullable=True)
+    #: ``bidops.proposal-section.v1`` Section; filled once after INSERT by the worker.
+    payload: Mapped[Any | None] = mapped_column(JSONB_NULL_COMPAT, nullable=True)
+    error_code: Mapped[str | None] = mapped_column(Text, nullable=True)
+    prompt_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    output_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    latency_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        AwareDateTime(), default=utc_now, server_default=text("CURRENT_TIMESTAMP"), nullable=False
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(AwareDateTime(), nullable=True)
+    reviewed_by: Mapped[str | None] = mapped_column(Text, nullable=True)
+    reviewed_at: Mapped[datetime | None] = mapped_column(AwareDateTime(), nullable=True)
+
+
+_sql_text = text  # the ``text`` column of ProposalSentenceEdit shadows ``text`` in its class body
+
+
+class ProposalSentenceEdit(Base):
+    """Append-only practitioner edit overlay of one sentence."""
+
+    __tablename__ = "proposal_sentence_edit"
+    __table_args__ = (
+        UniqueConstraint("request_id", name="uq_proposal_sentence_edit_request"),
+        Index("ix_proposal_sentence_edit_sentence", "section_id", "sentence_id", "created_at"),
+        CheckConstraint(
+            "length(text) >= 1 AND length(text) <= 400", name="ck_proposal_sentence_edit_text"
+        ),
+    )
+
+    id: Mapped[uuid_module.UUID] = _uuid_column(primary_key=True)
+    section_id: Mapped[uuid_module.UUID] = mapped_column(
+        _fk("proposal_section.id", ondelete="RESTRICT"), nullable=False
+    )
+    sentence_id: Mapped[uuid_module.UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
+    #: Named ``text`` by spec; the SQL helper is imported as ``_sql_text`` below it.
+    text: Mapped[str] = mapped_column(Text, nullable=False)
+    actor: Mapped[str] = mapped_column(Text, nullable=False)
+    request_id: Mapped[uuid_module.UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        AwareDateTime(), default=utc_now, server_default=_sql_text("CURRENT_TIMESTAMP"), nullable=False
+    )
+
+
+class ProposalExport(Base):
+    """Append-only rendered PDF; the same overlay is never rendered twice."""
+
+    __tablename__ = "proposal_export"
+    __table_args__ = (
+        UniqueConstraint("draft_id", "overlay_sha256", name="uq_proposal_export_overlay"),
+        CheckConstraint(
+            DualSQL(
+                _SHA256_SQLITE.format(c="overlay_sha256")
+                + " AND " + _SHA256_SQLITE.format(c="font_sha256")
+                + " AND " + _SHA256_SQLITE.format(c="pdf_sha256"),
+                _SHA256_PG.format(c="overlay_sha256")
+                + " AND " + _SHA256_PG.format(c="font_sha256")
+                + " AND " + _SHA256_PG.format(c="pdf_sha256"),
+            ),
+            name="ck_proposal_export_hashes",
+        ),
+        CheckConstraint("page_count >= 1", name="ck_proposal_export_page_count"),
+    )
+
+    id: Mapped[uuid_module.UUID] = _uuid_column(primary_key=True)
+    draft_id: Mapped[uuid_module.UUID] = mapped_column(
+        _fk("proposal_draft.id", ondelete="RESTRICT"), nullable=False
+    )
+    overlay_sha256: Mapped[str] = mapped_column(CHAR(64), nullable=False)
+    renderer_version: Mapped[str] = mapped_column(Text, nullable=False)
+    font_sha256: Mapped[str] = mapped_column(CHAR(64), nullable=False)
+    content_object_id: Mapped[uuid_module.UUID] = mapped_column(
+        _fk("content_object.id", ondelete="RESTRICT"), nullable=False
+    )
+    pdf_sha256: Mapped[str] = mapped_column(CHAR(64), nullable=False)
+    page_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_by: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        AwareDateTime(), default=utc_now, server_default=text("CURRENT_TIMESTAMP"), nullable=False
+    )
+
+
+def _reject_proposal_mutation(*_args: Any) -> None:
+    raise ValueError("proposal sentence edits and exports are append-only")
+
+
+for _proposal_append_only_model in (ProposalSentenceEdit, ProposalExport):
+    event.listen(_proposal_append_only_model, "before_update", _reject_proposal_mutation)
+    event.listen(_proposal_append_only_model, "before_delete", _reject_proposal_mutation)
+
+
+@event.listens_for(ProposalDraft, "before_delete")
+@event.listens_for(ProposalSection, "before_delete")
+def _proposal_no_delete(*_args: Any) -> None:
+    raise ValueError("proposal drafts and sections are never deleted")
+
+
+#: A section's result columns are filled once by the worker; its identity never moves.
+_PROPOSAL_SECTION_FILL_ONCE = (
+    "input_sha256", "result_sha256", "payload", "error_code", "prompt_tokens",
+    "output_tokens", "latency_ms", "completed_at",
+)
+_PROPOSAL_SECTION_IMMUTABLE = ("id", "draft_id", "section_key", "revision", "created_at")
+
+
+@event.listens_for(ProposalSection, "before_update")
+def _proposal_section_fill_once(_mapper: Any, connection: Any, target: ProposalSection) -> None:
+    state = sa_inspect(target)
+    for key in _PROPOSAL_SECTION_IMMUTABLE:
+        if state.attrs[key].history.has_changes():
+            raise ValueError("proposal section identity is immutable")
+    changed = [key for key in _PROPOSAL_SECTION_FILL_ONCE if state.attrs[key].history.has_changes()]
+    if not changed:
+        return
+    # The attribute may be expired, so compare against the stored row itself.
+    table = ProposalSection.__table__
+    stored = connection.execute(
+        select(*(table.c[key] for key in changed)).where(table.c.id == target.id)
+    ).one()
+    for key, old in zip(changed, stored):
+        if old is not None and getattr(target, key) != old:
+            raise ValueError("proposal section result columns are written once")
+
+
+#: Draft status transitions (RL-04 STEP-005; the 0041 trigger enforces the same rule).
+_PROPOSAL_DRAFT_SETTLED = frozenset({"completed", "partial", "failed"})
+
+
+@event.listens_for(ProposalDraft, "before_update")
+def _proposal_draft_status_transition(_mapper: Any, _connection: Any, target: ProposalDraft) -> None:
+    history = sa_inspect(target).attrs["status"].history
+    if not history.has_changes() or not history.deleted:
+        return
+    old, new = history.deleted[0], target.status
+    if old == new:
+        return
+    if old == "superseded":
+        raise ValueError("a superseded proposal draft cannot change status")
+    if not (
+        new == "superseded"
+        or (old == "queued" and new == "running")
+        or (old in ({"running"} | _PROPOSAL_DRAFT_SETTLED) and new in _PROPOSAL_DRAFT_SETTLED)
+    ):
+        raise ValueError(f"invalid proposal draft status transition {old} -> {new}")
+
+
+#: 0041 RL-04 proposal draft tables (spec "저장").
+PROPOSAL_TABLES = (
+    "proposal_draft",
+    "proposal_section",
+    "proposal_sentence_edit",
+    "proposal_export",
+)
+
+
 class AssumptionInputVersion(Base):
     __tablename__ = "assumption_input_version"
     id: Mapped[uuid_module.UUID] = _uuid_column(primary_key=True)

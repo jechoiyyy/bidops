@@ -34,6 +34,7 @@ from app.deep_review.models import (
     DOCUMENT_SEGMENT_TABLES,
     PRESPEC_OVERVIEW_TABLES,
     PRESPEC_V4_TABLES,
+    PROPOSAL_TABLES,
 )
 from app.lifecycle.models import (
     BRIEFING_TABLES,
@@ -87,6 +88,7 @@ ALL_TABLES = frozenset(
     + BRIEFING_TABLES
     + OPPORTUNITY_NOTE_TABLES
     + CARD_ANALYSIS_TABLES
+    + PROPOSAL_TABLES
 )
 
 
@@ -1558,6 +1560,216 @@ def test_0040_downgrades_when_empty_and_refuses_to_discard_rows() -> None:
             refused = run_alembic(database_url, "downgrade", "0039_opportunity_note")
             assert refused.returncode != 0
             assert "refuses to discard transfer_policy_approval" in refused.stderr
+            assert _scalar(engine, "SELECT version_num FROM bidops.alembic_version") == ALEMBIC_HEAD
+        finally:
+            engine.dispose()
+
+
+# --- RL-04 0041 proposal draft storage (spec "저장") ---------------------------------
+
+_PROPOSAL_DRAFT_SQL = (
+    "INSERT INTO bidops.proposal_draft (id, opportunity_id, notice_id, verdict_attempt_id,"
+    " policy_version_id, policy_sha256, approval_id, status, stage, created_by)"
+    " VALUES (:id, 1, 1, :attempt, :policy, :sha, :approval, :status, :stage, 'jechoi')"
+)
+_PROPOSAL_SECTION_SQL = (
+    "INSERT INTO bidops.proposal_section (id, draft_id, section_key, revision, status)"
+    " VALUES (:id, :draft, :key, :revision, :status)"
+)
+
+
+def _proposal_draft(connection, *, status="queued", stage="toc") -> object:
+    draft = uuid4()
+    _replica_insert(connection, _PROPOSAL_DRAFT_SQL, id=draft, attempt=uuid4(), policy=uuid4(),
+                    sha=_CARD_SHA, approval=uuid4(), status=status, stage=stage)
+    return draft
+
+
+def _proposal_section(connection, draft, *, key="overview", revision=1, status="queued") -> object:
+    section = uuid4()
+    _replica_insert(connection, _PROPOSAL_SECTION_SQL, id=section, draft=draft, key=key,
+                    revision=revision, status=status)
+    return section
+
+
+def test_0041_proposal_draft_and_section_triggers_enforce_the_row_rules() -> None:
+    from sqlalchemy.exc import DBAPIError
+
+    with migrated_engine() as engine:
+        with engine.begin() as connection:
+            draft = _proposal_draft(connection)
+            section = _proposal_section(connection, draft)
+
+        def rejected(statement: str, match: str, **params) -> None:
+            with pytest.raises(DBAPIError, match=match):
+                with engine.begin() as connection:
+                    connection.execute(text(statement), params)
+
+        # Drafts and sections are never deleted; the draft identity is frozen.
+        rejected("DELETE FROM bidops.proposal_draft WHERE id = :id", "never deleted", id=draft)
+        rejected("DELETE FROM bidops.proposal_section WHERE id = :id", "never deleted", id=section)
+        rejected("UPDATE bidops.proposal_draft SET created_by = 'other' WHERE id = :id",
+                 "identity is immutable", id=draft)
+        rejected("UPDATE bidops.proposal_draft SET approval_id = :other WHERE id = :id",
+                 "identity is immutable", id=draft, other=uuid4())
+        rejected("UPDATE bidops.proposal_section SET revision = 2 WHERE id = :id",
+                 "identity is immutable", id=section)
+        # Status and stage only move along the spec transitions.
+        rejected("UPDATE bidops.proposal_draft SET stage = 'ready' WHERE id = :id",
+                 "invalid proposal draft stage transition", id=draft)
+        with engine.begin() as connection:
+            connection.execute(text(
+                "UPDATE bidops.proposal_draft SET status = 'running', stage = 'draft',"
+                " started_at = now() WHERE id = :id"), {"id": draft})
+        rejected("UPDATE bidops.proposal_draft SET stage = 'toc' WHERE id = :id",
+                 "invalid proposal draft stage transition", id=draft)
+        rejected("UPDATE bidops.proposal_draft SET status = 'queued' WHERE id = :id",
+                 "return to queued", id=draft)
+        rejected("UPDATE bidops.proposal_draft SET started_at = now() + interval '1 hour' WHERE id = :id",
+                 "started_at is written once", id=draft)
+        with engine.begin() as connection:
+            connection.execute(text(
+                "UPDATE bidops.proposal_draft SET status = 'partial', completed_at = now()"
+                " WHERE id = :id"), {"id": draft})
+        # Separate transaction: the FK targets of the seeded row do not exist, and PostgreSQL
+        # re-checks the FKs of a row version created earlier in the same transaction.
+        with engine.begin() as connection:
+            connection.execute(text(
+                "UPDATE bidops.proposal_draft SET status = 'superseded' WHERE id = :id"), {"id": draft})
+        rejected("UPDATE bidops.proposal_draft SET status = 'completed' WHERE id = :id",
+                 "superseded proposal draft", id=draft)
+        for status, stage, constraint in (
+            ("pending", "toc", "ck_proposal_draft_status"),
+            ("queued", "published", "ck_proposal_draft_stage"),
+        ):
+            with pytest.raises(IntegrityError, match=constraint):
+                with engine.begin() as connection:
+                    _proposal_draft(connection, status=status, stage=stage)
+
+        # Section: queued -> running -> completed -> reviewed, results written once.
+        rejected("UPDATE bidops.proposal_section SET status = 'completed' WHERE id = :id",
+                 "invalid proposal section status transition", id=section)
+        with engine.begin() as connection:
+            connection.execute(text(
+                "UPDATE bidops.proposal_section SET status = 'running' WHERE id = :id"), {"id": section})
+        with engine.begin() as connection:
+            connection.execute(text(
+                "UPDATE bidops.proposal_section SET status = 'completed', input_sha256 = :sha,"
+                " result_sha256 = :sha, payload = CAST('{\"section_key\": \"overview\"}' AS jsonb),"
+                " prompt_tokens = 10, output_tokens = 20, latency_ms = 30, completed_at = now()"
+                " WHERE id = :id"), {"id": section, "sha": _CARD_SHA})
+        for column, value in (
+            ("payload", "CAST('{}' AS jsonb)"),
+            ("result_sha256", f"'{'d' * 64}'"),
+            ("input_sha256", f"'{'d' * 64}'"),
+            ("prompt_tokens", "11"),
+            ("completed_at", "now() + interval '1 hour'"),
+        ):
+            rejected(f"UPDATE bidops.proposal_section SET {column} = {value} WHERE id = :id",
+                     "written once", id=section)
+        rejected("UPDATE bidops.proposal_section SET status = 'reviewed' WHERE id = :id",
+                 "ck_proposal_section_reviewed", id=section)
+        rejected("UPDATE bidops.proposal_section SET reviewed_by = 'jechoi' WHERE id = :id",
+                 "ck_proposal_section_reviewed", id=section)
+        with engine.begin() as connection:
+            connection.execute(text(
+                "UPDATE bidops.proposal_section SET status = 'reviewed', reviewed_by = 'jechoi',"
+                " reviewed_at = now() WHERE id = :id"), {"id": section})
+        rejected("UPDATE bidops.proposal_section SET reviewed_by = 'other' WHERE id = :id",
+                 "written once", id=section)
+        rejected("UPDATE bidops.proposal_section SET status = 'failed' WHERE id = :id",
+                 "invalid proposal section status transition", id=section)
+
+        # UNIQUE(draft_id, section_key, revision) and the CHECK enums.
+        with engine.begin() as connection:
+            other_draft = _proposal_draft(connection)
+            _proposal_section(connection, other_draft, key="strategy", revision=1)
+            _proposal_section(connection, other_draft, key="strategy", revision=2)
+        for key, revision, status, constraint in (
+            ("strategy", 1, "queued", "uq_proposal_section_revision"),
+            ("pricing", 1, "queued", "ck_proposal_section_key"),
+            ("overview", 0, "queued", "ck_proposal_section_revision"),
+            ("overview", 1, "done", "ck_proposal_section_status"),
+        ):
+            with pytest.raises(IntegrityError, match=constraint):
+                with engine.begin() as connection:
+                    _proposal_section(connection, other_draft, key=key, revision=revision, status=status)
+        with pytest.raises(IntegrityError, match="ck_proposal_section_hashes"):
+            with engine.begin() as connection:
+                _replica_insert(
+                    connection,
+                    "INSERT INTO bidops.proposal_section (id, draft_id, section_key, revision, status,"
+                    " input_sha256) VALUES (:id, :draft, 'overview', 1, 'queued', 'xyz')",
+                    id=uuid4(), draft=uuid4())
+
+
+def test_0041_proposal_edit_and_export_are_append_only_with_unique_overlay() -> None:
+    from sqlalchemy.exc import DBAPIError
+
+    edit, export, draft = uuid4(), uuid4(), uuid4()
+    with migrated_engine() as engine:
+        with engine.begin() as connection:
+            _replica_insert(
+                connection,
+                "INSERT INTO bidops.proposal_sentence_edit (id, section_id, sentence_id, text, actor,"
+                " request_id) VALUES (:id, :section, :sentence, '고친 문장', 'jechoi', :request)",
+                id=edit, section=uuid4(), sentence=uuid4(), request=uuid4(),
+            )
+            _replica_insert(connection, _EXPORT_SQL, id=export, draft=draft, overlay=_CARD_SHA,
+                            content=uuid4(), pages=3)
+        for table, row_id in (("proposal_sentence_edit", edit), ("proposal_export", export)):
+            for statement in (f"DELETE FROM bidops.{table} WHERE id = :id",
+                              f"UPDATE bidops.{table} SET created_at = now() WHERE id = :id"):
+                with pytest.raises(DBAPIError, match=f"{table} rows are append-only"):
+                    with engine.begin() as connection:
+                        connection.execute(text(statement), {"id": row_id})
+        with pytest.raises(IntegrityError, match="uq_proposal_export_overlay"):
+            with engine.begin() as connection:
+                _replica_insert(connection, _EXPORT_SQL, id=uuid4(), draft=draft, overlay=_CARD_SHA,
+                                content=uuid4(), pages=3)
+        with engine.begin() as connection:
+            _replica_insert(connection, _EXPORT_SQL, id=uuid4(), draft=draft, overlay="d" * 64,
+                            content=uuid4(), pages=1)
+        with pytest.raises(IntegrityError, match="ck_proposal_export_page_count"):
+            with engine.begin() as connection:
+                _replica_insert(connection, _EXPORT_SQL, id=uuid4(), draft=draft, overlay="e" * 64,
+                                content=uuid4(), pages=0)
+        for text_value, constraint in (("", "ck_proposal_sentence_edit_text"),
+                                       ("가" * 401, "ck_proposal_sentence_edit_text")):
+            with pytest.raises(IntegrityError, match=constraint):
+                with engine.begin() as connection:
+                    _replica_insert(
+                        connection,
+                        "INSERT INTO bidops.proposal_sentence_edit (id, section_id, sentence_id, text,"
+                        " actor, request_id) VALUES (:id, :section, :sentence, :text, 'jechoi', :request)",
+                        id=uuid4(), section=uuid4(), sentence=uuid4(), text=text_value, request=uuid4(),
+                    )
+
+
+_EXPORT_SQL = (
+    "INSERT INTO bidops.proposal_export (id, draft_id, overlay_sha256, renderer_version,"
+    " font_sha256, content_object_id, pdf_sha256, page_count, created_by) VALUES (:id, :draft,"
+    " :overlay, 'reportlab==4.2.0', '" + "f" * 64 + "', :content, '" + "a" * 64 + "', :pages, 'jechoi')"
+)
+
+
+def test_0041_downgrades_when_empty_and_refuses_to_discard_rows() -> None:
+    with temporary_database() as database_url:
+        down = run_alembic(database_url, "downgrade", "0040_card_analysis")
+        assert down.returncode == 0, down.stderr
+        from sqlalchemy import create_engine
+
+        engine = create_engine(database_url, future=True)
+        try:
+            assert not set(PROPOSAL_TABLES) & _tables(engine)
+            assert set(CARD_ANALYSIS_TABLES) <= _tables(engine)
+            up = run_alembic(database_url, "upgrade", "head")
+            assert up.returncode == 0, up.stderr
+            with engine.begin() as connection:
+                _proposal_draft(connection)
+            refused = run_alembic(database_url, "downgrade", "0040_card_analysis")
+            assert refused.returncode != 0
+            assert "refuses to discard proposal_draft" in refused.stderr
             assert _scalar(engine, "SELECT version_num FROM bidops.alembic_version") == ALEMBIC_HEAD
         finally:
             engine.dispose()

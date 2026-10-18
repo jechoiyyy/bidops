@@ -40,6 +40,13 @@ DEFAULT_RL_ANALYSIS_POLICY_PATH = (
     Path(__file__).resolve().parents[1] / "deep_review" / "policies" / "analysis-policy-luna-rl-v6.json"
 )
 
+#: RL-04 제안서 초안 정책 파일(import 원본)의 기본 위치. 버전+sha256으로 고정된 immutable
+#: 파일이며 실행은 이 파일이 아니라 import된 행(`BIDOPS_PROPOSAL_POLICY_VERSION_ID`)을 고른다.
+#: core는 계약 내용을 모르고 경로만 갖는다.
+DEFAULT_PROPOSAL_POLICY_PATH = (
+    Path(__file__).resolve().parents[1] / "deep_review" / "policies" / "proposal-policy-luna-v1.json"
+)
+
 #: 조립 계층이 고를 수 있는 도메인 모듈 (명세 §7). core는 선택 대상이 아니라
 #: 항상 포함된다. 여기 있는 것은 이름뿐이며 core는 이 모듈들을 import하지 않는다.
 MODULE_NAMES: tuple[str, ...] = ("lifecycle", "screening", "deep_review")
@@ -137,6 +144,19 @@ class Settings(BaseSettings):
     #: import된 RL 정책 행. demo 선택 env와 분리되며 비면 RL 경로가 fail closed한다.
     rl_deep_review_policy_version_id: UUID | None = Field(
         default=None, validation_alias="BIDOPS_RL_DEEP_REVIEW_POLICY_VERSION_ID"
+    )
+    # RL-04 제안서 초안(spec "설정 키와 기본값"). 정책 파일 경로와 import된 행 선택은 RL-03
+    # 카드 판정 선택과 분리되며, 행 선택이 비면 제안서 경로가 fail closed한다.
+    proposal_policy_path: Path = Field(
+        default=DEFAULT_PROPOSAL_POLICY_PATH, validation_alias="BIDOPS_PROPOSAL_POLICY_PATH"
+    )
+    proposal_policy_version_id: UUID | None = Field(
+        default=None, validation_alias="BIDOPS_PROPOSAL_POLICY_VERSION_ID"
+    )
+    #: RL-04 PDF 폰트 디렉터리(spec "설정 키와 기본값"). 백엔드 이미지의 `fonts-nanum` TrueType
+    #: 위치가 기본이며 저장소에 폰트 파일을 두지 않는다(D9). 파일이 없으면 `pdf_unavailable`.
+    pdf_font_dir: Path = Field(
+        default=Path("/usr/share/fonts/truetype/nanum"), validation_alias="BIDOPS_PDF_FONT_DIR"
     )
     reviewer_name: str = Field(
         default="",
@@ -326,6 +346,10 @@ class Settings(BaseSettings):
     quarantine_secret_key: str | None = Field(default=None, validation_alias="BIDOPS_QUARANTINE_SECRET_KEY")
     model_response_access_key: str | None = Field(default=None, validation_alias="BIDOPS_MODEL_RESPONSE_ACCESS_KEY")
     model_response_secret_key: str | None = Field(default=None, validation_alias="BIDOPS_MODEL_RESPONSE_SECRET_KEY")
+    # RL-04 제안서 초안 PDF(namespace `proposal-pdf`, 버킷 `bidops-proposal-pdf`). 비면 내보내기는
+    # 503 `pdf_unavailable`로 fail closed다.
+    proposal_pdf_access_key: str | None = Field(default=None, validation_alias="BIDOPS_PROPOSAL_PDF_ACCESS_KEY")
+    proposal_pdf_secret_key: str | None = Field(default=None, validation_alias="BIDOPS_PROPOSAL_PDF_SECRET_KEY")
     model_response_encryption_key: str | None = Field(default=None, validation_alias="BIDOPS_MODEL_RESPONSE_ENCRYPTION_KEY")
     model_response_encryption_key_ref: str | None = Field(default=None, validation_alias="BIDOPS_MODEL_RESPONSE_ENCRYPTION_KEY_REF")
 
@@ -348,6 +372,7 @@ class Settings(BaseSettings):
         "demo_company_fit_policy_version_id",
         "demo_deep_review_policy_version_id",
         "rl_deep_review_policy_version_id",
+        "proposal_policy_version_id",
         mode="before",
     )
     @classmethod
@@ -452,6 +477,7 @@ class Settings(BaseSettings):
             "structure": (self.structure_access_key, self.structure_secret_key),
             "quarantine": (self.quarantine_access_key, self.quarantine_secret_key),
             "model-response": (self.model_response_access_key, self.model_response_secret_key),
+            "proposal-pdf": (self.proposal_pdf_access_key, self.proposal_pdf_secret_key),
         }
         try:
             if namespace == "structure" and read_only:

@@ -50,6 +50,9 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     # deep_review다(§5.3, ADR-0045).
     "opportunity_verdicts_router": (".routers.verdicts", "router"),
     "transfer_policy_router": (".routers.verdicts", "transfer_policy_router"),
+    # RL-04 제안서 초안 REST 8개(`/api/opportunities/{id}/proposal*`·`/api/proposals/...`).
+    # 앞 접두사는 lifecycle 것이고 제공 모듈은 deep_review다(§5.3).
+    "proposals_router": (".routers.proposals", "router"),
     "assumption_analysis_router": (".routers.assumption_analysis", "router"),
     "run_assumption_analysis_once": (".services.assumption_analysis", "run_once"),
     "deep_reviews_router": (".routers.deep_reviews", "router"),
@@ -78,6 +81,8 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     # 개요 실행은 합성 analysis worker의 세 번째 슬롯이다. 개요 전용 process
     # 진입점은 만들지 않는다 — 그러면 모델 슬롯 1개 보장이 깨진다 (§6.3).
     "run_prespec_overview_once": (".workers.prespec_overview", "run_once"),
+    # RL-04 제안서 절 실행도 같은 합성 worker 슬롯의 마지막 순서다(별도 process 없음).
+    "run_proposal_once": (".workers.proposal", "run_once"),
     "PreSpecCompanyFitRunner": (".services.company_fit_runner", "PreSpecCompanyFitRunner"),
 }
 
@@ -100,6 +105,7 @@ def register_lifecycle_extensions(registry=None):
     - 첨부 fetch 자격을 다시 세는 회차 적재·추적 결정·등급 변경 hook (§6.2)
     - RL-03 브리핑 추천 hook(자동 카드 판정 트리거·대기열 처리)
     - RL-03 활동 피드 `verdict_completed`·브리핑 판정 표시 projection
+    - RL-04 활동 피드 `draft_prepared`
     """
 
     from .services.company_knowledge import CompanyFactsProjectionProvider
@@ -128,6 +134,12 @@ def register_lifecycle_extensions(registry=None):
     from .services.verdict_links import RLBriefingVerdictDisplay, RLVerdictActivityProvider
 
     registry.register_opportunity_activity_items(RLVerdictActivityProvider(), owner=EXTENSION_OWNER)
+    # RL-04 활동 피드 `draft_prepared`(읽기 전용). 같은 owner면 RL-03 제공자를 교체하므로 별도 키다.
+    from .services.proposal_view import ProposalActivityProvider
+
+    registry.register_opportunity_activity_items(
+        ProposalActivityProvider(), owner=f"{EXTENSION_OWNER}.proposal"
+    )
     registry.register_briefing_verdict_display(RLBriefingVerdictDisplay(), owner=EXTENSION_OWNER)
     hook = PreSpecAttachmentEligibilityHook()
     registry.register_run_ingest_hook(hook, owner=EXTENSION_OWNER)
@@ -159,6 +171,7 @@ if TYPE_CHECKING:  # pragma: no cover - 정적 분석용 이름 노출
     from .runtime import build_runtime
     from .workers.deep_review import run_once as run_deep_review_once
     from .workers.prespec_overview import run_once as run_prespec_overview_once
+    from .workers.proposal import run_once as run_proposal_once
     from .services.company_fit_runner import PreSpecCompanyFitRunner
     from .services.deep_review_hooks import PreSpecAttachmentEligibilityHook
     from .services.prespec_projection import DeepReviewWorkloadProjection, PreSpecOverviewDocumentProjection

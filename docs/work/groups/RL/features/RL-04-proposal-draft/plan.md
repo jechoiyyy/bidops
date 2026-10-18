@@ -97,4 +97,8 @@
 
 ## 결과
 
-구현 후 작성한다.
+2026-10-18, run `rlb-20261017`. STEP-001~009 done, 상태 validating. 상세 `docs/work/_runs/rlb-20261017/RL-04-proposal-draft.md`, 결정 B40~B50.
+
+- 구현: 정책 `proposal-policy-luna-v1`·문장/입력 계약·runner contract, 테이블 4(migration `0041_proposal_draft`), 절별 입력 조립·8키 payload guard, 문장 검증기(금지 내용 예외는 공고 출처만), 전용 worker·mock 생성기·cap(초안 6, 재생성 1), REST 8·편집 overlay·검토/ready, 결정적 PDF(reportlab·이미지 NanumGothic)와 객체 namespace `proposal-pdf`(사용자 결정 B48), 제안서 화면.
+- 증명: docs·tests(206)·postgres(122)·frontend(build + 102)·api_guard(52) pass. **real_data_run pending** — T11 실제 초안은 RL-03 실제 판정이 없어 보류(B37). T10 mock 전 경로는 격리 스택에서 통과(`mock_reference`, T11 대체 아님).
+- 운영 반영 전제: 운영 env에 PDF 키 2개와 minio-init 재실행(B49).

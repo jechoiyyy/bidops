@@ -1,0 +1,10 @@
+doctor: 20 features, schema=2, tool=0.6.0
+doctor_exit=0
+--- RL-00/RL-02 feature docs diff 9c61fe1..HEAD
+--- shared docs touched
+ docs/business-rules.md     |  23 ++++++++-
+ docs/contracts.md          | 118 ++++++++++++++++++++++++++++++++++++++++++---
+ docs/operations.md         | 106 ++++++++++++++++++++++++++++++++++++++++
+ docs/work/demo-contract.md |  22 ++++++++-
+ docs/work/feature.json     |   2 +-
+ 5 files changed, 259 insertions(+), 12 deletions(-)

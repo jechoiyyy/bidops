@@ -82,7 +82,7 @@ test("판정이 없으면 '아직 판정이 없습니다'와 다시 판정을 �
   await expect(tabpanel.getByText("아직 판정이 없습니다", { exact: true })).toBeVisible();
   await expect(tabpanel.getByRole("button", { name: "다시 판정", exact: true })).toBeEnabled();
   expect(await headerPills(page)).toEqual(["입찰공고", "D-4", "분석 대기", "계속 추적"]);
-  // 판정 탭에서는 제안서 초안(RL-04 전 비활성)·다시 판정·⋯가 헤더 액션이고 판정 보기는 없다.
+  // 판정 탭에서는 제안서 초안(판정이 없으면 비활성)·다시 판정·⋯가 헤더 액션이고 판정 보기는 없다.
   const header = page.locator('[data-testid="record-header"]');
   await expect(header.getByRole("button", { name: "제안서 초안", exact: true })).toBeDisabled();
   await expect(header.getByRole("button", { name: "다시 판정", exact: true })).toBeEnabled();

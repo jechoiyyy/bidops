@@ -170,3 +170,27 @@ def test_container_dependency_set_matches_lock_without_unapproved_extras() -> No
         "missing_from_lock": sorted(closure - set(locked)),
         "unrequired_lock_entries": sorted(set(locked) - closure),
     }
+
+
+def test_pdf_renderer_dependency_closure_is_locked() -> None:
+    """RL-04 STEP-001: ``reportlab`` and its runtime closure are hash-pinned for the image.
+
+    The installed-set closure check above only runs inside the container; this
+    host check reads reportlab's own metadata so a missing transitive lock entry
+    (pillow, charset-normalizer) fails before an image build.
+    """
+
+    locked = _locked_versions()
+    assert {"reportlab", "pillow", "charset-normalizer"} <= locked.keys()
+    try:
+        requires = distribution("reportlab").requires or ()
+    except PackageNotFoundError:
+        pytest.skip("reportlab is not installed in this environment")
+    environment = dict(_target_marker_environment(), extra="")
+    runtime = [Requirement(raw) for raw in requires]
+    runtime = [req for req in runtime if req.marker is None or req.marker.evaluate(environment)]
+    assert runtime, "reportlab declares no runtime requirements"
+    for requirement in runtime:
+        name = _normalize(requirement.name)
+        assert name in locked, f"reportlab dependency missing from lock: {name}"
+        assert locked[name][0] in requirement.specifier, (name, str(requirement.specifier), locked[name][0])

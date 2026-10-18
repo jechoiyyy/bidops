@@ -1575,3 +1575,178 @@ def test_effective_card_analysis_grants_are_minimal() -> None:
                         assert not _table_privilege(connection, role, table, "UPDATE")
         finally:
             engine.dispose()
+
+
+#: RL-04 proposal draft (0041, spec "저장" 권한 행렬).
+PROPOSAL_TABLES = {"proposal_draft", "proposal_section", "proposal_sentence_edit", "proposal_export"}
+DRAFT_APP_UPDATE = {"stage", "status"}
+DRAFT_WORKER_UPDATE = {"status", "stage", "started_at", "completed_at"}
+SECTION_APP_UPDATE = {"status", "reviewed_by", "reviewed_at"}
+SECTION_WORKER_UPDATE = {
+    "status", "input_sha256", "result_sha256", "payload", "error_code", "prompt_tokens",
+    "output_tokens", "latency_ms", "completed_at",
+}
+
+
+def test_proposal_grants_follow_the_rl04_role_matrix() -> None:
+    assert PROPOSAL_TABLES <= _table_grants("app", "SELECT")
+    assert PROPOSAL_TABLES <= _table_grants("worker", "SELECT")
+    # web creates every row (queued sections included); the worker creates none.
+    assert _table_grants("app", "INSERT") & PROPOSAL_TABLES == PROPOSAL_TABLES
+    assert not _table_grants("worker", "INSERT") & PROPOSAL_TABLES
+    for role in ("app", "worker"):
+        assert not _table_grants(role, "UPDATE") & PROPOSAL_TABLES
+    assert _column_update_grant("app", "proposal_draft") == DRAFT_APP_UPDATE
+    assert _column_update_grant("worker", "proposal_draft") == DRAFT_WORKER_UPDATE
+    assert _column_update_grant("app", "proposal_section") == SECTION_APP_UPDATE
+    assert _column_update_grant("worker", "proposal_section") == SECTION_WORKER_UPDATE
+    # Edits and exports are append-only: no UPDATE grant of any shape.
+    for table in ("proposal_sentence_edit", "proposal_export"):
+        for role in ("app", "worker"):
+            assert re.search(rf"GRANT\s+UPDATE\s*\([^)]*\)\s+ON\s+bidops\.{table}\s+TO\s+{role};", POLICY) is None
+    for role in ("app", "worker", "ro_backup"):
+        assert not _table_grants(role, "DELETE") & PROPOSAL_TABLES
+
+
+@requires_postgres
+def test_effective_proposal_grants_and_role_triggers_follow_the_matrix() -> None:
+    from uuid import uuid4
+
+    from sqlalchemy.exc import DBAPIError
+
+    _ensure_roles()
+    with temporary_database() as database_url:
+        engine = _apply_policy(database_url)
+        try:
+            with engine.begin() as connection:
+                for table in sorted(PROPOSAL_TABLES):
+                    for role in ("app", "worker", "ro_backup"):
+                        assert _table_privilege(connection, role, table, "SELECT") == True
+                        assert not _table_privilege(connection, role, table, "DELETE")
+                        assert not _table_privilege(connection, role, table, "UPDATE")
+                    assert _table_privilege(connection, "app", table, "INSERT")
+                    for role in ("worker", "ro_backup"):
+                        assert not _table_privilege(connection, role, table, "INSERT")
+                    assert not _table_privilege(connection, "ro_backup", table, "UPDATE")
+                for role, table, allowed in (
+                    ("app", "proposal_draft", DRAFT_APP_UPDATE),
+                    ("worker", "proposal_draft", DRAFT_WORKER_UPDATE),
+                    ("app", "proposal_section", SECTION_APP_UPDATE),
+                    ("worker", "proposal_section", SECTION_WORKER_UPDATE),
+                ):
+                    columns = connection.scalars(
+                        text("SELECT column_name FROM information_schema.columns"
+                             " WHERE table_schema = 'bidops' AND table_name = :table"),
+                        {"table": table},
+                    ).all()
+                    for column in columns:
+                        assert _column_privilege(connection, role, table, column, "UPDATE") == (
+                            column in allowed
+                        ), (role, table, column)
+                for table in ("proposal_sentence_edit", "proposal_export"):
+                    columns = connection.scalars(
+                        text("SELECT column_name FROM information_schema.columns"
+                             " WHERE table_schema = 'bidops' AND table_name = :table"),
+                        {"table": table},
+                    ).all()
+                    for role in ("app", "worker"):
+                        for column in columns:
+                            assert not _column_privilege(connection, role, table, column, "UPDATE")
+
+            sha = "c" * 64
+            with engine.begin() as connection:
+                connection.execute(text("SET LOCAL session_replication_role = replica"))
+                drafts = {}
+                for name in ("web", "worker", "superseded"):
+                    drafts[name] = uuid4()
+                    connection.execute(text(
+                        "INSERT INTO bidops.proposal_draft (id, opportunity_id, notice_id,"
+                        " verdict_attempt_id, policy_version_id, policy_sha256, approval_id,"
+                        " status, stage, created_by) VALUES (:id, 1, 1, :a, :p, :sha, :ap,"
+                        " 'queued', 'toc', 'jechoi')"),
+                        {"id": drafts[name], "a": uuid4(), "p": uuid4(), "sha": sha, "ap": uuid4()})
+                sections = {"queued": uuid4(), "completed": uuid4()}
+                connection.execute(text(
+                    "INSERT INTO bidops.proposal_section (id, draft_id, section_key, revision, status)"
+                    " VALUES (:id, :draft, 'overview', 1, 'queued')"),
+                    {"id": sections["queued"], "draft": drafts["web"]})
+                connection.execute(text(
+                    "INSERT INTO bidops.proposal_section (id, draft_id, section_key, revision, status,"
+                    " result_sha256, payload, completed_at) VALUES (:id, :draft, 'overview', 2,"
+                    " 'completed', :sha, CAST('{}' AS jsonb), now())"),
+                    {"id": sections["completed"], "draft": drafts["web"], "sha": sha})
+
+            def as_role(role: str, statement: str, **params) -> None:
+                with engine.begin() as connection:
+                    connection.exec_driver_sql(f"SET LOCAL ROLE {role}")
+                    connection.execute(text(statement), params)
+
+            def denied(role: str, statement: str, sqlstate: str | None = None, **params) -> None:
+                with pytest.raises(DBAPIError) as error:
+                    as_role(role, statement, **params)
+                if sqlstate:
+                    assert error.value.orig.sqlstate == sqlstate, (role, statement)
+
+            # Column grants: privileges not in the matrix are refused outright.
+            denied("app", "DELETE FROM bidops.proposal_draft", "42501")
+            denied("worker", "DELETE FROM bidops.proposal_section", "42501")
+            denied("app", "UPDATE bidops.proposal_draft SET started_at = now()", "42501")
+            denied("app", "UPDATE bidops.proposal_section SET payload = CAST('{}' AS jsonb)", "42501")
+            denied("worker", "UPDATE bidops.proposal_section SET reviewed_by = 'x'", "42501")
+            denied("worker", "UPDATE bidops.proposal_draft SET created_by = 'x'", "42501")
+            denied("app", "UPDATE bidops.proposal_sentence_edit SET text = 'x'", "42501")
+            denied("worker", "INSERT INTO bidops.proposal_section (id) VALUES (gen_random_uuid())", "42501")
+
+            # Web INSERT must be a queued/toc draft and an empty queued section.
+            denied("app",
+                   "INSERT INTO bidops.proposal_draft (id, opportunity_id, notice_id, verdict_attempt_id,"
+                   " policy_version_id, policy_sha256, approval_id, status, stage, created_by)"
+                   " VALUES (:id, 1, 1, :a, :p, :sha, :ap, 'running', 'toc', 'jechoi')",
+                   "P0001", id=uuid4(), a=uuid4(), p=uuid4(), sha=sha, ap=uuid4())
+            denied("app",
+                   "INSERT INTO bidops.proposal_section (id, draft_id, section_key, revision, status)"
+                   " VALUES (:id, :draft, 'strategy', 1, 'completed')",
+                   "P0001", id=uuid4(), draft=drafts["web"])
+
+            # Web: supersede, review stage steps and review completed sections only.
+            denied("app", "UPDATE bidops.proposal_draft SET status = 'running' WHERE id = :id",
+                   "P0001", id=drafts["web"])
+            denied("app", "UPDATE bidops.proposal_draft SET stage = 'draft' WHERE id = :id",
+                   "P0001", id=drafts["web"])
+            as_role("app", "UPDATE bidops.proposal_draft SET status = 'superseded' WHERE id = :id",
+                    id=drafts["superseded"])
+            denied("worker", "UPDATE bidops.proposal_draft SET status = 'running' WHERE id = :id",
+                   "P0001", id=drafts["superseded"])
+            denied("app", "UPDATE bidops.proposal_section SET status = 'reviewed',"
+                          " reviewed_by = 'jechoi', reviewed_at = now() WHERE id = :id",
+                   "P0001", id=sections["queued"])
+            as_role("app", "UPDATE bidops.proposal_section SET status = 'reviewed',"
+                           " reviewed_by = 'jechoi', reviewed_at = now() WHERE id = :id",
+                    id=sections["completed"])
+
+            # Worker: advance status and toc -> draft, never supersede or move later stages.
+            denied("worker", "UPDATE bidops.proposal_draft SET status = 'superseded' WHERE id = :id",
+                   "P0001", id=drafts["worker"])
+            denied("worker", "UPDATE bidops.proposal_draft SET stage = 'reviewed' WHERE id = :id",
+                   "P0001", id=drafts["worker"])
+            as_role("worker", "UPDATE bidops.proposal_draft SET status = 'running', started_at = now()"
+                              " WHERE id = :id", id=drafts["worker"])
+            as_role("worker", "UPDATE bidops.proposal_draft SET stage = 'draft' WHERE id = :id",
+                    id=drafts["worker"])
+            denied("worker", "UPDATE bidops.proposal_draft SET stage = 'reviewed' WHERE id = :id",
+                   "P0001", id=drafts["worker"])
+            # Worker: queued -> running -> completed once; no rewrite, no review.
+            as_role("worker", "UPDATE bidops.proposal_section SET status = 'running' WHERE id = :id",
+                    id=sections["queued"])
+            as_role("worker", "UPDATE bidops.proposal_section SET status = 'completed',"
+                              " result_sha256 = :sha, payload = CAST('{}' AS jsonb),"
+                              " completed_at = now() WHERE id = :id",
+                    id=sections["queued"], sha=sha)
+            denied("worker", "UPDATE bidops.proposal_section SET payload = CAST('{\"a\": 1}' AS jsonb)"
+                             " WHERE id = :id", "P0001", id=sections["queued"])
+            denied("worker", "UPDATE bidops.proposal_section SET result_sha256 = :sha WHERE id = :id",
+                   "P0001", id=sections["queued"], sha="d" * 64)
+            denied("worker", "UPDATE bidops.proposal_section SET status = 'reviewed' WHERE id = :id",
+                   "P0001", id=sections["queued"])
+        finally:
+            engine.dispose()

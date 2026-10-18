@@ -193,80 +193,80 @@
     "docs": {
       "result": "pass",
       "method": "review",
-      "note": "doctor exit0, 독립 리뷰(RL-02+배치) BLOCKING 1건 결정 #18·#21로 해소(spec accept)",
-      "evidence": "docs/work/_runs/rla-20261016/logs/RL-02-doctor.log; docs/work/_runs/rla-20261016/RL-02-review.md",
+      "note": "B40: 배치 rlb-20261017 HEAD dc133b6(RL-03 통합 후) 재검증으로 갱신. doctor 0, 기능 문서 무변경(9c61fe1..HEAD diff 없음), 공통 문서 변경은 RL-03 절·feature.json(B38)이며 독립 리뷰 B39 대조",
+      "evidence": "docs/work/_runs/rlb-20261017/logs/RL-00-02-reverify-docs.log",
       "exit_code": null,
       "actor": "orchestrator",
       "command": "python3 scripts/feature_status.py doctor _",
-      "at": "2026-10-17T14:06:09+09:00",
-      "head": "b20b5f55ef76581ed46be1d7deb9363a0e43152f",
-      "source_hash": "4549452b5a0886d443597531cb5e98693ac9b38f50aa6cb6e14d0f8750179ee5",
-      "spec_hash": "d5687935760fed0f47e625fe37aa4ec4481a4b4ade243f4c7fd405e841da5890"
+      "at": "2026-10-18T09:04:09+09:00",
+      "head": "dc133b64600448c44f40ced6c877bc1a9c0ae55f",
+      "source_hash": "2156d57f36775ebdfa6bacc2a525935c2d11678427ecac23724db8cee5c131a0",
+      "spec_hash": "e2c5bf178b8bf13ba6d908f6d32be332d19093dd481cff34348600bde038a949"
     },
     "tests": {
       "result": "pass",
       "method": "command",
-      "note": "plan tests + 경계·확장점·브리핑 회귀: 295 passed, 2 deselect(main c93da20에서도 실패하는 test_api_opportunities 2건)",
-      "evidence": "docs/work/_runs/rla-20261016/logs/RL-02-tests.log",
+      "note": "B40: 배치 rlb-20261017 HEAD dc133b6(RL-03 통합 후) 재검증으로 갱신. RL-00·RL-02 plan tests 합집합 228 passed(69 skip=PG 변형)",
+      "evidence": "docs/work/_runs/rlb-20261017/logs/RL-00-02-reverify-tests.log",
       "exit_code": 0,
       "actor": "orchestrator",
       "command": "bash -lc \"cd web/backend && python -m pytest -q -x -p no:cacheprovider\"",
-      "at": "2026-10-17T14:06:09+09:00",
-      "head": "b20b5f55ef76581ed46be1d7deb9363a0e43152f",
-      "source_hash": "4549452b5a0886d443597531cb5e98693ac9b38f50aa6cb6e14d0f8750179ee5",
-      "spec_hash": "d5687935760fed0f47e625fe37aa4ec4481a4b4ade243f4c7fd405e841da5890"
+      "at": "2026-10-18T09:04:09+09:00",
+      "head": "dc133b64600448c44f40ced6c877bc1a9c0ae55f",
+      "source_hash": "2156d57f36775ebdfa6bacc2a525935c2d11678427ecac23724db8cee5c131a0",
+      "spec_hash": "e2c5bf178b8bf13ba6d908f6d32be332d19093dd481cff34348600bde038a949"
     },
     "postgres": {
       "result": "pass",
       "method": "command",
-      "note": "postgres:17.11 201 passed(notes·activity·migrations·privileges·drift·boundaries) + 리뷰 수정 뒤 69 passed",
-      "evidence": "docs/work/_runs/rla-20261016/logs/RL-02-postgres.log; docs/work/_runs/rla-20261016/logs/RL-02-postgres-after-review.log",
+      "note": "B40: 배치 rlb-20261017 HEAD dc133b6(RL-03 통합 후) 재검증으로 갱신. postgres:17.11 합집합 128 passed(migrations·privileges 포함)",
+      "evidence": "docs/work/_runs/rlb-20261017/logs/RL-00-02-reverify-postgres.log",
       "exit_code": 0,
       "actor": "orchestrator",
       "command": "",
-      "at": "2026-10-17T14:06:10+09:00",
-      "head": "b20b5f55ef76581ed46be1d7deb9363a0e43152f",
-      "source_hash": "4549452b5a0886d443597531cb5e98693ac9b38f50aa6cb6e14d0f8750179ee5",
-      "spec_hash": "d5687935760fed0f47e625fe37aa4ec4481a4b4ade243f4c7fd405e841da5890"
+      "at": "2026-10-18T09:04:09+09:00",
+      "head": "dc133b64600448c44f40ced6c877bc1a9c0ae55f",
+      "source_hash": "2156d57f36775ebdfa6bacc2a525935c2d11678427ecac23724db8cee5c131a0",
+      "spec_hash": "e2c5bf178b8bf13ba6d908f6d32be332d19093dd481cff34348600bde038a949"
     },
     "frontend": {
       "result": "pass",
       "method": "command",
-      "note": "build·contrast 8/8; plan 3 spec(opportunity-record·opportunities·common-interactions) 통과. 같은 실행의 추가 spec 실패 2건 = bid-delta request_id 기존 flaky(결정 #16), briefing Enter URL 기대값(route 교체 결과) 갱신 후 briefing 27 passed; route-context는 batch HEAD와 같은 기존 12건만 실패",
-      "evidence": "docs/work/_runs/rla-20261016/logs/RL-02-frontend-build.log; docs/work/_runs/rla-20261016/logs/RL-02-playwright.log; docs/work/_runs/rla-20261016/logs/RL-02-playwright-briefing.log; docs/work/_runs/rla-20261016/logs/RL-02-route-context.log",
+      "note": "B40: 배치 rlb-20261017 HEAD dc133b6(RL-03 통합 후) 재검증으로 갱신. build 0 + Playwright app 4 spec 112 passed",
+      "evidence": "docs/work/_runs/rlb-20261017/logs/RL-00-02-reverify-frontend.log",
       "exit_code": 0,
       "actor": "orchestrator",
       "command": "bash -lc \"cd web/frontend && npm run build && npm run test:contrast\"",
-      "at": "2026-10-17T14:06:10+09:00",
-      "head": "b20b5f55ef76581ed46be1d7deb9363a0e43152f",
-      "source_hash": "4549452b5a0886d443597531cb5e98693ac9b38f50aa6cb6e14d0f8750179ee5",
-      "spec_hash": "d5687935760fed0f47e625fe37aa4ec4481a4b4ade243f4c7fd405e841da5890"
+      "at": "2026-10-18T09:04:09+09:00",
+      "head": "dc133b64600448c44f40ced6c877bc1a9c0ae55f",
+      "source_hash": "2156d57f36775ebdfa6bacc2a525935c2d11678427ecac23724db8cee5c131a0",
+      "spec_hash": "e2c5bf178b8bf13ba6d908f6d32be332d19093dd481cff34348600bde038a949"
     },
     "api_guard": {
       "result": "not_applicable",
       "method": "command",
-      "note": "RL-02는 새 외부 호출 없음(Slack은 RL-01 전송기 재사용, 변경 없음); 노트는 모델 입력에 연결되지 않음",
+      "note": "RL-02는 새 외부 호출 없음, 노트는 모델 입력에 연결되지 않음(재기록 B40)",
       "evidence": "docs/work/feature.json",
       "exit_code": null,
       "actor": "orchestrator",
       "command": "",
-      "at": "2026-10-17T14:06:10+09:00",
-      "head": "b20b5f55ef76581ed46be1d7deb9363a0e43152f",
-      "source_hash": "4549452b5a0886d443597531cb5e98693ac9b38f50aa6cb6e14d0f8750179ee5",
-      "spec_hash": "d5687935760fed0f47e625fe37aa4ec4481a4b4ade243f4c7fd405e841da5890"
+      "at": "2026-10-18T09:04:10+09:00",
+      "head": "dc133b64600448c44f40ced6c877bc1a9c0ae55f",
+      "source_hash": "2156d57f36775ebdfa6bacc2a525935c2d11678427ecac23724db8cee5c131a0",
+      "spec_hash": "e2c5bf178b8bf13ba6d908f6d32be332d19093dd481cff34348600bde038a949"
     },
     "real_data_run": {
       "result": "not_applicable",
       "method": "manual",
-      "note": "RL-03·04·05 전용, RL-02 모델 호출 없음",
+      "note": "RL-03·04·05 전용, 이 기능 모델 호출 없음(재기록 B40)",
       "evidence": "docs/work/feature.json",
       "exit_code": null,
       "actor": "orchestrator",
       "command": "",
-      "at": "2026-10-17T14:06:10+09:00",
-      "head": "b20b5f55ef76581ed46be1d7deb9363a0e43152f",
-      "source_hash": "4549452b5a0886d443597531cb5e98693ac9b38f50aa6cb6e14d0f8750179ee5",
-      "spec_hash": "d5687935760fed0f47e625fe37aa4ec4481a4b4ade243f4c7fd405e841da5890"
+      "at": "2026-10-18T09:04:09+09:00",
+      "head": "dc133b64600448c44f40ced6c877bc1a9c0ae55f",
+      "source_hash": "2156d57f36775ebdfa6bacc2a525935c2d11678427ecac23724db8cee5c131a0",
+      "spec_hash": "e2c5bf178b8bf13ba6d908f6d32be332d19093dd481cff34348600bde038a949"
     }
   },
   "notes": [
@@ -359,7 +359,7 @@
       "text": "단계 → done: 배치 검증 및 통합 완료"
     }
   ],
-  "updated_at": "2026-10-17T14:44:41+09:00",
+  "updated_at": "2026-10-18T09:04:10+09:00",
   "proof_history": [
     {
       "key": "docs",
@@ -395,6 +395,102 @@
       "key": "real_data_run",
       "previous": {
         "result": "pending"
+      }
+    },
+    {
+      "key": "docs",
+      "previous": {
+        "result": "pass",
+        "method": "review",
+        "note": "doctor exit0, 독립 리뷰(RL-02+배치) BLOCKING 1건 결정 #18·#21로 해소(spec accept)",
+        "evidence": "docs/work/_runs/rla-20261016/logs/RL-02-doctor.log; docs/work/_runs/rla-20261016/RL-02-review.md",
+        "exit_code": null,
+        "actor": "orchestrator",
+        "command": "python3 scripts/feature_status.py doctor _",
+        "at": "2026-10-17T14:06:09+09:00",
+        "head": "b20b5f55ef76581ed46be1d7deb9363a0e43152f",
+        "source_hash": "4549452b5a0886d443597531cb5e98693ac9b38f50aa6cb6e14d0f8750179ee5",
+        "spec_hash": "d5687935760fed0f47e625fe37aa4ec4481a4b4ade243f4c7fd405e841da5890"
+      }
+    },
+    {
+      "key": "tests",
+      "previous": {
+        "result": "pass",
+        "method": "command",
+        "note": "plan tests + 경계·확장점·브리핑 회귀: 295 passed, 2 deselect(main c93da20에서도 실패하는 test_api_opportunities 2건)",
+        "evidence": "docs/work/_runs/rla-20261016/logs/RL-02-tests.log",
+        "exit_code": 0,
+        "actor": "orchestrator",
+        "command": "bash -lc \"cd web/backend && python -m pytest -q -x -p no:cacheprovider\"",
+        "at": "2026-10-17T14:06:09+09:00",
+        "head": "b20b5f55ef76581ed46be1d7deb9363a0e43152f",
+        "source_hash": "4549452b5a0886d443597531cb5e98693ac9b38f50aa6cb6e14d0f8750179ee5",
+        "spec_hash": "d5687935760fed0f47e625fe37aa4ec4481a4b4ade243f4c7fd405e841da5890"
+      }
+    },
+    {
+      "key": "postgres",
+      "previous": {
+        "result": "pass",
+        "method": "command",
+        "note": "postgres:17.11 201 passed(notes·activity·migrations·privileges·drift·boundaries) + 리뷰 수정 뒤 69 passed",
+        "evidence": "docs/work/_runs/rla-20261016/logs/RL-02-postgres.log; docs/work/_runs/rla-20261016/logs/RL-02-postgres-after-review.log",
+        "exit_code": 0,
+        "actor": "orchestrator",
+        "command": "",
+        "at": "2026-10-17T14:06:10+09:00",
+        "head": "b20b5f55ef76581ed46be1d7deb9363a0e43152f",
+        "source_hash": "4549452b5a0886d443597531cb5e98693ac9b38f50aa6cb6e14d0f8750179ee5",
+        "spec_hash": "d5687935760fed0f47e625fe37aa4ec4481a4b4ade243f4c7fd405e841da5890"
+      }
+    },
+    {
+      "key": "frontend",
+      "previous": {
+        "result": "pass",
+        "method": "command",
+        "note": "build·contrast 8/8; plan 3 spec(opportunity-record·opportunities·common-interactions) 통과. 같은 실행의 추가 spec 실패 2건 = bid-delta request_id 기존 flaky(결정 #16), briefing Enter URL 기대값(route 교체 결과) 갱신 후 briefing 27 passed; route-context는 batch HEAD와 같은 기존 12건만 실패",
+        "evidence": "docs/work/_runs/rla-20261016/logs/RL-02-frontend-build.log; docs/work/_runs/rla-20261016/logs/RL-02-playwright.log; docs/work/_runs/rla-20261016/logs/RL-02-playwright-briefing.log; docs/work/_runs/rla-20261016/logs/RL-02-route-context.log",
+        "exit_code": 0,
+        "actor": "orchestrator",
+        "command": "bash -lc \"cd web/frontend && npm run build && npm run test:contrast\"",
+        "at": "2026-10-17T14:06:10+09:00",
+        "head": "b20b5f55ef76581ed46be1d7deb9363a0e43152f",
+        "source_hash": "4549452b5a0886d443597531cb5e98693ac9b38f50aa6cb6e14d0f8750179ee5",
+        "spec_hash": "d5687935760fed0f47e625fe37aa4ec4481a4b4ade243f4c7fd405e841da5890"
+      }
+    },
+    {
+      "key": "real_data_run",
+      "previous": {
+        "result": "not_applicable",
+        "method": "manual",
+        "note": "RL-03·04·05 전용, RL-02 모델 호출 없음",
+        "evidence": "docs/work/feature.json",
+        "exit_code": null,
+        "actor": "orchestrator",
+        "command": "",
+        "at": "2026-10-17T14:06:10+09:00",
+        "head": "b20b5f55ef76581ed46be1d7deb9363a0e43152f",
+        "source_hash": "4549452b5a0886d443597531cb5e98693ac9b38f50aa6cb6e14d0f8750179ee5",
+        "spec_hash": "d5687935760fed0f47e625fe37aa4ec4481a4b4ade243f4c7fd405e841da5890"
+      }
+    },
+    {
+      "key": "api_guard",
+      "previous": {
+        "result": "not_applicable",
+        "method": "command",
+        "note": "RL-02는 새 외부 호출 없음(Slack은 RL-01 전송기 재사용, 변경 없음); 노트는 모델 입력에 연결되지 않음",
+        "evidence": "docs/work/feature.json",
+        "exit_code": null,
+        "actor": "orchestrator",
+        "command": "",
+        "at": "2026-10-17T14:06:10+09:00",
+        "head": "b20b5f55ef76581ed46be1d7deb9363a0e43152f",
+        "source_hash": "4549452b5a0886d443597531cb5e98693ac9b38f50aa6cb6e14d0f8750179ee5",
+        "spec_hash": "d5687935760fed0f47e625fe37aa4ec4481a4b4ade243f4c7fd405e841da5890"
       }
     }
   ],

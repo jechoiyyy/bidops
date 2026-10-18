@@ -122,6 +122,8 @@ services:
       BIDOPS_QUARANTINE_SECRET_KEY: "${BIDOPS_QUARANTINE_SECRET_KEY:?set an external quarantine secret key}"
       BIDOPS_MODEL_RESPONSE_ACCESS_KEY: "${BIDOPS_MODEL_RESPONSE_ACCESS_KEY:?set an external model-response access key}"
       BIDOPS_MODEL_RESPONSE_SECRET_KEY: "${BIDOPS_MODEL_RESPONSE_SECRET_KEY:?set an external model-response secret key}"
+      BIDOPS_PROPOSAL_PDF_ACCESS_KEY: "${BIDOPS_PROPOSAL_PDF_ACCESS_KEY:?set an external proposal-pdf access key}"
+      BIDOPS_PROPOSAL_PDF_SECRET_KEY: "${BIDOPS_PROPOSAL_PDF_SECRET_KEY:?set an external proposal-pdf secret key}"
     volumes:
       - ./scripts/minio-init.sh:/usr/local/bin/minio-init.sh:ro
     entrypoint: ["/bin/sh", "/usr/local/bin/minio-init.sh"]
@@ -160,6 +162,10 @@ services:
       BIDOPS_REFERENCE_WORKFLOW_MODE: "${BIDOPS_REFERENCE_WORKFLOW_MODE:-false}"
       BIDOPS_ACTIVE_ANALYSIS_POLICY_VERSION_ID: "${BIDOPS_ACTIVE_ANALYSIS_POLICY_VERSION_ID:-}"
       BIDOPS_PRESPEC_OVERVIEW_ENABLED: "${BIDOPS_PRESPEC_OVERVIEW_ENABLED:-false}"
+      # RL-04 제안서 초안 PDF(`bidops-proposal-pdf`)는 web이 렌더·저장·제공한다. 분석 worker는
+      # 받지 않는다(절 생성만 하고 PDF를 다루지 않는다).
+      BIDOPS_PROPOSAL_PDF_ACCESS_KEY: "${BIDOPS_PROPOSAL_PDF_ACCESS_KEY:?set an external proposal-pdf access key}"
+      BIDOPS_PROPOSAL_PDF_SECRET_KEY: "${BIDOPS_PROPOSAL_PDF_SECRET_KEY:?set an external proposal-pdf secret key}"
     # host publish는 `docker-compose.edge.yml`이 소유한다. 여기에 `ports:`를
     # 다시 두면 internal network 때문에 조용히 무시되는 선언이 된다.
     networks: [database, storage, scanning]
