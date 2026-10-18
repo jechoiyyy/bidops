@@ -32,3 +32,12 @@
 - `check`: RL-03·RL-04 모두 **real_data_run: pending**만 남음 → `run finish`·main 병합 불가(merge_policy manual). 완료로 표시하지 않음.
 - main 반영 전 확인 항목: (1) RL-03 실제 판정 — 항목 단위 실패 설계(findings) 뒤 사용자 승인 하에 재시도 (2) RL-04 실제 초안 1건 (3) **운영 env에 `BIDOPS_PROPOSAL_PDF_ACCESS_KEY`·`_SECRET_KEY` 추가와 minio-init 재실행**(compose `:?`, B49) (4) migration head `0041_proposal_draft` 운영 반영은 백업·롤백 태그 뒤 사람 확인.
 - 격리 스택 최종 상태: `bidops_rla` 활성 전송 승인 없음, runner·analysis worker 정지, rla-web은 rl04 이미지로 `bidops_rla_t11`(mock) 연결. bidops-local MinIO에 `bidops-proposal-pdf` 추가.
+
+## 항목 격리·종합 재실행과 실제 증명 (2026-10-18, 사용자 승인 B51·B55)
+
+- RL-03 STEP-011(항목 단위 추출 격리, v7)·B53(역할 근거, v8)·STEP-012(종합 계약 v2·종합만 재실행, v9) 구현·커밋 `68e10e9`, 배치 통합 `7d6e3de`, 기록 정정 `5bc391b`(B58), 최종 증거 `e8eaa1d`.
+- 실제 Luna: 8차(추출·역할 2 통과) → 9차(추출·역할 3 통과, 종합 실패) → **10차 = 9차 종합만 재실행, 첫 실제 판정 completed "판단 불가"**(`667bf04d`). RL-04 실제 초안 **partial 4/6**(`5d627b0f`, PDF `4e278aae`). 모델 호출 합계: RL-03 24회 + RL-04 6회, 모두 승인 범위.
+- 최종 자동 증명(배치 최종 코드): tests 490·postgres 244·frontend 194·api_guard 85·doctor 0. 독립 리뷰 B58 차단 0(기록 4건 정정).
+- **real_data_run: 사용자 확인으로 pass**(RL-03 판정 completed, RL-04 partial은 후속 과제 — 별칭 계약 v2). 두 기능 필수 증명 충족 → `run finish`·main 병합(B51 승인).
+- main 반영 후에도 남는 운영 전제: 운영 env `BIDOPS_PROPOSAL_PDF_ACCESS_KEY`·`_SECRET_KEY`와 minio-init 재실행, migration `0041_proposal_draft`, 재배포 — 운영 변경은 각 단계 직전 사람 확인(B49·B51).
+
