@@ -202,16 +202,16 @@
       "spec_hash": "485e5be98ffb32eae4f1a240cfa9893f76a7429507d361cff6fb70df193f6bbc"
     },
     "real_data_run": {
-      "result": "pending",
+      "result": "pass",
       "method": "manual",
-      "note": "T11 실제 초안: RL-03 T12 실제 판정 없음(B37)으로 보류. T10 mock 전 경로는 통과(mock_reference, T11 대체 아님)",
-      "evidence": "docs/validation-runs/2026-10-17-rl/RL-04/README.md",
+      "note": "사용자 확인(2026-10-18): 실제 초안 partial 4/6절 completed·PDF 생성, 2절은 식별자 복사 실수로 사람 검토. spec T11 '절 6개' 미충족분은 후속 과제(별칭 계약 v2)로 기록",
+      "evidence": "docs/validation-runs/2026-10-17-rl/RL-04/README.md (T11 draft 5d627b0f, export 4e278aae)",
       "exit_code": null,
-      "actor": "orchestrator",
+      "actor": "jechoi",
       "command": "",
-      "at": "2026-10-18T11:29:16+09:00",
-      "head": "9ae53ecbe1607d50f823e8404f59ccb47e75a96a",
-      "source_hash": "3ff4b4f112e44ac019c3bba969e66d3b8dc7f5e41939f0b94c974befbb58dd70",
+      "at": "2026-10-18T21:29:54+09:00",
+      "head": "e8eaa1d0ff8fe79aaadfdbed17a4b2e740a73b50",
+      "source_hash": "1d67e7b232814a748d21fde0397e93786ab6f5fa57a43dec41a639bb467079f3",
       "spec_hash": "485e5be98ffb32eae4f1a240cfa9893f76a7429507d361cff6fb70df193f6bbc"
     }
   },
@@ -313,7 +313,7 @@
       "text": "단계 → validating"
     }
   ],
-  "updated_at": "2026-10-18T17:16:34+09:00",
+  "updated_at": "2026-10-18T21:29:54+09:00",
   "proof_history": [
     {
       "key": "tests",
@@ -425,6 +425,22 @@
         "exit_code": null,
         "actor": "orchestrator",
         "command": "python3 scripts/feature_status.py doctor _",
+        "at": "2026-10-18T11:29:16+09:00",
+        "head": "9ae53ecbe1607d50f823e8404f59ccb47e75a96a",
+        "source_hash": "3ff4b4f112e44ac019c3bba969e66d3b8dc7f5e41939f0b94c974befbb58dd70",
+        "spec_hash": "485e5be98ffb32eae4f1a240cfa9893f76a7429507d361cff6fb70df193f6bbc"
+      }
+    },
+    {
+      "key": "real_data_run",
+      "previous": {
+        "result": "pending",
+        "method": "manual",
+        "note": "T11 실제 초안: RL-03 T12 실제 판정 없음(B37)으로 보류. T10 mock 전 경로는 통과(mock_reference, T11 대체 아님)",
+        "evidence": "docs/validation-runs/2026-10-17-rl/RL-04/README.md",
+        "exit_code": null,
+        "actor": "orchestrator",
+        "command": "",
         "at": "2026-10-18T11:29:16+09:00",
         "head": "9ae53ecbe1607d50f823e8404f59ccb47e75a96a",
         "source_hash": "3ff4b4f112e44ac019c3bba969e66d3b8dc7f5e41939f0b94c974befbb58dd70",
