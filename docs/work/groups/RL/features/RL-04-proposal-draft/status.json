@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
   "feature": "RL-04-proposal-draft",
-  "phase": "review",
+  "phase": "implementing",
   "steps": [
     {
       "id": "STEP-001",
@@ -162,7 +162,11 @@
     {
       "at": "2026-10-16T20:41:31+09:00",
       "text": "단계 → review: 독립 검사 1차 반영(폰트=이미지 NanumGothic·전용 WorkJob·REST 8개; 재검사 생략)"
+    },
+    {
+      "at": "2026-10-18T09:04:12+09:00",
+      "text": "단계 → implementing"
     }
   ],
-  "updated_at": "2026-10-16T20:41:31+09:00"
+  "updated_at": "2026-10-18T09:04:12+09:00"
 }
