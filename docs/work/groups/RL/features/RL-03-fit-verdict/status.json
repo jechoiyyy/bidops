@@ -232,67 +232,67 @@
     "docs": {
       "result": "pass",
       "method": "review",
-      "note": "doctor exit 0; 독립 리뷰가 spec·contracts·business-rules·operations·demo-contract·RL-05 spec·README·findings를 코드와 대조, 차단 4건 수정",
-      "evidence": "docs/work/_runs/rlb-20261017/logs/RL-03-proof-docs.log; decisions.md B39(독립 리뷰: 코드 차단 0, 문서 차단 4 수정)",
+      "note": "배치 최종 코드 adc00b8(RL-04 통합 후) 재검증으로 갱신. doctor 0, RL-03 리뷰 B39 + 배치 최종 리뷰 B50(RL-04+통합) 차단 해소",
+      "evidence": "docs/work/_runs/rlb-20261017/logs/BATCH-doctor.log; decisions.md B39·B50",
       "exit_code": null,
       "actor": "orchestrator",
       "command": "python3 scripts/feature_status.py doctor _",
-      "at": "2026-10-18T08:58:54+09:00",
-      "head": "36f2b1ac18cd9bb5c4cd3c84b2c7d1d42d10a38e",
-      "source_hash": "2156d57f36775ebdfa6bacc2a525935c2d11678427ecac23724db8cee5c131a0",
-      "spec_hash": "8646c0f6f15ca105605d0dffb760ed92166b13333943b82bc549c8a66642e67c"
+      "at": "2026-10-18T11:35:12+09:00",
+      "head": "adc00b8d16a6578b720d63dfb73d96ff59b6efde",
+      "source_hash": "3ff4b4f112e44ac019c3bba969e66d3b8dc7f5e41939f0b94c974befbb58dd70",
+      "spec_hash": "10e2df511afb19f22ca2f9856b696a63e198288f4d41d4d702180b00adb8c7b7"
     },
     "tests": {
       "result": "pass",
       "method": "command",
-      "note": "plan 증명 7파일 SQLite 284 passed(16 skip=PG 변형, PG는 postgres·B37 PG 실행)",
-      "evidence": "docs/work/_runs/rlb-20261017/logs/RL-03-proof-tests.log",
+      "note": "배치 최종 코드 adc00b8(RL-04 통합 후) 재검증으로 갱신. plan tests 293 passed(17 skip=PG 변형)",
+      "evidence": "docs/work/_runs/rlb-20261017/logs/BATCH-RL-03-tests.log",
       "exit_code": 0,
       "actor": "orchestrator",
       "command": "bash -lc \"cd web/backend && python -m pytest -q -x -p no:cacheprovider\"",
-      "at": "2026-10-18T08:58:53+09:00",
-      "head": "36f2b1ac18cd9bb5c4cd3c84b2c7d1d42d10a38e",
-      "source_hash": "2156d57f36775ebdfa6bacc2a525935c2d11678427ecac23724db8cee5c131a0",
-      "spec_hash": "8646c0f6f15ca105605d0dffb760ed92166b13333943b82bc549c8a66642e67c"
+      "at": "2026-10-18T11:35:11+09:00",
+      "head": "adc00b8d16a6578b720d63dfb73d96ff59b6efde",
+      "source_hash": "3ff4b4f112e44ac019c3bba969e66d3b8dc7f5e41939f0b94c974befbb58dd70",
+      "spec_hash": "10e2df511afb19f22ca2f9856b696a63e198288f4d41d4d702180b00adb8c7b7"
     },
     "postgres": {
       "result": "pass",
       "method": "command",
-      "note": "일회용 postgres:17.11, 4파일 156 passed",
-      "evidence": "docs/work/_runs/rlb-20261017/logs/RL-03-proof-postgres.log",
+      "note": "배치 최종 코드 adc00b8(RL-04 통합 후) 재검증으로 갱신. postgres:17.11 162 passed(migrations 0041·privileges·drift 포함)",
+      "evidence": "docs/work/_runs/rlb-20261017/logs/BATCH-RL-03-postgres.log",
       "exit_code": 0,
       "actor": "orchestrator",
       "command": "",
-      "at": "2026-10-18T08:58:53+09:00",
-      "head": "36f2b1ac18cd9bb5c4cd3c84b2c7d1d42d10a38e",
-      "source_hash": "2156d57f36775ebdfa6bacc2a525935c2d11678427ecac23724db8cee5c131a0",
-      "spec_hash": "8646c0f6f15ca105605d0dffb760ed92166b13333943b82bc549c8a66642e67c"
+      "at": "2026-10-18T11:35:11+09:00",
+      "head": "adc00b8d16a6578b720d63dfb73d96ff59b6efde",
+      "source_hash": "3ff4b4f112e44ac019c3bba969e66d3b8dc7f5e41939f0b94c974befbb58dd70",
+      "spec_hash": "10e2df511afb19f22ca2f9856b696a63e198288f4d41d4d702180b00adb8c7b7"
     },
     "frontend": {
       "result": "pass",
       "method": "command",
-      "note": "npm run build + vite preview 127.0.0.1:4291, playwright app verdict·opportunity-record 52 passed",
-      "evidence": "docs/work/_runs/rlb-20261017/logs/RL-03-proof-frontend.log",
+      "note": "배치 최종 코드 adc00b8(RL-04 통합 후) 재검증으로 갱신. build 0, Playwright app 7 spec 192 passed(verdict·record·proposal·common·company·opportunities·briefing)",
+      "evidence": "docs/work/_runs/rlb-20261017/logs/BATCH-frontend.log",
       "exit_code": 0,
       "actor": "orchestrator",
       "command": "bash -lc \"cd web/frontend && npm run build && npm run test:contrast\"",
-      "at": "2026-10-18T08:58:53+09:00",
-      "head": "36f2b1ac18cd9bb5c4cd3c84b2c7d1d42d10a38e",
-      "source_hash": "2156d57f36775ebdfa6bacc2a525935c2d11678427ecac23724db8cee5c131a0",
-      "spec_hash": "8646c0f6f15ca105605d0dffb760ed92166b13333943b82bc549c8a66642e67c"
+      "at": "2026-10-18T11:35:11+09:00",
+      "head": "adc00b8d16a6578b720d63dfb73d96ff59b6efde",
+      "source_hash": "3ff4b4f112e44ac019c3bba969e66d3b8dc7f5e41939f0b94c974befbb58dd70",
+      "spec_hash": "10e2df511afb19f22ca2f9856b696a63e198288f4d41d4d702180b00adb8c7b7"
     },
     "api_guard": {
       "result": "pass",
       "method": "command",
-      "note": "PG: test_transfer_policy(T3·T10·B25)·test_verdict_payload_guard(T9) 57 passed, skip 0(루트랩 fixture 존재)",
-      "evidence": "docs/work/_runs/rlb-20261017/logs/RL-03-proof-api-guard.log",
+      "note": "배치 최종 코드 adc00b8(RL-04 통합 후) 재검증으로 갱신. T3·T9·T10·B25 57 passed, skip 0",
+      "evidence": "docs/work/_runs/rlb-20261017/logs/BATCH-RL-03-api-guard.log",
       "exit_code": 0,
       "actor": "orchestrator",
       "command": "",
-      "at": "2026-10-18T08:58:54+09:00",
-      "head": "36f2b1ac18cd9bb5c4cd3c84b2c7d1d42d10a38e",
-      "source_hash": "2156d57f36775ebdfa6bacc2a525935c2d11678427ecac23724db8cee5c131a0",
-      "spec_hash": "8646c0f6f15ca105605d0dffb760ed92166b13333943b82bc549c8a66642e67c"
+      "at": "2026-10-18T11:35:12+09:00",
+      "head": "adc00b8d16a6578b720d63dfb73d96ff59b6efde",
+      "source_hash": "3ff4b4f112e44ac019c3bba969e66d3b8dc7f5e41939f0b94c974befbb58dd70",
+      "spec_hash": "10e2df511afb19f22ca2f9856b696a63e198288f4d41d4d702180b00adb8c7b7"
     },
     "real_data_run": {
       "result": "pending",
@@ -418,7 +418,7 @@
       "text": "단계 → validating"
     }
   ],
-  "updated_at": "2026-10-18T08:59:15+09:00",
+  "updated_at": "2026-10-18T11:35:12+09:00",
   "proof_history": [
     {
       "key": "tests",
@@ -454,6 +454,86 @@
       "key": "real_data_run",
       "previous": {
         "result": "pending"
+      }
+    },
+    {
+      "key": "tests",
+      "previous": {
+        "result": "pass",
+        "method": "command",
+        "note": "plan 증명 7파일 SQLite 284 passed(16 skip=PG 변형, PG는 postgres·B37 PG 실행)",
+        "evidence": "docs/work/_runs/rlb-20261017/logs/RL-03-proof-tests.log",
+        "exit_code": 0,
+        "actor": "orchestrator",
+        "command": "bash -lc \"cd web/backend && python -m pytest -q -x -p no:cacheprovider\"",
+        "at": "2026-10-18T08:58:53+09:00",
+        "head": "36f2b1ac18cd9bb5c4cd3c84b2c7d1d42d10a38e",
+        "source_hash": "2156d57f36775ebdfa6bacc2a525935c2d11678427ecac23724db8cee5c131a0",
+        "spec_hash": "8646c0f6f15ca105605d0dffb760ed92166b13333943b82bc549c8a66642e67c"
+      }
+    },
+    {
+      "key": "postgres",
+      "previous": {
+        "result": "pass",
+        "method": "command",
+        "note": "일회용 postgres:17.11, 4파일 156 passed",
+        "evidence": "docs/work/_runs/rlb-20261017/logs/RL-03-proof-postgres.log",
+        "exit_code": 0,
+        "actor": "orchestrator",
+        "command": "",
+        "at": "2026-10-18T08:58:53+09:00",
+        "head": "36f2b1ac18cd9bb5c4cd3c84b2c7d1d42d10a38e",
+        "source_hash": "2156d57f36775ebdfa6bacc2a525935c2d11678427ecac23724db8cee5c131a0",
+        "spec_hash": "8646c0f6f15ca105605d0dffb760ed92166b13333943b82bc549c8a66642e67c"
+      }
+    },
+    {
+      "key": "frontend",
+      "previous": {
+        "result": "pass",
+        "method": "command",
+        "note": "npm run build + vite preview 127.0.0.1:4291, playwright app verdict·opportunity-record 52 passed",
+        "evidence": "docs/work/_runs/rlb-20261017/logs/RL-03-proof-frontend.log",
+        "exit_code": 0,
+        "actor": "orchestrator",
+        "command": "bash -lc \"cd web/frontend && npm run build && npm run test:contrast\"",
+        "at": "2026-10-18T08:58:53+09:00",
+        "head": "36f2b1ac18cd9bb5c4cd3c84b2c7d1d42d10a38e",
+        "source_hash": "2156d57f36775ebdfa6bacc2a525935c2d11678427ecac23724db8cee5c131a0",
+        "spec_hash": "8646c0f6f15ca105605d0dffb760ed92166b13333943b82bc549c8a66642e67c"
+      }
+    },
+    {
+      "key": "api_guard",
+      "previous": {
+        "result": "pass",
+        "method": "command",
+        "note": "PG: test_transfer_policy(T3·T10·B25)·test_verdict_payload_guard(T9) 57 passed, skip 0(루트랩 fixture 존재)",
+        "evidence": "docs/work/_runs/rlb-20261017/logs/RL-03-proof-api-guard.log",
+        "exit_code": 0,
+        "actor": "orchestrator",
+        "command": "",
+        "at": "2026-10-18T08:58:54+09:00",
+        "head": "36f2b1ac18cd9bb5c4cd3c84b2c7d1d42d10a38e",
+        "source_hash": "2156d57f36775ebdfa6bacc2a525935c2d11678427ecac23724db8cee5c131a0",
+        "spec_hash": "8646c0f6f15ca105605d0dffb760ed92166b13333943b82bc549c8a66642e67c"
+      }
+    },
+    {
+      "key": "docs",
+      "previous": {
+        "result": "pass",
+        "method": "review",
+        "note": "doctor exit 0; 독립 리뷰가 spec·contracts·business-rules·operations·demo-contract·RL-05 spec·README·findings를 코드와 대조, 차단 4건 수정",
+        "evidence": "docs/work/_runs/rlb-20261017/logs/RL-03-proof-docs.log; decisions.md B39(독립 리뷰: 코드 차단 0, 문서 차단 4 수정)",
+        "exit_code": null,
+        "actor": "orchestrator",
+        "command": "python3 scripts/feature_status.py doctor _",
+        "at": "2026-10-18T08:58:54+09:00",
+        "head": "36f2b1ac18cd9bb5c4cd3c84b2c7d1d42d10a38e",
+        "source_hash": "2156d57f36775ebdfa6bacc2a525935c2d11678427ecac23724db8cee5c131a0",
+        "spec_hash": "8646c0f6f15ca105605d0dffb760ed92166b13333943b82bc549c8a66642e67c"
       }
     }
   ]
