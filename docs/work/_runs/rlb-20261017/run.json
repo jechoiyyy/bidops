@@ -1,0 +1,71 @@
+{
+  "id": "rlb-20261017",
+  "state": "implementing",
+  "features": [
+    "RL-03-fit-verdict",
+    "RL-04-proposal-draft"
+  ],
+  "target": "main",
+  "base_sha": "36f2b1ac18cd9bb5c4cd3c84b2c7d1d42d10a38e",
+  "base_root": "/Users/temp/orca/bidops",
+  "branch": "sdlc/batch-rlb-20261017",
+  "workspace": "/Users/temp/orca/bidops/.sdlc/worktrees/batch-rlb-20261017",
+  "work_dir": "docs/work",
+  "engine": "claude",
+  "approved_at": "2026-10-17T15:20:14+09:00",
+  "policy": {
+    "auto_commit": false,
+    "manual_proof": "defer",
+    "final_review": true,
+    "max_retries": 1,
+    "git": {
+      "isolation": "worktree",
+      "merge": "no-ff",
+      "copy_untracked": []
+    },
+    "commit_policy": "manual",
+    "merge_policy": "manual"
+  },
+  "specs": {
+    "RL-03-fit-verdict": "10e2df511afb19f22ca2f9856b696a63e198288f4d41d4d702180b00adb8c7b7",
+    "RL-04-proposal-draft": "485e5be98ffb32eae4f1a240cfa9893f76a7429507d361cff6fb70df193f6bbc"
+  },
+  "ready": {
+    "RL-03-fit-verdict": {
+      "inputs": {
+        "source_hash": "2156d57f36775ebdfa6bacc2a525935c2d11678427ecac23724db8cee5c131a0",
+        "spec_hash": "8646c0f6f15ca105605d0dffb760ed92166b13333943b82bc549c8a66642e67c"
+      },
+      "at": "2026-10-18T08:59:15+09:00"
+    },
+    "RL-04-proposal-draft": {
+      "inputs": {
+        "source_hash": "3ff4b4f112e44ac019c3bba969e66d3b8dc7f5e41939f0b94c974befbb58dd70",
+        "spec_hash": "485e5be98ffb32eae4f1a240cfa9893f76a7429507d361cff6fb70df193f6bbc"
+      },
+      "at": "2026-10-18T11:29:39+09:00"
+    }
+  },
+  "decisions": [
+    {
+      "feature": "RL-03-fit-verdict",
+      "note": "B23~B39: 정책 v2~v6·selector v3·추출 계약 v2·검증기 결함 수정·T12 pending 반영, feature.json real_data_run dependency_gate=false(B38); 사용자 승인 B33·B35·B37",
+      "at": "2026-10-18T08:53:17+09:00"
+    },
+    {
+      "feature": "RL-04-proposal-draft",
+      "note": "B38: feature.json(공통 설정) real_data_run dependency_gate=false로 spec_hash 입력 변경, RL-04 명세 자체는 무변경",
+      "at": "2026-10-18T08:53:17+09:00"
+    },
+    {
+      "feature": "RL-04-proposal-draft",
+      "note": "B41(권한 모순 정정)·B42(charset-normalizer)·B48(proposal-pdf 키 2, 사용자 승인)·B50(재생성·superseded 409, B45 문구)·구현 상태 머리말; tech-stack(constitution) 변경 포함",
+      "at": "2026-10-18T11:29:15+09:00"
+    },
+    {
+      "feature": "RL-03-fit-verdict",
+      "note": "배치 통합 후: constitution tech-stack(RL-04 reportlab·폰트 문구, B42·B48) 변경으로 spec_hash 입력 변경, RL-03 명세 무변경",
+      "at": "2026-10-18T11:35:11+09:00"
+    }
+  ]
+}
