@@ -2,7 +2,7 @@
 
 2026-10-18 KST, run `rlb-20261017`, 기능 `RL-04-proposal-draft` STEP-009.
 
-이 문서는 **T10 mock 전 경로**의 기록이다. 모델 호출은 0회이고 runner는 시작하지 않았다. 결과는 모두 `mock_reference`이며 품질 근거·운영 완료 근거가 아니다. **T10은 T11(실제 초안)을 대신하지 않는다.**
+이 문서는 **T10 mock 전 경로**(모델 호출 0, `mock_reference`)와 **T11 실제 초안 1건**(아래 절: 모델 호출 6, partial — 6절 중 4절 completed, track_record·operations_sla `proposal_section_invalid`, `unmeasured_reference`)의 기록이다. 어느 결과도 품질 근거·운영 완료 근거가 아니며 T10은 T11을 대신하지 않는다. `real_data_run` 증명은 사람 확인 대기(B57).
 
 ## T10 mock 전 경로
 
