@@ -121,8 +121,11 @@ def _policies(session: Session, monkeypatch) -> tuple:
     rl = import_policy_version(session, RL_LUNA_POLICY_FILE_V6, created_by_name="jechoi",
                                label="analysis-policy-luna-rl-v6")
     session.commit()
+    # The RL approval binds row identity = policy file identity; pin the v6 file explicitly
+    # (the import default moved to v7 with RL-03 결정 B51).
     configure(monkeypatch, BIDOPS_PROPOSAL_POLICY_VERSION_ID=str(proposal.id),
-              BIDOPS_RL_DEEP_REVIEW_POLICY_VERSION_ID=str(rl.id))
+              BIDOPS_RL_DEEP_REVIEW_POLICY_VERSION_ID=str(rl.id),
+              BIDOPS_RL_ANALYSIS_POLICY_PATH=str(RL_LUNA_POLICY_FILE_V6))
     return proposal, rl
 
 

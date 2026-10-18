@@ -3032,7 +3032,8 @@ export interface VerdictPageRange {
 
 export interface VerdictMatrixRow {
   unit_id: string;
-  type: string;
+  /** 요구사항 유형. 검증 실패로 격리된 unit(결정 B51)은 `null`이다. */
+  type: string | null;
   fit_status: VerdictFit;
   role_findings: VerdictRoleFinding[];
   evidence_refs: VerdictEvidenceRef[];
@@ -3044,6 +3045,16 @@ export interface VerdictMatrixRow {
   mandatory?: boolean | null;
   /** 대조에 쓰인 회사 사실의 라벨(보조 한 줄). 없을 수 있다. */
   fact_labels?: string[] | null;
+  /** 결정 B51: 검증 실패로 격리된 unit의 규칙 코드(그 밖의 행은 빈 배열). 옛 응답에는 없을 수 있다. */
+  rejected_rule_codes?: string[] | null;
+}
+
+/** 결정 B51: 추출 검증에서 격리된 unit("검증 실패 — 사람 확인 필요"). 모델 내용은 싣지 않는다. */
+export interface VerdictRejectedUnit {
+  unit_id: string;
+  /** 카드 요구사항 번호(SFR-1 등). segment unit은 `null`. */
+  normalized_id: string | null;
+  rule_codes: string[];
 }
 
 export interface VerdictChecklistRow {
@@ -3069,6 +3080,8 @@ export interface VerdictNextAction {
   owner: string | null;
   action: string;
   evidence_refs: VerdictEvidenceRef[];
+  /** 결정 B55: model(종합 답) | code(BidOps가 붙인 누락 영역·격리 요구사항 "사람 확인" 행) | null(v9 이전 행). */
+  origin: "model" | "code" | null;
 }
 
 export interface VerdictResult {
@@ -3128,6 +3141,8 @@ export interface PractitionerVerdictView {
   /** RL-03 사업기회 경로 추가 키. */
   briefing_item_id: string | null;
   opportunity_id: number | null;
+  /** 결정 B51: 추출 검증에서 격리된 unit. 옛 응답에는 없을 수 있다. */
+  rejected_units?: VerdictRejectedUnit[];
 }
 
 export interface VerdictRequestReceipt {

@@ -115,7 +115,8 @@
       "type": "string",
       "enum": [
         "confirmed_match", "confirmed_contradiction", "unknown_fact", "proposed_fact", "partial_path",
-        "unmapped", "unsupported_comparison", "scope_unverified", "contract_unaccepted", "incomplete_unit"
+        "unmapped", "unsupported_comparison", "scope_unverified", "contract_unaccepted", "incomplete_unit",
+        "extract_rejected"
       ]
     },
     "constraint_result": {

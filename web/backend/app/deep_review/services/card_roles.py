@@ -4,7 +4,9 @@ HP-03 rules (spec "단계 wire 계약" 역할·종합) with RL names:
 
 * each role gets only its requirement types and must return every unit of
   its input exactly once; evidence references must be the unit's own frozen
-  extract evidence;
+  extract evidence or (결정 B53) the unit's own constraint
+  ``(locator.source_sha256, locator.block_key, quote)`` -- both were verified
+  verbatim against the same unit block at extract (``unit_evidence_keys``);
 * a role may not move a unit away from the deterministic compare: its
   assessment equals the compare ``fit_status`` or is ``unknown`` (an unknown
   never becomes met or gap; disagreements between roles stay as conflicts);
@@ -13,9 +15,19 @@ HP-03 rules (spec "단계 wire 계약" 역할·종합) with RL names:
   a mandatory gap is a blocking condition or a caution, and "진행 가능" with a
   mandatory gap or any unresolved item is rejected; so is "진행 가능" when the
   frozen input has ``missing_sections`` (결정 B23: the highest allowed verdict
-  is then "조건부 진행"; the answer is rejected, never rewritten);
+  is then "조건부 진행"; the answer is rejected, never rewritten); 결정 B51: the
+  same cap holds while extract items were isolated (``rejected_units``) --
+  rejected units are in the compare (``unknown``/``extract_rejected``) but in
+  no role input (their model type is not used), and the matrix lists them as
+  ``unknown`` rows with their rule codes;
 * checklist, matrix and conflicts are assembled by code from the frozen
-  compare and role rows; the verdict is never a Go/No-Go decision.
+  compare and role rows; the verdict is never a Go/No-Go decision;
+* synthesis contract v2 (결정 B55, policy v9): the model supplies only verdict,
+  reason, cautions and role-unit next actions.  ``synthesis_v1_from_v2`` adds
+  ``blocking_condition_ids`` = the mandatory ``gap`` units (the rule the
+  validator already enforces) and the unchanged validator decides; assembly
+  appends one code "사람 확인" action per missing section and per rejected
+  unit (``origin="code"``; model rows ``origin="model"``).
 """
 
 from __future__ import annotations
@@ -27,11 +39,14 @@ from pydantic import ValidationError
 
 from ..contracts import (
     PRACTITIONER_VERDICT_SCHEMA,
+    PRACTITIONER_VERDICT_V2_SCHEMA,
     SchemaValidationError,
     VERDICT_ROLE_SCHEMA,
     validate_payload,
 )
 from ..schemas.card_analysis import (
+    MISSING_SECTION_ACTION_PREFIX,
+    CardNextAction,
     CardAssembledPractitionerVerdict,
     CardChecklistItem,
     CardMatrixRoleFinding,
@@ -70,6 +85,37 @@ def _evidence_key(evidence: Any) -> tuple[str, str, str]:
     return (evidence.source_sha256, evidence.block_key, evidence.quote)
 
 
+def _constraint_key(constraint: Any) -> tuple[str, str, str]:
+    return (constraint.locator.source_sha256, constraint.locator.block_key, constraint.quote)
+
+
+def unit_evidence_keys(item: Any) -> set[tuple[str, str, str]]:
+    """결정 B53: the evidence a role/synthesis may cite for one extract item.
+
+    The item's ``evidence`` triples plus its own constraint triples
+    ``(locator.source_sha256, locator.block_key, quote)``.  Both kinds were
+    checked verbatim against the same unit block by the extract validator, so
+    the set stays per unit and exact (another unit's triple never qualifies).
+    """
+
+    return {_evidence_key(row) for row in item.evidence} | {_constraint_key(row) for row in item.constraints}
+
+
+def cited_constraint_refs(item: Any, refs: Sequence[Any]) -> list[Any]:
+    """결정 B53: role-cited refs of ``item`` that are its constraint triples (not already its evidence)."""
+
+    evidence = {_evidence_key(row) for row in item.evidence}
+    constraints = {_constraint_key(row) for row in item.constraints}
+    result: list[Any] = []
+    seen: set[tuple[str, str, str]] = set()
+    for row in refs:
+        key = _evidence_key(row)
+        if key in constraints and key not in evidence and key not in seen:
+            seen.add(key)
+            result.append(row.model_copy(deep=True))
+    return result
+
+
 def _parsed_extract_compare(
     extract: CardRequirementExtract | Mapping[str, Any],
     compare: CardRequirementCompare | Mapping[str, Any],
@@ -80,7 +126,13 @@ def _parsed_extract_compare(
     parsed_compare = (
         compare if isinstance(compare, CardRequirementCompare) else CardRequirementCompare.model_validate(compare)
     )
-    if [row.unit_id for row in parsed_extract.items] != [row.unit_id for row in parsed_compare.items]:
+    rejected = {row.unit_id for row in parsed_extract.rejected_units}
+    compare_ids = [row.unit_id for row in parsed_compare.items]
+    if (
+        [unit_id for unit_id in compare_ids if unit_id not in rejected] != [row.unit_id for row in parsed_extract.items]
+        or set(compare_ids) - {row.unit_id for row in parsed_extract.items} != rejected
+        or any(row.unit_id in rejected and row.reason_codes != ["extract_rejected"] for row in parsed_compare.items)
+    ):
         raise _role_invalid()
     return parsed_extract, parsed_compare
 
@@ -134,9 +186,7 @@ def validate_verdict_role(
         if any(row.type not in ROLE_REQUIREMENT_TYPES[result.role] for row in frozen.extract.items):
             raise _role_invalid()
         compare_fit = {row.unit_id: row.fit_status for row in frozen.compare.items}
-        evidence_by_unit = {
-            row.unit_id: {_evidence_key(evidence) for evidence in row.evidence} for row in frozen.extract.items
-        }
+        evidence_by_unit = {row.unit_id: unit_evidence_keys(row) for row in frozen.extract.items}
         all_evidence = set().union(*evidence_by_unit.values()) if evidence_by_unit else set()
         if any(_evidence_key(evidence) not in all_evidence for evidence in result.evidence_refs):
             raise _role_invalid()
@@ -211,12 +261,15 @@ def validate_practitioner_verdict(
     compare: CardRequirementCompare | Mapping[str, Any],
     allowed_owners: Sequence[str] = (),
     missing_sections: Sequence[str] = (),
+    rejected_units: Sequence[str] = (),
 ) -> CardPractitionerVerdict:
     """Synthesis references, invented-owner refusal and the unconditional-proceed safety gate.
 
     ``missing_sections`` are the frozen input's unfound source sections
     (only ``card-sections-v2``/``-v3`` reach synthesis with them, 결정 B23·B30); any
-    entry makes "진행 가능" ``card_synthesis_invalid``.
+    entry makes "진행 가능" ``card_synthesis_invalid``.  ``rejected_units`` (결정 B51)
+    must be exactly the extract's isolated unit ids; any entry makes "진행 가능"
+    ``card_synthesis_invalid`` too.
 
     ``allowed_owners`` must come from names explicitly present in the frozen
     model input; actor/audit names are not owner evidence, so the empty
@@ -231,6 +284,10 @@ def validate_practitioner_verdict(
             else CardSynthesisInput.model_validate(synthesis_input)
         )
         parsed_extract, parsed_compare = _parsed_extract_compare(extract, compare)
+        if sorted(rejected_units) != sorted(row.unit_id for row in parsed_extract.rejected_units) or (
+            len(set(rejected_units)) != len(list(rejected_units))
+        ):
+            raise _synthesis_invalid()
         expected_role_inputs = build_verdict_role_inputs(parsed_extract, parsed_compare)
         for role_result in frozen_roles.roles:
             validate_verdict_role(role_result.model_dump(mode="json"), role_input=expected_role_inputs[role_result.role])
@@ -269,7 +326,7 @@ def validate_practitioner_verdict(
             or bool(result.cautions)
             or bool(result.next_actions)
         )
-        if result.verdict == "진행 가능" and (mandatory_gaps or unresolved or missing_sections):
+        if result.verdict == "진행 가능" and (mandatory_gaps or unresolved or missing_sections or rejected_units):
             raise _synthesis_invalid()
         return result
     except CardAnalysisValidationError as error:
@@ -311,6 +368,65 @@ CHECKLIST_MEMBERS: Final[tuple[tuple[str, Any], ...]] = (
 )
 
 
+#: 결정 B55: Korean section names of the code "사람 확인" actions (business-rules wording).
+SECTION_NAMES: Final[dict[str, str]] = {
+    "overview": "사업개요", "schedule": "추진일정", "budget": "사업예산",
+    "eligibility": "입찰참가자격", "evaluation": "평가기준", "contract": "계약조건",
+}
+MISSING_SECTION_ACTION = "원문에서 '{name}' 영역을 찾지 못했습니다. 이 영역의 조건을 원문에서 사람이 확인하세요."
+REJECTED_UNIT_ACTION = "원문 근거 검증에 실패한 요구사항입니다. 원문에서 사람이 확인하세요(자동으로 고치지 않음)."
+
+
+def synthesis_v1_from_v2(
+    payload: Mapping[str, Any],
+    *,
+    extract: CardRequirementExtract | Mapping[str, Any],
+    compare: CardRequirementCompare | Mapping[str, Any],
+) -> dict[str, Any]:
+    """결정 B55: the v1 synthesis object of a ``bidops.practitioner-verdict.v2`` answer.
+
+    The answer must match the v2 output schema (``card_synthesis_invalid``
+    otherwise -- the client already rejects it as ``schema_invalid``, which gets
+    the single schema repair).  Every model field is copied unchanged;
+    ``blocking_condition_ids`` is the mandatory ``gap`` units of the compare, in
+    extract order -- exactly what ``validate_practitioner_verdict`` requires of
+    a v1 answer.  Nothing is corrected: a next action or caution naming a
+    non-role unit still fails validation (not schema-expressible: the allowed
+    unit ids differ per attempt).
+    """
+
+    try:
+        validate_payload(payload, PRACTITIONER_VERDICT_V2_SCHEMA)
+        parsed_extract, parsed_compare = _parsed_extract_compare(extract, compare)
+        return {
+            "schema_version": "bidops.practitioner-verdict.v1",
+            **{key: payload[key] for key in ("verdict", "reason", "cautions", "next_actions")},
+            "blocking_condition_ids": _mandatory_gap_ids(parsed_extract, parsed_compare),
+        }
+    except CardAnalysisValidationError as error:
+        if error.code != CARD_SYNTHESIS_INVALID:
+            raise _synthesis_invalid() from None
+        raise
+    except (TypeError, ValueError, ValidationError, SchemaValidationError, KeyError):
+        raise _synthesis_invalid() from None
+
+
+def code_next_actions(missing_sections: Sequence[str], rejected_units: Sequence[str]) -> list[CardNextAction]:
+    """결정 B55: the deterministic "사람 확인" rows (missing sections, then rejected units)."""
+
+    rows = [
+        CardNextAction(unit_id=MISSING_SECTION_ACTION_PREFIX + kind, owner=None,
+                       action=MISSING_SECTION_ACTION.format(name=SECTION_NAMES.get(kind, kind)),
+                       evidence_refs=[], origin="code")
+        for kind in missing_sections
+    ]
+    rows += [
+        CardNextAction(unit_id=unit_id, owner=None, action=REJECTED_UNIT_ACTION, evidence_refs=[], origin="code")
+        for unit_id in rejected_units
+    ]
+    return rows
+
+
 def assemble_practitioner_verdict(
     synthesis: CardPractitionerVerdict | Mapping[str, Any],
     *,
@@ -319,6 +435,9 @@ def assemble_practitioner_verdict(
     compare: CardRequirementCompare | Mapping[str, Any],
     allowed_owners: Sequence[str] = (),
     missing_sections: Sequence[str] = (),
+    rejected_units: Sequence[str] = (),
+    record_rejected_units: bool = False,
+    code_actions: bool = False,
 ) -> CardAssembledPractitionerVerdict:
     """Code-owned checklist, matrix and role conflicts around the validated synthesis.
 
@@ -326,6 +445,14 @@ def assemble_practitioner_verdict(
     (결정 B23).  No unit of those sections was selected, so their requirements
     are unknown ("확인 필요") -- the record keeps that visible; the checklist and
     matrix stay computed from the selected units only.
+
+    결정 B51: a rejected unit is a matrix row with ``type`` null, ``unknown``, no
+    role findings and its rule codes; the checklist uses accepted items only
+    (a rejected item's type is not used).  ``record_rejected_units`` (policy v7)
+    copies ``{unit_id, rule_codes}`` into the final row.
+
+    결정 B55: ``code_actions`` (synthesis contract v2) marks the model actions
+    ``origin="model"`` and appends ``code_next_actions`` (``origin="code"``).
     """
 
     try:
@@ -337,16 +464,25 @@ def assemble_practitioner_verdict(
         payload = synthesis.model_dump(mode="json") if isinstance(synthesis, CardPractitionerVerdict) else synthesis
         verdict = validate_practitioner_verdict(
             payload, synthesis_input=frozen_roles, extract=parsed_extract, compare=parsed_compare,
-            allowed_owners=allowed_owners, missing_sections=missing_sections,
+            allowed_owners=allowed_owners, missing_sections=missing_sections, rejected_units=rejected_units,
         )
         compare_by_id = {row.unit_id: row for row in parsed_compare.items}
+        rejected_by_id = {row.unit_id: row for row in parsed_extract.rejected_units}
+        extract_by_id = {row.unit_id: row for row in parsed_extract.items}
         findings_by_unit: dict[str, list[tuple[str, Any]]] = {row.unit_id: [] for row in parsed_extract.items}
         for role in frozen_roles.roles:
             for finding in role.unit_findings:
                 findings_by_unit[finding.unit_id].append((role.role, finding))
         matrix = []
         conflicts = []
-        for item in parsed_extract.items:
+        for compared in parsed_compare.items:
+            if compared.unit_id in rejected_by_id:
+                matrix.append(CardRequirementMatrixItem(
+                    unit_id=compared.unit_id, type=None, fit_status="unknown", role_findings=[],
+                    rejected_rule_codes=list(rejected_by_id[compared.unit_id].rule_codes),
+                ))
+                continue
+            item = extract_by_id[compared.unit_id]
             role_findings = findings_by_unit[item.unit_id]
             matrix.append(CardRequirementMatrixItem(
                 unit_id=item.unit_id, type=item.type, fit_status=compare_by_id[item.unit_id].fit_status,
@@ -364,13 +500,24 @@ def assemble_practitioner_verdict(
                     roles=[role for role, _finding in role_findings],
                     assessments=[finding.assessment for _role, finding in role_findings],
                 ))
+        role_refs_by_unit: dict[str, list[Any]] = {}
+        for role in frozen_roles.roles:
+            for finding in role.unit_findings:
+                role_refs_by_unit.setdefault(finding.unit_id, []).extend(finding.evidence_refs)
+            for caution in role.cautions:
+                role_refs_by_unit.setdefault(caution.unit_id, []).extend(caution.evidence_refs)
         checklist = []
         for key, predicate in CHECKLIST_MEMBERS:
             members = [row for row in parsed_extract.items if predicate(row)]
             checklist.append(CardChecklistItem(
                 key=key,
                 status=_aggregate_fit([compare_by_id[row.unit_id] for row in members]),
-                evidence_refs=_unique_evidence([value for row in members for value in row.evidence]),
+                # 결정 B53: plus the constraint quotes the roles cited for these units
+                # (identical to the item evidence when no constraint quote is cited).
+                evidence_refs=_unique_evidence([
+                    value for row in members
+                    for value in [*row.evidence, *cited_constraint_refs(row, role_refs_by_unit.get(row.unit_id, []))]
+                ]),
             ))
         cautions: list[CardVerdictCaution] = []
         caution_keys: set[tuple[str, str, tuple[tuple[str, str, str], ...]]] = set()
@@ -383,8 +530,15 @@ def assemble_practitioner_verdict(
             verdict=verdict.verdict, reason=verdict.reason,
             blocking_condition_ids=list(verdict.blocking_condition_ids),
             checklist=checklist, matrix=matrix, cautions=cautions, conflicts=conflicts,
-            next_actions=[row.model_copy(deep=True) for row in verdict.next_actions],
+            next_actions=(
+                [*(row.model_copy(update={"origin": "model"}, deep=True) for row in verdict.next_actions),
+                 *code_next_actions(missing_sections, [row.unit_id for row in parsed_extract.rejected_units])]
+                if code_actions else [row.model_copy(deep=True) for row in verdict.next_actions]
+            ),
             missing_sections=list(missing_sections),
+            rejected_units=(
+                [row.model_copy(deep=True) for row in parsed_extract.rejected_units] if record_rejected_units else None
+            ),
         )
     except CardAnalysisValidationError as error:
         if error.code != CARD_SYNTHESIS_INVALID:
@@ -401,6 +555,10 @@ __all__ = [
     "assemble_practitioner_verdict",
     "build_synthesis_input",
     "build_verdict_role_inputs",
+    "code_next_actions",
+    "synthesis_v1_from_v2",
+    "cited_constraint_refs",
+    "unit_evidence_keys",
     "validate_practitioner_verdict",
     "validate_verdict_role",
 ]

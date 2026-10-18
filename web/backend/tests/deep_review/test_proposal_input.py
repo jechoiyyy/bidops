@@ -458,3 +458,42 @@ def test_synthetic_fixture_mirrors_the_rootlab_shape() -> None:
     assert nodes["staff:pm"]["status"] == "unknown" and nodes["project:certified_list"]["status"] == "unknown"
     assert {key for key in nodes if key.startswith(("project:", "cert:", "staff:"))} >= {
         "project:2025-01", "cert:patents", "staff:total", "staff:onsite"}
+
+
+def test_b51_a_rejected_card_still_appears_in_requirements_with_unknown_fit(company) -> None:
+    """RL-03 결정 B51: card_2's extract item was rejected -- no extract row (no type), a fixed compare row."""
+
+    frozen = _frozen(company.knowledge)
+    roles = _units_by_role(frozen)
+    rejected_id = roles["card_2"]["unit_id"]
+    base = _sources(frozen)
+    extract_items = [
+        {"unit_id": roles[role]["unit_id"], "type": type_, "normalized_requirement": f"{role} 요구",
+         "mandatory": True, "constraints": [], "concept_candidates": [], "unknowns": [],
+         "evidence": [{"source_sha256": roles[role]["source_sha256"], "block_key": roles[role]["blocks"][0]["block_key"],
+                       "quote": roles[role]["blocks"][0]["text"] or "본문"}]}
+        for role, type_ in TYPES.items() if role != "card_2"
+    ]
+    compare_items = [row for unit_id, row in base.compares.items() if unit_id != rejected_id]
+    compare_items.append({"unit_id": rejected_id, "fit_status": "unknown", "constraint_results": [],
+                          "evidence_ids": [], "reason_codes": ["extract_rejected"]})
+    sources = verdict_sources(
+        attempt_id=uuid4(), notice_id=NOTICE_ID, frozen=frozen, verdict_input_sha256="f" * 64,
+        extract_payloads=[{"schema_version": "bidops.requirement-extract.v1", "items": extract_items,
+                           "rejected_units": [{"unit_id": rejected_id, "rule_codes": ["constraint_quote_truncated"]}]}],
+        compare_payloads=[{"schema_version": "bidops.requirement-compare.v1", "items": compare_items}],
+        verdict=dict(base.verdict),
+    )
+    assert rejected_id not in sources.unit_types
+    requirements = _input(sources, "requirements")
+    validate_payload(requirements, "proposal-input")
+    # every card unit is still linked; the rejected one carries its unknown/extract_rejected compare row
+    assert _ids(requirements["units"]) == [roles["card_1"]["unit_id"], rejected_id]
+    rejected_compare = next(row for row in requirements["compares"] if row["unit_id"] == rejected_id)
+    assert (rejected_compare["fit_status"], rejected_compare["reason_codes"], rejected_compare["constraint_results"]) == (
+        "unknown", ["extract_rejected"], [])
+    # type-based sections no longer select it (its model type is not used)
+    assert rejected_id not in _ids(_input(sources, "strategy")["units"])
+    assert rejected_id not in _ids(_input(sources, "operations_sla")["units"])
+    payload = proposal_transfer_payload(requirements, sources, operational_values=OPERATIONAL)
+    check_proposal_transfer_payload(payload, requirements, sources, operational_values=OPERATIONAL)

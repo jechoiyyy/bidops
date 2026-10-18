@@ -143,6 +143,7 @@ class VerdictRequestError(ValueError):
         "not_found": 404,
         "opportunity_not_found": 404,
         "idempotency_conflict": 409,
+        "resume_source_invalid": 409,
         "processing_failed": 500,
     }
     MESSAGES = {
@@ -152,6 +153,7 @@ class VerdictRequestError(ValueError):
         "not_found": "대상을 찾을 수 없습니다",
         "opportunity_not_found": "사업기회를 찾을 수 없습니다",
         "idempotency_conflict": "같은 request_id가 다른 요청에 사용되었습니다",
+        "resume_source_invalid": "이어서 실행할 수 없는 원본 시도입니다",
         "processing_failed": "판정 요청을 처리할 수 없습니다",
     }
 
@@ -612,8 +614,16 @@ def request_manual_verdict(
     request_id: UUID,
     settings: Any = None,
     now: datetime | None = None,
+    resume_from_attempt_id: UUID | None = None,
 ) -> dict[str, Any]:
     """POST /api/opportunities/{id}/verdict-requests → 202 ``{request_id, attempt_id, status:"queued"}``.
+
+    결정 B55: ``resume_from_attempt_id`` asks for a synthesis-only resume.  The
+    new attempt is created exactly as without it; then ``card_resume_check``
+    must accept the source against the new attempt's frozen input and pinned
+    policy (409 ``resume_source_invalid`` otherwise, nothing is kept), and one
+    ``card.resume.requested`` audit on the new attempt links the source in the
+    same transaction.  The worker re-checks the link before its transfer audit.
 
     Always a new attempt (same lineage → ``create_company_attempt``, otherwise a
     new review); consumes the cap and answers 409 ``daily_cap_reached`` instead
@@ -632,7 +642,8 @@ def request_manual_verdict(
         raise VerdictRequestError("opportunity_not_found")
     replay = session.scalar(select(VerdictRequest).where(VerdictRequest.request_id == request_id))
     if replay is not None:
-        return _replayed_receipt(replay, opportunity_id=opportunity.id, actor=actor, request_id=request_id)
+        return _replayed_receipt(replay, opportunity_id=opportunity.id, actor=actor, request_id=request_id,
+                                 session=session, resume_from_attempt_id=resume_from_attempt_id)
     company = real_company(session)
     if company is None or not rl_path(settings, company):
         raise VerdictRequestError("not_found")
@@ -641,9 +652,14 @@ def request_manual_verdict(
         raise VerdictRequestError("not_found")
     try:
         rl_start_lock(session)
+        link = None
+        if resume_from_attempt_id is not None:
+            def link(result: Any) -> None:
+                _link_resume(session, result, company_id=company.id, notice_id=int(notice_id),
+                             source_attempt_id=resume_from_attempt_id, actor=actor, request_id=request_id)
         started = start_rl_verdict(
             _service(service), session, company_id=company.id, notice_id=notice_id, settings=settings,
-            now=now, commit=False,
+            now=now, commit=False, on_started=link,
         )
         released = _mark_started(session, notice_id, started.attempt_id, holdout=True)
         row = VerdictRequest(
@@ -657,6 +673,8 @@ def request_manual_verdict(
             safe_metadata={
                 "opportunity_id": opportunity.id, "notice_id": int(notice_id),
                 "attempt_id": str(started.attempt_id), "released_count": released,
+                **({"resume_from_attempt_id": str(resume_from_attempt_id)}
+                   if resume_from_attempt_id is not None else {}),
             },
         ))
         session.flush()
@@ -666,11 +684,54 @@ def request_manual_verdict(
         replay = session.scalar(select(VerdictRequest).where(VerdictRequest.request_id == request_id))
         if replay is None:
             raise service_error("processing_failed") from None
-        return _replayed_receipt(replay, opportunity_id=opportunity.id, actor=actor, request_id=request_id)
+        return _replayed_receipt(replay, opportunity_id=opportunity.id, actor=actor, request_id=request_id,
+                                 session=session, resume_from_attempt_id=resume_from_attempt_id)
     return {"request_id": str(request_id), "attempt_id": str(started.attempt_id), "status": "queued"}
 
 
-def _replayed_receipt(row: VerdictRequest, *, opportunity_id: int, actor: str, request_id: UUID) -> dict[str, Any]:
+def _link_resume(
+    session: Session,
+    started: Any,
+    *,
+    company_id: UUID,
+    notice_id: int,
+    source_attempt_id: UUID,
+    actor: str,
+    request_id: UUID,
+) -> None:
+    """결정 B55: check the resume source against the new attempt and link it (one audit, same txn)."""
+
+    from .deep_reviews import CARD_RESUME_REQUESTED_ACTION, _policy_payload, card_resume_check
+    from ..models import AnalysisPolicyVersion, DeepReview, DeepReviewPreview
+
+    preview = session.get(DeepReviewPreview, started.preview_id)
+    review = session.get(DeepReview, started.review_id)
+    policy = session.get(AnalysisPolicyVersion, review.policy_version_id) if review is not None else None
+    if preview is None or policy is None or not isinstance(preview.input_snapshot, dict):
+        raise VerdictRequestError("resume_source_invalid")
+    try:
+        card_resume_check(
+            session, source_attempt_id=source_attempt_id, company_id=company_id, notice_id=notice_id,
+            frozen=preview.input_snapshot, policy=_policy_payload(policy),
+        )
+    except DeepReviewServiceError:
+        raise VerdictRequestError("resume_source_invalid") from None
+    session.add(AuditEvent(
+        actor_kind="human", claimed_name=actor, action=CARD_RESUME_REQUESTED_ACTION,
+        aggregate_type="deep_review_attempt", aggregate_id=str(started.attempt_id), request_id=str(request_id),
+        safe_metadata={"source_attempt_id": str(source_attempt_id), "attempt_id": str(started.attempt_id)},
+    ))
+
+
+def _replayed_receipt(
+    row: VerdictRequest,
+    *,
+    opportunity_id: int,
+    actor: str,
+    request_id: UUID,
+    session: Session | None = None,
+    resume_from_attempt_id: UUID | None = None,
+) -> dict[str, Any]:
     if (
         row.reason != "manual"
         or row.opportunity_id != int(opportunity_id)
@@ -678,6 +739,16 @@ def _replayed_receipt(row: VerdictRequest, *, opportunity_id: int, actor: str, r
         or row.started_attempt_id is None
     ):
         raise VerdictRequestError("idempotency_conflict")
+    if session is not None:
+        # 결정 B55: the same request_id with another resume choice is another request.
+        from .deep_reviews import card_resume_source_id
+
+        try:
+            linked = card_resume_source_id(session, row.started_attempt_id)
+        except DeepReviewServiceError:
+            raise VerdictRequestError("idempotency_conflict") from None
+        if linked != resume_from_attempt_id:
+            raise VerdictRequestError("idempotency_conflict")
     return {"request_id": str(request_id), "attempt_id": str(row.started_attempt_id), "status": "queued"}
 
 
