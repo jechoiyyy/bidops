@@ -25,7 +25,7 @@ from uuid import UUID, uuid4
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
 from app.core.db import get_db
@@ -65,6 +65,7 @@ VIEW_KEYS = {
     "schema_version", "company_id", "notice_id", "attempt_id", "availability", "is_current", "stale_reasons",
     "quality_status", "identity", "source_binding", "result", "partial_stage_ids", "error_code",
     "missing_sections", "started_at", "finished_at", "partial_matrix", "briefing_item_id", "opportunity_id",
+    "rejected_units",  # 결정 B51 (additive)
 }
 FIT_ORDER = {"gap": 0, "unknown": 1, "met": 2}
 
@@ -165,6 +166,7 @@ def expected_rows(session: Session, attempt_id, rows_source: str) -> list[dict]:
             "mapping_status": units[unit_id]["mapping_status"],
             "normalized_requirement": item["normalized_requirement"] if item else None,
             "mandatory": item["mandatory"] if item else None, "fact_labels": facts,
+            "rejected_rule_codes": [],  # 결정 B51 (additive; no rejected unit in these worlds)
         }
 
     if rows_source == "final":
@@ -214,7 +216,9 @@ def expected_view(session: Session, world, seeded, item, started, *, availabilit
             "verdict": final["verdict"], "reason": final["reason"],
             "blocking_condition_ids": final["blocking_condition_ids"], "checklist": final["checklist"],
             "matrix": expected_rows(session, started.attempt_id, "final"), "cautions": final["cautions"],
-            "conflicts": final["conflicts"], "next_actions": final["next_actions"],
+            "conflicts": final["conflicts"],
+            # 결정 B55: the view always carries ``origin`` (null on rows stored before policy v9)
+            "next_actions": [{**row, "origin": row.get("origin")} for row in final["next_actions"]],
         },
         "partial_stage_ids": [] if completed else [str(row.id) for row in rows],
         "error_code": error_code,
@@ -223,6 +227,7 @@ def expected_view(session: Session, world, seeded, item, started, *, availabilit
         "partial_matrix": [] if completed else expected_rows(session, started.attempt_id, "partial"),
         "briefing_item_id": str(item.id),
         "opportunity_id": opportunity_id if opportunity_id is not None else seeded.opportunity_id,
+        "rejected_units": [],
     }
 
 
@@ -242,7 +247,7 @@ def test_t6_none_pending_completed_strict_dicts_and_the_opportunity_alias(flow_e
             "stale_reasons": [], "quality_status": None, "identity": None, "source_binding": None, "result": None,
             "partial_stage_ids": [], "error_code": None, "missing_sections": [], "started_at": None,
             "finished_at": None, "partial_matrix": [], "briefing_item_id": str(item.id),
-            "opportunity_id": seeded.opportunity_id,
+            "opportunity_id": seeded.opportunity_id, "rejected_units": [],
         }
         assert client.get(f"/api/opportunities/{seeded.opportunity_id}/verdict").json() == none.json()
 
@@ -350,7 +355,7 @@ def test_t6_attempt_selection_legacy_and_errors(flow_engine, monkeypatch, client
             "source_binding": None, "result": None, "partial_stage_ids": [], "error_code": None,
             "missing_sections": [], "started_at": stamp.isoformat(),
             "finished_at": (stamp + timedelta(minutes=5)).isoformat(), "partial_matrix": [],
-            "briefing_item_id": None, "opportunity_id": other.opportunity_id,
+            "briefing_item_id": None, "opportunity_id": other.opportunity_id, "rejected_units": [],
         }
 
         # another notice's attempt, unknown attempt, unknown company/notice → 404; bad query → 422
@@ -390,6 +395,7 @@ def test_t6_opportunity_alias_newest_pre_spec_none_and_merged(flow_engine, monke
             "stale_reasons": [], "quality_status": None, "identity": None, "source_binding": None, "result": None,
             "partial_stage_ids": [], "error_code": None, "missing_sections": [], "started_at": None,
             "finished_at": None, "partial_matrix": [], "briefing_item_id": None, "opportunity_id": empty.id,
+            "rejected_units": [],
         }
 
         merged = Opportunity(first_registered_stage="pre_spec", merged_into_opportunity_id=opportunity.id,
@@ -557,3 +563,68 @@ def test_t6_transfer_policy_read_and_middleware_guard(flow_engine, monkeypatch, 
             assert (response.status_code, response.json()) == (404, {"detail": "Not Found"}), path
         # other opportunity routes are unaffected
         assert client.get(f"/api/opportunities/{seeded.opportunity_id}").status_code == 200
+
+
+# --- 결정 B55 (T20): synthesis-only resume through the manual request ----------------------
+
+
+def test_b55_manual_request_resume_option_receipt_replay_and_codes(flow_engine, monkeypatch, client_for) -> None:
+    from app.deep_review.services.input_versions import RL_LUNA_POLICY_FILE_V8
+
+    with Session(flow_engine) as session:
+        tp.configure(monkeypatch, BIDOPS_RL_ANALYSIS_POLICY_PATH=str(RL_LUNA_POLICY_FILE_V8))
+        imported = tp._import_rootlab(session)
+        v8 = import_policy_version(session, RL_LUNA_POLICY_FILE_V8, created_by_name="정책 담당자",
+                                   label="analysis-policy-luna-rl-v8")
+        session.commit()
+        tp.configure(monkeypatch, BIDOPS_RL_DEEP_REVIEW_POLICY_VERSION_ID=str(v8.id),
+                     BIDOPS_RL_ANALYSIS_POLICY_PATH=str(RL_LUNA_POLICY_FILE_V8))
+        tp.approve(session, policy_identity="analysis-policy-luna-rl-v8")
+        seeded = vt.seed_pre_spec(session, with_bundle=True)
+        source = cdr.start_rl_verdict(tp.service(), session, company_id=imported.company_id,
+                                      notice_id=seeded.notice_id, bundle_id=seeded.bundle_id)
+        session.commit()
+        failure = cap.SchemaFailure()
+        assert cap.run_code(session, worker(session, {("synthesis", 0): failure, ("synthesis", 1): failure})) == (
+            "card_synthesis_invalid")
+        session.commit()
+        cap._select_policy(session, monkeypatch, cap.RL_V9)
+        client = client_for(session)
+        url = f"/api/opportunities/{seeded.opportunity_id}/verdict-requests"
+
+        assert client.post(url, json={"request_id": str(uuid4()), "resume_from_attempt_id": "x"},
+                           headers=ACTOR).status_code == 422
+        attempts_before = session.scalar(select(func.count()).select_from(DeepReviewAttempt))
+        invalid = client.post(url, json={"request_id": str(uuid4()), "resume_from_attempt_id": str(uuid4())},
+                              headers=ACTOR)
+        assert (invalid.status_code, invalid.json()["error"]["code"]) == (409, "resume_source_invalid")
+        assert session.scalar(select(func.count()).select_from(DeepReviewAttempt)) == attempts_before
+
+        request_id = uuid4()
+        body = {"request_id": str(request_id), "resume_from_attempt_id": str(source.attempt_id)}
+        created = client.post(url, json=body, headers=ACTOR)
+        assert created.status_code == 202
+        receipt = created.json()
+        assert set(receipt) == {"request_id", "attempt_id", "status"} and receipt["status"] == "queued"
+        assert client.post(url, json=body, headers=ACTOR).json() == receipt  # replay
+        conflict = client.post(url, json={"request_id": str(request_id)}, headers=ACTOR)  # same id, no resume
+        assert (conflict.status_code, conflict.json()["error"]["code"]) == (409, "idempotency_conflict")
+        manual = session.scalar(select(AuditEvent).where(AuditEvent.action == "verdict.request.manual"))
+        assert manual.safe_metadata["resume_from_attempt_id"] == str(source.attempt_id)
+        link = session.scalars(select(AuditEvent).where(AuditEvent.action == "card.resume.requested")).all()
+        assert [(row.aggregate_id, row.safe_metadata["source_attempt_id"]) for row in link] == [
+            (receipt["attempt_id"], str(source.attempt_id))]
+
+        fake_worker = worker(session)
+        cap.run(session, fake_worker)
+        session.commit()
+        assert session.get(DeepReviewAttempt, UUID(receipt["attempt_id"])).status == "completed"
+        assert fake_worker._client.calls == [("card-synthesis-v2", "synthesis", False)]
+        view = client.get(f"/api/opportunities/{seeded.opportunity_id}/verdict").json()
+        assert view["availability"] == "completed" and view["attempt_id"] == receipt["attempt_id"]
+        assert all(set(row) == {"unit_id", "owner", "action", "evidence_refs", "origin"}
+                   for row in view["result"]["next_actions"])
+        # the completed resume is no source for another resume
+        again = client.post(url, json={"request_id": str(uuid4()), "resume_from_attempt_id": receipt["attempt_id"]},
+                            headers=ACTOR)
+        assert (again.status_code, again.json()["error"]["code"]) == (409, "resume_source_invalid")

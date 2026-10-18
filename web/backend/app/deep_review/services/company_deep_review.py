@@ -140,6 +140,8 @@ ERROR_STATUS: dict[str, int] = {
     "luna_disabled": 503,
     "analysis_policy_unavailable": 503,
     "model_binding_invalid": 503,
+    # 결정 B55: the named source attempt cannot be resumed at synthesis.
+    "resume_source_invalid": 409,
 }
 ERROR_MESSAGES: dict[str, str] = {
     "invalid_request": "요청을 처리할 수 없습니다",
@@ -168,6 +170,7 @@ ERROR_MESSAGES: dict[str, str] = {
     "luna_disabled": "Luna 심층 검토가 비활성입니다",
     "analysis_policy_unavailable": "심층 분석 정책을 사용할 수 없습니다",
     "model_binding_invalid": "심층 분석 모델 설정이 유효하지 않습니다",
+    "resume_source_invalid": "이어서 실행할 수 없는 원본 시도입니다",
 }
 
 
@@ -245,8 +248,8 @@ def resolve_company_deep_policy(session: Session, settings: Any = None, *, rl: b
     ``rl=False`` reads ``BIDOPS_DEMO_DEEP_REVIEW_POLICY_VERSION_ID`` and accepts
     only a ``narrative-v2`` row (unchanged).  ``rl=True`` (real company with
     ``BIDOPS_RL_ANALYSIS_ENABLED``) reads ``BIDOPS_RL_DEEP_REVIEW_POLICY_VERSION_ID``
-    and accepts only the ``card-v1`` row of ``analysis-policy-luna-rl-v1`` .. ``-v6``
-    (RL-03 spec "정책 행·선택", 결정 B23·B30·B33·B35·B37); an unset/other row is
+    and accepts only the ``card-v1`` row of ``analysis-policy-luna-rl-v1`` .. ``-v9``
+    (RL-03 spec "정책 행·선택", 결정 B23·B30·B33·B35·B37·B51·B53·B55); an unset/other row is
     ``analysis_policy_unavailable``.
 
     ``analysis_policy_unavailable``: setting unset, row missing, row not the
@@ -1091,6 +1094,7 @@ def start_rl_verdict(
     settings: Any = None,
     now: datetime | None = None,
     commit: bool = False,
+    on_started: Any = None,
 ) -> RLVerdictStart:
     """Create preview → review/attempt → approval automatically under the active policy approval.
 
@@ -1106,7 +1110,9 @@ def start_rl_verdict(
     ``actor_kind="system"``, ``claimed_name="system:transfer-policy"`` and
     ``request_id = uuid5(approval.id, input_sha256)``.  No model or network is
     called.  ``commit=False`` (default): the caller owns the transaction; any
-    failure leaves nothing behind.
+    failure leaves nothing behind.  ``on_started(result)`` (결정 B55: the resume
+    link) runs inside the same unit of work before it is released, so its
+    failure removes the new preview/attempt too.
     """
 
     settings = settings or get_settings()
@@ -1159,6 +1165,8 @@ def start_rl_verdict(
             review_id=review_id, attempt_id=attempt_id, preview_id=preview_id, approval_id=approval.id,
             input_sha256=preview["input_sha256"], new_review=existing is None,
         )
+        if on_started is not None:
+            on_started(result)
         work.finish()
         return result
     except BaseException:

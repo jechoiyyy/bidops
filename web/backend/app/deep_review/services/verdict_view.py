@@ -72,6 +72,7 @@ from ..schemas.verdict_view import (
 )
 from . import transfer_policy
 from .card_analysis import NEEDS_HUMAN_REVIEW_CODES
+from .card_roles import cited_constraint_refs
 from .company_deep_review import company_review_current_flags, resolve_company_deep_policy, rl_path
 from .deep_reviews import DeepReviewServiceError, _policy_payload, quality_status_for_review
 from .luna_identity import policy_reasoning_effort
@@ -227,12 +228,21 @@ class _AttemptStages:
         self.compare_items: list[Any] = []
         self.roles: dict[str, CardVerdictRoleResult] = {}
         self.final: CardAssembledPractitionerVerdict | None = None
+        #: 결정 B51: units isolated at extract (``unit_id`` -> rule codes).
+        self.rejected: dict[str, list[str]] = {}
         try:
             for row in self.rows:
                 payload = row.payload if isinstance(row.payload, Mapping) else {}
                 if row.stage == "extract":
-                    for item in CardRequirementExtract.model_validate(payload).items:
+                    parsed = CardRequirementExtract.model_validate(payload)
+                    for item in parsed.items:
+                        if item.unit_id in self.extract_items or item.unit_id in self.rejected:
+                            raise _error("processing_failed")
                         self.extract_items[item.unit_id] = item
+                    for rejected in parsed.rejected_units:
+                        if rejected.unit_id in self.extract_items or rejected.unit_id in self.rejected:
+                            raise _error("processing_failed")
+                        self.rejected[rejected.unit_id] = list(rejected.rule_codes)
                 elif row.stage == "compare":
                     self.compare_items.extend(CardRequirementCompare.model_validate(payload).items)
                 elif row.stage == "role":
@@ -261,6 +271,9 @@ def _matrix_row(
     extract = stages.extract_items.get(unit_id)
     if unit is None:
         raise _error("processing_failed")
+    rejected_codes = stages.rejected.get(unit_id, [])
+    if rejected_codes and (extract is not None or type_ is not None or fit_status != "unknown" or role_findings):
+        raise _error("processing_failed")
     fact_labels: list[str] = []
     compare = compare_by_unit.get(unit_id)
     if compare is not None:
@@ -274,13 +287,23 @@ def _matrix_row(
         "type": type_,
         "fit_status": fit_status,
         "role_findings": role_findings,
-        "evidence_refs": _evidence(extract.evidence) if extract is not None else [],
+        # 결정 B53: the unit's evidence plus the constraint quotes its role findings cite.
+        "evidence_refs": _evidence([*extract.evidence, *_cited_constraints(extract, role_findings)])
+        if extract is not None else [],
         "page_range": unit.page_range.model_dump(mode="json") if unit.page_range is not None else None,
         "mapping_status": unit.mapping_status,
         "normalized_requirement": extract.normalized_requirement if extract is not None else None,
         "mandatory": extract.mandatory if extract is not None else None,
         "fact_labels": fact_labels,
+        "rejected_rule_codes": list(rejected_codes),
     }
+
+
+def _cited_constraints(extract: Any, role_findings: Sequence[Mapping[str, Any]]) -> list[Any]:
+    from ..schemas.card_analysis import CardEvidence
+
+    refs = [CardEvidence.model_validate(ref) for finding in role_findings for ref in finding.get("evidence_refs", [])]
+    return cited_constraint_refs(extract, refs)
 
 
 def _sorted_matrix(rows: list[dict[str, Any]], unit_order: Mapping[str, int]) -> list[dict[str, Any]]:
@@ -297,9 +320,17 @@ def _result(stages: _AttemptStages, card: CardAnalysisInput, labels: Mapping[str
         raise _error("processing_failed")
     if card.missing_sections and final.verdict == "진행 가능":
         raise _error("processing_failed")
+    # 결정 B51: the final row's rejected units are the extract rows' (null only
+    # on rows stored before the key, which can have none) and cap the verdict.
+    final_rejected = {row.unit_id: list(row.rule_codes) for row in final.rejected_units or []}
+    if final_rejected != stages.rejected or (stages.rejected and final.verdict == "진행 가능"):
+        raise _error("processing_failed")
     units = {unit.unit_id: unit for unit in card.units}
     order = {unit.unit_id: index for index, unit in enumerate(card.units)}
     compare_by_unit = {item.unit_id: item for item in stages.compare_items}
+    for row in final.matrix:
+        if (row.rejected_rule_codes or None) != (stages.rejected.get(row.unit_id) or None):
+            raise _error("processing_failed")
     matrix = [
         _matrix_row(
             unit_id=row.unit_id, type_=row.type, fit_status=row.fit_status,
@@ -318,7 +349,8 @@ def _result(stages: _AttemptStages, card: CardAnalysisInput, labels: Mapping[str
         "matrix": _sorted_matrix(matrix, order),
         "cautions": [row.model_dump(mode="json") for row in final.cautions],
         "conflicts": [row.model_dump(mode="json") for row in final.conflicts],
-        "next_actions": [row.model_dump(mode="json") for row in final.next_actions],
+        # 결정 B55: ``origin`` is always present in the view (null before policy v9).
+        "next_actions": [{**row.model_dump(mode="json"), "origin": row.origin} for row in final.next_actions],
     }
 
 
@@ -329,6 +361,15 @@ def _partial_matrix(stages: _AttemptStages, card: CardAnalysisInput, labels: Map
     rows = []
     for item in stages.compare_items:
         extract = stages.extract_items.get(item.unit_id)
+        if item.unit_id in stages.rejected:
+            # 결정 B51: the fixed compare row of a rejected unit; no role sees it.
+            if extract is not None or item.reason_codes != ["extract_rejected"]:
+                raise _error("processing_failed")
+            rows.append(_matrix_row(
+                unit_id=item.unit_id, type_=None, fit_status=item.fit_status, role_findings=[],
+                stages=stages, units=units, compare_by_unit=compare_by_unit, labels=labels,
+            ))
+            continue
         if extract is None:
             raise _error("processing_failed")
         findings = []
@@ -449,6 +490,7 @@ def _base_view(company_id: UUID, notice_id: int | None, *, briefing_item_id: UUI
         "finished_at": None, "partial_matrix": [],
         "briefing_item_id": str(briefing_item_id) if briefing_item_id is not None else None,
         "opportunity_id": opportunity_id,
+        "rejected_units": [],
     }
 
 
@@ -525,6 +567,12 @@ def _project_attempt(
     view["identity"] = _identity(policy, frozen)
     view["source_binding"] = _source_binding(session, provenance, review.bundle_id)
     view["missing_sections"] = list(card.missing_sections)
+    view["rejected_units"] = [
+        {"unit_id": unit.unit_id, "normalized_id": unit.normalized_id, "rule_codes": stages.rejected[unit.unit_id]}
+        for unit in card.units if unit.unit_id in stages.rejected
+    ]
+    if set(stages.rejected) - {unit.unit_id for unit in card.units}:
+        raise _error("processing_failed")
     view["error_code"] = error_code if availability in {"failed", "needs_human_review"} else None
     if availability == "completed":
         view["result"] = _result(stages, card, labels)

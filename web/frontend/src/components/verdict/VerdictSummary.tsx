@@ -72,12 +72,15 @@ export function VerdictSummary({ result }: { result: VerdictResult }) {
             {result.next_actions.map((action, index) => {
               const owner = ownerLabel(action);
               const assigned = action.owner?.trim();
+              // 결정 B55: 코드가 붙인 행(누락 영역·격리 요구사항)은 "사람 확인" 표식으로 모델 행과 구분한다.
+              const byCode = action.origin === "code";
               return (
-                <li className="rec-next-item" key={index}>
+                <li className="rec-next-item" data-origin={action.origin ?? "unknown"} key={index}>
                   {assigned ? (
                     <span aria-hidden="true" className="rec-avatar" title={`담당 ${owner}`}>{initialOf(owner)}</span>
                   ) : null}
                   <div className="rec-next-main">
+                    {byCode ? <span className="vd-pill is-warning">사람 확인</span> : null}
                     <p>{action.action}</p>
                     <p className="rec-side-note" data-owner={assigned ? "assigned" : "unassigned"}>
                       {assigned ? `담당 ${owner}` : owner}

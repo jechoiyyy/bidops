@@ -3,7 +3,9 @@
 ``bidops.practitioner-verdict-view.v1`` keeps the HP-04 key set; RL-03 adds
 ``briefing_item_id``/``opportunity_id`` at the top level and (decision B4) the
 matrix row keys ``normalized_requirement``/``mandatory``/``fact_labels`` and
-``source_binding.document_versions[].structure_id``.  ``company_sha256`` is
+``source_binding.document_versions[].structure_id``; 결정 B51 adds the top-level
+``rejected_units`` and the matrix row key ``rejected_rule_codes`` (a rejected
+row has ``type`` null and fit ``unknown``).  ``company_sha256`` is
 the frozen company graph sha (no basis file).  Every model is closed (extra
 keys forbidden) so the view cannot silently grow.
 """
@@ -69,9 +71,13 @@ class VerdictPageRange(StrictModel):
         return self
 
 
+RuleCode = Annotated[str, Field(pattern=r"^[a-z][a-z0-9_]{2,63}$")]
+
+
 class VerdictMatrixRow(StrictModel):
     unit_id: NonEmpty
-    type: NonEmpty
+    #: ``null`` only for a rejected unit (결정 B51): its model type is not used.
+    type: NonEmpty | None
     fit_status: Fit
     role_findings: list[VerdictRoleFinding]
     evidence_refs: list[VerdictEvidenceRef]
@@ -81,12 +87,30 @@ class VerdictMatrixRow(StrictModel):
     normalized_requirement: NonEmpty | None
     mandatory: StrictBool | None
     fact_labels: list[NonEmpty]
+    #: 결정 B51: rule codes of a rejected unit (``[]`` for every other row).
+    rejected_rule_codes: list[RuleCode]
 
     @model_validator(mode="after")
     def _mapping(self) -> "VerdictMatrixRow":
         if (self.mapping_status == "unavailable") != (self.page_range is None):
             raise ValueError("page_mapping_invalid")
+        if self.rejected_rule_codes:
+            if (self.type is not None or self.fit_status != "unknown" or self.role_findings
+                    or self.evidence_refs or self.normalized_requirement is not None or self.mandatory is not None
+                    or self.fact_labels):
+                raise ValueError("rejected_row_invalid")
+        elif self.type is None:
+            raise ValueError("matrix_type_missing")
         return self
+
+
+class VerdictRejectedUnit(StrictModel):
+    """결정 B51: one unit isolated at extract ("검증 실패 — 사람 확인 필요"); codes only."""
+
+    unit_id: NonEmpty
+    #: The card's normalized requirement id (``SFR-1`` …); ``null`` for segment units.
+    normalized_id: NonEmpty | None
+    rule_codes: list[RuleCode] = Field(min_length=1)
 
 
 class VerdictChecklistRow(StrictModel):
@@ -112,6 +136,9 @@ class VerdictNextAction(StrictModel):
     owner: NonEmpty | None
     action: NonEmpty
     evidence_refs: list[VerdictEvidenceRef]
+    #: 결정 B55: ``model`` (synthesis answer) | ``code`` (BidOps "사람 확인" row for a
+    #: missing section or a rejected unit) | ``None`` (stored before policy v9).
+    origin: Literal["model", "code"] | None
 
 
 class VerdictResult(StrictModel):
@@ -174,6 +201,8 @@ class PractitionerVerdictView(StrictModel):
     partial_matrix: list[VerdictMatrixRow]
     briefing_item_id: UUID | None
     opportunity_id: StrictInt | None
+    #: 결정 B51: units isolated at extract in the stored rows (any availability; ``[]`` when none).
+    rejected_units: list[VerdictRejectedUnit]
 
     @model_validator(mode="after")
     def _consistency(self) -> "PractitionerVerdictView":
@@ -190,11 +219,18 @@ class PractitionerVerdictView(StrictModel):
             raise ValueError("stale_reasons_order_invalid")
         if self.is_current and self.stale_reasons:
             raise ValueError("current_with_stale_reason")
+        if self.availability == "none" and self.rejected_units:
+            raise ValueError("none_view_invalid")
+        if self.result is not None and self.rejected_units and self.result.verdict == "진행 가능":
+            raise ValueError("rejected_units_verdict_cap")
         return self
 
 
 class VerdictRequestCreate(StrictModel):
     request_id: UUID
+    #: 결정 B55: optional synthesis-only resume of this failed card attempt (same frozen
+    #: content and policy lineage; only synthesis is called).  Absent = a full new attempt.
+    resume_from_attempt_id: UUID | None = None
 
 
 class VerdictRequestReceipt(StrictModel):
@@ -245,6 +281,7 @@ __all__ = [
     "VerdictFeedbackReceipt",
     "VerdictIdentity",
     "VerdictMatrixRow",
+    "VerdictRejectedUnit",
     "VerdictRequestCreate",
     "VerdictRequestReceipt",
     "VerdictResult",

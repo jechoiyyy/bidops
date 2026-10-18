@@ -66,6 +66,14 @@
    - 목표: 문서 8종, bidops-local mock 전 경로(T11, 자동 트리거 on은 여기서만), 짧게 알린 뒤 실제 Luna 1건(T12). T12 조건: bidops-local 격리 스택(운영 `bidops` 스택·DB 금지), `BIDOPS_RL_ANALYSIS_AUTO_START_ENABLED=false`·`BIDOPS_PRESPEC_OVERVIEW_ENABLED=false`·`BIDOPS_DEEP_REVIEW_AUTO_START_ENABLED=false`로 수동 `POST verdict-requests` 1건; 폴리텍 사전규격 원본 HWP는 `~/orca/fixtures/RFP/(붙임2) 2027년 홈페이지 유지관리 용역사업 제안요청서(수정본).hwp`(이전 수집본과 sha 일치 확인)를 격리 DB에 등록(나라장터 호출 없음, D8); runner만 기존 `docker-compose.luna.yml`의 `luna-egress` bridge로 외부 통신하고 web·worker는 내부망(D7); Luna 인증은 호스트 `~/.codex/auth.json`(CLI 0.162.1)을 `BIDOPS_CODEX_AUTH_FILE` compose secret으로 읽기 전용 마운트하며 값·내용을 로그·문서에 남기지 않음(D6); 정책 승인·요청 actor `jechoi`(D11), `--daily-cap 2`(T12 + 재시도 1); attempt당 호출 약 24회 이내; 검증 실패면 1회만 다시 판정, 그래도 실패면 정지·보고하고 RL-04 T11 보류(D3·D4·D10).
    - 작업 대상: docs, validation-runs README, bidops-local(compose luna overlay·env, 폴리텍 원본 등록).
    - 검증: T11, T12, `doctor _`.
+11. STEP-011 항목 단위 추출 실패 격리(결정 B51) [complex]
+   - 목표: 추출 검증이 증거 계열 규칙(인용·숫자·개념·잘림·유일성)을 어긴 항목만 `rejected`로 격리하고 나머지로 판정을 이어간다. 격리된 unit은 대조에서 `unknown`(reason `extract_rejected`), 판정은 "진행 가능" 불가(최대 "조건부 진행"), 화면·REST에 "검증 실패 — 사람 확인 필요" 목록. 모델 출력은 고치거나 다른 값으로 바꾸지 않는다. 격리 unit이 전체의 25%를 넘거나 schema 실패가 repair 뒤에도 남으면 지금처럼 판정 전체 실패. 새 불변 정책 v7, mock·T11 재실행, 사용자 승인 범위 안에서 실제 1건(T12, 재시도 1).
+   - 작업 대상: card_analysis.py(항목별 위반 수집·격리), card_compare.py(reason enum), card_roles.py·종합 규칙, verdict_view·schema·REST, 정책 v7, mock, 프런트 판정 탭, contracts·business-rules·operations·spec, bidops-local.
+   - 검증: T18(격리·임계·판정 상한·view), 기존 T1~T17, T11 mock, T12 실제.
+12. STEP-012 종합 출력 계약 v2와 종합 재실행(결정 B55) [complex]
+   - 목표: 종합 출력 계약 v2 — 차단 조건(`blocking_condition_ids`)은 코드가 필수·gap 대조 행에서 계산하고 모델 계약에서 제거, 누락 영역·격리 unit의 "사람 확인" 행동은 코드 행으로 추가(모델 출력 아님). 모델은 판정·이유·주의·역할 unit 행동만. 새 불변 정책 v9. 실패한 card attempt의 검증된 단계(추출·대조·역할)를 같은 동결 입력·정책 계보에서 재사용해 종합만 다시 실행하는 경로(새 attempt, 재사용 단계 출처·sha 감사, 전송 감사·cap 1). mock·T11, 사용자 승인 범위 안에서 실제 1건(종합 1회, repair 포함 최대 2회).
+   - 작업 대상: synthesis schema v2·card_roles 조립·검증, card_analysis 재실행 경로, deep_reviews·REST(재실행 요청), runner contract, 정책 v9, mock, 프런트(다시 판정 동작 그대로 또는 재실행 표시), 문서.
+   - 검증: T19(계약 v2·코드 행동·재실행 동일성·감사), 기존 테스트, T11 mock, T12 실제.
 
 ## 위임
 

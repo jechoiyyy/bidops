@@ -1429,3 +1429,423 @@ def test_b37_mock_extends_repeated_quotes_to_the_left_until_unique() -> None:
     answer = MockCardAnalysisClient(ONTOLOGY)._extract({"units": units}, v2=True)
     assembled = assemble_requirement_extract_v2(answer, card_input=frozen, batch_index=0, ontology=ONTOLOGY)
     validate_requirement_extract(assembled, card_input=frozen, batch_index=0, ontology=ONTOLOGY)
+
+
+# --- 결정 B51 (T18): item isolation of evidence-class extract failures ---------------------
+
+B51_TEXTS = [
+    "상주 인원 3명 이상 투입",
+    "사업예산 200백만원 이하",
+    "정기점검(월 1회) 및 특별점검(연 1회 이상)",
+    "CMS 구축 지원",
+]
+
+
+def _b51_payload(frozen: CardAnalysisInput) -> dict:
+    u0, u1, u2, u3 = frozen.units
+    return {"schema_version": "bidops.requirement-extract.v1", "items": [
+        extract_item(u0, type_="인력", normalized="상주 인원 3명 이상", constraints=[
+            constraint(u0, kind="count", value=3, unit_name="person", operator="gte", quote="3명 이상")]),
+        extract_item(u1, type_="계약", normalized="사업예산 200백만원 이하", constraints=[
+            constraint(u1, kind="amount", value=200_000_000, unit_name="KRW", operator="lte",
+                       quote="사업예산 200백만원 이하")]),
+        extract_item(u2, type_="운영", normalized="정기점검 월 1회", constraints=[
+            constraint(u2, kind="count", value=1, unit_name=None, operator="eq", quote="월 1회")]),
+        extract_item(u3, type_="기능", normalized="CMS 구축 지원",
+                     concepts=[{"concept_id": "cap.cms", "alias_text": "CMS 구축"}]),
+    ]}
+
+
+def test_b51_isolated_validator_rejects_only_the_failing_items_with_all_their_codes() -> None:
+    from app.deep_review.services.card_analysis import (
+        CardConstraintQuoteNotUniqueError,
+        validate_requirement_extract_isolated,
+    )
+
+    frozen = card_input(B51_TEXTS)
+    payload = _b51_payload(frozen)
+    clean = validate_requirement_extract_isolated(payload, card_input=frozen, batch_index=0, ontology=ONTOLOGY)
+    assert clean.rejected_units == [] and len(clean.items) == 4
+    assert clean.model_dump(mode="json")["items"] == validate_requirement_extract(
+        payload, card_input=frozen, batch_index=0, ontology=ONTOLOGY).model_dump(mode="json")["items"]
+
+    bad = deepcopy(payload)
+    bad["items"][1]["evidence"][0]["quote"] = "원문에 없는 인용"                      # evidence quote
+    bad["items"][2]["constraints"][0]["quote"] = "1회"                             # repeated in its block
+    bad["items"][2]["normalized_requirement"] = "정기점검 월 7회"                     # number not in the unit
+    result = validate_requirement_extract_isolated(bad, card_input=frozen, batch_index=0, ontology=ONTOLOGY)
+    assert [item.unit_id for item in result.items] == [frozen.units[0].unit_id, frozen.units[3].unit_id]
+    assert [row.model_dump() for row in result.rejected_units] == [
+        {"unit_id": frozen.units[1].unit_id, "rule_codes": ["evidence_quote_not_verbatim"]},
+        {"unit_id": frozen.units[2].unit_id,
+         "rule_codes": ["constraint_quote_not_unique", "requirement_number_untraceable"]},
+    ]
+    # the accepted items are the model's items, unchanged; the rejected ones are nowhere in items
+    assert result.items[0].model_dump(mode="json") == bad["items"][0]
+    stored = result.model_dump(mode="json")
+    assert set(stored) == {"schema_version", "items", "rejected_units"}
+    assert "원문에 없는 인용" not in json.dumps(stored, ensure_ascii=False)
+    # the batch-level validator (policies v1-v6) still fails at the first violation
+    with pytest.raises(CardAnalysisValidationError) as first:
+        validate_requirement_extract(bad, card_input=frozen, batch_index=0, ontology=ONTOLOGY)
+    assert type(first.value) is CardAnalysisValidationError
+    only_unique = deepcopy(payload)
+    only_unique["items"][2]["constraints"][0]["quote"] = "1회"
+    with pytest.raises(CardConstraintQuoteNotUniqueError):
+        validate_requirement_extract(only_unique, card_input=frozen, batch_index=0, ontology=ONTOLOGY)
+
+
+@pytest.mark.parametrize("mutate", [
+    lambda p: p["items"].reverse(),                                            # item order
+    lambda p: p["items"].pop(),                                                # item count
+    lambda p: p["items"][0]["constraints"].append(deepcopy(p["items"][0]["constraints"][0])),  # duplicate
+    lambda p: p["items"][0]["constraints"][0].update({"unit": "day"}),          # kind x unit
+    lambda p: p.__setitem__("rejected_units", []),                             # not a model field
+])
+def test_b51_structural_failures_still_fail_the_whole_call(mutate) -> None:
+    from app.deep_review.services.card_analysis import validate_requirement_extract_isolated
+
+    frozen = card_input(B51_TEXTS)
+    payload = _b51_payload(frozen)
+    mutate(payload)
+    with pytest.raises(CardAnalysisValidationError) as error:
+        validate_requirement_extract_isolated(payload, card_input=frozen, batch_index=0, ontology=ONTOLOGY)
+    assert error.value.code == "card_extract_invalid"
+
+
+@pytest.mark.parametrize(("rejected", "units", "exceeds"), [
+    (0, 4, False), (1, 4, False), (2, 4, True), (2, 8, False), (3, 8, True), (8, 32, False), (9, 32, True),
+])
+def test_b51_threshold_is_more_than_a_quarter_of_all_units(rejected, units, exceeds) -> None:
+    from app.deep_review.services.card_analysis import rejected_units_exceed_limit
+
+    assert rejected_units_exceed_limit(rejected, units) is exceeds
+
+
+def test_b51_rejected_compare_row_and_dto_rules() -> None:
+    from app.deep_review.schemas.card_analysis import CardRejectedUnit, CardRequirementMatrixItem
+    from app.deep_review.services.card_compare import rejected_compare_row
+
+    row = rejected_compare_row("u-1")
+    assert row.model_dump(mode="json") == {"unit_id": "u-1", "fit_status": "unknown", "constraint_results": [],
+                                          "evidence_ids": [], "reason_codes": ["extract_rejected"]}
+    with pytest.raises(ValidationError):
+        CardRejectedUnit(unit_id="u-1", rule_codes=[])
+    with pytest.raises(ValidationError):
+        CardRejectedUnit(unit_id="u-1", rule_codes=["원문 문장"])
+    with pytest.raises(ValidationError):  # a unit is either accepted or rejected
+        CardRequirementExtract.model_validate({"items": [extract_item(card_input(["가나"]).units[0])],
+                                               "rejected_units": [{"unit_id": card_input(["가나"]).units[0].unit_id,
+                                                                   "rule_codes": ["x_rule"]}]})
+    CardRequirementMatrixItem(unit_id="u-1", type=None, fit_status="unknown", role_findings=[],
+                              rejected_rule_codes=["evidence_quote_not_verbatim"])
+    for bad in ({"type": "기능"}, {"fit_status": "met"}, {"rejected_rule_codes": None}):
+        with pytest.raises(ValidationError):
+            CardRequirementMatrixItem.model_validate({
+                "unit_id": "u-1", "type": None, "fit_status": "unknown", "role_findings": [],
+                "rejected_rule_codes": ["evidence_quote_not_verbatim"], **bad})
+
+
+def _b51_world():
+    """Two units: one accepted (all met), one rejected; compare and roles built by the real code."""
+
+    frozen = card_input(["CMS 구축", "상주 인원 3명 이상"])
+    accepted, rejected_unit = frozen.units
+    extract = CardRequirementExtract.model_validate({
+        "items": [extract_item(accepted, type_="기능",
+                               concepts=[{"concept_id": "cap.cms", "alias_text": "CMS 구축"}])],
+        "rejected_units": [{"unit_id": rejected_unit.unit_id, "rule_codes": ["constraint_quote_truncated"]}],
+    })
+    compare = CardRequirementCompare.model_validate({"schema_version": "bidops.requirement-compare.v1", "items": [
+        {"unit_id": accepted.unit_id, "fit_status": "met", "evidence_ids": [], "reason_codes": ["confirmed_match"],
+         "constraint_results": []},
+        {"unit_id": rejected_unit.unit_id, "fit_status": "unknown", "evidence_ids": [],
+         "reason_codes": ["extract_rejected"], "constraint_results": []},
+    ]})
+    inputs = build_verdict_role_inputs(extract, compare)
+    roles = {role: validate_verdict_role(_role_output(value), role_input=value) for role, value in inputs.items()}
+    return frozen, extract, compare, inputs, build_synthesis_input(roles)
+
+
+def test_b51_roles_never_see_a_rejected_unit_and_synthesis_is_capped() -> None:
+    frozen, extract, compare, inputs, synthesis_input = _b51_world()
+    accepted, rejected_unit = frozen.units
+    assert all(rejected_unit.unit_id not in [row.unit_id for row in value.compare.items] for value in inputs.values())
+    proceed = _synthesis([accepted], verdict="진행 가능", blocking=[])
+    with pytest.raises(CardAnalysisValidationError, match="card_synthesis_invalid"):
+        validate_practitioner_verdict(proceed, synthesis_input=synthesis_input, extract=extract, compare=compare,
+                                      rejected_units=[rejected_unit.unit_id])
+    # the rejected ids must be exactly the extract's
+    conditional = _synthesis([accepted], verdict="조건부 진행", blocking=[])
+    with pytest.raises(CardAnalysisValidationError, match="card_synthesis_invalid"):
+        validate_practitioner_verdict(conditional, synthesis_input=synthesis_input, extract=extract,
+                                      compare=compare, rejected_units=[])
+    assembled = assemble_practitioner_verdict(conditional, synthesis_input=synthesis_input, extract=extract,
+                                              compare=compare, rejected_units=[rejected_unit.unit_id],
+                                              record_rejected_units=True)
+    rows = {row.unit_id: row for row in assembled.matrix}
+    assert rows[rejected_unit.unit_id].model_dump(mode="json") == {
+        "unit_id": rejected_unit.unit_id, "type": None, "fit_status": "unknown", "role_findings": [],
+        "rejected_rule_codes": ["constraint_quote_truncated"]}
+    assert rows[accepted.unit_id].rejected_rule_codes is None and rows[accepted.unit_id].type == "기능"
+    assert [row.unit_id for row in assembled.matrix] == [accepted.unit_id, rejected_unit.unit_id]
+    assert [row.model_dump() for row in assembled.rejected_units] == [
+        {"unit_id": rejected_unit.unit_id, "rule_codes": ["constraint_quote_truncated"]}]
+    payload = assembled.model_dump(mode="json")
+    with pytest.raises(ValidationError):
+        CardAssembledPractitionerVerdict.model_validate({**payload, "verdict": "진행 가능"})
+    with pytest.raises(ValidationError):
+        CardAssembledPractitionerVerdict.model_validate({**payload, "rejected_units": []})
+
+
+# --- 결정 B53: role/synthesis evidence = unit evidence ∪ the unit's own constraint triples ---
+
+def _b53_world():
+    """Two 운영 units (operations_risk); each has a constraint quote that differs from its evidence quote."""
+
+    texts = ["장애는 자체 감지 후 4시간 이내 복구하고 결과를 보고한다", "웹 접근성 품질 인증을 매년 갱신한다"]
+    frozen = card_input(texts)
+    first, second = frozen.units
+    extract = CardRequirementExtract.model_validate({"items": [
+        extract_item(first, type_="운영", mandatory=None, normalized="장애 복구 체계", constraints=[
+            constraint(first, kind="text", value="자체 감지 후 4시간 이내 복구", unit_name=None, operator="lte",
+                       quote="자체 감지 후 4시간 이내 복구")]),
+        extract_item(second, type_="운영", mandatory=None, normalized="웹 접근성 인증 갱신", constraints=[
+            constraint(second, kind="text", value="매년 갱신", unit_name=None, operator="eq", quote="매년 갱신")]),
+    ]})
+    compare = CardRequirementCompare.model_validate({"schema_version": "bidops.requirement-compare.v1", "items": [
+        {"unit_id": unit.unit_id, "fit_status": "unknown", "evidence_ids": [], "reason_codes": ["unmapped"],
+         "constraint_results": [{"constraint_index": 0, "status": "unknown", "fact_ids": [], "path_ids": [],
+                                 "reason_code": "unmapped"}]}
+        for unit in frozen.units
+    ]})
+    return frozen, extract, compare, build_verdict_role_inputs(extract, compare)
+
+
+def _triple(unit, quote: str) -> dict:
+    return {"source_sha256": unit.source_sha256, "block_key": unit.blocks[0].block_key, "quote": quote}
+
+
+def test_b53_role_may_cite_its_own_constraint_triple_but_nothing_else() -> None:
+    frozen, extract, compare, inputs = _b53_world()
+    first, second = frozen.units
+    role_input = inputs["operations_risk"]
+    output = _role_output(role_input)
+    output["unit_findings"][0]["evidence_refs"] = [_triple(first, "자체 감지 후 4시간 이내 복구")]
+    output["cautions"] = [{"unit_id": first.unit_id, "text": "복구 기준 확인 필요",
+                           "evidence_refs": [_triple(first, "자체 감지 후 4시간 이내 복구")]}]
+    output["evidence_refs"] = [_triple(second, "매년 갱신")]
+    validate_verdict_role(output, role_input=role_input)  # the T12 8차 shape now passes
+    for mutate in (
+        # another unit's constraint triple
+        lambda o: o["unit_findings"][0].__setitem__("evidence_refs", [_triple(second, "매년 갱신")]),
+        lambda o: o["cautions"][0].__setitem__("evidence_refs", [_triple(second, "매년 갱신")]),
+        # not verbatim (a substring of the constraint quote, or a paraphrase)
+        lambda o: o["unit_findings"][0].__setitem__("evidence_refs", [_triple(first, "4시간 이내 복구")]),
+        lambda o: o["unit_findings"][0].__setitem__("evidence_refs", [_triple(first, "자체 감지 후 4시간 내 복구")]),
+        # right quote, wrong block
+        lambda o: o["unit_findings"][0].__setitem__("evidence_refs", [{
+            **_triple(first, "자체 감지 후 4시간 이내 복구"), "block_key": second.blocks[0].block_key}]),
+        lambda o: o.__setitem__("evidence_refs", [_triple(first, "임의의 근거")]),
+    ):
+        changed = deepcopy(output)
+        mutate(changed)
+        with pytest.raises(CardAnalysisValidationError, match="card_role_invalid"):
+            validate_verdict_role(changed, role_input=role_input)
+
+
+def test_b53_synthesis_and_assembly_use_the_same_evidence_set() -> None:
+    from app.deep_review.services.card_roles import unit_evidence_keys
+
+    frozen, extract, compare, inputs = _b53_world()
+    first, second = frozen.units
+    assert unit_evidence_keys(extract.items[0]) == {
+        (first.source_sha256, first.blocks[0].block_key, first.blocks[0].text),
+        (first.source_sha256, first.blocks[0].block_key, "자체 감지 후 4시간 이내 복구")}
+    roles = {}
+    for role, value in inputs.items():
+        output = _role_output(value)
+        if role == "operations_risk":
+            output["unit_findings"][0]["evidence_refs"] = [_triple(first, "자체 감지 후 4시간 이내 복구")]
+        roles[role] = validate_verdict_role(output, role_input=value)
+    synthesis_input = build_synthesis_input(roles)
+    caution = {"unit_id": first.unit_id, "text": "복구 기준 확인", "evidence_refs": [_triple(first, "자체 감지 후 4시간 이내 복구")]}
+    answer = _synthesis(frozen.units, blocking=[], cautions=[caution])
+    validate_practitioner_verdict(answer, synthesis_input=synthesis_input, extract=extract, compare=compare)
+    # synthesis may cite only what the roles cited for that unit (the second unit's constraint was not cited)
+    uncited = _synthesis(frozen.units, blocking=[], cautions=[
+        {"unit_id": second.unit_id, "text": "갱신 주기 확인", "evidence_refs": [_triple(second, "매년 갱신")]}])
+    with pytest.raises(CardAnalysisValidationError, match="card_synthesis_invalid"):
+        validate_practitioner_verdict(uncited, synthesis_input=synthesis_input, extract=extract, compare=compare)
+    assembled = assemble_practitioner_verdict(answer, synthesis_input=synthesis_input, extract=extract, compare=compare)
+    row = next(item for item in assembled.matrix if item.unit_id == first.unit_id)
+    cited = [ref.model_dump() for finding in row.role_findings for ref in finding.evidence_refs]
+    assert _triple(first, "자체 감지 후 4시간 이내 복구") in cited
+    operations = next(item for item in assembled.checklist if item.key == "operations_sla_security")
+    refs = [ref.model_dump() for ref in operations.evidence_refs]
+    # item evidence first, then the constraint quote a role cited; the uncited one is absent
+    assert refs == [_triple(first, first.blocks[0].text), _triple(first, "자체 감지 후 4시간 이내 복구"),
+                    _triple(second, second.blocks[0].text)]
+
+
+# --- 결정 B55 (T20): synthesis contract v2, code blocking ids / "사람 확인" rows, resume lineage ----
+
+
+def _synthesis_v2(*, verdict: str = "조건부 진행", cautions=None, actions=None) -> dict:
+    return {
+        "schema_version": "bidops.practitioner-verdict.v2", "verdict": verdict,
+        "reason": "상주 인원 요구가 회사 가용 인원을 넘고 확인할 조건이 남아 있다.",
+        "cautions": cautions or [], "next_actions": actions or [],
+    }
+
+
+def test_b55_synthesis_contract_v2_has_no_blocking_ids_and_maps_to_card_synthesis_v2() -> None:
+    from app.deep_review.contracts import PRACTITIONER_VERDICT_V2_SCHEMA, SCHEMA_FILES
+    from app.deep_review.services.luna_client import CONTRACT_SCHEMAS
+
+    assert CONTRACT_SCHEMAS["card-synthesis-v2"] == PRACTITIONER_VERDICT_V2_SCHEMA == "practitioner-verdict-v2"
+    assert SCHEMA_FILES[PRACTITIONER_VERDICT_V2_SCHEMA] == "bidops.practitioner-verdict.v2.json"
+    validate_payload(_synthesis_v2(), PRACTITIONER_VERDICT_V2_SCHEMA)
+    for broken in ({**_synthesis_v2(), "blocking_condition_ids": []},  # removed from the wire
+                   {**_synthesis_v2(), "schema_version": "bidops.practitioner-verdict.v1"},
+                   {key: value for key, value in _synthesis_v2().items() if key != "cautions"},
+                   _synthesis_v2(actions=[{"unit_id": "u", "owner": None, "action": "확인", "evidence_refs": [],
+                                           "origin": "code"}])):  # the model never writes an origin
+        with pytest.raises(SchemaValidationError):
+            validate_payload(broken, PRACTITIONER_VERDICT_V2_SCHEMA)
+
+
+def test_b55_code_computes_blocking_ids_and_the_unchanged_validator_decides() -> None:
+    from app.deep_review.services.card_roles import synthesis_v1_from_v2
+
+    frozen, extract, compare = _role_world()
+    units = frozen.units
+    inputs = build_verdict_role_inputs(extract, compare)
+    roles = {role: validate_verdict_role(_role_output(value), role_input=value) for role, value in inputs.items()}
+    synthesis_input = build_synthesis_input(roles)
+    answer = _synthesis_v2()
+    before = json.dumps(answer, ensure_ascii=False, sort_keys=True)
+    v1 = synthesis_v1_from_v2(answer, extract=extract, compare=compare)
+    # blocking = the mandatory gap units (units[0]: mandatory, gap); units[2] is mandatory but unknown
+    assert v1["blocking_condition_ids"] == [units[0].unit_id]
+    assert {key: v1[key] for key in ("verdict", "reason", "cautions", "next_actions")} == {
+        key: answer[key] for key in ("verdict", "reason", "cautions", "next_actions")}
+    assert json.dumps(answer, ensure_ascii=False, sort_keys=True) == before  # never corrected in place
+    verdict = validate_practitioner_verdict(v1, synthesis_input=synthesis_input, extract=extract, compare=compare)
+    assert verdict.blocking_condition_ids == [units[0].unit_id]
+    # everything the validator rejected before is still rejected (no auto-correction)
+    action = {"unit_id": units[0].unit_id, "owner": None, "action": "상주 인력 보강 검토",
+              "evidence_refs": [evidence(units[0])]}
+    for payload in (
+        _synthesis_v2(verdict="진행 가능"),  # mandatory gap and unresolved units
+        _synthesis_v2(actions=[{**action, "unit_id": "card:unknown"}]),  # not a role unit (not schema-expressible)
+        _synthesis_v2(actions=[{**action, "unit_id": "missing_section:budget"}]),  # code-only target
+        _synthesis_v2(actions=[{**action, "owner": "김담당"}]),  # invented owner
+        _synthesis_v2(cautions=[{"unit_id": units[1].unit_id, "text": "확인 필요",
+                                 "evidence_refs": [evidence(units[0])]}]),
+    ):
+        with pytest.raises(CardAnalysisValidationError, match="card_synthesis_invalid"):
+            validate_practitioner_verdict(synthesis_v1_from_v2(payload, extract=extract, compare=compare),
+                                          synthesis_input=synthesis_input, extract=extract, compare=compare)
+    with pytest.raises(CardAnalysisValidationError, match="card_synthesis_invalid"):
+        synthesis_v1_from_v2({**answer, "blocking_condition_ids": []}, extract=extract, compare=compare)
+    # no mandatory gap → no blocking id (the met / unknown compare rows never block)
+    met_compare = CardRequirementCompare.model_validate({**compare.model_dump(mode="json"), "items": [
+        {**compare.items[0].model_dump(mode="json"), "fit_status": "unknown", "reason_codes": ["unmapped"],
+         "constraint_results": [{"constraint_index": 0, "status": "unknown", "fact_ids": [], "path_ids": [],
+                                 "reason_code": "unmapped"}]},
+        *[row.model_dump(mode="json") for row in compare.items[1:]]]})
+    assert synthesis_v1_from_v2(answer, extract=extract, compare=met_compare)["blocking_condition_ids"] == []
+
+
+def test_b55_assembly_appends_code_person_check_rows_for_missing_sections_and_rejected_units() -> None:
+    from app.deep_review.services.card_roles import (
+        MISSING_SECTION_ACTION, REJECTED_UNIT_ACTION, synthesis_v1_from_v2,
+    )
+
+    frozen, extract, compare, _inputs, synthesis_input = _b51_world()
+    accepted, rejected_unit = frozen.units
+    action = {"unit_id": accepted.unit_id, "owner": None, "action": "CMS 범위 확인",
+              "evidence_refs": [evidence(accepted)]}
+    v1 = synthesis_v1_from_v2(_synthesis_v2(actions=[action]), extract=extract, compare=compare)
+    assert v1["blocking_condition_ids"] == []
+    verdict = validate_practitioner_verdict(v1, synthesis_input=synthesis_input, extract=extract, compare=compare,
+                                            missing_sections=["budget"], rejected_units=[rejected_unit.unit_id])
+    assembled = assemble_practitioner_verdict(
+        verdict, synthesis_input=synthesis_input, extract=extract, compare=compare, missing_sections=["budget"],
+        rejected_units=[rejected_unit.unit_id], record_rejected_units=True, code_actions=True)
+    rows = [row.model_dump(mode="json") for row in assembled.next_actions]
+    assert rows == [
+        {**action, "origin": "model"},
+        {"unit_id": "missing_section:budget", "owner": None,
+         "action": MISSING_SECTION_ACTION.format(name="사업예산"), "evidence_refs": [], "origin": "code"},
+        {"unit_id": rejected_unit.unit_id, "owner": None, "action": REJECTED_UNIT_ACTION, "evidence_refs": [],
+         "origin": "code"},
+    ]
+    assert assembled.verdict == "조건부 진행" and assembled.blocking_condition_ids == []
+    payload = assembled.model_dump(mode="json")
+    # the stored row's code rows must be exactly one per missing section and rejected unit, after the model rows
+    for broken in (
+        rows[:2],  # a rejected unit without its row
+        [rows[0], rows[2], rows[1]],  # wrong order
+        [rows[1], rows[0], rows[2]],  # code before model
+        [{**rows[0], "origin": None}, *rows[1:]],  # mixed origin
+        [rows[0], {**rows[1], "owner": "김담당"}, rows[2]],  # a code row never has an owner
+        [rows[0], rows[1], {**rows[2], "evidence_refs": [evidence(rejected_unit)]}],  # nor evidence
+        [{**rows[0], "unit_id": "missing_section:budget"}, *rows[1:]],  # model row naming a code target
+    ):
+        with pytest.raises(ValidationError):
+            CardAssembledPractitionerVerdict.model_validate({**payload, "next_actions": broken})
+    # rows before policy v9 (no origin) keep their exact stored shape: no origin key at all
+    legacy = assemble_practitioner_verdict(
+        _synthesis([accepted], blocking=[], actions=[action]), synthesis_input=synthesis_input, extract=extract,
+        compare=compare, rejected_units=[rejected_unit.unit_id], record_rejected_units=True)
+    assert [row.model_dump(mode="json") for row in legacy.next_actions] == [action]
+    assert "origin" not in json.dumps(legacy.model_dump(mode="json"), ensure_ascii=False)
+
+
+def _resume_policy(identity: str = "analysis-policy-luna-rl-v8") -> dict:
+    from app.deep_review.services.input_versions import RL_LUNA_POLICY_FILE_V8, RL_LUNA_POLICY_FILE_V9
+
+    path = RL_LUNA_POLICY_FILE_V9 if identity.endswith("v9") else RL_LUNA_POLICY_FILE_V8
+    return {**json.loads(path.read_bytes()), "policy_sha256": "e" * 64 if identity.endswith("v9") else "f" * 64}
+
+
+def test_b55_resume_lineage_accepts_identical_content_and_rejects_any_mismatch() -> None:
+    from app.deep_review.services.card_analysis import resume_content_sha256, resume_lineage_valid
+
+    frozen = card_input(["상주 인원 3명 이상"])
+    source = {"execution_nonce": str(uuid4()), "target_review_id": None, "policy_version_id": str(uuid4()),
+              "policy_sha256": "f" * 64, "bundle_id": str(uuid4()), "company_id": str(uuid4()),
+              "graph_sha256": "b" * 64, "profile_sha256": "c" * 64, "document_version_ids": [str(uuid4())],
+              "generation_config_sha256": "d" * 64, "card_analysis": frozen.model_dump(mode="json")}
+    new = {**source, "execution_nonce": str(uuid4()), "target_review_id": str(uuid4()),
+           "policy_version_id": str(uuid4()), "policy_sha256": "e" * 64}
+    v8, v9 = _resume_policy(), _resume_policy("analysis-policy-luna-rl-v9")
+    assert resume_content_sha256(source) == resume_content_sha256(new)
+    assert resume_lineage_valid(source, v8, new, v9)  # v8 -> v9: only synthesis differs
+    assert resume_lineage_valid(source, v9, new, v9)  # same policy
+    for key, value in (("bundle_id", str(uuid4())), ("company_id", str(uuid4())), ("graph_sha256", "0" * 64),
+                       ("profile_sha256", "0" * 64), ("document_version_ids", []),
+                       ("generation_config_sha256", "0" * 64),
+                       ("card_analysis", card_input(["상주 인원 4명 이상"]).model_dump(mode="json"))):
+        assert not resume_lineage_valid(source, v8, {**new, key: value}, v9), key
+    mutations = (
+        lambda p: p["stages"][0].__setitem__("instruction", p["stages"][0]["instruction"] + " "),  # extract
+        lambda p: p["stages"][2].__setitem__("instruction", "다른 역할 지시"),  # a role
+        lambda p: p.__setitem__("stage_schema", "bidops.requirement-extract.v1"),
+        lambda p: p["prompt_output_contract"].__setitem__("input_rule", "다른 규칙"),
+        lambda p: p["card"].__setitem__("batch_size", 4),  # packing
+        lambda p: p.__setitem__("pipeline_version", "narrative-v2"),
+        lambda p: p.__setitem__("policy_identity", "analysis-policy-luna-rl-v6"),  # isolation differs
+        lambda p: p.__setitem__("stages", p["stages"][:4]),
+    )
+    for index, mutate in enumerate(mutations):
+        changed = deepcopy(v9)
+        mutate(changed)
+        assert not resume_lineage_valid(source, v8, new, changed), index
+    # the synthesis instruction and report_schema are the only policy parts allowed to differ
+    synthesis_only = deepcopy(v9)
+    synthesis_only["stages"][4]["instruction"] = "다른 종합 지시"
+    assert resume_lineage_valid(source, v8, new, synthesis_only)
+    assert not resume_lineage_valid(source, v8, {**new, "card_analysis": None}, v9)

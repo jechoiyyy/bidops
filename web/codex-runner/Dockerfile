@@ -9,6 +9,7 @@ COPY web/backend/app/deep_review/contracts/bidops.requirement-extract.v1.json /a
 COPY web/backend/app/deep_review/contracts/bidops.requirement-extract.v2.json /app/card-extract-v2.json
 COPY web/backend/app/deep_review/contracts/bidops.verdict-role.v1.json /app/card-role.json
 COPY web/backend/app/deep_review/contracts/bidops.practitioner-verdict.v1.json /app/card-synthesis.json
+COPY web/backend/app/deep_review/contracts/bidops.practitioner-verdict.v2.json /app/card-synthesis-v2.json
 COPY web/backend/app/deep_review/contracts/bidops.proposal-section.v1.json /app/proposal-section.json
 USER node
 CMD ["python3", "/app/runner.py"]

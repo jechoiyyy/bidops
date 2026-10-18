@@ -896,3 +896,28 @@ def test_b33_offline_t12_5th_pattern_count_day_is_repairable_and_the_text_answer
         assemble_requirement_extract_v2(real, card_input=card, batch_index=0, ontology=knowledge.ontology)
     assert error.value.rule_codes == ["constraint_unit_invalid", "output_schema"]
     assert error.value.item_indexes == [len(answer["items"]) - 1]
+
+
+def test_b51_v7_synthesis_payload_names_exactly_the_rejected_units(knowledge) -> None:
+    frozen = _frozen(knowledge, selector_version="card-sections-v3")
+    unit_ids = [row["unit_id"] for row in frozen["card_analysis"]["units"]]
+    _extract, compare = _role_parts()
+    fact_keys = card_referenced_fact_keys(compare)
+    roles = [{"role": "eligibility_economics", "unit_findings": [], "cautions": [], "evidence_refs": []}]
+    payload = card_synthesis_transfer(frozen, roles=roles, fact_keys=fact_keys, operational_values=OPERATIONAL,
+                                      rejected_units=[unit_ids[1]])
+    assert payload["rejected_units"] == [unit_ids[1]]
+    assert set(payload) == CARD_TRANSFER_STAGE_KEYS["synthesis"] | {"missing_sections", "rejected_units"}
+    empty = card_synthesis_transfer(frozen, roles=roles, fact_keys=fact_keys, rejected_units=[])
+    assert empty["rejected_units"] == []
+    for value, rejected in (
+        ({**payload, "rejected_units": [unit_ids[0]]}, [unit_ids[1]]),   # not the isolated ids
+        (payload, None),                                                # v1-v6 payload has no such key
+        ({**payload, "rejected_units": ["unit-unknown"]}, ["unit-unknown"]),
+        ({**payload, "rejected_units": [unit_ids[1], unit_ids[1]]}, [unit_ids[1], unit_ids[1]]),
+    ):
+        with pytest.raises(CompanyAnalysisError, match="company_input_invalid"):
+            check_card_transfer_payload("synthesis", value, frozen, fact_keys=fact_keys, rejected_units=rejected)
+    without = {key: value for key, value in payload.items() if key != "rejected_units"}
+    with pytest.raises(CompanyAnalysisError, match="company_input_invalid"):
+        check_card_transfer_payload("synthesis", without, frozen, fact_keys=fact_keys, rejected_units=[unit_ids[1]])

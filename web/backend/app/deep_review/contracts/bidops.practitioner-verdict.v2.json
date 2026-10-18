@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "bidops.practitioner-verdict.v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "verdict", "reason", "cautions", "next_actions"],
+  "properties": {
+    "schema_version": {"const": "bidops.practitioner-verdict.v2"},
+    "verdict": {"type": "string", "enum": ["진행 가능", "조건부 진행", "진행 어려움", "판단 불가"]},
+    "reason": {"$ref": "#/$defs/nonempty"},
+    "cautions": {"type": "array", "items": {"$ref": "#/$defs/caution"}},
+    "next_actions": {"type": "array", "items": {"$ref": "#/$defs/action"}}
+  },
+  "$defs": {
+    "nonempty": {"type": "string", "minLength": 1},
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_sha256", "block_key", "quote"],
+      "properties": {
+        "source_sha256": {"$ref": "#/$defs/sha256"},
+        "block_key": {"$ref": "#/$defs/nonempty"},
+        "quote": {"$ref": "#/$defs/nonempty"}
+      }
+    },
+    "caution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["unit_id", "text", "evidence_refs"],
+      "properties": {
+        "unit_id": {"$ref": "#/$defs/nonempty"},
+        "text": {"$ref": "#/$defs/nonempty"},
+        "evidence_refs": {"type": "array", "items": {"$ref": "#/$defs/evidence"}}
+      }
+    },
+    "action": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["unit_id", "owner", "action", "evidence_refs"],
+      "properties": {
+        "unit_id": {"$ref": "#/$defs/nonempty"},
+        "owner": {"type": ["string", "null"], "minLength": 1},
+        "action": {"$ref": "#/$defs/nonempty"},
+        "evidence_refs": {"type": "array", "items": {"$ref": "#/$defs/evidence"}}
+      }
+    }
+  }
+}

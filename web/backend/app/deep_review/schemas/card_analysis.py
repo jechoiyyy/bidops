@@ -21,7 +21,10 @@ import re
 from typing import Annotated, Any, Literal
 from uuid import UUID
 
-from pydantic import ConfigDict, Field, StrictBool, StrictFloat, StrictInt, StrictStr, model_validator
+from pydantic import (
+    ConfigDict, Field, SerializerFunctionWrapHandler, StrictBool, StrictFloat, StrictInt, StrictStr,
+    model_serializer, model_validator,
+)
 
 from .document_bundles import StrictModel
 
@@ -49,6 +52,9 @@ CompareReason = Literal[
     "scope_unverified",
     "contract_unaccepted",
     "incomplete_unit",
+    # 결정 B51: the unit's extract item was rejected (evidence-class rule); no
+    # model content of it is compared -- always ``unknown`` with no constraint facts.
+    "extract_rejected",
 ]
 VerdictRole = Literal["eligibility_economics", "technical_fit", "operations_risk"]
 PractitionerVerdictValue = Literal["진행 가능", "조건부 진행", "진행 어려움", "판단 불가"]
@@ -439,15 +445,39 @@ class CardRequirementExtractItem(CardStrictModel):
         return self
 
 
+#: 결정 B51: a rule code of an isolated (rejected) extract item.
+RuleCode = Annotated[str, Field(pattern=r"^[a-z][a-z0-9_]{2,63}$")]
+
+
+class CardRejectedUnit(CardStrictModel):
+    """결정 B51: one unit whose extract item failed evidence-class rules (codes only, no model text)."""
+
+    unit_id: NonEmpty
+    rule_codes: list[RuleCode] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def _unique_codes(self) -> "CardRejectedUnit":
+        if len(self.rule_codes) != len(set(self.rule_codes)):
+            raise ValueError("rejected_rule_code_duplicate")
+        return self
+
+
 class CardRequirementExtract(CardStrictModel):
     schema_version: Literal["bidops.requirement-extract.v1"] = "bidops.requirement-extract.v1"
     items: list[CardRequirementExtractItem]
+    #: 결정 B51 (stored extract rows only, policy v7): units isolated from the
+    #: batch -- their model items are kept only in the raw response and are not
+    #: in ``items``.  Rows stored before the key existed read as ``[]``.
+    rejected_units: list[CardRejectedUnit] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def _unique_units(self) -> "CardRequirementExtract":
         unit_ids = [row.unit_id for row in self.items]
         if len(unit_ids) != len(set(unit_ids)):
             raise ValueError("extract_unit_duplicate")
+        rejected = [row.unit_id for row in self.rejected_units]
+        if len(rejected) != len(set(rejected)) or set(rejected) & set(unit_ids):
+            raise ValueError("extract_rejected_unit_invalid")
         return self
 
 
@@ -554,11 +584,29 @@ class CardSynthesisInput(CardStrictModel):
         return self
 
 
+#: 결정 B55: who wrote a stored next action.  ``model`` = the synthesis answer,
+#: ``code`` = a deterministic BidOps "사람 확인" row (missing section / rejected
+#: unit).  ``None`` on model wire answers and on rows stored before policy v9.
+NextActionOrigin = Literal["model", "code"]
+#: 결정 B55: ``unit_id`` prefix of a code "사람 확인" row for a missing source section.
+MISSING_SECTION_ACTION_PREFIX = "missing_section:"
+
+
 class CardNextAction(CardStrictModel):
     unit_id: NonEmpty
     owner: NonEmpty | None
     action: NonEmpty
     evidence_refs: list[CardEvidence]
+    origin: NextActionOrigin | None = None
+
+    @model_serializer(mode="wrap")
+    def _omit_absent_origin(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
+        # 결정 B55: rows without an origin (model wire, policies before v9) keep
+        # their exact pre-v9 stored shape (and result SHA): no ``origin`` key.
+        data = handler(self)
+        if data.get("origin") is None:
+            data.pop("origin", None)
+        return data
 
 
 class CardPractitionerVerdict(CardStrictModel):
@@ -605,9 +653,23 @@ class CardMatrixRoleFinding(CardStrictModel):
 
 class CardRequirementMatrixItem(CardStrictModel):
     unit_id: NonEmpty
-    type: RequirementType
+    #: ``null`` only for a rejected unit (결정 B51): its model type is not used.
+    type: RequirementType | None
     fit_status: FitStatus
     role_findings: list[CardMatrixRoleFinding]
+    #: 결정 B51 additive: the rule codes of a rejected unit (``unknown``, no role
+    #: findings); ``null`` for every other row and on rows stored before the key.
+    rejected_rule_codes: list[RuleCode] | None = None
+
+    @model_validator(mode="after")
+    def _rejected_row(self) -> "CardRequirementMatrixItem":
+        if self.rejected_rule_codes is not None:
+            if (not self.rejected_rule_codes or self.type is not None or self.fit_status != "unknown"
+                    or self.role_findings):
+                raise ValueError("matrix_rejected_row_invalid")
+        elif self.type is None:
+            raise ValueError("matrix_type_missing")
+        return self
 
 
 class CardAssembledPractitionerVerdict(CardStrictModel):
@@ -627,6 +689,10 @@ class CardAssembledPractitionerVerdict(CardStrictModel):
     conflicts: list[CardVerdictConflict]
     next_actions: list[CardNextAction]
     missing_sections: list[SectionKind] | None = None
+    #: 결정 B51 additive: units isolated at extract (copied by code from the
+    #: extract rows); ``null`` only on rows stored before the key existed.  A
+    #: non-empty list caps the verdict below "진행 가능" like ``missing_sections``.
+    rejected_units: list[CardRejectedUnit] | None = None
 
     @model_validator(mode="after")
     def _missing_sections_cap(self) -> "CardAssembledPractitionerVerdict":
@@ -634,6 +700,36 @@ class CardAssembledPractitionerVerdict(CardStrictModel):
             raise ValueError("missing_section_duplicate")
         if self.missing_sections and self.verdict == "진행 가능":
             raise ValueError("missing_sections_verdict_cap")
+        if self.rejected_units is not None:
+            rejected = [row.unit_id for row in self.rejected_units]
+            if len(rejected) != len(set(rejected)):
+                raise ValueError("rejected_unit_duplicate")
+            matrix_rejected = {row.unit_id for row in self.matrix if row.rejected_rule_codes is not None}
+            if matrix_rejected != set(rejected):
+                raise ValueError("rejected_units_matrix_mismatch")
+            if rejected and self.verdict == "진행 가능":
+                raise ValueError("rejected_units_verdict_cap")
+        elif any(row.rejected_rule_codes is not None for row in self.matrix):
+            raise ValueError("rejected_units_matrix_mismatch")
+        # 결정 B55: either no row carries an origin (rows before policy v9) or every
+        # row does, and the code rows are exactly one per missing section and per
+        # rejected unit (in that order, after the model rows) with no owner/evidence.
+        origins = [row.origin for row in self.next_actions]
+        if any(origin is not None for origin in origins):
+            if any(origin is None for origin in origins):
+                raise ValueError("next_action_origin_mixed")
+            model_rows = [row for row in self.next_actions if row.origin == "model"]
+            code_rows = [row for row in self.next_actions if row.origin == "code"]
+            if self.next_actions != [*model_rows, *code_rows]:
+                raise ValueError("next_action_code_order")
+            expected = [MISSING_SECTION_ACTION_PREFIX + kind for kind in self.missing_sections or []]
+            expected += [row.unit_id for row in self.rejected_units or []]
+            if [row.unit_id for row in code_rows] != expected or any(
+                row.owner is not None or row.evidence_refs for row in code_rows
+            ):
+                raise ValueError("next_action_code_rows_invalid")
+            if any(row.unit_id.startswith(MISSING_SECTION_ACTION_PREFIX) for row in model_rows):
+                raise ValueError("next_action_model_target_invalid")
         return self
 
 
@@ -652,6 +748,8 @@ __all__ = [
     "CardEvidence",
     "CardMatrixRoleFinding",
     "CardNextAction",
+    "MISSING_SECTION_ACTION_PREFIX",
+    "NextActionOrigin",
     "CardPractitionerVerdict",
     "CardRequirementCompare",
     "CardRequirementCompareItem",
@@ -659,6 +757,8 @@ __all__ = [
     "CardRequirementExtract",
     "CardRequirementExtractItem",
     "CardRequirementMatrixItem",
+    "CardRejectedUnit",
+    "RuleCode",
     "CardSynthesisInput",
     "CardVerdictCaution",
     "CardVerdictConflict",

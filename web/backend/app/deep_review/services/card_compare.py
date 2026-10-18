@@ -63,6 +63,29 @@ _REASON_ORDER: Final[tuple[str, ...]] = (
     "incomplete_unit",
     "confirmed_match",
 )
+#: 결정 B51: the only reason of a rejected unit's compare row (``unknown``, no facts).
+EXTRACT_REJECTED_REASON: Final[str] = "extract_rejected"
+
+
+def rejected_compare_row(unit_id: str) -> CardRequirementCompareItem:
+    """The fixed compare row of a unit whose extract item was rejected (결정 B51)."""
+
+    return CardRequirementCompareItem(
+        unit_id=unit_id, fit_status="unknown", constraint_results=[], evidence_ids=[],
+        reason_codes=[EXTRACT_REJECTED_REASON],
+    )
+
+
+def _compare_unit_order(result_ids: Sequence[str], parsed_extract: CardRequirementExtract) -> bool:
+    """Compare rows = the extract items plus the rejected units, each once, items in their order."""
+
+    rejected = {row.unit_id for row in parsed_extract.rejected_units}
+    accepted = [unit_id for unit_id in result_ids if unit_id not in rejected]
+    return (
+        accepted == [row.unit_id for row in parsed_extract.items]
+        and len(result_ids) == len(set(result_ids))
+        and set(result_ids) - set(accepted) == rejected
+    )
 _STATUS_BY_REASON: Final[dict[str, str]] = {
     "confirmed_match": "met",
     "confirmed_contradiction": "gap",
@@ -484,12 +507,19 @@ def validate_requirement_compare(
         parsed_extract = (
             extract if isinstance(extract, CardRequirementExtract) else CardRequirementExtract.model_validate(extract)
         )
-        if [row.unit_id for row in result.items] != [row.unit_id for row in parsed_extract.items]:
+        if not _compare_unit_order([row.unit_id for row in result.items], parsed_extract):
             raise _invalid()
         extracts = {row.unit_id: row for row in parsed_extract.items}
+        rejected = {row.unit_id for row in parsed_extract.rejected_units}
         fact_ids = set(known_fact_ids)
         evidence_ids = set(known_evidence_ids)
         for item in result.items:
+            if item.unit_id in rejected:
+                if item != rejected_compare_row(item.unit_id):
+                    raise _invalid()
+                continue
+            if EXTRACT_REJECTED_REASON in item.reason_codes:
+                raise _invalid()
             source = extracts[item.unit_id]
             if len(item.constraint_results) != len(source.constraints):
                 raise _invalid()
@@ -537,14 +567,25 @@ def compare_requirements(
             if isinstance(row, Mapping) and isinstance(row.get("fact_key"), str)
         }
         unit_by_id = {unit.unit_id: unit for unit in card_input.units}
-        extract_ids = [item.unit_id for item in parsed_extract.items]
-        if not any(batch.unit_ids == extract_ids for batch in card_input.batches):
+        rejected_ids = {row.unit_id for row in parsed_extract.rejected_units}
+        batch = next(
+            (row for row in card_input.batches
+             if set(row.unit_ids) == {item.unit_id for item in parsed_extract.items} | rejected_ids),
+            None,
+        )
+        if batch is None or not _compare_unit_order(batch.unit_ids, parsed_extract):
             raise _invalid()
+        items_by_id = {item.unit_id: item for item in parsed_extract.items}
         if any(path["requirement_id"] not in unit_by_id for path in paths):
             raise _invalid()
 
         output: list[CardRequirementCompareItem] = []
-        for item in parsed_extract.items:
+        for unit_id in batch.unit_ids:
+            if unit_id in rejected_ids:
+                # 결정 B51: no model content of a rejected item is compared.
+                output.append(rejected_compare_row(unit_id))
+                continue
+            item = items_by_id[unit_id]
             unit = unit_by_id[item.unit_id]
             blocks = {(unit.source_sha256, block.block_key): block.text for block in unit.blocks}
             if any(
@@ -607,7 +648,9 @@ def compare_requirements(
 
 
 __all__ = [
+    "EXTRACT_REJECTED_REASON",
     "compare_requirements",
+    "rejected_compare_row",
     "constraint_comparison",
     "validate_requirement_compare",
 ]
