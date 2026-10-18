@@ -23,6 +23,7 @@ from ..deep_review import (
     run_deep_review_once,
     run_assumption_analysis_once,
     run_prespec_overview_once,
+    run_proposal_once,
 )
 from ..screening import C2ScreeningWorker
 
@@ -90,6 +91,9 @@ def main() -> None:
                             elif overview.claimed:
                                 overview_identity.record_success()
                                 did_work = True
+                        # RL-04 proposal sections take the same single slot last.
+                        if not did_work and run_proposal_once(session, worker_id):
+                            did_work = True
                 except Exception:
                     # run_claim commits its own fenced transitions. Any
                     # provider/materializer error not converted there must not

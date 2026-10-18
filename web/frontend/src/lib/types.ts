@@ -3147,3 +3147,123 @@ export interface VerdictFeedbackRequest {
 export interface VerdictFeedbackReceipt {
   feedback_id: string;
 }
+
+/* ── 제안서 초안(RL-04 spec "REST (`bidops.proposal.v1`)") ───────────────────
+ *
+ * 서버 `ProposalView`를 그대로 읽는다. 화면은 문장의 출처·종류·단계 전이를 다시 판정하지 않는다.
+ * 정책 id·모델명·hash·토큰 수는 이 응답에 없고 화면에도 그리지 않는다.
+ */
+
+export type ProposalSectionKey =
+  | "overview"
+  | "track_record"
+  | "strategy"
+  | "requirements"
+  | "operations_sla"
+  | "organization";
+export type ProposalDraftStatus = "queued" | "running" | "completed" | "partial" | "failed" | "superseded";
+export type ProposalStage = "toc" | "draft" | "reviewed" | "ready";
+export type ProposalSectionStatus = "queued" | "running" | "completed" | "failed" | "reviewed";
+export type ProposalSentenceKind = "statement" | "placeholder" | "proposed_figure";
+export type ProposalSourceKind = "requirement_unit" | "company_fact" | "notice_meta";
+
+export interface ProposalSource {
+  kind: ProposalSourceKind;
+  /** unit_id | fact_key | meta_key. unit_id는 원문 hash를 포함할 수 있어 화면에 그리지 않는다. */
+  ref: string;
+  quote: string;
+}
+
+export interface ProposalSentence {
+  sentence_id: string;
+  text: string;
+  kind: ProposalSentenceKind;
+  sources: ProposalSource[];
+  placeholder_hint: string | null;
+  /** 사람이 고친 문장이면 `true`(edit overlay 적용 뒤의 text). */
+  edited: boolean;
+}
+
+export interface ProposalParagraph {
+  paragraph_id: string;
+  heading: string | null;
+  sentences: ProposalSentence[];
+}
+
+export interface ProposalRequirementLink {
+  unit_id: string;
+  paragraph_id: string;
+  fit_status: VerdictFit;
+}
+
+export interface ProposalSection {
+  section_key: ProposalSectionKey;
+  title: string;
+  revision: number;
+  status: ProposalSectionStatus;
+  paragraphs: ProposalParagraph[];
+  requirement_links: ProposalRequirementLink[];
+  error_code: string | null;
+}
+
+export interface ProposalCounters {
+  /** `proposed_figure` 수 + `placeholder` 수. */
+  sentences_to_confirm: number;
+  placeholders: number;
+  proposed_figures: number;
+  reviewed_sections: number;
+}
+
+export interface ProposalCoverage {
+  total: number;
+  linked: number;
+  unlinked_unit_ids: string[];
+}
+
+export interface ProposalLatestExport {
+  export_id: string;
+  created_at: string;
+  pdf_sha256: string;
+}
+
+export interface ProposalDraft {
+  draft_id: string;
+  status: ProposalDraftStatus;
+  stage: ProposalStage;
+  created_at: string;
+  sections: ProposalSection[];
+  requirement_coverage: ProposalCoverage;
+  counters: ProposalCounters;
+  latest_export: ProposalLatestExport | null;
+  /** 서버 `ProposalView`(spec)에는 없는 선택 키. 서버가 주면 참조 실행 배지로만 쓴다(없으면 배지를 두지 않는다). */
+  quality_status?: VerdictQualityStatus | null;
+}
+
+export interface ProposalView {
+  schema_version: "bidops.proposal.v1";
+  draft: ProposalDraft | null;
+}
+
+export interface ProposalRequestReceipt {
+  draft_id: string;
+  status: "queued";
+}
+
+export interface ProposalRegenerationReceipt {
+  section_id: string;
+  revision: number;
+}
+
+export interface ProposalEditReceipt {
+  edit_id: string;
+}
+
+export interface ProposalExportReceipt {
+  export_id: string;
+  pdf_sha256: string;
+  created: boolean;
+}
+
+export interface ProposalStageReceipt {
+  stage: ProposalStage;
+}

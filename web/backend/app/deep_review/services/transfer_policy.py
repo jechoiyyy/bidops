@@ -24,6 +24,18 @@ transmitted -- an RL attempt approved today (KST ``approved_at``) with its
 still holds before anything is sent, the creation gate additionally reserves
 today's real attempts that are queued/running and have not transmitted yet,
 and the worker re-checks the cap right before the transfer audit.
+
+RL-04 proposal drafting (spec "생성 입력·정책·호출" 전송 승인) uses the same
+table with its own row: the policy ``proposal-policy-luna-v1`` selected by
+``BIDOPS_PROPOSAL_POLICY_VERSION_ID``, ``scope = {"purposes": ["proposal"]}``
+(no ``stages`` check) and ``daily_cap`` = drafts per KST day (default 3,
+1..20).  A section regeneration costs 1/6 of a draft; integer rule: the day
+allows ``daily_cap * 6`` section generations, a new draft needs 6 and a
+regeneration 1.  Usage counts today's (``proposal_section.created_at``, KST)
+sections that transmitted (their ``analysis.transfer.sent`` audit, aggregate
+``proposal_section``) and, at the creation gate, today's queued/running
+sections without that audit.  Repairs never count.  The RL-03 functions
+above ignore proposal approvals and the proposal functions ignore RL ones.
 """
 
 from __future__ import annotations
@@ -46,10 +58,19 @@ from ..models import (
     DeepReviewApproval,
     DeepReviewAttempt,
     DeepReviewPreview,
+    ProposalDraft,
+    ProposalSection,
     TransferPolicyApproval,
 )
 from .input_versions import InputVersionError, load_canonical_policy, validate_pinned_policy
-from .luna_identity import CLI_VERSION, MODEL, PROVIDER, REASONING_EFFORT, RL_POLICY_IDENTITIES
+from .luna_identity import (
+    CLI_VERSION,
+    MODEL,
+    PROPOSAL_POLICY_IDENTITIES,
+    PROVIDER,
+    REASONING_EFFORT,
+    RL_POLICY_IDENTITIES,
+)
 from .mock_analysis_client import MOCK_CARD_PROVIDER
 
 
@@ -68,6 +89,21 @@ TRANSFER_SENT_KEYS = frozenset({
     "notice_id", "attempt_id",
 })
 _ACTOR_MAX = 128
+#: RL-04 proposal approval (spec "설정 키와 기본값": daily_cap 3, 1..20, tunable).
+PROPOSAL_SCOPE: dict[str, list[str]] = {"purposes": ["proposal"]}
+PROPOSAL_DAILY_CAP_DEFAULT = 3
+PROPOSAL_DAILY_CAP_MIN = 1
+PROPOSAL_DAILY_CAP_MAX = 20
+#: One draft = six section generations; a regeneration is one (= cap 1/6).
+PROPOSAL_SECTIONS_PER_DRAFT = 6
+PROPOSAL_AUDIT_AGGREGATE = "proposal_section"
+#: The draft creation audit; its ``provider`` pins the draft's lineage (RL-04 STEP-005).
+PROPOSAL_DRAFT_CREATED_ACTION = "proposal.draft.created"
+#: Exact ``safe_metadata`` keys of a proposal ``analysis.transfer.sent`` (spec "상태 값과 실패 처리").
+PROPOSAL_TRANSFER_SENT_KEYS = frozenset({
+    "purpose", "approval_id", "policy_sha256", "input_sha256", "draft_id", "section_id", "section_key",
+    "notice_id",
+})
 
 
 class TransferPolicyError(ValueError):
@@ -196,12 +232,65 @@ def approval_view(row: TransferPolicyApproval, *, created: bool) -> dict[str, An
     }
 
 
+def selected_proposal_policy_row(session: Session, settings: Any = None) -> AnalysisPolicyVersion | None:
+    """The import row selected by ``BIDOPS_PROPOSAL_POLICY_VERSION_ID`` (or None)."""
+
+    settings = settings or get_settings()
+    policy_id = getattr(settings, "proposal_policy_version_id", None)
+    return session.get(AnalysisPolicyVersion, policy_id) if policy_id else None
+
+
+def verify_proposal_policy_identity(
+    session: Session,
+    *,
+    policy_identity: str,
+    settings: Any = None,
+) -> PolicyIdentity:
+    """RL-04: bind the CLI identity to the selected proposal row, its file and HP-00 constants.
+
+    Same codes as ``verify_rl_policy_identity``; the row is the one selected by
+    ``BIDOPS_PROPOSAL_POLICY_VERSION_ID`` and the file is
+    ``BIDOPS_PROPOSAL_POLICY_PATH``; pipeline ``proposal-v1``, purpose ``proposal``.
+    """
+
+    settings = settings or get_settings()
+    row = selected_proposal_policy_row(session, settings)
+    if row is None:
+        raise TransferPolicyError("analysis_policy_unavailable")
+    try:
+        validate_pinned_policy(row, allow_unmeasured_reference=True)
+        file_policy, _canonical, file_sha = load_canonical_policy(settings.proposal_policy_path)
+    except InputVersionError:
+        raise TransferPolicyError("analysis_policy_unavailable") from None
+    snapshot = _policy_snapshot(row)
+    generation = snapshot.get("generation") if isinstance(snapshot.get("generation"), Mapping) else {}
+    execution = snapshot.get("execution") if isinstance(snapshot.get("execution"), Mapping) else {}
+    if (
+        policy_identity not in PROPOSAL_POLICY_IDENTITIES
+        or snapshot.get("policy_identity") != policy_identity
+        or file_policy.get("policy_identity") != policy_identity
+        or snapshot.get("pipeline_version") != "proposal-v1"
+        or snapshot.get("purpose") != "proposal"
+        or row.policy_sha256 != file_sha
+        or row.model_name != MODEL
+        or snapshot.get("model_name") != MODEL
+        or generation.get("reasoning_effort") != REASONING_EFFORT
+        or execution.get("cli_version") != CLI_VERSION
+        or row.model_endpoint_ref != PROVIDER
+    ):
+        raise TransferPolicyError("policy_identity_mismatch")
+    return PolicyIdentity(
+        row=row, policy_identity=policy_identity, policy_sha256=row.policy_sha256,
+        model_name=MODEL, reasoning_effort=REASONING_EFFORT, cli_version=CLI_VERSION,
+    )
+
+
 def approve_transfer_policy(
     session: Session,
     *,
     policy_identity: str,
     actor: str | None,
-    daily_cap: int = DAILY_CAP_DEFAULT,
+    daily_cap: int | None = None,
     request_id: UUID | None = None,
     dry_run: bool = False,
     settings: Any = None,
@@ -215,9 +304,25 @@ def approve_transfer_policy(
     """
 
     claimed = _actor(actor)
-    if type(daily_cap) is not int or not DAILY_CAP_MIN <= daily_cap <= DAILY_CAP_MAX:
+    proposal = policy_identity in PROPOSAL_POLICY_IDENTITIES
+    if proposal:
+        # RL-04: proposal row, scope purposes=["proposal"], cap = drafts per day (1..20, default 3).
+        low, high, default, scope, identities = (
+            PROPOSAL_DAILY_CAP_MIN, PROPOSAL_DAILY_CAP_MAX, PROPOSAL_DAILY_CAP_DEFAULT, PROPOSAL_SCOPE,
+            PROPOSAL_POLICY_IDENTITIES,
+        )
+    else:
+        low, high, default, scope, identities = (
+            DAILY_CAP_MIN, DAILY_CAP_MAX, DAILY_CAP_DEFAULT, SCOPE, RL_POLICY_IDENTITIES,
+        )
+    if daily_cap is None:
+        daily_cap = default
+    if type(daily_cap) is not int or not low <= daily_cap <= high:
         raise TransferPolicyError("invalid_request")
-    identity = verify_rl_policy_identity(session, policy_identity=policy_identity, settings=settings)
+    if proposal:
+        identity = verify_proposal_policy_identity(session, policy_identity=policy_identity, settings=settings)
+    else:
+        identity = verify_rl_policy_identity(session, policy_identity=policy_identity, settings=settings)
     request_id = request_id or uuid4()
     replay = session.scalar(select(TransferPolicyApproval).where(TransferPolicyApproval.request_id == request_id))
     if replay is not None:
@@ -229,7 +334,7 @@ def approve_transfer_policy(
         ):
             raise TransferPolicyError("invalid_request")
         return approval_view(replay, created=False)
-    active = active_approval(session, identity.policy_sha256)
+    active = active_approval(session, identity.policy_sha256, identities=identities)
     if active is not None:
         raise TransferPolicyError("active_approval_exists")
     if dry_run:
@@ -243,7 +348,7 @@ def approve_transfer_policy(
         id=uuid4(), policy_identity=identity.policy_identity, policy_version_id=identity.row.id,
         policy_sha256=identity.policy_sha256, model_name=identity.model_name,
         reasoning_effort=identity.reasoning_effort, cli_version=identity.cli_version,
-        scope={key: list(value) for key, value in SCOPE.items()}, daily_cap=daily_cap,
+        scope={key: list(value) for key, value in scope.items()}, daily_cap=daily_cap,
         approved_by=claimed, request_id=request_id,
     )
     try:
@@ -283,12 +388,18 @@ def revoke_transfer_policy(
     }
 
 
-def active_approval(session: Session, policy_sha256: str | None = None) -> TransferPolicyApproval | None:
-    """The active RL approval (``revoked_at IS NULL``), optionally of one policy sha."""
+def active_approval(
+    session: Session,
+    policy_sha256: str | None = None,
+    *,
+    identities: frozenset[str] = RL_POLICY_IDENTITIES,
+) -> TransferPolicyApproval | None:
+    """The active approval (``revoked_at IS NULL``) of the RL identities (default) or
+    of ``identities`` (RL-04 passes the proposal set), optionally of one policy sha."""
 
     query = select(TransferPolicyApproval).where(
         TransferPolicyApproval.revoked_at.is_(None),
-        TransferPolicyApproval.policy_identity.in_(sorted(RL_POLICY_IDENTITIES)),
+        TransferPolicyApproval.policy_identity.in_(sorted(identities)),
     )
     if policy_sha256 is not None:
         query = query.where(TransferPolicyApproval.policy_sha256 == policy_sha256)
@@ -502,11 +613,172 @@ def record_transfer_sent(
     return True
 
 
+# --- RL-04 proposal gate, cap and transfer audit -------------------------------------
+
+
+def active_proposal_approval(session: Session, policy_sha256: str | None = None) -> TransferPolicyApproval | None:
+    return active_approval(session, policy_sha256, identities=PROPOSAL_POLICY_IDENTITIES)
+
+
+def _proposal_sent_section_ids(session: Session, section_ids: list[str]) -> set[str]:
+    if not section_ids:
+        return set()
+    return {
+        str(value)
+        for value in session.scalars(select(AuditEvent.aggregate_id).where(
+            AuditEvent.action == TRANSFER_SENT_ACTION,
+            AuditEvent.aggregate_type == PROPOSAL_AUDIT_AGGREGATE,
+            AuditEvent.aggregate_id.in_(section_ids),
+        ))
+    }
+
+
+def _mock_draft_ids(session: Session, draft_ids: list[str]) -> set[str]:
+    """Drafts whose creation audit pinned the mock provider lineage (never transmitted)."""
+
+    if not draft_ids:
+        return set()
+    result: set[str] = set()
+    for aggregate_id, metadata in session.execute(select(AuditEvent.aggregate_id, AuditEvent.safe_metadata).where(
+        AuditEvent.action == PROPOSAL_DRAFT_CREATED_ACTION,
+        AuditEvent.aggregate_type == "proposal_draft",
+        AuditEvent.aggregate_id.in_(draft_ids),
+    )):
+        if isinstance(metadata, Mapping) and metadata.get("provider") == MOCK_CARD_PROVIDER:
+            result.add(str(aggregate_id))
+    return result
+
+
+def proposal_cap_usage(
+    session: Session,
+    *,
+    now: datetime | None = None,
+    exclude_section_id: UUID | None = None,
+) -> tuple[int, int]:
+    """(section generations transmitted today, today's queued/running sections not yet transmitted).
+
+    "Today" is the KST day of ``proposal_section.created_at`` over every draft
+    (switching the selected policy row does not reset the cap).  One unit is
+    one section generation; ``daily_cap`` drafts allow ``daily_cap * 6`` units.
+    Sections of a mock-lineage draft (STEP-005 creation audit ``provider``) never
+    count: nothing is transmitted for them.
+    """
+
+    start, end = kst_day_bounds(now)
+    rows = session.execute(
+        select(ProposalSection.id, ProposalSection.status, ProposalSection.draft_id)
+        .join(ProposalDraft, ProposalDraft.id == ProposalSection.draft_id)
+        .where(ProposalSection.created_at >= start, ProposalSection.created_at < end)
+    ).all()
+    mock = _mock_draft_ids(session, sorted({str(draft_id) for _id, _status, draft_id in rows}))
+    excluded = str(exclude_section_id) if exclude_section_id is not None else None
+    rows = [(str(section_id), str(status)) for section_id, status, draft_id in rows
+            if str(section_id) != excluded and str(draft_id) not in mock]
+    sent = _proposal_sent_section_ids(session, [section_id for section_id, _status in rows])
+    transmitted = sum(1 for section_id, _status in rows if section_id in sent)
+    in_flight = sum(1 for section_id, status in rows if status in _IN_FLIGHT_STATUSES and section_id not in sent)
+    return transmitted, in_flight
+
+
+def require_proposal_transfer_approval(
+    session: Session,
+    policy_row: AnalysisPolicyVersion | None,
+    *,
+    requested_sections: int,
+    check_cap: bool = True,
+    now: datetime | None = None,
+    reserve_in_flight: bool = True,
+    exclude_section_id: UUID | None = None,
+) -> TransferPolicyApproval:
+    """RL-04 gate, RL-03 order: approval active → sha equal → ``purposes`` contains
+    ``proposal`` → cap.  Read-only.
+
+    ``requested_sections`` is 6 for a new draft and 1 for a section
+    regeneration (cap 1/6) or for the worker's own re-check (with its section
+    excluded and ``reserve_in_flight=False``).  ``daily_cap_reached`` when
+    ``transmitted (+ in flight) + requested_sections > daily_cap * 6``.
+    """
+
+    if type(requested_sections) is not int or not 1 <= requested_sections <= PROPOSAL_SECTIONS_PER_DRAFT:
+        raise TransferPolicyError("invalid_request")
+    if active_proposal_approval(session) is None:
+        raise TransferPolicyError("policy_not_approved")
+    approval = active_proposal_approval(session, policy_row.policy_sha256) if policy_row is not None else None
+    if approval is None:
+        raise TransferPolicyError("policy_not_approved")
+    purposes = approval.scope.get("purposes") if isinstance(approval.scope, Mapping) else None
+    if not isinstance(purposes, list) or "proposal" not in purposes:
+        raise TransferPolicyError("policy_not_approved")
+    if check_cap:
+        transmitted, in_flight = proposal_cap_usage(session, now=now, exclude_section_id=exclude_section_id)
+        used = transmitted + (in_flight if reserve_in_flight else 0)
+        if used + requested_sections > int(approval.daily_cap) * PROPOSAL_SECTIONS_PER_DRAFT:
+            raise TransferPolicyError("daily_cap_reached")
+    return approval
+
+
+def proposal_transfer_sent_recorded(session: Session, section_id: UUID) -> bool:
+    return session.scalar(select(AuditEvent.id).where(
+        AuditEvent.action == TRANSFER_SENT_ACTION,
+        AuditEvent.aggregate_type == PROPOSAL_AUDIT_AGGREGATE,
+        AuditEvent.aggregate_id == str(section_id),
+    ).limit(1)) is not None
+
+
+def record_proposal_transfer_sent(
+    session: Session,
+    *,
+    approval: TransferPolicyApproval,
+    draft_id: UUID,
+    section_id: UUID,
+    section_key: str,
+    notice_id: int,
+    input_sha256: str,
+) -> bool:
+    """Append the one per-section ``analysis.transfer.sent`` audit, ``purpose=proposal`` (flush only).
+
+    Hashes and ids only -- never tokens, source text or company values.
+    Returns False (and writes nothing) when this section already has one.
+    """
+
+    if proposal_transfer_sent_recorded(session, section_id):
+        return False
+    if (
+        type(notice_id) is not int or notice_id < 0
+        or not isinstance(section_key, str) or not section_key
+        or not isinstance(input_sha256, str) or len(input_sha256) != 64
+        or approval.policy_identity not in PROPOSAL_POLICY_IDENTITIES
+    ):
+        raise TransferPolicyError("invalid_request")
+    metadata = {
+        "purpose": "proposal", "approval_id": str(approval.id), "policy_sha256": approval.policy_sha256,
+        "input_sha256": input_sha256, "draft_id": str(draft_id), "section_id": str(section_id),
+        "section_key": section_key, "notice_id": notice_id,
+    }
+    if set(metadata) != PROPOSAL_TRANSFER_SENT_KEYS:
+        raise TransferPolicyError("invalid_request")
+    session.add(AuditEvent(
+        actor_kind="system", claimed_name=SYSTEM_ACTOR, action=TRANSFER_SENT_ACTION,
+        aggregate_type=PROPOSAL_AUDIT_AGGREGATE, aggregate_id=str(section_id), request_id=None,
+        safe_metadata=metadata,
+    ))
+    session.flush()
+    return True
+
+
 __all__ = [
     "DAILY_CAP_DEFAULT",
     "DAILY_CAP_MAX",
     "DAILY_CAP_MIN",
     "KST",
+    "PROPOSAL_AUDIT_AGGREGATE",
+    "PROPOSAL_DAILY_CAP_DEFAULT",
+    "PROPOSAL_DAILY_CAP_MAX",
+    "PROPOSAL_DAILY_CAP_MIN",
+    "PROPOSAL_DRAFT_CREATED_ACTION",
+    "PROPOSAL_SCOPE",
+    "PROPOSAL_SECTIONS_PER_DRAFT",
+    "PROPOSAL_TRANSFER_SENT_KEYS",
     "SCOPE",
     "SYSTEM_ACTOR",
     "TRANSFER_SENT_ACTION",
@@ -514,16 +786,23 @@ __all__ = [
     "PolicyIdentity",
     "TransferPolicyError",
     "active_approval",
+    "active_proposal_approval",
     "approval_view",
     "approve_transfer_policy",
     "auto_request_id",
     "kst_day_bounds",
     "policy_identity_of",
+    "proposal_cap_usage",
+    "proposal_transfer_sent_recorded",
+    "record_proposal_transfer_sent",
     "record_transfer_sent",
+    "require_proposal_transfer_approval",
     "require_transfer_approval",
     "revoke_transfer_policy",
+    "selected_proposal_policy_row",
     "selected_rl_policy_row",
     "today_used",
     "transfer_sent_recorded",
+    "verify_proposal_policy_identity",
     "verify_rl_policy_identity",
 ]

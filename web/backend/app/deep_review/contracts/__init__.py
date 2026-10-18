@@ -33,6 +33,11 @@ SCHEMA_FILES = {
     "requirement-extract-v2": "bidops.requirement-extract.v2.json",
     "verdict-role": "bidops.verdict-role.v1.json",
     "practitioner-verdict": "bidops.practitioner-verdict.v1.json",
+    # RL-04 (spec "문장 계약"·"생성 입력"): Luna section output (runner
+    # ``proposal-section-v1``) and the frozen per-section input.  Kind-conditional
+    # sentence rules live in ``services/proposal_validation.py``, not here.
+    "proposal-section": "bidops.proposal-section.v1.json",
+    "proposal-input": "bidops.proposal-input.v1.json",
 }
 
 DOCUMENT_STRUCTURE_SCHEMA = "document-structure"
@@ -46,6 +51,8 @@ REQUIREMENT_EXTRACT_SCHEMA = "requirement-extract"
 REQUIREMENT_EXTRACT_V2_SCHEMA = "requirement-extract-v2"
 VERDICT_ROLE_SCHEMA = "verdict-role"
 PRACTITIONER_VERDICT_SCHEMA = "practitioner-verdict"
+PROPOSAL_SECTION_SCHEMA = "proposal-section"
+PROPOSAL_INPUT_SCHEMA = "proposal-input"
 SCHEMAS = {key: value for key, value in SCHEMA_FILES.items()}
 
 
@@ -88,6 +95,8 @@ __all__ = [
     "DOCUMENT_SEGMENTS_SCHEMA",
     "DOCUMENT_STRUCTURE_SCHEMA",
     "PRACTITIONER_VERDICT_SCHEMA",
+    "PROPOSAL_INPUT_SCHEMA",
+    "PROPOSAL_SECTION_SCHEMA",
     "REQUIREMENT_EXTRACT_SCHEMA",
     "REQUIREMENT_EXTRACT_V2_SCHEMA",
     "SCHEMAS",

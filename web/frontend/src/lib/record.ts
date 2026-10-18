@@ -37,9 +37,8 @@ export function parseRecordTab(value: string | undefined): RecordTab | null {
   return (RECORD_TABS as readonly string[]).includes(value ?? "") ? (value as RecordTab) : null;
 }
 
-/** 후속 기능이 채울 탭의 빈 상태 문장(spec "화면"). 판정 탭은 RL-03이 채웠으므로 여기에 없다. */
+/** 후속 기능이 채울 탭의 빈 상태 문장(spec "화면"). 판정 탭은 RL-03, 제안서 탭은 RL-04가 채웠으므로 여기에 없다. */
 export const RECORD_TAB_EMPTY: Partial<Record<RecordTab, string>> = {
-  proposal: "제안서 초안은 판정 뒤 만들 수 있습니다",
   documents: "제출 서류 체크는 준비 중입니다",
   source: "원문은 공고 상세에서 봅니다",
 };

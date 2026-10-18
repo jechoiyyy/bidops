@@ -92,6 +92,11 @@ def test_worker_network_and_command_boundaries_are_explicit():
     assert web["environment"]["BIDOPS_ACTIVE_PROFILE_VERSION_ID"] == "${BIDOPS_ACTIVE_PROFILE_VERSION_ID:-}"
     assert web["environment"]["BIDOPS_ACTIVE_ANALYSIS_POLICY_VERSION_ID"] == "${BIDOPS_ACTIVE_ANALYSIS_POLICY_VERSION_ID:-}"
     assert "BIDOPS_MODEL_RESPONSE_ACCESS_KEY" not in web["environment"]
+    # RL-04 (B48): only the web process renders, stores and serves proposal PDFs.
+    assert web["environment"]["BIDOPS_PROPOSAL_PDF_ACCESS_KEY"] == (
+        "${BIDOPS_PROPOSAL_PDF_ACCESS_KEY:?set an external proposal-pdf access key}")
+    assert web["environment"]["BIDOPS_PROPOSAL_PDF_SECRET_KEY"] == (
+        "${BIDOPS_PROPOSAL_PDF_SECRET_KEY:?set an external proposal-pdf secret key}")
     assert "document-scratch:/scratch" in web["volumes"]
     document_worker = (ROOT / "web/backend/app/deep_review/workers/document.py").read_text(encoding="utf-8")
     assert "SessionLocal" not in document_worker and "convert_one" in document_worker
@@ -112,6 +117,7 @@ def test_worker_network_and_command_boundaries_are_explicit():
     assert analysis["environment"]["BIDOPS_STRUCTURE_ACCESS_KEY"].startswith("${BIDOPS_STRUCTURE_ACCESS_KEY")
     assert analysis["environment"]["BIDOPS_STRUCTURE_SECRET_KEY"].startswith("${BIDOPS_STRUCTURE_SECRET_KEY")
     assert "BIDOPS_QUARANTINE_ACCESS_KEY" not in analysis["environment"]
+    assert "BIDOPS_PROPOSAL_PDF_ACCESS_KEY" not in analysis["environment"]
     assert analysis["environment"]["BIDOPS_CLAMAV_HOST"] == "clamav"
     assert analysis["environment"]["BIDOPS_CLAMAV_PORT"] == "3310"
     assert analysis["environment"]["BIDOPS_CLAMAV_TIMEOUT_SECONDS"] == "15"
@@ -382,7 +388,10 @@ def test_minio_versioning_and_object_first_recovery_contract():
     assert 'mc version info --json "local/$bucket"' in bootstrap
     assert '*\'"versioning":{"status":"Enabled"\'*)' in bootstrap
     assert '"bucket versioning is not enabled: $bucket" >&2' in bootstrap
-    assert "for bucket in bidops-source bidops-structure bidops-quarantine bidops-model-response" in bootstrap
+    assert (
+        "for bucket in bidops-source bidops-structure bidops-quarantine bidops-model-response bidops-proposal-pdf"
+        in bootstrap
+    )
     assert "mc ilm add --expire-days 90 local/bidops-model-response" in bootstrap
     assert "mc find --versions" in backup and "object-versions.tsv" in backup
     assert "--version-id" in backup
@@ -442,3 +451,45 @@ def test_web_test_entry_point_runs_every_declared_gate():
     # script must supply one or refuse to run.
     assert 'export BIDOPS_TEST_POSTGRES_URL="$TEST_PG_ADMIN_URL"' in harness
     assert "set -euo pipefail" in harness
+
+
+def test_rl04_proposal_pdf_bucket_is_provisioned_backed_up_and_verified_like_model_response():
+    """B48: namespace ``proposal-pdf`` (bucket ``bidops-proposal-pdf``) has its own user/policy,
+    versioning, a 365-day lifecycle (``retention_class=proposal-pdf-365d``) and is part of the
+    backup, restore, active-hash and transfer verification sets.  Its objects are unencrypted, so
+    stored bytes are compared with ``ContentObject.sha256`` like source/structure."""
+
+    bootstrap = (ROOT / "scripts/minio-init.sh").read_text(encoding="utf-8")
+    assert ': "${BIDOPS_PROPOSAL_PDF_ACCESS_KEY:?proposal-pdf access key is required}"' in bootstrap
+    assert ': "${BIDOPS_PROPOSAL_PDF_SECRET_KEY:?proposal-pdf secret key is required}"' in bootstrap
+    assert 'create_user proposal-pdf "$BIDOPS_PROPOSAL_PDF_ACCESS_KEY" "$BIDOPS_PROPOSAL_PDF_SECRET_KEY"' in bootstrap
+    assert '"arn:aws:s3:::bidops-proposal-pdf","arn:aws:s3:::bidops-proposal-pdf/*"' in bootstrap
+    assert "for name in source structure quarantine model-response proposal-pdf; do" in bootstrap
+    assert 'mc admin policy attach local bidops-proposal-pdf --user "$BIDOPS_PROPOSAL_PDF_ACCESS_KEY"' in bootstrap
+    assert "mc ilm add --expire-days 365 local/bidops-proposal-pdf" in bootstrap
+    assert bootstrap.count("mc ilm add") == 2
+    buckets = "for bucket in bidops-source bidops-structure bidops-quarantine bidops-model-response bidops-proposal-pdf; do"
+    assert buckets in (ROOT / "scripts/backup-objects.sh").read_text(encoding="utf-8")
+    verify = (ROOT / "scripts/verify-active-hashes.sh").read_text(encoding="utf-8")
+    assert buckets in verify
+    assert verify.count("source|structure|quarantine|model-response|proposal-pdf)") == 2
+    assert 'index($1, "model-response/") != 1' in verify  # only model-response skips the byte hash
+    restore = (ROOT / "scripts/restore.sh").read_text(encoding="utf-8")
+    assert 'source|structure|quarantine|model-response|proposal-pdf) bucket="bidops-$namespace" ;;' in restore
+    generate_active = (ROOT / "scripts/generate-active-hash-manifest.sh").read_text(encoding="utf-8")
+    assert "NOT IN ('source', 'structure', 'quarantine', 'model-response', 'proposal-pdf')" in generate_active
+    transfer = (ROOT / "scripts/transfer-check.py").read_text(encoding="utf-8")
+    assert '("source", "structure", "quarantine", "model-response", "proposal-pdf")' in transfer
+    compose = yaml.safe_load((ROOT / "docker-compose.yml").read_text(encoding="utf-8"))
+    init_env = compose["services"]["minio-init"]["environment"]
+    assert init_env["BIDOPS_PROPOSAL_PDF_ACCESS_KEY"].startswith("${BIDOPS_PROPOSAL_PDF_ACCESS_KEY:?")
+    assert init_env["BIDOPS_PROPOSAL_PDF_SECRET_KEY"].startswith("${BIDOPS_PROPOSAL_PDF_SECRET_KEY:?")
+    for name, service in compose["services"].items():
+        if name not in {"web", "minio-init"}:
+            assert "BIDOPS_PROPOSAL_PDF_ACCESS_KEY" not in (service.get("environment") or {}), name
+    example = (ROOT / ".env.example").read_text(encoding="utf-8")
+    assert "BIDOPS_PROPOSAL_PDF_ACCESS_KEY=replace-in-secret-manager" in example
+    assert "BIDOPS_PROPOSAL_PDF_SECRET_KEY=replace-in-secret-manager" in example
+    from app.core.object_store import BUCKETS, NAMESPACES
+
+    assert NAMESPACES[-1] == "proposal-pdf" and BUCKETS["proposal-pdf"] == "bidops-proposal-pdf"

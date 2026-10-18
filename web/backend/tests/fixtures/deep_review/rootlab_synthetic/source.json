@@ -1,0 +1,464 @@
+{
+ "schema_version": "bidops.company-knowledge-source.v1",
+ "company": {
+  "slug": "rootlab-synthetic",
+  "name": "㈜합성루트랩",
+  "is_fictional": false
+ },
+ "scenario_version": "rootlab-synthetic-2026-10-18",
+ "ontology_version": "bidops.company-ontology.rl-synthetic-v1",
+ "ontology_sha256": "cb54217fdbd7a027229b8d6a9734786130531be0d2b0adcbe02089e3509bb792",
+ "nodes": [
+  {
+   "id": "company:rootlab",
+   "type": "company",
+   "label": "㈜합성루트랩",
+   "concept_id": null,
+   "status": "confirmed",
+   "origin": "homepage",
+   "value": "㈜합성루트랩",
+   "source_refs": [
+    {
+     "source_id": "self",
+     "locator": {
+      "json_pointer": "/nodes/0/value"
+     },
+     "quote": "㈜합성루트랩"
+    }
+   ]
+  },
+  {
+   "id": "qual:credit_rating",
+   "type": "qualification",
+   "label": "신용평가등급",
+   "concept_id": "qual.credit",
+   "status": "proposed",
+   "origin": "agent_proposal",
+   "value": {
+    "held": true,
+    "detail": "BBB0 수준(합성 제안값)",
+    "valid_until": "2027-06-30",
+    "issued_on": null,
+    "file_name": null
+   },
+   "source_refs": [
+    {
+     "source_id": "self",
+     "locator": {
+      "json_pointer": "/nodes/1/value/detail"
+     },
+     "quote": "BBB0 수준(합성 제안값)"
+    }
+   ]
+  },
+  {
+   "id": "qual:credit_rating:valid_until",
+   "type": "qualification",
+   "label": "신용평가등급 유효기간",
+   "concept_id": "qual.credit",
+   "status": "unknown",
+   "origin": "user_interview",
+   "value": null,
+   "source_refs": []
+  },
+  {
+   "id": "qual:branch",
+   "type": "qualification",
+   "label": "지사 현황",
+   "concept_id": "qual.branch",
+   "status": "confirmed",
+   "origin": "user_interview",
+   "value": {
+    "held": true,
+    "detail": "합성시(본점)",
+    "valid_until": null,
+    "issued_on": null,
+    "file_name": null
+   },
+   "source_refs": [
+    {
+     "source_id": "self",
+     "locator": {
+      "json_pointer": "/nodes/3/value/detail"
+     },
+     "quote": "합성시(본점)"
+    }
+   ]
+  },
+  {
+   "id": "cert:patents",
+   "type": "qualification",
+   "label": "특허",
+   "concept_id": "qual.cert",
+   "status": "confirmed",
+   "origin": "company_brochure",
+   "value": {
+    "held": true,
+    "detail": "등록 2건, 출원 3건",
+    "valid_until": null,
+    "issued_on": null,
+    "file_name": null
+   },
+   "source_refs": [
+    {
+     "source_id": "self",
+     "locator": {
+      "json_pointer": "/nodes/4/value/detail"
+     },
+     "quote": "등록 2건, 출원 3건"
+    }
+   ]
+  },
+  {
+   "id": "cert:iso_9001",
+   "type": "qualification",
+   "label": "ISO 9001",
+   "concept_id": "qual.cert",
+   "status": "confirmed",
+   "origin": "company_brochure",
+   "value": {
+    "held": true,
+    "detail": "ISO 9001",
+    "valid_until": null,
+    "issued_on": null,
+    "file_name": null
+   },
+   "source_refs": [
+    {
+     "source_id": "self",
+     "locator": {
+      "json_pointer": "/nodes/5/value/detail"
+     },
+     "quote": "ISO 9001"
+    }
+   ]
+  },
+  {
+   "id": "staff:total",
+   "type": "staff_group",
+   "label": "전체 임직원",
+   "concept_id": null,
+   "status": "confirmed",
+   "origin": "company_brochure",
+   "value": {
+    "role": "전체 임직원",
+    "total": 12,
+    "available": null,
+    "as_of": null,
+    "region": null,
+    "grade": null
+   },
+   "source_refs": [
+    {
+     "source_id": "self",
+     "locator": {
+      "json_pointer": "/nodes/6/value/total"
+     },
+     "quote": "12"
+    }
+   ]
+  },
+  {
+   "id": "staff:design_publishing",
+   "type": "staff_group",
+   "label": "디자인·퍼블리싱",
+   "concept_id": null,
+   "status": "confirmed",
+   "origin": "user_interview",
+   "value": {
+    "role": "디자인·퍼블리싱",
+    "total": null,
+    "available": 3,
+    "as_of": null,
+    "region": null,
+    "grade": null
+   },
+   "source_refs": [
+    {
+     "source_id": "self",
+     "locator": {
+      "json_pointer": "/nodes/7/value/available"
+     },
+     "quote": "3"
+    }
+   ]
+  },
+  {
+   "id": "staff:onsite",
+   "type": "staff_group",
+   "label": "상주 인력",
+   "concept_id": null,
+   "status": "confirmed",
+   "origin": "user_interview",
+   "value": {
+    "role": "onsite",
+    "total": null,
+    "available": 2,
+    "as_of": null,
+    "region": "합성시",
+    "grade": null
+   },
+   "source_refs": [
+    {
+     "source_id": "self",
+     "locator": {
+      "json_pointer": "/nodes/8/value/region"
+     },
+     "quote": "합성시"
+    }
+   ]
+  },
+  {
+   "id": "staff:pm",
+   "type": "staff_group",
+   "label": "PM",
+   "concept_id": null,
+   "status": "unknown",
+   "origin": "user_interview",
+   "value": null,
+   "source_refs": []
+  },
+  {
+   "id": "project:2025-01",
+   "type": "project",
+   "label": "합성기관 누리집 고도화",
+   "concept_id": null,
+   "status": "confirmed",
+   "origin": "homepage",
+   "value": {
+    "role": null,
+    "scope": null,
+    "amount_krw": null,
+    "started_on": null,
+    "ended_on": null,
+    "agency": "합성기관",
+    "year": 2025
+   },
+   "source_refs": [
+    {
+     "source_id": "self",
+     "locator": {
+      "json_pointer": "/nodes/10/value/agency"
+     },
+     "quote": "합성기관"
+    }
+   ]
+  },
+  {
+   "id": "project:certified_list",
+   "type": "project",
+   "label": "실적증명 목록",
+   "concept_id": null,
+   "status": "unknown",
+   "origin": "user_interview",
+   "value": null,
+   "source_refs": []
+  },
+  {
+   "id": "pref:solo_cap",
+   "type": "capability",
+   "label": "단독 수행 상한",
+   "concept_id": "cap.cms",
+   "status": "confirmed",
+   "origin": "user_interview",
+   "value": {
+    "scope": "core",
+    "description": "단독 수행 상한 3억 원(합성)",
+    "params": {
+     "krw": 300000000
+    }
+   },
+   "source_refs": [
+    {
+     "source_id": "self",
+     "locator": {
+      "json_pointer": "/nodes/12/value/description"
+     },
+     "quote": "단독 수행 상한 3억 원(합성)"
+    }
+   ]
+  }
+ ],
+ "edges": [
+  {
+   "id": "edge:qual:credit_rating",
+   "type": "holds_qualification",
+   "from_id": "company:rootlab",
+   "to_id": "qual:credit_rating",
+   "status": "proposed",
+   "origin": "agent_proposal",
+   "source_refs": [
+    {
+     "source_id": "self",
+     "locator": {
+      "json_pointer": "/nodes/1/value/detail"
+     },
+     "quote": "BBB0 수준(합성 제안값)"
+    }
+   ]
+  },
+  {
+   "id": "edge:qual:credit_rating:valid_until",
+   "type": "holds_qualification",
+   "from_id": "company:rootlab",
+   "to_id": "qual:credit_rating:valid_until",
+   "status": "unknown",
+   "origin": "user_interview",
+   "source_refs": []
+  },
+  {
+   "id": "edge:qual:branch",
+   "type": "holds_qualification",
+   "from_id": "company:rootlab",
+   "to_id": "qual:branch",
+   "status": "confirmed",
+   "origin": "user_interview",
+   "source_refs": [
+    {
+     "source_id": "self",
+     "locator": {
+      "json_pointer": "/nodes/3/value/detail"
+     },
+     "quote": "합성시(본점)"
+    }
+   ]
+  },
+  {
+   "id": "edge:cert:patents",
+   "type": "holds_qualification",
+   "from_id": "company:rootlab",
+   "to_id": "cert:patents",
+   "status": "confirmed",
+   "origin": "company_brochure",
+   "source_refs": [
+    {
+     "source_id": "self",
+     "locator": {
+      "json_pointer": "/nodes/4/value/detail"
+     },
+     "quote": "등록 2건, 출원 3건"
+    }
+   ]
+  },
+  {
+   "id": "edge:cert:iso_9001",
+   "type": "holds_qualification",
+   "from_id": "company:rootlab",
+   "to_id": "cert:iso_9001",
+   "status": "confirmed",
+   "origin": "company_brochure",
+   "source_refs": [
+    {
+     "source_id": "self",
+     "locator": {
+      "json_pointer": "/nodes/5/value/detail"
+     },
+     "quote": "ISO 9001"
+    }
+   ]
+  },
+  {
+   "id": "edge:staff:total",
+   "type": "has_staff",
+   "from_id": "company:rootlab",
+   "to_id": "staff:total",
+   "status": "confirmed",
+   "origin": "company_brochure",
+   "source_refs": [
+    {
+     "source_id": "self",
+     "locator": {
+      "json_pointer": "/nodes/6/value/total"
+     },
+     "quote": "12"
+    }
+   ]
+  },
+  {
+   "id": "edge:staff:design_publishing",
+   "type": "has_staff",
+   "from_id": "company:rootlab",
+   "to_id": "staff:design_publishing",
+   "status": "confirmed",
+   "origin": "user_interview",
+   "source_refs": [
+    {
+     "source_id": "self",
+     "locator": {
+      "json_pointer": "/nodes/7/value/available"
+     },
+     "quote": "3"
+    }
+   ]
+  },
+  {
+   "id": "edge:staff:onsite",
+   "type": "has_staff",
+   "from_id": "company:rootlab",
+   "to_id": "staff:onsite",
+   "status": "confirmed",
+   "origin": "user_interview",
+   "source_refs": [
+    {
+     "source_id": "self",
+     "locator": {
+      "json_pointer": "/nodes/8/value/region"
+     },
+     "quote": "합성시"
+    }
+   ]
+  },
+  {
+   "id": "edge:staff:pm",
+   "type": "has_staff",
+   "from_id": "company:rootlab",
+   "to_id": "staff:pm",
+   "status": "unknown",
+   "origin": "user_interview",
+   "source_refs": []
+  },
+  {
+   "id": "edge:project:2025-01",
+   "type": "performed",
+   "from_id": "company:rootlab",
+   "to_id": "project:2025-01",
+   "status": "confirmed",
+   "origin": "homepage",
+   "source_refs": [
+    {
+     "source_id": "self",
+     "locator": {
+      "json_pointer": "/nodes/10/value/agency"
+     },
+     "quote": "합성기관"
+    }
+   ]
+  },
+  {
+   "id": "edge:project:certified_list",
+   "type": "performed",
+   "from_id": "company:rootlab",
+   "to_id": "project:certified_list",
+   "status": "unknown",
+   "origin": "user_interview",
+   "source_refs": []
+  },
+  {
+   "id": "edge:pref:solo_cap",
+   "type": "has_capability",
+   "from_id": "company:rootlab",
+   "to_id": "pref:solo_cap",
+   "status": "confirmed",
+   "origin": "user_interview",
+   "source_refs": [
+    {
+     "source_id": "self",
+     "locator": {
+      "json_pointer": "/nodes/12/value/description"
+     },
+     "quote": "단독 수행 상한 3억 원(합성)"
+    }
+   ]
+  }
+ ]
+}

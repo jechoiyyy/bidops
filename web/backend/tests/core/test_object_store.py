@@ -143,3 +143,25 @@ def test_encrypted_model_response_has_no_plaintext_and_is_authenticated(monkeypa
     assert plaintext not in ciphertext
     assert ciphertext.startswith(b"BIDOPS-AESGCM-V1\0")
     assert metadata.etag == result["etag"]
+
+
+def test_rl04_proposal_pdf_namespace_uses_its_own_purpose_credentials(monkeypatch) -> None:
+    """B48: ``proposal-pdf`` keys are the only credentials of that bucket; absent keys fail closed."""
+
+    from app.core.config import Settings
+
+    monkeypatch.setenv("BIDOPS_PROPOSAL_PDF_ACCESS_KEY", "proposal")
+    monkeypatch.setenv("BIDOPS_PROPOSAL_PDF_SECRET_KEY", "proposal-secret")
+    settings = Settings()
+    assert settings.object_store_credentials("proposal-pdf") == ("proposal", "proposal-secret")
+    assert settings.object_store_credentials("proposal-pdf", read_only=True) == ("proposal", "proposal-secret")
+    assert storage.BUCKETS["proposal-pdf"] == "bidops-proposal-pdf"
+    assert storage._validate_key("proposal-pdf", "proposal-pdf/abc-1.pdf") == "proposal-pdf/abc-1.pdf"
+    with pytest.raises(storage.ObjectStoreError):
+        storage._validate_key("proposal-pdf", "model-response/abc.pdf")
+    monkeypatch.delenv("BIDOPS_PROPOSAL_PDF_ACCESS_KEY")
+    monkeypatch.delenv("BIDOPS_PROPOSAL_PDF_SECRET_KEY")
+    monkeypatch.setenv("BIDOPS_OBJECT_STORE_BACKEND", "minio")
+    monkeypatch.setenv("BIDOPS_OBJECT_STORE_ENDPOINT", "minio:9000")
+    with pytest.raises(storage.ObjectStoreError, match="credentials are missing for proposal-pdf"):
+        storage.MinioObjectStore(Settings(), namespaces=("proposal-pdf",))

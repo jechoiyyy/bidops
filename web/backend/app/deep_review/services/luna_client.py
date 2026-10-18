@@ -22,7 +22,14 @@ CONTRACT_SCHEMAS = {
     "card-extract-v2": "requirement-extract-v2",
     "card-role-v1": "verdict-role",
     "card-synthesis-v1": "practitioner-verdict",
+    # RL-04 (spec "입력 예산"): one proposal section per call.
+    "proposal-section-v1": "proposal-section",
 }
+#: Prompt character limit per contract; every other contract keeps 100,000.
+#: RL-04 ``proposal-section-v1`` is 120,000 (over-budget input fails as
+#: ``input_budget_exceeded`` before the call; it is never split).
+PROMPT_MAX_CHARS = {"assumption-stage-v1": 160000, "proposal-section-v1": 120000}
+DEFAULT_PROMPT_MAX_CHARS = 100000
 
 
 def valid_runner_endpoint(endpoint) -> bool:
@@ -55,7 +62,7 @@ class LunaClient:
         return self.invoke_prompt(prompt)
 
     def invoke_prompt(self, prompt, *, contract="deep-review-stage-v2"):
-        if contract not in CONTRACT_SCHEMAS or len(prompt) > (160000 if contract == "assumption-stage-v1" else 100000):
+        if contract not in CONTRACT_SCHEMAS or len(prompt) > PROMPT_MAX_CHARS.get(contract, DEFAULT_PROMPT_MAX_CHARS):
             raise ModelInvocationError("prompt_rejected", ())
         digest = hashlib.sha256(prompt.encode()).hexdigest()
         call_id = None

@@ -23,9 +23,9 @@ from .config import Settings, get_settings
 from .db import isolated_test_boundary_active
 
 
-NAMESPACES = ("source", "structure", "quarantine", "model-response")
+NAMESPACES = ("source", "structure", "quarantine", "model-response", "proposal-pdf")
 BUCKETS = {namespace: f"bidops-{namespace}" for namespace in NAMESPACES}
-_SAFE_KEY = re.compile(r"^(?:source|structure|quarantine|model-response)/[A-Za-z0-9._/-]+$")
+_SAFE_KEY = re.compile(r"^(?:source|structure|quarantine|model-response|proposal-pdf)/[A-Za-z0-9._/-]+$")
 MAX_OBJECT_BYTES = 50 * 1024 * 1024
 
 

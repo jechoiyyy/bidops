@@ -37,7 +37,7 @@ BEGIN
     WHERE location.status = 'verified'
       AND location.purged_at IS NULL
       AND (
-        location.namespace_key NOT IN ('source', 'structure', 'quarantine', 'model-response')
+        location.namespace_key NOT IN ('source', 'structure', 'quarantine', 'model-response', 'proposal-pdf')
         OR location.object_key IS NULL
         OR location.object_version_id IS NULL
         OR content.id IS NULL
@@ -72,8 +72,9 @@ psql --host "$BIDOPS_DATABASE_HOST" --port "${BIDOPS_DATABASE_PORT:-5432}" \
   -v ON_ERROR_STOP=1 -At -F $'\t' > "$tmp_manifest" <<'SQL'
 
 -- Keep the existing three-column manifest: the namespace in object_key is
--- the hash-semantics discriminator.  source, structure, and quarantine rows
--- use ContentObject.sha256 as their stored-byte hash.  model-response rows
+-- the hash-semantics discriminator.  source, structure, quarantine, and
+-- proposal-pdf (unencrypted RL-04 draft PDFs) rows use ContentObject.sha256
+-- as their stored-byte hash.  model-response rows
 -- intentionally carry the existing plaintext ContentObject.sha256 instead,
 -- because MinIO stores their encrypted response envelope.  The verifier
 -- therefore checks model-response presence and target version only.

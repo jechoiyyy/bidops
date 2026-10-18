@@ -1257,3 +1257,169 @@ def test_rl_selection_env_is_separate_from_demo_and_defaults_closed(monkeypatch)
     monkeypatch.setenv("BIDOPS_RL_DEEP_REVIEW_POLICY_VERSION_ID", "not-a-uuid")
     with pytest.raises(ValueError):
         Settings()
+
+
+# --- RL-04 STEP-001: proposal-policy-luna-v1 (spec "생성 입력·정책·호출") -------------------------
+
+PROPOSAL_POLICY_SHA256 = "0eb36cf9e4318e447dd2c66f59a060a9ec1d87b92c23326200867060973e7d91"
+
+
+def proposal_policy() -> dict:
+    from app.deep_review.services.input_versions import PROPOSAL_LUNA_POLICY_FILE
+
+    payload, _raw, _digest = load_canonical_policy(PROPOSAL_LUNA_POLICY_FILE)
+    return payload
+
+
+def test_rl04_proposal_policy_is_pinned_closed_and_carries_the_spec_identity(tmp_path) -> None:
+    from app.deep_review.services.input_versions import (
+        PROPOSAL_LUNA_POLICY_FILE,
+        PROPOSAL_PROMPT_MAX_CHARACTERS,
+        PROPOSAL_SECTION_KEYS,
+    )
+
+    raw = PROPOSAL_LUNA_POLICY_FILE.read_bytes()
+    payload, canonical, digest = load_canonical_policy(PROPOSAL_LUNA_POLICY_FILE)
+    assert PROPOSAL_LUNA_POLICY_FILE.name == "proposal-policy-luna-v1.json"
+    assert raw == canonical == canonical_json_bytes(payload)
+    assert digest == hashlib.sha256(raw).hexdigest() == PROPOSAL_POLICY_SHA256
+    assert _approved_policy_path(payload) == PROPOSAL_LUNA_POLICY_FILE
+    # Loader-required v2 keys plus identity/pipeline/purpose, nothing else.
+    assert set(payload) == {
+        "schema", "policy_identity", "pipeline_version", "purpose", "model_endpoint_ref", "model_name",
+        "generation", "quality_status", "chunking", "execution", "prompt_output_contract", "stage_schema",
+        "report_schema", "stages", "validation",
+    }
+    assert payload["schema"] == "bidops.analysis-policy.v2"
+    assert payload["policy_identity"] == luna_identity.PROPOSAL_POLICY_IDENTITY == "proposal-policy-luna-v1"
+    assert payload["pipeline_version"] == "proposal-v1" and payload["purpose"] == "proposal"
+    assert (payload["model_endpoint_ref"], payload["model_name"]) == ("codex-exec", luna_identity.MODEL)
+    assert payload["generation"] == {"reasoning_effort": luna_identity.REASONING_EFFORT}
+    assert payload["quality_status"] == "unmeasured_reference"
+    assert payload["execution"] == {
+        "automatic_retry": False, "cli_version": luna_identity.CLI_VERSION, "review_timeout_seconds": 5400,
+        "timeout_seconds": 900, "validation_repair_attempts": 1,
+    }
+    assert payload["chunking"]["max_characters"] == PROPOSAL_PROMPT_MAX_CHARACTERS == 120000
+    assert payload["stage_schema"] == "bidops.proposal-section.v1"
+    assert tuple(row["stage"] for row in payload["stages"]) == PROPOSAL_SECTION_KEYS == (
+        "overview", "track_record", "strategy", "requirements", "operations_sla", "organization")
+    rules = payload["prompt_output_contract"]
+    # The rules the spec puts in prompt_output_contract.
+    for key, phrases in {
+        "sentence_rule": ("bidops.proposal-section.v1", "statement", "placeholder", "proposed_figure", "1~400자"),
+        "source_rule": ("출처 없는 문장은 쓰지 않는다", "requirement_unit", "company_fact", "notice_meta", '" · "'),
+        "forbidden_content_rule": ("가격·금액", "인원 수", "기간 약속", "자동 보정 없이"),
+        "placeholder_rule": ("가격", "투입 인력 수", "전략 수치"),
+        "company_input_rule": ("㈜루트랩", "confirmed", "proposed", "unknown", "근거도 아니다"),
+        "coverage_rule": ("kind=card", "빠짐없이"),
+    }.items():
+        for phrase in phrases:
+            assert phrase in rules[key], (key, phrase)
+    # The proposal identity is not a company deep-review identity (it never runs a deep review).
+    assert luna_identity.PROPOSAL_POLICY_IDENTITY not in COMPANY_POLICY_IDENTITIES
+    assert luna_identity.PROPOSAL_POLICY_IDENTITY not in RL_POLICY_IDENTITIES
+
+    for mutate, match in (
+        (lambda p: p.__setitem__("purpose", "deep_review"), "proposal policy identity"),
+        (lambda p: p.__setitem__("pipeline_version", "card-v1"), "proposal policy identity"),
+        (lambda p: p.__setitem__("model_name", "gpt-5.6-luna"), "proposal policy identity"),
+        (lambda p: p.__setitem__("quality_status", "measured"), "proposal policy identity"),
+        (lambda p: p.__setitem__("model_revision", None), "proposal policy identity"),
+        (lambda p: p.__setitem__("policy_identity", "proposal-policy-luna-v2"), "proposal policy identity"),
+        (lambda p: p["execution"].__setitem__("review_timeout_seconds", 3600), "proposal policy가"),
+        (lambda p: p["execution"].__setitem__("validation_repair_attempts", 2), "proposal policy가"),
+        (lambda p: p["chunking"].__setitem__("max_characters", 200000), "proposal policy가"),
+        (lambda p: p["stages"].reverse(), "proposal policy가"),
+        (lambda p: p["stages"].pop(), "proposal policy가"),
+        (lambda p: p["prompt_output_contract"].pop("forbidden_content_rule"), "proposal policy가"),
+        (lambda p: p["validation"].__setitem__("human_decision", "model"), "proposal policy가"),
+        (lambda p: p["stages"][0].__setitem__("instruction", "Write."), "승인되지 않은"),
+        (lambda p: p["prompt_output_contract"].__setitem__("source_rule", "Cite."), "승인되지 않은"),
+    ):
+        candidate = deepcopy(payload)
+        mutate(candidate)
+        with pytest.raises(InputVersionError, match=match):
+            load_canonical_policy(write_candidate(tmp_path, candidate))
+    # Same bytes, non-canonical encoding, are rejected.
+    pretty = tmp_path / "pretty.json"
+    pretty.write_text(json.dumps(payload, ensure_ascii=False, indent=1), encoding="utf-8")
+    with pytest.raises(InputVersionError, match="bytes"):
+        load_canonical_policy(pretty)
+    # The proposal content under another approved identity is not that identity's file.
+    for identity in (RL_POLICY_IDENTITY_V6, HP_POLICY_IDENTITY):
+        renamed = deepcopy(payload)
+        renamed["policy_identity"] = identity
+        with pytest.raises(InputVersionError):
+            load_canonical_policy(write_candidate(tmp_path, renamed))
+
+
+def test_rl04_proposal_policy_imports_as_an_immutable_row_never_global(engine) -> None:
+    from app.deep_review.cli.import_profile_policy import import_profile_policy
+    from app.deep_review.models import AnalysisPolicyVersion, ProfileVersion
+    from app.deep_review.services.input_versions import PROPOSAL_LUNA_POLICY_FILE
+
+    with Session(engine) as session:
+        # The existing operator command imports the row (spec: "import-profile-policy로 행 import").
+        result = import_profile_policy(
+            session, policy_source=PROPOSAL_LUNA_POLICY_FILE, actor="jechoi", label="proposal-policy-luna-v1",
+            expected_policy_sha256=PROPOSAL_POLICY_SHA256,
+        )
+        assert result["policy_sha256"] == PROPOSAL_POLICY_SHA256
+        assert result["active_configuration_changed"] is False
+        row = session.get(AnalysisPolicyVersion, UUID(result["policy_version_id"]))
+        assert row is not None and row.label == "proposal-policy-luna-v1"
+        assert (row.model_endpoint_ref, row.model_name) == ("codex-exec", "gpt-6-luna")
+        assert row.prompts == proposal_policy()["stages"]
+        assert luna_identity.policy_reasoning_effort(row) == "high"
+        assert _policy_hash_matches(row)
+        validate_pinned_policy(row, allow_unmeasured_reference=True)
+        snapshot = {key: value for key, value in _policy_payload(row).items() if key != "policy_sha256"}
+        assert snapshot == proposal_policy()
+        # Idempotent replay returns the same immutable row.
+        assert import_policy_version(session, PROPOSAL_LUNA_POLICY_FILE, created_by_name="jechoi").id == row.id
+        # The proposal policy is never the global active deep-review policy.
+        profile = session.get(ProfileVersion, UUID(result["profile_version_id"]))
+        with pytest.raises(InputVersionError, match="제안서 초안 정책"):
+            resolve_active_versions(
+                session,
+                environ={"BIDOPS_ACTIVE_PROFILE_VERSION_ID": str(profile.id),
+                         "BIDOPS_ACTIVE_ANALYSIS_POLICY_VERSION_ID": str(row.id)},
+                allow_unmeasured_reference=True,
+            )
+        # Nor a company/RL deep-review policy selected by the RL env.
+        from types import SimpleNamespace
+
+        from app.deep_review.services.company_deep_review import resolve_company_deep_policy
+        from app.deep_review.services.deep_reviews import DeepReviewServiceError
+
+        settings = SimpleNamespace(rl_deep_review_policy_version_id=row.id, analysis_provider="vllm",
+                                   reference_workflow_mode=True)
+        with pytest.raises(DeepReviewServiceError) as error:
+            resolve_company_deep_policy(session, settings, rl=True)
+        assert error.value.code == "analysis_policy_unavailable"
+
+
+def test_rl04_proposal_selection_env_defaults_closed(monkeypatch) -> None:
+    from app.core.config import DEFAULT_PROPOSAL_POLICY_PATH, Settings
+    from app.deep_review.services.input_versions import PROPOSAL_LUNA_POLICY_FILE
+
+    for name in ("BIDOPS_PROPOSAL_POLICY_PATH", "BIDOPS_PROPOSAL_POLICY_VERSION_ID",
+                 "BIDOPS_RL_DEEP_REVIEW_POLICY_VERSION_ID"):
+        monkeypatch.delenv(name, raising=False)
+    settings = Settings()
+    assert settings.proposal_policy_version_id is None
+    assert settings.proposal_policy_path == DEFAULT_PROPOSAL_POLICY_PATH
+    assert DEFAULT_PROPOSAL_POLICY_PATH.resolve() == PROPOSAL_LUNA_POLICY_FILE.resolve()
+    assert Settings.model_fields["proposal_policy_version_id"].validation_alias == "BIDOPS_PROPOSAL_POLICY_VERSION_ID"
+    assert Settings.model_fields["proposal_policy_path"].validation_alias == "BIDOPS_PROPOSAL_POLICY_PATH"
+    selected = uuid4()
+    monkeypatch.setenv("BIDOPS_PROPOSAL_POLICY_VERSION_ID", str(selected))
+    settings = Settings()
+    assert settings.proposal_policy_version_id == selected
+    assert settings.rl_deep_review_policy_version_id is None
+    monkeypatch.setenv("BIDOPS_PROPOSAL_POLICY_VERSION_ID", " ")
+    assert Settings().proposal_policy_version_id is None
+    monkeypatch.setenv("BIDOPS_PROPOSAL_POLICY_VERSION_ID", "not-a-uuid")
+    with pytest.raises(ValueError):
+        Settings()

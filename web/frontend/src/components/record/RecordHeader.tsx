@@ -7,10 +7,11 @@ import { initialOf, type RecordPill } from "../../lib/record";
  * 레코드 헤더(ui-spec §3, RL-02 spec "레코드 헤더"): 기관 머리글자 아이콘(40px, teal) · 제목 ·
  * pill 4개(단계·마감·판정·추적 상태, 순서 고정) · 액션.
  *
- * 판정 보기는 서버가 준 판정 결과가 있을 때만 열린다(RL-03). 판정 탭에서는 제안서 초안(RL-04 전
- * 비활성) · 다시 판정 · ⋯가 액션이고 ⋯에 판정 오류 제보·실행 정보가 더해진다. 제안서 초안은 RL-04가
- * 열기 전까지 비활성이다. ⋯ 메뉴의 추적 항목은 기존 추적 대화상자를 여는 자리일 뿐 저장 규칙을 새로
- * 갖지 않는다.
+ * 판정 보기는 서버가 준 판정 결과가 있을 때만 열린다(RL-03). 판정 탭에서는 제안서 초안 · 다시 판정 · ⋯가
+ * 액션이고 ⋯에 판정 오류 제보·실행 정보가 더해진다. 제안서 초안은 완료된 판정이 있을 때만 열리고 제안서
+ * 탭으로 간다(RL-04). 제안서 탭에서는 PDF로 내보내기(주) · 다시 만들기 · ⋯가 액션이고 ⋯에 제출 준비로 표시와
+ * 후속(HWP·버전 비교, 비활성)이 더해진다. ⋯ 메뉴의 추적 항목은 기존 추적 대화상자를 여는 자리일 뿐 저장
+ * 규칙을 새로 갖지 않는다.
  */
 
 export type RecordMenuAction = "tracking" | "reset" | "signal" | "candidate";
@@ -30,6 +31,25 @@ export interface RecordVerdictActions {
   feedbackBlockedReason: string | null;
   runInfoBlockedReason: string | null;
   onVerdictMenu: (action: VerdictMenuAction) => void;
+  /** `제안서 초안`(제안서 탭으로 간다)을 막는 이유. 완료된 판정이 있으면 `null`이다(RL-04). */
+  proposalBlockedReason: string | null;
+  onOpenProposal: () => void;
+}
+
+/** 제안서 탭의 헤더 액션(RL-04). */
+export interface RecordProposalActions {
+  /** 지금 제안서 탭인가. */
+  onProposalTab: boolean;
+  /** `PDF로 내보내기`를 막는 이유(없으면 `null`). */
+  exportBlockedReason: string | null;
+  exportPending: boolean;
+  onExport: () => void;
+  /** `다시 만들기`(새 초안)를 막는 이유(없으면 `null`). */
+  regenerateBlockedReason: string | null;
+  onRegenerate: () => void;
+  /** ⋯의 `제출 준비로 표시`를 막는 이유(없으면 `null`). */
+  readyBlockedReason: string | null;
+  onReady: () => void;
 }
 
 export interface RecordMenuState {
@@ -46,9 +66,12 @@ interface RecordHeaderProps {
   pills: readonly RecordPill[];
   menu: RecordMenuState;
   verdict: RecordVerdictActions;
+  proposal: RecordProposalActions;
 }
 
-export function RecordHeader({ title, agency, pills, menu, verdict }: RecordHeaderProps) {
+const FOLLOW_UP_REASON = "후속 기능입니다";
+
+export function RecordHeader({ title, agency, pills, menu, verdict, proposal }: RecordHeaderProps) {
   const trackingItems = [
     { label: "추적 상태 변경", onClick: () => menu.onSelect("tracking") },
     {
@@ -70,7 +93,20 @@ export function RecordHeader({ title, agency, pills, menu, verdict }: RecordHead
       onClick: () => menu.onSelect("candidate"),
     },
   ];
-  const items = verdict.onVerdictTab
+  const items = proposal.onProposalTab
+    ? [
+        ...trackingItems,
+        { type: "divider" as const },
+        {
+          label: "제출 준비로 표시",
+          description: proposal.readyBlockedReason ?? undefined,
+          isDisabled: proposal.readyBlockedReason !== null,
+          onClick: proposal.onReady,
+        },
+        { label: "HWP로 내보내기", description: FOLLOW_UP_REASON, isDisabled: true },
+        { label: "버전 비교", description: FOLLOW_UP_REASON, isDisabled: true },
+      ]
+    : verdict.onVerdictTab
     ? [
         ...trackingItems,
         { type: "divider" as const },
@@ -100,12 +136,51 @@ export function RecordHeader({ title, agency, pills, menu, verdict }: RecordHead
         </ul>
       </div>
       <div className="rec-actions">
-        {verdict.onVerdictTab ? (
+        {proposal.onProposalTab ? (
           <>
-            {/* 제안서 초안은 RL-04가 열기 전까지 비활성이다. 이유는 title(마우스)과 숨은 설명(낭독기) 둘 다로 준다. */}
-            <span className="rec-action-hint" title="RL-04에서 열립니다">
-              <Button aria-describedby="rec-proposal-hint" isDisabled label="제안서 초안" size="sm" variant="primary" />
-              <span className="visually-hidden" id="rec-proposal-hint">RL-04에서 열립니다</span>
+            {/* 초안이 없거나 생성 중이면 내보낼 수 없다. 이유는 title(마우스)과 숨은 설명(낭독기) 둘 다로 준다. */}
+            <span className="rec-action-hint" title={proposal.exportBlockedReason ?? undefined}>
+              <Button
+                aria-describedby={proposal.exportBlockedReason ? "rec-export-hint" : undefined}
+                isDisabled={proposal.exportBlockedReason !== null}
+                label={proposal.exportPending ? "내보내는 중…" : "PDF로 내보내기"}
+                onClick={proposal.onExport}
+                size="sm"
+                variant="primary"
+              />
+              {proposal.exportBlockedReason ? (
+                <span className="visually-hidden" id="rec-export-hint">{proposal.exportBlockedReason}</span>
+              ) : null}
+            </span>
+            <span className="rec-action-hint" title={proposal.regenerateBlockedReason ?? undefined}>
+              <Button
+                aria-describedby={proposal.regenerateBlockedReason ? "rec-regenerate-hint" : undefined}
+                isDisabled={proposal.regenerateBlockedReason !== null}
+                label="다시 만들기"
+                onClick={proposal.onRegenerate}
+                size="sm"
+                variant="secondary"
+              />
+              {proposal.regenerateBlockedReason ? (
+                <span className="visually-hidden" id="rec-regenerate-hint">{proposal.regenerateBlockedReason}</span>
+              ) : null}
+            </span>
+          </>
+        ) : verdict.onVerdictTab ? (
+          <>
+            {/* 제안서 초안은 완료된 판정이 있을 때만 열린다. 이유는 title(마우스)과 숨은 설명(낭독기) 둘 다로 준다. */}
+            <span className="rec-action-hint" title={verdict.proposalBlockedReason ?? undefined}>
+              <Button
+                aria-describedby={verdict.proposalBlockedReason ? "rec-proposal-hint" : undefined}
+                isDisabled={verdict.proposalBlockedReason !== null}
+                label="제안서 초안"
+                onClick={verdict.onOpenProposal}
+                size="sm"
+                variant="primary"
+              />
+              {verdict.proposalBlockedReason ? (
+                <span className="visually-hidden" id="rec-proposal-hint">{verdict.proposalBlockedReason}</span>
+              ) : null}
             </span>
             <span className="rec-action-hint" title={verdict.requestBlockedReason ?? undefined}>
               <Button
@@ -135,9 +210,18 @@ export function RecordHeader({ title, agency, pills, menu, verdict }: RecordHead
               />
               {verdict.hasResult ? null : <span className="visually-hidden" id="rec-verdict-hint">아직 판정이 없습니다</span>}
             </span>
-            <span className="rec-action-hint" title="RL-04에서 열립니다">
-              <Button aria-describedby="rec-proposal-hint" isDisabled label="제안서 초안" size="sm" variant="secondary" />
-              <span className="visually-hidden" id="rec-proposal-hint">RL-04에서 열립니다</span>
+            <span className="rec-action-hint" title={verdict.proposalBlockedReason ?? undefined}>
+              <Button
+                aria-describedby={verdict.proposalBlockedReason ? "rec-proposal-hint" : undefined}
+                isDisabled={verdict.proposalBlockedReason !== null}
+                label="제안서 초안"
+                onClick={verdict.onOpenProposal}
+                size="sm"
+                variant="secondary"
+              />
+              {verdict.proposalBlockedReason ? (
+                <span className="visually-hidden" id="rec-proposal-hint">{verdict.proposalBlockedReason}</span>
+              ) : null}
             </span>
           </>
         )}
