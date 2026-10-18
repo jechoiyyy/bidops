@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
   "feature": "RL-04-proposal-draft",
-  "phase": "validating",
+  "phase": "done",
   "steps": [
     {
       "id": "STEP-001",
@@ -311,9 +311,13 @@
     {
       "at": "2026-10-18T11:29:39+09:00",
       "text": "단계 → validating"
+    },
+    {
+      "at": "2026-10-18T21:30:39+09:00",
+      "text": "단계 → done: 배치 검증 및 통합 완료"
     }
   ],
-  "updated_at": "2026-10-18T21:29:54+09:00",
+  "updated_at": "2026-10-18T21:30:39+09:00",
   "proof_history": [
     {
       "key": "tests",
@@ -447,5 +451,11 @@
         "spec_hash": "485e5be98ffb32eae4f1a240cfa9893f76a7429507d361cff6fb70df193f6bbc"
       }
     }
-  ]
+  ],
+  "integration": {
+    "run": "rlb-20261017",
+    "revision": "f4ffdd196b6c02c6151d0a65c7db8af7c162c4c8",
+    "source_hash": "1d67e7b232814a748d21fde0397e93786ab6f5fa57a43dec41a639bb467079f3",
+    "spec_hash": "485e5be98ffb32eae4f1a240cfa9893f76a7429507d361cff6fb70df193f6bbc"
+  }
 }
