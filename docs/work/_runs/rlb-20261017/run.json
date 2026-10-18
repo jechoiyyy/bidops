@@ -1,6 +1,6 @@
 {
   "id": "rlb-20261017",
-  "state": "implementing",
+  "state": "awaiting_merge",
   "features": [
     "RL-03-fit-verdict",
     "RL-04-proposal-draft"
