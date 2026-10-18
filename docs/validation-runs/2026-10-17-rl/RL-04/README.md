@@ -98,3 +98,12 @@ PDF 내용(`pdfinfo`/`pdffonts`):
 overlay·명령·로그는 Git 밖 `.sdlc/local-runtime/rlb-20261017/`에 있다.
 - `compose-t11-rl04.sh`, `rla-rl04.yml`, `t11-rl04.env`, `minio-proposal-pdf.sh`
 - `logs/t10-*`, `logs/minio-*`, `t10-artifacts/`(PDF 2개·헤더)
+
+## T11 실제 초안 1건 (2026-10-18 08:01Z UTC = 17:01 KST, 사용자 승인 B51·B55) — **partial(4/6 절 completed)**
+
+- 판정 입력: RL-03 실제 판정 `667bf04d-e83c-4be1-93fe-61549c43ad69`("판단 불가", matrix 32행 모두 unknown — 회사 근거 상태 D13). bidops_rla, 이미지 `rlb-20261017-b55`, runner `aaaf896f…`(proposal-section-v1 포함).
+- 제안서 정책 행 `e08e4b21-47af-495f-9c21-87ace58982f0`(sha `0eb36cf9…`), 승인 `4b6dad7d-a60e-4f3b-90b9-9e7d02dd7af2`(purposes proposal, cap 1). request `daedbce8-dfba-4c09-a86c-5b6ae72baa86`, draft `5d627b0f-4fa6-48e9-80ab-b9cc10cd0c2f`.
+- 호출 6회(절당 1, repair 0, 상한 12 안), `analysis.transfer.sent` 6건, runner 실패 0, 08:05Z settled `partial`(stage `draft`).
+- 절 결과: overview completed(문장 6), strategy completed(7, placeholder 1), requirements completed(28, placeholder 1, 카드 27개 연결), organization completed(9, placeholder 4 — 인력 수치는 빈 자리), **track_record·operations_sla failed `proposal_section_invalid`**(사람 검토, 재시도·절 다시 쓰기 없음 — 승인 조건). 문장 확인 6·placeholder 6·제안 수치 0.
+- PDF: export `4e278aae-7d31-4f52-a8ea-b81956903131`, `pdf_sha256 be6e412b…4058` = 헤더 = 파일 sha, 실패 절은 "생성 실패" 표시. 품질 표식 `unmeasured_reference` — 품질 근거 아님.
+- 실패 절 오프라인 진단(재생 해시 일치, 외부 호출 없음): 두 절 모두 **식별자 하나를 잘못 옮겨 적은 실제 모델 오류**. operations_sla는 unit id `…005a1e:12:SER-1`의 hex 한 글자를 바꿔 씀(인용은 올바른 SER-1 원문, unit 참조 49개 중 1개), track_record는 `project:2025-16`의 `project:` 접두를 빠뜨림(인용 일치, 회사 사실 참조 176개 중 1개). 증거 계열이라 repair 없음이 맞고, 참조만 고치면 두 절 모두 통과. 원인 구조: 긴 불투명 식별자를 절마다 수십~백여 번 복사하게 하는 계약 — 백로그(입력 안 짧은 별칭 U1·F1을 코드가 정확 조회로 되돌리는 계약 v2).

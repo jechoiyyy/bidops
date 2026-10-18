@@ -681,7 +681,7 @@ live config의 tracking mutation은 demo-laptop project에서만 실행하고 de
 
 ### R5. 분석 입력·승인·현재성 (§5·§6·§9 대체, RL-03, 2026-10-17)
 
-적용 범위는 **실회사(`is_fictional=false`) ∧ `BIDOPS_RL_ANALYSIS_ENABLED=true` ∧ 선택된 정책 행의 `pipeline_version="card-v1"`**(`analysis-policy-luna-rl-v1`~`-v6`(= `RL_POLICY_IDENTITIES`; v2 결정 B23, v3 B30, v4 B33, v5 B35, v6 B37))뿐이다. 근거 [RL-03 spec](groups/RL/features/RL-03-fit-verdict/spec.md), 계약 [contracts.md "카드 기반 참여 판정"](../contracts.md#카드-기반-참여-판정-rl-03-2026-10-17). 가상회사·`narrative-v2`·회사 핏은 바뀌지 않는다.
+적용 범위는 **실회사(`is_fictional=false`) ∧ `BIDOPS_RL_ANALYSIS_ENABLED=true` ∧ 선택된 정책 행의 `pipeline_version="card-v1"`**(`analysis-policy-luna-rl-v1`~`-v9`(= `RL_POLICY_IDENTITIES`; v2 결정 B23, v3 B30, v4 B33, v5 B35, v6 B37, v7 B51, v8 B53, v9 B55))뿐이다. 근거 [RL-03 spec](groups/RL/features/RL-03-fit-verdict/spec.md), 계약 [contracts.md "카드 기반 참여 판정"](../contracts.md#카드-기반-참여-판정-rl-03-2026-10-17). 가상회사·`narrative-v2`·회사 핏은 바뀌지 않는다.
 
 - **개요 비의존(D1).** gate 순서(binding → policy → model → 개요 → SW → bundle)에서 `card-v1`은 개요 단계를 건너뛴다(`current_company_overviews`를 읽지 않음). SW사업대상≠Y는 403 `effective_grade_ineligible`, ready bundle 없음은 409 `bundle_not_ready`이며 `overview_not_completed`는 RL 경로(자동·수동)에서 나오지 않는다. 자격은 공고 메타 `qualification_flags_json.sw_business_status='Y'` ∧ ready bundle이다.
 - **입력.** `bidops.company-analysis-input.v2` = v1 키 집합 + `card_analysis`(`schema_version:"bidops.card-analysis-input.v1"`, `company_binding`, `units`, `batches`, `missing_sections`, `selector`). `overview_run_id`·`overview_sha256` 키는 유지하되 `card-v1`에서는 **둘 다 `null`**(둘 다 null이거나 둘 다 값; v1 입력과 `company_fit` 출처에 null이 있으면 거부). `FrozenProvenance`의 키 집합은 그대로이고 두 필드만 nullable이다. 동결 입력은 승인·hash 대상이고 Luna로 나가는 단계 payload는 그 projection이다(전송 규칙은 contracts.md).

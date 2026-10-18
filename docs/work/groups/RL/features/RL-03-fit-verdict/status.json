@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
   "feature": "RL-03-fit-verdict",
-  "phase": "validating",
+  "phase": "implementing",
   "steps": [
     {
       "id": "STEP-001",
@@ -226,11 +226,29 @@
         }
       ],
       "note": "B25~B39: T11 mock 8차 v6 completed; T12 실제 1~7차 판정 미획득 → real_data_run pending(B37 옵션 B, findings 기록)"
+    },
+    {
+      "id": "STEP-011",
+      "title": "항목 단위 추출 실패 격리(결정 B51)",
+      "model": "complex",
+      "fingerprint": "dde7a946f548a83582c5d905013a11c20d37ed79a28c97b187e5ca61c299f06c",
+      "status": "done",
+      "updated_at": "2026-10-18T16:07:13+09:00",
+      "note": "격리 v7·근거 확대 v8(B51~B54) 구현·검증; 실제 8·9차에서 추출·역할 통과 확인, 실제 판정은 STEP-012로"
+    },
+    {
+      "id": "STEP-012",
+      "title": "종합 출력 계약 v2와 종합 재실행(결정 B55)",
+      "model": "complex",
+      "fingerprint": "bd542a3a5359f514defd474152ad22d79f071d6aadb29cc6981c42a57b985e57",
+      "status": "done",
+      "updated_at": "2026-10-18T17:06:15+09:00",
+      "note": "종합 계약 v2·정책 v9·종합만 재실행(B55·B56); 실제 10차(9차 종합 재실행) completed '판단 불가' 667bf04d; RL-04 T11 실제 초안 partial 4/6(5d627b0f)"
     }
   ],
   "proof": {
     "docs": {
-      "result": "pass",
+      "result": "stale",
       "method": "review",
       "note": "배치 최종 코드 adc00b8(RL-04 통합 후) 재검증으로 갱신. doctor 0, RL-03 리뷰 B39 + 배치 최종 리뷰 B50(RL-04+통합) 차단 해소",
       "evidence": "docs/work/_runs/rlb-20261017/logs/BATCH-doctor.log; decisions.md B39·B50",
@@ -240,10 +258,11 @@
       "at": "2026-10-18T11:35:12+09:00",
       "head": "adc00b8d16a6578b720d63dfb73d96ff59b6efde",
       "source_hash": "3ff4b4f112e44ac019c3bba969e66d3b8dc7f5e41939f0b94c974befbb58dd70",
-      "spec_hash": "10e2df511afb19f22ca2f9856b696a63e198288f4d41d4d702180b00adb8c7b7"
+      "spec_hash": "10e2df511afb19f22ca2f9856b696a63e198288f4d41d4d702180b00adb8c7b7",
+      "reason": "작업 계약 변경"
     },
     "tests": {
-      "result": "pass",
+      "result": "stale",
       "method": "command",
       "note": "배치 최종 코드 adc00b8(RL-04 통합 후) 재검증으로 갱신. plan tests 293 passed(17 skip=PG 변형)",
       "evidence": "docs/work/_runs/rlb-20261017/logs/BATCH-RL-03-tests.log",
@@ -253,10 +272,11 @@
       "at": "2026-10-18T11:35:11+09:00",
       "head": "adc00b8d16a6578b720d63dfb73d96ff59b6efde",
       "source_hash": "3ff4b4f112e44ac019c3bba969e66d3b8dc7f5e41939f0b94c974befbb58dd70",
-      "spec_hash": "10e2df511afb19f22ca2f9856b696a63e198288f4d41d4d702180b00adb8c7b7"
+      "spec_hash": "10e2df511afb19f22ca2f9856b696a63e198288f4d41d4d702180b00adb8c7b7",
+      "reason": "작업 계약 변경"
     },
     "postgres": {
-      "result": "pass",
+      "result": "stale",
       "method": "command",
       "note": "배치 최종 코드 adc00b8(RL-04 통합 후) 재검증으로 갱신. postgres:17.11 162 passed(migrations 0041·privileges·drift 포함)",
       "evidence": "docs/work/_runs/rlb-20261017/logs/BATCH-RL-03-postgres.log",
@@ -266,10 +286,11 @@
       "at": "2026-10-18T11:35:11+09:00",
       "head": "adc00b8d16a6578b720d63dfb73d96ff59b6efde",
       "source_hash": "3ff4b4f112e44ac019c3bba969e66d3b8dc7f5e41939f0b94c974befbb58dd70",
-      "spec_hash": "10e2df511afb19f22ca2f9856b696a63e198288f4d41d4d702180b00adb8c7b7"
+      "spec_hash": "10e2df511afb19f22ca2f9856b696a63e198288f4d41d4d702180b00adb8c7b7",
+      "reason": "작업 계약 변경"
     },
     "frontend": {
-      "result": "pass",
+      "result": "stale",
       "method": "command",
       "note": "배치 최종 코드 adc00b8(RL-04 통합 후) 재검증으로 갱신. build 0, Playwright app 7 spec 192 passed(verdict·record·proposal·common·company·opportunities·briefing)",
       "evidence": "docs/work/_runs/rlb-20261017/logs/BATCH-frontend.log",
@@ -279,10 +300,11 @@
       "at": "2026-10-18T11:35:11+09:00",
       "head": "adc00b8d16a6578b720d63dfb73d96ff59b6efde",
       "source_hash": "3ff4b4f112e44ac019c3bba969e66d3b8dc7f5e41939f0b94c974befbb58dd70",
-      "spec_hash": "10e2df511afb19f22ca2f9856b696a63e198288f4d41d4d702180b00adb8c7b7"
+      "spec_hash": "10e2df511afb19f22ca2f9856b696a63e198288f4d41d4d702180b00adb8c7b7",
+      "reason": "작업 계약 변경"
     },
     "api_guard": {
-      "result": "pass",
+      "result": "stale",
       "method": "command",
       "note": "배치 최종 코드 adc00b8(RL-04 통합 후) 재검증으로 갱신. T3·T9·T10·B25 57 passed, skip 0",
       "evidence": "docs/work/_runs/rlb-20261017/logs/BATCH-RL-03-api-guard.log",
@@ -292,7 +314,8 @@
       "at": "2026-10-18T11:35:12+09:00",
       "head": "adc00b8d16a6578b720d63dfb73d96ff59b6efde",
       "source_hash": "3ff4b4f112e44ac019c3bba969e66d3b8dc7f5e41939f0b94c974befbb58dd70",
-      "spec_hash": "10e2df511afb19f22ca2f9856b696a63e198288f4d41d4d702180b00adb8c7b7"
+      "spec_hash": "10e2df511afb19f22ca2f9856b696a63e198288f4d41d4d702180b00adb8c7b7",
+      "reason": "작업 계약 변경"
     },
     "real_data_run": {
       "result": "pending",
@@ -416,9 +439,37 @@
     {
       "at": "2026-10-18T08:59:15+09:00",
       "text": "단계 → validating"
+    },
+    {
+      "at": "2026-10-18T12:04:20+09:00",
+      "text": "단계 → implementing: B51: STEP-011 항목 단위 실패 격리(사용자 승인)"
+    },
+    {
+      "at": "2026-10-18T12:04:20+09:00",
+      "text": "plan 작업 ID 동기화"
+    },
+    {
+      "at": "2026-10-18T12:04:20+09:00",
+      "text": "단계 STEP-011 in_progress: "
+    },
+    {
+      "at": "2026-10-18T16:07:13+09:00",
+      "text": "단계 STEP-011 done: 격리 v7·근거 확대 v8(B51~B54) 구현·검증; 실제 8·9차에서 추출·역할 통과 확인, 실제 판정은 STEP-012로"
+    },
+    {
+      "at": "2026-10-18T16:07:13+09:00",
+      "text": "plan 작업 ID 동기화"
+    },
+    {
+      "at": "2026-10-18T16:07:13+09:00",
+      "text": "단계 STEP-012 in_progress: "
+    },
+    {
+      "at": "2026-10-18T17:06:15+09:00",
+      "text": "단계 STEP-012 done: 종합 계약 v2·정책 v9·종합만 재실행(B55·B56); 실제 10차(9차 종합 재실행) completed '판단 불가' 667bf04d; RL-04 T11 실제 초안 partial 4/6(5d627b0f)"
     }
   ],
-  "updated_at": "2026-10-18T11:35:12+09:00",
+  "updated_at": "2026-10-18T17:06:15+09:00",
   "proof_history": [
     {
       "key": "tests",

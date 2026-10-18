@@ -308,7 +308,18 @@ def _resolve_exact_evidence_quotes(
     return resolved
 
 
-_CARD_DERIVATION_KEYS = frozenset({"extract_contract", "code_derived_fields", "repair_rule_codes"})
+_CARD_DERIVATION_KEYS = frozenset({
+    "extract_contract", "code_derived_fields", "repair_rule_codes",
+    # 결정 B55: synthesis contract v2 (code-computed blocking ids and person-check rows).
+    "synthesis_contract", "synthesis_code_derived_fields",
+})
+_CARD_DERIVATION_CONTRACTS = {
+    "extract_contract": "bidops.requirement-extract.v2",
+    "synthesis_contract": "bidops.practitioner-verdict.v2",
+}
+#: 결정 B55: audit actions of a synthesis-only resume (request link, reused rows).
+CARD_RESUME_REQUESTED_ACTION = "card.resume.requested"
+CARD_STAGES_REUSED_ACTION = "card.stages.reused"
 
 
 def _card_derivation_metadata(value: Mapping[str, Any] | None) -> dict[str, Any]:
@@ -320,8 +331,8 @@ def _card_derivation_metadata(value: Mapping[str, Any] | None) -> dict[str, Any]
         raise DeepReviewServiceError("processing_failed", "카드 분석 감사 값이 올바르지 않습니다", status_code=500)
     result: dict[str, Any] = {}
     for key, item in value.items():
-        if key == "extract_contract":
-            if item != "bidops.requirement-extract.v2":
+        if key in _CARD_DERIVATION_CONTRACTS:
+            if item != _CARD_DERIVATION_CONTRACTS[key]:
                 raise DeepReviewServiceError("processing_failed", "카드 분석 감사 값이 올바르지 않습니다", status_code=500)
             result[key] = item
         else:
@@ -331,6 +342,100 @@ def _card_derivation_metadata(value: Mapping[str, Any] | None) -> dict[str, Any]
                 raise DeepReviewServiceError("processing_failed", "카드 분석 감사 값이 올바르지 않습니다", status_code=500)
             result[key] = list(item)
     return result
+
+
+def card_resume_source_id(session: Session, attempt_id: UUID) -> UUID | None:
+    """결정 B55: the source attempt linked to ``attempt_id`` at request time (``card.resume.requested``)."""
+
+    rows = session.scalars(select(AuditEvent).where(
+        AuditEvent.action == CARD_RESUME_REQUESTED_ACTION,
+        AuditEvent.aggregate_type == "deep_review_attempt",
+        AuditEvent.aggregate_id == str(attempt_id),
+    )).all()
+    if not rows:
+        return None
+    sources = {str((row.safe_metadata or {}).get("source_attempt_id")) for row in rows}
+    if len(sources) != 1:
+        raise DeepReviewServiceError("resume_source_invalid", "재실행 원본이 하나가 아닙니다", status_code=409)
+    try:
+        return UUID(sources.pop())
+    except ValueError:
+        raise DeepReviewServiceError("resume_source_invalid", "재실행 원본이 올바르지 않습니다", status_code=409) from None
+
+
+def card_resume_check(
+    session: Session,
+    *,
+    source_attempt_id: UUID,
+    company_id: UUID,
+    notice_id: int,
+    frozen: Mapping[str, Any],
+    policy: Mapping[str, Any],
+) -> list[Any]:
+    """결정 B55: the reusable non-synthesis stage rows of ``source_attempt_id`` or ``resume_source_invalid``.
+
+    The source is a card-v1 attempt of the same company/notice that ended
+    ``failed`` (or was ``superseded``) without a final verdict, with every
+    extract/compare batch and all three role rows, whose approved frozen input
+    and policy pass ``resume_lineage_valid`` against the new attempt's.  The
+    worker additionally recomputes every reused stage input (``CardResume``).
+    """
+
+    from ..models import CardAnalysisStage
+    from .card_analysis import resume_lineage_valid
+
+    def invalid() -> DeepReviewServiceError:
+        return DeepReviewServiceError("resume_source_invalid", "재실행 원본을 쓸 수 없습니다", status_code=409)
+
+    source = session.get(DeepReviewAttempt, source_attempt_id)
+    review = session.get(DeepReview, source.deep_review_id) if source is not None else None
+    if (
+        source is None or review is None or source.status not in {"failed", "superseded"}
+        or review.company_id != company_id or int(review.notice_id) != int(notice_id)
+    ):
+        raise invalid()
+    source_policy = session.get(AnalysisPolicyVersion, review.policy_version_id)
+    if source_policy is None:
+        raise invalid()
+    try:
+        # The same approved-input gate the worker applies (hash, lineage, nonce, target).
+        source_frozen = luna_inputs.approved_company_input(session, source.id, review)
+    except InputVersionError:
+        raise invalid() from None
+    if not resume_lineage_valid(source_frozen, _policy_payload(source_policy), frozen, policy):
+        raise invalid()
+    rows = session.scalars(select(CardAnalysisStage).where(CardAnalysisStage.attempt_id == source.id)).all()
+    batches = {str(row["batch_index"]) for row in source_frozen["card_analysis"]["batches"]}
+    keys = {(row.stage, row.stage_key) for row in rows}
+    expected = ({("extract", key) for key in batches} | {("compare", key) for key in batches}
+                | {("role", role) for role in ("eligibility_economics", "technical_fit", "operations_risk")})
+    if keys != expected:
+        raise invalid()
+    return list(rows)
+
+
+def card_resume_for_attempt(
+    session: Session,
+    attempt: DeepReviewAttempt,
+    *,
+    frozen: Mapping[str, Any],
+    policy: Mapping[str, Any],
+) -> Any:
+    """결정 B55: the ``CardResume`` of a resume attempt (re-checked in the worker), else ``None``."""
+
+    from .card_analysis import CardResume
+
+    source_id = card_resume_source_id(session, attempt.id)
+    if source_id is None:
+        return None
+    review = session.get(DeepReview, attempt.deep_review_id)
+    if review is None or review.company_id is None:
+        raise DeepReviewServiceError("resume_source_invalid", "재실행 원본을 쓸 수 없습니다", status_code=409)
+    rows = card_resume_check(
+        session, source_attempt_id=source_id, company_id=review.company_id, notice_id=int(review.notice_id),
+        frozen=frozen, policy=policy,
+    )
+    return CardResume(source_id, rows)
 
 
 def _add_job_audit(
@@ -1877,6 +1982,37 @@ class DeepReviewService:
         )
         session.commit()
 
+    def _record_card_stages_reused(
+        self,
+        session: Session,
+        claim: JobClaim,
+        *,
+        source_attempt_id: UUID,
+        stages: Sequence[Mapping[str, Any]],
+    ) -> None:
+        """결정 B55: one fenced ``card.stages.reused`` audit (source attempt, stage keys, input/result sha)."""
+
+        rows = [
+            {key: str(row[key]) for key in ("stage", "stage_key", "input_sha256", "result_sha256")}
+            for row in stages
+        ]
+        if not rows or any(
+            row["stage"] not in {"extract", "compare", "role"}
+            or re.fullmatch(r"[0-9a-f]{64}", row["input_sha256"]) is None
+            or re.fullmatch(r"[0-9a-f]{64}", row["result_sha256"]) is None
+            for row in rows
+        ):
+            raise DeepReviewServiceError("processing_failed", "재사용 단계 감사 값이 올바르지 않습니다", status_code=500)
+        if not self._lock_claim(session, claim):
+            session.rollback()
+            raise StaleFenceError()
+        _add_job_audit(
+            session, action=CARD_STAGES_REUSED_ACTION, job_id=claim.job_id, review_id=claim.deep_review_id,
+            attempt_id=claim.attempt_id, fence=claim.fence, status="reused",
+            extra_safe_metadata={"source_attempt_id": str(source_attempt_id), "stages": rows},
+        )
+        session.commit()
+
     def _finish_card_claim(
         self,
         session: Session,
@@ -1888,6 +2024,7 @@ class DeepReviewService:
         target_seconds: int,
         target_missed: bool,
         extract_derivation: Mapping[str, Any] | None = None,
+        resumed_from_attempt_id: UUID | None = None,
     ) -> None:
         """Complete a card-v1 attempt once its full append-only stage set exists.
 
@@ -1901,7 +2038,8 @@ class DeepReviewService:
 
         if (
             type(batch_count) is not int or batch_count < 1
-            or type(call_count) is not int or call_count < batch_count + 4
+            or type(call_count) is not int
+            or call_count < (1 if resumed_from_attempt_id is not None else batch_count + 4)
             or isinstance(elapsed_seconds, bool) or not isinstance(elapsed_seconds, (int, float)) or elapsed_seconds < 0
             or type(target_seconds) is not int or target_seconds < 1
             or type(target_missed) is not bool or target_missed != (elapsed_seconds > target_seconds)
@@ -1945,6 +2083,8 @@ class DeepReviewService:
                 "elapsed_seconds": float(elapsed_seconds), "target_seconds": target_seconds,
                 "target_missed": target_missed,
                 **_card_derivation_metadata(extract_derivation),
+                **({"resumed_from_attempt_id": str(resumed_from_attempt_id)}
+                   if resumed_from_attempt_id is not None else {}),
             },
         )
         session.commit()
@@ -2012,6 +2152,9 @@ class DeepReviewService:
         budget = analysis_call_budget(
             len(card["batches"]), repair_attempts=int(policy_payload["card"]["repair_attempts"]),
         )
+        # 결정 B55: a synthesis-only resume plans one call (its reused stages call nothing).
+        resume = card_resume_for_attempt(session, attempt, frozen=frozen, policy=policy_payload)
+        planned_calls = 1 if resume is not None else budget.normal_calls
         preview_hash = luna_inputs.approved_company_input_sha256(session, attempt.id)
         if not self._lock_claim(session, claim):
             session.rollback()
@@ -2028,13 +2171,14 @@ class DeepReviewService:
             transfer_policy.record_transfer_sent(
                 session, approval=approval, attempt_id=attempt.id, notice_id=int(review.notice_id),
                 input_sha256=preview_hash, unit_count=len(card["units"]),
-                planned_call_count=budget.normal_calls,
+                planned_call_count=planned_calls,
             )
         session.commit()
         from .card_analysis import CardAnalysisRuntimeError
 
         try:
-            runner(self, session, claim, frozen=frozen, policy=policy_payload, approval=approval)
+            runner(self, session, claim, frozen=frozen, policy=policy_payload, approval=approval,
+                   **({"resume": resume} if resume is not None else {}))
         except CardAnalysisRuntimeError as error:
             raise DeepReviewServiceError(error.code, "카드 분석 실행이 검증을 통과하지 못했습니다", status_code=500) from None
 

@@ -22,6 +22,7 @@ CONTRACT_SCHEMAS = {
     "card-extract-v2": "requirement-extract-v2",
     "card-role-v1": "verdict-role",
     "card-synthesis-v1": "practitioner-verdict",
+    "card-synthesis-v2": "practitioner-verdict-v2",
     # RL-04 (spec "입력 예산"): one proposal section per call.
     "proposal-section-v1": "proposal-section",
 }

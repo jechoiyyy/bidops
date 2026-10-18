@@ -181,7 +181,28 @@ export function filterMatrix(rows: readonly VerdictMatrixRow[], fit: FitFilter, 
 export const MATRIX_PAGE_SIZE = 50;
 
 /** 요구사항 문장. 서버가 정규화 문장을 주지 않으면 첫 원문 인용으로 대신하고, 둘 다 없으면 그 사실을 적는다. */
+/** 결정 B51: 격리된 unit의 규칙 코드 → 화면 문구(코드 자체는 실행 정보가 아니므로 보조로 함께 보인다). */
+export const REJECTED_RULE_LABEL: Record<string, string> = {
+  evidence_quote_not_verbatim: "근거 인용이 원문과 다름",
+  constraint_quote_not_verbatim: "조건 인용이 원문과 다름",
+  constraint_quote_not_unique: "조건 인용이 원문에서 여러 번 나옴",
+  constraint_quote_truncated: "조건 인용이 단위·비교어 앞에서 잘림",
+  constraint_fact_key_invalid: "회사 사실 연결이 인용과 맞지 않음",
+  constraint_expression: "조건의 숫자·단위·비교가 인용과 다름",
+  requirement_number_untraceable: "요구사항의 숫자가 원문에 없음",
+  concept_candidates_mismatch: "개념 연결이 원문과 맞지 않음",
+};
+
+export function rejectedRuleLabel(code: string): string {
+  return REJECTED_RULE_LABEL[code] ?? code;
+}
+
+export function isRejectedRow(row: VerdictMatrixRow): boolean {
+  return (row.rejected_rule_codes ?? []).length > 0;
+}
+
 export function requirementText(row: VerdictMatrixRow): string {
+  if (isRejectedRow(row)) return "검증 실패 — 사람 확인 필요";
   const normalized = row.normalized_requirement?.trim();
   if (normalized) return normalized;
   const quote = row.evidence_refs[0]?.quote.trim();

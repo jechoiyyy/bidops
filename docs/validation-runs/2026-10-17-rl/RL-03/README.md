@@ -7,7 +7,7 @@
 
 ## T11 mock 경로
 
-상태: **실행함(8차 기준 completed — v6 정책, unit 32·batch 4·호출 8, extract 제약 22개(batch별 1·5·2·14) 인용 전부 블록 안 유일, `missing_sections=["contract"]`, 판정 "판단 불가", `today_used=0`, 전송 감사 0).** 이하 7차까지의 요약: 3차에서 브리핑 추천 → 자동 트리거 → v1 mock 실행이 이어졌고 결과는 `needs_human_review`였다. 4차에서는 v2 정책(`card-sections-v2`)으로 수동 요청해 `completed`가 나왔다: 판정 "판단 불가", `missing_sections=["contract"]`, 활동 `verdict_completed`, 브리핑 판정 표시, `today_used=0`, 전송 감사 0. 1~3차 기록은 아래에 그대로 둔다. 결과는 `mock_reference`이며 품질 근거가 아니다.
+상태: **실행함(11차 기준 completed — v9 정책(종합 계약 v2): 전 경로 completed(next_actions 코드 행 1), 종합 실패 attempt에서 종합만 재실행 completed(`card.stages.reused` 11행, `call_count=1`), `today_used=0`, 전송 감사 0).** 이하 10차까지의 요약: 3차에서 브리핑 추천 → 자동 트리거 → v1 mock 실행이 이어졌고 결과는 `needs_human_review`였다. 4차에서는 v2 정책(`card-sections-v2`)으로 수동 요청해 `completed`가 나왔다: 판정 "판단 불가", `missing_sections=["contract"]`, 활동 `verdict_completed`, 브리핑 판정 표시, `today_used=0`, 전송 감사 0. 1~3차 기록은 아래에 그대로 둔다. 결과는 `mock_reference`이며 품질 근거가 아니다.
 
 ### 준비한 것 (2026-10-17, 격리 스택 `bidops-local`, DB `bidops_rla`)
 
@@ -245,6 +245,148 @@ compare 32행은 모두 `unknown`이다. mock 제약은 회사 사실과 연결�
 
 **한계.** mock 결과는 품질 근거가 아니다. B37(옵션 B)에 따라 이 배치에서는 v6로 실제 호출하지 않는다.
 
+### 9차 (결정 B51, 2026-10-18 KST) — v7 정책(항목 단위 추출 격리), completed, `rejected_units=[]`
+
+#### 이미지
+
+- `bidops-local:rlb-20261017-b51` = `sha256:cc1908638ddceb81046da48bbc17a13687da2aa0425af3977fbee3b669659d3b`.
+  - 빌드 기준: RL-03 worktree. 배치 HEAD b952cee + STEP-011 미커밋이며 RL-04와 0041을 포함한다.
+  - 이미지 안 확인:
+    - `analysis-policy-luna-rl-v7.json` `2ba1d631b02d71b7c5fca251634bdc756c23b0308226ff14c741da5c2a631710`, `card_analysis.py` `a214e5ca…0bac2`, `proposal-policy-luna-v1.json` `0eb36cf9…7d91`, `runtime-privileges.sql` `7337209e…1765` — 모두 worktree와 같다.
+    - alembic head `0041_proposal_draft`.
+    - reportlab 5.0.1, NanumGothic·NanumGothicBold 있음.
+- runner 이미지 `78fe765f…`는 그대로 썼다.
+  - card schema 3개와 extract v2 schema는 worktree와 같다.
+  - worktree `runner.py`는 RL-04 `proposal-section-v1` contract 항목 하나만 다르다. RL-03 카드 호출에는 영향이 없고, RL-04 실제 초안 전에는 runner 재빌드가 필요하다.
+
+#### v7 등록·재승인 (`bidops_rla_t11`, 모두 exit 0)
+
+- v7 행 `b573ab33-2911-4b57-90b5-7bfd9c2a14a5`을 `t11.env`에서 선택했다.
+- v6 승인 `3f8b5ad2-…`를 철회했다.
+- v7 승인 `ac2b6d9b-0629-4f2a-a740-54542fe46da5`를 만들었다(actor jechoi, cap 2, request `bc269403-7c20-4f91-b312-c6517d985111`).
+- 이 DB는 이미 0041이고 권한 파일 sha도 같아 migration은 하지 않았다.
+
+#### 재실행
+
+- 설정: b51 이미지, mock provider, 참조 모드, 자동 트리거 false, 제안서 정책 행 `dbf69fce-…` 선택 유지.
+- 요청: `POST /api/opportunities/14/verdict-requests`(actor jechoi, `request_id=a77d66e3-965a-4fac-8942-3ba8bbb32324`) → 202, attempt `a9fc35a9-43d3-4658-a88e-16ca223057cb`, review `2e1623f6-8ee9-476a-85a4-f3bce3bea561`.
+- 동결 입력: `card-sections-v3`, unit 32, batch 4, `missing_sections=["contract"]`.
+- 단계: extract 4·compare 4·role 3·synthesis 1.
+  - extract 단계마다 `rejected_units=[]`(키 있음).
+  - 제약 수는 batch별 1·5·2·14로 8차와 같다.
+- 완료 감사: `call_count=8`, `batch_count=4`, extract 계약 v2.
+
+#### 판정 보기와 연결
+
+- 판정 보기:
+  - `availability=completed`, `is_current=true`, `missing_sections=["contract"]`, `rejected_units=[]`, `error_code=null`, `quality_status=mock_reference`.
+  - 판정 "판단 불가"("진행 가능" 아님), matrix 32행 모두 `unknown`. identity는 v7 행.
+- 활동 맨 위는 `verdict_completed`.
+- `today_used=0`, `analysis.transfer.sent` 0건. 모델·runner·나라장터 호출 0.
+
+#### RL-04 초안 확인(선택 항목, 짧게)
+
+- 이 v7 판정으로 `POST /api/opportunities/14/proposal-requests` → 202 `draft_id=2610e21a-c841-4f7b-83eb-4d1e132a12d2`.
+- 절 6개 모두 completed. 초안 `completed`·`stage=draft`, 요구사항 덮음 27/27, placeholder 12.
+- 이전 초안 `38fc8ce5-…`는 `superseded`. 이번에는 내보내기를 하지 않았다.
+
+실행 뒤 mock worker를 중지했다.
+
+#### 한계
+
+mock 결과는 품질 근거가 아니다. 항목 단위 격리(25% 임계·판정 상한)는 mock이 계약을 지키므로 `rejected_units=[]` 경로만 지났다. 격리가 실제로 일어나는 경로는 단위·PG 테스트 범위다.
+
+### 10차 (결정 B53·B54, 2026-10-18 KST) — v8 정책(역할 근거에 같은 unit 제약 인용 허용)으로 completed
+
+**이미지**
+
+| 이미지 | id | 확인 결과 |
+|---|---|---|
+| `bidops-local:rlb-20261017-b53` | `sha256:e7089283c5cd7f8300ca46b1b686936edae6c78530072865b6469d36492027c1` | `analysis-policy-luna-rl-v8.json` `63ca5b691bb87822839193d4b33d0af7a6c7b9569faa86e9345da88ca5857d4c`, `card_roles.py` `1948d7dc1d513646ebbbf4319c7ac94a1a01142b8c55032eff3359255fdc1d81` — worktree와 같다. alembic head 0041. 권한 파일 불변 |
+| `bidops-local:rlb-20261017-runner`(재빌드) | `sha256:1c1ff51ee97d50bd82c408c2811eff3ea1815e113bf30b9c6e155ab24ed8b95b` | runner.py `75ca37ba…712f`(이제 `proposal-section-v1` 포함)와 schema 7개가 worktree와 같다. 추가된 것은 `/app/proposal-section.json` `807a743f…dd56`. card schema 4개(extract v1·v2, role, synthesis)는 이전 이미지와 sha가 같다. `codex-cli 0.162.1`, 사용자 node(uid 1000) |
+
+**v8 정책 등록과 재승인** (`bidops_rla_t11`, 모두 exit 0)
+- v8 행 `818da427-d619-4198-bf23-cc50a3e585f3`을 `t11.env`에서 선택했다.
+- v7 승인 `ac2b6d9b-…`를 철회하고, v8 승인 `7be97d8e-4d1d-474d-9ace-f89dfdc89a6d`을 만들었다(actor jechoi, cap 2, request `8feee82e-fcb1-4723-965a-88b0b04fb413`).
+
+**재실행** (b53 이미지, mock provider, 참조 모드, 자동 트리거 false)
+- 요청: `POST /api/opportunities/14/verdict-requests`(actor jechoi, `request_id=bdcbe375-38b2-4fcb-9362-0e201af26fb2`) → 202.
+- attempt `13cb09bf-b534-43e9-9d96-52c749d80d96`, review `091de2cf-3c1d-46b2-a4f4-2a5ede537725`. WorkJob `completed`.
+- 동결 입력: unit 32, batch 4, `missing_sections=["contract"]`.
+- 단계 수: extract 4·compare 4·role 3·synthesis 1. 완료 감사의 `call_count=8`.
+- extract 결과: batch별 제약 1·5·2·14, `rejected_units=[]`.
+
+**판정 보기**
+- `availability=completed`, `is_current=true`, `missing_sections=["contract"]`, `rejected_units=[]`, `quality_status=mock_reference`.
+- 판정은 "판단 불가"이고 "진행 가능"이 아니다. matrix 32행이 모두 `unknown`이다. identity는 v8 행이다.
+- `today_used=0`, `analysis.transfer.sent` 0건. 모델·runner·나라장터 호출은 없었다. 실행 뒤 mock worker를 중지했다.
+
+**한계**
+- mock 결과는 품질 근거가 아니다.
+- mock 역할은 항목 evidence만 인용한다. 그래서 확대된 허용 근거(같은 unit의 제약 인용)는 이 경로를 지나지 않았다. 그 부분은 B54의 8차 저장 응답 재생과 단위·PG 테스트가 범위다.
+
+### 11차 (결정 B55·B56, 2026-10-18 KST) — v9 정책(종합 계약 v2)과 종합만 다시 실행
+
+**이미지**
+
+| 이미지 | id | 확인 |
+|---|---|---|
+| `bidops-local:rlb-20261017-b55` | `sha256:076707590771e864133fde0b699ae842430c33aa926c8651603f4be1352f1571` | `analysis-policy-luna-rl-v9.json` `afaba1d3b41177828443cb8e736e9b4728619a07fdfff2241ecb12d505fd2984`(worktree와 같음), alembic 0041. 화면 bundle `index-DSqUv_NS.js`는 이 이미지의 frontend 단계가 worktree 소스로 빌드한 것이다 |
+| `bidops-local:rlb-20261017-runner`(재빌드) | `sha256:aaaf896f9b5b088cb04db7fb324fa60aed97cbcdee6562522186dc77039b9e5e` | `runner.py` `ee5a412b…6c20`(`card-synthesis-v2` 포함), `/app/card-synthesis-v2.json` `d57ce8d4…2e2358`. 기존 card schema·`proposal-section.json`은 이전과 같다. worktree와 모두 일치 |
+
+**v9 등록과 재승인** (`bidops_rla_t11`, 모두 exit 0)
+- v9 행 `df29719e-e6e2-4539-b68c-4f2f0d83bfc2`을 `t11.env`에서 선택했다.
+- v8 승인 `7be97d8e-…`을 철회하고 v9 승인 `cc4f544e-6385-4f46-bb27-df2440bcc5c6`을 만들었다(actor jechoi, cap 3, request `68e8476f-875e-47f1-8974-692c3bf20759`).
+
+**전 경로 mock 실행**
+
+요청: `POST /api/opportunities/14/verdict-requests`(`request_id=4535174b-8b6a-4ecf-897b-36369bdeed8c`) → attempt `cd022dcb-cac0-432d-a1d0-843c771d7fbe`(review `962980ae-5140-45c4-b0ca-26aad40dad57`) → completed.
+
+| 항목 | 결과 |
+|---|---|
+| 단계·호출 | extract 4·compare 4·role 3·synthesis 1, `call_count=8` |
+| 판정 보기 | `availability=completed`, `missing_sections=["contract"]`, `rejected_units=[]`, `quality_status=mock_reference`, 판정 "판단 불가"("진행 가능" 아님) |
+| `blocking_condition_ids` | `[]`(코드가 계산) |
+| `next_actions` | 코드 행 1개: `{unit_id:"missing_section:contract", origin:"code", owner:null}`, "원문에서 '계약조건' 영역을 찾지 못했습니다…" |
+
+**종합 실패 재현**
+
+mock client의 `fail_synthesis` 옵션은 실행 중에 켤 env·설정이 없다. 테스트(`test_card_analysis_postgres.py`의 `failing_init`)만 이 옵션을 켠다.
+
+그래서 코드는 고치지 않고 다음처럼 재현했다.
+- 상주 mock worker를 멈췄다.
+- 새 요청(`request_id=27d7e3f9-8c74-4a70-93da-6c9002ef8e17`)으로 attempt `a5b98f1a-b9d7-4658-82f4-b068db0a60cd`(sequence 2)를 queued로 만들었다.
+- 일회용 `rla-analysis-worker` 컨테이너에서 하네스 스크립트를 1건 돌렸다(`--once`). 스크립트는 테스트와 같은 방식으로 `MockCardAnalysisClient.__init__`에 `fail_synthesis=True`를 넣는다(scratchpad, Git 밖).
+
+결과: `failed`·`card_synthesis_invalid`. extract·compare·role 11행은 남고 synthesis 행은 없다.
+
+**종합만 다시 실행**
+
+요청: `POST /api/opportunities/14/verdict-requests` body `{request_id:"ef102e77-98d7-4303-89c8-83a41d9f61f3", resume_from_attempt_id:"a5b98f1a-…"}` → 202 attempt `ec3e893d-0552-474b-b405-e3e3bdcf9750`(sequence 3, 같은 review).
+
+감사 기록:
+- `card.resume.requested`(source `a5b98f1a`)
+- `verdict.request.manual`(`resume_from_attempt_id` 포함)
+- worker의 `card.stages.reused`(`status=reused`, 11행: extract·compare 0~3, role 3개, 각 input/result sha)
+- `deep_review.job.completed`:
+  - `call_count=1`, `resumed_from_attempt_id=a5b98f1a-…`
+  - `synthesis_contract=bidops.practitioner-verdict.v2`
+  - `synthesis_code_derived_fields=["blocking_condition_ids","next_actions.person_check"]`
+
+| 항목 | 결과 |
+|---|---|
+| 새 attempt 단계 | 12행(재사용 11행의 result sha가 원본과 11행 모두 같다 + 새 synthesis 1행) |
+| 원본 attempt | `superseded` |
+| 판정 보기 | completed, `is_current=true`, `missing_sections=["contract"]`, 판정 "판단 불가", next_actions 코드 행 1개 |
+| `planned_call_count` | 이 값은 `analysis.transfer.sent`에만 기록되므로 mock에서는 볼 수 없다. 대신 코드가 resume이면 `planned_calls=1`로 정하고(`deep_reviews.py`), 완료 감사의 실제 `call_count=1`이 이를 확인한다 |
+| 상한·전송 | `today_used=0`, `analysis.transfer.sent` 0건 |
+
+모델·runner·나라장터 호출은 0이다. 실행 뒤 mock worker를 중지했다.
+
+**한계**
+- mock 결과는 품질 근거가 아니다.
+- 종합 실패는 테스트용 하네스로 만든 것이다. 제품에서 이 상태를 만드는 실제 경로는 모델 응답 검증 실패다.
+
 ### 실행하지 않은 확인 항목 (2차 시점 기록 — 이후 실행한 항목은 위 3·4차 절이 정본. 3차의 "T12도 같은 code로 끝난다" 예상은 v1 기준이며 v2에서는 해당하지 않는다)
 
 | 확인 항목 | 상태 |
@@ -320,3 +462,22 @@ compare 32행은 모두 `unknown`이다. mock 제약은 회사 사실과 연결�
 - 오프라인 진단(재생 해시 일치, 외부 호출 없음): v5 batch 0 실패는 제약 1개 — 기간 `2027. 1. 1. ～ 2027. 12. 31.`에서 모델이 "12개월"을 계산해 duration 값 12로 낸 실제 모델 오류(인용에 없는 숫자). 잘린 인용 실패 0, `월 1회`·`연 1회 이상`·`다음 달 10일까지`는 올바르게 인용.
 - 검증기 결함 2건 확인: (1) 잘린 인용 검사가 블록 안 **모든 등장 위치**를 봐서, 6차 답의 정상 인용 `1회`(`월 1회`)가 같은 블록의 `연 1회 이상` 때문에 거부됨 (2) 범위 정규식이 `〜`(U+301C)와 `2027. 1. 1. ～` 형태를 놓쳐 `4〜8시간` 등이 eq로 통과(조용한 오류, batch 1에 12건).
 - 전 묶음 숫자 스캔: 통과 가능한 인용은 항상 존재(불가능 0), 다만 최소 인용이 블록에서 반복되는 숫자가 batch 1에 16, batch 3에 12개.
+
+### T12 8차 시도 (2026-10-18 03:44Z UTC = 12:44 KST, 정책 v7 항목 단위 격리, 사용자 승인 B51) — `needs_human_review`·`card_role_invalid`
+
+- 승인 `3ab2430f-dc2e-4b2f-9015-77fc2de054dc`(v7 `2ba1d631…`, cap 5), request `6d627036-379d-4742-846c-eb7788330bf2`, attempt `340fb13e-90bc-46d4-a129-27ae0ee7b1b3`, `analysis.transfer.sent` 03:44:41Z(unit 32), 이미지 `rlb-20261017-b51`·runner `78fe765f…`.
+- **처음으로 추출 4묶음 전부 통과**(격리 3/32, 25% 한계 안), 대조 4, 역할 2(자격·사업성, 기술 적합) 저장. 세 번째 역할(운영·위험) 응답(03:48:48Z) 직후 검증 거부 → `card_role_invalid`, 종합 미실행. repair 없음. 호출 7회, runner 실패 0. runner·worker 정지, today_used 4/5. 원인은 오프라인 재생으로 진단.
+- 오프라인 진단(재생 해시 일치, 외부 호출 없음): 격리 3건(MPR-2 `constraint_quote_not_unique`, PMR-1 `evidence_quote_not_verbatim`, segment 1건 `constraint_expression`)은 의도대로 동작. 운영·위험 역할 실패는 unit MPR-5(운영)의 근거 인용 4개가 그 항목의 **제약 인용**(추출 때 원문 일치 검증을 통과한 `자체 감지 후 4시간 이내 복구` 등)이었는데 역할 검증기는 항목 `evidence`만 받기 때문 — 계약·검증기 불일치이며 B51 결함 아님. 그대로 재시도하지 않고 B53으로 수정 뒤 남은 재시도 1회 사용.
+
+### T12 9차 시도 (2026-10-18 04:12Z UTC = 13:12 KST, 정책 v8, B51 마지막 재시도) — `needs_human_review`·`card_synthesis_invalid`
+
+- 승인 `fb8f58bc-ff67-4df5-975e-d569d7a18c15`(v8 `63ca5b69…`, cap 5), request `6e9616d6-00ef-4771-8035-2e570d2d05ab`, attempt `5dddad6d-7678-494a-92ec-99fb1b23defe`, runner `1c1ff51e…`.
+- 추출 4묶음 통과(격리 2/32), 대조 4, **역할 3개 모두 통과**. 마지막 종합 응답 직후 검증 거부 → `card_synthesis_invalid`, 판정 미획득. runner 실패 0. B51 재시도 소진 → 정지, runner·worker 정지, today_used 5/5. RL-04 T11 보류. 원인은 오프라인 재생으로 진단.
+- 오프라인 진단(재생 해시 일치, 외부 호출 없음): 격리 2건(STR-1 `constraint_expression`, MPR-2 `constraint_quote_not_unique`), 역할 3개 재검증 통과. 종합 실패는 (1) `next_actions`에 역할 결과에 없는 대상(누락 영역 `missing_section:contract`, 격리 unit 2건)을 넣음 (2) 필수 gap이 0건인데 `blocking_condition_ids`에 7건(누락 영역·격리·unknown unit)을 넣음. 지시문이 두 필드의 범위를 정의하지 않았고, B51의 "사람 확인" 대상이 종합 schema에 들어갈 자리가 없음 — 계약 공백(검증기 결함 아님). 두 필드를 고친 가상 답은 통과하며 그때 판정은 **"조건부 진행"**(계약 영역 누락·격리 2건·자격/계약/인력 확인 필요). 종합만 다시 실행하는 기능은 현재 없음.
+
+### T12 10차 — 9차 종합만 재실행 (2026-10-18 07:56Z UTC = 16:56 KST, 정책 v9·종합 계약 v2, 사용자 승인 B55) — **completed (첫 실제 판정)**
+
+- 승인 `2638338d-e91d-469b-bfe0-902ea64b5eb9`(v9 `afaba1d3…`, cap 6), request `16c8c1e7-d87d-4684-9c56-4ad3f816c067`, attempt `667bf04d-e83c-4be1-93fe-61549c43ad69`, 재실행 출처 `5dddad6d-…`(9차, 검증된 추출 4·대조 4·역할 3 재사용 — 감사 `card.resume.requested`·`card.stages.reused`), `analysis.transfer.sent` 07:56:12Z, 종합 호출 1회(repair 없음), runner `aaaf896f…`, 07:56:37Z completed. today_used 6/6.
+- 판정 **"판단 불가"**: 이유 "세 역할 결과에서 자격, 수행 역량, 운영 조건 및 계약 조건의 비교가 대부분 unknown 또는 incomplete…계약 섹션 누락…검증 실패 요구사항". 차단 조건 0(코드 계산, 필수 gap 없음), 체크리스트 5개 모두 unknown, matrix 32행 모두 unknown(격리 2: STR-1·MPR-2), 주의 14, 충돌 0, 다음 행동 7(모델 4 — 입찰참가 자격 서류·상주 인력·계약 조건·장애 복구 SLA 확인 / 코드 3 — 계약조건 영역·격리 2건 사람 확인).
+- 해석: 결과 대부분이 unknown인 것은 루트랩 회사 근거가 아직 `unknown`·`proposed`가 많은 **데이터 상태**(D13)이며 판정 실패가 아니다. 품질 표식 `unmeasured_reference` — 품질·운영 근거로 쓰지 않는다. 9차 재생 예측("조건부 진행")과 달리 모델은 "판단 불가"를 냈다(둘 다 허용 범위).
+- 실제 전송 합계(1~10차): 모델 호출 25회(1~7차 8, 8차 7, 9차 8, 10차 1·repair 0), 모두 사용자 승인 범위.

@@ -19,6 +19,28 @@ item-per-unit order) is schema-class and gets the same single repair, whose
 envelope names only rule codes and item indexes.  Quote, number, concept and
 evidence failures stay non-repairable.
 
+Policy ``analysis-policy-luna-rl-v7`` (결정 B51, item isolation): an extract item
+that breaks only evidence-class rules (quote not verbatim, number not in the
+source, truncated or repeated constraint quote, constraint expression,
+``fact_key`` anchor, concept mismatch) is ``rejected`` -- its model content is
+not changed and not used; the stored extract row lists ``{unit_id,
+rule_codes}`` under ``rejected_units``.  The compare stage gives such a unit
+``unknown`` (``extract_rejected``), the synthesis gets the rejected unit ids
+and cannot answer "진행 가능".  More than 25% rejected units of the attempt
+(cumulative, checked after every batch) still fails the attempt
+(``card_extract_invalid``); structural failures keep the single repair.
+
+Policy ``analysis-policy-luna-rl-v9`` (결정 B55): synthesis output contract
+``bidops.practitioner-verdict.v2`` (``report_schema``) -- no
+``blocking_condition_ids`` (code computes them from mandatory ``gap`` rows),
+code "사람 확인" next actions for missing sections and rejected units.  A
+synthesis-only resume (``CardResume``) reuses the validated extract/compare/
+role rows of a failed attempt with the same frozen content and policy lineage:
+every reused row's stage input is recomputed from the new frozen input and must
+hash to the stored ``input_sha256``, compare is recomputed, roles are
+re-validated; the rows are copied into the new attempt and audited
+(``card.stages.reused``), then only synthesis is called.
+
 Model I/O happens only in ``run_card_analysis`` through the existing Luna
 client with the D2 transfer projections of ``company_analysis_input`` (every
 payload passes ``check_card_transfer_payload`` before the call).  With
@@ -45,6 +67,7 @@ from ...core.company_ontology import OntologyConcept, ValidatedOntology
 from ...core.model_binding import canonical_json_bytes
 from ...core.model_client import ModelInvocationError
 from ..contracts import (
+    PRACTITIONER_VERDICT_V2_SCHEMA,
     REQUIREMENT_EXTRACT_SCHEMA,
     REQUIREMENT_EXTRACT_V2_SCHEMA,
     SchemaValidationError,
@@ -96,8 +119,41 @@ EXTRACT_CONTRACT_BY_STAGE_SCHEMA: Final[dict[str, str]] = {
     REQUIREMENT_EXTRACT_V1: "card-extract-v1",
     REQUIREMENT_EXTRACT_V2: "card-extract-v2",
 }
+#: 결정 B55: policy ``report_schema`` values and the synthesis contract each selects.
+PRACTITIONER_VERDICT_V1: Final[str] = "bidops.practitioner-verdict.v1"
+PRACTITIONER_VERDICT_V2: Final[str] = "bidops.practitioner-verdict.v2"
+SYNTHESIS_CONTRACT_BY_REPORT_SCHEMA: Final[dict[str, str]] = {
+    PRACTITIONER_VERDICT_V1: "card-synthesis-v1",
+    PRACTITIONER_VERDICT_V2: "card-synthesis-v2",
+}
+#: 결정 B55: synthesis fields code derives under contract v2 (recorded in audits).
+CODE_DERIVED_SYNTHESIS_FIELDS: Final[tuple[str, ...]] = ("blocking_condition_ids", "next_actions.person_check")
+#: 결정 B55: resume failure code (the source is not a valid reuse source for this attempt).
+RESUME_SOURCE_INVALID: Final[str] = "resume_source_invalid"
+#: 결정 B55: frozen-input keys that identify one preview/policy row; everything else must be equal.
+RESUME_IDENTITY_KEYS: Final[frozenset[str]] = frozenset({
+    "execution_nonce", "target_review_id", "policy_version_id", "policy_sha256",
+})
+#: 결정 B55: policy keys a resume may differ in (identity, synthesis contract, synthesis instruction).
+RESUME_POLICY_FREE_KEYS: Final[frozenset[str]] = frozenset({"policy_identity", "policy_sha256", "report_schema", "stages"})
+#: 결정 B51: policies that isolate evidence-class extract failures per item.
+ITEM_ISOLATION_POLICY_IDENTITIES: Final[frozenset[str]] = frozenset({
+    "analysis-policy-luna-rl-v7", "analysis-policy-luna-rl-v8", "analysis-policy-luna-rl-v9",
+})
 #: Extract fields a v2 answer never carries; code derives them (recorded in audits).
 CODE_DERIVED_EXTRACT_FIELDS: Final[tuple[str, ...]] = ("concept_candidates", "constraints.operator")
+#: 결정 B51: evidence-class rule codes of one extract item (isolated under v7).
+EVIDENCE_QUOTE_RULE: Final[str] = "evidence_quote_not_verbatim"
+CONSTRAINT_QUOTE_RULE: Final[str] = "constraint_quote_not_verbatim"
+CONSTRAINT_NOT_UNIQUE_RULE: Final[str] = "constraint_quote_not_unique"
+CONSTRAINT_TRUNCATED_RULE: Final[str] = "constraint_quote_truncated"
+CONSTRAINT_FACT_KEY_RULE: Final[str] = "constraint_fact_key_invalid"
+CONSTRAINT_EXPRESSION_RULE: Final[str] = "constraint_expression"
+REQUIREMENT_NUMBER_RULE: Final[str] = "requirement_number_untraceable"
+CONCEPT_RULE: Final[str] = "concept_candidates_mismatch"
+#: 결정 B51: the attempt fails when rejected units exceed this share of all units.
+REJECTED_UNIT_LIMIT_NUMERATOR: Final[int] = 1
+REJECTED_UNIT_LIMIT_DENOMINATOR: Final[int] = 4
 #: Repair rule code when the answer does not match the v2 output schema itself.
 OUTPUT_SCHEMA_RULE: Final[str] = "output_schema"
 #: Repair rule code when items are not exactly one per batch unit in input order.
@@ -554,6 +610,227 @@ def _batch_context(
     return frozen, batch, units
 
 
+def _violation_error(code: str) -> CardAnalysisValidationError:
+    if code == CONSTRAINT_NOT_UNIQUE_RULE:
+        return CardConstraintQuoteNotUniqueError()
+    if code == CONSTRAINT_TRUNCATED_RULE:
+        return CardConstraintQuoteTruncatedError()
+    return CardAnalysisValidationError(CARD_EXTRACT_INVALID)
+
+
+def extract_item_violations(
+    item: CardRequirementExtractItem,
+    unit: CardAnalysisUnit,
+    concepts: Sequence[OntologyConcept],
+    *,
+    first_only: bool = False,
+) -> list[str]:
+    """Evidence-class rule codes of one extract item against its frozen unit (결정 B51).
+
+    The rules and their order are exactly the extract validator's: evidence
+    quotes, then per constraint (verbatim quote, uniqueness, truncation,
+    ``fact_key`` anchor, expression), the numbers of ``normalized_requirement``
+    and the concept candidates.  A constraint whose quote is not in its block
+    is not checked further.  ``first_only`` stops at the first code (the
+    batch-level validator).  Nothing is corrected.
+    """
+
+    codes: list[str] = []
+
+    def add(code: str) -> bool:
+        if code not in codes:
+            codes.append(code)
+        return first_only
+
+    blocks = {(unit.source_sha256, block.block_key): block.text for block in unit.blocks}
+    for evidence in item.evidence:
+        text = blocks.get((evidence.source_sha256, evidence.block_key))
+        if (text is None or evidence.quote not in text) and add(EVIDENCE_QUOTE_RULE):
+            return codes
+    for constraint in item.constraints:
+        text = blocks.get((constraint.locator.source_sha256, constraint.locator.block_key))
+        if text is None or constraint.quote not in text:
+            if add(CONSTRAINT_QUOTE_RULE):
+                return codes
+            continue
+        if (
+            constraint_quote_checked(constraint.kind, constraint.quote)
+            and constraint_quote_occurrences(constraint.quote, text) != 1
+        ):
+            if add(CONSTRAINT_NOT_UNIQUE_RULE):
+                return codes
+        elif constraint_quote_truncated(constraint.kind, constraint.quote, text) and add(CONSTRAINT_TRUNCATED_RULE):
+            return codes
+        if constraint.fact_key is not None and (
+            constraint.fact_key not in CARD_COMPARE_FACT_PATHS
+            or constraint.kind not in CARD_FACT_KINDS[constraint.fact_key]
+            or not fact_anchor_matches(constraint.fact_key, constraint.quote)
+        ) and add(CONSTRAINT_FACT_KEY_RULE):
+            return codes
+        try:
+            _validate_constraint_expression(constraint)
+        except CardAnalysisValidationError:
+            if add(CONSTRAINT_EXPRESSION_RULE):
+                return codes
+    try:
+        traceable = _requirement_numbers_traceable(item, unit)
+    except CardAnalysisValidationError:
+        traceable = False
+    if not traceable and add(REQUIREMENT_NUMBER_RULE):
+        return codes
+    source_texts = [block.text for block in unit.blocks]
+    matched_by_alias: dict[str, set[str]] = {}
+    supplied_by_alias: dict[str, set[str]] = {}
+    concept_ok = True
+    for candidate in item.concept_candidates:
+        if not any(candidate.alias_text in text for text in source_texts):
+            concept_ok = False
+            continue
+        matched = set(match_concepts(candidate.alias_text, concepts))
+        matched_by_alias[candidate.alias_text] = matched
+        if candidate.concept_id is None:
+            if matched:
+                concept_ok = False
+        elif candidate.concept_id not in matched:
+            concept_ok = False
+        else:
+            supplied_by_alias.setdefault(candidate.alias_text, set()).add(candidate.concept_id)
+    if any(
+        matched and supplied_by_alias.get(alias_text, set()) != matched
+        for alias_text, matched in matched_by_alias.items()
+    ):
+        concept_ok = False
+    expected_concepts = {concept_id for text in source_texts for concept_id in match_concepts(text, concepts)}
+    supplied_concepts = {
+        candidate.concept_id for candidate in item.concept_candidates if candidate.concept_id is not None
+    }
+    if supplied_concepts != expected_concepts:
+        concept_ok = False
+    if not concept_ok:
+        add(CONCEPT_RULE)
+    return codes
+
+
+def _parsed_extract_batch(
+    payload: Mapping[str, Any],
+    card_input: CardAnalysisInput | Mapping[str, Any],
+    batch_index: int,
+    ontology: ValidatedOntology | Sequence[OntologyConcept],
+) -> tuple[CardRequirementExtract, dict[str, CardAnalysisUnit], tuple[OntologyConcept, ...]]:
+    """Whole-call (structural) checks shared by both validators: schema, DTO, ontology, exact coverage."""
+
+    validate_payload(payload, REQUIREMENT_EXTRACT_SCHEMA)
+    result = CardRequirementExtract.model_validate(payload)
+    frozen, batch, units = _batch_context(card_input, batch_index)
+    concepts = _ontology_rows(ontology)
+    if isinstance(ontology, ValidatedOntology) and ontology.sha256 != frozen.company_binding.ontology_sha256:
+        raise CardAnalysisValidationError(CARD_EXTRACT_INVALID)
+    if result.rejected_units or [item.unit_id for item in result.items] != batch.unit_ids:
+        raise CardAnalysisValidationError(CARD_EXTRACT_INVALID)
+    return result, {unit.unit_id: unit for unit in units}, concepts
+
+
+def validate_requirement_extract_isolated(
+    payload: Mapping[str, Any],
+    *,
+    card_input: CardAnalysisInput | Mapping[str, Any],
+    batch_index: int,
+    ontology: ValidatedOntology | Sequence[OntologyConcept],
+) -> CardRequirementExtract:
+    """결정 B51 (policy v7): the batch with evidence-class failures isolated per item.
+
+    Structural failures (schema, strict DTO, ontology binding, exact
+    item-per-unit coverage in order) still raise ``card_extract_invalid`` for
+    the whole call.  Every item with evidence-class rule codes
+    (``extract_item_violations``) is left out of ``items`` -- unchanged and
+    unused -- and recorded as ``{unit_id, rule_codes}`` in ``rejected_units``
+    (batch order).  Nothing is corrected.
+    """
+
+    try:
+        result, units_by_id, concepts = _parsed_extract_batch(payload, card_input, batch_index, ontology)
+        accepted = []
+        rejected = []
+        for item in result.items:
+            codes = extract_item_violations(item, units_by_id[item.unit_id], concepts)
+            if codes:
+                rejected.append({"unit_id": item.unit_id, "rule_codes": codes})
+            else:
+                accepted.append(item)
+        return CardRequirementExtract.model_validate({
+            "schema_version": result.schema_version,
+            "items": [item.model_dump(mode="json") for item in accepted],
+            "rejected_units": rejected,
+        })
+    except CardAnalysisValidationError:
+        raise
+    except (TypeError, ValueError, ValidationError, SchemaValidationError, KeyError):
+        raise CardAnalysisValidationError(CARD_EXTRACT_INVALID) from None
+
+
+class CardResume:
+    """결정 B55: the validated non-synthesis stage rows of a failed source attempt (read only)."""
+
+    def __init__(self, source_attempt_id: UUID, rows: Sequence[Any]) -> None:
+        self.source_attempt_id = source_attempt_id
+        self.rows = {(row.stage, row.stage_key): row for row in rows}
+
+
+def resume_content_sha256(frozen: Mapping[str, Any]) -> str:
+    """결정 B55: canonical SHA of a frozen input without its preview/policy identity keys."""
+
+    return _sha256({key: value for key, value in frozen.items() if key not in RESUME_IDENTITY_KEYS})
+
+
+def resume_lineage_valid(
+    source_frozen: Mapping[str, Any],
+    source_policy: Mapping[str, Any],
+    new_frozen: Mapping[str, Any],
+    new_policy: Mapping[str, Any],
+) -> bool:
+    """결정 B55: same frozen content and a policy lineage that differs only in synthesis.
+
+    Frozen inputs are equal except ``RESUME_IDENTITY_KEYS`` (company binding,
+    bundle, documents, card units/batches, facts and model identity included).
+    Policies are card-v1 and equal except identity, ``report_schema`` and the
+    synthesis stage instruction: the extract and three role instructions,
+    stage schema, prompt contract, packing and selector must be byte-identical,
+    and both must agree on item isolation.  Identity names are never trusted.
+    """
+
+    try:
+        if resume_content_sha256(source_frozen) != resume_content_sha256(new_frozen):
+            return False
+        if any(
+            policy.get("pipeline_version") != "card-v1" or not isinstance(policy.get("stages"), list)
+            for policy in (source_policy, new_policy)
+        ):
+            return False
+        if {key: value for key, value in source_policy.items() if key not in RESUME_POLICY_FREE_KEYS} != {
+            key: value for key, value in new_policy.items() if key not in RESUME_POLICY_FREE_KEYS
+        }:
+            return False
+        if any(
+            [row.get("stage") for row in policy["stages"]].count("synthesis") != 1 or len(policy["stages"]) != 5
+            for policy in (source_policy, new_policy)
+        ):
+            return False
+        source_stages = [row for row in source_policy["stages"] if row.get("stage") != "synthesis"]
+        new_stages = [row for row in new_policy["stages"] if row.get("stage") != "synthesis"]
+        if source_stages != new_stages:
+            return False
+        isolation = ITEM_ISOLATION_POLICY_IDENTITIES
+        return (source_policy.get("policy_identity") in isolation) == (new_policy.get("policy_identity") in isolation)
+    except (TypeError, ValueError, AttributeError):
+        return False
+
+
+def rejected_units_exceed_limit(rejected_count: int, unit_count: int) -> bool:
+    """결정 B51: more than 25% of all attempt units rejected (exactly 25% continues)."""
+
+    return rejected_count * REJECTED_UNIT_LIMIT_DENOMINATOR > unit_count * REJECTED_UNIT_LIMIT_NUMERATOR
+
+
 def validate_requirement_extract(
     payload: Mapping[str, Any],
     *,
@@ -574,70 +851,11 @@ def validate_requirement_extract(
     """
 
     try:
-        validate_payload(payload, REQUIREMENT_EXTRACT_SCHEMA)
-        result = CardRequirementExtract.model_validate(payload)
-        frozen, batch, units = _batch_context(card_input, batch_index)
-        concepts = _ontology_rows(ontology)
-        if isinstance(ontology, ValidatedOntology) and ontology.sha256 != frozen.company_binding.ontology_sha256:
-            raise CardAnalysisValidationError(CARD_EXTRACT_INVALID)
-        if [item.unit_id for item in result.items] != batch.unit_ids:
-            raise CardAnalysisValidationError(CARD_EXTRACT_INVALID)
-        unit_by_id = {unit.unit_id: unit for unit in units}
+        result, units_by_id, concepts = _parsed_extract_batch(payload, card_input, batch_index, ontology)
         for item in result.items:
-            unit = unit_by_id[item.unit_id]
-            blocks = {(unit.source_sha256, block.block_key): block.text for block in unit.blocks}
-            for evidence in item.evidence:
-                text = blocks.get((evidence.source_sha256, evidence.block_key))
-                if text is None or evidence.quote not in text:
-                    raise CardAnalysisValidationError(CARD_EXTRACT_INVALID)
-            for constraint in item.constraints:
-                text = blocks.get((constraint.locator.source_sha256, constraint.locator.block_key))
-                if text is None or constraint.quote not in text:
-                    raise CardAnalysisValidationError(CARD_EXTRACT_INVALID)
-                if (
-                    constraint_quote_checked(constraint.kind, constraint.quote)
-                    and constraint_quote_occurrences(constraint.quote, text) != 1
-                ):
-                    raise CardConstraintQuoteNotUniqueError()
-                if constraint_quote_truncated(constraint.kind, constraint.quote, text):
-                    raise CardConstraintQuoteTruncatedError()
-                if constraint.fact_key is not None and (
-                    constraint.fact_key not in CARD_COMPARE_FACT_PATHS
-                    or constraint.kind not in CARD_FACT_KINDS[constraint.fact_key]
-                    or not fact_anchor_matches(constraint.fact_key, constraint.quote)
-                ):
-                    raise CardAnalysisValidationError(CARD_EXTRACT_INVALID)
-                _validate_constraint_expression(constraint)
-            if not _requirement_numbers_traceable(item, unit):
-                raise CardAnalysisValidationError(CARD_EXTRACT_INVALID)
-            source_texts = [block.text for block in unit.blocks]
-            matched_by_alias: dict[str, set[str]] = {}
-            supplied_by_alias: dict[str, set[str]] = {}
-            for candidate in item.concept_candidates:
-                if not any(candidate.alias_text in text for text in source_texts):
-                    raise CardAnalysisValidationError(CARD_EXTRACT_INVALID)
-                matched = set(match_concepts(candidate.alias_text, concepts))
-                matched_by_alias[candidate.alias_text] = matched
-                if candidate.concept_id is None:
-                    if matched:
-                        raise CardAnalysisValidationError(CARD_EXTRACT_INVALID)
-                else:
-                    if candidate.concept_id not in matched:
-                        raise CardAnalysisValidationError(CARD_EXTRACT_INVALID)
-                    supplied_by_alias.setdefault(candidate.alias_text, set()).add(candidate.concept_id)
-            if any(
-                matched and supplied_by_alias.get(alias_text, set()) != matched
-                for alias_text, matched in matched_by_alias.items()
-            ):
-                raise CardAnalysisValidationError(CARD_EXTRACT_INVALID)
-            expected_concepts = {
-                concept_id for text in source_texts for concept_id in match_concepts(text, concepts)
-            }
-            supplied_concepts = {
-                candidate.concept_id for candidate in item.concept_candidates if candidate.concept_id is not None
-            }
-            if supplied_concepts != expected_concepts:
-                raise CardAnalysisValidationError(CARD_EXTRACT_INVALID)
+            codes = extract_item_violations(item, units_by_id[item.unit_id], concepts, first_only=True)
+            if codes:
+                raise _violation_error(codes[0])
         return result
     except CardAnalysisValidationError:
         raise
@@ -874,6 +1092,7 @@ def run_card_analysis(
     approval: Any,
     client: Any | None = None,
     ontology: ValidatedOntology | None = None,
+    resume: CardResume | None = None,
 ) -> None:
     """Run one approved card-v1 attempt: B extract → compare → 3 roles → synthesis.
 
@@ -907,6 +1126,7 @@ def run_card_analysis(
         assemble_practitioner_verdict,
         build_synthesis_input,
         build_verdict_role_inputs,
+        synthesis_v1_from_v2,
         validate_practitioner_verdict,
         validate_verdict_role,
     )
@@ -966,6 +1186,15 @@ def run_card_analysis(
             raise CardAnalysisRuntimeError("approval_invalid")
         extract_v2 = stage_schema == REQUIREMENT_EXTRACT_V2
         extract_contract = EXTRACT_CONTRACT_BY_STAGE_SCHEMA[stage_schema]
+        # 결정 B51: item isolation is a policy v7 rule (v1-v6 keep the batch-level failure).
+        item_isolation = policy.get("policy_identity") in ITEM_ISOLATION_POLICY_IDENTITIES
+        rejected_units: list[Any] = []
+        # 결정 B55: the synthesis contract follows the pinned policy's report_schema.
+        report_schema = policy.get("report_schema", PRACTITIONER_VERDICT_V1)
+        if report_schema not in SYNTHESIS_CONTRACT_BY_REPORT_SCHEMA:
+            raise CardAnalysisRuntimeError("approval_invalid")
+        synthesis_v2 = report_schema == PRACTITIONER_VERDICT_V2
+        synthesis_contract = SYNTHESIS_CONTRACT_BY_REPORT_SCHEMA[report_schema]
         derivation = (
             {"extract_contract": REQUIREMENT_EXTRACT_V2, "code_derived_fields": list(CODE_DERIVED_EXTRACT_FIELDS)}
             if extract_v2 else None
@@ -1058,10 +1287,54 @@ def run_card_analysis(
 
         extract_items: list[Any] = []
         compare_items: list[Any] = []
+        reused: list[dict[str, Any]] = []
+
+        def reuse(stage: str, key: str, input_value: Mapping[str, Any]) -> Mapping[str, Any]:
+            """결정 B55: copy one validated source row whose recomputed input hashes the same."""
+
+            row = resume.rows.get((stage, key)) if resume is not None else None
+            if row is None or not isinstance(row.payload, Mapping) or row.input_sha256 != _sha256(input_value):
+                raise CardAnalysisRuntimeError(RESUME_SOURCE_INVALID)
+            payload_value, result_sha256 = canonical_card_stage_payload(row.payload)
+            if result_sha256 != row.result_sha256:
+                raise CardAnalysisRuntimeError(RESUME_SOURCE_INVALID)
+            reused.append({"stage": stage, "stage_key": key, "input_sha256": row.input_sha256,
+                           "result_sha256": result_sha256})
+            return payload_value
+
+        if resume is not None and (
+            {key for key in resume.rows if key[0] in {"extract", "compare"}}
+            != {(stage, str(batch.batch_index)) for batch in card_input.batches for stage in ("extract", "compare")}
+            or {key for key in resume.rows if key[0] == "role"} != {("role", role) for role in VERDICT_ROLES}
+            or any(key[0] not in {"extract", "compare", "role"} for key in resume.rows)
+        ):
+            raise CardAnalysisRuntimeError(RESUME_SOURCE_INVALID)
         for batch in card_input.batches:
             key = str(batch.batch_index)
             payload = card_extract_transfer(frozen, batch.batch_index, ontology, operational_values=operational,
                                             stage_schema=stage_schema)
+            if resume is not None:
+                stored_extract = CardRequirementExtract.model_validate(reuse("extract", key, payload))
+                compared = compare_requirements(stored_extract, frozen=frozen)
+                extract_payload = stored_extract.model_dump(mode="json")
+                compare_input = {
+                    "extract": extract_payload,
+                    "profile_facts": frozen["profile_facts"], "profile_evidence": frozen["profile_evidence"],
+                    "graph_nodes": frozen["graph_nodes"], "graph_edges": frozen["graph_edges"],
+                    "graph_paths": frozen["graph_paths"],
+                }
+                if reuse("compare", key, compare_input) != compared.model_dump(mode="json"):
+                    raise CardAnalysisRuntimeError(RESUME_SOURCE_INVALID)
+                if not item_isolation and stored_extract.rejected_units:
+                    raise CardAnalysisRuntimeError(RESUME_SOURCE_INVALID)
+                persist("extract", key, extract_payload, payload)
+                persist("compare", key, compared.model_dump(mode="json"), compare_input)
+                extract_items.extend(stored_extract.items)
+                compare_items.extend(compared.items)
+                rejected_units.extend(stored_extract.rejected_units)
+                if rejected_units_exceed_limit(len(rejected_units), len(card_input.units)):
+                    raise CardAnalysisRuntimeError(RESUME_SOURCE_INVALID)
+                continue
             accept = None
             if extract_v2:
                 def accept(output: Mapping[str, Any], _index: int = batch.batch_index) -> Mapping[str, Any]:
@@ -1070,9 +1343,8 @@ def run_card_analysis(
                     )
             raw = invoke("extract", key, extract_contract, instructions["extract"], payload,
                          CARD_EXTRACT_INVALID, accept)
-            extracted = validate_requirement_extract(
-                raw, card_input=card_input, batch_index=batch.batch_index, ontology=ontology,
-            )
+            validator = validate_requirement_extract_isolated if item_isolation else validate_requirement_extract
+            extracted = validator(raw, card_input=card_input, batch_index=batch.batch_index, ontology=ontology)
             extract_payload = extracted.model_dump(mode="json")
             persist("extract", key, extract_payload, payload)
             compared = compare_requirements(extracted, frozen=frozen)
@@ -1085,11 +1357,16 @@ def run_card_analysis(
             persist("compare", key, compared.model_dump(mode="json"), compare_input)
             extract_items.extend(extracted.items)
             compare_items.extend(compared.items)
+            rejected_units.extend(extracted.rejected_units)
+            if rejected_units_exceed_limit(len(rejected_units), len(card_input.units)):
+                # 결정 B51: fail fast -- the validated rows stay for people, no verdict.
+                raise CardAnalysisRuntimeError(CARD_EXTRACT_INVALID)
 
         from ..schemas.card_analysis import CardRequirementCompare
 
-        extract = CardRequirementExtract(items=extract_items)
+        extract = CardRequirementExtract(items=extract_items, rejected_units=rejected_units)
         compare = CardRequirementCompare(items=compare_items)
+        rejected_ids = [row.unit_id for row in rejected_units]
         role_inputs = build_verdict_role_inputs(extract, compare)
         roles = {}
         for role in VERDICT_ROLES:
@@ -1098,10 +1375,16 @@ def run_card_analysis(
                 frozen, role=role, extract=role_input.extract.model_dump(mode="json"),
                 compare=role_input.compare.model_dump(mode="json"), operational_values=operational,
             )
-            raw = invoke(role, role, STAGE_CONTRACTS["role"], instructions[role], payload, CARD_ROLE_INVALID)
-            result = validate_verdict_role(raw, role_input=role_input)
+            if resume is not None:
+                result = validate_verdict_role(reuse("role", role, payload), role_input=role_input)
+            else:
+                raw = invoke(role, role, STAGE_CONTRACTS["role"], instructions[role], payload, CARD_ROLE_INVALID)
+                result = validate_verdict_role(raw, role_input=role_input)
             persist("role", role, result.model_dump(mode="json"), payload)
             roles[role] = result
+        if resume is not None:
+            service._record_card_stages_reused(session, claim, source_attempt_id=resume.source_attempt_id,
+                                               stages=reused)
 
         if card_input.missing_sections and card_input.selector.version == SELECTOR_VERSION:
             # card-sections-v1: partial analysis is kept; a final verdict is never
@@ -1119,26 +1402,45 @@ def run_card_analysis(
         payload = card_synthesis_transfer(
             frozen, roles=[row.model_dump(mode="json") for row in synthesis_input.roles],
             fact_keys=synthesis_facts, operational_values=operational,
+            rejected_units=rejected_ids if item_isolation else None,
         )
-        raw = invoke("synthesis", "final", STAGE_CONTRACTS["synthesis"], instructions["synthesis"], payload,
-                     CARD_SYNTHESIS_INVALID)
+        synthesis_accept = None
+        if synthesis_v2:
+            def synthesis_accept(output: Mapping[str, Any]) -> Mapping[str, Any]:
+                # 결정 B55: the v2 output schema is the only repairable rule here
+                # (the client checks it too); everything else is validated below.
+                try:
+                    validate_payload(output, PRACTITIONER_VERDICT_V2_SCHEMA)
+                except SchemaValidationError:
+                    raise CardExtractStructureError([OUTPUT_SCHEMA_RULE], []) from None
+                return synthesis_v1_from_v2(output, extract=extract, compare=compare)
+        raw = invoke("synthesis", "final", synthesis_contract, instructions["synthesis"], payload,
+                     CARD_SYNTHESIS_INVALID, synthesis_accept)
         verdict = validate_practitioner_verdict(
             raw, synthesis_input=synthesis_input, extract=extract, compare=compare, allowed_owners=(),
-            missing_sections=missing_sections,
+            missing_sections=missing_sections, rejected_units=rejected_ids,
         )
         assembled = assemble_practitioner_verdict(
             verdict, synthesis_input=synthesis_input, extract=extract, compare=compare, allowed_owners=(),
-            missing_sections=missing_sections,
+            missing_sections=missing_sections, rejected_units=rejected_ids,
+            record_rejected_units=item_isolation, code_actions=synthesis_v2,
         )
         persist("synthesis", "final", assembled.model_dump(mode="json"), payload)
         finished = _monotonic()
         if finished >= deadline:
             raise CardAnalysisRuntimeError(CARD_REVIEW_TIMEOUT)
         elapsed = max(0.0, finished - started)
+        completion_derivation = dict(derivation or {})
+        if synthesis_v2:
+            completion_derivation.update({
+                "synthesis_contract": PRACTITIONER_VERDICT_V2,
+                "synthesis_code_derived_fields": list(CODE_DERIVED_SYNTHESIS_FIELDS),
+            })
         service._finish_card_claim(
             session, claim, batch_count=len(card_input.batches), call_count=calls[0],
             elapsed_seconds=elapsed, target_seconds=target_seconds, target_missed=elapsed > target_seconds,
-            **({"extract_derivation": derivation} if derivation is not None else {}),
+            **({"extract_derivation": completion_derivation} if completion_derivation else {}),
+            **({"resumed_from_attempt_id": resume.source_attempt_id} if resume is not None else {}),
         )
     except (CardAnalysisRuntimeError, StaleFenceError):
         raise
@@ -1176,6 +1478,23 @@ __all__ = [
     "CardAnalysisRuntimeError",
     "CardAnalysisStageStoreError",
     "CardAnalysisValidationError",
+    "CONCEPT_RULE",
+    "CONSTRAINT_EXPRESSION_RULE",
+    "CONSTRAINT_FACT_KEY_RULE",
+    "CONSTRAINT_NOT_UNIQUE_RULE",
+    "CONSTRAINT_QUOTE_RULE",
+    "CONSTRAINT_TRUNCATED_RULE",
+    "EVIDENCE_QUOTE_RULE",
+    "ITEM_ISOLATION_POLICY_IDENTITIES",
+    "REQUIREMENT_NUMBER_RULE",
+    "CODE_DERIVED_SYNTHESIS_FIELDS",
+    "PRACTITIONER_VERDICT_V1",
+    "PRACTITIONER_VERDICT_V2",
+    "RESUME_IDENTITY_KEYS",
+    "RESUME_POLICY_FREE_KEYS",
+    "RESUME_SOURCE_INVALID",
+    "SYNTHESIS_CONTRACT_BY_REPORT_SCHEMA",
+    "CardResume",
     "CardConstraintQuoteNotUniqueError",
     "CardConstraintQuoteTruncatedError",
     "CardExtractStructureError",
@@ -1187,6 +1506,11 @@ __all__ = [
     "constraint_quote_occurrences",
     "constraint_quote_truncated",
     "expected_constraint_operator",
+    "extract_item_violations",
+    "rejected_units_exceed_limit",
+    "resume_content_sha256",
+    "resume_lineage_valid",
+    "validate_requirement_extract_isolated",
     "fact_anchor_matches",
     "normalized_anchor_text",
     "resolve_fact_key",

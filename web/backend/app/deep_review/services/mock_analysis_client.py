@@ -362,6 +362,8 @@ _CARD_CONTRACTS = {
     "operations_risk": "card-role-v1",
     "synthesis": "card-synthesis-v1",
 }
+#: 결정 B55: synthesis contracts the mock answers (v1: policies up to v8, v2: v9).
+_CARD_SYNTHESIS_CONTRACTS = frozenset({"card-synthesis-v1", "card-synthesis-v2"})
 # --- 결정 B35: realistic numeric constraints of the v2 mock answer --------------------
 #
 # Every match is quoted verbatim as number + unit word + an attached comparator
@@ -488,7 +490,10 @@ class MockCardAnalysisClient:
       ``N일 이상``, ``N%`` quoted with unit and attached comparator), so the
       quote/unit/operator rules are exercised;
     * roles: each unit's assessment is its deterministic compare result;
-    * synthesis: ``판단 불가`` with no blocking ids, cautions or actions.
+    * synthesis: ``판단 불가`` with no blocking ids, cautions or actions; under
+      ``card-synthesis-v2`` (policy v9, 결정 B55) the v2 shape without
+      ``blocking_condition_ids``.  ``fail_synthesis=True`` makes every synthesis
+      call schema-invalid (a failed attempt whose other stages can be resumed).
 
     ``raw_response`` is empty, so no model response object is stored.
     """
@@ -496,8 +501,9 @@ class MockCardAnalysisClient:
     provider_name = MOCK_CARD_PROVIDER
     model = MOCK_MODEL_NAME
 
-    def __init__(self, ontology: Any) -> None:
+    def __init__(self, ontology: Any, *, fail_synthesis: bool = False) -> None:
         self.ontology = ontology
+        self.fail_synthesis = fail_synthesis
         self.calls: list[tuple[str, str]] = []
 
     def invoke_prompt(self, prompt: str, *, contract: str) -> InvocationResult:
@@ -506,18 +512,33 @@ class MockCardAnalysisClient:
         envelope = json.loads(prompt)
         stage = envelope.get("stage") if isinstance(envelope, Mapping) else None
         value = envelope.get("input") if isinstance(envelope, Mapping) else None
-        allowed = _CARD_EXTRACT_CONTRACTS if stage == "extract" else {_CARD_CONTRACTS.get(stage)}
+        allowed = (
+            _CARD_EXTRACT_CONTRACTS if stage == "extract"
+            else _CARD_SYNTHESIS_CONTRACTS if stage == "synthesis"
+            else {_CARD_CONTRACTS.get(stage)}
+        )
         if stage not in _CARD_CONTRACTS or contract not in allowed or not isinstance(value, Mapping):
             raise ModelInvocationError("schema_invalid", (), b"")
         self.calls.append((contract, str(stage)))
         if stage == "extract":
             output = self._extract(value, v2=contract == "card-extract-v2")
         elif stage == "synthesis":
-            output = {
-                "schema_version": "bidops.practitioner-verdict.v1", "verdict": "판단 불가",
-                "reason": _MOCK_SYNTHESIS_REASON, "blocking_condition_ids": [], "cautions": [],
-                "next_actions": [],
-            }
+            if self.fail_synthesis:
+                # 결정 B55: a deterministic synthesis failure (schema-invalid every time,
+                # so the single repair also fails) to leave a resumable failed attempt.
+                raise ModelInvocationError("schema_invalid", (), b"")
+            if contract == "card-synthesis-v2":
+                # 결정 B55 (policy v9): no blocking ids -- code computes them.
+                output = {
+                    "schema_version": "bidops.practitioner-verdict.v2", "verdict": "판단 불가",
+                    "reason": _MOCK_SYNTHESIS_REASON, "cautions": [], "next_actions": [],
+                }
+            else:
+                output = {
+                    "schema_version": "bidops.practitioner-verdict.v1", "verdict": "판단 불가",
+                    "reason": _MOCK_SYNTHESIS_REASON, "blocking_condition_ids": [], "cautions": [],
+                    "next_actions": [],
+                }
         else:
             output = self._role(value)
         encoded = json.dumps(output, ensure_ascii=False, sort_keys=True).encode("utf-8")

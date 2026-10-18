@@ -29,9 +29,23 @@ RL_POLICY_IDENTITY_V5 = "analysis-policy-luna-rl-v5"
 #: RL-03 결정 B37: v5 with the extract instruction requiring a numeric quote to be
 #: unique in its block (extend left) and date ranges as text (no computed numbers).
 RL_POLICY_IDENTITY_V6 = "analysis-policy-luna-rl-v6"
+#: RL-03 결정 B51: v6 with item isolation (evidence-class extract failures are
+#: isolated per unit; synthesis is told the rejected units and cannot answer
+#: "진행 가능").  Extract instruction unchanged from v6.  v1-v6 stay importable.
+RL_POLICY_IDENTITY_V7 = "analysis-policy-luna-rl-v7"
+#: RL-03 결정 B53: v7 with one sentence in each role instruction and the synthesis
+#: evidence rule (a unit's evidence or its constraint locator+quote may be cited).
+#: Item isolation as v7.  v1-v7 stay importable.
+RL_POLICY_IDENTITY_V8 = "analysis-policy-luna-rl-v8"
+#: RL-03 결정 B55: v8 with synthesis output contract ``bidops.practitioner-verdict.v2``
+#: (``report_schema``; no blocking ids -- code computes them; code "사람 확인" rows) and
+#: a synthesis instruction stating the field scopes.  Extract and role stages are
+#: byte-identical to v8 (a v8 failed attempt may be resumed at synthesis).
+RL_POLICY_IDENTITY_V9 = "analysis-policy-luna-rl-v9"
 RL_POLICY_IDENTITIES = frozenset({
     RL_POLICY_IDENTITY, RL_POLICY_IDENTITY_V2, RL_POLICY_IDENTITY_V3, RL_POLICY_IDENTITY_V4,
-    RL_POLICY_IDENTITY_V5, RL_POLICY_IDENTITY_V6,
+    RL_POLICY_IDENTITY_V5, RL_POLICY_IDENTITY_V6, RL_POLICY_IDENTITY_V7, RL_POLICY_IDENTITY_V8,
+    RL_POLICY_IDENTITY_V9,
 })
 COMPANY_POLICY_IDENTITIES = frozenset({"analysis-policy-luna-demo-v1", HP_POLICY_IDENTITY, *RL_POLICY_IDENTITIES})
 #: RL-04 proposal drafting (``pipeline_version="proposal-v1"``, ``purpose="proposal"``).

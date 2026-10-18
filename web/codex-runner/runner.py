@@ -236,6 +236,8 @@ CONTRACT_SCHEMA_PATHS = {
     "card-extract-v2": Path("/app/card-extract-v2.json"),
     "card-role-v1": Path("/app/card-role.json"),
     "card-synthesis-v1": Path("/app/card-synthesis.json"),
+    # 결정 B55 (policy v9): no blocking_condition_ids; code computes them.
+    "card-synthesis-v2": Path("/app/card-synthesis-v2.json"),
     # RL-04 proposal drafting: one section (bidops.proposal-section.v1) per call.
     "proposal-section-v1": Path("/app/proposal-section.json"),
 }

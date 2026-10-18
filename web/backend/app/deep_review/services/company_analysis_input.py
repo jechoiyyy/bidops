@@ -561,6 +561,8 @@ CARD_TRANSFER_STAGE_KEYS: dict[str, frozenset[str]] = {
 #: 결정 B24: the extra synthesis key of a ``card-sections-v2``/``-v3`` input.
 CARD_SYNTHESIS_V2_EXTRA_KEYS = frozenset({"missing_sections"})
 _MISSING_SECTIONS_SELECTORS = frozenset({"card-sections-v2", "card-sections-v3"})
+#: 결정 B51: the extra synthesis key of a policy v7 payload (isolated unit ids).
+CARD_SYNTHESIS_V7_EXTRA_KEYS = frozenset({"rejected_units"})
 #: 결정 B30: the extra per-unit extract key of a ``card-sections-v3`` input.
 CARD_EXTRACT_V3_UNIT_EXTRA_KEYS = frozenset({"expected_concepts"})
 CARD_EXPECTED_CONCEPT_KEYS = frozenset({"concept_id", "alias_text"})
@@ -890,6 +892,7 @@ def check_card_transfer_payload(
     operational_values: Sequence[Any] = (),
     ontology: Any = None,
     stage_schema: str = _STAGE_SCHEMA_V1,
+    rejected_units: Sequence[str] | None = None,
 ) -> None:
     """Strict D2 check of one stage payload against its frozen v2 input.
 
@@ -917,12 +920,26 @@ def check_card_transfer_payload(
     missing_sections = card_synthesis_missing_sections(frozen) if stage == "synthesis" else None
     if expected_keys is not None and missing_sections is not None:
         expected_keys = expected_keys | CARD_SYNTHESIS_V2_EXTRA_KEYS
+    if rejected_units is not None:
+        # 결정 B51 (policy v7): the synthesis names the isolated units (ids only).
+        if stage != "synthesis" or expected_keys is None:
+            raise _transfer_invalid()
+        expected_keys = expected_keys | CARD_SYNTHESIS_V7_EXTRA_KEYS
     if expected_keys is None or not isinstance(payload, Mapping) or set(payload) != expected_keys:
         raise _transfer_invalid()
     if missing_sections is not None and payload.get("missing_sections") != missing_sections:
         # 결정 B24: exactly the frozen list, in its order (possibly empty).
         raise _transfer_invalid()
     card = frozen["card_analysis"]
+    if rejected_units is not None:
+        frozen_unit_ids = {row.get("unit_id") for row in card.get("units", []) if isinstance(row, Mapping)}
+        if (
+            isinstance(rejected_units, (str, bytes))
+            or payload.get("rejected_units") != list(rejected_units)
+            or any(not isinstance(unit_id, str) or unit_id not in frozen_unit_ids for unit_id in rejected_units)
+            or len(set(rejected_units)) != len(list(rejected_units))
+        ):
+            raise _transfer_invalid()
     withheld = {
         fact["fact_key"]: fact.get("status")
         for fact in frozen.get("profile_facts", [])
@@ -1071,18 +1088,23 @@ def card_synthesis_transfer(
     roles: Sequence[Mapping[str, Any]],
     fact_keys: Sequence[str],
     operational_values: Sequence[Any] = (),
+    rejected_units: Sequence[str] | None = None,
 ) -> dict[str, Any]:
     """The checked ``card-synthesis-v1`` payload: three role results + the union of their referenced facts (B11).
 
-    A ``card-sections-v2`` input adds ``missing_sections`` (결정 B24).
+    A ``card-sections-v2`` input adds ``missing_sections`` (결정 B24).  Policy v7
+    (결정 B51) adds ``rejected_units`` = the isolated unit ids (possibly empty);
+    ``None`` keeps the v1-v6 payload without the key.
     """
 
     payload = {"roles": [deepcopy(dict(row)) for row in roles], **card_company_transfer(frozen, fact_keys)}
     missing_sections = card_synthesis_missing_sections(frozen)
     if missing_sections is not None:
         payload["missing_sections"] = missing_sections
+    if rejected_units is not None:
+        payload["rejected_units"] = list(rejected_units)
     check_card_transfer_payload("synthesis", payload, frozen, fact_keys=fact_keys,
-                                operational_values=operational_values)
+                                operational_values=operational_values, rejected_units=rejected_units)
     return payload
 
 
@@ -1094,6 +1116,7 @@ __all__ = [
     "CARD_FORBIDDEN_TRANSFER_KEYS",
     "CARD_TRANSFER_EVIDENCE_KEYS",
     "CARD_SYNTHESIS_V2_EXTRA_KEYS",
+    "CARD_SYNTHESIS_V7_EXTRA_KEYS",
     "CARD_TRANSFER_STAGE_KEYS",
     "card_synthesis_missing_sections",
     "CARD_WITHHELD_FACT_KEYS",
