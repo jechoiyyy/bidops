@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
   "feature": "RL-03-fit-verdict",
-  "phase": "implementing",
+  "phase": "validating",
   "steps": [
     {
       "id": "STEP-001",
@@ -248,74 +248,69 @@
   ],
   "proof": {
     "docs": {
-      "result": "stale",
+      "result": "pass",
       "method": "review",
-      "note": "배치 최종 코드 adc00b8(RL-04 통합 후) 재검증으로 갱신. doctor 0, RL-03 리뷰 B39 + 배치 최종 리뷰 B50(RL-04+통합) 차단 해소",
-      "evidence": "docs/work/_runs/rlb-20261017/logs/BATCH-doctor.log; decisions.md B39·B50",
+      "note": "배치 최종 코드 5bc391b(RL-03 STEP-011·012 통합 후) 재검증(테스트 로그는 문서 5줄 정정 전 동일 코드 7d6e3de에서 실행). doctor 0, 독립 리뷰 B50(배치)·B58(STEP-011·012 변경분) 차단 해소",
+      "evidence": "docs/work/_runs/rlb-20261017/logs/FINAL-doctor.log; decisions.md B50·B58",
       "exit_code": null,
       "actor": "orchestrator",
       "command": "python3 scripts/feature_status.py doctor _",
-      "at": "2026-10-18T11:35:12+09:00",
-      "head": "adc00b8d16a6578b720d63dfb73d96ff59b6efde",
-      "source_hash": "3ff4b4f112e44ac019c3bba969e66d3b8dc7f5e41939f0b94c974befbb58dd70",
-      "spec_hash": "10e2df511afb19f22ca2f9856b696a63e198288f4d41d4d702180b00adb8c7b7",
-      "reason": "작업 계약 변경"
+      "at": "2026-10-18T17:16:32+09:00",
+      "head": "5bc391b9a65d72c862f34d4600d4b0072bce4add",
+      "source_hash": "1d67e7b232814a748d21fde0397e93786ab6f5fa57a43dec41a639bb467079f3",
+      "spec_hash": "4d766281404d034bbccbdba5c7e2398dd6cd67da33bec1faf103250bea40edfc"
     },
     "tests": {
-      "result": "stale",
+      "result": "pass",
       "method": "command",
-      "note": "배치 최종 코드 adc00b8(RL-04 통합 후) 재검증으로 갱신. plan tests 293 passed(17 skip=PG 변형)",
-      "evidence": "docs/work/_runs/rlb-20261017/logs/BATCH-RL-03-tests.log",
+      "note": "배치 최종 코드 5bc391b(RL-03 STEP-011·012 통합 후) 재검증(테스트 로그는 문서 5줄 정정 전 동일 코드 7d6e3de에서 실행). RL-03+RL-04 plan tests 합집합 490 passed(54 skip=PG 변형·컨테이너 전용)",
+      "evidence": "docs/work/_runs/rlb-20261017/logs/FINAL-tests.log",
       "exit_code": 0,
       "actor": "orchestrator",
       "command": "bash -lc \"cd web/backend && python -m pytest -q -x -p no:cacheprovider\"",
-      "at": "2026-10-18T11:35:11+09:00",
-      "head": "adc00b8d16a6578b720d63dfb73d96ff59b6efde",
-      "source_hash": "3ff4b4f112e44ac019c3bba969e66d3b8dc7f5e41939f0b94c974befbb58dd70",
-      "spec_hash": "10e2df511afb19f22ca2f9856b696a63e198288f4d41d4d702180b00adb8c7b7",
-      "reason": "작업 계약 변경"
+      "at": "2026-10-18T17:16:31+09:00",
+      "head": "5bc391b9a65d72c862f34d4600d4b0072bce4add",
+      "source_hash": "1d67e7b232814a748d21fde0397e93786ab6f5fa57a43dec41a639bb467079f3",
+      "spec_hash": "4d766281404d034bbccbdba5c7e2398dd6cd67da33bec1faf103250bea40edfc"
     },
     "postgres": {
-      "result": "stale",
+      "result": "pass",
       "method": "command",
-      "note": "배치 최종 코드 adc00b8(RL-04 통합 후) 재검증으로 갱신. postgres:17.11 162 passed(migrations 0041·privileges·drift 포함)",
-      "evidence": "docs/work/_runs/rlb-20261017/logs/BATCH-RL-03-postgres.log",
+      "note": "배치 최종 코드 5bc391b(RL-03 STEP-011·012 통합 후) 재검증(테스트 로그는 문서 5줄 정정 전 동일 코드 7d6e3de에서 실행). postgres:17.11 244 passed(migrations·privileges·drift)",
+      "evidence": "docs/work/_runs/rlb-20261017/logs/FINAL-postgres.log",
       "exit_code": 0,
       "actor": "orchestrator",
       "command": "",
-      "at": "2026-10-18T11:35:11+09:00",
-      "head": "adc00b8d16a6578b720d63dfb73d96ff59b6efde",
-      "source_hash": "3ff4b4f112e44ac019c3bba969e66d3b8dc7f5e41939f0b94c974befbb58dd70",
-      "spec_hash": "10e2df511afb19f22ca2f9856b696a63e198288f4d41d4d702180b00adb8c7b7",
-      "reason": "작업 계약 변경"
+      "at": "2026-10-18T17:16:32+09:00",
+      "head": "5bc391b9a65d72c862f34d4600d4b0072bce4add",
+      "source_hash": "1d67e7b232814a748d21fde0397e93786ab6f5fa57a43dec41a639bb467079f3",
+      "spec_hash": "4d766281404d034bbccbdba5c7e2398dd6cd67da33bec1faf103250bea40edfc"
     },
     "frontend": {
-      "result": "stale",
+      "result": "pass",
       "method": "command",
-      "note": "배치 최종 코드 adc00b8(RL-04 통합 후) 재검증으로 갱신. build 0, Playwright app 7 spec 192 passed(verdict·record·proposal·common·company·opportunities·briefing)",
-      "evidence": "docs/work/_runs/rlb-20261017/logs/BATCH-frontend.log",
+      "note": "배치 최종 코드 5bc391b(RL-03 STEP-011·012 통합 후) 재검증(테스트 로그는 문서 5줄 정정 전 동일 코드 7d6e3de에서 실행). build 0, Playwright app 7 spec 194 passed, contrast 0",
+      "evidence": "docs/work/_runs/rlb-20261017/logs/FINAL-frontend.log",
       "exit_code": 0,
       "actor": "orchestrator",
       "command": "bash -lc \"cd web/frontend && npm run build && npm run test:contrast\"",
-      "at": "2026-10-18T11:35:11+09:00",
-      "head": "adc00b8d16a6578b720d63dfb73d96ff59b6efde",
-      "source_hash": "3ff4b4f112e44ac019c3bba969e66d3b8dc7f5e41939f0b94c974befbb58dd70",
-      "spec_hash": "10e2df511afb19f22ca2f9856b696a63e198288f4d41d4d702180b00adb8c7b7",
-      "reason": "작업 계약 변경"
+      "at": "2026-10-18T17:16:32+09:00",
+      "head": "5bc391b9a65d72c862f34d4600d4b0072bce4add",
+      "source_hash": "1d67e7b232814a748d21fde0397e93786ab6f5fa57a43dec41a639bb467079f3",
+      "spec_hash": "4d766281404d034bbccbdba5c7e2398dd6cd67da33bec1faf103250bea40edfc"
     },
     "api_guard": {
-      "result": "stale",
+      "result": "pass",
       "method": "command",
-      "note": "배치 최종 코드 adc00b8(RL-04 통합 후) 재검증으로 갱신. T3·T9·T10·B25 57 passed, skip 0",
-      "evidence": "docs/work/_runs/rlb-20261017/logs/BATCH-RL-03-api-guard.log",
+      "note": "배치 최종 코드 5bc391b(RL-03 STEP-011·012 통합 후) 재검증(테스트 로그는 문서 5줄 정정 전 동일 코드 7d6e3de에서 실행). RL-03 T3·T9·T10·B25 + RL-04 T4·T9 85 passed, skip 0",
+      "evidence": "docs/work/_runs/rlb-20261017/logs/FINAL-api-guard.log",
       "exit_code": 0,
       "actor": "orchestrator",
       "command": "",
-      "at": "2026-10-18T11:35:12+09:00",
-      "head": "adc00b8d16a6578b720d63dfb73d96ff59b6efde",
-      "source_hash": "3ff4b4f112e44ac019c3bba969e66d3b8dc7f5e41939f0b94c974befbb58dd70",
-      "spec_hash": "10e2df511afb19f22ca2f9856b696a63e198288f4d41d4d702180b00adb8c7b7",
-      "reason": "작업 계약 변경"
+      "at": "2026-10-18T17:16:32+09:00",
+      "head": "5bc391b9a65d72c862f34d4600d4b0072bce4add",
+      "source_hash": "1d67e7b232814a748d21fde0397e93786ab6f5fa57a43dec41a639bb467079f3",
+      "spec_hash": "4d766281404d034bbccbdba5c7e2398dd6cd67da33bec1faf103250bea40edfc"
     },
     "real_data_run": {
       "result": "pending",
@@ -467,9 +462,13 @@
     {
       "at": "2026-10-18T17:06:15+09:00",
       "text": "단계 STEP-012 done: 종합 계약 v2·정책 v9·종합만 재실행(B55·B56); 실제 10차(9차 종합 재실행) completed '판단 불가' 667bf04d; RL-04 T11 실제 초안 partial 4/6(5d627b0f)"
+    },
+    {
+      "at": "2026-10-18T17:16:34+09:00",
+      "text": "단계 → validating"
     }
   ],
-  "updated_at": "2026-10-18T17:06:15+09:00",
+  "updated_at": "2026-10-18T17:16:34+09:00",
   "proof_history": [
     {
       "key": "tests",
@@ -585,6 +584,91 @@
         "head": "36f2b1ac18cd9bb5c4cd3c84b2c7d1d42d10a38e",
         "source_hash": "2156d57f36775ebdfa6bacc2a525935c2d11678427ecac23724db8cee5c131a0",
         "spec_hash": "8646c0f6f15ca105605d0dffb760ed92166b13333943b82bc549c8a66642e67c"
+      }
+    },
+    {
+      "key": "tests",
+      "previous": {
+        "result": "stale",
+        "method": "command",
+        "note": "배치 최종 코드 adc00b8(RL-04 통합 후) 재검증으로 갱신. plan tests 293 passed(17 skip=PG 변형)",
+        "evidence": "docs/work/_runs/rlb-20261017/logs/BATCH-RL-03-tests.log",
+        "exit_code": 0,
+        "actor": "orchestrator",
+        "command": "bash -lc \"cd web/backend && python -m pytest -q -x -p no:cacheprovider\"",
+        "at": "2026-10-18T11:35:11+09:00",
+        "head": "adc00b8d16a6578b720d63dfb73d96ff59b6efde",
+        "source_hash": "3ff4b4f112e44ac019c3bba969e66d3b8dc7f5e41939f0b94c974befbb58dd70",
+        "spec_hash": "10e2df511afb19f22ca2f9856b696a63e198288f4d41d4d702180b00adb8c7b7",
+        "reason": "작업 계약 변경"
+      }
+    },
+    {
+      "key": "postgres",
+      "previous": {
+        "result": "stale",
+        "method": "command",
+        "note": "배치 최종 코드 adc00b8(RL-04 통합 후) 재검증으로 갱신. postgres:17.11 162 passed(migrations 0041·privileges·drift 포함)",
+        "evidence": "docs/work/_runs/rlb-20261017/logs/BATCH-RL-03-postgres.log",
+        "exit_code": 0,
+        "actor": "orchestrator",
+        "command": "",
+        "at": "2026-10-18T11:35:11+09:00",
+        "head": "adc00b8d16a6578b720d63dfb73d96ff59b6efde",
+        "source_hash": "3ff4b4f112e44ac019c3bba969e66d3b8dc7f5e41939f0b94c974befbb58dd70",
+        "spec_hash": "10e2df511afb19f22ca2f9856b696a63e198288f4d41d4d702180b00adb8c7b7",
+        "reason": "작업 계약 변경"
+      }
+    },
+    {
+      "key": "frontend",
+      "previous": {
+        "result": "stale",
+        "method": "command",
+        "note": "배치 최종 코드 adc00b8(RL-04 통합 후) 재검증으로 갱신. build 0, Playwright app 7 spec 192 passed(verdict·record·proposal·common·company·opportunities·briefing)",
+        "evidence": "docs/work/_runs/rlb-20261017/logs/BATCH-frontend.log",
+        "exit_code": 0,
+        "actor": "orchestrator",
+        "command": "bash -lc \"cd web/frontend && npm run build && npm run test:contrast\"",
+        "at": "2026-10-18T11:35:11+09:00",
+        "head": "adc00b8d16a6578b720d63dfb73d96ff59b6efde",
+        "source_hash": "3ff4b4f112e44ac019c3bba969e66d3b8dc7f5e41939f0b94c974befbb58dd70",
+        "spec_hash": "10e2df511afb19f22ca2f9856b696a63e198288f4d41d4d702180b00adb8c7b7",
+        "reason": "작업 계약 변경"
+      }
+    },
+    {
+      "key": "api_guard",
+      "previous": {
+        "result": "stale",
+        "method": "command",
+        "note": "배치 최종 코드 adc00b8(RL-04 통합 후) 재검증으로 갱신. T3·T9·T10·B25 57 passed, skip 0",
+        "evidence": "docs/work/_runs/rlb-20261017/logs/BATCH-RL-03-api-guard.log",
+        "exit_code": 0,
+        "actor": "orchestrator",
+        "command": "",
+        "at": "2026-10-18T11:35:12+09:00",
+        "head": "adc00b8d16a6578b720d63dfb73d96ff59b6efde",
+        "source_hash": "3ff4b4f112e44ac019c3bba969e66d3b8dc7f5e41939f0b94c974befbb58dd70",
+        "spec_hash": "10e2df511afb19f22ca2f9856b696a63e198288f4d41d4d702180b00adb8c7b7",
+        "reason": "작업 계약 변경"
+      }
+    },
+    {
+      "key": "docs",
+      "previous": {
+        "result": "stale",
+        "method": "review",
+        "note": "배치 최종 코드 adc00b8(RL-04 통합 후) 재검증으로 갱신. doctor 0, RL-03 리뷰 B39 + 배치 최종 리뷰 B50(RL-04+통합) 차단 해소",
+        "evidence": "docs/work/_runs/rlb-20261017/logs/BATCH-doctor.log; decisions.md B39·B50",
+        "exit_code": null,
+        "actor": "orchestrator",
+        "command": "python3 scripts/feature_status.py doctor _",
+        "at": "2026-10-18T11:35:12+09:00",
+        "head": "adc00b8d16a6578b720d63dfb73d96ff59b6efde",
+        "source_hash": "3ff4b4f112e44ac019c3bba969e66d3b8dc7f5e41939f0b94c974befbb58dd70",
+        "spec_hash": "10e2df511afb19f22ca2f9856b696a63e198288f4d41d4d702180b00adb8c7b7",
+        "reason": "작업 계약 변경"
       }
     }
   ]
