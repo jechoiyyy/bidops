@@ -27,7 +27,7 @@
     "merge_policy": "manual"
   },
   "specs": {
-    "RL-03-fit-verdict": "10e2df511afb19f22ca2f9856b696a63e198288f4d41d4d702180b00adb8c7b7",
+    "RL-03-fit-verdict": "4d766281404d034bbccbdba5c7e2398dd6cd67da33bec1faf103250bea40edfc",
     "RL-04-proposal-draft": "485e5be98ffb32eae4f1a240cfa9893f76a7429507d361cff6fb70df193f6bbc"
   },
   "ready": {
@@ -66,6 +66,16 @@
       "feature": "RL-03-fit-verdict",
       "note": "배치 통합 후: constitution tech-stack(RL-04 reportlab·폰트 문구, B42·B48) 변경으로 spec_hash 입력 변경, RL-03 명세 무변경",
       "at": "2026-10-18T11:35:11+09:00"
+    },
+    {
+      "feature": "RL-03-fit-verdict",
+      "note": "B51~B58(사용자 승인 B51·B55): STEP-011 항목 격리·v7, B53 근거·v8, STEP-012 종합 계약 v2·v9·종합 재실행",
+      "at": "2026-10-18T17:16:31+09:00"
+    },
+    {
+      "feature": "RL-04-proposal-draft",
+      "note": "RL-03 STEP-011·012 통합 후 재확인(RL-04 명세 자체 무변경)",
+      "at": "2026-10-18T17:16:31+09:00"
     }
   ]
 }
