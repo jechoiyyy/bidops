@@ -1,0 +1,571 @@
+/*
+ * 사업기회 레코드 제안서 탭 `/opportunities/:id/proposal`(RL-04 STEP-008, ui-spec §3·§4.5).
+ *
+ * 레이아웃은 프로젝트가 소유한다(ADR-0040). 색·간격·모서리는 테마 토큰만 읽고 `--color-*`를 다시
+ * 정의하지 않는다(ADR-0048). 글자는 4단 스케일만 쓰고(`styles/typography.css`) 본문 카드만 세리프 14px/1.8이다
+ * (ui-spec §4.5). 지원 폭은 1280~1920px이다(ADR-0047). 상태 pill·배너는 판정 탭(`verdict.css`)의 것을 그대로 쓴다.
+ *
+ * 색 의미: 빈 자리·제안 수치는 warning 바탕, 출처는 accent 위첨자, 검토 완료는 success, 생성 실패는 error다.
+ * 글자가 항상 상태 이름이고 색은 의미를 거들 뿐이다. blue 계열은 쓰지 않는다(`npm run test:contrast`가 막는다).
+ * 참조 실행 표식은 성공·실패 색을 쓰지 않는 중립 칩이다.
+ */
+
+.pp-main {
+  display: grid;
+  align-content: start;
+  gap: var(--spacing-3);
+  min-width: 0;
+}
+
+/* 기록자 이름 칸 */
+.pp-actor {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: flex-end;
+  gap: var(--spacing-3);
+}
+
+.pp-actor .actor-field {
+  display: grid;
+  gap: var(--spacing-0-5);
+}
+
+.pp-actor .actor-field label,
+.pp-actor .actor-field p {
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+  font-weight: 400;
+  line-height: var(--bo-type-caption-leading);
+}
+
+.pp-actor .actor-field input {
+  width: calc(var(--spacing-6) * 6);
+  min-height: calc(var(--spacing-6) * 1.25);
+  padding: 0 var(--spacing-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-inner);
+  color: var(--color-text-primary);
+  background: var(--color-background-surface);
+  font-size: var(--bo-type-caption);
+}
+
+.pp-actor .actor-field input[aria-invalid="true"] {
+  border-color: var(--color-error);
+}
+
+.pp-actor-missing {
+  color: var(--color-error);
+  font-size: var(--bo-type-caption);
+  line-height: var(--bo-type-caption-leading);
+}
+
+/* 절 탭 */
+.pp-section-tabs {
+  flex: 0 0 auto;
+}
+
+.pp-tab-end {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+}
+
+.pp-tab-count {
+  display: inline-flex;
+  align-items: center;
+  min-height: calc(var(--spacing-4) + var(--spacing-0-5));
+  padding: 0 var(--spacing-2);
+  border-radius: var(--radius-full);
+  color: var(--color-warning);
+  background: var(--color-warning-muted);
+  font-size: var(--bo-type-caption);
+  font-weight: 500;
+  line-height: var(--bo-type-caption-leading);
+}
+
+.pp-tab-status {
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+  line-height: var(--bo-type-caption-leading);
+}
+
+.pp-tab-status[data-status="failed"] {
+  color: var(--color-error);
+  font-weight: 600;
+}
+
+/* 본문 카드 + 우측 표: 좁아지면 아래로 내려간다(가로로 넘치지 않는다) */
+.pp-panel {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--spacing-5);
+  min-width: 0;
+}
+
+.pp-card {
+  --pp-serif: "Noto Serif KR", "Nanum Myeongjo", "AppleMyungjo", serif;
+
+  display: grid;
+  flex: 1 1 460px;
+  align-content: start;
+  gap: var(--spacing-3);
+  box-sizing: border-box;
+  min-width: 0;
+  max-width: 620px;
+  padding: var(--spacing-6);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-element);
+  background: var(--color-background-surface);
+  font-family: var(--pp-serif);
+  font-size: var(--bo-type-body);
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+}
+
+.pp-card.is-failed {
+  border-color: var(--color-error);
+}
+
+.pp-card p,
+.pp-card h3,
+.pp-card h4 {
+  margin: 0;
+}
+
+.pp-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-2);
+}
+
+.pp-card-title {
+  font-size: var(--bo-type-section-title);
+  font-weight: 600;
+}
+
+.pp-card-revision {
+  color: var(--color-text-secondary);
+  font-family: var(--font-family-body);
+  font-size: var(--bo-type-caption);
+  line-height: var(--bo-type-caption-leading);
+}
+
+.pp-card-note {
+  color: var(--color-text-secondary);
+  font-family: var(--font-family-body);
+}
+
+.pp-paragraph {
+  display: grid;
+  gap: var(--spacing-1);
+  border-radius: var(--radius-inner);
+}
+
+.pp-paragraph.is-focused {
+  outline: 2px solid var(--color-accent);
+  outline-offset: var(--spacing-1);
+}
+
+.pp-paragraph-heading {
+  font-size: var(--bo-type-body);
+  font-weight: 600;
+}
+
+/* 문장: 누르면 선택되고 수정 영역이 열린다 */
+.pp-sentence {
+  display: inline;
+  margin: 0;
+  padding: 0 var(--spacing-0-5);
+  border: 0;
+  border-radius: var(--radius-inner);
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  text-align: inherit;
+  cursor: pointer;
+}
+
+.pp-sentence:hover:not(:disabled) {
+  background: var(--color-background-muted);
+}
+
+.pp-sentence:disabled {
+  cursor: default;
+}
+
+.pp-sentence:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
+
+.pp-sentence.is-selected {
+  background: var(--color-accent-muted);
+}
+
+.pp-sentence.is-proposed_figure .pp-text,
+.pp-sentence.is-placeholder.is-edited .pp-text {
+  background: var(--color-warning-muted);
+}
+
+.pp-gap {
+  padding: 0 var(--spacing-1);
+  border-radius: var(--radius-inner);
+  color: var(--color-warning);
+  background: var(--color-warning-muted);
+  font-family: var(--font-family-body);
+  font-weight: 500;
+}
+
+.pp-mark,
+.pp-src,
+.pp-edited {
+  font-family: var(--font-family-body);
+  font-size: var(--bo-type-caption);
+  line-height: 0;
+}
+
+.pp-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-0-5);
+  margin-left: var(--spacing-1);
+  color: var(--color-warning);
+  font-weight: 600;
+  vertical-align: middle;
+}
+
+.pp-mark svg {
+  width: 12px;
+  height: 12px;
+}
+
+.pp-src {
+  margin-left: var(--spacing-0-5);
+  color: var(--color-accent);
+  vertical-align: super;
+}
+
+.pp-edited {
+  margin-left: var(--spacing-1);
+  color: var(--color-text-secondary);
+  vertical-align: middle;
+}
+
+/* 수정 영역 + 출처 */
+.pp-editor {
+  display: grid;
+  gap: var(--spacing-2);
+  padding: var(--spacing-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-element);
+  background: var(--color-background-body);
+  font-family: var(--font-family-body);
+  line-height: var(--bo-type-body-leading);
+}
+
+.pp-editor-note {
+  padding: var(--spacing-1) var(--spacing-2);
+  border-radius: var(--radius-inner);
+  color: var(--color-warning);
+  background: var(--color-warning-muted);
+  font-size: var(--bo-type-caption);
+  line-height: var(--bo-type-caption-leading);
+}
+
+.pp-editor-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--spacing-2);
+}
+
+.pp-sources {
+  display: grid;
+  gap: var(--spacing-1);
+}
+
+.pp-sources-title {
+  font-size: var(--bo-type-caption);
+  font-weight: 600;
+  line-height: var(--bo-type-caption-leading);
+}
+
+.pp-source-list {
+  display: grid;
+  gap: var(--spacing-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pp-source {
+  display: grid;
+  gap: var(--spacing-0-5);
+}
+
+.pp-source-kind {
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+  line-height: var(--bo-type-caption-leading);
+}
+
+.pp-source-quote {
+  margin: 0;
+  padding: var(--spacing-1) var(--spacing-3);
+  border-left: 3px solid var(--color-border-emphasized);
+  font-size: var(--bo-type-caption);
+  line-height: var(--bo-type-caption-leading);
+}
+
+/* 하단 버튼 */
+.pp-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--spacing-2);
+  padding-top: var(--spacing-3);
+  border-top: 1px solid var(--color-border);
+  font-family: var(--font-family-body);
+  line-height: var(--bo-type-body-leading);
+}
+
+.pp-failed {
+  display: grid;
+  gap: var(--spacing-2);
+  font-family: var(--font-family-body);
+  line-height: var(--bo-type-body-leading);
+}
+
+/* 우측 "이 절이 답하는 요구사항" */
+.pp-req {
+  display: grid;
+  flex: 1 1 300px;
+  gap: var(--spacing-2);
+  min-width: 0;
+  max-width: 420px;
+}
+
+.pp-req-scroll {
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.pp-req-scroll table {
+  min-width: 280px;
+}
+
+.pp-req-main {
+  display: grid;
+  gap: var(--spacing-0-5);
+  min-width: 0;
+}
+
+.pp-req-title {
+  font-weight: 600;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.pp-req-title.is-empty {
+  color: var(--color-text-secondary);
+  font-weight: 400;
+}
+
+.pp-req-sub {
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+  line-height: var(--bo-type-caption-leading);
+  overflow-wrap: anywhere;
+}
+
+.pp-req-go {
+  justify-self: start;
+  padding: 0;
+  border: 0;
+  color: var(--color-accent);
+  background: transparent;
+  font: inherit;
+  font-size: var(--bo-type-caption);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.pp-req-go:focus-visible,
+.pp-export-link:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.pp-export-link {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+  color: var(--color-accent);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* 생성 진행 */
+.pp-progress {
+  display: grid;
+  gap: var(--spacing-0-5);
+  margin: var(--spacing-1) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pp-progress-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-3);
+  max-width: calc(var(--spacing-12) * 6);
+}
+
+.pp-progress-status {
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+}
+
+.pp-progress-item[data-status="failed"] .pp-progress-status {
+  color: var(--color-error);
+  font-weight: 600;
+}
+
+.pp-empty-actions {
+  display: flex;
+  justify-content: center;
+}
+
+/* 좌측: 단계 stepper */
+.pp-stepper {
+  display: grid;
+  gap: var(--spacing-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pp-step {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+}
+
+.pp-step-marker {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: var(--spacing-4);
+  height: var(--spacing-4);
+  border: 2px solid var(--color-border-emphasized);
+  border-radius: var(--radius-full);
+  color: var(--color-on-accent);
+  background: var(--color-background-surface);
+}
+
+.pp-step-marker svg {
+  width: 10px;
+  height: 10px;
+}
+
+.pp-step[data-state="done"] .pp-step-marker {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+}
+
+.pp-step[data-state="current"] .pp-step-marker {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px var(--color-accent-muted);
+}
+
+.pp-step[data-state="current"] .pp-step-label {
+  font-weight: 600;
+}
+
+.pp-step[data-state="upcoming"] .pp-step-label {
+  color: var(--color-text-secondary);
+}
+
+.pp-reference {
+  justify-self: start;
+  margin: 0;
+  padding: var(--spacing-0-5) var(--spacing-2);
+  border-radius: var(--radius-full);
+  color: var(--color-text-secondary);
+  background: var(--color-background-muted);
+  font-size: var(--bo-type-caption);
+  font-weight: 500;
+  line-height: var(--bo-type-caption-leading);
+}
+
+/* 좌측: 숫자 · 채워야 할 것 · 범례 */
+.pp-numbers {
+  display: grid;
+  gap: var(--spacing-2);
+  margin: 0;
+}
+
+.pp-number-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--spacing-2);
+}
+
+.pp-number-row dt {
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+  line-height: var(--bo-type-caption-leading);
+}
+
+.pp-number-row dd {
+  margin: 0;
+  font-weight: 600;
+}
+
+.pp-number-row dd.is-warning {
+  color: var(--color-warning);
+}
+
+.pp-needs {
+  display: grid;
+  gap: var(--spacing-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pp-need {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--spacing-2);
+}
+
+.pp-need-hint {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.pp-need-count {
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+}
+
+.pp-legend-mark {
+  padding: 0 var(--spacing-1);
+  border-radius: var(--radius-inner);
+  color: var(--color-warning);
+  background: var(--color-warning-muted);
+}

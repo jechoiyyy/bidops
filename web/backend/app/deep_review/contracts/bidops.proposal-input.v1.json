@@ -1,0 +1,195 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "bidops.proposal-input.v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "purpose", "execution_nonce", "draft_id", "opportunity_id", "notice_id",
+    "verdict_attempt_id", "verdict_input_sha256", "company_binding", "policy_sha256", "model_name",
+    "reasoning_effort", "section_key", "notice_meta", "units", "compares", "verdict",
+    "company_facts", "missing_facts", "toc_reference"
+  ],
+  "properties": {
+    "schema_version": {"const": "bidops.proposal-input.v1"},
+    "purpose": {"const": "proposal"},
+    "execution_nonce": {"$ref": "#/$defs/uuid"},
+    "draft_id": {"$ref": "#/$defs/uuid"},
+    "opportunity_id": {"type": "integer", "minimum": 1},
+    "notice_id": {"type": "integer", "minimum": 1},
+    "verdict_attempt_id": {"$ref": "#/$defs/uuid"},
+    "verdict_input_sha256": {"$ref": "#/$defs/sha256"},
+    "company_binding": {"$ref": "#/$defs/company_binding"},
+    "policy_sha256": {"$ref": "#/$defs/sha256"},
+    "model_name": {"const": "gpt-6-luna"},
+    "reasoning_effort": {"const": "high"},
+    "section_key": {"$ref": "#/$defs/section_key"},
+    "notice_meta": {"$ref": "#/$defs/notice_meta"},
+    "units": {"type": "array", "items": {"$ref": "#/$defs/unit"}},
+    "compares": {"type": "array", "items": {"$ref": "#/$defs/compare"}},
+    "verdict": {"$ref": "#/$defs/verdict"},
+    "company_facts": {"type": "array", "items": {"$ref": "#/$defs/company_fact"}},
+    "missing_facts": {"type": "array", "items": {"$ref": "#/$defs/missing_fact"}},
+    "toc_reference": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/nonempty"}}
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "uuid": {
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+    },
+    "nonempty": {"type": "string", "minLength": 1},
+    "nullable_text": {"type": ["string", "null"]},
+    "section_key": {
+      "type": "string",
+      "enum": ["overview", "track_record", "strategy", "requirements", "operations_sla", "organization"]
+    },
+    "company_binding": {
+      "type": "object", "additionalProperties": false,
+      "required": [
+        "graph_version_id", "graph_sha256", "profile_version_id", "profile_sha256",
+        "ontology_version", "ontology_sha256"
+      ],
+      "properties": {
+        "graph_version_id": {"$ref": "#/$defs/uuid"},
+        "graph_sha256": {"$ref": "#/$defs/sha256"},
+        "profile_version_id": {"$ref": "#/$defs/uuid"},
+        "profile_sha256": {"$ref": "#/$defs/sha256"},
+        "ontology_version": {"$ref": "#/$defs/nonempty"},
+        "ontology_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "notice_meta": {
+      "type": "object", "additionalProperties": false,
+      "required": ["title", "agency", "deadline_at", "method", "estimated_price"],
+      "properties": {
+        "title": {"$ref": "#/$defs/nullable_text"},
+        "agency": {"$ref": "#/$defs/nullable_text"},
+        "deadline_at": {"$ref": "#/$defs/nullable_text"},
+        "method": {"$ref": "#/$defs/nullable_text"},
+        "estimated_price": {"$ref": "#/$defs/nullable_text"}
+      }
+    },
+    "section_kind": {
+      "type": "string",
+      "enum": ["overview", "schedule", "budget", "eligibility", "evaluation", "contract"]
+    },
+    "page_range": {
+      "type": "object", "additionalProperties": false,
+      "required": ["first", "last"],
+      "properties": {
+        "first": {"type": "integer", "minimum": 1},
+        "last": {"type": "integer", "minimum": 1}
+      }
+    },
+    "unit_block": {
+      "type": "object", "additionalProperties": false,
+      "required": ["block_key", "text"],
+      "properties": {
+        "block_key": {"$ref": "#/$defs/nonempty"},
+        "text": {"type": "string"}
+      }
+    },
+    "unit": {
+      "type": "object", "additionalProperties": false,
+      "required": [
+        "unit_id", "source_sha256", "document_version_id", "structure_id", "manifest_id",
+        "kind", "ordinal", "normalized_id", "section_kinds", "blocks", "page_range", "mapping_status"
+      ],
+      "properties": {
+        "unit_id": {"$ref": "#/$defs/nonempty"},
+        "source_sha256": {"$ref": "#/$defs/sha256"},
+        "document_version_id": {"$ref": "#/$defs/uuid"},
+        "structure_id": {"$ref": "#/$defs/uuid"},
+        "manifest_id": {"$ref": "#/$defs/uuid"},
+        "kind": {"type": "string", "enum": ["card", "segment"]},
+        "ordinal": {"type": "integer", "minimum": 0},
+        "normalized_id": {"type": ["string", "null"], "minLength": 1},
+        "section_kinds": {"type": "array", "items": {"$ref": "#/$defs/section_kind"}},
+        "blocks": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/unit_block"}},
+        "page_range": {"anyOf": [{"$ref": "#/$defs/page_range"}, {"type": "null"}]},
+        "mapping_status": {"type": "string", "enum": ["mapped", "partial", "inherited", "unavailable"]}
+      }
+    },
+    "fit": {"type": "string", "enum": ["met", "gap", "unknown"]},
+    "compare_reason": {
+      "type": "string",
+      "enum": [
+        "confirmed_match", "confirmed_contradiction", "unknown_fact", "proposed_fact", "partial_path",
+        "unmapped", "unsupported_comparison", "scope_unverified", "contract_unaccepted", "incomplete_unit"
+      ]
+    },
+    "constraint_result": {
+      "type": "object", "additionalProperties": false,
+      "required": ["constraint_index", "status", "fact_ids", "path_ids", "reason_code"],
+      "properties": {
+        "constraint_index": {"type": "integer", "minimum": 0},
+        "status": {"$ref": "#/$defs/fit"},
+        "fact_ids": {"type": "array", "items": {"$ref": "#/$defs/nonempty"}},
+        "path_ids": {"type": "array", "items": {"type": "integer", "minimum": 0}},
+        "reason_code": {"$ref": "#/$defs/compare_reason"}
+      }
+    },
+    "compare": {
+      "type": "object", "additionalProperties": false,
+      "required": ["unit_id", "fit_status", "constraint_results", "evidence_ids", "reason_codes"],
+      "properties": {
+        "unit_id": {"$ref": "#/$defs/nonempty"},
+        "fit_status": {"$ref": "#/$defs/fit"},
+        "constraint_results": {"type": "array", "items": {"$ref": "#/$defs/constraint_result"}},
+        "evidence_ids": {"type": "array", "items": {"$ref": "#/$defs/uuid"}},
+        "reason_codes": {"type": "array", "items": {"$ref": "#/$defs/compare_reason"}}
+      }
+    },
+    "evidence": {
+      "type": "object", "additionalProperties": false,
+      "required": ["source_sha256", "block_key", "quote"],
+      "properties": {
+        "source_sha256": {"$ref": "#/$defs/sha256"},
+        "block_key": {"$ref": "#/$defs/nonempty"},
+        "quote": {"$ref": "#/$defs/nonempty"}
+      }
+    },
+    "checklist_item": {
+      "type": "object", "additionalProperties": false,
+      "required": ["key", "status", "evidence_refs"],
+      "properties": {
+        "key": {
+          "type": "string",
+          "enum": [
+            "qualification_track_record", "staffing_onsite", "amount_period", "technology",
+            "operations_sla_security"
+          ]
+        },
+        "status": {"$ref": "#/$defs/fit"},
+        "evidence_refs": {"type": "array", "items": {"$ref": "#/$defs/evidence"}}
+      }
+    },
+    "verdict": {
+      "type": "object", "additionalProperties": false,
+      "required": ["verdict", "reason", "checklist"],
+      "properties": {
+        "verdict": {"type": "string", "enum": ["진행 가능", "조건부 진행", "진행 어려움", "판단 불가"]},
+        "reason": {"$ref": "#/$defs/nonempty"},
+        "checklist": {"type": "array", "items": {"$ref": "#/$defs/checklist_item"}}
+      }
+    },
+    "company_fact": {
+      "type": "object", "additionalProperties": false,
+      "required": ["fact_key", "type", "label", "value"],
+      "properties": {
+        "fact_key": {"$ref": "#/$defs/nonempty"},
+        "type": {"$ref": "#/$defs/nonempty"},
+        "label": {"$ref": "#/$defs/nonempty"},
+        "value": {"type": ["object", "array", "string", "number", "boolean", "null"]}
+      }
+    },
+    "missing_fact": {
+      "type": "object", "additionalProperties": false,
+      "required": ["fact_key", "status"],
+      "properties": {
+        "fact_key": {"$ref": "#/$defs/nonempty"},
+        "status": {"type": "string", "enum": ["proposed", "unknown"]}
+      }
+    }
+  }
+}

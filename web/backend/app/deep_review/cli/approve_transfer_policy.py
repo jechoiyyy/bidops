@@ -12,8 +12,13 @@ identity, the immutable policy file (``BIDOPS_RL_ANALYSIS_POLICY_PATH``) and the
 HP-00 runner identity must all agree.  ``request_id`` is a new ``uuid4()``
 unless ``--request-id`` replays an earlier call (``created=false``).
 
+RL-04: ``--policy proposal-policy-luna-v1`` approves the proposal row selected
+by ``BIDOPS_PROPOSAL_POLICY_VERSION_ID`` against ``BIDOPS_PROPOSAL_POLICY_PATH``
+with ``scope={"purposes": ["proposal"]}``; ``--daily-cap`` is drafts per day
+(default 3, 1..20).  Without ``--daily-cap`` an RL identity keeps its default 10.
+
 Exit 2 codes: policy_identity_mismatch | analysis_policy_unavailable |
-active_approval_exists | invalid_request (daily cap outside 1..50) |
+active_approval_exists | invalid_request (daily cap outside 1..50, proposal 1..20) |
 actor_name_required | actor_name_invalid.  Storage failure is
 ``storage_failed`` (exit 1).  stderr carries only the safe code.  No model or
 network is called; this is a human operation that needs a prior confirmation.
@@ -28,7 +33,7 @@ from typing import Any
 from uuid import UUID
 
 from ...core.db import SessionLocal, init_db
-from ..services.transfer_policy import DAILY_CAP_DEFAULT, TransferPolicyError, approve_transfer_policy
+from ..services.transfer_policy import TransferPolicyError, approve_transfer_policy
 
 
 def _emit(payload: dict[str, Any], *, error_code: str | None = None) -> None:
@@ -51,7 +56,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="python -m app.deep_review.cli approve-transfer-policy")
     parser.add_argument("--policy", required=True)
     parser.add_argument("--actor", required=True)
-    parser.add_argument("--daily-cap", type=int, default=DAILY_CAP_DEFAULT)
+    # None = the identity's default (RL 10, proposal 3).
+    parser.add_argument("--daily-cap", type=int, default=None)
     parser.add_argument("--request-id", type=UUID, default=None)
     parser.add_argument("--dry-run", action="store_true")
     return parser

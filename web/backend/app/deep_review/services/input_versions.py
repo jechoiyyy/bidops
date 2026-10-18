@@ -61,6 +61,8 @@ from .luna_identity import (
     ALLOWED_MODELS,
     COMPANY_POLICY_IDENTITIES,
     HP_POLICY_IDENTITY,
+    PROPOSAL_POLICY_IDENTITIES,
+    PROPOSAL_POLICY_IDENTITY,
     RL_POLICY_IDENTITIES,
     RL_POLICY_IDENTITY,
     RL_POLICY_IDENTITY_V2,
@@ -104,6 +106,11 @@ RL_LUNA_POLICY_FILE_V5 = CANONICAL_POLICY_FILE.with_name("analysis-policy-luna-r
 #: RL-03 결정 B37: v5 with the rewritten extract instruction only (unique numeric
 #: quotes, date ranges as text).  New immutable file; v1-v5 stay importable.
 RL_LUNA_POLICY_FILE_V6 = CANONICAL_POLICY_FILE.with_name("analysis-policy-luna-rl-v6.json")
+#: RL-04 proposal drafting policy (spec "생성 입력·정책·호출"): the
+#: ``bidops.analysis-policy.v2`` wire with ``purpose="proposal"``,
+#: ``pipeline_version="proposal-v1"`` and the six section stages.  Imported as an
+#: immutable row and selected only by ``BIDOPS_PROPOSAL_POLICY_VERSION_ID``.
+PROPOSAL_LUNA_POLICY_FILE = CANONICAL_POLICY_FILE.with_name("proposal-policy-luna-v1.json")
 #: Approved Luna files selected by ``policy_identity`` before any content-based
 #: v1-v3 detection.  An unknown identity is rejected, never downgraded.
 _LUNA_POLICY_FILES_BY_IDENTITY = {
@@ -117,6 +124,7 @@ _LUNA_POLICY_FILES_BY_IDENTITY = {
     RL_POLICY_IDENTITY_V4: RL_LUNA_POLICY_FILE_V4,
     RL_POLICY_IDENTITY_V5: RL_LUNA_POLICY_FILE_V5,
     RL_POLICY_IDENTITY_V6: RL_LUNA_POLICY_FILE_V6,
+    PROPOSAL_POLICY_IDENTITY: PROPOSAL_LUNA_POLICY_FILE,
 }
 STAGES = (
     "requirements_and_evaluation",
@@ -409,6 +417,10 @@ def resolve_active_versions(
         # Company policies are selected only by
         # BIDOPS_DEMO_DEEP_REVIEW_POLICY_VERSION_ID; it is never a global active policy.
         raise InputVersionError("service_unavailable", "회사 전용 정책은 전역 active policy가 될 수 없습니다")
+    if isinstance(snapshot, Mapping) and snapshot.get("policy_identity") in PROPOSAL_POLICY_IDENTITIES:
+        # RL-04: the proposal policy is selected only by
+        # BIDOPS_PROPOSAL_POLICY_VERSION_ID; it never runs a deep review.
+        raise InputVersionError("service_unavailable", "제안서 초안 정책은 전역 active policy가 될 수 없습니다")
     if not isinstance(profile.profile_payload, Mapping) or profile.profile_payload.get("source_sha256") != profile.profile_sha256:
         raise InputVersionError("service_unavailable", "active profile hash가 payload와 일치하지 않습니다")
     _validate_model_binding(policy, allow_unmeasured_reference=allow_unmeasured_reference)
@@ -1388,6 +1400,70 @@ def _require_card_policy(policy: Mapping[str, Any]) -> None:
         raise InputVersionError("invalid_request", "RL card analysis policy가 올바르지 않습니다")
 
 
+#: Closed key sets of the RL-04 proposal policy (spec "생성 입력·정책·호출"): the
+#: loader-required v2 keys plus ``policy_identity``/``pipeline_version``/``purpose``.
+_PROPOSAL_POLICY_KEYS = frozenset({
+    "schema", "policy_identity", "pipeline_version", "purpose", "model_endpoint_ref", "model_name",
+    "generation", "quality_status", "chunking", "execution", "prompt_output_contract", "stage_schema",
+    "report_schema", "stages", "validation",
+})
+_PROPOSAL_PROMPT_KEYS = frozenset({
+    "input_rule", "sentence_rule", "source_rule", "forbidden_content_rule", "placeholder_rule",
+    "company_input_rule", "coverage_rule", "unknown_rule", "repair_rule",
+})
+#: The six proposal sections in order (spec "절과 목차 대응"); one Luna call each.
+PROPOSAL_SECTION_KEYS = ("overview", "track_record", "strategy", "requirements", "operations_sla", "organization")
+#: Prompt limit of the runner contract ``proposal-section-v1`` (spec "입력 예산").
+PROPOSAL_PROMPT_MAX_CHARACTERS = 120000
+
+
+def _require_proposal_policy(policy: Mapping[str, Any]) -> None:
+    """Validate the closed RL-04 proposal policy before import or execution.
+
+    Identity, purpose, model, CLI, schemas, execution limits, section order and
+    the prompt rule key set are exact; nothing in this policy is ``tunable``
+    (the daily cap lives on the transfer approval row, not here).
+    """
+
+    if (
+        set(policy) != _PROPOSAL_POLICY_KEYS
+        or policy.get("schema") != "bidops.analysis-policy.v2"
+        or policy.get("policy_identity") not in PROPOSAL_POLICY_IDENTITIES
+        or policy.get("pipeline_version") != "proposal-v1"
+        or policy.get("purpose") != "proposal"
+        or policy.get("model_endpoint_ref") != "codex-exec"
+        or policy.get("model_name") != "gpt-6-luna"
+        or policy.get("quality_status") != "unmeasured_reference"
+        or policy.get("stage_schema") != "bidops.proposal-section.v1"
+        or policy.get("report_schema") != "bidops.proposal.v1"
+        or policy.get("generation") != {"reasoning_effort": "high"}
+    ):
+        raise InputVersionError("invalid_request", "proposal policy identity가 올바르지 않습니다")
+    stages = policy.get("stages")
+    prompt_contract = policy.get("prompt_output_contract")
+    if (
+        policy.get("chunking") != {
+            "max_characters": PROPOSAL_PROMPT_MAX_CHARACTERS, "retries": 0, "timeout_seconds": 900,
+        }
+        or policy.get("execution") != {
+            "automatic_retry": False, "cli_version": "0.162.1", "review_timeout_seconds": 5400,
+            "timeout_seconds": 900, "validation_repair_attempts": 1,
+        }
+        or policy.get("validation") != {
+            "allowed_repair": "syntax_or_schema_only", "company_claims": "confirmed_facts_only",
+            "evidence": "exact_frozen_quote", "forbidden_content": "reject_unquoted_price_staffing_schedule",
+            "human_decision": "never", "requirement_coverage": "all_card_units",
+        }
+        or not isinstance(prompt_contract, Mapping) or set(prompt_contract) != _PROPOSAL_PROMPT_KEYS
+        or any(not isinstance(value, str) or not value for value in prompt_contract.values())
+        or not isinstance(stages, list)
+        or any(not isinstance(row, Mapping) or set(row) != {"stage", "instruction"}
+               or not isinstance(row.get("instruction"), str) or not row["instruction"] for row in stages)
+        or tuple(row["stage"] for row in stages) != PROPOSAL_SECTION_KEYS
+    ):
+        raise InputVersionError("invalid_request", "proposal policy가 올바르지 않습니다")
+
+
 def load_canonical_policy(path: Path | None = None) -> tuple[dict[str, Any], bytes, str]:
     policy_path = Path(path or CANONICAL_POLICY_FILE)
     try:
@@ -1404,6 +1480,8 @@ def load_canonical_policy(path: Path | None = None) -> tuple[dict[str, Any], byt
         _require_path_limit(policy)
     if policy.get("policy_identity") in RL_POLICY_IDENTITIES:
         _require_card_policy(policy)
+    if policy.get("policy_identity") in PROPOSAL_POLICY_IDENTITIES or policy.get("purpose") == "proposal":
+        _require_proposal_policy(policy)
     approved_path = _approved_policy_path(policy)
     if policy_path.resolve() != approved_path.resolve():
         try:
@@ -1620,6 +1698,7 @@ def bundle_context(
 
 __all__ = [
     "CANONICAL_POLICY_FILE", "DEMO_LUNA_POLICY_FILE", "DEMO_LUNA_POLICY_IDENTITY", "HP_LUNA_POLICY_FILE", "LUNA_V4_POLICY_IDENTITY", "RL_LUNA_POLICY_FILE", "RL_LUNA_POLICY_FILE_V2", "RL_LUNA_POLICY_FILE_V3", "RL_LUNA_POLICY_FILE_V4", "RL_LUNA_POLICY_FILE_V5", "RL_LUNA_POLICY_FILE_V6", "STAGE_SCHEMA_BY_RL_IDENTITY", "CARD_SELECTOR_BY_RL_IDENTITY", "LUNA_V5_POLICY_FILE", "LUNA_V5_POLICY_IDENTITY", "MODEL_ENDPOINT_REF", "MODEL_NAME", "POLICY_SCHEMA", "PROFILE_SCHEMA_V1", "PROFILE_SCHEMA_V2", "PROFILE_SOURCE_FILE", "STAGES",
+    "PROPOSAL_LUNA_POLICY_FILE", "PROPOSAL_PROMPT_MAX_CHARACTERS", "PROPOSAL_SECTION_KEYS",
     "GradeBasis", "InputVersionError", "active_version_ids", "bundle_context", "canonical_json_bytes", "canonical_json_hash",
     "effective_grade_basis", "import_policy_version", "import_profile_version", "load_canonical_policy", "policy_activation_valid",
     "profile_context", "resolve_active_versions", "validate_pinned_policy", "validate_profile_snapshot", "policy_quality_snapshot",

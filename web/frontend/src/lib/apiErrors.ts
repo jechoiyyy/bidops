@@ -709,6 +709,130 @@ export function describeVerdictRunCode(code: string | null): { title: string; de
 }
 
 /**
+ * 제안서 초안(RL-04) 화면의 안전한 코드 문구. 요청·수정·검토·내보내기 오류와 절 `error_code`가 함께 쓴다.
+ * 정본은 spec "상태 값과 실패 처리"의 오류 code 목록이다. 서버 message는 화면에 내지 않는다.
+ */
+const PROPOSAL_CODE_DESCRIPTION: Readonly<Record<string, CodeDescription>> = {
+  verdict_required: {
+    title: "완료된 판정이 없어 초안을 만들 수 없습니다.",
+    detail: "제안서 초안은 판정이 끝난 뒤에 만들 수 있습니다. 판정 탭에서 판정 상태를 먼저 확인하십시오.",
+    action: null,
+  },
+  policy_not_approved: {
+    title: "제안서 초안 전송 승인이 없습니다.",
+    detail: "초안은 운영 담당자가 이 용도의 전송 정책을 승인한 뒤에만 만들 수 있습니다. 화면이 대신 승인하지 않습니다. 담당자에게 확인하십시오.",
+    action: "contact",
+  },
+  daily_cap_reached: {
+    title: "오늘 초안 생성 한도에 도달했습니다.",
+    detail: "하루에 만들 수 있는 초안과 절 다시 쓰기 수를 모두 썼습니다. 내일 다시 요청하거나 담당자에게 한도를 확인하십시오.",
+    action: null,
+  },
+  draft_in_progress: {
+    title: "이미 초안을 만드는 중입니다.",
+    detail: "지금 생성이 끝난 뒤에 다시 만들 수 있습니다. 최신 상태를 다시 불러와 확인하십시오.",
+    action: "reload",
+  },
+  section_in_progress: {
+    title: "이 절을 이미 다시 쓰는 중입니다.",
+    detail: "생성이 끝난 뒤에 다시 요청할 수 있습니다. 최신 상태를 다시 불러와 확인하십시오.",
+    action: "reload",
+  },
+  section_not_completed: {
+    title: "생성이 끝나지 않았거나 실패한 절은 검토 완료로 표시할 수 없습니다.",
+    detail: "정상으로 생성된 절만 검토 완료로 표시합니다. 최신 상태를 다시 불러와 확인하십시오.",
+    action: "reload",
+  },
+  sentence_not_found: {
+    title: "고칠 문장을 찾을 수 없습니다.",
+    detail: "절이 다시 만들어져 문장이 바뀌었을 수 있습니다. 최신 상태를 불러온 뒤 다시 고치십시오. 입력한 문장은 저장되지 않았습니다.",
+    action: "reload",
+  },
+  draft_not_completed: {
+    title: "생성이 끝나지 않은 초안은 내보낼 수 없습니다.",
+    detail: "초안 생성이 끝난 뒤에 PDF를 내보낼 수 있습니다. 일부 절이 실패했어도 끝났다면 내보낼 수 있습니다. 최신 상태를 다시 불러와 확인하십시오.",
+    action: "reload",
+  },
+  stage_transition_invalid: {
+    title: "지금은 제출 준비로 표시할 수 없습니다.",
+    detail: "모든 절을 검토 완료로 표시한 초안만 제출 준비로 표시할 수 있습니다. 최신 상태를 다시 불러와 확인하십시오.",
+    action: "reload",
+  },
+  pdf_unavailable: {
+    title: "PDF를 만들 수 없습니다.",
+    detail: "서버에 PDF용 글꼴이 없어 내보내지 못했습니다. 초안은 그대로 남아 있습니다. 담당자에게 확인하십시오.",
+    action: "contact",
+  },
+  not_found: {
+    title: "대상을 찾을 수 없습니다.",
+    detail: "초안·절·내보낸 PDF가 없거나 이 사업기회의 것이 아닙니다. 최신 상태를 다시 불러와 확인하십시오.",
+    action: "reload",
+  },
+  service_unavailable: {
+    title: "제안서 초안 생성이 꺼져 있습니다.",
+    detail: "이 환경에서는 초안 실행이 비활성입니다. 새 초안과 절 다시 쓰기를 요청할 수 없습니다. 운영 설정은 담당자에게 확인하십시오.",
+    action: "contact",
+  },
+  company_input_invalid: {
+    title: "회사 근거가 초안 입력 조건을 만족하지 않습니다.",
+    detail: "초안 입력을 만들지 못해 요청하지 않았습니다. 다른 정보로 대신하지 않습니다. 회사 근거 상태를 담당자에게 확인하십시오.",
+    action: "contact",
+  },
+  processing_failed: {
+    title: "서버가 제안서 초안 요청을 처리하지 못했습니다.",
+    detail: "잠시 뒤 다시 시도하십시오. 계속되면 담당자에게 문의하십시오. 요청이 저장됐는지는 최신 상태를 불러와 확인하십시오.",
+    action: "reload",
+  },
+  proposal_forbidden_content: {
+    title: "가격·인력·일정 약속 검증을 통과하지 못했습니다.",
+    detail: "근거 없는 금액·투입 인원·기간 약속이 들어 있어 이 절을 쓰지 않았습니다. 자동으로 고치지 않습니다. 다시 쓰거나 사람이 직접 작성하십시오.",
+    action: null,
+  },
+  proposal_section_invalid: {
+    title: "출처·구조 검증을 통과하지 못했습니다.",
+    detail: "출처가 없거나 원문과 맞지 않는 문장이 있어 이 절을 쓰지 않았습니다. 자동으로 고치지 않습니다. 다시 쓰거나 사람이 직접 작성하십시오.",
+    action: null,
+  },
+  proposal_coverage_incomplete: {
+    title: "요구사항을 빠짐없이 덮지 못했습니다.",
+    detail: "일부 요구사항에 대한 수행방안이 빠져 이 절을 쓰지 않았습니다. 자동으로 고치지 않습니다. 다시 쓰거나 사람이 직접 작성하십시오.",
+    action: null,
+  },
+  proposal_review_timeout: {
+    title: "정해진 시간 안에 초안 생성이 끝나지 않았습니다.",
+    detail: "늦게 온 응답은 저장하지 않습니다. 이 절은 다시 쓰기로 새로 요청하거나 사람이 직접 작성하십시오.",
+    action: null,
+  },
+  input_budget_exceeded: {
+    title: "이 절의 입력이 분석 한도를 넘었습니다.",
+    detail: "입력을 나누거나 자르지 않으므로 이 절은 만들지 못했습니다. 다른 절은 그대로 검토할 수 있고 이 절은 사람이 직접 작성해야 합니다.",
+    action: null,
+  },
+};
+
+/** 제안서 초안 화면의 오류 문구. 표에 없는 코드는 판정 화면 규칙(`describeVerdictApiError`)과 공용 규칙으로 떨어진다. */
+export function describeProposalApiError(error: unknown, fallback: string): ApiErrorDescription {
+  const status = readStatus(error);
+  const code = readCode(error);
+  if (status !== 0 && code !== null) {
+    const known = PROPOSAL_CODE_DESCRIPTION[code];
+    if (known) return { ...known, code };
+  }
+  return describeVerdictApiError(error, fallback);
+}
+
+/**
+ * 실패한 절의 `error_code`를 사람 문구로 옮긴다. 화면에 문장이 있는 코드만 번역하고
+ * **모르는 코드는 숨기지 않고 코드 그대로** 돌려준다(`detail`은 `null`).
+ */
+export function describeProposalRunCode(code: string | null): { title: string; detail: string | null; code: string | null } | null {
+  if (code === null) return null;
+  const known = PROPOSAL_CODE_DESCRIPTION[code];
+  if (known) return { title: known.title, detail: known.detail, code };
+  return { title: "초안 생성 중 안전 오류가 기록됐습니다.", detail: null, code };
+}
+
+/**
  * 오류 표시에 붙일 행동 버튼 하나. `contact`와 `null`은 버튼을 만들지 않는다 —
  * 화면이 대신 문의할 수 없고, 없는 복구 경로를 버튼으로 지어내지 않는다.
  */

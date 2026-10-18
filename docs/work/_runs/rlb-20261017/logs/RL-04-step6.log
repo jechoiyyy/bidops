@@ -1,0 +1,55 @@
+.s.s.s.s.s.s.s.s.ss.s.s.s.s.s.s.s.s.s.s.s.ss......s.s.s.s.s.s.s.s.s.s.s. [ 34%]
+s.s.s.ss................................................................ [ 69%]
+...............................................................          [100%]
+=============================== warnings summary ===============================
+../../../../../../../../../private/tmp/claude-502/-Users-temp-orca-bidops/f18c3f29-e3fa-486a-92f8-92223fb99eab/scratchpad/venv/lib/python3.12/site-packages/fastapi/testclient.py:1
+  /private/tmp/claude-502/-Users-temp-orca-bidops/f18c3f29-e3fa-486a-92f8-92223fb99eab/scratchpad/venv/lib/python3.12/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+app/deep_review/schemas/document_bundles.py:115
+  /Users/temp/orca/bidops/.sdlc/worktrees/rlb-20261017-RL-04-proposal-draft/web/backend/app/deep_review/schemas/document_bundles.py:115: UserWarning: Field name "schema" in "DocumentStructure" shadows an attribute in parent "StrictModel"
+    class DocumentStructure(StrictModel):
+
+app/deep_review/schemas/document_bundles.py:227
+  /Users/temp/orca/bidops/.sdlc/worktrees/rlb-20261017-RL-04-proposal-draft/web/backend/app/deep_review/schemas/document_bundles.py:227: UserWarning: Field name "schema" in "SegmentExtractorBinding" shadows an attribute in parent "StrictModel"
+    class SegmentExtractorBinding(StrictModel):
+
+app/deep_review/schemas/document_bundles.py:235
+  /Users/temp/orca/bidops/.sdlc/worktrees/rlb-20261017-RL-04-proposal-draft/web/backend/app/deep_review/schemas/document_bundles.py:235: UserWarning: Field name "schema" in "DocumentSegmentsView" shadows an attribute in parent "StrictModel"
+    class DocumentSegmentsView(StrictModel):
+
+app/deep_review/schemas/reports.py:69
+  /Users/temp/orca/bidops/.sdlc/worktrees/rlb-20261017-RL-04-proposal-draft/web/backend/app/deep_review/schemas/reports.py:69: UserWarning: Field name "schema" in "DeepReviewReport" shadows an attribute in parent "StrictModel"
+    class DeepReviewReport(StrictModel):
+
+app/deep_review/schemas/reports.py:122
+  /Users/temp/orca/bidops/.sdlc/worktrees/rlb-20261017-RL-04-proposal-draft/web/backend/app/deep_review/schemas/reports.py:122: UserWarning: Field name "schema" in "NarrativeReport" shadows an attribute in parent "DeepReviewReport"
+    class NarrativeReport(DeepReviewReport):
+
+app/deep_review/schemas/reports.py:143
+  /Users/temp/orca/bidops/.sdlc/worktrees/rlb-20261017-RL-04-proposal-draft/web/backend/app/deep_review/schemas/reports.py:143: UserWarning: Field name "schema" in "DeepReviewValidation" shadows an attribute in parent "StrictModel"
+    class DeepReviewValidation(StrictModel):
+
+app/deep_review/agents/common/contracts.py:391
+  /Users/temp/orca/bidops/.sdlc/worktrees/rlb-20261017-RL-04-proposal-draft/web/backend/app/deep_review/agents/common/contracts.py:391: UserWarning: Field name "schema" in "AgentRunView" shadows an attribute in parent "_StrictModel"
+    class AgentRunView(_StrictModel):
+
+app/deep_review/agents/common/contracts.py:462
+  /Users/temp/orca/bidops/.sdlc/worktrees/rlb-20261017-RL-04-proposal-draft/web/backend/app/deep_review/agents/common/contracts.py:462: UserWarning: Field name "schema" in "AgentCommand" shadows an attribute in parent "_StrictModel"
+    class AgentCommand(_StrictModel, Generic[TAction]):
+
+tests/app/test_verdict_links.py::test_t8_briefing_verdict_display_follows_the_card_attempt[sqlite]
+  /Users/temp/orca/bidops/.sdlc/worktrees/rlb-20261017-RL-04-proposal-draft/web/backend/app/deep_review/services/verdict_links.py:251: SAWarning: SELECT statement has a cartesian product between FROM element(s) "opportunity" and FROM element "opportunity_link".  Apply join condition(s) between each element to resolve.
+    for notice_id, opportunity_id in session.execute(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+SKIPPED [9] tests/app/test_proposal_api.py: BIDOPS_TEST_POSTGRES_URL is not set; PostgreSQL migration and constraint tests need a disposable PostgreSQL 17 server
+SKIPPED [1] tests/app/test_proposal_api.py:445: BIDOPS_TEST_POSTGRES_URL is not set; PostgreSQL migration and constraint tests need a disposable PostgreSQL 17 server
+SKIPPED [12] tests/app/test_proposal_draft.py: BIDOPS_TEST_POSTGRES_URL is not set; PostgreSQL migration and constraint tests need a disposable PostgreSQL 17 server
+SKIPPED [1] tests/app/test_proposal_draft.py:539: BIDOPS_TEST_POSTGRES_URL is not set; PostgreSQL migration and constraint tests need a disposable PostgreSQL 17 server
+SKIPPED [8] tests/app/test_verdict_api.py: BIDOPS_TEST_POSTGRES_URL is not set; PostgreSQL migration and constraint tests need a disposable PostgreSQL 17 server
+SKIPPED [7] tests/app/test_verdict_links.py: BIDOPS_TEST_POSTGRES_URL is not set; PostgreSQL migration and constraint tests need a disposable PostgreSQL 17 server
+SKIPPED [1] tests/app/test_opportunity_activity_postgres.py: BIDOPS_TEST_POSTGRES_URL is not set; PostgreSQL migration and constraint tests need a disposable PostgreSQL 17 server
+168 passed, 39 skipped, 10 warnings in 29.60s
+exit=0

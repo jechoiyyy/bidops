@@ -34,6 +34,12 @@ RL_POLICY_IDENTITIES = frozenset({
     RL_POLICY_IDENTITY_V5, RL_POLICY_IDENTITY_V6,
 })
 COMPANY_POLICY_IDENTITIES = frozenset({"analysis-policy-luna-demo-v1", HP_POLICY_IDENTITY, *RL_POLICY_IDENTITIES})
+#: RL-04 proposal drafting (``pipeline_version="proposal-v1"``, ``purpose="proposal"``).
+#: Selected only through ``BIDOPS_PROPOSAL_POLICY_VERSION_ID``; it is neither a
+#: global deep-review policy nor a company deep-review (card/narrative) policy,
+#: so it deliberately stays out of ``COMPANY_POLICY_IDENTITIES``.
+PROPOSAL_POLICY_IDENTITY = "proposal-policy-luna-v1"
+PROPOSAL_POLICY_IDENTITIES = frozenset({PROPOSAL_POLICY_IDENTITY})
 
 LEGACY_MODELS = frozenset({"gpt-5.6-luna"})
 LEGACY_EFFORTS = frozenset({"xhigh"})

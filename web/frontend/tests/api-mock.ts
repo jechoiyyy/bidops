@@ -7,7 +7,7 @@ import type {
   OpportunityRecheckEventView, OpportunityTrackingDecisionItem, OpportunityTrackingStatus,
   OrderPlanListItem, OrderPlanListScope, OrderPlanScreeningExecutionSummary, OrderPlanScreeningErrorCode,
   OrderPlanTracking, OrderPlanBulkPreviewResponse, OrderPlanBulkStartResponse, OrderPlanBulkEndResponse,
-  OverviewEnvelope, OverviewRun, PractitionerVerdictView, PreSpecDisplayAssessment, PreSpecListItem, PreSpecOrderPlanCandidatesResponse,
+  OverviewEnvelope, OverviewRun, PractitionerVerdictView, PreSpecDisplayAssessment, ProposalDraft, ProposalSectionKey, PreSpecListItem, PreSpecOrderPlanCandidatesResponse,
   RunSummary, WorkloadKey, WorkloadResponse,
 } from "../src/lib/types";
 import { searchKey, searchMatches } from "../src/lib/search";
@@ -43,6 +43,7 @@ import { RL_COMPANY_ID, rlAttentionCount, rlContextView, rlFacts, rlProfileView,
 import { briefingFixture, previousBriefingFixture } from "./fixtures/briefing";
 import { NOTICE_FIXTURES, RECORD_FIXTURES, RECORD_NOW, RELATED_BY_NOTICE, type RecordFixture } from "./fixtures/opportunity-record";
 import { VERDICT_COMPANY_ID, noneView, pageBlocks, runningView } from "./fixtures/verdict";
+import { PROPOSAL_PDF_SHA, noneProposalView, view as proposalViewOf, withCounters } from "./fixtures/proposal";
 
 const opportunityFixtures = new WeakMap<Page, OpportunityListItem[]>();
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -4300,6 +4301,15 @@ export async function mockCompanyWorkspace(page: Page, options: CompanyWorkspace
 // 없는 레코드는 서버처럼 200 `availability=none`이고 `trace.setVerdict`로 서버 쪽 상태를 바꾼다. 요청 검증 순서는
 // 실제 서버를 따른다: actor 400 → body 422 → 진행 중 실행 409 `active_attempt_exists` → 같은 request_id 재전송은
 // 같은 접수(202)다. 피드백은 actor 400 → body 422 → 201 `{feedback_id}`다.
+//
+// RL-04 제안서 초안(`GET /{id}/proposal`, `POST /{id}/proposal-requests`, `POST /api/proposals/{draft}/sections/{key}/
+// regenerations`, `PATCH …/sections/{key}/review`, `POST …/sentences/{id}/edits`, `POST …/exports`,
+// `GET …/exports/{export}.pdf`, `PATCH …/stage`)도 같은 규칙으로 답한다. 초안이 없으면 서버처럼 200 `{draft:null}`이고
+// `trace.setProposal`이 서버 쪽 초안을 바꾼다(여러 개면 마지막이 최신). 변경 요청의 검증 순서는 spec을 따른다: 주입 오류 →
+// actor 400 → body 422 → 404 → 상태 409. 새 초안은 완료된 판정(`trace.setVerdict`)이 있어야 하고(409 `verdict_required`)
+// 진행 중 초안이 있으면 409 `draft_in_progress`, 성공하면 이전 초안은 `superseded`다. 검토 완료는 `completed` 절만(409
+// `section_not_completed`)이고 6절이 모두 검토 완료이면 단계가 `reviewed`로 바뀐다. 내보내기는 같은 내용이면 기존 PDF를
+// `created=false`로 돌려준다. 이 mock은 생성 worker를 흉내 내지 않는다 — 생성 진행은 테스트가 `setProposal`로 만든다.
 export interface OpportunityRecordMockTrace {
   activityGets: URLSearchParams[];
   noteCreates: Array<{ id: number; body: Record<string, unknown>; headers: Record<string, string> }>;
@@ -4312,6 +4322,20 @@ export interface OpportunityRecordMockTrace {
   verdictRequests: Array<{ id: number; body: Record<string, unknown>; headers: Record<string, string> }>;
   verdictFeedbacks: Array<{ companyId: string; noticeId: number; body: Record<string, unknown>; headers: Record<string, string> }>;
   pageGets: Array<{ structureId: string; page: number }>;
+  proposalGets: Array<{ id: number; params: URLSearchParams }>;
+  proposalRequests: Array<{ id: number; body: Record<string, unknown>; headers: Record<string, string> }>;
+  proposalRegenerations: Array<{ draftId: string; sectionKey: string; body: Record<string, unknown>; headers: Record<string, string> }>;
+  proposalReviews: Array<{ draftId: string; sectionKey: string; body: Record<string, unknown>; headers: Record<string, string> }>;
+  proposalEdits: Array<{ draftId: string; sentenceId: string; body: Record<string, unknown>; headers: Record<string, string> }>;
+  proposalExports: Array<{ draftId: string; body: Record<string, unknown>; headers: Record<string, string> }>;
+  proposalPdfGets: Array<{ draftId: string; exportId: string }>;
+  proposalStages: Array<{ draftId: string; body: Record<string, unknown>; headers: Record<string, string> }>;
+  /** 서버 쪽 제안서 초안을 바꾼다. 비우면(`null`·빈 배열) 초안이 없는 상태이고 여러 개면 마지막이 최신이다. */
+  setProposal(opportunityId: number, drafts: ProposalDraft | ProposalDraft[] | null): void;
+  /** 지금 서버 쪽 초안(복사본). 없으면 `null`이다. */
+  getProposal(draftId: string): ProposalDraft | null;
+  /** 다음 요청부터 이 오류로 답한다. `null`이면 정상으로 돌아간다. */
+  failProposal(kind: "get" | "request" | "regenerate" | "review" | "edit" | "export" | "stage", failure: { status: number; code: string } | null): void;
   /** 서버 쪽 판정 상태를 바꾼다. `null`이면 판정이 없는 상태(`availability=none`)로 돌아간다. */
   setVerdict(opportunityId: number, view: PractitionerVerdictView | null): void;
   /** 다음 판정 조회부터 이 오류로 답한다. `null`이면 정상으로 돌아간다. */
@@ -4340,6 +4364,13 @@ export async function mockOpportunityRecord(page: Page): Promise<OpportunityReco
   const verdictReceipts = new Map<string, { attempt_id: string }>();
   const feedbackReceipts = new Map<string, string>();
   let verdictAttempts = 0;
+  const proposals = new Map<number, ProposalDraft[]>();
+  const proposalFailures = new Map<string, { status: number; code: string }>();
+  const proposalReceipts = new Map<string, unknown>();
+  const proposalOverlay = new Map<string, number>();
+  const proposalExportsByOverlay = new Map<string, string>();
+  let proposalDrafts = 0;
+  let proposalExportsMade = 0;
   let held: Promise<void> | null = null;
   let clockMinutes = 0;
   const receipts = new Map<string, { fingerprint: string; view: Record<string, unknown> }>();
@@ -4347,6 +4378,24 @@ export async function mockOpportunityRecord(page: Page): Promise<OpportunityReco
   const trace: OpportunityRecordMockTrace = {
     activityGets: [], noteCreates: [], noteDones: [], trackingPatches: [], noticeGets: [], relatedGets: [], unhandled: [],
     verdictGets: [], verdictRequests: [], verdictFeedbacks: [], pageGets: [],
+    proposalGets: [], proposalRequests: [], proposalRegenerations: [], proposalReviews: [], proposalEdits: [],
+    proposalExports: [], proposalPdfGets: [], proposalStages: [],
+    setProposal(opportunityId, drafts) {
+      const list = drafts === null ? [] : Array.isArray(drafts) ? drafts : [drafts];
+      if (list.length === 0) proposals.delete(opportunityId);
+      else proposals.set(opportunityId, structuredClone(list));
+    },
+    getProposal(draftId) {
+      for (const list of proposals.values()) {
+        const found = list.find((entry) => entry.draft_id === draftId);
+        if (found) return structuredClone(found);
+      }
+      return null;
+    },
+    failProposal(kind, failure) {
+      if (failure === null) proposalFailures.delete(kind);
+      else proposalFailures.set(kind, failure);
+    },
     setVerdict(opportunityId, view) {
       if (view === null) verdicts.delete(opportunityId);
       else verdicts.set(opportunityId, structuredClone(view));
@@ -4510,6 +4559,59 @@ export async function mockOpportunityRecord(page: Page): Promise<OpportunityReco
       return;
     }
 
+    // 제안서 초안 조회: 초안이 없으면 서버처럼 200 `{draft:null}`이다. `draft_id`가 이 사업기회의 초안이 아니면 404다.
+    if (rest === "/proposal" && method === "GET") {
+      trace.proposalGets.push({ id, params: new URLSearchParams(url.search) });
+      const failure = proposalFailures.get("get");
+      if (failure) { await recordError(route, failure.status, failure.code); return; }
+      const list = proposals.get(id) ?? [];
+      const wanted = url.searchParams.get("draft_id");
+      if (wanted) {
+        const found = list.find((entry) => entry.draft_id === wanted);
+        if (!found) { await recordError(route, 404, "not_found"); return; }
+        await fulfillJson(route, proposalViewOf(structuredClone(found)));
+        return;
+      }
+      await fulfillJson(route, list.length > 0 ? proposalViewOf(structuredClone(list[list.length - 1])) : noneProposalView());
+      return;
+    }
+
+    if (rest === "/proposal-requests" && method === "POST") {
+      const body = (request.postDataJSON() ?? {}) as Record<string, unknown>;
+      trace.proposalRequests.push({ id, body, headers: request.headers() });
+      const failure = proposalFailures.get("request");
+      if (failure) { await recordError(route, failure.status, failure.code); return; }
+      if (!actor) { await recordError(route, 400, "actor_name_required"); return; }
+      if (!uuidPattern.test(String(body.request_id)) || Object.keys(body).some((key) => key !== "request_id")) { await recordError(route, 422, "invalid_request"); return; }
+      const replay = proposalReceipts.get(`create:${id}:${String(body.request_id)}`);
+      if (replay) { await fulfillJson(route, replay, 202); return; }
+      const verdict = verdicts.get(id);
+      if (!verdict || verdict.availability !== "completed") { await recordError(route, 409, "verdict_required"); return; }
+      const list = proposals.get(id) ?? [];
+      const latest = list[list.length - 1];
+      if (latest && (latest.status === "queued" || latest.status === "running")) { await recordError(route, 409, "draft_in_progress"); return; }
+      proposalDrafts += 1;
+      const keys: ProposalSectionKey[] = ["overview", "track_record", "strategy", "requirements", "operations_sla", "organization"];
+      const titles: Record<ProposalSectionKey, string> = {
+        overview: "제안 개요", track_record: "사업수행 실적", strategy: "수행 전략",
+        requirements: "요구사항 수행방안", operations_sla: "운영·SLA", organization: "수행조직",
+      };
+      const draftId = `d4100000-0000-4000-8000-${String(proposalDrafts).padStart(12, "0")}`;
+      const created: ProposalDraft = withCounters({
+        draft_id: draftId, status: "queued", stage: "toc", created_at: nextInstant(),
+        sections: keys.map((key) => ({ section_key: key, title: titles[key], revision: 1, status: "queued" as const, paragraphs: [], requirement_links: [], error_code: null })),
+        requirement_coverage: { total: 0, linked: 0, unlinked_unit_ids: [] },
+        counters: { sentences_to_confirm: 0, placeholders: 0, proposed_figures: 0, reviewed_sections: 0 },
+        latest_export: null,
+        quality_status: null,
+      });
+      proposals.set(id, [...list.map((entry) => ({ ...entry, status: "superseded" as const })), created]);
+      const receipt = { draft_id: draftId, status: "queued" };
+      proposalReceipts.set(`create:${id}:${String(body.request_id)}`, receipt);
+      await fulfillJson(route, receipt, 202);
+      return;
+    }
+
     if (rest === "/tracking-status" && method === "PATCH") {
       const body = (request.postDataJSON() ?? {}) as Record<string, unknown>;
       trace.trackingPatches.push({ id, body, headers: request.headers() });
@@ -4531,6 +4633,129 @@ export async function mockOpportunityRecord(page: Page): Promise<OpportunityReco
         detail: status === "미선택" ? body.reason : null, link: null, status_pill: null,
       });
       await fulfillJson(route, record.detail);
+      return;
+    }
+
+    trace.unhandled.push(`${method} ${url.pathname}`);
+    await recordError(route, 404, "not_found");
+  });
+
+  await page.route(/\/api\/proposals\/[^/]+\/.+$/, async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    const method = request.method();
+    const found = url.pathname.match(/^\/api\/proposals\/([^/]+)\/(.+)$/);
+    if (!found) { await route.fallback(); return; }
+    const draftId = found[1];
+    const tail = found[2];
+    const actor = fixtureActor(request.headers()).trim();
+    let owner: { opportunityId: number; list: ProposalDraft[] } | null = null;
+    for (const [opportunityId, list] of proposals) {
+      if (list.some((entry) => entry.draft_id === draftId)) owner = { opportunityId, list };
+    }
+    const draft = owner?.list.find((entry) => entry.draft_id === draftId) ?? null;
+    const body = (method === "GET" ? {} : (request.postDataJSON() ?? {})) as Record<string, unknown>;
+    const bump = () => proposalOverlay.set(draftId, (proposalOverlay.get(draftId) ?? 0) + 1);
+    const invalid = (extraAllowed: string[] = []) =>
+      !uuidPattern.test(String(body.request_id)) || Object.keys(body).some((key) => key !== "request_id" && !extraAllowed.includes(key));
+
+    const pdf = tail.match(/^exports\/([^/]+)\.pdf$/);
+    if (pdf && method === "GET") {
+      trace.proposalPdfGets.push({ draftId, exportId: pdf[1] });
+      if (!draft || draft.latest_export?.export_id !== pdf[1]) { await recordError(route, 404, "not_found"); return; }
+      await route.fulfill({
+        status: 200,
+        contentType: "application/pdf",
+        headers: { "X-BidOps-Export-Sha256": draft.latest_export.pdf_sha256 },
+        body: Buffer.from("%PDF-1.4\n% synthetic proposal export\n%%EOF\n"),
+      });
+      return;
+    }
+
+    const regeneration = tail.match(/^sections\/([^/]+)\/regenerations$/);
+    if (regeneration && method === "POST") {
+      trace.proposalRegenerations.push({ draftId, sectionKey: regeneration[1], body, headers: request.headers() });
+      const failure = proposalFailures.get("regenerate");
+      if (failure) { await recordError(route, failure.status, failure.code); return; }
+      if (!actor) { await recordError(route, 400, "actor_name_required"); return; }
+      if (invalid()) { await recordError(route, 422, "invalid_request"); return; }
+      const section = draft?.sections.find((entry) => entry.section_key === regeneration[1]);
+      if (!draft || !section) { await recordError(route, 404, "not_found"); return; }
+      if (section.status === "queued" || section.status === "running") { await recordError(route, 409, "section_in_progress"); return; }
+      section.revision += 1;
+      section.status = "queued";
+      section.paragraphs = [];
+      section.requirement_links = [];
+      section.error_code = null;
+      bump();
+      Object.assign(draft, withCounters(draft));
+      await fulfillJson(route, { section_id: `a4000000-0000-4000-8000-${String(section.revision).padStart(12, "0")}`, revision: section.revision }, 202);
+      return;
+    }
+
+    const review = tail.match(/^sections\/([^/]+)\/review$/);
+    if (review && method === "PATCH") {
+      trace.proposalReviews.push({ draftId, sectionKey: review[1], body, headers: request.headers() });
+      const failure = proposalFailures.get("review");
+      if (failure) { await recordError(route, failure.status, failure.code); return; }
+      if (!actor) { await recordError(route, 400, "actor_name_required"); return; }
+      if (invalid()) { await recordError(route, 422, "invalid_request"); return; }
+      const section = draft?.sections.find((entry) => entry.section_key === review[1]);
+      if (!draft || !section) { await recordError(route, 404, "not_found"); return; }
+      if (section.status !== "completed" && section.status !== "reviewed") { await recordError(route, 409, "section_not_completed"); return; }
+      section.status = "reviewed";
+      if (draft.sections.every((entry) => entry.status === "reviewed") && draft.stage === "draft") draft.stage = "reviewed";
+      Object.assign(draft, withCounters(draft));
+      await fulfillJson(route, section, 200);
+      return;
+    }
+
+    const edit = tail.match(/^sentences\/([^/]+)\/edits$/);
+    if (edit && method === "POST") {
+      trace.proposalEdits.push({ draftId, sentenceId: edit[1], body, headers: request.headers() });
+      const failure = proposalFailures.get("edit");
+      if (failure) { await recordError(route, failure.status, failure.code); return; }
+      if (!actor) { await recordError(route, 400, "actor_name_required"); return; }
+      const text = typeof body.text === "string" ? body.text.trim() : "";
+      if (invalid(["text"]) || text.length < 1 || [...text].length > 400) { await recordError(route, 422, "invalid_request"); return; }
+      const sentence = draft?.sections.flatMap((entry) => entry.paragraphs.flatMap((paragraph) => paragraph.sentences)).find((entry) => entry.sentence_id === edit[1]);
+      if (!draft || !sentence) { await recordError(route, 404, "sentence_not_found"); return; }
+      sentence.text = text;
+      sentence.edited = true;
+      bump();
+      await fulfillJson(route, { edit_id: `ed000000-0000-4000-8000-${String(proposalOverlay.get(draftId) ?? 0).padStart(12, "0")}` }, 201);
+      return;
+    }
+
+    if (tail === "exports" && method === "POST") {
+      trace.proposalExports.push({ draftId, body, headers: request.headers() });
+      const failure = proposalFailures.get("export");
+      if (failure) { await recordError(route, failure.status, failure.code); return; }
+      if (!actor) { await recordError(route, 400, "actor_name_required"); return; }
+      if (invalid()) { await recordError(route, 422, "invalid_request"); return; }
+      if (!draft) { await recordError(route, 404, "not_found"); return; }
+      if (draft.status !== "completed" && draft.status !== "partial") { await recordError(route, 409, "draft_not_completed"); return; }
+      const key = `${draftId}:${proposalOverlay.get(draftId) ?? 0}`;
+      const existing = proposalExportsByOverlay.get(key);
+      if (existing) { await fulfillJson(route, { export_id: existing, pdf_sha256: PROPOSAL_PDF_SHA, created: false }, 201); return; }
+      proposalExportsMade += 1;
+      const exportId = `e4100000-0000-4000-8000-${String(proposalExportsMade).padStart(12, "0")}`;
+      proposalExportsByOverlay.set(key, exportId);
+      draft.latest_export = { export_id: exportId, created_at: nextInstant(), pdf_sha256: PROPOSAL_PDF_SHA };
+      await fulfillJson(route, { export_id: exportId, pdf_sha256: PROPOSAL_PDF_SHA, created: true }, 201);
+      return;
+    }
+
+    if (tail === "stage" && method === "PATCH") {
+      trace.proposalStages.push({ draftId, body, headers: request.headers() });
+      const failure = proposalFailures.get("stage");
+      if (failure) { await recordError(route, failure.status, failure.code); return; }
+      if (!actor) { await recordError(route, 400, "actor_name_required"); return; }
+      if (invalid(["stage"]) || body.stage !== "ready") { await recordError(route, 422, "invalid_request"); return; }
+      if (!draft) { await recordError(route, 404, "not_found"); return; }
+      if (draft.stage !== "reviewed") { await recordError(route, 409, "stage_transition_invalid"); return; }
+      draft.stage = "ready";
+      await fulfillJson(route, { stage: "ready" }, 200);
       return;
     }
 

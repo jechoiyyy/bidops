@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "bidops.proposal-section.v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["section_key", "title", "paragraphs", "requirement_links"],
+  "properties": {
+    "section_key": {"$ref": "#/$defs/section_key"},
+    "title": {"$ref": "#/$defs/nonempty"},
+    "paragraphs": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/paragraph"}},
+    "requirement_links": {"type": "array", "items": {"$ref": "#/$defs/requirement_link"}}
+  },
+  "$defs": {
+    "nonempty": {"type": "string", "minLength": 1},
+    "uuid": {
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+    },
+    "section_key": {
+      "type": "string",
+      "enum": ["overview", "track_record", "strategy", "requirements", "operations_sla", "organization"]
+    },
+    "paragraph": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["paragraph_id", "heading", "sentences"],
+      "properties": {
+        "paragraph_id": {"$ref": "#/$defs/nonempty"},
+        "heading": {"type": ["string", "null"], "minLength": 1},
+        "sentences": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/sentence"}}
+      }
+    },
+    "sentence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sentence_id", "text", "kind", "sources", "placeholder_hint"],
+      "properties": {
+        "sentence_id": {"$ref": "#/$defs/uuid"},
+        "text": {"type": "string", "minLength": 1, "maxLength": 400},
+        "kind": {"type": "string", "enum": ["statement", "placeholder", "proposed_figure"]},
+        "sources": {"type": "array", "items": {"$ref": "#/$defs/source"}},
+        "placeholder_hint": {"type": ["string", "null"], "minLength": 1}
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "ref", "quote"],
+      "properties": {
+        "kind": {"type": "string", "enum": ["requirement_unit", "company_fact", "notice_meta"]},
+        "ref": {"$ref": "#/$defs/nonempty"},
+        "quote": {"$ref": "#/$defs/nonempty"}
+      }
+    },
+    "requirement_link": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["unit_id", "paragraph_id"],
+      "properties": {
+        "unit_id": {"$ref": "#/$defs/nonempty"},
+        "paragraph_id": {"$ref": "#/$defs/nonempty"}
+      }
+    }
+  }
+}

@@ -73,7 +73,7 @@ hosted 외부 모델 reference overlay는 제거됐고 개발 검증에서도 �
 - `.env`는 모든 compose 파일이 공유하는 공통 파일이다. overlay 전용 값은 `env/<overlay>.env`에 두고 추가 `--env-file`로 넘긴다. `env/*.env.example`을 같은 이름의 `.env`로 복사해 사용하며 실제 파일은 커밋하지 않는다.
 - `BIDOPS_UID`와 `BIDOPS_GID`는 0이 아닌 host 계정과 맞춘다.
 - PostgreSQL owner, migrate, app, worker, read-only backup 계정의 비밀번호를 서로 다르게 설정한다.
-- MinIO root와 source, structure write/read, quarantine, model-response 자격증명을 용도별로 분리한다.
+- MinIO root와 source, structure write/read, quarantine, model-response, proposal-pdf(`BIDOPS_PROPOSAL_PDF_ACCESS_KEY`·`_SECRET_KEY`, web만 받음 — RL-04 결정 B48) 자격증명을 용도별로 분리한다.
 - 심층 검토 전에 승인된 profile version과 analysis policy version을 채운다. 빈 값이면 deep-review 생성이 fail closed하는 것이 정상이다.
 - 프로필 조회 화면은 승인된 profile snapshot에 고정된다. snapshot이 하나도 없으면 `/api/profile/sections`와 `/api/profile/unknowns`가 `503 profile_snapshot_unavailable`로 fail closed하는 것이 정상이다([ADR-0023](tracking/decisions/0023-company-profile-minimal-projection.md)). snapshot은 판정 실행이 만들므로 신규 배포에서는 회차 판정을 한 번 실행한 뒤에 프로필 화면을 사용한다.
 - 사설 vLLM을 사용할 때 endpoint의 literal IP와 allowlist를 일치시키고 host firewall에서 해당 IP와 port 외 egress를 차단한다.
@@ -221,7 +221,7 @@ curl --fail "http://127.0.0.1:${BIDOPS_WEB_PORT:-18787}/api/health"
 
 `--env-file`을 명시하면 기본 `.env` 자동 로드가 꺼지므로 공통 파일과 overlay 파일을 함께 넘긴다. overlay 없이 기동할 때는 `--env-file` 없이 `.env`가 자동 로드된다.
 
-`scripts/init-runtime.sh`는 DB 역할 초기화, Alembic migration, MinIO 버킷·정책 초기화를 순서대로 실행한다. 앱 startup은 이 작업을 대신하지 않는다. `bidops-source`, `bidops-structure`, `bidops-quarantine`, `bidops-model-response` 버킷은 versioning과 최소 권한 정책을 유지한다.
+`scripts/init-runtime.sh`는 DB 역할 초기화, Alembic migration, MinIO 버킷·정책 초기화를 순서대로 실행한다. 앱 startup은 이 작업을 대신하지 않는다. `bidops-source`, `bidops-structure`, `bidops-quarantine`, `bidops-model-response`, `bidops-proposal-pdf` 버킷은 versioning과 최소 권한 정책을 유지한다. 만료 규칙은 `bidops-model-response` 90일, `bidops-proposal-pdf`(RL-04 제안서 초안 PDF, `retention_class=proposal-pdf-365d`, 암호화 없음) 365일이며 나머지는 만료하지 않는다.
 
 `migrate` service는 Alembic 성공 뒤 `scripts/runtime-privileges.sql`을 적용한다. 이 단계는 이전 blanket grant를 먼저 회수하고 현재 head의 table·operation allowlist를 다시 부여한다. 새 table은 `app`·`worker` 기본 DML을 받지 않으므로 migration에 runtime write path가 추가되면 같은 변경에서 allowlist와 역할 smoke test를 갱신해야 한다. `ro_backup`만 현재·향후 table의 `SELECT` 기본 권한을 유지한다.
 
@@ -1407,7 +1407,7 @@ DB dump와 객체 manifest는 같은 복구 지점을 식별할 수 있게 함�
   원자적으로 다시 만든 manifest다. 수동으로 일부 object를 적은 파일을 준비하지 않는다.
 
 복구 순서는 객체 복사·백업 hash 확인 → DB restore → DB active manifest 생성 → target
-version ID·namespace별 무결성 및 active 집합 일대일 검증이다. source·structure·quarantine는
+version ID·namespace별 무결성 및 active 집합 일대일 검증이다. 다섯 버킷 모두 백업·복구 대상이다. source·structure·quarantine·proposal-pdf는
 target version의 stored-byte hash까지 대조한다. model-response는 암호화된 응답 envelope를
 저장하고 DB의 `ContentObject.sha256`에는 plaintext hash만 기록하므로, 내용 hash는 대조하지
 않고 target version에서 object 존재와 version만 확인한다. verifier는 mapping과 target의
@@ -1829,3 +1829,55 @@ docker compose -f docker-compose.yml exec web \
 **8. 되돌리기.** 가장 빠른 차단은 `revoke-transfer-policy`(이후 호출 0)이고, 그다음 `BIDOPS_RL_ANALYSIS_AUTO_START_ENABLED=false`·`BIDOPS_RL_ANALYSIS_ENABLED=false`로 재생성한다. 이미 저장된 판정·단계 행은 append-only라 지우지 않는다. 승인 철회는 감사 기록이 남는 CLI로만 하며 SQL로 고치지 않는다.
 
 **검증 명령(문서 단계 근거).** 변경 영향 범위만 돌린다: `pytest tests/deep_review/test_card_analysis.py tests/deep_review/test_card_compare.py tests/app/test_transfer_policy.py tests/app/test_verdict_api.py tests/app/test_verdict_payload_guard.py tests/deep_review/test_codex_runner.py tests/app/test_company_luna_policy.py`, PostgreSQL 변형은 일회용 `postgres:17.11`과 `BIDOPS_TEST_POSTGRES_URL`로 `test_card_analysis_postgres.py test_verdict_trigger_postgres.py test_db_migrations.py test_runtime_database_privileges.py`, 화면은 `npx playwright test --project=app verdict.spec.ts opportunity-record.spec.ts`.
+
+## RL 제안서 초안 운영 (RL-04, 2026-10-18)
+
+판정이 끝난 사업기회의 제안서 초안(여섯 절·요구사항 대응표·PDF)을 만드는 실행·설정·승인 절차다(규칙은 [business-rules.md "제안서 초안"](business-rules.md#제안서-초안-rl-04-2026-10-18), 계약은 [contracts.md "제안서 초안"](contracts.md#제안서-초안-rl-04-2026-10-18)). **구현·mock 검증은 `bidops-local` 격리 스택에서 한 것이고 운영 `bidops` 스택·운영 DB에는 반영하지 않았다.** 실제 Luna 초안 1건(T11)은 입력이 되는 RL-03 실제 판정이 없어 pending이다(결정 B37). 실제 초안·정책 승인·재배포·migration은 모두 직전에 사람 확인을 받는다.
+
+**설정.**
+
+| 키 | 기본 | 역할 |
+|---|---|---|
+| `BIDOPS_PROPOSAL_POLICY_PATH` | `policies/proposal-policy-luna-v1.json` | import 원본(immutable). 승인 CLI가 이 파일의 identity·sha를 선택 행과 대조한다 |
+| `BIDOPS_PROPOSAL_POLICY_VERSION_ID` | 없음 | import한 정책 행 선택. 비면 초안 생성·worker가 fail closed(`analysis_policy_unavailable`). RL-03 선택 env와 별개 |
+| `BIDOPS_PDF_FONT_DIR` | `/usr/share/fonts/truetype/nanum` | 백엔드 이미지가 apt `fonts-nanum`으로 넣는 `NanumGothic.ttf`·`NanumGothicBold.ttf`의 위치. 저장소에는 폰트 파일이 없다(D9). 없거나 읽을 수 없으면 내보내기가 503 `pdf_unavailable`. 이미지 폰트가 바뀌면 `font_sha256`이 바뀌어 같은 초안도 새 PDF가 된다 |
+| `BIDOPS_PROPOSAL_PDF_ACCESS_KEY`·`BIDOPS_PROPOSAL_PDF_SECRET_KEY` | 없음(compose는 `:?`로 요구) | 버킷 `bidops-proposal-pdf` 전용 자격증명. **web과 minio-init만** 받는다(분석 worker는 PDF를 다루지 않는다, 결정 B49) |
+| `BIDOPS_RL_ANALYSIS_ENABLED`·`BIDOPS_LUNA_DEEP_REVIEW_ENABLED`·`BIDOPS_REFERENCE_WORKFLOW_MODE` | 기존 | 셋 다 켜져 있어야 경로가 열리고 실행된다. 꺼져 있으면 제안서 경로는 404·503이다 |
+
+RL 키와 정책 선택 env는 web과 `analysis-worker`가 **같은 값**으로 읽어야 하므로 env 파일·overlay로 주고, 올린 뒤 서비스마다 `docker compose exec -T <서비스> printenv BIDOPS_PROPOSAL_POLICY_VERSION_ID`로 확인한다. PDF 키는 web에서만 확인한다.
+
+**1. 배포 전제(운영 변경, 직전 사람 확인).** migration `0041_proposal_draft`(테이블 4개, [contracts.md](contracts.md#제안서-초안-rl-04-2026-10-18))와 `scripts/runtime-privileges.sql`의 새 권한을 적용하고 `web`·`analysis-worker`·`codex-runner`(contract `proposal-section-v1` 스키마 COPY) 이미지를 새로 올린다. 전체 백업과 `before-rl-proposal-<날짜>` 롤백 태그를 먼저 남긴다. **main 병합 뒤 운영 스택을 다시 올리기 전에** 운영 env(`.env` 등 gitignore 파일)에 `BIDOPS_PROPOSAL_PDF_ACCESS_KEY`·`_SECRET_KEY`를 넣고 `minio-init`을 다시 실행해 버킷 `bidops-proposal-pdf`(versioning·전용 정책·365일 만료)를 만든다 — 키가 없으면 compose가 web·minio-init 기동을 거부한다(결정 B49). 이 단계도 직전에 사람 확인을 받는다.
+
+**2. 정책 import와 선택.** 파일을 고쳐 쓰지 않고 immutable 파일을 import한다.
+
+```bash
+docker compose -f docker-compose.yml exec web \
+  python -m app.deep_review.cli import-profile-policy \
+  --policy /app/web/backend/app/deep_review/policies/proposal-policy-luna-v1.json \
+  --label proposal-policy-luna-v1 \
+  --expected-policy-sha256 0eb36cf9e4318e447dd2c66f59a060a9ec1d87b92c23326200867060973e7d91 --actor '<담당자 이름>'
+# 출력의 policy_version_id를 BIDOPS_PROPOSAL_POLICY_VERSION_ID로 env에 넣고 web·analysis-worker를 재생성한다.
+```
+
+이 행은 전역 active policy나 RL-03 판정 정책으로 쓸 수 없다(선택하면 fail closed).
+
+**3. 전송 정책 승인(사람 직전 확인, 실제 전송 권한을 여는 단계).**
+
+```bash
+docker compose -f docker-compose.yml exec web \
+  python -m app.deep_review.cli approve-transfer-policy \
+  --policy proposal-policy-luna-v1 --actor '<담당자 이름>' --daily-cap 1 [--dry-run]
+```
+
+- 실제 사용(T11)은 `--daily-cap 1`(초안 1건 = 절 6건, 배치 B 인터뷰 D3·D10)이다. 기본은 3, 범위 1..20이며 절 다시 쓰기는 1/6건으로 센다. 승인 행은 `scope={"purposes":["proposal"]}`로 RL-03 승인과 따로 있고 서로의 게이트·상한에 보이지 않는다. 출력 JSON의 `approval_id`·`policy_sha256`·`daily_cap`을 기록한다.
+- 철회는 `revoke-transfer-policy --approval-id <id> --actor <이름> --reason <사유>`이고 이후 worker가 첫 호출 전에 `policy_not_approved`로 멈춘다(절은 `failed`). 상한을 바꾸려면 철회하고 새로 승인한다.
+
+**4. 실행.** 초안은 사업기회 제안서 탭의 "제안서 초안 만들기"(또는 `POST /api/opportunities/{id}/proposal-requests`)로 만든다. 직전에 사람이 대상 판정·상한·승인을 확인한다. 절 실행은 합성 `analysis-worker`의 같은 슬롯에서 **다른 큐가 비었을 때 마지막으로** 돈다(새 서비스 없음). worker는 절마다 입력을 동결·검사한 뒤 승인·상한을 다시 보고(자기 절 제외) → runner 주소를 검사하고 → `analysis.transfer.sent`(purpose `proposal`)를 한 번 남긴 뒤 → `codex-runner`(`proposal-section-v1`, 절당 900초)를 부른다(주소·승인 실패는 감사·상한 소비 없이 절 `failed`). Luna runner·인증·egress는 RL-03과 같다("RL 카드 판정 운영" 4). 실패한 절은 자동으로 다시 돌지 않으며 사람이 "이 절 다시 쓰기"를 누른다(검토 완료·제출 준비 단계에서는 막히고 새 초안으로 다시 만든다, 결정 B50). 초안 1회차의 절들은 첫 실행부터 5400초를 공유한다.
+
+**5. mock 경로(T10).** `BIDOPS_ANALYSIS_PROVIDER=mock`(참조 모드 필수)이면 같은 게이트·검증기를 지나되 결정적 mock client가 절을 만든다(요구사항 원문을 통째로 인용, 빠진 회사 사실은 빈 자리, 대응표 누락 0). runner·네트워크 호출이 없고 `analysis.transfer.sent`도 없다. 생성할 때는 실제와 같이 **활성 proposal 승인과 상한 여유가 필요하지만** mock 계보 초안의 절은 사용량에 세지 않는다. 생성 감사의 provider 계보가 `mock-analysis`로 고정되어 결과는 `mock_reference`이고, 나중에 실제 provider worker가 그 초안을 실행하지 않는다(`model_binding_invalid`). mock 초안을 실제 품질 근거로 쓰지 않는다. 격리 스택 시운전 기록은 RL-04 검증 기록에 있다.
+
+**6. PDF.** "PDF로 내보내기"(`POST /api/proposals/{draft_id}/exports`)는 web이 렌더해 `bidops-proposal-pdf`에 암호화 없이 저장하고 같은 내용이면 기존 PDF를 돌려준다. 저장 바이트는 `content_object.sha256`과 같아야만 내려가며(`GET …/exports/{id}.pdf`), 이 버킷은 객체 백업·복구·active hash 검증 대상이고 365일 뒤 만료한다. 폰트가 없는 환경(호스트 테스트 등)은 `BIDOPS_PDF_FONT_DIR`로 위치를 준다.
+
+**7. 되돌리기.** 가장 빠른 차단은 `revoke-transfer-policy`(이후 호출 0), 그다음 `BIDOPS_RL_ANALYSIS_ENABLED=false`로 재생성이다. 초안·절·수정·PDF 행은 append-only라 지우지 않으며 SQL로 고치지 않는다.
+
+**검증 명령(문서 단계 근거).** `pytest tests/deep_review/test_proposal_input.py tests/deep_review/test_proposal_validation.py tests/deep_review/test_mock_proposal_client.py tests/deep_review/test_proposal_render.py tests/app/test_proposal_transfer_policy.py tests/app/test_proposal_draft.py tests/app/test_proposal_api.py tests/deep_review/test_codex_runner.py tests/app/test_company_luna_policy.py tests/app/test_runtime_contract.py`(PostgreSQL 변형은 `BIDOPS_TEST_POSTGRES_URL`, PDF 사례는 `BIDOPS_PDF_FONT_DIR`이 있어야 skip 없이 돈다).

@@ -33,7 +33,7 @@ while IFS=$'\t' read -r object_key source_version_id expected_sha256 extra; do
   namespace="${object_key%%/*}"
   object_name="${object_key#*/}"
   case "$namespace" in
-    source|structure|quarantine|model-response) bucket="bidops-$namespace" ;;
+    source|structure|quarantine|model-response|proposal-pdf) bucket="bidops-$namespace" ;;
     *) printf '%s\n' "invalid object namespace in versioned object manifest" >&2; exit 2 ;;
   esac
   if [[ -z "$object_name" || "$object_name" == /* || "$object_name" == *$'\n'* || "$object_name" == *$'\t'* || "$object_name" == *'//'* || "$object_name" == '..' || "$object_name" == ../* || "$object_name" == */../* || "$object_name" == */.. || "$object_name" == *'\\'* || "$source_version_id" == */* || "$source_version_id" == *$'\n'* || "$source_version_id" == *$'\t'* ]]; then

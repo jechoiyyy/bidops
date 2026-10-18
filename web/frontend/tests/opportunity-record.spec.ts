@@ -104,7 +104,8 @@ test("헤더 pill은 단계·마감·판정·추적 상태 순서이고 판정�
   const verdict = page.getByRole("button", { name: "판정 보기", exact: true });
   await expect(verdict).toBeDisabled();
   // RL-03: 판정이 없으면 판정 보기가 비활성이고 이유는 "아직 판정이 없습니다"다(옛 안내 "RL-03에서 열립니다" 폐지).
-  await expect(page.locator('.rec-action-hint[title="아직 판정이 없습니다"]')).toHaveCount(1);
+  // 판정 보기와 제안서 초안(RL-04: 완료된 판정이 있을 때만 열린다)이 같은 이유로 비활성이다.
+  await expect(page.locator('.rec-action-hint[title="아직 판정이 없습니다"]')).toHaveCount(2);
   await expect(page.locator('.rec-action-hint[title="RL-03에서 열립니다"]')).toHaveCount(0);
   await expect(page.getByRole("button", { name: "제안서 초안", exact: true })).toBeDisabled();
   await expect(page.getByRole("button", { name: "사업기회 더보기" })).toBeVisible();
@@ -439,9 +440,9 @@ test("저장하지 않은 노트 초안은 beforeunload와 SPA 이동을 지키�
   await expect(page).toHaveURL(/\/opportunities\/7101\/activity$/);
   await expect(composerBody(page)).toHaveValue("아직 저장하지 않은 노트");
 
-  // 지우면 보호도 풀린다.
+  // 지우면 보호도 풀린다. 해제는 React effect가 돈 뒤라 같은 기대값을 poll로 기다린다(B47).
   await composerBody(page).fill("");
-  expect(await page.evaluate(() => {
+  await expect.poll(() => page.evaluate(() => {
     const event = new Event("beforeunload", { cancelable: true });
     window.dispatchEvent(event);
     return event.defaultPrevented;

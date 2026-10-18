@@ -19,7 +19,7 @@ def check(config):
                    secret_key=config["minio_password"], secure=False)
     versions = {}
     issues = []
-    for namespace in ("source", "structure", "quarantine", "model-response"):
+    for namespace in ("source", "structure", "quarantine", "model-response", "proposal-pdf"):
         bucket = "bidops-" + namespace
         if client.get_bucket_versioning(bucket).status != "Enabled":
             raise ValueError("bucket versioning disabled")

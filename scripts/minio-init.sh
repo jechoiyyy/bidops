@@ -13,9 +13,11 @@ set -euo pipefail
 : "${BIDOPS_QUARANTINE_SECRET_KEY:?quarantine secret key is required}"
 : "${BIDOPS_MODEL_RESPONSE_ACCESS_KEY:?model-response access key is required}"
 : "${BIDOPS_MODEL_RESPONSE_SECRET_KEY:?model-response secret key is required}"
+: "${BIDOPS_PROPOSAL_PDF_ACCESS_KEY:?proposal-pdf access key is required}"
+: "${BIDOPS_PROPOSAL_PDF_SECRET_KEY:?proposal-pdf secret key is required}"
 
 mc alias set local http://minio:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD" >/dev/null
-for bucket in bidops-source bidops-structure bidops-quarantine bidops-model-response; do
+for bucket in bidops-source bidops-structure bidops-quarantine bidops-model-response bidops-proposal-pdf; do
   mc mb --ignore-existing "local/$bucket" >/dev/null
   # Keep immutable content addressable by its persisted version id.  Re-running
   # this bootstrap is idempotent and never removes prior versions: enabling an
@@ -44,6 +46,7 @@ create_user structure "$BIDOPS_STRUCTURE_ACCESS_KEY" "$BIDOPS_STRUCTURE_SECRET_K
 create_user structure-read "$BIDOPS_STRUCTURE_READ_ACCESS_KEY" "$BIDOPS_STRUCTURE_READ_SECRET_KEY"
 create_user quarantine "$BIDOPS_QUARANTINE_ACCESS_KEY" "$BIDOPS_QUARANTINE_SECRET_KEY"
 create_user model-response "$BIDOPS_MODEL_RESPONSE_ACCESS_KEY" "$BIDOPS_MODEL_RESPONSE_SECRET_KEY"
+create_user proposal-pdf "$BIDOPS_PROPOSAL_PDF_ACCESS_KEY" "$BIDOPS_PROPOSAL_PDF_SECRET_KEY"
 
 tmp_dir="$(mktemp -d)"
 trap 'rm -rf "$tmp_dir"' EXIT
@@ -62,14 +65,21 @@ JSON
 cat >"$tmp_dir/model-response.json" <<'JSON'
 {"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":["s3:GetBucketLocation","s3:GetObject","s3:PutObject","s3:ListBucket"],"Resource":["arn:aws:s3:::bidops-model-response","arn:aws:s3:::bidops-model-response/*"]}]}
 JSON
-for name in source structure quarantine model-response; do mc admin policy create local "bidops-$name" "$tmp_dir/$name.json" >/dev/null 2>&1 || true; done
+cat >"$tmp_dir/proposal-pdf.json" <<'JSON'
+{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":["s3:GetBucketLocation","s3:GetObject","s3:PutObject","s3:ListBucket"],"Resource":["arn:aws:s3:::bidops-proposal-pdf","arn:aws:s3:::bidops-proposal-pdf/*"]}]}
+JSON
+for name in source structure quarantine model-response proposal-pdf; do mc admin policy create local "bidops-$name" "$tmp_dir/$name.json" >/dev/null 2>&1 || true; done
 mc admin policy attach local bidops-source --user "$BIDOPS_SOURCE_ACCESS_KEY" >/dev/null
 mc admin policy attach local bidops-structure --user "$BIDOPS_STRUCTURE_ACCESS_KEY" >/dev/null
 mc admin policy create local bidops-structure-read "$tmp_dir/structure-read.json" >/dev/null 2>&1 || true
 mc admin policy attach local bidops-structure-read --user "$BIDOPS_STRUCTURE_READ_ACCESS_KEY" >/dev/null
 mc admin policy attach local bidops-quarantine --user "$BIDOPS_QUARANTINE_ACCESS_KEY" >/dev/null
 mc admin policy attach local bidops-model-response --user "$BIDOPS_MODEL_RESPONSE_ACCESS_KEY" >/dev/null
+mc admin policy attach local bidops-proposal-pdf --user "$BIDOPS_PROPOSAL_PDF_ACCESS_KEY" >/dev/null
 
-# Only encrypted model responses expire; source, structure, and quarantine
-# buckets retain their versioned objects until an explicit governed process.
+# Encrypted model responses expire after 90 days and RL-04 proposal draft PDFs
+# (retention_class proposal-pdf-365d, not company material) after 365 days;
+# source, structure, and quarantine buckets retain their versioned objects
+# until an explicit governed process.
 mc ilm add --expire-days 90 local/bidops-model-response >/dev/null
+mc ilm add --expire-days 365 local/bidops-proposal-pdf >/dev/null
