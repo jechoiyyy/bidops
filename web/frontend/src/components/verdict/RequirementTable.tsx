@@ -11,9 +11,11 @@ import {
   companyEvidenceText,
   countFit,
   filterMatrix,
+  isRejectedRow,
   mandatoryLabel,
   mappingSuffix,
   pageRangeLabel,
+  rejectedRuleLabel,
   requirementText,
   sortMatrix,
   type FitFilter,
@@ -78,7 +80,11 @@ export function RequirementTable({ rows, selectedUnitId, onSelect, note = null }
           type="button"
         >
           <span className="vd-row-title">{requirementText(row)}</span>
-          <span className="vd-row-sub">{row.type} · {mandatoryLabel(row)}</span>
+          <span className="vd-row-sub">
+            {isRejectedRow(row)
+              ? (row.rejected_rule_codes ?? []).map(rejectedRuleLabel).join(" · ")
+              : `${row.type ?? "유형 미확인"} · ${mandatoryLabel(row)}`}
+          </span>
         </button>
       ),
     },

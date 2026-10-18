@@ -64,6 +64,9 @@ from app.deep_review.services.input_versions import (
     RL_LUNA_POLICY_FILE_V4,
     RL_LUNA_POLICY_FILE_V5,
     RL_LUNA_POLICY_FILE_V6,
+    RL_LUNA_POLICY_FILE_V7,
+    RL_LUNA_POLICY_FILE_V8,
+    RL_LUNA_POLICY_FILE_V9,
     InputVersionError,
     import_policy_version,
 )
@@ -294,7 +297,10 @@ RL_POLICY_FILES = {"analysis-policy-luna-rl-v1": RL_LUNA_POLICY_FILE,
                    "analysis-policy-luna-rl-v3": RL_LUNA_POLICY_FILE_V3,
                    "analysis-policy-luna-rl-v4": RL_LUNA_POLICY_FILE_V4,
                    "analysis-policy-luna-rl-v5": RL_LUNA_POLICY_FILE_V5,
-                   "analysis-policy-luna-rl-v6": RL_LUNA_POLICY_FILE_V6}
+                   "analysis-policy-luna-rl-v6": RL_LUNA_POLICY_FILE_V6,
+                   "analysis-policy-luna-rl-v7": RL_LUNA_POLICY_FILE_V7,
+                   "analysis-policy-luna-rl-v8": RL_LUNA_POLICY_FILE_V8,
+                   "analysis-policy-luna-rl-v9": RL_LUNA_POLICY_FILE_V9}
 
 
 def build_world(session: Session, monkeypatch, *, sw: str = "Y",

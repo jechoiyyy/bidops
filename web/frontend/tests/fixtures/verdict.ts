@@ -163,8 +163,8 @@ function completedResult(matrix: VerdictMatrixRow[]): VerdictResult {
     cautions: [],
     conflicts: [],
     next_actions: [
-      { unit_id: matrix[2]?.unit_id ?? "", owner: "박팀장", action: "직접생산 확인증명서 품목을 발급기관에 확인한다", evidence_refs: [] },
-      { unit_id: matrix[1]?.unit_id ?? "", owner: null, action: "상주 가능 인력의 현재 가용 기준을 정리한다", evidence_refs: [] },
+      { unit_id: matrix[2]?.unit_id ?? "", owner: "박팀장", action: "직접생산 확인증명서 품목을 발급기관에 확인한다", evidence_refs: [], origin: null },
+      { unit_id: matrix[1]?.unit_id ?? "", owner: null, action: "상주 가능 인력의 현재 가용 기준을 정리한다", evidence_refs: [], origin: null },
     ],
   };
 }
@@ -191,7 +191,54 @@ const BASE: Omit<PractitionerVerdictView, "availability" | "attempt_id" | "resul
   partial_matrix: [],
   briefing_item_id: null,
   opportunity_id: 7101,
+  rejected_units: [],
 };
+
+/** 결정 B51: 추출 검증에서 격리된 unit의 표 행(유형 null·확인 필요·역할 의견 없음·규칙 코드). */
+export function rejectedRow(index: number, ruleCodes: string[]): VerdictMatrixRow {
+  return row(index, "unknown", {
+    type: null,
+    role_findings: [],
+    evidence_refs: [],
+    normalized_requirement: null,
+    mandatory: null,
+    fact_labels: [],
+    rejected_rule_codes: ruleCodes,
+  });
+}
+
+/** 결정 B51: 격리된 unit 두 개(카드 하나·영역 segment 하나)가 있는 완료 판정. */
+export function rejectedCompletedView(): PractitionerVerdictView {
+  const matrix = [...sampleMatrix(), rejectedRow(8, ["constraint_quote_truncated"]),
+    rejectedRow(9, ["evidence_quote_not_verbatim", "requirement_number_untraceable"])];
+  return completedView({
+    rejected_units: [
+      { unit_id: matrix[7].unit_id, normalized_id: "REQ-8", rule_codes: ["constraint_quote_truncated"] },
+      { unit_id: matrix[8].unit_id, normalized_id: null, rule_codes: ["evidence_quote_not_verbatim", "requirement_number_untraceable"] },
+    ],
+  }, matrix);
+}
+
+/** 결정 B55: 정책 v9 완료 판정 — 모델 행 하나 뒤에 코드가 붙인 "사람 확인" 행(누락 영역 하나·격리 unit 하나). */
+export function codeActionsCompletedView(): PractitionerVerdictView {
+  const view = rejectedCompletedView();
+  const result = view.result!;
+  const rejected = view.rejected_units![0];
+  return {
+    ...view,
+    missing_sections: ["contract"],
+    result: {
+      ...result,
+      next_actions: [
+        { ...result.next_actions[1], origin: "model" },
+        { unit_id: "missing_section:contract", owner: null, evidence_refs: [], origin: "code",
+          action: "원문에서 '계약조건' 영역을 찾지 못했습니다. 이 영역의 조건을 원문에서 사람이 확인하세요." },
+        { unit_id: rejected.unit_id, owner: null, evidence_refs: [], origin: "code",
+          action: "원문 근거 검증에 실패한 요구사항입니다. 원문에서 사람이 확인하세요(자동으로 고치지 않음)." },
+      ],
+    },
+  };
+}
 
 /** 판정 없음. 권위 연결 사전규격이 없으면 서버처럼 `notice_id=null`이다(0으로 접지 않는다). */
 export function noneView(opportunityId: number, noticeId: number | null = null): PractitionerVerdictView {

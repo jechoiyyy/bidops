@@ -102,6 +102,7 @@ def create_opportunity_verdict_request(
             raise BundleServiceError("actor_name_invalid", "담당자 이름이 올바르지 않습니다", status_code=400)
         content = request_manual_verdict(
             service, session, opportunity_id=opportunity_id, actor=claimed, request_id=payload.request_id,
+            resume_from_attempt_id=payload.resume_from_attempt_id,
         )
     except BundleServiceError as error:
         session.rollback()

@@ -18,6 +18,8 @@ import {
   largeMatrix,
   legacyView,
   noneView,
+  rejectedCompletedView,
+  codeActionsCompletedView,
   runningView,
   sampleMatrix,
 } from "./fixtures/verdict";
@@ -151,6 +153,59 @@ test("원문에서 찾지 못한 영역이 있는 완료 판정은 그 영역을
   await page.goto("/opportunities/7101/verdict");
   await waitTable(page);
   await expect(page.getByTestId("missing-sections-note")).toHaveCount(0);
+});
+
+test("검증 실패로 격리된 요구사항은 '검증 실패 — 사람 확인 필요' 목록과 확인 필요 행으로 보이고 없으면 목록이 없다", async ({ page }) => {
+  // 결정 B51: 증거 규칙을 어긴 항목만 격리하고 판정은 이어간다. 서버 목록을 그대로 보인다.
+  const trace = await openVerdict(page, rejectedCompletedView());
+  await waitTable(page);
+  const list = page.getByTestId("rejected-units");
+  await expect(list.getByRole("heading", { name: "검증 실패 — 사람 확인 필요 2" })).toBeVisible();
+  await expect(list.locator("li")).toHaveText([
+    "REQ-8조건 인용이 단위·비교어 앞에서 잘림",
+    "영역 항목 2근거 인용이 원문과 다름 · 요구사항의 숫자가 원문에 없음",
+  ]);
+  // 표에서는 확인 필요 행이며 유형 대신 규칙 문구가 보이고, 모델 문장은 어디에도 없다.
+  await chooseFilter(page, "전체");
+  const rejected = rowOf(page, "검증 실패 — 사람 확인 필요");
+  await expect(rejected).toHaveCount(2);
+  await expect(rejected.first().locator(".vd-pill")).toHaveText("확인 필요");
+  await expect(rejected.first()).toContainText("조건 인용이 단위·비교어 앞에서 잘림");
+  await expect(rejected.first()).not.toContainText("null");
+  for (const value of FORBIDDEN_VALUES) await expect(page.locator("body")).not.toContainText(value);
+  // 데스크톱 전용: 1280px에서도 목록이 가로로 넘치지 않는다.
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await expect.poll(() => page.evaluate(() => {
+    const center = document.querySelector(".vd-center") as HTMLElement;
+    return [document.documentElement.scrollWidth - window.innerWidth, center.scrollWidth - center.clientWidth];
+  })).toEqual([0, 0]);
+
+  trace.setVerdict(7101, completedView());
+  await page.goto("/opportunities/7101/verdict");
+  await waitTable(page);
+  await expect(page.getByTestId("rejected-units")).toHaveCount(0);
+});
+
+test("코드가 붙인 다음 행동은 '사람 확인' 표식으로 모델 행과 구분하고 담당은 미지정이다", async ({ page }) => {
+  // 결정 B55: 누락 영역·격리 요구사항마다 BidOps가 붙인 행(origin=code). 모델 행에는 표식이 없다.
+  await openVerdict(page, codeActionsCompletedView());
+  await waitTable(page);
+  const actions = page.getByTestId("verdict-next-actions").locator(".rec-next-item");
+  await expect(actions).toHaveCount(3);
+  await expect(actions.nth(0)).toHaveAttribute("data-origin", "model");
+  await expect(actions.nth(0).locator(".vd-pill")).toHaveCount(0);
+  for (const index of [1, 2]) {
+    await expect(actions.nth(index)).toHaveAttribute("data-origin", "code");
+    await expect(actions.nth(index).locator(".vd-pill")).toHaveText("사람 확인");
+    await expect(actions.nth(index).locator(".rec-avatar")).toHaveCount(0);
+    await expect(actions.nth(index).locator('[data-owner="unassigned"]')).toHaveText("미지정");
+  }
+  await expect(actions.nth(1)).toContainText("원문에서 '계약조건' 영역을 찾지 못했습니다.");
+  await expect(actions.nth(2)).toContainText("원문 근거 검증에 실패한 요구사항입니다.");
+  for (const value of FORBIDDEN_VALUES) await expect(page.locator("body")).not.toContainText(value);
+  await expect(page.locator("body")).not.toContainText("missing_section:");
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBe(0);
 });
 
 test("헤더 판정 pill은 판정 이름이고 판정 보기는 결과가 있을 때만 열려 판정 탭으로 간다", async ({ page }) => {

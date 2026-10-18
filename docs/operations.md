@@ -1736,7 +1736,7 @@ CLI는 web 이미지 안에서 돈다. fixture 디렉터리를 읽기 전용으�
 |---|---|---|
 | `BIDOPS_RL_ANALYSIS_ENABLED` | `false` | 사업기회 판정 REST·실회사 판정 게이트 개방. 꺼져 있으면 `/api/opportunities/{id}/verdict*`·`/api/analysis/transfer-policy`가 404이고 브리핑 판정 표시·활동 피드 제공자는 아무것도 주지 않는다 |
 | `BIDOPS_RL_ANALYSIS_AUTO_START_ENABLED` | `false` | 브리핑 추천→자동 시작과 `drain-verdict-queue`. 꺼져 있으면 hook과 drain이 아무것도 읽거나 쓰지 않는다 |
-| `BIDOPS_RL_ANALYSIS_POLICY_PATH` | `policies/analysis-policy-luna-rl-v6.json` | import 원본 파일(immutable). 기본값은 결정 B23 전 v1, B30 전 v2, B33 전 v3, B35 전 v4, B37 전 v5였고 v1~v5 파일은 그대로 남는다. 승인 CLI는 이 파일의 identity·sha를 선택 행과 대조하므로 **선택 행과 같은 버전**을 가리켜야 한다(v1·v2 행을 계속 쓰면 그 파일 경로를 명시) |
+| `BIDOPS_RL_ANALYSIS_POLICY_PATH` | `policies/analysis-policy-luna-rl-v9.json` | import 원본 파일(immutable). 기본값은 결정 B23 전 v1, B30 전 v2, B33 전 v3, B35 전 v4, B37 전 v5, B51 전 v6, B53 전 v7, B55 전 v8이었고 v1~v8 파일은 그대로 남는다. 승인 CLI는 이 파일의 identity·sha를 선택 행과 대조하므로 **선택 행과 같은 버전**을 가리켜야 한다(v1·v2 행을 계속 쓰면 그 파일 경로를 명시) |
 | `BIDOPS_RL_DEEP_REVIEW_POLICY_VERSION_ID` | 없음 | import한 정책 행 선택. 비어 있으면 RL 경로 fail closed(`analysis_policy_unavailable`). demo용 선택 env와 별개 |
 | `BIDOPS_REFERENCE_WORKFLOW_MODE`·`BIDOPS_LUNA_DEEP_REVIEW_ENABLED` | 기존 | **RL 경로도 요구한다**(변경 없음, 결과가 참조 실행 표식) |
 | `BIDOPS_PRESPEC_OVERVIEW_ENABLED`·`BIDOPS_DEEP_REVIEW_AUTO_START_ENABLED` | `false` | RL 판정은 개요를 쓰지 않는다. 실제 호출 스택에서는 둘 다 `false`로 둬 개요 모델 호출이 생기지 않게 한다 |
@@ -1750,10 +1750,16 @@ CLI는 web 이미지 안에서 돈다. fixture 디렉터리를 읽기 전용으�
 ```bash
 docker compose -f docker-compose.yml exec web \
   python -m app.deep_review.cli import-profile-policy \
-  --policy /app/web/backend/app/deep_review/policies/analysis-policy-luna-rl-v6.json \
-  --label analysis-policy-luna-rl-v6 \
-  --expected-policy-sha256 84e94954c08a43e5751d1514cf1a02e6865c9d6f05c6483777785e29faf8534a --actor '<담당자 이름>'
+  --policy /app/web/backend/app/deep_review/policies/analysis-policy-luna-rl-v9.json \
+  --label analysis-policy-luna-rl-v9 \
+  --expected-policy-sha256 afaba1d3b41177828443cb8e736e9b4728619a07fdfff2241ecb12d505fd2984 --actor '<담당자 이름>'
 # 출력의 policy_version_id를 BIDOPS_RL_DEEP_REVIEW_POLICY_VERSION_ID로 env에 넣고 web·worker 서비스를 재생성한다.
+# v8 행이 필요한 환경: --policy …/analysis-policy-luna-rl-v8.json --label analysis-policy-luna-rl-v8
+#   --expected-policy-sha256 63ca5b691bb87822839193d4b33d0af7a6c7b9569faa86e9345da88ca5857d4c
+# v7 행이 필요한 환경: --policy …/analysis-policy-luna-rl-v7.json --label analysis-policy-luna-rl-v7
+#   --expected-policy-sha256 2ba1d631b02d71b7c5fca251634bdc756c23b0308226ff14c741da5c2a631710
+# v6 행이 필요한 환경: --policy …/analysis-policy-luna-rl-v6.json --label analysis-policy-luna-rl-v6
+#   --expected-policy-sha256 84e94954c08a43e5751d1514cf1a02e6865c9d6f05c6483777785e29faf8534a
 # v5 행이 필요한 환경: --policy …/analysis-policy-luna-rl-v5.json --label analysis-policy-luna-rl-v5
 #   --expected-policy-sha256 19d7ff26fb9899f95237ec931c440bfad89feb42e3626fba89c33132f42928b2
 # v4 행이 필요한 환경: --policy …/analysis-policy-luna-rl-v4.json --label analysis-policy-luna-rl-v4
@@ -1774,6 +1780,22 @@ docker compose -f docker-compose.yml exec web \
 
 **v5 → v6 전환(결정 B37).** v6는 v5와 같은 계약·selector에 추출 지시문만 바꾼다(숫자 인용은 block 안에서 유일하게 — 반복되면 왼쪽 단어를 붙임, 날짜 범위는 text이고 계산한 숫자 금지). 같은 배포의 검증기 수정(인용 유일성 `constraint_quote_not_unique`, 잘린 인용은 인용된 한 자리만 검사, 범위 `〜`·`.`/`)` 뒤 물결·숫자 사이 하이픈 → `unknown`)은 **모든 정책 버전에 적용**된다. **runner 이미지는 다시 빌드하지 않는다**(contract·schema 변경 없음). 순서는 v4 → v5와 같다: web·`analysis-worker` 이미지 재빌드 → v6 import(행 canonical sha = 파일 sha `84e94954…534a`) → 선택 env 변경·재생성·값 확인 → v5 승인 철회·`--policy analysis-policy-luna-rl-v6` 재승인 → mock 경로(T11) 확인. 각 단계는 직전에 사람 확인을 받는다. **v6로는 실제 호출을 한 적이 없다**: 결정 B37로 이 배치의 실제 호출은 끝났고 RL-03 실제 증명(T12)은 pending이다. 다음 실제 호출은 새 사용자 승인 대상이다.
 
+**v6 → v7 전환(결정 B51, 항목 단위 격리).** v7은 v6와 같은 추출 지시·계약·selector에 종합 지시문의 `rejected_units` 규칙만 더한다. 격리(증거 규칙을 어긴 항목만 "검증 실패 — 사람 확인 필요"로 빼고 판정을 이어감, 25% 초과면 판정 실패)는 **v7 행에서만** 켜지고 v1~v6 행은 지금처럼 묶음 단위로 실패한다. 판정 보기 REST에 `rejected_units`와 matrix 행 `rejected_rule_codes`가 더해지고 판정 탭에 목록이 보인다(가산, migration 없음). **runner 이미지는 다시 빌드하지 않는다**(contract·schema 변경 없음). web·`analysis-worker`와 프런트 이미지를 새로 올린다. 순서는 v5 → v6과 같다: 이미지 재빌드 → v7 import(행 canonical sha = 파일 sha `2ba1d631…1710`) → 선택 env 변경·재생성·값 확인 → v6 승인 철회·`--policy analysis-policy-luna-rl-v7` 재승인(같은 날이면 `today_used` 반영) → mock 경로(T11) 확인 → 실제 호출은 B51 승인 범위(폴리텍 1건 + 검증 실패 시 재시도 1회, attempt당 정상 8회·최대 16회) 안에서만. 각 단계는 직전에 사람 확인을 받는다. 판정 탭에 격리 목록이 있으면 담당자가 해당 요구사항을 원문으로 확인한다(자동으로 고치지 않는다).
+
+**v7 → v8 전환(결정 B53).** T12 8차에서 운영·위험 역할이 같은 unit의 제약 인용(추출에서 원문 일치 검증 통과)을 근거로 써 `card_role_invalid`가 났다. 검증기는 이제 **모든 정책 버전**에서 unit별로 item evidence ∪ 그 unit 제약의 locator+quote를 허용하고(다른 unit·원문과 다른 문자열은 계속 거부), v8은 v7과 같은 규칙에 역할·종합 지시문 한 문장만 더한다. web·`analysis-worker` 이미지만 새로 올리고 **runner 이미지는 다시 빌드하지 않는다**(contract·schema 변경 없음), 판정 보기 모양 변화 없음(프런트 재배포 불필요). 순서: 이미지 재빌드 → v8 import(행 canonical sha = 파일 sha `63ca5b69…7d4c`) → 선택 env 변경·재생성·값 확인 → v7 승인 철회·`--policy analysis-policy-luna-rl-v8` 재승인(같은 날이면 `today_used` 반영) → mock 경로(T11) 확인 → B51 승인 범위의 남은 재시도 1회는 v8로. 각 단계는 직전에 사람 확인을 받는다.
+
+**v8 → v9 전환(결정 B55, 종합 출력 계약 v2·종합만 다시 실행).** T12 9차(v8)는 역할 3개까지 통과하고 종합이 역할 밖 대상·차단 조건 범위를 어겨 `card_synthesis_invalid`였다. v9는 추출·역할을 v8과 byte 동일하게 두고 종합 출력 계약을 `bidops.practitioner-verdict.v2`(차단 조건 없음 — 코드가 필수 gap으로 계산, 누락 영역·격리 unit "사람 확인" 행은 코드가 붙임)로 바꾼다. **runner 이미지를 다시 빌드해야 한다**(새 schema 파일 `/app/card-synthesis-v2.json`·contract `card-synthesis-v2` 허용 목록). web·`analysis-worker`·프런트 이미지도 새로 올린다(판정 보기 `next_actions[].origin` 가산·판정 탭 "사람 확인" 표식). migration·권한 변경은 없다. 순서: (1) runner·web·프런트 이미지 재빌드(직전 사람 확인), (2) v9 import(행 canonical sha = 파일 sha `afaba1d3…2984`), (3) 선택 env를 v9 행으로 바꾸고 `BIDOPS_RL_ANALYSIS_POLICY_PATH`를 지정했다면 v9 파일로 맞춘 뒤 web·`analysis-worker`·`prespec-attachment-worker`·runner 재생성·값 확인, (4) v8 승인 철회·`--policy analysis-policy-luna-rl-v9` 재승인(같은 날이면 `today_used` 반영), (5) mock 경로(T11, v9·mock 실패 종합 뒤 resume) 확인, (6) 실제 호출은 새 사용자 승인 범위 안에서만 — 종합만 실패한 v8 attempt는 아래 요청으로 **종합만** 다시 실행할 수 있다(검증된 추출·대조·역할 행 재사용, 호출 1회, 상한 1; 전제 조건이 하나라도 어긋나면 409 `resume_source_invalid`이고 아무것도 남지 않는다). 각 단계는 직전에 사람 확인을 받는다.
+
+```bash
+# 종합만 다시 실행(결정 B55): 실패 attempt id는 판정 보기 ⋯ 실행 정보 또는 GET …/verdict의 attempt_id
+curl -sS -X POST "http://127.0.0.1:<web 포트>/api/opportunities/<opportunity_id>/verdict-requests" \
+  -H 'Content-Type: application/json' -H 'X-BidOps-Actor-Name: <담당자 이름>' \
+  -d '{"request_id":"<새 UUID>","resume_from_attempt_id":"<실패 attempt id>"}'
+# 202 {request_id, attempt_id, status:"queued"} → worker 처리 뒤 GET …/verdict 로 완료 확인.
+# 확인: card.resume.requested·card.stages.reused 감사, analysis.transfer.sent planned_call_count=1,
+#       GET /api/analysis/transfer-policy today_used가 1 늘었는지.
+```
+
 (경로는 web 이미지 안 위치다. 품질 인자는 주지 않는다 — 측정한 값이 없다.) `policy_sha256`은 이 **행의 canonical sha**이고 파일 raw sha가 아니다. 값을 하나라도 바꾸려면 새 버전 파일을 발행하고 다시 import·승인한다.
 
 **3. 전송 정책 승인(사람 직전 확인 대상, 실제 전송 권한을 여는 단계).**
@@ -1781,8 +1803,8 @@ docker compose -f docker-compose.yml exec web \
 ```bash
 docker compose -f docker-compose.yml exec web \
   python -m app.deep_review.cli approve-transfer-policy \
-  --policy analysis-policy-luna-rl-v6 --actor '<담당자 이름>' --daily-cap <N> [--dry-run]
-# v1~v5 행을 계속 쓰는 환경이면 --policy analysis-policy-luna-rl-v1|…|v5(정책 파일 경로도 같은 버전)
+  --policy analysis-policy-luna-rl-v9 --actor '<담당자 이름>' --daily-cap <N> [--dry-run]
+# v1~v8 행을 계속 쓰는 환경이면 --policy analysis-policy-luna-rl-v1|…|v8(정책 파일 경로도 같은 버전)
 ```
 
 - 출력 JSON의 `approval_id`·`policy_sha256`·`daily_cap`·`created`·`errors`를 기록에 적는다. `--daily-cap`은 하루(KST)에 **실제로 외부 전송한** RL attempt 수의 **코드로 강제되는 상한**이다(1..50, 기본 10, 결정 B17). `today_used`는 `analysis.transfer.sent` 감사가 있고 mock이 아닌 attempt만 센다 — mock attempt·전송 전에 멈춘 attempt는 세지 않는다. 대신 시작(자동·수동·drain) 시점에는 아직 전송하지 않은 실제 attempt(queued·running)를 예약으로 함께 세고, worker가 첫 호출 직전에 상한을 다시 검사해 넘으면 `daily_cap_reached`로 실패시킨다(전송 0). 배치 B 격리 실증은 `--daily-cap 2`(실제 1건 + 재시도 1)로 고정했다. 활성 승인은 정책 sha당 하나이며 두 번째는 `active_approval_exists`(exit 2), 정책·선택 행·모델 identity가 어긋나면 `policy_identity_mismatch`(exit 2)다. `--dry-run`은 쓰기 없이 검사한다.

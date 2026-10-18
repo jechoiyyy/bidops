@@ -9,6 +9,7 @@ import { describeVerdictApiError, describeVerdictRunCode } from "../lib/apiError
 import type { PractitionerVerdictView, VerdictFeedbackKind, VerdictMatrixRow } from "../lib/types";
 import {
   isVerdictActive,
+  rejectedRuleLabel,
   resolveStructureId,
   sectionLabel,
   staleReasonLabel,
@@ -26,6 +27,8 @@ import "../styles/verdict.css";
  *   legacy                기존 보고서 링크
  *   completed             좌측 요약(레코드 페이지가 그림) + 요구사항 표 + 원문 패널
  *   is_current=false      "과거 기준" pill + 한글 stale 사유(어느 상태에서도)
+ *   rejected_units        결정 B51: "검증 실패 — 사람 확인 필요" 목록(요구사항 번호·규칙 문구만, 어느 상태에서도).
+ *                         격리된 unit의 모델 내용은 서버가 주지 않으며 화면도 만들어 내지 않는다.
  * 좌측 요약(판정 이름·체크리스트·다음 행동)은 레코드 페이지의 좌측 열이라 이 파일이 그리지 않는다.
  * 정책 id·모델명·hash·품질 표식은 이 파일 어디에도 그리지 않는다(⋯ "실행 정보"에서만).
  */
@@ -117,6 +120,7 @@ export function OpportunityVerdictTab({ query, onRequest, onFeedback }: Opportun
   }
 
   const humanReview = view.availability === "failed" || view.availability === "needs_human_review";
+  const rejectedUnits = view.rejected_units ?? [];
   const runCode = describeVerdictRunCode(view.error_code);
   const incomplete = view.availability !== "completed";
 
@@ -150,6 +154,24 @@ export function OpportunityVerdictTab({ query, onRequest, onFeedback }: Opportun
               원문에서 찾지 못한 영역: {view.missing_sections.map(sectionLabel).join(", ")} — 이 영역의 요구사항은 확인 필요입니다.
             </p>
           </div>
+        ) : null}
+        {rejectedUnits.length > 0 ? (
+          // 결정 B51: 증거 규칙을 어긴 항목만 격리하고 나머지로 판정을 이어간다. 격리된 항목의 요구사항은
+          // 확인 필요이며 판정은 "진행 가능"이 될 수 없다(서버가 강제). 화면은 서버 목록을 그대로 보인다.
+          <section aria-label="검증 실패 — 사람 확인 필요" className="vd-rejected" data-testid="rejected-units">
+            <h3 className="vd-rejected-title">검증 실패 — 사람 확인 필요 {rejectedUnits.length}</h3>
+            <p className="vd-rejected-help">
+              아래 요구사항은 원문 근거 검증을 통과하지 못해 판정 근거에서 뺐습니다. 자동으로 고치지 않았으며 담당자가 원문을 확인해야 합니다.
+            </p>
+            <ul className="vd-rejected-list">
+              {rejectedUnits.map((unit, index) => (
+                <li key={`rejected-${index}`}>
+                  <span className="vd-rejected-id">{unit.normalized_id ?? `영역 항목 ${index + 1}`}</span>
+                  <span className="vd-rejected-rules">{unit.rule_codes.map(rejectedRuleLabel).join(" · ")}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
         ) : null}
         {humanReview ? (
           <div className="vd-banner is-warning" data-testid="review-banner" role="status">
