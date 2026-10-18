@@ -1,0 +1,238 @@
+
+> bidops-admin-frontend@0.1.0 build
+> tsc -b && vite build
+
+vite v6.4.3 building for production...
+transforming...
+✓ 2794 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                                      0.51 kB │ gzip:   0.32 kB
+dist/assets/TechnicalInfo-6ZUn47tA.css               0.95 kB │ gzip:   0.38 kB
+dist/assets/useUnsavedGuard-CPH887jz.css             2.64 kB │ gzip:   0.73 kB
+dist/assets/useListSelection-FlBubonH.css            3.23 kB │ gzip:   0.77 kB
+dist/assets/AssumptionAnalysisPage-D2uv4XMx.css      3.92 kB │ gzip:   0.92 kB
+dist/assets/CompanyPage-Dln_8NYo.css                 5.35 kB │ gzip:   1.23 kB
+dist/assets/BriefingPage-DkZwHROo.css                7.56 kB │ gzip:   1.45 kB
+dist/assets/GoNoGoPage-wQiGZ31Q.css                  8.98 kB │ gzip:   1.76 kB
+dist/assets/DashboardPage-DHY8dTum.css               9.23 kB │ gzip:   1.84 kB
+dist/assets/CriteriaPage-D_A_mbYf.css               12.56 kB │ gzip:   2.20 kB
+dist/assets/ReviewWorkspacePage-D-riKpt1.css        13.88 kB │ gzip:   2.92 kB
+dist/assets/OpportunityRecordPage-CyqFBlnV.css      15.04 kB │ gzip:   2.58 kB
+dist/assets/BidDeltaDecisionPage-X7dCguVq.css       16.26 kB │ gzip:   2.44 kB
+dist/assets/RunStatusPage-CaIKtO0W.css              17.78 kB │ gzip:   2.93 kB
+dist/assets/opportunities-relaxed-BShOw4vV.css      18.12 kB │ gzip:   2.80 kB
+dist/assets/DeepReviewPage-D_3EC9HR.css             22.64 kB │ gzip:   3.75 kB
+dist/assets/OrderPlansPage-B4XZHfvQ.css             27.55 kB │ gzip:   4.51 kB
+dist/assets/pre-specs-relaxed-DNhZZtIN.css          45.91 kB │ gzip:   6.25 kB
+dist/assets/PreSpecDetailPage-BhDdCQO5.css          59.52 kB │ gzip:   7.84 kB
+dist/assets/index-CM7Q1fif.css                     377.85 kB │ gzip:  61.98 kB
+dist/assets/composeEventHandlers-BolWE7qY.js         0.11 kB │ gzip:   0.11 kB
+dist/assets/useIsomorphicLayoutEffect-kUzWzA84.js    0.11 kB │ gzip:   0.12 kB
+dist/assets/PageHeaderActions-BE9qifPS.js            0.23 kB │ gzip:   0.21 kB
+dist/assets/useToast-ewKdd6NS.js                     0.24 kB │ gzip:   0.20 kB
+dist/assets/StatusBadge-Cj5n8rVs.js                  0.29 kB │ gzip:   0.23 kB
+dist/assets/check-B6ZCO0m9.js                        0.30 kB │ gzip:   0.25 kB
+dist/assets/chevron-right-BWxPJ7l_.js                0.31 kB │ gzip:   0.25 kB
+dist/assets/arrow-right-CZ_Xd-n8.js                  0.35 kB │ gzip:   0.27 kB
+dist/assets/arrow-up-right-DqXJX3yZ.js               0.35 kB │ gzip:   0.27 kB
+dist/assets/search-vR8P9LnI.js                       0.35 kB │ gzip:   0.28 kB
+dist/assets/Panel-7Ft1lJ9-.js                        0.38 kB │ gzip:   0.25 kB
+dist/assets/characters-WgeUjB8u.js                   0.40 kB │ gzip:   0.26 kB
+dist/assets/copy-DmohfWoA.js                         0.41 kB │ gzip:   0.32 kB
+dist/assets/activity-CtJRWyI9.js                     0.42 kB │ gzip:   0.31 kB
+dist/assets/refresh-cw-DMYANLu8.js                   0.50 kB │ gzip:   0.33 kB
+dist/assets/useIndicatorFocusRing-BwpebRp6.js        0.53 kB │ gzip:   0.37 kB
+dist/assets/TechnicalInfo-CMkrasKv.js                0.53 kB │ gzip:   0.29 kB
+dist/assets/file-search-DWSZZ4Sp.js                  0.56 kB │ gzip:   0.38 kB
+dist/assets/search-DyxyVo9g.js                       0.65 kB │ gzip:   0.41 kB
+dist/assets/glossary-DUdlvorw.js                     0.65 kB │ gzip:   0.48 kB
+dist/assets/useCollapsible-D6Kslern.js               0.70 kB │ gzip:   0.38 kB
+dist/assets/loader-circle-Du9Hk-gp.js                0.70 kB │ gzip:   0.36 kB
+dist/assets/deadline-yi40Kju4.js                     0.90 kB │ gzip:   0.49 kB
+dist/assets/ActorField-D9PzlRZb.js                   1.05 kB │ gzip:   0.71 kB
+dist/assets/Toast-DCVFq473.js                        1.06 kB │ gzip:   0.63 kB
+dist/assets/grade-VuYPPMQY.js                        1.08 kB │ gzip:   0.55 kB
+dist/assets/DisabledReason-B7bPKB_W.js               1.24 kB │ gzip:   0.63 kB
+dist/assets/CompanyHeader-HsLQ8Nk-.js                1.56 kB │ gzip:   0.78 kB
+dist/assets/useRowKeyboardNavigation-DwXpg6KU.js     1.63 kB │ gzip:   0.85 kB
+dist/assets/CompanySummaries-zCLTPOv0.js             1.71 kB │ gzip:   0.65 kB
+dist/assets/Tooltip-CUTFvBL2.js                      1.88 kB │ gzip:   0.84 kB
+dist/assets/qualityStatus-Bb5HOY-V.js                2.37 kB │ gzip:   1.25 kB
+dist/assets/orderPlanFormat-B8PfpOkn.js              2.42 kB │ gzip:   1.31 kB
+dist/assets/ToggleButton-CBImnxH1.js                 2.53 kB │ gzip:   1.22 kB
+dist/assets/DialogHeader-DwG93_KN.js                 2.82 kB │ gzip:   1.37 kB
+dist/assets/labels-D2GGj8N5.js                       3.19 kB │ gzip:   1.53 kB
+dist/assets/useMutation-CG22-f0s.js                  3.21 kB │ gzip:   1.30 kB
+dist/assets/CheckboxInput-BvEN_h99.js                3.23 kB │ gzip:   1.71 kB
+dist/assets/TextInput-D78GN4gh.js                    3.24 kB │ gzip:   1.64 kB
+dist/assets/WorkspaceFilters-CCpe1rSt.js             3.83 kB │ gzip:   1.71 kB
+dist/assets/useKeyboardHint-D-ca_RUJ.js              3.83 kB │ gzip:   2.00 kB
+dist/assets/api-CnU71K3e.js                          4.05 kB │ gzip:   1.49 kB
+dist/assets/createLucideIcon-DYEZoI59.js             4.13 kB │ gzip:   1.76 kB
+dist/assets/TextArea-8QYmwYbF.js                     4.40 kB │ gzip:   2.17 kB
+dist/assets/CompanyComparisonPage-CzecXGMR.js        4.43 kB │ gzip:   1.79 kB
+dist/assets/briefing-aTkcNqlT.js                     4.57 kB │ gzip:   1.99 kB
+dist/assets/useQueries-DwE4-Qo1.js                   4.58 kB │ gzip:   1.92 kB
+dist/assets/Token-czpQDJF-.js                        4.73 kB │ gzip:   1.96 kB
+dist/assets/useUnsavedGuard-BQlzXkaY.js              4.77 kB │ gzip:   2.20 kB
+dist/assets/useListSelection-Dsp9LTqB.js             5.64 kB │ gzip:   2.47 kB
+dist/assets/Item-hgTlxewa.js                         5.65 kB │ gzip:   2.13 kB
+dist/assets/useTypeahead-BTplFeI_.js                 5.73 kB │ gzip:   2.65 kB
+dist/assets/SourceVerificationSetting-BJz9xAJZ.js    6.90 kB │ gzip:   2.90 kB
+dist/assets/TrackingStatusDialog-BWJvOgM0.js         8.58 kB │ gzip:   3.52 kB
+dist/assets/Tab-D2Kxc45g.js                          8.93 kB │ gzip:   3.94 kB
+dist/assets/trackingFlow-DqIW2IgT.js                 9.32 kB │ gzip:   3.64 kB
+dist/assets/useClickableContainer-15ubAzW_.js        9.80 kB │ gzip:   3.74 kB
+dist/assets/AssumptionAnalysisPage-DcyJ7HRv.js      10.04 kB │ gzip:   4.31 kB
+dist/assets/listSelection-D2ImzDNi.js               11.13 kB │ gzip:   3.65 kB
+dist/assets/opportunities-relaxed-Ddf8HpOV.js       12.23 kB │ gzip:   4.44 kB
+dist/assets/CompanyPage-CNOoXKZm.js                 14.49 kB │ gzip:   5.19 kB
+dist/assets/inputStyles.stylex-DLQPzwZ_.js          14.59 kB │ gzip:   5.34 kB
+dist/assets/BriefingPage-B8pFoR0i.js                15.09 kB │ gzip:   6.00 kB
+dist/assets/DashboardPage-DNPg1z3v.js               16.27 kB │ gzip:   5.80 kB
+dist/assets/Dialog-Co0bTOf7.js                      16.56 kB │ gzip:   4.75 kB
+dist/assets/ReviewPrimitives-Co46CkeY.js            20.50 kB │ gzip:   7.19 kB
+dist/assets/apiErrors-Cm91ThHd.js                   23.47 kB │ gzip:   6.21 kB
+dist/assets/TrackingDecisionControl-DMegQXd4.js     23.50 kB │ gzip:   7.20 kB
+dist/assets/Selector-D5OJaq8O.js                    24.17 kB │ gzip:   9.29 kB
+dist/assets/CompanyPreSpecsPage-CIqEHSJL.js         25.52 kB │ gzip:   7.92 kB
+dist/assets/GoNoGoPage-BNCJibpS.js                  28.81 kB │ gzip:   8.72 kB
+dist/assets/Table-BkIDWSDO.js                       29.33 kB │ gzip:  10.53 kB
+dist/assets/Button-BotqHa2X.js                      39.55 kB │ gzip:  14.64 kB
+dist/assets/pre-specs-relaxed-DXHbpxDX.js           47.49 kB │ gzip:  15.85 kB
+dist/assets/OpportunitiesPage-Dz9G8tb3.js           49.35 kB │ gzip:  15.03 kB
+dist/assets/BidDeltaDecisionPage-DlMmJS3u.js        54.04 kB │ gzip:  15.22 kB
+dist/assets/ReviewWorkspacePage-Bb0QKXCI.js         54.52 kB │ gzip:  14.19 kB
+dist/assets/OpportunityRecordPage-CYLk6tB5.js       64.01 kB │ gzip:  21.00 kB
+dist/assets/DeepReviewPage-BzNG6mul.js              67.83 kB │ gzip:  19.08 kB
+dist/assets/PreSpecDetailPage-DCi9anoC.js           75.27 kB │ gzip:  22.22 kB
+dist/assets/OrderPlansPage-D6RBoD_4.js              81.40 kB │ gzip:  24.86 kB
+dist/assets/CriteriaPage-CeLizmab.js               107.53 kB │ gzip:  31.59 kB
+dist/assets/PreSpecsPage-CuWsbPRR.js               133.40 kB │ gzip:  43.11 kB
+dist/assets/RunStatusPage-dX61kPpm.js              207.85 kB │ gzip:  61.11 kB
+dist/assets/index-CdMh6lbe.js                      586.13 kB │ gzip: 171.37 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 2.14s
+build_exit=0
+
+Running 112 tests using 8 workers
+
+[1/112] [app] › tests/common-interactions.spec.ts:287:1 › 사이드바는 시안 v26 구조(빠른 이동·레코드·리스트·하단)이고 미구현 항목은 비활성이다
+[2/112] [app] › tests/common-interactions.spec.ts:311:1 › 사이드바 링크가 모두 실제 화면으로 연결되고 설정이 판정 기준을 연다
+[3/112] [app] › tests/common-interactions.spec.ts:225:1 › 사업 추적 상세는 변경 비교로 이동하고 추적 저장과 최종 결정 저장을 분리한다
+[4/112] [app] › tests/common-interactions.spec.ts:189:1 › UC-03은 키보드만으로 draft bundle 생성 직전까지 이동한다
+[5/112] [app] › tests/common-interactions.spec.ts:337:1 › 대시보드 바로가기에서 네 업무 각각으로 이동할 수 있다(회차 선택 상태)
+[6/112] [app] › tests/common-interactions.spec.ts:151:1 › UC-01은 키보드만으로 추적 저장 직전까지 이동하고 비활성 사유를 읽는다
+[7/112] [app] › tests/common-interactions.spec.ts:207:1 › UC-04는 키보드만으로 append-only 재시작 직전까지 이동한다
+[8/112] [app] › tests/common-interactions.spec.ts:246:1 › 공통 unsaved guard가 옮겨간 예외 작업 입력을 지킨다
+[9/112] [app] › tests/common-interactions.spec.ts:349:1 › 사전규격 결정 대기 건수를 서버 집계로 보여 주고 마감 순으로 이동한다
+[10/112] [app] › tests/common-interactions.spec.ts:359:1 › Go/No-Go 결정 대기 건수를 서버 집계로 보여 주고 이동을 제공한다
+[11/112] [app] › tests/common-interactions.spec.ts:367:1 › 회차가 없어도 누적 업무와 공고 판정 이력으로 이동할 수 있다
+[12/112] [app] › tests/common-interactions.spec.ts:375:1 › 누적 집계 미확인을 0으로 접지 않는다
+[13/112] [app] › tests/common-interactions.spec.ts:396:1 › 판정 기준은 모든 탭에 별도 판단과 소급 변경의 경계를 남긴다
+[14/112] [app] › tests/common-interactions.spec.ts:415:1 › 실행 상태는 모든 탭에서 운영 텔레메트리 위치와 상시 운영 차단 사유를 확인할 수 있다
+[15/112] [app] › tests/common-interactions.spec.ts:504:1 › 최종 Go/No-Go 목록은 사업 이름과 변경 비교 결과 없음을 값으로 보여준다
+[16/112] [app] › tests/common-interactions.spec.ts:528:1 › 최종 Go/No-Go 목록은 결정 대기열 한 번으로 그리고 행마다 workspace를 조회하지 않는다
+[17/112] [app] › tests/common-interactions.spec.ts:562:1 › 저장 알림은 hover 중에 사라지지 않고 명시적으로 닫을 수 있다
+[18/112] [app] › tests/common-interactions.spec.ts:584:1 › UC-05 추적 종료 확인 단계는 취소에 초점이 오고 Esc로 요청 없이 닫힌다
+[19/112] [app] › tests/company-ground-truth.spec.ts:90:1 › T8: 세 수치는 사실 건수와 같고 확인이 필요한 것은 추정값+확인 필요 사실이다
+[20/112] [app] › tests/company-ground-truth.spec.ts:132:1 › T8: 상단바는 회사 이름·마지막 저장 날짜와 이전 버전(현재 버전만)을 그리고 저장 버튼은 없다
+[21/112] [app] › tests/company-ground-truth.spec.ts:150:1 › T8: 그룹 탭은 ?group=으로 열리고 보유·세부 분리와 상주 지역(대구)을 그대로 보인다
+[22/112] [app] › tests/company-ground-truth.spec.ts:196:1 › T8: 제안서 자료는 비활성이고 직접 주소는 빈 상태, 모르는 group은 기본 그룹이다
+[23/112] [app] › tests/company-ground-truth.spec.ts:212:1 › T8: 상태 pill은 지정한 테마 토큰 색을 쓴다(확인됨 success, 추정값 blue, 확인 필요 warning)
+[24/112] [app] › tests/company-ground-truth.spec.ts:252:1 › T8: 곧 만료는 유효기간이 경고 일수 이내인 자격만 센다(지난 날짜 포함, 먼 날짜 제외)
+[25/112] [app] › tests/company-ground-truth.spec.ts:273:1 › T8: 행마다 항목 키 복사 버튼 하나가 있고 키 자체는 글자로 보이지 않는다
+[26/112] [app] › tests/company-ground-truth.spec.ts:287:1 › T8: 운영 정보(해시·버전 ID·참조 표식·모델·정책·인터뷰 번호)는 어느 그룹에도 없다
+[27/112] [app] › tests/company-ground-truth.spec.ts:305:1 › T8: 사이드바 회사 근거는 /company로 가고 건수와 워크스페이스 이름을 API에서 읽는다
+[28/112] [app] › tests/company-ground-truth.spec.ts:323:1 › T8: 실회사가 없거나 활성 버전이 없으면 수치를 0으로 적지 않고 이유를 말한다
+[29/112] [app] › tests/company-ground-truth.spec.ts:341:3 › T8: 1280x800 구조 — 좌측 요약·중앙 본문이 폭 안에 있고 가로로 넘치지 않는다
+[30/112] [app] › tests/company-ground-truth.spec.ts:341:3 › T8: 1440x900 구조 — 좌측 요약·중앙 본문이 폭 안에 있고 가로로 넘치지 않는다
+[31/112] [app] › tests/opportunities.spec.ts:22:1 › 추적을 선택했지만 사유·기록자가 없으면 미선택으로 바꾸지 않는다
+[32/112] [app] › tests/opportunities.spec.ts:43:1 › 목록은 상단바 제목 모드로 열리고 목록 기준이 상단바 안에 있다
+[33/112] [app] › tests/opportunities.spec.ts:62:1 › 목록 workspace는 page canvas의 남은 높이를 채운다
+[34/112] [app] › tests/opportunities.spec.ts:95:1 › 레코드 route는 목록으로 돌아갈 경로 표시를 그대로 갖는다
+[35/112] [app] › tests/opportunities.spec.ts:109:1 › 구역 탭은 신규 입찰공고까지 여섯이고 건수는 서버가 센 값이며 표시 수와 구분된다
+[36/112] [app] › tests/opportunities.spec.ts:137:1 › 조치 필요 사유 칩은 서버 reason으로 좁히고 주소에 남으며 다른 구역으로 가면 풀린다
+[37/112] [app] › tests/opportunities.spec.ts:178:1 › URL의 마감 창과 마감 임박순을 서버에 그대로 보내고 문맥 줄에서 해제한다
+[38/112] [app] › tests/opportunities.spec.ts:205:1 › 허용 범위 밖의 마감 창은 서버에 보내지 않고 줄도 그리지 않는다
+[39/112] [app] › tests/opportunities.spec.ts:213:1 › 한 사업기회는 구역을 통틀어 한 행으로만 나타난다
+[40/112] [app] › tests/opportunities.spec.ts:233:1 › 행은 사업명·기관·단계 줄에 사유 칩과 사유별 주 행동 하나를 붙이고 보류 기한은 한국 시간 날짜 차이로 적는다
+[41/112] [app] › tests/opportunities.spec.ts:289:1 › 대표 링크가 공고면 예산·입찰 마감을 그 값 그대로 보인다
+[42/112] [app] › tests/opportunities.spec.ts:302:1 › 대표 링크가 사전규격이고 마감이 남아 있으면 예산·의견 마감을 D-n으로 보인다
+[43/112] [app] › tests/opportunities.spec.ts:311:1 › 사유가 여럿이면 칩은 표기 순서로 모두 보이고 주 행동은 우선순위 하나다
+[44/112] [app] › tests/opportunities.spec.ts:337:1 › 행의 주 행동은 사유에 맞는 상세 자리를 연다
+[45/112] [app] › tests/opportunities.spec.ts:365:1 › 사업명·기관·행 어디를 눌러도 목록을 떠나지 않고 오른쪽 상세가 바뀐다
+[46/112] [app] › tests/opportunities.spec.ts:384:1 › 선택한 행은 배경으로 표시되고 다른 행을 고르면 함께 옮겨간다
+[47/112] [app] › tests/opportunities.spec.ts:425:1 › 구역·정렬·최초 발견 단계·검색·선택이 주소에 남고 새로 고침해도 같은 목록과 상세가 열린다
+[48/112] [app] › tests/opportunities.spec.ts:455:1 › 검색은 Enter로 서버 q에 적용하고 첫 페이지로 돌아가며 주소에 남는다
+[49/112] [app] › tests/opportunities.spec.ts:498:1 › 목록 로딩 실패는 다시 시도로 복구한다
+[50/112] [app] › tests/opportunities.spec.ts:513:1 › 목록에서 ↑↓로 행을 옮기면 선택·초점·URL이 함께 따라간다
+[51/112] [app] › tests/opportunities.spec.ts:546:1 › 페이지 경계에서 ↑↓는 앞뒤 페이지의 첫 행·마지막 행으로 이어진다
+[52/112] [app] › tests/opportunities.spec.ts:577:1 › 저장하지 않은 입력이 있으면 ↓ 이동도 확인을 거치고 취소하면 선택이 남는다
+[53/112] [app] › tests/opportunities.spec.ts:603:1 › 3단계 연결 현황은 확정·후보·검색 미확인·연결 미확인을 구분한다
+[54/112] [app] › tests/opportunities.spec.ts:630:1 › 연결된 공고 행은 실제 원천 화면 route로 이동한다
+[55/112] [app] › tests/opportunities.spec.ts:645:1 › 검색 미확인 연결은 원천 레코드를 만들어 내지 않는다
+[56/112] [app] › tests/opportunities.spec.ts:659:1 › 검색 미확인 기록은 대상마다 가장 최근 것만 남기고 그 뒤에 찾은 같은 대상 후보가 있으면 숨긴다
+[57/112] [app] › tests/opportunities.spec.ts:697:1 › 후보 연결은 사유·기록자 없이 저장되지 않고 수용하면 확정으로 바뀐다
+[58/112] [app] › tests/opportunities.spec.ts:735:1 › 기각한 후보는 확정으로 올라가지 않고 이력으로 남는다
+[59/112] [app] › tests/opportunities.spec.ts:756:1 › 후보 판정 실패는 입력을 유지하고 연결이 바뀌지 않았다고 말한다
+[60/112] [app] › tests/opportunities.spec.ts:774:1 › 추적 상태 변경은 사유 선택지와 기타 직접 입력을 갖고 공백을 막는다
+[61/112] [app] › tests/opportunities.spec.ts:807:1 › 미선택 건은 화면이 대신 상태를 고르지 않고 미선택으로 되돌릴 수도 없다
+[62/112] [app] › tests/opportunities.spec.ts:819:1 › 입력을 남긴 채 닫으면 버릴지 확인하고 계속 작성하면 초안이 남는다
+[63/112] [app] › tests/opportunities.spec.ts:847:1 › 추적 종료는 확인 없이 요청이 나가지 않고 취소하면 초안만 남는다
+[64/112] [app] › tests/opportunities.spec.ts:878:1 › 추적 저장이 실패하면 초안을 그대로 두고 저장되지 않았다고 말한다
+[65/112] [app] › tests/opportunities.spec.ts:896:1 › 확인 항목 예외는 회차를 그대로 쓰고 등급·처리 값을 덮지 않는다
+[66/112] [app] › tests/opportunities.spec.ts:935:1 › 재검토 신호는 계산 대기를 결과로 보여주지 않는다
+[67/112] [app] › tests/opportunities.spec.ts:952:1 › 새 공고 확인 완료는 보던 근거 연결과 메모를 보내고 추적 상태를 바꾸지 않는다
+[68/112] [app] › tests/opportunities.spec.ts:984:1 › 확인 완료 전에 근거 연결이 바뀌면 최신 상태를 다시 읽는다고 알리고 새 근거를 보여 준다
+[69/112] [app] › tests/opportunities.spec.ts:1002:1 › 재검토 신호가 있으면 추적 상태 대화상자가 저장 시 새 공고 확인도 처리된다고 알린다
+[70/112] [app] › tests/opportunities.spec.ts:1016:1 › 단계 줄 찾아보기는 기준 레코드가 있는 빈 단계에만 있고 결과 후보를 후보 대화상자로 연다
+[71/112] [app] › tests/opportunities.spec.ts:1066:1 › 찾아보기가 찾지 못하면 검색 미확인과 마지막 검색 시각을 없음으로 바꾸지 않고 보여 준다
+[72/112] [app] › tests/opportunities.spec.ts:1086:1 › 찾아보기 기준 레코드가 서버에 없으면 어떤 원천이 없는지 설명한다
+[73/112] [app] › tests/opportunities.spec.ts:1102:1 › 양쪽에 사람 추적 상태가 있어 병합이 거절되면 두 사업기회의 상태를 보여 주고 입력을 남긴다
+[74/112] [app] › tests/opportunities.spec.ts:1134:1 › 병합이 막히면 각 사업을 미선택으로 되돌릴 수 있고 수락은 자동으로 다시 시도되지 않는다
+[75/112] [app] › tests/opportunities.spec.ts:1176:1 › 추적 상태가 같아 서버가 병합한 수락은 사람 확인 병합으로 끝난다
+[76/112] [app] › tests/opportunities.spec.ts:1194:1 › 추적 결정 카드에서 결정을 미선택으로 되돌린다
+[77/112] [app] › tests/opportunities.spec.ts:1223:1 › 확인 사항이 없으면 신호 없음이라고만 말하고 자격 확인으로 읽히지 않게 한다
+[78/112] [app] › tests/opportunities.spec.ts:1234:1 › 추적 이력은 현재 추적 결정 사실을 먼저 보여 주고 결정 revision을 이력으로 남긴다
+[79/112] [app] › tests/opportunities.spec.ts:1250:1 › 추적 이력은 결정 revision과 재검토 신호 이벤트를 마이크로초·시간대까지 맞춰 최신순으로 함께 보여 준다
+[80/112] [app] › tests/opportunities.spec.ts:1278:1 › 결정 기록이 없으면 없다고 말하고 미확인을 값으로 채우지 않는다
+[81/112] [app] › tests/opportunities.spec.ts:1291:1 › 결정 기록 조회가 실패해도 저장된 값을 결정 기록으로 위장하지 않는다
+[82/112] [app] › tests/opportunities.spec.ts:1300:1 › 심층 검토 보고서 목록을 API에서 받아 상태·품질 표식·최종 의견과 함께 보여 준다
+[83/112] [app] › tests/opportunities.spec.ts:1328:1 › 연결된 심층 검토 보고서가 없으면 빈 상태를 보여주고 목록을 지어내지 않는다
+[84/112] [app] › tests/opportunities.spec.ts:1339:1 › 두 지원 폭에서 가로로 넘치지 않고 상세 바닥 액션이 보인다
+[85/112] [app] › tests/opportunities.spec.ts:1363:1 › 상세 본문을 끝까지 스크롤해도 상세 머리가 뷰포트 안에 남는다
+[86/112] [app] › tests/opportunities.spec.ts:1395:1 › 목록의 글자 크기가 물리 크기의 14.4px·12.6px 단을 지킨다
+[87/112] [app] › tests/opportunity-record.spec.ts:34:1 › /opportunities/:id는 활동 탭으로 replace 이동하고 알 수 없는 탭·식별자는 안전하게 처리한다
+[88/112] [app] › tests/opportunity-record.spec.ts:58:1 › 상단 경로는 사업기회 / 제목이고 제목이 오기 전에는 #id, 다른 레코드의 제목은 쓰지 않는다
+[89/112] [app] › tests/opportunity-record.spec.ts:97:1 › 헤더 pill은 단계·마감·판정·추적 상태 순서이고 판정이 없으면 판정 보기·제안서 초안은 비활성이다
+[90/112] [app] › tests/opportunity-record.spec.ts:125:1 › 같은 단계에 권위 연결이 둘이면 서버가 준 대표(stages[].link_id)로 헤더·속성·공고·비슷한 공고를 읽는다
+[91/112] [app] › tests/opportunity-record.spec.ts:146:1 › 속성 8개는 고정 순서이고 값이 없으면 미공개·미지정이다
+[92/112] [app] › tests/opportunity-record.spec.ts:188:1 › 제출 서류 블록은 비활성 안내 한 줄뿐이고 진행 막대·숫자가 없다
+[93/112] [app] › tests/opportunity-record.spec.ts:197:1 › 단계 바는 서버 상태 6개를 그대로 그리고 unknown은 미확인 글자와 회색 테두리다
+[94/112] [app] › tests/opportunity-record.spec.ts:227:1 › 활동 항목은 분 단위 시각·사람 이름·상태 pill·링크를 그리고 초 단위와 시스템 정보를 노출하지 않는다
+[95/112] [app] › tests/opportunity-record.spec.ts:273:1 › 필터 칩은 받아 둔 항목을 클라이언트에서 가르고 서버를 다시 부르지 않는다
+[96/112] [app] › tests/opportunity-record.spec.ts:299:1 › 활동이 없으면 빈 상태를 말하고, 더 보기는 서버 커서로 다음 페이지를 이어 붙인다
+[97/112] [app] › tests/opportunity-record.spec.ts:324:1 › 노트는 담당자 이름 없이 저장되지 않고, ⌘Enter로 저장하며 UUID 요청 식별자와 기록자 헤더가 나간다
+[98/112] [app] › tests/opportunity-record.spec.ts:352:1 › 다음 행동은 담당을 선택 입력으로 보내고 좌측 목록에 체크 항목으로 나타난다
+[99/112] [app] › tests/opportunity-record.spec.ts:379:1 › 저장이 실패하면 입력을 그대로 두고, 같은 입력의 재시도는 같은 요청 식별자를 쓰며 바꾸면 새 식별자다
+[100/112] [app] › tests/opportunity-record.spec.ts:410:1 › 저장 중 같은 입력을 연달아 눌러도 한 번만 보낸다
+[101/112] [app] › tests/opportunity-record.spec.ts:424:1 › 저장하지 않은 노트 초안은 beforeunload와 SPA 이동을 지키고, 탭을 오가도 초안이 남는다
+[102/112] [app] › tests/opportunity-record.spec.ts:453:1 › 다음 행동 체크는 완료를 저장하고 이름이 없으면 저장하지 않으며 note_not_action을 사람 문구로 말한다
+[103/112] [app] › tests/opportunity-record.spec.ts:485:1 › 다음 행동은 최대 5건만 보이고 모두 보기가 피드를 다음 행동으로 거른다
+[104/112] [app] › tests/opportunity-record.spec.ts:510:1 › 판정(없음)·제안서·서류 탭은 빈 상태 문장만 그리고 좌측 정보는 탭을 옮겨도 남는다
+[105/112] [app] › tests/opportunity-record.spec.ts:526:1 › 원문 탭은 공고 상세로 가는 링크를 주고 비슷한 공고는 가장 뒤 단계 공고의 관련 목록을 쓴다
+[106/112] [app] › tests/opportunity-record.spec.ts:547:1 › 탭은 ←→ 키로 옮기고 선택이 주소에 남는다
+[107/112] [app] › tests/opportunity-record.spec.ts:565:1 › 병합된 사업기회는 병합 대상 레코드로 이동한다
+[108/112] [app] › tests/opportunity-record.spec.ts:572:1 › ⋯ 메뉴는 기존 추적 대화상자를 열고 저장하면 헤더·속성·활동이 다시 읽힌다
+[109/112] [app] › tests/opportunity-record.spec.ts:599:1 › ⋯ 메뉴의 추적 되돌리기와 후보 연결은 기존 대화상자를 열고 해당이 없으면 이유와 함께 비활성이다
+[110/112] [app] › tests/opportunity-record.spec.ts:623:1 › 레코드 DOM에 회차·정책·모델·참조 실행 표식이 없다
+[111/112] [app] › tests/opportunity-record.spec.ts:639:3 › 1280px에서 가로로 넘치지 않고 좌측 정보가 280px이며 작성기가 보인다
+[112/112] [app] › tests/opportunity-record.spec.ts:639:3 › 1440px에서 가로로 넘치지 않고 좌측 정보가 280px이며 작성기가 보인다
+  112 passed (23.3s)
+playwright_exit=0

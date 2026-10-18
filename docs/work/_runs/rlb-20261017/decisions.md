@@ -55,3 +55,4 @@
 - (리뷰 B39 비차단) T9 payload guard 테스트가 Git 밖 Rootlab fixture 없으면 skip → 커밋된 합성 fixture로 CI 강제 필요.
 - (리뷰 B39 비차단) runner 출력 크기 검사가 `--json` 이벤트 스트림까지 세어 큰 정상 답이 `output_truncated`로 막힐 수 있음(fail closed지만 승인 호출 소모).
 - (리뷰 B39 비차단) main 기존 실패 `test_auto_preparation` 13건의 findings 항목 여부 확인.
+| B40 | 2026-10-18 | 배치 | RL-04 `phase implementing`이 "범위 밖 선행 기능 미검증: RL-00"으로 거부 — 배치 A에서 done인 RL-00·RL-02의 증거가 RL-03 코드와 B38 설정 변경으로 stale(스냅샷이 저장소 전체 코드·설정을 묶음) | 배치 HEAD(`dc133b6`, RL-04 worktree)에서 RL-00·RL-02 plan 증명 명령을 한 번 실행해 증거를 다시 연결(RL-03 변경의 회귀 검사 겸). 비적용 항목은 같은 근거로 다시 기록. RL-01은 RL-04 선행이 아니라 대상 아님 | 리더(권장안) | sdlc loop "stale 증거는 자동 명령 1회 실행 후 재연결" |
