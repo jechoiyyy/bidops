@@ -1,0 +1,39 @@
+{
+  "id": "rlc-20261019",
+  "state": "implementing",
+  "features": [
+    "RL-05-gold-acceptance"
+  ],
+  "target": "main",
+  "base_sha": "ff8aa84baaf02313bc6bb12caa3692933e82e4c2",
+  "base_root": "/Users/temp/orca/bidops",
+  "branch": "sdlc/batch-rlc-20261019",
+  "workspace": "/Users/temp/orca/bidops/.sdlc/worktrees/batch-rlc-20261019",
+  "work_dir": "docs/work",
+  "engine": "claude",
+  "approved_at": "2026-10-19T10:39:10+09:00",
+  "policy": {
+    "auto_commit": false,
+    "manual_proof": "defer",
+    "final_review": true,
+    "max_retries": 1,
+    "git": {
+      "isolation": "worktree",
+      "merge": "no-ff",
+      "copy_untracked": []
+    },
+    "commit_policy": "manual",
+    "merge_policy": "manual"
+  },
+  "specs": {
+    "RL-05-gold-acceptance": "28ddc310f920c2107c799cdaaaf66b38060a57278d5e2fe26d2cda4bab2806aa"
+  },
+  "ready": {},
+  "decisions": [
+    {
+      "feature": "RL-05-gold-acceptance",
+      "note": "C7: 사용자 승인(2026-10-19) spec 정정 2건 — quality_status 출처를 제품 규칙 quality_status_for_reviews로, gold_after_model/holdout_violated를 첫 attempt 시작 원인(수동/자동)으로 구분",
+      "at": "2026-10-19T12:47:53+09:00"
+    }
+  ]
+}
