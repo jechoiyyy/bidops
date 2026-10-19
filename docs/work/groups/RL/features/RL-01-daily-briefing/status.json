@@ -138,80 +138,80 @@
     "docs": {
       "result": "pass",
       "method": "review",
-      "note": "doctor exit0, 기능 독립 리뷰 + 배치 최종 리뷰(B) BLOCKING 없음. 배치 최종 코드(26c3b42, RL-02 통합 후) 재검증으로 갱신",
-      "evidence": "docs/work/_runs/rla-20261016/logs/BATCH-doctor.log; docs/work/_runs/rla-20261016/RL-01-review.md; docs/work/_runs/rla-20261016/RL-02-review.md",
+      "note": "2026-10-19 재검증: C-2 Mac 병합(b8005ef)·운영 반영 기록(ece3b08) 뒤 main HEAD에서 RL-00~04 plan 증명 합집합 1회 실행. doctor 0, 병합 충돌은 ADR 색인·findings 2건(기능 문서 무변경)",
+      "evidence": "docs/work/_runs/reverify-20261019/logs/doctor.log",
       "exit_code": null,
       "actor": "orchestrator",
       "command": "python3 scripts/feature_status.py doctor _",
-      "at": "2026-10-17T14:24:31+09:00",
-      "head": "26c3b422c478df622240170fe39711006bf055c6",
-      "source_hash": "4549452b5a0886d443597531cb5e98693ac9b38f50aa6cb6e14d0f8750179ee5",
-      "spec_hash": "c5c00cdb14168ae7b4f1b61bebdf81915aef1c75a28279ced6521ad54a81d11f"
+      "at": "2026-10-19T10:37:58+09:00",
+      "head": "ece3b08a603817e17165ddebca3127de6cf6b06e",
+      "source_hash": "46e0089f7510dd52a89be36d549880f8ba7c6b5c6356ce9124a03514aece6ae3",
+      "spec_hash": "0b31383ed5893e0192d3851d707b0ef8b006e8b624da1c144d2a2efa7dba54e2"
     },
     "tests": {
       "result": "pass",
       "method": "command",
-      "note": "세 기능 plan tests 합집합 498 passed 121 skipped(PG) 2 deselect(main에서도 실패). 배치 최종 코드(26c3b42, RL-02 통합 후) 재검증으로 갱신",
-      "evidence": "docs/work/_runs/rla-20261016/logs/BATCH-tests.log",
+      "note": "2026-10-19 재검증: C-2 Mac 병합(b8005ef)·운영 반영 기록(ece3b08) 뒤 main HEAD에서 RL-00~04 plan 증명 합집합 1회 실행. 합집합 748 passed(126 skip=PG 변형·컨테이너 전용). plan의 test_proposal_payload_guard.py는 실제 파일 test_proposal_input·test_proposal_draft로 실행",
+      "evidence": "docs/work/_runs/reverify-20261019/logs/tests.log",
       "exit_code": 0,
       "actor": "orchestrator",
       "command": "bash -lc \"cd web/backend && python -m pytest -q -x -p no:cacheprovider\"",
-      "at": "2026-10-17T14:24:31+09:00",
-      "head": "26c3b422c478df622240170fe39711006bf055c6",
-      "source_hash": "4549452b5a0886d443597531cb5e98693ac9b38f50aa6cb6e14d0f8750179ee5",
-      "spec_hash": "c5c00cdb14168ae7b4f1b61bebdf81915aef1c75a28279ced6521ad54a81d11f"
+      "at": "2026-10-19T10:37:59+09:00",
+      "head": "ece3b08a603817e17165ddebca3127de6cf6b06e",
+      "source_hash": "46e0089f7510dd52a89be36d549880f8ba7c6b5c6356ce9124a03514aece6ae3",
+      "spec_hash": "0b31383ed5893e0192d3851d707b0ef8b006e8b624da1c144d2a2efa7dba54e2"
     },
     "postgres": {
       "result": "pass",
       "method": "command",
-      "note": "postgres:17.11 합집합 312 passed(경계·권한·drift 포함). 배치 최종 코드(26c3b42, RL-02 통합 후) 재검증으로 갱신",
-      "evidence": "docs/work/_runs/rla-20261016/logs/BATCH-postgres.log",
+      "note": "2026-10-19 재검증: C-2 Mac 병합(b8005ef)·운영 반영 기록(ece3b08) 뒤 main HEAD에서 RL-00~04 plan 증명 합집합 1회 실행. postgres:17.11 301 passed(migrations·privileges·drift·경계) + 제안서 API·렌더 27 passed(폰트 디렉터리 지정, skip 0)",
+      "evidence": "docs/work/_runs/reverify-20261019/logs/postgres.log; docs/work/_runs/reverify-20261019/logs/postgres-proposal-api.log",
       "exit_code": 0,
       "actor": "orchestrator",
       "command": "",
-      "at": "2026-10-17T14:24:31+09:00",
-      "head": "26c3b422c478df622240170fe39711006bf055c6",
-      "source_hash": "4549452b5a0886d443597531cb5e98693ac9b38f50aa6cb6e14d0f8750179ee5",
-      "spec_hash": "c5c00cdb14168ae7b4f1b61bebdf81915aef1c75a28279ced6521ad54a81d11f"
+      "at": "2026-10-19T10:37:59+09:00",
+      "head": "ece3b08a603817e17165ddebca3127de6cf6b06e",
+      "source_hash": "46e0089f7510dd52a89be36d549880f8ba7c6b5c6356ce9124a03514aece6ae3",
+      "spec_hash": "0b31383ed5893e0192d3851d707b0ef8b006e8b624da1c144d2a2efa7dba54e2"
     },
     "frontend": {
       "result": "pass",
       "method": "command",
-      "note": "build·contrast 8/8·Playwright plan spec 150 + company-layout 20. 배치 최종 코드(26c3b42, RL-02 통합 후) 재검증으로 갱신",
-      "evidence": "docs/work/_runs/rla-20261016/logs/BATCH-frontend-build.log; docs/work/_runs/rla-20261016/logs/BATCH-playwright.log; docs/work/_runs/rla-20261016/logs/BATCH-playwright-layout.log",
+      "note": "2026-10-19 재검증: C-2 Mac 병합(b8005ef)·운영 반영 기록(ece3b08) 뒤 main HEAD에서 RL-00~04 plan 증명 합집합 1회 실행. build 0·contrast 0, Playwright app 7 spec 194 passed(preview 127.0.0.1)",
+      "evidence": "docs/work/_runs/reverify-20261019/logs/frontend-build.log; docs/work/_runs/reverify-20261019/logs/frontend-playwright.log",
       "exit_code": 0,
       "actor": "orchestrator",
       "command": "bash -lc \"cd web/frontend && npm run build && npm run test:contrast\"",
-      "at": "2026-10-17T14:24:32+09:00",
-      "head": "26c3b422c478df622240170fe39711006bf055c6",
-      "source_hash": "4549452b5a0886d443597531cb5e98693ac9b38f50aa6cb6e14d0f8750179ee5",
-      "spec_hash": "c5c00cdb14168ae7b4f1b61bebdf81915aef1c75a28279ced6521ad54a81d11f"
+      "at": "2026-10-19T10:37:59+09:00",
+      "head": "ece3b08a603817e17165ddebca3127de6cf6b06e",
+      "source_hash": "46e0089f7510dd52a89be36d549880f8ba7c6b5c6356ce9124a03514aece6ae3",
+      "spec_hash": "0b31383ed5893e0192d3851d707b0ef8b006e8b624da1c144d2a2efa7dba54e2"
     },
     "api_guard": {
       "result": "pass",
       "method": "command",
-      "note": "T8·T9 가짜 Slack 사전 차단·토큰 비노출·멱등, 추적 불변. 실제 Slack 미실행. 배치 최종 코드(26c3b42, RL-02 통합 후) 재검증으로 갱신",
-      "evidence": "docs/work/_runs/rla-20261016/logs/BATCH-tests.log",
+      "note": "2026-10-19 재검증: C-2 Mac 병합(b8005ef)·운영 반영 기록(ece3b08) 뒤 main HEAD에서 RL-00~04 plan 증명 합집합 1회 실행. 승인·payload guard·회사 소속·Slack 사전 차단·demo off 404 PG 252 passed, skip 0",
+      "evidence": "docs/work/_runs/reverify-20261019/logs/api-guard.log",
       "exit_code": 0,
       "actor": "orchestrator",
       "command": "",
-      "at": "2026-10-17T14:24:32+09:00",
-      "head": "26c3b422c478df622240170fe39711006bf055c6",
-      "source_hash": "4549452b5a0886d443597531cb5e98693ac9b38f50aa6cb6e14d0f8750179ee5",
-      "spec_hash": "c5c00cdb14168ae7b4f1b61bebdf81915aef1c75a28279ced6521ad54a81d11f"
+      "at": "2026-10-19T10:38:02+09:00",
+      "head": "ece3b08a603817e17165ddebca3127de6cf6b06e",
+      "source_hash": "46e0089f7510dd52a89be36d549880f8ba7c6b5c6356ce9124a03514aece6ae3",
+      "spec_hash": "0b31383ed5893e0192d3851d707b0ef8b006e8b624da1c144d2a2efa7dba54e2"
     },
     "real_data_run": {
       "result": "not_applicable",
       "method": "manual",
-      "note": "RL-03·04·05 전용, 모델 호출 없음",
+      "note": "RL-03·04·05 전용, 이 기능 모델 호출 없음(재기록 2026-10-19)",
       "evidence": "docs/work/feature.json",
       "exit_code": null,
       "actor": "orchestrator",
       "command": "",
-      "at": "2026-10-17T14:24:32+09:00",
-      "head": "26c3b422c478df622240170fe39711006bf055c6",
-      "source_hash": "4549452b5a0886d443597531cb5e98693ac9b38f50aa6cb6e14d0f8750179ee5",
-      "spec_hash": "c5c00cdb14168ae7b4f1b61bebdf81915aef1c75a28279ced6521ad54a81d11f"
+      "at": "2026-10-19T10:38:04+09:00",
+      "head": "ece3b08a603817e17165ddebca3127de6cf6b06e",
+      "source_hash": "46e0089f7510dd52a89be36d549880f8ba7c6b5c6356ce9124a03514aece6ae3",
+      "spec_hash": "0b31383ed5893e0192d3851d707b0ef8b006e8b624da1c144d2a2efa7dba54e2"
     }
   },
   "notes": [
@@ -312,7 +312,7 @@
       "text": "단계 → done: 배치 검증 및 통합 완료"
     }
   ],
-  "updated_at": "2026-10-17T14:44:40+09:00",
+  "updated_at": "2026-10-19T10:38:04+09:00",
   "proof_history": [
     {
       "key": "docs",
@@ -443,6 +443,102 @@
         "at": "2026-10-17T12:56:41+09:00",
         "head": "e64a5851d0d68fca834f46a3cf86cf11044748a6",
         "source_hash": "4e5b215865ffc1b394d34b74700af30e52051f6afcded14c206f44e3500b9fa7",
+        "spec_hash": "c5c00cdb14168ae7b4f1b61bebdf81915aef1c75a28279ced6521ad54a81d11f"
+      }
+    },
+    {
+      "key": "docs",
+      "previous": {
+        "result": "pass",
+        "method": "review",
+        "note": "doctor exit0, 기능 독립 리뷰 + 배치 최종 리뷰(B) BLOCKING 없음. 배치 최종 코드(26c3b42, RL-02 통합 후) 재검증으로 갱신",
+        "evidence": "docs/work/_runs/rla-20261016/logs/BATCH-doctor.log; docs/work/_runs/rla-20261016/RL-01-review.md; docs/work/_runs/rla-20261016/RL-02-review.md",
+        "exit_code": null,
+        "actor": "orchestrator",
+        "command": "python3 scripts/feature_status.py doctor _",
+        "at": "2026-10-17T14:24:31+09:00",
+        "head": "26c3b422c478df622240170fe39711006bf055c6",
+        "source_hash": "4549452b5a0886d443597531cb5e98693ac9b38f50aa6cb6e14d0f8750179ee5",
+        "spec_hash": "c5c00cdb14168ae7b4f1b61bebdf81915aef1c75a28279ced6521ad54a81d11f"
+      }
+    },
+    {
+      "key": "tests",
+      "previous": {
+        "result": "pass",
+        "method": "command",
+        "note": "세 기능 plan tests 합집합 498 passed 121 skipped(PG) 2 deselect(main에서도 실패). 배치 최종 코드(26c3b42, RL-02 통합 후) 재검증으로 갱신",
+        "evidence": "docs/work/_runs/rla-20261016/logs/BATCH-tests.log",
+        "exit_code": 0,
+        "actor": "orchestrator",
+        "command": "bash -lc \"cd web/backend && python -m pytest -q -x -p no:cacheprovider\"",
+        "at": "2026-10-17T14:24:31+09:00",
+        "head": "26c3b422c478df622240170fe39711006bf055c6",
+        "source_hash": "4549452b5a0886d443597531cb5e98693ac9b38f50aa6cb6e14d0f8750179ee5",
+        "spec_hash": "c5c00cdb14168ae7b4f1b61bebdf81915aef1c75a28279ced6521ad54a81d11f"
+      }
+    },
+    {
+      "key": "postgres",
+      "previous": {
+        "result": "pass",
+        "method": "command",
+        "note": "postgres:17.11 합집합 312 passed(경계·권한·drift 포함). 배치 최종 코드(26c3b42, RL-02 통합 후) 재검증으로 갱신",
+        "evidence": "docs/work/_runs/rla-20261016/logs/BATCH-postgres.log",
+        "exit_code": 0,
+        "actor": "orchestrator",
+        "command": "",
+        "at": "2026-10-17T14:24:31+09:00",
+        "head": "26c3b422c478df622240170fe39711006bf055c6",
+        "source_hash": "4549452b5a0886d443597531cb5e98693ac9b38f50aa6cb6e14d0f8750179ee5",
+        "spec_hash": "c5c00cdb14168ae7b4f1b61bebdf81915aef1c75a28279ced6521ad54a81d11f"
+      }
+    },
+    {
+      "key": "frontend",
+      "previous": {
+        "result": "pass",
+        "method": "command",
+        "note": "build·contrast 8/8·Playwright plan spec 150 + company-layout 20. 배치 최종 코드(26c3b42, RL-02 통합 후) 재검증으로 갱신",
+        "evidence": "docs/work/_runs/rla-20261016/logs/BATCH-frontend-build.log; docs/work/_runs/rla-20261016/logs/BATCH-playwright.log; docs/work/_runs/rla-20261016/logs/BATCH-playwright-layout.log",
+        "exit_code": 0,
+        "actor": "orchestrator",
+        "command": "bash -lc \"cd web/frontend && npm run build && npm run test:contrast\"",
+        "at": "2026-10-17T14:24:32+09:00",
+        "head": "26c3b422c478df622240170fe39711006bf055c6",
+        "source_hash": "4549452b5a0886d443597531cb5e98693ac9b38f50aa6cb6e14d0f8750179ee5",
+        "spec_hash": "c5c00cdb14168ae7b4f1b61bebdf81915aef1c75a28279ced6521ad54a81d11f"
+      }
+    },
+    {
+      "key": "api_guard",
+      "previous": {
+        "result": "pass",
+        "method": "command",
+        "note": "T8·T9 가짜 Slack 사전 차단·토큰 비노출·멱등, 추적 불변. 실제 Slack 미실행. 배치 최종 코드(26c3b42, RL-02 통합 후) 재검증으로 갱신",
+        "evidence": "docs/work/_runs/rla-20261016/logs/BATCH-tests.log",
+        "exit_code": 0,
+        "actor": "orchestrator",
+        "command": "",
+        "at": "2026-10-17T14:24:32+09:00",
+        "head": "26c3b422c478df622240170fe39711006bf055c6",
+        "source_hash": "4549452b5a0886d443597531cb5e98693ac9b38f50aa6cb6e14d0f8750179ee5",
+        "spec_hash": "c5c00cdb14168ae7b4f1b61bebdf81915aef1c75a28279ced6521ad54a81d11f"
+      }
+    },
+    {
+      "key": "real_data_run",
+      "previous": {
+        "result": "not_applicable",
+        "method": "manual",
+        "note": "RL-03·04·05 전용, 모델 호출 없음",
+        "evidence": "docs/work/feature.json",
+        "exit_code": null,
+        "actor": "orchestrator",
+        "command": "",
+        "at": "2026-10-17T14:24:32+09:00",
+        "head": "26c3b422c478df622240170fe39711006bf055c6",
+        "source_hash": "4549452b5a0886d443597531cb5e98693ac9b38f50aa6cb6e14d0f8750179ee5",
         "spec_hash": "c5c00cdb14168ae7b4f1b61bebdf81915aef1c75a28279ced6521ad54a81d11f"
       }
     }

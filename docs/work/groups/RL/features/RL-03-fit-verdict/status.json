@@ -250,66 +250,66 @@
     "docs": {
       "result": "pass",
       "method": "review",
-      "note": "배치 최종 코드 5bc391b(RL-03 STEP-011·012 통합 후) 재검증(테스트 로그는 문서 5줄 정정 전 동일 코드 7d6e3de에서 실행). doctor 0, 독립 리뷰 B50(배치)·B58(STEP-011·012 변경분) 차단 해소",
-      "evidence": "docs/work/_runs/rlb-20261017/logs/FINAL-doctor.log; decisions.md B50·B58",
+      "note": "2026-10-19 재검증: C-2 Mac 병합(b8005ef)·운영 반영 기록(ece3b08) 뒤 main HEAD에서 RL-00~04 plan 증명 합집합 1회 실행. doctor 0, 병합 충돌은 ADR 색인·findings 2건(기능 문서 무변경)",
+      "evidence": "docs/work/_runs/reverify-20261019/logs/doctor.log",
       "exit_code": null,
       "actor": "orchestrator",
       "command": "python3 scripts/feature_status.py doctor _",
-      "at": "2026-10-18T17:16:32+09:00",
-      "head": "5bc391b9a65d72c862f34d4600d4b0072bce4add",
-      "source_hash": "1d67e7b232814a748d21fde0397e93786ab6f5fa57a43dec41a639bb467079f3",
+      "at": "2026-10-19T10:38:00+09:00",
+      "head": "ece3b08a603817e17165ddebca3127de6cf6b06e",
+      "source_hash": "46e0089f7510dd52a89be36d549880f8ba7c6b5c6356ce9124a03514aece6ae3",
       "spec_hash": "4d766281404d034bbccbdba5c7e2398dd6cd67da33bec1faf103250bea40edfc"
     },
     "tests": {
       "result": "pass",
       "method": "command",
-      "note": "배치 최종 코드 5bc391b(RL-03 STEP-011·012 통합 후) 재검증(테스트 로그는 문서 5줄 정정 전 동일 코드 7d6e3de에서 실행). RL-03+RL-04 plan tests 합집합 490 passed(54 skip=PG 변형·컨테이너 전용)",
-      "evidence": "docs/work/_runs/rlb-20261017/logs/FINAL-tests.log",
+      "note": "2026-10-19 재검증: C-2 Mac 병합(b8005ef)·운영 반영 기록(ece3b08) 뒤 main HEAD에서 RL-00~04 plan 증명 합집합 1회 실행. 합집합 748 passed(126 skip=PG 변형·컨테이너 전용). plan의 test_proposal_payload_guard.py는 실제 파일 test_proposal_input·test_proposal_draft로 실행",
+      "evidence": "docs/work/_runs/reverify-20261019/logs/tests.log",
       "exit_code": 0,
       "actor": "orchestrator",
       "command": "bash -lc \"cd web/backend && python -m pytest -q -x -p no:cacheprovider\"",
-      "at": "2026-10-18T17:16:31+09:00",
-      "head": "5bc391b9a65d72c862f34d4600d4b0072bce4add",
-      "source_hash": "1d67e7b232814a748d21fde0397e93786ab6f5fa57a43dec41a639bb467079f3",
+      "at": "2026-10-19T10:38:01+09:00",
+      "head": "ece3b08a603817e17165ddebca3127de6cf6b06e",
+      "source_hash": "46e0089f7510dd52a89be36d549880f8ba7c6b5c6356ce9124a03514aece6ae3",
       "spec_hash": "4d766281404d034bbccbdba5c7e2398dd6cd67da33bec1faf103250bea40edfc"
     },
     "postgres": {
       "result": "pass",
       "method": "command",
-      "note": "배치 최종 코드 5bc391b(RL-03 STEP-011·012 통합 후) 재검증(테스트 로그는 문서 5줄 정정 전 동일 코드 7d6e3de에서 실행). postgres:17.11 244 passed(migrations·privileges·drift)",
-      "evidence": "docs/work/_runs/rlb-20261017/logs/FINAL-postgres.log",
+      "note": "2026-10-19 재검증: C-2 Mac 병합(b8005ef)·운영 반영 기록(ece3b08) 뒤 main HEAD에서 RL-00~04 plan 증명 합집합 1회 실행. postgres:17.11 301 passed(migrations·privileges·drift·경계) + 제안서 API·렌더 27 passed(폰트 디렉터리 지정, skip 0)",
+      "evidence": "docs/work/_runs/reverify-20261019/logs/postgres.log; docs/work/_runs/reverify-20261019/logs/postgres-proposal-api.log",
       "exit_code": 0,
       "actor": "orchestrator",
       "command": "",
-      "at": "2026-10-18T17:16:32+09:00",
-      "head": "5bc391b9a65d72c862f34d4600d4b0072bce4add",
-      "source_hash": "1d67e7b232814a748d21fde0397e93786ab6f5fa57a43dec41a639bb467079f3",
+      "at": "2026-10-19T10:38:01+09:00",
+      "head": "ece3b08a603817e17165ddebca3127de6cf6b06e",
+      "source_hash": "46e0089f7510dd52a89be36d549880f8ba7c6b5c6356ce9124a03514aece6ae3",
       "spec_hash": "4d766281404d034bbccbdba5c7e2398dd6cd67da33bec1faf103250bea40edfc"
     },
     "frontend": {
       "result": "pass",
       "method": "command",
-      "note": "배치 최종 코드 5bc391b(RL-03 STEP-011·012 통합 후) 재검증(테스트 로그는 문서 5줄 정정 전 동일 코드 7d6e3de에서 실행). build 0, Playwright app 7 spec 194 passed, contrast 0",
-      "evidence": "docs/work/_runs/rlb-20261017/logs/FINAL-frontend.log",
+      "note": "2026-10-19 재검증: C-2 Mac 병합(b8005ef)·운영 반영 기록(ece3b08) 뒤 main HEAD에서 RL-00~04 plan 증명 합집합 1회 실행. build 0·contrast 0, Playwright app 7 spec 194 passed(preview 127.0.0.1)",
+      "evidence": "docs/work/_runs/reverify-20261019/logs/frontend-build.log; docs/work/_runs/reverify-20261019/logs/frontend-playwright.log",
       "exit_code": 0,
       "actor": "orchestrator",
       "command": "bash -lc \"cd web/frontend && npm run build && npm run test:contrast\"",
-      "at": "2026-10-18T17:16:32+09:00",
-      "head": "5bc391b9a65d72c862f34d4600d4b0072bce4add",
-      "source_hash": "1d67e7b232814a748d21fde0397e93786ab6f5fa57a43dec41a639bb467079f3",
+      "at": "2026-10-19T10:38:01+09:00",
+      "head": "ece3b08a603817e17165ddebca3127de6cf6b06e",
+      "source_hash": "46e0089f7510dd52a89be36d549880f8ba7c6b5c6356ce9124a03514aece6ae3",
       "spec_hash": "4d766281404d034bbccbdba5c7e2398dd6cd67da33bec1faf103250bea40edfc"
     },
     "api_guard": {
       "result": "pass",
       "method": "command",
-      "note": "배치 최종 코드 5bc391b(RL-03 STEP-011·012 통합 후) 재검증(테스트 로그는 문서 5줄 정정 전 동일 코드 7d6e3de에서 실행). RL-03 T3·T9·T10·B25 + RL-04 T4·T9 85 passed, skip 0",
-      "evidence": "docs/work/_runs/rlb-20261017/logs/FINAL-api-guard.log",
+      "note": "2026-10-19 재검증: C-2 Mac 병합(b8005ef)·운영 반영 기록(ece3b08) 뒤 main HEAD에서 RL-00~04 plan 증명 합집합 1회 실행. 승인·payload guard·회사 소속·Slack 사전 차단·demo off 404 PG 252 passed, skip 0",
+      "evidence": "docs/work/_runs/reverify-20261019/logs/api-guard.log",
       "exit_code": 0,
       "actor": "orchestrator",
       "command": "",
-      "at": "2026-10-18T17:16:32+09:00",
-      "head": "5bc391b9a65d72c862f34d4600d4b0072bce4add",
-      "source_hash": "1d67e7b232814a748d21fde0397e93786ab6f5fa57a43dec41a639bb467079f3",
+      "at": "2026-10-19T10:38:03+09:00",
+      "head": "ece3b08a603817e17165ddebca3127de6cf6b06e",
+      "source_hash": "46e0089f7510dd52a89be36d549880f8ba7c6b5c6356ce9124a03514aece6ae3",
       "spec_hash": "4d766281404d034bbccbdba5c7e2398dd6cd67da33bec1faf103250bea40edfc"
     },
     "real_data_run": {
@@ -472,7 +472,7 @@
       "text": "단계 → done: 배치 검증 및 통합 완료"
     }
   ],
-  "updated_at": "2026-10-18T21:30:38+09:00",
+  "updated_at": "2026-10-19T10:38:03+09:00",
   "proof_history": [
     {
       "key": "tests",
@@ -689,6 +689,86 @@
         "head": "36f2b1ac18cd9bb5c4cd3c84b2c7d1d42d10a38e",
         "source_hash": "2156d57f36775ebdfa6bacc2a525935c2d11678427ecac23724db8cee5c131a0",
         "spec_hash": "8646c0f6f15ca105605d0dffb760ed92166b13333943b82bc549c8a66642e67c"
+      }
+    },
+    {
+      "key": "docs",
+      "previous": {
+        "result": "pass",
+        "method": "review",
+        "note": "배치 최종 코드 5bc391b(RL-03 STEP-011·012 통합 후) 재검증(테스트 로그는 문서 5줄 정정 전 동일 코드 7d6e3de에서 실행). doctor 0, 독립 리뷰 B50(배치)·B58(STEP-011·012 변경분) 차단 해소",
+        "evidence": "docs/work/_runs/rlb-20261017/logs/FINAL-doctor.log; decisions.md B50·B58",
+        "exit_code": null,
+        "actor": "orchestrator",
+        "command": "python3 scripts/feature_status.py doctor _",
+        "at": "2026-10-18T17:16:32+09:00",
+        "head": "5bc391b9a65d72c862f34d4600d4b0072bce4add",
+        "source_hash": "1d67e7b232814a748d21fde0397e93786ab6f5fa57a43dec41a639bb467079f3",
+        "spec_hash": "4d766281404d034bbccbdba5c7e2398dd6cd67da33bec1faf103250bea40edfc"
+      }
+    },
+    {
+      "key": "tests",
+      "previous": {
+        "result": "pass",
+        "method": "command",
+        "note": "배치 최종 코드 5bc391b(RL-03 STEP-011·012 통합 후) 재검증(테스트 로그는 문서 5줄 정정 전 동일 코드 7d6e3de에서 실행). RL-03+RL-04 plan tests 합집합 490 passed(54 skip=PG 변형·컨테이너 전용)",
+        "evidence": "docs/work/_runs/rlb-20261017/logs/FINAL-tests.log",
+        "exit_code": 0,
+        "actor": "orchestrator",
+        "command": "bash -lc \"cd web/backend && python -m pytest -q -x -p no:cacheprovider\"",
+        "at": "2026-10-18T17:16:31+09:00",
+        "head": "5bc391b9a65d72c862f34d4600d4b0072bce4add",
+        "source_hash": "1d67e7b232814a748d21fde0397e93786ab6f5fa57a43dec41a639bb467079f3",
+        "spec_hash": "4d766281404d034bbccbdba5c7e2398dd6cd67da33bec1faf103250bea40edfc"
+      }
+    },
+    {
+      "key": "postgres",
+      "previous": {
+        "result": "pass",
+        "method": "command",
+        "note": "배치 최종 코드 5bc391b(RL-03 STEP-011·012 통합 후) 재검증(테스트 로그는 문서 5줄 정정 전 동일 코드 7d6e3de에서 실행). postgres:17.11 244 passed(migrations·privileges·drift)",
+        "evidence": "docs/work/_runs/rlb-20261017/logs/FINAL-postgres.log",
+        "exit_code": 0,
+        "actor": "orchestrator",
+        "command": "",
+        "at": "2026-10-18T17:16:32+09:00",
+        "head": "5bc391b9a65d72c862f34d4600d4b0072bce4add",
+        "source_hash": "1d67e7b232814a748d21fde0397e93786ab6f5fa57a43dec41a639bb467079f3",
+        "spec_hash": "4d766281404d034bbccbdba5c7e2398dd6cd67da33bec1faf103250bea40edfc"
+      }
+    },
+    {
+      "key": "frontend",
+      "previous": {
+        "result": "pass",
+        "method": "command",
+        "note": "배치 최종 코드 5bc391b(RL-03 STEP-011·012 통합 후) 재검증(테스트 로그는 문서 5줄 정정 전 동일 코드 7d6e3de에서 실행). build 0, Playwright app 7 spec 194 passed, contrast 0",
+        "evidence": "docs/work/_runs/rlb-20261017/logs/FINAL-frontend.log",
+        "exit_code": 0,
+        "actor": "orchestrator",
+        "command": "bash -lc \"cd web/frontend && npm run build && npm run test:contrast\"",
+        "at": "2026-10-18T17:16:32+09:00",
+        "head": "5bc391b9a65d72c862f34d4600d4b0072bce4add",
+        "source_hash": "1d67e7b232814a748d21fde0397e93786ab6f5fa57a43dec41a639bb467079f3",
+        "spec_hash": "4d766281404d034bbccbdba5c7e2398dd6cd67da33bec1faf103250bea40edfc"
+      }
+    },
+    {
+      "key": "api_guard",
+      "previous": {
+        "result": "pass",
+        "method": "command",
+        "note": "배치 최종 코드 5bc391b(RL-03 STEP-011·012 통합 후) 재검증(테스트 로그는 문서 5줄 정정 전 동일 코드 7d6e3de에서 실행). RL-03 T3·T9·T10·B25 + RL-04 T4·T9 85 passed, skip 0",
+        "evidence": "docs/work/_runs/rlb-20261017/logs/FINAL-api-guard.log",
+        "exit_code": 0,
+        "actor": "orchestrator",
+        "command": "",
+        "at": "2026-10-18T17:16:32+09:00",
+        "head": "5bc391b9a65d72c862f34d4600d4b0072bce4add",
+        "source_hash": "1d67e7b232814a748d21fde0397e93786ab6f5fa57a43dec41a639bb467079f3",
+        "spec_hash": "4d766281404d034bbccbdba5c7e2398dd6cd67da33bec1faf103250bea40edfc"
       }
     }
   ],
