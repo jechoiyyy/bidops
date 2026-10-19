@@ -5,7 +5,9 @@
 matrix row keys ``normalized_requirement``/``mandatory``/``fact_labels`` and
 ``source_binding.document_versions[].structure_id``; 결정 B51 adds the top-level
 ``rejected_units`` and the matrix row key ``rejected_rule_codes`` (a rejected
-row has ``type`` null and fit ``unknown``).  ``company_sha256`` is
+row has ``type`` null and fit ``unknown``); 결정 C16 adds the top-level
+``role_isolations`` (role items whose evidence ids failed; an isolated finding
+stays in the matrix as ``unknown`` with the fixed notice).  ``company_sha256`` is
 the frozen company graph sha (no basis file).  Every model is closed (extra
 keys forbidden) so the view cannot silently grow.
 """
@@ -113,6 +115,17 @@ class VerdictRejectedUnit(StrictModel):
     rule_codes: list[RuleCode] = Field(min_length=1)
 
 
+class VerdictRoleIsolation(StrictModel):
+    """결정 C16: one role finding (kept ``unknown``) or caution (dropped) whose evidence ids failed; codes only."""
+
+    role: Role
+    unit_id: NonEmpty
+    #: The card's normalized requirement id (``SFR-1`` …); ``null`` for segment units.
+    normalized_id: NonEmpty | None
+    kind: Literal["finding", "caution"]
+    rule_codes: list[RuleCode] = Field(min_length=1)
+
+
 class VerdictChecklistRow(StrictModel):
     key: ChecklistKey
     status: Fit
@@ -203,6 +216,8 @@ class PractitionerVerdictView(StrictModel):
     opportunity_id: StrictInt | None
     #: 결정 B51: units isolated at extract in the stored rows (any availability; ``[]`` when none).
     rejected_units: list[VerdictRejectedUnit]
+    #: 결정 C16: role items isolated in the stored role rows (any availability; ``[]`` when none).
+    role_isolations: list[VerdictRoleIsolation]
 
     @model_validator(mode="after")
     def _consistency(self) -> "PractitionerVerdictView":
@@ -223,6 +238,10 @@ class PractitionerVerdictView(StrictModel):
             raise ValueError("none_view_invalid")
         if self.result is not None and self.rejected_units and self.result.verdict == "진행 가능":
             raise ValueError("rejected_units_verdict_cap")
+        if self.availability == "none" and self.role_isolations:
+            raise ValueError("none_view_invalid")
+        if self.result is not None and self.role_isolations and self.result.verdict == "진행 가능":
+            raise ValueError("role_isolations_verdict_cap")
         return self
 
 
@@ -282,6 +301,7 @@ __all__ = [
     "VerdictIdentity",
     "VerdictMatrixRow",
     "VerdictRejectedUnit",
+    "VerdictRoleIsolation",
     "VerdictRequestCreate",
     "VerdictRequestReceipt",
     "VerdictResult",

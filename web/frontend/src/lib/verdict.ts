@@ -191,7 +191,22 @@ export const REJECTED_RULE_LABEL: Record<string, string> = {
   constraint_expression: "조건의 숫자·단위·비교가 인용과 다름",
   requirement_number_untraceable: "요구사항의 숫자가 원문에 없음",
   concept_candidates_mismatch: "개념 연결이 원문과 맞지 않음",
+  // 결정 C16: 역할 판단·추출 묶음 격리
+  extract_unit_missing: "추출 답에서 요구사항이 빠짐",
+  role_evidence_unknown: "역할 판단의 근거 번호가 목록에 없음",
+  role_evidence_foreign_unit: "역할 판단이 다른 요구사항의 근거 번호를 인용함",
 };
+
+/** 결정 C16: 역할 이름(격리 목록 보조 문구). */
+export const ROLE_LABEL: Record<string, string> = {
+  eligibility_economics: "자격·사업성",
+  technical_fit: "기술 적합",
+  operations_risk: "운영·위험",
+};
+
+export function roleLabel(role: string): string {
+  return ROLE_LABEL[role] ?? role;
+}
 
 export function rejectedRuleLabel(code: string): string {
   return REJECTED_RULE_LABEL[code] ?? code;

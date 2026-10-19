@@ -21,6 +21,8 @@ CONTRACT_SCHEMAS = {
     "card-extract-v1": "requirement-extract",
     "card-extract-v2": "requirement-extract-v2",
     "card-role-v1": "verdict-role",
+    # 결정 C16 (policy v10): role findings cite short evidence ids only.
+    "card-role-v2": "verdict-role-v2",
     "card-synthesis-v1": "practitioner-verdict",
     "card-synthesis-v2": "practitioner-verdict-v2",
     # RL-04 (spec "입력 예산"): one proposal section per call.

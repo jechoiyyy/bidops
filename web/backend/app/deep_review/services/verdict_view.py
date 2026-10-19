@@ -22,6 +22,10 @@ Read projection of one card-v1 attempt (``bidops.practitioner-verdict-view.v1``)
   (company binding, ontology, documents/bundle, policy, superseded).  An SW
   flag change makes the review not current but has no HP-04 reason value.
 
+결정 C16: ``role_isolations`` lists the role items (policy v10) whose evidence ids
+failed, from the stored role rows at any availability ("검증 실패 — 사람 확인 필요");
+a completed "진행 가능" with any of them is ``processing_failed``.
+
 Nothing here writes (except the feedback insert), enqueues or calls a model.
 Any disagreement in the stored rows is ``processing_failed`` -- never repaired.
 """
@@ -230,6 +234,8 @@ class _AttemptStages:
         self.final: CardAssembledPractitionerVerdict | None = None
         #: 결정 B51: units isolated at extract (``unit_id`` -> rule codes).
         self.rejected: dict[str, list[str]] = {}
+        #: 결정 C16: role items isolated in the role rows (role order, then record order).
+        self.role_isolations: list[tuple[str, Any]] = []
         try:
             for row in self.rows:
                 payload = row.payload if isinstance(row.payload, Mapping) else {}
@@ -250,6 +256,7 @@ class _AttemptStages:
                     if result.role != row.stage_key:
                         raise _error("processing_failed")
                     self.roles[result.role] = result
+                    self.role_isolations.extend((result.role, item) for item in result.isolated_items or [])
                 elif row.stage == "synthesis":
                     self.final = CardAssembledPractitionerVerdict.model_validate(payload)
         except (ValidationError, TypeError, ValueError):
@@ -324,6 +331,9 @@ def _result(stages: _AttemptStages, card: CardAnalysisInput, labels: Mapping[str
     # on rows stored before the key, which can have none) and cap the verdict.
     final_rejected = {row.unit_id: list(row.rule_codes) for row in final.rejected_units or []}
     if final_rejected != stages.rejected or (stages.rejected and final.verdict == "진행 가능"):
+        raise _error("processing_failed")
+    # 결정 C16: an isolated role item caps the verdict like a rejected unit.
+    if stages.role_isolations and final.verdict == "진행 가능":
         raise _error("processing_failed")
     units = {unit.unit_id: unit for unit in card.units}
     order = {unit.unit_id: index for index, unit in enumerate(card.units)}
@@ -491,6 +501,7 @@ def _base_view(company_id: UUID, notice_id: int | None, *, briefing_item_id: UUI
         "briefing_item_id": str(briefing_item_id) if briefing_item_id is not None else None,
         "opportunity_id": opportunity_id,
         "rejected_units": [],
+        "role_isolations": [],
     }
 
 
@@ -573,6 +584,14 @@ def _project_attempt(
     ]
     if set(stages.rejected) - {unit.unit_id for unit in card.units}:
         raise _error("processing_failed")
+    units_by_id = {unit.unit_id: unit for unit in card.units}
+    if any(item.unit_id not in units_by_id for _role, item in stages.role_isolations):
+        raise _error("processing_failed")
+    view["role_isolations"] = [
+        {"role": role, "unit_id": item.unit_id, "normalized_id": units_by_id[item.unit_id].normalized_id,
+         "kind": item.kind, "rule_codes": list(item.rule_codes)}
+        for role, item in stages.role_isolations
+    ]
     view["error_code"] = error_code if availability in {"failed", "needs_human_review"} else None
     if availability == "completed":
         view["result"] = _result(stages, card, labels)

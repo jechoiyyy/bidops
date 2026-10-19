@@ -921,3 +921,59 @@ def test_b51_v7_synthesis_payload_names_exactly_the_rejected_units(knowledge) ->
     without = {key: value for key, value in payload.items() if key != "rejected_units"}
     with pytest.raises(CompanyAnalysisError, match="company_input_invalid"):
         check_card_transfer_payload("synthesis", without, frozen, fact_keys=fact_keys, rejected_units=[unit_ids[1]])
+
+
+def test_c16_v10_role_payload_adds_exactly_the_evidence_catalog(knowledge) -> None:
+    """결정 C16: the v10 role payload = the v1 role payload + ``evidence_catalog`` (ids, block key, quote)."""
+
+    from app.deep_review.services.company_analysis_input import (
+        CARD_ROLE_V2_EXTRA_KEYS,
+        card_role_evidence_catalog,
+    )
+
+    frozen = _frozen(knowledge, selector_version="card-sections-v3")
+    extract, compare = _role_parts()
+    v1 = card_role_transfer(frozen, role="eligibility_economics", extract=extract, compare=compare,
+                            operational_values=OPERATIONAL)
+    v2 = card_role_transfer(frozen, role="eligibility_economics", extract=extract, compare=compare,
+                            operational_values=OPERATIONAL, evidence_ids=True)
+    assert CARD_ROLE_V2_EXTRA_KEYS == {"evidence_catalog"}
+    assert set(v1) == CARD_TRANSFER_STAGE_KEYS["role"]
+    assert set(v2) == CARD_TRANSFER_STAGE_KEYS["role"] | {"evidence_catalog"}
+    assert {key: value for key, value in v2.items() if key != "evidence_catalog"} == v1  # nothing else changes
+    assert v2["evidence_catalog"] == [{"unit_id": "u-1", "evidence": [
+        {"evidence_id": "E1", "block_key": "eligibility-body", "quote": "참가 자격"},
+        {"evidence_id": "E2", "block_key": "eligibility-body", "quote": "신용평가등급 BB 이상"},
+    ]}]
+    assert "a" * 64 not in _text(v2["evidence_catalog"])  # the model cites ids, never hashes
+    assert v2["evidence_catalog"] == card_role_evidence_catalog(v2["extract"])
+    check_card_transfer_payload("role", v2, frozen, evidence_ids=True)
+    entry = v2["evidence_catalog"][0]["evidence"][0]
+    for broken in (
+        {**v2, "evidence_catalog": [{**v2["evidence_catalog"][0], "evidence": [
+            {**entry, "quote": "참가"}, *v2["evidence_catalog"][0]["evidence"][1:]]}]},       # changed quote
+        {**v2, "evidence_catalog": [{**v2["evidence_catalog"][0], "evidence": list(reversed(
+            v2["evidence_catalog"][0]["evidence"]))}]},                                        # swapped ids
+        {**v2, "evidence_catalog": [{**v2["evidence_catalog"][0], "evidence": [
+            {**entry, "source_sha256": "a" * 64}, *v2["evidence_catalog"][0]["evidence"][1:]]}]},  # extra key
+        {**v2, "evidence_catalog": [{**v2["evidence_catalog"][0], "unit_id": "u-2"}]},           # another unit
+        {**v2, "evidence_catalog": []},
+        {**v2, "evidence_catalog": [{**v2["evidence_catalog"][0], "evidence": [
+            {**entry, "evidence_id": "E7"}, *v2["evidence_catalog"][0]["evidence"][1:]]}]},     # renumbered
+    ):
+        with pytest.raises(CompanyAnalysisError, match="company_input_invalid"):
+            check_card_transfer_payload("role", broken, frozen, evidence_ids=True)
+    # the two payload kinds never pass for each other; only a role payload may carry ids
+    with pytest.raises(CompanyAnalysisError, match="company_input_invalid"):
+        check_card_transfer_payload("role", v2, frozen)
+    with pytest.raises(CompanyAnalysisError, match="company_input_invalid"):
+        check_card_transfer_payload("role", v1, frozen, evidence_ids=True)
+    payloads = _stage_payloads(frozen, knowledge)
+    with pytest.raises(CompanyAnalysisError, match="company_input_invalid"):
+        check_card_transfer_payload("synthesis", payloads["synthesis"], frozen,
+                                    fact_keys=card_referenced_fact_keys(compare), evidence_ids=True)
+    # the forbidden-value guard still applies to the v10 payload
+    leaked = deepcopy(v2)
+    leaked["compare"]["items"][0]["policy_sha256"] = POLICY_SHA
+    with pytest.raises(CompanyAnalysisError, match="company_input_invalid"):
+        check_card_transfer_payload("role", leaked, frozen, evidence_ids=True)

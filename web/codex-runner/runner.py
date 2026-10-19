@@ -235,6 +235,8 @@ CONTRACT_SCHEMA_PATHS = {
     # 결정 B33 (policy v4): kind x unit branches, no concept_candidates/operator.
     "card-extract-v2": Path("/app/card-extract-v2.json"),
     "card-role-v1": Path("/app/card-role.json"),
+    # 결정 C16 (policy v10): role findings cite short evidence ids (E1...) only.
+    "card-role-v2": Path("/app/card-role-v2.json"),
     "card-synthesis-v1": Path("/app/card-synthesis.json"),
     # 결정 B55 (policy v9): no blocking_condition_ids; code computes them.
     "card-synthesis-v2": Path("/app/card-synthesis-v2.json"),

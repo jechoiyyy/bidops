@@ -312,10 +312,13 @@ _CARD_DERIVATION_KEYS = frozenset({
     "extract_contract", "code_derived_fields", "repair_rule_codes",
     # 결정 B55: synthesis contract v2 (code-computed blocking ids and person-check rows).
     "synthesis_contract", "synthesis_code_derived_fields",
+    # 결정 C16: role contract v2 (evidence ids mapped back by code).
+    "role_contract",
 })
 _CARD_DERIVATION_CONTRACTS = {
     "extract_contract": "bidops.requirement-extract.v2",
     "synthesis_contract": "bidops.practitioner-verdict.v2",
+    "role_contract": "bidops.verdict-role.v2",
 }
 #: 결정 B55: audit actions of a synthesis-only resume (request link, reused rows).
 CARD_RESUME_REQUESTED_ACTION = "card.resume.requested"
