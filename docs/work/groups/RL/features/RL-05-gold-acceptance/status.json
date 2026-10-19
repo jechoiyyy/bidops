@@ -1,15 +1,15 @@
 {
   "schema_version": 2,
   "feature": "RL-05-gold-acceptance",
-  "phase": "review",
+  "phase": "implementing",
   "steps": [
     {
       "id": "STEP-001",
       "title": "gold 도구 이관",
       "model": "standard",
       "fingerprint": "daf2d2fb9039da6a8d31a915e8241a75a73dd6064aaaf04940d65832f52c0d9c",
-      "status": "stale",
-      "updated_at": null,
+      "status": "done",
+      "updated_at": "2026-10-19T12:47:53+09:00",
       "history": [
         {
           "id": "STEP-001",
@@ -19,15 +19,16 @@
           "status": "pending",
           "updated_at": null
         }
-      ]
+      ],
+      "note": "scripts/rl-gold.py·tests/test_rl_gold.py, 리더 실행 50 passed(logs/step001-tests.log). prediction 정확 키·HP보다 엄격한 조건 ID 검사(HP-06 문구 근거)"
     },
     {
       "id": "STEP-002",
       "title": "export CLI·holdout",
       "model": "complex",
       "fingerprint": "554d4a9392d9d5a6b016480cee1d44dd51aabb07f8a4b77dabd36635eba036a6",
-      "status": "stale",
-      "updated_at": null,
+      "status": "done",
+      "updated_at": "2026-10-19T12:47:53+09:00",
       "history": [
         {
           "id": "STEP-002",
@@ -37,7 +38,8 @@
           "status": "pending",
           "updated_at": null
         }
-      ]
+      ],
+      "note": "export_evaluation.py(--cards·--actual, PG read-only), 리더 실행 PG 83 passed skip 0(logs/step002-pg.log). spec 정정 C7 반영. 여러 원문 묶음은 selection_mismatch(표본에서 제외)"
     },
     {
       "id": "STEP-003",
@@ -110,7 +112,27 @@
     {
       "at": "2026-10-16T20:41:31+09:00",
       "text": "단계 → review: 독립 검사 1차 반영(표본=실제 수집 10건·holdout 조건 RL-03 (7); 재검사 생략, 사용자 확인 항목 보고)"
+    },
+    {
+      "at": "2026-10-19T10:39:56+09:00",
+      "text": "단계 → implementing"
+    },
+    {
+      "at": "2026-10-19T10:40:04+09:00",
+      "text": "단계 STEP-001 in_progress: "
+    },
+    {
+      "at": "2026-10-19T10:40:04+09:00",
+      "text": "단계 STEP-002 in_progress: "
+    },
+    {
+      "at": "2026-10-19T12:47:53+09:00",
+      "text": "단계 STEP-001 done: scripts/rl-gold.py·tests/test_rl_gold.py, 리더 실행 50 passed(logs/step001-tests.log). prediction 정확 키·HP보다 엄격한 조건 ID 검사(HP-06 문구 근거)"
+    },
+    {
+      "at": "2026-10-19T12:47:53+09:00",
+      "text": "단계 STEP-002 done: export_evaluation.py(--cards·--actual, PG read-only), 리더 실행 PG 83 passed skip 0(logs/step002-pg.log). spec 정정 C7 반영. 여러 원문 묶음은 selection_mismatch(표본에서 제외)"
     }
   ],
-  "updated_at": "2026-10-16T20:41:31+09:00"
+  "updated_at": "2026-10-19T12:47:53+09:00"
 }

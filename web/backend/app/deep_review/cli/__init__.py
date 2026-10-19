@@ -21,6 +21,9 @@
   연결하고(G2B fetcher와 같은 격리·검사 경로) 그 공고의 문서 준비를 연다(RL-03 결정 B15).
 - ``rebuild-segment-manifests``: 과거 ready 구조에 현재 segment manifest를
   멱등 생성한다(worker 역할).
+- ``export-evaluation``: RL-05 gold 인수용 카드 pack(``--cards``)이나 선정 공고의
+  채점 대상 attempt actual·prediction·receipt(``--actual``)를 DB·객체 저장소에서
+  읽기 전용으로 꺼낸다.
 
 T8 2단계가 두 스크립트에 패키지 진입점을 만들어 하나의 하위 명령 체계로
 합쳤다. 합친 것은 **진입점뿐**이고, 각 하위 명령의 인자·출력·종료 코드는
@@ -100,6 +103,10 @@ _SUBCOMMANDS: dict[str, tuple[str, str]] = {
     "rebuild-segment-manifests": (
         ".rebuild_segment_manifests",
         "과거 ready 구조에 현재 segment manifest를 멱등 생성한다 (worker 역할)",
+    ),
+    "export-evaluation": (
+        ".export_evaluation",
+        "RL-05 gold 인수용 카드 pack 또는 actual·prediction·receipt를 읽기 전용으로 꺼낸다",
     ),
 }
 
