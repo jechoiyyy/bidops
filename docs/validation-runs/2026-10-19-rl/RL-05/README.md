@@ -62,3 +62,9 @@
 - `rootlab.source.v3.json`(Git 밖, sha256 `0ed2b5792bb0…`) import → graph `107523c55ce4…`(version `bee3042e…`), activate → binding revision 3. 상태: confirmed 129·proposed 1·unknown 18(v2 대비 unknown 3건 감소).
 - binding이 바뀌어 사람 입력 전 파일을 `superseded-company-v2/`로 보존하고 다시 만듦: selection.v1.json `383eaa8ba6679471…`, cards.json `1b86634fcc24f6d2…`(카드 동일), blank gold.v1.json `09c830b995dfea40…`. gold-check = `human_gold_incomplete`(예상).
 - 같은 날 Mac 재부팅으로 운영·격리 스택이 멈춰 사용자 확인 뒤 같은 컨테이너로 재기동(운영 health 200·C-2 v5 daily-trigger ON·preflight ok·tailnet serve 유지).
+
+## 회사 근거 v4와 gold 초안 (2026-10-20)
+
+- v4: 정보통신공사업(0036) 등록(사용자 확인)을 `qual:procurement_1468:extra_industries`에 반영 → `rootlab.source.v4.json`(sha256 `78f525bcae47…`), graph `402a9e06612c…`(version `a3334d97…`), binding revision 4, confirmed 130·proposed 1·unknown 17. AI 에이전트 플랫폼·AI 음성/모바일 앱 역량은 온톨로지 concept이 없어 미반영(결정 C12, 데이터 공백). 사람 입력 전 파일은 `superseded-company-v3/`, 새 selection `f7cb743a4688ee6a…`(카드 동일).
+- gold 작성 방식(결정 C13): 사용자 요청으로 Claude가 문서별 초안을 쓰고(평가 대상 Luna와 독립, Luna 실행 전), 판정이 갈리는 지점을 사용자에게 확인받는다. 확인 답: 대구 외 상주 = 차단, 증명서 유효기간·SW사업자 확인서 세부 = 모름, 정보통신공사업 등록 있음, HW 유지관리 = 제외 분야, 6번 플랫폼 보유, 3번 AI·앱 자체 개발 가능, 2번 도메인 경험 모름, 충족 기준 엄격(HP §7). 차단 조건은 gap만(결정 C11).
+- 후보: 진행 어려움 5·조건부 진행 5, `gold-check` structurally_valid. 최종 `gold.v1.json`은 사용자 확정 시각을 `authored_at`으로 기록한다.
