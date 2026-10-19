@@ -46,8 +46,8 @@
       "title": "표본 선정·holdout 등록",
       "model": "standard",
       "fingerprint": "3c40a3e54482c2d9800a30a4ac87efd961a096206b5d61fad7b7cf355bcc26a2",
-      "status": "stale",
-      "updated_at": null,
+      "status": "done",
+      "updated_at": "2026-10-19T12:57:28+09:00",
       "history": [
         {
           "id": "STEP-003",
@@ -57,7 +57,8 @@
           "status": "pending",
           "updated_at": null
         }
-      ]
+      ],
+      "note": "사용자 선정 10건(C6, #56→#15 교체 C8). bidops_rla에 lifecycle-20261014-notices 적재·운영 백업 원본(sha 일치) attach-local-original 10+3건·묶음 ready·holdout 13행(rejected·gold_holdout), RL review 0건. Git 밖 rl-evaluation-20261019/: selection.v1.json(4125e7f5…), cards/·cards.json(1b86634f…), blank gold.v1.json(3e6aa74e…), gold-check=human_gold_incomplete(사람 입력만 남음)"
     },
     {
       "id": "STEP-004",
@@ -72,8 +73,9 @@
       "title": "문서",
       "model": "standard",
       "fingerprint": "6987ccf3f6ddfe1ef30861f9f3ae584bc00be83f35f0ba731c1d1009dfbf5273",
-      "status": "pending",
-      "updated_at": null
+      "status": "done",
+      "updated_at": "2026-10-19T13:02:07+09:00",
+      "note": "model-quality-gate RL 절, operations RL-05 평가 절차(actual 초안→alignment→최종 export 두 디렉터리), hp-contract §9 RL 주석, ADR 한 줄, validation-runs/2026-10-19-rl/RL-05/README.md. doctor 0(logs/step005-doctor.log)"
     }
   ],
   "proof": {
@@ -132,7 +134,23 @@
     {
       "at": "2026-10-19T12:47:53+09:00",
       "text": "단계 STEP-002 done: export_evaluation.py(--cards·--actual, PG read-only), 리더 실행 PG 83 passed skip 0(logs/step002-pg.log). spec 정정 C7 반영. 여러 원문 묶음은 selection_mismatch(표본에서 제외)"
+    },
+    {
+      "at": "2026-10-19T12:57:28+09:00",
+      "text": "단계 STEP-003 in_progress: "
+    },
+    {
+      "at": "2026-10-19T12:57:28+09:00",
+      "text": "단계 STEP-003 done: 사용자 선정 10건(C6, #56→#15 교체 C8). bidops_rla에 lifecycle-20261014-notices 적재·운영 백업 원본(sha 일치) attach-local-original 10+3건·묶음 ready·holdout 13행(rejected·gold_holdout), RL review 0건. Git 밖 rl-evaluation-20261019/: selection.v1.json(4125e7f5…), cards/·cards.json(1b86634f…), blank gold.v1.json(3e6aa74e…), gold-check=human_gold_incomplete(사람 입력만 남음)"
+    },
+    {
+      "at": "2026-10-19T12:58:29+09:00",
+      "text": "단계 STEP-005 in_progress: "
+    },
+    {
+      "at": "2026-10-19T13:02:07+09:00",
+      "text": "단계 STEP-005 done: model-quality-gate RL 절, operations RL-05 평가 절차(actual 초안→alignment→최종 export 두 디렉터리), hp-contract §9 RL 주석, ADR 한 줄, validation-runs/2026-10-19-rl/RL-05/README.md. doctor 0(logs/step005-doctor.log)"
     }
   ],
-  "updated_at": "2026-10-19T12:47:53+09:00"
+  "updated_at": "2026-10-19T13:02:07+09:00"
 }
