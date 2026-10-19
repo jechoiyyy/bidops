@@ -703,6 +703,7 @@ def test_litellm_policy_identity_is_dialect_specific() -> None:
     assert calls[0]["extra_body"] == {
         "top_k": 20,
         "chat_template_kwargs": {"enable_thinking": False},
+        "reasoning_effort": "none",
     }
     assert calls[0]["response_format"] == {
         "type": "json_schema",

@@ -338,6 +338,8 @@ ADR-0021은 “운영 제품 전에 동일 모집단과 사람 정답으로 비�
 - 2026-10-15 HP pre-loop: 승인 회사 v2·온톨로지와 HP02~06 intent/spec/plan 정합화. source 포함 unit ID, typed sidecar binding, 단계 결과·REST·사람 평가 경계를 문서화. 기술 조정값은 사용자 위임으로 고정, 제품 구현·실제 실험은 시작하지 않음.
 - 2026-10-15 HP 명세 독립 리뷰 반영: 승인 입력 v2/preview 결속, 그래프 expected/required/actual/human/report 계약, gold 조건 ID의 사람 대응표를 명시. 기존 실제실험 필수 요구에 맞춰 HP05 real_data_run을 필수 수동 proof로 정합화; 제품 수용 기준 완화 없음.
 
+- [ADR-0072 C-2 발주계획 선별의 Mac LiteLLM·Ollama 이전](tracking/decisions/0072-c2-mac-litellm-ollama.md): WSL2 종료로 v4(vLLM·v3 프롬프트)를 실행할 수 없어 v5 묶음 발행, adapter `api_dialect=litellm`(hostname 허용·별칭·`reasoning_effort=none`), `(approved_private_ollama, qwen3.8:27b)` 허용, Mac overlay·`bidops` 프로젝트 `:18788`, v4 게이트 미승계. 2026-10-15 추가: 사전규격 개요까지만 같은 LiteLLM(정책 litellm-v2, 900초·8192), 문서 worker arm64.
+
 - ADR-0073 루트랩 실회사 기준 AX 과제 재정의(2026-10-16): 가상회사 전제 폐기, G1 브리핑·G2 판정·G3 제안서 초안, Luna 정책 승인 자동 전송, 회사 근거 데이터가 핵심 성공 요인. HP run abandon·HP-02~06 blocked, 새 그룹 `RL`. [상세](tracking/decisions/0073-rootlab-real-company-ax-redefinition.md)
 - ADR-0048 개정(2026-10-16): 라이트 테마 값을 RL 시안 v26 팔레트로 교체하고 셸(사이드바 240px·상단바 44px·`/briefing` 자리)을 시안 그대로 적용. 상세는 ADR-0073 개정 절과 `docs/1016_rootlab-redefinition/ui-spec.md` §2.
 - ADR-0073 하위 명세 결정(2026-10-16, RL-00~06 intent·spec·plan): 사실 status `proposed` 추가·origin 7값(실회사 등록, DEMO 계약 §1·§3·§4 개정 예정), 브리핑은 결정적 규칙(LLM 없음), Slack Socket Mode, 회사 근거 화면 읽기 전용(파일이 정본), RL-03 1차 대상은 사전규격·전송은 정책 단위 승인 + 자동 preview/approval(worker INSERT 5개), 제안서 PDF는 ReportLab + 이미지 NanumGothic, gold 표본은 실제 수집 10건, RL-06은 계측·검토만. 상세는 `docs/work/groups/RL/features/*/spec.md` "결정과 이유". 큰 틀 문서 개정은 각 기능의 문서 단계에서 실행한다.

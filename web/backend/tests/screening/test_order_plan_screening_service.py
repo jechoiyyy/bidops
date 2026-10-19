@@ -5,6 +5,7 @@ from decimal import Decimal
 import hashlib
 import json
 from pathlib import Path
+from typing import Callable
 from uuid import UUID, uuid4
 
 import pytest
@@ -40,12 +41,30 @@ def _sha(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
+# (policy, binding, generation config) per published C-2 artifact set.  v2 is
+# the measured vLLM binding; v5 is the Mac LiteLLM/Ollama binding (ADR-0072).
+C2_ARTIFACT_SETS = {
+    "v2": (
+        "order-plan-screening-policy.v2.json",
+        "order-plan-screening-phase0-binding.v2.json",
+        "order-plan-screening-generation-config.v4.json",
+    ),
+    "v5": (
+        "order-plan-screening-policy.v5.json",
+        "order-plan-screening-phase0-binding.v5.json",
+        "order-plan-screening-generation-config.v6.json",
+    ),
+}
+
+
 def _fixture(
     tmp_path: Path,
     count: int = 2,
     *,
     file_policy_status: str = "active",
     binding_status: str = "approved",
+    artifacts: str = "v2",
+    edit: Callable[[dict, dict], None] | None = None,
 ) -> tuple[Settings, Session, str, str, list[OrderPlan]]:
     root = tmp_path / "project"
     source_dir = root / "data" / "runs" / "run-c2"
@@ -71,12 +90,33 @@ def _fixture(
     source_path = source_dir / "collected-order-plans.json"
     source_path.write_bytes(_canonical(source))
 
-    policy = json.loads((REPO_ROOT / "experiments/order-plan-screening/config/order-plan-screening-policy.v2.json").read_text())
-    binding = json.loads((REPO_ROOT / "experiments/order-plan-screening/config/order-plan-screening-phase0-binding.v2.json").read_text())
+    policy_file, binding_file, generation_file = C2_ARTIFACT_SETS[artifacts]
+    config_dir = REPO_ROOT / "experiments/order-plan-screening/config"
+    policy = json.loads((config_dir / policy_file).read_text())
+    binding = json.loads((config_dir / binding_file).read_text())
+    # Approved prompt bodies are company material kept out of Git (the v3 body
+    # was lost with the WSL2 host), so the fixture binds a synthetic prompt and
+    # re-pins every digest that names it: generation config, policy, binding.
+    prompt_bytes = "합성 C-2 테스트 프롬프트\n".encode()
+    prompt_sha = _sha(prompt_bytes)
+    generation = json.loads((config_dir / generation_file).read_bytes())
+    generation["prompt_sha256"] = prompt_sha
+    generation_bytes = _canonical(generation)
+    generation_sha = _sha(generation_bytes)
+    policy["stage2"]["prompt"]["sha256"] = prompt_sha
+    policy["stage2"]["generation_config"]["sha256"] = generation_sha
+    policy["bindings"]["prompt_sha256"] = prompt_sha
+    policy["bindings"]["generation_config_sha256"] = generation_sha
+    binding["stage2_binding"]["prompt_sha256"] = prompt_sha
+    binding["stage2_binding"]["generation_config_sha256"] = generation_sha
+    binding["review_inputs"]["active_prompt_sha256"] = prompt_sha
+    if edit is not None:
+        edit(policy, binding)
     # The file policy_status is a publish-time snapshot; the DB row below is
     # the activation authority (ADR-0060).  The binding copy must agree.
     policy["policy_status"] = file_policy_status
-    policy["activation"] = {"status": "active", "enabled": True, "approved_by": "approver", "approved_at": "2026-09-02T00:00:00+00:00"}
+    if artifacts == "v2":
+        policy["activation"] = {"status": "active", "enabled": True, "approved_by": "approver", "approved_at": "2026-09-02T00:00:00+00:00"}
     binding["status"] = binding_status
     binding["external_transport"]["execution_allowed"] = True
     binding["policy"]["policy_status"] = file_policy_status
@@ -90,10 +130,11 @@ def _fixture(
     capabilities_path = root / "capabilities.json"
     prompt_path = root / "prompt.txt"
     capabilities_path.parent.mkdir(parents=True, exist_ok=True)
-    capabilities_path.write_bytes((REPO_ROOT / "experiments/order-plan-screening/review-inputs/company/company-capabilities-v1-approved.json").read_bytes())
-    prompt_path.write_bytes((REPO_ROOT / "experiments/order-plan-screening/review-inputs/prompts/order-plan-batch-relevance-v3-approved.txt").read_bytes())
+    # The approved v1 capabilities file is tracked under config/ with the same digest.
+    capabilities_path.write_bytes((config_dir / "company-capabilities.json").read_bytes())
+    prompt_path.write_bytes(prompt_bytes)
     generation_config_path = root / "generation-config.json"
-    generation_config_path.write_bytes((REPO_ROOT / "experiments/order-plan-screening/config/order-plan-screening-generation-config.v4.json").read_bytes())
+    generation_config_path.write_bytes(generation_bytes)
     settings = Settings(
         bidops_root=root,
         database_url="sqlite://",
