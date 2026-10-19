@@ -1,0 +1,187 @@
+
+> bidops-admin-frontend@0.1.0 build
+> tsc -b && vite build --outDir dist-rv
+
+vite v6.4.3 building for production...
+transforming...
+✓ 2806 modules transformed.
+rendering chunks...
+computing gzip size...
+dist-rv/index.html                                      0.51 kB │ gzip:   0.32 kB
+dist-rv/assets/TechnicalInfo-6ZUn47tA.css               0.95 kB │ gzip:   0.38 kB
+dist-rv/assets/useUnsavedGuard-CPH887jz.css             2.64 kB │ gzip:   0.73 kB
+dist-rv/assets/useListSelection-FlBubonH.css            3.23 kB │ gzip:   0.77 kB
+dist-rv/assets/AssumptionAnalysisPage-D2uv4XMx.css      3.92 kB │ gzip:   0.92 kB
+dist-rv/assets/CompanyPage-Dln_8NYo.css                 5.35 kB │ gzip:   1.23 kB
+dist-rv/assets/BriefingPage-DkZwHROo.css                7.56 kB │ gzip:   1.45 kB
+dist-rv/assets/GoNoGoPage-wQiGZ31Q.css                  8.98 kB │ gzip:   1.76 kB
+dist-rv/assets/DashboardPage-DHY8dTum.css               9.23 kB │ gzip:   1.84 kB
+dist-rv/assets/CriteriaPage-D_A_mbYf.css               12.56 kB │ gzip:   2.20 kB
+dist-rv/assets/ReviewWorkspacePage-D-riKpt1.css        13.88 kB │ gzip:   2.92 kB
+dist-rv/assets/BidDeltaDecisionPage-X7dCguVq.css       16.26 kB │ gzip:   2.44 kB
+dist-rv/assets/RunStatusPage-CaIKtO0W.css              17.78 kB │ gzip:   2.93 kB
+dist-rv/assets/opportunities-relaxed-BShOw4vV.css      18.12 kB │ gzip:   2.80 kB
+dist-rv/assets/DeepReviewPage-D_3EC9HR.css             22.64 kB │ gzip:   3.75 kB
+dist-rv/assets/OpportunityRecordPage-CLA2f6bu.css      24.77 kB │ gzip:   3.69 kB
+dist-rv/assets/OrderPlansPage-B4XZHfvQ.css             27.55 kB │ gzip:   4.51 kB
+dist-rv/assets/pre-specs-relaxed-DNhZZtIN.css          45.91 kB │ gzip:   6.25 kB
+dist-rv/assets/PreSpecDetailPage-BhDdCQO5.css          59.52 kB │ gzip:   7.84 kB
+dist-rv/assets/index-CM7Q1fif.css                     377.85 kB │ gzip:  61.98 kB
+dist-rv/assets/composeEventHandlers-BolWE7qY.js         0.11 kB │ gzip:   0.11 kB
+dist-rv/assets/useIsomorphicLayoutEffect-7VyQT_uG.js    0.11 kB │ gzip:   0.12 kB
+dist-rv/assets/PageHeaderActions-9salbKT0.js            0.23 kB │ gzip:   0.21 kB
+dist-rv/assets/useToast-BphhtpWs.js                     0.24 kB │ gzip:   0.20 kB
+dist-rv/assets/StatusBadge-pIQfJAjU.js                  0.29 kB │ gzip:   0.23 kB
+dist-rv/assets/check-DeiEVZjW.js                        0.30 kB │ gzip:   0.25 kB
+dist-rv/assets/chevron-right-D_sZIbof.js                0.31 kB │ gzip:   0.25 kB
+dist-rv/assets/arrow-right-DPd6wPSG.js                  0.35 kB │ gzip:   0.27 kB
+dist-rv/assets/arrow-up-right-D7q8psPB.js               0.35 kB │ gzip:   0.27 kB
+dist-rv/assets/search-CnBeIlDG.js                       0.35 kB │ gzip:   0.28 kB
+dist-rv/assets/Panel-CI_ptev5.js                        0.38 kB │ gzip:   0.25 kB
+dist-rv/assets/characters-WgeUjB8u.js                   0.40 kB │ gzip:   0.26 kB
+dist-rv/assets/copy-DoEt4spD.js                         0.41 kB │ gzip:   0.32 kB
+dist-rv/assets/activity-DSrz87rE.js                     0.42 kB │ gzip:   0.31 kB
+dist-rv/assets/refresh-cw-BZKAN03d.js                   0.50 kB │ gzip:   0.33 kB
+dist-rv/assets/useIndicatorFocusRing-CK_yjGes.js        0.53 kB │ gzip:   0.37 kB
+dist-rv/assets/TechnicalInfo-DfgRwvZp.js                0.53 kB │ gzip:   0.29 kB
+dist-rv/assets/search-DyxyVo9g.js                       0.65 kB │ gzip:   0.41 kB
+dist-rv/assets/glossary-DUdlvorw.js                     0.65 kB │ gzip:   0.48 kB
+dist-rv/assets/useCollapsible-Ch8JDk7N.js               0.70 kB │ gzip:   0.38 kB
+dist-rv/assets/loader-circle-BkiS6mEX.js                0.70 kB │ gzip:   0.36 kB
+dist-rv/assets/deadline-yi40Kju4.js                     0.90 kB │ gzip:   0.49 kB
+dist-rv/assets/triangle-alert-BmbnOMD2.js               0.95 kB │ gzip:   0.47 kB
+dist-rv/assets/ActorField-ZHiX8Q_y.js                   1.05 kB │ gzip:   0.71 kB
+dist-rv/assets/Toast-DXhKtXBe.js                        1.06 kB │ gzip:   0.63 kB
+dist-rv/assets/grade-VuYPPMQY.js                        1.08 kB │ gzip:   0.55 kB
+dist-rv/assets/DisabledReason-DE0-yNAE.js               1.24 kB │ gzip:   0.63 kB
+dist-rv/assets/CompanyHeader-DkyJuFcS.js                1.56 kB │ gzip:   0.78 kB
+dist-rv/assets/useRowKeyboardNavigation-CM4GSIO7.js     1.63 kB │ gzip:   0.85 kB
+dist-rv/assets/CompanySummaries-CYfBJ6et.js             1.71 kB │ gzip:   0.65 kB
+dist-rv/assets/Tooltip-y3tI56oH.js                      1.88 kB │ gzip:   0.84 kB
+dist-rv/assets/qualityStatus-Bb5HOY-V.js                2.37 kB │ gzip:   1.25 kB
+dist-rv/assets/orderPlanFormat-C6RijQhp.js              2.42 kB │ gzip:   1.31 kB
+dist-rv/assets/ToggleButton-D4IgNj1P.js                 2.53 kB │ gzip:   1.22 kB
+dist-rv/assets/DialogHeader-apuiEMLb.js                 2.82 kB │ gzip:   1.37 kB
+dist-rv/assets/labels-DHVvYWIn.js                       3.19 kB │ gzip:   1.53 kB
+dist-rv/assets/useMutation-DyxbVsLQ.js                  3.21 kB │ gzip:   1.31 kB
+dist-rv/assets/CheckboxInput-fRSjS624.js                3.23 kB │ gzip:   1.71 kB
+dist-rv/assets/TextInput-DYV6mgZJ.js                    3.24 kB │ gzip:   1.64 kB
+dist-rv/assets/WorkspaceFilters-azMyR97s.js             3.83 kB │ gzip:   1.71 kB
+dist-rv/assets/useKeyboardHint-B2mfmZxY.js              3.83 kB │ gzip:   2.00 kB
+dist-rv/assets/api--NZ0Fgg6.js                          4.05 kB │ gzip:   1.50 kB
+dist-rv/assets/createLucideIcon-CpgySDJe.js             4.13 kB │ gzip:   1.76 kB
+dist-rv/assets/TextArea-r-rsA7Pi.js                     4.40 kB │ gzip:   2.17 kB
+dist-rv/assets/CompanyComparisonPage-fLpb6it7.js        4.43 kB │ gzip:   1.80 kB
+dist-rv/assets/briefing-aTkcNqlT.js                     4.57 kB │ gzip:   1.99 kB
+dist-rv/assets/useQueries-DE2H1IGV.js                   4.58 kB │ gzip:   1.92 kB
+dist-rv/assets/Token-B4szqTDi.js                        4.73 kB │ gzip:   1.96 kB
+dist-rv/assets/useUnsavedGuard-B2AltVbV.js              4.77 kB │ gzip:   2.20 kB
+dist-rv/assets/useListSelection-DD6gV7cW.js             5.64 kB │ gzip:   2.47 kB
+dist-rv/assets/Item-DXwt6I1Y.js                         5.65 kB │ gzip:   2.13 kB
+dist-rv/assets/useTypeahead-DLuqrEpa.js                 5.73 kB │ gzip:   2.65 kB
+dist-rv/assets/SourceVerificationSetting-DaEymsd-.js    6.90 kB │ gzip:   2.90 kB
+dist-rv/assets/TrackingStatusDialog-CL-nuI_t.js         8.58 kB │ gzip:   3.52 kB
+dist-rv/assets/Tab-D1lHoD8w.js                          8.93 kB │ gzip:   3.94 kB
+dist-rv/assets/trackingFlow-DCiIHYJ5.js                 9.32 kB │ gzip:   3.64 kB
+dist-rv/assets/useClickableContainer-DmZV8K7h.js        9.80 kB │ gzip:   3.74 kB
+dist-rv/assets/AssumptionAnalysisPage-DWP9uN73.js      10.04 kB │ gzip:   4.31 kB
+dist-rv/assets/listSelection-D2ImzDNi.js               11.13 kB │ gzip:   3.65 kB
+dist-rv/assets/opportunities-relaxed-CELYQHl6.js       12.23 kB │ gzip:   4.43 kB
+dist-rv/assets/CompanyPage-qOuONrHT.js                 14.49 kB │ gzip:   5.19 kB
+dist-rv/assets/inputStyles.stylex-CIRqyF5X.js          14.59 kB │ gzip:   5.34 kB
+dist-rv/assets/BriefingPage-8E8j2kJJ.js                15.09 kB │ gzip:   6.00 kB
+dist-rv/assets/DashboardPage-CMDlLWJa.js               16.27 kB │ gzip:   5.79 kB
+dist-rv/assets/Dialog-RmrVdd1R.js                      16.56 kB │ gzip:   4.75 kB
+dist-rv/assets/ReviewPrimitives-BjD-kDka.js            20.50 kB │ gzip:   7.19 kB
+dist-rv/assets/TrackingDecisionControl-BNZDA1ji.js     23.50 kB │ gzip:   7.20 kB
+dist-rv/assets/Selector-DhQXSe60.js                    24.17 kB │ gzip:   9.29 kB
+dist-rv/assets/CompanyPreSpecsPage-DQsctlbV.js         25.52 kB │ gzip:   7.91 kB
+dist-rv/assets/GoNoGoPage-62IdrF66.js                  28.81 kB │ gzip:   8.72 kB
+dist-rv/assets/apiErrors-9wBxNfpn.js                   28.87 kB │ gzip:   7.16 kB
+dist-rv/assets/Table-DUai0y5C.js                       29.33 kB │ gzip:  10.54 kB
+dist-rv/assets/Button-Cnwqdeh5.js                      39.55 kB │ gzip:  14.64 kB
+dist-rv/assets/pre-specs-relaxed-VHUA3XCE.js           47.49 kB │ gzip:  15.86 kB
+dist-rv/assets/OpportunitiesPage-Cfcc3bCa.js           49.35 kB │ gzip:  15.02 kB
+dist-rv/assets/BidDeltaDecisionPage-BMnHcAgx.js        54.04 kB │ gzip:  15.21 kB
+dist-rv/assets/ReviewWorkspacePage-CMXAmyqC.js         54.52 kB │ gzip:  14.19 kB
+dist-rv/assets/DeepReviewPage-DXO93B-f.js              67.83 kB │ gzip:  19.07 kB
+dist-rv/assets/PreSpecDetailPage-CmISZ4mV.js           75.27 kB │ gzip:  22.22 kB
+dist-rv/assets/OrderPlansPage-B4V0n-MV.js              81.40 kB │ gzip:  24.86 kB
+dist-rv/assets/OpportunityRecordPage-BAldm8UJ.js       99.39 kB │ gzip:  30.72 kB
+dist-rv/assets/CriteriaPage-BWFFm9wt.js               107.53 kB │ gzip:  31.58 kB
+dist-rv/assets/PreSpecsPage-Bqpzs4ct.js               133.40 kB │ gzip:  43.11 kB
+dist-rv/assets/RunStatusPage-CApxCNUd.js              207.48 kB │ gzip:  61.01 kB
+dist-rv/assets/index-DSqUv_NS.js                      587.74 kB │ gzip: 171.55 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 2.17s
+npm notice
+npm notice New major version of npm available! 10.9.9 -> 12.2.0
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.0
+npm notice To update run: npm install -g npm@12.2.0
+npm notice
+
+> bidops-admin-frontend@0.1.0 test:contrast
+> node --test scripts/check-contrast.test.mjs
+
+TAP version 13
+# Subtest: 배지 의미색 라벨이 WCAG AA(4.5:1)를 만족한다
+ok 1 - 배지 의미색 라벨이 WCAG AA(4.5:1)를 만족한다
+  ---
+  duration_ms: 0.730666
+  type: 'test'
+  ...
+# Subtest: 경고 배지와 오류 배지가 같은 색을 쓰지 않는다
+ok 2 - 경고 배지와 오류 배지가 같은 색을 쓰지 않는다
+  ---
+  duration_ms: 0.156958
+  type: 'test'
+  ...
+# Subtest: 텍스트 토큰이 WCAG AA(4.5:1)를 만족한다
+ok 3 - 텍스트 토큰이 WCAG AA(4.5:1)를 만족한다
+  ---
+  duration_ms: 0.390833
+  type: 'test'
+  ...
+# Subtest: 컴포넌트를 식별하는 비텍스트 요소가 3:1을 만족한다
+ok 4 - 컴포넌트를 식별하는 비텍스트 요소가 3:1을 만족한다
+  ---
+  duration_ms: 0.229417
+  type: 'test'
+  ...
+# Subtest: 등급 ramp 4단과 판정 없음이 라벨 대비를 만족한다
+ok 5 - 등급 ramp 4단과 판정 없음이 라벨 대비를 만족한다
+  ---
+  duration_ms: 0.285833
+  type: 'test'
+  ...
+# Subtest: cool gray anchor(\#8D8F8E)가 텍스트 토큰에 배정되지 않는다
+ok 6 - cool gray anchor(\#8D8F8E)가 텍스트 토큰에 배정되지 않는다
+  ---
+  duration_ms: 0.251834
+  type: 'test'
+  ...
+# Subtest: 성공만 포인트 계열, 경고·실패는 별도 hue를 유지한다
+ok 7 - 성공만 포인트 계열, 경고·실패는 별도 hue를 유지한다
+  ---
+  duration_ms: 0.129125
+  type: 'test'
+  ...
+# Subtest: 상태·등급 표시에 blue 계열 토큰을 배정하지 않는다
+ok 8 - 상태·등급 표시에 blue 계열 토큰을 배정하지 않는다
+  ---
+  duration_ms: 3.993167
+  type: 'test'
+  ...
+1..8
+# tests 8
+# suites 0
+# pass 8
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 43.540708
