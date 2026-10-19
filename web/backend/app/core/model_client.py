@@ -72,6 +72,70 @@ APPROVED_GENERATION = {
     "top_p": 0.8,
 }
 
+#: LiteLLM 데모 실행 한도 (DEMO-05 STEP-005, 2026-10-13 사용자 승인, 데모 브랜치 범위).
+#: 문맥 32768의 LiteLLM `local-agent-main`은 실측 13.7~21.5 tok/s라 300초 안에
+#: 개요 초안을 끝내지 못하고, 출력 예약 16384가 문맥 절반을 차지해 입력이 약
+#: 15k byte로 막혔다. 호출 timeout과 출력 예약만 바꾸고 나머지 generation은 같다.
+LITELLM_DEMO_TIMEOUT_SECONDS: Final[int] = 900
+LITELLM_DEMO_MAX_COMPLETION_TOKENS: Final[int] = 8_192
+LITELLM_DEMO_GENERATION = {
+    **APPROVED_GENERATION,
+    "max_completion_tokens": LITELLM_DEMO_MAX_COMPLETION_TOKENS,
+}
+
+
+@dataclass(frozen=True)
+class ApprovedExecutionProfile:
+    """policy가 선언할 수 있는 (호출 timeout, generation) 짝 하나와 허용 dialect."""
+
+    name: str
+    timeout_seconds: int
+    generation: Mapping[str, Any]
+    api_dialects: frozenset[str]
+
+
+#: 승인 실행 프로필 허용 목록. **정확히 둘이다.** 비교를 느슨하게 하지 않고
+#: 짝 전체를 대조한다 — 섞은 짝(900초 + 16384 등)이나 다른 값은 어느 dialect
+#: 에서도 받지 않는다. LiteLLM 프로필은 `litellm` dialect에서만 받는다.
+#: screening·C-2·Luna·vLLM 경로는 기존 300초 / 16384 하나뿐이다.
+STANDARD_EXECUTION_PROFILE: Final[ApprovedExecutionProfile] = ApprovedExecutionProfile(
+    name="standard",
+    timeout_seconds=APPROVED_TIMEOUT_SECONDS,
+    generation=APPROVED_GENERATION,
+    api_dialects=frozenset({"vllm", "ollama", "litellm"}),
+)
+LITELLM_DEMO_EXECUTION_PROFILE: Final[ApprovedExecutionProfile] = ApprovedExecutionProfile(
+    name="litellm-demo",
+    timeout_seconds=LITELLM_DEMO_TIMEOUT_SECONDS,
+    generation=LITELLM_DEMO_GENERATION,
+    api_dialects=frozenset({"litellm"}),
+)
+APPROVED_EXECUTION_PROFILES: Final[tuple[ApprovedExecutionProfile, ...]] = (
+    STANDARD_EXECUTION_PROFILE,
+    LITELLM_DEMO_EXECUTION_PROFILE,
+)
+
+
+def approved_execution_profile(
+    *, api_dialect: str | None, timeout_seconds: Any, generation: Any
+) -> ApprovedExecutionProfile | None:
+    """짝이 허용 목록에 있고 그 dialect에서 허용되면 그 프로필, 아니면 ``None``.
+
+    ``api_dialect=None``은 dialect를 아직 모르는 정적 정책 검사(파일 loader)용이다.
+    그때도 짝 자체는 목록에 있어야 하며, dialect 검사는 호출 직전 `invoke`가 한다.
+    """
+
+    if type(timeout_seconds) is not int or not isinstance(generation, Mapping):
+        return None
+    for profile in APPROVED_EXECUTION_PROFILES:
+        if (
+            timeout_seconds == profile.timeout_seconds
+            and dict(generation) == dict(profile.generation)
+            and (api_dialect is None or api_dialect in profile.api_dialects)
+        ):
+            return profile
+    return None
+
 
 
 
@@ -652,6 +716,11 @@ def _structured_request_kwargs(
             },
         }
     )
+    if api_dialect == "litellm":
+        # LiteLLM 뒤 upstream(2026-10-13 `local-agent-main`)은 chat_template_kwargs를
+        # 무시하고 ~466초 추론한 뒤 length로 끝났다. 승인 generation의
+        # enable_thinking=false를 upstream이 따르는 형태로도 함께 보낸다.
+        extra_body["reasoning_effort"] = "none"
     return {
         "model": model,
         "messages": messages,
@@ -1118,10 +1187,11 @@ class ModelClient:
         seed: int | None = None,
         correction: str | None = None,
         contract: StructuredOutputContract | None = None,
+        max_tokens: int | None = None,
     ) -> Mapping[str, Any]:
         return self.complete_structured(
             prompt, timeout_seconds=timeout_seconds, seed=seed,
-            correction=correction, contract=contract,
+            correction=correction, contract=contract, max_tokens=max_tokens,
         )
 
     def complete_structured(
@@ -1203,8 +1273,10 @@ class ModelClient:
         본문을 바꾸지 않는다. 그래서 `input_sha256`은 기준 프롬프트의 digest
         그대로다.
 
-        seed override는 호출 인자이지 정책 변경이 아니다. policy의 `generation`
-        은 여전히 `APPROVED_GENERATION`과 같아야 한다.
+        seed override는 호출 인자이지 정책 변경이 아니다. policy의
+        (`chunking.timeout_seconds`, `generation`) 짝은 `APPROVED_EXECUTION_PROFILES`
+        중 이 client의 dialect가 허용하는 것이어야 하고(기존 300초/16384, 또는
+        `litellm`만의 900초/8192), 보내는 `max_tokens`는 그 프로필 값이다.
 
         `prompt_max_chars`는 프롬프트 상한을 policy 값으로 올린다. 생략하면
         `build_prompt`의 기존 기본값(24,000자)이다.
@@ -1220,10 +1292,19 @@ class ModelClient:
             retries = int(chunking.get("retries", APPROVED_RETRIES))
         except (TypeError, ValueError):
             raise ModelInvocationError("policy_invalid", ()) from None
-        if timeout_seconds != APPROVED_TIMEOUT_SECONDS or retries < 0 or retries > APPROVED_RETRIES:
+        if retries < 0 or retries > APPROVED_RETRIES:
             raise ModelInvocationError("policy_invalid", ())
-        if policy.get("generation", APPROVED_GENERATION) != APPROVED_GENERATION:
+        # (timeout, generation) 짝은 승인 목록에 있어야 하고 이 client의 dialect
+        # 에서 허용돼야 한다. LiteLLM 데모 프로필을 vLLM·ollama client로 보내면
+        # 여기서 호출 전에 막힌다.
+        execution = approved_execution_profile(
+            api_dialect=self.api_dialect,
+            timeout_seconds=timeout_seconds,
+            generation=policy.get("generation", APPROVED_GENERATION),
+        )
+        if execution is None:
             raise ModelInvocationError("policy_invalid", ())
+        max_tokens = int(execution.generation["max_completion_tokens"])
         # 보정 지시는 네트워크에 나가기 전에 묶는다.
         if correction is not None and (not isinstance(correction, str) or len(correction) > MAX_CORRECTION_CHARS):
             raise ModelInvocationError("correction_invalid", ())
@@ -1248,6 +1329,7 @@ class ModelClient:
                 response = self._request(
                     prompt, timeout_seconds=timeout_seconds, seed=sent_seed,
                     correction=correction, contract=output_contract,
+                    max_tokens=max_tokens,
                 )
                 if response.get("model") != self.model:
                     raise ModelIdentityError("model_not_served", retryable=False)
@@ -1360,8 +1442,16 @@ class ModelClient:
         )
 
 __all__ = [
+    "APPROVED_EXECUTION_PROFILES",
     "APPROVED_GENERATION",
     "APPROVED_RETRIES",
+    "ApprovedExecutionProfile",
+    "LITELLM_DEMO_EXECUTION_PROFILE",
+    "LITELLM_DEMO_GENERATION",
+    "LITELLM_DEMO_MAX_COMPLETION_TOKENS",
+    "LITELLM_DEMO_TIMEOUT_SECONDS",
+    "STANDARD_EXECUTION_PROFILE",
+    "approved_execution_profile",
     "APPROVED_TIMEOUT_SECONDS",
     "MAX_COMPLETION_TOKENS",
     "MAX_CORRECTION_CHARS",

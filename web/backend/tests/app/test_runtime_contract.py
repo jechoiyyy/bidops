@@ -137,9 +137,9 @@ def test_worker_network_and_command_boundaries_are_explicit():
     # it records instead of hardcoding them ([ADR-0044]).
     for service in (web, analysis):
         for artifact in (
-            "order-plan-screening-policy.v4.json",
-            "order-plan-screening-phase0-binding.v4.json",
-            "order-plan-screening-generation-config.v5.json",
+            "order-plan-screening-policy.v5.json",
+            "order-plan-screening-phase0-binding.v5.json",
+            "order-plan-screening-generation-config.v6.json",
         ):
             assert any(
                 volume.startswith(f"./experiments/order-plan-screening/config/{artifact}:")

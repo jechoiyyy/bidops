@@ -14,7 +14,69 @@
 - 영향: 국가슈퍼컴퓨팅센터 후보의 카드·쪽·사람 작성자료를 발행할 수 없다. 원문·scan SHA·진단은 Git 밖 `.sdlc/local-runtime/hp-evaluation-20261015/`에 보존했다.
 - 현재 범위는 평가자료 준비여서 converter/vendor 수정과 원문 손실 원인 규명은 별도 작업이다. verify 게이트를 우회하지 않는다. 후속은 이 고정 원본으로 native HWP→HWPX 검증 차이를 좁혀 원문 보존을 확인하거나 사용자가 정상 변환된 대체 후보를 선택하는 것이다. 교체 후보 준비는 최종 표본 승인으로 처리하지 않는다.
 
-기준일: 2026-09-03
+기준일: 2026-09-03 (2026-10-15 항목 추가)
+
+## 첨부 취득 종결에서 부르는 자동 문서 준비가 커밋되지 않는다 (2026-10-15, 미해결)
+
+- 재현: 첨부 worker(`prespec_attachment` 상시 또는 `--once --notice-id N`)가 공고의 마지막 첨부를
+  `완료`로 끝내면 `fetch_claimed`가 `maybe_auto_prepare(session, [notice_id])`를 부른다. 반환값은
+  `created=True, confirmed=True`인데 DB에는 묶음·감사·개요 run이 남지 않는다. 2026-10-15 Mac
+  운영에서 첨부가 모두 끝난 공고 158건 중 148건에 묶음이 없었고 목록은
+  `waiting_attachments`/`no_ready_document`로 보였다. 공고 503에서 반환값과 DB를 대조해 확인했다.
+- 원인: `fetch_claimed`는 호출 직전에 커밋하지만 `maybe_auto_prepare`가 자격 조회
+  (`Notice` 선택·`effective_grades`)로 session에 transaction을 다시 연다. 그 뒤 `_work_session`이
+  `session.in_transaction()`을 참으로 보고 savepoint session을 주므로 `create_bundle`·`confirm`·
+  `_enqueue_overview`의 commit은 savepoint만 놓는다. 바깥 transaction을 커밋하는 쪽이 없어
+  session이 닫히며 모두 되돌아간다. 회차 적재 hook(바깥 transaction을 커밋하는 호출부)과
+  `prepare-overviews` CLI(호출 뒤 `session.commit()`)에서는 남는다. WSL2 운영에서 매일 공고
+  회차가 같은 공고를 다시 적재하며 hook이 대신 커밋해 이 결함이 가려졌을 가능성이 높다.
+- 영향: 첨부 취득이 끝나도 묶음·개요가 다음 공고 회차 적재나 사람의 backfill까지 미뤄진다.
+- 지금 해결하지 않는 이유: 이번 작업은 운영 실행(개요까지) 범위이고, 수정은 transaction 경계를
+  바꾸는 제품 변경이라 회귀 테스트(취득 worker 경로에서 묶음 영속)를 함께 넣어야 한다. 이번에는
+  대상 공고마다 `maybe_auto_prepare` 뒤 `session.commit()`을 부르는, `prepare-overviews`와 같은
+  방식으로 처리했다.
+- 함께 걸리는 설정 결함: 개요 run은 **큐에 넣는 프로세스**의 `BIDOPS_PRESPEC_OVERVIEW_POLICY_PATH`로
+  `policy_digest`를 고정한다. `docker-compose.model-egress.yml`은 이 값을 web·analysis-worker에만
+  렌더하므로 첨부 worker가 넣은 run은 기본 v7 digest를 갖고, analysis worker(v7-litellm-v2)가
+  호출 전에 `binding_mismatch`로 닫는다. 2026-10-15 첨부 worker 컨테이너에서 준비를 돌린 13건이
+  이렇게 끝났고(모델 호출 없음), web에서 다시 준비해 재시도했다. 위 커밋 결함을 고치면 이 경로가
+  처음으로 실제 run을 남기므로 정책 경로 렌더도 같이 고쳐야 한다.
+- 후속 방향: `fetch_claimed`가 자동 준비 뒤 커밋하거나, `maybe_auto_prepare`가 자기 자격 조회
+  transaction을 닫은 뒤 `_work_session`을 고르게 한다. 취득 worker 경로 테스트가 실제 DB에서
+  묶음 행을 다시 읽어 확인해야 한다(반환값만 보는 테스트는 이 결함을 놓친다).
+
+## Rosetta 변환 실패로 `차단`된 사전규격 첨부를 다시 취득할 경로가 없다 (2026-10-15, 미해결)
+
+- 재현: 2026-10-15 Mac 운영 스택이 amd64 문서 worker로 돌던 약 5분 동안 HWP·HWPX 첨부 14건이
+  `conversion_required`로 `attachment_fetch.status='차단'`이 됐다(공고 id 30·33·38·93·96·98·99·
+  102·104·105·111·117·122·124). 원인은 Rosetta와 자식 `RLIMIT_DATA`의 충돌이었고
+  (engineering-notes), arm64 문서 worker로 바꾼 뒤에는 새 `차단`이 없다.
+- 영향: `차단`은 종결 상태라 `refresh_fetch_eligibility`가 되살리지 않는다. 이 공고들은 묶음이
+  `bundle_has_blocking_issues`로 남아 개요가 만들어지지 않는다. 같은 일이 실제 손상 문서가
+  아니라 일시 환경 장애로도 일어난다는 것이 드러났다.
+- 지금 해결하지 않는 이유: 첨부 취득 실패·묶음 failed 재시작 화면은 구현 전이고, 운영 DB 행을
+  SQL로 고치지 않는다. 화면에서 사람이 원문을 업로드해 묶음을 다시 만드는 경로는 있다.
+- 후속 방향: 감사가 남는 CLI/REST로 `차단` 행을 새 취득 시도로 다시 여는 기능(오류 코드가
+  환경성인 `conversion_required`·`converter_unavailable`에 한정)을 만든다.
+
+## WSL2 종료로 C-2 v4 승인 프롬프트와 운영 DB가 사라졌다 (2026-10-14, 일부 해소)
+
+- 재현: Mac 전체와 저장소 이력에서 `order-plan-batch-relevance-v3-approved.txt`(`639f…`)를
+  찾으면 없다. 본문은 gitignore된 회사자료였고 WSL2 호스트에만 있었다. 운영 PostgreSQL·
+  MinIO 백업도 Mac으로 넘어오지 않았다. 사설 vLLM `192.168.0.139:58765`는 Mac에서 닿지 않는다.
+- 영향: v4 binding(프롬프트·모델 digest 고정)은 어디서도 다시 실행할 수 없다. 9-28 이전 C-2
+  실행·피드백·게이트 기록과 사업 추적 이력은 Mac 운영 DB에 없다. `data/runs`의
+  `lifecycle-*` 디렉터리(10-04 복사본)만 원본으로 남았다.
+- 해소한 것: C-2 v5를 새로 발행하고 Mac `bidops` 스택에서 게이트를 다시 거친다
+  ([ADR-0072](decisions/0072-c2-mac-litellm-ollama.md)). 승인 본문 경로는 운영 절차의 백업
+  대상에 넣었다.
+- 남은 것: 9-28 이전 운영 이력의 복원 수단이 없다. 과거 회차를 Mac DB에 다시 적재하면
+  수집·적재는 되지만 사람 판정·추적 이력은 돌아오지 않는다. 승인 입력 본문을 저장소 밖의
+  암호화 백업에 두는 절차는 아직 없다.
+- 테스트 영향: C-2 service·worker fixture가 v3 본문을 직접 읽어 9-28 이후 그 테스트들이 전부
+  수집 단계에서 실패하고 있었다. fixture가 합성 프롬프트를 묶고 관련 digest를 다시 고정하도록
+  바꿨다. 이 과정에서 가려져 있던 `test_order_plan_list_v2.py`의 유니코드 casefold 검색 5건이
+  SQLite에서 실패하는 것이 드러났다(`ß`·`İ`·`ﬃ`·그리스 문자 비교). C-2 변경과 무관하며 별도로 본다.
 
 ## 데모 기준 `c50ed55`의 화면 스위트에 기존 실패 3종이 있다 (2026-10-12, 미해결)
 

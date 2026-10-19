@@ -294,3 +294,126 @@ def test_adapter_refuses_an_empty_batch() -> None:
             adapter.invoke(prompt="p", payload={"items": []}, expected_model="qwen3.8-27B")
     finally:
         client.close()
+
+
+# --- LiteLLM dialect (ADR-0072) ------------------------------------------------
+
+LITELLM_CONFIG_PATH = GENERATION_CONFIG_PATH.with_name("order-plan-screening-generation-config.v6.json")
+LITELLM_CONFIG = json.loads(LITELLM_CONFIG_PATH.read_text(encoding="utf-8"))
+LITELLM_HOST = LITELLM_CONFIG["allowed_hosts"][0]
+LITELLM_URL = f"https://{LITELLM_HOST}:4000/v1"
+
+
+def _litellm_adapter(handler, **overrides) -> tuple[OrderPlanVllmAdapter, httpx.Client]:
+    client = httpx.Client(transport=httpx.MockTransport(handler), follow_redirects=False, trust_env=False)
+    options = {
+        "base_url": LITELLM_URL,
+        "allowed_hosts": LITELLM_HOST,
+        "api_key": "sk-test",
+        "model": "qwen3.8:27b",
+        "model_digest": DIGEST,
+        "deployed_revision": DIGEST,
+        "generation_config": LITELLM_CONFIG,
+        "http_client": client,
+    }
+    options.update(overrides)
+    return OrderPlanVllmAdapter(**options), client
+
+
+def _litellm_response(model: str = "local-agent-main") -> dict:
+    return {
+        "id": "chatcmpl-litellm",
+        "model": model,
+        "choices": [{"index": 0, "finish_reason": "stop", "message": {"role": "assistant", "content": '{"items": []}'}}],
+        "usage": {"prompt_tokens": 20, "completion_tokens": 4, "total_tokens": 24},
+    }
+
+
+def test_litellm_config_is_the_published_ollama_binding() -> None:
+    assert LITELLM_CONFIG["api_dialect"] == "litellm"
+    assert LITELLM_CONFIG["model_name"] == "qwen3.8:27b"
+    assert LITELLM_CONFIG["request_model"] == "local-agent-main"
+    assert LITELLM_CONFIG["reasoning_effort"] == "none"
+    assert "chat_template_kwargs" not in LITELLM_CONFIG
+
+
+def test_litellm_adapter_sends_the_alias_and_only_its_own_thinking_switch() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert str(request.url) == f"{LITELLM_URL}/chat/completions"
+        assert request.headers["authorization"] == "Bearer sk-test"
+        body = json.loads(request.content)
+        assert body["model"] == "local-agent-main"
+        # The Ollama upstream ignores chat_template_kwargs; only
+        # reasoning_effort turns thinking off, so that is all that is sent.
+        assert body["reasoning_effort"] == "none"
+        assert "chat_template_kwargs" not in body and "extra_body" not in body
+        assert body["max_tokens"] == LITELLM_CONFIG["max_output_tokens"]
+        assert body["response_format"]["json_schema"]["strict"] is True
+        assert json.loads(body["messages"][1]["content"]) == PAYLOAD
+        return httpx.Response(200, json=_litellm_response())
+
+    adapter, client = _litellm_adapter(handler)
+    try:
+        response = adapter.invoke(prompt="{}", payload=PAYLOAD, expected_model="qwen3.8:27b")
+    finally:
+        client.close()
+    assert response.structured_output == {"items": []}
+    # The stored response names the bound model, not the proxy alias.
+    assert json.loads(response.approved_raw_response)["model"] == "qwen3.8:27b"
+
+
+def test_litellm_adapter_rejects_a_response_from_another_alias() -> None:
+    adapter, client = _litellm_adapter(lambda _: httpx.Response(200, json=_litellm_response("local-agent-fast")))
+    try:
+        with pytest.raises(OrderPlanVllmError, match="model_mismatch"):
+            adapter.invoke(prompt="{}", payload=PAYLOAD, expected_model="qwen3.8:27b")
+    finally:
+        client.close()
+
+
+@pytest.mark.parametrize(
+    "base_url,allowed_hosts",
+    [
+        (f"http://{LITELLM_HOST}:4000/v1", LITELLM_HOST),  # TLS is required
+        (f"https://{LITELLM_HOST}/v1", LITELLM_HOST),  # explicit port
+        (f"https://{LITELLM_HOST}:4000/v1/", LITELLM_HOST),
+        ("https://other.example.net:4000/v1", LITELLM_HOST),
+        (f"https://{LITELLM_HOST}:4000/v1", "*.tail0ab8c5.ts.net"),
+        (f"https://{LITELLM_HOST}:4000/v1", ""),
+    ],
+)
+def test_litellm_adapter_rejects_non_exact_endpoints(base_url: str, allowed_hosts: str) -> None:
+    with pytest.raises(ValueError):
+        _litellm_adapter(lambda _: httpx.Response(500), base_url=base_url, allowed_hosts=allowed_hosts)
+
+
+@pytest.mark.parametrize(
+    "model,config",
+    [
+        ("qwen3.8-27B", LITELLM_CONFIG),  # the vLLM model name is not the Ollama build
+        ("qwen3.8:27b", GENERATION_CONFIG),  # an Ollama build needs the LiteLLM dialect
+        ("qwen3.8:27b", {**LITELLM_CONFIG, "reasoning_effort": "low"}),
+        ("qwen3.8:27b", {k: v for k, v in LITELLM_CONFIG.items() if k != "request_model"}),
+        ("qwen3.8:27b", {**LITELLM_CONFIG, "api_dialect": "ollama"}),
+    ],
+)
+def test_litellm_adapter_refuses_unapproved_model_or_generation_values(model: str, config: dict) -> None:
+    with pytest.raises(ValueError):
+        _litellm_adapter(lambda _: httpx.Response(500), model=model, generation_config=config)
+
+
+def test_litellm_adapter_still_requires_the_declared_revision() -> None:
+    with pytest.raises(ValueError, match="does not match the binding"):
+        _litellm_adapter(lambda _: httpx.Response(500), deployed_revision="b" * 64)
+
+
+def test_litellm_adapter_refuses_a_host_outside_the_approved_generation_config() -> None:
+    """The env allowlist can narrow the approved hosts but never widen them."""
+
+    other = "other-host.tail0ab8c5.ts.net"
+    with pytest.raises(ValueError, match="approved generation config"):
+        _litellm_adapter(
+            lambda _: httpx.Response(500),
+            base_url=f"https://{other}:4000/v1",
+            allowed_hosts=other,
+        )

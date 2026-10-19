@@ -1,0 +1,3803 @@
+{
+  "executions": [
+    {
+      "binding_sha256": "2e77505efd6ae87bc670fa6b04b72302b28da972d2d0e6fda3f200d77ff844e1",
+      "execution_id": "1a92741d-fa6f-494b-ba20-2818fd9224ec",
+      "items": [
+        {
+          "plan_id": "R26DD20857740",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857743",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857747",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857750",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857751",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857752",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857753",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857754",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857755",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        }
+      ],
+      "policy_sha256": "1e6d4ef1414c61c1d04d0fec491e85380ab0227d1a6a43cec86b8c3bed887465",
+      "policy_version": "c2-order-plan-screening-v5",
+      "population_count": 9,
+      "purpose": "gate_measurement",
+      "source_run_id": "gate-gold-20260829-plans--20260901T001247.754584Z",
+      "status": "성공"
+    },
+    {
+      "binding_sha256": "2e77505efd6ae87bc670fa6b04b72302b28da972d2d0e6fda3f200d77ff844e1",
+      "execution_id": "a287c596-7f01-4efc-96dd-c3fd5295fea8",
+      "items": [
+        {
+          "plan_id": "R26DD20856748",
+          "qwen_relevance": "relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856749",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856750",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856753",
+          "qwen_relevance": "uncertain",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856754",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856755",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856760",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856763",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856766",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856767",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856769",
+          "qwen_relevance": "uncertain",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856773",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856776",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856777",
+          "qwen_relevance": "relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856783",
+          "qwen_relevance": "uncertain",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856784",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856788",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856791",
+          "qwen_relevance": "uncertain",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856802",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856805",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856809",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856812",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856819",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856821",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856822",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856835",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856836",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856838",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856850",
+          "qwen_relevance": "relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856856",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856858",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856861",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856866",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856871",
+          "qwen_relevance": "uncertain",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856873",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856874",
+          "qwen_relevance": "relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856875",
+          "qwen_relevance": "relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856876",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856877",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856879",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856881",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856882",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856885",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856886",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856887",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856888",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856894",
+          "qwen_relevance": "relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856897",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856901",
+          "qwen_relevance": "uncertain",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856910",
+          "qwen_relevance": "uncertain",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856913",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856914",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856932",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856934",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856935",
+          "qwen_relevance": "relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856936",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856942",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856949",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856950",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856953",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856954",
+          "qwen_relevance": "uncertain",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856956",
+          "qwen_relevance": "relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856957",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856959",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856970",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856976",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856982",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856985",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856986",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856987",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856989",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856994",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856997",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857011",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857013",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857015",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857018",
+          "qwen_relevance": "uncertain",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857021",
+          "qwen_relevance": "uncertain",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857024",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857026",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857027",
+          "qwen_relevance": "uncertain",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857030",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857034",
+          "qwen_relevance": "relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857037",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857039",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857043",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857045",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857046",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857049",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857052",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857054",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857057",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857061",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857062",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857067",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857068",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857075",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857076",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857081",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857083",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857089",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857092",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857093",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857105",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857108",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857116",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857118",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857120",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857122",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857126",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857127",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857130",
+          "qwen_relevance": "uncertain",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857132",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857137",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857139",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857140",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857141",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857142",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857145",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857150",
+          "qwen_relevance": "uncertain",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857153",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857157",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857161",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857162",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857164",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857168",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857173",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857174",
+          "qwen_relevance": "uncertain",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857178",
+          "qwen_relevance": "uncertain",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857180",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857181",
+          "qwen_relevance": "relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857183",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857185",
+          "qwen_relevance": "uncertain",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857186",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857193",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857194",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857196",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857198",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857199",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857203",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857226",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857243",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857245",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857246",
+          "qwen_relevance": "uncertain",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857247",
+          "qwen_relevance": "relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857248",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857250",
+          "qwen_relevance": "relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857253",
+          "qwen_relevance": "uncertain",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857258",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857259",
+          "qwen_relevance": "uncertain",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857267",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857268",
+          "qwen_relevance": "uncertain",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857281",
+          "qwen_relevance": "relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857283",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857286",
+          "qwen_relevance": "uncertain",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857289",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857303",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857304",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857314",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857315",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857317",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857318",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857320",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857321",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857332",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857340",
+          "qwen_relevance": "relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857345",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857346",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857347",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857350",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857351",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857357",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857359",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857361",
+          "qwen_relevance": "relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857362",
+          "qwen_relevance": "uncertain",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857368",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857369",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857370",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857380",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857386",
+          "qwen_relevance": "uncertain",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857387",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857388",
+          "qwen_relevance": "relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857393",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857395",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857396",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857399",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857402",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857403",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857404",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857406",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857407",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857412",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857419",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857420",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857425",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857426",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857428",
+          "qwen_relevance": "uncertain",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857430",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857433",
+          "qwen_relevance": "uncertain",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857434",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857435",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857437",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857440",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857441",
+          "qwen_relevance": "uncertain",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857444",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857446",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857449",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857450",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857453",
+          "qwen_relevance": "uncertain",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857465",
+          "qwen_relevance": "uncertain",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857478",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857480",
+          "qwen_relevance": "uncertain",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857483",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857484",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857486",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857490",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857491",
+          "qwen_relevance": "relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857492",
+          "qwen_relevance": "uncertain",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857496",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857500",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857501",
+          "qwen_relevance": "relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857504",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857510",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857511",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857512",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857514",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857515",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857517",
+          "qwen_relevance": "relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857518",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857521",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857529",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857530",
+          "qwen_relevance": "uncertain",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857532",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857539",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857542",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857544",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857550",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857551",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857552",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857555",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857564",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857565",
+          "qwen_relevance": "uncertain",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857566",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857567",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857569",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857575",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857580",
+          "qwen_relevance": "uncertain",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857582",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857585",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857588",
+          "qwen_relevance": "relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857589",
+          "qwen_relevance": "relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857592",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857593",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857596",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857598",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857600",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857604",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857607",
+          "qwen_relevance": "relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857609",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857611",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857619",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857625",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857626",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857627",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857633",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857636",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857638",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857639",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857641",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857644",
+          "qwen_relevance": "uncertain",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857647",
+          "qwen_relevance": "uncertain",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857650",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857654",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857655",
+          "qwen_relevance": "uncertain",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857656",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857658",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857660",
+          "qwen_relevance": "uncertain",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857661",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857662",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857663",
+          "qwen_relevance": "uncertain",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857668",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857671",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857675",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857677",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857678",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857687",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857688",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857691",
+          "qwen_relevance": "uncertain",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857693",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857694",
+          "qwen_relevance": "relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        }
+      ],
+      "policy_sha256": "1e6d4ef1414c61c1d04d0fec491e85380ab0227d1a6a43cec86b8c3bed887465",
+      "policy_version": "c2-order-plan-screening-v5",
+      "population_count": 290,
+      "purpose": "gate_measurement",
+      "source_run_id": "gate-gold-20260828-plans--20260901T001247.754584Z",
+      "status": "성공"
+    },
+    {
+      "binding_sha256": "2e77505efd6ae87bc670fa6b04b72302b28da972d2d0e6fda3f200d77ff844e1",
+      "execution_id": "c6423011-16c6-4cc1-99a2-0c4a7a430456",
+      "items": [
+        {
+          "plan_id": "R26DD20857802",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857803",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857809",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857810",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857812",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857814",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857818",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857825",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857826",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857827",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857828",
+          "qwen_relevance": "relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857829",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857838",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857841",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857842",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857866",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857868",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20857872",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        }
+      ],
+      "policy_sha256": "1e6d4ef1414c61c1d04d0fec491e85380ab0227d1a6a43cec86b8c3bed887465",
+      "policy_version": "c2-order-plan-screening-v5",
+      "population_count": 18,
+      "purpose": "gate_measurement",
+      "source_run_id": "gate-gold-20260830-plans--20260901T001247.754584Z",
+      "status": "성공"
+    },
+    {
+      "binding_sha256": "2e77505efd6ae87bc670fa6b04b72302b28da972d2d0e6fda3f200d77ff844e1",
+      "execution_id": "d011ef17-91bc-454e-9f58-88a7e05af945",
+      "items": [
+        {
+          "plan_id": "R26DD20855571",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855574",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855575",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855581",
+          "qwen_relevance": "relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855587",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855588",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855591",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855600",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855607",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855609",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855611",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855613",
+          "qwen_relevance": "uncertain",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855614",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855615",
+          "qwen_relevance": "uncertain",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855619",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855620",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855622",
+          "qwen_relevance": "uncertain",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855628",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855629",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855636",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855638",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855640",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855647",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855650",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855651",
+          "qwen_relevance": "relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855658",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855661",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855662",
+          "qwen_relevance": "relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855663",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855664",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855666",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855667",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855675",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855676",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855681",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855691",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855702",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855706",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855711",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855712",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855717",
+          "qwen_relevance": "uncertain",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855720",
+          "qwen_relevance": "uncertain",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855722",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855725",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855726",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855729",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855742",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855743",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855748",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855753",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855757",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855759",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855761",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855762",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855763",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855764",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855765",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855767",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855768",
+          "qwen_relevance": "uncertain",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855769",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855770",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855771",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855773",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855782",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855785",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855787",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855788",
+          "qwen_relevance": "uncertain",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855790",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855791",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855793",
+          "qwen_relevance": "uncertain",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855798",
+          "qwen_relevance": "uncertain",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855812",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855814",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855817",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855819",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855821",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855822",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855823",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855825",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855828",
+          "qwen_relevance": "uncertain",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855829",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855831",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855832",
+          "qwen_relevance": "relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855833",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855841",
+          "qwen_relevance": null,
+          "stage1_status": "filtered_out",
+          "stage2_status": "not_attempted"
+        },
+        {
+          "plan_id": "R26DD20855842",
+          "qwen_relevance": null,
+          "stage1_status": "filtered_out",
+          "stage2_status": "not_attempted"
+        },
+        {
+          "plan_id": "R26DD20855844",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855845",
+          "qwen_relevance": "relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855847",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855849",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855851",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855853",
+          "qwen_relevance": null,
+          "stage1_status": "filtered_out",
+          "stage2_status": "not_attempted"
+        },
+        {
+          "plan_id": "R26DD20855863",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855864",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855865",
+          "qwen_relevance": "uncertain",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855866",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855868",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855869",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855870",
+          "qwen_relevance": "uncertain",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855873",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855885",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855887",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855894",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855896",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855898",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855905",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855906",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855911",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855912",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855913",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855921",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855923",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855925",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855926",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855930",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855931",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855935",
+          "qwen_relevance": "uncertain",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855937",
+          "qwen_relevance": "uncertain",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855940",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855942",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855944",
+          "qwen_relevance": "relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855945",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855952",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855955",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855977",
+          "qwen_relevance": "uncertain",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855983",
+          "qwen_relevance": "relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855984",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855988",
+          "qwen_relevance": "uncertain",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855995",
+          "qwen_relevance": "relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20855998",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856000",
+          "qwen_relevance": "relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856002",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856009",
+          "qwen_relevance": null,
+          "stage1_status": "filtered_out",
+          "stage2_status": "not_attempted"
+        },
+        {
+          "plan_id": "R26DD20856012",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856029",
+          "qwen_relevance": "uncertain",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856038",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856042",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856051",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856058",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856061",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856062",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856066",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856067",
+          "qwen_relevance": "uncertain",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856076",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856080",
+          "qwen_relevance": "uncertain",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856082",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856084",
+          "qwen_relevance": "uncertain",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856089",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856092",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856108",
+          "qwen_relevance": "uncertain",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856109",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856112",
+          "qwen_relevance": "uncertain",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856120",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856124",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856127",
+          "qwen_relevance": "uncertain",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856135",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856140",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856141",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856151",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856159",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856161",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856164",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856165",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856170",
+          "qwen_relevance": "relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856176",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856185",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856186",
+          "qwen_relevance": "uncertain",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856192",
+          "qwen_relevance": "relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856194",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856197",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856198",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856200",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856203",
+          "qwen_relevance": "uncertain",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856204",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856206",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856209",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856210",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856214",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856223",
+          "qwen_relevance": "uncertain",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856224",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856227",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856240",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856246",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856248",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856250",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856253",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856254",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856258",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856261",
+          "qwen_relevance": "uncertain",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856264",
+          "qwen_relevance": "uncertain",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856265",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856270",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856276",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856280",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856281",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856285",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856287",
+          "qwen_relevance": null,
+          "stage1_status": "filtered_out",
+          "stage2_status": "not_attempted"
+        },
+        {
+          "plan_id": "R26DD20856297",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856298",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856299",
+          "qwen_relevance": "relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856301",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856305",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856311",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856312",
+          "qwen_relevance": "relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856314",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856318",
+          "qwen_relevance": "uncertain",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856319",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856322",
+          "qwen_relevance": "uncertain",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856332",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856336",
+          "qwen_relevance": "relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856338",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856339",
+          "qwen_relevance": "uncertain",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856341",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856342",
+          "qwen_relevance": "uncertain",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856344",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856347",
+          "qwen_relevance": "relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856348",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856351",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856352",
+          "qwen_relevance": "uncertain",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856357",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856365",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856372",
+          "qwen_relevance": "relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856374",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856380",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856382",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856385",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856388",
+          "qwen_relevance": "uncertain",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856390",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856391",
+          "qwen_relevance": "uncertain",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856396",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856401",
+          "qwen_relevance": null,
+          "stage1_status": "filtered_out",
+          "stage2_status": "not_attempted"
+        },
+        {
+          "plan_id": "R26DD20856402",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856404",
+          "qwen_relevance": "uncertain",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856405",
+          "qwen_relevance": "uncertain",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856406",
+          "qwen_relevance": "uncertain",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856408",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856412",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856415",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856418",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856419",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856420",
+          "qwen_relevance": null,
+          "stage1_status": "filtered_out",
+          "stage2_status": "not_attempted"
+        },
+        {
+          "plan_id": "R26DD20856421",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856424",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856430",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856431",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856433",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856436",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856444",
+          "qwen_relevance": "relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856461",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856463",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856464",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856466",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856467",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856471",
+          "qwen_relevance": "relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856472",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856473",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856475",
+          "qwen_relevance": "uncertain",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856485",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856486",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856491",
+          "qwen_relevance": "relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856499",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856515",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856516",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856517",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856519",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856520",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856521",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856528",
+          "qwen_relevance": "uncertain",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856529",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856530",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856534",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856536",
+          "qwen_relevance": "relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856540",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856543",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856546",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856552",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856555",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856561",
+          "qwen_relevance": null,
+          "stage1_status": "filtered_out",
+          "stage2_status": "not_attempted"
+        },
+        {
+          "plan_id": "R26DD20856567",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856570",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856571",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856572",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856574",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856581",
+          "qwen_relevance": "uncertain",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856587",
+          "qwen_relevance": "uncertain",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856588",
+          "qwen_relevance": "relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856589",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856593",
+          "qwen_relevance": "relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856598",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856600",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856602",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856604",
+          "qwen_relevance": "uncertain",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856606",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856630",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856637",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856641",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856643",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856650",
+          "qwen_relevance": "uncertain",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856655",
+          "qwen_relevance": "uncertain",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856656",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856662",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856664",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856665",
+          "qwen_relevance": "relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856666",
+          "qwen_relevance": "uncertain",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856667",
+          "qwen_relevance": "uncertain",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856669",
+          "qwen_relevance": "uncertain",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856672",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        },
+        {
+          "plan_id": "R26DD20856673",
+          "qwen_relevance": "not_relevant",
+          "stage1_status": "selected",
+          "stage2_status": "success"
+        }
+      ],
+      "policy_sha256": "1e6d4ef1414c61c1d04d0fec491e85380ab0227d1a6a43cec86b8c3bed887465",
+      "policy_version": "c2-order-plan-screening-v5",
+      "population_count": 308,
+      "purpose": "gate_measurement",
+      "source_run_id": "gate-gold-20260827-plans--20260901T001247.754584Z",
+      "status": "성공"
+    }
+  ],
+  "schema_version": "bidops.order-plan-gate-scoring-results.v1"
+}

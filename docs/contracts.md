@@ -619,6 +619,12 @@ migration 0021/0023/0024)과 주장 결정적 검증 함수는 그대로 유지�
   `prespec-overview-policy-v7-litellm-v1.json`의 exact identity만 읽는다. LiteLLM 정책은 v7에서
   `model_name=local-agent-main`, `model_endpoint_ref=litellm-openai-compatible`,
   `prompt_version=prespec-overview-v7-litellm-v1`만 다르고 schema·generation·검증·한도는 같다.
+  `prespec-overview-policy-v7-litellm-v2.json`(2026-10-15 Mac 운영 경로)은 litellm-v1과 같은 프롬프트에
+  stage 호출 timeout 900초·`max_completion_tokens` 8192·run `timeout_seconds` 900·`lease_seconds`
+  3060만 다르다. loader는 (timeout, generation) 짝을 `model_client.APPROVED_EXECUTION_PROFILES`의
+  표준(300/16384)·LiteLLM(900/8192) 둘 중 하나로만 받고, LiteLLM 짝은 `model_endpoint_ref`가
+  LiteLLM transport인 정책에서만, 모든 stage가 같은 짝이고 run 한도가 그 짝의 한도와 같을 때만 받는다.
+  `litellm` dialect 요청 body에는 `reasoning_effort=none`이 함께 실린다.
   기본 경로나 전역 모델 설정을 바꾸지 않으며 로컬 참조 실행에서 경로로 명시 선택한다. v8은 같은 세 절과
   예비 판단을 통합 생성하지만 기본 경로가 아니며 품질 비교·migration·배포·정책 변경 승인 전에는
   운영 활성 정책으로 보지 않는다. v6 파일은 기존 run 기록으로만 남는다.
@@ -1213,6 +1219,17 @@ policy·binding은 이 validator의 검증 범위 밖이며, v3의 정합성은 
   raw JSON에서는 서버가 무시한다.
 - `response_format`은 `json_schema` + `strict: true`이며 schema가 배치 크기를
   `minItems`/`maxItems`로 고정한다.
+
+전송 방식은 generation config의 `api_dialect`가 정한다([ADR-0072](tracking/decisions/0072-c2-mac-litellm-ollama.md)).
+필드가 없으면 `vllm`이고 위 규칙 그대로다. `litellm`(v6, Mac)은 다음만 다르다.
+
+- 허용 목록은 literal IP가 아니라 정확한 소문자 hostname이고, URL은 `https`·명시 포트·`/v1`이다.
+- 요청 `model`은 generation config `request_model`(LiteLLM 별칭 `local-agent-main`)이고 응답
+  `model`도 그 별칭이어야 한다. binding·저장 응답·실행 기록의 모델명은 `qwen3.8:27b`다.
+- thinking 스위치는 `reasoning_effort: "none"` 하나만 최상위로 보낸다. Ollama upstream이
+  `chat_template_kwargs`를 무시하므로 보내지 않는다.
+- binding stage2는 `(approved_private_ollama, qwen3.8:27b)`이며 worker는 이 쌍과
+  `(approved_private_vllm, qwen3.8-27B)`만 받는다.
 
 payload는 `{company_capabilities: {profile_version, capabilities[{id,summary}]},
 items: [{item_id, title}]}`이다. `item_id`는 `0..batch-1`의 batch-local index이며

@@ -33,7 +33,6 @@ from sqlalchemy.orm import Session
 
 from ...core.config import get_settings
 from ...core.model_client import (
-    APPROVED_GENERATION,
     ModelClient,
     ModelEndpointError,
     ModelIdentityError,
@@ -1056,11 +1055,33 @@ def _close_exhausted(session: Session, run: PrespecOverviewRun, job: WorkJob, no
     ))
 
 
-def _claim_next(session: Session, worker_id: str, clock: Callable[[], datetime]) -> UUID | None:
+def _policy_lease_seconds(settings: Any) -> int:
+    """설정이 고른 개요 정책의 lease (DEMO-05 STEP-005).
+
+    표준 정책(v7·v8·litellm-v1)은 기존 `LIMITS["lease_seconds"]`(1200) 그대로이고
+    LiteLLM 데모 정책(litellm-v2)은 3 × 900 + 360이다. 정책을 읽지 못하면 기존
+    값으로 잡고, 실행은 `_execute`가 같은 정책 오류로 닫는다(동작 불변).
+    """
+
+    try:
+        return load_claims_policy(getattr(settings, "prespec_overview_policy_path", None)).lease_seconds
+    except (ValueError, TypeError, KeyError, AttributeError):
+        return int(LIMITS["lease_seconds"])
+
+
+def _claim_next(
+    session: Session,
+    worker_id: str,
+    clock: Callable[[], datetime],
+    lease_seconds: Callable[[], int] | None = None,
+) -> UUID | None:
     """가장 오래된 queued run 하나를 WorkJob lease로 잡는다.
 
     상한(`work_job.max_attempts`)을 다 쓴 후보는 잡지 않고 닫은 뒤 다음
     후보로 넘어간다. 닫은 만큼 후보가 줄어들므로 이 순회는 끝난다.
+
+    `lease_seconds`는 잡을 run이 있을 때만 부른다(정책 파일을 poll마다 읽지
+    않는다). 생략하면 기존 `LIMITS["lease_seconds"]`다.
     """
 
     now = clock()
@@ -1086,7 +1107,8 @@ def _claim_next(session: Session, worker_id: str, clock: Callable[[], datetime])
         job.status = "running"
         job.lease_owner = worker_id
         job.lease_fence = int(job.lease_fence) + 1
-        job.lease_expires_at = now + timedelta(seconds=LIMITS["lease_seconds"])
+        seconds = int(LIMITS["lease_seconds"]) if lease_seconds is None else int(lease_seconds())
+        job.lease_expires_at = now + timedelta(seconds=seconds)
         job.attempt_count = int(job.attempt_count) + 1
         run.status = "running"
         run.started_at = now
@@ -1462,6 +1484,10 @@ class _Caller:
             prompt = build_claims_prompt(self.policy, stage, dict(input_slice))
         except PromptTooLargeError as error:
             raise _RunFailure("failed", "input_capacity_exceeded") from error
+        # 용량 사전검사는 실제로 보낼 요청과 같은 값을 쓴다: 출력 예약과 호출
+        # timeout은 loader가 승인 짝과 대조한 이 stage 정책의 값이다(표준 정책은
+        # 16384·300 그대로, LiteLLM 데모 정책은 8192·900).
+        generation = stage_policy["generation"]
         try:
             capacity = structured_request_capacity(
                 model=self.run.model_name,
@@ -1470,10 +1496,10 @@ class _Caller:
                 api_dialect=str(getattr(self.client, "api_dialect", "vllm")),
                 max_model_len=getattr(self.client, "model_context_tokens", None),
                 policy_context_ceiling=LIMITS["max_model_context_tokens"],
-                max_tokens=APPROVED_GENERATION["max_completion_tokens"],
+                max_tokens=int(generation["max_completion_tokens"]),
                 chat_template_reserve_tokens=LIMITS["chat_template_reserve_tokens"],
-                timeout_seconds=LIMITS["timeout_seconds"],
-                seed=int(APPROVED_GENERATION["seed"] if seed is None else seed),
+                timeout_seconds=int(stage_policy["chunking"]["timeout_seconds"]),
+                seed=int(generation["seed"] if seed is None else seed),
                 correction=correction,
             )
         except ModelInvocationError as error:
@@ -1967,7 +1993,7 @@ def run_once(
             reason_code="overview_disabled" if cancelled else None,
             expired_leases=expired,
         )
-    run_id = _claim_next(session, worker_id, clock)
+    run_id = _claim_next(session, worker_id, clock, lambda: _policy_lease_seconds(settings))
     if run_id is None:
         return OverviewRunResult(False, status="idle", expired_leases=expired)
     run = session.get(PrespecOverviewRun, run_id)

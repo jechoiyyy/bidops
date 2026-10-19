@@ -1,0 +1,411 @@
+{
+  "agreement": {
+    "agreement_count": 623,
+    "agreement_pct": 99.68,
+    "compared_count": 625,
+    "disagreement_count": 2,
+    "disagreement_plan_ids": [
+      "R26DD20855681",
+      "R26DD20856461"
+    ]
+  },
+  "created_at": "2026-10-14T21:59:42.583992+09:00",
+  "gate_id": "c2gate-ab196f52c8c0408b8498269006884e98",
+  "gold": {
+    "by_published_day": {
+      "2026-08-27": {
+        "gold_positive": 28,
+        "important": 14,
+        "population": 308
+      },
+      "2026-08-28": {
+        "gold_positive": 25,
+        "important": 10,
+        "population": 290
+      },
+      "2026-08-29": {
+        "gold_positive": 0,
+        "important": 0,
+        "population": 9
+      },
+      "2026-08-30": {
+        "gold_positive": 1,
+        "important": 1,
+        "population": 18
+      }
+    },
+    "draft_labelled_positive_count": 0,
+    "draft_labelled_positive_plan_ids": [],
+    "gold_important_count": 25,
+    "gold_positive_count": 54,
+    "label_source_counts": {
+      "draft": 516,
+      "human": 109
+    },
+    "manifest_path": "data/experiments/order-plan-screening/20260827-20260830-gold-adjudicated-v3/review/manifest.json",
+    "manifest_sha256": "72d6749daa5fa0972b240970bec900a686faea88c4ee991367358e0e9058a5f5",
+    "manifest_status": "queue_human_adjudicated",
+    "path": "data/experiments/order-plan-screening/20260827-20260830-gold-adjudicated-v3/review/gold-adjudicated-full-population.tsv",
+    "population_count": 625,
+    "published_days": [
+      "2026-08-27",
+      "2026-08-28",
+      "2026-08-29",
+      "2026-08-30"
+    ],
+    "sha256": "cbdb7adf060dab8136ee391e46100a41dfa444e0b5b86f27f18a69f912f16aa9"
+  },
+  "measured_worse_side": {
+    "important_missed": 0,
+    "precision_pct": 39.7059,
+    "recall_pct": 100.0,
+    "review_load": 73
+  },
+  "note": "이 파일은 도구가 만든 gate artifact 초안이다. 사람이 값을 확인한 뒤에만 POST /api/order-plan-screening/quality-gates/{gate_id}/evaluations로 제출한다. 도구는 어떤 것도 POST하지 않는다.",
+  "passes": {
+    "pass_1": {
+      "all_successful": true,
+      "by_published_day": {
+        "2026-08-27": {
+          "degraded_counts": {
+            "no_result_row": 0,
+            "stage1_failed_or_rejected": 0,
+            "stage2_failed_rejected_or_unknown": 0
+          },
+          "execution_id": "d011ef17-91bc-454e-9f58-88a7e05af945",
+          "execution_status": "성공",
+          "false_negative": 0,
+          "false_negative_plan_ids": [],
+          "false_positive": 43,
+          "gold_positive": 28,
+          "important_missed": 0,
+          "important_missed_plan_ids": [],
+          "population": 308,
+          "review_candidates": 71,
+          "source_run_id": "gate-gold-20260827-plans--20260901T001247.754584Z",
+          "true_positive": 28
+        },
+        "2026-08-28": {
+          "degraded_counts": {
+            "no_result_row": 0,
+            "stage1_failed_or_rejected": 0,
+            "stage2_failed_rejected_or_unknown": 0
+          },
+          "execution_id": "a287c596-7f01-4efc-96dd-c3fd5295fea8",
+          "execution_status": "성공",
+          "false_negative": 0,
+          "false_negative_plan_ids": [],
+          "false_positive": 37,
+          "gold_positive": 25,
+          "important_missed": 0,
+          "important_missed_plan_ids": [],
+          "population": 290,
+          "review_candidates": 62,
+          "source_run_id": "gate-gold-20260828-plans--20260901T001247.754584Z",
+          "true_positive": 25
+        },
+        "2026-08-29": {
+          "degraded_counts": {
+            "no_result_row": 0,
+            "stage1_failed_or_rejected": 0,
+            "stage2_failed_rejected_or_unknown": 0
+          },
+          "execution_id": "1a92741d-fa6f-494b-ba20-2818fd9224ec",
+          "execution_status": "성공",
+          "false_negative": 0,
+          "false_negative_plan_ids": [],
+          "false_positive": 0,
+          "gold_positive": 0,
+          "important_missed": 0,
+          "important_missed_plan_ids": [],
+          "population": 9,
+          "review_candidates": 0,
+          "source_run_id": "gate-gold-20260829-plans--20260901T001247.754584Z",
+          "true_positive": 0
+        },
+        "2026-08-30": {
+          "degraded_counts": {
+            "no_result_row": 0,
+            "stage1_failed_or_rejected": 0,
+            "stage2_failed_rejected_or_unknown": 0
+          },
+          "execution_id": "c6423011-16c6-4cc1-99a2-0c4a7a430456",
+          "execution_status": "성공",
+          "false_negative": 0,
+          "false_negative_plan_ids": [],
+          "false_positive": 0,
+          "gold_positive": 1,
+          "important_missed": 0,
+          "important_missed_plan_ids": [],
+          "population": 18,
+          "review_candidates": 1,
+          "source_run_id": "gate-gold-20260830-plans--20260901T001247.754584Z",
+          "true_positive": 1
+        }
+      },
+      "executions": [
+        {
+          "binding_sha256": "2e77505efd6ae87bc670fa6b04b72302b28da972d2d0e6fda3f200d77ff844e1",
+          "execution_id": "d011ef17-91bc-454e-9f58-88a7e05af945",
+          "origin": "reports/c2-gate-v5/pass1-results.json",
+          "policy_sha256": "1e6d4ef1414c61c1d04d0fec491e85380ab0227d1a6a43cec86b8c3bed887465",
+          "policy_version": "c2-order-plan-screening-v5",
+          "population_count": 308,
+          "published_day": "2026-08-27",
+          "purpose": "gate_measurement",
+          "source_run_id": "gate-gold-20260827-plans--20260901T001247.754584Z",
+          "status": "성공"
+        },
+        {
+          "binding_sha256": "2e77505efd6ae87bc670fa6b04b72302b28da972d2d0e6fda3f200d77ff844e1",
+          "execution_id": "a287c596-7f01-4efc-96dd-c3fd5295fea8",
+          "origin": "reports/c2-gate-v5/pass1-results.json",
+          "policy_sha256": "1e6d4ef1414c61c1d04d0fec491e85380ab0227d1a6a43cec86b8c3bed887465",
+          "policy_version": "c2-order-plan-screening-v5",
+          "population_count": 290,
+          "published_day": "2026-08-28",
+          "purpose": "gate_measurement",
+          "source_run_id": "gate-gold-20260828-plans--20260901T001247.754584Z",
+          "status": "성공"
+        },
+        {
+          "binding_sha256": "2e77505efd6ae87bc670fa6b04b72302b28da972d2d0e6fda3f200d77ff844e1",
+          "execution_id": "1a92741d-fa6f-494b-ba20-2818fd9224ec",
+          "origin": "reports/c2-gate-v5/pass1-results.json",
+          "policy_sha256": "1e6d4ef1414c61c1d04d0fec491e85380ab0227d1a6a43cec86b8c3bed887465",
+          "policy_version": "c2-order-plan-screening-v5",
+          "population_count": 9,
+          "published_day": "2026-08-29",
+          "purpose": "gate_measurement",
+          "source_run_id": "gate-gold-20260829-plans--20260901T001247.754584Z",
+          "status": "성공"
+        },
+        {
+          "binding_sha256": "2e77505efd6ae87bc670fa6b04b72302b28da972d2d0e6fda3f200d77ff844e1",
+          "execution_id": "c6423011-16c6-4cc1-99a2-0c4a7a430456",
+          "origin": "reports/c2-gate-v5/pass1-results.json",
+          "policy_sha256": "1e6d4ef1414c61c1d04d0fec491e85380ab0227d1a6a43cec86b8c3bed887465",
+          "policy_version": "c2-order-plan-screening-v5",
+          "population_count": 18,
+          "published_day": "2026-08-30",
+          "purpose": "gate_measurement",
+          "source_run_id": "gate-gold-20260830-plans--20260901T001247.754584Z",
+          "status": "성공"
+        }
+      ],
+      "metrics": {
+        "important_missed": 0,
+        "precision_pct": 40.2985,
+        "recall_pct": 100.0,
+        "review_load": 71
+      },
+      "reference_full_window": {
+        "important_missed": 0,
+        "precision_pct": 40.2985,
+        "recall_pct": 100.0,
+        "review_load": 134
+      },
+      "totals": {
+        "false_negative": 0,
+        "false_positive": 80,
+        "gold_positive": 54,
+        "important_missed": 0,
+        "population": 625,
+        "predicted_positive": 134,
+        "true_positive": 54
+      }
+    },
+    "pass_2": {
+      "all_successful": true,
+      "by_published_day": {
+        "2026-08-27": {
+          "degraded_counts": {
+            "no_result_row": 0,
+            "stage1_failed_or_rejected": 0,
+            "stage2_failed_rejected_or_unknown": 0
+          },
+          "execution_id": "921d147e-cff9-45a8-875c-c3160e8aa055",
+          "execution_status": "성공",
+          "false_negative": 0,
+          "false_negative_plan_ids": [],
+          "false_positive": 45,
+          "gold_positive": 28,
+          "important_missed": 0,
+          "important_missed_plan_ids": [],
+          "population": 308,
+          "review_candidates": 73,
+          "source_run_id": "gate-gold-20260827-plans--20260901T001247.754584Z",
+          "true_positive": 28
+        },
+        "2026-08-28": {
+          "degraded_counts": {
+            "no_result_row": 0,
+            "stage1_failed_or_rejected": 0,
+            "stage2_failed_rejected_or_unknown": 0
+          },
+          "execution_id": "416cbf7d-ee42-4a0d-bd8c-65bc168781c8",
+          "execution_status": "성공",
+          "false_negative": 0,
+          "false_negative_plan_ids": [],
+          "false_positive": 37,
+          "gold_positive": 25,
+          "important_missed": 0,
+          "important_missed_plan_ids": [],
+          "population": 290,
+          "review_candidates": 62,
+          "source_run_id": "gate-gold-20260828-plans--20260901T001247.754584Z",
+          "true_positive": 25
+        },
+        "2026-08-29": {
+          "degraded_counts": {
+            "no_result_row": 0,
+            "stage1_failed_or_rejected": 0,
+            "stage2_failed_rejected_or_unknown": 0
+          },
+          "execution_id": "436480f1-3df1-4d47-be93-36bc88f43132",
+          "execution_status": "성공",
+          "false_negative": 0,
+          "false_negative_plan_ids": [],
+          "false_positive": 0,
+          "gold_positive": 0,
+          "important_missed": 0,
+          "important_missed_plan_ids": [],
+          "population": 9,
+          "review_candidates": 0,
+          "source_run_id": "gate-gold-20260829-plans--20260901T001247.754584Z",
+          "true_positive": 0
+        },
+        "2026-08-30": {
+          "degraded_counts": {
+            "no_result_row": 0,
+            "stage1_failed_or_rejected": 0,
+            "stage2_failed_rejected_or_unknown": 0
+          },
+          "execution_id": "87f21fab-3335-4b19-9a7b-2588660ff2cb",
+          "execution_status": "성공",
+          "false_negative": 0,
+          "false_negative_plan_ids": [],
+          "false_positive": 0,
+          "gold_positive": 1,
+          "important_missed": 0,
+          "important_missed_plan_ids": [],
+          "population": 18,
+          "review_candidates": 1,
+          "source_run_id": "gate-gold-20260830-plans--20260901T001247.754584Z",
+          "true_positive": 1
+        }
+      },
+      "executions": [
+        {
+          "binding_sha256": "2e77505efd6ae87bc670fa6b04b72302b28da972d2d0e6fda3f200d77ff844e1",
+          "execution_id": "921d147e-cff9-45a8-875c-c3160e8aa055",
+          "origin": "api:http://127.0.0.1:18788",
+          "policy_sha256": "1e6d4ef1414c61c1d04d0fec491e85380ab0227d1a6a43cec86b8c3bed887465",
+          "policy_version": "c2-order-plan-screening-v5",
+          "population_count": 308,
+          "published_day": "2026-08-27",
+          "purpose": "gate_measurement",
+          "source_run_id": "gate-gold-20260827-plans--20260901T001247.754584Z",
+          "status": "성공"
+        },
+        {
+          "binding_sha256": "2e77505efd6ae87bc670fa6b04b72302b28da972d2d0e6fda3f200d77ff844e1",
+          "execution_id": "416cbf7d-ee42-4a0d-bd8c-65bc168781c8",
+          "origin": "api:http://127.0.0.1:18788",
+          "policy_sha256": "1e6d4ef1414c61c1d04d0fec491e85380ab0227d1a6a43cec86b8c3bed887465",
+          "policy_version": "c2-order-plan-screening-v5",
+          "population_count": 290,
+          "published_day": "2026-08-28",
+          "purpose": "gate_measurement",
+          "source_run_id": "gate-gold-20260828-plans--20260901T001247.754584Z",
+          "status": "성공"
+        },
+        {
+          "binding_sha256": "2e77505efd6ae87bc670fa6b04b72302b28da972d2d0e6fda3f200d77ff844e1",
+          "execution_id": "436480f1-3df1-4d47-be93-36bc88f43132",
+          "origin": "api:http://127.0.0.1:18788",
+          "policy_sha256": "1e6d4ef1414c61c1d04d0fec491e85380ab0227d1a6a43cec86b8c3bed887465",
+          "policy_version": "c2-order-plan-screening-v5",
+          "population_count": 9,
+          "published_day": "2026-08-29",
+          "purpose": "gate_measurement",
+          "source_run_id": "gate-gold-20260829-plans--20260901T001247.754584Z",
+          "status": "성공"
+        },
+        {
+          "binding_sha256": "2e77505efd6ae87bc670fa6b04b72302b28da972d2d0e6fda3f200d77ff844e1",
+          "execution_id": "87f21fab-3335-4b19-9a7b-2588660ff2cb",
+          "origin": "api:http://127.0.0.1:18788",
+          "policy_sha256": "1e6d4ef1414c61c1d04d0fec491e85380ab0227d1a6a43cec86b8c3bed887465",
+          "policy_version": "c2-order-plan-screening-v5",
+          "population_count": 18,
+          "published_day": "2026-08-30",
+          "purpose": "gate_measurement",
+          "source_run_id": "gate-gold-20260830-plans--20260901T001247.754584Z",
+          "status": "성공"
+        }
+      ],
+      "metrics": {
+        "important_missed": 0,
+        "precision_pct": 39.7059,
+        "recall_pct": 100.0,
+        "review_load": 73
+      },
+      "reference_full_window": {
+        "important_missed": 0,
+        "precision_pct": 39.7059,
+        "recall_pct": 100.0,
+        "review_load": 136
+      },
+      "totals": {
+        "false_negative": 0,
+        "false_positive": 82,
+        "gold_positive": 54,
+        "important_missed": 0,
+        "population": 625,
+        "predicted_positive": 136,
+        "true_positive": 54
+      }
+    }
+  },
+  "producer": "scripts/score-c2-gate.py",
+  "reference_full_window_worse_side": {
+    "important_missed": 0,
+    "precision_pct": 39.7059,
+    "recall_pct": 100.0,
+    "review_load": 136
+  },
+  "schema_version": "bidops.order-plan-quality-gate-artifact.v1",
+  "scoring_input": {
+    "candidate_rule": "stage1_selected_and_qwen_relevant_or_uncertain",
+    "gold_artifact_sha256": "cbdb7adf060dab8136ee391e46100a41dfa444e0b5b86f27f18a69f912f16aa9",
+    "gold_manifest_sha256": "72d6749daa5fa0972b240970bec900a686faea88c4ee991367358e0e9058a5f5",
+    "important_rule": "gold_relevant_and_priority_high",
+    "measurement_run_ids": [
+      "gate-gold-20260827-plans--20260901T001247.754584Z",
+      "gate-gold-20260828-plans--20260901T001247.754584Z",
+      "gate-gold-20260829-plans--20260901T001247.754584Z",
+      "gate-gold-20260830-plans--20260901T001247.754584Z"
+    ],
+    "schema_version": "bidops.c2-gate-scoring-input.v1",
+    "scoring_tool_sha256": "c46f091a723f75e664cb6222826442323f80cee33bf5a19dec908cc34660431c",
+    "scoring_unit": "per_published_day"
+  },
+  "scoring_input_sha256": "6bc167210fe2be8a048cf0ded22814ac6459739d8bb6eb4ceb08c3b3f510a563",
+  "scoring_rule": {
+    "aggregation": "recall·precision·important_missed는 게시일 합산, review_load는 게시일별 최댓값",
+    "gold_positive": "effective_relevance == '관련'",
+    "important_missed": "gold_positive AND effective_priority == '높음' AND NOT predicted_positive",
+    "predicted_positive": "stage1_status == 'selected' AND qwen_relevance IN ('relevant','uncertain')",
+    "reference_full_window": "게시일별 결과를 창 전체로 pool한 값이다(review_load는 창 전체 합계). ADR-0037의 단일 625건 batch와는 batch 구성이 달라 직접 비교값이 아니다",
+    "scoring_unit": "per_published_day",
+    "source": "docs/0918_daily-operation/spec.md §4.2, docs/contracts.md '품질 게이트 REST'",
+    "zero_denominator": "null (계산 불가를 통과로 바꾸지 않는다)"
+  },
+  "tool": {
+    "name": "scripts/score-c2-gate.py",
+    "sha256": "c46f091a723f75e664cb6222826442323f80cee33bf5a19dec908cc34660431c",
+    "version": "score-c2-gate.v1"
+  },
+  "warnings": []
+}
