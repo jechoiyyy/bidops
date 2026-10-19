@@ -45,6 +45,81 @@ docker compose --env-file .env --env-file env/model.env \
 함께 넘긴다. `scripts/run-prespec-workflow.sh`와 `scripts/run-order-plan-workflow.sh`가
 이 조합을 그대로 가지고 있으므로 손으로 조합하기 전에 먼저 본다.
 
+### Mac 운영 호스트 (2026-10-14~)
+
+WSL2 운영 호스트는 2026-10-14 종료했고 운영은 Mac(42-ax)으로 옮겼다
+([ADR-0072](tracking/decisions/0072-c2-mac-litellm-ollama.md)). WSL2의 DB·MinIO·승인 프롬프트
+v3·사설 vLLM은 넘어오지 않았으므로 아래 v4 절차의 값(`5fa804ff…`, `eth1`, `192.168.0.139`)은
+Mac에서 쓰지 않는다. Mac의 C-2는 v5(LiteLLM `local-agent-main` → 로컬 Ollama
+`qwen3.8:27b-ctx32k`, digest `41a558fc…`)다.
+
+```bash
+scripts/mac-compose.sh config            # 프로젝트 bidops, 파일 6개 + env 4개, profile prespec
+scripts/mac-compose.sh up -d --no-build  # BIDOPS_IMAGE(amd64) + BIDOPS_DOCUMENT_IMAGE(arm64), 미리 빌드
+scripts/c2-mac-model-preflight.sh        # 별칭 경로·Ollama digest·컨테이너 TLS 도달 (completion 없음)
+```
+
+- 조합: 기반 + edge + model-egress + prespec-attachment + c2-order-plan + `docker-compose.mac.yml`,
+  env는 `.env`·`env/model.env`·`env/prespec-attachment.env`·`env/c2.env`, `--profile prespec`
+  (2026-10-15 사전규격 개요 추가).
+- 이미지: `docker build --platform linux/amd64 -f web/Dockerfile -t <BIDOPS_IMAGE> .`와
+  `docker build -f web/MinioInit.Dockerfile -t bidops:minio-init .`. vendored rhwp가 x86_64라
+  애플리케이션은 Rosetta로 돈다. MinIO는 digest 고정 Chainguard 이미지다.
+- **문서 worker만 native arm64 이미지(`BIDOPS_DOCUMENT_IMAGE`)다.** 변환기 자식 프로세스의
+  `RLIMIT_DATA` 512MiB가 Rosetta의 mmap 예약과 충돌해 amd64 rhwp가 약 60ms 만에
+  `conversion_required`로 끝난다(engineering-notes "Rosetta에서 rhwp 변환이…"). 이미지는
+  데모 스택이 쓰던 빌드 정의(`.sdlc/local-runtime/rhwp-arm`, rhwp v0.8.6 commit `cac9b4f7`,
+  binary `c32c7cb2…`)에 운영 브랜치의 `web/backend/app`을 넣어 `docker buildx build
+  --platform linux/arm64`로 만든다. 앱 트리는 `__pycache__` 없는 사본을 named context로 주고
+  `bidops-app.sha256` manifest를 그 사본에서 다시 만든다. 앱 코드를 바꾸면 이 이미지도 다시
+  만든다 — 두 이미지의 앱 트리가 어긋나면 안 된다.
+- 사전규격은 **개요 검토까지만** 돈다(2026-10-15 사용자 결정). `env/model.env`의 overview 절이
+  LiteLLM `local-agent-main`(C-2와 같은 endpoint·digest)과 정책
+  `prespec-overview-policy-v7-litellm-v2.json`(호출 900초·출력 예약 8192)을 가리키고
+  `BIDOPS_PRESPEC_OVERVIEW_ENABLED=true`다. 심층 자동 시작·회사 핏은 `false`, active
+  profile/policy ID는 비워 둔다. C-1 판정은 돌리지 않는다 — 개요 플래그가 켜져 있으면
+  `SW사업대상=Y` 사전규격이 첨부 취득·묶음·개요 자격을 갖는다. 공고 트랙은
+  `run-daily-lifecycle.sh --track notices`이며 발주계획과 같은 lock 파일을 쓴다.
+  첨부 host 제한은 앱 허용 목록(`www.g2b.go.kr`)뿐이고 Mac에는 host 방화벽 egress 제한이 없다.
+  2026-10-15 실행은 개요 대상을 등록일 10-13·10-14로 좁혔고 상시 `prespec-attachment-worker`는
+  **멈춰 둔 상태**다(기록 `validation-runs/20261015-prespec-overview-mac/`). 상시 worker만으로는
+  개요까지 가지 않는다 — 취득 종결의 자동 준비가 커밋되지 않고 worker에 개요 정책 경로가 없다
+  (findings). 실행 뒤 `BIDOPS_PRESPEC_OVERVIEW_ENABLED=false`로 되돌렸다(2026-10-15 사용자 결정) —
+  켜 둔 채 공고 회차를 다시 적재하면 적재 hook이 첨부가 끝난 다른 날짜 공고의 묶음·개요를 자동으로
+  만든다. 다시 켤 때는 대상 범위를 먼저 정한다.
+- 노출: web `127.0.0.1:18788`, tailnet은 `tailscale serve --bg --tcp=8188 tcp://127.0.0.1:18788`.
+  tailnet ACL이 허용하는 inbound 포트가 정해져 있어(8101–8199 등) `18788`을 직접 열지 않는다.
+  같은 Mac의 데모 스택 `bidops-local`은 `:18787`/`:8187`이며 volume·network를 나누지 않는다.
+- 모델 설정은 공유 `BIDOPS_VLLM_*` 네 값과 overview 절(`env/model.env`)이다. C-2 adapter와
+  개요가 같은 LiteLLM을 쓰고 심층·C-1은 이 배포에서 꺼져 있다. `BIDOPS_VLLM_MODEL_REVISION`은 Ollama
+  `/api/tags`의 digest이고 preflight가 binding·generation config와 대조한다.
+- 승인 입력 본문(프롬프트 v5·회사 역량 v1)은 gitignore다. `env/c2.env`의 host 경로가
+  `/Users/temp/orca/bidops/experiments/order-plan-screening/review-inputs/`를 가리키며, 이
+  디렉터리를 백업 대상에 넣는다. 본문을 잃으면 같은 digest로 실행할 수 없다(v3이 그렇게
+  사라졌다).
+- 첫 `docker compose cp`가 빈 `pipeline-data` volume에 `/app/data/runs`를 만들면 host uid(502)
+  소유가 되고, 디렉터리 대신 내용이 `runs/` 바로 아래에 풀린다. 새 스택에서는 먼저
+  `scripts/mac-compose.sh exec -T web mkdir -p /app/data/runs`로 만든 뒤 복사한다.
+- 일일 스크립트는 GNU `date -d`·`timeout`·`flock`이 필요하다. `brew install coreutils flock`
+  뒤 PATH 앞에 `/opt/homebrew/opt/coreutils/libexec/gnubin`을 둔다. 손으로 보충할 때도 같은
+  접두사를 붙인다(BSD `date -d`는 바로 실패한다). docker CLI는 OrbStack의
+  `/Applications/OrbStack.app/Contents/MacOS/xbin`에 있어 cron PATH에 따로 넣어야 한다 —
+  빠지면 사전 점검에서 exit 2로 끝나며 `--dry-run`은 이 점검을 건너뛰어 드러나지 않는다.
+  `/bin/bash`는 3.2라 스크립트는 bash 4 기능(음수 배열 첨자 등)을 쓰지 않는다.
+  Mac이 잠자기 중이거나 OrbStack·Tailscale·LiteLLM·Ollama가 내려가 있으면 그날 실행은
+  fail closed로 끝나며 빠진 날은 `--date`로 사람이 메운다. OrbStack은 로그인 시 자동 시작한다.
+
+  **cron은 설치하지 않았다**(2026-10-14 사용자 결정). 일일 실행은 사람이 아래와 같은 명령을
+  `--date`로 직접 돌린다. 나중에 cron을 켤 때 쓸 줄은 다음과 같다.
+
+  ```bash
+  # Mac 발주계획 cron 예시 — 설치되어 있지 않음
+  30 7 * * * cd /Users/temp/orca/bidops-c2mac && PATH=/opt/homebrew/opt/coreutils/libexec/gnubin:/Applications/OrbStack.app/Contents/MacOS/xbin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin COMPOSE_PROJECT_NAME=bidops BIDOPS_WORKFLOW_WEB_URL=http://127.0.0.1:18788 BIDOPS_C2_DAILY_ACTOR=jechoi flock -n /Users/temp/.local/state/bidops/plans.lock timeout 6h ./scripts/run-daily-lifecycle.sh --track order-plans >> /Users/temp/.local/state/bidops/logs/plans-$(date +\%Y\%m).log 2>&1
+  ```
+
+  운영 checkout 경로는 브랜치가 병합되면 main checkout으로 옮긴다. 그때 env 파일 4개와
+  `data/runs`의 회차 디렉터리를 함께 옮기고 cron의 `cd` 경로를 바꾼다.
+
 ### 없어진 파일
 
 2026-09-12 정리에서 `docker-compose.screening.yml`과 `docker-compose.remote-vllm.yml`은
@@ -1409,6 +1484,12 @@ BIDOPS_VLLM_OVERVIEW_API_KEY=<injected-secret>
 BIDOPS_VLLM_OVERVIEW_MODEL_REVISION=<declared-revision-if-used>
 BIDOPS_PRESPEC_OVERVIEW_POLICY_PATH=/app/web/backend/app/deep_review/policies/prespec-overview-policy-v7-litellm-v1.json
 ```
+
+문맥 32768의 로컬 `local-agent-main`에서는 v1의 호출 300초·출력 예약 16384로 초안이 끝나지
+않는다. 이때는 같은 프롬프트에 호출 900초·출력 예약 8192·lease 3060초만 다른
+`prespec-overview-policy-v7-litellm-v2.json`(sha256 `0e69ae43…`)을 쓴다. 이 짝은 `litellm`
+dialect에서만 받고(`model_client.APPROVED_EXECUTION_PROFILES`), LiteLLM 요청에는
+`reasoning_effort=none`이 함께 실린다. Mac 운영은 v2다(2026-10-15).
 
 정책의 요청 별칭은 `local-agent-main`이다. client는 승인 base의 `/models`에 이 별칭이 있는지
 확인하고, 같은 origin과 base prefix의 `/model/info`에서 같은 별칭의 deployment만 읽는다.

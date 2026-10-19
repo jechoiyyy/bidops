@@ -203,7 +203,8 @@ workflow_require_single_run_row() {
     '[.items[].run_id | select(. == $base or startswith($base + "--"))] | sort | join(" ")' \
     <<<"${WORKFLOW_HTTP_BODY}")" \
     || workflow_die "run list is not the expected JSON: ${BIDOPS_WORKFLOW_WEB_URL}/api/runs"
-  count="$(wc -w <<<"${ids}")"
+  # Arithmetic strips the leading blanks BSD wc prints (macOS host, ADR-0072).
+  count="$(( $(wc -w <<<"${ids}") ))"
   case "${count}" in
     1) return 0 ;;
     0) workflow_die "the run list has no Run row for ${name} although the run lookup answered 200" ;;

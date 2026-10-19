@@ -6,7 +6,14 @@ import json
 from pathlib import Path
 from typing import Any
 
-from ...core.model_client import APPROVED_GENERATION, StructuredOutputContract, build_prompt
+from ...core.model_client import (
+    LITELLM_DEMO_EXECUTION_PROFILE,
+    LITELLM_MODEL_ENDPOINT_REF,
+    STANDARD_EXECUTION_PROFILE,
+    StructuredOutputContract,
+    approved_execution_profile,
+    build_prompt,
+)
 from ..schemas.prespec_overview_claims import (
     ASSESSMENT_VALIDATOR_VERSION, CombinedOverviewAssessmentDraft,
     OverviewAssessmentSemanticResponse, OverviewClaimChecks, OverviewClaimsDraft,
@@ -32,6 +39,25 @@ LIMITS = {
     "max_text_chars": 300, "max_evidence_per_claim": 2, "max_quote_chars": 300,
     "max_quantities_per_claim": 4,
 }
+#: LiteLLM 데모 실행 프로필의 run 한도 (DEMO-05 STEP-005, 데모 브랜치 범위).
+#: 호출 timeout만 900초로 바꾸고 lease는 최악의 경우(호출 상한 × 호출 timeout
+#: + dispatch 예약 = 3 × 900 + 360)를 덮는다. 나머지 한도는 `LIMITS`와 같다.
+LITELLM_DEMO_LIMITS = {
+    **LIMITS,
+    "timeout_seconds": LITELLM_DEMO_EXECUTION_PROFILE.timeout_seconds,
+    "lease_seconds": (
+        LIMITS["max_calls"] * LITELLM_DEMO_EXECUTION_PROFILE.timeout_seconds
+        + LIMITS["dispatch_reserve_seconds"]
+    ),
+}
+#: 정책 파일이 선언할 수 있는 (run 한도, stage 실행 프로필) 짝. 정확히 둘이며
+#: LiteLLM 짝은 `model_endpoint_ref`가 LiteLLM transport인 정책만 쓸 수 있다
+#: (`approved_execution_profile`의 dialect 검사). 기존 v7·v8·litellm-v1 파일은
+#: 표준 짝 그대로다.
+_LIMITS_BY_PROFILE: dict[str, dict[str, Any]] = {
+    STANDARD_EXECUTION_PROFILE.name: LIMITS,
+    LITELLM_DEMO_EXECUTION_PROFILE.name: LITELLM_DEMO_LIMITS,
+}
 FORMAT_RETRY_CODES = frozenset({
     "json_invalid", "top_level_invalid", "field_type_invalid", "required_field_missing", "extra_field_forbidden",
 })
@@ -55,6 +81,12 @@ class ClaimsOverviewPolicy:
     @property
     def is_assessment(self) -> bool:
         return self.document.get("schema") == "bidops.prespec-overview-policy.v8"
+
+    @property
+    def lease_seconds(self) -> int:
+        """이 정책이 선언한(loader가 승인 짝과 대조한) 개요 run lease."""
+
+        return int(self.document["limits"]["lease_seconds"])
 
     def structured_output_contract(
         self, stage: str, *, expected_check_count: int | None = None,
@@ -104,8 +136,10 @@ def load_claims_policy(path: Path | None = None) -> ClaimsOverviewPolicy:
             ("bidops.prespec-overview-policy.v7", "qwen3.8-27B", "vllm-openai-compatible", "prespec-overview-v7"),
             ("bidops.prespec-overview-policy.v7", "local-agent-main", "litellm-openai-compatible", "prespec-overview-v7-litellm-v1"),
             ("bidops.prespec-overview-policy.v8", "qwen3.8-27B", "vllm-openai-compatible", "prespec-overview-v8"),
-        } or value["limits"] != LIMITS:
+        }:
             raise ValueError
+        # 정책 transport가 정하는 dialect. LiteLLM 데모 프로필은 LiteLLM 정책만 쓴다.
+        dialect = "litellm" if value["model_endpoint_ref"] == LITELLM_MODEL_ENDPOINT_REF else "vllm"
         # The set order is immaterial to validation but the original file order
         # still participates in the immutable policy digest.
         check = dict(value["verification"])
@@ -126,15 +160,26 @@ def load_claims_policy(path: Path | None = None) -> ClaimsOverviewPolicy:
         )
         if [r["stage"] for r in stages] != [name for name, _model in stage_models]:
             raise ValueError
+        profiles: set[str] = set()
         for row, (_stage_name, model) in zip(stages, stage_models, strict=True):
             if set(row) != {"stage", "generation", "chunking", "system_prompt", "instruction", "prompt_output_contract", "output_schema"}:
                 raise ValueError
-            if row["generation"] != APPROVED_GENERATION or row["chunking"] != {"retries": 0, "timeout_seconds": 300}:
+            chunking = row["chunking"]
+            profile = approved_execution_profile(
+                api_dialect=dialect,
+                timeout_seconds=chunking.get("timeout_seconds") if isinstance(chunking, dict) else None,
+                generation=row["generation"],
+            )
+            if profile is None or chunking != {"retries": 0, "timeout_seconds": profile.timeout_seconds}:
                 raise ValueError
+            profiles.add(profile.name)
             if row["output_schema"] != model.model_json_schema():
                 raise ValueError
             if not row["system_prompt"].strip() or not row["instruction"].strip() or not isinstance(row["prompt_output_contract"], dict):
                 raise ValueError
+        # 모든 stage가 한 프로필을 쓰고 run 한도가 그 프로필의 한도와 같아야 한다.
+        if len(profiles) != 1 or value["limits"] != _LIMITS_BY_PROFILE[next(iter(profiles))]:
+            raise ValueError
     except (OSError, UnicodeError, ValueError, TypeError, KeyError, AttributeError):
         raise ValueError("overview_policy_invalid") from None
     return ClaimsOverviewPolicy(value, canonical_sha256(value))

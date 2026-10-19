@@ -51,6 +51,13 @@ from ..services.vllm_client import OrderPlanVllmAdapter, OrderPlanVllmError
 
 
 BATCH_PROGRESS_SCHEMA = "bidops.order-plan-screening-batch-progress.v1"
+# (provider, model) pairs a stage2 binding may name.  The vLLM pair is the
+# measured ADR-0037 transport; the Ollama pair runs behind LiteLLM (ADR-0072)
+# and is the same pair ``rank_order_plans_bm25.py`` already admits.
+APPROVED_STAGE2_MODELS = frozenset({
+    ("approved_private_vllm", "qwen3.8-27B"),
+    ("approved_private_ollama", "qwen3.8:27b"),
+})
 
 
 class C2WorkerError(RuntimeError):
@@ -340,9 +347,9 @@ class C2ScreeningWorker:
             "company_profile_sha256": policy_profile.get("sha256"),
         }
         if (
-            expected["model_name"] != "qwen3.8-27B"
+            (stage2.get("provider"), expected["model_name"]) not in APPROVED_STAGE2_MODELS
+            or policy_stage2.get("provider") != stage2.get("provider")
             or any(expected.get(key) != value for key, value in expected_policy.items() if key != "provider")
-            or stage2.get("provider") != "approved_private_vllm"
             or stage2.get("payload_fields") != ["title"]
             or stage2.get("company_payload_fields") != ["profile_version", "capabilities"]
             or stage2.get("batch_size") != 25

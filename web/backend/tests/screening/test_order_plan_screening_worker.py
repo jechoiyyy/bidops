@@ -374,7 +374,8 @@ def test_new_attempt_records_the_generation_identity_it_ran_with(tmp_path: Path)
     worker = C2ScreeningWorker(settings=settings, adapter=adapter, raw_response_store=MemoryResponseStore())
     assert worker.run_once(session)
     attempt = session.scalar(select(OrderPlanScreeningBatchAttempt))
-    binding = json.loads((REPO_ROOT / "experiments/order-plan-screening/config/order-plan-screening-phase0-binding.v2.json").read_text())
+    # The fixture re-pins the prompt digests, so read the binding it froze.
+    binding = json.loads(Path(str(settings.c2_binding_path)).read_text())
     stage2 = binding["stage2_binding"]
     assert attempt is not None
     assert attempt.generation_config_sha256 == stage2["generation_config_sha256"]
@@ -395,3 +396,54 @@ def test_worker_accepts_a_candidate_file_status_frozen_under_an_active_row(tmp_p
     assert result and result["status"] == "성공"
     execution = session.get(OrderPlanScreeningExecution, UUID(str(response["execution_id"])))
     assert execution is not None and execution.status == "성공" and execution.error_code is None
+
+
+# --- Mac LiteLLM/Ollama artifact set (ADR-0072) --------------------------------
+
+
+def test_worker_runs_the_published_ollama_binding_end_to_end(tmp_path: Path) -> None:
+    from app.screening.services.order_plan_screening import OrderPlanScreeningService
+
+    settings, session, policy_version, _, _ = _fixture(
+        tmp_path, count=3, artifacts="v5",
+        # As published: the file snapshot says candidate while the DB row is
+        # active (ADR-0060), which BM25's Ollama guard has to accept.
+        file_policy_status="activation_candidate",
+    )
+    assert policy_version == "c2-order-plan-screening-v5"
+    response, _ = _create(OrderPlanScreeningService(settings), session, policy_version)
+    worker = C2ScreeningWorker(settings=settings, adapter=FakeAdapter(), raw_response_store=MemoryResponseStore())
+    result = worker.run_once(session)
+    assert result and result["status"] == "성공"
+    attempt = session.scalar(select(OrderPlanScreeningBatchAttempt))
+    assert attempt is not None
+    assert attempt.model_name == "qwen3.8:27b"
+    assert attempt.model_digest == "41a558fc459a96edbf0500938edc7d3ddaceedde727d1e7faa8ec4fbc9eb8772"
+    execution = session.get(OrderPlanScreeningExecution, UUID(str(response["execution_id"])))
+    assert execution is not None and execution.status == "성공" and execution.completed_count == 3
+
+
+@pytest.mark.parametrize(
+    "edit",
+    [
+        # The Ollama build may not borrow the measured vLLM provider label.
+        lambda policy, binding: (
+            policy["stage2"].update(provider="approved_private_vllm"),
+            binding["stage2_binding"].update(provider="approved_private_vllm"),
+        ),
+        # Policy and binding must name the same provider.
+        lambda policy, binding: policy["stage2"].update(provider="approved_private_vllm"),
+    ],
+)
+def test_worker_rejects_a_provider_that_does_not_match_the_model(tmp_path: Path, edit) -> None:
+    from app.screening.services.order_plan_screening import OrderPlanScreeningService
+
+    settings, session, policy_version, _, _ = _fixture(tmp_path, count=3, artifacts="v5", file_policy_status="activation_candidate", edit=edit)
+    response, _ = _create(OrderPlanScreeningService(settings), session, policy_version)
+    adapter = FakeAdapter()
+    worker = C2ScreeningWorker(settings=settings, adapter=adapter, raw_response_store=MemoryResponseStore())
+    worker.run_once(session)
+    execution = session.get(OrderPlanScreeningExecution, UUID(str(response["execution_id"])))
+    assert execution is not None and execution.status == "실패"
+    assert execution.error_code == "binding_mismatch"
+    assert adapter.calls == []

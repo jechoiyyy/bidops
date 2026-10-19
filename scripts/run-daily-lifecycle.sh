@@ -565,5 +565,5 @@ for day in "${ref_dates[@]}"; do
   run_day "${day}"
 done
 if [[ "${range_mode}" == "true" ]]; then
-  workflow_note "daily ${opt_track} track caught up: ${ref_dates[0]}..${ref_dates[-1]}"
+  workflow_note "daily ${opt_track} track caught up: ${ref_dates[0]}..${ref_dates[${#ref_dates[@]}-1]}"
 fi

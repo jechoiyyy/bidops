@@ -318,3 +318,5 @@ ADR-0021은 “운영 제품 전에 동일 모집단과 사람 정답으로 비�
 - [ADR-0069 사용자 요청 기반 Luna 심층검토](tracking/decisions/0069-user-requested-luna-deep-review.md): 건별 미리보기·승인·동결 입력, 공용 슬롯, 참조 표식, 기본 자동 시작 비활성.
 
 - [ADR-0070 가상 SI 3사·지식그래프 기반 사내 데모](tracking/decisions/0070-multi-company-knowledge-demo.md): 목표 설계 채택, 회사별 결과·추적 분리, 불변 그래프 근거, 실제 6건/18건/9건 인수. 구현 전. 2026-10-09 개정: `bidops-local`·실제 3일 수집·LiteLLM 개요를 준비 기준으로 채택하고 실제 Luna 심층은 DEMO-03/05 인수 게이트로 유지.
+
+- [ADR-0072 C-2 발주계획 선별의 Mac LiteLLM·Ollama 이전](tracking/decisions/0072-c2-mac-litellm-ollama.md): WSL2 종료로 v4(vLLM·v3 프롬프트)를 실행할 수 없어 v5 묶음 발행, adapter `api_dialect=litellm`(hostname 허용·별칭·`reasoning_effort=none`), `(approved_private_ollama, qwen3.8:27b)` 허용, Mac overlay·`bidops` 프로젝트 `:18788`, v4 게이트 미승계. 2026-10-15 추가: 사전규격 개요까지만 같은 LiteLLM(정책 litellm-v2, 900초·8192), 문서 worker arm64.
