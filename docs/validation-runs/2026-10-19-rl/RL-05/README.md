@@ -55,3 +55,10 @@
 - 이후 순서(각각 따로 확인): 사람이 모델 전에 gold 작성 → `gold-check` 통과 → 공고별 수동 RL-03 실제 분석(RL-03 정책 단위 승인과 요청 직전 사람 확인, 실제 Luna 전송) → `export-evaluation --actual`(초안) → 사람이 alignment → 최종 export → `rl-gold.py score` → 사람이 `acceptance.json`에 결정 기록. 이 기록에 파일 sha256·metrics·결정을 덧붙인다.
 - metrics: **없음.** 모델 호출 수: 이 run에서 0.
 - 이후 결과는 모두 `unmeasured_reference`이며 사람이 `accept`하기 전까지 품질 근거가 아니다. 표본 10건·실회사 1곳이므로 통과해도 운영 품질 보증이 아니다.
+
+## 회사 근거 v3 반영 (2026-10-19, gold 작성 전)
+
+- 인터뷰 §G 답: G1 직접생산 세부품명 3개 보유, G3 PM 8명(공공 PM 경력 분포), G4 ISMS, G2 나라장터 계약정보(사용자 지시, 활용신청 뒤 호출 74회)로 홈페이지 실적 7건의 계약금액·기간·역할(`company-profile.md` §8.2.1). 등록 파일은 공개문서 origin을 받지 않아 origin은 `user_interview`, 근거 계약번호는 값(`scope`)과 문서에 기록(결정 C10).
+- `rootlab.source.v3.json`(Git 밖, sha256 `0ed2b5792bb0…`) import → graph `107523c55ce4…`(version `bee3042e…`), activate → binding revision 3. 상태: confirmed 129·proposed 1·unknown 18(v2 대비 unknown 3건 감소).
+- binding이 바뀌어 사람 입력 전 파일을 `superseded-company-v2/`로 보존하고 다시 만듦: selection.v1.json `383eaa8ba6679471…`, cards.json `1b86634fcc24f6d2…`(카드 동일), blank gold.v1.json `09c830b995dfea40…`. gold-check = `human_gold_incomplete`(예상).
+- 같은 날 Mac 재부팅으로 운영·격리 스택이 멈춰 사용자 확인 뒤 같은 컨테이너로 재기동(운영 health 200·C-2 v5 daily-trigger ON·preflight ok·tailnet serve 유지).
