@@ -1,0 +1,29 @@
+........................................................................ [ 86%]
+...........                                                              [100%]
+=============================== warnings summary ===============================
+app/deep_review/schemas/document_bundles.py:115
+  /Users/temp/orca/bidops/.sdlc/worktrees/rlc-20261019-RL-05-gold-acceptance/web/backend/app/deep_review/schemas/document_bundles.py:115: UserWarning: Field name "schema" in "DocumentStructure" shadows an attribute in parent "StrictModel"
+    class DocumentStructure(StrictModel):
+
+app/deep_review/schemas/document_bundles.py:227
+  /Users/temp/orca/bidops/.sdlc/worktrees/rlc-20261019-RL-05-gold-acceptance/web/backend/app/deep_review/schemas/document_bundles.py:227: UserWarning: Field name "schema" in "SegmentExtractorBinding" shadows an attribute in parent "StrictModel"
+    class SegmentExtractorBinding(StrictModel):
+
+app/deep_review/schemas/document_bundles.py:235
+  /Users/temp/orca/bidops/.sdlc/worktrees/rlc-20261019-RL-05-gold-acceptance/web/backend/app/deep_review/schemas/document_bundles.py:235: UserWarning: Field name "schema" in "DocumentSegmentsView" shadows an attribute in parent "StrictModel"
+    class DocumentSegmentsView(StrictModel):
+
+app/deep_review/schemas/reports.py:69
+  /Users/temp/orca/bidops/.sdlc/worktrees/rlc-20261019-RL-05-gold-acceptance/web/backend/app/deep_review/schemas/reports.py:69: UserWarning: Field name "schema" in "DeepReviewReport" shadows an attribute in parent "StrictModel"
+    class DeepReviewReport(StrictModel):
+
+app/deep_review/schemas/reports.py:122
+  /Users/temp/orca/bidops/.sdlc/worktrees/rlc-20261019-RL-05-gold-acceptance/web/backend/app/deep_review/schemas/reports.py:122: UserWarning: Field name "schema" in "NarrativeReport" shadows an attribute in parent "DeepReviewReport"
+    class NarrativeReport(DeepReviewReport):
+
+app/deep_review/schemas/reports.py:143
+  /Users/temp/orca/bidops/.sdlc/worktrees/rlc-20261019-RL-05-gold-acceptance/web/backend/app/deep_review/schemas/reports.py:143: UserWarning: Field name "schema" in "DeepReviewValidation" shadows an attribute in parent "StrictModel"
+    class DeepReviewValidation(StrictModel):
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+83 passed, 6 warnings in 25.39s
