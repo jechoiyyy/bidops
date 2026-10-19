@@ -541,3 +541,33 @@
   `--repair-profile-source`를 사용하면 새 검증 위치와 감사를 append하며 과거 행은 보존한다.
 - 저장 위치 복구는 회사 역량·근거를 수정하는 절차가 아니다. 인용 변조·원문 해시/크기
   불일치가 있으면 계속 차단한다. 누락 버전과 정상 재등록을 구분하는 회귀 검사를 추가했다.
+
+## Rosetta에서 rhwp 변환이 60ms 만에 `conversion_required`로 끝난다 (Mac 운영)
+
+- 증상: 2026-10-15 Mac 운영 스택(`bidops`, 애플리케이션 이미지 linux/amd64)에서 HWP·HWPX 첨부
+  변환과 개요 PDF 준비가 전부 약 60ms 만에 `conversion_required`로 끝났다. 첨부 16건이 취득
+  단계에서 `차단`으로 굳었고 개요 7건이 `pdf_preparation_failed:conversion_required`였다.
+  같은 컨테이너에서 rhwp를 손으로 돌리면 정상 변환됐다.
+- 원인: `document_mcp/processor.py`가 변환기 자식 프로세스에 거는 `RLIMIT_DATA` 512MiB가
+  Rosetta의 익명 mmap 예약과 충돌한다. 자식은 `rosetta error: mmap_anonymous_rw mmap failed`로
+  SIGTRAP(-5)이 되고, 오류 분류는 비0 종료를 `conversion_required`로 접는다. 데모 스택은
+  2026-10-09에 같은 현상을 진단(`.sdlc/local-runtime/rosetta-diagnosis.json`: DATA 640MiB
+  실패·768MiB 통과)하고 arm64 문서 worker로 피해 갔다.
+- 대응: 제품 한도는 그대로 두고 문서 worker만 native arm64 이미지로 돌린다
+  (`docker-compose.mac.yml`의 `BIDOPS_DOCUMENT_IMAGE`, operations "Mac 운영 호스트").
+  같은 증상이면 먼저 자식 한도를 걸고 rhwp를 직접 돌려 stderr에 `rosetta error`가 있는지 본다.
+  `차단`된 취득 행은 제품이 되살리지 않는다(findings).
+
+## LiteLLM ctx32k에서 개요가 `timeout`이나 `input_capacity_exceeded`로 끝난다
+
+- 증상: 2026-10-12/13 데모 스택의 LiteLLM `local-agent-main`(qwen3.8:27b-ctx32k,
+  `max_input_tokens` 32768)에서 개요 호출 4건이 `timeout`, 2건이 호출 전
+  `input_capacity_exceeded`로 끝났다.
+- 원인: 두 가지였다. upstream이 `chat_template_kwargs.enable_thinking=false`를 무시해 약
+  466초(약 7k token) 추론한 뒤 본문을 냈고, 정책의 호출 300초·출력 예약 16384가 로컬 모델의
+  속도(13.7~21.5 tok/s)와 문맥에 맞지 않아 입력 상계가 약 15k byte로 묶였다.
+- 대응: LiteLLM 요청에 `reasoning_effort="none"`을 함께 싣고(승인 generation의
+  enable_thinking=false는 그대로), `litellm` dialect 전용 실행 프로필(900초/8192)과 새 불변 정책
+  `prespec-overview-policy-v7-litellm-v2.json`을 둔다. 데모 브랜치(DEMO-05 STEP-005)에서 만든
+  수정을 2026-10-15 운영 브랜치로 같은 바이트로 옮겼다. 같은 증상이면 먼저 streaming으로
+  reasoning/content를 나눠 본다.

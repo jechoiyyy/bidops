@@ -1,0 +1,50 @@
+# Mac(Apple silicon) 운영 호스트 overlay ([ADR-0072](docs/tracking/decisions/0072-c2-mac-litellm-ollama.md)).
+#
+# WSL2 운영을 종료하고 Mac으로 옮긴 배포의 플랫폼 차이만 담는다. 노출·egress·
+# C-2 입력은 기존 overlay가 그대로 소유한다.
+#
+#   COMPOSE_PROJECT_NAME=bidops docker compose \
+#     --env-file .env --env-file env/model.env --env-file env/c2.env \
+#     -f docker-compose.yml -f docker-compose.edge.yml \
+#     -f docker-compose.model-egress.yml -f docker-compose.c2-order-plan.yml \
+#     -f docker-compose.mac.yml up -d
+#
+# - 애플리케이션 이미지는 vendored rhwp가 x86_64라 linux/amd64(Rosetta)로 돈다.
+#   `BIDOPS_IMAGE`는 미리 빌드한 태그이며 `--no-build`로 올린다.
+# - MinIO 공식 이미지는 이 호스트에서 받지 않는다. bidops-local에서 검증한
+#   digest 고정 Chainguard 이미지와 같은 mc를 담은 초기화 이미지를 쓴다.
+#   이 이미지에는 `mc ready`가 없어 healthcheck를 끄고, 초기화는 시작만 기다린 뒤
+#   MinIO가 아직 응답하지 않으면 제한된 횟수만 다시 시도한다.
+# - 문서 worker만 native arm64 이미지(`BIDOPS_DOCUMENT_IMAGE`)로 돈다. 변환기 자식
+#   프로세스의 RLIMIT_DATA 512MiB가 Rosetta의 mmap 예약과 충돌해 amd64 rhwp가
+#   `rosetta error: mmap_anonymous_rw mmap failed`로 즉시 죽기 때문이다(2026-10-15).
+#   이미지는 같은 앱 코드에 rhwp v0.8.6(cac9b4f7)을 arm64로 빌드한 것이며 제품
+#   한도는 바꾸지 않는다.
+x-mac-app: &mac-app
+  image: "${BIDOPS_IMAGE:?set the prebuilt application image tag}"
+  platform: linux/amd64
+
+services:
+  postgres:
+    platform: linux/amd64
+  postgres-init: *mac-app
+  migrate: *mac-app
+  web: *mac-app
+  analysis-worker: *mac-app
+  document-worker:
+    image: "${BIDOPS_DOCUMENT_IMAGE:?set the native arm64 document worker image tag}"
+    platform: linux/arm64
+  prespec-attachment-worker: *mac-app
+  ro-backup: *mac-app
+  clamav:
+    platform: linux/amd64
+  minio:
+    image: cgr.dev/chainguard/minio@sha256:0f95aa412a12351a95bb43c3b54b66440eb0aa022bb3f3458942678a489e915b
+    healthcheck:
+      disable: true
+  minio-init:
+    image: "${BIDOPS_MINIO_INIT_IMAGE:-bidops:minio-init}"
+    build: { context: ., dockerfile: web/MinioInit.Dockerfile }
+    restart: "on-failure:10"
+    depends_on: !override
+      minio: { condition: service_started }

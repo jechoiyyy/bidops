@@ -177,9 +177,9 @@ services:
       # Only the tracked policy and binding are supplied to the default image;
       # company capabilities and the prompt require the remote overlay's
       # explicit operator paths below.
-      - ./experiments/order-plan-screening/config/order-plan-screening-policy.v4.json:/app/experiments/order-plan-screening/config/order-plan-screening-policy.v4.json:ro
-      - ./experiments/order-plan-screening/config/order-plan-screening-phase0-binding.v4.json:/app/experiments/order-plan-screening/config/order-plan-screening-phase0-binding.v4.json:ro
-      - ./experiments/order-plan-screening/config/order-plan-screening-generation-config.v5.json:/app/experiments/order-plan-screening/config/order-plan-screening-generation-config.v5.json:ro
+      - ./experiments/order-plan-screening/config/order-plan-screening-policy.v5.json:/app/experiments/order-plan-screening/config/order-plan-screening-policy.v5.json:ro
+      - ./experiments/order-plan-screening/config/order-plan-screening-phase0-binding.v5.json:/app/experiments/order-plan-screening/config/order-plan-screening-phase0-binding.v5.json:ro
+      - ./experiments/order-plan-screening/config/order-plan-screening-generation-config.v6.json:/app/experiments/order-plan-screening/config/order-plan-screening-generation-config.v6.json:ro
       # Profile-related inputs are deployment data, not image layers. The web
       # process owns both the profile snapshot boundary and the collection
       # subprocess that consumes the performance-title reference.
@@ -247,9 +247,9 @@ services:
       # 개요 runner의 PDF 준비가 document-worker와 scratch handoff로 변환한다.
       - document-scratch:/scratch
       - pipeline-data:/app/data
-      - ./experiments/order-plan-screening/config/order-plan-screening-policy.v4.json:/app/experiments/order-plan-screening/config/order-plan-screening-policy.v4.json:ro
-      - ./experiments/order-plan-screening/config/order-plan-screening-phase0-binding.v4.json:/app/experiments/order-plan-screening/config/order-plan-screening-phase0-binding.v4.json:ro
-      - ./experiments/order-plan-screening/config/order-plan-screening-generation-config.v5.json:/app/experiments/order-plan-screening/config/order-plan-screening-generation-config.v5.json:ro
+      - ./experiments/order-plan-screening/config/order-plan-screening-policy.v5.json:/app/experiments/order-plan-screening/config/order-plan-screening-policy.v5.json:ro
+      - ./experiments/order-plan-screening/config/order-plan-screening-phase0-binding.v5.json:/app/experiments/order-plan-screening/config/order-plan-screening-phase0-binding.v5.json:ro
+      - ./experiments/order-plan-screening/config/order-plan-screening-generation-config.v6.json:/app/experiments/order-plan-screening/config/order-plan-screening-generation-config.v6.json:ro
     # scanning: ClamAV 검사.
     networks: [database, analysis, scanning]
 
