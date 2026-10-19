@@ -204,14 +204,14 @@
     "real_data_run": {
       "result": "pass",
       "method": "manual",
-      "note": "사용자 확인(2026-10-18): 실제 초안 partial 4/6절 completed·PDF 생성, 2절은 식별자 복사 실수로 사람 검토. spec T11 '절 6개' 미충족분은 후속 과제(별칭 계약 v2)로 기록",
+      "note": "사용자 확인(2026-10-18): 실제 초안 partial 4/6절·PDF 생성, 미충족분 후속 과제(별칭 계약 v2). 재연결(2026-10-19): 입력 변경은 C-2 Mac 병합(b8005ef — c2 policy 경로·ModelClient LiteLLM 프로필·개요 정책)뿐이고 RL-03/04 코드 경로 변경 없음(git diff 8f194df..cec9d94, RL이 쓰는 sanitize_for_prompt·ModelInvocationError 불변). 자동 증거 재검증 통과(cec9d94). 실제 결과는 다시 실행하지 않았다.",
       "evidence": "docs/validation-runs/2026-10-17-rl/RL-04/README.md (T11 draft 5d627b0f, export 4e278aae)",
       "exit_code": null,
-      "actor": "jechoi",
+      "actor": "orchestrator",
       "command": "",
-      "at": "2026-10-18T21:29:54+09:00",
-      "head": "e8eaa1d0ff8fe79aaadfdbed17a4b2e740a73b50",
-      "source_hash": "1d67e7b232814a748d21fde0397e93786ab6f5fa57a43dec41a639bb467079f3",
+      "at": "2026-10-19T10:38:59+09:00",
+      "head": "cec9d94695ed5c4409b3203202e71237fcfcff74",
+      "source_hash": "46e0089f7510dd52a89be36d549880f8ba7c6b5c6356ce9124a03514aece6ae3",
       "spec_hash": "485e5be98ffb32eae4f1a240cfa9893f76a7429507d361cff6fb70df193f6bbc"
     }
   },
@@ -317,7 +317,7 @@
       "text": "단계 → done: 배치 검증 및 통합 완료"
     }
   ],
-  "updated_at": "2026-10-19T10:38:03+09:00",
+  "updated_at": "2026-10-19T10:38:59+09:00",
   "proof_history": [
     {
       "key": "tests",
@@ -527,6 +527,22 @@
         "command": "",
         "at": "2026-10-18T17:16:33+09:00",
         "head": "5bc391b9a65d72c862f34d4600d4b0072bce4add",
+        "source_hash": "1d67e7b232814a748d21fde0397e93786ab6f5fa57a43dec41a639bb467079f3",
+        "spec_hash": "485e5be98ffb32eae4f1a240cfa9893f76a7429507d361cff6fb70df193f6bbc"
+      }
+    },
+    {
+      "key": "real_data_run",
+      "previous": {
+        "result": "pass",
+        "method": "manual",
+        "note": "사용자 확인(2026-10-18): 실제 초안 partial 4/6절 completed·PDF 생성, 2절은 식별자 복사 실수로 사람 검토. spec T11 '절 6개' 미충족분은 후속 과제(별칭 계약 v2)로 기록",
+        "evidence": "docs/validation-runs/2026-10-17-rl/RL-04/README.md (T11 draft 5d627b0f, export 4e278aae)",
+        "exit_code": null,
+        "actor": "jechoi",
+        "command": "",
+        "at": "2026-10-18T21:29:54+09:00",
+        "head": "e8eaa1d0ff8fe79aaadfdbed17a4b2e740a73b50",
         "source_hash": "1d67e7b232814a748d21fde0397e93786ab6f5fa57a43dec41a639bb467079f3",
         "spec_hash": "485e5be98ffb32eae4f1a240cfa9893f76a7429507d361cff6fb70df193f6bbc"
       }

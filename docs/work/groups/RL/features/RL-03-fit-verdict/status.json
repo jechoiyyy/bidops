@@ -315,14 +315,14 @@
     "real_data_run": {
       "result": "pass",
       "method": "manual",
-      "note": "사용자 확인(2026-10-18): 실제 Luna 판정 1건 completed('판단 불가', 9차 종합 재실행, unmeasured_reference). 전부 unknown은 회사 근거 상태(D13)",
+      "note": "사용자 확인(2026-10-18): 실제 Luna 판정 1건 completed('판단 불가', unmeasured_reference). 재연결(2026-10-19): 입력 변경은 C-2 Mac 병합(b8005ef — c2 policy 경로·ModelClient LiteLLM 프로필·개요 정책)뿐이고 RL-03/04 코드 경로 변경 없음(git diff 8f194df..cec9d94, RL이 쓰는 sanitize_for_prompt·ModelInvocationError 불변). 자동 증거 재검증 통과(cec9d94). 실제 결과는 다시 실행하지 않았다.",
       "evidence": "docs/validation-runs/2026-10-17-rl/RL-03/README.md (T12 10차 attempt 667bf04d)",
       "exit_code": null,
-      "actor": "jechoi",
+      "actor": "orchestrator",
       "command": "",
-      "at": "2026-10-18T21:29:54+09:00",
-      "head": "e8eaa1d0ff8fe79aaadfdbed17a4b2e740a73b50",
-      "source_hash": "1d67e7b232814a748d21fde0397e93786ab6f5fa57a43dec41a639bb467079f3",
+      "at": "2026-10-19T10:38:59+09:00",
+      "head": "cec9d94695ed5c4409b3203202e71237fcfcff74",
+      "source_hash": "46e0089f7510dd52a89be36d549880f8ba7c6b5c6356ce9124a03514aece6ae3",
       "spec_hash": "4d766281404d034bbccbdba5c7e2398dd6cd67da33bec1faf103250bea40edfc"
     }
   },
@@ -472,7 +472,7 @@
       "text": "단계 → done: 배치 검증 및 통합 완료"
     }
   ],
-  "updated_at": "2026-10-19T10:38:03+09:00",
+  "updated_at": "2026-10-19T10:38:59+09:00",
   "proof_history": [
     {
       "key": "tests",
@@ -767,6 +767,22 @@
         "command": "",
         "at": "2026-10-18T17:16:32+09:00",
         "head": "5bc391b9a65d72c862f34d4600d4b0072bce4add",
+        "source_hash": "1d67e7b232814a748d21fde0397e93786ab6f5fa57a43dec41a639bb467079f3",
+        "spec_hash": "4d766281404d034bbccbdba5c7e2398dd6cd67da33bec1faf103250bea40edfc"
+      }
+    },
+    {
+      "key": "real_data_run",
+      "previous": {
+        "result": "pass",
+        "method": "manual",
+        "note": "사용자 확인(2026-10-18): 실제 Luna 판정 1건 completed('판단 불가', 9차 종합 재실행, unmeasured_reference). 전부 unknown은 회사 근거 상태(D13)",
+        "evidence": "docs/validation-runs/2026-10-17-rl/RL-03/README.md (T12 10차 attempt 667bf04d)",
+        "exit_code": null,
+        "actor": "jechoi",
+        "command": "",
+        "at": "2026-10-18T21:29:54+09:00",
+        "head": "e8eaa1d0ff8fe79aaadfdbed17a4b2e740a73b50",
         "source_hash": "1d67e7b232814a748d21fde0397e93786ab6f5fa57a43dec41a639bb467079f3",
         "spec_hash": "4d766281404d034bbccbdba5c7e2398dd6cd67da33bec1faf103250bea40edfc"
       }
