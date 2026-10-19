@@ -76,6 +76,24 @@
       "status": "done",
       "updated_at": "2026-10-19T13:02:07+09:00",
       "note": "model-quality-gate RL 절, operations RL-05 평가 절차(actual 초안→alignment→최종 export 두 디렉터리), hp-contract §9 RL 주석, ADR 한 줄, validation-runs/2026-10-19-rl/RL-05/README.md. doctor 0(logs/step005-doctor.log)"
+    },
+    {
+      "id": "STEP-006",
+      "title": "큰 영역 unit 분할(selector v4·정책 v10, 결정 C15)",
+      "model": "complex",
+      "fingerprint": "a4f731506d9c76a447029d90ebcde2d96bfe0164b9cf17c011cf7fe660a5eb90",
+      "status": "done",
+      "updated_at": "2026-10-20T08:38:52+09:00",
+      "note": "selector card-sections-v4(블록 경계 분할, 하위 id segment:<sha>:<uuid>#p<n>), v4 sha 4ff2c74b…. 리더 검증: 합친 코드 PG 847 passed(skip 2=PDF 폰트 부재, 무관) logs/step006-007-pg.log"
+    },
+    {
+      "id": "STEP-007",
+      "title": "역할 근거 짧은 번호·역할/추출 항목 격리(정책 v10, 결정 C16)",
+      "model": "complex",
+      "fingerprint": "21491bd11e4cd7693bbb79ed3278016fed52ecb7d998a7e8880a9665b12458e2",
+      "status": "done",
+      "updated_at": "2026-10-20T08:38:52+09:00",
+      "note": "역할 계약 v2(근거 번호 E1…, sha 6c3ce4d3…), 역할 항목 격리(role_evidence_unknown|foreign_unit, 25% 한도, 판정 상한), 추출 누락 unit 격리(extract_unit_missing), 종합 지시 격리 상한 한 문장(리더 추가). 정책 v10 sha fcfb08ce…. 리더 검증: PG 847, build·contrast 0, Playwright verdict·record·proposal 86 passed"
     }
   ],
   "proof": {
@@ -150,7 +168,31 @@
     {
       "at": "2026-10-19T13:02:07+09:00",
       "text": "단계 STEP-005 done: model-quality-gate RL 절, operations RL-05 평가 절차(actual 초안→alignment→최종 export 두 디렉터리), hp-contract §9 RL 주석, ADR 한 줄, validation-runs/2026-10-19-rl/RL-05/README.md. doctor 0(logs/step005-doctor.log)"
+    },
+    {
+      "at": "2026-10-20T07:31:25+09:00",
+      "text": "plan 작업 ID 동기화"
+    },
+    {
+      "at": "2026-10-20T07:31:51+09:00",
+      "text": "단계 STEP-006 in_progress: "
+    },
+    {
+      "at": "2026-10-20T07:57:54+09:00",
+      "text": "plan 작업 ID 동기화"
+    },
+    {
+      "at": "2026-10-20T07:57:54+09:00",
+      "text": "단계 STEP-007 in_progress: "
+    },
+    {
+      "at": "2026-10-20T08:38:52+09:00",
+      "text": "단계 STEP-006 done: selector card-sections-v4(블록 경계 분할, 하위 id segment:<sha>:<uuid>#p<n>), v4 sha 4ff2c74b…. 리더 검증: 합친 코드 PG 847 passed(skip 2=PDF 폰트 부재, 무관) logs/step006-007-pg.log"
+    },
+    {
+      "at": "2026-10-20T08:38:52+09:00",
+      "text": "단계 STEP-007 done: 역할 계약 v2(근거 번호 E1…, sha 6c3ce4d3…), 역할 항목 격리(role_evidence_unknown|foreign_unit, 25% 한도, 판정 상한), 추출 누락 unit 격리(extract_unit_missing), 종합 지시 격리 상한 한 문장(리더 추가). 정책 v10 sha fcfb08ce…. 리더 검증: PG 847, build·contrast 0, Playwright verdict·record·proposal 86 passed"
     }
   ],
-  "updated_at": "2026-10-19T13:02:07+09:00"
+  "updated_at": "2026-10-20T08:38:52+09:00"
 }

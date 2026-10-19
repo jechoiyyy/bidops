@@ -6,11 +6,15 @@ with a ``company_binding`` (graph/profile/ontology identity of the active
 binding) instead of the HP basis/scenario/registration hashes, and the
 selector version is ``card-sections-v1``, (결정 B23, policy
 ``analysis-policy-luna-rl-v2``) ``card-sections-v2`` or (결정 B30, policy
-``analysis-policy-luna-rl-v3``) ``card-sections-v3``.  The company facts are the
+``analysis-policy-luna-rl-v3``) ``card-sections-v3`` or (결정 C15, policy
+``analysis-policy-luna-rl-v10``) ``card-sections-v4``, whose split segment parts
+carry ``segment:<sha>:<segment UUID>#p<n>`` ids.  The company facts are the
 top-level v2 retrieval rows, never a copy inside ``card_analysis``.
 
 The stage wire DTOs (extract/compare/role/synthesis, STEP-005) follow the
 HP-03 "단계 wire 계약" with RL names; compare adds the ``proposed_fact`` reason.
+결정 C16 (policy v10): the stored role result keeps the v1 shape after code maps the
+v2 evidence ids back to triples, plus ``isolated_items`` (``CardRoleIsolation``).
 """
 
 from __future__ import annotations
@@ -73,7 +77,21 @@ CARD_SELECTOR_VERSION_V2 = "card-sections-v2"
 #: 결정 B30: v2 + table-of-contents entries without page numbers and
 #: title-only segment units are excluded.
 CARD_SELECTOR_VERSION_V3 = "card-sections-v3"
-CardSelectorVersion = Literal["card-sections-v1", "card-sections-v2", "card-sections-v3"]
+#: 결정 C15: v3 + a segment unit above ``batch_max_chars`` split at block
+#: boundaries into consecutive parts (``#p<n>`` unit ids).
+CARD_SELECTOR_VERSION_V4 = "card-sections-v4"
+CardSelectorVersion = Literal["card-sections-v1", "card-sections-v2", "card-sections-v3", "card-sections-v4"]
+#: 결정 C15: ``<segment unit id>#p<n>`` of one v4 part (n from 1, no leading zero).
+_SEGMENT_PART_SUFFIX = re.compile(r"#p([1-9][0-9]*)\Z")
+
+
+def segment_unit_part(unit_id: str) -> tuple[str, int | None]:
+    """``(segment unit id, part number)`` of a v4 part id; ``(unit_id, None)`` when unsplit (결정 C15)."""
+
+    match = _SEGMENT_PART_SUFFIX.search(unit_id)
+    if match is None:
+        return unit_id, None
+    return unit_id[:match.start()], int(match.group(1))
 
 
 class CardStrictModel(StrictModel):
@@ -129,8 +147,9 @@ class CardAnalysisUnit(CardStrictModel):
             prefix = f"segment:{self.source_sha256}:"
             if not self.unit_id.startswith(prefix):
                 raise ValueError("segment_unit_id_invalid")
+            segment_id, _part = segment_unit_part(self.unit_id)
             try:
-                UUID(self.unit_id[len(prefix):])
+                UUID(segment_id[len(prefix):])
             except ValueError:
                 raise ValueError("segment_unit_id_invalid") from None
             expected = self.unit_id
@@ -223,6 +242,38 @@ def _check_batch_coverage(units: list[CardAnalysisUnit], batches: list[CardAnaly
         raise ValueError("batch_unit_coverage_invalid")
 
 
+def _check_segment_parts(units: list[CardAnalysisUnit], selector_version: str) -> None:
+    """결정 C15: part ids only under ``card-sections-v4``, as complete ``p1..pk`` (k >= 2) runs.
+
+    The parts of one segment appear in unit order, share every parent
+    attribute and never sit beside the unsplit segment id.
+    """
+
+    parts: dict[str, list[tuple[int, tuple[Any, ...]]]] = {}
+    unsplit: set[str] = set()
+    for unit in units:
+        if unit.kind != "segment":
+            continue
+        segment_id, part = segment_unit_part(unit.unit_id)
+        if part is None:
+            unsplit.add(segment_id)
+            continue
+        if selector_version != CARD_SELECTOR_VERSION_V4:
+            raise ValueError("segment_part_selector_invalid")
+        pages = None if unit.page_range is None else (unit.page_range.first, unit.page_range.last)
+        parent = (unit.document_version_id, unit.structure_id, unit.manifest_id, unit.ordinal,
+                  tuple(unit.section_kinds), pages, unit.mapping_status)
+        parts.setdefault(segment_id, []).append((part, parent))
+    for segment_id, rows in parts.items():
+        if (
+            segment_id in unsplit
+            or [part for part, _parent in rows] != list(range(1, len(rows) + 1))
+            or len(rows) < 2
+            or len({parent for _part, parent in rows}) != 1
+        ):
+            raise ValueError("segment_part_invalid")
+
+
 class CardUnitSelection(CardStrictModel):
     """Pure selection result consumed by input freezing and later stages."""
 
@@ -235,6 +286,7 @@ class CardUnitSelection(CardStrictModel):
     @model_validator(mode="after")
     def _coverage(self) -> "CardUnitSelection":
         _check_batch_coverage(self.units, self.batches, list(self.missing_sections))
+        _check_segment_parts(self.units, self.selector.version)
         source_hashes = [binding.source_sha256 for binding in self.source_bindings]
         if len(source_hashes) != len(set(source_hashes)):
             raise ValueError("source_binding_hash_duplicate")
@@ -268,6 +320,7 @@ class CardAnalysisInput(CardStrictModel):
     @model_validator(mode="after")
     def _batch_coverage(self) -> "CardAnalysisInput":
         _check_batch_coverage(self.units, self.batches, list(self.missing_sections))
+        _check_segment_parts(self.units, self.selector.version)
         return self
 
 
@@ -555,12 +608,43 @@ class CardVerdictRoleFinding(CardStrictModel):
     evidence_refs: list[CardEvidence]
 
 
+#: 결정 C16: rule codes of an isolated role item (policy v10, role contract v2).
+#: ``role_evidence_unknown`` = an evidence id that is not in the role payload;
+#: ``role_evidence_foreign_unit`` = the id of another unit's evidence.
+RoleIsolationRule = Literal["role_evidence_unknown", "role_evidence_foreign_unit"]
+#: 결정 C16: the fixed BidOps notice stored as the reason of an isolated finding.  The
+#: model's own reason is not used (it stays only in the raw response); the notice is
+#: not a claim about the requirement.
+ROLE_ISOLATED_REASON = "원문 근거 번호 검증에 실패한 판단입니다. 원문에서 사람이 확인하세요(자동으로 고치지 않음)."
+
+
+class CardRoleIsolation(CardStrictModel):
+    """결정 C16: one role finding (kept as ``unknown``) or caution (dropped) whose evidence ids failed.
+
+    Codes only -- never model text.  ``unit_id`` is the finding's/caution's unit.
+    """
+
+    kind: Literal["finding", "caution"]
+    unit_id: NonEmpty
+    rule_codes: list[RoleIsolationRule] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def _unique_codes(self) -> "CardRoleIsolation":
+        if len(self.rule_codes) != len(set(self.rule_codes)):
+            raise ValueError("role_isolation_rule_duplicate")
+        return self
+
+
 class CardVerdictRoleResult(CardStrictModel):
     schema_version: Literal["bidops.verdict-role.v1"] = "bidops.verdict-role.v1"
     role: VerdictRole
     unit_findings: list[CardVerdictRoleFinding]
     cautions: list[CardVerdictCaution]
     evidence_refs: list[CardEvidence]
+    #: 결정 C16 additive (role stage rows of policy v10, possibly empty): the isolated
+    #: findings/cautions.  ``None`` (every earlier policy) is omitted from the stored
+    #: row, so v1-v9 rows keep their exact shape and result SHA.
+    isolated_items: list[CardRoleIsolation] | None = None
 
     @model_validator(mode="after")
     def _unique_references(self) -> "CardVerdictRoleResult":
@@ -568,7 +652,29 @@ class CardVerdictRoleResult(CardStrictModel):
         evidence = [(row.source_sha256, row.block_key, row.quote) for row in self.evidence_refs]
         if len(unit_ids) != len(set(unit_ids)) or len(evidence) != len(set(evidence)):
             raise ValueError("role_reference_duplicate")
+        if self.isolated_items is not None:
+            # 결정 C16: an isolated finding is ``unknown`` with the fixed notice and no
+            # evidence; each finding is isolated at most once; every record names a role unit.
+            findings = {row.unit_id: row for row in self.unit_findings}
+            isolated = [row.unit_id for row in self.isolated_items if row.kind == "finding"]
+            if len(isolated) != len(set(isolated)) or any(row.unit_id not in findings for row in self.isolated_items):
+                raise ValueError("role_isolation_invalid")
+            if any(
+                findings[unit_id].assessment != "unknown" or findings[unit_id].evidence_refs
+                for unit_id in isolated
+            ) or self.evidence_refs:
+                raise ValueError("role_isolation_invalid")
+            # the fixed notice marks exactly the recorded findings
+            if {row.unit_id for row in self.unit_findings if row.reason == ROLE_ISOLATED_REASON} != set(isolated):
+                raise ValueError("role_isolation_invalid")
         return self
+
+    @model_serializer(mode="wrap")
+    def _omit_absent_isolation(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
+        data = handler(self)
+        if data.get("isolated_items") is None:
+            data.pop("isolated_items", None)
+        return data
 
 
 class CardSynthesisInput(CardStrictModel):
@@ -758,6 +864,9 @@ __all__ = [
     "CardRequirementExtractItem",
     "CardRequirementMatrixItem",
     "CardRejectedUnit",
+    "CardRoleIsolation",
+    "ROLE_ISOLATED_REASON",
+    "RoleIsolationRule",
     "RuleCode",
     "CardSynthesisInput",
     "CardVerdictCaution",
@@ -772,6 +881,7 @@ __all__ = [
     "CARD_SELECTOR_VERSION",
     "CARD_SELECTOR_VERSION_V2",
     "CARD_SELECTOR_VERSION_V3",
+    "CARD_SELECTOR_VERSION_V4",
     "CardSelectorVersion",
     "CardAnalysisBatch",
     "CardAnalysisInput",
@@ -794,4 +904,5 @@ __all__ = [
     "MappingStatus",
     "SectionKind",
     "UnitKind",
+    "segment_unit_part",
 ]

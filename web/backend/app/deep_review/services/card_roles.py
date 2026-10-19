@@ -27,7 +27,18 @@ HP-03 rules (spec "단계 wire 계약" 역할·종합) with RL names:
   ``blocking_condition_ids`` = the mandatory ``gap`` units (the rule the
   validator already enforces) and the unchanged validator decides; assembly
   appends one code "사람 확인" action per missing section and per rejected
-  unit (``origin="code"``; model rows ``origin="model"``).
+  unit (``origin="code"``; model rows ``origin="model"``);
+* role contract v2 (결정 C16, policy v10): the role payload numbers each unit's
+  allowed evidence ``E1``..``En`` (``card_role_evidence_index``) and the model
+  cites ids only.  ``validate_verdict_role_v2`` maps the ids back to the frozen
+  triples, so the stored role result keeps the v1 shape every consumer reads.
+  A finding citing an unknown id or another unit's id is isolated -- kept as
+  ``unknown`` with the fixed notice ``ROLE_ISOLATED_REASON`` and no evidence
+  (the model's reason is not used; nothing is rewritten into another claim);
+  such a caution is dropped; both are recorded in ``isolated_items``.  More
+  than 25% isolated findings of the role's units is ``card_role_invalid``;
+  coverage, order, role name and assessments beyond the compare stay fatal.
+  Any role isolation caps the verdict below "진행 가능" like ``rejected_units``.
 """
 
 from __future__ import annotations
@@ -42,10 +53,12 @@ from ..contracts import (
     PRACTITIONER_VERDICT_V2_SCHEMA,
     SchemaValidationError,
     VERDICT_ROLE_SCHEMA,
+    VERDICT_ROLE_V2_SCHEMA,
     validate_payload,
 )
 from ..schemas.card_analysis import (
     MISSING_SECTION_ACTION_PREFIX,
+    ROLE_ISOLATED_REASON,
     CardNextAction,
     CardAssembledPractitionerVerdict,
     CardChecklistItem,
@@ -62,8 +75,18 @@ from ..schemas.card_analysis import (
     CardVerdictRoleResult,
     VerdictRole,
 )
-from .card_analysis import CARD_ROLE_INVALID, CARD_SYNTHESIS_INVALID, CardAnalysisValidationError
+from .card_analysis import (
+    CARD_ROLE_INVALID,
+    CARD_SYNTHESIS_INVALID,
+    CardAnalysisValidationError,
+    rejected_units_exceed_limit,
+)
+from .company_analysis_input import card_role_evidence_index
 
+
+#: 결정 C16: rule codes of an isolated role finding/caution (``CardRoleIsolation``).
+ROLE_EVIDENCE_UNKNOWN_RULE: Final[str] = "role_evidence_unknown"
+ROLE_EVIDENCE_FOREIGN_RULE: Final[str] = "role_evidence_foreign_unit"
 
 VERDICT_ROLES: Final[tuple[VerdictRole, ...]] = ("eligibility_economics", "technical_fit", "operations_risk")
 ROLE_REQUIREMENT_TYPES: Final[dict[str, frozenset[str]]] = {
@@ -207,6 +230,119 @@ def validate_verdict_role(
         raise _role_invalid() from None
 
 
+def _isolated_finding_count(result: CardVerdictRoleResult) -> int:
+    return sum(1 for row in result.isolated_items or [] if row.kind == "finding")
+
+
+def validate_isolated_verdict_role(
+    payload: CardVerdictRoleResult | Mapping[str, Any],
+    *,
+    role_input: CardVerdictRoleInput | Mapping[str, Any],
+) -> CardVerdictRoleResult:
+    """결정 C16: a stored policy v10 role result (mapped v1 shape + ``isolated_items``).
+
+    The result without ``isolated_items`` must pass the unchanged v1
+    ``validate_verdict_role`` (coverage, order, compare bounds, exact per-unit
+    evidence); the DTO ties every isolated finding to an ``unknown`` finding with
+    the fixed notice and no evidence; isolated findings stay within 25% of the
+    role's units.  Used for the synthesis re-check and a synthesis-only resume.
+    """
+
+    try:
+        result = payload if isinstance(payload, CardVerdictRoleResult) else CardVerdictRoleResult.model_validate(payload)
+        frozen = role_input if isinstance(role_input, CardVerdictRoleInput) else CardVerdictRoleInput.model_validate(role_input)
+        if result.isolated_items is None:
+            raise _role_invalid()
+        validate_verdict_role(result.model_copy(update={"isolated_items": None}).model_dump(mode="json"),
+                              role_input=frozen)
+        if rejected_units_exceed_limit(_isolated_finding_count(result), len(frozen.extract.items)):
+            raise _role_invalid()
+        return result
+    except CardAnalysisValidationError:
+        raise
+    except (TypeError, ValueError, ValidationError, SchemaValidationError, KeyError):
+        raise _role_invalid() from None
+
+
+def validate_verdict_role_v2(
+    payload: Mapping[str, Any],
+    *,
+    role_input: CardVerdictRoleInput | Mapping[str, Any],
+) -> CardVerdictRoleResult:
+    """결정 C16: a ``bidops.verdict-role.v2`` answer (evidence ids) as the stored role result.
+
+    Fatal (``card_role_invalid``) as in v1: the v2 output schema, the role name,
+    findings not exactly one per role unit in input order, an assessment other
+    than the compare ``fit_status`` or ``unknown``, a caution naming a unit
+    outside the role, more than 25% isolated findings.  Per item: an id that is
+    not in the payload's ``card_role_evidence_index`` (``role_evidence_unknown``)
+    or belongs to another unit (``role_evidence_foreign_unit``) isolates that
+    finding (``unknown``, ``ROLE_ISOLATED_REASON``, no evidence) or drops that
+    caution; each is recorded as ``{kind, unit_id, rule_codes}``.  Valid ids are
+    mapped to their frozen triples in the cited order; nothing else is changed.
+    """
+
+    try:
+        validate_payload(payload, VERDICT_ROLE_V2_SCHEMA)
+        frozen = role_input if isinstance(role_input, CardVerdictRoleInput) else CardVerdictRoleInput.model_validate(role_input)
+        if payload["role"] != frozen.role:
+            raise _role_invalid()
+        expected_ids = [row.unit_id for row in frozen.extract.items]
+        if [row["unit_id"] for row in payload["unit_findings"]] != expected_ids:
+            raise _role_invalid()
+        if [row.unit_id for row in frozen.compare.items] != expected_ids:
+            raise _role_invalid()
+        if any(row.type not in ROLE_REQUIREMENT_TYPES[frozen.role] for row in frozen.extract.items):
+            raise _role_invalid()
+        compare_fit = {row.unit_id: row.fit_status for row in frozen.compare.items}
+        index = {row["evidence_id"]: row for row in card_role_evidence_index(frozen.extract.model_dump(mode="json"))}
+
+        def resolve(unit_id: str, evidence_ids: Sequence[str]) -> tuple[list[dict[str, str]], list[str]]:
+            refs: list[dict[str, str]] = []
+            codes: list[str] = []
+            for evidence_id in evidence_ids:
+                row = index.get(evidence_id)
+                if row is not None and row["unit_id"] == unit_id:
+                    refs.append({key: row[key] for key in ("source_sha256", "block_key", "quote")})
+                    continue
+                code = ROLE_EVIDENCE_UNKNOWN_RULE if row is None else ROLE_EVIDENCE_FOREIGN_RULE
+                if code not in codes:
+                    codes.append(code)
+            return refs, codes
+
+        findings: list[dict[str, Any]] = []
+        cautions: list[dict[str, Any]] = []
+        isolated: list[dict[str, Any]] = []
+        for row in payload["unit_findings"]:
+            if row["assessment"] not in {compare_fit[row["unit_id"]], "unknown"}:
+                raise _role_invalid()
+            refs, codes = resolve(row["unit_id"], row["evidence_ids"])
+            if codes:
+                findings.append({"unit_id": row["unit_id"], "assessment": "unknown", "reason": ROLE_ISOLATED_REASON,
+                                 "evidence_refs": []})
+                isolated.append({"kind": "finding", "unit_id": row["unit_id"], "rule_codes": codes})
+            else:
+                findings.append({"unit_id": row["unit_id"], "assessment": row["assessment"], "reason": row["reason"],
+                                 "evidence_refs": refs})
+        for row in payload["cautions"]:
+            if row["unit_id"] not in compare_fit:
+                raise _role_invalid()
+            refs, codes = resolve(row["unit_id"], row["evidence_ids"])
+            if codes:
+                isolated.append({"kind": "caution", "unit_id": row["unit_id"], "rule_codes": codes})
+            else:
+                cautions.append({"unit_id": row["unit_id"], "text": row["text"], "evidence_refs": refs})
+        result = CardVerdictRoleResult.model_validate({
+            "schema_version": "bidops.verdict-role.v1", "role": frozen.role, "unit_findings": findings,
+            "cautions": cautions, "evidence_refs": [], "isolated_items": isolated,
+        })
+        return validate_isolated_verdict_role(result, role_input=frozen)
+    except CardAnalysisValidationError:
+        raise
+    except (TypeError, ValueError, ValidationError, SchemaValidationError, KeyError):
+        raise _role_invalid() from None
+
+
 def build_synthesis_input(
     roles: Mapping[str, CardVerdictRoleResult | Mapping[str, Any]]
     | Sequence[CardVerdictRoleResult | Mapping[str, Any]],
@@ -266,7 +402,7 @@ def validate_practitioner_verdict(
     """Synthesis references, invented-owner refusal and the unconditional-proceed safety gate.
 
     ``missing_sections`` are the frozen input's unfound source sections
-    (only ``card-sections-v2``/``-v3`` reach synthesis with them, 결정 B23·B30); any
+    (only ``card-sections-v2``/``-v3``/``-v4`` reach synthesis with them, 결정 B23·B30·C15); any
     entry makes "진행 가능" ``card_synthesis_invalid``.  ``rejected_units`` (결정 B51)
     must be exactly the extract's isolated unit ids; any entry makes "진행 가능"
     ``card_synthesis_invalid`` too.
@@ -290,7 +426,12 @@ def validate_practitioner_verdict(
             raise _synthesis_invalid()
         expected_role_inputs = build_verdict_role_inputs(parsed_extract, parsed_compare)
         for role_result in frozen_roles.roles:
-            validate_verdict_role(role_result.model_dump(mode="json"), role_input=expected_role_inputs[role_result.role])
+            if role_result.isolated_items is None:
+                validate_verdict_role(role_result.model_dump(mode="json"),
+                                      role_input=expected_role_inputs[role_result.role])
+            else:
+                # 결정 C16: a policy v10 role row (mapped ids + isolation list).
+                validate_isolated_verdict_role(role_result, role_input=expected_role_inputs[role_result.role])
         unit_ids = {row.unit_id for row in parsed_extract.items}
         role_unit_ids = {finding.unit_id for role in frozen_roles.roles for finding in role.unit_findings}
         if role_unit_ids != unit_ids:
@@ -326,7 +467,11 @@ def validate_practitioner_verdict(
             or bool(result.cautions)
             or bool(result.next_actions)
         )
-        if result.verdict == "진행 가능" and (mandatory_gaps or unresolved or missing_sections or rejected_units):
+        # 결정 C16: any isolated role item caps the verdict exactly like a rejected unit.
+        role_isolated = any(role.isolated_items for role in frozen_roles.roles)
+        if result.verdict == "진행 가능" and (
+            mandatory_gaps or unresolved or missing_sections or rejected_units or role_isolated
+        ):
             raise _synthesis_invalid()
         return result
     except CardAnalysisValidationError as error:
@@ -550,6 +695,9 @@ def assemble_practitioner_verdict(
 
 __all__ = [
     "CHECKLIST_MEMBERS",
+    "ROLE_EVIDENCE_FOREIGN_RULE",
+    "ROLE_EVIDENCE_UNKNOWN_RULE",
+    "ROLE_ISOLATED_REASON",
     "ROLE_REQUIREMENT_TYPES",
     "VERDICT_ROLES",
     "assemble_practitioner_verdict",
@@ -559,6 +707,8 @@ __all__ = [
     "synthesis_v1_from_v2",
     "cited_constraint_refs",
     "unit_evidence_keys",
+    "validate_isolated_verdict_role",
     "validate_practitioner_verdict",
     "validate_verdict_role",
+    "validate_verdict_role_v2",
 ]

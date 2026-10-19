@@ -32,6 +32,8 @@ SCHEMA_FILES = {
     # kind x unit branches).  Code assembles the v1 object from it.
     "requirement-extract-v2": "bidops.requirement-extract.v2.json",
     "verdict-role": "bidops.verdict-role.v1.json",
+    # 결정 C16 (RL-05): policy v10 role output -- short evidence ids, never triples.
+    "verdict-role-v2": "bidops.verdict-role.v2.json",
     "practitioner-verdict": "bidops.practitioner-verdict.v1.json",
     # 결정 B55: policy v9 synthesis output (no blocking_condition_ids; code computes them).
     "practitioner-verdict-v2": "bidops.practitioner-verdict.v2.json",
@@ -52,6 +54,7 @@ CARD_ANALYSIS_INPUT_SCHEMA = "card-analysis-input"
 REQUIREMENT_EXTRACT_SCHEMA = "requirement-extract"
 REQUIREMENT_EXTRACT_V2_SCHEMA = "requirement-extract-v2"
 VERDICT_ROLE_SCHEMA = "verdict-role"
+VERDICT_ROLE_V2_SCHEMA = "verdict-role-v2"
 PRACTITIONER_VERDICT_SCHEMA = "practitioner-verdict"
 PRACTITIONER_VERDICT_V2_SCHEMA = "practitioner-verdict-v2"
 PROPOSAL_SECTION_SCHEMA = "proposal-section"
@@ -108,6 +111,7 @@ __all__ = [
     "SchemaError",
     "SchemaValidationError",
     "VERDICT_ROLE_SCHEMA",
+    "VERDICT_ROLE_V2_SCHEMA",
     "load_schema",
     "schema_path",
     "validate_json_schema",

@@ -41,6 +41,16 @@ hash to the stored ``input_sha256``, compare is recomputed, roles are
 re-validated; the rows are copied into the new attempt and audited
 (``card.stages.reused``), then only synthesis is called.
 
+Policy ``analysis-policy-luna-rl-v10`` (결정 C15) is v9 with selector
+``card-sections-v4``: an oversized segment unit arrives as ``#p<n>`` parts.
+Every stage treats a part like any unit (opaque ``unit_id``).  v9 -> v10 is not
+a resume lineage (the selector differs).  결정 C16 adds to v10: the role stage
+answers ``card-role-v2`` (short evidence ids in ``evidence_catalog``, mapped back
+and isolated per item by ``card_roles.validate_verdict_role_v2``), and a batch
+unit still missing from the answer to the final extract repair is isolated
+(``rejected_units`` with ``extract_unit_missing``) instead of failing the
+attempt; extra, unknown or reordered ids stay fatal and the 25% limit applies.
+
 Model I/O happens only in ``run_card_analysis`` through the existing Luna
 client with the D2 transfer projections of ``company_analysis_input`` (every
 payload passes ``check_card_transfer_payload`` before the call).  With
@@ -136,10 +146,20 @@ RESUME_IDENTITY_KEYS: Final[frozenset[str]] = frozenset({
 })
 #: 결정 B55: policy keys a resume may differ in (identity, synthesis contract, synthesis instruction).
 RESUME_POLICY_FREE_KEYS: Final[frozenset[str]] = frozenset({"policy_identity", "policy_sha256", "report_schema", "stages"})
-#: 결정 B51: policies that isolate evidence-class extract failures per item.
+#: 결정 B51: policies that isolate evidence-class extract failures per item (v10: 결정 C15).
 ITEM_ISOLATION_POLICY_IDENTITIES: Final[frozenset[str]] = frozenset({
     "analysis-policy-luna-rl-v7", "analysis-policy-luna-rl-v8", "analysis-policy-luna-rl-v9",
+    "analysis-policy-luna-rl-v10",
 })
+#: 결정 C16 (RL-05): policies whose role stage answers ``card-role-v2`` (short evidence
+#: ids, role item isolation) and whose extract stage isolates units still missing after
+#: the single repair (``extract_unit_missing``).  Every earlier policy is unchanged.
+ROLE_CONTRACT_V2: Final[str] = "card-role-v2"
+ROLE_CONTRACT_V2_SCHEMA_VERSION: Final[str] = "bidops.verdict-role.v2"
+ROLE_CONTRACT_V2_POLICY_IDENTITIES: Final[frozenset[str]] = frozenset({"analysis-policy-luna-rl-v10"})
+EXTRACT_MISSING_UNIT_POLICY_IDENTITIES: Final[frozenset[str]] = frozenset({"analysis-policy-luna-rl-v10"})
+#: 결정 C16: rule code of a batch unit the extract answer still lacks after the repair.
+EXTRACT_UNIT_MISSING_RULE: Final[str] = "extract_unit_missing"
 #: Extract fields a v2 answer never carries; code derives them (recorded in audits).
 CODE_DERIVED_EXTRACT_FIELDS: Final[tuple[str, ...]] = ("concept_candidates", "constraints.operator")
 #: 결정 B51: evidence-class rule codes of one extract item (isolated under v7).
@@ -716,8 +736,14 @@ def _parsed_extract_batch(
     card_input: CardAnalysisInput | Mapping[str, Any],
     batch_index: int,
     ontology: ValidatedOntology | Sequence[OntologyConcept],
-) -> tuple[CardRequirementExtract, dict[str, CardAnalysisUnit], tuple[OntologyConcept, ...]]:
-    """Whole-call (structural) checks shared by both validators: schema, DTO, ontology, exact coverage."""
+    missing_unit_ids: Sequence[str] = (),
+) -> tuple[CardRequirementExtract, dict[str, CardAnalysisUnit], tuple[OntologyConcept, ...], list[str]]:
+    """Whole-call (structural) checks shared by both validators: schema, DTO, ontology, exact coverage.
+
+    ``missing_unit_ids`` (결정 C16, policy v10 after the repair): distinct batch
+    units the answer lacks; the items must then be exactly the other batch units
+    in batch order.  Returns the batch unit order as well.
+    """
 
     validate_payload(payload, REQUIREMENT_EXTRACT_SCHEMA)
     result = CardRequirementExtract.model_validate(payload)
@@ -725,9 +751,15 @@ def _parsed_extract_batch(
     concepts = _ontology_rows(ontology)
     if isinstance(ontology, ValidatedOntology) and ontology.sha256 != frozen.company_binding.ontology_sha256:
         raise CardAnalysisValidationError(CARD_EXTRACT_INVALID)
-    if result.rejected_units or [item.unit_id for item in result.items] != batch.unit_ids:
+    missing = list(missing_unit_ids)
+    if isinstance(missing_unit_ids, (str, bytes)) or len(missing) != len(set(missing)) or not set(missing) <= set(
+        batch.unit_ids
+    ):
         raise CardAnalysisValidationError(CARD_EXTRACT_INVALID)
-    return result, {unit.unit_id: unit for unit in units}, concepts
+    expected = [unit_id for unit_id in batch.unit_ids if unit_id not in set(missing)]
+    if result.rejected_units or [item.unit_id for item in result.items] != expected:
+        raise CardAnalysisValidationError(CARD_EXTRACT_INVALID)
+    return result, {unit.unit_id: unit for unit in units}, concepts, list(batch.unit_ids)
 
 
 def validate_requirement_extract_isolated(
@@ -736,6 +768,7 @@ def validate_requirement_extract_isolated(
     card_input: CardAnalysisInput | Mapping[str, Any],
     batch_index: int,
     ontology: ValidatedOntology | Sequence[OntologyConcept],
+    missing_unit_ids: Sequence[str] = (),
 ) -> CardRequirementExtract:
     """결정 B51 (policy v7): the batch with evidence-class failures isolated per item.
 
@@ -745,18 +778,27 @@ def validate_requirement_extract_isolated(
     (``extract_item_violations``) is left out of ``items`` -- unchanged and
     unused -- and recorded as ``{unit_id, rule_codes}`` in ``rejected_units``
     (batch order).  Nothing is corrected.
+
+    결정 C16 (policy v10): ``missing_unit_ids`` are batch units the answer still
+    lacks after the single repair; each is recorded with ``extract_unit_missing``
+    (batch order, together with the evidence-rejected units) and the items must
+    be exactly the remaining batch units in order.
     """
 
     try:
-        result, units_by_id, concepts = _parsed_extract_batch(payload, card_input, batch_index, ontology)
+        result, units_by_id, concepts, batch_order = _parsed_extract_batch(
+            payload, card_input, batch_index, ontology, missing_unit_ids)
         accepted = []
-        rejected = []
+        rejected_by_id: dict[str, dict[str, Any]] = {
+            unit_id: {"unit_id": unit_id, "rule_codes": [EXTRACT_UNIT_MISSING_RULE]} for unit_id in missing_unit_ids
+        }
         for item in result.items:
             codes = extract_item_violations(item, units_by_id[item.unit_id], concepts)
             if codes:
-                rejected.append({"unit_id": item.unit_id, "rule_codes": codes})
+                rejected_by_id[item.unit_id] = {"unit_id": item.unit_id, "rule_codes": codes}
             else:
                 accepted.append(item)
+        rejected = [rejected_by_id[unit_id] for unit_id in batch_order if unit_id in rejected_by_id]
         return CardRequirementExtract.model_validate({
             "schema_version": result.schema_version,
             "items": [item.model_dump(mode="json") for item in accepted],
@@ -819,8 +861,11 @@ def resume_lineage_valid(
         new_stages = [row for row in new_policy["stages"] if row.get("stage") != "synthesis"]
         if source_stages != new_stages:
             return False
-        isolation = ITEM_ISOLATION_POLICY_IDENTITIES
-        return (source_policy.get("policy_identity") in isolation) == (new_policy.get("policy_identity") in isolation)
+        return all(
+            (source_policy.get("policy_identity") in identities) == (new_policy.get("policy_identity") in identities)
+            # 결정 C16: the role contract (stored role row shape) must agree as well.
+            for identities in (ITEM_ISOLATION_POLICY_IDENTITIES, ROLE_CONTRACT_V2_POLICY_IDENTITIES)
+        )
     except (TypeError, ValueError, AttributeError):
         return False
 
@@ -851,7 +896,7 @@ def validate_requirement_extract(
     """
 
     try:
-        result, units_by_id, concepts = _parsed_extract_batch(payload, card_input, batch_index, ontology)
+        result, units_by_id, concepts, _order = _parsed_extract_batch(payload, card_input, batch_index, ontology)
         for item in result.items:
             codes = extract_item_violations(item, units_by_id[item.unit_id], concepts, first_only=True)
             if codes:
@@ -875,8 +920,14 @@ def assemble_requirement_extract_v2(
     card_input: CardAnalysisInput | Mapping[str, Any],
     batch_index: int,
     ontology: ValidatedOntology | Sequence[OntologyConcept],
+    allow_missing_units: bool = False,
 ) -> dict[str, Any]:
     """Build the ``bidops.requirement-extract.v1`` object of one v2 answer (no correction).
+
+    ``allow_missing_units`` (결정 C16, policy v10, used only for the answer to the
+    final repair): a coverage failure that is only missing units (the items are
+    the remaining batch units in order, nothing else wrong) is returned instead
+    of raised; the caller isolates the missing units.
 
     The model supplies the semantic fields only.  Per item, ``concept_candidates``
     = ``card_expected_concepts`` of the item's frozen unit (all block texts) and
@@ -941,7 +992,16 @@ def assemble_requirement_extract_v2(
             if len(location) >= 2 and location[0] == "items" and type(location[1]) is int:
                 indexes.append(location[1])
     unit_ids = [item.get("unit_id") for item in items]
-    if unit_ids != batch.unit_ids:
+    # 결정 C16 (policy v10, final attempt only): items that are an ordered strict
+    # subsequence of the batch units, with no other structural problem, are kept;
+    # the caller records the missing units (``extract_unit_missing``).  Extra,
+    # unknown, duplicate or reordered ids stay structural failures.
+    missing_only = (
+        allow_missing_units and not codes and all(isinstance(unit_id, str) for unit_id in unit_ids)
+        and len(unit_ids) == len(set(unit_ids)) and len(unit_ids) < len(batch.unit_ids)
+        and unit_ids == [unit_id for unit_id in batch.unit_ids if unit_id in set(unit_ids)]
+    )
+    if unit_ids != batch.unit_ids and not missing_only:
         codes.append(UNIT_COVERAGE_RULE)
         indexes.extend(
             index for index in range(max(len(unit_ids), len(batch.unit_ids)))
@@ -1127,8 +1187,10 @@ def run_card_analysis(
         build_synthesis_input,
         build_verdict_role_inputs,
         synthesis_v1_from_v2,
+        validate_isolated_verdict_role,
         validate_practitioner_verdict,
         validate_verdict_role,
+        validate_verdict_role_v2,
     )
     from .card_units import SELECTOR_VERSION, analysis_call_budget
     from .company_analysis_input import (
@@ -1188,6 +1250,11 @@ def run_card_analysis(
         extract_contract = EXTRACT_CONTRACT_BY_STAGE_SCHEMA[stage_schema]
         # 결정 B51: item isolation is a policy v7 rule (v1-v6 keep the batch-level failure).
         item_isolation = policy.get("policy_identity") in ITEM_ISOLATION_POLICY_IDENTITIES
+        # 결정 C16: role contract v2 + role item isolation, and extract missing-unit isolation.
+        role_v2 = policy.get("policy_identity") in ROLE_CONTRACT_V2_POLICY_IDENTITIES
+        missing_unit_isolation = (
+            extract_v2 and item_isolation and policy.get("policy_identity") in EXTRACT_MISSING_UNIT_POLICY_IDENTITIES
+        )
         rejected_units: list[Any] = []
         # 결정 B55: the synthesis contract follows the pinned policy's report_schema.
         report_schema = policy.get("report_schema", PRACTITIONER_VERDICT_V1)
@@ -1222,7 +1289,7 @@ def run_card_analysis(
 
         def invoke(stage: str, stage_key: str, contract: str, instruction: str,
                    value: Mapping[str, Any], invalid_code: str,
-                   accept: Any = None) -> Mapping[str, Any]:
+                   accept: Any = None, final_accept: Any = None) -> Mapping[str, Any]:
             repair_detail: dict[str, Any] | None = None
             for repair_attempt in range(repair_attempts + 1):
                 check_deadline()
@@ -1266,6 +1333,13 @@ def run_card_analysis(
                 except CardExtractStructureError as error:
                     # 결정 B33: schema-class failure of the assembled answer -- same single repair.
                     if repair_attempt >= repair_attempts:
+                        if final_accept is not None:
+                            # 결정 C16: the answer to the last call may still be accepted with
+                            # its missing units isolated; any other structure failure stays fatal.
+                            try:
+                                return final_accept(output)
+                            except CardExtractStructureError:
+                                pass
                         raise CardAnalysisRuntimeError(invalid_code) from None
                     repair_detail = {"rule_codes": list(error.rule_codes), "item_indexes": list(error.item_indexes)}
                     continue
@@ -1341,10 +1415,29 @@ def run_card_analysis(
                     return assemble_requirement_extract_v2(
                         output, card_input=card_input, batch_index=_index, ontology=ontology,
                     )
+            final_accept = None
+            missing_ids: list[str] = []
+            if missing_unit_isolation:
+                def final_accept(output: Mapping[str, Any], _batch: Any = batch) -> Mapping[str, Any]:
+                    # 결정 C16: only the answer to the final repair; extra/unknown/reordered
+                    # ids or any other structure failure still raise (attempt failure).
+                    assembled = assemble_requirement_extract_v2(
+                        output, card_input=card_input, batch_index=_batch.batch_index, ontology=ontology,
+                        allow_missing_units=True,
+                    )
+                    present = {item["unit_id"] for item in assembled["items"]}
+                    missing_ids[:] = [unit_id for unit_id in _batch.unit_ids if unit_id not in present]
+                    return assembled
             raw = invoke("extract", key, extract_contract, instructions["extract"], payload,
-                         CARD_EXTRACT_INVALID, accept)
-            validator = validate_requirement_extract_isolated if item_isolation else validate_requirement_extract
-            extracted = validator(raw, card_input=card_input, batch_index=batch.batch_index, ontology=ontology)
+                         CARD_EXTRACT_INVALID, accept, final_accept)
+            if missing_ids:
+                extracted = validate_requirement_extract_isolated(
+                    raw, card_input=card_input, batch_index=batch.batch_index, ontology=ontology,
+                    missing_unit_ids=missing_ids,
+                )
+            else:
+                validator = validate_requirement_extract_isolated if item_isolation else validate_requirement_extract
+                extracted = validator(raw, card_input=card_input, batch_index=batch.batch_index, ontology=ontology)
             extract_payload = extracted.model_dump(mode="json")
             persist("extract", key, extract_payload, payload)
             compared = compare_requirements(extracted, frozen=frozen)
@@ -1374,9 +1467,16 @@ def run_card_analysis(
             payload = card_role_transfer(
                 frozen, role=role, extract=role_input.extract.model_dump(mode="json"),
                 compare=role_input.compare.model_dump(mode="json"), operational_values=operational,
+                evidence_ids=role_v2,
             )
             if resume is not None:
-                result = validate_verdict_role(reuse("role", role, payload), role_input=role_input)
+                stored_role = reuse("role", role, payload)
+                result = (validate_isolated_verdict_role(stored_role, role_input=role_input) if role_v2
+                          else validate_verdict_role(stored_role, role_input=role_input))
+            elif role_v2:
+                # 결정 C16: ids only; code maps them back and isolates per item.
+                raw = invoke(role, role, ROLE_CONTRACT_V2, instructions[role], payload, CARD_ROLE_INVALID)
+                result = validate_verdict_role_v2(raw, role_input=role_input)
             else:
                 raw = invoke(role, role, STAGE_CONTRACTS["role"], instructions[role], payload, CARD_ROLE_INVALID)
                 result = validate_verdict_role(raw, role_input=role_input)
@@ -1390,7 +1490,7 @@ def run_card_analysis(
             # card-sections-v1: partial analysis is kept; a final verdict is never
             # published without the six source sections (HP-03 "동결 입력과 unit").
             raise CardAnalysisRuntimeError(CARD_SOURCE_SELECTION_INCOMPLETE)
-        # card-sections-v2/-v3 (결정 B23·B30): synthesis continues and the missing
+        # card-sections-v2/-v3/-v4 (결정 B23·B30·C15): synthesis continues and the missing
         # sections are recorded in the final row and cap the verdict.
         missing_sections = list(card_input.missing_sections)
         synthesis_input = build_synthesis_input(roles)
@@ -1436,6 +1536,8 @@ def run_card_analysis(
                 "synthesis_contract": PRACTITIONER_VERDICT_V2,
                 "synthesis_code_derived_fields": list(CODE_DERIVED_SYNTHESIS_FIELDS),
             })
+        if role_v2:
+            completion_derivation["role_contract"] = ROLE_CONTRACT_V2_SCHEMA_VERSION
         service._finish_card_claim(
             session, claim, batch_count=len(card_input.batches), call_count=calls[0],
             elapsed_seconds=elapsed, target_seconds=target_seconds, target_missed=elapsed > target_seconds,
@@ -1485,7 +1587,12 @@ __all__ = [
     "CONSTRAINT_QUOTE_RULE",
     "CONSTRAINT_TRUNCATED_RULE",
     "EVIDENCE_QUOTE_RULE",
+    "EXTRACT_MISSING_UNIT_POLICY_IDENTITIES",
+    "EXTRACT_UNIT_MISSING_RULE",
     "ITEM_ISOLATION_POLICY_IDENTITIES",
+    "ROLE_CONTRACT_V2",
+    "ROLE_CONTRACT_V2_POLICY_IDENTITIES",
+    "ROLE_CONTRACT_V2_SCHEMA_VERSION",
     "REQUIREMENT_NUMBER_RULE",
     "CODE_DERIVED_SYNTHESIS_FIELDS",
     "PRACTITIONER_VERDICT_V1",

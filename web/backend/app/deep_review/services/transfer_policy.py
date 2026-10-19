@@ -182,7 +182,7 @@ def verify_rl_policy_identity(
     """Bind the CLI identity to the selected row, the immutable file and HP-00 constants.
 
     The identity is one of the RL card identities (``analysis-policy-luna-rl-v1``,
-    .. ``-v9``, 결정 B23·B30·B33·B35·B37·B51·B53·B55) and must equal both the selected row's and the policy
+    .. ``-v10``, 결정 B23·B30·B33·B35·B37·B51·B53·B55·C15) and must equal both the selected row's and the policy
     file's (``BIDOPS_RL_ANALYSIS_POLICY_PATH``) identity.
 
     ``analysis_policy_unavailable``: no row selected/found or the row is not

@@ -364,6 +364,8 @@ _CARD_CONTRACTS = {
 }
 #: 결정 B55: synthesis contracts the mock answers (v1: policies up to v8, v2: v9).
 _CARD_SYNTHESIS_CONTRACTS = frozenset({"card-synthesis-v1", "card-synthesis-v2"})
+#: 결정 C16: role contracts the mock answers (v1: policies up to v9, v2: v10 evidence ids).
+_CARD_ROLE_CONTRACTS = frozenset({"card-role-v1", "card-role-v2"})
 # --- 결정 B35: realistic numeric constraints of the v2 mock answer --------------------
 #
 # Every match is quoted verbatim as number + unit word + an attached comparator
@@ -489,7 +491,9 @@ class MockCardAnalysisClient:
       constraints of ``mock_numeric_constraints`` (결정 B35: ``N명``, ``N원``,
       ``N일 이상``, ``N%`` quoted with unit and attached comparator), so the
       quote/unit/operator rules are exercised;
-    * roles: each unit's assessment is its deterministic compare result;
+    * roles: each unit's assessment is its deterministic compare result; under
+      ``card-role-v2`` (policy v10, 결정 C16) each finding cites the
+      ``evidence_catalog`` ids of its item evidence (never a triple);
     * synthesis: ``판단 불가`` with no blocking ids, cautions or actions; under
       ``card-synthesis-v2`` (policy v9, 결정 B55) the v2 shape without
       ``blocking_condition_ids``.  ``fail_synthesis=True`` makes every synthesis
@@ -515,7 +519,7 @@ class MockCardAnalysisClient:
         allowed = (
             _CARD_EXTRACT_CONTRACTS if stage == "extract"
             else _CARD_SYNTHESIS_CONTRACTS if stage == "synthesis"
-            else {_CARD_CONTRACTS.get(stage)}
+            else _CARD_ROLE_CONTRACTS
         )
         if stage not in _CARD_CONTRACTS or contract not in allowed or not isinstance(value, Mapping):
             raise ModelInvocationError("schema_invalid", (), b"")
@@ -539,6 +543,8 @@ class MockCardAnalysisClient:
                     "reason": _MOCK_SYNTHESIS_REASON, "blocking_condition_ids": [], "cautions": [],
                     "next_actions": [],
                 }
+        elif contract == "card-role-v2":
+            output = self._role_v2(value)
         else:
             output = self._role(value)
         encoded = json.dumps(output, ensure_ascii=False, sort_keys=True).encode("utf-8")
@@ -605,6 +611,30 @@ class MockCardAnalysisClient:
                 for row in value["extract"]["items"]
             ],
             "cautions": [], "evidence_refs": [],
+        }
+
+    @staticmethod
+    def _role_v2(value: Mapping[str, Any]) -> dict[str, Any]:
+        """결정 C16: the v2 shape -- each finding cites the catalog ids of its own item evidence."""
+
+        from ...core.model_client import ModelInvocationError
+
+        fits = {row["unit_id"]: row["fit_status"] for row in value["compare"]["items"]}
+        catalog = value.get("evidence_catalog")
+        if not isinstance(catalog, list):
+            raise ModelInvocationError("schema_invalid", (), b"")
+        ids = {
+            row["unit_id"]: {(entry["block_key"], entry["quote"]): entry["evidence_id"] for entry in row["evidence"]}
+            for row in catalog
+        }
+        return {
+            "schema_version": "bidops.verdict-role.v2", "role": value["role"],
+            "unit_findings": [
+                {"unit_id": row["unit_id"], "assessment": fits[row["unit_id"]], "reason": _MOCK_ROLE_REASON,
+                 "evidence_ids": [ids[row["unit_id"]][(ref["block_key"], ref["quote"])] for ref in row["evidence"]]}
+                for row in value["extract"]["items"]
+            ],
+            "cautions": [],
         }
 
 

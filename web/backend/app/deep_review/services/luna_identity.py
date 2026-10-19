@@ -42,10 +42,16 @@ RL_POLICY_IDENTITY_V8 = "analysis-policy-luna-rl-v8"
 #: a synthesis instruction stating the field scopes.  Extract and role stages are
 #: byte-identical to v8 (a v8 failed attempt may be resumed at synthesis).
 RL_POLICY_IDENTITY_V9 = "analysis-policy-luna-rl-v9"
+#: RL-05 결정 C15: v9 with selector ``card-sections-v4`` (a segment unit above
+#: ``batch_max_chars`` is split at block boundaries into ``#p<n>`` parts); 결정 C16:
+#: role contract v2 (``card-role-v2``, evidence ids, role item isolation) with the
+#: three role instructions rewritten.  Extract/synthesis instructions and contracts
+#: are byte-identical to v9.  v1-v9 stay importable.
+RL_POLICY_IDENTITY_V10 = "analysis-policy-luna-rl-v10"
 RL_POLICY_IDENTITIES = frozenset({
     RL_POLICY_IDENTITY, RL_POLICY_IDENTITY_V2, RL_POLICY_IDENTITY_V3, RL_POLICY_IDENTITY_V4,
     RL_POLICY_IDENTITY_V5, RL_POLICY_IDENTITY_V6, RL_POLICY_IDENTITY_V7, RL_POLICY_IDENTITY_V8,
-    RL_POLICY_IDENTITY_V9,
+    RL_POLICY_IDENTITY_V9, RL_POLICY_IDENTITY_V10,
 })
 COMPANY_POLICY_IDENTITIES = frozenset({"analysis-policy-luna-demo-v1", HP_POLICY_IDENTITY, *RL_POLICY_IDENTITIES})
 #: RL-04 proposal drafting (``pipeline_version="proposal-v1"``, ``purpose="proposal"``).
