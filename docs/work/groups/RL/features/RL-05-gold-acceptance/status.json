@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
   "feature": "RL-05-gold-acceptance",
-  "phase": "validating",
+  "phase": "done",
   "steps": [
     {
       "id": "STEP-001",
@@ -307,9 +307,13 @@
     {
       "at": "2026-10-20T12:59:45+09:00",
       "text": "단계 → validating"
+    },
+    {
+      "at": "2026-10-20T13:33:48+09:00",
+      "text": "단계 → done: 배치 검증 및 통합 완료"
     }
   ],
-  "updated_at": "2026-10-20T13:12:57+09:00",
+  "updated_at": "2026-10-20T13:33:48+09:00",
   "proof_history": [
     {
       "key": "docs",
@@ -443,5 +447,11 @@
         "spec_hash": "5f2d0be3b8bcc346606ab18d23c47639ceece721430fa5374459d8491835c602"
       }
     }
-  ]
+  ],
+  "integration": {
+    "run": "rlc-20261019",
+    "revision": "f3f714d4e5e7d9127c1a13329530f4ea42af4f7d",
+    "source_hash": "09febe6262c945aebed74be8bf07d797cab3113c8198eedc00e9f97e8525c085",
+    "spec_hash": "72f41f62fd67b661c2d9993fd9bb354a3287d37f7f34545d4ef72274a220f42a"
+  }
 }

@@ -1,6 +1,6 @@
 {
   "id": "rlc-20261019",
-  "state": "awaiting_merge",
+  "state": "done",
   "features": [
     "RL-05-gold-acceptance"
   ],
@@ -73,5 +73,13 @@
       "note": "C25 리뷰 권고 반영(RL-05 spec identity 표기)",
       "at": "2026-10-20T13:13:05+09:00"
     }
-  ]
+  ],
+  "merged_sha": "f3f714d4e5e7d9127c1a13329530f4ea42af4f7d",
+  "merged_inputs": {
+    "RL-05-gold-acceptance": {
+      "source_hash": "09febe6262c945aebed74be8bf07d797cab3113c8198eedc00e9f97e8525c085",
+      "spec_hash": "72f41f62fd67b661c2d9993fd9bb354a3287d37f7f34545d4ef72274a220f42a"
+    }
+  },
+  "completed_at": "2026-10-20T13:33:48+09:00"
 }
