@@ -3070,6 +3070,18 @@ export interface VerdictRoleIsolation {
   rule_codes: string[];
 }
 
+/**
+ * 결정 C19: 종합의 주의·다음 행동 중 요구사항이 역할 결과 밖이거나 근거가 그 요구사항 근거와 다른 항목.
+ * 판정에서 빠졌고 고쳐 쓰지 않았다. 모델 내용은 싣지 않는다.
+ */
+export interface VerdictSynthesisIsolation {
+  unit_id: string;
+  /** 카드 요구사항 번호. segment unit이거나 카드에 없는 id면 `null`. */
+  normalized_id: string | null;
+  kind: "caution" | "next_action";
+  rule_codes: string[];
+}
+
 export interface VerdictChecklistRow {
   key: VerdictChecklistKey;
   status: VerdictFit;
@@ -3158,6 +3170,8 @@ export interface PractitionerVerdictView {
   rejected_units?: VerdictRejectedUnit[];
   /** 결정 C16: 역할 판단에서 격리된 항목. 옛 응답에는 없을 수 있다. */
   role_isolations?: VerdictRoleIsolation[];
+  /** 결정 C19: 종합에서 빠진 항목. 옛 응답에는 없을 수 있다. */
+  synthesis_isolations?: VerdictSynthesisIsolation[];
 }
 
 export interface VerdictRequestReceipt {

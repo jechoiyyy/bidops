@@ -8,6 +8,7 @@ import { SourcePanel } from "../components/verdict/SourcePanel";
 import { describeVerdictApiError, describeVerdictRunCode } from "../lib/apiErrors";
 import type { PractitionerVerdictView, VerdictFeedbackKind, VerdictMatrixRow } from "../lib/types";
 import {
+  isolationTarget,
   isVerdictActive,
   rejectedRuleLabel,
   resolveStructureId,
@@ -31,6 +32,7 @@ import "../styles/verdict.css";
  *   rejected_units        결정 B51: "검증 실패 — 사람 확인 필요" 목록(요구사항 번호·규칙 문구만, 어느 상태에서도).
  *                         격리된 unit의 모델 내용은 서버가 주지 않으며 화면도 만들어 내지 않는다.
  *   role_isolations       결정 C16: 역할 판단의 근거 번호 검증 실패 항목을 같은 목록에 역할 이름과 함께 보인다.
+ *   synthesis_isolations  결정 C19: 종합에서 빠진 주의·다음 행동도 같은 목록에 "종합"과 함께 보인다.
  * 좌측 요약(판정 이름·체크리스트·다음 행동)은 레코드 페이지의 좌측 열이라 이 파일이 그리지 않는다.
  * 정책 id·모델명·hash·품질 표식은 이 파일 어디에도 그리지 않는다(⋯ "실행 정보"에서만).
  */
@@ -124,6 +126,8 @@ export function OpportunityVerdictTab({ query, onRequest, onFeedback }: Opportun
   const humanReview = view.availability === "failed" || view.availability === "needs_human_review";
   const rejectedUnits = view.rejected_units ?? [];
   const roleIsolations = view.role_isolations ?? [];
+  const synthesisIsolations = view.synthesis_isolations ?? [];
+  const isolationCount = rejectedUnits.length + roleIsolations.length + synthesisIsolations.length;
   const runCode = describeVerdictRunCode(view.error_code);
   const incomplete = view.availability !== "completed";
 
@@ -158,12 +162,13 @@ export function OpportunityVerdictTab({ query, onRequest, onFeedback }: Opportun
             </p>
           </div>
         ) : null}
-        {rejectedUnits.length + roleIsolations.length > 0 ? (
+        {isolationCount > 0 ? (
           // 결정 B51: 증거 규칙을 어긴 항목만 격리하고 나머지로 판정을 이어간다. 격리된 항목의 요구사항은
           // 확인 필요이며 판정은 "진행 가능"이 될 수 없다(서버가 강제). 화면은 서버 목록을 그대로 보인다.
           // 결정 C16: 역할 판단의 근거 번호가 맞지 않은 항목도 같은 목록에 역할 이름과 함께 보인다.
+          // 결정 C19: 종합에서 빠진 주의·다음 행동도 같은 목록에 보인다(내용은 서버가 주지 않는다).
           <section aria-label="검증 실패 — 사람 확인 필요" className="vd-rejected" data-testid="rejected-units">
-            <h3 className="vd-rejected-title">검증 실패 — 사람 확인 필요 {rejectedUnits.length + roleIsolations.length}</h3>
+            <h3 className="vd-rejected-title">검증 실패 — 사람 확인 필요 {isolationCount}</h3>
             <p className="vd-rejected-help">
               아래 항목은 원문 근거 검증을 통과하지 못해 판정 근거에서 뺐습니다. 역할 판단이 격리된 요구사항은 "확인 필요"로 남습니다. 자동으로 고치지 않았으며 담당자가 원문을 확인해야 합니다.
             </p>
@@ -176,9 +181,17 @@ export function OpportunityVerdictTab({ query, onRequest, onFeedback }: Opportun
               ))}
               {roleIsolations.map((item, index) => (
                 <li data-testid="role-isolation" key={`role-isolation-${index}`}>
-                  <span className="vd-rejected-id">{item.normalized_id ?? `영역 항목 ${index + 1}`}</span>
+                  <span className="vd-rejected-id">{isolationTarget(item.normalized_id, item.unit_id, index)}</span>
                   <span className="vd-rejected-rules">
                     {roleLabel(item.role)} {item.kind === "finding" ? "판단" : "주의"} · {item.rule_codes.map(rejectedRuleLabel).join(" · ")}
+                  </span>
+                </li>
+              ))}
+              {synthesisIsolations.map((item, index) => (
+                <li data-testid="synthesis-isolation" key={`synthesis-isolation-${index}`}>
+                  <span className="vd-rejected-id">{isolationTarget(item.normalized_id, item.unit_id, index)}</span>
+                  <span className="vd-rejected-rules">
+                    종합 {item.kind === "caution" ? "주의" : "다음 행동"} · {item.rule_codes.map(rejectedRuleLabel).join(" · ")}
                   </span>
                 </li>
               ))}

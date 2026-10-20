@@ -50,6 +50,10 @@ and isolated per item by ``card_roles.validate_verdict_role_v2``), and a batch
 unit still missing from the answer to the final extract repair is isolated
 (``rejected_units`` with ``extract_unit_missing``) instead of failing the
 attempt; extra, unknown or reordered ids stay fatal and the 25% limit applies.
+결정 C19 (validation only, same v10 file): a role caution naming a unit outside the
+role and a synthesis caution/next action outside the role units or their evidence
+are dropped and recorded (role row / final row ``isolated_items``) instead of
+failing the attempt; a v10 synthesis-only resume follows the same rule.
 
 Model I/O happens only in ``run_card_analysis`` through the existing Luna
 client with the D2 transfer projections of ``company_analysis_input`` (every
@@ -158,6 +162,10 @@ ROLE_CONTRACT_V2: Final[str] = "card-role-v2"
 ROLE_CONTRACT_V2_SCHEMA_VERSION: Final[str] = "bidops.verdict-role.v2"
 ROLE_CONTRACT_V2_POLICY_IDENTITIES: Final[frozenset[str]] = frozenset({"analysis-policy-luna-rl-v10"})
 EXTRACT_MISSING_UNIT_POLICY_IDENTITIES: Final[frozenset[str]] = frozenset({"analysis-policy-luna-rl-v10"})
+#: 결정 C19 (RL-05 STEP-008): policies whose synthesis cautions/next actions outside the
+#: role units or their evidence are dropped and recorded (final row ``isolated_items``)
+#: instead of failing the attempt.  Validation code only -- the v10 policy file is unchanged.
+SYNTHESIS_ITEM_ISOLATION_POLICY_IDENTITIES: Final[frozenset[str]] = frozenset({"analysis-policy-luna-rl-v10"})
 #: 결정 C16: rule code of a batch unit the extract answer still lacks after the repair.
 EXTRACT_UNIT_MISSING_RULE: Final[str] = "extract_unit_missing"
 #: Extract fields a v2 answer never carries; code derives them (recorded in audits).
@@ -1516,14 +1524,19 @@ def run_card_analysis(
                 return synthesis_v1_from_v2(output, extract=extract, compare=compare)
         raw = invoke("synthesis", "final", synthesis_contract, instructions["synthesis"], payload,
                      CARD_SYNTHESIS_INVALID, synthesis_accept)
-        verdict = validate_practitioner_verdict(
-            raw, synthesis_input=synthesis_input, extract=extract, compare=compare, allowed_owners=(),
-            missing_sections=missing_sections, rejected_units=rejected_ids,
+        # 결정 C19: v10 drops (and records) synthesis items outside the role units/evidence;
+        # the answer goes to assembly as given so the dropped items are recorded there.
+        synthesis_isolation = policy.get("policy_identity") in SYNTHESIS_ITEM_ISOLATION_POLICY_IDENTITIES
+        verdict = (
+            raw if synthesis_isolation else validate_practitioner_verdict(
+                raw, synthesis_input=synthesis_input, extract=extract, compare=compare, allowed_owners=(),
+                missing_sections=missing_sections, rejected_units=rejected_ids,
+            )
         )
         assembled = assemble_practitioner_verdict(
             verdict, synthesis_input=synthesis_input, extract=extract, compare=compare, allowed_owners=(),
             missing_sections=missing_sections, rejected_units=rejected_ids,
-            record_rejected_units=item_isolation, code_actions=synthesis_v2,
+            record_rejected_units=item_isolation, code_actions=synthesis_v2, isolate_items=synthesis_isolation,
         )
         persist("synthesis", "final", assembled.model_dump(mode="json"), payload)
         finished = _monotonic()
@@ -1593,6 +1606,7 @@ __all__ = [
     "ROLE_CONTRACT_V2",
     "ROLE_CONTRACT_V2_POLICY_IDENTITIES",
     "ROLE_CONTRACT_V2_SCHEMA_VERSION",
+    "SYNTHESIS_ITEM_ISOLATION_POLICY_IDENTITIES",
     "REQUIREMENT_NUMBER_RULE",
     "CODE_DERIVED_SYNTHESIS_FIELDS",
     "PRACTITIONER_VERDICT_V1",
