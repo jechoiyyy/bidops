@@ -193,79 +193,79 @@
     "docs": {
       "result": "pass",
       "method": "review",
-      "note": "2026-10-19 재검증: C-2 Mac 병합(b8005ef)·운영 반영 기록(ece3b08) 뒤 main HEAD에서 RL-00~04 plan 증명 합집합 1회 실행. doctor 0, 병합 충돌은 ADR 색인·findings 2건(기능 문서 무변경)",
-      "evidence": "docs/work/_runs/reverify-20261019/logs/doctor.log",
+      "note": "2026-10-20 배치 rlc-20261019 HEAD 재검증: RL-05 STEP-006~009(RL-03 코드 v10·v11) 반영 뒤 RL-00~04 plan 증명 합집합 1회. doctor 0",
+      "evidence": "docs/work/_runs/rlc-20261019/logs/reverify-doctor.log; 독립 리뷰 decisions C25",
       "exit_code": null,
       "actor": "orchestrator",
       "command": "python3 scripts/feature_status.py doctor _",
-      "at": "2026-10-19T10:37:59+09:00",
-      "head": "ece3b08a603817e17165ddebca3127de6cf6b06e",
-      "source_hash": "46e0089f7510dd52a89be36d549880f8ba7c6b5c6356ce9124a03514aece6ae3",
+      "at": "2026-10-20T13:25:41+09:00",
+      "head": "e6e125e53356fd4e0a84fd54a2fe8dca27113a76",
+      "source_hash": "09febe6262c945aebed74be8bf07d797cab3113c8198eedc00e9f97e8525c085",
       "spec_hash": "eb40d775ba67bba725d6f07d57e6a65c32c6d09507f62a3167e238863c4c36a1"
     },
     "tests": {
       "result": "pass",
       "method": "command",
-      "note": "2026-10-19 재검증: C-2 Mac 병합(b8005ef)·운영 반영 기록(ece3b08) 뒤 main HEAD에서 RL-00~04 plan 증명 합집합 1회 실행. 합집합 748 passed(126 skip=PG 변형·컨테이너 전용). plan의 test_proposal_payload_guard.py는 실제 파일 test_proposal_input·test_proposal_draft로 실행",
-      "evidence": "docs/work/_runs/reverify-20261019/logs/tests.log",
+      "note": "2026-10-20 배치 rlc-20261019 HEAD 재검증: RL-05 STEP-006~009(RL-03 코드 v10·v11) 반영 뒤 RL-00~04 plan 증명 합집합 1회. 합집합 1261 passed(skip: PDF 폰트 4는 별도 27 passed로 재실행, 컨테이너 전용 1)",
+      "evidence": "docs/work/_runs/rlc-20261019/logs/reverify-rl00-04-pg.log; docs/work/_runs/rlc-20261019/logs/reverify-proposal-fonts-pg.log",
       "exit_code": 0,
       "actor": "orchestrator",
       "command": "bash -lc \"cd web/backend && python -m pytest -q -x -p no:cacheprovider\"",
-      "at": "2026-10-19T10:38:00+09:00",
-      "head": "ece3b08a603817e17165ddebca3127de6cf6b06e",
-      "source_hash": "46e0089f7510dd52a89be36d549880f8ba7c6b5c6356ce9124a03514aece6ae3",
+      "at": "2026-10-20T13:25:41+09:00",
+      "head": "e6e125e53356fd4e0a84fd54a2fe8dca27113a76",
+      "source_hash": "09febe6262c945aebed74be8bf07d797cab3113c8198eedc00e9f97e8525c085",
       "spec_hash": "eb40d775ba67bba725d6f07d57e6a65c32c6d09507f62a3167e238863c4c36a1"
     },
     "postgres": {
       "result": "pass",
       "method": "command",
-      "note": "2026-10-19 재검증: C-2 Mac 병합(b8005ef)·운영 반영 기록(ece3b08) 뒤 main HEAD에서 RL-00~04 plan 증명 합집합 1회 실행. postgres:17.11 301 passed(migrations·privileges·drift·경계) + 제안서 API·렌더 27 passed(폰트 디렉터리 지정, skip 0)",
-      "evidence": "docs/work/_runs/reverify-20261019/logs/postgres.log; docs/work/_runs/reverify-20261019/logs/postgres-proposal-api.log",
+      "note": "2026-10-20 배치 rlc-20261019 HEAD 재검증: RL-05 STEP-006~009(RL-03 코드 v10·v11) 반영 뒤 RL-00~04 plan 증명 합집합 1회. postgres:17.11(migrations·privileges·drift·경계 포함)",
+      "evidence": "docs/work/_runs/rlc-20261019/logs/reverify-rl00-04-pg.log; docs/work/_runs/rlc-20261019/logs/reverify-proposal-fonts-pg.log",
       "exit_code": 0,
       "actor": "orchestrator",
       "command": "",
-      "at": "2026-10-19T10:38:00+09:00",
-      "head": "ece3b08a603817e17165ddebca3127de6cf6b06e",
-      "source_hash": "46e0089f7510dd52a89be36d549880f8ba7c6b5c6356ce9124a03514aece6ae3",
+      "at": "2026-10-20T13:25:41+09:00",
+      "head": "e6e125e53356fd4e0a84fd54a2fe8dca27113a76",
+      "source_hash": "09febe6262c945aebed74be8bf07d797cab3113c8198eedc00e9f97e8525c085",
       "spec_hash": "eb40d775ba67bba725d6f07d57e6a65c32c6d09507f62a3167e238863c4c36a1"
     },
     "frontend": {
       "result": "pass",
       "method": "command",
-      "note": "2026-10-19 재검증: C-2 Mac 병합(b8005ef)·운영 반영 기록(ece3b08) 뒤 main HEAD에서 RL-00~04 plan 증명 합집합 1회 실행. build 0·contrast 0, Playwright app 7 spec 194 passed(preview 127.0.0.1)",
-      "evidence": "docs/work/_runs/reverify-20261019/logs/frontend-build.log; docs/work/_runs/reverify-20261019/logs/frontend-playwright.log",
+      "note": "2026-10-20 배치 rlc-20261019 HEAD 재검증: RL-05 STEP-006~009(RL-03 코드 v10·v11) 반영 뒤 RL-00~04 plan 증명 합집합 1회. build·contrast 0, Playwright app 7 spec 195 passed",
+      "evidence": "docs/work/_runs/rlc-20261019/logs/reverify-frontend-build.log; docs/work/_runs/rlc-20261019/logs/reverify-playwright.log",
       "exit_code": 0,
       "actor": "orchestrator",
       "command": "bash -lc \"cd web/frontend && npm run build && npm run test:contrast\"",
-      "at": "2026-10-19T10:38:00+09:00",
-      "head": "ece3b08a603817e17165ddebca3127de6cf6b06e",
-      "source_hash": "46e0089f7510dd52a89be36d549880f8ba7c6b5c6356ce9124a03514aece6ae3",
+      "at": "2026-10-20T13:25:42+09:00",
+      "head": "e6e125e53356fd4e0a84fd54a2fe8dca27113a76",
+      "source_hash": "09febe6262c945aebed74be8bf07d797cab3113c8198eedc00e9f97e8525c085",
       "spec_hash": "eb40d775ba67bba725d6f07d57e6a65c32c6d09507f62a3167e238863c4c36a1"
     },
     "api_guard": {
       "result": "not_applicable",
       "method": "command",
-      "note": "RL-02는 새 외부 호출 없음, 노트는 모델 입력에 연결되지 않음(재기록 2026-10-19)",
+      "note": "새 외부 호출 없음(재기록 2026-10-20)",
       "evidence": "docs/work/groups/RL/features/RL-02-opportunity-timeline/plan.md",
       "exit_code": null,
       "actor": "orchestrator",
       "command": "",
-      "at": "2026-10-19T10:38:03+09:00",
-      "head": "ece3b08a603817e17165ddebca3127de6cf6b06e",
-      "source_hash": "46e0089f7510dd52a89be36d549880f8ba7c6b5c6356ce9124a03514aece6ae3",
+      "at": "2026-10-20T13:25:45+09:00",
+      "head": "e6e125e53356fd4e0a84fd54a2fe8dca27113a76",
+      "source_hash": "09febe6262c945aebed74be8bf07d797cab3113c8198eedc00e9f97e8525c085",
       "spec_hash": "eb40d775ba67bba725d6f07d57e6a65c32c6d09507f62a3167e238863c4c36a1"
     },
     "real_data_run": {
       "result": "not_applicable",
       "method": "manual",
-      "note": "RL-03·04·05 전용, 이 기능 모델 호출 없음(재기록 2026-10-19)",
+      "note": "모델 호출 없음(재기록 2026-10-20)",
       "evidence": "docs/work/feature.json",
       "exit_code": null,
       "actor": "orchestrator",
       "command": "",
-      "at": "2026-10-19T10:38:04+09:00",
-      "head": "ece3b08a603817e17165ddebca3127de6cf6b06e",
-      "source_hash": "46e0089f7510dd52a89be36d549880f8ba7c6b5c6356ce9124a03514aece6ae3",
+      "at": "2026-10-20T13:25:46+09:00",
+      "head": "e6e125e53356fd4e0a84fd54a2fe8dca27113a76",
+      "source_hash": "09febe6262c945aebed74be8bf07d797cab3113c8198eedc00e9f97e8525c085",
       "spec_hash": "eb40d775ba67bba725d6f07d57e6a65c32c6d09507f62a3167e238863c4c36a1"
     }
   },
@@ -359,7 +359,7 @@
       "text": "단계 → done: 배치 검증 및 통합 완료"
     }
   ],
-  "updated_at": "2026-10-19T10:38:04+09:00",
+  "updated_at": "2026-10-20T13:25:46+09:00",
   "proof_history": [
     {
       "key": "docs",
@@ -587,6 +587,102 @@
         "head": "dc133b64600448c44f40ced6c877bc1a9c0ae55f",
         "source_hash": "2156d57f36775ebdfa6bacc2a525935c2d11678427ecac23724db8cee5c131a0",
         "spec_hash": "e2c5bf178b8bf13ba6d908f6d32be332d19093dd481cff34348600bde038a949"
+      }
+    },
+    {
+      "key": "docs",
+      "previous": {
+        "result": "pass",
+        "method": "review",
+        "note": "2026-10-19 재검증: C-2 Mac 병합(b8005ef)·운영 반영 기록(ece3b08) 뒤 main HEAD에서 RL-00~04 plan 증명 합집합 1회 실행. doctor 0, 병합 충돌은 ADR 색인·findings 2건(기능 문서 무변경)",
+        "evidence": "docs/work/_runs/reverify-20261019/logs/doctor.log",
+        "exit_code": null,
+        "actor": "orchestrator",
+        "command": "python3 scripts/feature_status.py doctor _",
+        "at": "2026-10-19T10:37:59+09:00",
+        "head": "ece3b08a603817e17165ddebca3127de6cf6b06e",
+        "source_hash": "46e0089f7510dd52a89be36d549880f8ba7c6b5c6356ce9124a03514aece6ae3",
+        "spec_hash": "eb40d775ba67bba725d6f07d57e6a65c32c6d09507f62a3167e238863c4c36a1"
+      }
+    },
+    {
+      "key": "tests",
+      "previous": {
+        "result": "pass",
+        "method": "command",
+        "note": "2026-10-19 재검증: C-2 Mac 병합(b8005ef)·운영 반영 기록(ece3b08) 뒤 main HEAD에서 RL-00~04 plan 증명 합집합 1회 실행. 합집합 748 passed(126 skip=PG 변형·컨테이너 전용). plan의 test_proposal_payload_guard.py는 실제 파일 test_proposal_input·test_proposal_draft로 실행",
+        "evidence": "docs/work/_runs/reverify-20261019/logs/tests.log",
+        "exit_code": 0,
+        "actor": "orchestrator",
+        "command": "bash -lc \"cd web/backend && python -m pytest -q -x -p no:cacheprovider\"",
+        "at": "2026-10-19T10:38:00+09:00",
+        "head": "ece3b08a603817e17165ddebca3127de6cf6b06e",
+        "source_hash": "46e0089f7510dd52a89be36d549880f8ba7c6b5c6356ce9124a03514aece6ae3",
+        "spec_hash": "eb40d775ba67bba725d6f07d57e6a65c32c6d09507f62a3167e238863c4c36a1"
+      }
+    },
+    {
+      "key": "postgres",
+      "previous": {
+        "result": "pass",
+        "method": "command",
+        "note": "2026-10-19 재검증: C-2 Mac 병합(b8005ef)·운영 반영 기록(ece3b08) 뒤 main HEAD에서 RL-00~04 plan 증명 합집합 1회 실행. postgres:17.11 301 passed(migrations·privileges·drift·경계) + 제안서 API·렌더 27 passed(폰트 디렉터리 지정, skip 0)",
+        "evidence": "docs/work/_runs/reverify-20261019/logs/postgres.log; docs/work/_runs/reverify-20261019/logs/postgres-proposal-api.log",
+        "exit_code": 0,
+        "actor": "orchestrator",
+        "command": "",
+        "at": "2026-10-19T10:38:00+09:00",
+        "head": "ece3b08a603817e17165ddebca3127de6cf6b06e",
+        "source_hash": "46e0089f7510dd52a89be36d549880f8ba7c6b5c6356ce9124a03514aece6ae3",
+        "spec_hash": "eb40d775ba67bba725d6f07d57e6a65c32c6d09507f62a3167e238863c4c36a1"
+      }
+    },
+    {
+      "key": "frontend",
+      "previous": {
+        "result": "pass",
+        "method": "command",
+        "note": "2026-10-19 재검증: C-2 Mac 병합(b8005ef)·운영 반영 기록(ece3b08) 뒤 main HEAD에서 RL-00~04 plan 증명 합집합 1회 실행. build 0·contrast 0, Playwright app 7 spec 194 passed(preview 127.0.0.1)",
+        "evidence": "docs/work/_runs/reverify-20261019/logs/frontend-build.log; docs/work/_runs/reverify-20261019/logs/frontend-playwright.log",
+        "exit_code": 0,
+        "actor": "orchestrator",
+        "command": "bash -lc \"cd web/frontend && npm run build && npm run test:contrast\"",
+        "at": "2026-10-19T10:38:00+09:00",
+        "head": "ece3b08a603817e17165ddebca3127de6cf6b06e",
+        "source_hash": "46e0089f7510dd52a89be36d549880f8ba7c6b5c6356ce9124a03514aece6ae3",
+        "spec_hash": "eb40d775ba67bba725d6f07d57e6a65c32c6d09507f62a3167e238863c4c36a1"
+      }
+    },
+    {
+      "key": "api_guard",
+      "previous": {
+        "result": "not_applicable",
+        "method": "command",
+        "note": "RL-02는 새 외부 호출 없음, 노트는 모델 입력에 연결되지 않음(재기록 2026-10-19)",
+        "evidence": "docs/work/groups/RL/features/RL-02-opportunity-timeline/plan.md",
+        "exit_code": null,
+        "actor": "orchestrator",
+        "command": "",
+        "at": "2026-10-19T10:38:03+09:00",
+        "head": "ece3b08a603817e17165ddebca3127de6cf6b06e",
+        "source_hash": "46e0089f7510dd52a89be36d549880f8ba7c6b5c6356ce9124a03514aece6ae3",
+        "spec_hash": "eb40d775ba67bba725d6f07d57e6a65c32c6d09507f62a3167e238863c4c36a1"
+      }
+    },
+    {
+      "key": "real_data_run",
+      "previous": {
+        "result": "not_applicable",
+        "method": "manual",
+        "note": "RL-03·04·05 전용, 이 기능 모델 호출 없음(재기록 2026-10-19)",
+        "evidence": "docs/work/feature.json",
+        "exit_code": null,
+        "actor": "orchestrator",
+        "command": "",
+        "at": "2026-10-19T10:38:04+09:00",
+        "head": "ece3b08a603817e17165ddebca3127de6cf6b06e",
+        "source_hash": "46e0089f7510dd52a89be36d549880f8ba7c6b5c6356ce9124a03514aece6ae3",
+        "spec_hash": "eb40d775ba67bba725d6f07d57e6a65c32c6d09507f62a3167e238863c4c36a1"
       }
     }
   ],
