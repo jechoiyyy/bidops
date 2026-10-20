@@ -26,14 +26,47 @@
     "merge_policy": "manual"
   },
   "specs": {
-    "RL-05-gold-acceptance": "28ddc310f920c2107c799cdaaaf66b38060a57278d5e2fe26d2cda4bab2806aa"
+    "RL-05-gold-acceptance": "5f2d0be3b8bcc346606ab18d23c47639ceece721430fa5374459d8491835c602"
   },
-  "ready": {},
+  "ready": {
+    "RL-05-gold-acceptance": {
+      "inputs": {
+        "source_hash": "710135f340d3cb9861a48b7a85160764f55c4f6e1da3f00c3eb9df2ab9d87533",
+        "spec_hash": "5f2d0be3b8bcc346606ab18d23c47639ceece721430fa5374459d8491835c602"
+      },
+      "at": "2026-10-20T12:59:56+09:00"
+    }
+  },
   "decisions": [
     {
       "feature": "RL-05-gold-acceptance",
       "note": "C7: 사용자 승인(2026-10-19) spec 정정 2건 — quality_status 출처를 제품 규칙 quality_status_for_reviews로, gold_after_model/holdout_violated를 첫 attempt 시작 원인(수동/자동)으로 구분",
       "at": "2026-10-19T12:47:53+09:00"
+    },
+    {
+      "feature": "RL-05-gold-acceptance",
+      "note": "C15: 사용자 선택 '영역 분할 수정 후 분석' — STEP-006 추가, RL identity 목록 v10",
+      "at": "2026-10-20T07:31:26+09:00"
+    },
+    {
+      "feature": "RL-05-gold-acceptance",
+      "note": "C16: 사용자 승인 — STEP-007 역할 계약 v2·역할/추출 항목 격리, 10건 v10 재분석",
+      "at": "2026-10-20T07:57:54+09:00"
+    },
+    {
+      "feature": "RL-05-gold-acceptance",
+      "note": "C19: 사용자 승인 — 역할 caution·종합 caution/next_action 격리, 내일 재시도",
+      "at": "2026-10-20T10:16:25+09:00"
+    },
+    {
+      "feature": "RL-05-gold-acceptance",
+      "note": "C20: 사용자 승인 B — 정책 v11(unit·근거 번호 참조, 텍스트 조건 값 요약 허용), 10건 v11 재분석",
+      "at": "2026-10-20T10:19:51+09:00"
+    },
+    {
+      "feature": "RL-05-gold-acceptance",
+      "note": "C15~C24 반영 최종 명세(STEP-006~009 추가, spec identity v1~v11) 재확인",
+      "at": "2026-10-20T12:59:56+09:00"
     }
   ]
 }
