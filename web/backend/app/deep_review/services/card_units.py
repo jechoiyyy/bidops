@@ -42,6 +42,17 @@ is v2 plus two exclusions found on the real Polytech RFP (T12 4차):
 
 v1 and v2 are unchanged.
 
+Selector ``card-sections-v4`` (결정 C15, policy ``analysis-policy-luna-rl-v10``)
+is v3 plus one rule found on real pre-specs (RL-05: 3 of 10 refused with
+``input_budget_exceeded`` because one segment unit had 12,061 / 12,963 /
+29,949 characters).  A segment unit above the policy ``batch_max_chars`` is
+split at block boundaries into consecutive parts in its block order, packed
+greedily up to the limit; nothing is cut, dropped or reordered.  A single
+block above the limit is still ``input_budget_exceeded``.  Every part keeps
+the segment's kind, ordinal, section kinds, page range and mapping status and
+has the id ``<segment unit id>#p<n>`` (n from 1); an unsplit unit keeps the
+v3 id.  v1-v3 are unchanged.
+
 The selection functions are pure.  ``card_analysis_sources`` reads the pinned
 confirmation-time structures and the persisted HP-01 manifest/card projection
 of a ready bundle; it never calls a model or the network.
@@ -68,6 +79,7 @@ from ..schemas.card_analysis import (
     CARD_SELECTOR_VERSION,
     CARD_SELECTOR_VERSION_V2,
     CARD_SELECTOR_VERSION_V3,
+    CARD_SELECTOR_VERSION_V4,
     CardAnalysisBatch,
     CardAnalysisInput,
     CardAnalysisSource,
@@ -173,6 +185,25 @@ _SELECTOR_POLICY_V3: Final[dict[str, Any]] = {
     "body_text": "non-blank-block-other-than-title-only-numbered-heading",
 }
 
+#: 결정 C15 selector: v3 + an oversized segment unit split at block boundaries.
+SELECTOR_VERSION_V4: Final[str] = CARD_SELECTOR_VERSION_V4
+#: Part id suffix of a split v4 segment unit (``<segment unit id>#p<n>``, n from 1).
+SEGMENT_PART_SUFFIX: Final[str] = "#p"
+_SELECTOR_POLICY_V4: Final[dict[str, Any]] = {
+    **_SELECTOR_POLICY_V3,
+    "version": SELECTOR_VERSION_V4,
+    "segment_split": {
+        "trigger": "segment-unit-characters-above-policy-batch-max-chars",
+        "boundary": "block",
+        "order": "unit-block-order",
+        "packing": "greedy-consecutive-blocks-up-to-batch-max-chars",
+        "single_block_above_limit": "input_budget_exceeded",
+        "truncation": "never",
+        "part_unit_id": "segment-unit-id#p<n>-from-1",
+        "part_attributes": "segment-kind-ordinal-section-kinds-page-range-mapping-status",
+    },
+}
+
 #: Stable selection failure code (RL-03 ``card_*`` codes).
 SELECTION_INCOMPLETE: Final[str] = "card_source_selection_incomplete"
 INPUT_BUDGET_EXCEEDED: Final[str] = "input_budget_exceeded"
@@ -192,14 +223,20 @@ def _canonical_json_bytes(value: Any) -> bytes:
 SELECTOR_SHA256: Final[str] = hashlib.sha256(_canonical_json_bytes(_SELECTOR_POLICY)).hexdigest()
 SELECTOR_SHA256_V2: Final[str] = hashlib.sha256(_canonical_json_bytes(_SELECTOR_POLICY_V2)).hexdigest()
 SELECTOR_SHA256_V3: Final[str] = hashlib.sha256(_canonical_json_bytes(_SELECTOR_POLICY_V3)).hexdigest()
+SELECTOR_SHA256_V4: Final[str] = hashlib.sha256(_canonical_json_bytes(_SELECTOR_POLICY_V4)).hexdigest()
 #: Selector version → canonical selector policy SHA frozen in every input.
 SELECTOR_SHA256_BY_VERSION: Final[dict[str, str]] = {
     SELECTOR_VERSION: SELECTOR_SHA256,
     SELECTOR_VERSION_V2: SELECTOR_SHA256_V2,
     SELECTOR_VERSION_V3: SELECTOR_SHA256_V3,
+    SELECTOR_VERSION_V4: SELECTOR_SHA256_V4,
 }
-#: Selectors that accept symbol/PUA bullet headings (v2 rule, kept by v3).
-_BULLET_HEADING_SELECTORS: Final[frozenset[str]] = frozenset({SELECTOR_VERSION_V2, SELECTOR_VERSION_V3})
+#: Selectors that accept symbol/PUA bullet headings (v2 rule, kept by v3 and v4).
+_BULLET_HEADING_SELECTORS: Final[frozenset[str]] = frozenset({
+    SELECTOR_VERSION_V2, SELECTOR_VERSION_V3, SELECTOR_VERSION_V4,
+})
+#: Selectors with the v3 TOC-entry and title-only-unit exclusions (결정 B30, kept by v4).
+_V3_EXCLUSION_SELECTORS: Final[frozenset[str]] = frozenset({SELECTOR_VERSION_V3, SELECTOR_VERSION_V4})
 
 _CHAPTER_HEADING = re.compile(r"^\s*제\s*\d{1,2}\s*[장절편]\s*\S")
 _DECIMAL_HEADING = re.compile(r"^\s*(?P<number>\d{1,2}(?:\.\d{1,2}){0,3})\.?\s+\S")
@@ -500,6 +537,41 @@ def unit_characters(unit: CardAnalysisUnit) -> int:
     return sum(len(block.text) for block in unit.blocks)
 
 
+def _split_segment_unit(unit: CardAnalysisUnit, batch_max_chars: int) -> list[CardAnalysisUnit]:
+    """결정 C15 (v4): consecutive block parts of a segment unit above ``batch_max_chars``.
+
+    Blocks keep their unit order and are packed greedily; a part is closed
+    when the next block would exceed the limit.  A unit within the limit is
+    returned unchanged (v3 id).  One block above the limit is
+    ``input_budget_exceeded``; it is never cut.
+    """
+
+    if unit_characters(unit) <= batch_max_chars:
+        return [unit]
+    groups: list[list[CardUnitBlock]] = []
+    current: list[CardUnitBlock] = []
+    characters = 0
+    for block in unit.blocks:
+        size = len(block.text)
+        if size > batch_max_chars:
+            raise CardAnalysisSelectionError(INPUT_BUDGET_EXCEEDED)
+        if current and characters + size > batch_max_chars:
+            groups.append(current)
+            current, characters = [], 0
+        current.append(block)
+        characters += size
+    groups.append(current)
+    base = unit.model_dump(mode="python")
+    return [
+        CardAnalysisUnit.model_validate({
+            **base,
+            "unit_id": f"{unit.unit_id}{SEGMENT_PART_SUFFIX}{number}",
+            "blocks": [block.model_dump(mode="python") for block in blocks],
+        })
+        for number, blocks in enumerate(groups, start=1)
+    ]
+
+
 def pack_analysis_batches(
     units: Sequence[CardAnalysisUnit | Mapping[str, Any]],
     *,
@@ -586,6 +658,11 @@ def select_analysis_units(
     except (TypeError, ValueError):
         raise CardAnalysisSelectionError(SELECTION_INCOMPLETE) from None
     selected_sources, bindings = _source_bindings(parsed_sources)
+    split_limit: int | None = None
+    if selector_version == SELECTOR_VERSION_V4:
+        # 결정 C15: the split limit is the pinned policy's packing limit.
+        parsed_policy = policy if isinstance(policy, CardBatchPolicy) else CardBatchPolicy.model_validate(policy or {})
+        split_limit = parsed_policy.batch_max_chars
     all_units: list[CardAnalysisUnit] = []
     candidate_blocks: list[CardSelectorCandidateBlock] = []
     selected_blocks: list[CardSelectorSelectedBlock] = []
@@ -608,7 +685,7 @@ def select_analysis_units(
         card_owned = _card_owned_keys(source)
         card_tables = _card_table_keys(source)
         excluded = set(_toc_block_keys(source))
-        if selector_version == SELECTOR_VERSION_V3:
+        if selector_version in _V3_EXCLUSION_SELECTORS:
             excluded.update(_toc_entry_keys_v3(source))
         for keys in card_owned.values():
             excluded.update(keys)
@@ -651,7 +728,7 @@ def select_analysis_units(
             )
             if not kinds:
                 continue
-            if selector_version == SELECTOR_VERSION_V3 and not _has_body_text([by_key[key] for key in keys]):
+            if selector_version in _V3_EXCLUSION_SELECTORS and not _has_body_text([by_key[key] for key in keys]):
                 continue  # 결정 B30: a title-only unit is not source text
             present_sections.update(kinds)
             selected_blocks.extend(
@@ -676,7 +753,10 @@ def select_analysis_units(
                 page_range=segment.page_range,
                 mapping_status=segment.mapping_status,
             )
-            ordered.append((min(source_order[key] for key in keys), 1, unit))
+            parts = [unit] if split_limit is None else _split_segment_unit(unit, split_limit)
+            ordered.extend(
+                (min(source_order[block.block_key] for block in part.blocks), 1, part) for part in parts
+            )
         ordered.sort(key=lambda row: (row[0], row[1], row[2].ordinal, row[2].unit_id))
         all_units.extend(unit for _ordinal, _kind, unit in ordered)
 
@@ -872,10 +952,13 @@ __all__ = [
     "SELECTOR_SHA256",
     "SELECTOR_SHA256_BY_VERSION",
     "SELECTOR_SHA256_V2",
+    "SEGMENT_PART_SUFFIX",
     "SELECTOR_SHA256_V3",
+    "SELECTOR_SHA256_V4",
     "SELECTOR_VERSION",
     "SELECTOR_VERSION_V2",
     "SELECTOR_VERSION_V3",
+    "SELECTOR_VERSION_V4",
     "TOC_ENTRY_MAX_CHARACTERS",
     "CardAnalysisSelectionError",
     "analysis_call_budget",

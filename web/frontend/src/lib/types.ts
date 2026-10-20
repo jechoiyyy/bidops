@@ -3057,6 +3057,31 @@ export interface VerdictRejectedUnit {
   rule_codes: string[];
 }
 
+/**
+ * 결정 C16: 역할 판단 중 근거 번호 검증에 실패해 격리된 항목("검증 실패 — 사람 확인 필요").
+ * `finding`은 표에 "확인 필요"(unknown)로 남고, `caution`은 버려진다. 모델 내용은 싣지 않는다.
+ */
+export interface VerdictRoleIsolation {
+  role: "eligibility_economics" | "technical_fit" | "operations_risk";
+  unit_id: string;
+  /** 카드 요구사항 번호(SFR-1 등). segment unit은 `null`. */
+  normalized_id: string | null;
+  kind: "finding" | "caution";
+  rule_codes: string[];
+}
+
+/**
+ * 결정 C19: 종합의 주의·다음 행동 중 요구사항이 역할 결과 밖이거나 근거가 그 요구사항 근거와 다른 항목.
+ * 판정에서 빠졌고 고쳐 쓰지 않았다. 모델 내용은 싣지 않는다.
+ */
+export interface VerdictSynthesisIsolation {
+  unit_id: string;
+  /** 카드 요구사항 번호. segment unit이거나 카드에 없는 id면 `null`. */
+  normalized_id: string | null;
+  kind: "caution" | "next_action";
+  rule_codes: string[];
+}
+
 export interface VerdictChecklistRow {
   key: VerdictChecklistKey;
   status: VerdictFit;
@@ -3143,6 +3168,10 @@ export interface PractitionerVerdictView {
   opportunity_id: number | null;
   /** 결정 B51: 추출 검증에서 격리된 unit. 옛 응답에는 없을 수 있다. */
   rejected_units?: VerdictRejectedUnit[];
+  /** 결정 C16: 역할 판단에서 격리된 항목. 옛 응답에는 없을 수 있다. */
+  role_isolations?: VerdictRoleIsolation[];
+  /** 결정 C19: 종합에서 빠진 항목. 옛 응답에는 없을 수 있다. */
+  synthesis_isolations?: VerdictSynthesisIsolation[];
 }
 
 export interface VerdictRequestReceipt {

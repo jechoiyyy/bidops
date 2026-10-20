@@ -921,3 +921,220 @@ def test_b51_v7_synthesis_payload_names_exactly_the_rejected_units(knowledge) ->
     without = {key: value for key, value in payload.items() if key != "rejected_units"}
     with pytest.raises(CompanyAnalysisError, match="company_input_invalid"):
         check_card_transfer_payload("synthesis", without, frozen, fact_keys=fact_keys, rejected_units=[unit_ids[1]])
+
+
+def test_c16_v10_role_payload_adds_exactly_the_evidence_catalog(knowledge) -> None:
+    """결정 C16: the v10 role payload = the v1 role payload + ``evidence_catalog`` (ids, block key, quote)."""
+
+    from app.deep_review.services.company_analysis_input import (
+        CARD_ROLE_V2_EXTRA_KEYS,
+        card_role_evidence_catalog,
+    )
+
+    frozen = _frozen(knowledge, selector_version="card-sections-v3")
+    extract, compare = _role_parts()
+    v1 = card_role_transfer(frozen, role="eligibility_economics", extract=extract, compare=compare,
+                            operational_values=OPERATIONAL)
+    v2 = card_role_transfer(frozen, role="eligibility_economics", extract=extract, compare=compare,
+                            operational_values=OPERATIONAL, evidence_ids=True)
+    assert CARD_ROLE_V2_EXTRA_KEYS == {"evidence_catalog"}
+    assert set(v1) == CARD_TRANSFER_STAGE_KEYS["role"]
+    assert set(v2) == CARD_TRANSFER_STAGE_KEYS["role"] | {"evidence_catalog"}
+    assert {key: value for key, value in v2.items() if key != "evidence_catalog"} == v1  # nothing else changes
+    assert v2["evidence_catalog"] == [{"unit_id": "u-1", "evidence": [
+        {"evidence_id": "E1", "block_key": "eligibility-body", "quote": "참가 자격"},
+        {"evidence_id": "E2", "block_key": "eligibility-body", "quote": "신용평가등급 BB 이상"},
+    ]}]
+    assert "a" * 64 not in _text(v2["evidence_catalog"])  # the model cites ids, never hashes
+    assert v2["evidence_catalog"] == card_role_evidence_catalog(v2["extract"])
+    check_card_transfer_payload("role", v2, frozen, evidence_ids=True)
+    entry = v2["evidence_catalog"][0]["evidence"][0]
+    for broken in (
+        {**v2, "evidence_catalog": [{**v2["evidence_catalog"][0], "evidence": [
+            {**entry, "quote": "참가"}, *v2["evidence_catalog"][0]["evidence"][1:]]}]},       # changed quote
+        {**v2, "evidence_catalog": [{**v2["evidence_catalog"][0], "evidence": list(reversed(
+            v2["evidence_catalog"][0]["evidence"]))}]},                                        # swapped ids
+        {**v2, "evidence_catalog": [{**v2["evidence_catalog"][0], "evidence": [
+            {**entry, "source_sha256": "a" * 64}, *v2["evidence_catalog"][0]["evidence"][1:]]}]},  # extra key
+        {**v2, "evidence_catalog": [{**v2["evidence_catalog"][0], "unit_id": "u-2"}]},           # another unit
+        {**v2, "evidence_catalog": []},
+        {**v2, "evidence_catalog": [{**v2["evidence_catalog"][0], "evidence": [
+            {**entry, "evidence_id": "E7"}, *v2["evidence_catalog"][0]["evidence"][1:]]}]},     # renumbered
+    ):
+        with pytest.raises(CompanyAnalysisError, match="company_input_invalid"):
+            check_card_transfer_payload("role", broken, frozen, evidence_ids=True)
+    # the two payload kinds never pass for each other; only a role payload may carry ids
+    with pytest.raises(CompanyAnalysisError, match="company_input_invalid"):
+        check_card_transfer_payload("role", v2, frozen)
+    with pytest.raises(CompanyAnalysisError, match="company_input_invalid"):
+        check_card_transfer_payload("role", v1, frozen, evidence_ids=True)
+    payloads = _stage_payloads(frozen, knowledge)
+    with pytest.raises(CompanyAnalysisError, match="company_input_invalid"):
+        check_card_transfer_payload("synthesis", payloads["synthesis"], frozen,
+                                    fact_keys=card_referenced_fact_keys(compare), evidence_ids=True)
+    # the forbidden-value guard still applies to the v10 payload
+    leaked = deepcopy(v2)
+    leaked["compare"]["items"][0]["policy_sha256"] = POLICY_SHA
+    with pytest.raises(CompanyAnalysisError, match="company_input_invalid"):
+        check_card_transfer_payload("role", leaked, frozen, evidence_ids=True)
+
+
+# --- 결정 C20 (RL-05 STEP-009): policy v11 payloads name units by ``U`` ref, never by unit id ---
+
+
+def _v3_role_parts(frozen: dict) -> tuple[dict, dict]:
+    """Two role units with the frozen card's real unit ids (the guard must find no id in the payload)."""
+
+    extract, compare = _role_parts()
+    u1, u2 = [row["unit_id"] for row in frozen["card_analysis"]["units"][:2]]
+    second = {**deepcopy(extract["items"][0]), "unit_id": u2, "constraints": [],
+              "evidence": [{"source_sha256": "a" * 64, "block_key": "eligibility-body", "quote": "제출 서류"}]}
+    return ({"items": [{**extract["items"][0], "unit_id": u1}, second]},
+            {"items": [{**compare["items"][0], "unit_id": u1}, {**compare["items"][1], "unit_id": u2}]})
+
+
+def test_c20_v11_role_payload_names_units_by_ref_only(knowledge) -> None:
+    from app.deep_review.services.company_analysis_input import CARD_UNIT_REF_CATALOG_KEYS
+
+    frozen = _frozen(knowledge, selector_version="card-sections-v3")
+    extract, compare = _v3_role_parts(frozen)
+    unit_ids = [row["unit_id"] for row in extract["items"]]
+    v2 = card_role_transfer(frozen, role="eligibility_economics", extract=extract, compare=compare,
+                            operational_values=OPERATIONAL, evidence_ids=True)
+    v3 = card_role_transfer(frozen, role="eligibility_economics", extract=extract, compare=compare,
+                            operational_values=OPERATIONAL, evidence_ids=True, unit_refs=True)
+    assert set(v3) == CARD_TRANSFER_STAGE_KEYS["role"] | {"evidence_catalog"}
+    assert all(unit_id in _text(v2) for unit_id in unit_ids)
+    assert not any(unit_id in _text(v3) for unit_id in unit_ids)  # no unit id anywhere in the v11 payload
+    for section in ("extract", "compare"):
+        assert [row["unit_ref"] for row in v3[section]["items"]] == ["U1", "U2"]
+        assert all("unit_id" not in row for row in v3[section]["items"])
+        # the same items as v10, only the unit key differs
+        assert [{k: v for k, v in row.items() if k != "unit_ref"} for row in v3[section]["items"]] == [
+            {k: v for k, v in row.items() if k != "unit_id"} for row in v2[section]["items"]]
+    assert all(set(row) == CARD_UNIT_REF_CATALOG_KEYS for row in v3["evidence_catalog"])
+    assert [row["unit_ref"] for row in v3["evidence_catalog"]] == ["U1", "U2"]
+    assert [row["evidence"] for row in v3["evidence_catalog"]] == [row["evidence"] for row in v2["evidence_catalog"]]
+    assert [entry["evidence_id"] for row in v3["evidence_catalog"] for entry in row["evidence"]] == ["E1", "E2", "E3"]
+    assert {key: v3[key] for key in ("role", "profile_facts", "profile_evidence")} == {
+        key: v2[key] for key in ("role", "profile_facts", "profile_evidence")}
+    check_card_transfer_payload("role", v3, frozen, evidence_ids=True, unit_refs=True)
+    first_item = v3["extract"]["items"][0]
+    for broken in (
+        {**v3, "extract": {**v3["extract"], "items": [{**first_item, "unit_id": unit_ids[0]},
+                                                       *v3["extract"]["items"][1:]]}},          # an id left in
+        {**v3, "extract": {**v3["extract"], "items": list(reversed(v3["extract"]["items"]))}},  # U2, U1
+        {**v3, "compare": {**v3["compare"], "items": v3["compare"]["items"][:1]}},              # refs differ
+        {**v3, "evidence_catalog": v2["evidence_catalog"]},                                      # keyed by unit id
+        {**v3, "evidence_catalog": [{**v3["evidence_catalog"][0], "unit_ref": "U2"}, v3["evidence_catalog"][1]]},
+        {**v3, "extract": {**v3["extract"], "items": [
+            {**first_item, "normalized_requirement": unit_ids[1]}, *v3["extract"]["items"][1:]]}},  # id in text
+        {**v3, "extract": {**v3["extract"], "rejected_units": [{"unit_id": unit_ids[0], "rule_codes": ["x_y_z"]}]}},
+    ):
+        with pytest.raises(CompanyAnalysisError, match="company_input_invalid"):
+            check_card_transfer_payload("role", broken, frozen, evidence_ids=True, unit_refs=True)
+    # the payload kinds never pass for each other; refs need the evidence-id payload
+    with pytest.raises(CompanyAnalysisError, match="company_input_invalid"):
+        check_card_transfer_payload("role", v3, frozen, evidence_ids=True)
+    with pytest.raises(CompanyAnalysisError, match="company_input_invalid"):
+        check_card_transfer_payload("role", v2, frozen, evidence_ids=True, unit_refs=True)
+    with pytest.raises(CompanyAnalysisError, match="company_input_invalid"):
+        check_card_transfer_payload("role", v3, frozen, unit_refs=True)
+    with pytest.raises(CompanyAnalysisError, match="company_input_invalid"):
+        card_role_transfer(frozen, role="eligibility_economics", extract=extract, compare=compare, unit_refs=True)
+    leaked = deepcopy(v3)
+    leaked["compare"]["items"][0]["policy_sha256"] = POLICY_SHA
+    with pytest.raises(CompanyAnalysisError, match="company_input_invalid"):
+        check_card_transfer_payload("role", leaked, frozen, evidence_ids=True, unit_refs=True)
+
+
+def _v11_role_rows(unit_ids: list[str]) -> list[dict]:
+    """Stored v11 role rows (v1 shape + ``isolated_items``) over two card units."""
+
+    def ev(quote: str) -> dict:
+        return {"source_sha256": "a" * 64, "block_key": "eligibility-body", "quote": quote}
+
+    def row(role: str, findings: list[dict], cautions: list[dict], isolated: list[dict]) -> dict:
+        return {"schema_version": "bidops.verdict-role.v1", "role": role, "unit_findings": findings,
+                "cautions": cautions, "evidence_refs": [], "isolated_items": isolated}
+
+    u1, u2 = unit_ids[:2]
+    return [
+        row("eligibility_economics",
+            [{"unit_id": u1, "assessment": "unknown", "reason": "확인 필요", "evidence_refs": [ev("참가 자격")]}],
+            [{"unit_id": u1, "text": "자격 확인", "evidence_refs": [ev("참가 자격")]}],
+            [{"kind": "caution", "unit_id": "U7", "rule_codes": ["role_caution_foreign_unit"]}]),
+        row("technical_fit",
+            [{"unit_id": u2, "assessment": "unknown", "reason": "확인 필요",
+              "evidence_refs": [ev("제출 서류"), ev("참가 자격")]}], [], []),
+        row("operations_risk",
+            [{"unit_id": u1, "assessment": "unknown", "reason": "확인 필요", "evidence_refs": [ev("참가 자격")]}], [],
+            [{"kind": "finding", "unit_id": u2, "rule_codes": ["role_evidence_unknown"]}]),
+    ]
+
+
+def test_c20_v11_synthesis_payload_names_units_by_ref_only(knowledge) -> None:
+    from app.deep_review.services.company_analysis_input import CARD_SYNTHESIS_V3_EXTRA_KEYS
+
+    frozen = _frozen(knowledge, selector_version="card-sections-v3")
+    unit_ids = [row["unit_id"] for row in frozen["card_analysis"]["units"]]
+    _extract, compare = _role_parts()
+    fact_keys = card_referenced_fact_keys(compare)
+    roles = _v11_role_rows(unit_ids)
+    v2 = card_synthesis_transfer(frozen, roles=roles, fact_keys=fact_keys, operational_values=OPERATIONAL,
+                                 rejected_units=[unit_ids[2]])
+    v3 = card_synthesis_transfer(frozen, roles=roles, fact_keys=fact_keys, operational_values=OPERATIONAL,
+                                 rejected_units=[unit_ids[2]], unit_refs=True)
+    assert CARD_SYNTHESIS_V3_EXTRA_KEYS == {"unit_catalog"}
+    assert set(v3) == set(v2) | {"unit_catalog"}
+    assert v3["rejected_units"] == [unit_ids[2]]  # the only unit ids sent (never cited)
+    visible = _text({key: value for key, value in v3.items() if key != "rejected_units"})
+    assert not any(unit_id in visible for unit_id in unit_ids)
+    assert v3["unit_catalog"] == [
+        {"unit_ref": "U1", "evidence": [{"evidence_id": "E1", "block_key": "eligibility-body", "quote": "참가 자격"}]},
+        {"unit_ref": "U2", "evidence": [{"evidence_id": "E2", "block_key": "eligibility-body", "quote": "제출 서류"},
+                                        {"evidence_id": "E3", "block_key": "eligibility-body", "quote": "참가 자격"}]},
+    ]
+    assert v3["roles"] == [
+        {"role": "eligibility_economics",
+         "unit_findings": [{"unit_ref": "U1", "assessment": "unknown", "reason": "확인 필요", "evidence_ids": ["E1"]}],
+         "cautions": [{"unit_ref": "U1", "text": "자격 확인", "evidence_ids": ["E1"]}],
+         # a dropped caution that named no unit of the roles has no ref (never the role-local "U7")
+         "isolated_items": [{"kind": "caution", "unit_ref": None, "rule_codes": ["role_caution_foreign_unit"]}]},
+        {"role": "technical_fit",
+         "unit_findings": [{"unit_ref": "U2", "assessment": "unknown", "reason": "확인 필요",
+                            "evidence_ids": ["E2", "E3"]}], "cautions": [], "isolated_items": []},
+        {"role": "operations_risk",
+         "unit_findings": [{"unit_ref": "U1", "assessment": "unknown", "reason": "확인 필요", "evidence_ids": ["E1"]}],
+         "cautions": [], "isolated_items": [{"kind": "finding", "unit_ref": "U2", "rule_codes": ["role_evidence_unknown"]}]},
+    ]
+    check_card_transfer_payload("synthesis", v3, frozen, fact_keys=fact_keys, rejected_units=[unit_ids[2]],
+                                unit_refs=True)
+    first_role = v3["roles"][0]
+    finding = first_role["unit_findings"][0]
+    for broken in (
+        {**v3, "roles": [{**first_role, "unit_findings": [{**finding, "unit_id": unit_ids[0]}]}, *v3["roles"][1:]]},
+        {**v3, "roles": [{**first_role, "unit_findings": [{**finding, "evidence_ids": ["E2"]}]}, *v3["roles"][1:]]},
+        {**v3, "roles": [{**first_role, "unit_findings": [{**finding, "unit_ref": "U9"}]}, *v3["roles"][1:]]},
+        {**v3, "roles": [{**first_role, "unit_findings": [{**finding, "reason": unit_ids[1]}]}, *v3["roles"][1:]]},
+        {**v3, "roles": [{**first_role, "evidence_refs": []}, *v3["roles"][1:]]},
+        {**v3, "unit_catalog": list(reversed(v3["unit_catalog"]))},
+        {**v3, "unit_catalog": [v3["unit_catalog"][0]]},
+        {**v3, "unit_catalog": [{**v3["unit_catalog"][0], "unit_id": unit_ids[0]}, v3["unit_catalog"][1]]},
+        {key: value for key, value in v3.items() if key != "unit_catalog"},
+    ):
+        with pytest.raises(CompanyAnalysisError, match="company_input_invalid"):
+            check_card_transfer_payload("synthesis", broken, frozen, fact_keys=fact_keys,
+                                        rejected_units=[unit_ids[2]], unit_refs=True)
+    # the payload kinds never pass for each other
+    with pytest.raises(CompanyAnalysisError, match="company_input_invalid"):
+        check_card_transfer_payload("synthesis", v3, frozen, fact_keys=fact_keys, rejected_units=[unit_ids[2]])
+    with pytest.raises(CompanyAnalysisError, match="company_input_invalid"):
+        check_card_transfer_payload("synthesis", v2, frozen, fact_keys=fact_keys, rejected_units=[unit_ids[2]],
+                                    unit_refs=True)
+    # only the v11 stored role shape is expressible by refs (no global evidence list)
+    legacy = deepcopy(roles)
+    legacy[0]["evidence_refs"] = [legacy[0]["unit_findings"][0]["evidence_refs"][0]]
+    with pytest.raises(CompanyAnalysisError, match="company_input_invalid"):
+        card_synthesis_transfer(frozen, roles=legacy, fact_keys=fact_keys, rejected_units=[unit_ids[2]],
+                                unit_refs=True)

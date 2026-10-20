@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "bidops.verdict-role.v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "role", "unit_findings", "cautions"],
+  "properties": {
+    "schema_version": {"const": "bidops.verdict-role.v2"},
+    "role": {"$ref": "#/$defs/role"},
+    "unit_findings": {"type": "array", "items": {"$ref": "#/$defs/finding"}},
+    "cautions": {"type": "array", "items": {"$ref": "#/$defs/caution"}}
+  },
+  "$defs": {
+    "nonempty": {"type": "string", "minLength": 1},
+    "evidence_id": {"type": "string", "pattern": "^E[1-9][0-9]*$"},
+    "role": {"type": "string", "enum": ["eligibility_economics", "technical_fit", "operations_risk"]},
+    "fit": {"type": "string", "enum": ["met", "gap", "unknown"]},
+    "finding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["unit_id", "assessment", "reason", "evidence_ids"],
+      "properties": {
+        "unit_id": {"$ref": "#/$defs/nonempty"},
+        "assessment": {"$ref": "#/$defs/fit"},
+        "reason": {"$ref": "#/$defs/nonempty"},
+        "evidence_ids": {"type": "array", "items": {"$ref": "#/$defs/evidence_id"}}
+      }
+    },
+    "caution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["unit_id", "text", "evidence_ids"],
+      "properties": {
+        "unit_id": {"$ref": "#/$defs/nonempty"},
+        "text": {"$ref": "#/$defs/nonempty"},
+        "evidence_ids": {"type": "array", "items": {"$ref": "#/$defs/evidence_id"}}
+      }
+    }
+  }
+}

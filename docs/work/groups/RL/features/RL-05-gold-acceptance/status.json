@@ -1,15 +1,15 @@
 {
   "schema_version": 2,
   "feature": "RL-05-gold-acceptance",
-  "phase": "review",
+  "phase": "validating",
   "steps": [
     {
       "id": "STEP-001",
       "title": "gold 도구 이관",
       "model": "standard",
       "fingerprint": "daf2d2fb9039da6a8d31a915e8241a75a73dd6064aaaf04940d65832f52c0d9c",
-      "status": "stale",
-      "updated_at": null,
+      "status": "done",
+      "updated_at": "2026-10-19T12:47:53+09:00",
       "history": [
         {
           "id": "STEP-001",
@@ -19,15 +19,16 @@
           "status": "pending",
           "updated_at": null
         }
-      ]
+      ],
+      "note": "scripts/rl-gold.py·tests/test_rl_gold.py, 리더 실행 50 passed(logs/step001-tests.log). prediction 정확 키·HP보다 엄격한 조건 ID 검사(HP-06 문구 근거)"
     },
     {
       "id": "STEP-002",
       "title": "export CLI·holdout",
       "model": "complex",
       "fingerprint": "554d4a9392d9d5a6b016480cee1d44dd51aabb07f8a4b77dabd36635eba036a6",
-      "status": "stale",
-      "updated_at": null,
+      "status": "done",
+      "updated_at": "2026-10-19T12:47:53+09:00",
       "history": [
         {
           "id": "STEP-002",
@@ -37,15 +38,16 @@
           "status": "pending",
           "updated_at": null
         }
-      ]
+      ],
+      "note": "export_evaluation.py(--cards·--actual, PG read-only), 리더 실행 PG 83 passed skip 0(logs/step002-pg.log). spec 정정 C7 반영. 여러 원문 묶음은 selection_mismatch(표본에서 제외)"
     },
     {
       "id": "STEP-003",
       "title": "표본 선정·holdout 등록",
       "model": "standard",
       "fingerprint": "3c40a3e54482c2d9800a30a4ac87efd961a096206b5d61fad7b7cf355bcc26a2",
-      "status": "stale",
-      "updated_at": null,
+      "status": "done",
+      "updated_at": "2026-10-19T12:57:28+09:00",
       "history": [
         {
           "id": "STEP-003",
@@ -55,43 +57,142 @@
           "status": "pending",
           "updated_at": null
         }
-      ]
+      ],
+      "note": "사용자 선정 10건(C6, #56→#15 교체 C8). bidops_rla에 lifecycle-20261014-notices 적재·운영 백업 원본(sha 일치) attach-local-original 10+3건·묶음 ready·holdout 13행(rejected·gold_holdout), RL review 0건. Git 밖 rl-evaluation-20261019/: selection.v1.json(4125e7f5…), cards/·cards.json(1b86634f…), blank gold.v1.json(3e6aa74e…), gold-check=human_gold_incomplete(사람 입력만 남음)"
     },
     {
       "id": "STEP-004",
       "title": "gold 작성·실제 실행·채점·인수",
       "model": "complex",
       "fingerprint": "fbefd66882511b3ef7aaee7f39e8219a20aceda46154eb4226576de6e692cb14",
-      "status": "pending",
-      "updated_at": null
+      "status": "done",
+      "updated_at": "2026-10-20T12:59:00+09:00",
+      "note": "gold 확정(C13) → v9/v10/v11 실제 분석 → v11 10건 완료 → export·alignment·score → 사람 decision reject(C24). acceptance sha 97a4fbf8…"
     },
     {
       "id": "STEP-005",
       "title": "문서",
       "model": "standard",
       "fingerprint": "6987ccf3f6ddfe1ef30861f9f3ae584bc00be83f35f0ba731c1d1009dfbf5273",
-      "status": "pending",
-      "updated_at": null
+      "status": "done",
+      "updated_at": "2026-10-19T13:02:07+09:00",
+      "note": "model-quality-gate RL 절, operations RL-05 평가 절차(actual 초안→alignment→최종 export 두 디렉터리), hp-contract §9 RL 주석, ADR 한 줄, validation-runs/2026-10-19-rl/RL-05/README.md. doctor 0(logs/step005-doctor.log)"
+    },
+    {
+      "id": "STEP-006",
+      "title": "큰 영역 unit 분할(selector v4·정책 v10, 결정 C15)",
+      "model": "complex",
+      "fingerprint": "a4f731506d9c76a447029d90ebcde2d96bfe0164b9cf17c011cf7fe660a5eb90",
+      "status": "done",
+      "updated_at": "2026-10-20T08:38:52+09:00",
+      "note": "selector card-sections-v4(블록 경계 분할, 하위 id segment:<sha>:<uuid>#p<n>), v4 sha 4ff2c74b…. 리더 검증: 합친 코드 PG 847 passed(skip 2=PDF 폰트 부재, 무관) logs/step006-007-pg.log"
+    },
+    {
+      "id": "STEP-007",
+      "title": "역할 근거 짧은 번호·역할/추출 항목 격리(정책 v10, 결정 C16)",
+      "model": "complex",
+      "fingerprint": "21491bd11e4cd7693bbb79ed3278016fed52ecb7d998a7e8880a9665b12458e2",
+      "status": "done",
+      "updated_at": "2026-10-20T08:38:52+09:00",
+      "note": "역할 계약 v2(근거 번호 E1…, sha 6c3ce4d3…), 역할 항목 격리(role_evidence_unknown|foreign_unit, 25% 한도, 판정 상한), 추출 누락 unit 격리(extract_unit_missing), 종합 지시 격리 상한 한 문장(리더 추가). 정책 v10 sha fcfb08ce…. 리더 검증: PG 847, build·contrast 0, Playwright verdict·record·proposal 86 passed"
+    },
+    {
+      "id": "STEP-008",
+      "title": "v10 격리 보완(결정 C19)",
+      "model": "complex",
+      "fingerprint": "6fa354361a2658d761037a2bb8bfd43652596b26be6b873cfdb50f6dce880d7f",
+      "status": "done",
+      "updated_at": "2026-10-20T11:24:38+09:00",
+      "note": "C19 격리 보완(role_caution_foreign_unit, synthesis_unit_outside_roles|evidence_outside_unit). 리더 검증: 합친 코드 PG 905 passed(skip 2=PDF 폰트), build·contrast 0, Playwright 87 passed (logs/step008-009-*)"
+    },
+    {
+      "id": "STEP-009",
+      "title": "정책 v11 — unit·근거 짧은 번호 참조와 텍스트 조건 규칙(결정 C20)",
+      "model": "complex",
+      "fingerprint": "eb5ed78a092004937c5120bf82e04791d3e93331adb34ff5db9f3cd1378c9376",
+      "status": "done",
+      "updated_at": "2026-10-20T11:24:38+09:00",
+      "note": "정책 v11 sha 8dabbbb4…, 역할 v3 d7062412…, 종합 v3 0588f65c…; text 값 완화(값 숫자는 인용에 포함·대조 직접 사실 연결 조건은 원문 유지). 리더 검증 STEP-008과 동일 로그"
     }
   ],
   "proof": {
     "docs": {
-      "result": "pending"
+      "result": "pass",
+      "method": "review",
+      "note": "최종 코드 9e574c4(STEP-008·009 검증 77b96bb 이후 문서만 변경 — 코드 로그 재사용). doctor 0, 문서 diff(model-quality-gate·operations·hp-contract·ADR·contracts·business-rules·RL-03 spec·validation README·findings) 확인",
+      "evidence": "/Users/temp/orca/bidops/.sdlc/worktrees/batch-rlc-20261019/docs/work/_runs/rlc-20261019/logs/final-doctor.log; /Users/temp/orca/bidops/.sdlc/worktrees/batch-rlc-20261019/docs/work/_runs/rlc-20261019/logs/step005-doctor.log",
+      "exit_code": null,
+      "actor": "orchestrator",
+      "command": "python3 scripts/feature_status.py doctor _",
+      "at": "2026-10-20T12:59:34+09:00",
+      "head": "9e574c46892ab2794475df00e4f1f360974c2479",
+      "source_hash": "710135f340d3cb9861a48b7a85160764f55c4f6e1da3f00c3eb9df2ab9d87533",
+      "spec_hash": "5f2d0be3b8bcc346606ab18d23c47639ceece721430fa5374459d8491835c602"
     },
     "tests": {
-      "result": "pending"
+      "result": "pass",
+      "method": "command",
+      "note": "최종 코드 9e574c4(STEP-008·009 검증 77b96bb 이후 문서만 변경 — 코드 로그 재사용). rl-gold 50 passed, export_evaluation 포함 백엔드 묶음 PG 905 passed(skip 2=PDF 폰트 부재, 무관)",
+      "evidence": "/Users/temp/orca/bidops/.sdlc/worktrees/batch-rlc-20261019/docs/work/_runs/rlc-20261019/logs/final-rl-gold.log; /Users/temp/orca/bidops/.sdlc/worktrees/batch-rlc-20261019/docs/work/_runs/rlc-20261019/logs/step008-009-pg.log",
+      "exit_code": 0,
+      "actor": "orchestrator",
+      "command": "bash -lc \"cd web/backend && python -m pytest -q -x -p no:cacheprovider\"",
+      "at": "2026-10-20T12:59:34+09:00",
+      "head": "9e574c46892ab2794475df00e4f1f360974c2479",
+      "source_hash": "710135f340d3cb9861a48b7a85160764f55c4f6e1da3f00c3eb9df2ab9d87533",
+      "spec_hash": "5f2d0be3b8bcc346606ab18d23c47639ceece721430fa5374459d8491835c602"
     },
     "postgres": {
-      "result": "pending"
+      "result": "pass",
+      "method": "command",
+      "note": "최종 코드 9e574c4(STEP-008·009 검증 77b96bb 이후 문서만 변경 — 코드 로그 재사용). postgres:17.11 905 passed(export PG·card·verdict·migrations·privileges·drift)",
+      "evidence": "/Users/temp/orca/bidops/.sdlc/worktrees/batch-rlc-20261019/docs/work/_runs/rlc-20261019/logs/step008-009-pg.log",
+      "exit_code": 0,
+      "actor": "orchestrator",
+      "command": "",
+      "at": "2026-10-20T12:59:34+09:00",
+      "head": "9e574c46892ab2794475df00e4f1f360974c2479",
+      "source_hash": "710135f340d3cb9861a48b7a85160764f55c4f6e1da3f00c3eb9df2ab9d87533",
+      "spec_hash": "5f2d0be3b8bcc346606ab18d23c47639ceece721430fa5374459d8491835c602"
     },
     "frontend": {
-      "result": "pending"
+      "result": "pass",
+      "method": "command",
+      "note": "최종 코드 9e574c4(STEP-008·009 검증 77b96bb 이후 문서만 변경 — 코드 로그 재사용). plan에는 비적용이었으나 STEP-007·008이 판정 탭(격리 표시)을 바꿔 적용: build·contrast 0, Playwright verdict·record·proposal 87 passed",
+      "evidence": "/Users/temp/orca/bidops/.sdlc/worktrees/batch-rlc-20261019/docs/work/_runs/rlc-20261019/logs/step008-009-frontend-build.log; /Users/temp/orca/bidops/.sdlc/worktrees/batch-rlc-20261019/docs/work/_runs/rlc-20261019/logs/step008-009-playwright.log",
+      "exit_code": 0,
+      "actor": "orchestrator",
+      "command": "bash -lc \"cd web/frontend && npm run build && npm run test:contrast\"",
+      "at": "2026-10-20T12:59:34+09:00",
+      "head": "9e574c46892ab2794475df00e4f1f360974c2479",
+      "source_hash": "710135f340d3cb9861a48b7a85160764f55c4f6e1da3f00c3eb9df2ab9d87533",
+      "spec_hash": "5f2d0be3b8bcc346606ab18d23c47639ceece721430fa5374459d8491835c602"
     },
     "api_guard": {
-      "result": "pending"
+      "result": "pass",
+      "method": "command",
+      "note": "최종 코드 9e574c4(STEP-008·009 검증 77b96bb 이후 문서만 변경 — 코드 로그 재사용). plan에는 비적용이었으나 STEP-007·009가 역할·종합 전송 payload(evidence_catalog·unit_refs)를 바꿔 적용: test_verdict_payload_guard·transfer_policy·company_luna_policy PG 통과",
+      "evidence": "/Users/temp/orca/bidops/.sdlc/worktrees/batch-rlc-20261019/docs/work/_runs/rlc-20261019/logs/step008-009-pg.log",
+      "exit_code": 0,
+      "actor": "orchestrator",
+      "command": "",
+      "at": "2026-10-20T12:59:35+09:00",
+      "head": "9e574c46892ab2794475df00e4f1f360974c2479",
+      "source_hash": "710135f340d3cb9861a48b7a85160764f55c4f6e1da3f00c3eb9df2ab9d87533",
+      "spec_hash": "5f2d0be3b8bcc346606ab18d23c47639ceece721430fa5374459d8491835c602"
     },
     "real_data_run": {
-      "result": "pending"
+      "result": "pass",
+      "method": "manual",
+      "note": "T5 실행 완료와 사람 판단: gold 10건(사람 확정) + v11 실제 attempt 10건 채점(판정 3/10·차단 재현율 0.0·카드 0.84·치명 오판 0) → 사용자 decision=reject(2026-10-20). 증명은 실행·사람 결정 완료를 뜻하며 품질 합격이 아님",
+      "evidence": "docs/validation-runs/2026-10-19-rl/RL-05/README.md; .sdlc/local-runtime/rl-evaluation-20261019/acceptance.json (sha 97a4fbf8…)",
+      "exit_code": null,
+      "actor": "orchestrator",
+      "command": "",
+      "at": "2026-10-20T12:59:35+09:00",
+      "head": "9e574c46892ab2794475df00e4f1f360974c2479",
+      "source_hash": "710135f340d3cb9861a48b7a85160764f55c4f6e1da3f00c3eb9df2ab9d87533",
+      "spec_hash": "5f2d0be3b8bcc346606ab18d23c47639ceece721430fa5374459d8491835c602"
     }
   },
   "notes": [
@@ -110,7 +211,141 @@
     {
       "at": "2026-10-16T20:41:31+09:00",
       "text": "단계 → review: 독립 검사 1차 반영(표본=실제 수집 10건·holdout 조건 RL-03 (7); 재검사 생략, 사용자 확인 항목 보고)"
+    },
+    {
+      "at": "2026-10-19T10:39:56+09:00",
+      "text": "단계 → implementing"
+    },
+    {
+      "at": "2026-10-19T10:40:04+09:00",
+      "text": "단계 STEP-001 in_progress: "
+    },
+    {
+      "at": "2026-10-19T10:40:04+09:00",
+      "text": "단계 STEP-002 in_progress: "
+    },
+    {
+      "at": "2026-10-19T12:47:53+09:00",
+      "text": "단계 STEP-001 done: scripts/rl-gold.py·tests/test_rl_gold.py, 리더 실행 50 passed(logs/step001-tests.log). prediction 정확 키·HP보다 엄격한 조건 ID 검사(HP-06 문구 근거)"
+    },
+    {
+      "at": "2026-10-19T12:47:53+09:00",
+      "text": "단계 STEP-002 done: export_evaluation.py(--cards·--actual, PG read-only), 리더 실행 PG 83 passed skip 0(logs/step002-pg.log). spec 정정 C7 반영. 여러 원문 묶음은 selection_mismatch(표본에서 제외)"
+    },
+    {
+      "at": "2026-10-19T12:57:28+09:00",
+      "text": "단계 STEP-003 in_progress: "
+    },
+    {
+      "at": "2026-10-19T12:57:28+09:00",
+      "text": "단계 STEP-003 done: 사용자 선정 10건(C6, #56→#15 교체 C8). bidops_rla에 lifecycle-20261014-notices 적재·운영 백업 원본(sha 일치) attach-local-original 10+3건·묶음 ready·holdout 13행(rejected·gold_holdout), RL review 0건. Git 밖 rl-evaluation-20261019/: selection.v1.json(4125e7f5…), cards/·cards.json(1b86634f…), blank gold.v1.json(3e6aa74e…), gold-check=human_gold_incomplete(사람 입력만 남음)"
+    },
+    {
+      "at": "2026-10-19T12:58:29+09:00",
+      "text": "단계 STEP-005 in_progress: "
+    },
+    {
+      "at": "2026-10-19T13:02:07+09:00",
+      "text": "단계 STEP-005 done: model-quality-gate RL 절, operations RL-05 평가 절차(actual 초안→alignment→최종 export 두 디렉터리), hp-contract §9 RL 주석, ADR 한 줄, validation-runs/2026-10-19-rl/RL-05/README.md. doctor 0(logs/step005-doctor.log)"
+    },
+    {
+      "at": "2026-10-20T07:31:25+09:00",
+      "text": "plan 작업 ID 동기화"
+    },
+    {
+      "at": "2026-10-20T07:31:51+09:00",
+      "text": "단계 STEP-006 in_progress: "
+    },
+    {
+      "at": "2026-10-20T07:57:54+09:00",
+      "text": "plan 작업 ID 동기화"
+    },
+    {
+      "at": "2026-10-20T07:57:54+09:00",
+      "text": "단계 STEP-007 in_progress: "
+    },
+    {
+      "at": "2026-10-20T08:38:52+09:00",
+      "text": "단계 STEP-006 done: selector card-sections-v4(블록 경계 분할, 하위 id segment:<sha>:<uuid>#p<n>), v4 sha 4ff2c74b…. 리더 검증: 합친 코드 PG 847 passed(skip 2=PDF 폰트 부재, 무관) logs/step006-007-pg.log"
+    },
+    {
+      "at": "2026-10-20T08:38:52+09:00",
+      "text": "단계 STEP-007 done: 역할 계약 v2(근거 번호 E1…, sha 6c3ce4d3…), 역할 항목 격리(role_evidence_unknown|foreign_unit, 25% 한도, 판정 상한), 추출 누락 unit 격리(extract_unit_missing), 종합 지시 격리 상한 한 문장(리더 추가). 정책 v10 sha fcfb08ce…. 리더 검증: PG 847, build·contrast 0, Playwright verdict·record·proposal 86 passed"
+    },
+    {
+      "at": "2026-10-20T10:16:24+09:00",
+      "text": "plan 작업 ID 동기화"
+    },
+    {
+      "at": "2026-10-20T10:16:25+09:00",
+      "text": "단계 STEP-008 in_progress: "
+    },
+    {
+      "at": "2026-10-20T10:19:50+09:00",
+      "text": "plan 작업 ID 동기화"
+    },
+    {
+      "at": "2026-10-20T10:34:57+09:00",
+      "text": "단계 STEP-009 in_progress: "
+    },
+    {
+      "at": "2026-10-20T11:24:38+09:00",
+      "text": "단계 STEP-008 done: C19 격리 보완(role_caution_foreign_unit, synthesis_unit_outside_roles|evidence_outside_unit). 리더 검증: 합친 코드 PG 905 passed(skip 2=PDF 폰트), build·contrast 0, Playwright 87 passed (logs/step008-009-*)"
+    },
+    {
+      "at": "2026-10-20T11:24:38+09:00",
+      "text": "단계 STEP-009 done: 정책 v11 sha 8dabbbb4…, 역할 v3 d7062412…, 종합 v3 0588f65c…; text 값 완화(값 숫자는 인용에 포함·대조 직접 사실 연결 조건은 원문 유지). 리더 검증 STEP-008과 동일 로그"
+    },
+    {
+      "at": "2026-10-20T12:59:00+09:00",
+      "text": "단계 STEP-004 in_progress: "
+    },
+    {
+      "at": "2026-10-20T12:59:00+09:00",
+      "text": "단계 STEP-004 done: gold 확정(C13) → v9/v10/v11 실제 분석 → v11 10건 완료 → export·alignment·score → 사람 decision reject(C24). acceptance sha 97a4fbf8…"
+    },
+    {
+      "at": "2026-10-20T12:59:45+09:00",
+      "text": "단계 → validating"
     }
   ],
-  "updated_at": "2026-10-16T20:41:31+09:00"
+  "updated_at": "2026-10-20T12:59:45+09:00",
+  "proof_history": [
+    {
+      "key": "docs",
+      "previous": {
+        "result": "pending"
+      }
+    },
+    {
+      "key": "tests",
+      "previous": {
+        "result": "pending"
+      }
+    },
+    {
+      "key": "postgres",
+      "previous": {
+        "result": "pending"
+      }
+    },
+    {
+      "key": "frontend",
+      "previous": {
+        "result": "pending"
+      }
+    },
+    {
+      "key": "api_guard",
+      "previous": {
+        "result": "pending"
+      }
+    },
+    {
+      "key": "real_data_run",
+      "previous": {
+        "result": "pending"
+      }
+    }
+  ]
 }

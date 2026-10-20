@@ -6,6 +6,7 @@
 (`order_plan_screening_quality_gate`·`order_plan_screening_quality_evaluation`)과 게시일별 채점·2회 통과 규칙을 쓰며
 [ADR-0060](tracking/decisions/0060-c2-policy-db-row-authority.md)과 [contracts.md](contracts.md)가 정본이다. 이 문서의
 고정 입력·통과 기준을 C-2에 적용하지 않는다.
+RL 카드 판정의 사용자 gold 대조는 아래 "RL 판정 gold 인수 (RL-05)" 절이 따로 다룬다.
 
 ## 고정 입력
 
@@ -87,3 +88,21 @@ grade, perspective, discrimination은 구조적으로 유효한 판정만 사용
 ## 확인 명령과 산출물
 
 DB gate/evaluation/review와 A/B execution artifact가 정본이다. API는 `GET /api/quality-gates`, `GET /api/quality-gates/{gate_id}`, `PUT /api/quality-gates/{gate_id}/reviews/{notice_id}`를 사용한다. quality sample은 새 canonical run을 발행하지 않는다. 모델·프로필 전문이나 reviewer 비밀을 log/response에 포함하지 않으며, 자세한 REST/파일/DB 계약은 [외부 인터페이스 계약](./contracts.md)에 있다.
+
+## RL 판정 gold 인수 (RL-05)
+
+위 C-1·C-2 게이트와 **별개**로, RL-03 카드 판정(`analysis-policy-luna-rl-v1`~`-v9`)은 사용자가 모델 출력 전에 쓴 gold 10건과 대조해 인수 후보를 가린다. 계약 원본은 [HP-06 spec](work/groups/HP/features/HP-06-gold-acceptance/spec.md)이고 루트랩에서 바뀐 점은 [RL-05 spec](work/groups/RL/features/RL-05-gold-acceptance/spec.md) "루트랩 재명세 차이"다. 절차는 [operations.md "RL 판정 gold 인수 평가"](operations.md#rl-판정-gold-인수-평가-rl-05-2026-10-19)다. 기준은 위 두 게이트의 수치와 무관하다.
+
+| 지표 | 기준(`acceptance-criteria.approved.v1.json` v1, 2026-10-15 사용자 확정, 변경 없이 재사용) |
+|---|---|
+| 판정 일치 | 10건 중 `>= 8` |
+| 차단 조건 recall | `>= 0.8` (전체 항목 micro 집계) |
+| 카드 상태 일치 | `>= 0.7` (문서당 상태 표본 10, micro 집계) |
+| 명백한 필수자격 미충족을 충족으로 판단 | 0건 (채점 도구가 세지 않는다: `pending_human_review`·개수 `null`, 사람이 비일치 항목을 검토해 `acceptance.json`에 적는다) |
+
+- **분모 0은 미측정이며 통과가 아니다.** 차단 조건 recall·카드 상태 일치의 분모가 0이면 지표 값은 `null`이고 그 검사는 `unmeasured`다(`pass`가 아니다). 숫자 기준을 모두 넘어도 도구는 `pending_human_review`일 뿐 인수가 아니다.
+- **채점은 제품 밖에서 한다.** `scripts/rl-gold.py score`가 gold·prediction·criteria 파일을 읽어 지표를 계산하고 DB·네트워크·모델을 쓰지 않는다. 제품은 `export-evaluation`으로 완료된 attempt를 **읽기 전용**으로 내보낼 뿐 채점·인수를 하지 않는다. 도구는 `decision=null`만 쓰며 `accept|reject|defer`는 사람이 `acceptance.json`에 적는다(`scoring_input_sha256` = 수출 receipt + criteria sha + 도구 sha의 canonical sha, HP-06 정의).
+- **결과는 사람이 `accept`하기 전까지 `unmeasured_reference`이며 품질 근거가 아니다.** 대상 attempt는 RL 정책 identity·`completed`·`unmeasured_reference`만이고(`mock_reference`·실패·실행 중은 채점 제외), 인수 후보 기준을 넘어도 운영 품질 보증이나 정책 활성화 근거가 아니다. 사람의 `decision`이 없으면 RL-05는 `validating`에 머문다.
+- **gold는 모델 출력 전에 쓴다.** export가 gold `authored_at`(ISO-8601, 시간대 포함)을 그 공고의 첫 RL review `deep_review.created_at`과 대조한다. 같거나 늦은 RL review가 있고 첫 attempt가 수동 `verdict_request`면 `gold_after_model`(사람이 gold 완료 전에 모델을 돌림), 자동 시작이면 `holdout_violated`(홀드아웃이 막지 못함)이며 둘 다 해당하면 `holdout_violated`가 우선한다. 둘 다 export를 거부하고 그 표본은 교체 대상이다.
+- **홀드아웃은 두 겹이다.** (1) 선정 공고마다 `verdict_request`에 `status=rejected`·`reason=gold_holdout`를 미리 넣는다(`drain-verdict-queue --hold`). RL-03 자동 트리거 조건 (7)이 이 행이 있는 공고를 건너뛰고, gold 검사를 통과한 뒤의 수동 판정 요청이 행을 해제한다. (2) 선정이 끝나기 전에는 `BIDOPS_RL_ANALYSIS_AUTO_START_ENABLED=false`를 유지한다.
+- gold·actual·alignment·prediction·receipt·`acceptance.json`은 Git 밖 `.sdlc/local-runtime/rl-evaluation-<날짜>/`에 두고 문서 원문·사람 답은 저장소·로그에 남기지 않는다. gold를 고치면 새 버전 디렉터리를 만들고 옛 것은 그대로 둔다. 실행 기록(비민감 sha·결과 위치·metrics)만 [validation-runs](validation-runs/2026-10-19-rl/RL-05/README.md)에 적는다.

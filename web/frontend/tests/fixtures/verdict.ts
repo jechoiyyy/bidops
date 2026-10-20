@@ -219,6 +219,25 @@ export function rejectedCompletedView(): PractitionerVerdictView {
   }, matrix);
 }
 
+/**
+ * 결정 C19: 정책 v10 완료 판정 — 역할 밖 요구사항을 가리킨 역할 주의 하나(카드에 없는 id)와
+ * 종합에서 빠진 다음 행동 하나(근거가 그 요구사항 근거와 다름)·주의 하나(역할 결과에 없는 id).
+ */
+export function synthesisIsolatedCompletedView(): PractitionerVerdictView {
+  const matrix = sampleMatrix();
+  return completedView({
+    role_isolations: [
+      { role: "operations_risk", unit_id: "card:unknown", normalized_id: null, kind: "caution",
+        rule_codes: ["role_caution_foreign_unit"] },
+    ],
+    synthesis_isolations: [
+      { unit_id: matrix[0].unit_id, normalized_id: "REQ-1", kind: "next_action",
+        rule_codes: ["synthesis_evidence_outside_unit"] },
+      { unit_id: "card:unknown", normalized_id: null, kind: "caution", rule_codes: ["synthesis_unit_outside_roles"] },
+    ],
+  }, matrix);
+}
+
 /** 결정 B55: 정책 v9 완료 판정 — 모델 행 하나 뒤에 코드가 붙인 "사람 확인" 행(누락 영역 하나·격리 unit 하나). */
 export function codeActionsCompletedView(): PractitionerVerdictView {
   const view = rejectedCompletedView();

@@ -1817,7 +1817,7 @@ CLI는 web 이미지 안에서 돈다. fixture 디렉터리를 읽기 전용으�
 |---|---|---|
 | `BIDOPS_RL_ANALYSIS_ENABLED` | `false` | 사업기회 판정 REST·실회사 판정 게이트 개방. 꺼져 있으면 `/api/opportunities/{id}/verdict*`·`/api/analysis/transfer-policy`가 404이고 브리핑 판정 표시·활동 피드 제공자는 아무것도 주지 않는다 |
 | `BIDOPS_RL_ANALYSIS_AUTO_START_ENABLED` | `false` | 브리핑 추천→자동 시작과 `drain-verdict-queue`. 꺼져 있으면 hook과 drain이 아무것도 읽거나 쓰지 않는다 |
-| `BIDOPS_RL_ANALYSIS_POLICY_PATH` | `policies/analysis-policy-luna-rl-v9.json` | import 원본 파일(immutable). 기본값은 결정 B23 전 v1, B30 전 v2, B33 전 v3, B35 전 v4, B37 전 v5, B51 전 v6, B53 전 v7, B55 전 v8이었고 v1~v8 파일은 그대로 남는다. 승인 CLI는 이 파일의 identity·sha를 선택 행과 대조하므로 **선택 행과 같은 버전**을 가리켜야 한다(v1·v2 행을 계속 쓰면 그 파일 경로를 명시) |
+| `BIDOPS_RL_ANALYSIS_POLICY_PATH` | `policies/analysis-policy-luna-rl-v11.json` | import 원본 파일(immutable). 기본값은 결정 B23 전 v1, B30 전 v2, B33 전 v3, B35 전 v4, B37 전 v5, B51 전 v6, B53 전 v7, B55 전 v8, C15 전 v9, C20 전 v10이었고 v1~v10 파일은 그대로 남는다. 승인 CLI는 이 파일의 identity·sha를 선택 행과 대조하므로 **선택 행과 같은 버전**을 가리켜야 한다(v1·v2 행을 계속 쓰면 그 파일 경로를 명시) |
 | `BIDOPS_RL_DEEP_REVIEW_POLICY_VERSION_ID` | 없음 | import한 정책 행 선택. 비어 있으면 RL 경로 fail closed(`analysis_policy_unavailable`). demo용 선택 env와 별개 |
 | `BIDOPS_REFERENCE_WORKFLOW_MODE`·`BIDOPS_LUNA_DEEP_REVIEW_ENABLED` | 기존 | **RL 경로도 요구한다**(변경 없음, 결과가 참조 실행 표식) |
 | `BIDOPS_PRESPEC_OVERVIEW_ENABLED`·`BIDOPS_DEEP_REVIEW_AUTO_START_ENABLED` | `false` | RL 판정은 개요를 쓰지 않는다. 실제 호출 스택에서는 둘 다 `false`로 둬 개요 모델 호출이 생기지 않게 한다 |
@@ -1876,6 +1876,10 @@ curl -sS -X POST "http://127.0.0.1:<web 포트>/api/opportunities/<opportunity_i
 # 확인: card.resume.requested·card.stages.reused 감사, analysis.transfer.sent planned_call_count=1,
 #       GET /api/analysis/transfer-policy today_used가 1 늘었는지.
 ```
+
+**v9 → v10 전환(결정 C15·C16).** 새 실행은 v10이 v9를 대신한다(v9 행·attempt·승인 기록은 그대로 남고, v9 → v10은 종합만 다시 실행의 계보가 아니다). v10은 큰 영역 분할(selector `card-sections-v4`)과 역할 출력 계약 v2(근거 번호 인용·역할 항목 격리)·추출 누락 unit 격리를 더한다. **runner 이미지를 다시 빌드해야 한다**(새 schema 파일 `/app/card-role-v2.json`·contract `card-role-v2`), web·`analysis-worker`·프런트도 새로 올린다(판정 보기 `role_isolations` 가산). 순서는 v8 → v9와 같다: 이미지 재빌드 → v10 import(행 canonical sha = 파일 sha `8b5be91e…93f9`) → 선택 env·`BIDOPS_RL_ANALYSIS_POLICY_PATH`를 v10으로 → v9 승인 철회·`--policy analysis-policy-luna-rl-v10` 재승인 → mock 경로(T11) 확인. 각 단계는 직전에 사람 확인을 받는다.
+
+**v10 → v11 전환(결정 C20).** 새 실행은 v11이 v10을 대신한다(파일 sha `8dabbbb4…f45a`; v10 행·attempt는 그대로이고 v10 → v11은 종합만 다시 실행의 계보가 아니다). 순서는 v9 → v10과 같고 runner 이미지 재빌드가 필요하다(새 schema `/app/card-role-v3.json`·`/app/card-synthesis-v3.json`). 각 단계는 직전에 사람 확인을 받는다.
 
 (경로는 web 이미지 안 위치다. 품질 인자는 주지 않는다 — 측정한 값이 없다.) `policy_sha256`은 이 **행의 canonical sha**이고 파일 raw sha가 아니다. 값을 하나라도 바꾸려면 새 버전 파일을 발행하고 다시 import·승인한다.
 
@@ -1984,3 +1988,34 @@ docker compose -f docker-compose.yml exec web \
 **7. 되돌리기.** 가장 빠른 차단은 `revoke-transfer-policy`(이후 호출 0), 그다음 `BIDOPS_RL_ANALYSIS_ENABLED=false`로 재생성이다. 초안·절·수정·PDF 행은 append-only라 지우지 않으며 SQL로 고치지 않는다.
 
 **검증 명령(문서 단계 근거).** `pytest tests/deep_review/test_proposal_input.py tests/deep_review/test_proposal_validation.py tests/deep_review/test_mock_proposal_client.py tests/deep_review/test_proposal_render.py tests/app/test_proposal_transfer_policy.py tests/app/test_proposal_draft.py tests/app/test_proposal_api.py tests/deep_review/test_codex_runner.py tests/app/test_company_luna_policy.py tests/app/test_runtime_contract.py`(PostgreSQL 변형은 `BIDOPS_TEST_POSTGRES_URL`, PDF 사례는 `BIDOPS_PDF_FONT_DIR`이 있어야 skip 없이 돈다).
+
+## RL 판정 gold 인수 평가 (RL-05, 2026-10-19)
+
+RL-03 카드 판정이 사용자 gold 10건과 맞는지 보는 평가 절차다(기준·독립성 규칙은 [model-quality-gate.md "RL 판정 gold 인수"](model-quality-gate.md#rl-판정-gold-인수-rl-05), 계약은 [RL-05 spec](work/groups/RL/features/RL-05-gold-acceptance/spec.md)). **격리 스택 `bidops-local`의 별도 DB에서만 하고 운영 `bidops` 스택·운영 DB는 건드리지 않는다.** 제품 CLI `export-evaluation`은 읽기 전용이고 채점·인수는 제품 밖(`scripts/rl-gold.py`)과 사람이 한다. 결과는 사람이 `accept`하기 전까지 `unmeasured_reference`이며 품질 근거가 아니다. 실행 기록은 [validation-runs/2026-10-19-rl/RL-05](validation-runs/2026-10-19-rl/RL-05/README.md)다.
+
+**평가 디렉터리.** Git 밖 `.sdlc/local-runtime/rl-evaluation-<날짜>/`(`.git/info/exclude`로 무시)에 `selection.v1.json`, `cards/`, `cards.json`, `gold.v1.json`, `actual.v1.json`, `alignment.v1.json`, `prediction.v1.json`, `receipt.json`, `score.v1.json`, `acceptance.json`을 둔다. `--out`으로 쓰는 **파일은 모두 새로 만든다**(같은 이름이 있으면 `output_exists`, 디렉터리는 이미 있어도 된다)이고 worktree 안이면 git이 무시하는 경로만 허용한다(`output_not_ignored`). `export-evaluation`은 DB·객체 저장소에 닿는 컨테이너 안에서 돌고 `--selection`·`--gold`·`--out`은 그 컨테이너 안 경로이므로 평가 디렉터리를 마운트하거나 결과를 꺼내 쓴다. `rl-gold.py`는 파일만 읽고 쓰며 호스트에서 돈다. 문서 원문·gold·모델 답은 저장소·로그에 남기지 않는다.
+
+1. **후보 고르기.** 사전규격 중 문서 준비 `ready`, 개요 `completed`, **묶음마다 분석 원문(source)이 하나**인 것만 후보다. 원문이 여럿인 묶음은 export가 `selection_mismatch`로 거부한다. 요구사항 카드가 10개 미만인 문서는 카드 상태 표본 10개를 채울 수 없어 gold를 쓸 수 없으므로 뺀다(카드 수는 5단계 `cards.json`에서 보이므로 후보 몇 건을 여유로 두고 고른다). 선정은 사람이 하며 도구는 고르지 않는다. 대체 후보까지 4단계의 홀드아웃에 함께 넣는다.
+2. **회차 적재.** 격리 DB에 수집 회차 디렉터리를 바이트 그대로 복사하고(파일별 sha256 대조) 적재한다: `python -m app.lifecycle.ingest.cli --run <회차> --collection`. 격리 DB에는 사업기회 연결 대상·선별 결과가 없어 `opportunity_link_target_missing`·`screening_results_missing` 경고가 나는 것이 정상이다. 적재 직후 `GET /api/runs/<회차>/warnings`로 경고 종류만 확인한다.
+3. **원문 연결.** 격리 DB에는 G2B 링크만 있고 바이트가 없다. 검증된 객체 백업(`object-versions.tsv`의 sha256과 버전이 맞는 source 객체)이나 담당자가 가진 사본을 가져와 [RL-03 4a절](#rl-카드-판정-운영-rl-03-2026-10-17)의 `attach-local-original --notice-id <id> --attachment-id <id> --file <파일> --expected-sha256 <sha256> --actor '<이름>'`로 연결한다. **`--dry-run`을 먼저** 보고(`errors=[]`) 실제 실행한다. G2B를 부르지 않으며 ClamAV·MIME 검사를 지난다. 모든 묶음이 `ready`인지 확인한다.
+4. **홀드아웃 — 다른 무엇보다 먼저.** 선정 공고를 gold 작성 전에 자동 분석에서 뺀다: `python -m app.deep_review.cli drain-verdict-queue --hold <notice_id,…> --reason gold_holdout --actor '<이름>'`(RL-03 6절). 공고마다 `verdict_request`에 `rejected`·`gold_holdout` 행이 생기고 같은 시점에 그 공고의 RL review가 0건이어야 한다. 선정이 끝날 때까지 web·worker의 `BIDOPS_RL_ANALYSIS_AUTO_START_ENABLED=false`를 유지한다.
+5. **카드 pack과 빈 gold 양식.** 사람이 `selection.v1.json`(`bidops.rl-evaluation-selection.v1`: 문서별 `document_id`·`notice_id`·`opportunity_id`·`source_sha256`·`structure_id`·`manifest_id`·`title`·`agency`, `company_sha256`=활성 graph sha, `ontology_sha256`, `selected_on`)을 쓴다. 이어서:
+
+   ```bash
+   python -m app.deep_review.cli export-evaluation --cards --selection <eval>/selection.v1.json --out <eval>/cards
+   python3 scripts/rl-gold.py export-cards --cards-pack <eval>/cards --out <eval>/cards.json
+   python3 scripts/rl-gold.py blank-gold --cards <eval>/cards.json --selection <eval>/selection.v1.json --out <eval>/gold.v1.json
+   python3 scripts/rl-gold.py gold-check --gold <eval>/gold.v1.json --selection <eval>/selection.v1.json   # 빈 양식은 human_gold_incomplete(exit 2)가 정상
+   ```
+
+   `selection_mismatch`·`binding_mismatch`는 선정 파일이 DB와 다르다는 뜻이다. 카드 pack은 읽기 전용으로 꺼낸 구조·page map이고 모델 답이 없다. PDF 스냅샷이 없으면 page map 파일이 없고 `page_map_sha256`은 `null`이다.
+6. **사람이 gold를 쓴다 — 모델 실행 전.** 문서마다 판정·차단 조건·충족/부족·주의·카드 상태 표본 10을 적고 `annotator`·`authored_at`(ISO-8601, 시간대 포함)·`written_before_model_output=true`를 채운다. 미작성 `null`과 확인 후 없음 `[]`을 구분한다. `gold-check`가 exit 0이어야 다음으로 간다. gold를 고치면 새 버전 디렉터리를 만든다.
+7. **실제 판정(모델 실행).** `gold-check` 통과 뒤에만 공고마다 수동으로 요청한다(`POST /api/opportunities/{id}/verdict-requests` 또는 판정 탭). 이 요청이 holdout 행을 해제한다. **실제 Luna 전송은 RL-03 정책 단위 승인([RL-03 3절](#rl-카드-판정-운영-rl-03-2026-10-17), 상한)이 있어야 하고 요청 직전에 사람이 대상·상한·승인을 확인한다.** 상한을 넘는 날은 다음 KST 날로 나눈다. 판정이 `failed`면 그대로 두고 결정 B55의 종합 재실행 같은 RL-03 절차로 이어 가며 gold·표본을 바꿔 맞추지 않는다. 완료된 attempt만 채점 대상이다.
+8. **actual → alignment → 최종 export → 채점.** 순서가 바뀌면 안 된다.
+   1. 먼저 gold·alignment **없이** 별도 초안 디렉터리로 내보낸다: `export-evaluation --actual --selection <eval>/selection.v1.json --out <eval>/actual-draft`. 결과는 `actual.v1.json` 하나(모델이 낸 차단 조건 단위 목록 포함)다. 선정 공고마다 완료된 RL attempt가 없으면 `missing_attempt`, 같은 조건의 정책 다름·mock·실패·실행 중 attempt는 점수 대상이 아니라 건수만 요약에 남는다.
+   2. 사람이 `alignment.v1.json`(`bidops.rl-condition-alignment.v1`)을 쓴다: **gold 파일 sha256과 위 actual 파일 sha256을 적고**, 모델의 차단 조건 단위마다 대응하는 gold 조건 ID(없으면 빈 목록)와 사유를 적는다. 모델 차단 단위는 하나도 빠지면 안 된다(`invalid_alignment`).
+   3. 최종 디렉터리(**초안과 다른 경로** — 같은 이름 파일을 다시 만들 수 없다)로 내보낸다: `export-evaluation --actual --selection … --gold <eval>/gold.v1.json --condition-alignment <eval>/alignment.v1.json --out <eval>`. `gold_after_model`·`holdout_violated`면 export가 거부되고 그 표본은 교체 대상이다. 성공하면 `actual.v1.json`·`prediction.v1.json`·`receipt.json`이 생긴다초안과 최종의 `actual.v1.json`은 같은 바이트(같은 attempt·같은 입력)라 alignment의 actual sha가 그대로 맞는다..
+   4. `python3 scripts/rl-gold.py score --gold <eval>/gold.v1.json --prediction <eval>/prediction.v1.json --criteria docs/work/groups/HP/preparation/acceptance-criteria.approved.v1.json --out <eval>/score.v1.json`. 출력은 지표 네 개·비일치 목록이고 `decision=null`이다.
+9. **인수 기록(사람).** 사람이 `acceptance.json`(`bidops.rl-acceptance.v1`)에 `decision`(`accept|reject|defer`)·`decided_by`·`decided_at`·`reason`을 적는다. 같은 파일에 `criteria_sha256`·`selection_sha256`·`gold_sha256`·`actual_sha256`·`alignment_sha256`·`prediction_sha256`·`scoring_tool_sha256`·`scoring_input_sha256`(receipt + criteria sha + 도구 sha의 canonical sha, [HP-06](work/groups/HP/features/HP-06-gold-acceptance/spec.md) 정의)·`metrics`·`adjudication_file_sha256`(비일치·중대 오류 검토 파일)를 채운다. 도구는 이 파일을 쓰지 않는다. 파일 sha256을 검증 기록에 적는다.
+
+**되돌리기·한계.** export는 쓰기가 없어 되돌릴 것이 없다. 홀드아웃·gold·alignment를 잘못 만들면 새 평가 디렉터리와 새 버전으로 다시 한다(옛 것은 남긴다). 홀드아웃 행은 제품 REST·CLI로만 바꾸고 SQL로 고치지 않는다. 표본 10건·한 회사·참조 실행이므로 통과해도 운영 품질 보증이 아니다.

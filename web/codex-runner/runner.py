@@ -235,9 +235,15 @@ CONTRACT_SCHEMA_PATHS = {
     # 결정 B33 (policy v4): kind x unit branches, no concept_candidates/operator.
     "card-extract-v2": Path("/app/card-extract-v2.json"),
     "card-role-v1": Path("/app/card-role.json"),
+    # 결정 C16 (policy v10): role findings cite short evidence ids (E1...) only.
+    "card-role-v2": Path("/app/card-role-v2.json"),
+    # 결정 C20 (policy v11): units by short ref (U1...), evidence by id (E1...).
+    "card-role-v3": Path("/app/card-role-v3.json"),
     "card-synthesis-v1": Path("/app/card-synthesis.json"),
     # 결정 B55 (policy v9): no blocking_condition_ids; code computes them.
     "card-synthesis-v2": Path("/app/card-synthesis-v2.json"),
+    # 결정 C20 (policy v11): cautions/next actions cite unit refs and evidence ids only.
+    "card-synthesis-v3": Path("/app/card-synthesis-v3.json"),
     # RL-04 proposal drafting: one section (bidops.proposal-section.v1) per call.
     "proposal-section-v1": Path("/app/proposal-section.json"),
 }
