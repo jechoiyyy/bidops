@@ -68,3 +68,13 @@
 - v4: 정보통신공사업(0036) 등록(사용자 확인)을 `qual:procurement_1468:extra_industries`에 반영 → `rootlab.source.v4.json`(sha256 `78f525bcae47…`), graph `402a9e06612c…`(version `a3334d97…`), binding revision 4, confirmed 130·proposed 1·unknown 17. AI 에이전트 플랫폼·AI 음성/모바일 앱 역량은 온톨로지 concept이 없어 미반영(결정 C12, 데이터 공백). 사람 입력 전 파일은 `superseded-company-v3/`, 새 selection `f7cb743a4688ee6a…`(카드 동일).
 - gold 작성 방식(결정 C13): 사용자 요청으로 Claude가 문서별 초안을 쓰고(평가 대상 Luna와 독립, Luna 실행 전), 판정이 갈리는 지점을 사용자에게 확인받는다. 확인 답: 대구 외 상주 = 차단, 증명서 유효기간·SW사업자 확인서 세부 = 모름, 정보통신공사업 등록 있음, HW 유지관리 = 제외 분야, 6번 플랫폼 보유, 3번 AI·앱 자체 개발 가능, 2번 도메인 경험 모름, 충족 기준 엄격(HP §7). 차단 조건은 gap만(결정 C11).
 - 후보: 진행 어려움 5·조건부 진행 5, `gold-check` structurally_valid. 최종 `gold.v1.json`은 사용자 확정 시각을 `authored_at`으로 기록한다.
+
+## 실제 분석·채점·인수 (2026-10-20)
+
+- 경과: v9 승인 하루 15건으로 요청 → 3건 `input_budget_exceeded`·7건 중 4건 형식 실패(C15·C16) → 정책 v10(영역 분할·역할 근거 번호·항목 격리) 10건: 완료 4·실패 6(C19·C20) → 정책 v11(역할·종합 계약 v3 unit U·근거 E 번호, 텍스트 조건 값 요약 허용) 10건: 완료 9, 1건(R26BD00284697) 추출 격리 30%로 실패 → 재시도 1회 완료. 원인은 모두 저장된 원 응답 복호화로 진단(호출 없음).
+- 사고: v10 runner 재생성 때 인증 파일 경로 누락으로 3건 `authentication_failed`(모델 처리 없음, C17) → 상한 보정(C18). 사용자 지시로 v11 당일 상한 38(C23).
+- 호출: 2026-10-20 전송 29건·모델 호출 276회(v9 41·v10 109·v11 126). 정책 행 v10 `a2fb9368…`(sha `fcfb08ce…`), v11 `98a110e4…`(sha `8dabbbb4…`). 채점 attempt는 문서별 v11 최신 완료 10건.
+- export: `draft/actual.v1.json` = `final/actual.v1.json`(sha `e64a6694…`, 바이트 동일), 독립성 검사(gold_after_model·holdout_violated) 통과. 모델 차단 unit 0건이라 alignment는 모든 문서 `mappings: []`(sha 파일 기록).
+- 채점(`rl-gold.py score`): 판정 일치 **3/10**(기준 8/10, fail), 차단 조건 재현율 **0/7 = 0.0**(기준 0.8, fail), 카드 상태 일치 84/100 = 0.84(기준 0.7, pass — 모델 카드 상태 447개 전부 unknown이라 의미 약함), 명백한 필수자격 미충족을 met 판단 0건(모델 met 0, 사람 확인).
+- **사람 인수 decision = reject**(jechoi, 2026-10-20). 사유: 결정적 대조가 요구사항을 회사 사실(상주 지역·제외 분야 등)에 연결하지 못해 gap 0건. 후속: 대조 단계 개념 매핑 범위 개선 후 같은 gold로 재측정(findings).
+- 파일(Git 밖): `final/score.v1.json`, `final/receipt.json`, `final/prediction.v1.json`, `alignment.v1.json`, `acceptance.json`(sha `97a4fbf8…`). 결과는 모두 `unmeasured_reference`이며 품질 근거·운영 전환 근거가 아니다.
