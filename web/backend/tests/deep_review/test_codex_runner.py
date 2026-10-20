@@ -45,11 +45,16 @@ def test_fixed_argv_and_schema():
     assert luna_identity.RL_POLICY_IDENTITY_V8 == 'analysis-policy-luna-rl-v8'
     # 결정 B55: v9 answers synthesis contract card-synthesis-v2 (runner image gains its schema file).
     assert luna_identity.RL_POLICY_IDENTITY_V9 == 'analysis-policy-luna-rl-v9'
+    # 결정 C15·C16: v10 = selector card-sections-v4 + role contract card-role-v2 (runner image gains its schema file).
+    assert luna_identity.RL_POLICY_IDENTITY_V10 == 'analysis-policy-luna-rl-v10'
+    # 결정 C20: v11 = role contract card-role-v3 + synthesis contract card-synthesis-v3 (runner image gains both files).
+    assert luna_identity.RL_POLICY_IDENTITY_V11 == 'analysis-policy-luna-rl-v11'
     assert luna_identity.COMPANY_POLICY_IDENTITIES == frozenset({
         'analysis-policy-luna-demo-v1', 'analysis-policy-luna-hp-v1', 'analysis-policy-luna-rl-v1',
         'analysis-policy-luna-rl-v2', 'analysis-policy-luna-rl-v3', 'analysis-policy-luna-rl-v4',
         'analysis-policy-luna-rl-v5', 'analysis-policy-luna-rl-v6', 'analysis-policy-luna-rl-v7',
-        'analysis-policy-luna-rl-v8', 'analysis-policy-luna-rl-v9',
+        'analysis-policy-luna-rl-v8', 'analysis-policy-luna-rl-v9', 'analysis-policy-luna-rl-v10',
+        'analysis-policy-luna-rl-v11',
     })
     # RL-04 STEP-001: the proposal identity is its own set, never a company deep-review identity.
     assert luna_identity.PROPOSAL_POLICY_IDENTITY == 'proposal-policy-luna-v1'
@@ -228,9 +233,15 @@ CARD_CONTRACT_FILES = {
     # 결정 B33: policy v4 extract output (no concept_candidates/operator, kind x unit branches).
     'card-extract-v2': 'bidops.requirement-extract.v2.json',
     'card-role-v1': 'bidops.verdict-role.v1.json',
+    # C16 (policy v10): role findings cite short evidence ids (E1...) only.
+    'card-role-v2': 'bidops.verdict-role.v2.json',
+    # C20 (policy v11): units by short ref (U1...), evidence by id.
+    'card-role-v3': 'bidops.verdict-role.v3.json',
     'card-synthesis-v1': 'bidops.practitioner-verdict.v1.json',
     # 결정 B55: policy v9 synthesis output (no blocking_condition_ids; code computes them).
     'card-synthesis-v2': 'bidops.practitioner-verdict.v2.json',
+    # C20 (policy v11): cautions/next actions cite unit refs and evidence ids only.
+    'card-synthesis-v3': 'bidops.practitioner-verdict.v3.json',
 }
 #: RL-04 STEP-001 (spec "인터페이스"): the proposal section runner contract.
 PROPOSAL_CONTRACT_FILES = {
@@ -255,6 +266,14 @@ CARD_OUTPUTS = {
                      'unit_findings': [{'unit_id': 'u1', 'assessment': 'unknown', 'reason': '확인 필요',
                                         'evidence_refs': [EVIDENCE]}],
                      'cautions': [], 'evidence_refs': [EVIDENCE]},
+    'card-role-v2': {'schema_version': 'bidops.verdict-role.v2', 'role': 'operations_risk',
+                     'unit_findings': [{'unit_id': 'u1', 'assessment': 'unknown', 'reason': 'check',
+                                        'evidence_ids': ['E1', 'E12']}],
+                     'cautions': [{'unit_id': 'u1', 'text': 'check', 'evidence_ids': ['E2']}]},
+    'card-role-v3': {'schema_version': 'bidops.verdict-role.v3', 'role': 'operations_risk',
+                     'unit_findings': [{'unit_ref': 'U1', 'assessment': 'unknown', 'reason': 'check',
+                                        'evidence_ids': ['E1', 'E12']}],
+                     'cautions': [{'unit_ref': 'U1', 'text': 'check', 'evidence_ids': ['E2']}]},
     'card-synthesis-v1': {'schema_version': 'bidops.practitioner-verdict.v1', 'verdict': '판단 불가',
                           'reason': '확인 필요 항목이 남아 있다.', 'blocking_condition_ids': [], 'cautions': [],
                           'next_actions': [{'unit_id': 'u1', 'owner': None, 'action': '상주 인력 확인',
@@ -263,6 +282,11 @@ CARD_OUTPUTS = {
                           'reason': '확인 필요 항목이 남아 있다.', 'cautions': [],
                           'next_actions': [{'unit_id': 'u1', 'owner': None, 'action': '상주 인력 확인',
                                             'evidence_refs': [EVIDENCE]}]},
+    'card-synthesis-v3': {'schema_version': 'bidops.practitioner-verdict.v3', 'verdict': '판단 불가',
+                          'reason': '확인 필요 항목이 남아 있다.',
+                          'cautions': [{'unit_ref': 'U2', 'text': 'check', 'evidence_ids': ['E3']}],
+                          'next_actions': [{'unit_ref': 'U1', 'owner': None, 'action': '상주 인력 확인',
+                                            'evidence_ids': ['E1']}]},
 }
 
 
@@ -273,8 +297,11 @@ def test_card_contracts_map_to_fixed_image_schema_files():
         'card-extract-v1': Path('/app/card-extract.json'),
         'card-extract-v2': Path('/app/card-extract-v2.json'),
         'card-role-v1': Path('/app/card-role.json'),
+        'card-role-v2': Path('/app/card-role-v2.json'),
+        'card-role-v3': Path('/app/card-role-v3.json'),
         'card-synthesis-v1': Path('/app/card-synthesis.json'),
         'card-synthesis-v2': Path('/app/card-synthesis-v2.json'),
+        'card-synthesis-v3': Path('/app/card-synthesis-v3.json'),
         # RL-04 STEP-001: the proposal section contract (5th registration place = this map).
         'proposal-section-v1': Path('/app/proposal-section.json'),
     }
@@ -486,7 +513,7 @@ def test_b28_card_output_schemas_use_only_live_proven_keywords():
     contracts = _Path(__file__).resolve().parents[2] / 'app' / 'deep_review' / 'contracts'
     # RL-04 STEP-001: the proposal section schema is decoded by the same strict runner.
     for name in ('bidops.requirement-extract.v1.json', 'bidops.requirement-extract.v2.json',
-                 'bidops.verdict-role.v1.json', 'bidops.practitioner-verdict.v1.json',
+                 'bidops.verdict-role.v1.json', 'bidops.verdict-role.v2.json', 'bidops.practitioner-verdict.v1.json',
                  'bidops.practitioner-verdict.v2.json', 'bidops.proposal-section.v1.json'):
         found: set[str] = set()
         used(runner.output_schema(_json.loads((contracts / name).read_text())), found)

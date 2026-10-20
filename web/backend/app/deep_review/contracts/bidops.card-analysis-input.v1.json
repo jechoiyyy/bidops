@@ -113,7 +113,7 @@
       "type": "object", "additionalProperties": false,
       "required": ["version", "sha256", "candidate_blocks", "selected_blocks"],
       "properties": {
-        "version": {"enum": ["card-sections-v1", "card-sections-v2", "card-sections-v3"]},
+        "version": {"enum": ["card-sections-v1", "card-sections-v2", "card-sections-v3", "card-sections-v4"]},
         "sha256": {"$ref": "#/$defs/sha256"},
         "candidate_blocks": {"type": "array", "items": {"$ref": "#/$defs/candidate_block"}},
         "selected_blocks": {"type": "array", "items": {"$ref": "#/$defs/selected_block"}}

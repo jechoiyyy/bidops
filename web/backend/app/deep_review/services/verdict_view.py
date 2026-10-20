@@ -22,6 +22,15 @@ Read projection of one card-v1 attempt (``bidops.practitioner-verdict-view.v1``)
   (company binding, ontology, documents/bundle, policy, superseded).  An SW
   flag change makes the review not current but has no HP-04 reason value.
 
+결정 C16: ``role_isolations`` lists the role items (policy v10) whose evidence ids
+failed, from the stored role rows at any availability ("검증 실패 — 사람 확인 필요");
+a completed "진행 가능" with any of them is ``processing_failed``.  결정 C19 adds
+``synthesis_isolations`` from the final row's ``isolated_items`` (a v10 row written
+before C19 has no key: none); a dropped item is never a model next action of the
+result.  A foreign-unit role caution or an outside-roles synthesis item may name an
+id that is no card unit (``normalized_id`` null); any other such record is
+``processing_failed``.
+
 Nothing here writes (except the feedback insert), enqueues or calls a model.
 Any disagreement in the stored rows is ``processing_failed`` -- never repaired.
 """
@@ -72,7 +81,11 @@ from ..schemas.verdict_view import (
 )
 from . import transfer_policy
 from .card_analysis import NEEDS_HUMAN_REVIEW_CODES
-from .card_roles import cited_constraint_refs
+from .card_roles import (
+    ROLE_CAUTION_FOREIGN_UNIT_RULE,
+    SYNTHESIS_UNIT_OUTSIDE_ROLES_RULE,
+    cited_constraint_refs,
+)
 from .company_deep_review import company_review_current_flags, resolve_company_deep_policy, rl_path
 from .deep_reviews import DeepReviewServiceError, _policy_payload, quality_status_for_review
 from .luna_identity import policy_reasoning_effort
@@ -230,6 +243,8 @@ class _AttemptStages:
         self.final: CardAssembledPractitionerVerdict | None = None
         #: 결정 B51: units isolated at extract (``unit_id`` -> rule codes).
         self.rejected: dict[str, list[str]] = {}
+        #: 결정 C16: role items isolated in the role rows (role order, then record order).
+        self.role_isolations: list[tuple[str, Any]] = []
         try:
             for row in self.rows:
                 payload = row.payload if isinstance(row.payload, Mapping) else {}
@@ -250,6 +265,7 @@ class _AttemptStages:
                     if result.role != row.stage_key:
                         raise _error("processing_failed")
                     self.roles[result.role] = result
+                    self.role_isolations.extend((result.role, item) for item in result.isolated_items or [])
                 elif row.stage == "synthesis":
                     self.final = CardAssembledPractitionerVerdict.model_validate(payload)
         except (ValidationError, TypeError, ValueError):
@@ -324,6 +340,9 @@ def _result(stages: _AttemptStages, card: CardAnalysisInput, labels: Mapping[str
     # on rows stored before the key, which can have none) and cap the verdict.
     final_rejected = {row.unit_id: list(row.rule_codes) for row in final.rejected_units or []}
     if final_rejected != stages.rejected or (stages.rejected and final.verdict == "진행 가능"):
+        raise _error("processing_failed")
+    # 결정 C16: an isolated role item caps the verdict like a rejected unit.
+    if stages.role_isolations and final.verdict == "진행 가능":
         raise _error("processing_failed")
     units = {unit.unit_id: unit for unit in card.units}
     order = {unit.unit_id: index for index, unit in enumerate(card.units)}
@@ -491,6 +510,8 @@ def _base_view(company_id: UUID, notice_id: int | None, *, briefing_item_id: UUI
         "briefing_item_id": str(briefing_item_id) if briefing_item_id is not None else None,
         "opportunity_id": opportunity_id,
         "rejected_units": [],
+        "role_isolations": [],
+        "synthesis_isolations": [],
     }
 
 
@@ -573,6 +594,31 @@ def _project_attempt(
     ]
     if set(stages.rejected) - {unit.unit_id for unit in card.units}:
         raise _error("processing_failed")
+    units_by_id = {unit.unit_id: unit for unit in card.units}
+    # 결정 C19: only a foreign-unit caution / an outside-roles synthesis item may name an id
+    # that is no unit of the card (the model's id); every other record names a card unit.
+    if any(item.unit_id not in units_by_id and ROLE_CAUTION_FOREIGN_UNIT_RULE not in item.rule_codes
+           for _role, item in stages.role_isolations):
+        raise _error("processing_failed")
+    synthesis_isolations = list(stages.final.isolated_items or []) if stages.final is not None else []
+    if any(item.unit_id not in units_by_id and SYNTHESIS_UNIT_OUTSIDE_ROLES_RULE not in item.rule_codes
+           for item in synthesis_isolations):
+        raise _error("processing_failed")
+
+    def normalized_id(unit_id: str) -> str | None:
+        unit = units_by_id.get(unit_id)
+        return unit.normalized_id if unit is not None else None
+
+    view["role_isolations"] = [
+        {"role": role, "unit_id": item.unit_id, "normalized_id": normalized_id(item.unit_id),
+         "kind": item.kind, "rule_codes": list(item.rule_codes)}
+        for role, item in stages.role_isolations
+    ]
+    view["synthesis_isolations"] = [
+        {"unit_id": item.unit_id, "normalized_id": normalized_id(item.unit_id), "kind": item.kind,
+         "rule_codes": list(item.rule_codes)}
+        for item in synthesis_isolations
+    ]
     view["error_code"] = error_code if availability in {"failed", "needs_human_review"} else None
     if availability == "completed":
         view["result"] = _result(stages, card, labels)

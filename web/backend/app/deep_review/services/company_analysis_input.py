@@ -545,6 +545,19 @@ def card_fact_value(frozen: Mapping[str, Any], fact_key: str, path: Sequence[str
 #   ``bidops.requirement-extract.v2``) sends the frozen units unchanged even
 #   for ``card-sections-v3``: code fills the concepts after the call (they are
 #   still computed before the call so an inexpressible unit fails closed);
+# * role of policy v10 (결정 C16, role contract v2): also ``evidence_catalog`` =
+#   ``card_role_evidence_catalog`` of the role's own extract -- per unit (role
+#   order) the unit's evidence triples, then its constraint triples not already
+#   listed, each with a short id ``E1``..``En`` unique in the payload and its
+#   ``block_key``/``quote`` (no source hash: the model cites ids only);
+# * role of policy v11 (결정 C20, role contract v3): the v10 role payload with every
+#   ``extract``/``compare`` item and catalog row naming its unit by ``unit_ref``
+#   ``U1``..``Un`` (role extract order, ``card_role_unit_refs``) instead of
+#   ``unit_id`` -- no unit id is sent; the evidence ids are the v10 ones;
+# * synthesis of policy v11 (결정 C20, synthesis contract v3): ``roles`` re-expressed
+#   with ``unit_ref``/``evidence_ids`` and ``unit_catalog`` = the role units
+#   (``U1``..``Un``) with their role evidence (``E1``..``Em``, unique in the payload;
+#   ``card_synthesis_ref_payload``); no unit id is sent except ``rejected_units``;
 # * never: notes, operational ids (approval/cap/briefing/Slack/attempt/review),
 #   policy/model identity, company binding version ids or hashes.
 #
@@ -558,15 +571,31 @@ CARD_TRANSFER_STAGE_KEYS: dict[str, frozenset[str]] = {
     "role": frozenset({"role", "extract", "compare", "profile_facts", "profile_evidence"}),
     "synthesis": frozenset({"roles", "profile_facts", "profile_evidence"}),
 }
-#: 결정 B24: the extra synthesis key of a ``card-sections-v2``/``-v3`` input.
+#: 결정 B24: the extra synthesis key of a ``card-sections-v2``/``-v3``/``-v4`` (C15) input.
 CARD_SYNTHESIS_V2_EXTRA_KEYS = frozenset({"missing_sections"})
-_MISSING_SECTIONS_SELECTORS = frozenset({"card-sections-v2", "card-sections-v3"})
+_MISSING_SECTIONS_SELECTORS = frozenset({"card-sections-v2", "card-sections-v3", "card-sections-v4"})
 #: 결정 B51: the extra synthesis key of a policy v7 payload (isolated unit ids).
 CARD_SYNTHESIS_V7_EXTRA_KEYS = frozenset({"rejected_units"})
-#: 결정 B30: the extra per-unit extract key of a ``card-sections-v3`` input.
+#: 결정 C16: the extra role key of a policy v10 payload (role contract v2 evidence ids).
+CARD_ROLE_V2_EXTRA_KEYS = frozenset({"evidence_catalog"})
+#: 결정 C16: exact keys of one catalog row and of one of its evidence entries.
+CARD_ROLE_CATALOG_KEYS = frozenset({"unit_id", "evidence"})
+CARD_ROLE_CATALOG_EVIDENCE_KEYS = frozenset({"evidence_id", "block_key", "quote"})
+#: 결정 C20 (policy v11): the unit reference key of the role/synthesis v3 payloads and
+#: the exact keys of one ``evidence_catalog`` / ``unit_catalog`` row (evidence entries
+#: keep ``CARD_ROLE_CATALOG_EVIDENCE_KEYS``).
+CARD_UNIT_REF_KEY = "unit_ref"
+CARD_UNIT_REF_CATALOG_KEYS = frozenset({"unit_ref", "evidence"})
+#: 결정 C20: the extra synthesis key of a policy v11 payload and the exact keys of its role rows.
+CARD_SYNTHESIS_V3_EXTRA_KEYS = frozenset({"unit_catalog"})
+CARD_SYNTHESIS_REF_ROLE_KEYS = frozenset({"role", "unit_findings", "cautions", "isolated_items"})
+CARD_SYNTHESIS_REF_FINDING_KEYS = frozenset({"unit_ref", "assessment", "reason", "evidence_ids"})
+CARD_SYNTHESIS_REF_CAUTION_KEYS = frozenset({"unit_ref", "text", "evidence_ids"})
+CARD_SYNTHESIS_REF_ISOLATION_KEYS = frozenset({"kind", "unit_ref", "rule_codes"})
+#: 결정 B30: the extra per-unit extract key of a ``card-sections-v3`` (and v4, C15) input.
 CARD_EXTRACT_V3_UNIT_EXTRA_KEYS = frozenset({"expected_concepts"})
 CARD_EXPECTED_CONCEPT_KEYS = frozenset({"concept_id", "alias_text"})
-_EXPECTED_CONCEPTS_SELECTOR = "card-sections-v3"
+_EXPECTED_CONCEPTS_SELECTORS = frozenset({"card-sections-v3", "card-sections-v4"})
 #: Policy ``stage_schema`` values (결정 B33).  v2: concepts are code-filled, not sent.
 _STAGE_SCHEMA_V1 = "bidops.requirement-extract.v1"
 _STAGE_SCHEMA_V2 = "bidops.requirement-extract.v2"
@@ -893,8 +922,19 @@ def check_card_transfer_payload(
     ontology: Any = None,
     stage_schema: str = _STAGE_SCHEMA_V1,
     rejected_units: Sequence[str] | None = None,
+    evidence_ids: bool = False,
+    unit_refs: bool = False,
 ) -> None:
     """Strict D2 check of one stage payload against its frozen v2 input.
+
+    ``evidence_ids`` (policy v10 role payload, 결정 C16): the role payload also has
+    ``evidence_catalog``, exactly ``card_role_evidence_catalog`` of its own extract.
+
+    ``unit_refs`` (policy v11, 결정 C20): a role payload (with ``evidence_ids``) names
+    every extract/compare item and catalog row by ``unit_ref`` ``U1``..``Un`` in order
+    and carries no ``unit_id`` key; a synthesis payload has ``unit_catalog`` and ref-form
+    ``roles`` (``_check_synthesis_refs``).  Either way no frozen unit id occurs in the
+    payload text (a synthesis payload's ``rejected_units`` excepted).
 
     ``company_input_invalid`` when: the top-level keys are not the stage's
     exact set; an extract batch/unit is not the frozen card/segment unit or the
@@ -925,8 +965,41 @@ def check_card_transfer_payload(
         if stage != "synthesis" or expected_keys is None:
             raise _transfer_invalid()
         expected_keys = expected_keys | CARD_SYNTHESIS_V7_EXTRA_KEYS
+    if evidence_ids:
+        # 결정 C16 (policy v10): the role payload names its evidence by short id.
+        if stage != "role" or expected_keys is None:
+            raise _transfer_invalid()
+        expected_keys = expected_keys | CARD_ROLE_V2_EXTRA_KEYS
+    if unit_refs:
+        # 결정 C20 (policy v11): role (with evidence ids) or synthesis payloads only.
+        if expected_keys is None or (stage == "role" and not evidence_ids) or stage not in {"role", "synthesis"}:
+            raise _transfer_invalid()
+        if stage == "synthesis":
+            expected_keys = expected_keys | CARD_SYNTHESIS_V3_EXTRA_KEYS
     if expected_keys is None or not isinstance(payload, Mapping) or set(payload) != expected_keys:
         raise _transfer_invalid()
+    if unit_refs:
+        if stage == "role":
+            _check_role_refs(payload)
+        else:
+            _check_synthesis_refs(payload)
+        frozen_units = frozen["card_analysis"].get("units", [])
+        visible = _canonical_text({key: value for key, value in payload.items() if key != "rejected_units"})
+        if any(isinstance(row, Mapping) and isinstance(row.get("unit_id"), str) and row["unit_id"] in visible
+               for row in frozen_units):
+            raise _transfer_invalid()
+    elif evidence_ids:
+        catalog = payload.get("evidence_catalog")
+        if (
+            not isinstance(catalog, list)
+            or any(not isinstance(row, Mapping) or set(row) != CARD_ROLE_CATALOG_KEYS
+                   or not isinstance(row.get("evidence"), list)
+                   or any(not isinstance(entry, Mapping) or set(entry) != CARD_ROLE_CATALOG_EVIDENCE_KEYS
+                          for entry in row["evidence"])
+                   for row in catalog)
+            or catalog != card_role_evidence_catalog(payload.get("extract"))
+        ):
+            raise _transfer_invalid()
     if missing_sections is not None and payload.get("missing_sections") != missing_sections:
         # 결정 B24: exactly the frozen list, in its order (possibly empty).
         raise _transfer_invalid()
@@ -966,7 +1039,7 @@ def check_card_transfer_payload(
                 raise _transfer_invalid()
             for frozen_unit in expected_units:
                 card_expected_concepts(_unit_texts(frozen_unit), ontology)
-        elif _selector_version(card) == _EXPECTED_CONCEPTS_SELECTOR:
+        elif _selector_version(card) in _EXPECTED_CONCEPTS_SELECTORS:
             # 결정 B30: frozen unit + exactly the deterministic expected concepts.
             if ontology is None or not isinstance(sent_units, list) or len(sent_units) != len(expected_units):
                 raise _transfer_invalid()
@@ -1050,7 +1123,7 @@ def card_extract_transfer(
     batch = batches[batch_index]
     units = {row.get("unit_id"): row for row in card.get("units", []) if isinstance(row, Mapping)}
     sent_units = [deepcopy(units.get(unit_id)) for unit_id in batch.get("unit_ids", [])]
-    if stage_schema == _STAGE_SCHEMA_V1 and _selector_version(card) == _EXPECTED_CONCEPTS_SELECTOR:
+    if stage_schema == _STAGE_SCHEMA_V1 and _selector_version(card) in _EXPECTED_CONCEPTS_SELECTORS:
         for unit in sent_units:
             if not isinstance(unit, dict):
                 raise _transfer_invalid()
@@ -1066,6 +1139,316 @@ def card_extract_transfer(
     return payload
 
 
+def card_role_evidence_index(extract: Mapping[str, Any], *, unit_key: str = "unit_id") -> list[dict[str, str]]:
+    """결정 C16: the short evidence ids of one role extract, in a fixed order.
+
+    For each extract item (input order): its ``evidence`` triples, then its
+    constraint triples ``(locator.source_sha256, locator.block_key, quote)`` that
+    are not already listed for that unit (the per-unit set of 결정 B53).  Ids are
+    ``E1``..``En`` in that order across the whole role payload, so an id is
+    unique in the payload and belongs to exactly one unit.  Rows are
+    ``{evidence_id, unit_id, source_sha256, block_key, quote}``.  A malformed
+    extract is ``company_input_invalid``.
+
+    ``unit_key`` (결정 C20): the item key naming the unit -- ``unit_ref`` for the
+    ref-form extract of a v11 role payload; rows then carry ``unit_ref`` instead of
+    ``unit_id``.  The ids do not depend on the key (same items, same order).
+    """
+
+    items = extract.get("items") if isinstance(extract, Mapping) else None
+    if not isinstance(items, list) or unit_key not in {"unit_id", CARD_UNIT_REF_KEY}:
+        raise _transfer_invalid()
+    rows: list[dict[str, str]] = []
+    for item in items:
+        if not isinstance(item, Mapping) or not isinstance(item.get(unit_key), str):
+            raise _transfer_invalid()
+        evidence = item.get("evidence")
+        constraints = item.get("constraints")
+        if not isinstance(evidence, list) or not isinstance(constraints, list):
+            raise _transfer_invalid()
+        triples: list[tuple[Any, Any, Any]] = []
+        for row in evidence:
+            if not isinstance(row, Mapping):
+                raise _transfer_invalid()
+            triples.append((row.get("source_sha256"), row.get("block_key"), row.get("quote")))
+        for row in constraints:
+            locator = row.get("locator") if isinstance(row, Mapping) else None
+            if not isinstance(locator, Mapping):
+                raise _transfer_invalid()
+            triples.append((locator.get("source_sha256"), locator.get("block_key"), row.get("quote")))
+        seen: set[tuple[str, str, str]] = set()
+        for triple in triples:
+            if any(not isinstance(value, str) or not value for value in triple):
+                raise _transfer_invalid()
+            if triple in seen:
+                continue
+            seen.add(triple)
+            rows.append({"evidence_id": f"E{len(rows) + 1}", unit_key: item[unit_key],
+                         "source_sha256": triple[0], "block_key": triple[1], "quote": triple[2]})
+    return rows
+
+
+def card_role_evidence_catalog(extract: Mapping[str, Any], *, unit_key: str = "unit_id") -> list[dict[str, Any]]:
+    """결정 C16: the sent ``evidence_catalog`` -- per role unit ``{unit_id, evidence: [{evidence_id, block_key, quote}]}``.
+
+    결정 C20: ``unit_key="unit_ref"`` (v11 ref-form extract) gives ``{unit_ref, evidence}`` rows.
+    """
+
+    index = card_role_evidence_index(extract, unit_key=unit_key)
+    catalog = [{unit_key: item[unit_key], "evidence": []} for item in extract["items"]]
+    by_unit = {row[unit_key]: row for row in catalog}
+    for row in index:
+        by_unit[row[unit_key]]["evidence"].append(
+            {"evidence_id": row["evidence_id"], "block_key": row["block_key"], "quote": row["quote"]})
+    return catalog
+
+
+def card_role_unit_refs(extract: Mapping[str, Any]) -> list[dict[str, str]]:
+    """결정 C20: the short unit refs of one role extract -- ``[{unit_ref, unit_id}]``, ``U1``..``Un`` in item order.
+
+    The role payload of policy v11 names units only by these refs; the validator
+    maps an answered ref back with the same function (an explicit pointer, never a
+    guess).  A malformed or duplicate-unit extract is ``company_input_invalid``.
+    """
+
+    items = extract.get("items") if isinstance(extract, Mapping) else None
+    if not isinstance(items, list) or any(
+        not isinstance(item, Mapping) or not isinstance(item.get("unit_id"), str) for item in items
+    ):
+        raise _transfer_invalid()
+    unit_ids = [item["unit_id"] for item in items]
+    if len(unit_ids) != len(set(unit_ids)):
+        raise _transfer_invalid()
+    return [{"unit_ref": f"U{index}", "unit_id": unit_id} for index, unit_id in enumerate(unit_ids, start=1)]
+
+
+def _ref_items(section: Mapping[str, Any], refs: Mapping[str, str]) -> dict[str, Any]:
+    """A copy of an extract/compare section whose items name their unit by ``unit_ref`` (no ``unit_id``)."""
+
+    items = section.get("items") if isinstance(section, Mapping) else None
+    if not isinstance(items, list) or any(not isinstance(item, Mapping) or item.get("unit_id") not in refs
+                                          for item in items):
+        raise _transfer_invalid()
+    return {
+        **deepcopy(dict(section)),
+        "items": [{CARD_UNIT_REF_KEY: refs[item["unit_id"]],
+                   **{key: deepcopy(value) for key, value in item.items() if key != "unit_id"}} for item in items],
+    }
+
+
+def card_role_ref_payload(extract: Mapping[str, Any], compare: Mapping[str, Any]) -> dict[str, Any]:
+    """결정 C20: the ref-form ``extract``, ``compare`` and ``evidence_catalog`` of a policy v11 role payload.
+
+    Every item keeps its content and names its unit by the ``card_role_unit_refs``
+    ref; the catalog rows are ``{unit_ref, evidence}`` with the v10 evidence ids
+    (``card_role_evidence_index`` numbering).  The compare items must be the
+    extract units in the same order.
+    """
+
+    refs = {row["unit_id"]: row["unit_ref"] for row in card_role_unit_refs(extract)}
+    compare_items = compare.get("items") if isinstance(compare, Mapping) else None
+    if not isinstance(compare_items, list) or [
+        item.get("unit_id") if isinstance(item, Mapping) else None for item in compare_items
+    ] != list(refs):
+        raise _transfer_invalid()
+    sent_extract = _ref_items(extract, refs)
+    return {
+        "extract": sent_extract,
+        "compare": _ref_items(compare, refs),
+        "evidence_catalog": card_role_evidence_catalog(sent_extract, unit_key=CARD_UNIT_REF_KEY),
+    }
+
+
+def _check_role_refs(payload: Mapping[str, Any]) -> None:
+    """결정 C20: the v11 role payload's ``extract``/``compare``/``evidence_catalog`` are exactly ref form."""
+
+    extract, compare, catalog = payload.get("extract"), payload.get("compare"), payload.get("evidence_catalog")
+    sections = [extract, compare]
+    if any(not isinstance(section, Mapping) or not isinstance(section.get("items"), list) for section in sections):
+        raise _transfer_invalid()
+    refs = [f"U{index}" for index in range(1, len(extract["items"]) + 1)]
+    for section in sections:
+        if [item.get(CARD_UNIT_REF_KEY) if isinstance(item, Mapping) else None for item in section["items"]] != refs:
+            raise _transfer_invalid()
+        if any("unit_id" in item for item in section["items"]):
+            raise _transfer_invalid()
+    if extract.get("rejected_units", []) != []:
+        raise _transfer_invalid()
+    if (
+        not isinstance(catalog, list)
+        or any(not isinstance(row, Mapping) or set(row) != CARD_UNIT_REF_CATALOG_KEYS
+               or not isinstance(row.get("evidence"), list)
+               or any(not isinstance(entry, Mapping) or set(entry) != CARD_ROLE_CATALOG_EVIDENCE_KEYS
+                      for entry in row["evidence"])
+               for row in catalog)
+        or catalog != card_role_evidence_catalog(extract, unit_key=CARD_UNIT_REF_KEY)
+    ):
+        raise _transfer_invalid()
+
+
+def _evidence_triple(row: Any) -> tuple[Any, Any, Any]:
+    if not isinstance(row, Mapping):
+        raise _transfer_invalid()
+    return (row.get("source_sha256"), row.get("block_key"), row.get("quote"))
+
+
+def card_synthesis_unit_index(roles: Sequence[Mapping[str, Any]]) -> tuple[list[dict[str, str]], list[dict[str, str]]]:
+    """결정 C20: the synthesis-level unit refs and evidence ids of the three stored role rows.
+
+    Units: every finding unit in role order (the rows as given -- canonical
+    ``eligibility_economics``, ``technical_fit``, ``operations_risk``), then finding
+    order, first occurrence only; refs ``U1``..``Un``.  Evidence of one unit: the
+    role's global ``evidence_refs``, its finding's ``evidence_refs`` and the role's
+    cautions' ``evidence_refs`` for that unit (the set ``validate_practitioner_verdict``
+    accepts), first occurrence order, distinct triples.  Ids ``E1``..``Em`` follow
+    the unit order, so an id is unique in the payload and belongs to exactly one
+    unit.  Returns ``([{unit_ref, unit_id}], [{evidence_id, unit_id, source_sha256,
+    block_key, quote}])``.  A malformed row is ``company_input_invalid``.
+    """
+
+    if not isinstance(roles, Sequence) or isinstance(roles, (str, bytes)):
+        raise _transfer_invalid()
+    order: list[str] = []
+    evidence: dict[str, list[tuple[Any, Any, Any]]] = {}
+
+    def add(unit_id: Any, triple: tuple[Any, Any, Any]) -> None:
+        if any(not isinstance(value, str) or not value for value in triple):
+            raise _transfer_invalid()
+        if triple not in evidence[unit_id]:
+            evidence[unit_id].append(triple)
+
+    for role in roles:
+        findings = role.get("unit_findings") if isinstance(role, Mapping) else None
+        cautions = role.get("cautions") if isinstance(role, Mapping) else None
+        global_refs = role.get("evidence_refs", []) if isinstance(role, Mapping) else None
+        if not isinstance(findings, list) or not isinstance(cautions, list) or not isinstance(global_refs, list):
+            raise _transfer_invalid()
+        for finding in findings:
+            unit_id = finding.get("unit_id") if isinstance(finding, Mapping) else None
+            refs = finding.get("evidence_refs") if isinstance(finding, Mapping) else None
+            if not isinstance(unit_id, str) or not isinstance(refs, list):
+                raise _transfer_invalid()
+            if unit_id not in evidence:
+                order.append(unit_id)
+                evidence[unit_id] = []
+            for row in [*global_refs, *refs]:
+                add(unit_id, _evidence_triple(row))
+        for caution in cautions:
+            unit_id = caution.get("unit_id") if isinstance(caution, Mapping) else None
+            refs = caution.get("evidence_refs") if isinstance(caution, Mapping) else None
+            if unit_id not in evidence or not isinstance(refs, list):
+                raise _transfer_invalid()  # a stored role caution always names a finding unit
+            for row in refs:
+                add(unit_id, _evidence_triple(row))
+    units = [{"unit_ref": f"U{index}", "unit_id": unit_id} for index, unit_id in enumerate(order, start=1)]
+    index: list[dict[str, str]] = []
+    for unit_id in order:
+        for source_sha256, block_key, quote in evidence[unit_id]:
+            index.append({"evidence_id": f"E{len(index) + 1}", "unit_id": unit_id, "source_sha256": source_sha256,
+                          "block_key": block_key, "quote": quote})
+    return units, index
+
+
+def card_synthesis_ref_payload(roles: Sequence[Mapping[str, Any]]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """결정 C20: the ref-form ``roles`` and the ``unit_catalog`` of a policy v11 synthesis payload.
+
+    Each stored role row (v11: v1 shape with ``isolated_items`` and no global
+    evidence) becomes ``{role, unit_findings: [{unit_ref, assessment, reason,
+    evidence_ids}], cautions: [{unit_ref, text, evidence_ids}], isolated_items:
+    [{kind, unit_ref, rule_codes}]}``; an isolation record whose unit is not a role
+    unit (a dropped caution that named no unit of the role) has ``unit_ref: null``.
+    ``unit_catalog`` = ``[{unit_ref, evidence: [{evidence_id, block_key, quote}]}]``
+    (``card_synthesis_unit_index``).  No unit id is carried.
+    """
+
+    units, index = card_synthesis_unit_index(roles)
+    ref_of = {row["unit_id"]: row["unit_ref"] for row in units}
+    id_of = {(row["unit_id"], row["source_sha256"], row["block_key"], row["quote"]): row["evidence_id"]
+             for row in index}
+
+    def ids(unit_id: str, refs: Sequence[Any]) -> list[str]:
+        return [id_of[(unit_id, *_evidence_triple(row))] for row in refs]
+
+    sent: list[dict[str, Any]] = []
+    for role in roles:
+        isolated = role.get("isolated_items")
+        if role.get("evidence_refs", []) != [] or not isinstance(isolated, list) or any(
+            not isinstance(row, Mapping) or not isinstance(row.get("rule_codes"), list) for row in isolated
+        ):
+            raise _transfer_invalid()  # only the v11 stored role shape is expressible by refs
+        sent.append({
+            "role": role.get("role"),
+            "unit_findings": [
+                {"unit_ref": ref_of[row["unit_id"]], "assessment": row.get("assessment"), "reason": row.get("reason"),
+                 "evidence_ids": ids(row["unit_id"], row["evidence_refs"])}
+                for row in role["unit_findings"]
+            ],
+            "cautions": [
+                {"unit_ref": ref_of[row["unit_id"]], "text": row.get("text"),
+                 "evidence_ids": ids(row["unit_id"], row["evidence_refs"])}
+                for row in role["cautions"]
+            ],
+            "isolated_items": [
+                {"kind": row.get("kind"), "unit_ref": ref_of.get(row.get("unit_id")),
+                 "rule_codes": list(row["rule_codes"])}
+                for row in isolated
+            ],
+        })
+    catalog = [{"unit_ref": row["unit_ref"], "evidence": []} for row in units]
+    by_ref = {row["unit_ref"]: row for row in catalog}
+    for row in index:
+        by_ref[ref_of[row["unit_id"]]]["evidence"].append(
+            {"evidence_id": row["evidence_id"], "block_key": row["block_key"], "quote": row["quote"]})
+    return sent, catalog
+
+
+def _check_synthesis_refs(payload: Mapping[str, Any]) -> None:
+    """결정 C20: the v11 synthesis payload's ``roles``/``unit_catalog`` are a closed, consistent ref form.
+
+    Catalog rows are ``U1``..``Un`` in order with evidence ids ``E1``..``Em`` in
+    catalog order; every role row has exactly the ref-form keys; a finding/caution
+    names a catalog ref and only that unit's ids; an isolation record names a
+    catalog ref or ``null``.
+    """
+
+    catalog, roles = payload.get("unit_catalog"), payload.get("roles")
+    if not isinstance(catalog, list) or not isinstance(roles, list) or any(
+        not isinstance(row, Mapping) or set(row) != CARD_UNIT_REF_CATALOG_KEYS or not isinstance(row["evidence"], list)
+        or any(not isinstance(entry, Mapping) or set(entry) != CARD_ROLE_CATALOG_EVIDENCE_KEYS
+               for entry in row["evidence"])
+        for row in catalog
+    ):
+        raise _transfer_invalid()
+    if [row["unit_ref"] for row in catalog] != [f"U{index}" for index in range(1, len(catalog) + 1)]:
+        raise _transfer_invalid()
+    ids = [entry["evidence_id"] for row in catalog for entry in row["evidence"]]
+    if ids != [f"E{index}" for index in range(1, len(ids) + 1)]:
+        raise _transfer_invalid()
+    allowed = {row["unit_ref"]: {entry["evidence_id"] for entry in row["evidence"]} for row in catalog}
+
+    def item_ok(row: Any, keys: frozenset[str]) -> bool:
+        return (
+            isinstance(row, Mapping) and set(row) == keys and row.get("unit_ref") in allowed
+            and isinstance(row.get("evidence_ids"), list)
+            and all(evidence_id in allowed[row["unit_ref"]] for evidence_id in row["evidence_ids"])
+        )
+
+    for role in roles:
+        if (
+            not isinstance(role, Mapping) or set(role) != CARD_SYNTHESIS_REF_ROLE_KEYS
+            or not isinstance(role.get("unit_findings"), list) or not isinstance(role.get("cautions"), list)
+            or not isinstance(role.get("isolated_items"), list)
+            or not all(item_ok(row, CARD_SYNTHESIS_REF_FINDING_KEYS) for row in role["unit_findings"])
+            or not all(item_ok(row, CARD_SYNTHESIS_REF_CAUTION_KEYS) for row in role["cautions"])
+            or any(not isinstance(row, Mapping) or set(row) != CARD_SYNTHESIS_REF_ISOLATION_KEYS
+                   or (row.get("unit_ref") is not None and row.get("unit_ref") not in allowed)
+                   for row in role["isolated_items"])
+        ):
+            raise _transfer_invalid()
+    if {row["unit_ref"] for role in roles for row in role["unit_findings"]} != set(allowed):
+        raise _transfer_invalid()
+
+
 def card_role_transfer(
     frozen: Mapping[str, Any],
     *,
@@ -1073,12 +1456,27 @@ def card_role_transfer(
     extract: Mapping[str, Any],
     compare: Mapping[str, Any],
     operational_values: Sequence[Any] = (),
+    evidence_ids: bool = False,
+    unit_refs: bool = False,
 ) -> dict[str, Any]:
-    """The checked ``card-role-v1`` payload: frozen role inputs + the facts its compare references (B11)."""
+    """The checked ``card-role-v1`` payload: frozen role inputs + the facts its compare references (B11).
+
+    ``evidence_ids`` (policy v10, 결정 C16, ``card-role-v2``) adds ``evidence_catalog``
+    (``card_role_evidence_catalog`` of the role extract); the default keeps the v1 payload.
+    ``unit_refs`` (policy v11, 결정 C20, ``card-role-v3``, requires ``evidence_ids``) sends
+    ``card_role_ref_payload``: items and catalog rows name units by ``U`` ref only.
+    """
 
     payload = {"role": role, "extract": deepcopy(dict(extract)), "compare": deepcopy(dict(compare)),
                **card_company_transfer(frozen, card_referenced_fact_keys(compare))}
-    check_card_transfer_payload("role", payload, frozen, operational_values=operational_values)
+    if unit_refs:
+        if not evidence_ids:
+            raise _transfer_invalid()
+        payload.update(card_role_ref_payload(extract, compare))
+    elif evidence_ids:
+        payload["evidence_catalog"] = card_role_evidence_catalog(payload["extract"])
+    check_card_transfer_payload("role", payload, frozen, operational_values=operational_values,
+                                evidence_ids=evidence_ids, unit_refs=unit_refs)
     return payload
 
 
@@ -1089,22 +1487,28 @@ def card_synthesis_transfer(
     fact_keys: Sequence[str],
     operational_values: Sequence[Any] = (),
     rejected_units: Sequence[str] | None = None,
+    unit_refs: bool = False,
 ) -> dict[str, Any]:
     """The checked ``card-synthesis-v1`` payload: three role results + the union of their referenced facts (B11).
 
     A ``card-sections-v2`` input adds ``missing_sections`` (결정 B24).  Policy v7
     (결정 B51) adds ``rejected_units`` = the isolated unit ids (possibly empty);
-    ``None`` keeps the v1-v6 payload without the key.
+    ``None`` keeps the v1-v6 payload without the key.  Policy v11 (결정 C20,
+    ``card-synthesis-v3``) sends the roles in ref form plus ``unit_catalog``
+    (``card_synthesis_ref_payload``).
     """
 
     payload = {"roles": [deepcopy(dict(row)) for row in roles], **card_company_transfer(frozen, fact_keys)}
+    if unit_refs:
+        payload["roles"], payload["unit_catalog"] = card_synthesis_ref_payload(roles)
     missing_sections = card_synthesis_missing_sections(frozen)
     if missing_sections is not None:
         payload["missing_sections"] = missing_sections
     if rejected_units is not None:
         payload["rejected_units"] = list(rejected_units)
     check_card_transfer_payload("synthesis", payload, frozen, fact_keys=fact_keys,
-                                operational_values=operational_values, rejected_units=rejected_units)
+                                operational_values=operational_values, rejected_units=rejected_units,
+                                unit_refs=unit_refs)
     return payload
 
 
@@ -1117,6 +1521,16 @@ __all__ = [
     "CARD_TRANSFER_EVIDENCE_KEYS",
     "CARD_SYNTHESIS_V2_EXTRA_KEYS",
     "CARD_SYNTHESIS_V7_EXTRA_KEYS",
+    "CARD_ROLE_CATALOG_EVIDENCE_KEYS",
+    "CARD_ROLE_CATALOG_KEYS",
+    "CARD_ROLE_V2_EXTRA_KEYS",
+    "CARD_SYNTHESIS_REF_CAUTION_KEYS",
+    "CARD_SYNTHESIS_REF_FINDING_KEYS",
+    "CARD_SYNTHESIS_REF_ISOLATION_KEYS",
+    "CARD_SYNTHESIS_REF_ROLE_KEYS",
+    "CARD_SYNTHESIS_V3_EXTRA_KEYS",
+    "CARD_UNIT_REF_CATALOG_KEYS",
+    "CARD_UNIT_REF_KEY",
     "CARD_TRANSFER_STAGE_KEYS",
     "card_synthesis_missing_sections",
     "CARD_WITHHELD_FACT_KEYS",
@@ -1135,8 +1549,14 @@ __all__ = [
     "card_fact_value",
     "card_referenced_fact_keys",
     "card_extract_transfer",
+    "card_role_evidence_catalog",
+    "card_role_evidence_index",
+    "card_role_ref_payload",
     "card_role_transfer",
+    "card_role_unit_refs",
+    "card_synthesis_ref_payload",
     "card_synthesis_transfer",
+    "card_synthesis_unit_index",
     "check_card_transfer_payload",
     "document_provenance",
     "frozen_provenance",

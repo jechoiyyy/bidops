@@ -159,6 +159,8 @@ REST는 `GET /api/companies/{company_id}/pre-specs/{notice_id}/verdict`다(HP04 
 
 ## 9. gold 10건 (작성 방식·품질 기준 확정, HP-06)
 
+> **RL 개정(2026-10-19, ADR-0073)**: 이 절의 gold 방식·품질 기준은 가상회사가 아니라 실회사 루트랩에서 [RL-05](groups/RL/features/RL-05-gold-acceptance/spec.md)가 그대로 실행한다(기준 파일은 같은 bytes). 달라지는 것: 표본은 실제 수집 사전규격 10건, 도구는 `scripts/rl-gold.py`, 평가 디렉터리는 `rl-evaluation-<date>/`(단일 `gold.v1.json`), 홀드아웃은 `verdict_request` `gold_holdout` 행이다. RL-05는 **의도적으로 `company_sha256` = RL-00 활성 `graph_sha256`을 쓴다** — HP-06 spec의 "DB graph SHA 금지"를 뒤집은 것이며(실회사는 파일 bytes가 아니라 등록·활성화된 그래프 버전이 근거), `ontology_sha256`은 제품 `KnowledgeOntologyVersion.sha256`이다.
+
 2026-10-15 승인: 회사·용어 기준 동결 후 모델 출력을 보기 전에 사람이 작성한다. 준비된5문서부터 시작해 최종10문서를 채운다. 충족·부족 각각5개 필수 조건은 폐기하고 확인된 항목만 적는다. 미작성 null과 확인 후 없음 []를 구분한다. 불일치는 모델오류/사람정답누락/해석차이로 함께 검토한다. 품질 기준은 2026-10-15 사용자 “확정해”로 확정했으며 실제 검증·인수 결과는 아직 없다.
 
 - 문서마다 사용자가 모델 출력을 보기 전에 쓴다: 참여 판정(§7 enum), 차단 조건, 확인된 충족·부족(개수 강제 없음, 카드 ID 또는 조건 문장), 주의 포인트, 카드 ID 상태 표본 10(met/gap/unknown).
